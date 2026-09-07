@@ -5,7 +5,10 @@
 `a` 要素として組み立てられます。WAI-ARIA に hover card 専用パターンは存在しない
 ため `aria-expanded`/`aria-controls`/`aria-haspopup` は付与しません。開閉遅延
 （既定 600ms/300ms）は `data-open-delay`/`data-close-delay` として決定的に
-出力される SSR 設定値で、実タイマー駆動は wasm-full 側の責務です。
+出力される SSR 設定値で、実タイマー駆動は wasm-full 側の責務です。content は
+自由な `children` を受け取るため、`fandhe-frontend-pre-styled-ui` の `avatar`
+mod と組み合わせてユーザープロフィールプレビュー等の合成パターンも表現できます
+（下記 Examples 節「User profile preview」参照）。
 
 > [!IMPORTANT]
 > Demo はトリガー起点のオーバーレイ部品を「開いた状態」で固定掲示しています。

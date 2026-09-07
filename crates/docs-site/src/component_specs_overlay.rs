@@ -77,11 +77,13 @@
 //! 木経由で `render()` が行う（`features_and_table_cells_escape_xss_payloads`
 //! が既存フィクスチャで固定済み）。
 
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, p, strong, text, Node};
 use fandhe_frontend_pre_styled_ui::{
+    avatar::{self, AvatarProps, ImageStatus},
     button::{button, ButtonProps, ButtonVariant},
     collapsible,
     dialog::{self, ContentIds, DialogRole},
+    hover_card::{self, HoverCardDelays},
     ColorPalette, OpenState, Size,
 };
 
@@ -887,12 +889,15 @@ pub const FLOATING_PANEL: ComponentPageSpec = ComponentPageSpec {
 /// 一次情報: `crates/headless-ui/src/hover_card.rs`（モジュール doc・
 /// `root`/`trigger` シグネチャ・hover card 専用パターンが WAI-ARIA に
 /// 存在しないため `aria-expanded` 等を付与しないことの記述と実測テスト）。
+/// イシュー #2032（shadcn/ui 突合による Examples 節「User profile preview」
+/// 追加）。
 pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "リンク先プレビュー等、hover / focus で開閉するオーバーレイ。Root / Trigger / Positioner / Content / Arrow / ArrowTip の 6 anatomy パーツを持つ。",
         "trigger はリンク先プレビュー用途の a 要素であり、javascript: 等の危険スキームは fandhe-frontend-core の URL スキーム検証が除去する。",
         "HoverCardDelays（既定 open_ms: 600 / close_ms: 300）を data-open-delay / data-close-delay として root へ出力する。実際の hover/focus タイマー駆動は wasm-full 側の後続スコープ。",
         "WAI-ARIA に hover card 専用パターンは存在しないため、trigger へ aria-expanded / aria-controls / aria-haspopup は付与しない。",
+        "shadcn/ui（Base UI）の Basic Example（Avatar + ユーザー名/説明文の合成カード）は content の children へ avatar::root/fallback を並べるだけの既存 API のみで再現できる合成パターンであり、新規の variant/size/state 軸を追加しない（下記 Examples 節参照）。",
     ],
     arguments: &[
         ArgRow {
@@ -908,7 +913,11 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
             description: "hover/focus の開閉遅延（ms）。data-open-delay / data-close-delay として出力される決定的な SSR 設定値。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "User profile preview",
+        description: "shadcn/ui（Base UI）の Basic Example に相当する、avatar と説明テキストを組み合わせた合成パターンです。avatar は fandhe-frontend-pre-styled-ui::avatar の root/fallback をそのまま使い、外部画像を読み込まないフォールバック文字（イニシャル）のみで表示します。新しい variant や data-* 語彙を追加せず、既存の hover_card::content の自由な children と avatar の既存 API のみで構成しています。",
+        render: ex_hover_card_user_preview,
+    }],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"",
@@ -916,6 +925,67 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
     }],
     demo: None,
 };
+
+/// [`HOVER_CARD`] の Examples 節「User profile preview」レンダラ
+/// （イシュー #2032）。
+///
+/// shadcn/ui（Base UI）Hover Card ページの Basic Example（Avatar +
+/// ユーザー名/説明文の合成カード）を、既存 API のみで再現できることを示す
+/// 合成デモ。avatar は外部フェッチ・404 を発生させないよう
+/// `avatar::fallback`（イニシャル文字列のみ、画像なし）で表示する
+/// （`crates/docs-site/src/showcase.rs` の `avatar_section` が使う
+/// `data:` URI 固定パターンと同じ「外部 URL を使わない」方針）。
+/// 横並び（row）配置は `content` への `display: flex` 追加という既存 CSS
+/// 出力の変更を伴うため、単一部品の合成パターン補完という本イシューの
+/// スコープでは行わず、avatar と説明テキストは既定の縦積みのまま配置する
+/// （`crate::hover_card` モジュール doc「shadcn/ui 突合」節参照）。
+/// Demo（[`crate::showcase::hover_card_section`]）と同じページに描画
+/// されるため、id は衝突しない `showcase-hover-card-user-preview-*` を使う。
+fn ex_hover_card_user_preview() -> Node {
+    let open = OpenState::Open;
+    let delays = HoverCardDelays::default();
+
+    hover_card::root(
+        open,
+        delays,
+        vec![],
+        vec![
+            hover_card::trigger(
+                open,
+                Some("https://github.com/vercel"),
+                vec![],
+                vec![text("@vercel")],
+            ),
+            hover_card::positioner(
+                open,
+                vec![],
+                vec![hover_card::content(
+                    open,
+                    Some("showcase-hover-card-user-preview-content"),
+                    vec![],
+                    vec![
+                        avatar::root(
+                            &AvatarProps::default(),
+                            vec![],
+                            vec![avatar::fallback(
+                                ImageStatus::Error,
+                                vec![],
+                                vec![text("VC")],
+                            )],
+                        ),
+                        div(
+                            vec![],
+                            vec![
+                                p(vec![], vec![strong(vec![], vec![text("Vercel")])]),
+                                p(vec![], vec![text("Develop. Preview. Ship.")]),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
 
 /// `/themes/menu/`（Interactive カテゴリ）。
 ///
