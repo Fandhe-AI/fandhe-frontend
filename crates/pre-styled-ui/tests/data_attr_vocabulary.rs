@@ -37,6 +37,7 @@ use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
 use fandhe_frontend_pre_styled_ui::dialog::{self, DialogRole, OpenState};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldProps, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
+use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::tab_nav;
@@ -327,6 +328,25 @@ fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
         vec![],
     ));
     assert!(html.contains(r#"data-state="closed""#));
+}
+
+/// `pin_input.rs`（イシュー #2016、親 #2001）の pre-styled-only `separator`
+/// パートは独自の `data-*` を一切出力しない（`dialog_footer_and_alert_
+/// composition_emit_no_self_produced_data_attrs` と同型）。出力に現れる
+/// `data-*` は headless `Anatomy::part` が付与する `data-scope`/`data-part`
+/// のみであり、`role="presentation"`/`aria-hidden="true"` はいずれも
+/// `data-*` ではないため対象外（別途 `pin_input.rs` のなりすまし除去
+/// テストで固定済み）。
+#[test]
+fn pin_input_separator_emits_no_self_produced_data_attrs() {
+    let html = render(&pin_input::separator(vec![], vec![text("-")]));
+    assert!(html.contains(r#"data-scope="pin-input""#));
+    assert!(html.contains(r#"data-part="separator""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "separator は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
 }
 
 /// `progress.rs`（イシュー #763/#1564/#1688）は pre-styled-only の `data-*`

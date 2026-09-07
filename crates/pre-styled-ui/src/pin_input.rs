@@ -124,6 +124,54 @@
 //!   CSS（`[data-invalid]`/`[data-readonly]` 選択子）を実装することは
 //!   イシュー #1615 のスコープ外とする（headless 層の対応のみが本イシュー
 //!   の対象）。必要なら別 Issue として起票を提案する。
+//!
+//! # shadcn/ui 突合によるスタイル調整（イシュー #2016、親 #2001）
+//!
+//! shadcn/ui の Input OTP（`InputOTPGroup`/`InputOTPSeparator`）を
+//! **補完参照**（親トラッキング #2001 Phase 0 で確定した適用原則: 主基準は
+//! chakra-ui / Radix Themes のまま、shadcn は欠落バリアント・状態・合成
+//! パターンの補完のみに用いる）として突合し、以下を補完した。
+//!
+//! - **追加**: [`separator`]（pre-styled-only パート、下記「`separator`
+//!   パート」節参照）。桁グループ（例: 3-3 の 6 桁）の間に視覚区切りを
+//!   挟む合成パターンを、headless-ui 側の anatomy 変更なしに提供する。
+//! - **意図的に合わせなかった点**:
+//!   - shadcn の「セル間の枠線を共有した merge 表現」（隣接セルが 1 本の
+//!     枠線を共有する見た目）は採用しない。既存 chakra-ui 準拠の個別
+//!     ボックス + `gap`（[`control`] slot の CSS）を崩さないため。
+//!   - `InputOTPGroup` 相当の専用グループ・ラッパーパートは追加しない。
+//!     個別ボックスデザインでは [`control`] を複数回並べるだけで同じ
+//!     視覚効果を再現でき、専用パートの追加価値が乏しいため。
+//!     **注意（レイアウト前提）**: [`root`] の既定 CSS は `label` を
+//!     `control` の上に積むための `flex-direction: column` を持つ。この
+//!     ため `control()`/[`separator`]/`control()` を [`root`] の直下へ
+//!     そのまま並べると横並びにならず縦積みになる。3-3 等の桁グループを
+//!     横並びにするには、呼び出し側で `display: flex` のラッパー要素
+//!     （下記 `# Examples` 参照）を挟むこと。専用グループパートを設けない
+//!     設計判断（上記）の裏返しとして、このラッパーは呼び出し側の責務と
+//!     なる。
+//!   - `pattern`（数字のみ/英数字の入力種別）は headless 層の
+//!     [`PinInputKind`]（`Numeric`/`Alphanumeric`/`Alphabetic`）で既に
+//!     実装済みであり、見た目に影響しないため Themes 層の変更は不要。
+//!   - `controlled` の使用例は React 特有の状態管理パターンであり、本
+//!     リポジトリでは `fandhe_frontend_headless_ui::pin_input::PinInput`
+//!     状態機械 + `dispatch` が同等の役割を担うため、CSS/Themes 層の
+//!     ギャップではない。
+//!
+//! ## `separator` パート
+//!
+//! [`separator`] は headless-ui の pin-input anatomy に存在しない
+//! pre-styled-only な装飾専用パートである（[`crate::dialog::footer`]/
+//! [`crate::dialog::body`] と同型: モジュールローカルの `Anatomy` を新設し
+//! `ANATOMY.part(...)` を直接呼ぶ）。加えて
+//! [`fandhe_frontend_headless_ui::breadcrumb::separator`] と同型で
+//! `role="presentation"` + `aria-hidden="true"` を固定付与し、
+//! スクリーンリーダーの読み上げから除外する（区切り記号は視覚的な
+//! グルーピングのみが目的で、意味のある情報を持たないため）。この 2 属性は
+//! headless-ui がクレートルートで再エクスポート済みの `role`/`aria_hidden`
+//! 自由関数を呼ぶだけで完結し、headless-ui 側のソース変更は一切不要である。
+//! 区切り表現（テキスト・アイコン等）は固定せず [`separator`] の
+//! `children` で自由に与える（breadcrumb の `separator` と同じ設計判断）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -141,13 +189,52 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::pin_input::{
     control, hidden_input, input, label, PinInputAction, PinInputKind, PinInputProps,
 };
+// pre-styled-only `separator` パート（下記「shadcn/ui 突合」節）が使う。
+// `anatomy`/`Anatomy` はローカル ANATOMY 定義用、`aria_hidden`/`role` は
+// headless-ui がクレートルートで再エクスポート済みの自由関数（headless-ui
+// 側のソース変更なしに呼べる）。
+use fandhe_frontend_headless_ui::{anatomy, aria_hidden, role, Anatomy};
 
 /// headless `pin_input` anatomy の `data-part` 一覧
 /// （`crates/headless-ui/src/pin_input.rs` の `ANATOMY.part(...)` 呼び出しと
 /// 同期させる契約。ずれると [`stylesheet`] が一部パーツの CSS を出力しない
 /// fail-closed 側の不具合として現れるため、変更時は両ファイルを合わせて
-/// 確認する）。
-const SLOTS: &[&str] = &["root", "label", "control", "input", "hidden-input"];
+/// 確認する）。pre-styled-only の `separator`（イシュー #2016）を末尾へ
+/// 追加する。
+const SLOTS: &[&str] = &[
+    "root",
+    "label",
+    "control",
+    "input",
+    "hidden-input",
+    "separator",
+];
+
+/// pre-styled-only `separator` パート専用の `Anatomy`（イシュー #2016）。
+/// headless-ui 側の private `ANATOMY`（`crates/headless-ui/src/pin_input.rs`）
+/// とは別インスタンスだが `scope` 文字列（`"pin-input"`）は一致するため、
+/// 出力される `data-scope` の値は headless パーツと同じになる
+/// （[`crate::dialog`] の footer/body 先例と同型）。
+const ANATOMY: Anatomy = anatomy("pin-input");
+
+/// [`separator`] が固定付与する予約キー。呼び出し側 `attrs` からのなりすまし
+/// を [`drop_reserved`] で除去する
+/// （[`fandhe_frontend_headless_ui::breadcrumb`] の `PRESENTATION_RESERVED`
+/// と同型）。
+const SEPARATOR_RESERVED: &[&str] = &["role", "aria-hidden"];
+
+/// 呼び出し側 `attrs` から予約キー（本モジュールが固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致、
+/// `fandhe_frontend_headless_ui::breadcrumb::drop_reserved` と同型）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
 
 /// この styled PinInput の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
 /// のみが呼ぶ）。
@@ -175,6 +262,20 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("gap", "var(--fandhe-space-2)"),
+            ],
+        )
+        // pre-styled-only `separator` パート（イシュー #2016）。桁グループ
+        // 間の視覚区切り。`control` と高さを揃えるため `align-items: center`
+        // で中央寄せし、`input` と同じ色トークン（Forms 家族の抑制色）を
+        // 使う。新規トークンは追加せず既存 `--fandhe-color-fg-muted` のみ
+        // 参照する。
+        .base(
+            "separator",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("user-select", "none"),
             ],
         )
         .base(
@@ -347,6 +448,54 @@ pub fn root<'a>(
         ..Default::default()
     };
     fandhe_frontend_headless_ui::pin_input::root(complete, &props, merged, children)
+}
+
+/// pre-styled-only `separator` パート（`<span>`、イシュー #2016）を組み立てる。
+/// 桁グループ（例: 3-3 の 6 桁）の間に挟む視覚区切りであり、headless-ui の
+/// pin-input anatomy には存在しない（モジュール冒頭 rustdoc「shadcn/ui
+/// 突合によるスタイル調整」節参照）。`role="presentation"` +
+/// `aria-hidden="true"` を固定付与しスクリーンリーダーの読み上げから除外
+/// する（[`fandhe_frontend_headless_ui::breadcrumb::separator`] と同型の
+/// 判断）。区切り表現は固定テキストを持たず `children` で自由に与える。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// （[`crate::dialog::footer`] と同型）ため、呼び出し側 `attrs` に含まれる
+/// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
+/// `role`/`aria-hidden` のなりすましは [`drop_reserved`] が同様に除去する。
+///
+/// **レイアウト注意**: [`root`] は `flex-direction: column` を既定に持つ
+/// ため、`control()`/`separator`/`control()` を [`root`] へそのまま並べる
+/// と縦積みになる。3-3 等の桁グループを横並びにする場合は、下記のように
+/// `display: flex` のラッパー要素で囲うこと（専用グループパートを設けない
+/// 設計判断の裏返しとして、このラッパーは呼び出し側の責務となる。
+/// モジュール冒頭 rustdoc「shadcn/ui 突合によるスタイル調整」節参照）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{el, render, text};
+/// use fandhe_frontend_pre_styled_ui::pin_input;
+///
+/// let node = pin_input::separator(vec![], vec![text("-")]);
+/// let html = render(&node);
+/// assert!(html.contains(r#"data-scope="pin-input" data-part="separator""#));
+/// assert!(html.contains(r#"role="presentation""#));
+/// assert!(html.contains(r#"aria-hidden="true""#));
+///
+/// // 横並びの桁グループを作る場合は呼び出し側でラッパーを用意する:
+/// let group = el(
+///     "div",
+///     vec![("style", "display: flex; align-items: center;")],
+///     vec![pin_input::separator(vec![], vec![text("-")])],
+/// );
+/// assert!(render(&group).contains("display: flex"));
+/// ```
+#[must_use]
+pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, SEPARATOR_RESERVED);
+    let mut merged: Vec<(&str, &str)> = vec![role("presentation"), aria_hidden(true)];
+    merged.extend(attrs);
+    ANATOMY.part("separator", "span", merged, children)
 }
 
 #[cfg(test)]
@@ -563,6 +712,61 @@ mod tests {
         let html = render(&hidden_input(PAYLOAD, PAYLOAD, false, vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
+    }
+
+    // --- separator パート（イシュー #2016） ---
+
+    #[test]
+    fn stylesheet_contains_separator_slot_css() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="pin-input"][data-part="separator"] {"#));
+        assert!(css.contains("color: var(--fandhe-color-fg-muted);"));
+    }
+
+    #[test]
+    fn separator_outputs_scope_part_and_presentation_attrs() {
+        let html = render(&separator(vec![], vec![text("-")]));
+        assert!(html.contains(r#"data-scope="pin-input""#));
+        assert!(html.contains(r#"data-part="separator""#));
+        assert!(html.contains(r#"role="presentation""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(html.contains(">-</span>") || html.contains(">-<"));
+    }
+
+    #[test]
+    fn separator_role_and_aria_hidden_spoofing_is_dropped() {
+        let html = render(&separator(
+            vec![("role", "attacker"), ("aria-hidden", "false")],
+            vec![],
+        ));
+        assert_eq!(html.matches("role=").count(), 1);
+        assert_eq!(html.matches("aria-hidden=").count(), 1);
+        assert!(html.contains(r#"role="presentation""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn separator_data_scope_and_part_spoofing_is_dropped() {
+        let html = render(&separator(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="pin-input""#));
+        assert!(html.contains(r#"data-part="separator""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn separator_attrs_and_children_are_escaped() {
+        let html = render(&separator(
+            vec![("data-x", "\" onmouseover=\"alert(1)")],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)\""));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&quot;"));
+        assert!(html.contains("&lt;script&gt;"));
     }
 
     #[test]
