@@ -2245,7 +2245,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # 突合記録追加（0.124.1）と同型で patch バンプする。base 取り込み時の
 # 上記 0.131.0 バンプと衝突したため、その到達値へさらに patch バンプを
 # 重ねて 0.131.1 とする。
-version = "0.131.1"
+version = "0.132.0"
 
 
 edition = "2021"
