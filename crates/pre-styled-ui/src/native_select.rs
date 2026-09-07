@@ -52,6 +52,66 @@
 //! - **ネイティブ矢印維持**: 本モジュール冒頭の既存設計判断（`appearance:
 //!   none` 不使用）を変更しない。chakra のカスタム `Indicator` への追随は
 //!   引き続き意図的非採用。
+//!
+//! # shadcn/ui 突合（イシュー #2017）
+//!
+//! [shadcn/ui Native Select](https://ui.shadcn.com/docs/components/base/native-select)
+//! を補完参照（ルート #2001 Phase 0 で確定の適用原則。既存の視覚言語を
+//! shadcn 風へ置き換えることは目的としない）として突合した結果、
+//! `recipe()`/CSS 出力に実体変更は不要と判断した。以下、確認した項目を
+//! 記録する。
+//!
+//! - **`size` 段階（差分なし）**: shadcn の `sm`/`default` の 2 段は、
+//!   既存 xs〜xl の 5 段（#1678）に包含される（[`crate::input`] 判定と
+//!   同型）。
+//! - **disabled（差分なし）**: shadcn は `disabled:pointer-events-none
+//!   disabled:cursor-not-allowed` + ラッパー側 `opacity-50` を宣言するが、
+//!   本モジュールの [`crate::recipe::disabled_declarations`] が既に
+//!   `opacity: 0.5; cursor: not-allowed;` を宣言済みであり、
+//!   `pointer-events: none` はネイティブ `disabled` 属性が既に操作不能化
+//!   するため冗長（追加不要）。
+//! - **`aria-invalid`（`data-invalid`）時の box-shadow リング（意図的
+//!   非採用）**: 本フレームワークのフォーカスリング規約（#1424、
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3）は
+//!   実装手段を `outline` へ統一し、新規に `box-shadow` によるリングを
+//!   追加しない方針を確定済み（[`crate::input`] 判定と同型）。既存の
+//!   `data-invalid` → `border-color` のみを維持する。
+//! - **chevron アイコンのラッパー表現（意図的非採用の再確認）**: 本
+//!   モジュール冒頭「ネイティブ矢印を維持する」設計判断（`appearance:
+//!   none` 不使用）を変更しない。shadcn は補完参照であり、確定済みの
+//!   視覚言語を上書きしない（Phase 0 原則）。
+//! - **`optgroup`（是正、コード変更なし）**: headless
+//!   `field::select`（[`fandhe_frontend_headless_ui::field::select`]）は
+//!   `children: Vec<Node>` をそのまま透過するため、呼び出し側が
+//!   `fandhe_frontend_core::el("optgroup", vec![("label", "...")], ...)`
+//!   で `<optgroup>` を組み立てれば現状の API のまま描画できる（本
+//!   モジュール自体のコード変更は不要）。欠けていたのは docs サイトの
+//!   Demo・Examples への可視化のみであり、`crates/docs-site/src/
+//!   showcase.rs` の Native Select 節へ optgroup を含むインスタンスを
+//!   追加した。
+//! - **`<option>`/`<optgroup>` の `background-color: Canvas; color:
+//!   CanvasText;`（forced-colors 非依存の system color 指定、暫定
+//!   非採用）**: shadcn は `<option>`/`<optgroup>` へ system color
+//!   キーワード（`Canvas`/`CanvasText`）を宣言し、OS 側で描画される
+//!   ネイティブポップアップの配色を明示している。[`crate::recipe::
+//!   StateCondition`] は擬似クラス条件のみを表現でき、`select option`
+//!   のような子孫セレクタを組み立てる手段を持たないため、`SlotRecipe`
+//!   経由での実現はできない（[`crate::status`] が採る「`recipe()` の
+//!   外側で生 CSS 文字列を追記する」パターンを踏襲すれば技術的には可能
+//!   だが、CSS 実体変更・golden テスト更新・semver バンプを要する別
+//!   スコープの変更になる）。加えて、この懸念（ダークモード時に
+//!   `Plain`/`Subtle` variant の透明背景へポップアップ側の文字色が
+//!   同化する不具合）はネイティブ `<select>` のポップアップが OS 描画と
+//!   なる Windows/Linux Chrome/Firefox でのみ再現し、本イシュー実装時の
+//!   実行環境（macOS）では実機検証できない。したがって本イシューでは
+//!   非採用とし、Windows/Linux での不具合報告があれば再評価する
+//!   （再評価トリガー）。
+//! - **合成パターン（label/description との組み合わせ、是正）**:
+//!   `native_select` はラベル・補助テキストの型階層を持たず、`field`
+//!   （`/themes/field/`）が担う（[`crate::input`] の同型判断）。
+//!   `field::label`/`field::helper_text`/`field::root` と組み合わせる
+//!   Example を docs サイト（`crates/docs-site/src/component_specs/
+//!   forms.rs` の `NATIVE_SELECT` spec）へ追加した。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -521,6 +581,31 @@ mod tests {
         ));
         assert!(!html.contains("onmouseover=\"alert(1)\""));
         assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn optgroup_label_attribute_breakout_payload_is_escaped() {
+        // イシュー #2017: shadcn/ui 突合で「optgroup は現状 API のまま描画
+        // できる」と判定した際、`<optgroup label="...">` の `label` 属性値が
+        // `el()`/`render()` の既定エスケープ経路を通ることを固定する
+        // （`extra_attrs_attribute_breakout_payload_is_escaped` と同型だが、
+        // native_select 自身の extra_attrs ではなく children 側の optgroup
+        // 属性という別コンテキストの回帰）。
+        let field = default_field("f");
+        let optgroup = el(
+            "optgroup",
+            vec![("label", "\" onmouseover=\"alert(1)")],
+            vec![option("jp", "Japan")],
+        );
+        let html = render(&native_select(
+            &NativeSelectProps::default(),
+            &field,
+            vec![],
+            vec![optgroup],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)\""));
+        assert!(html.contains("&quot;"));
+        assert!(html.contains("<optgroup"));
     }
 
     #[test]
