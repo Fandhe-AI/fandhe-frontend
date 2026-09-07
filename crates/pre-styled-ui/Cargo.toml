@@ -2161,7 +2161,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 手順（自分の変更がマイナーバンプの場合は main の現在値の minor を +1 し
 # patch を 0 に戻す）に従うと main の到達値 0.125.3 から 0.126.0 となり、
 # 本ブランチの到達値と一致するためそのまま採用する。
-version = "0.126.0"
+# イシュー #2036: pagination の shadcn/ui 突合。rustdoc 追記と docs-site
+# Examples 追加のみで recipe() は無変更（純追加原則を満たす真の CSS 欠落は
+# 見つからなかった）ため patch バンプする。
+version = "0.126.1"
 
 
 edition = "2021"
