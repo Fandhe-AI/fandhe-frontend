@@ -2238,15 +2238,24 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（minor バンプ
 # 同士が衝突した場合は main の現在値の minor を +1 し patch を 0 に戻す）
 # に従い、main の到達値 0.130.0 の minor を +1 して 0.131.0 とする。
-# イシュー #2040（toast の shadcn/ui 突合、2026-09-08）: 実機比較の結果
-# 純追加できるバリアント・状態が見つからず、`recipe()`/`css()` は無変更
-# （golden `tests/toast_css.rs` も無変更）。変更はモジュール doc への
-# 判定記録追記（rustdoc のみ）に限られるため、hover-card の shadcn/ui
-# 突合記録追加（0.124.1）と同型で patch バンプする。base 取り込み時の
-# 上記 0.131.0 バンプと衝突したため、その到達値へさらに patch バンプを
-# 重ねて 0.131.1 とする。
-version = "0.131.1"
-
+# base 再取り込み（イシュー #2013, 2026-09-08）: 本ブランチ（date-picker の
+# shadcn/ui 突合、data-invalid/data-readonly の CSS 消費補完でマイナー
+# バンプし main 分岐時点の到達値 0.123.0 から衝突回避のため 0.124.0 に
+# 到達済み）を main（多数の shadcn/ui 突合を経て 0.131.0 に到達済み、
+# 別 PR #2167 が並行して 0.132.0 へバンプ予定）へ合流させる。本ブランチの
+# 実体変更（data-invalid/data-readonly 消費）は main の到達値に未反映の
+# ままのためバイト同一の偶発一致ではなく統合が必要であり、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数
+# への偶発的衝突をそのまま採用しない）に倣い、main の到達値 0.131.0 から
+# 並行 PR #2167（0.132.0 予定）分も見込んでさらに +1 し 0.133.0 とする。
+# 再度の base 再取り込み（PR #2177 codex-review/Bugbot 修正ラウンド,
+# 2026-09-08）: main が並行して toast の shadcn/ui 突合（イシュー #2040、
+# rustdoc のみの記録追記で patch バンプ）を 0.131.1 として取り込んだが、
+# 本ブランチの到達値 0.133.0 は既にそれより大きいため追加のバンプは不要
+# （`docs/ci/style-refresh-version-bump-operation.md` §5 の手順は「同一
+# 版数への偶発的衝突」を対象とするものであり、既に main の到達値を上回る
+# 値には適用しない）。
+version = "0.133.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
