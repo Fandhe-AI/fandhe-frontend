@@ -2036,6 +2036,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # に 1px の内側リング（`box-shadow`）を追加し WCAG 1.4.11（非テキスト
 # コントラスト）を回復した。セレクタ・CSS 変数名の変更を伴わない意匠調整
 # のみのため patch バンプで 0.119.1 とする。
+# イシュー #2009: shadcn/ui との突合により `ButtonVariant` へ `Link` を
+# 新設した。網羅 `match` を壊す列挙値追加（`#[non_exhaustive]` ではない）
+# のため 0.x の破壊的変更としてマイナーバンプで 0.120.0 とする。
 # イシュー #2010: calendar を shadcn/ui と突合し、`day-trigger` の
 # `data-selected` × `data-outside-month` 状態競合（selected かつ
 # outside-month のセルで文字色が上書きされる不具合）を是正した。
@@ -2044,8 +2047,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2028: carousel を shadcn/ui と突合し、`--fandhe-carousel-item-basis`
 # CSS カスタムプロパティを新設（既存セレクタ内の宣言値変更のみで新規
 # `data-*`・新規 variant・新規セレクタは追加しない）ためパッチバンプで
-# 0.120.1 とする。
-version = "0.120.1"
+# 0.120.1 に到達していたが、main が独立に 0.121.0 へ到達済みだったため
+# 同一到達ではないが本ブランチの到達値が main の到達値未満で埋没する
+# 衝突として扱い、main の到達値からさらに +1 して 0.122.0 とする
+# （実体変更の統合を反映、semver-same-version-is-conflict の運用に倣う）。
+version = "0.122.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

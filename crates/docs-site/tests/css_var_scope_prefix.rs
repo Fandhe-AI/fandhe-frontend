@@ -81,6 +81,14 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   実値は各 scope の variant 側が定義する」設計であり、`button.rs`（参照
 ///   実装）とそれを流用する `download_trigger.rs` の双方が参照するため
 ///   scope 固有名ではなく共有トークン扱いとする。
+/// - `--fandhe-hover-text-decoration`: hover 時の下線表示を variant ごとに
+///   間接参照させるための共通 custom property（イシュー #2009、
+///   `ButtonVariant::Link` 新設に伴う追加）。`--fandhe-hover-bg` と同じ
+///   「複数部品が同じ名前を変数として共有し、実値は各 scope の variant 側が
+///   定義する」設計であり、`button.rs`（`Link` variant が `underline` を
+///   定義、他 6 variant は未定義のままフォールバック `none` に委ねる）と
+///   それを流用する `download_trigger.rs` の双方が参照するため scope 固有名
+///   ではなく共有トークン扱いとする。
 /// - `--fandhe-palette-subtle` / `-muted` / `-fg-subtle`: イシュー #1679 で
 ///   `mark.rs`/`blockquote.rs` が `crate::recipe::palette_declarations`
 ///   （3 役割）から `crate::recipe::palette_scale_declarations`（6 役割）へ
@@ -117,6 +125,7 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-arrow-y",
     "--fandhe-reference-width",
     "--fandhe-hover-bg",
+    "--fandhe-hover-text-decoration",
     "--fandhe-calendar-day-size",
 ];
 

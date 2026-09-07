@@ -241,8 +241,9 @@ impl VariantValue for ButtonIcon {
 const ANATOMY: Anatomy = anatomy("button");
 
 /// Button の見た目 variant（chakra-ui v3 準拠、イシュー #1448 で
-/// `Surface`/`Plain` を追加し 6 値へ拡張。solid/outline/ghost/subtle/
-/// surface/plain の chakra-ui v3 6 variant に対応する）。
+/// `Surface`/`Plain` を追加し 6 値へ拡張、イシュー #2009 で shadcn/ui との
+/// 突合により `Link` を追加し 7 値へ拡張。solid/outline/ghost/subtle/
+/// surface/plain/link の 7 variant に対応する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ButtonVariant {
     /// 塗りつぶし（既定）。
@@ -264,6 +265,15 @@ pub enum ButtonVariant {
     /// `plain` に相当し、hover 背景変化を持たない（`recipe_with_scope`
     /// 内コメント参照）。
     Plain,
+    /// 背景・輪郭なし、hover 時のみ下線を表示するリンク風ボタン
+    /// （shadcn/ui `link` variant 相当、イシュー #2009 で shadcn/ui との
+    /// 突合により新設）。[`crate::link`]（`<a>` 用のナビゲーション部品、
+    /// #1437/#756）とは意味論が異なる: `crate::link` はページ遷移を担う
+    /// ナビゲーションであるのに対し、この `Link` variant は
+    /// `<button type="button">` のまま見た目だけをリンク風にする用途
+    /// （例: フォーム内の「パスワードを忘れた」的アクション）であり、
+    /// 統合しない。
+    Link,
 }
 
 impl VariantValue for ButtonVariant {
@@ -279,6 +289,7 @@ impl VariantValue for ButtonVariant {
             Self::Subtle => "subtle",
             Self::Surface => "surface",
             Self::Plain => "plain",
+            Self::Link => "link",
         }
     }
 }
@@ -651,10 +662,44 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
                 decl("--fandhe-hover-bg", "transparent"),
             ],
         )
+        .variant(
+            ButtonVariant::Link,
+            "root",
+            vec![
+                // イシュー #2009 新設: shadcn/ui `link` variant 相当。
+                // 背景・輪郭を持たず、hover 時のみ下線を表示する
+                // （下線の実値は下記の共有 Hover state が参照する
+                // `--fandhe-hover-text-decoration` 経由、`Plain` と同じ
+                // 「custom property の間接参照」パターン、モジュール冒頭
+                // rustdoc 参照）。`--fandhe-hover-bg` は `Plain` と同じ理由で
+                // `transparent` を明示定義する。
+                decl("background", "transparent"),
+                decl("color", "var(--fandhe-palette)"),
+                decl("border", "none"),
+                decl("--fandhe-hover-bg", "transparent"),
+                decl("--fandhe-hover-text-decoration", "underline"),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ButtonVariant::Solid)
         .default_variant(ColorPalette::Accent)
-        .state("root", StateCondition::Hover, hover_surface_declarations())
+        .state("root", StateCondition::Hover, {
+            // イシュー #2009: `Link` variant の hover 下線を、既存 6
+            // variant の見た目を変えずに追加するため、共有
+            // `hover_surface_declarations()`（`background` のみ）へ
+            // `text-decoration` を 1 本追加する（`tab_nav.rs`/`tabs.rs` の
+            // 「`let mut decls = hover_surface_declarations(); decls.push(...)`」
+            // と同型パターン）。フォールバック `none` は
+            // `--fandhe-hover-text-decoration` を定義しない既存 6 variant
+            // （Solid/Outline/Ghost/Subtle/Surface/Plain）向けであり、
+            // これらの golden CSS 出力（`background` のみ）を変えない。
+            let mut decls = hover_surface_declarations();
+            decls.push(decl(
+                "text-decoration",
+                "var(--fandhe-hover-text-decoration, none)",
+            ));
+            decls
+        })
         // イシュー #1448/#1449: キーボードフォーカス表示（`recipe::
         // focus_ring_declarations` 経由の canonical outline、#1424 §3/§6
         // 規約、`link.rs`/`radio_group.rs`/`angle_slider.rs` と同型）。
@@ -995,6 +1040,7 @@ mod tests {
             (ButtonVariant::Subtle, "fd-button--variant-subtle"),
             (ButtonVariant::Surface, "fd-button--variant-surface"),
             (ButtonVariant::Plain, "fd-button--variant-plain"),
+            (ButtonVariant::Link, "fd-button--variant-link"),
         ] {
             let props = ButtonProps {
                 variant,
