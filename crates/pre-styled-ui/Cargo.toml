@@ -2095,13 +2095,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 出力を伴わない）。CSS 出力・golden テストは不変だが、公開クレートの
 # `src/` 変更につき規約（`.claude/rules/coding-rust.md`）に従いパッチバンプ
 # する。
-# base 再取り込み（イシュー #2031/#2032, PR #2150）: 本ブランチ（drawer の
-# rustdoc 判断記録追記、直前の到達値 0.124.1）と main（hover-card の突合、
-# 直前の到達値 0.124.1）はいずれも独立に patch バンプし偶発的に同一版数
-# 0.124.1 へ再度衝突していた（同一版数への偶発的衝突をそのまま採用しない
-# 原則、`docs/ci/style-refresh-version-bump-operation.md` §5）。両者を
-# 統合した結果としてさらに patch バンプし 0.124.2 とする。
-version = "0.124.2"
+# base 再取り込み（イシュー #2017, PR #2150 系）: 本ブランチ（native-select
+# を shadcn/ui と突合、直前の到達値 0.125.0）は main（drawer/hover-card 等の
+# 突合を経て到達した 0.124.2）よりも既に版数が新しいため、
+# semver-same-version-is-conflict の追加 +1 運用（同一版数への偶発衝突時のみ
+# 適用）は該当せず、本ブランチの到達値 0.125.0 をそのまま採用する。
+version = "0.125.0"
 
 
 edition = "2021"
