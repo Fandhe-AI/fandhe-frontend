@@ -44,6 +44,10 @@ find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename 
 1 個（`\.png$`）を使い、ERE の「バックスラッシュ＋任意文字」誤解釈を避ける
 （ドットをリテラルとしてエスケープする正しい記法）。
 
+`shadcn-*.png` の適用方針（補完参照。既存部品の視覚言語は chakra-ui / Radix
+Themes 基準を維持し、shadcn/ui は欠落バリアント・合成パターンの補完にのみ
+用いる）は `docs/design/shadcn-reference-adoption-policy.md` を参照。
+
 ## ローカルスクショ再取得手順
 
 本リポジトリ docs サイトの部品ページ（Themes / Primitives）を撮り直す場合の手順。
