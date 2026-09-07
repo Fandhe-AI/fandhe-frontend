@@ -122,11 +122,14 @@
 //!   JS によるビューポート計測を要し `docs/policy/intentional-non-adoption.md`
 //!   §3.25 規則 2（装飾・レイアウト計測の関心は headless/pre-styled の
 //!   静的性を崩すため持ち込まない）に抵触するため不採用。
-//! - **ellipsis + dropdown 合成 / custom separator**: いずれも既存 API
-//!   （[`ellipsis`] + `menu` 部品の組み合わせ、[`separator`] の自由な
-//!   `children`）だけで表現可能と確認済みであり、コード変更を要しない
-//!   （Demo（`crates/docs-site/src/showcase.rs::breadcrumb_section`）で
-//!   実演を追加した）。
+//! - **省略記号 + dropdown 合成 / custom separator**: いずれも既存 API
+//!   （`breadcrumb::item` 内への `menu` 部品の配置（`menu::trigger` の
+//!   表示文字列を省略記号にする）、[`separator`] の自由な `children`）
+//!   だけで表現可能と確認済みであり、コード変更を要しない（Demo
+//!   （`crates/docs-site/src/showcase.rs::breadcrumb_section`）で実演を
+//!   追加した）。[`ellipsis`] は `<li>` 固定・非対話のため `menu::trigger`
+//!   （`<button>`、phrasing content のみ許容）の子にすると不正なネスト
+//!   になり使えない（Demo 側コメント参照）。
 //! - **`current-link` の `role="link"`/`aria-disabled="true"`**: shadcn の
 //!   `BreadcrumbPage` はこの 2 属性に加え `aria-current="page"` を持つ
 //!   （本モジュールは `aria-current="page"` のみ）。ARIA セマンティクスは
