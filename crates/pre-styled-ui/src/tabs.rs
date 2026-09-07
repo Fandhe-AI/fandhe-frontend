@@ -159,6 +159,13 @@
 //!   trigger elevation（`box-shadow: var(--fandhe-shadow-sm)`、
 //!   `crate::card`/`crate::popover` と同種の「浮き上がる面」表現）は
 //!   フォーカスリングではないため対象外）。
+//! - **Enclosed の selected trigger 識別を `outline`/フォーカスリングへ
+//!   統合しない**: forced-colors 対応は [`stylesheet`] が
+//!   `@media (forced-colors: active)` 配下へ生 CSS で追記する
+//!   `border: 1px solid CanvasText`（[`crate::status`] と同型パターン）で
+//!   行う。フォーカスリング（`:focus-visible`）はキーボード操作直後にしか
+//!   出ず選択状態そのものの永続的な代替にならないため、選択状態の識別は
+//!   `data-state="active"` に連動する独立した規則として持つ。
 //! - **Radix の内側 `span` による hover 面**: anatomy を増やすため採らず、
 //!   `trigger` 全面へ上側角丸の hover 面を当てる（`tab_nav` と同型）。
 //! - **`transition` の対象に `transform`/`box-shadow` を含めない**: イシュー
@@ -691,9 +698,33 @@ fn recipe() -> SlotRecipe {
 
 /// この styled Tabs が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
 /// と同じ契約）。
+///
+/// イシュー #2039 codex-review 追補（forced-colors 対応）: Enclosed variant
+/// の selected trigger は背景色・文字色・`box-shadow`（elevation）のみで
+/// 選択状態を表現する。Windows 強制配色モード（`forced-colors: active`）は
+/// 色をシステム色へ強制置換し `box-shadow` も `none` へ丸められるため
+/// （[W3C forced-colors 仕様](https://www.w3.org/TR/css-color-adjust-1/#forced-colors-properties)）、
+/// このままでは選択中 trigger と非選択 trigger が forced-colors 下で視覚的に
+/// 区別できなくなる。`:focus-visible` のフォーカスリングはフォーカス移動後
+/// にしか出ないため選択状態そのものの代替にはならない（キーボードで
+/// フォーカスを他要素へ移した後も選択状態自体は保持されるため）。
+/// [`crate::status`] と同じパターンで、`recipe().css()` の後段へ
+/// `@media (forced-colors: active)` の生 CSS 文字列を追記し、Enclosed の
+/// selected trigger（水平・垂直いずれの `data-orientation` でも同一セレクタで
+/// 一致する。方向は selected 表現に影響しないため orientation 分岐は不要）へ
+/// `border: 1px solid CanvasText` を足して選択状態をシステム色の境界線で
+/// 補強する（Line variant は下線 `border-bottom-color` が forced-colors でも
+/// システム色 `CanvasText` 相当へ丸められる形で残るため対象外）。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(
+        "\n@media (forced-colors: active) {\n  [data-scope=\"tabs\"][data-part=\"trigger\"].fd-tabs--variant-enclosed[data-state=\"active\"] {\n    border: 1px solid CanvasText;\n  }\n}\n",
+    );
+    out
 }
 
 /// styled Tabs を組み立てる。`size`/`color-palette` に応じたクラスを root へ
@@ -1056,6 +1087,20 @@ mod tests {
         assert!(css.contains("--fandhe-tabs-trigger-active-background: var(--fandhe-color-bg);"));
         assert!(css.contains("--fandhe-tabs-trigger-active-shadow: var(--fandhe-shadow-sm);"));
         assert!(css.contains("box-shadow: var(--fandhe-tabs-trigger-active-shadow, none);"));
+    }
+
+    #[test]
+    fn forced_colors_media_query_adds_border_to_enclosed_active_trigger() {
+        // イシュー #2039 codex-review 追補: forced-colors 下で box-shadow が
+        // none に丸められても選択中 trigger を識別できるよう、Enclosed の
+        // active trigger にシステム色境界線を追加することを固定する
+        // （`crate::status` と同型パターン）。
+        let css = stylesheet();
+        assert!(css.contains("@media (forced-colors: active)"));
+        assert!(css.contains(
+            "[data-scope=\"tabs\"][data-part=\"trigger\"].fd-tabs--variant-enclosed[data-state=\"active\"]"
+        ));
+        assert!(css.contains("border: 1px solid CanvasText;"));
     }
 
     #[test]

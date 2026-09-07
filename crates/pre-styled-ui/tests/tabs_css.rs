@@ -68,6 +68,18 @@
 //! Line（既定）は上記いずれもフォールバック値と同一の custom property を
 //! 明示登録するため、テキストバイトは変わるが Line 選択時のレンダリング
 //! 結果（computed style）は不変。
+//!
+//! # イシュー #2039 codex-review 追補（forced-colors 対応）による golden 更新
+//!
+//! Enclosed variant の selected trigger は背景色・`box-shadow` のみで選択
+//! 状態を表現しており、Windows 強制配色モード（`forced-colors: active`）
+//! では両方ともシステム色/`none` へ丸められ選択中 trigger を識別できなく
+//! なる指摘（[`crate::status`] と同型の課題）を受け、`stylesheet()`
+//! （`crates/pre-styled-ui/src/tabs.rs`）の末尾へ
+//! `@media (forced-colors: active)` ブロックを 1 つ追記した。Enclosed の
+//! selected trigger（`.fd-tabs--variant-enclosed[data-state="active"]`）へ
+//! `border: 1px solid CanvasText` を足す。方向（`data-orientation`）に
+//! 依存しない単一セレクタで水平・垂直双方をカバーする。
 
 use fandhe_frontend_pre_styled_ui::tabs;
 
@@ -298,6 +310,13 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   [data-scope="tabs"][data-part="trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
     color: var(--fandhe-color-fg);
+  }
+}
+
+
+@media (forced-colors: active) {
+  [data-scope="tabs"][data-part="trigger"].fd-tabs--variant-enclosed[data-state="active"] {
+    border: 1px solid CanvasText;
   }
 }
 "#;
