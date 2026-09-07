@@ -2109,6 +2109,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # recipe()/CSS 出力・golden テストは不変）。規約
 # （.claude/rules/coding-rust.md「公開済みクレートの実体変更時は semver
 # バンプ必須」）に従いパッチバンプする。
+# イシュー #2019: select の shadcn/ui 突合結果として `content` へ
+# `max-height`/`overflow-y: auto`（既定 16rem、size variant 別スケール）と
+# `trigger` の `data-invalid`/`data-readonly` 消費を追加した。`content` の
+# max-height/overflow-y は既存利用者にとって観測可能な描画変更（長いリスト
+# が従来は無制限に伸びていたが既定 16rem でクランプされスクロールする）で
+# あり、0.x の破壊的変更はマイナーバンプとする規約に該当するためマイナー
+# バンプする。
 # base 再取り込み（イシュー #2016/#2032, 2026-09-07）: 本ブランチ
 # （pin-input separator 追加、patch バンプで 0.124.1 に到達済み）と
 # main（hover-card の shadcn/ui 突合、rustdoc/docs のみで patch バンプし
@@ -2140,7 +2147,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # の shadcn/ui 突合を経て 0.125.1 に到達済み）が同一版数へ偶発的に衝突したため、
 # `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数への偶発的
 # 衝突をそのまま採用しない）に従い main の到達値からさらに +1 して 0.125.2 とする。
-version = "0.125.2"
+version = "0.126.0"
 
 
 edition = "2021"

@@ -152,11 +152,56 @@
 //! - **`item-group` へ視覚宣言を追加しない**: `item-group` はコンテナで、
 //!   見た目は `item-group-label` が既に担っている。参照サイトにも
 //!   `item-group` 自体への視覚宣言は実質なく、combobox 2/2 と同じ判断。
-//! - **`content` の max-height + スクロール導入は見送り**: 長いリストへの
+//! - **`content` の max-height + スクロール導入は見送り**（#1502 時点。
+//!   イシュー #2019 で覆した。下記「shadcn/ui 突合」節参照）: 長いリストへの
 //!   対応は参照サイトでは一般的だが、`positioner`/`content` の位置
 //!   ジオメトリ契約（`--fandhe-reference-width`/`data-positioned`/
 //!   `--fandhe-x`/`--fandhe-y`、イシュー #663）への影響評価が必要なため
-//!   combobox 2/2 と同じく本イシューでは見送る。
+//!   combobox 2/2 と同じく本イシューでは見送った。
+//!
+//! # shadcn/ui 突合（イシュー #2019）
+//!
+//! shadcn/ui（`https://ui.shadcn.com/docs/components/base/select`）と突合
+//! した結果を記録する。グループ見出し（`item-group-label`）・disabled 項目・
+//! `size` の `sm`/`default` 相当は既存対応（#729/#1502）のまま差分なしと
+//! 確認した。以下は本イシューで新たに補完した点である。
+//!
+//! - **`content` へ `max-height` + `overflow-y: auto` を追加**: #1502 の
+//!   見送りを覆す。[`crate::listbox`] が同型の `content` パーツへ既に
+//!   `overflow-y: auto` + `--fandhe-listbox-content-max-height`（固定 rem
+//!   スケール）を実装済みであり、`--fandhe-reference-width`/`--fandhe-x`/
+//!   `--fandhe-y`（wasm positioning 契約、#663）とは独立したプロパティの
+//!   ため安全に追加できると判断した。同じ変数命名規則
+//!   （`--fandhe-select-content-max-height`）・同じスケール（Xs=8rem /
+//!   Sm=12rem / Md=16rem / Lg=20rem / Xl=24rem）を [`recipe`] の `size`
+//!   variant へ流用する。shadcn/ui はビューポート由来の可変高さ（Radix
+//!   `--radix-select-content-available-height` 相当）を採るが、ビューポート
+//!   実測は `fandhe-frontend-wasm-full` の positioning 契約（#663）側の
+//!   責務であるため、本 PR では listbox と同じ固定 rem スケールを採用する
+//!   （3 者競合ではなく実装方針の記録。長いリストで highlight 中の項目が
+//!   可視領域外に出た場合の `scrollIntoView` 相当の追随は
+//!   `fandhe-frontend-wasm-full::keynav` 側の未対応ギャップとして別イシュー
+//!   化候補、listbox と同じ既知の露出）。
+//! - **`trigger` の `data-invalid`/`data-readonly` を消費**: headless
+//!   （`crates/headless-ui/src/select.rs::state_attrs`）は `SelectProps`
+//!   の `invalid`/`readonly` から `data-invalid`/`data-readonly` を出力
+//!   するが、[`recipe`] は #1502 時点でこれを一切消費していなかった。
+//!   **参照競合の判定**: shadcn/ui の `aria-invalid` 表現（box-shadow
+//!   リング）ではなく、chakra-ui/Radix Themes 基準の本リポジトリ既存視覚
+//!   言語（`input.rs`）に揃え `border-color: var(--fandhe-color-danger)`
+//!   を採る。理由は native-select（#2017）が同種の 3 者競合で下した判断
+//!   （部品横断の視覚言語一貫性優先）を踏襲するため。`data-readonly` は
+//!   `date_input.rs::segment` と同じ `cursor: default` とし、
+//!   `data-disabled` 規則より前に登録して disabled かつ readonly が同時に
+//!   真の場合は disabled の `cursor: not-allowed` を後勝ちで優先させる
+//!   （`date_input.rs` 該当コメントと同じ理由）。
+//! - **見送り・対象外**: `Separator`/`ScrollUpButton`/`ScrollDownButton`
+//!   anatomy パーツは `fandhe-frontend-headless-ui::select` に存在せず、
+//!   新設は headless-ui 側の変更のため本イシュー（Themes 限定）のスコープ
+//!   外（`menu.rs` の `separator` が移植の参考になる）。Align Item
+//!   トグル（選択項目をトリガーへ位置合わせする挙動）は位置ジオメトリの
+//!   拡張が必要で `wasm-full` の positioning 契約（#663）に踏み込むため
+//!   対象外。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -291,6 +336,19 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-select-content-padding, var(--fandhe-space-2))",
                 ),
                 decl("min-width", "var(--fandhe-reference-width, auto)"),
+                // 長いリストのスクロール対応（listbox #1502 見送りを覆す
+                // 方針転換、イシュー #2019。listbox（同型の `content`
+                // パーツ）が先行実装済みの固定 rem スケールと同じ変数命名
+                // 規則（`--fandhe-select-content-max-height`）を踏襲する。
+                // `--fandhe-reference-width`/`--fandhe-x`/`--fandhe-y`
+                // （wasm positioning 契約、#663）とは独立したプロパティの
+                // ため安全に追加できる。モジュール rustdoc「shadcn/ui
+                // 突合（イシュー #2019）」節参照）。
+                decl("overflow-y", "auto"),
+                decl(
+                    "max-height",
+                    "var(--fandhe-select-content-max-height, 16rem)",
+                ),
             ],
         )
         .base(
@@ -402,6 +460,26 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
+        // イシュー #2019: headless `trigger`（`crates/headless-ui/src/
+        // select.rs::state_attrs`）が付与する `data-invalid` を消費する。
+        // shadcn/ui は box-shadow リングで invalid を表現するが、本リポジトリ
+        // 既存の視覚言語（`input.rs`）に揃えて `border-color` のみとする
+        // （モジュール rustdoc「shadcn/ui 突合（イシュー #2019）」節参照）。
+        .state(
+            "trigger",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("border-color", "var(--fandhe-color-danger)")],
+        )
+        // イシュー #2019: 同じく `state_attrs` が付与する `data-readonly` を
+        // 消費する（`date_input.rs::segment` と同型の `cursor: default`）。
+        // `data-disabled` 規則より前に登録し、両方が真の場合は disabled の
+        // `cursor: not-allowed` を後勝ちで優先させる（`date_input.rs`
+        // 該当コメントと同じ理由）。
+        .state(
+            "trigger",
+            StateCondition::Attr("data-readonly"),
+            vec![decl("cursor", "default")],
+        )
         // イシュー #1501: headless `trigger`（`crates/headless-ui/src/
         // select.rs`）が `disabled` 属性と対で付与する `data-disabled` を
         // 消費する（combobox 1/2・date-picker 1/3 と同型）。
@@ -466,6 +544,7 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-select-trigger-padding", "var(--fandhe-space-0-5) var(--fandhe-space-1)"),
                 decl("--fandhe-select-item-padding", "var(--fandhe-space-0-5) var(--fandhe-space-1)"),
                 decl("--fandhe-select-content-padding", "var(--fandhe-space-0-5)"),
+                decl("--fandhe-select-content-max-height", "8rem"),
             ],
         )
         .variant(
@@ -481,6 +560,7 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-1) var(--fandhe-space-2)",
                 ),
                 decl("--fandhe-select-content-padding", "var(--fandhe-space-1)"),
+                decl("--fandhe-select-content-max-height", "12rem"),
             ],
         )
         .variant(
@@ -496,6 +576,7 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-2) var(--fandhe-space-3)",
                 ),
                 decl("--fandhe-select-content-padding", "var(--fandhe-space-2)"),
+                decl("--fandhe-select-content-max-height", "16rem"),
             ],
         )
         .variant(
@@ -511,6 +592,7 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-3) var(--fandhe-space-4)",
                 ),
                 decl("--fandhe-select-content-padding", "var(--fandhe-space-3)"),
+                decl("--fandhe-select-content-max-height", "20rem"),
             ],
         )
         .variant(
@@ -520,6 +602,7 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-select-trigger-padding", "var(--fandhe-space-4) var(--fandhe-space-5)"),
                 decl("--fandhe-select-item-padding", "var(--fandhe-space-4) var(--fandhe-space-5)"),
                 decl("--fandhe-select-content-padding", "var(--fandhe-space-4)"),
+                decl("--fandhe-select-content-max-height", "24rem"),
             ],
         )
         .default_variant(Size::Md)
