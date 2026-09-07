@@ -59,8 +59,8 @@
 //!
 //! # shadcn/ui 突合（イシュー #2022）
 //!
-//! shadcn/ui（補完参照、`docs/design/shadcn-reference-adoption-policy.md`）
-//! の Textarea と突合した結果、以下はいずれも意図的に非採用、または既に
+//! shadcn/ui（主基準の 1 つ、`docs/design/shadcn-reference-adoption-policy.md`
+//! §8）の Textarea と突合した結果、以下はいずれも意図的に非採用、または既に
 //! 対応済みと判定した（既存 variant の CSS 出力はバイト同一を維持する
 //! 純追加が原則、同ポリシー §3）。
 //!
