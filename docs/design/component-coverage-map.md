@@ -53,7 +53,7 @@ message-scroller・data-table の判定根拠の詳細は #2006 が §12 へ転�
 | 保留 | 実装するか否かを本書時点では確定しない。既存（ark-ui/chakra-ui 由来）の保留は `docs/policy/intentional-non-adoption.md` §7（イシュー #735）に評価軸・再評価トリガーが記録済み。イシュー #937 で新規に判定した Radix 由来の保留は本書 §9 に再評価トリガーを記す（`intentional-non-adoption.md` §7 への転記は #959 の判断に委ねる）。Phase 13（#1669/#1676）で新規判定した保留は本書 §11 と `intentional-non-adoption.md` §7 の該当行を参照 |
 | 意図的非採用 | 既に非採用と確定済み（layout プリミティブ = #716/#724、高度入力系・JS ランタイム固有 utilities・装飾系の一部・chakra `Theme` = #735（同書 §3.22〜§3.24）で確定済み、**アプリケーションロジックを内包する UI 部品（Radix `Form`）= 2026-07-25 のユーザー判断（同書 §3.25 規則 1）で確定済み**等）。再導入提案には `docs/policy/intentional-non-adoption.md` の評価軸充足確認が必須 |
 | 参照対象外 | イシュー #937 で新設。Radix 側に存在するが本リポジトリの参照軸に含めない部品。対象は Radix Themes の layout プリミティブ（Box/Flex/Grid/Container/Section）と Theme provider コンポーネントの計 6 件のみ。根拠: #716/#724/#735、`docs/policy/intentional-non-adoption.md` §3.24、`docs/design/radix-themes-survey.md` §6。既存の意図的非採用決定（同 issue）を Radix 軸の文脈で再掲するものであり、新規の非採用判定ではない |
-| 対象外 | README・guides・overview・get-started・concepts 等、UI コンポーネントを指さない非コンポーネント文書。加えてイシュー #735 で商用テンプレート集（chakra-ui Pro blocks）・styling / theming 概念文書を本区分へ追加確定した |
+| 対象外 | README・guides・overview・get-started・concepts 等、UI コンポーネントを指さない非コンポーネント文書。加えてイシュー #735 で商用テンプレート集（chakra-ui Pro blocks）・styling / theming 概念文書を本区分へ追加確定した。shadcn/ui Blocks（dashboard / sidebar / login / signup）も同じ「既存部品の合成例／商用テンプレート集」の扱いで本区分に含み、coverage-map へ新規行として追加しない（詳細・掲載可否の決定は `docs/design/docs-site-blocks-section.md`、イシュー #2007） |
 
 ### 2.1 UI 部品の責務境界（ユーザー判断 2026-07-25、`intentional-non-adoption.md` §3.25）
 
