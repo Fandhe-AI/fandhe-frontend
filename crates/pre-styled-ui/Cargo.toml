@@ -2036,11 +2036,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # に 1px の内側リング（`box-shadow`）を追加し WCAG 1.4.11（非テキスト
 # コントラスト）を回復した。セレクタ・CSS 変数名の変更を伴わない意匠調整
 # のみのため patch バンプで 0.119.1 とする。
+# イシュー #2010: calendar を shadcn/ui と突合し、`day-trigger` の
+# `data-selected` × `data-outside-month` 状態競合（selected かつ
+# outside-month のセルで文字色が上書きされる不具合）を是正した。
+# `recipe()` 内の `.state()` 登録順を入れ替え、golden fixture の CSS 出力
+# 順が観測可能に変わる実体変更のためマイナーバンプで 0.120.0 とする。
 # イシュー #2027: breadcrumb の shadcn/ui 突合で `list` に
 # `overflow-wrap: break-word` を追加した（`stylesheet()` 出力の変化）。
-# 新規セレクタ・variant・`data-*` を追加しない意匠調整のみのため patch
-# バンプで 0.119.2 とする。
-version = "0.119.2"
+# 新規セレクタ・variant・`data-*` を追加しない意匠調整のみのため、main が
+# 先行して到達していた 0.120.0 から patch バンプして 0.120.1 とする。
+version = "0.120.1"
+
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
