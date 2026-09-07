@@ -7347,22 +7347,30 @@ fn toolbar_section() -> Node {
 /// item-group/item-group-label/separator/sub-trigger/sub-content の 11
 /// anatomy パーツすべてを 1 つのノード木で描画する（Anatomy 節はこの
 /// デモから機械導出されるため、11 パーツすべてを網羅する必要がある。
-/// `crates/headless-ui/src/menubar.rs` モジュール doc 参照）。File Menu を
-/// 開いた状態で表示し、その中に「開いている Menu を跨いだ左右移動」の
-/// 対象であるサブメニュー（Export）を組み込む。サブメニューの開閉状態は
-/// `Menubar` 自身ではなく [`OpenState`] を直接注入する（headless-ui への
-/// 直接依存を持たない docs-site の制約上、[`fandhe_frontend_headless_ui::menu::Menu`]
-/// は使わず、モジュール doc「`menu` mod 再利用の内訳」が示す「サブメニュー
-/// 状態は呼び出し側が別インスタンスとして持つ」設計をここでは
-/// `OpenState` 値で直接表現する）。
-fn menubar_section() -> Node {
+/// `crates/headless-ui/src/menubar.rs` モジュール doc 参照）。`open` で
+/// 指定した Menu を開いた状態で表示し、File Menu（index 0）の場合はその中に
+/// 「開いている Menu を跨いだ左右移動」の対象であるサブメニュー（Export）も
+/// 組み込む。サブメニューの開閉状態は `Menubar` 自身ではなく [`OpenState`]
+/// を直接注入する（headless-ui への直接依存を持たない docs-site の制約上、
+/// [`fandhe_frontend_headless_ui::menu::Menu`] は使わず、モジュール doc
+/// 「`menu` mod 再利用の内訳」が示す「サブメニュー状態は呼び出し側が別
+/// インスタンスとして持つ」設計をここでは `OpenState` 値で直接表現する）。
+///
+/// [`menubar_section`] の 3 デモ（File/View/Profiles を各々開いた状態）で
+/// 共通利用するヘルパ（PR #2164 レビュー指摘対応、イシュー #2034）。当初は
+/// File Menu のみを開いた単一デモだったため、View/Profiles の positioner/
+/// content が hidden 属性のまま出力され checkbox-item・radio-item・
+/// item-indicator の見た目を確認できなかった。`open` 以外の構造
+/// （trigger_count・各 Menu の構成）は完全に共通のため、`open` のみを
+/// 引数化して重複を避ける。
+fn build_menubar_node(open: Option<usize>) -> Node {
     // イシュー #2034: File/Edit の 2 Menu 構成に View（checkbox-item）・
     // Profiles（radio-item-group + radio-item）を追加し、trigger_count を
     // 2 → 4 へ拡張した。
-    let bar = Menubar::new(0, 4, Some(0), false, Orientation::Horizontal);
+    let bar = Menubar::new(0, 4, open, false, Orientation::Horizontal);
     let export_submenu_state = OpenState::Closed;
 
-    let node = bar.root(
+    bar.root(
         "App menu",
         vec![],
         vec![
@@ -7611,11 +7619,26 @@ fn menubar_section() -> Node {
                 ],
             ),
         ],
-    );
+    )
+}
+
+fn menubar_section() -> Node {
+    // イシュー #2034: File/Edit の 2 Menu 構成に View（checkbox-item）・
+    // Profiles（radio-item-group + radio-item）を追加し、trigger_count を
+    // 2 → 4 へ拡張した。PR #2164 レビュー指摘（codex-review P2 / Cursor
+    // Bugbot Medium）: 当初は File Menu のみを開いた単一デモだったため
+    // View/Profiles の positioner/content が hidden 属性のまま出力され、
+    // checkbox-item・radio-item・item-indicator の見た目を閲覧者が確認
+    // できなかった。`open` を引数化し、File/View/Profiles をそれぞれ開いた
+    // 3 つの静的デモへ分割することで解消する（`build_menubar_node` の
+    // `open` のみが差分で、他の構造は完全に共通）。
+    let file_open = build_menubar_node(Some(0));
+    let view_open = build_menubar_node(Some(2));
+    let profiles_open = build_menubar_node(Some(3));
     section(
         "Menubar",
-        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit / View / Profiles の 4 Menu を水平配置し、File Menu を開いた状態（open=Some(0)）で表示しています。Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造も含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。Edit トリガーは highlighted=true とし、trigger の data-highlighted 配色（イシュー #1702）も掲示します。File Menu の report.md item は item-text + kbd（⌘O）の合成でショートカット表示を、Print… item は disabled=true として disabled_declarations 配色を掲示します（内部パート是正はイシュー #1703）。Export sub-trigger は右端に示唆グリフ（▸）のテキストノードを添え、サブメニュー示唆を表現します。View Menu は checkbox-item 2 件（Status Bar が checked）、Profiles Menu は radio-item-group + radio-item 3 件（Default が checked）を掲示し、item-indicator（末尾チェックマーク、イシュー #2034 で Themes 層へ CSS 付与）による checked 表現を確認できます。",
-        vec![node],
+        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit / View / Profiles の 4 Menu を水平配置し、開いている Menu を切り替えた 3 つの静的デモ（File Menu が open=Some(0)、View Menu が open=Some(2)、Profiles Menu が open=Some(3)）を並べています。1 つ目（File Menu）は Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造を含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。Edit トリガーは highlighted=true とし、trigger の data-highlighted 配色（イシュー #1702）も掲示します。File Menu の report.md item は item-text + kbd（⌘O）の合成でショートカット表示を、Print… item は disabled=true として disabled_declarations 配色を掲示します（内部パート是正はイシュー #1703）。Export sub-trigger は右端に示唆グリフ（▸）のテキストノードを添え、サブメニュー示唆を表現します。2 つ目（View Menu）は checkbox-item 2 件（Status Bar が checked）、3 つ目（Profiles Menu）は radio-item-group + radio-item 3 件（Default が checked）をそれぞれ開いた状態で掲示し、item-indicator（末尾チェックマーク、イシュー #2034 で Themes 層へ CSS 付与）による checked 表現を確認できます（イシュー #2034、PR #2164 レビュー指摘対応）。",
+        vec![file_open, view_open, profiles_open],
     )
 }
 
