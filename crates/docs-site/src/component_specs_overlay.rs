@@ -64,9 +64,13 @@
 //! 構成（イシュー #1690）の掲示のため `Examples` 節（`ex_alert_dialog`）を
 //! 追加した。[`COLLAPSIBLE`] はイシュー #2029 で shadcn/ui（Base UI）突合の
 //! File Tree Example に相当する既存 API のみの合成デモ
-//! （`ex_collapsible_nested_tree`）を追加した。他部品のバリエーション軸
-//! （`Size`/`ColorPalette`/`ToastStatus` 等）への Examples 追加はレビュー
-//! 負荷を抑えるためのフォローアップ課題として引き続き PR 本文に残す。
+//! （`ex_collapsible_nested_tree`）を追加した。[`TOOLTIP`] はイシュー #2041
+//! で shadcn/ui の With Keyboard Shortcut Example に相当する、`content` の
+//! children へテキストと [`kbd`] を並べる既存 API のみの合成デモ
+//! （`ex_tooltip_with_kbd`）を追加した。他部品の
+//! バリエーション軸（`Size`/`ColorPalette`/`ToastStatus` 等）への Examples
+//! 追加はレビュー負荷を抑えるためのフォローアップ課題として引き続き PR
+//! 本文に残す。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
@@ -91,7 +95,7 @@ use fandhe_frontend_pre_styled_ui::{
     menubar, navigation_menu, popover,
     text::{text as styled_text, TextProps, TextSize, TextWeight},
     toast::{self, ToastPlacement, ToastStatus},
-    ColorPalette, OpenState, Size,
+    tooltip, ColorPalette, OpenState, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -1515,21 +1519,37 @@ pub const TOGGLE_TIP: ComponentPageSpec = ComponentPageSpec {
 ///
 /// 一次情報: `crates/headless-ui/src/tooltip.rs`（モジュール doc・
 /// `root`/`trigger`/`content` シグネチャ・`aria-describedby`/
-/// `role="tooltip"` の実出力テスト）。
+/// `role="tooltip"` の実出力テスト）。イシュー #2041 で shadcn/ui
+/// （Base UI）との突合を行い、`positioner` の `data-side` 属性と
+/// kbd 併記の合成パターン（下記 Examples 節参照）を追記した。
 pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "吹き出しヒント。Root / Trigger / Positioner / Content / Arrow / ArrowTip の 6 anatomy パーツを持つ。",
         "WAI-ARIA tooltip パターンに従い、trigger は aria-describedby で content と関連付ける（aria-expanded / aria-controls は使わない）。content 側が role=\"tooltip\" を持つ。",
         "openDelay / closeDelay（表示・非表示までの遅延タイマー）は wasm-full 側の後続スコープ。",
         "開閉は Disclosure を埋め込んだ状態機械 Tooltip が管理する。",
+        "positioner は data-side 属性（top（既定）/ bottom / left / right）で表示位置を切り替えられる（イシュー #2041、shadcn/ui の side prop 相当。実座標追従ではなく静的フォールバックのみ）。",
+        "content の children へテキストと fandhe-frontend-pre-styled-ui::kbd を組み合わせるキーボードショートカット併記パターンが可能（イシュー #2041、shadcn/ui の With Keyboard Shortcut Example 相当。下記 Examples 節参照）。",
     ],
-    arguments: &[ArgRow {
-        name: "state",
-        kind: "OpenState",
-        default: "",
-        description: "開閉状態（Open/Closed）。root/content の data-state へ反映される。",
+    arguments: &[
+        ArgRow {
+            name: "state",
+            kind: "OpenState",
+            default: "",
+            description: "開閉状態（Open/Closed）。root/content の data-state へ反映される。",
+        },
+        ArgRow {
+            name: "positioner の attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "positioner へ透過する属性。data-side=\"bottom\"/\"left\"/\"right\" を渡すと表示位置の静的フォールバックが切り替わる（未指定は top 相当）。left/right は root 幅が trigger 幅に一致する文脈（flex アイテム等で shrink-wrap される場合）でのみ trigger に隣接する位置になる。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "With keyboard shortcut",
+        description: "shadcn/ui（Base UI）の With Keyboard Shortcut Example に相当する、content の children へテキストと kbd を組み合わせる合成パターンです。新しい variant や data-* 語彙を追加せず、既存の tooltip::content の自由な children と fandhe-frontend-pre-styled-ui::kbd の既存 API のみで構成しています（Ctrl+P のような複数 kbd 連結〔KbdGroup 相当〕は本リポジトリに対応するラッパーが無いため単一 kbd の再現に留めています）。",
+        render: ex_tooltip_with_kbd,
     }],
-    examples: &[],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -1543,6 +1563,43 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`TOOLTIP`] の Examples 節「With keyboard shortcut」レンダラ（イシュー
+/// #2041）。
+///
+/// shadcn/ui（Base UI）Tooltip ページの With Keyboard Shortcut Example
+/// （`apps/v4/examples/base/kbd-tooltip.tsx` の `Save Changes <Kbd>S</Kbd>`）
+/// に相当する、`content` の children へテキストと [`kbd`] を組み合わせる
+/// 合成パターンを、新しい variant/data-* を追加せず既存 API のみで再現する
+/// （[`fandhe_frontend_pre_styled_ui::tooltip`] モジュール doc「イシュー
+/// #2041 の shadcn/ui 突合」節参照）。Demo（[`crate::showcase::tooltip_section`]、
+/// `showcase-tooltip-content`）と同じページに描画されるため、id は衝突
+/// しない `showcase-tooltip-kbd-*` を使う。
+fn ex_tooltip_with_kbd() -> Node {
+    let open = OpenState::Open;
+    let content_id = "showcase-tooltip-kbd-content";
+
+    tooltip::root(
+        open,
+        vec![],
+        vec![
+            tooltip::trigger(open, false, Some(content_id), vec![], vec![text("Save")]),
+            tooltip::positioner(
+                open,
+                vec![],
+                vec![tooltip::content(
+                    open,
+                    Some(content_id),
+                    vec![],
+                    vec![
+                        text("Save Changes "),
+                        kbd(&KbdProps::default(), vec![], vec![text("S")]),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
 
 /// `/themes/tour/`（Interactive カテゴリ）。
 ///
