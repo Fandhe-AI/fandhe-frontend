@@ -112,7 +112,13 @@ mod wrapper_escape_and_stylesheet_safety {
             content: vec![],
             disabled: false,
         }];
-        let html = render(&tabs::tabs(Size::Md, ColorPalette::Accent, &props, items));
+        let html = render(&tabs::tabs(
+            tabs::TabsVariant::Line,
+            Size::Md,
+            ColorPalette::Accent,
+            &props,
+            items,
+        ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
         assert!(html.contains(r#"data-scope="tabs""#));
