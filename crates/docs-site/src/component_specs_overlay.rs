@@ -158,7 +158,7 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
     ],
     examples: &[ExampleEntry {
         title: "Nested navigation (file tree)",
-        description: "shadcn/ui（Base UI）の File Tree Example に相当する、collapsible を再帰的にネストした合成パターンです。フォルダ行はテキストの折り畳みトリガー（indicator を ▸/▾ で開閉方向を示す）、ファイル行はトリガーを持たない単なるテキストとして表現しています。新しい variant や data-* 語彙を追加せず、既存の root/trigger/indicator/content のみで構成しています。",
+        description: "shadcn/ui（Base UI）の File Tree Example に相当する、collapsible を再帰的にネストした合成パターンです。フォルダ行はテキストの折り畳みトリガー（indicator は固定グリフ ▾ + data-state=\"open\" 時の回転で開閉方向を示す既存 CSS 規約に従う）、ファイル行はトリガーを持たない単なるテキストとして表現しています。新しい variant や data-* 語彙を追加せず、既存の root/trigger/indicator/content のみで構成しています。",
         render: ex_collapsible_nested_tree,
     }],
     keyboard: &[],
@@ -185,7 +185,10 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
 /// ファイル 1 件（`main.rs`）を並べ、ネストしたフォルダの中にもファイルを
 /// 置く（`docs/design/shadcn-reference-adoption-policy.md` §3 が
 /// 「合わせない」と定める `data-slot` 等の Base UI 固有語彙・アイコン
-/// フォント資産は使わず、indicator の子テキスト ▸/▾ で開閉方向のみを表す）。
+/// フォント資産は使わず、indicator の子テキストは既存 CSS 規約（[`collapsible`]
+/// の `recipe()`。単一固定グリフ `▾` + `indicator[data-state="open"]` の
+/// `rotate(180deg)` で開閉方向を表す、[`crate::accordion`] と同型の規約）
+/// にそのまま従う。グリフ自体を状態ごとに出し分けない）。
 /// Demo（[`crate::showcase::collapsible_section`]、id `showcase-collapsible-*`）
 /// と同じページに描画されるため、id は衝突しない
 /// `showcase-collapsible-tree-*` を使う。
@@ -262,7 +265,7 @@ fn ex_collapsible_nested_tree() -> Node {
                                         utils_closed,
                                         false,
                                         vec![],
-                                        vec![text("▸")],
+                                        vec![text("▾")],
                                     ),
                                     text("utils"),
                                 ],
