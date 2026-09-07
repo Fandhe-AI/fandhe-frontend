@@ -56,15 +56,18 @@
 //!   空のまま省略する。フォーカスリング等スタイル層のみの挙動は
 //!   Accessibility 節の対象外）
 //!
-//! # `Examples` 節を持たない理由（[`DIALOG`] を除く）
+//! # `Examples` 節を持たない理由（[`DIALOG`]/[`ACCORDION`] を除く）
 //!
 //! `docs/design/docs-site-component-pages.md` §7 は `Examples` を任意の節と
 //! 定めており、当初 PR（#946）では 13 定数すべて `examples: &[]` としていた
-//! （節は自動的に省略される）。[`DIALOG`] のみイシュー #1691 で alert-dialog
-//! 構成（イシュー #1690）の掲示のため `Examples` 節（`ex_alert_dialog`）を
-//! 追加した。他部品のバリエーション軸（`Size`/`ColorPalette`/`ToastStatus`
-//! 等）への Examples 追加はレビュー負荷を抑えるためのフォローアップ課題
-//! として引き続き PR 本文に残す。
+//! （節は自動的に省略される）。[`DIALOG`] はイシュー #1691 で alert-dialog
+//! 構成（イシュー #1690）の掲示のため、[`ACCORDION`] はイシュー #2026 で
+//! shadcn/ui 突合の結果 multiple 開閉・トリガーへの icon/description 合成の
+//! 掲示のため、それぞれ `Examples` 節（`ex_alert_dialog`/
+//! `ex_accordion_multiple`/`ex_accordion_trigger_composition`）を追加した。
+//! 他部品のバリエーション軸（`Size`/`ColorPalette`/`ToastStatus` 等）への
+//! Examples 追加はレビュー負荷を抑えるためのフォローアップ課題として
+//! 引き続き PR 本文に残す。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
@@ -75,8 +78,9 @@
 //! 木経由で `render()` が行う（`features_and_table_cells_escape_xss_payloads`
 //! が既存フィクスチャで固定済み）。
 
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, small, span, strong, text, Node};
 use fandhe_frontend_pre_styled_ui::{
+    accordion::{self, AccordionProps},
     button::{button, ButtonProps, ButtonVariant},
     dialog::{self, ContentIds, DialogRole},
     ColorPalette, OpenState, Size,
@@ -93,7 +97,7 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "高々 1 項目が開く single モード（Accordion）と、複数項目が同時に開く multiple モード（MultiAccordion）の 2 状態機械を提供する。",
         "開いている項目の item-trigger / item-indicator を data-state=\"open\" に連動してハイライトする。",
-        "size variant（Sm/Md/Lg）を root へ付与し、item-trigger / item-content の padding を切り替える。",
+        "size variant（Xs/Sm/Md/Lg/Xl）を root へ付与し、item-trigger / item-content の padding を切り替える。",
         "item-trigger はキーボード操作時のみのフォーカスリング（:focus-visible）を持つ。",
         "開閉状態（data-state）は呼び出し側が SSR/SSG のビルド時に渡した値がそのまま出力される。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動・ネイティブ details/summary への代替パターンは「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
     ],
@@ -101,9 +105,20 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
         name: "size",
         kind: "Size",
         default: "Size::Md",
-        description: "root へ付与するサイズ variant（Sm/Md/Lg）。item-trigger/item-content の padding を切り替える。",
+        description: "root へ付与するサイズ variant（Xs/Sm/Md/Lg/Xl）。item-trigger/item-content の padding を切り替える。",
     }],
-    examples: &[],
+    examples: &[
+        ExampleEntry {
+            title: "複数項目を同時に開く（multiple モード）",
+            description: "shadcn/ui 突合（イシュー #2026）で確認した合成パターンです。実運用では MultiAccordion（fandhe_frontend_headless_ui::state::MultiSelect を埋め込んだ状態機械）が複数項目の同時開閉を管理します。この掲示は SSR 静的マークアップのため、2 項目とも data-state=\"open\" を固定表示しています。",
+            render: ex_accordion_multiple,
+        },
+        ExampleEntry {
+            title: "トリガーにアイコンと説明文を組み合わせる",
+            description: "item_trigger の children は自由合成のため、追加引数なしでアイコン + タイトル + 説明文の組み合わせを表現できます（イシュー #2026）。item-trigger 直下は item_indicator と合わせて 2 要素に保ち、既存 CSS（space-between レイアウト）をそのまま活かしています。",
+            render: ex_accordion_trigger_composition,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -121,6 +136,155 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`ACCORDION`] の Examples 節「複数項目を同時に開く（multiple モード）」
+/// レンダラ（イシュー #2026）。
+///
+/// SSR 静的マークアップのため 2 項目とも `OpenState::Open` を固定表示する
+/// （wasm 層が管理する実際の複数選択状態遷移はこの Demo の対象外）。
+/// [`crate::showcase::accordion_section`] と同じページに描画されるため、
+/// id は `showcase-acc-*` と衝突しない `showcase-multi-acc-*` を使う。
+fn ex_accordion_multiple() -> Node {
+    let props = AccordionProps::default();
+    let make_item =
+        |value: &'static str, idx: u32, question: &'static str, answer: &'static str| {
+            let trigger_id = format!("showcase-multi-acc-trigger-{idx}");
+            let content_id = format!("showcase-multi-acc-content-{idx}");
+            accordion::item(
+                OpenState::Open,
+                false,
+                &props,
+                vec![],
+                vec![
+                    accordion::item_trigger(
+                        OpenState::Open,
+                        false,
+                        &props,
+                        value,
+                        Some(trigger_id.as_str()),
+                        Some(content_id.as_str()),
+                        vec![],
+                        vec![
+                            text(question),
+                            accordion::item_indicator(
+                                OpenState::Open,
+                                false,
+                                &props,
+                                vec![],
+                                vec![text("▾")],
+                            ),
+                        ],
+                    ),
+                    accordion::item_content(
+                        OpenState::Open,
+                        false,
+                        &props,
+                        Some(content_id.as_str()),
+                        Some(trigger_id.as_str()),
+                        vec![],
+                        vec![text(answer)],
+                    ),
+                ],
+            )
+        };
+    accordion::root(
+        Size::Md,
+        &props,
+        vec![],
+        vec![
+            make_item(
+                "multi-1",
+                1,
+                "料金プランは変更できますか？",
+                "いつでもアップグレード・ダウングレードできます。",
+            ),
+            make_item(
+                "multi-2",
+                2,
+                "無料トライアルはありますか？",
+                "14 日間の無料トライアルを提供しています。",
+            ),
+        ],
+    )
+}
+
+/// [`ACCORDION`] の Examples 節「トリガーにアイコンと説明文を組み合わせる」
+/// レンダラ（イシュー #2026）。
+///
+/// `item_trigger` の `children` を `[wrapper, item_indicator]` の 2 要素に
+/// 保つことで既存 CSS（`justify-content: space-between`）をそのまま活かす。
+/// `wrapper`（`span`）にアイコン用装飾 `span`（`aria-hidden="true"`）と
+/// ラベル用ブロック（`strong` でタイトル + `small` で説明文、色は既存の
+/// `--fandhe-color-fg-muted` トークンのみ使用）を内包する。
+fn ex_accordion_trigger_composition() -> Node {
+    let props = AccordionProps::default();
+    let trigger_id = "showcase-acc-composition-trigger";
+    let content_id = "showcase-acc-composition-content";
+    accordion::root(
+        Size::Md,
+        &props,
+        vec![],
+        vec![accordion::item(
+            OpenState::Open,
+            false,
+            &props,
+            vec![],
+            vec![
+                accordion::item_trigger(
+                    OpenState::Open,
+                    false,
+                    &props,
+                    "composition-1",
+                    Some(trigger_id),
+                    Some(content_id),
+                    vec![],
+                    vec![
+                        span(
+                            vec![(
+                                "style",
+                                "display:flex;align-items:center;gap:var(--fandhe-space-2);",
+                            )],
+                            vec![
+                                span(vec![("aria-hidden", "true")], vec![text("🔔")]),
+                                span(
+                                    vec![("style", "display:flex;flex-direction:column;")],
+                                    vec![
+                                        strong(vec![], vec![text("通知設定")]),
+                                        small(
+                                            vec![(
+                                                "style",
+                                                "color: var(--fandhe-color-fg-muted);",
+                                            )],
+                                            vec![text("メール・アプリ通知の受信可否を管理します。")],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        accordion::item_indicator(
+                            OpenState::Open,
+                            false,
+                            &props,
+                            vec![],
+                            vec![text("▾")],
+                        ),
+                    ],
+                ),
+                accordion::item_content(
+                    OpenState::Open,
+                    false,
+                    &props,
+                    Some(content_id),
+                    Some(trigger_id),
+                    vec![],
+                    vec![text(
+                        "重要な更新のメール通知は既定で有効です。プッシュ通知は端末設定から個別に切り替えられます。",
+                    )],
+                ),
+            ],
+        )],
+    )
+}
 
 /// `/themes/collapsible/`（Interactive カテゴリ）。
 ///

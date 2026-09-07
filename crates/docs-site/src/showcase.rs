@@ -2313,28 +2313,42 @@ fn tabs_section() -> Node {
 
 /// Accordion 節: 1 項目目が開いた静的マークアップ（single モード想定）。
 fn accordion_section() -> Node {
-    let items: [(&str, &str, &str, OpenState); 2] = [
+    // イシュー #2026（shadcn/ui 突合）: 3 件目に disabled 項目を追加し、
+    // `item_indicator`（chevron）を各トリガーへ描画する。
+    // `primitive_showcase/overlay_disclosure.rs::accordion_section` と同型の
+    // 3 件構成に揃え、Themes 側の Demo だけが indicator を描画していない
+    // 表示ギャップ（Anatomy 完全網羅の欠落）を解消する。
+    let items: [(&str, &str, &str, OpenState, bool); 3] = [
         (
             "showcase-acc-1",
             "pre-styled-ui とは何ですか？",
             "headless-ui の anatomy（data-scope / data-part）へテーマトークンと recipe CSS を重ねる styled 層です。",
             OpenState::Open,
+            false,
         ),
         (
             "showcase-acc-2",
             "クリックで開閉できますか？",
             "この掲示は SSR 静的マークアップです。状態遷移（dispatch）は wasm 層の責務のため、docs サイトでは開いた状態を固定表示しています。",
             OpenState::Closed,
+            false,
+        ),
+        (
+            "showcase-acc-3",
+            "エンタープライズ向けサポートはありますか？",
+            "現時点ではコミュニティサポートのみで、エンタープライズ向け契約は提供していません。",
+            OpenState::Closed,
+            true,
         ),
     ];
     let accordion_props = accordion::AccordionProps::default();
     let mut children = Vec::new();
-    for (value, question, answer, state) in items {
+    for (value, question, answer, state, disabled) in items {
         let trigger_id = format!("{value}-trigger");
         let content_id = format!("{value}-content");
         children.push(accordion::item(
             state,
-            false,
+            disabled,
             &accordion_props,
             vec![],
             vec![
@@ -2343,18 +2357,27 @@ fn accordion_section() -> Node {
                     vec![],
                     vec![accordion::item_trigger(
                         state,
-                        false,
+                        disabled,
                         &accordion_props,
                         value,
                         Some(trigger_id.as_str()),
                         Some(content_id.as_str()),
                         vec![],
-                        vec![text(question)],
+                        vec![
+                            text(question),
+                            accordion::item_indicator(
+                                state,
+                                disabled,
+                                &accordion_props,
+                                vec![],
+                                vec![text("▾")],
+                            ),
+                        ],
                     )],
                 ),
                 accordion::item_content(
                     state,
-                    false,
+                    disabled,
                     &accordion_props,
                     Some(content_id.as_str()),
                     Some(trigger_id.as_str()),
