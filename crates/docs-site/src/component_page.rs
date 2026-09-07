@@ -25,8 +25,8 @@
 //! `data-part` 属性）から**機械導出**し、docs 側に手書きのパーツ一覧を
 //! 持たない。一次情報は Demo 節（[`showcase::generated_content`] の出力）
 //! を走査して得た `data-scope`/`data-part` の出現のみであり、デモが
-//! 描画しなかったパーツ（例: accordion デモの `item-indicator`）は
-//! 導出結果に含まれない（**デモが実際に描画したパーツの部分集合**である
+//! 描画しなかったパーツ（例: popover デモの `anchor`/`arrow`/`arrow-tip`/
+//! `indicator`）は導出結果に含まれない（**デモが実際に描画したパーツの部分集合**である
 //! ことを `tests/component_pages.rs` が固定する）。将来 Anatomy の完全
 //! 列挙が必要になった場合、headless-ui へパーツ列挙 API を追加する案は
 //! 公開クレートのバンプとイシュー #693 方針（headless-ui への直接依存を

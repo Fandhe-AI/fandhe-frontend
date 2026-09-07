@@ -80,6 +80,38 @@
 //! - **size 軸・palette 軸の追加**: size は既に 5 段（xs〜xl）で chakra と
 //!   同数のため過不足なし。palette 軸非保有は本モジュール冒頭の既定方針の
 //!   まま維持する。
+//!
+//! # shadcn/ui 突合（イシュー #2026）
+//!
+//! shadcn/ui（補完参照、`docs/design/shadcn-reference-adoption-policy.md`）の
+//! Accordion（<https://ui.shadcn.com/docs/components/base/accordion>）と
+//! 突合した。以下は意図的に合わせない:
+//!
+//! - **コンテナ枠なし**（shadcn は border-bottom 区切りのみで外枠・角丸を
+//!   持たない、chakra `plain` 相当）: 当部品の既定は chakra `enclosed`
+//!   相当（外枠 + 角丸）であり、variant 軸（`outline`/`subtle`/`enclosed`/
+//!   `plain`）の新設はイシュー #1515 で既に評価・見送り済み（[`root`] の
+//!   公開シグネチャ変更を伴う 0.x 破壊的変更のため）。今回の突合でも
+//!   追加の判断材料は無く、上記見送り判断を再確認したのみで非採用を維持する。
+//! - **open 時のトリガー文字色不変**（shadcn は chevron 回転のみで文字色を
+//!   変えない）: 当部品の文字色強調はイシュー #1425 の interaction visual
+//!   language（chakra-ui/Radix Themes 基準）による意図的な選択であり、
+//!   shadcn 固有の新要素ではないため変更しない。
+//!
+//! 一方、以下の合成パターンは [`item`]/[`item_trigger`]/[`Accordion`]/
+//! [`MultiAccordion`] の既存 API で対応済みと確認した（headless-ui/
+//! pre-styled-ui のコード変更は不要）:
+//!
+//! - **multiple 開閉**: [`MultiAccordion`] 状態機械が複数項目の同時展開を
+//!   管理する。
+//! - **項目単位の disabled**: [`item`]/[`item_trigger`] の `disabled`
+//!   引数が既に CSS（[`recipe`] の `data-disabled` 消費）と連動している。
+//! - **トリガーへの icon/description 合成**: [`item_trigger`] の
+//!   `children: Vec<Node>` は自由合成のため、追加引数なしで表現できる。
+//!
+//! 上記 3 パターンは docs サイトの Demo 拡充（`crates/docs-site/src/showcase.rs`）
+//! と Examples 節新設（`crates/docs-site/src/component_specs_overlay.rs`）で
+//! 可視化した（本モジュールのコード自体は不変）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

@@ -438,11 +438,25 @@ fn anatomy_parts_are_a_subset_of_headless_ui_declared_parts_for_every_page() {
 /// パーツ）は、ショーケースデモが全パーツを描画する部品として実測で選定
 /// した（`crates/pre-styled-ui/src/card.rs`/`crates/headless-ui/src/drawer.rs`
 /// の `.part("<name>", …)` 呼び出し数と Anatomy 導出結果が一致することを
-/// 事前調査で確認済み）。accordion は `item-indicator` を描画しないため
-/// 完全一致の固定には使えない（設計 §3.4/§6 の除外理由どおり）。
+/// 事前調査で確認済み）。accordion はイシュー #2026 の Demo 拡充
+/// （`crate::showcase::accordion_section` へ `item_indicator` を追加）で
+/// 5 anatomy パーツ全てが機械導出されるようになったため、以下 `cases` へ
+/// 昇格した。
 #[test]
 fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components() {
     let cases: &[(&str, &[&str])] = &[
+        (
+            // イシュー #2026: Demo 拡充で 5 anatomy パーツ全てが機械導出
+            // されるようになったことを固定する。
+            "/themes/accordion/",
+            &[
+                "root",
+                "item",
+                "item-trigger",
+                "item-indicator",
+                "item-content",
+            ],
+        ),
         (
             "/themes/card/",
             &["root", "header", "body", "footer", "title", "description"],
