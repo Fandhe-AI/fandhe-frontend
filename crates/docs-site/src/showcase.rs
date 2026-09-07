@@ -3623,10 +3623,62 @@ fn radio_group_section() -> Node {
         })
         .collect());
 
+    // イシュー #2018: shadcn/ui 突合で `data-invalid`（`item-control` の
+    // border-color）自体は #1616 で実装済みと確認したが、docs サイトの Demo
+    // に実演行が無かったため追加する（`checkbox_group_section` の
+    // `invalid_demo` と同型）。root/各 item の双方へ `invalid: true` を渡す
+    // のは、CSS の `state(...)` 規則が `item-control` 側の `data-invalid`
+    // 属性に反応するため（`root` だけでは item 系パーツへ伝播しない）。
+    let invalid_label_id = "showcase-radio-invalid-label";
+    let invalid_item_props = |disabled: bool| radio_group::RadioGroupProps {
+        disabled,
+        invalid: true,
+        ..radio_group::RadioGroupProps::default()
+    };
+    let mut invalid_children = vec![radio_group::label(
+        &invalid_item_props(false),
+        Some(invalid_label_id),
+        vec![],
+        vec![text("Plan (invalid)")],
+    )];
+    invalid_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        let props = invalid_item_props(*disabled);
+        radio_group::item(
+            *checked,
+            &props,
+            value,
+            vec![],
+            vec![
+                radio_group::item_hidden_input(
+                    *checked,
+                    &props,
+                    Some("showcase-radio-invalid"),
+                    value,
+                    vec![],
+                ),
+                radio_group::item_control(*checked, &props, vec![]),
+                radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    let invalid_root_props = radio_group::RadioGroupProps {
+        invalid: true,
+        ..radio_group::RadioGroupProps::default()
+    };
+    let invalid_demo = radio_group::root_with_props(
+        Size::Md,
+        ColorPalette::Accent,
+        &invalid_root_props,
+        Some(Orientation::Vertical),
+        Some(invalid_label_id),
+        vec![],
+        invalid_children,
+    );
+
     section(
         "RadioGroup",
         "単一選択の選択肢グループ。ネイティブ input[type=\"radio\"] による排他選択・キーボード操作を data-scope=\"radio-group\" の anatomy へ重ねます。",
-        vec![demo, horizontal_demo, size_row],
+        vec![demo, horizontal_demo, invalid_demo, size_row],
     )
 }
 

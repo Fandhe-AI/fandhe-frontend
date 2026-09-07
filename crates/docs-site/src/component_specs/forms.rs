@@ -63,6 +63,8 @@ use fandhe_frontend_pre_styled_ui::image_cropper::{HandlePosition, ImageCropperP
 use fandhe_frontend_pre_styled_ui::kbd;
 use fandhe_frontend_pre_styled_ui::native_select;
 use fandhe_frontend_pre_styled_ui::pin_input;
+use fandhe_frontend_pre_styled_ui::radio_group;
+use fandhe_frontend_pre_styled_ui::radio_group::RadioGroupProps;
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::{BadgeProps, KbdProps};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
@@ -1226,7 +1228,11 @@ const RADIO_GROUP: ComponentPageSpec = ComponentPageSpec {
             description: "root 配下の子ノード。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "説明文付き（label + description の合成）",
+        description: "`radio_group` は description 専用パートを持たない（headless anatomy に存在せず、chakra-ui も同様に呼び出し側合成のため。`fandhe_frontend_pre_styled_ui::radio_group` rustdoc「shadcn/ui との突合」節参照）。`item-text` の後ろへ通常の子ノードとして `fg-muted` + 1 段小さいフォントサイズの説明文を並べるだけで再現できます。",
+        render: radio_group_with_description_example,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -1240,6 +1246,73 @@ const RADIO_GROUP: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+// イシュー #2018: shadcn/ui との突合で「label + description の合成
+// パターン」の Examples が欠けていたことを確認したため追加。`radio_group`
+// 自体は description 専用パートを持たない（`fandhe_frontend_pre_styled_ui::radio_group`
+// rustdoc「shadcn/ui との突合」節参照）ため、通常のノード木 API のみで
+// item-text 横へ説明文を合成する呼び出し側の一例を示す（HTML 文字列直接
+// 組み立てを行わない、`.claude/rules/security.md` A03。`checkbox` #2011 突合
+// の `checkbox_with_description_example` と同型）。
+fn radio_group_with_description_example() -> Node {
+    let label_id = "radio-group-with-description-example-label";
+    let props = RadioGroupProps::default();
+    let item = |value: &'static str, checked: bool, title: &'static str, desc: &'static str| {
+        radio_group::item(
+            checked,
+            &props,
+            value,
+            vec![("style", "align-items: flex-start;")],
+            vec![
+                radio_group::item_hidden_input(
+                    checked,
+                    &props,
+                    Some("radio-group-with-description-example"),
+                    value,
+                    vec![],
+                ),
+                radio_group::item_control(checked, &props, vec![]),
+                el(
+                    "div",
+                    vec![],
+                    vec![
+                        radio_group::item_text(checked, &props, vec![], vec![text(title)]),
+                        p(
+                            vec![(
+                                "style",
+                                "margin: 0; color: var(--fandhe-color-fg-muted); font-size: var(--fandhe-font-font-size-xs);",
+                            )],
+                            vec![text(desc)],
+                        ),
+                    ],
+                ),
+            ],
+        )
+    };
+    radio_group::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        None,
+        Some(label_id),
+        vec![],
+        vec![
+            radio_group::label(&props, Some(label_id), vec![], vec![text("Notifications")]),
+            item(
+                "all",
+                true,
+                "All",
+                "Receive all notifications for this project.",
+            ),
+            item(
+                "important",
+                false,
+                "Important only",
+                "Receive notifications only for mentions and direct messages.",
+            ),
+        ],
+    )
+}
 
 const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
