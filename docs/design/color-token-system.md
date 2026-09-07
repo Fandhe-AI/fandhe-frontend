@@ -241,14 +241,23 @@ stale 検知で FAIL する。よって本イシューでこの 2 件を `SHARED
 | `--ring` | フォーカスリング | `focus-ring` | #1424 で確定済み |
 
 **`--accent` は false friend**: shadcn の `--accent`（既定テーマでは
-`oklch(0.97 0 0)` 相当の極薄グレー）は hover / focus / selected 時の
-薄い面色であり、fandhe の `accent`（ブランド色、`#3182ce`）とは役割が
-異なる。shadcn の `--accent` に対応するのは fandhe の `bg-muted` /
-`bg-emphasized`（`tree_view.rs`/`menubar.rs`/`navigation_menu.rs`/
-`toolbar.rs` の選択・hover 背景に用いる階調、§8 参照）である。後続
-Phase で shadcn 側のマークアップ（`bg-accent` クラス等）を参照して部品を
-調整する実装者は、これを `--fandhe-color-accent`（ブランド色）へ機械的に
-対応させないこと。
+`oklch(0.97 0 0)` 相当の極薄グレー）は hover / focus / selected の
+いずれも同一の薄い面色で表す単一トークンであり、fandhe の `accent`
+（ブランド色、`#3182ce`）とは役割が異なる。fandhe はこの shadcn 側の
+単一ロールを「意味を持たない中立 hover 面」と「選択・open・pressed 等の
+意味を持つ強調面」の 2 つへ意図的に分割している点が shadcn との構造的な
+差分である: 中立 hover（例: メニュー項目に一時的にカーソルが乗っている
+だけの状態）には `bg-muted` / `bg-emphasized` を割り当てる一方、
+選択・open・pressed のように状態そのものに意味がある面には
+`accent-subtle` を割り当てる。`tree_view.rs`/`menubar.rs`/
+`navigation_menu.rs`/`toolbar.rs` の選択・open・pressed 背景が実際に
+使うのは後者の `accent-subtle` であり（§8 参照）、`bg-muted`/
+`bg-emphasized` は同じ部品群のうち意味を持たない hover 面（例:
+`toolbar.rs` の hover 中の隣接項目）に使う。後続 Phase で shadcn 側の
+マークアップ（`bg-accent` クラス等）を参照して部品を調整する実装者は、
+それが中立 hover か意味を持つ選択面かを見極めたうえで前者は
+`bg-muted`/`bg-emphasized`、後者は `accent-subtle` へ対応させ、いずれも
+`--fandhe-color-accent`（ブランド色）へ機械的に対応させないこと。
 
 **結論: 追加不要**。上記の役割はすべて既存 55 トークンで充足しており、
 `theme.rs` への変更は行わない。
