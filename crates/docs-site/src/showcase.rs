@@ -5746,6 +5746,7 @@ fn toggle_section() -> Node {
         .map(|(pressed, disabled, label)| {
             toggle::root(
                 Size::Md,
+                toggle::ToggleVariant::Outline,
                 ColorPalette::Accent,
                 *pressed,
                 *disabled,
@@ -5768,6 +5769,7 @@ fn toggle_section() -> Node {
         .map(|(size, label)| {
             toggle::root(
                 *size,
+                toggle::ToggleVariant::Outline,
                 ColorPalette::Accent,
                 true,
                 false,
@@ -5780,11 +5782,39 @@ fn toggle_section() -> Node {
         })
         .collect());
 
+    // イシュー #2023: shadcn/ui 突合で新設した `variant` 軸（Outline/Ghost）
+    // の Demo 行。Off/On の両状態で見た目差（枠線の有無）が分かるよう
+    // 4 通り並べる。
+    let variants = [
+        (toggle::ToggleVariant::Outline, false, "Outline / Off"),
+        (toggle::ToggleVariant::Outline, true, "Outline / On"),
+        (toggle::ToggleVariant::Ghost, false, "Ghost / Off"),
+        (toggle::ToggleVariant::Ghost, true, "Ghost / On"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, pressed, label)| {
+            toggle::root(
+                Size::Md,
+                *variant,
+                ColorPalette::Accent,
+                *pressed,
+                false,
+                vec![],
+                vec![
+                    toggle::indicator(*pressed, false, vec![], checkmark()),
+                    text(*label),
+                ],
+            )
+        })
+        .collect());
+
     let palette_row = row(palettes()
         .iter()
         .map(|(palette, label)| {
             toggle::root(
                 Size::Md,
+                toggle::ToggleVariant::Outline,
                 *palette,
                 true,
                 false,
@@ -5799,8 +5829,8 @@ fn toggle_section() -> Node {
 
     section(
         "Toggle",
-        "押下状態を持つ 2 状態ボタン。data-state 語彙は Switch の checked/unchecked ではなく on/off です（root 自身がネイティブ button であり、hidden input を持ちません）。",
-        vec![state_row, size_row, palette_row],
+        "押下状態を持つ 2 状態ボタン。data-state 語彙は Switch の checked/unchecked ではなく on/off です（root 自身がネイティブ button であり、hidden input を持ちません）。variant（Outline/Ghost）はイシュー #2023 の shadcn/ui 突合で新設しました。",
+        vec![state_row, size_row, variant_row, palette_row],
     )
 }
 

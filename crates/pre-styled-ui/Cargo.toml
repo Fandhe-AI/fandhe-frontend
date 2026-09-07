@@ -2212,7 +2212,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.128.0 は main の到達値 0.127.3 より既に新しいため、
 # `semver-same-version-is-conflict` の追加 +1 運用（同一版数への偶発衝突時
 # のみ適用）は該当せず、本ブランチの到達値 0.128.0 をそのまま採用する。
-version = "0.128.0"
+# イシュー #2023: shadcn/ui 突合で toggle に `ToggleVariant`（Outline/Ghost）
+# を新設し `root()` シグネチャへ `variant` 引数を挿入した（0.x の破壊的
+# 変更のためマイナーバンプ、button #2141 の `ButtonVariant::Link` 追加と
+# 同型）。
+version = "0.129.0"
 
 
 edition = "2021"
