@@ -4263,6 +4263,15 @@ fn input_section() -> Node {
             &disabled_field("showcase-input-disabled"),
             vec![("placeholder", "Disabled")],
         ),
+        // イシュー #2015: shadcn/ui 突合で file input のコンテナ側 border/
+        // height/padding が既存 base/variant/size 規則で正しく適用される
+        // ことを実描画確認するためのインスタンス（`type` は headless
+        // `field::input` へそのまま渡る一般属性、`extra_attrs` 経由）。
+        input::input(
+            &InputProps::default(),
+            &plain_field("showcase-input-file"),
+            vec![("type", "file")],
+        ),
     ]);
 
     section(

@@ -53,6 +53,35 @@
 //!   3 サイトも readonly の独自装飾を持たない（[`crate::date_input`] の
 //!   `segment` へ付けた `cursor: default` は非ネイティブ `<span>` セグメント
 //!   固有の事情であり、ネイティブ `<input>` である本パーツには適用しない）。
+//!
+//! # shadcn/ui 突合（イシュー #2015）
+//!
+//! shadcn/ui（補完参照、`docs/design/shadcn-reference-adoption-policy.md`）と
+//! 突合し、以下はいずれも意図的に非採用と判定した。
+//!
+//! - **file input のボタン装飾（意図的非採用）**: shadcn は
+//!   `::file-selector-button` 疑似要素へ Tailwind の `file:*` バリアントで
+//!   装飾するが、[`crate::recipe::StateCondition`] は擬似クラス（`:hover`/
+//!   `:focus-visible` 等）のみを表現でき擬似要素は対象外（[`crate::textarea`]
+//!   の `::placeholder` 非採用と同型の理由。recipe 基盤の擬似要素対応は
+//!   本イシュー単体のスコープ外）。コンテナ側（`input` 要素自体の
+//!   border/height/padding）は既存の base/variant/size 規則がそのまま
+//!   適用され、実描画確認（1280×900・ライト/ダーク・xs〜xl 全 5 段）でも
+//!   ネイティブ file ボタンのクリッピングは確認されなかったため、CSS の
+//!   追加調整も行わない。
+//! - **`aria-invalid` の box-shadow リング（意図的非採用）**: 本フレーム
+//!   ワークのフォーカスリング規約（#1424、
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3）は
+//!   実装手段を `outline` へ統一し、新規に `box-shadow` によるリングを
+//!   追加しない方針を確定済み（`forced-colors: active` で `outline` は
+//!   強制描画されるが `box-shadow` は消える高コントラスト要件が根拠）。
+//!   既存の `data-invalid` → `border-color` のみを維持する。
+//! - **button 併記（Input Group、意図的非対応）**: shadcn の Input+Button
+//!   横並びパターンは Phase 4 `#2061`（`input-group` 新設、未実装）の
+//!   管轄であり、本部品単体では既存部品の組み合わせによる再現手段がない。
+//!   `#2061` 完了後に再評価する。
+//! - **size 段階（差分なし）**: 既存 xs〜xl の 5 段（#1678）が shadcn の
+//!   `h-9` + `sm` の 2 段を包含済み。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
