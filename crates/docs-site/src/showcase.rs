@@ -3446,15 +3446,27 @@ fn toggle_tip_section() -> Node {
 /// 担い、見た目（トラック/つまみ）は `control`/`thumb` が装飾として担う。
 fn switch_section() -> Node {
     let states = [
-        (false, false, "showcase-switch-unchecked", "Unchecked"),
-        (true, false, "showcase-switch-checked", "Checked"),
-        (false, true, "showcase-switch-disabled", "Disabled"),
+        (
+            false,
+            false,
+            false,
+            "showcase-switch-unchecked",
+            "Unchecked",
+        ),
+        (true, false, false, "showcase-switch-checked", "Checked"),
+        (false, true, false, "showcase-switch-disabled", "Disabled"),
+        // イシュー #2021: shadcn/ui との突合で `control` slot が
+        // `data-invalid`（headless `SwitchProps.invalid`、#1622）を未消費
+        // だったことを確認し `box-shadow` リングを追加した是正の実演行
+        // （checkbox #2011 の Invalid 行と同型）。
+        (false, false, true, "showcase-switch-invalid", "Invalid"),
     ];
     let demo_row = row(states
         .iter()
-        .map(|(checked, disabled, name, label)| {
+        .map(|(checked, disabled, invalid, name, label)| {
             let props = switch::SwitchProps {
                 disabled: *disabled,
+                invalid: *invalid,
                 ..switch::SwitchProps::default()
             };
             switch::root(
