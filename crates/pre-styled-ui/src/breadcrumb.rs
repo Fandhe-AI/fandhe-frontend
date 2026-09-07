@@ -105,7 +105,16 @@
 //!   実 registry ソース（`break-words` ユーティリティ、生 CSS 宣言に
 //!   換算すると `overflow-wrap: break-word`）を追随した。長いラベルが
 //!   コンテナ幅を超えて溢れるのを防ぐレイアウト是正であり、トークンを
-//!   要さない生値のため低リスクで採用した。
+//!   要さない生値のため低リスクで採用した。PR #2142 codex-review P2
+//!   指摘是正: `list`（`display: flex`）配下の `item`（`display:
+//!   inline-flex`）とその子 `link`/`current-link` はいずれも flex item
+//!   であり、flex item の `min-width` 初期値は `auto`（内容の
+//!   min-content 幅未満に縮まない）のため、`overflow-wrap` を `list` に
+//!   付けるだけでは折り返し候補が幅計算に反映されずコンテナからはみ出る
+//!   （`overflow-wrap` 自体は継承されるが、祖先チェーンが縮まなければ
+//!   効果が出ない）。`item`/`link`/`current-link` の 3 パーツへ
+//!   `min-width: 0` を追加し、他部品（`crate::alert`/`crate::card` 等）
+//!   と同じ確立パターンで auto 制約を外した。
 //!
 //! **意図的に追随しない差分**（根拠を記録し、再評価は
 //! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
@@ -237,6 +246,16 @@ fn recipe() -> SlotRecipe {
                 // codex-review #1791 P1 指摘: `list` と同じ理由で
                 // フォールバック `0.375rem` を明示する。
                 decl("gap", "var(--fandhe-space-1-5, 0.375rem)"),
+                // PR #2142 codex-review P2 指摘是正: `item` は `list`
+                // （`display: flex`）の flex item であり、flex item の
+                // `min-width` 初期値は `auto`（= 内容の min-content 幅）
+                // のため、`list` に付けた `overflow-wrap: break-word`
+                // だけでは長いラベルの折り返し候補が幅計算に含まれず
+                // コンテナからはみ出る。`min-width: 0` で auto 制約を
+                // 外し、子（`link`/`current-link`）側の折り返しが実際に
+                // 効くようにする（他部品と同じ確立パターン、
+                // `crate::alert`/`crate::card` 等参照）。
+                decl("min-width", "0"),
             ],
         )
         .base(
@@ -254,6 +273,12 @@ fn recipe() -> SlotRecipe {
                 // する（`Theme::empty()` 系カスタムテーマで computed-value
                 // time に無効となり角丸が失われるのを防ぐ）。
                 decl("border-radius", "var(--fandhe-radius-sm, 0.25rem)"),
+                // PR #2142 codex-review P2 指摘是正: `link` は `item`
+                // （`display: inline-flex`）の flex item でもあるため、
+                // `item` と同じ理由で `min-width: 0` を付け、内側の
+                // テキストが `overflow-wrap: break-word`（`list` から
+                // 継承）で実際に折り返せるようにする。
+                decl("min-width", "0"),
             ],
         )
         // イシュー #1517: `link` の色 transition（`crate::recipe` 冒頭 doc
@@ -267,6 +292,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                // PR #2142 codex-review P2 指摘是正: `current-link` も
+                // `item`（`display: inline-flex`）の flex item のため、
+                // `link` と同じ理由で `min-width: 0` を付ける。
+                decl("min-width", "0"),
             ],
         )
         .base(
