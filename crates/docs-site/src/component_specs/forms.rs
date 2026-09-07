@@ -1939,7 +1939,8 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
 
 const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle_group::root` へ委譲する。",
+        "`size`/`variant`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle_group::root` へ委譲する。",
+        "`variant`（`ToggleGroupVariant::Outline`/`Ghost`）はイシュー #2024 の shadcn/ui 突合で新設した軸。`Outline`（既定）は輪郭あり、`Ghost` は背景・輪郭なしの最小装飾（`crate::toggle::ToggleVariant` と同じ意味論。custom property 経由で `item` パーツへ伝播する）。",
         "`radio_group`/`radio_card`/`segment_group` と同型の `orientation`/`labelled_by` 軸を持つ。",
         "各 item は単体 Toggle と同じ押下状態付きネイティブ button で `aria-pressed`/`data-state` 語彙を揃える。",
         "`root` のみが `role=\"group\"` を持つ（`role=\"radiogroup\"` の RadioGroup とは異なる）。",
@@ -1950,6 +1951,12 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
             kind: "Size",
             default: "Size::Md",
             description: "サイズ variant。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "ToggleGroupVariant",
+            default: "ToggleGroupVariant::Outline",
+            description: "外観 variant（Outline/Ghost、イシュー #2024）。",
         },
         ArgRow {
             name: "palette",

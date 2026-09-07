@@ -20,14 +20,15 @@
 //!
 //! # 複合部品の variant 統一方針（root のみへクラス付与）
 //!
-//! `size`（[`Size`]）/`palette`（[`ColorPalette`]）はいずれも [`root`] へ
-//! のみクラスを付与する。[`recipe`] が root スコープへ登録する custom
-//! property（`--fandhe-toggle-group-item-padding-y`/`-item-padding-x`/
-//! `-item-font-size`）は CSS の通常のプロパティ継承により `item` へ伝わる
-//! ため、`item` 自身へ variant クラスを付ける必要がない（`root` が `item`
-//! を内包する祖先要素であるため成立する。[`crate::radio_group`] の
-//! `item-control`/`item-text` と同じ設計、`crate::lib` rustdoc
-//! 「複合部品の variant 統一方針」節参照）。
+//! `size`（[`Size`]）/`variant`（[`ToggleGroupVariant`]、イシュー #2024）/
+//! `palette`（[`ColorPalette`]）はいずれも [`root`] へのみクラスを付与
+//! する。[`recipe`] が root スコープへ登録する custom property
+//! （`--fandhe-toggle-group-item-padding-y`/`-item-padding-x`/
+//! `-item-font-size`/`-item-border-color`/`-item-background`）は CSS の
+//! 通常のプロパティ継承により `item` へ伝わるため、`item` 自身へ variant
+//! クラスを付ける必要がない（`root` が `item` を内包する祖先要素である
+//! ため成立する。[`crate::radio_group`] の `item-control`/`item-text` と
+//! 同じ設計、`crate::lib` rustdoc「複合部品の variant 統一方針」節参照）。
 //!
 //! # `data-state`/`aria-pressed` 語彙について
 //!
@@ -64,14 +65,41 @@
 //! [`crate::recipe::hover_bg_muted`]）へ載せ替え、item が隣接ボーダーを
 //! 共有する連結セグメント状の外観（詳細は [`stylesheet`] rustdoc）を追加した。
 //!
+//! # shadcn/ui 突合（イシュー #2024）
+//!
+//! shadcn/ui（`https://ui.shadcn.com/docs/components/base/toggle-group`）の
+//! Toggle Group は `variant`（`"default"`/`"outline"`）と `spacing`（連結/
+//! 分離セグメント）の 2 軸を持つ。うち `variant` は
+//! [`crate::toggle::ToggleVariant`]（イシュー #2023 で新設済み）と同一の
+//! 「枠線の有無」軸であり、`spacing` は既存 [`stylesheet`] の連結セグメント
+//! 表現（常時有効、[`stylesheet`] rustdoc「raw CSS 追記の理由」節）と対応
+//! する。両軸は shadcn 側で直交しているが、API 破壊的変更を最小化する
+//! ため本イシューでは `variant` 軸（[`ToggleGroupVariant`]）のみを新設し、
+//! `spacing`（連結/分離の切替）は追加しない（`crate::listbox` #1483 と
+//! 同じ、複数軸のうち 1 軸に絞る判断）。命名は #2023 の
+//! [`crate::toggle::ToggleVariant`] にそのまま揃える
+//! （`docs/design/shadcn-reference-adoption-policy.md` §3
+//! 「shadcn 固有の実装語彙をそのまま持ち込まない」を満たしつつ、本
+//! リポジトリ内の既存語彙との統一を優先する）。
+//!
+//! [`ToggleGroupVariant`] は [`root`]/[`root_with_props`] を通じて `root`
+//! パーツのみへクラス付与される（複合部品の variant 統一方針、上記節
+//! 参照）。border/background は `item` パーツが持つため、`root` の
+//! variant クラスから CSS カスタムプロパティ経由（[`stylesheet`] の
+//! `--fandhe-toggle-group-item-border-color`/
+//! `--fandhe-toggle-group-item-background`）で `item` へ伝播させる
+//! （`size`/`palette` の custom property 伝播と同型、モジュール冒頭
+//! rustdoc「複合部品の variant 統一方針」節参照）。既定 `Outline`
+//! variant はフォールバック値が既存の base 宣言と同一のため computed
+//! style は不変だが、`var()` 化により golden の CSS 文字列は変わる
+//! （純追加ではあるが `stylesheet()` の既定 variant 出力バイトは変化する
+//! 仕様、PR 本文に明記）。
+//!
 //! 是正しない点（意図的な判断）:
 //!
 //! - **pressed の palette solid 塗りを維持する**: 参照サイトの淡い soft
 //!   背景ではなく、[`crate::toggle`] と共有する既存の `data-state="on"`
 //!   表現語彙（[`ColorPalette`] 軸の存在意義）をそのまま使う。
-//! - **variant 軸（solid/outline 等）は追加しない**: `crate::listbox`
-//!   （イシュー #1483）と同じ、Forms 家族横断の設計判断を要するため本
-//!   イシュー単体では追加しない。
 //! - **roving focus の実 DOM 配線 / loopFocus はスコープ外**: headless 層
 //!   （`crates/headless-ui/src/toggle_group.rs`）と同じく wasm keynav 層の
 //!   責務（下記「本イシューのスコープ外」節と同一事項）。SSR 側の
@@ -106,6 +134,33 @@ pub use fandhe_frontend_headless_ui::toggle_group::{
 /// (`crates/headless-ui/src/toggle_group.rs` の `ANATOMY.part(...)` 呼び出し
 /// と同期させる契約)。
 const SLOTS: &[&str] = &["root", "item"];
+
+/// `item` の外観 variant（イシュー #2024、shadcn/ui `variant: "default" |
+/// "outline"` との突合で新設）。[`crate::toggle::ToggleVariant`] と同一の
+/// 「枠線の有無」軸であり、命名・値・既定値をそのまま揃える（モジュール
+/// 冒頭 rustdoc「shadcn/ui 突合（イシュー #2024）」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ToggleGroupVariant {
+    /// 輪郭あり（既定、#1513 までの唯一の見た目を維持）。
+    #[default]
+    Outline,
+    /// 背景・輪郭なしの最小装飾（shadcn/ui の既定 `variant: "default"`
+    /// 相当。[`crate::toggle::ToggleVariant::Ghost`] と同じ意味論）。
+    Ghost,
+}
+
+impl VariantValue for ToggleGroupVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Outline => "outline",
+            Self::Ghost => "ghost",
+        }
+    }
+}
 
 /// この styled ToggleGroup の既定 CSS を組み立てる（内部ヘルパ、
 /// [`stylesheet`] のみが呼ぶ）。
@@ -146,9 +201,23 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
                 decl("box-sizing", "border-box"),
-                decl("border", "1px solid var(--fandhe-color-border)"),
+                // イシュー #2024: variant（Outline/Ghost）は root のみへ
+                // クラスが付く複合部品の variant 統一方針のため、item 自身は
+                // variant クラスを持たない。root が持つ variant クラスから
+                // custom property 経由で item の border-color/background
+                // を差し替える（`--fandhe-toggle-group-item-padding-y` 等
+                // 既存の size 軸伝播と同型、モジュール冒頭 rustdoc「shadcn/ui
+                // 突合（イシュー #2024）」節参照）。既定 Outline はフォール
+                // バック値が旧リテラルと同一のため computed style は不変。
+                decl(
+                    "border",
+                    "1px solid var(--fandhe-toggle-group-item-border-color, var(--fandhe-color-border))",
+                ),
                 decl("border-radius", "var(--fandhe-radius-md)"),
-                decl("background", "var(--fandhe-color-bg)"),
+                decl(
+                    "background",
+                    "var(--fandhe-toggle-group-item-background, var(--fandhe-color-bg))",
+                ),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl(
                     "padding",
@@ -262,8 +331,24 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-toggle-group-item-font-size", "var(--fandhe-font-font-size-lg)"),
             ],
         )
+        // イシュー #2024: shadcn/ui 突合で新設した `variant` 軸。`Outline`
+        // は既存 base 規則がそのまま `outline` 相当（custom property の
+        // フォールバック値と同一）であるため追加宣言を持たない。`Ghost`
+        // のみ item の border-color/background を差し替える custom
+        // property の 2 宣言を上書きする（純追加。既存 base/state/palette
+        // /size 出力はバイト単位で不変、`crate::toggle::ToggleVariant` の
+        // Ghost 実装と同じ判断）。
+        .variant(
+            ToggleGroupVariant::Ghost,
+            "root",
+            vec![
+                decl("--fandhe-toggle-group-item-border-color", "transparent"),
+                decl("--fandhe-toggle-group-item-background", "transparent"),
+            ],
+        )
         .default_variant(Size::Md)
-        .default_variant(ColorPalette::Accent);
+        .default_variant(ColorPalette::Accent)
+        .default_variant(ToggleGroupVariant::Outline);
 
     for palette in [
         ColorPalette::Accent,
@@ -462,6 +547,7 @@ pub fn stylesheet() -> String {
 ///
 /// let node = toggle_group::root(
 ///     Size::Md,
+///     toggle_group::ToggleGroupVariant::Outline,
 ///     ColorPalette::Accent,
 ///     false,
 ///     None,
@@ -471,9 +557,14 @@ pub fn stylesheet() -> String {
 /// );
 /// assert!(render(&node).contains(r#"data-scope="toggle-group" data-part="root""#));
 /// ```
+// イシュー #2024: `variant` 引数の追加で 7→8 引数となった
+// （`crates/headless-ui/src/select.rs` 等の複合部品コンストラクタと同型の
+// 許容、`root_with_props` へ委譲する薄い組み立て関数のため分割は行わない）。
+#[allow(clippy::too_many_arguments)]
 #[must_use]
 pub fn root<'a>(
     size: Size,
+    variant: ToggleGroupVariant,
     palette: ColorPalette,
     disabled: bool,
     orientation: Option<Orientation>,
@@ -486,7 +577,7 @@ pub fn root<'a>(
         orientation,
         ..ToggleGroupProps::default()
     };
-    root_with_props(size, palette, &props, labelled_by, attrs, children)
+    root_with_props(size, variant, palette, &props, labelled_by, attrs, children)
 }
 
 /// styled root パーツを、全 [`ToggleGroupProps`]（disabled/orientation/
@@ -512,6 +603,7 @@ pub fn root<'a>(
 /// };
 /// let node = toggle_group::root_with_props(
 ///     Size::Md,
+///     toggle_group::ToggleGroupVariant::Outline,
 ///     ColorPalette::Accent,
 ///     &props,
 ///     None,
@@ -523,6 +615,7 @@ pub fn root<'a>(
 #[must_use]
 pub fn root_with_props<'a>(
     size: Size,
+    variant: ToggleGroupVariant,
     palette: ColorPalette,
     props: &ToggleGroupProps,
     labelled_by: Option<&'a str>,
@@ -530,8 +623,11 @@ pub fn root_with_props<'a>(
     children: Vec<Node>,
 ) -> Node {
     let recipe = recipe();
-    let class =
-        recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
+    let class = recipe.variant_classes(&[
+        ("size", size.value()),
+        ("variant", variant.value()),
+        ("color-palette", palette.value()),
+    ]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::toggle_group::root(props, labelled_by, merged, children)
@@ -714,6 +810,7 @@ mod tests {
     fn root_outputs_scope_and_part() {
         let html = render(&root(
             Size::Md,
+            ToggleGroupVariant::Outline,
             ColorPalette::Accent,
             false,
             None,
@@ -730,6 +827,7 @@ mod tests {
     fn default_variant_is_md_and_accent() {
         let html = render(&root(
             Size::Md,
+            ToggleGroupVariant::Outline,
             ColorPalette::Accent,
             false,
             None,
@@ -752,6 +850,7 @@ mod tests {
         ] {
             let html = render(&root(
                 size,
+                ToggleGroupVariant::Outline,
                 ColorPalette::Accent,
                 false,
                 None,
@@ -788,9 +887,47 @@ mod tests {
                 "fd-toggle-group--color-palette-neutral",
             ),
         ] {
-            let html = render(&root(Size::Md, palette, false, None, None, vec![], vec![]));
+            let html = render(&root(
+                Size::Md,
+                ToggleGroupVariant::Outline,
+                palette,
+                false,
+                None,
+                None,
+                vec![],
+                vec![],
+            ));
             assert!(html.contains(class), "palette={palette:?} -> {html}");
         }
+    }
+
+    #[test]
+    fn variant_enumeration_maps_to_expected_classes() {
+        // イシュー #2024: shadcn/ui 突合で新設した variant 軸の回帰。
+        for (variant, class) in [
+            (
+                ToggleGroupVariant::Outline,
+                "fd-toggle-group--variant-outline",
+            ),
+            (ToggleGroupVariant::Ghost, "fd-toggle-group--variant-ghost"),
+        ] {
+            let html = render(&root(
+                Size::Md,
+                variant,
+                ColorPalette::Accent,
+                false,
+                None,
+                None,
+                vec![],
+                vec![],
+            ));
+            assert!(html.contains(class), "variant={variant:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn default_variant_is_outline() {
+        assert_eq!(ToggleGroupVariant::default(), ToggleGroupVariant::Outline);
     }
 
     #[test]
@@ -813,6 +950,7 @@ mod tests {
     fn class_attr_is_single_and_caller_class_is_dropped() {
         let html = render(&root(
             Size::Md,
+            ToggleGroupVariant::Outline,
             ColorPalette::Accent,
             false,
             None,
@@ -828,6 +966,7 @@ mod tests {
     fn caller_data_scope_and_part_spoofing_is_dropped() {
         let html = render(&root(
             Size::Md,
+            ToggleGroupVariant::Outline,
             ColorPalette::Accent,
             false,
             None,
@@ -847,6 +986,7 @@ mod tests {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
         let html = render(&root(
             Size::Md,
+            ToggleGroupVariant::Outline,
             ColorPalette::Accent,
             false,
             None,

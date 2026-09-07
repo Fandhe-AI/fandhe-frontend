@@ -5929,6 +5929,7 @@ fn toggle_group_section() -> Node {
     let horizontal_props = toggle_group::ToggleGroupProps::default();
     let horizontal = toggle_group::root(
         Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
         ColorPalette::Accent,
         false,
         None,
@@ -5970,6 +5971,7 @@ fn toggle_group_section() -> Node {
     };
     let vertical = toggle_group::root(
         Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
         ColorPalette::Accent,
         false,
         Some(Orientation::Vertical),
@@ -6011,6 +6013,7 @@ fn toggle_group_section() -> Node {
     };
     let disabled = toggle_group::root(
         Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
         ColorPalette::Accent,
         true,
         None,
@@ -6037,10 +6040,95 @@ fn toggle_group_section() -> Node {
             ),
         ],
     );
+    // イシュー #2024: shadcn/ui 突合で新設した `variant`（Outline/Ghost）
+    // 軸の Demo 行。既定 Outline は上記 horizontal と同じ見た目のため、
+    // ここでは Ghost 側のみを並べて差分を示す。
+    let ghost_props = toggle_group::ToggleGroupProps::default();
+    let ghost = toggle_group::root(
+        Size::Md,
+        toggle_group::ToggleGroupVariant::Ghost,
+        ColorPalette::Accent,
+        false,
+        None,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(
+                &ghost_props,
+                false,
+                false,
+                false,
+                "left",
+                vec![],
+                vec![text("Left")],
+            ),
+            toggle_group::item(
+                &ghost_props,
+                true,
+                false,
+                false,
+                "center",
+                vec![],
+                vec![text("Center")],
+            ),
+            toggle_group::item(
+                &ghost_props,
+                false,
+                false,
+                false,
+                "right",
+                vec![],
+                vec![text("Right")],
+            ),
+        ],
+    );
+    // `MultiToggleGroup`（複数押下可）相当の見た目を示す Demo 行。実際の
+    // 状態遷移は wasm 層の責務（モジュール冒頭 rustdoc「インタラクティブ
+    // 部品の扱い」節参照）のため、複数 item を `pressed: true` で静的に
+    // 掲示するのみに留める。
+    let multi_props = toggle_group::ToggleGroupProps::default();
+    let multi = toggle_group::root(
+        Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
+        ColorPalette::Accent,
+        false,
+        None,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(
+                &multi_props,
+                true,
+                false,
+                false,
+                "bold",
+                vec![],
+                vec![text("Bold")],
+            ),
+            toggle_group::item(
+                &multi_props,
+                true,
+                false,
+                false,
+                "italic",
+                vec![],
+                vec![text("Italic")],
+            ),
+            toggle_group::item(
+                &multi_props,
+                false,
+                false,
+                false,
+                "underline",
+                vec![],
+                vec![text("Underline")],
+            ),
+        ],
+    );
     section(
         "Toggle Group",
-        "複数の Toggle をまとめて排他/複数選択させるグループ部品。root にのみ role=\"group\" を固定付与します（RadioGroup の role=\"radiogroup\" とは異なります）。",
-        vec![stack(vec![horizontal, vertical, disabled])],
+        "複数の Toggle をまとめて排他/複数選択させるグループ部品。root にのみ role=\"group\" を固定付与します（RadioGroup の role=\"radiogroup\" とは異なります）。variant（Outline/Ghost）はイシュー #2024 の shadcn/ui 突合で新設しました。最下段は複数押下可能な MultiToggleGroup 相当（bold/italic が同時押下）の見た目です。",
+        vec![stack(vec![horizontal, vertical, disabled, ghost, multi])],
     )
 }
 
