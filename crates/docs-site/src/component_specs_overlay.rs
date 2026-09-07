@@ -938,7 +938,7 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
 /// 横並び（row）配置は `content` への `display: flex` 追加という既存 CSS
 /// 出力の変更を伴うため、単一部品の合成パターン補完という本イシューの
 /// スコープでは行わず、avatar と説明テキストは既定の縦積みのまま配置する
-/// （`crate::hover_card` モジュール doc「shadcn/ui 突合」節参照）。
+/// （[`fandhe_frontend_pre_styled_ui::hover_card`] モジュール doc「shadcn/ui 突合」節参照）。
 /// Demo（[`crate::showcase::hover_card_section`]）と同じページに描画
 /// されるため、id は衝突しない `showcase-hover-card-user-preview-*` を使う。
 fn ex_hover_card_user_preview() -> Node {
@@ -952,9 +952,9 @@ fn ex_hover_card_user_preview() -> Node {
         vec![
             hover_card::trigger(
                 open,
-                Some("https://github.com/vercel"),
+                Some("https://fandhe-frontend.example/users/ada"),
                 vec![],
-                vec![text("@vercel")],
+                vec![text("@ada")],
             ),
             hover_card::positioner(
                 open,
@@ -970,14 +970,17 @@ fn ex_hover_card_user_preview() -> Node {
                             vec![avatar::fallback(
                                 ImageStatus::Error,
                                 vec![],
-                                vec![text("VC")],
+                                vec![text("AL")],
                             )],
                         ),
                         div(
                             vec![],
                             vec![
-                                p(vec![], vec![strong(vec![], vec![text("Vercel")])]),
-                                p(vec![], vec![text("Develop. Preview. Ship.")]),
+                                p(vec![], vec![strong(vec![], vec![text("Ada Lovelace")])]),
+                                p(
+                                    vec![],
+                                    vec![text("Sample profile for the hover card demo.")],
+                                ),
                             ],
                         ),
                     ],
