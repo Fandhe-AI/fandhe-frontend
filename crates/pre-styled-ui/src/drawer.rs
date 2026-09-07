@@ -178,6 +178,49 @@
 //!   `position: relative`」注記参照）。
 //! - 開閉トランジション自体は上記「開閉トランジションを追加しない理由」に
 //!   記載のとおり対象外。
+//!
+//! # shadcn/ui との突合（イシュー #2031、親 #2025。4 本目の参照軸として
+//! `shadcn-reference-adoption-policy.md` §2 が定める「補完参照」原則の適用）
+//!
+//! shadcn/ui の `Sheet`（4 方向パネル）・`Drawer`（vaul ベースの bottom
+//! sheet）と本モジュールの既存実装を突合した結果は以下のとおり。参照
+//! スクリーンショット（`docs/design/reference-screenshots/shadcn-sheet-*.png`
+//! / `shadcn-drawer-*.png`）はいずれもトリガーのみが写った閉状態の
+//! キャプチャであり開状態の視覚比較には使えないため、shadcn/ui の
+//! 一般知識（DOM 構造・Tailwind クラス）で判断を補った。
+//!
+//! - **placement（4 方向）**: [`DrawerPlacement`]（start/end/top/bottom）が
+//!   shadcn `Sheet` の `side`（top/right/bottom/left）を包含する superset
+//!   （論理方向のため RTL でも自然に反転し、物理方向のみの shadcn 実装より
+//!   広い）。追加不要。
+//! - **size（5 段階）**: [`Size`]（Xs/Sm/Md/Lg/Xl、イシュー #1678）が
+//!   shadcn 側の暗黙のサイズ調整（Tailwind ユーティリティによる個別指定）
+//!   を包含する。追加不要。
+//! - **close ボタン**: 「content 右上のゴーストアイコンボタン」（本節直前の
+//!   イシュー #1695）は shadcn `SheetClose`/`DrawerClose`（右上 × アイコン）
+//!   と同型の見た目・配置。追加不要。
+//! - **footer/scrollable content の合成パターン**: anatomy に専用 footer
+//!   パートがない制約（本モジュール前節「本イシューのスコープ外」参照）は
+//!   継続するが、既存の showcase デモ（`crates/docs-site/src/showcase.rs::drawer_section`）
+//!   が実演する「description 直後のアクション行」パターンを、docs サイトの
+//!   Examples 節（`crates/docs-site/src/component_specs_overlay.rs::DRAWER.examples`）
+//!   へ合成パターンとして正式に追加した（本イシューで補完）。
+//! - **drag handle（grabber）**: shadcn `Drawer`（vaul ベース）が持つ
+//!   ドラッグ用ハンドルバー・スナップポイントは **意図的に非採用**とする。
+//!   理由は 2 点: (1) headless 層（`crates/headless-ui/src/drawer.rs`）が
+//!   イシュー #1639 で ark-ui/chakra-ui と突合済みで、grabber・
+//!   snapPoints・draggable を `docs/policy/intentional-non-adoption.md`
+//!   §3.25 規則 2（装飾・アニメーション・実行時計測は headless 層へ持ち
+//!   込まない）により既に非採用と確定しており
+//!   （`no_part_outputs_drag_or_swipe_vocabulary` テストが `data-dragging`
+//!   等の非出力を固定）、pre-styled 層は headless 層が出力しない DOM
+//!   パートへスタイルを当てられない。(2) [`crate::recipe::SlotRecipe`] は
+//!   疑似要素（`::before`/`::after`）出力 API を持たないため、実体のない
+//!   パートを疑似要素で代替することもできない。ドラッグ操作という実機能を
+//!   伴わないまま視覚だけの「掴めそうに見えるバー」を追加することは、
+//!   本モジュールが既に確立した方針（「効果のない transition を謳うのは
+//!   契約不整合」として開閉トランジションを見送った上記「開閉トランジション
+//!   を追加しない理由」節と同じ判断軸）に反するため見送る。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
