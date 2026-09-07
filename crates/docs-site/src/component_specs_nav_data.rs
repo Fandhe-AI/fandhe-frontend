@@ -1633,11 +1633,118 @@ fn ex_splitter() -> Node {
     )
 }
 
+// イシュー #2038: shadcn/ui `resizable` の `withHandle` prop 相当。
+// `resize_trigger_indicator` を `resize_trigger` の children に渡すと
+// ハンドル中央にグリップ表現が付く（呼ぶ／呼ばないの 2 択で shadcn の
+// `withHandle` あり／なしに対応する既存 API、新規 API 追加なし）。
+fn ex_splitter_with_handle() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{
+        PanelSpec, Splitter,
+    };
+    let state = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 0.0, 100.0),
+            PanelSpec::new(50.0, 0.0, 100.0),
+        ],
+        Orientation::Horizontal,
+    );
+    splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &state,
+        false,
+        vec![],
+        vec![
+            splitter::panel(&state, 0, "panel-wh-a", vec![], vec![text("A")]),
+            splitter::resize_trigger(
+                &state,
+                0,
+                "panel-wh-a",
+                "panel-wh-b",
+                false,
+                vec![],
+                vec![splitter::resize_trigger_indicator(vec![], vec![])],
+            ),
+            splitter::panel(&state, 1, "panel-wh-b", vec![], vec![text("B")]),
+        ],
+    )
+}
+
+// イシュー #2038: shadcn/ui デフォルトデモ（One | (Two / Three)）と同型の
+// 入れ子構成。panel の children に別の splitter::root（内側 vertical）を
+// そのまま渡すだけで再現できる合成パターン（新規 API 不要）。
+fn ex_splitter_nested() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{
+        PanelSpec, Splitter,
+    };
+    let outer = Splitter::new(
+        &[
+            PanelSpec::new(40.0, 20.0, 80.0),
+            PanelSpec::new(60.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let inner = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 0.0, 100.0),
+            PanelSpec::new(50.0, 0.0, 100.0),
+        ],
+        Orientation::Vertical,
+    );
+    let inner_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &inner,
+        false,
+        vec![("style", "border: none; border-radius: 0; height: 100%;")],
+        vec![
+            splitter::panel(&inner, 0, "panel-nested-inner-a", vec![], vec![text("Two")]),
+            splitter::resize_trigger(
+                &inner,
+                0,
+                "panel-nested-inner-a",
+                "panel-nested-inner-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &inner,
+                1,
+                "panel-nested-inner-b",
+                vec![],
+                vec![text("Three")],
+            ),
+        ],
+    );
+    splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &outer,
+        false,
+        vec![("style", "height: 12rem;")],
+        vec![
+            splitter::panel(&outer, 0, "panel-nested-outer-a", vec![], vec![text("One")]),
+            splitter::resize_trigger(
+                &outer,
+                0,
+                "panel-nested-outer-a",
+                "panel-nested-outer-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(&outer, 1, "panel-nested-outer-b", vec![], vec![inner_demo]),
+        ],
+    )
+}
+
 pub(crate) const SPLITTER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "panel は --fandhe-splitter-size custom property を通じてのみ動的な flex-basis を伝える唯一のパーツ（crates/pre-styled-ui/src/splitter.rs:688-697）",
         "resize_trigger は role=\"separator\" + aria-controls を固定付与する（splitter.rs:930-935）",
         "panel_index が範囲外の場合は style 属性自体を省略する fail-closed 動作（splitter.rs:694-697, 908-913）",
+        "resize_trigger_indicator は resize_trigger の children として渡したときのみ描画される（shadcn/ui withHandle prop 相当の合成パターン、イシュー #2038）",
     ],
     arguments: &[ArgRow {
         name: "disabled",
@@ -1645,11 +1752,23 @@ pub(crate) const SPLITTER: ComponentPageSpec = ComponentPageSpec {
         default: "false",
         description: "root/resize_trigger の無効化状態（splitter.rs:672-686）。",
     }],
-    examples: &[ExampleEntry {
-        title: "Two panels",
-        description: "50/50 の 2 パネルと resize_trigger 1 個の例です。",
-        render: ex_splitter,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Two panels",
+            description: "50/50 の 2 パネルと resize_trigger 1 個の例です。",
+            render: ex_splitter,
+        },
+        ExampleEntry {
+            title: "With handle",
+            description: "resize_trigger_indicator を渡すとハンドル中央にグリップ表現が付きます。",
+            render: ex_splitter_with_handle,
+        },
+        ExampleEntry {
+            title: "Nested",
+            description: "panel の children に別の splitter::root を渡すと入れ子構成になります。",
+            render: ex_splitter_nested,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"separator\" + aria-controls（resize_trigger）",
