@@ -87,6 +87,20 @@
 //!   `<ul>`/`<li>` を children として渡す運用に対応する CSS
 //!   （`error-text > ul` のリスト整形）のみを追加した（重複排除・`<ul>`/
 //!   `<li>` の組み立て自体は本モジュールの責務外のまま、呼び出し側が担う）。
+//!   **追補（PR #2147 codex-review/Cursor Bugbot 指摘の是正）**: 当初の
+//!   実装は headless 側が `error-text` を `<span>` で出力しており、`<ul>`
+//!   を children に渡すと `<span><ul>...</ul></span>` という HTML コンテン
+//!   ツモデル違反（`span` の phrasing content は `ul` を含められない）に
+//!   なっていた。headless 側の anatomy 変更はスコープ外という上記整理を
+//!   本件では見送り、[`fandhe_frontend_headless_ui::field::error_text`] の
+//!   出力タグを `span` から `div` へ変更（0.65.0 → 0.66.0、破壊的変更）
+//!   することで是正した（`fieldset::error_text` も同型のため同時変更）。
+//!   加えて `error-text > ul` の CSS が `display: flex` と
+//!   `list-style: disc` を併用しており、flex item となった `<li>` が
+//!   `display: list-item` を失い `::marker` が生成されない不具合（disc
+//!   マーカー非表示）があったため、`<ul>` を block（UA 既定）のまま
+//!   `<li>` 間の縦間隔を隣接兄弟セレクタの `margin-top` で表現する形へ
+//!   変更した（[`css`] 参照）。
 //!
 //! ## 見送ったもの（記録のみ、Issue 化はユーザー承認前提のため未実施）
 //!
@@ -299,11 +313,19 @@ pub fn css() -> String {
     let mut out = recipe().css();
     out.push('\n');
     out.push_str(
+        // `display: flex` は flex item となる `<li>` から UA 既定の
+        // `display: list-item` を奪い `::marker` を生成させない（Chromium/
+        // WebKit で disc マーカーが表示されない、PR #2147 Cursor Bugbot
+        // 指摘の是正）。`list-style: disc` を実際に効かせるため `<ul>` は
+        // block（UA 既定）のまま、outside マーカー用の box を `padding: 0`
+        // で潰さないよう字下げは `padding-left`（UA 既定の慣習）で表現し
+        // `margin` は 0 とする（同 Bugbot 指摘）。`<li>` の縦間隔は隣接
+        // 兄弟セレクタの `margin-top` で表現する。
         "[data-scope=\"field\"][data-part=\"error-text\"] > ul {\n  \
-         display: flex;\n  flex-direction: column;\n  \
-         gap: var(--fandhe-space-1);\n  \
-         margin: 0 0 0 var(--fandhe-space-4);\n  padding: 0;\n  \
-         list-style: disc;\n}\n",
+         margin: 0;\n  padding: 0 0 0 var(--fandhe-space-4);\n  \
+         list-style: disc;\n}\n\
+         [data-scope=\"field\"][data-part=\"error-text\"] > ul > li + li {\n  \
+         margin-top: var(--fandhe-space-1);\n}\n",
     );
     out
 }

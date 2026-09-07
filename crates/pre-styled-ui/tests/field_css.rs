@@ -84,12 +84,12 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
 }
 
 [data-scope="field"][data-part="error-text"] > ul {
-  display: flex;
-  flex-direction: column;
-  gap: var(--fandhe-space-1);
-  margin: 0 0 0 var(--fandhe-space-4);
-  padding: 0;
+  margin: 0;
+  padding: 0 0 0 var(--fandhe-space-4);
   list-style: disc;
+}
+[data-scope="field"][data-part="error-text"] > ul > li + li {
+  margin-top: var(--fandhe-space-1);
 }
 "#;
 

@@ -2064,7 +2064,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 反応（文字色切替）と `error-text > ul` の複数エラーメッセージ用リスト
 # 整形を追加した。既存セレクタ・variant・`data-*` の削除・意味変更を伴わず
 # 破壊的変更ではないため patch バンプで 0.123.1 とする。
-version = "0.123.1"
+# PR #2147 codex-review/Cursor Bugbot 指摘の是正（イシュー #2014）: 依存先
+# `fandhe-frontend-headless-ui` の `error_text` 出力タグを `span` から
+# `div` へ変更（0.65.0 → 0.66.0、破壊的変更）したことへの追随、および
+# `error-text > ul` の `display: flex` と `list-style: disc` 併用による
+# disc マーカー非表示の是正（`padding`/`margin` の入れ替え）。依存先の
+# 破壊的変更への追随を含むためマイナーバンプで 0.124.0 とする。
+version = "0.124.0"
 
 
 edition = "2021"
@@ -2080,7 +2086,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.65.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.66.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
