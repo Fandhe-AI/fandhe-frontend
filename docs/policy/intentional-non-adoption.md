@@ -1291,6 +1291,41 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     rustdoc、および `docs/design/anchor-positioning-design.md` §4.1 を
     参照。
 
+- **適用例（shadcn/ui 固有部品、イシュー #2006・親トラッキング #2001）**:
+  shadcn/ui を第 4 参照軸として突合した際に判明した 7 部品の責務境界を、
+  Navigation Menu と同じ判別方法で確定した。詳細な扱う/扱わない区分は
+  `docs/design/component-coverage-map.md` §12.1（表直後の解説段落）を正とし、
+  本節では規則ごとの適用のされ方のみを記す（二重管理を避ける）。
+
+  - **規則 1 の適用例**:
+    - **Data Table**（`data-table`、実装 issue #2124）: shadcn の Data Table
+      本体は TanStack Table によるソート・フィルタ・ページング・行選択保持の
+      ロジックだが、これはアプリケーションロジックであり非採用。
+      `headless-ui::data_table` が扱うのは `aria-sort` ヘッダーとソート
+      トリガー（方向の通知のみ、比較・安定ソートは非対象）・選択チェック
+      ボックス列の表示（選択結果の保持は非対象）・列表示切替の
+      `data-hidden`（列定義・列順の永続化は非対象）・ページング footer の
+      表示（データ取得は非対象）までであり、Form と同じ「構造は担うが
+      ロジックは持たない」切り分けである。
+    - **会話系 4 部品**（Message #2104 / Bubble #2107 / Attachment #2110 /
+      Marker #2113）: いずれも AI チャット UI の**表示**部品であり、
+      ストリーミング表示・送信・履歴取得等のアプリケーションロジックを
+      内包しない（表示状態のみ `data-*` で受ける）。Attachment の
+      ファイルサイズ表示も整形済み文字列を受け取る（§3.23 の数値整形
+      非採用の系）。
+    - **Questionnaire**（#2116）: 質問カード・進捗・ナビゲーション
+      （前へ/次へ/スキップ）の anatomy のみを扱う。「次へ」ボタンの
+      `data-disabled` は、必須回答かどうかの**判定自体はアプリ側が行い、
+      結果だけを部品へ渡す**。
+  - **規則 2 の適用例**:
+    - **Message Scroller**（`message-scroller`、実装 issue #2120）: 会話ログ
+      の最下部追従（stick-to-bottom）・新着自動スクロール・履歴読み込み時
+      のスクロール位置維持は Navigation Menu の viewport 測定と同型の
+      **実行時のレイアウト計測**であり、headless 層には置かず `wasm-full`
+      側へ配置する。`headless-ui::message_scroller` は `data-stuck` /
+      `data-has-new` / `data-visible` / `data-loading` の anatomy と表示
+      状態のみを持つ。
+
 - **再評価トリガー**
   - 規則 1: 「バリデーション結果を UI 部品の外側で組み立てる」書き方が
     利用者にとって現実的でないと判断できる実績（examples・docs サイトでの
@@ -1512,3 +1547,11 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）を
 再評価トリガー充足時の手続き: 上記表の該当行に基づき、通常の feature issue
 （`create-issue` 等）を起票し、本節・`docs/design/component-coverage-map.md`
 の該当行の区分・根拠列を実装確定後に更新する。
+
+**shadcn/ui 固有部品の責務境界判定（イシュー #2006）に伴う新規保留行の要否**:
+`docs/design/component-coverage-map.md` §12.2 のとおり、shadcn/ui 側の
+一次ソース突合では新規の「保留」判定が必要な部品は見つからなかった（該当
+7 部品はいずれも §3.25 の適用例として上記「適用例（shadcn/ui 固有部品）」
+節へ**確定（追加確定）**として記録済みであり、Direction Provider・Form の
+既存保留/非採用行とは無関係である）。このため本節へ新規の保留行は追加
+しない。
