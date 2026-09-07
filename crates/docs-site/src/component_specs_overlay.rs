@@ -890,8 +890,13 @@ fn ex_drawer_footer_bottom() -> Node {
                                     vec![],
                                     vec![text("画面下端からスライドインするパネルの例です。")],
                                 ),
+                                // headless anatomy に専用 footer パートが存在
+                                // しないため、description 直後に通常の行として
+                                // 掲示する。`.showcase-row` は掲示用レイアウト
+                                // のみを担い、製品 CSS には footer 規則を持ち
+                                // 込まない（showcase.rs の他 drawer 例と同型）。
                                 div(
-                                    vec![],
+                                    vec![("class", "showcase-row")],
                                     vec![
                                         button(
                                             &ButtonProps {
