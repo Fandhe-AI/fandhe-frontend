@@ -51,15 +51,67 @@
 //! - **focus ring**: 実フォーカスはコントロール（input 等）側にあり、
 //!   [`crate::input`] 等が既に focus ring を所有する。
 //! - **transition**: 状態遷移に伴う視覚変化がないため付与しない。
-//! - **`data-readonly`/`data-invalid` によるラベル色変更**: chakra-ui v3 も
-//!   持たない。invalid はコントロールの枠線色と `error-text` の表示切替で
-//!   伝える。
+//! - **`data-readonly` によるラベル色変更**: chakra-ui v3 も持たない。
+//!   readonly はコントロール側の見た目のみで伝える。
 //! - **`data-required` への CSS**: 表示切替は headless `required_indicator`
 //!   の `hidden` 属性フリップが担う。本モジュールは `[hidden]` を
 //!   `display: none` にする規則のみを持つ。
 //! - **ErrorIcon・`Field.Item` パーツ**: headless [`fandhe_frontend_headless_ui::field`]
 //!   の anatomy に存在しないため実装しない（headless anatomy 変更はスコープ
 //!   外、#1671 側で扱う）。
+//!
+//! # shadcn/ui 突合（イシュー #2014）
+//!
+//! 親トラッキング #2008（Phase 1: Forms）の一環として、shadcn/ui の
+//! `field.tsx`（`FieldSet`/`FieldLegend`/`FieldGroup`/`Field`/
+//! `FieldContent`/`FieldLabel`/`FieldTitle`/`FieldDescription`/
+//! `FieldSeparator`/`FieldError` の 10 サブコンポーネント）を**補完参照**
+//! として突合した（#2001 Phase 0 の適用原則: shadcn/ui の視覚言語へ置き換
+//! えることは目的としない）。
+//!
+//! ## 採用したもの
+//!
+//! - **`label` の `data-invalid` 反応**: 上記「意図的非採用」節が以前
+//!   記していた「`data-invalid` によるラベル色変更: chakra-ui v3 も
+//!   持たない」という判断を、shadcn の `Field` が
+//!   `data-[invalid=true]:text-destructive` を持つことを踏まえて是正した。
+//!   既存の `error-text` 表示切替と矛盾せずエラー視認性を追加的に高める
+//!   ため、`label[data-invalid]` の文字色を `--fandhe-color-danger` へ
+//!   切り替える規則を追加した。WCAG 1.4.1 は「色のみに依存しない伝達
+//!   手段」を要求するが、`error-text` のテキストによる代替伝達が既にある
+//!   ため抵触しない。
+//! - **`error-text` 直下 `<ul>` の複数エラーメッセージ表示**: shadcn の
+//!   `FieldError` は複数エラーを重複排除して `<ul class="list-disc">` で
+//!   表示する。headless [`fandhe_frontend_headless_ui::field::error_text`]
+//!   は children をそのまま透過する薄いラッパーのため、呼び出し側が
+//!   `<ul>`/`<li>` を children として渡す運用に対応する CSS
+//!   （`error-text > ul` のリスト整形）のみを追加した（重複排除・`<ul>`/
+//!   `<li>` の組み立て自体は本モジュールの責務外のまま、呼び出し側が担う）。
+//!
+//! ## 見送ったもの（記録のみ、Issue 化はユーザー承認前提のため未実施）
+//!
+//! - **`orientation="responsive"`（`@container` クエリ）**: 本リポジトリに
+//!   `@container` の前例が皆無であり、単一部品のための新規 CSS 機構導入は
+//!   横断設計判断のため不採用（breadcrumb `sm:` 判断と同型、#2027/PR #2142）。
+//! - **`FieldGroup`/`FieldContent`/`FieldTitle`/テキスト付き
+//!   `FieldSeparator`**: 対応する headless anatomy が存在せず、新設するには
+//!   headless-ui 拡張または独立 anatomy 新設のいずれかが必要で、本イシュー
+//!   の粒度（既存 5 slot の recipe 補修）を超えるため不採用。
+//! - **`FieldLegend` の `legend`/`label` 2 段見出しサイズ**: `fieldset.rs`
+//!   は本イシューの対象ファイル外（#2014 の対象は `field.rs` のみ）。
+//!   `fieldset` 専用の shadcn 突合が必要かは別途確認を要する。
+//! - **`FieldError` の `role="alert"`**（現状は headless `error_text` が
+//!   `aria-live="polite"` のみ）: ARIA 差分は headless-ui 層の責務であり
+//!   本イシューのスコープ外（breadcrumb の `role`/`aria-disabled` 記録と
+//!   同型のフォローアップ候補）。
+//! - **choice card（label が checkbox/radio を包む形）**: [`crate::checkbox_card`]/
+//!   [`crate::radio_card`] が既に独立 anatomy として提供済みであり
+//!   `field.rs` 側の対応は不要（gap なし）。
+//! - **`helper-text` の `text-wrap: balance`（horizontal 時のみ）**: shadcn
+//!   は祖先の `orientation` を Tailwind `group-has` で参照するが、
+//!   [`SlotRecipe`] は同一 slot 内条件のみ表現可能なため、実現には
+//!   `list.rs` 型の手書き descendant セレクタ追記が必要。効果が視覚微調整
+//!   に留まる割に新規複雑化を伴うため不採用。
 //!
 //! # セキュリティ不変条件
 //!
@@ -223,13 +275,37 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
         )
+        // shadcn/ui 突合（イシュー #2014、field.rs モジュール doc「shadcn/ui
+        // 突合」節参照）: `Field` の `data-[invalid=true]:text-destructive`
+        // 相当。既存の `error-text` 表示切替と矛盾せずエラー視認性を追加的に
+        // 高める。
+        .state(
+            "label",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("color", "var(--fandhe-color-danger)")],
+        )
 }
 
 /// この styled Field が生成する静的 CSS 全量を返す（決定的。
 /// [`crate::input::css`] と同じ契約）。
+///
+/// [`SlotRecipe`] の `state()` は同一 slot 内の属性条件のみを表現でき、
+/// `error-text` の子 `<ul>` へのネストセレクタは表現できないため、
+/// `list.rs` と同型の直接追記（recipe 出力の末尾に静的 CSS 文字列を
+/// 連結）で表す（shadcn/ui 突合、イシュー #2014。モジュール doc
+/// 「shadcn/ui 突合」節参照）。
 #[must_use]
 pub fn css() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    out.push('\n');
+    out.push_str(
+        "[data-scope=\"field\"][data-part=\"error-text\"] > ul {\n  \
+         display: flex;\n  flex-direction: column;\n  \
+         gap: var(--fandhe-space-1);\n  \
+         margin: 0 0 0 var(--fandhe-space-4);\n  padding: 0;\n  \
+         list-style: disc;\n}\n",
+    );
+    out
 }
 
 /// styled `root` パーツを組み立てる。`orientation` に応じたクラスを付与し

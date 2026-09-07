@@ -2060,7 +2060,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 本マージでは #2027（breadcrumb）ブランチの実体変更が main の到達値
 # 0.122.0 に未反映のまま同一ファイルで衝突したため、semver-same-version-
 # is-conflict の運用に倣い main の到達値からさらに +1 して 0.123.0 とする。
-version = "0.123.0"
+# イシュー #2014: field を shadcn/ui と突合し、`label` の `data-invalid`
+# 反応（文字色切替）と `error-text > ul` の複数エラーメッセージ用リスト
+# 整形を追加した。既存セレクタ・variant・`data-*` の削除・意味変更を伴わず
+# 破壊的変更ではないため patch バンプで 0.123.1 とする。
+version = "0.123.1"
 
 
 edition = "2021"

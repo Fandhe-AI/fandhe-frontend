@@ -78,6 +78,19 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+[data-scope="field"][data-part="label"][data-invalid] {
+  color: var(--fandhe-color-danger);
+}
+
+[data-scope="field"][data-part="error-text"] > ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fandhe-space-1);
+  margin: 0 0 0 var(--fandhe-space-4);
+  padding: 0;
+  list-style: disc;
+}
 "#;
 
 #[test]
@@ -129,6 +142,18 @@ fn css_does_not_declare_control_slots() {
     assert!(!css.contains(r#"[data-part="input"]"#));
     assert!(!css.contains(r#"[data-part="textarea"]"#));
     assert!(!css.contains(r#"[data-part="select"]"#));
+}
+
+/// shadcn/ui 突合（イシュー #2014）で追加した 2 規則
+/// （`label[data-invalid]` の文字色切替・`error-text > ul` のリスト整形）を
+/// 個別に固定する（golden 全文一致に加え、追加意図が読み取れる形で明示する。
+/// `field.rs` モジュール doc「shadcn/ui 突合」節参照）。
+#[test]
+fn css_declares_invalid_label_color_and_error_list_layout() {
+    let css = field::css();
+    assert!(css.contains(r#"[data-scope="field"][data-part="label"][data-invalid] {"#));
+    assert!(css.contains(r#"[data-scope="field"][data-part="error-text"] > ul {"#));
+    assert!(css.contains("list-style: disc;"));
 }
 
 fn default_field(id: &str) -> FieldProps<'_> {
