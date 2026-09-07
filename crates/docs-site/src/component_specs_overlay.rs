@@ -56,15 +56,17 @@
 //!   空のまま省略する。フォーカスリング等スタイル層のみの挙動は
 //!   Accessibility 節の対象外）
 //!
-//! # `Examples` 節を持たない理由（[`DIALOG`] を除く）
+//! # `Examples` 節を持たない理由（[`DIALOG`]/[`COLLAPSIBLE`] を除く）
 //!
 //! `docs/design/docs-site-component-pages.md` §7 は `Examples` を任意の節と
 //! 定めており、当初 PR（#946）では 13 定数すべて `examples: &[]` としていた
-//! （節は自動的に省略される）。[`DIALOG`] のみイシュー #1691 で alert-dialog
+//! （節は自動的に省略される）。[`DIALOG`] はイシュー #1691 で alert-dialog
 //! 構成（イシュー #1690）の掲示のため `Examples` 節（`ex_alert_dialog`）を
-//! 追加した。他部品のバリエーション軸（`Size`/`ColorPalette`/`ToastStatus`
-//! 等）への Examples 追加はレビュー負荷を抑えるためのフォローアップ課題
-//! として引き続き PR 本文に残す。
+//! 追加した。[`COLLAPSIBLE`] はイシュー #2029 で shadcn/ui（Base UI）突合の
+//! File Tree Example に相当する既存 API のみの合成デモ
+//! （`ex_collapsible_nested_tree`）を追加した。他部品のバリエーション軸
+//! （`Size`/`ColorPalette`/`ToastStatus` 等）への Examples 追加はレビュー
+//! 負荷を抑えるためのフォローアップ課題として引き続き PR 本文に残す。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
@@ -78,6 +80,7 @@
 use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::{
     button::{button, ButtonProps, ButtonVariant},
+    collapsible,
     dialog::{self, ContentIds, DialogRole},
     ColorPalette, OpenState, Size,
 };
@@ -127,15 +130,17 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
 /// 一次情報: `crates/pre-styled-ui/src/collapsible.rs`（モジュール doc・
 /// `stylesheet()` の 7 軸チェック節）と `crates/headless-ui/src/collapsible.rs`
 /// （`root`/`trigger`/`indicator`/`content` シグネチャ・`aria-expanded`/
-/// `aria-controls` の実出力テスト）。イシュー #1682/#1683。
+/// `aria-controls` の実出力テスト）。イシュー #1682/#1683/#2029（shadcn/ui
+/// 突合による Examples 節「Nested navigation (file tree)」追加）。
 pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "単一の開閉パネル。Root / Trigger / Indicator / Content の 4 anatomy パーツを持つ。",
         "data-state（open/closed）を trigger の文字色強調・indicator の回転として視覚に反映する。",
         "data-disabled を 4 パート全てへ反映する（trigger のみネイティブ disabled 存在属性も伴う）。",
-        "size/variant/colorPalette は提供しない（参照 3 サイト chakra-ui/Ark UI/Radix Primitives のいずれも Collapsible に持たないため）。",
+        "size/variant/colorPalette は提供しない（参照 4 サイト chakra-ui/Ark UI/Radix Primitives/shadcn-ui のいずれも Collapsible に持たないため）。",
         "closed のとき content は headless 層が付与する hidden 存在属性のみで隠れる（base では display を宣言せず、UA 既定の [hidden] { display: none } を上書きしない）。",
-        "開閉時の高さアニメーション（Radix の collapsedHeight 相当）はコンテンツ高さの実測が前提となる JS 計測の関心のため、意図的に非採用とする。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動は「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
+        "開閉時の高さアニメーション（Radix の collapsedHeight 相当）は意図的に非採用とする。理由はコンテンツ高さの実測が JS 前提という点だけでなく、headless 層が closed 時に content へ付与する hidden 存在属性を base 規則で上書きすると閉状態でも DOM 上へ再露出してしまう構造的な制約にもよる（shadcn/ui にも JS レスの代替実装は無い）。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動は「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
+        "shadcn/ui（Base UI）の Examples（Basic / Settings Panel / File Tree）はいずれも既存 API（root/trigger/indicator/content の再帰的な組み合わせ）で再現できる合成パターンであり、新規の variant/size/state 軸を追加しない（下記 Examples 節参照）。",
     ],
     arguments: &[
         ArgRow {
@@ -151,7 +156,11 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
             description: "無効状態。4 パート全ての data-disabled へ反映し、trigger にはネイティブ disabled 存在属性も付与する。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Nested navigation (file tree)",
+        description: "shadcn/ui（Base UI）の File Tree Example に相当する、collapsible を再帰的にネストした合成パターンです。フォルダ行はテキストの折り畳みトリガー（indicator は固定グリフ ▾ + data-state=\"open\" 時の回転で開閉方向を示す既存 CSS 規約に従う）、ファイル行はトリガーを持たない単なるテキストとして表現しています。新しい variant や data-* 語彙を追加せず、既存の root/trigger/indicator/content のみで構成しています。",
+        render: ex_collapsible_nested_tree,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -165,6 +174,117 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`COLLAPSIBLE`] の Examples 節「Nested navigation (file tree)」レンダラ
+/// （イシュー #2029）。
+///
+/// shadcn/ui（Base UI）Collapsible ページの File Tree Example
+/// （ChevronRightIcon + Folder/File アイコンでネストした複数 Collapsible）
+/// を、既存 API のみで再現できることを示す合成デモ。フォルダ 1 件
+/// （`src`）の中にフォルダ 2 件（開いた `components`・閉じた `utils`）と
+/// ファイル 1 件（`main.rs`）を並べ、ネストしたフォルダの中にもファイルを
+/// 置く（`docs/design/shadcn-reference-adoption-policy.md` §3 が
+/// 「合わせない」と定める `data-slot` 等の Base UI 固有語彙・アイコン
+/// フォント資産は使わず、indicator の子テキストは既存 CSS 規約（[`collapsible`]
+/// の `recipe()`。単一固定グリフ `▾` + `indicator[data-state="open"]` の
+/// `rotate(180deg)` で開閉方向を表す、[`crate::accordion`] と同型の規約）
+/// にそのまま従う。グリフ自体を状態ごとに出し分けない）。
+/// Demo（[`crate::showcase::collapsible_section`]、id `showcase-collapsible-*`）
+/// と同じページに描画されるため、id は衝突しない
+/// `showcase-collapsible-tree-*` を使う。
+fn ex_collapsible_nested_tree() -> Node {
+    let src_open = OpenState::Open;
+    let components_open = OpenState::Open;
+    let utils_closed = OpenState::Closed;
+
+    collapsible::root(
+        src_open,
+        false,
+        vec![],
+        vec![
+            collapsible::trigger(
+                src_open,
+                false,
+                Some("showcase-collapsible-tree-src-content"),
+                vec![],
+                vec![
+                    collapsible::indicator(src_open, false, vec![], vec![text("▾")]),
+                    text("src"),
+                ],
+            ),
+            collapsible::content(
+                src_open,
+                false,
+                Some("showcase-collapsible-tree-src-content"),
+                vec![],
+                vec![
+                    collapsible::root(
+                        components_open,
+                        false,
+                        vec![],
+                        vec![
+                            collapsible::trigger(
+                                components_open,
+                                false,
+                                Some("showcase-collapsible-tree-components-content"),
+                                vec![],
+                                vec![
+                                    collapsible::indicator(
+                                        components_open,
+                                        false,
+                                        vec![],
+                                        vec![text("▾")],
+                                    ),
+                                    text("components"),
+                                ],
+                            ),
+                            collapsible::content(
+                                components_open,
+                                false,
+                                Some("showcase-collapsible-tree-components-content"),
+                                vec![],
+                                vec![
+                                    div(vec![], vec![text("Button.rs")]),
+                                    div(vec![], vec![text("Input.rs")]),
+                                ],
+                            ),
+                        ],
+                    ),
+                    collapsible::root(
+                        utils_closed,
+                        false,
+                        vec![],
+                        vec![
+                            collapsible::trigger(
+                                utils_closed,
+                                false,
+                                Some("showcase-collapsible-tree-utils-content"),
+                                vec![],
+                                vec![
+                                    collapsible::indicator(
+                                        utils_closed,
+                                        false,
+                                        vec![],
+                                        vec![text("▾")],
+                                    ),
+                                    text("utils"),
+                                ],
+                            ),
+                            collapsible::content(
+                                utils_closed,
+                                false,
+                                Some("showcase-collapsible-tree-utils-content"),
+                                vec![],
+                                vec![div(vec![], vec![text("helpers.rs")])],
+                            ),
+                        ],
+                    ),
+                    div(vec![], vec![text("main.rs")]),
+                ],
+            ),
+        ],
+    )
+}
 
 /// `/themes/action-bar/`（Interactive カテゴリ）。
 ///
