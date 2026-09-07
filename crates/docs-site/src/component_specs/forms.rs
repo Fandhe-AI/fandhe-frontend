@@ -1516,6 +1516,7 @@ const SLIDER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `Slider` 状態機械へ委譲する。",
         "`range` パーツが `--fandhe-slider-percent` を含む `style` を動的値の唯一の出力点として持つ。",
+        "イシュー #2020（shadcn/ui 突合）: `marker`/`marker_group` パーツを styled 化した。`marker` は `--fandhe-slider-marker-percent` を唯一の動的値出力点として持ち、`marker-group` は `pointer-events: none` のオーバーレイコンテナとして `track`/`thumb` のクリック・ドラッグ判定を奪わない。複数 thumb（range slider）は headless-ui の構造的制約により本コンポーネント層では対応しない（意図的非採用）。",
     ],
     arguments: &[
         ArgRow {
