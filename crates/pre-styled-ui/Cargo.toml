@@ -2063,6 +2063,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2030: `dialog::body`（pre-styled-only スクロール可能コンテンツ
 # パート）の純追加のみ（既存 API・既存セレクタへの変更なし）のため、
 # `footer` 追加時（0.117.3→0.117.4）と同型のパッチバンプで 0.123.1 とする。
+# イシュー #2031: drawer を shadcn/ui（Sheet/Drawer）と突合。placement/
+# size/close ボタンは既存実装で充足済みと確認し、grabber（drag handle）は
+# headless-ui #1639 の既存判断（意図的非採用）+ `SlotRecipe` の疑似要素
+# API 不在により非採用継続と結論した。`recipe()`（CSS 出力）に変更はなく
+# rustdoc への判断記録のみのため本来パッチ相当だが、main の到達値
+# 0.123.1 と同一到達で埋没する衝突のため semver-same-version-is-conflict
+# の運用に倣い main の到達値からさらに +1 して 0.123.2 とする予定だった。
 # イシュー #2014: field を shadcn/ui と突合し、`label` の `data-invalid`
 # 反応（文字色切替）と `error-text > ul` の複数エラーメッセージ用リスト
 # 整形を追加した。既存セレクタ・variant・`data-*` の削除・意味変更を伴わず
@@ -2076,6 +2083,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # `error-text > ul` の `display: flex` と `list-style: disc` 併用による
 # disc マーカー非表示の是正（`padding`/`margin` の入れ替え）。依存先の
 # 破壊的変更への追随を含むためマイナーバンプで 0.124.0 とする。
+# 本マージ（PR #2150、イシュー #2031）: 上記 #2031（0.123.2 予定）ブランチが
+# main の #2014（0.124.0）へ未反映のまま同一ファイルで衝突したため、
+# semver-same-version-is-conflict の運用に倣い main の到達値 0.124.0 から
+# さらに +1 して 0.124.1 とする（drawer の rustdoc 判断記録追記のみで
+# `recipe()` の CSS 出力に変更はなくパッチ相当）。
 # イシュー #2032: hover-card を shadcn/ui と突合した結果、`recipe()`/`css()`/
 # 公開シグネチャは一切変更せず、rustdoc（モジュール doc「shadcn/ui 突合」節）
 # と docs サイト Examples 節（`User profile preview`）の追加のみに留めた
@@ -2083,6 +2095,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 出力を伴わない）。CSS 出力・golden テストは不変だが、公開クレートの
 # `src/` 変更につき規約（`.claude/rules/coding-rust.md`）に従いパッチバンプ
 # する。
+# base 再取り込み（イシュー #2017, PR #2150 系）: 本ブランチ（native-select
+# を shadcn/ui と突合、直前の到達値 0.125.0）は main（drawer/hover-card 等の
+# 突合を経て到達した 0.124.2）よりも既に版数が新しいため、
+# semver-same-version-is-conflict の追加 +1 運用（同一版数への偶発衝突時のみ
+# 適用）は該当せず、本ブランチの到達値 0.125.0 をそのまま採用する。
 version = "0.125.0"
 
 
