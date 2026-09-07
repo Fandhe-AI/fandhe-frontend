@@ -30,6 +30,12 @@
 //! メニュー配置は静的 CSS で対応しない（意図的な非対応）。詳細は
 //! `crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当パートの
 //! 是正」節を参照。
+//!
+//! イシュー #2033（shadcn/ui 突合）で `item-text`（#1651 で headless
+//! anatomy へ追加済みだったが CSS 未着装だった欠落）・`item` の
+//! `data-danger`/`data-inset` 状態を反映した golden 更新。`item-indicator`
+//! は意図的に `.base` を追加しない（`crates/pre-styled-ui/src/menu.rs`
+//! モジュール rustdoc「担当パートの是正（イシュー #2033）」節参照）。
 
 use fandhe_frontend_pre_styled_ui::menu;
 
@@ -191,6 +197,11 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
+[data-scope="menu"][data-part="item-text"] {
+  flex: 1;
+  min-width: 0;
+}
+
 [data-scope="menu"][data-part="root"].fd-menu--size-xs {
   --fandhe-menu-trigger-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
   --fandhe-menu-item-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
@@ -227,6 +238,10 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
 
 [data-scope="menu"][data-part="content"][data-state="closed"] {
   visibility: hidden;
+}
+
+[data-scope="menu"][data-part="item"][data-danger] {
+  color: var(--fandhe-color-danger-fg-subtle);
 }
 
 [data-scope="menu"][data-part="item"][data-highlighted] {
@@ -312,6 +327,10 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
+[data-scope="menu"][data-part="item"][data-inset] {
+  padding-inline-start: var(--fandhe-space-6);
+}
+
 @media (hover: hover) {
   [data-scope="menu"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {
     background: var(--fandhe-hover-bg);
@@ -370,4 +389,22 @@ fn new_parts_state_selectors_are_present() {
     // context-trigger は disabled 引数を持たないため data-disabled 規則は
     // 登録しない（モジュール rustdoc「担当パートの是正（#1527）」節参照）。
     assert!(!css.contains(r#"[data-scope="menu"][data-part="context-trigger"][data-disabled]"#));
+}
+
+#[test]
+fn issue_2033_new_slots_and_states_are_present() {
+    // イシュー #2033: `item-text`（#1651 で headless anatomy へ追加済み
+    // だったが CSS 未着装だった欠落）・`item` の `data-danger`/
+    // `data-inset` 状態を固定する。
+    let css = menu::stylesheet();
+    assert!(css.contains(r#"[data-scope="menu"][data-part="item-text"] {"#));
+    assert!(css.contains("flex: 1;"));
+    assert!(css.contains(r#"[data-scope="menu"][data-part="item"][data-danger] {"#));
+    assert!(css.contains("color: var(--fandhe-color-danger-fg-subtle);"));
+    assert!(css.contains(r#"[data-scope="menu"][data-part="item"][data-inset] {"#));
+    assert!(css.contains("padding-inline-start: var(--fandhe-space-6);"));
+    // `item-indicator` は意図的に `.base` を追加しない（`hidden` 存在属性
+    // との `display` 競合、モジュール rustdoc「担当パートの是正
+    // （イシュー #2033）」節参照）ため CSS 規則を持たない。
+    assert!(!css.contains(r#"[data-scope="menu"][data-part="item-indicator"] {"#));
 }

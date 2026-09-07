@@ -2098,6 +2098,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 出力を伴わない）。CSS 出力・golden テストは不変だが、公開クレートの
 # `src/` 変更につき規約（`.claude/rules/coding-rust.md`）に従いパッチバンプ
 # する。
+#
+# イシュー #2033（shadcn/ui 突合）: `menu` の `item-text`/`item-indicator`
+# 再エクスポート・CSS 着装、`data-danger`/`data-inset` 状態の追加により
+# `stylesheet()` の出力（新規 CSS 規則の純追加）が変わるため、機能追加
+# としてマイナーバンプする（0.x の慣習、`.claude/rules/coding-rust.md`）。
+# 本マージ（origin/main の #2154 native-select 突合が同じ到達値
+# 0.125.0 へ既にバンプ済みだったため衝突）: semver-same-version-is-conflict
+# の運用に倣い、main の到達値 0.125.0 からさらに +1 して 0.126.0 とする
+# （本 PR の src 変更〔item-text/item-indicator の CSS 着装補完、
+# data-danger/data-inset 状態〕をバージョン番号へ計上するため）。
+# この 0.126.0 到達はその後の base 再取り込みの積み重ねで既に陳腐化して
+# おり、本ファイル末尾の「マージ是正（イシュー #2033, review 指摘再対応,
+# 2026-09-08）」節が最終到達値 0.135.0 の確定した根拠を記す（本段落は
+# 当時の判断記録としてのみ残す）。
 # base 再取り込み（イシュー #2017, PR #2150 系）: 本ブランチ（native-select
 # を shadcn/ui と突合、直前の到達値 0.125.0）は main（drawer/hover-card 等の
 # 突合を経て到達した 0.124.2）よりも既に版数が新しいため、
@@ -2188,6 +2202,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 反するため、main の到達値 0.131.0 からマイナーバンプして 0.132.0 と
 # する（依存元 version 指定・Cargo.lock は `xtask check-dep-versions --fix`
 # で追随させる）。
+# マージ是正（イシュー #2033, review 指摘再対応, 2026-09-08）: origin/main には
+# PR #2155 で `docs/design/shadcn-reference-adoption-policy.md` が改訂され、
+# §2 は「主基準の 1 つ（chakra-ui / Radix Themes / shadcn-ui の 3 者共同）」、
+# §8 に改訂内容が記録済み（§7 は「（改訂前）」に改題）である。本マージ時点の
+# main 到達値 0.134.0 へ本ブランチ（menu の item-text/item-indicator 着装・
+# data-danger/data-inset 補完、マイナーバンプ相当）を合流させるため、
+# semver-same-version-is-conflict の運用に倣い main の到達値 0.134.0 から
+# +1 して 0.135.0 とする。
 
 # base 再取り込み（イシュー #2036, 2026-09-07）: 本ブランチ（pagination の
 # shadcn/ui 突合、rustdoc/docs-site 追記のみで recipe() 無変更のため patch
@@ -2296,7 +2318,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # を取り込み 0.133.1 へ到達したが、本ブランチの到達値 0.134.0 は既にそれを
 # 上回るため追加のバンプは不要（`docs/ci/style-refresh-version-bump-operation.md`
 # §5 の手順は main の到達値を上回る値には適用しない）。
-version = "0.134.0"
+version = "0.135.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
