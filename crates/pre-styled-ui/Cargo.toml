@@ -2079,7 +2079,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2016: pin-input へ shadcn/ui 突合の pre-styled-only `separator`
 # パート（公開 API 追加、非破壊）を追加した。既存呼び出しへの影響はない
 # 加算のみのため patch バンプで 0.124.1 とする。
-version = "0.124.1"
+# イシュー #2032: hover-card を shadcn/ui と突合した結果、`recipe()`/`css()`/
+# 公開シグネチャは一切変更せず、rustdoc（モジュール doc「shadcn/ui 突合」節）
+# と docs サイト Examples 節（`User profile preview`）の追加のみに留めた
+# （既存 `avatar`/`hover_card` API の合成のみで新規 anatomy パート・新規
+# CSS 出力を伴わない）。CSS 出力・golden テストは不変だが、公開クレートの
+# `src/` 変更につき規約（`.claude/rules/coding-rust.md`）に従いパッチバンプ
+# する。
+# base 再取り込み（イシュー #2016/#2032, 2026-09-07）: 本ブランチ
+# （pin-input separator 追加、patch バンプで 0.124.1 に到達済み）と
+# main（hover-card の shadcn/ui 突合、rustdoc/docs のみで patch バンプし
+# 0.124.1 に到達済み）が同一版数へ偶発的に衝突したため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（自分の
+# 変更が patch バンプの場合は main の現在値の patch を +1 する）に従い
+# 0.124.2 とする。
+version = "0.124.2"
 
 
 edition = "2021"
