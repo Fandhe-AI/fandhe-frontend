@@ -142,6 +142,14 @@
 //!   - `InputOTPGroup` 相当の専用グループ・ラッパーパートは追加しない。
 //!     個別ボックスデザインでは [`control`] を複数回並べるだけで同じ
 //!     視覚効果を再現でき、専用パートの追加価値が乏しいため。
+//!     **注意（レイアウト前提）**: [`root`] の既定 CSS は `label` を
+//!     `control` の上に積むための `flex-direction: column` を持つ。この
+//!     ため `control()`/[`separator`]/`control()` を [`root`] の直下へ
+//!     そのまま並べると横並びにならず縦積みになる。3-3 等の桁グループを
+//!     横並びにするには、呼び出し側で `display: flex` のラッパー要素
+//!     （下記 `# Examples` 参照）を挟むこと。専用グループパートを設けない
+//!     設計判断（上記）の裏返しとして、このラッパーは呼び出し側の責務と
+//!     なる。
 //!   - `pattern`（数字のみ/英数字の入力種別）は headless 層の
 //!     [`PinInputKind`]（`Numeric`/`Alphanumeric`/`Alphabetic`）で既に
 //!     実装済みであり、見た目に影響しないため Themes 層の変更は不要。
@@ -455,10 +463,17 @@ pub fn root<'a>(
 /// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
 /// `role`/`aria-hidden` のなりすましは [`drop_reserved`] が同様に除去する。
 ///
+/// **レイアウト注意**: [`root`] は `flex-direction: column` を既定に持つ
+/// ため、`control()`/`separator`/`control()` を [`root`] へそのまま並べる
+/// と縦積みになる。3-3 等の桁グループを横並びにする場合は、下記のように
+/// `display: flex` のラッパー要素で囲うこと（専用グループパートを設けない
+/// 設計判断の裏返しとして、このラッパーは呼び出し側の責務となる。
+/// モジュール冒頭 rustdoc「shadcn/ui 突合によるスタイル調整」節参照）。
+///
 /// # Examples
 ///
 /// ```
-/// use fandhe_frontend_core::{render, text};
+/// use fandhe_frontend_core::{el, render, text};
 /// use fandhe_frontend_pre_styled_ui::pin_input;
 ///
 /// let node = pin_input::separator(vec![], vec![text("-")]);
@@ -466,6 +481,14 @@ pub fn root<'a>(
 /// assert!(html.contains(r#"data-scope="pin-input" data-part="separator""#));
 /// assert!(html.contains(r#"role="presentation""#));
 /// assert!(html.contains(r#"aria-hidden="true""#));
+///
+/// // 横並びの桁グループを作る場合は呼び出し側でラッパーを用意する:
+/// let group = el(
+///     "div",
+///     vec![("style", "display: flex; align-items: center;")],
+///     vec![pin_input::separator(vec![], vec![text("-")])],
+/// );
+/// assert!(render(&group).contains("display: flex"));
 /// ```
 #[must_use]
 pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
