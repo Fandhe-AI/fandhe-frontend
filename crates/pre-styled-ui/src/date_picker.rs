@@ -175,12 +175,21 @@
 //!   の CSS 消費が未実装のまま残っていたギャップを本イシューで埋めた。
 //!   `input`/`trigger` の `[data-invalid]` へ `border-color:
 //!   var(--fandhe-color-danger)`（`date_input.rs` の
-//!   `segment-group[data-invalid]` と同一トークン）、`input` の
-//!   `[data-readonly]` へ `cursor: default`（`date_input.rs::segment` と
-//!   同一判断軸）をそれぞれ追加した。`state()` の登録順は
-//!   invalid → readonly → disabled とし、同時に真となる場合でも
+//!   `segment-group[data-invalid]` と同一トークン）を追加した。`state()`
+//!   の登録順は invalid → disabled とし、同時に真となる場合でも
 //!   `disabled_declarations()` が最終適用されるようにした（`date_input.rs`
 //!   の #1469/PR #1746 教訓と同型のカスケード順序配慮）
+//! - **`input` の `data-readonly` 視覚化は見送る（PR #2177 Cursor Bugbot
+//!   指摘を受けた是正）**: 当初 `date_input.rs::segment`（非ネイティブ
+//!   `<span>` セグメント）と同一判断軸で `[data-readonly]` へ
+//!   `cursor: default` を追加していたが、date-picker の `input` パートは
+//!   ネイティブ `<input type="text" readonly>` であり、選択・キャレット
+//!   操作が可能なテキストフィールドに `cursor: default` を適用すると
+//!   I-beam カーソルが隠れ操作可能な値を操作不能に見せてしまう。
+//!   [`crate::input`]・[`crate::number_input`] の「readonly（意図的
+//!   非採用）」節と同型の判断軸（ネイティブ `<input>` には
+//!   `data-readonly` の視覚宣言を追加せず既定の `cursor: text` のまま
+//!   とする）へ揃え、追加した宣言を削除した
 //! - **`label` の `data-required` 視覚化は見送る**: 同じ headless-ui
 //!   バージョンから `label` に `data-required` が出力されているが、
 //!   同クレート内の [`crate::field`] も同種の `data-required` を
@@ -366,26 +375,25 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-invalid"),
             vec![decl("border-color", "var(--fandhe-color-danger)")],
         )
-        // `data-readonly` を消費する（同 #2013。`date_input.rs::segment` と
-        // 同じ判断軸で `cursor: default` のみを表現する。ネイティブ
-        // `readonly` 属性は headless 側が既に `input` へ付与済みのため、
-        // ここでは視覚上のカーソル表現のみを補う）。
-        .state(
-            "input",
-            StateCondition::Attr("data-readonly"),
-            vec![decl("cursor", "default")],
-        )
-        // 登録順は invalid → readonly → disabled の意図的な並びである。
-        // `state()` は同じ詳細度 `[data-part="..."][data-attr]`
-        // (0,2,0) の規則同士を登録順（後勝ち）で解決するため
-        // （`crate::recipe::SlotRecipe::css` rustdoc「LastChild」節、
-        // `date_input.rs` の #1469/PR #1746 教訓と同型）、disabled かつ
-        // invalid/readonly が同時に真の要素で `disabled_declarations()`
-        // （`cursor: not-allowed` 等）が確実に最終適用されるよう最後に
-        // 置く。headless（`crates/headless-ui/src/date_picker.rs`）が
-        // `input`/`trigger` へ出す `data-disabled` を消費する（`control`/
-        // `clear-trigger` へは出さないため対象外、モジュール rustdoc
-        // 「スタイル調整」節参照）。
+        // `input` の `data-readonly` へは視覚宣言を追加しない（PR #2177
+        // Cursor Bugbot 指摘を受けた是正、モジュール rustdoc「`input` の
+        // `data-readonly` 視覚化は見送る」節参照）。ネイティブ
+        // `<input readonly>` は選択・キャレット操作が可能なため既定の
+        // `cursor: text` のままが適切であり、[`crate::input`]・
+        // [`crate::number_input`] の「readonly（意図的非採用）」節と
+        // 同型の判断。
+        //
+        // 登録順は invalid → disabled の意図的な並びである。`state()` は
+        // 同じ詳細度 `[data-part="..."][data-attr]` (0,2,0) の規則同士を
+        // 登録順（後勝ち）で解決するため（`crate::recipe::SlotRecipe::css`
+        // rustdoc「LastChild」節、`date_input.rs` の #1469/PR #1746 教訓と
+        // 同型）、disabled かつ invalid が同時に真の要素で
+        // `disabled_declarations()`（`cursor: not-allowed` 等）が確実に
+        // 最終適用されるよう最後に置く。headless
+        // （`crates/headless-ui/src/date_picker.rs`）が `input`/`trigger`
+        // へ出す `data-disabled` を消費する（`control`/`clear-trigger`
+        // へは出さないため対象外、モジュール rustdoc「スタイル調整」節
+        // 参照）。
         .state(
             "input",
             StateCondition::Attr("data-disabled"),
@@ -645,40 +653,35 @@ mod tests {
     }
 
     #[test]
-    fn readonly_declaration_applies_to_input_only() {
-        // `date_input.rs::segment` と同じ判断軸: readonly は cursor 表現の
-        // みを補い、ネイティブ `readonly` 属性自体は headless 側が既に
-        // `input` へ付与済みのため CSS 側の対象は `input` のみとする。
+    fn input_does_not_style_data_readonly() {
+        // PR #2177 Cursor Bugbot 指摘の回帰テスト: date-picker の `input`
+        // パートはネイティブ `<input type="text" readonly>` であり、
+        // `data-readonly` へ `cursor: default` 等の視覚宣言を追加すると
+        // I-beam カーソルが隠れ操作可能な値を操作不能に見せてしまう
+        // （[`crate::input`]・[`crate::number_input`] の「readonly
+        // （意図的非採用）」節と同型の判断、モジュール rustdoc「`input` の
+        // `data-readonly` 視覚化は見送る」節参照）。
         let css = stylesheet();
-        assert!(css.contains(r#"[data-scope="date-picker"][data-part="input"][data-readonly]"#));
+        assert!(!css.contains(r#"[data-scope="date-picker"][data-part="input"][data-readonly]"#));
         assert!(!css.contains(r#"[data-scope="date-picker"][data-part="trigger"][data-readonly]"#));
-        assert!(css.contains("cursor: default"));
     }
 
     #[test]
-    fn input_disabled_cursor_overrides_invalid_and_readonly_by_source_order() {
+    fn input_disabled_cursor_overrides_invalid_by_source_order() {
         // `date_input.rs` の #1469/PR #1746 教訓と同型: disabled かつ
-        // invalid/readonly が同一 `input` に共存する場合でも、登録順
-        // （invalid → readonly → disabled）による後勝ちで
-        // `disabled_declarations()` の `cursor: not-allowed` が最終適用
-        // されることを固定する。
+        // invalid が同一 `input` に共存する場合でも、登録順
+        // （invalid → disabled）による後勝ちで `disabled_declarations()`
+        // の `cursor: not-allowed` が最終適用されることを固定する。
         let css = stylesheet();
         let invalid_idx = css
             .find(r#"[data-scope="date-picker"][data-part="input"][data-invalid] {"#)
             .expect("input invalid rule must exist");
-        let readonly_idx = css
-            .find(r#"[data-scope="date-picker"][data-part="input"][data-readonly] {"#)
-            .expect("input readonly rule must exist");
         let disabled_idx = css
             .find(r#"[data-scope="date-picker"][data-part="input"][data-disabled] {"#)
             .expect("input disabled rule must exist");
         assert!(
-            readonly_idx > invalid_idx,
-            "input[data-readonly] must be registered after input[data-invalid]"
-        );
-        assert!(
-            disabled_idx > readonly_idx,
-            "input[data-disabled] must be registered after input[data-readonly] so it wins by source order"
+            disabled_idx > invalid_idx,
+            "input[data-disabled] must be registered after input[data-invalid] so it wins by source order"
         );
     }
 

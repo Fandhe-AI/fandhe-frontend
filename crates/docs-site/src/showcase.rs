@@ -9761,10 +9761,18 @@ fn date_picker_section() -> Node {
 
     // 3 状態（既定 open / invalid / readonly）で共有する popover +
     // カレンダーグリッドの組み立てヘルパ（イシュー #2013、shadcn/ui 突合の
-    // `data-invalid`/`data-readonly` CSS 消費追加を実演する。closure が
-    // `header_row`/`body_rows` を借用するため、呼び出しごとに複製する）。
+    // `data-invalid` CSS 消費追加、および readonly はネイティブ
+    // `<input readonly>` のまま追加の視覚宣言を持たない意図的な見送りを
+    // 実演する。closure が `header_row`/`body_rows` を借用するため、
+    // 呼び出しごとに複製する）。
+    // label と input を `for`/`id` で関連付ける（codex-review 指摘、
+    // イシュー #2013 PR #2177 修正ラウンド）: `input_id` を label の
+    // `for_` と input の `id` の両方へ渡し、スクリーンリーダーがネイティブ
+    // `label[for]` 経由で入力欄の名前を取得できるようにする
+    // （[`date_picker::label`] rustdoc の関連付け契約参照）。
     let build_node = |props: &fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps,
                       label_id: &'static str,
+                      input_id: &'static str,
                       content_id: &'static str,
                       label_text: &'static str| {
         date_picker::root(
@@ -9773,13 +9781,19 @@ fn date_picker_section() -> Node {
             props,
             vec![],
             vec![
-                date_picker::label(props, Some(label_id), None, vec![], vec![text(label_text)]),
+                date_picker::label(
+                    props,
+                    Some(label_id),
+                    Some(input_id),
+                    vec![],
+                    vec![text(label_text)],
+                ),
                 date_picker::control(
                     OpenState::Open,
                     props,
                     vec![],
                     vec![
-                        date_picker::input(Some("2026-07-15"), props, None, vec![]),
+                        date_picker::input(Some("2026-07-15"), props, Some(input_id), vec![]),
                         date_picker::trigger(
                             OpenState::Open,
                             props,
@@ -9815,15 +9829,16 @@ fn date_picker_section() -> Node {
     let default_node = build_node(
         &default_props,
         "showcase-date-picker-label",
+        "showcase-date-picker-input",
         "showcase-date-picker-content",
         "Delivery date",
     );
 
-    // イシュー #2013: shadcn/ui との突合で `data-invalid`/`data-readonly`
-    // の CSS 消費が未実装だったギャップを埋めたため（`date_picker.rs`
-    // モジュール rustdoc「スタイル調整（イシュー #2013）」節参照）、視覚
-    // 確認できるデモ行を追加する（checkbox #2011/#2143 の invalid デモ行
-    // 追加と同型）。
+    // イシュー #2013: shadcn/ui との突合で `data-invalid` の CSS 消費が
+    // 未実装だったギャップを埋めたため（`date_picker.rs` モジュール
+    // rustdoc「スタイル調整（イシュー #2013）」節参照）、視覚確認できる
+    // デモ行を追加する（checkbox #2011/#2143 の invalid デモ行追加と
+    // 同型）。
     let invalid_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
         invalid: true,
         ..Default::default()
@@ -9831,6 +9846,7 @@ fn date_picker_section() -> Node {
     let invalid_node = build_node(
         &invalid_props,
         "showcase-date-picker-invalid-label",
+        "showcase-date-picker-invalid-input",
         "showcase-date-picker-invalid-content",
         "Delivery date (invalid)",
     );
@@ -9842,13 +9858,14 @@ fn date_picker_section() -> Node {
     let readonly_node = build_node(
         &readonly_props,
         "showcase-date-picker-readonly-label",
+        "showcase-date-picker-readonly-input",
         "showcase-date-picker-readonly-content",
         "Delivery date (readonly)",
     );
 
     section(
         "DatePicker",
-        "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。invalid/readonly の 2 状態（イシュー #2013）も並べて実演します。",
+        "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。invalid（枠線色、イシュー #2013）と readonly（ネイティブ `<input readonly>` のまま追加の視覚宣言なし）の 2 状態も並べて実演します。",
         vec![default_node, invalid_node, readonly_node],
     )
 }
