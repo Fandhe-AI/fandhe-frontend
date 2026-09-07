@@ -87,6 +87,7 @@ use fandhe_frontend_pre_styled_ui::{
     button::{button, ButtonProps, ButtonVariant},
     collapsible,
     dialog::{self, ContentIds, DialogRole},
+    drawer::{self, DrawerPlacement},
     hover_card::{self, HoverCardDelays},
     kbd::{kbd, KbdProps, KbdVariant},
     menu, ColorPalette, OpenState, Size,
@@ -798,7 +799,7 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
             name: "size",
             kind: "Size",
             default: "Size::Md",
-            description: "root へ付与するサイズ variant（Sm/Md/Lg）。",
+            description: "root へ付与するサイズ variant（Xs/Sm/Md/Lg/Xl）。",
         },
         ArgRow {
             name: "state",
@@ -813,7 +814,11 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
             description: "画面のどの端から出現するか（Start/End/Top/Bottom）。data-placement として出力される。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Footer action row (bottom placement)",
+        description: "shadcn/ui の Sheet/Drawer が持つフッター相当のアクション配置を、既存 API のみで再現した合成パターンです（イシュー #2031）。headless anatomy に専用 footer パートが存在しないため（description 直後の通常行として掲示する制約は drawer.rs rustdoc の「本イシューのスコープ外」節を継承）、description の直後に Cancel/Save の 2 ボタンを並べています。placement=\"bottom\" を掲示し、DrawerPlacement の 4 方向のうち Demo（end）とは異なる方向を示します。",
+        render: ex_drawer_footer_bottom,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -839,6 +844,90 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`DRAWER`] の Examples 節「Footer action row (bottom placement)」レンダラ
+/// （イシュー #2031、shadcn/ui `Sheet`/`Drawer` との突合）。
+///
+/// headless drawer の anatomy は dialog と同一の 8 パーツのみで footer
+/// パートを持たない（`crates/pre-styled-ui/src/drawer.rs` rustdoc「本
+/// イシューのスコープ外」節、イシュー #1695 で確定済みの制約）ため、
+/// description 直後の通常行として Cancel/Save を並べる合成パターンを示す
+/// （`showcase::drawer_section` の Demo と同型。ID は Demo と衝突しない
+/// `showcase-drawer-footer-example-*` を使う）。placement は Demo（end）と
+/// 異なる bottom を掲示し、DrawerPlacement の網羅性を示す。
+fn ex_drawer_footer_bottom() -> Node {
+    div(
+        vec![],
+        vec![
+            drawer::trigger(
+                OpenState::Open,
+                Some("showcase-drawer-footer-example-content"),
+                vec![],
+                vec![text("Open bottom drawer")],
+            ),
+            drawer::root(
+                Size::Md,
+                OpenState::Open,
+                DrawerPlacement::Bottom,
+                vec![],
+                vec![
+                    drawer::backdrop(OpenState::Open, vec![], vec![]),
+                    drawer::positioner(
+                        OpenState::Open,
+                        DrawerPlacement::Bottom,
+                        vec![],
+                        vec![drawer::content(
+                            OpenState::Open,
+                            DrawerPlacement::Bottom,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-drawer-footer-example-content"),
+                                labelledby: Some("showcase-drawer-footer-example-title"),
+                                describedby: Some("showcase-drawer-footer-example-desc"),
+                            },
+                            vec![],
+                            vec![
+                                drawer::title(
+                                    Some("showcase-drawer-footer-example-title"),
+                                    vec![],
+                                    vec![text("Filters")],
+                                ),
+                                drawer::description(
+                                    Some("showcase-drawer-footer-example-desc"),
+                                    vec![],
+                                    vec![text("画面下端からスライドインするパネルの例です。")],
+                                ),
+                                // headless anatomy に専用 footer パートが存在
+                                // しないため、description 直後に通常の行として
+                                // 掲示する。`.showcase-row` は掲示用レイアウト
+                                // のみを担い、製品 CSS には footer 規則を持ち
+                                // 込まない（showcase.rs の他 drawer 例と同型）。
+                                div(
+                                    vec![("class", "showcase-row")],
+                                    vec![
+                                        button(
+                                            &ButtonProps {
+                                                variant: ButtonVariant::Outline,
+                                                ..ButtonProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("Cancel")],
+                                        ),
+                                        button(&ButtonProps::default(), vec![], vec![text("Save")]),
+                                    ],
+                                ),
+                                drawer::close_trigger(
+                                    vec![("aria-label", "Close")],
+                                    vec![text("×")],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
 
 /// `/themes/floating-panel/`（Interactive カテゴリ）。
 ///
