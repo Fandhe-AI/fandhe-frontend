@@ -1874,11 +1874,12 @@ fn ex_textarea_with_label_and_helper() -> Node {
 
 const TOGGLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle::root` へ委譲する。",
+        "`size`/`variant`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle::root` へ委譲する。",
         "`pressed`/`disabled` の 2 状態フラグを直接引数で受け取る。",
         "状態機械は Switch と同じ `Checkable` を内部再利用するが、公開語彙は `\"on\"`/`\"off\"`（`aria-pressed` と `data-pressed` を併記）で Switch とは異なる。",
         "`root` 自身がネイティブ `<button type=\"button\">` であり、Switch/RadioGroup のような hidden input を持たない。",
         "`indicator` は off 時に styled 層 CSS が `display: none` で隠す（headless 層は `data-state` のみ出力する）。",
+        "`variant`（`ToggleVariant::Outline`/`Ghost`）はイシュー #2023 の shadcn/ui 突合で新設した軸。`Outline`（既定）は輪郭あり、`Ghost` は背景・輪郭なしの最小装飾（`ButtonVariant::Ghost` と同じ意味論）。",
     ],
     arguments: &[
         ArgRow {
@@ -1886,6 +1887,12 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
             kind: "Size",
             default: "Size::Md",
             description: "サイズ variant。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "ToggleVariant",
+            default: "ToggleVariant::Outline",
+            description: "外観 variant（Outline/Ghost、イシュー #2023）。",
         },
         ArgRow {
             name: "palette",
