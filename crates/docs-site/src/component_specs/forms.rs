@@ -46,18 +46,23 @@
 //! （`tests/component_pages.rs::component_page_source_does_not_use_raw_html`
 //! が `component_specs/` 配下を再帰走査してこれを固定する）。
 
-use fandhe_frontend_core::{el, p, text, Node};
+use fandhe_frontend_core::{div, el, p, text, Node};
 use fandhe_frontend_pre_styled_ui::angle_slider;
+use fandhe_frontend_pre_styled_ui::badge;
+use fandhe_frontend_pre_styled_ui::button::{icon_button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox;
 use fandhe_frontend_pre_styled_ui::checkbox::{CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
     AngleSlider, AngleSliderProps,
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
+use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::image_cropper::{HandlePosition, ImageCropperProps};
+use fandhe_frontend_pre_styled_ui::kbd;
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::signature_pad;
+use fandhe_frontend_pre_styled_ui::{BadgeProps, KbdProps};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry};
@@ -150,7 +155,7 @@ const ANGLE_SLIDER: ComponentPageSpec = ComponentPageSpec {
 
 const BUTTON: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "見た目 variant（`Solid`/`Outline`/`Ghost`/`Subtle`/`Surface`/`Plain`、イシュー #1448）・サイズ（`Xs`/`Sm`/`Md`/`Lg`/`Xl` の 5 段、イシュー #1449）・colorPalette の 3 軸を持つ単一 recipe styled 部品。",
+        "見た目 variant（`Solid`/`Outline`/`Ghost`/`Subtle`/`Surface`/`Plain`/`Link`、イシュー #1448/#2009）・サイズ（`Xs`/`Sm`/`Md`/`Lg`/`Xl` の 5 段、イシュー #1449）・colorPalette の 3 軸を持つ単一 recipe styled 部品。`Link` variant（shadcn/ui 突合、イシュー #2009）は背景・輪郭を持たず hover 時のみ下線を表示する。",
         "size variant は高さ・水平 padding・font-size をトークン（`--fandhe-size-control-*`）で固定し、`icon_button`/`close_button`（icon-only）は高さ基準の正方形になる（イシュー #1449）。",
         "`loading: true` のとき `disabled` と同様に `disabled` 属性・`data-disabled`・`aria-disabled=\"true\"` を付与し、`aria-busy=\"true\"` を追加する。",
         "`loading: true` のとき装飾用途の Spinner（`role`/`aria-label` を持たない）を子ノード先頭へ自動挿入する。Spinner のサイズはボタンの `size` へ追随する（`Xs`/`Sm`/`Md` → 小、`Lg`/`Xl` → 中、イシュー #1449）。",
@@ -178,11 +183,84 @@ const BUTTON: ComponentPageSpec = ComponentPageSpec {
             description: "ボタンラベルとなる子ノード。",
         },
     ],
-    examples: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Button with keyboard shortcut",
+            description: "既存の `kbd`（イシュー #756/#1063）を子ノードへ併記し、キーボードショートカットを示す用例です。button 自体に kbd との合成専用 API は無く、通常の子ノード（gap 付き flex レイアウトは呼び出し側の CSS に委ねる）として並べるだけで成立します。",
+            render: ex_button_with_kbd,
+        },
+        ExampleEntry {
+            title: "Button with badge",
+            description: "既存の `badge`（イシュー #1063 等）と icon-only の `icon_button`（イシュー #830）を相対配置し、通知件数を重ねる用例です。位置調整（`position: relative`/`absolute`）は本コンポーネント層の責務外のため、呼び出し側の `style` で行っています。",
+            render: ex_button_with_badge,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,
 };
+
+/// [`BUTTON`] の Examples 節「Button with keyboard shortcut」レンダラ
+/// （イシュー #2009）。button-group（Phase 4 #2058 で別部品として提供予定）
+/// は使わず、既存の `kbd` を通常の子ノードとして並べるだけの合成例。
+fn ex_button_with_kbd() -> Node {
+    fandhe_frontend_pre_styled_ui::button::button(
+        &ButtonProps {
+            variant: ButtonVariant::Outline,
+            ..ButtonProps::default()
+        },
+        vec![(
+            "style",
+            "display: inline-flex; align-items: center; gap: 0.5rem;",
+        )],
+        vec![
+            text("Search"),
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("⌘K")]),
+        ],
+    )
+}
+
+/// [`BUTTON`] の Examples 節「Button with badge」レンダラ（イシュー #2009）。
+/// icon-only の `icon_button`（`aria-label` 必須、#830）と `badge` を
+/// `position: relative`/`absolute` で相対配置した通知件数バッジの合成例。
+fn ex_button_with_badge() -> Node {
+    div(
+        vec![("style", "position: relative; display: inline-block;")],
+        vec![
+            icon_button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    ..ButtonProps::default()
+                },
+                "Notifications",
+                vec![],
+                vec![icon(
+                    &IconProps {
+                        label: None,
+                        ..IconProps::default()
+                    },
+                    vec![],
+                    vec![el(
+                        "path",
+                        vec![(
+                            "d",
+                            "M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 00-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z",
+                        )],
+                        vec![],
+                    )],
+                )],
+            ),
+            badge::badge(
+                &BadgeProps::default(),
+                vec![(
+                    "style",
+                    "position: absolute; top: -0.25rem; right: -0.25rem;",
+                )],
+                vec![text("3")],
+            ),
+        ],
+    )
+}
 
 const CHECKBOX: ComponentPageSpec = ComponentPageSpec {
     features: &[
