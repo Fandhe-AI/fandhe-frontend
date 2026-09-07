@@ -1,14 +1,23 @@
-//! styled Navigation Menu（イシュー #993）の CSS 契約テスト。
+//! styled Navigation Menu（イシュー #993、#2035 で 7 パーツへ拡張）の CSS
+//! 契約テスト。
 //!
 //! `crates/pre-styled-ui/tests/menubar_css.rs` と同型の判断（golden fixture
 //! 方式は宣言 1 個の増減でも無関係な diff が広範囲に生じる brittle さの方が
-//! 実害が大きい）に従い、「6 スロット分のセレクタが存在する」「主要な状態
+//! 実害が大きい）に従い、「7 スロット分のセレクタが存在する」「主要な状態
 //! セレクタが揃っている」「CSS breakout を含まない」という不変条件を契約
 //! アサーションとして固定する。
 
 use fandhe_frontend_pre_styled_ui::navigation_menu;
 
-const EXPECTED_SLOTS: &[&str] = &["root", "list", "item", "trigger", "content", "link"];
+const EXPECTED_SLOTS: &[&str] = &[
+    "root",
+    "list",
+    "item",
+    "trigger",
+    "item-indicator",
+    "content",
+    "link",
+];
 
 #[test]
 fn stylesheet_is_deterministic() {
@@ -16,7 +25,7 @@ fn stylesheet_is_deterministic() {
 }
 
 #[test]
-fn stylesheet_declares_selectors_for_all_six_anatomy_slots() {
+fn stylesheet_declares_selectors_for_all_seven_anatomy_slots() {
     let css = navigation_menu::stylesheet();
     for part in EXPECTED_SLOTS {
         let needle = format!(r#"[data-scope="navigation-menu"][data-part="{part}"]"#);
@@ -137,4 +146,33 @@ fn stylesheet_tokenizes_content_border_radius_and_box_shadow() {
     assert!(css.contains("box-shadow: var(--fandhe-shadow-md);"));
     assert!(!css.contains("border-radius: 0.375rem;"));
     assert!(!css.contains("box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);"));
+}
+
+#[test]
+fn stylesheet_declares_item_indicator_base_and_rotate_state() {
+    // イシュー #2035: headless 層が #1654 で新設した item-indicator（トリガー
+    // 横の開閉シェブロン）へ CSS を追いつかせた（`src/navigation_menu.rs`
+    // モジュール doc「shadcn/ui 突合（イシュー #2035）」節参照。
+    // crate::accordion::item_indicator を precedent とする）。
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains(r#"[data-scope="navigation-menu"][data-part="item-indicator"] {"#));
+    assert!(css.contains("display: inline-block;"));
+    assert!(css.contains(
+        r#"[data-scope="navigation-menu"][data-part="item-indicator"][data-state="open"] {"#
+    ));
+    assert!(css.contains("transform: rotate(180deg);"));
+}
+
+#[test]
+fn stylesheet_declares_trigger_and_link_icon_gap() {
+    // イシュー #2035: アイコン付きトリガー/リンク合成向けの間隔
+    // （crate::menu の item 系パートが確立した既存トークン運用に合わせる）。
+    let css = navigation_menu::stylesheet();
+    assert_eq!(css.matches("gap: var(--fandhe-space-2);").count(), 2);
+    assert!(css.contains(
+        "[data-scope=\"navigation-menu\"][data-part=\"trigger\"] {\n  gap: var(--fandhe-space-2);\n}"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  gap: var(--fandhe-space-2);\n}"
+    ));
 }
