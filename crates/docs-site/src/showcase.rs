@@ -7955,28 +7955,51 @@ fn navigation_menu_section() -> Node {
                     &nav_props,
                     "resources",
                     vec![],
-                    vec![navigation_menu::trigger(
-                        OpenState::Closed,
-                        false,
-                        "resources",
-                        Some("nav-menu-resources-trigger"),
-                        Some("nav-menu-resources-content"),
-                        vec![],
-                        vec![
-                            // イシュー #2035: アイコン付きトリガー合成
-                            // （アイコン + ラベルの gap、実アイコンではなく
-                            // 簡易グリフで代用）。
-                            el("span", vec![("aria-hidden", "true")], vec![text("◆")]),
-                            text("Resources"),
-                            navigation_menu::item_indicator(
-                                OpenState::Closed,
-                                &nav_props,
-                                "resources",
-                                vec![],
-                                vec![text("⌄")],
-                            ),
-                        ],
-                    )],
+                    vec![
+                        navigation_menu::trigger(
+                            OpenState::Closed,
+                            false,
+                            "resources",
+                            Some("nav-menu-resources-trigger"),
+                            Some("nav-menu-resources-content"),
+                            vec![],
+                            vec![
+                                // イシュー #2035: アイコン付きトリガー合成
+                                // （アイコン + ラベルの gap、実アイコンでは
+                                // なく簡易グリフで代用）。
+                                el("span", vec![("aria-hidden", "true")], vec![text("◆")]),
+                                text("Resources"),
+                                navigation_menu::item_indicator(
+                                    OpenState::Closed,
+                                    &nav_props,
+                                    "resources",
+                                    vec![],
+                                    vec![text("⌄")],
+                                ),
+                            ],
+                        ),
+                        // 修正ラウンド（codex-review/Bugbot 指摘）: 上記
+                        // trigger が出力する
+                        // `aria-controls="nav-menu-resources-content"` の
+                        // 参照先が存在しなかった（ARIA 参照先欠落）ため、
+                        // products と同様に対応する content を追加する。
+                        // `OpenState::Closed` のため `content()` が
+                        // `hidden` 属性を自動付与し（headless-ui
+                        // `navigation_menu::content` 参照）、閉じた基準
+                        // 状態の視覚には影響しない。
+                        navigation_menu::content(
+                            OpenState::Closed,
+                            &nav_props,
+                            "resources",
+                            Some("nav-menu-resources-content"),
+                            Some("nav-menu-resources-trigger"),
+                            vec![],
+                            vec![title_description_link(
+                                "Docs",
+                                "利用ガイド・API リファレンスへのリンク集。",
+                            )],
+                        ),
+                    ],
                 ),
                 navigation_menu::item(
                     OpenState::Closed,

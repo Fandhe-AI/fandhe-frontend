@@ -200,7 +200,12 @@
 //!   なく [`crate::menu`] の item 系パートが確立した既存トークン運用
 //!   （`--fandhe-space-2`）に合わせた（適用原則: 色味・角丸・影・spacing
 //!   等トークン値の差は shadcn の実測値そのものを追わず既存体系を優先
-//!   する）。
+//!   する）。**`link` は `display: flex` + `align-items: center` も
+//!   あわせて設定する**（修正ラウンド、codex-review/Bugbot 指摘）:
+//!   `link` は元々 `display: block` であり `gap` は block コンテナには
+//!   効かないため、`trigger`（既存の `display: inline-flex`）と同じく
+//!   flex コンテナ化してはじめて実効する。[`crate::menu`] の item 系
+//!   パートも同型に `display: flex` を伴っている。
 //!
 //! ## 意図的に合わせなかった点（イシュー #2035）
 //!
@@ -346,7 +351,15 @@ fn recipe() -> SlotRecipe {
         .base(
             "link",
             vec![
-                decl("display", "block"),
+                // イシュー #2035 修正ラウンド（codex-review/Bugbot 指摘）:
+                // 当初 `display: block` のまま `gap` を追加していたため
+                // gap が block コンテナには効かずアイコン+ラベル間隔の
+                // 意図を満たしていなかった。[`crate::menu`] の item 系
+                // パート（本ファイル上部 rustdoc 引用の `display: flex` +
+                // `align-items: center` + `gap` パターン）に合わせ、
+                // `display`/`align-items` を flex 化する。
+                decl("display", "flex"),
+                decl("align-items", "center"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("text-decoration", "none"),
                 decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
@@ -359,7 +372,7 @@ fn recipe() -> SlotRecipe {
             transition_declarations("background, color", MotionDuration::Fast),
         )
         // イシュー #2035: アイコン付きリンク合成向けの余白（trigger と同じ
-        // 判断・同じトークン値）。
+        // 判断・同じトークン値）。`display: flex` 化により実効する。
         .base("link", vec![decl("gap", "var(--fandhe-space-2)")])
         // 開いている trigger を視覚的に強調する。
         .state(
@@ -595,6 +608,25 @@ mod tests {
         ));
         assert!(css.contains(
             "[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  gap: var(--fandhe-space-2);\n}"
+        ));
+    }
+
+    #[test]
+    fn link_uses_flex_display_so_icon_gap_is_effective() {
+        // 修正ラウンド（codex-review/Bugbot 指摘）: `link` の `gap` は
+        // block コンテナには効かないため、`display: flex` +
+        // `align-items: center` を伴っていることを固定する
+        // （trigger の既存 `display: inline-flex` と同じ狙い）。
+        let css = stylesheet();
+        let link_base = css
+            .split(r#"[data-scope="navigation-menu"][data-part="link"] {"#)
+            .nth(1)
+            .and_then(|s| s.split('}').next())
+            .expect("link base block must exist");
+        assert!(link_base.contains("display: flex;"));
+        assert!(link_base.contains("align-items: center;"));
+        assert!(!css.contains(
+            "[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  display: block;\n"
         ));
     }
 
