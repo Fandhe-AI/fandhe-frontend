@@ -2041,7 +2041,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # outside-month のセルで文字色が上書きされる不具合）を是正した。
 # `recipe()` 内の `.state()` 登録順を入れ替え、golden fixture の CSS 出力
 # 順が観測可能に変わる実体変更のためマイナーバンプで 0.120.0 とする。
-version = "0.120.0"
+# イシュー #2028: carousel を shadcn/ui と突合し、`--fandhe-carousel-item-basis`
+# CSS カスタムプロパティを新設（既存セレクタ内の宣言値変更のみで新規
+# `data-*`・新規 variant・新規セレクタは追加しない）ためパッチバンプで
+# 0.120.1 とする。
+version = "0.120.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

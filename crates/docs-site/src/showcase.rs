@@ -5689,10 +5689,80 @@ fn carousel_section() -> Node {
             ),
         ],
     );
+    // イシュー #2028: shadcn/ui 突合で判明した「垂直方向の Demo 欠落」を
+    // 補う（機能自体は #1660/#1925 で実装済み、`crate::carousel` rustdoc
+    // 「shadcn/ui 突合」節参照）。
+    let cv = Carousel::new(1, 3, false, Orientation::Vertical);
+    let vertical_node = carousel::root(
+        Size::Md,
+        Orientation::Vertical,
+        "Featured products (vertical)",
+        vec![],
+        vec![
+            cv.control(
+                vec![],
+                vec![
+                    cv.prev_trigger("Previous slide", vec![], vec![]),
+                    cv.item_group(
+                        vec![],
+                        slides
+                            .iter()
+                            .enumerate()
+                            .map(|(i, label)| cv.item(i, vec![], vec![text(*label)]))
+                            .collect(),
+                    ),
+                    cv.next_trigger("Next slide", vec![], vec![]),
+                ],
+            ),
+            cv.indicator_group(
+                vec![],
+                (0..slides.len()).map(|i| cv.indicator(i, vec![])).collect(),
+            ),
+        ],
+    );
+
+    // イシュー #2028: shadcn/ui の Sizes 例（`basis-1/3` 等で複数スライド
+    // 同時表示）に相当する `--fandhe-carousel-item-basis` の実演。`root`
+    // へ設定し CSS カスタムプロパティの継承で `item-group`/`item` へ
+    // 伝播させる（`item_group`/`item` 自体は headless 側が既に
+    // `style="--fandhe-carousel-index: ...;"` を出力する契約のため、
+    // 二重の `style` 属性を避ける）。
+    let cb = Carousel::new(0, 5, false, Orientation::Horizontal);
+    let basis_slides = ["Slide A", "Slide B", "Slide C", "Slide D", "Slide E"];
+    let basis_node = carousel::root(
+        Size::Md,
+        Orientation::Horizontal,
+        "Featured products (multiple visible)",
+        vec![("style", "--fandhe-carousel-item-basis: 33.3333%;")],
+        vec![
+            cb.control(
+                vec![],
+                vec![
+                    cb.prev_trigger("Previous slide", vec![], vec![]),
+                    cb.item_group(
+                        vec![],
+                        basis_slides
+                            .iter()
+                            .enumerate()
+                            .map(|(i, label)| cb.item(i, vec![], vec![text(*label)]))
+                            .collect(),
+                    ),
+                    cb.next_trigger("Next slide", vec![], vec![]),
+                ],
+            ),
+            cb.indicator_group(
+                vec![],
+                (0..basis_slides.len())
+                    .map(|i| cb.indicator(i, vec![]))
+                    .collect(),
+            ),
+        ],
+    );
+
     section(
         "Carousel",
-        "headless-ui の Carousel（role=\"region\" aria-roledescription=\"carousel\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。3 スライド中 2 番目（index=1）を現在位置として固定表示しています。--fandhe-carousel-index CSS カスタムプロパティによる transform ベースのスライド位置表現で、JS 計測に依存しません。autoplay・ドラッグ操作は本イシューのスコープ外です。",
-        vec![node],
+        "headless-ui の Carousel（role=\"region\" aria-roledescription=\"carousel\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。3 スライド中 2 番目（index=1）を現在位置として固定表示しています。--fandhe-carousel-index CSS カスタムプロパティによる transform ベースのスライド位置表現で、JS 計測に依存しません。2 つ目は垂直方向（data-orientation=\"vertical\"）の同型実演、3 つ目は --fandhe-carousel-item-basis（イシュー #2028、shadcn/ui の Sizes 例に相当）による複数スライド同時表示の実演です。shadcn/ui の Thumbnails 例に相当する構成は参照ページに存在しないため対象外です。autoplay・ドラッグ操作は本イシューのスコープ外です。",
+        vec![node, vertical_node, basis_node],
     )
 }
 

@@ -1399,6 +1399,7 @@ pub(crate) const CAROUSEL: ComponentPageSpec = ComponentPageSpec {
         "orientation（Horizontal/Vertical）に応じて item-group の transform 軸を translateX/translateY に切り替える（crates/pre-styled-ui/src/carousel.rs:390-398）",
         "label 引数を root の aria-label へそのまま出力する（carousel.rs:277-318, 321-322）",
         "選択・チェック状態を示す部品ではないため colorPalette 軸を提供しない（carousel.rs テスト carousel_stylesheet_never_consumes_color_palette_axis）",
+        "--fandhe-carousel-item-basis（既定 100%）を root へ設定すると item の flex-basis と item-group の横方向 transform 係数の両方に反映され、複数スライドの同時表示に対応する（イシュー #2028、shadcn/ui の Sizes 例に相当。carousel.rs の recipe() item/item-group base）",
     ],
     arguments: &[
         ArgRow {
