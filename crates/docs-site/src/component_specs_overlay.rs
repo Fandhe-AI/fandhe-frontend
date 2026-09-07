@@ -90,6 +90,7 @@ use fandhe_frontend_pre_styled_ui::{
     kbd::{kbd, KbdProps},
     menubar, navigation_menu, popover,
     text::{text as styled_text, TextProps, TextSize, TextWeight},
+    toast::{self, ToastPlacement, ToastStatus},
     ColorPalette, OpenState, Size,
 };
 
@@ -1439,7 +1440,11 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
             description: "通知 1 件（root）の状態（Info/Success/Warning/Error）。aria-live の緊急度導出にも使われる。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Description のみ（タイトルなし）",
+        description: "title を省略し description のみで構成する合成パターン。既存 anatomy のみで再現でき、CSS 変更は不要（イシュー #2040、shadcn/ui 突合）。",
+        render: ex_toast_description_only,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -1453,6 +1458,25 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// `TOAST.examples` のレンダラ（イシュー #2040）。title を省略し
+/// description のみで構成できることを示す合成パターン。`toast` モジュール
+/// の既存公開 API のみで再現でき、新規 CSS は一切追加しない。
+fn ex_toast_description_only() -> Node {
+    toast::group(
+        ToastPlacement::BottomEnd,
+        "Notifications",
+        vec![],
+        vec![toast::root(
+            ToastStatus::Success,
+            vec![],
+            vec![
+                toast::description(vec![], vec![text("設定を保存しました。")]),
+                toast::close_trigger(vec![("aria-label", "Close")], vec![text("×")]),
+            ],
+        )],
+    )
+}
 
 /// `/themes/toggle-tip/`（Interactive カテゴリ）。
 ///

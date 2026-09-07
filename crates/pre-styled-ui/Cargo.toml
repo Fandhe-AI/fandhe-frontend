@@ -2238,7 +2238,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（minor バンプ
 # 同士が衝突した場合は main の現在値の minor を +1 し patch を 0 に戻す）
 # に従い、main の到達値 0.130.0 の minor を +1 して 0.131.0 とする。
-version = "0.131.0"
+# イシュー #2040（toast の shadcn/ui 突合、2026-09-08）: 実機比較の結果
+# 純追加できるバリアント・状態が見つからず、`recipe()`/`css()` は無変更
+# （golden `tests/toast_css.rs` も無変更）。変更はモジュール doc への
+# 判定記録追記（rustdoc のみ）に限られるため、hover-card の shadcn/ui
+# 突合記録追加（0.124.1）と同型で patch バンプする。base 取り込み時の
+# 上記 0.131.0 バンプと衝突したため、その到達値へさらに patch バンプを
+# 重ねて 0.131.1 とする。
+version = "0.131.1"
 
 
 edition = "2021"
