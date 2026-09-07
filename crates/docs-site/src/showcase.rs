@@ -4368,21 +4368,76 @@ fn textarea_section() -> Node {
     )
 }
 
-/// Native Select 節: 素の `<select>`/`<option>` をスタイル化。
+/// Native Select 節: Outline（既定）/ Invalid / Disabled の 3 態 +
+/// `<optgroup>` を含むインスタンス（イシュー #2017、shadcn/ui 突合。
+/// `input_section` の Invalid デモ・`.showcase-form-field-group` ラッパー
+/// 併設コメントと同型）。
 fn native_select_section() -> Node {
-    let native_select_row = row(vec![native_select::native_select(
-        &NativeSelectProps::default(),
-        &plain_field("showcase-native-select-default"),
-        vec![],
+    let jp_us_options = || {
         vec![
             el("option", vec![("value", "jp")], vec![text("Japan")]),
             el("option", vec![("value", "us")], vec![text("United States")]),
-        ],
-    )]);
+        ]
+    };
+
+    let native_select_row = row(vec![
+        native_select::native_select(
+            &NativeSelectProps::default(),
+            &plain_field("showcase-native-select-default"),
+            vec![],
+            jp_us_options(),
+        ),
+        // invalid 時、headless `field::select` は `aria-describedby` に
+        // `{id}-error-text` を出力する（`input_section` と同じ describedby
+        // 合成則）。参照先の id を持つ `error_text`（`input` モジュールの
+        // 再エクスポート経由。`field` scope 共通のためどの styled モジュール
+        // 経由で呼んでも出力は同一）を併設し、存在しない id への参照を残さ
+        // ない。ラッパー div の `.showcase-form-field-group` も
+        // `input_section` と同じ理由（flex-basis 解決）で必要。
+        div(
+            vec![("class", "showcase-form-field-group")],
+            vec![
+                native_select::native_select(
+                    &NativeSelectProps::default(),
+                    &invalid_field("showcase-native-select-invalid"),
+                    vec![],
+                    jp_us_options(),
+                ),
+                input::error_text(
+                    &invalid_field("showcase-native-select-invalid"),
+                    vec![],
+                    vec![text("Please select a country.")],
+                ),
+            ],
+        ),
+        native_select::native_select(
+            &NativeSelectProps::default(),
+            &disabled_field("showcase-native-select-disabled"),
+            vec![],
+            jp_us_options(),
+        ),
+        // イシュー #2017: shadcn/ui 突合で「headless `field::select` は
+        // children をそのまま透過するため `<optgroup>` は現状 API のまま
+        // 描画できる」と判定した際の実描画確認用インスタンス（モジュール
+        // rustdoc「shadcn/ui 突合」節「optgroup」参照）。
+        native_select::native_select(
+            &NativeSelectProps::default(),
+            &plain_field("showcase-native-select-optgroup"),
+            vec![],
+            vec![el(
+                "optgroup",
+                vec![("label", "Asia")],
+                vec![
+                    el("option", vec![("value", "jp")], vec![text("Japan")]),
+                    el("option", vec![("value", "kr")], vec![text("South Korea")]),
+                ],
+            )],
+        ),
+    ]);
 
     section(
         "Native Select",
-        "素の select/option 要素をそのまま styled 化した選択部品。",
+        "素の select/option 要素をそのまま styled 化した選択部品。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現し、optgroup による選択肢グループ化にも対応します。",
         vec![native_select_row],
     )
 }

@@ -61,6 +61,7 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::image_cropper::{HandlePosition, ImageCropperProps};
 use fandhe_frontend_pre_styled_ui::kbd;
+use fandhe_frontend_pre_styled_ui::native_select;
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::{BadgeProps, KbdProps};
@@ -926,7 +927,11 @@ const NATIVE_SELECT: ComponentPageSpec = ComponentPageSpec {
             description: "`<option>` 等の子ノード。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "ラベル・補助テキストとの組み合わせ",
+        description: "`native_select` はラベル・補助テキストの型階層を持たず、`field`（`/themes/field/`）が担う（モジュール rustdoc「`field` scope を共有する理由」参照）。`field::label`/`field::helper_text`/`field::root` と組み合わせるだけの合成例です（イシュー #2017、shadcn/ui の label + native select + description パターンと同型の構成を本リポジトリの既存 API で再現）。",
+        render: ex_native_select_with_label_and_helper,
+    }],
     keyboard: &[
         crate::component_page::KeyRow {
             key: "ArrowUp / ArrowDown",
@@ -936,6 +941,46 @@ const NATIVE_SELECT: ComponentPageSpec = ComponentPageSpec {
     aria: &[],
     demo: None,
 };
+
+/// [`NATIVE_SELECT`] の Examples 節「ラベル・補助テキストとの組み合わせ」
+/// レンダラ（イシュー #2017）。[`ex_input_with_label_and_helper`] と同型の
+/// 合成（label + native_select + helper_text + field::root）を、`<select>`
+/// 向けに `<option>` 子ノードを添えて簡略化したもの。
+fn ex_native_select_with_label_and_helper() -> Node {
+    let f = fandhe_frontend_pre_styled_ui::native_select::FieldProps {
+        id: "example-native-select-country",
+        ids: fandhe_frontend_pre_styled_ui::native_select::FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
+    field::root(
+        &FieldRootProps {
+            orientation: FieldOrientation::Vertical,
+        },
+        &f,
+        vec![],
+        vec![
+            field::label(&f, vec![], vec![text("Country")]),
+            native_select::native_select(
+                &native_select::NativeSelectProps::default(),
+                &f,
+                vec![],
+                vec![
+                    el("option", vec![("value", "jp")], vec![text("Japan")]),
+                    el("option", vec![("value", "us")], vec![text("United States")]),
+                ],
+            ),
+            field::helper_text(
+                &f,
+                vec![],
+                vec![text("We use this to localize prices and shipping.")],
+            ),
+        ],
+    )
+}
 
 const NUMBER_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
