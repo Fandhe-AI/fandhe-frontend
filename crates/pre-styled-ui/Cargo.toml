@@ -2044,19 +2044,211 @@ name = "fandhe-frontend-pre-styled-ui"
 # outside-month のセルで文字色が上書きされる不具合）を是正した。
 # `recipe()` 内の `.state()` 登録順を入れ替え、golden fixture の CSS 出力
 # 順が観測可能に変わる実体変更のためマイナーバンプで 0.120.0 とする。
+# イシュー #2027: breadcrumb の shadcn/ui 突合で `list` に
+# `overflow-wrap: break-word` を追加し（`stylesheet()` 出力の変化）、
+# 続けて PR #2142 codex-review P2 指摘是正として `item`/`link`/
+# `current-link` へ `min-width: 0` を追加した（flex item の `min-width`
+# 初期値 `auto` により `overflow-wrap` 単独では折り返しが機能しない
+# 不具合の是正）。いずれも新規セレクタ・variant・`data-*` を追加しない
+# 意匠調整のみのため、まとめて 1 回の patch バンプとする。
 # イシュー #2028: carousel を shadcn/ui と突合し、`--fandhe-carousel-item-basis`
 # CSS カスタムプロパティを新設（既存セレクタ内の宣言値変更のみで新規
 # `data-*`・新規 variant・新規セレクタは追加しない）ためパッチバンプで
 # 0.120.1 に到達していたが、main が独立に 0.121.0 へ到達済みだったため
 # 同一到達ではないが本ブランチの到達値が main の到達値未満で埋没する
-# 衝突として扱い、main の到達値からさらに +1 して 0.122.0 とした（#2013）。
-# その後 fork 後の main 側で別ブランチ（PR #2142「breadcrumb を shadcn/ui
-# と突合」、同じ #2001/#2008 shadcn 監査ツリー由来）が同じ 0.122.0 起点から
-# 先に 0.123.0 へバンプ済みでマージされ、本ブランチの 0.122.0 → 0.123.0
-# バンプ（date-picker の実体変更）と同一バージョン番号で衝突したため、
-# main の到達値（0.123.0）からさらに +1 して 0.124.0 とする
-# （実体変更の統合を反映、semver-same-version-is-conflict の運用に倣う）。
-version = "0.124.0"
+# 衝突として main の到達値からさらに +1 して 0.122.0 に到達済みだった。
+# 本マージでは #2027（breadcrumb）ブランチの実体変更が main の到達値
+# 0.122.0 に未反映のまま同一ファイルで衝突したため、semver-same-version-
+# is-conflict の運用に倣い main の到達値からさらに +1 して 0.123.0 とする。
+# イシュー #2030: `dialog::body`（pre-styled-only スクロール可能コンテンツ
+# パート）の純追加のみ（既存 API・既存セレクタへの変更なし）のため、
+# `footer` 追加時（0.117.3→0.117.4）と同型のパッチバンプで 0.123.1 とする。
+# イシュー #2031: drawer を shadcn/ui（Sheet/Drawer）と突合。placement/
+# size/close ボタンは既存実装で充足済みと確認し、grabber（drag handle）は
+# headless-ui #1639 の既存判断（意図的非採用）+ `SlotRecipe` の疑似要素
+# API 不在により非採用継続と結論した。`recipe()`（CSS 出力）に変更はなく
+# rustdoc への判断記録のみのため本来パッチ相当だが、main の到達値
+# 0.123.1 と同一到達で埋没する衝突のため semver-same-version-is-conflict
+# の運用に倣い main の到達値からさらに +1 して 0.123.2 とする予定だった。
+# イシュー #2014: field を shadcn/ui と突合し、`label` の `data-invalid`
+# 反応（文字色切替）と `error-text > ul` の複数エラーメッセージ用リスト
+# 整形を追加した。既存セレクタ・variant・`data-*` の削除・意味変更を伴わず
+# 破壊的変更ではないため patch バンプで 0.123.1 とする予定だったが、main の
+# #2030（0.123.1）と同一到達値で衝突したため semver-same-version-is-conflict
+# の運用に倣い main の到達値からさらに +1 して 0.124.0 とする（下記の
+# error_text タグ変更追随バンプと統合）。
+# PR #2147 codex-review/Cursor Bugbot 指摘の是正（イシュー #2014）: 依存先
+# `fandhe-frontend-headless-ui` の `error_text` 出力タグを `span` から
+# `div` へ変更（0.65.0 → 0.66.0、破壊的変更）したことへの追随、および
+# `error-text > ul` の `display: flex` と `list-style: disc` 併用による
+# disc マーカー非表示の是正（`padding`/`margin` の入れ替え）。依存先の
+# 破壊的変更への追随を含むためマイナーバンプで 0.124.0 とする。
+# イシュー #2016: pin-input へ shadcn/ui 突合の pre-styled-only `separator`
+# パート（公開 API 追加、非破壊）を追加した。既存呼び出しへの影響はない
+# 加算のみのため patch バンプで 0.124.1 とする。
+# 本マージ（PR #2150、イシュー #2031）: 上記 #2031（0.123.2 予定）ブランチが
+# main の #2014（0.124.0）へ未反映のまま同一ファイルで衝突したため、
+# semver-same-version-is-conflict の運用に倣い main の到達値 0.124.0 から
+# さらに +1 して 0.124.1 とする（drawer の rustdoc 判断記録追記のみで
+# `recipe()` の CSS 出力に変更はなくパッチ相当）。
+# イシュー #2032: hover-card を shadcn/ui と突合した結果、`recipe()`/`css()`/
+# 公開シグネチャは一切変更せず、rustdoc（モジュール doc「shadcn/ui 突合」節）
+# と docs サイト Examples 節（`User profile preview`）の追加のみに留めた
+# （既存 `avatar`/`hover_card` API の合成のみで新規 anatomy パート・新規
+# CSS 出力を伴わない）。CSS 出力・golden テストは不変だが、公開クレートの
+# `src/` 変更につき規約（`.claude/rules/coding-rust.md`）に従いパッチバンプ
+# する。
+# base 再取り込み（イシュー #2017, PR #2150 系）: 本ブランチ（native-select
+# を shadcn/ui と突合、直前の到達値 0.125.0）は main（drawer/hover-card 等の
+# 突合を経て到達した 0.124.2）よりも既に版数が新しいため、
+# semver-same-version-is-conflict の追加 +1 運用（同一版数への偶発衝突時のみ
+# 適用）は該当せず、本ブランチの到達値 0.125.0 をそのまま採用する。
+# イシュー #2018: radio-group の shadcn/ui 突合結果を rustdoc に記録し、
+# docs-site（showcase.rs の invalid デモ・forms.rs の Examples・
+# component-coverage-map.md）を拡充した（rustdoc・docs-site 側のみで
+# recipe()/CSS 出力・golden テストは不変）。規約
+# （.claude/rules/coding-rust.md「公開済みクレートの実体変更時は semver
+# バンプ必須」）に従いパッチバンプする。
+# イシュー #2019: select の shadcn/ui 突合結果として `content` へ
+# `max-height`/`overflow-y: auto`（既定 16rem、size variant 別スケール）と
+# `trigger` の `data-invalid`/`data-readonly` 消費を追加した。`content` の
+# max-height/overflow-y は既存利用者にとって観測可能な描画変更（長いリスト
+# が従来は無制限に伸びていたが既定 16rem でクランプされスクロールする）で
+# あり、0.x の破壊的変更はマイナーバンプとする規約に該当するためマイナー
+# バンプする。
+# base 再取り込み（イシュー #2016/#2032, 2026-09-07）: 本ブランチ
+# （pin-input separator 追加、patch バンプで 0.124.1 に到達済み）と
+# main（hover-card の shadcn/ui 突合、rustdoc/docs のみで patch バンプし
+# 0.124.1 に到達済み）が同一版数へ偶発的に衝突したため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（自分の
+# 変更が patch バンプの場合は main の現在値の patch を +1 する）に従い
+# 0.124.2 とする。
+# base 再取り込み（イシュー #2031/#2032, PR #2150）: 本ブランチ（drawer の
+# rustdoc 判断記録追記、直前の到達値 0.124.1）と main（hover-card の突合、
+# 直前の到達値 0.124.1）はいずれも独立に patch バンプし偶発的に同一版数
+# 0.124.1 へ再度衝突していた（同一版数への偶発的衝突をそのまま採用しない
+# 原則、`docs/ci/style-refresh-version-bump-operation.md` §5）。両者を
+# 統合した結果としてさらに patch バンプし 0.124.2 とする。
+# base 再取り込み（イシュー #2016, PR #2151, 2026-09-07）: 上記 2 件の
+# base 再取り込み記録（本ブランチ #2016/#2032 の 0.124.2 到達と、
+# main 側 #2031/#2032 の 0.124.2 到達）がいずれも独立に到達した同一版数
+# 0.124.2 へ再度偶発的に衝突したため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数
+# への偶発的衝突をそのまま採用しない）に従い main の到達値からさらに
+# +1 して 0.124.3 とする。
+# base 再取り込み（イシュー #2016, PR #2151 修正ラウンド, 2026-09-07）: 本ブランチ
+# （pin-input separator 追加、patch バンプで 0.124.3 に到達済み）と main
+# （native-select の shadcn/ui 突合を経て 0.125.0 に到達済み）が version 行で
+# コンフリクトした。`docs/ci/style-refresh-version-bump-operation.md` §5 の
+# 手順（自分の変更が patch バンプの場合は main の現在値の patch を +1 する）
+# に従い、main の到達値 0.125.0 の patch を +1 して 0.125.1 とする。
+# base 再取り込み（イシュー #2018, 2026-09-07）: 本ブランチ（radio-group の
+# shadcn/ui 突合記録追加、patch バンプで 0.125.1 に到達済み）と main（native-select
+# の shadcn/ui 突合を経て 0.125.1 に到達済み）が同一版数へ偶発的に衝突したため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数への偶発的
+# 衝突をそのまま採用しない）に従い main の到達値からさらに +1 して 0.125.2 とする。
+# base 再取り込み（イシュー #2034, 2026-09-07）: 本ブランチ（menubar の
+# shadcn/ui 突合、SLOTS/CSS 純追加）が到達した 0.125.2 と、main（radio-group
+# の shadcn/ui 突合、PR #2163）が到達した 0.125.2 が同一版数へ偶発的に衝突
+# したため、`docs/ci/style-refresh-version-bump-operation.md` §5 の手順
+# （同一版数への偶発的衝突をそのまま採用しない）に従い main の到達値から
+# さらに +1 して 0.125.3 とする。イシュー #2035（navigation-menu の
+# shadcn/ui 突合）で 0.125.4 へ patch バンプした（既存 variant の CSS 出力は
+# 変更せず、item-indicator パートの CSS 到達を新規追加する純追加のため）。
+# base 再取り込み（イシュー #2019, PR #2165, 2026-09-07）: main 側（select の
+# shadcn/ui 突合、content max-height/overflow-y の観測可能な破壊的変更の
+# ためマイナーバンプ）が 0.126.0 に到達済み。
+# base 再取り込み（イシュー #2035, PR #2166 修正ラウンド, 2026-09-07）: 本
+# ブランチ（navigation-menu の shadcn/ui 突合、patch バンプで 0.125.4 に
+# 到達済み）と main（select の shadcn/ui 突合を経て 0.126.0 に到達済み）が
+# version 行でコンフリクトした。`docs/ci/style-refresh-version-bump-operation.md`
+# §5 の手順（自分の変更が patch バンプの場合は main の現在値の patch を
+# +1 する）に従い、main の到達値 0.126.0 の patch を +1 して 0.126.1 とする。
+# 再修正（PR #2166 codex-review P1 指摘, 2026-09-07）: `link` パートの
+# 既定 `display` を `block` → `flex` へ変更する対応（本ファイル修正ラウンド
+# コミット）は、`link` 内に段落として並べたタイトル・説明文を縦積みから
+# 横並びへ変える観測可能な破壊的変更であり、`docs/ci/style-refresh-version-bump-operation.md`
+# §3.3（CSS 出力の破壊的変更は minor バンプ）に該当する。patch バンプの
+# 0.126.1 のままでは規約違反のため、minor バンプして 0.127.0（patch は 0
+# へ戻す）とする。移行方法: `link` 内に複数の子要素（タイトル・説明文等）
+# を並べて縦積みレイアウトへ依存していた利用者は、`crate::text` 等の
+# wrapper 要素を `link` の直下の単一子要素として挟み、その wrapper 内で
+# 従来どおり `display: block`（既定）の縦積みを組むことで挙動を維持できる
+# （`link` 自身は flex コンテナのままだが単一子要素なら見た目は変わらない）。
+# base 再取り込み（イシュー #2036, 2026-09-07）: 本ブランチ（pagination の
+# shadcn/ui 突合、rustdoc/docs-site 追記のみで recipe() 無変更のため patch
+# バンプで 0.126.1 に到達済み）と main（navigation-menu の link パート
+# 破壊的変更のためマイナーバンプ、0.127.0 に到達済み）が version 行で
+# コンフリクトした。`docs/ci/style-refresh-version-bump-operation.md` §5
+# の手順（自分の変更が patch バンプの場合は main の現在値の patch を
+# +1 する）に従い、main の到達値 0.127.0 の patch を +1 して 0.127.1 とする。
+# base 再取り込み（イシュー #2021, PR review 指摘, 2026-09-07）: 本ブランチ
+# （switch の shadcn/ui 突合、control slot への data-invalid state 追加は
+# 既存 CSS 変数名・クラス名・data-* セレクタの削除/改名を伴わない純追加の
+# ため patch バンプで 0.126.1 へ到達していたが、base が stale だった）と
+# main（pagination の shadcn/ui 突合を経て 0.127.1 に到達済み）が version 行で
+# コンフリクトした。`docs/ci/style-refresh-version-bump-operation.md` §5 の
+# 手順（自分の変更が patch バンプの場合は main の現在値の patch を +1 する）
+# に従い、main の到達値 0.127.1 の patch を +1 して 0.127.2 とする。
+# イシュー #2037（popover の shadcn/ui 突合）: rustdoc 節（shadcn/ui 突合の
+# 判定記録）と docs-site Examples 節（`ex_popover_dimensions_form`、既存
+# `field`/`input` API の合成のみ）の追記に留まり、`recipe()`/`css()`/公開
+# シグネチャは無変更（CSS golden・`data_attr_vocabulary.rs`・
+# `xss_escape_styled.rs` はいずれも無変更）のため patch バンプで 0.127.2
+# とする（hover-card #2032 の判断と同型）。
+# base 再取り込み（イシュー #2021, PR #2169 修正ラウンド, 2026-09-08）: 本ブランチ
+# （switch の shadcn/ui 突合、patch バンプで main の到達値 0.127.1 から
+# +1 して 0.127.2 に到達済み）と main（popover の shadcn/ui 突合、
+# recipe()/css() 無変更のため patch バンプなしで同じく 0.127.2 に到達済み）
+# が version 行でコンフリクトした。数値は偶然一致しているが、それぞれ
+# 独立した実体変更を伴う別バンプであるため同一版数のまま採用せず、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（自分の
+# 変更が patch バンプの場合は main の現在値の patch を +1 する）に従い、
+# main の到達値 0.127.2 の patch を +1 して 0.127.3 とする。
+# base 再取り込み（イシュー #2022, PR #2171 修正ラウンド, 2026-09-08）: 本ブランチ
+# （textarea の shadcn/ui 突合、docs-site 追記のみでマイナーバンプし
+# 0.128.0 に到達済み）と main（switch の shadcn/ui 突合を経て patch バンプ
+# 0.127.3 に到達済み）が version 行でコンフリクトした。本ブランチの到達値
+# 0.128.0 は main の到達値 0.127.3 より既に新しいため、
+# `semver-same-version-is-conflict` の追加 +1 運用（同一版数への偶発衝突時
+# のみ適用）は該当せず、本ブランチの到達値 0.128.0 をそのまま採用する。
+# イシュー #2039（tabs の shadcn/ui 突合、2026-09-08）: `TabsVariant`
+# enum を新設し `tabs()` の公開シグネチャへ `variant: TabsVariant` を
+# 第 1 引数として追加した観測可能な破壊的変更（0.x の破壊的変更はマイナー
+# バンプ、`.claude/rules/coding-rust.md`）のため 0.129.0 へマイナーバンプ
+# する。
+# イシュー #2023: shadcn/ui 突合で toggle に `ToggleVariant`（Outline/Ghost）
+# を新設し `root()` シグネチャへ `variant` 引数を挿入した（0.x の破壊的
+# 変更のためマイナーバンプ、button #2141 の `ButtonVariant::Link` 追加と
+# 同型）。
+# イシュー #2024: shadcn/ui 突合で toggle_group に `ToggleGroupVariant`
+# （Outline/Ghost、#2023 の `ToggleVariant` と同一命名）を新設し
+# `root()`/`root_with_props()` シグネチャへ `variant` 引数を挿入した
+# （0.x の破壊的変更のためマイナーバンプ、#2023 と同型）。
+# base 取り込み時の同一版数衝突（PR #2173 修正ラウンド, 2026-09-08）: 本
+# ブランチ（tabs の shadcn/ui 突合）と main（toggle の shadcn/ui 突合）が
+# それぞれ独立に 0.129.0 へマイナーバンプしており、値が偶然一致していた
+# だけで別々の実体変更である（`semver-same-version-is-conflict` の追加
+# +1 運用）。同一版数のまま採用せず 0.130.0 へさらにマイナーバンプする。
+# base 再取り込み（イシュー #2024, PR #2175 修正ラウンド, 2026-09-08）: 本
+# ブランチ（toggle_group の shadcn/ui 突合、`ToggleGroupVariant` 新設で
+# マイナーバンプし 0.130.0 に到達済み）と main（PR #2173 の解決結果として
+# 独立に 0.130.0 へマイナーバンプ済み）が version 行で再度コンフリクト
+# した。双方とも minor バンプであるため
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（minor バンプ
+# 同士が衝突した場合は main の現在値の minor を +1 し patch を 0 に戻す）
+# に従い、main の到達値 0.130.0 の minor を +1 して 0.131.0 とする。
+# base 再取り込み（イシュー #2013, 2026-09-08）: 本ブランチ（date-picker の
+# shadcn/ui 突合、data-invalid/data-readonly の CSS 消費補完でマイナー
+# バンプし main 分岐時点の到達値 0.123.0 から衝突回避のため 0.124.0 に
+# 到達済み）を main（多数の shadcn/ui 突合を経て 0.131.0 に到達済み、
+# 別 PR #2167 が並行して 0.132.0 へバンプ予定）へ合流させる。本ブランチの
+# 実体変更（data-invalid/data-readonly 消費）は main の到達値に未反映の
+# ままのためバイト同一の偶発一致ではなく統合が必要であり、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数
+# への偶発的衝突をそのまま採用しない）に倣い、main の到達値 0.131.0 から
+# 並行 PR #2167（0.132.0 予定）分も見込んでさらに +1 し 0.133.0 とする。
+version = "0.133.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2071,7 +2263,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.65.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.66.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

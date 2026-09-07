@@ -56,15 +56,17 @@
 //!   空のまま省略する。フォーカスリング等スタイル層のみの挙動は
 //!   Accessibility 節の対象外）
 //!
-//! # `Examples` 節を持たない理由（[`DIALOG`] を除く）
+//! # `Examples` 節を持たない理由（[`DIALOG`]/[`COLLAPSIBLE`] を除く）
 //!
 //! `docs/design/docs-site-component-pages.md` §7 は `Examples` を任意の節と
 //! 定めており、当初 PR（#946）では 13 定数すべて `examples: &[]` としていた
-//! （節は自動的に省略される）。[`DIALOG`] のみイシュー #1691 で alert-dialog
+//! （節は自動的に省略される）。[`DIALOG`] はイシュー #1691 で alert-dialog
 //! 構成（イシュー #1690）の掲示のため `Examples` 節（`ex_alert_dialog`）を
-//! 追加した。他部品のバリエーション軸（`Size`/`ColorPalette`/`ToastStatus`
-//! 等）への Examples 追加はレビュー負荷を抑えるためのフォローアップ課題
-//! として引き続き PR 本文に残す。
+//! 追加した。[`COLLAPSIBLE`] はイシュー #2029 で shadcn/ui（Base UI）突合の
+//! File Tree Example に相当する既存 API のみの合成デモ
+//! （`ex_collapsible_nested_tree`）を追加した。他部品のバリエーション軸
+//! （`Size`/`ColorPalette`/`ToastStatus` 等）への Examples 追加はレビュー
+//! 負荷を抑えるためのフォローアップ課題として引き続き PR 本文に残す。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
@@ -75,10 +77,19 @@
 //! 木経由で `render()` が行う（`features_and_table_cells_escape_xss_payloads`
 //! が既存フィクスチャで固定済み）。
 
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, p, strong, text, Node};
 use fandhe_frontend_pre_styled_ui::{
+    avatar::{self, AvatarProps, ImageStatus},
     button::{button, ButtonProps, ButtonVariant},
+    collapsible,
     dialog::{self, ContentIds, DialogRole},
+    drawer::{self, DrawerPlacement},
+    field::{self, FieldIds, FieldOrientation, FieldProps, FieldRootProps},
+    hover_card::{self, HoverCardDelays},
+    input::{self, InputProps},
+    kbd::{kbd, KbdProps},
+    menubar, navigation_menu, popover,
+    text::{text as styled_text, TextProps, TextSize, TextWeight},
     ColorPalette, OpenState, Size,
 };
 
@@ -127,15 +138,17 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
 /// 一次情報: `crates/pre-styled-ui/src/collapsible.rs`（モジュール doc・
 /// `stylesheet()` の 7 軸チェック節）と `crates/headless-ui/src/collapsible.rs`
 /// （`root`/`trigger`/`indicator`/`content` シグネチャ・`aria-expanded`/
-/// `aria-controls` の実出力テスト）。イシュー #1682/#1683。
+/// `aria-controls` の実出力テスト）。イシュー #1682/#1683/#2029（shadcn/ui
+/// 突合による Examples 節「Nested navigation (file tree)」追加）。
 pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "単一の開閉パネル。Root / Trigger / Indicator / Content の 4 anatomy パーツを持つ。",
         "data-state（open/closed）を trigger の文字色強調・indicator の回転として視覚に反映する。",
         "data-disabled を 4 パート全てへ反映する（trigger のみネイティブ disabled 存在属性も伴う）。",
-        "size/variant/colorPalette は提供しない（参照 3 サイト chakra-ui/Ark UI/Radix Primitives のいずれも Collapsible に持たないため）。",
+        "size/variant/colorPalette は提供しない（参照 4 サイト chakra-ui/Ark UI/Radix Primitives/shadcn-ui のいずれも Collapsible に持たないため）。",
         "closed のとき content は headless 層が付与する hidden 存在属性のみで隠れる（base では display を宣言せず、UA 既定の [hidden] { display: none } を上書きしない）。",
-        "開閉時の高さアニメーション（Radix の collapsedHeight 相当）はコンテンツ高さの実測が前提となる JS 計測の関心のため、意図的に非採用とする。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動は「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
+        "開閉時の高さアニメーション（Radix の collapsedHeight 相当）は意図的に非採用とする。理由はコンテンツ高さの実測が JS 前提という点だけでなく、headless 層が closed 時に content へ付与する hidden 存在属性を base 規則で上書きすると閉状態でも DOM 上へ再露出してしまう構造的な制約にもよる（shadcn/ui にも JS レスの代替実装は無い）。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動は「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
+        "shadcn/ui（Base UI）の Examples（Basic / Settings Panel / File Tree）はいずれも既存 API（root/trigger/indicator/content の再帰的な組み合わせ）で再現できる合成パターンであり、新規の variant/size/state 軸を追加しない（下記 Examples 節参照）。",
     ],
     arguments: &[
         ArgRow {
@@ -151,7 +164,11 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
             description: "無効状態。4 パート全ての data-disabled へ反映し、trigger にはネイティブ disabled 存在属性も付与する。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Nested navigation (file tree)",
+        description: "shadcn/ui（Base UI）の File Tree Example に相当する、collapsible を再帰的にネストした合成パターンです。フォルダ行はテキストの折り畳みトリガー（indicator は固定グリフ ▾ + data-state=\"open\" 時の回転で開閉方向を示す既存 CSS 規約に従う）、ファイル行はトリガーを持たない単なるテキストとして表現しています。新しい variant や data-* 語彙を追加せず、既存の root/trigger/indicator/content のみで構成しています。",
+        render: ex_collapsible_nested_tree,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -165,6 +182,117 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`COLLAPSIBLE`] の Examples 節「Nested navigation (file tree)」レンダラ
+/// （イシュー #2029）。
+///
+/// shadcn/ui（Base UI）Collapsible ページの File Tree Example
+/// （ChevronRightIcon + Folder/File アイコンでネストした複数 Collapsible）
+/// を、既存 API のみで再現できることを示す合成デモ。フォルダ 1 件
+/// （`src`）の中にフォルダ 2 件（開いた `components`・閉じた `utils`）と
+/// ファイル 1 件（`main.rs`）を並べ、ネストしたフォルダの中にもファイルを
+/// 置く（`docs/design/shadcn-reference-adoption-policy.md` §3 が
+/// 「合わせない」と定める `data-slot` 等の Base UI 固有語彙・アイコン
+/// フォント資産は使わず、indicator の子テキストは既存 CSS 規約（[`collapsible`]
+/// の `recipe()`。単一固定グリフ `▾` + `indicator[data-state="open"]` の
+/// `rotate(180deg)` で開閉方向を表す、[`crate::accordion`] と同型の規約）
+/// にそのまま従う。グリフ自体を状態ごとに出し分けない）。
+/// Demo（[`crate::showcase::collapsible_section`]、id `showcase-collapsible-*`）
+/// と同じページに描画されるため、id は衝突しない
+/// `showcase-collapsible-tree-*` を使う。
+fn ex_collapsible_nested_tree() -> Node {
+    let src_open = OpenState::Open;
+    let components_open = OpenState::Open;
+    let utils_closed = OpenState::Closed;
+
+    collapsible::root(
+        src_open,
+        false,
+        vec![],
+        vec![
+            collapsible::trigger(
+                src_open,
+                false,
+                Some("showcase-collapsible-tree-src-content"),
+                vec![],
+                vec![
+                    collapsible::indicator(src_open, false, vec![], vec![text("▾")]),
+                    text("src"),
+                ],
+            ),
+            collapsible::content(
+                src_open,
+                false,
+                Some("showcase-collapsible-tree-src-content"),
+                vec![],
+                vec![
+                    collapsible::root(
+                        components_open,
+                        false,
+                        vec![],
+                        vec![
+                            collapsible::trigger(
+                                components_open,
+                                false,
+                                Some("showcase-collapsible-tree-components-content"),
+                                vec![],
+                                vec![
+                                    collapsible::indicator(
+                                        components_open,
+                                        false,
+                                        vec![],
+                                        vec![text("▾")],
+                                    ),
+                                    text("components"),
+                                ],
+                            ),
+                            collapsible::content(
+                                components_open,
+                                false,
+                                Some("showcase-collapsible-tree-components-content"),
+                                vec![],
+                                vec![
+                                    div(vec![], vec![text("Button.rs")]),
+                                    div(vec![], vec![text("Input.rs")]),
+                                ],
+                            ),
+                        ],
+                    ),
+                    collapsible::root(
+                        utils_closed,
+                        false,
+                        vec![],
+                        vec![
+                            collapsible::trigger(
+                                utils_closed,
+                                false,
+                                Some("showcase-collapsible-tree-utils-content"),
+                                vec![],
+                                vec![
+                                    collapsible::indicator(
+                                        utils_closed,
+                                        false,
+                                        vec![],
+                                        vec![text("▾")],
+                                    ),
+                                    text("utils"),
+                                ],
+                            ),
+                            collapsible::content(
+                                utils_closed,
+                                false,
+                                Some("showcase-collapsible-tree-utils-content"),
+                                vec![],
+                                vec![div(vec![], vec![text("helpers.rs")])],
+                            ),
+                        ],
+                    ),
+                    div(vec![], vec![text("main.rs")]),
+                ],
+            ),
+        ],
+    )
+}
 
 /// `/themes/action-bar/`（Interactive カテゴリ）。
 ///
@@ -276,7 +404,7 @@ pub const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
 /// テスト・`Menubar::decode_action` のアクション名網羅）。
 pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "複数 Menu を水平（または垂直）に並べるコンテナ。headless-ui 側（`fandhe_frontend_headless_ui::menubar`）は Root / Menu / Trigger / Positioner / Content / Arrow / ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent / CheckboxItem / RadioItemGroup / RadioItem の 18 anatomy パーツを持つ（イシュー #1652 で参照突合し 11 → 18 パーツ。新設 7 パーツの `SLOTS`/CSS 付与は Themes 側 #1528 へ申し送り、本ページは現行 11 パーツ相当のスタイルのみ提供）。",
+        "複数 Menu を水平（または垂直）に並べるコンテナ。headless-ui 側（`fandhe_frontend_headless_ui::menubar`）は Root / Menu / Trigger / Positioner / Content / Arrow / ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent / CheckboxItem / RadioItemGroup / RadioItem の 18 anatomy パーツを持つ（イシュー #1652 で参照突合し 11 → 18 パーツ）。Themes 側（本ページ）はイシュー #2034 で shadcn/ui と突合し、新設パートのうち item-text / item-indicator / checkbox-item / radio-item-group / radio-item の 5 パーツへ `SLOTS`/CSS 付与を追いつかせた（#1528 が申し送っていた分の解消）。arrow / arrow-tip は shadcn/ui のデモに矢印インジケータが視認できないため意図的に未着装のまま。",
         "roving tabindex（focused/trigger_count/open/loop_focus/orientation の複合状態機械 Menubar）。フォーカス対象のトリガーのみ tabindex=\"0\"、それ以外は tabindex=\"-1\" になる。",
         "開いている Menu を跨いだ左右移動: ある Menu が開いた状態で Next/Prev/First/Last/Focus アクションを送ると、フォーカス移動と同時に開く Menu も隣へ移る（menubar 特有の挙動、Toolbar の roving tabindex には無い）。",
         "menu パーツは role=\"none\" を固定付与し、role=\"menubar\" の子として menuitem/group 以外の要素を挟まないようにする（WAI-ARIA APG の menubar パターン）。",
@@ -309,7 +437,11 @@ pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
             description: "trigger/positioner/content/sub_trigger/sub_content の開閉状態（Open/Closed）。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Keyboard shortcut suffix",
+        description: "shadcn/ui の Menubar デモが item 末尾に表示する `⌘T` 風のキーボードショートカット表示に相当する合成パターンです。`SlotRecipe` は子孫セレクタを持たない（イシュー #708 で不採用確定）ため、新しい anatomy パートは追加せず、item の子として item_text（flex: 1 1 auto でラベルを引き伸ばす）と crate::kbd の kbd() を並べるだけで末尾寄せを実現しています（item 自身の CSS は変更していません）。",
+        render: ex_menubar_shortcut_suffix,
+    }],
     keyboard: &[
         KeyRow {
             key: "ArrowRight / ArrowLeft",
@@ -357,6 +489,27 @@ pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
+/// [`MENUBAR`] の Examples 節「Keyboard shortcut suffix」レンダラ
+/// （イシュー #2034）。
+///
+/// shadcn/ui の Menubar デモが item 末尾に表示するキーボードショートカット
+/// （`⌘T` 風）に相当する合成パターン。新規 anatomy パートを追加せず、
+/// item の子として item_text（`flex: 1 1 auto`）+ kbd を並べるだけで末尾
+/// 寄せを実現する（`crates/pre-styled-ui/src/menubar.rs` モジュール doc
+/// 「イシュー #2034」節参照）。
+fn ex_menubar_shortcut_suffix() -> Node {
+    menubar::item(
+        "new-tab",
+        false,
+        false,
+        vec![],
+        vec![
+            menubar::item_text(false, false, vec![], vec![text("New Tab")]),
+            kbd(&KbdProps::default(), vec![], vec![text("⌘T")]),
+        ],
+    )
+}
+
 /// `/themes/navigation-menu/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/navigation_menu.rs`（モジュール doc・
@@ -399,7 +552,11 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
             description: "link に付与。true のとき aria-current=\"page\" + data-current を出力する。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Title + description link grid",
+        description: "shadcn/ui の \"Components\" パネル相当のタイトル + 説明文リンク合成パターンです。`SlotRecipe` は子孫セレクタを持たない（イシュー #708 で不採用確定）ため、新しい anatomy パートは追加せず、link の子として crate::text（太字タイトル + 淡色サイズの説明文）を並べるだけで再現しています（link/content 自身の CSS は変更していません。2 列グリッド配置も content へ渡す style 属性のみで実現）。",
+        render: ex_navigation_menu_title_description_link,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -418,9 +575,47 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
             attribute: "aria-current=\"page\"",
             description: "link に付与（current が true のときのみ）。role は付与しない。",
         },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "item-indicator に固定付与。トリガーの aria-expanded から開閉状態が既に伝わるための装飾専用要素（イシュー #2035）。",
+        },
     ],
     demo: None,
 };
+
+/// [`NAVIGATION_MENU`] の Examples 節「Title + description link grid」
+/// レンダラ（イシュー #2035）。
+///
+/// shadcn/ui の "Components" パネル相当のタイトル + 説明文リンク合成。
+/// 新規 anatomy パートを追加せず、link の子として crate::text
+/// （太字タイトル + 小サイズの説明文）を並べるだけで再現する
+/// （`crates/pre-styled-ui/src/navigation_menu.rs` モジュール doc
+/// 「shadcn/ui 突合（イシュー #2035）」節参照）。
+fn ex_navigation_menu_title_description_link() -> Node {
+    navigation_menu::link(
+        "",
+        false,
+        vec![("style", "display: block; padding: var(--fandhe-space-2);")],
+        vec![
+            styled_text(
+                &TextProps {
+                    weight: TextWeight::Semibold,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("Analytics")],
+            ),
+            styled_text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("利用状況・パフォーマンスを可視化するダッシュボード。")],
+            ),
+        ],
+    )
+}
 
 /// `/themes/dialog/`（Interactive カテゴリ）。
 ///
@@ -429,11 +624,12 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
 /// `role="dialog"`・`role="alertdialog"`/`aria-modal` の実出力テスト）。
 pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "headless-ui 由来の Root / Trigger / Backdrop / Positioner / Content / Title / Description / CloseTrigger の 8 anatomy パーツに加え、pre-styled-only の footer パート（イシュー #1690、data-scope=\"dialog\" 配下 9 番目の part）を持つモーダルダイアログ。",
+        "headless-ui 由来の Root / Trigger / Backdrop / Positioner / Content / Title / Description / CloseTrigger の 8 anatomy パーツに加え、pre-styled-only の footer パート（イシュー #1690）・body パート（イシュー #2030）を持つモーダルダイアログ（data-scope=\"dialog\" 配下は headless 8 パート + pre-styled-only 2 パートの計 10 件）。",
         "DialogRole（Dialog/Alertdialog）で role=\"dialog\"/role=\"alertdialog\" を出し分ける。",
         "size variant（Xs/Sm/Md/Lg/Xl、既定 Md、イシュー #1714）で root の寸法を切り替える。",
         "フォーカストラップ・Escape キーでの閉鎖・外側クリックでの閉鎖は JS ランタイム側の責務であり、本レイヤーは SSR/属性出力のみを担う。",
         "alert-dialog（確認ダイアログ）構成: 独立部品や新しい variant 軸ではなく、role=\"alertdialog\"（DialogRole::Alertdialog）+ footer（アクション列レイアウト）+ button（Solid/Danger と Outline の組み合わせ）で表現する（イシュー #1690。role=\"alertdialog\" の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化する）。footer 自体は送信・閉鎖等のアプリケーションロジックを持たないレイアウト専用パートである。",
+        "スクロール可能コンテンツ: body パート（shadcn/ui〔Base UI スタイル〕突合、イシュー #2030）は title/description（見出し）と footer（アクション列）を content 内で固定したまま、本文だけを縦スクロールさせるレイアウト専用パートである（`overflow-y: auto` / `max-height: 50vh`）。呼び出し側の任意判断によるオプトインパートであり、使わない既存の呼び出しには影響しない。",
     ],
     arguments: &[
         ArgRow {
@@ -449,11 +645,18 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
             description: "開閉状態（Open/Closed）。root/content の data-state へ反映される。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Alert dialog",
-        description: "DialogRole::Alertdialog（role=\"alertdialog\"）と footer（イシュー #1690、pre-styled-only のアクション列パート）に、既存の button を Solid/ColorPalette::Danger（破壊的確認）と Outline（キャンセル）の組み合わせで構成した確認ダイアログの例です。role=\"alertdialog\" の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化します。footer はレイアウト専用パートであり送信・閉鎖の配線は持ちません（close_trigger は併用せず省略しています）。",
-        render: ex_alert_dialog,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Alert dialog",
+            description: "DialogRole::Alertdialog（role=\"alertdialog\"）と footer（イシュー #1690、pre-styled-only のアクション列パート）に、既存の button を Solid/ColorPalette::Danger（破壊的確認）と Outline（キャンセル）の組み合わせで構成した確認ダイアログの例です。role=\"alertdialog\" の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化します。footer はレイアウト専用パートであり送信・閉鎖の配線は持ちません（close_trigger は併用せず省略しています）。",
+            render: ex_alert_dialog,
+        },
+        ExampleEntry {
+            title: "Share link (custom close button)",
+            description: "shadcn/ui（Base UI スタイル）の「Custom Close Button」デモ（イシュー #2030、親 #2025）に対応する構成です。content 右上のアイコン専用 close-trigger は使わず、footer 内の通常の button（ButtonVariant::Outline）で平文の \"Close\" ボタンを併設します。close-trigger のアイコン専用契約（codex-review #1795）と SlotRecipe の子孫セレクタ非対応（イシュー #708）により、footer 内で close-trigger を機能配線済みボタンとして再利用することはできないため、既存の footer + button の組み合わせのみで表現しています。",
+            render: ex_share_link_custom_close_button,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -566,6 +769,86 @@ fn ex_alert_dialog() -> Node {
     )
 }
 
+/// [`DIALOG`] の Examples 節「Share link (custom close button)」レンダラ
+/// （イシュー #2030、親 #2025、shadcn/ui〔Base UI スタイル〕「Custom Close
+/// Button」デモとの突合）。
+///
+/// content 右上のアイコン専用 close-trigger（イシュー #1795 でアイコン専用
+/// 契約に固定済み）は使わず、footer 内の通常の button
+/// （`ButtonVariant::Outline`）で平文の "Close" ボタンを併設する。
+/// `close_trigger` を footer 内で機能配線済みボタンとして再利用すること
+/// は、(1) close-trigger のアイコン専用契約、(2)
+/// [`fandhe_frontend_pre_styled_ui`] の `SlotRecipe` が子孫セレクタ機構を
+/// 持たない（イシュー #708）ことの 2 点により本イシュー単体では実現でき
+/// ないため、既存 API（footer + button）のみで表現している（本イシューの
+/// スコープ外、`crates/pre-styled-ui/src/dialog.rs` モジュール冒頭 rustdoc
+/// 「close-trigger のフッター内再利用」節参照）。
+/// Demo（[`crate::showcase::dialog_section`]）・[`ex_alert_dialog`] と
+/// 同一ページに描画されるため、id は両者と衝突しない
+/// `showcase-share-dialog-*` を使う。
+fn ex_share_link_custom_close_button() -> Node {
+    div(
+        vec![],
+        vec![
+            dialog::trigger(
+                OpenState::Open,
+                Some("showcase-share-dialog-content"),
+                vec![],
+                vec![text("Share")],
+            ),
+            dialog::root(
+                Size::Md,
+                OpenState::Open,
+                vec![],
+                vec![
+                    dialog::backdrop(OpenState::Open, vec![], vec![]),
+                    dialog::positioner(
+                        OpenState::Open,
+                        vec![],
+                        vec![dialog::content(
+                            OpenState::Open,
+                            DialogRole::Dialog,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-share-dialog-content"),
+                                labelledby: Some("showcase-share-dialog-title"),
+                                describedby: Some("showcase-share-dialog-desc"),
+                            },
+                            vec![],
+                            vec![
+                                dialog::title(
+                                    Some("showcase-share-dialog-title"),
+                                    vec![],
+                                    vec![text("Share link")],
+                                ),
+                                dialog::description(
+                                    Some("showcase-share-dialog-desc"),
+                                    vec![],
+                                    vec![text("このリンクを知っている人は誰でも閲覧できます。")],
+                                ),
+                                // close-trigger は併用しない（アイコン専用
+                                // 契約と footer 内再利用不可のため）。
+                                // 平文の "Close" ボタンのみを footer に置く。
+                                dialog::footer(
+                                    vec![],
+                                    vec![button(
+                                        &ButtonProps {
+                                            variant: ButtonVariant::Outline,
+                                            ..ButtonProps::default()
+                                        },
+                                        vec![],
+                                        vec![text("Close")],
+                                    )],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
 /// `/themes/drawer/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/pre-styled-ui/src/drawer.rs`（モジュール doc・`root`
@@ -583,7 +866,7 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
             name: "size",
             kind: "Size",
             default: "Size::Md",
-            description: "root へ付与するサイズ variant（Sm/Md/Lg）。",
+            description: "root へ付与するサイズ variant（Xs/Sm/Md/Lg/Xl）。",
         },
         ArgRow {
             name: "state",
@@ -598,7 +881,11 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
             description: "画面のどの端から出現するか（Start/End/Top/Bottom）。data-placement として出力される。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Footer action row (bottom placement)",
+        description: "shadcn/ui の Sheet/Drawer が持つフッター相当のアクション配置を、既存 API のみで再現した合成パターンです（イシュー #2031）。headless anatomy に専用 footer パートが存在しないため（description 直後の通常行として掲示する制約は drawer.rs rustdoc の「本イシューのスコープ外」節を継承）、description の直後に Cancel/Save の 2 ボタンを並べています。placement=\"bottom\" を掲示し、DrawerPlacement の 4 方向のうち Demo（end）とは異なる方向を示します。",
+        render: ex_drawer_footer_bottom,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -624,6 +911,90 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`DRAWER`] の Examples 節「Footer action row (bottom placement)」レンダラ
+/// （イシュー #2031、shadcn/ui `Sheet`/`Drawer` との突合）。
+///
+/// headless drawer の anatomy は dialog と同一の 8 パーツのみで footer
+/// パートを持たない（`crates/pre-styled-ui/src/drawer.rs` rustdoc「本
+/// イシューのスコープ外」節、イシュー #1695 で確定済みの制約）ため、
+/// description 直後の通常行として Cancel/Save を並べる合成パターンを示す
+/// （`showcase::drawer_section` の Demo と同型。ID は Demo と衝突しない
+/// `showcase-drawer-footer-example-*` を使う）。placement は Demo（end）と
+/// 異なる bottom を掲示し、DrawerPlacement の網羅性を示す。
+fn ex_drawer_footer_bottom() -> Node {
+    div(
+        vec![],
+        vec![
+            drawer::trigger(
+                OpenState::Open,
+                Some("showcase-drawer-footer-example-content"),
+                vec![],
+                vec![text("Open bottom drawer")],
+            ),
+            drawer::root(
+                Size::Md,
+                OpenState::Open,
+                DrawerPlacement::Bottom,
+                vec![],
+                vec![
+                    drawer::backdrop(OpenState::Open, vec![], vec![]),
+                    drawer::positioner(
+                        OpenState::Open,
+                        DrawerPlacement::Bottom,
+                        vec![],
+                        vec![drawer::content(
+                            OpenState::Open,
+                            DrawerPlacement::Bottom,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-drawer-footer-example-content"),
+                                labelledby: Some("showcase-drawer-footer-example-title"),
+                                describedby: Some("showcase-drawer-footer-example-desc"),
+                            },
+                            vec![],
+                            vec![
+                                drawer::title(
+                                    Some("showcase-drawer-footer-example-title"),
+                                    vec![],
+                                    vec![text("Filters")],
+                                ),
+                                drawer::description(
+                                    Some("showcase-drawer-footer-example-desc"),
+                                    vec![],
+                                    vec![text("画面下端からスライドインするパネルの例です。")],
+                                ),
+                                // headless anatomy に専用 footer パートが存在
+                                // しないため、description 直後に通常の行として
+                                // 掲示する。`.showcase-row` は掲示用レイアウト
+                                // のみを担い、製品 CSS には footer 規則を持ち
+                                // 込まない（showcase.rs の他 drawer 例と同型）。
+                                div(
+                                    vec![("class", "showcase-row")],
+                                    vec![
+                                        button(
+                                            &ButtonProps {
+                                                variant: ButtonVariant::Outline,
+                                                ..ButtonProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("Cancel")],
+                                        ),
+                                        button(&ButtonProps::default(), vec![], vec![text("Save")]),
+                                    ],
+                                ),
+                                drawer::close_trigger(
+                                    vec![("aria-label", "Close")],
+                                    vec![text("×")],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
 
 /// `/themes/floating-panel/`（Interactive カテゴリ）。
 ///
@@ -679,12 +1050,15 @@ pub const FLOATING_PANEL: ComponentPageSpec = ComponentPageSpec {
 /// 一次情報: `crates/headless-ui/src/hover_card.rs`（モジュール doc・
 /// `root`/`trigger` シグネチャ・hover card 専用パターンが WAI-ARIA に
 /// 存在しないため `aria-expanded` 等を付与しないことの記述と実測テスト）。
+/// イシュー #2032（shadcn/ui 突合による Examples 節「User profile preview」
+/// 追加）。
 pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "リンク先プレビュー等、hover / focus で開閉するオーバーレイ。Root / Trigger / Positioner / Content / Arrow / ArrowTip の 6 anatomy パーツを持つ。",
         "trigger はリンク先プレビュー用途の a 要素であり、javascript: 等の危険スキームは fandhe-frontend-core の URL スキーム検証が除去する。",
         "HoverCardDelays（既定 open_ms: 600 / close_ms: 300）を data-open-delay / data-close-delay として root へ出力する。実際の hover/focus タイマー駆動は wasm-full 側の後続スコープ。",
         "WAI-ARIA に hover card 専用パターンは存在しないため、trigger へ aria-expanded / aria-controls / aria-haspopup は付与しない。",
+        "shadcn/ui（Base UI）の Basic Example（Avatar + ユーザー名/説明文の合成カード）は content の children へ avatar::root/fallback を並べるだけの既存 API のみで再現できる合成パターンであり、新規の variant/size/state 軸を追加しない（下記 Examples 節参照）。",
     ],
     arguments: &[
         ArgRow {
@@ -700,7 +1074,11 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
             description: "hover/focus の開閉遅延（ms）。data-open-delay / data-close-delay として出力される決定的な SSR 設定値。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "User profile preview",
+        description: "shadcn/ui（Base UI）の Basic Example に相当する、avatar と説明テキストを組み合わせた合成パターンです。avatar は fandhe-frontend-pre-styled-ui::avatar の root/fallback をそのまま使い、外部画像を読み込まないフォールバック文字（イニシャル）のみで表示します。新しい variant や data-* 語彙を追加せず、既存の hover_card::content の自由な children と avatar の既存 API のみで構成しています。",
+        render: ex_hover_card_user_preview,
+    }],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"",
@@ -708,6 +1086,70 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
     }],
     demo: None,
 };
+
+/// [`HOVER_CARD`] の Examples 節「User profile preview」レンダラ
+/// （イシュー #2032）。
+///
+/// shadcn/ui（Base UI）Hover Card ページの Basic Example（Avatar +
+/// ユーザー名/説明文の合成カード）を、既存 API のみで再現できることを示す
+/// 合成デモ。avatar は外部フェッチ・404 を発生させないよう
+/// `avatar::fallback`（イニシャル文字列のみ、画像なし）で表示する
+/// （`crates/docs-site/src/showcase.rs` の `avatar_section` が使う
+/// `data:` URI 固定パターンと同じ「外部 URL を使わない」方針）。
+/// 横並び（row）配置は `content` への `display: flex` 追加という既存 CSS
+/// 出力の変更を伴うため、単一部品の合成パターン補完という本イシューの
+/// スコープでは行わず、avatar と説明テキストは既定の縦積みのまま配置する
+/// （[`fandhe_frontend_pre_styled_ui::hover_card`] モジュール doc「shadcn/ui 突合」節参照）。
+/// Demo（[`crate::showcase::hover_card_section`]）と同じページに描画
+/// されるため、id は衝突しない `showcase-hover-card-user-preview-*` を使う。
+fn ex_hover_card_user_preview() -> Node {
+    let open = OpenState::Open;
+    let delays = HoverCardDelays::default();
+
+    hover_card::root(
+        open,
+        delays,
+        vec![],
+        vec![
+            hover_card::trigger(
+                open,
+                Some("https://fandhe-frontend.example/users/ada"),
+                vec![],
+                vec![text("@ada")],
+            ),
+            hover_card::positioner(
+                open,
+                vec![],
+                vec![hover_card::content(
+                    open,
+                    Some("showcase-hover-card-user-preview-content"),
+                    vec![],
+                    vec![
+                        avatar::root(
+                            &AvatarProps::default(),
+                            vec![],
+                            vec![avatar::fallback(
+                                ImageStatus::Error,
+                                vec![],
+                                vec![text("AL")],
+                            )],
+                        ),
+                        div(
+                            vec![],
+                            vec![
+                                p(vec![], vec![strong(vec![], vec![text("Ada Lovelace")])]),
+                                p(
+                                    vec![],
+                                    vec![text("Sample profile for the hover card demo.")],
+                                ),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
 
 /// `/themes/menu/`（Interactive カテゴリ）。
 ///
@@ -766,12 +1208,14 @@ pub const MENU: ComponentPageSpec = ComponentPageSpec {
 ///
 /// 一次情報: `crates/headless-ui/src/popover.rs`（モジュール doc・
 /// `root`/`trigger`/`content` シグネチャ・`aria-haspopup="dialog"`/
-/// `role="dialog"` の実出力テスト）。
+/// `role="dialog"` の実出力テスト）。イシュー #2037（shadcn/ui 突合による
+/// Examples 節「Dimensions form」追加）。
 pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "トリガー起点のオーバーレイ。Root / Trigger / Anchor / Positioner / Arrow / ArrowTip / Content / Title / Description / CloseTrigger / Indicator の 11 anatomy パーツを持つ。",
         "開閉は Disclosure を埋め込んだ状態機械 Popover が管理する。",
         "content に role=\"dialog\" を固定付与し、title / description が設定されているときのみ aria-labelledby / aria-describedby をセットで付与する。",
+        "shadcn/ui（Base UI）の With Form Example（Field/Input を内包する Content）は content の children へ fandhe-frontend-pre-styled-ui::field/input の既存 API を並べるだけの既存合成パターンであり、新規の variant/size/state 軸を追加しない（下記 Examples 節参照）。",
     ],
     arguments: &[ArgRow {
         name: "state",
@@ -779,7 +1223,11 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
         default: "",
         description: "開閉状態（Open/Closed）。root/content の data-state へ反映される。",
     }],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Dimensions form",
+        description: "shadcn/ui（Base UI）の With Form Example に相当する、Field/Input を組み合わせたフォーム内包パターンです。バリデーション・送信処理は実装せず、fandhe-frontend-pre-styled-ui::field/input の既存 API のみで静的な入力欄を並べています。新しい variant や data-* 語彙は追加していません。",
+        render: ex_popover_dimensions_form,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -802,6 +1250,101 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
+/// [`POPOVER`] の Examples 節「Dimensions form」レンダラ（イシュー #2037）。
+///
+/// shadcn/ui（Base UI）Popover ページの With Form Example（`Field`/
+/// `FieldGroup`/`FieldLabel`/`Input` を内包する Content）を、既存 API のみで
+/// 再現できることを示す合成デモ。バリデーション・送信処理は一切実装しない
+/// （`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。Width/Max.
+/// width/Height/Max. height の 4 フィールドを
+/// [`FieldOrientation::Horizontal`] で横並びに配置し、値は静的リテラルの
+/// `value` 属性のみで表す。Demo（[`crate::showcase::popover_section`]）と
+/// 同じページに描画されるため、id は衝突しない
+/// `showcase-popover-dimensions-*` を使う
+/// （[`fandhe_frontend_pre_styled_ui::popover`] モジュール doc「shadcn/ui
+/// 突合」節参照）。
+fn ex_popover_dimensions_form() -> Node {
+    let open = OpenState::Open;
+    let content_id = "showcase-popover-dimensions-content";
+    let title_id = "showcase-popover-dimensions-title";
+
+    let dimension_field = |id: &'static str, label_text: &'static str, value: &'static str| {
+        let field_props = FieldProps {
+            id,
+            ids: FieldIds::default(),
+            disabled: false,
+            invalid: false,
+            required: false,
+            readonly: false,
+            has_helper_text: false,
+        };
+        field::root(
+            &FieldRootProps {
+                orientation: FieldOrientation::Horizontal,
+            },
+            &field_props,
+            vec![],
+            vec![
+                field::label(&field_props, vec![], vec![text(label_text)]),
+                input::input(&InputProps::default(), &field_props, vec![("value", value)]),
+            ],
+        )
+    };
+
+    popover::root(
+        open,
+        vec![],
+        vec![
+            popover::trigger(
+                open,
+                false,
+                Some(content_id),
+                vec![],
+                vec![text("Edit dimensions")],
+            ),
+            popover::positioner(
+                open,
+                vec![],
+                vec![popover::content(
+                    open,
+                    Some(content_id),
+                    Some(title_id),
+                    None,
+                    vec![],
+                    vec![
+                        popover::title(Some(title_id), vec![], vec![text("Dimensions")]),
+                        div(
+                            vec![],
+                            vec![
+                                dimension_field(
+                                    "showcase-popover-dimensions-width",
+                                    "Width",
+                                    "100%",
+                                ),
+                                dimension_field(
+                                    "showcase-popover-dimensions-max-width",
+                                    "Max. width",
+                                    "300px",
+                                ),
+                                dimension_field(
+                                    "showcase-popover-dimensions-height",
+                                    "Height",
+                                    "25px",
+                                ),
+                                dimension_field(
+                                    "showcase-popover-dimensions-max-height",
+                                    "Max. height",
+                                    "none",
+                                ),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
+
 /// `/themes/tabs/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/pre-styled-ui/src/tabs.rs`（モジュール doc・`tabs`
@@ -816,8 +1359,15 @@ pub const TABS: ComponentPageSpec = ComponentPageSpec {
         "size / color-palette variant で root にクラスを付与する。",
         "data-orientation=\"vertical\" 時は list の下線を右罫線へ、trigger の下線を右側の強調線へ切り替えて縦並び表示する（イシュー #1542）。",
         "hover（背景・文字色）・disabled（data-disabled、半透明表示）・focus-visible（trigger/content 双方）を視覚的に反映する（イシュー #1542）。",
+        "variant で下線スタイル（Line、既定）とセグメント/ピル型スタイル（Enclosed、shadcn/ui 既定 variant 相当。list を淡色の角丸コンテナに、選択中 trigger を白背景 + 微小な影で浮き上がらせる）を選べる（イシュー #2039）。",
     ],
     arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "TabsVariant",
+            default: "TabsVariant::Line",
+            description: "root へ付与する見た目 variant（Line/Enclosed）。",
+        },
         ArgRow {
             name: "size",
             kind: "Size",

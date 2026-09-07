@@ -53,18 +53,63 @@
 //!
 //! [`accordion`]: crate::accordion
 //!
+//! # shadcn/ui（Base UI）突合（イシュー #2029）
+//!
+//! shadcn/ui（補完参照、`docs/design/shadcn-reference-adoption-policy.md`）の
+//! Collapsible（<https://ui.shadcn.com/docs/components/base/collapsible>、
+//! Base UI ベース）と突合した。掲載 Example は Basic（chevron 付きトリガーと
+//! カード）・Settings Panel（複数フォームフィールドの開閉）・File Tree
+//! （chevron と Folder/File アイコンでネストした複数 Collapsible）の 3 件のみで、
+//! variant/size prop は持たない（`data-slot` 命名等 Base UI 固有語彙のみで
+//! 差別化しており、当モジュールの `data-state`/`data-disabled` 語彙とは
+//! 対応しない）。突合結果は以下のとおり:
+//!
+//! - **新規の variant/size/state 軸は無い**: 3 Example はいずれも「アイコン
+//!   付きトリガー」「ネスト合成」という合成パターンであり、当モジュール・
+//!   headless 層のコード変更を要する差分ではない。
+//! - **アイコン付きトリガー**（Basic/File Tree の chevron・Folder/File
+//!   アイコン）: [`trigger`]/[`indicator`] の `children: Vec<Node>` は
+//!   自由合成のため、追加引数なしで表現できる。
+//! - **ネスト合成**（File Tree の入れ子構造）: [`root`] の `content` に
+//!   さらに [`root`] を子として渡すだけで再現できる、既存 API のみの合成
+//!   パターン。
+//! - **Settings Panel**（複数フォームフィールドの開閉）: `content` の
+//!   `children` に任意のノードを渡せる既存の自由合成で対応済み。
+//!
+//! 上記はいずれも [`root`]/[`trigger`]/[`indicator`]/[`content`] の既存
+//! API で表現可能なため、`recipe()`/公開シグネチャ/CSS 出力は一切変更
+//! しない。「アイコン付きトリガー」「ネスト合成」の合成パターンは docs
+//! サイトの Examples 節新設（`crates/docs-site/src/component_specs_overlay.rs`
+//! の `ex_collapsible_nested_tree`）で可視化した（本モジュールのコード
+//! 自体は不変）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - **高さアニメーション**（Radix `--radix-collapsible-content-height`・
-//!   `collapsedHeight` 部分表示相当）: content 高さの実測（JS）が前提であり、
-//!   レイアウト計測の関心を `headless-ui` へ持ち込まない方針
-//!   （`docs/policy/intentional-non-adoption.md` §3.25）と、docs サイトの
-//!   無 JS 制約に反するため非採用（headless 層 rustdoc の判断を継承）。
-//! - **size / variant / colorPalette 軸の追加**: 参照 3 サイトいずれも
-//!   持たないため提供しない。
-//! - Themes ページ（`site/themes/collapsible.md`）・Demo・原稿・
-//!   `site/nav.toml` 登録・`docs/design/component-coverage-map.md` 更新は
-//!   兄弟イシュー #1683 の担当（本 PR では触らない）。
+//!   `collapsedHeight` 部分表示相当。shadcn/ui にも JS レスの代替実装は
+//!   無く、Base UI 自身も `--collapsible-panel-height` を JS 実測で提供する
+//!   点はイシュー #2029 の突合で確認済み）: 「content 高さの実測が JS
+//!   前提」という理由付けだけでは不完全であり、実際の構造的ブロッカーは
+//!   headless 層（`crates/headless-ui/src/collapsible.rs`）が closed 時に
+//!   `content` へ `hidden` 存在属性を付与している点にある。pre-styled-ui
+//!   側で `[hidden]` の `display` を上書きする実装（`grid-template-rows:
+//!   0fr → 1fr` 等の CSS のみのアニメーション手法を含む）は、(a) 下記
+//!   `content_base_does_not_declare_display` テストの契約に反し、(b) 閉状態
+//!   でも DOM 上へ再露出させてしまう（a11y ツリー上は非表示のはずが視覚上
+//!   見えてしまう逆転）。これは headless 層が `hidden` を使わない構造
+//!   （常時レンダリング + 高さ 0 の CSS 制御）へ変更されない限り
+//!   pre-styled-ui 単独では実施できない設計変更であり、`headless-ui` へ
+//!   レイアウト計測の関心を持ち込まない方針
+//!   （`docs/policy/intentional-non-adoption.md` §3.25）とも整合するため、
+//!   本イシューでは非採用のまま維持する。
+//! - **size / variant / colorPalette 軸の追加**: 参照 4 サイト（chakra-ui/
+//!   Radix Primitives/ark-ui/shadcn-ui）いずれも持たないため提供しない。
+//! - Themes ページ（`site/themes/collapsible.md`）・`site/nav.toml` 登録・
+//!   `docs/design/component-coverage-map.md` 更新は兄弟イシュー #1683
+//!   （Demo・原稿の初出）の担当範囲を踏襲し、本イシューでは触らない。原稿の
+//!   Features 文言（`component_specs_overlay.rs` の `COLLAPSIBLE.features`）
+//!   と Examples 節（`ex_collapsible_nested_tree`）は本イシューの突合結果を
+//!   反映するため更新する。
 
 use crate::css::decl;
 use crate::recipe::{

@@ -36,6 +36,14 @@
 //! disabled（`[data-disabled]`）・transition（`background, color`）を
 //! 追加し、`item-indicator` へ `margin-left: auto`（`display` は非宣言、
 //! headless の `hidden` 属性制御と衝突するため）を追加した。
+//!
+//! イシュー #2019（shadcn/ui 突合）で `content` へ `overflow-y: auto` +
+//! `max-height: var(--fandhe-select-content-max-height, 16rem)`（`size`
+//! variant 別の固定 rem スケール、listbox #1502 と同型）を新設し、
+//! `trigger` へ `[data-invalid]`（`border-color: var(--fandhe-color-danger)`）・
+//! `[data-readonly]`（`cursor: default`、`[data-disabled]` より前に登録）
+//! を追加した。詳細は `crates/pre-styled-ui/src/select.rs` モジュール
+//! rustdoc「shadcn/ui 突合（イシュー #2019）」節参照。
 
 use fandhe_frontend_pre_styled_ui::select;
 
@@ -113,6 +121,8 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   box-shadow: var(--fandhe-shadow-md);
   padding: var(--fandhe-select-content-padding, var(--fandhe-space-2));
   min-width: var(--fandhe-reference-width, auto);
+  overflow-y: auto;
+  max-height: var(--fandhe-select-content-max-height, 16rem);
 }
 
 [data-scope="select"][data-part="item-group-label"] {
@@ -157,30 +167,35 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   --fandhe-select-trigger-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
   --fandhe-select-item-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
   --fandhe-select-content-padding: var(--fandhe-space-0-5);
+  --fandhe-select-content-max-height: 8rem;
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-sm {
   --fandhe-select-trigger-padding: var(--fandhe-space-1) var(--fandhe-space-2);
   --fandhe-select-item-padding: var(--fandhe-space-1) var(--fandhe-space-2);
   --fandhe-select-content-padding: var(--fandhe-space-1);
+  --fandhe-select-content-max-height: 12rem;
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-md {
   --fandhe-select-trigger-padding: var(--fandhe-space-2) var(--fandhe-space-3);
   --fandhe-select-item-padding: var(--fandhe-space-2) var(--fandhe-space-3);
   --fandhe-select-content-padding: var(--fandhe-space-2);
+  --fandhe-select-content-max-height: 16rem;
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-lg {
   --fandhe-select-trigger-padding: var(--fandhe-space-3) var(--fandhe-space-4);
   --fandhe-select-item-padding: var(--fandhe-space-3) var(--fandhe-space-4);
   --fandhe-select-content-padding: var(--fandhe-space-3);
+  --fandhe-select-content-max-height: 20rem;
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-xl {
   --fandhe-select-trigger-padding: var(--fandhe-space-4) var(--fandhe-space-5);
   --fandhe-select-item-padding: var(--fandhe-space-4) var(--fandhe-space-5);
   --fandhe-select-content-padding: var(--fandhe-space-4);
+  --fandhe-select-content-max-height: 24rem;
 }
 
 [data-scope="select"][data-part="trigger"][data-state="open"] {
@@ -204,6 +219,14 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 [data-scope="select"][data-part="trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="select"][data-part="trigger"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+
+[data-scope="select"][data-part="trigger"][data-readonly] {
+  cursor: default;
 }
 
 [data-scope="select"][data-part="trigger"][data-disabled] {
@@ -253,4 +276,62 @@ fn stylesheet_never_contains_style_breakout_sequences() {
     let css = select::stylesheet();
     assert!(!css.contains("</style"));
     assert!(!css.contains('<'));
+}
+
+// イシュー #2019（shadcn/ui 突合）で新設した `trigger`[data-invalid]/
+// [data-readonly] と `content` の max-height/overflow-y を検証する。
+
+#[test]
+fn trigger_invalid_attr_is_styled() {
+    let css = select::stylesheet();
+    assert!(css.contains(r#"[data-scope="select"][data-part="trigger"][data-invalid] {"#));
+    assert!(css.contains("border-color: var(--fandhe-color-danger);"));
+}
+
+#[test]
+fn trigger_readonly_attr_is_styled_and_disabled_takes_precedence_when_both_set() {
+    // `date_input.rs::segment_disabled_cursor_overrides_readonly_by_source_order`
+    // と同型: disabled かつ readonly が同一 trigger に共存する場合、
+    // `[data-disabled]` 規則を `[data-readonly]` 規則より後段に登録する
+    // ことで同一詳細度・登録順の後勝ちにより disabled を優先させる
+    // （モジュール rustdoc「shadcn/ui 突合（イシュー #2019）」節参照）。
+    let css = select::stylesheet();
+    let readonly_idx = css
+        .find(r#"[data-scope="select"][data-part="trigger"][data-readonly] {"#)
+        .expect("trigger readonly rule must exist");
+    assert!(css.contains("cursor: default;"));
+    let disabled_idx = css
+        .find(r#"[data-scope="select"][data-part="trigger"][data-disabled] {"#)
+        .expect("trigger disabled rule must exist");
+    assert!(
+        disabled_idx > readonly_idx,
+        "trigger[data-disabled] must be registered after trigger[data-readonly] so it wins by source order"
+    );
+    let disabled_block = &css[disabled_idx..];
+    let block_end = disabled_block.find('}').unwrap_or(disabled_block.len());
+    assert!(disabled_block[..block_end].contains("cursor: not-allowed;"));
+}
+
+#[test]
+fn content_is_scrollable_with_max_height_token() {
+    let css = select::stylesheet();
+    let content_idx = css
+        .find(r#"[data-scope="select"][data-part="content"] {"#)
+        .expect("content base rule must exist");
+    let block_end = css[content_idx..]
+        .find('}')
+        .unwrap_or(css.len() - content_idx);
+    let content_block = &css[content_idx..content_idx + block_end];
+    assert!(content_block.contains("overflow-y: auto;"));
+    assert!(content_block.contains("max-height: var(--fandhe-select-content-max-height, 16rem);"));
+}
+
+#[test]
+fn size_variants_carry_content_max_height_scale() {
+    let css = select::stylesheet();
+    assert!(css.contains("--fandhe-select-content-max-height: 8rem;"));
+    assert!(css.contains("--fandhe-select-content-max-height: 12rem;"));
+    assert!(css.contains("--fandhe-select-content-max-height: 16rem;"));
+    assert!(css.contains("--fandhe-select-content-max-height: 20rem;"));
+    assert!(css.contains("--fandhe-select-content-max-height: 24rem;"));
 }

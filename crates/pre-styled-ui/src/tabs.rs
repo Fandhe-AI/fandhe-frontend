@@ -64,8 +64,10 @@
 //!   定義するようにした（`crate::pagination`/`crate::tab_nav` と同一の段
 //!   対応）。font-size が size に連動していなかった不足を解消する。
 //! - **hover**: `trigger` へ [`crate::recipe::StateCondition::Hover`] +
-//!   [`crate::recipe::hover_surface_declarations`] を追加した
-//!   （`--fandhe-hover-bg` は [`crate::recipe::hover_bg_muted`]）。
+//!   [`crate::recipe::hover_surface_declarations`] を追加した（`--fandhe-
+//!   hover-bg` は `--fandhe-tabs-hover-bg`（イシュー #2039 で `variant` 軸に
+//!   合わせて custom property 化、下記「`variant`」節参照）経由で
+//!   `--fandhe-color-bg-muted` を参照する）。
 //! - **disabled**: `trigger` へ `[data-disabled]`
 //!   （[`crate::recipe::StateCondition::Attr`]）+
 //!   [`crate::recipe::disabled_declarations`] を追加した。headless が
@@ -98,15 +100,49 @@
 //! - **`inline-flex` 化**: `trigger` を `inline-flex` + `gap` へ変更し、
 //!   アイコン + ラベルの並びに対応した（chakra のアイコン付きタブ運用）。
 //!
+//! # `variant`（`Line`/`Enclosed`、イシュー #2039）
+//!
+//! shadcn/ui（`docs/design/shadcn-reference-adoption-policy.md` §8、
+//! 2026-09-07 改訂で chakra-ui / Radix Themes と並ぶ 3 者主基準の 1 つ）の
+//! Tabs スクリーンショット突合（`docs/design/reference-screenshots/
+//! shadcn-tabs-{1,2,3}.png`）で、下線（line）スタイルは既存実装と一致した
+//! 一方、淡いグレーの角丸コンテナに選択中 trigger だけが白背景 + 微小な影で
+//! 浮き上がる「セグメント/ピル型」スタイル（shadcn の既定 variant）が
+//! 欠落していると判明した。これを [`TabsVariant::Enclosed`] として補完
+//! する。
+//!
+//! 命名は chakra-ui の recipe variant 値（`line`/`enclosed`）を採る:
+//! shadcn/ui 自身は `"default"`/`"line"` という non-descriptive な独自語彙
+//! しか持たず、`docs/design/shadcn-reference-adoption-policy.md` §3 が
+//! shadcn 固有語彙の直輸入を禁じている。一方 chakra-ui は同じ視覚差を
+//! `line`/`enclosed` という recipe variant として持ち、本リポジトリの
+//! `crate::accordion` でも `enclosed` は既に「外枠 + 角丸」を指す語として
+//! 使われており語彙の一貫性がある。
+//!
+//! 実装は [`recipe`] の `list`/`trigger` base・state 宣言のうち Enclosed で
+//! 値が変わるものを `var(--fandhe-tabs-<name>, <既存リテラル>)` へ変換し
+//! （`size` variant が `--fandhe-tabs-trigger-padding` 等で確立済みの手法と
+//! 同型）、`TabsVariant::Line`（既定）ではフォールバック値と同一の custom
+//! property を root へ登録することで、Line の computed style を不変に保つ
+//! （stylesheet() のテキストバイトは宣言の var() 化により変わるが、Line
+//! 選択時のレンダリング結果は変化しない）。Enclosed は `list` へ
+//! `--fandhe-color-bg-muted` 背景 + 角丸 + padding を、active trigger へ
+//! `--fandhe-color-bg` 背景 + `--fandhe-shadow-sm` を与える（`crate::card`/
+//! `crate::popover` 等が同種の「浮き上がる面」表現に用いる shadow トークン
+//! の流用であり、新規テーマトークンは追加しない）。hover 背景
+//! （`--fandhe-tabs-hover-bg`）も variant ごとに再定義する: Enclosed の
+//! selected trigger は白背景 + 影で浮き上がっているため、hover 背景に
+//! `--fandhe-color-bg-muted`（list と同じ淡色、Line の値）をそのまま使うと
+//! hover 時に selected trigger が list と同化して選択解除されたように
+//! 見える不具合があるため、Enclosed では `--fandhe-color-bg`（selected
+//! trigger と同色）を使う（`trigger` base の宣言参照）。[`tabs`] の公開
+//! シグネチャへ `variant: TabsVariant` を第 1 引数として追加する（0.x の
+//! 破壊的変更、`.claude/rules/coding-rust.md`）。`subtle`/`outline`/`plain`
+//! （chakra 由来だが shadcn に対応物がない variant）は引き続き追加しない。
+//!
 //! **意図的に合わせなかった点**（根拠を記録し、再評価は
 //! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
 //!
-//! - **variant 軸（chakra `line`/`subtle`/`enclosed`/`outline`/`plain`）は
-//!   追加しない**: [`tabs`] の公開シグネチャへ引数追加する破壊的変更に
-//!   なる。Radix Themes Tabs は variant を持たず参照軸間で語彙が収斂して
-//!   いない（`docs/design/pre-styled-ui-size-and-color-palette-axes.md`
-//!   §7 の Forms 家族判断と同じ根拠）。`size` × `color-palette` で参照
-//!   サイトの既定（line）表現は再現済み。
 //! - **`indicator` パーツの装飾は追加しない**: headless は
 //!   `--left`/`--top`/`--width`/`--height` を `0px` 固定で出力し、
 //!   wasm-full 側に実測して更新する配線がまだない
@@ -117,12 +153,25 @@
 //! - **active 時の `font-weight` 変化（Radix Themes 方式）は採らない**:
 //!   ページ内切り替えで幅が揺れる。代わりに全 trigger を最初から
 //!   medium にする（chakra 方式、`trigger` base の `font-weight`）。
-//! - **`box-shadow` によるフォーカスリング / surface 表現は採らない**:
-//!   イシュー #1424 の `outline` 統一方針（`forced-colors` 対応）に従う。
+//! - **`box-shadow` によるフォーカスリング表現は採らない**: イシュー #1424
+//!   の `outline` 統一方針（`forced-colors` 対応）に従う（`:focus-visible`
+//!   の話であり、イシュー #2039 で追加した Enclosed variant の active
+//!   trigger elevation（`box-shadow: var(--fandhe-shadow-sm)`、
+//!   `crate::card`/`crate::popover` と同種の「浮き上がる面」表現）は
+//!   フォーカスリングではないため対象外）。
+//! - **Enclosed の selected trigger 識別を `outline`/フォーカスリングへ
+//!   統合しない**: forced-colors 対応は [`stylesheet`] が
+//!   `@media (forced-colors: active)` 配下へ生 CSS で追記する
+//!   `border: 1px solid CanvasText`（[`crate::status`] と同型パターン）で
+//!   行う。フォーカスリング（`:focus-visible`）はキーボード操作直後にしか
+//!   出ず選択状態そのものの永続的な代替にならないため、選択状態の識別は
+//!   `data-state="active"` に連動する独立した規則として持つ。
 //! - **Radix の内側 `span` による hover 面**: anatomy を増やすため採らず、
 //!   `trigger` 全面へ上側角丸の hover 面を当てる（`tab_nav` と同型）。
-//! - **`transition` の対象に `transform`/`box-shadow` を含めない**:
-//!   変化させるプロパティがないため。
+//! - **`transition` の対象に `transform`/`box-shadow` を含めない**: イシュー
+//!   #1542 時点では変化させるプロパティがなかったため（イシュー #2039 で
+//!   Enclosed の selected trigger が `box-shadow` を持つようになったが、
+//!   トランジション対象への追加は本イシューのスコープ外とし見送る）。
 //!
 //! # `shared_tab_*` ヘルパの廃止（イシュー #996 → #1542）
 //!
@@ -138,10 +187,38 @@
 
 use crate::css::decl;
 use crate::recipe::{
-    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    disabled_declarations, focus_ring_declarations, hover_surface_declarations,
     palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
     FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
+
+/// `variant` 軸（イシュー #2039）: shadcn/ui 突合で判明した「セグメント/
+/// ピル型（enclosed）」スタイルの欠落を補完する。既定は [`TabsVariant::Line`]
+/// （既存の下線スタイル、モジュール冒頭 rustdoc「`variant`」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TabsVariant {
+    /// 下線スタイル（既定）。selected trigger の下側を `color-palette` の
+    /// 強調色で下線表示する（従来の唯一の見た目）。
+    #[default]
+    Line,
+    /// セグメント/ピル型スタイル（イシュー #2039、shadcn/ui 既定 variant
+    /// 相当）。`list` を角丸の淡色コンテナにし、selected trigger を白背景 +
+    /// 微小な影で浮き上がらせる。
+    Enclosed,
+}
+
+impl VariantValue for TabsVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            TabsVariant::Line => "line",
+            TabsVariant::Enclosed => "enclosed",
+        }
+    }
+}
 
 // headless 自由関数 `tabs`/`tabs_with_root_attrs` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。未スタイル・
@@ -172,7 +249,16 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("gap", "var(--fandhe-space-2)"),
-                decl("border-bottom", "1px solid var(--fandhe-color-border)"),
+                // イシュー #2039: Enclosed variant が `list` を角丸の淡色
+                // コンテナへ切り替えられるよう custom property 化した。Line
+                // （既定）はフォールバックと同一値で下線 + 罫線のまま。
+                decl(
+                    "border-bottom",
+                    "var(--fandhe-tabs-list-border-bottom, 1px solid var(--fandhe-color-border))",
+                ),
+                decl("background", "var(--fandhe-tabs-list-background, transparent)"),
+                decl("border-radius", "var(--fandhe-tabs-list-radius, 0)"),
+                decl("padding", "var(--fandhe-tabs-list-padding, 0)"),
             ],
         )
         .base(
@@ -200,23 +286,49 @@ fn recipe() -> SlotRecipe {
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
                 decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("white-space", "nowrap"),
-                decl("background", "transparent"),
+                // イシュー #2039: Enclosed variant で trigger 自体の既定背景
+                // を透明のまま保つ（active 時のみ下記 state で不透明化する）。
+                decl("background", "var(--fandhe-tabs-trigger-background, transparent)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
                 decl("border", "0"),
-                decl("border-bottom", "2px solid transparent"),
+                // イシュー #2039: Enclosed では下線を持たないため
+                // custom property 化した。Line（既定）はフォールバックと
+                // 同一値。
+                decl(
+                    "border-bottom",
+                    "var(--fandhe-tabs-trigger-border-bottom, 2px solid transparent)",
+                ),
                 // イシュー #1542: 選択中 trigger の 2px 下線を `list` の 1px
                 // 罫線へ重ねる（重ねないと 3px に積み上がって見える不足の
                 // 是正、chakra `line` variant の `--indicator-offset-y: -1px`
-                // 相当）。
-                decl("margin-bottom", "-1px"),
+                // 相当）。イシュー #2039: Enclosed は下線を持たないため 0。
+                decl(
+                    "margin-bottom",
+                    "var(--fandhe-tabs-trigger-margin-bottom, -1px)",
+                ),
                 // イシュー #1542: hover 面が上側だけ丸くなる参照サイトの
-                // 見た目に合わせる（`crate::tab_nav` と同型）。
+                // 見た目に合わせる（`crate::tab_nav` と同型）。イシュー
+                // #2039: Enclosed は pill 型のため全角丸に切り替える。
                 decl(
                     "border-radius",
-                    "var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0",
+                    "var(--fandhe-tabs-trigger-radius, var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0)",
                 ),
                 decl("cursor", "pointer"),
-                hover_bg_muted(),
+                // イシュー #2039: `hover_bg_muted()` の固定値
+                // （`--fandhe-color-bg-muted`）をそのまま使うと、Enclosed の
+                // selected trigger（`--fandhe-tabs-trigger-active-background:
+                // var(--fandhe-color-bg)`、白背景 + 影で浮き上がっている）を
+                // hover 時に list と同じ muted 背景で上書きしてしまい、
+                // 選択解除されたように見える不具合があった（hover 規則は
+                // `@media (hover: hover)` 末尾に集約出力されるため、
+                // 詳細度に関わらず active state の背景より後に適用される）。
+                // custom property 化し、Enclosed では active/inactive 共通で
+                // `--fandhe-color-bg`（白）を hover 背景に使うことで、
+                // selected trigger の見た目を hover でも保つ。
+                decl(
+                    "--fandhe-hover-bg",
+                    "var(--fandhe-tabs-hover-bg, var(--fandhe-color-bg-muted))",
+                ),
             ],
         )
         .base(
@@ -244,6 +356,18 @@ fn recipe() -> SlotRecipe {
                 decl(
                     "border-bottom-color",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                // イシュー #2039: Enclosed variant で selected trigger を
+                // 白背景 + 微小な影で浮き上がらせる（shadcn/ui 既定
+                // variant 相当）。Line（既定）はいずれもフォールバックで
+                // 無効化される。
+                decl(
+                    "background",
+                    "var(--fandhe-tabs-trigger-active-background, transparent)",
+                ),
+                decl(
+                    "box-shadow",
+                    "var(--fandhe-tabs-trigger-active-shadow, none)",
                 ),
             ],
         )
@@ -293,9 +417,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("flex-direction", "column"),
                 decl("border-bottom", "0"),
+                // イシュー #2039: Enclosed × vertical は区切り線を持たない
+                // ため custom property 化した。Line（既定）はフォールバック
+                // と同一値。
                 decl(
                     "border-inline-end",
-                    "1px solid var(--fandhe-color-border)",
+                    "var(--fandhe-tabs-vertical-list-border-inline-end, 1px solid var(--fandhe-color-border))",
                 ),
             ],
         )
@@ -306,18 +433,38 @@ fn recipe() -> SlotRecipe {
                 decl("justify-content", "flex-start"),
                 decl("border-bottom", "0"),
                 decl("margin-bottom", "0"),
-                decl("border-inline-end", "2px solid transparent"),
-                decl("margin-inline-end", "-1px"),
+                decl(
+                    "border-inline-end",
+                    "var(--fandhe-tabs-vertical-trigger-border-inline-end, 2px solid transparent)",
+                ),
+                decl(
+                    "margin-inline-end",
+                    "var(--fandhe-tabs-vertical-trigger-margin-inline-end, -1px)",
+                ),
                 // イシュー #1542 codex-review 指摘（P2）: 物理方向の
                 // `border-radius` 短縮記法（TL/TR/BR/BL）は RTL でも
                 // 左側が丸まったままになり、inline-start 側へ追随しない。
                 // `crate::toggle_group` と同型の論理プロパティ
                 // （`border-start-start-radius`/`border-end-start-radius`）
                 // へ置き換え、inline-end 側は明示的に角丸なしとする。
-                decl("border-start-start-radius", "var(--fandhe-radius-sm, 0.25rem)"),
-                decl("border-end-start-radius", "var(--fandhe-radius-sm, 0.25rem)"),
-                decl("border-start-end-radius", "0"),
-                decl("border-end-end-radius", "0"),
+                // イシュー #2039: Enclosed × vertical は pill 型のため
+                // 全角丸に切り替える（custom property 化）。
+                decl(
+                    "border-start-start-radius",
+                    "var(--fandhe-tabs-vertical-trigger-radius-start, var(--fandhe-radius-sm, 0.25rem))",
+                ),
+                decl(
+                    "border-end-start-radius",
+                    "var(--fandhe-tabs-vertical-trigger-radius-start, var(--fandhe-radius-sm, 0.25rem))",
+                ),
+                decl(
+                    "border-start-end-radius",
+                    "var(--fandhe-tabs-vertical-trigger-radius-end, 0)",
+                ),
+                decl(
+                    "border-end-end-radius",
+                    "var(--fandhe-tabs-vertical-trigger-radius-end, 0)",
+                ),
             ],
         )
         .state(
@@ -438,7 +585,103 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(Size::Md)
-        .default_variant(ColorPalette::Accent);
+        .default_variant(ColorPalette::Accent)
+        // イシュー #2039: `variant`（`Line`/`Enclosed`）。Line はここまでの
+        // 全宣言のフォールバック値と同一の custom property を明示登録し、
+        // computed style を不変に保つ（モジュール冒頭 rustdoc「`variant`」
+        // 節参照）。
+        .variant(
+            TabsVariant::Line,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-tabs-list-border-bottom",
+                    "1px solid var(--fandhe-color-border)",
+                ),
+                decl("--fandhe-tabs-list-background", "transparent"),
+                decl("--fandhe-tabs-list-radius", "0"),
+                decl("--fandhe-tabs-list-padding", "0"),
+                decl(
+                    "--fandhe-tabs-trigger-border-bottom",
+                    "2px solid transparent",
+                ),
+                decl("--fandhe-tabs-trigger-margin-bottom", "-1px"),
+                decl(
+                    "--fandhe-tabs-trigger-radius",
+                    "var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0",
+                ),
+                decl("--fandhe-tabs-trigger-background", "transparent"),
+                decl("--fandhe-tabs-trigger-active-background", "transparent"),
+                decl("--fandhe-tabs-trigger-active-shadow", "none"),
+                // イシュー #2039: hover 背景（従来の `hover_bg_muted()` 固定値
+                // と同一）。Enclosed は selected trigger の背景と衝突しない
+                // 値へ上書きする（下記 Enclosed 節参照）。
+                decl("--fandhe-tabs-hover-bg", "var(--fandhe-color-bg-muted)"),
+                decl(
+                    "--fandhe-tabs-vertical-list-border-inline-end",
+                    "1px solid var(--fandhe-color-border)",
+                ),
+                decl(
+                    "--fandhe-tabs-vertical-trigger-border-inline-end",
+                    "2px solid transparent",
+                ),
+                decl("--fandhe-tabs-vertical-trigger-margin-inline-end", "-1px"),
+                decl(
+                    "--fandhe-tabs-vertical-trigger-radius-start",
+                    "var(--fandhe-radius-sm, 0.25rem)",
+                ),
+                decl("--fandhe-tabs-vertical-trigger-radius-end", "0"),
+            ],
+        )
+        // イシュー #2039: Enclosed（shadcn/ui 既定 variant 相当）。`list` を
+        // 角丸の淡色コンテナ、active trigger を白背景 + 微小な影の
+        // 「浮き上がる面」にする。新規テーマトークンは追加せず既存の
+        // `--fandhe-color-bg-muted`/`--fandhe-color-bg`/`--fandhe-shadow-sm`/
+        // `--fandhe-radius-md`/`--fandhe-space-1` を再利用する。
+        .variant(
+            TabsVariant::Enclosed,
+            "root",
+            vec![
+                decl("--fandhe-tabs-list-border-bottom", "0"),
+                decl("--fandhe-tabs-list-background", "var(--fandhe-color-bg-muted)"),
+                decl("--fandhe-tabs-list-radius", "var(--fandhe-radius-md)"),
+                decl("--fandhe-tabs-list-padding", "var(--fandhe-space-1)"),
+                decl("--fandhe-tabs-trigger-border-bottom", "0"),
+                decl("--fandhe-tabs-trigger-margin-bottom", "0"),
+                decl(
+                    "--fandhe-tabs-trigger-radius",
+                    "var(--fandhe-radius-sm, 0.25rem)",
+                ),
+                decl("--fandhe-tabs-trigger-background", "transparent"),
+                decl(
+                    "--fandhe-tabs-trigger-active-background",
+                    "var(--fandhe-color-bg)",
+                ),
+                decl(
+                    "--fandhe-tabs-trigger-active-shadow",
+                    "var(--fandhe-shadow-sm)",
+                ),
+                // イシュー #2039: selected trigger の背景
+                // （`--fandhe-color-bg`、白）と同じ値にする。`hover_bg_muted`
+                // 固定値（`--fandhe-color-bg-muted`、list の淡色背景と同じ）
+                // をそのまま使うと、selected trigger を hover したとき list
+                // と同化して選択解除されたように見える不具合があった
+                // （`trigger` base の `--fandhe-tabs-hover-bg` 節参照）。
+                decl("--fandhe-tabs-hover-bg", "var(--fandhe-color-bg)"),
+                decl("--fandhe-tabs-vertical-list-border-inline-end", "0"),
+                decl("--fandhe-tabs-vertical-trigger-border-inline-end", "0"),
+                decl("--fandhe-tabs-vertical-trigger-margin-inline-end", "0"),
+                decl(
+                    "--fandhe-tabs-vertical-trigger-radius-start",
+                    "var(--fandhe-radius-sm, 0.25rem)",
+                ),
+                decl(
+                    "--fandhe-tabs-vertical-trigger-radius-end",
+                    "var(--fandhe-radius-sm, 0.25rem)",
+                ),
+            ],
+        )
+        .default_variant(TabsVariant::Line);
 
     for palette in [
         ColorPalette::Accent,
@@ -455,9 +698,44 @@ fn recipe() -> SlotRecipe {
 
 /// この styled Tabs が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
 /// と同じ契約）。
+///
+/// イシュー #2039 codex-review 追補（forced-colors 対応）: Enclosed variant
+/// の selected trigger は背景色・文字色・`box-shadow`（elevation）のみで
+/// 選択状態を表現する。Windows 強制配色モード（`forced-colors: active`）は
+/// 色をシステム色へ強制置換し `box-shadow` も `none` へ丸められるため
+/// （[W3C forced-colors 仕様](https://www.w3.org/TR/css-color-adjust-1/#forced-colors-properties)）、
+/// このままでは選択中 trigger と非選択 trigger が forced-colors 下で視覚的に
+/// 区別できなくなる。`:focus-visible` のフォーカスリングはフォーカス移動後
+/// にしか出ないため選択状態そのものの代替にはならない（キーボードで
+/// フォーカスを他要素へ移した後も選択状態自体は保持されるため）。
+/// [`crate::status`] と同じパターンで、`recipe().css()` の後段へ
+/// `@media (forced-colors: active)` の生 CSS 文字列を追記し、Enclosed の
+/// selected trigger（水平・垂直いずれの `data-orientation` でも同一セレクタで
+/// 一致する。方向は selected 表現に影響しないため orientation 分岐は不要）へ
+/// `border: 1px solid CanvasText` を足して選択状態をシステム色の境界線で
+/// 補強する（Line variant は下線 `border-bottom-color` が forced-colors でも
+/// システム色 `CanvasText` 相当へ丸められる形で残るため対象外）。
+///
+/// イシュー #2039 codex-review 再指摘（PR #2173）: `.fd-tabs--variant-enclosed`
+/// は [`tabs`] が root（`data-part="root"`）にのみ付与するクラスであり、
+/// trigger 自身には付かない（[`fandhe_frontend_headless_ui::tabs`] が出力する
+/// パーツ属性を参照）。そのためセレクタを trigger 側に `.fd-tabs--variant-enclosed`
+/// を直接連結する形（`[data-part="trigger"].fd-tabs--variant-enclosed[data-state="active"]`）
+/// で書くと常に不一致になり、forced-colors 下で選択中 trigger が識別できない
+/// 状態のまま補強 CSS が無効化されていた。root の variant クラスを起点にした
+/// 子孫結合子セレクタ（`[data-part="root"].fd-tabs--variant-enclosed
+/// [data-part="trigger"][data-state="active"]`）へ修正し、root に付与された
+/// variant クラス配下の selected trigger のみへ一致させる。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(
+        "\n@media (forced-colors: active) {\n  [data-scope=\"tabs\"][data-part=\"root\"].fd-tabs--variant-enclosed [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"] {\n    border: 1px solid CanvasText;\n  }\n}\n",
+    );
+    out
 }
 
 /// styled Tabs を組み立てる。`size`/`color-palette` に応じたクラスを root へ
@@ -475,10 +753,13 @@ pub fn stylesheet() -> String {
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::tabs::{self, ActivationMode, Orientation, TabItem, TabsProps};
+/// use fandhe_frontend_pre_styled_ui::tabs::{
+///     self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
+/// };
 /// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 ///
 /// let node = tabs::tabs(
+///     TabsVariant::Line,
 ///     Size::Md,
 ///     ColorPalette::Accent,
 ///     &TabsProps {
@@ -500,14 +781,18 @@ pub fn stylesheet() -> String {
 /// ```
 #[must_use]
 pub fn tabs(
+    variant: TabsVariant,
     size: Size,
     palette: ColorPalette,
     props: &TabsProps<'_>,
     items: Vec<TabItem<'_>>,
 ) -> Node {
     let recipe = recipe();
-    let class =
-        recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
+    let class = recipe.variant_classes(&[
+        ("variant", variant.value()),
+        ("size", size.value()),
+        ("color-palette", palette.value()),
+    ]);
     // `tabs` は headless 層に呼び出し側 attrs を受け取る引数を持たない
     // （headless `tabs_with_root_attrs` の rustdoc 参照）ため、ここで
     // `drop_class_attr` を通す対象（呼び出し側 attrs）は存在しない。生成した
@@ -560,7 +845,13 @@ mod tests {
     fn styled_tabs_renders_with_headless_anatomy_attrs() {
         let props = default_props("t1", "one");
         let items = vec![item("one")];
-        let html = render(&tabs(Size::Md, ColorPalette::Accent, &props, items));
+        let html = render(&tabs(
+            TabsVariant::Line,
+            Size::Md,
+            ColorPalette::Accent,
+            &props,
+            items,
+        ));
         assert!(html.contains(r#"data-scope="tabs""#));
         assert!(html.contains(r#"data-part="list""#));
     }
@@ -583,7 +874,13 @@ mod tests {
         // 描画されることを固定する。
         let props = default_props("t1", "one");
         let items = vec![item("one"), item("two")];
-        let html = render(&tabs(Size::Md, ColorPalette::Accent, &props, items));
+        let html = render(&tabs(
+            TabsVariant::Line,
+            Size::Md,
+            ColorPalette::Accent,
+            &props,
+            items,
+        ));
         assert!(html.contains(r#"data-state="active""#));
         assert!(html.contains(r#"data-state="inactive""#));
     }
@@ -693,6 +990,7 @@ mod tests {
     fn root_outputs_scope_and_part() {
         let props = default_props("t1", "one");
         let html = render(&tabs(
+            TabsVariant::Line,
             Size::Md,
             ColorPalette::Accent,
             &props,
@@ -706,7 +1004,13 @@ mod tests {
     fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
         for size in [Size::Sm, Size::Md, Size::Lg] {
             let props = default_props("t1", "one");
-            let html = render(&tabs(size, ColorPalette::Accent, &props, vec![item("one")]));
+            let html = render(&tabs(
+                TabsVariant::Line,
+                size,
+                ColorPalette::Accent,
+                &props,
+                vec![item("one")],
+            ));
             let expected_class = format!("fd-tabs--size-{}", size.value());
             assert!(html.contains(&expected_class), "html={html}");
             assert_eq!(html.matches("class=\"").count(), 1);
@@ -724,7 +1028,13 @@ mod tests {
             ColorPalette::Neutral,
         ] {
             let props = default_props("t1", "one");
-            let html = render(&tabs(Size::Md, palette, &props, vec![item("one")]));
+            let html = render(&tabs(
+                TabsVariant::Line,
+                Size::Md,
+                palette,
+                &props,
+                vec![item("one")],
+            ));
             let expected_class = format!("fd-tabs--color-palette-{}", palette.value());
             assert!(html.contains(&expected_class), "html={html}");
         }
@@ -749,5 +1059,116 @@ mod tests {
         assert!(
             css.contains("border-bottom-color: var(--fandhe-palette, var(--fandhe-color-accent));")
         );
+    }
+
+    // --- イシュー #2039: `variant`（`Line`/`Enclosed`） ---
+
+    #[test]
+    fn variant_appends_class_to_root() {
+        for variant in [TabsVariant::Line, TabsVariant::Enclosed] {
+            let props = default_props("t1", "one");
+            let html = render(&tabs(
+                variant,
+                Size::Md,
+                ColorPalette::Accent,
+                &props,
+                vec![item("one")],
+            ));
+            let expected_class = format!("fd-tabs--variant-{}", variant.value());
+            assert!(html.contains(&expected_class), "html={html}");
+        }
+    }
+
+    #[test]
+    fn enclosed_variant_declares_list_muted_background_and_radius() {
+        // イシュー #2039: shadcn/ui 突合で判明した欠落（セグメント/ピル型
+        // コンテナ）を固定する。
+        let css = stylesheet();
+        assert!(css.contains("--fandhe-tabs-list-background: var(--fandhe-color-bg-muted);"));
+        assert!(css.contains("--fandhe-tabs-list-radius: var(--fandhe-radius-md);"));
+        assert!(css.contains("--fandhe-tabs-list-padding: var(--fandhe-space-1);"));
+    }
+
+    #[test]
+    fn enclosed_variant_active_trigger_has_surface_background_and_shadow() {
+        // イシュー #2039: selected trigger が白背景 + 微小な影で浮き上がる
+        // （shadcn/ui 既定 variant 相当、`crate::card`/`crate::popover` と
+        // 同種の elevation 表現）。
+        let css = stylesheet();
+        assert!(css.contains("--fandhe-tabs-trigger-active-background: var(--fandhe-color-bg);"));
+        assert!(css.contains("--fandhe-tabs-trigger-active-shadow: var(--fandhe-shadow-sm);"));
+        assert!(css.contains("box-shadow: var(--fandhe-tabs-trigger-active-shadow, none);"));
+    }
+
+    #[test]
+    fn forced_colors_media_query_adds_border_to_enclosed_active_trigger() {
+        // イシュー #2039 codex-review 追補: forced-colors 下で box-shadow が
+        // none に丸められても選択中 trigger を識別できるよう、Enclosed の
+        // active trigger にシステム色境界線を追加することを固定する
+        // （`crate::status` と同型パターン）。
+        let css = stylesheet();
+        assert!(css.contains("@media (forced-colors: active)"));
+        assert!(css.contains(
+            "[data-scope=\"tabs\"][data-part=\"root\"].fd-tabs--variant-enclosed [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"]"
+        ));
+        assert!(css.contains("border: 1px solid CanvasText;"));
+    }
+
+    #[test]
+    fn line_variant_registers_fallback_identical_custom_properties() {
+        // イシュー #2039: Line（既定）は既存フォールバック値と同一の custom
+        // property を明示登録する（computed style 不変の根拠）。
+        let css = stylesheet();
+        assert!(
+            css.contains("--fandhe-tabs-list-border-bottom: 1px solid var(--fandhe-color-border);")
+        );
+        assert!(css.contains("--fandhe-tabs-list-background: transparent;"));
+        assert!(css.contains("--fandhe-tabs-trigger-active-background: transparent;"));
+        assert!(css.contains("--fandhe-tabs-trigger-active-shadow: none;"));
+    }
+
+    #[test]
+    fn hover_bg_differs_between_line_and_enclosed_to_avoid_hiding_active_pill() {
+        // イシュー #2039 レビュー指摘: `trigger` base の hover 規則
+        // （`@media (hover: hover)` 末尾集約、詳細度に関わらず active state
+        // より後に適用される）が固定値 `--fandhe-color-bg-muted` のままだと、
+        // Enclosed の selected trigger（`--fandhe-tabs-trigger-active-
+        // background: var(--fandhe-color-bg)`、白背景 + 影）を hover 時に
+        // list と同じ muted 背景で上書きし、選択解除されたように見える
+        // 不具合があった。custom property 化して Enclosed のみ
+        // `--fandhe-color-bg`（selected trigger と同色）を使うことで
+        // 解消したことを固定する。
+        let css = stylesheet();
+        assert!(css.contains(
+            "--fandhe-hover-bg: var(--fandhe-tabs-hover-bg, var(--fandhe-color-bg-muted));"
+        ));
+        assert!(css.contains("--fandhe-tabs-hover-bg: var(--fandhe-color-bg-muted);"));
+        assert!(css.contains("--fandhe-tabs-hover-bg: var(--fandhe-color-bg);"));
+    }
+
+    #[test]
+    fn vertical_state_custom_properties_differ_between_line_and_enclosed() {
+        // イシュー #2039: vertical × Enclosed でも区切り線なし・全角丸へ
+        // 切り替わることを固定する。
+        let css = stylesheet();
+        assert!(css.contains("--fandhe-tabs-vertical-list-border-inline-end: 0;"));
+        assert!(css.contains(
+            "--fandhe-tabs-vertical-list-border-inline-end: 1px solid var(--fandhe-color-border);"
+        ));
+        assert!(css.contains(
+            "--fandhe-tabs-vertical-trigger-radius-end: var(--fandhe-radius-sm, 0.25rem);"
+        ));
+    }
+
+    #[test]
+    fn default_variant_is_line() {
+        // イシュー #2039: `variant` axis を選択に含めなくても、
+        // `SlotRecipe::variant_classes` が `default_variant(TabsVariant::Line)`
+        // で補完し `fd-tabs--variant-line` を出力することを固定する
+        // （`tabs()` を経由しない headless 直接利用マークアップとの整合を
+        // 保つ fail-safe、モジュール冒頭 rustdoc「`size`/`color-palette`
+        // variant」節と同じ判断）。
+        let class = recipe().variant_classes(&[("size", "md"), ("color-palette", "accent")]);
+        assert!(class.contains("fd-tabs--variant-line"), "class={class}");
     }
 }

@@ -36,12 +36,12 @@
 //! （`tests/site_css_contract.rs::component_page_render_introduces_no_class_outside_the_contract`
 //! が層 1 (c) 方向で回帰として固定する）。
 
-use fandhe_frontend_core::{el, text, Node};
+use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::{
     alert, avatar, badge, breadcrumb, callout, card, carousel, color_swatch, data_list,
-    empty_state, icon, image, json_tree_view, marquee, pagination, progress, scroll_area,
-    separator, skeleton, spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline,
-    tree_view, AlertProps, ColorPalette, Orientation, Size,
+    empty_state, field, icon, image, json_tree_view, marquee, native_select, pagination, progress,
+    scroll_area, separator, skeleton, spinner, splitter, stat, status, steps, tab_nav, table, tag,
+    timeline, tree_view, AlertProps, ColorPalette, Orientation, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -1445,6 +1445,124 @@ fn ex_pagination() -> Node {
     )
 }
 
+/// [`PAGINATION`] の Examples 節「Prev/Next with label」レンダラ
+/// （イシュー #2036、shadcn/ui 突合。shadcn の Prev/Next は「‹ Previous」
+/// 「Next ›」というアイコン+テキスト表示だが、headless 層の
+/// `prev_trigger`/`next_trigger` は children を固定しない設計のため、
+/// 呼び出し側が単一テキストノード（`calendar::prev_trigger`/
+/// `next_trigger` が確立した慣例、`crates/docs-site/src/showcase.rs` の
+/// `‹`/`›` 単一テキストノードと同型）を渡すだけで再現できる。複数
+/// children（アイコン部品 + テキスト）による横並びは採用せず、
+/// `prev-trigger`/`next-trigger` の `gap` 追加という recipe 変更を発生
+/// させない（`pagination.rs` モジュール rustdoc「shadcn/ui 突合」節参照）。
+fn ex_pagination_prev_next_label() -> Node {
+    pagination::root(
+        Size::Md,
+        ColorPalette::Accent,
+        "pagination",
+        vec![],
+        vec![
+            pagination::prev_trigger(
+                pagination::ItemMode::Button,
+                false,
+                vec![],
+                vec![text("\u{2039} Previous")],
+            ),
+            pagination::item(
+                pagination::ItemMode::Button,
+                1,
+                false,
+                false,
+                vec![],
+                vec![text("1")],
+            ),
+            pagination::item(
+                pagination::ItemMode::Button,
+                2,
+                true,
+                false,
+                vec![],
+                vec![text("2")],
+            ),
+            pagination::item(
+                pagination::ItemMode::Button,
+                3,
+                false,
+                false,
+                vec![],
+                vec![text("3")],
+            ),
+            pagination::next_trigger(
+                pagination::ItemMode::Button,
+                false,
+                vec![],
+                vec![text("Next \u{203a}")],
+            ),
+        ],
+    )
+}
+
+/// [`PAGINATION`] の Examples 節「Rows per page + Select」レンダラ
+/// （イシュー #2036、shadcn/ui 突合。shadcn の Pagination はデータテーブル
+/// 用フッターとして「Rows per page」ラベル付き Select + Prev/Next のみ
+/// （ページ番号なし）という合成パターンも提供する。`native_select` が
+/// 既に存在するため、既存部品の組み合わせで再現する
+/// （`pagination.rs` モジュール rustdoc「shadcn/ui 突合」節参照。
+/// `field::label`/`native_select::native_select` の組み合わせは
+/// `crates/docs-site/src/component_specs/forms.rs::ex_native_select_with_label_and_helper`
+/// と同型）。
+fn ex_pagination_rows_per_page() -> Node {
+    let f = native_select::FieldProps {
+        id: "example-pagination-rows-per-page",
+        ids: native_select::FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    div(
+        vec![],
+        vec![
+            field::label(&f, vec![], vec![text("Rows per page")]),
+            native_select::native_select(
+                &native_select::NativeSelectProps::default(),
+                &f,
+                vec![],
+                vec![
+                    el("option", vec![("value", "10")], vec![text("10")]),
+                    el(
+                        "option",
+                        vec![("value", "25"), ("selected", "")],
+                        vec![text("25")],
+                    ),
+                    el("option", vec![("value", "50")], vec![text("50")]),
+                ],
+            ),
+            pagination::root(
+                Size::Md,
+                ColorPalette::Accent,
+                "rows per page pagination",
+                vec![],
+                vec![
+                    pagination::prev_trigger(
+                        pagination::ItemMode::Button,
+                        false,
+                        vec![],
+                        vec![text("\u{2039} Previous")],
+                    ),
+                    pagination::next_trigger(
+                        pagination::ItemMode::Button,
+                        false,
+                        vec![],
+                        vec![text("Next \u{203a}")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
 pub(crate) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "item は data-selected マーカー + aria-current=\"page\" で現在ページを表す（crates/pre-styled-ui/src/pagination.rs:35-38）",
@@ -1465,11 +1583,23 @@ pub(crate) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
             description: "root（nav）の aria-label（pagination.rs:447-460, 528-534）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Current page",
-        description: "選択中ページ 1 件のみを表示する最小構成例です。",
-        render: ex_pagination,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Current page",
+            description: "選択中ページ 1 件のみを表示する最小構成例です。",
+            render: ex_pagination,
+        },
+        ExampleEntry {
+            title: "Prev/Next with label",
+            description: "shadcn/ui の「‹ Previous」「Next ›」表示を、prev_trigger/next_trigger へ単一テキストノードを渡すだけで再現する例です（イシュー #2036）。",
+            render: ex_pagination_prev_next_label,
+        },
+        ExampleEntry {
+            title: "Rows per page + Select",
+            description: "shadcn/ui のデータテーブル用フッター（Rows per page ラベル付き Select + Prev/Next のみ、ページ番号なし）を既存部品の組み合わせで再現する例です（イシュー #2036）。",
+            render: ex_pagination_rows_per_page,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-current=\"page\"（選択中 item） / data-selected",
@@ -1503,11 +1633,118 @@ fn ex_splitter() -> Node {
     )
 }
 
+// イシュー #2038: shadcn/ui `resizable` の `withHandle` prop 相当。
+// `resize_trigger_indicator` を `resize_trigger` の children に渡すと
+// ハンドル中央にグリップ表現が付く（呼ぶ／呼ばないの 2 択で shadcn の
+// `withHandle` あり／なしに対応する既存 API、新規 API 追加なし）。
+fn ex_splitter_with_handle() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{
+        PanelSpec, Splitter,
+    };
+    let state = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 0.0, 100.0),
+            PanelSpec::new(50.0, 0.0, 100.0),
+        ],
+        Orientation::Horizontal,
+    );
+    splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &state,
+        false,
+        vec![],
+        vec![
+            splitter::panel(&state, 0, "panel-wh-a", vec![], vec![text("A")]),
+            splitter::resize_trigger(
+                &state,
+                0,
+                "panel-wh-a",
+                "panel-wh-b",
+                false,
+                vec![],
+                vec![splitter::resize_trigger_indicator(vec![], vec![])],
+            ),
+            splitter::panel(&state, 1, "panel-wh-b", vec![], vec![text("B")]),
+        ],
+    )
+}
+
+// イシュー #2038: shadcn/ui デフォルトデモ（One | (Two / Three)）と同型の
+// 入れ子構成。panel の children に別の splitter::root（内側 vertical）を
+// そのまま渡すだけで再現できる合成パターン（新規 API 不要）。
+fn ex_splitter_nested() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{
+        PanelSpec, Splitter,
+    };
+    let outer = Splitter::new(
+        &[
+            PanelSpec::new(40.0, 20.0, 80.0),
+            PanelSpec::new(60.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let inner = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 0.0, 100.0),
+            PanelSpec::new(50.0, 0.0, 100.0),
+        ],
+        Orientation::Vertical,
+    );
+    let inner_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &inner,
+        false,
+        vec![("style", "border: none; border-radius: 0; height: 100%;")],
+        vec![
+            splitter::panel(&inner, 0, "panel-nested-inner-a", vec![], vec![text("Two")]),
+            splitter::resize_trigger(
+                &inner,
+                0,
+                "panel-nested-inner-a",
+                "panel-nested-inner-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &inner,
+                1,
+                "panel-nested-inner-b",
+                vec![],
+                vec![text("Three")],
+            ),
+        ],
+    );
+    splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &outer,
+        false,
+        vec![("style", "height: 12rem;")],
+        vec![
+            splitter::panel(&outer, 0, "panel-nested-outer-a", vec![], vec![text("One")]),
+            splitter::resize_trigger(
+                &outer,
+                0,
+                "panel-nested-outer-a",
+                "panel-nested-outer-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(&outer, 1, "panel-nested-outer-b", vec![], vec![inner_demo]),
+        ],
+    )
+}
+
 pub(crate) const SPLITTER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "panel は --fandhe-splitter-size custom property を通じてのみ動的な flex-basis を伝える唯一のパーツ（crates/pre-styled-ui/src/splitter.rs:688-697）",
         "resize_trigger は role=\"separator\" + aria-controls を固定付与する（splitter.rs:930-935）",
         "panel_index が範囲外の場合は style 属性自体を省略する fail-closed 動作（splitter.rs:694-697, 908-913）",
+        "resize_trigger_indicator は resize_trigger の children として渡したときのみ描画される（shadcn/ui withHandle prop 相当の合成パターン、イシュー #2038）",
     ],
     arguments: &[ArgRow {
         name: "disabled",
@@ -1515,11 +1752,23 @@ pub(crate) const SPLITTER: ComponentPageSpec = ComponentPageSpec {
         default: "false",
         description: "root/resize_trigger の無効化状態（splitter.rs:672-686）。",
     }],
-    examples: &[ExampleEntry {
-        title: "Two panels",
-        description: "50/50 の 2 パネルと resize_trigger 1 個の例です。",
-        render: ex_splitter,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Two panels",
+            description: "50/50 の 2 パネルと resize_trigger 1 個の例です。",
+            render: ex_splitter,
+        },
+        ExampleEntry {
+            title: "With handle",
+            description: "resize_trigger_indicator を渡すとハンドル中央にグリップ表現が付きます。",
+            render: ex_splitter_with_handle,
+        },
+        ExampleEntry {
+            title: "Nested",
+            description: "panel の children に別の splitter::root を渡すと入れ子構成になります。",
+            render: ex_splitter_nested,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"separator\" + aria-controls（resize_trigger）",

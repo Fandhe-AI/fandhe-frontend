@@ -190,10 +190,11 @@ pub fn helper_text(
     ANATOMY.part("helper-text", "span", merged, children)
 }
 
-/// `error_text` パーツ（`span`）。`invalid` でないときは `hidden` 存在属性を
+/// `error_text` パーツ（`div`）。`invalid` でないときは `hidden` 存在属性を
 /// 付与する fail-closed 描画とし、JS 不在の SSR でも誤表示しない。
 /// `aria-live="polite"` によりスクリーンリーダーへの通知を意図する
-/// （[`crate::field::error_text`] と同型）。
+/// （[`crate::field::error_text`] と同型。タグを `div` にする理由も同型、
+/// [`crate::field::error_text`] rustdoc 参照）。
 #[must_use]
 pub fn error_text(
     props: &FieldsetProps<'_>,
@@ -207,7 +208,7 @@ pub fn error_text(
     }
     merged.extend(state_data_attrs(props));
     merged.extend(attrs);
-    ANATOMY.part("error-text", "span", merged, children)
+    ANATOMY.part("error-text", "div", merged, children)
 }
 
 #[cfg(test)]
