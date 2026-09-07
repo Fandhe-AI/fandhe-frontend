@@ -170,6 +170,40 @@
 //! - **`content` の `max-height` + スクロール導入は見送る**: 7 軸
 //!   チェックリスト外であり、positioning 契約（`--fandhe-reference-width`/
 //!   `data-positioned`）への影響評価が必要なためスコープ外とする
+//!
+//! # スタイル調整（イシュー #2012、shadcn/ui 突合）
+//!
+//! shadcn/ui Combobox（`docs/design/reference-screenshots/
+//! shadcn-combobox-{1,2,3}.png`）と突合した結果、CSS 変更は行わず、以下を
+//! 意図的な非追随として本節に記録する（`docs/design/
+//! shadcn-reference-adoption-policy.md` §3「合わせない」＝anatomy 変更を
+//! 要する・別部品の管轄に該当）:
+//!
+//! - **選択値のチップ／バッジ表示**: `shadcn-combobox-3.png` は選択後の
+//!   表示を `"Next.js ×"` 形式のチップ（内側にインライン clear ボタン）で
+//!   描く。本モジュールは選択値をプレーンテキストの [`input`] + 別置きの
+//!   [`clear_trigger`] アイコンボタンで表現しており、チップ化には
+//!   `<input>` を別要素へ置き換える headless anatomy の構造変更を要する。
+//!   headless-ui 側（`crates/headless-ui/src/combobox.rs` の「参照突合
+//!   （イシュー #1605）」節）が `multiple` 選択・chips 表示は
+//!   [`fandhe_frontend_headless_ui::state::SingleSelect`] のスコープ外と
+//!   既に確定判断しており、複数値・除去可能な値表示が必要な場合は
+//!   `crate::tags_input` を使う設計とする（本モジュールでは非採用）。
+//! - **入力欄をポップオーバー内に持つ形（command 型）**: グループ見出しを
+//!   超える合成（区切り線・empty state・input-in-popover）は、専用
+//!   トラッキング #2057 配下の #2067〜#2070（`command` の Primitives /
+//!   Themes 追加、anatomy に `root`/`input`/`list`/`empty`/`group`/`item`/
+//!   `shortcut`/`separator`/`dialog` を予定）が担う設計であり、本モジュール
+//!   では先取り実装しない。
+//! - **`::placeholder`（入力欄プレースホルダの色指定）**: `input`/
+//!   `textarea`/`combobox` を含むコードベース全体で疑似要素条件が
+//!   [`crate::recipe::StateCondition`] に存在せず、対応するなら `recipe`
+//!   API 拡張を要する Forms 家族横断の判断になる（単一部品 issue の先行
+//!   対応にはしない）。
+//!
+//! disabled item・clear button・focus ring・hover と highlight の分離は
+//! #1467/#1468（PR #1744/#1745、上記節）で既に実装済みであり、shadcn 突合
+//! でも新規ギャップは見つからなかった。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
