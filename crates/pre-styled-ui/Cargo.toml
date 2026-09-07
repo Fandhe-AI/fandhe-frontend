@@ -2175,7 +2175,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # wrapper 要素を `link` の直下の単一子要素として挟み、その wrapper 内で
 # 従来どおり `display: block`（既定）の縦積みを組むことで挙動を維持できる
 # （`link` 自身は flex コンテナのままだが単一子要素なら見た目は変わらない）。
-version = "0.127.0"
+# base 再取り込み（イシュー #2036, 2026-09-07）: 本ブランチ（pagination の
+# shadcn/ui 突合、rustdoc/docs-site 追記のみで recipe() 無変更のため patch
+# バンプで 0.126.1 に到達済み）と main（navigation-menu の link パート
+# 破壊的変更のためマイナーバンプ、0.127.0 に到達済み）が version 行で
+# コンフリクトした。`docs/ci/style-refresh-version-bump-operation.md` §5
+# の手順（自分の変更が patch バンプの場合は main の現在値の patch を
+# +1 する）に従い、main の到達値 0.127.0 の patch を +1 して 0.127.1 とする。
+version = "0.127.1"
 
 
 edition = "2021"
