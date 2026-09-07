@@ -2044,14 +2044,24 @@ name = "fandhe-frontend-pre-styled-ui"
 # outside-month のセルで文字色が上書きされる不具合）を是正した。
 # `recipe()` 内の `.state()` 登録順を入れ替え、golden fixture の CSS 出力
 # 順が観測可能に変わる実体変更のためマイナーバンプで 0.120.0 とする。
+# イシュー #2027: breadcrumb の shadcn/ui 突合で `list` に
+# `overflow-wrap: break-word` を追加し（`stylesheet()` 出力の変化）、
+# 続けて PR #2142 codex-review P2 指摘是正として `item`/`link`/
+# `current-link` へ `min-width: 0` を追加した（flex item の `min-width`
+# 初期値 `auto` により `overflow-wrap` 単独では折り返しが機能しない
+# 不具合の是正）。いずれも新規セレクタ・variant・`data-*` を追加しない
+# 意匠調整のみのため、まとめて 1 回の patch バンプとする。
 # イシュー #2028: carousel を shadcn/ui と突合し、`--fandhe-carousel-item-basis`
 # CSS カスタムプロパティを新設（既存セレクタ内の宣言値変更のみで新規
 # `data-*`・新規 variant・新規セレクタは追加しない）ためパッチバンプで
 # 0.120.1 に到達していたが、main が独立に 0.121.0 へ到達済みだったため
 # 同一到達ではないが本ブランチの到達値が main の到達値未満で埋没する
-# 衝突として扱い、main の到達値からさらに +1 して 0.122.0 とする
-# （実体変更の統合を反映、semver-same-version-is-conflict の運用に倣う）。
-version = "0.122.0"
+# 衝突として main の到達値からさらに +1 して 0.122.0 に到達済みだった。
+# 本マージでは #2027（breadcrumb）ブランチの実体変更が main の到達値
+# 0.122.0 に未反映のまま同一ファイルで衝突したため、semver-same-version-
+# is-conflict の運用に倣い main の到達値からさらに +1 して 0.123.0 とする。
+version = "0.123.0"
+
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
