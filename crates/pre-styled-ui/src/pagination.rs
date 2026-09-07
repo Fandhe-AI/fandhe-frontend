@@ -131,6 +131,40 @@
 //!   `prev_trigger`/`next_trigger` は children を固定しない）。
 //! - variant 軸（solid/outline 等）は追加しない（`item` と同じ判断）。
 //!
+//! # shadcn/ui 突合（イシュー #2036）
+//!
+//! shadcn/ui（Base UI 版 Pagination）のスクリーンショット 3 枚
+//! （`docs/design/reference-screenshots/shadcn-pagination-{1,2,3}.png`）と
+//! ローカル `themes-pagination.png` を突合し、#1420（chakra-ui / Radix
+//! Themes 基準）の調整では拾えなかった欠落バリアント・状態・合成パターンの
+//! 有無を確認した。純追加原則（既存 variant の CSS 出力はバイト同一を
+//! 維持）に従い、[`recipe`] の変更は不要と判断した。
+//!
+//! - **prev/next のアイコン+テキスト表示**: shadcn は「‹ Previous」
+//!   「Next ›」の表示を持つ。[`prev_trigger`]/[`next_trigger`] は
+//!   children を固定しない設計（上記「意図的非対応」節に既記載）なので、
+//!   呼び出し側が単一テキストノード（例:
+//!   `text("\u{2039} Previous")`）を渡すだけで再現できる（コード変更不要、
+//!   docs サイト Examples「Prev/Next with label」で実演）。複数 children
+//!   （アイコン部品 + テキスト）による横並びは意図的に採用せず、
+//!   `prev-trigger`/`next-trigger` へ `gap` を追加する recipe 変更を発生
+//!   させない。
+//! - **ellipsis**: shadcn は枠なし・muted 色。ローカルも #1532 是正済みで
+//!   既に枠なし・`--fandhe-color-fg-muted` トークン経由。差分なし。
+//! - **size 段階**: shadcn 側スクリーンショットは単一サイズのみ。ローカル
+//!   は既に Xs〜Xl の 5 段（chakra 基準）を持ち、追加で欲しい段階はない。
+//! - **参照競合の判定**: pagination の current ページ表現は chakra/Radix
+//!   軸の値（`data-selected` の solid fill・白文字）を採る。理由:
+//!   shadcn はごく薄い outline（枠線のみ、背景はほぼ base と同色）だが、
+//!   #1532/#1420 で chakra/Radix 基準として明示的に採用した設計であり、
+//!   golden の色味の差だけで書き換える調整は行わない方針（純追加原則）の
+//!   対象であるため、意図的に非追随とする。
+//! - **合成パターン（データテーブル用フッター）**: shadcn の 3 枚目は
+//!   「Rows per page」ラベル + Select + Prev/Next のみ（ページ項目なし）
+//!   という構成。[`crate::native_select`] が既に存在するため、既存部品の
+//!   組み合わせで再現可能（コード変更不要、docs サイト Examples
+//!   「Rows per page + Select」で実演）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - roving focus / キーボードナビゲーションは headless 層

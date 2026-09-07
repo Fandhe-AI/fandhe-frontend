@@ -107,6 +107,47 @@
 //! 5. `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
 //!    [`crate::menu`]/[`crate::popover`] と同じ理由で本イシューの対象外。
 //!
+//! # イシュー #2041 の shadcn/ui 突合（Base UI ベース、2026-09-07 に
+//! pre-styled-ui 視覚言語の主基準の 1 つへ格上げ、
+//! `docs/design/shadcn-reference-adoption-policy.md` §8）
+//!
+//! `apps/v4/registry/bases/base/ui/tooltip.tsx`（shadcn/ui）を確認し、
+//! 起票時点の「既知のギャップ候補」3 点を検証した。
+//!
+//! - **`side` 4 方向**: `TooltipContent` が `side`（既定 `top`）・`align`・
+//!   `sideOffset`（既定 4px）を受け取る。**確定した欠落**として
+//!   [`crate::tour`] と同型の静的 `data-side` フォールバック（`bottom`/
+//!   `left`/`right`。`top`/無指定は既存 base のまま）を [`recipe`] へ
+//!   追加した。`sideOffset` 既定値（4px）は本リポジトリの
+//!   `var(--fandhe-space-1)`（4px 相当）と一致するため新規トークンは
+//!   起こさず既存の間隔トークンを流用する。**既知の制約**:
+//!   `data-side="left"`/`"right"` は `right: 100%`/`left: 100%` を使う
+//!   ため、`root`（containing block）の幅が `trigger` の実測幅と一致する
+//!   文脈（flex/inline-block 等で shrink-wrap される場合）でのみ trigger
+//!   に隣接する位置になる。`root` はブロック要素の親内で幅いっぱいに
+//!   広がる一般的な文脈では left/right がトリガーから離れた位置に出る
+//!   （`root` へ `width`/`display` を追加すると既存 tooltip 全件の
+//!   レイアウトに影響するため本イシューでは行わない）。実座標追従が
+//!   実装されればこの制約は解消する。
+//! - **arrow**: `TooltipPrimitive.Arrow` は `size-2.5 rotate-45` の
+//!   ひし形を反転色（`content` と同じ）で描画するが、実際の配置は
+//!   floating-ui（Base UI）由来の実測座標に依存する。本リポジトリは
+//!   実座標追従を意図的に対象外としており（「意図的に参考サイトへ
+//!   合わせない点」5、下記スコープ外節）、静的な三角/ひし形だけを
+//!   追加すると実際のトリガー位置とズレて誤った視覚情報になりかねない
+//!   ため、実座標追従の配線（別イシュー）が前提として先送りする。
+//! - **kbd 併記**: `apps/v4/examples/base/kbd-tooltip.tsx` に `content` 内で
+//!   テキストと [`crate::kbd`] を組み合わせる合成パターンの実例がある。
+//!   **確定した欠落**として docs-site の Examples 節（
+//!   `crates/docs-site/src/component_specs_overlay.rs`）へ再現デモを
+//!   追加した（新しい variant/data-* の追加は伴わない、既存 API のみで
+//!   再現可能なため本モジュールへの変更は不要）。
+//! - **delay**: `TooltipProvider` の `delay`（既定 0）はクライアントサイド
+//!   タイマーの実行時挙動であり、[`crate::tooltip`] が委譲する headless
+//!   層（`crates/headless-ui/src/tooltip.rs`）のモジュール doc が既に
+//!   `openDelay`/`closeDelay` 等をスコープ外と明記している。shadcn/ui
+//!   突合でも同じ結論であることを確認した（**引き続き対象外**）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - variant（size 等）ごとのクラス切り替えは headless ラッパー第 1 弾
@@ -114,11 +155,12 @@
 //! - `openDelay`/`closeDelay`/`interactive`/`closeOnEscape` は headless 層の
 //!   ドキュメント（`crates/headless-ui/src/tooltip.rs`）で既にスコープ外と
 //!   明記済みのクライアントサイド実行時挙動であり、本モジュールもそれを
-//!   継承する。
+//!   継承する（イシュー #2041 の shadcn/ui `delay` 突合でも再確認済み）。
 //! - `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
 //!   [`crate::menu`]/[`crate::popover`] と同じ理由で本イシューの対象外。
 //! - `arrow`/`arrow-tip` への装飾追加（座標ジオメトリ依存のため対象外を
-//!   継続）。
+//!   継続。イシュー #2041 で shadcn/ui の arrow 実装も実座標依存である
+//!   ことを確認済み）。
 //! - `content`/`positioner` の開閉フェード演出（上記「意図的に参考サイトへ
 //!   合わせない点」3 参照）。
 //! - showcase Demo への hover / disabled 状態の追加掲示（静的掲示のため
@@ -191,6 +233,47 @@ fn recipe() -> SlotRecipe {
                 // （1700）。旧来値 1100 を fallback に据える。
                 decl("z-index", "var(--fandhe-z-index-tooltip, 1100)"),
                 decl("margin-bottom", "var(--fandhe-space-1)"),
+            ],
+        )
+        // イシュー #2041: shadcn/ui の `TooltipContent` は `side`
+        // （既定 `top`/`bottom`/`left`/`right`）を受け取り表示位置を
+        // 切り替える。本リポジトリは実座標追従（floating-ui 相当）を
+        // 意図的に対象外としているため（モジュール冒頭 rustdoc「意図的に
+        // 参考サイトへ合わせない点」5 参照）、[`crate::tour`] と同じ静的
+        // `data-side` フォールバックのみを追加する。無指定時（=
+        // 実質 `top`）は既存の base 宣言（`bottom: 100%; left: 0;`）を
+        // そのまま使うため `data-side="top"` 用の追加規則は設けない。
+        .state(
+            "positioner",
+            StateCondition::AttrEq("data-side", "bottom"),
+            vec![
+                decl("top", "100%"),
+                decl("bottom", "auto"),
+                decl("margin-bottom", "0"),
+                decl("margin-top", "var(--fandhe-space-1)"),
+            ],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEq("data-side", "left"),
+            vec![
+                decl("top", "0"),
+                decl("bottom", "auto"),
+                decl("left", "auto"),
+                decl("right", "100%"),
+                decl("margin-bottom", "0"),
+                decl("margin-right", "var(--fandhe-space-1)"),
+            ],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEq("data-side", "right"),
+            vec![
+                decl("top", "0"),
+                decl("bottom", "auto"),
+                decl("left", "100%"),
+                decl("margin-bottom", "0"),
+                decl("margin-left", "var(--fandhe-space-1)"),
             ],
         )
         .base(
@@ -328,6 +411,27 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains("transition-property: background, border-color;"));
         assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+    }
+
+    #[test]
+    fn positioner_supports_bottom_left_right_data_side_states() {
+        // イシュー #2041: shadcn/ui `TooltipContent` の `side` 4 方向のうち
+        // `bottom`/`left`/`right` の静的フォールバックを固定する
+        // （`top`/無指定は既存 base 宣言のまま変わらないことを別テスト
+        // `positioner_is_absolutely_positioned_for_overlay` が担保する）。
+        let css = stylesheet();
+        assert!(
+            css.contains(r#"[data-scope="tooltip"][data-part="positioner"][data-side="bottom"] {"#)
+        );
+        assert!(css.contains("top: 100%;"));
+        assert!(
+            css.contains(r#"[data-scope="tooltip"][data-part="positioner"][data-side="left"] {"#)
+        );
+        assert!(css.contains("right: 100%;"));
+        assert!(
+            css.contains(r#"[data-scope="tooltip"][data-part="positioner"][data-side="right"] {"#)
+        );
+        assert!(css.contains("left: 100%;"));
     }
 
     #[test]

@@ -163,6 +163,56 @@
 //!   語彙拡張は `fandhe-frontend-wasm-full` の dismiss 配線（タイマー・退出
 //!   アニメーション）実装後の課題として引き続き保留する（#1643 で判断領域を
 //!   確定済み、拡張自体はスコープ外のまま）。
+//!
+//! # イシュー #2040（shadcn/ui 突合、`docs/design/shadcn-reference-adoption-policy.md` §8）
+//!
+//! 2026-09-07 の改訂で shadcn/ui（Base UI 系実装）が chakra-ui / Radix
+//! Themes と並ぶ主基準の 1 つへ格上げされたことを受け、
+//! `https://ui.shadcn.com/docs/components/base/toast` を実機操作して既存
+//! 実装（placement 6 語彙・status 4 語彙・action-trigger/close-trigger の
+//! スタイル・enter 遷移）と突合した。結論は「純追加できる正当なバリアント
+//! ／状態は見つからず、CSS・golden（`tests/toast_css.rs`）は無変更」
+//! であり、Examples への合成パターン追加（`fandhe-frontend-docs-site` 側、CSS
+//! 変更なし）のみを行う。
+//!
+//! - **status の値語彙**: shadcn 側は success/info/warning/error に加え
+//!   `loading` を持つが、`loading` は
+//!   [`fandhe_frontend_headless_ui::toast::ToastStatus`] 側の enum 拡張が
+//!   必要でありモジュール外（headless-ui）の変更を要するため本イシューの
+//!   対象外。promise（loading → success/error への同一 id 書き換え）配線
+//!   自体も #1545 時点で「`fandhe-frontend-wasm-full` 側の後続課題」と
+//!   確定済みであり、本イシューはその判断を覆さない。
+//! - **状態配色（参照競合の判定）**: shadcn は白背景 + 色付き丸アイコンで
+//!   状態を伝える無彩色方式だが、`root` slot の配色は chakra-ui/Radix
+//!   Themes 側の値（#1544 で確定した `--fandhe-color-<role>-subtle`/
+//!   `-muted`/`-fg-subtle` の淡色面 tint）を維持する。理由: 本リポジトリの
+//!   status 系部品（`crate::alert` 等）は横断的なアイコンスロットをまだ
+//!   持たず、toast だけ無彩色+アイコン方式へ切り替えると状態を伝える
+//!   視覚的手がかりが失われる（アイコン規約自体は横断課題、下記参照）。
+//! - **action-trigger の配置（参照競合の判定）**: shadcn は action ボタンを
+//!   title と同じ行・close ボタンと横並びに配置するが、`group`/`root`
+//!   スタック配置は chakra-ui/Radix Themes 側の値（#1545 で確定した縦積み・
+//!   title 下段配置）を維持する。理由: 行内配置化は `root` を grid 化する
+//!   等の非純粋なリファクタになり、#1544/#1545 で確定済みの縦積みパネル
+//!   一式（フォーカスリング・disabled・transition を含む）を視覚差のみの
+//!   実益で無関係に壊すリスクが高い。
+//! - **cancel ボタン**: shadcn 側にも action 1 個のみの API しかなく、
+//!   専用の cancel ボタンは存在しないことを実機確認した（起票時点の
+//!   「known gap 候補」は誤りと判明）。対応不要。
+//! - **role（`dialog`/`alertdialog` vs `status`）**: shadcn は
+//!   error のみ `role="alertdialog"`、他は `role="dialog"` を発行するが、
+//!   本リポジトリの headless 実装は `role="status"` 固定 +
+//!   `aria-live`（error のみ assertive）の緊急度切替で同種の意図を
+//!   既に表現しており、方式が異なるだけで機能的に等価なため変更不要。
+//! - **合成パターン（Examples への追加のみ）**: `title` は元々省略可能で
+//!   description のみの構成も既存 anatomy のみで再現できるため、
+//!   `fandhe-frontend-docs-site` 側の Examples に純追加した（本モジュールの
+//!   公開 API・CSS に変更なし）。
+//!
+//! 横断課題として切り出した事項（本イシューでは対応しない）:
+//! 状態アイコン表現の横断規約（`crate::alert` 等の status 系部品への
+//! アイコンスロット導入可否）と `action-trigger` の行内配置オプション導入
+//! 可否は、単一部品で先行決定せず別課題として追跡する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

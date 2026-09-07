@@ -522,7 +522,18 @@ name = "fandhe-frontend-headless-ui"
 # するため、両者の破壊的変更の和集合としてさらにマイナーバンプで 0.65.0
 # とする（本クレート自身の `src/carousel.rs` に追加の実体変更はなく、
 # 純粋な版数統合）。
-version = "0.65.0"
+# イシュー #2014（PR #2147 codex-review/Cursor Bugbot 指摘の是正）: `field`/
+# `fieldset` の `error_text` パーツが出力するタグを `span` から `div` へ
+# 変更した（pre-styled-ui 側で `<ul>`/`<li>` を children として渡す運用に
+# 対応するため。`span` の phrasing content には `ul` を含められず HTML
+# コンテンツモデル違反だった）。`span[data-part="error-text"]` を要素型
+# セレクタで参照する外部コードがあれば影響するため破壊的変更としてマイナー
+# バンプし 0.66.0 とする。
+# イシュー #2020（PR #2167 codex-review 指摘 P1 の是正）: `slider::marker`/
+# `Slider::marker` へ `orientation` 引数を追加した（コミット 85a3109e）際に
+# semver バンプが伴っていなかった。既存呼び出し元が引数個数不一致で
+# コンパイルエラーになる破壊的変更のためマイナーバンプし 0.67.0 とする。
+version = "0.67.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

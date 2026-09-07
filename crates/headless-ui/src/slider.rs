@@ -414,7 +414,12 @@ pub fn marker_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> 
 
 /// [`marker`] が全マーカーへ一律付与するキー一覧（呼び出し側 `attrs` からの
 /// 偽装を fail-closed で除外する対象）。
-const MARKER_RESERVED: &[&str] = &["data-value", "data-state", "data-disabled"];
+const MARKER_RESERVED: &[&str] = &[
+    "data-value",
+    "data-state",
+    "data-disabled",
+    "data-orientation",
+];
 
 /// Marker パーツ（`div`）。目盛り 1 点を表す。`min`/`max`/`value`/`current`
 /// は [`normalize`] と同じ方針で fail-closed に正規化してから使う
@@ -425,9 +430,16 @@ const MARKER_RESERVED: &[&str] = &["data-value", "data-state", "data-disabled"];
 /// `data-value` に出力し、正規化後の `current`（[`Slider`] の現在値）との
 /// 大小関係で `data-state` を `"under-value"`/`"over-value"`/`"at-value"`
 /// の 3 値リテラルへ固定する（ark-ui Marker の `data-state` と同じ語彙、
-/// [`crate::angle_slider::marker`] と同型）。
+/// [`crate::angle_slider::marker`] と同型）。`orientation` は他パーツ
+/// （[`track`]/[`thumb`] 等）と同じ `data-orientation` を出力し、
+/// `fandhe-frontend-pre-styled-ui` の marker 縦向きレイアウト規則（モジュール
+/// doc「イシュー #2020」節参照）が本属性の有無で分岐できるようにする
+/// （イシュー #2020 PR #2167 レビュー指摘 P1: 従来欠落していたため vertical
+/// slider でも marker が横向きレイアウトのまま配置されていた）。
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn marker<'a>(
+    orientation: Orientation,
     value: f64,
     current: f64,
     min: f64,
@@ -463,6 +475,7 @@ pub fn marker<'a>(
     let mut merged: Vec<(&str, &str)> =
         vec![("data-value", value_s.as_str()), ("data-state", state)];
     merged.extend(data_disabled(disabled));
+    merged.push(data_orientation(orientation));
     merged.extend(attrs);
     ANATOMY.part("marker", "div", merged, children)
 }
@@ -693,7 +706,14 @@ impl Slider {
         children: Vec<Node>,
     ) -> Node {
         marker(
-            value, self.value, self.min, self.max, disabled, attrs, children,
+            self.orientation,
+            value,
+            self.value,
+            self.min,
+            self.max,
+            disabled,
+            attrs,
+            children,
         )
     }
 }
@@ -1137,7 +1157,16 @@ mod tests {
 
     #[test]
     fn marker_outputs_scope_part_value_and_state() {
-        let html = render(&marker(20.0, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        let html = render(&marker(
+            Orientation::Horizontal,
+            20.0,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="slider""#));
         assert!(html.contains(r#"data-part="marker""#));
         assert!(html.contains(r#"data-value="20""#));
@@ -1146,32 +1175,133 @@ mod tests {
     }
 
     #[test]
+    fn marker_outputs_data_orientation_matching_slider() {
+        // イシュー #2020 PR #2167 レビュー指摘 P1（codex/Bugbot）: marker が
+        // `data-orientation` を出力しないと、vertical slider でも
+        // `fandhe-frontend-pre-styled-ui` 側の
+        // `[data-orientation="vertical"]` 規則が当たらず横向きレイアウトの
+        // まま配置されてしまう。他パーツ（track/thumb 等）と同じ
+        // `data-orientation` を marker も出力することを固定する。
+        let horizontal = render(&marker(
+            Orientation::Horizontal,
+            20.0,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(horizontal.contains(r#"data-orientation="horizontal""#));
+
+        let vertical = render(&marker(
+            Orientation::Vertical,
+            20.0,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(vertical.contains(r#"data-orientation="vertical""#));
+    }
+
+    #[test]
+    fn marker_caller_supplied_data_orientation_is_dropped() {
+        // イシュー #2020 PR #2167 レビュー指摘: `data-orientation` は
+        // `MARKER_RESERVED` 経由で呼び出し側 `attrs` からの偽装を拒否し、
+        // `Slider`/引数の `orientation` のみが正となる（`data-value`/
+        // `data-state`/`data-disabled` と同型の fail-closed 方針）。
+        let html = render(&marker(
+            Orientation::Horizontal,
+            20.0,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![("data-orientation", "vertical")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
+        assert!(!html.contains(r#"data-orientation="vertical""#));
+    }
+
+    #[test]
+    fn slider_marker_method_propagates_state_orientation() {
+        // イシュー #2020 PR #2167 レビュー指摘: `Slider::marker` 利便
+        // メソッド経由でも `self.orientation()` が `data-orientation` へ
+        // 伝搬することを固定する（自由関数 [`marker`] 単体のテストだけでは
+        // `Slider::marker` の配線漏れを検知できないため）。
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Vertical);
+        let html = render(&s.marker(50.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-orientation="vertical""#));
+    }
+
+    #[test]
     fn marker_data_state_over_value_when_greater_than_current() {
-        let html = render(&marker(80.0, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        let html = render(&marker(
+            Orientation::Horizontal,
+            80.0,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-state="over-value""#));
     }
 
     #[test]
     fn marker_data_state_at_value_when_equal_to_current() {
-        let html = render(&marker(50.0, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        let html = render(&marker(
+            Orientation::Horizontal,
+            50.0,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-state="at-value""#));
     }
 
     #[test]
     fn marker_value_is_clamped_to_range() {
-        let html = render(&marker(200.0, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        let html = render(&marker(
+            Orientation::Horizontal,
+            200.0,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-value="100""#));
     }
 
     #[test]
     fn marker_disabled_true_adds_data_disabled() {
-        let html = render(&marker(20.0, 50.0, 0.0, 100.0, true, vec![], vec![]));
+        let html = render(&marker(
+            Orientation::Horizontal,
+            20.0,
+            50.0,
+            0.0,
+            100.0,
+            true,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn marker_caller_supplied_value_and_state_are_dropped() {
         let html = render(&marker(
+            Orientation::Horizontal,
             20.0,
             50.0,
             0.0,
@@ -1193,13 +1323,23 @@ mod tests {
         // min > max は `f64::clamp` に直接渡すと panic するため、
         // `normalize` と同じ既定 (0.0, 100.0) へフォールバックすることを
         // 確認する（panic しないこと自体がこのテストの主眼）。
-        let html = render(&marker(20.0, 50.0, 100.0, 0.0, false, vec![], vec![]));
+        let html = render(&marker(
+            Orientation::Horizontal,
+            20.0,
+            50.0,
+            100.0,
+            0.0,
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-value="20""#));
     }
 
     #[test]
     fn marker_nan_min_max_does_not_panic_and_falls_back_to_default_range() {
         let html = render(&marker(
+            Orientation::Horizontal,
             20.0,
             50.0,
             f64::NAN,
@@ -1213,7 +1353,16 @@ mod tests {
 
     #[test]
     fn marker_nan_value_does_not_panic_and_falls_back_to_min() {
-        let html = render(&marker(f64::NAN, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        let html = render(&marker(
+            Orientation::Horizontal,
+            f64::NAN,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![],
+            vec![],
+        ));
         // value が非有限のときは min (0.0) へフォールバックし、"NaN" を
         // 出力しない。current (50.0) より小さいため under-value。
         assert!(html.contains(r#"data-value="0""#));
@@ -1226,7 +1375,16 @@ mod tests {
         // current が非有限のときは min へフォールバックする。value (20.0) は
         // clamp 後の current (0.0) より大きいため over-value になり、
         // clamp 前の生の current (NaN) に対する比較結果と矛盾しない。
-        let html = render(&marker(20.0, f64::NAN, 0.0, 100.0, false, vec![], vec![]));
+        let html = render(&marker(
+            Orientation::Horizontal,
+            20.0,
+            f64::NAN,
+            0.0,
+            100.0,
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-value="20""#));
         assert!(!html.contains("NaN"));
         assert!(html.contains(r#"data-state="over-value""#));

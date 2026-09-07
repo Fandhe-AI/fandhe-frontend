@@ -100,19 +100,56 @@
 //!   duration 一括 0ms 化で `trigger` の `color` transition について
 //!   自動的に尊重される。
 //!
+//! # shadcn/ui 突合（イシュー #2032）
+//!
+//! shadcn/ui（補完参照、`docs/design/shadcn-reference-adoption-policy.md`）の
+//! Hover Card（<https://ui.shadcn.com/docs/components/base/hover-card>、
+//! Base UI ベース）と突合した。掲載 Example は Basic（Avatar + ユーザー名/
+//! 説明文の合成カード）・Sides（Left/Top/Bottom/Right の開く方向を切り替える
+//! デモ）・RTL の 3 件、加えて `delay`/`closeDelay` プロパティ（Trigger Delays
+//! 節）を持つ。ローカル保存済みスクショ（`docs/design/reference-screenshots/
+//! shadcn-hover-card-{1,2,3}.png`）は 1・2 が hover 前の閉状態（`Hover Here`
+//! のみ）、3 が `Sides` デモのトリガー行で、開いた状態の中身は写っていない
+//! 制約があり、公式ページの Example 構成に基づいて以下を判定した。
+//!
+//! - **合成パターン（Basic Example）**: avatar + テキストの組み合わせは
+//!   [`crate::avatar`] の `root`/`image`/`fallback` と [`content`] の自由な
+//!   `children: Vec<Node>` で表現でき、新規 anatomy パート・新規 CSS は
+//!   不要と確認した。docs サイトの Examples 節新設
+//!   （`crates/docs-site/src/component_specs_overlay.rs` の
+//!   `ex_hover_card_user_preview`）で可視化した（本モジュールの
+//!   `recipe()`/公開シグネチャ/CSS 出力は一切変更しない）。
+//! - **side/align（Sides デモ）**: `docs/design/component-coverage-map.md`
+//!   の hover-card 行（#1641 で突合済み）で確定済みの「`data-side`/
+//!   `data-align` は positioner へ透過するが、実座標追従は
+//!   `fandhe-frontend-wasm-full` 側の実行時レイヤに委ねる」という意図的
+//!   差分を継続する。shadcn の `Sides` デモも Radix Popper 相当の JS 実測
+//!   配置であり、本リポジトリが採る「JS 実行時に委譲・SSR では静的固定」
+//!   という設計判断と矛盾しない。是正不要。
+//! - **delay（Trigger Delays 節）**: [`HoverCardDelays`]（ark-ui 準拠
+//!   `open_ms: 600`/`close_ms: 300`）は既に headless 層の責務としてスコープ
+//!   外であり、値の違いは shadcn 側の Base UI 既定値との「トークン値差」に
+//!   相当する（`docs/design/shadcn-reference-adoption-policy.md` §3
+//!   「合わせない」対象）。是正不要。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - variant（size 等）ごとのクラス切り替えは他の styled 部品と同じく
 //!   スコープ外とする（イシュー #1523 でも見送りを継続）。
 //! - `openDelay`/`closeDelay`/`interactive` は headless 層のドキュメント
 //!   （`crates/headless-ui/src/hover_card.rs`）で既にスコープ外と明記済みの
-//!   クライアントサイド実行時挙動であり、本モジュールもそれを継承する。
+//!   クライアントサイド実行時挙動であり、本モジュールもそれを継承する
+//!   （shadcn/ui の `delay`/`closeDelay`〔Trigger Delays 節〕も同種の実行時
+//!   プロパティであり、イシュー #2032 の突合でも追随しないことを確認した）。
 //! - `content`/`positioner` の開閉フェード演出（`hidden` 属性を遅延して
 //!   `opacity`/`visibility` の transition を描画させるライフサイクル）も
 //!   同じ理由でスコープ外とする（headless 層・`fandhe-frontend-wasm-full`
 //!   の実行時層をまたぐ設計変更が必要。PR #1799 codex-review/Bugbot 指摘）。
 //! - `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
-//!   [`crate::tooltip`]/[`crate::popover`] と同じ理由で本イシューの対象外。
+//!   [`crate::tooltip`]/[`crate::popover`] と同じ理由で本イシューの対象外
+//!   （shadcn/ui の `Sides` デモも同じ理由で対象外、上記突合節参照）。
+//! - `docs/design/component-coverage-map.md` の shadcn 列更新は姉妹イシュー
+//!   #2004（Phase 0）の担当範囲であり、本イシューでは触らない。
 
 use crate::css::decl;
 use crate::recipe::{

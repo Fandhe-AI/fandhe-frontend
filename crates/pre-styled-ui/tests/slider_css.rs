@@ -1,7 +1,8 @@
 //! styled Slider の決定的 CSS 出力ゴールデンテスト（イシュー #1505:
 //! トラック・レンジ・サムのスタイル調整〔親トラッキング #1504 の 1/2〕・
 //! イシュー #1506: マーカー・ラベル・値テキストと orientation 2 方向
-//! 〔#1504 の 2/2〕）。
+//! 〔#1504 の 2/2〕・イシュー #2020: shadcn/ui 突合で判明した Themes 側
+//! 追随ギャップの解消として marker-group/marker を styled 化）。
 //!
 //! `crates/pre-styled-ui/tests/angle_slider_css.rs`（イシュー #1445/#1446、
 //! 親 #1444）の golden fixture テストの前例に倣い、`stylesheet()` が返す
@@ -11,22 +12,20 @@
 //!
 //! 期待値は `crates/pre-styled-ui/src/slider.rs::recipe` の実出力から
 //! 生成した（#1505 のトラック/レンジ/サムの是正・#1506 のラベル/
-//! 値テキストの型階層・thumb vertical 状態規則の方向逆転修正を反映済み。
-//! #1504 の 2 分割はいずれも完了済み）。
+//! 値テキストの型階層・thumb vertical 状態規則の方向逆転修正・#2020 の
+//! marker-group/marker base/state 追加を反映済み）。
 
 use fandhe_frontend_pre_styled_ui::slider;
 
 /// `slider::stylesheet()` の期待値（バイト完全一致）。
 ///
 /// 出力順は `SlotRecipe::css`（`crates/pre-styled-ui/src/recipe.rs`）の
-/// 契約どおり「base（登録順: root → root disabled state → label →
-/// value-text → control → control vertical state → track → track
-/// vertical state → range → range vertical state → thumb → thumb
-/// vertical state → thumb disabled state → thumb transition base）→
+/// 契約どおり「base（登録順: root → label → control → track → range →
+/// thumb → thumb transition base → marker-group → marker → value-text）→
 /// variants（登録順: size → color-palette）→ states（登録順: root
 /// disabled → control vertical → track vertical → range vertical →
-/// thumb vertical → thumb disabled → thumb focus-visible → thumb
-/// hover）」。
+/// thumb vertical → thumb disabled → thumb focus-visible → marker
+/// vertical → marker over-value → thumb hover）」。
 const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
   display: inline-flex;
   flex-direction: column;
@@ -85,6 +84,24 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
   transition-property: background, border-color, box-shadow;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="slider"][data-part="marker-group"] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+[data-scope="slider"][data-part="marker"] {
+  position: absolute;
+  top: 50%;
+  left: var(--fandhe-slider-marker-percent, 0%);
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem);
+  border-radius: var(--fandhe-radius-full, 999px);
+  box-shadow: 0 0 0 1px var(--fandhe-color-bg);
+  background: var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
 [data-scope="slider"][data-part="value-text"] {
@@ -210,6 +227,19 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
 [data-scope="slider"][data-part="thumb"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="slider"][data-part="marker"][data-orientation="vertical"] {
+  top: auto;
+  bottom: var(--fandhe-slider-marker-percent, 0%);
+  left: 50%;
+  transform: translate(-50%, 50%);
+  width: calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem);
+  height: 2px;
+}
+
+[data-scope="slider"][data-part="marker"][data-state="over-value"] {
+  background: var(--fandhe-color-fg-muted);
 }
 
 @media (hover: hover) {

@@ -1800,6 +1800,76 @@ fn date_picker_example() -> Node {
     )])
 }
 
+/// イシュー #2013（shadcn/ui 突合）: `data-invalid` の CSS 消費追加を
+/// Examples 節でも実演する（`crates/docs-site/src/showcase.rs` の
+/// `date_picker_section` invalid/readonly デモ行と同型）。readonly は
+/// ネイティブ `<input readonly>` のまま追加の視覚宣言を持たない（PR #2177
+/// Cursor Bugbot 指摘を受けた是正、[`fandhe_frontend_pre_styled_ui::date_picker`]
+/// モジュール rustdoc「`input` の `data-readonly` 視覚化は見送る」節参照）
+/// ことを併せて示す。
+fn date_picker_invalid_readonly_example() -> Node {
+    let invalid_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
+        invalid: true,
+        ..Default::default()
+    };
+    let readonly_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
+        readonly: true,
+        ..Default::default()
+    };
+    // label と input を `for`/`id` で関連付ける（codex-review 指摘、
+    // イシュー #2013 PR #2177 修正ラウンド）: `label_id` は
+    // [`date_picker::label`] 自身の `id`（アンカーには使わず将来の
+    // `aria-labelledby` 拡張余地として保持）、`input_id` は label の
+    // `for_` と input の `id` の両方に渡し、スクリーンリーダーが
+    // ネイティブ `label[for]` 経由で入力欄の名前を取得できるようにする
+    // （[`date_picker::label`] rustdoc の関連付け契約参照）。
+    let build = |props: &fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps,
+                 label_id: &'static str,
+                 input_id: &'static str,
+                 label_text: &'static str| {
+        date_picker::root(
+            Size::Md,
+            OpenState::Closed,
+            props,
+            vec![],
+            vec![
+                date_picker::label(
+                    props,
+                    Some(label_id),
+                    Some(input_id),
+                    vec![],
+                    vec![text(label_text)],
+                ),
+                date_picker::control(
+                    OpenState::Closed,
+                    props,
+                    vec![],
+                    vec![date_picker::input(
+                        Some("2026-07-15"),
+                        props,
+                        Some(input_id),
+                        vec![],
+                    )],
+                ),
+            ],
+        )
+    };
+    row(vec![
+        build(
+            &invalid_props,
+            "spec-948-date-picker-invalid-label",
+            "spec-948-date-picker-invalid-input",
+            "Delivery date (invalid)",
+        ),
+        build(
+            &readonly_props,
+            "spec-948-date-picker-readonly-label",
+            "spec-948-date-picker-readonly-input",
+            "Delivery date (readonly)",
+        ),
+    ])
+}
+
 const DATE_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "popover 基盤 + Calendar 合成の日付選択部品",
@@ -1832,11 +1902,18 @@ const DATE_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
             description: "root 配下の子ノード。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "開いた状態の掲示",
-        description: "入力欄 + トリガー + Calendar 月グリッドを popover 内に合成します。",
-        render: date_picker_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "開いた状態の掲示",
+            description: "入力欄 + トリガー + Calendar 月グリッドを popover 内に合成します。",
+            render: date_picker_example,
+        },
+        ExampleEntry {
+            title: "invalid / readonly 状態（イシュー #2013）",
+            description: "shadcn/ui との突合で追加した `data-invalid`（枠線色）の CSS 消費と、readonly（ネイティブ `<input readonly>` のまま追加の視覚宣言を持たない意図的な見送り）を並べて実演します。",
+            render: date_picker_invalid_readonly_example,
+        },
+    ],
     keyboard: &[KeyRow {
         key: "Escape",
         description: "popover を閉じる（wasm 層実装）。",

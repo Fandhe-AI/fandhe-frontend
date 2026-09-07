@@ -118,11 +118,11 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
   transition-property: transform;
   transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));
   transition-timing-function: var(--fandhe-motion-easing-standard);
-  transform: translateX(calc(var(--fandhe-carousel-index, 0) * -100%));
+  transform: translateX(calc(var(--fandhe-carousel-index, 0) * -1 * var(--fandhe-carousel-item-basis, 100%)));
 }
 
 [data-scope="carousel"][data-part="item"] {
-  flex: 0 0 100%;
+  flex: 0 0 var(--fandhe-carousel-item-basis, 100%);
   min-width: 0;
   min-height: 0;
   overflow: hidden;

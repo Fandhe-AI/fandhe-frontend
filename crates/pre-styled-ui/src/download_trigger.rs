@@ -48,7 +48,11 @@
 //! 基準の見た目」を実現する手段になっている。
 //!
 //! - **継承により充足済み（是正不要）**: サイズ（`Size` 5 段、#1449）・
-//!   バリアント（`ButtonVariant` 6 種、#1448）・色（`--fandhe-palette-*`/
+//!   バリアント（`ButtonVariant` 7 種、#1448/#2009。#2009 で新設した
+//!   `Link` variant は button.rs 側の追加が `recipe_with_scope` 共有
+//!   経由で自動波及したものであり、ダウンロードリンクを「下線リンク風」
+//!   にする variant として本モジュールでもそのまま利用できる）・
+//!   色（`--fandhe-palette-*`/
 //!   `--fandhe-color-*` トークン経由）・ダーク（`Theme::to_css` のトークン
 //!   再定義）・フォーカス（`:focus-visible` + `focus_ring_declarations`、
 //!   #1448）・hover/disabled/トランジション（#1425/#1708 の共通ビジュアル
@@ -215,6 +219,7 @@ mod tests {
                 "fd-download-trigger--variant-surface",
             ),
             (ButtonVariant::Plain, "fd-download-trigger--variant-plain"),
+            (ButtonVariant::Link, "fd-download-trigger--variant-link"),
         ] {
             let props = DownloadTriggerProps {
                 variant,

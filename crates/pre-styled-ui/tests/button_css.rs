@@ -119,6 +119,14 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
   --fandhe-hover-bg: transparent;
 }
 
+[data-scope="button"][data-part="root"].fd-button--variant-link {
+  background: transparent;
+  color: var(--fandhe-palette);
+  border: none;
+  --fandhe-hover-bg: transparent;
+  --fandhe-hover-text-decoration: underline;
+}
+
 [data-scope="button"][data-part="root"].fd-button--color-palette-accent {
   --fandhe-palette: var(--fandhe-color-accent);
   --fandhe-palette-emphasized: var(--fandhe-color-accent-emphasized);
@@ -211,6 +219,7 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
 @media (hover: hover) {
   [data-scope="button"][data-part="root"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
+    text-decoration: var(--fandhe-hover-text-decoration, none);
   }
 }
 "#;

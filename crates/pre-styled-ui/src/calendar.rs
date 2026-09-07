@@ -134,9 +134,10 @@
 //!   イシュー #1625（anatomy 突合）の担当領域。
 //! - `day-trigger` の `data-outside-month` が `data-selected` より後に
 //!   登録されているため、selected かつ outside-month のセルで文字色が
-//!   上書きされ得る問題: `day-trigger` は 1/2 の担当スロットであり本
-//!   issue の宣言範囲外のため、本 PR には含めず別途の対応検討を提案する
-//!   （`.claude/rules/out-of-scope-tracking.md`）。
+//!   上書きされ得る問題: **イシュー #2010（shadcn/ui 突合）で是正済み**。
+//!   `recipe()` 内の登録順を `today → outside-month → selected` へ変更し、
+//!   `selected` の accent 文字色が必ず後勝ちするようにした（詳細は
+//!   `recipe()` 内の該当コメント参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -341,18 +342,6 @@ fn recipe() -> SlotRecipe {
         // `docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 A）。
         .state(
             "day-trigger",
-            StateCondition::Attr("data-selected"),
-            vec![
-                decl("background", "var(--fandhe-color-accent)"),
-                decl("color", "var(--fandhe-color-accent-fg)"),
-                // hover 時に base の muted 背景が選択表示を打ち消さないよう
-                // `--fandhe-hover-bg` を accent へ上書きする（本モジュール
-                // 冒頭 rustdoc「selected セルの hover 維持」節参照）。
-                decl("--fandhe-hover-bg", "var(--fandhe-color-accent)"),
-            ],
-        )
-        .state(
-            "day-trigger",
             StateCondition::Attr("data-today"),
             vec![
                 decl("font-weight", "700"),
@@ -364,6 +353,28 @@ fn recipe() -> SlotRecipe {
             "day-trigger",
             StateCondition::Attr("data-outside-month"),
             vec![decl("color", "var(--fandhe-color-fg-muted)")],
+        )
+        // `selected` は `outside-month` より後に登録する（イシュー #2010）。
+        // `SlotRecipe::css()` は `states` を登録順のままフラットに出力し、
+        // 同一詳細度（単一属性セレクタ同士）のルールは後勝ちになるため、
+        // 前月/翌月のはみ出し日（`data-outside-month`）を選択した際に
+        // `outside-month` の `color: var(--fandhe-color-fg-muted)` が
+        // `selected` の accent 文字色を上書きしてしまう不具合があった
+        // （headless-ui の `"select"` ディスパッチは選択日を変えるだけで
+        // 表示月を更新しないため、はみ出し日をクリックして選択する操作が
+        // 実際に起こり得る）。登録順をこの並びにすることで `selected` が
+        // 必ず最後に勝つ。
+        .state(
+            "day-trigger",
+            StateCondition::Attr("data-selected"),
+            vec![
+                decl("background", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-color-accent-fg)"),
+                // hover 時に base の muted 背景が選択表示を打ち消さないよう
+                // `--fandhe-hover-bg` を accent へ上書きする（本モジュール
+                // 冒頭 rustdoc「selected セルの hover 維持」節参照）。
+                decl("--fandhe-hover-bg", "var(--fandhe-color-accent)"),
+            ],
         )
         .state(
             "day-trigger",
@@ -597,5 +608,27 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="calendar"][data-part="table-head-cell"] {"#));
         assert!(css.contains("border-width: 0;\n  background: transparent;\n}"));
+    }
+
+    // イシュー #2010: shadcn/ui 突合で発見した selected × outside-month の
+    // 状態競合是正。`SlotRecipe::css()` は登録順のままフラットに CSS を
+    // 出力し、同一詳細度（単一属性セレクタ同士）のルールは後勝ちになる。
+    // `selected` の accent 文字色が `outside-month` の muted 文字色より
+    // 必ず後（＝CSS 文字列中で後方）に出現することを固定し、前月/翌月の
+    // はみ出し日を選択した場合でも文字色が正しく accent になることを
+    // 保証する。
+    #[test]
+    fn selected_state_wins_over_outside_month_in_css_order() {
+        let css = stylesheet();
+        let outside_idx = css
+            .find(r#"[data-scope="calendar"][data-part="day-trigger"][data-outside-month]"#)
+            .expect("outside-month rule must exist");
+        let selected_idx = css
+            .find(r#"[data-scope="calendar"][data-part="day-trigger"][data-selected]"#)
+            .expect("selected rule must exist");
+        assert!(
+            selected_idx > outside_idx,
+            "selected rule must be emitted after outside-month rule so it wins on equal specificity: selected_idx={selected_idx} outside_idx={outside_idx}"
+        );
     }
 }

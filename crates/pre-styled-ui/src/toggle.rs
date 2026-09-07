@@ -99,13 +99,48 @@
 //!   維持する
 //! - **variant 軸は新設しない**: 参照サイトの表現は単一の bordered ghost
 //!   風のみであり、solid/outline 等の variant 軸は追加しない（本イシューは
-//!   既存 variant 構成を変えない是正のみを担う）
+//!   既存 variant 構成を変えない是正のみを担う）。**この判断はイシュー
+//!   #2023（shadcn/ui 突合）により部分的に覆った。詳細は下記「shadcn/ui
+//!   突合（イシュー #2023）」節を参照。**
 //! - **影は追加しない**: 参照サイトの微妙な影は枠線 + hover で十分表現
 //!   されており、`border`/`box-shadow` の追加は見送る（button の是正でも
 //!   base への影追加は行っていない先例に倣う）
 //! - hover を `data-hover` 属性ではなく CSS `:hover`
 //!   （[`StateCondition::Hover`]）で表現する既存規約（switch/checkbox/
 //!   slider と同型）をそのまま踏襲した
+//!
+//! # shadcn/ui 突合（イシュー #2023）
+//!
+//! 親ツリー #2001（Phase 1、chakra-ui / Radix Themes / shadcn-ui の 3 者
+//! 共同主基準、イシュー #2153）の一環で shadcn/ui の Toggle
+//! （https://ui.shadcn.com/docs/components/base/toggle）と突合した。
+//!
+//! - **`variant` 軸を新設**: shadcn/ui は `variant: "default" | "outline"`
+//!   の 2 値を持つ（`"default"` は背景・輪郭なしの最小装飾、`"outline"` は
+//!   輪郭あり。on 時の塗り色はいずれも共通）。[`ToggleVariant`] として
+//!   `Outline`（既定、旧来の唯一の見た目を維持）・`Ghost`（新設、shadcn の
+//!   `"default"` 相当）の 2 値を追加した。**shadcn の名称
+//!   （`"default"`/`"outline"`）はそのまま持ち込まず、本リポジトリの既存
+//!   語彙（[`crate::button::ButtonVariant::Ghost`]、背景・輪郭なしの意味で
+//!   完全一致）に合わせて `Ghost` と命名する**（#1512 時点の「variant 軸は
+//!   新設しない」判断を、参照軸に shadcn-ui が加わったことにより部分的に
+//!   覆う変更）。
+//! - **純追加によるバイト互換**: `Ghost` は `border-color`/`background` の
+//!   2 宣言を上書きする variant 規則としてのみ追加し、既存 `base`/`state`
+//!   規則（`Outline` 相当の現行外観）は一切変更しない。on 状態・hover 面
+//!   （`hover_bg_muted`/`hover_bg_solid_with_fallback`）は Outline/Ghost で
+//!   共通のまま据え置く（shadcn も両 variant で on 時は同一の塗り色に
+//!   収束するため、色味の差は設けない）。
+//! - **size 3 段 → 5 段は変更なし**: #1512 の判断を維持（[`Size`] は
+//!   shadcn の `sm/default/lg` 3 段を包含するスーパーセット）。
+//! - **新規 `--fandhe-*` カスタムプロパティは追加しない**: サイト骨格 CSS
+//!   のトークン網羅性テストへの波及を避けるため、既存トークンの組み合わせ
+//!   のみで `Ghost` を表現する。
+//!
+//! `root()` は `variant` パラメータを `size` の直後に挿入する 0.x の
+//! 破壊的変更のため、`fandhe-frontend-pre-styled-ui` はマイナーバンプする
+//! （`.claude/rules/coding-rust.md` の 0.x 破壊的変更バンプ規則、button
+//! #2141 の `ButtonVariant::Link` 追加と同型）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -138,6 +173,34 @@ pub use fandhe_frontend_headless_ui::toggle::{indicator, ToggleAction};
 /// 一部パーツの CSS を出力しない fail-closed 側の不具合として現れるため、
 /// 変更時は両ファイルを合わせて確認する）。
 const SLOTS: &[&str] = &["root", "indicator"];
+
+/// `root` の外観 variant（イシュー #2023、shadcn/ui `variant: "default" |
+/// "outline"` との突合で新設）。shadcn の名称はそのまま持ち込まず、本
+/// リポジトリの既存語彙（[`crate::button::ButtonVariant::Ghost`]）に合わせて
+/// 命名する（本モジュール冒頭 rustdoc「shadcn/ui 突合（イシュー #2023）」
+/// 節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ToggleVariant {
+    /// 輪郭あり（既定、#1512 までの唯一の見た目を維持）。
+    #[default]
+    Outline,
+    /// 背景・輪郭なしの最小装飾（shadcn/ui の既定 `variant: "default"`
+    /// 相当。[`crate::button::ButtonVariant::Ghost`] と同じ意味論）。
+    Ghost,
+}
+
+impl VariantValue for ToggleVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Outline => "outline",
+            Self::Ghost => "ghost",
+        }
+    }
+}
 
 /// この styled Toggle の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -291,8 +354,22 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-toggle-font-size", "var(--fandhe-font-font-size-lg)"),
             ],
         )
+        // イシュー #2023: shadcn/ui 突合で新設した `variant` 軸。`Outline`
+        // は既存 base/state 規則がそのまま `outline` 相当であるため追加
+        // 宣言を持たない。`Ghost` のみ `border-color`/`background` の
+        // 2 宣言を上書きする（純追加。既存 base/state/palette 出力は
+        // バイト単位で不変）。
+        .variant(
+            ToggleVariant::Ghost,
+            "root",
+            vec![
+                decl("border-color", "transparent"),
+                decl("background", "transparent"),
+            ],
+        )
         .default_variant(Size::Md)
-        .default_variant(ColorPalette::Accent);
+        .default_variant(ColorPalette::Accent)
+        .default_variant(ToggleVariant::Outline);
 
     for palette in [
         ColorPalette::Accent,
@@ -326,12 +403,21 @@ pub fn stylesheet() -> String {
 /// use fandhe_frontend_pre_styled_ui::toggle;
 /// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 ///
-/// let node = toggle::root(Size::Md, ColorPalette::Accent, false, false, vec![], vec![]);
+/// let node = toggle::root(
+///     Size::Md,
+///     toggle::ToggleVariant::Outline,
+///     ColorPalette::Accent,
+///     false,
+///     false,
+///     vec![],
+///     vec![],
+/// );
 /// assert!(render(&node).contains(r#"data-scope="toggle" data-part="root""#));
 /// ```
 #[must_use]
 pub fn root<'a>(
     size: Size,
+    variant: ToggleVariant,
     palette: ColorPalette,
     pressed: bool,
     disabled: bool,
@@ -339,8 +425,11 @@ pub fn root<'a>(
     children: Vec<Node>,
 ) -> Node {
     let recipe = recipe();
-    let class =
-        recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
+    let class = recipe.variant_classes(&[
+        ("size", size.value()),
+        ("variant", variant.value()),
+        ("color-palette", palette.value()),
+    ]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::toggle::root(pressed, disabled, merged, children)
@@ -416,6 +505,7 @@ mod tests {
     fn root_outputs_scope_and_part() {
         let html = render(&root(
             Size::Md,
+            ToggleVariant::Outline,
             ColorPalette::Accent,
             false,
             false,
@@ -431,6 +521,7 @@ mod tests {
     fn default_variant_is_md_and_accent() {
         let html = render(&root(
             Size::Md,
+            ToggleVariant::Outline,
             ColorPalette::Accent,
             false,
             false,
@@ -438,6 +529,7 @@ mod tests {
             vec![],
         ));
         assert!(html.contains("fd-toggle--size-md"));
+        assert!(html.contains("fd-toggle--variant-outline"));
         assert!(html.contains("fd-toggle--color-palette-accent"));
     }
 
@@ -452,6 +544,7 @@ mod tests {
         ] {
             let html = render(&root(
                 size,
+                ToggleVariant::Outline,
                 ColorPalette::Accent,
                 false,
                 false,
@@ -460,6 +553,39 @@ mod tests {
             ));
             assert!(html.contains(class), "size={size:?} -> {html}");
         }
+    }
+
+    #[test]
+    fn variant_enumeration_maps_to_expected_classes() {
+        // イシュー #2023: shadcn/ui 突合で新設した `variant` 軸の class 出力
+        // を固定する（button の `variant_enumeration_maps_to_expected_classes`
+        // 同名パターンに倣う）。
+        for (variant, class) in [
+            (ToggleVariant::Outline, "fd-toggle--variant-outline"),
+            (ToggleVariant::Ghost, "fd-toggle--variant-ghost"),
+        ] {
+            let html = render(&root(
+                Size::Md,
+                variant,
+                ColorPalette::Accent,
+                false,
+                false,
+                vec![],
+                vec![],
+            ));
+            assert!(html.contains(class), "variant={variant:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn ghost_variant_overrides_border_and_background_only() {
+        // イシュー #2023: `Ghost` は `border-color`/`background` の 2 宣言を
+        // 上書きするのみの純追加であることを固定する（3.2 節の制約）。
+        let css = stylesheet();
+        assert!(
+            css.contains(r#"[data-scope="toggle"][data-part="root"].fd-toggle--variant-ghost {"#)
+        );
+        assert!(css.contains("border-color: transparent;"));
     }
 
     #[test]
@@ -472,7 +598,15 @@ mod tests {
             (ColorPalette::Danger, "fd-toggle--color-palette-danger"),
             (ColorPalette::Neutral, "fd-toggle--color-palette-neutral"),
         ] {
-            let html = render(&root(Size::Md, palette, false, false, vec![], vec![]));
+            let html = render(&root(
+                Size::Md,
+                ToggleVariant::Outline,
+                palette,
+                false,
+                false,
+                vec![],
+                vec![],
+            ));
             assert!(html.contains(class), "palette={palette:?} -> {html}");
         }
     }
@@ -481,6 +615,7 @@ mod tests {
     fn class_attr_is_single_and_caller_class_is_dropped() {
         let html = render(&root(
             Size::Md,
+            ToggleVariant::Outline,
             ColorPalette::Accent,
             false,
             false,
@@ -495,6 +630,7 @@ mod tests {
     fn caller_data_scope_and_part_spoofing_is_dropped() {
         let html = render(&root(
             Size::Md,
+            ToggleVariant::Outline,
             ColorPalette::Accent,
             false,
             false,
@@ -512,6 +648,7 @@ mod tests {
     fn root_attrs_attribute_breakout_payload_is_escaped() {
         let html = render(&root(
             Size::Md,
+            ToggleVariant::Outline,
             ColorPalette::Accent,
             false,
             false,

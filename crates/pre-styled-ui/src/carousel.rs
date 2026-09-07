@@ -85,6 +85,54 @@
 //!   headless 層（8 パーツ）の責務であり、本イシューはスタイルのみを
 //!   対象とする（`docs/policy/intentional-non-adoption.md` §3.25 の
 //!   UI 部品責務境界と同じ判断軸）。
+//!
+//! # shadcn/ui 突合（イシュー #2028）
+//!
+//! ルート #2001 の Phase 0 適用原則に従い、shadcn/ui の Carousel
+//! （<https://ui.shadcn.com/docs/components/base/carousel>、Embla Carousel
+//! ベース）を補完参照として突合した。#1518（chakra-ui/ark-ui 基準）の
+//! 判断を置き換えるものではなく、そこで拾えなかった欠落のみを補う。
+//!
+//! - **補完した点（唯一の実コード変更）**: shadcn の Sizes 例
+//!   （`basis-1/3` 等で複数スライドを同時表示）に相当する機能が既存 CSS
+//!   になく、`item` の `flex-basis` が `100%` 固定で常に 1 件しか表示
+//!   できなかった。CSS カスタムプロパティ `--fandhe-carousel-item-basis`
+//!   （既定 `100%`、明示フォールバック付き）を新設し、`item` の
+//!   `flex-basis` と横方向 `item-group` の `translateX` 係数の両方を
+//!   このトークンでパラメータ化した。
+//! - **水平・垂直の非対称性（意図的）**: 横方向は移動主体（`item-group`
+//!   の `translateX`）と伸縮主体（`item` の `flex-basis`）が別要素の
+//!   ため、`translateX` 側にも `* var(--fandhe-carousel-item-basis,
+//!   100%)` を掛けて係数化する必要がある。一方、縦方向の
+//!   `translateY(calc(var(--fandhe-carousel-index, 0) * -100%))`
+//!   （`item` state、上記「transform ベースのスライド位置表現」節参照）は
+//!   移動主体・伸縮主体がともに `item` 自身であり、`item` の border box
+//!   （＝既に basis 分だけ縮小された高さ）を基準に百分率解決されるため、
+//!   `item` の `flex-basis` を basis 化するだけで「1 ステップ＝自分の
+//!   高さ分移動」という意味が basis 値に関わらず自動的に保たれる。ここへ
+//!   `* var(--fandhe-carousel-item-basis, ...)` を追加で掛けると二重
+//!   スケールになり誤りであるため、縦方向の `translateY` 宣言はあえて
+//!   変更していない。
+//! - **既知の制約**: `--fandhe-carousel-item-basis` を `100%` 未満に
+//!   設定しても、headless `Carousel` の `index` は引き続き
+//!   `0..slide_count-1` を素朴に走査するのみで、Embla の `align`/端の
+//!   クランプ相当の調整は行わない。そのため末尾側では表示領域に空白が
+//!   残り得る（バグではなく既知の制約として扱う）。
+//! - **意図的に追随しない差分**:
+//!   - **Spacing（スライド間の余白）**: 上記「参考サイト基準への調整」
+//!     節で既に不採用と判断済み。`--fandhe-carousel-item-basis` 追加後も
+//!     gap を足すには `translateX`/`translateY` の幾何計算自体の見直しが
+//!     必要な点は変わらないため、既存判断を維持する。
+//!   - **Plugins（autoplay 等）**: インタラクション拡張であり、上記
+//!     「autoplay インジケータ等の anatomy 追加は不採用」と同じ理由で
+//!     headless 層・本イシューいずれのスコープ外。
+//!   - **Options（loop/align）・API（setApi）・RTL（dir）**: 状態遷移・
+//!     実行時計測・方向反転はいずれも headless-ui/interactive 層または
+//!     呼び出し側アプリの関心であり、本イシューは Themes 側のみが対象
+//!     （issue 本文の明示スコープ）。
+//!   - **Thumbnails**: shadcn 公式ページ（上記 URL）の Examples 一覧
+//!     （Sizes/Spacing/Orientation/Options/API/Plugins/RTL）に該当する
+//!     例は存在せず、突合対象外。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -203,14 +251,14 @@ fn recipe() -> SlotRecipe {
                 decl("transition-timing-function", "var(--fandhe-motion-easing-standard)"),
                 decl(
                     "transform",
-                    "translateX(calc(var(--fandhe-carousel-index, 0) * -100%))",
+                    "translateX(calc(var(--fandhe-carousel-index, 0) * -1 * var(--fandhe-carousel-item-basis, 100%)))",
                 ),
             ],
         )
         .base(
             "item",
             vec![
-                decl("flex", "0 0 100%"),
+                decl("flex", "0 0 var(--fandhe-carousel-item-basis, 100%)"),
                 // PR #1925 codex-review 指摘 是正（5 回目・P1 2 件）:
                 // orientation によらず `item` の寸法固定・内容クリップを
                 // ここへ一本化する（縦横で対称、state 側の重複宣言を排除）。
@@ -545,9 +593,13 @@ mod tests {
     #[test]
     fn item_group_transform_consumes_fandhe_carousel_index_css_var() {
         let css = stylesheet();
-        assert!(
-            css.contains("transform: translateX(calc(var(--fandhe-carousel-index, 0) * -100%));")
-        );
+        // イシュー #2028: shadcn/ui 突合で新設した `--fandhe-carousel-item-basis`
+        // による係数化後の期待値（横方向は移動主体と伸縮主体が別要素のため
+        // basis を transform 側にも掛ける必要がある、モジュール rustdoc
+        // 「shadcn/ui 突合」節参照）。
+        assert!(css.contains(
+            "transform: translateX(calc(var(--fandhe-carousel-index, 0) * -1 * var(--fandhe-carousel-item-basis, 100%)));"
+        ));
     }
 
     #[test]
@@ -596,12 +648,49 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(
             "[data-scope=\"carousel\"][data-part=\"item\"] {\n  \
-             flex: 0 0 100%;\n  \
+             flex: 0 0 var(--fandhe-carousel-item-basis, 100%);\n  \
              min-width: 0;\n  \
              min-height: 0;\n  \
              overflow: hidden;\n\
              }\n"
         ));
+    }
+
+    #[test]
+    fn item_basis_var_reference_always_has_explicit_fallback() {
+        // イシュー #2028: `--fandhe-carousel-item-basis` へのすべての
+        // `var()` 参照が明示フォールバックを持つことを固定する
+        // （`position_geometry_var_references_never_lack_an_explicit_fallback`
+        // と同型）。
+        let css = stylesheet();
+        let mut found = false;
+        for (idx, _) in css.match_indices("var(--fandhe-carousel-item-basis") {
+            found = true;
+            let close = css[idx..]
+                .find(')')
+                .expect("every var( occurrence must be closed within the stylesheet");
+            let inside = &css[idx + "var(".len()..idx + close];
+            assert!(
+                inside.contains(','),
+                "var() reference without an explicit fallback found: var({inside})"
+            );
+        }
+        assert!(
+            found,
+            "expected at least one --fandhe-carousel-item-basis var() reference"
+        );
+    }
+
+    #[test]
+    fn item_flex_basis_defaults_to_full_width_when_unset() {
+        // イシュー #2028: `--fandhe-carousel-item-basis` を定義しない
+        // テーマでも従来どおり単一表示（`100%`）を保つフォールバックを
+        // 固定する（`radius_full_fallback_keeps_pill_shape_on_theme_without_radius_full_token`
+        // と同型の判断）。
+        let css = crate::theme::Theme::empty().to_css();
+        assert!(!css.contains("--fandhe-carousel-item-basis"));
+        let css = stylesheet();
+        assert!(css.contains("flex: 0 0 var(--fandhe-carousel-item-basis, 100%);"));
     }
 
     #[test]

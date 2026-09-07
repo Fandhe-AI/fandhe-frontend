@@ -90,6 +90,64 @@
 //!   非対話要素（`current-link` は `aria-current="page"` の非リンクテキスト、
 //!   `separator`/`ellipsis` は装飾）のため hover フィードバックは付けない。
 //!
+//! # shadcn/ui 突合（イシュー #2027）
+//!
+//! `#1420`（chakra-ui / Radix Themes 基準の視覚調整、#1517 で反映済み）の
+//! 補完参照として shadcn/ui Breadcrumb
+//! （<https://ui.shadcn.com/docs/components/base/breadcrumb>）と突合した
+//! （ルート #2001 Phase 0 確定の適用原則: shadcn/ui は既存の視覚言語を
+//! 置き換えず欠落分のみ補う）。詳細な所見はイシュー #2027 のコメントに
+//! 記録する。
+//!
+//! **補完した点**:
+//!
+//! - **`list` の `overflow-wrap: break-word`**: shadcn の `BreadcrumbList`
+//!   実 registry ソース（`break-words` ユーティリティ、生 CSS 宣言に
+//!   換算すると `overflow-wrap: break-word`）を追随した。長いラベルが
+//!   コンテナ幅を超えて溢れるのを防ぐレイアウト是正であり、トークンを
+//!   要さない生値のため低リスクで採用した。PR #2142 codex-review P2
+//!   指摘是正: `list`（`display: flex`）配下の `item`（`display:
+//!   inline-flex`）とその子 `link`/`current-link` はいずれも flex item
+//!   であり、flex item の `min-width` 初期値は `auto`（内容の
+//!   min-content 幅未満に縮まない）のため、`overflow-wrap` を `list` に
+//!   付けるだけでは折り返し候補が幅計算に反映されずコンテナからはみ出る
+//!   （`overflow-wrap` 自体は継承されるが、祖先チェーンが縮まなければ
+//!   効果が出ない）。`item`/`link`/`current-link` の 3 パーツへ
+//!   `min-width: 0` を追加し、他部品（`crate::alert`/`crate::card` 等）
+//!   と同じ確立パターンで auto 制約を外した。
+//!
+//! **意図的に追随しない差分**（根拠を記録し、再評価は
+//! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
+//!
+//! - **`list` の `sm:gap-2.5`（`>= 640px` で `gap` を広げるレスポンシブ
+//!   breakpoint）**: shadcn 実 registry ソースで存在を確認したが、本
+//!   リポジトリの [`crate::recipe::SlotRecipe`]・全 110+ Themes 部品の
+//!   どこにも `@media (min-width: …)` breakpoint プリミティブの前例が
+//!   ない。単一部品のための新設は横断設計判断（新規機構の導入）であり
+//!   本イシュー単体のスコープ外と判断し、`gap` は `--fandhe-space-1-5`
+//!   固定のまま据え置く。
+//! - **responsive drawer への折り畳み退避**: shadcn の Examples 節に
+//!   ビューポート幅に応じたパンくず全体のドロワー退避パターンがあるが、
+//!   JS によるビューポート計測を要し `docs/policy/intentional-non-adoption.md`
+//!   §3.25 規則 2（装飾・レイアウト計測の関心は headless/pre-styled の
+//!   静的性を崩すため持ち込まない）に抵触するため不採用。
+//! - **省略記号 + dropdown 合成 / custom separator**: いずれも既存 API
+//!   （`breadcrumb::item` 内への `menu` 部品の配置（`menu::trigger` の
+//!   表示文字列を省略記号にする）、[`separator`] の自由な `children`）
+//!   だけで表現可能と確認済みであり、コード変更を要しない（Demo
+//!   （`crates/docs-site/src/showcase.rs::breadcrumb_section`）で実演を
+//!   追加した）。[`ellipsis`] は `<li>` 固定・非対話のため `menu::trigger`
+//!   （`<button>`、phrasing content のみ許容）の子にすると不正なネスト
+//!   になり使えない（Demo 側コメント参照）。
+//! - **`current-link` の `role="link"`/`aria-disabled="true"`**: shadcn の
+//!   `BreadcrumbPage` はこの 2 属性に加え `aria-current="page"` を持つ
+//!   （本モジュールは `aria-current="page"` のみ）。ARIA セマンティクスは
+//!   headless-ui 層（`crates/headless-ui/src/breadcrumb.rs::current_link`）
+//!   の責務であり、本イシュー（pre-styled-ui のみ）のスコープ外。
+//!   headless-ui 側フォローアップ候補として記録するに留め、
+//!   `.claude/rules/out-of-scope-tracking.md` に従いユーザー承認なしに
+//!   Issue は起票しない。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
@@ -172,6 +230,11 @@ fn recipe() -> SlotRecipe {
                     "font-size",
                     "var(--fandhe-breadcrumb-font-size, var(--fandhe-font-font-size-md))",
                 ),
+                // イシュー #2027: shadcn/ui `BreadcrumbList` の `break-words`
+                // 相当。長いラベルがコンテナ幅を超えて溢れるのを防ぐ
+                // （トークン非依存の生値、モジュール doc「shadcn/ui 突合」
+                // 節参照）。
+                decl("overflow-wrap", "break-word"),
             ],
         )
         .base(
@@ -183,6 +246,16 @@ fn recipe() -> SlotRecipe {
                 // codex-review #1791 P1 指摘: `list` と同じ理由で
                 // フォールバック `0.375rem` を明示する。
                 decl("gap", "var(--fandhe-space-1-5, 0.375rem)"),
+                // PR #2142 codex-review P2 指摘是正: `item` は `list`
+                // （`display: flex`）の flex item であり、flex item の
+                // `min-width` 初期値は `auto`（= 内容の min-content 幅）
+                // のため、`list` に付けた `overflow-wrap: break-word`
+                // だけでは長いラベルの折り返し候補が幅計算に含まれず
+                // コンテナからはみ出る。`min-width: 0` で auto 制約を
+                // 外し、子（`link`/`current-link`）側の折り返しが実際に
+                // 効くようにする（他部品と同じ確立パターン、
+                // `crate::alert`/`crate::card` 等参照）。
+                decl("min-width", "0"),
             ],
         )
         .base(
@@ -200,6 +273,12 @@ fn recipe() -> SlotRecipe {
                 // する（`Theme::empty()` 系カスタムテーマで computed-value
                 // time に無効となり角丸が失われるのを防ぐ）。
                 decl("border-radius", "var(--fandhe-radius-sm, 0.25rem)"),
+                // PR #2142 codex-review P2 指摘是正: `link` は `item`
+                // （`display: inline-flex`）の flex item でもあるため、
+                // `item` と同じ理由で `min-width: 0` を付け、内側の
+                // テキストが `overflow-wrap: break-word`（`list` から
+                // 継承）で実際に折り返せるようにする。
+                decl("min-width", "0"),
             ],
         )
         // イシュー #1517: `link` の色 transition（`crate::recipe` 冒頭 doc
@@ -213,6 +292,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                // PR #2142 codex-review P2 指摘是正: `current-link` も
+                // `item`（`display: inline-flex`）の flex item のため、
+                // `link` と同じ理由で `min-width: 0` を付ける。
+                decl("min-width", "0"),
             ],
         )
         .base(
@@ -486,6 +569,9 @@ mod tests {
         // 後方互換のためフォールバック付き（`var(--fandhe-space-1-5, 0.375rem)`）
         // であることを golden fixture として固定する。
         assert!(css.contains("gap: var(--fandhe-space-1-5, 0.375rem);"));
+        // イシュー #2027: shadcn/ui `BreadcrumbList` の `break-words` 相当
+        // （`overflow-wrap: break-word`）を golden fixture として固定する。
+        assert!(css.contains("overflow-wrap: break-word;"));
     }
 
     #[test]

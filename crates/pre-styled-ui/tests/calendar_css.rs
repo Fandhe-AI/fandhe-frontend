@@ -27,7 +27,10 @@ use fandhe_frontend_pre_styled_ui::calendar;
 /// prev-trigger transition base → next-trigger → next-trigger transition
 /// base → table → table-head-cell → table-cell → day-trigger →
 /// day-trigger transition base）→ variants（登録順: size 5 段）→
-/// states（登録順: day-trigger selected → today → outside-month →
+/// states（登録順: day-trigger today → outside-month → selected（イシュー
+/// #2010 で selected を outside-month より後へ入れ替え。同一詳細度の
+/// ルールは後勝ちのため、selected かつ outside-month のセルで accent
+/// 文字色が確実に勝つようにする是正）→
 /// disabled → focus-visible → prev-trigger disabled → hover → focus-visible
 /// → next-trigger disabled → hover → focus-visible）→
 /// `@media (hover: hover)`（day-trigger → prev-trigger → next-trigger の
@@ -163,12 +166,6 @@ const EXPECTED_CSS: &str = r#"[data-scope="calendar"][data-part="root"] {
   --fandhe-calendar-day-size: var(--fandhe-space-12);
 }
 
-[data-scope="calendar"][data-part="day-trigger"][data-selected] {
-  background: var(--fandhe-color-accent);
-  color: var(--fandhe-color-accent-fg);
-  --fandhe-hover-bg: var(--fandhe-color-accent);
-}
-
 [data-scope="calendar"][data-part="day-trigger"][data-today] {
   font-weight: 700;
   text-decoration: underline;
@@ -177,6 +174,12 @@ const EXPECTED_CSS: &str = r#"[data-scope="calendar"][data-part="root"] {
 
 [data-scope="calendar"][data-part="day-trigger"][data-outside-month] {
   color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="calendar"][data-part="day-trigger"][data-selected] {
+  background: var(--fandhe-color-accent);
+  color: var(--fandhe-color-accent-fg);
+  --fandhe-hover-bg: var(--fandhe-color-accent);
 }
 
 [data-scope="calendar"][data-part="day-trigger"][data-disabled] {

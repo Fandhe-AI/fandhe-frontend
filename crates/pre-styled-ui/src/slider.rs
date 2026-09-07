@@ -97,9 +97,11 @@
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - headless 層と同じく range slider（複数 thumb）・Marker/MarkerGroup・
-//!   pointer ドラッグ/キーボード操作の DOM 配線はスコープ外
-//!   （`fandhe_frontend_headless_ui::slider` モジュール doc 参照）。
+//! - headless 層と同じく range slider（複数 thumb）・pointer ドラッグ/
+//!   キーボード操作の DOM 配線はスコープ外（`fandhe_frontend_headless_ui::slider`
+//!   モジュール doc 参照）。Marker/MarkerGroup は下記「イシュー #2020」節の
+//!   とおり本イシューでスタイル対応済みであり、この行の対象外（#1505/#1506
+//!   完了時点ではスコープ外だった名残の記述を #2020 で更新）。
 //! - `examples/headless-pre-styled-ui`（crates.io バージョン依存）への
 //!   Slider 追加は、未公開の新バージョンを参照できないため本イシューの
 //!   スコープ外とする（[`crate::number_input`] 冒頭 rustdoc の先例どおり
@@ -133,15 +135,14 @@
 //! - `label`/`value-text` は非インタラクティブなテキストのため hover/
 //!   transition は追加しない（angle-slider #1446 と同じ判断）。
 //!
-//! ## マーカー: 意図的非採用
+//! ## マーカー: #1505/#1506 完了時点は意図的非採用（#2020 で解消）
 //!
-//! headless anatomy（`crates/headless-ui/src/slider.rs`）に Marker/
-//! MarkerGroup パーツが存在せず、anatomy 追加は headless-ui の責務で本
-//! モジュールの範囲外。angle-slider #1445 の「CSS-only 目盛りリング」先例は
-//! 360° 一様な装飾だから成立したが、linear slider のマーカーは任意の値
-//! 位置に意味を持って置かれる（chakra/ark-ui の Marker は値指定）ため、
-//! DOM なしの CSS-only 再現は意味論的に成立しない。追加する場合は headless
-//! 層のイシューから着手する必要がある。
+//! #1505/#1506 完了時点では headless anatomy（`crates/headless-ui/src/slider.rs`）
+//! に Marker/MarkerGroup パーツが存在せず、意図的非採用としていた。その後
+//! イシュー #1904（PR #1875、親 #1621）で headless 側に `marker_group`/
+//! `marker` anatomy パーツが追加済みであり、本モジュールはイシュー #2020 で
+//! これへ追随し styled [`marker_group`]/[`marker`] を新設した（詳細は下記
+//! 「イシュー #2020」節参照）。この節の記述は当時の判断の記録として残す。
 //!
 //! ## vertical 状態規則の再設計（実バグ修正）
 //!
@@ -156,6 +157,55 @@
 //! 値は 1 系統のまま）という既存契約は不変で、CSS の参照プロパティのみを
 //! 切り替えている。`control`/`track`/`range` の既存 vertical 規則と root の
 //! column レイアウトは参照サイトと整合しており変更していない。
+//!
+//! # イシュー #2020: shadcn/ui 突合
+//!
+//! shadcn/ui（<https://ui.shadcn.com/docs/components/base/slider>）の参照
+//! スクリーンショット 3 枚はいずれも複数 thumb（range slider）のバリエー
+//! ションで、disabled・vertical・size 等の単一値バリアントは撮影されて
+//! いない。複数 thumb は headless-ui が `#741` 以来一貫してスコープ外と
+//! している構造的制約（anatomy に thumb 複数化・`data-index` 等の機構が
+//! ない）であり、Themes 層だけでは対応不可能なため本イシューでも意図的
+//! 非採用のまま据え置く（対応する場合は headless-ui 側の新規イシューから
+//! 着手する必要がある）。
+//!
+//! 一方、突合作業中に「マーク・値表示の有無」という既存ギャップ（shadcn/ui
+//! 自体はマークを持たないが、参考 4 サイトの chakra-ui/Radix Themes/Radix
+//! Primitives/ark-ui は Marker 相当を持つ）が判明した。headless anatomy
+//! （`fandhe_frontend_headless_ui::slider::marker_group`/`marker`）は
+//! イシュー #1904（PR #1875、親 #1621）で既に追加済みだったが、本モジュール
+//! の styled 層は追随しておらず未スタイルのままだった。上記「マーカー」節の
+//! とおり、本イシューでこの Themes 側追随ギャップを解消し、styled
+//! [`marker_group`]/[`marker`] を新設した。
+//!
+//! ## マーカーのスタイル方針
+//!
+//! - `marker-group`: `control`（`position: relative`）に対する絶対配置
+//!   オーバーレイコンテナ（`inset: 0` 相当）。`pointer-events: none` を
+//!   付与し、`track`/`thumb` のクリック・ドラッグ判定を奪わない。
+//! - `marker`: [`range`]/[`thumb_styled`] と同型の「動的値は 1 属性の
+//!   `style` のみ」方針を踏襲し、`--fandhe-slider-marker-percent` custom
+//!   property で位置を伝搬する（[`marker`] 関数のみが計算・付与する）。
+//!   horizontal は `left` + `translateX(-50%)`、vertical
+//!   （`data-orientation="vertical"`）は `thumb` と同じ `bottom` アンカー
+//!   方式に切り替える。`data-state`（`under-value`/`over-value`/
+//!   `at-value`）で色を作り分け、`under-value`/`at-value` は `range` と
+//!   揃えた palette 色、`over-value` は `--fandhe-color-fg-muted`（イシュー
+//!   #2020 PR #2167 レビュー指摘 P1: 旧実装は `track` と同一トークン
+//!   `--fandhe-color-border` を使い track 上で完全に同化していたため、実
+//!   コントラストのあるトークンへ変更した）とする。marker 自体も track と
+//!   同じ丈だと range/track に重なる部分が同化するため、track 高より一回り
+//!   高くして上下へ突出させ、加えて `--fandhe-color-bg`（ページ背景色）1px
+//!   の `box-shadow` リングで track/range いずれの背景色に対しても輪郭が
+//!   見えるようにしている（同レビュー指摘）。既存デザイントークン
+//!   （`--fandhe-color-*`/`--fandhe-radius-full`）のみを再利用し、新規
+//!   トークンは追加しない。
+//! - angle-slider（[`crate::angle_slider`]）は円形スライダー固有の理由
+//!   （目盛りを `control` の多層 `background` グラデーションで CSS-only
+//!   再現しているため DOM マーカーが不要）でマーカーを意図的に非スタイル
+//!   のままとしている。この判断は任意の値位置に意味を持つ linear slider の
+//!   マーカーには転用できないため、`angle_slider` の前例を「マーカー
+//!   非スタイルの一般方針」と誤読しないこと。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -186,6 +236,8 @@ const SLOTS: &[&str] = &[
     "track",
     "range",
     "thumb",
+    "marker-group",
+    "marker",
     "hidden-input",
     "value-text",
 ];
@@ -209,6 +261,35 @@ fn drop_style_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)
 /// 組み立てる（動的値はこの 1 箇所のみ、モジュール doc 参照）。
 fn percent_style(percent: f64) -> String {
     format!("--fandhe-slider-percent: {percent}%")
+}
+
+/// [`marker`] 専用の位置 custom property（`--fandhe-slider-marker-percent`）
+/// を設定する `style` 属性値を組み立てる（イシュー #2020。[`percent_style`]
+/// と同型だが、マーカーは `Slider` の現在値ではなく `marker` 自身が表す
+/// 任意の目盛り値から算出するため、別 custom property・別ヘルパとする）。
+///
+/// `min`/`max`/`value` の非有限値（`NaN`/`Infinity`）に対する正規化は
+/// headless 側 [`fandhe_frontend_headless_ui::slider::marker`] の fail-closed
+/// 規約（`min`/`max` が非有限または `min >= max` なら既定 `(0.0, 100.0)` へ、
+/// `value` が非有限なら `min` へフォールバック、イシュー #1621 PR #1904）と
+/// 同じ計算をここでも行う。`data-value`/`data-state`（headless 側で計算）と
+/// `--fandhe-slider-marker-percent`（styled 層で計算する見た目位置）の間で
+/// 正規化結果が食い違うと、マーカーの描画位置が `data-*` の意味と矛盾する
+/// （`value` に `NaN` を渡すアプリコードで実際に発生し得る不具合）。
+fn marker_percent_style(min: f64, max: f64, value: f64) -> String {
+    let (min, max) = if min.is_finite() && max.is_finite() && min < max {
+        (min, max)
+    } else {
+        (0.0, 100.0)
+    };
+    let value = if value.is_finite() { value } else { min };
+    let span = max - min;
+    let percent = if span > 0.0 {
+        ((value.clamp(min, max) - min) / span * 100.0).clamp(0.0, 100.0)
+    } else {
+        0.0
+    };
+    format!("--fandhe-slider-marker-percent: {percent}%")
 }
 
 /// この styled Slider の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
@@ -430,6 +511,84 @@ fn recipe() -> SlotRecipe {
             // 新トークン未定義の既存カスタムテーマでも見た目は不変。
             focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
+        // イシュー #2020: `marker-group`/`marker` の styled 化（headless
+        // anatomy はイシュー #1904 で追加済み、モジュール doc「イシュー
+        // #2020」節参照）。`marker-group` はクリック・ドラッグ判定を
+        // `track`/`thumb` から奪わないよう `pointer-events: none` の
+        // オーバーレイコンテナとする。
+        .base(
+            "marker-group",
+            vec![
+                decl("position", "absolute"),
+                decl("inset", "0"),
+                decl("pointer-events", "none"),
+            ],
+        )
+        .base(
+            "marker",
+            vec![
+                decl("position", "absolute"),
+                decl("top", "50%"),
+                decl("left", "var(--fandhe-slider-marker-percent, 0%)"),
+                decl("transform", "translate(-50%, -50%)"),
+                decl("width", "2px"),
+                // イシュー #2020 PR #2167 レビュー指摘 P1（codex/Bugbot）:
+                // トラック高と同じ丈だと under/at-value（range と同色）・
+                // over-value（旧: track と同色）のいずれも背景へ同化して
+                // 視認できない。track 高より一回り高くしてトラック上下へ
+                // 突出させ、track/range に重ならない部分（`control` の空白
+                // 領域）で常に輪郭が見えるようにする。
+                decl(
+                    "height",
+                    "calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem)",
+                ),
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
+                // 突出のみでは track/range 上に重なる中央部分がなお同化する
+                // ため、`--fandhe-color-bg`（ページ背景）1px のリング
+                // （box-shadow）を輪郭として重ね、track/range いずれの色に
+                // 対しても縁取りで区別できるようにする（native
+                // `<input type="range">` の datalist tick と同型の視認性
+                // 対処）。
+                decl("box-shadow", "0 0 0 1px var(--fandhe-color-bg)"),
+                // under-value/at-value（現在値に達済みのマーカー）は range
+                // と同じ palette 色、over-value（未到達）は下記状態規則で
+                // より濃いミュート色へ上書きする。
+                decl(
+                    "background",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+            ],
+        )
+        .state(
+            "marker",
+            StateCondition::AttrEq("data-orientation", "vertical"),
+            vec![
+                decl("top", "auto"),
+                decl("bottom", "var(--fandhe-slider-marker-percent, 0%)"),
+                decl("left", "50%"),
+                decl("transform", "translate(-50%, 50%)"),
+                decl(
+                    "width",
+                    "calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem)",
+                ),
+                decl("height", "2px"),
+            ],
+        )
+        .state(
+            "marker",
+            StateCondition::AttrEq("data-state", "over-value"),
+            // イシュー #1505 の thumb disabled 状態規則（`opacity` は root の
+            // `disabled_declarations()` が既に全体へ視覚適用済みのため個別
+            // 追加しない、上記コメント参照）と同じ判断で、marker の
+            // disabled 専用宣言は追加しない。
+            // イシュー #2020 PR #2167 レビュー指摘 P1: 旧 `--fandhe-color-border`
+            // は `track` の背景そのものと同色（同一トークン参照）のため
+            // over-value のマーカーが track 上で完全に同化していた。
+            // `--fandhe-color-fg-muted` はライト/ダーク双方で `border` より
+            // 明確に濃く（例: light `#4a4a4a` vs `border` の `#d9d9d9`）、
+            // track 背景との実コントラストを確保する。
+            vec![decl("background", "var(--fandhe-color-fg-muted)")],
+        )
         .variant(
             Size::Xs,
             "root",
@@ -556,6 +715,36 @@ pub fn thumb_styled<'a>(
     state.thumb(aria_valuetext, props, merged, Vec::new())
 }
 
+/// styled marker-group パーツを組み立てる（イシュー #2020）。状態を持たない
+/// コンテナのため `state` は受け取らず、headless
+/// [`fandhe_frontend_headless_ui::slider::marker_group`] へそのまま委譲する
+/// （モジュール doc「イシュー #2020」節参照）。
+#[must_use]
+pub fn marker_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::slider::marker_group(attrs, children)
+}
+
+/// styled marker パーツを組み立てる（イシュー #2020）。[`range`]/[`thumb_styled`]
+/// と同じ「動的値は 1 属性の `style` のみ」方針を踏襲し、`marker` 自身の
+/// 目盛り値（`value`）と `state`（`Slider`）の `min`/`max` から
+/// `--fandhe-slider-marker-percent` を算出して付与する（[`drop_style_attr`]
+/// で呼び出し側 `style` を dedup）。`data-value`/`data-state`/`data-disabled`
+/// の算出は [`Slider::marker`] へ委譲する（現在値との大小関係の正規化は
+/// headless 層の責務、モジュール doc 参照）。
+#[must_use]
+pub fn marker<'a>(
+    state: &Slider,
+    value: f64,
+    disabled: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let style = marker_percent_style(state.min(), state.max(), value);
+    let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
+    merged.extend(drop_style_attr(attrs));
+    state.marker(value, disabled, merged, children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -622,6 +811,58 @@ mod tests {
     }
 
     #[test]
+    fn stylesheet_marker_group_is_a_pointer_events_none_overlay() {
+        // イシュー #2020: `marker-group` は `track`/`thumb` のクリック・
+        // ドラッグ判定を奪わないことを固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="slider"][data-part="marker-group"] {"#));
+        assert!(css.contains("pointer-events: none;"));
+    }
+
+    #[test]
+    fn stylesheet_marker_references_marker_percent_custom_property() {
+        // イシュー #2020: マーカー位置は `range`/`thumb` の
+        // `--fandhe-slider-percent` とは別の custom property
+        // （`--fandhe-slider-marker-percent`）で伝搬する契約を固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="slider"][data-part="marker"] {"#));
+        assert!(css.contains("--fandhe-slider-marker-percent"));
+    }
+
+    #[test]
+    fn stylesheet_links_marker_to_vertical_orientation() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="slider"][data-part="marker"][data-orientation="vertical"] {"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_links_marker_to_over_value_state() {
+        // イシュー #2020 PR #2167 レビュー指摘 P1: 未到達（over-value）の
+        // マーカーは track 背景（`--fandhe-color-border`）そのものではなく、
+        // 実コントラストが確保された `--fandhe-color-fg-muted` で塗る契約を
+        // 固定する（track と同色だと同化して視認できないため）。
+        let css = stylesheet();
+        assert!(
+            css.contains(r#"[data-scope="slider"][data-part="marker"][data-state="over-value"] {"#)
+        );
+        assert!(css.contains("background: var(--fandhe-color-fg-muted);"));
+    }
+
+    #[test]
+    fn stylesheet_marker_protrudes_past_track_height_and_has_bg_ring() {
+        // イシュー #2020 PR #2167 レビュー指摘 P1: track と同じ高さの
+        // マーカーは range/track に完全に重なり視認できないため、track より
+        // 高くして突出させ、かつページ背景色のリング（box-shadow）で
+        // track/range いずれの色に対しても輪郭が見えるようにする契約を
+        // 固定する。
+        let css = stylesheet();
+        assert!(css.contains("height: calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem);"));
+        assert!(css.contains("box-shadow: 0 0 0 1px var(--fandhe-color-bg);"));
+    }
+
+    #[test]
     fn stylesheet_links_root_to_disabled_state() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="slider"][data-part="root"][data-disabled] {"#));
@@ -649,12 +890,13 @@ mod tests {
         // （angle-slider #1728 と同型）。フォールバックは codex-review 指摘
         // （PR #1777）を受け `var(--fandhe-radius-full, 999px)` の形（`timeline`
         // の `var(--fandhe-radius-full, 9999px)` と同型）とし、`999px` の
-        // 生リテラル自体はフォールバック値としてのみ残す（3 箇所の重複を
-        // 数える契約は不変）。
+        // 生リテラル自体はフォールバック値としてのみ残す。イシュー #2020 で
+        // `marker` にも同トークンを追加したため、対象は track/range/thumb/
+        // marker の 4 箇所（旧 3 箇所から更新）。
         assert_eq!(
             css.matches("border-radius: var(--fandhe-radius-full, 999px);")
                 .count(),
-            3
+            4
         );
     }
 
@@ -678,7 +920,7 @@ mod tests {
         assert_eq!(
             css.matches("border-radius: var(--fandhe-radius-full, 999px);")
                 .count(),
-            3
+            4
         );
     }
 
@@ -854,6 +1096,125 @@ mod tests {
         ));
         assert_eq!(html.matches("style=\"").count(), 1);
         assert!(!html.contains("attacker"));
+    }
+
+    // --- marker-group/marker（イシュー #2020） ---
+
+    #[test]
+    fn marker_group_outputs_scope_and_part() {
+        let html = render(&marker_group(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="slider""#));
+        assert!(html.contains(r#"data-part="marker-group""#));
+    }
+
+    #[test]
+    fn marker_outputs_scope_and_part() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+        let html = render(&marker(&s, 50.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-scope="slider""#));
+        assert!(html.contains(r#"data-part="marker""#));
+    }
+
+    #[test]
+    fn marker_outputs_marker_percent_style_at_min_and_max() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+
+        let at_min = render(&marker(&s, 0.0, false, vec![], vec![]));
+        assert!(at_min.contains(r#"style="--fandhe-slider-marker-percent: 0%""#));
+
+        let at_max = render(&marker(&s, 100.0, false, vec![], vec![]));
+        assert!(at_max.contains(r#"style="--fandhe-slider-marker-percent: 100%""#));
+    }
+
+    #[test]
+    fn marker_percent_style_clamps_out_of_range_value() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+        let html = render(&marker(&s, 200.0, false, vec![], vec![]));
+        assert!(html.contains(r#"style="--fandhe-slider-marker-percent: 100%""#));
+    }
+
+    /// `value` に `NaN` を渡すと headless 側 [`Slider::marker`] は `min` へ
+    /// フォールバックする（`data-value`/`data-state` が `min` 基準で正しく
+    /// 算出される）。styled 層の `--fandhe-slider-marker-percent` もこの
+    /// フォールバックへ追随し、`NaN%` のような無効な CSS カスタムプロパティ
+    /// を出力しないことを固定する（Review 指摘、イシュー #2020）。
+    #[test]
+    fn marker_percent_style_falls_back_to_min_on_nan_value() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+        let html = render(&marker(&s, f64::NAN, false, vec![], vec![]));
+        assert!(!html.contains("NaN"));
+        assert!(html.contains(r#"style="--fandhe-slider-marker-percent: 0%""#));
+    }
+
+    /// `min`/`max` が非有限、または `min >= max` の場合は既定 `(0.0, 100.0)`
+    /// へフォールバックする（headless 側と同じ規約）。
+    #[test]
+    fn marker_percent_style_falls_back_to_default_range_on_invalid_min_max() {
+        assert_eq!(
+            marker_percent_style(f64::NAN, 100.0, 50.0),
+            "--fandhe-slider-marker-percent: 50%"
+        );
+        assert_eq!(
+            marker_percent_style(0.0, f64::INFINITY, 50.0),
+            "--fandhe-slider-marker-percent: 50%"
+        );
+        assert_eq!(
+            marker_percent_style(10.0, 10.0, 5.0),
+            "--fandhe-slider-marker-percent: 5%"
+        );
+    }
+
+    #[test]
+    fn marker_reflects_headless_data_value_and_state() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+        let html = render(&marker(&s, 20.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-value="20""#));
+        assert!(html.contains(r#"data-state="under-value""#));
+    }
+
+    #[test]
+    fn marker_disabled_true_adds_data_disabled() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+        let html = render(&marker(&s, 20.0, true, vec![], vec![]));
+        assert!(html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn marker_caller_style_attr_is_dropped_not_duplicated() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+        let html = render(&marker(
+            &s,
+            20.0,
+            false,
+            vec![("style", "attacker: 1")],
+            vec![],
+        ));
+        assert_eq!(html.matches("style=\"").count(), 1);
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn marker_attrs_attribute_breakout_payload_is_escaped() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+        let html = render(&marker(
+            &s,
+            20.0,
+            false,
+            vec![("data-x", "\" onmouseover=\"alert(1)")],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)\""));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn marker_group_children_are_escaped_on_render() {
+        let html = render(&marker_group(
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
     }
 
     // --- エスケープ回帰 ---

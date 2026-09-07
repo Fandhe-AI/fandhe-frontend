@@ -37,6 +37,7 @@ use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
 use fandhe_frontend_pre_styled_ui::dialog::{self, DialogRole, OpenState};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldProps, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
+use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::tab_nav;
@@ -280,7 +281,9 @@ fn fieldset_root_data_attrs_are_headless_sourced_not_self_emitted() {
 /// `fandhe_frontend_headless_ui::anatomy::Anatomy::part` が付与する
 /// `data-scope`/`data-part`（anatomy 属性）のみであり、`role="alertdialog"`・
 /// `data-state` はいずれも headless `content`/`root` 由来（本モジュールは
-/// 組み立てない）であることを固定する。
+/// 組み立てない）であることを固定する。イシュー #2030（親 #2025）で追加した
+/// pre-styled-only `body` パート（スクロール可能コンテンツ）も `footer` と
+/// 同型のため同一関数で検証する。
 #[test]
 fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
     // footer: anatomy 属性（data-scope/data-part）以外の data-* を出力しない。
@@ -291,6 +294,16 @@ fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
     assert_eq!(
         data_attr_count, 2,
         "footer は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    // body: anatomy 属性（data-scope/data-part）以外の data-* を出力しない。
+    let html = render(&dialog::body(vec![], vec![text("Long content")]));
+    assert!(html.contains(r#"data-scope="dialog""#));
+    assert!(html.contains(r#"data-part="body""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "body は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
     );
 
     // alert-dialog 構成: role="alertdialog" と data-state は headless
@@ -315,6 +328,25 @@ fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
         vec![],
     ));
     assert!(html.contains(r#"data-state="closed""#));
+}
+
+/// `pin_input.rs`（イシュー #2016、親 #2001）の pre-styled-only `separator`
+/// パートは独自の `data-*` を一切出力しない（`dialog_footer_and_alert_
+/// composition_emit_no_self_produced_data_attrs` と同型）。出力に現れる
+/// `data-*` は headless `Anatomy::part` が付与する `data-scope`/`data-part`
+/// のみであり、`role="presentation"`/`aria-hidden="true"` はいずれも
+/// `data-*` ではないため対象外（別途 `pin_input.rs` のなりすまし除去
+/// テストで固定済み）。
+#[test]
+fn pin_input_separator_emits_no_self_produced_data_attrs() {
+    let html = render(&pin_input::separator(vec![], vec![text("-")]));
+    assert!(html.contains(r#"data-scope="pin-input""#));
+    assert!(html.contains(r#"data-part="separator""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "separator は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
 }
 
 /// `progress.rs`（イシュー #763/#1564/#1688）は pre-styled-only の `data-*`

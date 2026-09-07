@@ -13,6 +13,18 @@ variant / colorPalette 軸（Solid + Danger と Outline の組み合わせ等）
 `role="alertdialog"` の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化します。
 構成例は下記 Demo の Examples 節（Alert dialog）を参照してください。
 
+スクロール可能コンテンツ（shadcn/ui〔Base UI スタイル〕突合、イシュー #2030）には
+pre-styled-only の `body` パートを使います。見出し（`title`/`description`）と
+`footer`（アクション列）を `content` の子として `body` の外側の兄弟に配置すると、
+`body` にだけ `overflow-y: auto` / `max-height: 50vh` が効き、見出し・フッターを
+固定したまま本文だけを縦スクロールさせられます（`position: sticky` は使いません）。
+`content`/`positioner` 自体は変更していないため、`body` を使わない既存の構成には
+影響しません。close ボタンを content 右上のアイコンではなく `footer` 内の通常の
+ボタンとして掲示したい場合（shadcn の「Custom Close Button」相当）は、
+`close_trigger` を使わず `footer` + 既存の `button`（`ButtonVariant::Outline`）を
+組み合わせます（構成例は下記 Demo の Examples 節「Share link (custom close
+button)」を参照してください）。
+
 > [!IMPORTANT]
 > Demo はトリガー起点のオーバーレイ部品を「開いた状態」で固定掲示しています。
 > 本来の配置（画面全体を覆う・トリガー直下に重なる）ではページ内の他セクションと

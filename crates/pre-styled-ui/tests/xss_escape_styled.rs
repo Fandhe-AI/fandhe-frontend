@@ -1102,6 +1102,9 @@ fn password_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads(
 /// `class`、および headless-ui から選択的再エクスポートした `label` の
 /// children・`hidden_input` の `name` の 4 箇所すべてで既定エスケープ
 /// （REQ-1）が貫通することを固定する（checkbox/number_input 経路と同粒度）。
+/// styled `marker`/`marker_group`（イシュー #2020）の `attrs`・`style`
+/// dedup は [`slider_marker_and_marker_group_are_escaped_for_all_payloads`]
+/// で別途検証する。
 #[test]
 fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
@@ -1156,6 +1159,74 @@ fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした hidden_input の name 経路。
         let html = render(&slider::hidden_input(payload, "40", false, vec![]));
         assert_payload_is_escaped(payload, &html, "slider::hidden_input name コンテキスト");
+    }
+}
+
+/// (8b) Slider marker/marker-group 経路（イシュー #2020）: styled `marker` の
+/// 呼び出し側 `attrs`・`style` 上書き防止、`marker_group` の `attrs`・
+/// children の各所で既定エスケープ（REQ-1）が貫通することを固定する
+/// （`range`/`thumb_styled` と同粒度）。
+#[test]
+fn slider_marker_and_marker_group_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+
+    for payload in payloads::all() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+
+        // styled marker の呼び出し側 attrs 経路。
+        let html = render(&slider::marker(
+            &s,
+            20.0,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "slider::marker 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled marker の style 上書き防止経路（フレームワーク生成の
+        // `--fandhe-slider-marker-percent` を含む style のみが 1 つ出力される
+        // ことを固定、`range`/`thumb_styled` と同型）。
+        let html = render(&slider::marker(
+            &s,
+            20.0,
+            false,
+            vec![("style", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "slider::marker の style 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("style=\"").count(),
+            1,
+            "slider::marker の style 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("--fandhe-slider-marker-percent"),
+            "slider::marker でフレームワーク生成の style が失われている: html={html}"
+        );
+
+        // styled marker_group の呼び出し側 attrs 経路。
+        let html = render(&slider::marker_group(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "slider::marker_group 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled marker_group の children 経路。
+        let html = render(&slider::marker_group(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "slider::marker_group children コンテキスト");
     }
 }
 
@@ -1317,10 +1388,11 @@ fn splitter_styled_root_panel_and_reexported_parts_are_escaped_for_all_payloads(
     }
 }
 
-/// (9) pin_input 経路（イシュー #739）: styled `root` の呼び出し側 `attrs`・
-/// `class`、および headless-ui から選択的再エクスポートした `label` の
-/// children・`input` の `value`・`hidden_input` の `name`/`value` の 5 箇所
-/// すべてで既定エスケープ（REQ-1）が貫通することを固定する
+/// (9) pin_input 経路（イシュー #739、#2016 で separator を追加）: styled
+/// `root` の呼び出し側 `attrs`・`class`、headless-ui から選択的再エクスポート
+/// した `label` の children・`input` の `value`・`hidden_input` の
+/// `name`/`value`、および pre-styled-only `separator` の `attrs`/`children`
+/// の 6 箇所すべてで既定エスケープ（REQ-1）が貫通することを固定する
 /// （`checkbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
 /// と同型）。
 #[test]
@@ -1394,6 +1466,14 @@ fn pin_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             &html,
             "pin_input::hidden_input name/value コンテキスト",
         );
+
+        // pre-styled-only separator の attrs 経路（イシュー #2016）。
+        let html = render(&pin_input::separator(vec![("data-x", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "pin_input::separator attrs コンテキスト");
+
+        // pre-styled-only separator の children 経路（イシュー #2016）。
+        let html = render(&pin_input::separator(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "pin_input::separator children コンテキスト");
     }
 }
 
@@ -4687,5 +4767,37 @@ fn dialog_footer_children_and_attrs_are_escaped_for_all_payloads() {
         );
         assert!(html.contains(r#"data-scope="dialog""#));
         assert!(html.contains(r#"data-part="footer""#));
+    }
+}
+
+/// (28) `dialog::body` 経路（イシュー #2030、親 #2025、shadcn/ui 突合）:
+/// pre-styled-only `body` パート（`Anatomy::part` 直接呼び出し、
+/// `dialog::footer` と同型）の children・呼び出し側 `attrs` の両方で
+/// 既定エスケープ（REQ-1）が貫通することを固定する。あわせて
+/// `data-scope`/`data-part` の偽装が headless 層（`Anatomy::part`）により
+/// 除去され、生値が出力に残らないことも固定する。
+#[test]
+fn dialog_body_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // children 経路。
+        let html = render(&dialog::body(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "dialog::body children コンテキスト");
+
+        // 呼び出し側 attrs（data-testid）経路。
+        let html = render(&dialog::body(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "dialog::body 呼び出し側 attrs コンテキスト");
+
+        // data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&dialog::body(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "dialog::body の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="dialog""#));
+        assert!(html.contains(r#"data-part="body""#));
     }
 }

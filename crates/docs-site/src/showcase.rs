@@ -61,7 +61,7 @@
 //! #942 の責務であり、本モジュールは器（レジストリと照会 API）のみを
 //! 提供する。
 
-use fandhe_frontend_core::{div, el, render, text, Node};
+use fandhe_frontend_core::{div, el, p, render, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{
@@ -173,7 +173,7 @@ use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::strong::strong;
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
-use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
+use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps, TabsVariant};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
@@ -1085,6 +1085,8 @@ fn button_section() -> Node {
         (ButtonVariant::Subtle, "Subtle"),
         (ButtonVariant::Surface, "Surface"),
         (ButtonVariant::Plain, "Plain"),
+        // イシュー #2009: shadcn/ui `link` variant 相当（hover 時のみ下線）。
+        (ButtonVariant::Link, "Link"),
     ];
     let variant_row = row(variants
         .iter()
@@ -1226,7 +1228,7 @@ fn button_section() -> Node {
 
     section(
         "Button",
-        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。IconButton のアイコン寸法はボタン size から `icon_size_for` で決定的に写像されます（イシュー #1674）。",
+        "variant（solid / outline / ghost / subtle / surface / plain / link）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。link variant は背景・輪郭を持たず hover 時のみ下線を表示するリンク風ボタンです（shadcn/ui 突合、イシュー #2009）。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。IconButton のアイコン寸法はボタン size から `icon_size_for` で決定的に写像されます（イシュー #1674）。",
         vec![
             variant_row,
             size_row,
@@ -1256,6 +1258,9 @@ fn download_trigger_section() -> Node {
         (ButtonVariant::Subtle, "Subtle"),
         (ButtonVariant::Surface, "Surface"),
         (ButtonVariant::Plain, "Plain"),
+        // イシュー #2009: button_section と対称に揃える（`recipe_with_scope`
+        // 共有により `Link` variant はここへも自動波及するため）。
+        (ButtonVariant::Link, "Link"),
     ];
     let variant_row = row(variants
         .iter()
@@ -2251,7 +2256,8 @@ fn card_section() -> Node {
 
 /// Tabs 節: 1 番目のタブが選択された静的マークアップ。
 fn tabs_section() -> Node {
-    let node = tabs(
+    let line_node = tabs(
+        TabsVariant::Line,
         Size::Md,
         ColorPalette::Accent,
         &TabsProps {
@@ -2304,10 +2310,90 @@ fn tabs_section() -> Node {
             },
         ],
     );
+    // イシュー #2039: shadcn/ui 突合で追加した Enclosed variant（セグメント/
+    // ピル型）のデモ。淡色コンテナの中で選択中 trigger だけが浮き上がる
+    // 見た目を目視確認できるようにする。
+    let enclosed_node = tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &TabsProps {
+            id: "showcase-tabs-enclosed",
+            selected: "overview",
+            orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
+        },
+        vec![
+            TabItem {
+                value: "overview",
+                trigger: vec![text("Overview")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text(
+                        "Enclosed は選択中 trigger を白背景 + 微小な影で浮き上がらせます。",
+                    )],
+                )],
+                disabled: false,
+            },
+            TabItem {
+                value: "usage",
+                trigger: vec![text("Usage")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text("list 全体は淡色の角丸コンテナになります。")],
+                )],
+                disabled: false,
+            },
+        ],
+    );
+    // イシュー #2039: `Orientation::Vertical` は tabs 部品ページでこれまで
+    // デモされていなかった（vertical 対応自体はイシュー #1542 で追加済み）。
+    // Enclosed × vertical のデモを兼ねて初めて目視確認できるようにする。
+    let enclosed_vertical_node = tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &TabsProps {
+            id: "showcase-tabs-enclosed-vertical",
+            selected: "overview",
+            orientation: Orientation::Vertical,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
+        },
+        vec![
+            TabItem {
+                value: "overview",
+                trigger: vec![text("Overview")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text("vertical 対応の Enclosed（区切り線なし・全角丸）。")],
+                )],
+                disabled: false,
+            },
+            TabItem {
+                value: "usage",
+                trigger: vec![text("Usage")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text(
+                        "data-orientation=\"vertical\" で列方向に配置転換します。",
+                    )],
+                )],
+                disabled: false,
+            },
+        ],
+    );
     section(
         "Tabs",
-        "headless-ui の Tabs（WAI-ARIA Tabs パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。",
-        vec![node],
+        "headless-ui の Tabs（WAI-ARIA Tabs パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。variant（line/enclosed）を選べます。",
+        vec![line_node, enclosed_node, enclosed_vertical_node],
     )
 }
 
@@ -2509,10 +2595,34 @@ fn dialog_section() -> Node {
                                     vec![],
                                     vec![text("この操作は取り消せません。")],
                                 ),
+                                // イシュー #2030（親 #2025、shadcn/ui 突合）で
+                                // 追加された pre-styled-only `body` パート
+                                // （`data-scope="dialog"` 配下 10 番目の
+                                // part）。見出し（title/description）と
+                                // footer を固定したまま本文だけを縦
+                                // スクロールさせる、shadcn の「Scrollable
+                                // Content」デモに対応するオプトインパート。
+                                dialog::body(
+                                    vec![],
+                                    vec![
+                                        p(vec![], vec![text(
+                                            "この操作は複数のリソースに影響します。続行する前に、以下の内容をご確認ください。",
+                                        )]),
+                                        p(vec![], vec![text(
+                                            "対象のプロジェクトに紐づくすべての下書き・共有リンク・キャッシュされた \
+                                             プレビューは元に戻せません。共同編集者への通知は自動では送信されません。",
+                                        )]),
+                                        p(vec![], vec![text(
+                                            "続行するには「Save」を選択してください。キャンセルする場合は \
+                                             「Cancel」または背景をクリックしてください。",
+                                        )]),
+                                    ],
+                                ),
                                 // イシュー #1690（親 #1675）で追加された
                                 // pre-styled-only `footer` パート
                                 // （`data-scope="dialog"` 配下 9 番目の
-                                // part）。アクション列（確認/キャンセルの
+                                // part、#2030 で `body` が加わり現在は
+                                // 10 番目）。アクション列（確認/キャンセルの
                                 // ボタン群）のレイアウトのみを担い、送信・
                                 // 閉鎖等のアプリケーションロジックは持たない
                                 // （`docs/policy/intentional-non-adoption.md`
@@ -2547,7 +2657,7 @@ fn dialog_section() -> Node {
     );
     section(
         "Dialog",
-        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下に `footer` パート（イシュー #1690、pre-styled-only のレイアウト専用パート）でアクション列を配置しています。alert-dialog（確認ダイアログ）構成の例は Examples 節を参照してください。",
+        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下に `body` パート（イシュー #2030、pre-styled-only のスクロール可能コンテンツパート）で複数段落の本文を、その下に `footer` パート（イシュー #1690、pre-styled-only のレイアウト専用パート）でアクション列を配置しています。alert-dialog（確認ダイアログ）構成の例は Examples 節を参照してください。",
         vec![node],
     )
 }
@@ -2727,82 +2837,112 @@ fn select_section() -> Node {
                     Some("showcase-select-label"),
                     None,
                     vec![],
-                    vec![
-                        select::item(
-                            OpenState::Open,
-                            &props,
-                            false,
-                            false,
-                            "fandhe-frontend",
-                            Some("showcase-select-item-fandhe"),
-                            vec![],
-                            vec![
-                                select::item_text(
-                                    OpenState::Open,
-                                    &props,
-                                    false,
-                                    false,
-                                    None,
-                                    vec![],
-                                    vec![text("fandhe-frontend")],
-                                ),
-                                select::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
-                            ],
-                        ),
-                        // "Other framework" を highlight 中の項目として固定
-                        // する（イシュー #1502、item/item-indicator パートの
-                        // 状態表現デモ。combobox 2/2 #1468 の先例に倣う）。
-                        select::item(
-                            OpenState::Closed,
-                            &props,
-                            false,
-                            true,
-                            "other",
-                            None,
-                            vec![],
-                            vec![
-                                select::item_text(
-                                    OpenState::Closed,
-                                    &props,
-                                    false,
-                                    true,
-                                    None,
-                                    vec![],
-                                    vec![text("Other framework")],
-                                ),
-                                select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
-                            ],
-                        ),
-                        // disabled 項目の視覚状態デモ（イシュー #1502）。
-                        select::item(
-                            OpenState::Closed,
-                            &props,
-                            true,
-                            false,
-                            "legacy",
-                            None,
-                            vec![],
-                            vec![
-                                select::item_text(
-                                    OpenState::Closed,
-                                    &props,
-                                    true,
-                                    false,
-                                    None,
-                                    vec![],
-                                    vec![text("Legacy framework")],
-                                ),
-                                select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
-                            ],
-                        ),
-                    ],
+                    vec![select::item_group(
+                        &props,
+                        Some("showcase-select-group-label"),
+                        vec![],
+                        vec![
+                            // グループ見出し（イシュー #2019、shadcn/ui 突合
+                            // で `item-group`/`item-group-label` の実演が
+                            // 未確認だった点を Demo で確定させる）。
+                            select::item_group_label(
+                                Some("showcase-select-group-label"),
+                                vec![],
+                                vec![text("Frameworks")],
+                            ),
+                            select::item(
+                                OpenState::Open,
+                                &props,
+                                false,
+                                false,
+                                "fandhe-frontend",
+                                Some("showcase-select-item-fandhe"),
+                                vec![],
+                                vec![
+                                    // リーディングアイコン（イシュー #2019。
+                                    // `item` は `display: flex` のため任意
+                                    // children を子に置ける構造で成立する
+                                    // ことを実演する、CSS 変更なし）。
+                                    el("span", vec![("aria-hidden", "true")], vec![text("📦")]),
+                                    select::item_text(
+                                        OpenState::Open,
+                                        &props,
+                                        false,
+                                        false,
+                                        None,
+                                        vec![],
+                                        vec![text("fandhe-frontend")],
+                                    ),
+                                    select::item_indicator(
+                                        OpenState::Open,
+                                        vec![],
+                                        vec![text("✓")],
+                                    ),
+                                ],
+                            ),
+                            // "Other framework" を highlight 中の項目として固定
+                            // する（イシュー #1502、item/item-indicator パートの
+                            // 状態表現デモ。combobox 2/2 #1468 の先例に倣う）。
+                            select::item(
+                                OpenState::Closed,
+                                &props,
+                                false,
+                                true,
+                                "other",
+                                None,
+                                vec![],
+                                vec![
+                                    select::item_text(
+                                        OpenState::Closed,
+                                        &props,
+                                        false,
+                                        true,
+                                        None,
+                                        vec![],
+                                        vec![text("Other framework")],
+                                    ),
+                                    select::item_indicator(
+                                        OpenState::Closed,
+                                        vec![],
+                                        vec![text("✓")],
+                                    ),
+                                ],
+                            ),
+                            // disabled 項目の視覚状態デモ（イシュー #1502）。
+                            select::item(
+                                OpenState::Closed,
+                                &props,
+                                true,
+                                false,
+                                "legacy",
+                                None,
+                                vec![],
+                                vec![
+                                    select::item_text(
+                                        OpenState::Closed,
+                                        &props,
+                                        true,
+                                        false,
+                                        None,
+                                        vec![],
+                                        vec![text("Legacy framework")],
+                                    ),
+                                    select::item_indicator(
+                                        OpenState::Closed,
+                                        vec![],
+                                        vec![text("✓")],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    )],
                 )],
             ),
         ],
     );
     section(
         "Select",
-        "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）・1 項目が highlight 中（data-highlighted）・1 項目が disabled（data-disabled）の listbox が開いた状態を固定表示しています。positioner はフロー内配置へ中和しています。",
+        "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）・1 項目が highlight 中（data-highlighted）・1 項目が disabled（data-disabled）の listbox が開いた状態を固定表示しています。グループ見出し（item-group-label）・リーディングアイコン付き項目も実演し、content は既定 16rem の max-height でスクロール可能です。positioner はフロー内配置へ中和しています。",
         vec![node],
     )
 }
@@ -3410,15 +3550,27 @@ fn toggle_tip_section() -> Node {
 /// 担い、見た目（トラック/つまみ）は `control`/`thumb` が装飾として担う。
 fn switch_section() -> Node {
     let states = [
-        (false, false, "showcase-switch-unchecked", "Unchecked"),
-        (true, false, "showcase-switch-checked", "Checked"),
-        (false, true, "showcase-switch-disabled", "Disabled"),
+        (
+            false,
+            false,
+            false,
+            "showcase-switch-unchecked",
+            "Unchecked",
+        ),
+        (true, false, false, "showcase-switch-checked", "Checked"),
+        (false, true, false, "showcase-switch-disabled", "Disabled"),
+        // イシュー #2021: shadcn/ui との突合で `control` slot が
+        // `data-invalid`（headless `SwitchProps.invalid`、#1622）を未消費
+        // だったことを確認し `box-shadow` リングを追加した是正の実演行
+        // （checkbox #2011 の Invalid 行と同型）。
+        (false, false, true, "showcase-switch-invalid", "Invalid"),
     ];
     let demo_row = row(states
         .iter()
-        .map(|(checked, disabled, name, label)| {
+        .map(|(checked, disabled, invalid, name, label)| {
             let props = switch::SwitchProps {
                 disabled: *disabled,
+                invalid: *invalid,
                 ..switch::SwitchProps::default()
             };
             switch::root(
@@ -3617,10 +3769,62 @@ fn radio_group_section() -> Node {
         })
         .collect());
 
+    // イシュー #2018: shadcn/ui 突合で `data-invalid`（`item-control` の
+    // border-color）自体は #1616 で実装済みと確認したが、docs サイトの Demo
+    // に実演行が無かったため追加する（`checkbox_group_section` の
+    // `invalid_demo` と同型）。root/各 item の双方へ `invalid: true` を渡す
+    // のは、CSS の `state(...)` 規則が `item-control` 側の `data-invalid`
+    // 属性に反応するため（`root` だけでは item 系パーツへ伝播しない）。
+    let invalid_label_id = "showcase-radio-invalid-label";
+    let invalid_item_props = |disabled: bool| radio_group::RadioGroupProps {
+        disabled,
+        invalid: true,
+        ..radio_group::RadioGroupProps::default()
+    };
+    let mut invalid_children = vec![radio_group::label(
+        &invalid_item_props(false),
+        Some(invalid_label_id),
+        vec![],
+        vec![text("Plan (invalid)")],
+    )];
+    invalid_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        let props = invalid_item_props(*disabled);
+        radio_group::item(
+            *checked,
+            &props,
+            value,
+            vec![],
+            vec![
+                radio_group::item_hidden_input(
+                    *checked,
+                    &props,
+                    Some("showcase-radio-invalid"),
+                    value,
+                    vec![],
+                ),
+                radio_group::item_control(*checked, &props, vec![]),
+                radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    let invalid_root_props = radio_group::RadioGroupProps {
+        invalid: true,
+        ..radio_group::RadioGroupProps::default()
+    };
+    let invalid_demo = radio_group::root_with_props(
+        Size::Md,
+        ColorPalette::Accent,
+        &invalid_root_props,
+        Some(Orientation::Vertical),
+        Some(invalid_label_id),
+        vec![],
+        invalid_children,
+    );
+
     section(
         "RadioGroup",
         "単一選択の選択肢グループ。ネイティブ input[type=\"radio\"] による排他選択・キーボード操作を data-scope=\"radio-group\" の anatomy へ重ねます。",
-        vec![demo, horizontal_demo, size_row],
+        vec![demo, horizontal_demo, invalid_demo, size_row],
     )
 }
 
@@ -3779,11 +3983,13 @@ fn checkbox_section() -> Node {
         (
             CheckedState::Unchecked,
             false,
+            false,
             "showcase-checkbox-unchecked",
             "Unchecked",
         ),
         (
             CheckedState::Checked,
+            false,
             false,
             "showcase-checkbox-checked",
             "Checked",
@@ -3791,22 +3997,36 @@ fn checkbox_section() -> Node {
         (
             CheckedState::Indeterminate,
             false,
+            false,
             "showcase-checkbox-indeterminate",
             "Indeterminate",
         ),
         (
             CheckedState::Checked,
             true,
+            false,
             "showcase-checkbox-disabled",
             "Disabled",
+        ),
+        // イシュー #2011: shadcn/ui との突合で invalid 状態の実演行が欠けて
+        // いたことを確認したため追加。`control` の枠色のみが danger 化し、
+        // ラベル文字色は変更しない（`crate::field` の既存判断を踏襲、
+        // `checkbox.rs` モジュール rustdoc「shadcn/ui との突合」節参照）。
+        (
+            CheckedState::Unchecked,
+            false,
+            true,
+            "showcase-checkbox-invalid",
+            "Invalid",
         ),
     ];
     let demo_row = row(states
         .iter()
-        .map(|(checked, disabled, name, label)| {
+        .map(|(checked, disabled, invalid, name, label)| {
             let props = CheckboxProps {
                 checked: *checked,
                 disabled: *disabled,
+                invalid: *invalid,
                 ..CheckboxProps::default()
             };
             checkbox::root(
@@ -4042,6 +4262,51 @@ fn field_section() -> Node {
         None,
     );
 
+    // shadcn/ui 突合（イシュー #2014）で追加した `error-text > ul` の CSS を
+    // 掲示するインスタンス。複数エラーメッセージの `<ul>`/`<li>` 組み立て
+    // 自体は本モジュール（field.rs）の責務外であり、呼び出し側（ここでは
+    // 本節）が `fandhe_frontend_core::el`/`text` のみで構築する（`field.rs`
+    // モジュール doc「shadcn/ui 突合」節参照。重複排除は呼び出し側の判断に
+    // 委ねる、shadcn の `FieldError` と同じ責務分担）。`helper_text` は
+    // 描画しない（`invalid_field` を使用、`has_helper_text: false`）ため
+    // `field_instance` doc が警告する「`helper` の有無と
+    // `f.has_helper_text` を食い違わせない」契約に抵触しない。
+    let multi_error_field = invalid_field("showcase-field-multi-error");
+    let multi_error_instance = field::root(
+        &FieldRootProps {
+            orientation: FieldOrientation::Vertical,
+        },
+        &multi_error_field,
+        vec![],
+        vec![
+            field::label(
+                &multi_error_field,
+                vec![],
+                vec![
+                    text("Password"),
+                    field::required_indicator(&multi_error_field, vec![], vec![text("*")]),
+                ],
+            ),
+            input::input(
+                &InputProps::default(),
+                &multi_error_field,
+                vec![("type", "password"), ("placeholder", "••••••••")],
+            ),
+            field::error_text(
+                &multi_error_field,
+                vec![],
+                vec![el(
+                    "ul",
+                    vec![],
+                    vec![
+                        el("li", vec![], vec![text("Must be at least 8 characters.")]),
+                        el("li", vec![], vec![text("Must contain a number.")]),
+                    ],
+                )],
+            ),
+        ],
+    );
+
     section(
         "Field",
         "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。",
@@ -4052,6 +4317,7 @@ fn field_section() -> Node {
             readonly_instance,
             required_instance,
             horizontal_instance,
+            multi_error_instance,
         ])],
     )
 }
@@ -4265,6 +4531,15 @@ fn input_section() -> Node {
             &disabled_field("showcase-input-disabled"),
             vec![("placeholder", "Disabled")],
         ),
+        // イシュー #2015: shadcn/ui 突合で file input のコンテナ側 border/
+        // height/padding が既存 base/variant/size 規則で正しく適用される
+        // ことを実描画確認するためのインスタンス（`type` は headless
+        // `field::input` へそのまま渡る一般属性、`extra_attrs` 経由）。
+        input::input(
+            &InputProps::default(),
+            &plain_field("showcase-input-file"),
+            vec![("type", "file")],
+        ),
     ]);
 
     section(
@@ -4274,38 +4549,128 @@ fn input_section() -> Node {
     )
 }
 
-/// Textarea 節: Outline（既定）の複数行テキスト入力。
+/// Textarea 節: Outline（既定）/ Invalid / Disabled の 3 態（イシュー
+/// #2022、shadcn/ui 突合。`input_section` の Invalid デモ・
+/// `.showcase-form-field-group` ラッパー併設コメントと同型）。
 fn textarea_section() -> Node {
-    let textarea_row = row(vec![textarea::textarea(
-        &TextareaProps::default(),
-        &plain_field("showcase-textarea-default"),
-        false,
-        vec![("placeholder", "Outline (default)")],
-        vec![],
-    )]);
+    let textarea_row = row(vec![
+        textarea::textarea(
+            &TextareaProps::default(),
+            &plain_field("showcase-textarea-default"),
+            false,
+            vec![("placeholder", "Outline (default)")],
+            vec![],
+        ),
+        // invalid 時、headless `field::textarea` は `aria-describedby` に
+        // `{id}-error-text` を出力する（`input_section` と同じ describedby
+        // 合成則）。参照先の id を持つ `error_text`（`input` モジュールの
+        // 再エクスポート経由。`field` scope 共通のためどの styled モジュール
+        // 経由で呼んでも出力は同一）を併設し、存在しない id への参照を残さ
+        // ない。ラッパー div の `.showcase-form-field-group` も
+        // `input_section` と同じ理由（flex-basis 解決）で必要。
+        div(
+            vec![("class", "showcase-form-field-group")],
+            vec![
+                textarea::textarea(
+                    &TextareaProps::default(),
+                    &invalid_field("showcase-textarea-invalid"),
+                    false,
+                    vec![("placeholder", "Invalid")],
+                    vec![],
+                ),
+                input::error_text(
+                    &invalid_field("showcase-textarea-invalid"),
+                    vec![],
+                    vec![text("This field is required.")],
+                ),
+            ],
+        ),
+        textarea::textarea(
+            &TextareaProps::default(),
+            &disabled_field("showcase-textarea-disabled"),
+            false,
+            vec![("placeholder", "Disabled")],
+            vec![],
+        ),
+    ]);
 
     section(
         "Textarea",
-        "ブラウザネイティブ挙動をそのまま尊重する静的複数行テキスト入力部品。",
+        "ブラウザネイティブ挙動をそのまま尊重する静的複数行テキスト入力部品。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現します。",
         vec![textarea_row],
     )
 }
 
-/// Native Select 節: 素の `<select>`/`<option>` をスタイル化。
+/// Native Select 節: Outline（既定）/ Invalid / Disabled の 3 態 +
+/// `<optgroup>` を含むインスタンス（イシュー #2017、shadcn/ui 突合。
+/// `input_section` の Invalid デモ・`.showcase-form-field-group` ラッパー
+/// 併設コメントと同型）。
 fn native_select_section() -> Node {
-    let native_select_row = row(vec![native_select::native_select(
-        &NativeSelectProps::default(),
-        &plain_field("showcase-native-select-default"),
-        vec![],
+    let jp_us_options = || {
         vec![
             el("option", vec![("value", "jp")], vec![text("Japan")]),
             el("option", vec![("value", "us")], vec![text("United States")]),
-        ],
-    )]);
+        ]
+    };
+
+    let native_select_row = row(vec![
+        native_select::native_select(
+            &NativeSelectProps::default(),
+            &plain_field("showcase-native-select-default"),
+            vec![],
+            jp_us_options(),
+        ),
+        // invalid 時、headless `field::select` は `aria-describedby` に
+        // `{id}-error-text` を出力する（`input_section` と同じ describedby
+        // 合成則）。参照先の id を持つ `error_text`（`input` モジュールの
+        // 再エクスポート経由。`field` scope 共通のためどの styled モジュール
+        // 経由で呼んでも出力は同一）を併設し、存在しない id への参照を残さ
+        // ない。ラッパー div の `.showcase-form-field-group` も
+        // `input_section` と同じ理由（flex-basis 解決）で必要。
+        div(
+            vec![("class", "showcase-form-field-group")],
+            vec![
+                native_select::native_select(
+                    &NativeSelectProps::default(),
+                    &invalid_field("showcase-native-select-invalid"),
+                    vec![],
+                    jp_us_options(),
+                ),
+                input::error_text(
+                    &invalid_field("showcase-native-select-invalid"),
+                    vec![],
+                    vec![text("Please select a country.")],
+                ),
+            ],
+        ),
+        native_select::native_select(
+            &NativeSelectProps::default(),
+            &disabled_field("showcase-native-select-disabled"),
+            vec![],
+            jp_us_options(),
+        ),
+        // イシュー #2017: shadcn/ui 突合で「headless `field::select` は
+        // children をそのまま透過するため `<optgroup>` は現状 API のまま
+        // 描画できる」と判定した際の実描画確認用インスタンス（モジュール
+        // rustdoc「shadcn/ui 突合」節「optgroup」参照）。
+        native_select::native_select(
+            &NativeSelectProps::default(),
+            &plain_field("showcase-native-select-optgroup"),
+            vec![],
+            vec![el(
+                "optgroup",
+                vec![("label", "Asia")],
+                vec![
+                    el("option", vec![("value", "jp")], vec![text("Japan")]),
+                    el("option", vec![("value", "kr")], vec![text("South Korea")]),
+                ],
+            )],
+        ),
+    ]);
 
     section(
         "Native Select",
-        "素の select/option 要素をそのまま styled 化した選択部品。",
+        "素の select/option 要素をそのまま styled 化した選択部品。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現し、optgroup による選択肢グループ化にも対応します。",
         vec![native_select_row],
     )
 }
@@ -5053,6 +5418,18 @@ fn slider_section() -> Node {
                         vec![slider::range(&mid_state, &mid_props, vec![])],
                     ),
                     slider::thumb_styled(&mid_state, Some("40 percent"), &mid_props, vec![]),
+                    // イシュー #2020: styled marker/marker-group の Demo 反映
+                    // （headless anatomy はイシュー #1904 で追加済み）。
+                    // `crates/docs-site/src/primitive_showcase/forms_b.rs::slider_section`
+                    // と同じ DOM 位置（`track`/`thumb` の後）に配置する。
+                    slider::marker_group(
+                        vec![],
+                        vec![
+                            slider::marker(&mid_state, 0.0, false, vec![], vec![]),
+                            slider::marker(&mid_state, 50.0, false, vec![], vec![]),
+                            slider::marker(&mid_state, 100.0, false, vec![], vec![]),
+                        ],
+                    ),
                 ],
             ),
             slider::hidden_input("volume", "40", false, vec![]),
@@ -5485,6 +5862,7 @@ fn toggle_section() -> Node {
         .map(|(pressed, disabled, label)| {
             toggle::root(
                 Size::Md,
+                toggle::ToggleVariant::Outline,
                 ColorPalette::Accent,
                 *pressed,
                 *disabled,
@@ -5507,6 +5885,7 @@ fn toggle_section() -> Node {
         .map(|(size, label)| {
             toggle::root(
                 *size,
+                toggle::ToggleVariant::Outline,
                 ColorPalette::Accent,
                 true,
                 false,
@@ -5519,11 +5898,39 @@ fn toggle_section() -> Node {
         })
         .collect());
 
+    // イシュー #2023: shadcn/ui 突合で新設した `variant` 軸（Outline/Ghost）
+    // の Demo 行。Off/On の両状態で見た目差（枠線の有無）が分かるよう
+    // 4 通り並べる。
+    let variants = [
+        (toggle::ToggleVariant::Outline, false, "Outline / Off"),
+        (toggle::ToggleVariant::Outline, true, "Outline / On"),
+        (toggle::ToggleVariant::Ghost, false, "Ghost / Off"),
+        (toggle::ToggleVariant::Ghost, true, "Ghost / On"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, pressed, label)| {
+            toggle::root(
+                Size::Md,
+                *variant,
+                ColorPalette::Accent,
+                *pressed,
+                false,
+                vec![],
+                vec![
+                    toggle::indicator(*pressed, false, vec![], checkmark()),
+                    text(*label),
+                ],
+            )
+        })
+        .collect());
+
     let palette_row = row(palettes()
         .iter()
         .map(|(palette, label)| {
             toggle::root(
                 Size::Md,
+                toggle::ToggleVariant::Outline,
                 *palette,
                 true,
                 false,
@@ -5538,8 +5945,8 @@ fn toggle_section() -> Node {
 
     section(
         "Toggle",
-        "押下状態を持つ 2 状態ボタン。data-state 語彙は Switch の checked/unchecked ではなく on/off です（root 自身がネイティブ button であり、hidden input を持ちません）。",
-        vec![state_row, size_row, palette_row],
+        "押下状態を持つ 2 状態ボタン。data-state 語彙は Switch の checked/unchecked ではなく on/off です（root 自身がネイティブ button であり、hidden input を持ちません）。variant（Outline/Ghost）はイシュー #2023 の shadcn/ui 突合で新設しました。",
+        vec![state_row, size_row, variant_row, palette_row],
     )
 }
 
@@ -5557,6 +5964,7 @@ fn toggle_group_section() -> Node {
     let horizontal_props = toggle_group::ToggleGroupProps::default();
     let horizontal = toggle_group::root(
         Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
         ColorPalette::Accent,
         false,
         None,
@@ -5598,6 +6006,7 @@ fn toggle_group_section() -> Node {
     };
     let vertical = toggle_group::root(
         Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
         ColorPalette::Accent,
         false,
         Some(Orientation::Vertical),
@@ -5639,6 +6048,7 @@ fn toggle_group_section() -> Node {
     };
     let disabled = toggle_group::root(
         Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
         ColorPalette::Accent,
         true,
         None,
@@ -5665,10 +6075,95 @@ fn toggle_group_section() -> Node {
             ),
         ],
     );
+    // イシュー #2024: shadcn/ui 突合で新設した `variant`（Outline/Ghost）
+    // 軸の Demo 行。既定 Outline は上記 horizontal と同じ見た目のため、
+    // ここでは Ghost 側のみを並べて差分を示す。
+    let ghost_props = toggle_group::ToggleGroupProps::default();
+    let ghost = toggle_group::root(
+        Size::Md,
+        toggle_group::ToggleGroupVariant::Ghost,
+        ColorPalette::Accent,
+        false,
+        None,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(
+                &ghost_props,
+                false,
+                false,
+                false,
+                "left",
+                vec![],
+                vec![text("Left")],
+            ),
+            toggle_group::item(
+                &ghost_props,
+                true,
+                false,
+                false,
+                "center",
+                vec![],
+                vec![text("Center")],
+            ),
+            toggle_group::item(
+                &ghost_props,
+                false,
+                false,
+                false,
+                "right",
+                vec![],
+                vec![text("Right")],
+            ),
+        ],
+    );
+    // `MultiToggleGroup`（複数押下可）相当の見た目を示す Demo 行。実際の
+    // 状態遷移は wasm 層の責務（モジュール冒頭 rustdoc「インタラクティブ
+    // 部品の扱い」節参照）のため、複数 item を `pressed: true` で静的に
+    // 掲示するのみに留める。
+    let multi_props = toggle_group::ToggleGroupProps::default();
+    let multi = toggle_group::root(
+        Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
+        ColorPalette::Accent,
+        false,
+        None,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(
+                &multi_props,
+                true,
+                false,
+                false,
+                "bold",
+                vec![],
+                vec![text("Bold")],
+            ),
+            toggle_group::item(
+                &multi_props,
+                true,
+                false,
+                false,
+                "italic",
+                vec![],
+                vec![text("Italic")],
+            ),
+            toggle_group::item(
+                &multi_props,
+                false,
+                false,
+                false,
+                "underline",
+                vec![],
+                vec![text("Underline")],
+            ),
+        ],
+    );
     section(
         "Toggle Group",
-        "複数の Toggle をまとめて排他/複数選択させるグループ部品。root にのみ role=\"group\" を固定付与します（RadioGroup の role=\"radiogroup\" とは異なります）。",
-        vec![stack(vec![horizontal, vertical, disabled])],
+        "複数の Toggle をまとめて排他/複数選択させるグループ部品。root にのみ role=\"group\" を固定付与します（RadioGroup の role=\"radiogroup\" とは異なります）。variant（Outline/Ghost）はイシュー #2024 の shadcn/ui 突合で新設しました。最下段は複数押下可能な MultiToggleGroup 相当（bold/italic が同時押下）の見た目です。",
+        vec![stack(vec![horizontal, vertical, disabled, ghost, multi])],
     )
 }
 
@@ -5712,10 +6207,80 @@ fn carousel_section() -> Node {
             ),
         ],
     );
+    // イシュー #2028: shadcn/ui 突合で判明した「垂直方向の Demo 欠落」を
+    // 補う（機能自体は #1660/#1925 で実装済み、`crate::carousel` rustdoc
+    // 「shadcn/ui 突合」節参照）。
+    let cv = Carousel::new(1, 3, false, Orientation::Vertical);
+    let vertical_node = carousel::root(
+        Size::Md,
+        Orientation::Vertical,
+        "Featured products (vertical)",
+        vec![],
+        vec![
+            cv.control(
+                vec![],
+                vec![
+                    cv.prev_trigger("Previous slide", vec![], vec![]),
+                    cv.item_group(
+                        vec![],
+                        slides
+                            .iter()
+                            .enumerate()
+                            .map(|(i, label)| cv.item(i, vec![], vec![text(*label)]))
+                            .collect(),
+                    ),
+                    cv.next_trigger("Next slide", vec![], vec![]),
+                ],
+            ),
+            cv.indicator_group(
+                vec![],
+                (0..slides.len()).map(|i| cv.indicator(i, vec![])).collect(),
+            ),
+        ],
+    );
+
+    // イシュー #2028: shadcn/ui の Sizes 例（`basis-1/3` 等で複数スライド
+    // 同時表示）に相当する `--fandhe-carousel-item-basis` の実演。`root`
+    // へ設定し CSS カスタムプロパティの継承で `item-group`/`item` へ
+    // 伝播させる（`item_group`/`item` 自体は headless 側が既に
+    // `style="--fandhe-carousel-index: ...;"` を出力する契約のため、
+    // 二重の `style` 属性を避ける）。
+    let cb = Carousel::new(0, 5, false, Orientation::Horizontal);
+    let basis_slides = ["Slide A", "Slide B", "Slide C", "Slide D", "Slide E"];
+    let basis_node = carousel::root(
+        Size::Md,
+        Orientation::Horizontal,
+        "Featured products (multiple visible)",
+        vec![("style", "--fandhe-carousel-item-basis: 33.3333%;")],
+        vec![
+            cb.control(
+                vec![],
+                vec![
+                    cb.prev_trigger("Previous slide", vec![], vec![]),
+                    cb.item_group(
+                        vec![],
+                        basis_slides
+                            .iter()
+                            .enumerate()
+                            .map(|(i, label)| cb.item(i, vec![], vec![text(*label)]))
+                            .collect(),
+                    ),
+                    cb.next_trigger("Next slide", vec![], vec![]),
+                ],
+            ),
+            cb.indicator_group(
+                vec![],
+                (0..basis_slides.len())
+                    .map(|i| cb.indicator(i, vec![]))
+                    .collect(),
+            ),
+        ],
+    );
+
     section(
         "Carousel",
-        "headless-ui の Carousel（role=\"region\" aria-roledescription=\"carousel\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。3 スライド中 2 番目（index=1）を現在位置として固定表示しています。--fandhe-carousel-index CSS カスタムプロパティによる transform ベースのスライド位置表現で、JS 計測に依存しません。autoplay・ドラッグ操作は本イシューのスコープ外です。",
-        vec![node],
+        "headless-ui の Carousel（role=\"region\" aria-roledescription=\"carousel\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。3 スライド中 2 番目（index=1）を現在位置として固定表示しています。--fandhe-carousel-index CSS カスタムプロパティによる transform ベースのスライド位置表現で、JS 計測に依存しません。2 つ目は垂直方向（data-orientation=\"vertical\"）の同型実演、3 つ目は --fandhe-carousel-item-basis（イシュー #2028、shadcn/ui の Sizes 例に相当）による複数スライド同時表示の実演です。shadcn/ui の Thumbnails 例に相当する構成は参照ページに存在しないため対象外です。autoplay・ドラッグ操作は本イシューのスコープ外です。",
+        vec![node, vertical_node, basis_node],
     )
 }
 
@@ -6089,10 +6654,176 @@ fn splitter_section() -> Node {
         vertical_children,
     );
 
+    // イシュー #2038: shadcn/ui `resizable` の `withHandle` prop（ハンドル
+    // 中央に角丸ボックス+グリップアイコンを追加描画するオプトイン）に相当
+    // する合成パターンの掲示。`resize_trigger_indicator` を
+    // `resize_trigger` の children として渡すだけで表現できる（`splitter`
+    // モジュール rustdoc「イシュー #2038」節参照。indicator 自体の CSS は
+    // 既存 pill 表現のまま変更しない）。上記 `horizontal_demo`（indicator
+    // なし）と対比できるよう並べて掲示する。
+    let with_handle_state = Splitter::new(
+        &[
+            PanelSpec::new(60.0, 20.0, 80.0),
+            PanelSpec::new(40.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let with_handle_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &with_handle_state,
+        false,
+        vec![("style", "min-height: 12rem;")],
+        vec![
+            splitter::panel(
+                &with_handle_state,
+                0,
+                "showcase-splitter-wh-panel-a",
+                vec![],
+                vec![text("Panel A")],
+            ),
+            splitter::resize_trigger(
+                &with_handle_state,
+                0,
+                "showcase-splitter-wh-panel-a",
+                "showcase-splitter-wh-panel-b",
+                false,
+                vec![],
+                vec![splitter::resize_trigger_indicator(vec![], vec![])],
+            ),
+            splitter::panel(
+                &with_handle_state,
+                1,
+                "showcase-splitter-wh-panel-b",
+                vec![],
+                vec![text("Panel B")],
+            ),
+        ],
+    );
+
+    // イシュー #2038: shadcn/ui デフォルトデモ（One | (Two / Three)）と
+    // 同型の入れ子構成。外側 horizontal の panel B の children に、別の
+    // `splitter::root`（内側は vertical）をそのまま渡すだけで再現できる
+    // 合成パターン（新規 API 不要、`splitter` モジュール rustdoc
+    // 「イシュー #2038」節参照）。内側 `root` は base 規則の外枠・角丸を
+    // そのまま持つと外枠の中にもう一つ枠が入る二重線になるため、Demo 限定
+    // のインラインスタイルで打ち消す（recipe/stylesheet の出力は変更
+    // しない）。縦方向 flex の子は `flex-basis` にパーセンテージを使う
+    // ため、祖先に解決済みの高さが必要（`vertical_demo` と同じ制約、PR
+    // #862）で、外側には確定値の `height`、内側（縦方向）には
+    // `height: 100%` を明示する。
+    let nested_outer_state = Splitter::new(
+        &[
+            PanelSpec::new(40.0, 20.0, 80.0),
+            PanelSpec::new(60.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let nested_inner_state = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 0.0, 100.0),
+            PanelSpec::new(50.0, 0.0, 100.0),
+        ],
+        Orientation::Vertical,
+    );
+    let nested_inner_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &nested_inner_state,
+        false,
+        vec![("style", "border: none; border-radius: 0; height: 100%;")],
+        vec![
+            splitter::panel(
+                &nested_inner_state,
+                0,
+                "showcase-splitter-nested-inner-panel-a",
+                vec![],
+                vec![text("Two")],
+            ),
+            splitter::resize_trigger(
+                &nested_inner_state,
+                0,
+                "showcase-splitter-nested-inner-panel-a",
+                "showcase-splitter-nested-inner-panel-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &nested_inner_state,
+                1,
+                "showcase-splitter-nested-inner-panel-b",
+                vec![],
+                vec![text("Three")],
+            ),
+        ],
+    );
+    let nested_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &nested_outer_state,
+        false,
+        vec![("style", "height: 16rem;")],
+        vec![
+            splitter::panel(
+                &nested_outer_state,
+                0,
+                "showcase-splitter-nested-outer-panel-a",
+                vec![],
+                vec![text("One")],
+            ),
+            splitter::resize_trigger(
+                &nested_outer_state,
+                0,
+                "showcase-splitter-nested-outer-panel-a",
+                "showcase-splitter-nested-outer-panel-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &nested_outer_state,
+                1,
+                "showcase-splitter-nested-outer-panel-b",
+                vec![],
+                vec![nested_inner_demo],
+            ),
+        ],
+    );
+
     section(
         "Splitter",
         "パネルサイズ状態機械 Splitter の静的掲示（水平 2 パネル・垂直 3 パネル）。resize-trigger は role=\"separator\" + aria-valuemin/max/now（先行パネルのサイズ %）+ aria-controls を持ちます（ドラッグ・キーボード操作は wasm 層のスコープ外）。",
-        vec![row(vec![horizontal_demo]), row(vec![vertical_demo])],
+        vec![
+            row(vec![horizontal_demo]),
+            row(vec![vertical_demo]),
+            row(vec![el(
+                "div",
+                vec![],
+                vec![
+                    p(
+                        vec![],
+                        vec![text(
+                            "With handle（resize_trigger_indicator を渡した合成パターン）",
+                        )],
+                    ),
+                    with_handle_demo,
+                ],
+            )]),
+            row(vec![el(
+                "div",
+                vec![],
+                vec![
+                    p(
+                        vec![],
+                        vec![text(
+                            "Nested（panel の children に別の splitter::root を渡す合成パターン）",
+                        )],
+                    ),
+                    nested_demo,
+                ],
+            )]),
+        ],
     )
 }
 
@@ -6859,10 +7590,139 @@ fn breadcrumb_section() -> Node {
                 .collect(),
         )],
     );
+    // イシュー #2027（shadcn/ui 突合）: custom separator デモ。`separator()`
+    // は headless-ui 側が `children` を自由に受け取る設計のため、区切り
+    // 文字の差し替えは呼び出し側だけで完結する（recipe/CSS 変更不要、
+    // `crates/pre-styled-ui/src/breadcrumb.rs` モジュール doc「shadcn/ui
+    // 突合」節参照）。shadcn の Custom separator 例（chevron 相当）に倣い
+    // "›" を掲示する。
+    let custom_separator_items = [
+        BreadcrumbItem {
+            label: "Home",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Docs",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Breadcrumb",
+            href: "",
+        },
+    ];
+    let custom_separator_node = breadcrumb::root(
+        Size::Md,
+        BreadcrumbVariant::Plain,
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            custom_separator_items
+                .iter()
+                .enumerate()
+                .flat_map(|(index, entry)| {
+                    let inner = if index == custom_separator_items.len() - 1 {
+                        breadcrumb::current_link(vec![], vec![text(entry.label)])
+                    } else {
+                        breadcrumb::link(entry.href, vec![], vec![text(entry.label)])
+                    };
+                    let mut parts = vec![breadcrumb::item(vec![], vec![inner])];
+                    if index != custom_separator_items.len() - 1 {
+                        parts.push(breadcrumb::separator(vec![], vec![text("\u{203a}")]));
+                    }
+                    parts
+                })
+                .collect(),
+        )],
+    );
+    // イシュー #2027（shadcn/ui 突合）: 省略記号 + dropdown 合成デモ。
+    // shadcn の Collapsed/Dropdown 例では `BreadcrumbEllipsis`（装飾専用、
+    // 実際の開閉は別の `DropdownMenuTrigger` が担う）に相当する。本
+    // リポジトリでは `breadcrumb::item` の子として既存の `menu` 部品
+    // （headless-ui/pre-styled-ui）を配置し、`menu::trigger` の表示文字列を
+    // 省略記号（"…"）にするだけで合成可能（headless-ui 側の変更は不要、
+    // `crates/pre-styled-ui/src/breadcrumb.rs` モジュール doc「shadcn/ui
+    // 突合」節参照）。[`ellipsis`]（headless-ui、`<li>` 固定・非対話）は
+    // 下記コメントのとおり `menu::trigger`（`<button>`、phrasing content の
+    // み許容）の子にすると不正なネストになるため使わない。埋め込む
+    // `menu` の `data-scope` は `component_page.rs::resolve_anatomy_scope`
+    // が外側スコープを採用する設計により breadcrumb 側の Anatomy/`data-*`
+    // 抽出を汚染しない。
+    let ellipsis_dropdown_node = breadcrumb::root(
+        Size::Md,
+        BreadcrumbVariant::Plain,
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            vec![
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link("", vec![], vec![text("Home")])],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![menu::root(
+                        Size::Md,
+                        OpenState::Open,
+                        vec![],
+                        vec![
+                            // `ellipsis()`（headless-ui、`<li>` 固定）は
+                            // `trigger`（`<button>`、phrasing content のみ
+                            // 許容）の子として不正なネスト（flow content の
+                            // `<li>`）になるため使わない。shadcn の実装も
+                            // 視覚上の省略記号は decorative な `<span>`
+                            // （trigger 内、`aria-hidden` 相当）であり `<li>`
+                            // ではないため、同じ意図をテキストで表現する。
+                            menu::trigger(
+                                OpenState::Open,
+                                false,
+                                Some("showcase-breadcrumb-ellipsis-menu"),
+                                vec![("aria-label", "Toggle menu")],
+                                vec![text("\u{2026}")],
+                            ),
+                            menu::positioner(
+                                OpenState::Open,
+                                vec![],
+                                vec![menu::content(
+                                    OpenState::Open,
+                                    Some("showcase-breadcrumb-ellipsis-menu"),
+                                    None,
+                                    vec![],
+                                    vec![
+                                        menu::item(
+                                            "docs",
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Docs")],
+                                        ),
+                                        menu::item(
+                                            "components",
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Components")],
+                                        ),
+                                    ],
+                                )],
+                            ),
+                        ],
+                    )],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::current_link(vec![], vec![text("Breadcrumb")])],
+                ),
+            ],
+        )],
+    );
     section(
         "Breadcrumb",
-        "headless-ui の Breadcrumb（nav[aria-label=\"breadcrumb\"] + ol/li）に pre-styled-ui の recipe CSS を適用した静的掲示です。末尾項目のみ aria-current=\"page\"/data-current を持つ非対話の現在位置表示（span）として描画します。",
-        vec![node],
+        "headless-ui の Breadcrumb（nav[aria-label=\"breadcrumb\"] + ol/li）に pre-styled-ui の recipe CSS を適用した静的掲示です。末尾項目のみ aria-current=\"page\"/data-current を持つ非対話の現在位置表示（span）として描画します。2 つ目は separator の children を差し替えたカスタム区切り文字（\"›\"）の例、3 つ目は breadcrumb::item 内に Menu 部品（trigger の表示文字列を省略記号 \"…\" にしたもの）を配置し、省略項目のドロップダウン展開を合成した例です（イシュー #2027、shadcn/ui 突合。既存 API のみで実現でき headless-ui 側の変更は不要でした）。",
+        vec![node, custom_separator_node, ellipsis_dropdown_node],
     )
 }
 
@@ -6964,19 +7824,43 @@ fn toolbar_section() -> Node {
 /// item-group/item-group-label/separator/sub-trigger/sub-content の 11
 /// anatomy パーツすべてを 1 つのノード木で描画する（Anatomy 節はこの
 /// デモから機械導出されるため、11 パーツすべてを網羅する必要がある。
-/// `crates/headless-ui/src/menubar.rs` モジュール doc 参照）。File Menu を
-/// 開いた状態で表示し、その中に「開いている Menu を跨いだ左右移動」の
-/// 対象であるサブメニュー（Export）を組み込む。サブメニューの開閉状態は
-/// `Menubar` 自身ではなく [`OpenState`] を直接注入する（headless-ui への
-/// 直接依存を持たない docs-site の制約上、[`fandhe_frontend_headless_ui::menu::Menu`]
-/// は使わず、モジュール doc「`menu` mod 再利用の内訳」が示す「サブメニュー
-/// 状態は呼び出し側が別インスタンスとして持つ」設計をここでは
-/// `OpenState` 値で直接表現する）。
-fn menubar_section() -> Node {
-    let bar = Menubar::new(0, 2, Some(0), false, Orientation::Horizontal);
+/// `crates/headless-ui/src/menubar.rs` モジュール doc 参照）。`open` で
+/// 指定した Menu を開いた状態で表示し、File Menu（index 0）の場合はその中に
+/// 「開いている Menu を跨いだ左右移動」の対象であるサブメニュー（Export）も
+/// 組み込む。サブメニューの開閉状態は `Menubar` 自身ではなく [`OpenState`]
+/// を直接注入する（headless-ui への直接依存を持たない docs-site の制約上、
+/// [`fandhe_frontend_headless_ui::menu::Menu`] は使わず、モジュール doc
+/// 「`menu` mod 再利用の内訳」が示す「サブメニュー状態は呼び出し側が別
+/// インスタンスとして持つ」設計をここでは `OpenState` 値で直接表現する）。
+///
+/// [`menubar_section`] の 3 デモ（File/View/Profiles を各々開いた状態）で
+/// 共通利用するヘルパ（PR #2164 レビュー指摘対応、イシュー #2034）。当初は
+/// File Menu のみを開いた単一デモだったため、View/Profiles の positioner/
+/// content が hidden 属性のまま出力され checkbox-item・radio-item・
+/// item-indicator の見た目を確認できなかった。`open` 以外の構造
+/// （trigger_count・各 Menu の構成）は完全に共通のため、`open` のみを
+/// 引数化して重複を避ける。
+///
+/// `id_prefix`: PR #2164 codex-review P1 / Cursor Bugbot 指摘対応
+/// （イシュー #2034）。本関数は `menubar_section` から File/View/Profiles
+/// の 3 デモへ 3 回呼び出されるが、当初は固定 ID
+/// （`menubar-file-content` 等）を出力していたため、同一 section 内で
+/// ID が重複し 2・3 個目のデモの `aria-controls`/`aria-labelledby` が
+/// 自身の要素ではなく 1 個目の要素を参照してしまっていた（ARIA 参照
+/// 破壊）。デモごとに一意な `id_prefix`（例: `"menubar-file-open"`）を
+/// 渡し、`id`/`aria-controls`/`aria-labelledby` に共通して使う内部 ID
+/// をすべてこの prefix から導出することで、3 デモ間の ID 衝突を防ぐ。
+fn build_menubar_node(open: Option<usize>, id_prefix: &str) -> Node {
+    // イシュー #2034: File/Edit の 2 Menu 構成に View（checkbox-item）・
+    // Profiles（radio-item-group + radio-item）を追加し、trigger_count を
+    // 2 → 4 へ拡張した。
+    let bar = Menubar::new(0, 4, open, false, Orientation::Horizontal);
     let export_submenu_state = OpenState::Closed;
+    let file_content_id = format!("{id_prefix}-file-content");
+    let recent_label_id = format!("{id_prefix}-recent-label");
+    let export_sub_content_id = format!("{id_prefix}-export-sub-content");
 
-    let node = bar.root(
+    bar.root(
         "App menu",
         vec![],
         vec![
@@ -6988,7 +7872,7 @@ fn menubar_section() -> Node {
                         0,
                         false,
                         false,
-                        Some("menubar-file-content"),
+                        Some(file_content_id.as_str()),
                         vec![],
                         vec![text("File")],
                     ),
@@ -6997,25 +7881,41 @@ fn menubar_section() -> Node {
                         vec![],
                         vec![bar.content(
                             0,
-                            Some("menubar-file-content"),
+                            Some(file_content_id.as_str()),
                             None,
                             vec![],
                             vec![
                                 menubar::item_group(
-                                    Some("menubar-recent-label"),
+                                    Some(recent_label_id.as_str()),
                                     vec![],
                                     vec![
                                         menubar::item_group_label(
-                                            Some("menubar-recent-label"),
+                                            Some(recent_label_id.as_str()),
                                             vec![],
                                             vec![text("Recent")],
                                         ),
+                                        // イシュー #2034: shortcut は新規
+                                        // anatomy パートを追加せず、
+                                        // item_text（flex: 1 1 auto）+ kbd
+                                        // （crate::kbd）を子として並べる
+                                        // 合成パターンで表現する
+                                        // （`crates/pre-styled-ui/src/
+                                        // menubar.rs` モジュール doc「意図的
+                                        // に合わせなかった点」節参照）。
                                         menubar::item(
                                             "report.md",
                                             false,
                                             true,
                                             vec![],
-                                            vec![text("report.md")],
+                                            vec![
+                                                menubar::item_text(
+                                                    false,
+                                                    true,
+                                                    vec![],
+                                                    vec![text("report.md")],
+                                                ),
+                                                kbd(&KbdProps::default(), vec![], vec![text("⌘O")]),
+                                            ],
                                         ),
                                         // イシュー #1703: `disabled_declarations()`
                                         // 経由の視覚（opacity/cursor）を掲示する。
@@ -7033,7 +7933,7 @@ fn menubar_section() -> Node {
                                     export_submenu_state,
                                     false,
                                     false,
-                                    Some("menubar-export-sub-content"),
+                                    Some(export_sub_content_id.as_str()),
                                     vec![],
                                     // イシュー #1703: anatomy に `indicator`
                                     // パートが無いため、`justify-content:
@@ -7062,7 +7962,7 @@ fn menubar_section() -> Node {
                                 ),
                                 menubar::sub_content(
                                     export_submenu_state,
-                                    Some("menubar-export-sub-content"),
+                                    Some(export_sub_content_id.as_str()),
                                     None,
                                     vec![],
                                     vec![menubar::item(
@@ -7083,12 +7983,152 @@ fn menubar_section() -> Node {
                 vec![],
                 vec![bar.trigger(1, false, true, None, vec![], vec![text("Edit")])],
             ),
+            // イシュー #2034: View（checkbox-item 2 件、うち 1 件 checked）。
+            bar.menu(
+                2,
+                vec![],
+                vec![
+                    bar.trigger(2, false, false, None, vec![], vec![text("View")]),
+                    bar.positioner(
+                        2,
+                        vec![],
+                        vec![bar.content(
+                            2,
+                            None,
+                            None,
+                            vec![],
+                            vec![
+                                menubar::checkbox_item(
+                                    true,
+                                    "status-bar",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menubar::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Status Bar")],
+                                        ),
+                                        menubar::item_indicator(true, vec![], vec![text("✓")]),
+                                    ],
+                                ),
+                                menubar::checkbox_item(
+                                    false,
+                                    "word-wrap",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menubar::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Word Wrap")],
+                                        ),
+                                        menubar::item_indicator(false, vec![], vec![text("✓")]),
+                                    ],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+            // イシュー #2034: Profiles（radio-item-group + radio-item 3 件、
+            // うち 1 件 checked）。
+            bar.menu(
+                3,
+                vec![],
+                vec![
+                    bar.trigger(3, false, false, None, vec![], vec![text("Profiles")]),
+                    bar.positioner(
+                        3,
+                        vec![],
+                        vec![bar.content(
+                            3,
+                            None,
+                            None,
+                            vec![],
+                            vec![menubar::radio_item_group(
+                                None,
+                                vec![],
+                                vec![
+                                    menubar::radio_item(
+                                        true,
+                                        "default",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![
+                                            menubar::item_text(
+                                                false,
+                                                false,
+                                                vec![],
+                                                vec![text("Default")],
+                                            ),
+                                            menubar::item_indicator(true, vec![], vec![text("●")]),
+                                        ],
+                                    ),
+                                    menubar::radio_item(
+                                        false,
+                                        "staging",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![
+                                            menubar::item_text(
+                                                false,
+                                                false,
+                                                vec![],
+                                                vec![text("Staging")],
+                                            ),
+                                            menubar::item_indicator(false, vec![], vec![text("●")]),
+                                        ],
+                                    ),
+                                    menubar::radio_item(
+                                        false,
+                                        "production",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![
+                                            menubar::item_text(
+                                                false,
+                                                false,
+                                                vec![],
+                                                vec![text("Production")],
+                                            ),
+                                            menubar::item_indicator(false, vec![], vec![text("●")]),
+                                        ],
+                                    ),
+                                ],
+                            )],
+                        )],
+                    ),
+                ],
+            ),
         ],
-    );
+    )
+}
+
+fn menubar_section() -> Node {
+    // イシュー #2034: File/Edit の 2 Menu 構成に View（checkbox-item）・
+    // Profiles（radio-item-group + radio-item）を追加し、trigger_count を
+    // 2 → 4 へ拡張した。PR #2164 レビュー指摘（codex-review P2 / Cursor
+    // Bugbot Medium）: 当初は File Menu のみを開いた単一デモだったため
+    // View/Profiles の positioner/content が hidden 属性のまま出力され、
+    // checkbox-item・radio-item・item-indicator の見た目を閲覧者が確認
+    // できなかった。`open` を引数化し、File/View/Profiles をそれぞれ開いた
+    // 3 つの静的デモへ分割することで解消する（`build_menubar_node` の
+    // `open` のみが差分で、他の構造は完全に共通）。
+    let file_open = build_menubar_node(Some(0), "menubar-file-open");
+    let view_open = build_menubar_node(Some(2), "menubar-view-open");
+    let profiles_open = build_menubar_node(Some(3), "menubar-profiles-open");
     section(
         "Menubar",
-        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit の 2 Menu を水平配置し、File Menu を開いた状態（open=Some(0)）で表示しています。Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造も含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。Edit トリガーは highlighted=true とし、trigger の data-highlighted 配色（イシュー #1702）も掲示します。File Menu の Print… item は disabled=true とし、内部パート是正（イシュー #1703）の disabled_declarations 配色・item/sub-trigger の hover・トランジション・トークン整合（radius/shadow/border-muted）を掲示します。Export sub-trigger は右端に示唆グリフ（▸）のテキストノードを添え、anatomy に indicator パートが無い制約下でのサブメニュー示唆を表現します。",
-        vec![node],
+        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit / View / Profiles の 4 Menu を水平配置し、開いている Menu を切り替えた 3 つの静的デモ（File Menu が open=Some(0)、View Menu が open=Some(2)、Profiles Menu が open=Some(3)）を並べています。1 つ目（File Menu）は Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造を含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。Edit トリガーは highlighted=true とし、trigger の data-highlighted 配色（イシュー #1702）も掲示します。File Menu の report.md item は item-text + kbd（⌘O）の合成でショートカット表示を、Print… item は disabled=true として disabled_declarations 配色を掲示します（内部パート是正はイシュー #1703）。Export sub-trigger は右端に示唆グリフ（▸）のテキストノードを添え、サブメニュー示唆を表現します。2 つ目（View Menu）は checkbox-item 2 件（Status Bar が checked）、3 つ目（Profiles Menu）は radio-item-group + radio-item 3 件（Default が checked）をそれぞれ開いた状態で掲示し、item-indicator（末尾チェックマーク、イシュー #2034 で Themes 層へ CSS 付与）による checked 表現を確認できます（イシュー #2034、PR #2164 レビュー指摘対応）。",
+        vec![file_open, view_open, profiles_open],
     )
 }
 
@@ -7249,15 +8289,22 @@ fn nav_list_section() -> Node {
     )
 }
 
-/// Navigation Menu 節（イシュー #993）: root/list/item/trigger/content/link
-/// の 6 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
-/// 機械導出されるため、1 パーツでも欠けると節が不完全になる、
+/// Navigation Menu 節（イシュー #993、#2035 で 7 パーツへ拡張）:
+/// root/list/item/trigger/item-indicator/content/link の 7 anatomy パーツを
+/// 1 デモに全網羅する（Anatomy 節はデモ HTML から機械導出されるため、
+/// 1 パーツでも欠けると節が不完全になる、
 /// `crates/docs-site/src/component_specs_overlay.rs` 参照）。
 ///
 /// 1 項目目（Products）は Trigger を開いた状態（`data-state="open"`）で
-/// 掲示し Content 内の Link を掲示する。2 項目目（About）はディスクロージャ
-/// を持たない単独リンクとし `current: true`（`aria-current="page"`）で
-/// アクティブリンク表現を掲示する。`href` は
+/// 掲示し、trigger 内に item-indicator（開閉シェブロン、イシュー #2035）を
+/// 添えて回転済みの視覚を確認できるようにする。Content 内は
+/// [`crate::text`] を併用したタイトル + 説明文の 2 列グリッドリンク合成
+/// （shadcn/ui "Components" パネル相当、`SlotRecipe` の子孫セレクタ非対応
+/// のため CSS 側は変更せず Demo コードのみで再現）を掲示する。2 項目目
+/// （Resources）はアイコン付きトリガー（`gap`、イシュー #2035）を閉じた
+/// 状態（item-indicator が回転しない基準状態）で掲示する。3 項目目
+/// （About）はディスクロージャを持たない単独リンクとし `current: true`
+/// （`aria-current="page"`）でアクティブリンク表現を掲示する。`href` は
 /// `showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
 /// linkcheck 中立性契約に従い空文字列固定とする。
 fn navigation_menu_section() -> Node {
@@ -7267,6 +8314,35 @@ fn navigation_menu_section() -> Node {
     // 状態機械を経由しない構成でも共用できる、`navigation_menu` モジュール
     // doc 参照）。
     let nav_props = navigation_menu::NavigationMenuProps::default();
+    // イシュー #2035: shadcn/ui "Components" パネル相当のタイトル + 説明文
+    // リンク合成。`crate::text`（独立した styled 部品）を link の子ノードと
+    // して併用し、navigation_menu 側の CSS を一切変更せずに再現する
+    // （`SlotRecipe` は子孫セレクタを持たない設計、イシュー #708）。
+    let title_description_link = |title: &'static str, description: &'static str| {
+        navigation_menu::link(
+            "",
+            false,
+            vec![("style", "display: block; padding: var(--fandhe-space-2);")],
+            vec![
+                styled_text(
+                    &TextProps {
+                        weight: TextWeight::Semibold,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text(title)],
+                ),
+                styled_text(
+                    &TextProps {
+                        size: TextSize::Sm,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text(description)],
+                ),
+            ],
+        )
+    };
     let node = navigation_menu::root(
         &nav_props,
         "Main",
@@ -7289,7 +8365,16 @@ fn navigation_menu_section() -> Node {
                             Some("nav-menu-products-trigger"),
                             Some("nav-menu-products-content"),
                             vec![],
-                            vec![text("Products")],
+                            vec![
+                                text("Products"),
+                                navigation_menu::item_indicator(
+                                    OpenState::Open,
+                                    &nav_props,
+                                    "products",
+                                    vec![],
+                                    vec![text("⌄")],
+                                ),
+                            ],
                         ),
                         navigation_menu::content(
                             OpenState::Open,
@@ -7297,11 +8382,69 @@ fn navigation_menu_section() -> Node {
                             "products",
                             Some("nav-menu-products-content"),
                             Some("nav-menu-products-trigger"),
+                            vec![("style", "display: grid; grid-template-columns: repeat(2, minmax(10rem, 1fr)); gap: var(--fandhe-space-2);")],
+                            vec![
+                                title_description_link(
+                                    "Analytics",
+                                    "利用状況・パフォーマンスを可視化するダッシュボード。",
+                                ),
+                                title_description_link(
+                                    "Automation",
+                                    "定型作業を自動化するワークフロー機能。",
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+                navigation_menu::item(
+                    OpenState::Closed,
+                    false,
+                    &nav_props,
+                    "resources",
+                    vec![],
+                    vec![
+                        navigation_menu::trigger(
+                            OpenState::Closed,
+                            false,
+                            "resources",
+                            Some("nav-menu-resources-trigger"),
+                            Some("nav-menu-resources-content"),
                             vec![],
                             vec![
-                                navigation_menu::link("", false, vec![], vec![text("Analytics")]),
-                                navigation_menu::link("", false, vec![], vec![text("Automation")]),
+                                // イシュー #2035: アイコン付きトリガー合成
+                                // （アイコン + ラベルの gap、実アイコンでは
+                                // なく簡易グリフで代用）。
+                                el("span", vec![("aria-hidden", "true")], vec![text("◆")]),
+                                text("Resources"),
+                                navigation_menu::item_indicator(
+                                    OpenState::Closed,
+                                    &nav_props,
+                                    "resources",
+                                    vec![],
+                                    vec![text("⌄")],
+                                ),
                             ],
+                        ),
+                        // 修正ラウンド（codex-review/Bugbot 指摘）: 上記
+                        // trigger が出力する
+                        // `aria-controls="nav-menu-resources-content"` の
+                        // 参照先が存在しなかった（ARIA 参照先欠落）ため、
+                        // products と同様に対応する content を追加する。
+                        // `OpenState::Closed` のため `content()` が
+                        // `hidden` 属性を自動付与し（headless-ui
+                        // `navigation_menu::content` 参照）、閉じた基準
+                        // 状態の視覚には影響しない。
+                        navigation_menu::content(
+                            OpenState::Closed,
+                            &nav_props,
+                            "resources",
+                            Some("nav-menu-resources-content"),
+                            Some("nav-menu-resources-trigger"),
+                            vec![],
+                            vec![title_description_link(
+                                "Docs",
+                                "利用ガイド・API リファレンスへのリンク集。",
+                            )],
                         ),
                     ],
                 ),
@@ -7318,7 +8461,7 @@ fn navigation_menu_section() -> Node {
     );
     section(
         "Navigation Menu",
-        "headless-ui の Navigation Menu（役割は素の nav/ul/li/button/div/a の暗黙 ARIA role に依拠し、role は一切付与しません）に pre-styled-ui の recipe CSS を適用した静的掲示です。Products トリガーを開いた状態（data-state=\"open\"）で Content 内の 2 リンクを掲示し、About は Trigger/Content を持たない単独リンクとして aria-current=\"page\" によるアクティブリンク表現を掲示します。viewport 測定・data-motion は headless 層に存在しないため掲示していません（詳細は headless-ui の navigation_menu モジュール doc を参照）。",
+        "headless-ui の Navigation Menu（役割は素の nav/ul/li/button/div/a の暗黙 ARIA role に依拠し、role は一切付与しません）に pre-styled-ui の recipe CSS を適用した静的掲示です。Products トリガーを開いた状態（data-state=\"open\"）で item-indicator（開閉シェブロン、イシュー #2035）を回転済みの視覚で掲示し、Content 内は crate::text を併用したタイトル + 説明文の 2 列グリッドリンク合成を掲示します。Resources はアイコン + item-indicator を持つトリガーを閉じた状態（回転しない基準状態）で掲示し、About は Trigger/Content を持たない単独リンクとして aria-current=\"page\" によるアクティブリンク表現を掲示します。viewport 測定・data-motion・ルートレベルの NavigationMenuIndicator は headless 層に存在しないため掲示していません（詳細は headless-ui の navigation_menu モジュール doc、および pre-styled-ui の navigation_menu モジュール doc「shadcn/ui 突合（イシュー #2035）」節を参照）。",
         vec![node],
     )
 }
@@ -8651,59 +9794,114 @@ fn date_picker_section() -> Node {
         })
         .collect();
 
-    let date_picker_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps::default();
-    let node = date_picker::root(
-        Size::Md,
-        OpenState::Open,
-        &date_picker_props,
-        vec![],
-        vec![
-            date_picker::label(
-                &date_picker_props,
-                Some("showcase-date-picker-label"),
-                None,
-                vec![],
-                vec![text("Delivery date")],
-            ),
-            date_picker::control(
-                OpenState::Open,
-                &date_picker_props,
-                vec![],
-                vec![
-                    date_picker::input(Some("2026-07-15"), &date_picker_props, None, vec![]),
-                    date_picker::trigger(
-                        OpenState::Open,
-                        &date_picker_props,
-                        Some("showcase-date-picker-content"),
-                        vec![],
-                        vec![text("📅")],
-                    ),
-                ],
-            ),
-            date_picker::positioner(
-                OpenState::Open,
-                vec![],
-                vec![date_picker::content(
-                    OpenState::Open,
-                    Some("showcase-date-picker-content"),
-                    Some("showcase-date-picker-label"),
+    // 3 状態（既定 open / invalid / readonly）で共有する popover +
+    // カレンダーグリッドの組み立てヘルパ（イシュー #2013、shadcn/ui 突合の
+    // `data-invalid` CSS 消費追加、および readonly はネイティブ
+    // `<input readonly>` のまま追加の視覚宣言を持たない意図的な見送りを
+    // 実演する。closure が `header_row`/`body_rows` を借用するため、
+    // 呼び出しごとに複製する）。
+    // label と input を `for`/`id` で関連付ける（codex-review 指摘、
+    // イシュー #2013 PR #2177 修正ラウンド）: `input_id` を label の
+    // `for_` と input の `id` の両方へ渡し、スクリーンリーダーがネイティブ
+    // `label[for]` 経由で入力欄の名前を取得できるようにする
+    // （[`date_picker::label`] rustdoc の関連付け契約参照）。
+    let build_node = |props: &fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps,
+                      label_id: &'static str,
+                      input_id: &'static str,
+                      content_id: &'static str,
+                      label_text: &'static str| {
+        date_picker::root(
+            Size::Md,
+            OpenState::Open,
+            props,
+            vec![],
+            vec![
+                date_picker::label(
+                    props,
+                    Some(label_id),
+                    Some(input_id),
                     vec![],
-                    vec![calendar::table(
-                        None,
+                    vec![text(label_text)],
+                ),
+                date_picker::control(
+                    OpenState::Open,
+                    props,
+                    vec![],
+                    vec![
+                        date_picker::input(Some("2026-07-15"), props, Some(input_id), vec![]),
+                        date_picker::trigger(
+                            OpenState::Open,
+                            props,
+                            Some(content_id),
+                            vec![],
+                            vec![text("📅")],
+                        ),
+                    ],
+                ),
+                date_picker::positioner(
+                    OpenState::Open,
+                    vec![],
+                    vec![date_picker::content(
+                        OpenState::Open,
+                        Some(content_id),
+                        Some(label_id),
                         vec![],
-                        vec![
-                            calendar::table_header(vec![], vec![header_row]),
-                            calendar::table_body(vec![], body_rows),
-                        ],
+                        vec![calendar::table(
+                            None,
+                            vec![],
+                            vec![
+                                calendar::table_header(vec![], vec![header_row.clone()]),
+                                calendar::table_body(vec![], body_rows.clone()),
+                            ],
+                        )],
                     )],
-                )],
-            ),
-        ],
+                ),
+            ],
+        )
+    };
+
+    let default_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps::default();
+    let default_node = build_node(
+        &default_props,
+        "showcase-date-picker-label",
+        "showcase-date-picker-input",
+        "showcase-date-picker-content",
+        "Delivery date",
     );
+
+    // イシュー #2013: shadcn/ui との突合で `data-invalid` の CSS 消費が
+    // 未実装だったギャップを埋めたため（`date_picker.rs` モジュール
+    // rustdoc「スタイル調整（イシュー #2013）」節参照）、視覚確認できる
+    // デモ行を追加する（checkbox #2011/#2143 の invalid デモ行追加と
+    // 同型）。
+    let invalid_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
+        invalid: true,
+        ..Default::default()
+    };
+    let invalid_node = build_node(
+        &invalid_props,
+        "showcase-date-picker-invalid-label",
+        "showcase-date-picker-invalid-input",
+        "showcase-date-picker-invalid-content",
+        "Delivery date (invalid)",
+    );
+
+    let readonly_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let readonly_node = build_node(
+        &readonly_props,
+        "showcase-date-picker-readonly-label",
+        "showcase-date-picker-readonly-input",
+        "showcase-date-picker-readonly-content",
+        "Delivery date (readonly)",
+    );
+
     section(
         "DatePicker",
-        "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。",
-        vec![node],
+        "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。invalid（枠線色、イシュー #2013）と readonly（ネイティブ `<input readonly>` のまま追加の視覚宣言なし）の 2 状態も並べて実演します。",
+        vec![default_node, invalid_node, readonly_node],
     )
 }
 
