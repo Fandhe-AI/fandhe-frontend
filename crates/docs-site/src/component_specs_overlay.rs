@@ -84,9 +84,11 @@ use fandhe_frontend_pre_styled_ui::{
     collapsible,
     dialog::{self, ContentIds, DialogRole},
     drawer::{self, DrawerPlacement},
+    field::{self, FieldIds, FieldOrientation, FieldProps, FieldRootProps},
     hover_card::{self, HoverCardDelays},
+    input::{self, InputProps},
     kbd::{kbd, KbdProps},
-    menubar, navigation_menu,
+    menubar, navigation_menu, popover,
     text::{text as styled_text, TextProps, TextSize, TextWeight},
     ColorPalette, OpenState, Size,
 };
@@ -1206,12 +1208,14 @@ pub const MENU: ComponentPageSpec = ComponentPageSpec {
 ///
 /// 一次情報: `crates/headless-ui/src/popover.rs`（モジュール doc・
 /// `root`/`trigger`/`content` シグネチャ・`aria-haspopup="dialog"`/
-/// `role="dialog"` の実出力テスト）。
+/// `role="dialog"` の実出力テスト）。イシュー #2037（shadcn/ui 突合による
+/// Examples 節「Dimensions form」追加）。
 pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "トリガー起点のオーバーレイ。Root / Trigger / Anchor / Positioner / Arrow / ArrowTip / Content / Title / Description / CloseTrigger / Indicator の 11 anatomy パーツを持つ。",
         "開閉は Disclosure を埋め込んだ状態機械 Popover が管理する。",
         "content に role=\"dialog\" を固定付与し、title / description が設定されているときのみ aria-labelledby / aria-describedby をセットで付与する。",
+        "shadcn/ui（Base UI）の With Form Example（Field/Input を内包する Content）は content の children へ fandhe-frontend-pre-styled-ui::field/input の既存 API を並べるだけの既存合成パターンであり、新規の variant/size/state 軸を追加しない（下記 Examples 節参照）。",
     ],
     arguments: &[ArgRow {
         name: "state",
@@ -1219,7 +1223,11 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
         default: "",
         description: "開閉状態（Open/Closed）。root/content の data-state へ反映される。",
     }],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Dimensions form",
+        description: "shadcn/ui（Base UI）の With Form Example に相当する、Field/Input を組み合わせたフォーム内包パターンです。バリデーション・送信処理は実装せず、fandhe-frontend-pre-styled-ui::field/input の既存 API のみで静的な入力欄を並べています。新しい variant や data-* 語彙は追加していません。",
+        render: ex_popover_dimensions_form,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -1241,6 +1249,101 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`POPOVER`] の Examples 節「Dimensions form」レンダラ（イシュー #2037）。
+///
+/// shadcn/ui（Base UI）Popover ページの With Form Example（`Field`/
+/// `FieldGroup`/`FieldLabel`/`Input` を内包する Content）を、既存 API のみで
+/// 再現できることを示す合成デモ。バリデーション・送信処理は一切実装しない
+/// （`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。Width/Max.
+/// width/Height/Max. height の 4 フィールドを
+/// [`FieldOrientation::Horizontal`] で横並びに配置し、値は静的リテラルの
+/// `value` 属性のみで表す。Demo（[`crate::showcase::popover_section`]）と
+/// 同じページに描画されるため、id は衝突しない
+/// `showcase-popover-dimensions-*` を使う
+/// （[`fandhe_frontend_pre_styled_ui::popover`] モジュール doc「shadcn/ui
+/// 突合」節参照）。
+fn ex_popover_dimensions_form() -> Node {
+    let open = OpenState::Open;
+    let content_id = "showcase-popover-dimensions-content";
+    let title_id = "showcase-popover-dimensions-title";
+
+    let dimension_field = |id: &'static str, label_text: &'static str, value: &'static str| {
+        let field_props = FieldProps {
+            id,
+            ids: FieldIds::default(),
+            disabled: false,
+            invalid: false,
+            required: false,
+            readonly: false,
+            has_helper_text: false,
+        };
+        field::root(
+            &FieldRootProps {
+                orientation: FieldOrientation::Horizontal,
+            },
+            &field_props,
+            vec![],
+            vec![
+                field::label(&field_props, vec![], vec![text(label_text)]),
+                input::input(&InputProps::default(), &field_props, vec![("value", value)]),
+            ],
+        )
+    };
+
+    popover::root(
+        open,
+        vec![],
+        vec![
+            popover::trigger(
+                open,
+                false,
+                Some(content_id),
+                vec![],
+                vec![text("Edit dimensions")],
+            ),
+            popover::positioner(
+                open,
+                vec![],
+                vec![popover::content(
+                    open,
+                    Some(content_id),
+                    Some(title_id),
+                    None,
+                    vec![],
+                    vec![
+                        popover::title(Some(title_id), vec![], vec![text("Dimensions")]),
+                        div(
+                            vec![],
+                            vec![
+                                dimension_field(
+                                    "showcase-popover-dimensions-width",
+                                    "Width",
+                                    "100%",
+                                ),
+                                dimension_field(
+                                    "showcase-popover-dimensions-max-width",
+                                    "Max. width",
+                                    "300px",
+                                ),
+                                dimension_field(
+                                    "showcase-popover-dimensions-height",
+                                    "Height",
+                                    "25px",
+                                ),
+                                dimension_field(
+                                    "showcase-popover-dimensions-max-height",
+                                    "Max. height",
+                                    "none",
+                                ),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
 
 /// `/themes/tabs/`（Interactive カテゴリ）。
 ///
