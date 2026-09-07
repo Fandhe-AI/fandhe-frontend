@@ -325,6 +325,7 @@ fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
 
         // marker（イシュー #1621）: attrs 属性値経路・children テキスト経路
         let marker_node = slider::marker(
+            Orientation::Horizontal,
             20.0,
             50.0,
             0.0,

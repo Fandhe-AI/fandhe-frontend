@@ -190,9 +190,16 @@
 //!   （`data-orientation="vertical"`）は `thumb` と同じ `bottom` アンカー
 //!   方式に切り替える。`data-state`（`under-value`/`over-value`/
 //!   `at-value`）で色を作り分け、`under-value`/`at-value` は `range` と
-//!   揃えた palette 色、`over-value` は `track` と同系統のミュート色とする。
-//!   既存デザイントークン（`--fandhe-color-*`/`--fandhe-radius-full`）のみを
-//!   再利用し、新規トークンは追加しない。
+//!   揃えた palette 色、`over-value` は `--fandhe-color-fg-muted`（イシュー
+//!   #2020 PR #2167 レビュー指摘 P1: 旧実装は `track` と同一トークン
+//!   `--fandhe-color-border` を使い track 上で完全に同化していたため、実
+//!   コントラストのあるトークンへ変更した）とする。marker 自体も track と
+//!   同じ丈だと range/track に重なる部分が同化するため、track 高より一回り
+//!   高くして上下へ突出させ、加えて `--fandhe-color-bg`（ページ背景色）1px
+//!   の `box-shadow` リングで track/range いずれの背景色に対しても輪郭が
+//!   見えるようにしている（同レビュー指摘）。既存デザイントークン
+//!   （`--fandhe-color-*`/`--fandhe-radius-full`）のみを再利用し、新規
+//!   トークンは追加しない。
 //! - angle-slider（[`crate::angle_slider`]）は円形スライダー固有の理由
 //!   （目盛りを `control` の多層 `background` グラデーションで CSS-only
 //!   再現しているため DOM マーカーが不要）でマーカーを意図的に非スタイル
@@ -525,11 +532,27 @@ fn recipe() -> SlotRecipe {
                 decl("left", "var(--fandhe-slider-marker-percent, 0%)"),
                 decl("transform", "translate(-50%, -50%)"),
                 decl("width", "2px"),
-                decl("height", "var(--fandhe-slider-track-height, 0.375rem)"),
+                // イシュー #2020 PR #2167 レビュー指摘 P1（codex/Bugbot）:
+                // トラック高と同じ丈だと under/at-value（range と同色）・
+                // over-value（旧: track と同色）のいずれも背景へ同化して
+                // 視認できない。track 高より一回り高くしてトラック上下へ
+                // 突出させ、track/range に重ならない部分（`control` の空白
+                // 領域）で常に輪郭が見えるようにする。
+                decl(
+                    "height",
+                    "calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem)",
+                ),
                 decl("border-radius", "var(--fandhe-radius-full, 999px)"),
+                // 突出のみでは track/range 上に重なる中央部分がなお同化する
+                // ため、`--fandhe-color-bg`（ページ背景）1px のリング
+                // （box-shadow）を輪郭として重ね、track/range いずれの色に
+                // 対しても縁取りで区別できるようにする（native
+                // `<input type="range">` の datalist tick と同型の視認性
+                // 対処）。
+                decl("box-shadow", "0 0 0 1px var(--fandhe-color-bg)"),
                 // under-value/at-value（現在値に達済みのマーカー）は range
-                // と同じ palette 色、over-value（未到達）は track と同系統の
-                // ミュート色にする（`data-state` 別規則は下記 3 本）。
+                // と同じ palette 色、over-value（未到達）は下記状態規則で
+                // より濃いミュート色へ上書きする。
                 decl(
                     "background",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
@@ -544,7 +567,10 @@ fn recipe() -> SlotRecipe {
                 decl("bottom", "var(--fandhe-slider-marker-percent, 0%)"),
                 decl("left", "50%"),
                 decl("transform", "translate(-50%, 50%)"),
-                decl("width", "var(--fandhe-slider-track-height, 0.375rem)"),
+                decl(
+                    "width",
+                    "calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem)",
+                ),
                 decl("height", "2px"),
             ],
         )
@@ -555,7 +581,13 @@ fn recipe() -> SlotRecipe {
             // `disabled_declarations()` が既に全体へ視覚適用済みのため個別
             // 追加しない、上記コメント参照）と同じ判断で、marker の
             // disabled 専用宣言は追加しない。
-            vec![decl("background", "var(--fandhe-color-border)")],
+            // イシュー #2020 PR #2167 レビュー指摘 P1: 旧 `--fandhe-color-border`
+            // は `track` の背景そのものと同色（同一トークン参照）のため
+            // over-value のマーカーが track 上で完全に同化していた。
+            // `--fandhe-color-fg-muted` はライト/ダーク双方で `border` より
+            // 明確に濃く（例: light `#4a4a4a` vs `border` の `#d9d9d9`）、
+            // track 背景との実コントラストを確保する。
+            vec![decl("background", "var(--fandhe-color-fg-muted)")],
         )
         .variant(
             Size::Xs,
@@ -807,13 +839,27 @@ mod tests {
 
     #[test]
     fn stylesheet_links_marker_to_over_value_state() {
-        // イシュー #2020: 未到達（over-value）のマーカーは track と同系統の
-        // ミュート色で塗る契約を固定する。
+        // イシュー #2020 PR #2167 レビュー指摘 P1: 未到達（over-value）の
+        // マーカーは track 背景（`--fandhe-color-border`）そのものではなく、
+        // 実コントラストが確保された `--fandhe-color-fg-muted` で塗る契約を
+        // 固定する（track と同色だと同化して視認できないため）。
         let css = stylesheet();
         assert!(
             css.contains(r#"[data-scope="slider"][data-part="marker"][data-state="over-value"] {"#)
         );
-        assert!(css.contains("background: var(--fandhe-color-border);"));
+        assert!(css.contains("background: var(--fandhe-color-fg-muted);"));
+    }
+
+    #[test]
+    fn stylesheet_marker_protrudes_past_track_height_and_has_bg_ring() {
+        // イシュー #2020 PR #2167 レビュー指摘 P1: track と同じ高さの
+        // マーカーは range/track に完全に重なり視認できないため、track より
+        // 高くして突出させ、かつページ背景色のリング（box-shadow）で
+        // track/range いずれの色に対しても輪郭が見えるようにする契約を
+        // 固定する。
+        let css = stylesheet();
+        assert!(css.contains("height: calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem);"));
+        assert!(css.contains("box-shadow: 0 0 0 1px var(--fandhe-color-bg);"));
     }
 
     #[test]

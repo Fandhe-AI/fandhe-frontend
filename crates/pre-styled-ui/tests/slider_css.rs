@@ -98,8 +98,9 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
   left: var(--fandhe-slider-marker-percent, 0%);
   transform: translate(-50%, -50%);
   width: 2px;
-  height: var(--fandhe-slider-track-height, 0.375rem);
+  height: calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem);
   border-radius: var(--fandhe-radius-full, 999px);
+  box-shadow: 0 0 0 1px var(--fandhe-color-bg);
   background: var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
@@ -233,12 +234,12 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
   bottom: var(--fandhe-slider-marker-percent, 0%);
   left: 50%;
   transform: translate(-50%, 50%);
-  width: var(--fandhe-slider-track-height, 0.375rem);
+  width: calc(var(--fandhe-slider-track-height, 0.375rem) + 0.5rem);
   height: 2px;
 }
 
 [data-scope="slider"][data-part="marker"][data-state="over-value"] {
-  background: var(--fandhe-color-border);
+  background: var(--fandhe-color-fg-muted);
 }
 
 @media (hover: hover) {
