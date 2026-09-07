@@ -5513,6 +5513,27 @@ mod wiring {
     /// 「`aria-activedescendant` は input 側に配線する」契約、モジュール
     /// doc §Combobox 参照）と対象が異なるため引数として分離する
     /// （イシュー #1071 で [`set_highlight`] から抽出）。
+    ///
+    /// 新規 highlight 項目はスクロール可能な祖先（Select の `content`。
+    /// `overflow-y: auto` + `max-height`、イシュー #2019）内へ追随させる
+    /// （codex-review P1 是正、PR #2165）。既に可視領域内であれば no-op
+    /// であり、Menu/Listbox/Combobox 等スクロール領域を持たない呼び出し
+    /// 元でも副作用がない。
+    ///
+    /// [`scroll_item_into_view_if_needed`] は `Element::scroll_into_view_
+    /// with_scroll_into_view_options`（`nearest`）を使わず、item の最も
+    /// 近いスクロール可能な祖先 1 要素の `scrollTop` のみを手動調整する
+    /// （Cursor Bugbot 是正、イシュー #2019/PR #2165）。CSSOM View 仕様上
+    /// `scrollIntoView` の `nearest` は「対象を含む可視領域内に収まって
+    /// いない全ての祖先スクロールコンテナ（document を含む）」へ適用
+    /// されるため、画面端に一部はみ出た Select/Menu/Combobox のオーバー
+    /// レイがあると、item を含む `content` だけでなくページ自体（document
+    /// scrollingElement）もパンされ得る。`position: fixed` の positioner
+    /// （`data-positioned`）を使う実装では、この意図しないページ
+    /// スクロールでオーバーレイがビューポート座標系のまま残り、トリガー
+    /// だけが動いてアンカーからずれてしまう。この手動実装は見つかった
+    /// スクロール可能な祖先 1 要素だけを対象にし、それ以外の祖先
+    /// （document を含む）の scroll 位置には一切触れない。
     fn set_highlight_on_host(
         items: &[Element],
         next_index: usize,
@@ -5522,6 +5543,7 @@ mod wiring {
             if i == next_index {
                 set_dom_attribute(item, "data-highlighted", "");
                 sync_item_text_highlighted(item, true);
+                scroll_item_into_view_if_needed(item);
             } else {
                 let _ = item.remove_attribute("data-highlighted");
                 sync_item_text_highlighted(item, false);
@@ -5536,6 +5558,78 @@ mod wiring {
                 let _ = activedescendant_host.remove_attribute("aria-activedescendant");
             }
         }
+    }
+
+    /// [`set_highlight_on_host`] が新規 highlight 項目に対してのみ呼ぶ
+    /// スクロール追随の実体。[`nearest_scrollable_ancestor`] が見つけた
+    /// 1 要素の `scrollTop` のみを、item の `getBoundingClientRect` が
+    /// その要素の可視領域からはみ出ている分だけ調整する（`nearest`
+    /// 相当。対象が既に可視領域内なら delta が 0 のため no-op で無用な
+    /// レイアウト振動を避ける）。スクロール可能な祖先が見つからない
+    /// 場合は何もしない（`document` へフォールバックしてページを
+    /// パンしない。Cursor Bugbot 是正、イシュー #2019/PR #2165）。
+    fn scroll_item_into_view_if_needed(item: &Element) {
+        let Some(container) = nearest_scrollable_ancestor(item) else {
+            return;
+        };
+        let item_rect = item.get_bounding_client_rect();
+        let container_rect = container.get_bounding_client_rect();
+        let delta = if item_rect.top() < container_rect.top() {
+            item_rect.top() - container_rect.top()
+        } else if item_rect.bottom() > container_rect.bottom() {
+            item_rect.bottom() - container_rect.bottom()
+        } else {
+            0.0
+        };
+        if delta != 0.0 {
+            let new_scroll_top = container.scroll_top() as f64 + delta;
+            container.set_scroll_top(new_scroll_top as i32);
+        }
+    }
+
+    /// `item` から `parent_element()` を辿り、`overflow-y` が
+    /// `auto`/`scroll` かつ実際にオーバーフローしている
+    /// （`scrollHeight > clientHeight`）最初の祖先要素を返す
+    /// （[`scroll_item_into_view_if_needed`] 専用のヘルパー、Cursor
+    /// Bugbot 是正、イシュー #2019/PR #2165）。
+    ///
+    /// 探索範囲は `item` の最も近い `[data-part="content"]` 祖先
+    /// （Menu/Select/Combobox いずれも content を持つ、`crates/
+    /// headless-ui/src/{menu,select,combobox}.rs` の anatomy 参照）
+    /// **配下**に限定する（codex-review P1 是正、イシュー #2019/PR
+    /// #2165）。単純な `overflow-y` computed style 判定のみだと、
+    /// `content` に到達してもスクロール不可（overflow していない）で
+    /// あれば探索を続けてしまい、ページ側の祖先（例えば `body` へ
+    /// アプリ側が `overflow-y: auto` を設定している構成）まで遡って
+    /// document をパンし得る。`content` を境界として、それより外側の
+    /// 祖先は最初から候補にしない。`item` が `content` 配下にない
+    /// （anatomy 契約が崩れている等）場合や、`content` 配下にスクロール
+    /// 可能な祖先が無い場合はいずれも `None` を返し、呼び出し元は
+    /// ページ全体のスクロールへフォールバックしない（意図的な
+    /// fail-safe。ページをパンする副作用より「スクロール追随しない」
+    /// 方が安全なため）。
+    fn nearest_scrollable_ancestor(item: &Element) -> Option<Element> {
+        let window = web_sys::window()?;
+        let boundary = closest(item, "[data-part=\"content\"]")?;
+        let mut current = item.parent_element();
+        while let Some(candidate) = current {
+            let is_scrollable = window
+                .get_computed_style(&candidate)
+                .ok()
+                .flatten()
+                .and_then(|style| style.get_property_value("overflow-y").ok())
+                .is_some_and(|overflow_y| overflow_y == "auto" || overflow_y == "scroll");
+            if is_scrollable && candidate.scroll_height() > candidate.client_height() {
+                return Some(candidate);
+            }
+            if candidate.is_same_node(Some(&boundary)) {
+                // content 境界に到達。これより外側（トリガー・
+                // ページ本体を含む）は探索しない。
+                return None;
+            }
+            current = candidate.parent_element();
+        }
+        None
     }
 
     /// `item` の直下 `[data-part="item-text"]` 子（Select の item-text、

@@ -259,10 +259,23 @@ fn percent_style(percent: f64) -> String {
 /// [`marker`] 専用の位置 custom property（`--fandhe-slider-marker-percent`）
 /// を設定する `style` 属性値を組み立てる（イシュー #2020。[`percent_style`]
 /// と同型だが、マーカーは `Slider` の現在値ではなく `marker` 自身が表す
-/// 任意の目盛り値から算出するため、別 custom property・別ヘルパとする。
-/// `min`/`max`/`value` はいずれも有限であることを [`marker`] 呼び出し側で
-/// 保証する）。
+/// 任意の目盛り値から算出するため、別 custom property・別ヘルパとする）。
+///
+/// `min`/`max`/`value` の非有限値（`NaN`/`Infinity`）に対する正規化は
+/// headless 側 [`fandhe_frontend_headless_ui::slider::marker`] の fail-closed
+/// 規約（`min`/`max` が非有限または `min >= max` なら既定 `(0.0, 100.0)` へ、
+/// `value` が非有限なら `min` へフォールバック、イシュー #1621 PR #1904）と
+/// 同じ計算をここでも行う。`data-value`/`data-state`（headless 側で計算）と
+/// `--fandhe-slider-marker-percent`（styled 層で計算する見た目位置）の間で
+/// 正規化結果が食い違うと、マーカーの描画位置が `data-*` の意味と矛盾する
+/// （`value` に `NaN` を渡すアプリコードで実際に発生し得る不具合）。
 fn marker_percent_style(min: f64, max: f64, value: f64) -> String {
+    let (min, max) = if min.is_finite() && max.is_finite() && min < max {
+        (min, max)
+    } else {
+        (0.0, 100.0)
+    };
+    let value = if value.is_finite() { value } else { min };
     let span = max - min;
     let percent = if span > 0.0 {
         ((value.clamp(min, max) - min) / span * 100.0).clamp(0.0, 100.0)
@@ -1072,6 +1085,37 @@ mod tests {
         let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
         let html = render(&marker(&s, 200.0, false, vec![], vec![]));
         assert!(html.contains(r#"style="--fandhe-slider-marker-percent: 100%""#));
+    }
+
+    /// `value` に `NaN` を渡すと headless 側 [`Slider::marker`] は `min` へ
+    /// フォールバックする（`data-value`/`data-state` が `min` 基準で正しく
+    /// 算出される）。styled 層の `--fandhe-slider-marker-percent` もこの
+    /// フォールバックへ追随し、`NaN%` のような無効な CSS カスタムプロパティ
+    /// を出力しないことを固定する（Review 指摘、イシュー #2020）。
+    #[test]
+    fn marker_percent_style_falls_back_to_min_on_nan_value() {
+        let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+        let html = render(&marker(&s, f64::NAN, false, vec![], vec![]));
+        assert!(!html.contains("NaN"));
+        assert!(html.contains(r#"style="--fandhe-slider-marker-percent: 0%""#));
+    }
+
+    /// `min`/`max` が非有限、または `min >= max` の場合は既定 `(0.0, 100.0)`
+    /// へフォールバックする（headless 側と同じ規約）。
+    #[test]
+    fn marker_percent_style_falls_back_to_default_range_on_invalid_min_max() {
+        assert_eq!(
+            marker_percent_style(f64::NAN, 100.0, 50.0),
+            "--fandhe-slider-marker-percent: 50%"
+        );
+        assert_eq!(
+            marker_percent_style(0.0, f64::INFINITY, 50.0),
+            "--fandhe-slider-marker-percent: 50%"
+        );
+        assert_eq!(
+            marker_percent_style(10.0, 10.0, 5.0),
+            "--fandhe-slider-marker-percent: 5%"
+        );
     }
 
     #[test]

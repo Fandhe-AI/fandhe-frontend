@@ -2733,82 +2733,112 @@ fn select_section() -> Node {
                     Some("showcase-select-label"),
                     None,
                     vec![],
-                    vec![
-                        select::item(
-                            OpenState::Open,
-                            &props,
-                            false,
-                            false,
-                            "fandhe-frontend",
-                            Some("showcase-select-item-fandhe"),
-                            vec![],
-                            vec![
-                                select::item_text(
-                                    OpenState::Open,
-                                    &props,
-                                    false,
-                                    false,
-                                    None,
-                                    vec![],
-                                    vec![text("fandhe-frontend")],
-                                ),
-                                select::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
-                            ],
-                        ),
-                        // "Other framework" を highlight 中の項目として固定
-                        // する（イシュー #1502、item/item-indicator パートの
-                        // 状態表現デモ。combobox 2/2 #1468 の先例に倣う）。
-                        select::item(
-                            OpenState::Closed,
-                            &props,
-                            false,
-                            true,
-                            "other",
-                            None,
-                            vec![],
-                            vec![
-                                select::item_text(
-                                    OpenState::Closed,
-                                    &props,
-                                    false,
-                                    true,
-                                    None,
-                                    vec![],
-                                    vec![text("Other framework")],
-                                ),
-                                select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
-                            ],
-                        ),
-                        // disabled 項目の視覚状態デモ（イシュー #1502）。
-                        select::item(
-                            OpenState::Closed,
-                            &props,
-                            true,
-                            false,
-                            "legacy",
-                            None,
-                            vec![],
-                            vec![
-                                select::item_text(
-                                    OpenState::Closed,
-                                    &props,
-                                    true,
-                                    false,
-                                    None,
-                                    vec![],
-                                    vec![text("Legacy framework")],
-                                ),
-                                select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
-                            ],
-                        ),
-                    ],
+                    vec![select::item_group(
+                        &props,
+                        Some("showcase-select-group-label"),
+                        vec![],
+                        vec![
+                            // グループ見出し（イシュー #2019、shadcn/ui 突合
+                            // で `item-group`/`item-group-label` の実演が
+                            // 未確認だった点を Demo で確定させる）。
+                            select::item_group_label(
+                                Some("showcase-select-group-label"),
+                                vec![],
+                                vec![text("Frameworks")],
+                            ),
+                            select::item(
+                                OpenState::Open,
+                                &props,
+                                false,
+                                false,
+                                "fandhe-frontend",
+                                Some("showcase-select-item-fandhe"),
+                                vec![],
+                                vec![
+                                    // リーディングアイコン（イシュー #2019。
+                                    // `item` は `display: flex` のため任意
+                                    // children を子に置ける構造で成立する
+                                    // ことを実演する、CSS 変更なし）。
+                                    el("span", vec![("aria-hidden", "true")], vec![text("📦")]),
+                                    select::item_text(
+                                        OpenState::Open,
+                                        &props,
+                                        false,
+                                        false,
+                                        None,
+                                        vec![],
+                                        vec![text("fandhe-frontend")],
+                                    ),
+                                    select::item_indicator(
+                                        OpenState::Open,
+                                        vec![],
+                                        vec![text("✓")],
+                                    ),
+                                ],
+                            ),
+                            // "Other framework" を highlight 中の項目として固定
+                            // する（イシュー #1502、item/item-indicator パートの
+                            // 状態表現デモ。combobox 2/2 #1468 の先例に倣う）。
+                            select::item(
+                                OpenState::Closed,
+                                &props,
+                                false,
+                                true,
+                                "other",
+                                None,
+                                vec![],
+                                vec![
+                                    select::item_text(
+                                        OpenState::Closed,
+                                        &props,
+                                        false,
+                                        true,
+                                        None,
+                                        vec![],
+                                        vec![text("Other framework")],
+                                    ),
+                                    select::item_indicator(
+                                        OpenState::Closed,
+                                        vec![],
+                                        vec![text("✓")],
+                                    ),
+                                ],
+                            ),
+                            // disabled 項目の視覚状態デモ（イシュー #1502）。
+                            select::item(
+                                OpenState::Closed,
+                                &props,
+                                true,
+                                false,
+                                "legacy",
+                                None,
+                                vec![],
+                                vec![
+                                    select::item_text(
+                                        OpenState::Closed,
+                                        &props,
+                                        true,
+                                        false,
+                                        None,
+                                        vec![],
+                                        vec![text("Legacy framework")],
+                                    ),
+                                    select::item_indicator(
+                                        OpenState::Closed,
+                                        vec![],
+                                        vec![text("✓")],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    )],
                 )],
             ),
         ],
     );
     section(
         "Select",
-        "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）・1 項目が highlight 中（data-highlighted）・1 項目が disabled（data-disabled）の listbox が開いた状態を固定表示しています。positioner はフロー内配置へ中和しています。",
+        "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）・1 項目が highlight 中（data-highlighted）・1 項目が disabled（data-disabled）の listbox が開いた状態を固定表示しています。グループ見出し（item-group-label）・リーディングアイコン付き項目も実演し、content は既定 16rem の max-height でスクロール可能です。positioner はフロー内配置へ中和しています。",
         vec![node],
     )
 }
