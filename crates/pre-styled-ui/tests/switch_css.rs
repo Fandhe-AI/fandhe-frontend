@@ -40,6 +40,13 @@
 //! `user-select`）追加が golden CSS 全文の差分。トラック/サムの寸法値
 //! （`--fandhe-switch-track-width`/`-track-height`/`-thumb-size`/
 //! `-thumb-travel`）自体は参考スクショ比較の結果、据え置いた（同節参照）。
+//!
+//! イシュー #2021: shadcn/ui との突合で `control` slot が
+//! `data-invalid`（headless 層 `SwitchProps.invalid`、#1622）を未消費だった
+//! ことを確認し、`box-shadow` の外側リング（`0 0 0 2px
+//! var(--fandhe-color-danger)`）を追加した（`crates/pre-styled-ui/src/
+//! switch.rs` のモジュール doc「shadcn/ui との突合」節参照）。golden CSS
+//! 全文の差分はこの 1 ブロックの純追加のみ。
 
 use fandhe_frontend_pre_styled_ui::switch;
 
@@ -209,6 +216,10 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
 [data-scope="switch"][data-part="control"][data-state="checked"] {
   background: var(--fandhe-palette, var(--fandhe-color-accent));
   --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
+}
+
+[data-scope="switch"][data-part="control"][data-invalid] {
+  box-shadow: 0 0 0 2px var(--fandhe-color-danger);
 }
 
 [data-scope="switch"][data-part="control"][data-focus-visible] {
