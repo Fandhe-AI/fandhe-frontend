@@ -3756,11 +3756,13 @@ fn checkbox_section() -> Node {
         (
             CheckedState::Unchecked,
             false,
+            false,
             "showcase-checkbox-unchecked",
             "Unchecked",
         ),
         (
             CheckedState::Checked,
+            false,
             false,
             "showcase-checkbox-checked",
             "Checked",
@@ -3768,22 +3770,36 @@ fn checkbox_section() -> Node {
         (
             CheckedState::Indeterminate,
             false,
+            false,
             "showcase-checkbox-indeterminate",
             "Indeterminate",
         ),
         (
             CheckedState::Checked,
             true,
+            false,
             "showcase-checkbox-disabled",
             "Disabled",
+        ),
+        // イシュー #2011: shadcn/ui との突合で invalid 状態の実演行が欠けて
+        // いたことを確認したため追加。`control` の枠色のみが danger 化し、
+        // ラベル文字色は変更しない（`crate::field` の既存判断を踏襲、
+        // `checkbox.rs` モジュール rustdoc「shadcn/ui との突合」節参照）。
+        (
+            CheckedState::Unchecked,
+            false,
+            true,
+            "showcase-checkbox-invalid",
+            "Invalid",
         ),
     ];
     let demo_row = row(states
         .iter()
-        .map(|(checked, disabled, name, label)| {
+        .map(|(checked, disabled, invalid, name, label)| {
             let props = CheckboxProps {
                 checked: *checked,
                 disabled: *disabled,
+                invalid: *invalid,
                 ..CheckboxProps::default()
             };
             checkbox::root(
