@@ -2107,8 +2107,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.125.0 へ既にバンプ済みだったため衝突）: semver-same-version-is-conflict
 # の運用に倣い、main の到達値 0.125.0 からさらに +1 して 0.126.0 とする
 # （本 PR の src 変更〔item-text/item-indicator の CSS 着装補完、
-# data-danger/data-inset 状態〕をバージョン番号へ計上するため。
-# review 指摘 2026-09-07 対応）。
+# data-danger/data-inset 状態〕をバージョン番号へ計上するため）。
+# この 0.126.0 到達はその後の base 再取り込みの積み重ねで既に陳腐化して
+# おり、本ファイル末尾の「マージ是正（イシュー #2033, review 指摘再対応,
+# 2026-09-08）」節が最終到達値 0.135.0 の確定した根拠を記す（本段落は
+# 当時の判断記録としてのみ残す）。
 # base 再取り込み（イシュー #2017, PR #2150 系）: 本ブランチ（native-select
 # を shadcn/ui と突合、直前の到達値 0.125.0）は main（drawer/hover-card 等の
 # 突合を経て到達した 0.124.2）よりも既に版数が新しいため、

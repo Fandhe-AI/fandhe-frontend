@@ -273,15 +273,15 @@
 //! `item-indicator` の CSS 着装漏れ・`item` のグループ化/ショートカット/
 //! inset/destructive 合成パターンの補完を担当）
 //!
-//! ルート #2001 は shadcn/ui を「補完参照」と位置づけている
-//! （`docs/design/shadcn-reference-adoption-policy.md` §2/§3、イシュー
-//! #2003）。イシュー #2153 は主基準化への転換を提案する別イシューだが、
-//! 2026-09-07 時点で同ポリシー文書は §7 で主基準化を不採用と明記した
-//! ままであり（#2153 の改訂は別ブランチに留まり main 未反映）、本節は
-//! その転換を前提にしない。本節の補完（`item-text`/`item-indicator` の
-//! CSS 着装漏れ是正・`data-danger`/`data-inset` 状態追加）は同ポリシー
-//! §3「欠落バリアント・状態・合成パターンの補完」で正当化される、あく
-//! までも補完参照としての対応である。
+//! ルート #2001 起票時点では shadcn/ui を「補完参照」と位置づけていた
+//! （`docs/design/shadcn-reference-adoption-policy.md` §7「（改訂前）」）
+//! が、2026-09-07 のユーザー判断（イシュー #2153）により同文書は改訂され
+//! （§8）、現在は shadcn/ui を chakra-ui / Radix Themes と並ぶ「主基準の
+//! 1 つ」（3 者共同、pre-styled-ui の視覚言語に限る）と位置づけている
+//! （§2「決定事項」）。本節の補完（`item-text`/`item-indicator` の CSS
+//! 着装漏れ是正・`data-danger`/`data-inset` 状態追加）はこの主基準化後の
+//! 位置づけの下でも、既存 variant の CSS 出力を変えない純追加（§2「golden
+//! への影響方針」）として正当化される。
 //!
 //! - **`item-text`/`item-indicator` の CSS 未着装（構造的な見落とし、
 //!   shadcn 突合以前から存在）**: `crates/headless-ui/src/menu.rs` は
