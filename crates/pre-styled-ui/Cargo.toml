@@ -2182,7 +2182,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # コンフリクトした。`docs/ci/style-refresh-version-bump-operation.md` §5
 # の手順（自分の変更が patch バンプの場合は main の現在値の patch を
 # +1 する）に従い、main の到達値 0.127.0 の patch を +1 して 0.127.1 とする。
-version = "0.127.1"
+version = "0.128.0"
 
 
 edition = "2021"

@@ -4433,19 +4433,54 @@ fn input_section() -> Node {
     )
 }
 
-/// Textarea 節: Outline（既定）の複数行テキスト入力。
+/// Textarea 節: Outline（既定）/ Invalid / Disabled の 3 態（イシュー
+/// #2022、shadcn/ui 突合。`input_section` の Invalid デモ・
+/// `.showcase-form-field-group` ラッパー併設コメントと同型）。
 fn textarea_section() -> Node {
-    let textarea_row = row(vec![textarea::textarea(
-        &TextareaProps::default(),
-        &plain_field("showcase-textarea-default"),
-        false,
-        vec![("placeholder", "Outline (default)")],
-        vec![],
-    )]);
+    let textarea_row = row(vec![
+        textarea::textarea(
+            &TextareaProps::default(),
+            &plain_field("showcase-textarea-default"),
+            false,
+            vec![("placeholder", "Outline (default)")],
+            vec![],
+        ),
+        // invalid 時、headless `field::textarea` は `aria-describedby` に
+        // `{id}-error-text` を出力する（`input_section` と同じ describedby
+        // 合成則）。参照先の id を持つ `error_text`（`input` モジュールの
+        // 再エクスポート経由。`field` scope 共通のためどの styled モジュール
+        // 経由で呼んでも出力は同一）を併設し、存在しない id への参照を残さ
+        // ない。ラッパー div の `.showcase-form-field-group` も
+        // `input_section` と同じ理由（flex-basis 解決）で必要。
+        div(
+            vec![("class", "showcase-form-field-group")],
+            vec![
+                textarea::textarea(
+                    &TextareaProps::default(),
+                    &invalid_field("showcase-textarea-invalid"),
+                    false,
+                    vec![("placeholder", "Invalid")],
+                    vec![],
+                ),
+                input::error_text(
+                    &invalid_field("showcase-textarea-invalid"),
+                    vec![],
+                    vec![text("This field is required.")],
+                ),
+            ],
+        ),
+        textarea::textarea(
+            &TextareaProps::default(),
+            &disabled_field("showcase-textarea-disabled"),
+            false,
+            vec![("placeholder", "Disabled")],
+            vec![],
+        ),
+    ]);
 
     section(
         "Textarea",
-        "ブラウザネイティブ挙動をそのまま尊重する静的複数行テキスト入力部品。",
+        "ブラウザネイティブ挙動をそのまま尊重する静的複数行テキスト入力部品。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現します。",
         vec![textarea_row],
     )
 }

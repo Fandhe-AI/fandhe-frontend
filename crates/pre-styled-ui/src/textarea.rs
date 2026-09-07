@@ -56,6 +56,41 @@
 //!   [`crate::recipe::StateCondition`] に `::placeholder` 経路がなく、
 //!   本イシューの対応範囲では生セレクタ経路を新設しない既存設計を維持
 //!   する（recipe 基盤の拡張は本イシューのスコープ外）。
+//!
+//! # shadcn/ui 突合（イシュー #2022）
+//!
+//! shadcn/ui（補完参照、`docs/design/shadcn-reference-adoption-policy.md`）
+//! の Textarea と突合した結果、以下はいずれも意図的に非採用、または既に
+//! 対応済みと判定した（既存 variant の CSS 出力はバイト同一を維持する
+//! 純追加が原則、同ポリシー §3）。
+//!
+//! - **自動高さ調整（対応済み・新規対応不要）**: shadcn は
+//!   `field-sizing: content` で内容量に応じた自動高さを実装するが、本
+//!   モジュールは #1511 で導入済みの `[data-autoresize]` 状態規則
+//!   （`field-sizing: content` + `resize: none`、モジュール冒頭
+//!   「`autoresize` フック」節参照）が同等の挙動を既にカバーしている。
+//! - **disabled の背景色変化（意図的非採用）**: shadcn は disabled を
+//!   `bg-muted`（背景色変化）で表現するが、本フレームワークは Phase 0 で
+//!   確定した disabled 視覚言語（`opacity` ベース、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md`）を優先し、
+//!   [`crate::recipe::disabled_declarations`] による既存表現（`opacity:
+//!   0.5` + `cursor: not-allowed`）を維持する。[`crate::input`] の同型判断
+//!   を踏襲する。
+//! - **`aria-invalid` の box-shadow リング（意図的非採用）**: [`crate::input`]
+//!   の同節（フォーカスリング規約 #1424、
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3、
+//!   実装手段を `outline` へ統一し新規に `box-shadow` リングを追加しない
+//!   方針）を同じ理由で踏襲する。既存の `data-invalid` → `border-color`
+//!   のみを維持する。
+//! - **size / variant の網羅性（差分なし）**: 既存 xs〜xl の 5 段・
+//!   outline/subtle/flushed 3 variant が shadcn の単一 variant・単一 size
+//!   を包含済み。
+//! - **label + helper text の合成（docs サイトへ追加）**: shadcn は
+//!   ラベル + 説明文 + textarea の合成パターンを提示するが、本モジュールは
+//!   [`crate::input`] と同じくラベル・補助テキストの型階層を持たず
+//!   `field`（`/themes/field/`）が担う。この組み合わせ例を
+//!   docs サイトの部品ページ（`/themes/textarea/`）の Examples 節へ追加
+//!   した（コード側 API は変更なし）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
