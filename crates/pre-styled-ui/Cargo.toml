@@ -2060,12 +2060,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # 本マージでは #2027（breadcrumb）ブランチの実体変更が main の到達値
 # 0.122.0 に未反映のまま同一ファイルで衝突したため、semver-same-version-
 # is-conflict の運用に倣い main の到達値からさらに +1 して 0.123.0 とする。
+# イシュー #2030: `dialog::body`（pre-styled-only スクロール可能コンテンツ
+# パート）の純追加のみ（既存 API・既存セレクタへの変更なし）のため、
+# `footer` 追加時（0.117.3→0.117.4）と同型のパッチバンプで 0.123.1 とする。
 # イシュー #2031: drawer を shadcn/ui（Sheet/Drawer）と突合。placement/
 # size/close ボタンは既存実装で充足済みと確認し、grabber（drag handle）は
 # headless-ui #1639 の既存判断（意図的非採用）+ `SlotRecipe` の疑似要素
 # API 不在により非採用継続と結論した。`recipe()`（CSS 出力）に変更はなく
-# rustdoc への判断記録のみのためパッチバンプで 0.123.1 とする。
-version = "0.123.1"
+# rustdoc への判断記録のみのため本来パッチ相当だが、main の到達値
+# 0.123.1 と同一到達で埋没する衝突のため semver-same-version-is-conflict
+# の運用に倣い main の到達値からさらに +1 して 0.123.2 とする。
+version = "0.123.2"
 
 
 edition = "2021"

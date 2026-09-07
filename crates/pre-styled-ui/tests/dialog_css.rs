@@ -37,6 +37,12 @@
 //! 出力される、headless-ui の anatomy には存在しない本モジュール独自の
 //! 9 番目の part）を追加した（詳細は `crates/pre-styled-ui/src/dialog.rs`
 //! モジュール冒頭 rustdoc「alert-dialog 構成」節参照）。
+//!
+//! イシュー #2030（親 #2025、shadcn/ui 突合）: スクロール可能コンテンツを
+//! 担う pre-styled-only `body` パート（`description` と `footer` の間に
+//! 出力される、本モジュール独自の 10 番目の part）を追加した（詳細は
+//! `crates/pre-styled-ui/src/dialog.rs` モジュール冒頭 rustdoc
+//! 「pre-styled-only `body` パート」節参照）。
 
 use fandhe_frontend_pre_styled_ui::dialog;
 
@@ -93,6 +99,12 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   color: var(--fandhe-color-fg-muted);
   line-height: var(--fandhe-font-line-height-normal);
   margin: 0 0 var(--fandhe-space-4) 0;
+}
+
+[data-scope="dialog"][data-part="body"] {
+  overflow-y: auto;
+  max-height: 50vh;
+  overscroll-behavior: contain;
 }
 
 [data-scope="dialog"][data-part="footer"] {

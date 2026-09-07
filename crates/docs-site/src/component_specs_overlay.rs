@@ -550,11 +550,12 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
 /// `role="dialog"`・`role="alertdialog"`/`aria-modal` の実出力テスト）。
 pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "headless-ui 由来の Root / Trigger / Backdrop / Positioner / Content / Title / Description / CloseTrigger の 8 anatomy パーツに加え、pre-styled-only の footer パート（イシュー #1690、data-scope=\"dialog\" 配下 9 番目の part）を持つモーダルダイアログ。",
+        "headless-ui 由来の Root / Trigger / Backdrop / Positioner / Content / Title / Description / CloseTrigger の 8 anatomy パーツに加え、pre-styled-only の footer パート（イシュー #1690）・body パート（イシュー #2030）を持つモーダルダイアログ（data-scope=\"dialog\" 配下は headless 8 パート + pre-styled-only 2 パートの計 10 件）。",
         "DialogRole（Dialog/Alertdialog）で role=\"dialog\"/role=\"alertdialog\" を出し分ける。",
         "size variant（Xs/Sm/Md/Lg/Xl、既定 Md、イシュー #1714）で root の寸法を切り替える。",
         "フォーカストラップ・Escape キーでの閉鎖・外側クリックでの閉鎖は JS ランタイム側の責務であり、本レイヤーは SSR/属性出力のみを担う。",
         "alert-dialog（確認ダイアログ）構成: 独立部品や新しい variant 軸ではなく、role=\"alertdialog\"（DialogRole::Alertdialog）+ footer（アクション列レイアウト）+ button（Solid/Danger と Outline の組み合わせ）で表現する（イシュー #1690。role=\"alertdialog\" の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化する）。footer 自体は送信・閉鎖等のアプリケーションロジックを持たないレイアウト専用パートである。",
+        "スクロール可能コンテンツ: body パート（shadcn/ui〔Base UI スタイル〕突合、イシュー #2030）は title/description（見出し）と footer（アクション列）を content 内で固定したまま、本文だけを縦スクロールさせるレイアウト専用パートである（`overflow-y: auto` / `max-height: 50vh`）。呼び出し側の任意判断によるオプトインパートであり、使わない既存の呼び出しには影響しない。",
     ],
     arguments: &[
         ArgRow {
@@ -570,11 +571,18 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
             description: "開閉状態（Open/Closed）。root/content の data-state へ反映される。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Alert dialog",
-        description: "DialogRole::Alertdialog（role=\"alertdialog\"）と footer（イシュー #1690、pre-styled-only のアクション列パート）に、既存の button を Solid/ColorPalette::Danger（破壊的確認）と Outline（キャンセル）の組み合わせで構成した確認ダイアログの例です。role=\"alertdialog\" の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化します。footer はレイアウト専用パートであり送信・閉鎖の配線は持ちません（close_trigger は併用せず省略しています）。",
-        render: ex_alert_dialog,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Alert dialog",
+            description: "DialogRole::Alertdialog（role=\"alertdialog\"）と footer（イシュー #1690、pre-styled-only のアクション列パート）に、既存の button を Solid/ColorPalette::Danger（破壊的確認）と Outline（キャンセル）の組み合わせで構成した確認ダイアログの例です。role=\"alertdialog\" の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化します。footer はレイアウト専用パートであり送信・閉鎖の配線は持ちません（close_trigger は併用せず省略しています）。",
+            render: ex_alert_dialog,
+        },
+        ExampleEntry {
+            title: "Share link (custom close button)",
+            description: "shadcn/ui（Base UI スタイル）の「Custom Close Button」デモ（イシュー #2030、親 #2025）に対応する構成です。content 右上のアイコン専用 close-trigger は使わず、footer 内の通常の button（ButtonVariant::Outline）で平文の \"Close\" ボタンを併設します。close-trigger のアイコン専用契約（codex-review #1795）と SlotRecipe の子孫セレクタ非対応（イシュー #708）により、footer 内で close-trigger を機能配線済みボタンとして再利用することはできないため、既存の footer + button の組み合わせのみで表現しています。",
+            render: ex_share_link_custom_close_button,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -677,6 +685,86 @@ fn ex_alert_dialog() -> Node {
                                             vec![text("Delete")],
                                         ),
                                     ],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// [`DIALOG`] の Examples 節「Share link (custom close button)」レンダラ
+/// （イシュー #2030、親 #2025、shadcn/ui〔Base UI スタイル〕「Custom Close
+/// Button」デモとの突合）。
+///
+/// content 右上のアイコン専用 close-trigger（イシュー #1795 でアイコン専用
+/// 契約に固定済み）は使わず、footer 内の通常の button
+/// （`ButtonVariant::Outline`）で平文の "Close" ボタンを併設する。
+/// `close_trigger` を footer 内で機能配線済みボタンとして再利用すること
+/// は、(1) close-trigger のアイコン専用契約、(2)
+/// [`fandhe_frontend_pre_styled_ui`] の `SlotRecipe` が子孫セレクタ機構を
+/// 持たない（イシュー #708）ことの 2 点により本イシュー単体では実現でき
+/// ないため、既存 API（footer + button）のみで表現している（本イシューの
+/// スコープ外、`crates/pre-styled-ui/src/dialog.rs` モジュール冒頭 rustdoc
+/// 「close-trigger のフッター内再利用」節参照）。
+/// Demo（[`crate::showcase::dialog_section`]）・[`ex_alert_dialog`] と
+/// 同一ページに描画されるため、id は両者と衝突しない
+/// `showcase-share-dialog-*` を使う。
+fn ex_share_link_custom_close_button() -> Node {
+    div(
+        vec![],
+        vec![
+            dialog::trigger(
+                OpenState::Open,
+                Some("showcase-share-dialog-content"),
+                vec![],
+                vec![text("Share")],
+            ),
+            dialog::root(
+                Size::Md,
+                OpenState::Open,
+                vec![],
+                vec![
+                    dialog::backdrop(OpenState::Open, vec![], vec![]),
+                    dialog::positioner(
+                        OpenState::Open,
+                        vec![],
+                        vec![dialog::content(
+                            OpenState::Open,
+                            DialogRole::Dialog,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-share-dialog-content"),
+                                labelledby: Some("showcase-share-dialog-title"),
+                                describedby: Some("showcase-share-dialog-desc"),
+                            },
+                            vec![],
+                            vec![
+                                dialog::title(
+                                    Some("showcase-share-dialog-title"),
+                                    vec![],
+                                    vec![text("Share link")],
+                                ),
+                                dialog::description(
+                                    Some("showcase-share-dialog-desc"),
+                                    vec![],
+                                    vec![text("このリンクを知っている人は誰でも閲覧できます。")],
+                                ),
+                                // close-trigger は併用しない（アイコン専用
+                                // 契約と footer 内再利用不可のため）。
+                                // 平文の "Close" ボタンのみを footer に置く。
+                                dialog::footer(
+                                    vec![],
+                                    vec![button(
+                                        &ButtonProps {
+                                            variant: ButtonVariant::Outline,
+                                            ..ButtonProps::default()
+                                        },
+                                        vec![],
+                                        vec![text("Close")],
+                                    )],
                                 ),
                             ],
                         )],
