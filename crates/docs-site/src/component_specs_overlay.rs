@@ -84,7 +84,7 @@
 //! 木経由で `render()` が行う（`features_and_table_cells_escape_xss_payloads`
 //! が既存フィクスチャで固定済み）。
 
-use fandhe_frontend_core::{div, p, small, span, strong, text, Node};
+use fandhe_frontend_core::{div, el, p, small, span, strong, text, Node};
 use fandhe_frontend_pre_styled_ui::{
     accordion::{self, AccordionProps},
     avatar::{self, AvatarProps, ImageStatus},
@@ -172,24 +172,28 @@ fn ex_accordion_multiple() -> Node {
                 &props,
                 vec![],
                 vec![
-                    accordion::item_trigger(
-                        OpenState::Open,
-                        false,
-                        &props,
-                        value,
-                        Some(trigger_id.as_str()),
-                        Some(content_id.as_str()),
+                    el(
+                        "h3",
                         vec![],
-                        vec![
-                            text(question),
-                            accordion::item_indicator(
-                                OpenState::Open,
-                                false,
-                                &props,
-                                vec![],
-                                vec![text("▾")],
-                            ),
-                        ],
+                        vec![accordion::item_trigger(
+                            OpenState::Open,
+                            false,
+                            &props,
+                            value,
+                            Some(trigger_id.as_str()),
+                            Some(content_id.as_str()),
+                            vec![],
+                            vec![
+                                text(question),
+                                accordion::item_indicator(
+                                    OpenState::Open,
+                                    false,
+                                    &props,
+                                    vec![],
+                                    vec![text("▾")],
+                                ),
+                            ],
+                        )],
                     ),
                     accordion::item_content(
                         OpenState::Open,
@@ -246,45 +250,51 @@ fn ex_accordion_trigger_composition() -> Node {
             &props,
             vec![],
             vec![
-                accordion::item_trigger(
-                    OpenState::Open,
-                    false,
-                    &props,
-                    "composition-1",
-                    Some(trigger_id),
-                    Some(content_id),
+                el(
+                    "h3",
                     vec![],
-                    vec![
-                        span(
-                            vec![(
-                                "style",
-                                "display:flex;align-items:center;gap:var(--fandhe-space-2);",
-                            )],
-                            vec![
-                                span(vec![("aria-hidden", "true")], vec![text("🔔")]),
-                                span(
-                                    vec![("style", "display:flex;flex-direction:column;")],
-                                    vec![
-                                        strong(vec![], vec![text("通知設定")]),
-                                        small(
-                                            vec![(
-                                                "style",
-                                                "color: var(--fandhe-color-fg-muted);",
-                                            )],
-                                            vec![text("メール・アプリ通知の受信可否を管理します。")],
-                                        ),
-                                    ],
-                                ),
-                            ],
-                        ),
-                        accordion::item_indicator(
-                            OpenState::Open,
-                            false,
-                            &props,
-                            vec![],
-                            vec![text("▾")],
-                        ),
-                    ],
+                    vec![accordion::item_trigger(
+                        OpenState::Open,
+                        false,
+                        &props,
+                        "composition-1",
+                        Some(trigger_id),
+                        Some(content_id),
+                        vec![],
+                        vec![
+                            span(
+                                vec![(
+                                    "style",
+                                    "display:flex;align-items:center;gap:var(--fandhe-space-2);",
+                                )],
+                                vec![
+                                    span(vec![("aria-hidden", "true")], vec![text("🔔")]),
+                                    span(
+                                        vec![("style", "display:flex;flex-direction:column;")],
+                                        vec![
+                                            strong(vec![], vec![text("通知設定")]),
+                                            small(
+                                                vec![(
+                                                    "style",
+                                                    "color: var(--fandhe-color-fg-muted);",
+                                                )],
+                                                vec![text(
+                                                    "メール・アプリ通知の受信可否を管理します。",
+                                                )],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                            accordion::item_indicator(
+                                OpenState::Open,
+                                false,
+                                &props,
+                                vec![],
+                                vec![text("▾")],
+                            ),
+                        ],
+                    )],
                 ),
                 accordion::item_content(
                     OpenState::Open,
