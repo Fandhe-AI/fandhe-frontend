@@ -2076,7 +2076,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `error-text > ul` の `display: flex` と `list-style: disc` 併用による
 # disc マーカー非表示の是正（`padding`/`margin` の入れ替え）。依存先の
 # 破壊的変更への追随を含むためマイナーバンプで 0.124.0 とする。
-version = "0.124.0"
+# イシュー #2032: hover-card を shadcn/ui と突合した結果、`recipe()`/`css()`/
+# 公開シグネチャは一切変更せず、rustdoc（モジュール doc「shadcn/ui 突合」節）
+# と docs サイト Examples 節（`User profile preview`）の追加のみに留めた
+# （既存 `avatar`/`hover_card` API の合成のみで新規 anatomy パート・新規
+# CSS 出力を伴わない）。CSS 出力・golden テストは不変だが、公開クレートの
+# `src/` 変更につき規約（`.claude/rules/coding-rust.md`）に従いパッチバンプ
+# する。
+version = "0.124.1"
 
 
 edition = "2021"
