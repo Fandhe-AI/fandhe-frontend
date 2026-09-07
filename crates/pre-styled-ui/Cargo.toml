@@ -2216,7 +2216,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # を新設し `root()` シグネチャへ `variant` 引数を挿入した（0.x の破壊的
 # 変更のためマイナーバンプ、button #2141 の `ButtonVariant::Link` 追加と
 # 同型）。
-version = "0.129.0"
+# イシュー #2024: shadcn/ui 突合で toggle_group に `ToggleGroupVariant`
+# （Outline/Ghost、#2023 の `ToggleVariant` と同一命名）を新設し
+# `root()`/`root_with_props()` シグネチャへ `variant` 引数を挿入した
+# （0.x の破壊的変更のためマイナーバンプ、#2023 と同型）。
+version = "0.130.0"
 
 
 edition = "2021"
