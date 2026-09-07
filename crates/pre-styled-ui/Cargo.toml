@@ -2226,7 +2226,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # それぞれ独立に 0.129.0 へマイナーバンプしており、値が偶然一致していた
 # だけで別々の実体変更である（`semver-same-version-is-conflict` の追加
 # +1 運用）。同一版数のまま採用せず 0.130.0 へさらにマイナーバンプする。
-version = "0.130.0"
+# イシュー #2040（toast の shadcn/ui 突合、2026-09-08）: 実機比較の結果
+# 純追加できるバリアント・状態が見つからず、`recipe()`/`css()` は無変更
+# （golden `tests/toast_css.rs` も無変更）。変更はモジュール doc への
+# 判定記録追記（rustdoc のみ）に限られるため、hover-card の shadcn/ui
+# 突合記録追加（0.124.1）と同型で patch バンプする。
+version = "0.130.1"
 
 
 edition = "2021"
