@@ -1478,6 +1478,11 @@ fn ex_menu_group_checkable_shortcut() -> Node {
                             Some("spec-menu-radio-group"),
                             vec![],
                             vec![
+                                menu::item_group_label(
+                                    Some("spec-menu-radio-group"),
+                                    vec![],
+                                    vec![text("Theme")],
+                                ),
                                 menu::radio_item(
                                     true,
                                     "dark",
