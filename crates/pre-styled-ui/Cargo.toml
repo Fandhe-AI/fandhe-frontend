@@ -2049,9 +2049,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `data-*`・新規 variant・新規セレクタは追加しない）ためパッチバンプで
 # 0.120.1 に到達していたが、main が独立に 0.121.0 へ到達済みだったため
 # 同一到達ではないが本ブランチの到達値が main の到達値未満で埋没する
-# 衝突として扱い、main の到達値からさらに +1 して 0.122.0 とする
+# 衝突として扱い、main の到達値からさらに +1 して 0.122.0 とした（#2013）。
+# その後 fork 後の main 側で別ブランチ（PR #2142「breadcrumb を shadcn/ui
+# と突合」、同じ #2001/#2008 shadcn 監査ツリー由来）が同じ 0.122.0 起点から
+# 先に 0.123.0 へバンプ済みでマージされ、本ブランチの 0.122.0 → 0.123.0
+# バンプ（date-picker の実体変更）と同一バージョン番号で衝突したため、
+# main の到達値（0.123.0）からさらに +1 して 0.124.0 とする
 # （実体変更の統合を反映、semver-same-version-is-conflict の運用に倣う）。
-version = "0.123.0"
+version = "0.124.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
