@@ -61,7 +61,7 @@
 //! #942 の責務であり、本モジュールは器（レジストリと照会 API）のみを
 //! 提供する。
 
-use fandhe_frontend_core::{div, el, render, text, Node};
+use fandhe_frontend_core::{div, el, p, render, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{
@@ -2491,10 +2491,34 @@ fn dialog_section() -> Node {
                                     vec![],
                                     vec![text("この操作は取り消せません。")],
                                 ),
+                                // イシュー #2030（親 #2025、shadcn/ui 突合）で
+                                // 追加された pre-styled-only `body` パート
+                                // （`data-scope="dialog"` 配下 10 番目の
+                                // part）。見出し（title/description）と
+                                // footer を固定したまま本文だけを縦
+                                // スクロールさせる、shadcn の「Scrollable
+                                // Content」デモに対応するオプトインパート。
+                                dialog::body(
+                                    vec![],
+                                    vec![
+                                        p(vec![], vec![text(
+                                            "この操作は複数のリソースに影響します。続行する前に、以下の内容をご確認ください。",
+                                        )]),
+                                        p(vec![], vec![text(
+                                            "対象のプロジェクトに紐づくすべての下書き・共有リンク・キャッシュされた \
+                                             プレビューは元に戻せません。共同編集者への通知は自動では送信されません。",
+                                        )]),
+                                        p(vec![], vec![text(
+                                            "続行するには「Save」を選択してください。キャンセルする場合は \
+                                             「Cancel」または背景をクリックしてください。",
+                                        )]),
+                                    ],
+                                ),
                                 // イシュー #1690（親 #1675）で追加された
                                 // pre-styled-only `footer` パート
                                 // （`data-scope="dialog"` 配下 9 番目の
-                                // part）。アクション列（確認/キャンセルの
+                                // part、#2030 で `body` が加わり現在は
+                                // 10 番目）。アクション列（確認/キャンセルの
                                 // ボタン群）のレイアウトのみを担い、送信・
                                 // 閉鎖等のアプリケーションロジックは持たない
                                 // （`docs/policy/intentional-non-adoption.md`
@@ -2529,7 +2553,7 @@ fn dialog_section() -> Node {
     );
     section(
         "Dialog",
-        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下に `footer` パート（イシュー #1690、pre-styled-only のレイアウト専用パート）でアクション列を配置しています。alert-dialog（確認ダイアログ）構成の例は Examples 節を参照してください。",
+        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下に `body` パート（イシュー #2030、pre-styled-only のスクロール可能コンテンツパート）で複数段落の本文を、その下に `footer` パート（イシュー #1690、pre-styled-only のレイアウト専用パート）でアクション列を配置しています。alert-dialog（確認ダイアログ）構成の例は Examples 節を参照してください。",
         vec![node],
     )
 }

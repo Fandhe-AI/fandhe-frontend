@@ -4689,3 +4689,35 @@ fn dialog_footer_children_and_attrs_are_escaped_for_all_payloads() {
         assert!(html.contains(r#"data-part="footer""#));
     }
 }
+
+/// (28) `dialog::body` 経路（イシュー #2030、親 #2025、shadcn/ui 突合）:
+/// pre-styled-only `body` パート（`Anatomy::part` 直接呼び出し、
+/// `dialog::footer` と同型）の children・呼び出し側 `attrs` の両方で
+/// 既定エスケープ（REQ-1）が貫通することを固定する。あわせて
+/// `data-scope`/`data-part` の偽装が headless 層（`Anatomy::part`）により
+/// 除去され、生値が出力に残らないことも固定する。
+#[test]
+fn dialog_body_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // children 経路。
+        let html = render(&dialog::body(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "dialog::body children コンテキスト");
+
+        // 呼び出し側 attrs（data-testid）経路。
+        let html = render(&dialog::body(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "dialog::body 呼び出し側 attrs コンテキスト");
+
+        // data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&dialog::body(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "dialog::body の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="dialog""#));
+        assert!(html.contains(r#"data-part="body""#));
+    }
+}

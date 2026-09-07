@@ -7,6 +7,9 @@
 //! イシュー #1690（親 #1675）で `footer`（pre-styled-only レイアウトパート、
 //! alert-dialog 構成のアクション列）を追加し、`SLOTS` は headless 8 パート +
 //! pre-styled-only 1 パートの計 9 件になった（詳細は下記「alert-dialog 構成」節）。
+//! イシュー #2030（親 #2025、shadcn/ui〔Base UI スタイル〕突合）で
+//! `body`（pre-styled-only スクロール可能コンテンツパート）を追加し、
+//! `SLOTS` は計 10 件になった（詳細は下記「pre-styled-only `body` パート」節）。
 //!
 //! # 選択的 re-export（`pub use ...::*` を使わない理由、`Dialog` 型・headless
 //! `root` を再エクスポートしない理由、イシュー #729）
@@ -295,6 +298,66 @@
 //!   するため、実効間隔は `--fandhe-space-4` 1 段分になる（`content` は
 //!   `display: flex` を宣言しないため、margin collapse の対象になる点に
 //!   注意）。
+//!
+//! # pre-styled-only `body` パート（スクロール可能コンテンツ、shadcn/ui 突合
+//! イシュー #2030、親 #2025）
+//!
+//! shadcn/ui（Base UI スタイル、`apps/v4/examples/base/dialog-*.tsx`）の
+//! Examples には「Scrollable Content」「Sticky Footer」の 2 デモがあり、
+//! 見出し（title/description）とアクション列（[`footer`]）を固定したまま
+//! 本文だけを縦スクロールさせる合成パターンを示す。chakra-ui の
+//! `Dialog.Body`（`Dialog.Content` の子パート）・`scrollBehavior:
+//! "inside" | "outside"` prop（主基準 #1420 が既に持つ同種の関心）も
+//! この欠落を裏付ける。[`body`] は本モジュールが独自に追加する
+//! **レイアウト専用**パートで、`data-scope="dialog"` 配下の 10 番目の
+//! part になる（headless 由来の 8 パート + pre-styled-only 2 パート
+//! 〔`footer`/`body`〕）。
+//!
+//! **`content`/`positioner` 自体は無変更のまま維持する**: 本モジュール
+//! 冒頭「外枠パート」節（イシュー #1692）に「`positioner` への
+//! `overflow: auto` / `content` の `max-height` 追加はしない（視覚調整を
+//! 超える挙動変更のため）」という既存の不採用記述がある。これは
+//! `content`（面パネル全体）・`positioner`（フルビューポート層）へ
+//! 直接 overflow/max-height を付与し、ダイアログ自体の挙動を変える案を
+//! 却下したものである。[`body`] はそれとは対象が異なり、呼び出し側が
+//! 長いコンテンツを明示的に包む**オプトイン**の新規パートであり、
+//! `body` を使わない既存の呼び出し（[`content`] 直下に [`description`]
+//! だけを置く等）には一切影響しない。両者は矛盾しない。
+//!
+//! **固定ヘッダー/フッター + スクロール本文の実現方法**: [`title`]/
+//! [`description`]（見出し）と [`footer`]（アクション列）は [`body`] の
+//! 外側の兄弟のまま [`content`] の子として配置する。`body` にだけ
+//! `overflow-y: auto` / `max-height` を宣言することで、`position:
+//! sticky` を使わずに「見出し・フッターは固定、本文だけスクロール」を
+//! 実現できる（`max-height` は shadcn の `max-h-[50vh]` に対応する
+//! viewport 単位の raw 値。[`Size`] 系トークンに `vh` 段階を持たないため
+//! raw 値のまま宣言する。[`crate::toast`]/[`crate::tour`] の viewport 単位
+//! raw 値と同型の判断）。
+//!
+//! ## close-trigger のフッター内再利用（本イシューのスコープ外）
+//!
+//! shadcn の「Custom Close Button」デモ（footer に平文 "Close" ボタンを
+//! 併設する Share リンクダイアログ）は、既存の [`footer`] +
+//! [`crate::button::button`]（`ButtonVariant::Outline`）の組み合わせで
+//! 表現でき、本イシューでは `dialog.rs` のコード変更を要しない
+//! （Demo/Examples のみで表現する）。一方、[`close_trigger`] を
+//! footer 内で再利用して機能配線済みの close ボタンとして扱う案は、
+//! (1) `close-trigger` が content 右上のアイコン専用ゴーストボタンとして
+//! 絶対配置・固定正方形・`overflow: hidden` を持つ契約に固定されている
+//! （codex-review #1795 P1 指摘対応）ことと、(2) [`crate::recipe::SlotRecipe`]
+//! が子孫セレクタ機構を持たない（イシュー #708 で不採用確定）ため
+//! `data-part="close-trigger"` に対する CSS を配置コンテキスト（content
+//! 右上 vs footer 内）で出し分けられないことの 2 点により、本イシュー
+//! 単体では解決できない。headless/recipe 層への将来的なフォローアップ
+//! 候補として記録するに留める（`.claude/rules/out-of-scope-tracking.md`
+//! 対応、Issue 化はユーザー承認後）。
+//!
+//! ## nested dialog（比較対象なし）
+//!
+//! イシュー起票時点では shadcn の「nested dialog」パターンとの突合が
+//! 候補に挙がっていたが、shadcn/ui の実際の Examples 一覧
+//! （`apps/v4/content/docs/components/base/dialog.mdx`）には該当デモが
+//! 存在しないため、本イシューでは比較対象なしとして記録するに留める。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -337,8 +400,11 @@ const ANATOMY: Anatomy = anatomy("dialog");
 /// イシュー #1690 で `footer`（pre-styled-only レイアウトパート、alert-dialog
 /// 構成のアクション列。headless-ui の anatomy には存在しない、本モジュール
 /// だけが出力する部分）を `description` と `close-trigger` の間（DOM 上の
-/// 想定位置）へ追加した。以後 `SLOTS` は「headless 8 パート + pre-styled-only
-/// 1 パート」の計 9 件になる。
+/// 想定位置）へ追加した。イシュー #2030 で `body`（pre-styled-only
+/// スクロール可能コンテンツパート、shadcn/ui 突合）を `description` と
+/// `footer` の間（見出し・スクロール本文・アクション列という DOM 上の
+/// 想定順序）へ追加した。以後 `SLOTS` は「headless 8 パート +
+/// pre-styled-only 2 パート」の計 10 件になる。
 const SLOTS: &[&str] = &[
     "root",
     "trigger",
@@ -347,6 +413,7 @@ const SLOTS: &[&str] = &[
     "content",
     "title",
     "description",
+    "body",
     "footer",
     "close-trigger",
 ];
@@ -447,6 +514,25 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg-muted)"),
                 decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("margin", "0 0 var(--fandhe-space-4) 0"),
+            ],
+        )
+        // イシュー #2030: pre-styled-only `body` パート（スクロール可能
+        // コンテンツ、shadcn/ui 突合。モジュール冒頭 rustdoc「pre-styled-only
+        // `body` パート」節参照）。`content`/`positioner` 自体は無変更のまま
+        // 維持し、呼び出し側が明示的に包むオプトインパートとしてのみ
+        // overflow/max-height を持たせる。
+        .base(
+            "body",
+            vec![
+                decl("overflow-y", "auto"),
+                // shadcn の `max-h-[50vh]` に対応する raw 値（`Size` 系
+                // トークンに `vh` 段階を持たないため raw 値のまま宣言する。
+                // `crate::toast`/`crate::tour` の viewport 単位 raw 値と
+                // 同型の判断）。
+                decl("max-height", "50vh"),
+                // スクロール終端でのページ全体スクロール伝播（bounce）を
+                // 抑止し、`body` 内で完結させる。
+                decl("overscroll-behavior", "contain"),
             ],
         )
         // イシュー #1690: pre-styled-only `footer` パート（alert-dialog
@@ -731,6 +817,33 @@ pub fn footer<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("footer", "div", attrs, children)
 }
 
+/// pre-styled-only `body` パート（`<div>`、イシュー #2030）を組み立てる。
+/// 長いコンテンツを縦スクロールさせるレイアウト専用パートであり、
+/// headless-ui の anatomy には存在しない（本モジュール冒頭 rustdoc
+/// 「pre-styled-only `body` パート」節参照）。見出し（[`title`]/
+/// [`description`]）とアクション列（[`footer`]）を [`content`] 内で
+/// `body` の外側の兄弟として配置することで、それらを固定したまま
+/// `body` だけをスクロールさせられる。呼び出し側の任意判断による
+/// オプトインパートであり、使わない既存の呼び出しには影響しない。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// （[`footer`] と同型）ため、呼び出し側 `attrs` に含まれる
+/// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::dialog;
+///
+/// let node = dialog::body(vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="dialog" data-part="body""#));
+/// ```
+#[must_use]
+pub fn body<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("body", "div", attrs, children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -893,6 +1006,62 @@ mod tests {
             .expect("close-trigger base rule must be present");
         assert!(description_pos < footer_pos);
         assert!(footer_pos < close_trigger_pos);
+    }
+
+    // --- イシュー #2030: pre-styled-only `body` パート（スクロール可能
+    //     コンテンツ、shadcn/ui 突合） ---
+
+    #[test]
+    fn body_renders_as_div_with_dialog_scope_and_body_part() {
+        let html = render(&body(vec![], vec![text("Long content")]));
+        assert!(html.starts_with(r#"<div data-scope="dialog" data-part="body""#));
+        assert!(html.contains("Long content"));
+    }
+
+    #[test]
+    fn body_drops_caller_supplied_scope_and_part_spoofing() {
+        // `Anatomy::part` の既存保証（headless 層）の継承を固定する: 呼び出し
+        // 側が `data-scope`/`data-part` を偽装しても本物の値のみが残る。
+        let html = render(&body(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="dialog""#));
+        assert!(html.contains(r#"data-part="body""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn body_selector_declares_scrollable_content_layout() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="dialog"][data-part="body"] {"#));
+        let body_start = css
+            .find(r#"[data-scope="dialog"][data-part="body"] {"#)
+            .expect("body base rule must be present");
+        let body_end = css[body_start..].find('}').unwrap() + body_start;
+        let body_rule = &css[body_start..body_end];
+        assert!(body_rule.contains("overflow-y: auto;"));
+        assert!(body_rule.contains("max-height: 50vh;"));
+        assert!(body_rule.contains("overscroll-behavior: contain;"));
+    }
+
+    #[test]
+    fn body_selector_is_positioned_between_description_and_footer() {
+        // SLOTS 宣言順が golden の出力順を決める契約（`SlotRecipe::css`）の
+        // 回帰: `body` が `description` と `footer` の間に出力される（見出し・
+        // スクロール本文・アクション列という DOM 上の想定順序）。
+        let css = stylesheet();
+        let description_pos = css
+            .find(r#"[data-scope="dialog"][data-part="description"] {"#)
+            .expect("description base rule must be present");
+        let body_pos = css
+            .find(r#"[data-scope="dialog"][data-part="body"] {"#)
+            .expect("body base rule must be present");
+        let footer_pos = css
+            .find(r#"[data-scope="dialog"][data-part="footer"] {"#)
+            .expect("footer base rule must be present");
+        assert!(description_pos < body_pos);
+        assert!(body_pos < footer_pos);
     }
 
     // --- イシュー #729: size variant ---

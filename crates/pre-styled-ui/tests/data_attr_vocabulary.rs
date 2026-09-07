@@ -280,7 +280,9 @@ fn fieldset_root_data_attrs_are_headless_sourced_not_self_emitted() {
 /// `fandhe_frontend_headless_ui::anatomy::Anatomy::part` が付与する
 /// `data-scope`/`data-part`（anatomy 属性）のみであり、`role="alertdialog"`・
 /// `data-state` はいずれも headless `content`/`root` 由来（本モジュールは
-/// 組み立てない）であることを固定する。
+/// 組み立てない）であることを固定する。イシュー #2030（親 #2025）で追加した
+/// pre-styled-only `body` パート（スクロール可能コンテンツ）も `footer` と
+/// 同型のため同一関数で検証する。
 #[test]
 fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
     // footer: anatomy 属性（data-scope/data-part）以外の data-* を出力しない。
@@ -291,6 +293,16 @@ fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
     assert_eq!(
         data_attr_count, 2,
         "footer は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    // body: anatomy 属性（data-scope/data-part）以外の data-* を出力しない。
+    let html = render(&dialog::body(vec![], vec![text("Long content")]));
+    assert!(html.contains(r#"data-scope="dialog""#));
+    assert!(html.contains(r#"data-part="body""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "body は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
     );
 
     // alert-dialog 構成: role="alertdialog" と data-state は headless
