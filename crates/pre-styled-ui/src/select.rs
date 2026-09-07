@@ -178,10 +178,13 @@
 //!   `--radix-select-content-available-height` 相当）を採るが、ビューポート
 //!   実測は `fandhe-frontend-wasm-full` の positioning 契約（#663）側の
 //!   責務であるため、本 PR では listbox と同じ固定 rem スケールを採用する
-//!   （3 者競合ではなく実装方針の記録。長いリストで highlight 中の項目が
-//!   可視領域外に出た場合の `scrollIntoView` 相当の追随は
-//!   `fandhe-frontend-wasm-full::keynav` 側の未対応ギャップとして別イシュー
-//!   化候補、listbox と同じ既知の露出）。
+//!   （3 者競合ではなく実装方針の記録）。長いリストで highlight 中の項目が
+//!   可視領域外に出た場合の `scrollIntoView` 相当の追随は、`content` の
+//!   高さ制限導入と同時に `fandhe-frontend-wasm-full::keynav::wiring::
+//!   set_highlight_on_host`（Menu/Select/Listbox/Combobox 共通の highlight
+//!   更新経路）へ追加した（codex-review P1 是正、PR #2165）。ArrowDown/
+//!   ArrowUp/Home/End/typeahead のいずれの経路も同関数を経由するため
+//!   listbox（同型の既知ギャップ、#1502）も合わせて解消される。
 //! - **`trigger` の `data-invalid`/`data-readonly` を消費**: headless
 //!   （`crates/headless-ui/src/select.rs::state_attrs`）は `SelectProps`
 //!   の `invalid`/`readonly` から `data-invalid`/`data-readonly` を出力

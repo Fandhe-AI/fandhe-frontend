@@ -1562,6 +1562,70 @@ fn select_open_arrow_moves_highlight_and_enter_clicks_highlighted_item() {
     assert!(item_banana.has_attribute("data-clicked"));
 }
 
+/// `content` に `overflow-y: auto` + 固定 `height` を与え（Select の
+/// `max-height` スクロール導入、イシュー #2019 と同型の可視領域制約）、末尾
+/// 項目（初期スクロール位置では不可視）まで ArrowDown で highlight を移動
+/// させると、`content.scroll_top` が 0 から動く（スクロール追随が発生した
+/// ことの直接証拠）ことを検証する（codex-review P1 是正、PR #2165。
+/// `keynav::wiring::set_highlight_on_host` の
+/// `scroll_into_view_with_scroll_into_view_options` 呼び出しの回帰固定）。
+#[wasm_bindgen_test]
+fn select_open_arrow_down_scrolls_highlighted_item_into_view_when_content_overflows() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll1", &items, true, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-scroll1-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-scroll1-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll1-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+    assert_eq!(content_html.scroll_top(), 0);
+
+    for _ in 0..20 {
+        trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+
+    let last_item = document
+        .get_element_by_id("kn-select-scroll1-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert!(
+        content_html.scroll_top() > 0,
+        "highlighted item scrolled outside the overflow container should pull \
+         content.scroll_top away from 0"
+    );
+}
+
 /// Menu が open のまま Escape を受けると、`data-highlighted`/
 /// `aria-activedescendant` がクリアされる（本モジュールが書き込んだ
 /// highlight 表現の後始末のみで、`hidden`/`data-state` の実際の close は

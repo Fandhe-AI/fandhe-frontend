@@ -4239,7 +4239,10 @@ mod wiring {
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, HtmlElement, HtmlInputElement, KeyboardEvent};
+    use web_sys::{
+        Element, Event, HtmlElement, HtmlInputElement, KeyboardEvent, ScrollIntoViewOptions,
+        ScrollLogicalPosition,
+    };
 
     /// `[data-scope="tabs"][data-part="trigger"]` セレクタ。
     const TABS_TRIGGER_SELECTOR: &str = "[data-scope=\"tabs\"][data-part=\"trigger\"]";
@@ -5513,6 +5516,15 @@ mod wiring {
     /// 「`aria-activedescendant` は input 側に配線する」契約、モジュール
     /// doc §Combobox 参照）と対象が異なるため引数として分離する
     /// （イシュー #1071 で [`set_highlight`] から抽出）。
+    ///
+    /// 新規 highlight 項目は `scroll_into_view_with_scroll_into_view_options`
+    /// （`block`/`inline` とも `nearest`）でスクロール可能な祖先（Select の
+    /// `content`。`overflow-y: auto` + `max-height`、イシュー #2019）内へ
+    /// 追随させる（codex-review P1 是正、PR #2165）。`nearest` は既に可視
+    /// 領域内であれば no-op であり、Menu/Listbox/Combobox 等スクロール
+    /// 領域を持たない呼び出し元でも副作用がない（最も近いスクロール可能な
+    /// 祖先が document 自体になった場合でも `nearest` は不要なページ
+    /// スクロールを起こさない）。
     fn set_highlight_on_host(
         items: &[Element],
         next_index: usize,
@@ -5522,6 +5534,7 @@ mod wiring {
             if i == next_index {
                 set_dom_attribute(item, "data-highlighted", "");
                 sync_item_text_highlighted(item, true);
+                scroll_item_into_view_if_needed(item);
             } else {
                 let _ = item.remove_attribute("data-highlighted");
                 sync_item_text_highlighted(item, false);
@@ -5536,6 +5549,17 @@ mod wiring {
                 let _ = activedescendant_host.remove_attribute("aria-activedescendant");
             }
         }
+    }
+
+    /// [`set_highlight_on_host`] が新規 highlight 項目に対してのみ呼ぶ
+    /// スクロール追随の実体。`block: "nearest"`/`inline: "nearest"` を
+    /// 指定するため、対象が既に可視領域内なら何もしない（無用な
+    /// レイアウト振動を避ける）。
+    fn scroll_item_into_view_if_needed(item: &Element) {
+        let options = ScrollIntoViewOptions::new();
+        options.set_block(ScrollLogicalPosition::Nearest);
+        options.set_inline(ScrollLogicalPosition::Nearest);
+        item.scroll_into_view_with_scroll_into_view_options(&options);
     }
 
     /// `item` の直下 `[data-part="item-text"]` 子（Select の item-text、
