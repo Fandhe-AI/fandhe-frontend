@@ -192,6 +192,45 @@
 //! により呼び出し側の `class` を除去してから合成するため、`class` 属性は
 //! 常に単一（[`crate::avatar::root`] と同型）。
 //!
+//! # shadcn/ui との突合（イシュー #2018）
+//!
+//! [shadcn/ui Radio Group](https://ui.shadcn.com/docs/components/base/radio-group)
+//! を補完参照（#2153 で shadcn/ui が chakra-ui / Radix Themes と並ぶ主基準へ
+//! 格上げされた際の適用原則。既存の視覚言語を shadcn 風へ置き換えることは
+//! 目的としない）として突合した結果、`recipe()`/CSS 出力に実体変更は不要と
+//! 判断した。以下、確認した項目を記録する。
+//!
+//! - **size（xs〜xl）・palette・orientation（horizontal）・disabled（item
+//!   単位）**: いずれも #1494/#1495 で実装済みで shadcn との差分なし。
+//! - **`data-invalid`（`item-control` の border-color）**: #1616 で実装済み。
+//!   docs サイトの Demo に invalid 状態の実演行が無かったため、本イシューで
+//!   `crates/docs-site/src/showcase.rs` の `radio_group_section()` へ追加した
+//!   （既定 CSS 側の変更ではなく docs のギャップ解消）。
+//! - **`data-invalid` 時のラベル/`item-text` 文字色**: shadcn はラベル文字色
+//!   も赤くするが、本モジュールは `item-control` の `border-color` のみを
+//!   danger 化し、ラベル/`item-text` の文字色は変更しない（**3 者参照競合**:
+//!   chakra-ui / Radix Themes の値を採用し shadcn には追随しない）。これは
+//!   [`crate::field`] rustdoc の「invalid はコントロールの枠線色と
+//!   `error-text` の表示切替で伝える」判断、および [`crate::checkbox`] の
+//!   「shadcn/ui との突合（イシュー #2011）」節が同一観点で下した判断を
+//!   踏襲したものであり、本クレート全体の視覚言語一貫性を優先して意図的に
+//!   合わせない。
+//! - **card 風（枠付きカード + 選択時のアクセントボーダー）**: shadcn の
+//!   Examples に見られる合成パターンだが、本クレートでは [`crate::radio_card`]
+//!   が独自の `data-scope="radio-card"` anatomy（`item_text`/
+//!   `item_description`/`item_content`/`item_addon` 等）で既に充足している
+//!   （責務境界: 単体の radio group は本モジュール、カード合成は
+//!   `radio_card` が担当する既存分業）。本モジュールへ card 相当の機能を
+//!   持ち込まない。
+//! - **label + description の縦組み合成**: 上記「本イシューで意図的に
+//!   合わせなかった点」節（#1495）で決定済みのとおり `description` 専用
+//!   パートは追加しない。shadcn の Examples も同様に呼び出し側合成
+//!   （`item-text` の後ろへ通常の子ノードとして説明文を並べるだけ）であり、
+//!   本クレートの既存方針（[`crate::checkbox`] #2011 突合と同一判断）と
+//!   一致する。合成パターンの実演は docs サイトの Demo/Examples 側
+//!   （`crates/docs-site/src/showcase.rs`・
+//!   `crates/docs-site/src/component_specs/forms.rs`）で示す。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - tabs/accordion/dialog/menu/select への size（および tabs への

@@ -122,6 +122,51 @@
 //! 意匠是正という本イシューの範囲を超える。必要であれば
 //! `.claude/rules/out-of-scope-tracking.md` に従い別イシューとして提案する。
 //!
+//! # shadcn/ui 突合（イシュー #2037）
+//!
+//! shadcn/ui（主基準の 1 つ、`docs/design/shadcn-reference-adoption-policy.md`
+//! §8）の
+//! Popover（<https://ui.shadcn.com/docs/components/base/popover>、Base UI
+//! ベース）と突合した。掲載 Example は Basic（トリガー + header/title/
+//! description の Content）・Align（Start/Center/End の 3 ボタンで
+//! `PopoverContent` の `align` prop を切り替えるデモ）・With Form
+//! （`Field`/`FieldGroup`/`FieldLabel`/`Input` を内包する Content）・RTL
+//! （アラビア語表示）の 4 件。ローカル保存済みスクショ
+//! （`docs/design/reference-screenshots/shadcn-popover-{1,2,3}.png`）はいずれも
+//! 閉じた状態のトリガーのみが写っており、開いた Content の中身は撮影されて
+//! いない制約がある（[`crate::hover_card`] のイシュー #2032 突合時と同種の
+//! 制約）。公式ページの Example 構成に基づいて以下を判定した。
+//!
+//! - **Basic**: 既存の `root`/`trigger`/`positioner`/`content`/`title`/
+//!   `description` の組み合わせで再現済みであり、新規 anatomy パートは
+//!   不要と確認した。
+//! - **Align**: `data-side`/`data-align` は dropdown 型オーバーレイ全体
+//!   （[`crate::menu`]/[`crate::select`]/[`crate::combobox`]/本モジュール/
+//!   [`crate::tooltip`]/[`crate::hover_card`]）に共通して静的 CSS を持たず、
+//!   実座標追従は `fandhe-frontend-wasm-full` 側の実行時レイヤへ委ねる
+//!   意図的設計である（[`crate::hover_card`] のイシュー #2032 突合と同型の
+//!   判定）。shadcn の `Align` デモも同種の実行時 JS 実測配置であり、本
+//!   リポジトリの「JS 実行時に委譲・SSR では静的固定」という設計判断と
+//!   矛盾しない。是正不要。
+//! - **With Form**: `Field`/`Input` の合成のみで独自のバリデーション・送信
+//!   ロジックを持たない静的表示であり、`docs/policy/
+//!   intentional-non-adoption.md` §3.25 規則 1（UI コンポーネント層へ
+//!   アプリケーションロジックを内包する部品は実装しない）にも抵触しない。
+//!   本リポジトリには既に [`crate::field`]（イシュー #2014 で shadcn/ui
+//!   突合済み）と [`crate::input`] が存在し、これらを [`content`] の自由な
+//!   `children: Vec<Node>` へ組み合わせるだけで再現可能であり、新規
+//!   anatomy パート・新規 CSS は不要と確認した。docs サイトの Examples 節
+//!   新設（`crates/docs-site/src/component_specs_overlay.rs` の
+//!   `ex_popover_dimensions_form`）で可視化した（本モジュールの
+//!   `recipe()`/公開シグネチャ/CSS 出力は一切変更しない）。
+//! - **RTL**: 本リポジトリに RTL 対応の前例は乏しく（[`crate::marquee`]
+//!   が唯一 `dir="rtl"` 環境での崩れをスコープ外と明記する例）、本モジュール
+//!   でも RTL 対応は実装せず本イシューのスコープ外とする（下記スコープ外
+//!   節参照）。
+//!
+//! 参照競合の判定: なし（今回の補完はいずれも既存パーツの合成パターンの
+//! 追加のみで、既存トークン値との競合は発生しない）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - variant（size 等）ごとのクラス切り替えは headless ラッパー第 1 弾
@@ -133,6 +178,9 @@
 //! - `close-trigger` の絶対配置ゴーストボタン化（上記節参照）・`content`
 //!   の開閉フェード演出（上記「トランジション」節参照）はいずれもイシュー
 //!   #1534 のスコープ外とする。
+//! - `docs/design/component-coverage-map.md` の shadcn 列更新は姉妹イシュー
+//!   #2004（Phase 0）の担当範囲であり、本イシューでは触らない。
+//! - RTL（方向性）対応はイシュー #2037 のスコープ外とする。
 
 use crate::css::decl;
 use crate::recipe::{

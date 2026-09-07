@@ -4,8 +4,9 @@
 #2001）。`docs/design/component-coverage-map.md`（ark-ui / chakra-ui /
 Radix UI の 3 参照軸）に対する第 4 の参照軸として shadcn/ui を組み込む
 準備の一部であり、本書は **shadcn/ui コンポーネントドキュメント一覧**の
-一次調査記録を担う。shadcn/ui の位置づけは「補完参照」（主基準化はしない、
-`docs/design/shadcn-reference-adoption-policy.md` 参照）である。
+一次調査記録を担う。shadcn/ui の位置づけは執筆時点では「補完参照」だったが、
+2026-09-07 に #2153 で主基準の 1 つへ改訂された（詳細は
+`docs/design/shadcn-reference-adoption-policy.md` §8 参照）。
 
 **本書は調査・記録のみであり、`crates/` 配下は一切変更しない。区分判定
 （実装済み / 実装対象 / 保留 / 意図的非採用 / 参照対象外 / 対象外）は

@@ -42,6 +42,13 @@ const PIN_INPUT_GOLDEN_CSS: &str = r#"[data-scope="pin-input"][data-part="root"]
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
+[data-scope="pin-input"][data-part="separator"] {
+  display: flex;
+  align-items: center;
+  color: var(--fandhe-color-fg-muted);
+  user-select: none;
+}
+
 [data-scope="pin-input"][data-part="root"].fd-pin-input--size-xs {
   --fandhe-pin-input-size: var(--fandhe-size-control-height-xs, 2rem);
   --fandhe-pin-input-font-size: var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs));

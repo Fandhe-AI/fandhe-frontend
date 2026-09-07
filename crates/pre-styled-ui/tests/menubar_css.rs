@@ -1,10 +1,10 @@
-//! styled Menubar（イシュー #992）の CSS 契約テスト。
+//! styled Menubar（イシュー #992・#2034）の CSS 契約テスト。
 //!
 //! `crates/pre-styled-ui/tests/menu_css.rs`/`toggle_tip_css.rs` の golden
-//! fixture 方式（CSS 全文のバイト単位固定）は、11 パーツを持つ Menubar では
+//! fixture 方式（CSS 全文のバイト単位固定）は、16 パーツを持つ Menubar では
 //! 宣言 1 個の増減でも無関係な diff が広範囲に生じる brittle さの方が実害が
 //! 大きいと判断し、本ファイルでは採らない（イシュー #992 実装計画で確定
-//! 済みの判断）。代わりに「11 スロット分のセレクタが存在する」「主要な
+//! 済みの判断）。代わりに「16 スロット分のセレクタが存在する」「主要な
 //! 状態セレクタが揃っている」「CSS breakout を含まない」という不変条件を
 //! 契約アサーションとして固定する。
 
@@ -17,11 +17,16 @@ const EXPECTED_SLOTS: &[&str] = &[
     "positioner",
     "content",
     "item",
+    "item-text",
+    "item-indicator",
     "item-group",
     "item-group-label",
     "separator",
     "sub-trigger",
     "sub-content",
+    "checkbox-item",
+    "radio-item-group",
+    "radio-item",
 ];
 
 #[test]
@@ -30,7 +35,7 @@ fn stylesheet_is_deterministic() {
 }
 
 #[test]
-fn stylesheet_declares_selectors_for_all_eleven_anatomy_slots() {
+fn stylesheet_declares_selectors_for_all_sixteen_anatomy_slots() {
     let css = menubar::stylesheet();
     for part in EXPECTED_SLOTS {
         let needle = format!(r#"[data-scope="menubar"][data-part="{part}"]"#);
@@ -184,12 +189,13 @@ fn stylesheet_declares_item_and_sub_trigger_transitions() {
         "[data-scope=\"menubar\"][data-part=\"sub-trigger\"] {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n"
     ));
     // transition-property 宣言が trigger（#1702）・item・sub-trigger
-    // （#1703）の base ブロック内に計 3 回現れることを固定する。
+    // （#1703）・checkbox-item・radio-item（#2034）の base ブロック内に
+    // 計 5 回現れることを固定する。
     assert_eq!(
         css.matches("transition-property: background, color;")
             .count(),
-        3,
-        "expected transition-property on trigger, item, and sub-trigger"
+        5,
+        "expected transition-property on trigger, item, sub-trigger, checkbox-item, and radio-item"
     );
 }
 
@@ -223,13 +229,15 @@ fn stylesheet_tokenizes_item_and_sub_trigger_radius() {
     // `0.25rem` から `var(--fandhe-radius-sm)` へトークン化。
     let css = menubar::stylesheet();
     assert!(!css.contains("0.25rem"));
-    // イシュー #1702 で `trigger` も同トークンへ揃え済みのため、
-    // trigger・item・sub-trigger の計 3 回が期待値になる。
+    // イシュー #1702 で `trigger` も同トークンへ揃え済み、イシュー #2034 で
+    // `checkbox-item`/`radio-item` も同トークンを採用したため、
+    // trigger・item・sub-trigger・checkbox-item・radio-item の計 5 回が
+    // 期待値になる。
     assert_eq!(
         css.matches("border-radius: var(--fandhe-radius-sm);")
             .count(),
-        3,
-        "expected radius-sm on trigger, item, and sub-trigger"
+        5,
+        "expected radius-sm on trigger, item, sub-trigger, checkbox-item, and radio-item"
     );
 }
 
@@ -254,4 +262,73 @@ fn stylesheet_declares_separator_uses_border_muted_token() {
     assert!(css.contains(
         "[data-scope=\"menubar\"][data-part=\"separator\"] {\n  border: 0;\n  border-top: 1px solid var(--fandhe-color-border-muted);\n"
     ));
+}
+
+#[test]
+fn stylesheet_declares_checkbox_item_and_radio_item_checked_highlighted_disabled_states() {
+    // イシュー #2034: checkbox-item/radio-item は `crate::menu`（イシュー
+    // #1527）と同じ視覚言語（checked → bg-muted、highlighted → accent、
+    // disabled → disabled_declarations）を持つ。
+    let css = menubar::stylesheet();
+    for part in ["checkbox-item", "radio-item"] {
+        let checked =
+            format!(r#"[data-scope="menubar"][data-part="{part}"][data-state="checked"] {{"#);
+        assert!(css.contains(&checked), "missing checked rule for {part}");
+        let highlighted =
+            format!(r#"[data-scope="menubar"][data-part="{part}"][data-highlighted] {{"#);
+        assert!(
+            css.contains(&highlighted),
+            "missing highlighted rule for {part}"
+        );
+        let disabled = format!(r#"[data-scope="menubar"][data-part="{part}"][data-disabled] {{"#);
+        assert!(css.contains(&disabled), "missing disabled rule for {part}");
+    }
+}
+
+#[test]
+fn stylesheet_declares_checkbox_item_and_radio_item_hover_rule_excluding_highlighted() {
+    // イシュー #2034: `crate::menu` の checkbox-item/radio-item と同型の
+    // `HoverExceptAttr("data-highlighted")`。
+    let css = menubar::stylesheet();
+    for part in ["checkbox-item", "radio-item"] {
+        let needle = format!(
+            r#"[data-scope="menubar"][data-part="{part}"]:hover:not([data-disabled]):not([data-highlighted]) {{"#
+        );
+        assert!(css.contains(&needle), "missing hover rule for {part}");
+    }
+}
+
+#[test]
+fn stylesheet_declares_item_indicator_margin_left_auto_without_display() {
+    // イシュー #2034: `item-indicator` は select.rs の `item-indicator` を
+    // precedent とし、`display` を宣言しない（headless の `hidden` 存在
+    // 属性による表示制御と衝突させないため、`crates/pre-styled-ui/src/
+    // menubar.rs` モジュール doc「イシュー #2034」節参照）。
+    let css = menubar::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"menubar\"][data-part=\"item-indicator\"] {\n  margin-left: auto;\n"
+    ));
+    assert!(!css.contains("[data-scope=\"menubar\"][data-part=\"item-indicator\"] {\n  display:"));
+}
+
+#[test]
+fn stylesheet_declares_radio_item_group_structural_selector() {
+    // イシュー #2034: `radio-item-group` は `SlotRecipe::css()` がセレクタを
+    // 出力するために最小限の構造宣言（`item-group` と同一値）を持つ
+    // （`crates/pre-styled-ui/src/menubar.rs` モジュール doc「イシュー
+    // #2034」節参照）。
+    let css = menubar::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"menubar\"][data-part=\"radio-item-group\"] {\n  display: flex;\n  flex-direction: column;\n"
+    ));
+}
+
+#[test]
+fn stylesheet_does_not_declare_arrow_or_arrow_tip_selectors() {
+    // イシュー #2034: shadcn/ui の Menubar デモに矢印インジケータが視認
+    // できないため意図的に未着装（`crates/pre-styled-ui/src/menubar.rs`
+    // モジュール doc「意図的に合わせなかった点」節参照）。
+    let css = menubar::stylesheet();
+    assert!(!css.contains(r#"[data-scope="menubar"][data-part="arrow"]"#));
+    assert!(!css.contains(r#"[data-scope="menubar"][data-part="arrow-tip"]"#));
 }
