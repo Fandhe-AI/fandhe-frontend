@@ -161,6 +161,53 @@
 //! - **バリアント軸・size 連動 `font-size` の追加は見送る**: 1/3・2/3 と
 //!   同じ理由（`root()` シグネチャ変更を伴う Forms 家族横断判断）で見送り
 //!   継続する
+//!
+//! # スタイル調整（イシュー #2013、shadcn/ui 突合）
+//!
+//! ルート #2001「shadcn/ui を 4 本目の参照軸にする」ツリー Phase 1（#2008）の
+//! 1 部品として、shadcn/ui date-picker
+//! (<https://ui.shadcn.com/docs/components/base/date-picker>) と突合した。
+//! shadcn/ui は補完参照であり主基準（chakra-ui / Radix Themes）の視覚言語を
+//! 置き換えない（#2002 で確定済みの適用原則）。
+//!
+//! - **是正した項目**: 上記イシュー #1471 の記述のとおり、headless-ui
+//!   0.41.0（#1627）以降が全 6 パーツへ出す `data-invalid`/`data-readonly`
+//!   の CSS 消費が未実装のまま残っていたギャップを本イシューで埋めた。
+//!   `input`/`trigger` の `[data-invalid]` へ `border-color:
+//!   var(--fandhe-color-danger)`（`date_input.rs` の
+//!   `segment-group[data-invalid]` と同一トークン）、`input` の
+//!   `[data-readonly]` へ `cursor: default`（`date_input.rs::segment` と
+//!   同一判断軸）をそれぞれ追加した。`state()` の登録順は
+//!   invalid → readonly → disabled とし、同時に真となる場合でも
+//!   `disabled_declarations()` が最終適用されるようにした（`date_input.rs`
+//!   の #1469/PR #1746 教訓と同型のカスケード順序配慮）
+//! - **`label` の `data-required` 視覚化は見送る**: 同じ headless-ui
+//!   バージョンから `label` に `data-required` が出力されているが、
+//!   同クレート内の [`crate::field`] も同種の `data-required` を
+//!   「headless の `required_indicator`（`hidden` 属性フリップ）が表示切替を
+//!   担い、pre-styled-ui 側は `[hidden]` の CSS のみを持つ」という設計で
+//!   扱っており、date-picker の `label` 単体に `*` 等の視覚マーカーを
+//!   追加する独立実装は他 Forms 部品の慣行と整合しない。Forms 家族横断の
+//!   軸判断が必要なため部品単独では追加しない
+//! - **`control`/`clear-trigger` への `data-disabled` 視覚追加は見送る**:
+//!   #1471 が「Themes 側の後続判断に委ね #1470 へ追跡」としていた積み残し
+//!   であり、chakra/ark 基準からの継続課題であって shadcn/ui との比較で
+//!   新たに判明した差分ではないため、scope 混同を避け #1470 側へ委ねる
+//! - **range 選択・複数月表示・presets 行・自然言語入力・date+time 合成は
+//!   実装しない**: shadcn/ui の Examples（Range / Natural Language /
+//!   Date & Time / Presets 等）はいずれも (a) headless
+//!   [`fandhe_frontend_headless_ui::date_picker::DatePicker`]
+//!   の状態機械にない状態（range mode・複数月表示・自由入力パース）の
+//!   拡張を要する、または (b) 自然言語入力パースのような
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 1（アプリケー
+//!   ションロジックを内包する部品・機能は実装しない）に該当するため、
+//!   本イシュー（Themes 限定）のスコープ外である。presets 行（Today/
+//!   Clear 等）は [`crate::calendar`] 担当イシュー #2010 が同型の判断
+//!   （専用パート化は不要、既存 `input`/`trigger`/`clear-trigger` と
+//!   呼び出し側 `button` の組み合わせで表現可能）を採ったのに倣う
+//! - **ダークモード・トークン整合**: 新規トークンを追加していないため
+//!   無変更（既存 `--fandhe-color-danger` はダーク再定義済み、
+//!   `docs/design/pre-styled-ui-scale-tokens.md` 準拠）
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -305,8 +352,38 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
-        // headless（`crates/headless-ui/src/date_picker.rs`）が `input`/
-        // `trigger` へ出す `data-disabled` を消費する（`control`/
+        // headless-ui 0.41.0（イシュー #1627）以降が `input`/`trigger` へ
+        // 出す `data-invalid` を消費する（イシュー #2013、shadcn/ui 突合。
+        // `date_input.rs` の `segment-group[data-invalid]` と同じ
+        // `--fandhe-color-danger` トークンで枠線色を切り替える）。
+        .state(
+            "input",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("border-color", "var(--fandhe-color-danger)")],
+        )
+        .state(
+            "trigger",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("border-color", "var(--fandhe-color-danger)")],
+        )
+        // `data-readonly` を消費する（同 #2013。`date_input.rs::segment` と
+        // 同じ判断軸で `cursor: default` のみを表現する。ネイティブ
+        // `readonly` 属性は headless 側が既に `input` へ付与済みのため、
+        // ここでは視覚上のカーソル表現のみを補う）。
+        .state(
+            "input",
+            StateCondition::Attr("data-readonly"),
+            vec![decl("cursor", "default")],
+        )
+        // 登録順は invalid → readonly → disabled の意図的な並びである。
+        // `state()` は同じ詳細度 `[data-part="..."][data-attr]`
+        // (0,2,0) の規則同士を登録順（後勝ち）で解決するため
+        // （`crate::recipe::SlotRecipe::css` rustdoc「LastChild」節、
+        // `date_input.rs` の #1469/PR #1746 教訓と同型）、disabled かつ
+        // invalid/readonly が同時に真の要素で `disabled_declarations()`
+        // （`cursor: not-allowed` 等）が確実に最終適用されるよう最後に
+        // 置く。headless（`crates/headless-ui/src/date_picker.rs`）が
+        // `input`/`trigger` へ出す `data-disabled` を消費する（`control`/
         // `clear-trigger` へは出さないため対象外、モジュール rustdoc
         // 「スタイル調整」節参照）。
         .state(
@@ -548,6 +625,61 @@ mod tests {
             .contains(r#"[data-scope="date-picker"][data-part="clear-trigger"][data-disabled]"#));
         assert!(css.contains("opacity: 0.5"));
         assert!(css.contains("cursor: not-allowed"));
+    }
+
+    #[test]
+    fn invalid_declarations_apply_to_input_and_trigger_only() {
+        // イシュー #2013（shadcn/ui 突合）: headless-ui 0.41.0（#1627）以降が
+        // 全 6 パーツへ出す `data-invalid` のうち、`input`/`trigger` のみを
+        // CSS で消費する（`control`/`clear-trigger`/`root`/`label` は
+        // 対象外、モジュール rustdoc「スタイル調整（イシュー #2013）」節
+        // 参照）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="date-picker"][data-part="input"][data-invalid]"#));
+        assert!(css.contains(r#"[data-scope="date-picker"][data-part="trigger"][data-invalid]"#));
+        assert!(!css.contains(r#"[data-scope="date-picker"][data-part="control"][data-invalid]"#));
+        assert!(
+            !css.contains(r#"[data-scope="date-picker"][data-part="clear-trigger"][data-invalid]"#)
+        );
+        assert!(css.contains("border-color: var(--fandhe-color-danger)"));
+    }
+
+    #[test]
+    fn readonly_declaration_applies_to_input_only() {
+        // `date_input.rs::segment` と同じ判断軸: readonly は cursor 表現の
+        // みを補い、ネイティブ `readonly` 属性自体は headless 側が既に
+        // `input` へ付与済みのため CSS 側の対象は `input` のみとする。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="date-picker"][data-part="input"][data-readonly]"#));
+        assert!(!css.contains(r#"[data-scope="date-picker"][data-part="trigger"][data-readonly]"#));
+        assert!(css.contains("cursor: default"));
+    }
+
+    #[test]
+    fn input_disabled_cursor_overrides_invalid_and_readonly_by_source_order() {
+        // `date_input.rs` の #1469/PR #1746 教訓と同型: disabled かつ
+        // invalid/readonly が同一 `input` に共存する場合でも、登録順
+        // （invalid → readonly → disabled）による後勝ちで
+        // `disabled_declarations()` の `cursor: not-allowed` が最終適用
+        // されることを固定する。
+        let css = stylesheet();
+        let invalid_idx = css
+            .find(r#"[data-scope="date-picker"][data-part="input"][data-invalid] {"#)
+            .expect("input invalid rule must exist");
+        let readonly_idx = css
+            .find(r#"[data-scope="date-picker"][data-part="input"][data-readonly] {"#)
+            .expect("input readonly rule must exist");
+        let disabled_idx = css
+            .find(r#"[data-scope="date-picker"][data-part="input"][data-disabled] {"#)
+            .expect("input disabled rule must exist");
+        assert!(
+            readonly_idx > invalid_idx,
+            "input[data-readonly] must be registered after input[data-invalid]"
+        );
+        assert!(
+            disabled_idx > readonly_idx,
+            "input[data-disabled] must be registered after input[data-readonly] so it wins by source order"
+        );
     }
 
     #[test]

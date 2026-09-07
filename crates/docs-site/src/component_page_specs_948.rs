@@ -1800,6 +1800,51 @@ fn date_picker_example() -> Node {
     )])
 }
 
+/// イシュー #2013（shadcn/ui 突合）: `data-invalid`/`data-readonly` の CSS
+/// 消費追加を Examples 節でも実演する（`crates/docs-site/src/showcase.rs`
+/// の `date_picker_section` invalid/readonly デモ行と同型）。
+fn date_picker_invalid_readonly_example() -> Node {
+    let invalid_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
+        invalid: true,
+        ..Default::default()
+    };
+    let readonly_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let build = |props: &fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps,
+                 label_id: &'static str,
+                 label_text: &'static str| {
+        date_picker::root(
+            Size::Md,
+            OpenState::Closed,
+            props,
+            vec![],
+            vec![
+                date_picker::label(props, Some(label_id), None, vec![], vec![text(label_text)]),
+                date_picker::control(
+                    OpenState::Closed,
+                    props,
+                    vec![],
+                    vec![date_picker::input(Some("2026-07-15"), props, None, vec![])],
+                ),
+            ],
+        )
+    };
+    row(vec![
+        build(
+            &invalid_props,
+            "spec-948-date-picker-invalid-label",
+            "Delivery date (invalid)",
+        ),
+        build(
+            &readonly_props,
+            "spec-948-date-picker-readonly-label",
+            "Delivery date (readonly)",
+        ),
+    ])
+}
+
 const DATE_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "popover 基盤 + Calendar 合成の日付選択部品",
@@ -1832,11 +1877,18 @@ const DATE_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
             description: "root 配下の子ノード。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "開いた状態の掲示",
-        description: "入力欄 + トリガー + Calendar 月グリッドを popover 内に合成します。",
-        render: date_picker_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "開いた状態の掲示",
+            description: "入力欄 + トリガー + Calendar 月グリッドを popover 内に合成します。",
+            render: date_picker_example,
+        },
+        ExampleEntry {
+            title: "invalid / readonly 状態（イシュー #2013）",
+            description: "shadcn/ui との突合で追加した `data-invalid`（枠線色）・`data-readonly`（カーソル表現）の CSS 消費を並べて実演します。",
+            render: date_picker_invalid_readonly_example,
+        },
+    ],
     keyboard: &[KeyRow {
         key: "Escape",
         description: "popover を閉じる（wasm 層実装）。",

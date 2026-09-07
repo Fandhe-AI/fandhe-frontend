@@ -16,6 +16,11 @@
 //! date_picker は「golden 不在」部品だった（同ガイド §3.3）ため、本ファイルは
 //! 1/3 の是正後の `crates/pre-styled-ui/src/date_picker.rs::recipe` の実出力
 //! から新規生成した期待値である。
+//!
+//! イシュー #2013（shadcn/ui 突合）で `input`/`trigger` の `data-invalid`、
+//! `input` の `data-readonly` を新規消費するようになったため、期待値を
+//! 再生成した（追加分はモジュール rustdoc「スタイル調整（イシュー #2013）」
+//! 節参照）。
 
 use fandhe_frontend_pre_styled_ui::date_picker;
 
@@ -144,6 +149,18 @@ const EXPECTED_CSS: &str = r#"[data-scope="date-picker"][data-part="root"] {
 [data-scope="date-picker"][data-part="input"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="date-picker"][data-part="input"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+
+[data-scope="date-picker"][data-part="trigger"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+
+[data-scope="date-picker"][data-part="input"][data-readonly] {
+  cursor: default;
 }
 
 [data-scope="date-picker"][data-part="input"][data-disabled] {

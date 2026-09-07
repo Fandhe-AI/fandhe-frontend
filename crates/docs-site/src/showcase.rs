@@ -8703,59 +8703,97 @@ fn date_picker_section() -> Node {
         })
         .collect();
 
-    let date_picker_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps::default();
-    let node = date_picker::root(
-        Size::Md,
-        OpenState::Open,
-        &date_picker_props,
-        vec![],
-        vec![
-            date_picker::label(
-                &date_picker_props,
-                Some("showcase-date-picker-label"),
-                None,
-                vec![],
-                vec![text("Delivery date")],
-            ),
-            date_picker::control(
-                OpenState::Open,
-                &date_picker_props,
-                vec![],
-                vec![
-                    date_picker::input(Some("2026-07-15"), &date_picker_props, None, vec![]),
-                    date_picker::trigger(
-                        OpenState::Open,
-                        &date_picker_props,
-                        Some("showcase-date-picker-content"),
-                        vec![],
-                        vec![text("📅")],
-                    ),
-                ],
-            ),
-            date_picker::positioner(
-                OpenState::Open,
-                vec![],
-                vec![date_picker::content(
+    // 3 状態（既定 open / invalid / readonly）で共有する popover +
+    // カレンダーグリッドの組み立てヘルパ（イシュー #2013、shadcn/ui 突合の
+    // `data-invalid`/`data-readonly` CSS 消費追加を実演する。closure が
+    // `header_row`/`body_rows` を借用するため、呼び出しごとに複製する）。
+    let build_node = |props: &fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps,
+                      label_id: &'static str,
+                      content_id: &'static str,
+                      label_text: &'static str| {
+        date_picker::root(
+            Size::Md,
+            OpenState::Open,
+            props,
+            vec![],
+            vec![
+                date_picker::label(props, Some(label_id), None, vec![], vec![text(label_text)]),
+                date_picker::control(
                     OpenState::Open,
-                    Some("showcase-date-picker-content"),
-                    Some("showcase-date-picker-label"),
+                    props,
                     vec![],
-                    vec![calendar::table(
-                        None,
+                    vec![
+                        date_picker::input(Some("2026-07-15"), props, None, vec![]),
+                        date_picker::trigger(
+                            OpenState::Open,
+                            props,
+                            Some(content_id),
+                            vec![],
+                            vec![text("📅")],
+                        ),
+                    ],
+                ),
+                date_picker::positioner(
+                    OpenState::Open,
+                    vec![],
+                    vec![date_picker::content(
+                        OpenState::Open,
+                        Some(content_id),
+                        Some(label_id),
                         vec![],
-                        vec![
-                            calendar::table_header(vec![], vec![header_row]),
-                            calendar::table_body(vec![], body_rows),
-                        ],
+                        vec![calendar::table(
+                            None,
+                            vec![],
+                            vec![
+                                calendar::table_header(vec![], vec![header_row.clone()]),
+                                calendar::table_body(vec![], body_rows.clone()),
+                            ],
+                        )],
                     )],
-                )],
-            ),
-        ],
+                ),
+            ],
+        )
+    };
+
+    let default_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps::default();
+    let default_node = build_node(
+        &default_props,
+        "showcase-date-picker-label",
+        "showcase-date-picker-content",
+        "Delivery date",
     );
+
+    // イシュー #2013: shadcn/ui との突合で `data-invalid`/`data-readonly`
+    // の CSS 消費が未実装だったギャップを埋めたため（`date_picker.rs`
+    // モジュール rustdoc「スタイル調整（イシュー #2013）」節参照）、視覚
+    // 確認できるデモ行を追加する（checkbox #2011/#2143 の invalid デモ行
+    // 追加と同型）。
+    let invalid_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
+        invalid: true,
+        ..Default::default()
+    };
+    let invalid_node = build_node(
+        &invalid_props,
+        "showcase-date-picker-invalid-label",
+        "showcase-date-picker-invalid-content",
+        "Delivery date (invalid)",
+    );
+
+    let readonly_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let readonly_node = build_node(
+        &readonly_props,
+        "showcase-date-picker-readonly-label",
+        "showcase-date-picker-readonly-content",
+        "Delivery date (readonly)",
+    );
+
     section(
         "DatePicker",
-        "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。",
-        vec![node],
+        "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。invalid/readonly の 2 状態（イシュー #2013）も並べて実演します。",
+        vec![default_node, invalid_node, readonly_node],
     )
 }
 
