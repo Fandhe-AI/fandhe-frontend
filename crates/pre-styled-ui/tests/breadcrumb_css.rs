@@ -18,6 +18,11 @@
 //! colorPalette 軸不採用・disabled 状態なし・非対話 slot への hover なし）
 //! は `crates/pre-styled-ui/src/breadcrumb.rs` モジュール doc「参考サイト
 //! 基準への調整（イシュー #1517）」節に記録する。
+//!
+//! イシュー #2027（shadcn/ui 突合）で `list` に `overflow-wrap: break-word`
+//! を追加した（shadcn `BreadcrumbList` の `break-words` 相当）。意図的に
+//! 追随しない差分（`sm:` breakpoint の `gap` 拡張等）は同ファイルの
+//! 「shadcn/ui 突合（イシュー #2027）」節に記録する。
 
 use fandhe_frontend_pre_styled_ui::breadcrumb;
 
@@ -30,6 +35,7 @@ const BREADCRUMB_GOLDEN_CSS: &str = r#"[data-scope="breadcrumb"][data-part="list
   margin: 0;
   padding: 0;
   font-size: var(--fandhe-breadcrumb-font-size, var(--fandhe-font-font-size-md));
+  overflow-wrap: break-word;
 }
 
 [data-scope="breadcrumb"][data-part="item"] {

@@ -90,6 +90,52 @@
 //!   非対話要素（`current-link` は `aria-current="page"` の非リンクテキスト、
 //!   `separator`/`ellipsis` は装飾）のため hover フィードバックは付けない。
 //!
+//! # shadcn/ui 突合（イシュー #2027）
+//!
+//! `#1420`（chakra-ui / Radix Themes 基準の視覚調整、#1517 で反映済み）の
+//! 補完参照として shadcn/ui Breadcrumb
+//! （<https://ui.shadcn.com/docs/components/base/breadcrumb>）と突合した
+//! （ルート #2001 Phase 0 確定の適用原則: shadcn/ui は既存の視覚言語を
+//! 置き換えず欠落分のみ補う）。詳細な所見はイシュー #2027 のコメントに
+//! 記録する。
+//!
+//! **補完した点**:
+//!
+//! - **`list` の `overflow-wrap: break-word`**: shadcn の `BreadcrumbList`
+//!   実 registry ソース（`break-words` ユーティリティ、生 CSS 宣言に
+//!   換算すると `overflow-wrap: break-word`）を追随した。長いラベルが
+//!   コンテナ幅を超えて溢れるのを防ぐレイアウト是正であり、トークンを
+//!   要さない生値のため低リスクで採用した。
+//!
+//! **意図的に追随しない差分**（根拠を記録し、再評価は
+//! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
+//!
+//! - **`list` の `sm:gap-2.5`（`>= 640px` で `gap` を広げるレスポンシブ
+//!   breakpoint）**: shadcn 実 registry ソースで存在を確認したが、本
+//!   リポジトリの [`crate::recipe::SlotRecipe`]・全 110+ Themes 部品の
+//!   どこにも `@media (min-width: …)` breakpoint プリミティブの前例が
+//!   ない。単一部品のための新設は横断設計判断（新規機構の導入）であり
+//!   本イシュー単体のスコープ外と判断し、`gap` は `--fandhe-space-1-5`
+//!   固定のまま据え置く。
+//! - **responsive drawer への折り畳み退避**: shadcn の Examples 節に
+//!   ビューポート幅に応じたパンくず全体のドロワー退避パターンがあるが、
+//!   JS によるビューポート計測を要し `docs/policy/intentional-non-adoption.md`
+//!   §3.25 規則 2（装飾・レイアウト計測の関心は headless/pre-styled の
+//!   静的性を崩すため持ち込まない）に抵触するため不採用。
+//! - **ellipsis + dropdown 合成 / custom separator**: いずれも既存 API
+//!   （[`ellipsis`] + `menu` 部品の組み合わせ、[`separator`] の自由な
+//!   `children`）だけで表現可能と確認済みであり、コード変更を要しない
+//!   （Demo（`crates/docs-site/src/showcase.rs::breadcrumb_section`）で
+//!   実演を追加した）。
+//! - **`current-link` の `role="link"`/`aria-disabled="true"`**: shadcn の
+//!   `BreadcrumbPage` はこの 2 属性に加え `aria-current="page"` を持つ
+//!   （本モジュールは `aria-current="page"` のみ）。ARIA セマンティクスは
+//!   headless-ui 層（`crates/headless-ui/src/breadcrumb.rs::current_link`）
+//!   の責務であり、本イシュー（pre-styled-ui のみ）のスコープ外。
+//!   headless-ui 側フォローアップ候補として記録するに留め、
+//!   `.claude/rules/out-of-scope-tracking.md` に従いユーザー承認なしに
+//!   Issue は起票しない。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
@@ -172,6 +218,11 @@ fn recipe() -> SlotRecipe {
                     "font-size",
                     "var(--fandhe-breadcrumb-font-size, var(--fandhe-font-font-size-md))",
                 ),
+                // イシュー #2027: shadcn/ui `BreadcrumbList` の `break-words`
+                // 相当。長いラベルがコンテナ幅を超えて溢れるのを防ぐ
+                // （トークン非依存の生値、モジュール doc「shadcn/ui 突合」
+                // 節参照）。
+                decl("overflow-wrap", "break-word"),
             ],
         )
         .base(
@@ -486,6 +537,9 @@ mod tests {
         // 後方互換のためフォールバック付き（`var(--fandhe-space-1-5, 0.375rem)`）
         // であることを golden fixture として固定する。
         assert!(css.contains("gap: var(--fandhe-space-1-5, 0.375rem);"));
+        // イシュー #2027: shadcn/ui `BreadcrumbList` の `break-words` 相当
+        // （`overflow-wrap: break-word`）を golden fixture として固定する。
+        assert!(css.contains("overflow-wrap: break-word;"));
     }
 
     #[test]

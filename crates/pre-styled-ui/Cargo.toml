@@ -2036,7 +2036,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # に 1px の内側リング（`box-shadow`）を追加し WCAG 1.4.11（非テキスト
 # コントラスト）を回復した。セレクタ・CSS 変数名の変更を伴わない意匠調整
 # のみのため patch バンプで 0.119.1 とする。
-version = "0.119.1"
+# イシュー #2027: breadcrumb の shadcn/ui 突合で `list` に
+# `overflow-wrap: break-word` を追加した（`stylesheet()` 出力の変化）。
+# 新規セレクタ・variant・`data-*` を追加しない意匠調整のみのため patch
+# バンプで 0.119.2 とする。
+version = "0.119.2"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
