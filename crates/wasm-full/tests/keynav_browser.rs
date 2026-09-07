@@ -1562,6 +1562,144 @@ fn select_open_arrow_moves_highlight_and_enter_clicks_highlighted_item() {
     assert!(item_banana.has_attribute("data-clicked"));
 }
 
+/// `content` に `overflow-y: auto` + 固定 `height` を与え（Select の
+/// `max-height` スクロール導入、イシュー #2019 と同型の可視領域制約）、末尾
+/// 項目（初期スクロール位置では不可視）まで ArrowDown で highlight を移動
+/// させると、`content.scroll_top` が 0 から動く（スクロール追随が発生した
+/// ことの直接証拠）ことを検証する（codex-review P1 是正、PR #2165。
+/// `keynav::wiring::set_highlight_on_host` の
+/// `scroll_into_view_with_scroll_into_view_options` 呼び出しの回帰固定）。
+#[wasm_bindgen_test]
+fn select_open_arrow_down_scrolls_highlighted_item_into_view_when_content_overflows() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll1", &items, true, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-scroll1-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-scroll1-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll1-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+    assert_eq!(content_html.scroll_top(), 0);
+
+    for _ in 0..20 {
+        trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+
+    let last_item = document
+        .get_element_by_id("kn-select-scroll1-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert!(
+        content_html.scroll_top() > 0,
+        "highlighted item scrolled outside the overflow container should pull \
+         content.scroll_top away from 0"
+    );
+}
+
+/// Menu 自身（`content`）にはスクロール可能な overflow が無いが、`root` を
+/// `overflow-y: auto` + 固定 `height` の外側スクロールコンテナへ入れ子配置
+/// した場合、highlight 移動（ArrowDown 連打）を行っても外側コンテナの
+/// `scrollTop` が動かない（0 のまま）ことを検証する（codex-review P1 是正、
+/// PR #2165。`keynav::wiring::nearest_scrollable_ancestor` が `item` の最も
+/// 近い `[data-part="content"]` 祖先を境界として探索を打ち切り、それより
+/// 外側の祖先——本テストの外側スクロールコンテナや `body`/`html`
+/// ——を候補にしないことの直接証拠。境界修正前の実装は `content` に到達
+/// してもスクロール不可であれば探索を継続し、この外側コンテナの
+/// `scrollTop` を変更してページをパンしてしまっていた）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_down_does_not_scroll_outer_container_beyond_content_boundary() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_menu_dom(&document, "kn-menu-outer-scroll1", &items, true, false);
+
+    // 外側スクロールコンテナ（Menu の content 自体はスクロール不可のまま）。
+    // これはページ側が独自にスクロール可能な領域を持つ構成（例: サイド
+    // バー内に置かれた Menu）を模す。
+    let outer = document.create_element("div").unwrap();
+    let outer_html = html_element(&outer);
+    outer_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    outer_html.style().set_property("height", "80px").unwrap();
+    // root（trigger + content）を outer 配下へ移動する（DOM 上は自動的に
+    // 元の親〔document.body〕から re-parent される）。先頭へ置き、初期
+    // `scrollTop` が 0 の状態で `trigger.focus()` してもブラウザ既定の
+    // 自動スクロール（フォーカス対象を可視領域内へ持ち込む挙動）が
+    // 発生しないようにする（spacer は root の後段に置く）。
+    outer.append_child(&root).unwrap();
+    let inner_spacer = document.create_element("div").unwrap();
+    html_element(&inner_spacer)
+        .style()
+        .set_property("height", "4000px")
+        .unwrap();
+    outer.append_child(&inner_spacer).unwrap();
+    document.body().unwrap().append_child(&outer).unwrap();
+    // `outer` を後始末対象にする（`outer.remove()` で `root` ごと除去され
+    // るため、`build_menu_dom` が当初 append した `document.body` 直下の
+    // 参照ではなく re-parent 後の実位置を辿って掃除する `RemoveOnDrop` の
+    // 契約と整合する）。
+    let _cleanup = RemoveOnDrop(outer.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-menu-outer-scroll1-trigger")
+        .unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+    assert_eq!(outer_html.scroll_top(), 0);
+
+    for _ in 0..20 {
+        trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+
+    let last_item = document
+        .get_element_by_id("kn-menu-outer-scroll1-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert_eq!(
+        outer_html.scroll_top(),
+        0,
+        "highlight movement inside a non-scrollable Menu content must not pan an \
+         outer scrollable ancestor beyond the content boundary"
+    );
+}
+
 /// Menu が open のまま Escape を受けると、`data-highlighted`/
 /// `aria-activedescendant` がクリアされる（本モジュールが書き込んだ
 /// highlight 表現の後始末のみで、`hidden`/`data-state` の実際の close は
