@@ -2252,6 +2252,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（minor バンプ
 # 同士が衝突した場合は main の現在値の minor を +1 し patch を 0 に戻す）
 # に従い、main の到達値 0.130.0 の minor を +1 して 0.131.0 とする。
+# イシュー #2040（toast の shadcn/ui 突合、2026-09-08）: 実機比較の結果
+# 純追加できるバリアント・状態が見つからず、`recipe()`/`css()` は無変更
+# （golden `tests/toast_css.rs` も無変更）。変更はモジュール doc への
+# 判定記録追記（rustdoc のみ）に限られるため、hover-card の shadcn/ui
+# 突合記録追加（0.124.1）と同型で patch バンプする。base 取り込み時の
+# 上記 0.131.0 バンプと衝突したため、その到達値へさらに patch バンプを
+# 重ねて 0.131.1 とする。
+
 # base 再取り込み（イシュー #2013, 2026-09-08）: 本ブランチ（date-picker の
 # shadcn/ui 突合、data-invalid/data-readonly の CSS 消費補完でマイナー
 # バンプし main 分岐時点の到達値 0.123.0 から衝突回避のため 0.124.0 に
@@ -2274,6 +2282,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # の CSS 消費補完）を取り込み 0.133.0 へマイナーバンプしたため、本ブランチの
 # 到達値 0.132.0 と再度衝突した。`semver-same-version-is-conflict` の運用に
 # 倣い main の到達値 0.133.0 からさらに +1 して 0.134.0 とする。
+# base 再取り込み（イシュー #2041, PR #2178 相当, 2026-09-08）: 本ブランチ
+# （tooltip の shadcn/ui 突合、rustdoc のみの記録追記で patch バンプし
+# 0.132.0 に到達済み）と main（toast/date-picker の取り込みを経て
+# 0.133.0 に到達済み）が version 行で再度コンフリクトした。双方とも
+# patch バンプであり、本ブランチの到達値 0.132.0 は main の到達値
+# 0.133.0 を下回るため、`docs/ci/style-refresh-version-bump-operation.md`
+# §5 の手順（同一版数・逆転した到達値への衝突は main の現在値をさらに
+# +1 する）に従い、main の到達値 0.133.0 の patch を +1 して 0.133.1 と
+# する。
+# base 再取り込み（イシュー #2020, PR #2167 マージラウンド, 2026-09-08）続報 2:
+# main が PR #2178（tooltip の shadcn/ui 突合、rustdoc のみで patch バンプ）
+# を取り込み 0.133.1 へ到達したが、本ブランチの到達値 0.134.0 は既にそれを
+# 上回るため追加のバンプは不要（`docs/ci/style-refresh-version-bump-operation.md`
+# §5 の手順は main の到達値を上回る値には適用しない）。
 version = "0.134.0"
 
 edition = "2021"

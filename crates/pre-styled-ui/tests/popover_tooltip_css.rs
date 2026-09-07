@@ -144,6 +144,30 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   max-width: 20rem;
 }
 
+[data-scope="tooltip"][data-part="positioner"][data-side="bottom"] {
+  top: 100%;
+  bottom: auto;
+  margin-bottom: 0;
+  margin-top: var(--fandhe-space-1);
+}
+
+[data-scope="tooltip"][data-part="positioner"][data-side="left"] {
+  top: 0;
+  bottom: auto;
+  left: auto;
+  right: 100%;
+  margin-bottom: 0;
+  margin-right: var(--fandhe-space-1);
+}
+
+[data-scope="tooltip"][data-part="positioner"][data-side="right"] {
+  top: 0;
+  bottom: auto;
+  left: 100%;
+  margin-bottom: 0;
+  margin-left: var(--fandhe-space-1);
+}
+
 [data-scope="tooltip"][data-part="content"][data-state="closed"] {
   visibility: hidden;
 }
