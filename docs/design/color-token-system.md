@@ -216,3 +216,105 @@ stale 検知で FAIL する。よって本イシューでこの 2 件を `SHARED
 - `docs-accent-bg`（docs サイト固有トークン）は `accent-subtle` と役割が
   近いが、値・トークン名を変更せず docs 固有のまま維持した（無用な見た目
   変更を避けるため、`crates/docs-site/src/site_theme.rs` のコメント参照）。
+
+## 9. shadcn/ui 突合（イシュー #2005）
+
+イシュー #2003（shadcn/ui は既存参照軸を上書きしない「補完参照」として
+扱う原則）に従い、既存 55 色トークン（本書 §3）を優先し、shadcn 側の
+命名を機械的に輸入しない。`https://ui.shadcn.com/docs/theming` の実測値
+（既定 neutral テーマ、oklch 表記）と本書トークンを役割ベースで突合した
+結果を以下に記録する。
+
+### 9.1 意味論トークンの対応表
+
+| shadcn 変数 | 役割 | fandhe 対応 | 備考 |
+|---|---|---|---|
+| `--background` / `--foreground` | 既定の面・文字色 | `bg` / `fg` | 一致 |
+| `--card` / `--card-foreground` | カード面（既定テーマでは `--background` と同値） | `bg` / `fg` | `card.rs` が実際に `var(--fandhe-color-bg)` を使用済み（L320/L328）。専用トークンを新設せず、階調は `bg-subtle`/`bg-emphasized`/shadow/border の組み合わせで表現する（#1423 の「面パネル = radius `lg`」方針と同型） |
+| `--popover` / `--popover-foreground` | ポップオーバー面（既定テーマでは `--background` と同値） | `bg` / `fg` | `popover.rs` L185 が `var(--fandhe-color-bg)` を使用済み |
+| `--primary` / `--primary-foreground` | ブランド・高強調の操作色 | `accent` / `accent-fg` | 一致 |
+| `--secondary` / `--secondary-foreground` | 二次的な操作色 | `bg-muted` / `fg` 相当 | fandhe に「二次ブランド色」の専用トークンはなく、視覚的重みの低い操作は `neutral`/`bg-muted` 系で表現する既存方針を継続 |
+| `--muted` / `--muted-foreground` | 抑制された背景・文字 | `bg-muted` / `fg-muted` | 一致 |
+| `--destructive` | 破壊的操作 | `danger` | 一致 |
+| `--border` | 枠線 | `border` | 一致 |
+| `--input` | フォーム部品の枠線（既定テーマでは `--border` と同値） | `border` | `input.rs` L241 が `1px solid var(--fandhe-color-border)` を実装済み。専用トークンを新設せず `border` に統合する |
+| `--ring` | フォーカスリング | `focus-ring` | #1424 で確定済み |
+
+**`--accent` は false friend**: shadcn の `--accent`（既定テーマでは
+`oklch(0.97 0 0)` 相当の極薄グレー）は hover / focus / selected の
+いずれも同一の薄い面色で表す単一トークンであり、fandhe の `accent`
+（ブランド色、`#3182ce`）とは役割が異なる。fandhe はこの shadcn 側の
+単一ロールを「意味を持たない中立 hover 面」と「選択・open・pressed 等の
+意味を持つ強調面」の 2 つへ意図的に分割している点が shadcn との構造的な
+差分である: 中立 hover（例: メニュー項目に一時的にカーソルが乗っている
+だけの状態）には `bg-muted` / `bg-emphasized` を割り当てる一方、
+選択・open・pressed のように状態そのものに意味がある面には
+`accent-subtle` を割り当てる。`tree_view.rs`/`menubar.rs`/
+`navigation_menu.rs`/`toolbar.rs` の選択・open・pressed 背景が実際に
+使うのは後者の `accent-subtle` であり（§8 参照）、`bg-muted`/
+`bg-emphasized` は同じ部品群のうち意味を持たない hover 面（例:
+`toolbar.rs` の hover 中の隣接項目）に使う。後続 Phase で shadcn 側の
+マークアップ（`bg-accent` クラス等）を参照して部品を調整する実装者は、
+それが中立 hover か意味を持つ選択面かを見極めたうえで前者は
+`bg-muted`/`bg-emphasized`、後者は `accent-subtle` へ対応させ、いずれも
+`--fandhe-color-accent`（ブランド色）へ機械的に対応させないこと。
+
+**結論: 追加不要**。上記の役割はすべて既存 55 トークンで充足しており、
+`theme.rs` への変更は行わない。
+
+### 9.2 chart トークン
+
+fandhe は既に `chart-1`〜`chart-6`（6 系列、イシュー #846、L460-465）を
+持つ。shadcn の `--chart-1`〜`--chart-5`（5 系列）に対して段数・命名
+（`chart-N`）が一致するスーパーセットであり、6 件目（`chart-6`）は
+fandhe 独自の追加である。系列ラベル・色を束ねる `ChartConfig` 相当の
+機能は本書のスコープ外（UI コンポーネント層のトークン定義とは別の関心）。
+
+**結論: 追加・変更不要**。
+
+### 9.3 sidebar トークンの方針
+
+`crates/pre-styled-ui/src/` に `sidebar` 部品は未実装（Phase 4 の
+イシュー #2073 が実装を担う）。本書では専用トークンを置く「器」のみを
+決定する。
+
+- **器**: `Theme::to_css` は `colors` グループのみ light/dark 2 値を
+  出力する（他グループはモード非依存、または shadows のみ 2 値）。
+  sidebar トークン（背景・文字・強調・枠線・リング相当）は明らかに
+  light/dark が必要な色トークンであるため、既存の `chart-1..6` と同じ
+  前例（`DEFAULT_COLORS` 内の接頭辞付きロール）に倣い、
+  `DEFAULT_COLORS` 内に `sidebar-*` 接頭辞のロールとして追加する
+  （出力は `--fandhe-color-sidebar-<role>`）。`colors` グループ外の
+  モード非依存の新規グループとしては置かない。
+- **推奨ロール名**（値・実装は #2073 に委譲、本書では命名方針のみ）:
+  `sidebar-bg` / `sidebar-fg` / `sidebar-accent`（= アクティブ項目の
+  強調色、shadcn `--sidebar-primary` 相当）/ `sidebar-accent-fg` /
+  `sidebar-muted`（= hover 面の淡色、shadcn `--sidebar-accent` 相当）/
+  `sidebar-border` / `sidebar-focus-ring`。shadcn 側は `--sidebar-primary`
+  と `--sidebar-accent` の役割が逆転して見える命名（`primary` が
+  アクティブ項目、`accent` が hover 面）だが、fandhe は自身の既存規則
+  （`accent` = ブランド/強調色、`-muted` = 淡色 hover 面、
+  `focus-ring` = リング）に合わせて上記の命名へ揃える。
+- #2073 のイシュー本文/タイトルにある `--fandhe-sidebar-*` という表記は、
+  本方針では `--fandhe-color-sidebar-*`（`colors` グループの一部）を
+  意味する旨をコメントで申し送った。
+
+**結論: 器（`--fandhe-color-sidebar-*`）とロール名の方針決定のみ**。
+具体的な light/dark 値・`push_sidebar_color` 相当 API の要否・golden
+テストは #2073 実装時に確定する。`theme.rs` への変更は本書の範囲では
+行わない。
+
+### 9.4 oklch 表記の非採用
+
+`theme.rs` の WCAG コントラスト回帰テスト（`relative_luminance` 関数）は
+`u8::from_str_radix(&hex[0..2], 16)` 等で `#rrggbb` 前提の実装になって
+いる。`oklch` 表記へ切り替えるには (a) 全 55 色トークン × light/dark の
+値を oklch へ書き換え、(b) `relative_luminance` を oklch → 線形 sRGB
+変換のロジックへ全面書き換え、(c) 色空間変換をゼロ依存で正確に実装する
+コスト（依存追加が必要になった場合は `cargo metadata` 影響確認 + ユーザー
+承認が必須、`coding-rust.md`／REQ-3）、(d) golden テスト
+（`theme_css.rs`・`site_css_contract.rs`）の全面更新、のいずれもが
+知覚的な色そのものを変えない notation のみの変更に見合わないコストで
+ある。
+
+**結論: 非採用**。既存 `#rrggbb` 表記を維持する。
