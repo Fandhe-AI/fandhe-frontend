@@ -43,7 +43,13 @@ fn tabs_orientation_reexport_is_usable_via_pre_styled_ui_path_alone() {
         content: vec![],
         disabled: false,
     }];
-    let html = render(&tabs::tabs(Size::Md, ColorPalette::Accent, &props, items));
+    let html = render(&tabs::tabs(
+        tabs::TabsVariant::Line,
+        Size::Md,
+        ColorPalette::Accent,
+        &props,
+        items,
+    ));
     assert!(html.contains(r#"data-orientation="horizontal""#));
 }
 

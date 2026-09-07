@@ -173,7 +173,7 @@ use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::strong::strong;
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
-use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
+use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps, TabsVariant};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
@@ -2256,7 +2256,8 @@ fn card_section() -> Node {
 
 /// Tabs 節: 1 番目のタブが選択された静的マークアップ。
 fn tabs_section() -> Node {
-    let node = tabs(
+    let line_node = tabs(
+        TabsVariant::Line,
         Size::Md,
         ColorPalette::Accent,
         &TabsProps {
@@ -2309,10 +2310,90 @@ fn tabs_section() -> Node {
             },
         ],
     );
+    // イシュー #2039: shadcn/ui 突合で追加した Enclosed variant（セグメント/
+    // ピル型）のデモ。淡色コンテナの中で選択中 trigger だけが浮き上がる
+    // 見た目を目視確認できるようにする。
+    let enclosed_node = tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &TabsProps {
+            id: "showcase-tabs-enclosed",
+            selected: "overview",
+            orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
+        },
+        vec![
+            TabItem {
+                value: "overview",
+                trigger: vec![text("Overview")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text(
+                        "Enclosed は選択中 trigger を白背景 + 微小な影で浮き上がらせます。",
+                    )],
+                )],
+                disabled: false,
+            },
+            TabItem {
+                value: "usage",
+                trigger: vec![text("Usage")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text("list 全体は淡色の角丸コンテナになります。")],
+                )],
+                disabled: false,
+            },
+        ],
+    );
+    // イシュー #2039: `Orientation::Vertical` は tabs 部品ページでこれまで
+    // デモされていなかった（vertical 対応自体はイシュー #1542 で追加済み）。
+    // Enclosed × vertical のデモを兼ねて初めて目視確認できるようにする。
+    let enclosed_vertical_node = tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &TabsProps {
+            id: "showcase-tabs-enclosed-vertical",
+            selected: "overview",
+            orientation: Orientation::Vertical,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
+        },
+        vec![
+            TabItem {
+                value: "overview",
+                trigger: vec![text("Overview")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text("vertical 対応の Enclosed（区切り線なし・全角丸）。")],
+                )],
+                disabled: false,
+            },
+            TabItem {
+                value: "usage",
+                trigger: vec![text("Usage")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text(
+                        "data-orientation=\"vertical\" で列方向に配置転換します。",
+                    )],
+                )],
+                disabled: false,
+            },
+        ],
+    );
     section(
         "Tabs",
-        "headless-ui の Tabs（WAI-ARIA Tabs パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。",
-        vec![node],
+        "headless-ui の Tabs（WAI-ARIA Tabs パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。variant（line/enclosed）を選べます。",
+        vec![line_node, enclosed_node, enclosed_vertical_node],
     )
 }
 
@@ -3446,15 +3527,27 @@ fn toggle_tip_section() -> Node {
 /// 担い、見た目（トラック/つまみ）は `control`/`thumb` が装飾として担う。
 fn switch_section() -> Node {
     let states = [
-        (false, false, "showcase-switch-unchecked", "Unchecked"),
-        (true, false, "showcase-switch-checked", "Checked"),
-        (false, true, "showcase-switch-disabled", "Disabled"),
+        (
+            false,
+            false,
+            false,
+            "showcase-switch-unchecked",
+            "Unchecked",
+        ),
+        (true, false, false, "showcase-switch-checked", "Checked"),
+        (false, true, false, "showcase-switch-disabled", "Disabled"),
+        // イシュー #2021: shadcn/ui との突合で `control` slot が
+        // `data-invalid`（headless `SwitchProps.invalid`、#1622）を未消費
+        // だったことを確認し `box-shadow` リングを追加した是正の実演行
+        // （checkbox #2011 の Invalid 行と同型）。
+        (false, false, true, "showcase-switch-invalid", "Invalid"),
     ];
     let demo_row = row(states
         .iter()
-        .map(|(checked, disabled, name, label)| {
+        .map(|(checked, disabled, invalid, name, label)| {
             let props = switch::SwitchProps {
                 disabled: *disabled,
+                invalid: *invalid,
                 ..switch::SwitchProps::default()
             };
             switch::root(
@@ -4433,19 +4526,54 @@ fn input_section() -> Node {
     )
 }
 
-/// Textarea 節: Outline（既定）の複数行テキスト入力。
+/// Textarea 節: Outline（既定）/ Invalid / Disabled の 3 態（イシュー
+/// #2022、shadcn/ui 突合。`input_section` の Invalid デモ・
+/// `.showcase-form-field-group` ラッパー併設コメントと同型）。
 fn textarea_section() -> Node {
-    let textarea_row = row(vec![textarea::textarea(
-        &TextareaProps::default(),
-        &plain_field("showcase-textarea-default"),
-        false,
-        vec![("placeholder", "Outline (default)")],
-        vec![],
-    )]);
+    let textarea_row = row(vec![
+        textarea::textarea(
+            &TextareaProps::default(),
+            &plain_field("showcase-textarea-default"),
+            false,
+            vec![("placeholder", "Outline (default)")],
+            vec![],
+        ),
+        // invalid 時、headless `field::textarea` は `aria-describedby` に
+        // `{id}-error-text` を出力する（`input_section` と同じ describedby
+        // 合成則）。参照先の id を持つ `error_text`（`input` モジュールの
+        // 再エクスポート経由。`field` scope 共通のためどの styled モジュール
+        // 経由で呼んでも出力は同一）を併設し、存在しない id への参照を残さ
+        // ない。ラッパー div の `.showcase-form-field-group` も
+        // `input_section` と同じ理由（flex-basis 解決）で必要。
+        div(
+            vec![("class", "showcase-form-field-group")],
+            vec![
+                textarea::textarea(
+                    &TextareaProps::default(),
+                    &invalid_field("showcase-textarea-invalid"),
+                    false,
+                    vec![("placeholder", "Invalid")],
+                    vec![],
+                ),
+                input::error_text(
+                    &invalid_field("showcase-textarea-invalid"),
+                    vec![],
+                    vec![text("This field is required.")],
+                ),
+            ],
+        ),
+        textarea::textarea(
+            &TextareaProps::default(),
+            &disabled_field("showcase-textarea-disabled"),
+            false,
+            vec![("placeholder", "Disabled")],
+            vec![],
+        ),
+    ]);
 
     section(
         "Textarea",
-        "ブラウザネイティブ挙動をそのまま尊重する静的複数行テキスト入力部品。",
+        "ブラウザネイティブ挙動をそのまま尊重する静的複数行テキスト入力部品。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現します。",
         vec![textarea_row],
     )
 }
@@ -5711,6 +5839,7 @@ fn toggle_section() -> Node {
         .map(|(pressed, disabled, label)| {
             toggle::root(
                 Size::Md,
+                toggle::ToggleVariant::Outline,
                 ColorPalette::Accent,
                 *pressed,
                 *disabled,
@@ -5733,6 +5862,7 @@ fn toggle_section() -> Node {
         .map(|(size, label)| {
             toggle::root(
                 *size,
+                toggle::ToggleVariant::Outline,
                 ColorPalette::Accent,
                 true,
                 false,
@@ -5745,11 +5875,39 @@ fn toggle_section() -> Node {
         })
         .collect());
 
+    // イシュー #2023: shadcn/ui 突合で新設した `variant` 軸（Outline/Ghost）
+    // の Demo 行。Off/On の両状態で見た目差（枠線の有無）が分かるよう
+    // 4 通り並べる。
+    let variants = [
+        (toggle::ToggleVariant::Outline, false, "Outline / Off"),
+        (toggle::ToggleVariant::Outline, true, "Outline / On"),
+        (toggle::ToggleVariant::Ghost, false, "Ghost / Off"),
+        (toggle::ToggleVariant::Ghost, true, "Ghost / On"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, pressed, label)| {
+            toggle::root(
+                Size::Md,
+                *variant,
+                ColorPalette::Accent,
+                *pressed,
+                false,
+                vec![],
+                vec![
+                    toggle::indicator(*pressed, false, vec![], checkmark()),
+                    text(*label),
+                ],
+            )
+        })
+        .collect());
+
     let palette_row = row(palettes()
         .iter()
         .map(|(palette, label)| {
             toggle::root(
                 Size::Md,
+                toggle::ToggleVariant::Outline,
                 *palette,
                 true,
                 false,
@@ -5764,8 +5922,8 @@ fn toggle_section() -> Node {
 
     section(
         "Toggle",
-        "押下状態を持つ 2 状態ボタン。data-state 語彙は Switch の checked/unchecked ではなく on/off です（root 自身がネイティブ button であり、hidden input を持ちません）。",
-        vec![state_row, size_row, palette_row],
+        "押下状態を持つ 2 状態ボタン。data-state 語彙は Switch の checked/unchecked ではなく on/off です（root 自身がネイティブ button であり、hidden input を持ちません）。variant（Outline/Ghost）はイシュー #2023 の shadcn/ui 突合で新設しました。",
+        vec![state_row, size_row, variant_row, palette_row],
     )
 }
 
@@ -5783,6 +5941,7 @@ fn toggle_group_section() -> Node {
     let horizontal_props = toggle_group::ToggleGroupProps::default();
     let horizontal = toggle_group::root(
         Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
         ColorPalette::Accent,
         false,
         None,
@@ -5824,6 +5983,7 @@ fn toggle_group_section() -> Node {
     };
     let vertical = toggle_group::root(
         Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
         ColorPalette::Accent,
         false,
         Some(Orientation::Vertical),
@@ -5865,6 +6025,7 @@ fn toggle_group_section() -> Node {
     };
     let disabled = toggle_group::root(
         Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
         ColorPalette::Accent,
         true,
         None,
@@ -5891,10 +6052,95 @@ fn toggle_group_section() -> Node {
             ),
         ],
     );
+    // イシュー #2024: shadcn/ui 突合で新設した `variant`（Outline/Ghost）
+    // 軸の Demo 行。既定 Outline は上記 horizontal と同じ見た目のため、
+    // ここでは Ghost 側のみを並べて差分を示す。
+    let ghost_props = toggle_group::ToggleGroupProps::default();
+    let ghost = toggle_group::root(
+        Size::Md,
+        toggle_group::ToggleGroupVariant::Ghost,
+        ColorPalette::Accent,
+        false,
+        None,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(
+                &ghost_props,
+                false,
+                false,
+                false,
+                "left",
+                vec![],
+                vec![text("Left")],
+            ),
+            toggle_group::item(
+                &ghost_props,
+                true,
+                false,
+                false,
+                "center",
+                vec![],
+                vec![text("Center")],
+            ),
+            toggle_group::item(
+                &ghost_props,
+                false,
+                false,
+                false,
+                "right",
+                vec![],
+                vec![text("Right")],
+            ),
+        ],
+    );
+    // `MultiToggleGroup`（複数押下可）相当の見た目を示す Demo 行。実際の
+    // 状態遷移は wasm 層の責務（モジュール冒頭 rustdoc「インタラクティブ
+    // 部品の扱い」節参照）のため、複数 item を `pressed: true` で静的に
+    // 掲示するのみに留める。
+    let multi_props = toggle_group::ToggleGroupProps::default();
+    let multi = toggle_group::root(
+        Size::Md,
+        toggle_group::ToggleGroupVariant::Outline,
+        ColorPalette::Accent,
+        false,
+        None,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(
+                &multi_props,
+                true,
+                false,
+                false,
+                "bold",
+                vec![],
+                vec![text("Bold")],
+            ),
+            toggle_group::item(
+                &multi_props,
+                true,
+                false,
+                false,
+                "italic",
+                vec![],
+                vec![text("Italic")],
+            ),
+            toggle_group::item(
+                &multi_props,
+                false,
+                false,
+                false,
+                "underline",
+                vec![],
+                vec![text("Underline")],
+            ),
+        ],
+    );
     section(
         "Toggle Group",
-        "複数の Toggle をまとめて排他/複数選択させるグループ部品。root にのみ role=\"group\" を固定付与します（RadioGroup の role=\"radiogroup\" とは異なります）。",
-        vec![stack(vec![horizontal, vertical, disabled])],
+        "複数の Toggle をまとめて排他/複数選択させるグループ部品。root にのみ role=\"group\" を固定付与します（RadioGroup の role=\"radiogroup\" とは異なります）。variant（Outline/Ghost）はイシュー #2024 の shadcn/ui 突合で新設しました。最下段は複数押下可能な MultiToggleGroup 相当（bold/italic が同時押下）の見た目です。",
+        vec![stack(vec![horizontal, vertical, disabled, ghost, multi])],
     )
 }
 
@@ -6385,10 +6631,176 @@ fn splitter_section() -> Node {
         vertical_children,
     );
 
+    // イシュー #2038: shadcn/ui `resizable` の `withHandle` prop（ハンドル
+    // 中央に角丸ボックス+グリップアイコンを追加描画するオプトイン）に相当
+    // する合成パターンの掲示。`resize_trigger_indicator` を
+    // `resize_trigger` の children として渡すだけで表現できる（`splitter`
+    // モジュール rustdoc「イシュー #2038」節参照。indicator 自体の CSS は
+    // 既存 pill 表現のまま変更しない）。上記 `horizontal_demo`（indicator
+    // なし）と対比できるよう並べて掲示する。
+    let with_handle_state = Splitter::new(
+        &[
+            PanelSpec::new(60.0, 20.0, 80.0),
+            PanelSpec::new(40.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let with_handle_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &with_handle_state,
+        false,
+        vec![("style", "min-height: 12rem;")],
+        vec![
+            splitter::panel(
+                &with_handle_state,
+                0,
+                "showcase-splitter-wh-panel-a",
+                vec![],
+                vec![text("Panel A")],
+            ),
+            splitter::resize_trigger(
+                &with_handle_state,
+                0,
+                "showcase-splitter-wh-panel-a",
+                "showcase-splitter-wh-panel-b",
+                false,
+                vec![],
+                vec![splitter::resize_trigger_indicator(vec![], vec![])],
+            ),
+            splitter::panel(
+                &with_handle_state,
+                1,
+                "showcase-splitter-wh-panel-b",
+                vec![],
+                vec![text("Panel B")],
+            ),
+        ],
+    );
+
+    // イシュー #2038: shadcn/ui デフォルトデモ（One | (Two / Three)）と
+    // 同型の入れ子構成。外側 horizontal の panel B の children に、別の
+    // `splitter::root`（内側は vertical）をそのまま渡すだけで再現できる
+    // 合成パターン（新規 API 不要、`splitter` モジュール rustdoc
+    // 「イシュー #2038」節参照）。内側 `root` は base 規則の外枠・角丸を
+    // そのまま持つと外枠の中にもう一つ枠が入る二重線になるため、Demo 限定
+    // のインラインスタイルで打ち消す（recipe/stylesheet の出力は変更
+    // しない）。縦方向 flex の子は `flex-basis` にパーセンテージを使う
+    // ため、祖先に解決済みの高さが必要（`vertical_demo` と同じ制約、PR
+    // #862）で、外側には確定値の `height`、内側（縦方向）には
+    // `height: 100%` を明示する。
+    let nested_outer_state = Splitter::new(
+        &[
+            PanelSpec::new(40.0, 20.0, 80.0),
+            PanelSpec::new(60.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let nested_inner_state = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 0.0, 100.0),
+            PanelSpec::new(50.0, 0.0, 100.0),
+        ],
+        Orientation::Vertical,
+    );
+    let nested_inner_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &nested_inner_state,
+        false,
+        vec![("style", "border: none; border-radius: 0; height: 100%;")],
+        vec![
+            splitter::panel(
+                &nested_inner_state,
+                0,
+                "showcase-splitter-nested-inner-panel-a",
+                vec![],
+                vec![text("Two")],
+            ),
+            splitter::resize_trigger(
+                &nested_inner_state,
+                0,
+                "showcase-splitter-nested-inner-panel-a",
+                "showcase-splitter-nested-inner-panel-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &nested_inner_state,
+                1,
+                "showcase-splitter-nested-inner-panel-b",
+                vec![],
+                vec![text("Three")],
+            ),
+        ],
+    );
+    let nested_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &nested_outer_state,
+        false,
+        vec![("style", "height: 16rem;")],
+        vec![
+            splitter::panel(
+                &nested_outer_state,
+                0,
+                "showcase-splitter-nested-outer-panel-a",
+                vec![],
+                vec![text("One")],
+            ),
+            splitter::resize_trigger(
+                &nested_outer_state,
+                0,
+                "showcase-splitter-nested-outer-panel-a",
+                "showcase-splitter-nested-outer-panel-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &nested_outer_state,
+                1,
+                "showcase-splitter-nested-outer-panel-b",
+                vec![],
+                vec![nested_inner_demo],
+            ),
+        ],
+    );
+
     section(
         "Splitter",
         "パネルサイズ状態機械 Splitter の静的掲示（水平 2 パネル・垂直 3 パネル）。resize-trigger は role=\"separator\" + aria-valuemin/max/now（先行パネルのサイズ %）+ aria-controls を持ちます（ドラッグ・キーボード操作は wasm 層のスコープ外）。",
-        vec![row(vec![horizontal_demo]), row(vec![vertical_demo])],
+        vec![
+            row(vec![horizontal_demo]),
+            row(vec![vertical_demo]),
+            row(vec![el(
+                "div",
+                vec![],
+                vec![
+                    p(
+                        vec![],
+                        vec![text(
+                            "With handle（resize_trigger_indicator を渡した合成パターン）",
+                        )],
+                    ),
+                    with_handle_demo,
+                ],
+            )]),
+            row(vec![el(
+                "div",
+                vec![],
+                vec![
+                    p(
+                        vec![],
+                        vec![text(
+                            "Nested（panel の children に別の splitter::root を渡す合成パターン）",
+                        )],
+                    ),
+                    nested_demo,
+                ],
+            )]),
+        ],
     )
 }
 

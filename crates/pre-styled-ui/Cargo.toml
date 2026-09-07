@@ -2175,16 +2175,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # wrapper 要素を `link` の直下の単一子要素として挟み、その wrapper 内で
 # 従来どおり `display: block`（既定）の縦積みを組むことで挙動を維持できる
 # （`link` 自身は flex コンテナのままだが単一子要素なら見た目は変わらない）。
-# base 再取り込み（イシュー #2020, PR #2167 修正ラウンド, 2026-09-07）: 本
-# ブランチ（slider の shadcn/ui 突合、marker/marker-group の styled 化、
-# patch バンプで 0.127.1 に到達済み）と main（pagination の shadcn/ui
-# 突合、rustdoc/docs-site 追記のみで recipe() 無変更の patch バンプにより
-# 独立に 0.127.1 へ到達済み）が version 行でコンフリクトした。双方が
-# 同一版数（0.127.1）へ偶発的に到達しているため、
-# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数
-# への偶発的衝突をそのまま採用しない）に従い main の到達値 0.127.1 から
-# さらに +1 して 0.127.2 とする。
-version = "0.127.2"
+# base 再取り込み（イシュー #2020, PR #2167 マージラウンド, 2026-09-08）: 本
+# ブランチ（slider の shadcn/ui 突合、marker/marker-group の styled 化に伴い
+# 依存する headless-ui の `slider::marker` へ orientation 引数が追加された
+# 破壊的変更を patch バンプ 0.127.2 で追随済み）と main（pagination の
+# shadcn/ui 突合を経て独立に 0.131.0 へ到達済み）が version 行でコンフリクト
+# した。加えて codex-review（PR #2167, thread PRRT_kwDOTarxgc6f89US）の
+# 指摘: pre-styled-ui は headless-ui を公開再エクスポートしているため、
+# headless-ui 側の破壊的変更（`slider::marker` への orientation 引数追加）
+# は pre-styled-ui 経由の利用者にも波及する。patch バンプのみでは規約
+# （0.x の破壊的変更はマイナーバンプ、`.claude/rules/coding-rust.md`）に
+# 反するため、main の到達値 0.131.0 からマイナーバンプして 0.132.0 と
+# する（依存元 version 指定・Cargo.lock は `xtask check-dep-versions --fix`
+# で追随させる）。
+version = "0.132.0"
 
 
 edition = "2021"

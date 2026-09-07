@@ -66,6 +66,8 @@ use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::radio_group;
 use fandhe_frontend_pre_styled_ui::radio_group::RadioGroupProps;
 use fandhe_frontend_pre_styled_ui::signature_pad;
+use fandhe_frontend_pre_styled_ui::switch;
+use fandhe_frontend_pre_styled_ui::switch::SwitchProps;
 use fandhe_frontend_pre_styled_ui::{BadgeProps, KbdProps};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
@@ -1565,6 +1567,7 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
         "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `switch::root` へ委譲する。",
         "ネイティブ `checked` 状態がブラウザにより `aria-checked` へ自動マップされるため、本モジュールは `aria-checked` を明示付与しない（二重読み上げ防止）。",
         "`readonly`/`invalid`/`required` の各フラグを `SwitchProps` で受け取り、`data-*` 属性・ネイティブ属性へ全パーツ一律反映する（イシュー #1622）。",
+        "`data-invalid` は `control` パーツへ danger 色の `box-shadow` リングとして反映される（イシュー #2021、shadcn/ui との突合で追加）。",
     ],
     arguments: &[
         ArgRow {
@@ -1604,7 +1607,18 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
             description: "root 配下の子ノード（通常 hidden-input/control/label を含む）。",
         },
     ],
-    examples: &[],
+    examples: &[
+        ExampleEntry {
+            title: "説明文付き（label + description の合成）",
+            description: "`switch` は description 専用パートを持たない（headless anatomy に存在せず、chakra-ui も同様に呼び出し側合成のため。`fandhe_frontend_pre_styled_ui::switch` rustdoc「shadcn/ui との突合」節参照）。`root` は flex コンテナのため、label とスイッチ本体を両端揃えで並べつつ、label 下へ `fg-muted` + 1 段小さいフォントサイズの説明文を並べる合成例です。",
+            render: switch_with_description_example,
+        },
+        ExampleEntry {
+            title: "枠付きボックス内での利用",
+            description: "shadcn/ui の Examples が示す「枠付きカード内に label/description + switch を配置する」構成を、既存 anatomy パーツと plain な `<div>` の合成で再現した例です（専用の複合コンポーネントは新設しない、`fandhe_frontend_pre_styled_ui::switch` rustdoc「本イシューのスコープ外」節参照）。",
+            render: switch_bordered_box_example,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -1618,6 +1632,129 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+// イシュー #2021: shadcn/ui との突合で「label + description の合成
+// パターン」の Examples が欠けていたことを確認したため追加。`switch` 自体は
+// description 専用パートを持たない（`fandhe_frontend_pre_styled_ui::switch`
+// rustdoc「shadcn/ui との突合」節参照）ため、通常のノード木 API のみで
+// label/説明文とスイッチ本体を両端揃えで合成する呼び出し側の一例を示す
+// （HTML 文字列直接組み立てを行わない、`.claude/rules/security.md` A03。
+// `checkbox_with_description_example` と同型パターン）。
+fn switch_with_description_example() -> Node {
+    let checked = false;
+    let props = SwitchProps::default();
+    switch::root(
+        Size::Md,
+        ColorPalette::Accent,
+        checked,
+        &props,
+        vec![(
+            "style",
+            "width: 100%; justify-content: space-between; align-items: flex-start;",
+        )],
+        vec![
+            el(
+                "div",
+                vec![],
+                vec![
+                    switch::label(
+                        checked,
+                        &props,
+                        vec![],
+                        vec![text("Marketing emails")],
+                    ),
+                    p(
+                        vec![(
+                            "style",
+                            "margin: 0; color: var(--fandhe-color-fg-muted); font-size: var(--fandhe-font-font-size-xs);",
+                        )],
+                        vec![text(
+                            "Receive emails about new products, features, and more.",
+                        )],
+                    ),
+                ],
+            ),
+            switch::hidden_input(
+                "switch-with-description-example",
+                "on",
+                checked,
+                &props,
+                vec![],
+            ),
+            switch::control(
+                checked,
+                &props,
+                vec![],
+                vec![switch::thumb(checked, &props, vec![], vec![])],
+            ),
+        ],
+    )
+}
+
+// イシュー #2021: shadcn/ui 3 枚目のスクショ（枠付きボックス + label/
+// description + switch）に相当する視覚を、専用コンポーネントを新設せず
+// plain な `<div>` + 既存 `switch` パーツの合成で再現する（`docs/policy/
+// intentional-non-adoption.md` §3.25 の責務境界・「純追加」方針を踏まえた
+// 判断、`fandhe_frontend_pre_styled_ui::switch` rustdoc「本イシューの
+// スコープ外」節参照）。
+fn switch_bordered_box_example() -> Node {
+    let checked = true;
+    let props = SwitchProps::default();
+    // headless `switch::root`（`crates/headless-ui/src/switch.rs`）は
+    // `<label>` 要素そのものであり、`label`/`hidden_input`/`control` を
+    // 子として包含して初めてクリック領域・アクセシブルネームが成立する
+    // （headless-ui `ANATOMY.part("root", "label", ...)`）。example 1
+    // （`switch_with_description_example`）と同じく、装飾（枠線・padding）は
+    // `root` 自身の `attrs` へ載せ、`label`/`p`/`hidden_input`/`control` は
+    // すべて `root` の子として構成する（`switch::label` を `root` の外へ
+    // 出すとラベルテキストクリックでトグルできなくなる事故を防ぐ）。
+    switch::root(
+        Size::Md,
+        ColorPalette::Accent,
+        checked,
+        &props,
+        vec![(
+            "style",
+            "width: 100%; align-items: flex-start; justify-content: space-between; gap: var(--fandhe-space-4); border: 1px solid var(--fandhe-color-border); border-radius: var(--fandhe-radius-md, 0.375rem); padding: var(--fandhe-space-4); max-width: 24rem;",
+        )],
+        vec![
+            el(
+                "div",
+                vec![],
+                vec![
+                    switch::label(
+                        checked,
+                        &props,
+                        vec![],
+                        vec![text("Enable notifications")],
+                    ),
+                    p(
+                        vec![(
+                            "style",
+                            "margin: 0; color: var(--fandhe-color-fg-muted); font-size: var(--fandhe-font-font-size-xs);",
+                        )],
+                        vec![text(
+                            "You can turn off notifications at any time.",
+                        )],
+                    ),
+                ],
+            ),
+            switch::hidden_input(
+                "switch-bordered-box-example",
+                "on",
+                checked,
+                &props,
+                vec![],
+            ),
+            switch::control(
+                checked,
+                &props,
+                vec![],
+                vec![switch::thumb(checked, &props, vec![], vec![])],
+            ),
+        ],
+    )
+}
 
 const TAGS_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
@@ -1693,19 +1830,57 @@ const TEXTAREA: ComponentPageSpec = ComponentPageSpec {
             description: "テキストコンテンツとなる子ノード。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "ラベル・補助テキストとの組み合わせ",
+        description: "`textarea` はラベル・補助テキストの型階層を持たず、`field`（`/themes/field/`）が担う（`INPUT` の同種 Examples と同型の合成、イシュー #2022、shadcn/ui の label + textarea + description パターンを本リポジトリの既存 API で再現）。",
+        render: ex_textarea_with_label_and_helper,
+    }],
     keyboard: &[],
     aria: &[],
     demo: None,
 };
 
+/// [`TEXTAREA`] の Examples 節「ラベル・補助テキストとの組み合わせ」レンダラ
+/// （イシュー #2022）。[`ex_input_with_label_and_helper`] と同型の合成
+/// （label + textarea + helper_text + field::root）。
+fn ex_textarea_with_label_and_helper() -> Node {
+    let f = fandhe_frontend_pre_styled_ui::textarea::FieldProps {
+        id: "example-textarea-message",
+        ids: fandhe_frontend_pre_styled_ui::textarea::FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
+    field::root(
+        &FieldRootProps {
+            orientation: FieldOrientation::Vertical,
+        },
+        &f,
+        vec![],
+        vec![
+            field::label(&f, vec![], vec![text("Message")]),
+            fandhe_frontend_pre_styled_ui::textarea::textarea(
+                &fandhe_frontend_pre_styled_ui::textarea::TextareaProps::default(),
+                &f,
+                false,
+                vec![("placeholder", "Type your message here.")],
+                vec![],
+            ),
+            field::helper_text(&f, vec![], vec![text("Enter your message below.")]),
+        ],
+    )
+}
+
 const TOGGLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle::root` へ委譲する。",
+        "`size`/`variant`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle::root` へ委譲する。",
         "`pressed`/`disabled` の 2 状態フラグを直接引数で受け取る。",
         "状態機械は Switch と同じ `Checkable` を内部再利用するが、公開語彙は `\"on\"`/`\"off\"`（`aria-pressed` と `data-pressed` を併記）で Switch とは異なる。",
         "`root` 自身がネイティブ `<button type=\"button\">` であり、Switch/RadioGroup のような hidden input を持たない。",
         "`indicator` は off 時に styled 層 CSS が `display: none` で隠す（headless 層は `data-state` のみ出力する）。",
+        "`variant`（`ToggleVariant::Outline`/`Ghost`）はイシュー #2023 の shadcn/ui 突合で新設した軸。`Outline`（既定）は輪郭あり、`Ghost` は背景・輪郭なしの最小装飾（`ButtonVariant::Ghost` と同じ意味論）。",
     ],
     arguments: &[
         ArgRow {
@@ -1713,6 +1888,12 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
             kind: "Size",
             default: "Size::Md",
             description: "サイズ variant。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "ToggleVariant",
+            default: "ToggleVariant::Outline",
+            description: "外観 variant（Outline/Ghost、イシュー #2023）。",
         },
         ArgRow {
             name: "palette",
@@ -1759,7 +1940,8 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
 
 const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle_group::root` へ委譲する。",
+        "`size`/`variant`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle_group::root` へ委譲する。",
+        "`variant`（`ToggleGroupVariant::Outline`/`Ghost`）はイシュー #2024 の shadcn/ui 突合で新設した軸。`Outline`（既定）は輪郭あり、`Ghost` は背景・輪郭なしの最小装飾（`crate::toggle::ToggleVariant` と同じ意味論。custom property 経由で `item` パーツへ伝播する）。",
         "`radio_group`/`radio_card`/`segment_group` と同型の `orientation`/`labelled_by` 軸を持つ。",
         "各 item は単体 Toggle と同じ押下状態付きネイティブ button で `aria-pressed`/`data-state` 語彙を揃える。",
         "`root` のみが `role=\"group\"` を持つ（`role=\"radiogroup\"` の RadioGroup とは異なる）。",
@@ -1770,6 +1952,12 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
             kind: "Size",
             default: "Size::Md",
             description: "サイズ variant。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "ToggleGroupVariant",
+            default: "ToggleGroupVariant::Outline",
+            description: "外観 variant（Outline/Ghost、イシュー #2024）。",
         },
         ArgRow {
             name: "palette",

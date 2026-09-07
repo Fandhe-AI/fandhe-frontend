@@ -191,6 +191,52 @@
 //!   非インタラクティブな slot であるため付けない（`resize-trigger` 側の
 //!   hover/transition/focus は #1536 で対応済み）。
 //!
+//! # イシュー #2038: shadcn/ui `resizable` との突合
+//!
+//! shadcn/ui は chakra-ui / Radix Themes と並ぶ主基準の 1 つ
+//! （`docs/design/shadcn-reference-adoption-policy.md` §8）。参照 3 サイト
+//! （chakra-ui/ark-ui/Radix）基準では既に #826→#1536→#1537→#1681 を経て
+//! 成熟済みのため、本イシューは shadcn 固有の追加差分のみを補完する。
+//!
+//! 突合結果（3 分類）:
+//!
+//! - **補完した（合成パターンの Demo/Examples 追加、CSS 変更なし）**:
+//!   shadcn `ResizableHandle` の `withHandle` prop（ハンドル中央に角丸
+//!   ボックス+グリップアイコンを追加描画するオプトイン）に相当する構造は、
+//!   本モジュールでは既に [`resize_trigger_indicator`] を
+//!   [`resize_trigger`] の `children` に渡すか否かの 2 択として実装済み
+//!   （呼ぶ／呼ばないの構造が shadcn の `withHandle` あり／なしと対応）。
+//!   欠けていたのは Demo/Examples 側がこの使い方を一度も掲示していない
+//!   点のみだったため、`crates/docs-site/src/showcase.rs`
+//!   （`splitter_section`）・`crates/docs-site/src/component_specs_nav_data.rs`
+//!   （`SPLITTER.examples`）へ「グリップ付きハンドル」の変奏を追加した。
+//!   同様に shadcn デフォルトデモの入れ子構成（One | (Two / Three)）も
+//!   [`panel`] の `children` に別の [`root`] をそのまま渡す合成パターン
+//!   として既存 API のみで再現可能なため、Demo へ追加した（headless/
+//!   pre-styled-ui いずれも新規 API 追加なし）。
+//! - **参照競合の判定**: splitter の resize-trigger-indicator は
+//!   chakra-ui / Radix Themes の値を採る。理由: shadcn の
+//!   `withHandle` インジケータは角丸ボックス+ドットアイコンだが、
+//!   参照 3 サイト中 2 サイト（chakra-ui/Radix）は円形〜pill 系であり、
+//!   #1536 で確定済みの視覚言語（[`crate::slider`] の thumb と同型の
+//!   トークン化）との一貫性を優先し、既存の中央グリップ pill 表現を
+//!   維持する（`recipe` の `resize-trigger-indicator` 規則は本イシューで
+//!   変更しない）。
+//! - **既存実装で充足**: vertical・hover・focus-visible・disabled・
+//!   size 5 段・palette 6 色・ダークモード（グローバルトークン継承のみで
+//!   部品固有の追加ダーク定義は不要）はいずれも参照 3 サイト基準で既に
+//!   実装済みであり、shadcn 突合でも追加差分は見つからなかった。
+//!
+//! 意図的に採らなかった変更（`.claude/rules/out-of-scope-tracking.md`
+//! 対応）:
+//!
+//! - **ハンドルの当たり判定の視覚外拡張**（shadcn `ResizableHandle` の
+//!   `::after` による見えないヒットエリア拡張）: 本リポジトリの
+//!   [`SlotRecipe`]/[`StateCondition`] は疑似要素セレクタ（`::before`/
+//!   `::after`）を表現する手段を持たないため実装できない。DSL 拡張は
+//!   本イシューの影響範囲を超えるため見送り、別途 Issue 化を検討する
+//!   （`.claude/rules/out-of-scope-tracking.md` 対応）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく pointer ドラッグ・キーボード操作の DOM 配線、
