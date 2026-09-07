@@ -24,4 +24,11 @@
 のみが disabled 状態を反映します（headless 層が `data-disabled` を発行しない
 ため）。
 
+`title` は省略可能で、`description` のみで構成する通知も既存 anatomy の
+まま実現できます（Examples 節を参照）。イシュー #2040 で shadcn/ui と突合
+した結果、状態配色（淡色面 tint）と `action_trigger` の縦積み配置は既存の
+まま維持することを確定しています。理由の詳細は
+`crates/pre-styled-ui/src/toast.rs` のモジュール doc「イシュー #2040」節を
+参照してください。
+
 関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

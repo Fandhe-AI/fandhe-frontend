@@ -2248,6 +2248,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数
 # への偶発的衝突をそのまま採用しない）に倣い、main の到達値 0.131.0 から
 # 並行 PR #2167（0.132.0 予定）分も見込んでさらに +1 し 0.133.0 とする。
+# 再度の base 再取り込み（PR #2177 codex-review/Bugbot 修正ラウンド,
+# 2026-09-08）: main が並行して toast の shadcn/ui 突合（イシュー #2040、
+# rustdoc のみの記録追記で patch バンプ）を 0.131.1 として取り込んだが、
+# 本ブランチの到達値 0.133.0 は既にそれより大きいため追加のバンプは不要
+# （`docs/ci/style-refresh-version-bump-operation.md` §5 の手順は「同一
+# 版数への偶発的衝突」を対象とするものであり、既に main の到達値を上回る
+# 値には適用しない）。
 version = "0.133.0"
 
 edition = "2021"
