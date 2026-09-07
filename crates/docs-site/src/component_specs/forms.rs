@@ -1840,8 +1840,18 @@ fn demo_image_cropper() -> Node {
 /// `count` 桁分の PinInput `input` セルを組み立てる（内部ヘルパ、
 /// [`demo_pin_input`] のみが呼ぶ）。`complete: true` の場合は各セルへ
 /// ダミー値 `"1"` を入れて `data-complete` の枠色を視覚確認できるように
-/// する。
-fn pin_input_cells(count: usize, complete: bool, disabled: bool) -> Vec<Node> {
+/// する。`start_index`/`total` は複数グループ（3-3 の `separator` 合成
+/// パターン等、イシュー #2016）に分割描画する際、`data-index`/
+/// `aria-label`（`PIN digit {n} of {total}`）を通し番号・全体桁数で
+/// 一貫させるために使う。単一グループの呼び出しは `start_index: 0`・
+/// `total: count` を渡す。
+fn pin_input_cells(
+    start_index: usize,
+    count: usize,
+    total: usize,
+    complete: bool,
+    disabled: bool,
+) -> Vec<Node> {
     let props = pin_input::PinInputProps {
         disabled,
         ..Default::default()
@@ -1850,8 +1860,8 @@ fn pin_input_cells(count: usize, complete: bool, disabled: bool) -> Vec<Node> {
         .map(|i| {
             let value = if complete { "1" } else { "" };
             pin_input::input(
-                i,
-                count,
+                start_index + i,
+                total,
                 value,
                 pin_input::PinInputKind::Numeric,
                 false,
@@ -1882,7 +1892,7 @@ fn demo_pin_input() -> Node {
             vec![],
             vec![
                 pin_input::label(complete, &props, vec![], vec![text("PIN code")]),
-                pin_input::control(vec![], pin_input_cells(4, complete, disabled)),
+                pin_input::control(vec![], pin_input_cells(0, 4, 4, complete, disabled)),
             ],
         )
     };
@@ -1903,9 +1913,9 @@ fn demo_pin_input() -> Node {
                     "div",
                     vec![("style", "display: flex; align-items: center;")],
                     vec![
-                        pin_input::control(vec![], pin_input_cells(3, false, false)),
+                        pin_input::control(vec![], pin_input_cells(0, 3, 6, false, false)),
                         pin_input::separator(vec![], vec![text("-")]),
-                        pin_input::control(vec![], pin_input_cells(3, false, false)),
+                        pin_input::control(vec![], pin_input_cells(3, 3, 6, false, false)),
                     ],
                 ),
             ],
@@ -1978,4 +1988,44 @@ fn demo_signature_pad() -> Node {
             ],
         ),
     )
+}
+
+#[cfg(test)]
+mod pin_input_demo_tests {
+    use super::demo_pin_input;
+    use fandhe_frontend_core::render;
+
+    // イシュー #2016 PR #2151 codex-review P1 の回帰テスト: `grouped`（6 桁を
+    // 3-3 に分割した合成パターン）の後半グループが前半グループと同じ
+    // `data-index="0"`〜`"2"`/`aria-label="PIN digit 1 of 3"`〜
+    // `"PIN digit 3 of 3"` を出力してしまい、6 桁中の実位置・総桁数が
+    // スクリーンリーダー利用者へ伝わらなくなっていた不具合を固定する。
+    // 修正後は前半 index=0..2・後半 index=3..5 の通し番号となり、
+    // `aria-label` の総桁数も両グループとも 6 で揃う。
+    #[test]
+    fn grouped_six_digit_demo_uses_continuous_index_and_total_of_six() {
+        let html = render(&demo_pin_input());
+
+        // 前半グループ（index 0..2、1〜3 桁目 / 6 桁中）
+        assert!(html.contains(r#"data-index="0""#));
+        assert!(html.contains(r#"data-index="1""#));
+        assert!(html.contains(r#"data-index="2""#));
+        assert!(html.contains("PIN digit 1 of 6"));
+        assert!(html.contains("PIN digit 2 of 6"));
+        assert!(html.contains("PIN digit 3 of 6"));
+
+        // 後半グループ（index 3..5、4〜6 桁目 / 6 桁中。修正前はここが
+        // 0..2・"of 3" へリセットされていた）
+        assert!(html.contains(r#"data-index="3""#));
+        assert!(html.contains(r#"data-index="4""#));
+        assert!(html.contains(r#"data-index="5""#));
+        assert!(html.contains("PIN digit 4 of 6"));
+        assert!(html.contains("PIN digit 5 of 6"));
+        assert!(html.contains("PIN digit 6 of 6"));
+
+        // 総桁数のリセット（"of 3"）が二度と出力されないことを固定する
+        // （4 桁単体デモ〔pin_input_cells(0, 4, 4, ...)〕は "of 4" のため
+        // 誤検知しない）。
+        assert!(!html.contains("of 3"));
+    }
 }
