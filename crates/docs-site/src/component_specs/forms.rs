@@ -339,7 +339,7 @@ fn checkbox_with_description_example() -> Node {
         Size::Md,
         ColorPalette::Accent,
         &props,
-        vec![],
+        vec![("style", "align-items: flex-start;")],
         vec![
             checkbox::hidden_input(&props, "checkbox-with-description-example", "on", vec![]),
             checkbox::control(
@@ -355,7 +355,7 @@ fn checkbox_with_description_example() -> Node {
                     p(
                         vec![(
                             "style",
-                            "margin: 0; color: var(--fandhe-color-fg-muted); font-size: var(--fandhe-font-font-size-sm);",
+                            "margin: 0; color: var(--fandhe-color-fg-muted); font-size: var(--fandhe-font-font-size-xs);",
                         )],
                         vec![text(
                             "By clicking this checkbox, you agree to the terms and conditions.",
