@@ -6927,10 +6927,139 @@ fn breadcrumb_section() -> Node {
                 .collect(),
         )],
     );
+    // イシュー #2027（shadcn/ui 突合）: custom separator デモ。`separator()`
+    // は headless-ui 側が `children` を自由に受け取る設計のため、区切り
+    // 文字の差し替えは呼び出し側だけで完結する（recipe/CSS 変更不要、
+    // `crates/pre-styled-ui/src/breadcrumb.rs` モジュール doc「shadcn/ui
+    // 突合」節参照）。shadcn の Custom separator 例（chevron 相当）に倣い
+    // "›" を掲示する。
+    let custom_separator_items = [
+        BreadcrumbItem {
+            label: "Home",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Docs",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Breadcrumb",
+            href: "",
+        },
+    ];
+    let custom_separator_node = breadcrumb::root(
+        Size::Md,
+        BreadcrumbVariant::Plain,
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            custom_separator_items
+                .iter()
+                .enumerate()
+                .flat_map(|(index, entry)| {
+                    let inner = if index == custom_separator_items.len() - 1 {
+                        breadcrumb::current_link(vec![], vec![text(entry.label)])
+                    } else {
+                        breadcrumb::link(entry.href, vec![], vec![text(entry.label)])
+                    };
+                    let mut parts = vec![breadcrumb::item(vec![], vec![inner])];
+                    if index != custom_separator_items.len() - 1 {
+                        parts.push(breadcrumb::separator(vec![], vec![text("\u{203a}")]));
+                    }
+                    parts
+                })
+                .collect(),
+        )],
+    );
+    // イシュー #2027（shadcn/ui 突合）: 省略記号 + dropdown 合成デモ。
+    // shadcn の Collapsed/Dropdown 例では `BreadcrumbEllipsis`（装飾専用、
+    // 実際の開閉は別の `DropdownMenuTrigger` が担う）に相当する。本
+    // リポジトリでは `breadcrumb::item` の子として既存の `menu` 部品
+    // （headless-ui/pre-styled-ui）を配置し、`menu::trigger` の表示文字列を
+    // 省略記号（"…"）にするだけで合成可能（headless-ui 側の変更は不要、
+    // `crates/pre-styled-ui/src/breadcrumb.rs` モジュール doc「shadcn/ui
+    // 突合」節参照）。[`ellipsis`]（headless-ui、`<li>` 固定・非対話）は
+    // 下記コメントのとおり `menu::trigger`（`<button>`、phrasing content の
+    // み許容）の子にすると不正なネストになるため使わない。埋め込む
+    // `menu` の `data-scope` は `component_page.rs::resolve_anatomy_scope`
+    // が外側スコープを採用する設計により breadcrumb 側の Anatomy/`data-*`
+    // 抽出を汚染しない。
+    let ellipsis_dropdown_node = breadcrumb::root(
+        Size::Md,
+        BreadcrumbVariant::Plain,
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            vec![
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link("", vec![], vec![text("Home")])],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![menu::root(
+                        Size::Md,
+                        OpenState::Open,
+                        vec![],
+                        vec![
+                            // `ellipsis()`（headless-ui、`<li>` 固定）は
+                            // `trigger`（`<button>`、phrasing content のみ
+                            // 許容）の子として不正なネスト（flow content の
+                            // `<li>`）になるため使わない。shadcn の実装も
+                            // 視覚上の省略記号は decorative な `<span>`
+                            // （trigger 内、`aria-hidden` 相当）であり `<li>`
+                            // ではないため、同じ意図をテキストで表現する。
+                            menu::trigger(
+                                OpenState::Open,
+                                false,
+                                Some("showcase-breadcrumb-ellipsis-menu"),
+                                vec![("aria-label", "Toggle menu")],
+                                vec![text("\u{2026}")],
+                            ),
+                            menu::positioner(
+                                OpenState::Open,
+                                vec![],
+                                vec![menu::content(
+                                    OpenState::Open,
+                                    Some("showcase-breadcrumb-ellipsis-menu"),
+                                    None,
+                                    vec![],
+                                    vec![
+                                        menu::item(
+                                            "docs",
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Docs")],
+                                        ),
+                                        menu::item(
+                                            "components",
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Components")],
+                                        ),
+                                    ],
+                                )],
+                            ),
+                        ],
+                    )],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::current_link(vec![], vec![text("Breadcrumb")])],
+                ),
+            ],
+        )],
+    );
     section(
         "Breadcrumb",
-        "headless-ui の Breadcrumb（nav[aria-label=\"breadcrumb\"] + ol/li）に pre-styled-ui の recipe CSS を適用した静的掲示です。末尾項目のみ aria-current=\"page\"/data-current を持つ非対話の現在位置表示（span）として描画します。",
-        vec![node],
+        "headless-ui の Breadcrumb（nav[aria-label=\"breadcrumb\"] + ol/li）に pre-styled-ui の recipe CSS を適用した静的掲示です。末尾項目のみ aria-current=\"page\"/data-current を持つ非対話の現在位置表示（span）として描画します。2 つ目は separator の children を差し替えたカスタム区切り文字（\"›\"）の例、3 つ目は breadcrumb::item 内に Menu 部品（trigger の表示文字列を省略記号 \"…\" にしたもの）を配置し、省略項目のドロップダウン展開を合成した例です（イシュー #2027、shadcn/ui 突合。既存 API のみで実現でき headless-ui 側の変更は不要でした）。",
+        vec![node, custom_separator_node, ellipsis_dropdown_node],
     )
 }
 
