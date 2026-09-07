@@ -56,6 +56,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
     AngleSlider, AngleSliderProps,
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
+use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::image_cropper::{HandlePosition, ImageCropperProps};
@@ -805,11 +806,52 @@ const INPUT: ComponentPageSpec = ComponentPageSpec {
             description: "`<input>` へ合成する追加属性（`type` 等）。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "ラベル・補助テキストとの組み合わせ",
+        description: "`input` はラベル・補助テキストの型階層を持たず、`field`（`/themes/field/`）が担う（モジュール rustdoc「`field` scope を共有する理由」参照）。`field::label`/`field::helper_text`/`field::root` と組み合わせるだけの合成例です（イシュー #2015、shadcn/ui の label + input + description パターンと同型の構成を本リポジトリの既存 API で再現）。",
+        render: ex_input_with_label_and_helper,
+    }],
     keyboard: &[],
     aria: &[],
     demo: None,
 };
+
+/// [`INPUT`] の Examples 節「ラベル・補助テキストとの組み合わせ」レンダラ
+/// （イシュー #2015）。`crates/docs-site/src/showcase.rs` の
+/// `field_instance` と同型の合成（label + input + helper_text +
+/// field::root）を、Examples 節向けに単一状態（invalid/disabled なし）へ
+/// 簡略化したもの。
+fn ex_input_with_label_and_helper() -> Node {
+    let f = fandhe_frontend_pre_styled_ui::input::FieldProps {
+        id: "example-input-api-key",
+        ids: fandhe_frontend_pre_styled_ui::input::FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
+    field::root(
+        &FieldRootProps {
+            orientation: FieldOrientation::Vertical,
+        },
+        &f,
+        vec![],
+        vec![
+            field::label(&f, vec![], vec![text("API Key")]),
+            fandhe_frontend_pre_styled_ui::input::input(
+                &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                &f,
+                vec![("type", "text"), ("placeholder", "sk-...")],
+            ),
+            field::helper_text(
+                &f,
+                vec![],
+                vec![text("Your API key is encrypted and stored securely.")],
+            ),
+        ],
+    )
+}
 
 const LISTBOX: ComponentPageSpec = ComponentPageSpec {
     features: &[
