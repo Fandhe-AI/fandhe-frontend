@@ -2069,8 +2069,26 @@ name = "fandhe-frontend-pre-styled-ui"
 # API 不在により非採用継続と結論した。`recipe()`（CSS 出力）に変更はなく
 # rustdoc への判断記録のみのため本来パッチ相当だが、main の到達値
 # 0.123.1 と同一到達で埋没する衝突のため semver-same-version-is-conflict
-# の運用に倣い main の到達値からさらに +1 して 0.123.2 とする。
-version = "0.123.2"
+# の運用に倣い main の到達値からさらに +1 して 0.123.2 とする予定だった。
+# イシュー #2014: field を shadcn/ui と突合し、`label` の `data-invalid`
+# 反応（文字色切替）と `error-text > ul` の複数エラーメッセージ用リスト
+# 整形を追加した。既存セレクタ・variant・`data-*` の削除・意味変更を伴わず
+# 破壊的変更ではないため patch バンプで 0.123.1 とする予定だったが、main の
+# #2030（0.123.1）と同一到達値で衝突したため semver-same-version-is-conflict
+# の運用に倣い main の到達値からさらに +1 して 0.124.0 とする（下記の
+# error_text タグ変更追随バンプと統合）。
+# PR #2147 codex-review/Cursor Bugbot 指摘の是正（イシュー #2014）: 依存先
+# `fandhe-frontend-headless-ui` の `error_text` 出力タグを `span` から
+# `div` へ変更（0.65.0 → 0.66.0、破壊的変更）したことへの追随、および
+# `error-text > ul` の `display: flex` と `list-style: disc` 併用による
+# disc マーカー非表示の是正（`padding`/`margin` の入れ替え）。依存先の
+# 破壊的変更への追随を含むためマイナーバンプで 0.124.0 とする。
+# 本マージ（PR #2150、イシュー #2031）: 上記 #2031（0.123.2 予定）ブランチが
+# main の #2014（0.124.0）へ未反映のまま同一ファイルで衝突したため、
+# semver-same-version-is-conflict の運用に倣い main の到達値 0.124.0 から
+# さらに +1 して 0.124.1 とする（drawer の rustdoc 判断記録追記のみで
+# `recipe()` の CSS 出力に変更はなくパッチ相当）。
+version = "0.124.1"
 
 
 edition = "2021"
@@ -2086,7 +2104,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.65.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.66.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

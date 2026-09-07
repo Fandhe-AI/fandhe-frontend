@@ -4064,6 +4064,51 @@ fn field_section() -> Node {
         None,
     );
 
+    // shadcn/ui 突合（イシュー #2014）で追加した `error-text > ul` の CSS を
+    // 掲示するインスタンス。複数エラーメッセージの `<ul>`/`<li>` 組み立て
+    // 自体は本モジュール（field.rs）の責務外であり、呼び出し側（ここでは
+    // 本節）が `fandhe_frontend_core::el`/`text` のみで構築する（`field.rs`
+    // モジュール doc「shadcn/ui 突合」節参照。重複排除は呼び出し側の判断に
+    // 委ねる、shadcn の `FieldError` と同じ責務分担）。`helper_text` は
+    // 描画しない（`invalid_field` を使用、`has_helper_text: false`）ため
+    // `field_instance` doc が警告する「`helper` の有無と
+    // `f.has_helper_text` を食い違わせない」契約に抵触しない。
+    let multi_error_field = invalid_field("showcase-field-multi-error");
+    let multi_error_instance = field::root(
+        &FieldRootProps {
+            orientation: FieldOrientation::Vertical,
+        },
+        &multi_error_field,
+        vec![],
+        vec![
+            field::label(
+                &multi_error_field,
+                vec![],
+                vec![
+                    text("Password"),
+                    field::required_indicator(&multi_error_field, vec![], vec![text("*")]),
+                ],
+            ),
+            input::input(
+                &InputProps::default(),
+                &multi_error_field,
+                vec![("type", "password"), ("placeholder", "••••••••")],
+            ),
+            field::error_text(
+                &multi_error_field,
+                vec![],
+                vec![el(
+                    "ul",
+                    vec![],
+                    vec![
+                        el("li", vec![], vec![text("Must be at least 8 characters.")]),
+                        el("li", vec![], vec![text("Must contain a number.")]),
+                    ],
+                )],
+            ),
+        ],
+    );
+
     section(
         "Field",
         "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。",
@@ -4074,6 +4119,7 @@ fn field_section() -> Node {
             readonly_instance,
             required_instance,
             horizontal_instance,
+            multi_error_instance,
         ])],
     )
 }
@@ -4286,6 +4332,15 @@ fn input_section() -> Node {
             &InputProps::default(),
             &disabled_field("showcase-input-disabled"),
             vec![("placeholder", "Disabled")],
+        ),
+        // イシュー #2015: shadcn/ui 突合で file input のコンテナ側 border/
+        // height/padding が既存 base/variant/size 規則で正しく適用される
+        // ことを実描画確認するためのインスタンス（`type` は headless
+        // `field::input` へそのまま渡る一般属性、`extra_attrs` 経由）。
+        input::input(
+            &InputProps::default(),
+            &plain_field("showcase-input-file"),
+            vec![("type", "file")],
         ),
     ]);
 

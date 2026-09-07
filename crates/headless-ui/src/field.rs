@@ -380,9 +380,16 @@ pub fn helper_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: V
     ANATOMY.part("helper-text", "span", merged, children)
 }
 
-/// `error_text` パーツ（`span`）。`invalid` でないときは `hidden` 存在属性を
+/// `error_text` パーツ（`div`）。`invalid` でないときは `hidden` 存在属性を
 /// 付与する fail-closed 描画とし、JS 不在の SSR でも誤表示しない。
 /// `aria-live="polite"` によりスクリーンリーダーへの通知を意図する。
+///
+/// タグは `span`（phrasing content）ではなく `div`（flow content）とする。
+/// 呼び出し側（pre-styled-ui の shadcn/ui 突合、イシュー #2014）が複数
+/// エラーメッセージを `<ul>`/`<li>` として children に渡す運用に対応する
+/// ため、`<ul>` を子に持てる HTML コンテンツモデルが必要（`span` の
+/// phrasing content には `ul` を含められない、PR #2147 codex-review 指摘の
+/// 是正）。
 #[must_use]
 pub fn error_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     let error_id = props.error_text_id();
@@ -392,7 +399,7 @@ pub fn error_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Ve
     }
     merged.extend(state_data_attrs(props));
     merged.extend(attrs);
-    ANATOMY.part("error-text", "span", merged, children)
+    ANATOMY.part("error-text", "div", merged, children)
 }
 
 /// `required_indicator` パーツ（`span`）。装飾目的の印であるため
