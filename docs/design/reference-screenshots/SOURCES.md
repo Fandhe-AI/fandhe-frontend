@@ -716,8 +716,6 @@
 | `shadcn-sheet-2.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/sheet | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-sheet-3.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/sheet | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-sidebar-1.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/sidebar | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
-| `shadcn-sidebar-2.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/sidebar | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
-| `shadcn-sidebar-3.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/sidebar | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-skeleton-1.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/skeleton | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-skeleton-2.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/skeleton | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-skeleton-3.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/skeleton | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
@@ -751,9 +749,9 @@
 | `shadcn-tooltip-1.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/tooltip | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-tooltip-2.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/tooltip | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-tooltip-3.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/tooltip | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
-| `shadcn-typography-1.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/typography | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
-| `shadcn-typography-2.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/typography | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
-| `shadcn-typography-3.png` | shadcn/ui | https://ui.shadcn.com/docs/components/base/typography | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
+| `shadcn-typography-1.png` | shadcn/ui | https://ui.shadcn.com/typeset | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
+| `shadcn-typography-2.png` | shadcn/ui | https://ui.shadcn.com/typeset | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
+| `shadcn-typography-3.png` | shadcn/ui | https://ui.shadcn.com/typeset | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-block-login-01-1.png` | shadcn/ui | https://ui.shadcn.com/view/new-york-v4/login-01 | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-block-login-04-1.png` | shadcn/ui | https://ui.shadcn.com/view/new-york-v4/login-04 | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
 | `shadcn-block-signup-05-1.png` | shadcn/ui | https://ui.shadcn.com/view/new-york-v4/signup-05 | [shadcn-ui/ui](https://github.com/shadcn-ui/ui) (MIT) |
