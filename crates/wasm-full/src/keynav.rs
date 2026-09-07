@@ -5591,12 +5591,26 @@ mod wiring {
     /// `auto`/`scroll` かつ実際にオーバーフローしている
     /// （`scrollHeight > clientHeight`）最初の祖先要素を返す
     /// （[`scroll_item_into_view_if_needed`] 専用のヘルパー、Cursor
-    /// Bugbot 是正、イシュー #2019/PR #2165）。`document`/`body` まで
-    /// 見つからなければ `None` を返し、呼び出し元はページ全体の
-    /// スクロールへフォールバックしない（意図的な fail-safe。ページを
-    /// パンする副作用より「スクロール追随しない」方が安全なため）。
+    /// Bugbot 是正、イシュー #2019/PR #2165）。
+    ///
+    /// 探索範囲は `item` の最も近い `[data-part="content"]` 祖先
+    /// （Menu/Select/Combobox いずれも content を持つ、`crates/
+    /// headless-ui/src/{menu,select,combobox}.rs` の anatomy 参照）
+    /// **配下**に限定する（codex-review P1 是正、イシュー #2019/PR
+    /// #2165）。単純な `overflow-y` computed style 判定のみだと、
+    /// `content` に到達してもスクロール不可（overflow していない）で
+    /// あれば探索を続けてしまい、ページ側の祖先（例えば `body` へ
+    /// アプリ側が `overflow-y: auto` を設定している構成）まで遡って
+    /// document をパンし得る。`content` を境界として、それより外側の
+    /// 祖先は最初から候補にしない。`item` が `content` 配下にない
+    /// （anatomy 契約が崩れている等）場合や、`content` 配下にスクロール
+    /// 可能な祖先が無い場合はいずれも `None` を返し、呼び出し元は
+    /// ページ全体のスクロールへフォールバックしない（意図的な
+    /// fail-safe。ページをパンする副作用より「スクロール追随しない」
+    /// 方が安全なため）。
     fn nearest_scrollable_ancestor(item: &Element) -> Option<Element> {
         let window = web_sys::window()?;
+        let boundary = closest(item, "[data-part=\"content\"]")?;
         let mut current = item.parent_element();
         while let Some(candidate) = current {
             let is_scrollable = window
@@ -5607,6 +5621,11 @@ mod wiring {
                 .is_some_and(|overflow_y| overflow_y == "auto" || overflow_y == "scroll");
             if is_scrollable && candidate.scroll_height() > candidate.client_height() {
                 return Some(candidate);
+            }
+            if candidate.is_same_node(Some(&boundary)) {
+                // content 境界に到達。これより外側（トリガー・
+                // ページ本体を含む）は探索しない。
+                return None;
             }
             current = candidate.parent_element();
         }
