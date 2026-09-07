@@ -1085,6 +1085,8 @@ fn button_section() -> Node {
         (ButtonVariant::Subtle, "Subtle"),
         (ButtonVariant::Surface, "Surface"),
         (ButtonVariant::Plain, "Plain"),
+        // イシュー #2009: shadcn/ui `link` variant 相当（hover 時のみ下線）。
+        (ButtonVariant::Link, "Link"),
     ];
     let variant_row = row(variants
         .iter()
@@ -1226,7 +1228,7 @@ fn button_section() -> Node {
 
     section(
         "Button",
-        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。IconButton のアイコン寸法はボタン size から `icon_size_for` で決定的に写像されます（イシュー #1674）。",
+        "variant（solid / outline / ghost / subtle / surface / plain / link）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。link variant は背景・輪郭を持たず hover 時のみ下線を表示するリンク風ボタンです（shadcn/ui 突合、イシュー #2009）。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。IconButton のアイコン寸法はボタン size から `icon_size_for` で決定的に写像されます（イシュー #1674）。",
         vec![
             variant_row,
             size_row,
@@ -1256,6 +1258,9 @@ fn download_trigger_section() -> Node {
         (ButtonVariant::Subtle, "Subtle"),
         (ButtonVariant::Surface, "Surface"),
         (ButtonVariant::Plain, "Plain"),
+        // イシュー #2009: button_section と対称に揃える（`recipe_with_scope`
+        // 共有により `Link` variant はここへも自動波及するため）。
+        (ButtonVariant::Link, "Link"),
     ];
     let variant_row = row(variants
         .iter()
