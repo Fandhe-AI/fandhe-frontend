@@ -2182,7 +2182,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # コンフリクトした。`docs/ci/style-refresh-version-bump-operation.md` §5
 # の手順（自分の変更が patch バンプの場合は main の現在値の patch を
 # +1 する）に従い、main の到達値 0.127.0 の patch を +1 して 0.127.1 とする。
-version = "0.127.1"
+# イシュー #2037（popover の shadcn/ui 突合）: rustdoc 節（shadcn/ui 突合の
+# 判定記録）と docs-site Examples 節（`ex_popover_dimensions_form`、既存
+# `field`/`input` API の合成のみ）の追記に留まり、`recipe()`/`css()`/公開
+# シグネチャは無変更（CSS golden・`data_attr_vocabulary.rs`・
+# `xss_escape_styled.rs` はいずれも無変更）のため patch バンプで 0.127.2
+# とする（hover-card #2032 の判断と同型）。
+version = "0.127.2"
 
 
 edition = "2021"
