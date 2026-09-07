@@ -21,10 +21,12 @@ commit `bb42408` pin・取得日 2026-07-25）と `docs/design/radix-themes-surv
 §5 の code-block / prose / checkbox-card / radio-card 行と Part E（toc）を
 更新した。
 イシュー #2004（親 #2002、トラッキング #2001）で ark-ui / chakra-ui / Radix
-UI の 3 参照軸へ **shadcn/ui を第 4 の参照軸（補完参照）**として追加した。
+UI の 3 参照軸へ **shadcn/ui を第 4 の参照軸**として追加した。
 位置づけの決定記録は `docs/design/shadcn-reference-adoption-policy.md`
-（イシュー #2003 で作成、本書執筆時点で未マージのため確定版の参照は将来
-形で扱う）が担い、shadcn/ui の位置づけは主基準化ではなく補完参照である。
+（イシュー #2003 で作成）が担う。#2004 時点の位置づけは「補完参照」だったが、
+2026-09-07 のユーザー判断（#2153、同文書 §8）で chakra-ui / Radix Themes /
+shadcn-ui の 3 者主基準の 1 つへ改訂された（競合は部品ごと判断、golden 純
+追加原則・headless-ui の ark-ui 一次参照は不変）。
 shadcn/ui 側の一次記録は `docs/design/shadcn-inventory.md`（`shadcn-ui/ui`
 commit `5c7072d` pin・取得日 2026-09-07）であり、区分判定（実装済み/
 実装対象/保留/意図的非採用/参照対象外/対象外）は本書 §5・§12 で確定した。
@@ -1311,8 +1313,8 @@ grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l  
 ## 12. shadcn/ui にあり本リポジトリに無い部品の判定表（イシュー #2001 → #2004）
 
 親トラッキング #2001（Phase 0「参照軸整備」）でイシュー #2004 が shadcn/ui
-（第 4 参照軸、位置づけは「補完参照」、`docs/design/shadcn-reference-adoption-policy.md`
-参照）を突合し、`fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui`
+（第 4 参照軸。#2004 時点は補完参照、2026-09-07 に #2153 で主基準の 1 つへ改訂、
+`docs/design/shadcn-reference-adoption-policy.md` §8 参照）を突合し、`fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui`
 に未実装の部品を洗い出した判定結果を本節へ記録する。区分の意味は §2 の
 とおり。「§5 該当行」は本書 §5（Part A〜F）の対応行を示す。7 部品
 （attachment/bubble/message/marker/message-scroller/questionnaire/
