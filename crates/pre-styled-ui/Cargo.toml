@@ -2221,17 +2221,31 @@ name = "fandhe-frontend-pre-styled-ui"
 # を新設し `root()` シグネチャへ `variant` 引数を挿入した（0.x の破壊的
 # 変更のためマイナーバンプ、button #2141 の `ButtonVariant::Link` 追加と
 # 同型）。
+# イシュー #2024: shadcn/ui 突合で toggle_group に `ToggleGroupVariant`
+# （Outline/Ghost、#2023 の `ToggleVariant` と同一命名）を新設し
+# `root()`/`root_with_props()` シグネチャへ `variant` 引数を挿入した
+# （0.x の破壊的変更のためマイナーバンプ、#2023 と同型）。
 # base 取り込み時の同一版数衝突（PR #2173 修正ラウンド, 2026-09-08）: 本
 # ブランチ（tabs の shadcn/ui 突合）と main（toggle の shadcn/ui 突合）が
 # それぞれ独立に 0.129.0 へマイナーバンプしており、値が偶然一致していた
 # だけで別々の実体変更である（`semver-same-version-is-conflict` の追加
 # +1 運用）。同一版数のまま採用せず 0.130.0 へさらにマイナーバンプする。
+# base 再取り込み（イシュー #2024, PR #2175 修正ラウンド, 2026-09-08）: 本
+# ブランチ（toggle_group の shadcn/ui 突合、`ToggleGroupVariant` 新設で
+# マイナーバンプし 0.130.0 に到達済み）と main（PR #2173 の解決結果として
+# 独立に 0.130.0 へマイナーバンプ済み）が version 行で再度コンフリクト
+# した。双方とも minor バンプであるため
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（minor バンプ
+# 同士が衝突した場合は main の現在値の minor を +1 し patch を 0 に戻す）
+# に従い、main の到達値 0.130.0 の minor を +1 して 0.131.0 とする。
 # イシュー #2040（toast の shadcn/ui 突合、2026-09-08）: 実機比較の結果
 # 純追加できるバリアント・状態が見つからず、`recipe()`/`css()` は無変更
 # （golden `tests/toast_css.rs` も無変更）。変更はモジュール doc への
 # 判定記録追記（rustdoc のみ）に限られるため、hover-card の shadcn/ui
-# 突合記録追加（0.124.1）と同型で patch バンプする。
-version = "0.130.1"
+# 突合記録追加（0.124.1）と同型で patch バンプする。base 取り込み時の
+# 上記 0.131.0 バンプと衝突したため、その到達値へさらに patch バンプを
+# 重ねて 0.131.1 とする。
+version = "0.131.1"
 
 
 edition = "2021"
