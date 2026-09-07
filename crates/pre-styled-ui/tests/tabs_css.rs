@@ -315,7 +315,7 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
 
 
 @media (forced-colors: active) {
-  [data-scope="tabs"][data-part="trigger"].fd-tabs--variant-enclosed[data-state="active"] {
+  [data-scope="tabs"][data-part="root"].fd-tabs--variant-enclosed [data-scope="tabs"][data-part="trigger"][data-state="active"] {
     border: 1px solid CanvasText;
   }
 }

@@ -715,6 +715,17 @@ fn recipe() -> SlotRecipe {
 /// `border: 1px solid CanvasText` を足して選択状態をシステム色の境界線で
 /// 補強する（Line variant は下線 `border-bottom-color` が forced-colors でも
 /// システム色 `CanvasText` 相当へ丸められる形で残るため対象外）。
+///
+/// イシュー #2039 codex-review 再指摘（PR #2173）: `.fd-tabs--variant-enclosed`
+/// は [`tabs`] が root（`data-part="root"`）にのみ付与するクラスであり、
+/// trigger 自身には付かない（[`fandhe_frontend_headless_ui::tabs`] が出力する
+/// パーツ属性を参照）。そのためセレクタを trigger 側に `.fd-tabs--variant-enclosed`
+/// を直接連結する形（`[data-part="trigger"].fd-tabs--variant-enclosed[data-state="active"]`）
+/// で書くと常に不一致になり、forced-colors 下で選択中 trigger が識別できない
+/// 状態のまま補強 CSS が無効化されていた。root の variant クラスを起点にした
+/// 子孫結合子セレクタ（`[data-part="root"].fd-tabs--variant-enclosed
+/// [data-part="trigger"][data-state="active"]`）へ修正し、root に付与された
+/// variant クラス配下の selected trigger のみへ一致させる。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();
@@ -722,7 +733,7 @@ pub fn stylesheet() -> String {
         out.push('\n');
     }
     out.push_str(
-        "\n@media (forced-colors: active) {\n  [data-scope=\"tabs\"][data-part=\"trigger\"].fd-tabs--variant-enclosed[data-state=\"active\"] {\n    border: 1px solid CanvasText;\n  }\n}\n",
+        "\n@media (forced-colors: active) {\n  [data-scope=\"tabs\"][data-part=\"root\"].fd-tabs--variant-enclosed [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"] {\n    border: 1px solid CanvasText;\n  }\n}\n",
     );
     out
 }
@@ -1098,7 +1109,7 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains("@media (forced-colors: active)"));
         assert!(css.contains(
-            "[data-scope=\"tabs\"][data-part=\"trigger\"].fd-tabs--variant-enclosed[data-state=\"active\"]"
+            "[data-scope=\"tabs\"][data-part=\"root\"].fd-tabs--variant-enclosed [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"]"
         ));
         assert!(css.contains("border: 1px solid CanvasText;"));
     }
