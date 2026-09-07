@@ -1359,8 +1359,15 @@ pub const TABS: ComponentPageSpec = ComponentPageSpec {
         "size / color-palette variant で root にクラスを付与する。",
         "data-orientation=\"vertical\" 時は list の下線を右罫線へ、trigger の下線を右側の強調線へ切り替えて縦並び表示する（イシュー #1542）。",
         "hover（背景・文字色）・disabled（data-disabled、半透明表示）・focus-visible（trigger/content 双方）を視覚的に反映する（イシュー #1542）。",
+        "variant で下線スタイル（Line、既定）とセグメント/ピル型スタイル（Enclosed、shadcn/ui 既定 variant 相当。list を淡色の角丸コンテナに、選択中 trigger を白背景 + 微小な影で浮き上がらせる）を選べる（イシュー #2039）。",
     ],
     arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "TabsVariant",
+            default: "TabsVariant::Line",
+            description: "root へ付与する見た目 variant（Line/Enclosed）。",
+        },
         ArgRow {
             name: "size",
             kind: "Size",

@@ -173,7 +173,7 @@ use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::strong::strong;
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
-use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
+use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps, TabsVariant};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
@@ -2256,7 +2256,8 @@ fn card_section() -> Node {
 
 /// Tabs 節: 1 番目のタブが選択された静的マークアップ。
 fn tabs_section() -> Node {
-    let node = tabs(
+    let line_node = tabs(
+        TabsVariant::Line,
         Size::Md,
         ColorPalette::Accent,
         &TabsProps {
@@ -2309,10 +2310,90 @@ fn tabs_section() -> Node {
             },
         ],
     );
+    // イシュー #2039: shadcn/ui 突合で追加した Enclosed variant（セグメント/
+    // ピル型）のデモ。淡色コンテナの中で選択中 trigger だけが浮き上がる
+    // 見た目を目視確認できるようにする。
+    let enclosed_node = tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &TabsProps {
+            id: "showcase-tabs-enclosed",
+            selected: "overview",
+            orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
+        },
+        vec![
+            TabItem {
+                value: "overview",
+                trigger: vec![text("Overview")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text(
+                        "Enclosed は選択中 trigger を白背景 + 微小な影で浮き上がらせます。",
+                    )],
+                )],
+                disabled: false,
+            },
+            TabItem {
+                value: "usage",
+                trigger: vec![text("Usage")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text("list 全体は淡色の角丸コンテナになります。")],
+                )],
+                disabled: false,
+            },
+        ],
+    );
+    // イシュー #2039: `Orientation::Vertical` は tabs 部品ページでこれまで
+    // デモされていなかった（vertical 対応自体はイシュー #1542 で追加済み）。
+    // Enclosed × vertical のデモを兼ねて初めて目視確認できるようにする。
+    let enclosed_vertical_node = tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &TabsProps {
+            id: "showcase-tabs-enclosed-vertical",
+            selected: "overview",
+            orientation: Orientation::Vertical,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
+        },
+        vec![
+            TabItem {
+                value: "overview",
+                trigger: vec![text("Overview")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text("vertical 対応の Enclosed（区切り線なし・全角丸）。")],
+                )],
+                disabled: false,
+            },
+            TabItem {
+                value: "usage",
+                trigger: vec![text("Usage")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text(
+                        "data-orientation=\"vertical\" で列方向に配置転換します。",
+                    )],
+                )],
+                disabled: false,
+            },
+        ],
+    );
     section(
         "Tabs",
-        "headless-ui の Tabs（WAI-ARIA Tabs パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。",
-        vec![node],
+        "headless-ui の Tabs（WAI-ARIA Tabs パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。variant（line/enclosed）を選べます。",
+        vec![line_node, enclosed_node, enclosed_vertical_node],
     )
 }
 

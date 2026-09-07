@@ -40,13 +40,56 @@
 //! content」）の是正: `root[data-orientation="vertical"]` の
 //! `align-items: flex-start` を削除し既定値（`stretch`）へ戻した
 //! （`crates/pre-styled-ui/src/tabs.rs` `recipe()` 参照）。
+//!
+//! # イシュー #2039（shadcn/ui `enclosed` variant 追加）による golden 更新
+//!
+//! shadcn/ui 突合で判明した「セグメント/ピル型」スタイルの欠落を
+//! `TabsVariant::Enclosed` として補完した（`crates/pre-styled-ui/src/tabs.rs`
+//! 冒頭 rustdoc「`variant`」節参照）。以下を更新した:
+//!
+//! - `list` base: `border-bottom`/`background`/`border-radius`/`padding` を
+//!   custom property 化（`background`/`border-radius`/`padding` は新規宣言）
+//! - `trigger` base: `background`/`border-bottom`/`margin-bottom`/
+//!   `border-radius` を custom property 化
+//! - `trigger[data-state="active"]` state: `background`/`box-shadow` を追加
+//! - `trigger` base: `--fandhe-hover-bg` を固定値
+//!   （`var(--fandhe-color-bg-muted)`）から `var(--fandhe-tabs-hover-bg,
+//!   var(--fandhe-color-bg-muted))` へ custom property 化（レビュー指摘:
+//!   固定値のままだと Enclosed の selected trigger を hover したとき
+//!   list と同化して選択解除されたように見える不具合があった）
+//! - vertical state（`list`/`trigger`）: `border-inline-end`/
+//!   `margin-inline-end`/論理角丸 4 プロパティを custom property 化
+//! - `variant` variant（2 値）を新設: `fd-tabs--variant-line`（既定、
+//!   フォールバックと同一値。`--fandhe-tabs-hover-bg` も
+//!   `var(--fandhe-color-bg-muted)` で不変）/`fd-tabs--variant-enclosed`
+//!   （shadcn/ui 既定 variant 相当。`--fandhe-tabs-hover-bg` は selected
+//!   trigger と同色の `var(--fandhe-color-bg)`）
+//!
+//! Line（既定）は上記いずれもフォールバック値と同一の custom property を
+//! 明示登録するため、テキストバイトは変わるが Line 選択時のレンダリング
+//! 結果（computed style）は不変。
+//!
+//! # イシュー #2039 codex-review 追補（forced-colors 対応）による golden 更新
+//!
+//! Enclosed variant の selected trigger は背景色・`box-shadow` のみで選択
+//! 状態を表現しており、Windows 強制配色モード（`forced-colors: active`）
+//! では両方ともシステム色/`none` へ丸められ選択中 trigger を識別できなく
+//! なる指摘（[`crate::status`] と同型の課題）を受け、`stylesheet()`
+//! （`crates/pre-styled-ui/src/tabs.rs`）の末尾へ
+//! `@media (forced-colors: active)` ブロックを 1 つ追記した。Enclosed の
+//! selected trigger（`.fd-tabs--variant-enclosed[data-state="active"]`）へ
+//! `border: 1px solid CanvasText` を足す。方向（`data-orientation`）に
+//! 依存しない単一セレクタで水平・垂直双方をカバーする。
 
 use fandhe_frontend_pre_styled_ui::tabs;
 
 const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   display: flex;
   gap: var(--fandhe-space-2);
-  border-bottom: 1px solid var(--fandhe-color-border);
+  border-bottom: var(--fandhe-tabs-list-border-bottom, 1px solid var(--fandhe-color-border));
+  background: var(--fandhe-tabs-list-background, transparent);
+  border-radius: var(--fandhe-tabs-list-radius, 0);
+  padding: var(--fandhe-tabs-list-padding, 0);
 }
 
 [data-scope="tabs"][data-part="trigger"] {
@@ -58,14 +101,14 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   font-weight: var(--fandhe-font-font-weight-medium);
   line-height: var(--fandhe-font-line-height-normal);
   white-space: nowrap;
-  background: transparent;
+  background: var(--fandhe-tabs-trigger-background, transparent);
   color: var(--fandhe-color-fg-muted);
   border: 0;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  border-radius: var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0;
+  border-bottom: var(--fandhe-tabs-trigger-border-bottom, 2px solid transparent);
+  margin-bottom: var(--fandhe-tabs-trigger-margin-bottom, -1px);
+  border-radius: var(--fandhe-tabs-trigger-radius, var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0);
   cursor: pointer;
-  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  --fandhe-hover-bg: var(--fandhe-tabs-hover-bg, var(--fandhe-color-bg-muted));
 }
 
 [data-scope="tabs"][data-part="trigger"] {
@@ -112,6 +155,44 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   --fandhe-tabs-content-padding: var(--fandhe-space-6) 0;
   --fandhe-tabs-font-size: var(--fandhe-font-font-size-lg);
   --fandhe-tabs-content-padding-inline: var(--fandhe-space-6);
+}
+
+[data-scope="tabs"][data-part="root"].fd-tabs--variant-line {
+  --fandhe-tabs-list-border-bottom: 1px solid var(--fandhe-color-border);
+  --fandhe-tabs-list-background: transparent;
+  --fandhe-tabs-list-radius: 0;
+  --fandhe-tabs-list-padding: 0;
+  --fandhe-tabs-trigger-border-bottom: 2px solid transparent;
+  --fandhe-tabs-trigger-margin-bottom: -1px;
+  --fandhe-tabs-trigger-radius: var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0;
+  --fandhe-tabs-trigger-background: transparent;
+  --fandhe-tabs-trigger-active-background: transparent;
+  --fandhe-tabs-trigger-active-shadow: none;
+  --fandhe-tabs-hover-bg: var(--fandhe-color-bg-muted);
+  --fandhe-tabs-vertical-list-border-inline-end: 1px solid var(--fandhe-color-border);
+  --fandhe-tabs-vertical-trigger-border-inline-end: 2px solid transparent;
+  --fandhe-tabs-vertical-trigger-margin-inline-end: -1px;
+  --fandhe-tabs-vertical-trigger-radius-start: var(--fandhe-radius-sm, 0.25rem);
+  --fandhe-tabs-vertical-trigger-radius-end: 0;
+}
+
+[data-scope="tabs"][data-part="root"].fd-tabs--variant-enclosed {
+  --fandhe-tabs-list-border-bottom: 0;
+  --fandhe-tabs-list-background: var(--fandhe-color-bg-muted);
+  --fandhe-tabs-list-radius: var(--fandhe-radius-md);
+  --fandhe-tabs-list-padding: var(--fandhe-space-1);
+  --fandhe-tabs-trigger-border-bottom: 0;
+  --fandhe-tabs-trigger-margin-bottom: 0;
+  --fandhe-tabs-trigger-radius: var(--fandhe-radius-sm, 0.25rem);
+  --fandhe-tabs-trigger-background: transparent;
+  --fandhe-tabs-trigger-active-background: var(--fandhe-color-bg);
+  --fandhe-tabs-trigger-active-shadow: var(--fandhe-shadow-sm);
+  --fandhe-tabs-hover-bg: var(--fandhe-color-bg);
+  --fandhe-tabs-vertical-list-border-inline-end: 0;
+  --fandhe-tabs-vertical-trigger-border-inline-end: 0;
+  --fandhe-tabs-vertical-trigger-margin-inline-end: 0;
+  --fandhe-tabs-vertical-trigger-radius-start: var(--fandhe-radius-sm, 0.25rem);
+  --fandhe-tabs-vertical-trigger-radius-end: var(--fandhe-radius-sm, 0.25rem);
 }
 
 [data-scope="tabs"][data-part="root"].fd-tabs--color-palette-accent {
@@ -171,6 +252,8 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
 [data-scope="tabs"][data-part="trigger"][data-state="active"] {
   color: var(--fandhe-color-fg);
   border-bottom-color: var(--fandhe-palette, var(--fandhe-color-accent));
+  background: var(--fandhe-tabs-trigger-active-background, transparent);
+  box-shadow: var(--fandhe-tabs-trigger-active-shadow, none);
 }
 
 [data-scope="tabs"][data-part="content"][data-state="inactive"] {
@@ -199,19 +282,19 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
 [data-scope="tabs"][data-part="list"][data-orientation="vertical"] {
   flex-direction: column;
   border-bottom: 0;
-  border-inline-end: 1px solid var(--fandhe-color-border);
+  border-inline-end: var(--fandhe-tabs-vertical-list-border-inline-end, 1px solid var(--fandhe-color-border));
 }
 
 [data-scope="tabs"][data-part="trigger"][data-orientation="vertical"] {
   justify-content: flex-start;
   border-bottom: 0;
   margin-bottom: 0;
-  border-inline-end: 2px solid transparent;
-  margin-inline-end: -1px;
-  border-start-start-radius: var(--fandhe-radius-sm, 0.25rem);
-  border-end-start-radius: var(--fandhe-radius-sm, 0.25rem);
-  border-start-end-radius: 0;
-  border-end-end-radius: 0;
+  border-inline-end: var(--fandhe-tabs-vertical-trigger-border-inline-end, 2px solid transparent);
+  margin-inline-end: var(--fandhe-tabs-vertical-trigger-margin-inline-end, -1px);
+  border-start-start-radius: var(--fandhe-tabs-vertical-trigger-radius-start, var(--fandhe-radius-sm, 0.25rem));
+  border-end-start-radius: var(--fandhe-tabs-vertical-trigger-radius-start, var(--fandhe-radius-sm, 0.25rem));
+  border-start-end-radius: var(--fandhe-tabs-vertical-trigger-radius-end, 0);
+  border-end-end-radius: var(--fandhe-tabs-vertical-trigger-radius-end, 0);
 }
 
 [data-scope="tabs"][data-part="trigger"][data-state="active"][data-orientation="vertical"] {
@@ -227,6 +310,13 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   [data-scope="tabs"][data-part="trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
     color: var(--fandhe-color-fg);
+  }
+}
+
+
+@media (forced-colors: active) {
+  [data-scope="tabs"][data-part="root"].fd-tabs--variant-enclosed [data-scope="tabs"][data-part="trigger"][data-state="active"] {
+    border: 1px solid CanvasText;
   }
 }
 "#;
