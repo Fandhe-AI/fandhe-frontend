@@ -85,7 +85,8 @@ use fandhe_frontend_pre_styled_ui::{
     dialog::{self, ContentIds, DialogRole},
     drawer::{self, DrawerPlacement},
     hover_card::{self, HoverCardDelays},
-    ColorPalette, OpenState, Size,
+    kbd::{kbd, KbdProps},
+    menubar, ColorPalette, OpenState, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -399,7 +400,7 @@ pub const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
 /// テスト・`Menubar::decode_action` のアクション名網羅）。
 pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "複数 Menu を水平（または垂直）に並べるコンテナ。headless-ui 側（`fandhe_frontend_headless_ui::menubar`）は Root / Menu / Trigger / Positioner / Content / Arrow / ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent / CheckboxItem / RadioItemGroup / RadioItem の 18 anatomy パーツを持つ（イシュー #1652 で参照突合し 11 → 18 パーツ。新設 7 パーツの `SLOTS`/CSS 付与は Themes 側 #1528 へ申し送り、本ページは現行 11 パーツ相当のスタイルのみ提供）。",
+        "複数 Menu を水平（または垂直）に並べるコンテナ。headless-ui 側（`fandhe_frontend_headless_ui::menubar`）は Root / Menu / Trigger / Positioner / Content / Arrow / ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent / CheckboxItem / RadioItemGroup / RadioItem の 18 anatomy パーツを持つ（イシュー #1652 で参照突合し 11 → 18 パーツ）。Themes 側（本ページ）はイシュー #2034 で shadcn/ui と突合し、新設パートのうち item-text / item-indicator / checkbox-item / radio-item-group / radio-item の 5 パーツへ `SLOTS`/CSS 付与を追いつかせた（#1528 が申し送っていた分の解消）。arrow / arrow-tip は shadcn/ui のデモに矢印インジケータが視認できないため意図的に未着装のまま。",
         "roving tabindex（focused/trigger_count/open/loop_focus/orientation の複合状態機械 Menubar）。フォーカス対象のトリガーのみ tabindex=\"0\"、それ以外は tabindex=\"-1\" になる。",
         "開いている Menu を跨いだ左右移動: ある Menu が開いた状態で Next/Prev/First/Last/Focus アクションを送ると、フォーカス移動と同時に開く Menu も隣へ移る（menubar 特有の挙動、Toolbar の roving tabindex には無い）。",
         "menu パーツは role=\"none\" を固定付与し、role=\"menubar\" の子として menuitem/group 以外の要素を挟まないようにする（WAI-ARIA APG の menubar パターン）。",
@@ -432,7 +433,11 @@ pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
             description: "trigger/positioner/content/sub_trigger/sub_content の開閉状態（Open/Closed）。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Keyboard shortcut suffix",
+        description: "shadcn/ui の Menubar デモが item 末尾に表示する `⌘T` 風のキーボードショートカット表示に相当する合成パターンです。`SlotRecipe` は子孫セレクタを持たない（イシュー #708 で不採用確定）ため、新しい anatomy パートは追加せず、item の子として item_text（flex: 1 1 auto でラベルを引き伸ばす）と crate::kbd の kbd() を並べるだけで末尾寄せを実現しています（item 自身の CSS は変更していません）。",
+        render: ex_menubar_shortcut_suffix,
+    }],
     keyboard: &[
         KeyRow {
             key: "ArrowRight / ArrowLeft",
@@ -479,6 +484,27 @@ pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`MENUBAR`] の Examples 節「Keyboard shortcut suffix」レンダラ
+/// （イシュー #2034）。
+///
+/// shadcn/ui の Menubar デモが item 末尾に表示するキーボードショートカット
+/// （`⌘T` 風）に相当する合成パターン。新規 anatomy パートを追加せず、
+/// item の子として item_text（`flex: 1 1 auto`）+ kbd を並べるだけで末尾
+/// 寄せを実現する（`crates/pre-styled-ui/src/menubar.rs` モジュール doc
+/// 「イシュー #2034」節参照）。
+fn ex_menubar_shortcut_suffix() -> Node {
+    menubar::item(
+        "new-tab",
+        false,
+        false,
+        vec![],
+        vec![
+            menubar::item_text(false, false, vec![], vec![text("New Tab")]),
+            kbd(&KbdProps::default(), vec![], vec![text("⌘T")]),
+        ],
+    )
+}
 
 /// `/themes/navigation-menu/`（Interactive カテゴリ）。
 ///
