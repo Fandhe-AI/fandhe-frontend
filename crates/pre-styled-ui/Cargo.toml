@@ -2164,7 +2164,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # version 行でコンフリクトした。`docs/ci/style-refresh-version-bump-operation.md`
 # §5 の手順（自分の変更が patch バンプの場合は main の現在値の patch を
 # +1 する）に従い、main の到達値 0.126.0 の patch を +1 して 0.126.1 とする。
-version = "0.126.1"
+# 再修正（PR #2166 codex-review P1 指摘, 2026-09-07）: `link` パートの
+# 既定 `display` を `block` → `flex` へ変更する対応（本ファイル修正ラウンド
+# コミット）は、`link` 内に段落として並べたタイトル・説明文を縦積みから
+# 横並びへ変える観測可能な破壊的変更であり、`docs/ci/style-refresh-version-bump-operation.md`
+# §3.3（CSS 出力の破壊的変更は minor バンプ）に該当する。patch バンプの
+# 0.126.1 のままでは規約違反のため、minor バンプして 0.127.0（patch は 0
+# へ戻す）とする。移行方法: `link` 内に複数の子要素（タイトル・説明文等）
+# を並べて縦積みレイアウトへ依存していた利用者は、`crate::text` 等の
+# wrapper 要素を `link` の直下の単一子要素として挟み、その wrapper 内で
+# 従来どおり `display: block`（既定）の縦積みを組むことで挙動を維持できる
+# （`link` 自身は flex コンテナのままだが単一子要素なら見た目は変わらない）。
+version = "0.127.0"
 
 
 edition = "2021"

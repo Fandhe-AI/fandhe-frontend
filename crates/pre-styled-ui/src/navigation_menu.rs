@@ -205,7 +205,22 @@
 //!   `link` は元々 `display: block` であり `gap` は block コンテナには
 //!   効かないため、`trigger`（既存の `display: inline-flex`）と同じく
 //!   flex コンテナ化してはじめて実効する。[`crate::menu`] の item 系
-//!   パートも同型に `display: flex` を伴っている。
+//!   パートも同型に `display: flex` を伴っている。**この `display`
+//!   変更は既存利用者の観測可能な破壊的変更であり（`link` 内に段落として
+//!   並べたタイトル・説明文が縦積みから横並びへ変わる）、
+//!   `docs/ci/style-refresh-version-bump-operation.md` §3.3 に従い minor
+//!   バンプ（0.126.1 → 0.127.0）で反映した**（PR #2166 codex-review P1
+//!   指摘）。
+//!
+//! ### 移行方法（0.127.0 の `link` display 変更、PR #2166）
+//!
+//! `link` 内に複数の子要素（タイトル + 説明文等）を並べて縦積み
+//! レイアウトへ依存していた場合、`link` 直下は単一の wrapper 要素
+//! （例: `div`。子孫セレクタを持たない `SlotRecipe` の制約上、
+//! [`crate::text`] のような独立した styled 部品を組み合わせてもよい）に
+//! まとめ、その wrapper 内で縦積みを組み直すことで従来の見た目を維持
+//! できる（wrapper 自体は `link` の唯一の子要素になるため、`link` が
+//! `flex` コンテナ化していても表示上の差は生じない）。
 //!
 //! ## 意図的に合わせなかった点（イシュー #2035）
 //!
