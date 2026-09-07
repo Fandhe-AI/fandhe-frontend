@@ -7377,19 +7377,43 @@ fn toolbar_section() -> Node {
 /// item-group/item-group-label/separator/sub-trigger/sub-content の 11
 /// anatomy パーツすべてを 1 つのノード木で描画する（Anatomy 節はこの
 /// デモから機械導出されるため、11 パーツすべてを網羅する必要がある。
-/// `crates/headless-ui/src/menubar.rs` モジュール doc 参照）。File Menu を
-/// 開いた状態で表示し、その中に「開いている Menu を跨いだ左右移動」の
-/// 対象であるサブメニュー（Export）を組み込む。サブメニューの開閉状態は
-/// `Menubar` 自身ではなく [`OpenState`] を直接注入する（headless-ui への
-/// 直接依存を持たない docs-site の制約上、[`fandhe_frontend_headless_ui::menu::Menu`]
-/// は使わず、モジュール doc「`menu` mod 再利用の内訳」が示す「サブメニュー
-/// 状態は呼び出し側が別インスタンスとして持つ」設計をここでは
-/// `OpenState` 値で直接表現する）。
-fn menubar_section() -> Node {
-    let bar = Menubar::new(0, 2, Some(0), false, Orientation::Horizontal);
+/// `crates/headless-ui/src/menubar.rs` モジュール doc 参照）。`open` で
+/// 指定した Menu を開いた状態で表示し、File Menu（index 0）の場合はその中に
+/// 「開いている Menu を跨いだ左右移動」の対象であるサブメニュー（Export）も
+/// 組み込む。サブメニューの開閉状態は `Menubar` 自身ではなく [`OpenState`]
+/// を直接注入する（headless-ui への直接依存を持たない docs-site の制約上、
+/// [`fandhe_frontend_headless_ui::menu::Menu`] は使わず、モジュール doc
+/// 「`menu` mod 再利用の内訳」が示す「サブメニュー状態は呼び出し側が別
+/// インスタンスとして持つ」設計をここでは `OpenState` 値で直接表現する）。
+///
+/// [`menubar_section`] の 3 デモ（File/View/Profiles を各々開いた状態）で
+/// 共通利用するヘルパ（PR #2164 レビュー指摘対応、イシュー #2034）。当初は
+/// File Menu のみを開いた単一デモだったため、View/Profiles の positioner/
+/// content が hidden 属性のまま出力され checkbox-item・radio-item・
+/// item-indicator の見た目を確認できなかった。`open` 以外の構造
+/// （trigger_count・各 Menu の構成）は完全に共通のため、`open` のみを
+/// 引数化して重複を避ける。
+///
+/// `id_prefix`: PR #2164 codex-review P1 / Cursor Bugbot 指摘対応
+/// （イシュー #2034）。本関数は `menubar_section` から File/View/Profiles
+/// の 3 デモへ 3 回呼び出されるが、当初は固定 ID
+/// （`menubar-file-content` 等）を出力していたため、同一 section 内で
+/// ID が重複し 2・3 個目のデモの `aria-controls`/`aria-labelledby` が
+/// 自身の要素ではなく 1 個目の要素を参照してしまっていた（ARIA 参照
+/// 破壊）。デモごとに一意な `id_prefix`（例: `"menubar-file-open"`）を
+/// 渡し、`id`/`aria-controls`/`aria-labelledby` に共通して使う内部 ID
+/// をすべてこの prefix から導出することで、3 デモ間の ID 衝突を防ぐ。
+fn build_menubar_node(open: Option<usize>, id_prefix: &str) -> Node {
+    // イシュー #2034: File/Edit の 2 Menu 構成に View（checkbox-item）・
+    // Profiles（radio-item-group + radio-item）を追加し、trigger_count を
+    // 2 → 4 へ拡張した。
+    let bar = Menubar::new(0, 4, open, false, Orientation::Horizontal);
     let export_submenu_state = OpenState::Closed;
+    let file_content_id = format!("{id_prefix}-file-content");
+    let recent_label_id = format!("{id_prefix}-recent-label");
+    let export_sub_content_id = format!("{id_prefix}-export-sub-content");
 
-    let node = bar.root(
+    bar.root(
         "App menu",
         vec![],
         vec![
@@ -7401,7 +7425,7 @@ fn menubar_section() -> Node {
                         0,
                         false,
                         false,
-                        Some("menubar-file-content"),
+                        Some(file_content_id.as_str()),
                         vec![],
                         vec![text("File")],
                     ),
@@ -7410,25 +7434,41 @@ fn menubar_section() -> Node {
                         vec![],
                         vec![bar.content(
                             0,
-                            Some("menubar-file-content"),
+                            Some(file_content_id.as_str()),
                             None,
                             vec![],
                             vec![
                                 menubar::item_group(
-                                    Some("menubar-recent-label"),
+                                    Some(recent_label_id.as_str()),
                                     vec![],
                                     vec![
                                         menubar::item_group_label(
-                                            Some("menubar-recent-label"),
+                                            Some(recent_label_id.as_str()),
                                             vec![],
                                             vec![text("Recent")],
                                         ),
+                                        // イシュー #2034: shortcut は新規
+                                        // anatomy パートを追加せず、
+                                        // item_text（flex: 1 1 auto）+ kbd
+                                        // （crate::kbd）を子として並べる
+                                        // 合成パターンで表現する
+                                        // （`crates/pre-styled-ui/src/
+                                        // menubar.rs` モジュール doc「意図的
+                                        // に合わせなかった点」節参照）。
                                         menubar::item(
                                             "report.md",
                                             false,
                                             true,
                                             vec![],
-                                            vec![text("report.md")],
+                                            vec![
+                                                menubar::item_text(
+                                                    false,
+                                                    true,
+                                                    vec![],
+                                                    vec![text("report.md")],
+                                                ),
+                                                kbd(&KbdProps::default(), vec![], vec![text("⌘O")]),
+                                            ],
                                         ),
                                         // イシュー #1703: `disabled_declarations()`
                                         // 経由の視覚（opacity/cursor）を掲示する。
@@ -7446,7 +7486,7 @@ fn menubar_section() -> Node {
                                     export_submenu_state,
                                     false,
                                     false,
-                                    Some("menubar-export-sub-content"),
+                                    Some(export_sub_content_id.as_str()),
                                     vec![],
                                     // イシュー #1703: anatomy に `indicator`
                                     // パートが無いため、`justify-content:
@@ -7475,7 +7515,7 @@ fn menubar_section() -> Node {
                                 ),
                                 menubar::sub_content(
                                     export_submenu_state,
-                                    Some("menubar-export-sub-content"),
+                                    Some(export_sub_content_id.as_str()),
                                     None,
                                     vec![],
                                     vec![menubar::item(
@@ -7496,12 +7536,152 @@ fn menubar_section() -> Node {
                 vec![],
                 vec![bar.trigger(1, false, true, None, vec![], vec![text("Edit")])],
             ),
+            // イシュー #2034: View（checkbox-item 2 件、うち 1 件 checked）。
+            bar.menu(
+                2,
+                vec![],
+                vec![
+                    bar.trigger(2, false, false, None, vec![], vec![text("View")]),
+                    bar.positioner(
+                        2,
+                        vec![],
+                        vec![bar.content(
+                            2,
+                            None,
+                            None,
+                            vec![],
+                            vec![
+                                menubar::checkbox_item(
+                                    true,
+                                    "status-bar",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menubar::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Status Bar")],
+                                        ),
+                                        menubar::item_indicator(true, vec![], vec![text("✓")]),
+                                    ],
+                                ),
+                                menubar::checkbox_item(
+                                    false,
+                                    "word-wrap",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menubar::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Word Wrap")],
+                                        ),
+                                        menubar::item_indicator(false, vec![], vec![text("✓")]),
+                                    ],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+            // イシュー #2034: Profiles（radio-item-group + radio-item 3 件、
+            // うち 1 件 checked）。
+            bar.menu(
+                3,
+                vec![],
+                vec![
+                    bar.trigger(3, false, false, None, vec![], vec![text("Profiles")]),
+                    bar.positioner(
+                        3,
+                        vec![],
+                        vec![bar.content(
+                            3,
+                            None,
+                            None,
+                            vec![],
+                            vec![menubar::radio_item_group(
+                                None,
+                                vec![],
+                                vec![
+                                    menubar::radio_item(
+                                        true,
+                                        "default",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![
+                                            menubar::item_text(
+                                                false,
+                                                false,
+                                                vec![],
+                                                vec![text("Default")],
+                                            ),
+                                            menubar::item_indicator(true, vec![], vec![text("●")]),
+                                        ],
+                                    ),
+                                    menubar::radio_item(
+                                        false,
+                                        "staging",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![
+                                            menubar::item_text(
+                                                false,
+                                                false,
+                                                vec![],
+                                                vec![text("Staging")],
+                                            ),
+                                            menubar::item_indicator(false, vec![], vec![text("●")]),
+                                        ],
+                                    ),
+                                    menubar::radio_item(
+                                        false,
+                                        "production",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![
+                                            menubar::item_text(
+                                                false,
+                                                false,
+                                                vec![],
+                                                vec![text("Production")],
+                                            ),
+                                            menubar::item_indicator(false, vec![], vec![text("●")]),
+                                        ],
+                                    ),
+                                ],
+                            )],
+                        )],
+                    ),
+                ],
+            ),
         ],
-    );
+    )
+}
+
+fn menubar_section() -> Node {
+    // イシュー #2034: File/Edit の 2 Menu 構成に View（checkbox-item）・
+    // Profiles（radio-item-group + radio-item）を追加し、trigger_count を
+    // 2 → 4 へ拡張した。PR #2164 レビュー指摘（codex-review P2 / Cursor
+    // Bugbot Medium）: 当初は File Menu のみを開いた単一デモだったため
+    // View/Profiles の positioner/content が hidden 属性のまま出力され、
+    // checkbox-item・radio-item・item-indicator の見た目を閲覧者が確認
+    // できなかった。`open` を引数化し、File/View/Profiles をそれぞれ開いた
+    // 3 つの静的デモへ分割することで解消する（`build_menubar_node` の
+    // `open` のみが差分で、他の構造は完全に共通）。
+    let file_open = build_menubar_node(Some(0), "menubar-file-open");
+    let view_open = build_menubar_node(Some(2), "menubar-view-open");
+    let profiles_open = build_menubar_node(Some(3), "menubar-profiles-open");
     section(
         "Menubar",
-        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit の 2 Menu を水平配置し、File Menu を開いた状態（open=Some(0)）で表示しています。Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造も含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。Edit トリガーは highlighted=true とし、trigger の data-highlighted 配色（イシュー #1702）も掲示します。File Menu の Print… item は disabled=true とし、内部パート是正（イシュー #1703）の disabled_declarations 配色・item/sub-trigger の hover・トランジション・トークン整合（radius/shadow/border-muted）を掲示します。Export sub-trigger は右端に示唆グリフ（▸）のテキストノードを添え、anatomy に indicator パートが無い制約下でのサブメニュー示唆を表現します。",
-        vec![node],
+        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit / View / Profiles の 4 Menu を水平配置し、開いている Menu を切り替えた 3 つの静的デモ（File Menu が open=Some(0)、View Menu が open=Some(2)、Profiles Menu が open=Some(3)）を並べています。1 つ目（File Menu）は Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造を含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。Edit トリガーは highlighted=true とし、trigger の data-highlighted 配色（イシュー #1702）も掲示します。File Menu の report.md item は item-text + kbd（⌘O）の合成でショートカット表示を、Print… item は disabled=true として disabled_declarations 配色を掲示します（内部パート是正はイシュー #1703）。Export sub-trigger は右端に示唆グリフ（▸）のテキストノードを添え、サブメニュー示唆を表現します。2 つ目（View Menu）は checkbox-item 2 件（Status Bar が checked）、3 つ目（Profiles Menu）は radio-item-group + radio-item 3 件（Default が checked）をそれぞれ開いた状態で掲示し、item-indicator（末尾チェックマーク、イシュー #2034 で Themes 層へ CSS 付与）による checked 表現を確認できます（イシュー #2034、PR #2164 レビュー指摘対応）。",
+        vec![file_open, view_open, profiles_open],
     )
 }
 

@@ -2147,6 +2147,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # の shadcn/ui 突合を経て 0.125.1 に到達済み）が同一版数へ偶発的に衝突したため、
 # `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数への偶発的
 # 衝突をそのまま採用しない）に従い main の到達値からさらに +1 して 0.125.2 とする。
+# base 再取り込み（イシュー #2034, 2026-09-07）: 本ブランチ（menubar の
+# shadcn/ui 突合、SLOTS/CSS 純追加）が到達した 0.125.2 と、main（radio-group
+# の shadcn/ui 突合、PR #2163）が到達した 0.125.2 が同一版数へ偶発的に衝突
+# したため、`docs/ci/style-refresh-version-bump-operation.md` §5 の手順
+# （同一版数への偶発的衝突をそのまま採用しない）に従い main の到達値から
+# さらに +1 して 0.125.3 とする。
+# base 再取り込み（イシュー #2019, PR #2165, 2026-09-07）: 本ブランチ
+# （select の shadcn/ui 突合、content max-height/overflow-y の観測可能な
+# 破壊的変更のためマイナーバンプで 0.126.0 に到達済み）と main（menubar の
+# shadcn/ui 突合、patch バンプで 0.125.3 に到達済み）が version 行でコン
+# フリクトした。`docs/ci/style-refresh-version-bump-operation.md` §5 の
+# 手順（自分の変更がマイナーバンプの場合は main の現在値の minor を +1 し
+# patch を 0 に戻す）に従うと main の到達値 0.125.3 から 0.126.0 となり、
+# 本ブランチの到達値と一致するためそのまま採用する。
 version = "0.126.0"
 
 

@@ -1,8 +1,10 @@
 //! styled Menubar（headless ラッパー、イシュー #992、親 #932 Phase 8）。
 //!
-//! `fandhe_frontend_headless_ui::menubar`（イシュー #992）の Root / Menu /
-//! Trigger / Positioner / Content / Item / ItemGroup / ItemGroupLabel /
-//! Separator / SubTrigger / SubContent 11 anatomy パーツと
+//! `fandhe_frontend_headless_ui::menubar`（イシュー #992・#1652）の Root /
+//! Menu / Trigger / Positioner / Content / Item / ItemText / ItemIndicator /
+//! ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent /
+//! CheckboxItem / RadioItemGroup / RadioItem 16 anatomy パーツ（Arrow /
+//! ArrowTip は意図的に未着装、本 rustdoc「イシュー #2034」節参照）と
 //! [`fandhe_frontend_headless_ui::menubar::Menubar`] roving tabindex + 単一
 //! 開閉状態機械をそのまま再エクスポートし、[`stylesheet`] で既定 CSS を
 //! 追加提供する（[`crate::toolbar`] と同型の薄い委譲）。
@@ -196,22 +198,75 @@
 //!   留める。
 //! - **`item-group` は変更しない**: 構造コンテナのみで独自視覚を持たない
 //!   （[`crate::menu`] の `item-group`・`radio-item-group` と同判断）。
-//! - **「サブメニューの indicator」パートは追加しない**: headless
-//!   `menubar` の 11 anatomy パーツ（root/menu/trigger/positioner/content/
-//!   item/item-group/item-group-label/separator/sub-trigger/sub-content）
-//!   に `indicator` は存在しない。anatomy パート追加は headless 層の変更
-//!   （兄弟イシュー #1652 の領域・ユーザー承認事項）を伴うため本イシュー
-//!   では行わず、[`crate::menu`] 2/3・3/3 の「スコープ解釈の注記」先例に
-//!   倣い、`sub-trigger` の `justify-content: space-between`（既存、右端へ
-//!   示唆グリフ用の余白を確保するマークアップ側の責務）と `sub-trigger`
-//!   自身の open/highlight/hover 状態遷移の追加とで読み替える。
+//! - **「サブメニューの indicator」パートは追加しない**（本節はイシュー
+//!   #1703 時点の判断記録として維持する。イシュー #2034 で headless 層の
+//!   anatomy 自体は 18 パーツへ拡張済み〔#1924〕であり、下記「イシュー
+//!   #2034」節が最新のスコープを記す）: `sub-trigger` は `item_indicator`
+//!   ではなく `justify-content: space-between`（既存、右端へ示唆グリフ用
+//!   の余白を確保するマークアップ側の責務）と自身の open/highlight/hover
+//!   状態遷移とで示唆を表現する読み替えを維持する（[`crate::menu`]
+//!   2/3・3/3 の「スコープ解釈の注記」先例と同型）。
+//!
+//! # イシュー #2034（shadcn/ui 突合による欠落バリアント・状態の補完、
+//! 親 #1528 未回収分の解消）
+//!
+//! headless 層はイシュー #1924（親 #1652）で anatomy を 11 → 18 パーツへ
+//! 拡張済みだったが、Themes 層（本モジュール）への `SLOTS` 同期・CSS 付与は
+//! 意図的に見送られ #1528 へ申し送りされていた（#1924 PR 本文「対象外」
+//! 節）。#1528 はその後 #1702/#1703（root/trigger・内部パート是正）のみで
+//! 完了・クローズされ、この申し送りが未回収のまま残っていた。本イシューは
+//! shadcn/ui との突合を機にこの未回収分（`item-text`/`item-indicator`/
+//! `checkbox-item`/`radio-item-group`/`radio-item` の 5 パーツ）へ CSS を
+//! 追いつかせた。新規 anatomy 追加・headless-ui 変更は伴わない。
+//!
+//! - `checkbox-item`/`radio-item` は `item` と同型のレイアウト（[`crate::menu`]
+//!   の checkbox-item/radio-item〔イシュー #1527〕と同一値）を与え、
+//!   checked/highlighted/disabled/hover の 4 状態を [`crate::menu`] と同じ
+//!   視覚言語で表現した。
+//! - `item-indicator`（チェックマーク表示）は [`crate::select`] の
+//!   `item-indicator` を precedent とし、`display` を宣言せず
+//!   `margin-left: auto` のみを与えた（headless 層の `hidden` 存在属性に
+//!   よる表示制御と衝突しないため）。
+//! - `item-text` は最小限（`flex: 1 1 auto`）の装飾用ラッパーとした。
+//! - `radio-item-group` は [`crate::menu`] が「規則なし（意図的な非対応）」
+//!   とした判断から意図的に外れる。menubar の `menubar_css.rs` 契約テスト
+//!   （`EXPECTED_SLOTS` 列挙 + `contains` 検証方式）は `.base()`/`.state()`
+//!   が 1 件も無い slot に対してセレクタを出力しない（`crate::recipe::css()`
+//!   実装）ため、`SLOTS` へ追加する以上は実際にセレクタを出力させる最小限の
+//!   構造宣言（`item-group` と同一値）を与えた。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - **`arrow`/`arrow-tip` は `SLOTS`/CSS へ追加しない**: shadcn/ui の
+//!   Menubar デモ（実ページ・`docs/design/reference-screenshots/
+//!   shadcn-menubar-{1,2,3}.png`）はいずれもポインタ矢印インジケータ
+//!   （Radix `Arrow`）を視認できない。headless anatomy には `arrow`/
+//!   `arrow-tip` パーツが存在するが、呼び出し側（本モジュール・showcase）
+//!   が呼ばなければ出力もされないため実害はなく、[`crate::menu`] のように
+//!   常時 CSS を付与する対応は本部品では見送る。
+//! - **checked 状態の視覚表現は `crate::menu` 精度（背景強調）を踏襲する**:
+//!   shadcn/ui 実際のデモは checkmark アイコンのみで背景変化を伴わない
+//!   一般的な表現だが、本リポジトリの pre-styled-ui は checkbox/radio 系
+//!   部品間で checked 状態を背景（`--fandhe-color-bg-muted`）でも示す
+//!   一貫方針を [`crate::menu`]（イシュー #1527）で既に確立済みであり、
+//!   本部品のみこの一貫性から逸脱させない判断とした。
+//! - **shortcut 用の新規 anatomy パートは追加しない**: `SlotRecipe` は
+//!   子孫セレクタを持たない（イシュー #708 で不採用確定）ため、`item`
+//!   直下の最終子だけを右寄せする CSS 表現は成立しない。shortcut は
+//!   呼び出し側が `item`/`checkbox-item`/`radio-item` の子として
+//!   [`crate::kbd`] を並べ、呼び出し側の `attrs` で調整する合成パターン
+//!   として Demo・Examples でのみ示す（`item` 自身の CSS は変更しない）。
 //!
 //! # 本イシューのスコープ外
 //!
 //! headless 層（`crates/headless-ui/src/menubar.rs`）のモジュール doc
-//! 「スコープ外」節をそのまま継承する（矢印キー実 DOM 配線・
-//! CheckboxItem/RadioGroup/RadioItem/ItemIndicator/Arrow/ArrowTip・Portal の
-//! 実 DOM 移送・placement 計算・skip-disabled モード）。
+//! 「スコープ外」節をそのまま継承する（矢印キー実 DOM 配線・Portal の
+//! 実 DOM 移送・placement 計算・skip-disabled モード。CheckboxItem/
+//! RadioGroup/RadioItem/ItemIndicator は #1924 で headless 層に実装済みの
+//! ため本節の対象からは外れ、上記「イシュー #2034」節が Themes 層の対応を
+//! 記す）。`fandhe-frontend-wasm-full` 側の `keynav`/`MAPPING_TABLE` への
+//! checkbox-item/radio-item 未配線（#1924 が記録した既知ギャップ）も同様に
+//! 本イシューのスコープ外として維持する。
 
 use crate::css::decl;
 use crate::recipe::{
@@ -246,11 +301,16 @@ const SLOTS: &[&str] = &[
     "positioner",
     "content",
     "item",
+    "item-text",
+    "item-indicator",
     "item-group",
     "item-group-label",
     "separator",
     "sub-trigger",
     "sub-content",
+    "checkbox-item",
+    "radio-item-group",
+    "radio-item",
 ];
 
 /// この styled Menubar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
@@ -329,6 +389,25 @@ fn recipe() -> SlotRecipe {
             "item",
             transition_declarations("background, color", MotionDuration::Fast),
         )
+        // イシュー #2034: `item-text` は `item`/`checkbox-item`/`radio-item`
+        // のラベルを明示的に包む装飾用ラッパー（headless
+        // `crates/headless-ui/src/menubar.rs::item_text` 参照）。`item`
+        // 自身のレイアウトは変更せず（本節上・純追加原則）、ラベルが
+        // `item-indicator`（後続の末尾チェックマーク）に押し出されて
+        // 縮まないよう `flex: 1 1 auto` のみを与える最小限の装飾に留める
+        // （accordion/select の item 系ラベルパートに準じる、過剰な装飾は
+        // 付けない）。
+        .base("item-text", vec![decl("flex", "1 1 auto")])
+        // イシュー #2034: `item-indicator`（checkbox-item/radio-item の
+        // チェックマーク表示）は select.rs の `item-indicator` を precedent
+        // とする。`display` は宣言しない: menubar の `item_indicator(checked,
+        // ...)` は select と同じく `checked=false` のとき `hidden` 存在属性で
+        // 非表示にする契約（`crates/headless-ui/src/menubar.rs::item_indicator`）
+        // であり、`display` を明示宣言すると UA 既定の `[hidden]{display:none}`
+        // を上書きして非チェック項目にもチェックマークが見えてしまう回帰を
+        // 招く（accordion の `item-indicator` が `display: inline-block` を
+        // 宣言できるのは `hidden` による表示制御を使わないため、と対比）。
+        .base("item-indicator", vec![decl("margin-left", "auto")])
         .base(
             "item-group",
             vec![decl("display", "flex"), decl("flex-direction", "column")],
@@ -383,6 +462,54 @@ fn recipe() -> SlotRecipe {
                 decl("padding", "var(--fandhe-space-2)"),
                 decl("min-width", "10rem"),
             ],
+        )
+        // イシュー #2034: checkbox-item / radio-item は `item` と同型の
+        // レイアウト（[`crate::menu`] の checkbox-item/radio-item〔イシュー
+        // #1527〕と同一値、モジュール rustdoc「イシュー #2034」節参照）。
+        .base(
+            "checkbox-item",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
+                decl("cursor", "pointer"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
+            ],
+        )
+        .base(
+            "checkbox-item",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        // イシュー #2034: `radio-item-group` は [`crate::menu`] が「規則な
+        // し（意図的な非対応）」とした判断から意図的に外れる。menubar の
+        // `menubar_css.rs` は `EXPECTED_SLOTS` 列挙 + `contains` 検証の契約
+        // テスト方式（`menu_css.rs` のようなバイト一致 golden ではない）で
+        // あり、`SlotRecipe::css()` は `.base()`/`.state()` が 1 件も無い
+        // slot に対してはセレクタ自体を出力しない（`crate::recipe::css()`
+        // 実装）。そのため `radio-item-group` を `SLOTS` へ追加するなら実際
+        // にセレクタを出力させる最小限の構造宣言が必要であり、既存
+        // `item-group` と同一値（視覚差なし・退行リスクなし）を与える。
+        .base(
+            "radio-item-group",
+            vec![decl("display", "flex"), decl("flex-direction", "column")],
+        )
+        .base(
+            "radio-item",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
+                decl("cursor", "pointer"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
+            ],
+        )
+        .base(
+            "radio-item",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         // root が縦向きのとき列方向へ切り替える（本モジュール冒頭 rustdoc
         // 「レイアウト」節参照）。
@@ -489,6 +616,64 @@ fn recipe() -> SlotRecipe {
         .state(
             "sub-trigger",
             StateCondition::HoverExceptAttrEq("data-highlighted", "data-state", "open"),
+            hover_surface_declarations(),
+        )
+        // イシュー #2034: checkbox-item / radio-item の checked 表示。
+        // [`crate::menu`] の checkbox-item/radio-item〔イシュー #1527〕と
+        // 同一の視覚言語（select/listbox の選択済み表示と同強度の
+        // `--fandhe-color-bg-muted`、highlight〔accent〕より弱い視覚的
+        // 重み）を踏襲し、checkbox/radio 系部品間の一貫性を優先する
+        // （shadcn/ui 実際のデモは checkmark アイコンのみで背景変化を
+        // 伴わないが、本リポジトリの pre-styled-ui 内では checked 状態を
+        // 背景でも示す一貫方針を既に確立済みであり、本部品のみ逸脱させ
+        // ない意図的な差分。モジュール rustdoc「意図的に合わせなかった点」
+        // 節参照）。登録順は checked → highlighted → disabled → hover
+        // （同 specificity の後勝ちで highlight が checked を上書きできる
+        // 順序、[`crate::menu`] の checkbox-item/radio-item と同型）。
+        .state(
+            "checkbox-item",
+            StateCondition::AttrEq("data-state", "checked"),
+            vec![decl("background", "var(--fandhe-color-bg-muted)")],
+        )
+        .state(
+            "checkbox-item",
+            StateCondition::Attr("data-highlighted"),
+            vec![
+                decl("background", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-color-accent-fg)"),
+            ],
+        )
+        .state(
+            "checkbox-item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "checkbox-item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
+            hover_surface_declarations(),
+        )
+        .state(
+            "radio-item",
+            StateCondition::AttrEq("data-state", "checked"),
+            vec![decl("background", "var(--fandhe-color-bg-muted)")],
+        )
+        .state(
+            "radio-item",
+            StateCondition::Attr("data-highlighted"),
+            vec![
+                decl("background", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-color-accent-fg)"),
+            ],
+        )
+        .state(
+            "radio-item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "radio-item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
             hover_surface_declarations(),
         )
         // trigger はキーボード操作時のみのフォーカスリング（イシュー
