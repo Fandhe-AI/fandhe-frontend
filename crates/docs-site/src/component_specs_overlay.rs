@@ -56,7 +56,7 @@
 //!   空のまま省略する。フォーカスリング等スタイル層のみの挙動は
 //!   Accessibility 節の対象外）
 //!
-//! # `Examples` 節を持たない理由（[`DIALOG`]/[`COLLAPSIBLE`] を除く）
+//! # `Examples` 節を持たない理由（[`DIALOG`]/[`COLLAPSIBLE`]/[`MENU`] を除く）
 //!
 //! `docs/design/docs-site-component-pages.md` §7 は `Examples` を任意の節と
 //! 定めており、当初 PR（#946）では 13 定数すべて `examples: &[]` としていた
@@ -64,7 +64,11 @@
 //! 構成（イシュー #1690）の掲示のため `Examples` 節（`ex_alert_dialog`）を
 //! 追加した。[`COLLAPSIBLE`] はイシュー #2029 で shadcn/ui（Base UI）突合の
 //! File Tree Example に相当する既存 API のみの合成デモ
-//! （`ex_collapsible_nested_tree`）を追加した。他部品のバリエーション軸
+//! （`ex_collapsible_nested_tree`）を追加した。[`MENU`] はイシュー #2033
+//! で shadcn/ui 突合の合成パターン（グループ+ラベル+ショートカット・
+//! checkbox/radio 項目、サブメニュー、inset/destructive 項目）を 3 つの
+//! Examples（`ex_menu_group_checkable_shortcut`/`ex_menu_submenu`/
+//! `ex_menu_inset_and_danger`）として追加した。他部品のバリエーション軸
 //! （`Size`/`ColorPalette`/`ToastStatus` 等）への Examples 追加はレビュー
 //! 負荷を抑えるためのフォローアップ課題として引き続き PR 本文に残す。
 //!
@@ -84,7 +88,8 @@ use fandhe_frontend_pre_styled_ui::{
     collapsible,
     dialog::{self, ContentIds, DialogRole},
     hover_card::{self, HoverCardDelays},
-    ColorPalette, OpenState, Size,
+    kbd::{kbd, KbdProps, KbdVariant},
+    menu, ColorPalette, OpenState, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -1001,6 +1006,7 @@ pub const MENU: ComponentPageSpec = ComponentPageSpec {
         "サブメニューは親 Menu インスタンスの content 内に子 Menu インスタンス由来の trigger_item / positioner / content を入れ子で配置して表現し、親子双方に aria-haspopup=\"menu\" を付与する。",
         "CheckboxItem / RadioItemGroup は開閉状態とは独立した checked 状態機械（MenuCheckboxItem / MenuRadioItemGroup）を持つ。",
         "size variant で root/content の padding を切り替える。",
+        "ItemText / ItemIndicator は headless anatomy には #1651 時点で存在していたが、pre-styled-ui 側の再エクスポート・CSS 着装漏れをイシュー #2033（shadcn/ui 突合）で補完した。ショートカット表示は新規 anatomy パートを追加せず、独立部品 kbd との合成パターンで実現する。",
     ],
     arguments: &[
         ArgRow {
@@ -1016,7 +1022,23 @@ pub const MENU: ComponentPageSpec = ComponentPageSpec {
             description: "開閉状態（Open/Closed）。",
         },
     ],
-    examples: &[],
+    examples: &[
+        ExampleEntry {
+            title: "グループ・checkbox/radio 項目・ショートカット",
+            description: "item_group + item_group_label によるグループ化、checkbox_item / radio_item によるチェック可能な項目、kbd との合成によるショートカット表示を組み合わせた例です。",
+            render: ex_menu_group_checkable_shortcut,
+        },
+        ExampleEntry {
+            title: "サブメニュー",
+            description: "trigger_item + 入れ子の positioner/content で子 Menu インスタンスを埋め込み、サブメニューを表現する例です。",
+            render: ex_menu_submenu,
+        },
+        ExampleEntry {
+            title: "inset 項目・destructive 項目",
+            description: "アイコンを持たない項目のテキスト位置を揃える data-inset と、危険操作を示す data-danger（pre-styled-only の存在属性、item() の attrs 経由で付与）を組み合わせた例です。",
+            render: ex_menu_inset_and_danger,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -1042,6 +1064,225 @@ pub const MENU: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+// --- イシュー #2033（shadcn/ui 突合）: MENU の Examples 節 ---
+//
+// `crates/pre-styled-ui/src/menu.rs` の再エクスポート済み API のみで
+// 組み立てる（`format!` によるマークアップ直接組み立てはしない、REQ-1
+// 遵守）。ネストした positioner のフロー内配置中和は
+// `crates/docs-site/src/showcase.rs` の `.pre-styled-showcase
+// [data-scope="menu"][data-part="positioner"]` セレクタが本ページ全体の
+// スタイルシートにも含まれるため、Examples 節でも成立する。
+
+fn ex_menu_group_checkable_shortcut() -> Node {
+    menu::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                Some("spec-menu-checkable-content"),
+                vec![],
+                vec![text("Options")],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![],
+                vec![menu::content(
+                    OpenState::Open,
+                    Some("spec-menu-checkable-content"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::item_group(
+                            Some("spec-menu-checkable-group"),
+                            vec![],
+                            vec![
+                                menu::item_group_label(
+                                    Some("spec-menu-checkable-group"),
+                                    vec![],
+                                    vec![text("Edit")],
+                                ),
+                                menu::item(
+                                    "save",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_text(false, false, vec![], vec![text("Save")]),
+                                        kbd(
+                                            &KbdProps {
+                                                variant: KbdVariant::Subtle,
+                                                ..KbdProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("⌘S")],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        menu::separator(vec![], vec![]),
+                        menu::checkbox_item(
+                            true,
+                            "word-wrap",
+                            false,
+                            false,
+                            vec![],
+                            vec![
+                                menu::item_indicator(true, vec![], vec![text("✓")]),
+                                menu::item_text(false, false, vec![], vec![text("Word wrap")]),
+                            ],
+                        ),
+                        menu::radio_item_group(
+                            Some("spec-menu-radio-group"),
+                            vec![],
+                            vec![
+                                menu::radio_item(
+                                    true,
+                                    "dark",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_indicator(true, vec![], vec![text("●")]),
+                                        menu::item_text(false, false, vec![], vec![text("Dark")]),
+                                    ],
+                                ),
+                                menu::radio_item(
+                                    false,
+                                    "light",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_indicator(false, vec![], vec![text("●")]),
+                                        menu::item_text(false, false, vec![], vec![text("Light")]),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
+
+fn ex_menu_submenu() -> Node {
+    menu::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                Some("spec-menu-submenu-content"),
+                vec![],
+                vec![text("File")],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![],
+                vec![menu::content(
+                    OpenState::Open,
+                    Some("spec-menu-submenu-content"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::item("new", false, false, vec![], vec![text("New")]),
+                        menu::trigger_item(
+                            OpenState::Open,
+                            false,
+                            false,
+                            Some("spec-menu-submenu-sub-content"),
+                            vec![],
+                            vec![
+                                menu::item_text(false, false, vec![], vec![text("Share")]),
+                                text("›"),
+                            ],
+                        ),
+                        menu::positioner(
+                            OpenState::Open,
+                            vec![],
+                            vec![menu::content(
+                                OpenState::Open,
+                                Some("spec-menu-submenu-sub-content"),
+                                None,
+                                vec![],
+                                vec![
+                                    menu::item("email", false, false, vec![], vec![text("Email")]),
+                                    menu::item(
+                                        "link",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![text("Copy link")],
+                                    ),
+                                ],
+                            )],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
+
+fn ex_menu_inset_and_danger() -> Node {
+    menu::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                Some("spec-menu-inset-danger-content"),
+                vec![],
+                vec![text("Account")],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![],
+                vec![menu::content(
+                    OpenState::Open,
+                    Some("spec-menu-inset-danger-content"),
+                    None,
+                    vec![],
+                    vec![
+                        // アイコン/インジケータを持たない項目。
+                        menu::item(
+                            "profile",
+                            false,
+                            false,
+                            vec![("data-inset", "")],
+                            vec![text("Profile")],
+                        ),
+                        menu::item(
+                            "settings",
+                            false,
+                            false,
+                            vec![("data-inset", "")],
+                            vec![text("Settings")],
+                        ),
+                        menu::separator(vec![], vec![]),
+                        menu::item(
+                            "delete-account",
+                            false,
+                            false,
+                            vec![("data-danger", "")],
+                            vec![text("Delete account")],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
 
 /// `/themes/popover/`（Interactive カテゴリ）。
 ///

@@ -2083,7 +2083,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 出力を伴わない）。CSS 出力・golden テストは不変だが、公開クレートの
 # `src/` 変更につき規約（`.claude/rules/coding-rust.md`）に従いパッチバンプ
 # する。
-version = "0.124.1"
+#
+# イシュー #2033（shadcn/ui 突合）: `menu` の `item-text`/`item-indicator`
+# 再エクスポート・CSS 着装、`data-danger`/`data-inset` 状態の追加により
+# `stylesheet()` の出力（新規 CSS 規則の純追加）が変わるため、機能追加
+# としてマイナーバンプする（0.x の慣習、`.claude/rules/coding-rust.md`）。
+version = "0.125.0"
 
 
 edition = "2021"

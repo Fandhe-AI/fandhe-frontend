@@ -2654,6 +2654,12 @@ fn drawer_section() -> Node {
 /// Menu 節: highlighted / 通常 / separator / disabled の各状態を持つ項目リスト
 /// が開いた静的マークアップ（イシュー #691）。
 fn menu_section() -> Node {
+    // イシュー #2033（shadcn/ui 突合）: グループ+ラベル・checkbox/radio 項目・
+    // サブメニュー（trigger-item）・ショートカット（kbd 合成）・inset・
+    // destructive の合成パターンを追加掲示する。ネストした positioner の
+    // フロー内配置中和は既存の `.pre-styled-showcase [data-scope="menu"]
+    // [data-part="positioner"]` セレクタがそのまま適用される（`section`
+    // 冒頭コメント・[`stylesheet`] 参照）。
     let node = menu::root(
         Size::Md,
         OpenState::Open,
@@ -2675,10 +2681,151 @@ fn menu_section() -> Node {
                     None,
                     vec![],
                     vec![
-                        menu::item("edit", false, true, vec![], vec![text("Edit")]),
-                        menu::item("duplicate", false, false, vec![], vec![text("Duplicate")]),
+                        // グループ + ラベル。
+                        menu::item_group(
+                            Some("showcase-menu-group-edit"),
+                            vec![],
+                            vec![
+                                menu::item_group_label(
+                                    Some("showcase-menu-group-edit"),
+                                    vec![],
+                                    vec![text("Edit")],
+                                ),
+                                menu::item(
+                                    "duplicate",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Duplicate")],
+                                        ),
+                                        kbd(
+                                            &KbdProps {
+                                                variant: KbdVariant::Subtle,
+                                                ..KbdProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("⌘D")],
+                                        ),
+                                    ],
+                                ),
+                                // サブメニュー（trigger-item + 入れ子の
+                                // positioner/content）。`OpenState::Open` で
+                                // 開いた状態を掲示する（`Closed` だと
+                                // headless 層が `hidden`/`visibility: hidden`
+                                // を付与し中身が不可視になるため）。
+                                menu::trigger_item(
+                                    OpenState::Open,
+                                    false,
+                                    false,
+                                    Some("showcase-menu-submenu-content"),
+                                    vec![],
+                                    vec![
+                                        menu::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("More actions")],
+                                        ),
+                                        text("›"),
+                                    ],
+                                ),
+                                menu::positioner(
+                                    OpenState::Open,
+                                    vec![],
+                                    vec![menu::content(
+                                        OpenState::Open,
+                                        Some("showcase-menu-submenu-content"),
+                                        None,
+                                        vec![],
+                                        vec![menu::item(
+                                            "export",
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Export")],
+                                        )],
+                                    )],
+                                ),
+                            ],
+                        ),
                         menu::separator(vec![], vec![]),
-                        menu::item("delete", true, false, vec![], vec![text("Delete")]),
+                        // checkbox 項目（チェック状態あり）。
+                        menu::checkbox_item(
+                            true,
+                            "show-hidden",
+                            false,
+                            false,
+                            vec![],
+                            vec![
+                                menu::item_indicator(true, vec![], vec![text("✓")]),
+                                menu::item_text(
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![text("Show hidden files")],
+                                ),
+                            ],
+                        ),
+                        menu::separator(vec![], vec![]),
+                        // radio 項目群（1 件選択済み）。
+                        menu::radio_item_group(
+                            Some("showcase-menu-radio-group"),
+                            vec![],
+                            vec![
+                                menu::item_group_label(
+                                    Some("showcase-menu-radio-group"),
+                                    vec![],
+                                    vec![text("View")],
+                                ),
+                                menu::radio_item(
+                                    true,
+                                    "list",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_indicator(true, vec![], vec![text("●")]),
+                                        menu::item_text(false, false, vec![], vec![text("List")]),
+                                    ],
+                                ),
+                                menu::radio_item(
+                                    false,
+                                    "grid",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_indicator(false, vec![], vec![text("●")]),
+                                        menu::item_text(false, false, vec![], vec![text("Grid")]),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        menu::separator(vec![], vec![]),
+                        // inset 項目（アイコン/インジケータなしのテキストを
+                        // アイコン付き項目と位置合わせする）。
+                        menu::item(
+                            "settings",
+                            false,
+                            false,
+                            vec![("data-inset", "")],
+                            vec![text("Settings")],
+                        ),
+                        menu::separator(vec![], vec![]),
+                        menu::item("edit", false, true, vec![], vec![text("Edit")]),
+                        // destructive（危険操作）項目。
+                        menu::item(
+                            "delete",
+                            false,
+                            false,
+                            vec![("data-danger", "")],
+                            vec![text("Delete account")],
+                        ),
                     ],
                 )],
             ),
@@ -2686,7 +2833,7 @@ fn menu_section() -> Node {
     );
     section(
         "Menu",
-        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・separator・disabled の各状態を含みます。positioner はフロー内配置へ中和しています。",
+        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・グループ+ラベル・checkbox/radio 項目・サブメニュー・ショートカット（kbd 合成）・inset・destructive・separator・disabled の各状態を含みます。positioner はフロー内配置へ中和しています。",
         vec![node],
     )
 }

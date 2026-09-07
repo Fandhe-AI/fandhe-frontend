@@ -149,11 +149,18 @@
 //! `checkbox_item`/`radio_item`/`trigger_item`（サブメニュー）系は 3/3
 //! （#1527）の担当のため触れていない）
 //!
-//! **スコープ解釈の注記**: イシュータイトルの「item-text / item-indicator」
-//! は headless `menu` anatomy（本モジュール冒頭 rustdoc・`ANATOMY.part(...)`
-//! 一覧参照）に存在しない（select の part 名との混同とみられる）。1/3
-//! （#1525）が本モジュール rustdoc に記録した分担（`item`/`item-group`/
-//! `item-group-label`/`separator`/`indicator` = 2/3 本イシュー）に従う。
+//! **スコープ解釈の注記（#2033 時点の訂正）**: 本イシュー（#1526）着手時点
+//! ではイシュータイトルの「item-text / item-indicator」は headless
+//! `menu` anatomy（本モジュール冒頭 rustdoc・`ANATOMY.part(...)` 一覧参照）
+//! に存在しないと判断していたが、これは #1651（本イシューより後）が
+//! 当該 2 パートを追加する**前**の時点の判断であり、現在は誤りである。
+//! `crates/headless-ui/src/menu.rs` は #1651 で `item-text`/
+//! `item-indicator` を追加済みであり、pre-styled 側の再エクスポート・
+//! `SLOTS`・CSS 着装漏れはイシュー #2033（shadcn/ui 突合）で是正した
+//! （本モジュール rustdoc「担当パートの是正（イシュー #2033）」節参照）。
+//! 1/3（#1525）が本モジュール rustdoc に記録した分担（`item`/`item-group`/
+//! `item-group-label`/`separator`/`indicator` = 2/3 本イシュー）自体は
+//! 変更なく踏襲する。
 //!
 //! - **`item`**: select 2/2（#1502）・combobox 2/2 と同型で是正した。
 //!   `display: flex` / `align-items: center` /
@@ -262,6 +269,105 @@
 //! `content` への `position: relative` 追加（menubar PR #1000 型）も、
 //! arrow の配置基準（`--fandhe-arrow-x/y` の解決先）へ影響し得るため本
 //! イシューでは行わない。
+//! # 担当パートの是正（イシュー #2033、shadcn/ui 突合。`item-text` /
+//! `item-indicator` の CSS 着装漏れ・`item` のグループ化/ショートカット/
+//! inset/destructive 合成パターンの補完を担当）
+//!
+//! ルート #2001 が「補完参照」としていた shadcn/ui は 2026-09-07 の
+//! ユーザー判断（`docs/design/shadcn-reference-adoption-policy.md` §8、
+//! イシュー #2153）で chakra-ui / Radix Themes と並ぶ主基準の 1 つへ
+//! 格上げ済みであり、本節はその方針に基づく。
+//!
+//! - **`item-text`/`item-indicator` の CSS 未着装（構造的な見落とし、
+//!   shadcn 突合以前から存在）**: `crates/headless-ui/src/menu.rs` は
+//!   #1651 で当該 2 パートを anatomy へ追加済みだったが、本モジュールの
+//!   `pub use` 再エクスポート一覧・[`SLOTS`]・[`recipe`] のいずれにも
+//!   反映されておらず、`fandhe-frontend-pre-styled-ui` のみに依存する
+//!   呼び出し側から到達不能だった（2/3 #1526 の rustdoc「スコープ解釈の
+//!   注記」は #1651 以前の時点の誤認であり、現在は訂正が必要）。本イシュー
+//!   で再エクスポート・`SLOTS` 追加・`item-text` への `flex: 1; min-width:
+//!   0;`（[`crate::listbox`] の `item-text` と同型、ショートカット表示
+//!   `kbd` 合成を項目右端へ押し出す用途）を追加した。
+//! - **`item-indicator` に `.base` を追加しない（意図的、
+//!   select/combobox の既知の教訓を踏襲）**: headless
+//!   （`crates/headless-ui/src/menu.rs::item_indicator`）は unchecked 時に
+//!   `hidden` 存在属性を付与する契約であり、styled 側で `display` を
+//!   宣言すると author 規則（詳細度 (0,2,0)）が UA の
+//!   `[hidden] { display: none }`（(0,1,0)）に勝って表示制御が壊れる
+//!   （[`crate::select`]/[`crate::combobox`] の `item-indicator` rustdoc に
+//!   既知の教訓として明記済み）。加えて menu の checkbox/radio 項目は
+//!   チェックマークが項目**先頭**（左）に来る配置（shadcn/ark-ui 共通）で
+//!   あり、select/combobox（`margin-left: auto` で末尾へ寄せる設計）と
+//!   機械的に同一化しない。`item` 側 `gap`（`--fandhe-space-2`）が既に
+//!   `item-indicator`/`item-text` 間の余白を担うため、追加の `.base`
+//!   なしで先頭配置レイアウトが成立する。
+//! - **destructive（危険操作）項目 `data-danger`（値なし存在属性）**:
+//!   `data-variant`（`crates/headless-ui/src/clipboard.rs` が
+//!   `copied`/`idle` という別意味論で既に使用しており
+//!   `docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 B-2「同名は
+//!   同一意味論でのみ再利用」に反する）・`destructive`（issue チェック
+//!   リストの用語をそのまま持ち込まない）のいずれも使わない。`item()` の
+//!   `ITEM_RESERVED`（`crates/headless-ui/src/menu.rs`）に含まれないため
+//!   呼び出し側が `attrs` へ `("data-danger", "")` を渡せばそのまま
+//!   出力される（headless 側の変更は不要）。反映するのは
+//!   `--fandhe-color-danger-fg-subtle` の文字色のみ（[`crate::theme`] の
+//!   コントラストペアに登録済みのトークンを流用し、新規コントラスト検証の
+//!   追加は不要）。**highlighted と重なる場合の背景色変更・素のポインタ
+//!   hover（`data-highlighted` が付かない状態）時の赤系背景化はいずれも
+//!   意図的に対応しない**: 前者は `data-danger`/`data-highlighted` が
+//!   共に値なし存在属性（値は常に空文字列）であり、両方の AND を 1
+//!   セレクタで表現する [`crate::recipe::StateCondition`] の variant が
+//!   現状存在しない（`AttrEqAll` へ空文字列を渡すと `is_valid_identifier`
+//!   が拒否し規則ごと無音に脱落する、[`crate::recipe::StateCondition::
+//!   HoverExceptAttr`] rustdoc に記録済みの罠と同型）ため、新 variant の
+//!   追加（`recipe.rs` の変更）を要し本イシューでは見送る。後者は既存の
+//!   `item` hover 規則（`StateCondition::HoverExceptAttr("data-highlighted")`）
+//!   を書き換えると既存 golden のバイト出力が変わり「純追加」の原則に
+//!   反するため見送る。`data-danger` の state 規則は
+//!   `data-highlighted` の state 規則より**前**に登録してある（いずれも
+//!   単一属性セレクタで specificity 同点のため source 順で後勝ちする）:
+//!   両属性が同時に立つ場合は検証済みコントラストペア（accent 背景 +
+//!   accent-fg 文字色）を持つ highlight 側が優先され、danger の文字色は
+//!   highlighted **でない**ときのみ反映される。逆順（danger を後に登録）
+//!   だと `danger-fg-subtle` 文字色 + `accent` 背景という
+//!   [`crate::theme`] に未登録・未検証のコントラストペアが highlighted
+//!   状態で露出してしまうため、意図的にこの順序を選ぶ。`checkbox-item`/
+//!   `radio-item`/`trigger-item` への対応も行わない（shadcn の
+//!   destructive item は素の item 用途が中心のため過剰実装を避ける）。
+//! - **inset 項目 `data-inset`（値なし存在属性）**: アイコン/インジケータを
+//!   持たない項目のテキスト位置を、持つ項目と視覚的に揃える。
+//!   `padding-inline-start` のみを `--fandhe-space-6`
+//!   （`item-indicator` の実測幅ではなく、gap + インジケータ相当幅の
+//!   近似値）へ上書きする。既存の `--fandhe-menu-item-padding` shorthand
+//!   （root スコープの size variant）は上書きしない（属性セレクタの詳細度
+//!   （0,3,0）が base の `[data-scope][data-part]`（0,2,0）より高いため、
+//!   `padding-inline-start` のみが後勝ちする）。
+//! - **`data-danger`/`data-inset` は recipe variant 軸ではない**: 1/3
+//!   （#1525）・2/3（#1526）の「`color-palette`/`variant` 軸は追加しない
+//!   （意図的非採用）」は root スコープの
+//!   [`crate::recipe::SlotRecipe::variant`] 軸（`Size` 等、呼び出し側が
+//!   コンポーネント全体へ選ぶ列挙値）を指す判断であり、`data-danger`/
+//!   `data-inset` は呼び出し側が個別の `item` インスタンスへ都度付与する
+//!   pre-styled-only の状態属性（[`crate::recipe::StateCondition::Attr`]
+//!   経由）であるため、この既存の非採用判断とは対象が別であり矛盾しない。
+//! - **`item-group`/`item-group-label`/`separator`/`checkbox-item`/
+//!   `radio-item`/`trigger-item`/`context-trigger` は現状維持（意図的な
+//!   非対応）**: shadcn 突合の結果、2/3（#1526）・3/3（#1527）が既に施した
+//!   是正（グループ・ラベル・checked 表示・highlight・サブメニュー表示等）
+//!   が shadcn dropdown-menu/context-menu と同等の構造・状態表現を
+//!   カバーしており、追加の是正は不要と判断した。
+//! - **ショートカット（`kbd` 合成）は新規 anatomy パートを追加しない**:
+//!   `crates/pre-styled-ui/src/kbd.rs`（`kbd::kbd`）が既に独立した
+//!   pre-styled-only 部品として実装済みのため、呼び出し側が
+//!   `item(...)` の children に `item_text(...)` + `kbd::kbd(...)` を
+//!   並べる合成パターンで実現する（Demo は
+//!   `crates/docs-site/src/showcase.rs::menu_section` 参照）。
+//! - **`crates/docs-site/src/component_specs_overlay.rs::MENU` の
+//!   `examples` を埋めた**: グループ+ラベル・checkbox/radio 項目・
+//!   サブメニュー・ショートカット・inset・destructive の 6 パターンを
+//!   ノード木 API のコード例として追加した（`format!` によるマークアップ
+//!   直接組み立てはしない、REQ-1 遵守）。
+//!
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
@@ -280,8 +386,8 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::menu::{
     arrow, arrow_tip, checkbox_item, content, context_trigger, indicator, item, item_group,
-    item_group_label, positioner, radio_item, radio_item_group, separator, trigger, trigger_item,
-    MenuCheckboxItem, MenuRadioItemGroup,
+    item_group_label, item_indicator, item_text, positioner, radio_item, radio_item_group,
+    separator, trigger, trigger_item, MenuCheckboxItem, MenuRadioItemGroup,
 };
 // `trigger`/`trigger_item`/`context_trigger` 等の `state` 引数・
 // `MenuCheckboxItem`/`MenuRadioItemGroup` の `Component::Action`
@@ -311,6 +417,8 @@ const SLOTS: &[&str] = &[
     "checkbox-item",
     "radio-item-group",
     "radio-item",
+    "item-text",
+    "item-indicator",
 ];
 
 /// この styled Menu の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
@@ -535,6 +643,26 @@ fn recipe() -> SlotRecipe {
             "content",
             StateCondition::AttrEq("data-state", "closed"),
             vec![decl("visibility", "hidden")],
+        )
+        // イシュー #2033: `data-danger`（危険操作項目、`item()` の自由
+        // `attrs` 経由で呼び出し側が付与する pre-styled-only の存在属性。
+        // `data-variant`/`destructive` を使わない理由はモジュール rustdoc
+        // 参照）。**下記の highlight 規則より前に登録する**: `data-danger`/
+        // `data-highlighted` はいずれも単一属性セレクタ（specificity
+        // (0,3,0) 同点）であり、両方が立つ場合は source 順で後勝ちする。
+        // 両属性の AND を 1 セレクタで表現する `StateCondition` variant が
+        // 現状存在しない（`AttrEqAll` へ空文字列を渡すと
+        // `is_valid_identifier` が拒否し規則ごと無音に脱落する、
+        // [`StateCondition::HoverExceptAttr`] rustdoc に記録済みの罠と同型）
+        // ため、本規則をあえて highlight 規則より先に置くことで、
+        // highlighted 中は検証済みコントラストペア（accent/accent-fg）が
+        // 優先され、danger の文字色は highlighted でないときのみ反映される
+        // （逆順だと `danger-fg-subtle` 文字色 + `accent` 背景という未検証の
+        // コントラストペアが highlighted 状態で露出してしまう）。
+        .state(
+            "item",
+            StateCondition::Attr("data-danger"),
+            vec![decl("color", "var(--fandhe-color-danger-fg-subtle)")],
         )
         // イシュー #643 受け入れ条件: virtual focus の highlight 表示
         // （`item` は実 DOM フォーカスを受けないため `:focus-visible` ではなく
@@ -802,6 +930,33 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("--fandhe-menu-content-padding", "var(--fandhe-space-4)"),
             ],
+        )
+        // イシュー #2033: shadcn/ui 突合で判明した `item-text`/
+        // `item-indicator`（#1651 で headless anatomy へ追加済みだが、
+        // pre-styled 側の再エクスポート・`SLOTS`・CSS 着装が漏れていた欠落。
+        // モジュール rustdoc「担当パートの是正（イシュー #2033）」節参照）。
+        .base(
+            "item-text",
+            vec![decl("flex", "1"), decl("min-width", "0")],
+        )
+        // イシュー #2033: ショートカット表示（`kbd` 合成、後続の兄弟要素）を
+        // 項目右端へ押し出すための伸縮のみ（`crate::listbox` の
+        // `item-text` と同型）。`item-indicator`（下記）には意図的に
+        // `.base` を追加しない。`data-danger`（危険操作項目）の state 規則は
+        // highlight 規則との衝突順序を保証するため、下記へ移さず
+        // `data-highlighted` 規則より**前**（このコメント直前ではなく
+        // モジュール前半、`item[data-highlighted]` 規則の直前）へ登録して
+        // ある（モジュール rustdoc「担当パートの是正（イシュー #2033）」
+        // 節参照）。
+        // イシュー #2033: `data-inset`（アイコン/インジケータを持たない
+        // 項目のテキスト位置を、持つ項目と揃えるための存在属性。値は
+        // `item-indicator` の実測ではなく `item` の `gap`
+        // （`--fandhe-space-2`）+ インジケータ相当幅の近似として
+        // `--fandhe-space-6` を採用する）。
+        .state(
+            "item",
+            StateCondition::Attr("data-inset"),
+            vec![decl("padding-inline-start", "var(--fandhe-space-6)")],
         )
         .default_variant(Size::Md)
 }
@@ -1162,5 +1317,91 @@ mod tests {
         assert!(css.contains("transition-property: transform;"));
         assert!(css.contains(r#"[data-scope="menu"][data-part="indicator"][data-state="open"] {"#));
         assert!(css.contains("transform: rotate(180deg);"));
+    }
+
+    // --- イシュー #2033: shadcn/ui 突合で補完した item-text/item-indicator
+    // 着装・data-danger/data-inset ---
+    //
+    // `data-danger`/`data-inset` は「pre-styled が出力せず、呼び出し側が
+    // `item()` の自由 `attrs` 経由で付与し、recipe が `StateCondition` から
+    // 参照するのみ」という役割 B 亜種のパターン（`docs/design/
+    // pre-styled-ui-data-attr-vocabulary.md` §2.2 参照）であり、
+    // `crates/pre-styled-ui/tests/data_attr_vocabulary.rs`（役割 A 限定の
+    // スコープ）ではなく本モジュールの `#[cfg(test)]` ユニットテストとして
+    // 固定する（`progress.rs`/`tour.rs` 等の類似ケースの慣習に合わせる）。
+
+    #[test]
+    fn item_text_and_item_indicator_are_reexported_and_render_anatomy_parts() {
+        // #1651 で headless anatomy へ追加済みだった 2 パートが
+        // `fandhe-frontend-pre-styled-ui` のみに依存する呼び出し側からも
+        // 到達できることを固定する（本イシューが是正した再エクスポート
+        // 漏れの回帰防止）。
+        let text_html = render(&item_text(false, false, vec![], vec![]));
+        assert!(text_html.contains(r#"data-scope="menu""#));
+        assert!(text_html.contains(r#"data-part="item-text""#));
+
+        let indicator_html = render(&item_indicator(true, vec![], vec![]));
+        assert!(indicator_html.contains(r#"data-scope="menu""#));
+        assert!(indicator_html.contains(r#"data-part="item-indicator""#));
+    }
+
+    #[test]
+    fn item_text_slot_gets_flex_css_from_recipe() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="item-text"] {"#));
+        assert!(css.contains("flex: 1;"));
+        assert!(css.contains("min-width: 0;"));
+    }
+
+    #[test]
+    fn data_danger_attr_passes_through_item_and_is_styled_by_recipe() {
+        // `data-danger` は headless `ITEM_RESERVED`
+        // （`crates/headless-ui/src/menu.rs`）に含まれないため `item()` の
+        // `attrs` 経由でそのまま出力される（headless 側の変更不要な設計の
+        // 固定）。
+        let html = render(&item(
+            "delete",
+            false,
+            false,
+            vec![("data-danger", "")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-danger="""#));
+
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="item"][data-danger] {"#));
+        assert!(css.contains("color: var(--fandhe-color-danger-fg-subtle);"));
+    }
+
+    #[test]
+    fn data_inset_attr_passes_through_item_and_is_styled_by_recipe() {
+        let html = render(&item(
+            "settings",
+            false,
+            false,
+            vec![("data-inset", "")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-inset="""#));
+
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="item"][data-inset] {"#));
+        assert!(css.contains("padding-inline-start: var(--fandhe-space-6);"));
+    }
+
+    #[test]
+    fn data_danger_attr_with_forged_value_still_passes_the_default_escape() {
+        // A03 回帰: `data-danger` は値なし存在属性の契約だが、呼び出し側が
+        // 万一値付きで偽装しても `render()` の既定エスケープ（REQ-1）を
+        // 迂回しないことを確認する（`item()` は `raw_html()` を経由せず
+        // ノード木 API のみで組み立てる契約）。
+        let html = render(&item(
+            "x",
+            false,
+            false,
+            vec![("data-danger", "\"><script>alert(1)</script>")],
+            vec![],
+        ));
+        assert!(!html.contains("<script>alert(1)</script>"));
     }
 }

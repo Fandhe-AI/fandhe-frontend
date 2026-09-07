@@ -54,6 +54,10 @@
 | `data-empty` | （テストのみ、`signature_pad.rs`） | headless `signature_pad.rs` |
 | `data-positioned` | `select.rs` / `menu.rs` / `combobox.rs` | `crates/wasm-full/src/position.rs`（実行時に wasm 層のみが付与、UI 2 層はいずれも出力しない。イシュー #663 の設計） |
 | `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則）、`fieldset.rs`（イシュー #1686、`legend`/`helper-text` slot への state 規則） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成）、headless `fieldset.rs`（`FieldsetProps::disabled` から `state_data_attrs` が生成） |
+| `data-danger` | `menu.rs`（イシュー #2033、shadcn/ui 突合。`item` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`item()` の `attrs` 経由で個別項目へ都度付与する値なし存在属性。headless・pre-styled のいずれも出力しない（下記「役割 B 亜種」注記参照） |
+| `data-inset` | `menu.rs`（イシュー #2033、shadcn/ui 突合。`item` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`item()` の `attrs` 経由で個別項目へ都度付与する値なし存在属性。headless・pre-styled のいずれも出力しない（下記「役割 B 亜種」注記参照） |
+
+**役割 B 亜種（`data-danger`/`data-inset`）の注記**: 上記の役割 B は「出力元が他層（主に headless）」を前提とするが、`data-danger`/`data-inset` は headless・pre-styled のどちらも出力せず、**呼び出し側（アプリケーションコード）**が `item()` の自由 `attrs` 経由で個別インスタンスへ都度付与する値なし存在属性である。`item()` の予約キー一覧（`ITEM_RESERVED`、`crates/headless-ui/src/menu.rs`）に含まれないためそのまま出力され、pre-styled の recipe（`menu.rs`）は `StateCondition::Attr` で**参照のみ**する。役割 A（pre-styled が出力）・役割 B（他層が出力）のどちらの定義にも完全には一致しないため、本節の亜種として記録する（`crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当パートの是正（イシュー #2033）」節参照）。
 
 ### 2.3 役割 C: 「予約名として防御的に列挙」される `data-*`
 
