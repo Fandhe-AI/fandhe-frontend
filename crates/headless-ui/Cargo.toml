@@ -529,7 +529,11 @@ name = "fandhe-frontend-headless-ui"
 # コンテンツモデル違反だった）。`span[data-part="error-text"]` を要素型
 # セレクタで参照する外部コードがあれば影響するため破壊的変更としてマイナー
 # バンプし 0.66.0 とする。
-version = "0.66.0"
+# イシュー #2020（PR #2167 codex-review 指摘 P1 の是正）: `slider::marker`/
+# `Slider::marker` へ `orientation` 引数を追加した（コミット 85a3109e）際に
+# semver バンプが伴っていなかった。既存呼び出し元が引数個数不一致で
+# コンパイルエラーになる破壊的変更のためマイナーバンプし 0.67.0 とする。
+version = "0.67.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
