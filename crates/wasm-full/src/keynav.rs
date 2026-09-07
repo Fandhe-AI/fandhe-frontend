@@ -4239,10 +4239,7 @@ mod wiring {
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{
-        Element, Event, HtmlElement, HtmlInputElement, KeyboardEvent, ScrollIntoViewOptions,
-        ScrollLogicalPosition,
-    };
+    use web_sys::{Element, Event, HtmlElement, HtmlInputElement, KeyboardEvent};
 
     /// `[data-scope="tabs"][data-part="trigger"]` セレクタ。
     const TABS_TRIGGER_SELECTOR: &str = "[data-scope=\"tabs\"][data-part=\"trigger\"]";
@@ -5517,14 +5514,26 @@ mod wiring {
     /// doc §Combobox 参照）と対象が異なるため引数として分離する
     /// （イシュー #1071 で [`set_highlight`] から抽出）。
     ///
-    /// 新規 highlight 項目は `scroll_into_view_with_scroll_into_view_options`
-    /// （`block`/`inline` とも `nearest`）でスクロール可能な祖先（Select の
-    /// `content`。`overflow-y: auto` + `max-height`、イシュー #2019）内へ
-    /// 追随させる（codex-review P1 是正、PR #2165）。`nearest` は既に可視
-    /// 領域内であれば no-op であり、Menu/Listbox/Combobox 等スクロール
-    /// 領域を持たない呼び出し元でも副作用がない（最も近いスクロール可能な
-    /// 祖先が document 自体になった場合でも `nearest` は不要なページ
-    /// スクロールを起こさない）。
+    /// 新規 highlight 項目はスクロール可能な祖先（Select の `content`。
+    /// `overflow-y: auto` + `max-height`、イシュー #2019）内へ追随させる
+    /// （codex-review P1 是正、PR #2165）。既に可視領域内であれば no-op
+    /// であり、Menu/Listbox/Combobox 等スクロール領域を持たない呼び出し
+    /// 元でも副作用がない。
+    ///
+    /// [`scroll_item_into_view_if_needed`] は `Element::scroll_into_view_
+    /// with_scroll_into_view_options`（`nearest`）を使わず、item の最も
+    /// 近いスクロール可能な祖先 1 要素の `scrollTop` のみを手動調整する
+    /// （Cursor Bugbot 是正、イシュー #2019/PR #2165）。CSSOM View 仕様上
+    /// `scrollIntoView` の `nearest` は「対象を含む可視領域内に収まって
+    /// いない全ての祖先スクロールコンテナ（document を含む）」へ適用
+    /// されるため、画面端に一部はみ出た Select/Menu/Combobox のオーバー
+    /// レイがあると、item を含む `content` だけでなくページ自体（document
+    /// scrollingElement）もパンされ得る。`position: fixed` の positioner
+    /// （`data-positioned`）を使う実装では、この意図しないページ
+    /// スクロールでオーバーレイがビューポート座標系のまま残り、トリガー
+    /// だけが動いてアンカーからずれてしまう。この手動実装は見つかった
+    /// スクロール可能な祖先 1 要素だけを対象にし、それ以外の祖先
+    /// （document を含む）の scroll 位置には一切触れない。
     fn set_highlight_on_host(
         items: &[Element],
         next_index: usize,
@@ -5552,14 +5561,56 @@ mod wiring {
     }
 
     /// [`set_highlight_on_host`] が新規 highlight 項目に対してのみ呼ぶ
-    /// スクロール追随の実体。`block: "nearest"`/`inline: "nearest"` を
-    /// 指定するため、対象が既に可視領域内なら何もしない（無用な
-    /// レイアウト振動を避ける）。
+    /// スクロール追随の実体。[`nearest_scrollable_ancestor`] が見つけた
+    /// 1 要素の `scrollTop` のみを、item の `getBoundingClientRect` が
+    /// その要素の可視領域からはみ出ている分だけ調整する（`nearest`
+    /// 相当。対象が既に可視領域内なら delta が 0 のため no-op で無用な
+    /// レイアウト振動を避ける）。スクロール可能な祖先が見つからない
+    /// 場合は何もしない（`document` へフォールバックしてページを
+    /// パンしない。Cursor Bugbot 是正、イシュー #2019/PR #2165）。
     fn scroll_item_into_view_if_needed(item: &Element) {
-        let options = ScrollIntoViewOptions::new();
-        options.set_block(ScrollLogicalPosition::Nearest);
-        options.set_inline(ScrollLogicalPosition::Nearest);
-        item.scroll_into_view_with_scroll_into_view_options(&options);
+        let Some(container) = nearest_scrollable_ancestor(item) else {
+            return;
+        };
+        let item_rect = item.get_bounding_client_rect();
+        let container_rect = container.get_bounding_client_rect();
+        let delta = if item_rect.top() < container_rect.top() {
+            item_rect.top() - container_rect.top()
+        } else if item_rect.bottom() > container_rect.bottom() {
+            item_rect.bottom() - container_rect.bottom()
+        } else {
+            0.0
+        };
+        if delta != 0.0 {
+            let new_scroll_top = container.scroll_top() as f64 + delta;
+            container.set_scroll_top(new_scroll_top as i32);
+        }
+    }
+
+    /// `item` から `parent_element()` を辿り、`overflow-y` が
+    /// `auto`/`scroll` かつ実際にオーバーフローしている
+    /// （`scrollHeight > clientHeight`）最初の祖先要素を返す
+    /// （[`scroll_item_into_view_if_needed`] 専用のヘルパー、Cursor
+    /// Bugbot 是正、イシュー #2019/PR #2165）。`document`/`body` まで
+    /// 見つからなければ `None` を返し、呼び出し元はページ全体の
+    /// スクロールへフォールバックしない（意図的な fail-safe。ページを
+    /// パンする副作用より「スクロール追随しない」方が安全なため）。
+    fn nearest_scrollable_ancestor(item: &Element) -> Option<Element> {
+        let window = web_sys::window()?;
+        let mut current = item.parent_element();
+        while let Some(candidate) = current {
+            let is_scrollable = window
+                .get_computed_style(&candidate)
+                .ok()
+                .flatten()
+                .and_then(|style| style.get_property_value("overflow-y").ok())
+                .is_some_and(|overflow_y| overflow_y == "auto" || overflow_y == "scroll");
+            if is_scrollable && candidate.scroll_height() > candidate.client_height() {
+                return Some(candidate);
+            }
+            current = candidate.parent_element();
+        }
+        None
     }
 
     /// `item` の直下 `[data-part="item-text"]` 子（Select の item-text、

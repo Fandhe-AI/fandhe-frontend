@@ -810,6 +810,26 @@ categories = ["wasm", "web-programming"]
 # `ScrollIntoViewOptions`/`ScrollLogicalPosition` を新規追加する。新規
 # 外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata`
 # 実測（パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
+#
+# codex-review Bugbot 是正（イシュー #2019、PR #2165）:
+# `scroll_item_into_view_if_needed` が `Element::scroll_into_view_with_
+# scroll_into_view_options`（`block`/`inline` とも `nearest`）を使うと、
+# CSSOM View 仕様上 `nearest` は「対象を含む可視領域内に収まっていない
+# 全ての祖先スクロールコンテナ（document を含む）」へ適用されるため、
+# 画面端に一部はみ出た Select/Menu/Combobox のオーバーレイでページ自体が
+# パンされ得る（`position: fixed` の positioner はビューポート座標系の
+# まま残るため、この意図しないページスクロールでアンカーとトリガーの
+# 位置がずれる）。是正として、item の最も近いスクロール可能な祖先
+# （`overflow-y: auto`/`scroll` かつ `scrollHeight > clientHeight`）のみを
+# 手動で判定し、その 1 要素の `scrollTop` だけを直接調整する実装へ変更
+# した（`scroll_into_view_with_scroll_into_view_options` を使わないため
+# document を含む他の祖先スクロールコンテナへは一切波及しない）。判定に
+# 必要な `Window::get_computed_style`（戻り値 `CssStyleDeclaration`）と
+# `Element::get_bounding_client_rect`（戻り値 `DomRect`、`top`/`bottom`
+# は継承元の `DomRectReadOnly` が持つゲッター）のため `CssStyleDeclaration`/
+# `DomRectReadOnly` を追加する。新規外部クレート追加ゼロ、既存 web-sys の
+# feature 追加のみ。`cargo metadata` 実測（パッケージ数・依存グラフ深さ）
+# に変化がないことを PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.2.6" }
 fandhe-frontend-core = { path = "../core", version = "0.4.3" }
@@ -844,9 +864,11 @@ js-sys = "0.3"
 version = "0.3"
 features = [
   "Attr",
+  "CssStyleDeclaration",
   "DataTransfer",
   "Document",
   "DomRect",
+  "DomRectReadOnly",
   "DragEvent",
   "DragEventInit",
   "Element",
