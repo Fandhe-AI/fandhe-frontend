@@ -7812,15 +7812,22 @@ fn nav_list_section() -> Node {
     )
 }
 
-/// Navigation Menu 節（イシュー #993）: root/list/item/trigger/content/link
-/// の 6 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
-/// 機械導出されるため、1 パーツでも欠けると節が不完全になる、
+/// Navigation Menu 節（イシュー #993、#2035 で 7 パーツへ拡張）:
+/// root/list/item/trigger/item-indicator/content/link の 7 anatomy パーツを
+/// 1 デモに全網羅する（Anatomy 節はデモ HTML から機械導出されるため、
+/// 1 パーツでも欠けると節が不完全になる、
 /// `crates/docs-site/src/component_specs_overlay.rs` 参照）。
 ///
 /// 1 項目目（Products）は Trigger を開いた状態（`data-state="open"`）で
-/// 掲示し Content 内の Link を掲示する。2 項目目（About）はディスクロージャ
-/// を持たない単独リンクとし `current: true`（`aria-current="page"`）で
-/// アクティブリンク表現を掲示する。`href` は
+/// 掲示し、trigger 内に item-indicator（開閉シェブロン、イシュー #2035）を
+/// 添えて回転済みの視覚を確認できるようにする。Content 内は
+/// [`crate::text`] を併用したタイトル + 説明文の 2 列グリッドリンク合成
+/// （shadcn/ui "Components" パネル相当、`SlotRecipe` の子孫セレクタ非対応
+/// のため CSS 側は変更せず Demo コードのみで再現）を掲示する。2 項目目
+/// （Resources）はアイコン付きトリガー（`gap`、イシュー #2035）を閉じた
+/// 状態（item-indicator が回転しない基準状態）で掲示する。3 項目目
+/// （About）はディスクロージャを持たない単独リンクとし `current: true`
+/// （`aria-current="page"`）でアクティブリンク表現を掲示する。`href` は
 /// `showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
 /// linkcheck 中立性契約に従い空文字列固定とする。
 fn navigation_menu_section() -> Node {
@@ -7830,6 +7837,35 @@ fn navigation_menu_section() -> Node {
     // 状態機械を経由しない構成でも共用できる、`navigation_menu` モジュール
     // doc 参照）。
     let nav_props = navigation_menu::NavigationMenuProps::default();
+    // イシュー #2035: shadcn/ui "Components" パネル相当のタイトル + 説明文
+    // リンク合成。`crate::text`（独立した styled 部品）を link の子ノードと
+    // して併用し、navigation_menu 側の CSS を一切変更せずに再現する
+    // （`SlotRecipe` は子孫セレクタを持たない設計、イシュー #708）。
+    let title_description_link = |title: &'static str, description: &'static str| {
+        navigation_menu::link(
+            "",
+            false,
+            vec![("style", "display: block; padding: var(--fandhe-space-2);")],
+            vec![
+                styled_text(
+                    &TextProps {
+                        weight: TextWeight::Semibold,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text(title)],
+                ),
+                styled_text(
+                    &TextProps {
+                        size: TextSize::Sm,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text(description)],
+                ),
+            ],
+        )
+    };
     let node = navigation_menu::root(
         &nav_props,
         "Main",
@@ -7852,7 +7888,16 @@ fn navigation_menu_section() -> Node {
                             Some("nav-menu-products-trigger"),
                             Some("nav-menu-products-content"),
                             vec![],
-                            vec![text("Products")],
+                            vec![
+                                text("Products"),
+                                navigation_menu::item_indicator(
+                                    OpenState::Open,
+                                    &nav_props,
+                                    "products",
+                                    vec![],
+                                    vec![text("⌄")],
+                                ),
+                            ],
                         ),
                         navigation_menu::content(
                             OpenState::Open,
@@ -7860,13 +7905,48 @@ fn navigation_menu_section() -> Node {
                             "products",
                             Some("nav-menu-products-content"),
                             Some("nav-menu-products-trigger"),
-                            vec![],
+                            vec![("style", "display: grid; grid-template-columns: repeat(2, minmax(10rem, 1fr)); gap: var(--fandhe-space-2);")],
                             vec![
-                                navigation_menu::link("", false, vec![], vec![text("Analytics")]),
-                                navigation_menu::link("", false, vec![], vec![text("Automation")]),
+                                title_description_link(
+                                    "Analytics",
+                                    "利用状況・パフォーマンスを可視化するダッシュボード。",
+                                ),
+                                title_description_link(
+                                    "Automation",
+                                    "定型作業を自動化するワークフロー機能。",
+                                ),
                             ],
                         ),
                     ],
+                ),
+                navigation_menu::item(
+                    OpenState::Closed,
+                    false,
+                    &nav_props,
+                    "resources",
+                    vec![],
+                    vec![navigation_menu::trigger(
+                        OpenState::Closed,
+                        false,
+                        "resources",
+                        Some("nav-menu-resources-trigger"),
+                        Some("nav-menu-resources-content"),
+                        vec![],
+                        vec![
+                            // イシュー #2035: アイコン付きトリガー合成
+                            // （アイコン + ラベルの gap、実アイコンではなく
+                            // 簡易グリフで代用）。
+                            el("span", vec![("aria-hidden", "true")], vec![text("◆")]),
+                            text("Resources"),
+                            navigation_menu::item_indicator(
+                                OpenState::Closed,
+                                &nav_props,
+                                "resources",
+                                vec![],
+                                vec![text("⌄")],
+                            ),
+                        ],
+                    )],
                 ),
                 navigation_menu::item(
                     OpenState::Closed,
@@ -7881,7 +7961,7 @@ fn navigation_menu_section() -> Node {
     );
     section(
         "Navigation Menu",
-        "headless-ui の Navigation Menu（役割は素の nav/ul/li/button/div/a の暗黙 ARIA role に依拠し、role は一切付与しません）に pre-styled-ui の recipe CSS を適用した静的掲示です。Products トリガーを開いた状態（data-state=\"open\"）で Content 内の 2 リンクを掲示し、About は Trigger/Content を持たない単独リンクとして aria-current=\"page\" によるアクティブリンク表現を掲示します。viewport 測定・data-motion は headless 層に存在しないため掲示していません（詳細は headless-ui の navigation_menu モジュール doc を参照）。",
+        "headless-ui の Navigation Menu（役割は素の nav/ul/li/button/div/a の暗黙 ARIA role に依拠し、role は一切付与しません）に pre-styled-ui の recipe CSS を適用した静的掲示です。Products トリガーを開いた状態（data-state=\"open\"）で item-indicator（開閉シェブロン、イシュー #2035）を回転済みの視覚で掲示し、Content 内は crate::text を併用したタイトル + 説明文の 2 列グリッドリンク合成を掲示します。Resources はアイコン + item-indicator を持つトリガーを閉じた状態（回転しない基準状態）で掲示し、About は Trigger/Content を持たない単独リンクとして aria-current=\"page\" によるアクティブリンク表現を掲示します。viewport 測定・data-motion・ルートレベルの NavigationMenuIndicator は headless 層に存在しないため掲示していません（詳細は headless-ui の navigation_menu モジュール doc、および pre-styled-ui の navigation_menu モジュール doc「shadcn/ui 突合（イシュー #2035）」節を参照）。",
         vec![node],
     )
 }

@@ -174,7 +174,56 @@
 //! **イシュー #1654 追記**: headless 層が新設した `item-indicator` パート
 //! （`data-orientation`/`data-value`/`aria-hidden` 付き `span`）への
 //! [`SLOTS`] 追加・CSS 付与・`orientation = Vertical` 向けレイアウト調整は
-//! 本モジュールでは未実施（親 #1530 系列〔#1700/#1701 相当〕へ申し送り）。
+//! 本モジュールでは未実施だった（親 #1530 系列〔#1700/#1701 相当〕へ申し
+//! 送り、下記「shadcn/ui 突合（イシュー #2035）」節で解消済み）。
+//!
+//! # shadcn/ui 突合（イシュー #2035）
+//!
+//! 親イシュー #2001 の shadcn/ui 突合ツリーに基づき実機
+//! （<https://ui.shadcn.com/docs/components/base/navigation-menu>、Base UI
+//! 版）と突き合わせ、以下を実施した。
+//!
+//! - **`item-indicator`（トリガー横の開閉シェブロン）を新設**: 上記
+//!   イシュー #1654 追記の未回収債務を解消した（兄弟イシュー #2034
+//!   〔menubar、コミット `ee7583b9`〕の同型未回収解消と同じ扱い）。
+//!   [`crate::accordion::item_indicator`] を precedent とする
+//!   （`display: inline-block` + `data-state="open"` での
+//!   `transform: rotate(180deg)`）。**[`crate::select`]/[`crate::menubar`]
+//!   の `margin-left: auto` パターンは採らない**: それらの `item-indicator`
+//!   は `hidden` 存在属性による表示制御（チェックマーク）だが、
+//!   navigation-menu の `item_indicator` はヘッドレス層で `state:
+//!   OpenState` を受け取るトリガー付随のシェブロンであり意味論が異なる
+//!   （`display` を明示しても `hidden` 制御と衝突しない）ため。
+//! - **`trigger`/`link` へ `gap: var(--fandhe-space-2)` を追加**: shadcn の
+//!   アイコン付きトリガー/リンク合成例（アイコン + ラベルを横並びにする
+//!   際の間隔）に対応するための余白宣言。値は shadcn の実測ピクセル値では
+//!   なく [`crate::menu`] の item 系パートが確立した既存トークン運用
+//!   （`--fandhe-space-2`）に合わせた（適用原則: 色味・角丸・影・spacing
+//!   等トークン値の差は shadcn の実測値そのものを追わず既存体系を優先
+//!   する）。
+//!
+//! ## 意図的に合わせなかった点（イシュー #2035）
+//!
+//! - **ルートレベルの `NavigationMenuIndicator`（viewport スライド
+//!   ポインタ）は追加しない**: shadcn の Composition ツリーには
+//!   `NavigationMenu` 直下に `NavigationMenuIndicator`（viewport 寸法計測を
+//!   伴うスライド式ポインタ）が存在するが、headless-ui の `item_indicator`
+//!   （トリガー内シェブロン）とは全く別の anatomy であり headless-ui には
+//!   実装されていない。`docs/policy/intentional-non-adoption.md` §3.25
+//!   規則 2（装飾・アニメーション・レイアウト計測は headless 層へ持ち込ま
+//!   ない）により意図的に非採用。追加するには headless-ui 側の新規
+//!   anatomy 変更（ユーザー承認事項）が必要なため本イシューの範囲外。
+//! - **`link` 内のタイトル + 説明文の個別スタイリング（新規 anatomy
+//!   パート）は追加しない**: shadcn の "Components" トリガーパネルは
+//!   2 列グリッド + 各リンクが太字タイトル + 淡色説明文を持つが、
+//!   `SlotRecipe` は子孫セレクタを持たない設計（イシュー #708 で不採用
+//!   確定）であり、`link` 内部を個別スタイルする新規パートは headless-ui
+//!   側の変更を要する。代わりに [`crate::text`]（独立した styled 部品）を
+//!   `link` の子ノードとして併用する合成パターンで再現できる（グリッド
+//!   配置・タイトル/説明文の視覚も含め、`content` の CSS を一切変更せず
+//!   呼び出し側の Examples/Demo コードで組める）。
+//! - **`:active`（押下）擬似クラスは追加しない**: 既存の判断（本ファイル
+//!   イシュー #1700 節）を継承する。
 
 use crate::css::decl;
 use crate::recipe::{
@@ -202,7 +251,15 @@ pub use fandhe_frontend_headless_ui::state::OpenState;
 /// 呼び出しと同期させる契約。ずれると [`stylesheet`] が一部パーツの CSS を
 /// 出力しない fail-closed 側の不具合として現れるため、変更時は両ファイルを
 /// 合わせて確認する）。
-const SLOTS: &[&str] = &["root", "list", "item", "trigger", "content", "link"];
+const SLOTS: &[&str] = &[
+    "root",
+    "list",
+    "item",
+    "trigger",
+    "item-indicator",
+    "content",
+    "link",
+];
 
 /// この styled Navigation Menu の既定 CSS を組み立てる（内部ヘルパ、
 /// [`stylesheet`] のみが呼ぶ）。
@@ -247,6 +304,28 @@ fn recipe() -> SlotRecipe {
             "trigger",
             transition_declarations("background, color", MotionDuration::Fast),
         )
+        // イシュー #2035: アイコン付きトリガー合成（アイコン + ラベルの
+        // 間隔）向けの余白。既存宣言は変更しない純追加（値は shadcn の
+        // 実測値ではなく crate::menu の item 系パートが確立した既存
+        // トークン運用に合わせる、モジュール冒頭 rustdoc「shadcn/ui 突合」
+        // 節参照）。
+        .base("trigger", vec![decl("gap", "var(--fandhe-space-2)")])
+        // イシュー #2035: headless 層が #1654 で新設した item-indicator
+        // （トリガー横の開閉シェブロン）へ CSS を追いつかせる。
+        // crate::accordion::item_indicator を precedent とする
+        // （select/menubar の margin-left: auto パターンは意味論が異なる
+        // ため不採用、モジュール冒頭 rustdoc 参照）。
+        .base(
+            "item-indicator",
+            vec![
+                decl("display", "inline-block"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+            ],
+        )
+        .base(
+            "item-indicator",
+            transition_declarations("transform", MotionDuration::Normal),
+        )
         .base(
             "content",
             vec![
@@ -279,11 +358,21 @@ fn recipe() -> SlotRecipe {
             "link",
             transition_declarations("background, color", MotionDuration::Fast),
         )
+        // イシュー #2035: アイコン付きリンク合成向けの余白（trigger と同じ
+        // 判断・同じトークン値）。
+        .base("link", vec![decl("gap", "var(--fandhe-space-2)")])
         // 開いている trigger を視覚的に強調する。
         .state(
             "trigger",
             StateCondition::AttrEq("data-state", "open"),
             vec![decl("background", "var(--fandhe-color-accent-subtle)")],
+        )
+        // イシュー #2035: 開いている trigger のシェブロンを 180° 回転する
+        // （crate::accordion::item_indicator と同型）。
+        .state(
+            "item-indicator",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("transform", "rotate(180deg)")],
         )
         // アクティブリンク（現在地）を視覚的に強調する。
         .state(
@@ -473,6 +562,40 @@ mod tests {
         assert_eq!(trigger_disabled, item_disabled);
         assert!(trigger_disabled.contains("opacity"));
         assert!(trigger_disabled.contains("cursor"));
+    }
+
+    #[test]
+    fn item_indicator_has_transformable_display() {
+        // イシュー #2035: item-indicator が transform 可能な display を
+        // 持つことの固定（crate::accordion と同型の precedent 確認）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="navigation-menu"][data-part="item-indicator"] {"#));
+        assert!(css.contains("display: inline-block;"));
+    }
+
+    #[test]
+    fn item_indicator_rotates_when_trigger_open() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="navigation-menu"][data-part="item-indicator"][data-state="open"] {"#
+        ));
+        assert!(css.contains("transform: rotate(180deg);"));
+    }
+
+    #[test]
+    fn trigger_and_link_declare_icon_gap() {
+        // イシュー #2035: アイコン付きトリガー/リンク合成向けの間隔。
+        // `.base()` は同一 slot への複数回登録が独立した規則ブロックとして
+        // 出力される（`SlotRecipe::css` 実装）ため、trigger/link 双方に 1 件
+        // ずつ `gap` 専用ブロックが追加されたことを出現回数で確認する。
+        let css = stylesheet();
+        assert_eq!(css.matches("gap: var(--fandhe-space-2);").count(), 2);
+        assert!(css.contains(
+            "[data-scope=\"navigation-menu\"][data-part=\"trigger\"] {\n  gap: var(--fandhe-space-2);\n}"
+        ));
+        assert!(css.contains(
+            "[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  gap: var(--fandhe-space-2);\n}"
+        ));
     }
 
     #[test]
