@@ -6385,10 +6385,176 @@ fn splitter_section() -> Node {
         vertical_children,
     );
 
+    // イシュー #2038: shadcn/ui `resizable` の `withHandle` prop（ハンドル
+    // 中央に角丸ボックス+グリップアイコンを追加描画するオプトイン）に相当
+    // する合成パターンの掲示。`resize_trigger_indicator` を
+    // `resize_trigger` の children として渡すだけで表現できる（`splitter`
+    // モジュール rustdoc「イシュー #2038」節参照。indicator 自体の CSS は
+    // 既存 pill 表現のまま変更しない）。上記 `horizontal_demo`（indicator
+    // なし）と対比できるよう並べて掲示する。
+    let with_handle_state = Splitter::new(
+        &[
+            PanelSpec::new(60.0, 20.0, 80.0),
+            PanelSpec::new(40.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let with_handle_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &with_handle_state,
+        false,
+        vec![("style", "min-height: 12rem;")],
+        vec![
+            splitter::panel(
+                &with_handle_state,
+                0,
+                "showcase-splitter-wh-panel-a",
+                vec![],
+                vec![text("Panel A")],
+            ),
+            splitter::resize_trigger(
+                &with_handle_state,
+                0,
+                "showcase-splitter-wh-panel-a",
+                "showcase-splitter-wh-panel-b",
+                false,
+                vec![],
+                vec![splitter::resize_trigger_indicator(vec![], vec![])],
+            ),
+            splitter::panel(
+                &with_handle_state,
+                1,
+                "showcase-splitter-wh-panel-b",
+                vec![],
+                vec![text("Panel B")],
+            ),
+        ],
+    );
+
+    // イシュー #2038: shadcn/ui デフォルトデモ（One | (Two / Three)）と
+    // 同型の入れ子構成。外側 horizontal の panel B の children に、別の
+    // `splitter::root`（内側は vertical）をそのまま渡すだけで再現できる
+    // 合成パターン（新規 API 不要、`splitter` モジュール rustdoc
+    // 「イシュー #2038」節参照）。内側 `root` は base 規則の外枠・角丸を
+    // そのまま持つと外枠の中にもう一つ枠が入る二重線になるため、Demo 限定
+    // のインラインスタイルで打ち消す（recipe/stylesheet の出力は変更
+    // しない）。縦方向 flex の子は `flex-basis` にパーセンテージを使う
+    // ため、祖先に解決済みの高さが必要（`vertical_demo` と同じ制約、PR
+    // #862）で、外側には確定値の `height`、内側（縦方向）には
+    // `height: 100%` を明示する。
+    let nested_outer_state = Splitter::new(
+        &[
+            PanelSpec::new(40.0, 20.0, 80.0),
+            PanelSpec::new(60.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let nested_inner_state = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 0.0, 100.0),
+            PanelSpec::new(50.0, 0.0, 100.0),
+        ],
+        Orientation::Vertical,
+    );
+    let nested_inner_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &nested_inner_state,
+        false,
+        vec![("style", "border: none; border-radius: 0; height: 100%;")],
+        vec![
+            splitter::panel(
+                &nested_inner_state,
+                0,
+                "showcase-splitter-nested-inner-panel-a",
+                vec![],
+                vec![text("Two")],
+            ),
+            splitter::resize_trigger(
+                &nested_inner_state,
+                0,
+                "showcase-splitter-nested-inner-panel-a",
+                "showcase-splitter-nested-inner-panel-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &nested_inner_state,
+                1,
+                "showcase-splitter-nested-inner-panel-b",
+                vec![],
+                vec![text("Three")],
+            ),
+        ],
+    );
+    let nested_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &nested_outer_state,
+        false,
+        vec![("style", "height: 16rem;")],
+        vec![
+            splitter::panel(
+                &nested_outer_state,
+                0,
+                "showcase-splitter-nested-outer-panel-a",
+                vec![],
+                vec![text("One")],
+            ),
+            splitter::resize_trigger(
+                &nested_outer_state,
+                0,
+                "showcase-splitter-nested-outer-panel-a",
+                "showcase-splitter-nested-outer-panel-b",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &nested_outer_state,
+                1,
+                "showcase-splitter-nested-outer-panel-b",
+                vec![],
+                vec![nested_inner_demo],
+            ),
+        ],
+    );
+
     section(
         "Splitter",
         "パネルサイズ状態機械 Splitter の静的掲示（水平 2 パネル・垂直 3 パネル）。resize-trigger は role=\"separator\" + aria-valuemin/max/now（先行パネルのサイズ %）+ aria-controls を持ちます（ドラッグ・キーボード操作は wasm 層のスコープ外）。",
-        vec![row(vec![horizontal_demo]), row(vec![vertical_demo])],
+        vec![
+            row(vec![horizontal_demo]),
+            row(vec![vertical_demo]),
+            row(vec![el(
+                "div",
+                vec![],
+                vec![
+                    p(
+                        vec![],
+                        vec![text(
+                            "With handle（resize_trigger_indicator を渡した合成パターン）",
+                        )],
+                    ),
+                    with_handle_demo,
+                ],
+            )]),
+            row(vec![el(
+                "div",
+                vec![],
+                vec![
+                    p(
+                        vec![],
+                        vec![text(
+                            "Nested（panel の children に別の splitter::root を渡す合成パターン）",
+                        )],
+                    ),
+                    nested_demo,
+                ],
+            )]),
+        ],
     )
 }
 
