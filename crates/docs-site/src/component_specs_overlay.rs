@@ -86,7 +86,9 @@ use fandhe_frontend_pre_styled_ui::{
     drawer::{self, DrawerPlacement},
     hover_card::{self, HoverCardDelays},
     kbd::{kbd, KbdProps},
-    menubar, ColorPalette, OpenState, Size,
+    menubar, navigation_menu,
+    text::{text as styled_text, TextProps, TextSize, TextWeight},
+    ColorPalette, OpenState, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -548,7 +550,11 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
             description: "link に付与。true のとき aria-current=\"page\" + data-current を出力する。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Title + description link grid",
+        description: "shadcn/ui の \"Components\" パネル相当のタイトル + 説明文リンク合成パターンです。`SlotRecipe` は子孫セレクタを持たない（イシュー #708 で不採用確定）ため、新しい anatomy パートは追加せず、link の子として crate::text（太字タイトル + 淡色サイズの説明文）を並べるだけで再現しています（link/content 自身の CSS は変更していません。2 列グリッド配置も content へ渡す style 属性のみで実現）。",
+        render: ex_navigation_menu_title_description_link,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -567,9 +573,47 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
             attribute: "aria-current=\"page\"",
             description: "link に付与（current が true のときのみ）。role は付与しない。",
         },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "item-indicator に固定付与。トリガーの aria-expanded から開閉状態が既に伝わるための装飾専用要素（イシュー #2035）。",
+        },
     ],
     demo: None,
 };
+
+/// [`NAVIGATION_MENU`] の Examples 節「Title + description link grid」
+/// レンダラ（イシュー #2035）。
+///
+/// shadcn/ui の "Components" パネル相当のタイトル + 説明文リンク合成。
+/// 新規 anatomy パートを追加せず、link の子として crate::text
+/// （太字タイトル + 小サイズの説明文）を並べるだけで再現する
+/// （`crates/pre-styled-ui/src/navigation_menu.rs` モジュール doc
+/// 「shadcn/ui 突合（イシュー #2035）」節参照）。
+fn ex_navigation_menu_title_description_link() -> Node {
+    navigation_menu::link(
+        "",
+        false,
+        vec![("style", "display: block; padding: var(--fandhe-space-2);")],
+        vec![
+            styled_text(
+                &TextProps {
+                    weight: TextWeight::Semibold,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("Analytics")],
+            ),
+            styled_text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("利用状況・パフォーマンスを可視化するダッシュボード。")],
+            ),
+        ],
+    )
+}
 
 /// `/themes/dialog/`（Interactive カテゴリ）。
 ///

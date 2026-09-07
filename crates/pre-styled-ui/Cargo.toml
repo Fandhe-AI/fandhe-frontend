@@ -2152,19 +2152,37 @@ name = "fandhe-frontend-pre-styled-ui"
 # の shadcn/ui 突合、PR #2163）が到達した 0.125.2 が同一版数へ偶発的に衝突
 # したため、`docs/ci/style-refresh-version-bump-operation.md` §5 の手順
 # （同一版数への偶発的衝突をそのまま採用しない）に従い main の到達値から
-# さらに +1 して 0.125.3 とする。
-# base 再取り込み（イシュー #2019, PR #2165, 2026-09-07）: 本ブランチ
-# （select の shadcn/ui 突合、content max-height/overflow-y の観測可能な
-# 破壊的変更のためマイナーバンプで 0.126.0 に到達済み）と main（menubar の
-# shadcn/ui 突合、patch バンプで 0.125.3 に到達済み）が version 行でコン
-# フリクトした。`docs/ci/style-refresh-version-bump-operation.md` §5 の
-# 手順（自分の変更がマイナーバンプの場合は main の現在値の minor を +1 し
-# patch を 0 に戻す）に従うと main の到達値 0.125.3 から 0.126.0 となり、
-# 本ブランチの到達値と一致するためそのまま採用する。
-# イシュー #2036: pagination の shadcn/ui 突合。rustdoc 追記と docs-site
-# Examples 追加のみで recipe() は無変更（純追加原則を満たす真の CSS 欠落は
-# 見つからなかった）ため patch バンプする。
-version = "0.126.1"
+# さらに +1 して 0.125.3 とする。イシュー #2035（navigation-menu の
+# shadcn/ui 突合）で 0.125.4 へ patch バンプした（既存 variant の CSS 出力は
+# 変更せず、item-indicator パートの CSS 到達を新規追加する純追加のため）。
+# base 再取り込み（イシュー #2019, PR #2165, 2026-09-07）: main 側（select の
+# shadcn/ui 突合、content max-height/overflow-y の観測可能な破壊的変更の
+# ためマイナーバンプ）が 0.126.0 に到達済み。
+# base 再取り込み（イシュー #2035, PR #2166 修正ラウンド, 2026-09-07）: 本
+# ブランチ（navigation-menu の shadcn/ui 突合、patch バンプで 0.125.4 に
+# 到達済み）と main（select の shadcn/ui 突合を経て 0.126.0 に到達済み）が
+# version 行でコンフリクトした。`docs/ci/style-refresh-version-bump-operation.md`
+# §5 の手順（自分の変更が patch バンプの場合は main の現在値の patch を
+# +1 する）に従い、main の到達値 0.126.0 の patch を +1 して 0.126.1 とする。
+# 再修正（PR #2166 codex-review P1 指摘, 2026-09-07）: `link` パートの
+# 既定 `display` を `block` → `flex` へ変更する対応（本ファイル修正ラウンド
+# コミット）は、`link` 内に段落として並べたタイトル・説明文を縦積みから
+# 横並びへ変える観測可能な破壊的変更であり、`docs/ci/style-refresh-version-bump-operation.md`
+# §3.3（CSS 出力の破壊的変更は minor バンプ）に該当する。patch バンプの
+# 0.126.1 のままでは規約違反のため、minor バンプして 0.127.0（patch は 0
+# へ戻す）とする。移行方法: `link` 内に複数の子要素（タイトル・説明文等）
+# を並べて縦積みレイアウトへ依存していた利用者は、`crate::text` 等の
+# wrapper 要素を `link` の直下の単一子要素として挟み、その wrapper 内で
+# 従来どおり `display: block`（既定）の縦積みを組むことで挙動を維持できる
+# （`link` 自身は flex コンテナのままだが単一子要素なら見た目は変わらない）。
+# base 再取り込み（イシュー #2036, 2026-09-07）: 本ブランチ（pagination の
+# shadcn/ui 突合、rustdoc/docs-site 追記のみで recipe() 無変更のため patch
+# バンプで 0.126.1 に到達済み）と main（navigation-menu の link パート
+# 破壊的変更のためマイナーバンプ、0.127.0 に到達済み）が version 行で
+# コンフリクトした。`docs/ci/style-refresh-version-bump-operation.md` §5
+# の手順（自分の変更が patch バンプの場合は main の現在値の patch を
+# +1 する）に従い、main の到達値 0.127.0 の patch を +1 して 0.127.1 とする。
+version = "0.127.1"
 
 
 edition = "2021"
