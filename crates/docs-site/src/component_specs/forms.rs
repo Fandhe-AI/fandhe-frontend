@@ -1829,11 +1829,48 @@ const TEXTAREA: ComponentPageSpec = ComponentPageSpec {
             description: "テキストコンテンツとなる子ノード。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "ラベル・補助テキストとの組み合わせ",
+        description: "`textarea` はラベル・補助テキストの型階層を持たず、`field`（`/themes/field/`）が担う（`INPUT` の同種 Examples と同型の合成、イシュー #2022、shadcn/ui の label + textarea + description パターンを本リポジトリの既存 API で再現）。",
+        render: ex_textarea_with_label_and_helper,
+    }],
     keyboard: &[],
     aria: &[],
     demo: None,
 };
+
+/// [`TEXTAREA`] の Examples 節「ラベル・補助テキストとの組み合わせ」レンダラ
+/// （イシュー #2022）。[`ex_input_with_label_and_helper`] と同型の合成
+/// （label + textarea + helper_text + field::root）。
+fn ex_textarea_with_label_and_helper() -> Node {
+    let f = fandhe_frontend_pre_styled_ui::textarea::FieldProps {
+        id: "example-textarea-message",
+        ids: fandhe_frontend_pre_styled_ui::textarea::FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
+    field::root(
+        &FieldRootProps {
+            orientation: FieldOrientation::Vertical,
+        },
+        &f,
+        vec![],
+        vec![
+            field::label(&f, vec![], vec![text("Message")]),
+            fandhe_frontend_pre_styled_ui::textarea::textarea(
+                &fandhe_frontend_pre_styled_ui::textarea::TextareaProps::default(),
+                &f,
+                false,
+                vec![("placeholder", "Type your message here.")],
+                vec![],
+            ),
+            field::helper_text(&f, vec![], vec![text("Enter your message below.")]),
+        ],
+    )
+}
 
 const TOGGLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
