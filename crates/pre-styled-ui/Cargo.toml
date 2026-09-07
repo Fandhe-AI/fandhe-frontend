@@ -2036,6 +2036,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # に 1px の内側リング（`box-shadow`）を追加し WCAG 1.4.11（非テキスト
 # コントラスト）を回復した。セレクタ・CSS 変数名の変更を伴わない意匠調整
 # のみのため patch バンプで 0.119.1 とする。
+# イシュー #2009: shadcn/ui との突合により `ButtonVariant` へ `Link` を
+# 新設した。網羅 `match` を壊す列挙値追加（`#[non_exhaustive]` ではない）
+# のため 0.x の破壊的変更としてマイナーバンプで 0.120.0 とする。
 # イシュー #2010: calendar を shadcn/ui と突合し、`day-trigger` の
 # `data-selected` × `data-outside-month` 状態競合（selected かつ
 # outside-month のセルで文字色が上書きされる不具合）を是正した。
@@ -2043,10 +2046,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 順が観測可能に変わる実体変更のためマイナーバンプで 0.120.0 とする。
 # イシュー #2027: breadcrumb の shadcn/ui 突合で `list` に
 # `overflow-wrap: break-word` を追加した（`stylesheet()` 出力の変化）。
-# 新規セレクタ・variant・`data-*` を追加しない意匠調整のみのため、main が
-# 先行して到達していた 0.120.0 から patch バンプして 0.120.1 とする。
-version = "0.120.1"
-
+# 新規セレクタ・variant・`data-*` を追加しない意匠調整のみのため patch
+# バンプが必要だったが、main が同時に 0.119.1 から独立に 0.120.0 へ
+# 到達し（同一版数衝突）さらに +1 して 0.121.0 に到達済みだったため、
+# 本ブランチの実体変更は main の到達値 0.121.0 からの patch バンプとして
+# 統合する（0.122.0 は本 PR のレビュー指摘是正〔#2027 codex-review P2、
+# breadcrumb の折り返し不具合修正〕で別途バンプする）。
+version = "0.121.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
