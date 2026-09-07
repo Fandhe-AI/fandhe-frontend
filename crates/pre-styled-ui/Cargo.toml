@@ -2217,7 +2217,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 第 1 引数として追加した観測可能な破壊的変更（0.x の破壊的変更はマイナー
 # バンプ、`.claude/rules/coding-rust.md`）のため 0.129.0 へマイナーバンプ
 # する。
-version = "0.129.0"
+# イシュー #2023: shadcn/ui 突合で toggle に `ToggleVariant`（Outline/Ghost）
+# を新設し `root()` シグネチャへ `variant` 引数を挿入した（0.x の破壊的
+# 変更のためマイナーバンプ、button #2141 の `ButtonVariant::Link` 追加と
+# 同型）。
+# base 取り込み時の同一版数衝突（PR #2173 修正ラウンド, 2026-09-08）: 本
+# ブランチ（tabs の shadcn/ui 突合）と main（toggle の shadcn/ui 突合）が
+# それぞれ独立に 0.129.0 へマイナーバンプしており、値が偶然一致していた
+# だけで別々の実体変更である（`semver-same-version-is-conflict` の追加
+# +1 運用）。同一版数のまま採用せず 0.130.0 へさらにマイナーバンプする。
+version = "0.130.0"
 
 
 edition = "2021"
