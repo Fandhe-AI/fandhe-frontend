@@ -5237,6 +5237,18 @@ fn slider_section() -> Node {
                         vec![slider::range(&mid_state, &mid_props, vec![])],
                     ),
                     slider::thumb_styled(&mid_state, Some("40 percent"), &mid_props, vec![]),
+                    // イシュー #2020: styled marker/marker-group の Demo 反映
+                    // （headless anatomy はイシュー #1904 で追加済み）。
+                    // `crates/docs-site/src/primitive_showcase/forms_b.rs::slider_section`
+                    // と同じ DOM 位置（`track`/`thumb` の後）に配置する。
+                    slider::marker_group(
+                        vec![],
+                        vec![
+                            slider::marker(&mid_state, 0.0, false, vec![], vec![]),
+                            slider::marker(&mid_state, 50.0, false, vec![], vec![]),
+                            slider::marker(&mid_state, 100.0, false, vec![], vec![]),
+                        ],
+                    ),
                 ],
             ),
             slider::hidden_input("volume", "40", false, vec![]),

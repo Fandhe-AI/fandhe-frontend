@@ -2146,7 +2146,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # したため、`docs/ci/style-refresh-version-bump-operation.md` §5 の手順
 # （同一版数への偶発的衝突をそのまま採用しない）に従い main の到達値から
 # さらに +1 して 0.125.3 とする。
-version = "0.125.3"
+version = "0.125.4"
 
 
 edition = "2021"
