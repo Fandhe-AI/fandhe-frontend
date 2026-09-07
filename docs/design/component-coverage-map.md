@@ -1057,9 +1057,10 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
   追加・構成変更の追随は、本書の改訂 issue を起票して行う。CI による自動
   検知は行わない（Radix 側と同じ既存 §4 系の方針、イシュー #2004）
 - **§12.1 の 7 行（会話系部品 message/bubble/attachment/marker・
-  questionnaire・message-scroller・data-table）の判定根拠詳細記述**: 骨組み
-  （区分・対応 issue）のみを本書へ記載し、判定根拠の詳細は #2006 のスコープ
-  として同 issue が §12 へ転記・拡充する（イシュー #2004）
+  questionnaire・message-scroller・data-table）の判定根拠詳細記述**: 完了
+  （イシュー #2006）。§12.1 表直後の解説段落へ判定根拠を転記・拡充し、
+  `docs/policy/intentional-non-adoption.md` §3.25 へ規則 1・規則 2 それぞれの
+  適用例として追記済み
 - **blocks の取り込み**: shadcn/ui の Blocks（dashboard/sidebar/login/signup
   等の複合ページテンプレート）は `component-coverage-map.md` の行モデル
   （部品 1 件 = mod 1 件）の対象外であり、置き場所の判断は #2007 のスコープ
@@ -1313,10 +1314,10 @@ grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l  
 （第 4 参照軸、位置づけは「補完参照」、`docs/design/shadcn-reference-adoption-policy.md`
 参照）を突合し、`fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui`
 に未実装の部品を洗い出した判定結果を本節へ記録する。区分の意味は §2 の
-とおり。「§5 該当行」は本書 §5（Part A〜F）の対応行を示す。本節は骨組み
-（区分・対応 issue・現状）のみを記載し、7 部品（attachment/bubble/message/
-marker/message-scroller/questionnaire/data-table）の判定根拠の詳細記述は
-#2006 のスコープであり、同 issue が本節へ転記・拡充する（§7 参照）。
+とおり。「§5 該当行」は本書 §5（Part A〜F）の対応行を示す。7 部品
+（attachment/bubble/message/marker/message-scroller/questionnaire/
+data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転記・拡充した
+（12.1 表直後の解説段落を参照。§7 参照）。
 
 ### 12.1 追加推奨（実装確定済み）
 
@@ -1334,6 +1335,44 @@ marker/message-scroller/questionnaire/data-table）の判定根拠の詳細記�
 | Questionnaire (`questionnaire`) | Part F | #2116 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Message Scroller (`message-scroller`) | Part F | #2120 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Data Table (`data-table`) | Part F | #2124 | 実装対象確定（構造・DOM 配線のみ。データ整形・並べ替えロジックは §3.25 規則 1 により非対象、ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
+
+**7 部品の判定根拠（イシュー #2006、`intentional-non-adoption.md` §3.25
+適用例）**: 上表の 7 行はいずれも実装確定済みだが、それぞれ §3.25 の
+どちらの規則がどう効いているかを以下に確定記録する。詳細は各実装 issue
+本文（「責務境界」節・「会話系 4 部品の共通方針」節）を正とし、本節は
+要約のみを転記する（二重管理を避けるため、実装イシューの記述と本節の
+要約が食い違った場合は実装イシュー側を正とする）。
+
+- **Data Table（`data-table`、#2124、規則 1 適用）**: TanStack Table 由来の
+  ソート・フィルタ・ページング・行選択保持は「アプリケーションロジック」
+  として非対象。`headless-ui::data_table` が扱うのは `aria-sort` 付き
+  ヘッダーとソートトリガー（方向はイベント通知のみ、比較・安定ソートは
+  非対象）・選択チェックボックス列の表示（選択結果の保持は非対象）・
+  列表示切替の `data-hidden`（列定義・列順の永続化は非対象）・`pagination`
+  再利用のページング footer（ページサイズに応じたデータ取得は非対象）・
+  `empty-state`/`skeleton` 再利用の空状態/読み込み中表示までである。
+- **Message / Bubble / Attachment / Marker（会話系 4 部品、#2104 / #2107 /
+  #2110 / #2113、規則 1 適用）**: 4 部品は AI チャット UI の**表示**部品群
+  であり、ストリーミング表示・送信・履歴取得・必須回答判定等のアプリ
+  ケーションロジックは内包しない（表示状態のみ `data-*` で受ける）。
+  Message は発言者・整列・グルーピングの anatomy（`data-role` /
+  `data-align` / `data-loading` / `data-error`）を持つが、応答待ち・送信
+  失敗の**判定**（再送処理を含む）はアプリ側の責務。Attachment はファイル
+  名・サイズを「整形済み文字列として受け取る」（§3.23 の数値整形非採用の
+  系）。4 部品は語彙分裂を避けるため、最初に着手する issue が
+  `crates/pre-styled-ui/tests/data_attr_vocabulary.rs` へ共通語彙
+  （`data-role`/`data-align` 等）を登録し、後続がそれに従う運用とする。
+- **Questionnaire（`questionnaire`、#2116、規則 1 適用）**: 質問カード・
+  進捗・ナビゲーション（前へ/次へ/スキップ）の anatomy のみを扱う。
+  `data-disabled`（next ボタン、未回答かつ必須のとき）の**必須判定自体は
+  アプリ側が行い、結果（真偽）だけを部品へ渡す**。
+- **Message Scroller（`message-scroller`、#2120、規則 2 適用）**: 最下部
+  追従（stick-to-bottom）・新着自動スクロール・履歴読み込み時のスクロール
+  位置維持は**レイアウト計測を伴う実行時関心**であり、Navigation Menu の
+  viewport 測定と同型の判別（規則 2）により `wasm-full` 側へ置く。
+  `headless-ui::message_scroller` は `data-stuck=bottom|free` /
+  `data-has-new` / `data-visible` / `data-loading` の anatomy と表示状態
+  のみを持ち、スクロール位置の計測・復元コードを一切含まない。
 
 **Radar Chart と Radial Chart は別種であり、個別に判定する**（codex-review
 指摘、#2136）。Radar（レーダーチャート）は Part B `charts/radar-chart.md`
@@ -1387,6 +1426,7 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）との
 | Sonner (`sonner`) | 既存 `toast`（Part A `overlays/toast.md`）で充足。#2040 でスタック表示の詳細突合予定。§5 Part F に注記行あり |
 | Typography (`typography`) | 既存 `heading`/`text`/`blockquote`/`list`/`code` 等の複数 mod に分散対応（Part B typography 節）。個別バリアント（Lead/Large/Small/Muted）は未実装だが `component-coverage-map.md` の粒度（部品 1 件 = mod 1 件）に照らし既存記録で充足済みと扱う |
 | Blocks（dashboard/sidebar/login/signup 等） | `component-coverage-map.md` の行モデル（部品 1 件 = mod 1 件）の対象外。置き場所は #2007 が別途判断する |
+| Utils（`scroll-fade` / `shimmer`） | 独立部品としての新規判定は行わない。`scroll-fade` は Phase 3（#2054 `scroll-area` の突合）、`shimmer` は Phase 3（#2050 `skeleton` の突合）へ既に吸収されており、本イシュー（#2006）の範囲では新規判定なしと確定する（イシュー #2001 の Phase 0 見立て表の記述をそのまま確定区分として転記） |
 
 再評価トリガー充足時の手続きは §9・§11 と同様、通常の feature issue を
 起票して本節・§5 の該当行を実装確定後に更新する。
