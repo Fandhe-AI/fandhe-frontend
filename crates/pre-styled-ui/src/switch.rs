@@ -209,8 +209,9 @@
 //!
 //! - **`data-invalid`**: `SwitchProps.invalid`（`crates/headless-ui/src/
 //!   switch.rs`、#1622）が全パーツへ出す `data-invalid` を `control` slot
-//!   が未消費だった非対称を解消し、`box-shadow` の外側リングで視覚差を
-//!   追加した（採用理由は [`recipe`] 内コメント参照）。
+//!   が未消費だった非対称を解消し、`outline` の外側リングで視覚差を
+//!   追加した（`forced-colors: active` でも消えない理由・当初 `box-shadow`
+//!   実装からの是正経緯は下記 [`recipe`] 内コメント参照）。
 //!
 //! ## Examples 節の合成パターン補完（コード変更なし）
 //!
@@ -349,14 +350,29 @@ fn recipe() -> SlotRecipe {
         // `thumb-travel = thumb-size` の相互不変条件（#1508/#1509
         // モジュール rustdoc 参照）を満たした実効幅で成立している。ここへ
         // `border` を新設すると border-box の実効幅・thumb の translateX
-        // 整合に影響しうるため、レイアウトに参加しない `box-shadow` の
-        // 外側リングで視覚差を表現する（`thumb` は既に別 slot で
+        // 整合に影響しうるため、`border`/`outline` いずれも box 寸法へ
+        // 参加しない点は共通だが、後者を採用する（`outline` はフォーカス
+        // リング規約（#1424、`docs/design/
+        // pre-styled-ui-focus-ring-and-size-conventions.md` §3・
+        // `recipe::focus_ring_declarations` doc 参照）が「新規に
+        // `box-shadow` によるリングを追加しない」と確定させた理由と同じ
+        // く、`forced-colors: active` で `outline` の色はシステム色へ
+        // 強制置換され必ず描画されるが `box-shadow` は除去され消える
+        // ため。Bugbot 指摘〔PR #2169〕を機に、当初実装していた
+        // `box-shadow` 版から本実装へ是正した）。下記 `data-focus-visible`
+        // 状態も同じ `control` slot へ `outline` を宣言するが、両状態が
+        // 同時成立（invalid かつ focus-visible）する場合は後続登録の
+        // `data-focus-visible` 側が同一プロパティを上書きしフォーカス
+        // リングが優先表示される（`thumb` は既に別 slot で
         // `box-shadow: var(--fandhe-shadow-sm)` を持つが slot が異なり
         // 衝突しない）。
         .state(
             "control",
             StateCondition::Attr("data-invalid"),
-            vec![decl("box-shadow", "0 0 0 2px var(--fandhe-color-danger)")],
+            vec![
+                decl("outline", "2px solid var(--fandhe-color-danger)"),
+                decl("outline-offset", "2px"),
+            ],
         )
         // イシュー #709: 実フォーカスは hidden-input が受けるため、wasm 層
         // （`fandhe-frontend-wasm-full` の focus 配線）が `control` へも
@@ -642,11 +658,15 @@ mod tests {
     fn stylesheet_links_control_to_data_invalid_state() {
         // イシュー #2021: shadcn/ui との突合で headless 層が出す
         // `data-invalid` が control slot で未消費だったことを確認し追加した
-        // （`checkbox` の同名テストと同型）。
+        // （`checkbox` の同名テストと同型）。PR #2169 の Bugbot 指摘を受け、
+        // `forced-colors: active` で消える `box-shadow` から、システム色へ
+        // 強制置換され必ず描画される `outline` へ是正した（フォーカス
+        // リング規約 #1424 と同じ理由、[`recipe`] 内コメント参照）。
         let css = stylesheet();
         assert!(css.contains(
             r#"[data-scope="switch"][data-part="control"][data-invalid] {
-  box-shadow: 0 0 0 2px var(--fandhe-color-danger);
+  outline: 2px solid var(--fandhe-color-danger);
+  outline-offset: 2px;
 }"#
         ));
     }

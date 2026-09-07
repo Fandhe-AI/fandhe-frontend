@@ -43,10 +43,15 @@
 //!
 //! イシュー #2021: shadcn/ui との突合で `control` slot が
 //! `data-invalid`（headless 層 `SwitchProps.invalid`、#1622）を未消費だった
-//! ことを確認し、`box-shadow` の外側リング（`0 0 0 2px
-//! var(--fandhe-color-danger)`）を追加した（`crates/pre-styled-ui/src/
+//! ことを確認し、外側リングを追加した（`crates/pre-styled-ui/src/
 //! switch.rs` のモジュール doc「shadcn/ui との突合」節参照）。golden CSS
-//! 全文の差分はこの 1 ブロックの純追加のみ。
+//! 全文の差分はこの 1 ブロックの純追加のみ。PR #2169 の Bugbot 指摘
+//! （`forced-colors: active` で `box-shadow` が消え invalid 表示が視認
+//! できなくなる）を受け、当初実装の `box-shadow: 0 0 0 2px
+//! var(--fandhe-color-danger)` から `outline: 2px solid
+//! var(--fandhe-color-danger); outline-offset: 2px;` へ是正した
+//! （フォーカスリング規約 #1424 と同じ理由で `outline` はシステム色へ
+//! 強制置換され forced-colors でも必ず描画される）。
 
 use fandhe_frontend_pre_styled_ui::switch;
 
@@ -219,7 +224,8 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
 }
 
 [data-scope="switch"][data-part="control"][data-invalid] {
-  box-shadow: 0 0 0 2px var(--fandhe-color-danger);
+  outline: 2px solid var(--fandhe-color-danger);
+  outline-offset: 2px;
 }
 
 [data-scope="switch"][data-part="control"][data-focus-visible] {
