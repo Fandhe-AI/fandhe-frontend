@@ -928,7 +928,7 @@ mod wiring {
                 Vec::new()
             }
         };
-        if let Some(idx) = items.iter().position(|it| it.is_same_node(Some(&item))) {
+        if items.iter().any(|it| it.is_same_node(Some(&item))) {
             let visible_items: Vec<Element> = items
                 .iter()
                 .filter(|it| !it.has_attribute("hidden"))
@@ -940,7 +940,6 @@ mod wiring {
             {
                 sync_selection(&input, &visible_items, visible_idx);
             }
-            let _ = idx;
         }
 
         if let Ok(mut cb) = on_action.try_borrow_mut() {
