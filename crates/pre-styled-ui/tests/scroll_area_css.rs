@@ -73,29 +73,29 @@ const SCROLL_AREA_GOLDEN_CSS: &str = r#"[data-scope="scroll-area"][data-part="ro
 }
 @keyframes fandhe-scroll-area-fade-reveal-start {
   from {
-    --fandhe-scroll-area-fade-start: 0px;
+    --fandhe-scroll-area-fade-start-driven: 0px;
   }
   to {
-    --fandhe-scroll-area-fade-start: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));
+    --fandhe-scroll-area-fade-start-driven: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));
   }
 }
 @keyframes fandhe-scroll-area-fade-reveal-end {
   from {
-    --fandhe-scroll-area-fade-end: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));
+    --fandhe-scroll-area-fade-end-driven: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));
   }
   to {
-    --fandhe-scroll-area-fade-end: 0px;
+    --fandhe-scroll-area-fade-end-driven: 0px;
   }
 }
 [data-scope="scroll-area"][data-part="viewport"][data-fade] {
-  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fandhe-scroll-area-fade-start, 0px), #000 calc(100% - var(--fandhe-scroll-area-fade-end, 0px)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fandhe-scroll-area-fade-start, var(--fandhe-scroll-area-fade-start-driven, 0px)), #000 calc(100% - var(--fandhe-scroll-area-fade-end, var(--fandhe-scroll-area-fade-end-driven, 0px))), transparent 100%);
   mask-repeat: no-repeat;
 }
 [data-scope="scroll-area"][data-part="viewport"][data-fade][data-orientation="horizontal"] {
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--fandhe-scroll-area-fade-start, 0px), #000 calc(100% - var(--fandhe-scroll-area-fade-end, 0px)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--fandhe-scroll-area-fade-start, var(--fandhe-scroll-area-fade-start-driven, 0px)), #000 calc(100% - var(--fandhe-scroll-area-fade-end, var(--fandhe-scroll-area-fade-end-driven, 0px))), transparent 100%);
 }
 [data-scope="scroll-area"][data-part="viewport"][data-fade][data-orientation="horizontal"]:dir(rtl) {
-  mask-image: linear-gradient(to left, transparent 0, #000 var(--fandhe-scroll-area-fade-start, 0px), #000 calc(100% - var(--fandhe-scroll-area-fade-end, 0px)), transparent 100%);
+  mask-image: linear-gradient(to left, transparent 0, #000 var(--fandhe-scroll-area-fade-start, var(--fandhe-scroll-area-fade-start-driven, 0px)), #000 calc(100% - var(--fandhe-scroll-area-fade-end, var(--fandhe-scroll-area-fade-end-driven, 0px))), transparent 100%);
 }
 @supports (animation-timeline: scroll()) {
   [data-scope="scroll-area"][data-part="viewport"][data-fade] {
@@ -110,8 +110,8 @@ const SCROLL_AREA_GOLDEN_CSS: &str = r#"[data-scope="scroll-area"][data-part="ro
 }
 @supports not (animation-timeline: scroll()) {
   [data-scope="scroll-area"][data-part="viewport"][data-fade] {
-    --fandhe-scroll-area-fade-start: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));
-    --fandhe-scroll-area-fade-end: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));
+    --fandhe-scroll-area-fade-start-driven: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));
+    --fandhe-scroll-area-fade-end-driven: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));
   }
 }
 "#;

@@ -177,6 +177,16 @@
 //!   スコープ外とする。必要な場合は利用側が `--fandhe-scroll-area-fade-start`/
 //!   `--fandhe-scroll-area-fade-end` を `0px` へ上書きすることで片端無効化
 //!   できる（1 変数 `--fandhe-scroll-area-fade-size` で段階も上書き可能）。
+//!   この 2 変数は `@keyframes` の直接の書き込み対象ではない
+//!   （書き込み対象は内部専用の `--fandhe-scroll-area-fade-start-driven`/
+//!   `-end-driven`）。CSS カスケード上アニメーションによる値は通常の
+//!   author 宣言より優先されるため、公開変数自体をアニメーション対象に
+//!   すると利用側の `0px` 上書きがスクロールのたびに再度上書きされてしまう
+//!   （PR #2240 codex-review/Cursor Bugbot 指摘、イシュー #2054 追補）。
+//!   `mask-image` は `var(--fandhe-scroll-area-fade-start, var(--fandhe-scroll-area-fade-start-driven, 0px))`
+//!   の 2 段フォールバックで参照するため、利用側が公開変数を宣言していれば
+//!   常にその値が最優先で採用され、未宣言時のみ内部変数（＝アニメーション
+//!   駆動値、または `@supports not` の静的値）へフォールバックする。
 //! - **`scrollbar-none` 相当のユーティリティ**は用意しない。既存の
 //!   `--fandhe-scroll-area-thumb-bg: transparent` 上書き（本モジュール上部
 //!   「参考サイト基準へのスタイル調整」節）で同等の見た目を実現できる。
@@ -388,23 +398,37 @@ pub fn stylesheet() -> String {
     // `<`（`</style` 脱出防止）・制御文字を含まない（本モジュールの
     // `stylesheet_never_contains_style_breakout_sequences` テストが固定）。
     out.push_str(
+        // イシュー #2240 レビュー是正: `@keyframes` の書き込み対象は公開
+        // 上書き変数 `--fandhe-scroll-area-fade-start`/`-end` そのものでは
+        // なく、内部専用の `-driven` サフィックス変数にする。CSS カスケード
+        // 上、アニメーションによる値は通常の author 宣言（`root`/`viewport`
+        // への利用側の変数上書きを含む）より優先されるため、公開変数を直接
+        // アニメーション対象にすると `animation-timeline: scroll()` 対応
+        // ブラウザでスクロールするたびに利用側の `0px` 上書きが再び上書き
+        // されてしまい、モジュール doc「意図的に合わせなかった点」節が謳う
+        // 片端無効化契約を満たせなかった（PR #2240 codex-review P1 /
+        // Cursor Bugbot 指摘）。`mask-image` 側は
+        // `var(公開変数, var(内部-driven変数, 0px))` の 2 段フォールバックで
+        // 参照し、利用側が公開変数を宣言していれば内部変数・アニメーション
+        // の値に関わらずその宣言が最優先で採用される（宣言なしなら従来通り
+        // 内部変数＝アニメーション駆動値にフォールバックする）。
         "@keyframes fandhe-scroll-area-fade-reveal-start {\n  \
-         from {\n    --fandhe-scroll-area-fade-start: 0px;\n  }\n  \
-         to {\n    --fandhe-scroll-area-fade-start: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n  }\n\
+         from {\n    --fandhe-scroll-area-fade-start-driven: 0px;\n  }\n  \
+         to {\n    --fandhe-scroll-area-fade-start-driven: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n  }\n\
          }\n\
          @keyframes fandhe-scroll-area-fade-reveal-end {\n  \
-         from {\n    --fandhe-scroll-area-fade-end: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n  }\n  \
-         to {\n    --fandhe-scroll-area-fade-end: 0px;\n  }\n\
+         from {\n    --fandhe-scroll-area-fade-end-driven: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n  }\n  \
+         to {\n    --fandhe-scroll-area-fade-end-driven: 0px;\n  }\n\
          }\n\
          [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade] {\n  \
-         mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fandhe-scroll-area-fade-start, 0px), #000 calc(100% - var(--fandhe-scroll-area-fade-end, 0px)), transparent 100%);\n  \
+         mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fandhe-scroll-area-fade-start, var(--fandhe-scroll-area-fade-start-driven, 0px)), #000 calc(100% - var(--fandhe-scroll-area-fade-end, var(--fandhe-scroll-area-fade-end-driven, 0px))), transparent 100%);\n  \
          mask-repeat: no-repeat;\n\
          }\n\
          [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade][data-orientation=\"horizontal\"] {\n  \
-         mask-image: linear-gradient(to right, transparent 0, #000 var(--fandhe-scroll-area-fade-start, 0px), #000 calc(100% - var(--fandhe-scroll-area-fade-end, 0px)), transparent 100%);\n\
+         mask-image: linear-gradient(to right, transparent 0, #000 var(--fandhe-scroll-area-fade-start, var(--fandhe-scroll-area-fade-start-driven, 0px)), #000 calc(100% - var(--fandhe-scroll-area-fade-end, var(--fandhe-scroll-area-fade-end-driven, 0px))), transparent 100%);\n\
          }\n\
          [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade][data-orientation=\"horizontal\"]:dir(rtl) {\n  \
-         mask-image: linear-gradient(to left, transparent 0, #000 var(--fandhe-scroll-area-fade-start, 0px), #000 calc(100% - var(--fandhe-scroll-area-fade-end, 0px)), transparent 100%);\n\
+         mask-image: linear-gradient(to left, transparent 0, #000 var(--fandhe-scroll-area-fade-start, var(--fandhe-scroll-area-fade-start-driven, 0px)), #000 calc(100% - var(--fandhe-scroll-area-fade-end, var(--fandhe-scroll-area-fade-end-driven, 0px))), transparent 100%);\n\
          }\n\
          @supports (animation-timeline: scroll()) {\n  \
          [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade] {\n    \
@@ -419,8 +443,8 @@ pub fn stylesheet() -> String {
          }\n\
          @supports not (animation-timeline: scroll()) {\n  \
          [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade] {\n    \
-         --fandhe-scroll-area-fade-start: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n    \
-         --fandhe-scroll-area-fade-end: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n  \
+         --fandhe-scroll-area-fade-start-driven: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n    \
+         --fandhe-scroll-area-fade-end-driven: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n  \
          }\n\
          }\n",
     );
