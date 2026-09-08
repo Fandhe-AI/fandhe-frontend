@@ -128,7 +128,7 @@ gh api "repos/shadcn-ui/ui/contents/apps/v4/content/docs/components/aria?ref=5c7
 | `input-group` | Input Group | 実装対象。#2061 |
 | `input-otp` | Input OTP | 既存 `pin_input` で充足。#2016 |
 | `item` | Item | 実装対象。#2064 |
-| `kbd` | Kbd | 既存 `kbd` と対応 |
+| `kbd` | Kbd | 既存 `kbd` と対応。#2048 で突合し `group`（`KbdGroup` 相当）を補完済み |
 | `label` | Label | 既存 `field` で充足（Radix Themes 名も Label）。#2014 |
 | `marker` | Marker | 会話系部品。#2113 で実装対象確定 |
 | `menubar` | Menubar | 既存 `menubar` と対応 |

@@ -136,7 +136,7 @@ use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImagePr
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
-use fandhe_frontend_pre_styled_ui::kbd::{kbd, KbdProps, KbdVariant};
+use fandhe_frontend_pre_styled_ui::kbd::{group as kbd_group, kbd, KbdProps, KbdVariant};
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::link_overlay;
@@ -11445,10 +11445,32 @@ fn kbd_section() -> Node {
             )
         })
         .collect());
+    // イシュー #2048（shadcn/ui 突合）: `group`（shadcn `KbdGroup` 相当）に
+    // よる複数キーの組み合わせ表示デモ。既存 `shortcut_row`（`text(" + ")`
+    // 連結）は互換維持のため残す。
+    let group_row = row(vec![
+        kbd_group(
+            vec![],
+            vec![
+                kbd(&KbdProps::default(), vec![], vec![text("⌘")]),
+                kbd(&KbdProps::default(), vec![], vec![text("⇧")]),
+                kbd(&KbdProps::default(), vec![], vec![text("⌥")]),
+                kbd(&KbdProps::default(), vec![], vec![text("⌃")]),
+            ],
+        ),
+        kbd_group(
+            vec![],
+            vec![
+                kbd(&KbdProps::default(), vec![], vec![text("Ctrl")]),
+                text("+"),
+                kbd(&KbdProps::default(), vec![], vec![text("B")]),
+            ],
+        ),
+    ]);
     section(
         "Kbd",
-        "キーボード入力・ショートカット表示。variant / size / colorPalette を組み合わせます。",
-        vec![shortcut_row, variant_row, size_row, palette_row],
+        "キーボード入力・ショートカット表示。variant / size / colorPalette を組み合わせます。group（イシュー #2048、shadcn/ui KbdGroup 相当）で複数キーを組み合わせ表示できます。",
+        vec![shortcut_row, variant_row, size_row, palette_row, group_row],
     )
 }
 

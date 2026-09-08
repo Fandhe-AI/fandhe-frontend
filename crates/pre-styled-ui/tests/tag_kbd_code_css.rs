@@ -174,6 +174,12 @@ const KBD_GOLDEN_CSS: &str = r#"[data-scope="kbd"][data-part="root"] {
   border-radius: var(--fandhe-radius-sm);
 }
 
+[data-scope="kbd"][data-part="group"] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fandhe-space-1);
+}
+
 [data-scope="kbd"][data-part="root"].fd-kbd--size-xs {
   padding: 0.03125rem 0.25rem;
   font-size: var(--fandhe-font-font-size-xs);
