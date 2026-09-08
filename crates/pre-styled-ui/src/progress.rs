@@ -52,10 +52,9 @@
 //!
 //! [`ProgressVariant`]（`Outline`/`Subtle`/`Plain`）は track 背景の見た目を
 //! 切り替える（chakra `outline`/`subtle`、Radix Themes `surface`/`soft` 相当。
-//! `Plain` は shadcn/ui 既定表現の補完、イシュー #2049「イシュー #2049:
-//! shadcn/ui との突合」節参照）。命名は本リポジトリ既存語彙
-//! （`ButtonVariant`/`BadgeVariant`）に合わせ、Radix 名（`classic`/`soft`）は
-//! 持ち込まない）。track は headless の inherent
+//! `Plain` は shadcn/ui 既定表現の補完、イシュー #2049「shadcn/ui との
+//! 突合」節参照。命名は本リポジトリ既存語彙（`ButtonVariant`/`BadgeVariant`）
+//! に合わせ、Radix 名（`classic`/`soft`）は持ち込まない）。track は headless の inherent
 //! メソッドを直接呼ぶため（本節冒頭・`Progress` 再エクスポート節参照）
 //! variant クラスをそもそも受け取れない。そのため `--fandhe-progress-size`
 //! 等と同じ「root へ `--fandhe-progress-track-bg`/`--fandhe-progress-track-shadow`
