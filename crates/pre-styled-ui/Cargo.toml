@@ -2447,6 +2447,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.142.2 とする。依存先 `fandhe-frontend-headless-ui` の version 要求は
 # main 側の 0.68.2 追随（`check-dep-versions --fix` 相当）をそのまま採用
 # する（下記参照）。
+#
+# base 取り込み（本 PR、イシュー #2068）: `fandhe-frontend-headless-ui`
+# 0.68.3（`command` 部品の新設）への依存追随（`check-dep-versions
+# --fix` 相当）に伴い main は 0.142.2 から +1 パッチして 0.142.3 へ到達
+# していた。本ブランチは spinner の公開 API 追加（`spinner_decorative`、
+# 上記参照）により独立に 0.143.0（マイナーバンプ）へ到達済みで、
+# 0.143.0 > 0.142.3 のため同一版数への偶発的衝突ではなく、本ブランチの
+# 到達値をそのまま採用する（依存先 headless-ui の version 要求は main の
+# 0.68.3 追随をそのまま採用、下記参照）。
 version = "0.143.0"
 
 edition = "2021"
@@ -2462,7 +2471,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.2" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.3" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

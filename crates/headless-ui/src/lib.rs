@@ -744,6 +744,7 @@ pub mod collapsible;
 pub mod color;
 pub mod color_picker;
 pub mod combobox;
+pub mod command;
 pub mod data_attrs;
 pub mod date;
 pub mod date_input;
@@ -848,6 +849,7 @@ pub use checkbox_group::{CheckboxGroup, CheckboxGroupProps};
 pub use clipboard::{Clipboard, ClipboardAction};
 pub use color::{Color, ColorError, Hsl, Hsv, Rgb};
 pub use combobox::{Combobox, ComboboxAction};
+pub use command::{Command, CommandAction};
 pub use data_attrs::{
     data_checked, data_complete, data_copied, data_current, data_disabled, data_highlighted,
     data_incomplete, data_invalid, data_orientation, data_pressed, data_readonly, data_required,
