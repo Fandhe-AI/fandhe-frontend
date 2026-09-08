@@ -65,7 +65,7 @@ use fandhe_frontend_core::{div, el, p, render, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{
-    self, AvatarProps, AvatarShape, AvatarVariant, ImageStatus,
+    self, AvatarBadgeProps, AvatarProps, AvatarShape, AvatarVariant, ImageStatus,
 };
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
@@ -4205,10 +4205,110 @@ fn avatar_section() -> Node {
     })
     .collect());
 
+    // イシュー #2044（shadcn/ui 突合）: 重なり表示 + `+N`（group + stacked
+    // root + fallback の合成）。
+    let group_row = avatar::group(
+        vec![],
+        vec![
+            avatar::root(
+                &AvatarProps {
+                    stacked: true,
+                    ..AvatarProps::default()
+                },
+                vec![],
+                vec![
+                    avatar::image(
+                        ImageStatus::Loaded,
+                        AVATAR_INLINE_SVG_SRC,
+                        "Fandhe Team",
+                        vec![],
+                    ),
+                    avatar::fallback(ImageStatus::Loaded, vec![], vec![text("FT")]),
+                ],
+            ),
+            avatar::root(
+                &AvatarProps {
+                    stacked: true,
+                    ..AvatarProps::default()
+                },
+                vec![],
+                vec![
+                    avatar::image(
+                        ImageStatus::Loaded,
+                        AVATAR_INLINE_SVG_SRC,
+                        "Fandhe Team",
+                        vec![],
+                    ),
+                    avatar::fallback(ImageStatus::Loaded, vec![], vec![text("FT")]),
+                ],
+            ),
+            avatar::root(
+                &AvatarProps {
+                    stacked: true,
+                    variant: AvatarVariant::Subtle,
+                    palette: ColorPalette::Neutral,
+                    ..AvatarProps::default()
+                },
+                vec![],
+                vec![
+                    avatar::image(
+                        ImageStatus::Error,
+                        AVATAR_EMPTY_IMAGE_SRC,
+                        "Fandhe Team",
+                        vec![],
+                    ),
+                    avatar::fallback(ImageStatus::Error, vec![], vec![text("+3")]),
+                ],
+            ),
+        ],
+    );
+
+    // イシュー #2044（shadcn/ui 突合）: 右下の状態ドット（badge）。
+    let badge_row = row(vec![
+        (ColorPalette::Accent, Size::Sm),
+        (ColorPalette::Success, Size::Md),
+        (ColorPalette::Danger, Size::Lg),
+    ]
+    .into_iter()
+    .map(|(palette, badge_size)| {
+        avatar::root(
+            &AvatarProps {
+                with_badge: true,
+                ..AvatarProps::default()
+            },
+            vec![],
+            vec![
+                avatar::image(
+                    ImageStatus::Error,
+                    AVATAR_EMPTY_IMAGE_SRC,
+                    "Fandhe Team",
+                    vec![],
+                ),
+                avatar::fallback(ImageStatus::Error, vec![], vec![text("FT")]),
+                avatar::badge(
+                    &AvatarBadgeProps {
+                        size: badge_size,
+                        palette,
+                    },
+                    vec![],
+                    vec![],
+                ),
+            ],
+        )
+    })
+    .collect());
+
     section(
         "Avatar",
-        "size（Xs〜Xl）・shape（Circle/Rounded/Square）・variant（Subtle/Solid/Outline）・colorPalette（6 値）の 4 軸を持つユーザー画像表示。画像読み込み状態（ImageStatus）を固定し、Error 時はイニシャルのフォールバック表示、Loaded 時は画像表示を掲示します。",
-        vec![size_row, shape_row, variant_row, palette_row],
+        "size（Xs〜Xl）・shape（Circle/Rounded/Square）・variant（Subtle/Solid/Outline）・colorPalette（6 値）の 4 軸を持つユーザー画像表示。画像読み込み状態（ImageStatus）を固定し、Error 時はイニシャルのフォールバック表示、Loaded 時は画像表示を掲示します。イシュー #2044（shadcn/ui 突合）で重なり表示 + `+N`（group）と右下の状態ドット（badge）を追加しました。",
+        vec![
+            size_row,
+            shape_row,
+            variant_row,
+            palette_row,
+            group_row,
+            badge_row,
+        ],
     )
 }
 

@@ -258,6 +258,72 @@ fn ex_avatar() -> Node {
     )
 }
 
+/// `crates/pre-styled-ui/src/avatar.rs`（イシュー #2044、shadcn/ui 突合）:
+/// 重なり表示 + `+N` の例。`group` + `stacked: true` root 2 個 +
+/// `Subtle/Neutral` root（`+3` の fallback）の組み合わせで表現する
+/// （独立パートを新設しない設計判断、avatar.rs モジュール冒頭 rustdoc
+/// 「イシュー #2044 の shadcn/ui 突合」節参照）。
+fn ex_avatar_group() -> Node {
+    avatar::group(
+        vec![],
+        vec![
+            avatar::root(
+                &avatar::AvatarProps {
+                    stacked: true,
+                    ..avatar::AvatarProps::default()
+                },
+                vec![],
+                vec![avatar::fallback(
+                    avatar::ImageStatus::Error,
+                    vec![],
+                    vec![text("FT")],
+                )],
+            ),
+            avatar::root(
+                &avatar::AvatarProps {
+                    stacked: true,
+                    ..avatar::AvatarProps::default()
+                },
+                vec![],
+                vec![avatar::fallback(
+                    avatar::ImageStatus::Error,
+                    vec![],
+                    vec![text("NM")],
+                )],
+            ),
+            avatar::root(
+                &avatar::AvatarProps {
+                    stacked: true,
+                    ..avatar::AvatarProps::default()
+                },
+                vec![],
+                vec![avatar::fallback(
+                    avatar::ImageStatus::Error,
+                    vec![],
+                    vec![text("+3")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// `crates/pre-styled-ui/src/avatar.rs`（イシュー #2044、shadcn/ui 突合）:
+/// 右下の状態ドット（`badge`）の例。`with_badge: true` の root に
+/// `AvatarBadgeProps`（既定 `Md`/`Accent`）の badge を子として重ねる。
+fn ex_avatar_badge() -> Node {
+    avatar::root(
+        &avatar::AvatarProps {
+            with_badge: true,
+            ..avatar::AvatarProps::default()
+        },
+        vec![],
+        vec![
+            avatar::fallback(avatar::ImageStatus::Error, vec![], vec![text("FT")]),
+            avatar::badge(&avatar::AvatarBadgeProps::default(), vec![], vec![]),
+        ],
+    )
+}
+
 pub(crate) const AVATAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "AvatarShape（Circle/Rounded/Square、crates/pre-styled-ui/src/avatar.rs）で外形を切り替える",
@@ -265,6 +331,8 @@ pub(crate) const AVATAR: ComponentPageSpec = ComponentPageSpec {
         "ColorPalette（6 値、既定 Neutral、イシュー #1554 で追加）で colorPalette 軸を切り替える",
         "ImageStatus に連動して image/fallback パーツの表示・非表示を CSS の [data-state=\"hidden\"] で切り替える",
         "image パーツは alt テキストを必須引数として要求する（avatar.rs 内 image 再エクスポート）",
+        "group（イシュー #2044）で複数 root を重なり表示し、+N の残数表示は root(stacked) + fallback の組み合わせで表現する",
+        "badge（イシュー #2044）で root 右下に状態ドットを絶対配置し、with_badge: true の root のみ overflow を解除する",
     ],
     arguments: &[
         ArgRow {
@@ -291,16 +359,58 @@ pub(crate) const AVATAR: ComponentPageSpec = ComponentPageSpec {
             default: "Neutral",
             description: "colorPalette 軸（avatar.rs の AvatarProps、#[default] は Neutral。イシュー #1554 で追加）。",
         },
+        ArgRow {
+            name: "stacked",
+            kind: "bool",
+            default: "false",
+            description: "group 内で重なり表示するか（avatar.rs の AvatarProps、イシュー #2044 で追加）。",
+        },
+        ArgRow {
+            name: "with_badge",
+            kind: "bool",
+            default: "false",
+            description: "badge を子に持つか（avatar.rs の AvatarProps、イシュー #2044 で追加。true のときのみ overflow: visible を解除する）。",
+        },
+        ArgRow {
+            name: "group()",
+            kind: "fn",
+            default: "-",
+            description: "pre-styled-only group パート（avatar.rs、イシュー #2044）。headless-ui の anatomy には存在しない。",
+        },
+        ArgRow {
+            name: "badge()",
+            kind: "fn",
+            default: "-",
+            description: "pre-styled-only badge パート（avatar.rs、イシュー #2044）。AvatarBadgeProps（size: Md、palette: Accent）を取る。",
+        },
+        ArgRow {
+            name: "AvatarBadgeProps",
+            kind: "struct",
+            default: "size: Md, palette: Accent",
+            description: "badge() の設定（avatar.rs、イシュー #2044。size は Xs〜Xl の 5 段、palette は ColorPalette 6 値）。",
+        },
     ],
-    examples: &[ExampleEntry {
-        title: "Fallback",
-        description: "画像読み込み失敗（ImageStatus::Error）時のイニシャル表示例です。",
-        render: ex_avatar,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Fallback",
+            description: "画像読み込み失敗（ImageStatus::Error）時のイニシャル表示例です。",
+            render: ex_avatar,
+        },
+        ExampleEntry {
+            title: "重なり表示 + +N",
+            description: "group + stacked root 2 個 + +3 の fallback を組み合わせた重なり表示の例です（イシュー #2044）。",
+            render: ex_avatar_group,
+        },
+        ExampleEntry {
+            title: "状態 badge",
+            description: "with_badge: true の root の右下に badge（既定 Accent）を重ねた例です（イシュー #2044）。",
+            render: ex_avatar_badge,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(該当なし)",
-        description: "root/image/fallback は固有の role/aria-* を出力しない。image パーツの alt テキストのみが代替情報を提供する（avatar.rs 全文で role/aria-* を grep しても 0 件）。",
+        description: "root/image/fallback/group/badge は固有の role/aria-* を出力しない（avatar.rs 全文で role/aria-* を grep しても 0 件）。image パーツの alt テキストが代替情報を提供する。badge は装飾のためアクセシブルネームを持たず、必要な場合は呼び出し側が root の aria-label 等で供給する（イシュー #2044）。",
     }],
     demo: None,
 };
