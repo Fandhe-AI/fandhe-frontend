@@ -150,7 +150,7 @@ gh api "repos/shadcn-ui/ui/contents/apps/v4/content/docs/components/aria?ref=5c7
 | `skeleton` | Skeleton | 既存 `skeleton` と対応（`shimmer` utility 相当は注記として記載） |
 | `slider` | Slider | 既存 `slider` と対応 |
 | `sonner` | Sonner | 既存 `toast` で充足。#2040 |
-| `spinner` | Spinner | 既存 `spinner` と対応 |
+| `spinner` | Spinner | 既存 `spinner` と対応。#2051 で突合済み（合成例補完・decorative 公開） |
 | `switch` | Switch | 既存 `switch` と対応 |
 | `table` | Table | 既存 `table` と対応 |
 | `tabs` | Tabs | 既存 `tabs` と対応 |

@@ -1352,12 +1352,117 @@ fn ex_spinner() -> Node {
     })
 }
 
+/// shadcn/ui の Button 末尾配置例に相当（イシュー #2051）。`ButtonProps::
+/// loading` は Spinner を子ノード先頭へ固定配置するため、末尾配置は
+/// `spinner::spinner_decorative`（#2051 で公開 API 化）を呼び出し側が
+/// `children` 末尾へ直接組み込むことで再現する。ボタン自身の状態伝達は
+/// `aria-busy="true"`（`attrs` 経由で付与）が担うため、Spinner 側は
+/// `aria-hidden="true"` の装飾専用のまま冗長なライブリージョンを重ねない。
+fn ex_spinner_button() -> Node {
+    div(
+        vec![("style", "display: flex; gap: 0.75rem; flex-wrap: wrap;")],
+        vec![
+            button(
+                &ButtonProps {
+                    loading: true,
+                    ..ButtonProps::default()
+                },
+                vec![],
+                vec![text("Loading...")],
+            ),
+            button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("aria-busy", "true")],
+                vec![
+                    text("Processing"),
+                    spinner::spinner_decorative(Size::Sm, ColorPalette::Accent),
+                ],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui の Badge 合成例に相当（イシュー #2051）。装飾用途の
+/// `spinner_decorative` をラベルテキストの前へ並べる。Badge 自体は
+/// `role`/`aria-*` を持たないため、状態伝達は周囲のテキストが担う。
+fn ex_spinner_badge() -> Node {
+    div(
+        vec![("style", "display: flex; gap: 0.5rem; flex-wrap: wrap;")],
+        vec![
+            badge::badge(
+                &badge::BadgeProps {
+                    variant: badge::BadgeVariant::Subtle,
+                    ..badge::BadgeProps::default()
+                },
+                vec![],
+                vec![
+                    spinner::spinner_decorative(Size::Xs, ColorPalette::Accent),
+                    text("Syncing"),
+                ],
+            ),
+            badge::badge(
+                &badge::BadgeProps {
+                    variant: badge::BadgeVariant::Outline,
+                    palette: ColorPalette::Info,
+                    ..badge::BadgeProps::default()
+                },
+                vec![],
+                vec![
+                    spinner::spinner_decorative(Size::Xs, ColorPalette::Info),
+                    text("Updating"),
+                ],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui の Empty state 合成例に相当（イシュー #2051）。`indicator` に
+/// `role="status"` 付きの [`spinner::spinner`] をそのまま置き、title/
+/// description/actions で処理内容とキャンセル導線を伝える。
+fn ex_spinner_empty() -> Node {
+    empty_state::root(
+        &empty_state::EmptyStateProps::default(),
+        vec![],
+        vec![empty_state::content(
+            vec![],
+            vec![
+                empty_state::indicator(
+                    vec![],
+                    vec![spinner::spinner(&spinner::SpinnerProps {
+                        size: Size::Lg,
+                        label: "Processing",
+                        ..spinner::SpinnerProps::default()
+                    })],
+                ),
+                empty_state::title(vec![], vec![text("Processing your request")]),
+                empty_state::description(vec![], vec![text("This may take a few moments.")]),
+                empty_state::actions(
+                    vec![],
+                    vec![button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Outline,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("Cancel")],
+                    )],
+                ),
+            ],
+        )],
+    )
+}
+
 pub(crate) const SPINNER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "role=\"status\" + aria-label（既定 \"Loading\"）でスクリーンリーダーへ読み込み中を伝える（crates/pre-styled-ui/src/spinner.rs）",
-        "spinner_decorative（別関数）は role/aria-label を持たず aria-hidden=\"true\" のみを付与する（spinner.rs）",
+        "spinner_decorative は role/aria-label を持たず aria-hidden=\"true\" のみを付与する公開 API（Button 末尾配置・Badge・Input Group 等の合成用途、イシュー #2051 で pub(crate) から公開化、spinner.rs）",
         "size・colorPalette の 2 軸でサイズとセマンティック色を選択する（spinner.rs 冒頭）",
         "上・右 2 辺の弧で描画し、トラックは既定で透明（イシュー #1567、chakra-ui 基準）。--fandhe-spinner-track-color / --fandhe-spinner-thickness / --fandhe-spinner-duration の custom property で線色・線幅・回転速度を上書きできる",
+        "style=\"--fandhe-palette: currentColor\" を指定すると shadcn/ui 相当の親文字色追随を既存 API のまま再現できる（イシュー #2051）",
         "prefers-reduced-motion: reduce 環境では回転アニメーションを停止する（イシュー #1567）",
     ],
     arguments: &[
@@ -1380,11 +1485,28 @@ pub(crate) const SPINNER: ComponentPageSpec = ComponentPageSpec {
             description: "aria-label に渡すラベル文字列（spinner.rs）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Custom label",
-        description: "aria-label をカスタマイズした Spinner の例です。",
-        render: ex_spinner,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Custom label",
+            description: "aria-label をカスタマイズした Spinner の例です。",
+            render: ex_spinner,
+        },
+        ExampleEntry {
+            title: "In button",
+            description: "shadcn/ui の Button 先頭/末尾配置例に相当。先頭は ButtonProps::loading、末尾は spinner_decorative を children へ直接組み込みます。",
+            render: ex_spinner_button,
+        },
+        ExampleEntry {
+            title: "In badge",
+            description: "shadcn/ui の Badge 合成例に相当。spinner_decorative をラベルテキストの前へ並べます。",
+            render: ex_spinner_badge,
+        },
+        ExampleEntry {
+            title: "In empty state",
+            description: "shadcn/ui の Empty state 合成例に相当。indicator に role=\"status\" 付きの spinner を置きます。",
+            render: ex_spinner_empty,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"status\" + aria-label",

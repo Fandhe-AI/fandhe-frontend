@@ -2460,7 +2460,25 @@ name = "fandhe-frontend-pre-styled-ui"
 # 上回るため、そのまま 0.143.0 を採用する(依存先
 # `fandhe-frontend-headless-ui` の version 要求は main 側の 0.68.3
 # 追随をそのまま採用する)。
-version = "0.143.0"
+# base 取り込み（本 PR、イシュー #2068）: `fandhe-frontend-headless-ui`
+# 0.68.3（`command` 部品の新設）への依存追随（`check-dep-versions
+# --fix` 相当）に伴い main は 0.142.2 から +1 パッチして 0.142.3 へ到達
+# していた。本ブランチは spinner の公開 API 追加（`spinner_decorative`、
+# 上記参照）により独立に 0.143.0（マイナーバンプ）へ到達済みで、
+# 0.143.0 > 0.142.3 のため同一版数への偶発的衝突ではなく、本ブランチの
+# 到達値をそのまま採用する（依存先 headless-ui の version 要求は main の
+# 0.68.3 追随をそのまま採用、下記参照）。
+#
+# base 取り込み後の同一版数衝突の解消（本 PR、イシュー #2066）: 本ブランチ
+# （item 新設による 0.143.0 マイナーバンプ）と main（spinner の shadcn/ui
+# 突合による 0.142.2 → 0.143.0 マイナーバンプ、#2235）が独立に同一版数
+# 0.143.0 へ到達しており、`.claude/rules/coding-rust.md` の semver バンプ
+# 規約（同一版数への偶発的衝突をそのまま採用しない）に従い、main の
+# 到達値 0.143.0 から +1 マイナーして 0.144.0 とする（item 新設が公開 API
+# 純追加のマイナーバンプ性質を保つため patch ではなく minor を維持する）。
+# 依存先 `fandhe-frontend-headless-ui` の version 要求は main 側の 0.68.3
+# 追随をそのまま採用する（下記参照）。
+version = "0.144.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

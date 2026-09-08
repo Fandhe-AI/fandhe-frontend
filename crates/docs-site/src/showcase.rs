@@ -171,7 +171,7 @@ use fandhe_frontend_pre_styled_ui::skeleton::{
 };
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
-use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::spinner::{spinner, spinner_decorative, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
@@ -1511,10 +1511,38 @@ fn spinner_section() -> Node {
             })
         })
         .collect());
+    // イシュー #2051: shadcn/ui との突合で追加した合成例（Button 末尾配置 /
+    // Badge）。spinner_decorative（役割・公開化経緯は spinner.rs 参照）を
+    // 装飾用途として周囲テキストと組み合わせる。
+    let composition_row = row(vec![
+        button(
+            &ButtonProps {
+                variant: ButtonVariant::Outline,
+                disabled: true,
+                ..ButtonProps::default()
+            },
+            vec![("aria-busy", "true")],
+            vec![
+                text("Processing"),
+                spinner_decorative(Size::Sm, ColorPalette::Accent),
+            ],
+        ),
+        badge::badge(
+            &BadgeProps {
+                variant: BadgeVariant::Subtle,
+                ..BadgeProps::default()
+            },
+            vec![],
+            vec![
+                spinner_decorative(Size::Xs, ColorPalette::Accent),
+                text("Syncing"),
+            ],
+        ),
+    ]);
     section(
         "Spinner",
-        "読み込み中表示。role=\"status\" と aria-label でスクリーンリーダーへ状態を伝えます。トラックは既定で透明（上右 2 辺のみ弧を描画）で、OS の prefers-reduced-motion 設定時は回転を停止します。",
-        vec![size_row, palette_row],
+        "読み込み中表示。role=\"status\" と aria-label でスクリーンリーダーへ状態を伝えます。トラックは既定で透明（上右 2 辺のみ弧を描画）で、OS の prefers-reduced-motion 設定時は回転を停止します。spinner_decorative（イシュー #2051 で公開化）は role/aria-label を持たない装飾用途で、Button 末尾配置・Badge 等の周囲テキストが状態を伝える合成に使えます。",
+        vec![size_row, palette_row, composition_row],
     )
 }
 

@@ -76,6 +76,66 @@
 //! - **コントラスト**: 弧は非テキスト UI 部品として WCAG 1.4.11 の 3:1 が
 //!   基準。palette トークンはライト/ダーク両値を [`crate::theme`] が持ち、
 //!   トラックを透明化したことで弧色のみが背景と対比する。
+//!
+//! # イシュー #2051 の shadcn/ui 突合
+//!
+//! shadcn/ui Spinner（`https://ui.shadcn.com/docs/components/base/spinner`。
+//! 実体は lucide `LoaderIcon` の svg 1 個へ `role="status"
+//! aria-label="Loading" class="size-4 animate-spin"` を付与したもの）と
+//! `docs/design/shadcn-reference-adoption-policy.md` §8（純追加原則）に
+//! 従って突合した。結論: **欠落している variant・状態はない**。
+//!
+//! - **variant / size**: shadcn は variant 軸を持たず、size は Tailwind
+//!   `size-*` ユーティリティ（docs 例は size-3/4/6/8 = 0.75/1/1.5/2rem の
+//!   4 段）を呼び出し側が直接指定する。本実装の [`Size`] 5 段
+//!   （xs=0.75rem/sm=1rem/md=1.25rem/lg=2rem/xl=2.5rem、イシュー #1678 で
+//!   軸自体が確定済み）はこの 4 段を包含する上位集合であり、追加の余地が
+//!   ない。
+//! - **状態（`data-*`）**: shadcn 側は `data-slot` のみを持ち、本実装の
+//!   `data-attr-vocabulary` が対象とする状態語彙は元々ゼロ（表示専用部品）
+//!   のため、対応する欠落もない。
+//! - **色（`currentColor`）**: shadcn は親要素の文字色へ常に追随する。
+//!   本実装は既存の [`ColorPalette`] 軸（イシュー #606）を維持しつつ、
+//!   `style="--fandhe-palette: currentColor"` を呼び出し側が指定すれば
+//!   同じ追随を既存 API のまま再現できる（新規 API 不要、`site/themes/
+//!   spinner.md` に案内を追記）。
+//! - **合成パターン**: shadcn の docs（Button 先頭/末尾配置・Badge・Empty
+//!   state・Input Group・Item の 5 例）のうち、Button 先頭配置は既存の
+//!   [`crate::button::button`]（`ButtonProps::loading`）が既に再現していた。
+//!   Button 末尾配置・Badge・Empty state の 3 例を docs サイトの Examples
+//!   （`crates/docs-site/src/component_specs_nav_data.rs`）へ本クレートの
+//!   API のみで再現して追加し、ショーケース（`crates/docs-site/src/
+//!   showcase.rs`）の Demo へも合成行を 1 行追加した。Button 末尾配置は
+//!   従来 `pub(crate)` 限定だった [`spinner_decorative`] を公開 API 化する
+//!   ことで再現できた（下記詳細）。Item 合成は本クレートに `item` 部品が
+//!   存在しないため対象外とし、Issue 化はしない（[`crate::skeleton`]
+//!   イシュー #2050 の shimmer 判断と同型）。Input Group 合成は
+//!   [`crate::input_group`] + [`crate::input`] で再現可能だが、Examples
+//!   へは追加していない。
+//!
+//! 参照競合の判定（既存 golden・視覚言語を優先し、shadcn の値へは寄せない）:
+//!
+//! - size スケールは chakra-ui の値（5 段）を採る。理由は上記のとおり
+//!   shadcn の 4 段を包含する上位集合であり、既存 golden の変更を伴う
+//!   置き換えは §8 第 3 項の純追加原則に反する。
+//! - 弧の形状（chakra-ui 基準の上・右 2 辺の半円弧）は shadcn の 8 本
+//!   スポークアイコンへ寄せない。見た目 variant 軸の新設は最小サブセット
+//!   方針（モジュール冒頭「Radix Themes の 8 枚 leaf …」節）に反する。
+//! - 回転速度（既定 0.6s linear）・線幅（既定 2px）は shadcn
+//!   （`animate-spin` 1s linear、線幅は svg のため概念なし）へ寄せない。
+//!   既存 golden を維持し、custom property での上書きに委ねる。
+//!
+//! 意図的に合わせなかった点（他）:
+//!
+//! - **`data-icon="inline-start"`/`"inline-end"`（shadcn Button 合成の
+//!   位置指定属性）は不採用**: 本実装は末尾配置を `ButtonProps` の新規
+//!   フィールドではなく、`button()` の `children` へ呼び出し側が
+//!   [`spinner_decorative`] を直接組み込む合成で再現する（新規 API 面を
+//!   増やさない）。`button.rs` 側の `loading` プロップへ配置軸を新設する
+//!   かどうかは本イシューの対象外とする。
+//! - **8 本スポークのアイコン形状**: 上記「参照競合の判定」参照。
+//! - **`currentColor` を既定色にする変更**: 既存公開 API
+//!   （[`ColorPalette`] 既定 `Accent`）を維持する（上記「色」節参照）。
 
 use crate::css::decl;
 use crate::recipe::{palette_scale_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
@@ -266,21 +326,46 @@ pub fn spinner(props: &SpinnerProps<'_>) -> Node {
     ANATOMY.part("root", "span", attrs, vec![])
 }
 
-/// [`crate::button::button`] が `loading: true` のとき埋め込む装飾用途の
-/// Spinner。`role="status"`/`aria-label` を持たず `aria-hidden="true"` を
-/// 付与する（ボタン自身の `aria-busy` が既にスクリーンリーダーへ読み上げ
-/// 状態を伝えるため、入れ子のライブリージョンでラベルテキストがボタンの
-/// アクセシブルネームへ混入する事故を防ぐ）。crate 内限定 API のため
-/// 公開 API 面には出さない。
+/// [`crate::button::button`] が `loading: true` のとき子ノード先頭へ埋め込む
+/// 装飾用途の Spinner。`role="status"`/`aria-label` を持たず
+/// `aria-hidden="true"` を付与する（ボタン自身の `aria-busy` が既に
+/// スクリーンリーダーへ読み上げ状態を伝えるため、入れ子のライブリージョンで
+/// ラベルテキストがボタンのアクセシブルネームへ混入する事故を防ぐ）。
 ///
-/// `palette` は呼び出し元（Button）の `colorPalette` 軸をそのまま伝播する
+/// `palette` は呼び出し元（Button 等）の `colorPalette` 軸をそのまま伝播する
 /// 引数。省略して `size` のみ選択すると `variant_classes` が
 /// `color-palette` 軸の既定値（`ColorPalette::Accent`）を補完してしまい、
 /// 非 accent palette のボタンでもスピナーの `--fandhe-palette` が accent
 /// 固定になり親ボタンの palette を上書きする（Medium severity のバグ
 /// 指摘の是正、PR #628 レビュー）。
+///
+/// # 公開 API 化（イシュー #2051）
+///
+/// 当初 `pub(crate)` 限定だったが、[`crate::button::button`] の
+/// `loading: true` は Spinner を子ノード**先頭**へ固定配置するため、
+/// shadcn/ui Spinner が示す「ボタン末尾配置」「Badge 内合成」「Empty
+/// state 内合成」等の周囲テキストが既に読み込み状態を伝えている文脈では
+/// 呼び出し側が本関数を直接呼んで組み込む必要がある（モジュール冒頭
+/// 「イシュー #2051 の shadcn/ui 突合」節参照）。[`spinner`]（`role`/
+/// `aria-label` 付き）をこうした文脈で使うと入れ子のライブリージョンや
+/// 冗長なアクセシブルネームを生むため、装飾用途が必要な呼び出し側は本関数を
+/// 使う。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::spinner::spinner_decorative;
+/// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+///
+/// let node = spinner_decorative(Size::Sm, ColorPalette::Accent);
+/// let html = render(&node);
+/// assert!(html.contains(r#"aria-hidden="true""#));
+/// assert!(!html.contains("role="));
+/// assert!(!html.contains("aria-label"));
+/// ```
 #[must_use]
-pub(crate) fn spinner_decorative(size: Size, palette: ColorPalette) -> Node {
+pub fn spinner_decorative(size: Size, palette: ColorPalette) -> Node {
     let recipe = recipe();
     let class =
         recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
