@@ -27,6 +27,9 @@
 //! 以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{render, text};
+use fandhe_frontend_headless_ui::data_attrs::{
+    data_orientation, Orientation as ScrollAreaOrientation,
+};
 use fandhe_frontend_headless_ui::progress::Progress;
 use fandhe_frontend_pre_styled_ui::alert;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
@@ -43,6 +46,7 @@ use fandhe_frontend_pre_styled_ui::kbd;
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
+use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::separator;
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::table;
@@ -865,4 +869,51 @@ fn command_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains("[data-selected]"));
     assert!(css.contains("[data-disabled]"));
     assert!(css.contains("[hidden]"));
+}
+
+/// `scroll_area.rs`（イシュー #2054、shadcn/ui 突合で `data-orientation`/
+/// `data-fade` の消費側規則を追加）の `viewport` は、`table::row`/`cell` と
+/// 同型で独自の `data-*` を一切出力しない静的部品である。`data-orientation`
+/// は headless `fandhe_frontend_headless_ui::data_attrs::data_orientation` と
+/// 共有する既存語彙（呼び出し側が付与）、`data-fade` はモジュール doc
+/// 「shadcn/ui 突合（イシュー #2054）」節が記す新設の値なし存在属性
+/// （役割 B 亜種）であり、いずれも `crate::scroll_area` 自身は生産しない。
+/// 既定呼び出し（`attrs` 空）では `data-scope`/`data-part` の 2 個のみが
+/// 出力されることと、XSS ペイロード値でも生ペイロードが残らず透過する
+/// ことの両方を固定する。`stylesheet()` が `[data-fade]`/
+/// `[data-orientation="horizontal"]` を**参照のみ**し、値そのものを
+/// 生成しないことも合わせて固定する。
+#[test]
+fn scroll_area_viewport_data_attrs_are_caller_sourced_not_self_emitted() {
+    let html = render(&scroll_area::viewport(vec![], vec![]));
+    assert!(html.contains(r#"data-scope="scroll-area""#));
+    assert!(html.contains(r#"data-part="viewport""#));
+    assert_eq!(
+        html.matches("data-").count(),
+        2,
+        "scroll_area::viewport は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    let horizontal_html = render(&scroll_area::viewport(
+        vec![data_orientation(ScrollAreaOrientation::Horizontal)],
+        vec![],
+    ));
+    assert!(horizontal_html.contains(r#"data-orientation="horizontal""#));
+
+    let fade_html = render(&scroll_area::viewport(vec![("data-fade", "")], vec![]));
+    assert!(fade_html.contains("data-fade"));
+    assert_no_raw_payload(&fade_html, "scroll_area::viewport data-fade 経路");
+
+    let payload_html = render(&scroll_area::viewport(
+        vec![("data-testid", XSS_PAYLOAD)],
+        vec![],
+    ));
+    assert_no_raw_payload(
+        &payload_html,
+        "scroll_area::viewport data-testid 属性値コンテキスト",
+    );
+
+    let css = scroll_area::stylesheet();
+    assert!(css.contains("[data-fade]"));
+    assert!(css.contains("[data-orientation=\"horizontal\"]"));
 }

@@ -2814,22 +2814,137 @@ fn ex_scroll_area() -> Node {
     )
 }
 
+/// `/themes/scroll-area/` の Examples 節其の 2（イシュー #2054、shadcn/ui
+/// 突合）: 線 – テキスト区切りのタグリスト。shadcn の Tags リスト例
+/// （`h4` + 行ごとの `Separator`）を、既存の `separator::separator` のみで
+/// 再現する。
+fn ex_scroll_area_tags() -> Node {
+    let tags: Vec<Node> = (1..=5)
+        .flat_map(|i| {
+            vec![
+                el("p", vec![], vec![text(format!("Tag {i}"))]),
+                separator::separator(&separator::SeparatorProps::default(), vec![]),
+            ]
+        })
+        .collect();
+    scroll_area::root(
+        vec![(
+            "style",
+            "height: 8rem; width: 12rem; border: 1px solid var(--fandhe-color-border);",
+        )],
+        vec![scroll_area::viewport(
+            vec![],
+            vec![scroll_area::content(
+                vec![],
+                std::iter::once(el("h4", vec![], vec![text("Tags")]))
+                    .chain(tags)
+                    .collect(),
+            )],
+        )],
+    )
+}
+
+/// `/themes/scroll-area/` の Examples 節其の 3（イシュー #2054）: 横スクロール
+/// （shadcn `ScrollBar orientation="horizontal"` 相当）。`viewport` へ
+/// `data-orientation="horizontal"` を付与すると `content` が `flex` 化される。
+fn ex_scroll_area_horizontal() -> Node {
+    let figures: Vec<Node> = (1..=4)
+        .map(|i| {
+            el(
+                "figure",
+                vec![("style", "margin: 0; flex: none;")],
+                vec![
+                    image::image(
+                        &image::ImageProps {
+                            fit: image::ImageFit::Cover,
+                            ..image::ImageProps::new(
+                                crate::showcase::IMAGE_DEMO_SRC,
+                                "横スクロールデモ画像",
+                            )
+                        },
+                        vec![("style", "width: 6rem; height: 4.5rem;")],
+                    ),
+                    el("figcaption", vec![], vec![text(format!("Photo {i}"))]),
+                ],
+            )
+        })
+        .collect();
+    scroll_area::root(
+        vec![(
+            "style",
+            "width: 12rem; border: 1px solid var(--fandhe-color-border);",
+        )],
+        vec![scroll_area::viewport(
+            vec![("data-orientation", "horizontal")],
+            vec![scroll_area::content(
+                vec![(
+                    "style",
+                    "gap: var(--fandhe-space-4); padding: var(--fandhe-space-4);",
+                )],
+                figures,
+            )],
+        )],
+    )
+}
+
+/// `/themes/scroll-area/` の Examples 節其の 4（イシュー #2054）: RTL。
+/// `root` へ `dir="rtl"` をそのまま透過させる（headless 層は独自の RTL
+/// 処理を持たず、ブラウザネイティブの `dir` 属性へ委ねる）。
+fn ex_scroll_area_rtl() -> Node {
+    let items: Vec<Node> = (1..=5)
+        .map(|i| el("p", vec![], vec![text(format!("行 {i}"))]))
+        .collect();
+    scroll_area::root(
+        vec![
+            ("dir", "rtl"),
+            (
+                "style",
+                "height: 6rem; width: 12rem; border: 1px solid var(--fandhe-color-border);",
+            ),
+        ],
+        vec![scroll_area::viewport(
+            vec![("data-fade", "")],
+            vec![scroll_area::content(vec![], items)],
+        )],
+    )
+}
+
 pub(crate) const SCROLL_AREA: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "headless 層は anatomy（data-scope/data-part）と tabindex=\"0\" のみを提供し、CSS overflow が実際のスクロール可能性を担う",
         "::-webkit-scrollbar 系規則でカスタムスクロールバーの見た目を表現する",
-        "thumb 色は custom property --fandhe-scroll-area-thumb-bg（既定 border-emphasized トークン）で一元化されており、root へ再定義するだけで scrollbar-color と ::-webkit-scrollbar-thumb 双方の色を揃って変更できる（イシュー #1584）",
-        "viewport の hover 時に thumb 色を --fandhe-scroll-area-thumb-hover-bg（既定 fg-subtle）へ強調する（常時表示 + hover 強調。タッチ端末でも thumb が不可視にならないよう hover-reveal は既定にしない、イシュー #1584）",
+        "thumb 色は custom property --fandhe-scroll-area-thumb-bg（既定 fg-subtle トークン。WCAG 非テキストコントラスト基準 3:1 を満たす、イシュー #1584 PR #1858 是正）で一元化されており、root へ再定義するだけで scrollbar-color と ::-webkit-scrollbar-thumb 双方の色を揃って変更できる",
+        "viewport の hover 時・キーボードフォーカス時の双方で thumb 色を --fandhe-scroll-area-thumb-hover-bg（既定 fg）へ強調する（常時表示 + hover/focus 強調。タッチ端末でも thumb が不可視にならないよう hover-reveal は既定にしない、イシュー #1584）",
         "フォーカスリングは focus_ring_declarations（Token/Inset）による canonical 表現で、root の overflow: hidden 内に収まるよう内側描画にしている（イシュー #1584）",
         "variant（chakra の hover/always・Radix Themes の size/type 相当）は提供しない。custom property の上書きで同等の見た目を利用側から再現できる",
+        "横スクロール: viewport へ data-orientation=\"horizontal\" を付与すると content が display: flex; width: max-content; になる（shadcn/ui ScrollBar orientation=\"horizontal\" 相当、イシュー #2054）",
+        "端フェード: viewport へ data-fade を付与すると mask-image による端フェードが opt-in する。animation-timeline: scroll() 対応ブラウザでは @supports 配下でスクロール量に応じてフェード端を動的に切り替え、非対応ブラウザは両端固定フェードへ graceful degradation する（shadcn/ui utils/scroll-fade 相当、イシュー #2054）",
+        "RTL 対応: data-fade + data-orientation=\"horizontal\" 併用時は :dir(rtl) でグラデーション方向を反転する（イシュー #2054）",
         "JS によるスクロール位置追従は対象外（showcase.rs の scroll_area_section 記述と同方針）",
     ],
     arguments: &[],
-    examples: &[ExampleEntry {
-        title: "Scrollable list",
-        description: "固定高さのビューポート内に 5 行を表示するスクロール領域の例です。",
-        render: ex_scroll_area,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Scrollable list",
+            description: "固定高さのビューポート内に 5 行を表示するスクロール領域の例です。",
+            render: ex_scroll_area,
+        },
+        ExampleEntry {
+            title: "Tags",
+            description: "線区切りのタグリストの例です（イシュー #2054、shadcn/ui Tags 例相当）。",
+            render: ex_scroll_area_tags,
+        },
+        ExampleEntry {
+            title: "Horizontal scroll",
+            description: "data-orientation=\"horizontal\" による横スクロールの例です（イシュー #2054）。",
+            render: ex_scroll_area_horizontal,
+        },
+        ExampleEntry {
+            title: "RTL + fade",
+            description: "dir=\"rtl\" と data-fade を組み合わせた例です（イシュー #2054）。",
+            render: ex_scroll_area_rtl,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "tabindex=\"0\"（viewport）",
