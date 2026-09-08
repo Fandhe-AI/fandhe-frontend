@@ -831,8 +831,15 @@ chakra-ui の `feedback/status.md`/`feedback/empty-state.md` 相当。状態機�
   （`EmptyStateVariant`、既定 `Plain`。`Outline` は破線枠、`Subtle` は
   淡色単色背景）と `indicator` の `variant`（`indicator_with` 関数、
   `EmptyStateIndicatorVariant`、既定 `Plain`。`Boxed` は `bg-muted` の
-  角丸タイル）を純追加した。いずれも既定値は class を出力せず、既存
-  `EmptyStateProps { size }` の呼び出し・既定 CSS 出力はバイト不変。
+  角丸タイル）を追加した。**破壊的変更**: `variant` は `EmptyStateProps`
+  の必須フィールドとして追加したため、フィールド全列挙の構造体リテラル
+  `EmptyStateProps { size }` は本変更以降コンパイルできない。既存の
+  呼び出しは `EmptyStateProps { size, ..Default::default() }`（または
+  `EmptyStateProps { size, variant: EmptyStateVariant::Plain }`）へ移行
+  する必要がある。バイト不変なのは「既定 `EmptyStateProps::default()`
+  （`variant: EmptyStateVariant::Plain`）を渡したときの CSS 出力・HTML
+  出力」および既存の CSS ブロック自体であり、`Outline`/`Subtle`/`Boxed`
+  の各 variant 用に CSS ブロックが新規追加されている点は不変ではない。
   shadcn の `EmptyHeader`（indicator/title/description のグルーピング用
   slot）は非追随（`content` の gap + section-gap で同等の視覚リズムを
   実現済み）。
