@@ -1,0 +1,1142 @@
+//! styled Sidebar（shadcn/ui `Sidebar` 相当。イシュー #2073、親 #2071、
+//! 祖父トラッキング参照軸 #2001。headless 側 anatomy は #2072）。
+//!
+//! `fandhe_frontend_headless_ui::sidebar`（#2072）が出力する
+//! `data-scope="sidebar"` の 22 slot（`provider`/`root`/`header`/`content`/
+//! `footer`/`separator`/`input`/`group`/`group-label`/`group-content`/
+//! `group-action`/`menu`/`menu-item`/`menu-button`/`menu-action`/
+//! `menu-badge`/`menu-sub`/`menu-sub-item`/`menu-sub-button`/`rail`/
+//! `trigger`/`inset`）へ、`variant`（sidebar/floating/inset）3 種・
+//! `collapsible`（offcanvas/icon/none）3 種・`side`（left/right）2 種・
+//! モバイル時 drawer 表示という shadcn/ui `Sidebar` の意匠を重ねる薄い
+//! 委譲層である（[`crate::command`]/[`crate::item`] と同型の位置付け）。
+//!
+//! # 選択的 re-export（`pub use ...::*` を使わない理由）
+//!
+//! [`crate::command`]/[`crate::item`] と同型。22 パーツすべてを同名再定義
+//! し（呼び出し側 `class` の除去は本モジュールの責務のため）、状態機械
+//! [`Sidebar`]/[`SidebarAction`]/[`SidebarState`] と静的 props 型
+//! （[`SidebarProps`]/[`SidebarCollapsible`]/[`SidebarVariant`]/
+//! [`SidebarSide`]/[`SidebarMenuButtonProps`]/[`SidebarMenuButtonSize`]/
+//! [`SidebarMenuButtonVariant`]/[`SidebarMenuSubButtonProps`]/
+//! [`SidebarMenuSubButtonSize`]/[`DATA_STATE_EXPANDED`]/
+//! [`DATA_STATE_COLLAPSED`]）を選択的に再エクスポートする。[`provider`]/
+//! [`root`]/[`rail`]/[`trigger`] が `&Sidebar` を引数に取るため
+//! （[`crate::drawer`] が `DisclosureAction`/`OpenState` を再エクスポートする
+//! のと同じ理由）、本モジュールは状態機械を再エクスポートしない
+//! [`crate::command`] とは異なり、状態機械型を含めて再エクスポートする
+//! （[`crate::drawer`] と同型の判断）。
+//!
+//! # 責務境界（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）
+//!
+//! Cmd/Ctrl+B のグローバルショートカット・モバイル判定（メディアクエリ）・
+//! `menu-button` の tooltip hover 配線はアプリケーション/
+//! `fandhe-frontend-wasm-full`（後続イシュー #2074）の責務として実装しない。
+//! headless が出力する `data-*` を CSS セレクタとして参照するだけで見た目を
+//! 切り替える。本モジュール自身は独自の `data-*` を一切出力しない
+//! （[`menu_skeleton`] を含む）。
+//!
+//! # `--fandhe-sidebar-*`（scope 接頭辞）と `--fandhe-color-sidebar-*`（色トークン）
+//!
+//! イシュータイトルの `--fandhe-sidebar-*` は色については
+//! `docs/design/color-token-system.md` §9.3 の決定に従い
+//! `--fandhe-color-sidebar-*`（[`crate::theme::Theme::default`] が追加する
+//! `sidebar-bg`/`sidebar-fg`/`sidebar-accent`/`sidebar-accent-fg`/
+//! `sidebar-muted`/`sidebar-border`/`sidebar-focus-ring` の 7 ロール）を
+//! 意味する。幅など非色トークンは本 [`recipe`] が宣言する scope 接頭辞
+//! custom property（`--fandhe-sidebar-width`/`--fandhe-sidebar-width-icon`/
+//! `--fandhe-sidebar-width-mobile`、[`crate::drawer`] の
+//! `--fandhe-drawer-size` と同型のフォールバック付き）である。
+//!
+//! # icon 折りたたみ時のテキスト非表示（`menu-button` の `overflow: hidden`）
+//!
+//! headless [`fandhe_frontend_headless_ui::sidebar::menu_button`] はテキスト
+//! を `span` で包まない（`children` をそのまま流し込む）ため、本 recipe は
+//! `data-collapsible="icon"` かつ折りたたみ時に `menu-button` の
+//! `justify-content: center` + 固定幅 + `overflow: hidden` でテキストを
+//! 視覚的に切り落とす方式を採る。アイコンを `children` の最初の要素に置く
+//! 呼び出し規約を前提とする（headless 側で span 化する改善は本イシューの
+//! スコープ外、下記「スコープ外」節参照）。
+//!
+//! # モバイル + collapsed の詳細度調整（幅を固定し `transform` のみで開閉する）
+//!
+//! [`root`] の折りたたみ幅規則（`AttrEqAll([("data-state","collapsed"),
+//! ("data-collapsible","offcanvas")])`/`AttrEqAll([("data-state","collapsed"),
+//! ("data-collapsible","icon")])`、属性 4 個）は、`data-mobile` 単独条件
+//! （属性 3 個）より詳細度が高いため、モバイル + collapsed ではこれらが
+//! 優先されて「幅の増減」になってしまう。[`stylesheet`] が追記する raw CSS
+//! （`[data-mobile][data-state="collapsed"]`、属性 4 個 + ソース順で後）が
+//! 幅を `--fandhe-sidebar-width-mobile` に固定し、遷移対象を `transform`
+//! のみにする（`offcanvas`/`icon` を問わずモバイル時は drawer 挙動に統一、
+//! shadcn/ui 同様）。
+//!
+//! # backdrop を追加しない理由
+//!
+//! headless anatomy に `backdrop` パーツが無いため（headless モジュール doc
+//! 参照）、本モジュールも追加しない（[`crate::command`] の `dialog` と同じ
+//! 判断、下記「スコープ外」節参照）。
+//!
+//! # `menu-skeleton`（ローディング装飾、[`menu_skeleton`]）
+//!
+//! headless モジュール doc「`menu-skeleton` は本モジュールに置かない」節の
+//! 申し送りどおり、本モジュールが [`menu_skeleton`] ヘルパを提供する
+//! （`docs/policy/intentional-non-adoption.md` §3.25 規則 2: 装飾は Themes
+//! 層の責務）。shadcn/ui のランダム幅実装は SSR 決定性を壊すため採用せず、
+//! [`crate::skeleton::skeleton`]（`Circle`〔アイコン用、`show_icon` が
+//! `true` のときのみ〕+ `Text`）を固定幅で合成する決定的な
+//! [`fandhe_frontend_headless_ui::sidebar::menu_item`] を返す。幅の調整は
+//! 呼び出し側が `--fandhe-skeleton-size` 等の CSS 変数で行う（意図的な
+//! shadcn との差分）。自前の `data-*` は出力しない。
+//!
+//! # セキュリティ不変条件
+//!
+//! - 全出力は headless [`fandhe_frontend_headless_ui::sidebar`] →
+//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//!   経由する。`raw_html()` は使用しない。
+//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//!   関数へ委譲する（22 パーツすべて）。
+//! - [`stylesheet`] が組み立てる CSS 宣言・selector 断片はすべて
+//!   コンパイル時静的リテラルであり、[`crate::css::decl`]/
+//!   [`crate::css::serialize_rule`] の検証を通る値のみを使う。
+//! - `data-scope`/`data-part` の呼び出し側偽装は headless
+//!   [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] が除去する。
+//!
+//! # スコープ外
+//!
+//! - **#2074（`fandhe-frontend-wasm-full` 配線）**: Cmd/Ctrl+B・モバイル
+//!   drawer 切替・`menu-button` の tooltip hover 配線（上記「責務境界」節
+//!   参照）。
+//! - **`/themes/sidebar/` の docs-site ページ・showcase Demo・`site/nav.toml`
+//!   登録**: #2075。`crates/docs-site/tests/wrap_state.rs` の
+//!   `THEMES_RECIPE_WITHOUT_PAGE` 暫定台帳が本イシューと #2075 の橋渡しを
+//!   担う。
+//! - **`backdrop` パーツの新設**: headless anatomy の変更を伴うため本
+//!   イシューでは追随しない（上記「backdrop を追加しない理由」節参照）。
+//! - **`menu-button` テキストのアイコン折りたたみ時の非表示を headless 側
+//!   span 化で改善する案**: 本イシューでは `overflow: hidden` の視覚的
+//!   切り落としに留める（上記「icon 折りたたみ時のテキスト非表示」節
+//!   参照）。
+//! - **`@media (min-width)` 対応**: breakpoint 機構
+//!   （イシュー #2196/#2197）が未実装のため、レスポンシブなレイアウト
+//!   切り替えは対象外。
+
+use crate::class_attr::drop_class_attr;
+use crate::css::{decl, serialize_rule};
+use crate::recipe::{
+    focus_ring_declarations, transition_declarations, FocusRingColor, FocusRingOffset,
+    MotionDuration, SlotRecipe, StateCondition,
+};
+use crate::skeleton::{skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant};
+use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+
+// `provider`/`root`/`rail`/`trigger` が `&Sidebar` を引数に取るため、状態
+// 機械型を選択的に再エクスポートする（モジュール doc「選択的 re-export」節、
+// [`crate::drawer`] と同型の判断）。
+pub use fandhe_frontend_headless_ui::sidebar::{
+    Sidebar, SidebarAction, SidebarCollapsible, SidebarMenuButtonProps, SidebarMenuButtonSize,
+    SidebarMenuButtonVariant, SidebarMenuSubButtonProps, SidebarMenuSubButtonSize, SidebarProps,
+    SidebarSide, SidebarState, SidebarVariant, DATA_STATE_COLLAPSED, DATA_STATE_EXPANDED,
+};
+
+/// headless `sidebar` anatomy の `data-part` 一覧（`crates/headless-ui/src/
+/// sidebar.rs` の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると
+/// [`stylesheet`] が一部パーツの CSS を出力しない fail-closed 側の不具合と
+/// して現れるため、変更時は両ファイルを合わせて確認する）。
+const SLOTS: &[&str] = &[
+    "provider",
+    "root",
+    "header",
+    "content",
+    "footer",
+    "separator",
+    "input",
+    "group",
+    "group-label",
+    "group-content",
+    "group-action",
+    "menu",
+    "menu-item",
+    "menu-button",
+    "menu-action",
+    "menu-badge",
+    "menu-sub",
+    "menu-sub-item",
+    "menu-sub-button",
+    "rail",
+    "trigger",
+    "inset",
+];
+
+/// この styled Sidebar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
+/// のみが呼ぶ）。
+fn recipe() -> SlotRecipe {
+    let provider_base = vec![
+        decl("display", "flex"),
+        decl("min-height", "100svh"),
+        decl("width", "100%"),
+    ];
+
+    let root_base = vec![
+        decl("position", "relative"),
+        decl("display", "flex"),
+        decl("flex-direction", "column"),
+        decl("box-sizing", "border-box"),
+        decl("width", "var(--fandhe-sidebar-width, 16rem)"),
+        decl("flex-shrink", "0"),
+        decl("background", "var(--fandhe-color-sidebar-bg)"),
+        decl("color", "var(--fandhe-color-sidebar-fg)"),
+        decl(
+            "border-inline-end",
+            "1px solid var(--fandhe-color-sidebar-border)",
+        ),
+    ];
+    let root_transition = transition_declarations("width, transform", MotionDuration::Normal);
+
+    let header_footer_base = vec![
+        decl("display", "flex"),
+        decl("flex-direction", "column"),
+        decl("gap", "var(--fandhe-space-2)"),
+        decl("padding", "var(--fandhe-space-2)"),
+    ];
+
+    let content_base = vec![
+        decl("flex", "1"),
+        decl("min-height", "0"),
+        decl("overflow", "auto"),
+        decl("display", "flex"),
+        decl("flex-direction", "column"),
+        decl("gap", "var(--fandhe-space-2)"),
+    ];
+
+    let separator_base = vec![
+        decl("margin", "0 var(--fandhe-space-2)"),
+        decl("border", "0"),
+        decl("border-top", "1px solid var(--fandhe-color-sidebar-border)"),
+    ];
+
+    let input_base = vec![
+        decl("display", "block"),
+        decl("width", "100%"),
+        decl("box-sizing", "border-box"),
+        decl("height", "var(--fandhe-size-control-height-sm, 2rem)"),
+        decl("padding", "0 var(--fandhe-space-2)"),
+        decl("border", "1px solid var(--fandhe-color-sidebar-border)"),
+        decl("border-radius", "var(--fandhe-radius-md)"),
+        decl("background", "var(--fandhe-color-sidebar-bg)"),
+        decl("color", "inherit"),
+        decl("font", "inherit"),
+        decl("font-size", "var(--fandhe-font-font-size-sm)"),
+        decl("outline", "none"),
+    ];
+
+    let group_base = vec![
+        decl("position", "relative"),
+        decl("display", "flex"),
+        decl("flex-direction", "column"),
+        decl("padding", "var(--fandhe-space-2)"),
+    ];
+
+    let group_label_base = vec![
+        decl("display", "flex"),
+        decl("align-items", "center"),
+        decl("height", "2rem"),
+        decl("padding", "0 var(--fandhe-space-2)"),
+        decl("font-size", "var(--fandhe-font-font-size-xs)"),
+        decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+        decl("color", "var(--fandhe-color-sidebar-fg)"),
+        decl("opacity", "0.7"),
+    ];
+
+    let group_content_base = vec![
+        decl("display", "flex"),
+        decl("flex-direction", "column"),
+        decl("gap", "var(--fandhe-space-1)"),
+    ];
+
+    let group_action_base = vec![
+        decl("position", "absolute"),
+        decl("inset-inline-end", "var(--fandhe-space-2)"),
+        decl("top", "var(--fandhe-space-1)"),
+        decl("width", "1.25rem"),
+        decl("height", "1.25rem"),
+        decl("display", "inline-flex"),
+        decl("align-items", "center"),
+        decl("justify-content", "center"),
+        decl("border", "0"),
+        decl("background", "transparent"),
+        decl("border-radius", "var(--fandhe-radius-sm)"),
+        decl("color", "inherit"),
+        decl("cursor", "pointer"),
+    ];
+
+    let menu_base = vec![
+        decl("list-style", "none"),
+        decl("margin", "0"),
+        decl("padding", "0"),
+        decl("display", "flex"),
+        decl("flex-direction", "column"),
+        decl("gap", "var(--fandhe-space-1)"),
+    ];
+
+    let menu_item_base = vec![decl("position", "relative")];
+
+    let menu_button_base = vec![
+        decl("display", "flex"),
+        decl("align-items", "center"),
+        decl("gap", "var(--fandhe-space-2)"),
+        decl("width", "100%"),
+        decl("box-sizing", "border-box"),
+        decl("height", "2rem"),
+        decl("padding", "0 var(--fandhe-space-2)"),
+        decl("border", "0"),
+        decl("border-radius", "var(--fandhe-radius-md)"),
+        decl("background", "transparent"),
+        decl("color", "inherit"),
+        decl("font", "inherit"),
+        decl("font-size", "var(--fandhe-font-font-size-sm)"),
+        decl("text-align", "start"),
+        decl("text-decoration", "none"),
+        decl("cursor", "pointer"),
+        decl("overflow", "hidden"),
+        decl("white-space", "nowrap"),
+    ];
+    let menu_button_transition = transition_declarations("background, color", MotionDuration::Fast);
+
+    let menu_action_base = vec![
+        decl("position", "absolute"),
+        decl("inset-inline-end", "var(--fandhe-space-2)"),
+        decl("top", "50%"),
+        decl("transform", "translateY(-50%)"),
+        decl("width", "1.25rem"),
+        decl("height", "1.25rem"),
+        decl("display", "inline-flex"),
+        decl("align-items", "center"),
+        decl("justify-content", "center"),
+        decl("border", "0"),
+        decl("background", "transparent"),
+        decl("border-radius", "var(--fandhe-radius-sm)"),
+        decl("color", "inherit"),
+        decl("cursor", "pointer"),
+    ];
+
+    let menu_badge_base = vec![
+        decl("margin-inline-start", "auto"),
+        decl("font-size", "var(--fandhe-font-font-size-xs)"),
+        decl("padding", "0 var(--fandhe-space-1)"),
+        decl("border-radius", "var(--fandhe-radius-md)"),
+        decl("min-width", "1.25rem"),
+        decl("text-align", "center"),
+    ];
+
+    let menu_sub_base = vec![
+        decl("list-style", "none"),
+        decl("margin", "0"),
+        decl("margin-inline-start", "var(--fandhe-space-3)"),
+        decl("padding", "0"),
+        decl("padding-inline-start", "var(--fandhe-space-2)"),
+        decl(
+            "border-inline-start",
+            "1px solid var(--fandhe-color-sidebar-border)",
+        ),
+        decl("display", "flex"),
+        decl("flex-direction", "column"),
+        decl("gap", "var(--fandhe-space-1)"),
+    ];
+
+    let menu_sub_item_base = vec![decl("position", "relative")];
+
+    let menu_sub_button_base = vec![
+        decl("display", "flex"),
+        decl("align-items", "center"),
+        decl("gap", "var(--fandhe-space-2)"),
+        decl("width", "100%"),
+        decl("box-sizing", "border-box"),
+        decl("height", "1.75rem"),
+        decl("padding", "0 var(--fandhe-space-2)"),
+        decl("border", "0"),
+        decl("border-radius", "var(--fandhe-radius-md)"),
+        decl("background", "transparent"),
+        decl("color", "inherit"),
+        decl("font", "inherit"),
+        decl("font-size", "var(--fandhe-font-font-size-xs)"),
+        decl("text-align", "start"),
+        decl("text-decoration", "none"),
+        decl("cursor", "pointer"),
+        decl("overflow", "hidden"),
+        decl("white-space", "nowrap"),
+    ];
+
+    let rail_base = vec![
+        decl("position", "absolute"),
+        decl("inset-block", "0"),
+        decl("inset-inline-end", "-1rem"),
+        decl("width", "1rem"),
+        decl("border", "0"),
+        decl("padding", "0"),
+        decl("background", "transparent"),
+        decl("cursor", "ew-resize"),
+    ];
+
+    let trigger_base = vec![
+        decl("display", "inline-flex"),
+        decl("align-items", "center"),
+        decl("justify-content", "center"),
+        decl("width", "1.75rem"),
+        decl("height", "1.75rem"),
+        decl("border", "0"),
+        decl("background", "transparent"),
+        decl("border-radius", "var(--fandhe-radius-md)"),
+        decl("color", "inherit"),
+        decl("cursor", "pointer"),
+    ];
+
+    let inset_base = vec![
+        decl("flex", "1"),
+        decl("min-width", "0"),
+        decl("display", "flex"),
+        decl("flex-direction", "column"),
+        decl("background", "var(--fandhe-color-bg)"),
+    ];
+
+    SlotRecipe::new("sidebar", SLOTS)
+        .base("provider", provider_base)
+        .base("root", root_base)
+        .base("root", root_transition)
+        .base("header", header_footer_base.clone())
+        .base("content", content_base)
+        .base("footer", header_footer_base)
+        .base("separator", separator_base)
+        .base("input", input_base)
+        .base("group", group_base)
+        .base("group-label", group_label_base)
+        .base("group-content", group_content_base)
+        .base("group-action", group_action_base)
+        .base("menu", menu_base)
+        .base("menu-item", menu_item_base)
+        .base("menu-button", menu_button_base)
+        .base("menu-button", menu_button_transition)
+        .base("menu-action", menu_action_base)
+        .base("menu-badge", menu_badge_base)
+        .base("menu-sub", menu_sub_base)
+        .base("menu-sub-item", menu_sub_item_base)
+        .base("menu-sub-button", menu_sub_button_base)
+        .base("rail", rail_base)
+        .base("trigger", trigger_base)
+        .base("inset", inset_base)
+        // `root` の `data-side="right"` 反転（`rail` の位置反転は raw CSS）。
+        .state(
+            "root",
+            StateCondition::AttrEq("data-side", "right"),
+            vec![
+                decl("order", "1"),
+                decl("border-inline-end", "0"),
+                decl(
+                    "border-inline-start",
+                    "1px solid var(--fandhe-color-sidebar-border)",
+                ),
+            ],
+        )
+        // `data-variant="floating"`: 浮遊する見た目。
+        .state(
+            "root",
+            StateCondition::AttrEq("data-variant", "floating"),
+            vec![
+                decl("margin", "var(--fandhe-space-2)"),
+                decl("border", "1px solid var(--fandhe-color-sidebar-border)"),
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
+                decl("height", "calc(100svh - var(--fandhe-space-4))"),
+            ],
+        )
+        // `data-variant="inset"`: ページ背景に溶ける（`inset` パーツ側が
+        // 面パネルになる、raw CSS 追記「inset variant の主領域」節参照）。
+        .state(
+            "root",
+            StateCondition::AttrEq("data-variant", "inset"),
+            vec![
+                decl("margin", "var(--fandhe-space-2)"),
+                decl("border", "0"),
+                decl("background", "transparent"),
+            ],
+        )
+        // 折りたたみ幅（icon）。
+        .state(
+            "root",
+            StateCondition::AttrEqAll(&[("data-state", "collapsed"), ("data-collapsible", "icon")]),
+            vec![decl("width", "var(--fandhe-sidebar-width-icon, 3rem)")],
+        )
+        // 折りたたみ幅（offcanvas）。
+        .state(
+            "root",
+            StateCondition::AttrEqAll(&[
+                ("data-state", "collapsed"),
+                ("data-collapsible", "offcanvas"),
+            ]),
+            vec![
+                decl("width", "0"),
+                decl("border", "0"),
+                decl("overflow", "hidden"),
+            ],
+        )
+        // モバイル表示中は固定オーバーレイになる（幅の詳細度調整は raw CSS
+        // 「モバイル + collapsed の詳細度調整」節参照）。
+        .state(
+            "root",
+            StateCondition::Attr("data-mobile"),
+            vec![
+                decl("position", "fixed"),
+                decl("inset-block", "0"),
+                decl("inset-inline-start", "0"),
+                decl("width", "var(--fandhe-sidebar-width-mobile, 18rem)"),
+                decl("z-index", "var(--fandhe-z-index-modal, 1001)"),
+                decl("box-shadow", "var(--fandhe-shadow-lg)"),
+            ],
+        )
+        // `group-action`/`menu-action`: hover で背景・フォーカスリング。
+        .state(
+            "group-action",
+            StateCondition::Hover,
+            vec![decl("background", "var(--fandhe-color-sidebar-muted)")],
+        )
+        .state(
+            "group-action",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .state(
+            "menu-action",
+            StateCondition::Hover,
+            vec![decl("background", "var(--fandhe-color-sidebar-muted)")],
+        )
+        .state(
+            "menu-action",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // `menu-button`: 選択色（`data-active`）を hover が洗い流さないよう
+        // `HoverExceptAttr` で除外する（[`crate::command`] の `item` と同型）。
+        .state(
+            "menu-button",
+            StateCondition::Attr("data-active"),
+            vec![
+                decl("background", "var(--fandhe-color-sidebar-accent)"),
+                decl("color", "var(--fandhe-color-sidebar-accent-fg)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+            ],
+        )
+        .state(
+            "menu-button",
+            StateCondition::HoverExceptAttr("data-active"),
+            vec![decl("background", "var(--fandhe-color-sidebar-muted)")],
+        )
+        .state(
+            "menu-button",
+            StateCondition::AttrEq("data-size", "sm"),
+            vec![
+                decl("height", "1.75rem"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+            ],
+        )
+        .state(
+            "menu-button",
+            StateCondition::AttrEq("data-size", "lg"),
+            vec![
+                decl("height", "3rem"),
+                decl("padding-inline", "var(--fandhe-space-3)"),
+            ],
+        )
+        .state(
+            "menu-button",
+            StateCondition::AttrEq("data-variant", "outline"),
+            vec![
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("box-shadow", "0 0 0 1px var(--fandhe-color-sidebar-border)"),
+            ],
+        )
+        .state(
+            "menu-button",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // `menu-sub-button`: `menu-button` と同型の選択色・サイズ規則。
+        .state(
+            "menu-sub-button",
+            StateCondition::Attr("data-active"),
+            vec![
+                decl("background", "var(--fandhe-color-sidebar-accent)"),
+                decl("color", "var(--fandhe-color-sidebar-accent-fg)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+            ],
+        )
+        .state(
+            "menu-sub-button",
+            StateCondition::HoverExceptAttr("data-active"),
+            vec![decl("background", "var(--fandhe-color-sidebar-muted)")],
+        )
+        .state(
+            "menu-sub-button",
+            // 既定は `sm`（`data-size` 省略時と同じ `xs` 相当の文字サイズ）。
+            // `md` 指定時のみ本文サイズへ拡大する（headless
+            // `SidebarMenuSubButtonSize` の既定は `Sm`）。
+            StateCondition::AttrEq("data-size", "md"),
+            vec![decl("font-size", "var(--fandhe-font-font-size-sm)")],
+        )
+        .state(
+            "menu-sub-button",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // `trigger`/`rail`: hover・フォーカスリング。
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            vec![decl("background", "var(--fandhe-color-sidebar-muted)")],
+        )
+        .state(
+            "trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .state(
+            "rail",
+            StateCondition::Hover,
+            vec![decl(
+                "box-shadow",
+                "inset 2px 0 0 var(--fandhe-color-sidebar-border)",
+            )],
+        )
+        // `input`: canonical フォーカスリング（`--fandhe-color-sidebar-focus-ring`
+        // で上書き）。
+        .state("input", StateCondition::FocusVisible, {
+            let mut declarations =
+                focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside);
+            declarations.push(decl(
+                "outline-color",
+                "var(--fandhe-color-sidebar-focus-ring)",
+            ));
+            declarations
+        })
+}
+
+/// この styled Sidebar が生成する静的 CSS 全量を返す（決定的。
+/// [`crate::command::stylesheet`] と同じ契約）。[`SlotRecipe`] が子孫/兄弟/
+/// 子結合子セレクタを表現できないため（モジュール doc参照）、以下の raw CSS
+/// を追記する:
+///
+/// 1. icon 折りたたみ時に `group-label`/`menu-badge`/`menu-action`/
+///    `group-action`/`menu-sub`/`input` を隠し、`menu-button` を中央寄せ・
+///    パディング詰めする子孫セレクタ群。
+/// 2. モバイル + collapsed 時の幅固定 + `transform` 切替（詳細度調整、
+///    モジュール doc「モバイル + collapsed の詳細度調整」節参照）。
+/// 3. `variant="inset"` の `inset` パーツを面パネル化する子結合子セレクタ
+///    （side ごとに margin の向きを変える 2 本）。
+/// 4. `side="right"` の `rail` 位置反転（子結合子セレクタ）。
+#[must_use]
+pub fn stylesheet() -> String {
+    let mut out = recipe().css();
+    let mut push = |selector: &str, declarations: &[crate::css::Declaration]| {
+        if let Some(rule) = serialize_rule(selector, declarations) {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&rule);
+        }
+    };
+
+    const ICON_COLLAPSED: &str = r#"[data-scope="sidebar"][data-part="root"][data-state="collapsed"][data-collapsible="icon"]"#;
+
+    push(
+        &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"group-label\"]"),
+        &[decl("display", "none")],
+    );
+    push(
+        &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-badge\"]"),
+        &[decl("display", "none")],
+    );
+    push(
+        &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-action\"]"),
+        &[decl("display", "none")],
+    );
+    push(
+        &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"group-action\"]"),
+        &[decl("display", "none")],
+    );
+    push(
+        &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-sub\"]"),
+        &[decl("display", "none")],
+    );
+    push(
+        &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"input\"]"),
+        &[decl("display", "none")],
+    );
+    push(
+        &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-button\"]"),
+        &[
+            decl("justify-content", "center"),
+            decl("padding", "0"),
+            decl("width", "2rem"),
+        ],
+    );
+
+    // モバイル + collapsed: `root` の折りたたみ幅規則（属性 4 個）に対し
+    // `data-mobile` 単独（属性 3 個）は詳細度で負けるため、本規則（属性 4 個
+    // + ソース順で後）で幅を固定し `transform` のみで開閉する（モジュール
+    // doc「モバイル + collapsed の詳細度調整」節参照）。
+    push(
+        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]"#,
+        &[
+            decl("width", "var(--fandhe-sidebar-width-mobile, 18rem)"),
+            decl("transform", "translateX(-100%)"),
+        ],
+    );
+    push(
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]"#,
+        &[
+            decl("inset-inline-start", "auto"),
+            decl("inset-inline-end", "0"),
+            decl("transform", "translateX(100%)"),
+        ],
+    );
+
+    // `variant="inset"` の主領域（`inset` パーツを面パネル化する）。
+    push(
+        r#"[data-scope="sidebar"][data-part="provider"][data-variant="inset"] > [data-scope="sidebar"][data-part="inset"]"#,
+        &[
+            decl("margin", "var(--fandhe-space-2)"),
+            decl("margin-inline-start", "0"),
+            decl("border-radius", "var(--fandhe-radius-lg)"),
+            decl("box-shadow", "var(--fandhe-shadow-sm)"),
+            decl("background", "var(--fandhe-color-bg)"),
+        ],
+    );
+    push(
+        r#"[data-scope="sidebar"][data-part="provider"][data-side="right"] > [data-scope="sidebar"][data-part="inset"]"#,
+        &[
+            decl("margin-inline-start", "var(--fandhe-space-2)"),
+            decl("margin-inline-end", "0"),
+        ],
+    );
+
+    // `side="right"` の `rail` 位置反転。
+    push(
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"] > [data-scope="sidebar"][data-part="rail"]"#,
+        &[
+            decl("inset-inline-end", "auto"),
+            decl("inset-inline-start", "-1rem"),
+        ],
+    );
+
+    out
+}
+
+/// styled `provider` パーツを組み立てる。
+#[must_use]
+pub fn provider<'a>(
+    state: &Sidebar,
+    props: &SidebarProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::provider(state, props, drop_class_attr(attrs), children)
+}
+
+/// styled `root` パーツを組み立てる。
+#[must_use]
+pub fn root<'a>(
+    state: &Sidebar,
+    props: &SidebarProps,
+    label: &'a str,
+    id: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::root(
+        state,
+        props,
+        label,
+        id,
+        drop_class_attr(attrs),
+        children,
+    )
+}
+
+/// styled `header` パーツを組み立てる。
+#[must_use]
+pub fn header<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::header(drop_class_attr(attrs), children)
+}
+
+/// styled `content` パーツを組み立てる。
+#[must_use]
+pub fn content<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::content(drop_class_attr(attrs), children)
+}
+
+/// styled `footer` パーツを組み立てる。
+#[must_use]
+pub fn footer<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::footer(drop_class_attr(attrs), children)
+}
+
+/// styled `separator` パーツを組み立てる。
+#[must_use]
+pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::separator(drop_class_attr(attrs), children)
+}
+
+/// styled `input` パーツを組み立てる。
+#[must_use]
+pub fn input<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::input(drop_class_attr(attrs))
+}
+
+/// styled `group` パーツを組み立てる。
+#[must_use]
+pub fn group<'a>(
+    labelledby: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::group(labelledby, drop_class_attr(attrs), children)
+}
+
+/// styled `group-label` パーツを組み立てる。
+#[must_use]
+pub fn group_label<'a>(
+    id: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::group_label(id, drop_class_attr(attrs), children)
+}
+
+/// styled `group-content` パーツを組み立てる。
+#[must_use]
+pub fn group_content<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::group_content(drop_class_attr(attrs), children)
+}
+
+/// styled `group-action` パーツを組み立てる。
+#[must_use]
+pub fn group_action<'a>(
+    label: &'a str,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::group_action(label, drop_class_attr(attrs), children)
+}
+
+/// styled `menu` パーツを組み立てる。
+#[must_use]
+pub fn menu<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::menu(drop_class_attr(attrs), children)
+}
+
+/// styled `menu-item` パーツを組み立てる。
+#[must_use]
+pub fn menu_item<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::menu_item(drop_class_attr(attrs), children)
+}
+
+/// styled `menu-button` パーツを組み立てる。アイコンを `children` の最初の
+/// 要素に置く呼び出し規約を前提とする（モジュール doc「icon 折りたたみ時の
+/// テキスト非表示」節参照）。
+#[must_use]
+pub fn menu_button<'a>(
+    props: &SidebarMenuButtonProps<'a>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::menu_button(props, drop_class_attr(attrs), children)
+}
+
+/// styled `menu-action` パーツを組み立てる。
+#[must_use]
+pub fn menu_action<'a>(
+    label: &'a str,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::menu_action(label, drop_class_attr(attrs), children)
+}
+
+/// styled `menu-badge` パーツを組み立てる。
+#[must_use]
+pub fn menu_badge<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::menu_badge(drop_class_attr(attrs), children)
+}
+
+/// styled `menu-sub` パーツを組み立てる。
+#[must_use]
+pub fn menu_sub<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::menu_sub(drop_class_attr(attrs), children)
+}
+
+/// styled `menu-sub-item` パーツを組み立てる。
+#[must_use]
+pub fn menu_sub_item<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::menu_sub_item(drop_class_attr(attrs), children)
+}
+
+/// styled `menu-sub-button` パーツを組み立てる。
+#[must_use]
+pub fn menu_sub_button<'a>(
+    props: &SidebarMenuSubButtonProps<'a>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::menu_sub_button(props, drop_class_attr(attrs), children)
+}
+
+/// styled `rail` パーツを組み立てる。
+#[must_use]
+pub fn rail<'a>(
+    state: &Sidebar,
+    label: &'a str,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::rail(state, label, drop_class_attr(attrs), children)
+}
+
+/// styled `trigger` パーツを組み立てる。
+#[must_use]
+pub fn trigger<'a>(
+    state: &Sidebar,
+    label: &'a str,
+    controls: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    fandhe_frontend_headless_ui::sidebar::trigger(
+        state,
+        label,
+        controls,
+        drop_class_attr(attrs),
+        children,
+    )
+}
+
+/// styled `inset` パーツを組み立てる。
+#[must_use]
+pub fn inset<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    fandhe_frontend_headless_ui::sidebar::inset(drop_class_attr(attrs), children)
+}
+
+/// `menu-item` 1 行分のローディング装飾（モジュール doc「`menu-skeleton`」
+/// 節参照）。`show_icon` が `true` のとき先頭にアイコン用の円形
+/// skeleton を、続けて固定幅のテキスト用 skeleton を合成する。決定的で
+/// ランダム幅を持たない（shadcn/ui との意図的な差分）。自前の `data-*` は
+/// 出力しない。
+#[must_use]
+pub fn menu_skeleton<'a>(show_icon: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
+    let mut children = Vec::new();
+    if show_icon {
+        children.push(skeleton(
+            &SkeletonProps {
+                variant: SkeletonVariant::Circle,
+                animation: SkeletonAnimation::default(),
+            },
+            vec![],
+        ));
+    }
+    children.push(skeleton(&SkeletonProps::default(), vec![]));
+    fandhe_frontend_headless_ui::sidebar::menu_item(drop_class_attr(attrs), children)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fandhe_frontend_core::{render, text as core_text};
+
+    fn expanded() -> Sidebar {
+        Sidebar::new(SidebarState::Expanded)
+    }
+
+    #[test]
+    fn stylesheet_is_deterministic_and_targets_data_scope_selectors() {
+        let a = stylesheet();
+        let b = stylesheet();
+        assert_eq!(a, b);
+        assert!(a.contains(r#"[data-scope="sidebar"][data-part="root"] {"#));
+    }
+
+    #[test]
+    fn stylesheet_never_contains_style_breakout_sequences() {
+        let out = stylesheet();
+        assert!(!out.contains("</style"));
+        assert!(!out.contains('<'));
+    }
+
+    #[test]
+    fn stylesheet_never_generates_class_based_variant_classes() {
+        let out = stylesheet();
+        assert!(!out.contains("fd-sidebar--"));
+    }
+
+    #[test]
+    fn all_parts_connect_to_headless_sidebar_scope() {
+        let state = expanded();
+        let props = SidebarProps::default();
+
+        let html = render(&provider(&state, &props, vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="provider""#));
+
+        let html = render(&root(&state, &props, "App sidebar", None, vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="root""#));
+
+        let html = render(&header(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="header""#));
+
+        let html = render(&content(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="content""#));
+
+        let html = render(&footer(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="footer""#));
+
+        let html = render(&separator(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="separator""#));
+
+        let html = render(&input(vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="input""#));
+
+        let html = render(&group(None, vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="group""#));
+
+        let html = render(&group_label(None, vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="group-label""#));
+
+        let html = render(&group_content(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="group-content""#));
+
+        let html = render(&group_action("Add", vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="group-action""#));
+
+        let html = render(&menu(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="menu""#));
+
+        let html = render(&menu_item(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="menu-item""#));
+
+        let html = render(&menu_button(
+            &SidebarMenuButtonProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="menu-button""#));
+
+        let html = render(&menu_action("Remove", vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="menu-action""#));
+
+        let html = render(&menu_badge(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="menu-badge""#));
+
+        let html = render(&menu_sub(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="menu-sub""#));
+
+        let html = render(&menu_sub_item(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="menu-sub-item""#));
+
+        let html = render(&menu_sub_button(
+            &SidebarMenuSubButtonProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="menu-sub-button""#));
+
+        let html = render(&rail(&state, "Toggle sidebar", vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="rail""#));
+
+        let html = render(&trigger(&state, "Toggle sidebar", None, vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="trigger""#));
+
+        let html = render(&inset(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="inset""#));
+
+        let html = render(&menu_skeleton(true, vec![]));
+        assert!(html.contains(r#"data-scope="sidebar" data-part="menu-item""#));
+        assert!(!html.contains("data-sidebar"));
+    }
+
+    #[test]
+    fn caller_class_is_dropped_on_every_part() {
+        let state = expanded();
+        let props = SidebarProps::default();
+        let html = render(&provider(
+            &state,
+            &props,
+            vec![("class", "evil")],
+            vec![
+                root(
+                    &state,
+                    &props,
+                    "App sidebar",
+                    None,
+                    vec![("class", "evil")],
+                    vec![
+                        header(vec![("class", "evil")], vec![]),
+                        content(
+                            vec![("class", "evil")],
+                            vec![group(
+                                None,
+                                vec![("class", "evil")],
+                                vec![
+                                    group_label(None, vec![("class", "evil")], vec![]),
+                                    group_action("Add", vec![("class", "evil")], vec![]),
+                                    group_content(
+                                        vec![("class", "evil")],
+                                        vec![menu(
+                                            vec![("class", "evil")],
+                                            vec![menu_item(
+                                                vec![("class", "evil")],
+                                                vec![
+                                                    menu_button(
+                                                        &SidebarMenuButtonProps::default(),
+                                                        vec![("class", "evil")],
+                                                        vec![],
+                                                    ),
+                                                    menu_action(
+                                                        "Remove",
+                                                        vec![("class", "evil")],
+                                                        vec![],
+                                                    ),
+                                                    menu_badge(vec![("class", "evil")], vec![]),
+                                                    menu_sub(
+                                                        vec![("class", "evil")],
+                                                        vec![menu_sub_item(
+                                                            vec![("class", "evil")],
+                                                            vec![menu_sub_button(
+                                                                &SidebarMenuSubButtonProps::default(
+                                                                ),
+                                                                vec![("class", "evil")],
+                                                                vec![],
+                                                            )],
+                                                        )],
+                                                    ),
+                                                ],
+                                            )],
+                                        )],
+                                    ),
+                                ],
+                            )],
+                        ),
+                        footer(vec![("class", "evil")], vec![]),
+                        separator(vec![("class", "evil")], vec![]),
+                        input(vec![("class", "evil")]),
+                        rail(&state, "Toggle sidebar", vec![("class", "evil")], vec![]),
+                        trigger(
+                            &state,
+                            "Toggle sidebar",
+                            None,
+                            vec![("class", "evil")],
+                            vec![],
+                        ),
+                    ],
+                ),
+                inset(vec![("class", "evil")], vec![core_text("main")]),
+            ],
+        ));
+        assert!(!html.contains("evil"));
+        assert_eq!(html.matches("class=\"").count(), 0);
+    }
+}

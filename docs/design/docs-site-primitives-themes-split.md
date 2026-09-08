@@ -589,3 +589,30 @@ Themes recipe は後続イシュー #2073)に伴い、§2/§6/§7 の件数を�
   → **`["command", "sidebar"]`**
 - Themes 部品(§2/§6 の件数)は本イシューでは変化しない(`/themes/sidebar/`
   は後続イシュー #2073 の責務)。
+
+## 13. イシュー #2073 追記(2026-09-09、sidebar の Themes 層 recipe 実装)
+
+`crates/pre-styled-ui/src/sidebar.rs` の新設(`fandhe_frontend_headless_ui::
+sidebar` をコード委譲する Themes 層 recipe。`/themes/sidebar/` ページ自体
+は後続イシュー #2075 の責務)に伴い、`crates/docs-site/tests/wrap_state.rs`
+の台帳を以下のとおり更新した。
+
+- `HEADLESS_UNWRAPPED`(コード委譲の有無を表す台帳): `["sidebar"]` →
+  **`[]`**(`sidebar.rs` が `fandhe_frontend_headless_ui::sidebar` を
+  コード委譲するようになったため)
+- 新設 `THEMES_RECIPE_WITHOUT_PAGE`(pre-styled-ui recipe を実装済みだが
+  `/themes/<kebab>/` ページをまだ持たない部品の暫定台帳): **`["sidebar"]`**
+  (`HEADLESS_UNWRAPPED` と `PRIMITIVES_WITHOUT_THEMES_PAGE` の間で
+  「コード委譲はあるがページはまだ無い」状態を表現するために追加。
+  `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
+  の `expected_diff` として、`every_pre_styled_module_is_either_a_page_or_
+  declared_non_page` の非ページモジュール期待集合〔`NON_PAGE_TOP_LEVEL`
+  との和集合〕として、それぞれ参照される)
+- `PRIMITIVES_WITHOUT_THEMES_PAGE`(`crates/docs-site/src/
+  primitives_catalog.rs`): `["sidebar"]` のまま**維持**(`/themes/sidebar/`
+  ページが未登録である事実は変わらないため)
+- `crates/pre-styled-ui/src/*.rs` 総数(`every_pre_styled_module_is_either_
+  a_page_or_declared_non_page` の固定値): 114 → **115**
+- Themes 部品(§2/§6 の件数)は本イシューでは変化しない(`/themes/sidebar/`
+  ページ登録は #2075 の責務。#2075 完了時に `THEMES_RECIPE_WITHOUT_PAGE`
+  を空へ戻し、`sidebar` を `WRAPPED_SAME_NAME` へ分類し直す想定)

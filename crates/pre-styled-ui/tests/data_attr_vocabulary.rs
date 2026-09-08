@@ -917,3 +917,100 @@ fn scroll_area_viewport_data_attrs_are_caller_sourced_not_self_emitted() {
     assert!(css.contains("[data-fade]"));
     assert!(css.contains("[data-orientation=\"horizontal\"]"));
 }
+
+/// `provider`/`root` の `data-state`/`data-collapsible`/`data-variant`/
+/// `data-side`/`data-mobile`、`menu-button`/`menu-sub-button` の
+/// `data-active`/`data-size`/`data-variant`、`rail`/`trigger` の
+/// `data-state`/`aria-expanded` はすべて headless
+/// `fandhe_frontend_headless_ui::sidebar` が生成するものであり、
+/// `sidebar::stylesheet()` はそれらを CSS セレクタとして**参照する**だけで
+/// 自前出力はしない、という事実を固定する（イシュー #2073、
+/// `command_parts_data_attrs_are_headless_sourced_not_self_emitted` と同型）。
+/// `menu_skeleton` も自前の `data-*` を出力しないことをあわせて固定する。
+#[test]
+fn sidebar_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::sidebar::{
+        self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarMenuButtonVariant,
+        SidebarMenuSubButtonProps, SidebarProps, SidebarSide, SidebarState, SidebarVariant,
+    };
+
+    let expanded = Sidebar::new(SidebarState::Expanded);
+    let collapsed = Sidebar::new(SidebarState::Collapsed);
+
+    let provider_html = render(&sidebar::provider(
+        &expanded,
+        &SidebarProps {
+            collapsible: SidebarCollapsible::Icon,
+            variant: SidebarVariant::Floating,
+            side: SidebarSide::Right,
+            mobile: true,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(provider_html.contains(r#"data-state="expanded""#));
+    assert!(provider_html.contains(r#"data-collapsible="icon""#));
+    assert!(provider_html.contains(r#"data-variant="floating""#));
+    assert!(provider_html.contains(r#"data-side="right""#));
+    assert!(provider_html.contains("data-mobile"));
+
+    let root_html = render(&sidebar::root(
+        &collapsed,
+        &SidebarProps::default(),
+        "App sidebar",
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains(r#"data-state="collapsed""#));
+    assert!(!root_html.contains("data-mobile"));
+
+    let menu_button_html = render(&sidebar::menu_button(
+        &SidebarMenuButtonProps {
+            active: true,
+            variant: SidebarMenuButtonVariant::Outline,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(menu_button_html.contains("data-active"));
+    assert!(menu_button_html.contains(r#"data-size="default""#));
+    assert!(menu_button_html.contains(r#"data-variant="outline""#));
+
+    let menu_sub_button_html = render(&sidebar::menu_sub_button(
+        &SidebarMenuSubButtonProps::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(!menu_sub_button_html.contains("data-active"));
+    assert!(menu_sub_button_html.contains(r#"data-size="sm""#));
+
+    let rail_html = render(&sidebar::rail(&expanded, "Toggle sidebar", vec![], vec![]));
+    assert!(rail_html.contains(r#"data-state="expanded""#));
+
+    let trigger_html = render(&sidebar::trigger(
+        &collapsed,
+        "Toggle sidebar",
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(trigger_html.contains(r#"data-state="collapsed""#));
+    assert!(trigger_html.contains(r#"aria-expanded="false""#));
+
+    let skeleton_html = render(&sidebar::menu_skeleton(true, vec![]));
+    assert!(!skeleton_html.contains("data-active"));
+    assert!(!skeleton_html.contains("data-state"));
+
+    // `sidebar::stylesheet()` は `[data-state=`/`[data-collapsible=`/
+    // `[data-variant=`/`[data-mobile]`/`[data-active]`/`[data-size=` を
+    // CSS セレクタとして参照するだけで自前で `data-*` を組み立てない。
+    let css = sidebar::stylesheet();
+    assert!(css.contains(r#"[data-state="collapsed"]"#));
+    assert!(css.contains(r#"[data-collapsible="icon"]"#));
+    assert!(css.contains(r#"[data-variant="floating"]"#));
+    assert!(css.contains("[data-mobile]"));
+    assert!(css.contains("[data-active]"));
+    assert!(css.contains(r#"[data-size="sm"]"#));
+}

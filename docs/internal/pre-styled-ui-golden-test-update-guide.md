@@ -74,7 +74,8 @@ listbox / marquee / menu / **menubar（方式 b）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
 pin_input / progress / qr_code / radio_card / radio_group / rating_group /
 **scroll_area（イシュー #1584 で golden 新設。#2054 で横スクロール・端フェード規則を末尾へ純追加、`starts_with` による純追加固定アサーションも追加）** /
-select / separator / skeleton / skip_nav / **spinner（イシュー #1567 で
+select / separator / **sidebar（イシュー #2073 で golden 新設。
+`stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
 golden 新設）** / splitter / stat / steps / switch /
 tab_nav / tags_input / timeline / timer / toast /
 **toggle（イシュー #2023 で golden 新設）** /

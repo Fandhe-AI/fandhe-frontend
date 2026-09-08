@@ -2550,7 +2550,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # minor ではなく patch とする）。本クレート自体の実装（sidebar の Themes 層
 # recipe）は後続イシュー #2073。依存先 `fandhe-frontend-headless-ui` の
 # version 要求は本ブランチの 0.68.4 追随をそのまま採用する（下記参照）。
-version = "0.150.1"
+#
+# イシュー #2073: `sidebar` モジュールを新設し `DEFAULT_COLORS` へ
+# `sidebar-*` 7 ロールを追加した。同名 `push_color` が
+# `ThemeError::DuplicateTokenName` になる観測可能な破壊的変更（#1422 の
+# 判断基準）に加え新規公開モジュールの追加を伴うため、0.150.1 から
+# +1 minor して 0.151.0 とする。
+version = "0.151.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

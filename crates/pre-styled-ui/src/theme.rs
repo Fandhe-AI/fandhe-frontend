@@ -463,6 +463,21 @@ const DEFAULT_COLORS: &[(&str, &str, &str)] = &[
     ("chart-4", "#805ad5", "#b794f4"),
     ("chart-5", "#d53f8c", "#f687b3"),
     ("chart-6", "#00a3c4", "#76e4f7"),
+    // sidebar（イシュー #2073。`docs/design/color-token-system.md` §9.3 で
+    // 確定した 7 ロール、shadcn/ui の `--sidebar-*` 変数群に対応）。
+    // `fandhe_frontend_pre_styled_ui::sidebar` recipe のみが参照する
+    // scope 専用ロールであり、既存トークン（`bg-subtle`/`fg`/`accent`/
+    // `accent-fg`/`bg-muted`/`border`/`focus-ring`）と同値の複製から開始
+    // する（安全側の初期値。個別調整は別イシューへ）。
+    ("sidebar-bg", "#f7f7f7", "#1a1a1a"),
+    ("sidebar-fg", "#111111", "#f7f7f7"),
+    // shadcn `--sidebar-primary` 相当（アクティブ項目の強調色）。
+    ("sidebar-accent", "#3182ce", "#4299e1"),
+    ("sidebar-accent-fg", "#ffffff", "#0b1720"),
+    // shadcn `--sidebar-accent` 相当（hover 面の淡色）。
+    ("sidebar-muted", "#eeeeee", "#242424"),
+    ("sidebar-border", "#d9d9d9", "#3a3a3a"),
+    ("sidebar-focus-ring", "#3182ce", "#63b3ed"),
 ];
 
 /// 既定の角丸トークン（name, value）。モード非依存。既存 styled 部品
@@ -1899,6 +1914,9 @@ mod tests {
         ("warning-fg-subtle", "warning-subtle"),
         ("danger-fg-subtle", "danger-subtle"),
         ("neutral-fg-subtle", "neutral-subtle"),
+        // sidebar（イシュー #2073）。
+        ("sidebar-fg", "sidebar-bg"),
+        ("sidebar-fg", "sidebar-muted"),
     ];
 
     /// 大字・UI 部品相当ペア（3:1 以上）。solid 背景上の文字色・背景自体の
@@ -1946,6 +1964,10 @@ mod tests {
         // （`bg-subtle` 背景）に既定 `Plain` の indicator（`fg-subtle`、
         // 大型装飾グリフ）が乗る組。
         ("fg-subtle", "bg-subtle"),
+        // sidebar（イシュー #2073）。
+        ("sidebar-accent-fg", "sidebar-accent"),
+        ("sidebar-focus-ring", "sidebar-bg"),
+        ("sidebar-accent", "sidebar-bg"),
     ];
 
     #[test]
