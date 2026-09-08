@@ -1,8 +1,8 @@
 //! `site/nav.toml` の Primitives セクション・`site/primitives/*.md` 原稿群を
-//! `crates/docs-site/src/primitives_catalog.rs`（イシュー #1020、63 部品の
+//! `crates/docs-site/src/primitives_catalog.rs`（イシュー #1020、64 部品の
 //! 唯一の正）と三方突合するドリフト検知テスト（イシュー #1021）。
 //!
-//! 63 件の手書きリスト（nav.toml・原稿ファイル・本テストの期待値）を
+//! 64 件の手書きリスト（nav.toml・原稿ファイル・本テストの期待値）を
 //! 目視同期に委ねると、追加・削除・並べ替えのいずれかが片方だけに反映
 //! される事故が起きうる。本テストは「台帳を唯一の正として nav.toml と
 //! 原稿ファイル集合の双方を機械突合する」ことで、以後のドリフトを

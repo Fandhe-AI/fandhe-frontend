@@ -415,13 +415,35 @@ let _style_node = sheet.style_element();
   `Subtle`（既定）/`Outline`/`Surface` の 4 値）。
 - **`AvatarProps`**（イシュー #1554 で新設）: `size`/`shape`/`variant`/
   `palette` の 4 フィールドを持つ `root` の設定構造体（`KbdProps` と
-  同型）。`Default` は `Md`/`Circle`/`Subtle`/`Neutral`。
+  同型）。`Default` は `Md`/`Circle`/`Subtle`/`Neutral`。イシュー #2044
+  （shadcn/ui 突合）で `stacked`/`with_badge`（いずれも `bool`、既定
+  `false`）の 2 フィールドを追加した（0.x の破壊的変更のためマイナー
+  バンプ。既定値のため `AvatarProps::default()` の `class` 出力・golden
+  CSS は不変）。
+- **`group(attrs, children) -> Node`**（イシュー #2044 で新設）:
+  pre-styled-only `group` パート（`<div>`）。複数の `root`（`stacked: true`）
+  を重ねて表示するレイアウト専用パートで、headless-ui の anatomy には
+  存在しない（`crate::dialog::footer` と同型）。残数表示（`+N`）は独立
+  パートを新設せず `root(Subtle/Neutral, stacked: true) + fallback("+3")`
+  の組み合わせで表現する。
+- **`badge(&AvatarBadgeProps, attrs, children) -> Node`**（イシュー #2044
+  で新設）: pre-styled-only `badge` パート（`<span>`）。`root`
+  （`with_badge: true`）の右下に絶対配置される状態ドット。`size`
+  （`Size::Xs`〜`Xl`、既定 `Md`）・`palette`（`ColorPalette` 6 値、既定
+  `Accent`）に応じたクラス（`fd-avatar--size-<value>` /
+  `fd-avatar--color-palette-<value>`）のみを付与する（`variant_classes`
+  を経由しないため `fd-avatar--shape-`/`fd-avatar--variant-` の既定値
+  補完は付与されない）。
+- **`AvatarBadgeProps`**（イシュー #2044 で新設）: `size`/`palette` の
+  2 フィールドを持つ `badge` の設定構造体。`Default` は `Md`/`Accent`
+  （shadcn `bg-primary` に合わせる）。
 - **`stylesheet() -> String`**: この styled Avatar の静的 CSS 全量を返す
   （決定的）。`image`/`fallback` の base 規則は `display` を宣言せず、
   headless 層が付与する `hidden` 存在属性（UA 既定 `[hidden] { display:
   none }`）による JS なし SSR の表示制御を壊さない。`data-state="hidden"`
   一致時の `display: none` は `SlotRecipe::state` 経由で多層防御として
-  追加登録する（`src/avatar.rs` 冒頭の rustdoc 参照）。
+  追加登録する（`src/avatar.rs` 冒頭の rustdoc 参照）。`with_badge: true`
+  の root のみ既定 `overflow: hidden` を解除する（イシュー #2044）。
 
 ## 4c. styled RadioGroup ラッパー
 

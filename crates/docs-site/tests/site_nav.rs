@@ -157,7 +157,9 @@ fn site_nav_declares_index_path_for_every_section() {
 /// （`site/themes/field.md`）が加わり、部品ページは 108 → 109、
 /// 登録ページ総数は 198 → 199 になった。イシュー #1687 で Fieldset
 /// （`site/themes/fieldset.md`）が加わり、部品ページは 109 → 110、
-/// 登録ページ総数は 199 → 200 になった。
+/// 登録ページ総数は 199 → 200 になった。イシュー #2059 で Button Group・
+/// イシュー #2062 で Input Group（いずれも Primitives）がそれぞれ加わり、
+/// 登録ページ総数は 200 → 202 になった。
 #[test]
 fn site_nav_registers_all_pages_with_expected_paths() {
     let nav = load_nav();
@@ -179,30 +181,31 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // が加わり 196 → 197 になった。イシュー #1683 で Collapsible が加わり
     // 197 → 198 になった。イシュー #1685 で Field が加わり 198 → 199 に
     // なった。イシュー #1687 で Fieldset が加わり 199 → 200 になった。
-    // イシュー #2062 で Input Group（Primitives 側）が加わり 200 → 201、
-    // イシュー #2063 で Input Group の Themes ページが加わり 201 → 202
+    // イシュー #2059 で Button Group（Primitives）・イシュー #2062 で
+    // Input Group（Primitives）がそれぞれ加わり 200 → 202 になった。
+    // イシュー #2063 で Input Group の Themes ページが加わり 202 → 203
     // になった。
-    assert_eq!(pages.len(), 202, "expected 202 pages, got {pages:?}");
+    assert_eq!(pages.len(), 203, "expected 203 pages, got {pages:?}");
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ
-    // （`/primitives/` 自身）1 件の 64 件。イシュー #2062 で Input Group が
-    // 加わり 64 → 65 件になった。
+    // （`/primitives/` 自身）1 件の 64 件。イシュー #2059 で Button Group・
+    // イシュー #2062 で Input Group がそれぞれ加わり 64 → 66 件になった。
     let primitives_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/primitives/"))
         .collect();
     assert_eq!(
         primitives_pages.len(),
-        65,
-        "expected 65 /primitives/ pages (64 部品 + 1 索引), got {primitives_pages:?}"
+        66,
+        "expected 66 /primitives/ pages (65 部品 + 1 索引), got {primitives_pages:?}"
     );
     let source_based_primitive_pages = pages
         .iter()
         .filter(|(source, _)| source.starts_with("site/primitives/"))
         .count();
     assert_eq!(
-        source_based_primitive_pages, 64,
-        "expected 64 pages sourced from site/primitives/"
+        source_based_primitive_pages, 65,
+        "expected 65 pages sourced from site/primitives/"
     );
     assert!(
         pages.contains(&("site/primitives.md", "/primitives/")),

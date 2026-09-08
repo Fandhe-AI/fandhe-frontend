@@ -2318,9 +2318,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # を取り込み 0.133.1 へ到達したが、本ブランチの到達値 0.134.0 は既にそれを
 # 上回るため追加のバンプは不要（`docs/ci/style-refresh-version-bump-operation.md`
 # §5 の手順は main の到達値を上回る値には適用しない）。
-# イシュー #2062: 依存先 `fandhe-frontend-headless-ui` 0.67.0 → 0.68.0（新規
-# `input_group` モジュール追加、非破壊的）に伴う `dep-version-check --fix`
-# の `version = "..."` 追随バンプ（本クレート自身の実装変更は無い）。
+# イシュー #2044（avatar を shadcn/ui と突合し `group`/`badge` を補完）:
+# `AvatarProps` へ `stacked`/`with_badge` フィールドを追加する struct
+# literal 構築を壊す 0.x の破壊的変更のため、main 到達値 0.135.0 からマイナー
+# バンプして 0.136.0 とする。
 # イシュー #2043: alert を shadcn/ui と突合し、pre-styled-only レイアウト
 # パート `action` の新設（公開 API 追加 + CSS 出力の実体変更）を行ったため
 # minor バンプする（0.x の破壊的変更はマイナーバンプの規約、`toast`
@@ -2334,7 +2335,27 @@ name = "fandhe-frontend-pre-styled-ui"
 # `button` の 4 slot recipe・stylesheet 追加、公開 API の純追加）を行った
 # ため minor バンプする（0.x の破壊的変更はマイナーバンプの規約、
 # `fieldset` のイシュー #1686 先例に同じ）。
-version = "0.137.0"
+# のイシュー #2180 先例に同じ）。main（#2043）が独立に到達した値も
+# 0.136.0 であり、本ブランチ（#2044）の到達値と衝突したため、
+# `semver-same-version-is-conflict` の運用に倣い main の到達値 0.136.0
+# からさらに +1 して 0.137.0 とする。
+# base 再取り込み（イシュー #2044, 2026-09-08）続報: main が PR（イシュー
+# #2062、headless-ui 0.67.0 → 0.68.0 への dep-version-check --fix 追随）を
+# 取り込み 0.136.1 へ到達したが、本ブランチの到達値 0.137.0 は既にそれを
+# 上回るため追加のバンプは不要（`docs/ci/style-refresh-version-bump-operation.md`
+# §5 の手順は main の到達値を上回る値には適用しない）。
+# base 再取り込み（イシュー #2059/#2062 再マージ, 2026-09-08）続報 2: main が
+# さらに PR（イシュー #2059、headless-ui 0.68.0 → 0.68.1 への
+# dep-version-check --fix 追随）を取り込み 0.136.2 へ到達したが、本ブランチ
+# の到達値 0.137.0 は依然としてそれを上回るため追加のバンプは不要（同 §5
+# の手順は main の到達値を上回る値には適用しない）。
+# base 再取り込み（イシュー #2063, 2026-09-08）: 本ブランチの到達値
+# 0.137.0（#2063 の input_group 新設によるマイナーバンプ）と main の
+# 到達値 0.137.0（#2044 の avatar 破壊的変更によるマイナーバンプ）が
+# 同一版数で衝突したため、`semver-same-version-is-conflict` の運用に
+# 倣い main の到達値 0.137.0 からさらにマイナーバンプして 0.138.0 と
+# する。
+version = "0.138.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2349,7 +2370,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

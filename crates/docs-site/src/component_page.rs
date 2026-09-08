@@ -62,11 +62,11 @@
 //! | Demo 供給元 | [`showcase::generated_content`]（`/themes/` 専用の `COMPONENT_PAGES`） | [`crate::primitive_showcase::generated_content`]（headless-ui 専用、イシュー #1022） |
 //! | 原稿レジストリ | [`component_specs`] 系 [`SPEC_TABLES`] | [`crate::primitive_specs::SPEC_TABLES`] |
 //!
-//! イシュー #1022 により [`crate::primitive_showcase`] が Primitives 63 部品の
+//! イシュー #1022 により [`crate::primitive_showcase`] が Primitives 64 部品の
 //! Demo を供給するようになったため、`/primitives/<kebab>/` は Rust 生成
 //! コンテンツを持つ（Anatomy・`data-*` 属性表もこの Demo 木から機械導出
 //! される）。[`crate::primitive_specs::SPEC_TABLES`] は Phase 5（#1024〜#1029）
-//! 完了により、6 カテゴリ別サブモジュールが 63 部品分の原稿（Features /
+//! 完了により、6 カテゴリ別サブモジュールが 64 部品分の原稿（Features /
 //! API Reference 引数表 / Examples / Accessibility の 4 節）を充填済みで
 //! ある（カテゴリと担当 issue の対応は [`crate::primitive_specs`] の
 //! モジュール doc 参照）。
@@ -86,7 +86,7 @@ use crate::showcase;
 pub const THEMES_SHOWCASE_CLASS: &str = "pre-styled-showcase";
 
 /// Demo ラッパ class（Primitives 層）。イシュー #1022 で
-/// [`crate::primitive_showcase`] が Primitives 63 部品の Demo を供給して
+/// [`crate::primitive_showcase`] が Primitives 64 部品の Demo を供給して
 /// 以降、実 HTML に出現する。対応 CSS セレクタ（`assets/primitives-showcase.css`）
 /// の実在は `tests/site_css_contract.rs` の契約リストが fail-closed に
 /// 固定する（設計 §5 / §9 A05）。

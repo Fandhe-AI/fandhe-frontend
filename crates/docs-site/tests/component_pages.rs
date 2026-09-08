@@ -493,6 +493,13 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
             ],
         ),
         (
+            // イシュー #2044: shadcn/ui 突合の Demo 拡充（group_row/badge_row
+            // 追加）で avatar の 5 anatomy パーツ全てが Demo から機械導出
+            // されるようになったことを固定する。
+            "/themes/avatar/",
+            &["root", "image", "fallback", "group", "badge"],
+        ),
+        (
             // イシュー #2043: shadcn/ui 突合の合成パターン行（action 併記）
             // 追加で alert の 6 anatomy パーツ全てが Demo から機械導出
             // されるようになったことを固定する。

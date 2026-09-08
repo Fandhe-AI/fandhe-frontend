@@ -1,5 +1,5 @@
 //! combobox / listbox の ARIA 関連付け契約（イシュー #1067）を、実出荷
-//! マークアップ（Primitives 全 63 ページ + Themes 全 107 ページの生成
+//! マークアップ（Primitives 全 64 ページ + Themes 全 107 ページの生成
 //! HTML）へ適用する回帰テスト。
 //!
 //! `crates/headless-ui/src/combobox.rs` の `input()`/`trigger()` は
@@ -247,7 +247,7 @@ fn all_page_paths() -> impl Iterator<Item = &'static str> {
     showcase::component_page_paths().chain(primitives_catalog::page_paths())
 }
 
-/// Primitives 全 63 ページ + Themes 全 107 ページの生成 HTML に R1〜R4
+/// Primitives 全 64 ページ + Themes 全 107 ページの生成 HTML に R1〜R4
 /// （combobox の ARIA 関連付け）を適用する。将来ページが増えても
 /// `all_page_paths()` を通じて自動的に対象へ含まれる（combobox ページ
 /// 限定ではなく全ページ走査、イシュー #1067 計画 §4）。
@@ -263,7 +263,7 @@ fn all_pages_satisfy_combobox_aria_association_contract() {
     }
 }
 
-/// Primitives 全 63 ページ + Themes 全 107 ページの生成 HTML に listbox
+/// Primitives 全 64 ページ + Themes 全 107 ページの生成 HTML に listbox
 /// のアクセシブルネーム契約を適用する。
 #[test]
 fn all_pages_satisfy_listbox_accessible_name_contract() {

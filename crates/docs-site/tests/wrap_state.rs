@@ -564,14 +564,17 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// headless 部品（module 名）。イシュー #1686 で `fieldset.rs`
 /// （headless `fieldset::root` へコード委譲する同名モジュール）を追加し、
 /// イシュー #1687 で `/themes/fieldset/` ページ登録も完了したため、
-/// `fieldset` は [`WRAPPED_SAME_NAME`] へ分類される。`input_group` も
-/// イシュー #2063 で pre-styled-ui 側（`crates/pre-styled-ui/src/
-/// input_group.rs`・`/themes/input-group/`）を新設し `WRAPPED_SAME_NAME`
-/// へ分類されたため、現時点で該当なし（空配列）
+/// `fieldset` は [`WRAPPED_SAME_NAME`] へ分類される。イシュー #2059 で
+/// headless-ui 層のみを実装した `button_group` が新設され、pre-styled-ui
+/// recipe（後続 #2060）を持たないため本リストへ加える。`input_group` も
+/// イシュー #2062（headless-ui 層のみ新設）時点では暫定的に本台帳へ
+/// 載っていたが、イシュー #2063 で pre-styled-ui 側（`crates/pre-styled-ui/
+/// src/input_group.rs`・`/themes/input-group/`）を新設し
+/// `WRAPPED_SAME_NAME` へ分類されたため除外した
 /// （`PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
 /// が検証する）。
-const HEADLESS_UNWRAPPED: &[&str] = &[];
+const HEADLESS_UNWRAPPED: &[&str] = &["button_group"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
