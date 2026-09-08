@@ -989,6 +989,8 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
 | `charts::grid` | `cartesian_grid(x_range, y_range, x_positions, y_positions, props)` | `Result<Node, ChartError>` |
 | `charts::legend` | `legend(data: &ChartData, props: &LegendProps)` | `Node`（infallible） |
 | `charts::tooltip` | `datum_label(category, series, value)` / `datum(cx, cy, r, label, attrs)` | `String` / `Node`（いずれも infallible） |
+| `charts::data`（系列設定、イシュー #2077） | `Series::with_label(label)` / `with_color(SeriesColor)` / `with_icon(Node)` / `display_label()` | `Series` / `&str` |
+| `charts::data`（系列色、イシュー #2077） | `SeriesColor::token(name)` / `chart_slot(1..=6)` / `palette(ColorPalette)` / `ChartData::series_color_var(index)` | `Result<SeriesColor, ThemeError>`（`palette` のみ infallible） / `String` |
 
 各モジュールは `css()` を公開し、`stylesheet.rs` の一元化リスト
 （`all_styled_component_css`）へ `"charts/axis"` 等のキーで登録済み。
@@ -1001,7 +1003,8 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
   `tick-label`（axis）・`grid`/`grid-line`（grid）・`datum`（tooltip）。
 - `legend` は独立 scope `"chart-legend"` を持つ（SVG 外の通常 HTML
   `<ul>`/`<li>`/`<span>` のため）。slot: `root`/`title`/`item`/`marker`/
-  `label`。
+  `label`/`icon`（イシュー #2077、`Series::icon` 指定時に `marker` の
+  代わりに描画される代替スロット。shadcn/ui `ChartConfig.icon` 相当）。
 - `grid` の線種は `GridLines`（`Solid`(既定)/`Dashed`）の 1 軸 variant。
 - `tooltip` の hover 強調は `crate::recipe::StateCondition::Hover`
   （`:hover` 擬似クラス）を使う唯一の消費者。base で背景色ハロー
@@ -1015,6 +1018,23 @@ JS ランタイムが必須のためスコープ外。代わりに `tooltip::dat
 （`<circle>`）へ子 `<title>` 要素（ブラウザネイティブな hover 表示）と
 `aria-label` 属性（同一文字列）を埋め込み、`StateCondition::Hover` による
 CSS のみの視覚強調と組み合わせて「ホバーで詳細が分かる」体験を実現する。
+
+### 系列設定（`label`/`color`/`icon`、イシュー #2077）
+
+shadcn/ui の `ChartConfig`（系列キー → `label`/`color`/`icon` を 1 箇所で
+定義する設定オブジェクト）相当の機能を、`charts::data::Series` の任意
+フィールド（`Series::with_label`/`with_color`/`with_icon`）として提供する。
+`ChartData` の消費者（`legend`・`line_chart`/`area_chart`/`bar_chart`/
+`radar_chart`）はいずれも `ChartData::series_color_var(index)` を経由して
+色を解決するため、系列 1 箇所への設定が全消費者へ一元的に反映される
+（chakra-ui `useChart` の `series: [{ name, color, label }]` と同型の設計。
+shadcn のような並列の `ChartConfig` マップは設けない）。色は
+`charts::data::SeriesColor`（`theme.rs` の `TokenName` allowlist を通過した
+色トークン名のみを保持する newtype）経由でのみ指定でき、`style`/`fill`/
+`stroke` へ渡る値は `var(--fandhe-color-<name>)` の固定形以外を生成しない
+（REQ-1 相当）。`--fandhe-color-chart-1`〜`-6`（6 段階）は shadcn/ui の
+`--chart-1`〜`-5`（5 段階）のスーパーセットのため変更していない（Phase 0
+イシュー #2005、`docs/design/color-token-system.md` §9.2 で決定済み）。
 
 ## 4k. LineChart / AreaChart / Sparkline（`charts` 基盤の消費者）
 

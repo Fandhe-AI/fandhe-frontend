@@ -18,7 +18,8 @@ use fandhe_frontend_pre_styled_ui::charts::scale::LinearScale;
 use fandhe_frontend_pre_styled_ui::charts::svg::{
     circle, fmt_coord, group, line, rect, svg_root, svg_text, PathBuilder, ViewBox,
 };
-use fandhe_frontend_pre_styled_ui::charts::{series_color_var, ChartError};
+use fandhe_frontend_pre_styled_ui::charts::{series_color_var, ChartError, SeriesColor};
+use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 
 /// `ChartData` → `LinearScale` → SVG ノード木という典型的な連携経路を通し、
 /// 各段の出力が次段の入力契約（有限値・domain/range）を満たすことを固定する。
@@ -169,5 +170,99 @@ fn public_api_construction_errors_are_fail_closed() {
     assert_eq!(
         LinearScale::new((1.0, 1.0), (0.0, 100.0)).unwrap_err(),
         ChartError::DegenerateDomain
+    );
+}
+
+/// 系列設定（`label`/`color`/`icon`、イシュー #2077）が
+/// [`ChartData::sort_by_series`] を経由しても失われないことを固定する
+/// （`Series::new` で再構築すると黙って欠落していた回帰、計画書§2）。
+#[test]
+fn sort_by_series_preserves_label_color_and_icon() {
+    let series = Series::new("key", vec![2.0, 1.0])
+        .with_label("Key Label")
+        .with_color(SeriesColor::token("accent").unwrap())
+        .with_icon(text("★"));
+    let data =
+        ChartData::new(vec!["a".to_string(), "b".to_string()], vec![series.clone()]).unwrap();
+
+    let sorted = data
+        .sort_by_series("key", SortDirection::Ascending)
+        .unwrap();
+    let sorted_series = &sorted.series()[0];
+    assert_eq!(sorted_series.label, series.label);
+    assert_eq!(sorted_series.color, series.color);
+    assert_eq!(sorted_series.icon, series.icon);
+}
+
+/// [`Series::display_label`] は `label` があればそれを、無ければ `name` を
+/// 返す（shadcn `ChartConfig.label` 相当のフォールバック規則）。
+#[test]
+fn series_display_label_falls_back_to_name() {
+    let unlabeled = Series::new("visits", vec![1.0]);
+    assert_eq!(unlabeled.display_label(), "visits");
+
+    let labeled = Series::new("visits", vec![1.0]).with_label("Visits");
+    assert_eq!(labeled.display_label(), "Visits");
+}
+
+/// [`ChartData::series_color_var`] は系列の [`SeriesColor`] 上書きがあれば
+/// それを、無ければ [`series_color_var`]（関数、6 色循環）の値を返す。
+#[test]
+fn chart_data_series_color_var_prefers_override_then_falls_back_to_cycle() {
+    let data = ChartData::new(
+        vec!["a".to_string()],
+        vec![
+            Series::new("s0", vec![1.0]).with_color(SeriesColor::token("success").unwrap()),
+            Series::new("s1", vec![1.0]),
+        ],
+    )
+    .unwrap();
+
+    assert_eq!(data.series_color_var(0), "var(--fandhe-color-success)");
+    assert_eq!(data.series_color_var(1), series_color_var(1));
+    // 範囲外 index は panic せず 6 色循環へフォールバックする。
+    assert_eq!(data.series_color_var(99), series_color_var(99));
+}
+
+/// [`SeriesColor::token`] は [`TokenName`](fandhe_frontend_pre_styled_ui::theme::TokenName)
+/// の allowlist を通過しない文字列を fail-closed に拒否する（XSS/CSS
+/// インジェクション回帰、`.claude/rules/security.md` A03）。
+#[test]
+fn series_color_token_rejects_disallowed_characters() {
+    for bad in [
+        "red; background:url(x)",
+        "</style>",
+        "",
+        "chart-1;color:red",
+        "chart_1",
+    ] {
+        assert!(
+            SeriesColor::token(bad).is_err(),
+            "expected rejection for {bad:?}"
+        );
+    }
+}
+
+/// [`SeriesColor::chart_slot`] は 1..=6 の範囲外を拒否する（範囲外 slot が
+/// 桁数次第で allowlist を偶然満たしてしまうケースへの fail-closed 対応）。
+#[test]
+fn series_color_chart_slot_rejects_out_of_range() {
+    assert!(SeriesColor::chart_slot(0).is_err());
+    assert!(SeriesColor::chart_slot(7).is_err());
+    assert!(SeriesColor::chart_slot(1).is_ok());
+    assert!(SeriesColor::chart_slot(6).is_ok());
+}
+
+/// [`SeriesColor::palette`] は [`ColorPalette`] の全 variant で必ず成功し、
+/// `var(--fandhe-color-<palette-name>)` を返す。
+#[test]
+fn series_color_palette_matches_theme_token() {
+    assert_eq!(
+        SeriesColor::palette(ColorPalette::Accent).var(),
+        "var(--fandhe-color-accent)"
+    );
+    assert_eq!(
+        SeriesColor::palette(ColorPalette::Danger).var(),
+        "var(--fandhe-color-danger)"
     );
 }

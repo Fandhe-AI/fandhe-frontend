@@ -7,14 +7,20 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - タイトル・系列名はすべて [`fandhe_frontend_core::text`] 経由のテキスト
-//!   ノードとして受け取り、`render()` の既定エスケープ（REQ-1）を必ず通る。
-//! - マーカーの色は [`super::series_color_var`]（`theme.rs` の `TokenName`
-//!   allowlist を満たす固定文字列のみを生成する）由来の値のみを `style`
-//!   属性へ埋め込み、呼び出し側の任意文字列を連結しない。
+//! - タイトル・系列名/表示ラベルはすべて [`fandhe_frontend_core::text`]
+//!   経由のテキストノードとして受け取り、`render()` の既定エスケープ
+//!   （REQ-1）を必ず通る。
+//! - マーカー・icon slot の色は [`ChartData::series_color_var`]（系列の
+//!   [`super::data::SeriesColor`] 上書きが無ければ [`super::series_color_var`]
+//!   の 6 色循環へフォールバック。いずれも `theme.rs` の `TokenName`
+//!   allowlist を満たす固定形 `var(--fandhe-color-<name>)` のみを生成する）
+//!   由来の値のみを `style` 属性へ埋め込み、呼び出し側の任意文字列を
+//!   連結しない。
+//! - `icon`（[`super::data::Series::icon`]）は利用者が `el()`/`text()`
+//!   経由で組み立てたノード木のみを受け付ける（`Node` 型そのものが
+//!   `raw_html()` を経由しない限り既定エスケープを保証する）。
 
 use super::data::ChartData;
-use super::series_color_var;
 use crate::css::decl;
 use crate::recipe::SlotRecipe;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
@@ -23,8 +29,10 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 /// scope（凡例は SVG 外の通常 HTML であり、パーツ集合が異なるため）。
 const SCOPE: &str = "chart-legend";
 
-/// [`recipe`] に渡す slot 一覧。
-const SLOTS: &[&str] = &["root", "title", "item", "marker", "label"];
+/// [`recipe`] に渡す slot 一覧。`icon`（末尾、イシュー #2077）は
+/// [`super::data::Series::icon`] 指定時に `marker` の代わりに描画される
+/// 代替スロット（shadcn/ui `ChartConfig.icon` 相当）。
+const SLOTS: &[&str] = &["root", "title", "item", "marker", "label", "icon"];
 
 /// [`legend`] の props。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -83,6 +91,21 @@ fn recipe() -> SlotRecipe {
                 decl("flex-shrink", "0"),
             ],
         )
+        .base(
+            "icon",
+            vec![
+                // marker と同寸のアイコン枠（イシュー #2077）。色は SVG
+                // アイコン側の `fill="currentColor"`/`stroke="currentColor"`
+                // へ継承させるため `color` を指定する（`legend()` が
+                // インライン `style` で系列色を渡す）。
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("flex-shrink", "0"),
+                decl("width", "var(--fandhe-space-3)"),
+                decl("height", "var(--fandhe-space-3)"),
+            ],
+        )
 }
 
 /// Legend の静的 CSS 全文。
@@ -94,8 +117,13 @@ pub fn css() -> String {
 /// `data` の系列一覧から凡例を組み立てる（`<ul data-scope="chart-legend"
 /// data-part="root">` を root とする）。
 ///
-/// マーカー色は [`super::series_color_var`] を系列インデックス順に割り当てる
-/// （[`super::series_color_var`] と同じ 6 色循環）。
+/// マーカー色は [`ChartData::series_color_var`] を系列インデックス順に
+/// 割り当てる（系列に [`super::data::SeriesColor`] 上書きが無ければ
+/// [`super::series_color_var`] の 6 色循環）。ラベルは
+/// [`super::data::Series::display_label`]（`label` 未設定時は `name`）。
+/// [`super::data::Series::icon`] が指定された系列は、マーカー（色付き丸）の
+/// 代わりに `data-part="icon"` を描画する（shadcn/ui `ChartConfig.icon` と
+/// 同じ「icon 指定時はマーカーを置換」意味論、イシュー #2077）。
 #[must_use]
 pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
     let mut children: Vec<Node> = Vec::new();
@@ -113,22 +141,36 @@ pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
     }
 
     for (i, series) in data.series().iter().enumerate() {
-        let color = series_color_var(i);
-        let marker_style = format!("background: {color}");
-        let marker = el(
-            "span",
-            vec![
-                ("data-scope", SCOPE),
-                ("data-part", "marker"),
-                ("style", marker_style.as_str()),
-                ("aria-hidden", "true"),
-            ],
-            vec![],
-        );
+        let color = data.series_color_var(i);
+        let marker = if let Some(icon) = &series.icon {
+            let icon_style = format!("color: {color}");
+            el(
+                "span",
+                vec![
+                    ("data-scope", SCOPE),
+                    ("data-part", "icon"),
+                    ("style", icon_style.as_str()),
+                    ("aria-hidden", "true"),
+                ],
+                vec![icon.clone()],
+            )
+        } else {
+            let marker_style = format!("background: {color}");
+            el(
+                "span",
+                vec![
+                    ("data-scope", SCOPE),
+                    ("data-part", "marker"),
+                    ("style", marker_style.as_str()),
+                    ("aria-hidden", "true"),
+                ],
+                vec![],
+            )
+        };
         let label = el(
             "span",
             vec![("data-scope", SCOPE), ("data-part", "label")],
-            vec![text(&series.name)],
+            vec![text(series.display_label())],
         );
         children.push(el(
             "li",

@@ -107,7 +107,7 @@
 use crate::charts::data::ChartData;
 use crate::charts::scale::LinearScale;
 use crate::charts::svg::{fmt_coord, svg_root, PathBuilder, ViewBox, ViewBoxError};
-use crate::charts::{series_color_var, ChartError};
+use crate::charts::ChartError;
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, VariantValue};
@@ -275,10 +275,12 @@ pub fn stylesheet() -> String {
 }
 
 /// 系列 1 本を折れ線 `path`（`n >= 2`）または中央の点マーカー（`n == 1`）
-/// として描く（内部ヘルパ）。
-fn render_series(width: f64, y_scale: &LinearScale, values: &[f64], series_index: usize) -> Node {
+/// として描く（内部ヘルパ）。`color` は呼び出し元（[`line_chart`]）が
+/// [`crate::charts::ChartData::series_color_var`] で解決済みの値
+/// （系列の色上書き、無ければ [`crate::charts::series_color_var`] の 6 色
+/// 循環、イシュー #2077）。
+fn render_series(width: f64, y_scale: &LinearScale, values: &[f64], color: &str) -> Node {
     let n = values.len();
-    let color = series_color_var(series_index);
     if n <= 1 {
         let x = category_x(width, n, 0);
         let y = values.first().copied().map_or(0.0, |v| y_scale.scale(v));
@@ -291,7 +293,7 @@ fn render_series(width: f64, y_scale: &LinearScale, values: &[f64], series_index
                 ("cx", cx.as_str()),
                 ("cy", cy.as_str()),
                 ("r", r.as_str()),
-                ("fill", color.as_str()),
+                ("fill", color),
             ],
             vec![],
         );
@@ -314,7 +316,7 @@ fn render_series(width: f64, y_scale: &LinearScale, values: &[f64], series_index
             ("data-scope", "line-chart"),
             ("data-part", "series-line"),
             ("d", d.as_str()),
-            ("stroke", color.as_str()),
+            ("stroke", color),
             ("fill", "none"),
         ],
         vec![],
@@ -359,7 +361,10 @@ pub fn line_chart<'a>(
         .series()
         .iter()
         .enumerate()
-        .map(|(i, s)| render_series(props.width, &y_scale, &s.values, i))
+        .map(|(i, s)| {
+            let color = props.data.series_color_var(i);
+            render_series(props.width, &y_scale, &s.values, &color)
+        })
         .collect();
 
     let plot = svg_root(
@@ -388,6 +393,23 @@ mod tests {
     fn data(values: Vec<f64>) -> ChartData {
         let categories = (0..values.len()).map(|i| i.to_string()).collect();
         ChartData::new(categories, vec![Series::new("s", values)]).unwrap()
+    }
+
+    /// 系列の [`crate::charts::data::SeriesColor`] 上書き（イシュー #2077）が
+    /// 折れ線の `stroke` へ反映されることを固定する（凡例と同一の `var()`
+    /// を共有する一元性の確認）。
+    #[test]
+    fn render_series_reflects_series_color_override() {
+        let categories = (0..2).map(|i| i.to_string()).collect();
+        let d = ChartData::new(
+            categories,
+            vec![Series::new("s", vec![1.0, 2.0])
+                .with_color(crate::charts::SeriesColor::token("neutral").unwrap())],
+        )
+        .unwrap();
+        let node = line_chart(&LineChartProps::new(&d, "sample"), vec![]).unwrap();
+        let html = render(&node);
+        assert!(html.contains(r#"stroke="var(--fandhe-color-neutral)""#));
     }
 
     #[test]

@@ -87,7 +87,7 @@
 use crate::charts::data::ChartData;
 use crate::charts::scale::LinearScale;
 use crate::charts::svg::{fmt_coord, svg_root, PathBuilder};
-use crate::charts::{series_color_var, ChartError};
+use crate::charts::ChartError;
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::line_chart::{category_x, view_box_from_dims};
@@ -231,16 +231,18 @@ pub fn stylesheet() -> String {
 
 /// 系列 1 本を「面 + 線」（`n >= 2`）または中央の点マーカー（`n == 1`）として
 /// 描く（内部ヘルパ）。`baseline_y` は `data.domain().0` を y スケールで
-/// 写像した座標（モジュール doc「面 path の閉じ方」参照）。
+/// 写像した座標（モジュール doc「面 path の閉じ方」参照）。`color` は
+/// 呼び出し元が [`crate::charts::ChartData::series_color_var`] で解決済みの
+/// 値（系列の色上書き、無ければ [`crate::charts::series_color_var`] の 6 色
+/// 循環、イシュー #2077）。
 fn render_series(
     width: f64,
     y_scale: &LinearScale,
     baseline_y: f64,
     values: &[f64],
-    series_index: usize,
+    color: &str,
 ) -> Vec<Node> {
     let n = values.len();
-    let color = series_color_var(series_index);
 
     if n <= 1 {
         let x = category_x(width, n, 0);
@@ -254,7 +256,7 @@ fn render_series(
                 ("cx", cx.as_str()),
                 ("cy", cy.as_str()),
                 ("r", r.as_str()),
-                ("fill", color.as_str()),
+                ("fill", color),
             ],
             vec![],
         )];
@@ -301,7 +303,7 @@ fn render_series(
                 ("data-scope", "area-chart"),
                 ("data-part", "series-area"),
                 ("d", area_d.as_str()),
-                ("fill", color.as_str()),
+                ("fill", color),
             ],
             vec![],
         ),
@@ -311,7 +313,7 @@ fn render_series(
                 ("data-scope", "area-chart"),
                 ("data-part", "series-line"),
                 ("d", line_d.as_str()),
-                ("stroke", color.as_str()),
+                ("stroke", color),
                 ("fill", "none"),
             ],
             vec![],
@@ -356,7 +358,10 @@ pub fn area_chart<'a>(
         .series()
         .iter()
         .enumerate()
-        .flat_map(|(i, s)| render_series(props.width, &y_scale, baseline_y, &s.values, i))
+        .flat_map(|(i, s)| {
+            let color = props.data.series_color_var(i);
+            render_series(props.width, &y_scale, baseline_y, &s.values, &color)
+        })
         .collect();
 
     let plot = svg_root(
@@ -385,6 +390,22 @@ mod tests {
     fn data(values: Vec<f64>) -> ChartData {
         let categories = (0..values.len()).map(|i| i.to_string()).collect();
         ChartData::new(categories, vec![Series::new("s", values)]).unwrap()
+    }
+
+    /// 系列の [`crate::charts::data::SeriesColor`] 上書き（イシュー #2077）が
+    /// 面・線の `fill`/`stroke` へ反映されることを固定する。
+    #[test]
+    fn render_series_reflects_series_color_override() {
+        let categories = (0..2).map(|i| i.to_string()).collect();
+        let d = ChartData::new(
+            categories,
+            vec![Series::new("s", vec![1.0, 2.0])
+                .with_color(crate::charts::SeriesColor::token("success").unwrap())],
+        )
+        .unwrap();
+        let node = area_chart(&AreaChartProps::new(&d, "sample"), vec![]).unwrap();
+        let html = render(&node);
+        assert!(html.contains(r#"stroke="var(--fandhe-color-success)""#));
     }
 
     #[test]

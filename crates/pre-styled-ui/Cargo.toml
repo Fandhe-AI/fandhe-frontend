@@ -2580,6 +2580,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.151.0 から +1 マイナーして 0.152.0 とする（実体変更を伴うため patch
 # ではなく minor を維持）。依存先 `fandhe-frontend-headless-ui` の version
 # 要求は双方一致（0.68.4）のためそのまま採用する。
+# イシュー #2077（Charts の系列設定: `Series` へ `label`/`color`/`icon` の
+# pub フィールドを純追加、`SeriesColor` を新設）: pub struct へのフィールド
+# 追加は構造体リテラル構築を壊す 0.x 破壊的変更のためマイナーバンプする
+# （`.claude/rules/coding-rust.md` の semver バンプ必須規約）。
 version = "0.152.0"
 
 edition = "2021"
