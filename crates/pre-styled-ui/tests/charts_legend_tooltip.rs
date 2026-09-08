@@ -11,11 +11,11 @@
 //! `.claude/rules/coding-rust.md` の規約により、本ファイルの XSS 回帰
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
-use fandhe_frontend_core::render;
+use fandhe_frontend_core::{render, text};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
 use fandhe_frontend_pre_styled_ui::charts::tooltip;
-use fandhe_frontend_pre_styled_ui::charts::ChartError;
+use fandhe_frontend_pre_styled_ui::charts::{ChartError, SeriesColor};
 
 fn sample_data() -> ChartData {
     ChartData::new(
@@ -151,4 +151,70 @@ fn xss_regression_datum_attrs_are_escaped() {
         vec![("data-testid", payload)],
     ));
     assert!(!html.contains("<script>"));
+}
+
+/// 系列に `label`（イシュー #2077）を設定すると凡例が `name` ではなく
+/// `display_label()` を表示することを固定する。
+#[test]
+fn legend_uses_series_display_label_when_present() {
+    let data = ChartData::new(
+        vec!["Jan".to_string()],
+        vec![Series::new("visits", vec![1.0]).with_label("Monthly Visits")],
+    )
+    .unwrap();
+    let html = render(&legend::legend(&data, &LegendProps::default()));
+    assert!(html.contains(">Monthly Visits<"));
+    assert!(!html.contains(">visits<"));
+}
+
+/// 系列の [`SeriesColor`] 上書き（イシュー #2077）が凡例マーカー色に反映
+/// されることを固定する（[`fandhe_frontend_pre_styled_ui::charts::ChartData::series_color_var`]
+/// を経由する一元性の確認）。
+#[test]
+fn legend_marker_reflects_series_color_override() {
+    let data = ChartData::new(
+        vec!["Jan".to_string()],
+        vec![Series::new("visits", vec![1.0]).with_color(SeriesColor::token("danger").unwrap())],
+    )
+    .unwrap();
+    let html = render(&legend::legend(&data, &LegendProps::default()));
+    assert!(html.contains("background: var(--fandhe-color-danger)"));
+}
+
+/// `icon`（イシュー #2077）を設定した系列は `marker` の代わりに
+/// `data-part="icon"` を描画する（shadcn/ui `ChartConfig.icon` と同じ
+/// 「icon 指定時はマーカーを置換」意味論）。
+#[test]
+fn legend_renders_icon_slot_instead_of_marker_when_icon_present() {
+    let data = ChartData::new(
+        vec!["Jan".to_string()],
+        vec![
+            Series::new("visits", vec![1.0])
+                .with_color(SeriesColor::token("chart-2").unwrap())
+                .with_icon(text("★")),
+            Series::new("signups", vec![1.0]),
+        ],
+    )
+    .unwrap();
+    let html = render(&legend::legend(&data, &LegendProps::default()));
+    assert!(html.contains(r#"data-part="icon""#));
+    assert!(html.contains("color: var(--fandhe-color-chart-2)"));
+    assert!(html.contains(">★<"));
+    // 2 系列目（icon 未指定）は従来どおり marker を描画する。
+    assert!(html.contains(r#"data-part="marker""#));
+}
+
+/// icon（[`fandhe_frontend_core::Node`]）内のテキストが既定エスケープを
+/// 経由することを固定する（REQ-1、`.claude/rules/coding-rust.md`）。
+#[test]
+fn xss_regression_legend_icon_content_is_escaped() {
+    let payload = "</span><script>alert(1)</script>";
+    let data = ChartData::new(
+        vec!["a".to_string()],
+        vec![Series::new("s", vec![1.0]).with_icon(text(payload))],
+    )
+    .unwrap();
+    let html = render(&legend::legend(&data, &LegendProps::default()));
+    assert!(!html.contains("<script>"));
+    assert!(html.contains("&lt;script&gt;"));
 }

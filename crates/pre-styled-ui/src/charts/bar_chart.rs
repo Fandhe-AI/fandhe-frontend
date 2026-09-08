@@ -89,7 +89,7 @@
 use super::data::ChartData;
 use super::scale::LinearScale;
 use super::svg::{self, svg_text, ViewBox, ViewBoxError};
-use super::{series_color_var, ChartError};
+use super::ChartError;
 use crate::css::decl;
 use crate::recipe::SlotRecipe;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{text, Node};
@@ -155,7 +155,7 @@ impl Default for BarChartProps {
 
 /// この BarChart の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが呼ぶ）。
 ///
-/// 色は棒ごとに [`series_color_var`] のインライン `fill` 属性で決まるため、
+/// 色は棒ごとに [`super::ChartData::series_color_var`] のインライン `fill` 属性で決まるため、
 /// recipe は寸法系の最小宣言のみを持つ（[`crate::qr_code`] の
 /// 「前景/背景は固定トークン・variant は寸法のみ」判断と同型ではなく、本
 /// 部品は variant 自体を持たない静的部品。[`crate::table`] の
@@ -164,7 +164,7 @@ impl Default for BarChartProps {
 /// # 不変条件（イシュー #1590）
 ///
 /// - **`bar` の base に `fill` を書かない**: 棒の色は [`root`] が各棒へ
-///   `fill="var(--fandhe-color-chart-N)"`（[`series_color_var`]）を
+///   `fill="var(--fandhe-color-chart-N)"`（[`super::ChartData::series_color_var`]）を
 ///   presentation 属性として直接付与している。SVG の presentation 属性は
 ///   author origin の specificity 0 として扱われるため、`[data-scope=
 ///   "bar-chart"][data-part="bar"]` セレクタを持つ CSS 宣言のほうが優先
@@ -323,7 +323,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
         for (series_idx, s) in series.iter().enumerate() {
             let value = s.values[cat_idx];
             let scaled = value_scale.scale(value);
-            let color = series_color_var(series_idx);
+            let color = data.series_color_var(series_idx);
             let attrs = vec![
                 ("data-scope", "bar-chart"),
                 ("data-part", "bar"),
@@ -472,6 +472,21 @@ mod tests {
         let a = render(&root(&sample(), BarChartProps::default(), "label").unwrap());
         let b = render(&root(&sample(), BarChartProps::default(), "label").unwrap());
         assert_eq!(a, b);
+    }
+
+    /// 系列の [`crate::charts::data::SeriesColor`] 上書き（イシュー #2077）が
+    /// `fill` へ反映されることを固定する（`ChartData::series_color_var`
+    /// 経由の一元性、凡例と同じ値を共有する契約）。
+    #[test]
+    fn root_reflects_series_color_override_in_fill() {
+        let data = ChartData::new(
+            vec!["Jan".to_string(), "Feb".to_string()],
+            vec![Series::new("visits", vec![10.0, 30.0])
+                .with_color(crate::charts::SeriesColor::token("warning").unwrap())],
+        )
+        .unwrap();
+        let html = render(&root(&data, BarChartProps::default(), "label").unwrap());
+        assert!(html.contains(r#"fill="var(--fandhe-color-warning)""#));
     }
 
     #[test]
