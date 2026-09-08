@@ -1,5 +1,5 @@
-//! イシュー #1064: Primitives（`fandhe-frontend-headless-ui`、64 部品）と
-//! Themes（`fandhe-frontend-pre-styled-ui`、113 部品）の**層をまたぐラップ状態**
+//! イシュー #1064: Primitives（`fandhe-frontend-headless-ui`、67 部品）と
+//! Themes（`fandhe-frontend-pre-styled-ui`、114 部品）の**層をまたぐラップ状態**
 //! を機械可視化する契約テスト。
 //!
 //! # 背景・既存テストとの分担
@@ -419,16 +419,17 @@ fn resolve_page<'a>(scan: &'a PreStyledScan, page_kebab: &str) -> &'a FileScan {
 // ---------------------------------------------------------------------
 
 /// バケット A: 同名 Primitives 部品が存在し、同名 headless モジュールへ
-/// コード委譲している Themes ページ（kebab、ソート済み、66 件。
+/// コード委譲している Themes ページ（kebab、ソート済み、67 件。
 /// イシュー #1685 で `field`・イシュー #1687 で `fieldset`・イシュー #2063
-/// で `input-group`・イシュー #2066 で `item`・イシュー #2070 で
-/// `command` を追加）。
+/// で `input-group`・イシュー #2066 で `item`・イシュー #2060 で
+/// `button-group`・イシュー #2070 で `command` を追加）。
 const WRAPPED_SAME_NAME: &[&str] = &[
     "accordion",
     "action-bar",
     "angle-slider",
     "avatar",
     "breadcrumb",
+    "button-group",
     "calendar",
     "carousel",
     "checkbox",
@@ -573,27 +574,26 @@ const PRE_STYLED_ONLY: &[&str] = &[
 ];
 
 /// §3.4（受け入れ条件 3）: pre-styled-ui のどこからもコード委譲されていない
-/// headless 部品（module 名）。イシュー #1686 で `fieldset.rs`
-/// （headless `fieldset::root` へコード委譲する同名モジュール）を追加し、
-/// イシュー #1687 で `/themes/fieldset/` ページ登録も完了したため、
-/// `fieldset` は [`WRAPPED_SAME_NAME`] へ分類される。イシュー #2059 で
-/// headless-ui 層のみを実装した `button_group` が新設され、pre-styled-ui
-/// recipe（後続 #2060）を持たないため本リストへ加える。`input_group` も
-/// イシュー #2062（headless-ui 層のみ新設）時点では暫定的に本台帳へ
-/// 載っていたが、イシュー #2063 で pre-styled-ui 側（`crates/pre-styled-ui/
-/// src/input_group.rs`・`/themes/input-group/`）を新設し
-/// `WRAPPED_SAME_NAME` へ分類されたため除外した
+/// headless 部品（module 名）。現在 1 件（`command`）。イシュー #1686 で
+/// `fieldset.rs`（headless `fieldset::root` へコード委譲する同名モジュール）
+/// を追加し、イシュー #1687 で `/themes/fieldset/` ページ登録も完了した
+/// ため、`fieldset` は [`WRAPPED_SAME_NAME`] へ分類される。`button_group` も
+/// イシュー #2059（headless-ui 層のみ新設）時点では暫定的に本台帳へ
+/// 載っていたが、イシュー #2060 で pre-styled-ui 側（`crates/pre-styled-ui/
+/// src/button_group.rs`・`/themes/button-group/`）を新設し
+/// `WRAPPED_SAME_NAME` へ分類されたため除外した（`input_group` も同様に
+/// イシュー #2062/#2063 の経緯で除外済み）。`item`（イシュー #2065）も
+/// 同様にイシュー #2062 と同型の経緯を辿り、イシュー #2066 で
+/// pre-styled-ui 側（`crates/pre-styled-ui/src/item.rs`・`/themes/item/`）
+/// を新設し `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。
+/// イシュー #2068 で headless-ui 層のみを実装した `command` が新設され、
+/// 一時的に本リストへ加わっていたが、イシュー #2070 で pre-styled-ui 側
+/// （`crates/pre-styled-ui/src/command.rs`・`/themes/command/`）を新設し
+/// `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。
 /// （`PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
 /// が検証する）。
-/// `item`（イシュー #2065）も同様にイシュー #2062 と同型の経緯を辿り、
-/// イシュー #2066 で pre-styled-ui 側（`crates/pre-styled-ui/src/item.rs`・
-/// `/themes/item/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため
-/// 本リストから除外した。`command`（イシュー #2068）も同様にイシュー
-/// #2062/#2065 と同型の経緯を辿り、イシュー #2070 で pre-styled-ui 側
-/// （`crates/pre-styled-ui/src/command.rs`・`/themes/command/`）を新設し
-/// `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。
-const HEADLESS_UNWRAPPED: &[&str] = &["button_group"];
+const HEADLESS_UNWRAPPED: &[&str] = &[];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
@@ -623,7 +623,7 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 113 件すべてが `resolve_page` で panic
+/// §3.5: nav 登録済み Themes ページ 114 件すべてが `resolve_page` で panic
 /// せず解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
@@ -631,7 +631,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        113,
+        114,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -971,7 +971,7 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        113,
+        114,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
          登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
@@ -982,9 +982,12 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          ページ登録により `input_group` も WRAPPED_SAME_NAME バケットへ \
          移った。イシュー #2066 で item.rs を新設し 111 → 112。 \
          `/themes/item/` ページ登録により `item` も WRAPPED_SAME_NAME \
-         バケットへ移った。イシュー #2070 で command.rs を新設し \
-         112 → 113。`/themes/command/` ページ登録により `command` も \
-         WRAPPED_SAME_NAME バケットへ移った）"
+         バケットへ移った。イシュー #2060 で button_group.rs を新設し \
+         112 → 113。`/themes/button-group/` ページ登録により \
+         `button_group` も WRAPPED_SAME_NAME バケットへ移った。イシュー \
+         #2070 で command.rs を新設し 113 → 114。`/themes/command/` \
+         ページ登録により `command` も WRAPPED_SAME_NAME バケットへ \
+         移った）"
     );
     assert_eq!(
         scan.charts.len(),

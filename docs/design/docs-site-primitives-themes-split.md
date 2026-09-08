@@ -61,20 +61,22 @@ crate 名と結び付けられるようにするためである。
 | 対象 | URL | 件数 |
 |---|---|---|
 | Primitives 索引 | `/primitives/` | 1 |
-| Primitives 部品 | `/primitives/<kebab>/` | 66(イシュー #2059 で `button_group` が追加され 63→64、イシュー #2062 で `input_group` が追加され 64→65、イシュー #2065 で `item` が追加され 65→66) |
+| Primitives 部品 | `/primitives/<kebab>/` | 67(イシュー #2059 で `button_group` が追加され 63→64、イシュー #2062 で `input_group` が追加され 64→65、イシュー #2065 で `item` が追加され 65→66、イシュー #2068 で `command` が追加され 66→67) |
 | Themes 索引 | `/themes/` | 1 |
-| Themes 部品 | `/themes/<kebab>/` | 111(`/components/<kebab>/` から移転。イシュー #1683 で 107→108、イシュー #1685 で 108→109、イシュー #1687 で 109→110、イシュー #2063 で 110→111) |
-| 旧 URL(移転案内) | `/components/<kebab>/` ほか | 113 |
+| Themes 部品 | `/themes/<kebab>/` | 113(`/components/<kebab>/` から移転。イシュー #1683 で 107→108、イシュー #1685 で 108→109、イシュー #1687 で 109→110、イシュー #2063 で 110→111、イシュー #2066 で 111→112、イシュー #2060 で 112→113) |
+| 旧 URL(移転案内) | `/components/<kebab>/` ほか | 115 |
 
 `<kebab>` は mod 名の `_` → `-` 置換で機械導出する
 (`docs-site-component-pages.md` §4 の規約をそのまま継承。`nav::validate_page_path`
 のセグメント allowlist から導かれた選択であり緩和ではない)。
 
-111 件の内訳は「109 実在部品ページ(イシュー #1683 で追加した
+115 件の内訳は「110 実在部品ページ(イシュー #1683 で追加した
 `/components/collapsible/`・イシュー #1685 で追加した `/components/field/`
 を含む) + 1 実在索引(`/components/pre-styled-ui/`)
 + 1 未提供 URL(`/components/`)への予防的移転案内」である
-(イシュー #2063 で `/components/input-group/` が加わり 113 件になった)。`/components/` は
+(イシュー #2063 で `/components/input-group/` が加わり 113 件、イシュー
+#2066 で `/components/item/` が加わり 114 件、イシュー #2060 で
+`/components/button-group/` が加わり 115 件になった)。`/components/` は
 **現在ページとして存在しない URL**(`site/nav.toml` に該当 `path` なし)だが、
 将来の誤アクセス・外部からの推測アクセスに備えて移転案内対象へ含める。
 
@@ -137,7 +139,7 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 | `site/nav.toml` | リダイレクトは nav に登録しない(そもそも別供給元)。サイドバー・ヘッダー・目次に現れない |
 | `search-index.json`(`src/search_index.rs`) | Nav ページのみを索引するため自動的に含まれない。既存の決定性・エスケープ・サイズ上限テストは弱めない |
 | `linkcheck`(`src/linkcheck.rs`) | `to` が実在 Nav ページであることは検証する。`from` はサイト内リンクの解決先として扱わない。加えて肯定形の規約: **サイト内リンクは 1 本たりとも `from`(旧 URL)を指してはならない**(#1017 は全リポジトリ内リンクを canonical `/themes/<kebab>/` へ張り替える。旧 URL を linkcheck の allowlist へ足して解決するのは禁止。移転案内は外部トラフィック・ブックマーク専用) |
-| `site_nav.rs` のページ数期待値 | 本体ページ数へ含めない。リダイレクト件数は別の期待値として fail-closed に固定する(#1018 完了時点で 109、#1683 で 110、#1685 で 111、#1687 で 112、#2063 で 113) |
+| `site_nav.rs` のページ数期待値 | 本体ページ数へ含めない。リダイレクト件数は別の期待値として fail-closed に固定する(#1018 完了時点で 109、#1683 で 110、#1685 で 111、#1687 で 112、#2063 で 113、#2066 で 114、#2060 で 115) |
 
 ### ビルド時 fail-closed 検証(#1016 の必須要件)
 
@@ -180,9 +182,9 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 ## 6. Primitives 台帳の判別規約
 
 **判別規則**: `crates/headless-ui/src/*.rs` のうち `anatomy(` を呼ぶもの
-(`anatomy.rs` 自身を除く)= **部品 66 件**(イシュー #2059 で `button_group`・
+(`anatomy.rs` 自身を除く)= **部品 67 件**(イシュー #2059 で `button_group`・
 イシュー #2062 で `input_group` がそれぞれ追加され 63→65、イシュー #2065 で
-`item` が追加され 65→66)。
+`item` が追加され 65→66、イシュー #2068 で `command` が追加され 66→67)。
 
 **基盤モジュール 9 件**(部品ではない): `anatomy` / `aria` / `color` /
 `data_attrs` / `date` / `format` / `positioning` / `qr_encode` / `state`。
@@ -210,39 +212,44 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 コマンドをそのまま埋める。
 
 ```bash
-# 部品 66 件（イシュー #2059 で button_group・イシュー #2062 で
-# input_group・イシュー #2065 で item がそれぞれ追加され 63→65→66）
-grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 66
-# 総数 76(= 66 + 基盤 9 + lib.rs、旧 73)
-ls crates/headless-ui/src/*.rs | wc -l                                            # => 76
-# Themes 部品ページ 111 件（イシュー #1017 で site/components/ から site/themes/ へ移行済み、
-# イシュー #2063 で input_group の Themes ページが加わり 110→111）
-ls site/themes/*.md | wc -l                                                       # => 111
+# 部品 67 件（イシュー #2059 で button_group・イシュー #2062 で
+# input_group・イシュー #2065 で item・イシュー #2068 で command が
+# それぞれ追加され 63→65→66→67）
+grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 67
+# 総数 77(= 67 + 基盤 9 + lib.rs、旧 73)
+ls crates/headless-ui/src/*.rs | wc -l                                            # => 77
+# Themes 部品ページ 113 件（イシュー #1017 で site/components/ から site/themes/ へ移行済み、
+# イシュー #2063 で input_group、イシュー #2066 で item、イシュー #2060 で
+# button_group の Themes ページが加わり 110→113）
+ls site/themes/*.md | wc -l                                                       # => 113
 ```
 
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
 
 §6 は headless-ui ソース ↔ Primitives 台帳の**レイヤー内**ドリフト検知
-(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(66 部品、
+(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(67 部品、
 イシュー #2059 で `button_group`・イシュー #2062 で `input_group`・
-イシュー #2065 で `item` をそれぞれ追加、旧 63)と Themes(113 部品、
-イシュー #2063 で `input_group`・イシュー #2066 で `item`・イシュー #2070
-で `command` をそれぞれ追加、旧 110)の**層をまたぐラップ状態**
+イシュー #2065 で `item`・イシュー #2068 で `command` をそれぞれ追加、
+旧 63)と Themes(114 部品、イシュー #2063 で `input_group`・イシュー #2066
+で `item`・イシュー #2060 で `button_group`・イシュー #2070 で `command`
+をそれぞれ追加、旧 110)の**層をまたぐラップ状態**
 (どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
 テストは `crates/docs-site/tests/wrap_state.rs`(イシュー #1064)。
 
-**Primitives 側の未ラップ判定(イシュー #2059/#2065)**: `button_group` は
-イシュー #2059 で headless-ui 層のみを実装しており、pre-styled-ui
-recipe・Themes ページを持たない(後続 #2060 で追加予定。`HEADLESS_UNWRAPPED`
+**Primitives 側の未ラップ判定(イシュー #2059/#2065/#2068)**: `button_group`
+はイシュー #2059 で headless-ui 層のみを実装しており、pre-styled-ui
+recipe・Themes ページを持たなかったが、イシュー #2060 で pre-styled-ui 側
+（`crates/pre-styled-ui/src/button_group.rs`・`/themes/button-group/`）を
+新設し `WRAPPED_SAME_NAME` へ移った(`HEADLESS_UNWRAPPED`
 (`tests/wrap_state.rs`)・`PRIMITIVES_WITHOUT_THEMES_PAGE`
-(`src/primitives_catalog.rs`)の双方へ登録済み、#2060 完了時に両リストから
-除外して `WRAPPED_SAME_NAME` へ移す想定)。`item` も同様にイシュー #2065 で
-headless-ui 層のみを実装していたが、イシュー #2066 で pre-styled-ui
-recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った(両リストからは
-除外済み)。`command` も同様にイシュー #2068 で headless-ui 層のみを実装
-していたが、イシュー #2070 で pre-styled-ui recipe・Themes ページを追加し
-`WRAPPED_SAME_NAME` へ移った(両リストからは除外済み)。
+(`src/primitives_catalog.rs`)の両リストからは除外済み)。`item` も同様に
+イシュー #2065 で headless-ui 層のみを実装していたが、イシュー #2066 で
+pre-styled-ui recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った
+(両リストからは除外済み)。`command` も同様にイシュー #2068 で
+headless-ui 層のみを実装していたが、イシュー #2070 で pre-styled-ui
+recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った(両リストから
+除外済み)。
 
 ### 名寄せキー
 
@@ -256,23 +263,23 @@ recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った(両リス
 
 `crates/pre-styled-ui/src/**/*.rs` の各モジュールについて、**非コメント行**
 に現れる `fandhe_frontend_headless_ui::<module>` のうち `<module>` が
-Primitives 台帳の 66 部品名(イシュー #2059 で `button_group`・イシュー
-#2062 で `input_group`・イシュー #2065 で `item` をそれぞれ追加、旧 63)に
-一致するものを
+Primitives 台帳の 67 部品名(イシュー #2059 で `button_group`・イシュー
+#2062 で `input_group`・イシュー #2065 で `item`・イシュー #2068 で
+`command` をそれぞれ追加、旧 63)に一致するものを
 「コード委譲あり」とする。
 
 rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc に 1 文
 足すだけでカテゴリが変わる壊れやすい契約を避けるため、コード実体(`pub use`
 や関数呼び出し)を伴う参照のみを「ラップ済み」と呼ぶ。
 
-### Themes 113 部品の 4 バケット分割
+### Themes 114 部品の 4 バケット分割
 
 | バケット | 件数 | 定義 |
 |---|---|---|
-| WRAPPED_SAME_NAME | 66 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している(イシュー #1685 で `field`、イシュー #1687 で `fieldset`、イシュー #2063 で `input_group`、イシュー #2066 で `item`、イシュー #2070 で `command` を追加) |
-| WRAPPED_CROSS_NAME | 5 | 同名 Primitives 部品は無いが、別名の headless 部品へコード委譲している |
-| DOC_REFERENCE_ONLY | 3 | headless 部品への参照が rustdoc のみ(コード委譲なし) |
-| PRE_STYLED_ONLY | 39 | headless 部品への参照がコード・rustdoc いずれにも無い |
+| WRAPPED_SAME_NAME | 67 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している(イシュー #1685 で `field`、イシュー #1687 で `fieldset`、イシュー #2063 で `input_group`、イシュー #2066 で `item`、イシュー #2060 で `button_group`、イシュー #2070 で `command` を追加) |
+| WRAPPED_CROSS_NAME | 4 | 同名 Primitives 部品は無いが、別名の headless 部品へコード委譲している |
+| DOC_REFERENCE_ONLY | 5 | headless 部品への参照が rustdoc のみ(コード委譲なし) |
+| PRE_STYLED_ONLY | 38 | headless 部品への参照がコード・rustdoc いずれにも無い |
 
 一覧の正は `crates/docs-site/tests/wrap_state.rs` の定数
 (`WRAPPED_SAME_NAME` / `WRAPPED_CROSS_NAME` / `DOC_REFERENCE_ONLY` /
@@ -290,23 +297,27 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 (`docs/policy/intentional-non-adoption.md` §3.25 が最も警戒する独自実装の
 兆候)。
 
-**イシュー #2059/#2062/#2063 追記(2026-09-08)**: headless-ui 層のみ新設した
-`button_group`(Themes ページは #2060 で追加予定)は上記「0 件」を暫定的に
-「1 件」にする(`HEADLESS_UNWRAPPED = ["button_group"]`)。`input_group`
-は #2062 時点で同様に暫定登録されていたが、#2063 で Themes 側
-(`crates/pre-styled-ui/src/input_group.rs`・`/themes/input-group/`)を
-新設し `WRAPPED_SAME_NAME` バケットへ分類されたため、この 1 件からは
-既に外れている。`button_group` も後続イシューで Themes ページ登録が
-完了すると 0 件へ戻る想定。
+**イシュー #2059/#2060/#2062/#2063/#2065/#2066/#2068 追記(2026-09-08)**:
+headless-ui 層のみを新設した `button_group`(#2059)・`input_group`(#2062)・
+`item`(#2065)・`command`(#2068)はいずれも新設時点では上記「0 件」を暫定的
+に増やしていたが、`input_group` は #2063 で、`item` は #2066 で、
+`button_group` は #2060 で、それぞれ Themes 側
+(`crates/pre-styled-ui/src/{input_group,item,button_group}.rs`・
+`/themes/{input-group,item,button-group}/`)を新設し `WRAPPED_SAME_NAME`
+バケットへ分類されたため、`HEADLESS_UNWRAPPED`/`PRIMITIVES_WITHOUT_THEMES_PAGE`
+はいずれも `command` のみの 1 件へ戻った(#2068 の Themes ページは後続
+#2070 で追加予定)。
 
 ### Primitives 側の未ラップ判定
 
 `crates/pre-styled-ui/src/**/*.rs` 全体のコード行から、どこからも参照され
 ていない headless 部品モジュールを求めると現時点で 1 件
-(`HEADLESS_UNWRAPPED = ["button_group"]`。上記「イシュー
-#2059/#2062/#2063 追記」節参照。`collapsible` はイシュー #1682、
-`fieldset` はイシュー #1686、`input_group` はイシュー #2063 でそれぞれ
-コード委譲済みになったため本台帳から外れた)。`field` は
+(`HEADLESS_UNWRAPPED = ["command"]`。上記「イシュー
+#2059/#2060/#2062/#2063/#2065/#2066/#2068 追記」節参照。`collapsible` は
+イシュー #1682、`fieldset` はイシュー #1686、`input_group` はイシュー
+#2063、`item` はイシュー #2066、`button_group` はイシュー #2060 でそれぞれ
+コード委譲済みになったため本台帳から外れた。`command` はイシュー #2068
+時点では headless-ui 層のみの新設のため引き続き本台帳に残る)。`field` は
 イシュー #1685 で `/themes/field/` ページを新設し
 `PRIMITIVES_WITHOUT_THEMES_PAGE` から除外済みで、`WRAPPED_SAME_NAME`
 バケットへ分類される。`fieldset` も同様にイシュー #1687 で
@@ -322,7 +333,7 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 
 ### モジュール解決(`crates/pre-styled-ui/src/`)
 
-Themes ページ 111 件すべてが `crates/pre-styled-ui/src/` 配下のちょうど
+Themes ページ 113 件すべてが `crates/pre-styled-ui/src/` 配下のちょうど
 1 つのソースへ解決する。解決順は (1) `charts` ページの特例
 (`src/charts/mod.rs`)、(2) トップレベル `src/<mod>.rs`、(3) `src/charts/<mod>.rs`。
 トップレベルと `charts/` のステムが衝突する既知の 1 件(`tooltip`。トップ
@@ -339,13 +350,15 @@ panic する。§6 の弱体化ではなく別レイヤー向けの規約であ�
 ### 再実測手順
 
 ```bash
-# Themes 部品ページ 111 件（イシュー #2063 で input_group が加わり 110→111）
-grep -oE 'source = "site/themes/[a-z0-9-]+\.md"' site/nav.toml | wc -l          # => 111
-# Primitives 部品 66 件（イシュー #2059 で button_group・イシュー #2062 で
-# input_group・イシュー #2065 で item がそれぞれ追加され 63→65→66）
-grep -c 'path: "/primitives/' crates/docs-site/src/primitives_catalog.rs        # => 66
-# pre-styled ソース総数 125(トップレベル 111 + charts/ 14)
-ls crates/pre-styled-ui/src/*.rs | wc -l                                        # => 111
+# Themes 部品ページ 113 件（イシュー #2063 で input_group、イシュー #2066 で
+# item、イシュー #2060 で button_group が加わり 110→113）
+grep -oE 'source = "site/themes/[a-z0-9-]+\.md"' site/nav.toml | wc -l          # => 113
+# Primitives 部品 67 件（イシュー #2059 で button_group・イシュー #2062 で
+# input_group・イシュー #2065 で item・イシュー #2068 で command が
+# それぞれ追加され 63→65→66→67）
+grep -c 'path: "/primitives/' crates/docs-site/src/primitives_catalog.rs        # => 67
+# pre-styled ソース総数 127(トップレベル 113 + charts/ 14)
+ls crates/pre-styled-ui/src/*.rs | wc -l                                        # => 113
 ls crates/pre-styled-ui/src/charts/*.rs | wc -l                                 # => 14
 ```
 

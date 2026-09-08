@@ -61,7 +61,7 @@
 //! #942 の責務であり、本モジュールは器（レジストリと照会 API）のみを
 //! 提供する。
 
-use fandhe_frontend_core::{div, el, p, render, text, Node};
+use fandhe_frontend_core::{div, el, p, render, span, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{
@@ -72,6 +72,7 @@ use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, Breadcrumb
 use fandhe_frontend_pre_styled_ui::button::{
     button, close_button, icon_button, icon_size_for, ButtonProps, ButtonVariant,
 };
+use fandhe_frontend_pre_styled_ui::button_group;
 use fandhe_frontend_pre_styled_ui::calendar::{self, PlainDate};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::charts::axis::{self, AxisProps};
@@ -165,7 +166,9 @@ use fandhe_frontend_pre_styled_ui::rating_group::{
 };
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::segment_group;
-use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
+use fandhe_frontend_pre_styled_ui::separator::{
+    group as separator_group, label as separator_label, separator, SeparatorProps, SeparatorVariant,
+};
 use fandhe_frontend_pre_styled_ui::skeleton::{
     skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant,
 };
@@ -686,6 +689,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: breadcrumb_section,
     },
     ComponentPage {
+        path: "/themes/button-group/",
+        render: button_group_section,
+    },
+    ComponentPage {
         path: "/themes/action-bar/",
         render: action_bar_section,
     },
@@ -983,6 +990,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::steps::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::button_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::action_bar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toast::stylesheet())?;
@@ -2025,10 +2033,54 @@ fn separator_section() -> Node {
             vec![("style", "height: 3rem;")],
         ),
     ]);
+    // イシュー #2053（shadcn/ui 突合）: ラベル付き区切り線（線 – テキスト –
+    // 線、chakra-ui の HStack + Text 合成相当）の実演。`group`/`label` の
+    // Anatomy 表・`data-*` 表はこの Demo から機械導出されるため、ここに
+    // 必ず現れる必要がある。
+    let labeled_row = row(vec![separator_group(
+        vec![("style", "width: 16rem;")],
+        vec![
+            separator(&SeparatorProps::default(), vec![]),
+            separator_label(vec![], vec![text("OR")]),
+            separator(&SeparatorProps::default(), vec![]),
+        ],
+    )]);
+    // イシュー #2053: shadcn/ui Vertical Example 相当（`Blog | Docs |
+    // Source` の横並び）の実演。既存 API（core `span` + `separator`）のみで
+    // 再現可能であり、専用パートの新設は不要（モジュール冒頭 rustdoc
+    // 参照）。
+    let vertical_inline_row = row(vec![div(
+        vec![("style", "display: flex; align-items: center; gap: 1rem;")],
+        vec![
+            span(vec![], vec![text("Blog")]),
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Vertical,
+                    variant: SeparatorVariant::Solid,
+                },
+                vec![("style", "height: 1.25rem;")],
+            ),
+            span(vec![], vec![text("Docs")]),
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Vertical,
+                    variant: SeparatorVariant::Solid,
+                },
+                vec![("style", "height: 1.25rem;")],
+            ),
+            span(vec![], vec![text("Source")]),
+        ],
+    )]);
     section(
         "Separator",
-        "区切り線。role=\"separator\" と aria-orientation/data-orientation を常時出力します。orientation（horizontal/vertical）と variant（solid/dashed/dotted）の 2 軸を持ち、太さは --fandhe-separator-thickness（既定 1px）の上書きで変更します。",
-        vec![horizontal_row, thickness_row, vertical_row],
+        "区切り線。role=\"separator\" と aria-orientation/data-orientation を常時出力します。orientation（horizontal/vertical）と variant（solid/dashed/dotted）の 2 軸を持ち、太さは --fandhe-separator-thickness（既定 1px）の上書きで変更します。group/label（イシュー #2053）でラベル付き区切り線を、既存 API のみで shadcn/ui の Vertical inline 合成を実演します。",
+        vec![
+            horizontal_row,
+            thickness_row,
+            vertical_row,
+            labeled_row,
+            vertical_inline_row,
+        ],
     )
 }
 
@@ -8740,6 +8792,105 @@ fn breadcrumb_section() -> Node {
     )
 }
 
+/// Button Group 節: 先頭・末尾だけ角丸を残す連結表示（イシュー #2060、親
+/// #2058、headless anatomy は #2059）。root/separator/text の 3 パーツ
+/// すべてを実演に出現させる（Anatomy・`data-*` 属性表の機械導出元、
+/// `component_page.rs` 参照）。`href` は持たせない
+/// （`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`）。
+fn button_group_section() -> Node {
+    let outline_props = ButtonProps {
+        variant: ButtonVariant::Outline,
+        ..ButtonProps::default()
+    };
+
+    // (1) 横並び 3 ボタン（Outline）: 先頭・末尾のみ角丸が残る基本形。
+    let basic = button_group::root(
+        Orientation::Horizontal,
+        "Text alignment",
+        vec![],
+        vec![
+            button(&outline_props, vec![], vec![text("Left")]),
+            button(&outline_props, vec![], vec![text("Center")]),
+            button(&outline_props, vec![], vec![text("Right")]),
+        ],
+    );
+
+    // (2) text + separator + button（3 パーツすべてが出現する構成）。
+    let with_text_and_separator = button_group::root(
+        Orientation::Horizontal,
+        "Sort options",
+        vec![],
+        vec![
+            button_group::text(vec![], vec![text("Sort by:")]),
+            button(&outline_props, vec![], vec![text("Name")]),
+            button_group::separator(Orientation::Horizontal, vec![], vec![]),
+            button(&outline_props, vec![], vec![text("Date")]),
+        ],
+    );
+
+    // (3) vertical: data-orientation="vertical" による縦積み。
+    let vertical = button_group::root(
+        Orientation::Vertical,
+        "Vertical actions",
+        vec![],
+        vec![
+            button(&outline_props, vec![], vec![text("Copy")]),
+            button(&outline_props, vec![], vec![text("Duplicate")]),
+            button(&outline_props, vec![], vec![text("Archive")]),
+        ],
+    );
+
+    // (4) Input（検索欄）+ Outline button の合成。`field::label` を group
+    // root 直下に置くと連結対象の子として並んでしまうため、label 同梱では
+    // なく `aria-label` でアクセシブルネームを確保する（`src/button_group.rs`
+    // モジュール doc 「raw CSS 追記の理由」節、`[data-scope="field"]
+    // [data-part="input"]` の連結規則参照）。
+    let with_input = button_group::root(
+        Orientation::Horizontal,
+        "Search",
+        vec![],
+        vec![
+            input::input(
+                &InputProps::default(),
+                &plain_field("showcase-button-group-input"),
+                vec![("aria-label", "Search"), ("placeholder", "Search")],
+            ),
+            button(&outline_props, vec![], vec![text("Go")]),
+        ],
+    );
+
+    // (5) Menu trigger + Outline button の合成（`[data-scope="menu"]
+    // [data-part="root"]` を伸長させ、角丸連結は 1 段深い `trigger` へ書く
+    // raw CSS 追記の実演）。閉じた状態の静的マークアップのため
+    // `controls`/`aria-controls` の関連付けは不要（`None`）。
+    let with_menu = button_group::root(
+        Orientation::Horizontal,
+        "More actions",
+        vec![],
+        vec![
+            button(&outline_props, vec![], vec![text("Save")]),
+            menu::root(
+                Size::Md,
+                OpenState::Closed,
+                vec![],
+                vec![menu::trigger(
+                    OpenState::Closed,
+                    false,
+                    None,
+                    vec![],
+                    vec![text("More")],
+                )],
+            ),
+        ],
+    );
+
+    section(
+        "Button Group",
+        "headless-ui の Button Group（root/separator/text の 3 anatomy パーツ、role=\"group\" の静的グループ）に pre-styled-ui の recipe CSS を適用した静的掲示です。先頭・末尾以外の隣接ボタンの角丸・開始側境界線を raw CSS 追記で無効化し 1 つの連結表示に見せます（`:has()` 不採用のためネストは margin 代替、`src/button_group.rs` モジュール doc 参照）。1 つ目は基本形、2 つ目は text/separator を含む構成、3 つ目は vertical、4 つ目は Input、5 つ目は Menu trigger を内包した合成です（イシュー #2060、親 #2058）。",
+        vec![basic, with_text_and_separator, vertical, with_input, with_menu],
+    )
+}
+
 /// ActionBar 節: 開いた状態の静的マークアップ（イシュー #762）。
 ///
 /// 複数選択時に画面下部へ表示される操作バーの掲示。「2 selected」の選択件数
@@ -12376,8 +12527,9 @@ mod tests {
         // イシュー #1687 で Fieldset を追加し 103 → 104 件になった。
         // イシュー #2063 で Input Group を追加し 104 → 105 件になった。
         // イシュー #2066 で Item を追加し 105 → 106 件になった。
-        // イシュー #2070 で Command を追加し 106 → 107 件になった。
-        assert_eq!(paths.len(), 107, "COMPONENT_PAGES should have 107 entries");
+        // イシュー #2060 で Button Group を追加し 106 → 107 件になった。
+        // イシュー #2070 で Command を追加し 107 → 108 件になった。
+        assert_eq!(paths.len(), 108, "COMPONENT_PAGES should have 108 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -12487,6 +12639,7 @@ mod tests {
             "checkbox-card",
             "radio-card",
             "breadcrumb",
+            "button-group",
             "toast",
             "image",
             "icon",
@@ -12668,6 +12821,11 @@ mod tests {
         assert!(css.contains(r#"[data-scope="input-group"][data-part="addon"]"#));
         assert!(css.contains(r#"[data-scope="input-group"][data-part="text"]"#));
         assert!(css.contains(r#"[data-scope="input-group"][data-part="button"]"#));
+        // Button Group 節（イシュー #2060）: root/separator/text の recipe
+        // CSS。
+        assert!(css.contains(r#"[data-scope="button-group"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="button-group"][data-part="separator"]"#));
+        assert!(css.contains(r#"[data-scope="button-group"][data-part="text"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));

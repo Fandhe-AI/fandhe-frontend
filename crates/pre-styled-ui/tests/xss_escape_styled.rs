@@ -87,7 +87,9 @@ use fandhe_frontend_pre_styled_ui::quote::quote;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::scroll_area;
-use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
+use fandhe_frontend_pre_styled_ui::separator::{
+    group as separator_group, label as separator_label, separator, SeparatorProps,
+};
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
@@ -2923,6 +2925,10 @@ fn skeleton_attrs_and_class_are_escaped_for_all_payloads() {
 /// 経路は対象外）。契約属性（`role`/`aria-orientation`/`data-orientation`）
 /// の偽装除去そのものの回帰は `crates/pre-styled-ui/src/separator.rs` の
 /// ユニットテストが担う（本ファイルは公開 API 経由の XSS 貫通のみを担当）。
+///
+/// イシュー #2053（shadcn/ui 突合）で追加した pre-styled-only
+/// `group`/`label`（`kbd::group` #2230 と同型のパート）の `attrs`/
+/// `children`・`data-scope`/`data-part` 偽装除去も同一関数で固定する。
 #[test]
 fn separator_attrs_and_class_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
@@ -2952,6 +2958,30 @@ fn separator_attrs_and_class_are_escaped_for_all_payloads() {
         assert!(
             html.contains("fd-separator--"),
             "separator で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // pre-styled-only group/label の attrs 経路（イシュー #2053）。
+        let html = render(&separator_group(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "separator::group attrs コンテキスト");
+        let html = render(&separator_label(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "separator::label attrs コンテキスト");
+
+        // pre-styled-only group/label の children 経路（イシュー #2053）。
+        let html = render(&separator_group(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "separator::group children コンテキスト");
+        let html = render(&separator_label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "separator::label children コンテキスト");
+
+        // data-scope/data-part の偽装除去（headless Anatomy::part の
+        // fail-closed 挙動、kbd::group と同型）。
+        let html = render(&separator_group(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "separator::group の data-scope/data-part 偽装が出力に残っている: \
+             payload={payload:?}, html={html}"
         );
     }
 }
@@ -5267,5 +5297,68 @@ fn command_parts_are_escaped_for_all_payloads() {
         );
         assert!(html.contains(r#"data-scope="command""#));
         assert!(html.contains(r#"data-part="root""#));
+    }
+}
+
+/// styled Button Group `root`/`separator`/`text` 経路（イシュー #2060、親
+/// #2058、headless anatomy は #2059）: 3 パーツいずれも見た目クラスを付与
+/// しない（`src/button_group.rs` モジュール doc「variant 軸: 持たない」節
+/// 参照）ため、呼び出し側 `attrs`・`class`（[`drop_class_attr`] により除去、
+/// recipe クラスを持たないため `class` 属性自体が出力から消える）・`label`・
+/// children の各経路で既定エスケープ（REQ-1）が貫通することを固定する
+/// （`input_group_parts_are_escaped_for_all_payloads` と同型）。
+#[test]
+fn button_group_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::button_group::{self, Orientation};
+
+    for payload in payloads::all() {
+        // styled root の label（aria-label へ出力される動的値）経路。
+        let html = render(&button_group::root(
+            Orientation::Horizontal,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "button_group::root label コンテキスト");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&button_group::root(
+            Orientation::Horizontal,
+            "",
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "button_group::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える）。
+        let html = render(&button_group::root(
+            Orientation::Horizontal,
+            "",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "button_group::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled separator の呼び出し側 attrs 経路。
+        let html = render(&button_group::separator(
+            Orientation::Horizontal,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "button_group::separator attrs コンテキスト");
+
+        // styled text の呼び出し側 attrs・children 経路。
+        let html = render(&button_group::text(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "button_group::text attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "button_group::text children コンテキスト");
     }
 }

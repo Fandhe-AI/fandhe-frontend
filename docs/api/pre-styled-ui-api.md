@@ -11,17 +11,18 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 112 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 113 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
-イシュー #2066、`command` はイシュー #2070 で追加）+
+イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
+#2070 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。112 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。113 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
 操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
@@ -59,7 +60,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 単純 styled 部品 | `skeleton`（ローディングプレースホルダー。形状軸 `variant`（`text`/`circle`/`rect`）+ アニメーション軸 `animation`（`pulse`(既定)/`shine`/`none`、イシュー #1566）、常時 `aria-hidden="true"`、`color-palette`/`size` 軸は非提供、`prefers-reduced-motion: reduce` でアニメーション停止） | [skeleton](../../site/themes/skeleton.md) |
 | 単純 styled 部品 | `image`（写真等の静的コンテンツを表示する `<img>`。`ImageFit`（`object-fit`）/`AspectRatio`（`Auto`/`Square`/`Landscape`/`Portrait`/`Video`）/`ImageShape`（角丸、`Square`/`Rounded`/`Circle`）の 3 軸 variant、`alt` 必須引数。base は `height: auto` を持つ（イシュー #1562）。headless-ui `avatar` の `ImageStatus` 状態機械とは独立。中立的な表示部品のため `color-palette` 軸は非提供） | [image](../../site/themes/image.md) |
 | 単純 styled 部品 | `icon`（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ（`Xs`〜`Xl` の 5 段、既定 `Md`。イシュー #1561 で chakra-ui 同名段の実寸へ是正）、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） | [icon](../../site/themes/icon.md) |
-| 単純 styled 部品 | `separator`（区切り線、`<hr>`。`orientation`（horizontal/vertical）・`variant`（solid/dashed/dotted、イシュー #1585 で dotted 追加）の 2 軸、常時 `role="separator"`/`aria-orientation`/`data-orientation` を出力、罫線の太さは `--fandhe-separator-thickness`（既定 1px、イシュー #1585）の上書きで変更、`color-palette`/`size` 軸は非提供） | [separator](../../site/themes/separator.md) |
+| 単純 styled 部品 | `separator`（区切り線、`<hr>`。`orientation`（horizontal/vertical）・`variant`（solid/dashed/dotted、イシュー #1585 で dotted 追加）の 2 軸、常時 `role="separator"`/`aria-orientation`/`data-orientation` を出力、罫線の太さは `--fandhe-separator-thickness`（既定 1px、イシュー #1585）の上書きで変更、`color-palette`/`size` 軸は非提供。`group`/`label`（pre-styled-only、イシュー #2053、shadcn/ui 突合で補完したラベル付き区切り線パート）） | [separator](../../site/themes/separator.md) |
 | 単純 styled 部品 | `highlight`（テキスト中の一致語句を `<mark>` で強調する `<span>` + `<mark>`。`query`（複数可）・`ignore_case`（ASCII 限定）・`match_all` の 3 プロパティ。一致判定は正規表現不使用の決定的な部分文字列検索のみ（ReDoS 非該当）。`color-palette`/`size` 軸は非提供） | [highlight](../../site/themes/highlight.md) |
 | 単純 styled 部品 | `visually_hidden`（視覚的には隠すが支援技術には読ませ続けるテキストコンテナ。variant 軸を持たず clip 手法の CSS のみ。`aria-hidden` を一切出力しない） | [visually-hidden](../../site/themes/visually-hidden.md) |
 | 単純 styled 部品 | `skip_nav`（WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link`/`content` の 2 slot recipe。`link` は `visually_hidden` の clip 手法を base に持ち `:focus-visible` でのみ視覚的に復元する。docs-site の全ページレイアウトへ実適用済み） | [skip-nav](../../site/themes/skip-nav.md) |
@@ -97,6 +98,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `link` / `link_overlay` / `nav_list`（状態機械なし。`link_overlay` は `::before` 疑似要素の代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する。イシュー #1580 で `overlay` に `:focus-visible` の共通フォーカスリング・`cursor: pointer` を追加し、`root`/`overlay` 双方へ `border-radius: inherit` を連鎖させて `root` の角丸へフォーカスリングが追従するようにした。`nav_list` は `fandhe-frontend-docs-site::nav.rs::sidebar` が直接使う想定のため、`root` 以外（`heading`/`list`/`item`/`link`）は headless 自由関数をそのまま選択的に再エクスポートする） | [link](../../site/themes/link.md) / [link-overlay](../../site/themes/link-overlay.md) / [nav-list](../../site/themes/nav-list.md) |
 | headless ラッパー | `action_bar`（`size`/`color-palette` 軸は非提供。`positioner` の `position: fixed; bottom: ...; left: 50%; transform: translateX(-50%)` による画面下部固定配置と `data-state` 連動の見た目切り替えのみを提供する。`z-index: 900`（menu/select の dropdown positioner（10）より上、dialog backdrop（1000）より下）） | [action-bar](../../site/themes/action-bar.md) |
 | headless ラッパー | `toolbar`（イシュー #991。`size`/`color-palette` 軸は非提供。`root` の `data-orientation="vertical"` で `flex-direction: column` へ切り替え、`separator` は `aria-orientation` の値（toolbar 自身と直交）で向き別の太さを出し分ける。押下状態の管理は独自 CSS を持たず既存の `toggle_group` recipe と同型の `data-state="on"` 強調のみ提供する） | [toolbar](../../site/themes/toolbar.md) |
+| headless ラッパー | `button_group`（§4d-1 参照。`size`/`color-palette` 軸は非提供、`root` の `data-orientation` で横並び/縦積み切替、直接の子の角丸連結・境界線二重描画解消は raw CSS 追記で行う。イシュー #2060） | [button-group](../../site/themes/button-group.md) |
 | headless ラッパー | `menubar`（イシュー #992。`size`/`color-palette` 軸は非提供。複数 `menu` を水平（または垂直）に並べるコンテナ。`root` の `data-orientation="vertical"` で `flex-direction: column` へ切り替え、per-menu ラッパーである `menu` パーツが `position: relative`（`positioner` の containing block）を担う。開いている trigger/sub-trigger の視覚強調・virtual focus の highlight 表示は `menu` recipe と同型） | [menubar](../../site/themes/menubar.md) |
 | headless ラッパー | `navigation_menu`（イシュー #993。`size`/`color-palette` 軸は非提供。トリガー起点で開閉するナビゲーションパネル。`item` に `position: relative`、`content` に `position: absolute; top: 100%; left: 0;` を宣言する一般的なナビゲーションドロップダウン構成。`list` の `align-items` は `center` ではなく `flex-start` を既定にし、`content` 展開時に他項目が縦ずれする回帰を構造的に防ぐ。開いている trigger の視覚強調は `data-state="open"`、アクティブリンクの強調は `data-current` で行う） | [navigation-menu](../../site/themes/navigation-menu.md) |
 | pre-styled-ui 単独定義（headless-ui 変更なし、`checkbox_card`/`radio_card` §4g と同型の判断） | `tab_nav`（イシュー #996。新規 anatomy `data-scope="tab-nav"` を定義し `role="tablist"`/`role="tab"` を一切出力しない。見た目は自前の宣言列から生成する（イシュー #1541 で `tabs.rs` の `pub(crate)` ヘルパ共有を解消）。現在ページは `aria-current="page"` で示す。`size` 軸を持ち、`color-palette` 軸は非提供） | [tab-nav](../../site/themes/tab-nav.md) |
@@ -539,6 +541,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | tab-nav | ✓ | 提供しない | size 軸（xs〜xl、既定 md）を持つ（イシュー #1541）。palette は祖先の `--fandhe-palette` を継承する経路のみで軸としては非提供 |
 | checkbox-group | ✓ | ✓ | radio-group と同型（イシュー #997）。`item-control` の寸法・palette 塗りに反映 |
 | card | ✓ | 提供しない | 中立コンテナのため palette 非提供（イシュー #606）。size（xs〜xl、既定 md）は root の `--fandhe-card-*` へ一本化し padding/角丸/title の文字サイズへ連動する。size 軸新設に伴い `root` の第 1 引数を `impl Into<CardProps>` へ拡張した（イシュー #1557）。`From<CardVariant> for CardProps` により従来の `root(CardVariant::Elevated, …)` はそのまま有効で、size を指定する場合は `root(CardProps { variant, size }, …)` を渡す（後方互換の純追加）。イシュー #2046 で shadcn/ui と突合し、パーツ数を 6 → 8 へ拡張した（`action`/`cover` を純追加）。`header`/`footer` へ `data-has-action`/`data-bordered` を opt-in で渡すと、それぞれ action の grid 配置・1px 区切り線が有効になる（既定出力は不変） |
+| button_group | 提供しない | 提供しない | 子の寸法に従属するグループ化コンテナ（イシュー #2060） |
 
 tabs/accordion/dialog/menu/select の実装詳細:
 
@@ -566,6 +569,16 @@ tabs/accordion/dialog/menu/select の実装詳細:
   配下の headless-ui 非由来 6 番目の part。shadcn/ui の `AlertAction`
   相当を root 末尾の flex 兄弟として右寄せ（RTL では左寄せ）配置するのみを
   担い、アクションの機能配線は呼び出し側が行う。イシュー #2043）。
+
+### 4d-1. `button_group`（連結ボタングループ、イシュー #2060、headless
+anatomy は #2059）
+
+- 公開 API: `root(orientation, label, attrs, children)` / `separator(group_orientation, attrs, children)` / `text(attrs, children)` / `stylesheet()`。`Orientation` は `fandhe_frontend_headless_ui::data_attrs::Orientation` の選択的再エクスポート（規約 A）。
+- size/variant/color-palette いずれの軸も提供しない（上記 §4d 表参照、`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d) 「子の寸法に従属するレイアウト部品」）。
+- 先頭・末尾以外の隣接要素の角丸・開始側境界線幅を [`crate::css::serialize_rule`] による raw CSS 追記で無効化する（`SlotRecipe` は子結合子を表現できないため）。対象は button / field-input / button-group-text / menu-trigger / select-trigger の 5 種を明示列挙し、`> *:not(:first-child)` のような汎用セレクタは特異度の衝突が呼び出し側の CSS 連結順に依存してしまうため採らない。
+- ネスト（グループの中にグループ）は `:has()` の先例がないため角丸連結対象へ含めず、代わりに先頭以外の内側グループへ margin のみ付与する代替表現とする（意図的非採用、`docs/policy/intentional-non-adoption.md` の評価軸に従う）。
+- バリデーション・送信処理等のアプリケーションロジックは内包しない（`.claude/rules/coding-rust.md` §3.25）。
+- docs サイト: [button-group](../../site/themes/button-group.md)（Themes）/ [button-group](../../site/primitives/button-group.md)（Primitives）。
 
 ## 4d. `data-focus-visible` によるキーボード専用フォーカスリング
 

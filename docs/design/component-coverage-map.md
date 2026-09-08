@@ -131,15 +131,15 @@ grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
   segment_group / select / signature_pad / skip_nav / slider / splitter /
   steps / switch / tabs / tags_input / timer / toast / toggle /
   toggle_group / toggle_tip / tooltip / tour / tree_view / visually_hidden
-- pre-styled-ui **106**（`grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs
+- pre-styled-ui **107**（`grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs
   | grep -vE '^pub mod (css|recipe|stylesheet|theme);$' | wc -l` の実測。
   下記列挙リストは #1685 で `field`、#1686 で `fieldset`、#2063 で
-  `input_group` を追加したのみで、
+  `input_group`、#2060 で `button_group` を追加したのみで、
   それ以外の未列挙モジュール（callout / checkbox_group / menubar /
   navigation_menu / quote / strong / tab_nav / toolbar 等）の棚卸しは本
   イシューのスコープ外として PR 本文・親 #1671 コメントに記録する）:
   accordion / action_bar / alert / angle_slider / area_chart / avatar /
-  badge / blockquote / breadcrumb / button / calendar / card / carousel /
+  badge / blockquote / breadcrumb / button / button_group / calendar / card / carousel /
   charts / checkbox / checkbox_card / clipboard / code / collapsible /
   color_picker /
   color_swatch / combobox / data_list / date_input / date_picker / dialog /
@@ -702,7 +702,7 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/layout/separator.md` | — | Separator | Separator (`separator`) | Separator (`separator`) | Separator (`separator`) | — | `separator` | 実装済み | #772。pre-styled 静的部品 実装済み。#1585 でスタイルを参考サイト基準へ調整（`dotted` variant 追加・`--fandhe-separator-thickness` custom property 化） |
+| `.agents/skills/chakra-ui/references/components/layout/separator.md` | — | Separator | Separator (`separator`) | Separator (`separator`) | Separator (`separator`) | — | `separator` | 実装済み | #772。pre-styled 静的部品 実装済み。#1585 でスタイルを参考サイト基準へ調整（`dotted` variant 追加・`--fandhe-separator-thickness` custom property 化）。#2053 で shadcn/ui と突合済み: variant/size/状態/vertical/RTL は差分なし（shadcn は軸なし単一意匠、本側が上位互換）。ラベル付き合成（`group`/`label`、chakra-ui の HStack + Text 合成相当）を pre-styled-only パートとして補完。参照競合: 罫線の実装方式（shadcn `bg-border`+`h-px` に対し本側は `border-*-width` を維持、純追加原則により chakra-ui の値を採る） |
 | `.agents/skills/chakra-ui/references/components/layout/scroll-area.md` | ScrollArea | ScrollArea | — | — | — | `scroll_area` | `scroll_area` | 実装済み | headless+styled 実装済み（#825、保留解除。JS によるスクロール位置追従・thumb drag は本イシューのスコープ外。#1584 でスタイルを参考サイト基準へ調整（thumb 色トークン化・hover 強調・フォーカスリング canonical 化・custom property 公開）。#1662 で headless 側を参考サイトと突合（anatomy/data-* 増減なし、予約キー除去追加）） |
 | `.agents/skills/chakra-ui/references/components/layout/splitter.md` | Splitter | Splitter | — | — | — | `splitter` | `splitter` | 実装済み | headless+styled 実装済み（#826、#735 保留の解除。#1664 で ark-ui docs/zag.js/WAI-ARIA APG と参照突合済み: panel の data-index/data-id、resize-trigger の隣接 2 パネル aria-controls/data-id、SplitterAction::IncrementLarge/DecrementLarge、drop_reserved を追加。data-focus/data-dragging・Enter collapse/expand・F6・非反転 aria-orientation は意図的非追随） |
 | `.agents/skills/chakra-ui/references/components/layout/absolute-center.md` | — | AbsoluteCenter | — | — | — | — | — | 意図的非採用 | #716/#724 で非採用確定済み（layout プリミティブ） |
@@ -981,7 +981,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
-| —（対応 md なし） | — | — | — | — | Button Group (`button-group`) | — | — | 実装対象 | ボタン群を単一の視覚的グループとして束ねる anatomy。Phase 4、#2058 |
+| —（対応 md なし） | — | — | — | — | Button Group (`button-group`) | `button_group` | `button_group` | 実装済み | headless+styled 実装済み（#2059 anatomy / #2060 recipe・Themes ページ）。root/separator/text の 3 slot + `data-orientation`、軸なし |
 | —（対応 md なし） | — | — | — | — | Input Group (`input-group`) | `input_group` | `input_group` | 実装済み | headless+styled 実装済み（#2062 anatomy / #2063 recipe・Themes ページ）。root/addon/text/button の 4 slot + `data-align` 4 値、軸なし |
 | —（対応 md なし） | — | — | — | — | Item (`item`) | `item` | `item` | 実装済み | headless+styled 実装済み（#2065 anatomy / #2066 recipe・Themes ページ）。root/media/content/title/description/actions/header/footer/group/separator の 10 slot、`data-variant`/`data-size` を AttrEq 参照 |
 | —（対応 md なし） | — | — | — | — | Command (`command`) | `command` | `command` | 実装済み | headless+styled 実装済み（#2068 anatomy / #2070 recipe・Themes ページ）。root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の 10 slot、`data-selected`/`data-empty`/`hidden` を参照 |
@@ -1326,7 +1326,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 
 | shadcn/ui 名 (slug) | §5 該当行 | 実装 issue | 現状 |
 |---|---|---|---|
-| Button Group (`button-group`) | Part F | #2058 | 実装対象確定（Phase 4） |
+| Button Group (`button-group`) | Part F | #2058 | 実装済み（#2059 / #2060） |
 | Input Group (`input-group`) | Part F | #2061 | 実装済み（#2062 / #2063） |
 | Item (`item`) | Part F | #2064 | 実装済み（#2065 / #2066） |
 | Command (`command`) | Part F | #2067 | 実装済み（#2068 / #2070） |

@@ -130,6 +130,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Bar Segment | `charts`（内包） | Charts | `/themes/bar-segment/` | `site/themes/bar-segment.md` | `bar_segment_section()` |
 | Blockquote | `blockquote` | Typography | `/themes/blockquote/` | `site/themes/blockquote.md` | （typography_section 内包） |
 | Breadcrumb | `breadcrumb` | Interactive | `/themes/breadcrumb/` | `site/themes/breadcrumb.md` | `breadcrumb_section()` |
+| Button Group | `button_group` | Interactive | `/themes/button-group/` | `site/themes/button-group.md` | `button_group_section()`（#2060 で新設） |
 | Button | `button` | Forms | `/themes/button/` | `site/themes/button.md` | `button_section()` |
 | Calendar | `calendar` | Forms | `/themes/calendar/` | `site/themes/calendar.md` | `calendar_section()` |
 | Card | `card` | Data Display | `/themes/card/` | `site/themes/card.md` | `card_section()` |
@@ -280,7 +281,8 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `number_input` `password_input` `pin_input` `radio_card` `radio_group`
   `rating_group` `segment_group` `select` `signature_pad` `slider` `switch`
   `tags_input` `textarea` `toggle` `toggle_group`
-- **Interactive (21)**: `accordion` `action_bar` `breadcrumb` `carousel`
+- **Interactive (22)**: `accordion` `action_bar` `breadcrumb` `button_group`
+  `carousel`
   `clipboard` `collapsible` `dialog` `drawer` `floating_panel` `hover_card`
   `menu` `nav_list` `pagination` `popover` `splitter` `steps` `tabs` `toast`
   `toggle_tip` `tooltip` `tour`
