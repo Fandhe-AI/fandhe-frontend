@@ -82,7 +82,9 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::{
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::DateInput;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
-use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
+use fandhe_frontend_pre_styled_ui::heading::{
+    heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
+};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps, HighlightVariant};
 use fandhe_frontend_pre_styled_ui::kbd::{group as kbd_group, kbd, KbdProps, KbdVariant};
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
@@ -122,6 +124,7 @@ fn heading_example() -> Node {
             HeadingLevel::H2,
             &HeadingProps {
                 size: HeadingSize::Xl2,
+                ..HeadingProps::default()
             },
             vec![],
             vec![text("見出し (h2, size=xl2)")],
@@ -130,11 +133,48 @@ fn heading_example() -> Node {
             HeadingLevel::H3,
             &HeadingProps {
                 size: HeadingSize::Xl,
+                ..HeadingProps::default()
             },
             vec![],
             vec![text("見出し (h3, size=xl)")],
         ),
     ])
+}
+
+/// イシュー #2056: shadcn/ui Typography の h1〜h4 との対応関係を示す
+/// Example（`showcase::heading_section` の実演と同型）。
+fn heading_shadcn_mapping_example() -> Node {
+    stack(vec![
+        heading(
+            HeadingLevel::H1,
+            &HeadingProps {
+                size: HeadingSize::Xl4,
+                weight: HeadingWeight::Bold,
+            },
+            vec![],
+            vec![text("h1 相当（size=Xl4 + weight=Bold）")],
+        ),
+        heading(
+            HeadingLevel::H2,
+            &HeadingProps {
+                size: HeadingSize::Xl3,
+                ..HeadingProps::default()
+            },
+            vec![("data-bordered", "")],
+            vec![text("h2 相当（size=Xl3 + data-bordered）")],
+        ),
+    ])
+}
+
+/// イシュー #2056: `data-bordered` opt-in 状態（shadcn h2 の `border-b
+/// pb-2` 相当）の単独 Example。
+fn heading_bordered_example() -> Node {
+    row(vec![heading(
+        HeadingLevel::H4,
+        &HeadingProps::default(),
+        vec![("data-bordered", "")],
+        vec![text("見出し（data-bordered opt-in）")],
+    )])
 }
 
 const HEADING_ARGUMENTS: &[ArgRow] = &[
@@ -150,6 +190,18 @@ const HEADING_ARGUMENTS: &[ArgRow] = &[
         default: "Xl",
         description: "視覚サイズ（xs/sm/md/lg/xl/xl2/xl3/xl4）。タグ選択（意味論）とは独立した軸。",
     },
+    ArgRow {
+        name: "props.weight",
+        kind: "HeadingWeight",
+        default: "Semibold",
+        description: "フォントウェイト（normal/medium/semibold/bold）。イシュー #2056 で shadcn/ui 突合により追加。",
+    },
+    ArgRow {
+        name: "attrs: data-bordered",
+        kind: "属性（値なし）",
+        default: "（付与時のみ）",
+        description: "shadcn h2 の下罫線相当を opt-in する状態属性。呼び出し側が attrs へ明示的に渡したときのみ通過する（イシュー #2056）。",
+    },
 ];
 
 const HEADING_SPEC: ComponentPageSpec = ComponentPageSpec {
@@ -157,13 +209,26 @@ const HEADING_SPEC: ComponentPageSpec = ComponentPageSpec {
         "素の h1〜h6 意味論をタグとしてそのまま維持しつつ、視覚サイズを variant として独立に切り替える",
         "colorPalette 軸を持たない単一 recipe 静的部品",
         "chakra-ui の 9 段階サイズをテーマトークン範囲（xs〜4xl の 8 段階）へ縮約済み",
+        "フォントウェイト軸（normal/medium/semibold/bold）と data-bordered opt-in 状態を shadcn/ui 突合で追加（イシュー #2056）",
     ],
     arguments: HEADING_ARGUMENTS,
-    examples: &[ExampleEntry {
-        title: "タグとサイズの独立軸",
-        description: "レンダリングするタグ（h1〜h6）と視覚サイズ（xs〜4xl）を独立に選べます。",
-        render: heading_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "タグとサイズの独立軸",
+            description: "レンダリングするタグ（h1〜h6）と視覚サイズ（xs〜4xl）を独立に選べます。",
+            render: heading_example,
+        },
+        ExampleEntry {
+            title: "shadcn/ui Typography との対応",
+            description: "shadcn/ui の h1・h2 相当を size/weight/data-bordered の合成で再現します。",
+            render: heading_shadcn_mapping_example,
+        },
+        ExampleEntry {
+            title: "data-bordered opt-in 状態",
+            description: "呼び出し側が data-bordered を付与したときのみ下罫線が出ます。",
+            render: heading_bordered_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,
@@ -481,6 +546,35 @@ fn list_plain_indicator_example() -> Node {
     )
 }
 
+/// イシュー #2056: shadcn/ui 突合で確認したネストリスト合成例
+/// （ブラウザ既定のマーカー切り替え（外側 disc・内側 circle）を
+/// `list-style: revert` のまま活かす。専用 CSS は追加していない）。
+fn list_nested_example() -> Node {
+    list::root(
+        ListType::Unordered,
+        ListVariant::Marker,
+        vec![],
+        vec![
+            list::item(vec![], vec![text("フロントエンド")]),
+            list::item(
+                vec![],
+                vec![
+                    text("バックエンド"),
+                    list::root(
+                        ListType::Unordered,
+                        ListVariant::Marker,
+                        vec![],
+                        vec![
+                            list::item(vec![], vec![text("SSR")]),
+                            list::item(vec![], vec![text("SSG")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
 const LIST_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root（ul/ol）/item（li）/indicator（span aria-hidden）の 3 パーツで構成する",
@@ -514,6 +608,11 @@ const LIST_SPEC: ComponentPageSpec = ComponentPageSpec {
             title: "plain + indicator（カスタムマーカー）",
             description: "ListVariant::Plain と indicator を組み合わせ、アイコン等のカスタムマーカーを行頭に揃えて表示します。",
             render: list_plain_indicator_example,
+        },
+        ExampleEntry {
+            title: "ネストリスト",
+            description: "item の子として list::root を再帰的に渡すと、ブラウザ既定のマーカー切り替え（外側 disc・内側 circle）で入れ子表示になります（イシュー #2056）。",
+            render: list_nested_example,
         },
     ],
     keyboard: &[],

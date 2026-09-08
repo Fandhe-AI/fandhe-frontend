@@ -41,6 +41,18 @@
 //!   なし）のため `write_dark_declarations` の一元機構に自動追従する。
 //! - **余白・角丸**: padding/font-size を badge/tag と同一の size 進行則
 //!   （#1681）へ載せ替えた。角丸は既存の `--fandhe-radius-sm` を維持。
+//!
+//! ## イシュー #2056 の shadcn/ui 突合
+//!
+//! `docs/design/reference-screenshots/shadcn-typography-{1,2,3}.png` と
+//! 突合した結果、CSS 出力は変更していない。shadcn のインライン `code`
+//! （`bg-muted rounded px-[0.3rem] py-[0.2rem] font-mono text-sm
+//! font-semibold`）のうち `text-sm` は `Subtle`/`Neutral`/`Md`（既定）の
+//! `font-size-sm` と一致する。`font-semibold`（600 ウェイト）は chakra-ui /
+//! Radix Themes のいずれも Code へ持たない shadcn 単独の値である。参照競合
+//! の判定: code のフォントウェイトは chakra-ui の値（本文継承、通常
+//! ウェイト）を採る。理由: 既定を変えると既存 golden・既存呼び出し元の
+//! 見た目が変わるため。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

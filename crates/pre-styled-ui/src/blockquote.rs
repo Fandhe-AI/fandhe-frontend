@@ -10,6 +10,20 @@
 //! 文中に埋め込む短いインライン引用（`<q>`）は [`crate::quote`] が担う
 //! （イシュー #995）。`blockquote` はブロックレベルの構造・出典表示
 //! （`caption` パーツ）を持つ点で `quote` と役割が異なる。
+//!
+//! ## イシュー #2056 の shadcn/ui 突合
+//!
+//! `docs/design/reference-screenshots/shadcn-typography-{1,2,3}.png` と
+//! 突合した結果、CSS 出力は変更していない。shadcn は
+//! `mt-6 border-l-2 pl-6 italic`（左罫線 2px / padding-left 1.5rem /
+//! italic）を持つが、本部品の `Subtle` 既定は左罫線 4px /
+//! `padding-inline-start` 1rem（イシュー #1431 で chakra-ui 基準に是正済み）
+//! である。参照競合の判定: blockquote の罫線幅・余白は chakra-ui の値を
+//! 採る。理由: #1431 の既存 golden を維持するため。italic 装飾は chakra-ui /
+//! Radix Themes のいずれにも対応物がなく shadcn 単独の値であり、
+//! `root(variant, palette, attrs, children)` の位置引数 API へ bool を
+//! 足すと全呼び出し元を壊す破壊的変更になるため本イシューでは非採用とする
+//! （再評価トリガー: 複数部品で `font-style` 軸の要求が出た時点）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
