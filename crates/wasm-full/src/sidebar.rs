@@ -395,6 +395,21 @@ mod wiring {
     /// Cmd/Ctrl+B（開閉ショートカット）の双方をこの 1 関数で扱う
     /// （`Closure::forget` の定数個契約、モジュール doc参照）。
     fn handle_document_keydown(root: &Element, event: &Event) {
+        // イシュー #2074 codex-review P1 是正: `root` は document
+        // リスナーへ `move` された `Element` クローンであり、`root` を
+        // 含むコンテナが DOM から取り外され（例: 別画面のマウントに伴う
+        // 差し替え）ても、このリスナー自身は解除する手段を持たないまま
+        // document に residual listener として残り続ける。取り外された
+        // 旧 `root` のこのハンドラが Cmd/Ctrl+B を `prevent_default()`
+        // してしまうと、新しくマウントされた Sidebar 側の同一 document
+        // keydown リスナーが `default_prevented()` を見て早期 return し、
+        // 新 Sidebar のショートカットが機能しなくなる。`root.is_connected()`
+        // が偽（取り外し済み）の場合は本ハンドラを完全に no-op とし、
+        // `prevent_default()` を含む一切の副作用を行わない。
+        if !root.is_connected() {
+            return;
+        }
+
         let Some(keyboard_event) = event.dyn_ref::<KeyboardEvent>() else {
             return;
         };
@@ -468,6 +483,15 @@ mod wiring {
     /// ときの外側クリックで閉じる。trigger/rail 自身の内側でのポインタ
     /// down は除外する（直後の実 click と二重トグルにならないため）。
     fn handle_document_pointerdown(root: &Element, event: &Event) {
+        // イシュー #2074 codex-review P1 是正: 上記
+        // `handle_document_keydown` と同型。取り外された旧 `root` の
+        // document pointerdown リスナーが誤って外側クリック判定・
+        // `click_trigger_or_rail` 合成 click を行わないよう、
+        // `root.is_connected()` が偽の場合は即座に no-op とする。
+        if !root.is_connected() {
+            return;
+        }
+
         let Some(target) = event.target() else {
             return;
         };
@@ -1131,6 +1155,7 @@ mod wiring {
         // 先に解決された場合はそこで打ち切られ、外側の Sidebar 自身の
         // trigger/rail へフォールバックして誤 dispatch することもない）。
         let wired_root = root.clone();
+        let reconcile_root = root.clone();
         crate::headless::wire_headless_events_scoped(
             root,
             |part| {
@@ -1150,7 +1175,44 @@ mod wiring {
                 }
                 on_update(&state, &wired_root);
             },
-        )
+        )?;
+
+        // イシュー #2074 codex-review P1 是正: `wire_mobile`（
+        // `wire_sidebar_events`/`wire_sidebar_events_with_query` 経由、
+        // `Runtime::mount`/`Runtime::hydrate` から自動実行）の初回
+        // `apply_mobile_state` 呼び出しは、本関数（アプリが個別に呼ぶ
+        // オプトイン API）による dispatch 登録より**先**に走り得る。
+        // その初回呼び出しがモバイル進入時の折りたたみとして合成する
+        // click（`click_trigger_or_rail`）は、まだ dispatch が
+        // 登録されていないため headless-ui の `Sidebar` 状態へ一切
+        // 届かず失われる（本関数直前の `Ok(())` 早期 return する
+        // 経路は無いため、合成 click 自体は起きるが誰も処理しない）。
+        // 結果、DOM 上は `data-mobile` が付いた状態のまま
+        // `data-state="expanded"` が取り残され、モバイル進入時に
+        // collapsed へ寄せる契約に反する。
+        //
+        // 対処として、dispatch 登録が完了した直後にもう一度現在の
+        // DOM 状態（`data-mobile`・`data-state`）を確認し、上記の
+        // 取りこぼしパターン（モバイルなのに `expanded` のまま）が
+        // 残っていれば、ここで追いつき用の click を合成する
+        // （[`should_collapse_on_enter_mobile`] と同一の判定関数を
+        // 再利用: 「モバイルであり、かつ expanded であること」を見る
+        // だけで、遷移エッジかどうかは問わない — 本関数は 1 回しか
+        // 呼ばれない前提のオプトイン API であり、ここで問題にしたいのは
+        // 「マウント直後の初期状態」のみであるため）。今回は dispatch が
+        // 既に登録済みのため、合成 click は確実に処理される。既に
+        // collapsed であれば no-op（`should_collapse_on_enter_mobile` が
+        // 偽を返す）で、正常に折りたたみ済みだったケースを誤って
+        // 再トグルすることはない。
+        if let Some(provider) = find_first(&reconcile_root, PROVIDER_SELECTOR) {
+            let mobile = provider.has_attribute("data-mobile");
+            let state = provider.get_attribute("data-state");
+            if should_collapse_on_enter_mobile(mobile, state.as_deref()) {
+                click_trigger_or_rail(&reconcile_root);
+            }
+        }
+
+        Ok(())
     }
 }
 

@@ -204,13 +204,12 @@ fn query(container: &Element, selector: &str) -> Option<Element> {
 /// せずに `Runtime::mount`/`Runtime::hydrate` のみに頼った場合、trigger/
 /// rail クリックは dispatch へ到達しない（`wire_sidebar_events` 自体は
 /// dispatch チャネルを持たない、モジュール冒頭 doc §1 参照）。
-fn mount_sidebar(
-    document: &Document,
+fn build_sidebar_markup(
     container: &Element,
     initial_state: SidebarState,
     trigger_disabled: bool,
     rail_disabled: bool,
-) -> (Rc<RefCell<Sidebar>>, Element, Element, Element, Element) {
+) -> (Sidebar, Element, Element, Element, Element) {
     let sidebar = Sidebar::new(initial_state);
     let props = SidebarProps::default();
     let trigger_attrs: Vec<(&str, &str)> = if trigger_disabled {
@@ -251,10 +250,15 @@ fn mount_sidebar(
     let root_el = query(container, ROOT_SELECTOR).expect("root must exist");
     let trigger_el = query(container, TRIGGER_SELECTOR).expect("trigger must exist");
     let rail_el = query(container, RAIL_SELECTOR).expect("rail must exist");
+    (sidebar, provider_el, root_el, trigger_el, rail_el)
+}
 
-    let component = Rc::new(RefCell::new(sidebar));
+/// `container` へ `data-state` を反映する `on_update` を組み立てて
+/// [`wire_sidebar_dispatch`] を配線する（`mount_sidebar`/新規追加の
+/// 順序回帰テストの双方から共有する）。
+fn wire_dispatch_reflecting_data_state(container: &Element, component: Rc<RefCell<Sidebar>>) {
     let update_container = container.clone();
-    wire_sidebar_dispatch(container.clone(), component.clone(), move |state, _root| {
+    wire_sidebar_dispatch(container.clone(), component, move |state, _root| {
         let data_state = state.data_state();
         if let Some(el) = query(&update_container, PROVIDER_SELECTOR) {
             let _ = el.set_attribute("data-state", data_state);
@@ -264,6 +268,19 @@ fn mount_sidebar(
         }
     })
     .expect("wire_sidebar_dispatch must not fail");
+}
+
+fn mount_sidebar(
+    document: &Document,
+    container: &Element,
+    initial_state: SidebarState,
+    trigger_disabled: bool,
+    rail_disabled: bool,
+) -> (Rc<RefCell<Sidebar>>, Element, Element, Element, Element) {
+    let (sidebar, provider_el, root_el, trigger_el, rail_el) =
+        build_sidebar_markup(container, initial_state, trigger_disabled, rail_disabled);
+    let component = Rc::new(RefCell::new(sidebar));
+    wire_dispatch_reflecting_data_state(container, component.clone());
 
     let _ = document;
     (component, provider_el, root_el, trigger_el, rail_el)
@@ -340,6 +357,79 @@ fn ctrl_b_shortcut_toggles_via_trigger_click_synthesis() {
         !not_prevented,
         "ショートカット発火時は preventDefault() されること"
     );
+}
+
+#[wasm_bindgen_test]
+fn detached_root_document_listener_does_not_block_new_sidebar_shortcut() {
+    // イシュー #2074 codex-review P1 是正の回帰テスト。
+    //
+    // `wire_keydown`/`wire_pointerdown` が登録する document リスナーは
+    // `root` を `move` で捕捉したまま解除手段を持たないため、`root` を
+    // 含むコンテナを DOM から取り外して（例: 別画面への差し替え）別の
+    // Sidebar を新たにマウントしても、旧リスナーは document に residual
+    // として残り続ける。旧 `root`（detached だが子要素の `trigger` 自体は
+    // 参照可能）がまだ enabled な trigger を解決できてしまうと、旧
+    // リスナーが Cmd/Ctrl+B を `prevent_default()` し、同一 keydown
+    // イベントを処理する新 Sidebar 側のリスナーが `default_prevented()`
+    // を見て早期 return してしまい、新 Sidebar のショートカットが機能
+    // しなくなる（`sidebar.rs::handle_document_keydown` の
+    // `is_toggle_shortcut` 判定参照）。document リスナーは登録順に実行
+    // されるため、先に登録した「旧」インスタンスを detach しても
+    // `root.is_connected()` を確認していなければこの干渉が起きる。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    // 旧インスタンス: マウント・配線した後、`RemoveOnDrop` と異なり
+    // 子要素は空にせず `remove()` のみで DOM から切り離す（detached でも
+    // trigger 自体は解決可能な状態を保つ、上記シナリオの再現）。
+    let container_old = create_container(&document, "sidebar-detached-old-root");
+    let (_component_old, ..) = mount_sidebar(
+        &document,
+        &container_old,
+        SidebarState::Expanded,
+        false,
+        false,
+    );
+    wire_sidebar_events_with_query(container_old.clone(), DESKTOP_QUERY)
+        .expect("wire_sidebar_events_with_query must not fail");
+    container_old.remove();
+    assert!(
+        !container_old.is_connected(),
+        "旧コンテナは DOM から切り離されていること"
+    );
+
+    // 新インスタンス: 通常どおり document へ接続した状態でマウント・配線
+    // する。
+    let container_new = create_container(&document, "sidebar-detached-new-root");
+    let _cleanup = RemoveOnDrop(container_new.clone());
+    let (component_new, ..) = mount_sidebar(
+        &document,
+        &container_new,
+        SidebarState::Expanded,
+        false,
+        false,
+    );
+    wire_sidebar_events_with_query(container_new.clone(), DESKTOP_QUERY)
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    // 旧リスナーが先に登録されているため、修正前はここで旧リスナーが
+    // `prevent_default()` してしまい、新インスタンスの `is_toggle_shortcut`
+    // が `default_prevented()` を見て no-op になる。
+    let not_prevented = dispatch_document_keydown(&document, "b", true, false, false);
+    assert_eq!(
+        component_new.borrow().state(),
+        SidebarState::Collapsed,
+        "detach 済みの旧 root が新 Sidebar のショートカットを妨げないこと"
+    );
+    assert!(
+        !not_prevented,
+        "新インスタンス自身が preventDefault() すること"
+    );
+
+    // 後始末: 旧コンテナは既に DOM から切り離し済みだが、後続テストとの
+    // 相互汚染防止のため子要素も明示的に空にしておく
+    // （`RemoveOnDrop::drop` と同じ配慮）。
+    container_old.set_inner_html("");
 }
 
 #[wasm_bindgen_test]
@@ -449,6 +539,60 @@ fn always_matching_query_sets_data_mobile_and_collapses_expanded_on_enter() {
     // （`sidebar.rs` モジュール doc「モバイル進入時に expanded を
     // collapsed へ寄せる意図的差分」参照）。
     assert_eq!(component.borrow().state(), SidebarState::Collapsed);
+}
+
+#[wasm_bindgen_test]
+fn dispatch_registered_after_mobile_wiring_still_collapses_on_mount() {
+    // イシュー #2074 codex-review P1 是正の回帰テスト。
+    //
+    // 本番経路（`Runtime::mount`/`Runtime::hydrate`）は
+    // `wire_sidebar_events`（`wire_mobile` の初回 `apply_mobile_state`
+    // 呼び出しを含む）を自動実行し、アプリはその**後**に個別で
+    // `wire_sidebar_dispatch` を呼ぶ（`sidebar.rs` モジュール doc・
+    // `Runtime::wire_sidebar` rustdoc 参照）。他のテスト
+    // （`always_matching_query_sets_data_mobile_and_collapses_expanded_on_enter`
+    // 等）は `mount_sidebar` が dispatch を先に配線するため、この
+    // 本番の呼び出し順（モバイル判定 → dispatch 登録）を再現しない。
+    // 本テストは `build_sidebar_markup` で markup のみ組み立て、
+    // `wire_sidebar_events_with_query`（モバイル判定含む）→
+    // `wire_sidebar_dispatch` の順で明示的に配線し、モバイル進入時の
+    // 折りたたみ合成 click が dispatch 未登録で失われても、
+    // `wire_sidebar_dispatch` 側の再確認（reconcile）で最終的に
+    // `Collapsed` へ収束することを検証する。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-mobile-dispatch-after-wiring-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+    let _ = &document;
+
+    let (sidebar, provider_el, root_el, ..) =
+        build_sidebar_markup(&container, SidebarState::Expanded, false, false);
+
+    // 本番の呼び出し順を再現: モバイル配線（初回 `apply_mobile_state` の
+    // 合成 click は、まだ dispatch が登録されていないため失われる）を
+    // 先に行う。
+    wire_sidebar_events_with_query(container.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    // この時点では DOM 上の `data-mobile` は付くが、dispatch が無いため
+    // headless-ui 側の状態機械は `Expanded` のまま取り残されている
+    // （合成 click 自体は誰にも処理されない）。
+    assert!(provider_el.has_attribute("data-mobile"));
+
+    let component = Rc::new(RefCell::new(sidebar));
+    wire_dispatch_reflecting_data_state(&container, component.clone());
+
+    // `wire_sidebar_dispatch` 登録直後の reconcile により、取りこぼされて
+    // いた初期モバイル折りたたみへ追いついて `Collapsed` へ収束する。
+    assert_eq!(component.borrow().state(), SidebarState::Collapsed);
+    assert_eq!(
+        provider_el.get_attribute("data-state").as_deref(),
+        Some("collapsed")
+    );
+    assert_eq!(
+        root_el.get_attribute("data-state").as_deref(),
+        Some("collapsed")
+    );
 }
 
 #[wasm_bindgen_test]
