@@ -2344,7 +2344,25 @@ name = "fandhe-frontend-pre-styled-ui"
 # base/variant 規則はバイト同一、選択子の削除・改名なし）。既存公開 API・
 # 出力を壊さない純追加のため patch バンプする（`docs/ci/
 # style-refresh-version-bump-operation.md` §3.3）。
-version = "0.137.1"
+# イシュー #2045: badge を shadcn/ui と突合し、`BadgeVariant::Plain`
+# 列挙値の新設（既存網羅 `match` を壊す 0.x の破壊的変更）と `link`
+# コンストラクタの追加（公開 API 追加）を行ったため minor バンプする。
+# base 再取り込み（イシュー #2045, 2026-09-08）: 本ブランチの到達値 0.137.0
+# は base 再取り込み（イシュー #2062）で main が到達した 0.136.1 を既に
+# 上回るため、`docs/ci/style-refresh-version-bump-operation.md` §5 の手順
+# （main の到達値を上回る値には適用しない）に従い追加のバンプは不要。
+# base 再取り込み（イシュー #2045, PR #2225 レビュー修正ラウンド, 2026-09-08）続報:
+# main が PR #2059（button-group の headless-ui 新設に伴う dep-version-check --fix、
+# 非破壊的追随）を取り込み 0.136.2 へ到達したが、本ブランチの到達値 0.137.0 は
+# 既にそれを上回るため、`docs/ci/style-refresh-version-bump-operation.md` §5 の
+# 手順（main の到達値を上回る値には適用しない）に従い追加のバンプは不要。
+# base 再取り込み（イシュー #2045, PR #2225 レビュー修正ラウンド 2, 2026-09-08）続報:
+# main が独立に PR #2044（avatar を shadcn/ui と突合）を取り込んでおり、
+# その到達値も 0.137.0 であることが判明した（本ブランチの #2045 到達値と
+# 衝突）。`semver-same-version-is-conflict` の運用に倣い、main の到達値
+# 0.137.0 からさらに +1 して 0.138.0 とする。
+# base 再取り込み（イシュー #2046, review-fix ラウンド, 2026-09-08）続報: main が独立に PR #2045（badge を shadcn/ui と突合）を取り込んでおり、その到達値が 0.138.0 であることが判明した（本ブランチの #2046 到達値 0.137.1 を上回る）。`semver-same-version-is-conflict` の運用に倣い、main の到達値 0.138.0 からさらに +1 して 0.138.1 とする（本変更は既存 API・出力を壊さない純追加のため patch バンプを維持）。
+version = "0.138.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
