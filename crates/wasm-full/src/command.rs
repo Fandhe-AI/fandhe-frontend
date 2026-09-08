@@ -602,8 +602,13 @@ mod wiring {
     /// （モジュール冒頭 doc「絞り込みの DOM 反映」節）。
     #[derive(Clone, Copy)]
     enum SelectionPlan {
-        /// 選択中 item が可視・非 disabled のまま。変更不要。
-        Keep,
+        /// `items[idx]`（既に選択中・可視・非 disabled）はそのまま。
+        /// 状態更新の dispatch は不要だが、DOM への `aria-activedescendant`
+        /// 反映は省略しない（codex-review P1 是正: 呼び出し側が
+        /// `aria-activedescendant` に `None` を渡して再描画した場合、
+        /// この分岐が no-op だと `input` に `aria-activedescendant` が
+        /// 一切設定されず選択中 item が支援技術へ伝わらないため）。
+        Keep(usize),
         /// `items[idx]`（可視・非 disabled の先頭）を選択状態にする
         /// （cmdk の自動先頭選択）。
         Select(usize),
@@ -618,13 +623,15 @@ mod wiring {
         visible: &[bool],
         disabled: &[bool],
     ) -> SelectionPlan {
-        let already_selected_visible = items.iter().zip(visible.iter()).zip(disabled.iter()).any(
-            |((item, &is_visible), &is_disabled)| {
+        let already_selected_visible_idx = items
+            .iter()
+            .zip(visible.iter())
+            .zip(disabled.iter())
+            .position(|((item, &is_visible), &is_disabled)| {
                 is_visible && !is_disabled && item.has_attribute("data-selected")
-            },
-        );
-        if already_selected_visible {
-            return SelectionPlan::Keep;
+            });
+        if let Some(idx) = already_selected_visible_idx {
+            return SelectionPlan::Keep(idx);
         }
         match items
             .iter()
@@ -645,7 +652,7 @@ mod wiring {
     /// する）。
     fn selection_plan_dispatch(items: &[Element], plan: SelectionPlan) -> Option<ActionRef> {
         match plan {
-            SelectionPlan::Keep => None,
+            SelectionPlan::Keep(_) => None,
             SelectionPlan::Select(idx) => {
                 items
                     .get(idx)?
@@ -667,7 +674,21 @@ mod wiring {
     /// [`selection_plan_dispatch`] と責務分離）。
     fn write_selection_plan(input: &Element, items: &[Element], plan: SelectionPlan) {
         match plan {
-            SelectionPlan::Keep => {}
+            SelectionPlan::Keep(idx) => {
+                // `data-selected`/`aria-selected` は既に正しい（判定条件
+                // そのもの）ため書き換えない。`aria-activedescendant` は
+                // 呼び出し側の再描画が独立して決める値のため、再描画後も
+                // 選択中 item を指すよう明示的に同期し直す（上記
+                // `SelectionPlan::Keep` doc 参照）。
+                let Some(target) = items.get(idx) else {
+                    return;
+                };
+                if let Some(id) = target.get_attribute("id") {
+                    set_dom_attribute(input, "aria-activedescendant", &id);
+                } else {
+                    let _ = input.remove_attribute("aria-activedescendant");
+                }
+            }
             SelectionPlan::Select(idx) => {
                 for item in items {
                     let _ = item.remove_attribute("data-selected");
@@ -1083,6 +1104,10 @@ mod wiring {
                     return;
                 };
                 sync_selection(target_element, &visible_items, next_index);
+                // 再描画をまたいで List パーツを再解決するための識別子
+                // （[`handle_input`] と同じ契約、[`reflect_filter`] doc
+                // 「DOM 同期契約」節参照）。
+                let list_id = list.id();
                 if let Some(value) = visible_items
                     .get(next_index)
                     .and_then(|el| el.get_attribute("data-value"))
@@ -1094,6 +1119,12 @@ mod wiring {
                         });
                     }
                 }
+                // dispatch が構造フォールバック再描画を誘発すると、上の
+                // `sync_selection` による `hidden`/`data-selected`/
+                // `aria-activedescendant` の直書きが失われ得る
+                // （codex-review P1・Bugbot High 是正）。`reflect_filter`
+                // に現在の絞り込み・選択状態の再反映を委ねる。
+                reflect_filter(root, &list_id, on_action);
             }
             super::CommandKeyAction::Execute => {
                 let Some(list) = resolve_list(root, target_element) else {
@@ -1166,13 +1197,15 @@ mod wiring {
 
         event.stop_propagation();
 
-        let items = {
-            if let Some(list) = resolve_list(root, &input) {
-                collect_own_items(&list, &instance_root)
-            } else {
-                Vec::new()
-            }
-        };
+        let list = resolve_list(root, &input);
+        // 再描画をまたいで List パーツを再解決するための識別子
+        // （[`handle_input`]/[`handle_keydown`] と同じ契約、
+        // [`reflect_filter`] doc「DOM 同期契約」節参照）。
+        let list_id = list.as_ref().map(Element::id);
+        let items = list
+            .as_ref()
+            .map(|list| collect_own_items(list, &instance_root))
+            .unwrap_or_default();
         if items.iter().any(|it| it.is_same_node(Some(&item))) {
             let visible_items: Vec<Element> = items
                 .iter()
@@ -1192,6 +1225,16 @@ mod wiring {
                 action: ACTION_SELECT.to_string(),
                 payload: value.clone(),
             });
+        }
+        // dispatch が構造フォールバック再描画を誘発すると、上の
+        // `sync_selection` による `hidden`/`data-selected`/
+        // `aria-activedescendant` の直書きが失われ得る（codex-review P1・
+        // Bugbot High 是正、[`handle_keydown`] の `MoveSelection` 分岐と
+        // 同型）。続く `ACTION_EXECUTE` でダイアログが閉じる構成では
+        // `reflect_filter` 内の再解決が fail-closed に no-op となるだけで
+        // 安全に収束する。
+        if let Some(list_id) = list_id.as_deref() {
+            reflect_filter(root, list_id, on_action);
         }
         if let Ok(mut cb) = on_action.try_borrow_mut() {
             (cb)(ActionRef {

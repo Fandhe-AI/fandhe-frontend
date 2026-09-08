@@ -337,6 +337,72 @@ fn build_command_into(
     (container, input, item_elements)
 }
 
+/// [`build_command_into`] と同型だが item 要素に安定 id
+/// （`{container_id}-item-{value}`）を付与する。`aria-activedescendant` の
+/// 検証（id 経由でしか参照できない）に使う構造フォールバック回帰テスト
+/// 専用の亜種。
+fn build_command_into_with_ids(
+    document: &Document,
+    parent: &Element,
+    container_id: &str,
+    command: &Command,
+    items: &[(&str, &str, bool)],
+) -> (Element, Element, Vec<Element>) {
+    let container = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    container.set_id(container_id);
+    let list_id = format!("{container_id}-list");
+    let entries: Vec<(&str, &str)> = items.iter().map(|(v, l, _)| (*v, *l)).collect();
+    let is_empty = command.is_empty(&entries);
+    let item_nodes: Vec<_> = items
+        .iter()
+        .map(|(value, label, disabled)| {
+            command.item(
+                value,
+                *disabled,
+                Some(&format!("{container_id}-item-{value}")),
+                Vec::new(),
+                vec![text(*label)],
+            )
+        })
+        .collect();
+    let node = command.root(
+        is_empty,
+        Vec::new(),
+        vec![command.dialog(
+            "Command Menu",
+            Vec::new(),
+            vec![
+                command.input(&list_id, None, Vec::new()),
+                command::list(&list_id, "Suggestions", is_empty, Vec::new(), item_nodes),
+            ],
+        )],
+    );
+    container.set_inner_html(&render(&node));
+    parent
+        .append_child(&container)
+        .expect("append_child must not fail");
+    let root = container
+        .first_element_child()
+        .expect("command root must exist");
+    let input = root
+        .query_selector(r#"[data-scope="command"][data-part="input"]"#)
+        .expect("query_selector must not fail")
+        .expect("input element must exist");
+    let item_elements: Vec<Element> = items
+        .iter()
+        .map(|(value, _, _)| {
+            root.query_selector(&format!(
+                r#"[data-scope="command"][data-part="item"][data-value="{value}"]"#
+            ))
+            .expect("query_selector must not fail")
+            .unwrap_or_else(|| panic!("item element for value={value} must exist"))
+        })
+        .collect();
+    (container, input, item_elements)
+}
+
 /// codex-review P1・Bugbot High 是正の回帰テスト: 絞り込みの dispatch
 /// （[`fandhe_frontend_wasm_full::command::ACTION_INPUT`]）が構造フォール
 /// バック（`[data-part="root"]` を含むコンテナ丸ごとの差し替え）を誘発
@@ -433,6 +499,362 @@ fn typing_query_after_full_subtree_replacement_still_reflects_filter() {
         live_search.has_attribute("hidden"),
         "構造フォールバック後も生きた DOM の search へ hidden が反映される \
          （codex-review P1・Bugbot High 是正の回帰）"
+    );
+}
+
+/// codex-review P1（選択 dispatch 後にも絞り込み状態を再反映する）・
+/// Bugbot High（command.rs#L1084-L1096）是正の回帰テスト: 絞り込み後に
+/// `ArrowDown` を押すと（可視候補が複数あり選択位置が実際に動くため）
+/// [`fandhe_frontend_wasm_full::command::ACTION_SELECT`] が dispatch され、
+/// それが構造フォールバック（コンテナ丸ごとの差し替え）を誘発する。この
+/// 再描画はフィルタ関心（DOM-only）を知らないため `search` item は可視の
+/// まま出力される。`handle_keydown` の `MoveSelection` 分岐が dispatch 後に
+/// `reflect_filter` で再同期しない修正前の実装では、この再描画後も
+/// `search` が可視のままになり、続くキー操作で非一致候補を選択・実行
+/// できてしまう（本テストの意図）。
+#[wasm_bindgen_test]
+fn arrow_key_after_dispatch_re_syncs_filter_across_full_subtree_replacement() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container_id = "cmd-arrow-replace";
+    // "cal" は calendar/calzone の 2 件に一致し search には一致しない。
+    // 可視候補が 2 件あることで ArrowDown が実際に選択位置を動かし
+    // （dispatch が起きない single-item 構成を避ける）、`search` を
+    // hidden のまま維持できるかを検証できる。
+    let items: [(&str, &str, bool); 3] = [
+        ("calendar", "Calendar", false),
+        ("calzone", "Calzone Recipe", false),
+        ("search", "Search Emoji", false),
+    ];
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+
+    let mount_root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&mount_root).unwrap();
+    let _cleanup = RemoveOnDrop(mount_root.clone());
+
+    let (_container, input, _item_elements) =
+        build_command_into(&document, &mount_root, container_id, &command, &items);
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+
+    let state: Rc<RefCell<Command>> = Rc::new(RefCell::new(command));
+    let rebuild_document = document.clone();
+    let rebuild_mount_root = mount_root.clone();
+    let rebuild_container_id = container_id.to_string();
+    let rebuild_state = state.clone();
+    fandhe_frontend_wasm_full::command::wire_command_events(
+        mount_root.clone(),
+        move |action_ref| {
+            let Ok(mut command_state) = rebuild_state.try_borrow_mut() else {
+                return;
+            };
+            let dispatched = fandhe_frontend_interactive::dispatch(
+                &mut *command_state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+            if !dispatched {
+                return;
+            }
+            if let Some(old_container) = rebuild_document.get_element_by_id(&rebuild_container_id) {
+                old_container.remove();
+            }
+            build_command_into(
+                &rebuild_document,
+                &rebuild_mount_root,
+                &rebuild_container_id,
+                &command_state,
+                &items,
+            );
+        },
+    )
+    .expect("wire_command_events must not fail");
+
+    // "cal" は calendar/calzone の 2 件に一致（search は非一致）。
+    // ACTION_INPUT の dispatch が再描画を誘発するが、直後の
+    // `reflect_filter` が hidden を生きた DOM へ反映し、先頭一致
+    // （calendar）を自動選択する（既存テストと同型の前提状態）。
+    html_input.set_value("cal");
+    input.dispatch_event(&input_event()).unwrap();
+
+    let live_input = document
+        .get_element_by_id(container_id)
+        .and_then(|c| {
+            c.query_selector(r#"[data-scope="command"][data-part="input"]"#)
+                .ok()
+        })
+        .flatten()
+        .expect("live input must exist after ACTION_INPUT rebuild");
+    let live_input = live_input.dyn_into::<HtmlInputElement>().unwrap();
+
+    // ArrowDown を押す: 可視候補は calendar/calzone の 2 件のため選択位置が
+    // calendar → calzone へ実際に動き、[`fandhe_frontend_wasm_full::command::
+    // ACTION_SELECT`] が dispatch され、構造フォールバック再描画を誘発する
+    // （本テストの wiring は dispatch のたびに必ず再構築する）。
+    live_input
+        .dyn_ref::<Element>()
+        .unwrap()
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+
+    let live_container = document
+        .get_element_by_id(container_id)
+        .expect("replaced container must exist after ArrowDown dispatch");
+    let live_calendar = live_container
+        .query_selector(r#"[data-scope="command"][data-part="item"][data-value="calendar"]"#)
+        .unwrap()
+        .expect("live calendar item must exist");
+    let live_calzone = live_container
+        .query_selector(r#"[data-scope="command"][data-part="item"][data-value="calzone"]"#)
+        .unwrap()
+        .expect("live calzone item must exist");
+    let live_search = live_container
+        .query_selector(r#"[data-scope="command"][data-part="item"][data-value="search"]"#)
+        .unwrap()
+        .expect("live search item must exist");
+
+    assert!(
+        !live_calendar.has_attribute("hidden"),
+        "ArrowDown 後も一致候補 calendar は可視のまま"
+    );
+    assert!(
+        !live_calzone.has_attribute("hidden"),
+        "ArrowDown 後も一致候補 calzone は可視のまま"
+    );
+    assert!(
+        live_search.has_attribute("hidden"),
+        "ArrowDown が誘発した構造フォールバック再描画後も、非一致候補 \
+         search は hidden のまま復元される（codex-review P1・Bugbot High \
+         是正の回帰。修正前は search が再表示され、次のキー操作で \
+         選択・実行できてしまっていた）"
+    );
+    assert!(
+        !live_calendar.has_attribute("data-selected"),
+        "ArrowDown で選択は calendar から離れる"
+    );
+    assert!(
+        live_calzone.has_attribute("data-selected"),
+        "ArrowDown 後は calzone が選択状態になる"
+    );
+}
+
+/// codex-review P1（選択 dispatch 後にも絞り込み状態を再反映する）・
+/// Bugbot High（command.rs#L1185-L1201）是正の回帰テスト: 絞り込み後に
+/// 可視候補（絞り込み前と別の item）をクリックすると
+/// [`fandhe_frontend_wasm_full::command::ACTION_SELECT`]/
+/// [`fandhe_frontend_wasm_full::command::ACTION_EXECUTE`] が dispatch され、
+/// それが構造フォールバック再描画を誘発する。`handle_click` が dispatch 後に
+/// `reflect_filter` で再同期しない修正前の実装では、この再描画後も
+/// 非一致候補が可視のまま残る（`arrow_key_after_dispatch_...` と同型の
+/// シナリオ、契機がクリックである点のみ異なる）。
+#[wasm_bindgen_test]
+fn clicking_item_after_filter_re_syncs_filter_across_full_subtree_replacement() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container_id = "cmd-click-replace";
+    let items: [(&str, &str, bool); 3] = [
+        ("calendar", "Calendar", false),
+        ("calzone", "Calzone Recipe", false),
+        ("search", "Search Emoji", false),
+    ];
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+
+    let mount_root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&mount_root).unwrap();
+    let _cleanup = RemoveOnDrop(mount_root.clone());
+
+    let (_container, input, _item_elements) =
+        build_command_into(&document, &mount_root, container_id, &command, &items);
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+
+    let state: Rc<RefCell<Command>> = Rc::new(RefCell::new(command));
+    let rebuild_document = document.clone();
+    let rebuild_mount_root = mount_root.clone();
+    let rebuild_container_id = container_id.to_string();
+    let rebuild_state = state.clone();
+    fandhe_frontend_wasm_full::command::wire_command_events(
+        mount_root.clone(),
+        move |action_ref| {
+            let Ok(mut command_state) = rebuild_state.try_borrow_mut() else {
+                return;
+            };
+            let dispatched = fandhe_frontend_interactive::dispatch(
+                &mut *command_state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+            if !dispatched {
+                return;
+            }
+            if let Some(old_container) = rebuild_document.get_element_by_id(&rebuild_container_id) {
+                old_container.remove();
+            }
+            build_command_into(
+                &rebuild_document,
+                &rebuild_mount_root,
+                &rebuild_container_id,
+                &command_state,
+                &items,
+            );
+        },
+    )
+    .expect("wire_command_events must not fail");
+
+    // "cal" は calendar/calzone の 2 件に一致（search は非一致）。
+    html_input.set_value("cal");
+    input.dispatch_event(&input_event()).unwrap();
+
+    let live_calzone_before_click = document
+        .get_element_by_id(container_id)
+        .and_then(|c| {
+            c.query_selector(r#"[data-scope="command"][data-part="item"][data-value="calzone"]"#)
+                .ok()
+        })
+        .flatten()
+        .expect("live calzone item must exist after ACTION_INPUT rebuild");
+
+    // calzone（先頭自動選択された calendar とは別の可視候補）をクリック:
+    // ACTION_SELECT → ACTION_EXECUTE が dispatch され、構造フォールバック
+    // 再描画を誘発する。
+    live_calzone_before_click
+        .dispatch_event(&click_event())
+        .unwrap();
+
+    let live_container = document
+        .get_element_by_id(container_id)
+        .expect("replaced container must exist after click dispatch");
+    let live_calendar = live_container
+        .query_selector(r#"[data-scope="command"][data-part="item"][data-value="calendar"]"#)
+        .unwrap()
+        .expect("live calendar item must exist");
+    let live_search = live_container
+        .query_selector(r#"[data-scope="command"][data-part="item"][data-value="search"]"#)
+        .unwrap()
+        .expect("live search item must exist");
+
+    assert!(
+        !live_calendar.has_attribute("hidden"),
+        "クリック後も一致候補 calendar は可視のまま"
+    );
+    assert!(
+        live_search.has_attribute("hidden"),
+        "クリックが誘発した構造フォールバック再描画後も、非一致候補 \
+         search は hidden のまま復元される（codex-review P1・Bugbot High \
+         是正の回帰。修正前は search が再表示されていた）"
+    );
+}
+
+/// codex-review P1（選択維持時も `aria-activedescendant` を同期する）・
+/// Bugbot Medium（command.rs#L667-L670）是正の回帰テスト: 絞り込みを
+/// 2 段階で進め、2 段階目で選択中候補が可視のまま維持される
+/// （[`SelectionPlan::Keep`]）状況を作る。構造フォールバック再描画（呼び
+/// 出し側は `Command::input` へ `activedescendant: None` を渡す構成、
+/// 実アプリで選択中 item の id を把握せず再描画するケースを模す）を経ても、
+/// `input` の `aria-activedescendant` が選択中 item の id を指したまま
+/// 復元されることを検証する。修正前の `SelectionPlan::Keep => {}` は
+/// 完全な no-op であり、再描画後の新しい `input` に
+/// `aria-activedescendant` が一切設定されないままになっていた。
+#[wasm_bindgen_test]
+fn typing_further_while_selection_unchanged_restores_aria_activedescendant_after_replacement() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container_id = "cmd-keep-replace";
+    let items: [(&str, &str, bool); 2] = [
+        ("calendar", "Calendar", false),
+        ("search", "Search Emoji", false),
+    ];
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+
+    let mount_root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&mount_root).unwrap();
+    let _cleanup = RemoveOnDrop(mount_root.clone());
+
+    let (_container, input, _item_elements) =
+        build_command_into_with_ids(&document, &mount_root, container_id, &command, &items);
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+
+    let state: Rc<RefCell<Command>> = Rc::new(RefCell::new(command));
+    let rebuild_document = document.clone();
+    let rebuild_mount_root = mount_root.clone();
+    let rebuild_container_id = container_id.to_string();
+    let rebuild_state = state.clone();
+    fandhe_frontend_wasm_full::command::wire_command_events(
+        mount_root.clone(),
+        move |action_ref| {
+            let Ok(mut command_state) = rebuild_state.try_borrow_mut() else {
+                return;
+            };
+            let dispatched = fandhe_frontend_interactive::dispatch(
+                &mut *command_state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+            if !dispatched {
+                return;
+            }
+            if let Some(old_container) = rebuild_document.get_element_by_id(&rebuild_container_id) {
+                old_container.remove();
+            }
+            // 実アプリの `view()` は選択中 item の id を個別に把握せず
+            // `Command::input` へ `None` を渡すことがある（本テストの
+            // 意図する構成、上記 doc 参照）。
+            build_command_into_with_ids(
+                &rebuild_document,
+                &rebuild_mount_root,
+                &rebuild_container_id,
+                &command_state,
+                &items,
+            );
+        },
+    )
+    .expect("wire_command_events must not fail");
+
+    // 1 段階目: "ca" は calendar のみ一致 → 自動選択（Select 分岐）。
+    html_input.set_value("ca");
+    input.dispatch_event(&input_event()).unwrap();
+
+    // 2 段階目: "cal" も calendar のみ一致のまま → 選択は変わらず
+    // （Keep 分岐）だが、直前の ACTION_INPUT による構造フォールバック
+    // 再描画で `aria-activedescendant` は失われた状態から始まる。
+    let live_input_after_first = document
+        .get_element_by_id(container_id)
+        .and_then(|c| {
+            c.query_selector(r#"[data-scope="command"][data-part="input"]"#)
+                .ok()
+        })
+        .flatten()
+        .expect("live input must exist after first ACTION_INPUT rebuild")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    live_input_after_first.set_value("cal");
+    live_input_after_first
+        .dyn_ref::<Element>()
+        .unwrap()
+        .dispatch_event(&input_event())
+        .unwrap();
+
+    let live_container = document
+        .get_element_by_id(container_id)
+        .expect("replaced container must exist after second ACTION_INPUT dispatch");
+    let live_input = live_container
+        .query_selector(r#"[data-scope="command"][data-part="input"]"#)
+        .unwrap()
+        .expect("live input must exist");
+    let live_calendar = live_container
+        .query_selector(r#"[data-scope="command"][data-part="item"][data-value="calendar"]"#)
+        .unwrap()
+        .expect("live calendar item must exist");
+
+    assert!(
+        live_calendar.has_attribute("data-selected"),
+        "2 段階目でも calendar は選択状態のまま（Keep 分岐）"
+    );
+    assert_eq!(
+        live_input.get_attribute("aria-activedescendant").as_deref(),
+        Some(format!("{container_id}-item-calendar").as_str()),
+        "Keep 分岐でも input の aria-activedescendant が選択中 item を \
+         指すよう復元される（codex-review P1・Bugbot Medium 是正の回帰。 \
+         修正前は Keep 分岐が no-op のため、再描画で失われた \
+         aria-activedescendant が復元されなかった）"
     );
 }
 
