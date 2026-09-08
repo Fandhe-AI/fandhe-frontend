@@ -2447,7 +2447,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.142.2 とする。依存先 `fandhe-frontend-headless-ui` の version 要求は
 # main 側の 0.68.2 追随（`check-dep-versions --fix` 相当）をそのまま採用
 # する（下記参照）。
-version = "0.142.2"
+version = "0.143.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
