@@ -12,12 +12,12 @@
 //! 契約とする（[`crate::card`] と同じ判断、呼び出し例は各関数の rustdoc
 //! `# Examples` を参照）。
 //!
-//! # variant（`variant`/`size`/`striped`/`sticky_header`）について
+//! # variant（`variant`/`size`/`striped`/`sticky_header`/`interactive`）について
 //!
-//! [`crate::card`] と異なり 4 軸の variant を持つ（chakra-ui Table の
-//! `variant`/`size`/`interactive`/`stickyHeader` のうち `interactive`・
-//! `showColumnBorder` はスコープ外、下記参照。`stickyHeader` はイシュー
-//! #1571 で実装した）:
+//! [`crate::card`] と異なり 5 軸の variant を持つ（chakra-ui Table の
+//! `variant`/`size`/`interactive`/`stickyHeader` のうち `showColumnBorder`
+//! はスコープ外、下記参照。`stickyHeader` はイシュー #1571、`interactive`
+//! はイシュー #2052 で shadcn/ui との突合を経て実装した）:
 //!
 //! - [`TableVariant`]: `Line`（既定、行ごとの下線区切り）/ `Outline`
 //!   （外枠 + 角丸）。参照サイトとの対応は chakra-ui `line`≈`Line` /
@@ -30,6 +30,9 @@
 //! - `striped`（`bool`）: 縞模様表示。有効時は本文行の背景色を交互に変える。
 //! - `sticky_header`（`bool`）: 有効時、`column-header`（`th`）を
 //!   `position: sticky; top: 0` にする（下記「sticky ヘッダーの実装」節参照）。
+//! - `interactive`（`bool`、イシュー #2052）: 有効時、`row`（`thead`/`tbody`/
+//!   `tfoot` いずれの行も含む）に `bg-muted` の hover 背景を付ける（下記
+//!   「`interactive` 軸（行 hover）」節参照）。
 //!
 //! クラスは `root` パーツのみへ付与する（複合部品の variant 統一方針、
 //! `crates/pre-styled-ui/src/lib.rs` §「複合部品の variant 統一方針」参照）。
@@ -93,6 +96,107 @@
 //! `position: sticky` 自体の一般的な性質であり `Outline`/`Line` を問わない）。
 //! スクロール枠との連携（chakra `ScrollArea` 相当）は下記「`scroll-area`
 //! パーツ」節（イシュー #1572）を参照。
+//!
+//! # `interactive` 軸（行 hover、イシュー #2052）
+//!
+//! shadcn/ui Table の `tr` は無条件 hover（`hover:bg-muted/50`）を持つが、
+//! 本クレートは chakra-ui 由来の `interactive` variant 名・opt-in 契約を
+//! 採る（下記「参照サイトとの競合判定」節参照）。有効時は `root` スコープへ
+//! `--fandhe-table-row-hover-bg: var(--fandhe-color-bg-muted)`
+//! （[`crate::recipe::hover_bg_muted`] と同じトークン）を設定し、既定
+//! （`Off`）は `transparent` を明示する（`striped`/`sticky_header` と同じ
+//! 「既定値も明示的に登録する」決定性維持の判断）。
+//!
+//! `row` slot の [`crate::recipe::StateCondition::HoverExceptAttr`]
+//! （`"data-selected"`）規則が
+//! `background-image: linear-gradient(var(--fandhe-table-row-hover-bg),
+//! var(--fandhe-table-row-hover-bg))` を消費する。
+//!
+//! **`background` shorthand ではなく `background-image` longhand を使う
+//! 理由**: [`crate::recipe::SlotRecipe`] は variant × state の複合条件を
+//! 持たず、`Hover` 系規則は [`crate::recipe::SlotRecipe::css`] 末尾の
+//! `@media (hover: hover)` へ specificity `(0,4,0)` で集約出力される。
+//! `background` shorthand で `transparent` を当てると、`striped: true` かつ
+//! `interactive: false` の偶数行（`:nth-child(even)`、`(0,3,0)`、`background`
+//! shorthand で縞を描画）が hover 時に縞を失ってしまう（既存出力への視覚的
+//! 回帰であり、`docs/design/shadcn-reference-adoption-policy.md` §8 の
+//! golden 純追加原則に反する）。`background-image` longhand は
+//! `background-color`（縞）の上に重ねて描画されるため、`Off`（`transparent`
+//! のグラデーション）では見た目が一切変わらず、`On` では縞・非縞を問わず
+//! `bg-muted` で塗り潰される。
+//!
+//! `HoverExceptAttr("data-selected")` により、選択行（下記「`data-selected`
+//! 行状態」節）は hover で洗い流されない（[`crate::tree_view`] と同型）。
+//!
+//! `cursor: pointer` やトランジションは付けない（chakra `interactive` /
+//! shadcn/ui のいずれも持たない。クリック配線は呼び出し側の責務、
+//! `docs/policy/intentional-non-adoption.md` §3.25 の責務境界）。
+//!
+//! **意図的な差分**: `row` slot は `thead`/`tbody`/`tfoot` いずれの行にも
+//! 使われる（[`crate::recipe::SlotRecipe`] は子孫セレクタを持たないため
+//! slot 単位でしか条件を切れない）。`column-header`（見出し行の `th`）は
+//! 不透明背景（`--fandhe-table-header-bg`）を持つため見出し行では hover が
+//! 視覚的に見えないが、`tfoot` の行では見える。chakra-ui `interactive` は
+//! body 行のみを対象にするため、この点は参照サイトからの意図的な差分である
+//! （子孫セレクタ機構を新設するコストに見合わないと判断した）。
+//!
+//! # `data-selected` 行状態（イシュー #2052）
+//!
+//! `row` slot の [`crate::recipe::StateCondition::Attr`]（`"data-selected"`）
+//! 規則が `background: var(--fandhe-color-accent-subtle); color:
+//! var(--fandhe-color-accent-fg-subtle)` を消費する（[`crate::theme`] の
+//! `CONTRAST_PAIRS` 登録済みペア、[`crate::tree_view`] の選択状態と同型）。
+//! `row` slot 自身は `data-*` の生産者を持たない（[`Anatomy::part`] が
+//! `data-scope`/`data-part` 以外を自己出力しない静的部品、下記「セキュリティ
+//! 不変条件」節参照）。`data-selected` は**呼び出し側が付与する**共有語彙
+//! （既存の `pagination`/`calendar`/`tree_view` と同じ意味論・値なしの存在
+//! 属性、`docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2 参照）で
+//! あり、`table.rs` 自身は選択の生産・保持・送信を一切行わない
+//! （`docs/policy/intentional-non-adoption.md` §3.25 の責務境界）。
+//!
+//! この state 規則は `row` の [`crate::recipe::StateCondition::NthChildEven`]
+//! （striped）規則の**後**に登録する（両者とも specificity `(0,3,0)` のため
+//! ソース順の後勝ちで選択が縞に勝つ、[`SlotRecipe::state`] rustdoc の
+//! 「登録順」契約参照）。
+//!
+//! 行の tint は補強表示であり、選択状態そのものは行内の `checkbox` 等が
+//! 持つ `aria-checked`/`aria-selected` が担う（`docs/design/
+//! pre-styled-ui-interaction-visual-language.md` §9「pressed/selected の
+//! 非テキストコントラスト」の装飾扱いの例外）。`tr` には `box-shadow` が
+//! 描画されないため、境界リングでの選択表示はできない。
+//!
+//! # `data-align` セル整列（イシュー #2052）
+//!
+//! `cell`/`column-header` の両 slot に
+//! [`crate::recipe::StateCondition::AttrEq`]（`"data-align"`,
+//! `"start"`|`"center"`|`"end"`）規則を追加し、`text-align:
+//! start`/`center`/`end` を消費する（属性セレクタ `(0,3,0)` が
+//! `column-header` base の `text-align: inherit`（`(0,2,0)`）より勝つ）。
+//!
+//! `data-align`（値域 `start`/`center`/`end`）は `fandhe-frontend-headless-ui`
+//! の `positioning.rs`（`data-side`/`data-align`）で既に定義済みの語彙を
+//! 「軸方向の整列」という同一意味論・同一値域で再利用したもので、新規語彙は
+//! 増やさない（`docs/design/pre-styled-ui-data-attr-vocabulary.md` §3.2
+//! 規約 B-2）。`fandhe-frontend-wasm-full` の `position.rs` は `positioner`
+//! パート（`data-scope="popover"` 等）からのみこの属性を読み戻すため、
+//! `table` の `td`/`th` に付いた `data-align` とは干渉しない。
+//!
+//! # 参照サイトとの競合判定（イシュー #2052、
+//! `docs/design/shadcn-reference-adoption-policy.md` §8）
+//!
+//! - **行 hover**: chakra-ui の値（`interactive` 軸名・opt-in）を採り、
+//!   shadcn/ui の値（無条件 hover）は採らない。理由: 無条件 hover は既存
+//!   出力の視覚的変更であり golden 純追加原則に反する。
+//! - **選択行の配色**: shadcn/ui の値（neutral `muted`）ではなく本リポジトリ
+//!   既存の selected 規約（[`crate::tree_view`] と同型の `accent-subtle`/
+//!   `accent-fg-subtle`）を採る。理由: hover 規約が `bg-muted` を占有し、
+//!   shadcn の `muted`/`muted/50` の 2 段を neutral 2 段で再現すると
+//!   striped の `bg-subtle` とも衝突する。
+//! - **セル整列の指定方法**: shadcn/ui（`text-right` ユーティリティクラス）・
+//!   chakra-ui（`textAlign` prop）・Radix Themes（`justify` prop）のいずれの
+//!   名称も持ち込まず、本リポジトリ既存語彙 `data-align`（start/center/end）
+//!   で表現する。理由: `docs/design/shadcn-reference-adoption-policy.md` §8
+//!   第 4 項（shadcn 固有語彙の禁止）・`data-*` 語彙規約 B-2。
 //!
 //! # caption（イシュー #1572）
 //!
@@ -199,18 +303,18 @@
 //!   優劣が無い選択であり、`odd` 化には新しい `StateCondition` バリアントの
 //!   追加が必要になる（既存 `even` を消費している呼び出し側との互換性を
 //!   崩さない判断）。
-//! - **行・セルの hover/transition**: chakra-ui `interactive` variant の
-//!   行ホバー装飾は非採用（下記「スコープ外」節参照）。行は `cursor:
-//!   pointer` を持たず `button`/`a` のような操作可能ロールでもないため、
-//!   `docs/design/pre-styled-ui-interaction-visual-language.md`
-//!   （インタラクション視覚言語）が定義する「インタラクティブ slot」に
-//!   該当しない。同じ理由でフォーカスリングも非該当（セルはフォーカス
-//!   対象にならない）。
-//! - **`data-selected` 等の状態属性**: chakra-ui は `row._selected` の
-//!   ような選択状態の消費側規則を持つが、本クレートは `row` slot に対応する
-//!   `data-*` の生産者を持たない静的部品であるため追加しない
-//!   （消費側規則だけを追加すると `data_attr_vocabulary.rs` が管理しない
-//!   暗黙契約を生む）。
+//! - **行・セルの hover/transition**: イシュー #2052 で `interactive`
+//!   variant（opt-in）を追加した（上記「`interactive` 軸（行 hover）」節
+//!   参照）。無条件 hover（shadcn/ui）は既存出力の視覚変更になるため
+//!   採らない。`cursor: pointer`・トランジションは付けない（chakra
+//!   `interactive`/shadcn/ui のいずれも持たない）。行は `button`/`a` の
+//!   ような操作可能ロールでもないため、`docs/design/
+//!   pre-styled-ui-interaction-visual-language.md`（インタラクション視覚
+//!   言語）が定義する「インタラクティブ slot」のフォーカスリング契約は
+//!   適用しない（セルはフォーカス対象にならない）。
+//! - **`data-selected` 状態属性**: イシュー #2052 で `row` slot の消費側
+//!   規則を追加した（上記「`data-selected` 行状態」節参照）。値は呼び出し側
+//!   が付与する共有語彙であり `table.rs` 自身は生産しない。
 //! - **フッターの区切り線**: chakra-ui は `tfoot` に `border-top` を持つが、
 //!   `root` の `border-collapse: separate` モデル下では `tfoot`（`footer`
 //!   slot）への border 指定はブラウザに無視される（上記「cell」base の
@@ -227,6 +331,25 @@
 //!   `border` + `border-radius`（+ 本イシューで追加した `--fandhe-table-
 //!   header-bg`）のみで、root 全体への背景・box-shadow は追加しない
 //!   （chakra `outline` が背景・影を持たないことを優先した判断）。
+//! - **shadcn/ui の `footer` 背景（`bg-muted/50`）・`border-top`**（イシュー
+//!   #2052）: `root` の `border-collapse: separate` モデル下では `tfoot`
+//!   （`footer` slot）への border 指定はブラウザに無視される（上記
+//!   「フッターの区切り線」項と同じ制約）。背景色の追加は既存 `footer`
+//!   base 規則（`font-weight` のみ）の変更になり golden 純追加原則に反する
+//!   ため見送る。
+//! - **shadcn/ui の caption サイズ（`text-sm`）・`mt-4`**（イシュー #2052）:
+//!   本クレートの caption は chakra-ui 基準（`xs`/`medium`・
+//!   `padding: var(--fandhe-space-3) 0`、上記「caption」節）を #1572 で
+//!   確定済みであり、既存 `caption` base 規則の変更になるため合わせない。
+//! - **shadcn/ui の `whitespace-nowrap`**（イシュー #2052）: `cell`/
+//!   `column-header` へ追加すると既存の折り返し表示が変わる（既存 base
+//!   規則の変更）ため採らない。chakra-ui / Radix Themes も nowrap を既定に
+//!   持たない。
+//! - **shadcn/ui の select 列余白調整（`[&:has([role=checkbox])]:pr-0`
+//!   相当）**（イシュー #2052）: `:has()` は
+//!   [`crate::recipe::StateCondition`] のいずれの variant にも対応する
+//!   ものがない（複合セレクタ機構は未実装）。専用 variant を追加する動機に
+//!   乏しく、Demo（下記 showcase 参照）では標準の `padding` のまま構成する。
 //!
 //! # セキュリティ不変条件
 //!
@@ -248,14 +371,19 @@
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - chakra-ui の `interactive`（クリック可能行のホバー装飾）・
-//!   `showColumnBorder`・`ColumnGroup`（`colgroup`/`col`）は本イシュー
-//!   （#1572）のスコープ外（PR 本文に記録）。`stickyHeader` はイシュー
-//!   #1571・`ScrollArea` 連携（[`scroll_area`]）はイシュー #1572 で実装済み
-//!   （上記「sticky ヘッダーの実装」節・「`scroll-area` パーツ」節参照）。
+//! - chakra-ui の `showColumnBorder`・`ColumnGroup`（`colgroup`/`col`）は
+//!   スコープ外（PR 本文に記録）。`stickyHeader` はイシュー #1571・
+//!   `ScrollArea` 連携（[`scroll_area`]）はイシュー #1572・`interactive`/
+//!   `data-selected`/`data-align` はイシュー #2052 で実装済み（上記各節
+//!   参照）。
 //! - `caption-side`（top/bottom）の切り替え API・[`scroll_area`] への
 //!   `border`/`border-radius` 付与オプションは、必要になった時点で純追加で
 //!   対応する（上記「caption」節・「`scroll-area` パーツ」節参照）。
+//! - `aria-sort`/`data-sort`・全選択（select-all）・行選択のキーボード操作の
+//!   生産・保持・送信は `fandhe-frontend-headless-ui` 側の data-table
+//!   （イシュー #2124）の責務であり、本クレートは `column_header` の
+//!   `aria-sort` 等の呼び出し側属性をそのまま通過させる（生産しない、
+//!   `docs/policy/intentional-non-adoption.md` §3.25）。
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
 //!   イシュー側のスコープ。
 
@@ -377,6 +505,40 @@ impl From<bool> for StickyHeaderVariant {
     }
 }
 
+/// interactive variant 値（内部専用、公開 API は `bool` のまま。
+/// [`crate::table` モジュール doc](self)「`interactive` 軸（行 hover）」節
+/// 参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InteractiveVariant {
+    /// 行 hover なし（既定）。
+    Off,
+    /// 行 hover あり（`bg-muted`）。
+    On,
+}
+
+impl VariantValue for InteractiveVariant {
+    fn axis(self) -> &'static str {
+        "interactive"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Off => "false",
+            Self::On => "true",
+        }
+    }
+}
+
+impl From<bool> for InteractiveVariant {
+    fn from(b: bool) -> Self {
+        if b {
+            Self::On
+        } else {
+            Self::Off
+        }
+    }
+}
+
 /// Table の呼び出し側公開 props（`root` の引数）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableProps {
@@ -390,6 +552,10 @@ pub struct TableProps {
     /// （`th`）が `position: sticky; top: 0` になる（[`crate::table`
     /// モジュール doc](self)「sticky ヘッダーの実装」節参照）。
     pub sticky_header: bool,
+    /// 行 hover の有無（既定 `false`、イシュー #2052）。有効時は `row`
+    /// （`data-selected` を除く）が hover で `bg-muted` になる（[`crate::table`
+    /// モジュール doc](self)「`interactive` 軸（行 hover）」節参照）。
+    pub interactive: bool,
 }
 
 impl Default for TableProps {
@@ -399,6 +565,7 @@ impl Default for TableProps {
             size: Size::Md,
             striped: false,
             sticky_header: false,
+            interactive: false,
         }
     }
 }
@@ -738,6 +905,23 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(StickyHeaderVariant::Off)
+        // イシュー #2052: `interactive` variant。既定 Off も明示的に登録する
+        // （striped/sticky_header と同じ決定性維持の判断、上記モジュール doc
+        // 「`interactive` 軸（行 hover）」節参照）。
+        .variant(
+            InteractiveVariant::Off,
+            "root",
+            vec![decl("--fandhe-table-row-hover-bg", "transparent")],
+        )
+        .variant(
+            InteractiveVariant::On,
+            "root",
+            vec![decl(
+                "--fandhe-table-row-hover-bg",
+                "var(--fandhe-color-bg-muted)",
+            )],
+        )
+        .default_variant(InteractiveVariant::Off)
         .state(
             "row",
             StateCondition::NthChildEven,
@@ -745,6 +929,63 @@ fn recipe() -> SlotRecipe {
                 "background",
                 "var(--fandhe-table-stripe-bg, transparent)",
             )],
+        )
+        // イシュー #2052: 選択行（呼び出し側が付与する共有語彙
+        // `data-selected`）。`NthChildEven`（縞）の後に登録することで、
+        // どちらも specificity (0,3,0) のままソース順の後勝ちで選択が縞に
+        // 勝つ（上記モジュール doc「`data-selected` 行状態」節参照）。
+        .state(
+            "row",
+            StateCondition::Attr("data-selected"),
+            vec![
+                decl("background", "var(--fandhe-color-accent-subtle)"),
+                decl("color", "var(--fandhe-color-accent-fg-subtle)"),
+            ],
+        )
+        // イシュー #2052: `interactive: true` の行 hover。選択行
+        // （`data-selected`）は hover で洗い流さない（上記モジュール doc
+        // 「`interactive` 軸（行 hover）」節「`background` shorthand ではなく
+        // `background-image` longhand を使う理由」参照）。
+        .state(
+            "row",
+            StateCondition::HoverExceptAttr("data-selected"),
+            vec![decl(
+                "background-image",
+                "linear-gradient(var(--fandhe-table-row-hover-bg), var(--fandhe-table-row-hover-bg))",
+            )],
+        )
+        // イシュー #2052: セル整列（shadcn/ui の `text-right` 相当を本
+        // リポジトリ既存語彙 `data-align` で表現、上記モジュール doc
+        // 「`data-align` セル整列」節参照）。
+        .state(
+            "cell",
+            StateCondition::AttrEq("data-align", "start"),
+            vec![decl("text-align", "start")],
+        )
+        .state(
+            "cell",
+            StateCondition::AttrEq("data-align", "center"),
+            vec![decl("text-align", "center")],
+        )
+        .state(
+            "cell",
+            StateCondition::AttrEq("data-align", "end"),
+            vec![decl("text-align", "end")],
+        )
+        .state(
+            "column-header",
+            StateCondition::AttrEq("data-align", "start"),
+            vec![decl("text-align", "start")],
+        )
+        .state(
+            "column-header",
+            StateCondition::AttrEq("data-align", "center"),
+            vec![decl("text-align", "center")],
+        )
+        .state(
+            "column-header",
+            StateCondition::AttrEq("data-align", "end"),
+            vec![decl("text-align", "end")],
         )
         // イシュー #1572: `Outline` + `footer` 併用時の二重線を避けるため、
         // 最終行の `--fandhe-table-row-border` を variant スコープの
@@ -796,11 +1037,13 @@ pub fn root<'a>(props: TableProps, attrs: Vec<(&'a str, &'a str)>, children: Vec
     let recipe = recipe();
     let striped: StripedVariant = props.striped.into();
     let sticky_header: StickyHeaderVariant = props.sticky_header.into();
+    let interactive: InteractiveVariant = props.interactive.into();
     let class = recipe.variant_classes(&[
         ("variant", props.variant.value()),
         ("size", props.size.value()),
         ("striped", striped.value()),
         ("sticky-header", sticky_header.value()),
+        ("interactive", interactive.value()),
     ]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
@@ -892,6 +1135,17 @@ mod tests {
         assert!(html.contains("fd-table--size-md"));
         assert!(html.contains("fd-table--striped-false"));
         assert!(html.contains("fd-table--sticky-header-false"));
+        assert!(html.contains("fd-table--interactive-false"));
+    }
+
+    #[test]
+    fn interactive_true_maps_to_expected_class() {
+        let props = TableProps {
+            interactive: true,
+            ..TableProps::default()
+        };
+        let html = render(&root(props, vec![], vec![]));
+        assert!(html.contains("fd-table--interactive-true"));
     }
 
     #[test]
@@ -995,7 +1249,7 @@ mod tests {
         assert_eq!(
             html,
             concat!(
-                r#"<table data-scope="table" data-part="root" class="fd-table--variant-line fd-table--size-md fd-table--striped-false fd-table--sticky-header-false">"#,
+                r#"<table data-scope="table" data-part="root" class="fd-table--variant-line fd-table--size-md fd-table--striped-false fd-table--sticky-header-false fd-table--interactive-false">"#,
                 r#"<caption data-scope="table" data-part="caption">Users</caption>"#,
                 r#"<thead data-scope="table" data-part="header">"#,
                 r#"<tr data-scope="table" data-part="row">"#,
@@ -1226,5 +1480,122 @@ mod tests {
     fn table_recipe_selectors_match_actual_rendered_markup_scroll_area() {
         let html = render(&scroll_area(vec![], vec![]));
         assert!(html.starts_with(r#"<div data-scope="table" data-part="scroll-area""#));
+    }
+
+    /// イシュー #2052: `interactive` variant（false/true）のクラスセレクタ・
+    /// root スコープ custom property が `css()` 出力に含まれることを固定
+    /// する（`sticky_header` と同型）。
+    #[test]
+    fn table_css_contains_interactive_variants() {
+        let out = css();
+        assert!(
+            out.contains(r#"[data-scope="table"][data-part="root"].fd-table--interactive-false {"#)
+        );
+        assert!(
+            out.contains(r#"[data-scope="table"][data-part="root"].fd-table--interactive-true {"#)
+        );
+        assert!(out.contains("--fandhe-table-row-hover-bg: transparent;"));
+        assert!(out.contains("--fandhe-table-row-hover-bg: var(--fandhe-color-bg-muted);"));
+    }
+
+    /// イシュー #2052: `Off`（interactive: false）は `--fandhe-table-
+    /// row-hover-bg` を `transparent` にするため、hover 規則
+    /// （`background-image` longhand）が striped 縞を消さないことを固定
+    /// する（モジュール doc「`interactive` 軸（行 hover）」節「`background`
+    /// shorthand ではなく `background-image` longhand を使う理由」参照）。
+    #[test]
+    fn table_css_row_hover_uses_background_image_longhand_not_shorthand() {
+        let out = css();
+        assert!(out.contains(
+            "background-image: linear-gradient(var(--fandhe-table-row-hover-bg), \
+             var(--fandhe-table-row-hover-bg));"
+        ));
+        // `@media (hover: hover)` 配下の HoverExceptAttr 規則セレクタが
+        // data-selected を除外していることを確認する。
+        assert!(out.contains(
+            r#"[data-scope="table"][data-part="row"]:hover:not([data-disabled]):not([data-selected]) {"#
+        ));
+    }
+
+    /// イシュー #2052: 選択行（`data-selected`）の背景・文字色が
+    /// `crate::tree_view` と同型のペア（`accent-subtle`/`accent-fg-subtle`）
+    /// であることと、`:nth-child(even)`（striped）規則より後に出力される
+    /// ことを固定する（モジュール doc「`data-selected` 行状態」節参照。
+    /// 両者とも specificity (0,3,0) のためソース順の後勝ちで選択が縞に
+    /// 勝つ契約）。
+    #[test]
+    fn table_css_selected_row_declares_accent_pair_after_striped_rule() {
+        let out = css();
+        let selected_selector = r#"[data-scope="table"][data-part="row"][data-selected] {"#;
+        assert!(out.contains(selected_selector));
+        let selected_rule_start = out.find(selected_selector).unwrap();
+        let selected_rule_end = out[selected_rule_start..]
+            .find('}')
+            .map(|offset| selected_rule_start + offset)
+            .unwrap();
+        let selected_rule = &out[selected_rule_start..selected_rule_end];
+        assert!(selected_rule.contains("background: var(--fandhe-color-accent-subtle);"));
+        assert!(selected_rule.contains("color: var(--fandhe-color-accent-fg-subtle);"));
+
+        let striped_selector = r#"[data-scope="table"][data-part="row"]:nth-child(even) {"#;
+        let striped_rule_start = out
+            .find(striped_selector)
+            .expect("striped 規則が css() 出力に存在すること");
+        assert!(
+            striped_rule_start < selected_rule_start,
+            "data-selected 規則は :nth-child(even)（striped）規則より後に出力されなければならない"
+        );
+    }
+
+    /// イシュー #2052: `cell`/`column-header` の `data-align`
+    /// （start/center/end）状態規則が `css()` 出力に含まれることを固定する
+    /// （モジュール doc「`data-align` セル整列」節参照）。
+    #[test]
+    fn table_css_contains_data_align_state_rules_for_cell_and_column_header() {
+        let out = css();
+        for part in ["cell", "column-header"] {
+            for (value, text_align) in [("start", "start"), ("center", "center"), ("end", "end")] {
+                let selector =
+                    format!(r#"[data-scope="table"][data-part="{part}"][data-align="{value}"] {{"#);
+                assert!(out.contains(&selector), "missing {selector}\n{out}");
+                let decl = format!("text-align: {text_align};");
+                let rule_start = out.find(&selector).unwrap();
+                let rule_end = out[rule_start..]
+                    .find('}')
+                    .map(|offset| rule_start + offset)
+                    .unwrap();
+                assert!(
+                    out[rule_start..rule_end].contains(&decl),
+                    "missing {decl} in rule for {selector}"
+                );
+            }
+        }
+    }
+
+    /// イシュー #2052: `column_header` は `aria-sort` 等の呼び出し側属性を
+    /// そのまま通過させる（生産しない。`aria-sort` の生産は headless
+    /// data-table〔#2124〕の責務、モジュール doc「スコープ外」節参照）。
+    #[test]
+    fn column_header_passes_through_caller_aria_sort_attribute() {
+        let html = render(&column_header(
+            vec![("aria-sort", "ascending")],
+            vec![text("Name")],
+        ));
+        assert!(html.contains(r#"aria-sort="ascending""#));
+    }
+
+    /// イシュー #2052: 既定 `row`/`cell`/`column_header` は
+    /// `data-scope`/`data-part` 以外の `data-*` を自己出力しない
+    /// （`data_attr_vocabulary.rs` の caller-sourced 契約と対をなす最小
+    /// 回帰、`crates/pre-styled-ui/tests/data_attr_vocabulary.rs` の
+    /// `table_row_and_cell_data_attrs_are_caller_sourced_not_self_emitted`
+    /// も参照）。
+    #[test]
+    fn row_and_cell_emit_no_self_produced_data_attrs_by_default() {
+        let row_html = render(&row(vec![], vec![]));
+        assert_eq!(row_html.matches("data-").count(), 2);
+
+        let cell_html = render(&cell(vec![], vec![]));
+        assert_eq!(cell_html.matches("data-").count(), 2);
     }
 }

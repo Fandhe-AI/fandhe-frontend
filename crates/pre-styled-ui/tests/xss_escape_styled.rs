@@ -3838,6 +3838,27 @@ fn table_styled_root_and_parts_are_escaped_for_all_payloads() {
         // scroll_area の children 経路。
         let html = render(&table::scroll_area(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "table::scroll_area children コンテキスト");
+
+        // イシュー #2052: row の data-selected 属性値経路（呼び出し側が
+        // 付与する共有語彙、table.rs モジュール doc「`data-selected` 行
+        // 状態」節参照）。
+        let html = render(&table::row(vec![("data-selected", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "table::row data-selected 属性コンテキスト");
+
+        // イシュー #2052: cell の data-align 属性値経路（table.rs モジュール
+        // doc「`data-align` セル整列」節参照）。
+        let html = render(&table::cell(vec![("data-align", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "table::cell data-align 属性コンテキスト");
+
+        // イシュー #2052: column_header の aria-sort 属性値経路（生産は
+        // headless data-table〔#2124〕の責務、table.rs は通過させるのみ、
+        // table.rs モジュール doc「スコープ外」節参照）。
+        let html = render(&table::column_header(vec![("aria-sort", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "table::column_header aria-sort 属性コンテキスト",
+        );
     }
 }
 
