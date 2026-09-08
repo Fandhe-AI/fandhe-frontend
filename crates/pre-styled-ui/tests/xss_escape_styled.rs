@@ -87,7 +87,9 @@ use fandhe_frontend_pre_styled_ui::quote::quote;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::scroll_area;
-use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
+use fandhe_frontend_pre_styled_ui::separator::{
+    group as separator_group, label as separator_label, separator, SeparatorProps,
+};
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
@@ -2923,6 +2925,10 @@ fn skeleton_attrs_and_class_are_escaped_for_all_payloads() {
 /// 経路は対象外）。契約属性（`role`/`aria-orientation`/`data-orientation`）
 /// の偽装除去そのものの回帰は `crates/pre-styled-ui/src/separator.rs` の
 /// ユニットテストが担う（本ファイルは公開 API 経由の XSS 貫通のみを担当）。
+///
+/// イシュー #2053（shadcn/ui 突合）で追加した pre-styled-only
+/// `group`/`label`（`kbd::group` #2230 と同型のパート）の `attrs`/
+/// `children`・`data-scope`/`data-part` 偽装除去も同一関数で固定する。
 #[test]
 fn separator_attrs_and_class_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
@@ -2952,6 +2958,30 @@ fn separator_attrs_and_class_are_escaped_for_all_payloads() {
         assert!(
             html.contains("fd-separator--"),
             "separator で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // pre-styled-only group/label の attrs 経路（イシュー #2053）。
+        let html = render(&separator_group(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "separator::group attrs コンテキスト");
+        let html = render(&separator_label(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "separator::label attrs コンテキスト");
+
+        // pre-styled-only group/label の children 経路（イシュー #2053）。
+        let html = render(&separator_group(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "separator::group children コンテキスト");
+        let html = render(&separator_label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "separator::label children コンテキスト");
+
+        // data-scope/data-part の偽装除去（headless Anatomy::part の
+        // fail-closed 挙動、kbd::group と同型）。
+        let html = render(&separator_group(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "separator::group の data-scope/data-part 偽装が出力に残っている: \
+             payload={payload:?}, html={html}"
         );
     }
 }
