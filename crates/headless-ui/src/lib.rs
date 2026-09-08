@@ -684,6 +684,15 @@
 //!   先頭/末尾ボタンの角丸連結は CSS（`:first-child`/`:last-child`）に
 //!   委ねる（`.claude/rules/coding-rust.md` §3.25 の責務境界）。ネスト
 //!   （グループ内グループ）を許容する。
+//! - [`mod@item`]: Root / Media / Content / Title / Description / Actions /
+//!   Header / Footer / Group / Separator の 10 anatomy パーツ（イシュー
+//!   #2065、shadcn/ui `Item` 相当、参照軸 #2001）。media（アイコン・画像）
+//!   と title/description と actions からなる汎用リスト行を表現する。
+//!   [`mod@button_group`] と同じく状態機械を持たない静的部品。
+//!   [`item::root`] は `href` 指定時に `a` として描画し（[`mod@link`] と
+//!   同じ `external` 不可分付与）、[`item::group`] は `role="group"`
+//!   （`a[href]` が `listitem` ロールを持てないため shadcn の
+//!   `role="list"` から意図的に差分化、[`mod@item`] モジュール doc参照）。
 //! - [`mod@menubar`]: Root / Menu / Trigger / Positioner / Content / Arrow /
 //!   ArrowTip / Item / ItemText / ItemIndicator / ItemGroup /
 //!   ItemGroupLabel / Separator / SubTrigger / SubContent / CheckboxItem /
@@ -757,6 +766,7 @@ pub mod hover_card;
 // モジュール doc「参照突合」節参照。
 pub mod image_cropper;
 pub mod input_group;
+pub mod item;
 pub mod json_tree_view;
 pub mod link;
 pub mod link_overlay;
@@ -860,6 +870,7 @@ pub use format::{
 };
 pub use hover_card::{HoverCard, HoverCardDelays};
 pub use input_group::{InputGroupAlign, InputGroupProps};
+pub use item::{ItemMediaVariant, ItemRootProps, ItemSize, ItemVariant};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use menubar::{Menubar, MenubarAction};
 pub use navigation_menu::NavigationMenu;

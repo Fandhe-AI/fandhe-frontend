@@ -412,6 +412,11 @@ source = "site/primitives/carousel.md"
 path = "/primitives/carousel/"
 
 [[section.group.page]]
+title = "Item"
+source = "site/primitives/item.md"
+path = "/primitives/item/"
+
+[[section.group.page]]
 title = "JSON Tree View"
 source = "site/primitives/json-tree-view.md"
 path = "/primitives/json-tree-view/"

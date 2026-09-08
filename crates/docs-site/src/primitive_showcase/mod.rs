@@ -360,7 +360,7 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
         path: "/primitives/toolbar/",
         render: navigation::toolbar_section,
     },
-    // --- Data Display / Utilities（10、#1029） ---
+    // --- Data Display / Utilities（11、#1029。イシュー #2065 で item 追加、旧 10） ---
     PrimitivePage {
         path: "/primitives/avatar/",
         render: data_display_utilities::avatar_section,
@@ -368,6 +368,10 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
     PrimitivePage {
         path: "/primitives/carousel/",
         render: data_display_utilities::carousel_section,
+    },
+    PrimitivePage {
+        path: "/primitives/item/",
+        render: data_display_utilities::item_section,
     },
     PrimitivePage {
         path: "/primitives/json-tree-view/",

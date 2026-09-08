@@ -1118,36 +1118,229 @@ fn ex_skeleton() -> Node {
     )
 }
 
+/// shadcn/ui Avatar 例に相当（イシュー #2050）。Circle（サイズ上書き）+
+/// 縦積みの Text 2 本を横並びで組み合わせる。追加 API 不要、`style` 属性の
+/// 上書きのみで再現できる。
+fn ex_skeleton_avatar() -> Node {
+    div(
+        vec![("style", "display: flex; align-items: center; gap: 1rem;")],
+        vec![
+            skeleton::skeleton(
+                &skeleton::SkeletonProps {
+                    variant: skeleton::SkeletonVariant::Circle,
+                    ..Default::default()
+                },
+                vec![("style", "--fandhe-skeleton-size: 2.5rem;")],
+            ),
+            div(
+                vec![(
+                    "style",
+                    "display: flex; flex-direction: column; gap: 0.5rem;",
+                )],
+                vec![
+                    skeleton::skeleton(
+                        &skeleton::SkeletonProps::default(),
+                        vec![("style", "width: 9.5rem;")],
+                    ),
+                    skeleton::skeleton(
+                        &skeleton::SkeletonProps::default(),
+                        vec![("style", "width: 6.5rem;")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui Card 例に相当（イシュー #2050）。`card::root`/`card::header`/
+/// `card::body` と組み合わせ、Rect の `--fandhe-skeleton-height` を `auto`
+/// へ上書きして `aspect-ratio` を効かせる。
+fn ex_skeleton_card() -> Node {
+    card::root(
+        card::CardProps::default(),
+        vec![("style", "max-width: 20rem;")],
+        vec![
+            card::header(
+                vec![],
+                vec![
+                    skeleton::skeleton(
+                        &skeleton::SkeletonProps::default(),
+                        vec![("style", "width: 66%;")],
+                    ),
+                    skeleton::skeleton(
+                        &skeleton::SkeletonProps::default(),
+                        vec![("style", "width: 50%;")],
+                    ),
+                ],
+            ),
+            card::body(
+                vec![],
+                vec![skeleton::skeleton(
+                    &skeleton::SkeletonProps {
+                        variant: skeleton::SkeletonVariant::Rect,
+                        ..Default::default()
+                    },
+                    vec![(
+                        "style",
+                        "aspect-ratio: 16 / 9; --fandhe-skeleton-height: auto;",
+                    )],
+                )],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui Text 例に相当（イシュー #2050）。テキスト 3 本、最終行のみ
+/// 幅を詰めて段落末尾らしさを表現する。
+fn ex_skeleton_text() -> Node {
+    div(
+        vec![(
+            "style",
+            "display: flex; flex-direction: column; gap: 0.5rem; max-width: 20rem;",
+        )],
+        vec![
+            skeleton::skeleton(&skeleton::SkeletonProps::default(), vec![]),
+            skeleton::skeleton(&skeleton::SkeletonProps::default(), vec![]),
+            skeleton::skeleton(
+                &skeleton::SkeletonProps::default(),
+                vec![("style", "width: 75%;")],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui Form 例に相当（イシュー #2050）。「ラベル + 入力」の Rect
+/// 組を 2 つ縦積みし、末尾にボタン相当の Rect を置く。
+fn ex_skeleton_form() -> Node {
+    fn field(label_style: &'static str) -> Node {
+        div(
+            vec![(
+                "style",
+                "display: flex; flex-direction: column; gap: 0.5rem;",
+            )],
+            vec![
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps::default(),
+                    vec![("style", label_style)],
+                ),
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps {
+                        variant: skeleton::SkeletonVariant::Rect,
+                        ..Default::default()
+                    },
+                    vec![("style", "--fandhe-skeleton-height: 2rem;")],
+                ),
+            ],
+        )
+    }
+    div(
+        vec![(
+            "style",
+            "display: flex; flex-direction: column; gap: 1.75rem; max-width: 20rem;",
+        )],
+        vec![
+            field("width: 5rem;"),
+            field("width: 6rem;"),
+            skeleton::skeleton(
+                &skeleton::SkeletonProps {
+                    variant: skeleton::SkeletonVariant::Rect,
+                    ..Default::default()
+                },
+                vec![("style", "width: 6rem; --fandhe-skeleton-height: 2rem;")],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui Table 例に相当（イシュー #2050）。shadcn の実例どおり
+/// `table` 部品は使わず、`flex` 行 5 本 × Text 3 本で再現する。
+fn ex_skeleton_table() -> Node {
+    fn row() -> Node {
+        div(
+            vec![("style", "display: flex; gap: 1rem;")],
+            vec![
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps::default(),
+                    vec![("style", "flex: 1;")],
+                ),
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps::default(),
+                    vec![("style", "width: 6rem;")],
+                ),
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps::default(),
+                    vec![("style", "width: 5rem;")],
+                ),
+            ],
+        )
+    }
+    div(
+        vec![(
+            "style",
+            "display: flex; flex-direction: column; gap: 0.5rem; max-width: 24rem;",
+        )],
+        vec![row(), row(), row(), row(), row()],
+    )
+}
+
 pub(crate) const SKELETON: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "SkeletonVariant（Text/Circle/Rect、crates/pre-styled-ui/src/skeleton.rs:138-149）で占位形状を切り替える",
-        "SkeletonAnimation（Pulse/Shine/None、skeleton.rs:169-181、イシュー #1566）で第 2 軸のアニメーション種別を切り替える",
-        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:364-369）",
-        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）",
+        "SkeletonVariant（Text/Circle/Rect、crates/pre-styled-ui/src/skeleton.rs:192-200）で占位形状を切り替える",
+        "SkeletonAnimation（Pulse/Shine/None、skeleton.rs:223-233、イシュー #1566）で第 2 軸のアニメーション種別を切り替える",
+        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:420）",
+        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:420、回帰テストは skeleton.rs:484）",
+        "イシュー #2050 で shadcn/ui と突合、欠落 variant/state なし。shimmer は text 向け utility のため不採用、Card/Text/Form/Table 合成例を Examples へ追加",
     ],
     arguments: &[
         ArgRow {
             name: "variant",
             kind: "SkeletonVariant",
             default: "Text",
-            description: "占位形状（skeleton.rs:138-149、#[default] は Text）。",
+            description: "占位形状（skeleton.rs:192-200、#[default] は Text）。",
         },
         ArgRow {
             name: "animation",
             kind: "SkeletonAnimation",
             default: "Pulse",
-            description: "アニメーション種別（skeleton.rs:169-181、#[default] は Pulse、イシュー #1566）。",
+            description: "アニメーション種別（skeleton.rs:223-233、#[default] は Pulse、イシュー #1566）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Circle",
-        description: "アバター等の占位に使う Circle variant の例です。",
-        render: ex_skeleton,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Circle",
+            description: "アバター等の占位に使う Circle variant の例です。",
+            render: ex_skeleton,
+        },
+        ExampleEntry {
+            title: "Avatar",
+            description: "shadcn/ui の Avatar 例に相当。Circle + 縦積み Text 2 本を横並びで組み合わせ、追加 API 不要で style 上書きのみで再現できます。",
+            render: ex_skeleton_avatar,
+        },
+        ExampleEntry {
+            title: "Card",
+            description: "shadcn/ui の Card 例に相当。card::header/card::body と組み合わせ、Rect の --fandhe-skeleton-height を auto へ上書きして aspect-ratio を効かせます。",
+            render: ex_skeleton_card,
+        },
+        ExampleEntry {
+            title: "Text",
+            description: "shadcn/ui の Text 例に相当。テキスト 3 本、最終行のみ幅を詰めて段落末尾らしさを表現します。",
+            render: ex_skeleton_text,
+        },
+        ExampleEntry {
+            title: "Form",
+            description: "shadcn/ui の Form 例に相当。ラベル + 入力の Rect 組を 2 つ縦積みし、末尾にボタン相当の Rect を置きます。",
+            render: ex_skeleton_form,
+        },
+        ExampleEntry {
+            title: "Table",
+            description: "shadcn/ui の Table 例に相当。table 部品は使わず、flex 行 5 本 × Text 3 本で再現します。",
+            render: ex_skeleton_table,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"",
-        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）。",
+        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:420、回帰テストは skeleton.rs:484）。",
     }],
     demo: None,
 };
