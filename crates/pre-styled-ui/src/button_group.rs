@@ -59,8 +59,16 @@
 //! 列挙する子は 4 種:
 //! - `[data-scope="button"][data-part="root"]`（[`crate::button`]）
 //! - `[data-scope="field"][data-part="input"]`（[`crate::input`]。`width:
-//!   100%` を持つため `flex: 1 1 0%; min-width: 0` も併せて付与する、
-//!   [`crate::input_group`] と同じ教訓）
+//!   100%` を持つため `flex: 1 1 auto; min-width: 0` も併せて付与する。
+//!   [`crate::input_group`] は root が `width: 100%`（定幅）のため
+//!   `flex: 1 1 0%` で伸長・縮小の双方が成立するが、本部品の root は
+//!   `width: fit-content`（shrink-to-fit）であり、`flex-basis: 0%` は
+//!   fit-content コンテナの内在サイズ計算へ寄与せず Input 幅が実質ゼロへ
+//!   潰れる（Cursor Bugbot 指摘、PR #2228）。`flex-basis: auto` は
+//!   `width` が percentage かつコンテナが indefinite main size のとき
+//!   内在サイズ計算上は content ベースへフォールバックする仕様のため、
+//!   fit-content ルートでも自然な内在幅から出発しつつ `flex-shrink: 1`
+//!   による縮小は維持できる）
 //! - `[data-scope="button-group"][data-part="text"]`（自分自身の [`text`]）
 //! - `[data-scope="menu"][data-part="root"]`（[`crate::menu`]。menu は
 //!   `root(div, position: relative)` → `trigger(button)` の 2 段構成のため、
@@ -334,20 +342,28 @@ pub fn stylesheet() -> String {
         if orientation == "horizontal" {
             // 横並び時のみ、`crate::input` の `width: 100%` 基底規則が
             // flex 行内で縮小できず幅の狭い親でグループごとはみ出すのを
-            // 防ぐため、子 `field/input` を `flex: 1 1 0%; min-width: 0`
-            // で縮小可能にする（`crate::input_group::stylesheet` の
-            // `flex: 1 1 0%; min-width: 0` と同じ教訓、モジュール doc
-            // 「raw CSS 追記の理由」節参照）。縦積み時は主軸が block 方向
-            // のため `width: 100%` のみで収まり本規則は不要（適用すると
-            // 主軸方向の伸長指定になり意味が変わるため orientation で
-            // 限定する）。
+            // 防ぐため、子 `field/input` へ `flex: 1 1 auto; min-width: 0`
+            // を付与する。`crate::input_group::stylesheet` は root が
+            // `width: 100%`（定幅）のため `flex-basis: 0%` で成立するが、
+            // 本部品の root は `width: fit-content` であり
+            // `flex-basis: 0%` は fit-content の内在サイズ計算に寄与せず
+            // Input 幅が実質ゼロへ潰れる（Cursor Bugbot 指摘、PR #2228。
+            // モジュール doc 冒頭の子セレクタ列挙節も参照）。
+            // `flex-basis: auto` は `width` が percentage かつ main size
+            // が indefinite なコンテナでは内在サイズ計算上 content
+            // ベースへフォールバックする仕様のため、fit-content ルート
+            // でも自然な内在幅から出発しつつ `flex-shrink: 1` による
+            // 縮小（幅の狭い親での折返し防止）は維持できる。縦積み時は
+            // 主軸が block 方向のため `width: 100%` のみで収まり本規則は
+            // 不要（適用すると主軸方向の伸長指定になり意味が変わるため
+            // orientation で限定する）。
             let input_selector =
                 format!(r#"{orientation_root} > [data-scope="field"][data-part="input"]"#);
             append_rule(
                 &mut out,
                 serialize_rule(
                     &input_selector,
-                    &[decl("flex", "1 1 0%"), decl("min-width", "0")],
+                    &[decl("flex", "1 1 auto"), decl("min-width", "0")],
                 ),
             );
         } else {

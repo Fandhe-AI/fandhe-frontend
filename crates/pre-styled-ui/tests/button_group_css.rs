@@ -122,7 +122,7 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"] {
-  flex: 1 1 0%;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -394,18 +394,22 @@ fn css_declares_focus_visible_z_index_rules_on_real_focus_targets_only() {
 }
 
 /// 横並び時のみ、子 `field/input`（[`crate::input`] の `width: 100%`
-/// 基底規則）を `flex: 1 1 0%; min-width: 0` で縮小可能にすることを固定
-/// する（codex-review/Bugbot 指摘の回帰防止。`src/button_group.rs`
-/// `stylesheet` 内コメント「横並び時のみ」節参照）。縦積み時は主軸が
-/// block 方向のため本規則を出力しない（適用すると意味が変わるため）。
+/// 基底規則）を `flex: 1 1 auto; min-width: 0` で縮小可能にすることを固定
+/// する（codex-review/Bugbot 指摘の回帰防止。`flex-basis` は `0%` ではなく
+/// `auto` を使う理由は `src/button_group.rs` モジュール doc 冒頭の子
+/// セレクタ列挙節・`stylesheet` 内コメント「横並び時のみ」節参照。root が
+/// `width: fit-content` のため `flex-basis: 0%` は内在サイズ計算に寄与
+/// せず Input 幅が潰れる、PR #2228 Cursor Bugbot 指摘の回帰防止）。縦積み
+/// 時は主軸が block 方向のため本規則を出力しない（適用すると意味が変わる
+/// ため）。
 #[test]
 fn css_shrinks_input_in_horizontal_orientation_only() {
     let css = button_group::stylesheet();
     assert!(css.contains(
-        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"] {\n  flex: 1 1 0%;\n  min-width: 0;\n}"
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"] {\n  flex: 1 1 auto;\n  min-width: 0;\n}"
     ));
     assert!(!css.contains(
-        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"field\"][data-part=\"input\"] {\n  flex: 1 1 0%;"
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"field\"][data-part=\"input\"] {\n  flex: 1 1 auto;"
     ));
 }
 
