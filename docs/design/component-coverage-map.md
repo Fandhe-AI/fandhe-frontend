@@ -619,7 +619,7 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/data-display/avatar.md` | Avatar | Avatar | — | — | — | `avatar` | `avatar` | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/data-display/badge.md` | — | Badge | — | Badge (`badge`) | Badge (`badge`) | — | `badge` | 実装済み | pre-styled 静的部品 実装済み |
+| `.agents/skills/chakra-ui/references/components/data-display/badge.md` | — | Badge | — | Badge (`badge`) | Badge (`badge`) | — | `badge` | 実装済み | pre-styled 静的部品 実装済み。#2045 で shadcn/ui と突合済み: 背景・輪郭なしの `BadgeVariant::Plain` を追加、`<a>` として組み立てる専用コンストラクタ `badge::link` を追加（既存 4 variant は純追加で不変）。角丸 pill・`data-icon` 属性・子孫 svg 寸法強制・size 軸・`aria-invalid`・RTL は既存軸・既定設計を維持するため合わせず、`<a>` 時の hover 表現は複合状態機構 #2203 へ切り出し |
 | `.agents/skills/chakra-ui/references/components/data-display/card.md` | — | Card | — | Card (`card`) | Card (`card`) | — | `card` | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/data-display/table.md` | — | Table | — | Table (`table`) | Table (`table`) | — | `table` | 実装済み | pre-styled 静的部品 実装済み（#767。`stickyHeader` は #1571、`ScrollArea` 連携は #1572 で `table::scroll_area` パーツとして実装済み。`interactive`/`showColumnBorder`/`ColumnGroup` はスコープ外） |
 | `.agents/skills/chakra-ui/references/components/data-display/data-list.md` | — | DataList | — | Data List (`data-list`) | — | — | `data_list` | 実装済み | pre-styled 静的部品 実装済み（#767。`variant`（subtle/bold）/`size` variant は #1559 で追加済み） |

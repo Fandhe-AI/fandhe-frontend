@@ -1341,6 +1341,8 @@ fn badge_section() -> Node {
         (BadgeVariant::Subtle, "Subtle"),
         (BadgeVariant::Outline, "Outline"),
         (BadgeVariant::Surface, "Surface"),
+        // イシュー #2045: shadcn/ui `ghost` 相当。
+        (BadgeVariant::Plain, "Plain"),
     ];
     let variant_row = row(variants
         .iter()
@@ -1395,10 +1397,72 @@ fn badge_section() -> Node {
             )
         })
         .collect());
+    // イシュー #2045: shadcn/ui の With Icon 例に相当。子ノードとして
+    // `icon::icon` を並べるだけで再現できる（badge base の
+    // `display: inline-flex` + `gap` が既に対応済み、`data-icon` 属性の
+    // 新設は不要という突合結果）。
+    let icon_row = row(vec![
+        badge::badge(
+            &BadgeProps::default(),
+            vec![],
+            vec![
+                icon(
+                    &IconProps {
+                        size: Size::Xs,
+                        label: None,
+                        ..IconProps::default()
+                    },
+                    vec![],
+                    vec![el(
+                        "path",
+                        vec![("d", "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z")],
+                        vec![],
+                    )],
+                ),
+                text("Verified"),
+            ],
+        ),
+        badge::badge(
+            &BadgeProps::default(),
+            vec![],
+            vec![
+                text("Bookmark"),
+                icon(
+                    &IconProps {
+                        size: Size::Xs,
+                        label: None,
+                        ..IconProps::default()
+                    },
+                    vec![],
+                    vec![el(
+                        "path",
+                        vec![("d", "M17 3H7a2 2 0 00-2 2v16l7-3 7 3V5a2 2 0 00-2-2z")],
+                        vec![],
+                    )],
+                ),
+            ],
+        ),
+    ]);
+    // イシュー #2045: shadcn/ui `link`（`render` prop）相当。専用
+    // コンストラクタ `badge::link` で `<a>` を組み立てる。`href=""`
+    // （空文字列）は `download_trigger_section` と同じ href 中立性の作法
+    // （`crate::linkcheck::check_links` が無条件許容する空文字列を使い、
+    // 実ページへ解決される href を持ち込まない、本ファイル末尾テスト
+    // `component_page_markup_has_no_non_empty_href` 参照）。
+    let link_row = row(vec![badge::link(
+        "",
+        &BadgeProps {
+            variant: BadgeVariant::Outline,
+            ..BadgeProps::default()
+        },
+        false,
+        vec![],
+        vec![text("As link")],
+    )]);
     section(
         "Badge",
         "ステータス表示向けの小型ラベル。variant と colorPalette、size を組み合わせます。",
-        vec![variant_row, palette_row, size_row],
+        vec![variant_row, palette_row, size_row, icon_row, link_row],
     )
 }
 

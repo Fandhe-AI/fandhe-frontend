@@ -506,9 +506,18 @@ const WRAPPED_CROSS_NAME: &[(&str, &str)] = &[
 ];
 
 /// バケット C: headless 部品への参照が rustdoc のみ（コード委譲なし）の
-/// Themes ページ（`(page_kebab, headless_module)`、4 件）。**このバケットは
+/// Themes ページ（`(page_kebab, headless_module)`、5 件。イシュー #2045 で
+/// badge が加わり 4 → 5）。**このバケットは
 /// ドリフトしやすい**（モジュール冒頭コメントを参照）。
 const DOC_REFERENCE_ONLY: &[(&str, &str)] = &[
+    // イシュー #2045: badge の `link()` コンストラクタ rustdoc が
+    // `fandhe_frontend_headless_ui::link::root`（reverse tabnabbing 対策の
+    // 参照先）を言及するようになったことに伴い、バケット D
+    // （PRE_STYLED_ONLY）からバケット C へ移動した。badge のコード自体は
+    // headless `link` モジュールへ委譲していない（`ANATOMY.part` への
+    // 直接呼び出し）ため、コード委譲なし・rustdoc 言及ありの本バケットの
+    // 定義に一致する（台帳更新イベント、本ファイル冒頭 rustdoc 参照）。
+    ("badge", "link"),
     ("button", "number_input"),
     ("image", "avatar"),
     ("radio-card", "radio_group"),
@@ -516,12 +525,12 @@ const DOC_REFERENCE_ONLY: &[(&str, &str)] = &[
 ];
 
 /// バケット D: headless 部品への参照がコード・rustdoc いずれにも無い
-/// Themes ページ（kebab、ソート済み、39 件。イシュー #1064 本文の受け入れ
-/// 条件 2 が求める一覧）。
+/// Themes ページ（kebab、ソート済み、38 件。イシュー #1064 本文の受け入れ
+/// 条件 2 が求める一覧。イシュー #2045 で badge がバケット C へ移動し
+/// 39 → 38）。
 const PRE_STYLED_ONLY: &[&str] = &[
     "alert",
     "area-chart",
-    "badge",
     "bar-chart",
     "bar-list",
     "bar-segment",

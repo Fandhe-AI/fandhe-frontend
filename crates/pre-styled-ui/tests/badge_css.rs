@@ -8,6 +8,10 @@
 //! この golden テストが即座に検知する。
 //! `docs/internal/pre-styled-ui-golden-test-update-guide.md` §3.3 が
 //! 新規追加の必要性を指摘していた「golden 不在」の 1 件を埋める。
+//!
+//! イシュー #2045（shadcn/ui 突合）で `Plain` variant ブロックの挿入と
+//! `[href]`/`:focus-visible` 2 ブロックの末尾追加を反映した（純追加原則、
+//! `docs/design/shadcn-reference-adoption-policy.md` §8）。
 
 use fandhe_frontend_pre_styled_ui::badge;
 
@@ -69,6 +73,11 @@ const BADGE_GOLDEN_CSS: &str = r#"[data-scope="badge"][data-part="root"] {
   border: 1px solid var(--fandhe-palette-muted);
 }
 
+[data-scope="badge"][data-part="root"].fd-badge--variant-plain {
+  background: transparent;
+  color: var(--fandhe-palette-fg-subtle);
+}
+
 [data-scope="badge"][data-part="root"].fd-badge--color-palette-accent {
   --fandhe-palette: var(--fandhe-color-accent);
   --fandhe-palette-emphasized: var(--fandhe-color-accent-emphasized);
@@ -121,6 +130,16 @@ const BADGE_GOLDEN_CSS: &str = r#"[data-scope="badge"][data-part="root"] {
   --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
   --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
+}
+
+[data-scope="badge"][data-part="root"][href] {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+[data-scope="badge"][data-part="root"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 "#;
 
