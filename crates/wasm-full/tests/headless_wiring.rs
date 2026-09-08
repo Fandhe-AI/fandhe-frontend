@@ -1107,3 +1107,55 @@ fn accordion_item_trigger_data_value_xss_payload_is_escaped_on_render() {
     assert!(!rendered_html.contains("<script>alert(1)</script>"));
     assert!(rendered_html.contains("&lt;script&gt;"));
 }
+
+// --- Sidebar（イシュー #2074）: trigger/rail → "toggle" ---
+
+#[test]
+fn sidebar_trigger_click_toggles_expanded_collapsed() {
+    use fandhe_frontend_headless_ui::sidebar::{trigger, Sidebar, SidebarState};
+
+    let sidebar = Sidebar::new(SidebarState::Expanded);
+    let html = render(&trigger(
+        &sidebar,
+        "Toggle Sidebar",
+        None,
+        Vec::new(),
+        Vec::new(),
+    ));
+    assert_scope_part_present(&html, "sidebar", "trigger");
+
+    let action_ref = action_for_part(&part("sidebar", "trigger", None, false)).unwrap();
+    let mut s = Sidebar::new(SidebarState::Expanded);
+    assert!(dispatch(&mut s, &action_ref.action, &action_ref.payload));
+    assert_eq!(s.state(), SidebarState::Collapsed);
+
+    assert!(dispatch(&mut s, &action_ref.action, &action_ref.payload));
+    assert_eq!(s.state(), SidebarState::Expanded);
+}
+
+#[test]
+fn sidebar_rail_click_toggles_expanded_collapsed() {
+    use fandhe_frontend_headless_ui::sidebar::{rail, Sidebar, SidebarState};
+
+    let sidebar = Sidebar::new(SidebarState::Collapsed);
+    let html = render(&rail(&sidebar, "Toggle Sidebar", Vec::new(), Vec::new()));
+    assert_scope_part_present(&html, "sidebar", "rail");
+
+    let action_ref = action_for_part(&part("sidebar", "rail", None, false)).unwrap();
+    let mut s = Sidebar::new(SidebarState::Collapsed);
+    assert!(dispatch(&mut s, &action_ref.action, &action_ref.payload));
+    assert_eq!(s.state(), SidebarState::Expanded);
+}
+
+#[test]
+fn sidebar_trigger_disabled_is_noop() {
+    assert_eq!(
+        action_for_part(&part("sidebar", "trigger", None, true)),
+        None
+    );
+}
+
+#[test]
+fn sidebar_rail_disabled_is_noop() {
+    assert_eq!(action_for_part(&part("sidebar", "rail", None, true)), None);
+}

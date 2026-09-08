@@ -332,6 +332,8 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `navigation-menu` | `trigger` | `"toggle"` | `data-value` |
 | `calendar` | `day-trigger` | `"select"` | `data-value` |
 | `menubar` | `trigger` | `"toggle"` | `data-value` |
+| `sidebar` | `trigger` | `"toggle"` | `""` |
+| `sidebar` | `rail` | `"toggle"` | `""` |
 
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
 
@@ -892,3 +894,187 @@ headless-ui マークアップには存在しないため実 DOM 上では発火
   追加されるまで navigation-menu の配線は発火しない（§23.3 参照）。
   再導入提案時は `docs/policy/intentional-non-adoption.md` の評価軸充足
   確認が必須。
+
+## 24. `sidebar` モジュール（イシュー #2074、親 #2071/#2072）
+
+`crates/headless-ui/src/sidebar.rs`（#2072）は anatomy（22 パーツ）と
+`SidebarAction::{Expand,Collapse,Toggle}` 状態機械までを提供し、
+Cmd/Ctrl+B ショートカット・モバイル drawer 切替・`menu-button` の
+tooltip hover 配線・`mobile` のメディアクエリ判定自体をいずれも wasm 層
+（本イシュー）の後続責務として申し送っていた（同モジュール冒頭 rustdoc
+「呼び出し文脈」「スコープ外」節）。`crates/wasm-full/src/sidebar.rs` が
+その配線を実装する。
+
+### 24.1 trigger/rail クリック開閉は `MAPPING_TABLE` の 2 行で完結
+
+trigger/rail のクリック開閉自体は新規モジュールを要さず、
+`headless.rs::MAPPING_TABLE` へ `(sidebar, trigger)`/`(sidebar, rail)` →
+`"toggle"`（`requires_value: false`）の 2 行を追加するだけで
+`wire_headless_events`/`Self::wire` 経由の既存製品経路（クリック →
+`SidebarAction::Toggle` dispatch）が成立する（§12.3 参照）。`rail` は
+`tabindex="-1"` でキーボードフォーカス対象外だが、マウス/タッチの click
+イベント自体は他ボタンと同様に発火するため本表 1 行で足りる。
+
+### 24.2 `sidebar.rs` の 2 層構成と `dispatch` チャネルを持たない設計
+
+Cmd/Ctrl+B・モバイル drawer 切替・tooltip hover 配線は新設
+`crates/wasm-full/src/sidebar.rs` が担う。`splitter.rs`/
+`headless_avatar.rs` と同型の 2 層構成（純粋ロジック層 +
+`#[cfg(target_arch = "wasm32")] mod wiring`）を採るが、`splitter`/
+`angle_slider` と異なり `on_action` コールバック（dispatch チャネル）を
+一切持たない。Cmd/Ctrl+B・Escape（モバイル drawer 閉鎖）・外側クリック
+（同）はいずれも trigger（無ければ rail）へ `HtmlElement::click()` を
+合成するのみで、§24.1 の `MAPPING_TABLE` 経由の製品 dispatch 経路を
+そのまま通す（`crate::keynav` モジュール doc の「状態を複製せず、決定は
+対象要素への click 合成で既存経路へ委譲する」原則を踏襲）。
+
+`Runtime::wire_sidebar(root)`（private）は `sidebar::wire_sidebar_events(root)`
+を呼ぶだけの薄いラッパーであり、`Self::mount`/`Self::hydrate` の双方から
+`Self::wire_number_input` の直後に 1 回だけ呼ばれる。他の `wire_*` と
+異なり `component`/`binding_table`/`keyed_list_cache` を受け渡さない
+（dispatch チャネルを持たないため）。
+
+### 24.3 `data-mobile` の書き込み主体は wasm
+
+`fandhe-frontend-pre-styled-ui` の Sidebar CSS（#2073）は `@media` を
+持たず `[data-scope="sidebar"][data-part="root"][data-mobile]…` の
+属性セレクタのみで drawer 表示を切り替える設計であり、実行時に
+`data-mobile` を付け外しできる主体は wasm-full だけである。
+`wire_mobile`（`window.matchMedia`）は初回適用・`MediaQueryList` の
+`change` イベント・`MutationObserver`（`childList: true, subtree: true`
+のみ監視。`data-mobile` 自身の属性変更では再発火しない自己発火ループの
+構造的回避）の 3 経路から共通の `apply_mobile_state` を呼び、
+`provider`/`root` パーツへ `data-mobile` を反映する。`MutationObserver`
+は、`Runtime` の構造フォールバック（`rerender_subtree`）が headless の
+静的 `SidebarProps.mobile`（既定 `false`）から `provider`/`root` を
+作り直すことで wasm が書いた `data-mobile` が再描画のたびに消えるのを
+再適用する。
+
+デスクトップ→モバイルへの**遷移エッジ**（`was_mobile` が偽から真へ
+変わる瞬間）に限り、expanded なら trigger/rail への click 合成で
+collapsed へ寄せる（`should_collapse_on_enter_mobile`）。headless-ui の
+`Sidebar` は単一 `data-state` のみを持ち shadcn/ui のような
+`open`/`openMobile` の分離状態を持たないため、SSR が常に `Expanded` で
+出力する構成のままモバイルへ入ると drawer が開いた状態で始まってしまう
+のを防ぐ意図的差分である。デスクトップへ戻る際は状態を変更しない。
+
+`query: &str` 引数を公開する `wire_sidebar_events_with_query` は
+テストが `"(min-width: 1px)"`/`"(max-width: 0px)"` のような常時
+true/false のメディアクエリを注入するための API であり、DOM 属性から
+クエリ文字列を読む経路は設けない。`wire_sidebar_events`（既定
+`DEFAULT_MOBILE_MEDIA_QUERY = "(max-width: 767px)"`、shadcn/ui
+`MOBILE_BREAKPOINT = 768` 相当）はその薄いラッパーであり
+`Runtime::wire_sidebar` が呼ぶ本番経路である。
+
+### 24.4 モバイル drawer の Escape・外側クリック閉鎖
+
+`overlay::OverlayCloseController`（イシュー #585）は sidebar を知らず、
+headless `drawer` scope も wasm-full では配線されていないため、
+`sidebar.rs` 内で document keydown（Escape）・document pointerdown
+（外側クリック）を独立に完結させる。両者とも
+`should_dismiss_mobile_drawer(mobile, state)`（`data-mobile` あり
+かつ `data-state="expanded"`）が真のときのみ trigger/rail へ click を
+合成する。pointerdown は sidebar `root`・trigger・rail いずれの内側でも
+無視する（trigger/rail 内側を除外しないと直後の実 click と二重トグルに
+なるため）。Cmd/Ctrl+B のキー判定（`is_toggle_shortcut`）と Escape 判定は
+同一の document keydown リスナー 1 個にまとめている
+（`Closure::forget` 定数個契約、§24.6 参照）。
+
+### 24.5 `collapsible=icon` 折りたたみ時の `menu-button` tooltip
+
+root へ pointerover/pointerout/focusin/focusout の 4 リスナーを委譲登録
+し、`closest_menu_button`（`data-scope="sidebar"` `data-part="menu-button"`
+かつ `aria-describedby` を持つ最初の祖先）を解決してから
+`tooltip_should_show(state, collapsible, mobile)`（`state == "collapsed"`
+かつ `collapsible == "icon"` かつ非モバイル）で表示可否を判定する。
+`aria-describedby` の値は `Document::get_element_by_id` でのみ解決し
+（CSS セレクタへ補間しない、セレクタインジェクション回避）、`root` 配下
+かつ `data-scope="tooltip"` `data-part="content"` の要素のみを採用する。
+表示/非表示は `hidden` 存在属性と `data-state`（`"open"`/`"closed"`、
+`crates/headless-ui/src/tooltip.rs::OpenState::as_data_state` と同一
+語彙）を content・その祖先 positioner・tooltip root へ反映する。hover
+離脱時（pointerout）は表示条件に関わらず必ず非表示にする。openDelay/
+closeDelay・位置計算の自動呼び出しはスコープ外（§24.7 参照）。
+
+### 24.6 セキュリティ不変条件・`Closure::forget` 定数個契約
+
+`data-mobile`/`hidden`/`data-state` の属性書き込みは
+`set_dom_attribute`（`keynav.rs`/`headless_avatar.rs` と同型の
+`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/`is_safe_srcset`
+ガード付きラッパー、イシュー #401 `url_validation_check` 契約）を経由し、
+属性名・値はすべて `&'static str` リテラル固定である。`root` 配下に
+sidebar `provider` パーツが 1 つも無ければリスナーを 1 つも登録せず
+`Ok(())` を返す（`splitter::wire_splitter_events` と同型の非搭載アプリ
+への副作用なし契約）。`Closure::forget` は provider 存在時のみマウント
+時 1 回・定数個（document keydown 1・document pointerdown 1・root
+pointerover/pointerout/focusin/focusout 4・`MediaQueryList` change 1・
+`MutationObserver` 1 の計 8 個）で登録する。`window.matchMedia` の失敗
+（`Err`/`None`）はモバイル判定機能のみを無効化し、trigger/rail クリック・
+Cmd/Ctrl+B・tooltip hover 配線は継続する（1 機能の失敗が他機能を道連れに
+しない多層防御）。
+
+### 24.7 semver 判断・テスト・スコープ外
+
+公開 API は追加のみ（新規 `pub mod sidebar`、`MAPPING_TABLE` 2 行、
+`web-sys` feature `MediaQueryList` 追加）のため patch バンプ
+（`fandhe-frontend-wasm-full` 0.15.25 → 0.15.26）とした。新規外部クレート
+追加はゼロ。`cargo run -p xtask -- check-dep-versions` で確認したとおり
+`wasm-full` を path+version 依存する workspace メンバーは存在せず、
+追随バンプは不要だった。
+
+- native 単体テスト（`crates/wasm-full/src/sidebar.rs` `#[cfg(test)]`・
+  `crates/wasm-full/src/headless.rs` `#[cfg(test)]`・
+  `crates/wasm-full/tests/headless_wiring.rs`）: 純粋関数の真理表
+  （`is_toggle_shortcut`/`tooltip_should_show`/
+  `should_collapse_on_enter_mobile`/`should_dismiss_mobile_drawer`/
+  `split_describedby`）、headless-ui 実出力とのドリフト検知、
+  `MAPPING_TABLE` 経由の dispatch ラウンドトリップ・disabled fail-closed。
+- 実ブラウザ回帰テスト（`crates/wasm-full/tests/sidebar_browser.rs`、
+  `wasm-pack test --headless --chrome crates/wasm-full --test
+  sidebar_browser` で 21 件 PASS 確認済み）: trigger/rail クリック
+  dispatch・disabled no-op、Cmd/Ctrl+B（Shift 併用・Alt 併用・
+  `preventDefault()` 済み・disabled の各 fail-closed 込み）、
+  `wire_sidebar_events_with_query` の常時 true/false クエリによる
+  `data-mobile` 付け外しとモバイル進入エッジの強制 collapse、モバイル
+  drawer の Escape・外側 pointerdown 閉鎖（root/trigger/rail 内側は
+  無視、デスクトップでは no-op）、`collapsible=icon` tooltip の
+  pointerover/pointerout/focusin/focusout、sidebar 非搭載 root への
+  no-op。`mql` の `change` イベント実発火は headless Chrome で viewport
+  を変更できないため未検証（`query` 引数注入で代替）。
+  **テストハーネス固有の注意**: 同一 `wasm-pack test` バイナリ内の複数
+  `#[wasm_bindgen_test]` は document を共有するため、`wire_sidebar_events`
+  の既定クエリ（`DEFAULT_MOBILE_MEDIA_QUERY`）は headless Chrome の実
+  ビューポート幅に左右され得る。`sidebar_browser.rs` はモバイル判定
+  そのものを検証する対象以外で `wire_sidebar_events_with_query` の常時
+  非一致クエリ（`DESKTOP_QUERY` 定数）を用いてデスクトップを固定し、
+  かつテスト末尾の `RemoveOnDrop` がコンテナを document から取り外す前に
+  `set_inner_html("")` で中身を空にすることで、`Closure::forget` により
+  永続する旧テストの document リスナーが後続テストの合成イベントに
+  対して trigger/rail を解決できないようにしている（テスト間の意図しない
+  相互汚染の防止。本フレームワーク自体の挙動ではなく、複数テストが同一
+  document を共有する `wasm-bindgen-test` 実行モデル固有の対策）。
+
+スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）:
+
+- 開閉状態の cookie/localStorage 永続化（
+  `docs/policy/intentional-non-adoption.md` §3.25 規則 1: 永続化は
+  アプリケーションロジックであり UI コンポーネント層の責務外。本イシュー
+  の配線層にも同判断を適用する）。
+- `mobile` を headless `Sidebar` 状態機械のフィールド/アクションへ
+  昇格させる案（単一 `data-state` + `data-mobile` 書き込み方式の限界
+  〔デスクトップ復帰時に expanded を復元しない〕を解消したくなった場合の
+  再評価候補）。
+- モバイル breakpoint の可変化（`--fandhe-*` breakpoint 機構に依存）。
+  現状は `DEFAULT_MOBILE_MEDIA_QUERY = "(max-width: 767px)"` 固定。
+- SSR 初期表示でのモバイル時フラッシュ（wasm ロード前は `data-mobile`
+  無し）。
+- tooltip の `openDelay`/`closeDelay`・interactive 維持・位置計算の
+  自動呼び出し（`crate::position::PositionController` との統合）。
+- `overlay::OverlayKind` への Sidebar 追加によるオーバーレイスタック
+  統合（本イシューは `sidebar.rs` 内で Escape/外側 pointerdown を完結
+  させる）。
+- headless `drawer` scope の wasm-full 配線（`drawer.rs` doc が別イシュー
+  追跡と明記済み、本イシューでは触れない）。
+- マウント後に動的挿入された sidebar の配線、複数 provider が存在する
+  場合の個別ショートカット割り当て（最初の 1 件のみ対象）。
+- `/themes/sidebar/` docs ページ・Demo・coverage-map 更新（#2075）。

@@ -652,7 +652,11 @@ name = "fandhe-frontend-wasm-full"
 # 0.68.3 → 0.68.4（`sidebar` 新設、非破壊的追加）に伴う
 # `dep-version-check --fix` の `version = "..."` 追随バンプ（本クレート
 # 自身の実配線は後続イシュー #2074）。
-version = "0.15.25"
+# 0.15.25 → 0.15.26（イシュー #2074）: sidebar の trigger/rail 開閉・
+# Cmd/Ctrl+B ショートカット・モバイル drawer 切替（`data-mobile` 付け外し）・
+# `collapsible=icon` 時の menu-button tooltip hover/focus 配線を新規
+# `sidebar` モジュールとして追加（公開 API 追加のみの非破壊的変更）。
+version = "0.15.26"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -857,6 +861,13 @@ categories = ["wasm", "web-programming"]
 # `DomRectReadOnly` を追加する。新規外部クレート追加ゼロ、既存 web-sys の
 # feature 追加のみ。`cargo metadata` 実測（パッケージ数・依存グラフ深さ）
 # に変化がないことを PR 本文に記録する。
+# イシュー #2074（Sidebar の trigger/rail 開閉・Cmd/Ctrl+B・モバイル drawer
+# 切替・tooltip hover 配線）: `sidebar::wiring` が `Window::match_media` で
+# モバイル判定（`(max-width: 767px)`）を行い `MediaQueryList::matches`/
+# `change` イベント購読で viewport 変化に追随するため `MediaQueryList` を
+# 追加する。新規外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。
+# `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを
+# PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.2.6" }
 fandhe-frontend-core = { path = "../core", version = "0.4.3" }
@@ -911,6 +922,7 @@ features = [
   "HtmlTextAreaElement",
   "KeyboardEvent",
   "Location",
+  "MediaQueryList",
   "MouseEvent",
   "MutationObserver",
   "MutationObserverInit",

@@ -148,6 +148,7 @@ pub mod nav;
 pub mod number_input;
 pub mod overlay;
 pub mod position;
+pub mod sidebar;
 pub mod splitter;
 pub mod tooltip;
 
@@ -1033,6 +1034,7 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        Self::wire_sidebar(root.clone())?;
 
         Ok(Self {
             component,
@@ -1148,6 +1150,7 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        Self::wire_sidebar(root.clone())?;
 
         Ok(Self {
             component,
@@ -1672,6 +1675,35 @@ where
                 Self::apply_dirty_if_any(state, updated_root, &binding_table, &keyed_list_cache);
             },
         )
+    }
+
+    /// Sidebar（`fandhe-frontend-headless-ui` `sidebar` モジュール）の
+    /// Cmd/Ctrl+B ショートカット・モバイル drawer 切替・`menu-button`
+    /// tooltip hover 配線を [`sidebar::wire_sidebar_events`] 経由で `root`
+    /// へ配線する（イシュー #2074）。`Self::mount`/`Self::hydrate` の双方
+    /// から `Self::wire_number_input` の直後に 1 回だけ呼ばれる。
+    ///
+    /// trigger/rail のクリック開閉自体は `dispatch` チャネルを要さず
+    /// [`crate::headless::MAPPING_TABLE`] 経由で既に成立している
+    /// （`Self::wire`/`events::wire_events` の既存経路）ため、本メソッドは
+    /// [`sidebar::wire_sidebar_events`] へ `root` を渡すだけで、他の
+    /// `wire_*` メソッドのような `component`/`binding_table`/
+    /// `keyed_list_cache` の受け渡しを必要としない（`sidebar` モジュールが
+    /// 一切 `dispatch` を持たず click 合成のみで完結する設計、
+    /// `sidebar.rs` モジュール doc「click 合成で完結させる設計」参照）。
+    ///
+    /// # fail-closed（Sidebar 非搭載アプリへの副作用なし）
+    ///
+    /// `root` 配下に Sidebar の `provider` パーツが存在しない場合、
+    /// [`sidebar::wire_sidebar_events`] はリスナーを 1 つも登録せず
+    /// `Ok(())` を返す。
+    ///
+    /// # Errors
+    ///
+    /// [`sidebar::wire_sidebar_events`]（`add_event_listener_with_callback`）
+    /// の失敗を伝播する。
+    fn wire_sidebar(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        sidebar::wire_sidebar_events(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

@@ -331,6 +331,25 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "toggle",
         requires_value: true,
     },
+    // Sidebar（イシュー #2074、`crates/headless-ui/src/sidebar.rs`）:
+    // `trigger`/`rail` はいずれもクリックで開閉を反転する
+    // "toggle"（`SidebarAction::Toggle`、payload 不使用）。`rail` は
+    // `tabindex="-1"` でキーボードフォーカス対象外だが、マウス/タッチの
+    // click イベント自体は他ボタンと同様に発火するため本表 1 行で足りる
+    // （headless-ui 側の rustdoc「呼び出し文脈」節が本イシューへ配線を
+    // 申し送っている）。
+    MappingRow {
+        scope: "sidebar",
+        part: "trigger",
+        action: "toggle",
+        requires_value: false,
+    },
+    MappingRow {
+        scope: "sidebar",
+        part: "rail",
+        action: "toggle",
+        requires_value: false,
+    },
 ];
 
 /// クリックされた要素（またはその祖先方向の 1 要素）の anatomy 属性を表す
@@ -1062,6 +1081,27 @@ mod tests {
     fn menubar_trigger_disabled_is_none() {
         assert_eq!(
             action_for_part(&part("menubar", "trigger", Some("1"), true)),
+            None
+        );
+    }
+
+    // --- Sidebar（イシュー #2074）: trigger/rail → "toggle"（value 不使用） ---
+
+    #[test]
+    fn sidebar_trigger_and_rail_map_to_toggle() {
+        let trigger_action = action_for_part(&part("sidebar", "trigger", None, false)).unwrap();
+        assert_eq!(trigger_action.action, "toggle");
+        assert_eq!(trigger_action.payload, "");
+
+        let rail_action = action_for_part(&part("sidebar", "rail", None, false)).unwrap();
+        assert_eq!(rail_action.action, "toggle");
+        assert_eq!(rail_action.payload, "");
+    }
+
+    #[test]
+    fn sidebar_trigger_disabled_is_none() {
+        assert_eq!(
+            action_for_part(&part("sidebar", "trigger", None, true)),
             None
         );
     }
