@@ -104,6 +104,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [Accordion](./themes/accordion.md)
 - [Action Bar](./themes/action-bar.md)
 - [Breadcrumb](./themes/breadcrumb.md)
+- [Button Group](./themes/button-group.md)
 - [Carousel](./themes/carousel.md)
 - [Clipboard](./themes/clipboard.md)
 - [Collapsible](./themes/collapsible.md)
