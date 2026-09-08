@@ -2534,7 +2534,6 @@ name = "fandhe-frontend-pre-styled-ui"
 # `variant: TextVariant` フィールドを追加（`TextVariant::Muted` の CSS 出力
 # を純追加）する破壊的変更のため、open PR #2241（0.149.0 主張）との衝突を
 # 避け main 到達値 0.148.0 から +2 マイナーして 0.150.0 とする。
-version = "0.150.0"
 #
 # base 再取り込み（本 PR、イシュー #2055、2026-09-08）: base 再取り込み時点で main は
 # #2070 により独立に 0.149.0 へ到達済みだが、本ブランチの到達値 0.150.0 は
@@ -2542,6 +2541,16 @@ version = "0.150.0"
 # 追い越し済みの場合まで再バンプを要求しない）、追加の再調整はせず 0.150.0 を
 # 維持する。依存先 `fandhe-frontend-headless-ui` の version 要求は main 側の
 # 追随をそのまま採用する（下記参照）。
+#
+# base 再取り込み（本 PR、イシュー #2072、2026-09-09）: base 取り込み時点で
+# main は #2055 等により独立に 0.150.0 へ到達済みであり、本ブランチ自身の
+# 到達値 0.148.1（`fandhe-frontend-headless-ui` 0.68.4 の `sidebar` 新設への
+# 依存追随 patch バンプ）は main を追い越さないため、main の到達値 0.150.0
+# から +1 パッチして 0.150.1 とする（実体変更を伴わない依存追随のみのため
+# minor ではなく patch とする）。本クレート自体の実装（sidebar の Themes 層
+# recipe）は後続イシュー #2073。依存先 `fandhe-frontend-headless-ui` の
+# version 要求は本ブランチの 0.68.4 追随をそのまま採用する（下記参照）。
+version = "0.150.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2556,7 +2565,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.3" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.4" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
