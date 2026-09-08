@@ -387,11 +387,17 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   持つ見た目になり意図した状態を誤って表現してしまう（Demo 節・
 ///   Examples 節のいずれも `render_component_page` の外側 div が
 ///   `.pre-styled-showcase` を持つため、この節に限らず同じ理由で影響
-///   する）。dialog/drawer/popover の `h2` タイトルリセットと同じ理由・
-///   同じ最小リセット（`border-top`/`padding-top`/`letter-spacing` の
-///   みで足り、`margin`/`font-size`/`font-weight` は `heading` recipe の
-///   variant クラス宣言が自然に勝つため宣言しない）を、`data-bordered`
-///   状態に限定した属性セレクタ
+///   する）。dialog/drawer/popover の `h2` タイトルリセットとは異なり
+///   `letter-spacing` は流用しない（イシュー #2056 PR #2244 Bugbot 指摘）:
+///   dialog/drawer/popover の `h2` はタイトルテキストであり `heading`
+///   recipe を経由しないためリセットの副作用がないが、この節の `h2` は
+///   `heading` recipe 自身（`data-scope="heading"`）であり、recipe の
+///   `base` 宣言 `letter-spacing: -0.01em`（`heading.rs` 参照）を
+///   `letter-spacing: normal` で上書きしてしまうとデモが recipe 本来の
+///   トラッキングと異なる見た目になる。よって `border-top`/`padding-top`
+///   の 2 宣言のみで足りる（`margin`/`font-size`/`font-weight` は
+///   `heading` recipe の variant クラス宣言が自然に勝つため宣言しない）
+///   最小リセットを、`data-bordered` 状態に限定した属性セレクタ
 ///   `.pre-styled-showcase h2[data-scope="heading"][data-part="root"][data-bordered]`
 ///   （詳細度 (0,4,1)）で適用する（`data-bordered` を持たない他の h2
 ///   見出しデモは対象外のまま、`site.css` の `.docs-content h2` の
@@ -422,7 +428,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
-.pre-styled-showcase h2[data-scope=\"heading\"][data-part=\"root\"][data-bordered] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase h2[data-scope=\"heading\"][data-part=\"root\"][data-bordered] {\n  border-top: none;\n  padding-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"link\"][data-part=\"root\"]:hover {\n  text-decoration: var(--fandhe-link-text-decoration, none);\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  text-decoration: none;\n}\n";
 
