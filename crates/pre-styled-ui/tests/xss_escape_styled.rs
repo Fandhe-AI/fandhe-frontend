@@ -34,6 +34,7 @@
 
 use fandhe_frontend_core::{el, escape_html, render, text};
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertProps};
+use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, close_button, icon_button, ButtonProps};
@@ -4809,5 +4810,75 @@ fn dialog_body_children_and_attrs_are_escaped_for_all_payloads() {
         );
         assert!(html.contains(r#"data-scope="dialog""#));
         assert!(html.contains(r#"data-part="body""#));
+    }
+}
+
+/// (29) `avatar::group`/`avatar::badge` 経路（イシュー #2044、shadcn/ui
+/// 突合）: pre-styled-only `group`/`badge` パート（`Anatomy::part` 直接
+/// 呼び出し、`dialog::footer`/`dialog::body` と同型）の children・呼び出し側
+/// `attrs` の両方で既定エスケープ（REQ-1）が貫通することを固定する。
+/// あわせて `data-scope`/`data-part` の偽装が headless 層（`Anatomy::part`）
+/// により除去され、生値が出力に残らないことも固定する。
+#[test]
+fn avatar_group_and_badge_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // group: children 経路。
+        let html = render(&avatar::group(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "avatar::group children コンテキスト");
+
+        // group: 呼び出し側 attrs（data-testid）経路。
+        let html = render(&avatar::group(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "avatar::group 呼び出し側 attrs コンテキスト",
+        );
+
+        // group: data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&avatar::group(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "avatar::group の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="avatar""#));
+        assert!(html.contains(r#"data-part="group""#));
+
+        // badge: children 経路。
+        let html = render(&avatar::badge(
+            &AvatarBadgeProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "avatar::badge children コンテキスト");
+
+        // badge: 呼び出し側 attrs（data-testid）経路。
+        let html = render(&avatar::badge(
+            &AvatarBadgeProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "avatar::badge 呼び出し側 attrs コンテキスト",
+        );
+
+        // badge: data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&avatar::badge(
+            &AvatarBadgeProps::default(),
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "avatar::badge の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="avatar""#));
+        assert!(html.contains(r#"data-part="badge""#));
     }
 }
