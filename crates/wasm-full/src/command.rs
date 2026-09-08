@@ -445,6 +445,11 @@ mod wiring {
     const SHORTCUT_SELECTOR: &str = "[data-scope=\"command\"][data-part=\"shortcut\"]";
     /// `[data-scope="command"][data-part="dialog"]` セレクタ。
     const DIALOG_SELECTOR: &str = "[data-scope=\"command\"][data-part=\"dialog\"]";
+    /// `[data-scope="command"][data-part="list"]` セレクタ（codex-review P1
+    /// 是正: `document` 上の Cmd/Ctrl+K ハンドラが dispatch 前に `list_id` を
+    /// 保持していない経路〔[`handle_document_keydown`]〕から、再描画後の
+    /// `dialog` 配下の List パーツを直接解決するために使う）。
+    const LIST_SELECTOR: &str = "[data-scope=\"command\"][data-part=\"list\"]";
     /// `data-action-input` 属性セレクタ断片
     /// （[`crate::events::ACTION_INPUT_ATTR`] と同じ属性契約。`input` パーツが
     /// これを持つ場合は `crate::events::wire_events` が dispatch を担う、
@@ -715,6 +720,70 @@ mod wiring {
         }
     }
 
+    /// [`reflect_filter`] が dispatch 前後で `input` の入力フォーカスを
+    /// 復元するためのスナップショット（codex-review P1 是正:
+    /// `input`/`select` の dispatch が構造フォールバック再描画を誘発すると
+    /// フォーカス中の `input` が削除され、`reflect_filter` の属性同期のみ
+    /// ではフォーカスが戻らないため、dispatch 前に記録し再解決した
+    /// `input` へ復元する）。
+    struct FocusState {
+        /// dispatch 前の時点で `input` が `document.active_element()` と
+        /// 一致していたか。
+        focused: bool,
+        /// `focused` が `true` のときのみ意味を持つ選択範囲
+        /// （`HtmlInputElement::selection_start`/`selection_end`）。
+        selection_start: Option<u32>,
+        selection_end: Option<u32>,
+    }
+
+    /// `input` の現在のフォーカス・選択範囲を記録する（DOM 変更なし）。
+    fn capture_focus_state(input: &Element) -> FocusState {
+        let focused = input
+            .owner_document()
+            .and_then(|doc| doc.active_element())
+            .is_some_and(|active| active.is_same_node(Some(input)));
+        let (selection_start, selection_end) = if focused {
+            input
+                .clone()
+                .dyn_into::<HtmlInputElement>()
+                .ok()
+                .map(|el| {
+                    (
+                        el.selection_start().ok().flatten(),
+                        el.selection_end().ok().flatten(),
+                    )
+                })
+                .unwrap_or((None, None))
+        } else {
+            (None, None)
+        };
+        FocusState {
+            focused,
+            selection_start,
+            selection_end,
+        }
+    }
+
+    /// [`capture_focus_state`] で記録した状態を、再描画後に再解決した
+    /// `input`（生きた DOM）へ復元する。`focused` が `false`（dispatch 前に
+    /// フォーカスされていなかった）なら no-op。
+    fn restore_focus_state(input: &Element, state: &FocusState) {
+        if !state.focused {
+            return;
+        }
+        let Ok(html) = input.clone().dyn_into::<HtmlElement>() else {
+            return;
+        };
+        let _ = html.focus();
+        if let (Ok(input_el), Some(start), Some(end)) = (
+            input.clone().dyn_into::<HtmlInputElement>(),
+            state.selection_start,
+            state.selection_end,
+        ) {
+            let _ = input_el.set_selection_range(start, end);
+        }
+    }
+
     /// 入力イベント（[`ACTION_INPUT`] dispatch の有無に関わらず）ごとに
     /// 呼ばれる絞り込み DOM 反映本体。`root` は配線登録時の root、
     /// `list_id` は List パーツの `id`（[`resolve_list`] で確認済みの
@@ -763,6 +832,9 @@ mod wiring {
             .dyn_into::<HtmlInputElement>()
             .map(|el| el.value())
             .unwrap_or_default();
+        // dispatch 前のフォーカス状態を記録する（codex-review P1 是正、
+        // モジュール冒頭 doc「DOM 同期契約」節参照）。
+        let focus_state = capture_focus_state(&input);
         let items = collect_own_items(&list, &instance_root);
         let visible = visible_flags(&items, &query);
         let plan = {
@@ -790,6 +862,10 @@ mod wiring {
                 let fresh_disabled = disabled_flags(&fresh_items);
                 selection_sync_plan(&fresh_items, &fresh_visible, &fresh_disabled)
             };
+            // dispatch が構造フォールバック再描画を誘発し `input` が
+            // detach された場合、再解決した生きた `input` へフォーカス・
+            // 選択範囲を復元する（codex-review P1 是正）。
+            restore_focus_state(&fresh_input, &focus_state);
             (
                 fresh_instance_root,
                 fresh_list,
@@ -1141,12 +1217,21 @@ mod wiring {
                 let Some(value) = selected.get_attribute("data-value") else {
                     return;
                 };
+                // 再描画をまたいで List パーツを再解決するための識別子
+                // （[`handle_input`]/`MoveSelection` 分岐と同じ契約）。
+                let list_id = list.id();
                 if let Ok(mut cb) = on_action.try_borrow_mut() {
                     (cb)(ActionRef {
                         action: ACTION_EXECUTE.to_string(),
                         payload: value,
                     });
                 }
+                // 実行先がダイアログを開いたまま再描画すると
+                // `hidden`/`aria-activedescendant` が再び失われ得る
+                // （codex-review P1 是正）。ダイアログが閉じる構成では
+                // `reflect_filter` 内の再解決が fail-closed に no-op と
+                // なるだけで安全に収束する。
+                reflect_filter(root, &list_id, on_action);
             }
             super::CommandKeyAction::Close => {
                 if let Ok(mut cb) = on_action.try_borrow_mut() {
@@ -1155,6 +1240,13 @@ mod wiring {
                         payload: String::new(),
                     });
                 }
+                // 処理済み Escape が document 上の
+                // `OverlayCloseController`（親 Dialog 等）まで伝播して
+                // 二重に閉じ処理を誘発しないよう、ここで消費する
+                // （codex-review P1 是正）。`prevent_default()` だけでは
+                // イベント伝播そのものは止まらないため、`root` 上の
+                // 本リスナーで明示的に `stop_propagation()` する。
+                keyboard_event.stop_propagation();
             }
         }
     }
@@ -1242,18 +1334,37 @@ mod wiring {
                 payload: value,
             });
         }
+        // `ACTION_EXECUTE` の実行先がダイアログを開いたまま再描画すると
+        // `hidden`/`aria-activedescendant` が再び失われ得る（codex-review
+        // P1 是正、[`handle_keydown`] の `Execute` 分岐と同型）。ダイアログ
+        // が閉じる構成では `reflect_filter` 内の再解決が fail-closed に
+        // no-op となるだけで安全に収束する。
+        if let Some(list_id) = list_id.as_deref() {
+            reflect_filter(root, list_id, on_action);
+        }
     }
 
     /// document 上の keydown: Cmd/Ctrl+K を判定し、`root` 配下に `dialog`
     /// パーツが存在するときのみ [`ACTION_TOGGLE`] を dispatch する。発火後
-    /// は生きた DOM で `dialog` を再解決し、open なら配下の `input` へ
-    /// `focus()` する（失敗は無視、fail-closed）。
+    /// は生きた DOM で `dialog` を再解決し、open なら絞り込み・選択状態を
+    /// [`reflect_filter`] で再同期してから配下の `input` へ `focus()` する
+    /// （失敗は無視、fail-closed）。
     fn handle_document_keydown(
         _document: &Document,
         root: &Element,
         event: &Event,
         on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
     ) {
+        // `Closure::forget` で document へ登録したリスナーは `root`（マウント
+        // 時点の要素）を無期限に保持し続ける。`root` がその後の再描画で
+        // document から切り離されても本リスナー自体は生き続けるため、
+        // `root.is_connected()` を確認しないと detached subtree 内の
+        // `dialog`（`query_selector` はサブツリー内であれば detached でも
+        // ヒットする）へ toggle を dispatch し続けてしまう（codex-review P1
+        // 是正: 旧コンポーネントへのグローバルショートカット誤発火）。
+        if !root.is_connected() {
+            return;
+        }
         let Some(keyboard_event) = event.dyn_ref::<KeyboardEvent>() else {
             return;
         };
@@ -1274,9 +1385,22 @@ mod wiring {
                 payload: String::new(),
             });
         }
-        // 再描画後の生きた DOM を再解決してから focus する。
+        // 再描画後の生きた DOM を再解決する。open なら絞り込み・選択状態を
+        // 再同期してから `input` へ focus する（codex-review P1・Cursor
+        // Bugbot 是正: dialog の再オープンをまたいで保持される `query` に
+        // 対し、`view()` は `hidden`/`aria-activedescendant` を再現しない
+        // ため、次の `input` イベントまで全項目が可視のまま取り残される。
+        // `reflect_filter` は `list_id` から生きた DOM を再解決して
+        // `input.value()`（＝保持された query）で絞り込みを再計算するため、
+        // 再オープン直後から正しい絞り込み状態を復元できる）。
         if let Some(dialog) = root.query_selector(DIALOG_SELECTOR).ok().flatten() {
             if !dialog.has_attribute("hidden") {
+                if let Some(list) = dialog.query_selector(LIST_SELECTOR).ok().flatten() {
+                    let list_id = list.id();
+                    if !list_id.is_empty() {
+                        reflect_filter(root, &list_id, on_action);
+                    }
+                }
                 if let Some(input) = dialog.query_selector(INPUT_SELECTOR).ok().flatten() {
                     if let Ok(html) = input.dyn_into::<HtmlElement>() {
                         let _ = html.focus();
