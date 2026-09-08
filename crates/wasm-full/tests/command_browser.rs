@@ -24,7 +24,8 @@ use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{
-    Document, Element, Event, EventInit, HtmlInputElement, KeyboardEvent, KeyboardEventInit,
+    Document, Element, Event, EventInit, HtmlElement, HtmlInputElement, KeyboardEvent,
+    KeyboardEventInit,
 };
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -102,6 +103,16 @@ fn input_event() -> Event {
     let init = EventInit::new();
     init.set_bubbles(true);
     Event::new_with_event_init_dict("input", &init).expect("Event::new must not fail")
+}
+
+/// `Element` を `HtmlElement` へキャストする（スクロール回帰テスト向けの
+/// `style()`/`scroll_top()` 操作用、`keynav_browser.rs::html_element` と
+/// 同型）。
+fn html_element(element: &Element) -> HtmlElement {
+    element
+        .clone()
+        .dyn_into::<HtmlElement>()
+        .expect("element must be an HtmlElement")
 }
 
 /// `container` 配下へ Command（root > dialog > input + list(+group/separator)
@@ -1541,4 +1552,93 @@ fn xss_payload_in_item_label_and_value_does_not_create_script_element() {
     assert!(item.query_selector("script").unwrap().is_none());
     let _ = input;
     let _ = items;
+}
+
+// --- (i) 無効化された Command での開閉ショートカット（codex-review P1、イシュー #2069） ---
+
+/// Command root に `data-disabled` を付けたとき、`document` 上の
+/// Cmd/Ctrl+K が [`fandhe_frontend_headless_ui::command::CommandAction::
+/// Toggle`] を dispatch せず、`input` へのフォーカス移動も起きないことを
+/// 検証する（codex-review P1 是正: 従来は dialog の存在だけで toggle が
+/// dispatch され、`handle_keydown`/`handle_input`/`handle_click` が採用する
+/// `has_disabled_ancestor` の無効化契約と不整合だった）。
+#[wasm_bindgen_test]
+fn disabled_root_ignores_toggle_shortcut_and_does_not_focus_input() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let command = Command::default();
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, input, _list, _item_elements) =
+        build_command_dom(&document, "cmd-disabled-toggle", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+    root.set_attribute("data-disabled", "").unwrap();
+    let (component, _log) = wire(root, command);
+
+    let window = web_sys::window().unwrap();
+    window
+        .dispatch_event(&keydown_event_with("k", true, false, false))
+        .unwrap();
+
+    assert!(
+        !component.borrow().is_open(),
+        "data-disabled な Command は Ctrl+K で開かない"
+    );
+    assert_ne!(
+        document.active_element().as_ref(),
+        Some(&input),
+        "無効化時は input へフォーカスが移らない"
+    );
+}
+
+// --- (j) 選択項目のスクロール追随（codex-review P1、イシュー #2069） ---
+
+/// `list` パーツに `overflow-y: auto` + 固定 `height`（アプリ側のスクロール
+/// 可能な候補リスト構成、`keynav_browser.rs::
+/// select_open_arrow_down_scrolls_highlighted_item_into_view_when_content_overflows`
+/// と同型の可視領域制約）を与え、末尾項目（初期スクロール位置では不可視）
+/// まで ArrowDown で選択を移動させると `list.scroll_top` が 0 から動く
+/// （スクロール追随が発生したことの直接証拠）ことを検証する（codex-review
+/// P1 是正: `crate::keynav::wiring::scroll_item_into_view_if_needed` を
+/// Command の `sync_selection`/`write_selection_plan` から再利用した回帰
+/// 固定）。
+#[wasm_bindgen_test]
+fn arrow_down_scrolls_selected_item_into_view_when_list_overflows() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let (root, _dialog, input, list, item_elements) =
+        build_command_dom(&document, "cmd-scroll", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let list_html = html_element(&list);
+    list_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    list_html.style().set_property("height", "80px").unwrap();
+    list_html.style().set_property("display", "block").unwrap();
+    for item in &item_elements {
+        let item_html = html_element(item);
+        item_html.style().set_property("height", "30px").unwrap();
+        item_html.style().set_property("display", "block").unwrap();
+    }
+
+    let (_component, _log) = wire(root, command);
+    assert_eq!(list_html.scroll_top(), 0);
+
+    for _ in 0..20 {
+        input.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+
+    let last_item = &item_elements[19];
+    assert!(last_item.has_attribute("data-selected"));
+    assert!(
+        list_html.scroll_top() > 0,
+        "選択項目がスクロール可能な list 外へ出たら list.scroll_top が 0 から動く"
+    );
 }

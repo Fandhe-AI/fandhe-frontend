@@ -404,7 +404,8 @@ mod wiring {
     };
     use crate::events::{ActionRef, AttrSource};
     use crate::keynav::wiring::{
-        closest, collect_parts, disabled_flags, modifiers_of, set_dom_attribute,
+        closest, collect_parts, disabled_flags, modifiers_of, scroll_item_into_view_if_needed,
+        set_dom_attribute,
     };
     use crate::keynav::{highlight_next_index, menu_loop_focus_from_attr};
     use wasm_bindgen::closure::Closure;
@@ -720,6 +721,15 @@ mod wiring {
     /// [`SelectionPlan`] を DOM へ反映する（`data-selected`/`aria-selected`/
     /// `input` の `aria-activedescendant`。dispatch は行わない、
     /// [`selection_plan_dispatch`] と責務分離）。
+    ///
+    /// `Keep`/`Select` いずれの分岐でも、選択中 item を
+    /// [`scroll_item_into_view_if_needed`]（`crate::keynav::wiring` から
+    /// 再利用、境界は Command の [`LIST_SELECTOR`]）で最寄りのスクロール
+    /// 可能な祖先内へ表示させる（codex-review P1 是正: 高さ制限された
+    /// 候補リストで ArrowDown/End を繰り返しても選択項目が可視領域外へ
+    /// 出たまま追随しなかった不具合、イシュー #2069）。既に可視領域内なら
+    /// no-op であり、スクロール可能な祖先を持たない構成（`list` に
+    /// `overflow-y`/`max-height` を設定しない既定 CSS）でも副作用がない。
     fn write_selection_plan(input: &Element, items: &[Element], plan: SelectionPlan) {
         match plan {
             SelectionPlan::Keep(idx) => {
@@ -736,6 +746,7 @@ mod wiring {
                 } else {
                     let _ = input.remove_attribute("aria-activedescendant");
                 }
+                scroll_item_into_view_if_needed(target, LIST_SELECTOR);
             }
             SelectionPlan::Select(idx) => {
                 for item in items {
@@ -752,6 +763,7 @@ mod wiring {
                 } else {
                     let _ = input.remove_attribute("aria-activedescendant");
                 }
+                scroll_item_into_view_if_needed(target, LIST_SELECTOR);
             }
             SelectionPlan::Deselect => {
                 for item in items {
@@ -1037,6 +1049,11 @@ mod wiring {
 
     /// `visible_items[next_index]` を選択状態へ同期する（`data-selected`
     /// presence・`aria-selected`・`input` の `aria-activedescendant`）。
+    ///
+    /// 新規選択項目を [`scroll_item_into_view_if_needed`]（境界は Command
+    /// の [`LIST_SELECTOR`]）で可視領域へ追随させる（codex-review P1 是正:
+    /// ArrowDown/ArrowUp/Home/End の矢印キー選択経路、イシュー #2069。
+    /// [`write_selection_plan`] の doc コメント参照）。
     fn sync_selection(input: &Element, visible_items: &[Element], next_index: usize) {
         for item in visible_items {
             let _ = item.remove_attribute("data-selected");
@@ -1052,6 +1069,7 @@ mod wiring {
         } else {
             let _ = input.remove_attribute("aria-activedescendant");
         }
+        scroll_item_into_view_if_needed(target, LIST_SELECTOR);
     }
 
     /// `input` イベント: `INPUT_PART` 上でのみ反応する。`data-action-input`
@@ -1535,9 +1553,26 @@ mod wiring {
         if !is_toggle_shortcut(&keyboard_event.key(), modifiers) {
             return;
         }
-        let Some(_dialog) = root.query_selector(DIALOG_SELECTOR).ok().flatten() else {
+        let Some(dialog) = root.query_selector(DIALOG_SELECTOR).ok().flatten() else {
             return;
         };
+        // Command インスタンス（`dialog` の最も近い `ROOT_SELECTOR` 祖先）を
+        // 解決し、`has_disabled_ancestor` で無効化契約を確認する
+        // （codex-review P1 是正: 従来は dialog の存在だけで toggle を
+        // dispatch していたため、`handle_keydown`/`handle_input`/
+        // `handle_click` が採用する `data-disabled` 無効化契約と不整合
+        // だった。`root` へ `data-disabled` を付けても Cmd/Ctrl+K で開閉・
+        // フォーカス移動できてしまう不具合の是正）。`resolve_instance_root`
+        // は越境防止のため `wired_root`（`root`）に含まれることも確認する
+        // fail-closed 実装であり、解決できない（改ざん・越境等）場合も
+        // 他ハンドラ（`handle_keydown`/`handle_click`）と同型に no-op へ
+        // 倒す。
+        let Some(instance_root) = resolve_instance_root(root, &dialog) else {
+            return;
+        };
+        if has_disabled_ancestor(root, &instance_root) {
+            return;
+        }
         keyboard_event.prevent_default();
         if let Ok(mut cb) = on_action.try_borrow_mut() {
             (cb)(ActionRef {
