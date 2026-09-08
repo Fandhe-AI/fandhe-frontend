@@ -61,7 +61,7 @@
 //! #942 の責務であり、本モジュールは器（レジストリと照会 API）のみを
 //! 提供する。
 
-use fandhe_frontend_core::{div, el, p, render, text, Node};
+use fandhe_frontend_core::{div, el, p, render, span, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{
@@ -166,7 +166,9 @@ use fandhe_frontend_pre_styled_ui::rating_group::{
 };
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::segment_group;
-use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
+use fandhe_frontend_pre_styled_ui::separator::{
+    group as separator_group, label as separator_label, separator, SeparatorProps, SeparatorVariant,
+};
 use fandhe_frontend_pre_styled_ui::skeleton::{
     skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant,
 };
@@ -2025,10 +2027,54 @@ fn separator_section() -> Node {
             vec![("style", "height: 3rem;")],
         ),
     ]);
+    // イシュー #2053（shadcn/ui 突合）: ラベル付き区切り線（線 – テキスト –
+    // 線、chakra-ui の HStack + Text 合成相当）の実演。`group`/`label` の
+    // Anatomy 表・`data-*` 表はこの Demo から機械導出されるため、ここに
+    // 必ず現れる必要がある。
+    let labeled_row = row(vec![separator_group(
+        vec![("style", "width: 16rem;")],
+        vec![
+            separator(&SeparatorProps::default(), vec![]),
+            separator_label(vec![], vec![text("OR")]),
+            separator(&SeparatorProps::default(), vec![]),
+        ],
+    )]);
+    // イシュー #2053: shadcn/ui Vertical Example 相当（`Blog | Docs |
+    // Source` の横並び）の実演。既存 API（core `span` + `separator`）のみで
+    // 再現可能であり、専用パートの新設は不要（モジュール冒頭 rustdoc
+    // 参照）。
+    let vertical_inline_row = row(vec![div(
+        vec![("style", "display: flex; align-items: center; gap: 1rem;")],
+        vec![
+            span(vec![], vec![text("Blog")]),
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Vertical,
+                    variant: SeparatorVariant::Solid,
+                },
+                vec![("style", "height: 1.25rem;")],
+            ),
+            span(vec![], vec![text("Docs")]),
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Vertical,
+                    variant: SeparatorVariant::Solid,
+                },
+                vec![("style", "height: 1.25rem;")],
+            ),
+            span(vec![], vec![text("Source")]),
+        ],
+    )]);
     section(
         "Separator",
-        "区切り線。role=\"separator\" と aria-orientation/data-orientation を常時出力します。orientation（horizontal/vertical）と variant（solid/dashed/dotted）の 2 軸を持ち、太さは --fandhe-separator-thickness（既定 1px）の上書きで変更します。",
-        vec![horizontal_row, thickness_row, vertical_row],
+        "区切り線。role=\"separator\" と aria-orientation/data-orientation を常時出力します。orientation（horizontal/vertical）と variant（solid/dashed/dotted）の 2 軸を持ち、太さは --fandhe-separator-thickness（既定 1px）の上書きで変更します。group/label（イシュー #2053）でラベル付き区切り線を、既存 API のみで shadcn/ui の Vertical inline 合成を実演します。",
+        vec![
+            horizontal_row,
+            thickness_row,
+            vertical_row,
+            labeled_row,
+            vertical_inline_row,
+        ],
     )
 }
 
