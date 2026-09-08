@@ -41,6 +41,9 @@
 //! - [`pie`]: 円弧ジオメトリ（角度計算・sector/annulus path 生成、イシュー
 //!   #850）。[`crate::pie_chart`]/[`crate::donut_chart`]（styled 層）が
 //!   本モジュールを経由して円グラフ・ドーナツグラフの `d` 属性を組み立てる。
+//!   角丸端の環状セクタ（[`pie::annulus_sector_rounded_path`]、イシュー
+//!   #2079）は [`crate::radial_chart`]（同心リング型グラフ）の shape/text
+//!   バリアントが消費する。
 //!
 //! # 本モジュールの不変条件（[`crate`] クレート全体の不変条件を継承、
 //! `.claude/rules/coding-rust.md`）

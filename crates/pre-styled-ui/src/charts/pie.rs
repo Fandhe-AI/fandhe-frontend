@@ -39,6 +39,18 @@
 //!   モジュール doc 参照）。
 //! - `large_arc` フラグは弧の中心角が半周（`π`）を超える場合
 //!   （`end - start > π`）に真とする。
+//!
+//! # 角丸端（[`annulus_sector_rounded_path`]、イシュー #2079）
+//!
+//! [`crate::radial_chart`] の shape/text バリアントが要求する、環状セクタの
+//! 弧端（外周・内周それぞれの両端）を丸めた path を組み立てる。角丸半径
+//! `rc` は次の 2 段階でクランプする: (1) `rc <= (r_outer - r_inner) / 2`
+//! （帯の半分を超える丸めは幾何的に破綻するため）、(2) 弧の中心角
+//! （`span = end - start`）が狭く内周コーナー同士が重なる場合
+//! （`span < 2·δ_i`。`δ_i = asin(rc / (r_inner + rc))` は内周コーナー円の
+//! 中心が占める角度オフセット）はさらに `rc` を縮小する。`rc <= 0` または
+//! 非有限、あるいは縮小後に `rc <= 0` となった場合は角丸なし
+//! （[`annulus_sector_path`] と同一出力）へフォールバックする。
 
 use super::svg::PathBuilder;
 use std::f64::consts::{FRAC_PI_2, PI};
@@ -153,7 +165,13 @@ fn is_large_arc(start: f64, end: f64) -> bool {
 
 /// 中心 `(cx, cy)`・半径 `r`・角度 `theta`（ラジアン、モジュール doc の
 /// 角度規約に従う）の円周上の座標を返す。
-fn point_on_circle(cx: f64, cy: f64, r: f64, theta: f64) -> (f64, f64) {
+///
+/// `pub(crate)`（イシュー #2079）: [`crate::radial_chart`] のグリッド
+/// （同心円境界・放射スポーク）・ラベル配置が本クレート内の他モジュールから
+/// 同じ極座標→直交変換を必要とするため公開範囲をクレート内へ広げた
+/// （`fmt_coord` 以外の文字列化を持ち込まない不変条件は維持、呼び出し元は
+/// 返り値をそのまま `svg::fmt_coord` 経由の属性値へ渡す）。
+pub(crate) fn point_on_circle(cx: f64, cy: f64, r: f64, theta: f64) -> (f64, f64) {
     (cx + r * theta.cos(), cy + r * theta.sin())
 }
 
@@ -201,6 +219,131 @@ pub fn annulus_sector_path(
         .arc_to(r_outer, r_outer, 0.0, large_arc, true, x2, y2)
         .line_to(x3, y3)
         .arc_to(r_inner, r_inner, 0.0, large_arc, false, x4, y4)
+        .close()
+        .build()
+}
+
+/// 弧端（外周・内周の両端）を丸めた環状セクタの `d` 属性値を組み立てる
+/// （[`crate::radial_chart`] の shape/text バリアント、イシュー #2079）。
+///
+/// モジュール doc「角丸端」節の手順に従う。`rc`（角丸半径、viewBox 単位）
+/// が非有限・`0` 以下、または帯厚・弧長からのクランプ後に `0` 以下となった
+/// 場合は角丸を諦め [`annulus_sector_path`] と**バイト同一**の出力を返す
+/// （呼び出し元が `rc` の事前検証をせずそのまま渡せる fail-soft 設計）。
+///
+/// `r_outer > r_inner > 0` は [`annulus_sector_path`] と同じく呼び出し元の
+/// 責務とする。
+#[must_use]
+pub fn annulus_sector_rounded_path(
+    cx: f64,
+    cy: f64,
+    r_outer: f64,
+    r_inner: f64,
+    start: f64,
+    end: f64,
+    rc: f64,
+) -> String {
+    if !(rc.is_finite() && rc > 0.0) {
+        return annulus_sector_path(cx, cy, r_outer, r_inner, start, end);
+    }
+    // 手順 2: 帯厚の半分を超える丸めは幾何的に破綻するためクランプする。
+    let mut rc = rc.min((r_outer - r_inner) / 2.0);
+    if rc <= 0.0 {
+        return annulus_sector_path(cx, cy, r_outer, r_inner, start, end);
+    }
+
+    // 手順 3: コーナー円中心半径・角度オフセットを算出する（`rc` の値ごとに
+    // 再利用するためクロージャ化。手順 4 で `rc` を縮小した場合に同じ計算を
+    // 再実行する）。
+    let corner_geometry = |rc: f64| {
+        let rho_o = r_outer - rc;
+        let delta_o = (rc / rho_o).asin();
+        let rho_i = r_inner + rc;
+        let delta_i = (rc / rho_i).asin();
+        (rho_o, delta_o, rho_i, delta_i)
+    };
+
+    let span = end - start;
+    let (_, _, _, delta_i_initial) = corner_geometry(rc);
+    // 手順 4: 弧の中心角が半周（`π`）以上ならコーナー同士は重なり得ないため
+    // 縮小不要。半周未満かつ内周コーナーが重なる幅（`span < 2·δ_i`）の場合
+    // のみ `rc` を縮小して再計算する。
+    if span < PI && span < 2.0 * delta_i_initial {
+        let s = (span / 2.0).sin();
+        rc = rc.min(r_inner * s / (1.0 - s));
+        if rc <= 0.0 {
+            return annulus_sector_path(cx, cy, r_outer, r_inner, start, end);
+        }
+    }
+    let (rho_o, delta_o, rho_i, delta_i) = corner_geometry(rc);
+
+    // 外周コーナー・内周コーナーが放射線（`start`/`end`）と接する点の半径
+    // （コーナー円の中心からコーナー半径 `rc` を差し引いた直角三角形の
+    // 残る一辺）。
+    let outer_corner_tangent_r = (rho_o * rho_o - rc * rc).sqrt();
+    let inner_corner_tangent_r = (rho_i * rho_i - rc * rc).sqrt();
+
+    let outer_arc_start = point_on_circle(cx, cy, r_outer, start + delta_o);
+    let outer_arc_end = point_on_circle(cx, cy, r_outer, end - delta_o);
+    let outer_large_arc = is_large_arc(start + delta_o, end - delta_o);
+    let end_outer_tangent = point_on_circle(cx, cy, outer_corner_tangent_r, end);
+    let end_inner_tangent = point_on_circle(cx, cy, inner_corner_tangent_r, end);
+    let inner_arc_end = point_on_circle(cx, cy, r_inner, end - delta_i);
+    let inner_arc_start = point_on_circle(cx, cy, r_inner, start + delta_i);
+    let inner_large_arc = is_large_arc(start + delta_i, end - delta_i);
+    let start_inner_tangent = point_on_circle(cx, cy, inner_corner_tangent_r, start);
+    let start_outer_tangent = point_on_circle(cx, cy, outer_corner_tangent_r, start);
+
+    PathBuilder::new()
+        .move_to(outer_arc_start.0, outer_arc_start.1)
+        .arc_to(
+            r_outer,
+            r_outer,
+            0.0,
+            outer_large_arc,
+            true,
+            outer_arc_end.0,
+            outer_arc_end.1,
+        )
+        .arc_to(
+            rc,
+            rc,
+            0.0,
+            false,
+            true,
+            end_outer_tangent.0,
+            end_outer_tangent.1,
+        )
+        .line_to(end_inner_tangent.0, end_inner_tangent.1)
+        .arc_to(rc, rc, 0.0, false, true, inner_arc_end.0, inner_arc_end.1)
+        .arc_to(
+            r_inner,
+            r_inner,
+            0.0,
+            inner_large_arc,
+            false,
+            inner_arc_start.0,
+            inner_arc_start.1,
+        )
+        .arc_to(
+            rc,
+            rc,
+            0.0,
+            false,
+            true,
+            start_inner_tangent.0,
+            start_inner_tangent.1,
+        )
+        .line_to(start_outer_tangent.0, start_outer_tangent.1)
+        .arc_to(
+            rc,
+            rc,
+            0.0,
+            false,
+            true,
+            outer_arc_start.0,
+            outer_arc_start.1,
+        )
         .close()
         .build()
 }
@@ -379,5 +522,69 @@ mod tests {
         let a = annulus_full_ring_path(50.0, 50.0, 45.0, 27.0);
         let b = annulus_full_ring_path(50.0, 50.0, 45.0, 27.0);
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn annulus_sector_rounded_path_with_zero_or_non_finite_rc_matches_unrounded() {
+        let unrounded = annulus_sector_path(50.0, 50.0, 45.0, 20.0, 0.0, FRAC_PI_2);
+        for rc in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(
+                annulus_sector_rounded_path(50.0, 50.0, 45.0, 20.0, 0.0, FRAC_PI_2, rc),
+                unrounded,
+                "rc={rc}"
+            );
+        }
+    }
+
+    #[test]
+    fn annulus_sector_rounded_path_has_four_corner_arcs_and_two_main_arcs() {
+        let d = annulus_sector_rounded_path(50.0, 50.0, 45.0, 20.0, 0.0, FRAC_PI_2, 4.0);
+        assert_eq!(d.matches('A').count(), 6, "d={d}");
+        assert_eq!(d.matches("A4,4,").count(), 4, "d={d}");
+    }
+
+    #[test]
+    fn annulus_sector_rounded_path_is_deterministic() {
+        let a = annulus_sector_rounded_path(50.0, 50.0, 45.0, 20.0, 0.0, FRAC_PI_2, 4.0);
+        let b = annulus_sector_rounded_path(50.0, 50.0, 45.0, 20.0, 0.0, FRAC_PI_2, 4.0);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn annulus_sector_rounded_path_clamps_oversized_rc_to_half_band_width() {
+        // 帯厚 (45-20)=25 の半分は 12.5。これを大幅に超える rc=100 は
+        // クランプ後の rc=12.5 と同一出力になる。
+        let clamped = annulus_sector_rounded_path(50.0, 50.0, 45.0, 20.0, 0.0, FRAC_PI_2, 12.5);
+        let oversized = annulus_sector_rounded_path(50.0, 50.0, 45.0, 20.0, 0.0, FRAC_PI_2, 100.0);
+        assert_eq!(clamped, oversized);
+    }
+
+    #[test]
+    fn annulus_sector_rounded_path_shrinks_rc_for_narrow_span_without_breaking_structure() {
+        // 内周半径が小さく弧が狭い（0.05 rad）と、既定のコーナー半径では
+        // 内周コーナー同士が重なるため縮小が発動する。縮小後も 6 本の
+        // `A` セグメント構造（コーナー 4 + 主弧 2）を維持することを固定する。
+        let d = annulus_sector_rounded_path(50.0, 50.0, 45.0, 5.0, 0.0, 0.05, 4.0);
+        assert_eq!(d.matches('A').count(), 6, "d={d}");
+        assert!(!d.contains("NaN"), "d={d}");
+    }
+
+    #[test]
+    fn annulus_sector_rounded_path_output_charset_is_closed() {
+        let d = annulus_sector_rounded_path(50.0, 50.0, 45.0, 20.0, 0.0, FRAC_PI_2, 4.0);
+        assert!(is_closed_path_charset(&d), "d={d}");
+    }
+
+    /// [`super::svg`] のテストヘルパー `is_closed_charset` と同型の判定
+    /// （`M`/`L`/`A`/`Z` + 数字・`.`・`-`・空白・`,` のみ）。
+    fn is_closed_path_charset(s: &str) -> bool {
+        s.chars().all(|c| {
+            c.is_ascii_digit()
+                || c == '.'
+                || c == '-'
+                || c == ' '
+                || c == ','
+                || matches!(c, 'M' | 'L' | 'Z' | 'A')
+        })
     }
 }
