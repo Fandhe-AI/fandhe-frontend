@@ -377,6 +377,25 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   ホバー時も下線のまま）を保つため `var(--fandhe-link-text-decoration,
 ///   none)` をそのまま再適用し、Nav List 側は recipe と同じ固定値
 ///   `none` を再適用する。
+/// - Heading の `data-bordered` opt-in 状態（shadcn h2 の `border-b pb-2`
+///   相当、イシュー #2056、Bugbot 指摘）: `heading` recipe
+///   （`crates/pre-styled-ui/src/heading.rs`）は `data-bordered` 付与時に
+///   `border-bottom` のみを付与する opt-in 状態規則を持つが、この状態を
+///   `HeadingLevel::H2` で実演すると `site.css` の `.docs-content h2`
+///   （`border-top`/`padding-top` を宣言、`typography_css` 参照）が
+///   同時に適用され、下罫線のみを表すはずのデモが上下両方に罫線を
+///   持つ見た目になり意図した状態を誤って表現してしまう（Demo 節・
+///   Examples 節のいずれも `render_component_page` の外側 div が
+///   `.pre-styled-showcase` を持つため、この節に限らず同じ理由で影響
+///   する）。dialog/drawer/popover の `h2` タイトルリセットと同じ理由・
+///   同じ最小リセット（`border-top`/`padding-top`/`letter-spacing` の
+///   みで足り、`margin`/`font-size`/`font-weight` は `heading` recipe の
+///   variant クラス宣言が自然に勝つため宣言しない）を、`data-bordered`
+///   状態に限定した属性セレクタ
+///   `.pre-styled-showcase h2[data-scope="heading"][data-part="root"][data-bordered]`
+///   （詳細度 (0,4,1)）で適用する（`data-bordered` を持たない他の h2
+///   見出しデモは対象外のまま、`site.css` の `.docs-content h2` の
+///   border-top をそのまま活かす）。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
@@ -403,6 +422,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase h2[data-scope=\"heading\"][data-part=\"root\"][data-bordered] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"link\"][data-part=\"root\"]:hover {\n  text-decoration: var(--fandhe-link-text-decoration, none);\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  text-decoration: none;\n}\n";
 
