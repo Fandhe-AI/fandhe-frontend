@@ -157,6 +157,11 @@ source = "site/primitives/image-cropper.md"
 path = "/primitives/image-cropper/"
 
 [[section.group.page]]
+title = "Input Group"
+source = "site/primitives/input-group.md"
+path = "/primitives/input-group/"
+
+[[section.group.page]]
 title = "Listbox"
 source = "site/primitives/listbox.md"
 path = "/primitives/listbox/"

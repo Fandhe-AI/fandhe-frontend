@@ -5,9 +5,10 @@
 //!
 //! [`crate::component_page::spec_for`] が `Layer::Primitives` のときに探索
 //! する [`crate::primitive_specs::SPEC_TABLES`] の 1 要素として本モジュールの
-//! [`SPECS`] を返す。対象 11 部品（angle-slider / checkbox / checkbox-group /
+//! [`SPECS`] を返す。対象 12 部品（angle-slider / checkbox / checkbox-group /
 //! color-picker / combobox / editable / field / fieldset / file-upload /
-//! image-cropper / listbox）の Demo（Anatomy・`data-*` 属性表の機械導出元）
+//! image-cropper / input-group / listbox。イシュー #2062 で input-group を
+//! 追加、旧 11 部品）の Demo（Anatomy・`data-*` 属性表の機械導出元）
 //! はすでに [`crate::primitive_showcase::forms_a`]（イシュー #1022）が供給
 //! 済みであり、本モジュールは Features / API Reference 引数表 / Examples /
 //! Accessibility の 4 節のみを埋める（[`crate::component_page::ComponentPageSpec`]
@@ -103,6 +104,7 @@ use hui::field::{self, FieldProps};
 use hui::fieldset::{self, FieldsetProps};
 use hui::file_upload;
 use hui::image_cropper::{self, HandlePosition, ImageCropper, ImageCropperProps};
+use hui::input_group::{self, InputGroupAlign, InputGroupProps};
 use hui::listbox;
 use hui::{angle_slider, checkbox, OpenState};
 
@@ -121,6 +123,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/fieldset/", FIELDSET),
     ("/primitives/file-upload/", FILE_UPLOAD),
     ("/primitives/image-cropper/", IMAGE_CROPPER),
+    ("/primitives/input-group/", INPUT_GROUP),
     ("/primitives/listbox/", LISTBOX),
 ];
 
@@ -2026,6 +2029,169 @@ const IMAGE_CROPPER: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-hidden=\"true\"",
             description: "grid パーツへ固定付与する（装飾用、イシュー #1610）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Input Group
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/input_group.rs`（root/addon/text/button
+/// の各パーツ関数、イシュー #2062）。invalid な input-group と
+/// `field::input` の合成例。
+fn ex_input_group() -> Node {
+    let group_props = InputGroupProps {
+        disabled: false,
+        invalid: true,
+    };
+    let field_props = group_props.merge_field_props(FieldProps {
+        id: "ig1-email",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    });
+    let body = vec![input_group::root(
+        &group_props,
+        vec![],
+        vec![
+            field::label(&field_props, vec![], vec![text("Email")]),
+            input_group::addon(
+                InputGroupAlign::InlineStart,
+                &group_props,
+                vec![],
+                vec![input_group::text(vec![], vec![text("@")])],
+            ),
+            field::input(
+                &field_props,
+                vec![("type", "email"), ("name", "email"), ("value", "")],
+            ),
+        ],
+    )];
+    wrap_example(
+        "invalid な Input Group と field::input の合成例です。merge_field_props により field::input 側にも aria-invalid/data-invalid が反映されます。",
+        body,
+    )
+}
+
+/// 利用者が自前 CSS を当てる最小例（headless-ui 単独利用、pre-styled-ui
+/// 非依存）。
+const INPUT_GROUP_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"input-group\"][data-part=\"root\"] {\n  \
+  display: flex;\n  border: 1px solid #888;\n  border-radius: 4px;\n\
+}\n\
+[data-scope=\"input-group\"][data-part=\"addon\"] {\n  \
+  padding: 0 0.5rem;\n  background: #f3f4f6;\n\
+}\n\
+[data-scope=\"input-group\"][data-part=\"root\"][data-invalid] {\n  \
+  border-color: #dc2626;\n\
+}\n";
+
+fn ex_input_group_custom_css() -> Node {
+    let group_props = InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+    let markup = input_group::root(
+        &group_props,
+        vec![],
+        vec![
+            input_group::addon(
+                InputGroupAlign::InlineStart,
+                &group_props,
+                vec![],
+                vec![input_group::text(vec![], vec![text("$")])],
+            ),
+            input_group::button(&group_props, vec![], vec![text("Clear")]),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-align / data-invalid 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(INPUT_GROUP_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
+const INPUT_GROUP: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "root（role=\"group\"）/addon/text/button の 4 パーツで、入力欄の前後にテキスト・アイコン・ボタンを配置する（shadcn/ui の Input Group 相当、input_group.rs モジュール doc）。",
+        "実際の <input>/<textarea> は本モジュールが出力せず、呼び出し側が crate::field の input/textarea を root の子として合成する契約（`.claude/rules/coding-rust.md` §UI 部品の責務境界 規則 1、input_group.rs:8-16）。",
+        "addon は data-align（inline-start/inline-end/block-start/block-end の 4 値）で配置を表す。inline-* は <input> の前後、block-* は <textarea> の上下を想定する（input_group.rs:107-131）。",
+        "merge_field_props は disabled・invalid の双方を OR 伝播する。fieldset::FieldsetProps と異なり invalid も伝播する理由は「1 group = 1 control」の構造（1 つのコントロールを addon で装飾する）であるため（input_group.rs:95-105）。",
+        "addon に role=\"group\" は重ねない（root が既に role=\"group\" を持つため、入れ子のグループを支援技術へ伝えない、input_group.rs モジュール doc「参考サイトとの意図的な差分」節）。",
+        "button は type=\"button\" を固定し、フォームの暗黙送信を起こさない（input_group.rs:195-213）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "props.disabled",
+            kind: "bool",
+            default: "false",
+            description: "true のとき root/addon/button へ data-disabled を付与する（input_group.rs:83-85）。",
+        },
+        ArgRow {
+            name: "props.invalid",
+            kind: "bool",
+            default: "false",
+            description: "true のとき root へ aria-invalid=\"true\"・data-invalid、addon へも data-invalid を付与する（input_group.rs:86-89, 150-170）。",
+        },
+        ArgRow {
+            name: "merge_field_props(field)",
+            kind: "FieldProps -> FieldProps",
+            default: "",
+            description: "Input Group の disabled・invalid を内包する FieldProps へ OR 伝播する（input_group.rs:95-105）。",
+        },
+        ArgRow {
+            name: "addon(align, props, attrs, children)",
+            kind: "InputGroupAlign, &InputGroupProps, ...",
+            default: "",
+            description: "align は inline-start/inline-end/block-start/block-end の 4 値（既定 inline-start、input_group.rs:107-131）。",
+        },
+        ArgRow {
+            name: "text(attrs, children)",
+            kind: "Vec<(&str, &str)>, Vec<Node>",
+            default: "",
+            description: "addon 内の可視テキストラベル（span）。aria-label は付与しない（input_group.rs:181-186）。",
+        },
+        ArgRow {
+            name: "attrs / children",
+            kind: "Vec<(&str, &str)> / Vec<Node>",
+            default: "",
+            description: "各パーツ共通の追加属性・子ノード（代表 1 行に集約）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Invalid + field::input の合成例",
+            description: "invalid な Input Group と field::input の合成例です。",
+            render: ex_input_group,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part / data-align / data-invalid 属性セレクタで見た目を組み立てる最小例です。",
+            render: ex_input_group_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "Tab",
+        description: "Input Group 自体は独自のキー操作を持たない。addon 内の button・root の子として合成された input/textarea 間の移動はネイティブの Tab 順に従う（input_group.rs モジュール doc「参考サイトとの意図的な差分」節: addon クリックで input へフォーカス移動する JS 配線は wasm-full 側の後続責務のためスコープ外）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "root パーツへ固定付与する（input_group.rs:139-149）。",
+        },
+        AriaRow {
+            attribute: "aria-invalid=\"true\"",
+            description: "invalid のとき root パーツへ付与する（input_group.rs:150-151）。addon/input 個別への aria-labelledby/aria-describedby は付与しない（名前付けは field::label、補足説明は field::helper_text/error_text が担う契約、input_group.rs モジュール doc「ラベル付け・説明の契約」節）。",
         },
     ],
     demo: None,

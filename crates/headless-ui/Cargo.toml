@@ -533,10 +533,13 @@ name = "fandhe-frontend-headless-ui"
 # `Slider::marker` へ `orientation` 引数を追加した（コミット 85a3109e）際に
 # semver バンプが伴っていなかった。既存呼び出し元が引数個数不一致で
 # コンパイルエラーになる破壊的変更のためマイナーバンプし 0.67.0 とする。
+# イシュー #2062: `input_group` モジュール（`root`/`addon`/`text`/`button`
+# anatomy と `data-align`）を新規追加した。非破壊的な公開 API 追加のため
+# マイナーバンプし 0.68.0 とする。
 # イシュー #2059: `button_group`（Root / Separator / Text の 3 anatomy
 # パーツ、shadcn/ui Button Group 相当）を新設した。既存 API への変更は
-# なく非破壊的な追加のため patch バンプし 0.67.1 とする。
-version = "0.67.1"
+# なく非破壊的な追加のため patch バンプし 0.68.1 とする。
+version = "0.68.1"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

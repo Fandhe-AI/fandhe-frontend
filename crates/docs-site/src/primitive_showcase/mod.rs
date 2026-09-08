@@ -172,6 +172,10 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
         render: forms_a::image_cropper_section,
     },
     PrimitivePage {
+        path: "/primitives/input-group/",
+        render: forms_a::input_group_section,
+    },
+    PrimitivePage {
         path: "/primitives/listbox/",
         render: forms_a::listbox_section,
     },

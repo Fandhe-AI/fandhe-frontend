@@ -162,6 +162,15 @@
 //!   #602、親 #578）。[`fieldset::FieldsetProps::merge_field_props`] で
 //!   `disabled` を内包する [`field::FieldProps`] へ OR 伝播する（`invalid` は
 //!   伝播しない）。[`mod@field`] と同じく状態機械を適用しない。
+//! - [`mod@input_group`]: Root / Addon / Text / Button の 4 anatomy パーツ
+//!   関数群（[`input_group::InputGroupProps`] から決定的に描画する純粋関数、
+//!   #2062、親 #2061）。shadcn/ui の Input Group 相当で、実際の
+//!   `<input>`/`<textarea>` は本モジュールが出力せず [`mod@field`] の
+//!   [`field::input`]/[`field::textarea`] を呼び出し側が合成する契約。
+//!   [`input_group::InputGroupProps::merge_field_props`] は `disabled`・
+//!   `invalid` の双方を OR 伝播する（[`mod@fieldset`] と異なり `invalid` も
+//!   伝播する理由は [`mod@input_group`] module doc 参照）。[`mod@field`] と
+//!   同じく状態機械を適用しない。
 //! - [`mod@listbox`]: Root / Label / Content / ItemGroup / ItemGroupLabel /
 //!   Item / ItemText / ItemIndicator / ValueText の 9 anatomy パーツと、
 //!   single モード [`state::SingleSelect`] を埋め込んだ
@@ -746,6 +755,7 @@ pub mod hover_card;
 // （キー → アクションの純粋関数）を追加した。詳細は `image_cropper`
 // モジュール doc「参照突合」節参照。
 pub mod image_cropper;
+pub mod input_group;
 pub mod json_tree_view;
 pub mod link;
 pub mod link_overlay;
@@ -847,6 +857,7 @@ pub use format::{
     SignDisplay, UnitDisplay, UnitSystem,
 };
 pub use hover_card::{HoverCard, HoverCardDelays};
+pub use input_group::{InputGroupAlign, InputGroupProps};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use menubar::{Menubar, MenubarAction};
 pub use navigation_menu::NavigationMenu;

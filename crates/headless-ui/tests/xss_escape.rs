@@ -37,10 +37,10 @@ use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, button_group, carousel, clipboard, color_picker,
     data_state, date_input, dialog, download_trigger, editable, floating_panel, hover_card,
-    image_cropper, listbox, number_input, password_input, pin_input, popover, rating_group,
-    segment_group, signature_pad, slider, splitter, tags_input, timer, toast, tree_view, Calendar,
-    DatePicker, ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps,
-    Steps, ToastStatus, Tour,
+    image_cropper, input_group, listbox, number_input, password_input, pin_input, popover,
+    rating_group, segment_group, signature_pad, slider, splitter, tags_input, timer, toast,
+    tree_view, Calendar, DatePicker, ImageStatus, InputGroupAlign, InputGroupProps, OpenState,
+    Orientation, PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -2068,6 +2068,46 @@ fn button_group_label_text_children_and_attrs_are_escaped_for_all_payloads() {
             payload,
             &html,
             "button_group::root ネスト構成の内側 aria-label コンテキスト",
+        );
+    }
+}
+
+/// イシュー #2062: `input_group` の `text`/`button` children・呼び出し側
+/// attrs 経路の全ペイロードが既定エスケープを経由することを固定する。
+#[test]
+fn input_group_text_button_children_and_attrs_are_escaped_for_all_payloads() {
+    let props = InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+    for payload in payloads::all() {
+        let text_node = input_group::text(vec![], vec![text(payload)]);
+        let html = render(&text_node);
+        assert_payload_is_escaped(payload, &html, "input_group::text のテキストコンテキスト");
+
+        let button_node = input_group::button(&props, vec![], vec![text(payload)]);
+        let html = render(&button_node);
+        assert_payload_is_escaped(payload, &html, "input_group::button のテキストコンテキスト");
+
+        let addon_attrs_node = input_group::addon(
+            InputGroupAlign::InlineStart,
+            &props,
+            vec![("data-testid", payload)],
+            vec![],
+        );
+        let html = render(&addon_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "input_group::addon の呼び出し側 attrs コンテキスト",
+        );
+
+        let root_attrs_node = input_group::root(&props, vec![("data-testid", payload)], vec![]);
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "input_group::root の呼び出し側 attrs コンテキスト",
         );
     }
 }
