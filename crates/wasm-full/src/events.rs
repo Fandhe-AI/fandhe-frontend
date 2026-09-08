@@ -564,7 +564,9 @@ mod wiring {
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, HtmlInputElement, HtmlSelectElement, HtmlTextAreaElement};
+    use web_sys::{
+        Element, Event, HtmlInputElement, HtmlSelectElement, HtmlTextAreaElement, InputEvent,
+    };
 
     /// `web_sys::Element` を [`AttrSource`] に橋渡しする薄いラッパー。
     ///
@@ -892,6 +894,28 @@ mod wiring {
         click_closure.forget();
 
         let input_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            // IME 変換中は dispatch を延期する（イシュー #2069 codex-review
+            // P1 是正）。本リスナーは `root` へ登録された唯一の "input"
+            // ハンドラであり、`data-action-input` を持つ input
+            // （`crate::command::wiring::handle_input` 等、下流の各配線が
+            // 個別に IME 判定を行う消費者）に対しても、その消費者側の
+            // ハンドラより**先に**この dispatch が走る。ここで
+            // `on_action` を呼ぶと状態更新・再描画（構造フォールバック
+            // 含む）が起き、変換中の input 要素ごと再描画で差し替わって
+            // IME 入力が中断され得る。下流ハンドラが独自に `is_composing`
+            // を確認していても、この dispatch 自体を止めなければ手遅れ
+            // （`crate::command` モジュール冒頭 doc「セキュリティ不変
+            // 条件」節、`command::wiring::handle_input` の同型ガードと
+            // 対）。ブラウザは変換確定（compositionend）直後に
+            // `isComposing = false` の "input" イベントをもう一度発火する
+            // 仕様（Safari/Chrome/Firefox 共通）のため、ここで no-op に
+            // しても確定後に自動的に dispatch される。
+            if event
+                .dyn_ref::<InputEvent>()
+                .is_some_and(InputEvent::is_composing)
+            {
+                return;
+            }
             let Some(target) = event.target() else {
                 return;
             };

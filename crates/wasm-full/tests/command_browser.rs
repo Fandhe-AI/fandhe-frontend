@@ -81,6 +81,23 @@ fn keydown_event_with(key: &str, ctrl: bool, meta: bool, alt: bool) -> Event {
         .expect("KeyboardEvent must cast to Event")
 }
 
+/// [`keydown_event_with`] に `repeat: true` を加えたもの（Cursor Bugbot 是正
+/// の回帰テストで使う、押しっぱなしによるキーリピート keydown の模擬）。
+fn keydown_event_with_repeat(key: &str, ctrl: bool, meta: bool, alt: bool) -> Event {
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key(key);
+    init.set_ctrl_key(ctrl);
+    init.set_meta_key(meta);
+    init.set_alt_key(alt);
+    init.set_repeat(true);
+    KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .expect("KeyboardEvent::new must not fail")
+        .dyn_into::<Event>()
+        .expect("KeyboardEvent must cast to Event")
+}
+
 fn keydown_event_composing(key: &str) -> Event {
     let init = KeyboardEventInit::new();
     init.set_bubbles(true);
@@ -103,6 +120,19 @@ fn input_event() -> Event {
     let init = EventInit::new();
     init.set_bubbles(true);
     Event::new_with_event_init_dict("input", &init).expect("Event::new must not fail")
+}
+
+/// IME 変換中（`isComposing: true`）の `"input"` イベント。
+/// `crate::events::wiring::wire_events` の入力 dispatch ガード（codex-review
+/// P1 是正、イシュー #2069）の回帰テストで使う。
+fn composing_input_event() -> Event {
+    let init = web_sys::InputEventInit::new();
+    init.set_bubbles(true);
+    init.set_is_composing(true);
+    web_sys::InputEvent::new_with_event_init_dict("input", &init)
+        .expect("InputEvent::new must not fail")
+        .dyn_into::<Event>()
+        .expect("InputEvent must cast to Event")
 }
 
 /// `Element` を `HtmlElement` へキャストする（スクロール回帰テスト向けの
@@ -1378,6 +1408,57 @@ fn ctrl_alt_k_and_ctrl_meta_k_do_not_toggle() {
     assert!(!component.borrow().is_open(), "Ctrl+Meta+K は no-op");
 }
 
+/// Cursor Bugbot 是正の回帰テスト（イシュー #2069）: Cmd/Ctrl+K の
+/// 押しっぱなしによるキーリピート（`repeat: true`）の keydown でも
+/// `prevent_default()` が呼ばれる（＝ `window.dispatch_event` の戻り値が
+/// `false`）ことを検証する。修正前はキーリピート guard が
+/// `prevent_default()` より前に return していたため、2 回目以降の
+/// keydown でブラウザ既定のショートカット（Chrome の検索/アドレスバー等）
+/// を止められなかった。dispatch（toggle の再発火）自体は repeat 中は
+/// 引き続き無視されることも合わせて確認する（チラつき防止の既存契約を
+/// 弱めない）。
+#[wasm_bindgen_test]
+fn ctrl_k_repeat_still_prevents_default_but_does_not_redispatch_toggle() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let command = Command::default();
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, _input, _list, _item_elements) =
+        build_command_dom(&document, "cmd-ctrl-k-repeat", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let (component, log) = wire(root, command);
+
+    let window = web_sys::window().unwrap();
+    let default_not_prevented = window
+        .dispatch_event(&keydown_event_with("k", true, false, false))
+        .unwrap();
+    assert!(!default_not_prevented, "初回 Ctrl+K は claim される");
+    assert!(component.borrow().is_open(), "初回 Ctrl+K で dialog が開く");
+    assert!(
+        log.borrow()
+            .iter()
+            .any(|(action, _)| action == fandhe_frontend_wasm_full::command::ACTION_TOGGLE),
+        "初回 Ctrl+K は toggle を dispatch する"
+    );
+    // 初回 dispatch 後（`reflect_filter` による自動選択の再 dispatch を
+    // 含み得る）の件数をベースラインとして記録し、キーリピート中は
+    // これ以上増えないことのみを確認する（toggle 自体が正確に 1 回か
+    // どうかは本テストの検証観点ではない）。
+    let dispatch_count_after_first_press = log.borrow().len();
+
+    let repeat_default_not_prevented = window
+        .dispatch_event(&keydown_event_with_repeat("k", true, false, false))
+        .unwrap();
+    assert!(
+        !repeat_default_not_prevented,
+        "キーリピート中の Ctrl+K も prevent_default() され、ブラウザ既定のショートカットへ漏れない"
+    );
+    assert_eq!(
+        log.borrow().len(),
+        dispatch_count_after_first_press,
+        "キーリピート中は toggle を再 dispatch しない（チラつき防止の既存契約）"
+    );
+}
+
 #[wasm_bindgen_test]
 fn ctrl_k_without_any_dialog_part_in_document_is_noop() {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -1434,6 +1515,51 @@ fn input_with_data_action_input_does_not_double_dispatch_but_still_reflects_filt
     assert!(
         item_elements[1].has_attribute("hidden"),
         "絞り込み反映は行われる"
+    );
+}
+
+/// codex-review P1 是正の回帰テスト（イシュー #2069）: `data-action-input`
+/// を持つ input の `"input"` dispatch は本モジュール（`wire_command_events`）
+/// より先に `crate::events::wire_events` が担う。IME 変換中
+/// （`isComposing: true`）は `wire_events` 側の dispatch 自体を延期しないと、
+/// `wire_command_events` 側で `is_composing()` を確認する前に状態更新・
+/// 再描画（構造フォールバック含む）が起きて変換対象の input 要素ごと
+/// 差し替わり、変換が中断され得る。修正前は `wire_events` の `"input"`
+/// リスナーが IME 判定を持たず、`seen` に dispatch が記録され絞り込みも
+/// 反映されてしまっていた。
+#[wasm_bindgen_test]
+fn composing_input_with_data_action_input_is_not_dispatched_by_wire_events() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("calendar", "Calendar", false), ("search", "Search", false)];
+    let (root, _dialog, input, _list, item_elements) =
+        build_command_dom(&document, "cmd-action-input-ime", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+    input
+        .set_attribute("data-action-input", "cmd_query")
+        .unwrap();
+
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorder = seen.clone();
+    fandhe_frontend_wasm_full::events::wire_events(root.clone(), move |action_ref| {
+        recorder.borrow_mut().push(action_ref.action.clone());
+    })
+    .expect("wire_events must not fail");
+    fandhe_frontend_wasm_full::command::wire_command_events(root.clone(), move |_action_ref| {})
+        .expect("wire_command_events must not fail");
+
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    html_input.set_value("cal");
+    input.dispatch_event(&composing_input_event()).unwrap();
+
+    assert!(
+        seen.borrow().is_empty(),
+        "IME 変換中は data-action-input の dispatch を wire_events 側で延期する"
+    );
+    assert!(
+        !item_elements[1].has_attribute("hidden"),
+        "IME 変換中は絞り込み再描画も走らない（構造フォールバックによる input detach 回避）"
     );
 }
 
@@ -1640,5 +1766,203 @@ fn arrow_down_scrolls_selected_item_into_view_when_list_overflows() {
     assert!(
         list_html.scroll_top() > 0,
         "選択項目がスクロール可能な list 外へ出たら list.scroll_top が 0 から動く"
+    );
+}
+
+// --- (k) group 祖先の data-disabled（codex-review P1、イシュー #2069） ---
+
+/// codex-review P1 是正の回帰テスト: `group`（`role="group"`）に
+/// `data-disabled` を付けた構成で、矢印キーの自動選択候補判定
+/// （`selection_sync_plan`）が item 自身の属性だけを見る
+/// `keynav::wiring::disabled_flags` ではなく、祖先込みで判定する
+/// `item_disabled_flags`（内部で `has_disabled_ancestor` を使う）を使う
+/// ことを検証する。修正前は group 配下の item 自身に `data-disabled` が
+/// 無いため誤って選択候補になっていた（Enter 実行・クリックは
+/// `has_disabled_ancestor` で祖先無効化を確認するため、矢印キー選択だけ
+/// 契約が不一致だった）。
+#[wasm_bindgen_test]
+fn arrow_down_skips_item_disabled_via_group_ancestor() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let container_id = "cmd-group-disabled";
+    let list_id = format!("{container_id}-list");
+    let container = create_container(&document, container_id);
+    let entries: [(&str, &str); 2] = [("b", "Beta"), ("a", "Alpha")];
+    let is_empty = command.is_empty(&entries);
+    let node = command.root(
+        is_empty,
+        Vec::new(),
+        vec![command.dialog(
+            "Command Menu",
+            Vec::new(),
+            vec![
+                command.input(&list_id, None, Vec::new()),
+                command::list(
+                    &list_id,
+                    "Suggestions",
+                    is_empty,
+                    Vec::new(),
+                    vec![
+                        command::group(
+                            None,
+                            vec![("data-disabled", "")],
+                            vec![command.item(
+                                "b",
+                                false,
+                                Some(&format!("{container_id}-item-b")),
+                                Vec::new(),
+                                vec![text("Beta")],
+                            )],
+                        ),
+                        command.item(
+                            "a",
+                            false,
+                            Some(&format!("{container_id}-item-a")),
+                            Vec::new(),
+                            vec![text("Alpha")],
+                        ),
+                    ],
+                ),
+            ],
+        )],
+    );
+    container.set_inner_html(&render(&node));
+    let root = container.first_element_child().unwrap();
+    let _cleanup = RemoveOnDrop(root.clone());
+    let input = root
+        .query_selector(r#"[data-scope="command"][data-part="input"]"#)
+        .unwrap()
+        .unwrap();
+    let item_b = root
+        .query_selector(&format!("#{container_id}-item-b"))
+        .unwrap()
+        .unwrap();
+    let item_a = root
+        .query_selector(&format!("#{container_id}-item-a"))
+        .unwrap()
+        .unwrap();
+    let (_component, _log) = wire(root, command);
+
+    input.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+
+    assert!(
+        !item_b.has_attribute("data-selected"),
+        "group の data-disabled 配下の item は選択候補から除外される"
+    );
+    assert!(
+        item_a.has_attribute("data-selected"),
+        "group 配下でない次の enabled item が選択される"
+    );
+    assert_eq!(
+        input.get_attribute("aria-activedescendant").as_deref(),
+        Some(format!("{container_id}-item-a").as_str())
+    );
+}
+
+// --- (l) 配線 root 自体の data-disabled と detach（codex-review P1、
+//     イシュー #2069） ---
+
+/// codex-review P1 是正の回帰テスト: `data-action-input` を持つ input の
+/// 先行 dispatch（`crate::events::wire_events`）が構造フォールバックで
+/// 配線 root の子だけを差し替えた後、古い（detach 済みの） input 要素上で
+/// 発火した `"input"` イベントに対し、`handle_input` 冒頭の disabled 判定
+/// （`has_disabled_ancestor(root, target_element)`）は detach 済みの
+/// `target_element` から `root` へ祖先を辿れず `root` 自身の
+/// `data-disabled` を見逃してしまう（修正前の実装）。`root` 自身の属性を
+/// 直接確認する経路を追加したことで、detach 後もこの状況が
+/// no-op になることを検証する。
+#[wasm_bindgen_test]
+fn data_action_input_dispatch_is_noop_when_wiring_root_disabled_survives_child_detach() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("calendar", "Calendar", false), ("search", "Search", false)];
+    let (root, _dialog, stale_input, _list, _item_elements) =
+        build_command_dom(&document, "cmd-root-disabled-detach", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+    // 配線 root 自体を無効化する（root は以後も document に残り続ける、
+    // wire_events 相当の構造フォールバックが子だけを差し替える想定）。
+    root.set_attribute("data-disabled", "").unwrap();
+    stale_input
+        .set_attribute("data-action-input", "cmd_query")
+        .unwrap();
+
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorder = seen.clone();
+    fandhe_frontend_wasm_full::command::wire_command_events(root.clone(), move |action_ref| {
+        recorder.borrow_mut().push(action_ref.action.clone());
+    })
+    .expect("wire_command_events must not fail");
+
+    // wire_events による構造フォールバック（root の子だけを新しい DOM で
+    // 差し替え、root 自身は維持する）を模倣する: root の innerHTML を
+    // 同一構成で再構築し、以後 `stale_input`（旧参照）は root から
+    // detach された状態になる。
+    let list_id = "cmd-root-disabled-detach-list".to_string();
+    let entries: [(&str, &str); 2] = [("calendar", "Calendar"), ("search", "Search")];
+    let is_empty = command.is_empty(&entries);
+    let refreshed = command.root(
+        is_empty,
+        Vec::new(),
+        vec![command.dialog(
+            "Command Menu",
+            Vec::new(),
+            vec![
+                command.input(&list_id, None, Vec::new()),
+                command::list(
+                    &list_id,
+                    "Suggestions",
+                    is_empty,
+                    Vec::new(),
+                    vec![
+                        command.item(
+                            "calendar",
+                            false,
+                            Some("cmd-root-disabled-detach-item-calendar"),
+                            Vec::new(),
+                            vec![text("Calendar")],
+                        ),
+                        command.item(
+                            "search",
+                            false,
+                            Some("cmd-root-disabled-detach-item-search"),
+                            Vec::new(),
+                            vec![text("Search")],
+                        ),
+                    ],
+                ),
+            ],
+        )],
+    );
+    // `refreshed` は `command.root` が生成する外殻ごとの Node であり、
+    // その子（dialog 以下）だけを root の innerHTML として差し替える
+    // （root 自身の attributes、ここでは `data-disabled`、は維持される）。
+    let refreshed_root_html = render(&refreshed);
+    let refreshed_container = document.create_element("div").unwrap();
+    refreshed_container.set_inner_html(&refreshed_root_html);
+    let refreshed_root = refreshed_container.first_element_child().unwrap();
+    root.set_inner_html(&refreshed_root.inner_html());
+    let fresh_item_calendar = root
+        .query_selector("#cmd-root-disabled-detach-item-calendar")
+        .unwrap()
+        .unwrap();
+
+    assert!(
+        !root.contains(Some(&stale_input)),
+        "テスト前提: 旧 input 参照は root から detach 済み"
+    );
+
+    let html_stale_input = stale_input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    html_stale_input.set_value("cal");
+    stale_input.dispatch_event(&input_event()).unwrap();
+
+    assert!(
+        seen.borrow().is_empty(),
+        "root 自体が data-disabled のとき、detach 済み input からの \"input\" は no-op になる"
+    );
+    assert!(
+        !fresh_item_calendar.has_attribute("hidden"),
+        "root 自体が data-disabled のとき、新しい DOM への絞り込み反映も行われない"
     );
 }

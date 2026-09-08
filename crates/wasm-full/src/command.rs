@@ -108,9 +108,15 @@
 //!
 //! # 行選択（矢印キー）
 //!
-//! 候補列は同一インスタンス配下の非 `hidden` item（[`crate::keynav`] の
-//! `disabled_flags`/`highlight_next_index`/`menu_loop_focus_from_attr` を
-//! そのまま再利用する）。cmdk は既定で非循環（`loop_focus` 既定 `false`、
+//! 候補列は同一インスタンス配下の非 `hidden` item（`highlight_next_index`
+//! と `menu_loop_focus_from_attr` は [`crate::keynav`] をそのまま再利用
+//! するが、disabled 判定は item 自身の属性しか見ない `keynav::wiring::
+//! disabled_flags` ではなく、祖先の `data-disabled`/`disabled` も辿る
+//! 本モジュール独自の `item_disabled_flags`（内部で `has_disabled_
+//! ancestor` を使う）を使う。Enter 実行・クリックと同じ無効化契約に
+//! 揃えるため、codex-review P1 是正）。
+//!
+//! cmdk は既定で非循環（`loop_focus` 既定 `false`、
 //! `data-loop-focus="true"` で opt-in）。`data-highlighted` は書かない
 //! （`fandhe-frontend-headless-ui` の command は `data-highlighted` を出力
 //! しない契約、`crates/headless-ui/src/command.rs` モジュール doc「`item`
@@ -405,8 +411,7 @@ mod wiring {
     };
     use crate::events::{ActionRef, AttrSource};
     use crate::keynav::wiring::{
-        closest, collect_parts, disabled_flags, modifiers_of, scroll_item_into_view_if_needed,
-        set_dom_attribute,
+        closest, collect_parts, modifiers_of, scroll_item_into_view_if_needed, set_dom_attribute,
     };
     use crate::keynav::{highlight_next_index, menu_loop_focus_from_attr};
     use wasm_bindgen::closure::Closure;
@@ -946,7 +951,7 @@ mod wiring {
         let items = collect_own_items(&list, &instance_root);
         let visible = visible_flags(&items, &query);
         let plan = {
-            let disabled = disabled_flags(&items);
+            let disabled = item_disabled_flags(root, &items);
             selection_sync_plan(&items, &visible, &disabled)
         };
 
@@ -967,7 +972,7 @@ mod wiring {
             let fresh_items = collect_own_items(&fresh_list, &fresh_instance_root);
             let fresh_visible = visible_flags(&fresh_items, &query);
             let fresh_plan = {
-                let fresh_disabled = disabled_flags(&fresh_items);
+                let fresh_disabled = item_disabled_flags(root, &fresh_items);
                 selection_sync_plan(&fresh_items, &fresh_visible, &fresh_disabled)
             };
             // dispatch が構造フォールバック再描画を誘発し `input` が
@@ -1148,8 +1153,22 @@ mod wiring {
         // では入力による状態更新も no-op とする（codex-review P1 是正:
         // 従来 [`handle_keydown`] のみが `has_disabled_ancestor` を確認して
         // おり、`data-action-input` を持たない input の絞り込み dispatch は
-        // 無効化状態を無視して発生していた）。
-        if has_disabled_ancestor(root, target_element) {
+        // 無効化状態を無視して発生していた）。`root` 自身の属性は
+        // `has_disabled_ancestor` の走査に頼らず直接確認する（codex-review
+        // P1 再是正）: `data-action-input` を持つ input では、本チェックの
+        // 直前に既に `crate::events::wire_events` の "input" dispatch が
+        // 走り、`root` の子だけを構造フォールバックで差し替えている場合が
+        // ある（`root` 自体は document から切り離されない）。その場合
+        // `target_element` は旧 DOM に属したまま `root` から detach 済み
+        // であり、`parent_element()` を辿っても新しい `root` の部分木には
+        // 到達しないため、`has_disabled_ancestor(root, target_element)` は
+        // 祖先列に `root` が現れず `false` を返してしまい、`root` 自身の
+        // `data-disabled` を見逃す。`root` 自身の属性はこの detach の影響を
+        // 受けないため別途直接確認する。
+        if root.has_attribute("data-disabled")
+            || root.has_attribute("disabled")
+            || has_disabled_ancestor(root, target_element)
+        {
             return;
         }
         let Some(list) = resolve_list(root, target_element) else {
@@ -1266,6 +1285,21 @@ mod wiring {
         false
     }
 
+    /// 各 item の「実効 disabled」（[`has_disabled_ancestor`] による祖先
+    /// 込みの判定）を列挙する（codex-review P1 是正: `keynav::wiring::
+    /// disabled_flags` は item 自身の属性しか見ないため、group（`role=
+    /// "group"`）に `data-disabled` を付けた構成で、矢印キー選択・検索後
+    /// 自動選択の候補判定（[`selection_sync_plan`]）が無効化された配下の
+    /// item を選択候補にしてしまっていた。Enter 実行・クリックは
+    /// `has_disabled_ancestor` で祖先無効化を確認するため、候補判定でも
+    /// 同じ関数を使い操作経路間の無効化契約を一致させる）。
+    fn item_disabled_flags(root: &Element, items: &[Element]) -> Vec<bool> {
+        items
+            .iter()
+            .map(|it| has_disabled_ancestor(root, it))
+            .collect()
+    }
+
     /// keydown: Input パーツ上でのみ反応する（IME 変換中・disabled 祖先は
     /// no-op、モジュール冒頭 doc「セキュリティ不変条件」節参照）。
     fn handle_keydown(
@@ -1346,7 +1380,7 @@ mod wiring {
                     .into_iter()
                     .filter(|it| !it.has_attribute("hidden"))
                     .collect();
-                let disabled = disabled_flags(&visible_items);
+                let disabled = item_disabled_flags(root, &visible_items);
                 let current = visible_items
                     .iter()
                     .position(|it| it.has_attribute("data-selected"));
@@ -1649,13 +1683,6 @@ mod wiring {
         if keyboard_event.is_composing() || keyboard_event.key_code() == 229 {
             return;
         }
-        // 押しっぱなしによるキーリピート（`repeat: true`）は無視する
-        // （Cursor Bugbot 是正）。無視しないと Cmd/Ctrl+K を長押ししただけで
-        // toggle の dispatch が繰り返し発火し、dialog が開閉を反復する
-        // （チラつき）。
-        if keyboard_event.repeat() {
-            return;
-        }
         let modifiers = modifiers_of(keyboard_event);
         // Shift 併用（例: Ctrl+Shift+K）は対象外とする（Cursor Bugbot
         // 是正）。[`Modifiers`]（`crate::keynav`）は Shift を追跡しない
@@ -1692,7 +1719,24 @@ mod wiring {
         if has_disabled_ancestor(root, &instance_root) {
             return;
         }
+        // ショートカット一致が確定した時点で `prevent_default()` を呼ぶ
+        // （Cursor Bugbot 是正）。従来は下記キーリピート guard が
+        // `prevent_default()` より前に return していたため、Cmd/Ctrl+K を
+        // 押しっぱなしにすると 2 回目以降の keydown で `prevent_default()`
+        // されず、ブラウザ既定のショートカット（例: Chrome の検索/
+        // アドレスバー）が発火してフォーカスを奪い得た。[`handle_keydown`]
+        // の Enter（[`super::CommandKeyAction::Execute`]）分岐が
+        // `prevent_default()` を repeat チェックより前に呼んでいるのと
+        // 同型に揃える。
         keyboard_event.prevent_default();
+        // 押しっぱなしによるキーリピート（`repeat: true`）は dispatch を
+        // 無視する（Cursor Bugbot 是正）。無視しないと Cmd/Ctrl+K を長押し
+        // しただけで toggle の dispatch が繰り返し発火し、dialog が開閉を
+        // 反復する（チラつき）。`prevent_default()` は上で既に呼び済みの
+        // ため、ブラウザ既定のショートカット抑止はリピート中も継続する。
+        if keyboard_event.repeat() {
+            return;
+        }
         if let Ok(mut cb) = on_action.try_borrow_mut() {
             (cb)(ActionRef {
                 action: ACTION_TOGGLE.to_string(),
