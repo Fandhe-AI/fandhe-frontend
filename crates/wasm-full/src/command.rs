@@ -1264,6 +1264,20 @@ mod wiring {
     /// 反映後、使用した値を `composed_guard` へ記録する
     /// （[`handle_input`] 側がブラウザの追加 "input" による二重 dispatch を
     /// 避けるために消費する）。
+    ///
+    /// このガードは `set_timeout` の 0ms 遅延で自ら解除するタイマーを
+    /// 併せて仕掛け、直後の 1 マクロタスクに限定する（イシュー #2069
+    /// codex-review P1 再指摘 是正）。`compositionend` 直後に対応する
+    /// 追加 "input" が発火しない場合、`take()` されずに残った記録値が
+    /// 次に非 composing な "input" が発火するまで無期限に残留してしまう。
+    /// この間に（例えば `command:execute` の実行フックで検索クエリが
+    /// リセットされてパレットが再表示される等）別の状態変化が起き、その後
+    /// 無関係な入力（同じ文字列の独立した貼り付け等）が行われると、値の
+    /// 一致だけで誤って二重 dispatch 抑止が発動し、入力値とアプリ状態が
+    /// 不整合になる（実ブラウザの `compositionend`→追加 "input" は発火
+    /// する場合でも同一マクロタスク内で起きるため、0ms タイマーで
+    /// 「同じ確定操作に対する直後の重複」だけを救い、それ以降のユーザー
+    /// 操作〔必ず新しいタスクで発生する〕には影響しない）。
     fn handle_compositionend(
         root: &Element,
         event: &Event,
@@ -1286,7 +1300,34 @@ mod wiring {
             .ok()
             .map(|el| el.value());
         dispatch_input_effect(root, target_element, on_action, pre_focus);
-        *composed_guard.borrow_mut() = value;
+        *composed_guard.borrow_mut() = value.clone();
+        if let Some(value) = value {
+            schedule_composed_guard_reset(composed_guard, value);
+        }
+    }
+
+    /// [`handle_compositionend`] が仕掛ける二重 dispatch ガードの自己解除
+    /// タイマー本体。`expected` と現在のガード値が一致する場合に限り
+    /// `take()` する（このタイマーが仕掛けられた後、別の `compositionend`
+    /// が新しい値でガードを上書きしていた場合に、古いタイマーが新しい
+    /// ガードを誤って消し飛ばさないための一致確認。doc は
+    /// [`handle_compositionend`] 参照）。
+    fn schedule_composed_guard_reset(
+        composed_guard: &std::rc::Rc<std::cell::RefCell<Option<String>>>,
+        expected: String,
+    ) {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let guard_for_timer = composed_guard.clone();
+        let reset = Closure::once_into_js(move || {
+            let mut guard = guard_for_timer.borrow_mut();
+            if guard.as_deref() == Some(expected.as_str()) {
+                guard.take();
+            }
+        });
+        let _ =
+            window.set_timeout_with_callback_and_timeout_and_arguments_0(reset.unchecked_ref(), 0);
     }
 
     /// [`handle_input`]（変換中でない "input"）と [`handle_compositionend`]
@@ -1742,8 +1783,29 @@ mod wiring {
         let Some(target) = event.target() else {
             return;
         };
-        let Some(target_element) = target.dyn_ref::<Element>().cloned() else {
-            return;
+        // `event.target()` は `Element` とは限らない（Cursor Bugbot High
+        // 是正・イシュー #2069）。`fandhe_frontend_core::text` で描画される
+        // item ラベルは素のテキストノードであり、そのラベル文字列を直接
+        // クリックした場合 `target` はテキストノードになる。従来はここで
+        // `Element` へのキャストのみを試みて失敗時に即 return していたため
+        // `closest(ITEM_SELECTOR)` に到達できず、item のラベル部分への
+        // クリックが `select`/`command:execute` を一切 dispatch しなかった
+        // （[`handle_mousedown`] は同じ状況で `Node::parent_element` へ
+        // フォールバックしており、本ハンドラのみ取りこぼしていた不整合）。
+        // テキストノード等 `Element` でない場合は親要素へフォールバックし、
+        // それでも要素が得られない場合のみ何もしない
+        // （[`handle_mousedown`] と同型のフォールバック）。
+        let target_element = match target.dyn_ref::<Element>() {
+            Some(element) => element.clone(),
+            None => {
+                let Some(node) = target.dyn_ref::<Node>() else {
+                    return;
+                };
+                let Some(parent) = node.parent_element() else {
+                    return;
+                };
+                parent
+            }
         };
         if !root.contains(Some(&target_element)) {
             return;

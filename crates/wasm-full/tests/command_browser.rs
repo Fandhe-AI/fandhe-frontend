@@ -1243,6 +1243,65 @@ fn clicking_item_selects_then_executes() {
     );
 }
 
+/// `event.target()` が item ラベルのテキストノード（`fandhe_frontend_core::
+/// text` で描画される、`vec![text(*label)]` の子ノード）であっても
+/// `select`/`command:execute` が dispatch されることを検証する（Cursor
+/// Bugbot High 是正、イシュー #2069）。従来は `target` の `Element` への
+/// キャストのみを試み、失敗時に即 return していたため、item のラベル
+/// 文字列を直接クリックすると `closest(ITEM_SELECTOR)` に到達できず、
+/// 通常のクリック操作でコマンドが一切実行されなかった
+/// （`handle_mousedown` 側は同じ状況で `parent_element` へフォールバック
+/// しており、`handle_click` 側のみ取りこぼしていた不整合、
+/// `mousedown_on_text_node_target_prevents_default` と対）。
+#[wasm_bindgen_test]
+fn clicking_item_text_label_selects_then_executes() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, _input, _list, item_elements) =
+        build_command_dom(&document, "cmd-click-text-node", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let seen: Rc<RefCell<Vec<(String, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let component = Rc::new(RefCell::new(command));
+    let recorder = seen.clone();
+    fandhe_frontend_wasm_full::command::wire_command_events(root.clone(), move |action_ref| {
+        recorder
+            .borrow_mut()
+            .push((action_ref.action.clone(), action_ref.payload.clone()));
+        let _ = fandhe_frontend_interactive::dispatch(
+            &mut *component.borrow_mut(),
+            &action_ref.action,
+            &action_ref.payload,
+        );
+    })
+    .expect("wire_command_events must not fail");
+
+    let text_node = item_elements[0]
+        .first_child()
+        .expect("item element must contain a text node child (label)");
+    assert_eq!(
+        text_node.node_type(),
+        web_sys::Node::TEXT_NODE,
+        "item ラベルはテキストノードとして描画される前提"
+    );
+
+    text_node.dispatch_event(&click_event()).unwrap();
+
+    let log = seen.borrow();
+    assert_eq!(
+        log.as_slice(),
+        [
+            ("select".to_string(), "a".to_string()),
+            (
+                fandhe_frontend_wasm_full::command::ACTION_EXECUTE.to_string(),
+                "a".to_string()
+            ),
+        ]
+    );
+}
+
 #[wasm_bindgen_test]
 fn clicking_disabled_item_is_noop() {
     let document = web_sys::window().unwrap().document().unwrap();

@@ -1028,7 +1028,35 @@ mod wiring {
                 // 直後にブラウザが追加で "input" を発火する場合の二重
                 // dispatch を防ぐガードへ記録する（対象要素も併せて記録、
                 // `input_closure` 側で消費、上記コメント参照）。
-                *composed_dispatched_value.borrow_mut() = Some((target.clone(), value));
+                *composed_dispatched_value.borrow_mut() = Some((target.clone(), value.clone()));
+                // ガードを直後の 1 マクロタスクに限定する（イシュー #2069
+                // codex-review P1 再指摘 是正）。対応する追加 "input" が
+                // 発火しない場合、このガードが `take()` されずに無期限へ
+                // 残留し、無関係な後続の同一入力欄・同一値の独立した
+                // 入力（貼り付け等）まで誤って二重 dispatch 抑止してしまう
+                // （`composed_dispatched_value` doc 参照）。`set_timeout`
+                // の 0ms 遅延で「同じ確定操作に対しブラウザが同一マクロ
+                // タスク内で発火させる追加 "input"」だけを救い、それ以降の
+                // ユーザー操作（必ず新しいマクロタスクで発生する）には
+                // 影響しないようにする。
+                if let Some(window) = web_sys::window() {
+                    let guard_for_timer = composed_dispatched_value.clone();
+                    let expected_target = target.clone();
+                    let expected_value = value;
+                    let reset = Closure::once_into_js(move || {
+                        let mut guard = guard_for_timer.borrow_mut();
+                        let matches = guard.as_ref().is_some_and(|(t, v)| {
+                            js_sys::Object::is(t, &expected_target) && *v == expected_value
+                        });
+                        if matches {
+                            guard.take();
+                        }
+                    });
+                    let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                        reset.unchecked_ref(),
+                        0,
+                    );
+                }
             }
         });
         root.add_event_listener_with_callback(
