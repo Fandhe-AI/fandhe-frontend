@@ -73,6 +73,16 @@
 //! を個別分岐せず単一の幅比較へ統合できる）。既定の simple
 //! （`show_track: true` + 360°）では全リングの `track` がこの分岐を通る。
 //!
+//! 角度幅がちょうど `2π` でなくても、全周との差が
+//! [`fmt_coord`](crate::charts::svg::fmt_coord) の丸め（小数第 2 位）に
+//! よって始点・終点が同一座標へ退化しうる範囲（半径依存、
+//! `degenerate_angle_threshold` 参照）に収まる場合も同じ全周分岐へ含める
+//! （イシュー #2079 codex-review 指摘の回帰: カテゴリ値
+//! `[100000, 99999]` のように `domain_max` に極めて近い値では、
+//! 対応するバーの角度幅が全周との差 `1e-9` を大きく上回りつつも視覚上
+//! 区別不能な範囲（例: `約 6.28e-5 rad`）に収まり、素のまま扱うと
+//! 座標丸めで外周・内周の始終点が一致して弧が消える）。
+//!
 //! # バリアント対応
 //!
 //! | 名前 | props の組み合わせ |
@@ -157,6 +167,16 @@ const RING_GAP: f64 = 0.2;
 const FULL_CIRCLE: f64 = 2.0 * PI;
 /// 浮動小数の丸め誤差を吸収する全周判定の許容誤差（ラジアン）。
 const FULL_CIRCLE_EPSILON: f64 = 1e-9;
+/// [`fmt_coord`](crate::charts::svg::fmt_coord) の丸め幅（小数第 2 位、
+/// `0.01`）に対する安全マージン（座標単位）。[`degenerate_angle_threshold`]
+/// が半径から導く動的許容誤差の分子として使う（イシュー #2079 codex-review
+/// 指摘の回帰、`ring_segment_path` doc 参照）。
+const COORD_ROUNDING_SAFETY: f64 = 0.01;
+/// [`degenerate_angle_threshold`] が返す動的許容誤差の上限（ラジアン）。
+/// 半径が極端に小さいリング（`inner_ratio` を `0` に近づけた場合等）で
+/// `COORD_ROUNDING_SAFETY / r` が発散し、本来別々に描画すべき弧まで
+/// 全周分岐へ誤って合流させてしまうのを防ぐキャップ。
+const FULL_CIRCLE_EPSILON_CAP: f64 = 0.01;
 /// グリッドの放射スポーク本数（30° 刻み固定）。
 const GRID_SPOKE_COUNT: usize = 12;
 
@@ -381,16 +401,46 @@ fn ring_radii(i: usize, r_inner_base: f64, band: f64, thickness: f64) -> (f64, f
     (inner, inner + thickness)
 }
 
+/// 半径 `r` 上の弧の始点・終点が [`fmt_coord`](crate::charts::svg::fmt_coord)
+/// の丸め（小数第 2 位、`0.01`）によって同一座標へ退化しうる最小角度差
+/// （内部ヘルパ、`ring_segment_path` doc 参照）。
+///
+/// 弦長は角度差 `dθ` に対しおよそ `r × dθ` で近似できる。この弦長が丸め幅
+/// （[`COORD_ROUNDING_SAFETY`]）を下回る角度差では、外周・内周の始点と
+/// 終点が独立丸めにより同一座標に一致し、SVG `A`（elliptical arc）コマンド
+/// が退化して弧が描画されなくなる（イシュー #2079 codex-review 指摘:
+/// カテゴリ値 `[100000, 99999]` で後者の弧が全周との差 `約 6.28e-5 rad` に
+/// もかかわらず既存の [`FULL_CIRCLE_EPSILON`]（`1e-9`）を外れ、最大値
+/// `99.999%` を表すバーが消える）。
+///
+/// `r` が極端に小さいリング（`inner_ratio` を `0` に近づけた場合等）では
+/// `COORD_ROUNDING_SAFETY / r` が発散し、本来別々に描画すべき弧まで
+/// 全周分岐へ誤って合流させてしまうため、[`FULL_CIRCLE_EPSILON_CAP`]
+/// で上限を設ける。`r <= 0.0`（呼び出し元の契約違反）は
+/// [`FULL_CIRCLE_EPSILON`] へフォールバックする。
+fn degenerate_angle_threshold(r: f64) -> f64 {
+    if r > 0.0 {
+        (COORD_ROUNDING_SAFETY / r).min(FULL_CIRCLE_EPSILON_CAP)
+    } else {
+        FULL_CIRCLE_EPSILON
+    }
+}
+
 /// 環状セグメント（`track`/`bar` 共通）の `d` 属性値と `evenodd`
 /// フラグを組み立てる（内部ヘルパ、モジュール doc「全周退化の共通規則」
 /// 節）。
 ///
-/// 角度幅（`end - start`）がちょうど全周（`2π`、[`FULL_CIRCLE_EPSILON`]
-/// の許容誤差込み）の場合、退化 arc を避けるため
+/// 角度幅（`end - start`）がちょうど全周（`2π`）、または全周との差が
+/// 座標丸めによる退化を起こしうる範囲（[`degenerate_angle_threshold`]、
+/// 外周・内周のうち半径が小さい側で判定。半径が小さいほど同じ角度差でも
+/// 弦長が短くなり退化しやすいため）の場合、退化 arc を避けるため
 /// [`annulus_full_ring_path`] + `evenodd` へ切り替える。この判定は角丸
-/// 処理より先に行うため、全周のときは `rc`（角丸半径）を無視する。
+/// 処理より先に行うため、全周（近傍）のときは `rc`（角丸半径）を無視する。
+/// 座標単位で `0.01` 未満の差は元々視覚的に区別できないため、全周へ
+/// まとめても見た目の退行にはならない。
 fn ring_segment_path(r_outer: f64, r_inner: f64, start: f64, end: f64, rc: f64) -> (String, bool) {
-    if (end - start - FULL_CIRCLE).abs() < FULL_CIRCLE_EPSILON {
+    let epsilon = FULL_CIRCLE_EPSILON.max(degenerate_angle_threshold(r_inner.min(r_outer)));
+    if (end - start - FULL_CIRCLE).abs() < epsilon {
         (
             annulus_full_ring_path(CENTER_X, CENTER_Y, r_outer, r_inner),
             true,
@@ -1030,6 +1080,32 @@ mod tests {
         };
         let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
         assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 3);
+    }
+
+    #[test]
+    fn near_full_circle_bar_degenerate_by_coord_rounding_renders_as_seamless_full_ring() {
+        // codex-review 指摘の回帰（イシュー #2079、未解決スレッド
+        // PRRT_kwDOTarxgc6gb4Jv）: カテゴリ値を `[100000, 99999]` にすると
+        // 後者（`domain_max` の `99.999%`）の弧が全周との差
+        // `約 6.28e-5 rad` で `FULL_CIRCLE_EPSILON`（`1e-9`）の許容誤差を
+        // 大きく外れ、全周判定分岐を通らない。しかしこの角度差は
+        // `fmt_coord` の小数第 2 位丸めに対しては視覚上区別不能な範囲
+        // （外周・内周の弦長が丸め幅 `0.01` を大きく下回る）であり、素の
+        // まま `annulus_sector_path`/`annulus_sector_rounded_path` に渡すと
+        // 独立丸めにより外周・内周の始点・終点が同一座標に退化し、
+        // 最大値 `99.999%` を表すバーの SVG arc が消える。
+        // `ring_segment_path` の動的許容誤差
+        // （`degenerate_angle_threshold`）でこの近傍も全周分岐へ含める
+        // ことで、2 カテゴリ双方の `track`（2 件）と `bar`（2 件）が
+        // すべて `annulus_full_ring_path` + `evenodd` を経由することを
+        // 固定する。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![Series::new("total", vec![100_000.0, 99_999.0])],
+        )
+        .unwrap();
+        let html = render(&radial_chart(&RadialChartProps::default(), &data, vec![]).unwrap());
+        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 4);
     }
 
     #[test]
