@@ -187,14 +187,17 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
   width: 100%;
+  box-sizing: border-box;
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] {
   width: 100%;
+  box-sizing: border-box;
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   width: 100%;
+  box-sizing: border-box;
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not(:first-child) {
@@ -416,13 +419,13 @@ fn css_shrinks_input_in_horizontal_orientation_only() {
 fn css_propagates_stretch_width_into_menu_select_targets_in_vertical_orientation_only() {
     let css = button_group::stylesheet();
     assert!(css.contains(
-        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {\n  width: 100%;\n}"
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {\n  width: 100%;\n  box-sizing: border-box;\n}"
     ));
     assert!(css.contains(
-        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] {\n  width: 100%;\n}"
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] {\n  width: 100%;\n  box-sizing: border-box;\n}"
     ));
     assert!(css.contains(
-        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {\n  width: 100%;\n}"
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {\n  width: 100%;\n  box-sizing: border-box;\n}"
     ));
     assert!(!css.contains(
         "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {\n  width: 100%;\n}"

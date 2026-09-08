@@ -358,6 +358,11 @@ pub fn stylesheet() -> String {
             // サイズには無関係）。境界線・角丸の連結対象である trigger
             // （select は `control` 経由）まで明示的に `width: 100%` を
             // 伝播させ、縦積み時の左右境界を隣接パーツと揃える。
+            // trigger/control は UA 既定の `box-sizing: content-box` の
+            // ままだと `width: 100%` が padding・border を含まず、
+            // stretch した親 root より実際の描画幅が広くなり群の左右端が
+            // 揃わなくなる（Cursor Bugbot 指摘、PR #2228）。他部品と同じ
+            // `width: 100%` + `box-sizing: border-box` の対で明示する。
             for selector in [
                 format!(
                     r#"{orientation_root} > [data-scope="menu"][data-part="root"] > [data-scope="menu"][data-part="trigger"]"#
@@ -371,7 +376,10 @@ pub fn stylesheet() -> String {
             ] {
                 append_rule(
                     &mut out,
-                    serialize_rule(&selector, &[decl("width", "100%")]),
+                    serialize_rule(
+                        &selector,
+                        &[decl("width", "100%"), decl("box-sizing", "border-box")],
+                    ),
                 );
             }
         }
