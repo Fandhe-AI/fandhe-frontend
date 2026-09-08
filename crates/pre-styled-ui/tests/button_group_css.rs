@@ -121,6 +121,11 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   border-end-end-radius: 0;
 }
 
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"] {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not(:first-child) {
   margin-inline-start: var(--fandhe-space-2);
 }
@@ -178,6 +183,18 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:last-child) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
+  width: 100%;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] {
+  width: 100%;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+  width: 100%;
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not(:first-child) {
@@ -370,5 +387,44 @@ fn css_declares_focus_visible_z_index_rules_on_real_focus_targets_only() {
     // する（dead CSS を書かない）。
     assert!(!css.contains(
         "[data-scope=\"button-group\"][data-part=\"root\"] > [data-scope=\"button-group\"][data-part=\"text\"]:focus-visible"
+    ));
+}
+
+/// 横並び時のみ、子 `field/input`（[`crate::input`] の `width: 100%`
+/// 基底規則）を `flex: 1 1 0%; min-width: 0` で縮小可能にすることを固定
+/// する（codex-review/Bugbot 指摘の回帰防止。`src/button_group.rs`
+/// `stylesheet` 内コメント「横並び時のみ」節参照）。縦積み時は主軸が
+/// block 方向のため本規則を出力しない（適用すると意味が変わるため）。
+#[test]
+fn css_shrinks_input_in_horizontal_orientation_only() {
+    let css = button_group::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"] {\n  flex: 1 1 0%;\n  min-width: 0;\n}"
+    ));
+    assert!(!css.contains(
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"field\"][data-part=\"input\"] {\n  flex: 1 1 0%;"
+    ));
+}
+
+/// 縦積み時、menu/select の中間ラッパー root への `align-self: stretch`
+/// だけでは内側の trigger（select は `control` 経由）まで伸長が伝播しない
+/// ため、`width: 100%` を明示的に伝播させることを固定する（codex-review
+/// 指摘の回帰防止。`src/button_group.rs` `stylesheet` 内コメント「縦積み
+/// 時、menu/select の中間ラッパー root」節参照）。横並び時は主軸が
+/// inline 方向のため本規則を出力しない。
+#[test]
+fn css_propagates_stretch_width_into_menu_select_targets_in_vertical_orientation_only() {
+    let css = button_group::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {\n  width: 100%;\n}"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] {\n  width: 100%;\n}"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {\n  width: 100%;\n}"
+    ));
+    assert!(!css.contains(
+        "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {\n  width: 100%;\n}"
     ));
 }

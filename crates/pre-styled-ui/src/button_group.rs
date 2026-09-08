@@ -331,6 +331,51 @@ pub fn stylesheet() -> String {
             );
         }
 
+        if orientation == "horizontal" {
+            // 横並び時のみ、`crate::input` の `width: 100%` 基底規則が
+            // flex 行内で縮小できず幅の狭い親でグループごとはみ出すのを
+            // 防ぐため、子 `field/input` を `flex: 1 1 0%; min-width: 0`
+            // で縮小可能にする（`crate::input_group::stylesheet` の
+            // `flex: 1 1 0%; min-width: 0` と同じ教訓、モジュール doc
+            // 「raw CSS 追記の理由」節参照）。縦積み時は主軸が block 方向
+            // のため `width: 100%` のみで収まり本規則は不要（適用すると
+            // 主軸方向の伸長指定になり意味が変わるため orientation で
+            // 限定する）。
+            let input_selector =
+                format!(r#"{orientation_root} > [data-scope="field"][data-part="input"]"#);
+            append_rule(
+                &mut out,
+                serialize_rule(
+                    &input_selector,
+                    &[decl("flex", "1 1 0%"), decl("min-width", "0")],
+                ),
+            );
+        } else {
+            // 縦積み時、menu/select の中間ラッパー root への
+            // `align-self: stretch`（上記ループ）は root 自身の box しか
+            // 伸ばさず、その内側の control/trigger までは伝播しない
+            // （`align-self` は「自分がどう配置されるか」であり子孫の
+            // サイズには無関係）。境界線・角丸の連結対象である trigger
+            // （select は `control` 経由）まで明示的に `width: 100%` を
+            // 伝播させ、縦積み時の左右境界を隣接パーツと揃える。
+            for selector in [
+                format!(
+                    r#"{orientation_root} > [data-scope="menu"][data-part="root"] > [data-scope="menu"][data-part="trigger"]"#
+                ),
+                format!(
+                    r#"{orientation_root} > [data-scope="select"][data-part="root"] > [data-scope="select"][data-part="control"]"#
+                ),
+                format!(
+                    r#"{orientation_root} > [data-scope="select"][data-part="root"] > [data-scope="select"][data-part="control"] > [data-scope="select"][data-part="trigger"]"#
+                ),
+            ] {
+                append_rule(
+                    &mut out,
+                    serialize_rule(&selector, &[decl("width", "100%")]),
+                );
+            }
+        }
+
         // ネストしたグループ（内側 root）は角丸連結の対象へ含めず、代わりに
         // 先頭以外の内側グループへ間隔を付与する（`:has()` 不採用の代替、
         // モジュール doc「ネスト」節参照）。
