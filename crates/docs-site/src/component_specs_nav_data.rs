@@ -1626,6 +1626,74 @@ fn ex_table() -> Node {
     )
 }
 
+fn ex_table_selectable_rows() -> Node {
+    table::root(
+        table::TableProps {
+            interactive: true,
+            ..table::TableProps::default()
+        },
+        vec![],
+        vec![
+            table::header(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![table::column_header(vec![], vec![text("Name")])],
+                )],
+            ),
+            table::body(
+                vec![],
+                vec![
+                    table::row(
+                        vec![("data-selected", "")],
+                        vec![table::cell(vec![], vec![text("Alice")])],
+                    ),
+                    table::row(vec![], vec![table::cell(vec![], vec![text("Bob")])]),
+                ],
+            ),
+        ],
+    )
+}
+
+fn ex_table_aligned_footer() -> Node {
+    table::root(
+        table::TableProps::default(),
+        vec![],
+        vec![
+            table::header(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![
+                        table::column_header(vec![], vec![text("Invoice")]),
+                        table::column_header(vec![("data-align", "end")], vec![text("Amount")]),
+                    ],
+                )],
+            ),
+            table::body(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![
+                        table::cell(vec![], vec![text("INV001")]),
+                        table::cell(vec![("data-align", "end")], vec![text("$250.00")]),
+                    ],
+                )],
+            ),
+            table::footer(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![
+                        table::cell(vec![], vec![text("Total")]),
+                        table::cell(vec![("data-align", "end")], vec![text("$250.00")]),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
+
 fn ex_table_scroll_area() -> Node {
     table::scroll_area(
         vec![("style", "--fandhe-table-scroll-max-height: 8rem")],
@@ -1662,9 +1730,13 @@ pub(crate) const TABLE: ComponentPageSpec = ComponentPageSpec {
         "size（Size、Xs〜Xl の 5 段）でセルの padding/font-size を切り替える（padding は --fandhe-space-* トークン、イシュー #1572）",
         "striped（bool）で本文行の背景を交互に変える（table.rs「striped の実装」節）",
         "sticky_header（bool、イシュー #1571）で column-header（th）を position: sticky にする（table.rs「sticky ヘッダーの実装」節）",
+        "interactive（bool、イシュー #2052、shadcn/ui 突合）で row に bg-muted の hover 背景を付ける（opt-in、chakra-ui interactive 由来。table.rs「interactive 軸（行 hover）」節）",
+        "data-selected（呼び出し側が付与する共有語彙、イシュー #2052）で row を選択状態（accent-subtle/accent-fg-subtle）にする（table.rs「data-selected 行状態」節）",
+        "data-align（呼び出し側が付与する共有語彙、start/center/end、イシュー #2052）で cell/column-header の text-align を切り替える（headless positioning.rs と共有する既存語彙、table.rs「data-align セル整列」節）",
         "scroll_area（イシュー #1572、chakra Table.ScrollArea 相当）で root を overflow: auto のスクロール枠に包み、sticky_header と組み合わせて見出し行を固定できる（table.rs「scroll-area パーツ」節）",
         "caption は font-weight: medium・font-size: xs・text-align: inherit（chakra-ui 基準、イシュー #1572）",
         "column_header は scope=\"col\" を関数側で固定し呼び出し側の偽装を除去する（table.rs セキュリティ不変条件節、COLUMN_HEADER_RESERVED）",
+        "column_header/cell は aria-sort 等の呼び出し側属性をそのまま通過させる（ソート・選択の生産は headless data-table〔#2124〕の責務、table.rs「スコープ外」節）",
     ],
     arguments: &[
         ArgRow {
@@ -1691,6 +1763,12 @@ pub(crate) const TABLE: ComponentPageSpec = ComponentPageSpec {
             default: "false",
             description: "column-header（th）を position: sticky にする（イシュー #1571、table.rs「sticky ヘッダーの実装」節）。",
         },
+        ArgRow {
+            name: "interactive",
+            kind: "bool",
+            default: "false",
+            description: "row に bg-muted の hover 背景を付ける（イシュー #2052、table.rs「interactive 軸（行 hover）」節）。",
+        },
     ],
     examples: &[
         ExampleEntry {
@@ -1699,16 +1777,32 @@ pub(crate) const TABLE: ComponentPageSpec = ComponentPageSpec {
             render: ex_table,
         },
         ExampleEntry {
+            title: "Selectable rows",
+            description: "interactive=true と行の data-selected を組み合わせた例です（イシュー #2052）。",
+            render: ex_table_selectable_rows,
+        },
+        ExampleEntry {
+            title: "Aligned total footer",
+            description: "column_header/cell の data-align=\"end\" で金額列を右寄せし、footer に合計行を持たせた例です（イシュー #2052）。",
+            render: ex_table_aligned_footer,
+        },
+        ExampleEntry {
             title: "Scroll area",
             description: "scroll_area で包み、sticky_header=true と組み合わせた例です（イシュー #1572）。",
             render: ex_table_scroll_area,
         },
     ],
     keyboard: &[],
-    aria: &[AriaRow {
-        attribute: "scope=\"col\"（column-header）",
-        description: "column_header が固定付与するテーブル見出しの意味論属性（呼び出し側の偽装は除去、table.rs セキュリティ不変条件節）。role/aria-* 自体はネイティブ table 要素の意味論に委ねており固有の出力はない。",
-    }],
+    aria: &[
+        AriaRow {
+            attribute: "scope=\"col\"（column-header）",
+            description: "column_header が固定付与するテーブル見出しの意味論属性（呼び出し側の偽装は除去、table.rs セキュリティ不変条件節）。role/aria-* 自体はネイティブ table 要素の意味論に委ねており固有の出力はない。",
+        },
+        AriaRow {
+            attribute: "aria-sort（column-header、呼び出し側付与）",
+            description: "ソート状態の意味論属性。table.rs は通過させるのみで生産しない（生産は headless data-table〔#2124〕の責務、イシュー #2052、table.rs「スコープ外」節）。",
+        },
+    ],
     demo: None,
 };
 

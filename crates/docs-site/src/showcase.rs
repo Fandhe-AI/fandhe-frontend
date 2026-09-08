@@ -10265,10 +10265,236 @@ fn table_section() -> Node {
         )],
     )]);
 
+    // イシュー #2052: table を shadcn/ui と突合し、行 hover（interactive）・
+    // 選択行（data-selected）・セル整列（data-align）・Actions 列・
+    // ソート可能見出しの合成パターンを Demo として追加する（table.rs
+    // モジュール doc「参照サイトとの競合判定」節参照）。Anatomy 表・
+    // `data-*` 属性表はこれらの Demo から機械導出されるため、
+    // `data-selected`/`data-align`/`aria-sort` を実際に載せる。
+
+    // (1) Interactive: interactive: true で行 hover を確認する。
+    let interactive_demo = stack(vec![sample_table(TableProps {
+        interactive: true,
+        ..TableProps::default()
+    })]);
+
+    // (2) Selectable rows: 先頭列にチェックボックスを置き、選択行に
+    // data-selected を付与する（合成のみ。選択の保持・送信は行わない、
+    // `docs/policy/intentional-non-adoption.md` §3.25）。
+    fn row_select_checkbox(name: &str, checked: bool) -> Node {
+        let props = CheckboxProps {
+            checked: if checked {
+                CheckedState::Checked
+            } else {
+                CheckedState::Unchecked
+            },
+            ..CheckboxProps::default()
+        };
+        checkbox::root(
+            Size::Sm,
+            ColorPalette::Accent,
+            &props,
+            vec![],
+            vec![
+                checkbox::hidden_input(&props, name, "on", vec![("aria-label", "Select row")]),
+                checkbox::control(
+                    &props,
+                    vec![],
+                    vec![checkbox::indicator(&props, vec![], vec![])],
+                ),
+            ],
+        )
+    }
+    let selectable_rows_demo = stack(vec![table::root(
+        TableProps {
+            interactive: true,
+            ..TableProps::default()
+        },
+        vec![],
+        vec![
+            table::header(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![
+                        table::column_header(
+                            vec![],
+                            vec![row_select_checkbox("select-all", false)],
+                        ),
+                        table::column_header(vec![], vec![text("Name")]),
+                        table::column_header(vec![], vec![text("Email")]),
+                    ],
+                )],
+            ),
+            table::body(
+                vec![],
+                vec![
+                    table::row(
+                        vec![("data-selected", "")],
+                        vec![
+                            table::cell(vec![], vec![row_select_checkbox("select-alice", true)]),
+                            table::cell(vec![], vec![text("Alice")]),
+                            table::cell(vec![], vec![text("alice@example.com")]),
+                        ],
+                    ),
+                    table::row(
+                        vec![],
+                        vec![
+                            table::cell(vec![], vec![row_select_checkbox("select-bob", false)]),
+                            table::cell(vec![], vec![text("Bob")]),
+                            table::cell(vec![], vec![text("bob@example.com")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )]);
+
+    // (3) Invoices（shadcn-table-1 再現）: caption + header + body + footer、
+    // Amount 列を data-align="end" で右寄せする。
+    let invoices_demo = stack(vec![table::root(
+        TableProps::default(),
+        vec![],
+        vec![
+            table::caption(vec![], vec![text("A list of your recent invoices.")]),
+            table::header(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![
+                        table::column_header(vec![], vec![text("Invoice")]),
+                        table::column_header(vec![], vec![text("Status")]),
+                        table::column_header(vec![("data-align", "end")], vec![text("Amount")]),
+                    ],
+                )],
+            ),
+            table::body(
+                vec![],
+                vec![
+                    table::row(
+                        vec![],
+                        vec![
+                            table::cell(vec![], vec![text("INV001")]),
+                            table::cell(vec![], vec![text("Paid")]),
+                            table::cell(vec![("data-align", "end")], vec![text("$250.00")]),
+                        ],
+                    ),
+                    table::row(
+                        vec![],
+                        vec![
+                            table::cell(vec![], vec![text("INV002")]),
+                            table::cell(vec![], vec![text("Pending")]),
+                            table::cell(vec![("data-align", "end")], vec![text("$150.00")]),
+                        ],
+                    ),
+                ],
+            ),
+            table::footer(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![
+                        table::cell(vec![], vec![text("Total")]),
+                        table::cell(vec![], vec![]),
+                        table::cell(vec![("data-align", "end")], vec![text("$400.00")]),
+                    ],
+                )],
+            ),
+        ],
+    )]);
+
+    // (4) Actions 列（shadcn-table-3 再現）: Plain button を data-align="end"
+    // のセルに配置する。
+    let actions_demo = stack(vec![table::root(
+        TableProps::default(),
+        vec![],
+        vec![
+            table::header(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![
+                        table::column_header(vec![], vec![text("Name")]),
+                        table::column_header(vec![("data-align", "end")], vec![text("Actions")]),
+                    ],
+                )],
+            ),
+            table::body(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![
+                        table::cell(vec![], vec![text("Alice")]),
+                        table::cell(
+                            vec![("data-align", "end")],
+                            vec![button(
+                                &ButtonProps {
+                                    variant: ButtonVariant::Plain,
+                                    size: Size::Sm,
+                                    ..ButtonProps::default()
+                                },
+                                vec![("aria-label", "Edit Alice")],
+                                vec![text("Edit")],
+                            )],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )]);
+
+    // (5) Sortable header: ソート処理自体は headless data-table（#2124）の
+    // 責務のため、column_header は aria-sort を通過させるのみで構造だけを
+    // 実演する。
+    let sortable_header_demo = stack(vec![table::root(
+        TableProps::default(),
+        vec![],
+        vec![
+            table::header(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![table::column_header(
+                        vec![("aria-sort", "ascending")],
+                        vec![
+                            text("Name "),
+                            button(
+                                &ButtonProps {
+                                    variant: ButtonVariant::Plain,
+                                    size: Size::Sm,
+                                    ..ButtonProps::default()
+                                },
+                                vec![("aria-label", "Sort by name")],
+                                vec![text("▲")],
+                            ),
+                        ],
+                    )],
+                )],
+            ),
+            table::body(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![table::cell(vec![], vec![text("Alice")])],
+                )],
+            ),
+        ],
+    )]);
+
     section(
         "Table",
-        "table/thead/tbody/tfoot/tr/th/td/caption の HTML 意味論を尊重した表組み。variant（line / outline）・size（xs 〜 xl）・striped・sticky_header の 4 軸 variant と、scroll_area（chakra Table.ScrollArea 相当のスクロール枠）を持ちます。",
-        vec![variant_demo, size_demo, striped_demo, scroll_area_demo],
+        "table/thead/tbody/tfoot/tr/th/td/caption の HTML 意味論を尊重した表組み。variant（line / outline）・size（xs 〜 xl）・striped・sticky_header・interactive（イシュー #2052）の 5 軸 variant と、scroll_area（chakra Table.ScrollArea 相当のスクロール枠）を持ちます。data-selected（選択行）・data-align（セル整列）は呼び出し側が付与する共有語彙です。",
+        vec![
+            variant_demo,
+            size_demo,
+            striped_demo,
+            scroll_area_demo,
+            interactive_demo,
+            selectable_rows_demo,
+            invoices_demo,
+            actions_demo,
+            sortable_header_demo,
+        ],
     )
 }
 
