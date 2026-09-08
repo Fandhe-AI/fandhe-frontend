@@ -2114,7 +2114,6 @@ fn input_group_text_button_children_and_attrs_are_escaped_for_all_payloads() {
     }
 }
 
-
 /// イシュー #2065: `item` の `root`（`href`・呼び出し側 attrs）・
 /// `media`・`title`・`description`・`actions`・`header`・`footer`・
 /// `group`（`aria-label`）・`separator`（呼び出し側 attrs）の各動的スロット
@@ -2182,7 +2181,6 @@ fn item_root_media_content_group_separator_are_escaped_for_all_payloads() {
         );
     }
 }
-
 
 /// イシュー #2068: `command` の動的スロット（`value`/`list_id`/
 /// `aria-label`〔[`dialog`]/[`list`] 双方〕/item の `value`・`id`/

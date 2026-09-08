@@ -1160,7 +1160,7 @@ fn ex_command() -> Node {
         "",
         "primitives-command-example-list",
         None,
-        vec![],
+        vec![("aria-label", "Search commands")],
     );
     let item = command::item(
         false,
@@ -1209,7 +1209,7 @@ fn ex_command_custom_css() -> Node {
         "",
         "primitives-command-example-list-2",
         None,
-        vec![],
+        vec![("aria-label", "Search commands")],
     );
     let list = command::list(
         "primitives-command-example-list-2",

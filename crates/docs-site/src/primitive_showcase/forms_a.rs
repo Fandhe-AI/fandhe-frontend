@@ -721,7 +721,7 @@ pub(super) fn command_section() -> Node {
         "ca",
         "primitives-command-list",
         Some("primitives-command-item-calendar"),
-        vec![],
+        vec![("aria-label", "Search commands")],
     );
     let empty = command::empty(false, vec![], vec![text("No results found.")]);
     let root = command::root(OpenState::Open, false, vec![], vec![input, list, empty]);
@@ -739,7 +739,7 @@ pub(super) fn command_section() -> Node {
         "zzz",
         "primitives-command-list-empty",
         None,
-        vec![],
+        vec![("aria-label", "Search commands")],
     );
     let empty_empty = command::empty(true, vec![], vec![text("No results found.")]);
     let empty_root = command::root(

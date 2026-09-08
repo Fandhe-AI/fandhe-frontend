@@ -434,6 +434,19 @@ Themes ページは後続 #2070 で追加するため、`PRIMITIVES_WITHOUT_THEM
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。
 
+**訂正追記(イシュー #2068、PR #2234 レビュー指摘)**: 上記追記は起点を
+誤って 65 として計算していた。`item`（イシュー #2065）は本追記より先に
+base（main）へマージ済みで、`command` 着手前の実カテゴリ内訳は既に
+Forms A 12・6 グループ合計 66 件だった。`command` 追加後の正しい合算は
+Forms A 13・6 グループ**合計 66→67**であり、§6 のコード導出は
+**部品 67 件**（headless-ui `crates/headless-ui/src/*.rs` 総数
+**77** = 部品 67 + 基盤 9 + `lib.rs`）、`HEADLESS_UNWRAPPED` は
+`button_group`/`command`/`item` の**3 件**である。一致は
+`crates/docs-site/tests/primitives_catalog.rs::catalog_has_67_entries_in_six_categories_in_spec_order`
+/ `module_counts_are_consistent_with_the_source_tree` が機械検査する
+（本節末尾の表・部品名一覧・上記各追記は据え置き、本訂正追記のみを
+合算値の正とする）。
+
 ## 8. `component-coverage-map.md` との関係
 
 `docs/design/component-coverage-map.md` は ark-ui / chakra-ui / Radix の
