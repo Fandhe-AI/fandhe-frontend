@@ -56,7 +56,9 @@ use fandhe_frontend_pre_styled_ui::editable::{
     self, EditMode, EditableInputFlags, EditableInputProps,
 };
 use fandhe_frontend_pre_styled_ui::em::em;
-use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
+use fandhe_frontend_pre_styled_ui::empty_state::{
+    self, EmptyStateIndicatorVariant, EmptyStateProps, EmptyStateVariant,
+};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::file_upload;
@@ -3258,6 +3260,63 @@ fn status_empty_state_styled_parts_and_class_attr_are_escaped_for_all_payloads()
             payload,
             &html,
             "empty_state::description children コンテキスト",
+        );
+
+        // イシュー #2047: empty_state::root の variant（Outline）class 経路。
+        let html = render(&empty_state::root(
+            &EmptyStateProps {
+                size: fandhe_frontend_pre_styled_ui::Size::Md,
+                variant: EmptyStateVariant::Outline,
+            },
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "empty_state::root(Outline) の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "empty_state::root(Outline) の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-empty-state--variant-outline"),
+            "empty_state::root(Outline) で variant class が失われている: html={html}"
+        );
+
+        // イシュー #2047: empty_state::indicator_with(Boxed) の attrs 経路。
+        let html = render(&empty_state::indicator_with(
+            EmptyStateIndicatorVariant::Boxed,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "empty_state::indicator_with(Boxed) 呼び出し側 attrs コンテキスト",
+        );
+
+        // イシュー #2047: empty_state::indicator_with(Boxed) の class 属性経路。
+        let html = render(&empty_state::indicator_with(
+            EmptyStateIndicatorVariant::Boxed,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "empty_state::indicator_with(Boxed) の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "empty_state::indicator_with(Boxed) の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-empty-state--indicator-boxed"),
+            "empty_state::indicator_with(Boxed) で variant class が失われている: html={html}"
         );
     }
 }

@@ -1942,6 +1942,10 @@ mod tests {
         ("warning", "warning-subtle"),
         ("danger", "danger-subtle"),
         ("neutral", "neutral-subtle"),
+        // イシュー #2047: `crate::empty_state` の root `Subtle` variant
+        // （`bg-subtle` 背景）に既定 `Plain` の indicator（`fg-subtle`、
+        // 大型装飾グリフ）が乗る組。
+        ("fg-subtle", "bg-subtle"),
     ];
 
     #[test]

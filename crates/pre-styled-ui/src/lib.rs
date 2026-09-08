@@ -316,7 +316,9 @@
 //!   伝えるため `role`/live region は付与しない）・[`mod@empty_state`]
 //!   （EmptyState、root/content/indicator/title/description/actions の
 //!   6 パーツ、[`crate::card`] と同型の中立コンテナで `color-palette` 軸は
-//!   提供しない）。
+//!   提供しない。イシュー #2047 で shadcn/ui `Empty` 突合により root の
+//!   `variant`（`Plain`/`Outline`/`Subtle`）と `indicator` の `variant`
+//!   （[`empty_state::indicator_with`]、`Plain`/`Boxed`）を純追加した）。
 //! - タイポグラフィ静的部品 6 種（イシュー #771）: [`mod@heading`]
 //!   （[`heading::heading`]、`h1`〜`h6` のタグ選択 + `size` variant）・
 //!   [`mod@text`]（[`text::text`]、`<p>`、`size` variant）・[`mod@em`]
@@ -780,7 +782,7 @@ pub use code::code;
 pub use color_swatch::{color_swatch, ColorSwatchProps, SwatchShape};
 pub use css::{decl, Declaration};
 pub use em::em;
-pub use empty_state::EmptyStateProps;
+pub use empty_state::{EmptyStateIndicatorVariant, EmptyStateProps, EmptyStateVariant};
 pub use field::{FieldOrientation, FieldRootProps};
 pub use fieldset::FieldsetRootProps;
 pub use heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
