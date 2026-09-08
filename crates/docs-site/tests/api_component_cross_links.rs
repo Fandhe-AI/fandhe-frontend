@@ -6,15 +6,17 @@
 //! - API ページ → 部品ページ: `docs/api/headless-ui-api.md` /
 //!   `docs/api/pre-styled-ui-api.md` が `../../site/themes/<kebab>.md`
 //!   形式のリンクで指す先はすべて nav 登録済みの部品ページであること。
-//! - 部品ページ → API ページ: 全 112 部品ページが
+//! - 部品ページ → API ページ: 全 113 部品ページが
 //!   `../../docs/api/pre-styled-ui-api.md` へのリンクを持ち、その集合は
-//!   `pre-styled-ui-api.md` 側が指す 112 件と完全一致すること（イシュー
+//!   `pre-styled-ui-api.md` 側が指す 113 件と完全一致すること（イシュー
 //!   #994 で Callout が加わり 102 → 103、イシュー #995 で Quote / Strong が
 //!   加わり 103 → 105、イシュー #996 で Tab Nav が加わり 105 → 106、
 //!   イシュー #997 で Checkbox Group が加わり 106 → 107、イシュー #1683 で
 //!   Collapsible が加わり 107 → 108、イシュー #1685 で Field が加わり
 //!   108 → 109、イシュー #1687 で Fieldset が加わり 109 → 110、
-//!   イシュー #2063 で Input Group が加わり 110 → 111、イシュー #2060 で Button Group が加わり 111 → 112）。
+//!   イシュー #2063 で Input Group が加わり 110 → 111、イシュー #2066 で
+//!   Item が加わり 111 → 112、イシュー #2060 で Button Group が加わり
+//!   112 → 113）。
 //! - headless-ui 裏付けを持つ部品ページ（nav 登録の部品ページ kebab と
 //!   `crates/headless-ui/src/<snake>.rs` mod 名の共通集合）は
 //!   `docs/api/headless-ui-api.md` と双方向にリンクしていること。
@@ -143,8 +145,8 @@ fn api_links_to_component_pages_are_all_nav_registered() {
     let nav_kebabs = nav_component_kebabs();
     assert_eq!(
         nav_kebabs.len(),
-        112,
-        "expected 112 nav-registered component pages, got {}",
+        113,
+        "expected 113 nav-registered component pages, got {}",
         nav_kebabs.len()
     );
 
@@ -168,7 +170,7 @@ fn api_links_to_component_pages_are_all_nav_registered() {
     }
 }
 
-/// 受け入れ条件 3 のもう片側: 全 112 部品ページが
+/// 受け入れ条件 3 のもう片側: 全 113 部品ページが
 /// `pre-styled-ui-api.md` へ委譲リンクし、`pre-styled-ui-api.md` 側が指す
 /// 部品ページ集合と完全一致すること（過不足ゼロ）。
 #[test]
@@ -176,7 +178,7 @@ fn every_component_page_links_back_to_pre_styled_ui_api() {
     const LINK_FRAGMENT: &str = "../../docs/api/pre-styled-ui-api.md";
 
     let nav_kebabs = nav_component_kebabs();
-    assert_eq!(nav_kebabs.len(), 112);
+    assert_eq!(nav_kebabs.len(), 113);
 
     let mut pages_missing_link = Vec::new();
     for kebab in &nav_kebabs {
@@ -195,7 +197,7 @@ fn every_component_page_links_back_to_pre_styled_ui_api() {
     let linked_from_api = extract_component_link_kebabs(&api_markdown);
     assert_eq!(
         linked_from_api, nav_kebabs,
-        "docs/api/pre-styled-ui-api.md component links must exactly match the 112 nav-registered \
+        "docs/api/pre-styled-ui-api.md component links must exactly match the 113 nav-registered \
          component pages (no missing, no stale entries)"
     );
 }
@@ -210,8 +212,8 @@ fn headless_backed_component_pages_link_bidirectionally_with_headless_ui_api() {
     let headless_backed = headless_backed_component_kebabs();
     assert_eq!(
         headless_backed.len(),
-        65,
-        "expected 65 headless-ui-backed component pages (nav ∩ headless-ui src mods), got {}: \
+        66,
+        "expected 66 headless-ui-backed component pages (nav ∩ headless-ui src mods), got {}: \
          {headless_backed:?}",
         headless_backed.len()
     );

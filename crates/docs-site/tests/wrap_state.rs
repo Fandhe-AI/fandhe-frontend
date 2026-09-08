@@ -1,11 +1,11 @@
-//! イシュー #1064: Primitives（`fandhe-frontend-headless-ui`、64 部品）と
-//! Themes（`fandhe-frontend-pre-styled-ui`、112 部品）の**層をまたぐラップ状態**
+//! イシュー #1064: Primitives（`fandhe-frontend-headless-ui`、67 部品）と
+//! Themes（`fandhe-frontend-pre-styled-ui`、113 部品）の**層をまたぐラップ状態**
 //! を機械可視化する契約テスト。
 //!
 //! # 背景・既存テストとの分担
 //!
 //! `tests/primitives_catalog.rs` は headless-ui ソース ↔ 台帳のドリフトを
-//! レイヤー内で検知するのみで、「Themes 112 部品のどれが headless をラップし、
+//! レイヤー内で検知するのみで、「Themes 113 部品のどれが headless をラップし、
 //! どれが独自実装か」という層をまたぐ対応関係は検証しない
 //! （`primitives_titles_match_themes_page_titles_where_both_exist` は同名
 //! ページが両方に存在する場合の title 一致のみを見る）。本ファイルはその
@@ -14,9 +14,9 @@
 //! をすり抜けるのを防ぐ。判別規約は
 //! `docs/design/docs-site-primitives-themes-split.md` §6a を参照。
 //!
-//! # 4 バケット分割（Themes 112 部品）
+//! # 4 バケット分割（Themes 113 部品）
 //!
-//! - [`WRAPPED_SAME_NAME`]（65）: 同名の Primitives 部品が存在し、かつ同名
+//! - [`WRAPPED_SAME_NAME`]（66）: 同名の Primitives 部品が存在し、かつ同名
 //!   headless モジュールへコード委譲している
 //! - [`WRAPPED_CROSS_NAME`]（5）: 同名 Primitives 部品は無いが、別名の
 //!   headless 部品へコード委譲している
@@ -620,7 +620,7 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 112 件すべてが `resolve_page` で panic
+/// §3.5: nav 登録済み Themes ページ 113 件すべてが `resolve_page` で panic
 /// せず解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
@@ -628,7 +628,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        112,
+        113,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
