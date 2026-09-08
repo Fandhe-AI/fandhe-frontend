@@ -47,13 +47,14 @@
 | `data-selected` | `pagination.rs` / `tree_view.rs` / `calendar.rs` | headless `pagination.rs` / `tree_view.rs` ほか |
 | `data-placement` | `drawer.rs` | headless `drawer.rs` / `toast.rs` |
 | `data-position` | `image_cropper.rs` | headless `image_cropper.rs`（イシュー #1610 で `data-handle-position` から改名。参照実装〔ark-ui/zag.js〕の語彙と一致させるため） |
-| `data-side` / `data-align` | `tour.rs` / `tooltip.rs`（イシュー #2041） | headless `positioning.rs` |
+| `data-side` / `data-align` | `tour.rs` / `tooltip.rs`（イシュー #2041）、`input_group.rs`（`addon` の `data-align` 4 値、イシュー #2063 で `input_group.rs` が state 規則として参照） | headless `positioning.rs` / headless `input_group.rs`（`addon` の `align` 引数） |
 | `data-placeholder` | `date_input.rs` | headless `date_input.rs` |
 | `data-placeholder-shown` | `editable.rs` | headless `editable.rs` / `select.rs` |
 | `data-autoresize` | `textarea.rs` | headless `field.rs` |
 | `data-empty` | （テストのみ、`signature_pad.rs`） | headless `signature_pad.rs` |
 | `data-positioned` | `select.rs` / `menu.rs` / `combobox.rs` | `crates/wasm-full/src/position.rs`（実行時に wasm 層のみが付与、UI 2 層はいずれも出力しない。イシュー #663 の設計） |
-| `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則）、`fieldset.rs`（イシュー #1686、`legend`/`helper-text` slot への state 規則） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成）、headless `fieldset.rs`（`FieldsetProps::disabled` から `state_data_attrs` が生成） |
+| `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則）、`fieldset.rs`（イシュー #1686、`legend`/`helper-text` slot への state 規則）、`input_group.rs`（イシュー #2063、`addon`/`button` slot への state 規則） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成）、headless `fieldset.rs`（`FieldsetProps::disabled` から `state_data_attrs` が生成）、headless `input_group.rs`（`InputGroupProps::disabled` から `state_data_attrs` が生成） |
+| `data-invalid` | `input_group.rs`（イシュー #2063、`root` slot への state 規則） | headless `input_group.rs`（`InputGroupProps::invalid` から `state_data_attrs` が生成） |
 | `data-danger` | `menu.rs`（イシュー #2033、shadcn/ui 突合。`item` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`item()` の `attrs` 経由で個別項目へ都度付与する値なし存在属性。headless・pre-styled のいずれも出力しない（下記「役割 B 亜種」注記参照） |
 | `data-inset` | `menu.rs`（イシュー #2033、shadcn/ui 突合。`item` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`item()` の `attrs` 経由で個別項目へ都度付与する値なし存在属性。headless・pre-styled のいずれも出力しない（下記「役割 B 亜種」注記参照） |
 | `data-has-action` | `card.rs`（イシュー #2046、shadcn/ui 突合。`header` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`header()` の `attrs` 経由で `("data-has-action", "")` を渡す値なし存在属性。header を grid 化し `action` パーツを右上へ配置する。card は headless 側部品を持たない（pre-styled 単独 anatomy）ため出力元は呼び出し側のみ |

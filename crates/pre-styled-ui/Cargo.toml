@@ -2325,6 +2325,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2043: alert を shadcn/ui と突合し、pre-styled-only レイアウト
 # パート `action` の新設（公開 API 追加 + CSS 出力の実体変更）を行ったため
 # minor バンプする（0.x の破壊的変更はマイナーバンプの規約、`toast`
+# のイシュー #2180 先例に同じ）。
+# base 再取り込み（イシュー #2062, 2026-09-08）: 本ブランチの到達値
+# 0.135.1 が main の到達値 0.136.0 を下回るため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数・
+# 逆転した到達値への衝突は main の現在値をさらに +1 する）に倣い、main
+# の到達値 0.136.0 の patch を +1 して 0.136.1 とする。
+# イシュー #2063: 新規 `input_group` モジュール（`root`/`addon`/`text`/
+# `button` の 4 slot recipe・stylesheet 追加、公開 API の純追加）を行った
+# ため minor バンプする（0.x の破壊的変更はマイナーバンプの規約、
+# `fieldset` のイシュー #1686 先例に同じ）。
 # のイシュー #2180 先例に同じ）。main（#2043）が独立に到達した値も
 # 0.136.0 であり、本ブランチ（#2044）の到達値と衝突したため、
 # `semver-same-version-is-conflict` の運用に倣い main の到達値 0.136.0
@@ -2344,6 +2354,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # base/variant 規則はバイト同一、選択子の削除・改名なし）。既存公開 API・
 # 出力を壊さない純追加のため patch バンプする（`docs/ci/
 # style-refresh-version-bump-operation.md` §3.3）。
+# base 再取り込み（イシュー #2063, 2026-09-08）: main が独立に PR #2063
+# （input_group の headless-ui 新設に伴う dep-version-check --fix）を
+# 取り込み 0.138.0 へ到達した（本ブランチの #2046 到達値 0.137.1 を
+# 上回る）。詳細は下段の続報を参照。
 # イシュー #2045: badge を shadcn/ui と突合し、`BadgeVariant::Plain`
 # 列挙値の新設（既存網羅 `match` を壊す 0.x の破壊的変更）と `link`
 # コンストラクタの追加（公開 API 追加）を行ったため minor バンプする。
@@ -2362,7 +2376,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 衝突）。`semver-same-version-is-conflict` の運用に倣い、main の到達値
 # 0.137.0 からさらに +1 して 0.138.0 とする。
 # base 再取り込み（イシュー #2046, review-fix ラウンド, 2026-09-08）続報: main が独立に PR #2045（badge を shadcn/ui と突合）を取り込んでおり、その到達値が 0.138.0 であることが判明した（本ブランチの #2046 到達値 0.137.1 を上回る）。`semver-same-version-is-conflict` の運用に倣い、main の到達値 0.138.0 からさらに +1 して 0.138.1 とする（本変更は既存 API・出力を壊さない純追加のため patch バンプを維持）。
-version = "0.138.1"
+# base 再取り込み（イシュー #2063, PR #2226 レビュー修正ラウンド, 2026-09-08）続報:
+# 本ブランチ（#2046, 0.138.1）と main（#2063, input_group 新設によるマイナー
+# バンプ）がいずれも独立にバンプしており、main の到達値 0.139.0 が本ブランチの
+# 到達値 0.138.1 を上回るため、`docs/ci/style-refresh-version-bump-operation.md`
+# §5 の手順（main の到達値を上回る値には追加のバンプを適用しない）に従い
+# main の到達値 0.139.0 をそのまま採用する。
+version = "0.139.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

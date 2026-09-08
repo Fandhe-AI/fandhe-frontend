@@ -73,9 +73,9 @@ use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry};
 
-/// Forms 29 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
-/// 削除・#997 で Checkbox Group・#1685 で Field・#1687 で Fieldset を
-/// 追加済み）の `path -> ComponentPageSpec` テーブル。
+/// Forms 30 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
+/// 削除・#997 で Checkbox Group・#1685 で Field・#1687 で Fieldset・#2063 で
+/// Input Group を追加済み）の `path -> ComponentPageSpec` テーブル。
 /// [`crate::component_page::SPEC_TABLES`] が集約する。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/angle-slider/", ANGLE_SLIDER),
@@ -90,6 +90,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/file-upload/", FILE_UPLOAD),
     ("/themes/image-cropper/", IMAGE_CROPPER),
     ("/themes/input/", INPUT),
+    ("/themes/input-group/", INPUT_GROUP),
     ("/themes/listbox/", LISTBOX),
     ("/themes/native-select/", NATIVE_SELECT),
     ("/themes/number-input/", NUMBER_INPUT),
@@ -818,6 +819,65 @@ const INPUT: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
+};
+
+/// Input Group（イシュー #2063、親 #2061。headless anatomy は #2062）。
+const INPUT_GROUP: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "root/addon/text/button の 4 slot 構成。`root` がコンテナの枠線・角丸・`:focus-within` フォーカスリングを所有し、内側の [Input](../input/)/[Textarea](../textarea/) は枠線なし・背景透明・`:focus-visible` の outline 無効化へリセットされる（子孫セレクタによる raw CSS 追記、`crates/pre-styled-ui/src/input_group.rs` モジュール doc「raw CSS 追記の理由」節参照）。",
+        "`addon` は `data-align`（`inline-start`/`inline-end`/`block-start`/`block-end`）の値に応じて `order`/`flex-basis` で配置する。`inline-*` は input の左右、`block-*` は textarea の上下（`flex-wrap: wrap` による改行）に配置する。",
+        "`size`/`variant`/`color-palette` いずれの軸も持たない。高さ・文字サイズは内側の Input/Textarea の `size` に従属するレイアウト部品のため（`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d)）。",
+        "`root` へは `disabled_declarations()`（`opacity: 0.5`）を付与しない。内側の Input/Textarea が自前で減光するため、二重に薄くなることを避ける設計判断（`crate::fieldset` の `root` と同じ判断）。`root` の `[data-disabled]` は `cursor: not-allowed` のみ。",
+        "shadcn/ui の `:has(control:focus-visible)` によるフォーカスリング限定は採用しない（`SlotRecipe`/raw CSS のいずれも `:has()` の先例を持たないため）。代わりに `root` へ単純な `:focus-within` を使い、`addon` 内の `button` には `FocusVisible` で inset リングを別途付与して外側リングとの重複を避ける。",
+        "バリデーション処理・addon クリックで input へフォーカスを移す JS 配線は実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。headless が出力する `data-*` を CSS セレクタとして参照するだけで見た目を切り替える。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "props",
+            kind: "&InputGroupProps",
+            default: "",
+            description: "`disabled`・`invalid` の 2 フラグを束ねる構造体。`merge_field_props` で内側コントロールの `FieldProps` へ OR 伝播できる。",
+        },
+        ArgRow {
+            name: "align",
+            kind: "InputGroupAlign",
+            default: "InlineStart",
+            description: "`addon` の配置（`InlineStart`/`InlineEnd`/`BlockStart`/`BlockEnd`）。`addon` 関数の第 1 引数。",
+        },
+        ArgRow {
+            name: "attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "各パーツへ合成する追加属性（`class` は除去され、本モジュールが見た目クラスを付与しない設計のため `class` 属性自体が出力から消える）。",
+        },
+        ArgRow {
+            name: "children",
+            kind: "Vec<Node>",
+            default: "",
+            description: "各パーツの子ノード（`root` には内側 Input/Textarea と `addon` 群、`addon` には `text`/`button`、`button` にはラベルテキスト等）。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "`root`（`<div>`）へ固定付与する。",
+        },
+        AriaRow {
+            attribute: "aria-invalid=\"true\"",
+            description: "`invalid` が `true` のとき `root` へ付与する（headless `input_group::root` の描画則）。",
+        },
+        AriaRow {
+            attribute: "type=\"button\"",
+            description: "`button` パーツへ固定付与する（フォーム暗黙送信を起こさないため）。",
+        },
+        AriaRow {
+            attribute: "aria-labelledby / aria-describedby",
+            description: "Input Group 自身は付与しない。アクセシブルネームは [Field](../field/) の `label`、補足説明は `helper_text`/`error_text` が担う既存の責務のまま（重複付与による ID 参照の競合を避ける）。",
+        },
+    ],
     demo: None,
 };
 

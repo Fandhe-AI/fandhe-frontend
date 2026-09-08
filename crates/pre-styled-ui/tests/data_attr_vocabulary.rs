@@ -275,6 +275,78 @@ fn fieldset_root_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(!css.contains("[data-invalid]"));
 }
 
+/// `input_group.rs`（イシュー #2063、親 #2061）は独自の `data-*` を一切
+/// 出力しない（`docs/design/pre-styled-ui-data-attr-vocabulary.md` §3.1
+/// 規約 A・役割 B）。styled `root`/`addon`/`button` に現れる
+/// `data-disabled`/`data-invalid` はすべて headless
+/// `fandhe_frontend_headless_ui::input_group` が [`InputGroupProps`] の
+/// 2 フラグから生成するもの、`data-align` は [`addon`] の `align` 引数から
+/// headless が生成するものであり、`input_group::stylesheet()` はそれらの
+/// 属性を CSS セレクタとして**参照する**だけで自前出力はしない、という
+/// 事実を固定する（`fieldset_root_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。
+#[test]
+fn input_group_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
+
+    // 全フラグ false のとき、`data-disabled`/`data-invalid` はいずれも
+    // 出力されない。
+    let enabled = InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+    let root_html = render(&input_group::root(&enabled, vec![], vec![]));
+    assert!(!root_html.contains("data-disabled"));
+    assert!(!root_html.contains("data-invalid"));
+    let addon_html = render(&input_group::addon(
+        InputGroupAlign::InlineStart,
+        &enabled,
+        vec![],
+        vec![],
+    ));
+    assert!(!addon_html.contains("data-disabled"));
+    assert!(!addon_html.contains("data-invalid"));
+
+    // 全フラグ true のとき、両方とも headless 経由で出力される（styled
+    // 各パーツ自身は data-* を組み立てない）。
+    let flagged = InputGroupProps {
+        disabled: true,
+        invalid: true,
+    };
+    let root_html = render(&input_group::root(&flagged, vec![], vec![]));
+    assert!(root_html.contains("data-disabled"));
+    assert!(root_html.contains("data-invalid"));
+    let addon_html = render(&input_group::addon(
+        InputGroupAlign::InlineEnd,
+        &flagged,
+        vec![],
+        vec![],
+    ));
+    assert!(addon_html.contains("data-disabled"));
+    assert!(addon_html.contains("data-invalid"));
+    let button_html = render(&input_group::button(&flagged, vec![], vec![]));
+    assert!(button_html.contains("data-disabled"));
+
+    // `data-align` は `addon` の `align` 引数から headless が生成する。
+    for (align, expected) in [
+        (InputGroupAlign::InlineStart, "inline-start"),
+        (InputGroupAlign::InlineEnd, "inline-end"),
+        (InputGroupAlign::BlockStart, "block-start"),
+        (InputGroupAlign::BlockEnd, "block-end"),
+    ] {
+        let html = render(&input_group::addon(align, &enabled, vec![], vec![]));
+        assert!(html.contains(&format!(r#"data-align="{expected}""#)));
+    }
+
+    // `input_group::stylesheet()` は `[data-disabled]`/`[data-invalid]`/
+    // `[data-align=` を CSS セレクタとして参照するだけで、自前で `data-*`
+    // を組み立てて出力する経路（属性タプルの直接構築）を持たない。
+    let css = input_group::stylesheet();
+    assert!(css.contains("[data-disabled]"));
+    assert!(css.contains("[data-invalid]"));
+    assert!(css.contains("[data-align="));
+}
+
 /// `dialog.rs`（イシュー #1690、親 #1675）の pre-styled-only `footer` パート
 /// と alert-dialog 構成は独自の `data-*` を一切出力しない（`docs/design/
 /// pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B、

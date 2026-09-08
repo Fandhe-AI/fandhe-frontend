@@ -14,9 +14,10 @@
 # `from` は `site/nav.toml` の既存ページ path と衝突してはならない
 # （衝突する場合はビルド失敗、`RedirectError::CollidesWithPage`）。
 #
-# 実宣言は現在 112 件（予防的移転案内 1 + 索引ページ移設 1 +
-# 部品ページ移行 110（#1017 の 107 + #1683 で追加した collapsible 1 +
-# #1685 で追加した field 1 + #1687 で追加した fieldset 1））。
+# 実宣言は現在 113 件（予防的移転案内 1 + 索引ページ移設 1 +
+# 部品ページ移行 111（#1017 の 107 + #1683 で追加した collapsible 1 +
+# #1685 で追加した field 1 + #1687 で追加した fieldset 1 +
+# #2063 で追加した input-group 1））。
 # #1018 で索引ページを `/components/pre-styled-ui/` から `/themes/` へ
 # 移設し、旧索引 URL 自体のリダイレクトを追加した（残り 1 件のスコープを
 # 完了）。`/components/collapsible/`・`/components/field/`・
@@ -38,10 +39,11 @@ to = "/themes/"
 from = "/components/pre-styled-ui/"
 to = "/themes/"
 
-# 以下 110 件はイシュー #1017（既存 107 部品ページを /components/ から
+# 以下 111 件はイシュー #1017（既存 107 部品ページを /components/ から
 # /themes/ へ移行）の実宣言 + #1683 で追加した collapsible 1 件 + #1685 で
-# 追加した field 1 件 + #1687 で追加した fieldset 1 件。生成コマンドは
-# nav.toml 更新後そのまま実行すれば 110 件を出力する（決定的・レビュー可能）:
+# 追加した field 1 件 + #1687 で追加した fieldset 1 件 + #2063 で追加した
+# input-group 1 件。生成コマンドは nav.toml 更新後そのまま実行すれば
+# 111 件を出力する（決定的・レビュー可能）:
 #
 #   git show HEAD:site/nav.toml | grep -o 'source = "site/themes/[^"]*"' \
 #     | sed 's|.*site/themes/||; s|\.md"||' | sort \
@@ -253,6 +255,14 @@ to = "/themes/image-cropper/"
 [[redirect]]
 from = "/components/input/"
 to = "/themes/input/"
+
+[[redirect]]
+# `/components/input-group/` は #1017 の一括移行以前には存在しなかった URL
+# だが、`/components/fieldset/` と同じ「未提供 URL への予防的移転案内」
+# （`docs/design/docs-site-primitives-themes-split.md` §2.4）として、
+# #2063 で Themes ページ新設に合わせ追加した。
+from = "/components/input-group/"
+to = "/themes/input-group/"
 
 [[redirect]]
 from = "/components/json-tree-view/"

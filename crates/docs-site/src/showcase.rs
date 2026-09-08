@@ -132,6 +132,7 @@ use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::{kbd, KbdProps, KbdVariant};
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
@@ -575,6 +576,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: input_section,
     },
     ComponentPage {
+        path: "/themes/input-group/",
+        render: input_group_section,
+    },
+    ComponentPage {
         path: "/themes/textarea/",
         render: textarea_section,
     },
@@ -946,6 +951,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::field::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::fieldset::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::input_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -5041,6 +5047,194 @@ fn input_section() -> Node {
         "Input",
         "ブラウザネイティブ挙動をそのまま尊重する静的テキスト入力部品。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現します。",
         vec![input_row],
+    )
+}
+
+/// Input Group 節（イシュー #2063、親 #2061。headless anatomy は #2062）:
+/// 既定（inline addon）/ invalid / disabled / block（textarea 上下）の
+/// 4 態を掲示する。`input_group::root` の子として直接
+/// [`input::input`]/[`textarea::textarea`] を合成する契約
+/// （`fandhe_frontend_headless_ui::input_group` モジュール doc「anatomy」節
+/// 参照。`input_group` 自身は `<input>`/`<textarea>` を出力しない）。
+///
+/// `field::label` は `input_group::root` の外側（`field::root` の直接の
+/// 子として `input_group::root` と並べる）に置く。`input_group` recipe の
+/// `display: flex` 行を label が乱さないようにするため
+/// （`crates/pre-styled-ui/src/input_group.rs` モジュール doc「レイアウト
+/// 設計」節参照）。
+fn input_group_section() -> Node {
+    // 既定: inline-start に通貨記号、inline-end に Clear ボタン。
+    let default_group_props = InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+    let default_field = plain_field("showcase-input-group-default");
+    let default_instance = field::root(
+        &FieldRootProps::default(),
+        &default_field,
+        vec![],
+        vec![
+            field::label(&default_field, vec![], vec![text("Amount")]),
+            input_group::root(
+                &default_group_props,
+                vec![],
+                vec![
+                    input_group::addon(
+                        InputGroupAlign::InlineStart,
+                        &default_group_props,
+                        vec![],
+                        vec![input_group::text(vec![], vec![text("$")])],
+                    ),
+                    input::input(
+                        &InputProps::default(),
+                        &default_field,
+                        vec![("placeholder", "0.00")],
+                    ),
+                    input_group::addon(
+                        InputGroupAlign::InlineEnd,
+                        &default_group_props,
+                        vec![],
+                        vec![input_group::button(
+                            &default_group_props,
+                            vec![],
+                            vec![text("Clear")],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    // invalid: `InputGroupProps::merge_field_props` で `invalid` を
+    // `FieldProps` へ OR 伝播し、`input::error_text` を併設する
+    // （`aria-describedby` の参照先欠落を残さない契約、`input_section` の
+    // `invalid_field` 併設コメントと同型）。
+    let invalid_group_props = InputGroupProps {
+        disabled: false,
+        invalid: true,
+    };
+    let invalid_field_props =
+        invalid_group_props.merge_field_props(plain_field("showcase-input-group-invalid"));
+    let invalid_instance = field::root(
+        &FieldRootProps::default(),
+        &invalid_field_props,
+        vec![],
+        vec![
+            field::label(&invalid_field_props, vec![], vec![text("Email")]),
+            input_group::root(
+                &invalid_group_props,
+                vec![],
+                vec![
+                    input_group::addon(
+                        InputGroupAlign::InlineStart,
+                        &invalid_group_props,
+                        vec![],
+                        vec![input_group::text(vec![], vec![text("@")])],
+                    ),
+                    input::input(
+                        &InputProps::default(),
+                        &invalid_field_props,
+                        vec![("placeholder", "username")],
+                    ),
+                ],
+            ),
+            input::error_text(
+                &invalid_field_props,
+                vec![],
+                vec![text("This field is required.")],
+            ),
+        ],
+    );
+
+    // disabled: `merge_field_props` で内側 input へも `data-disabled` を
+    // 伝播する（`root` は二重減光を避けるため自前の opacity を持たない、
+    // `input_group.rs` モジュール doc 参照）。
+    let disabled_group_props = InputGroupProps {
+        disabled: true,
+        invalid: false,
+    };
+    let disabled_field_props =
+        disabled_group_props.merge_field_props(plain_field("showcase-input-group-disabled"));
+    let disabled_instance = field::root(
+        &FieldRootProps::default(),
+        &disabled_field_props,
+        vec![],
+        vec![
+            field::label(&disabled_field_props, vec![], vec![text("Amount")]),
+            input_group::root(
+                &disabled_group_props,
+                vec![],
+                vec![
+                    input_group::addon(
+                        InputGroupAlign::InlineStart,
+                        &disabled_group_props,
+                        vec![],
+                        vec![input_group::text(vec![], vec![text("$")])],
+                    ),
+                    input::input(
+                        &InputProps::default(),
+                        &disabled_field_props,
+                        vec![("placeholder", "0.00")],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    // block: `BlockStart`/`BlockEnd` で textarea の上下に addon を配置する
+    // （`flex-wrap: wrap` + `flex-basis: 100%` によるレイアウト、
+    // `input_group.rs` モジュール doc「レイアウト設計」節参照）。
+    let block_group_props = InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+    let block_field = plain_field("showcase-input-group-block");
+    let block_instance = field::root(
+        &FieldRootProps::default(),
+        &block_field,
+        vec![],
+        vec![
+            field::label(&block_field, vec![], vec![text("Bio")]),
+            input_group::root(
+                &block_group_props,
+                vec![],
+                vec![
+                    input_group::addon(
+                        InputGroupAlign::BlockStart,
+                        &block_group_props,
+                        vec![],
+                        vec![input_group::text(
+                            vec![],
+                            vec![text("Tell us about yourself")],
+                        )],
+                    ),
+                    textarea::textarea(
+                        &TextareaProps::default(),
+                        &block_field,
+                        false,
+                        vec![("placeholder", "I'm a...")],
+                        vec![],
+                    ),
+                    input_group::addon(
+                        InputGroupAlign::BlockEnd,
+                        &block_group_props,
+                        vec![],
+                        vec![input_group::text(vec![], vec![text("0/280")])],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    section(
+        "Input Group",
+        "入力欄の前後にテキスト/アイコン/ボタンの addon を配置する複合部品。root がコンテナの枠線・フォーカスリングを所有し、内側の Input/Textarea は枠線なしへリセットされます。",
+        vec![row(vec![
+            default_instance,
+            invalid_instance,
+            disabled_instance,
+            block_instance,
+        ])],
     )
 }
 
@@ -11409,7 +11603,8 @@ mod tests {
         // イシュー #1683 で Collapsible を追加し 101 → 102 件になった。
         // イシュー #1685 で Field を追加し 102 → 103 件になった。
         // イシュー #1687 で Fieldset を追加し 103 → 104 件になった。
-        assert_eq!(paths.len(), 104, "COMPONENT_PAGES should have 104 entries");
+        // イシュー #2063 で Input Group を追加し 104 → 105 件になった。
+        assert_eq!(paths.len(), 105, "COMPONENT_PAGES should have 105 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -11503,6 +11698,7 @@ mod tests {
             "checkbox",
             "field",
             "fieldset",
+            "input-group",
             "number-input",
             "password-input",
             "tags-input",
@@ -11693,6 +11889,12 @@ mod tests {
         assert!(css.contains(r#"[data-scope="fieldset"][data-part="legend"]"#));
         assert!(css.contains(r#"[data-scope="fieldset"][data-part="helper-text"]"#));
         assert!(css.contains(r#"[data-scope="fieldset"][data-part="error-text"]"#));
+        // Input Group 節（イシュー #2063）: root/addon/text/button の
+        // recipe CSS。
+        assert!(css.contains(r#"[data-scope="input-group"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="input-group"][data-part="addon"]"#));
+        assert!(css.contains(r#"[data-scope="input-group"][data-part="text"]"#));
+        assert!(css.contains(r#"[data-scope="input-group"][data-part="button"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));

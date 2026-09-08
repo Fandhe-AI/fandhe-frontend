@@ -241,7 +241,9 @@ fn build_succeeds_with_zero_redirects_when_manifest_is_absent() {
 /// なった。イシュー #1685 で Field の Themes ページ新設に伴い
 /// `/components/field/` を追加し、111 件になった。イシュー #1687 で
 /// Fieldset の Themes ページ新設に伴い `/components/fieldset/` を追加し、
-/// 現在は 112 件。本値の更新が要る変更は
+/// 112 件になった。イシュー #2063 で Input Group の Themes ページ新設に
+/// 伴い `/components/input-group/` を追加し、現在は 113 件。本値の更新が
+/// 要る変更は
 /// fail-closed に検知する（黙って増減しても気付けるようにする意図。
 /// `tests/site_build.rs` のページ数固定と同型）。
 #[test]
@@ -258,7 +260,7 @@ fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
         redirect::parse_redirects(&input).expect("site/redirects.toml should parse cleanly");
     assert_eq!(
         redirects.entries.len(),
-        112,
+        113,
         "site/redirects.toml の宣言件数が期待値と異なる: {:?}",
         redirects.entries
     );
@@ -299,8 +301,9 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         fandhe_frontend_docs_site::nav::parse_nav(&nav_input).expect("site/nav.toml should parse");
 
     // nav 側: `site/themes/<kebab>.md` を source に持つ全ページの
-    // (kebab, path) 集合（110 件、イシュー #1683 で 107 → 108、
-    // イシュー #1685 で 108 → 109、イシュー #1687 で 109 → 110）。
+    // (kebab, path) 集合（111 件、イシュー #1683 で 107 → 108、
+    // イシュー #1685 で 108 → 109、イシュー #1687 で 109 → 110、
+    // イシュー #2063 で 110 → 111）。
     let themes_pages: Vec<(String, String)> = nav
         .all_pages()
         .filter_map(|p| {
@@ -312,8 +315,8 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         .collect();
     assert_eq!(
         themes_pages.len(),
-        110,
-        "expected 110 site/themes/ pages, got {}: {themes_pages:?}",
+        111,
+        "expected 111 site/themes/ pages, got {}: {themes_pages:?}",
         themes_pages.len()
     );
 
