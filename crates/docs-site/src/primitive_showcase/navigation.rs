@@ -1,4 +1,5 @@
-//! Primitives Demo — Navigation（11 件、原稿は #1028）。
+//! Primitives Demo — Navigation（13 件、原稿は #1028。イシュー #2072 で
+//! `sidebar` を追加）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 //!
 //! `menu` はイシュー #1651（参照突合）で 18 anatomy パーツすべてを描画する
@@ -14,6 +15,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
 use hui::breadcrumb;
 use hui::button_group;
+use hui::collapsible;
 use hui::data_attrs::Orientation;
 use hui::link;
 use hui::link_overlay;
@@ -22,6 +24,9 @@ use hui::menubar;
 use hui::nav_list;
 use hui::navigation_menu;
 use hui::pagination::{self, ItemMode};
+use hui::sidebar::{
+    self, Sidebar, SidebarMenuButtonProps, SidebarMenuSubButtonProps, SidebarProps, SidebarState,
+};
 use hui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use hui::toolbar;
 use hui::OpenState;
@@ -819,6 +824,158 @@ pub(super) fn pagination_section() -> Node {
         ],
     )];
     demo_page("Pagination", body)
+}
+
+/// イシュー #2072: 22 anatomy パーツすべてを描画する。`menu-sub` の開閉は
+/// `collapsible` の合成で表現し（`sidebar` モジュール doc「他 scope を
+/// 内包しない」参照。ページ kebab `sidebar` が直接一致する `data-scope`
+/// として先に見つかるため、`collapsible` の内包は scope 解決契約
+/// （`resolve_anatomy_scope`）に反しない）、`data-state` は
+/// expanded/collapsed の 2 インスタンスを並べて Observed Values を示す。
+pub(super) fn sidebar_section() -> Node {
+    let expanded_state = Sidebar::new(SidebarState::Expanded);
+    let expanded_props = SidebarProps::default();
+
+    let menu_sub_open = OpenState::Open;
+    let projects_sub = el(
+        "li",
+        vec![],
+        vec![
+            collapsible::trigger(
+                menu_sub_open,
+                false,
+                Some("primitives-sidebar-projects-sub"),
+                vec![],
+                vec![text("Projects")],
+            ),
+            collapsible::content(
+                menu_sub_open,
+                false,
+                Some("primitives-sidebar-projects-sub"),
+                vec![],
+                vec![sidebar::menu_sub(
+                    vec![],
+                    vec![sidebar::menu_sub_item(
+                        vec![],
+                        vec![sidebar::menu_sub_button(
+                            &SidebarMenuSubButtonProps {
+                                href: Some("https://example.com/projects/alpha"),
+                                active: true,
+                                ..Default::default()
+                            },
+                            vec![],
+                            vec![text("Alpha")],
+                        )],
+                    )],
+                )],
+            ),
+        ],
+    );
+
+    let menu = sidebar::menu(
+        vec![],
+        vec![
+            sidebar::menu_item(
+                vec![],
+                vec![sidebar::menu_button(
+                    &SidebarMenuButtonProps {
+                        href: Some("https://example.com/dashboard"),
+                        active: true,
+                        describedby: Some("primitives-sidebar-dashboard-tip"),
+                        ..Default::default()
+                    },
+                    vec![],
+                    vec![
+                        text("Dashboard"),
+                        sidebar::menu_action("Pin Dashboard", vec![], vec![]),
+                        sidebar::menu_badge(vec![], vec![text("3")]),
+                    ],
+                )],
+            ),
+            projects_sub,
+        ],
+    );
+
+    let group = sidebar::group(
+        Some("primitives-sidebar-platform-label"),
+        vec![],
+        vec![
+            sidebar::group_label(
+                Some("primitives-sidebar-platform-label"),
+                vec![],
+                vec![text("Platform")],
+            ),
+            sidebar::group_action("Add project", vec![], vec![]),
+            sidebar::group_content(vec![], vec![menu]),
+        ],
+    );
+
+    let expanded_root = sidebar::root(
+        &expanded_state,
+        &expanded_props,
+        "Main navigation",
+        Some("primitives-sidebar-nav-expanded"),
+        vec![],
+        vec![
+            sidebar::header(vec![], vec![text("Acme Inc")]),
+            sidebar::content(
+                vec![],
+                vec![
+                    sidebar::input(vec![("type", "search"), ("aria-label", "Search")]),
+                    sidebar::separator(vec![], vec![]),
+                    group,
+                ],
+            ),
+            sidebar::footer(vec![], vec![text("Ada Lovelace")]),
+        ],
+    );
+
+    let expanded_instance = sidebar::provider(
+        &expanded_state,
+        &expanded_props,
+        vec![],
+        vec![
+            expanded_root,
+            sidebar::rail(&expanded_state, "Toggle sidebar rail", vec![], vec![]),
+            sidebar::trigger(
+                &expanded_state,
+                "Toggle sidebar",
+                Some("primitives-sidebar-nav-expanded"),
+                vec![],
+                vec![],
+            ),
+        ],
+    );
+
+    let collapsed_state = Sidebar::new(SidebarState::Collapsed);
+    let collapsed_props = SidebarProps {
+        mobile: true,
+        ..SidebarProps::default()
+    };
+    let collapsed_instance = sidebar::provider(
+        &collapsed_state,
+        &collapsed_props,
+        vec![],
+        vec![sidebar::root(
+            &collapsed_state,
+            &collapsed_props,
+            "Main navigation (collapsed)",
+            None,
+            vec![],
+            vec![sidebar::trigger(
+                &collapsed_state,
+                "Toggle sidebar",
+                None,
+                vec![],
+                vec![],
+            )],
+        )],
+    );
+
+    let inset = sidebar::inset(vec![], vec![text("Page content")]);
+
+    let body = vec![expanded_instance, collapsed_instance, inset];
+    demo_page("Sidebar", body)
 }
 
 pub(super) fn tabs_section() -> Node {

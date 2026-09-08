@@ -311,7 +311,7 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
         path: "/primitives/tooltip/",
         render: overlay_disclosure::tooltip_section,
     },
-    // --- Navigation（12、#1028） ---
+    // --- Navigation（13、#1028。イシュー #2072 で sidebar 追加、旧 12） ---
     PrimitivePage {
         path: "/primitives/action-bar/",
         render: navigation::action_bar_section,
@@ -351,6 +351,10 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
     PrimitivePage {
         path: "/primitives/pagination/",
         render: navigation::pagination_section,
+    },
+    PrimitivePage {
+        path: "/primitives/sidebar/",
+        render: navigation::sidebar_section,
     },
     PrimitivePage {
         path: "/primitives/tabs/",

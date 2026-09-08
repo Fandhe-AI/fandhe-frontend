@@ -201,10 +201,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 加わり、203 → 204 になった。イシュー #2066 で Item の Themes ページが
     // 加わり、204 → 205 になった。イシュー #2068 で Command（Primitives）が
     // 加わり、205 → 206 になった。イシュー #2060 で Button Group の
-    // Themes ページが加わり、206 → 207 になった。
+    // Themes ページが加わり、206 → 207 になった。イシュー #2072 で
+    // Sidebar（Primitives）が加わり、207 → 208 になった。
     assert_eq!(
         report.written.len(),
-        207,
+        208,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -262,6 +263,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // それぞれ加わり部品 65 件 + 索引 1 件 = 66 件になった。イシュー #2065
     // で Item が加わり部品 66 件 + 索引 1 件 = 67 件になった。イシュー
     // #2068 で Command が加わり部品 67 件 + 索引 1 件 = 68 件になった。
+    // イシュー #2072 で Sidebar が加わり部品 68 件 + 索引 1 件 = 69 件に
+    // なった。
     let primitives_dir = out.0.join("primitives");
     let primitive_pages = report
         .written
@@ -269,8 +272,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&primitives_dir))
         .count();
     assert_eq!(
-        primitive_pages, 68,
-        "/primitives/ 配下の生成ページ数（部品 67 件 + 索引 1 件）"
+        primitive_pages, 69,
+        "/primitives/ 配下の生成ページ数（部品 68 件 + 索引 1 件）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /
@@ -521,8 +524,8 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
         .matches("/fandhe-frontend/primitives/")
         .count();
     assert_eq!(
-        primitives_link_count, 68,
-        "Primitives サイドバーのリンク数が索引 1 + 部品 67 = 68 件と一致しない: {primitives_window}"
+        primitives_link_count, 69,
+        "Primitives サイドバーのリンク数が索引 1 + 部品 68 = 69 件と一致しない: {primitives_window}"
     );
 }
 

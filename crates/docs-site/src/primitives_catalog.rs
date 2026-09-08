@@ -3,8 +3,9 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! `/primitives/<kebab>/` 67 ページ（イシュー #2068 で `command` を追加、
-//! 旧 66。#2065 で `item` を追加、旧 65。#2062 で `input_group`・#2059 で
+//! `/primitives/<kebab>/` 68 ページ（イシュー #2072 で `sidebar` を追加、
+//! 旧 67。#2068 で `command` を追加、旧 66。#2065 で `item` を追加、
+//! 旧 65。#2062 で `input_group`・#2059 で
 //! `button_group` を追加、旧 63）の「どの部品が・どの
 //! URL に・どの表示名
 //! で・どのカテゴリに属するか」の唯一の正。#1021（nav 登録・ページ生成）と
@@ -22,14 +23,15 @@
 //! # 判別規約（設計 §6 の要旨）
 //!
 //! `crates/headless-ui/src/*.rs` のうち本文に `anatomy(` を含むもの
-//! （`anatomy.rs` 自身を除く）が部品 67 件（イシュー #2068 で `command`
+//! （`anatomy.rs` 自身を除く）が部品 68 件（イシュー #2072 で `sidebar`
+//! が加わり 67 → 68。#2068 で `command`
 //! が加わり 66 → 67。#2065 で `item` が加わり 65 → 66。#2062 で
 //! `input_group`・#2059 で `button_group` が加わり 63 → 65）、基盤モジュール
-//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 77 件が
+//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 78 件が
 //! `crates/headless-ui/src/*.rs` の総数（実測:
-//! `ls crates/headless-ui/src/*.rs | wc -l` => 77、
+//! `ls crates/headless-ui/src/*.rs | wc -l` => 78、
 //! `grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l`
-//! => 67）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
+//! => 68）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
 //! 責務。
 
 use std::collections::BTreeSet;
@@ -69,7 +71,8 @@ pub enum PrimitiveCategory {
     FormsCDateStatus,
     /// Overlay / Disclosure（10 件、原稿は #1027）。
     OverlayDisclosure,
-    /// Navigation（12 件、原稿は #1028。イシュー #2059 で button_group が追加され 11 → 12）。
+    /// Navigation（13 件、原稿は #1028。イシュー #2072 で sidebar が追加され
+    /// 12 → 13。イシュー #2059 で button_group が追加され 11 → 12）。
     Navigation,
     /// Data Display / Utilities（11 件、原稿は #1029。イシュー #2065 で
     /// `item` が追加され 10 → 11）。
@@ -114,7 +117,8 @@ impl PrimitiveCategory {
     }
 }
 
-/// Primitives 台帳（67 件、イシュー #2068 で `command` 追加、旧 66。#2065 で
+/// Primitives 台帳（68 件、イシュー #2072 で `sidebar` 追加、旧 67。#2068 で
+/// `command` 追加、旧 66。#2065 で
 /// `item` 追加、旧 65。#2062 で `input_group`・#2059 で `button_group` 追加、
 /// 旧 63）。
 ///
@@ -470,6 +474,14 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         category: PrimitiveCategory::Navigation,
     },
     PrimitiveEntry {
+        // イシュー #2072: headless-ui 層のみ先行実装（`PRIMITIVES_WITHOUT_THEMES_PAGE`
+        // 参照。`command`/`button_group` と同じ経緯）。
+        module: "sidebar",
+        path: "/primitives/sidebar/",
+        title: "Sidebar",
+        category: PrimitiveCategory::Navigation,
+    },
+    PrimitiveEntry {
         module: "tabs",
         path: "/primitives/tabs/",
         title: "Tabs",
@@ -599,7 +611,7 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["command"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["command", "sidebar"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
@@ -786,23 +798,25 @@ mod tests {
         assert!(result.is_clean(), "{result:?}");
     }
 
-    /// 台帳が 67 件・6 カテゴリで、件数配分（13/11/10/10/12/11）と
-    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2065 で `item`
+    /// 台帳が 68 件・6 カテゴリで、件数配分（13/11/10/10/13/11）と
+    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2072 で
+    /// `sidebar` が Navigation へ追加され同カテゴリは 12 → 13、イシュー
+    /// #2065 で `item`
     /// が Data Display / Utilities へ追加され同カテゴリは 10 → 11、イシュー
     /// #2062 で `input_group` が Forms A へ追加され Forms A は 11 → 12、
     /// イシュー #2059 で `button_group` が Navigation へ追加され
     /// Navigation は 11 → 12、イシュー #2068 で `command` が Forms A へ
     /// 追加され Forms A は 12 → 13）。
     #[test]
-    fn catalog_has_67_entries_in_six_categories_in_spec_order() {
-        assert_eq!(PRIMITIVES.len(), 67);
+    fn catalog_has_68_entries_in_six_categories_in_spec_order() {
+        assert_eq!(PRIMITIVES.len(), 68);
 
         let expected_order_and_counts: [(PrimitiveCategory, usize); 6] = [
             (PrimitiveCategory::FormsA, 13),
             (PrimitiveCategory::FormsB, 11),
             (PrimitiveCategory::FormsCDateStatus, 10),
             (PrimitiveCategory::OverlayDisclosure, 10),
-            (PrimitiveCategory::Navigation, 12),
+            (PrimitiveCategory::Navigation, 13),
             (PrimitiveCategory::DataDisplayUtilities, 11),
         ];
 

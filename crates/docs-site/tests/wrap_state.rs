@@ -587,10 +587,13 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// を新設し `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。
 /// イシュー #2068 で headless-ui 層のみを実装した `command` が新設され、
 /// pre-styled-ui recipe（後続 #2070）を持たないため本リストへ加える。
+/// イシュー #2072 で同様に headless-ui 層のみを実装した `sidebar` が
+/// 新設され、pre-styled-ui recipe（後続 #2073）を持たないため本リストへ
+/// 加える。
 /// （`PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
 /// が検証する）。
-const HEADLESS_UNWRAPPED: &[&str] = &["command"];
+const HEADLESS_UNWRAPPED: &[&str] = &["command", "sidebar"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ

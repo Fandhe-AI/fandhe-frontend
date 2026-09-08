@@ -389,6 +389,11 @@ source = "site/primitives/pagination.md"
 path = "/primitives/pagination/"
 
 [[section.group.page]]
+title = "Sidebar"
+source = "site/primitives/sidebar.md"
+path = "/primitives/sidebar/"
+
+[[section.group.page]]
 title = "Tabs"
 source = "site/primitives/tabs.md"
 path = "/primitives/tabs/"

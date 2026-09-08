@@ -572,3 +572,21 @@ Forms A 13・6 グループ**合計 66→67**であり、§6 のコード導出�
 して提示することになるが、どの受け入れ条件にも含まれていない。層ラベル
 付きタイトル(例: `Accordion (Primitives)`)等の対処が要るなら別 issue と
 する。
+
+## 12. イシュー #2072 追記(2026-09-09、sidebar 追加)
+
+`crates/headless-ui/src/sidebar.rs` の新設(headless-ui 層のみ先行実装、
+Themes recipe は後続イシュー #2073)に伴い、§2/§6/§7 の件数を以下のとおり
+更新した(実装コミット側の一次情報は `crates/docs-site/src/primitives_catalog.rs`
+と `crates/docs-site/tests/primitives_catalog.rs`。本節では差分のみ記録し
+本文中の全出現箇所は書き換えない、二重管理回避)。
+
+- Primitives 部品: 67 → **68**(`sidebar` が Navigation カテゴリへ追加)
+- `crates/headless-ui/src/*.rs` 総数: 77 → **78**(基盤 9 件 + `lib.rs` は不変)
+- §7 Navigation カテゴリ件数: 12 → **13**(グループ内順序は
+  `pagination` の次、`tabs` の前)
+- `PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`(§9 相当の
+  「headless-ui 層のみ先行実装」台帳、`command` と同型の経緯): `["command"]`
+  → **`["command", "sidebar"]`**
+- Themes 部品(§2/§6 の件数)は本イシューでは変化しない(`/themes/sidebar/`
+  は後続イシュー #2073 の責務)。

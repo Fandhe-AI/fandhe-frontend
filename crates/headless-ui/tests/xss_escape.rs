@@ -35,6 +35,9 @@ use fandhe_frontend_headless_ui::item::{self, ItemMediaVariant, ItemRootProps};
 use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
+use fandhe_frontend_headless_ui::sidebar::{
+    self, Sidebar, SidebarMenuButtonProps, SidebarMenuSubButtonProps, SidebarProps, SidebarState,
+};
 use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, button_group, carousel, clipboard, color_picker,
@@ -2275,5 +2278,160 @@ fn command_dialog_input_list_item_and_attrs_are_escaped_for_all_payloads() {
         let group_heading_id_node = command::group_heading(Some(payload), vec![], vec![]);
         let html = render(&group_heading_id_node);
         assert_payload_is_escaped(payload, &html, "command::group_heading の id コンテキスト");
+    }
+}
+
+/// イシュー #2072: `sidebar` の動的スロット（`root` の `label`/`id`、
+/// `menu_button`/`menu_sub_button` の `href`/`describedby`、`group`/
+/// `group_label` の `id`、`rail`/`trigger`/`group_action`/`menu_action` の
+/// `label`、各パートの呼び出し側 `attrs`/`children`）が既定エスケープを
+/// 経由することを固定する。
+#[test]
+fn sidebar_dynamic_slots_are_escaped_for_all_payloads() {
+    let state = Sidebar::new(SidebarState::Expanded);
+    let props = SidebarProps::default();
+
+    for payload in payloads::all() {
+        let root_node = sidebar::root(&state, &props, payload, Some(payload), vec![], vec![]);
+        let html = render(&root_node);
+        assert_payload_is_escaped(payload, &html, "sidebar::root の label/id コンテキスト");
+
+        let provider_node =
+            sidebar::provider(&state, &props, vec![("data-testid", payload)], vec![]);
+        let html = render(&provider_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "sidebar::provider の呼び出し側 attrs コンテキスト",
+        );
+
+        let header_node = sidebar::header(vec![], vec![text(payload)]);
+        let html = render(&header_node);
+        assert_payload_is_escaped(payload, &html, "sidebar::header の子ノードコンテキスト");
+
+        let menu_button_href_node = sidebar::menu_button(
+            &SidebarMenuButtonProps {
+                href: Some(payload),
+                describedby: Some(payload),
+                ..Default::default()
+            },
+            vec![],
+            vec![text(payload)],
+        );
+        let html = render(&menu_button_href_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "sidebar::menu_button の href/describedby/children コンテキスト",
+        );
+
+        let menu_sub_button_node = sidebar::menu_sub_button(
+            &SidebarMenuSubButtonProps {
+                href: Some(payload),
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        );
+        let html = render(&menu_sub_button_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "sidebar::menu_sub_button の href コンテキスト",
+        );
+
+        let group_node = sidebar::group(Some(payload), vec![], vec![]);
+        let html = render(&group_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "sidebar::group の aria-labelledby コンテキスト",
+        );
+
+        let group_label_node = sidebar::group_label(Some(payload), vec![], vec![text(payload)]);
+        let html = render(&group_label_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "sidebar::group_label の id/children コンテキスト",
+        );
+
+        let group_action_node = sidebar::group_action(payload, vec![], vec![]);
+        let html = render(&group_action_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "sidebar::group_action の aria-label コンテキスト",
+        );
+
+        let menu_action_node = sidebar::menu_action(payload, vec![], vec![]);
+        let html = render(&menu_action_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "sidebar::menu_action の aria-label コンテキスト",
+        );
+
+        let rail_node = sidebar::rail(&state, payload, vec![], vec![]);
+        let html = render(&rail_node);
+        assert_payload_is_escaped(payload, &html, "sidebar::rail の label コンテキスト");
+
+        let trigger_node = sidebar::trigger(&state, payload, Some(payload), vec![], vec![]);
+        let html = render(&trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "sidebar::trigger の label/aria-controls コンテキスト",
+        );
+
+        let inset_node = sidebar::inset(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&inset_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "sidebar::inset の attrs/children コンテキスト",
+        );
+    }
+}
+
+/// `sidebar::menu_button`/`menu_sub_button` の `href` は危険な URL スキーム
+/// （`javascript:`/`data:`/`vbscript:`）を属性ごと拒否する
+/// （`fandhe_frontend_core::render` の許可リスト方式）。
+#[test]
+fn sidebar_menu_button_href_rejects_dangerous_url_schemes() {
+    let dangerous_urls = [
+        "javascript:alert(1)",
+        "JaVaScRiPt:alert(1)",
+        "data:text/html;base64,PHNjcmlwdD4=",
+        "vbscript:msgbox(1)",
+    ];
+    for url in dangerous_urls {
+        let menu_button_node = sidebar::menu_button(
+            &SidebarMenuButtonProps {
+                href: Some(url),
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        );
+        let html = render(&menu_button_node);
+        assert!(
+            !html.contains("href="),
+            "危険な URL スキームなのに href 属性が出力されている: url={url:?}, html={html}"
+        );
+
+        let menu_sub_button_node = sidebar::menu_sub_button(
+            &SidebarMenuSubButtonProps {
+                href: Some(url),
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        );
+        let html = render(&menu_sub_button_node);
+        assert!(
+            !html.contains("href="),
+            "危険な URL スキームなのに href 属性が出力されている: url={url:?}, html={html}"
+        );
     }
 }

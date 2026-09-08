@@ -2530,7 +2530,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 版数の再調整（本 PR、イシュー #2054、shadcn/ui 突合）: scroll_area の
 # 横スクロール・端フェード opt-in 規則を追加する CSS 出力の実体変更のため
 # マイナーバンプする（`.claude/rules/coding-rust.md` の semver バンプ規約）。
-version = "0.148.0"
+#
+# イシュー #2072: `fandhe-frontend-headless-ui` 0.68.4（`sidebar` 新設）
+# 依存追随（`check-dep-versions --fix`）に伴い patch バンプする。本クレート
+# 自体の実装（sidebar の Themes 層 recipe）は後続イシュー #2073。
+version = "0.148.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2545,7 +2549,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.3" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.4" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

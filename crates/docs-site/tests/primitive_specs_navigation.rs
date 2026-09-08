@@ -70,11 +70,13 @@ const EXPECTED_PATHS: &[&str] = &[
     "/primitives/nav-list/",
     "/primitives/navigation-menu/",
     "/primitives/pagination/",
+    "/primitives/sidebar/",
     "/primitives/tabs/",
     "/primitives/toolbar/",
 ];
 
-/// 受け入れ条件 1 の本体: Navigation 12 部品（イシュー #2059 で
+/// 受け入れ条件 1 の本体: Navigation 13 部品（イシュー #2072 で `sidebar`
+/// が追加され 12 → 13。イシュー #2059 で
 /// `button_group` が追加され 11 → 12）それぞれについて
 /// `features`/`arguments`/`examples` が非空、かつ `keyboard`/`aria` の和が
 /// 非空であることを固定する（「6 節の H2 が揃う」だけでは `data-*` 属性表

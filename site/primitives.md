@@ -94,6 +94,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 - [Nav List](./primitives/nav-list.md)
 - [Navigation Menu](./primitives/navigation-menu.md)
 - [Pagination](./primitives/pagination.md)
+- [Sidebar](./primitives/sidebar.md)
 - [Tabs](./primitives/tabs.md)
 - [Toolbar](./primitives/toolbar.md)
 
