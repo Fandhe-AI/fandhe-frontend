@@ -914,6 +914,7 @@ features = [
   "HtmlInputElement",
   "HtmlSelectElement",
   "HtmlTextAreaElement",
+  "InputEvent",
   "KeyboardEvent",
   "Location",
   "MouseEvent",

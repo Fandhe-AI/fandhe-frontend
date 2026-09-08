@@ -176,8 +176,9 @@
 //!   root 外の要素を操作しない、`crate::keynav` の「Stale root」教訓と
 //!   同型）。document 上の Cmd/Ctrl+K も `root` 配下に `dialog` パーツが
 //!   存在するときのみ発火する。
-//! - `Closure::forget` はマウント時の定数回（root 4〔input の capture/
-//!   bubble 各 1・keydown・click〕+ document 1）に限定する（A04 対策、
+//! - `Closure::forget` はマウント時の定数回（root 5〔input の capture/
+//!   bubble 各 1・keydown・click・mousedown（item のフォーカス維持用、
+//!   codex-review P1 是正）〕+ document 1）に限定する（A04 対策、
 //!   無制限リークの構造的回避）。
 //! - 未知キー・修飾キー付き・IME 変換中・`disabled`/`data-disabled`・
 //!   `data-value` 欠落・未選択 Enter・hidden な選択・`dialog` 不在の
@@ -410,7 +411,9 @@ mod wiring {
     use crate::keynav::{highlight_next_index, menu_loop_focus_from_attr};
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Document, Element, Event, HtmlElement, HtmlInputElement, KeyboardEvent};
+    use web_sys::{
+        Document, Element, Event, HtmlElement, HtmlInputElement, InputEvent, KeyboardEvent,
+    };
 
     /// `web_sys::Element` を [`AttrSource`] へ橋渡しする薄いラッパー
     /// （`overlay.rs::wiring::ElementAttrSource` と同じ意図の配線層専用
@@ -458,11 +461,12 @@ mod wiring {
     /// モジュール冒頭 doc「二重 dispatch 回避」節参照）。
     const ACTION_INPUT_ATTR: &str = crate::events::ACTION_INPUT_ATTR;
 
-    /// `root` 配下の Command へ input/keydown/click（計 3 回）、`document` へ
-    /// keydown（1 回、Cmd/Ctrl+K）を配線する（マウント時 1 回契約、
-    /// `Closure::forget` は本関数呼び出しにつき定数 5 回に限定する
-    /// （codex-review P1 再々是正で capture-phase の 1 回を追加、モジュール
-    /// 冒頭 doc「セキュリティ不変条件」節参照）。
+    /// `root` 配下の Command へ input/keydown/click/mousedown（計 4 回）、
+    /// `document` へ keydown（1 回、Cmd/Ctrl+K）を配線する（マウント時 1 回
+    /// 契約、`Closure::forget` は本関数呼び出しにつき定数 6 回に限定する
+    /// （codex-review P1 再々是正で capture-phase の 1 回を追加、続けて
+    /// item mousedown のフォーカス維持用に 1 回追加、モジュール冒頭 doc
+    /// 「セキュリティ不変条件」節参照）。
     ///
     /// `on_action` は dispatch 依頼を呼び出し側へ渡すのみで、状態更新・DOM
     /// 反映は行わない（`number_input::wire_number_input_events` と同じ責務
@@ -542,6 +546,16 @@ mod wiring {
         });
         root.add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())?;
         click_closure.forget();
+
+        let mousedown_root = root.clone();
+        let mousedown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_mousedown(&mousedown_root, &event);
+        });
+        root.add_event_listener_with_callback(
+            "mousedown",
+            mousedown_closure.as_ref().unchecked_ref(),
+        )?;
+        mousedown_closure.forget();
 
         if let Some(window) = web_sys::window() {
             let document = window.document();
@@ -1107,6 +1121,29 @@ mod wiring {
         if !matches_part(target_element, INPUT_PART) {
             return;
         }
+        // IME 変換中は入力 dispatch・`reflect_filter` 双方を延期する
+        // （codex-review P1 是正）。`data-action-input` を持たない通常の
+        // Command では本ハンドラが [`ACTION_INPUT`] dispatch と
+        // `reflect_filter`（絞り込みに応じた構造再描画を誘発し得る）を
+        // 直接担うため、変換途中の "input" イベント（`InputEvent::
+        // is_composing()` が真）で反映すると変換対象の input 要素ごと
+        // 再描画で削除され、日本語などの IME 入力が中断される
+        // （[`handle_keydown`]/[`handle_document_keydown`] の
+        // `is_composing()`/`key_code() == 229` 判定と同型の安全網、
+        // モジュール冒頭 doc「セキュリティ不変条件」節）。ブラウザは
+        // 変換確定（compositionend）直後に `isComposing = false` の
+        // "input" イベントをもう一度発火する仕様（Safari/Chrome/Firefox
+        // 共通の既知挙動）のため、ここで no-op にしても確定後に自動的に
+        // 反映される。`data-action-input` を持つ input で `wire_events`
+        // 側が既に dispatch 済みの場合でも、本ハンドラ側の反映
+        // （`reflect_filter`）だけは変換中は行わないことで再描画による
+        // 入力欄削除を避ける。
+        if event
+            .dyn_ref::<InputEvent>()
+            .is_some_and(InputEvent::is_composing)
+        {
+            return;
+        }
         // disabled/`data-disabled` な祖先（Command root 自体を含む）配下
         // では入力による状態更新も no-op とする（codex-review P1 是正:
         // 従来 [`handle_keydown`] のみが `has_disabled_ancestor` を確認して
@@ -1202,14 +1239,26 @@ mod wiring {
     }
 
     /// `input`/`root` まで祖先方向を辿り `data-disabled` の有無を判定する
-    /// （`number_input.rs::has_disabled_ancestor` と同型）。
+    /// （`number_input.rs::has_disabled_ancestor` と類似だが、`root.contains`
+    /// による早期打ち切りは持たない）。
+    ///
+    /// `start` は再描画による構造フォールバックで既に `root` から detach
+    /// 済みの要素であり得る（[`handle_input`] の `data-action-input` 経路の
+    /// 既知の事情、モジュール冒頭 doc「`"input"` dispatch と
+    /// `crate::events::wire_events` の二重 dispatch 回避」節参照）。detach
+    /// 済み要素は `root.contains(element)` が常に偽になるため、これを走査
+    /// 打ち切り条件に使うと `start` 自身の属性しか確認できず祖先の
+    /// disabled を見逃す（Cursor Bugbot 是正）。`element == *root` に到達
+    /// したとき、または `parent_element()` が尽きたときにのみ走査を止める
+    /// （detach 済みの stale な部分木を辿っても `root` には到達しないため
+    /// 安全に完走する）。
     fn has_disabled_ancestor(root: &Element, start: &Element) -> bool {
         let mut current = Some(start.clone());
         while let Some(element) = current {
             if element.has_attribute("data-disabled") || element.has_attribute("disabled") {
                 return true;
             }
-            if !root.contains(Some(&element)) || element == *root {
+            if element == *root {
                 break;
             }
             current = element.parent_element();
@@ -1346,14 +1395,31 @@ mod wiring {
                 reflect_filter(root, &list_id, on_action, Some(focus_state));
             }
             super::CommandKeyAction::Execute => {
+                // 押しっぱなしによるキーリピート（`repeat: true`）は無視
+                // する（Cursor Bugbot 是正）。無視しないと Enter を長押し
+                // しただけで [`ACTION_EXECUTE`] が繰り返し dispatch され、
+                // 冪等でない実行（送信・削除等）が意図せず多重発火する。
+                if keyboard_event.repeat() {
+                    return;
+                }
                 let Some(list) = resolve_list(root, target_element) else {
                     return;
                 };
                 let items = collect_own_items(&list, &instance_root);
+                // `item` 自身の `data-disabled` だけでなく、祖先（Command
+                // root 自体を含む）の disabled/`data-disabled` も確認する
+                // （codex-review P1 是正: `handle_click`/`handle_keydown`
+                // の `MoveSelection` 分岐は矢印操作・クリックで
+                // `has_disabled_ancestor` を経由した無効化判定を行うのに、
+                // Enter 実行だけが item 自身の `data-disabled` しか見ておらず
+                // 操作経路間で無効化契約が不一致だった。`has_disabled_
+                // ancestor` は item 自身の `data-disabled` も先頭で確認する
+                // ため、単純な `it.has_attribute("data-disabled")` の上位
+                // 互換になる）。
                 let Some(selected) = items.iter().find(|it| {
                     it.has_attribute("data-selected")
                         && !it.has_attribute("hidden")
-                        && !it.has_attribute("data-disabled")
+                        && !has_disabled_ancestor(root, it)
                 }) else {
                     return;
                 };
@@ -1401,6 +1467,40 @@ mod wiring {
                 keyboard_event.stop_propagation();
             }
         }
+    }
+
+    /// mousedown: item 上でのブラウザ既定動作（フォーカス移動、結果として
+    /// `input` が `blur` する）を抑止し、`input` のフォーカスを維持する
+    /// （codex-review P1 是正）。実ブラウザでは `click` イベントより前に
+    /// `mousedown` が発火し、その既定動作でフォーカス可能要素以外を
+    /// クリックすると現在のフォーカス（`input`）が失われる。`handle_click`
+    /// 側で `capture_focus_state` しても、その時点で既に `focused = false`
+    /// が確定してしまっており、`ACTION_EXECUTE` 実行後（パレットを開いた
+    /// ままにする構成）にフォーカスが復元されず、続く検索入力・矢印・
+    /// Enter が処理できなくなる。`ACTION_SELECT`/`ACTION_EXECUTE` が意図的
+    /// にフォーカスを移動させるまでは `input` のフォーカスを保つため、
+    /// disabled でない item 上の mousedown は `prevent_default()` で
+    /// blur 自体を起こさせない。
+    fn handle_mousedown(root: &Element, event: &Event) {
+        let Some(target) = event.target() else {
+            return;
+        };
+        let Some(target_element) = target.dyn_ref::<Element>() else {
+            return;
+        };
+        if !root.contains(Some(target_element)) {
+            return;
+        }
+        let Some(item) = closest(target_element, ITEM_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&item)) {
+            return;
+        }
+        if has_disabled_ancestor(root, &item) {
+            return;
+        }
+        event.prevent_default();
     }
 
     /// click: `ITEM_SELECTOR` 祖先を解決し、非 disabled なら
@@ -1549,7 +1649,26 @@ mod wiring {
         if keyboard_event.is_composing() || keyboard_event.key_code() == 229 {
             return;
         }
+        // 押しっぱなしによるキーリピート（`repeat: true`）は無視する
+        // （Cursor Bugbot 是正）。無視しないと Cmd/Ctrl+K を長押ししただけで
+        // toggle の dispatch が繰り返し発火し、dialog が開閉を反復する
+        // （チラつき）。
+        if keyboard_event.repeat() {
+            return;
+        }
         let modifiers = modifiers_of(keyboard_event);
+        // Shift 併用（例: Ctrl+Shift+K）は対象外とする（Cursor Bugbot
+        // 是正）。[`Modifiers`]（`crate::keynav`）は Shift を追跡しない
+        // 共有型（同型 doc「Shift は許容する」節、他コンポーネントの矢印
+        // ナビゲーション等では無害だが本ショートカットには波及させない）
+        // ため、`is_toggle_shortcut` へは渡さず `KeyboardEvent` から直接
+        // 判定する。Shift 付きはブラウザ/OS 側のショートカット
+        // （例: ページ内検索の一部実装）と衝突しうる組み合わせであり、
+        // `Ctrl+Alt+K`/`Ctrl+Meta+K` を対象外とする既存方針と同じ判断軸
+        // で誤発火を避ける。
+        if keyboard_event.shift_key() {
+            return;
+        }
         if !is_toggle_shortcut(&keyboard_event.key(), modifiers) {
             return;
         }
