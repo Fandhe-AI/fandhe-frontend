@@ -172,6 +172,9 @@ fn styled_text_children_are_escaped_for_all_payloads() {
         let html = render(&alert::title(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "alert::title children コンテキスト");
 
+        let html = render(&alert::action(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "alert::action children コンテキスト");
+
         let html = render(&card::body(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "card::body children コンテキスト");
 
@@ -294,6 +297,13 @@ fn caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "alert::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&alert::action(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "alert::action 呼び出し側 attrs コンテキスト",
+        );
 
         let html = render(&stat::root(
             Size::Md,

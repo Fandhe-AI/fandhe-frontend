@@ -38,10 +38,12 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::{
-    alert, avatar, badge, breadcrumb, callout, card, carousel, color_swatch, data_list,
-    empty_state, field, icon, image, json_tree_view, marquee, native_select, pagination, progress,
-    scroll_area, separator, skeleton, spinner, splitter, stat, status, steps, tab_nav, table, tag,
-    timeline, tree_view, AlertProps, ColorPalette, Orientation, Size,
+    alert, avatar, badge, breadcrumb,
+    button::{button, ButtonProps, ButtonVariant},
+    callout, card, carousel, color_swatch, data_list, empty_state, field, icon, image,
+    json_tree_view, marquee, native_select, pagination, progress, scroll_area, separator, skeleton,
+    spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline, tree_view, AlertProps,
+    ColorPalette, Orientation, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -73,13 +75,116 @@ fn ex_alert() -> Node {
     )
 }
 
+/// `crates/pre-styled-ui/src/alert.rs`（shadcn `default` 相当。イシュー
+/// #2043 の突合で status/variant 既存軸の組み合わせで再現できると判定した）。
+fn ex_alert_neutral_surface() -> Node {
+    alert::root(
+        &AlertProps {
+            status: alert::AlertStatus::Neutral,
+            variant: alert::AlertVariant::Surface,
+            ..AlertProps::default()
+        },
+        vec![],
+        vec![
+            alert::indicator(vec![], vec![]),
+            alert::content(
+                vec![],
+                vec![
+                    alert::title(vec![], vec![text("shadcn default 相当")]),
+                    alert::description(vec![], vec![text("Neutral + Surface の組み合わせです")]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// `crates/pre-styled-ui/src/alert.rs`（shadcn `destructive` 相当。イシュー
+/// #2043 の突合で status/variant 既存軸の組み合わせで再現できると判定した）。
+fn ex_alert_error_outline() -> Node {
+    alert::root(
+        &AlertProps {
+            status: alert::AlertStatus::Error,
+            variant: alert::AlertVariant::Outline,
+            ..AlertProps::default()
+        },
+        vec![],
+        vec![
+            alert::indicator(vec![], vec![]),
+            alert::content(
+                vec![],
+                vec![
+                    alert::title(vec![], vec![text("shadcn destructive 相当")]),
+                    alert::description(vec![], vec![text("Error + Outline の組み合わせです")]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// `crates/pre-styled-ui/src/alert.rs`（title のみの構成、イシュー #2043）。
+fn ex_alert_title_only() -> Node {
+    alert::root(
+        &AlertProps::default(),
+        vec![],
+        vec![alert::content(
+            vec![],
+            vec![alert::title(vec![], vec![text("title のみ")])],
+        )],
+    )
+}
+
+/// `crates/pre-styled-ui/src/alert.rs`（description のみの構成、
+/// イシュー #2043）。
+fn ex_alert_description_only() -> Node {
+    alert::root(
+        &AlertProps::default(),
+        vec![],
+        vec![alert::content(
+            vec![],
+            vec![alert::description(vec![], vec![text("description のみ")])],
+        )],
+    )
+}
+
+/// `crates/pre-styled-ui/src/alert.rs`（pre-styled-only `action` パート、
+/// イシュー #2043。shadcn `AlertAction` 相当を root 末尾の button 併記で
+/// 表現する）。
+fn ex_alert_with_action() -> Node {
+    alert::root(
+        &AlertProps::default(),
+        vec![],
+        vec![
+            alert::indicator(vec![], vec![]),
+            alert::content(
+                vec![],
+                vec![
+                    alert::title(vec![], vec![text("Update available")]),
+                    alert::description(vec![], vec![text("A new version is ready to install.")]),
+                ],
+            ),
+            alert::action(
+                vec![],
+                vec![button(
+                    &ButtonProps {
+                        variant: ButtonVariant::Outline,
+                        size: Size::Sm,
+                        ..ButtonProps::default()
+                    },
+                    vec![("type", "button")],
+                    vec![text("Update")],
+                )],
+            ),
+        ],
+    )
+}
+
 pub(crate) const ALERT: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "AlertStatus（Info/Success/Warning/Error/Neutral、crates/pre-styled-ui/src/alert.rs）で 5 種の状態色を切り替える（イシュー #1553）",
         "AlertVariant（Subtle/Surface/Solid/Outline、既定 Subtle）で見た目のトーンを切り替える（イシュー #1553）",
         "size（Xs〜Xl、既定 Md）でパディング・フォントサイズ・indicator サイズを切り替える（イシュー #1553）",
         "root に WAI-ARIA live region の role=\"alert\" を状態に関わらず固定付与する（alert.rs）",
-        "indicator/content/title/description の 4 パーツで見出し・本文を構造化できる（alert.rs）",
+        "indicator/content/title/description/action の 5 パーツで見出し・本文・アクションを構造化できる（action は pre-styled-only レイアウトパート、イシュー #2043）",
     ],
     arguments: &[
         ArgRow {
@@ -101,11 +206,38 @@ pub(crate) const ALERT: ComponentPageSpec = ComponentPageSpec {
             description: "サイズ（Xs〜Xl、イシュー #1553）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Warning",
-        description: "Warning 状態の Alert を indicator + title/description で組み立てた例です。",
-        render: ex_alert,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Warning",
+            description: "Warning 状態の Alert を indicator + title/description で組み立てた例です。",
+            render: ex_alert,
+        },
+        ExampleEntry {
+            title: "Default (shadcn 相当)",
+            description: "shadcn/ui の variant \"default\" に相当する Neutral + Surface の組み合わせです（イシュー #2043）。",
+            render: ex_alert_neutral_surface,
+        },
+        ExampleEntry {
+            title: "Destructive (shadcn 相当)",
+            description: "shadcn/ui の variant \"destructive\" に相当する Error + Outline の組み合わせです（イシュー #2043）。",
+            render: ex_alert_error_outline,
+        },
+        ExampleEntry {
+            title: "Title only",
+            description: "title のみを content に含めた最小構成です（イシュー #2043）。",
+            render: ex_alert_title_only,
+        },
+        ExampleEntry {
+            title: "Description only",
+            description: "description のみを content に含めた最小構成です（イシュー #2043）。",
+            render: ex_alert_description_only,
+        },
+        ExampleEntry {
+            title: "With action",
+            description: "shadcn/ui の AlertAction 相当を、pre-styled-only レイアウトパート action（root 末尾の button 併記）で表現した例です（イシュー #2043）。",
+            render: ex_alert_with_action,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"alert\"",

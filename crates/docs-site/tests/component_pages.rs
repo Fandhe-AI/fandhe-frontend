@@ -499,6 +499,20 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
             "/themes/avatar/",
             &["root", "image", "fallback", "group", "badge"],
         ),
+        (
+            // イシュー #2043: shadcn/ui 突合の合成パターン行（action 併記）
+            // 追加で alert の 6 anatomy パーツ全てが Demo から機械導出
+            // されるようになったことを固定する。
+            "/themes/alert/",
+            &[
+                "root",
+                "indicator",
+                "content",
+                "title",
+                "description",
+                "action",
+            ],
+        ),
     ];
     for (path, expected_parts) in cases {
         let content = fandhe_frontend_docs_site::component_page::generated_content(path).unwrap();

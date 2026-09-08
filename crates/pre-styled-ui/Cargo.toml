@@ -2322,7 +2322,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `AvatarProps` へ `stacked`/`with_badge` フィールドを追加する struct
 # literal 構築を壊す 0.x の破壊的変更のため、main 到達値 0.135.0 からマイナー
 # バンプして 0.136.0 とする。
-version = "0.136.0"
+# イシュー #2043: alert を shadcn/ui と突合し、pre-styled-only レイアウト
+# パート `action` の新設（公開 API 追加 + CSS 出力の実体変更）を行ったため
+# minor バンプする（0.x の破壊的変更はマイナーバンプの規約、`toast`
+# のイシュー #2180 先例に同じ）。main（#2043）が独立に到達した値も
+# 0.136.0 であり、本ブランチ（#2044）の到達値と衝突したため、
+# `semver-same-version-is-conflict` の運用に倣い main の到達値 0.136.0
+# からさらに +1 して 0.137.0 とする。
+version = "0.137.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

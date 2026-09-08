@@ -54,7 +54,8 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 
 ### 3.1 1 対 1 対応（規則: `<snake>_css.rs`）
 
-accordion / **alert（イシュー #1553 で golden 新設）** /
+accordion / **alert（イシュー #1553 で golden 新設。イシュー #2043 で
+`action` パートの `[data-part="action"]` ブロックを 1 個追加）** /
 **badge（イシュー #1555 で golden 新設）** /
 **bar_segment（イシュー #1592 で golden 新設。`charts::bar_segment`）** /
 callout / carousel / **collapsible（イシュー #1682 で golden 新設）** /

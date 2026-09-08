@@ -28,6 +28,7 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::progress::Progress;
+use fandhe_frontend_pre_styled_ui::alert;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
@@ -329,6 +330,22 @@ fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
         vec![],
     ));
     assert!(html.contains(r#"data-state="closed""#));
+}
+
+/// `alert.rs`（イシュー #2043、親トラッキングは shadcn/ui 突合ツリー）の
+/// pre-styled-only `action` パートは独自の `data-*` を一切出力しない
+/// （`dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs`
+/// と同型）。
+#[test]
+fn alert_action_part_emits_no_self_produced_data_attrs() {
+    let html = render(&alert::action(vec![], vec![text("Enable")]));
+    assert!(html.contains(r#"data-scope="alert""#));
+    assert!(html.contains(r#"data-part="action""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "action は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
 }
 
 /// `pin_input.rs`（イシュー #2016、親 #2001）の pre-styled-only `separator`

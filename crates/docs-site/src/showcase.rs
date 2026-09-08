@@ -2071,10 +2071,102 @@ fn alert_section() -> Node {
             })
             .collect(),
     );
+    // イシュー #2043: shadcn/ui 突合の合成パターン（root モジュール doc
+    // 「イシュー #2043」節参照）。default/destructive 相当は既存 status/
+    // variant 軸の組み合わせで再現し、action は pre-styled-only 新設パート。
+    let composition_row = stack(vec![
+        alert::root(
+            &AlertProps {
+                status: AlertStatus::Neutral,
+                variant: AlertVariant::Surface,
+                ..AlertProps::default()
+            },
+            vec![],
+            vec![
+                alert::indicator(vec![], vec![text("!")]),
+                alert::content(
+                    vec![],
+                    vec![
+                        alert::title(vec![], vec![text("shadcn default 相当")]),
+                        alert::description(
+                            vec![],
+                            vec![text("Neutral + Surface の組み合わせです。")],
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        alert::root(
+            &AlertProps {
+                status: AlertStatus::Error,
+                variant: AlertVariant::Outline,
+                ..AlertProps::default()
+            },
+            vec![],
+            vec![
+                alert::indicator(vec![], vec![text("!")]),
+                alert::content(
+                    vec![],
+                    vec![
+                        alert::title(vec![], vec![text("shadcn destructive 相当")]),
+                        alert::description(
+                            vec![],
+                            vec![text("Error + Outline の組み合わせです。")],
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        alert::root(
+            &AlertProps::default(),
+            vec![],
+            vec![alert::content(
+                vec![],
+                vec![alert::title(vec![], vec![text("title のみ")])],
+            )],
+        ),
+        alert::root(
+            &AlertProps::default(),
+            vec![],
+            vec![alert::content(
+                vec![],
+                vec![alert::description(vec![], vec![text("description のみ")])],
+            )],
+        ),
+        alert::root(
+            &AlertProps::default(),
+            vec![],
+            vec![
+                alert::indicator(vec![], vec![text("!")]),
+                alert::content(
+                    vec![],
+                    vec![
+                        alert::title(vec![], vec![text("Update available")]),
+                        alert::description(
+                            vec![],
+                            vec![text("A new version is ready to install.")],
+                        ),
+                    ],
+                ),
+                alert::action(
+                    vec![],
+                    vec![button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Outline,
+                            size: Size::Sm,
+                            ..ButtonProps::default()
+                        },
+                        vec![("type", "button")],
+                        vec![text("Update")],
+                    )],
+                ),
+            ],
+        ),
+    ]);
     section(
         "Alert",
-        "status（info / success / warning / error / neutral）・variant（subtle / surface / solid / outline）・size（xs〜xl）で見た目が切り替わる通知領域。root / indicator / content / title / description の slot 構成です。",
-        vec![status_row, variant_row, size_row],
+        "status（info / success / warning / error / neutral）・variant（subtle / surface / solid / outline）・size（xs〜xl）で見た目が切り替わる通知領域。root / indicator / content / title / description / action の slot 構成です。",
+        vec![status_row, variant_row, size_row, composition_row],
     )
 }
 

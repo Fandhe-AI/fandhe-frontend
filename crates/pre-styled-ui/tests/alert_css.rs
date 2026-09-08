@@ -6,7 +6,9 @@
 //! `palette_scale_declarations` へ移行）に加えて `variant`（[`AlertVariant`]）・
 //! `size`（[`fandhe_frontend_pre_styled_ui::Size`]）の 2 軸を新設したため、
 //! 出力全体をバイト単位で固定する（`alert.rs` モジュール冒頭 rustdoc
-//! 「参考サイト基準への調整」節参照）。
+//! 「参考サイト基準への調整」節参照）。イシュー #2043 で pre-styled-only
+//! `action` パート（1 ブロックのみ、`title` の base ブロック直後）を追加した
+//! （`alert.rs` モジュール冒頭 rustdoc「イシュー #2043」節参照）。
 
 use fandhe_frontend_pre_styled_ui::alert;
 
@@ -43,6 +45,14 @@ const ALERT_GOLDEN_CSS: &str = r#"[data-scope="alert"][data-part="root"] {
 
 [data-scope="alert"][data-part="title"] {
   font-weight: var(--fandhe-font-font-weight-medium);
+}
+
+[data-scope="alert"][data-part="action"] {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  gap: var(--fandhe-space-2);
 }
 
 [data-scope="alert"][data-part="root"].fd-alert--status-info {
@@ -191,4 +201,12 @@ fn css_declares_all_status_variant_size_selectors() {
             "class={class} が css() に含まれない: {css}"
         );
     }
+}
+
+/// イシュー #2043: pre-styled-only `action` パートの base ルールが
+/// `[data-part="action"]` セレクタで出力されることを固定する。
+#[test]
+fn css_declares_action_part_base_rule() {
+    let css = alert::css();
+    assert!(css.contains(r#"[data-part="action"] {"#), "{css}");
 }

@@ -495,7 +495,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 |---|---|---|---|
 | button/badge/spinner | ✓ | ✓ | button は icon-only 修飾 variant（`icon_button`/`close_button`）を追加。専用の `icon`/`close-button` 行は設けない: `data-scope="button"` を共有する variant 拡張であり別部品ではないため |
 | callout | ✓ | ✓ | 本文中の補足情報。alert と異なり live region ではない（イシュー #994）。size は root の `--fandhe-callout-*` へ一本化し `text(attrs, children)` から `size` 引数を廃止した（破壊的変更、イシュー #1556） |
-| alert | ✓ | –（`status`） | `status`（Info/Success/Warning/Error/Neutral、内部で `ColorPalette` へ写像）に加え `variant`（Subtle/Surface/Solid/Outline、既定 Subtle）を持つ（イシュー #1553） |
+| alert | ✓ | –（`status`） | `status`（Info/Success/Warning/Error/Neutral、内部で `ColorPalette` へ写像）に加え `variant`（Subtle/Surface/Solid/Outline、既定 Subtle）を持つ（イシュー #1553）。`action`（pre-styled-only レイアウトパート、イシュー #2043） |
 | avatar | ✓ | ✓（既定 Neutral） | variant（subtle/solid/outline）・shape の 2 軸も併せ持つ（イシュー #1554） |
 | switch | ✓ | ✓ | — |
 | radio-group | ✓ | ✓ | — |
@@ -558,6 +558,10 @@ tabs/accordion/dialog/menu/select の実装詳細:
   配下の headless-ui 非由来 9 番目の part。alert-dialog 構成のアクション列
   の横並び配置のみを担い、確認/キャンセルの強調色は既存の `button` の
   variant/palette 組み合わせで表現する。イシュー #1690）。
+- `alert::action`（pre-styled-only レイアウトパート、`data-scope="alert"`
+  配下の headless-ui 非由来 6 番目の part。shadcn/ui の `AlertAction`
+  相当を root 末尾の flex 兄弟として右寄せ（RTL では左寄せ）配置するのみを
+  担い、アクションの機能配線は呼び出し側が行う。イシュー #2043）。
 
 ## 4d. `data-focus-visible` によるキーボード専用フォーカスリング
 
