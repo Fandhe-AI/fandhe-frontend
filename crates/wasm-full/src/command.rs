@@ -29,7 +29,7 @@
 //! | `input` 上の ArrowDown/ArrowUp/Home/End | [`ACTION_SELECT`] | `data-selected`/`aria-selected`/`aria-activedescendant` 同期 |
 //! | `input` 上の Enter | [`ACTION_EXECUTE`]（`"command:execute"`） | なし |
 //! | item クリック（非 disabled） | [`ACTION_SELECT`] → [`ACTION_EXECUTE`] | 選択同期 |
-//! | `input` 上の Escape（open な `dialog` パーツ内のみ） | [`ACTION_CLOSE`] | なし |
+//! | `input` 上の Escape（open な `dialog` パーツ内・`data-close-on-escape="false"` でない場合のみ） | [`ACTION_CLOSE`] | なし |
 //! | document 上の Cmd/Ctrl+K | [`ACTION_TOGGLE`] | 再描画後 open なら `input` へ `focus()` |
 //!
 //! `MAPPING_TABLE`（[`crate::headless`]）へ `(command, item) → "select"` 行は
@@ -68,6 +68,44 @@
 //! `"deselect"`（`crate::events::wire_events` 経由ではなく本モジュールの
 //! [`ACTION_DESELECT`]）を dispatch して `aria-activedescendant` を除去する。
 //!
+//! # DOM 同期契約（codex-review P1 是正、イシュー #2069 実装後の追加指摘）
+//!
+//! dispatch（`on_action` 呼び出し）はアプリの再描画（構造フォールバック
+//! による配線 `root` 配下の丸ごと差し替え）を誘発し得る。dispatch 前に
+//! 解決した `Element` 参照（instance_root/list/input/item 等）は、その
+//! dispatch の後には detach されている可能性があり、そのまま DOM へ書き
+//! 込んでも表示に反映されない（`crate::angle_slider` の `PartKey`/
+//! `resolve_part`〔イシュー #1956〕と同型の事情）。
+//!
+//! 本モジュールはこれを 2 つの規律で扱う。
+//!
+//! - **List パーツの `id` を再解決キーにする**: List パーツの `id`
+//!   （[`fandhe_frontend_headless_ui::command::list`] の必須引数）は
+//!   `view()` が再現する安定値であり、`crate::angle_slider::wiring::
+//!   PartKey` と同じ役割を果たす。`handle_input`/[`reflect_filter`] は
+//!   dispatch 前に読み取った要素参照を dispatch 後まで使い回さず、
+//!   `list_id` から `document.get_element_by_id` で生きた DOM を
+//!   再解決してから使う（[`resolve_command_parts_by_list_id`]）。
+//! - **DOM への書き込みは、すべての dispatch が完了した後に 1 回だけ**:
+//!   [`reflect_filter`] は「絞り込み結果 + 選択整合の判定（dispatch
+//!   なし）→ 高々 1 回の dispatch → 再解決 → 書き込み」の順で進める。
+//!   dispatch が挟まる中間段階では `hidden`/`data-selected` 等を一切
+//!   書かない（先に書いた属性が後続の再描画で失われるのを防ぐ、
+//!   `crates/wasm-full/tests/command_browser.rs` の
+//!   `typing_query_after_full_subtree_replacement_still_reflects_filter`
+//!   が固定する）。
+//!
+//! **既知の制限**: `data-action-input` を持つ input（下記「二重
+//! dispatch 回避」節）の場合、`handle_input` が呼ばれる時点で
+//! `crate::events::wire_events` の同一イベントに対する dispatch が
+//! 既に走っている可能性がある。それが再描画を誘発していれば
+//! `handle_input` 冒頭の `event.target()` は既に detach 済みだが、
+//! `data-scope`/`data-part`/`aria-controls` の属性読み取りは detach
+//! 済み要素でも成立するため、本モジュールは `target_element` 自体の
+//! `root.contains` を要求せず、[`resolve_list`] が解決した List パーツ
+//! への `root.contains` のみをセキュリティ境界として使う（詳細は
+//! `handle_input` 内コメント）。
+//!
 //! # 行選択（矢印キー）
 //!
 //! 候補列は同一インスタンス配下の非 `hidden` item（[`crate::keynav`] の
@@ -91,7 +129,19 @@
 //! `crate::overlay::wiring::OverlayCloseController`（document 上）→
 //! アプリの `"close"` dispatch は、どちらが先でも `Disclosure::Close` の
 //! 冪等性により同一 closed 状態へ収束する（`crate::overlay` モジュール doc
-//! 「keynav との二重処理の収束」節と同型の分析）。
+//! 「keynav との二重処理の収束」節と同型の分析）。**この分析は「dispatch
+//! が起きるかどうか」の対称性のみを述べており、opt-out 属性
+//! （`data-close-on-escape="false"`）そのものの尊重は別途保証が要る**
+//! （codex-review P1 是正）。`OverlayCloseController` は `push_overlay`
+//! 時点でこの属性を読んで登録要否を決めるが、本モジュールの Escape
+//! ハンドラは独立に動作するため、無条件に [`ACTION_CLOSE`] を dispatch
+//! すると opt-out が Command のスコープ内 Escape に対して効かなくなって
+//! しまう。このため `wiring::handle_keydown` は Escape を
+//! [`CommandKeyAction::Close`] と判定した後、open な `dialog` 要素へ
+//! [`crate::overlay::close_on_escape_for`]（`OverlayKind::Command`）を
+//! 直接適用し、`false` なら dispatch も `prevent_default()` も行わない
+//! （`crates/wasm-full/tests/command_browser.rs::
+//! escape_with_data_close_on_escape_false_is_noop` が固定する）。
 //!
 //! # `focus_trap::should_trap`
 //!
@@ -351,7 +401,7 @@ mod wiring {
         command_key_action, is_toggle_shortcut, ACTION_CLOSE, ACTION_DESELECT, ACTION_EXECUTE,
         ACTION_INPUT, ACTION_SELECT, ACTION_TOGGLE,
     };
-    use crate::events::ActionRef;
+    use crate::events::{ActionRef, AttrSource};
     use crate::keynav::wiring::{
         closest, collect_parts, disabled_flags, modifiers_of, set_dom_attribute,
     };
@@ -359,6 +409,18 @@ mod wiring {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Document, Element, Event, HtmlElement, HtmlInputElement, KeyboardEvent};
+
+    /// `web_sys::Element` を [`AttrSource`] へ橋渡しする薄いラッパー
+    /// （`overlay.rs::wiring::ElementAttrSource` と同じ意図の配線層専用
+    /// アダプタ。Escape の opt-out 属性判定（[`super::super::overlay::
+    /// close_on_escape_for`]）に使う）。
+    struct ElementAttrSource<'a>(&'a Element);
+
+    impl AttrSource for ElementAttrSource<'_> {
+        fn attr(&self, name: &str) -> Option<String> {
+            self.0.get_attribute(name)
+        }
+    }
 
     /// Command の `data-scope` 属性値（`fandhe_frontend_headless_ui::command`
     /// の `ANATOMY` と一致）。
@@ -533,26 +595,191 @@ mod wiring {
         (0..items.len()).map(|i| matched.contains(&i)).collect()
     }
 
+    /// 絞り込み後の選択整合の判定結果（DOM 書き込み・dispatch を含まない
+    /// 純粋な判定、[`selection_sync_plan`] が返す）。[`reflect_filter`] が
+    /// dispatch 前の判定と、dispatch 後（再描画をまたぐ可能性がある）の
+    /// DOM 反映の双方で同じロジックを共有するために切り出した
+    /// （モジュール冒頭 doc「絞り込みの DOM 反映」節）。
+    #[derive(Clone, Copy)]
+    enum SelectionPlan {
+        /// 選択中 item が可視・非 disabled のまま。変更不要。
+        Keep,
+        /// `items[idx]`（可視・非 disabled の先頭）を選択状態にする
+        /// （cmdk の自動先頭選択）。
+        Select(usize),
+        /// 可視 item が 0 件。選択を解除する。
+        Deselect,
+    }
+
+    /// 絞り込み後の選択整合を判定する純粋関数（DOM 書き込み・dispatch を
+    /// 一切行わない）。
+    fn selection_sync_plan(
+        items: &[Element],
+        visible: &[bool],
+        disabled: &[bool],
+    ) -> SelectionPlan {
+        let already_selected_visible = items.iter().zip(visible.iter()).zip(disabled.iter()).any(
+            |((item, &is_visible), &is_disabled)| {
+                is_visible && !is_disabled && item.has_attribute("data-selected")
+            },
+        );
+        if already_selected_visible {
+            return SelectionPlan::Keep;
+        }
+        match items
+            .iter()
+            .zip(visible.iter())
+            .zip(disabled.iter())
+            .position(|((_, &is_visible), &is_disabled)| is_visible && !is_disabled)
+        {
+            Some(idx) => SelectionPlan::Select(idx),
+            None => SelectionPlan::Deselect,
+        }
+    }
+
+    /// [`SelectionPlan`] から dispatch すべき [`ActionRef`] を決める
+    /// （`Select` で対象 item に `data-value` が無い場合は dispatch しない
+    /// ＝ `None`。DOM 反映自体は [`write_selection_plan`] が別途担う。
+    /// アプリ状態（`SingleSelect`）を実際に更新しないと次回の再描画で
+    /// DOM 直書き分が巻き戻ってしまうため、DOM 直書きに留めず dispatch
+    /// する）。
+    fn selection_plan_dispatch(items: &[Element], plan: SelectionPlan) -> Option<ActionRef> {
+        match plan {
+            SelectionPlan::Keep => None,
+            SelectionPlan::Select(idx) => {
+                items
+                    .get(idx)?
+                    .get_attribute("data-value")
+                    .map(|value| ActionRef {
+                        action: ACTION_SELECT.to_string(),
+                        payload: value,
+                    })
+            }
+            SelectionPlan::Deselect => Some(ActionRef {
+                action: ACTION_DESELECT.to_string(),
+                payload: String::new(),
+            }),
+        }
+    }
+
+    /// [`SelectionPlan`] を DOM へ反映する（`data-selected`/`aria-selected`/
+    /// `input` の `aria-activedescendant`。dispatch は行わない、
+    /// [`selection_plan_dispatch`] と責務分離）。
+    fn write_selection_plan(input: &Element, items: &[Element], plan: SelectionPlan) {
+        match plan {
+            SelectionPlan::Keep => {}
+            SelectionPlan::Select(idx) => {
+                for item in items {
+                    let _ = item.remove_attribute("data-selected");
+                    set_dom_attribute(item, "aria-selected", "false");
+                }
+                let Some(target) = items.get(idx) else {
+                    return;
+                };
+                set_dom_attribute(target, "data-selected", "");
+                set_dom_attribute(target, "aria-selected", "true");
+                if let Some(id) = target.get_attribute("id") {
+                    set_dom_attribute(input, "aria-activedescendant", &id);
+                } else {
+                    let _ = input.remove_attribute("aria-activedescendant");
+                }
+            }
+            SelectionPlan::Deselect => {
+                for item in items {
+                    let _ = item.remove_attribute("data-selected");
+                    set_dom_attribute(item, "aria-selected", "false");
+                }
+                let _ = input.remove_attribute("aria-activedescendant");
+            }
+        }
+    }
+
     /// 入力イベント（[`ACTION_INPUT`] dispatch の有無に関わらず）ごとに
-    /// 呼ばれる絞り込み DOM 反映本体。`instance_root`/`list`/`input` は
-    /// 呼び出し側が解決済みのものを渡す。`on_action` は絞り込み後の選択
-    /// 整合（[`sync_selection_after_filter`]）が [`ACTION_SELECT`]/
-    /// [`ACTION_DESELECT`] を dispatch するために使う（アプリ状態
-    /// （`SingleSelect`）を実際に更新しないと、次回の再描画で DOM 直書き
-    /// 分が巻き戻ってしまうため）。
+    /// 呼ばれる絞り込み DOM 反映本体。`root` は配線登録時の root、
+    /// `list_id` は List パーツの `id`（[`resolve_list`] で確認済みの
+    /// ものを呼び出し側が渡す）。
+    ///
+    /// # DOM 同期契約（codex-review P1 是正、`crate::angle_slider` の
+    /// `PartKey`/`resolve_part` と同型）
+    ///
+    /// dispatch（`on_action` 呼び出し）はアプリの再描画（構造フォール
+    /// バックによる `root` 配下の丸ごと差し替え）を誘発し得るため、要素
+    /// 参照は dispatch をまたいで使い回さない。本関数は
+    ///
+    /// 1. `list_id` から生きた DOM（instance_root/list/input）を解決し、
+    ///    絞り込み結果（`visible`）と選択整合の判定（[`SelectionPlan`]、
+    ///    DOM 書き込みなし）を行う
+    /// 2. 判定に応じて高々 1 回、[`ACTION_SELECT`]/[`ACTION_DESELECT`] を
+    ///    dispatch する
+    /// 3. dispatch が起きた場合は `list_id` から**再度**生きた DOM を
+    ///    解決し直し、絞り込み結果・選択整合の判定も再計算する
+    /// 4. ここまでに確定した最終状態を 1 回だけ DOM へ書き込む（`hidden`/
+    ///    group/separator/`data-empty`/`data-selected`/`aria-selected`/
+    ///    `aria-activedescendant`）
+    ///
+    /// の順で進める。dispatch 後に先に書いた `hidden` 等が再描画で失われる
+    /// 問題（codex-review P1・Bugbot High）を避けるため、DOM への書き込みは
+    /// 常にステップ 4（すべての dispatch が完了した後）にのみ集約する。
+    /// 途中のいずれかの再解決に失敗した場合は、それ以降の反映を諦める
+    /// （fail-closed）。
+    ///
+    /// `data-action-input` を持つ input（[`handle_input`] 冒頭 doc参照）の
+    /// 場合、本関数が呼ばれる時点で `crate::events::wire_events` の同一
+    /// イベントに対する dispatch が既に走っている可能性があるが、本関数は
+    /// ステップ 1 で改めて生きた DOM を解決するため、この既存 dispatch に
+    /// よる再描画の前後いずれで呼ばれても正しく動作する。
     fn reflect_filter(
-        instance_root: &Element,
-        list: &Element,
-        input: &Element,
+        root: &Element,
+        list_id: &str,
         on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
     ) {
+        let Some((instance_root, list, input)) = resolve_command_parts_by_list_id(root, list_id)
+        else {
+            return;
+        };
         let query = input
             .clone()
             .dyn_into::<HtmlInputElement>()
             .map(|el| el.value())
             .unwrap_or_default();
-        let items = collect_own_items(list, instance_root);
+        let items = collect_own_items(&list, &instance_root);
         let visible = visible_flags(&items, &query);
+        let plan = {
+            let disabled = disabled_flags(&items);
+            selection_sync_plan(&items, &visible, &disabled)
+        };
+
+        let dispatch = selection_plan_dispatch(&items, plan);
+        let dispatched = dispatch.is_some();
+        if let Some(action_ref) = dispatch {
+            if let Ok(mut cb) = on_action.try_borrow_mut() {
+                (cb)(action_ref);
+            }
+        }
+
+        let (instance_root, list, input, items, visible, plan) = if dispatched {
+            let Some((fresh_instance_root, fresh_list, fresh_input)) =
+                resolve_command_parts_by_list_id(root, list_id)
+            else {
+                return;
+            };
+            let fresh_items = collect_own_items(&fresh_list, &fresh_instance_root);
+            let fresh_visible = visible_flags(&fresh_items, &query);
+            let fresh_plan = {
+                let fresh_disabled = disabled_flags(&fresh_items);
+                selection_sync_plan(&fresh_items, &fresh_visible, &fresh_disabled)
+            };
+            (
+                fresh_instance_root,
+                fresh_list,
+                fresh_input,
+                fresh_items,
+                fresh_visible,
+                fresh_plan,
+            )
+        } else {
+            (instance_root, list, input, items, visible, plan)
+        };
 
         for (item, &is_visible) in items.iter().zip(visible.iter()) {
             if is_visible {
@@ -563,9 +790,9 @@ mod wiring {
         }
 
         // group: 自身が包含する item（`ITEM_SELECTOR`）の可視状態を集計する。
-        for group in collect_parts(list, GROUP_SELECTOR)
+        for group in collect_parts(&list, GROUP_SELECTOR)
             .into_iter()
-            .filter(|g| closest(g, ROOT_SELECTOR).is_some_and(|r| r == *instance_root))
+            .filter(|g| closest(g, ROOT_SELECTOR).is_some_and(|r| r == instance_root))
         {
             let own_items = collect_parts(&group, ITEM_SELECTOR);
             let item_count = own_items.len();
@@ -582,9 +809,9 @@ mod wiring {
 
         // separator: クエリ非空のとき hidden（cmdk 準拠）。
         let query_is_empty = query.is_empty();
-        for separator in collect_parts(list, SEPARATOR_SELECTOR)
+        for separator in collect_parts(&list, SEPARATOR_SELECTOR)
             .into_iter()
-            .filter(|s| closest(s, ROOT_SELECTOR).is_some_and(|r| r == *instance_root))
+            .filter(|s| closest(s, ROOT_SELECTOR).is_some_and(|r| r == instance_root))
         {
             if query_is_empty {
                 let _ = separator.remove_attribute("hidden");
@@ -595,7 +822,7 @@ mod wiring {
 
         let visible_count = visible.iter().filter(|&&v| v).count();
         let is_empty = visible_count == 0;
-        for target in empty_reflect_targets(instance_root, list) {
+        for target in empty_reflect_targets(&instance_root, &list) {
             if is_empty {
                 set_dom_attribute(&target, "data-empty", "");
             } else {
@@ -603,7 +830,7 @@ mod wiring {
             }
         }
 
-        sync_selection_after_filter(input, &items, &visible, on_action);
+        write_selection_plan(&input, &items, plan);
     }
 
     /// `data-empty` を反映する 3 要素（root/list/empty）を集める。`empty`
@@ -623,70 +850,6 @@ mod wiring {
             .filter(|e| closest(e, ROOT_SELECTOR).is_some_and(|r| r == *instance_root)),
         );
         targets
-    }
-
-    /// 絞り込み後の選択整合（モジュール冒頭 doc「絞り込みの DOM 反映」
-    /// 節）。選択中 item が hidden/未選択なら先頭の可視・非 disabled item を
-    /// [`ACTION_SELECT`] dispatch + DOM 同期する（cmdk の自動先頭選択）。
-    /// 可視 item が 0 件なら [`ACTION_DESELECT`] を dispatch し
-    /// `aria-activedescendant` を除去する（アプリ状態
-    /// （`SingleSelect`）を実際に更新しないと、次回の再描画で DOM 直書き
-    /// 分が巻き戻ってしまうため、DOM 直書きに留めず dispatch する）。
-    fn sync_selection_after_filter(
-        input: &Element,
-        items: &[Element],
-        visible: &[bool],
-        on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
-    ) {
-        let disabled = disabled_flags(items);
-        let already_selected_visible = items.iter().zip(visible.iter()).zip(disabled.iter()).any(
-            |((item, &is_visible), &is_disabled)| {
-                is_visible && !is_disabled && item.has_attribute("data-selected")
-            },
-        );
-        if already_selected_visible {
-            return;
-        }
-        let first_visible_non_disabled = items
-            .iter()
-            .zip(visible.iter())
-            .zip(disabled.iter())
-            .position(|((_, &is_visible), &is_disabled)| is_visible && !is_disabled);
-
-        for item in items {
-            let _ = item.remove_attribute("data-selected");
-            set_dom_attribute(item, "aria-selected", "false");
-        }
-
-        match first_visible_non_disabled {
-            Some(idx) => {
-                let target = &items[idx];
-                set_dom_attribute(target, "data-selected", "");
-                set_dom_attribute(target, "aria-selected", "true");
-                if let Some(id) = target.get_attribute("id") {
-                    set_dom_attribute(input, "aria-activedescendant", &id);
-                } else {
-                    let _ = input.remove_attribute("aria-activedescendant");
-                }
-                if let Some(value) = target.get_attribute("data-value") {
-                    if let Ok(mut cb) = on_action.try_borrow_mut() {
-                        (cb)(ActionRef {
-                            action: ACTION_SELECT.to_string(),
-                            payload: value,
-                        });
-                    }
-                }
-            }
-            None => {
-                let _ = input.remove_attribute("aria-activedescendant");
-                if let Ok(mut cb) = on_action.try_borrow_mut() {
-                    (cb)(ActionRef {
-                        action: ACTION_DESELECT.to_string(),
-                        payload: String::new(),
-                    });
-                }
-            }
-        }
     }
 
     /// `visible_items[next_index]` を選択状態へ同期する（`data-selected`
@@ -723,18 +886,33 @@ mod wiring {
         let Some(target_element) = target.dyn_ref::<Element>() else {
             return;
         };
-        if !root.contains(Some(target_element)) {
-            return;
-        }
+        // `root.contains(target_element)` を先頭の早期リターンには使わない
+        // （既知の制限、モジュール冒頭 doc「二重 dispatch 回避」節参照）:
+        // `data-action-input` を持つ input の場合、本ハンドラが呼ばれる
+        // 時点で既に `crate::events::wire_events`（同一 `root` へ先に登録
+        // されたリスナー）の dispatch が走っている可能性があり、それが
+        // 構造フォールバックの再描画を誘発していれば、この時点で
+        // `target_element` は既に detach 済みで `root.contains` が偽になる
+        // （detach は本モジュールの正常な制御フローが引き起こすものであり、
+        // 攻撃者が操作できるものではない。detach 済みでも `get_attribute`
+        // は要素自身のデータをそのまま返すため `matches_part` の判定は
+        // 安全に成立する）。ここで containment を要求すると、この分岐の
+        // 絞り込み反映が構造的に走らなくなってしまう。セキュリティ境界は
+        // 後段（[`resolve_list`]・[`resolve_command_parts_by_list_id`]）が
+        // 再解決した List/Root/Input それぞれへの `root.contains` 検査が
+        // 担う（改ざんされた `aria-controls` で root 外を操作させない
+        // fail-closed、モジュール冒頭 doc「セキュリティ不変条件」節）。
         if !matches_part(target_element, INPUT_PART) {
             return;
         }
-        let Some(instance_root) = resolve_instance_root(root, target_element) else {
-            return;
-        };
         let Some(list) = resolve_list(root, target_element) else {
             return;
         };
+        // 再描画をまたいで同じ List パーツを再解決するための識別子（下記
+        // 「dispatch 後の再解決」節参照）。List パーツの `id` は
+        // `fandhe_frontend_headless_ui::command::list` の必須引数であり
+        // 常に安定して出力される。
+        let list_id = list.id();
 
         if !target_element.has_attribute(ACTION_INPUT_ATTR) {
             let value = target_element
@@ -750,7 +928,47 @@ mod wiring {
             }
         }
 
-        reflect_filter(&instance_root, &list, target_element, on_action);
+        // 絞り込み反映は [`reflect_filter`] に `list_id` だけを渡し、生きた
+        // DOM からの再解決・dispatch・書き込みの順序統制を任せる
+        // （codex-review P1 是正、[`reflect_filter`] doc「DOM 同期契約」
+        // 節）。上の `on_action` 呼び出し・`wire_events` の既存 dispatch の
+        // いずれが再描画を誘発していても、`target_element`/`list` を
+        // そのまま使い回さないため正しく動作する。
+        reflect_filter(root, &list_id, on_action);
+    }
+
+    /// [`handle_input`] が dispatch 後の再解決に使う: `list_id`
+    /// （[`resolve_list`] が確認済みの List パーツ `id`）から、生きた DOM
+    /// 上の instance_root/list/input の 3 点を再解決する
+    /// （`crate::angle_slider::wiring::resolve_part` と同型の再解決契約）。
+    ///
+    /// `list_id` が空文字列（List パーツに `id` が付いていない構成異常）・
+    /// `root` 配下に見つからない・instance_root に input が存在しない
+    /// のいずれもフェイルクローズドに `None` を返す。
+    fn resolve_command_parts_by_list_id(
+        root: &Element,
+        list_id: &str,
+    ) -> Option<(Element, Element, Element)> {
+        if list_id.is_empty() {
+            return None;
+        }
+        let document = root.owner_document()?;
+        let list = document.get_element_by_id(list_id)?;
+        if !root.contains(Some(&list)) {
+            return None;
+        }
+        let instance_root = closest(&list, ROOT_SELECTOR)?;
+        if !root.contains(Some(&instance_root)) {
+            return None;
+        }
+        let input = instance_root
+            .query_selector(INPUT_SELECTOR)
+            .ok()
+            .flatten()?;
+        if !root.contains(Some(&input)) {
+            return None;
+        }
+        Some((instance_root, list, input))
     }
 
     /// `input`/`root` まで祖先方向を辿り `data-disabled` の有無を判定する
@@ -802,14 +1020,41 @@ mod wiring {
         };
 
         // Escape のスコープ判定: input が open な dialog パーツの子孫か。
-        let in_open_dialog = closest(target_element, DIALOG_SELECTOR)
-            .is_some_and(|dialog| root.contains(Some(&dialog)) && !dialog.has_attribute("hidden"));
+        let open_dialog = closest(target_element, DIALOG_SELECTOR)
+            .filter(|dialog| root.contains(Some(dialog)) && !dialog.has_attribute("hidden"));
+        let in_open_dialog = open_dialog.is_some();
 
         let modifiers = modifiers_of(keyboard_event);
         let Some(key_action) = command_key_action(&keyboard_event.key(), modifiers, in_open_dialog)
         else {
             return;
         };
+
+        // Escape による閉鎖要求は `crate::overlay` の opt-out 属性
+        // （`data-close-on-escape="false"`）と一元化する
+        // （codex-review P1 是正）。本モジュールの Escape ハンドラは
+        // `crate::overlay::wiring::OverlayCloseController`（document 上）
+        // とは独立に動作するため、同じ opt-out 属性を dialog 要素から
+        // 直接読み取って揃える。`OverlayCloseController` 側は
+        // push_overlay 時点でこの属性を読んで登録要否を決める設計
+        // （overlay.rs モジュール doc参照）であり、本モジュールが無条件に
+        // dispatch すると opt-out が Command のスコープ内 Escape に対して
+        // 効かなくなってしまう（モジュール冒頭 doc「`OverlayKind::Command`
+        // と Escape の収束」節は「どちらが先でも収束する」という dispatch
+        // 有無の対称性のみを述べており、opt-out 属性そのものの尊重は別途
+        // 本ガードが担う）。
+        if key_action == super::CommandKeyAction::Close {
+            let allow_close = open_dialog.as_ref().is_some_and(|dialog| {
+                crate::overlay::close_on_escape_for(
+                    crate::overlay::OverlayKind::Command,
+                    &ElementAttrSource(dialog),
+                )
+            });
+            if !allow_close {
+                return;
+            }
+        }
+
         keyboard_event.prevent_default();
 
         match key_action {

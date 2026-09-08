@@ -19,7 +19,6 @@
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::command::{self, Command, CommandAction};
 use fandhe_frontend_interactive::Component;
-use fandhe_frontend_wasm_full::command::wire_command_component;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
@@ -182,11 +181,56 @@ fn build_command_dom(
 type ActionLog = Rc<RefCell<Vec<(String, String)>>>;
 
 /// 配線し、記録用のアクション列と `Command` 状態を返す。
+///
+/// `wire_command_component` を直接使わず `wire_command_events` +
+/// `fandhe_frontend_interactive::dispatch` を手動で組み合わせる
+/// （`wire_command_component` 内部と同型の呼び出し順）。理由は 2 点:
+///
+/// 1. dispatch 依頼された `ActionRef` を [`ActionLog`] へ記録する
+///    （dispatch されなかった＝no-op を主張するテスト
+///    （`clicking_disabled_item_is_noop`/`escape_without_open_dialog_is_noop`）
+///    が実際に空ログのままであることを検証できるようにする。以前は
+///    `log` 変数が一切書き込まれずに宣言だけされており、これらのテストは
+///    常に空のまま無条件通過していた、Bugbot Medium 是正）。
+/// 2. dispatch 後、`dialog` パーツの `hidden` を `state.is_open()` へ反映
+///    する（`number_input_browser.rs::wire_with_dom_reflection` と同型の
+///    最小限の DOM 反映。`crate::command::wiring::handle_document_keydown`
+///    は dispatch 後に生きた DOM の `dialog` を再解決して `hidden` の有無
+///    で input へ `focus()` するかを判定するため、この反映が無いと
+///    Cmd/Ctrl+K 後の focus 検証が実利用者の再描画を経ない分だけ成立しない、
+///    Bugbot Medium 是正）。
 fn wire(root: Element, command: Command) -> (Rc<RefCell<Command>>, ActionLog) {
     let component = Rc::new(RefCell::new(command));
     let log: ActionLog = Rc::new(RefCell::new(Vec::new()));
-    wire_command_component(root, component.clone(), move |_state: &Command, _root| {})
-        .expect("wire_command_component must not fail");
+    let dispatch_component = component.clone();
+    let reflect_root = root.clone();
+    let record_log = log.clone();
+    fandhe_frontend_wasm_full::command::wire_command_events(root, move |action_ref| {
+        record_log
+            .borrow_mut()
+            .push((action_ref.action.clone(), action_ref.payload.clone()));
+        let Ok(mut state) = dispatch_component.try_borrow_mut() else {
+            return;
+        };
+        let dispatched = fandhe_frontend_interactive::dispatch(
+            &mut *state,
+            &action_ref.action,
+            &action_ref.payload,
+        );
+        if !dispatched {
+            return;
+        }
+        if let Ok(Some(dialog)) =
+            reflect_root.query_selector(r#"[data-scope="command"][data-part="dialog"]"#)
+        {
+            if state.is_open() {
+                let _ = dialog.remove_attribute("hidden");
+            } else {
+                let _ = dialog.set_attribute("hidden", "");
+            }
+        }
+    })
+    .expect("wire_command_events must not fail");
     (component, log)
 }
 
@@ -230,6 +274,166 @@ fn typing_query_hides_non_matching_items_and_sets_data_empty_when_all_hidden() {
     assert!(!item_elements[0].has_attribute("hidden"));
     assert!(!item_elements[1].has_attribute("hidden"));
     assert!(!root.has_attribute("data-empty"));
+}
+
+/// `container_id` を `id` に持つコンテナ要素を `parent` 配下へ組み立てる、
+/// [`build_command_dom`] の「任意の親へ配置できる」版。`typing_query_
+/// after_full_subtree_replacement_still_reflects_filter` が、構造フォール
+/// バックによる `[data-part="root"]` 丸ごと差し替えを模すために使う
+/// （`keynav_browser.rs::build_combobox_dom` と同型の意図）。
+fn build_command_into(
+    document: &Document,
+    parent: &Element,
+    container_id: &str,
+    command: &Command,
+    items: &[(&str, &str, bool)],
+) -> (Element, Element, Vec<Element>) {
+    let container = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    container.set_id(container_id);
+    let list_id = format!("{container_id}-list");
+    let entries: Vec<(&str, &str)> = items.iter().map(|(v, l, _)| (*v, *l)).collect();
+    let is_empty = command.is_empty(&entries);
+    let item_nodes: Vec<_> = items
+        .iter()
+        .map(|(value, label, disabled)| {
+            command.item(value, *disabled, None, Vec::new(), vec![text(*label)])
+        })
+        .collect();
+    let node = command.root(
+        is_empty,
+        Vec::new(),
+        vec![command.dialog(
+            "Command Menu",
+            Vec::new(),
+            vec![
+                command.input(&list_id, None, Vec::new()),
+                command::list(&list_id, "Suggestions", is_empty, Vec::new(), item_nodes),
+            ],
+        )],
+    );
+    container.set_inner_html(&render(&node));
+    parent
+        .append_child(&container)
+        .expect("append_child must not fail");
+    let root = container
+        .first_element_child()
+        .expect("command root must exist");
+    let input = root
+        .query_selector(r#"[data-scope="command"][data-part="input"]"#)
+        .expect("query_selector must not fail")
+        .expect("input element must exist");
+    let item_elements: Vec<Element> = items
+        .iter()
+        .map(|(value, _, _)| {
+            root.query_selector(&format!(
+                r#"[data-scope="command"][data-part="item"][data-value="{value}"]"#
+            ))
+            .expect("query_selector must not fail")
+            .unwrap_or_else(|| panic!("item element for value={value} must exist"))
+        })
+        .collect();
+    (container, input, item_elements)
+}
+
+/// codex-review P1・Bugbot High 是正の回帰テスト: 絞り込みの dispatch
+/// （[`fandhe_frontend_wasm_full::command::ACTION_INPUT`]）が構造フォール
+/// バック（`[data-part="root"]` を含むコンテナ丸ごとの差し替え）を誘発
+/// しても、`hidden` 反映が失われず**生きた（新しい）DOM**へ正しく届くこと
+/// を検証する（`crates/wasm-full/src/command.rs` モジュール冒頭 doc
+/// 「DOM 同期契約」節、`keynav_browser.rs::
+/// combobox_closed_arrow_down_opens_after_full_subtree_replacement_still_sets_highlight`
+/// と同型のシナリオ）。修正前の実装（dispatch 前に解決した要素へ直接
+/// 書き込む）ではこのテストは古い（detach 済みの）item へ `hidden` を
+/// 書いてしまい、生きた DOM 側の `search` item が可視のまま残って失敗する。
+#[wasm_bindgen_test]
+fn typing_query_after_full_subtree_replacement_still_reflects_filter() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container_id = "cmd-replace";
+    let items: [(&str, &str, bool); 2] = [
+        ("calendar", "Calendar", false),
+        ("search", "Search Emoji", false),
+    ];
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+
+    // Command のマウント境界（`wire_command_events` へ渡す root）は
+    // コンテナより外側の安定コンテナとする（mount root 自体は差し替え
+    // ない。実アプリでの「Command サブツリーだけが再描画で差し替わり、
+    // mount root 自体は永続する」構成を模す）。
+    let mount_root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&mount_root).unwrap();
+    let _cleanup = RemoveOnDrop(mount_root.clone());
+
+    let (_container, input, _item_elements) =
+        build_command_into(&document, &mount_root, container_id, &command, &items);
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+
+    // dispatch のたびに、`container_id` のコンテナ配下全体を detach し、
+    // 同じ id を持つ新しいコンテナへ丸ごと差し替える（アプリの再描画を
+    // 模す）。新しい DOM は絞り込み未反映＝全 item 可視の状態で構築する
+    // （絞り込みは本モジュールの DOM-only な関心事であり、アプリの
+    // `view()` はこれを知らない、モジュール冒頭 doc「絞り込みの DOM
+    // 反映」節参照）。
+    let state: Rc<RefCell<Command>> = Rc::new(RefCell::new(command));
+    let rebuild_document = document.clone();
+    let rebuild_mount_root = mount_root.clone();
+    let rebuild_container_id = container_id.to_string();
+    let rebuild_state = state.clone();
+    fandhe_frontend_wasm_full::command::wire_command_events(
+        mount_root.clone(),
+        move |action_ref| {
+            let Ok(mut command_state) = rebuild_state.try_borrow_mut() else {
+                return;
+            };
+            let dispatched = fandhe_frontend_interactive::dispatch(
+                &mut *command_state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+            if !dispatched {
+                return;
+            }
+            if let Some(old_container) = rebuild_document.get_element_by_id(&rebuild_container_id) {
+                old_container.remove();
+            }
+            build_command_into(
+                &rebuild_document,
+                &rebuild_mount_root,
+                &rebuild_container_id,
+                &command_state,
+                &items,
+            );
+        },
+    )
+    .expect("wire_command_events must not fail");
+
+    html_input.set_value("cal");
+    input.dispatch_event(&input_event()).unwrap();
+
+    // 生きた（新しい）DOM を id 経由で再解決して検証する（`input`/
+    // `_item_elements` は差し替え前の detach 済み要素のまま残っている）。
+    let live_container = document
+        .get_element_by_id(container_id)
+        .expect("replaced container must exist");
+    let live_calendar = live_container
+        .query_selector(r#"[data-scope="command"][data-part="item"][data-value="calendar"]"#)
+        .unwrap()
+        .expect("live calendar item must exist");
+    let live_search = live_container
+        .query_selector(r#"[data-scope="command"][data-part="item"][data-value="search"]"#)
+        .unwrap()
+        .expect("live search item must exist");
+    assert!(
+        !live_calendar.has_attribute("hidden"),
+        "構造フォールバック後も生きた DOM の calendar は可視のまま"
+    );
+    assert!(
+        live_search.has_attribute("hidden"),
+        "構造フォールバック後も生きた DOM の search へ hidden が反映される \
+         （codex-review P1・Bugbot High 是正の回帰）"
+    );
 }
 
 #[wasm_bindgen_test]
@@ -612,6 +816,70 @@ fn escape_without_open_dialog_is_noop() {
     assert!(log.borrow().is_empty());
 }
 
+/// codex-review P1 是正の回帰テスト: `dialog` パーツに
+/// `data-close-on-escape="false"`（`crate::overlay::close_on_escape_for`
+/// の opt-out 属性）が付いている場合、open な dialog 内の Escape でも
+/// [`fandhe_frontend_wasm_full::command::ACTION_CLOSE`] を dispatch しない
+/// こと、および `keydown_event` の既定動作を妨げない（`prevent_default()`
+/// を呼ばない）ことを検証する（`crates/wasm-full/src/command.rs` モジュール
+/// 冒頭 doc「`OverlayKind::Command` と Escape の収束」節）。修正前の実装は
+/// この属性を無視して無条件に dispatch していた。
+#[wasm_bindgen_test]
+fn escape_with_data_close_on_escape_false_is_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let container_id = "cmd-escape-optout";
+    let list_id = format!("{container_id}-list");
+    let container = create_container(&document, container_id);
+    let entries: [(&str, &str); 1] = [("a", "Alpha")];
+    let is_empty = command.is_empty(&entries);
+    let node = command.root(
+        is_empty,
+        Vec::new(),
+        vec![command.dialog(
+            "Command Menu",
+            vec![("data-close-on-escape", "false")],
+            vec![
+                command.input(&list_id, None, Vec::new()),
+                command::list(
+                    &list_id,
+                    "Suggestions",
+                    is_empty,
+                    Vec::new(),
+                    vec![command.item(
+                        "a",
+                        false,
+                        Some("cmd-escape-optout-item-a"),
+                        Vec::new(),
+                        vec![text("Alpha")],
+                    )],
+                ),
+            ],
+        )],
+    );
+    container.set_inner_html(&render(&node));
+    let root = container.first_element_child().unwrap();
+    let _cleanup = RemoveOnDrop(root.clone());
+    let input = root
+        .query_selector(r#"[data-scope="command"][data-part="input"]"#)
+        .unwrap()
+        .unwrap();
+    let (_component, log) = wire(root, command);
+
+    let default_not_prevented = input.dispatch_event(&keydown_event("Escape")).unwrap();
+    assert!(
+        default_not_prevented,
+        "data-close-on-escape=\"false\" のとき prevent_default() は呼ばれない"
+    );
+    assert!(
+        log.borrow().is_empty(),
+        "data-close-on-escape=\"false\" のとき close は dispatch されない"
+    );
+    let _ = items;
+}
+
 // --- (g) Cmd/Ctrl+K ---
 
 #[wasm_bindgen_test]
@@ -811,12 +1079,15 @@ fn xss_payload_in_item_label_and_value_does_not_create_script_element() {
     container.set_inner_html(&render(&node));
     let root = container.first_element_child().unwrap();
     let _cleanup = RemoveOnDrop(root.clone());
+    // `document` 全体ではなく `root`（本テストが描画した部分木）に限定
+    // する。`document` 全体を対象にすると wasm-bindgen-test ハーネス自身が
+    // ページに埋め込む `<script>`（テストバンドル読み込み用）や他テストの
+    // 残置要素まで拾ってしまい、本コンポーネントの既定エスケープが正しく
+    // 機能していても常に失敗する（他 `*_browser.rs` の同種 XSS 回帰テストは
+    // いずれも `root`/`container` 限定、本テストのみ `document` 限定だった
+    // ことが原因の flaky FAIL、Bugbot/CI 指摘是正）。
     assert!(
-        document
-            .query_selector("script[src], script:not([src])")
-            .unwrap()
-            .is_none()
-            || document.query_selector_all("script").unwrap().length() == 0,
+        root.query_selector("script").unwrap().is_none(),
         "既定エスケープにより <script> 要素は生成されない"
     );
 
