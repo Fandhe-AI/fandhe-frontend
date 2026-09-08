@@ -488,9 +488,22 @@ pub fn radial_chart<'a>(
         return Err(RadialChartError::ZeroTotal);
     }
 
-    let start_rad = deg_to_rad(props.start_angle_deg);
-    let end_rad = deg_to_rad(props.end_angle_deg);
-    let sweep_rad = end_rad - start_rad;
+    // `start_angle_deg`/`end_angle_deg` は極端な絶対値（例:
+    // 1e10 と 1e10+360）を個別に検証済みでも許容する（`sweep_deg` は
+    // 減算のみで求まるため丸め誤差の影響を受けない）。しかし
+    // `deg_to_rad` を両者へ独立適用すると `to_radians()` の丸め誤差が
+    // 各値の絶対値の大きさに応じて乗るため、本来ちょうど全周
+    // （`sweep_deg == 360.0`）であっても `end_rad - start_rad` が
+    // `FULL_CIRCLE_EPSILON` の許容誤差を外れうる（全周退化判定
+    // `ring_segment_path` がすり抜け、`fmt_coord` で始点・終点が
+    // 同一座標に丸まってトラック/最大値リングが描画されない）。
+    // これを避けるため、開始角を `rem_euclid` で `[0, 360)` へ
+    // 正規化してから変換し、終了角は検証済みの `sweep_deg` を直接
+    // ラジアンへ変換して開始角に加算する（両者を独立変換しない）。
+    let start_angle_deg_normalized = props.start_angle_deg.rem_euclid(360.0);
+    let start_rad = deg_to_rad(start_angle_deg_normalized);
+    let sweep_rad = sweep_deg.to_radians();
+    let end_rad = start_rad + sweep_rad;
     let r_inner_base = OUTER_RADIUS * props.inner_ratio;
     let band = (OUTER_RADIUS - r_inner_base) / n as f64;
     let thickness = band * (1.0 - RING_GAP);
@@ -997,6 +1010,26 @@ mod tests {
             ..RadialChartProps::default()
         };
         assert!(radial_chart(&props, &two_category_data(), vec![]).is_ok());
+    }
+
+    #[test]
+    fn full_360_degree_range_with_large_angle_offset_renders_as_seamless_full_ring() {
+        // codex-review 指摘の回帰: start_angle_deg/end_angle_deg が
+        // ちょうど 360° の範囲でも巨大な絶対値（例: 1e10 付近）だと、
+        // 各値を独立に `deg_to_rad` すると `to_radians()` の丸め誤差で
+        // `end_rad - start_rad` が全周判定の許容誤差
+        // （`FULL_CIRCLE_EPSILON`）を外れうる（開始角の正規化と
+        // 検証済み `sweep_deg` からの終了角組み立てで回避、モジュール
+        // doc「全周退化の共通規則」節）。全周退化分岐を通らないと
+        // `fmt_coord` で始点・終点が同一座標に丸まり、トラック/最大値
+        // リングの `d` が描画不能な退化パスになる。
+        let props = RadialChartProps {
+            start_angle_deg: 10_000_000_000.0,
+            end_angle_deg: 10_000_000_360.0,
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 3);
     }
 
     #[test]
