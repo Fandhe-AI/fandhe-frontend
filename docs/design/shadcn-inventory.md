@@ -159,7 +159,7 @@ gh api "repos/shadcn-ui/ui/contents/apps/v4/content/docs/components/aria?ref=5c7
 | `toggle` | Toggle | 既存 `toggle` と対応 |
 | `toggle-group` | Toggle Group | 既存 `toggle_group` と対応 |
 | `tooltip` | Tooltip | 既存 `tooltip` と対応 |
-| `typography` | Typography | 既存 `heading`/`text`/`blockquote`/`list`/`code` 等の複数 mod に分散対応。個別バリアント（Lead/Large/Small/Muted）は #2055 で `text` の `TextVariant`（plain/muted）追加により、既存軸の合成として対応済み |
+| `typography` | Typography | 既存 `heading`/`text`/`blockquote`/`list`/`code` 等の複数 mod に分散対応。個別バリアント（Lead/Large/Small/Muted）は #2055 で `text` の `TextVariant`（plain/muted）追加により、既存軸の合成として対応済み。`heading`（h1〜h4）は #2056 で突合済み: `HeadingWeight` 軸・`data-bordered`（h2 下罫線相当）を純追加、letter-spacing・レイアウトユーティリティは非採用。同 issue で `blockquote`/`list`/`code` も突合済み・CSS 差分なし（意図的差分は各モジュール rustdoc 参照） |
 
 ## 5. 除外・訂正事項（起票時点の計画との差分）
 

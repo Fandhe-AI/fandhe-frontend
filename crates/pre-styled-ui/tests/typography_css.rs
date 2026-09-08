@@ -54,6 +54,27 @@ const HEADING_GOLDEN_CSS: &str = r#"[data-scope="heading"][data-part="root"] {
   font-size: var(--fandhe-font-font-size-4xl);
   line-height: 1.15;
 }
+
+[data-scope="heading"][data-part="root"].fd-heading--weight-normal {
+  font-weight: var(--fandhe-font-font-weight-normal);
+}
+
+[data-scope="heading"][data-part="root"].fd-heading--weight-medium {
+  font-weight: var(--fandhe-font-font-weight-medium);
+}
+
+[data-scope="heading"][data-part="root"].fd-heading--weight-semibold {
+  font-weight: var(--fandhe-font-font-weight-semibold);
+}
+
+[data-scope="heading"][data-part="root"].fd-heading--weight-bold {
+  font-weight: var(--fandhe-font-font-weight-bold);
+}
+
+[data-scope="heading"][data-part="root"][data-bordered] {
+  border-bottom: 1px solid var(--fandhe-color-border);
+  padding-bottom: var(--fandhe-space-2);
+}
 "#;
 
 const TEXT_GOLDEN_CSS: &str = r#"[data-scope="text"][data-part="root"] {

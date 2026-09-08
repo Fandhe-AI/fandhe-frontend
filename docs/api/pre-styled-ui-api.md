@@ -962,7 +962,7 @@ h1-h6/p/em/mark/blockquote/ul・ol・li の素の HTML 意味論をそのまま 
 
 | モジュール | パーツ | タグ選択 | variant 軸 | colorPalette | 備考 |
 |---|---|---|---|---|---|
-| `heading` | root（単一） | `HeadingLevel`（h1〜h6、意味論レベル） | `HeadingSize`（`sm`/`md`/`lg`/`xl`(既定)/`xl2`/`xl3`/`xl4`、`font-size`/`line-height`、視覚サイズ） | なし | タグ選択（意味論）とサイズ variant（視覚）は独立。chakra の `5xl`〜`7xl` はテーマトークン範囲外のため非採用 |
+| `heading` | root（単一） | `HeadingLevel`（h1〜h6、意味論レベル） | `HeadingSize`（`xs`/`sm`/`md`/`lg`/`xl`(既定)/`xl2`/`xl3`/`xl4`、`font-size`/`line-height`、視覚サイズ）・`HeadingWeight`（`normal`/`medium`/`semibold`(既定)/`bold`、イシュー #2056） | なし | タグ選択（意味論）とサイズ/ウェイト variant（視覚）は独立。chakra の `5xl`〜`7xl` はテーマトークン範囲外のため非採用。`data-bordered`（値なし・呼び出し側 attrs 経由の opt-in 状態、shadcn h2 の下罫線相当）も持つ |
 | `text` | root（単一、`<p>` 固定） | — | `TextSize`（`xs`/`sm`/`md`(既定)/`lg`/`xl`/`xl2`/`xl3`/`xl4`、イシュー #1442）・`TextWeight`（`normal`(既定)/`medium`/`semibold`/`bold`、イシュー #1442）・`TextVariant`（`plain`(既定)/`muted`、イシュー #2055。`muted` は `fg-muted` トークンを使う前景色軸） | なし | — |
 | `em` | root（単一、`<em>` 固定） | — | なし | なし | variant 軸を持たない最小部品（`link_overlay` と同型） |
 | `mark` | root（単一、`<mark>` 固定） | — | `MarkVariant`（`subtle`(既定)/`solid`/`text`/`plain`） | あり（5 値） | `badge` と同型の単一 recipe パターン |
