@@ -176,8 +176,9 @@
 //!   root 外の要素を操作しない、`crate::keynav` の「Stale root」教訓と
 //!   同型）。document 上の Cmd/Ctrl+K も `root` 配下に `dialog` パーツが
 //!   存在するときのみ発火する。
-//! - `Closure::forget` はマウント時の定数回（root 3 + document 1）に限定
-//!   する（A04 対策、無制限リークの構造的回避）。
+//! - `Closure::forget` はマウント時の定数回（root 4〔input の capture/
+//!   bubble 各 1・keydown・click〕+ document 1）に限定する（A04 対策、
+//!   無制限リークの構造的回避）。
 //! - 未知キー・修飾キー付き・IME 変換中・`disabled`/`data-disabled`・
 //!   `data-value` 欠落・未選択 Enter・hidden な選択・`dialog` 不在の
 //!   Escape/Cmd+K はすべて no-op（fail-closed）。`Command::decode_action` が
@@ -458,8 +459,9 @@ mod wiring {
 
     /// `root` 配下の Command へ input/keydown/click（計 3 回）、`document` へ
     /// keydown（1 回、Cmd/Ctrl+K）を配線する（マウント時 1 回契約、
-    /// `Closure::forget` は本関数呼び出しにつき定数 4 回に限定する、
-    /// モジュール冒頭 doc「セキュリティ不変条件」節参照）。
+    /// `Closure::forget` は本関数呼び出しにつき定数 5 回に限定する
+    /// （codex-review P1 再々是正で capture-phase の 1 回を追加、モジュール
+    /// 冒頭 doc「セキュリティ不変条件」節参照）。
     ///
     /// `on_action` は dispatch 依頼を呼び出し側へ渡すのみで、状態更新・DOM
     /// 反映は行わない（`number_input::wire_number_input_events` と同じ責務
@@ -475,10 +477,51 @@ mod wiring {
     ) -> Result<(), JsValue> {
         let on_action = std::rc::Rc::new(std::cell::RefCell::new(on_action));
 
+        // capture-phase での dispatch 前フォーカス記録（codex-review P1
+        // 再々是正）: `data-action-input` を持つ input は、同一 `root` へ
+        // 本関数より前に登録される `crate::events::wire_events` の
+        // bubble-phase "input" リスナーが、本モジュールの bubble-phase
+        // [`handle_input`] より必ず先に発火する（`crate::lib::Runtime::
+        // mount`/`hydrate` が `events::wire_events` を先に呼ぶ、モジュール
+        // 冒頭 doc「`"input"` dispatch と `crate::events::wire_events` の
+        // 二重 dispatch 回避」節）。その dispatch が構造フォールバック
+        // 再描画を誘発すると、[`handle_input`] 冒頭で改めて
+        // `capture_focus_state` してももう手遅れ（`target_element` は既に
+        // detach 済み）になる（P1 是正の再発、data-action-input 経路限定の
+        // 既知の穴）。DOM のイベント capturing phase はどの target の
+        // bubbling phase リスナーよりも必ず先に完了するという契約を利用し、
+        // ここで `wire_events` の dispatch より確実に前にフォーカス状態を
+        // 記録しておく（`add_event_listener_with_callback_and_bool` の
+        // `use_capture: true`）。
+        let pre_input_focus: std::rc::Rc<std::cell::RefCell<Option<FocusState>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
+        let capture_pre_input_focus = pre_input_focus.clone();
+        let capture_focus_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            let Some(target) = event.target() else {
+                return;
+            };
+            let Some(target_element) = target.dyn_ref::<Element>() else {
+                return;
+            };
+            // Input パーツ以外（capture phase は root 配下の全 "input"
+            // イベントを受け取る）は無視する（[`handle_input`] と同じ判定）。
+            if !matches_part(target_element, INPUT_PART) {
+                return;
+            }
+            *capture_pre_input_focus.borrow_mut() = Some(capture_focus_state(target_element));
+        });
+        root.add_event_listener_with_callback_and_bool(
+            "input",
+            capture_focus_closure.as_ref().unchecked_ref(),
+            true,
+        )?;
+        capture_focus_closure.forget();
+
         let input_root = root.clone();
         let input_on_action = on_action.clone();
+        let input_pre_focus = pre_input_focus.clone();
         let input_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_input(&input_root, &event, &input_on_action);
+            handle_input(&input_root, &event, &input_on_action, &input_pre_focus);
         });
         root.add_event_listener_with_callback("input", input_closure.as_ref().unchecked_ref())?;
         input_closure.forget();
@@ -764,6 +807,23 @@ mod wiring {
         }
     }
 
+    /// `input` の祖先に `dialog` パーツが無い、またはあっても `hidden`
+    /// でないかどうか（Cursor Bugbot High 是正）: `ACTION_EXECUTE` で
+    /// dialog が閉じる構成では [`reflect_filter`] 呼び出し前後で dialog
+    /// 要素に `hidden` 属性が付くだけで DOM から取り除かれるわけではない
+    /// ため、[`resolve_command_parts_by_list_id`] は閉じた後も引き続き
+    /// 同じ `input` を解決できてしまう。この状態のまま
+    /// [`restore_focus_state`] を呼ぶと、非表示の command dialog 内へ
+    /// フォーカスを強制的に戻してしまう（実行後のフォーカスがユーザーへ
+    /// 見えないパレットへ消える不具合）。dialog パーツを持たない
+    /// Command（非ダイアログ構成）は常に `true` を返す。
+    fn input_focus_target_is_visible(input: &Element) -> bool {
+        match closest(input, DIALOG_SELECTOR) {
+            Some(dialog) => !dialog.has_attribute("hidden"),
+            None => true,
+        }
+    }
+
     /// [`capture_focus_state`] で記録した状態を、再描画後に再解決した
     /// `input`（生きた DOM）へ復元する。`focused` が `false`（dispatch 前に
     /// フォーカスされていなかった）なら no-op。
@@ -847,8 +907,12 @@ mod wiring {
         // で、呼び出し側の dispatch・本関数自身の dispatch のどちらが
         // 再描画を誘発しても正しく収束する（`restore_focus_state` は
         // 既にフォーカス済みの要素に対しても副作用なく安全に呼べる）。
+        // `input_focus_target_is_visible` は Cursor Bugbot High 是正:
+        // `ACTION_EXECUTE` で dialog が閉じた（`hidden` が付いた）構成では
+        // 復元先が非表示のままになるため、そのときは復元しない
+        // （fail-closed、同関数 doc 参照）。
         if let Some(state) = outer_focus_state.as_ref() {
-            if state.focused {
+            if state.focused && input_focus_target_is_visible(&input) {
                 restore_focus_state(&input, state);
             }
         }
@@ -882,8 +946,12 @@ mod wiring {
             };
             // dispatch が構造フォールバック再描画を誘発し `input` が
             // detach された場合、再解決した生きた `input` へフォーカス・
-            // 選択範囲を復元する（codex-review P1 是正）。
-            restore_focus_state(&fresh_input, &focus_state);
+            // 選択範囲を復元する（codex-review P1 是正）。ただし復元先が
+            // 非表示の command dialog 内なら復元しない（Cursor Bugbot High
+            // 是正、`input_focus_target_is_visible` doc 参照）。
+            if input_focus_target_is_visible(&fresh_input) {
+                restore_focus_state(&fresh_input, &focus_state);
+            }
             (
                 fresh_instance_root,
                 fresh_list,
@@ -994,6 +1062,7 @@ mod wiring {
         root: &Element,
         event: &Event,
         on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
+        pre_focus: &std::rc::Rc<std::cell::RefCell<Option<FocusState>>>,
     ) {
         let Some(target) = event.target() else {
             return;
@@ -1020,6 +1089,14 @@ mod wiring {
         if !matches_part(target_element, INPUT_PART) {
             return;
         }
+        // disabled/`data-disabled` な祖先（Command root 自体を含む）配下
+        // では入力による状態更新も no-op とする（codex-review P1 是正:
+        // 従来 [`handle_keydown`] のみが `has_disabled_ancestor` を確認して
+        // おり、`data-action-input` を持たない input の絞り込み dispatch は
+        // 無効化状態を無視して発生していた）。
+        if has_disabled_ancestor(root, target_element) {
+            return;
+        }
         let Some(list) = resolve_list(root, target_element) else {
             return;
         };
@@ -1029,16 +1106,23 @@ mod wiring {
         // 常に安定して出力される。
         let list_id = list.id();
 
-        // dispatch（`ACTION_INPUT` の `on_action` 呼び出し）より前に
-        // フォーカス状態を記録する（codex-review P1 再是正）。この後の
-        // dispatch が構造フォールバック再描画を誘発すると `target_element`
-        // は detach され、`document.active_element()` との比較でしか
-        // フォーカス有無を判定できなくなる時点はもう手遅れになる。
-        // `target_element` はこの "input" イベントの `event.target()` で
-        // あり、本ハンドラの実行中は再描画の影響を受けず固定されているため
-        // （ブラウザのイベント dispatch 契約）、ここでの記録は dispatch 前
-        // の実際のフォーカス状態を正しく捉えられる。
-        let focus_state = capture_focus_state(target_element);
+        // dispatch（`ACTION_INPUT` の `on_action` 呼び出し）より前の
+        // フォーカス状態（codex-review P1 再々是正）: `pre_focus` は
+        // [`wire_command_events`] が capture phase で記録したスナップショット
+        // を優先的に使う。`data-action-input` を持つ input では、同一
+        // `root` へ先に登録された `crate::events::wire_events` の
+        // bubble-phase dispatch が本ハンドラより先に走り、構造フォール
+        // バック再描画を誘発し得るため、この時点で改めて
+        // `capture_focus_state(target_element)` すると `target_element` は
+        // 既に detach 済みで `focused=false` が確定してしまう
+        // （P1 是正の再発）。capture phase での記録は `wire_events` の
+        // dispatch より確実に前に完了しているため正しい。`pre_focus` が
+        // 空（capture phase のリスナー登録に失敗した等）の場合のみ、
+        // フォールバックとして現在の `target_element` から直接記録する。
+        let focus_state = pre_focus
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| capture_focus_state(target_element));
 
         if !target_element.has_attribute(ACTION_INPUT_ATTR) {
             let value = target_element
@@ -1324,7 +1408,15 @@ mod wiring {
         if !root.contains(Some(&item)) {
             return;
         }
-        if item.has_attribute("data-disabled") {
+        // `item` 自身の `data-disabled` だけでなく、祖先（Command root
+        // 自体を含む）の disabled/`data-disabled` も確認する（codex-review
+        // P1 是正: [`handle_keydown`] は `has_disabled_ancestor` を使う一方
+        // 本ハンドラは item 自身しか見ておらず、root へ `data-disabled` を
+        // 付けても item クリックによる `select`/`command:execute` が
+        // 引き続き dispatch されていた）。`has_disabled_ancestor` は
+        // `item` 自身の `data-disabled` も先頭で確認するため、単純な
+        // `item.has_attribute("data-disabled")` の上位互換になる。
+        if has_disabled_ancestor(root, &item) {
             return;
         }
         let Some(value) = item.get_attribute("data-value") else {
