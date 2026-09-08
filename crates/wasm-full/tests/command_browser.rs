@@ -2328,3 +2328,81 @@ fn mousedown_on_text_node_target_prevents_default() {
 
     let _ = input;
 }
+
+/// `command::dialog` は任意の children を受け取れるため、検索対象切替用の
+/// `select` のような、Command のパーツではない独立したインタラクティブ
+/// 要素が併設され得る。この `select` への mousedown は `prevent_default()`
+/// されず、ブラウザ既定のフォーカス移動・選択操作が妨げられないことを
+/// 検証する（codex-review P1 是正、イシュー #2069）。
+#[wasm_bindgen_test]
+fn mousedown_on_independent_select_inside_dialog_is_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, dialog, _input, _list, _item_elements) = build_command_dom(
+        &document,
+        "cmd-mousedown-independent-select",
+        &command,
+        &items,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let (_component, _log) = wire(root.clone(), command);
+
+    // Command のパーツではない、利用者が併設した検索対象切替用 select を
+    // dialog 直下へ追加する。
+    let select = document
+        .create_element("select")
+        .expect("create_element must not fail");
+    dialog
+        .append_child(&select)
+        .expect("append_child must not fail");
+
+    let event = mousedown_event();
+    select.dispatch_event(&event).unwrap();
+    assert!(
+        !event.default_prevented(),
+        "Command のパーツではない独立したインタラクティブ要素（select）の \
+         mousedown は既定動作を妨げない"
+    );
+}
+
+/// 上記 `select` の子孫（`option`）への mousedown も同様に
+/// `prevent_default()` されないことを検証する（`Element::closest` の
+/// self-or-ancestor 一致により子孫まで除外される契約の回帰）。
+#[wasm_bindgen_test]
+fn mousedown_on_descendant_of_independent_interactive_element_is_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, dialog, _input, _list, _item_elements) = build_command_dom(
+        &document,
+        "cmd-mousedown-independent-select-descendant",
+        &command,
+        &items,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let (_component, _log) = wire(root.clone(), command);
+
+    let select = document
+        .create_element("select")
+        .expect("create_element must not fail");
+    let option = document
+        .create_element("option")
+        .expect("create_element must not fail");
+    select
+        .append_child(&option)
+        .expect("append_child must not fail");
+    dialog
+        .append_child(&select)
+        .expect("append_child must not fail");
+
+    let event = mousedown_event();
+    option.dispatch_event(&event).unwrap();
+    assert!(
+        !event.default_prevented(),
+        "独立したインタラクティブ要素の子孫（option）への mousedown も \
+         既定動作を妨げない"
+    );
+}

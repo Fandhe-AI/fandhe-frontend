@@ -448,6 +448,20 @@ mod wiring {
     const INPUT_SELECTOR: &str = "[data-scope=\"command\"][data-part=\"input\"]";
     /// `[data-scope="command"][data-part="item"]` セレクタ。
     const ITEM_SELECTOR: &str = "[data-scope=\"command\"][data-part=\"item\"]";
+    /// `handle_mousedown` のフォーカス維持処理から除外する「独立した
+    /// インタラクティブ要素」のセレクタ（codex-review P1 是正、イシュー
+    /// #2069）。`command::dialog` は任意の children を受け取れるため、
+    /// 検索対象切替用の `select` や別の `input` 等が併設され得るが、
+    /// これらとその子孫（`Element::closest` は self-or-ancestor で一致
+    /// する）へのクリックはブラウザ既定のフォーカス移動・選択操作を
+    /// 妨げてはならない（[`handle_mousedown`] doc 参照）。`tabindex="-1"`
+    /// は除外する: `command::dialog` パーツ自身がプログラム的フォーカス
+    /// 専用に `tabindex="-1"` を持つ（headless-ui `command::dialog`）ため
+    /// 含めると、dialog 背景への mousedown までフォーカス維持処理の対象
+    /// 外になってしまう（既存の item クリック挙動は `role="option"` のみで
+    /// tabindex を持たないため、本セレクタには一致せず影響なし）。
+    const INDEPENDENT_INTERACTIVE_SELECTOR: &str = "a[href], button, input, select, textarea, \
+        [contenteditable=\"true\"], [tabindex]:not([tabindex=\"-1\"])";
     /// `[data-scope="command"][data-part="group"]` セレクタ。
     const GROUP_SELECTOR: &str = "[data-scope=\"command\"][data-part=\"group\"]";
     /// `[data-scope="command"][data-part="separator"]` セレクタ。
@@ -1724,6 +1738,17 @@ mod wiring {
     /// キャレット位置決定・テキスト選択）を妨げない。disabled な item は
     /// 従来どおり除外する（クリックしても実行されないため blur してよい、
     /// 既存の `handle_click` の disabled 判定と同型）。
+    ///
+    /// `command::dialog` は任意の children を受け取れるため、検索対象切替
+    /// 用の `select` や別の `input` 等、Command のパーツではない独立した
+    /// インタラクティブ要素が併設され得る（codex-review P1 是正、イシュー
+    /// #2069）。これらとその子孫への mousedown まで `prevent_default()`
+    /// してしまうと、AGENTS.md の「HTML/JS/CSS のプレーン尊重」に反し、
+    /// そのクリックによるフォーカス移動・選択操作を抑止してしまう。
+    /// `INDEPENDENT_INTERACTIVE_SELECTOR` に一致する要素（またはその子孫）
+    /// はフォーカス維持処理の対象から除外し、item や非インタラクティブな
+    /// 背景（`dialog`/`list`/`group`/`separator`/`empty` の素の領域）に
+    /// 限定して適用する。
     fn handle_mousedown(root: &Element, event: &Event) {
         let Some(target) = event.target() else {
             return;
@@ -1762,6 +1787,12 @@ mod wiring {
         // 節と同型）: `target_element` が実在の Command インスタンス
         // （`ROOT_SELECTOR` 祖先）の配下であることを確認する。
         if resolve_instance_root(root, target_element).is_none() {
+            return;
+        }
+        // 独立したインタラクティブ要素（またはその子孫）はブラウザ既定
+        // 動作を妨げない（codex-review P1 是正、イシュー #2069。
+        // `INDEPENDENT_INTERACTIVE_SELECTOR` doc 参照）。
+        if closest(target_element, INDEPENDENT_INTERACTIVE_SELECTOR).is_some() {
             return;
         }
         if let Some(item) = closest(target_element, ITEM_SELECTOR) {
