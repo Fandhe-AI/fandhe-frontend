@@ -2321,7 +2321,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2062: 依存先 `fandhe-frontend-headless-ui` 0.67.0 → 0.68.0（新規
 # `input_group` モジュール追加、非破壊的）に伴う `dep-version-check --fix`
 # の `version = "..."` 追随バンプ（本クレート自身の実装変更は無い）。
-version = "0.135.1"
+# イシュー #2043: alert を shadcn/ui と突合し、pre-styled-only レイアウト
+# パート `action` の新設（公開 API 追加 + CSS 出力の実体変更）を行ったため
+# minor バンプする（0.x の破壊的変更はマイナーバンプの規約、`toast`
+# のイシュー #2180 先例に同じ）。
+# base 再取り込み（イシュー #2062, 2026-09-08）: 本ブランチの到達値
+# 0.135.1 が main の到達値 0.136.0 を下回るため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数・
+# 逆転した到達値への衝突は main の現在値をさらに +1 する）に倣い、main
+# の到達値 0.136.0 の patch を +1 して 0.136.1 とする。
+version = "0.136.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

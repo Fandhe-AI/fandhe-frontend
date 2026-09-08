@@ -1,5 +1,5 @@
 //! Alert（イシュー #550）: slot recipe styled 部品。root/indicator/content/
-//! title/description の 5 パーツで構成する通知バナー。
+//! title/description/action の 6 パーツで構成する通知バナー。
 //!
 //! `root` に `role="alert"`（WAI-ARIA live region、ステータスに関わらず固定）
 //! を付与する。chakra-ui v3 準拠でステータスごとに `role` を切り替える設計も
@@ -34,6 +34,59 @@
 //!   - chakra `inline` prop（title/description の横並び）: 既存 slot 構成
 //!     （`content` が column flex 固定）を超える追加軸のため見送り。
 //!   - Radix `highContrast`: トークン体系にない軸のため見送り。
+//!
+//! # イシュー #2043（shadcn/ui 突合、`docs/design/shadcn-reference-adoption-policy.md` §8）
+//!
+//! shadcn/ui Alert（Base UI 版 docs ページ。`new-york-v4` レジストリの
+//! `alert.tsx` ソースには存在しない `AlertAction` を Base 版 docs ページのみが
+//! 持つ。本節は Base 版 docs ページを突合対象とする）と突合した結果を記す。
+//!
+//! | 観点 | shadcn/ui | 当部品の現状 | 判定 |
+//! |---|---|---|---|
+//! | variant `default`（白背景+枠線） | あり | `AlertStatus::Neutral` + `AlertVariant::Surface`/`Outline` で再現可 | 既存軸で再現。`default` の名称は持ち込まない |
+//! | variant `destructive` | あり | `AlertStatus::Error` + `AlertVariant::Outline` で再現可 | 既存軸で再現 |
+//! | アイコン付き | `svg` を `has-[>svg]` で列化 | [`indicator`] slot | 既存 slot で再現 |
+//! | title のみ / description のみ | 可 | [`content`] は column flex、title/description は任意 | 既存 anatomy で再現 |
+//! | `AlertAction`（右上のアクション併記） | root 右上に absolute 配置 | 該当パートなし | **純追加**: [`action`] パートを新設（下記） |
+//! | description の弱め文字色 | `text-muted-foreground` | title と同じ `--fandhe-palette-fg-subtle` | **非追随**（既存 golden の視覚変更になるため。§8 規則 3） |
+//! | title `line-clamp-1` | 1 行に切り詰め | なし | **非追随**（`role="alert"` live region の本文欠落を避けるため） |
+//!
+//! ## 参照競合の判定
+//!
+//! - action の配置は shadcn-ui の値（右上配置）を採る。理由: chakra-ui /
+//!   Radix Themes の Alert / Callout にはアクション slot 自体がなく競合相手が
+//!   存在しないため。ただし実現手段は `position: absolute` ではなく root
+//!   （`display: flex`）の末尾 flex 兄弟（`margin-inline-start: auto`）と
+//!   する。理由: [`content`] と重ならず、[`crate::recipe::SlotRecipe`] が
+//!   持たない `:has()` / 子孫セレクタに依存せず、既存 base/variant 出力を
+//!   バイト同一に保てるため。
+//! - description の文字色は chakra-ui / Radix Themes の値（title と同じ
+//!   `fg-subtle`）を採る。理由: shadcn の `muted-foreground` へ変えると
+//!   既存 golden の視覚変更（§8 規則 3 違反）になるため。
+//! - title の行数は chakra-ui / Radix Themes の値（切り詰めなし）を採る。
+//!   理由: `role="alert"` の live region 本文を `line-clamp` で隠すと通知
+//!   内容が欠落するため。
+//!
+//! ## pre-styled-only `action` パート
+//!
+//! [`action`] は本モジュールが独自に追加する**レイアウト専用**パートで、
+//! headless-ui には対応する anatomy を持たない（headless-ui に alert 自体が
+//! 存在しない。`crates/docs-site/tests/wrap_state.rs` のバケット D
+//! `PRE_STYLED_ONLY` に登録済み）。[`crate::dialog::footer`]（イシュー
+//! #1690）・[`crate::dialog::body`]（イシュー #2030）と同型の「アプリケー
+//! ションロジックを内包しない、レイアウト専用パート」として設計する
+//! （`docs/policy/intentional-non-adoption.md` §3.25 規則 1・規則 2 に適合。
+//! クリック配線・送信処理は持たず、内包する `button` 等の操作は呼び出し側が
+//! 配線する）。
+//!
+//! [`action`] の CSS は `display: inline-flex` / `align-items: center` /
+//! `flex-shrink: 0` / `margin-inline-start: auto`（論理プロパティ、RTL
+//! 対応）/ `gap` の 5 宣言のみを持ち、[`content`] が既に `flex: 1;
+//! min-width: 0` を持つため [`action`] を root の最後の子として置くだけで
+//! 右上（RTL では左上）に収まり [`content`] と重ならない。素の `button` を
+//! root の第 3 子に直接置いても位置は同じになるが、[`action`] が提供する
+//! `flex-shrink: 0` と `data-part="action"`（利用者 CSS・テストの捕捉点）が
+//! 本パートの存在理由である。既存の `root` `position: relative` は変更しない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -45,7 +98,14 @@ use fandhe_frontend_headless_ui::{anatomy, role, Anatomy};
 const ANATOMY: Anatomy = anatomy("alert");
 
 /// [`SlotRecipe::new`] に渡す slot 一覧。
-const SLOTS: &[&str] = &["root", "indicator", "content", "title", "description"];
+const SLOTS: &[&str] = &[
+    "root",
+    "indicator",
+    "content",
+    "title",
+    "description",
+    "action",
+];
 
 /// Alert のステータス（既定 `Info`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -240,6 +300,21 @@ fn recipe() -> SlotRecipe {
         .base(
             "title",
             vec![decl("font-weight", "var(--fandhe-font-font-weight-medium)")],
+        )
+        // イシュー #2043: pre-styled-only `action` パート（モジュール doc
+        // 「pre-styled-only `action` パート」節参照）。root は既に
+        // `display: flex` なので、`margin-inline-start: auto` のみで右側
+        // （RTL では左側）へ押し出せる。`position: absolute` は採らない
+        // （参照競合の判定、モジュール doc 参照）。
+        .base(
+            "action",
+            vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("flex-shrink", "0"),
+                decl("margin-inline-start", "auto"),
+                decl("gap", "var(--fandhe-space-2)"),
+            ],
         )
         // イシュー #1553: `size` 軸新設に伴い、description 固有の
         // `font-size-sm` 直書きは削除し root の `font-size` へ一本化した
@@ -439,6 +514,18 @@ pub fn description<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> N
     ANATOMY.part("description", "div", attrs, children)
 }
 
+/// pre-styled-only `action` パート（`<div>`、イシュー #2043）を組み立てる。
+///
+/// root の最後の子として置くとアクション（`button` 等）が右側（RTL では
+/// 左側）へ押し出される。headless-ui に対応する anatomy を持たない
+/// pre-styled 独自パート（モジュール doc「pre-styled-only `action` パート」
+/// 節参照）。クリック配線・送信処理は内包せず、呼び出し側が children に
+/// 渡すノードへ配線する。
+#[must_use]
+pub fn action<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("action", "div", attrs, children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -532,6 +619,8 @@ mod tests {
             .starts_with(r#"<div data-scope="alert" data-part="title""#));
         assert!(render(&description(vec![], vec![]))
             .starts_with(r#"<div data-scope="alert" data-part="description""#));
+        assert!(render(&action(vec![], vec![]))
+            .starts_with(r#"<div data-scope="alert" data-part="action""#));
     }
 
     #[test]
@@ -581,6 +670,51 @@ mod tests {
         let html = render(&title(vec![], vec![text("<script>alert(1)</script>")]));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    /// イシュー #2043: 新設 [`action`] も他パートと同じく `text()` を経由した
+    /// children が既定エスケープを通ることを固定する。
+    #[test]
+    fn xss_payload_in_action_children_is_escaped() {
+        let html = render(&action(vec![], vec![text("<script>alert(1)</script>")]));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    /// イシュー #2043: root + indicator + content + action の合成
+    /// （shadcn `AlertAction` 相当）が右端の兄弟パートとして描画されることを
+    /// 固定する。
+    #[test]
+    fn composed_alert_with_action_snapshot() {
+        let node = root(
+            &AlertProps::default(),
+            vec![],
+            vec![
+                indicator(vec![], vec![text("!")]),
+                content(
+                    vec![],
+                    vec![
+                        title(vec![], vec![text("Update available")]),
+                        description(vec![], vec![text("A new version is ready.")]),
+                    ],
+                ),
+                action(vec![], vec![text("Update")]),
+            ],
+        );
+        let html = render(&node);
+        assert_eq!(
+            html,
+            concat!(
+                r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info fd-alert--variant-subtle fd-alert--size-md">"#,
+                r#"<span data-scope="alert" data-part="indicator">!</span>"#,
+                r#"<div data-scope="alert" data-part="content">"#,
+                r#"<div data-scope="alert" data-part="title">Update available</div>"#,
+                r#"<div data-scope="alert" data-part="description">A new version is ready.</div>"#,
+                r#"</div>"#,
+                r#"<div data-scope="alert" data-part="action">Update</div>"#,
+                r#"</div>"#,
+            )
+        );
     }
 
     /// イシュー #1553: 公開 API（[`AlertStatus`]）のクラス出力は不変のまま、
