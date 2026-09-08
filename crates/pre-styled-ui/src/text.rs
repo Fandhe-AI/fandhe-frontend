@@ -1,6 +1,7 @@
 //! Text（イシュー #771）: 単一 recipe styled 部品。段落テキスト（`<p>`）を
-//! `size`/`weight` variant 付きで組み立てる。[`crate::heading`] と対になる
-//! 本文向け静的部品（headless 状態機械を要しない、badge/skeleton と同型）。
+//! `size`/`weight`/`variant` の 3 軸で組み立てる。[`crate::heading`] と対に
+//! なる本文向け静的部品（headless 状態機械を要しない、badge/skeleton と
+//! 同型）。`variant`（plain/muted）はイシュー #2055 で追加した。
 //!
 //! # 呼び出し側の名前衝突に関する注意
 //!
@@ -68,14 +69,18 @@
 //!   参照サイトの `light`/`regular` ではなく本リポジトリ既存のトークン
 //!   語彙に合わせる）を追加した。既定は `Normal`（両サイトの既定と一致）。
 //! - **バリアント軸**: 両サイト共に Text へ `variant`（solid/subtle 等）
-//!   prop を持たない。当部品も軸を追加しない。
+//!   prop を持たない（イシュー #2055 で shadcn/ui との突合前の記述）。
+//!   イシュー #2055 で `variant` 軸（[`TextVariant::Plain`]〔既定〕/
+//!   [`TextVariant::Muted`]）を追加した。詳細は本ファイル末尾の
+//!   「イシュー #2055 の shadcn/ui 突合（7 軸）」節参照。
 //! - **色**: 両サイト共に前景色を継承する中立部品として実装されており、
 //!   `colorPalette` 相当の軸を持たない。当部品も一致（前節「colorPalette
 //!   軸を持たない理由」参照）。
 //! - **状態（data-*）**: text は headless 状態機械を持たない静的部品であり、
 //!   両サイトの Text も操作状態（`data-state` 等）を持たない。一致。
-//! - **ダーク**: 色宣言を持たず本文色に自動追従するため、両サイトと同様
-//!   ライト / ダーク双方で自動的に一致する。
+//! - **ダーク**: 色宣言は [`TextVariant::Muted`] の `fg-muted` トークン参照
+//!   のみであり、[`crate::theme`] の `write_dark_declarations`
+//!   一元機構によるダーク値再定義に自動追従する（新規トークン追加なし）。
 //! - **フォーカス / hover / disabled / transition**: text は非インタラ
 //!   クティブな表示専用 slot であり、両サイトの Text もこれらの状態を
 //!   持たない。本フレームワークでも hover / disabled / transition は
@@ -92,6 +97,38 @@
 //!   要素単位の styled 部品という設計であり、[`crate::heading`] の
 //!   `HeadingLevel` のように意味論選択が構造上必然な軸ではないため、
 //!   タグは `<p>` 固定のまま変更しない。
+//!
+//! ## イシュー #2055 の shadcn/ui 突合（7 軸）
+//!
+//! shadcn/ui Typography（`docs/design/reference-screenshots/
+//! shadcn-typography-{1,2,3}.png`）は `p` に加え `lead`/`large`/`small`/
+//! `muted` の 4 プリセットを持つ。`docs/design/
+//! shadcn-reference-adoption-policy.md` §8（純追加原則・既存語彙優先）に
+//! 従い突合した結果は次のとおり。
+//!
+//! - **補完した点**: `lead`/`muted` プリセットが持つ「前景色の muted 化」
+//!   （Tailwind の `text-muted-foreground`）が本部品に欠落していた。
+//!   [`TextVariant::Muted`]（`color: var(--fandhe-color-fg-muted)`。
+//!   新規トークン追加なし・既存 `fg-muted` を使用）を追加して補完した。
+//!   `large`（`text-lg font-semibold`）・`small`（`text-sm font-medium`）は
+//!   既存の `size`/`weight` 軸の合成で再現可能であり、欠落なし。
+//! - **参照競合の判定**: `p` の行間（shadcn `leading-7`）・段落間余白
+//!   （shadcn `mt-6`）は chakra-ui / Radix Themes 基準の既存値
+//!   （`line-height: 1.5`、`margin: 0`）を維持する。純追加原則により
+//!   既存 golden をバイト同一に保つため。`small` 相当（`size=Sm`）の行間も
+//!   同じ理由で既存値（1.45）を維持し、shadcn の `leading-none` は採らない。
+//!   muted 前景色は新規追加分のため shadcn-ui の構成（前景色の muted 化）を
+//!   採用できる（色味そのもの・oklch 値は合わせない、トークン参照のみ）。
+//! - **意図的非採用**: `lead`/`large`/`small`/`muted` のプリセット名を
+//!   enum 値として持ち込まない（名称は既存語彙 `plain`/`muted` に揃える。
+//!   4 プリセット相当は docs-site の Demo で `size`+`weight`+`variant` の
+//!   合成として示す）。`fg-subtle` を使う `Subtle` 前景色 variant は
+//!   shadcn に対応物が無いため追加しない。`text-balance` 等のレイアウト系
+//!   ユーティリティ・`<p>` 以外のタグ選択（`as` prop 相当）も非採用のまま
+//!   （前節「align / trim / truncate / wrap / `as` prop 相当」の判断を維持）。
+//! - **状態・アクセシビリティ**: shadcn Typography も静的要素であり
+//!   `data-*` 状態・フォーカス・hover・disabled・transition を持たない
+//!   （#1442 の結論を維持。headless-ui 側への切り出し事項なし）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -182,6 +219,36 @@ impl VariantValue for TextWeight {
     }
 }
 
+/// Text の前景色 variant（イシュー #2055 で追加。モジュール rustdoc
+/// 「イシュー #2055 の shadcn/ui 突合（7 軸）」節参照）。既定 `Plain` は
+/// 本文色を継承する明示宣言であり、CSS 上は他軸と同じく常にクラスが
+/// 付与される（[`crate::recipe::SlotRecipe::default_variant`] の規約どおり）。
+/// 名称は本リポジトリ既存語彙の「装飾なし」
+/// （`ButtonVariant::Plain`/`BadgeVariant::Plain`/`MarkVariant::Plain`/
+/// `ListVariant::Plain`）に揃えている。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextVariant {
+    /// 前景色を継承する（既定）。
+    #[default]
+    Plain,
+    /// 前景色をテーマトークン `fg-muted` へ弱める。shadcn/ui の
+    /// `lead`/`muted` プリセットが持つ `text-muted-foreground` 相当。
+    Muted,
+}
+
+impl VariantValue for TextVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Plain => "plain",
+            Self::Muted => "muted",
+        }
+    }
+}
+
 /// [`text`] の設定。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextProps {
@@ -189,6 +256,8 @@ pub struct TextProps {
     pub size: TextSize,
     /// フォントウェイト variant（既定 `Normal`。イシュー #1442 で追加）。
     pub weight: TextWeight,
+    /// 前景色 variant（既定 `Plain`。イシュー #2055 で追加）。
+    pub variant: TextVariant,
 }
 
 /// Text の recipe（scope `"text"`、slot `"root"` のみ、`<p>` 固定）。
@@ -284,6 +353,13 @@ fn recipe() -> SlotRecipe {
             vec![decl("font-weight", "var(--fandhe-font-font-weight-bold)")],
         )
         .default_variant(TextWeight::Normal)
+        .variant(TextVariant::Plain, "root", vec![decl("color", "inherit")])
+        .variant(
+            TextVariant::Muted,
+            "root",
+            vec![decl("color", "var(--fandhe-color-fg-muted)")],
+        )
+        .default_variant(TextVariant::Plain)
 }
 
 /// Text の静的 CSS 全文。
@@ -311,6 +387,7 @@ pub fn text<'a>(props: &TextProps, attrs: Vec<(&'a str, &'a str)>, children: Vec
     let class = recipe.variant_classes(&[
         ("size", props.size.value()),
         ("weight", props.weight.value()),
+        ("variant", props.variant.value()),
     ]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
@@ -331,7 +408,7 @@ mod tests {
         ));
         assert_eq!(
             html,
-            r#"<p data-scope="text" data-part="root" class="fd-text--size-md fd-text--weight-normal">Body</p>"#
+            r#"<p data-scope="text" data-part="root" class="fd-text--size-md fd-text--weight-normal fd-text--variant-plain">Body</p>"#
         );
     }
 
@@ -373,10 +450,39 @@ mod tests {
             };
             let html = render(&text(&props, vec![], vec![]));
             assert!(
-                html.contains(&format!(" {class}\"")),
+                html.contains(&format!(" {class} ")),
                 "weight={weight:?} -> {html}"
             );
         }
+    }
+
+    #[test]
+    fn variant_enumeration_maps_to_expected_classes() {
+        for (variant, class) in [
+            (TextVariant::Plain, "fd-text--variant-plain"),
+            (TextVariant::Muted, "fd-text--variant-muted"),
+        ] {
+            let props = TextProps {
+                variant,
+                ..TextProps::default()
+            };
+            let html = render(&text(&props, vec![], vec![]));
+            assert!(
+                html.contains(&format!(
+                    "class=\"fd-text--size-md fd-text--weight-normal {class}\""
+                )),
+                "variant={variant:?} -> {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn css_output_declares_muted_fg_token() {
+        let out = css();
+        assert!(
+            out.contains("var(--fandhe-color-fg-muted)"),
+            "missing fg-muted token in {out}"
+        );
     }
 
     #[test]

@@ -115,6 +115,14 @@ const TEXT_GOLDEN_CSS: &str = r#"[data-scope="text"][data-part="root"] {
 [data-scope="text"][data-part="root"].fd-text--weight-bold {
   font-weight: var(--fandhe-font-font-weight-bold);
 }
+
+[data-scope="text"][data-part="root"].fd-text--variant-plain {
+  color: inherit;
+}
+
+[data-scope="text"][data-part="root"].fd-text--variant-muted {
+  color: var(--fandhe-color-fg-muted);
+}
 "#;
 
 const EM_GOLDEN_CSS: &str = r#"[data-scope="em"][data-part="root"] {

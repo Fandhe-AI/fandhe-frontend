@@ -743,7 +743,7 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 | `.agents/skills/chakra-ui/references/components/typography/kbd.md` | — | Kbd | — | Kbd (`kbd`) | Kbd (`kbd`) | — | `kbd` | 実装済み | pre-styled 静的部品 実装済み（#768）。#1436 で chakra-ui / Radix Themes と突合し variant（raised/subtle/outline）3 種・size 5 段・colorPalette 6 値を新設。#2048 で shadcn/ui と突合し `group`（`KbdGroup` 相当、複数 kbd の横並び組み合わせ表示）を pre-styled-only パートとして補完。参照競合: フォント（mono 維持）・寸法（padding + font-size 5 段進行則を維持）は chakra-ui / Radix Themes 側の値を採用 |
 | `.agents/skills/chakra-ui/references/components/typography/code.md` | — | Code | — | Code (`code`) | Typography (`typography#inline-code`) | — | `code` | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | Heading (`heading`) | Typography (`typography#h1`) | — | `heading` | 実装済み | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/text.md` | — | Text | — | Text (`text`) | Typography (`typography#p`) | — | `text` | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/text.md` | — | Text | — | Text (`text`) | Typography (`typography#p`) | — | `text` | 実装済み | #771。#2055 で shadcn/ui と突合済み: `TextVariant::Muted` を純追加（既存 2 軸は不変）、lead/large/small/muted は既存軸との合成で再現。`p` の行間・段落間余白・`leading-none` は既存 golden 維持のため合わせず |
 | `.agents/skills/chakra-ui/references/components/typography/em.md` | — | Em | — | Em (`em`) | — | — | `em` | 実装済み | #771 |
 | `.agents/skills/chakra-ui/references/components/typography/mark.md` | — | Mark | — | — | — | — | `mark` | 実装済み | #771 |
 | `.agents/skills/chakra-ui/references/components/typography/blockquote.md` | — | Blockquote | — | Blockquote (`blockquote`) | Typography (`typography#blockquote`) | — | `blockquote` | 実装済み | #771 |
@@ -1427,7 +1427,7 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）との
 | Empty (`empty`) | 既存 `empty_state`（Part B `feedback/empty-state.md`）で充足。#2047 で shadcn/ui `empty` と詳細突合済み: root の variant 軸に Outline（破線枠）・Subtle（淡色単色背景）、indicator の variant 軸に Boxed（bg-muted の角丸タイル）を純追加。EmptyHeader 相当の slot 新設・description 内 `<a>` の下線・max-w-sm/text-balance は既存判断（#1560/#708）を維持し合わせず。§5 の shadcn 列に値を追記済み |
 | Label (`label`) | 既存 `field`（Part A `form/field.md`）で充足（Radix Themes 名も Label）。#2014 で詳細突合予定 |
 | Sonner (`sonner`) | 既存 `toast`（Part A `overlays/toast.md`）で充足。#2040 でスタック表示の詳細突合予定。§5 Part F に注記行あり |
-| Typography (`typography`) | 既存 `heading`/`text`/`blockquote`/`list`/`code` 等の複数 mod に分散対応（Part B typography 節）。個別バリアント（Lead/Large/Small/Muted）は未実装だが `component-coverage-map.md` の粒度（部品 1 件 = mod 1 件）に照らし既存記録で充足済みと扱う |
+| Typography (`typography`) | 既存 `heading`/`text`/`blockquote`/`list`/`code` 等の複数 mod に分散対応（Part B typography 節）。個別バリアント（Lead/Large/Small/Muted）は #2055 で `text` の `TextVariant`（plain/muted）追加により、既存軸（size/weight/variant）の合成として対応済み |
 | Blocks（dashboard/sidebar/login/signup 等） | `component-coverage-map.md` の行モデル（部品 1 件 = mod 1 件）の対象外。置き場所は #2007 が別途判断する |
 | Utils（`scroll-fade` / `shimmer`） | 独立部品としての新規判定は行わない。`scroll-fade` は Phase 3（#2054 `scroll-area` の突合）、`shimmer` は Phase 3（#2050 `skeleton` の突合）へ既に吸収されており、本イシュー（#2006）の範囲では新規判定なしと確定する（イシュー #2001 の Phase 0 見立て表の記述をそのまま確定区分として転記）。**#2054 で採否確定**: `scroll-fade` は `crate::scroll_area` の `viewport[data-fade]` opt-in として吸収済み（`@property` 非採用のため custom property 補間は離散、`docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2 参照）。 |
 

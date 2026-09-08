@@ -91,7 +91,9 @@ use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
-use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
+use fandhe_frontend_pre_styled_ui::text::{
+    text as styled_text, TextProps, TextSize, TextVariant, TextWeight,
+};
 use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerUnit};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
@@ -193,6 +195,14 @@ fn text_example() -> Node {
             vec![],
             vec![text("本文テキスト（weight=bold）")],
         ),
+        styled_text(
+            &TextProps {
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("本文テキスト（variant=muted）")],
+        ),
     ])
 }
 
@@ -210,23 +220,81 @@ const TEXT_ARGUMENTS: &[ArgRow] = &[
         description:
             "フォントウェイトの視覚軸（normal/medium/semibold/bold）。イシュー #1442 で追加。",
     },
+    ArgRow {
+        name: "variant",
+        kind: "TextVariant",
+        default: "Plain",
+        description: "前景色の視覚軸（plain/muted）。muted はテーマトークン fg-muted を使う。イシュー #2055 で shadcn/ui Typography（lead/muted プリセット）と突合し追加。",
+    },
 ];
 
 const TEXT_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "素の <p> 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold）でスタイル化した本文テキスト部品",
-        "variant・colorPalette 軸は持たない最小構成",
+        "素の <p> 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold）・variant（plain/muted）でスタイル化した本文テキスト部品",
+        "colorPalette 軸は持たない",
+        "イシュー #2055 で shadcn/ui Typography と突合し variant（plain/muted）を追加。lead/large/small/muted の 4 プリセットは既存軸の合成で再現する",
     ],
     arguments: TEXT_ARGUMENTS,
-    examples: &[ExampleEntry {
-        title: "size・weight 軸",
-        description: "size（xs〜xl4）・weight（normal〜bold）を独立に選べます。",
-        render: text_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "size・weight・variant 軸",
+            description: "size（xs〜xl4）・weight（normal〜bold）・variant（plain/muted）を独立に選べます。",
+            render: text_example,
+        },
+        ExampleEntry {
+            title: "shadcn/ui Typography 相当の合成（lead/large/small/muted）",
+            description: "shadcn/ui の lead/large/small/muted プリセットは、size・weight・variant 軸の組み合わせとして再現できます（イシュー #2055）。",
+            render: text_shadcn_preset_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,
 };
+
+/// shadcn/ui Typography（`lead`/`large`/`small`/`muted`）相当を既存軸の
+/// 合成で示す（イシュー #2055。`crate::showcase::text_section` の Demo と
+/// 同じ組み合わせ）。
+fn text_shadcn_preset_example() -> Node {
+    stack(vec![
+        styled_text(
+            &TextProps {
+                size: TextSize::Xl,
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("lead 相当（size=Xl + variant=Muted）")],
+        ),
+        styled_text(
+            &TextProps {
+                size: TextSize::Lg,
+                weight: TextWeight::Semibold,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("large 相当（size=Lg + weight=Semibold）")],
+        ),
+        styled_text(
+            &TextProps {
+                size: TextSize::Sm,
+                weight: TextWeight::Medium,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("small 相当（size=Sm + weight=Medium）")],
+        ),
+        styled_text(
+            &TextProps {
+                size: TextSize::Sm,
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("muted 相当（size=Sm + variant=Muted）")],
+        ),
+    ])
+}
 
 fn em_example() -> Node {
     row(vec![el(

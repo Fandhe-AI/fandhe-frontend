@@ -185,7 +185,9 @@ use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps, TabsVariant};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
-use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
+use fandhe_frontend_pre_styled_ui::text::{
+    text as styled_text, TextProps, TextSize, TextVariant, TextWeight,
+};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
@@ -1715,7 +1717,10 @@ fn heading_section() -> Node {
 }
 
 /// Text 節: size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold
-/// の 4 段階）でスタイル化した本文テキスト（イシュー #1442 で拡充）。
+/// の 4 段階）・variant（plain/muted）でスタイル化した本文テキスト
+/// （イシュー #1442 で size/weight を拡充、イシュー #2055 で variant を
+/// 追加し shadcn/ui Typography の `lead`/`large`/`small`/`muted` 4 プリ
+/// セット相当を既存軸の合成として示す）。
 fn text_section() -> Node {
     let size_stack = stack(
         [
@@ -1763,10 +1768,68 @@ fn text_section() -> Node {
         .collect(),
     );
 
+    let variant_stack = stack(
+        [TextVariant::Plain, TextVariant::Muted]
+            .iter()
+            .map(|variant| {
+                styled_text(
+                    &TextProps {
+                        variant: *variant,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text(format!("本文テキスト（variant={variant:?}）"))],
+                )
+            })
+            .collect(),
+    );
+
+    // shadcn/ui Typography（lead/large/small/muted）相当の合成デモ（イシュー
+    // #2055）。プリセット名を enum 値として持ち込まず、既存の
+    // size/weight/variant 軸の組み合わせのみで再現する。
+    let preset_stack = stack(vec![
+        styled_text(
+            &TextProps {
+                size: TextSize::Xl,
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("lead 相当（size=Xl + variant=Muted）")],
+        ),
+        styled_text(
+            &TextProps {
+                size: TextSize::Lg,
+                weight: TextWeight::Semibold,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("large 相当（size=Lg + weight=Semibold）")],
+        ),
+        styled_text(
+            &TextProps {
+                size: TextSize::Sm,
+                weight: TextWeight::Medium,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("small 相当（size=Sm + weight=Medium）")],
+        ),
+        styled_text(
+            &TextProps {
+                size: TextSize::Sm,
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("muted 相当（size=Sm + variant=Muted）")],
+        ),
+    ]);
+
     section(
         "Text",
-        "素の p 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold の 4 段階）でスタイル化した本文テキスト部品。",
-        vec![size_stack, weight_stack],
+        "素の p 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold の 4 段階）・variant（plain/muted）でスタイル化した本文テキスト部品。shadcn/ui Typography の lead/large/small/muted 4 プリセットは既存軸の合成で再現する（イシュー #2055）。",
+        vec![size_stack, weight_stack, variant_stack, preset_stack],
     )
 }
 
