@@ -46,6 +46,43 @@
 //!   維持。`Raised` の立体表現（`border-bottom-width: 2px`）は影の代替
 //!   として維持する（参照サイトのキー押下風意匠を尊重）。
 //! - **`data-*`**: 状態を持たない静的部品のため増減なし。
+//!
+//! # イシュー #2048 の shadcn/ui 突合（7 軸）
+//!
+//! shadcn/ui Kbd（`docs/design/reference-screenshots/shadcn-kbd-{1,2,3}.png`）
+//! と突合した結果を記録する。詳細な差分表は
+//! `docs/design/component-coverage-map.md` / `docs/design/shadcn-inventory.md`
+//! の kbd 行を参照。
+//!
+//! - **variant/size/colorPalette**: shadcn Kbd は単一意匠（軸なし）であり、
+//!   本側が上位互換のため追加なし。
+//! - **状態（`data-*`）**: shadcn は `pointer-events-none select-none` を
+//!   root へ静的に宣言するのみで、interactive な `data-*` 状態は持たない。
+//!   本側もこれに追随した `user-select`/`pointer-events` の root base 追加は
+//!   **意図的に見送る**（純追加原則により既存 golden をバイト同一に保つ
+//!   ため。新規部品でなく既存 `root` slot の base 宣言変更になり
+//!   `docs/design/shadcn-reference-adoption-policy.md` §8 の純追加原則に
+//!   反するため）。
+//! - **group（[`group`]、shadcn `KbdGroup` 相当）**: 複数の `kbd` を横並びで
+//!   組み合わせ表示するための pre-styled-only パートを新設した
+//!   （[`crate::avatar::group`]/[`crate::dialog::footer`] と同型の
+//!   headless anatomy 非存在パート）。`display: inline-flex` +
+//!   `align-items: center` + `gap: var(--fandhe-space-1)`。
+//! - **フォント**: shadcn は `font-sans`（sans-serif）だが、本側は
+//!   chakra-ui / Radix Themes 基準（#1436）で mono フォントスタックを既に
+//!   採用済み。**参照競合**: mono を維持する（純追加原則により既存 golden
+//!   をバイト同一に保つため）。
+//! - **寸法**: shadcn は `h-5 min-w-5` の固定ボックスだが、本側は
+//!   badge/tag/code と同一の padding + font-size 5 段進行則（#1681）を
+//!   維持する。**参照競合**: chakra-ui の値（進行則）を採る（size 軸語彙
+//!   #1678 との整合を優先）。
+//! - **アイコン（`[&_svg]:size-3`）**: 子孫セレクタは #708 で不採用済みの
+//!   ため合わせない。
+//! - **tooltip 内での条件付き配色（`[[data-slot=tooltip-content]_&]`）**:
+//!   子孫セレクタ非採用（#708）により見送り。呼び出し側が
+//!   `KbdVariant`/`ColorPalette` で明示的に選ぶ設計を維持する
+//!   （合成デモは `crates/docs-site` の tooltip ページ
+//!   `ex_tooltip_with_kbd` で既に用意済み）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -124,7 +161,7 @@ impl Default for KbdProps {
 /// - **Outline**: 背景なし + `--fandhe-palette-fg-subtle` 文字 +
 ///   `--fandhe-palette-muted` の 1px 枠線（code `Outline` と同型）。
 fn recipe() -> SlotRecipe {
-    let mut recipe = SlotRecipe::new("kbd", &["root"])
+    let mut recipe = SlotRecipe::new("kbd", &["root", "group"])
         .base(
             "root",
             vec![
@@ -133,6 +170,20 @@ fn recipe() -> SlotRecipe {
                     "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                 ),
                 decl("border-radius", "var(--fandhe-radius-sm)"),
+            ],
+        )
+        // イシュー #2048（shadcn/ui 突合）: `group`（shadcn `KbdGroup` 相当）
+        // の base 宣言。既存 `root` 登録の後ろに追加する純追加（avatar
+        // `group`/`badge` #2044 と同型のパターン）。既存 golden はバイト
+        // 単位で不変のまま、`css()` の base 出力順（`slots` 宣言順）に
+        // より root の直後・variant 群の前に挿入される
+        // （[`crate::recipe::SlotRecipe::css`] 参照）。
+        .base(
+            "group",
+            vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-1)"),
             ],
         )
         // イシュー #1681: badge/tag/code の recipe と同一進行則。
@@ -253,6 +304,45 @@ pub fn kbd<'a>(props: &KbdProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<N
     ANATOMY.part("root", "kbd", merged, children)
 }
 
+/// pre-styled-only `group` パート（`<kbd>`、イシュー #2048）を組み立てる。
+/// 複数の [`kbd`] を横並びで組み合わせ表示するための shadcn/ui `KbdGroup`
+/// 相当のレイアウト専用パートであり、headless-ui の anatomy には存在しない
+/// （本モジュール冒頭 rustdoc「イシュー #2048 の shadcn/ui 突合」節参照）。
+/// アプリケーションロジック（選択・展開などのイベント配線）は持たない。
+///
+/// 要素に `<kbd>` を採用するのは HTML 仕様の「入れ子 `kbd` は大きな入力の
+/// 一部を表す」という意味論、および shadcn `KbdGroup` の要素選択と一致
+/// させるため（`<div>` の [`crate::avatar::group`] とは異なる判断）。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// （[`crate::avatar::group`]/[`crate::dialog::footer`] と同型）ため、
+/// 呼び出し側 `attrs` に含まれる `data-scope`/`data-part` の偽装は
+/// headless 層が fail-closed に除去する。`class` はこのパート自身の
+/// recipe 由来クラスを持たないため（[`kbd`] と異なり `drop_class_attr` を
+/// 経由しない）、呼び出し側の指定をそのまま通過させる
+/// （[`crate::avatar::group`] と同一契約）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{render, text};
+/// use fandhe_frontend_pre_styled_ui::kbd::{group, kbd, KbdProps};
+///
+/// let node = group(
+///     vec![],
+///     vec![
+///         kbd(&KbdProps::default(), vec![], vec![text("Ctrl")]),
+///         text("+"),
+///         kbd(&KbdProps::default(), vec![], vec![text("B")]),
+///     ],
+/// );
+/// assert!(render(&node).contains(r#"data-scope="kbd" data-part="group""#));
+/// ```
+#[must_use]
+pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("group", "kbd", attrs, children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -361,5 +451,41 @@ mod tests {
     fn css_output_declares_radius_token() {
         let out = css();
         assert!(out.contains("border-radius: var(--fandhe-radius-sm);"));
+    }
+
+    // --- イシュー #2048: group（shadcn/ui KbdGroup 相当）---
+
+    #[test]
+    fn group_render_has_scope_and_part() {
+        let html = render(&group(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="kbd""#));
+        assert!(html.contains(r#"data-part="group""#));
+        assert!(!html.contains("class="));
+    }
+
+    #[test]
+    fn group_drops_spoofed_anatomy_attrs() {
+        let html = render(&group(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="kbd""#));
+        assert!(html.contains(r#"data-part="group""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn group_children_xss_is_escaped() {
+        let html = render(&group(vec![], vec![text("<script>alert(1)</script>")]));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    #[test]
+    fn css_output_declares_group_slot() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="kbd"][data-part="group"] {"#));
+        assert!(out.contains("display: inline-flex;"));
+        assert!(out.contains("gap: var(--fandhe-space-1);"));
     }
 }

@@ -39,6 +39,7 @@ use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
 use fandhe_frontend_pre_styled_ui::dialog::{self, DialogRole, OpenState};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldProps, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
+use fandhe_frontend_pre_styled_ui::kbd;
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
@@ -602,4 +603,21 @@ fn button_group_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     // （属性タプルの直接構築）を持たない。
     let css = button_group::stylesheet();
     assert!(css.contains("[data-orientation="));
+}
+
+/// `kbd.rs`（イシュー #2048、shadcn/ui `KbdGroup` 突合）の pre-styled-only
+/// `group` パートも `avatar::group`/`badge` と同型で独自の `data-*` を
+/// 一切出力しない。出力に現れる `data-*` は headless
+/// `fandhe_frontend_headless_ui::anatomy::Anatomy::part` が付与する
+/// `data-scope`/`data-part`（anatomy 属性）のみであることを固定する。
+#[test]
+fn kbd_group_emits_no_self_produced_data_attrs() {
+    let html = render(&kbd::group(vec![], vec![]));
+    assert!(html.contains(r#"data-scope="kbd""#));
+    assert!(html.contains(r#"data-part="group""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "kbd::group は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
 }
