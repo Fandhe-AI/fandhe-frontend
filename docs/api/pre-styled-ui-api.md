@@ -963,7 +963,7 @@ h1-h6/p/em/mark/blockquote/ul・ol・li の素の HTML 意味論をそのまま 
 | モジュール | パーツ | タグ選択 | variant 軸 | colorPalette | 備考 |
 |---|---|---|---|---|---|
 | `heading` | root（単一） | `HeadingLevel`（h1〜h6、意味論レベル） | `HeadingSize`（`sm`/`md`/`lg`/`xl`(既定)/`xl2`/`xl3`/`xl4`、`font-size`/`line-height`、視覚サイズ） | なし | タグ選択（意味論）とサイズ variant（視覚）は独立。chakra の `5xl`〜`7xl` はテーマトークン範囲外のため非採用 |
-| `text` | root（単一、`<p>` 固定） | — | `TextSize`（`xs`/`sm`/`md`(既定)/`lg`/`xl`） | なし | — |
+| `text` | root（単一、`<p>` 固定） | — | `TextSize`（`xs`/`sm`/`md`(既定)/`lg`/`xl`/`xl2`/`xl3`/`xl4`、イシュー #1442）・`TextWeight`（`normal`(既定)/`medium`/`semibold`/`bold`、イシュー #1442）・`TextVariant`（`plain`(既定)/`muted`、イシュー #2055。`muted` は `fg-muted` トークンを使う前景色軸） | なし | — |
 | `em` | root（単一、`<em>` 固定） | — | なし | なし | variant 軸を持たない最小部品（`link_overlay` と同型） |
 | `mark` | root（単一、`<mark>` 固定） | — | `MarkVariant`（`subtle`(既定)/`solid`/`text`/`plain`） | あり（5 値） | `badge` と同型の単一 recipe パターン |
 | `blockquote` | root（`<figure>`）/content（`<blockquote>`）/caption（`<figcaption>`） | — | `BlockquoteVariant`（`subtle`(既定)/`solid`/`plain`） | あり（5 値、root のみ） | `content` が素の `<blockquote>` のため引用の HTML 意味論を保つ |

@@ -2529,14 +2529,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # 版数の再調整（本 PR、イシュー #2054、shadcn/ui 突合）: scroll_area の
 # 横スクロール・端フェード opt-in 規則を追加する CSS 出力の実体変更のため
 # マイナーバンプする（`.claude/rules/coding-rust.md` の semver バンプ規約）。
-# 版数の再調整（本 PR、イシュー #2070、merge 解消、2026-09-08）: base 再取り込み
-# 時点で本ブランチ・main はいずれも独立に 0.148.0 へ到達しており
-# （偶発的な同一版数衝突）、`.claude/rules/coding-rust.md` の semver バンプ
-# 規約（同一版数への偶発的衝突をそのまま採用しない）に従い、main の到達値
-# 0.148.0 から +1 マイナーして 0.149.0 とする（実体変更を伴うため patch では
-# なく minor を維持）。依存先 `fandhe-frontend-headless-ui` の version 要求は
-# main 側の追随をそのまま採用する（下記参照）。
-version = "0.149.0"
+#
+# 版数の再調整（本 PR、イシュー #2055、shadcn/ui 突合）: `TextProps` へ
+# `variant: TextVariant` フィールドを追加（`TextVariant::Muted` の CSS 出力
+# を純追加）する破壊的変更のため、open PR #2241（0.149.0 主張）との衝突を
+# 避け main 到達値 0.148.0 から +2 マイナーして 0.150.0 とする。
+version = "0.150.0"
+#
+# base 再取り込み（本 PR、イシュー #2055、2026-09-08）: base 再取り込み時点で main は
+# #2070 により独立に 0.149.0 へ到達済みだが、本ブランチの到達値 0.150.0 は
+# main を追い越しているため（`semver-same-version-is-conflict` の運用は
+# 追い越し済みの場合まで再バンプを要求しない）、追加の再調整はせず 0.150.0 を
+# 維持する。依存先 `fandhe-frontend-headless-ui` の version 要求は main 側の
+# 追随をそのまま採用する（下記参照）。
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
