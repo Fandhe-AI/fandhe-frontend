@@ -1424,7 +1424,7 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）との
 | Sheet (`sheet`) | 既存 `drawer`（Part A `overlays/drawer.md`）で充足。#2031 で詳細突合完了（grabber は非採用継続、Examples 節に footer 相当パターンを追加）。§5 の shadcn 列に値を追記済み |
 | Resizable (`resizable`) | 既存 `splitter`（Part A `disclosure/splitter.md`）で充足。#2038 で shadcn/ui `resizable` と詳細突合済み: `withHandle`/nested 合成パターンは既存 API（`resize_trigger_indicator`/`panel` の children 合成）のみで再現可能なため Demo/Examples へ追加、resize-trigger-indicator の見た目は chakra-ui/Radix Themes 側（既存 pill）を維持（参照競合判定）。§5 の shadcn 列に値を追記済み |
 | Input OTP (`input-otp`) | 既存 `pin_input`（Part A `form/pin-input.md`）で充足。#2016 で詳細突合予定。§5 の shadcn 列に値を追記済み |
-| Empty (`empty`) | 既存 `empty_state`（Part B `feedback/empty-state.md`）で充足。#2047 で詳細突合予定。§5 の shadcn 列に値を追記済み |
+| Empty (`empty`) | 既存 `empty_state`（Part B `feedback/empty-state.md`）で充足。#2047 で shadcn/ui `empty` と詳細突合済み: root の variant 軸に Outline（破線枠）・Subtle（淡色単色背景）、indicator の variant 軸に Boxed（bg-muted の角丸タイル）を純追加。EmptyHeader 相当の slot 新設・description 内 `<a>` の下線・max-w-sm/text-balance は既存判断（#1560/#708）を維持し合わせず。§5 の shadcn 列に値を追記済み |
 | Label (`label`) | 既存 `field`（Part A `form/field.md`）で充足（Radix Themes 名も Label）。#2014 で詳細突合予定 |
 | Sonner (`sonner`) | 既存 `toast`（Part A `overlays/toast.md`）で充足。#2040 でスタック表示の詳細突合予定。§5 Part F に注記行あり |
 | Typography (`typography`) | 既存 `heading`/`text`/`blockquote`/`list`/`code` 等の複数 mod に分散対応（Part B typography 節）。個別バリアント（Lead/Large/Small/Muted）は未実装だが `component-coverage-map.md` の粒度（部品 1 件 = mod 1 件）に照らし既存記録で充足済みと扱う |
