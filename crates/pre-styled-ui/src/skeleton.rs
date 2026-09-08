@@ -43,6 +43,60 @@
 //! - **hover/focus/disabled は N/A**: 表示専用部品には付与しない
 //!   （`docs/design/pre-styled-ui-interaction-visual-language.md` §3）。
 //!
+//! # イシュー #2050 の shadcn/ui 突合
+//!
+//! shadcn/ui Skeleton（`apps/v4/registry/new-york-v4/ui/skeleton.tsx`）と
+//! `docs/design/shadcn-reference-adoption-policy.md` §8（純追加原則）に
+//! 従って突合した。結論: **欠落している variant・状態はない**。
+//!
+//! - **variant / size**: shadcn は `<div data-slot="skeleton"
+//!   class="animate-pulse rounded-md bg-accent">` の単一 `div` のみで
+//!   variant・size 軸を一切持たず、寸法・形状は呼び出し側の class で与える。
+//!   本実装の [`SkeletonVariant`]（Text/Circle/Rect）× [`SkeletonAnimation`]
+//!   （Pulse/Shine/None）は shadcn の表現を包含する上位集合であり、追加の
+//!   余地がない。
+//! - **状態（`data-*`）**: shadcn 側に状態概念がなく、対応する欠落もない。
+//! - **合成パターン**: shadcn の docs（Avatar/Card/Text/Form/Table の 5 例）
+//!   のうち Avatar は既存デモに含まれていた。Card/Text/Form/Table の 4 例を
+//!   docs サイトの Examples（`crates/docs-site/src/
+//!   component_specs_nav_data.rs`）へ本クレートの API のみで再現して追加し、
+//!   Card 合成はショーケース（`crates/docs-site/src/showcase.rs`）の Demo
+//!   へも 1 行追加した。いずれも既存部品（[`skeleton`] + [`crate::card`]）と
+//!   `style` 属性の組み合わせのみで再現でき、新規パーツ・新規 API は不要
+//!   だった。
+//!
+//! 参照競合の判定（既存 golden・視覚言語を優先し、shadcn の値へは寄せない）:
+//!
+//! - skeleton の pulse アニメーション周期は chakra-ui の値（`1.2s
+//!   ease-in-out`）を採る。理由: shadcn（Tailwind `animate-pulse`、2s
+//!   cubic-bezier）へ寄せると既存 `--animation-pulse` の golden が変わり、
+//!   §8 第 3 項の純追加原則に反する。
+//! - skeleton の角丸は chakra-ui / Radix Themes の値（text `radius-sm` /
+//!   rect `radius-md` / circle `radius-full`）を採る。理由: shadcn は
+//!   `rounded-md` 既定 + Card 例で `rounded-xl` を呼び出し側が指定するが、
+//!   既存 variant の出力を維持する純追加原則を優先し、必要な角丸は呼び出し
+//!   側の `style` で与える既存契約に委ねる。
+//!
+//! 意図的に合わせなかった点（他）:
+//!
+//! - **`shimmer`（shadcn utils）は不採用**: shadcn の `shimmer` utility は
+//!   `background-clip: text` を用いたテキスト要素向けの効果
+//!   （`<p class="shimmer">…</p>`）であり、子ノードを持たず常時
+//!   `aria-hidden="true"` の装飾要素である skeleton の責務には載らない。
+//!   ブロック要素上を流れる shimmer 相当は既存の
+//!   [`SkeletonAnimation::Shine`]（イシュー #1566、chakra-ui
+//!   `variant: "shine"` 相当）が既に担う。text 向け shimmer utility を
+//!   別部品として持つかどうかは本イシューの対象外とし、Issue 化はしない
+//!   （必要であれば別途ユーザー判断とする）。
+//! - **RTL**: skeleton は方向依存の CSS（margin/padding/position の左右）を
+//!   持たない。[`SkeletonAnimation::Shine`] の `linear-gradient(270deg …)`
+//!   は物理方向だが、論理方向化は既存 golden の変更を伴うため純追加原則に
+//!   より見送る。
+//!
+//! CSS 出力（`recipe()`/`css()`）・公開 API はいずれも変更していない
+//! （golden `crates/pre-styled-ui/tests/skeleton_css.rs` はバイト同一の
+//! まま据え置き）。
+//!
 //! # aria 出力方針（受け入れ条件 1）
 //!
 //! skeleton root は実コンテンツを一切持たない**装飾的な占位要素**であり、

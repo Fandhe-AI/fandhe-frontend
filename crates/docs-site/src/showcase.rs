@@ -1579,10 +1579,38 @@ fn skeleton_section() -> Node {
             ),
         ],
     )]);
+    // イシュー #2050: shadcn/ui の Card 例に相当する合成デモ。card::header
+    // に Text 2 本、card::body に aspect-ratio の Rect 1 本を組み合わせる。
+    let card_row = stack(vec![card::root(
+        CardProps::default(),
+        vec![("style", "max-width: 20rem;")],
+        vec![
+            card::header(
+                vec![],
+                vec![
+                    skeleton(&SkeletonProps::default(), vec![("style", "width: 66%;")]),
+                    skeleton(&SkeletonProps::default(), vec![("style", "width: 50%;")]),
+                ],
+            ),
+            card::body(
+                vec![],
+                vec![skeleton(
+                    &SkeletonProps {
+                        variant: SkeletonVariant::Rect,
+                        ..Default::default()
+                    },
+                    vec![(
+                        "style",
+                        "aspect-ratio: 16 / 9; --fandhe-skeleton-height: auto;",
+                    )],
+                )],
+            ),
+        ],
+    )]);
     section(
         "Skeleton",
-        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。animation 軸（pulse/shine/none）でアニメーション種別を切り替えられ、prefers-reduced-motion: reduce ではいずれも停止します。",
-        vec![variant_row, animation_row, composite_row],
+        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。animation 軸（pulse/shine/none）でアニメーション種別を切り替えられ、prefers-reduced-motion: reduce ではいずれも停止します。イシュー #2050: card 等との合成例（下段）も掲示します。",
+        vec![variant_row, animation_row, composite_row, card_row],
     )
 }
 
