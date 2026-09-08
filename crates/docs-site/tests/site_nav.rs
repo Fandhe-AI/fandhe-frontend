@@ -184,10 +184,11 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // イシュー #2059 で Button Group（Primitives）・イシュー #2062 で
     // Input Group（Primitives）がそれぞれ加わり 200 → 202 になった。
     // イシュー #2063 で Input Group の Themes ページが加わり 202 → 203
-    // になった。イシュー #2065 で Item（Primitives）が加わり 203 → 204に
-    // なった。イシュー #2068 で Command（Primitives）が加わり 204 → 205に
-    // なった。
-    assert_eq!(pages.len(), 205, "expected 205 pages, got {pages:?}");
+    // になった。イシュー #2065 で Item（Primitives）が加わり 203 → 204
+    // になった。イシュー #2066 で Item の Themes ページが加わり 204 → 205
+    // になった。イシュー #2068 で Command（Primitives）が加わり 205 → 206
+    // になった。
+    assert_eq!(pages.len(), 206, "expected 206 pages, got {pages:?}");
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ
     // （`/primitives/` 自身）1 件の 64 件。イシュー #2059 で Button Group・
@@ -240,18 +241,18 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         "expected 0 /components/ pages (all migrated to /themes/), got {component_index_pages:?}"
     );
 
-    // `/themes/` 配下は部品ページ 111 件 + 索引ページ（`/themes/` 自身）1 件
-    // の 112 件（イシュー #1018。イシュー #1683 で部品ページが 107 → 108、
+    // `/themes/` 配下は部品ページ 112 件 + 索引ページ（`/themes/` 自身）1 件
+    // の 113 件（イシュー #1018。イシュー #1683 で部品ページが 107 → 108、
     // イシュー #1685 で 108 → 109、イシュー #1687 で 109 → 110、
-    // イシュー #2063 で 110 → 111）。
+    // イシュー #2063 で 110 → 111、イシュー #2066 で 111 → 112）。
     let themes_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/themes/"))
         .collect();
     assert_eq!(
         themes_pages.len(),
-        112,
-        "expected 112 /themes/ pages (111 部品 + 1 索引), got {themes_pages:?}"
+        113,
+        "expected 113 /themes/ pages (112 部品 + 1 索引), got {themes_pages:?}"
     );
 
     let source_based_component_pages = pages
@@ -259,8 +260,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .filter(|(source, _)| source.starts_with("site/themes/"))
         .count();
     assert_eq!(
-        source_based_component_pages, 111,
-        "expected 111 pages sourced from site/themes/"
+        source_based_component_pages, 112,
+        "expected 112 pages sourced from site/themes/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ

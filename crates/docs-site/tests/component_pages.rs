@@ -587,8 +587,10 @@ fn scope_resolution_buckets_match_expected_counts() {
     // イシュー #1687 で Fieldset（path 由来の kebab fieldset が
     // data-scope="fieldset" と一致）が加わり 99 -> 100、イシュー #2063 で
     // Input Group（path 由来の kebab input-group が
-    // data-scope="input-group" と一致）が加わり 100 -> 101 へ増える。
-    assert_eq!(bucket1_path_match, 101);
+    // data-scope="input-group" と一致）が加わり 100 -> 101、イシュー #2066
+    // で Item（path 由来の kebab item が data-scope="item" と一致）が
+    // 加わり 101 -> 102 へ増える。
+    assert_eq!(bucket1_path_match, 102);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }

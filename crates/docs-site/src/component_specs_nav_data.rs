@@ -41,6 +41,7 @@ use fandhe_frontend_pre_styled_ui::{
     alert, avatar, badge, breadcrumb,
     button::{button, ButtonProps, ButtonVariant},
     callout, card, carousel, color_swatch, data_list, empty_state, field, icon, image,
+    item::{self, ItemMediaVariant, ItemRootProps},
     json_tree_view, marquee, native_select, pagination, progress, scroll_area, separator, skeleton,
     spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline, tree_view, AlertProps,
     ColorPalette, Orientation, Size,
@@ -2783,6 +2784,118 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
     aria: &[AriaRow {
         attribute: "role=\"separator\" + aria-orientation",
         description: "orientation と連動し常に固定出力される（separator.rs:10, 17, 58-59）。",
+    }],
+    demo: None,
+};
+
+/// `/themes/item/` の Examples 節其の 1: variant/media variant の組み合わせ
+/// のうち代表 1 件（`crates/pre-styled-ui/src/item.rs` の `root`/`media`/
+/// `content`/`title`/`description` パーツを組み合わせる標準形）。
+fn ex_item_default() -> Node {
+    item::root(
+        ItemRootProps::default(),
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("IC")]),
+            item::content(
+                vec![],
+                vec![
+                    item::title(vec![], vec![text("Default item")]),
+                    item::description(
+                        vec![],
+                        vec![text("A generic list row with media and text.")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// `/themes/item/` の Examples 節其の 2: `href` を渡した root（`a` として
+/// 描画され hover 背景・`:focus-visible` リングが付く）+ `actions` パーツの
+/// 組み合わせ。`href=""`（空文字列）は linkcheck 中立性を保つための既存
+/// showcase デモと同型のパターン（`crate::showcase::item_section` 参照）。
+fn ex_item_with_link_and_actions() -> Node {
+    item::root(
+        ItemRootProps {
+            href: Some(""),
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("GH")]),
+            item::content(
+                vec![],
+                vec![
+                    item::title(vec![], vec![text("fandhe-frontend")]),
+                    item::description(vec![], vec![text("Linked item with an action.")]),
+                ],
+            ),
+            item::actions(vec![], vec![text("→")]),
+        ],
+    )
+}
+
+/// `/themes/item/` の `ComponentPageSpec`（イシュー #2066）。
+/// `crates/pre-styled-ui/src/item.rs` が headless
+/// [`fandhe_frontend_headless_ui::item`]（#2065）の 10 パーツ
+/// （root/media/content/title/description/actions/header/footer/group/
+/// separator）へ shadcn/ui `Item` 相当の意匠を重ねる薄い委譲層であることに
+/// 対応する。Demo 節は本 spec ではなく `crate::showcase::COMPONENT_PAGES`
+/// の `item_section`（`demo: None` のまま [`ComponentPageSpec::demo`] は
+/// 未使用、`crate::component_page::generated_content` の優先順位参照）。
+pub(crate) const ITEM: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "ItemVariant（Default/Outline/Muted、item.rs recipe() の data-variant 参照）で見た目を切り替える",
+        "ItemSize（Default/Sm）で padding/gap を縮小する（item.rs data-size=\"sm\" 参照）",
+        "root/media/content/title/description/actions/header/footer/group/separator の 10 パーツで media + title/description + actions からなる汎用リスト行を構造化する",
+        "root へ href を渡すと div ではなく a として描画され、ポインタ・下線解除・hover 背景・:focus-visible リングが付く（item.rs StateCondition::Attr(\"href\") 参照）",
+        "media は ItemMediaVariant（Default/Icon/Image）で固定サイズ・背景・角丸を切り替え、Image variant では子 img を object-fit: cover でトリミングする",
+        "group は複数 root の縦並びコンテナで、separator を挟んで区切る",
+        "バリデーション・送信処理・データ整形はこの部品では実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1、item.rs モジュール doc「責務境界」節）",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "ItemVariant",
+            default: "Default",
+            description: "見た目（#[default] は Default。Outline は枠線、Muted は背景色を切り替える）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "ItemSize",
+            default: "Default",
+            description: "サイズ（#[default] は Default。Sm は padding/gap を縮小する 2 値軸、item.rs モジュール doc参照）。",
+        },
+        ArgRow {
+            name: "href",
+            kind: "Option<&str>",
+            default: "None",
+            description: "root を a として描画するリンク先（headless 層がスキーム検証・external の target/rel 付与を担う）。",
+        },
+        ArgRow {
+            name: "external",
+            kind: "bool",
+            default: "false",
+            description: "true の場合 target=\"_blank\" と rel の安全な組を不可分付与する（headless 層に委譲）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Default item",
+            description: "media・title・description を組み合わせた標準形の例です。",
+            render: ex_item_default,
+        },
+        ExampleEntry {
+            title: "Linked item with actions",
+            description: "href 付き root（a として描画）と actions パーツを組み合わせる例です。",
+            render: ex_item_with_link_and_actions,
+        },
+    ],
+    keyboard: &[],
+    aria: &[AriaRow {
+        attribute: "(該当なし、href 指定時は a のネイティブ意味論)",
+        description: "root/media/content 等は role/aria-* を独自付与しないレイアウト用パーツであり、href を渡した場合のみ a のネイティブなリンク意味論に委ねる（item.rs モジュール doc参照）。",
     }],
     demo: None,
 };

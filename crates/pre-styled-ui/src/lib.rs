@@ -708,6 +708,7 @@ pub mod image;
 pub mod image_cropper;
 pub mod input;
 pub mod input_group;
+pub mod item;
 pub mod json_tree_view;
 pub mod kbd;
 pub mod line_chart;
