@@ -686,6 +686,7 @@ pub mod collapsible;
 pub mod color_picker;
 pub mod color_swatch;
 pub mod combobox;
+pub mod command;
 pub mod css;
 pub mod data_list;
 pub mod date_input;
@@ -808,7 +809,7 @@ pub use strong::strong;
 pub use stylesheet::{StyleSheet, StylesheetError};
 pub use table::TableVariant;
 pub use tag::TagVariant;
-pub use text::{text, TextProps, TextSize, TextWeight};
+pub use text::{text, TextProps, TextSize, TextVariant, TextWeight};
 pub use textarea::{textarea, TextareaProps, TextareaVariant};
 
 // `fandhe_frontend_headless_ui` クレートそのものの再エクスポート（イシュー #685）。

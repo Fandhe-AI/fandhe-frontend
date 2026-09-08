@@ -590,6 +590,11 @@ source = "site/themes/combobox.md"
 path = "/themes/combobox/"
 
 [[section.group.page]]
+title = "Command"
+source = "site/themes/command.md"
+path = "/themes/command/"
+
+[[section.group.page]]
 title = "Date Input"
 source = "site/themes/date-input.md"
 path = "/themes/date-input/"

@@ -230,9 +230,9 @@ ls site/themes/*.md | wc -l                                                     
 (`tests/primitives_catalog.rs`)の規約である。本節は Primitives(67 部品、
 イシュー #2059 で `button_group`・イシュー #2062 で `input_group`・
 イシュー #2065 で `item`・イシュー #2068 で `command` をそれぞれ追加、
-旧 63)と Themes(113 部品、イシュー #2063 で `input_group`・イシュー #2066
-で `item`・イシュー #2060 で `button_group` をそれぞれ追加、旧 110)の
-**層をまたぐラップ状態**
+旧 63)と Themes(114 部品、イシュー #2063 で `input_group`・イシュー #2066
+で `item`・イシュー #2060 で `button_group`・イシュー #2070 で `command`
+をそれぞれ追加、旧 110)の**層をまたぐラップ状態**
 (どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
 テストは `crates/docs-site/tests/wrap_state.rs`(イシュー #1064)。
@@ -246,11 +246,10 @@ recipe・Themes ページを持たなかったが、イシュー #2060 で pre-s
 (`src/primitives_catalog.rs`)の両リストからは除外済み)。`item` も同様に
 イシュー #2065 で headless-ui 層のみを実装していたが、イシュー #2066 で
 pre-styled-ui recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った
-(両リストからは除外済み)。`command` はイシュー #2068 で headless-ui 層の
-みを実装しており、pre-styled-ui recipe・Themes ページを持たない(後続
-#2070 で追加予定。`HEADLESS_UNWRAPPED`・`PRIMITIVES_WITHOUT_THEMES_PAGE`
-の双方へ登録済み、#2070 完了時に両リストから除外して `WRAPPED_SAME_NAME`
-へ移す想定)。
+(両リストからは除外済み)。`command` も同様にイシュー #2068 で
+headless-ui 層のみを実装していたが、イシュー #2070 で pre-styled-ui
+recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った(両リストから
+除外済み)。
 
 ### 名寄せキー
 
@@ -273,14 +272,14 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 足すだけでカテゴリが変わる壊れやすい契約を避けるため、コード実体(`pub use`
 や関数呼び出し)を伴う参照のみを「ラップ済み」と呼ぶ。
 
-### Themes 113 部品の 4 バケット分割
+### Themes 114 部品の 4 バケット分割
 
 | バケット | 件数 | 定義 |
 |---|---|---|
-| WRAPPED_SAME_NAME | 66 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している(イシュー #1685 で `field`、イシュー #1687 で `fieldset`、イシュー #2063 で `input_group`、イシュー #2066 で `item`、イシュー #2060 で `button_group` を追加) |
-| WRAPPED_CROSS_NAME | 5 | 同名 Primitives 部品は無いが、別名の headless 部品へコード委譲している |
-| DOC_REFERENCE_ONLY | 3 | headless 部品への参照が rustdoc のみ(コード委譲なし) |
-| PRE_STYLED_ONLY | 39 | headless 部品への参照がコード・rustdoc いずれにも無い |
+| WRAPPED_SAME_NAME | 67 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している(イシュー #1685 で `field`、イシュー #1687 で `fieldset`、イシュー #2063 で `input_group`、イシュー #2066 で `item`、イシュー #2060 で `button_group`、イシュー #2070 で `command` を追加) |
+| WRAPPED_CROSS_NAME | 4 | 同名 Primitives 部品は無いが、別名の headless 部品へコード委譲している |
+| DOC_REFERENCE_ONLY | 5 | headless 部品への参照が rustdoc のみ(コード委譲なし) |
+| PRE_STYLED_ONLY | 38 | headless 部品への参照がコード・rustdoc いずれにも無い |
 
 一覧の正は `crates/docs-site/tests/wrap_state.rs` の定数
 (`WRAPPED_SAME_NAME` / `WRAPPED_CROSS_NAME` / `DOC_REFERENCE_ONLY` /
