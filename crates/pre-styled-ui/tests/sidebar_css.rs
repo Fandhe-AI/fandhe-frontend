@@ -186,6 +186,7 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   border-radius: var(--fandhe-radius-md);
   min-width: 1.25rem;
   text-align: center;
+  pointer-events: none;
 }
 
 [data-scope=\"sidebar\"][data-part=\"menu-sub\"] {
@@ -288,20 +289,6 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   overflow: hidden;
   visibility: hidden;
   margin: 0;
-}
-
-[data-scope=\"sidebar\"][data-part=\"root\"][data-mobile] {
-  position: fixed;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: var(--fandhe-sidebar-width-mobile, 18rem);
-  height: 100%;
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--fandhe-color-sidebar-bg);
-  z-index: var(--fandhe-z-index-modal, 1001);
-  box-shadow: var(--fandhe-shadow-lg);
 }
 
 [data-scope=\"sidebar\"][data-part=\"group-action\"]:focus-visible {
@@ -422,6 +409,20 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   width: 2rem;
 }
 
+[data-scope=\"sidebar\"][data-part=\"root\"][data-mobile]:not([data-collapsible=\"none\"]) {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: var(--fandhe-sidebar-width-mobile, 18rem);
+  height: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--fandhe-color-sidebar-bg);
+  z-index: var(--fandhe-z-index-modal, 1001);
+  box-shadow: var(--fandhe-shadow-lg);
+}
+
 [data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"][data-mobile] {
   inset-inline-start: auto;
   inset-inline-end: 0;
@@ -485,6 +486,18 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
 [data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"] > [data-scope=\"sidebar\"][data-part=\"rail\"] {
   inset-inline-end: auto;
   inset-inline-start: -1rem;
+}
+
+[data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"] > [data-scope=\"sidebar\"][data-part=\"rail\"]:hover {
+  box-shadow: inset -2px 0 0 var(--fandhe-color-sidebar-border);
+}
+
+[data-scope=\"sidebar\"][data-part=\"root\"] > [data-scope=\"sidebar\"][data-part=\"rail\"]:hover:dir(rtl) {
+  box-shadow: inset -2px 0 0 var(--fandhe-color-sidebar-border);
+}
+
+[data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"] > [data-scope=\"sidebar\"][data-part=\"rail\"]:hover:dir(rtl) {
+  box-shadow: inset 2px 0 0 var(--fandhe-color-sidebar-border);
 }
 
 [data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] > [data-scope=\"sidebar\"][data-part=\"header\"] {

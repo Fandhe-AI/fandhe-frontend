@@ -363,6 +363,12 @@ fn recipe() -> SlotRecipe {
         decl("border-radius", "var(--fandhe-radius-md)"),
         decl("min-width", "1.25rem"),
         decl("text-align", "center"),
+        // `menu-badge` は件数表示のみの装飾用 span であり、`menu-button`
+        // と同じ `menu-item` 内で絶対配置により右端へ重なる。
+        // `pointer-events` を明示しないと既定値 `auto` のままクリックを
+        // 奪い、兄弟の `menu-button` へイベントが伝播せず件数部分の
+        // クリックで遷移・操作ができなくなる（codex-review P1 指摘）。
+        decl("pointer-events", "none"),
     ];
 
     let menu_sub_base = vec![
@@ -550,32 +556,6 @@ fn recipe() -> SlotRecipe {
                 // より詳細度が高いため、ここで `margin: 0` を上書きすれば
                 // variant を問わず折りたたみ時は必ず margin が消える。
                 decl("margin", "0"),
-            ],
-        )
-        // モバイル表示中は固定オーバーレイになる（幅の詳細度調整は raw CSS
-        // 「モバイル + collapsed の詳細度調整」節参照）。`floating`/`inset`
-        // variant が設定する `margin`/`border`/`border-radius`/`background`/
-        // `height` はデスクトップの浮遊・面パネル表現専用であり、モバイル
-        // オーバーレイでは全幅・全高のドロワーへリセットする必要がある
-        // （Bugbot 指摘: リセットしないと variant の見た目がドロワーへ
-        // 残存する）。本 state は variant 系の state より後段に登録して
-        // いる（specificity は単一属性で同点、ソース順で本規則が優先）ため
-        // ここに列挙すれば確実に上書きできる。
-        .state(
-            "root",
-            StateCondition::Attr("data-mobile"),
-            vec![
-                decl("position", "fixed"),
-                decl("inset-block", "0"),
-                decl("inset-inline-start", "0"),
-                decl("width", "var(--fandhe-sidebar-width-mobile, 18rem)"),
-                decl("height", "100%"),
-                decl("margin", "0"),
-                decl("border", "0"),
-                decl("border-radius", "0"),
-                decl("background", "var(--fandhe-color-sidebar-bg)"),
-                decl("z-index", "var(--fandhe-z-index-modal, 1001)"),
-                decl("box-shadow", "var(--fandhe-shadow-lg)"),
             ],
         )
         // `group-action`/`menu-action`: hover で背景・フォーカスリング。
@@ -800,6 +780,39 @@ pub fn stylesheet() -> String {
         ],
     );
 
+    // モバイル表示中は固定オーバーレイになる。`floating`/`inset` variant が
+    // 設定する `margin`/`border`/`border-radius`/`background`/`height` は
+    // デスクトップの浮遊・面パネル表現専用であり、モバイルオーバーレイ
+    // では全幅・全高のドロワーへリセットする必要がある（Bugbot 指摘:
+    // リセットしないと variant の見た目がドロワーへ残存する）。
+    // `:not([data-collapsible="none"])`（Cursor Bugbot Medium 指摘対応）:
+    // `data-collapsible="none"`（閉じる手段を持たない常時表示契約、
+    // モジュール doc「`data-collapsible`」節）のサイドバーへこの規則を
+    // 適用すると、閉じるトリガーが無いまま `position: fixed` の恒久
+    // オーバーレイになり、in-flow の `inset`（`variant="inset"` の主領域）
+    // が下へ広がってメイン領域を覆い隠し続けてしまう
+    // （`crates/pre-styled-ui/src/sidebar.rs#L563-L580, #L830-L837` 指摘）。
+    // 本規則自体を対象外にすることで、`collapsible="none"` はモバイルでも
+    // 通常の in-flow 表示（`root_base`/variant state が決める幅・位置）を
+    // 保つ。属性 4 個（`data-scope`/`data-part`/`data-mobile`/`:not(...)`)
+    // は variant 系 state（属性 3 個）より詳細度で優先する。
+    push(
+        r#"[data-scope="sidebar"][data-part="root"][data-mobile]:not([data-collapsible="none"])"#,
+        &[
+            decl("position", "fixed"),
+            decl("inset-block", "0"),
+            decl("inset-inline-start", "0"),
+            decl("width", "var(--fandhe-sidebar-width-mobile, 18rem)"),
+            decl("height", "100%"),
+            decl("margin", "0"),
+            decl("border", "0"),
+            decl("border-radius", "0"),
+            decl("background", "var(--fandhe-color-sidebar-bg)"),
+            decl("z-index", "var(--fandhe-z-index-modal, 1001)"),
+            decl("box-shadow", "var(--fandhe-shadow-lg)"),
+        ],
+    );
+
     // モバイル + `side="right"`: 開閉状態（`data-state`）に関係なく右側へ
     // ドッキングする（属性 4 個 = `data-mobile` 単独の base 規則、属性 3 個
     // より優先。codex-review P1 / Bugbot 指摘: expanded 時に base 規則の
@@ -946,6 +959,48 @@ pub fn stylesheet() -> String {
             decl("inset-inline-end", "auto"),
             decl("inset-inline-start", "-1rem"),
         ],
+    );
+
+    // `rail` hover ラインの物理端/RTL/side 反転（Cursor Bugbot Low 指摘
+    // 「Rail hover indicator uses physical left offset」対応）。
+    // `box-shadow` に論理方向の等価物（`inset-inline-*` 相当）が無いため、
+    // `:dir(rtl)` 併記（本モジュール「モバイル + collapsed の詳細度調整」
+    // 節・`translateX` の RTL 反転と同型）で 4 通り（side 2 種 × dir 2 種）
+    // を明示する。基本規則（`.state("rail", StateCondition::Hover, ...)`、
+    // `inset 2px 0 0`）は `root` の inline-end 側（既定 side、LTR での物理
+    // 右端）に `rail` がドッキングし、その `rail` の inline-start 端（LTR
+    // では物理左端）が `root` との継ぎ目になる場合にのみ正しい。以下は
+    // それ以外の 3 通り（継ぎ目が物理右端になる場合）を上書きする。
+    //
+    // `data-side="right"` の `root` では `rail` が `root` の inline-start
+    // 側（上記位置反転規則）にドッキングし、`rail` の inline-end 端が
+    // 継ぎ目になる。LTR では inline-end = 物理右端のため、ヒントは
+    // `rail` の右端（`inset -2px 0 0`）に出す必要がある。
+    push(
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"] > [data-scope="sidebar"][data-part="rail"]:hover"#,
+        &[decl(
+            "box-shadow",
+            "inset -2px 0 0 var(--fandhe-color-sidebar-border)",
+        )],
+    );
+    // 既定 side（`data-side` 未指定）+ RTL: inline-start = 物理右端のため、
+    // 継ぎ目は `rail` の物理右端に移る。
+    push(
+        r#"[data-scope="sidebar"][data-part="root"] > [data-scope="sidebar"][data-part="rail"]:hover:dir(rtl)"#,
+        &[decl(
+            "box-shadow",
+            "inset -2px 0 0 var(--fandhe-color-sidebar-border)",
+        )],
+    );
+    // `data-side="right"` + RTL: inline-end = 物理左端のため、継ぎ目は
+    // `rail` の物理左端に戻る（属性 7 個相当で上記 2 規則より詳細度が
+    // 高く、`data-side="right"` かつ RTL の場合に確実に優先する）。
+    push(
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"] > [data-scope="sidebar"][data-part="rail"]:hover:dir(rtl)"#,
+        &[decl(
+            "box-shadow",
+            "inset 2px 0 0 var(--fandhe-color-sidebar-border)",
+        )],
     );
 
     // icon 折りたたみ時の `header`/`footer` テキストクリップ。`root` は
