@@ -129,7 +129,9 @@ use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProp
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
-use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
+use fandhe_frontend_pre_styled_ui::heading::{
+    heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
+};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps, HighlightVariant};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
@@ -1707,7 +1709,10 @@ fn heading_section() -> Node {
         .map(|size| {
             heading(
                 HeadingLevel::H4,
-                &HeadingProps { size: *size },
+                &HeadingProps {
+                    size: *size,
+                    ..HeadingProps::default()
+                },
                 vec![],
                 vec![text(format!("見出し（size={size:?}）"))],
             )
@@ -1715,10 +1720,90 @@ fn heading_section() -> Node {
         .collect(),
     );
 
+    // イシュー #2056: shadcn/ui 突合で追加した weight 軸（既定 Semibold）。
+    let weight_stack = stack(
+        [
+            HeadingWeight::Normal,
+            HeadingWeight::Medium,
+            HeadingWeight::Semibold,
+            HeadingWeight::Bold,
+        ]
+        .iter()
+        .map(|weight| {
+            heading(
+                HeadingLevel::H4,
+                &HeadingProps {
+                    weight: *weight,
+                    ..HeadingProps::default()
+                },
+                vec![],
+                vec![text(format!("見出し（weight={weight:?}）"))],
+            )
+        })
+        .collect(),
+    );
+
+    // イシュー #2056: shadcn h2 の `border-b pb-2` 相当。呼び出し側が
+    // `data-bordered` を明示的に付与したときのみ下罫線が出る opt-in 状態
+    // （heading 自身はこの属性を出力しない）。
+    let bordered_example = heading(
+        HeadingLevel::H4,
+        &HeadingProps::default(),
+        vec![("data-bordered", "")],
+        vec![text("見出し（data-bordered opt-in）")],
+    );
+
+    // イシュー #2056: shadcn/ui Typography の h1〜h4 と本部品の
+    // HeadingSize/HeadingWeight の対応関係を示す（プリセット名は enum
+    // として持ち込まず、既存軸の組み合わせで表現する方針の実演）。
+    let shadcn_mapping_stack = stack(vec![
+        heading(
+            HeadingLevel::H1,
+            &HeadingProps {
+                size: HeadingSize::Xl4,
+                weight: HeadingWeight::Bold,
+            },
+            vec![],
+            vec![text("h1 相当（size=Xl4 + weight=Bold）")],
+        ),
+        heading(
+            HeadingLevel::H2,
+            &HeadingProps {
+                size: HeadingSize::Xl3,
+                ..HeadingProps::default()
+            },
+            vec![("data-bordered", "")],
+            vec![text("h2 相当（size=Xl3 + data-bordered）")],
+        ),
+        heading(
+            HeadingLevel::H3,
+            &HeadingProps {
+                size: HeadingSize::Xl2,
+                ..HeadingProps::default()
+            },
+            vec![],
+            vec![text("h3 相当（size=Xl2）")],
+        ),
+        heading(
+            HeadingLevel::H4,
+            &HeadingProps {
+                size: HeadingSize::Xl,
+                ..HeadingProps::default()
+            },
+            vec![],
+            vec![text("h4 相当（size=Xl）")],
+        ),
+    ]);
+
     section(
         "Heading",
-        "素の h1〜h6 意味論を size（xs〜xl4 の 8 段階）でスタイル化した見出し部品。",
-        vec![heading_stack],
+        "素の h1〜h6 意味論を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold の 4 段階、イシュー #2056）でスタイル化した見出し部品。data-bordered opt-in 状態（shadcn h2 の下罫線相当）と、shadcn/ui Typography の h1〜h4 との対応例も示す。",
+        vec![
+            heading_stack,
+            weight_stack,
+            bordered_example,
+            shadcn_mapping_stack,
+        ],
     )
 }
 
@@ -2015,13 +2100,41 @@ fn list_section() -> Node {
         ],
     );
 
+    // イシュー #2056: shadcn/ui 突合で確認したネストリスト合成パターン
+    // （ブラウザ既定のマーカー切り替え（外側 disc・内側 circle）を
+    // `list-style: revert` のまま活かす。専用 CSS は追加していない）。
+    let nested_list = list::root(
+        ListType::Unordered,
+        ListVariant::Marker,
+        vec![],
+        vec![
+            list::item(vec![], vec![text("フロントエンド")]),
+            list::item(
+                vec![],
+                vec![
+                    text("バックエンド"),
+                    list::root(
+                        ListType::Unordered,
+                        ListVariant::Marker,
+                        vec![],
+                        vec![
+                            list::item(vec![], vec![text("SSR")]),
+                            list::item(vec![], vec![text("SSG")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    );
+
     section(
         "List",
-        "素の ul/ol/li 意味論をそのまま styled 化したリスト部品。順序なし（marker variant）・順序あり・plain + indicator（カスタムマーカー）の 3 種。",
+        "素の ul/ol/li 意味論をそのまま styled 化したリスト部品。順序なし（marker variant）・順序あり・plain + indicator（カスタムマーカー）・ネストリスト（イシュー #2056）の 4 種。",
         vec![stack(vec![
             marker_list,
             ordered_list,
             plain_list_with_indicator,
+            nested_list,
         ])],
     )
 }

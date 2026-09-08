@@ -64,6 +64,19 @@
 //! - **ダーク**: 追加した `::marker` 規則もトークン参照
 //!   （`var(--fandhe-color-fg-muted)`）のみで構成されるため、
 //!   `write_dark_declarations` の一元機構に自動追従する。
+//!
+//! ## イシュー #2056 の shadcn/ui 突合
+//!
+//! `docs/design/reference-screenshots/shadcn-typography-{1,2,3}.png` と
+//! 突合した結果、CSS 出力は変更していない。shadcn の `ul`（`my-6 ml-6
+//! list-disc [&>li]:mt-2`）は `padding-inline-start: 1.5rem`
+//! （`--fandhe-space-6`）が既存実装と一致するが、item 間隔は `mt-2`
+//! （0.5rem）に対し本部品は `--fandhe-space-1`（0.25rem）である。参照競合
+//! の判定: list の item 間隔は chakra-ui の値を採る。理由: #1438 の既存
+//! golden を維持するため。shadcn-typography-3.png のチェックリスト
+//! （task list）表現は既存の `ListVariant::Plain` + `indicator` パーツの
+//! 合成で再現可能であり、専用の variant 追加は不要と判断した（docs-site の
+//! Demo に合成例を追加、CSS は不変）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

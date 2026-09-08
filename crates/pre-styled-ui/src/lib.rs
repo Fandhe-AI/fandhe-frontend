@@ -788,7 +788,7 @@ pub use em::em;
 pub use empty_state::{EmptyStateIndicatorVariant, EmptyStateProps, EmptyStateVariant};
 pub use field::{FieldOrientation, FieldRootProps};
 pub use fieldset::FieldsetRootProps;
-pub use heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
+pub use heading::{heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight};
 pub use highlight::{highlight, HighlightProps};
 pub use icon::{icon, IconProps};
 pub use image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};

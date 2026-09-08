@@ -2534,7 +2534,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # `variant: TextVariant` フィールドを追加（`TextVariant::Muted` の CSS 出力
 # を純追加）する破壊的変更のため、open PR #2241（0.149.0 主張）との衝突を
 # 避け main 到達値 0.148.0 から +2 マイナーして 0.150.0 とする。
-version = "0.150.0"
+version = "0.151.0"
 #
 # base 再取り込み（本 PR、イシュー #2055、2026-09-08）: base 再取り込み時点で main は
 # #2070 により独立に 0.149.0 へ到達済みだが、本ブランチの到達値 0.150.0 は
@@ -2542,6 +2542,13 @@ version = "0.150.0"
 # 追い越し済みの場合まで再バンプを要求しない）、追加の再調整はせず 0.150.0 を
 # 維持する。依存先 `fandhe-frontend-headless-ui` の version 要求は main 側の
 # 追随をそのまま採用する（下記参照）。
+#
+# 版数の再調整（本 PR、イシュー #2056、shadcn/ui 突合）: `HeadingProps` へ
+# `weight: HeadingWeight` フィールドを追加（構造体リテラル呼び出し元を壊す
+# 0.x 破壊的変更）し、`heading::css()` の出力へ weight variant 4 規則 +
+# `data-bordered` state 規則を純追加するため、`.claude/rules/coding-rust.md`
+# の semver バンプ規約に従いマイナーバンプする。origin/main 到達値
+# 0.150.0 から +1 マイナーして 0.151.0 とする。
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
