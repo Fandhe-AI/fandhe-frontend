@@ -596,36 +596,133 @@ fn ex_card() -> Node {
     )
 }
 
+/// イシュー #2046: shadcn/ui 突合で純追加した `action` パーツ
+/// （header 右上スロット）の例。`header` へ `data-has-action` を渡すと
+/// grid 化され、action が右上 2 行にまたがって配置される。
+fn ex_card_action_header() -> Node {
+    card::root(
+        card::CardProps::default(),
+        vec![],
+        vec![card::header(
+            vec![("data-has-action", "")],
+            vec![
+                card::title(vec![], vec![text("Team plan")]),
+                card::description(vec![], vec![text("3 members")]),
+                card::action(
+                    vec![],
+                    vec![button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Outline,
+                            size: Size::Sm,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("Manage")],
+                    )],
+                ),
+            ],
+        )],
+    )
+}
+
+/// イシュー #2046: `cover` パーツ（cover image 枠）へ [`image::image`] を
+/// 子として渡す合成パターンの例。
+fn ex_card_cover_image() -> Node {
+    card::root(
+        card::CardProps::default(),
+        vec![],
+        vec![
+            card::cover(
+                vec![],
+                vec![image::image(
+                    &image::ImageProps {
+                        aspect_ratio: image::AspectRatio::Video,
+                        fit: image::ImageFit::Cover,
+                        ..image::ImageProps::new(crate::showcase::IMAGE_DEMO_SRC, "cover image")
+                    },
+                    vec![],
+                )],
+            ),
+            card::body(vec![], vec![card::title(vec![], vec![text("Cover image")])]),
+        ],
+    )
+}
+
+/// イシュー #2046: `data-bordered` opt-in 状態（footer の 1px 区切り線）の
+/// 例。shadcn/ui の Header/Footer with Border Examples 相当。
+fn ex_card_bordered_footer() -> Node {
+    card::root(
+        card::CardProps::default(),
+        vec![],
+        vec![
+            card::header(vec![], vec![card::title(vec![], vec![text("Sign in")])]),
+            card::body(vec![], vec![text("Email / Password フォームです。")]),
+            card::footer(
+                vec![("data-bordered", "")],
+                vec![button(
+                    &ButtonProps {
+                        variant: ButtonVariant::Solid,
+                        size: Size::Sm,
+                        ..ButtonProps::default()
+                    },
+                    vec![],
+                    vec![text("Continue")],
+                )],
+            ),
+        ],
+    )
+}
+
 pub(crate) const CARD: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "CardVariant（Elevated/Outline/Subtle、crates/pre-styled-ui/src/card.rs:80-106）で見た目を切り替える",
-        "size（xs〜xl、card.rs:142 以降）で padding / 角丸 / title の文字サイズが root の `--fandhe-card-*` custom property を通じて連動する（イシュー #1557）",
-        "header/body/footer/title/description の 6 パーツでレイアウトを構造化する（card.rs 全文参照）",
-        "純粋なレイアウトコンテナのため role/aria-* は付与しない（card.rs:4）",
+        "CardVariant（Elevated/Outline/Subtle、crates/pre-styled-ui/src/card.rs:80-106 付近）で見た目を切り替える",
+        "size（xs〜xl）で padding / 角丸 / title の文字サイズが root の `--fandhe-card-*` custom property を通じて連動する（イシュー #1557。shadcn/ui の size=\"default\"/\"sm\" はこの 5 段で包含済みと判断し変更していない、イシュー #2046）",
+        "header/body/footer/title/description/action/cover の 8 パーツでレイアウトを構造化する（action/cover はイシュー #2046 で shadcn/ui 突合により純追加）",
+        "header へ `data-has-action` を渡すと grid 化され、action が右上 2 行にまたがって配置される（shadcn/ui `CardAction` 相当、イシュー #2046）",
+        "cover へ image::image を子として渡すと cover image 枠になる（上端 2 角のみ root の角丸に沿ってクリップする、イシュー #2046）",
+        "header/footer へ `data-bordered` を渡すと 1px の区切り線が付く opt-in 状態（既定は #1557 のとおり区切り線なし、イシュー #2046）",
+        "純粋なレイアウトコンテナのため role/aria-* は付与しない（card.rs 冒頭）",
     ],
     arguments: &[
         ArgRow {
             name: "variant",
             kind: "CardVariant",
             default: "Outline",
-            description: "見た目（card.rs:80-106、#[default] は Outline）。",
+            description: "見た目（#[default] は Outline）。",
         },
         ArgRow {
             name: "size",
             kind: "Size",
             default: "Md",
-            description: "サイズ（card.rs:142 以降）。padding / 角丸 / title の文字サイズが連動する（root の `--fandhe-card-*`、イシュー #1557）。",
+            description: "サイズ。padding / 角丸 / title の文字サイズが連動する（root の `--fandhe-card-*`、イシュー #1557）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Elevated card",
-        description: "header/body/footer を組み合わせた Elevated variant の例です。",
-        render: ex_card,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Elevated card",
+            description: "header/body/footer を組み合わせた Elevated variant の例です。",
+            render: ex_card,
+        },
+        ExampleEntry {
+            title: "Card with action",
+            description: "header に data-has-action を付け action（button）を右上へ配置する例です。",
+            render: ex_card_action_header,
+        },
+        ExampleEntry {
+            title: "Card with cover image",
+            description: "cover パーツへ image::image を子として渡す合成パターンです。",
+            render: ex_card_cover_image,
+        },
+        ExampleEntry {
+            title: "Card with bordered footer",
+            description: "footer に data-bordered を付け 1px の区切り線を出す例です。",
+            render: ex_card_bordered_footer,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(該当なし)",
-        description: "純粋なレイアウトコンテナであり role/aria-* を付与しない（card.rs:4）。",
+        description: "純粋なレイアウトコンテナであり role/aria-* を付与しない（card.rs 冒頭）。",
     }],
     demo: None,
 };

@@ -458,8 +458,20 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
             ],
         ),
         (
+            // イシュー #2046: shadcn/ui 突合で純追加した action/cover を
+            // 含む Demo 拡充（`showcase::card_section`）で 8 anatomy パーツ
+            // 全てが機械導出されるようになったことを固定する。
             "/themes/card/",
-            &["root", "header", "body", "footer", "title", "description"],
+            &[
+                "root",
+                "header",
+                "body",
+                "footer",
+                "title",
+                "description",
+                "action",
+                "cover",
+            ],
         ),
         (
             "/themes/drawer/",
