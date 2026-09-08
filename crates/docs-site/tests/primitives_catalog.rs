@@ -190,25 +190,27 @@ fn foundation_modules_do_not_call_anatomy() {
 }
 
 /// `PRIMITIVES.len() + FOUNDATION_MODULES.len() + 1（lib.rs）` が実測の
-/// `.rs` 総数と一致すること。73 をハードコードせず走査結果から導出する
-/// （手動同期点を作らないため）。
+/// `.rs` 総数と一致すること。74 をハードコードせず走査結果から導出する
+/// （手動同期点を作らないため）。イシュー #2059 で `button_group` が加わり
+/// PRIMITIVES は 63 → 64、総数は 73 → 74 になった。
 #[test]
 fn module_counts_are_consistent_with_the_source_tree() {
     let scan = scan_headless_ui_src(&headless_ui_src_dir());
 
-    assert_eq!(PRIMITIVES.len(), 63);
+    assert_eq!(PRIMITIVES.len(), 64);
     assert_eq!(FOUNDATION_MODULES.len(), 9);
     assert_eq!(
         PRIMITIVES.len() + FOUNDATION_MODULES.len() + 1,
         scan.total_rs_files,
-        "PRIMITIVES(63) + FOUNDATION_MODULES(9) + lib.rs(1) が \
+        "PRIMITIVES(64) + FOUNDATION_MODULES(9) + lib.rs(1) が \
          crates/headless-ui/src/*.rs の実測総数({})と一致しません",
         scan.total_rs_files
     );
 }
 
-/// 受け入れ条件 4: 6 グループ 11/11/10/10/11/10 = 63、カテゴリ出現順・
-/// グループ内順序が設計 §7 逐語であること。
+/// 受け入れ条件 4: 6 グループ 11/11/10/10/12/10 = 64、カテゴリ出現順・
+/// グループ内順序が設計 §7 逐語であること（イシュー #2059 で Navigation が
+/// button_group 追加により 11 → 12）。
 #[test]
 fn category_counts_and_order_follow_the_design_spec() {
     // 設計 §7 の表を逐語で再掲する（グループ内順序も含む）。並びを
@@ -282,6 +284,7 @@ fn category_counts_and_order_follow_the_design_spec() {
             &[
                 "action_bar",
                 "breadcrumb",
+                "button_group",
                 "link",
                 "link_overlay",
                 "menu",
@@ -311,7 +314,7 @@ fn category_counts_and_order_follow_the_design_spec() {
     ];
 
     let expected_total: usize = spec.iter().map(|(_, modules)| modules.len()).sum();
-    assert_eq!(expected_total, 63);
+    assert_eq!(expected_total, 64);
 
     let actual_modules_in_order: Vec<&str> = PRIMITIVES.iter().map(|e| e.module).collect();
     let expected_modules_in_order: Vec<&str> = spec

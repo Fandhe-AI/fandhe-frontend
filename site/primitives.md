@@ -84,6 +84,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 
 - [Action Bar](./primitives/action-bar.md)
 - [Breadcrumb](./primitives/breadcrumb.md)
+- [Button Group](./primitives/button-group.md)
 - [Link](./primitives/link.md)
 - [Link Overlay](./primitives/link-overlay.md)
 - [Menu](./primitives/menu.md)

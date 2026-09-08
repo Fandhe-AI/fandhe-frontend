@@ -302,7 +302,7 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
         path: "/primitives/tooltip/",
         render: overlay_disclosure::tooltip_section,
     },
-    // --- Navigation（11、#1028） ---
+    // --- Navigation（12、#1028） ---
     PrimitivePage {
         path: "/primitives/action-bar/",
         render: navigation::action_bar_section,
@@ -310,6 +310,10 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
     PrimitivePage {
         path: "/primitives/breadcrumb/",
         render: navigation::breadcrumb_section,
+    },
+    PrimitivePage {
+        path: "/primitives/button-group/",
+        render: navigation::button_group_section,
     },
     PrimitivePage {
         path: "/primitives/link/",

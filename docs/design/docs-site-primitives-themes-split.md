@@ -61,7 +61,7 @@ crate 名と結び付けられるようにするためである。
 | 対象 | URL | 件数 |
 |---|---|---|
 | Primitives 索引 | `/primitives/` | 1 |
-| Primitives 部品 | `/primitives/<kebab>/` | 63 |
+| Primitives 部品 | `/primitives/<kebab>/` | 64(イシュー #2059 で `button_group` が追加され 63→64) |
 | Themes 索引 | `/themes/` | 1 |
 | Themes 部品 | `/themes/<kebab>/` | 110(`/components/<kebab>/` から移転。イシュー #1683 で 107→108、イシュー #1685 で 108→109、イシュー #1687 で 109→110) |
 | 旧 URL(移転案内) | `/components/<kebab>/` ほか | 112 |
@@ -179,12 +179,13 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 ## 6. Primitives 台帳の判別規約
 
 **判別規則**: `crates/headless-ui/src/*.rs` のうち `anatomy(` を呼ぶもの
-(`anatomy.rs` 自身を除く)= **部品 63 件**。
+(`anatomy.rs` 自身を除く)= **部品 64 件**(イシュー #2059 で `button_group`
+が追加され 63→64)。
 
 **基盤モジュール 9 件**(部品ではない): `anatomy` / `aria` / `color` /
 `data_attrs` / `date` / `format` / `positioning` / `qr_encode` / `state`。
 
-63 + 9 + `lib.rs` = **73** = `crates/headless-ui/src/*.rs` の総数。
+64 + 9 + `lib.rs` = **74** = `crates/headless-ui/src/*.rs` の総数。
 
 **`collapsible` / `field` / `fieldset` は `anatomy()` を持つ実部品**であり
 基盤ではない(CLAUDE.md の記述から基盤と誤読しないこと)。
@@ -206,10 +207,10 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 コマンドをそのまま埋める。
 
 ```bash
-# 部品 63 件
-grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 63
-# 総数 73(= 63 + 基盤 9 + lib.rs)
-ls crates/headless-ui/src/*.rs | wc -l                                            # => 73
+# 部品 64 件（イシュー #2059 で button_group が追加され 63→64）
+grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 64
+# 総数 74(= 64 + 基盤 9 + lib.rs)
+ls crates/headless-ui/src/*.rs | wc -l                                            # => 74
 # Themes 部品ページ 110 件（イシュー #1017 で site/components/ から site/themes/ へ移行済み）
 ls site/themes/*.md | wc -l                                                       # => 110
 ```
@@ -217,10 +218,17 @@ ls site/themes/*.md | wc -l                                                     
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
 
 §6 は headless-ui ソース ↔ Primitives 台帳の**レイヤー内**ドリフト検知
-(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(63 部品)
+(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(64 部品)
 と Themes(110 部品)の**層をまたぐラップ状態**(どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
 テストは `crates/docs-site/tests/wrap_state.rs`(イシュー #1064)。
+
+**Primitives 側の未ラップ判定(イシュー #2059)**: `button_group` はイシュー
+#2059 で headless-ui 層のみを実装しており、pre-styled-ui recipe・Themes
+ページを持たない(後続 #2060 で追加予定)。このため `HEADLESS_UNWRAPPED`
+(`tests/wrap_state.rs`)・`PRIMITIVES_WITHOUT_THEMES_PAGE`
+(`src/primitives_catalog.rs`)の双方へ登録し、#2060 完了時に両リストから
+除外して `WRAPPED_SAME_NAME` へ移す想定。
 
 ### 名寄せキー
 
@@ -305,8 +313,8 @@ panic する。§6 の弱体化ではなく別レイヤー向けの規約であ�
 ```bash
 # Themes 部品ページ 110 件
 grep -oE 'source = "site/themes/[a-z0-9-]+\.md"' site/nav.toml | wc -l          # => 110
-# Primitives 部品 63 件
-grep -c 'path: "/primitives/' crates/docs-site/src/primitives_catalog.rs        # => 63
+# Primitives 部品 64 件（イシュー #2059 で button_group が追加され 63→64）
+grep -c 'path: "/primitives/' crates/docs-site/src/primitives_catalog.rs        # => 64
 # pre-styled ソース総数 124(トップレベル 110 + charts/ 14)
 ls crates/pre-styled-ui/src/*.rs | wc -l                                        # => 110
 ls crates/pre-styled-ui/src/charts/*.rs | wc -l                                 # => 14
@@ -361,6 +369,16 @@ diff /tmp/code63.txt /tmp/issue63s.txt   # -> 差分なし(IDENTICAL)
 `site/nav.toml` の `[[section.group]]` 構成(#1021)はこの分類・この順序に
 従う。**Phase 4/5 の実装者が独自の下位グループを発明することを禁じる**
 (`docs-site-component-pages.md` §5 の同趣旨規定を継承)。
+
+**追記(イシュー #2059、Phase 4 #2057、親 #2058)**: #1024〜#1029 完了後に
+新設された部品 `button_group`(shadcn/ui Button Group 相当、参照軸 #2001)
+を Navigation カテゴリへ追加する(`toolbar`(既存 Navigation 部品)の直後、
+`breadcrumb` の後に配置)。上記の転記本文(#1024〜#1029 節)は再導出・書き
+換えの対象外のため変更しないが、現在の実カテゴリ内訳は Navigation
+11→12・合計 63→64 である。カテゴリ選定の根拠: 最も近い先例 `toolbar` の
+所属グループであること、および本節が新規下位グループの発明を禁じている
+ことからの推論(#2058/#2057 自体はカテゴリを指定していない)。後続の
+Phase 4 部品(`input_group` 等)も同じ規則でカテゴリを決めることを想定する。
 
 ## 8. `component-coverage-map.md` との関係
 

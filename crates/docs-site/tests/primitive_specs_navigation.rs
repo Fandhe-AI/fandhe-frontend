@@ -62,6 +62,7 @@ fn navigation_table_is_registered() {
 const EXPECTED_PATHS: &[&str] = &[
     "/primitives/action-bar/",
     "/primitives/breadcrumb/",
+    "/primitives/button-group/",
     "/primitives/link/",
     "/primitives/link-overlay/",
     "/primitives/menu/",
@@ -73,7 +74,8 @@ const EXPECTED_PATHS: &[&str] = &[
     "/primitives/toolbar/",
 ];
 
-/// 受け入れ条件 1 の本体: Navigation 11 部品それぞれについて
+/// 受け入れ条件 1 の本体: Navigation 12 部品（イシュー #2059 で
+/// `button_group` が追加され 11 → 12）それぞれについて
 /// `features`/`arguments`/`examples` が非空、かつ `keyboard`/`aria` の和が
 /// 非空であることを固定する（「6 節の H2 が揃う」だけでは `data-*` 属性表
 /// のみで API Reference 見出しが出てしまい、空欄のまま緑になる穴がある）。

@@ -559,11 +559,13 @@ const PRE_STYLED_ONLY: &[&str] = &[
 ];
 
 /// §3.4（受け入れ条件 3）: pre-styled-ui のどこからもコード委譲されていない
-/// headless 部品（module 名、0 件）。イシュー #1686 で `fieldset.rs`
+/// headless 部品（module 名、1 件）。イシュー #1686 で `fieldset.rs`
 /// （headless `fieldset::root` へコード委譲する同名モジュール）を追加し、
 /// イシュー #1687 で `/themes/fieldset/` ページ登録も完了したため、
-/// `fieldset` は [`WRAPPED_SAME_NAME`] へ分類される。
-const HEADLESS_UNWRAPPED: &[&str] = &[];
+/// `fieldset` は [`WRAPPED_SAME_NAME`] へ分類される。イシュー #2059 で
+/// headless-ui 層のみを実装した `button_group` が新設され、pre-styled-ui
+/// recipe（後続 #2060）を持たないため本リストへ加える。
+const HEADLESS_UNWRAPPED: &[&str] = &["button_group"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ

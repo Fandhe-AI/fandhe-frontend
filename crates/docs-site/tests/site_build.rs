@@ -194,10 +194,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // が加わり、196 → 197 になった。イシュー #1683 で Collapsible が
     // 加わり、197 → 198 になった。イシュー #1685 で Field が加わり、
     // 198 → 199 になった。イシュー #1687 で Fieldset が加わり、
-    // 199 → 200 になった。
+    // 199 → 200 になった。イシュー #2059 で Button Group（Primitives）が
+    // 加わり、200 → 201 になった。
     assert_eq!(
         report.written.len(),
-        200,
+        201,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -247,7 +248,7 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "/themes/ 配下の生成ページ数（部品 110 件 + 索引 1 件）"
     );
 
-    // イシュー #1021: `/primitives/` 配下は部品 63 件 + 索引 1 件 = 64 件。
+    // イシュー #1021/#2059: `/primitives/` 配下は部品 64 件 + 索引 1 件 = 65 件。
     let primitives_dir = out.0.join("primitives");
     let primitive_pages = report
         .written
@@ -255,8 +256,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&primitives_dir))
         .count();
     assert_eq!(
-        primitive_pages, 64,
-        "/primitives/ 配下の生成ページ数（部品 63 件 + 索引 1 件）"
+        primitive_pages, 65,
+        "/primitives/ 配下の生成ページ数（部品 64 件 + 索引 1 件）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /
@@ -505,8 +506,8 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
         .matches("/fandhe-frontend/primitives/")
         .count();
     assert_eq!(
-        primitives_link_count, 64,
-        "Primitives サイドバーのリンク数が索引 1 + 部品 63 = 64 件と一致しない: {primitives_window}"
+        primitives_link_count, 65,
+        "Primitives サイドバーのリンク数が索引 1 + 部品 64 = 65 件と一致しない: {primitives_window}"
     );
 }
 

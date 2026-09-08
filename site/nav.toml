@@ -100,7 +100,7 @@ title = "Primitives 索引"
 source = "site/primitives.md"
 path = "/primitives/"
 
-# 以下 6 カテゴリ × 63 部品ページ（イシュー #1021）。台帳は
+# 以下 6 カテゴリ × 64 部品ページ（イシュー #1021、#2059）。台帳は
 # crates/docs-site/src/primitives_catalog.rs（イシュー #1020）を正とする。
 
 [[section.group]]
@@ -337,6 +337,11 @@ path = "/primitives/action-bar/"
 title = "Breadcrumb"
 source = "site/primitives/breadcrumb.md"
 path = "/primitives/breadcrumb/"
+
+[[section.group.page]]
+title = "Button Group"
+source = "site/primitives/button-group.md"
+path = "/primitives/button-group/"
 
 [[section.group.page]]
 title = "Link"
