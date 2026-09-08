@@ -102,13 +102,19 @@ const COMMAND_GOLDEN_CSS: &str = "[data-scope=\"command\"][data-part=\"root\"] {
   max-height: calc(100vh - var(--fandhe-space-8));
   box-sizing: border-box;
   padding: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   z-index: var(--fandhe-z-index-modal, 1001);
   background: var(--fandhe-color-bg);
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-lg);
   box-shadow: var(--fandhe-shadow-lg);
   outline: none;
+}
+
+[data-scope=\"command\"][data-part=\"root\"]:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope=\"command\"][data-part=\"empty\"][data-empty] {
@@ -195,6 +201,31 @@ fn css_appends_dialog_root_double_border_removal_rule() {
     assert!(css.contains(
         "[data-scope=\"command\"][data-part=\"dialog\"] > [data-scope=\"command\"][data-part=\"root\"] {\n  border: 0;\n  border-radius: 0;\n  box-shadow: none;\n}"
     ));
+}
+
+/// `input` の `outline: none` を補う `root` の `:focus-within` canonical
+/// フォーカスリングが存在することを固定する（`src/command.rs` モジュール
+/// doc「フォーカスリング」節参照。PR #2241 codex/Bugbot レビュー対応）。
+#[test]
+fn css_root_focus_within_ring_exists() {
+    let css = command::stylesheet();
+    assert!(css.contains("[data-scope=\"command\"][data-part=\"root\"]:focus-within {"));
+    assert!(css.contains(
+        "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+    ));
+}
+
+/// `dialog` が `overflow-y: auto`（横方向のみ `hidden`）でスクロール
+/// コンテナになることを固定する（画面高が低く候補が多い環境で `root` の
+/// 末尾がクリップされたまま到達不能にならないための対策、`src/command.rs`
+/// モジュール doc「`dialog` の `[hidden]`」節末尾参照。PR #2241 codex
+/// レビュー対応）。
+#[test]
+fn css_dialog_is_vertically_scrollable() {
+    let css = command::stylesheet();
+    assert!(css.contains("[data-scope=\"command\"][data-part=\"dialog\"] {\n  position: fixed;"));
+    assert!(css.contains("  overflow-y: auto;\n  overflow-x: hidden;\n  z-index:"));
+    assert!(!css.contains("  overflow: hidden;\n  z-index: var(--fandhe-z-index-modal"));
 }
 
 /// `stylesheet()` は `</style` 断片・`<` を一切含まない（RAWTEXT 文脈から

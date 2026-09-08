@@ -91,7 +91,27 @@
 //! [`crate::dialog`] のような独立した `backdrop` パーツを持たない
 //! （headless モジュール doc「`dialog` パーツを `crate::dialog` へ委譲しない
 //! 理由」節参照）ため、本モジュールも backdrop を追加しない（意図的な
-//! スコープ外、下記「スコープ外」節参照）。
+//! スコープ外、下記「スコープ外」節参照）。加えて `dialog` は
+//! `overflow-y: auto`（横方向のみ `overflow-x: hidden`）とし、画面高が
+//! 低く候補（`item`）が多い環境で `root`（`input` + `list`）の実高が
+//! `dialog` の `max-height` を超えても末尾がクリップされたまま到達不能に
+//! ならないようにする（`dialog` 自体がスクロールコンテナになる。フォーカス
+//! リング指摘・#2241 codex レビュー対応）。
+//!
+//! # フォーカスリング（`input` の `outline: none` を `root` の
+//! `:focus-within` で補う）
+//!
+//! [`input`] slot は `outline: none`（ブラウザ既定フォーカス枠の除去）を
+//! 持つが、これを単独で置くと `input` へフォーカスしたときの視認手段が
+//! 消える（フォーカスリング共通規約
+//! `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3 の
+//! 「祖先に canonical リングがある場合のみ許容」に対応する必要がある）。
+//! 本 [`recipe`] は祖先 [`root`] の `:focus-within`（[`StateCondition::FocusWithin`]）
+//! へ [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Token`、
+//! `palette` 軸を持たないため。[`FocusRingOffset::Outside`]）を登録する
+//! （[`crate::combobox`] が `control` の `:focus-within` へ付ける対策と
+//! 同型。Tab で [`input`] へ移動したとき `root` の外枠にリングが表示され
+//! フォーカス位置を視認できる）。
 //!
 //! # `shortcut` 内への `kbd` 合成
 //!
@@ -138,7 +158,9 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, serialize_rule};
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{
+    focus_ring_declarations, FocusRingColor, FocusRingOffset, SlotRecipe, StateCondition,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 // headless 型のうち本モジュールが必要とするのは純粋関数 [`filter_items`]
@@ -265,7 +287,8 @@ fn recipe() -> SlotRecipe {
         decl("max-height", "calc(100vh - var(--fandhe-space-8))"),
         decl("box-sizing", "border-box"),
         decl("padding", "0"),
-        decl("overflow", "hidden"),
+        decl("overflow-y", "auto"),
+        decl("overflow-x", "hidden"),
         decl("z-index", "var(--fandhe-z-index-modal, 1001)"),
         decl("background", "var(--fandhe-color-bg)"),
         decl("border", "1px solid var(--fandhe-color-border)"),
@@ -285,6 +308,16 @@ fn recipe() -> SlotRecipe {
         .base("shortcut", shortcut_base)
         .base("separator", separator_base)
         .base("dialog", dialog_base)
+        .state(
+            // `input` の `outline: none`（フォーカス位置の視認手段が
+            // 消える）に対し、祖先 `root` の `:focus-within` へ canonical
+            // フォーカスリングを登録する（[`crate::combobox`] が `control`
+            // の `:focus-within` へ付ける対策と同型。モジュール doc
+            // 「フォーカスリング」節参照）。
+            "root",
+            StateCondition::FocusWithin,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
         .state(
             "empty",
             StateCondition::Attr("data-empty"),
