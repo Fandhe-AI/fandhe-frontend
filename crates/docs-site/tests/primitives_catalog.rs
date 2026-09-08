@@ -196,29 +196,32 @@ fn foundation_modules_do_not_call_anatomy() {
 /// `input_group`・#2059 で `button_group` が加わり 63 → 65、73 → 75）。
 /// イシュー #2068 で `command` が加わり PRIMITIVES は 66 → 67、総数は
 /// 76 → 77 になった。イシュー #2072 で `sidebar` が加わり PRIMITIVES は
-/// 67 → 68、総数は 77 → 78 になった。
+/// 67 → 68、総数は 77 → 78 になった。イシュー #2105 で `message` が加わり
+/// PRIMITIVES は 68 → 69、総数は 78 → 79 になった。
 #[test]
 fn module_counts_are_consistent_with_the_source_tree() {
     let scan = scan_headless_ui_src(&headless_ui_src_dir());
 
-    assert_eq!(PRIMITIVES.len(), 68);
+    assert_eq!(PRIMITIVES.len(), 69);
     assert_eq!(FOUNDATION_MODULES.len(), 9);
     assert_eq!(
         PRIMITIVES.len() + FOUNDATION_MODULES.len() + 1,
         scan.total_rs_files,
-        "PRIMITIVES(68) + FOUNDATION_MODULES(9) + lib.rs(1) が \
+        "PRIMITIVES(69) + FOUNDATION_MODULES(9) + lib.rs(1) が \
          crates/headless-ui/src/*.rs の実測総数({})と一致しません",
         scan.total_rs_files
     );
 }
 
-/// 受け入れ条件 4: 6 グループ 13/11/10/10/13/11 = 68（イシュー #2072 で
-/// Navigation に `sidebar` を追加、旧 13/11/10/10/12/11 = 67。#2065 で
-/// Data Display / Utilities に `item` を追加、旧 12/11/10/10/12/10 = 65。
+/// 受け入れ条件 4: 6 グループ 13/11/10/10/13/12 = 69（イシュー #2105 で
+/// Data Display / Utilities に `message` を追加、旧 13/11/10/10/13/11 =
+/// 68。#2072 で Navigation に `sidebar` を追加、旧 13/11/10/10/12/11 = 67。
+/// #2065 で Data Display / Utilities に `item` を追加、
+/// 旧 12/11/10/10/12/10 = 65。
 /// #2062 で Forms A に `input_group` を、#2059 で Navigation に
 /// `button_group` を追加、旧 11/11/10/10/11/10 = 63。イシュー #2068 で
 /// Forms A に `command` を追加、旧 12/11/10/10/12/11 = 66）、カテゴリ出現
-/// 順・グループ内順序が設計 §7 逐語（+ #2059/#2062/#2065/#2068/#2072 追記）で
+/// 順・グループ内順序が設計 §7 逐語（+ #2059/#2062/#2065/#2068/#2072/#2105 追記）で
 /// あること。
 #[test]
 fn category_counts_and_order_follow_the_design_spec() {
@@ -315,6 +318,7 @@ fn category_counts_and_order_follow_the_design_spec() {
                 "carousel",
                 "item",
                 "json_tree_view",
+                "message",
                 "scroll_area",
                 "skip_nav",
                 "splitter",
@@ -327,7 +331,7 @@ fn category_counts_and_order_follow_the_design_spec() {
     ];
 
     let expected_total: usize = spec.iter().map(|(_, modules)| modules.len()).sum();
-    assert_eq!(expected_total, 68);
+    assert_eq!(expected_total, 69);
 
     let actual_modules_in_order: Vec<&str> = PRIMITIVES.iter().map(|e| e.module).collect();
     let expected_modules_in_order: Vec<&str> = spec

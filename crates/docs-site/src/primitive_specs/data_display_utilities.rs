@@ -1,6 +1,7 @@
 //! Primitives（`fandhe-frontend-headless-ui`）Data Display / Utilities 系
-//! 10 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
-//! Phase 5）。
+//! 12 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
+//! Phase 5。イシュー #2105 で `message`・イシュー #2065 で `item` を
+//! 追加、当初 10 部品）。
 //!
 //! # 役割・呼び出し文脈
 //!
@@ -12,8 +13,8 @@
 //! `data-*` 属性表（いずれも機械導出、Primitives 層は CSS 変数表を持たない）
 //! と合成して 6 節ページを組み立てる）。
 //!
-//! 対象は avatar・carousel・json-tree-view・scroll-area・skip-nav・
-//! splitter・steps・tour・tree-view・visually-hidden の 10 部品
+//! 対象は avatar・carousel・item・json-tree-view・message・scroll-area・
+//! skip-nav・splitter・steps・tour・tree-view・visually-hidden の 12 部品
 //! （`crates/docs-site/src/primitives_catalog.rs` の
 //! `PrimitiveCategory::DataDisplayUtilities` 並び順と一致させる）。
 //!
@@ -90,6 +91,7 @@ use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
 use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
+use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use hui::positioning::{Align, Placement, Side};
 use hui::scroll_area;
 use hui::skip_nav;
@@ -895,6 +897,183 @@ pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-expanded / aria-selected / aria-level / aria-posinset / aria-setsize",
             description: "crate::tree_view の branch/item から継承する（tree_view.rs:159-303）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Message（/primitives/message/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/message.rs`（モジュール doc「会話系
+/// 4 部品の共通語彙」「`role="listitem"`/`role="list"`」「`aria-live`/
+/// `aria-busy` を付けない理由」）。基本の user/assistant 対を実演する。
+fn ex_message_basic_pair() -> Node {
+    message::group(
+        "Conversation",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::User,
+                    align: MessageAlign::End,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("How do I center a div?")],
+                )],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    align: MessageAlign::Start,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("Use display: flex + place-items: center.")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// 同じ発言者（assistant）の連続発言を 1 つの [`message::group`] へまとめる
+/// 例（モジュール doc「`group` は連続発言のまとめ」参照。先頭以外の avatar
+/// 省略は CSS 側の責務のため、本例では avatar パーツ自体を省略する）。
+fn ex_message_consecutive_group() -> Node {
+    message::group(
+        "Assistant reply (2 parts)",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("First, install the crate.")],
+                )],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(vec![], vec![text("Then call render().")])],
+            ),
+        ],
+    )
+}
+
+/// 自前 CSS の最小例（`data-scope`/`data-part`/`data-role`/`data-align`
+/// 属性セレクタのみを使う。headless-ui 自体はスタイルを持たない）。
+const MESSAGE_CUSTOM_CSS_SNIPPET: &str = "[data-scope=\"message\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  max-width: 32rem;\n}\n[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] {\n  margin-left: auto;\n}\n[data-scope=\"message\"][data-part=\"content\"] {\n  padding: 0.5rem 0.75rem;\n  border-radius: 0.75rem;\n}\n";
+
+fn ex_message_custom_css() -> Node {
+    let node = message::root(
+        MessageRootProps {
+            role: MessageRole::User,
+            align: MessageAlign::End,
+            ..Default::default()
+        },
+        vec![],
+        vec![message::content(
+            vec![],
+            vec![text("Styled with plain CSS.")],
+        )],
+    );
+    wrap_example(
+        "data-scope / data-part / data-role / data-align 属性セレクタで吹き出しの位置・余白を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            node,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(MESSAGE_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
+pub const MESSAGE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "AI チャット UI の「会話 1 発言」を表現する 6 anatomy パーツ（root/avatar/header/content/footer/group）を提供する（message.rs）。状態機械を持たない静的部品であり wasm-full 側の配線は不要。",
+        "会話系 4 部品（message/bubble/attachment/marker）が共有する data-role（user/assistant/system）・data-align（start/end、data-role から独立した軸）・data-loading/data-error（存在属性）を本モジュールが最初に確定する（message.rs「会話系 4 部品の共通語彙」節）。",
+        "root は role=\"listitem\" を固定付与し、group は required context を満たす role=\"list\" + 任意 aria-label を固定付与する（message.rs「role=\"listitem\"/role=\"list\"」節）。",
+        "aria-live/aria-busy は付けない（ストリーミング通知・応答待ちの読み上げはアプリ責務、message.rs「aria-live/aria-busy を付けない理由」節）。参照実体は shadcn/ui の Message のみ（ark-ui・chakra-ui・Radix に対応部品なし、docs/design/component-coverage-map.md §12.1、参照軸 #2001）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root: props.role",
+            kind: "MessageRole",
+            default: "MessageRole::User",
+            description: "発言者の役割（user/assistant/system）。data-role へ出力する（message.rs）。",
+        },
+        ArgRow {
+            name: "root: props.align",
+            kind: "MessageAlign",
+            default: "MessageAlign::Start",
+            description: "root の水平整列（start/end）。data-role から独立した軸。data-align へ出力する（message.rs）。",
+        },
+        ArgRow {
+            name: "root: props.loading",
+            kind: "bool",
+            default: "false",
+            description: "true のとき data-loading 存在属性を付与する（応答待ちの表示のみ、message.rs）。",
+        },
+        ArgRow {
+            name: "root: props.error",
+            kind: "bool",
+            default: "false",
+            description: "true のとき data-error 存在属性を付与する（送信失敗の表示のみ、message.rs）。",
+        },
+        ArgRow {
+            name: "group: label",
+            kind: "&str",
+            default: "\"\"",
+            description: "空でなければ aria-label へ出力する（message.rs）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Basic user/assistant pair",
+            description: "user（右寄せ）と assistant（左寄せ）の 1 往復を group でまとめる基本例です。",
+            render: ex_message_basic_pair,
+        },
+        ExampleEntry {
+            title: "Consecutive messages in one group",
+            description: "同じ発言者（assistant）の連続発言を 1 つの group へまとめる例です。",
+            render: ex_message_consecutive_group,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-role/data-align 属性セレクタでスタイルを当てる例です。",
+            render: ex_message_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "(なし)",
+        description: "root/avatar/header/content/footer/group はいずれもキー操作を提供しない静的コンテナである（message.rs。子要素として置くインタラクティブ要素のキー操作はその要素自体に委ねる）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"listitem\"",
+            description: "root パーツに固定付与する（message.rs「role=\"listitem\"/role=\"list\"」節）。",
+        },
+        AriaRow {
+            attribute: "role=\"list\" / aria-label",
+            description: "group パーツに固定付与する。label が空でなければ aria-label を出力する（message.rs）。",
+        },
+        AriaRow {
+            attribute: "(aria-live / aria-busy は付与しない)",
+            description: "ストリーミング通知・応答待ちの読み上げはアプリ責務のため本モジュールは付与しない（message.rs「aria-live/aria-busy を付けない理由」節）。",
         },
     ],
     demo: None,
@@ -1972,8 +2151,9 @@ pub const VISUALLY_HIDDEN: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// 本カテゴリ 10 部品の `path -> ComponentPageSpec` テーブル
-/// （`crate::primitive_specs::SPEC_TABLES` へ集約される、#1027 と同型）。
+/// 本カテゴリ 12 部品の `path -> ComponentPageSpec` テーブル
+/// （`crate::primitive_specs::SPEC_TABLES` へ集約される、#1027 と同型。
+/// イシュー #2105 で `message` 追加、旧 11）。
 /// 並び順は `crate::primitives_catalog::PrimitiveCategory::DataDisplayUtilities`
 /// のカタログ順と一致させる。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
@@ -1981,6 +2161,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/carousel/", CAROUSEL),
     ("/primitives/item/", ITEM),
     ("/primitives/json-tree-view/", JSON_TREE_VIEW),
+    ("/primitives/message/", MESSAGE),
     ("/primitives/scroll-area/", SCROLL_AREA),
     ("/primitives/skip-nav/", SKIP_NAV),
     ("/primitives/splitter/", SPLITTER),
