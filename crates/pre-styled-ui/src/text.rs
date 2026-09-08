@@ -221,8 +221,13 @@ impl VariantValue for TextWeight {
 
 /// Text の前景色 variant（イシュー #2055 で追加。モジュール rustdoc
 /// 「イシュー #2055 の shadcn/ui 突合（7 軸）」節参照）。既定 `Plain` は
-/// 本文色を継承する明示宣言であり、CSS 上は他軸と同じく常にクラスが
-/// 付与される（[`crate::recipe::SlotRecipe::default_variant`] の規約どおり）。
+/// CSS 上の色宣言を持たない（クラス自体は他軸と同じく常に付与されるが、
+/// `color` 宣言を登録しない。PR #2242 codex-review 指摘: 既定を
+/// `color: inherit` の明示宣言にすると、詳細度の関係で利用者が
+/// `p { color: red }` 等の外側カスケードで指定した色を上書きしてしまい、
+/// `docs/design/shadcn-reference-adoption-policy.md` §8 の純追加方針
+/// （既存の色カスケードを壊さない）に反するため）。前景色を弱めたい
+/// 場合のみ [`TextVariant::Muted`] を明示選択する。
 /// 名称は本リポジトリ既存語彙の「装飾なし」
 /// （`ButtonVariant::Plain`/`BadgeVariant::Plain`/`MarkVariant::Plain`/
 /// `ListVariant::Plain`）に揃えている。
@@ -353,7 +358,7 @@ fn recipe() -> SlotRecipe {
             vec![decl("font-weight", "var(--fandhe-font-font-weight-bold)")],
         )
         .default_variant(TextWeight::Normal)
-        .variant(TextVariant::Plain, "root", vec![decl("color", "inherit")])
+        .variant(TextVariant::Plain, "root", vec![])
         .variant(
             TextVariant::Muted,
             "root",
