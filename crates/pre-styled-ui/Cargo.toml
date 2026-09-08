@@ -2498,21 +2498,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # 後に main の到達値 0.144.0 と同一版数衝突するため（本節上部の #2066 と
 # 同型の判断）、+1 マイナーして 0.145.0 とする。
 #
-# イシュー #2053: separator を shadcn/ui と突合し pre-styled-only
-# `group`/`label`（ラベル付き区切り線、chakra-ui の HStack + Text 合成
-# 相当）パートを追加した。既存 slot への公開関数 2 個の純追加（`kbd`
-# #2048 の `group` と同型）だが公開 API の実体変更のためマイナーバンプ
-# する（`.claude/rules/coding-rust.md`「公開済みクレートの実体変更時は
-# semver バンプ必須」）。
-# base 再取り込み（本 PR、イシュー #2060、PR #2228 レビュー修正ラウンド、
-# 2026-09-08）: 本ブランチ（button_group 新設・横並び Input 潰れの Bugbot
-# 指摘修正）は独立に main の到達値 0.144.0 を追い越さない版数（旧
-# 0.141.0）へ到達していたため、`semver-same-version-is-conflict` の運用に
-# 倣い main の到達値 0.144.0 から +1 マイナーして 0.145.0 とする（実体
-# 変更を伴うため patch ではなく minor、button_group 新設時のマイナー
-# バンプ性質を維持）。依存先 `fandhe-frontend-headless-ui` の version 要求
-# は main 側の 0.68.3 追随をそのまま採用する（下記参照）。
+# イシュー #2070: command（shadcn/ui `Command` 相当）の styled 部品
+# （`src/command.rs`、10 パーツ + `stylesheet()`）を公開 API として新設した
+# ため、純追加であってもマイナーバンプする（`.claude/rules/coding-rust.md`
+# 「公開済みクレートの実体変更時は semver バンプ必須」）。base（origin/main、
+# #2238 table shadcn/ui 突合マージ後）の到達値 0.145.0 から +1 マイナーして
+# 0.146.0 とする。
 #
+# base 再取り込み（本 PR、イシュー #2070、2026-09-08）: base 取り込み時点で
+# main は #2053/#2060/#2228/#2238 の衝突解消チェーンにより独立に 0.147.0 へ
+# 到達済みであり、本ブランチ自身の到達値 0.146.0 は main を追い越さない
+# ため、`semver-same-version-is-conflict` の運用に倣い main の到達値
+# 0.147.0 から +1 マイナーして 0.148.0 とする（実体変更を伴うため patch
+# ではなく minor を維持）。依存先 `fandhe-frontend-headless-ui` の version
+# 要求は main 側の追随をそのまま採用する（下記参照）。
 # 版数の再調整（本 PR、2026-09-08）: 並行 PR #2238 が同一の main 到達値
 # 0.144.0 から独立に 0.145.0 へ到達済みであることが判明したため、
 # `semver-same-version-is-conflict` の運用に倣い衝突を避けて 0.146.0 へ
@@ -2536,6 +2535,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # を純追加）する破壊的変更のため、open PR #2241（0.149.0 主張）との衝突を
 # 避け main 到達値 0.148.0 から +2 マイナーして 0.150.0 とする。
 version = "0.150.0"
+#
+# base 再取り込み（本 PR、イシュー #2055、2026-09-08）: base 再取り込み時点で main は
+# #2070 により独立に 0.149.0 へ到達済みだが、本ブランチの到達値 0.150.0 は
+# main を追い越しているため（`semver-same-version-is-conflict` の運用は
+# 追い越し済みの場合まで再バンプを要求しない）、追加の再調整はせず 0.150.0 を
+# 維持する。依存先 `fandhe-frontend-headless-ui` の version 要求は main 側の
+# 追随をそのまま採用する（下記参照）。
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

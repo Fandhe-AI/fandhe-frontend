@@ -144,6 +144,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Color Picker | `color_picker` | Forms | `/themes/color-picker/` | `site/themes/color-picker.md` | `color_picker_section()` |
 | Color Swatch | `color_swatch` | Data Display | `/themes/color-swatch/` | `site/themes/color-swatch.md` | `color_swatch_section()` |
 | Combobox | `combobox` | Forms | `/themes/combobox/` | `site/themes/combobox.md` | `combobox_section()` |
+| Command | `command` | Forms | `/themes/command/` | `site/themes/command.md` | `command_section()`（#2070 で新設） |
 | Data List | `data_list` | Data Display | `/themes/data-list/` | `site/themes/data-list.md` | `data_list_section()` |
 | Date Input | `date_input` | Forms | `/themes/date-input/` | `site/themes/date-input.md` | `date_input_section()` |
 | Date Picker | `date_picker` | Forms | `/themes/date-picker/` | `site/themes/date-picker.md` | `date_picker_section()` |
@@ -271,9 +272,9 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 - **Typography (12、イシュー #995 で `quote`/`strong` を追加)**:
   `blockquote` `code` `em` `heading` `highlight` `kbd` `link` `list` `mark`
   `quote` `strong` `text`
-- **Forms (34、イシュー #1685 で `field`・#1687 で `fieldset`・#2063 で
-  `input_group` を追加)**: `angle_slider` `button`
-  `calendar` `checkbox` `checkbox_card` `color_picker` `combobox`
+- **Forms (35、イシュー #1685 で `field`・#1687 で `fieldset`・#2063 で
+  `input_group`・#2070 で `command` を追加)**: `angle_slider` `button`
+  `calendar` `checkbox` `checkbox_card` `color_picker` `combobox` `command`
   `date_input` `date_picker` `download_trigger` `editable` `field`
   `fieldset`
   `file_upload` `image_cropper` `input` `input_group` `listbox` `native_select`
