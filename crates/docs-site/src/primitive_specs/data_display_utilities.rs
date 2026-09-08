@@ -978,20 +978,24 @@ fn ex_message_consecutive_group() -> Node {
 const MESSAGE_CUSTOM_CSS_SNIPPET: &str = "[data-scope=\"message\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  max-width: 32rem;\n}\n[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] {\n  margin-left: auto;\n}\n[data-scope=\"message\"][data-part=\"content\"] {\n  padding: 0.5rem 0.75rem;\n  border-radius: 0.75rem;\n}\n";
 
 fn ex_message_custom_css() -> Node {
-    let node = message::root(
-        MessageRootProps {
-            role: MessageRole::User,
-            align: MessageAlign::End,
-            ..Default::default()
-        },
+    let node = message::group(
+        "Conversation",
         vec![],
-        vec![message::content(
+        vec![message::root(
+            MessageRootProps {
+                role: MessageRole::User,
+                align: MessageAlign::End,
+                ..Default::default()
+            },
             vec![],
-            vec![text("Styled with plain CSS.")],
+            vec![message::content(
+                vec![],
+                vec![text("Styled with plain CSS.")],
+            )],
         )],
     );
     wrap_example(
-        "data-scope / data-part / data-role / data-align 属性セレクタで吹き出しの位置・余白を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        "data-scope / data-part / data-role / data-align 属性セレクタで吹き出しの位置・余白を当てる最小例です。headless-ui 自体はスタイルを持ちません。root（role=\"listitem\"）は message::group（role=\"list\"）でラップし required context を満たします。",
         vec![
             node,
             pre(
