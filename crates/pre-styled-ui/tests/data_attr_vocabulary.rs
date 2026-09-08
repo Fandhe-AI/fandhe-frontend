@@ -348,6 +348,83 @@ fn input_group_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains("[data-align="));
 }
 
+/// `item.rs`（イシュー #2066、親 #2064）は独自の `data-*` を一切出力しない
+/// （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B。
+/// `item.rs` モジュール doc「variant / size の表現」節参照）。styled
+/// `root`/`media` に現れる `data-variant`/`data-size`、`group` の
+/// `role`/`aria-label`、`separator` の `role`/`aria-orientation`/
+/// `data-orientation` はすべて headless `fandhe_frontend_headless_ui::item`
+/// が生成するものであり、`item::stylesheet()` はそれらの属性を CSS
+/// セレクタとして**参照する**だけで自前出力はしない、という事実を固定する
+/// （`input_group_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。
+#[test]
+fn item_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::item::{
+        self, ItemMediaVariant, ItemRootProps, ItemSize, ItemVariant,
+    };
+
+    // 既定値のとき、`data-variant="default"`/`data-size="default"` が
+    // headless 経由で出力される（styled `root` 自身は data-* を組み立て
+    // ない）。
+    let root_html = render(&item::root(ItemRootProps::default(), vec![], vec![]));
+    assert!(root_html.contains(r#"data-variant="default""#));
+    assert!(root_html.contains(r#"data-size="default""#));
+
+    // `data-variant`（root）は `ItemVariant` 引数から headless が生成する。
+    for (variant, expected) in [
+        (ItemVariant::Default, "default"),
+        (ItemVariant::Outline, "outline"),
+        (ItemVariant::Muted, "muted"),
+    ] {
+        let props = ItemRootProps {
+            variant,
+            ..Default::default()
+        };
+        let html = render(&item::root(props, vec![], vec![]));
+        assert!(html.contains(&format!(r#"data-variant="{expected}""#)));
+    }
+
+    // `data-size`（root）は `ItemSize` 引数から headless が生成する。
+    for (size, expected) in [(ItemSize::Default, "default"), (ItemSize::Sm, "sm")] {
+        let props = ItemRootProps {
+            size,
+            ..Default::default()
+        };
+        let html = render(&item::root(props, vec![], vec![]));
+        assert!(html.contains(&format!(r#"data-size="{expected}""#)));
+    }
+
+    // `data-variant`（media）は `ItemMediaVariant` 引数から headless が
+    // 生成する。
+    for (variant, expected) in [
+        (ItemMediaVariant::Default, "default"),
+        (ItemMediaVariant::Icon, "icon"),
+        (ItemMediaVariant::Image, "image"),
+    ] {
+        let html = render(&item::media(variant, vec![], vec![]));
+        assert!(html.contains(&format!(r#"data-variant="{expected}""#)));
+    }
+
+    // `group`/`separator` の role・aria-* も headless 由来（styled 側は
+    // 一切組み立てない）。
+    let group_html = render(&item::group("Recent", vec![], vec![]));
+    assert!(group_html.contains(r#"role="group""#));
+    assert!(group_html.contains(r#"aria-label="Recent""#));
+    let separator_html = render(&item::separator(vec![], vec![]));
+    assert!(separator_html.contains(r#"role="separator""#));
+    assert!(separator_html.contains(r#"aria-orientation="horizontal""#));
+    assert!(separator_html.contains(r#"data-orientation="horizontal""#));
+
+    // `item::stylesheet()` は `[data-variant=`/`[data-size=`/`[href]` を
+    // CSS セレクタとして参照するだけで、自前で `data-*` を組み立てて出力
+    // する経路（属性タプルの直接構築）を持たない。
+    let css = item::stylesheet();
+    assert!(css.contains("[data-variant="));
+    assert!(css.contains("[data-size="));
+    assert!(css.contains("[href]"));
+}
+
 /// `dialog.rs`（イシュー #1690、親 #1675）の pre-styled-only `footer` パート
 /// と alert-dialog 構成は独自の `data-*` を一切出力しない（`docs/design/
 /// pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B、
