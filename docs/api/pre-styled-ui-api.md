@@ -11,17 +11,17 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 111 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 112 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
-`fieldset` はイシュー #1686、`input_group` はイシュー #2063、
-`button_group` はイシュー #2060 で追加）+
+`fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
+イシュー #2066、`button_group` はイシュー #2060 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。106 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。112 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
 操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
@@ -55,7 +55,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 基盤 | `css` | — |
 | 基盤 | `recipe`（詳細は [`pre-styled-recipe-api.md`](./pre-styled-recipe-api.md)） | — |
 | 基盤 | `stylesheet`（CSS 集約・配布ヘルパ、§4a 参照） | — |
-| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `callout` / `card`（`button` は `icon_button`/`close_button` を icon-only 修飾 variant として提供。独立部品ではなく `button` recipe の非公開 variant であり `data-scope="button"` を共有する。`icon_size_for` がボタン size からアイコン size を決定的に写像し（イシュー #1674）、`close_button` はこれを内蔵する。`callout` は本文中の補足情報向け静的部品で、`alert` と異なり live region ではないため `role` を付与しない、イシュー #994） | [button](../../site/themes/button.md) / [badge](../../site/themes/badge.md) / [spinner](../../site/themes/spinner.md) / [alert](../../site/themes/alert.md) / [callout](../../site/themes/callout.md) / [card](../../site/themes/card.md) |
+| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `callout` / `card`（`button` は `icon_button`/`close_button` を icon-only 修飾 variant として提供。独立部品ではなく `button` recipe の非公開 variant であり `data-scope="button"` を共有する。`icon_size_for` がボタン size からアイコン size を決定的に写像し（イシュー #1674）、`close_button` はこれを内蔵する。`callout` は本文中の補足情報向け静的部品で、`alert` と異なり live region ではないため `role` を付与しない、イシュー #994。`spinner` の `spinner_decorative`（`aria-hidden` の装飾用、#2051 で `pub(crate)` から公開化）は Button 末尾配置・Badge・Empty state 等の合成に使う） | [button](../../site/themes/button.md) / [badge](../../site/themes/badge.md) / [spinner](../../site/themes/spinner.md) / [alert](../../site/themes/alert.md) / [callout](../../site/themes/callout.md) / [card](../../site/themes/card.md) |
 | 単純 styled 部品 | `skeleton`（ローディングプレースホルダー。形状軸 `variant`（`text`/`circle`/`rect`）+ アニメーション軸 `animation`（`pulse`(既定)/`shine`/`none`、イシュー #1566）、常時 `aria-hidden="true"`、`color-palette`/`size` 軸は非提供、`prefers-reduced-motion: reduce` でアニメーション停止） | [skeleton](../../site/themes/skeleton.md) |
 | 単純 styled 部品 | `image`（写真等の静的コンテンツを表示する `<img>`。`ImageFit`（`object-fit`）/`AspectRatio`（`Auto`/`Square`/`Landscape`/`Portrait`/`Video`）/`ImageShape`（角丸、`Square`/`Rounded`/`Circle`）の 3 軸 variant、`alt` 必須引数。base は `height: auto` を持つ（イシュー #1562）。headless-ui `avatar` の `ImageStatus` 状態機械とは独立。中立的な表示部品のため `color-palette` 軸は非提供） | [image](../../site/themes/image.md) |
 | 単純 styled 部品 | `icon`（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ（`Xs`〜`Xl` の 5 段、既定 `Md`。イシュー #1561 で chakra-ui 同名段の実寸へ是正）、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） | [icon](../../site/themes/icon.md) |
@@ -73,6 +73,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 静的フォーム部品 | `field`（§4f-1 参照。ラベル・補助テキスト・エラーテキストの型階層、`orientation` 軸のみ） | [field](../../site/themes/field.md) |
 | 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | [fieldset](../../site/themes/fieldset.md) |
 | 静的フォーム部品 | `input_group`（§4f-3 参照。入力欄の前後 addon、軸なし） | [input-group](../../site/themes/input-group.md) |
+| headless ラッパー | `item`（§4f-4 参照。media + title/description + actions からなる汎用リスト行。`variant`/`size` は headless の `data-variant`/`data-size` を AttrEq 参照するのみで class ベース軸を持たない） | [item](../../site/themes/item.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -104,7 +105,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `hover_card`（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） | [hover-card](../../site/themes/hover-card.md) |
 | headless ラッパー | `toggle_tip`（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） | [toggle-tip](../../site/themes/toggle-tip.md) |
 | headless ラッパー | `collapsible`（glob 再エクスポート。参照 3 サイト（chakra-ui/Ark UI/Radix Primitives）のいずれも `size`/`variant`/`color-palette` を持たないため variant 軸は非提供。開閉時の高さアニメーションは JS 計測の関心のため非採用。イシュー #1682/#1683） | [collapsible](../../site/themes/collapsible.md) |
-| headless ラッパー | `progress`（イシュー #1564。headless の値状態機械 `Progress` が持つ Track/Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の両方へ CSS を追加提供。`Progress` 型はあえて再エクスポートせず、`ProgressProps`（`size`/`variant`/`color-palette` の 3 軸）を付与する styled `root` と、determinate 時のみ `--fandhe-progress-percent` を付与する styled `range` の 2 つを新設する。track/circle 系は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時のアニメーション（linear は横スライド・circular は回転）は `[data-part="..."][data-state="indeterminate"]` セレクタ + `@keyframes` で提供し、`prefers-reduced-motion: reduce` で停止する。イシュー #1688: circular indeterminate は circle 全体の回転に加え、circle-range へ固定長の弧〔`stroke-dasharray`〕を与えて塗り色の完全リングと `complete` 状態を視覚的に区別できるようにする） | [progress](../../site/themes/progress.md) |
+| headless ラッパー | `progress`（イシュー #1564。headless の値状態機械 `Progress` が持つ Track/Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の両方へ CSS を追加提供。`Progress` 型はあえて再エクスポートせず、`ProgressProps`（`size`/`variant`/`color-palette` の 3 軸）を付与する styled `root` と、determinate 時のみ `--fandhe-progress-percent` を付与する styled `range` の 2 つを新設する。track/circle 系は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時のアニメーション（linear は横スライド・circular は回転）は `[data-part="..."][data-state="indeterminate"]` セレクタ + `@keyframes` で提供し、`prefers-reduced-motion: reduce` で停止する。イシュー #1688: circular indeterminate は circle 全体の回転に加え、circle-range へ固定長の弧〔`stroke-dasharray`〕を与えて塗り色の完全リングと `complete` 状態を視覚的に区別できるようにする。イシュー #2049: shadcn/ui と突合し `ProgressVariant::Plain`（枠線なし中立トラック）を純追加） | [progress](../../site/themes/progress.md) |
 | 単純 styled 部品（静的） | `tag` / `kbd` / `code`（`tag` は `variant`（Solid/Subtle（既定）/Outline/Surface の 4 値、イシュー #1573 で Surface を追加）/`size`/`color-palette` の 3 軸 variant を持つ root/label/close-trigger の 3 パーツ。`badge` と同型の判断。close-trigger は状態機械を持たず `data-action` 属性の出力のみを担う。`code` は variant 軸を持たない単一 slot。`kbd` は `variant`（raised（既定）/subtle/outline の 3 値、イシュー #1436）/`size`/`color-palette` の 3 軸 variant を持つ `root` slot に加え、`group`〔shadcn/ui `KbdGroup` 相当、イシュー #2048〕の pre-styled-only 2 slot 構成） | [tag](../../site/themes/tag.md) / [kbd](../../site/themes/kbd.md) / [code](../../site/themes/code.md) |
 | 状態機械を要しない静的部品 | `status` / `empty_state`（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） | [status](../../site/themes/status.md) / [empty-state](../../site/themes/empty-state.md) |
 | headless ラッパー | `clipboard`（`hover_card`/`toggle_tip` と同型の判断で variant は非提供。Indicator の可視性切り替えは `avatar` の image/fallback と同型の `data-state` 多層防御パターン。`navigator.clipboard.writeText` 実配線は `fandhe-frontend-wasm-full::headless_clipboard` が提供） | [clipboard](../../site/themes/clipboard.md) |
@@ -771,6 +772,48 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   参照するだけで、値の妥当性判定・送信処理は実装しない。
 - **docs サイト**: [input-group](../../site/themes/input-group.md)
   （イシュー #2063 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-4. `item`（media + title/description + actions の汎用リスト行、イシュー #2066、headless anatomy は #2065）
+
+`item` モジュールは `fandhe_frontend_headless_ui::item` の anatomy
+（`root`/`media`/`content`/`title`/`description`/`actions`/`header`/
+`footer`/`group`/`separator` の 10 パーツ）へ、shadcn/ui の `Item` 相当の
+見た目を重ねる薄い委譲層である。
+
+- **公開 API**: 10 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::input_group` と同型のパターン）。
+  `ItemRootProps`/`ItemVariant`/`ItemSize`/`ItemMediaVariant` は headless
+  からの選択的再エクスポート。`stylesheet()`（`css()` ではない）が静的
+  CSS 全量を返す。
+- **variant/size は headless の `data-*` を `AttrEq` で参照するのみ
+  （意図的差分その 1）**: headless `item::root` が固定出力する
+  `data-variant`（`default`/`outline`/`muted`）/`data-size`（`default`/
+  `sm`）、`item::media` の `data-variant`（`default`/`icon`/`image`）を
+  `StateCondition::AttrEq` で参照するのみで、class ベースの
+  `SlotRecipe::variant`/`SlotRecipe::size_variants` は持たない
+  （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2「役割 B:
+  参照のみ」）。`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+  §4 (b) が container 部品に求める 5 段 `Size` 軸は、item の size が
+  headless 層で shadcn 語彙（2 値）へ固定済みのため二重符号化を避けて
+  新設しない。
+- **リンク時 hover: `[href]` 状態 + custom property 間接参照（意図的差分
+  その 2）**: `SlotRecipe` は `[href]:hover` の複合条件を表現できないため、
+  `crate::badge::link` と同じ `StateCondition::Attr("href")` パターンを
+  踏襲する。`root` base で `--fandhe-item-bg`/`--fandhe-item-hover-bg` の
+  2 個の custom property を定義し、hover 規則は
+  `background: var(--fandhe-item-hover-bg, var(--fandhe-item-bg))` の
+  ように fallback 付きで参照する（fallback を欠くと `href` を持たない
+  `div` root で背景が透明化する回帰があり、golden テストで固定済み）。
+- **raw CSS 追記**: `SlotRecipe` は子孫セレクタを表現できないため、
+  `stylesheet()` は `media[data-variant="image"] > img` への
+  `object-fit: cover` リセットを `serialize_rule` で追記する
+  （`crate::input_group` と同型のパターン）。
+- **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
+  §3.25 規則 1 のとおり、本モジュールはアプリケーションロジックを実装
+  しない。
+- **docs サイト**: [item](../../site/themes/item.md)
+  （イシュー #2066 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

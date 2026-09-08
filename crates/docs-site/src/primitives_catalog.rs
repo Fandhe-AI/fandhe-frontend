@@ -3,8 +3,9 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! `/primitives/<kebab>/` 65 ページ（イシュー #2062 で `input_group`・
-//! イシュー #2059 で `button_group` を追加、旧 63）の「どの部品が・どの
+//! `/primitives/<kebab>/` 67 ページ（イシュー #2068 で `command` を追加、
+//! 旧 66。#2065 で `item` を追加、旧 65。#2062 で `input_group`・#2059 で
+//! `button_group` を追加、旧 63）の「どの部品が・どの
 //! URL に・どの表示名
 //! で・どのカテゴリに属するか」の唯一の正。#1021（nav 登録・ページ生成）と
 //! #1024〜#1029（原稿充填）が本モジュールを一次情報として参照する。
@@ -21,13 +22,14 @@
 //! # 判別規約（設計 §6 の要旨）
 //!
 //! `crates/headless-ui/src/*.rs` のうち本文に `anatomy(` を含むもの
-//! （`anatomy.rs` 自身を除く）が部品 65 件（イシュー #2062 で `input_group`・
-//! イシュー #2059 で `button_group` が加わり 63 → 65）、基盤モジュール
-//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 75 件が
+//! （`anatomy.rs` 自身を除く）が部品 67 件（イシュー #2068 で `command`
+//! が加わり 66 → 67。#2065 で `item` が加わり 65 → 66。#2062 で
+//! `input_group`・#2059 で `button_group` が加わり 63 → 65）、基盤モジュール
+//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 77 件が
 //! `crates/headless-ui/src/*.rs` の総数（実測:
-//! `ls crates/headless-ui/src/*.rs | wc -l` => 75、
+//! `ls crates/headless-ui/src/*.rs | wc -l` => 77、
 //! `grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l`
-//! => 65）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
+//! => 67）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
 //! 責務。
 
 use std::collections::BTreeSet;
@@ -58,7 +60,8 @@ pub struct PrimitiveEntry {
 /// （`src` 内ユニットテスト・`tests/primitives_catalog.rs` の双方）が固定する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PrimitiveCategory {
-    /// Forms A（12 件、原稿は #1024。イシュー #2062 で `input_group` 追加、旧 11）。
+    /// Forms A（13 件、原稿は #1024。イシュー #2062 で `input_group`・
+    /// イシュー #2068 で `command` 追加、旧 11）。
     FormsA,
     /// Forms B（11 件、原稿は #1025）。
     FormsB,
@@ -68,7 +71,8 @@ pub enum PrimitiveCategory {
     OverlayDisclosure,
     /// Navigation（12 件、原稿は #1028。イシュー #2059 で button_group が追加され 11 → 12）。
     Navigation,
-    /// Data Display / Utilities（10 件、原稿は #1029）。
+    /// Data Display / Utilities（11 件、原稿は #1029。イシュー #2065 で
+    /// `item` が追加され 10 → 11）。
     DataDisplayUtilities,
 }
 
@@ -110,14 +114,16 @@ impl PrimitiveCategory {
     }
 }
 
-/// Primitives 台帳（65 件、イシュー #2062 で `input_group`・イシュー #2059 で
-/// `button_group` 追加、旧 63）。
+/// Primitives 台帳（67 件、イシュー #2068 で `command` 追加、旧 66。#2065 で
+/// `item` 追加、旧 65。#2062 で `input_group`・#2059 で `button_group` 追加、
+/// 旧 63）。
 ///
 /// 並びは設計 §7 のグループ順・グループ内記載順を**逐語で保存する**
 /// （#1021 が「1020 の台帳順」で nav へ登録するため、アルファベット順へ
 /// 正規化してはならない）。
 pub const PRIMITIVES: &[PrimitiveEntry] = &[
-    // --- Forms A（12、#1024。イシュー #2062 で input_group 追加、旧 11） ---
+    // --- Forms A（13、#1024。イシュー #2062 で input_group・
+    // イシュー #2068 で command 追加、旧 11） ---
     PrimitiveEntry {
         module: "angle_slider",
         path: "/primitives/angle-slider/",
@@ -146,6 +152,15 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         module: "combobox",
         path: "/primitives/combobox/",
         title: "Combobox",
+        category: PrimitiveCategory::FormsA,
+    },
+    PrimitiveEntry {
+        // Themes ページ（`/themes/command/`）は後続イシュー #2070 で実装予定
+        // （headless-ui 層のみ先行、`PRIMITIVES_WITHOUT_THEMES_PAGE` 参照。
+        // `button_group` #2059 と同じ経緯）。
+        module: "command",
+        path: "/primitives/command/",
+        title: "Command",
         category: PrimitiveCategory::FormsA,
     },
     PrimitiveEntry {
@@ -466,7 +481,7 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         title: "Toolbar",
         category: PrimitiveCategory::Navigation,
     },
-    // --- Data Display / Utilities（10、#1029） ---
+    // --- Data Display / Utilities（11、#1029。イシュー #2065 で item 追加、旧 10） ---
     PrimitiveEntry {
         module: "avatar",
         path: "/primitives/avatar/",
@@ -477,6 +492,12 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         module: "carousel",
         path: "/primitives/carousel/",
         title: "Carousel",
+        category: PrimitiveCategory::DataDisplayUtilities,
+    },
+    PrimitiveEntry {
+        module: "item",
+        path: "/primitives/item/",
+        title: "Item",
         category: PrimitiveCategory::DataDisplayUtilities,
     },
     PrimitiveEntry {
@@ -560,16 +581,25 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives。現在 0 件。`button_group` は #2059 時点では headless-ui 層
-/// のみを実装しており暫定的にこの台帳へ載っていたが、イシュー #2060 で
-/// Themes 層（`crates/pre-styled-ui/src/button_group.rs`・
+/// Primitives。現在 1 件（`command`）。`button_group` は #2059 時点では
+/// headless-ui 層のみを実装しており暫定的にこの台帳へ載っていたが、イシュー
+/// #2060 で Themes 層（`crates/pre-styled-ui/src/button_group.rs`・
 /// `site/themes/button-group.md`）を実装済みのため除外した（`collapsible`/
-/// `field`/`fieldset`/`input_group` と同じ経緯）。
+/// `field`/`fieldset`/`input_group` と同じ経緯）。`command` も同じ経緯で
+/// イシュー #2068 時点では headless-ui 層のみを実装しており、Themes ページ・
+/// pre-styled-ui recipe は後続 #2070 で追加する。`input_group` はイシュー
+/// #2062 が headless-ui 層を新設した時点では暫定的にこの台帳へ載っていたが、
+/// イシュー #2063 で Themes 層（`crates/pre-styled-ui/src/input_group.rs`・
+/// `site/themes/input-group.md`）を実装済みのため除外した（`collapsible`/
+/// `field`/`fieldset` と同じ経緯）。`item` も同様にイシュー #2065 が
+/// headless-ui 層を新設した時点では暫定的にこの台帳へ載っていたが、
+/// イシュー #2066 で Themes 層（`crates/pre-styled-ui/src/item.rs`・
+/// `site/themes/item.md`）を実装済みのため除外した。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &[];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["command"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
@@ -756,22 +786,24 @@ mod tests {
         assert!(result.is_clean(), "{result:?}");
     }
 
-    /// 台帳が 65 件・6 カテゴリで、件数配分（12/11/10/10/12/10）と
-    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2062 で
-    /// `input_group` が Forms A へ追加され Forms A は 11 → 12、イシュー
-    /// #2059 で `button_group` が Navigation へ追加され Navigation は
-    /// 11 → 12）。
+    /// 台帳が 67 件・6 カテゴリで、件数配分（13/11/10/10/12/11）と
+    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2065 で `item`
+    /// が Data Display / Utilities へ追加され同カテゴリは 10 → 11、イシュー
+    /// #2062 で `input_group` が Forms A へ追加され Forms A は 11 → 12、
+    /// イシュー #2059 で `button_group` が Navigation へ追加され
+    /// Navigation は 11 → 12、イシュー #2068 で `command` が Forms A へ
+    /// 追加され Forms A は 12 → 13）。
     #[test]
-    fn catalog_has_65_entries_in_six_categories_in_spec_order() {
-        assert_eq!(PRIMITIVES.len(), 65);
+    fn catalog_has_67_entries_in_six_categories_in_spec_order() {
+        assert_eq!(PRIMITIVES.len(), 67);
 
         let expected_order_and_counts: [(PrimitiveCategory, usize); 6] = [
-            (PrimitiveCategory::FormsA, 12),
+            (PrimitiveCategory::FormsA, 13),
             (PrimitiveCategory::FormsB, 11),
             (PrimitiveCategory::FormsCDateStatus, 10),
             (PrimitiveCategory::OverlayDisclosure, 10),
             (PrimitiveCategory::Navigation, 12),
-            (PrimitiveCategory::DataDisplayUtilities, 10),
+            (PrimitiveCategory::DataDisplayUtilities, 11),
         ];
 
         assert_eq!(

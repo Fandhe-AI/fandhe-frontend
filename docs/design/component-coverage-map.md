@@ -409,7 +409,7 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/display/avatar.md` | Avatar | Avatar | Avatar (`avatar`) | Avatar (`avatar`) | Avatar (`avatar`) | `avatar` | `avatar` | 実装済み | headless+styled 実装済み（#731 MutationObserver 対応込み）。#1659 で参照突合済み（anatomy/data-state/ARIA とも一致し是正なし。Demo の壊れた画像参照を実アセットへ是正）。#2044 で shadcn/ui と突合し pre-styled 側の欠落を補完: `AvatarBadge`（右下の状態ドット）と `AvatarGroup`（重なり表示 + `+N`）の 2 合成パターンを pre-styled-only `badge`/`group` パートとして追加（headless-ui 非変更）。`+N` は独立パートを新設せず `root(stacked: true) + fallback` の組み合わせで表現 |
-| `.agents/skills/ark-ui/references/components/display/progress-linear.md` | Progress (linear) | Progress | Progress (`progress`) | Progress (`progress`) | Progress (`progress`) | `progress` | `progress` | 実装済み | headless+styled（root/range）実装済み。#1564 で linear（Track/Range）styled CSS・`ProgressVariant`/`ColorPalette` 軸を新設し pre-styled ラッパー未実装状態を解消。#1633 で参照突合済み（label の data-orientation・value_text の aria-live を是正） |
+| `.agents/skills/ark-ui/references/components/display/progress-linear.md` | Progress (linear) | Progress | Progress (`progress`) | Progress (`progress`) | Progress (`progress`) | `progress` | `progress` | 実装済み | headless+styled（root/range）実装済み。#1564 で linear（Track/Range）styled CSS・`ProgressVariant`/`ColorPalette` 軸を新設し pre-styled ラッパー未実装状態を解消。#1633 で参照突合済み（label の data-orientation・value_text の aria-live を是正）。#2049 で shadcn/ui と突合し `ProgressVariant::Plain`（枠線なし中立トラック）を純追加。track 高さ・RTL・value 自動整形は意図的非採用 |
 | `.agents/skills/ark-ui/references/components/display/progress-circular.md` | Progress (circular) | ProgressCircle | — | — | — | `progress` | `progress` | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加）。#1688 で親 #1673 の前提食い違い（linear のみという誤認）を訂正し、参照元（chakra-ui のみが circular を持つ）との突合で indeterminate の弧表現を是正。#1689 で Themes ページ（`/themes/progress/`、単一ページのまま）の Demo・原稿を circular indeterminate 弧表現へ追随 |
 | `.agents/skills/ark-ui/references/components/display/clipboard.md` | Clipboard | Clipboard | — | — | — | `clipboard` | `clipboard` | 実装済み | headless+styled+wasm 配線 実装済み（#773、PR #816） |
 | `.agents/skills/ark-ui/references/components/display/qr-code.md` | QrCode | QrCode | — | — | — | `qr_code` | `qr_code` | 実装済み | headless+styled 実装済み（#774）。#1634 で参照突合済み（frame の xmlns・role 条件付与を是正） |
@@ -655,12 +655,12 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/feedback/progress.md` | Progress (linear) | Progress | — | — | — | `progress` | `progress` | 実装済み | headless+styled（root/range）実装済み。#1564 で linear（Track/Range）styled CSS・`ProgressVariant`/`ColorPalette` 軸を新設し pre-styled ラッパー未実装状態を解消 |
+| `.agents/skills/chakra-ui/references/components/feedback/progress.md` | Progress (linear) | Progress | — | — | — | `progress` | `progress` | 実装済み | headless+styled（root/range）実装済み。#1564 で linear（Track/Range）styled CSS・`ProgressVariant`/`ColorPalette` 軸を新設し pre-styled ラッパー未実装状態を解消。#2049 で shadcn/ui と突合し `ProgressVariant::Plain`（枠線なし中立トラック）を純追加。track 高さ・RTL・value 自動整形は意図的非採用 |
 | `.agents/skills/chakra-ui/references/components/feedback/alert.md` | — | Alert | — | — | Alert (`alert`) | — | `alert` | 実装済み | pre-styled 静的部品 実装済み |
-| `.agents/skills/chakra-ui/references/components/feedback/spinner.md` | — | Spinner | — | Spinner (`spinner`) | Spinner (`spinner`) | — | `spinner` | 実装済み | pre-styled 静的部品 実装済み。#1567 でスタイルを参考サイト基準へ調整（半円弧・トラック透明既定・size 5 段を chakra 一致・reduced-motion 停止） |
+| `.agents/skills/chakra-ui/references/components/feedback/spinner.md` | — | Spinner | — | Spinner (`spinner`) | Spinner (`spinner`) | — | `spinner` | 実装済み | pre-styled 静的部品 実装済み。#1567 でスタイルを参考サイト基準へ調整（半円弧・トラック透明既定・size 5 段を chakra 一致・reduced-motion 停止）。#2051 で shadcn/ui と突合（欠落 variant/state なし。`spinner_decorative` を公開 API 化、Button/Badge/Empty state 合成例を Examples へ追加） |
 | `.agents/skills/chakra-ui/references/components/feedback/toast.md` | Toast | Toast | — | — | — | `toast` | `toast` | 実装済み | headless+styled 実装済み（#760。#1643 で chakra-ui v3 Toast とも突合済み、`Indicator` パート・`loading` type は見送り） |
 | `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | — | — | — | `progress` | `progress` | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加）。#1688 で唯一の circular 参照元として突合し、indeterminate の弧表現を追加是正（size の px 換算値・value-text 中央配置・`circular-progress` keyframes は意図的に不採用）。#1689 で Themes ページ（`/themes/progress/`、単一ページのまま）の Demo・原稿を circular indeterminate 弧表現へ追随 |
-| `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | Skeleton (`skeleton`) | Skeleton (`skeleton`) | — | `skeleton` | 実装済み | #764。pre-styled 静的部品 実装済み。#1566 でスタイルを参考サイト基準へ調整（`bg-emphasized` 背景・`animation` 軸追加） |
+| `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | Skeleton (`skeleton`) | Skeleton (`skeleton`) | — | `skeleton` | 実装済み | #764。pre-styled 静的部品 実装済み。#1566 でスタイルを参考サイト基準へ調整（`bg-emphasized` 背景・`animation` 軸追加）。#2050 で shadcn/ui と突合（欠落 variant/state なし。shimmer は text 向け utility のため不採用、Card/Text/Form/Table 合成例を Examples へ追加） |
 | `.agents/skills/chakra-ui/references/components/feedback/status.md` | — | Status | — | — | — | — | `status` | 実装済み | pre-styled 静的部品 実装済み（#765） |
 | `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | — | Empty (`empty`) | — | `empty_state` | 実装済み | pre-styled 静的部品 実装済み（#765） |
 
@@ -983,7 +983,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 |---|---|---|---|---|---|---|---|---|---|
 | —（対応 md なし） | — | — | — | — | Button Group (`button-group`) | `button_group` | `button_group` | 実装済み | headless+styled 実装済み（#2059 anatomy / #2060 recipe・Themes ページ）。root/separator/text の 3 slot + `data-orientation`、軸なし |
 | —（対応 md なし） | — | — | — | — | Input Group (`input-group`) | `input_group` | `input_group` | 実装済み | headless+styled 実装済み（#2062 anatomy / #2063 recipe・Themes ページ）。root/addon/text/button の 4 slot + `data-align` 4 値、軸なし |
-| —（対応 md なし） | — | — | — | — | Item (`item`) | — | — | 実装対象 | リスト項目の汎用 anatomy（アイコン・テキスト・アクションの組み合わせ）。Phase 4、#2064 |
+| —（対応 md なし） | — | — | — | — | Item (`item`) | `item` | `item` | 実装済み | headless+styled 実装済み（#2065 anatomy / #2066 recipe・Themes ページ）。root/media/content/title/description/actions/header/footer/group/separator の 10 slot、`data-variant`/`data-size` を AttrEq 参照 |
 | —（対応 md なし） | — | — | — | — | Command (`command`) | — | — | 実装対象 | コマンドパレット（検索付き選択 UI）の anatomy。Phase 4、#2067 |
 | —（対応 md なし） | — | — | — | — | Sidebar (`sidebar`) | — | — | 実装対象 | アプリケーションシェルのサイドバー anatomy。Phase 4、#2071 |
 | —（対応 md なし） | — | — | — | — | Message (`message`) | — | — | 実装対象 | AI チャット UI のメッセージ表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2104。判定根拠の詳細は #2006 が §12 へ転記 |
@@ -1328,7 +1328,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 |---|---|---|---|
 | Button Group (`button-group`) | Part F | #2058 | 実装済み（#2059 / #2060） |
 | Input Group (`input-group`) | Part F | #2061 | 実装済み（#2062 / #2063） |
-| Item (`item`) | Part F | #2064 | 実装対象確定（Phase 4） |
+| Item (`item`) | Part F | #2064 | 実装済み（#2065 / #2066） |
 | Command (`command`) | Part F | #2067 | 実装対象確定（Phase 4） |
 | Sidebar (`sidebar`) | Part F | #2071 | 実装対象確定（Phase 4） |
 | Message (`message`) | Part F | #2104 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |

@@ -41,6 +41,7 @@ use fandhe_frontend_pre_styled_ui::{
     alert, avatar, badge, breadcrumb,
     button::{button, ButtonProps, ButtonVariant},
     callout, card, carousel, color_swatch, data_list, empty_state, field, icon, image,
+    item::{self, ItemMediaVariant, ItemRootProps},
     json_tree_view, marquee, native_select, pagination, progress, scroll_area, separator, skeleton,
     spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline, tree_view, AlertProps,
     ColorPalette, Orientation, Size,
@@ -1003,6 +1004,35 @@ fn ex_progress_circle() -> Node {
     )
 }
 
+// イシュー #2049: shadcn/ui "Label and Value" の既定表現（枠線なし中立
+// トラック + label/value 併記）を、shadcn の TSX/Tailwind をそのまま複製
+// せずノード木 API で書き直して再現する（`docs/policy/intentional-non-
+// adoption.md` §4 相当の判断、`crates/pre-styled-ui/src/progress.rs`
+// rustdoc「イシュー #2049: shadcn/ui との突合」節参照）。
+fn ex_progress_plain() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress::{ProgressProps, ProgressVariant};
+    let p = Progress::new(0.0, 100.0, Some(56.0), Orientation::Horizontal);
+    let props = ProgressProps {
+        variant: ProgressVariant::Plain,
+        ..ProgressProps::default()
+    };
+    progress::root(
+        &p,
+        &props,
+        Some("56%"),
+        vec![("aria-labelledby", "progress-plain-label")],
+        vec![
+            p.label(
+                vec![("id", "progress-plain-label")],
+                vec![fandhe_frontend_core::text("Upload progress")],
+            ),
+            p.value_text(vec![], vec![fandhe_frontend_core::text("56%")]),
+            p.track(vec![], vec![progress::range(&p, vec![])]),
+        ],
+    )
+}
+
 // イシュー #1689: #1688 で circle-range の indeterminate（[data-state="indeterminate"]）
 // へ固定弧（円周の 1/4、stroke-dasharray）を追加した契約を Themes ページの
 // Examples へ反映する。value=None（indeterminate）の circular Progress を
@@ -1033,13 +1063,14 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
         "value が None（indeterminate）のとき [data-state=\"indeterminate\"] でアニメーション（linear は横スライド・circular は回転）を付与し、prefers-reduced-motion: reduce で停止する",
         "ProgressProps（size/variant/color-palette の 3 軸）を root へ付与する。styled range() が --fandhe-progress-percent を determinate 時のみ付与する",
         "circle-range の [data-state=\"indeterminate\"] へ固定長の弧（--fandhe-progress-circumference = 2πr、stroke-dasharray で円周の 1/4）を与え、circle の回転と組み合わせて complete（完全リング）と視覚的に区別する。新規 @keyframes は追加せず reduced-motion 下でも弧が残る（crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #1688: circle-range indeterminate の固定弧」節・テスト circle_range_indeterminate_state_declares_fixed_arc_dasharray）",
+        "ProgressVariant::Plain（枠線なしの中立トラック）は shadcn/ui 既定表現を突合して補完した variant（イシュー #2049）。既存 Outline/Subtle の CSS 出力・既定 variant はバイト不変（crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #2049: shadcn/ui との突合」節）",
     ],
     arguments: &[
         ArgRow {
             name: "props",
             kind: "&ProgressProps",
             default: "ProgressProps::default()",
-            description: "size（既定 Md）/variant（既定 Outline）/palette（既定 Accent）の 3 軸をまとめた設定（progress.rs）。",
+            description: "size（既定 Md）/variant（既定 Outline、Outline/Subtle/Plain の 3 値）/palette（既定 Accent）の 3 軸をまとめた設定（progress.rs）。",
         },
         ArgRow {
             name: "aria_valuetext",
@@ -1064,6 +1095,11 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
             description: "value=None の indeterminate circular progress の例です。circle 全体の回転に加え、circle-range へ円周の 1/4 分の固定弧（stroke-dasharray）を与え、complete（完全なリング）と区別します（イシュー #1688）。",
             render: ex_progress_circle_indeterminate,
         },
+        ExampleEntry {
+            title: "Label + Value (Plain variant)",
+            description: "shadcn/ui 既定表現（枠線なしの中立トラック）に相当する ProgressVariant::Plain の例です。label + value 併記で shadcn の \"Label and Value\" 例をノード木 API で再現しています（イシュー #2049）。",
+            render: ex_progress_plain,
+        },
     ],
     keyboard: &[],
     aria: &[AriaRow {
@@ -1083,36 +1119,229 @@ fn ex_skeleton() -> Node {
     )
 }
 
+/// shadcn/ui Avatar 例に相当（イシュー #2050）。Circle（サイズ上書き）+
+/// 縦積みの Text 2 本を横並びで組み合わせる。追加 API 不要、`style` 属性の
+/// 上書きのみで再現できる。
+fn ex_skeleton_avatar() -> Node {
+    div(
+        vec![("style", "display: flex; align-items: center; gap: 1rem;")],
+        vec![
+            skeleton::skeleton(
+                &skeleton::SkeletonProps {
+                    variant: skeleton::SkeletonVariant::Circle,
+                    ..Default::default()
+                },
+                vec![("style", "--fandhe-skeleton-size: 2.5rem;")],
+            ),
+            div(
+                vec![(
+                    "style",
+                    "display: flex; flex-direction: column; gap: 0.5rem;",
+                )],
+                vec![
+                    skeleton::skeleton(
+                        &skeleton::SkeletonProps::default(),
+                        vec![("style", "width: 9.5rem;")],
+                    ),
+                    skeleton::skeleton(
+                        &skeleton::SkeletonProps::default(),
+                        vec![("style", "width: 6.5rem;")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui Card 例に相当（イシュー #2050）。`card::root`/`card::header`/
+/// `card::body` と組み合わせ、Rect の `--fandhe-skeleton-height` を `auto`
+/// へ上書きして `aspect-ratio` を効かせる。
+fn ex_skeleton_card() -> Node {
+    card::root(
+        card::CardProps::default(),
+        vec![("style", "max-width: 20rem;")],
+        vec![
+            card::header(
+                vec![],
+                vec![
+                    skeleton::skeleton(
+                        &skeleton::SkeletonProps::default(),
+                        vec![("style", "width: 66%;")],
+                    ),
+                    skeleton::skeleton(
+                        &skeleton::SkeletonProps::default(),
+                        vec![("style", "width: 50%;")],
+                    ),
+                ],
+            ),
+            card::body(
+                vec![],
+                vec![skeleton::skeleton(
+                    &skeleton::SkeletonProps {
+                        variant: skeleton::SkeletonVariant::Rect,
+                        ..Default::default()
+                    },
+                    vec![(
+                        "style",
+                        "aspect-ratio: 16 / 9; --fandhe-skeleton-height: auto;",
+                    )],
+                )],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui Text 例に相当（イシュー #2050）。テキスト 3 本、最終行のみ
+/// 幅を詰めて段落末尾らしさを表現する。
+fn ex_skeleton_text() -> Node {
+    div(
+        vec![(
+            "style",
+            "display: flex; flex-direction: column; gap: 0.5rem; max-width: 20rem;",
+        )],
+        vec![
+            skeleton::skeleton(&skeleton::SkeletonProps::default(), vec![]),
+            skeleton::skeleton(&skeleton::SkeletonProps::default(), vec![]),
+            skeleton::skeleton(
+                &skeleton::SkeletonProps::default(),
+                vec![("style", "width: 75%;")],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui Form 例に相当（イシュー #2050）。「ラベル + 入力」の Rect
+/// 組を 2 つ縦積みし、末尾にボタン相当の Rect を置く。
+fn ex_skeleton_form() -> Node {
+    fn field(label_style: &'static str) -> Node {
+        div(
+            vec![(
+                "style",
+                "display: flex; flex-direction: column; gap: 0.5rem;",
+            )],
+            vec![
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps::default(),
+                    vec![("style", label_style)],
+                ),
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps {
+                        variant: skeleton::SkeletonVariant::Rect,
+                        ..Default::default()
+                    },
+                    vec![("style", "--fandhe-skeleton-height: 2rem;")],
+                ),
+            ],
+        )
+    }
+    div(
+        vec![(
+            "style",
+            "display: flex; flex-direction: column; gap: 1.75rem; max-width: 20rem;",
+        )],
+        vec![
+            field("width: 5rem;"),
+            field("width: 6rem;"),
+            skeleton::skeleton(
+                &skeleton::SkeletonProps {
+                    variant: skeleton::SkeletonVariant::Rect,
+                    ..Default::default()
+                },
+                vec![("style", "width: 6rem; --fandhe-skeleton-height: 2rem;")],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui Table 例に相当（イシュー #2050）。shadcn の実例どおり
+/// `table` 部品は使わず、`flex` 行 5 本 × Text 3 本で再現する。
+fn ex_skeleton_table() -> Node {
+    fn row() -> Node {
+        div(
+            vec![("style", "display: flex; gap: 1rem;")],
+            vec![
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps::default(),
+                    vec![("style", "flex: 1;")],
+                ),
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps::default(),
+                    vec![("style", "width: 6rem;")],
+                ),
+                skeleton::skeleton(
+                    &skeleton::SkeletonProps::default(),
+                    vec![("style", "width: 5rem;")],
+                ),
+            ],
+        )
+    }
+    div(
+        vec![(
+            "style",
+            "display: flex; flex-direction: column; gap: 0.5rem; max-width: 24rem;",
+        )],
+        vec![row(), row(), row(), row(), row()],
+    )
+}
+
 pub(crate) const SKELETON: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "SkeletonVariant（Text/Circle/Rect、crates/pre-styled-ui/src/skeleton.rs:138-149）で占位形状を切り替える",
-        "SkeletonAnimation（Pulse/Shine/None、skeleton.rs:169-181、イシュー #1566）で第 2 軸のアニメーション種別を切り替える",
-        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:364-369）",
-        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）",
+        "SkeletonVariant（Text/Circle/Rect、crates/pre-styled-ui/src/skeleton.rs:192-200）で占位形状を切り替える",
+        "SkeletonAnimation（Pulse/Shine/None、skeleton.rs:223-233、イシュー #1566）で第 2 軸のアニメーション種別を切り替える",
+        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:420）",
+        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:420、回帰テストは skeleton.rs:484）",
+        "イシュー #2050 で shadcn/ui と突合、欠落 variant/state なし。shimmer は text 向け utility のため不採用、Card/Text/Form/Table 合成例を Examples へ追加",
     ],
     arguments: &[
         ArgRow {
             name: "variant",
             kind: "SkeletonVariant",
             default: "Text",
-            description: "占位形状（skeleton.rs:138-149、#[default] は Text）。",
+            description: "占位形状（skeleton.rs:192-200、#[default] は Text）。",
         },
         ArgRow {
             name: "animation",
             kind: "SkeletonAnimation",
             default: "Pulse",
-            description: "アニメーション種別（skeleton.rs:169-181、#[default] は Pulse、イシュー #1566）。",
+            description: "アニメーション種別（skeleton.rs:223-233、#[default] は Pulse、イシュー #1566）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Circle",
-        description: "アバター等の占位に使う Circle variant の例です。",
-        render: ex_skeleton,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Circle",
+            description: "アバター等の占位に使う Circle variant の例です。",
+            render: ex_skeleton,
+        },
+        ExampleEntry {
+            title: "Avatar",
+            description: "shadcn/ui の Avatar 例に相当。Circle + 縦積み Text 2 本を横並びで組み合わせ、追加 API 不要で style 上書きのみで再現できます。",
+            render: ex_skeleton_avatar,
+        },
+        ExampleEntry {
+            title: "Card",
+            description: "shadcn/ui の Card 例に相当。card::header/card::body と組み合わせ、Rect の --fandhe-skeleton-height を auto へ上書きして aspect-ratio を効かせます。",
+            render: ex_skeleton_card,
+        },
+        ExampleEntry {
+            title: "Text",
+            description: "shadcn/ui の Text 例に相当。テキスト 3 本、最終行のみ幅を詰めて段落末尾らしさを表現します。",
+            render: ex_skeleton_text,
+        },
+        ExampleEntry {
+            title: "Form",
+            description: "shadcn/ui の Form 例に相当。ラベル + 入力の Rect 組を 2 つ縦積みし、末尾にボタン相当の Rect を置きます。",
+            render: ex_skeleton_form,
+        },
+        ExampleEntry {
+            title: "Table",
+            description: "shadcn/ui の Table 例に相当。table 部品は使わず、flex 行 5 本 × Text 3 本で再現します。",
+            render: ex_skeleton_table,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"",
-        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）。",
+        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:420、回帰テストは skeleton.rs:484）。",
     }],
     demo: None,
 };
@@ -1124,12 +1353,117 @@ fn ex_spinner() -> Node {
     })
 }
 
+/// shadcn/ui の Button 末尾配置例に相当（イシュー #2051）。`ButtonProps::
+/// loading` は Spinner を子ノード先頭へ固定配置するため、末尾配置は
+/// `spinner::spinner_decorative`（#2051 で公開 API 化）を呼び出し側が
+/// `children` 末尾へ直接組み込むことで再現する。ボタン自身の状態伝達は
+/// `aria-busy="true"`（`attrs` 経由で付与）が担うため、Spinner 側は
+/// `aria-hidden="true"` の装飾専用のまま冗長なライブリージョンを重ねない。
+fn ex_spinner_button() -> Node {
+    div(
+        vec![("style", "display: flex; gap: 0.75rem; flex-wrap: wrap;")],
+        vec![
+            button(
+                &ButtonProps {
+                    loading: true,
+                    ..ButtonProps::default()
+                },
+                vec![],
+                vec![text("Loading...")],
+            ),
+            button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("aria-busy", "true")],
+                vec![
+                    text("Processing"),
+                    spinner::spinner_decorative(Size::Sm, ColorPalette::Accent),
+                ],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui の Badge 合成例に相当（イシュー #2051）。装飾用途の
+/// `spinner_decorative` をラベルテキストの前へ並べる。Badge 自体は
+/// `role`/`aria-*` を持たないため、状態伝達は周囲のテキストが担う。
+fn ex_spinner_badge() -> Node {
+    div(
+        vec![("style", "display: flex; gap: 0.5rem; flex-wrap: wrap;")],
+        vec![
+            badge::badge(
+                &badge::BadgeProps {
+                    variant: badge::BadgeVariant::Subtle,
+                    ..badge::BadgeProps::default()
+                },
+                vec![],
+                vec![
+                    spinner::spinner_decorative(Size::Xs, ColorPalette::Accent),
+                    text("Syncing"),
+                ],
+            ),
+            badge::badge(
+                &badge::BadgeProps {
+                    variant: badge::BadgeVariant::Outline,
+                    palette: ColorPalette::Info,
+                    ..badge::BadgeProps::default()
+                },
+                vec![],
+                vec![
+                    spinner::spinner_decorative(Size::Xs, ColorPalette::Info),
+                    text("Updating"),
+                ],
+            ),
+        ],
+    )
+}
+
+/// shadcn/ui の Empty state 合成例に相当（イシュー #2051）。`indicator` に
+/// `role="status"` 付きの [`spinner::spinner`] をそのまま置き、title/
+/// description/actions で処理内容とキャンセル導線を伝える。
+fn ex_spinner_empty() -> Node {
+    empty_state::root(
+        &empty_state::EmptyStateProps::default(),
+        vec![],
+        vec![empty_state::content(
+            vec![],
+            vec![
+                empty_state::indicator(
+                    vec![],
+                    vec![spinner::spinner(&spinner::SpinnerProps {
+                        size: Size::Lg,
+                        label: "Processing",
+                        ..spinner::SpinnerProps::default()
+                    })],
+                ),
+                empty_state::title(vec![], vec![text("Processing your request")]),
+                empty_state::description(vec![], vec![text("This may take a few moments.")]),
+                empty_state::actions(
+                    vec![],
+                    vec![button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Outline,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("Cancel")],
+                    )],
+                ),
+            ],
+        )],
+    )
+}
+
 pub(crate) const SPINNER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "role=\"status\" + aria-label（既定 \"Loading\"）でスクリーンリーダーへ読み込み中を伝える（crates/pre-styled-ui/src/spinner.rs）",
-        "spinner_decorative（別関数）は role/aria-label を持たず aria-hidden=\"true\" のみを付与する（spinner.rs）",
+        "spinner_decorative は role/aria-label を持たず aria-hidden=\"true\" のみを付与する公開 API（Button 末尾配置・Badge・Input Group 等の合成用途、イシュー #2051 で pub(crate) から公開化、spinner.rs）",
         "size・colorPalette の 2 軸でサイズとセマンティック色を選択する（spinner.rs 冒頭）",
         "上・右 2 辺の弧で描画し、トラックは既定で透明（イシュー #1567、chakra-ui 基準）。--fandhe-spinner-track-color / --fandhe-spinner-thickness / --fandhe-spinner-duration の custom property で線色・線幅・回転速度を上書きできる",
+        "style=\"--fandhe-palette: currentColor\" を指定すると shadcn/ui 相当の親文字色追随を既存 API のまま再現できる（イシュー #2051）",
         "prefers-reduced-motion: reduce 環境では回転アニメーションを停止する（イシュー #1567）",
     ],
     arguments: &[
@@ -1152,11 +1486,28 @@ pub(crate) const SPINNER: ComponentPageSpec = ComponentPageSpec {
             description: "aria-label に渡すラベル文字列（spinner.rs）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Custom label",
-        description: "aria-label をカスタマイズした Spinner の例です。",
-        render: ex_spinner,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Custom label",
+            description: "aria-label をカスタマイズした Spinner の例です。",
+            render: ex_spinner,
+        },
+        ExampleEntry {
+            title: "In button",
+            description: "shadcn/ui の Button 先頭/末尾配置例に相当。先頭は ButtonProps::loading、末尾は spinner_decorative を children へ直接組み込みます。",
+            render: ex_spinner_button,
+        },
+        ExampleEntry {
+            title: "In badge",
+            description: "shadcn/ui の Badge 合成例に相当。spinner_decorative をラベルテキストの前へ並べます。",
+            render: ex_spinner_badge,
+        },
+        ExampleEntry {
+            title: "In empty state",
+            description: "shadcn/ui の Empty state 合成例に相当。indicator に role=\"status\" 付きの spinner を置きます。",
+            render: ex_spinner_empty,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"status\" + aria-label",
@@ -2433,6 +2784,118 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
     aria: &[AriaRow {
         attribute: "role=\"separator\" + aria-orientation",
         description: "orientation と連動し常に固定出力される（separator.rs:10, 17, 58-59）。",
+    }],
+    demo: None,
+};
+
+/// `/themes/item/` の Examples 節其の 1: variant/media variant の組み合わせ
+/// のうち代表 1 件（`crates/pre-styled-ui/src/item.rs` の `root`/`media`/
+/// `content`/`title`/`description` パーツを組み合わせる標準形）。
+fn ex_item_default() -> Node {
+    item::root(
+        ItemRootProps::default(),
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("IC")]),
+            item::content(
+                vec![],
+                vec![
+                    item::title(vec![], vec![text("Default item")]),
+                    item::description(
+                        vec![],
+                        vec![text("A generic list row with media and text.")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// `/themes/item/` の Examples 節其の 2: `href` を渡した root（`a` として
+/// 描画され hover 背景・`:focus-visible` リングが付く）+ `actions` パーツの
+/// 組み合わせ。`href=""`（空文字列）は linkcheck 中立性を保つための既存
+/// showcase デモと同型のパターン（`crate::showcase::item_section` 参照）。
+fn ex_item_with_link_and_actions() -> Node {
+    item::root(
+        ItemRootProps {
+            href: Some(""),
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("GH")]),
+            item::content(
+                vec![],
+                vec![
+                    item::title(vec![], vec![text("fandhe-frontend")]),
+                    item::description(vec![], vec![text("Linked item with an action.")]),
+                ],
+            ),
+            item::actions(vec![], vec![text("→")]),
+        ],
+    )
+}
+
+/// `/themes/item/` の `ComponentPageSpec`（イシュー #2066）。
+/// `crates/pre-styled-ui/src/item.rs` が headless
+/// [`fandhe_frontend_headless_ui::item`]（#2065）の 10 パーツ
+/// （root/media/content/title/description/actions/header/footer/group/
+/// separator）へ shadcn/ui `Item` 相当の意匠を重ねる薄い委譲層であることに
+/// 対応する。Demo 節は本 spec ではなく `crate::showcase::COMPONENT_PAGES`
+/// の `item_section`（`demo: None` のまま [`ComponentPageSpec::demo`] は
+/// 未使用、`crate::component_page::generated_content` の優先順位参照）。
+pub(crate) const ITEM: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "ItemVariant（Default/Outline/Muted、item.rs recipe() の data-variant 参照）で見た目を切り替える",
+        "ItemSize（Default/Sm）で padding/gap を縮小する（item.rs data-size=\"sm\" 参照）",
+        "root/media/content/title/description/actions/header/footer/group/separator の 10 パーツで media + title/description + actions からなる汎用リスト行を構造化する",
+        "root へ href を渡すと div ではなく a として描画され、ポインタ・下線解除・hover 背景・:focus-visible リングが付く（item.rs StateCondition::Attr(\"href\") 参照）",
+        "media は ItemMediaVariant（Default/Icon/Image）で固定サイズ・背景・角丸を切り替え、Image variant では子 img を object-fit: cover でトリミングする",
+        "group は複数 root の縦並びコンテナで、separator を挟んで区切る",
+        "バリデーション・送信処理・データ整形はこの部品では実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1、item.rs モジュール doc「責務境界」節）",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "ItemVariant",
+            default: "Default",
+            description: "見た目（#[default] は Default。Outline は枠線、Muted は背景色を切り替える）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "ItemSize",
+            default: "Default",
+            description: "サイズ（#[default] は Default。Sm は padding/gap を縮小する 2 値軸、item.rs モジュール doc参照）。",
+        },
+        ArgRow {
+            name: "href",
+            kind: "Option<&str>",
+            default: "None",
+            description: "root を a として描画するリンク先（headless 層がスキーム検証・external の target/rel 付与を担う）。",
+        },
+        ArgRow {
+            name: "external",
+            kind: "bool",
+            default: "false",
+            description: "true の場合 target=\"_blank\" と rel の安全な組を不可分付与する（headless 層に委譲）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Default item",
+            description: "media・title・description を組み合わせた標準形の例です。",
+            render: ex_item_default,
+        },
+        ExampleEntry {
+            title: "Linked item with actions",
+            description: "href 付き root（a として描画）と actions パーツを組み合わせる例です。",
+            render: ex_item_with_link_and_actions,
+        },
+    ],
+    keyboard: &[],
+    aria: &[AriaRow {
+        attribute: "(該当なし、href 指定時は a のネイティブ意味論)",
+        description: "root/media/content 等は role/aria-* を独自付与しないレイアウト用パーツであり、href を渡した場合のみ a のネイティブなリンク意味論に委ねる（item.rs モジュール doc参照）。",
     }],
     demo: None,
 };

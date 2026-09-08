@@ -27,9 +27,11 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::calendar;
+use fandhe_frontend_headless_ui::command;
 use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
 use fandhe_frontend_headless_ui::date_picker;
 use fandhe_frontend_headless_ui::file_upload;
+use fandhe_frontend_headless_ui::item::{self, ItemMediaVariant, ItemRootProps};
 use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
@@ -2109,5 +2111,169 @@ fn input_group_text_button_children_and_attrs_are_escaped_for_all_payloads() {
             &html,
             "input_group::root の呼び出し側 attrs コンテキスト",
         );
+    }
+}
+
+/// イシュー #2065: `item` の `root`（`href`・呼び出し側 attrs）・
+/// `media`・`title`・`description`・`actions`・`header`・`footer`・
+/// `group`（`aria-label`）・`separator`（呼び出し側 attrs）の各動的スロット
+/// が既定エスケープを経由することを固定する。
+#[test]
+fn item_root_media_content_group_separator_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_href_node = item::root(
+            ItemRootProps {
+                href: Some(payload),
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        );
+        let html = render(&root_href_node);
+        assert_payload_is_escaped(payload, &html, "item::root の href コンテキスト");
+
+        let root_attrs_node = item::root(
+            ItemRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        );
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(payload, &html, "item::root の呼び出し側 attrs コンテキスト");
+
+        let media_node = item::media(
+            ItemMediaVariant::Icon,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&media_node);
+        assert_payload_is_escaped(payload, &html, "item::media の attrs/children コンテキスト");
+
+        let title_node = item::title(vec![], vec![text(payload)]);
+        let html = render(&title_node);
+        assert_payload_is_escaped(payload, &html, "item::title の子ノードコンテキスト");
+
+        let description_node = item::description(vec![], vec![text(payload)]);
+        let html = render(&description_node);
+        assert_payload_is_escaped(payload, &html, "item::description の子ノードコンテキスト");
+
+        let actions_node = item::actions(vec![("data-testid", payload)], vec![]);
+        let html = render(&actions_node);
+        assert_payload_is_escaped(payload, &html, "item::actions の attrs コンテキスト");
+
+        let header_node = item::header(vec![], vec![text(payload)]);
+        let html = render(&header_node);
+        assert_payload_is_escaped(payload, &html, "item::header の子ノードコンテキスト");
+
+        let footer_node = item::footer(vec![], vec![text(payload)]);
+        let html = render(&footer_node);
+        assert_payload_is_escaped(payload, &html, "item::footer の子ノードコンテキスト");
+
+        let group_label_node = item::group(payload, vec![], vec![]);
+        let html = render(&group_label_node);
+        assert_payload_is_escaped(payload, &html, "item::group の aria-label コンテキスト");
+
+        let separator_attrs_node = item::separator(vec![("id", payload)], vec![]);
+        let html = render(&separator_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "item::separator の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// イシュー #2068: `command` の動的スロット（`value`/`list_id`/
+/// `aria-label`〔[`dialog`]/[`list`] 双方〕/item の `value`・`id`/
+/// 呼び出し側 `attrs`/`children`）が全ペイロードに対し既定エスケープを
+/// 経由することを固定する。
+#[test]
+fn command_dialog_input_list_item_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let dialog_node = command::dialog(OpenState::Open, payload, vec![], vec![]);
+        let html = render(&dialog_node);
+        assert_payload_is_escaped(payload, &html, "command::dialog の aria-label コンテキスト");
+
+        let input_node = command::input(OpenState::Open, payload, "cmd-list", None, vec![]);
+        let html = render(&input_node);
+        assert_payload_is_escaped(payload, &html, "command::input の value コンテキスト");
+
+        let input_list_id_node = command::input(OpenState::Open, "", payload, None, vec![]);
+        let html = render(&input_list_id_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "command::input の list_id (aria-controls) コンテキスト",
+        );
+
+        let input_activedescendant_node =
+            command::input(OpenState::Open, "", "cmd-list", Some(payload), vec![]);
+        let html = render(&input_activedescendant_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "command::input の activedescendant コンテキスト",
+        );
+
+        let list_id_node = command::list(payload, "Suggestions", false, vec![], vec![]);
+        let html = render(&list_id_node);
+        assert_payload_is_escaped(payload, &html, "command::list の id コンテキスト");
+
+        let list_label_node = command::list("cmd-list", payload, false, vec![], vec![]);
+        let html = render(&list_label_node);
+        assert_payload_is_escaped(payload, &html, "command::list の aria-label コンテキスト");
+
+        let item_value_node = command::item(false, false, payload, None, vec![], vec![]);
+        let html = render(&item_value_node);
+        assert_payload_is_escaped(payload, &html, "command::item の data-value コンテキスト");
+
+        let item_id_node = command::item(false, false, "calendar", Some(payload), vec![], vec![]);
+        let html = render(&item_id_node);
+        assert_payload_is_escaped(payload, &html, "command::item の id コンテキスト");
+
+        let item_children_node =
+            command::item(false, false, "calendar", None, vec![], vec![text(payload)]);
+        let html = render(&item_children_node);
+        assert_payload_is_escaped(payload, &html, "command::item の children コンテキスト");
+
+        let root_attrs_node = command::root(
+            OpenState::Closed,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        );
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "command::root の呼び出し側 attrs コンテキスト",
+        );
+
+        let shortcut_node = command::shortcut(vec![], vec![text(payload)]);
+        let html = render(&shortcut_node);
+        assert_payload_is_escaped(payload, &html, "command::shortcut の children コンテキスト");
+
+        let separator_attrs_node = command::separator(vec![("id", payload)], vec![]);
+        let html = render(&separator_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "command::separator の呼び出し側 attrs コンテキスト",
+        );
+
+        let empty_children_node = command::empty(true, vec![], vec![text(payload)]);
+        let html = render(&empty_children_node);
+        assert_payload_is_escaped(payload, &html, "command::empty の children コンテキスト");
+
+        let group_labelledby_node = command::group(Some(payload), vec![], vec![]);
+        let html = render(&group_labelledby_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "command::group の aria-labelledby コンテキスト",
+        );
+
+        let group_heading_id_node = command::group_heading(Some(payload), vec![], vec![]);
+        let html = render(&group_heading_id_node);
+        assert_payload_is_escaped(payload, &html, "command::group_heading の id コンテキスト");
     }
 }

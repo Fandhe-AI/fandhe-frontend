@@ -197,11 +197,14 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 199 → 200 になった。イシュー #2059 で Button Group（Primitives）・
     // イシュー #2062 で Input Group（Primitives）がそれぞれ加わり、
     // 200 → 202 になった。イシュー #2063 で Input Group の Themes ページが
-    // 加わり、202 → 203 になった。イシュー #2060 で Button Group の
-    // Themes ページが加わり、203 → 204 になった。
+    // 加わり、202 → 203 になった。イシュー #2065 で Item（Primitives）が
+    // 加わり、203 → 204 になった。イシュー #2066 で Item の Themes ページが
+    // 加わり、204 → 205 になった。イシュー #2068 で Command（Primitives）が
+    // 加わり、205 → 206 になった。イシュー #2060 で Button Group の
+    // Themes ページが加わり、206 → 207 になった。
     assert_eq!(
         report.written.len(),
-        204,
+        207,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -227,8 +230,9 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // `/themes/` 配下に部品 112 件（イシュー #1683 で Collapsible が加わり
     // 107 → 108、イシュー #1685 で Field が加わり 108 → 109、イシュー #1687
     // で Fieldset が加わり 109 → 110、イシュー #2063 で Input Group が
-    // 加わり 110 → 111、イシュー #2060 で Button Group が加わり
-    // 111 → 112）+ 索引 1 件 = 113 件が生成される。
+    // 加わり 110 → 111、イシュー #2066 で Item が加わり 111 → 112、
+    // イシュー #2060 で Button Group が加わり 112 → 113）+
+    // 索引 1 件 = 114 件が生成される。
     // Phase 4 以降で部品が増減したら両方の値の更新が必要になる
     // （fail-closed。黙って減っても気付けるようにする意図）。
     let components_dir = out.0.join("components");
@@ -249,13 +253,15 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&themes_dir))
         .count();
     assert_eq!(
-        theme_pages, 113,
-        "/themes/ 配下の生成ページ数（部品 112 件 + 索引 1 件）"
+        theme_pages, 114,
+        "/themes/ 配下の生成ページ数（部品 113 件 + 索引 1 件）"
     );
 
     // イシュー #1021: `/primitives/` 配下は部品 63 件 + 索引 1 件 = 64 件。
     // イシュー #2059 で Button Group・イシュー #2062 で Input Group が
-    // それぞれ加わり部品 65 件 + 索引 1 件 = 66 件になった。
+    // それぞれ加わり部品 65 件 + 索引 1 件 = 66 件になった。イシュー #2065
+    // で Item が加わり部品 66 件 + 索引 1 件 = 67 件になった。イシュー
+    // #2068 で Command が加わり部品 67 件 + 索引 1 件 = 68 件になった。
     let primitives_dir = out.0.join("primitives");
     let primitive_pages = report
         .written
@@ -263,8 +269,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&primitives_dir))
         .count();
     assert_eq!(
-        primitive_pages, 66,
-        "/primitives/ 配下の生成ページ数（部品 65 件 + 索引 1 件）"
+        primitive_pages, 68,
+        "/primitives/ 配下の生成ページ数（部品 67 件 + 索引 1 件）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /
@@ -489,10 +495,10 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
     // バーが Themes/Guides を一切含まず、Primitives 自身のグループ・
     // リンク集合に限定されていることを固定する（目視確認に委ねない、
     // 計画 §6-1b）。否定形だけでは空窓でも通ってしまうため、肯定形
-    // （現在グループが開いている・部品 65 + 索引 1 = 66 件のリンクが
+    // （現在グループが開いている・部品 66 + 索引 1 = 67 件のリンクが
     // すべて `/primitives/` 配下）も合わせて確認する（イシュー #2059 で
-    // Button Group・イシュー #2062 で Input Group がそれぞれ加わり
-    // 63 → 65 部品）。
+    // Button Group・イシュー #2062 で Input Group・イシュー #2065 で Item・
+    // イシュー #2068 で Command がそれぞれ加わり 63 → 65 → 66 → 67 部品）。
     let primitives_html = std::fs::read_to_string(out.0.join("primitives/accordion/index.html"))
         .expect("read generated primitives/accordion/index.html");
     let primitives_window = sidebar_window(&primitives_html);
@@ -515,8 +521,8 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
         .matches("/fandhe-frontend/primitives/")
         .count();
     assert_eq!(
-        primitives_link_count, 66,
-        "Primitives サイドバーのリンク数が索引 1 + 部品 65 = 66 件と一致しない: {primitives_window}"
+        primitives_link_count, 68,
+        "Primitives サイドバーのリンク数が索引 1 + 部品 67 = 68 件と一致しない: {primitives_window}"
     );
 }
 

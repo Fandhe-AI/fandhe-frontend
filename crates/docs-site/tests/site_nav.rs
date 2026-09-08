@@ -184,29 +184,34 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // イシュー #2059 で Button Group（Primitives）・イシュー #2062 で
     // Input Group（Primitives）がそれぞれ加わり 200 → 202 になった。
     // イシュー #2063 で Input Group の Themes ページが加わり 202 → 203
+    // になった。イシュー #2065 で Item（Primitives）が加わり 203 → 204
+    // になった。イシュー #2066 で Item の Themes ページが加わり 204 → 205
+    // になった。イシュー #2068 で Command（Primitives）が加わり 205 → 206
     // になった。イシュー #2060 で Button Group の Themes ページが加わり
-    // 203 → 204 になった。
-    assert_eq!(pages.len(), 204, "expected 204 pages, got {pages:?}");
+    // 206 → 207 になった。
+    assert_eq!(pages.len(), 207, "expected 207 pages, got {pages:?}");
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ
     // （`/primitives/` 自身）1 件の 64 件。イシュー #2059 で Button Group・
     // イシュー #2062 で Input Group がそれぞれ加わり 64 → 66 件になった。
+    // イシュー #2065 で Item が加わり 66 → 67 件になった。イシュー #2068
+    // で Command が加わり 67 → 68 件になった。
     let primitives_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/primitives/"))
         .collect();
     assert_eq!(
         primitives_pages.len(),
-        66,
-        "expected 66 /primitives/ pages (65 部品 + 1 索引), got {primitives_pages:?}"
+        68,
+        "expected 68 /primitives/ pages (67 部品 + 1 索引), got {primitives_pages:?}"
     );
     let source_based_primitive_pages = pages
         .iter()
         .filter(|(source, _)| source.starts_with("site/primitives/"))
         .count();
     assert_eq!(
-        source_based_primitive_pages, 65,
-        "expected 65 pages sourced from site/primitives/"
+        source_based_primitive_pages, 67,
+        "expected 67 pages sourced from site/primitives/"
     );
     assert!(
         pages.contains(&("site/primitives.md", "/primitives/")),
@@ -237,17 +242,18 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         "expected 0 /components/ pages (all migrated to /themes/), got {component_index_pages:?}"
     );
 
-    // `/themes/` 配下は部品ページ 112 件 + 索引ページ（`/themes/` 自身）1 件
-    // の 113 件（イシュー #1018。イシュー #1683 で部品ページが 107 → 108、
+    // `/themes/` 配下は部品ページ 113 件 + 索引ページ（`/themes/` 自身）1 件
+    // の 114 件（イシュー #1018。イシュー #1683 で部品ページが 107 → 108、
     // イシュー #1685 で 108 → 109、イシュー #1687 で 109 → 110、
-    // イシュー #2063 で 110 → 111、イシュー #2060 で 111 → 112）。
+    // イシュー #2063 で 110 → 111、イシュー #2066 で 111 → 112、
+    // イシュー #2060 で 112 → 113）。
     let themes_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/themes/"))
         .collect();
     assert_eq!(
         themes_pages.len(),
-        113,
+        114,
         "expected 113 /themes/ pages (112 部品 + 1 索引), got {themes_pages:?}"
     );
 
@@ -256,8 +262,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .filter(|(source, _)| source.starts_with("site/themes/"))
         .count();
     assert_eq!(
-        source_based_component_pages, 112,
-        "expected 112 pages sourced from site/themes/"
+        source_based_component_pages, 113,
+        "expected 113 pages sourced from site/themes/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ

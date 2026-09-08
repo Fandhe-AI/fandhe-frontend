@@ -33,6 +33,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 - [Checkbox Group](./primitives/checkbox-group.md)
 - [Color Picker](./primitives/color-picker.md)
 - [Combobox](./primitives/combobox.md)
+- [Command](./primitives/command.md)
 - [Editable](./primitives/editable.md)
 - [Field](./primitives/field.md)
 - [Fieldset](./primitives/fieldset.md)
@@ -100,6 +101,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 
 - [Avatar](./primitives/avatar.md)
 - [Carousel](./primitives/carousel.md)
+- [Item](./primitives/item.md)
 - [JSON Tree View](./primitives/json-tree-view.md)
 - [Scroll Area](./primitives/scroll-area.md)
 - [Skip Nav](./primitives/skip-nav.md)

@@ -130,7 +130,8 @@ struct PrimitivePage {
 /// Primitives Demo レジストリ。`primitives_catalog::PRIMITIVES` の並び順
 /// （設計 §7 のカテゴリ表順）に揃える。
 const PRIMITIVE_PAGES: &[PrimitivePage] = &[
-    // --- Forms A（11、#1024） ---
+    // --- Forms A（13、#1024。イシュー #2062 で input_group・イシュー
+    // #2068 で command 追加、旧 11） ---
     PrimitivePage {
         path: "/primitives/angle-slider/",
         render: forms_a::angle_slider_section,
@@ -150,6 +151,10 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
     PrimitivePage {
         path: "/primitives/combobox/",
         render: forms_a::combobox_section,
+    },
+    PrimitivePage {
+        path: "/primitives/command/",
+        render: forms_a::command_section,
     },
     PrimitivePage {
         path: "/primitives/editable/",
@@ -355,7 +360,7 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
         path: "/primitives/toolbar/",
         render: navigation::toolbar_section,
     },
-    // --- Data Display / Utilities（10、#1029） ---
+    // --- Data Display / Utilities（11、#1029。イシュー #2065 で item 追加、旧 10） ---
     PrimitivePage {
         path: "/primitives/avatar/",
         render: data_display_utilities::avatar_section,
@@ -363,6 +368,10 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
     PrimitivePage {
         path: "/primitives/carousel/",
         render: data_display_utilities::carousel_section,
+    },
+    PrimitivePage {
+        path: "/primitives/item/",
+        render: data_display_utilities::item_section,
     },
     PrimitivePage {
         path: "/primitives/json-tree-view/",

@@ -136,6 +136,9 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
+use fandhe_frontend_pre_styled_ui::item::{
+    self, ItemMediaVariant, ItemRootProps, ItemSize, ItemVariant,
+};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::{group as kbd_group, kbd, KbdProps, KbdVariant};
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
@@ -169,7 +172,7 @@ use fandhe_frontend_pre_styled_ui::skeleton::{
 };
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
-use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::spinner::{spinner, spinner_decorative, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
@@ -583,6 +586,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: input_group_section,
     },
     ComponentPage {
+        path: "/themes/item/",
+        render: item_section,
+    },
+    ComponentPage {
         path: "/themes/textarea/",
         render: textarea_section,
     },
@@ -959,6 +966,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::fieldset::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::item::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -1509,10 +1517,38 @@ fn spinner_section() -> Node {
             })
         })
         .collect());
+    // イシュー #2051: shadcn/ui との突合で追加した合成例（Button 末尾配置 /
+    // Badge）。spinner_decorative（役割・公開化経緯は spinner.rs 参照）を
+    // 装飾用途として周囲テキストと組み合わせる。
+    let composition_row = row(vec![
+        button(
+            &ButtonProps {
+                variant: ButtonVariant::Outline,
+                disabled: true,
+                ..ButtonProps::default()
+            },
+            vec![("aria-busy", "true")],
+            vec![
+                text("Processing"),
+                spinner_decorative(Size::Sm, ColorPalette::Accent),
+            ],
+        ),
+        badge::badge(
+            &BadgeProps {
+                variant: BadgeVariant::Subtle,
+                ..BadgeProps::default()
+            },
+            vec![],
+            vec![
+                spinner_decorative(Size::Xs, ColorPalette::Accent),
+                text("Syncing"),
+            ],
+        ),
+    ]);
     section(
         "Spinner",
-        "読み込み中表示。role=\"status\" と aria-label でスクリーンリーダーへ状態を伝えます。トラックは既定で透明（上右 2 辺のみ弧を描画）で、OS の prefers-reduced-motion 設定時は回転を停止します。",
-        vec![size_row, palette_row],
+        "読み込み中表示。role=\"status\" と aria-label でスクリーンリーダーへ状態を伝えます。トラックは既定で透明（上右 2 辺のみ弧を描画）で、OS の prefers-reduced-motion 設定時は回転を停止します。spinner_decorative（イシュー #2051 で公開化）は role/aria-label を持たない装飾用途で、Button 末尾配置・Badge 等の周囲テキストが状態を伝える合成に使えます。",
+        vec![size_row, palette_row, composition_row],
     )
 }
 
@@ -1585,10 +1621,38 @@ fn skeleton_section() -> Node {
             ),
         ],
     )]);
+    // イシュー #2050: shadcn/ui の Card 例に相当する合成デモ。card::header
+    // に Text 2 本、card::body に aspect-ratio の Rect 1 本を組み合わせる。
+    let card_row = stack(vec![card::root(
+        CardProps::default(),
+        vec![("style", "max-width: 20rem;")],
+        vec![
+            card::header(
+                vec![],
+                vec![
+                    skeleton(&SkeletonProps::default(), vec![("style", "width: 66%;")]),
+                    skeleton(&SkeletonProps::default(), vec![("style", "width: 50%;")]),
+                ],
+            ),
+            card::body(
+                vec![],
+                vec![skeleton(
+                    &SkeletonProps {
+                        variant: SkeletonVariant::Rect,
+                        ..Default::default()
+                    },
+                    vec![(
+                        "style",
+                        "aspect-ratio: 16 / 9; --fandhe-skeleton-height: auto;",
+                    )],
+                )],
+            ),
+        ],
+    )]);
     section(
         "Skeleton",
-        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。animation 軸（pulse/shine/none）でアニメーション種別を切り替えられ、prefers-reduced-motion: reduce ではいずれも停止します。",
-        vec![variant_row, animation_row, composite_row],
+        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。animation 軸（pulse/shine/none）でアニメーション種別を切り替えられ、prefers-reduced-motion: reduce ではいずれも停止します。イシュー #2050: card 等との合成例（下段）も掲示します。",
+        vec![variant_row, animation_row, composite_row, card_row],
     )
 }
 
@@ -5243,6 +5307,130 @@ fn input_group_section() -> Node {
             disabled_instance,
             block_instance,
         ])],
+    )
+}
+
+/// Item 節（イシュー #2066、親 #2064。headless anatomy は #2065）: variant
+/// 3 種（default/outline/muted）× media variant 3 種（default/icon/image）+
+/// size（sm）+ href 付き root（外部リンク）+ group/separator の構成を
+/// 掲示する。`variant`/`size` は headless の `data-variant`/`data-size` を
+/// `AttrEq` で参照するのみで class 軸を持たない（`item.rs` モジュール doc
+/// 「variant / size の表現」節参照）。
+fn item_section() -> Node {
+    // variant 3 種 × media variant 3 種の組み合わせを行として並べる。
+    let variant_rows: Vec<Node> = [
+        (ItemVariant::Default, "default"),
+        (ItemVariant::Outline, "outline"),
+        (ItemVariant::Muted, "muted"),
+    ]
+    .into_iter()
+    .map(|(variant, label)| {
+        let cells: Vec<Node> = [
+            (ItemMediaVariant::Default, "Default"),
+            (ItemMediaVariant::Icon, "IC"),
+            (ItemMediaVariant::Image, "IMG"),
+        ]
+        .into_iter()
+        .map(|(media_variant, media_label)| {
+            item::root(
+                ItemRootProps {
+                    variant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![
+                    item::media(media_variant, vec![], vec![text(media_label)]),
+                    item::content(
+                        vec![],
+                        vec![
+                            item::title(vec![], vec![text(format!("{label} item"))]),
+                            item::description(
+                                vec![],
+                                vec![text("A generic list row with media and text.")],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect();
+        row(cells)
+    })
+    .collect();
+
+    // size="sm" の縮小版。
+    let sm_instance = item::root(
+        ItemRootProps {
+            size: ItemSize::Sm,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("IC")]),
+            item::content(
+                vec![],
+                vec![item::title(vec![], vec![text("Compact item (size=sm)")])],
+            ),
+        ],
+    );
+
+    // href 付き root（外部リンク、external=true で target/rel を不可分付与）
+    // + actions。`href=""`（空文字列）で linkcheck 中立性を保つ
+    // （`crate::linkcheck::check_links` が無条件許容する契約、
+    // `breadcrumb_section` 等の既存デモと同型のパターン）。
+    let link_instance = item::root(
+        ItemRootProps {
+            href: Some(""),
+            external: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("GH")]),
+            item::content(
+                vec![],
+                vec![
+                    item::title(vec![], vec![text("fandhe-frontend")]),
+                    item::description(vec![], vec![text("GitHub repository (opens in a new tab)")]),
+                ],
+            ),
+            item::actions(vec![], vec![text("→")]),
+        ],
+    );
+
+    // group + separator（複数 root の縦並び + 区切り線）。
+    let group_instance = item::group(
+        "Recent items",
+        vec![],
+        vec![
+            item::root(
+                ItemRootProps::default(),
+                vec![],
+                vec![item::content(
+                    vec![],
+                    vec![item::title(vec![], vec![text("First item")])],
+                )],
+            ),
+            item::separator(vec![], vec![]),
+            item::root(
+                ItemRootProps::default(),
+                vec![],
+                vec![item::content(
+                    vec![],
+                    vec![item::title(vec![], vec![text("Second item")])],
+                )],
+            ),
+        ],
+    );
+
+    let mut demos = variant_rows;
+    demos.push(row(vec![sm_instance, link_instance]));
+    demos.push(group_instance);
+
+    section(
+        "Item",
+        "media（アイコン・画像・アバター）+ title/description + actions からなる汎用リスト行。variant/size は headless の data-variant/data-size を参照するのみで class 軸は持ちません。href を渡すと a として描画されます。",
+        demos,
     )
 }
 
@@ -9623,7 +9811,9 @@ fn visually_hidden_section() -> Node {
 /// 契約、`crates/pre-styled-ui/src/progress.rs` rustdoc 参照）。circle 系
 /// パーツ（Circle/CircleTrack/CircleRange）は styled 層の独自ラッパーを持たず
 /// headless の inherent メソッドをそのまま呼ぶ。`ProgressVariant`（outline/
-/// subtle）は circle-track に影響しない設計（progress.rs rustdoc「意図的に
+/// subtle/plain。plain はイシュー #2049 で shadcn/ui 既定表現を補完した
+/// 第 3 variant、progress.rs rustdoc「イシュー #2049: shadcn/ui との突合」
+/// 節参照）は circle-track に影響しない設計（progress.rs rustdoc「意図的に
 /// 参考サイトへ合わせない点」節）のため、circle の variant 行は作らない。
 fn progress_section() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
@@ -9745,6 +9935,15 @@ fn progress_section() -> Node {
             "Subtle",
             "40%",
         ),
+        linear_demo(
+            &determinate,
+            &ProgressProps {
+                variant: ProgressVariant::Plain,
+                ..ProgressProps::default()
+            },
+            "Plain",
+            "40%",
+        ),
     ]);
 
     let palette_row = stack(
@@ -9853,7 +10052,7 @@ fn progress_section() -> Node {
 
     section(
         "Progress",
-        "Linear（Track/Range）と Circular（SVG）両対応の進捗インジケータ。size（xs〜xl）で --fandhe-progress-track-height/--fandhe-progress-size/--fandhe-progress-thickness を、variant（outline/subtle）で track の見た目を、color-palette（accent/info/success/warning/danger/neutral）で range の塗り色を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動したアニメーション（linear は横スライド、circular は回転）で表示し、prefers-reduced-motion: reduce では停止します。circular の indeterminate は回転に加え circle-range へ円周の 1/4 分の固定弧（stroke-dasharray）を持ち、complete（完全リング）と視覚的に区別されます（イシュー #1688）。この弧は animation を持たないため、prefers-reduced-motion: reduce でも静止した弧として残ります。",
+        "Linear（Track/Range）と Circular（SVG）両対応の進捗インジケータ。size（xs〜xl）で --fandhe-progress-track-height/--fandhe-progress-size/--fandhe-progress-thickness を、variant（outline/subtle/plain）で track の見た目を、color-palette（accent/info/success/warning/danger/neutral）で range の塗り色を切り替えます。plain は shadcn/ui 既定表現（枠線なしの中立トラック）を補完した variant です（イシュー #2049）。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動したアニメーション（linear は横スライド、circular は回転）で表示し、prefers-reduced-motion: reduce では停止します。circular の indeterminate は回転に加え circle-range へ円周の 1/4 分の固定弧（stroke-dasharray）を持ち、complete（完全リング）と視覚的に区別されます（イシュー #1688）。この弧は animation を持たないため、prefers-reduced-motion: reduce でも静止した弧として残ります。",
         vec![
             basic_row,
             size_row,
@@ -11920,8 +12119,9 @@ mod tests {
         // イシュー #1685 で Field を追加し 102 → 103 件になった。
         // イシュー #1687 で Fieldset を追加し 103 → 104 件になった。
         // イシュー #2063 で Input Group を追加し 104 → 105 件になった。
-        // イシュー #2060 で Button Group を追加し 105 → 106 件になった。
-        assert_eq!(paths.len(), 106, "COMPONENT_PAGES should have 106 entries");
+        // イシュー #2066 で Item を追加し 105 → 106 件になった。
+        // イシュー #2060 で Button Group を追加し 106 → 107 件になった。
+        assert_eq!(paths.len(), 107, "COMPONENT_PAGES should have 107 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
