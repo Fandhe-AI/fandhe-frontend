@@ -2387,7 +2387,34 @@ name = "fandhe-frontend-pre-styled-ui"
 # その到達値は 0.139.1 だが、本ブランチの到達値 0.140.0 が既にこれを上回る
 # ため、`docs/ci/style-refresh-version-bump-operation.md` §5 の手順
 # （main の到達値を上回る値には追加のバンプを適用しない）に従い据え置く。
-version = "0.140.0"
+# 本ブランチ（#2046, 0.138.1）と main（#2063, input_group 新設によるマイナー
+# バンプ）がいずれも独立にバンプしており、main の到達値 0.139.0 が本ブランチの
+# 到達値 0.138.1 を上回る。
+# 訂正（イシュー #2046, PR #2227 codex-review 修正ラウンド, 2026-09-08）: 上記の
+# 「main の到達値をそのまま採用し追加バンプなし」は誤りだった。本 PR は
+# card の追加パーツ（`action`/`cover`）・`data-has-action`/`data-bordered`
+# 状態という pre-styled-ui 自身の公開 API・CSS 出力の実体変更を含んでおり、
+# `.claude/rules/coding-rust.md`（イシュー #638）の成文規定は「実体変更 PR は
+# 必ず version をバンプする」であって「到達値を上回られたら据え置いてよい」
+# 例外は存在しない。`docs/ci/style-refresh-version-bump-operation.md` §5 の
+# 「main の到達値を上回る値には適用しない」手順は、自分の変更が base 再取り込み
+# のみ（実体差分なし）で完結する場合のコンフリクト解決規則であり、本 PR のように
+# 自分自身の実装変更が別途あるケースには適用されない。main の到達値 0.139.0 から
+# patch を +1 して 0.139.1 とする。
+#
+# イシュー #2047: empty-state を shadcn/ui `Empty` と突合し、
+# `EmptyStateProps::variant`（新規フィールド、構造体リテラル構築の破壊的
+# 変更）・`EmptyStateVariant`/`EmptyStateIndicatorVariant`（新規公開
+# enum）・`indicator_with`（新規公開関数）を純追加した。公開 API の追加・
+# 変更を伴うためマイナーバンプする（0.x の破壊的変更はマイナーバンプの
+# 規約）。main 到達値の確認時点（0.139.1）から +1 マイナーして 0.140.0 と
+# する。
+# base 再取り込み（イシュー #2060, PR #2228 レビュー修正ラウンド, 2026-09-08）続報:
+# 本ブランチ（#2060, button_group 新設）と main（#2047, empty-state の
+# shadcn/ui 突合）がいずれも独立に 0.140.0 へ到達しており同一版数で
+# 衝突したため、`semver-same-version-is-conflict` の運用に倣い main の
+# 到達値 0.140.0 からさらにマイナーバンプして 0.141.0 とする。
+version = "0.141.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

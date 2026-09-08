@@ -823,23 +823,92 @@ fn ex_empty_state() -> Node {
     )
 }
 
+/// イシュー #2047: root `variant`（Outline）の例。
+fn ex_empty_state_outline() -> Node {
+    empty_state::root(
+        &empty_state::EmptyStateProps {
+            size: Size::Md,
+            variant: empty_state::EmptyStateVariant::Outline,
+        },
+        vec![],
+        vec![empty_state::content(
+            vec![],
+            vec![
+                empty_state::title(vec![], vec![text("No results")]),
+                empty_state::description(vec![], vec![text("Try a different search.")]),
+            ],
+        )],
+    )
+}
+
+/// イシュー #2047: indicator `variant`（Boxed）の例。
+fn ex_empty_state_boxed_indicator() -> Node {
+    empty_state::root(
+        &empty_state::EmptyStateProps::default(),
+        vec![],
+        vec![empty_state::content(
+            vec![],
+            vec![
+                empty_state::indicator_with(
+                    empty_state::EmptyStateIndicatorVariant::Boxed,
+                    vec![],
+                    vec![text("∅")],
+                ),
+                empty_state::title(vec![], vec![text("No projects yet")]),
+                empty_state::description(
+                    vec![],
+                    vec![text("Create your first project to get started.")],
+                ),
+            ],
+        )],
+    )
+}
+
 pub(crate) const EMPTY_STATE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "content/indicator/title/description/actions の 5 パーツで空状態の掲示を構造化する（crates/pre-styled-ui/src/empty_state.rs の recipe 関数）",
         "size variant（既定 Md）が root の `--fandhe-empty-state-*` custom property 経由で padding・gap・indicator/title/description の文字サイズを連動させる（empty_state.rs の recipe 関数、イシュー #1560）",
+        "root の variant 軸（既定 Plain、Outline/Subtle を純追加）で破線枠・淡色背景を切り替える（イシュー #2047、shadcn/ui `Empty` 突合）",
+        "indicator の variant 軸（indicator_with、既定 Plain、Boxed を純追加）で bg-muted の角丸タイル表示を切り替える（イシュー #2047）",
         "aria-* は付与しない（empty_state.rs 冒頭 doc コメント）",
     ],
-    arguments: &[ArgRow {
-        name: "size",
-        kind: "Size",
-        default: "Md",
-        description: "root の custom property（`--fandhe-empty-state-*`）経由で padding・gap・indicator/title/description の文字サイズを連動させるサイズ（empty_state.rs の recipe 関数、イシュー #1560）。",
-    }],
-    examples: &[ExampleEntry {
-        title: "Basic",
-        description: "title + description のみで組み立てた最小構成の例です。",
-        render: ex_empty_state,
-    }],
+    arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "root の custom property（`--fandhe-empty-state-*`）経由で padding・gap・indicator/title/description の文字サイズを連動させるサイズ（empty_state.rs の recipe 関数、イシュー #1560）。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "EmptyStateVariant",
+            default: "Plain",
+            description: "root の見た目 variant。Plain（既定、class 非出力）/ Outline（破線枠）/ Subtle（淡色単色背景）（イシュー #2047）。",
+        },
+        ArgRow {
+            name: "indicator_with の variant",
+            kind: "EmptyStateIndicatorVariant",
+            default: "Plain",
+            description: "indicator の見た目 variant。Plain（既定、indicator() と同一出力）/ Boxed（bg-muted の角丸タイル）（イシュー #2047）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Basic",
+            description: "title + description のみで組み立てた最小構成の例です。",
+            render: ex_empty_state,
+        },
+        ExampleEntry {
+            title: "Outline",
+            description: "root に破線枠を付ける Outline variant の例です（イシュー #2047）。",
+            render: ex_empty_state_outline,
+        },
+        ExampleEntry {
+            title: "Boxed indicator",
+            description: "indicator に bg-muted の角丸タイルを付ける Boxed variant の例です（イシュー #2047）。",
+            render: ex_empty_state_boxed_indicator,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(該当なし)",

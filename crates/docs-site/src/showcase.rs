@@ -65,7 +65,7 @@ use fandhe_frontend_core::{div, el, p, render, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{
-    self, AvatarBadgeProps, AvatarProps, AvatarShape, AvatarVariant, ImageStatus,
+    self, fallback, AvatarBadgeProps, AvatarProps, AvatarShape, AvatarVariant, ImageStatus,
 };
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
@@ -112,7 +112,9 @@ use fandhe_frontend_pre_styled_ui::editable::{
     self, EditMode, EditableInputFlags, EditableInputProps,
 };
 use fandhe_frontend_pre_styled_ui::em::em;
-use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
+use fandhe_frontend_pre_styled_ui::empty_state::{
+    self, EmptyStateIndicatorVariant, EmptyStateProps, EmptyStateVariant,
+};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::ColorPicker;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::data_attrs::data_state;
@@ -9318,6 +9320,185 @@ fn status_section() -> Node {
 /// 各段で padding・gap・indicator/title/description の文字サイズが連動
 /// することを示すため、actions を持たない indicator/title/description の
 /// 3 段構成で並べる（Md の既定デモのみ actions を持たせる）。
+///
+/// イシュー #2047（shadcn/ui `Empty` 突合）で以下を追加した:
+/// - `variant_row`: root の `variant`（`Plain`/`Outline`/`Subtle`）3 段。
+/// - `composition_row`: (a) `indicator_with(Boxed)` + ボタン群、
+///   (b) `indicator` に `avatar::root`/`avatar::group` を配置、
+///   (c) `actions` に `input_group::root`（input + button）を配置、の
+///   3 パターン。合成デモであり anatomy 自体は変更しない。
+fn empty_state_variant_row() -> Node {
+    let variants = [
+        (EmptyStateVariant::Plain, "Plain"),
+        (EmptyStateVariant::Outline, "Outline"),
+        (EmptyStateVariant::Subtle, "Subtle"),
+    ];
+    stack(
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                let props = EmptyStateProps {
+                    size: Size::Sm,
+                    variant: *variant,
+                };
+                empty_state::root(
+                    &props,
+                    vec![],
+                    vec![empty_state::content(
+                        vec![],
+                        vec![
+                            empty_state::indicator(vec![], vec![text("∅")]),
+                            empty_state::title(vec![], vec![text(format!("{label} variant"))]),
+                            empty_state::description(vec![], vec![text("No results found.")]),
+                        ],
+                    )],
+                )
+            })
+            .collect(),
+    )
+}
+
+fn empty_state_composition_row() -> Node {
+    // (a) Boxed indicator + ボタン群（shadcn `EmptyMedia variant="icon"` +
+    // `EmptyContent` の合成例。「Learn more」相当は `href` を持たない
+    // Ghost button で代替し linkcheck 中立性を維持する）。
+    let boxed_indicator_instance = empty_state::root(
+        &EmptyStateProps::default(),
+        vec![],
+        vec![empty_state::content(
+            vec![],
+            vec![
+                empty_state::indicator_with(
+                    EmptyStateIndicatorVariant::Boxed,
+                    vec![],
+                    vec![text("∅")],
+                ),
+                empty_state::title(vec![], vec![text("No projects yet")]),
+                empty_state::description(
+                    vec![],
+                    vec![text("Create your first project to get started.")],
+                ),
+                empty_state::actions(
+                    vec![],
+                    vec![
+                        button(
+                            &ButtonProps::default(),
+                            vec![],
+                            vec![text("Create project")],
+                        ),
+                        button(
+                            &ButtonProps {
+                                variant: ButtonVariant::Outline,
+                                ..ButtonProps::default()
+                            },
+                            vec![],
+                            vec![text("Import")],
+                        ),
+                        button(
+                            &ButtonProps {
+                                variant: ButtonVariant::Ghost,
+                                ..ButtonProps::default()
+                            },
+                            vec![],
+                            vec![text("Learn more")],
+                        ),
+                    ],
+                ),
+            ],
+        )],
+    );
+
+    // (b) indicator に avatar::root/avatar::group（shadcn の Avatar/Avatar
+    // Group を media に置く例相当）。
+    let avatar_indicator_instance = empty_state::root(
+        &EmptyStateProps::default(),
+        vec![],
+        vec![empty_state::content(
+            vec![],
+            vec![
+                empty_state::indicator(
+                    vec![],
+                    vec![avatar::group(
+                        vec![],
+                        vec![
+                            avatar::root(
+                                &AvatarProps {
+                                    stacked: true,
+                                    ..AvatarProps::default()
+                                },
+                                vec![],
+                                vec![fallback(ImageStatus::Error, vec![], vec![text("AB")])],
+                            ),
+                            avatar::root(
+                                &AvatarProps {
+                                    stacked: true,
+                                    ..AvatarProps::default()
+                                },
+                                vec![],
+                                vec![fallback(ImageStatus::Error, vec![], vec![text("CD")])],
+                            ),
+                        ],
+                    )],
+                ),
+                empty_state::title(vec![], vec![text("No team members")]),
+                empty_state::description(vec![], vec![text("Invite teammates to collaborate.")]),
+            ],
+        )],
+    );
+
+    // (c) actions に input_group::root（input + button、shadcn の
+    // InputGroup を content に置く例相当）。
+    let input_group_field = plain_field("showcase-empty-state-input-group");
+    let input_group_props = InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+    let input_group_actions_instance = empty_state::root(
+        &EmptyStateProps::default(),
+        vec![],
+        vec![empty_state::content(
+            vec![],
+            vec![
+                empty_state::indicator(vec![], vec![text("∅")]),
+                empty_state::title(vec![], vec![text("Subscribe for updates")]),
+                empty_state::description(
+                    vec![],
+                    vec![text("Get notified when new results appear.")],
+                ),
+                empty_state::actions(
+                    vec![],
+                    vec![input_group::root(
+                        &input_group_props,
+                        vec![],
+                        vec![
+                            input::input(
+                                &InputProps::default(),
+                                &input_group_field,
+                                vec![("placeholder", "you@example.com")],
+                            ),
+                            input_group::addon(
+                                InputGroupAlign::InlineEnd,
+                                &input_group_props,
+                                vec![],
+                                vec![input_group::button(
+                                    &input_group_props,
+                                    vec![],
+                                    vec![text("Subscribe")],
+                                )],
+                            ),
+                        ],
+                    )],
+                ),
+            ],
+        )],
+    );
+
+    stack(vec![
+        boxed_indicator_instance,
+        avatar_indicator_instance,
+        input_group_actions_instance,
+    ])
+}
 fn empty_state_section() -> Node {
     let node = empty_state::root(
         &EmptyStateProps::default(),
@@ -9355,7 +9536,10 @@ fn empty_state_section() -> Node {
         sizes
             .iter()
             .map(|(size, label)| {
-                let props = EmptyStateProps { size: *size };
+                let props = EmptyStateProps {
+                    size: *size,
+                    ..Default::default()
+                };
                 empty_state::root(
                     &props,
                     vec![],
@@ -9373,8 +9557,13 @@ fn empty_state_section() -> Node {
     );
     section(
         "EmptyState",
-        "indicator / title / description / actions で構成する空状態レイアウト。colorPalette 軸は持たない中立コンテナです。size（xs〜xl）は root の padding・gap・indicator/title/description の文字サイズが連動します。",
-        vec![node, size_row],
+        "indicator / title / description / actions で構成する空状態レイアウト。colorPalette 軸は持たない中立コンテナです。size（xs〜xl）は root の padding・gap・indicator/title/description の文字サイズが連動します。variant（plain / outline / subtle）は root の枠線・背景を、indicator の boxed variant は媒体の角丸タイル表示を切り替えます（イシュー #2047、shadcn/ui 突合）。",
+        vec![
+            node,
+            size_row,
+            empty_state_variant_row(),
+            empty_state_composition_row(),
+        ],
     )
 }
 

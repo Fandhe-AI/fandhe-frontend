@@ -75,6 +75,71 @@
 //! 5. タイポグラフィトークン `5xl`/`6xl` の追加、ブラウザ実機での
 //!    スクリーンショット再取得は行わない（別 Phase の一括撮影運用に
 //!    委ねる）。
+//!
+//! # イシュー #2047（shadcn/ui 突合）
+//!
+//! 参照サイト（shadcn/ui `Empty`。2026-09-07 改訂〔#2153〕で 3 者主基準の
+//! 1 つ）のスクリーンショット
+//! （`docs/design/reference-screenshots/shadcn-empty-{1,2,3}.png`）と
+//! `themes-empty-state.png` を比較し、chakra-ui / Radix Themes 基準では
+//! 拾えなかった欠落バリアント・状態を補完した。
+//!
+//! ## 補完した点（純追加）
+//!
+//! - **root `variant` 軸**（[`EmptyStateVariant`]）: 既定 `Plain`（従来
+//!   どおり class を出力しない）に加え、`Outline`（shadcn の
+//!   `border-dashed` 例相当。`1px dashed` + `radius-lg`）と `Subtle`
+//!   （shadcn の `Background`〔`from-muted/50` グラデーション〕例相当。
+//!   トークン体系で半透明グラデーションは表現できないため単色
+//!   `--fandhe-color-bg-subtle` へ置換）を追加した。
+//! - **indicator `variant` 軸**（[`EmptyStateIndicatorVariant`]、
+//!   [`indicator_with`]）: 既定 `Plain`（[`indicator`] と同一出力）に
+//!   加え、`Boxed`（shadcn `EmptyMedia variant="icon"` の `bg-muted`
+//!   角丸タイル相当）を追加した。タイル寸法は shadcn の固定 `40px` では
+//!   なく `padding: var(--fandhe-space-2)` とし、size 軸連動の
+//!   `font-size` に追従させる（新規 custom property を size ブロックへ
+//!   足すと既存 golden が変わるため）。
+//!
+//! いずれも [`EmptyStateProps::variant`] の既定値 `Plain`・`indicator()`
+//! の出力は変更前とバイト一致（純追加原則）。
+//!
+//! ## 参照競合の判定
+//!
+//! - root 枠線（Outline）は shadcn-ui の値を採る（chakra-ui / Radix
+//!   Themes に対応 variant 軸が存在せず競合しないため）。
+//! - root 背景（Subtle）は chakra-ui / Radix Themes 系の単色トークン
+//!   （[`crate::card`] の `Subtle` 相当）を採る（shadcn の半透明
+//!   グラデーションはトークン体系で表現できないため）。
+//! - indicator タイル（Boxed）は shadcn-ui の値を採る（chakra-ui /
+//!   Radix Themes に対応表現がないため）。
+//!
+//! ## コントラスト
+//!
+//! Subtle root（`bg-subtle` 背景）上の description（`fg-muted`）は
+//! [`crate::card`] の `Subtle` variant と同じ組み合わせであり、
+//! `theme.rs` の `CARD_SUBTLE_VARIANT_PAIRS`（本文相当 4.5:1 契約）で
+//! 既に検証済み。既定 `Plain` indicator（`fg-subtle`、大型装飾グリフ）が
+//! Subtle root に乗る組（`fg-subtle`/`bg-subtle`）は `theme.rs` の
+//! `LARGE_TEXT_UI_PAIRS`（3:1 契約）へ本イシューで追加した。Boxed
+//! indicator（`fg`/`bg-muted`）は `theme.rs` の `BODY_TEXT_PAIRS`
+//! （`("fg", "bg-muted")`、4.5:1 契約）で既に検証済み。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - **`EmptyHeader` 相当の slot 新設**: #1560 の判断 2（`content` の
+//!   gap + `indicator`/`actions` の section-gap で同じ視覚リズムを得る）
+//!   を維持する。slot 追加は base ブロックが golden の中間に挿入され
+//!   純追加原則と相性が悪い。
+//! - **title の `font-weight: medium` 化**: chakra-ui 基準の `semibold`
+//!   を維持する（変更すると既存 golden の視覚変更になるため）。
+//! - **description 内 `<a>` の下線・hover 色**: [`crate::recipe::SlotRecipe`]
+//!   は子孫セレクタを表現できない（#708 で不採用確定）ため非追随。
+//! - **`max-w-sm`/`text-balance`**: base 変更（golden 変更）になるため
+//!   非追随。呼び出し側が `attrs` の `style` で付与できる。
+//! - **Outline での 1px 分のボックス高さ増**: base へ透明 `border` を
+//!   置くと既存 golden が変わるため許容する（意図的な差分）。
+//! - タイル寸法の shadcn 固定値（`40px`）・スクリーンショット再取得
+//!   （一括撮影運用の管轄）は対象外。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -97,6 +162,65 @@ const SLOTS: &[&str] = &[
     "actions",
 ];
 
+/// root の見た目 variant（イシュー #2047、shadcn/ui `Empty` 突合。
+/// モジュール冒頭「イシュー #2047」節参照）。
+///
+/// 既定 `Plain` は class を出力しない（既存 `class="fd-empty-state--size-md"`
+/// をバイト不変に保つ純追加。[`crate::avatar::root`] の `stacked`/
+/// `with_badge` 等と同型の
+/// 「条件付き selection 追加」パターン、[`root`] 参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EmptyStateVariant {
+    /// 既定。枠線・背景を追加しない。
+    #[default]
+    Plain,
+    /// 破線枠（shadcn `Empty` の `border-dashed` 例相当）。
+    Outline,
+    /// 淡色単色背景（shadcn `Empty` の `Background`〔グラデーション〕例を
+    /// 単色トークンへ置換したもの。モジュール冒頭「参照競合の判定」参照）。
+    Subtle,
+}
+
+impl VariantValue for EmptyStateVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            EmptyStateVariant::Plain => "plain",
+            EmptyStateVariant::Outline => "outline",
+            EmptyStateVariant::Subtle => "subtle",
+        }
+    }
+}
+
+/// [`indicator_with`] の見た目 variant（イシュー #2047、shadcn/ui
+/// `EmptyMedia` 突合）。
+///
+/// 既定 `Plain` は [`indicator`] とバイト一致の出力になる（純追加）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EmptyStateIndicatorVariant {
+    /// 既定。[`indicator`] と同一（class を出力しない）。
+    #[default]
+    Plain,
+    /// `bg-muted` の角丸タイル（shadcn `EmptyMedia variant="icon"` 相当）。
+    Boxed,
+}
+
+impl VariantValue for EmptyStateIndicatorVariant {
+    fn axis(self) -> &'static str {
+        "indicator"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            EmptyStateIndicatorVariant::Plain => "plain",
+            EmptyStateIndicatorVariant::Boxed => "boxed",
+        }
+    }
+}
+
 /// [`root`] の設定。
 #[derive(Debug, Clone, Copy)]
 pub struct EmptyStateProps {
@@ -105,11 +229,16 @@ pub struct EmptyStateProps {
     /// `title`/`description` の font-size を連動させる（イシュー #1560、
     /// モジュール冒頭「参考サイト基準への調整」参照）。
     pub size: Size,
+    /// root の見た目 variant（既定 `Plain`、イシュー #2047）。
+    pub variant: EmptyStateVariant,
 }
 
 impl Default for EmptyStateProps {
     fn default() -> Self {
-        EmptyStateProps { size: Size::Md }
+        EmptyStateProps {
+            size: Size::Md,
+            variant: EmptyStateVariant::Plain,
+        }
     }
 }
 
@@ -326,6 +455,36 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        // イシュー #2047: shadcn/ui `Empty` 突合で純追加した root/indicator
+        // の variant 軸。`size_variants` より後ろに登録することで、golden
+        // CSS の既存ブロック（base → size variants）を変更せず末尾へ追記
+        // する（モジュール冒頭「イシュー #2047」節参照）。
+        .variant(
+            EmptyStateVariant::Outline,
+            "root",
+            vec![
+                decl("border", "1px dashed var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+            ],
+        )
+        .variant(
+            EmptyStateVariant::Subtle,
+            "root",
+            vec![
+                decl("background", "var(--fandhe-color-bg-subtle)"),
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+            ],
+        )
+        .variant(
+            EmptyStateIndicatorVariant::Boxed,
+            "indicator",
+            vec![
+                decl("padding", "var(--fandhe-space-2)"),
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+                decl("background", "var(--fandhe-color-bg-muted)"),
+                decl("color", "var(--fandhe-color-fg)"),
+            ],
+        )
 }
 
 /// EmptyState の静的 CSS 全文。
@@ -334,9 +493,14 @@ pub fn css() -> String {
     recipe().css()
 }
 
-/// root パーツ（`<div>`）を組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`crate::class_attr::drop_class_attr`] により呼び出し側の
-/// `class` は除去してから合成する）。
+/// root パーツ（`<div>`）を組み立てる。`size`/`variant` に応じたクラスを
+/// 付与する唯一のパーツ（[`crate::class_attr::drop_class_attr`] により
+/// 呼び出し側の `class` は除去してから合成する）。
+///
+/// イシュー #2047: `props.variant` が既定 `Plain` のときは `selection` へ
+/// `variant` 軸を追加しない（[`crate::avatar::root`] の `stacked`/
+/// `with_badge` と同型の条件付き push）。このため既定 `class` 出力
+/// （`fd-empty-state--size-md`）は変更前とバイト一致のまま保たれる。
 ///
 /// # Examples
 ///
@@ -354,7 +518,11 @@ pub fn root<'a>(
     children: Vec<Node>,
 ) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("size", props.size.value())]);
+    let mut selection: Vec<(&str, &str)> = vec![("size", props.size.value())];
+    if props.variant != EmptyStateVariant::Plain {
+        selection.push((props.variant.axis(), props.variant.value()));
+    }
+    let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     ANATOMY.part("root", "div", merged, children)
@@ -373,6 +541,42 @@ pub fn content<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node 
 #[must_use]
 pub fn indicator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("indicator", "span", attrs, children)
+}
+
+/// indicator パーツを `variant` 付きで組み立てる（イシュー #2047、shadcn
+/// `EmptyMedia` 突合）。
+///
+/// `Plain` は [`indicator`] とバイト一致の出力になる（純追加）。`Boxed` は
+/// [`crate::avatar::badge`] と同型に [`SlotRecipe::variant_class`] を単独で
+/// 呼び、`indicator` slot が持つ唯一の軸（`indicator`）のクラスのみを
+/// 付与する（[`SlotRecipe::variant_classes`] は使わない。`size`/`variant`
+/// 等 root 専用軸の既定値補完が indicator slot へ誤って波及しないため）。
+/// [`crate::class_attr::drop_class_attr`] により呼び出し側の `class` は
+/// 除去してから合成する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateIndicatorVariant};
+///
+/// let node = empty_state::indicator_with(EmptyStateIndicatorVariant::Boxed, vec![], vec![]);
+/// assert!(render(&node).contains("fd-empty-state--indicator-boxed"));
+/// ```
+#[must_use]
+pub fn indicator_with<'a>(
+    variant: EmptyStateIndicatorVariant,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    if variant == EmptyStateIndicatorVariant::Plain {
+        return indicator(attrs, children);
+    }
+    let recipe = recipe();
+    let class = recipe.variant_class(variant);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    ANATOMY.part("indicator", "span", merged, children)
 }
 
 /// title パーツ（`<div>`）を組み立てる。
@@ -413,7 +617,10 @@ mod tests {
             (Size::Lg, "fd-empty-state--size-lg"),
             (Size::Xl, "fd-empty-state--size-xl"),
         ] {
-            let props = EmptyStateProps { size };
+            let props = EmptyStateProps {
+                size,
+                ..Default::default()
+            };
             let html = render(&root(&props, vec![], vec![]));
             assert!(
                 html.contains(&format!("class=\"{class}\"")),
@@ -510,5 +717,87 @@ mod tests {
     #[test]
     fn css_output_is_deterministic() {
         assert_eq!(css(), css());
+    }
+
+    // イシュー #2047: shadcn/ui `Empty` 突合で追加した root/indicator variant
+    // 軸の回帰テスト。既定 `Plain` がバイト不変であることと、`Outline`/
+    // `Subtle`/`Boxed` のクラス付与・エスケープを固定する。
+
+    #[test]
+    fn default_props_class_is_unchanged() {
+        let html = render(&root(&EmptyStateProps::default(), vec![], vec![]));
+        assert!(html.contains(r#"class="fd-empty-state--size-md""#));
+        assert!(!html.contains("variant-plain"));
+    }
+
+    #[test]
+    fn root_variant_classes() {
+        let html = render(&root(
+            &EmptyStateProps {
+                size: Size::Md,
+                variant: EmptyStateVariant::Outline,
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"class="fd-empty-state--size-md fd-empty-state--variant-outline""#));
+
+        let html = render(&root(
+            &EmptyStateProps {
+                size: Size::Md,
+                variant: EmptyStateVariant::Subtle,
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"class="fd-empty-state--size-md fd-empty-state--variant-subtle""#));
+    }
+
+    #[test]
+    fn indicator_with_plain_equals_indicator() {
+        let a = render(&indicator_with(
+            EmptyStateIndicatorVariant::Plain,
+            vec![("data-testid", "x")],
+            vec![text("icon")],
+        ));
+        let b = render(&indicator(vec![("data-testid", "x")], vec![text("icon")]));
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn indicator_with_boxed_adds_class_and_drops_caller_class() {
+        let html = render(&indicator_with(
+            EmptyStateIndicatorVariant::Boxed,
+            vec![("class", "attacker-controlled")],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains(r#"class="fd-empty-state--indicator-boxed""#));
+        assert!(!html.contains("attacker-controlled"));
+    }
+
+    #[test]
+    fn xss_payload_in_indicator_with_children_and_attrs_is_escaped() {
+        let html = render(&indicator_with(
+            EmptyStateIndicatorVariant::Boxed,
+            vec![("data-testid", "\"><script>alert(1)</script>")],
+            vec![text("<script>alert(2)</script>")],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(2)&lt;/script&gt;"));
+    }
+
+    #[test]
+    fn css_output_declares_variant_blocks() {
+        let out = css();
+        assert!(out.contains(
+            r#"[data-scope="empty-state"][data-part="root"].fd-empty-state--variant-outline"#
+        ));
+        assert!(out.contains(
+            r#"[data-scope="empty-state"][data-part="root"].fd-empty-state--variant-subtle"#
+        ));
+        assert!(out.contains(
+            r#"[data-scope="empty-state"][data-part="indicator"].fd-empty-state--indicator-boxed"#
+        ));
     }
 }
