@@ -65,20 +65,20 @@ fn all_twenty_two_parts_compose_into_a_single_nav_landmark() {
         vec![
             sidebar::menu_item(
                 vec![],
-                vec![sidebar::menu_button(
-                    &SidebarMenuButtonProps {
-                        href: Some("/dashboard"),
-                        active: true,
-                        describedby: Some("dashboard-tip"),
-                        ..Default::default()
-                    },
-                    vec![],
-                    vec![
-                        text("Dashboard"),
-                        sidebar::menu_action("Pin", vec![], vec![]),
-                        sidebar::menu_badge(vec![], vec![text("3")]),
-                    ],
-                )],
+                vec![
+                    sidebar::menu_button(
+                        &SidebarMenuButtonProps {
+                            href: Some("/dashboard"),
+                            active: true,
+                            describedby: Some("dashboard-tip"),
+                            ..Default::default()
+                        },
+                        vec![],
+                        vec![text("Dashboard")],
+                    ),
+                    sidebar::menu_action("Pin", vec![], vec![]),
+                    sidebar::menu_badge(vec![], vec![text("3")]),
+                ],
             ),
             projects_item,
         ],

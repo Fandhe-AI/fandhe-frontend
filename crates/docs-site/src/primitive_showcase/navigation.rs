@@ -877,20 +877,20 @@ pub(super) fn sidebar_section() -> Node {
         vec![
             sidebar::menu_item(
                 vec![],
-                vec![sidebar::menu_button(
-                    &SidebarMenuButtonProps {
-                        href: Some("https://example.com/dashboard"),
-                        active: true,
-                        describedby: Some("primitives-sidebar-dashboard-tip"),
-                        ..Default::default()
-                    },
-                    vec![],
-                    vec![
-                        text("Dashboard"),
-                        sidebar::menu_action("Pin Dashboard", vec![], vec![]),
-                        sidebar::menu_badge(vec![], vec![text("3")]),
-                    ],
-                )],
+                vec![
+                    sidebar::menu_button(
+                        &SidebarMenuButtonProps {
+                            href: Some("https://example.com/dashboard"),
+                            active: true,
+                            describedby: Some("primitives-sidebar-dashboard-tip"),
+                            ..Default::default()
+                        },
+                        vec![],
+                        vec![text("Dashboard")],
+                    ),
+                    sidebar::menu_action("Pin Dashboard", vec![], vec![]),
+                    sidebar::menu_badge(vec![], vec![text("3")]),
+                ],
             ),
             projects_sub,
         ],
