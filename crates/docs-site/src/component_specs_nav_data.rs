@@ -1020,9 +1020,12 @@ fn ex_progress_plain() -> Node {
         &p,
         &props,
         Some("56%"),
-        vec![],
+        vec![("aria-labelledby", "progress-plain-label")],
         vec![
-            p.label(vec![], vec![fandhe_frontend_core::text("Upload progress")]),
+            p.label(
+                vec![("id", "progress-plain-label")],
+                vec![fandhe_frontend_core::text("Upload progress")],
+            ),
             p.value_text(vec![], vec![fandhe_frontend_core::text("56%")]),
             p.track(vec![], vec![progress::range(&p, vec![])]),
         ],
