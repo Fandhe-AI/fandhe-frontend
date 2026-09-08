@@ -316,19 +316,63 @@ fn ex_badge() -> Node {
     )
 }
 
+/// イシュー #2045: shadcn/ui With Icon 例に相当。`icon::icon` を子ノードと
+/// して並べるだけで再現できる（badge.rs base の `gap` が既に対応済み）。
+fn ex_badge_with_icon() -> Node {
+    badge::badge(
+        &badge::BadgeProps::default(),
+        vec![],
+        vec![
+            icon::icon(
+                &icon::IconProps {
+                    size: Size::Xs,
+                    label: None,
+                    ..icon::IconProps::default()
+                },
+                vec![],
+                vec![el(
+                    "path",
+                    vec![("d", "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z")],
+                    vec![],
+                )],
+            ),
+            text("Verified"),
+        ],
+    )
+}
+
+/// イシュー #2045: shadcn/ui `link`（`render` prop）相当。専用コンストラクタ
+/// `badge::link` が `<a>` を組み立てる（badge.rs `link` rustdoc 参照）。
+/// `href=""`（空文字列）は showcase.rs の href 中立性の作法に倣う
+/// （`crate::linkcheck::check_links` が無条件許容する空文字列を使い、実
+/// ページへ解決される href を持ち込まない）。
+fn ex_badge_link() -> Node {
+    badge::link(
+        "",
+        &badge::BadgeProps {
+            variant: badge::BadgeVariant::Outline,
+            ..badge::BadgeProps::default()
+        },
+        false,
+        vec![],
+        vec![text("As link")],
+    )
+}
+
 pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "BadgeVariant（Solid/Subtle/Outline/Surface、crates/pre-styled-ui/src/badge.rs。イシュー #1555 で Surface を追加）で塗り方を切り替える",
+        "BadgeVariant（Solid/Subtle/Outline/Surface/Plain、crates/pre-styled-ui/src/badge.rs。イシュー #1555 で Surface、#2045 で shadcn/ui `ghost` 相当の Plain を追加）で塗り方を切り替える",
         "colorPalette 軸（badge.rs の BadgeProps）でセマンティック色を選択する",
         "Subtle/Outline/Surface は 6 役割 palette の淡色トークンを消費する（badge.rs、イシュー #1555）",
         "role/aria-* は付与しない最小サブセット（badge.rs モジュール冒頭）",
+        "badge::link（イシュー #2045）で `<a>` として組み立てられる。shadcn/ui `link` variant / render prop 相当で、`[href]`/`:focus-visible` state が badge.rs recipe に発火する",
     ],
     arguments: &[
         ArgRow {
             name: "variant",
             kind: "BadgeVariant",
             default: "Subtle",
-            description: "塗り方（badge.rs の BadgeVariant、#[default] は Subtle。イシュー #1555 で Surface を追加）。",
+            description: "塗り方（badge.rs の BadgeVariant、#[default] は Subtle。イシュー #1555 で Surface、#2045 で Plain を追加し 5 値）。",
         },
         ArgRow {
             name: "size",
@@ -343,11 +387,23 @@ pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
             description: "colorPalette 軸（badge.rs の BadgeProps）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Solid",
-        description: "Solid variant の Badge です。",
-        render: ex_badge,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Solid",
+            description: "Solid variant の Badge です。",
+            render: ex_badge,
+        },
+        ExampleEntry {
+            title: "With icon",
+            description: "アイコンを子ノードとして並べた Badge です（イシュー #2045）。",
+            render: ex_badge_with_icon,
+        },
+        ExampleEntry {
+            title: "As link",
+            description: "badge::link で `<a>` として組み立てた Badge です（イシュー #2045）。",
+            render: ex_badge_link,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(該当なし)",

@@ -2322,7 +2322,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # パート `action` の新設（公開 API 追加 + CSS 出力の実体変更）を行ったため
 # minor バンプする（0.x の破壊的変更はマイナーバンプの規約、`toast`
 # のイシュー #2180 先例に同じ）。
-version = "0.136.0"
+# イシュー #2045: badge を shadcn/ui と突合し、`BadgeVariant::Plain`
+# 列挙値の新設（既存網羅 `match` を壊す 0.x の破壊的変更）と `link`
+# コンストラクタの追加（公開 API 追加）を行ったため minor バンプする。
+version = "0.137.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

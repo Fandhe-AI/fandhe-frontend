@@ -58,10 +58,50 @@
 //!   `docs/design/pre-styled-ui-interaction-visual-language.md` §3 が
 //!   「表示専用（badge/alert/card/stat 等）には hover を付けない」と
 //!   明記しており、disabled 概念・遷移対象もない。
+//!
+//! # イシュー #2045 の shadcn/ui 突合（7 軸）
+//!
+//! shadcn/ui Badge（`https://ui.shadcn.com/docs/components/base/badge`、
+//! スクショ `docs/design/reference-screenshots/shadcn-badge-{1,2,3}.png`）
+//! と突合し、`docs/design/shadcn-reference-adoption-policy.md` §8（純追加
+//! 原則）に従って欠落分のみを補完した。
+//!
+//! - **バリアント**: shadcn の `ghost`（背景・枠線なし・palette 文字色）に
+//!   相当する [`BadgeVariant::Plain`] を新設した。名称は chakra-ui の
+//!   既存語彙 `plain`（`ButtonVariant::Plain`〔#1448〕と同名）を採用する
+//!   （参照競合の判定: 見た目は shadcn `ghost` / chakra `plain` で一致する
+//!   ため、shadcn 固有の variant 名をそのまま持ち込まず既存語彙へ揃える、
+//!   §8 第 4 項）。`link`（`render` prop・asChild 相当で `<a>` として
+//!   利用する variant）は variant 軸ではなく専用コンストラクタ [`link`]
+//!   として提供する（`asChild`/Slot は
+//!   `docs/design/component-coverage-map.md` §5 Part D で保留確定のため、
+//!   `download_trigger`/`tab_nav` と同じ専用 `<a>` コンストラクタの先例に
+//!   倣う）。
+//! - **状態（`<a>` 限定）**: `link` が出力する `<a>` にのみ発火する
+//!   `[href]`（`cursor: pointer`・下線解除）と `:focus-visible`
+//!   （[`crate::recipe::focus_ring_declarations`]、#1424 規約）を追加した。
+//!   `badge` が出す既存 4 variant は `<span>`（`href` 属性を持たない）を
+//!   出力するため、これらの state は一度も発火せず既存表示は不変。
+//! - **角丸**: shadcn の pill 形状（`rounded-full`）へは**合わせない**
+//!   （参照競合の判定: 角丸は chakra-ui / Radix Themes の値
+//!   〔`--fandhe-radius-sm`〕を採る。理由: 純追加原則により既存 golden を
+//!   バイト同一に保つ。shadcn の pill は shape 軸の新設を要し #1678 の
+//!   軸語彙に無い）。
+//! - **意図的に合わせない点（他）**: `<a>` 時の hover 変化は追加しない
+//!   （`SlotRecipe` は要素種別条件と `Hover` の複合条件を持たず、`Hover`
+//!   state を root へ置くと表示専用の `<span>` にも当たり
+//!   `pre-styled-ui-interaction-visual-language.md` §3 に反する。複合状態
+//!   機構は #2203 が追跡中）。`data-icon` 属性・子孫 `svg` 寸法強制
+//!   （`[&>svg]:size-3`、#708 の方針により不採用）・size 軸（shadcn に
+//!   なし）・`aria-invalid` リング・RTL は対象外（badge に invalid 概念が
+//!   ない、または既存 5 段 size を維持するため）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_scale_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, palette_scale_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, Size, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -82,6 +122,10 @@ pub enum BadgeVariant {
     /// 同名。chakra-ui/Radix Themes 双方に存在する variant で、`Subtle` の
     /// 塗りに `Outline` の枠線を重ねた見た目）。
     Surface,
+    /// 背景・枠線なしの最小装飾（イシュー #2045。`ButtonVariant::Plain`
+    /// 〔#1448〕と同名。shadcn/ui `ghost` 相当で、`Outline` から
+    /// `border` を除いた見た目）。
+    Plain,
 }
 
 impl VariantValue for BadgeVariant {
@@ -95,6 +139,7 @@ impl VariantValue for BadgeVariant {
             Self::Subtle => "subtle",
             Self::Outline => "outline",
             Self::Surface => "surface",
+            Self::Plain => "plain",
         }
     }
 }
@@ -219,9 +264,32 @@ fn recipe() -> SlotRecipe {
                 decl("border", "1px solid var(--fandhe-palette-muted)"),
             ],
         )
+        .variant(
+            BadgeVariant::Plain,
+            "root",
+            vec![
+                decl("background", "transparent"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(BadgeVariant::Subtle)
-        .default_variant(ColorPalette::Accent);
+        .default_variant(ColorPalette::Accent)
+        // イシュー #2045: [`link`] が出力する `<a>` にのみ発火する状態
+        // （`badge` が出す `<span>` は `href` 属性を持たないため発火しない）。
+        // `[href]` はブラウザ既定の下線を打ち消し、`:focus-visible` は
+        // #1424 規約に従い `focus_ring_declarations` の canonical outline
+        // を使う（`link.rs`/`button.rs` と同じ組み合わせ）。
+        .state(
+            "root",
+            StateCondition::Attr("href"),
+            vec![decl("cursor", "pointer"), decl("text-decoration", "none")],
+        )
+        .state(
+            "root",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        );
 
     for palette in [
         ColorPalette::Accent,
@@ -266,6 +334,63 @@ pub fn badge<'a>(props: &BadgeProps, attrs: Vec<(&'a str, &'a str)>, children: V
     ANATOMY.part("root", "span", merged, children)
 }
 
+/// Badge を `<a>` として組み立てる（イシュー #2045。shadcn/ui `link`
+/// variant・`render` prop / asChild 相当）。[`badge`] が常に `<span>` を
+/// 出す設計であるため、リンクとして使う用途は variant 軸ではなく専用の
+/// コンストラクタで提供する（`asChild`/Slot 機構は
+/// `docs/design/component-coverage-map.md` §5 Part D で保留確定のため、
+/// `crate::download_trigger::root`/`crate::tab_nav` と同じ専用 `<a>`
+/// コンストラクタの先例に倣う）。`crate::link`（ナビゲーション部品）・
+/// [`crate::button::ButtonVariant::Link`]（ボタン）とは意味論が異なり、
+/// あくまで Badge の見た目のまま `<a>` を発行する。
+///
+/// `external` が `true` のとき `target="_blank"` + `rel="noopener
+/// noreferrer"` を不可分に付与する（`fandhe_frontend_headless_ui::link::root`
+/// と同じ reverse tabnabbing 対策）。`href` は
+/// [`fandhe_frontend_headless_ui::fandhe_frontend_core::is_safe_url`] の
+/// 検証対象属性であり、`javascript:` 等の危険なスキームは属性ごと出力
+/// されない（core の既定エスケープ経由、REQ-1）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{render, text};
+/// use fandhe_frontend_pre_styled_ui::badge::{link, BadgeProps};
+///
+/// let node = link(
+///     "/releases/latest",
+///     &BadgeProps::default(),
+///     false,
+///     vec![],
+///     vec![text("New")],
+/// );
+/// let html = render(&node);
+/// assert!(html.starts_with("<a"));
+/// assert!(html.contains(r#"href="/releases/latest""#));
+/// ```
+#[must_use]
+pub fn link<'a>(
+    href: &'a str,
+    props: &BadgeProps,
+    external: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let recipe = recipe();
+    let class = recipe.variant_classes(&[
+        ("variant", props.variant.value()),
+        ("size", props.size.value()),
+        ("color-palette", props.palette.value()),
+    ]);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str()), ("href", href)];
+    if external {
+        merged.push(("target", "_blank"));
+        merged.push(("rel", "noopener noreferrer"));
+    }
+    merged.extend(drop_class_attr(attrs));
+    ANATOMY.part("root", "a", merged, children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,6 +413,7 @@ mod tests {
             (BadgeVariant::Subtle, "fd-badge--variant-subtle"),
             (BadgeVariant::Outline, "fd-badge--variant-outline"),
             (BadgeVariant::Surface, "fd-badge--variant-surface"),
+            (BadgeVariant::Plain, "fd-badge--variant-plain"),
         ] {
             let props = BadgeProps {
                 variant,
@@ -366,5 +492,97 @@ mod tests {
         ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    // --- イシュー #2045: `link` コンストラクタ ---
+
+    #[test]
+    fn link_outputs_anchor_with_href_and_scope() {
+        let html = render(&link(
+            "/releases/latest",
+            &BadgeProps::default(),
+            false,
+            vec![],
+            vec![text("New")],
+        ));
+        assert!(html.starts_with("<a"));
+        assert!(html.contains(r#"data-scope="badge""#));
+        assert!(html.contains(r#"data-part="root""#));
+        assert!(html.contains(r#"href="/releases/latest""#));
+        assert!(!html.contains("target="));
+        assert!(!html.contains("rel="));
+        assert!(html.contains(">New<"));
+    }
+
+    #[test]
+    fn link_external_true_adds_target_and_rel_together() {
+        let html = render(&link(
+            "https://example.com",
+            &BadgeProps::default(),
+            true,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"target="_blank""#));
+        assert!(html.contains(r#"rel="noopener noreferrer""#));
+    }
+
+    #[test]
+    fn link_external_false_omits_target_and_rel() {
+        let html = render(&link(
+            "https://example.com",
+            &BadgeProps::default(),
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("target="));
+        assert!(!html.contains("rel="));
+    }
+
+    #[test]
+    fn link_dangerous_url_scheme_is_rejected() {
+        let html = render(&link(
+            "javascript:alert(1)",
+            &BadgeProps::default(),
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("href="));
+    }
+
+    #[test]
+    fn link_caller_class_attr_is_dropped_not_duplicated() {
+        let html = render(&link(
+            "/releases/latest",
+            &BadgeProps::default(),
+            false,
+            vec![("class", "attacker-controlled")],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(!html.contains("attacker-controlled"));
+    }
+
+    #[test]
+    fn link_variant_classes_match_badge() {
+        let html = render(&link(
+            "/releases/latest",
+            &BadgeProps::default(),
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-badge--size-md"));
+        assert!(html.contains("fd-badge--variant-subtle"));
+        assert!(html.contains("fd-badge--color-palette-accent"));
+    }
+
+    #[test]
+    fn css_contains_href_and_focus_visible_states() {
+        let out = css();
+        assert!(out.contains("[href]"));
+        assert!(out.contains(":focus-visible"));
     }
 }
