@@ -35,12 +35,12 @@ use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
-    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, color_picker, data_state,
-    date_input, dialog, download_trigger, editable, floating_panel, hover_card, image_cropper,
-    input_group, listbox, number_input, password_input, pin_input, popover, rating_group,
-    segment_group, signature_pad, slider, splitter, tags_input, timer, toast, tree_view, Calendar,
-    DatePicker, ImageStatus, InputGroupAlign, InputGroupProps, OpenState, Orientation,
-    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus, Tour,
+    action_bar, aria_controls, aria_label, avatar, button_group, carousel, clipboard, color_picker,
+    data_state, date_input, dialog, download_trigger, editable, floating_panel, hover_card,
+    image_cropper, input_group, listbox, number_input, password_input, pin_input, popover,
+    rating_group, segment_group, signature_pad, slider, splitter, tags_input, timer, toast,
+    tree_view, Calendar, DatePicker, ImageStatus, InputGroupAlign, InputGroupProps, OpenState,
+    Orientation, PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -2008,6 +2008,66 @@ fn tour_title_description_target_and_attrs_are_escaped_for_all_payloads() {
             payload,
             &html,
             "tour::Tour::content の data-step コンテキスト",
+        );
+    }
+}
+
+/// イシュー #2059: `button_group` の `root`（`aria-label`・呼び出し側
+/// `attrs`）・`text`（children）が、ネストしたグループ構成でも既定
+/// エスケープを経由することを固定する。
+#[test]
+fn button_group_label_text_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let label_node = button_group::root(Orientation::Horizontal, payload, vec![], vec![]);
+        let html = render(&label_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "button_group::root の aria-label コンテキスト",
+        );
+
+        let attrs_node = button_group::root(
+            Orientation::Horizontal,
+            "",
+            vec![("data-testid", payload)],
+            vec![],
+        );
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "button_group::root の呼び出し側 attrs コンテキスト",
+        );
+
+        let text_node = button_group::text(vec![], vec![text(payload)]);
+        let html = render(&text_node);
+        assert_payload_is_escaped(payload, &html, "button_group::text の子ノードコンテキスト");
+
+        let separator_attrs_node =
+            button_group::separator(Orientation::Horizontal, vec![("id", payload)], vec![]);
+        let html = render(&separator_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "button_group::separator の呼び出し側 attrs コンテキスト",
+        );
+
+        let nested_node = button_group::root(
+            Orientation::Horizontal,
+            "",
+            vec![],
+            vec![button_group::root(
+                Orientation::Vertical,
+                payload,
+                vec![],
+                vec![],
+            )],
+        );
+        let html = render(&nested_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "button_group::root ネスト構成の内側 aria-label コンテキスト",
         );
     }
 }
