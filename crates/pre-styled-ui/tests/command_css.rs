@@ -117,6 +117,11 @@ const COMMAND_GOLDEN_CSS: &str = "[data-scope=\"command\"][data-part=\"root\"] {
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
+[data-scope=\"command\"][data-part=\"dialog\"]:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
 [data-scope=\"command\"][data-part=\"empty\"][data-empty] {
   display: block;
 }
@@ -212,6 +217,25 @@ fn css_root_focus_within_ring_exists() {
     assert!(css.contains("[data-scope=\"command\"][data-part=\"root\"]:focus-within {"));
     assert!(css.contains(
         "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+    ));
+}
+
+/// `dialog` 自身にも `:focus-within` canonical フォーカスリングが存在する
+/// ことを固定する。`dialog` → `root` → `input` と入れ子にした公開
+/// Examples の構成では `root` の `Outside` リングが祖先 `dialog` の
+/// `overflow-x: hidden`/`overflow-y: auto` によってクリップされ不可視に
+/// なるため、`dialog` 自身の `:focus-within` が可視化手段として必要
+/// （`src/command.rs` モジュール doc「`dialog` 内では `root` のリングだけ
+/// では不十分」節参照。PR #2241 codex レビュー P1 対応）。
+#[test]
+fn css_dialog_focus_within_ring_exists() {
+    let css = command::stylesheet();
+    assert!(css.contains("[data-scope=\"command\"][data-part=\"dialog\"]:focus-within {"));
+    let (_, after) = css
+        .split_once("[data-scope=\"command\"][data-part=\"dialog\"]:focus-within {")
+        .expect("dialog focus-within rule must exist");
+    assert!(after.starts_with(
+        "\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n}"
     ));
 }
 

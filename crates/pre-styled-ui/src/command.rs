@@ -98,8 +98,8 @@
 //! ならないようにする（`dialog` 自体がスクロールコンテナになる。フォーカス
 //! リング指摘・#2241 codex レビュー対応）。
 //!
-//! # フォーカスリング（`input` の `outline: none` を `root` の
-//! `:focus-within` で補う）
+//! # フォーカスリング（`input` の `outline: none` を `root` と `dialog`
+//! の `:focus-within` で補う）
 //!
 //! [`input`] slot は `outline: none`（ブラウザ既定フォーカス枠の除去）を
 //! 持つが、これを単独で置くと `input` へフォーカスしたときの視認手段が
@@ -111,7 +111,23 @@
 //! `palette` 軸を持たないため。[`FocusRingOffset::Outside`]）を登録する
 //! （[`crate::combobox`] が `control` の `:focus-within` へ付ける対策と
 //! 同型。Tab で [`input`] へ移動したとき `root` の外枠にリングが表示され
-//! フォーカス位置を視認できる）。
+//! フォーカス位置を視認できる）。単独 `root`（`dialog` の外）ではこの
+//! `Outside` オフセットのリングがそのまま可視化される。
+//!
+//! **`dialog` 内では `root` のリングだけでは不十分（#2241 codex レビュー
+//! P1 指摘）**: 公開 Examples のように `dialog` → `root` → `input` と入れ
+//! 子にした構成では、`root` の `Outside` リングは `root` 自身の外側へ
+//! はみ出して描画される。`dialog` は `padding: 0` かつ
+//! `overflow-x: hidden`/`overflow-y: auto`（上記「`dialog` のスクロール」
+//! 節参照）を持つため、この祖先のクリッピングコンテキストにより `root`
+//! のリングは `dialog` の境界で見えなくなる（`outline` は自分自身の
+//! `overflow` では切れないが、祖先の `overflow: hidden`/`auto` では
+//! クリップされる CSS の性質）。このため本 [`recipe`] は [`dialog`]
+//! 自身にも `:focus-within` の canonical リングを登録する（`dialog` 自体
+//! の `overflow` はその要素自身の `outline` を切らないため、`dialog` の
+//! 外枠として確実に可視化される）。`dialog` を使わない単独 `root` の
+//! 構成では `dialog` slot 自体が存在せずこのセレクタは発火しないため、
+//! 二重リングにはならない。
 //!
 //! # `shortcut` 内への `kbd` 合成
 //!
@@ -315,6 +331,19 @@ fn recipe() -> SlotRecipe {
             // の `:focus-within` へ付ける対策と同型。モジュール doc
             // 「フォーカスリング」節参照）。
             "root",
+            StateCondition::FocusWithin,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .state(
+            // `dialog` 内では `root` の `Outside` リングが祖先 `dialog` の
+            // `padding: 0`/`overflow-x: hidden`/`overflow-y: auto` に
+            // よってクリップされ見えなくなる（モジュール doc「`dialog`
+            // 内では `root` のリングだけでは不十分」節参照、#2241 codex
+            // レビュー P1 対応）。`dialog` 自身の `:focus-within` へも
+            // canonical リングを登録し、`dialog` を使わない構成では
+            // `dialog` slot 自体が無くこのルールが発火しないため二重
+            // リングにはならない。
+            "dialog",
             StateCondition::FocusWithin,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
