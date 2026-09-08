@@ -9,10 +9,11 @@
 //! `checkbox_item`/`radio_item_group`/`radio_item`/`sub_trigger`/
 //! `sub_content` を含む）。
 
-use fandhe_frontend_core::{div, el, p, text, Node};
+use fandhe_frontend_core::{button, div, el, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
 use hui::breadcrumb;
+use hui::button_group;
 use hui::data_attrs::Orientation;
 use hui::link;
 use hui::link_overlay;
@@ -89,6 +90,56 @@ pub(super) fn breadcrumb_section() -> Node {
         )],
     )];
     demo_page("Breadcrumb", body)
+}
+
+/// Button Group（イシュー #2059）の Demo。3 anatomy パーツ（`root` /
+/// `separator` / `text`）を横並び（`Horizontal`）グループへ全網羅で
+/// 出現させ、さらにネストした `root`（`Vertical`）を内側に配置して
+/// ネスト構成が破綻しないことも示す（子ボタンは素の `button` 要素であり
+/// headless-ui の anatomy パートではないため、KNOWN_UNCOVERED への登録は
+/// 不要）。
+pub(super) fn button_group_section() -> Node {
+    let body = vec![
+        button_group::root(
+            Orientation::Horizontal,
+            "File actions",
+            vec![],
+            vec![
+                button(vec![("type", "button")], vec![text("Save")]),
+                button(vec![("type", "button")], vec![text("Save As")]),
+                button(vec![("type", "button")], vec![text("Export")]),
+            ],
+        ),
+        button_group::root(
+            Orientation::Horizontal,
+            "Text and separator",
+            vec![],
+            vec![
+                button_group::text(vec![], vec![text("Sort by:")]),
+                button(vec![("type", "button")], vec![text("Name")]),
+                button_group::separator(Orientation::Horizontal, vec![], vec![]),
+                button(vec![("type", "button")], vec![text("Date")]),
+            ],
+        ),
+        button_group::root(
+            Orientation::Vertical,
+            "Nested",
+            vec![],
+            vec![
+                button(vec![("type", "button")], vec![text("Outer")]),
+                button_group::root(
+                    Orientation::Vertical,
+                    "",
+                    vec![],
+                    vec![
+                        button(vec![("type", "button")], vec![text("Inner 1")]),
+                        button(vec![("type", "button")], vec![text("Inner 2")]),
+                    ],
+                ),
+            ],
+        ),
+    ];
+    demo_page("Button Group", body)
 }
 
 /// 参考サイト（chakra-ui / Radix Themes）のデモ構成（単体 / variant 別 /

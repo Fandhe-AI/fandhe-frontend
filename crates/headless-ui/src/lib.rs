@@ -675,6 +675,15 @@
 //!   [`mod@toolbar`] から再エクスポートして再利用する（[`mod@toolbar`]
 //!   モジュール doc 参照）。矢印キーの実 DOM 配線は
 //!   `fandhe-frontend-wasm-full` の後続責務。
+//! - [`mod@button_group`]: Root / Separator / Text の 3 anatomy パーツ
+//!   （イシュー #2059、shadcn/ui Button Group 相当、参照軸 #2001）。
+//!   `role="group"` の**静的な**グループ化であり、[`mod@toolbar`] の
+//!   roving tabindex 状態機械とは異なりネイティブ Tab 順序に委ねる
+//!   （[`mod@fieldset`] と同じく状態機械を持たない）。`role="group"` へ
+//!   `aria-orientation` は付与せず `data-orientation` のみで向きを表現し、
+//!   先頭/末尾ボタンの角丸連結は CSS（`:first-child`/`:last-child`）に
+//!   委ねる（`.claude/rules/coding-rust.md` §3.25 の責務境界）。ネスト
+//!   （グループ内グループ）を許容する。
 //! - [`mod@menubar`]: Root / Menu / Trigger / Positioner / Content / Arrow /
 //!   ArrowTip / Item / ItemText / ItemIndicator / ItemGroup /
 //!   ItemGroupLabel / Separator / SubTrigger / SubContent / CheckboxItem /
@@ -716,6 +725,7 @@ pub mod angle_slider;
 pub mod aria;
 pub mod avatar;
 pub mod breadcrumb;
+pub mod button_group;
 pub mod calendar;
 pub mod carousel;
 pub mod checkbox;

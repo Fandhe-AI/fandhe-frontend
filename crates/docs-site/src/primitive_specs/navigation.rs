@@ -1,5 +1,6 @@
-//! Primitives（`fandhe-frontend-headless-ui`）Navigation カテゴリ 11 部品の
-//! 原稿データ（イシュー #1028、親トラッキング #1035 Phase 5）。
+//! Primitives（`fandhe-frontend-headless-ui`）Navigation カテゴリ 12 部品の
+//! 原稿データ（イシュー #1028、親トラッキング #1035 Phase 5。イシュー #2059
+//! で `button_group` が追加され 11 → 12）。
 //!
 //! # 役割・呼び出し文脈
 //!
@@ -85,10 +86,11 @@
 //!   エントリを持たない（旧記述「`trigger-item`/`checkbox-item`/…は
 //!   Demo 側未網羅」は両イシューの Demo 拡充で解消済み）。
 
-use fandhe_frontend_core::{code, el, p, pre, text, Node};
+use fandhe_frontend_core::{button, code, el, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
 use hui::breadcrumb;
+use hui::button_group;
 use hui::data_attrs::Orientation;
 use hui::link;
 use hui::link_overlay;
@@ -430,6 +432,166 @@ pub(super) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "role=\"presentation\" / aria-hidden=\"true\"",
             description: "separator/ellipsis に固定付与し装飾要素として扱う。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// button_group（`crates/headless-ui/src/button_group.rs`、イシュー #2059）
+// ---------------------------------------------------------------------
+
+/// Demo（`button_group_section`）は水平・区切り付き・ネストの 3 構成で
+/// 3 anatomy パーツすべてを実演する。ここでは切り口を変え、`Vertical`
+/// 向きの単体グループを最小構成で実演する。
+fn ex_button_group_vertical() -> Node {
+    example_wrap(vec![button_group::root(
+        Orientation::Vertical,
+        "Alignment",
+        vec![],
+        vec![
+            button(vec![("type", "button")], vec![text("Left")]),
+            button(vec![("type", "button")], vec![text("Center")]),
+            button(vec![("type", "button")], vec![text("Right")]),
+        ],
+    )])
+}
+
+/// ネスト（グループの中にグループ）構成を単体で実演する（Demo のネスト例
+/// と切り口を変え、外側 `Vertical`・内側 `Horizontal` の組み合わせにする）。
+fn ex_button_group_nested() -> Node {
+    example_wrap(vec![button_group::root(
+        Orientation::Vertical,
+        "Toolbar",
+        vec![],
+        vec![
+            button(vec![("type", "button")], vec![text("Undo")]),
+            button_group::root(
+                Orientation::Horizontal,
+                "",
+                vec![],
+                vec![
+                    button(vec![("type", "button")], vec![text("Bold")]),
+                    button(vec![("type", "button")], vec![text("Italic")]),
+                ],
+            ),
+        ],
+    )])
+}
+
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-orientation` 属性セレクタで先頭/末尾
+/// ボタンの角丸連結・区切り線を組み立てる例を示す（`CHECKBOX_CUSTOM_CSS_SNIPPET`
+/// 〔forms_a.rs〕と同型）。CSS はテキストノード（[`code`]/[`pre`]）として
+/// 既定エスケープを経由し、`crate::primitive_showcase` の専用スタイルシート
+/// （`[data-scope=`/`[data-part=` を持たない契約、`tests/site_css_contract.rs`）
+/// へは追加しない。
+const BUTTON_GROUP_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"button-group\"][data-part=\"root\"] {\n  \
+  display: inline-flex;\n\
+}\n\
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] {\n  \
+  flex-direction: column;\n\
+}\n\
+[data-scope=\"button-group\"][data-part=\"root\"] > button:not(:first-child) {\n  \
+  margin-inline-start: -1px;\n\
+}\n\
+[data-scope=\"button-group\"][data-part=\"root\"] > button:first-child {\n  \
+  border-start-end-radius: 0;\n  border-end-end-radius: 0;\n\
+}\n\
+[data-scope=\"button-group\"][data-part=\"root\"] > button:last-child {\n  \
+  border-start-start-radius: 0;\n  border-end-start-radius: 0;\n\
+}\n\
+[data-scope=\"button-group\"][data-part=\"separator\"] {\n  \
+  width: 1px;\n  background: #d1d5db;\n\
+}\n";
+
+fn ex_button_group_custom_css() -> Node {
+    let markup = button_group::root(
+        Orientation::Horizontal,
+        "File actions",
+        vec![],
+        vec![
+            button(vec![("type", "button")], vec![text("Save")]),
+            button(vec![("type", "button")], vec![text("Export")]),
+        ],
+    );
+    example_wrap(vec![
+        markup,
+        pre(
+            vec![],
+            vec![code(vec![], vec![text(BUTTON_GROUP_CUSTOM_CSS_SNIPPET)])],
+        ),
+    ])
+}
+
+/// `/primitives/button-group/`。
+///
+/// 一次情報: `crates/headless-ui/src/button_group.rs` モジュール doc。
+/// shadcn/ui の Button Group にのみ存在し他 3 参照軸（ark-ui / chakra-ui /
+/// Radix）に対応部品がない（参照軸 #2001、shadcn 追加はイシュー #2004）。
+pub(super) const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "関連ボタンを角丸・境界線で連結してひとつのグループに見せる shadcn/ui Button Group 相当（参照軸 #2001）。root（div）/ separator（div）/ text（div）の 3 anatomy パーツを持つ（button_group.rs モジュール doc）。",
+        "role=\"group\" の静的なグループ化であり、mod@toolbar の roving tabindex 状態機械とは異なりネイティブ Tab 順序に委ねる（mod@fieldset と同じく状態機械を持たない）。",
+        "role=\"group\" へ aria-orientation は付与しない（WAI-ARIA 上 group ロールへの aria-orientation は非許可、toolbar::toggle_group と同じ判断）。向きは data-orientation のみで表現する。",
+        "先頭/末尾ボタンの角丸連結は本モジュールの責務外（`.claude/rules/coding-rust.md` §3.25、装飾は pre-styled-ui 側）。CSS の `:first-child`/`:last-child` セレクタで表現する。",
+        "separator はグループ自身の向きと直交する aria-orientation/data-orientation を出力する（横並びグループの区切り線は縦線になるため vertical、toolbar::separator/action_bar::separator と同じ判断）。",
+        "ネスト（グループの中にグループ）を許容する。内側の root は自身の data-orientation のみを持ち、外側の値へは影響しない。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root(orientation, label, attrs, children)",
+            kind: "Orientation, &str",
+            default: "",
+            description: "label が非空のとき aria-label へ出力する（空文字列のときは省略）。aria-orientation は出力しない。",
+        },
+        ArgRow {
+            name: "separator(group_orientation, attrs, children)",
+            kind: "Orientation",
+            default: "",
+            description: "グループ自身の向きと直交する aria-orientation/data-orientation を出力する。",
+        },
+        ArgRow {
+            name: "text(attrs, children)",
+            kind: "Vec<(&str, &str)>, Vec<Node>",
+            default: "",
+            description: "shadcn/ui の ButtonGroupText 相当のラベル用非ボタン要素（div）。固定付与属性を持たない。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Vertical 単体構成",
+            description: "root を Vertical 向きで単体使用する最小構成です。",
+            render: ex_button_group_vertical,
+        },
+        ExampleEntry {
+            title: "ネスト（グループの中にグループ）",
+            description: "外側 Vertical・内側 Horizontal のグループを組み合わせた構成です。",
+            render: ex_button_group_nested,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part / data-orientation 属性セレクタで先頭/末尾ボタンの角丸連結・区切り線を組み立てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_button_group_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "Tab / Shift+Tab",
+        description: "ネイティブ button 要素由来のフォーカス移動のみ。roving tabindex・矢印キーの状態機械は持たない（静的なグループ化のため、button_group.rs モジュール doc「role=\"group\" の静的グループ」節）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "root に固定付与。aria-orientation は付与しない（WAI-ARIA 上 group ロールへの aria-orientation は非許可）。",
+        },
+        AriaRow {
+            attribute: "data-orientation",
+            description: "root/separator に固定付与。root は呼び出し側指定の向き、separator はそれと直交する向き。",
+        },
+        AriaRow {
+            attribute: "role=\"separator\" / aria-orientation",
+            description: "separator に固定付与。グループ自身の向きと直交する値を出力する（toolbar::separator と同じ判断）。",
         },
     ],
     demo: None,
@@ -2363,12 +2525,14 @@ pub(super) const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// Navigation カテゴリ（11 部品）の `path -> ComponentPageSpec` テーブル。
-/// 並び順は `crate::primitives_catalog::PRIMITIVES` の Navigation カテゴリの
-/// 並びに合わせる。
+/// Navigation カテゴリ（12 部品、イシュー #2059 で `button_group` が追加され
+/// 11 → 12）の `path -> ComponentPageSpec` テーブル。並び順は
+/// `crate::primitives_catalog::PRIMITIVES` の Navigation カテゴリの並びに
+/// 合わせる。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/action-bar/", ACTION_BAR),
     ("/primitives/breadcrumb/", BREADCRUMB),
+    ("/primitives/button-group/", BUTTON_GROUP),
     ("/primitives/link/", LINK),
     ("/primitives/link-overlay/", LINK_OVERLAY),
     ("/primitives/menu/", MENU),
