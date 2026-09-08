@@ -4223,7 +4223,7 @@ mod tests {
 // （events.rs/hydration.rs/dom.rs と同じ 2 層構成方針）。
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
-mod wiring {
+pub(crate) mod wiring {
     use crate::events::{classify_interactive_boundary, InteractiveBoundaryClass};
 
     use super::{
@@ -4916,14 +4916,22 @@ mod wiring {
     /// `element.closest(selector)` の失敗（`Err`）・不一致（`None`）をまとめて
     /// `None` として扱う薄いヘルパ。DOM API のクエリ不正は本モジュールの
     /// 責務外の異常系であり、安全側 no-op とする。
-    fn closest(element: &Element, selector: &str) -> Option<Element> {
+    ///
+    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が Escape/
+    /// Cmd+K 配線での root/dialog 再解決に再利用するため公開する。挙動変更
+    /// なし。
+    pub(crate) fn closest(element: &Element, selector: &str) -> Option<Element> {
         element.closest(selector).ok().flatten()
     }
 
     /// `list_or_root` 配下の `part_selector` に一致する要素を出現順に
     /// `Vec<Element>` として集める。`query_selector_all` の失敗は空 `Vec`
     /// として扱う（fail-closed、panic しない）。
-    fn collect_parts(list_or_root: &Element, part_selector: &str) -> Vec<Element> {
+    ///
+    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が item/
+    /// group/separator の絞り込み走査に再利用するため公開する。挙動変更
+    /// なし。
+    pub(crate) fn collect_parts(list_or_root: &Element, part_selector: &str) -> Vec<Element> {
         let Ok(node_list) = list_or_root.query_selector_all(part_selector) else {
             return Vec::new();
         };
@@ -4941,7 +4949,10 @@ mod wiring {
 
     /// 各要素の disabled 状態（ネイティブ `disabled` 属性または
     /// `data-disabled` 属性の存在）を列挙する。
-    fn disabled_flags(elements: &[Element]) -> Vec<bool> {
+    ///
+    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が矢印
+    /// キー行選択の disabled 除外に再利用するため公開する。挙動変更なし。
+    pub(crate) fn disabled_flags(elements: &[Element]) -> Vec<bool> {
         elements
             .iter()
             .map(|el| el.has_attribute("disabled") || el.has_attribute("data-disabled"))
@@ -5068,7 +5079,11 @@ mod wiring {
     /// 動的な入力から組み立てられるよう変更された場合の防御としても
     /// 機能する（`wasm-client::binding_dom` の `set_attribute` 呼び出しと
     /// 同じガード方針）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+    ///
+    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が
+    /// `data-selected`/`aria-selected`/`aria-activedescendant` の同期へ
+    /// 再利用するため公開する。挙動変更なし。
+    pub(crate) fn set_dom_attribute(element: &Element, name: &str, value: &str) {
         if fandhe_frontend_core::is_event_handler_attr(name) {
             return;
         }
@@ -5130,7 +5145,10 @@ mod wiring {
     }
 
     /// `event` の修飾キー状態を [`Modifiers`] へ変換する薄いアダプタ。
-    fn modifiers_of(event: &KeyboardEvent) -> Modifiers {
+    ///
+    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が独自定義
+    /// せず再利用するため公開する。挙動変更なし。
+    pub(crate) fn modifiers_of(event: &KeyboardEvent) -> Modifiers {
         Modifiers {
             ctrl: event.ctrl_key(),
             alt: event.alt_key(),
