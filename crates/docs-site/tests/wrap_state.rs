@@ -1,11 +1,11 @@
 //! イシュー #1064: Primitives（`fandhe-frontend-headless-ui`、67 部品）と
-//! Themes（`fandhe-frontend-pre-styled-ui`、114 部品）の**層をまたぐラップ状態**
+//! Themes（`fandhe-frontend-pre-styled-ui`、115 部品）の**層をまたぐラップ状態**
 //! を機械可視化する契約テスト。
 //!
 //! # 背景・既存テストとの分担
 //!
 //! `tests/primitives_catalog.rs` は headless-ui ソース ↔ 台帳のドリフトを
-//! レイヤー内で検知するのみで、「Themes 113 部品のどれが headless をラップし、
+//! レイヤー内で検知するのみで、「Themes 115 部品のどれが headless をラップし、
 //! どれが独自実装か」という層をまたぐ対応関係は検証しない
 //! （`primitives_titles_match_themes_page_titles_where_both_exist` は同名
 //! ページが両方に存在する場合の title 一致のみを見る）。本ファイルはその
@@ -14,7 +14,7 @@
 //! をすり抜けるのを防ぐ。判別規約は
 //! `docs/design/docs-site-primitives-themes-split.md` §6a を参照。
 //!
-//! # 4 バケット分割（Themes 113 部品）
+//! # 4 バケット分割（Themes 115 部品）
 //!
 //! - [`WRAPPED_SAME_NAME`]（66）: 同名の Primitives 部品が存在し、かつ同名
 //!   headless モジュールへコード委譲している
@@ -529,9 +529,11 @@ const DOC_REFERENCE_ONLY: &[(&str, &str)] = &[
 ];
 
 /// バケット D: headless 部品への参照がコード・rustdoc いずれにも無い
-/// Themes ページ（kebab、ソート済み、38 件。イシュー #1064 本文の受け入れ
+/// Themes ページ（kebab、ソート済み、39 件。イシュー #1064 本文の受け入れ
 /// 条件 2 が求める一覧。イシュー #2045 で badge がバケット C へ移動し
-/// 39 → 38）。
+/// 39 → 38。イシュー #2080 で `/themes/radial-chart/` を登録し、headless
+/// 側に対応 anatomy が無い（pie-chart/donut-chart と同判断）ため本バケット
+/// へ 38 → 39 で追加した）。
 const PRE_STYLED_ONLY: &[&str] = &[
     "alert",
     "area-chart",
@@ -559,6 +561,7 @@ const PRE_STYLED_ONLY: &[&str] = &[
     "pie-chart",
     "quote",
     "radar-chart",
+    "radial-chart",
     "scatter-chart",
     "separator",
     "skeleton",
@@ -605,22 +608,14 @@ const HEADLESS_UNWRAPPED: &[&str] = &["sidebar"];
 /// 集合として引き続き 4 件のまま維持する）。
 const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "textarea"];
 
-/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（7 件。
+/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（6 件。
 /// イシュー #1685 で `field`、イシュー #1687 で `fieldset` がそれぞれ
 /// Themes ページ登録済みとなり本台帳から除外された。イシュー #2079 で
-/// `radial_chart` を新設し、本イシューでは `/themes/radial-chart/` の
-/// ページ登録を行わないため一時的に本台帳へ追加した。兄弟イシュー #2080
-/// がページ登録した時点で本エントリを削除し `PRIMITIVES`/Themes 側の
-/// 「ラップ済み」台帳へ移すこと）。
-const NON_PAGE_TOP_LEVEL: &[&str] = &[
-    "class_attr",
-    "css",
-    "lib",
-    "radial_chart",
-    "recipe",
-    "stylesheet",
-    "theme",
-];
+/// `radial_chart` を新設した時点では `/themes/radial-chart/` 未登録のため
+/// 一時的に本台帳へ加えていたが、イシュー #2080 で `/themes/radial-chart/`
+/// を登録したため除外した（headless 側に対応 anatomy が無いため
+/// [`WRAPPED_SAME_NAME`] ではなく [`PRE_STYLED_ONLY`] へ分類する）。
+const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
 
 /// §3.6: `charts/` のうち Themes ページに対応しないモジュール（8 件。
 /// `mod` は charts 索引ページとして別枠で扱うため含まない。`tooltip` は
@@ -637,7 +632,7 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 114 件すべてが `resolve_page` で panic
+/// §3.5: nav 登録済み Themes ページ 115 件すべてが `resolve_page` で panic
 /// せず解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
@@ -645,7 +640,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        114,
+        115,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -1003,9 +998,10 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          ページ登録により `command` も WRAPPED_SAME_NAME バケットへ \
          移った。イシュー #2079 で radial_chart.rs を新設し 114 → 115。 \
          本イシュー時点ではページ未登録のため `radial_chart` は \
-         NON_PAGE_TOP_LEVEL に暫定登録し、兄弟イシュー #2080 の \
-         `/themes/radial-chart/` ページ登録時に WRAPPED_SAME_NAME \
-         バケットへ移す）"
+         NON_PAGE_TOP_LEVEL に暫定登録していたが、イシュー #2080 で \
+         `/themes/radial-chart/` を登録し PRE_STYLED_ONLY へ分類済み \
+         （headless 側に対応 anatomy が無いため WRAPPED_SAME_NAME では \
+         ない）"
     );
     assert_eq!(
         scan.charts.len(),
