@@ -165,6 +165,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Image Cropper | `image_cropper` | Forms | `/themes/image-cropper/` | `site/themes/image-cropper.md` | （なし・Phase 4 で新規） |
 | Input | `input` | Forms | `/themes/input/` | `site/themes/input.md` | （form_controls_section 内包） |
 | Input Group | `input_group` | Forms | `/themes/input-group/` | `site/themes/input-group.md` | `input_group_section()`（#2063 で新設） |
+| Item | `item` | Data Display | `/themes/item/` | `site/themes/item.md` | `item_section()`（#2066 で新設） |
 | JSON Tree View | `json_tree_view` | Data Display | `/themes/json-tree-view/` | `site/themes/json-tree-view.md` | `json_tree_view_section()` |
 | Kbd | `kbd` | Typography | `/themes/kbd/` | `site/themes/kbd.md` | `kbd_section()` |
 | Line Chart | `line_chart` | Charts | `/themes/line-chart/` | `site/themes/line-chart.md` | `line_chart_section()` |
@@ -282,8 +283,8 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `clipboard` `collapsible` `dialog` `drawer` `floating_panel` `hover_card`
   `menu` `nav_list` `pagination` `popover` `splitter` `steps` `tabs` `toast`
   `toggle_tip` `tooltip` `tour`
-- **Data Display (21)**: `alert` `avatar` `badge` `card` `color_swatch`
-  `data_list` `empty_state` `icon` `image` `json_tree_view` `progress`
+- **Data Display (22)**: `alert` `avatar` `badge` `card` `color_swatch`
+  `data_list` `empty_state` `icon` `image` `item` `json_tree_view` `progress`
   `qr_code` `skeleton` `spinner` `stat` `status` `table` `tag` `timeline`
   `timer` `tree_view`
 - **Utilities (6)**: `link_overlay` `marquee` `scroll_area` `separator`
