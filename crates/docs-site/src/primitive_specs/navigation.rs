@@ -91,6 +91,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
 use hui::breadcrumb;
 use hui::button_group;
+use hui::collapsible;
 use hui::data_attrs::Orientation;
 use hui::link;
 use hui::link_overlay;
@@ -99,6 +100,7 @@ use hui::menubar;
 use hui::nav_list;
 use hui::navigation_menu;
 use hui::pagination::{self, ItemMode};
+use hui::sidebar::{self, SidebarMenuSubButtonProps};
 use hui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use hui::toolbar;
 use hui::OpenState;
@@ -2037,6 +2039,51 @@ fn ex_pagination() -> Node {
     )])
 }
 
+/// `/primitives/sidebar/` Examples 節: `collapsible` の合成による
+/// `menu-sub` の開閉表現（sidebar モジュール doc「他 scope を内包しない」
+/// 参照）。
+fn ex_sidebar_collapsible_menu_sub() -> Node {
+    let open = hui::OpenState::Open;
+    example_wrap(vec![el(
+        "ul",
+        vec![],
+        vec![el(
+            "li",
+            vec![],
+            vec![
+                collapsible::trigger(
+                    open,
+                    false,
+                    Some("sidebar-example-projects-sub"),
+                    vec![],
+                    vec![text("Projects")],
+                ),
+                collapsible::content(
+                    open,
+                    false,
+                    Some("sidebar-example-projects-sub"),
+                    vec![],
+                    vec![sidebar::menu_sub(
+                        vec![],
+                        vec![sidebar::menu_sub_item(
+                            vec![],
+                            vec![sidebar::menu_sub_button(
+                                &SidebarMenuSubButtonProps {
+                                    href: Some("https://example.com/projects/alpha"),
+                                    active: true,
+                                    ..Default::default()
+                                },
+                                vec![],
+                                vec![text("Alpha")],
+                            )],
+                        )],
+                    )],
+                ),
+            ],
+        )],
+    )])
+}
+
 /// `/primitives/pagination/`。
 ///
 /// 一次情報: `crates/headless-ui/src/pagination.rs`（モジュール doc「参考
@@ -2251,6 +2298,98 @@ fn ex_tabs_custom_css() -> Node {
 /// `crates/wasm-full/src/keynav.rs::tabs_next_index`/`handle_tabs_keydown`/
 /// `activate_tab`（キーボード実装の一次情報）。是正なし、パート・`data-*`
 /// 増減なし（Radix Primitives の `data-*` 表と属性単位で一致）。
+/// [`crate::primitives_catalog::PRIMITIVES_WITHOUT_THEMES_PAGE`] 登録済み
+/// （イシュー #2072、headless-ui 層のみ先行実装。Themes recipe は #2073）。
+///
+/// 一次情報: `crates/headless-ui/src/sidebar.rs` モジュール doc（22 anatomy
+/// パーツ・`data-state`/`data-collapsible`/`data-variant`/`data-side`/
+/// `data-mobile`・`menu-skeleton` 非採用・`inset` を `main` にしない理由）。
+pub(super) const SIDEBAR: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "アプリシェル用サイドバー（shadcn/ui Sidebar 相当）。Provider / Root / Header / Content / Footer / Separator / Input / Group / GroupLabel / GroupContent / GroupAction / Menu / MenuItem / MenuButton / MenuAction / MenuBadge / MenuSub / MenuSubItem / MenuSubButton / Rail / Trigger / Inset の 22 anatomy パーツを持つ（sidebar.rs モジュール doc）。",
+        "Provider/Root は Sidebar 状態機械（data-state=\"expanded\"|\"collapsed\"）+ 静的 SidebarProps（data-collapsible/data-variant/data-side、mobile 時のみ data-mobile）を固定出力する。data-collapsible は状態に関わらず常時出力する（SSR 決定性優先の意図的差分）。",
+        "MenuSub の開閉は状態を持たない静的な ul であり、開閉が必要な場合は呼び出し側が collapsible::root/trigger/content で合成する（他 scope を内包しない設計、Examples 参照）。",
+        "MenuButton/MenuSubButton は href の有無で a/button type=\"button\" を切り替え、active 時のみ data-active + （a のときのみ）aria-current=\"page\" を付与する（nav_list の current 語彙を踏襲）。",
+        "Inset は div（main ではない）。docs サイトのページ骨格が既に main を描画しているため、文書内の非 hidden main が 2 個になる HTML 制約違反を避ける意図的差分（role を予約しないため呼び出し側が attrs で role=\"main\" を渡せる）。",
+        "menu-skeleton（ローディング装飾）は本層に含めない。shadcn/ui 実装はランダム幅で SSR 決定性を壊すため、docs/policy/intentional-non-adoption.md §3.25 規則 2 により pre-styled-ui 側（#2073）の責務とする。",
+        "Cmd/Ctrl+B のキーボードショートカット・モバイル drawer 切替・MenuButton の tooltip hover 配線は fandhe-frontend-wasm-full の後続責務（#2074）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "provider/root(state, props)",
+            kind: "&Sidebar, &SidebarProps",
+            default: "",
+            description: "Sidebar 状態機械と静的 props から 5 種の data-* を導出する。",
+        },
+        ArgRow {
+            name: "root(label, id)",
+            kind: "&str, Option<&str>",
+            default: "",
+            description: "label は必須の aria-label（div への aria-label は無効なため nav + 必須ラベルで型強制）。id は Some のとき trigger の aria-controls と対にする。",
+        },
+        ArgRow {
+            name: "menu_button/menu_sub_button(props)",
+            kind: "&SidebarMenuButtonProps / &SidebarMenuSubButtonProps",
+            default: "",
+            description: "href が Some なら a、None なら button type=\"button\"。active/size/variant/describedby を持つ。",
+        },
+        ArgRow {
+            name: "group(labelledby) / group_label(id)",
+            kind: "Option<&str>",
+            default: "",
+            description: "group は role=\"group\" 固定 + labelledby が Some のときのみ aria-labelledby。group_label の id が対になる。",
+        },
+        ArgRow {
+            name: "rail(state, label) / trigger(state, label, controls)",
+            kind: "&Sidebar, &str, Option<&str>",
+            default: "",
+            description: "rail は tabindex=\"-1\" のマウス専用領域。trigger は aria-expanded/aria-controls を持つキーボード操作可能な開閉ボタン。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "collapsible の合成による MenuSub の開閉",
+        description: "sidebar は開閉状態を持たない静的な menu-sub を提供し、開閉が必要な場合は呼び出し側で collapsible::root/trigger/content を合成します（他 scope を内包しない設計）。",
+        render: ex_sidebar_collapsible_menu_sub,
+    }],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "ネイティブ a[href]/button の Tab 順序でフォーカス移動する（rail は tabindex=\"-1\" のためフォーカス対象から除外される）。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "trigger/menu-button/menu-action 等のネイティブ button/a の既定動作で発火する。",
+        },
+        KeyRow {
+            key: "Cmd/Ctrl+B（配線は範囲外）",
+            description: "shadcn/ui のショートカット。headless 層は静的マークアップのみを提供し、実 DOM 配線は fandhe-frontend-wasm-full の後続責務（#2074）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "aria-label",
+            description: "root（必須、nav ランドマークのアクセシブルネーム）/ rail・trigger・group-action・menu-action（必須、アイコンのみの操作ボタン）に付与する。",
+        },
+        AriaRow {
+            attribute: "aria-expanded / aria-controls",
+            description: "trigger が Sidebar の展開状態を反映し、controls が Some のとき root の id と対で関連付ける。",
+        },
+        AriaRow {
+            attribute: "aria-current=\"page\"",
+            description: "menu-button/menu-sub-button が a（href 指定）かつ active のときのみ付与する（button のときは付与しない）。",
+        },
+        AriaRow {
+            attribute: "aria-labelledby / aria-describedby",
+            description: "group が labelledby（group-label の id）と対、menu-button の describedby は呼び出し側が tooltip と関連付けるためのスロット。",
+        },
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "group のみに固定付与する（shadcn の role=\"list\" からの意図的差分、item::group と同型の判断）。",
+        },
+    ],
+    demo: None,
+};
+
 pub(super) const TABS: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "WAI-ARIA APG の Tabs パターン（role=\"tablist\"/\"tab\"/\"tabpanel\"、aria-selected、相互参照する aria-controls/aria-labelledby、roving tabindex）に準拠したマークアップを組み立てる（tabs.rs モジュール doc）。",
@@ -2540,6 +2679,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/nav-list/", NAV_LIST),
     ("/primitives/navigation-menu/", NAVIGATION_MENU),
     ("/primitives/pagination/", PAGINATION),
+    ("/primitives/sidebar/", SIDEBAR),
     ("/primitives/tabs/", TABS),
     ("/primitives/toolbar/", TOOLBAR),
 ];
