@@ -565,7 +565,8 @@ mod wiring {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{
-        Element, Event, HtmlInputElement, HtmlSelectElement, HtmlTextAreaElement, InputEvent,
+        Element, Event, EventTarget, HtmlInputElement, HtmlSelectElement, HtmlTextAreaElement,
+        InputEvent,
     };
 
     /// `web_sys::Element` を [`AttrSource`] に橋渡しする薄いラッパー。
@@ -883,14 +884,22 @@ mod wiring {
         // イシュー #1120）。
         let input_selector = format!("[{ACTION_INPUT_ATTR}]");
         let compositionend_selector = input_selector.clone();
-        // IME 確定（`compositionend`）で dispatch 済みの値（イシュー #2069
-        // codex-review P1 是正）。直後にブラウザが追加で "input" を発火する
-        // 場合（Safari/Firefox 等）に、同一値の再 dispatch（二重 dispatch）
-        // を防ぐための 1 ショットガード。`compositionend` 側で `Some(値)` を
-        // 書き込み、`input` 側で読み取り次第 `take()` して消費する
-        // （次の関係ない input まで誤ってスキップし続けない）。
-        let composed_dispatched_value: std::rc::Rc<std::cell::RefCell<Option<String>>> =
-            std::rc::Rc::new(std::cell::RefCell::new(None));
+        // IME 確定（`compositionend`）で dispatch 済みの (対象 input 要素,
+        // 値) の組（イシュー #2069 codex-review P1 是正）。直後にブラウザが
+        // 追加で "input" を発火する場合（Safari/Firefox 等）に、同一入力欄
+        // への同一値の再 dispatch（二重 dispatch）を防ぐための 1 ショット
+        // ガード。`root` 全体で共有されるため、値だけで一致判定すると
+        // 「入力欄 A で確定した値と同じ文字列を、別の入力欄 B へ貼り付けた」
+        // ケースで B の正当な "input" まで誤って抑制してしまう
+        // （実際に指摘された不具合）。対象要素（`EventTarget`）を値と併せて
+        // 保持し、`input` 側では `js_sys::Object::is`（参照同一性、
+        // `Object.is` 相当）で対象要素が一致する場合に限りスキップする。
+        // `compositionend` 側で `Some((要素, 値))` を書き込み、`input` 側で
+        // 読み取り次第 `take()` して消費する（次の関係ない input まで
+        // 誤ってスキップし続けない）。
+        let composed_dispatched_value: std::rc::Rc<
+            std::cell::RefCell<Option<(EventTarget, String)>>,
+        > = std::rc::Rc::new(std::cell::RefCell::new(None));
         let input_composed_dispatched_value = composed_dispatched_value.clone();
         let change_selector = format!("[{ACTION_CHANGE_ATTR}]");
 
@@ -981,12 +990,18 @@ mod wiring {
             // 二重 dispatch 回避（イシュー #2069 codex-review P1 是正）:
             // 直前の `compositionend` で既に確定値を dispatch 済みの場合、
             // ブラウザがその直後に追加で発火する非 composing な "input"
-            // （現在値が確定値と同一）はスキップする。値が異なれば
-            // （そのまま入力が続いた等）通常どおり dispatch する。1
-            // ショットのみ有効（`take()` で消費、次の無関係な input まで
-            // 誤ってスキップし続けない）。
-            if let Some(dispatched_value) = input_composed_dispatched_value.borrow_mut().take() {
-                if extract_form_value(&target).as_deref() == Some(dispatched_value.as_str()) {
+            // （**同一入力欄**かつ現在値が確定値と同一）はスキップする。
+            // 対象入力欄が異なる場合（別の入力欄への貼り付け等）や値が
+            // 異なる場合（そのまま入力が続いた等）は通常どおり dispatch
+            // する。1 ショットのみ有効（`take()` で消費、次の無関係な
+            // input まで誤ってスキップし続けない）。
+            if let Some((dispatched_target, dispatched_value)) =
+                input_composed_dispatched_value.borrow_mut().take()
+            {
+                let same_target = js_sys::Object::is(&dispatched_target, &target);
+                if same_target
+                    && extract_form_value(&target).as_deref() == Some(dispatched_value.as_str())
+                {
                     return;
                 }
             }
@@ -1011,9 +1026,9 @@ mod wiring {
                 &on_action_compositionend,
             ) {
                 // 直後にブラウザが追加で "input" を発火する場合の二重
-                // dispatch を防ぐガードへ記録する（`input_closure` 側で
-                // 消費、上記コメント参照）。
-                *composed_dispatched_value.borrow_mut() = Some(value);
+                // dispatch を防ぐガードへ記録する（対象要素も併せて記録、
+                // `input_closure` 側で消費、上記コメント参照）。
+                *composed_dispatched_value.borrow_mut() = Some((target.clone(), value));
             }
         });
         root.add_event_listener_with_callback(

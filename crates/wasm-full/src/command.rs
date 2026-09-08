@@ -418,7 +418,7 @@ mod wiring {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{
-        Document, Element, Event, HtmlElement, HtmlInputElement, InputEvent, KeyboardEvent,
+        Document, Element, Event, HtmlElement, HtmlInputElement, InputEvent, KeyboardEvent, Node,
     };
 
     /// `web_sys::Element` を [`AttrSource`] へ橋渡しする薄いラッパー
@@ -1687,9 +1687,29 @@ mod wiring {
         let Some(target) = event.target() else {
             return;
         };
-        let Some(target_element) = target.dyn_ref::<Element>() else {
-            return;
+        // `event.target()` は `Element` とは限らない（Cursor Bugbot Medium
+        // 是正・イシュー #2069）。`fandhe_frontend_core::text` で描画される
+        // グループ見出し・空メッセージ等は素のテキストノードであり、直接
+        // クリックした場合 `target` はテキストノードになる。従来はここで
+        // `Element` へのキャストのみを試みて失敗時に即 return していたため
+        // `prevent_default()` が呼ばれず、`input` が blur し、以降の矢印
+        // キー・入力・Escape が `input` を再クリックするまで無反応になって
+        // いた。テキストノード等 `Element` でない場合は親要素
+        // （`Node::parent_element`）へフォールバックし、それでも要素が
+        // 得られない場合のみ何もしない。
+        let target_element = match target.dyn_ref::<Element>() {
+            Some(element) => element.clone(),
+            None => {
+                let Some(node) = target.dyn_ref::<Node>() else {
+                    return;
+                };
+                let Some(parent) = node.parent_element() else {
+                    return;
+                };
+                parent
+            }
         };
+        let target_element = &target_element;
         if !root.contains(Some(target_element)) {
             return;
         }

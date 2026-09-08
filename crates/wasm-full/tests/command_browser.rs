@@ -2226,3 +2226,46 @@ fn mousedown_on_input_itself_is_not_prevented() {
         "input パーツ自身の mousedown は既定動作を妨げない"
     );
 }
+
+/// `event.target()` がテキストノード（`fandhe_frontend_core::text` で
+/// 描画される空メッセージ等）であっても `prevent_default()` が呼ばれる
+/// ことを検証する（Cursor Bugbot Medium 是正、イシュー #2069）。従来は
+/// `target` の `Element` へのキャストのみを試み、失敗時に即 return して
+/// いたため、テキストノード直接クリックで `input` から blur し、以降の
+/// 矢印キー・入力・Escape が `input` を再クリックするまで無反応になって
+/// いた。
+#[wasm_bindgen_test]
+fn mousedown_on_text_node_target_prevents_default() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    // items を空にして `empty`（空メッセージ）パーツを可視化させ、その
+    // 直下のテキストノードを mousedown の target にする。
+    let items: [(&str, &str, bool); 0] = [];
+    let (root, _dialog, input, _list, _item_elements) =
+        build_command_dom(&document, "cmd-mousedown-text-node", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let (_component, _log) = wire(root.clone(), command);
+
+    let empty_el = root
+        .query_selector(r#"[data-scope="command"][data-part="empty"]"#)
+        .expect("query_selector must not fail")
+        .expect("empty element must exist");
+    let text_node = empty_el
+        .first_child()
+        .expect("empty element must contain a text node child");
+    assert_eq!(
+        text_node.node_type(),
+        web_sys::Node::TEXT_NODE,
+        "empty メッセージはテキストノードとして描画される前提"
+    );
+
+    let event = mousedown_event();
+    text_node.dispatch_event(&event).unwrap();
+    assert!(
+        event.default_prevented(),
+        "テキストノードへの mousedown も input のフォーカス維持のため prevent_default される"
+    );
+
+    let _ = input;
+}
