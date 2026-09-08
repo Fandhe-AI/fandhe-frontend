@@ -291,7 +291,21 @@ fn recipe() -> SlotRecipe {
         decl("width", "100%"),
         decl("box-sizing", "border-box"),
         decl("height", "2rem"),
-        decl("padding", "0 var(--fandhe-space-2)"),
+        decl("padding-block", "0"),
+        decl("padding-inline-start", "var(--fandhe-space-2)"),
+        // `menu-action`/`menu-badge` は `menu-button` と同じ `menu-item` 内で
+        // 絶対配置される兄弟パーツ（`menu_action_base`/`menu_badge_base` の
+        // コメント参照）であり、`SlotRecipe` は `:has()`/兄弟結合子を持たない
+        // （`crate::button_group`/`crate::card` と同型の制約）ため、
+        // `menu-button` 自身からは兄弟の有無を条件分岐できない。無条件に
+        // `menu-action`/`menu-badge` 1 個分（幅 1.25rem + 右端オフセット
+        // `--fandhe-space-2` + 隙間 `--fandhe-space-1`）の余白を予約して
+        // ラベルの折り返し・切り落とし位置をずらし、長いラベルが
+        // アクション/バッジと重なるのを防ぐ（codex-review P2 指摘対応）。
+        decl(
+            "padding-inline-end",
+            "calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1))",
+        ),
         decl("border", "0"),
         decl("border-radius", "var(--fandhe-radius-md)"),
         decl("background", "transparent"),
@@ -482,11 +496,20 @@ fn recipe() -> SlotRecipe {
                 decl("background", "transparent"),
             ],
         )
-        // 折りたたみ幅（icon）。
+        // 折りたたみ幅（icon）。`root` は `provider`（`display: flex`）の
+        // flex アイテムであり、`min-width` は既定 `auto`（子孫の
+        // 縮小不能な最小コンテンツ幅）のままだと header/footer 等の
+        // テキストが `width` の縮小を無効化しレールへ折りたたまれない
+        // （Bugbot 指摘「Icon collapse ignores content min-width」対応）。
+        // `min-width` を `width` と同じトークンへ固定し、flexbox の
+        // 既定縮小抑制を明示的に上書きする。
         .state(
             "root",
             StateCondition::AttrEqAll(&[("data-state", "collapsed"), ("data-collapsible", "icon")]),
-            vec![decl("width", "var(--fandhe-sidebar-width-icon, 3rem)")],
+            vec![
+                decl("width", "var(--fandhe-sidebar-width-icon, 3rem)"),
+                decl("min-width", "var(--fandhe-sidebar-width-icon, 3rem)"),
+            ],
         )
         // 折りたたみ幅（offcanvas）。`visibility: hidden` を併用する
         // （codex-review P1 指摘: `width: 0` + `overflow: hidden` だけでは
@@ -508,6 +531,14 @@ fn recipe() -> SlotRecipe {
                 decl("border", "0"),
                 decl("overflow", "hidden"),
                 decl("visibility", "hidden"),
+                // `floating`/`inset` variant の `margin`（`var(--fandhe-
+                // space-2)`）が残ったままだと `width: 0` でも `root` が
+                // margin 分の領域を占め続け、main エリアが全幅を取れない
+                // （Bugbot 指摘「Offcanvas collapse keeps variant margin」
+                // 対応）。属性セレクタ 4 個は variant state（属性 1 個）
+                // より詳細度が高いため、ここで `margin: 0` を上書きすれば
+                // variant を問わず折りたたみ時は必ず margin が消える。
+                decl("margin", "0"),
             ],
         )
         // モバイル表示中は固定オーバーレイになる（幅の詳細度調整は raw CSS
@@ -777,6 +808,23 @@ pub fn stylesheet() -> String {
         r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]"#,
         &[decl("transform", "translateX(100%)")],
     );
+    // `side`（既定=inline-start 側/`right`=inline-end 側）は本モジュール
+    // 全体で `inset-inline-*`/`border-inline-*` 等の論理プロパティのみを
+    // 用いて表現している（`root` 展開時の `border-inline-end`・
+    // `data-side="right"` 時の `border-inline-start` 反転が例）が、
+    // `transform: translateX()` には論理方向の等価物が無く物理方向のまま
+    // 固定されるため `dir="rtl"` 文書では退避方向が逆転してしまう
+    // （codex-review 指摘「Mobile drawer slides the wrong way」対応）。
+    // [`crate::scroll_area`] の `:dir(rtl)` 併記と同型に、rtl 文書向けの
+    // 符号反転規則をソース順で後に追記し上書きする。
+    push(
+        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]:dir(rtl)"#,
+        &[decl("transform", "translateX(100%)")],
+    );
+    push(
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]:dir(rtl)"#,
+        &[decl("transform", "translateX(-100%)")],
+    );
 
     // `variant="inset"` の主領域（`inset` パーツを面パネル化する）。
     push(
@@ -802,6 +850,55 @@ pub fn stylesheet() -> String {
             decl("margin-inline-end", "0"),
         ],
     );
+
+    // `variant="inset"` + `collapsible="icon"` の折りたたみ時、`inset` 主
+    // パネルの margin を復元する（Bugbot 指摘「Inset panel margin not
+    // restored」対応）。上記 2 規則は展開時の既定・`side="right"` 反転のみを
+    // 扱い、`root`（ナビレール）が 3rem 幅へ縮む折りたたみ時の margin
+    // 調整を持たない。`root` に隣接する側（既定 left は
+    // `margin-inline-start`、`side="right"` は `margin-inline-end`）は
+    // 展開時の面パネル化規則が `0` にした値のままだと `inset` パネルが
+    // 縮んだレールへ密着してしまうため、折りたたみ時のみ
+    // `--fandhe-space-2` へ戻す（shadcn/ui `SidebarInset` の
+    // `peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2` と
+    // 同型の挙動）。`collapsible="offcanvas"` は `root` 自体を
+    // `visibility: hidden` + 幅 0 にして完全に消す設計（[`recipe`] 参照）
+    // のため margin 復元は不要（レールが無いのでそのまま隙間を詰めてよい）
+    // であり本規則の対象に含めない。
+    push(
+        r#"[data-scope="sidebar"][data-part="provider"][data-variant="inset"][data-state="collapsed"][data-collapsible="icon"] > [data-scope="sidebar"][data-part="inset"]"#,
+        &[decl("margin-inline-start", "var(--fandhe-space-2)")],
+    );
+    push(
+        r#"[data-scope="sidebar"][data-part="provider"][data-variant="inset"][data-side="right"][data-state="collapsed"][data-collapsible="icon"] > [data-scope="sidebar"][data-part="inset"]"#,
+        &[decl("margin-inline-end", "var(--fandhe-space-2)")],
+    );
+
+    // `menu-action`/`menu-badge` の垂直中央位置を `menu-button` の
+    // `data-size` に追随させる（既定 `base` の `top: 1rem` は `menu-button`
+    // の既定高さ 2rem の半分。Bugbot・codex-review 指摘「Action offset
+    // ignores button size」対応）。`SlotRecipe` は兄弟結合子を持たない
+    // （モジュール内複数箇所のコメント参照）ため、ここで一般兄弟結合子
+    // （`~`）による raw CSS として追記する。呼び出し規約（`menu-button` を
+    // 先に置き、`menu-action`/`menu-badge` を後続の兄弟として置く。
+    // `crates/docs-site/src/primitive_showcase/navigation.rs` の実例
+    // 参照）を前提とする。
+    const SM_HEIGHT_HALF: &str = "0.875rem"; // 1.75rem / 2
+    const LG_HEIGHT_HALF: &str = "1.5rem"; // 3rem / 2
+    for part in ["menu-action", "menu-badge"] {
+        push(
+            &format!(
+                r#"[data-scope="sidebar"][data-part="menu-button"][data-size="sm"] ~ [data-scope="sidebar"][data-part="{part}"]"#
+            ),
+            &[decl("top", SM_HEIGHT_HALF)],
+        );
+        push(
+            &format!(
+                r#"[data-scope="sidebar"][data-part="menu-button"][data-size="lg"] ~ [data-scope="sidebar"][data-part="{part}"]"#
+            ),
+            &[decl("top", LG_HEIGHT_HALF)],
+        );
+    }
 
     // `side="right"` の `rail` 位置反転。
     push(
@@ -1014,6 +1111,23 @@ pub fn inset<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 /// skeleton を、続けて固定幅のテキスト用 skeleton を合成する。決定的で
 /// ランダム幅を持たない（shadcn/ui との意図的な差分）。自前の `data-*` は
 /// 出力しない。
+///
+/// # 行内レイアウト（`style` 属性、Bugbot/codex-review 指摘「Menu skeleton
+/// stacks instead of row」対応）
+///
+/// [`crate::skeleton::skeleton`] の `root` は既定 `display: block` の
+/// `div` であり、`menu-item`（`<li>`）が並べる 2 個（アイコン + テキスト）
+/// はそのままだと縦積みになる。[`recipe`] の `menu-item` slot を
+/// `display: flex` へ変えて解決する案は不採用: モジュール doc・
+/// `menu_action_base`/`menu_badge_base` のコメントが明記するとおり
+/// `menu-item` は一般の利用パターンで `menu-sub`（複数行の子メニュー）を
+/// 直接の子として縦に積む構成も取りうるため、slot 全体を row へ変えると
+/// その用途が壊れる（`crate::button_group`/`crate::card` と同型に
+/// `:has()`/兄弟結合子を持たない [`SlotRecipe`] の制約）。本関数が返す
+/// `menu-item` は常にこの 2 個の skeleton のみを子に持つ自己完結した
+/// 構造のため、[`recipe`] を変更せず戻り値自身にだけ `style` 属性で
+/// `display: flex` を付与し、他の実 `menu-item`（`menu-sub` 併用を含む）
+/// へは一切影響させない。
 #[must_use]
 pub fn menu_skeleton<'a>(show_icon: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
     let mut children = Vec::new();
@@ -1027,7 +1141,12 @@ pub fn menu_skeleton<'a>(show_icon: bool, attrs: Vec<(&'a str, &'a str)>) -> Nod
         ));
     }
     children.push(skeleton(&SkeletonProps::default(), vec![]));
-    fandhe_frontend_headless_ui::sidebar::menu_item(drop_class_attr(attrs), children)
+    let mut merged: Vec<(&'a str, &'a str)> = vec![(
+        "style",
+        "display:flex;align-items:center;gap:var(--fandhe-space-2)",
+    )];
+    merged.extend(drop_class_attr(attrs));
+    fandhe_frontend_headless_ui::sidebar::menu_item(merged, children)
 }
 
 #[cfg(test)]
