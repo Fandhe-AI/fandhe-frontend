@@ -194,26 +194,30 @@ fn foundation_modules_do_not_call_anatomy() {
 /// （手動同期点を作らないため）。イシュー #2065 で `item` が加わり
 /// PRIMITIVES は 65 → 66、総数は 75 → 76 になった（#2062 で
 /// `input_group`・#2059 で `button_group` が加わり 63 → 65、73 → 75）。
+/// イシュー #2068 で `command` が加わり PRIMITIVES は 66 → 67、総数は
+/// 76 → 77 になった。
 #[test]
 fn module_counts_are_consistent_with_the_source_tree() {
     let scan = scan_headless_ui_src(&headless_ui_src_dir());
 
-    assert_eq!(PRIMITIVES.len(), 66);
+    assert_eq!(PRIMITIVES.len(), 67);
     assert_eq!(FOUNDATION_MODULES.len(), 9);
     assert_eq!(
         PRIMITIVES.len() + FOUNDATION_MODULES.len() + 1,
         scan.total_rs_files,
-        "PRIMITIVES(66) + FOUNDATION_MODULES(9) + lib.rs(1) が \
+        "PRIMITIVES(67) + FOUNDATION_MODULES(9) + lib.rs(1) が \
          crates/headless-ui/src/*.rs の実測総数({})と一致しません",
         scan.total_rs_files
     );
 }
 
-/// 受け入れ条件 4: 6 グループ 12/11/10/10/12/11 = 66（イシュー #2065 で
+/// 受け入れ条件 4: 6 グループ 13/11/10/10/12/11 = 67（イシュー #2065 で
 /// Data Display / Utilities に `item` を追加、旧 12/11/10/10/12/10 = 65。
 /// #2062 で Forms A に `input_group` を、#2059 で Navigation に
-/// `button_group` を追加、旧 11/11/10/10/11/10 = 63）、カテゴリ出現順・
-/// グループ内順序が設計 §7 逐語（+ #2059/#2062/#2065 追記）であること。
+/// `button_group` を追加、旧 11/11/10/10/11/10 = 63。イシュー #2068 で
+/// Forms A に `command` を追加、旧 12/11/10/10/12/11 = 66）、カテゴリ出現
+/// 順・グループ内順序が設計 §7 逐語（+ #2059/#2062/#2065/#2068 追記）で
+/// あること。
 #[test]
 fn category_counts_and_order_follow_the_design_spec() {
     // 設計 §7 の表を逐語で再掲する（グループ内順序も含む）。並びを
@@ -228,6 +232,7 @@ fn category_counts_and_order_follow_the_design_spec() {
                 "checkbox_group",
                 "color_picker",
                 "combobox",
+                "command",
                 "editable",
                 "field",
                 "fieldset",
@@ -319,7 +324,7 @@ fn category_counts_and_order_follow_the_design_spec() {
     ];
 
     let expected_total: usize = spec.iter().map(|(_, modules)| modules.len()).sum();
-    assert_eq!(expected_total, 66);
+    assert_eq!(expected_total, 67);
 
     let actual_modules_in_order: Vec<&str> = PRIMITIVES.iter().map(|e| e.module).collect();
     let expected_modules_in_order: Vec<&str> = spec

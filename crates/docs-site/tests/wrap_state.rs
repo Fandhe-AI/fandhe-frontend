@@ -587,8 +587,10 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// `item`（イシュー #2065）も同様にイシュー #2062 と同型の経緯を辿り、
 /// イシュー #2066 で pre-styled-ui 側（`crates/pre-styled-ui/src/item.rs`・
 /// `/themes/item/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため
-/// 本リストから除外した。
-const HEADLESS_UNWRAPPED: &[&str] = &["button_group"];
+/// 本リストから除外した。イシュー #2068 で headless-ui 層のみを実装した
+/// `command` が新設され、pre-styled-ui recipe（後続 #2070）を持たない
+/// ため本リストへ加える。
+const HEADLESS_UNWRAPPED: &[&str] = &["button_group", "command"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
