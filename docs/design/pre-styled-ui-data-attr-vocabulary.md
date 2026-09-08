@@ -55,6 +55,7 @@
 | `data-positioned` | `select.rs` / `menu.rs` / `combobox.rs` | `crates/wasm-full/src/position.rs`（実行時に wasm 層のみが付与、UI 2 層はいずれも出力しない。イシュー #663 の設計） |
 | `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則）、`fieldset.rs`（イシュー #1686、`legend`/`helper-text` slot への state 規則）、`input_group.rs`（イシュー #2063、`addon`/`button` slot への state 規則） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成）、headless `fieldset.rs`（`FieldsetProps::disabled` から `state_data_attrs` が生成）、headless `input_group.rs`（`InputGroupProps::disabled` から `state_data_attrs` が生成） |
 | `data-invalid` | `input_group.rs`（イシュー #2063、`root` slot への state 規則） | headless `input_group.rs`（`InputGroupProps::invalid` から `state_data_attrs` が生成） |
+| `data-orientation` | `button_group.rs`（イシュー #2060、`root`/`separator` slot への state 規則） | headless `button_group.rs`（`Orientation` 引数から `data_orientation` が生成、`separator` はグループ自身と直交する値） |
 | `data-danger` | `menu.rs`（イシュー #2033、shadcn/ui 突合。`item` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`item()` の `attrs` 経由で個別項目へ都度付与する値なし存在属性。headless・pre-styled のいずれも出力しない（下記「役割 B 亜種」注記参照） |
 | `data-inset` | `menu.rs`（イシュー #2033、shadcn/ui 突合。`item` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`item()` の `attrs` 経由で個別項目へ都度付与する値なし存在属性。headless・pre-styled のいずれも出力しない（下記「役割 B 亜種」注記参照） |
 

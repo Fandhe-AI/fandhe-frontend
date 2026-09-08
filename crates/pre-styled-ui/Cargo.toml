@@ -2376,7 +2376,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # 本ブランチ（#2063）と main（#2045）がいずれも独立に 0.138.0 へ到達しており
 # 同一版数で衝突したため、`semver-same-version-is-conflict` の運用に倣い
 # main の到達値 0.138.0 からさらにマイナーバンプして 0.139.0 とする。
-version = "0.139.0"
+# イシュー #2060: 新規 `button_group` モジュール（3 slot recipe・stylesheet
+# 追加、公開 API の純追加）のため minor バンプする。
+version = "0.140.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

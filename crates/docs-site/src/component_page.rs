@@ -293,8 +293,8 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
     // ---- イシュー #947 ここまで ----
 ];
 
-/// イシュー #946（Overlay / Disclosure 系、17 件）の
-/// `path -> ComponentPageSpec` テーブル。実体は
+/// イシュー #946（Overlay / Disclosure 系、18 件。button-group はイシュー
+/// #2060 で追加）の `path -> ComponentPageSpec` テーブル。実体は
 /// [`crate::component_specs_overlay`] の個別定数を参照する。
 const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
     (
@@ -308,6 +308,10 @@ const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
     (
         "/themes/action-bar/",
         crate::component_specs_overlay::ACTION_BAR,
+    ),
+    (
+        "/themes/button-group/",
+        crate::component_specs_overlay::BUTTON_GROUP,
     ),
     ("/themes/dialog/", crate::component_specs_overlay::DIALOG),
     ("/themes/drawer/", crate::component_specs_overlay::DRAWER),

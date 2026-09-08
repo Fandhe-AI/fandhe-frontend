@@ -31,4 +31,6 @@
 }
 ```
 
+`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。Themes 版は [Button Group](../themes/button-group.md) を参照してください。
+
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)
