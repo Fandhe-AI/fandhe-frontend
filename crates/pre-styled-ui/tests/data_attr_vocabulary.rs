@@ -688,3 +688,96 @@ fn table_row_and_cell_data_attrs_are_caller_sourced_not_self_emitted() {
     let aligned_cell_html = render(&table::cell(vec![("data-align", "end")], vec![]));
     assert!(aligned_cell_html.contains(r#"data-align="end""#));
 }
+
+/// `root`/`dialog` の `data-state`、`root`/`list`/`empty` の `data-empty`、
+/// `item` の `data-selected`/`data-disabled`/`data-value`、`dialog` の
+/// `hidden`/`role`/`aria-*`、`input`/`list` の `role`/`aria-*` はすべて
+/// headless `fandhe_frontend_headless_ui::command` が生成するものであり、
+/// `command::stylesheet()` はそれらを CSS セレクタとして**参照する**だけで
+/// 自前出力はしない、という事実を固定する（イシュー #2070、
+/// `item_parts_data_attrs_are_headless_sourced_not_self_emitted` と同型）。
+#[test]
+fn command_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::command::{self, OpenState};
+
+    let root_open_html = render(&command::root(OpenState::Open, false, vec![], vec![]));
+    assert!(root_open_html.contains(r#"data-state="open""#));
+    assert!(!root_open_html.contains("data-empty"));
+    let root_empty_html = render(&command::root(OpenState::Closed, true, vec![], vec![]));
+    assert!(root_empty_html.contains(r#"data-state="closed""#));
+    assert!(root_empty_html.contains("data-empty"));
+
+    let dialog_open_html = render(&command::dialog(
+        OpenState::Open,
+        "Command Menu",
+        vec![],
+        vec![],
+    ));
+    assert!(dialog_open_html.contains(r#"role="dialog""#));
+    assert!(dialog_open_html.contains(r#"aria-modal="true""#));
+    assert!(dialog_open_html.contains(r#"data-state="open""#));
+    assert!(!dialog_open_html.contains("hidden"));
+    let dialog_closed_html = render(&command::dialog(OpenState::Closed, "", vec![], vec![]));
+    assert!(dialog_closed_html.contains("hidden"));
+
+    let input_html = render(&command::input(
+        OpenState::Open,
+        "ca",
+        "list-1",
+        Some("item-1"),
+        vec![],
+    ));
+    assert!(input_html.contains(r#"role="combobox""#));
+    assert!(input_html.contains(r#"aria-controls="list-1""#));
+    assert!(input_html.contains(r#"aria-activedescendant="item-1""#));
+
+    let list_html = render(&command::list(
+        "list-1",
+        "Suggestions",
+        true,
+        vec![],
+        vec![],
+    ));
+    assert!(list_html.contains(r#"role="listbox""#));
+    assert!(list_html.contains(r#"aria-label="Suggestions""#));
+    assert!(list_html.contains("data-empty"));
+
+    let empty_html = render(&command::empty(true, vec![], vec![]));
+    assert!(empty_html.contains("data-empty"));
+    let empty_absent_html = render(&command::empty(false, vec![], vec![]));
+    assert!(!empty_absent_html.contains("data-empty"));
+
+    let item_selected_html = render(&command::item(
+        true,
+        false,
+        "calendar",
+        Some("item-1"),
+        vec![],
+        vec![],
+    ));
+    assert!(item_selected_html.contains("data-selected"));
+    assert!(item_selected_html.contains(r#"data-value="calendar""#));
+    assert!(!item_selected_html.contains("data-disabled"));
+    let item_disabled_html = render(&command::item(
+        false,
+        true,
+        "settings",
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(item_disabled_html.contains("data-disabled"));
+    assert!(item_disabled_html.contains(r#"aria-disabled="true""#));
+
+    let separator_html = render(&command::separator(vec![], vec![]));
+    assert!(separator_html.contains(r#"role="separator""#));
+
+    // `command::stylesheet()` は `[data-empty]`/`[data-selected]`/
+    // `[data-disabled]`/`[hidden]` を CSS セレクタとして参照するだけで
+    // 自前で `data-*` を組み立てない。
+    let css = command::stylesheet();
+    assert!(css.contains("[data-empty]"));
+    assert!(css.contains("[data-selected]"));
+    assert!(css.contains("[data-disabled]"));
+    assert!(css.contains("[hidden]"));
+}

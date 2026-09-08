@@ -60,6 +60,7 @@ accordion / **alert（イシュー #1553 で golden 新設。イシュー #2043 
 **bar_segment（イシュー #1592 で golden 新設。`charts::bar_segment`）** /
 callout / carousel / **collapsible（イシュー #1682 で golden 新設）** /
 checkbox / checkbox_card / checkbox_group /
+**command（イシュー #2070 で golden 新設。`stylesheet()` 全文）** /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
 date_input / dialog / **download_trigger（方式 b）** /
 drawer / editable / **field（イシュー #1684 で golden 新設）** /

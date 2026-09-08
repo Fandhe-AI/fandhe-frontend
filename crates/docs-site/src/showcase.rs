@@ -194,10 +194,10 @@ use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds, To
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, callout, card, collapsible, combobox, menu, popover, radio_group,
-    select, switch, toggle, toggle_tip, tooltip, AlertProps, AlertStatus, AlertVariant, BadgeProps,
-    BadgeVariant, CalloutProps, CalloutVariant, CardProps, CardVariant, ColorPalette, OpenState,
-    Orientation, Size, StyleSheet, StylesheetError, VariantValue,
+    accordion, alert, badge, callout, card, collapsible, combobox, command, menu, popover,
+    radio_group, select, switch, toggle, toggle_tip, tooltip, AlertProps, AlertStatus,
+    AlertVariant, BadgeProps, BadgeVariant, CalloutProps, CalloutVariant, CardProps, CardVariant,
+    ColorPalette, OpenState, Orientation, Size, StyleSheet, StylesheetError, VariantValue,
 };
 
 /// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
@@ -383,6 +383,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"menubar\"][data-part=\"root\"] {\n  align-items: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
 .pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"command\"][data-part=\"dialog\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n  max-width: 36rem;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2,\n.pre-styled-showcase [data-scope=\"tour\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
@@ -531,6 +532,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
     ComponentPage {
         path: "/themes/combobox/",
         render: combobox_section,
+    },
+    ComponentPage {
+        path: "/themes/command/",
+        render: command_section,
     },
     ComponentPage {
         path: "/themes/popover/",
@@ -945,6 +950,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::separator::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::highlight::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::command::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::floating_panel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
@@ -3677,6 +3683,135 @@ fn combobox_section() -> Node {
             "headless-ui の Combobox（role=\"combobox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。入力値 \"{query}\" による filter_options の絞り込み結果を候補として表示しています。\"React\" は選択済み（チェックマーク表示）、\"Svelte\" は highlight 中、\"Vue\" は disabled として固定しています。positioner はフロー内配置へ中和しています。"
         ),
         vec![node],
+    )
+}
+
+/// Command 節（イシュー #2070）: 入力欄・リスト・group 見出し・選択行の
+/// 背景・shortcut の右寄せ（`kbd` 合成）・dialog 型の幅の 6 項目を確認
+/// できるよう 2 インスタンス（inline root + dialog 型）を並べる。
+/// `crate::primitive_showcase::forms_a::command_section` の id スキームを
+/// 踏襲しつつ、Themes ページ専用に `showcase-command-` プレフィックスへ
+/// 差し替える（同一ページに合成される Examples 側の `example-command-`
+/// プレフィックスと衝突しない）。dialog インスタンスは
+/// [`SHOWCASE_LAYOUT_CSS`] でフロー内配置へ中和している。
+fn command_section() -> Node {
+    let item_calendar = command::item(
+        true,
+        false,
+        "calendar",
+        Some("showcase-command-item-calendar"),
+        vec![],
+        vec![
+            text("Calendar"),
+            command::shortcut(
+                vec![],
+                vec![
+                    kbd(&KbdProps::default(), vec![], vec![text("⌘")]),
+                    kbd(&KbdProps::default(), vec![], vec![text("C")]),
+                ],
+            ),
+        ],
+    );
+    let item_search = command::item(
+        false,
+        false,
+        "search",
+        Some("showcase-command-item-search"),
+        vec![],
+        vec![text("Search Emoji")],
+    );
+    let item_settings = command::item(
+        false,
+        true,
+        "settings",
+        Some("showcase-command-item-settings"),
+        vec![],
+        vec![text("Settings")],
+    );
+    let group_heading = command::group_heading(
+        Some("showcase-command-group-heading"),
+        vec![],
+        vec![text("Suggestions")],
+    );
+    let group = command::group(
+        Some("showcase-command-group-heading"),
+        vec![],
+        vec![group_heading, item_calendar, item_search, item_settings],
+    );
+    let separator = command::separator(vec![], vec![]);
+    let list = command::list(
+        "showcase-command-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![group, separator],
+    );
+    let input = command::input(
+        OpenState::Open,
+        "ca",
+        "showcase-command-list",
+        Some("showcase-command-item-calendar"),
+        vec![("aria-label", "Search commands")],
+    );
+    let empty = command::empty(false, vec![], vec![text("No results found.")]);
+    let inline_root = command::root(OpenState::Open, false, vec![], vec![input, list, empty]);
+
+    let empty_list = command::list(
+        "showcase-command-list-empty",
+        "Suggestions",
+        true,
+        vec![],
+        vec![],
+    );
+    let empty_input = command::input(
+        OpenState::Open,
+        "zzz",
+        "showcase-command-list-empty",
+        None,
+        vec![("aria-label", "Search commands")],
+    );
+    let empty_empty = command::empty(true, vec![], vec![text("No results found.")]);
+    let empty_root = command::root(
+        OpenState::Open,
+        true,
+        vec![],
+        vec![empty_input, empty_list, empty_empty],
+    );
+
+    let dialog_item = command::item(
+        false,
+        false,
+        "calendar",
+        Some("showcase-command-dialog-item-calendar"),
+        vec![],
+        vec![text("Calendar")],
+    );
+    let dialog_list = command::list(
+        "showcase-command-dialog-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![dialog_item],
+    );
+    let dialog_input = command::input(
+        OpenState::Open,
+        "",
+        "showcase-command-dialog-list",
+        None,
+        vec![("aria-label", "Search commands")],
+    );
+    let dialog_root = command::root(
+        OpenState::Open,
+        false,
+        vec![],
+        vec![dialog_input, dialog_list],
+    );
+    let dialog = command::dialog(OpenState::Open, "Command Menu", vec![], vec![dialog_root]);
+
+    section(
+        "Command",
+        "headless-ui の Command（role=\"combobox\" の入力欄 + role=\"listbox\" のリスト）に pre-styled-ui の recipe CSS を適用した静的掲示です。\"Calendar\" 行は選択中（背景色 + `kbd` を合成した shortcut）、\"Settings\" 行は disabled、2 個目のインスタンスは絞り込み結果 0 件（`empty` を可視化）を固定表示しています。3 個目のインスタンスは dialog 型の掲示用に、position: fixed のオーバーレイをフロー内配置へ中和しています。",
+        vec![inline_root, empty_root, dialog],
     )
 }
 
@@ -12241,7 +12376,8 @@ mod tests {
         // イシュー #1687 で Fieldset を追加し 103 → 104 件になった。
         // イシュー #2063 で Input Group を追加し 104 → 105 件になった。
         // イシュー #2066 で Item を追加し 105 → 106 件になった。
-        assert_eq!(paths.len(), 106, "COMPONENT_PAGES should have 106 entries");
+        // イシュー #2070 で Command を追加し 106 → 107 件になった。
+        assert_eq!(paths.len(), 107, "COMPONENT_PAGES should have 107 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

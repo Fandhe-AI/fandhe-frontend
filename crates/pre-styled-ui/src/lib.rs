@@ -685,6 +685,7 @@ pub mod collapsible;
 pub mod color_picker;
 pub mod color_swatch;
 pub mod combobox;
+pub mod command;
 pub mod css;
 pub mod data_list;
 pub mod date_input;

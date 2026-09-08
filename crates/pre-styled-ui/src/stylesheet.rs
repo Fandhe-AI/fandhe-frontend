@@ -273,6 +273,7 @@ mod tests {
             ("skeleton", crate::skeleton::css()),
             ("separator", crate::separator::css()),
             ("combobox", crate::combobox::stylesheet()),
+            ("command", crate::command::stylesheet()),
             ("popover", crate::popover::stylesheet()),
             ("floating_panel", crate::floating_panel::stylesheet()),
             ("tooltip", crate::tooltip::stylesheet()),

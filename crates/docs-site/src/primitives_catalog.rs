@@ -581,23 +581,24 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives。現在 2 件（`button_group`/`command`）。`button_group` は
-/// イシュー #2059 時点では headless-ui 層のみを実装しており、Themes ページ・
-/// pre-styled-ui recipe は後続 #2060 で追加する。`command` も同じ経緯で
-/// イシュー #2068 時点では headless-ui 層のみを実装しており、Themes ページ・
-/// pre-styled-ui recipe は後続 #2070 で追加する。`input_group` はイシュー
-/// #2062 が headless-ui 層を新設した時点では暫定的にこの台帳へ載っていたが、
-/// イシュー #2063 で Themes 層（`crates/pre-styled-ui/src/input_group.rs`・
+/// Primitives。現在 1 件（`button_group`）。イシュー #2059 時点では
+/// headless-ui 層のみを実装しており、Themes ページ・pre-styled-ui recipe は
+/// 後続 #2060 で追加する。`input_group` はイシュー #2062 が headless-ui 層を
+/// 新設した時点では暫定的にこの台帳へ載っていたが、イシュー #2063 で
+/// Themes 層（`crates/pre-styled-ui/src/input_group.rs`・
 /// `site/themes/input-group.md`）を実装済みのため除外した（`collapsible`/
 /// `field`/`fieldset` と同じ経緯）。`item` も同様にイシュー #2065 が
 /// headless-ui 層を新設した時点では暫定的にこの台帳へ載っていたが、
 /// イシュー #2066 で Themes 層（`crates/pre-styled-ui/src/item.rs`・
-/// `site/themes/item.md`）を実装済みのため除外した。
+/// `site/themes/item.md`）を実装済みのため除外した。`command` も同様に
+/// イシュー #2068 が headless-ui 層を新設した時点では暫定的にこの台帳へ
+/// 載っていたが、イシュー #2070 で Themes 層（`crates/pre-styled-ui/src/command.rs`・
+/// `site/themes/command.md`）を実装済みのため除外した。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["button_group", "command"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["button_group"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {

@@ -44,16 +44,16 @@
 | `data-stage` | `floating_panel.rs` | headless `floating_panel.rs` |
 | `data-kind` | `json_tree_view.rs` | headless `json_tree_view.rs` |
 | `data-today` / `data-outside-month` | `calendar.rs` | headless `calendar.rs` |
-| `data-selected` | `pagination.rs` / `tree_view.rs` / `calendar.rs` | headless `pagination.rs` / `tree_view.rs` ほか |
+| `data-selected` | `pagination.rs` / `tree_view.rs` / `calendar.rs` / `command.rs`（イシュー #2070、`item` slot への state 規則） | headless `pagination.rs` / `tree_view.rs` / `command.rs` ほか |
 | `data-placement` | `drawer.rs` | headless `drawer.rs` / `toast.rs` |
 | `data-position` | `image_cropper.rs` | headless `image_cropper.rs`（イシュー #1610 で `data-handle-position` から改名。参照実装〔ark-ui/zag.js〕の語彙と一致させるため） |
 | `data-side` / `data-align` | `tour.rs` / `tooltip.rs`（イシュー #2041）、`input_group.rs`（`addon` の `data-align` 4 値、イシュー #2063 で `input_group.rs` が state 規則として参照）、`table.rs`（`cell`/`column-header` の `data-align`〔start/center/end〕、イシュー #2052。下記「役割 B 亜種」注記参照） | headless `positioning.rs` / headless `input_group.rs`（`addon` の `align` 引数）。ただし `table.rs` の消費分は**呼び出し側**が付与し、`fandhe-frontend-wasm-full` の `position.rs` は `positioner` パートからのみ読み戻すため `td`/`th` とは干渉しない |
 | `data-placeholder` | `date_input.rs` | headless `date_input.rs` |
 | `data-placeholder-shown` | `editable.rs` | headless `editable.rs` / `select.rs` |
 | `data-autoresize` | `textarea.rs` | headless `field.rs` |
-| `data-empty` | （テストのみ、`signature_pad.rs`） | headless `signature_pad.rs` |
+| `data-empty` | （テストのみ、`signature_pad.rs`）、`command.rs`（イシュー #2070、`empty` slot の表示切替 state 規則） | headless `signature_pad.rs` / `command.rs` |
 | `data-positioned` | `select.rs` / `menu.rs` / `combobox.rs` | `crates/wasm-full/src/position.rs`（実行時に wasm 層のみが付与、UI 2 層はいずれも出力しない。イシュー #663 の設計） |
-| `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則）、`fieldset.rs`（イシュー #1686、`legend`/`helper-text` slot への state 規則）、`input_group.rs`（イシュー #2063、`addon`/`button` slot への state 規則） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成）、headless `fieldset.rs`（`FieldsetProps::disabled` から `state_data_attrs` が生成）、headless `input_group.rs`（`InputGroupProps::disabled` から `state_data_attrs` が生成） |
+| `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則）、`fieldset.rs`（イシュー #1686、`legend`/`helper-text` slot への state 規則）、`input_group.rs`（イシュー #2063、`addon`/`button` slot への state 規則）、`command.rs`（イシュー #2070、`item` slot への state 規則。hover 除外〔`HoverExceptAttr`〕にも参照） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成）、headless `fieldset.rs`（`FieldsetProps::disabled` から `state_data_attrs` が生成）、headless `input_group.rs`（`InputGroupProps::disabled` から `state_data_attrs` が生成）、headless `command.rs`（`item` の `disabled` 引数から固定出力） |
 | `data-invalid` | `input_group.rs`（イシュー #2063、`root` slot への state 規則） | headless `input_group.rs`（`InputGroupProps::invalid` から `state_data_attrs` が生成） |
 | `data-variant` | `item.rs`（イシュー #2066、`root`〔`default`/`outline`/`muted`〕・`media`〔`default`/`icon`/`image`〕slot への state 規則として参照。`menu.rs` の `data-variant`〔clipboard の copied/idle〕とは別部品の別意味論であり、pre-styled 側は出力しないため規約 B-2 非該当） | headless `item.rs`（`ItemVariant`/`ItemMediaVariant` が固定出力） |
 | `data-size` | `item.rs`（イシュー #2066、`root` slot への state 規則。`sm` 値のみ参照） | headless `item.rs`（`ItemSize` が固定出力） |

@@ -71,6 +71,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [Checkbox Card](./themes/checkbox-card.md)
 - [Color Picker](./themes/color-picker.md)
 - [Combobox](./themes/combobox.md)
+- [Command](./themes/command.md)
 - [Date Input](./themes/date-input.md)
 - [Date Picker](./themes/date-picker.md)
 - [Download Trigger](./themes/download-trigger.md)

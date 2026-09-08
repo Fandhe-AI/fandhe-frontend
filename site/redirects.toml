@@ -14,17 +14,19 @@
 # `from` は `site/nav.toml` の既存ページ path と衝突してはならない
 # （衝突する場合はビルド失敗、`RedirectError::CollidesWithPage`）。
 #
-# 実宣言は現在 114 件（予防的移転案内 1 + 索引ページ移設 1 +
-# 部品ページ移行 112（#1017 の 107 + #1683 で追加した collapsible 1 +
+# 実宣言は現在 115 件（予防的移転案内 1 + 索引ページ移設 1 +
+# 部品ページ移行 113（#1017 の 107 + #1683 で追加した collapsible 1 +
 # #1685 で追加した field 1 + #1687 で追加した fieldset 1 +
-# #2063 で追加した input-group 1 + #2066 で追加した item 1））。
+# #2063 で追加した input-group 1 + #2066 で追加した item 1 +
+# #2070 で追加した command 1））。
 # #1018 で索引ページを `/components/pre-styled-ui/` から `/themes/` へ
 # 移設し、旧索引 URL 自体のリダイレクトを追加した（残り 1 件のスコープを
 # 完了）。`/components/collapsible/`・`/components/field/`・
-# `/components/fieldset/`・`/components/input-group/`・`/components/item/`
-# は #1017 の一括移行時点では存在しなかった URL だが、`/components/`
-# （索引ページ）と同じ「未提供 URL への予防的移転案内」として
-# #1683/#1685/#1687/#2063/#2066 で Themes ページ新設に合わせ追加した。
+# `/components/fieldset/`・`/components/input-group/`・`/components/item/`・
+# `/components/command/` は #1017 の一括移行時点では存在しなかった URL
+# だが、`/components/`（索引ページ）と同じ「未提供 URL への予防的移転
+# 案内」として #1683/#1685/#1687/#2063/#2066/#2070 で Themes ページ新設に
+# 合わせ追加した。
 
 [[redirect]]
 # `/components/` は現時点で `site/nav.toml` に該当 `path` が無く 404 になる
@@ -40,11 +42,12 @@ to = "/themes/"
 from = "/components/pre-styled-ui/"
 to = "/themes/"
 
-# 以下 112 件はイシュー #1017（既存 107 部品ページを /components/ から
+# 以下 113 件はイシュー #1017（既存 107 部品ページを /components/ から
 # /themes/ へ移行）の実宣言 + #1683 で追加した collapsible 1 件 + #1685 で
 # 追加した field 1 件 + #1687 で追加した fieldset 1 件 + #2063 で追加した
-# input-group 1 件 + #2066 で追加した item 1 件。生成コマンドは nav.toml
-# 更新後そのまま実行すれば 112 件を出力する（決定的・レビュー可能）:
+# input-group 1 件 + #2066 で追加した item 1 件 + #2070 で追加した
+# command 1 件。生成コマンドは nav.toml 更新後そのまま実行すれば 113 件を
+# 出力する（決定的・レビュー可能）:
 #
 #   git show HEAD:site/nav.toml | grep -o 'source = "site/themes/[^"]*"' \
 #     | sed 's|.*site/themes/||; s|\.md"||' | sort \
@@ -164,6 +167,14 @@ to = "/themes/color-swatch/"
 [[redirect]]
 from = "/components/combobox/"
 to = "/themes/combobox/"
+
+[[redirect]]
+# `/components/command/` は #1017 の一括移行以前には存在しなかった URL
+# だが、`/components/item/` と同じ「未提供 URL への予防的移転案内」
+# （`docs/design/docs-site-primitives-themes-split.md` §2.4）として、
+# #2070 で Themes ページ新設に合わせ追加した。
+from = "/components/command/"
+to = "/themes/command/"
 
 [[redirect]]
 from = "/components/data-list/"

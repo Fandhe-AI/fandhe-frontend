@@ -11,17 +11,17 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 111 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 112 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
-イシュー #2066 で追加）+
+イシュー #2066、`command` はイシュー #2070 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。111 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。112 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
 操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
@@ -74,6 +74,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | [fieldset](../../site/themes/fieldset.md) |
 | 静的フォーム部品 | `input_group`（§4f-3 参照。入力欄の前後 addon、軸なし） | [input-group](../../site/themes/input-group.md) |
 | headless ラッパー | `item`（§4f-4 参照。media + title/description + actions からなる汎用リスト行。`variant`/`size` は headless の `data-variant`/`data-size` を AttrEq 参照するのみで class ベース軸を持たない） | [item](../../site/themes/item.md) |
+| headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。10 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -802,6 +803,54 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   しない。
 - **docs サイト**: [item](../../site/themes/item.md)
   （イシュー #2066 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-5. `command`（cmdk 由来のコマンドパレット、イシュー #2070、headless anatomy は #2068）
+
+`command` モジュールは `fandhe_frontend_headless_ui::command` の anatomy
+（`root`/`input`/`list`/`empty`/`group`/`group-heading`/`item`/`shortcut`/
+`separator`/`dialog` の 10 パーツ）へ、入力欄・リスト・group 見出し・選択
+行の背景・shortcut の右寄せ・dialog 型の幅という shadcn/ui `Command`
+相当の意匠を重ねる薄い委譲層である。
+
+- **公開 API**: 10 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::item` と同型のパターン）。
+  `filter_items`（純粋関数、`combobox::filter_options` へ全委譲）と
+  `OpenState`（headless からの再エクスポート）のみを選択的に公開する。
+  headless の状態機械 `Command`/`CommandAction` は再エクスポートしない
+  （`crate::combobox`/`crate::select`/`crate::menu` と同じ判断）。
+  `stylesheet()`（`css()` ではない）が静的 CSS 全量を返す。
+- **軸を持たない**: `size`/`variant`/`color-palette` いずれの軸も提供しない
+  （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d)
+  「子の寸法に従属するレイアウト部品」相当。headless にも shadcn/ui にも
+  軸が無い）。
+- **`empty` の表示切替 CSS**: headless `command::empty` は `present` が
+  `true` のときのみ `data-empty` を出力し `hidden` は付与しない（SSR
+  決定性契約）。本モジュールは `empty` slot を既定 `display: none` にし、
+  `[data-empty]` が付いたときのみ `display: block` へ切り替える。
+- **`item` の選択表現とホバー除外**: 選択行の背景は `[data-selected]`
+  （`data-highlighted` は使わない）で表す。`StateCondition::HoverExceptAttr`
+  で選択行を hover 対象から除外し、選択色が hover の淡色背景で洗い流され
+  ないようにする（`crate::combobox` の `item` hover と同型の対策）。
+- **`dialog` の `[hidden]`・幅トークン・backdrop 不在**: closed 時の
+  `hidden` を確実に非表示化するため `.state("dialog",
+  StateCondition::Attr("hidden"), [display: none])` を明示登録する
+  （`crate::dialog` の `positioner` と同じ fail-closed）。幅は
+  `--fandhe-command-dialog-max-width`（既定 32rem）。headless `dialog`
+  パーツは単一要素のため独立した `backdrop` は持たず、本モジュールも
+  追加しない。
+- **`shortcut` 内への `kbd` 合成**: API を増やさず、`shortcut` の
+  `children` へ `crate::kbd::kbd` を渡す使い方で `kbd` を合成する。
+- **raw CSS 追記**: `SlotRecipe` は子結合子セレクタを表現できないため、
+  `stylesheet()` は dialog 内 root の二重枠を解除する
+  `[data-scope="command"][data-part="dialog"] > [data-scope="command"][data-part="root"]`
+  規則を `serialize_rule` で追記する。
+- **バリデーション責務外**: 絞り込み配線・Enter 実行・Cmd/Ctrl+K の
+  グローバルショートカット・フォーカストラップは `fandhe-frontend-wasm-full`
+  の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25
+  規則 1）。
+- **docs サイト**: [command](../../site/themes/command.md)
+  （イシュー #2070 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 
