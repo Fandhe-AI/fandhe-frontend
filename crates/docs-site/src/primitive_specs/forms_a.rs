@@ -96,6 +96,7 @@ use hui::checkbox::{CheckboxProps, CheckedState};
 use hui::checkbox_group;
 use hui::color_picker;
 use hui::combobox::{self, ComboboxProps};
+use hui::command;
 use hui::editable::{
     self, EditMode, EditableActivationMode, EditableInputFlags, EditableInputProps,
     EditableSubmitMode,
@@ -118,6 +119,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/checkbox-group/", CHECKBOX_GROUP),
     ("/primitives/color-picker/", COLOR_PICKER),
     ("/primitives/combobox/", COMBOBOX),
+    ("/primitives/command/", COMMAND),
     ("/primitives/editable/", EDITABLE),
     ("/primitives/field/", FIELD),
     ("/primitives/fieldset/", FIELDSET),
@@ -1148,6 +1150,198 @@ fn ex_editable() -> Node {
         body,
     )
 }
+
+/// Command の閉じた（dialog 非表示）最小組み立て例（イシュー #2068）。
+/// `command_aria_association` 契約の対象は生成 HTML 全体だが、closed
+/// dialog は `hidden` 存在属性が付くため実害はない。
+fn ex_command() -> Node {
+    let input = command::input(
+        OpenState::Open,
+        "",
+        "primitives-command-example-list",
+        None,
+        vec![],
+    );
+    let item = command::item(
+        false,
+        false,
+        "calendar",
+        None,
+        vec![],
+        vec![text("Calendar")],
+    );
+    let list = command::list(
+        "primitives-command-example-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![item],
+    );
+    let empty = command::empty(false, vec![], vec![text("No results found.")]);
+    let root = command::root(OpenState::Open, false, vec![], vec![input, list, empty]);
+    let markup = command::dialog(OpenState::Closed, "Command Menu", vec![], vec![root]);
+    wrap_example(
+        "role=\"dialog\" の Command を closed（hidden）状態で組み立てる最小例です。",
+        vec![markup],
+    )
+}
+
+/// `CommandAction` の `data-*` 状態を利用者スタイルで消費する自前 CSS 例
+/// （イシュー #2068 参照突合。[`ex_combobox_custom_css`] と同型。closed
+/// 状態で組み、`combobox_aria_association` 契約の対象外にする）。
+const COMMAND_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"command\"][data-part=\"root\"][data-empty] {\n  \
+  min-height: 4rem;\n\
+}\n\
+[data-scope=\"command\"][data-part=\"item\"][data-selected] {\n  \
+  background: #eef;\n\
+}\n\
+[data-scope=\"command\"][data-part=\"item\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"command\"][data-part=\"dialog\"][hidden] {\n  \
+  display: none;\n\
+}\n";
+
+fn ex_command_custom_css() -> Node {
+    let input = command::input(
+        OpenState::Open,
+        "",
+        "primitives-command-example-list-2",
+        None,
+        vec![],
+    );
+    let list = command::list(
+        "primitives-command-example-list-2",
+        "Suggestions",
+        false,
+        vec![],
+        vec![],
+    );
+    let markup = command::dialog(
+        OpenState::Closed,
+        "Command Menu",
+        vec![],
+        vec![command::root(
+            OpenState::Open,
+            false,
+            vec![],
+            vec![input, list],
+        )],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-selected / data-disabled / data-empty / hidden 属性セレクタで自前 CSS を当てる最小例です（本 Demo には適用されません）。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(COMMAND_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
+}
+
+const COMMAND: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "root/input/list/empty/group/group_heading/item/shortcut/separator/dialog の 10 anatomy パーツを持ち、combobox/listbox の既存 ARIA 実装（role=\"combobox\"/role=\"listbox\"/role=\"option\"）を再利用する（command.rs 冒頭参照）。",
+        "input は role=\"combobox\" + aria-controls（必須引数）+ aria-autocomplete=\"list\" を固定付与し、docs-site の R1〜R4 契約を型で構造的に満たす（Option opt-in にしない、command.rs「`input` の ARIA」節）。",
+        "item は data-selected（presence）+ aria-selected で選択有無を表し、data-highlighted/data-state は出力しない（combobox/listbox との意図的な差分、command.rs「`item` の選択表現」節）。",
+        "root/list/empty はいずれも empty: bool 引数を取り、絞り込み結果 0 件のとき data-empty を出力する。表示切替（hidden 等）は呼び出し側/pre-styled-ui の CSS の責務（command.rs「`data-empty` の付与先と SSR 決定性」節）。",
+        "Command 状態機械は Input で dialog を開閉せず、Select で dialog を閉じない（cmdk のコマンドパレット意味論。実行フックは UI コンポーネント層の責務外、command.rs参照）。",
+        "filter_items は crate::combobox::filter_options へ全委譲する（新規の絞り込みアルゴリズムを持ち込まない）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root(state, empty) / dialog(state, label)",
+            kind: "OpenState, bool / OpenState, &str",
+            default: "OpenState::Closed, false",
+            description: "dialog 開閉状態と絞り込み結果 0 件かどうか。dialog の label は空文字列のとき aria-label を省略する。",
+        },
+        ArgRow {
+            name: "input(state, value, list_id, activedescendant)",
+            kind: "OpenState, &str, &str, Option<&str>",
+            default: "",
+            description: "現在のクエリ・aria-controls の参照先（必須）・選択中 item の id。",
+        },
+        ArgRow {
+            name: "list(id, label, empty)",
+            kind: "&str, &str, bool",
+            default: "",
+            description: "role=\"listbox\" の id（必須）・aria-label（必須）・絞り込み結果 0 件かどうか。",
+        },
+        ArgRow {
+            name: "item(selected, disabled, value, id)",
+            kind: "bool, bool, &str, Option<&str>",
+            default: "",
+            description: "role=\"option\" を持つ候補 1 個の選択状態・無効化・value（data-value として出力）・id。",
+        },
+        ArgRow {
+            name: "group(labelledby) / group_heading(id)",
+            kind: "Option<&str> / Option<&str>",
+            default: "",
+            description: "labelledby が Some のときのみ role=\"group\"/aria-labelledby を出力する。group_heading の id が参照先になる。",
+        },
+        ArgRow {
+            name: "filter_items(items, query) / Command::filtered_items / is_empty",
+            kind: "&[(&str, &str)], &str",
+            default: "",
+            description: "crate::combobox::filter_options への全委譲（大文字小文字非区別の部分一致・入力順保持）。",
+        },
+        ArgRow {
+            name: "attrs / children",
+            kind: "Vec<(&str, &str)> / Vec<Node>",
+            default: "",
+            description: "各パーツ共通の追加属性・子ノード（代表 1 行に集約）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Closed dialog",
+            description: "role=\"dialog\" の Command を closed（hidden）状態で組み立てる最小例です。",
+            render: ex_command,
+        },
+        ExampleEntry {
+            title: "利用者スタイルの当て方",
+            description: "data-scope / data-part / data-selected / data-disabled / data-empty / hidden 属性セレクタで自前 CSS を当てる最小例です。",
+            render: ex_command_custom_css,
+        },
+    ],
+    // 本層は矢印キー/Enter/Escape・Cmd/Ctrl+K の実 DOM 配線を持たない
+    // （command.rs「out-of-scope」節、後続イシュー #2069 の責務）。
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"combobox\" / aria-autocomplete=\"list\"",
+            description: "input パーツに固定付与する。ARIA 1.2 combobox パターンを再利用する（combobox.rs との共通契約）。",
+        },
+        AriaRow {
+            attribute: "aria-controls",
+            description: "input パーツに必須引数として付与する（list_id、Option opt-in にしない）。",
+        },
+        AriaRow {
+            attribute: "aria-activedescendant",
+            description: "input パーツに Some のときのみ付与する。選択中 item の id を指す（ハイライト中の行ではない、command.rs参照）。",
+        },
+        AriaRow {
+            attribute: "role=\"listbox\" / aria-label",
+            description: "list パーツに固定付与する。aria-label は必須引数のため常にアクセシブルネームを持つ。",
+        },
+        AriaRow {
+            attribute: "role=\"option\" / aria-selected",
+            description: "item パーツに固定付与する。",
+        },
+        AriaRow {
+            attribute: "role=\"dialog\" / aria-modal=\"true\"",
+            description: "dialog パーツに固定付与する。tabindex=\"-1\" も固定付与し、プログラム的フォーカスのみを許可する。",
+        },
+        AriaRow {
+            attribute: "role=\"group\" / aria-labelledby",
+            description: "group パーツに labelledby が Some のときのみ付与する。group_heading の id と対にする。",
+        },
+        AriaRow {
+            attribute: "role=\"separator\" / aria-orientation=\"horizontal\"",
+            description: "separator パーツに固定付与する。",
+        },
+    ],
+    demo: None,
+};
 
 /// 自前 CSS の最小例（イシュー #1606、[`CHECKBOX_CUSTOM_CSS_SNIPPET`] と
 /// 同型）。`preview`/`input`/`root` の `data-*` セレクタで見た目を組み立てる

@@ -14,6 +14,7 @@ use hui::checkbox::{CheckboxProps, CheckedState};
 use hui::checkbox_group;
 use hui::color_picker::{self, Channel, ColorPickerProps};
 use hui::combobox::{self, ComboboxProps};
+use hui::command;
 use hui::editable::{
     self, EditMode, EditableActivationMode, EditableInputFlags, EditableInputProps,
     EditableSubmitMode,
@@ -654,6 +655,102 @@ fn editable_instance(
             ),
         ],
     )
+}
+
+/// Command の Demo（イシュー #2068）。2 インスタンスで 10 anatomy パーツ
+/// すべて（root/input/list/empty/group/group-heading/item/shortcut/
+/// separator/dialog）を網羅する。
+///
+/// (a) `dialog(open)` > `root(open, empty=false)` > `input`（クエリ
+/// "ca"、選択中 item を `activedescendant` で指す）+ `list`（`group` +
+/// `group-heading` + 選択中/通常/disabled の 3 `item`（1 件目に
+/// `shortcut` を同梱）+ `separator` + 2 個目の空 `group`）+
+/// `empty(false)`。
+/// (b) 絞り込み結果 0 件の状態を独立して示すため、`root(open, empty=true)`
+/// の下へ `input`（クエリ "zzz"）+ `list`（子なし、`empty=true`）+
+/// `empty(true)` を配置した別インスタンス。
+pub(super) fn command_section() -> Node {
+    let item_calendar = command::item(
+        true,
+        false,
+        "calendar",
+        Some("primitives-command-item-calendar"),
+        vec![],
+        vec![
+            text("Calendar"),
+            command::shortcut(vec![], vec![text("⌘C")]),
+        ],
+    );
+    let item_search = command::item(
+        false,
+        false,
+        "search",
+        Some("primitives-command-item-search"),
+        vec![],
+        vec![text("Search Emoji")],
+    );
+    let item_disabled = command::item(
+        false,
+        true,
+        "settings",
+        Some("primitives-command-item-settings"),
+        vec![],
+        vec![text("Settings")],
+    );
+    let group_heading = command::group_heading(
+        Some("primitives-command-group-heading"),
+        vec![],
+        vec![text("Suggestions")],
+    );
+    let group = command::group(
+        Some("primitives-command-group-heading"),
+        vec![],
+        vec![group_heading, item_calendar, item_search, item_disabled],
+    );
+    let empty_group = command::group(None, vec![], vec![]);
+    let separator = command::separator(vec![], vec![]);
+    let list = command::list(
+        "primitives-command-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![group, separator, empty_group],
+    );
+    let input = command::input(
+        OpenState::Open,
+        "ca",
+        "primitives-command-list",
+        Some("primitives-command-item-calendar"),
+        vec![],
+    );
+    let empty = command::empty(false, vec![], vec![text("No results found.")]);
+    let root = command::root(OpenState::Open, false, vec![], vec![input, list, empty]);
+    let instance_dialog = command::dialog(OpenState::Open, "Command Menu", vec![], vec![root]);
+
+    let empty_list = command::list(
+        "primitives-command-list-empty",
+        "Suggestions",
+        true,
+        vec![],
+        vec![],
+    );
+    let empty_input = command::input(
+        OpenState::Open,
+        "zzz",
+        "primitives-command-list-empty",
+        None,
+        vec![],
+    );
+    let empty_empty = command::empty(true, vec![], vec![text("No results found.")]);
+    let empty_root = command::root(
+        OpenState::Open,
+        true,
+        vec![],
+        vec![empty_input, empty_list, empty_empty],
+    );
+
+    let body = vec![instance_dialog, empty_root];
+    demo_page("Command", body)
 }
 
 /// preview/edit/disabled/readonly/invalid+required/空値（placeholder）の

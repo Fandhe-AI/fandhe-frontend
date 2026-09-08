@@ -582,8 +582,10 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// `WRAPPED_SAME_NAME` へ分類されたため除外した
 /// （`PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
-/// が検証する）。
-const HEADLESS_UNWRAPPED: &[&str] = &["button_group"];
+/// が検証する）。イシュー #2068 で headless-ui 層のみを実装した `command`
+/// が新設され、pre-styled-ui recipe（後続 #2070）を持たないため本リストへ
+/// 加える。
+const HEADLESS_UNWRAPPED: &[&str] = &["button_group", "command"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
