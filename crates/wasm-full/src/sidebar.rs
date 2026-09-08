@@ -235,6 +235,12 @@ mod wiring {
     const PROVIDER_PART: &str = "provider";
     /// Root パーツの `data-part` 属性値。
     const ROOT_PART: &str = "root";
+    /// Trigger パーツの `data-part` 属性値（[`wire_sidebar_dispatch`] の
+    /// scope 限定述語で使用、イシュー #2074 codex-review P1 是正）。
+    const TRIGGER_PART: &str = "trigger";
+    /// Rail パーツの `data-part` 属性値（[`wire_sidebar_dispatch`] の
+    /// scope 限定述語で使用、イシュー #2074 codex-review P1 是正）。
+    const RAIL_PART: &str = "rail";
     /// Menu-button パーツの `data-part` 属性値。
     const MENU_BUTTON_PART: &str = "menu-button";
     /// Menu-button パーツの CSS セレクタ。
@@ -520,6 +526,20 @@ mod wiring {
             }
         }
         was_mobile.set(matches);
+
+        // イシュー #2074 codex-review P1 是正: [`wire_sidebar_state_observer`]
+        // は `data-state` の変異のみを監視しており、上記で書き換えた
+        // `data-mobile` の変異には反応しない。デスクトップの
+        // `collapsed`/`icon` 状態で hover/focus により表示中の
+        // menu-button tooltip を保持したままモバイル幅へ変わった場合
+        // （`should_collapse_on_enter_mobile` が偽＝既に collapsed で
+        // 上記の合成 click が起きないケースを含む）、[`tooltip_should_show`]
+        // の `!mobile` 契約に反して tooltip が開いたまま残ってしまう。
+        // `data-mobile` を書き換えた直後に必ず [`recheck_menu_button_tooltips`]
+        // を呼び、表示条件を明示的に再判定する（モバイル進入・離脱の両方向、
+        // および上記の合成 click で `data-state` 変異が既に処理されている
+        // 場合も冪等に安全）。
+        recheck_menu_button_tooltips(root);
     }
 
     /// `window.matchMedia(query)` によるモバイル判定・`data-mobile` の
@@ -1057,20 +1077,80 @@ mod wiring {
     /// `Self::hydrate` に渡すアプリ全体の `root` である必要はなく、
     /// provider を含む部分木の任意の祖先でよい）。
     ///
+    /// # dispatch 対象を自身の trigger/rail に限定する（イシュー #2074
+    /// codex-review P1 是正）
+    ///
+    /// 上記のとおり `root` 配下に無関係な別コンポーネント（例: Sidebar
+    /// content 内の `Collapsible`）が同居しうるため、汎用 API の
+    /// [`crate::headless::wire_headless_component`]（内部で
+    /// `wire_headless_events` を呼び `root` 配下の**全 `MAPPING_TABLE`
+    /// 行**を対象にする）をそのまま使うと、その子部品の trigger クリック
+    /// も同じ `"toggle"` として解決され、この Sidebar インスタンスの
+    /// dispatch へ誤って渡ってしまう（Sidebar が意図せず開閉し、かつ
+    /// `wire_headless_events` の `stop_propagation` によりアプリ側の他の
+    /// 配線への配送も遮断される）。本関数は代わりに
+    /// [`crate::headless::wire_headless_events_scoped`] を用い、
+    /// 解決された part が `data-scope="sidebar"` かつ `data-part` が
+    /// `trigger`/`rail` である場合にのみ dispatch へ渡す（クリック位置
+    /// から最初に解決可能だった part にのみ判定を適用するため、より
+    /// 内側の無関係な部品の trigger が先に解決された場合はそこで打ち切り、
+    /// 外側の Sidebar 自身の trigger/rail へフォールバックして誤
+    /// dispatch することもない）。
+    ///
     /// `on_update` は dispatch 成功時のみ呼ばれ、DOM への `data-state`/
     /// `aria-expanded` 等の反映（再描画）は呼び出し側の責務である
-    /// （[`crate::headless::wire_headless_component`] の既存契約）。
+    /// （[`crate::headless::wire_headless_component`] の既存契約と同一）。
     ///
     /// # Errors
     ///
-    /// [`crate::headless::wire_headless_component`]
+    /// [`crate::headless::wire_headless_events_scoped`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
     pub fn wire_sidebar_dispatch(
         root: Element,
         component: Rc<RefCell<fandhe_frontend_headless_ui::sidebar::Sidebar>>,
-        on_update: impl FnMut(&fandhe_frontend_headless_ui::sidebar::Sidebar, &Element) + 'static,
+        mut on_update: impl FnMut(&fandhe_frontend_headless_ui::sidebar::Sidebar, &Element) + 'static,
     ) -> Result<(), JsValue> {
-        crate::headless::wire_headless_component(root, component, on_update)
+        // イシュー #2074 codex-review P1 是正: `crate::headless::
+        // wire_headless_component`（内部の `wire_headless_events`）は
+        // `root` の部分木全体に対して `crate::headless::MAPPING_TABLE`
+        // 全行を対象にクリックを解決する。Sidebar の content 内にネスト
+        // した無関係な別コンポーネント（例: `Collapsible`）の trigger も
+        // Disclosure 語彙の `"toggle"` を共有するため、これをそのまま
+        // `component`（この Sidebar インスタンス）の dispatch へ渡すと、
+        // 子部品のクリックで Sidebar 自身が誤って開閉してしまう
+        // （`crate::headless::wire_headless_events` は解決に成功した
+        // click で `stop_propagation` するため、アプリ側の他の配線
+        // （`data-action` ベース等）への配送も遮断される）。
+        //
+        // このため、汎用 API ではなく `crate::headless::
+        // wire_headless_events_scoped` を用い、解決された part が
+        // `data-scope="sidebar"` かつ `data-part` が `trigger`/`rail`
+        // である場合のみ dispatch へ渡す（`crate::headless::
+        // action_from_parts_scoped` は最初に解決可能だった part にのみ
+        // この述語を適用するため、より内側にある無関係な部品の trigger が
+        // 先に解決された場合はそこで打ち切られ、外側の Sidebar 自身の
+        // trigger/rail へフォールバックして誤 dispatch することもない）。
+        let wired_root = root.clone();
+        crate::headless::wire_headless_events_scoped(
+            root,
+            |part| {
+                part.scope == SIDEBAR_SCOPE && (part.part == TRIGGER_PART || part.part == RAIL_PART)
+            },
+            move |action_ref| {
+                let Ok(mut state) = component.try_borrow_mut() else {
+                    return;
+                };
+                let dispatched = fandhe_frontend_interactive::dispatch(
+                    &mut *state,
+                    &action_ref.action,
+                    &action_ref.payload,
+                );
+                if !dispatched {
+                    return;
+                }
+                on_update(&state, &wired_root);
+            },
+        )
     }
 }
 

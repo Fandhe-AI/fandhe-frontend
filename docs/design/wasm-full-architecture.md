@@ -918,8 +918,7 @@ trigger/rail のクリックは dispatch へ到達**しない**（本イシュ�
 
 実際に dispatch へ到達させるには、アプリが自身の
 `Rc<RefCell<fandhe_frontend_headless_ui::sidebar::Sidebar>>` を
-[`wiring::wire_sidebar_dispatch`]（`crate::headless::wire_headless_component`
-の薄いラッパー）へ渡して個別に配線する必要がある
+[`wiring::wire_sidebar_dispatch`] へ渡して個別に配線する必要がある
 （`crate::headless_select::wire_select_value_text` と同型のオプトイン
 API）。`Runtime<C>` の単一フラットな最上位状態 `C` へ自動的に
 `wire_headless_events` を橋渡ししない設計上の理由は §12.7 と同じ:
@@ -927,6 +926,25 @@ API）。`Runtime<C>` の単一フラットな最上位状態 `C` へ自動的�
 情報を持たないため、同じ `root` に複数の headless-ui 部品（例: Sidebar
 と Collapsible が両方とも `"toggle"` を dispatch する）が同居する場合に
 「どの部品のクリックか」を判別できない構造的な曖昧性がある。
+
+**dispatch 対象を自身の trigger/rail に限定する（PR #2248 codex-review
+P1 是正）**: [`wiring::wire_sidebar_dispatch`] は当初
+`crate::headless::wire_headless_component`（内部で `wire_headless_events`
+を呼び `root` 配下の全 `MAPPING_TABLE` 行を対象にする）をそのまま
+使っていたが、これは上記の構造的曖昧性を Sidebar 自身が体現してしまう
+実装だった: Sidebar の content 内にネストした無関係な別コンポーネント
+（例: `Collapsible`）の trigger クリックも同じ `"toggle"` として解決され、
+この Sidebar インスタンスの dispatch へ誤って渡り、Sidebar が意図せず
+開閉してしまう（`wire_headless_events` の `stop_propagation` により
+アプリ側の他の配線への配送も遮断される）。是正後は
+`crate::headless::wire_headless_events_scoped`（`action_from_parts_scoped`
+を用いた新設 API）を用い、クリック位置から最初に解決可能だった part が
+`data-scope="sidebar"` かつ `data-part` が `trigger`/`rail` である場合に
+のみ dispatch へ渡す。より内側の無関係な部品の trigger が先に解決された
+場合はそこで打ち切り、外側の Sidebar 自身の trigger/rail へフォール
+バックして誤 dispatch することもない（`action_from_parts_scoped` は
+`predicate` を最初に見つかった解決可能な part にのみ適用し、満たさない
+場合は探索を打ち切る契約）。
 
 ### 24.2 `sidebar.rs` の 2 層構成・`wire_sidebar_events` 自身は `dispatch` チャネルを持たない
 
@@ -1062,6 +1080,19 @@ closeDelay・位置計算の自動呼び出しはスコープ外（§24.7 参照
 防ぐ（`headless_avatar.rs::wire_avatar_src_observer` と同型の防御的
 二重チェック）。
 
+**モバイル切替時の tooltip 再判定（PR #2248 codex-review P1 是正）**:
+上記の `wire_sidebar_state_observer` は `data-state` の変異のみを監視
+しており、`apply_mobile_state`（§24.3）が書き換える `data-mobile` の
+変異には反応しない。デスクトップの `collapsed`/`icon` 状態で
+hover/focus により表示中の menu-button tooltip を保持したままモバイル
+幅へ変わった場合（`data-state` 自体は変わらないため上記の観測経路が
+発火しない）、`tooltip_should_show` の `!mobile` 契約に反して tooltip が
+開いたまま残ってしまう不具合があった。是正として `apply_mobile_state`
+は `data-mobile` を書き換えた直後に必ず `recheck_menu_button_tooltips`
+を呼び、表示条件を明示的に再判定する（モバイル進入・離脱の両方向、
+および `entering_mobile` 分岐の合成 click で `data-state` 変異が既に
+処理されている場合も冪等に安全）。
+
 ### 24.6 セキュリティ不変条件・`Closure::forget` 定数個契約
 
 `data-mobile`/`hidden`/`data-state` の属性書き込みは
@@ -1104,6 +1135,10 @@ pointerover/pointerout/focusin/focusout 4・sidebar 状態変異検知用
   `should_collapse_on_enter_mobile`/`should_dismiss_mobile_drawer`/
   `split_describedby`）、headless-ui 実出力とのドリフト検知、
   `MAPPING_TABLE` 経由の dispatch ラウンドトリップ・disabled fail-closed。
+  PR #2248 codex-review P1 是正で追加した `action_from_parts_scoped`
+  （`headless.rs`）は、内側の無関係な部品が先に解決された場合に述語を
+  満たさず打ち切ること・常に真の述語では既存 `action_from_parts` と
+  同一結果になることを検証する。
 - 実ブラウザ回帰テスト（`crates/wasm-full/tests/sidebar_browser.rs`、
   `wasm-pack test --headless --chrome crates/wasm-full --test
   sidebar_browser` で 21 件 PASS 確認済み）: trigger/rail クリック
@@ -1115,7 +1150,16 @@ pointerover/pointerout/focusin/focusout 4・sidebar 状態変異検知用
   無視、デスクトップでは no-op）、`collapsible=icon` tooltip の
   pointerover/pointerout/focusin/focusout、sidebar 非搭載 root への
   no-op。`mql` の `change` イベント実発火は headless Chrome で viewport
-  を変更できないため未検証（`query` 引数注入で代替）。
+  を変更できないため未検証（`query` 引数注入で代替）。同じ制約により、
+  PR #2248 で追加した「デスクトップで既に開いている tooltip がモバイル
+  遷移で閉じる」経路（§24.5「モバイル切替時の tooltip 再判定」）も
+  ライブな `matches()` 遷移を伴う専用ブラウザ回帰テストは追加していない
+  （固定 query 文字列を wire 時に 1 回だけ渡す既存ハーネスの構造上、
+  「desktop で開いた tooltip → 後から mobile query へ切り替わる」経路を
+  単一の `wire_sidebar_events_with_query` 呼び出し内で再現できないため）。
+  `apply_mobile_state` からの無条件呼び出しは native 単体テストの
+  `tooltip_should_show`/`tooltip_applicable` 相当ロジックと合わせて
+  コードレビューで健全性を確認済み。
   **テストハーネス固有の注意**: 同一 `wasm-pack test` バイナリ内の複数
   `#[wasm_bindgen_test]` は document を共有するため、`wire_sidebar_events`
   の既定クエリ（`DEFAULT_MOBILE_MEDIA_QUERY`）は headless Chrome の実
