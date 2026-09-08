@@ -5161,3 +5161,66 @@ fn avatar_group_and_badge_children_and_attrs_are_escaped_for_all_payloads() {
         assert!(html.contains(r#"data-part="badge""#));
     }
 }
+
+/// styled Button Group `root`/`separator`/`text` 経路（イシュー #2060、親
+/// #2058、headless anatomy は #2059）: 3 パーツいずれも見た目クラスを付与
+/// しない（`src/button_group.rs` モジュール doc「variant 軸: 持たない」節
+/// 参照）ため、呼び出し側 `attrs`・`class`（[`drop_class_attr`] により除去、
+/// recipe クラスを持たないため `class` 属性自体が出力から消える）・`label`・
+/// children の各経路で既定エスケープ（REQ-1）が貫通することを固定する
+/// （`input_group_parts_are_escaped_for_all_payloads` と同型）。
+#[test]
+fn button_group_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::button_group::{self, Orientation};
+
+    for payload in payloads::all() {
+        // styled root の label（aria-label へ出力される動的値）経路。
+        let html = render(&button_group::root(
+            Orientation::Horizontal,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "button_group::root label コンテキスト");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&button_group::root(
+            Orientation::Horizontal,
+            "",
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "button_group::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える）。
+        let html = render(&button_group::root(
+            Orientation::Horizontal,
+            "",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "button_group::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled separator の呼び出し側 attrs 経路。
+        let html = render(&button_group::separator(
+            Orientation::Horizontal,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "button_group::separator attrs コンテキスト");
+
+        // styled text の呼び出し側 attrs・children 経路。
+        let html = render(&button_group::text(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "button_group::text attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "button_group::text children コンテキスト");
+    }
+}
