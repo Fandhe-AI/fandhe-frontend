@@ -72,7 +72,7 @@ fn input_group_public_api_composes_with_field_input_inline_addons() {
 /// textarea + block-start/block-end の合成例。
 #[test]
 fn input_group_public_api_composes_with_field_textarea_block_addons() {
-    let mut group_props = InputGroupProps {
+    let group_props = InputGroupProps {
         disabled: false,
         invalid: true,
     };
@@ -80,7 +80,6 @@ fn input_group_public_api_composes_with_field_textarea_block_addons() {
     // merge_field_props は invalid を OR 伝播するため field 側にも invalid が
     // 反映されていることを確認する（fieldset との差分、モジュール doc 参照）。
     assert!(field_props.invalid);
-    group_props.invalid = true;
 
     let node = root(
         &group_props,
