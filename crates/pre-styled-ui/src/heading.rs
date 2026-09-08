@@ -65,10 +65,56 @@
 //!   できなかったため、根拠不十分な意匠変更を避け**本イシューでは見送る**
 //!   （安全側の判断）。一律 `-0.01em` の現状維持。再評価は実機での
 //!   フォント計測ツールを用いた比較が可能になった時点で行う。
+//!
+//! ## イシュー #2056 の shadcn/ui 突合（7 軸）
+//!
+//! `docs/design/reference-screenshots/shadcn-typography-{1,2,3}.png`
+//! （shadcn/ui Typography ページ）と突合した結果、chakra-ui / Radix Themes
+//! 基準の #1434 調整では拾えなかった 2 点を純追加で補完した。
+//!
+//! - **フォントウェイト軸の欠落**: shadcn の h1（`font-extrabold`
+//!   相当・800）に対応する軸が旧実装になかった（base は `semibold` 固定）。
+//!   [`crate::text`] の [`crate::text::TextWeight`] と同じ語彙
+//!   （`normal`/`medium`/`semibold`/`bold`）で [`HeadingWeight`] 軸を追加
+//!   した。参照競合の判定: heading の h1 ウェイトは既定では chakra-ui /
+//!   Radix Themes の値（`semibold` 既定）を採る。理由: 既定を変えると
+//!   既存 golden・既存呼び出し元の見た目が変わるため。shadcn の
+//!   extrabold（800）は `font-weight-extrabold` トークンが Phase 0
+//!   スケール（4 段）に存在せず新設は本イシューのスコープ外のため、
+//!   `HeadingWeight::Bold`（700）へ切り下げて `bold` variant として
+//!   opt-in できるようにした（再評価トリガー: 複数部品で 700 超の要求が
+//!   出た時点）。
+//! - **h2 の下罫線状態の欠落**（shadcn `border-b pb-2` 相当）:
+//!   [`crate::card`]（イシュー #2046）と同型の `data-bordered` opt-in
+//!   状態を root へ追加した。参照競合の判定: heading の h2 区切り線は
+//!   既定では chakra-ui / Radix Themes の値（区切り線なし）を採り、
+//!   `data-bordered` opt-in 時のみ shadcn-ui の値（`--fandhe-color-border`
+//!   の 1px 罫線 + `space-2` の下 padding）を採る。理由: 既定を維持しつつ
+//!   純追加で再現するため（card #2046 と同一判断）。付与者は常に呼び出し側
+//!   （`heading()` の `attrs`）であり、heading 自身はこの属性を出力しない
+//!   （`docs/design/pre-styled-ui-data-attr-vocabulary.md` 「役割 B 亜種」）。
+//!
+//! **意図的に合わせない点**:
+//!
+//! - **`tracking-tight`（-0.025em）**: 「参考サイト基準との 7 軸比較」節の
+//!   letter-spacing 判断（#1434）を継続し、`-0.01em` を維持する。参照競合
+//!   の判定: heading の letter-spacing は chakra-ui / Radix Themes の値を
+//!   採る。理由: 実機フォント計測なしの意匠変更を避けるため。
+//! - **`text-center`/`text-balance`/`scroll-m-20`**: レイアウトユーティリティ
+//!   は利用者責務（[`crate::text`] の align/trim/wrap 非採用と同じ判断）。
+//! - **`first:mt-0` 等の文書フロー余白**: `margin: 0` 方針を維持（余白は
+//!   利用者責務）。
+//! - **shadcn のプリセット名（h1〜h4 という名前の variant）**: 持ち込まず、
+//!   [`HeadingLevel`] × [`HeadingSize`] × [`HeadingWeight`] の合成で表現
+//!   する（`docs/design/shadcn-reference-adoption-policy.md` §8 の語彙
+//!   方針）。
+//!
+//! headless-ui 側（ARIA・キーボード操作）への切り出し事項はない（heading は
+//! 静的部品であり shadcn 側も操作状態を持たない）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, VariantValue};
+use crate::recipe::{SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -157,11 +203,48 @@ impl VariantValue for HeadingSize {
     }
 }
 
+/// Heading のフォントウェイト variant（イシュー #2056 で追加。
+/// [`crate::text::TextWeight`] と同じ語彙（`normal`/`medium`/`semibold`/
+/// `bold`）を用いる。既定 `Semibold` は base の従来固定値と一致し、CSS 上は
+/// 他軸と同じく常にクラスが付与される（[`SlotRecipe::default_variant`] の
+/// 規約どおり）。モジュール rustdoc「イシュー #2056 の shadcn/ui 突合」節
+/// 参照。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HeadingWeight {
+    /// 通常ウェイト。
+    Normal,
+    /// 中間ウェイト。
+    Medium,
+    /// やや太いウェイト（既定、base の従来固定値）。
+    #[default]
+    Semibold,
+    /// 太字ウェイト（shadcn h1 の extrabold 相当を切り下げた opt-in 値。
+    /// モジュール rustdoc 参照競合の判定を参照）。
+    Bold,
+}
+
+impl VariantValue for HeadingWeight {
+    fn axis(self) -> &'static str {
+        "weight"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::Medium => "medium",
+            Self::Semibold => "semibold",
+            Self::Bold => "bold",
+        }
+    }
+}
+
 /// [`heading`] の設定。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HeadingProps {
     /// 視覚サイズ variant（既定 `Xl`）。
     pub size: HeadingSize,
+    /// フォントウェイト variant（既定 `Semibold`、イシュー #2056）。
+    pub weight: HeadingWeight,
 }
 
 /// Heading の recipe（scope `"heading"`、slot `"root"` のみ）。
@@ -240,6 +323,43 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(HeadingSize::Xl)
+        // イシュー #2056: shadcn/ui 突合で欠落していたフォントウェイト軸
+        // （size variant 群の後に登録し、既存 CSS 出力を接頭辞として保つ）。
+        .variant(
+            HeadingWeight::Normal,
+            "root",
+            vec![decl("font-weight", "var(--fandhe-font-font-weight-normal)")],
+        )
+        .variant(
+            HeadingWeight::Medium,
+            "root",
+            vec![decl("font-weight", "var(--fandhe-font-font-weight-medium)")],
+        )
+        .variant(
+            HeadingWeight::Semibold,
+            "root",
+            vec![decl(
+                "font-weight",
+                "var(--fandhe-font-font-weight-semibold)",
+            )],
+        )
+        .variant(
+            HeadingWeight::Bold,
+            "root",
+            vec![decl("font-weight", "var(--fandhe-font-font-weight-bold)")],
+        )
+        .default_variant(HeadingWeight::Semibold)
+        // イシュー #2056: shadcn h2 の `border-b pb-2` 相当を data-bordered
+        // opt-in 状態として純追加する（card #2046 と同一パターン。付与者は
+        // 常に呼び出し側の `attrs`、heading 自身は出力しない）。
+        .state(
+            "root",
+            StateCondition::Attr("data-bordered"),
+            vec![
+                decl("border-bottom", "1px solid var(--fandhe-color-border)"),
+                decl("padding-bottom", "var(--fandhe-space-2)"),
+            ],
+        )
 }
 
 /// Heading の静的 CSS 全文。
@@ -271,7 +391,10 @@ pub fn heading<'a>(
     children: Vec<Node>,
 ) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("size", props.size.value())]);
+    let class = recipe.variant_classes(&[
+        ("size", props.size.value()),
+        ("weight", props.weight.value()),
+    ]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     ANATOMY.part("root", level.tag(), merged, children)
@@ -292,7 +415,7 @@ mod tests {
         ));
         assert_eq!(
             html,
-            r#"<h2 data-scope="heading" data-part="root" class="fd-heading--size-xl">Title</h2>"#
+            r#"<h2 data-scope="heading" data-part="root" class="fd-heading--size-xl fd-heading--weight-semibold">Title</h2>"#
         );
     }
 
@@ -330,13 +453,75 @@ mod tests {
             (HeadingSize::Xl3, "fd-heading--size-xl3"),
             (HeadingSize::Xl4, "fd-heading--size-xl4"),
         ] {
-            let props = HeadingProps { size };
+            let props = HeadingProps {
+                size,
+                ..HeadingProps::default()
+            };
             let html = render(&heading(HeadingLevel::default(), &props, vec![], vec![]));
+            assert!(html.contains(class), "size={size:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn weight_enumeration_maps_to_expected_classes() {
+        for (weight, class) in [
+            (HeadingWeight::Normal, "fd-heading--weight-normal"),
+            (HeadingWeight::Medium, "fd-heading--weight-medium"),
+            (HeadingWeight::Semibold, "fd-heading--weight-semibold"),
+            (HeadingWeight::Bold, "fd-heading--weight-bold"),
+        ] {
+            let props = HeadingProps {
+                weight,
+                ..HeadingProps::default()
+            };
+            let html = render(&heading(HeadingLevel::default(), &props, vec![], vec![]));
+            assert!(html.contains(class), "weight={weight:?} -> {html}");
+        }
+    }
+
+    /// イシュー #2056: `data-bordered` は呼び出し側が明示的に付与したときのみ
+    /// 出力へ通過する（`heading()` 自身はこの属性を生成しない、
+    /// `docs/design/pre-styled-ui-data-attr-vocabulary.md` 「役割 B 亜種」）。
+    #[test]
+    fn data_bordered_attr_passes_through_when_caller_supplies_it() {
+        let html = render(&heading(
+            HeadingLevel::default(),
+            &HeadingProps::default(),
+            vec![("data-bordered", "")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-bordered="""#));
+    }
+
+    #[test]
+    fn default_output_does_not_contain_data_bordered() {
+        let html = render(&heading(
+            HeadingLevel::default(),
+            &HeadingProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-bordered"));
+    }
+
+    #[test]
+    fn css_output_declares_weight_tokens_and_bordered_state() {
+        let out = css();
+        for token in [
+            "font-weight-normal",
+            "font-weight-medium",
+            "font-weight-semibold",
+            "font-weight-bold",
+        ] {
             assert!(
-                html.contains(&format!("class=\"{class}\"")),
-                "size={size:?} -> {html}"
+                out.contains(&format!("var(--fandhe-font-{token})")),
+                "missing {token} in {out}"
             );
         }
+        assert!(
+            out.contains("[data-scope=\"heading\"][data-part=\"root\"][data-bordered]"),
+            "missing data-bordered state rule in {out}"
+        );
     }
 
     #[test]
