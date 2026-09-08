@@ -187,9 +187,10 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         category: PrimitiveCategory::FormsA,
     },
     PrimitiveEntry {
-        // Themes ページは #2063（未実装）まで存在しないため
-        // `PRIMITIVES_WITHOUT_THEMES_PAGE`/`HEADLESS_UNWRAPPED` の対象
-        // （イシュー #2062）。
+        // Themes ページ（`/themes/input-group/`）は #2063 で実装済み。
+        // title は Primitives/Themes 両ページで完全一致する
+        // （`primitives_titles_match_themes_page_titles_where_both_exist`
+        // が突合、イシュー #2062/#2063）。
         module: "input_group",
         path: "/primitives/input-group/",
         title: "Input Group",
@@ -559,19 +560,18 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives。現在 2 件（`button_group`・`input_group`）。`button_group`
-/// はイシュー #2059 時点では headless-ui 層のみを実装しており、Themes
-/// ページ・pre-styled-ui recipe は後続 #2060 で追加する。`input_group` は
-/// イシュー #2062 が headless-ui 層を新設した時点では Themes 層
-/// （`crates/pre-styled-ui/src/input_group.rs`・`site/themes/input-group.md`）
-/// が #2063（未実装）のため、暫定的にこの台帳へ載せる（`collapsible`/
-/// `field`/`fieldset` は過去に同様の暫定登録を経て Themes ページ実装後に
-/// 除外済み）。
+/// Primitives。現在 1 件（`button_group`）。`button_group` はイシュー
+/// #2059 時点では headless-ui 層のみを実装しており、Themes ページ・
+/// pre-styled-ui recipe は後続 #2060 で追加する。`input_group` はイシュー
+/// #2062 が headless-ui 層を新設した時点では暫定的にこの台帳へ載っていたが、
+/// イシュー #2063 で Themes 層（`crates/pre-styled-ui/src/input_group.rs`・
+/// `site/themes/input-group.md`）を実装済みのため除外した（`collapsible`/
+/// `field`/`fieldset` と同じ経緯）。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["button_group", "input_group"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["button_group"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {

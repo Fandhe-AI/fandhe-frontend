@@ -131,9 +131,10 @@ grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
   segment_group / select / signature_pad / skip_nav / slider / splitter /
   steps / switch / tabs / tags_input / timer / toast / toggle /
   toggle_group / toggle_tip / tooltip / tour / tree_view / visually_hidden
-- pre-styled-ui **105**（`grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs
+- pre-styled-ui **106**（`grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs
   | grep -vE '^pub mod (css|recipe|stylesheet|theme);$' | wc -l` の実測。
-  下記列挙リストは #1685 で `field`、#1686 で `fieldset` を追加したのみで、
+  下記列挙リストは #1685 で `field`、#1686 で `fieldset`、#2063 で
+  `input_group` を追加したのみで、
   それ以外の未列挙モジュール（callout / checkbox_group / menubar /
   navigation_menu / quote / strong / tab_nav / toolbar 等）の棚卸しは本
   イシューのスコープ外として PR 本文・親 #1671 コメントに記録する）:
@@ -144,7 +145,7 @@ grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
   color_swatch / combobox / data_list / date_input / date_picker / dialog /
   donut_chart / download_trigger / drawer / editable / em / empty_state /
   field / fieldset / file_upload / floating_panel / heading / highlight / hover_card / icon /
-  image / image_cropper / input / json_tree_view / kbd / line_chart / link /
+  image / image_cropper / input / input_group / json_tree_view / kbd / line_chart / link /
   link_overlay / list / listbox / mark / marquee / menu / native_select /
   nav_list / number_input / pagination / password_input / pie_chart /
   pin_input / popover / progress / qr_code / radio_card / radio_group /
@@ -981,7 +982,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
 | —（対応 md なし） | — | — | — | — | Button Group (`button-group`) | — | — | 実装対象 | ボタン群を単一の視覚的グループとして束ねる anatomy。Phase 4、#2058 |
-| —（対応 md なし） | — | — | — | — | Input Group (`input-group`) | — | — | 実装対象 | 入力欄とアドオン（アイコン・ボタン）を束ねる anatomy。Phase 4、#2061 |
+| —（対応 md なし） | — | — | — | — | Input Group (`input-group`) | `input_group` | `input_group` | 実装済み | headless+styled 実装済み（#2062 anatomy / #2063 recipe・Themes ページ）。root/addon/text/button の 4 slot + `data-align` 4 値、軸なし |
 | —（対応 md なし） | — | — | — | — | Item (`item`) | — | — | 実装対象 | リスト項目の汎用 anatomy（アイコン・テキスト・アクションの組み合わせ）。Phase 4、#2064 |
 | —（対応 md なし） | — | — | — | — | Command (`command`) | — | — | 実装対象 | コマンドパレット（検索付き選択 UI）の anatomy。Phase 4、#2067 |
 | —（対応 md なし） | — | — | — | — | Sidebar (`sidebar`) | — | — | 実装対象 | アプリケーションシェルのサイドバー anatomy。Phase 4、#2071 |
@@ -1326,7 +1327,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 | shadcn/ui 名 (slug) | §5 該当行 | 実装 issue | 現状 |
 |---|---|---|---|
 | Button Group (`button-group`) | Part F | #2058 | 実装対象確定（Phase 4） |
-| Input Group (`input-group`) | Part F | #2061 | 実装対象確定（Phase 4） |
+| Input Group (`input-group`) | Part F | #2061 | 実装済み（#2062 / #2063） |
 | Item (`item`) | Part F | #2064 | 実装対象確定（Phase 4） |
 | Command (`command`) | Part F | #2067 | 実装対象確定（Phase 4） |
 | Sidebar (`sidebar`) | Part F | #2071 | 実装対象確定（Phase 4） |

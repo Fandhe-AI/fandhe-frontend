@@ -80,6 +80,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [File Upload](./themes/file-upload.md)
 - [Image Cropper](./themes/image-cropper.md)
 - [Input](./themes/input.md)
+- [Input Group](./themes/input-group.md)
 - [Listbox](./themes/listbox.md)
 - [Native Select](./themes/native-select.md)
 - [Number Input](./themes/number-input.md)

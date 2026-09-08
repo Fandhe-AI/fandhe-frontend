@@ -2325,6 +2325,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2043: alert を shadcn/ui と突合し、pre-styled-only レイアウト
 # パート `action` の新設（公開 API 追加 + CSS 出力の実体変更）を行ったため
 # minor バンプする（0.x の破壊的変更はマイナーバンプの規約、`toast`
+# のイシュー #2180 先例に同じ）。
+# base 再取り込み（イシュー #2062, 2026-09-08）: 本ブランチの到達値
+# 0.135.1 が main の到達値 0.136.0 を下回るため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数・
+# 逆転した到達値への衝突は main の現在値をさらに +1 する）に倣い、main
+# の到達値 0.136.0 の patch を +1 して 0.136.1 とする。
+# イシュー #2063: 新規 `input_group` モジュール（`root`/`addon`/`text`/
+# `button` の 4 slot recipe・stylesheet 追加、公開 API の純追加）を行った
+# ため minor バンプする（0.x の破壊的変更はマイナーバンプの規約、
+# `fieldset` のイシュー #1686 先例に同じ）。
 # のイシュー #2180 先例に同じ）。main（#2043）が独立に到達した値も
 # 0.136.0 であり、本ブランチ（#2044）の到達値と衝突したため、
 # `semver-same-version-is-conflict` の運用に倣い main の到達値 0.136.0
@@ -2339,6 +2349,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # dep-version-check --fix 追随）を取り込み 0.136.2 へ到達したが、本ブランチ
 # の到達値 0.137.0 は依然としてそれを上回るため追加のバンプは不要（同 §5
 # の手順は main の到達値を上回る値には適用しない）。
+# base 再取り込み（イシュー #2063, 2026-09-08）: 本ブランチの到達値
+# 0.137.0（#2063 の input_group 新設によるマイナーバンプ）と main の
+# 到達値 0.137.0（#2044 の avatar 破壊的変更によるマイナーバンプ）が
+# 同一版数で衝突したため、`semver-same-version-is-conflict` の運用に
+# 倣い main の到達値 0.137.0 からさらにマイナーバンプして 0.138.0 と
+# する。
 # イシュー #2045: badge を shadcn/ui と突合し、`BadgeVariant::Plain`
 # 列挙値の新設（既存網羅 `match` を壊す 0.x の破壊的変更）と `link`
 # コンストラクタの追加（公開 API 追加）を行ったため minor バンプする。
@@ -2356,7 +2372,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # その到達値も 0.137.0 であることが判明した（本ブランチの #2045 到達値と
 # 衝突）。`semver-same-version-is-conflict` の運用に倣い、main の到達値
 # 0.137.0 からさらに +1 して 0.138.0 とする。
-version = "0.138.0"
+# base 再取り込み（イシュー #2063, PR #2226 レビュー修正ラウンド, 2026-09-08）続報:
+# 本ブランチ（#2063）と main（#2045）がいずれも独立に 0.138.0 へ到達しており
+# 同一版数で衝突したため、`semver-same-version-is-conflict` の運用に倣い
+# main の到達値 0.138.0 からさらにマイナーバンプして 0.139.0 とする。
+version = "0.139.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

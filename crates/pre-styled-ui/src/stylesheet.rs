@@ -288,6 +288,7 @@ mod tests {
             ("field", crate::field::css()),
             ("fieldset", crate::fieldset::css()),
             ("input", crate::input::css()),
+            ("input_group", crate::input_group::stylesheet()),
             ("textarea", crate::textarea::css()),
             ("native_select", crate::native_select::css()),
             ("number_input", crate::number_input::stylesheet()),

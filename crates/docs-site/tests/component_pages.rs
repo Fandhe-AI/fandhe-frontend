@@ -573,8 +573,10 @@ fn scope_resolution_buckets_match_expected_counts() {
     // と一致）が加わり 97 -> 98、イシュー #1685 で Field（path 由来の
     // kebab field が data-scope="field" と一致）が加わり 98 -> 99、
     // イシュー #1687 で Fieldset（path 由来の kebab fieldset が
-    // data-scope="fieldset" と一致）が加わり 99 -> 100 へ増える。
-    assert_eq!(bucket1_path_match, 100);
+    // data-scope="fieldset" と一致）が加わり 99 -> 100、イシュー #2063 で
+    // Input Group（path 由来の kebab input-group が
+    // data-scope="input-group" と一致）が加わり 100 -> 101 へ増える。
+    assert_eq!(bucket1_path_match, 101);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
@@ -791,7 +793,7 @@ fn filled_pages_no_longer_reference_phase_4_stub_note() {
     }
 }
 
-/// Forms 33 ページ（イシュー #945、#1685 で Field・#1687 で Fieldset を追加）の充填を機械的に固定する。各ページが
+/// Forms 34 ページ（イシュー #945、#1685 で Field・#1687 で Fieldset・#2063 で Input Group を追加）の充填を機械的に固定する。各ページが
 /// `Demo`/`Features`/`Anatomy`/`API Reference` の 4 節を（この順の部分列と
 /// して）持つこと、および `Examples`/`Accessibility` を含む場合は
 /// [`CANONICAL_SECTIONS`] 順であることを検証する（設計 §7 は Examples/
@@ -816,7 +818,7 @@ fn forms_pages_have_the_canonical_sections_filled() {
     }
 }
 
-/// `site/themes/<kebab>.md` の Forms 33 件が Phase 4 未充填を示す
+/// `site/themes/<kebab>.md` の Forms 34 件が Phase 4 未充填を示す
 /// `[!NOTE]` admonition（「Phase 4」文言を含む）を残していないことを検証
 /// する（充填したページから admonition を削除する前提、イシュー #945）。
 #[test]
@@ -868,6 +870,7 @@ const FORMS_PATHS: &[&str] = &[
     "/themes/file-upload/",
     "/themes/image-cropper/",
     "/themes/input/",
+    "/themes/input-group/",
     "/themes/listbox/",
     "/themes/native-select/",
     "/themes/number-input/",
