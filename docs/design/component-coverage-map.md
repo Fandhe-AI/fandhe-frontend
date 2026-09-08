@@ -619,7 +619,7 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 |---|---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/data-display/avatar.md` | Avatar | Avatar | — | — | — | `avatar` | `avatar` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/data-display/badge.md` | — | Badge | — | Badge (`badge`) | Badge (`badge`) | — | `badge` | 実装済み | pre-styled 静的部品 実装済み |
-| `.agents/skills/chakra-ui/references/components/data-display/card.md` | — | Card | — | Card (`card`) | Card (`card`) | — | `card` | 実装済み | pre-styled 静的部品 実装済み |
+| `.agents/skills/chakra-ui/references/components/data-display/card.md` | — | Card | — | Card (`card`) | Card (`card`) | — | `card` | 実装済み | pre-styled 静的部品 実装済み。#2046 で shadcn/ui と突合: `action`（header 右上スロット）・`cover`（cover image 枠）・`data-bordered`（区切り線 opt-in）を純追加、size sm 相当は既存 5 段 size 軸で包含済みと判断し変更なし |
 | `.agents/skills/chakra-ui/references/components/data-display/table.md` | — | Table | — | Table (`table`) | Table (`table`) | — | `table` | 実装済み | pre-styled 静的部品 実装済み（#767。`stickyHeader` は #1571、`ScrollArea` 連携は #1572 で `table::scroll_area` パーツとして実装済み。`interactive`/`showColumnBorder`/`ColumnGroup` はスコープ外） |
 | `.agents/skills/chakra-ui/references/components/data-display/data-list.md` | — | DataList | — | Data List (`data-list`) | — | — | `data_list` | 実装済み | pre-styled 静的部品 実装済み（#767。`variant`（subtle/bold）/`size` variant は #1559 で追加済み） |
 | `.agents/skills/chakra-ui/references/components/data-display/tag.md` | — | Tag | — | — | — | — | `tag` | 実装済み | pre-styled 静的部品 実装済み（#768） |

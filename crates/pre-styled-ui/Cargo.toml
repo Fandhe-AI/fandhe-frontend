@@ -2339,7 +2339,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # dep-version-check --fix 追随）を取り込み 0.136.2 へ到達したが、本ブランチ
 # の到達値 0.137.0 は依然としてそれを上回るため追加のバンプは不要（同 §5
 # の手順は main の到達値を上回る値には適用しない）。
-version = "0.137.0"
+# イシュー #2046: card を shadcn/ui と突合し `action`/`cover` パーツ・
+# `data-has-action`/`data-bordered` opt-in 状態を純追加した（既存 6 パーツの
+# base/variant 規則はバイト同一、選択子の削除・改名なし）。既存公開 API・
+# 出力を壊さない純追加のため patch バンプする（`docs/ci/
+# style-refresh-version-bump-operation.md` §3.3）。
+version = "0.137.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

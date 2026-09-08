@@ -1,5 +1,6 @@
 //! Card（イシュー #550）: slot recipe styled 部品。root/header/body/footer/
-//! title/description の 6 パーツで構成する装飾的コンテナ。
+//! title/description/action/cover の 8 パーツで構成する装飾的コンテナ
+//! （action/cover はイシュー #2046 で純追加）。
 //!
 //! 純粋なレイアウトコンテナであり、`role`/`aria-*` は付与しない
 //! （`.claude/rules/coding-rust.md` 準拠のプレーンな HTML を尊重する方針）。
@@ -80,10 +81,62 @@
 //!   構成で境界が無 padding のまま残るため採らない。header/body/footer を
 //!   隣接させる場合に生じる二重の余白は #574 の初期実装からの挙動へ戻る
 //!   （chakra 実装も各パーツが独立して padding を持つ）。
+//!
+//! # shadcn/ui 突合（イシュー #2046）
+//!
+//! 3 者主基準化（#2153）を受け、shadcn/ui `Card`
+//! （`apps/v4/registry/bases/base/ui/card.tsx`）と突合し、以下を**純追加**
+//! で補完した（#1557 の既存出力はバイト同一を維持、`docs/design/
+//! shadcn-reference-adoption-policy.md` §8 の純追加原則）。
+//!
+//! - **`action` パーツ**（shadcn `CardAction` 相当）: header 右上へ
+//!   配置するボタン等のスロット。`grid-column: 2 / grid-row: 1 / span 2`
+//!   で固定配置する。呼び出し側が [`header`] の `attrs` へ
+//!   `("data-has-action", "")` を渡すと header が `display: grid`
+//!   （2 列）へ切り替わり、title/description は grid 自動配置で左列へ
+//!   落ちる opt-in 状態を追加した。参照競合の判定: header の action 配置は
+//!   shadcn-ui の値（grid 2 列、action は右上 2 行 span）を採る。理由:
+//!   chakra-ui / Radix Themes に対応物がなく競合しない（純追加）。
+//! - **`cover` パーツ**（shadcn `has-[>img:first-child]` 相当）: root
+//!   先頭に置く cover image 枠。`overflow: hidden` + 上端 2 角のみ root の
+//!   内側半径に揃えるクリップを行う。画像本体は呼び出し側が
+//!   [`crate::image::image`] を子として渡す合成契約とする。参照競合の判定:
+//!   card の root `overflow` は chakra-ui / Radix Themes の値（クリップ
+//!   しない）を採り、cover image のクリップは新設 `cover` パーツ側で行う。
+//!   理由: root への `overflow: hidden` は既存 golden の変更かつ Card 内
+//!   オーバーレイ部品の切り取り回帰を招くため。
+//! - **`data-bordered` opt-in 状態**（shadcn の `className="border-b"`/
+//!   `"border-t"` Examples 相当）: header/footer へ渡すと 1px の区切り線を
+//!   出す。参照競合の判定: card の header/footer 区切り線は既定では
+//!   chakra-ui / Radix Themes の値（区切り線なし）を採り、`data-bordered`
+//!   opt-in 時のみ shadcn-ui の値（1px `--fandhe-color-border`）を採る。
+//!   理由: #1557 の既定を維持しつつ shadcn の Examples を純追加で再現する
+//!   ため。
+//!
+//! **`data-*` 語彙節**（`docs/design/pre-styled-ui-data-attr-vocabulary.md`
+//! 「役割 B 亜種」）: `data-has-action`/`data-bordered` はいずれも値なし
+//! 存在属性であり、付与者は常に呼び出し側（`header`/`footer` の `attrs`）、
+//! CSS 消費者は本モジュール `recipe()` の state 規則のみである。本部品自身
+//! はこれらの属性を出力しない。
+//!
+//! **意図的に合わせない点（追加分）**:
+//!
+//! - **size sm 相当・`text-sm`・`ring-1 ring-foreground/10`・`shadow-xs`**:
+//!   本部品は既存 5 段の size 軸（[`Size::Xs`]〜[`Size::Xl`]）で
+//!   shadcn の `size="default"`/`size="sm"` を包含済みと判断し、変更しない。
+//! - **root の `overflow: hidden`・edge-to-edge content（負マージン）・
+//!   footer の `bg-muted/50`**: 上記「参照競合の判定」の理由により対象外、
+//!   または呼び出し側の装飾判断（部品の責務外）と位置づける。
+//! - **`data-slot`/`data-size` 等 shadcn 固有 `data-*` 語彙**: 語彙規約
+//!   （`docs/design/pre-styled-ui-data-attr-vocabulary.md`）に反するため
+//!   持ち込まない（class 方式を継続）。
+//! - **cover 下端の角丸**（shadcn `img:last-child:rounded-b-xl`）:
+//!   `StateCondition::LastChild` は「cover が唯一の子」ケースで上下両方が
+//!   丸まる副作用があるため採らない。上端専用とする。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, VariantValue};
+use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -92,7 +145,20 @@ const ANATOMY: Anatomy = anatomy("card");
 
 /// [`SlotRecipe::new`] に渡す slot 一覧（recipe とレンダリング関数の両方が
 /// この配列を共有し、slot 名の乖離を防ぐ）。
-const SLOTS: &[&str] = &["root", "header", "body", "footer", "title", "description"];
+///
+/// イシュー #2046: `action`（header 右上スロット）・`cover`（cover image
+/// 枠）を末尾へ純追加した（golden の base 規則は宣言順に出力されるため、
+/// 既存 6 パーツの出力順・内容は変わらない）。
+const SLOTS: &[&str] = &[
+    "root",
+    "header",
+    "body",
+    "footer",
+    "title",
+    "description",
+    "action",
+    "cover",
+];
 
 /// Card の見た目 variant。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -253,6 +319,46 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
         )
+        // イシュー #2046: shadcn/ui `CardAction`（header 右上スロット）の
+        // 純追加。`header` 側の grid 化（下記 state 規則）と対になり、
+        // grid-column: 2 / grid-row: 1 / span 2 で title/description の
+        // 右側 2 行にまたがって配置される。header が `display: flex`
+        // （grid 化していない）ままでも `grid-column`/`grid-row` は
+        // 無害（適用されないだけ）なので、`data-has-action` を付け忘れても
+        // 崩れない（graceful degradation）。
+        .base(
+            "action",
+            vec![
+                decl("grid-column", "2"),
+                decl("grid-row", "1 / span 2"),
+                decl("justify-self", "end"),
+                decl("align-self", "start"),
+            ],
+        )
+        // イシュー #2046: shadcn/ui の cover image 枠（`has-[>img:first-child]`
+        // 相当）の純追加。root の角丸を画像がはみ出さないよう `overflow:
+        // hidden` でクリップし、上端 2 角のみ root の内側半径に揃える
+        // （下端は #708 で不採用の `:first-child` 系状態セレクタが無いため
+        // 意図的に対象外、`card.rs` モジュール rustdoc §「意図的に合わせ
+        // ない点」参照）。`display: flex; flex-direction: column` は
+        // 子の `<img>`（`image::image` は `width: 100%` を base に持たない）
+        // を cross-axis stretch で全幅化するために採用する。
+        .base(
+            "cover",
+            vec![
+                decl("display", "flex"),
+                decl("flex-direction", "column"),
+                decl("overflow", "hidden"),
+                decl(
+                    "border-start-start-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+                decl(
+                    "border-start-end-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+            ],
+        )
         .size_variants(
             "root",
             &[
@@ -335,6 +441,41 @@ fn recipe() -> SlotRecipe {
             vec![decl("background", "var(--fandhe-color-bg-subtle)")],
         )
         .default_variant(CardVariant::Outline)
+        // イシュー #2046: `action` パーツを渡す呼び出し側が header へ
+        // `("data-has-action", "")` を付けたときのみ header を grid 化する
+        // opt-in 状態（`SlotRecipe::state` は子孫・`:has()` セレクタを持たない
+        // 設計〔#708〕のため、shadcn の `has-data-[slot=card-action]` は
+        // 呼び出し側付与の属性で代替する）。`minmax(0, 1fr)` は root の
+        // `overflow-wrap: break-word` が長い語を縮小できるようにするため
+        // （素の `1fr` だと action 列へはみ出す）。row-gap は base の
+        // `gap: var(--fandhe-space-1-5)` を継続し、column-gap のみ明示する。
+        .state(
+            "header",
+            StateCondition::Attr("data-has-action"),
+            vec![
+                decl("display", "grid"),
+                decl("grid-template-columns", "minmax(0, 1fr) auto"),
+                decl("column-gap", "var(--fandhe-space-4)"),
+                decl("align-items", "start"),
+            ],
+        )
+        // イシュー #2046: header/footer の区切り線は既定なし（#1557 の判断
+        // を維持）のまま、呼び出し側が `("data-bordered", "")` を付けたとき
+        // のみ shadcn/ui の Examples（Header/Footer with Border）相当の 1px
+        // 罫線を出す opt-in 状態として純追加する。
+        .state(
+            "header",
+            StateCondition::Attr("data-bordered"),
+            vec![decl(
+                "border-bottom",
+                "1px solid var(--fandhe-color-border)",
+            )],
+        )
+        .state(
+            "footer",
+            StateCondition::Attr("data-bordered"),
+            vec![decl("border-top", "1px solid var(--fandhe-color-border)")],
+        )
 }
 
 /// Card の静的 CSS 全文。
@@ -413,6 +554,60 @@ pub fn description<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> N
     ANATOMY.part("description", "p", attrs, children)
 }
 
+/// action パーツ（`<div>`）を組み立てる。header の右上に配置するボタン等の
+/// スロット（イシュー #2046、shadcn/ui `CardAction` 相当）。header 側を
+/// grid 化する opt-in 状態（`data-has-action`）は呼び出し側が
+/// [`header`] の `attrs` へ `("data-has-action", "")` を渡すことで有効化する
+/// （`SlotRecipe` が `:has()` を持たない設計のための代替、`card.rs`
+/// モジュール rustdoc §3.1 参照）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::card;
+///
+/// let node = card::header(
+///     vec![("data-has-action", "")],
+///     vec![
+///         card::title(vec![], vec![]),
+///         card::action(vec![], vec![]),
+///     ],
+/// );
+/// let html = render(&node);
+/// assert!(html.contains(r#"data-has-action="""#));
+/// assert!(html.contains(r#"data-part="action""#));
+/// ```
+#[must_use]
+pub fn action<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("action", "div", attrs, children)
+}
+
+/// cover パーツ（`<div>`）を組み立てる。root 先頭に置くと角丸をクリップ
+/// する cover image 枠になる（イシュー #2046、shadcn/ui の
+/// `has-[>img:first-child]` 相当）。画像本体は呼び出し側が
+/// [`crate::image::image`] を子として渡す合成契約とする（本パーツは
+/// `src` 等の URL 検証を持たず、既存の `image::image` の
+/// `is_safe_url` 経路をそのまま使う）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::card;
+/// use fandhe_frontend_pre_styled_ui::image::{self, AspectRatio, ImageProps};
+///
+/// let mut props = ImageProps::new("/cover.png", "");
+/// props.aspect_ratio = AspectRatio::Video;
+/// let node = card::cover(vec![], vec![image::image(&props, vec![])]);
+/// let html = render(&node);
+/// assert!(html.contains(r#"data-part="cover""#));
+/// ```
+#[must_use]
+pub fn cover<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("cover", "div", attrs, children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -478,6 +673,49 @@ mod tests {
             .starts_with(r#"<h3 data-scope="card" data-part="title""#));
         assert!(render(&description(vec![], vec![]))
             .starts_with(r#"<p data-scope="card" data-part="description""#));
+        assert!(render(&action(vec![], vec![]))
+            .starts_with(r#"<div data-scope="card" data-part="action""#));
+        assert!(render(&cover(vec![], vec![]))
+            .starts_with(r#"<div data-scope="card" data-part="cover""#));
+    }
+
+    /// イシュー #2046: 呼び出し側が `header` へ `data-has-action` を渡すと
+    /// そのまま出力に残ることを固定する（recipe 側の state 規則はこの属性を
+    /// 前提に CSS を出し分けるのみで、属性自体の付与は呼び出し側の責務）。
+    #[test]
+    fn header_with_data_has_action_attr_renders_attribute_and_action_part() {
+        let html = render(&header(
+            vec![("data-has-action", "")],
+            vec![title(vec![], vec![]), action(vec![], vec![])],
+        ));
+        assert!(html.contains(r#"data-has-action="""#));
+        assert!(html.contains(r#"data-part="action""#));
+    }
+
+    /// イシュー #2046: `data-bordered` を header/footer へ渡すとそのまま
+    /// 出力に残ることを固定する。
+    #[test]
+    fn header_and_footer_with_data_bordered_attr_render_attribute() {
+        let html = render(&header(vec![("data-bordered", "")], vec![]));
+        assert!(html.contains(r#"data-bordered="""#));
+
+        let html = render(&footer(vec![("data-bordered", "")], vec![]));
+        assert!(html.contains(r#"data-bordered="""#));
+    }
+
+    /// イシュー #2046: `cover` に画像を子として渡す合成パターン
+    /// （shadcn/ui cover image 相当）が既存 `image::image` 経由で組める
+    /// ことを固定する。
+    #[test]
+    fn cover_composes_with_image_part() {
+        use crate::image::{image, ImageProps};
+
+        let html = render(&cover(
+            vec![],
+            vec![image(&ImageProps::new("/cover.png", ""), vec![])],
+        ));
+        assert!(html.contains(r#"data-part="cover""#));
+        assert!(html.contains(r#"src="/cover.png""#));
     }
 
     #[test]
@@ -541,12 +779,19 @@ mod tests {
 
     /// イシュー #1557: header/footer の区切り線（`border-bottom`/
     /// `border-top`）を廃止したことを固定する（padding のみで段を分ける
-    /// chakra 方式への移行）。
+    /// chakra 方式への移行）。イシュー #2046 で `data-bordered` opt-in
+    /// 状態を純追加したため、`[data-bordered]` を伴う規則より前（既定の
+    /// base/variant 規則）には出現しないことを検証する契約へ精緻化した
+    /// （`crates/pre-styled-ui/tests/card_css.rs` の同名テストと対の契約）。
     #[test]
     fn css_output_does_not_declare_header_footer_border() {
         let out = css();
-        assert!(!out.contains("border-bottom"));
-        assert!(!out.contains("border-top"));
+        let first_bordered = out
+            .find("[data-bordered]")
+            .expect("data-bordered state rule should exist");
+        let default_css = &out[..first_bordered];
+        assert!(!default_css.contains("border-bottom"));
+        assert!(!default_css.contains("border-top"));
     }
 
     /// イシュー #1557 PR #1828 レビュー是正: `root` を `impl Into<CardProps>`
