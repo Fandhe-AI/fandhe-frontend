@@ -43,6 +43,7 @@ use fandhe_frontend_pre_styled_ui::kbd;
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
+use fandhe_frontend_pre_styled_ui::separator;
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::table;
 use fandhe_frontend_pre_styled_ui::tag;
@@ -697,6 +698,32 @@ fn kbd_group_emits_no_self_produced_data_attrs() {
     assert_eq!(
         data_attr_count, 2,
         "kbd::group は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+}
+
+/// `separator.rs`（イシュー #2053、shadcn/ui 突合）の pre-styled-only
+/// `group`/`label` パートも `avatar::group`/`kbd::group` と同型で独自の
+/// `data-*` を一切出力しない。出力に現れる `data-*` は headless
+/// `fandhe_frontend_headless_ui::anatomy::Anatomy::part` が付与する
+/// `data-scope`/`data-part`（anatomy 属性）のみであることを固定する。
+#[test]
+fn separator_group_and_label_emit_no_self_produced_data_attrs() {
+    let html = render(&separator::group(vec![], vec![]));
+    assert!(html.contains(r#"data-scope="separator""#));
+    assert!(html.contains(r#"data-part="group""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "separator::group は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    let html = render(&separator::label(vec![], vec![]));
+    assert!(html.contains(r#"data-scope="separator""#));
+    assert!(html.contains(r#"data-part="label""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "separator::label は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
     );
 }
 

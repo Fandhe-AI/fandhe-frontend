@@ -144,7 +144,7 @@ gh api "repos/shadcn-ui/ui/contents/apps/v4/content/docs/components/aria?ref=5c7
 | `resizable` | Resizable | 既存 `splitter` で充足。#2038 |
 | `scroll-area` | Scroll Area | 既存 `scroll_area` と対応（`scroll-fade` utility 相当は pre-styled-ui `scroll_area` の注記として記載） |
 | `select` | Select | 既存 `select` と対応 |
-| `separator` | Separator | 既存 `separator` と対応 |
+| `separator` | Separator | 既存 `separator` と対応。#2053 で突合し `group`/`label`（ラベル付き区切り線）を補完済み |
 | `sheet` | Sheet | 既存 `drawer` で充足。#2031 |
 | `sidebar` | Sidebar | 実装対象。#2071 |
 | `skeleton` | Skeleton | 既存 `skeleton` と対応（`shimmer` utility 相当は注記として記載） |

@@ -2848,12 +2848,27 @@ fn ex_separator() -> Node {
     )
 }
 
+/// `/themes/separator/` の Examples 節其の 2（イシュー #2053）: 線 – テキスト
+/// – 線のラベル付き合成（`group`/`label`、chakra-ui の HStack + Text 合成
+/// 相当、shadcn/ui 突合で補完）。
+fn ex_separator_labeled() -> Node {
+    separator::group(
+        vec![("style", "width: 16rem;")],
+        vec![
+            separator::separator(&separator::SeparatorProps::default(), vec![]),
+            separator::label(vec![], vec![text("OR")]),
+            separator::separator(&separator::SeparatorProps::default(), vec![]),
+        ],
+    )
+}
+
 pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "orientation が role=\"separator\"（固定） + aria-orientation + data-orientation + variant クラスの 3 箇所へ連動する（crates/pre-styled-ui/src/separator.rs:10, 17）",
         "SeparatorVariant（Solid/Dashed/Dotted、separator.rs:113-121。Dotted はイシュー #1585 で追加）で罫線種別を切り替える",
         "罫線の太さは --fandhe-separator-thickness（既定 1px の custom property、イシュー #1585）の上書きで変更する。size 軸は Phase 0 規約（docs/design/pre-styled-ui-focus-ring-and-size-conventions.md §4 (d)）により非提供（separator.rs:24-31）",
         "role/aria-orientation/data-orientation は呼び出し側の偽装を除去し常にフレームワーク値へ一本化する（separator.rs:270-277、skeleton の aria-hidden 除去と同型）",
+        "group/label（イシュー #2053、shadcn/ui 突合で補完）: pre-styled-only のラベル付き区切り線パート。線 – テキスト – 線を display: grid（1fr auto 1fr）で合成する（chakra-ui の HStack + Text 合成相当、horizontal 専用契約）",
     ],
     arguments: &[
         ArgRow {
@@ -2869,11 +2884,18 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
             description: "罫線種別（solid/dashed/dotted、separator.rs:113-121, 159-161）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Vertical dashed",
-        description: "縦向き・破線の Separator の例です。",
-        render: ex_separator,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Vertical dashed",
+            description: "縦向き・破線の Separator の例です。",
+            render: ex_separator,
+        },
+        ExampleEntry {
+            title: "Labeled",
+            description: "group/label によるラベル付き区切り線の例です（イシュー #2053）。",
+            render: ex_separator_labeled,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"separator\" + aria-orientation",

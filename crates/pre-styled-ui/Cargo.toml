@@ -2497,6 +2497,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 突合の起点、0.144.0）から独立に 0.144.0 へ到達しており、`git merge`
 # 後に main の到達値 0.144.0 と同一版数衝突するため（本節上部の #2066 と
 # 同型の判断）、+1 マイナーして 0.145.0 とする。
+#
+# イシュー #2053: separator を shadcn/ui と突合し pre-styled-only
+# `group`/`label`（ラベル付き区切り線、chakra-ui の HStack + Text 合成
+# 相当）パートを追加した。既存 slot への公開関数 2 個の純追加（`kbd`
+# #2048 の `group` と同型）だが公開 API の実体変更のためマイナーバンプ
+# する（`.claude/rules/coding-rust.md`「公開済みクレートの実体変更時は
+# semver バンプ必須」）。
 # base 再取り込み（本 PR、イシュー #2060、PR #2228 レビュー修正ラウンド、
 # 2026-09-08）: 本ブランチ（button_group 新設・横並び Input 潰れの Bugbot
 # 指摘修正）は独立に main の到達値 0.144.0 を追い越さない版数（旧
@@ -2510,7 +2517,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.144.0 から独立に 0.145.0 へ到達済みであることが判明したため、
 # `semver-same-version-is-conflict` の運用に倣い衝突を避けて 0.146.0 へ
 # さらに +1 マイナーする（実体変更を伴うため patch ではなく minor を維持）。
-version = "0.146.0"
+# 版数の再調整（本 PR、イシュー #2053、2026-09-08）: base 取り込み時点で
+# main は #2060/#2228/#2238 の衝突解消チェーンにより独立に 0.146.0 へ到達
+# 済みであり、本ブランチ自身も separator の group/label 追加により独立に
+# 同一版数 0.146.0 へ到達していた（偶発的な同一版数衝突）。`.claude/rules/
+# coding-rust.md` の semver バンプ規約（同一版数への偶発的衝突をそのまま
+# 採用しない）に従い、main の到達値 0.146.0 から +1 マイナーして 0.147.0
+# とする（実体変更を伴うため patch ではなく minor を維持）。依存先
+# `fandhe-frontend-headless-ui` の version 要求は main 側の追随をそのまま
+# 採用する（下記参照）。
+version = "0.147.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
