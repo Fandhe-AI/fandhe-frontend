@@ -1003,6 +1003,32 @@ fn ex_progress_circle() -> Node {
     )
 }
 
+// イシュー #2049: shadcn/ui "Label and Value" の既定表現（枠線なし中立
+// トラック + label/value 併記）を、shadcn の TSX/Tailwind をそのまま複製
+// せずノード木 API で書き直して再現する（`docs/policy/intentional-non-
+// adoption.md` §4 相当の判断、`crates/pre-styled-ui/src/progress.rs`
+// rustdoc「イシュー #2049: shadcn/ui との突合」節参照）。
+fn ex_progress_plain() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress::{ProgressProps, ProgressVariant};
+    let p = Progress::new(0.0, 100.0, Some(56.0), Orientation::Horizontal);
+    let props = ProgressProps {
+        variant: ProgressVariant::Plain,
+        ..ProgressProps::default()
+    };
+    progress::root(
+        &p,
+        &props,
+        Some("56%"),
+        vec![],
+        vec![
+            p.label(vec![], vec![fandhe_frontend_core::text("Upload progress")]),
+            p.value_text(vec![], vec![fandhe_frontend_core::text("56%")]),
+            p.track(vec![], vec![progress::range(&p, vec![])]),
+        ],
+    )
+}
+
 // イシュー #1689: #1688 で circle-range の indeterminate（[data-state="indeterminate"]）
 // へ固定弧（円周の 1/4、stroke-dasharray）を追加した契約を Themes ページの
 // Examples へ反映する。value=None（indeterminate）の circular Progress を
@@ -1033,13 +1059,14 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
         "value が None（indeterminate）のとき [data-state=\"indeterminate\"] でアニメーション（linear は横スライド・circular は回転）を付与し、prefers-reduced-motion: reduce で停止する",
         "ProgressProps（size/variant/color-palette の 3 軸）を root へ付与する。styled range() が --fandhe-progress-percent を determinate 時のみ付与する",
         "circle-range の [data-state=\"indeterminate\"] へ固定長の弧（--fandhe-progress-circumference = 2πr、stroke-dasharray で円周の 1/4）を与え、circle の回転と組み合わせて complete（完全リング）と視覚的に区別する。新規 @keyframes は追加せず reduced-motion 下でも弧が残る（crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #1688: circle-range indeterminate の固定弧」節・テスト circle_range_indeterminate_state_declares_fixed_arc_dasharray）",
+        "ProgressVariant::Plain（枠線なしの中立トラック）は shadcn/ui 既定表現を突合して補完した variant（イシュー #2049）。既存 Outline/Subtle の CSS 出力・既定 variant はバイト不変（crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #2049: shadcn/ui との突合」節）",
     ],
     arguments: &[
         ArgRow {
             name: "props",
             kind: "&ProgressProps",
             default: "ProgressProps::default()",
-            description: "size（既定 Md）/variant（既定 Outline）/palette（既定 Accent）の 3 軸をまとめた設定（progress.rs）。",
+            description: "size（既定 Md）/variant（既定 Outline、Outline/Subtle/Plain の 3 値）/palette（既定 Accent）の 3 軸をまとめた設定（progress.rs）。",
         },
         ArgRow {
             name: "aria_valuetext",
@@ -1063,6 +1090,11 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
             title: "Indeterminate (circular)",
             description: "value=None の indeterminate circular progress の例です。circle 全体の回転に加え、circle-range へ円周の 1/4 分の固定弧（stroke-dasharray）を与え、complete（完全なリング）と区別します（イシュー #1688）。",
             render: ex_progress_circle_indeterminate,
+        },
+        ExampleEntry {
+            title: "Label + Value (Plain variant)",
+            description: "shadcn/ui 既定表現（枠線なしの中立トラック）に相当する ProgressVariant::Plain の例です。label + value 併記で shadcn の \"Label and Value\" 例をノード木 API で再現しています（イシュー #2049）。",
+            render: ex_progress_plain,
         },
     ],
     keyboard: &[],

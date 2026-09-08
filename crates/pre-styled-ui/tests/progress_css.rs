@@ -115,6 +115,11 @@ const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="root"] {
   --fandhe-progress-track-shadow: none;
 }
 
+[data-scope="progress"][data-part="root"].fd-progress--variant-plain {
+  --fandhe-progress-track-bg: var(--fandhe-color-bg-muted);
+  --fandhe-progress-track-shadow: none;
+}
+
 [data-scope="progress"][data-part="root"].fd-progress--color-palette-accent {
   --fandhe-palette: var(--fandhe-color-accent);
   --fandhe-palette-emphasized: var(--fandhe-color-accent-emphasized);
@@ -308,6 +313,7 @@ fn variant_axis_declares_track_custom_properties_on_root_only() {
     assert!(
         css.contains(r#"[data-scope="progress"][data-part="root"].fd-progress--variant-subtle"#)
     );
+    assert!(css.contains(r#"[data-scope="progress"][data-part="root"].fd-progress--variant-plain"#));
     assert!(css.contains("--fandhe-progress-track-bg: var(--fandhe-color-bg-muted);"));
     assert!(css.contains(
         "--fandhe-progress-track-shadow: inset 0 0 0 1px var(--fandhe-color-border-muted);"
@@ -317,6 +323,28 @@ fn variant_axis_declares_track_custom_properties_on_root_only() {
     assert!(
         !css.contains(r#"[data-scope="progress"][data-part="circle-track"].fd-progress--variant"#)
     );
+}
+
+#[test]
+fn plain_variant_disables_outline_track_shadow() {
+    // イシュー #2049: shadcn/ui 突合で補完した Plain variant の回帰。
+    // Subtle と同じ落とし穴（track base 規則の Outline フォールバック）を
+    // 踏まないことを、`subtle_variant_disables_outline_track_shadow` と
+    // 同型のブロック単位判定で固定する（`--fandhe-progress-track-bg` の
+    // 値だけでは Outline と区別できないため）。
+    let css = progress::stylesheet();
+    let plain_variant_rule = css
+        .split("\n\n")
+        .find(|rule| {
+            rule.starts_with(
+                r#"[data-scope="progress"][data-part="root"].fd-progress--variant-plain"#,
+            )
+        })
+        .expect("fd-progress--variant-plain ルールが stylesheet に存在する");
+    assert!(
+        plain_variant_rule.contains("--fandhe-progress-track-bg: var(--fandhe-color-bg-muted);")
+    );
+    assert!(plain_variant_rule.contains("--fandhe-progress-track-shadow: none;"));
 }
 
 #[test]

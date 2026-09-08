@@ -50,10 +50,12 @@
 //! 経由しない headless 直接利用マークアップでも外観を維持する（fail-safe、
 //! `crate::drawer`/`crate::dialog` の `size` variant と同じ方針）。
 //!
-//! [`ProgressVariant`]（`Outline`/`Subtle`）は track 背景の見た目を切り替える
-//! （chakra `outline`/`subtle`、Radix Themes `surface`/`soft` 相当。命名は
-//! 本リポジトリ既存語彙（`ButtonVariant`/`BadgeVariant`）に合わせ、Radix 名
-//! （`classic`/`soft`）は持ち込まない）。track は headless の inherent
+//! [`ProgressVariant`]（`Outline`/`Subtle`/`Plain`）は track 背景の見た目を
+//! 切り替える（chakra `outline`/`subtle`、Radix Themes `surface`/`soft` 相当。
+//! `Plain` は shadcn/ui 既定表現の補完、イシュー #2049「イシュー #2049:
+//! shadcn/ui との突合」節参照）。命名は本リポジトリ既存語彙
+//! （`ButtonVariant`/`BadgeVariant`）に合わせ、Radix 名（`classic`/`soft`）は
+//! 持ち込まない）。track は headless の inherent
 //! メソッドを直接呼ぶため（本節冒頭・`Progress` 再エクスポート節参照）
 //! variant クラスをそもそも受け取れない。そのため `--fandhe-progress-size`
 //! 等と同じ「root へ `--fandhe-progress-track-bg`/`--fandhe-progress-track-shadow`
@@ -154,6 +156,42 @@
 //! CSS 変数と anatomy のみを定義しており既に headless 側で満たされている。
 //! Radix（Primitives/Themes）は circular progress を持たないため突合対象外。
 //!
+//! # イシュー #2049: shadcn/ui との突合（7 軸）
+//!
+//! `docs/design/shadcn-reference-adoption-policy.md` §8（2026-09-07 改訂で
+//! chakra-ui / Radix Themes / shadcn-ui を 3 者主基準へ変更）に従い、
+//! shadcn/ui Progress（Base UI 版 `apps/v4/registry/bases/base/ui/
+//! progress.tsx`、`registry/styles/style-*.css` の `.cn-progress-*` 規則）と
+//! root レイアウト・label/value・track 見た目・indeterminate・状態語彙
+//! （headless `data-state`）・Examples・RTL・値の自動整形の 7 軸で突合した。
+//!
+//! - **参照競合の判定**: track の見た目（新規 variant）は shadcn-ui の値を
+//!   採る。理由: chakra `outline`/`subtle`・Radix `surface`/`soft` のいずれも
+//!   「中立 `bg-muted`・枠線なし」の平坦トラックを持たず、shadcn 既定表現
+//!   （`bg-muted rounded-full`、枠線なし）が既存 2 variant のどちらでも
+//!   表現できなかったため、[`ProgressVariant::Plain`] を純追加で補完した
+//!   （既存 [`ProgressVariant::Outline`]/[`ProgressVariant::Subtle`] の CSS
+//!   出力・既定 variant はバイト不変）。
+//! - **参照競合の判定**: track の高さ（size 段階）は chakra-ui / Radix
+//!   Themes の値を採る。理由: イシュー #1678 で size 軸を 5 段固定・
+//!   #1564/#1681 で 1〜5rem・0.15〜0.35rem の等差進行を確定済みで、
+//!   `Size::Xs`（0.375rem）が shadcn の最薄プリセット（`h-1.5`）と一致する
+//!   ため既存 golden を維持する。
+//! - 補完した点はこの 1 点のみ（`ProgressVariant::Plain`）。root レイアウト
+//!   （`flex flex-wrap gap`）・label（`text-sm font-medium`）・value
+//!   （`text-muted-foreground ml-auto tabular-nums`）・indicator 色
+//!   （`bg-primary` 相当の `--fandhe-palette`）はいずれも既存実装と一致。
+//! - 意図的に合わせない点: (1) track 高さ・RTL・value の自動整形（数値の
+//!   文字列化。`docs/policy/intentional-non-adoption.md` §3.25 規則 1
+//!   「アプリケーションロジックは UI コンポーネント層の責務外」）は上記の
+//!   とおり非採用。(2) slider 連動の controlled Example は SSG docs（JS
+//!   ハイドレーションなし）では再現不能なため対象外。(3) Base UI の
+//!   `data-progressing`/`data-complete` 等の語彙は本モジュールが使う
+//!   headless（ark-ui 基準、§8 第 4 項で不変）の `data-state` へ既に
+//!   包含されており追加不要。(4) root ↔ label の `aria-labelledby` 自動
+//!   配線（Base UI は自動付与）は Primitives 層（`crates/headless-ui`）の
+//!   責務であり本 styled 層のスコープ外。
+//!
 //! # セキュリティ不変条件
 //!
 //! - [`recipe`] が生成する CSS は固定リテラル（[`crate::css::decl`]）のみで
@@ -253,6 +291,10 @@ pub enum ProgressVariant {
     Outline,
     /// palette 淡色トラック（chakra `subtle` / Radix `soft` 相当）。
     Subtle,
+    /// 枠線なしの中立トラック（`bg-muted` のみ。shadcn/ui 既定表現、
+    /// イシュー #2049）。既存 2 variant では表現できない「枠線なし・
+    /// range は palette 色」の組み合わせを純追加で補完する。
+    Plain,
 }
 
 impl VariantValue for ProgressVariant {
@@ -264,6 +306,7 @@ impl VariantValue for ProgressVariant {
         match self {
             ProgressVariant::Outline => "outline",
             ProgressVariant::Subtle => "subtle",
+            ProgressVariant::Plain => "plain",
         }
     }
 }
@@ -498,6 +541,21 @@ fn recipe() -> SlotRecipe {
                 // Outline 相当の inset shadow（1px 枠線）へフォールバックする
                 // ため、Subtle 側で明示的に `none` を上書きしないと Outline
                 // 専用のはずの枠線が残ってしまう。
+                decl("--fandhe-progress-track-shadow", "none"),
+            ],
+        )
+        .variant(
+            ProgressVariant::Plain,
+            "root",
+            vec![
+                // イシュー #2049: shadcn/ui 既定表現（`bg-muted rounded-full`、
+                // 枠線なし）の中立トラックを補完する。Subtle と同様に
+                // `--fandhe-progress-track-shadow` を明示 `none` で上書きし
+                // ないと Outline 相当の inset 枠線が残る（PR #1835 と同じ
+                // 落とし穴）。palette 淡色ではなく中立 `bg-muted` を使う点が
+                // Subtle との違い（range は `--fandhe-palette` 経由で palette
+                // 色のまま）。
+                decl("--fandhe-progress-track-bg", "var(--fandhe-color-bg-muted)"),
                 decl("--fandhe-progress-track-shadow", "none"),
             ],
         )
@@ -826,6 +884,64 @@ mod tests {
             !css.contains(r#"[data-part="track"].fd-progress--variant"#),
             "css={css}"
         );
+    }
+
+    #[test]
+    fn plain_variant_sets_neutral_track_bg_and_disables_outline_track_shadow() {
+        // イシュー #2049: shadcn/ui 突合で補完した第 3 variant の回帰テスト。
+        // Plain は「中立 bg-muted・枠線なし」を root selector 経由で宣言し、
+        // Outline 専用の inset 枠線フォールバックへ落ちないことを固定する
+        // （Subtle が PR #1835 で踏んだのと同じ落とし穴の再発防止）。
+        let css = stylesheet();
+        assert!(
+            css.contains(
+                r#"[data-scope="progress"][data-part="root"].fd-progress--variant-plain {"#
+            ),
+            "css={css}"
+        );
+        assert!(
+            css.contains("--fandhe-progress-track-bg: var(--fandhe-color-bg-muted);"),
+            "css={css}"
+        );
+        // Plain と Outline はどちらも `--fandhe-progress-track-bg` に
+        // `var(--fandhe-color-bg-muted)` を使うため、上の contains だけでは
+        // 区別できない。Plain ルールブロック内に `--fandhe-progress-track-
+        // shadow: none;` があることをブロック単位で確認する（`\n\n` 区切り
+        // で分割し、Plain セレクタを含むブロックのみを対象にする）。
+        let plain_block = css
+            .split("\n\n")
+            .find(|block| {
+                block.contains(
+                    r#"[data-scope="progress"][data-part="root"].fd-progress--variant-plain {"#,
+                )
+            })
+            .unwrap_or_else(|| panic!("plain variant block not found: css={css}"));
+        assert!(
+            plain_block.contains("--fandhe-progress-track-shadow: none;"),
+            "plain_block={plain_block}"
+        );
+    }
+
+    #[test]
+    fn variant_axis_appends_plain_class_and_drops_caller_class() {
+        // Plain variant が root へクラスを 1 個だけ付与すること（呼び出し側
+        // `class` は drop_class_attr で除去される既存不変条件、
+        // `size_variant_appends_single_class_to_root_and_drops_caller_class`
+        // と同型）。
+        let p = determinate();
+        let props = ProgressProps {
+            variant: ProgressVariant::Plain,
+            ..ProgressProps::default()
+        };
+        let html = render(&root(
+            &p,
+            &props,
+            None,
+            vec![("class", "caller-class")],
+            vec![],
+        ));
+        assert!(html.contains("fd-progress--variant-plain"), "html={html}");
+        assert!(!html.contains("caller-class"), "html={html}");
     }
 
     #[test]
