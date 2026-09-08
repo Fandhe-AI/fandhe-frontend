@@ -11,9 +11,9 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 109 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 110 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
-`fieldset` はイシュー #1686 で追加）+
+`fieldset` はイシュー #1686、`input_group` はイシュー #2063 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
@@ -71,6 +71,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 静的フォーム部品 | `input` / `textarea` / `native_select`（§4f 参照） | [input](../../site/themes/input.md) / [textarea](../../site/themes/textarea.md) / [native-select](../../site/themes/native-select.md) |
 | 静的フォーム部品 | `field`（§4f-1 参照。ラベル・補助テキスト・エラーテキストの型階層、`orientation` 軸のみ） | [field](../../site/themes/field.md) |
 | 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | [fieldset](../../site/themes/fieldset.md) |
+| 静的フォーム部品 | `input_group`（§4f-3 参照。入力欄の前後 addon、軸なし） | [input-group](../../site/themes/input-group.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -698,6 +699,43 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   値の妥当性判定・送信処理は実装しない。
 - **docs サイト**: [fieldset](../../site/themes/fieldset.md)（イシュー
   #1687 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-3. `input_group`（入力欄前後の addon、イシュー #2063、headless anatomy は #2062）
+
+`input_group` モジュールは `fandhe_frontend_headless_ui::input_group` の
+anatomy（`root`/`addon`/`text`/`button` の 4 パーツ）へ、shadcn/ui の
+Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:focus-within`
+フォーカスリングと、内側 [Input](../../site/themes/input.md)/
+[Textarea](../../site/themes/textarea.md) の枠線なしリセット）を重ねる
+薄い委譲層である。
+
+- **公開 API**: `root`/`addon`/`text`/`button` の 4 関数はいずれも見た目
+  クラスを付与せず（下記「軸なし」参照）、呼び出し側 `class` を
+  `drop_class_attr` で除去してから headless 同名関数へそのまま委譲する
+  （同名再定義、[`crate::visually_hidden`] と同型のパターン）。
+  `InputGroupAlign`/`InputGroupProps` は headless からの選択的
+  再エクスポート。`stylesheet()`（`css()` ではない）が静的 CSS 全量を返す。
+- **軸なし**: `size`/`variant`/`color-palette` いずれも提供しない
+  （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d)
+  「子の寸法に従属するレイアウト部品」に該当。寸法・文字サイズは内側の
+  Input/Textarea の `size` に従属する）。
+- **raw CSS 追記**: `SlotRecipe` は子孫セレクタを表現できないため、
+  `stylesheet()` は `root > field::input`/`root > field::textarea` の
+  枠線・角丸・背景リセットと `:focus-visible` の outline 無効化を
+  `serialize_rule` で追記する（`crate::toggle_group`/`crate::number_input`
+  と同型のパターン）。
+- **意図的非採用**: shadcn の `:has(control:focus-visible)` によるリング
+  限定（`SlotRecipe`/raw CSS のいずれも `:has()` の先例を持たないため
+  `root` 単純な `:focus-within` で代替）、`InputGroupButton` の
+  `variant`/`size` 軸（ghost 相当の固定見た目のみ）、addon クリックで
+  input へフォーカスを移す JS 配線（`fandhe-frontend-wasm-full` 側の
+  関心、親 #2061 に該当 sub-issue なし）はいずれもスコープ外とする。
+- **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
+  §3.25 規則 1 のとおり、本モジュールは headless が出す
+  `data-invalid`/`data-disabled`/`data-align` を CSS セレクタとして
+  参照するだけで、値の妥当性判定・送信処理は実装しない。
+- **docs サイト**: [input-group](../../site/themes/input-group.md)
+  （イシュー #2063 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

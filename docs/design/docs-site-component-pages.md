@@ -164,6 +164,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Image | `image` | Data Display | `/themes/image/` | `site/themes/image.md` | `image_section()` |
 | Image Cropper | `image_cropper` | Forms | `/themes/image-cropper/` | `site/themes/image-cropper.md` | （なし・Phase 4 で新規） |
 | Input | `input` | Forms | `/themes/input/` | `site/themes/input.md` | （form_controls_section 内包） |
+| Input Group | `input_group` | Forms | `/themes/input-group/` | `site/themes/input-group.md` | `input_group_section()`（#2063 で新設） |
 | JSON Tree View | `json_tree_view` | Data Display | `/themes/json-tree-view/` | `site/themes/json-tree-view.md` | `json_tree_view_section()` |
 | Kbd | `kbd` | Typography | `/themes/kbd/` | `site/themes/kbd.md` | `kbd_section()` |
 | Line Chart | `line_chart` | Charts | `/themes/line-chart/` | `site/themes/line-chart.md` | `line_chart_section()` |
@@ -268,11 +269,12 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 - **Typography (12、イシュー #995 で `quote`/`strong` を追加)**:
   `blockquote` `code` `em` `heading` `highlight` `kbd` `link` `list` `mark`
   `quote` `strong` `text`
-- **Forms (33、イシュー #1685 で `field`・#1687 で `fieldset` を追加)**: `angle_slider` `button`
+- **Forms (34、イシュー #1685 で `field`・#1687 で `fieldset`・#2063 で
+  `input_group` を追加)**: `angle_slider` `button`
   `calendar` `checkbox` `checkbox_card` `color_picker` `combobox`
   `date_input` `date_picker` `download_trigger` `editable` `field`
   `fieldset`
-  `file_upload` `image_cropper` `input` `listbox` `native_select`
+  `file_upload` `image_cropper` `input` `input_group` `listbox` `native_select`
   `number_input` `password_input` `pin_input` `radio_card` `radio_group`
   `rating_group` `segment_group` `select` `signature_pad` `slider` `switch`
   `tags_input` `textarea` `toggle` `toggle_group`

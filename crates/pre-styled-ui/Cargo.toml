@@ -2330,7 +2330,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（同一版数・
 # 逆転した到達値への衝突は main の現在値をさらに +1 する）に倣い、main
 # の到達値 0.136.0 の patch を +1 して 0.136.1 とする。
-version = "0.136.1"
+# イシュー #2063: 新規 `input_group` モジュール（`root`/`addon`/`text`/
+# `button` の 4 slot recipe・stylesheet 追加、公開 API の純追加）を行った
+# ため minor バンプする（0.x の破壊的変更はマイナーバンプの規約、
+# `fieldset` のイシュー #1686 先例に同じ）。
+version = "0.137.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

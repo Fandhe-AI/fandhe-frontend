@@ -184,9 +184,10 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         category: PrimitiveCategory::FormsA,
     },
     PrimitiveEntry {
-        // Themes ページは #2063（未実装）まで存在しないため
-        // `PRIMITIVES_WITHOUT_THEMES_PAGE`/`HEADLESS_UNWRAPPED` の対象
-        // （イシュー #2062）。
+        // Themes ページ（`/themes/input-group/`）は #2063 で実装済み。
+        // title は Primitives/Themes 両ページで完全一致する
+        // （`primitives_titles_match_themes_page_titles_where_both_exist`
+        // が突合、イシュー #2062/#2063）。
         module: "input_group",
         path: "/primitives/input-group/",
         title: "Input Group",
@@ -550,16 +551,15 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives。`input_group` はイシュー #2062（本 PR）が headless-ui 層を
-/// 新設した時点では Themes 層（`crates/pre-styled-ui/src/input_group.rs`・
-/// `site/themes/input-group.md`）が #2063（未実装）のため、暫定的にこの
-/// 台帳へ載せる（`collapsible`/`field`/`fieldset` は過去に同様の暫定登録を
-/// 経て Themes ページ実装後に除外済み）。
+/// Primitives。`input_group` はイシュー #2063 で Themes 層
+/// （`crates/pre-styled-ui/src/input_group.rs`・`site/themes/input-group.md`）
+/// を実装済みのため除外済み（`collapsible`/`field`/`fieldset` と同じ経緯）。
+/// 現時点で該当なし（空配列）。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["input_group"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &[];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {

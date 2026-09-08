@@ -936,6 +936,68 @@ fn fieldset_root_and_reexported_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// (7d) styled Input Group `root`/`addon`/`text`/`button` 経路（イシュー
+/// #2063）: 4 パーツいずれも見た目クラスを付与しない（`src/input_group.rs`
+/// モジュール doc「variant 軸: 持たない」節参照）ため、呼び出し側 `attrs`・
+/// `class`（[`drop_class_attr`] により除去、recipe クラスを持たないため
+/// `class` 属性自体が出力から消える）、children の各経路で既定エスケープ
+/// （REQ-1）が貫通することを固定する。
+#[test]
+fn input_group_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
+
+    fn enabled_props() -> InputGroupProps {
+        InputGroupProps {
+            disabled: false,
+            invalid: false,
+        }
+    }
+
+    for payload in payloads::all() {
+        let props = enabled_props();
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&input_group::root(
+            &props,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "input_group::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える）。
+        let html = render(&input_group::root(&props, vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "input_group::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled addon の呼び出し側 attrs 経路。
+        let html = render(&input_group::addon(
+            InputGroupAlign::InlineStart,
+            &props,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "input_group::addon attrs コンテキスト");
+
+        // styled text の children 経路。
+        let html = render(&input_group::text(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "input_group::text children コンテキスト");
+
+        // styled button の呼び出し側 attrs・children 経路。
+        let html = render(&input_group::button(
+            &props,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "input_group::button attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "input_group::button children コンテキスト");
+    }
+}
+
 /// (8) NumberInput 経路（イシュー #738）: styled `root` の呼び出し側
 /// `attrs`・`class`、および headless-ui から選択的再エクスポートした
 /// `label` の children・`input` の `name` の 4 箇所すべてで既定エスケープ

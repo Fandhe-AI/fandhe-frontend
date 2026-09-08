@@ -65,7 +65,8 @@ date_input / dialog / **download_trigger（方式 b）** /
 drawer / editable / **field（イシュー #1684 で golden 新設）** /
 **fieldset（イシュー #1686 で golden 新設）** /
 file_upload / floating_panel / highlight / hover_card /
-image_cropper / **link_overlay（イシュー #1580 で golden 新設）** /
+image_cropper / **input_group（イシュー #2063 で golden 新設。`stylesheet()` 全文）** /
+**link_overlay（イシュー #1580 で golden 新設）** /
 listbox / marquee / menu / **menubar（方式 b）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
 pin_input / progress / qr_code / radio_card / radio_group / rating_group /

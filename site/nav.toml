@@ -615,6 +615,11 @@ source = "site/themes/input.md"
 path = "/themes/input/"
 
 [[section.group.page]]
+title = "Input Group"
+source = "site/themes/input-group.md"
+path = "/themes/input-group/"
+
+[[section.group.page]]
 title = "Listbox"
 source = "site/themes/listbox.md"
 path = "/themes/listbox/"

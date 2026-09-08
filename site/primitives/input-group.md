@@ -4,6 +4,6 @@
 
 `addon` は `data-align` 属性（`inline-start` / `inline-end` / `block-start` / `block-end`）で配置位置を表現します。`inline-*` は `<input>` の前後、`block-*` は `<textarea>` の上下に addon を置く用途を想定しています。
 
-`fandhe-frontend-headless-ui` の `input_group` mod が提供する構造・アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）のみを持つ unstyled 部品です。
+`fandhe-frontend-headless-ui` の `input_group` mod が提供する構造・アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）のみを持つ unstyled 部品です。`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。Themes 版は [Input Group](../themes/input-group.md) を参照してください。
 
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)
