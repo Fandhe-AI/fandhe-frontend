@@ -2349,12 +2349,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # dep-version-check --fix 追随）を取り込み 0.136.2 へ到達したが、本ブランチ
 # の到達値 0.137.0 は依然としてそれを上回るため追加のバンプは不要（同 §5
 # の手順は main の到達値を上回る値には適用しない）。
-# base 再取り込み（イシュー #2063, 2026-09-08）: 本ブランチの到達値
-# 0.137.0（#2063 の input_group 新設によるマイナーバンプ）と main の
-# 到達値 0.137.0（#2044 の avatar 破壊的変更によるマイナーバンプ）が
-# 同一版数で衝突したため、`semver-same-version-is-conflict` の運用に
-# 倣い main の到達値 0.137.0 からさらにマイナーバンプして 0.138.0 と
-# する。
+# イシュー #2046: card を shadcn/ui と突合し `action`/`cover` パーツ・
+# `data-has-action`/`data-bordered` opt-in 状態を純追加した（既存 6 パーツの
+# base/variant 規則はバイト同一、選択子の削除・改名なし）。既存公開 API・
+# 出力を壊さない純追加のため patch バンプする（`docs/ci/
+# style-refresh-version-bump-operation.md` §3.3）。
+# base 再取り込み（イシュー #2063, 2026-09-08）: main が独立に PR #2063
+# （input_group の headless-ui 新設に伴う dep-version-check --fix）を
+# 取り込み 0.138.0 へ到達した（本ブランチの #2046 到達値 0.137.1 を
+# 上回る）。詳細は下段の続報を参照。
 # イシュー #2045: badge を shadcn/ui と突合し、`BadgeVariant::Plain`
 # 列挙値の新設（既存網羅 `match` を壊す 0.x の破壊的変更）と `link`
 # コンストラクタの追加（公開 API 追加）を行ったため minor バンプする。
@@ -2372,11 +2375,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # その到達値も 0.137.0 であることが判明した（本ブランチの #2045 到達値と
 # 衝突）。`semver-same-version-is-conflict` の運用に倣い、main の到達値
 # 0.137.0 からさらに +1 して 0.138.0 とする。
+# base 再取り込み（イシュー #2046, review-fix ラウンド, 2026-09-08）続報: main が独立に PR #2045（badge を shadcn/ui と突合）を取り込んでおり、その到達値が 0.138.0 であることが判明した（本ブランチの #2046 到達値 0.137.1 を上回る）。`semver-same-version-is-conflict` の運用に倣い、main の到達値 0.138.0 からさらに +1 して 0.138.1 とする（本変更は既存 API・出力を壊さない純追加のため patch バンプを維持）。
 # base 再取り込み（イシュー #2063, PR #2226 レビュー修正ラウンド, 2026-09-08）続報:
-# 本ブランチ（#2063）と main（#2045）がいずれも独立に 0.138.0 へ到達しており
-# 同一版数で衝突したため、`semver-same-version-is-conflict` の運用に倣い
-# main の到達値 0.138.0 からさらにマイナーバンプして 0.139.0 とする。
-version = "0.139.0"
+# 本ブランチ（#2046, 0.138.1）と main（#2063, input_group 新設によるマイナー
+# バンプ）がいずれも独立にバンプしており、main の到達値 0.139.0 が本ブランチの
+# 到達値 0.138.1 を上回る。
+# 訂正（イシュー #2046, PR #2227 codex-review 修正ラウンド, 2026-09-08）: 上記の
+# 「main の到達値をそのまま採用し追加バンプなし」は誤りだった。本 PR は
+# card の追加パーツ（`action`/`cover`）・`data-has-action`/`data-bordered`
+# 状態という pre-styled-ui 自身の公開 API・CSS 出力の実体変更を含んでおり、
+# `.claude/rules/coding-rust.md`（イシュー #638）の成文規定は「実体変更 PR は
+# 必ず version をバンプする」であって「到達値を上回られたら据え置いてよい」
+# 例外は存在しない。`docs/ci/style-refresh-version-bump-operation.md` §5 の
+# 「main の到達値を上回る値には適用しない」手順は、自分の変更が base 再取り込み
+# のみ（実体差分なし）で完結する場合のコンフリクト解決規則であり、本 PR のように
+# 自分自身の実装変更が別途あるケースには適用されない。main の到達値 0.139.0 から
+# patch を +1 して 0.139.1 とする。
+version = "0.139.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

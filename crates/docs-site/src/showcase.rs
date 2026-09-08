@@ -2409,10 +2409,99 @@ fn card_section() -> Node {
             })
             .collect(),
     );
+    // イシュー #2046: shadcn/ui 突合で純追加した action（header 右上
+    // スロット）・cover（cover image 枠）・data-bordered（区切り線 opt-in）
+    // の Demo。Anatomy / data-* 属性表はこの Demo から機械導出されるため、
+    // 8 パーツ全部をここで描画する必要がある（`component_page.rs`）。
+    let action_demo = card::root(
+        CardProps::default(),
+        vec![],
+        vec![
+            card::header(
+                vec![("data-has-action", "")],
+                vec![
+                    card::title(vec![], vec![text("Team plan")]),
+                    card::description(vec![], vec![text("action パーツのデモです。")]),
+                    card::action(
+                        vec![],
+                        vec![button(
+                            &ButtonProps {
+                                variant: ButtonVariant::Outline,
+                                size: Size::Sm,
+                                ..ButtonProps::default()
+                            },
+                            vec![],
+                            vec![text("Manage")],
+                        )],
+                    ),
+                ],
+            ),
+            card::body(
+                vec![],
+                vec![text(
+                    "header に data-has-action を付けると action が右上へ配置されます。",
+                )],
+            ),
+        ],
+    );
+
+    let cover_demo = card::root(
+        CardProps::default(),
+        vec![],
+        vec![
+            card::cover(
+                vec![],
+                vec![image(
+                    &ImageProps {
+                        aspect_ratio: AspectRatio::Video,
+                        fit: ImageFit::Cover,
+                        ..ImageProps::new(IMAGE_DEMO_SRC, "cover パーツのデモ画像")
+                    },
+                    vec![],
+                )],
+            ),
+            card::body(
+                vec![],
+                vec![
+                    card::title(vec![], vec![text("Cover image")]),
+                    el(
+                        "p",
+                        vec![],
+                        vec![text(
+                            "cover に image::image を子として渡す合成パターンです。",
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    let bordered_demo = card::root(
+        CardProps::default(),
+        vec![],
+        vec![
+            card::header(vec![], vec![card::title(vec![], vec![text("Sign in")])]),
+            card::body(vec![], vec![text("data-bordered footer のデモです。")]),
+            card::footer(
+                vec![("data-bordered", "")],
+                vec![button(
+                    &ButtonProps {
+                        variant: ButtonVariant::Solid,
+                        size: Size::Sm,
+                        ..ButtonProps::default()
+                    },
+                    vec![],
+                    vec![text("Continue")],
+                )],
+            ),
+        ],
+    );
+    let composition_demos = stack(vec![action_demo, cover_demo, bordered_demo]);
+
     section(
         "Card",
-        "variant（elevated / outline / subtle）・size（xs〜xl、padding / 角丸 / title の文字サイズが連動）を持つ装飾的コンテナ。",
-        vec![demos, size_row],
+        "variant（elevated / outline / subtle）・size（xs〜xl、padding / 角丸 / title の文字サイズが連動）を持つ装飾的コンテナ。イシュー #2046 で action（header 右上スロット）・cover（cover image 枠）・data-bordered（区切り線 opt-in）を shadcn/ui 突合により純追加した。",
+        vec![demos, size_row, composition_demos],
     )
 }
 
