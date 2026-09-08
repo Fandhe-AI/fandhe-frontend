@@ -52,11 +52,15 @@
 //!
 //! headless [`fandhe_frontend_headless_ui::sidebar::menu_button`] はテキスト
 //! を `span` で包まない（`children` をそのまま流し込む）ため、本 recipe は
-//! `data-collapsible="icon"` かつ折りたたみ時に `menu-button` の
-//! `justify-content: center` + 固定幅 + `overflow: hidden` でテキストを
-//! 視覚的に切り落とす方式を採る。アイコンを `children` の最初の要素に置く
-//! 呼び出し規約を前提とする（headless 側で span 化する改善は本イシューの
-//! スコープ外、下記「スコープ外」節参照）。
+//! `data-collapsible="icon"` かつ折りたたみ時に `menu-button` の既定
+//! `justify-content: flex-start`（先頭寄せ、[`recipe`] の `menu-button` 側で
+//! 上書きしない）+ 固定幅 + `overflow: hidden` でテキストを視覚的に切り落と
+//! す方式を採る。アイコンを `children` の最初の要素に置く呼び出し規約を
+//! 前提とする（headless 側で span 化する改善は本イシューのスコープ外、
+//! 下記「スコープ外」節参照）。`justify-content: center` は使わない
+//! （codex-review P1 指摘、[`stylesheet`] 内コメント参照）: children 全体を
+//! まとめて中央寄せすると、ラベルが長い場合にアイコン自体が
+//! `overflow: hidden` の外側へ押し出されて切れてしまう。
 //!
 //! # モバイル + collapsed の詳細度調整（幅を固定し `transform` のみで開閉する）
 //!
@@ -305,7 +309,12 @@ fn recipe() -> SlotRecipe {
     let menu_action_base = vec![
         decl("position", "absolute"),
         decl("inset-inline-end", "var(--fandhe-space-2)"),
-        decl("top", "50%"),
+        // `menu-item`（`position: relative` の基準）は `menu-sub` を子に
+        // 含みうるため、その合計高さに対する `top: 50%` では親
+        // `menu-button` の外へずれる（codex-review P1 指摘）。`menu-button`
+        // 自身の高さ（`menu_button_base` の `height: 2rem`）の半分を絶対値
+        // で固定し、`menu-button` 単体の垂直中央に位置を保証する。
+        decl("top", "1rem"),
         decl("transform", "translateY(-50%)"),
         decl("width", "1.25rem"),
         decl("height", "1.25rem"),
@@ -319,8 +328,22 @@ fn recipe() -> SlotRecipe {
         decl("cursor", "pointer"),
     ];
 
+    // `menu-badge` は `menu-item`（`<li>`、`menu_item_base` は
+    // `position: relative` のみで flex コンテナではない）内で `menu-button`
+    // の兄弟として配置される（headless `crates/headless-ui/src/sidebar.rs`
+    // 参照）ため、`margin-inline-start: auto` は flex コンテナの子でなければ
+    // 効果を持たず右寄せされない（codex-review P2 / Bugbot 指摘）。
+    // `menu-action`/`group-action` と同型の絶対配置（`menu-item` の
+    // `position: relative` を基準）へ切り替え、`menu-item` 側の変更なしに
+    // 常に右端へ固定する。
     let menu_badge_base = vec![
-        decl("margin-inline-start", "auto"),
+        decl("position", "absolute"),
+        decl("inset-inline-end", "var(--fandhe-space-2)"),
+        // `menu_action_base` と同じ理由（`menu-item` が `menu-sub` を
+        // 子に含みうるため `top: 50%` は使わない）で `menu-button` の
+        // 高さ（2rem）の半分を絶対値で固定する。
+        decl("top", "1rem"),
+        decl("transform", "translateY(-50%)"),
         decl("font-size", "var(--fandhe-font-font-size-xs)"),
         decl("padding", "0 var(--fandhe-space-1)"),
         decl("border-radius", "var(--fandhe-radius-md)"),
@@ -465,7 +488,15 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEqAll(&[("data-state", "collapsed"), ("data-collapsible", "icon")]),
             vec![decl("width", "var(--fandhe-sidebar-width-icon, 3rem)")],
         )
-        // 折りたたみ幅（offcanvas）。
+        // 折りたたみ幅（offcanvas）。`visibility: hidden` を併用する
+        // （codex-review P1 指摘: `width: 0` + `overflow: hidden` だけでは
+        // 子孫のリンク・入力・ボタンが Tab 順序・アクセシビリティツリーに
+        // 残り続ける。headless 側は `hidden`/`inert` 属性を持たない
+        // 契約〔モジュール doc「責務境界」節〕のため、pre-styled-ui 側の
+        // CSS で操作対象から除外する。`visibility: hidden` は子孫が
+        // `visibility: visible` を再宣言しない限り操作・読み上げ対象から
+        // 外れ、`display: none` と異なりレイアウト崩れ〔幅 0 は既に
+        // 別宣言で保証済み〕を伴わない）。
         .state(
             "root",
             StateCondition::AttrEqAll(&[
@@ -476,10 +507,18 @@ fn recipe() -> SlotRecipe {
                 decl("width", "0"),
                 decl("border", "0"),
                 decl("overflow", "hidden"),
+                decl("visibility", "hidden"),
             ],
         )
         // モバイル表示中は固定オーバーレイになる（幅の詳細度調整は raw CSS
-        // 「モバイル + collapsed の詳細度調整」節参照）。
+        // 「モバイル + collapsed の詳細度調整」節参照）。`floating`/`inset`
+        // variant が設定する `margin`/`border`/`border-radius`/`background`/
+        // `height` はデスクトップの浮遊・面パネル表現専用であり、モバイル
+        // オーバーレイでは全幅・全高のドロワーへリセットする必要がある
+        // （Bugbot 指摘: リセットしないと variant の見た目がドロワーへ
+        // 残存する）。本 state は variant 系の state より後段に登録して
+        // いる（specificity は単一属性で同点、ソース順で本規則が優先）ため
+        // ここに列挙すれば確実に上書きできる。
         .state(
             "root",
             StateCondition::Attr("data-mobile"),
@@ -488,6 +527,11 @@ fn recipe() -> SlotRecipe {
                 decl("inset-block", "0"),
                 decl("inset-inline-start", "0"),
                 decl("width", "var(--fandhe-sidebar-width-mobile, 18rem)"),
+                decl("height", "100%"),
+                decl("margin", "0"),
+                decl("border", "0"),
+                decl("border-radius", "0"),
+                decl("background", "var(--fandhe-color-sidebar-bg)"),
                 decl("z-index", "var(--fandhe-z-index-modal, 1001)"),
                 decl("box-shadow", "var(--fandhe-shadow-lg)"),
             ],
@@ -513,21 +557,21 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
-        // `menu-button`: 選択色（`data-active`）を hover が洗い流さないよう
-        // `HoverExceptAttr` で除外する（[`crate::command`] の `item` と同型）。
+        // `menu-button`: `data-variant="outline"` は選択（`data-active`）と
+        // 同じ specificity（属性セレクタ 1 個分）の単一属性条件のため、
+        // ソース順で後に登録した方が背景・文字色を上書きする。outline の
+        // 既定背景を先に登録し、選択色（`data-active`）を後段へ置くことで
+        // active な menu-button は常に選択色（背景・文字色）を保つ
+        // （codex-review P1 指摘: outline+active で白背景に白文字化する
+        // 不具合の是正。outline の `box-shadow` は active 側で上書きしない
+        // ため境界線表現は維持される）。
         .state(
             "menu-button",
-            StateCondition::Attr("data-active"),
+            StateCondition::AttrEq("data-variant", "outline"),
             vec![
-                decl("background", "var(--fandhe-color-sidebar-accent)"),
-                decl("color", "var(--fandhe-color-sidebar-accent-fg)"),
-                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("box-shadow", "0 0 0 1px var(--fandhe-color-sidebar-border)"),
             ],
-        )
-        .state(
-            "menu-button",
-            StateCondition::HoverExceptAttr("data-active"),
-            vec![decl("background", "var(--fandhe-color-sidebar-muted)")],
         )
         .state(
             "menu-button",
@@ -545,13 +589,23 @@ fn recipe() -> SlotRecipe {
                 decl("padding-inline", "var(--fandhe-space-3)"),
             ],
         )
+        // 選択色（`data-active`）を hover が洗い流さないよう
+        // `HoverExceptAttr` で除外する（[`crate::command`] の `item` と同型）。
+        // 上記コメントのとおり、outline の背景規則より後段に置いて
+        // specificity 同点のソース順優先で選択色を勝たせる。
         .state(
             "menu-button",
-            StateCondition::AttrEq("data-variant", "outline"),
+            StateCondition::Attr("data-active"),
             vec![
-                decl("background", "var(--fandhe-color-bg)"),
-                decl("box-shadow", "0 0 0 1px var(--fandhe-color-sidebar-border)"),
+                decl("background", "var(--fandhe-color-sidebar-accent)"),
+                decl("color", "var(--fandhe-color-sidebar-accent-fg)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
             ],
+        )
+        .state(
+            "menu-button",
+            StateCondition::HoverExceptAttr("data-active"),
+            vec![decl("background", "var(--fandhe-color-sidebar-muted)")],
         )
         .state(
             "menu-button",
@@ -672,30 +726,56 @@ pub fn stylesheet() -> String {
     push(
         &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-button\"]"),
         &[
-            decl("justify-content", "center"),
+            // `justify-content: center` は使わない（codex-review P1 指摘）:
+            // headless 側はテキストを `span` で包まないため children 全体
+            // （アイコン + テキストの匿名 flex アイテム）がまとめて中央寄せ
+            // されてしまい、ラベルが長いとアイコン自体が `overflow: hidden`
+            // の外側へ押し出されて切れる。既定の `flex-start`（先頭寄せ）を
+            // 保つことでアイコン（children の最初の要素、呼び出し規約）を
+            // 常にコンテナ左端に残し、はみ出す文字列側だけを
+            // `overflow: hidden` で視覚的に切り落とす（モジュール doc
+            // 「icon 折りたたみ時のテキスト非表示」節の意図どおりの挙動）。
             decl("padding", "0"),
             decl("width", "2rem"),
+        ],
+    );
+
+    // モバイル + `side="right"`: 開閉状態（`data-state`）に関係なく右側へ
+    // ドッキングする（属性 4 個 = `data-mobile` 単独の base 規則、属性 3 個
+    // より優先。codex-review P1 / Bugbot 指摘: expanded 時に base 規則の
+    // `inset-inline-start: 0` が残って左に表示されてしまう不具合の是正。
+    // 下記「モバイル + collapsed」規則は開閉に応じた `transform` の向きの
+    // みを上書きし、位置（`inset-inline-*`）はこの規則が単独の情報源と
+    // なる）。
+    push(
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile]"#,
+        &[
+            decl("inset-inline-start", "auto"),
+            decl("inset-inline-end", "0"),
         ],
     );
 
     // モバイル + collapsed: `root` の折りたたみ幅規則（属性 4 個）に対し
     // `data-mobile` 単独（属性 3 個）は詳細度で負けるため、本規則（属性 4 個
     // + ソース順で後）で幅を固定し `transform` のみで開閉する（モジュール
-    // doc「モバイル + collapsed の詳細度調整」節参照）。
+    // doc「モバイル + collapsed の詳細度調整」節参照）。`visibility: hidden`
+    // は上記 offcanvas collapsed 規則と同じ理由（codex-review P1 指摘）で
+    // 併記する: `transform` による画面外への移動だけでは子孫が Tab 順序・
+    // アクセシビリティツリーに残る。
     push(
         r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]"#,
         &[
             decl("width", "var(--fandhe-sidebar-width-mobile, 18rem)"),
             decl("transform", "translateX(-100%)"),
+            decl("visibility", "hidden"),
         ],
     );
+    // `side="right"` + collapsed: 位置は上記の側指定専用規則が既に固定
+    // 済みのため、ここでは開閉の `transform` 方向のみを右側向けへ上書き
+    // する。
     push(
         r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]"#,
-        &[
-            decl("inset-inline-start", "auto"),
-            decl("inset-inline-end", "0"),
-            decl("transform", "translateX(100%)"),
-        ],
+        &[decl("transform", "translateX(100%)")],
     );
 
     // `variant="inset"` の主領域（`inset` パーツを面パネル化する）。
@@ -709,8 +789,14 @@ pub fn stylesheet() -> String {
             decl("background", "var(--fandhe-color-bg)"),
         ],
     );
+    // マージン反転は `variant="inset"` の面パネル化規則（直前の push）が
+    // 付けた `margin-inline-start: 0` を打ち消して逆側に付け替えるための
+    // ものであり、`sidebar`/`floating` 等ほかの variant では `inset` パーツ
+    // に margin を持たせない（Bugbot 指摘: `data-variant` を問わず適用する
+    // と非 inset variant にも意図しない margin が付いてしまう）。セレクタへ
+    // `[data-variant="inset"]` を明示して対象を絞る。
     push(
-        r#"[data-scope="sidebar"][data-part="provider"][data-side="right"] > [data-scope="sidebar"][data-part="inset"]"#,
+        r#"[data-scope="sidebar"][data-part="provider"][data-variant="inset"][data-side="right"] > [data-scope="sidebar"][data-part="inset"]"#,
         &[
             decl("margin-inline-start", "var(--fandhe-space-2)"),
             decl("margin-inline-end", "0"),
