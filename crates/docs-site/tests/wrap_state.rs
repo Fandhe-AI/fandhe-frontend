@@ -583,7 +583,12 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// （`PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
 /// が検証する）。
-const HEADLESS_UNWRAPPED: &[&str] = &["button_group"];
+/// `item`（イシュー #2065）は headless-ui 新設直後で pre-styled-ui 側の
+/// recipe・Themes ページが未実装のため未ラップ（#2066 で解消予定、
+/// `PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は上記
+/// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
+/// が検証する）。
+const HEADLESS_UNWRAPPED: &[&str] = &["button_group", "item"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ

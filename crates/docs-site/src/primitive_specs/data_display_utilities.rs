@@ -88,6 +88,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::avatar::{self, ImageStatus};
 use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
+use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
 use hui::positioning::{Align, Placement, Side};
 use hui::scroll_area;
@@ -547,6 +548,189 @@ pub const CAROUSEL: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-current=\"true\"",
             description: "indicator が current のときのみ出力する（carousel.rs::indicator。zag.js には存在しない超集合）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Item（/primitives/item/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/item.rs`（モジュール doc「`root` を
+/// `a` として描画する経路」節）、`item::root`/`ItemRootProps` のシグネチャ。
+fn ex_item_link() -> Node {
+    item::root(
+        ItemRootProps {
+            href: Some("https://example.com/items/42"),
+            external: false,
+            variant: ItemVariant::Outline,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("→")]),
+            item::content(
+                vec![],
+                vec![
+                    item::title(vec![], vec![text("Browse Primitives")]),
+                    item::description(vec![], vec![text("href 指定時は a として描画されます。")]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// 一次情報: `crates/headless-ui/src/item.rs`（モジュール doc「`group` は
+/// `role="group"`」節・「`separator` は `group` 内専用の水平固定パーツ」
+/// 節）、`item::group`/`item::separator` のシグネチャ。
+fn ex_item_group_with_separator() -> Node {
+    item::group(
+        "Recent items",
+        vec![],
+        vec![
+            item::root(
+                ItemRootProps::default(),
+                vec![],
+                vec![
+                    item::media(ItemMediaVariant::Icon, vec![], vec![text("🔔")]),
+                    item::content(
+                        vec![],
+                        vec![
+                            item::title(vec![], vec![text("First item")]),
+                            item::description(vec![], vec![text("A short description.")]),
+                        ],
+                    ),
+                ],
+            ),
+            item::separator(vec![], vec![]),
+            item::root(
+                ItemRootProps::default(),
+                vec![],
+                vec![
+                    item::media(ItemMediaVariant::Icon, vec![], vec![text("🔔")]),
+                    item::content(vec![], vec![item::title(vec![], vec![text("Second item")])]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// [`ex_item_group_with_separator`] の自前 CSS 実演（`data-scope`/
+/// `data-part`/`data-variant`/`data-size` 属性セレクタのみを使う最小例。
+/// headless-ui 自体はスタイルを持たない）。
+const ITEM_CUSTOM_CSS_SNIPPET: &str = "[data-scope=\"item\"][data-part=\"root\"] {\n  display: flex;\n  gap: 0.75rem;\n  padding: 0.75rem;\n  border-radius: 0.5rem;\n}\n[data-scope=\"item\"][data-part=\"root\"][data-variant=\"outline\"] {\n  border: 1px solid currentColor;\n}\n[data-scope=\"item\"][data-part=\"separator\"] {\n  border-top: 1px solid currentColor;\n}\n";
+
+fn ex_item_custom_css() -> Node {
+    let node = item::group(
+        "",
+        vec![],
+        vec![
+            item::root(
+                ItemRootProps {
+                    variant: ItemVariant::Outline,
+                    ..Default::default()
+                },
+                vec![],
+                vec![item::content(
+                    vec![],
+                    vec![item::title(vec![], vec![text("First item")])],
+                )],
+            ),
+            item::separator(vec![], vec![]),
+            item::root(
+                ItemRootProps::default(),
+                vec![],
+                vec![item::content(
+                    vec![],
+                    vec![item::title(vec![], vec![text("Second item")])],
+                )],
+            ),
+        ],
+    );
+    wrap_example(
+        "data-scope / data-part / data-variant / data-size 属性セレクタで行間の区切り・角丸・境界線を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            node,
+            pre(vec![], vec![code(vec![], vec![text(ITEM_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
+}
+
+pub const ITEM: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "media（アイコン・画像・アバター）+ title/description + actions からなる汎用リスト行を表現する 10 anatomy パーツ（root/media/content/title/description/actions/header/footer/group/separator）を提供する（item.rs）。",
+        "root は href 指定時に div ではなく a として描画し、external=true で target=\"_blank\"/rel=\"noopener noreferrer\" を不可分に付与する（reverse tabnabbing 対策、mod@link と同型の判断、item.rs「root を a として描画する経路」節）。",
+        "group は role=\"group\"（shadcn/ui の role=\"list\" から意図的に差分化。a[href] が listitem ロールを持てないため list/listitem 対を成立させられない、item.rs「group は role=\"group\"」節）。",
+        "参照実体は shadcn/ui の Item のみ（ark-ui・chakra-ui・Radix に対応部品なし、docs/design/component-coverage-map.md、参照軸 #2001）。状態機械を持たない静的部品であり wasm-full 側の配線は不要。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root: props.href",
+            kind: "Option<&str>",
+            default: "None",
+            description: "Some のとき a として描画し href へ固定付与する（item.rs）。",
+        },
+        ArgRow {
+            name: "root: props.external",
+            kind: "bool",
+            default: "false",
+            description: "href が Some のときのみ意味を持つ。true で target/rel を不可分に付与する（item.rs）。",
+        },
+        ArgRow {
+            name: "root: props.variant",
+            kind: "ItemVariant",
+            default: "ItemVariant::Default",
+            description: "見た目バリアント（default/outline/muted）。data-variant へ出力する（item.rs）。",
+        },
+        ArgRow {
+            name: "root: props.size",
+            kind: "ItemSize",
+            default: "ItemSize::Default",
+            description: "サイズバリアント（default/sm）。data-size へ出力する（item.rs）。",
+        },
+        ArgRow {
+            name: "media: variant",
+            kind: "ItemMediaVariant",
+            default: "ItemMediaVariant::Default",
+            description: "media パーツの見た目バリアント（default/icon/image）。data-variant へ出力する（item.rs）。",
+        },
+        ArgRow {
+            name: "group: label",
+            kind: "&str",
+            default: "\"\"",
+            description: "空でなければ aria-label へ出力する（item.rs）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Link item",
+            description: "href 指定で root が a として描画される例です。",
+            render: ex_item_link,
+        },
+        ExampleEntry {
+            title: "Group with separator",
+            description: "group（role=\"group\"）の中に root と separator を並べる例です。",
+            render: ex_item_group_with_separator,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-variant/data-size 属性セレクタでスタイルを当てる例です。",
+            render: ex_item_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "Tab / Shift+Tab / Enter",
+        description: "root が a として描画されたときのみ、ネイティブ a[href] のフォーカス移動・起動に委ねる（item.rs「root を a として描画する経路」節）。div のときはキー操作を提供しない。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"group\" / aria-label",
+            description: "group パーツに固定付与する。label が空でなければ aria-label を出力する（item.rs）。",
+        },
+        AriaRow {
+            attribute: "role=\"separator\" / aria-orientation=\"horizontal\"",
+            description: "separator パーツに固定付与する（item.rs「separator は group 内専用の水平固定パーツ」節）。",
         },
     ],
     demo: None,
@@ -1795,6 +1979,7 @@ pub const VISUALLY_HIDDEN: ComponentPageSpec = ComponentPageSpec {
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/avatar/", AVATAR),
     ("/primitives/carousel/", CAROUSEL),
+    ("/primitives/item/", ITEM),
     ("/primitives/json-tree-view/", JSON_TREE_VIEW),
     ("/primitives/scroll-area/", SCROLL_AREA),
     ("/primitives/skip-nav/", SKIP_NAV),
