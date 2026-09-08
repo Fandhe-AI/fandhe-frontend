@@ -338,7 +338,8 @@ fn recipe() -> SlotRecipe {
         // イシュー #2046: shadcn/ui の cover image 枠（`has-[>img:first-child]`
         // 相当）の純追加。root の角丸を画像がはみ出さないよう `overflow:
         // hidden` でクリップし、上端 2 角のみ root の内側半径に揃える
-        // （下端は #708 で不採用の `:first-child` 系状態セレクタが無いため
+        // （下端は `StateCondition::LastChild`（#752 で追加済み）を使うと
+        // 「cover が唯一の子」ケースで上下両方が丸まる副作用があるため
         // 意図的に対象外、`card.rs` モジュール rustdoc §「意図的に合わせ
         // ない点」参照）。`display: flex; flex-direction: column` は
         // 子の `<img>`（`image::image` は `width: 100%` を base に持たない）
@@ -559,7 +560,7 @@ pub fn description<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> N
 /// grid 化する opt-in 状態（`data-has-action`）は呼び出し側が
 /// [`header`] の `attrs` へ `("data-has-action", "")` を渡すことで有効化する
 /// （`SlotRecipe` が `:has()` を持たない設計のための代替、`card.rs`
-/// モジュール rustdoc §3.1 参照）。
+/// モジュール rustdoc「# shadcn/ui 突合（イシュー #2046）」節参照）。
 ///
 /// # Examples
 ///
