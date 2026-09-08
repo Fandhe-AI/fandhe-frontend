@@ -2318,6 +2318,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # を取り込み 0.133.1 へ到達したが、本ブランチの到達値 0.134.0 は既にそれを
 # 上回るため追加のバンプは不要（`docs/ci/style-refresh-version-bump-operation.md`
 # §5 の手順は main の到達値を上回る値には適用しない）。
+# イシュー #2062: 依存先 `fandhe-frontend-headless-ui` 0.67.0 → 0.68.0（新規
+# `input_group` モジュール追加、非破壊的）に伴う `dep-version-check --fix`
+# の `version = "..."` 追随バンプ（本クレート自身の実装変更は無い）。
 # イシュー #2043: alert を shadcn/ui と突合し、pre-styled-only レイアウト
 # パート `action` の新設（公開 API 追加 + CSS 出力の実体変更）を行ったため
 # minor バンプする（0.x の破壊的変更はマイナーバンプの規約、`toast`
@@ -2325,6 +2328,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2045: badge を shadcn/ui と突合し、`BadgeVariant::Plain`
 # 列挙値の新設（既存網羅 `match` を壊す 0.x の破壊的変更）と `link`
 # コンストラクタの追加（公開 API 追加）を行ったため minor バンプする。
+# base 再取り込み（イシュー #2045, 2026-09-08）: 本ブランチの到達値 0.137.0
+# は base 再取り込み（イシュー #2062）で main が到達した 0.136.1 を既に
+# 上回るため、`docs/ci/style-refresh-version-bump-operation.md` §5 の手順
+# （main の到達値を上回る値には適用しない）に従い追加のバンプは不要。
 version = "0.137.0"
 
 edition = "2021"
@@ -2340,7 +2347,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.67.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
