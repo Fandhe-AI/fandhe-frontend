@@ -120,7 +120,11 @@
 //!   `docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留
 //!   （recharts 依存のため）を、外部依存ゼロの SVG ノード木生成へ置き換える
 //!   足場を提供する（個々のチャート部品は #847〜#851 のスコープ、配置先
-//!   判断は `docs/design/charts-foundation-design.md` 参照）。
+//!   判断は `docs/design/charts-foundation-design.md` 参照）。系列設定
+//!   （`label`/`color`/`icon`、shadcn/ui `ChartConfig` 相当、イシュー
+//!   #2077）は [`charts::data::Series::with_label`]/`with_color`/`with_icon`
+//!   が提供し、[`charts::data::ChartData::series_color_var`] を経由して
+//!   凡例・line/area/bar/radar の全消費者が同じ色を共有する。
 //! - [`mod@pie_chart`] / [`mod@donut_chart`]（#850、charts 基盤の初のチャート
 //!   部品）: [`charts::pie`] の円弧ジオメトリを用いた円グラフ・ドーナツ
 //!   グラフ。系列 1 本専用（多系列は fail-closed で拒否）、`size` variant

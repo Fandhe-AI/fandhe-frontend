@@ -12,6 +12,77 @@
 //! マークアップを一切生成しない（関心の分離）。
 
 use super::ChartError;
+use crate::recipe::ColorPalette;
+use crate::theme::{color_var, ThemeError};
+use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+
+/// 系列色の上書き（shadcn/ui `ChartConfig.color` 相当、イシュー #2077）。
+///
+/// 内部には解決済みの `var(--fandhe-color-<name>)` 文字列（[`color_var`]
+/// が返す形。`<name>` は必ず [`crate::theme::TokenName`] の allowlist
+/// （`[a-z0-9-]` のみ・`:` `;` `{` `}` `<` `>` `/` を含む文字は拒否）を
+/// 通過済み）を保持する。この固定形以外を生成しないため、[`Series::color`]
+/// 経由で凡例（`style` 属性）・line/area/bar/radar（`fill`/`stroke` 属性）へ
+/// 渡る値がこの newtype のみに限られることで、任意文字列が CSS/SVG 属性へ
+/// 注入される経路を構造的に閉じる（REQ-1 相当、`.claude/rules/security.md`
+/// A03）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SeriesColor(String);
+
+impl SeriesColor {
+    /// 任意の色トークン名（`chart-3` / `accent` / [`crate::theme::Theme::push_color`]
+    /// で利用者が登録した名前）から系列色を組み立てる。
+    ///
+    /// # Errors
+    ///
+    /// `name` が [`crate::theme::TokenName`] の命名規則を満たさない場合
+    /// [`ThemeError::InvalidTokenName`]。
+    pub fn token(name: &str) -> Result<Self, ThemeError> {
+        Ok(SeriesColor(color_var(name)?))
+    }
+
+    /// 既定 6 色循環スロット（`chart-1`〜`chart-6`）から系列色を組み立てる。
+    ///
+    /// `slot` は 1..=6 のみを受け付ける（[`super::series_color_var`] の
+    /// index 循環と語彙を揃えるための 1-based）。
+    ///
+    /// # Errors
+    ///
+    /// `slot` が 1..=6 の範囲外の場合 [`ThemeError::InvalidTokenName`] を
+    /// 返す。範囲外の `slot` を素通しすると `chart-7` のような桁数次第で
+    /// [`crate::theme::TokenName`] の命名規則自体は満たしてしまう（＝
+    /// `TokenName::new` 単体の検証では拾えない）ため、ここで明示的に
+    /// 1..=6 を検証してから拒否する（既定パレットに存在しないトークンへの
+    /// `var()` 参照が silent に生成されるのを防ぐ、fail-closed）。
+    pub fn chart_slot(slot: usize) -> Result<Self, ThemeError> {
+        if !(1..=6).contains(&slot) {
+            // TokenName::new の対象外だが、範囲外の slot を token 名として
+            // そのまま渡すと数値の桁数次第で allowlist を偶然満たしてしまい
+            // 得る（例: "chart-12"）。ここで明示的に拒否し fail-closed を保つ。
+            return Err(ThemeError::InvalidTokenName {
+                value: format!("chart-{slot}"),
+            });
+        }
+        SeriesColor::token(&format!("chart-{slot}"))
+    }
+
+    /// [`ColorPalette`]（accent/info/success/warning/danger/neutral）に
+    /// 対応する色トークンから系列色を組み立てる。`ColorPalette::value()` は
+    /// 固定語彙の `&'static str` のみを返すため、本関数は必ず成功する。
+    #[must_use]
+    pub fn palette(palette: ColorPalette) -> Self {
+        SeriesColor(
+            color_var(crate::recipe::VariantValue::value(palette))
+                .expect("ColorPalette::value() は theme.rs の TokenName allowlist を満たす固定語彙のみを返す"),
+        )
+    }
+
+    /// `var(--fandhe-color-<name>)` 形式の CSS 値を返す。
+    #[must_use]
+    pub fn var(&self) -> &str {
+        &self.0
+    }
+}
 
 /// 1 系列（1 本のグラフ線・1 色に対応するデータ列）。
 ///
@@ -21,6 +92,15 @@ use super::ChartError;
 /// 及ばないため、本モジュールの集計関数（[`total`]/[`min`]/[`max`]/
 /// [`value_percent`]）は空・非有限値混入のいずれも panic せず fail-closed
 /// に扱う。
+///
+/// `label`/`color`/`icon` は shadcn/ui `ChartConfig`（系列キー → `label` /
+/// `color` / `icon` を 1 箇所で定義する設定オブジェクト）相当の系列設定
+/// （イシュー #2077）。chakra-ui `useChart` の `series: [{ name, color,
+/// label }]` と同型の「`ChartData` の消費者（凡例・line/area/bar/radar）が
+/// 共有する 1 箇所」に置く設計を採る（shadcn のような並列の `ChartConfig`
+/// マップは設けない）。`Series::new` の後方互換は保たれ、3 フィールドは
+/// 既定 `None`（[`ChartData::series_color_var`] の 6 色循環フォールバック、
+/// [`Series::display_label`] の `name` フォールバックがそれぞれ働く）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Series {
     /// 系列名（凡例・ツールチップ表示用。styled 層が既定エスケープ経由で
@@ -28,17 +108,60 @@ pub struct Series {
     pub name: String,
     /// カテゴリ順に対応する値列。
     pub values: Vec<f64>,
+    /// 凡例・ツールチップの表示ラベル（shadcn `ChartConfig.label` 相当）。
+    /// `None` の場合は [`Series::display_label`] が `name` を返す。
+    pub label: Option<String>,
+    /// 系列色の上書き（shadcn `ChartConfig.color` 相当）。`None` の場合は
+    /// [`ChartData::series_color_var`] が既定の 6 色循環へフォールバックする。
+    pub color: Option<SeriesColor>,
+    /// 凡例マーカーの代替アイコン（shadcn `ChartConfig.icon` 相当）。
+    /// 指定時は凡例のマーカー（色付き丸）をこのノードで置き換える
+    /// （[`crate::charts::legend`] モジュール doc 参照）。`text()`/`el()`
+    /// 経由のノード木のみを想定し、既定エスケープ（REQ-1）を必ず通る。
+    pub icon: Option<Node>,
 }
 
 impl Series {
     /// 新しい系列を組み立てる（検証なしの薄いコンストラクタ）。値の検証は
-    /// [`ChartData::new`] が一括で行う。
+    /// [`ChartData::new`] が一括で行う。`label`/`color`/`icon` は既定
+    /// `None`（[`Series::with_label`]/[`Series::with_color`]/
+    /// [`Series::with_icon`] で個別に設定する）。
     #[must_use]
     pub fn new(name: impl Into<String>, values: Vec<f64>) -> Self {
         Series {
             name: name.into(),
             values,
+            label: None,
+            color: None,
+            icon: None,
         }
+    }
+
+    /// 表示ラベル（凡例・ツールチップ用）を設定するビルダー。
+    #[must_use]
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// 系列色の上書きを設定するビルダー。
+    #[must_use]
+    pub fn with_color(mut self, color: SeriesColor) -> Self {
+        self.color = Some(color);
+        self
+    }
+
+    /// 凡例マーカーの代替アイコンを設定するビルダー。
+    #[must_use]
+    pub fn with_icon(mut self, icon: Node) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
+    /// 表示用ラベルを返す（`label` があればそれ、なければ `name`）。
+    #[must_use]
+    pub fn display_label(&self) -> &str {
+        self.label.as_deref().unwrap_or(&self.name)
     }
 }
 
@@ -105,6 +228,24 @@ impl ChartData {
     /// 名前が一致する系列を検索する（内部ヘルパ）。
     fn find_series(&self, name: &str) -> Option<&Series> {
         self.series.iter().find(|s| s.name == name)
+    }
+
+    /// 系列 index の色（`var(--fandhe-color-...)`）を解決する。
+    ///
+    /// `self.series()[index].color` が `Some` の場合はその上書き値を、
+    /// `None`（未設定）の場合は [`super::series_color_var`] の 6 色循環
+    /// フォールバックを返す。`index` が範囲外の場合も panic せず
+    /// [`super::series_color_var`] の循環へフォールバックする（凡例・
+    /// line/area/bar/radar の呼び出し元がいずれも `data.series()` を
+    /// 列挙した index をそのまま渡す前提であり、構造的に範囲外は
+    /// 起こり得ないが、防御的に fail-closed を保つ）。
+    #[must_use]
+    pub fn series_color_var(&self, index: usize) -> String {
+        self.series
+            .get(index)
+            .and_then(|s| s.color.as_ref())
+            .map(|c| c.var().to_string())
+            .unwrap_or_else(|| super::series_color_var(index))
     }
 
     /// 全系列・全カテゴリを横断した値域 `(min, max)` を返す。
@@ -192,7 +333,15 @@ impl ChartData {
             .iter()
             .map(|s| {
                 let values = order.iter().map(|&i| s.values[i]).collect();
-                Series::new(s.name.clone(), values)
+                // label/color/icon を引き継ぐ（`Series::new` で再構築すると
+                // 黙って欠落していた回帰、イシュー #2077）。
+                Series {
+                    name: s.name.clone(),
+                    values,
+                    label: s.label.clone(),
+                    color: s.color.clone(),
+                    icon: s.icon.clone(),
+                }
             })
             .collect();
 
