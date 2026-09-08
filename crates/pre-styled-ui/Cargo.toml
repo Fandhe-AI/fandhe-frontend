@@ -2526,7 +2526,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # とする（実体変更を伴うため patch ではなく minor を維持）。依存先
 # `fandhe-frontend-headless-ui` の version 要求は main 側の追随をそのまま
 # 採用する（下記参照）。
-version = "0.147.0"
+#
+# 版数の再調整（本 PR、イシュー #2054、shadcn/ui 突合）: scroll_area の
+# 横スクロール・端フェード opt-in 規則を追加する CSS 出力の実体変更のため
+# マイナーバンプする（`.claude/rules/coding-rust.md` の semver バンプ規約）。
+version = "0.148.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

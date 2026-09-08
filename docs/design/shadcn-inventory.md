@@ -142,7 +142,7 @@ gh api "repos/shadcn-ui/ui/contents/apps/v4/content/docs/components/aria?ref=5c7
 | `questionnaire` | Questionnaire | 実装対象。#2116 |
 | `radio-group` | Radio Group | 既存 `radio_group` と対応 |
 | `resizable` | Resizable | 既存 `splitter` で充足。#2038 |
-| `scroll-area` | Scroll Area | 既存 `scroll_area` と対応（`scroll-fade` utility 相当は pre-styled-ui `scroll_area` の注記として記載） |
+| `scroll-area` | Scroll Area | 既存 `scroll_area` と対応。#2054 で突合済み: 横スクロール（`data-orientation="horizontal"`）を補完し、`scroll-fade` utility は `data-fade` opt-in として吸収済み |
 | `select` | Select | 既存 `select` と対応 |
 | `separator` | Separator | 既存 `separator` と対応。#2053 で突合し `group`/`label`（ラベル付き区切り線）を補完済み |
 | `sheet` | Sheet | 既存 `drawer` で充足。#2031 |

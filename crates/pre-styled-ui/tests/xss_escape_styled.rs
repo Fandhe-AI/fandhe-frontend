@@ -4287,8 +4287,13 @@ fn download_trigger_styled_root_href_file_name_children_and_class_are_escaped() 
     }
 }
 
-/// styled ScrollArea（イシュー #825）の headless 再エクスポート経路（attrs
-/// breakout・children `<script>` ペイロード）がエスケープされることを固定する。
+/// styled ScrollArea（イシュー #825、#2054 で `root`/`content` の attrs
+/// 経路を追加）の headless 再エクスポート経路（attrs breakout・children
+/// `<script>` ペイロード）がエスケープされることを固定する。`root` の
+/// attrs 経路は #2054 の RTL Examples（`(\"dir\", \"rtl\")` 透過）が使う
+/// 経路と同一であり、`content` の attrs 経路は横スクロール demo が
+/// `style` 属性を渡す経路と同一である（`crate::scroll_area` モジュール
+/// doc「shadcn/ui 突合（イシュー #2054）」節参照）。
 #[test]
 fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
@@ -4308,6 +4313,15 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
             &html,
             "scroll_area::content の children コンテキスト",
         );
+
+        let html = render(&scroll_area::content(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "scroll_area::content の attrs コンテキスト");
+
+        let html = render(&scroll_area::root(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "scroll_area::root の attrs コンテキスト");
     }
 }
 

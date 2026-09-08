@@ -11112,9 +11112,65 @@ fn scroll_area_section() -> Node {
             vec![scroll_area::content(vec![], items())],
         )],
     );
+    // 3 例目: 横スクロール（イシュー #2054、shadcn/ui `ScrollBar
+    // orientation="horizontal"` 相当）。`viewport` へ
+    // `("data-orientation", "horizontal")`（headless
+    // `data_attrs::data_orientation` と同一の値語彙。docs-site は
+    // headless-ui へ直接依存しない方針〔本モジュール冒頭 doc参照〕のため
+    // タプルを直書きする）を付与すると、直下の `content` が
+    // `display: flex; width: max-content;` になる（`stylesheet()` の
+    // 子結合子規則、`crate::scroll_area` モジュール doc 参照）。`gap`/
+    // `padding` は shadcn 同様に呼び出し側の責務のため `content` の
+    // インライン `style` で指定する。
+    let horizontal_items: Vec<Node> = (1..=6)
+        .map(|i| {
+            el(
+                "figure",
+                vec![("style", "margin: 0; flex: none;")],
+                vec![
+                    image(
+                        &ImageProps {
+                            fit: ImageFit::Cover,
+                            ..ImageProps::new(IMAGE_DEMO_SRC, "横スクロールデモ画像")
+                        },
+                        vec![("style", "width: 8rem; height: 6rem;")],
+                    ),
+                    el("figcaption", vec![], vec![text(format!("Item {i}"))]),
+                ],
+            )
+        })
+        .collect();
+    let horizontal_demo = scroll_area::root(
+        vec![(
+            "style",
+            "width: 16rem; border: 1px solid var(--fandhe-color-border);",
+        )],
+        vec![scroll_area::viewport(
+            vec![("data-orientation", "horizontal")],
+            vec![scroll_area::content(
+                vec![(
+                    "style",
+                    "gap: var(--fandhe-space-4); padding: var(--fandhe-space-4);",
+                )],
+                horizontal_items,
+            )],
+        )],
+    );
+    // 4 例目: 端フェード（イシュー #2054、shadcn `utils/scroll-fade` 相当）。
+    // `viewport` へ `data-fade` を付与するだけで opt-in する。
+    let fade_demo = scroll_area::root(
+        vec![(
+            "style",
+            "height: 8rem; width: 16rem; border: 1px solid var(--fandhe-color-border);",
+        )],
+        vec![scroll_area::viewport(
+            vec![("data-fade", "")],
+            vec![scroll_area::content(vec![], items())],
+        )],
+    );
     section(
         "ScrollArea",
-        "CSS overflow を主体としたスクロール領域です。カスタムスクロールバーの見た目は scrollbar-width/scrollbar-color と ::-webkit-scrollbar 系規則で表現し、thumb 色は custom property --fandhe-scroll-area-thumb-bg で一元化しています（hover 時は --fandhe-scroll-area-thumb-hover-bg へ強調。JS によるスクロール位置追従は対象外）。",
+        "CSS overflow を主体としたスクロール領域です。カスタムスクロールバーの見た目は scrollbar-width/scrollbar-color と ::-webkit-scrollbar 系規則で表現し、thumb 色は custom property --fandhe-scroll-area-thumb-bg で一元化しています（hover 時は --fandhe-scroll-area-thumb-hover-bg へ強調。JS によるスクロール位置追従は対象外）。data-orientation=\"horizontal\"（横スクロール）・data-fade（端フェード、対応ブラウザではスクロール量に連動）は viewport への opt-in 属性です（イシュー #2054、shadcn/ui 突合）。",
         vec![
             demo,
             el(
@@ -11125,6 +11181,22 @@ fn scroll_area_section() -> Node {
                 )],
             ),
             hover_reveal_demo,
+            el(
+                "p",
+                vec![],
+                vec![text(
+                    "viewport へ data-orientation=\"horizontal\" を付与すると横スクロールになります（shadcn/ui ScrollBar orientation=\"horizontal\" 相当）。",
+                )],
+            ),
+            horizontal_demo,
+            el(
+                "p",
+                vec![],
+                vec![text(
+                    "viewport へ data-fade を付与すると端がフェードします（shadcn/ui utils/scroll-fade 相当。animation-timeline: scroll() 対応ブラウザではスクロール量に応じて先頭/末尾のフェードが切り替わります）。",
+                )],
+            ),
+            fade_demo,
         ],
     )
 }
