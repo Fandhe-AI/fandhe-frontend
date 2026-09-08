@@ -5206,6 +5206,114 @@ fn avatar_group_and_badge_children_and_attrs_are_escaped_for_all_payloads() {
     }
 }
 
+/// Command 経路（イシュー #2070）: 10 パーツいずれも見た目クラスを付与
+/// しない（`src/command.rs` モジュール doc「軸を持たない理由」節参照）
+/// ため、呼び出し側 `attrs`・`class`（`drop_class_attr` により除去）、
+/// `input` の `value`/`list_id`/`activedescendant`、`list`/`dialog` の
+/// `label`、`item` の `value`/`id`、`group`/`group_heading` の
+/// `labelledby`/`id`、children の各経路で既定エスケープ（REQ-1）が
+/// 貫通することを固定する。
+#[test]
+fn command_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::command::{self, OpenState};
+
+    for payload in payloads::all() {
+        let html = render(&command::root(
+            OpenState::Open,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::root attrs context");
+
+        let html = render(&command::root(
+            OpenState::Open,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "command::root class payload leaked: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        let html = render(&command::dialog(OpenState::Open, payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "command::dialog label context");
+
+        let html = render(&command::input(
+            OpenState::Open,
+            payload,
+            payload,
+            Some(payload),
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::input value context");
+        assert_payload_is_escaped(payload, &html, "command::input list_id context");
+        assert_payload_is_escaped(payload, &html, "command::input activedescendant context");
+
+        let html = render(&command::list(payload, payload, false, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "command::list id context");
+        assert_payload_is_escaped(payload, &html, "command::list label context");
+
+        let html = render(&command::empty(
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::empty attrs context");
+        assert_payload_is_escaped(payload, &html, "command::empty children context");
+
+        let html = render(&command::group(Some(payload), vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "command::group labelledby context");
+
+        let html = render(&command::group_heading(
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::group_heading id context");
+        assert_payload_is_escaped(payload, &html, "command::group_heading children context");
+
+        let html = render(&command::item(
+            false,
+            false,
+            payload,
+            Some(payload),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::item value context");
+        assert_payload_is_escaped(payload, &html, "command::item id context");
+        assert_payload_is_escaped(payload, &html, "command::item attrs context");
+        assert_payload_is_escaped(payload, &html, "command::item children context");
+
+        let html = render(&command::shortcut(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::shortcut attrs context");
+        assert_payload_is_escaped(payload, &html, "command::shortcut children context");
+
+        let html = render(&command::separator(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "command::separator attrs context");
+
+        let html = render(&command::root(
+            OpenState::Open,
+            false,
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "command::root data-scope/data-part spoof payload leaked: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="command""#));
+        assert!(html.contains(r#"data-part="root""#));
+    }
+}
+
 /// styled Button Group `root`/`separator`/`text` 経路（イシュー #2060、親
 /// #2058、headless anatomy は #2059）: 3 パーツいずれも見た目クラスを付与
 /// しない（`src/button_group.rs` モジュール doc「variant 軸: 持たない」節
