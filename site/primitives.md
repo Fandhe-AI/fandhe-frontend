@@ -38,6 +38,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 - [Fieldset](./primitives/fieldset.md)
 - [File Upload](./primitives/file-upload.md)
 - [Image Cropper](./primitives/image-cropper.md)
+- [Input Group](./primitives/input-group.md)
 - [Listbox](./primitives/listbox.md)
 
 ## Forms B

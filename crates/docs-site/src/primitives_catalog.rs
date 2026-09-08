@@ -3,7 +3,8 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! `/primitives/<kebab>/` 63 ページの「どの部品が・どの URL に・どの表示名
+//! `/primitives/<kebab>/` 64 ページ（イシュー #2062 で `input_group` 追加、
+//! 旧 63）の「どの部品が・どの URL に・どの表示名
 //! で・どのカテゴリに属するか」の唯一の正。#1021（nav 登録・ページ生成）と
 //! #1024〜#1029（原稿充填）が本モジュールを一次情報として参照する。
 //!
@@ -19,11 +20,12 @@
 //! # 判別規約（設計 §6 の要旨）
 //!
 //! `crates/headless-ui/src/*.rs` のうち本文に `anatomy(` を含むもの
-//! （`anatomy.rs` 自身を除く）が部品 63 件、基盤モジュール（[`FOUNDATION_MODULES`]）
-//! が 9 件、`lib.rs` を加えて 73 件が `crates/headless-ui/src/*.rs` の総数
-//! （実測: `ls crates/headless-ui/src/*.rs | wc -l` => 73、
+//! （`anatomy.rs` 自身を除く）が部品 64 件（イシュー #2062 で `input_group`
+//! 追加、旧 63）、基盤モジュール（[`FOUNDATION_MODULES`]）が 9 件、`lib.rs`
+//! を加えて 74 件が `crates/headless-ui/src/*.rs` の総数（実測:
+//! `ls crates/headless-ui/src/*.rs | wc -l` => 74、
 //! `grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l`
-//! => 63）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
+//! => 64）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
 //! 責務。
 
 use std::collections::BTreeSet;
@@ -54,7 +56,7 @@ pub struct PrimitiveEntry {
 /// （`src` 内ユニットテスト・`tests/primitives_catalog.rs` の双方）が固定する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PrimitiveCategory {
-    /// Forms A（11 件、原稿は #1024）。
+    /// Forms A（12 件、原稿は #1024。イシュー #2062 で `input_group` 追加、旧 11）。
     FormsA,
     /// Forms B（11 件、原稿は #1025）。
     FormsB,
@@ -106,13 +108,13 @@ impl PrimitiveCategory {
     }
 }
 
-/// Primitives 台帳（63 件）。
+/// Primitives 台帳（64 件、イシュー #2062 で `input_group` 追加、旧 63）。
 ///
 /// 並びは設計 §7 のグループ順・グループ内記載順を**逐語で保存する**
 /// （#1021 が「1020 の台帳順」で nav へ登録するため、アルファベット順へ
 /// 正規化してはならない）。
 pub const PRIMITIVES: &[PrimitiveEntry] = &[
-    // --- Forms A（11、#1024） ---
+    // --- Forms A（12、#1024。イシュー #2062 で input_group 追加、旧 11） ---
     PrimitiveEntry {
         module: "angle_slider",
         path: "/primitives/angle-slider/",
@@ -179,6 +181,15 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         module: "image_cropper",
         path: "/primitives/image-cropper/",
         title: "Image Cropper",
+        category: PrimitiveCategory::FormsA,
+    },
+    PrimitiveEntry {
+        // Themes ページは #2063（未実装）まで存在しないため
+        // `PRIMITIVES_WITHOUT_THEMES_PAGE`/`HEADLESS_UNWRAPPED` の対象
+        // （イシュー #2062）。
+        module: "input_group",
+        path: "/primitives/input-group/",
+        title: "Input Group",
         category: PrimitiveCategory::FormsA,
     },
     PrimitiveEntry {
@@ -539,15 +550,16 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives。現在 0 件（`collapsible` はイシュー #1683、`field` は
-/// イシュー #1685、`fieldset` はイシュー #1687 でそれぞれ Themes ページ
-/// 登録済みのため除外済み）。将来 Themes ページを持たない Primitives が
-/// 増えた場合のみ使う。
+/// Primitives。`input_group` はイシュー #2062（本 PR）が headless-ui 層を
+/// 新設した時点では Themes 層（`crates/pre-styled-ui/src/input_group.rs`・
+/// `site/themes/input-group.md`）が #2063（未実装）のため、暫定的にこの
+/// 台帳へ載せる（`collapsible`/`field`/`fieldset` は過去に同様の暫定登録を
+/// 経て Themes ページ実装後に除外済み）。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &[];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["input_group"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
@@ -738,10 +750,10 @@ mod tests {
     /// カテゴリ出現順が設計 §7 の表順であること。
     #[test]
     fn catalog_has_63_entries_in_six_categories_in_spec_order() {
-        assert_eq!(PRIMITIVES.len(), 63);
+        assert_eq!(PRIMITIVES.len(), 64);
 
         let expected_order_and_counts: [(PrimitiveCategory, usize); 6] = [
-            (PrimitiveCategory::FormsA, 11),
+            (PrimitiveCategory::FormsA, 12),
             (PrimitiveCategory::FormsB, 11),
             (PrimitiveCategory::FormsCDateStatus, 10),
             (PrimitiveCategory::OverlayDisclosure, 10),
