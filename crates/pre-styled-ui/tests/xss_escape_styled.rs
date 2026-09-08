@@ -4287,8 +4287,13 @@ fn download_trigger_styled_root_href_file_name_children_and_class_are_escaped() 
     }
 }
 
-/// styled ScrollArea（イシュー #825）の headless 再エクスポート経路（attrs
-/// breakout・children `<script>` ペイロード）がエスケープされることを固定する。
+/// styled ScrollArea（イシュー #825、#2054 で `root`/`content` の attrs
+/// 経路を追加）の headless 再エクスポート経路（attrs breakout・children
+/// `<script>` ペイロード）がエスケープされることを固定する。`root` の
+/// attrs 経路は #2054 の RTL Examples（`(\"dir\", \"rtl\")` 透過）が使う
+/// 経路と同一であり、`content` の attrs 経路は横スクロール demo が
+/// `style` 属性を渡す経路と同一である（`crate::scroll_area` モジュール
+/// doc「shadcn/ui 突合（イシュー #2054）」節参照）。
 #[test]
 fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
@@ -4308,6 +4313,15 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
             &html,
             "scroll_area::content の children コンテキスト",
         );
+
+        let html = render(&scroll_area::content(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "scroll_area::content の attrs コンテキスト");
+
+        let html = render(&scroll_area::root(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "scroll_area::root の attrs コンテキスト");
     }
 }
 
@@ -5189,6 +5203,114 @@ fn avatar_group_and_badge_children_and_attrs_are_escaped_for_all_payloads() {
         );
         assert!(html.contains(r#"data-scope="avatar""#));
         assert!(html.contains(r#"data-part="badge""#));
+    }
+}
+
+/// Command 経路（イシュー #2070）: 10 パーツいずれも見た目クラスを付与
+/// しない（`src/command.rs` モジュール doc「軸を持たない理由」節参照）
+/// ため、呼び出し側 `attrs`・`class`（`drop_class_attr` により除去）、
+/// `input` の `value`/`list_id`/`activedescendant`、`list`/`dialog` の
+/// `label`、`item` の `value`/`id`、`group`/`group_heading` の
+/// `labelledby`/`id`、children の各経路で既定エスケープ（REQ-1）が
+/// 貫通することを固定する。
+#[test]
+fn command_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::command::{self, OpenState};
+
+    for payload in payloads::all() {
+        let html = render(&command::root(
+            OpenState::Open,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::root attrs context");
+
+        let html = render(&command::root(
+            OpenState::Open,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "command::root class payload leaked: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        let html = render(&command::dialog(OpenState::Open, payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "command::dialog label context");
+
+        let html = render(&command::input(
+            OpenState::Open,
+            payload,
+            payload,
+            Some(payload),
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::input value context");
+        assert_payload_is_escaped(payload, &html, "command::input list_id context");
+        assert_payload_is_escaped(payload, &html, "command::input activedescendant context");
+
+        let html = render(&command::list(payload, payload, false, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "command::list id context");
+        assert_payload_is_escaped(payload, &html, "command::list label context");
+
+        let html = render(&command::empty(
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::empty attrs context");
+        assert_payload_is_escaped(payload, &html, "command::empty children context");
+
+        let html = render(&command::group(Some(payload), vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "command::group labelledby context");
+
+        let html = render(&command::group_heading(
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::group_heading id context");
+        assert_payload_is_escaped(payload, &html, "command::group_heading children context");
+
+        let html = render(&command::item(
+            false,
+            false,
+            payload,
+            Some(payload),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::item value context");
+        assert_payload_is_escaped(payload, &html, "command::item id context");
+        assert_payload_is_escaped(payload, &html, "command::item attrs context");
+        assert_payload_is_escaped(payload, &html, "command::item children context");
+
+        let html = render(&command::shortcut(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::shortcut attrs context");
+        assert_payload_is_escaped(payload, &html, "command::shortcut children context");
+
+        let html = render(&command::separator(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "command::separator attrs context");
+
+        let html = render(&command::root(
+            OpenState::Open,
+            false,
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "command::root data-scope/data-part spoof payload leaked: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="command""#));
+        assert!(html.contains(r#"data-part="root""#));
     }
 }
 

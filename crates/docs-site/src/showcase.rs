@@ -185,7 +185,9 @@ use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps, TabsVariant};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
-use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
+use fandhe_frontend_pre_styled_ui::text::{
+    text as styled_text, TextProps, TextSize, TextVariant, TextWeight,
+};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
@@ -197,10 +199,10 @@ use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds, To
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, callout, card, collapsible, combobox, menu, popover, radio_group,
-    select, switch, toggle, toggle_tip, tooltip, AlertProps, AlertStatus, AlertVariant, BadgeProps,
-    BadgeVariant, CalloutProps, CalloutVariant, CardProps, CardVariant, ColorPalette, OpenState,
-    Orientation, Size, StyleSheet, StylesheetError, VariantValue,
+    accordion, alert, badge, callout, card, collapsible, combobox, command, menu, popover,
+    radio_group, select, switch, toggle, toggle_tip, tooltip, AlertProps, AlertStatus,
+    AlertVariant, BadgeProps, BadgeVariant, CalloutProps, CalloutVariant, CardProps, CardVariant,
+    ColorPalette, OpenState, Orientation, Size, StyleSheet, StylesheetError, VariantValue,
 };
 
 /// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
@@ -386,6 +388,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"menubar\"][data-part=\"root\"] {\n  align-items: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
 .pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"command\"][data-part=\"dialog\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n  max-width: 36rem;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2,\n.pre-styled-showcase [data-scope=\"tour\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
@@ -534,6 +537,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
     ComponentPage {
         path: "/themes/combobox/",
         render: combobox_section,
+    },
+    ComponentPage {
+        path: "/themes/command/",
+        render: command_section,
     },
     ComponentPage {
         path: "/themes/popover/",
@@ -952,6 +959,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::separator::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::highlight::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::command::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::floating_panel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
@@ -1715,7 +1723,10 @@ fn heading_section() -> Node {
 }
 
 /// Text 節: size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold
-/// の 4 段階）でスタイル化した本文テキスト（イシュー #1442 で拡充）。
+/// の 4 段階）・variant（plain/muted）でスタイル化した本文テキスト
+/// （イシュー #1442 で size/weight を拡充、イシュー #2055 で variant を
+/// 追加し shadcn/ui Typography の `lead`/`large`/`small`/`muted` 4 プリ
+/// セット相当を既存軸の合成として示す）。
 fn text_section() -> Node {
     let size_stack = stack(
         [
@@ -1763,10 +1774,68 @@ fn text_section() -> Node {
         .collect(),
     );
 
+    let variant_stack = stack(
+        [TextVariant::Plain, TextVariant::Muted]
+            .iter()
+            .map(|variant| {
+                styled_text(
+                    &TextProps {
+                        variant: *variant,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text(format!("本文テキスト（variant={variant:?}）"))],
+                )
+            })
+            .collect(),
+    );
+
+    // shadcn/ui Typography（lead/large/small/muted）相当の合成デモ（イシュー
+    // #2055）。プリセット名を enum 値として持ち込まず、既存の
+    // size/weight/variant 軸の組み合わせのみで再現する。
+    let preset_stack = stack(vec![
+        styled_text(
+            &TextProps {
+                size: TextSize::Xl,
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("lead 相当（size=Xl + variant=Muted）")],
+        ),
+        styled_text(
+            &TextProps {
+                size: TextSize::Lg,
+                weight: TextWeight::Semibold,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("large 相当（size=Lg + weight=Semibold）")],
+        ),
+        styled_text(
+            &TextProps {
+                size: TextSize::Sm,
+                weight: TextWeight::Medium,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("small 相当（size=Sm + weight=Medium）")],
+        ),
+        styled_text(
+            &TextProps {
+                size: TextSize::Sm,
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("muted 相当（size=Sm + variant=Muted）")],
+        ),
+    ]);
+
     section(
         "Text",
-        "素の p 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold の 4 段階）でスタイル化した本文テキスト部品。",
-        vec![size_stack, weight_stack],
+        "素の p 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold の 4 段階）・variant（plain/muted）でスタイル化した本文テキスト部品。shadcn/ui Typography の lead/large/small/muted 4 プリセットは既存軸の合成で再現する（イシュー #2055）。",
+        vec![size_stack, weight_stack, variant_stack, preset_stack],
     )
 }
 
@@ -3729,6 +3798,135 @@ fn combobox_section() -> Node {
             "headless-ui の Combobox（role=\"combobox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。入力値 \"{query}\" による filter_options の絞り込み結果を候補として表示しています。\"React\" は選択済み（チェックマーク表示）、\"Svelte\" は highlight 中、\"Vue\" は disabled として固定しています。positioner はフロー内配置へ中和しています。"
         ),
         vec![node],
+    )
+}
+
+/// Command 節（イシュー #2070）: 入力欄・リスト・group 見出し・選択行の
+/// 背景・shortcut の右寄せ（`kbd` 合成）・dialog 型の幅の 6 項目を確認
+/// できるよう 2 インスタンス（inline root + dialog 型）を並べる。
+/// `crate::primitive_showcase::forms_a::command_section` の id スキームを
+/// 踏襲しつつ、Themes ページ専用に `showcase-command-` プレフィックスへ
+/// 差し替える（同一ページに合成される Examples 側の `example-command-`
+/// プレフィックスと衝突しない）。dialog インスタンスは
+/// [`SHOWCASE_LAYOUT_CSS`] でフロー内配置へ中和している。
+fn command_section() -> Node {
+    let item_calendar = command::item(
+        true,
+        false,
+        "calendar",
+        Some("showcase-command-item-calendar"),
+        vec![],
+        vec![
+            text("Calendar"),
+            command::shortcut(
+                vec![],
+                vec![
+                    kbd(&KbdProps::default(), vec![], vec![text("⌘")]),
+                    kbd(&KbdProps::default(), vec![], vec![text("C")]),
+                ],
+            ),
+        ],
+    );
+    let item_search = command::item(
+        false,
+        false,
+        "search",
+        Some("showcase-command-item-search"),
+        vec![],
+        vec![text("Search Emoji")],
+    );
+    let item_settings = command::item(
+        false,
+        true,
+        "settings",
+        Some("showcase-command-item-settings"),
+        vec![],
+        vec![text("Settings")],
+    );
+    let group_heading = command::group_heading(
+        Some("showcase-command-group-heading"),
+        vec![],
+        vec![text("Suggestions")],
+    );
+    let group = command::group(
+        Some("showcase-command-group-heading"),
+        vec![],
+        vec![group_heading, item_calendar, item_search, item_settings],
+    );
+    let separator = command::separator(vec![], vec![]);
+    let list = command::list(
+        "showcase-command-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![group, separator],
+    );
+    let input = command::input(
+        OpenState::Open,
+        "ca",
+        "showcase-command-list",
+        Some("showcase-command-item-calendar"),
+        vec![("aria-label", "Search commands")],
+    );
+    let empty = command::empty(false, vec![], vec![text("No results found.")]);
+    let inline_root = command::root(OpenState::Open, false, vec![], vec![input, list, empty]);
+
+    let empty_list = command::list(
+        "showcase-command-list-empty",
+        "Suggestions",
+        true,
+        vec![],
+        vec![],
+    );
+    let empty_input = command::input(
+        OpenState::Open,
+        "zzz",
+        "showcase-command-list-empty",
+        None,
+        vec![("aria-label", "Search commands")],
+    );
+    let empty_empty = command::empty(true, vec![], vec![text("No results found.")]);
+    let empty_root = command::root(
+        OpenState::Open,
+        true,
+        vec![],
+        vec![empty_input, empty_list, empty_empty],
+    );
+
+    let dialog_item = command::item(
+        false,
+        false,
+        "calendar",
+        Some("showcase-command-dialog-item-calendar"),
+        vec![],
+        vec![text("Calendar")],
+    );
+    let dialog_list = command::list(
+        "showcase-command-dialog-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![dialog_item],
+    );
+    let dialog_input = command::input(
+        OpenState::Open,
+        "",
+        "showcase-command-dialog-list",
+        None,
+        vec![("aria-label", "Search commands")],
+    );
+    let dialog_root = command::root(
+        OpenState::Open,
+        false,
+        vec![],
+        vec![dialog_input, dialog_list],
+    );
+    let dialog = command::dialog(OpenState::Open, "Command Menu", vec![], vec![dialog_root]);
+
+    section(
+        "Command",
+        "headless-ui の Command（role=\"combobox\" の入力欄 + role=\"listbox\" のリスト）に pre-styled-ui の recipe CSS を適用した静的掲示です。\"Calendar\" 行は選択中（背景色 + `kbd` を合成した shortcut）、\"Settings\" 行は disabled、2 個目のインスタンスは絞り込み結果 0 件（`empty` を可視化）を固定表示しています。3 個目のインスタンスは dialog 型の掲示用に、position: fixed のオーバーレイをフロー内配置へ中和しています。",
+        vec![inline_root, empty_root, dialog],
     )
 }
 
@@ -11112,9 +11310,65 @@ fn scroll_area_section() -> Node {
             vec![scroll_area::content(vec![], items())],
         )],
     );
+    // 3 例目: 横スクロール（イシュー #2054、shadcn/ui `ScrollBar
+    // orientation="horizontal"` 相当）。`viewport` へ
+    // `("data-orientation", "horizontal")`（headless
+    // `data_attrs::data_orientation` と同一の値語彙。docs-site は
+    // headless-ui へ直接依存しない方針〔本モジュール冒頭 doc参照〕のため
+    // タプルを直書きする）を付与すると、直下の `content` が
+    // `display: flex; width: max-content;` になる（`stylesheet()` の
+    // 子結合子規則、`crate::scroll_area` モジュール doc 参照）。`gap`/
+    // `padding` は shadcn 同様に呼び出し側の責務のため `content` の
+    // インライン `style` で指定する。
+    let horizontal_items: Vec<Node> = (1..=6)
+        .map(|i| {
+            el(
+                "figure",
+                vec![("style", "margin: 0; flex: none;")],
+                vec![
+                    image(
+                        &ImageProps {
+                            fit: ImageFit::Cover,
+                            ..ImageProps::new(IMAGE_DEMO_SRC, "横スクロールデモ画像")
+                        },
+                        vec![("style", "width: 8rem; height: 6rem;")],
+                    ),
+                    el("figcaption", vec![], vec![text(format!("Item {i}"))]),
+                ],
+            )
+        })
+        .collect();
+    let horizontal_demo = scroll_area::root(
+        vec![(
+            "style",
+            "width: 16rem; border: 1px solid var(--fandhe-color-border);",
+        )],
+        vec![scroll_area::viewport(
+            vec![("data-orientation", "horizontal")],
+            vec![scroll_area::content(
+                vec![(
+                    "style",
+                    "gap: var(--fandhe-space-4); padding: var(--fandhe-space-4);",
+                )],
+                horizontal_items,
+            )],
+        )],
+    );
+    // 4 例目: 端フェード（イシュー #2054、shadcn `utils/scroll-fade` 相当）。
+    // `viewport` へ `data-fade` を付与するだけで opt-in する。
+    let fade_demo = scroll_area::root(
+        vec![(
+            "style",
+            "height: 8rem; width: 16rem; border: 1px solid var(--fandhe-color-border);",
+        )],
+        vec![scroll_area::viewport(
+            vec![("data-fade", "")],
+            vec![scroll_area::content(vec![], items())],
+        )],
+    );
     section(
         "ScrollArea",
-        "CSS overflow を主体としたスクロール領域です。カスタムスクロールバーの見た目は scrollbar-width/scrollbar-color と ::-webkit-scrollbar 系規則で表現し、thumb 色は custom property --fandhe-scroll-area-thumb-bg で一元化しています（hover 時は --fandhe-scroll-area-thumb-hover-bg へ強調。JS によるスクロール位置追従は対象外）。",
+        "CSS overflow を主体としたスクロール領域です。カスタムスクロールバーの見た目は scrollbar-width/scrollbar-color と ::-webkit-scrollbar 系規則で表現し、thumb 色は custom property --fandhe-scroll-area-thumb-bg で一元化しています（hover 時は --fandhe-scroll-area-thumb-hover-bg へ強調。JS によるスクロール位置追従は対象外）。data-orientation=\"horizontal\"（横スクロール）・data-fade（端フェード、対応ブラウザではスクロール量に連動）は viewport への opt-in 属性です（イシュー #2054、shadcn/ui 突合）。",
         vec![
             demo,
             el(
@@ -11125,6 +11379,22 @@ fn scroll_area_section() -> Node {
                 )],
             ),
             hover_reveal_demo,
+            el(
+                "p",
+                vec![],
+                vec![text(
+                    "viewport へ data-orientation=\"horizontal\" を付与すると横スクロールになります（shadcn/ui ScrollBar orientation=\"horizontal\" 相当）。",
+                )],
+            ),
+            horizontal_demo,
+            el(
+                "p",
+                vec![],
+                vec![text(
+                    "viewport へ data-fade を付与すると端がフェードします（shadcn/ui utils/scroll-fade 相当。animation-timeline: scroll() 対応ブラウザではスクロール量に応じて先頭/末尾のフェードが切り替わります）。",
+                )],
+            ),
+            fade_demo,
         ],
     )
 }
@@ -12393,7 +12663,8 @@ mod tests {
         // イシュー #2063 で Input Group を追加し 104 → 105 件になった。
         // イシュー #2066 で Item を追加し 105 → 106 件になった。
         // イシュー #2060 で Button Group を追加し 106 → 107 件になった。
-        assert_eq!(paths.len(), 107, "COMPONENT_PAGES should have 107 entries");
+        // イシュー #2070 で Command を追加し 107 → 108 件になった。
+        assert_eq!(paths.len(), 108, "COMPONENT_PAGES should have 108 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

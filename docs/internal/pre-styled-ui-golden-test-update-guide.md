@@ -61,6 +61,7 @@ accordion / **alert（イシュー #1553 で golden 新設。イシュー #2043 
 **button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文）** /
 callout / carousel / **collapsible（イシュー #1682 で golden 新設）** /
 checkbox / checkbox_card / checkbox_group /
+**command（イシュー #2070 で golden 新設。`stylesheet()` 全文）** /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
 date_input / dialog / **download_trigger（方式 b）** /
 drawer / editable / **field（イシュー #1684 で golden 新設）** /
@@ -72,7 +73,7 @@ image_cropper / **input_group（イシュー #2063 で golden 新設。`styleshe
 listbox / marquee / menu / **menubar（方式 b）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
 pin_input / progress / qr_code / radio_card / radio_group / rating_group /
-**scroll_area（イシュー #1584 で golden 新設）** /
+**scroll_area（イシュー #1584 で golden 新設。#2054 で横スクロール・端フェード規則を末尾へ純追加、`starts_with` による純追加固定アサーションも追加）** /
 select / separator / skeleton / skip_nav / **spinner（イシュー #1567 で
 golden 新設）** / splitter / stat / steps / switch /
 tab_nav / tags_input / timeline / timer / toast /

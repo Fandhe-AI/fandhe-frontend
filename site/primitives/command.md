@@ -31,6 +31,6 @@
 }
 ```
 
-> Themes ページ（スタイル済み recipe）は後続イシュー #2070 で追加予定です。現時点では headless-ui 層のみを提供します。
+`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。Themes 版は [Command](../themes/command.md) を参照してください。
 
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

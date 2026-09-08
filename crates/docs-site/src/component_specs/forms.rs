@@ -52,6 +52,7 @@ use fandhe_frontend_pre_styled_ui::badge;
 use fandhe_frontend_pre_styled_ui::button::{icon_button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox;
 use fandhe_frontend_pre_styled_ui::checkbox::{CheckboxProps, CheckedState};
+use fandhe_frontend_pre_styled_ui::command;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
     AngleSlider, AngleSliderProps,
 };
@@ -69,7 +70,7 @@ use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::switch;
 use fandhe_frontend_pre_styled_ui::switch::SwitchProps;
 use fandhe_frontend_pre_styled_ui::{BadgeProps, KbdProps};
-use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry};
 
@@ -84,6 +85,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/checkbox-card/", CHECKBOX_CARD),
     ("/themes/checkbox-group/", CHECKBOX_GROUP),
     ("/themes/combobox/", COMBOBOX),
+    ("/themes/command/", COMMAND),
     ("/themes/editable/", EDITABLE),
     ("/themes/field/", FIELD),
     ("/themes/fieldset/", FIELDSET),
@@ -526,6 +528,197 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
     aria: &[],
     demo: None,
 };
+
+const COMMAND: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の 10 slot 構成。`size`/`variant`/`color-palette` いずれの軸も持たない（`crates/pre-styled-ui/src/command.rs` モジュール doc「軸を持たない理由」節参照）。",
+        "`empty` は既定 `display: none`、`[data-empty]`（headless が絞り込み結果 0 件のときのみ付与）が付いたときだけ `display: block` へ切り替わる。",
+        "`item` の選択行は `[data-selected]` の背景色で表す（`data-highlighted` は使わない）。hover は選択行を除外する規則（`HoverExceptAttr`）を持ち、選択色が hover で洗い流されない。",
+        "`shortcut` は `margin-inline-start: auto` で右寄せする。API は増やさず、`children` へ [Kbd](../kbd/) を渡すことでキー表示を合成する。",
+        "`dialog` は `--fandhe-command-dialog-max-width`（既定 32rem）で幅を決め、closed 時は headless が付与する `hidden` を確実に非表示化する（`[hidden] { display: none; }`）。単一パーツのため独立した `backdrop` は持たない。",
+        "絞り込み配線（入力 → `\"input\"` dispatch → DOM 反映）・Enter 実行・Cmd/Ctrl+K のグローバルショートカット・フォーカストラップはアプリケーション/`fandhe-frontend-wasm-full` の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "state",
+            kind: "OpenState",
+            default: "OpenState::Closed",
+            description: "`root`/`dialog`/`input` の開閉状態。",
+        },
+        ArgRow {
+            name: "empty",
+            kind: "bool",
+            default: "false",
+            description: "`root`/`list`/`empty` へ渡す絞り込み結果 0 件フラグ（`command::filter_items` の結果を注入する想定）。",
+        },
+        ArgRow {
+            name: "value",
+            kind: "&str",
+            default: "",
+            description: "`input` の現在の検索クエリ。",
+        },
+        ArgRow {
+            name: "list_id",
+            kind: "&str",
+            default: "",
+            description: "`input` の `aria-controls` / `list` の `id` として対応させる識別子。",
+        },
+        ArgRow {
+            name: "activedescendant",
+            kind: "Option<&str>",
+            default: "None",
+            description: "`input` の `aria-activedescendant`。選択中 `item` の `id` を指す。",
+        },
+        ArgRow {
+            name: "selected / disabled",
+            kind: "bool",
+            default: "false",
+            description: "`item` の選択・disabled 状態。",
+        },
+        ArgRow {
+            name: "value / id",
+            kind: "&str / Option<&str>",
+            default: "",
+            description: "`item` の候補値（`data-value`）と `aria-activedescendant` の参照先 `id`。",
+        },
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "",
+            description: "`list`/`dialog` のアクセシブルネーム（`aria-label`）。",
+        },
+        ArgRow {
+            name: "attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "各パーツへ合成する追加属性（`class` は除去され、本モジュールが見た目クラスを付与しない設計のため `class` 属性自体が出力から消える）。",
+        },
+        ArgRow {
+            name: "children",
+            kind: "Vec<Node>",
+            default: "",
+            description: "各パーツの子ノード。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "基本形",
+            description: "入力欄 + リスト + group 見出し + 選択行の組み合わせです。",
+            render: ex_command_basic,
+        },
+        ExampleEntry {
+            title: "dialog 型",
+            description: "`dialog` パーツで command palette 全体を包んだ構成です（掲示用にフロー内配置へ中和しています）。",
+            render: ex_command_dialog,
+        },
+    ],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"combobox\" / aria-controls / aria-expanded",
+            description: "`input` へ固定付与する（`aria-controls` は `list` の `id` を指す必須引数）。",
+        },
+        AriaRow {
+            attribute: "aria-activedescendant",
+            description: "`input` の `activedescendant` が `Some` のときのみ付与する。選択中 `item` の `id` を指す。",
+        },
+        AriaRow {
+            attribute: "role=\"listbox\" / aria-label",
+            description: "`list` へ固定付与する。",
+        },
+        AriaRow {
+            attribute: "role=\"option\" / aria-selected",
+            description: "`item` へ固定付与する。選択有無は `data-selected`（presence）でも表す。",
+        },
+        AriaRow {
+            attribute: "role=\"dialog\" / aria-modal=\"true\"",
+            description: "`dialog` へ固定付与する。",
+        },
+        AriaRow {
+            attribute: "role=\"separator\"",
+            description: "`separator` へ固定付与する。",
+        },
+    ],
+    demo: None,
+};
+
+/// [`COMMAND`] の Examples 節「基本形」レンダラ（イシュー #2070）。
+/// `crates/docs-site/src/showcase.rs` の `command_section` inline
+/// インスタンスを Examples 節向けに単一状態へ簡略化したもの。id は
+/// `example-command-` プレフィックスとし、Demo（`showcase-command-`）と
+/// 衝突しない。
+fn ex_command_basic() -> Node {
+    let item_calendar = command::item(
+        true,
+        false,
+        "calendar",
+        Some("example-command-item-calendar"),
+        vec![],
+        vec![text("Calendar")],
+    );
+    let item_search = command::item(
+        false,
+        false,
+        "search",
+        Some("example-command-item-search"),
+        vec![],
+        vec![text("Search Emoji")],
+    );
+    let group_heading = command::group_heading(
+        Some("example-command-group-heading"),
+        vec![],
+        vec![text("Suggestions")],
+    );
+    let group = command::group(
+        Some("example-command-group-heading"),
+        vec![],
+        vec![group_heading, item_calendar, item_search],
+    );
+    let list = command::list(
+        "example-command-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![group],
+    );
+    let input = command::input(
+        OpenState::Open,
+        "ca",
+        "example-command-list",
+        Some("example-command-item-calendar"),
+        vec![("aria-label", "Search commands")],
+    );
+    let empty = command::empty(false, vec![], vec![text("No results found.")]);
+    command::root(OpenState::Open, false, vec![], vec![input, list, empty])
+}
+
+/// [`COMMAND`] の Examples 節「dialog 型」レンダラ（イシュー #2070）。
+fn ex_command_dialog() -> Node {
+    let item_calendar = command::item(
+        false,
+        false,
+        "calendar",
+        Some("example-command-dialog-item-calendar"),
+        vec![],
+        vec![text("Calendar")],
+    );
+    let list = command::list(
+        "example-command-dialog-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![item_calendar],
+    );
+    let input = command::input(
+        OpenState::Open,
+        "",
+        "example-command-dialog-list",
+        None,
+        vec![("aria-label", "Search commands")],
+    );
+    let root = command::root(OpenState::Open, false, vec![], vec![input, list]);
+    command::dialog(OpenState::Open, "Command Menu", vec![], vec![root])
+}
 
 const EDITABLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
