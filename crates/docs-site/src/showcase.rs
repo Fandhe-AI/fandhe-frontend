@@ -135,6 +135,9 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
+use fandhe_frontend_pre_styled_ui::item::{
+    self, ItemMediaVariant, ItemRootProps, ItemSize, ItemVariant,
+};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::{group as kbd_group, kbd, KbdProps, KbdVariant};
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
@@ -582,6 +585,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: input_group_section,
     },
     ComponentPage {
+        path: "/themes/item/",
+        render: item_section,
+    },
+    ComponentPage {
         path: "/themes/textarea/",
         render: textarea_section,
     },
@@ -954,6 +961,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::fieldset::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::item::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -5265,6 +5273,130 @@ fn input_group_section() -> Node {
             disabled_instance,
             block_instance,
         ])],
+    )
+}
+
+/// Item 節（イシュー #2066、親 #2064。headless anatomy は #2065）: variant
+/// 3 種（default/outline/muted）× media variant 3 種（default/icon/image）+
+/// size（sm）+ href 付き root（外部リンク）+ group/separator の構成を
+/// 掲示する。`variant`/`size` は headless の `data-variant`/`data-size` を
+/// `AttrEq` で参照するのみで class 軸を持たない（`item.rs` モジュール doc
+/// 「variant / size の表現」節参照）。
+fn item_section() -> Node {
+    // variant 3 種 × media variant 3 種の組み合わせを行として並べる。
+    let variant_rows: Vec<Node> = [
+        (ItemVariant::Default, "default"),
+        (ItemVariant::Outline, "outline"),
+        (ItemVariant::Muted, "muted"),
+    ]
+    .into_iter()
+    .map(|(variant, label)| {
+        let cells: Vec<Node> = [
+            (ItemMediaVariant::Default, "Default"),
+            (ItemMediaVariant::Icon, "IC"),
+            (ItemMediaVariant::Image, "IMG"),
+        ]
+        .into_iter()
+        .map(|(media_variant, media_label)| {
+            item::root(
+                ItemRootProps {
+                    variant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![
+                    item::media(media_variant, vec![], vec![text(media_label)]),
+                    item::content(
+                        vec![],
+                        vec![
+                            item::title(vec![], vec![text(format!("{label} item"))]),
+                            item::description(
+                                vec![],
+                                vec![text("A generic list row with media and text.")],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect();
+        row(cells)
+    })
+    .collect();
+
+    // size="sm" の縮小版。
+    let sm_instance = item::root(
+        ItemRootProps {
+            size: ItemSize::Sm,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("IC")]),
+            item::content(
+                vec![],
+                vec![item::title(vec![], vec![text("Compact item (size=sm)")])],
+            ),
+        ],
+    );
+
+    // href 付き root（外部リンク、external=true で target/rel を不可分付与）
+    // + actions。`href=""`（空文字列）で linkcheck 中立性を保つ
+    // （`crate::linkcheck::check_links` が無条件許容する契約、
+    // `breadcrumb_section` 等の既存デモと同型のパターン）。
+    let link_instance = item::root(
+        ItemRootProps {
+            href: Some(""),
+            external: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("GH")]),
+            item::content(
+                vec![],
+                vec![
+                    item::title(vec![], vec![text("fandhe-frontend")]),
+                    item::description(vec![], vec![text("GitHub repository (opens in a new tab)")]),
+                ],
+            ),
+            item::actions(vec![], vec![text("→")]),
+        ],
+    );
+
+    // group + separator（複数 root の縦並び + 区切り線）。
+    let group_instance = item::group(
+        "Recent items",
+        vec![],
+        vec![
+            item::root(
+                ItemRootProps::default(),
+                vec![],
+                vec![item::content(
+                    vec![],
+                    vec![item::title(vec![], vec![text("First item")])],
+                )],
+            ),
+            item::separator(vec![], vec![]),
+            item::root(
+                ItemRootProps::default(),
+                vec![],
+                vec![item::content(
+                    vec![],
+                    vec![item::title(vec![], vec![text("Second item")])],
+                )],
+            ),
+        ],
+    );
+
+    let mut demos = variant_rows;
+    demos.push(row(vec![sm_instance, link_instance]));
+    demos.push(group_instance);
+
+    section(
+        "Item",
+        "media（アイコン・画像・アバター）+ title/description + actions からなる汎用リスト行。variant/size は headless の data-variant/data-size を参照するのみで class 軸は持ちません。href を渡すと a として描画されます。",
+        demos,
     )
 }
 
@@ -11854,7 +11986,8 @@ mod tests {
         // イシュー #1685 で Field を追加し 102 → 103 件になった。
         // イシュー #1687 で Fieldset を追加し 103 → 104 件になった。
         // イシュー #2063 で Input Group を追加し 104 → 105 件になった。
-        assert_eq!(paths.len(), 105, "COMPONENT_PAGES should have 105 entries");
+        // イシュー #2066 で Item を追加し 105 → 106 件になった。
+        assert_eq!(paths.len(), 106, "COMPONENT_PAGES should have 106 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

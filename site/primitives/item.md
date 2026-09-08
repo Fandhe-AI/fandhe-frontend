@@ -10,7 +10,7 @@ media（アイコン・画像・アバター）+ title/description + actions か
 - `separator` は `role="separator"` + `aria-orientation="horizontal"` を固定付与します。`group` は常に縦並びのコンテナのため、水平固定です。
 - `root` が `a` として描画されるときのみ、キーボード操作はネイティブ `a[href]` の `Tab`/`Shift+Tab`/`Enter` に依存します。`div` のときはキー操作を提供しません。`role` は付与せず、`a` の暗黙の `link` ロールに委ねます。
 
-現時点では `fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品はありません（今後追加予定）。
+`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。Themes 版は [Item](../themes/item.md) を参照してください。
 
 自前 CSS の最小例:
 

@@ -896,6 +896,11 @@ source = "site/themes/image.md"
 path = "/themes/image/"
 
 [[section.group.page]]
+title = "Item"
+source = "site/themes/item.md"
+path = "/themes/item/"
+
+[[section.group.page]]
 title = "JSON Tree View"
 source = "site/themes/json-tree-view.md"
 path = "/themes/json-tree-view/"
