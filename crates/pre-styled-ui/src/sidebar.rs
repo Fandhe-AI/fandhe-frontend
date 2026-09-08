@@ -502,13 +502,24 @@ fn recipe() -> SlotRecipe {
         // テキストが `width` の縮小を無効化しレールへ折りたたまれない
         // （Bugbot 指摘「Icon collapse ignores content min-width」対応）。
         // `min-width` を `width` と同じトークンへ固定し、flexbox の
-        // 既定縮小抑制を明示的に上書きする。
+        // 既定縮小抑制を明示的に上書きする。`header`/`footer`
+        // （`header_footer_base`）は自身に `overflow` を持たず、`root` 自体も
+        // 既定の `overflow: visible` のままのため、`min-width` で縮小を
+        // 抑止してもなお `header`/`footer` 内のテキストが折りたたみ幅を
+        // 超える場合はレール外へはみ出して見えてしまう（Bugbot 指摘「Icon
+        // collapse missing overflow clip on root」対応）。`content` は既に
+        // 自前で `overflow: auto`（`content_base`）を持つため、ここで
+        // `overflow-x: hidden` を `root` へ足しても `content` の縦スクロール
+        // は妨げない（`overflow-x` のみを指定し `overflow-y` は既定
+        // `visible` のまま残すことで、`root` 自身の高さ計算・`content` の
+        // 内部スクロールへの影響を横方向クリップのみに限定する）。
         .state(
             "root",
             StateCondition::AttrEqAll(&[("data-state", "collapsed"), ("data-collapsible", "icon")]),
             vec![
                 decl("width", "var(--fandhe-sidebar-width-icon, 3rem)"),
                 decl("min-width", "var(--fandhe-sidebar-width-icon, 3rem)"),
+                decl("overflow-x", "hidden"),
             ],
         )
         // 折りたたみ幅（offcanvas）。`visibility: hidden` を併用する
@@ -617,7 +628,20 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-size", "lg"),
             vec![
                 decl("height", "3rem"),
-                decl("padding-inline", "var(--fandhe-space-3)"),
+                // `padding-inline`（両端一括指定）は使わない（Bugbot 指摘
+                // 「lg padding-inline overwrites action/badge gutter」）:
+                // `menu_button_base` の `padding-inline-end` は
+                // `menu-action`/`menu-badge` 1 個分の重なり回避ガター
+                // （上記コメント参照）を予約しており、この state は
+                // `menu_button_base` と同じ属性セレクタ 1 個分の specificity
+                // でソース順のみが後段のため一括指定するとガター予約ごと
+                // 上書きしてしまう。開始側だけを lg 用の余白へ広げ、終了側は
+                // 同じガター予約式を lg のトークンで再宣言し維持する。
+                decl("padding-inline-start", "var(--fandhe-space-3)"),
+                decl(
+                    "padding-inline-end",
+                    "calc(var(--fandhe-space-3) + 1.25rem + var(--fandhe-space-1))",
+                ),
             ],
         )
         // 選択色（`data-active`）を hover が洗い流さないよう
@@ -792,9 +816,15 @@ pub fn stylesheet() -> String {
     // doc「モバイル + collapsed の詳細度調整」節参照）。`visibility: hidden`
     // は上記 offcanvas collapsed 規則と同じ理由（codex-review P1 指摘）で
     // 併記する: `transform` による画面外への移動だけでは子孫が Tab 順序・
-    // アクセシビリティツリーに残る。
+    // アクセシビリティツリーに残る。`:not([data-collapsible="none"])` は
+    // codex-review P1 再指摘の是正: `data-state`/`data-collapsible` は
+    // headless 側で独立に決まる（headless モジュール doc「`data-state`/
+    // `data-collapsible`」節）ため `collapsible="none"`（常時表示・折りた
+    // たまない契約）でも `data-state="collapsed"` になり得る。この限定が
+    // 無いと `collapsible="none"` のサイドバーがモバイルで画面外へ退避し
+    // 消えてしまい、「collapsible="none" は常時表示」という公開契約に反する。
     push(
-        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]"#,
+        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"])"#,
         &[
             decl("width", "var(--fandhe-sidebar-width-mobile, 18rem)"),
             decl("transform", "translateX(-100%)"),
@@ -803,9 +833,13 @@ pub fn stylesheet() -> String {
     );
     // `side="right"` + collapsed: 位置は上記の側指定専用規則が既に固定
     // 済みのため、ここでは開閉の `transform` 方向のみを右側向けへ上書き
-    // する。
+    // する。`:not([data-collapsible="none"])` は上記規則と同じ理由
+    // （codex-review P1 指摘: `collapsible="none"` はモバイルでも常時表示
+    // という公開契約〔headless モジュール doc「`data-collapsible`」節、
+    // `data-state` は `collapsible` の値と独立に外部から与えられうる〕の
+    // ため、退避規則を offcanvas/icon 専用に限定する）で併記する。
     push(
-        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]"#,
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"])"#,
         &[decl("transform", "translateX(100%)")],
     );
     // `side`（既定=inline-start 側/`right`=inline-end 側）は本モジュール
@@ -818,11 +852,11 @@ pub fn stylesheet() -> String {
     // [`crate::scroll_area`] の `:dir(rtl)` 併記と同型に、rtl 文書向けの
     // 符号反転規則をソース順で後に追記し上書きする。
     push(
-        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]:dir(rtl)"#,
+        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"]):dir(rtl)"#,
         &[decl("transform", "translateX(100%)")],
     );
     push(
-        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]:dir(rtl)"#,
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"]):dir(rtl)"#,
         &[decl("transform", "translateX(-100%)")],
     );
 
@@ -1141,11 +1175,36 @@ pub fn menu_skeleton<'a>(show_icon: bool, attrs: Vec<(&'a str, &'a str)>) -> Nod
         ));
     }
     children.push(skeleton(&SkeletonProps::default(), vec![]));
-    let mut merged: Vec<(&'a str, &'a str)> = vec![(
-        "style",
-        "display:flex;align-items:center;gap:var(--fandhe-space-2)",
-    )];
-    merged.extend(drop_class_attr(attrs));
+
+    // 呼び出し側の `style`（モジュール doc「menu-skeleton」節が案内する
+    // `--fandhe-skeleton-size` 等のカスタムプロパティ上書きの契約経路）と
+    // 本関数固定のレイアウト宣言（`display:flex` 他）を単一の `style`
+    // 属性へ統合する（codex-review P1 / Bugbot 指摘: 別々の
+    // `("style", ...)` エントリをそのまま両方 attrs へ積むと同名属性が
+    // 2 個出力される無効な HTML になり、HTML パーサーは先勝ち（後続の
+    // 重複属性を無視）のため呼び出し側の指定が常に無効化されていた）。
+    // `drop_class_attr` と異なりここでは `style` を丸ごと落とさない
+    // （他の一部部品が使う `drop_style_attr`〔フレームワーク側固定・呼び
+    // 出し側破棄〕とは意図的に異なる判断: `menu_skeleton` は
+    // カスタムプロパティ経由の寸法上書きが唯一の公開 API のため、
+    // 呼び出し側宣言を破棄すると契約そのものが機能しなくなる）。
+    let caller_style = attrs
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("style"))
+        .map(|(_, v)| *v)
+        .filter(|v| !v.is_empty());
+    let base_style = "display:flex;align-items:center;gap:var(--fandhe-space-2)";
+    let combined_style = match caller_style {
+        Some(v) => format!("{base_style};{v}"),
+        None => base_style.to_string(),
+    };
+
+    let mut merged: Vec<(&str, &str)> = vec![("style", combined_style.as_str())];
+    merged.extend(
+        drop_class_attr(attrs)
+            .into_iter()
+            .filter(|(k, _)| !k.eq_ignore_ascii_case("style")),
+    );
     fandhe_frontend_headless_ui::sidebar::menu_item(merged, children)
 }
 
@@ -1343,5 +1402,29 @@ mod tests {
         ));
         assert!(!html.contains("evil"));
         assert_eq!(html.matches("class=\"").count(), 0);
+    }
+
+    // codex-review P1 / Bugbot 指摘の回帰: `menu_skeleton` は呼び出し側
+    // `style`（`--fandhe-skeleton-size` 等のカスタムプロパティ上書き、
+    // モジュール doc「menu-skeleton」節の契約）を単一の `style` 属性へ
+    // 統合しなければならない。別々の `style` 属性が 2 個出力されると HTML
+    // パーサーは先勝ちで後続を無視するため、呼び出し側の指定が常に無効化
+    // される（fix 前の実際の不具合）。
+    #[test]
+    fn menu_skeleton_merges_caller_style_into_single_attribute() {
+        let html = render(&menu_skeleton(
+            true,
+            vec![("style", "--fandhe-skeleton-size: 4rem")],
+        ));
+        assert_eq!(html.matches("style=\"").count(), 1);
+        assert!(html.contains("--fandhe-skeleton-size: 4rem"));
+        assert!(html.contains("display:flex"));
+    }
+
+    #[test]
+    fn menu_skeleton_without_caller_style_still_outputs_single_style_attribute() {
+        let html = render(&menu_skeleton(false, vec![]));
+        assert_eq!(html.matches("style=\"").count(), 1);
+        assert!(html.contains("display:flex"));
     }
 }

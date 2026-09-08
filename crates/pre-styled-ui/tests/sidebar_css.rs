@@ -280,6 +280,7 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
 [data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] {
   width: var(--fandhe-sidebar-width-icon, 3rem);
   min-width: var(--fandhe-sidebar-width-icon, 3rem);
+  overflow-x: hidden;
 }
 
 [data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"offcanvas\"] {
@@ -326,7 +327,8 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
 
 [data-scope=\"sidebar\"][data-part=\"menu-button\"][data-size=\"lg\"] {
   height: 3rem;
-  padding-inline: var(--fandhe-space-3);
+  padding-inline-start: var(--fandhe-space-3);
+  padding-inline-end: calc(var(--fandhe-space-3) + 1.25rem + var(--fandhe-space-1));
 }
 
 [data-scope=\"sidebar\"][data-part=\"menu-button\"][data-active] {
@@ -426,21 +428,21 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   inset-inline-end: 0;
 }
 
-[data-scope=\"sidebar\"][data-part=\"root\"][data-mobile][data-state=\"collapsed\"] {
+[data-scope=\"sidebar\"][data-part=\"root\"][data-mobile][data-state=\"collapsed\"]:not([data-collapsible=\"none\"]) {
   width: var(--fandhe-sidebar-width-mobile, 18rem);
   transform: translateX(-100%);
   visibility: hidden;
 }
 
-[data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"][data-mobile][data-state=\"collapsed\"] {
+[data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"][data-mobile][data-state=\"collapsed\"]:not([data-collapsible=\"none\"]) {
   transform: translateX(100%);
 }
 
-[data-scope=\"sidebar\"][data-part=\"root\"][data-mobile][data-state=\"collapsed\"]:dir(rtl) {
+[data-scope=\"sidebar\"][data-part=\"root\"][data-mobile][data-state=\"collapsed\"]:not([data-collapsible=\"none\"]):dir(rtl) {
   transform: translateX(100%);
 }
 
-[data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"][data-mobile][data-state=\"collapsed\"]:dir(rtl) {
+[data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"][data-mobile][data-state=\"collapsed\"]:not([data-collapsible=\"none\"]):dir(rtl) {
   transform: translateX(-100%);
 }
 
@@ -513,17 +515,37 @@ fn css_icon_collapsed_width_rule_exists() {
         r#"[data-scope="sidebar"][data-part="root"][data-state="collapsed"][data-collapsible="icon"] {"#
     ));
     assert!(out.contains("width: var(--fandhe-sidebar-width-icon, 3rem);"));
+    // Bugbot 指摘の回帰: icon collapse 時、header/footer のテキストが
+    // レール外へはみ出さないよう root 自身が横方向をクリップする。
+    assert!(out.contains("overflow-x: hidden;"));
+}
+
+// Bugbot 指摘の回帰: `data-size="lg"` は `padding-inline`（両端一括）で
+// `menu_button_base` が予約する action/badge ガター（
+// `padding-inline-end`）を上書きしてはならない。開始側のみ広げ、終了側は
+// lg トークンでガター予約式を再宣言する。
+#[test]
+fn css_menu_button_lg_size_preserves_action_badge_gutter() {
+    let out = sidebar::stylesheet();
+    assert!(out.contains(r#"[data-scope="sidebar"][data-part="menu-button"][data-size="lg"] {"#));
+    assert!(out.contains("padding-inline-start: var(--fandhe-space-3);"));
+    assert!(out.contains(
+        "padding-inline-end: calc(var(--fandhe-space-3) + 1.25rem + var(--fandhe-space-1));"
+    ));
 }
 
 #[test]
 fn css_mobile_collapsed_translate_rule_exists() {
     let out = sidebar::stylesheet();
+    // `:not([data-collapsible="none"])` は codex-review P1 是正
+    // （collapsible="none" はモバイルでも常時表示という公開契約のため、
+    // 退避規則を offcanvas/icon 専用に限定する）。
     assert!(out.contains(
-        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"] {"#
+        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"]) {"#
     ));
     assert!(out.contains("transform: translateX(-100%);"));
     assert!(out.contains(
-        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"] {"#
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"]) {"#
     ));
     assert!(out.contains("transform: translateX(100%);"));
 }
@@ -555,4 +577,31 @@ fn css_focus_visible_rings_exist() {
 fn stylesheet_never_generates_class_based_variant_classes() {
     let out = sidebar::stylesheet();
     assert!(!out.contains("fd-sidebar--"));
+}
+
+// codex-review P1 指摘の回帰: `collapsible="none"` は headless モジュール
+// doc「`data-state`/`data-collapsible`」節の公開契約でモバイルでも常時
+// 表示のため、モバイルの退避規則（画面外への `transform`・`visibility:
+// hidden`）は `data-collapsible="none"` を明示的に除外していなければ
+// ならない。
+#[test]
+fn css_mobile_collapsed_hide_rules_exclude_collapsible_none() {
+    let out = sidebar::stylesheet();
+    assert!(out.contains(
+        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"]) {"#
+    ));
+    assert!(out.contains(
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"]) {"#
+    ));
+    assert!(out.contains(
+        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"]):dir(rtl) {"#
+    ));
+    assert!(out.contains(
+        r#"[data-scope="sidebar"][data-part="root"][data-side="right"][data-mobile][data-state="collapsed"]:not([data-collapsible="none"]):dir(rtl) {"#
+    ));
+    // 素の（`:not` 無し）セレクタは一切残っていないこと（後方互換の緩い
+    // 部分一致では is-not なしの旧形を見逃すため、除外文字列で確認する）。
+    assert!(!out.contains(
+        r#"[data-scope="sidebar"][data-part="root"][data-mobile][data-state="collapsed"] {"#
+    ));
 }
