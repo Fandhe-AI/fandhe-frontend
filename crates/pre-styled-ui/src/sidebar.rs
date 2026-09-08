@@ -502,24 +502,24 @@ fn recipe() -> SlotRecipe {
         // テキストが `width` の縮小を無効化しレールへ折りたたまれない
         // （Bugbot 指摘「Icon collapse ignores content min-width」対応）。
         // `min-width` を `width` と同じトークンへ固定し、flexbox の
-        // 既定縮小抑制を明示的に上書きする。`header`/`footer`
-        // （`header_footer_base`）は自身に `overflow` を持たず、`root` 自体も
-        // 既定の `overflow: visible` のままのため、`min-width` で縮小を
-        // 抑止してもなお `header`/`footer` 内のテキストが折りたたみ幅を
-        // 超える場合はレール外へはみ出して見えてしまう（Bugbot 指摘「Icon
-        // collapse missing overflow clip on root」対応）。`content` は既に
-        // 自前で `overflow: auto`（`content_base`）を持つため、ここで
-        // `overflow-x: hidden` を `root` へ足しても `content` の縦スクロール
-        // は妨げない（`overflow-x` のみを指定し `overflow-y` は既定
-        // `visible` のまま残すことで、`root` 自身の高さ計算・`content` の
-        // 内部スクロールへの影響を横方向クリップのみに限定する）。
+        // 既定縮小抑制を明示的に上書きする。`header`/`footer` 内のテキスト
+        // クリップは `overflow-x: hidden` を `root` 自身へ持たせず、
+        // `stylesheet()` が追記する raw CSS（`ICON_COLLAPSED > header`/
+        // `> footer` の子結合子セレクタ）で `header`/`footer` パーツへ
+        // 個別に付与する（codex-review P1 / Cursor Bugbot 指摘「Icon
+        // collapse clips the rail」対応: `rail` パーツは `root` に対する
+        // `position: absolute` + `inset-inline-end: -1rem` で `root` の
+        // ボーダーボックス外に配置される開閉トグルであり、`root` に
+        // `overflow-x: hidden` を付けると `rail` の操作領域自体が
+        // クリップされ、折りたたみ後に再展開する手段が失われてしまう。
+        // `content` は既に自前で `overflow: auto`（`content_base`）を
+        // 持つため対象外でよい）。
         .state(
             "root",
             StateCondition::AttrEqAll(&[("data-state", "collapsed"), ("data-collapsible", "icon")]),
             vec![
                 decl("width", "var(--fandhe-sidebar-width-icon, 3rem)"),
                 decl("min-width", "var(--fandhe-sidebar-width-icon, 3rem)"),
-                decl("overflow-x", "hidden"),
             ],
         )
         // 折りたたみ幅（offcanvas）。`visibility: hidden` を併用する
@@ -740,6 +740,11 @@ fn recipe() -> SlotRecipe {
 /// 3. `variant="inset"` の `inset` パーツを面パネル化する子結合子セレクタ
 ///    （side ごとに margin の向きを変える 2 本）。
 /// 4. `side="right"` の `rail` 位置反転（子結合子セレクタ）。
+/// 5. icon 折りたたみ時の `header`/`footer` テキストクリップ（子結合子
+///    セレクタ。`root` 自身へ `overflow-x: hidden` を付けると `rail`
+///    〔`root` に対する絶対配置で `root` のボーダーボックス外へはみ出す
+///    開閉トグル〕がクリップされ再展開不能になるため、`root` ではなく
+///    `header`/`footer` パーツへ個別に付与する）。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();
@@ -941,6 +946,27 @@ pub fn stylesheet() -> String {
             decl("inset-inline-end", "auto"),
             decl("inset-inline-start", "-1rem"),
         ],
+    );
+
+    // icon 折りたたみ時の `header`/`footer` テキストクリップ。`root` は
+    // `position: relative` の基準要素であり、`rail`（`position: absolute`
+    // + `inset-inline-end: -1rem`）は `root` のボーダーボックス外へ意図的に
+    // はみ出して配置される開閉トグルである。`overflow-x: hidden` を `root`
+    // 自身へ付けると `rail` の描画・クリック領域ごとクリップされ、折りたた
+    // んだ後に再展開する手段が失われる（codex-review P1 / Cursor Bugbot
+    // 指摘「Icon collapse clips the rail」対応）。クリップ対象を `header`/
+    // `footer`（`header_footer_base` は自身に `overflow` を持たず、`root`
+    // の `min-width` 固定〔上記 [`recipe`] 参照〕だけでは内部テキストが
+    // 折りたたみ幅を超えてレール外へはみ出して見えてしまう）へ個別に
+    // 限定する。`content` は既に自前で `overflow: auto`（`content_base`）
+    // を持つため対象に含めない。
+    push(
+        &format!("{ICON_COLLAPSED} > [data-scope=\"sidebar\"][data-part=\"header\"]"),
+        &[decl("overflow-x", "hidden")],
+    );
+    push(
+        &format!("{ICON_COLLAPSED} > [data-scope=\"sidebar\"][data-part=\"footer\"]"),
+        &[decl("overflow-x", "hidden")],
     );
 
     out

@@ -280,7 +280,6 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
 [data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] {
   width: var(--fandhe-sidebar-width-icon, 3rem);
   min-width: var(--fandhe-sidebar-width-icon, 3rem);
-  overflow-x: hidden;
 }
 
 [data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"offcanvas\"] {
@@ -486,6 +485,14 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
 [data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"] > [data-scope=\"sidebar\"][data-part=\"rail\"] {
   inset-inline-end: auto;
   inset-inline-start: -1rem;
+}
+
+[data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] > [data-scope=\"sidebar\"][data-part=\"header\"] {
+  overflow-x: hidden;
+}
+
+[data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] > [data-scope=\"sidebar\"][data-part=\"footer\"] {
+  overflow-x: hidden;
 }
 ";
 
