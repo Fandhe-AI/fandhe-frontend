@@ -589,8 +589,10 @@ fn scope_resolution_buckets_match_expected_counts() {
     // Input Group（path 由来の kebab input-group が
     // data-scope="input-group" と一致）が加わり 100 -> 101、イシュー #2066
     // で Item（path 由来の kebab item が data-scope="item" と一致）が
-    // 加わり 101 -> 102 へ増える。
-    assert_eq!(bucket1_path_match, 102);
+    // 加わり 101 -> 102、イシュー #2060 で Button Group（path 由来の kebab
+    // button-group が data-scope="button-group" と一致）が加わり
+    // 102 -> 103 へ増える。
+    assert_eq!(bucket1_path_match, 103);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
@@ -703,6 +705,7 @@ fn overlay_disclosure_pages_include_all_required_sections() {
     const PATHS: &[&str] = &[
         "/themes/accordion/",
         "/themes/action-bar/",
+        "/themes/button-group/",
         "/themes/collapsible/",
         "/themes/dialog/",
         "/themes/drawer/",

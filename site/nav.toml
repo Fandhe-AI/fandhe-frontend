@@ -738,6 +738,11 @@ source = "site/themes/breadcrumb.md"
 path = "/themes/breadcrumb/"
 
 [[section.group.page]]
+title = "Button Group"
+source = "site/themes/button-group.md"
+path = "/themes/button-group/"
+
+[[section.group.page]]
 title = "Carousel"
 source = "site/themes/carousel.md"
 path = "/themes/carousel/"

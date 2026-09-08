@@ -10,13 +10,14 @@
 //! `data-*` 属性表・CSS 変数表（いずれも機械導出）と合成して 6 節ページを
 //! 組み立てる）。
 //!
-//! 対象は accordion・action-bar・collapsible・dialog・drawer・floating-panel・
-//! hover-card・menu・menubar・navigation-menu・popover・tabs・toast・
-//! toggle-tip・toolbar・tooltip・tour の 17 部品（トリガー起点の
-//! オーバーレイ、または項目開閉のディスクロージャ系。toolbar はイシュー
-//! #991、menubar はイシュー #992、navigation-menu はイシュー #993、
-//! collapsible はイシュー #1683 で追加、いずれも `showcase.rs` の Demo
-//! 登録込み）。`toggle`/`toggle-group`
+//! 対象は accordion・action-bar・button-group・collapsible・dialog・
+//! drawer・floating-panel・hover-card・menu・menubar・navigation-menu・
+//! popover・tabs・toast・toggle-tip・toolbar・tooltip・tour の 18 部品
+//! （トリガー起点のオーバーレイ、項目開閉のディスクロージャ系、または
+//! role="group" の静的グループ化系。toolbar はイシュー #991、menubar は
+//! イシュー #992、navigation-menu はイシュー #993、collapsible はイシュー
+//! #1683、button-group はイシュー #2060（headless anatomy は #2059）で
+//! 追加、いずれも `showcase.rs` の Demo 登録込み）。`toggle`/`toggle-group`
 //! はショーケース CSS 未登録により Demo を持たないため（`crates/docs-site/src/showcase.rs`
 //! を変更しないという #946 時点の受け入れ条件 4 の制約。#991/#992 の
 //! Phase 8 には同制約は適用されない）、本モジュールには含めず
@@ -510,6 +511,54 @@ pub const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "role=\"separator\"",
             description: "separator に付与。aria-orientation=\"vertical\" を伴う。",
+        },
+    ],
+    demo: None,
+};
+
+/// `/themes/button-group/`（Interactive カテゴリ）。
+///
+/// 一次情報: `crates/headless-ui/src/button_group.rs`（イシュー #2059、親
+/// #2058。モジュール doc・`root`/`separator`/`text` シグネチャ・
+/// `role="group"`/`role="separator"`/`aria-orientation` の実出力テスト）と
+/// `crates/pre-styled-ui/src/button_group.rs`（イシュー #2060。recipe・raw
+/// CSS 追記の設計根拠）。参照基準は shadcn/ui のみ（`docs/design/
+/// component-coverage-map.md` shadcn/ui 参照軸、ark-ui / chakra-ui / Radix
+/// のいずれにも対応部品がない）。
+pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "関連ボタンを角丸・境界線でひとつのグループに見せる静的なグループ化コンテナ（shadcn/ui Button Group 相当）。Root / Separator / Text の 3 anatomy パーツを持つ。",
+        "`crate::toolbar` の roving tabindex（矢印キーでフォーカスが移動する複合ウィジェット）とは異なり、状態機械を持たない静的なグループである。子 button のフォーカス順序はネイティブの Tab 順序に委ねる。",
+        "先頭・末尾以外の隣接要素の角丸・開始側境界線幅を pre-styled-ui 側の raw CSS 追記（`[data-scope=\"button-group\"][data-part=\"root\"] > <child>:not(:first-child)` 等）で無効化し、1 つの連結表示に見せる。対象は button / input / text / menu trigger / select trigger の 5 種。",
+        "`data-orientation` による横並び（既定）/ 縦積みの切り替え（root に固定出力、`aria-orientation` は role=\"group\" へ許可されないため付与しない）。",
+        "separator はグループ自身の向きと直交する `aria-orientation`/`data-orientation` を出力する（横並びグループの区切り線は縦線になる、`crate::toolbar::separator` と同じ判断）。",
+        "ネスト（グループの中にグループ）を許容する。`:has()` の先例がないため、内側 root は角丸連結対象へ含めず、代わりに先頭以外の内側グループへ margin のみ付与する（shadcn の `:has(>[data-slot=button-group])` gap 相当の代替表現）。",
+        "size / variant / color-palette いずれの軸も提供しない（子の寸法に従属するレイアウト部品、`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d)）。バリデーション・送信処理等のアプリケーションロジックは内包しない（`.claude/rules/coding-rust.md` §3.25）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "orientation",
+            kind: "Orientation",
+            default: "Orientation::Horizontal",
+            description: "root の data-orientation に反映する向き（Horizontal/Vertical）。separator へは直交した値が渡る。",
+        },
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "",
+            description: "root に付与する aria-label（空文字列のときは省略）。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "root に付与（aria-orientation は role=\"group\" に許可されないため付与しない）。",
+        },
+        AriaRow {
+            attribute: "role=\"separator\" / aria-orientation",
+            description: "separator に付与。グループ自身の向きと直交する値になる。",
         },
     ],
     demo: None,

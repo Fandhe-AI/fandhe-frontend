@@ -626,6 +626,64 @@ fn avatar_group_and_badge_emit_no_self_produced_data_attrs() {
     );
 }
 
+/// `button_group.rs`（イシュー #2060、親 #2058、headless anatomy は #2059）
+/// の `root`/`separator` が出力する `data-orientation` はいずれも headless
+/// `fandhe_frontend_headless_ui::button_group` が生成するものであり、
+/// `button_group::stylesheet()` はそれを CSS セレクタとして**参照する**
+/// だけで自前出力はしないことを固定する（`input_group_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。`text` は独自の `data-*` を一切持たない。
+#[test]
+fn button_group_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::button_group::{self, Orientation};
+
+    let horizontal_root = render(&button_group::root(
+        Orientation::Horizontal,
+        "",
+        vec![],
+        vec![],
+    ));
+    assert!(horizontal_root.contains(r#"data-orientation="horizontal""#));
+    let vertical_root = render(&button_group::root(
+        Orientation::Vertical,
+        "",
+        vec![],
+        vec![],
+    ));
+    assert!(vertical_root.contains(r#"data-orientation="vertical""#));
+
+    // separator はグループ自身と直交する data-orientation を持つ（headless
+    // `crate::toolbar::separator` と同型の判断、`src/button_group.rs`
+    // モジュール doc 参照）。
+    let horizontal_group_sep = render(&button_group::separator(
+        Orientation::Horizontal,
+        vec![],
+        vec![],
+    ));
+    assert!(horizontal_group_sep.contains(r#"data-orientation="vertical""#));
+    let vertical_group_sep = render(&button_group::separator(
+        Orientation::Vertical,
+        vec![],
+        vec![],
+    ));
+    assert!(vertical_group_sep.contains(r#"data-orientation="horizontal""#));
+
+    // text は anatomy 属性（data-scope/data-part）以外の data-* を出力しない。
+    let text_html = render(&button_group::text(vec![], vec![]));
+    assert!(text_html.contains(r#"data-scope="button-group""#));
+    assert!(text_html.contains(r#"data-part="text""#));
+    let data_attr_count = text_html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "text は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={text_html}"
+    );
+
+    // `button_group::stylesheet()` は `[data-orientation=` を CSS セレクタ
+    // として参照するだけで、自前で `data-*` を組み立てて出力する経路
+    // （属性タプルの直接構築）を持たない。
+    let css = button_group::stylesheet();
+    assert!(css.contains("[data-orientation="));
+}
+
 /// `kbd.rs`（イシュー #2048、shadcn/ui `KbdGroup` 突合）の pre-styled-only
 /// `group` パートも `avatar::group`/`badge` と同型で独自の `data-*` を
 /// 一切出力しない。出力に現れる `data-*` は headless

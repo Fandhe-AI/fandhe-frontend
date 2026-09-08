@@ -581,9 +581,11 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives。現在 2 件（`button_group`/`command`）。`button_group` は
-/// イシュー #2059 時点では headless-ui 層のみを実装しており、Themes ページ・
-/// pre-styled-ui recipe は後続 #2060 で追加する。`command` も同じ経緯で
+/// Primitives。現在 1 件（`command`）。`button_group` は #2059 時点では
+/// headless-ui 層のみを実装しており暫定的にこの台帳へ載っていたが、イシュー
+/// #2060 で Themes 層（`crates/pre-styled-ui/src/button_group.rs`・
+/// `site/themes/button-group.md`）を実装済みのため除外した（`collapsible`/
+/// `field`/`fieldset`/`input_group` と同じ経緯）。`command` も同じ経緯で
 /// イシュー #2068 時点では headless-ui 層のみを実装しており、Themes ページ・
 /// pre-styled-ui recipe は後続 #2070 で追加する。`input_group` はイシュー
 /// #2062 が headless-ui 層を新設した時点では暫定的にこの台帳へ載っていたが、
@@ -597,7 +599,7 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["button_group", "command"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["command"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
