@@ -1,11 +1,13 @@
-//! Primitives Demo — Data Display / Utilities（10 件、原稿は #1029）。
+//! Primitives Demo — Data Display / Utilities（11 件、原稿は #1029。
+//! イシュー #2065 で `item` 追加、旧 10）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
-use fandhe_frontend_core::{li, text, ul, Node};
+use fandhe_frontend_core::{button, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::avatar::{self, ImageStatus};
 use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
+use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
 use hui::positioning::{Align, Placement, Side};
 use hui::scroll_area;
@@ -93,6 +95,56 @@ pub(super) fn carousel_section() -> Node {
         ],
     )];
     demo_page("Carousel", body)
+}
+
+/// Item（イシュー #2065）の Demo。10 パーツ（root/media/content/title/
+/// description/actions/header/footer/group/separator）すべてを描画する
+/// （`anatomy_coverage_matches_known_uncovered_exactly` が `.part("…")`
+/// 集合と Demo の完全一致を要求するため）。`group` の中に `root`（div）+
+/// `separator` + `root`（a、`example.com` への外部リンク。サイト内部
+/// パスへの直リンクは linkcheck の base_path 解決対象になるため、他の
+/// Demo と同じく RFC 2606 予約ドメインのダミー URL を使う）を並べ、
+/// `group` が
+/// `role="group"` を持つこと（`role="list"` ではない、`item` モジュール
+/// doc の意図的差分）を Anatomy 表から確認できるようにする。
+pub(super) fn item_section() -> Node {
+    let div_item = item::root(
+        ItemRootProps {
+            variant: ItemVariant::Outline,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            item::header(vec![], vec![text("New")]),
+            item::media(ItemMediaVariant::Icon, vec![], vec![text("🔔")]),
+            item::content(
+                vec![],
+                vec![
+                    item::title(vec![], vec![text("First item")]),
+                    item::description(vec![], vec![text("A short description.")]),
+                ],
+            ),
+            item::actions(
+                vec![],
+                vec![button(vec![("type", "button")], vec![text("Open")])],
+            ),
+            item::footer(vec![], vec![text("Updated just now")]),
+        ],
+    );
+    let separator = item::separator(vec![], vec![]);
+    let link_item = item::root(
+        ItemRootProps {
+            href: Some("https://example.com/items/42"),
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            item::media(ItemMediaVariant::Image, vec![], vec![]),
+            item::content(vec![], vec![item::title(vec![], vec![text("Second item")])]),
+        ],
+    );
+    let group = item::group("Recent items", vec![], vec![div_item, separator, link_item]);
+    demo_page("Item", vec![group])
 }
 
 pub(super) fn json_tree_view_section() -> Node {
