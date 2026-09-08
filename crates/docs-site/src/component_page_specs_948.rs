@@ -84,7 +84,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::Date
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps, HighlightVariant};
-use fandhe_frontend_pre_styled_ui::kbd::{kbd, KbdProps, KbdVariant};
+use fandhe_frontend_pre_styled_ui::kbd::{group as kbd_group, kbd, KbdProps, KbdVariant};
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
@@ -605,10 +605,35 @@ fn kbd_example() -> Node {
     ])
 }
 
+/// `group`（イシュー #2048、shadcn/ui `KbdGroup` 相当）の Examples 用デモ。
+/// 複数の kbd を横並びで組み合わせ表示する pre-styled-only パート。
+fn kbd_group_example() -> Node {
+    row(vec![
+        kbd_group(
+            vec![],
+            vec![
+                kbd(&KbdProps::default(), vec![], vec![text("⌘")]),
+                kbd(&KbdProps::default(), vec![], vec![text("⇧")]),
+                kbd(&KbdProps::default(), vec![], vec![text("⌥")]),
+                kbd(&KbdProps::default(), vec![], vec![text("⌃")]),
+            ],
+        ),
+        kbd_group(
+            vec![],
+            vec![
+                kbd(&KbdProps::default(), vec![], vec![text("Ctrl")]),
+                text("+"),
+                kbd(&KbdProps::default(), vec![], vec![text("B")]),
+            ],
+        ),
+    ])
+}
+
 const KBD_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "キーボード入力・ショートカット表示のための単一 recipe styled 部品（<kbd>）",
         "variant（raised/subtle/outline）3 種、size 5 段、colorPalette 6 値を持つ（イシュー #1436、code と同型の単一 recipe パターン）",
+        "group（shadcn/ui KbdGroup 相当、イシュー #2048）で複数の kbd を横並びに組み合わせ表示できる（headless anatomy に存在しない pre-styled-only パート）",
     ],
     arguments: &[
         ArgRow {
@@ -630,11 +655,18 @@ const KBD_SPEC: ComponentPageSpec = ComponentPageSpec {
             description: "colorPalette 軸。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "キーの組み合わせ・variant 3 種",
-        description: "複数の kbd をテキストで連結してショートカットを表現し、raised/subtle/outline の見た目を並べます。",
-        render: kbd_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "キーの組み合わせ・variant 3 種",
+            description: "複数の kbd をテキストで連結してショートカットを表現し、raised/subtle/outline の見た目を並べます。",
+            render: kbd_example,
+        },
+        ExampleEntry {
+            title: "キーの組み合わせ（group）",
+            description: "group（shadcn/ui KbdGroup 相当、イシュー #2048）で複数の kbd を横並びに組み合わせ表示します。button ページの「ボタン内の kbd」・tooltip ページの「kbd を含む tooltip」も合わせて参照してください。",
+            render: kbd_group_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,

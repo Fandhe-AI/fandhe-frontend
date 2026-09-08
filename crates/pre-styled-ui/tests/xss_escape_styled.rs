@@ -3821,7 +3821,7 @@ fn data_list_styled_root_and_parts_are_escaped_for_all_payloads() {
 #[test]
 fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
     use fandhe_frontend_pre_styled_ui::code::{code, CodeProps};
-    use fandhe_frontend_pre_styled_ui::kbd::{kbd, KbdProps};
+    use fandhe_frontend_pre_styled_ui::kbd::{group as kbd_group, kbd, KbdProps};
     use fandhe_frontend_pre_styled_ui::tag::{self, TagProps};
 
     for payload in payloads::all() {
@@ -3838,6 +3838,11 @@ fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
 
         let html = render(&kbd(&KbdProps::default(), vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "kbd children コンテキスト");
+
+        // (1) テキスト経路: kbd::group（イシュー #2048、shadcn/ui
+        // KbdGroup 相当の pre-styled-only パート）の children。
+        let html = render(&kbd_group(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "kbd::group children コンテキスト");
 
         let html = render(&code(&CodeProps::default(), vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "code children コンテキスト");
@@ -3908,6 +3913,30 @@ fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
         assert!(
             html.contains("fd-kbd--"),
             "kbd で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // (2)(3) 属性値経路 + data-scope/data-part 偽装除去: kbd::group
+        // （イシュー #2048）は recipe 由来クラスを持たないため呼び出し側
+        // `class`/`title` をそのまま通過させる契約（`crate::avatar::group`
+        // と同型）。エスケープ済みで出力されることのみを確認する。
+        let html = render(&kbd_group(vec![("class", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "kbd::group class 属性値コンテキスト");
+
+        let html = render(&kbd_group(vec![("title", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "kbd::group title 属性値コンテキスト");
+
+        let html = render(&kbd_group(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "kbd::group の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(
+            html.contains(r#"data-scope="kbd""#) && html.contains(r#"data-part="group""#),
+            "kbd::group の anatomy 属性が偽装で上書きされている: html={html}"
         );
 
         // (3) class 破棄経路: code はイシュー #1432 で variant/size/
