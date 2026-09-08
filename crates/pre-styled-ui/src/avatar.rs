@@ -124,8 +124,36 @@
 //! - headless 共通型の再エクスポート整備は #685 のスコープ。
 //! - 画像 `load`/`error` イベントの wasm グルーは headless 層 doc 記載済みの
 //!   既存スコープ外を継承する。
-//! - `Avatar.Group`（重ね表示・attached）部品の新設可否は #1554 のスコープ外
-//!   （Issue 化候補として記録）。
+//! - `Avatar.Group`（重ね表示・attached）部品は #1554 時点ではスコープ外
+//!   だったが、イシュー #2044 で `group`/`badge` パートとして実装した
+//!   （下記「イシュー #2044 の shadcn/ui 突合」節参照）。
+//!
+//! # イシュー #2044 の shadcn/ui 突合（badge / group の補完）
+//!
+//! shadcn/ui（Base UI 版 Avatar）と突合した結果、`AvatarBadge`（右下の状態
+//! ドット）と `AvatarGroup`（重なり表示 + `+N`）の 2 合成パターンが欠落して
+//! いたため、pre-styled-only の anatomy パート（[`group`]/[`badge`]）として
+//! 補完した（[`crate::dialog::footer`]/[`crate::dialog::body`] と同型。
+//! headless-ui（Primitives 層）は不変、`docs/policy/intentional-non-adoption.md`
+//! §3.25 規則 2 により装飾・レイアウトは pre-styled-ui の責務とする）。
+//!
+//! - **badge**: [`AvatarProps::with_badge`]（既定 `false`）を `true` にした
+//!   root のみ `overflow: visible` を解除し、[`badge`] パート（`<span>`、
+//!   [`AvatarBadgeProps`] で `size`/`palette` を指定）を右下に絶対配置する。
+//!   既定 palette は shadcn `bg-primary` に合わせ [`ColorPalette::Accent`]
+//!   とする。
+//! - **group**: [`group`] パート（`<div>`）が `-space-x-2` 相当の重なり間隔
+//!   を確保し、[`AvatarProps::stacked`]（既定 `false`）を `true` にした root
+//!   へ負のマージンと `box-shadow` によるリング（`--fandhe-color-bg`）を
+//!   付与する。`+N` の残数表示は独立パートを新設せず、`root(Subtle/Neutral,
+//!   stacked: true) + fallback("+3")` の既存パーツの組み合わせで表現する
+//!   （視覚的に通常の Avatar と同一のため、パート増を避ける）。
+//! - **意図的に合わせない点**: root 既定の `overflow: hidden` は
+//!   [`AvatarProps::with_badge`] が `false` のとき変更しない（純追加原則）。
+//!   `data-slot` 等 shadcn 固有の語彙・独自 `data-*` は持ち込まない
+//!   （`badge`/`group` は headless anatomy 由来の `data-scope`/`data-part`
+//!   以外の `data-*` を出力しない）。参照競合の判定（重なり量・リング幅・
+//!   badge 既定色・badge サイズ写像）は該当実装イシューの PR 本文へ記録する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -137,12 +165,27 @@ use crate::recipe::{
 // 必要な呼び出し側は `fandhe_frontend_headless_ui::avatar::Avatar` を直接 import する。
 pub use fandhe_frontend_headless_ui::avatar::{fallback, image, AvatarAction, ImageStatus};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+// イシュー #2044: pre-styled-only `group`/`badge` パート（[`group`]/[`badge`]
+// 関数）が headless の `Anatomy::part` を直接呼び出すために必要
+// （[`crate::dialog::footer`] と同型のパターン）。
+use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
-/// [`SlotRecipe::new`] に渡す slot 一覧（`crates/headless-ui/src/avatar.rs`
-/// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`]
-/// が一部パーツの CSS を出力しない fail-closed 側の不具合として現れるため、
-/// 変更時は両ファイルを合わせて確認する）。
-const SLOTS: &[&str] = &["root", "image", "fallback"];
+/// `data-scope="avatar"` を固定した本モジュール独自パート（`group`/`badge`）
+/// 用の anatomy（イシュー #2044）。headless-ui 側の `avatar::ANATOMY`
+/// （`crates/headless-ui/src/avatar.rs`）とは別のインスタンスだが `scope`
+/// 文字列は同一値であり、出力される `data-scope` 属性値は一致する
+/// （[`crate::dialog::ANATOMY`] と同型）。
+const ANATOMY: Anatomy = anatomy("avatar");
+
+/// [`SlotRecipe::new`] に渡す slot 一覧。先頭 3 件（`root`/`image`/
+/// `fallback`）は `crates/headless-ui/src/avatar.rs` の `ANATOMY.part(...)`
+/// 呼び出しと同期させる契約（ずれると [`stylesheet`] が一部パーツの CSS を
+/// 出力しない fail-closed 側の不具合として現れるため、変更時は両ファイルを
+/// 合わせて確認する）。イシュー #2044 で pre-styled-only 2 パート
+/// （`group`/`badge`。headless-ui の anatomy には存在せず、本モジュールだけ
+/// が出力する）を末尾へ追加し、計 5 件になった（[`crate::dialog`] の
+/// `footer`/`body` と同型）。
+const SLOTS: &[&str] = &["root", "image", "fallback", "group", "badge"];
 
 /// Avatar の外形（chakra-ui Avatar の `shape` variant を最小構成へ縮約）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -198,9 +241,61 @@ impl VariantValue for AvatarVariant {
     }
 }
 
+/// `stacked` 修飾 variant（axis `"stack"` / value `"stacked"`）。イシュー
+/// #2044 で追加。[`AvatarProps::stacked`] が `true` のときのみ [`root`] の
+/// `selection` へ渡す非公開 enum で、呼び出し側の公開 API
+/// （[`AvatarProps`]）には axis/value 文字列を露出しない
+/// （`crate::button::ButtonIcon` と同型のパターン）。`default_variant` を
+/// 登録しないため、`stacked: false`（既定）の class 出力・golden CSS は
+/// 不変のまま保たれる（純追加原則）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AvatarStack {
+    /// [`crate::avatar::group`] 内で重なり表示する root。
+    Stacked,
+}
+
+impl VariantValue for AvatarStack {
+    fn axis(self) -> &'static str {
+        "stack"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Stacked => "stacked",
+        }
+    }
+}
+
+/// `with_badge` 修飾 variant（axis `"overlay"` / value `"badge"`）。イシュー
+/// #2044 で追加。[`AvatarProps::with_badge`] が `true` のときのみ [`root`] の
+/// `selection` へ渡す非公開 enum（[`AvatarStack`] と同型）。`default_variant`
+/// を登録しないため、`with_badge: false`（既定）の class 出力・golden CSS は
+/// 不変のまま保たれる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AvatarBadgeOverlay {
+    /// [`crate::avatar::badge`] を子に持つ root（`overflow: visible` を要求）。
+    Badge,
+}
+
+impl VariantValue for AvatarBadgeOverlay {
+    fn axis(self) -> &'static str {
+        "overlay"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Badge => "badge",
+        }
+    }
+}
+
 /// [`root`] の設定（イシュー #1554 で `size`/`shape` の 2 引数から
 /// `variant`/`palette` を加えた 4 軸へ拡張し、可読性のため位置引数から
-/// Props 構造体へ移行した。[`crate::kbd::KbdProps`] と同型）。
+/// Props 構造体へ移行した。[`crate::kbd::KbdProps`] と同型）。イシュー
+/// #2044 で `stacked`/`with_badge` を追加した（いずれも既定 `false`。
+/// `AvatarProps::default()` の `class` 属性・golden CSS は変更前と完全一致
+/// のまま保たれる、本モジュール冒頭 rustdoc「イシュー #2044 の shadcn/ui
+/// 突合」節参照）。
 #[derive(Debug, Clone, Copy)]
 pub struct AvatarProps {
     /// サイズ variant（既定 `Md`）。
@@ -212,6 +307,13 @@ pub struct AvatarProps {
     /// colorPalette 軸（既定 `Neutral`。chakra Avatar の既定 colorPalette
     /// `gray` に合わせる）。
     pub palette: ColorPalette,
+    /// [`group`] 内で重なり表示するか（既定 `false`、イシュー #2044）。
+    /// `true` のとき負のマージンと `box-shadow` によるリングを付与する。
+    pub stacked: bool,
+    /// [`badge`] を子に持つか（既定 `false`、イシュー #2044）。`true` のとき
+    /// のみ `overflow: visible` を解除し、右下に絶対配置された badge が
+    /// 円のクリップで欠けないようにする。
+    pub with_badge: bool,
 }
 
 impl Default for AvatarProps {
@@ -221,6 +323,27 @@ impl Default for AvatarProps {
             shape: AvatarShape::Circle,
             variant: AvatarVariant::Subtle,
             palette: ColorPalette::Neutral,
+            stacked: false,
+            with_badge: false,
+        }
+    }
+}
+
+/// [`badge`] の設定（イシュー #2044、[`crate::kbd::KbdProps`] と同型）。
+#[derive(Debug, Clone, Copy)]
+pub struct AvatarBadgeProps {
+    /// サイズ（既定 `Md` = 12px。shadcn の 8/10/12px を Xs/Sm/Md へ写像し、
+    /// Lg/Xl は既存 space スケール段へ外挿する）。
+    pub size: Size,
+    /// colorPalette 軸（既定 `Accent`。shadcn `bg-primary` に合わせる）。
+    pub palette: ColorPalette,
+}
+
+impl Default for AvatarBadgeProps {
+    fn default() -> Self {
+        AvatarBadgeProps {
+            size: Size::Md,
+            palette: ColorPalette::Accent,
         }
     }
 }
@@ -380,6 +503,125 @@ fn recipe() -> SlotRecipe {
     ] {
         recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
+
+    // イシュー #2044（shadcn/ui 突合）: group/badge の補完。既存登録の後ろに
+    // 追加するのみで、上記の base/variant/default_variant は一切変更しない
+    // （純追加原則。`AvatarProps::default()` の `class` 属性は不変のまま）。
+    recipe = recipe
+        // `group`: shadcn `-space-x-2` 相当の重なり間隔。先頭子の負マージン
+        // （下記 `AvatarStack::Stacked`）は本 `padding-left` が打ち消す。
+        .base(
+            "group",
+            vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("padding-left", "var(--fandhe-space-2)"),
+            ],
+        )
+        // `stacked`（[`AvatarStack::Stacked`]）: group 内で重なり表示する
+        // root。`box-shadow` は自要素の描画のためリングは root の
+        // `overflow: hidden`（既定）にクリップされない。
+        .variant(
+            AvatarStack::Stacked,
+            "root",
+            vec![
+                decl("margin-left", "calc(-1 * var(--fandhe-space-2))"),
+                decl("box-shadow", "0 0 0 2px var(--fandhe-color-bg)"),
+            ],
+        )
+        // `with_badge`（[`AvatarBadgeOverlay::Badge`]）: badge を子に持つ
+        // root のみ `overflow: hidden`（既定）を解除する（本モジュール冒頭
+        // rustdoc「イシュー #2044 の shadcn/ui 突合」節参照）。
+        .variant(
+            AvatarBadgeOverlay::Badge,
+            "root",
+            vec![decl("overflow", "visible")],
+        )
+        // `badge` base: 右下の絶対配置ドット。`color`/`background` は
+        // [`AvatarBadgeProps::palette`] の palette variant（下記）が
+        // `--fandhe-palette`/`--fandhe-palette-fg` を供給する前提。
+        .base(
+            "badge",
+            vec![
+                decl("position", "absolute"),
+                decl("right", "0"),
+                decl("bottom", "0"),
+                // root からの局所的な重ね順（`--fandhe-z-index-*` の
+                // ページ全体スケールは持たない小さな整数値。
+                // `color_picker.rs`/`segment_group.rs` 等の局所 z-index と
+                // 同じ慣例、本モジュール冒頭 rustdoc「イシュー #2044」節）。
+                decl("z-index", "1"),
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
+                decl("background", "var(--fandhe-palette)"),
+                decl("color", "var(--fandhe-palette-fg)"),
+                decl("box-shadow", "0 0 0 2px var(--fandhe-color-bg)"),
+                decl("user-select", "none"),
+            ],
+        )
+        // badge size 5 段（shadcn 8/10/12px を Xs/Sm/Md へ写像、Lg/Xl は
+        // 既存 space スケール段へ外挿。`--fandhe-space-3-5` が存在しない
+        // ための判断、本モジュール冒頭 rustdoc 参照）。root の `size` 軸と
+        // 同じ (axis, value) を別 slot（`badge`）へ再登録するだけであり、
+        // `default_variant(Size::Md)`（root 用、既存登録済み）はそのまま
+        // badge にも適用される。
+        .variant(
+            Size::Xs,
+            "badge",
+            vec![
+                decl("width", "var(--fandhe-space-2)"),
+                decl("height", "var(--fandhe-space-2)"),
+            ],
+        )
+        .variant(
+            Size::Sm,
+            "badge",
+            vec![
+                decl("width", "var(--fandhe-space-2-5)"),
+                decl("height", "var(--fandhe-space-2-5)"),
+            ],
+        )
+        .variant(
+            Size::Md,
+            "badge",
+            vec![
+                decl("width", "var(--fandhe-space-3)"),
+                decl("height", "var(--fandhe-space-3)"),
+            ],
+        )
+        .variant(
+            Size::Lg,
+            "badge",
+            vec![
+                decl("width", "var(--fandhe-space-4)"),
+                decl("height", "var(--fandhe-space-4)"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "badge",
+            vec![
+                decl("width", "var(--fandhe-space-5)"),
+                decl("height", "var(--fandhe-space-5)"),
+            ],
+        );
+
+    for palette in [
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+        ColorPalette::Neutral,
+    ] {
+        // badge は root の子要素のため root の `--fandhe-palette*` custom
+        // property が継承される（既定 Neutral のまま灰色ドットになる）のを
+        // 避けるため、badge slot 自身にも palette variant を登録する
+        // （本モジュール冒頭 rustdoc「イシュー #2044 の shadcn/ui 突合」節）。
+        recipe = recipe.variant(palette, "badge", palette_scale_declarations(palette));
+    }
     recipe
 }
 
@@ -395,6 +637,11 @@ pub fn stylesheet() -> String {
 /// の `class` は除去してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::avatar::root`] へ委譲する。
 ///
+/// イシュー #2044: `props.stacked`/`props.with_badge` が `true` のときのみ
+/// `selection` へ `("stack", "stacked")`/`("overlay", "badge")` を追加する
+/// （`crate::button::assemble` の `icon_only` 条件付き push と同型）。両方
+/// `false`（既定）のときは選択列・`class` 出力が変更前と完全に一致する。
+///
 /// # Examples
 ///
 /// ```
@@ -407,15 +654,94 @@ pub fn stylesheet() -> String {
 #[must_use]
 pub fn root<'a>(props: &AvatarProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[
+    let mut selection: Vec<(&str, &str)> = vec![
         ("size", props.size.value()),
         ("shape", props.shape.value()),
         ("variant", props.variant.value()),
         ("color-palette", props.palette.value()),
-    ]);
+    ];
+    if props.stacked {
+        selection.push((AvatarStack::Stacked.axis(), AvatarStack::Stacked.value()));
+    }
+    if props.with_badge {
+        selection.push((
+            AvatarBadgeOverlay::Badge.axis(),
+            AvatarBadgeOverlay::Badge.value(),
+        ));
+    }
+    let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::avatar::root(merged, children)
+}
+
+/// pre-styled-only `group` パート（`<div>`、イシュー #2044）を組み立てる。
+/// 複数の [`root`]（`stacked: true`）を重ねて表示するためのレイアウト専用
+/// パートであり、headless-ui の anatomy には存在しない（本モジュール冒頭
+/// rustdoc「イシュー #2044 の shadcn/ui 突合」節参照）。アプリケーション
+/// ロジック（選択・展開などのイベント配線）は持たない。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// （[`crate::dialog::footer`] と同型）ため、呼び出し側 `attrs` に含まれる
+/// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
+///
+/// `+N` の残数表示は独立パートを新設せず、`root(Subtle/Neutral, stacked:
+/// true)` + [`fallback`]（例: `"+3"`）の組み合わせで表現する（本モジュール
+/// 冒頭 rustdoc 参照）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::avatar;
+///
+/// let node = avatar::group(vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="avatar" data-part="group""#));
+/// ```
+#[must_use]
+pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("group", "div", attrs, children)
+}
+
+/// pre-styled-only `badge` パート（`<span>`、イシュー #2044）を組み立てる。
+/// [`root`]（`with_badge: true`）の右下に絶対配置される状態ドット
+/// （shadcn `AvatarBadge` 相当）で、headless-ui の anatomy には存在しない。
+/// `size`/`palette` に応じたクラスを付与する（[`drop_class_attr`] により
+/// 呼び出し側の `class` は除去してから合成する）。
+///
+/// クラス組み立てには [`SlotRecipe::variant_classes`] を使わない
+/// （`default_variant` を持つ `shape`/`variant`/`color-palette` 軸まで既定値
+/// 補完されてしまい `fd-avatar--shape-circle`/`fd-avatar--variant-subtle`
+/// が誤って付与されるため）。[`SlotRecipe::variant_class`] を `size`/
+/// `palette` の 2 回だけ呼んで連結し、`class` をこの 2 クラスのみに限定
+/// する（本モジュール冒頭 rustdoc「イシュー #2044 の shadcn/ui 突合」節）。
+///
+/// 子要素（アイコン等）は任意。badge 自体は装飾であるため、アクセシブル
+/// ネームが必要な場合は呼び出し側が [`root`] の `aria-label` 等で供給する
+/// こと（headless 層に用意された `role`/`aria-*` の自動付与はない）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
+///
+/// let node = avatar::badge(&AvatarBadgeProps::default(), vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="avatar" data-part="badge""#));
+/// ```
+#[must_use]
+pub fn badge<'a>(
+    props: &AvatarBadgeProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let recipe = recipe();
+    let size_class = recipe.variant_class(props.size);
+    let palette_class = recipe.variant_class(props.palette);
+    let class = format!("{size_class} {palette_class}");
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    ANATOMY.part("badge", "span", merged, children)
 }
 
 #[cfg(test)]
@@ -652,5 +978,173 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    // --- イシュー #2044: group / badge ---
+
+    #[test]
+    fn group_outputs_scope_and_part() {
+        let html = render(&group(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="avatar""#));
+        assert!(html.contains(r#"data-part="group""#));
+    }
+
+    #[test]
+    fn group_drops_caller_supplied_scope_and_part_spoofing() {
+        let html = render(&group(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="avatar""#));
+        assert!(html.contains(r#"data-part="group""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn badge_outputs_scope_and_part() {
+        let html = render(&badge(&AvatarBadgeProps::default(), vec![], vec![]));
+        assert!(html.contains(r#"data-scope="avatar""#));
+        assert!(html.contains(r#"data-part="badge""#));
+    }
+
+    #[test]
+    fn badge_drops_caller_supplied_scope_and_part_spoofing() {
+        let html = render(&badge(
+            &AvatarBadgeProps::default(),
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="avatar""#));
+        assert!(html.contains(r#"data-part="badge""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn default_avatar_props_class_is_unchanged_by_new_fields() {
+        // イシュー #2044 の `stacked`/`with_badge` フィールド追加が既存の
+        // `class` 出力（golden CSS 前提）を壊さないことの回帰。
+        let html = render(&root(&AvatarProps::default(), vec![], vec![]));
+        let class_start = html.find("class=\"").expect("class attr must exist") + "class=\"".len();
+        let class_end = html[class_start..]
+            .find('"')
+            .map(|i| class_start + i)
+            .unwrap();
+        assert_eq!(
+            &html[class_start..class_end],
+            "fd-avatar--size-md fd-avatar--shape-circle fd-avatar--variant-subtle fd-avatar--color-palette-neutral"
+        );
+    }
+
+    #[test]
+    fn stacked_true_adds_stack_class() {
+        let props = AvatarProps {
+            stacked: true,
+            ..AvatarProps::default()
+        };
+        let html = render(&root(&props, vec![], vec![]));
+        assert!(html.contains("fd-avatar--stack-stacked"));
+    }
+
+    #[test]
+    fn with_badge_true_adds_overlay_class() {
+        let props = AvatarProps {
+            with_badge: true,
+            ..AvatarProps::default()
+        };
+        let html = render(&root(&props, vec![], vec![]));
+        assert!(html.contains("fd-avatar--overlay-badge"));
+    }
+
+    #[test]
+    fn badge_size_enumeration_maps_to_expected_classes() {
+        for (size, class) in [
+            (Size::Xs, "fd-avatar--size-xs"),
+            (Size::Sm, "fd-avatar--size-sm"),
+            (Size::Md, "fd-avatar--size-md"),
+            (Size::Lg, "fd-avatar--size-lg"),
+            (Size::Xl, "fd-avatar--size-xl"),
+        ] {
+            let props = AvatarBadgeProps {
+                size,
+                ..AvatarBadgeProps::default()
+            };
+            let html = render(&badge(&props, vec![], vec![]));
+            assert!(html.contains(class), "size={size:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn badge_palette_enumeration_maps_to_expected_classes() {
+        for (palette, class) in [
+            (ColorPalette::Accent, "fd-avatar--color-palette-accent"),
+            (ColorPalette::Info, "fd-avatar--color-palette-info"),
+            (ColorPalette::Success, "fd-avatar--color-palette-success"),
+            (ColorPalette::Warning, "fd-avatar--color-palette-warning"),
+            (ColorPalette::Danger, "fd-avatar--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-avatar--color-palette-neutral"),
+        ] {
+            let props = AvatarBadgeProps {
+                palette,
+                ..AvatarBadgeProps::default()
+            };
+            let html = render(&badge(&props, vec![], vec![]));
+            assert!(html.contains(class), "palette={palette:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn badge_class_contains_only_size_and_palette_classes() {
+        // `variant_classes` を経由しないため `fd-avatar--shape-`/
+        // `fd-avatar--variant-` の既定値補完が付与されないことを固定する
+        // （本モジュール冒頭 rustdoc「イシュー #2044 の shadcn/ui 突合」節）。
+        let html = render(&badge(&AvatarBadgeProps::default(), vec![], vec![]));
+        let class_start = html.find("class=\"").expect("class attr must exist") + "class=\"".len();
+        let class_end = html[class_start..]
+            .find('"')
+            .map(|i| class_start + i)
+            .unwrap();
+        assert_eq!(
+            &html[class_start..class_end],
+            "fd-avatar--size-md fd-avatar--color-palette-accent"
+        );
+    }
+
+    #[test]
+    fn badge_class_attr_is_single_and_caller_class_is_dropped() {
+        let html = render(&badge(
+            &AvatarBadgeProps::default(),
+            vec![("class", "attacker-controlled")],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(!html.contains("attacker-controlled"));
+    }
+
+    #[test]
+    fn stylesheet_declares_group_and_badge_rules() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="avatar"][data-part="group"] {"#));
+        assert!(css.contains(r#"[data-scope="avatar"][data-part="badge"] {"#));
+        assert!(css.contains("fd-avatar--stack-stacked"));
+        assert!(css.contains("fd-avatar--overlay-badge"));
+        assert!(css.contains("overflow: visible;"));
+    }
+
+    #[test]
+    fn group_children_script_payload_is_escaped() {
+        let html = render(&group(vec![], vec![text("<script>alert(1)</script>")]));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    #[test]
+    fn badge_children_script_payload_is_escaped() {
+        let html = render(&badge(
+            &AvatarBadgeProps::default(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     }
 }

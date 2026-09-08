@@ -28,6 +28,7 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::progress::Progress;
+use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
@@ -424,4 +425,34 @@ fn progress_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     let css = progress::stylesheet();
     assert!(css.contains(r#"[data-state="indeterminate"]"#));
     assert!(css.contains(r#"[data-orientation="vertical"]"#));
+}
+
+/// `avatar.rs`（イシュー #2044、shadcn/ui 突合）の pre-styled-only
+/// `group`/`badge` パートは独自の `data-*` を一切出力しない（`docs/design/
+/// pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B、
+/// `dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs`
+/// と同型）。出力に現れる `data-*` は headless
+/// `fandhe_frontend_headless_ui::anatomy::Anatomy::part` が付与する
+/// `data-scope`/`data-part`（anatomy 属性）のみであることを固定する。
+#[test]
+fn avatar_group_and_badge_emit_no_self_produced_data_attrs() {
+    // group: anatomy 属性（data-scope/data-part）以外の data-* を出力しない。
+    let html = render(&avatar::group(vec![], vec![]));
+    assert!(html.contains(r#"data-scope="avatar""#));
+    assert!(html.contains(r#"data-part="group""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "group は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    // badge: anatomy 属性（data-scope/data-part）以外の data-* を出力しない。
+    let html = render(&avatar::badge(&AvatarBadgeProps::default(), vec![], vec![]));
+    assert!(html.contains(r#"data-scope="avatar""#));
+    assert!(html.contains(r#"data-part="badge""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "badge は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
 }

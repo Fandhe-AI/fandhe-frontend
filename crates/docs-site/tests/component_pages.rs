@@ -492,6 +492,13 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
                 "circle-range",
             ],
         ),
+        (
+            // イシュー #2044: shadcn/ui 突合の Demo 拡充（group_row/badge_row
+            // 追加）で avatar の 5 anatomy パーツ全てが Demo から機械導出
+            // されるようになったことを固定する。
+            "/themes/avatar/",
+            &["root", "image", "fallback", "group", "badge"],
+        ),
     ];
     for (path, expected_parts) in cases {
         let content = fandhe_frontend_docs_site::component_page::generated_content(path).unwrap();
