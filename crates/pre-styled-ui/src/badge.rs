@@ -351,6 +351,26 @@ pub fn badge<'a>(props: &BadgeProps, attrs: Vec<(&'a str, &'a str)>, children: V
 /// 検証対象属性であり、`javascript:` 等の危険なスキームは属性ごと出力
 /// されない（core の既定エスケープ経由、REQ-1）。
 ///
+/// # 予約属性（`href`/`target`/`rel`、イシュー #2045 codex-review P1 是正）
+///
+/// `href`/`target`/`rel`（大文字小文字を無視）は呼び出し側 `attrs` からの
+/// 上書きを許さない予約属性として扱う（[`drop_class_attr`] が `class` を
+/// 除去するのと同型の判断）。`href`/`target` は本関数の引数・`external`
+/// フラグのみが権威であり、`attrs` に同名キーが含まれていても無視して
+/// 除去する。`rel` は `external` の reverse tabnabbing 対策
+/// （`noopener noreferrer`）を保護トークンとして常に保持したうえで、
+/// `attrs` に渡された追加の `rel` トークンをその後ろへ 1 つの `rel`
+/// 属性として統合する（`opener` トークンは `noopener` 保護を無効化する
+/// ため、統合対象から明示的に除外する）。`external` が `false` のときは
+/// 保護トークンを持たないため、`attrs` の `rel` トークンをそのまま単一の
+/// `rel` 属性として出力する。
+///
+/// この統合を行わず `attrs` を無条件に後続連結すると、CSR 側
+/// （`fandhe_frontend_wasm_client::keyed_dom`）は属性を宣言順に
+/// `set_attribute` するため後勝ちで `noopener noreferrer` が消え、
+/// SSR（重複属性は先勝ち）と CSR とで実効値が食い違ったうえに
+/// reverse tabnabbing 対策自体が無効化され得る。
+///
 /// # Examples
 ///
 /// ```
@@ -382,12 +402,41 @@ pub fn link<'a>(
         ("size", props.size.value()),
         ("color-palette", props.palette.value()),
     ]);
+    // href/target/rel は予約属性（上記 rustdoc「予約属性」節参照）。class と
+    // 同様に呼び出し側 attrs からの上書きを許さず、rel のみ保護トークンを
+    // 保持したうえで呼び出し側の追加トークンを統合する。
+    let mut extra_rel_tokens: Vec<&str> = Vec::new();
+    let attrs: Vec<(&str, &str)> = drop_class_attr(attrs)
+        .into_iter()
+        .filter(|(k, v)| {
+            if k.eq_ignore_ascii_case("rel") {
+                extra_rel_tokens.extend(v.split_ascii_whitespace());
+                false
+            } else {
+                !k.eq_ignore_ascii_case("href") && !k.eq_ignore_ascii_case("target")
+            }
+        })
+        .collect();
+
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str()), ("href", href)];
+    let rel_value: String;
     if external {
         merged.push(("target", "_blank"));
-        merged.push(("rel", "noopener noreferrer"));
+        let mut tokens = vec!["noopener", "noreferrer"];
+        for token in &extra_rel_tokens {
+            let is_duplicate_or_opener = tokens.iter().any(|t| t.eq_ignore_ascii_case(token))
+                || token.eq_ignore_ascii_case("opener");
+            if !is_duplicate_or_opener {
+                tokens.push(token);
+            }
+        }
+        rel_value = tokens.join(" ");
+        merged.push(("rel", rel_value.as_str()));
+    } else if !extra_rel_tokens.is_empty() {
+        rel_value = extra_rel_tokens.join(" ");
+        merged.push(("rel", rel_value.as_str()));
     }
-    merged.extend(drop_class_attr(attrs));
+    merged.extend(attrs);
     ANATOMY.part("root", "a", merged, children)
 }
 
@@ -584,5 +633,72 @@ mod tests {
         let out = css();
         assert!(out.contains("[href]"));
         assert!(out.contains(":focus-visible"));
+    }
+
+    // --- イシュー #2045 PR #2225 codex-review P1: 予約属性の上書き防止 ---
+
+    /// `external=true` のとき、`attrs` に `rel`/`href`/`target` を渡しても
+    /// `noopener noreferrer` 保護が上書き・重複されず、`href`/`target` も
+    /// 関数引数・`external` フラグの値のまま単一属性として出力されることを
+    /// 固定する。
+    #[test]
+    fn link_external_true_attrs_cannot_override_protected_attrs() {
+        let html = render(&link(
+            "/releases/latest",
+            &BadgeProps::default(),
+            true,
+            vec![
+                ("rel", "nofollow"),
+                ("href", "https://attacker.example/"),
+                ("target", "_self"),
+            ],
+            vec![],
+        ));
+        assert_eq!(html.matches("href=\"").count(), 1);
+        assert!(html.contains(r#"href="/releases/latest""#));
+        assert!(!html.contains("attacker.example"));
+        assert_eq!(html.matches("target=\"").count(), 1);
+        assert!(html.contains(r#"target="_blank""#));
+        assert_eq!(html.matches("rel=\"").count(), 1);
+        assert!(html.contains(r#"rel="noopener noreferrer nofollow""#));
+    }
+
+    /// `rel="opener"` は `noopener` 保護を無効化するトークンのため、
+    /// 統合対象から除外され保護トークンのみが残ることを固定する。
+    #[test]
+    fn link_external_true_rejects_opener_token_in_extra_rel() {
+        let html = render(&link(
+            "/releases/latest",
+            &BadgeProps::default(),
+            true,
+            vec![("rel", "opener")],
+            vec![],
+        ));
+        assert!(html.contains(r#"rel="noopener noreferrer""#));
+        assert!(!html.contains("noopener noreferrer opener"));
+    }
+
+    /// `external=false` のとき `href`/`target` は上書きできないが、
+    /// 保護契約を持たない `rel` は呼び出し側の値がそのまま単一属性として
+    /// 出力されることを固定する。
+    #[test]
+    fn link_external_false_href_target_reserved_but_rel_passthrough() {
+        let html = render(&link(
+            "/releases/latest",
+            &BadgeProps::default(),
+            false,
+            vec![
+                ("rel", "nofollow"),
+                ("href", "https://attacker.example/"),
+                ("target", "_self"),
+            ],
+            vec![],
+        ));
+        assert_eq!(html.matches("href=\"").count(), 1);
+        assert!(html.contains(r#"href="/releases/latest""#));
+        assert!(!html.contains("attacker.example"));
+        assert!(!html.contains("target="));
+        assert_eq!(html.matches("rel=\"").count(), 1);
+        assert!(html.contains(r#"rel="nofollow""#));
     }
 }
