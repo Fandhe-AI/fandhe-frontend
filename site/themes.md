@@ -135,6 +135,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [Empty State](./themes/empty-state.md)
 - [Icon](./themes/icon.md)
 - [Image](./themes/image.md)
+- [Item](./themes/item.md)
 - [JSON Tree View](./themes/json-tree-view.md)
 - [Progress](./themes/progress.md)
 - [QR Code](./themes/qr-code.md)

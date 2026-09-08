@@ -11,16 +11,17 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 110 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 111 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
-`fieldset` はイシュー #1686、`input_group` はイシュー #2063 で追加）+
+`fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
+イシュー #2066 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。106 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。111 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
 操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
@@ -72,6 +73,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 静的フォーム部品 | `field`（§4f-1 参照。ラベル・補助テキスト・エラーテキストの型階層、`orientation` 軸のみ） | [field](../../site/themes/field.md) |
 | 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | [fieldset](../../site/themes/fieldset.md) |
 | 静的フォーム部品 | `input_group`（§4f-3 参照。入力欄の前後 addon、軸なし） | [input-group](../../site/themes/input-group.md) |
+| headless ラッパー | `item`（§4f-4 参照。media + title/description + actions からなる汎用リスト行。`variant`/`size` は headless の `data-variant`/`data-size` を AttrEq 参照するのみで class ベース軸を持たない） | [item](../../site/themes/item.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -758,6 +760,48 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   参照するだけで、値の妥当性判定・送信処理は実装しない。
 - **docs サイト**: [input-group](../../site/themes/input-group.md)
   （イシュー #2063 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-4. `item`（media + title/description + actions の汎用リスト行、イシュー #2066、headless anatomy は #2065）
+
+`item` モジュールは `fandhe_frontend_headless_ui::item` の anatomy
+（`root`/`media`/`content`/`title`/`description`/`actions`/`header`/
+`footer`/`group`/`separator` の 10 パーツ）へ、shadcn/ui の `Item` 相当の
+見た目を重ねる薄い委譲層である。
+
+- **公開 API**: 10 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::input_group` と同型のパターン）。
+  `ItemRootProps`/`ItemVariant`/`ItemSize`/`ItemMediaVariant` は headless
+  からの選択的再エクスポート。`stylesheet()`（`css()` ではない）が静的
+  CSS 全量を返す。
+- **variant/size は headless の `data-*` を `AttrEq` で参照するのみ
+  （意図的差分その 1）**: headless `item::root` が固定出力する
+  `data-variant`（`default`/`outline`/`muted`）/`data-size`（`default`/
+  `sm`）、`item::media` の `data-variant`（`default`/`icon`/`image`）を
+  `StateCondition::AttrEq` で参照するのみで、class ベースの
+  `SlotRecipe::variant`/`SlotRecipe::size_variants` は持たない
+  （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2「役割 B:
+  参照のみ」）。`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+  §4 (b) が container 部品に求める 5 段 `Size` 軸は、item の size が
+  headless 層で shadcn 語彙（2 値）へ固定済みのため二重符号化を避けて
+  新設しない。
+- **リンク時 hover: `[href]` 状態 + custom property 間接参照（意図的差分
+  その 2）**: `SlotRecipe` は `[href]:hover` の複合条件を表現できないため、
+  `crate::badge::link` と同じ `StateCondition::Attr("href")` パターンを
+  踏襲する。`root` base で `--fandhe-item-bg`/`--fandhe-item-hover-bg` の
+  2 個の custom property を定義し、hover 規則は
+  `background: var(--fandhe-item-hover-bg, var(--fandhe-item-bg))` の
+  ように fallback 付きで参照する（fallback を欠くと `href` を持たない
+  `div` root で背景が透明化する回帰があり、golden テストで固定済み）。
+- **raw CSS 追記**: `SlotRecipe` は子孫セレクタを表現できないため、
+  `stylesheet()` は `media[data-variant="image"] > img` への
+  `object-fit: cover` リセットを `serialize_rule` で追記する
+  （`crate::input_group` と同型のパターン）。
+- **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
+  §3.25 規則 1 のとおり、本モジュールはアプリケーションロジックを実装
+  しない。
+- **docs サイト**: [item](../../site/themes/item.md)
+  （イシュー #2066 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

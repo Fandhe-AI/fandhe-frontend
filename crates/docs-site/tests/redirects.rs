@@ -260,7 +260,7 @@ fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
         redirect::parse_redirects(&input).expect("site/redirects.toml should parse cleanly");
     assert_eq!(
         redirects.entries.len(),
-        113,
+        114,
         "site/redirects.toml の宣言件数が期待値と異なる: {:?}",
         redirects.entries
     );
@@ -301,9 +301,9 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         fandhe_frontend_docs_site::nav::parse_nav(&nav_input).expect("site/nav.toml should parse");
 
     // nav 側: `site/themes/<kebab>.md` を source に持つ全ページの
-    // (kebab, path) 集合（111 件、イシュー #1683 で 107 → 108、
+    // (kebab, path) 集合（112 件、イシュー #1683 で 107 → 108、
     // イシュー #1685 で 108 → 109、イシュー #1687 で 109 → 110、
-    // イシュー #2063 で 110 → 111）。
+    // イシュー #2063 で 110 → 111、イシュー #2066 で 111 → 112）。
     let themes_pages: Vec<(String, String)> = nav
         .all_pages()
         .filter_map(|p| {
@@ -315,8 +315,8 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         .collect();
     assert_eq!(
         themes_pages.len(),
-        111,
-        "expected 111 site/themes/ pages, got {}: {themes_pages:?}",
+        112,
+        "expected 112 site/themes/ pages, got {}: {themes_pages:?}",
         themes_pages.len()
     );
 

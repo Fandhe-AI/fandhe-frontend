@@ -983,7 +983,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 |---|---|---|---|---|---|---|---|---|---|
 | —（対応 md なし） | — | — | — | — | Button Group (`button-group`) | — | — | 実装対象 | ボタン群を単一の視覚的グループとして束ねる anatomy。Phase 4、#2058 |
 | —（対応 md なし） | — | — | — | — | Input Group (`input-group`) | `input_group` | `input_group` | 実装済み | headless+styled 実装済み（#2062 anatomy / #2063 recipe・Themes ページ）。root/addon/text/button の 4 slot + `data-align` 4 値、軸なし |
-| —（対応 md なし） | — | — | — | — | Item (`item`) | — | — | 実装対象 | リスト項目の汎用 anatomy（アイコン・テキスト・アクションの組み合わせ）。Phase 4、#2064 |
+| —（対応 md なし） | — | — | — | — | Item (`item`) | `item` | `item` | 実装済み | headless+styled 実装済み（#2065 anatomy / #2066 recipe・Themes ページ）。root/media/content/title/description/actions/header/footer/group/separator の 10 slot、`data-variant`/`data-size` を AttrEq 参照 |
 | —（対応 md なし） | — | — | — | — | Command (`command`) | — | — | 実装対象 | コマンドパレット（検索付き選択 UI）の anatomy。Phase 4、#2067 |
 | —（対応 md なし） | — | — | — | — | Sidebar (`sidebar`) | — | — | 実装対象 | アプリケーションシェルのサイドバー anatomy。Phase 4、#2071 |
 | —（対応 md なし） | — | — | — | — | Message (`message`) | — | — | 実装対象 | AI チャット UI のメッセージ表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2104。判定根拠の詳細は #2006 が §12 へ転記 |
@@ -1328,7 +1328,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 |---|---|---|---|
 | Button Group (`button-group`) | Part F | #2058 | 実装対象確定（Phase 4） |
 | Input Group (`input-group`) | Part F | #2061 | 実装済み（#2062 / #2063） |
-| Item (`item`) | Part F | #2064 | 実装対象確定（Phase 4） |
+| Item (`item`) | Part F | #2064 | 実装済み（#2065 / #2066） |
 | Command (`command`) | Part F | #2067 | 実装対象確定（Phase 4） |
 | Sidebar (`sidebar`) | Part F | #2071 | 実装対象確定（Phase 4） |
 | Message (`message`) | Part F | #2104 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |

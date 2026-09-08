@@ -225,19 +225,22 @@ ls site/themes/*.md | wc -l                                                     
 §6 は headless-ui ソース ↔ Primitives 台帳の**レイヤー内**ドリフト検知
 (`tests/primitives_catalog.rs`)の規約である。本節は Primitives(66 部品、
 イシュー #2059 で `button_group`・イシュー #2062 で `input_group`・
-イシュー #2065 で `item` をそれぞれ追加、旧 63)と Themes(111 部品、
-イシュー #2063 で `input_group` を追加、旧 110)の**層をまたぐラップ状態**
+イシュー #2065 で `item` をそれぞれ追加、旧 63)と Themes(112 部品、
+イシュー #2063 で `input_group`・イシュー #2066 で `item` をそれぞれ追加、
+旧 110)の**層をまたぐラップ状態**
 (どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
 テストは `crates/docs-site/tests/wrap_state.rs`(イシュー #1064)。
 
 **Primitives 側の未ラップ判定(イシュー #2059/#2065)**: `button_group` は
-イシュー #2059 で、`item` はイシュー #2065 で、それぞれ headless-ui 層のみを
-実装しており、pre-styled-ui recipe・Themes ページを持たない(後続 #2060/
-#2066 で追加予定)。このため `HEADLESS_UNWRAPPED`
+イシュー #2059 で headless-ui 層のみを実装しており、pre-styled-ui
+recipe・Themes ページを持たない(後続 #2060 で追加予定。`HEADLESS_UNWRAPPED`
 (`tests/wrap_state.rs`)・`PRIMITIVES_WITHOUT_THEMES_PAGE`
-(`src/primitives_catalog.rs`)の双方へ登録し、#2060/#2066 完了時に両リストから
-除外して `WRAPPED_SAME_NAME` へ移す想定。
+(`src/primitives_catalog.rs`)の双方へ登録済み、#2060 完了時に両リストから
+除外して `WRAPPED_SAME_NAME` へ移す想定)。`item` も同様にイシュー #2065 で
+headless-ui 層のみを実装していたが、イシュー #2066 で pre-styled-ui
+recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った(両リストからは
+除外済み)。
 
 ### 名寄せキー
 
@@ -260,11 +263,11 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 足すだけでカテゴリが変わる壊れやすい契約を避けるため、コード実体(`pub use`
 や関数呼び出し)を伴う参照のみを「ラップ済み」と呼ぶ。
 
-### Themes 111 部品の 4 バケット分割
+### Themes 112 部品の 4 バケット分割
 
 | バケット | 件数 | 定義 |
 |---|---|---|
-| WRAPPED_SAME_NAME | 64 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している(イシュー #1685 で `field`、イシュー #1687 で `fieldset`、イシュー #2063 で `input_group` を追加) |
+| WRAPPED_SAME_NAME | 65 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している(イシュー #1685 で `field`、イシュー #1687 で `fieldset`、イシュー #2063 で `input_group`、イシュー #2066 で `item` を追加) |
 | WRAPPED_CROSS_NAME | 5 | 同名 Primitives 部品は無いが、別名の headless 部品へコード委譲している |
 | DOC_REFERENCE_ONLY | 3 | headless 部品への参照が rustdoc のみ(コード委譲なし) |
 | PRE_STYLED_ONLY | 39 | headless 部品への参照がコード・rustdoc いずれにも無い |

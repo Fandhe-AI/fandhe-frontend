@@ -1013,6 +1013,102 @@ fn input_group_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// Item 経路（イシュー #2066）: 10 パーツいずれも見た目クラスを付与しない
+/// （`src/item.rs` モジュール doc「variant / size の表現」節参照）ため、
+/// 呼び出し側 `attrs`・`class`（[`drop_class_attr`] により除去）、
+/// `root` の `href`（危険スキームは headless 層の deny-by-default で属性
+/// ごと欠落）、`group` の `label`（`aria-label` エスケープ）、children の
+/// 各経路で既定エスケープ（REQ-1）が貫通することを固定する。
+#[test]
+fn item_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::item::{self, ItemMediaVariant, ItemRootProps};
+
+    for payload in payloads::all() {
+        // styled root（div）の呼び出し側 attrs 経路。
+        let html = render(&item::root(
+            ItemRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "item::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える）。
+        let html = render(&item::root(
+            ItemRootProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "item::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled root（a）の href 経路。危険スキームではない通常ペイロード
+        // が値としてそのままエスケープ済みで出力されることを確認する
+        // （危険スキームの拒否は headless 層 `crates/headless-ui/src/item.rs`
+        // のテストで固定済み、本テストは責務の重複を避ける）。
+        let href = format!("/docs/{payload}");
+        let html = render(&item::root(
+            ItemRootProps {
+                href: Some(&href),
+                external: true,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "item::root href コンテキスト");
+        // external: true は target/rel を不可分に付与する（headless 契約の
+        // 透過確認）。
+        assert!(html.contains(r#"target="_blank""#));
+        assert!(html.contains(r#"rel="noopener noreferrer""#));
+
+        // styled media の呼び出し側 attrs 経路。
+        let html = render(&item::media(
+            ItemMediaVariant::Icon,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "item::media attrs コンテキスト");
+
+        // styled content/title/description/actions/header/footer の
+        // 呼び出し側 attrs・children 経路。
+        let html = render(&item::content(
+            vec![("data-testid", payload)],
+            vec![
+                item::title(vec![], vec![text(payload)]),
+                item::description(vec![], vec![text(payload)]),
+            ],
+        ));
+        assert_payload_is_escaped(payload, &html, "item::content attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "item::title children コンテキスト");
+        assert_payload_is_escaped(payload, &html, "item::description children コンテキスト");
+
+        let html = render(&item::actions(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "item::actions attrs コンテキスト");
+
+        let html = render(&item::header(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "item::header attrs コンテキスト");
+
+        let html = render(&item::footer(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "item::footer attrs コンテキスト");
+
+        // styled group の label（aria-label）経路。
+        let html = render(&item::group(payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "item::group label コンテキスト");
+
+        // styled separator の呼び出し側 attrs 経路。
+        let html = render(&item::separator(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "item::separator attrs コンテキスト");
+    }
+}
+
 /// (8) NumberInput 経路（イシュー #738）: styled `root` の呼び出し側
 /// `attrs`・`class`、および headless-ui から選択的再エクスポートした
 /// `label` の children・`input` の `name` の 4 箇所すべてで既定エスケープ
