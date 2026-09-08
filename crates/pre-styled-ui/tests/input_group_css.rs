@@ -113,7 +113,6 @@ const INPUT_GROUP_GOLDEN_CSS: &str = "[data-scope=\"input-group\"][data-part=\"r
 }
 
 [data-scope=\"input-group\"][data-part=\"button\"][data-disabled] {
-  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -207,6 +206,22 @@ fn css_does_not_apply_opacity_to_root_disabled_state() {
     assert!(!css
         .contains("[data-scope=\"input-group\"][data-part=\"root\"][data-disabled] {\n  opacity"));
     assert!(css.contains("[data-scope=\"input-group\"][data-part=\"root\"][data-disabled] {\n  cursor: not-allowed;\n}"));
+}
+
+/// `button` は [`addon`] の子として配置される契約（モジュール doc
+/// 「`button` の disabled で opacity を持たない理由」節参照）であり、
+/// `addon` 自身の `opacity: 0.5` と重ねて `0.25` へ二重減光しないよう、
+/// `button` の `[data-disabled]` は `cursor: not-allowed` のみを持ち
+/// `opacity` を持たないことを固定する（Bugbot 指摘の回帰防止）。
+#[test]
+fn css_does_not_apply_opacity_to_button_disabled_state_to_avoid_double_dimming_inside_addon() {
+    let css = input_group::stylesheet();
+    assert!(!css.contains(
+        "[data-scope=\"input-group\"][data-part=\"button\"][data-disabled] {\n  opacity"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"input-group\"][data-part=\"button\"][data-disabled] {\n  cursor: not-allowed;\n}"
+    ));
 }
 
 /// `data-align` 4 値すべての state 規則が存在することを固定する。

@@ -69,6 +69,19 @@
 //! （[`crate::fieldset`] の `root` と同じ判断）。`root` の `[data-disabled]`
 //! は `cursor: not-allowed` のみ。
 //!
+//! # `button` の disabled で opacity を持たない理由
+//!
+//! [`button`] は現状すべての呼び出し箇所（`crates/docs-site` の showcase・
+//! primitive-showcase・原稿）で [`addon`] の子として配置される
+//! （shadcn/ui の `InputGroupButton` が常に `InputGroupAddon` の子である
+//! 構成に倣う）。[`addon`] が `[data-disabled]` で自前の `opacity: 0.5` を
+//! 持つため、内側の [`button`] にも同じ `opacity: 0.5` を重ねると
+//! `0.5 * 0.5 = 0.25` まで減光されてしまい（addon 内の他パーツ、例えば
+//! [`text`] は 0.5 のままで濃さが揃わない）、上記「`root` に
+//! `disabled_declarations()` を付与しない理由」と同型の二重適用になる。
+//! このため [`button`] の `[data-disabled]` は `cursor: not-allowed` のみ
+//! を持ち、減光は外側 [`addon`] の `opacity: 0.5` に一本化する。
+//!
 //! # raw CSS 追記の理由（[`crate::recipe::SlotRecipe`] が子結合子を
 //! 表現できないため）
 //!
@@ -266,7 +279,10 @@ fn recipe() -> SlotRecipe {
         .state(
             "button",
             StateCondition::Attr("data-disabled"),
-            disabled_declarations(),
+            // `opacity: 0.5` を持たない理由は `button` に対する
+            // モジュール doc「`button` の disabled で opacity を持たない
+            // 理由」節を参照。ここでは `cursor: not-allowed` のみを適用する。
+            vec![decl("cursor", "not-allowed")],
         )
 }
 
