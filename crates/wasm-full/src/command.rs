@@ -822,6 +822,7 @@ mod wiring {
         root: &Element,
         list_id: &str,
         on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
+        outer_focus_state: Option<FocusState>,
     ) {
         let Some((instance_root, list, input)) = resolve_command_parts_by_list_id(root, list_id)
         else {
@@ -832,9 +833,26 @@ mod wiring {
             .dyn_into::<HtmlInputElement>()
             .map(|el| el.value())
             .unwrap_or_default();
-        // dispatch 前のフォーカス状態を記録する（codex-review P1 是正、
-        // モジュール冒頭 doc「DOM 同期契約」節参照）。
-        let focus_state = capture_focus_state(&input);
+        // フォーカス状態の記録（codex-review P1 再是正）: `outer_focus_state`
+        // が渡された場合は、呼び出し側（[`handle_input`]/[`handle_keydown`]
+        // の `MoveSelection`/`Execute` 分岐）が**自身の dispatch より前**に
+        // 記録したスナップショットである。呼び出し側の dispatch が構造
+        // フォールバック再描画を誘発していれば、この時点で再解決した
+        // `input` は既にフォーカスを失っている（新規生成された要素は
+        // `document.active_element()` と一致しない）ため、ここで内部的に
+        // 改めて `capture_focus_state` すると `focused=false` を確定させて
+        // しまい連続入力・矢印操作が途切れる（元の P1 指摘）。
+        // `outer_focus_state.focused` が真なら、まずそれを再解決した
+        // `input` へ即座に復元してから `focus_state` として採用すること
+        // で、呼び出し側の dispatch・本関数自身の dispatch のどちらが
+        // 再描画を誘発しても正しく収束する（`restore_focus_state` は
+        // 既にフォーカス済みの要素に対しても副作用なく安全に呼べる）。
+        if let Some(state) = outer_focus_state.as_ref() {
+            if state.focused {
+                restore_focus_state(&input, state);
+            }
+        }
+        let focus_state = outer_focus_state.unwrap_or_else(|| capture_focus_state(&input));
         let items = collect_own_items(&list, &instance_root);
         let visible = visible_flags(&items, &query);
         let plan = {
@@ -1011,6 +1029,17 @@ mod wiring {
         // 常に安定して出力される。
         let list_id = list.id();
 
+        // dispatch（`ACTION_INPUT` の `on_action` 呼び出し）より前に
+        // フォーカス状態を記録する（codex-review P1 再是正）。この後の
+        // dispatch が構造フォールバック再描画を誘発すると `target_element`
+        // は detach され、`document.active_element()` との比較でしか
+        // フォーカス有無を判定できなくなる時点はもう手遅れになる。
+        // `target_element` はこの "input" イベントの `event.target()` で
+        // あり、本ハンドラの実行中は再描画の影響を受けず固定されているため
+        // （ブラウザのイベント dispatch 契約）、ここでの記録は dispatch 前
+        // の実際のフォーカス状態を正しく捉えられる。
+        let focus_state = capture_focus_state(target_element);
+
         if !target_element.has_attribute(ACTION_INPUT_ATTR) {
             let value = target_element
                 .clone()
@@ -1030,8 +1059,10 @@ mod wiring {
         // （codex-review P1 是正、[`reflect_filter`] doc「DOM 同期契約」
         // 節）。上の `on_action` 呼び出し・`wire_events` の既存 dispatch の
         // いずれが再描画を誘発していても、`target_element`/`list` を
-        // そのまま使い回さないため正しく動作する。
-        reflect_filter(root, &list_id, on_action);
+        // そのまま使い回さないため正しく動作する。上で記録した
+        // `focus_state` を渡すことで、この直前の dispatch による再描画で
+        // 失われたフォーカスも正しく復元できる（codex-review P1 再是正）。
+        reflect_filter(root, &list_id, on_action, Some(focus_state));
     }
 
     /// [`handle_input`] が dispatch 後の再解決に使う: `list_id`
@@ -1184,6 +1215,13 @@ mod wiring {
                 // （[`handle_input`] と同じ契約、[`reflect_filter`] doc
                 // 「DOM 同期契約」節参照）。
                 let list_id = list.id();
+                // dispatch（`ACTION_SELECT` の `on_action` 呼び出し）より
+                // 前にフォーカス状態を記録する（codex-review P1 再是正、
+                // [`handle_input`] と同じ理由）。`target_element` は本
+                // keydown イベントの `event.target()` であり、かつ関数冒頭
+                // で `matches_part(target_element, INPUT_PART)` を確認済み
+                // なので Input パーツそのものである。
+                let focus_state = capture_focus_state(target_element);
                 if let Some(value) = visible_items
                     .get(next_index)
                     .and_then(|el| el.get_attribute("data-value"))
@@ -1199,8 +1237,11 @@ mod wiring {
                 // `sync_selection` による `hidden`/`data-selected`/
                 // `aria-activedescendant` の直書きが失われ得る
                 // （codex-review P1・Bugbot High 是正）。`reflect_filter`
-                // に現在の絞り込み・選択状態の再反映を委ねる。
-                reflect_filter(root, &list_id, on_action);
+                // に現在の絞り込み・選択状態の再反映を委ねる。上で記録した
+                // `focus_state` を渡し、この直前の dispatch による再描画で
+                // 失われたフォーカスも正しく復元する（codex-review P1
+                // 再是正）。
+                reflect_filter(root, &list_id, on_action, Some(focus_state));
             }
             super::CommandKeyAction::Execute => {
                 let Some(list) = resolve_list(root, target_element) else {
@@ -1220,6 +1261,10 @@ mod wiring {
                 // 再描画をまたいで List パーツを再解決するための識別子
                 // （[`handle_input`]/`MoveSelection` 分岐と同じ契約）。
                 let list_id = list.id();
+                // dispatch（`ACTION_EXECUTE` の `on_action` 呼び出し）より
+                // 前にフォーカス状態を記録する（codex-review P1 再是正、
+                // `MoveSelection` 分岐と同じ理由）。
+                let focus_state = capture_focus_state(target_element);
                 if let Ok(mut cb) = on_action.try_borrow_mut() {
                     (cb)(ActionRef {
                         action: ACTION_EXECUTE.to_string(),
@@ -1230,8 +1275,13 @@ mod wiring {
                 // `hidden`/`aria-activedescendant` が再び失われ得る
                 // （codex-review P1 是正）。ダイアログが閉じる構成では
                 // `reflect_filter` 内の再解決が fail-closed に no-op と
-                // なるだけで安全に収束する。
-                reflect_filter(root, &list_id, on_action);
+                // なるだけで安全に収束する。上で記録した `focus_state` を
+                // 渡し、この直前の dispatch による再描画で失われたフォー
+                // カスも正しく復元する（codex-review P1 再是正。ダイアログ
+                // が閉じる構成では `outer_focus_state.focused` が真でも
+                // `resolve_command_parts_by_list_id` が `None` を返し
+                // no-op となるだけで安全）。
+                reflect_filter(root, &list_id, on_action, Some(focus_state));
             }
             super::CommandKeyAction::Close => {
                 if let Ok(mut cb) = on_action.try_borrow_mut() {
@@ -1312,6 +1362,10 @@ mod wiring {
             }
         }
 
+        // dispatch（`ACTION_SELECT` の `on_action` 呼び出し）より前に
+        // フォーカス状態を記録する（codex-review P1 再是正、
+        // [`handle_keydown`] の `MoveSelection` 分岐と同じ理由）。
+        let select_focus_state = capture_focus_state(&input);
         if let Ok(mut cb) = on_action.try_borrow_mut() {
             (cb)(ActionRef {
                 action: ACTION_SELECT.to_string(),
@@ -1324,10 +1378,22 @@ mod wiring {
         // Bugbot High 是正、[`handle_keydown`] の `MoveSelection` 分岐と
         // 同型）。続く `ACTION_EXECUTE` でダイアログが閉じる構成では
         // `reflect_filter` 内の再解決が fail-closed に no-op となるだけで
-        // 安全に収束する。
+        // 安全に収束する。上で記録した `select_focus_state` を渡し、この
+        // 直前の dispatch による再描画で失われたフォーカスも正しく復元
+        // する（codex-review P1 再是正）。
         if let Some(list_id) = list_id.as_deref() {
-            reflect_filter(root, list_id, on_action);
+            reflect_filter(root, list_id, on_action, Some(select_focus_state));
         }
+        // `ACTION_EXECUTE` の dispatch 直前にもフォーカス状態を再取得する
+        // （codex-review P1 再是正）。直前の `reflect_filter` 呼び出しが
+        // 構造フォールバック再描画を誘発している可能性があるため、
+        // `list_id` から生きた `input` を改めて解決してから記録する
+        // （見つからない・List パーツが detach 済み等はダイアログが閉じた
+        // ことを意味し得るため fail-closed に `None` へ倒す）。
+        let execute_focus_state = list_id
+            .as_deref()
+            .and_then(|id| resolve_command_parts_by_list_id(root, id))
+            .map(|(_, _, live_input)| capture_focus_state(&live_input));
         if let Ok(mut cb) = on_action.try_borrow_mut() {
             (cb)(ActionRef {
                 action: ACTION_EXECUTE.to_string(),
@@ -1338,9 +1404,11 @@ mod wiring {
         // `hidden`/`aria-activedescendant` が再び失われ得る（codex-review
         // P1 是正、[`handle_keydown`] の `Execute` 分岐と同型）。ダイアログ
         // が閉じる構成では `reflect_filter` 内の再解決が fail-closed に
-        // no-op となるだけで安全に収束する。
+        // no-op となるだけで安全に収束する。上で記録した
+        // `execute_focus_state` を渡し、この直前の dispatch による再描画で
+        // 失われたフォーカスも正しく復元する（codex-review P1 再是正）。
         if let Some(list_id) = list_id.as_deref() {
-            reflect_filter(root, list_id, on_action);
+            reflect_filter(root, list_id, on_action, execute_focus_state);
         }
     }
 
@@ -1393,14 +1461,27 @@ mod wiring {
         // `reflect_filter` は `list_id` から生きた DOM を再解決して
         // `input.value()`（＝保持された query）で絞り込みを再計算するため、
         // 再オープン直後から正しい絞り込み状態を復元できる）。
+        let list_id = root
+            .query_selector(DIALOG_SELECTOR)
+            .ok()
+            .flatten()
+            .filter(|dialog| !dialog.has_attribute("hidden"))
+            .and_then(|dialog| dialog.query_selector(LIST_SELECTOR).ok().flatten())
+            .map(|list| list.id())
+            .filter(|list_id| !list_id.is_empty());
+        if let Some(list_id) = list_id.as_deref() {
+            reflect_filter(root, list_id, on_action, None);
+        }
+        // `reflect_filter` 自身の内部 dispatch（絞り込み後の選択整合を
+        // 取るための `ACTION_SELECT`/`ACTION_DESELECT`）が構造フォール
+        // バック再描画を誘発した場合、上の `reflect_filter` 呼び出しより
+        // 前に解決した `dialog`/`input` 参照はもう detach 済みで、それへ
+        // `focus()` しても表示中の入力欄には作用しない（codex-review P1
+        // 是正: Ctrl/Cmd+K で開いた直後に検索入力を開始できない）。
+        // 生きた `dialog` を改めて再解決し、開いていることを確認してから
+        // その配下の `input` へ focus する。
         if let Some(dialog) = root.query_selector(DIALOG_SELECTOR).ok().flatten() {
             if !dialog.has_attribute("hidden") {
-                if let Some(list) = dialog.query_selector(LIST_SELECTOR).ok().flatten() {
-                    let list_id = list.id();
-                    if !list_id.is_empty() {
-                        reflect_filter(root, &list_id, on_action);
-                    }
-                }
                 if let Some(input) = dialog.query_selector(INPUT_SELECTOR).ok().flatten() {
                     if let Ok(html) = input.dyn_into::<HtmlElement>() {
                         let _ = html.focus();
