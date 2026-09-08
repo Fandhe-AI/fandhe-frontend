@@ -2447,7 +2447,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.142.2 とする。依存先 `fandhe-frontend-headless-ui` の version 要求は
 # main 側の 0.68.2 追随（`check-dep-versions --fix` 相当）をそのまま採用
 # する（下記参照）。
-version = "0.142.2"
+#
+# イシュー #2066: `item` モジュール新設（公開 API 純追加）に伴いマイナー
+# バンプする（0.142.2 → 0.143.0、0.x の破壊的変更ではない純追加のため
+# minor、`docs/ci/style-refresh-version-bump-operation.md` §5 と同じ運用）。
+version = "0.143.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
