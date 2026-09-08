@@ -132,6 +132,11 @@ source = "site/primitives/combobox.md"
 path = "/primitives/combobox/"
 
 [[section.group.page]]
+title = "Command"
+source = "site/primitives/command.md"
+path = "/primitives/command/"
+
+[[section.group.page]]
 title = "Editable"
 source = "site/primitives/editable.md"
 path = "/primitives/editable/"

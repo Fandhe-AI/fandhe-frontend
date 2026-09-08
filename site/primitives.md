@@ -33,6 +33,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 - [Checkbox Group](./primitives/checkbox-group.md)
 - [Color Picker](./primitives/color-picker.md)
 - [Combobox](./primitives/combobox.md)
+- [Command](./primitives/command.md)
 - [Editable](./primitives/editable.md)
 - [Field](./primitives/field.md)
 - [Fieldset](./primitives/fieldset.md)
