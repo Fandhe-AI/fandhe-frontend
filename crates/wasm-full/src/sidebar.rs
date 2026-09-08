@@ -11,15 +11,23 @@
 //! 切替・`menu-button` の tooltip hover 配線・`mobile` のメディアクエリ
 //! 判定。本モジュールがこれらを実装する。
 //!
-//! # trigger/rail クリック開閉（headless.rs への統合）
+//! # trigger/rail クリック開閉（headless.rs への統合、要オプトイン）
 //!
 //! trigger/rail のクリック開閉自体は `data-scope`/`data-part` から
 //! 文字列アクションへの静的マッピング表（[`crate::headless::MAPPING_TABLE`]）
-//! へ `(sidebar, trigger)`/`(sidebar, rail)` → `"toggle"` の 2 行を追加する
-//! ことで [`crate::headless::wire_headless_events`] 経由で成立させる（本
-//! モジュールでは扱わない。`Runtime::mount`/`Runtime::hydrate` が既存の
-//! headless 配線経路をそのまま通す）。本モジュールが配線するのは
-//! それ以外（キーボードショートカット・モバイル判定・tooltip）である。
+//! へ `(sidebar, trigger)`/`(sidebar, rail)` → `"toggle"` の 2 行を追加
+//! することで解決可能になる。**ただし** `Runtime::mount`/`Runtime::hydrate`
+//! はこのマッピングを自動では配線しない
+//! （[`crate::headless::wire_headless_events`] を呼ぶのはアプリ自身の
+//! 責務であり、`Self::wire`/`events::wire_events`〔`data-action` 属性
+//! ベース、headless-ui のマークアップとは無関係〕はこの経路を持たない、
+//! イシュー #2074 codex-review P1 是正）。実際に dispatch へ到達させる
+//! には、アプリが [`wiring::wire_sidebar_dispatch`] を自身の
+//! `Rc<RefCell<Sidebar>>` インスタンスとともに呼ぶ必要がある
+//! （`crate::headless_select::wire_select_value_text` と同型のオプトイン
+//! API、[`wiring::wire_sidebar_dispatch`] doc「なぜ `Runtime<C>` へ自動
+//! 配線しないか」参照）。本モジュール自身が配線するのはそれ以外
+//! （キーボードショートカット・モバイル判定・tooltip）である。
 //!
 //! # 2 層構成（`splitter.rs`/`headless_avatar.rs` と同型）
 //!
@@ -61,12 +69,16 @@
 //!
 //! [`crate::keynav`] モジュール doc の原則（状態を複製せず DOM 属性を単一
 //! 情報源にし、「決定」は対象要素へ `HtmlElement::click()` を合成して
-//! 既存の click → dispatch 経路へ委譲する）を踏襲する。本モジュールは
-//! `dispatch` チャネル（`on_action` コールバック）を一切持たず、
-//! Cmd/Ctrl+B・Escape（モバイル drawer 閉鎖）・外側クリック（同）は
-//! いずれも trigger（無ければ rail）へ click を合成するのみで、
-//! [`crate::headless::MAPPING_TABLE`] 経由の製品 dispatch 経路をそのまま
-//! 通す。
+//! 既存の click → dispatch 経路へ委譲する）を踏襲する。
+//! [`wiring::wire_sidebar_events`]（本番経路、`Runtime::wire_sidebar` が
+//! 呼ぶ）自体は `dispatch` チャネル（`on_action` コールバック）を一切
+//! 持たず、Cmd/Ctrl+B・Escape（モバイル drawer 閉鎖）・外側クリック（同）
+//! はいずれも trigger（無ければ rail）へ click を合成するのみである。
+//! この合成 click が実際に dispatch へ到達するかどうかは、アプリが
+//! [`wiring::wire_sidebar_dispatch`] を配線しているか次第（上記「trigger/
+//! rail クリック開閉」節参照）であり、`wire_sidebar_events` 単体では
+//! trigger/rail が DOM 上でクリック可能な状態になるだけで状態遷移は
+//! 起こらない。
 //!
 //! # `overlay::OverlayCloseController` へ統合しない理由
 //!
@@ -98,10 +110,12 @@
 //! - `Closure::forget` は provider（`[data-scope="sidebar"]
 //!   [data-part="provider"]`）が存在する場合のみマウント時 1 回・
 //!   定数個（document keydown 1・document pointerdown 1・root
-//!   pointerover/pointerout/focusin/focusout 4・`MediaQueryList` change 1・
-//!   `MutationObserver` 1 の計 8 個）で登録する。provider が存在しない
-//!   アプリでは 1 個も登録しない（非搭載アプリへの副作用なし、
-//!   `splitter::wire_splitter_events` と同じ契約）。
+//!   pointerover/pointerout/focusin/focusout 4・sidebar 状態変異検知用
+//!   `MutationObserver`（`data-state`、イシュー #2074 Cursor Bugbot
+//!   指摘是正で追加） 1・`MediaQueryList` change 1・モバイル判定用
+//!   `MutationObserver`（`childList`/`subtree`） 1 の計 9 個）で登録する。
+//!   provider が存在しないアプリでは 1 個も登録しない（非搭載アプリへの
+//!   副作用なし、`splitter::wire_splitter_events` と同じ契約）。
 //! - `window.match_media` の失敗（`Err`/`None`）はモバイル判定機能のみを
 //!   無効化し、trigger/rail クリック・Cmd/Ctrl+B・tooltip hover 配線は
 //!   継続する（多層防御、1 機能の失敗が他機能を道連れにしない）。
@@ -205,13 +219,14 @@ mod wiring {
         is_toggle_shortcut, should_collapse_on_enter_mobile, should_dismiss_mobile_drawer,
         split_describedby, tooltip_should_show, DEFAULT_MOBILE_MEDIA_QUERY,
     };
-    use std::cell::Cell;
+    use std::cell::{Cell, RefCell};
+    use std::collections::HashSet;
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{
         Element, Event, HtmlElement, KeyboardEvent, MediaQueryList, MouseEvent, MutationObserver,
-        MutationObserverInit, Node,
+        MutationObserverInit, MutationRecord, Node,
     };
 
     /// Sidebar の `data-scope` 属性値。
@@ -222,6 +237,8 @@ mod wiring {
     const ROOT_PART: &str = "root";
     /// Menu-button パーツの `data-part` 属性値。
     const MENU_BUTTON_PART: &str = "menu-button";
+    /// Menu-button パーツの CSS セレクタ。
+    const MENU_BUTTON_SELECTOR: &str = "[data-scope=\"sidebar\"][data-part=\"menu-button\"]";
     /// Tooltip の `data-scope` 属性値（`crates/headless-ui/src/tooltip.rs`）。
     const TOOLTIP_SCOPE: &str = "tooltip";
     /// Tooltip Content パーツの `data-part` 属性値。
@@ -378,6 +395,25 @@ mod wiring {
         let key = keyboard_event.key();
 
         if key == "Escape" {
+            // イシュー #2074 codex-review P1 是正: 内側の headless-ui 部品
+            // （例: モバイル drawer 内の Combobox）が同じ Escape を
+            // `keynav.rs` の Close 処理で既に消費・`prevent_default()` 済み
+            // の場合、Sidebar 側では再処理しない（`prevent_default()` は
+            // 「このキー入力はもう処理された」という他リスナーへの明示的な
+            // 合図であり、同一 document keydown リスナー内の他分岐
+            // （Cmd/Ctrl+B）が既に踏襲している契約と揃える）。
+            if keyboard_event.default_prevented() {
+                return;
+            }
+
+            // イシュー #2074 codex-review P1 是正: デスクトップの
+            // collapsed/icon 状態で focus/hover により開いている
+            // menu-button tooltip は `overlay::OverlayCloseController` に
+            // 登録されておらず（モジュール doc「`overlay::
+            // OverlayCloseController` へ統合しない理由」参照）、他に
+            // Escape で閉じる経路が無いため、本関数が完結させる。
+            close_open_menu_button_tooltips(root);
+
             let Some(provider) = find_first(root, PROVIDER_SELECTOR) else {
                 return;
             };
@@ -405,6 +441,19 @@ mod wiring {
                 return;
             };
             keyboard_event.prevent_default();
+
+            // イシュー #2074 Cursor Bugbot 指摘是正（Held shortcut
+            // repeatedly toggles sidebar）: OS のキーリピートによる連続
+            // `keydown`（`KeyboardEvent::repeat()` が真）は 1 回の押下として
+            // 扱い、押しっぱなしのたびに毎回トグルしない（ネイティブ
+            // `<button>` の Enter/Space キーリピートがクリックを連打しない
+            // のと同じ UX 契約）。ブラウザ既定動作の抑止（`prevent_default`）
+            // 自体は enabled な trigger/rail が見つかった押下について repeat
+            // 中も一貫して行うが、トグル自体（`click()` 合成）は最初の
+            // 押下（`repeat() == false`）でのみ行う。
+            if keyboard_event.repeat() {
+                return;
+            }
             html.click();
         }
     }
@@ -479,6 +528,21 @@ mod wiring {
     /// 参照）。`window`/`match_media` の失敗はモバイル判定機能のみを
     /// 無効化し `Err` を呼び出し側（[`wire_sidebar_events_with_query`]）へ
     /// 返す（呼び出し側はこの `Err` で他の配線を止めない）。
+    ///
+    /// # 登録順序（イシュー #2074 codex-review P1 是正）
+    ///
+    /// `MutationObserver`/`change` リスナーの登録は、初回の
+    /// [`apply_mobile_state`] 呼び出しより**先**に行う。モバイル
+    /// `Expanded` 開始かつ P1-1 是正（`sidebar::wire_sidebar_dispatch`）に
+    /// より trigger dispatch が構造再描画を行う構成では、初回呼び出しの
+    /// `entering_mobile` 分岐が合成する click →
+    /// dispatch（`SidebarAction::Toggle`）→ 呼び出し側 `on_update` の
+    /// 構造フォールバック再描画が、初回呼び出し自身が付けた `data-mobile`
+    /// を含む `provider`/`root` を巻き戻して消し得る。この巻き戻しを
+    /// `MutationObserver` が捕捉できるのは、その click 合成より前に
+    /// `observe` 済みである場合のみである（登録が初回呼び出しより後だと、
+    /// 巻き戻しを取りこぼしたまま次の DOM 変更・メディアクエリ変更まで
+    /// デスクトップ表示のまま残ってしまう）。
     fn wire_mobile(root: &Element, query: &str) -> Result<(), JsValue> {
         let window = web_sys::window().ok_or_else(|| JsValue::from_str("sidebar: no window"))?;
         let mql = window
@@ -486,9 +550,6 @@ mod wiring {
             .ok_or_else(|| JsValue::from_str("sidebar: matchMedia unsupported"))?;
 
         let was_mobile = Rc::new(Cell::new(false));
-
-        // 初回適用（マウント時点の viewport を反映）。
-        apply_mobile_state(root, &mql, &was_mobile);
 
         // `change`: viewport がブレークポイントをまたいだときに再適用する。
         let change_root = root.clone();
@@ -504,10 +565,11 @@ mod wiring {
         // headless の静的出力（既定 `mobile: false`）へ巻き戻されるのを
         // 再適用する。`childList`/`subtree` のみ監視し `attributes` は
         // 監視しないため、本関数自身が書き込む `data-mobile` の変更では
-        // 再発火しない（自己発火ループの構造的回避）。
+        // 再発火しない（自己発火ループの構造的回避）。上記 doc「登録順序」
+        // のとおり、初回 [`apply_mobile_state`] 呼び出しより先に登録する。
         let observer_root = root.clone();
         let observer_mql = mql.clone();
-        let observer_was_mobile = was_mobile;
+        let observer_was_mobile = was_mobile.clone();
         let observer_callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |_records: js_sys::Array, _observer: MutationObserver| {
                 apply_mobile_state(&observer_root, &observer_mql, &observer_was_mobile);
@@ -519,6 +581,10 @@ mod wiring {
         init.set_subtree(true);
         observer.observe_with_options(root, &init)?;
         observer_callback.forget();
+
+        // 初回適用（マウント時点の viewport を反映）。上記 `change`/
+        // `MutationObserver` の登録が完了した後に呼ぶ。
+        apply_mobile_state(root, &mql, &was_mobile);
 
         Ok(())
     }
@@ -570,8 +636,16 @@ mod wiring {
         None
     }
 
-    /// `hidden` 存在属性の付け外し。
+    /// `hidden` 存在属性の付け外し。既に望む状態であれば書き込みを行わない
+    /// （冪等化。イシュー #2074 是正で追加した属性 `MutationObserver`
+    /// （[`wire_sidebar_state_observer`]）が本関数自身の書き込みを再度
+    /// 拾って際限なく再発火するのを防ぐための必須条件、`headless_avatar.rs`
+    /// の `data-state`/`hidden` を `attributeFilter` から除外する設計とは
+    /// 異なるアプローチだが同じ目的）。
     fn set_hidden(element: &Element, hidden: bool) {
+        if element.has_attribute("hidden") == hidden {
+            return;
+        }
         if hidden {
             set_dom_attribute(element, "hidden", "");
         } else {
@@ -581,9 +655,14 @@ mod wiring {
 
     /// `data-state` を `"open"`/`"closed"` の固定リテラルへ設定する
     /// （tooltip の語彙、`crates/headless-ui/src/tooltip.rs` の
-    /// `OpenState::as_data_state` 出力と一致させる）。
+    /// `OpenState::as_data_state` 出力と一致させる）。既に望む値であれば
+    /// 書き込みを行わない（[`set_hidden`] と同じ冪等化理由）。
     fn set_tooltip_data_state(element: &Element, open: bool) {
-        set_dom_attribute(element, "data-state", if open { "open" } else { "closed" });
+        let desired = if open { "open" } else { "closed" };
+        if element.get_attribute("data-state").as_deref() == Some(desired) {
+            return;
+        }
+        set_dom_attribute(element, "data-state", desired);
     }
 
     /// `menu_button` の `aria-describedby` が指す tooltip content（と、
@@ -632,17 +711,83 @@ mod wiring {
         }
     }
 
+    /// `menu_button` の `aria-describedby` 値をそのまま tooltip インスタンス
+    /// の識別キーとして使う（複数 menu-button が独立した hover/focus 状態を
+    /// 持てるようにするため。同一 describedby を共有する複数 menu-button が
+    /// あれば状態を共有するが、`aria-describedby` は本来インスタンスごとに
+    /// 一意な id 列であるため実害はない）。
+    fn tooltip_instance_key(menu_button: &Element) -> Option<String> {
+        menu_button.get_attribute("aria-describedby")
+    }
+
+    /// [`tooltip_should_show`] の引数を `menu_button` から解決して評価する
+    /// 便宜関数（[`handle_tooltip_hover_event`]/[`recheck_menu_button_tooltips`]
+    /// で重複していた手順の共通化）。
+    fn tooltip_applicable(root: &Element, menu_button: &Element) -> bool {
+        let container = closest_sidebar_container(root, menu_button);
+        let (state, collapsible, mobile) = match &container {
+            Some(element) => (
+                element.get_attribute("data-state"),
+                element.get_attribute("data-collapsible"),
+                element.has_attribute("data-mobile"),
+            ),
+            None => (None, None, false),
+        };
+        tooltip_should_show(state.as_deref(), collapsible.as_deref(), mobile)
+    }
+
+    /// pointerover/pointerout・focusin/focusout の独立した入力チャネル
+    /// （イシュー #2074 codex-review P1 是正: `crate::tooltip` モジュール
+    /// doc「フォーカスと遅延の使い分け」契約と同じく、ポインタとフォーカス
+    /// のどちらが表示継続を要求しているかを独立に追跡する。片方の離脱
+    /// イベントだけで、もう片方がまだ表示を要求していても非表示にしては
+    /// ならない）。
+    ///
+    /// `menu_button` は複数存在しうるため、[`tooltip_instance_key`]
+    /// （`aria-describedby` 値）をキーにインスタンスごとの活性集合を保持
+    /// する。
+    struct TooltipHoverState {
+        hovering: RefCell<HashSet<String>>,
+        focused: RefCell<HashSet<String>>,
+    }
+
+    impl TooltipHoverState {
+        fn new() -> Self {
+            Self {
+                hovering: RefCell::new(HashSet::new()),
+                focused: RefCell::new(HashSet::new()),
+            }
+        }
+
+        /// もう一方のチャネルを含め、指定インスタンスがまだ表示継続を
+        /// 要求しているか。
+        fn stay_open(&self, key: &str) -> bool {
+            self.hovering.borrow().contains(key) || self.focused.borrow().contains(key)
+        }
+    }
+
     /// root 委譲の pointerover/pointerout/focusin/focusout ハンドラ。
-    /// `show` が `true`（pointerover/focusin）のときは
-    /// [`tooltip_should_show`] の判定に従い表示、`false`
-    /// （pointerout/focusout）のときは判定に関わらず必ず非表示にする
-    /// （hover/focus 離脱は表示条件が真であっても閉じる）。
+    ///
+    /// `is_pointer`（`true` = pointerover/pointerout、`false` =
+    /// focusin/focusout）と `entering`（`true` = pointerover/focusin、
+    /// `false` = pointerout/focusout）で該当チャネルの活性集合を更新した
+    /// 上で、[`TooltipHoverState::stay_open`]（もう一方のチャネルの状態も
+    /// 含む）が真の場合のみ [`tooltip_applicable`] の判定に従って表示し、
+    /// 偽（双方が非活性）の場合のみ非表示にする（イシュー #2074
+    /// codex-review P1 是正。従来は `pointerout`/`focusout` のいずれかで
+    /// 無条件に非表示にしており、`crate::tooltip` の契約に反していた）。
     ///
     /// `pointerout` は `related_target` が同じ menu-button 内であれば
-    /// 無視する（子要素間移動によるちらつき防止。`focusout` はバブリング
-    /// する `FocusEvent` だが `relatedTarget` 判定は行わない設計上の
-    /// 単純化、モジュール doc「スコープ外」節参照）。
-    fn handle_tooltip_hover_event(root: &Element, event: &Event, show: bool) {
+    /// 状態更新自体を行わない（子要素間移動によるちらつき防止。`focusout`
+    /// はバブリングする `FocusEvent` だが `relatedTarget` 判定は行わない
+    /// 設計上の単純化、モジュール doc「スコープ外」節参照）。
+    fn handle_tooltip_hover_event(
+        root: &Element,
+        hover_state: &TooltipHoverState,
+        event: &Event,
+        is_pointer: bool,
+        entering: bool,
+    ) {
         let Some(target) = event.target() else {
             return;
         };
@@ -652,8 +797,11 @@ mod wiring {
         let Some(menu_button) = closest_menu_button(root, target_element) else {
             return;
         };
+        let Some(key) = tooltip_instance_key(&menu_button) else {
+            return;
+        };
 
-        if !show {
+        if !entering && is_pointer {
             if let Some(mouse_event) = event.dyn_ref::<MouseEvent>() {
                 if let Some(related) = mouse_event.related_target() {
                     if let Ok(related_element) = related.dyn_into::<Element>() {
@@ -665,42 +813,134 @@ mod wiring {
             }
         }
 
-        let visible = if show {
-            let container = closest_sidebar_container(root, &menu_button);
-            let (state, collapsible, mobile) = match &container {
-                Some(element) => (
-                    element.get_attribute("data-state"),
-                    element.get_attribute("data-collapsible"),
-                    element.has_attribute("data-mobile"),
-                ),
-                None => (None, None, false),
-            };
-            tooltip_should_show(state.as_deref(), collapsible.as_deref(), mobile)
+        let channel = if is_pointer {
+            &hover_state.hovering
         } else {
-            false
+            &hover_state.focused
         };
+        if entering {
+            channel.borrow_mut().insert(key.clone());
+        } else {
+            channel.borrow_mut().remove(&key);
+        }
 
+        let visible = hover_state.stay_open(&key) && tooltip_applicable(root, &menu_button);
         apply_tooltip_visibility(root, &menu_button, visible);
     }
 
     /// `root` へ pointerover/pointerout/focusin/focusout の 4 リスナーを
     /// 委譲登録する（`collapsible=icon` 折りたたみ時の `menu-button`
     /// tooltip、モジュール doc「セキュリティ不変条件」§`Closure::forget`
-    /// 参照）。
+    /// 参照）。4 リスナーは [`TooltipHoverState`] を共有し、ポインタと
+    /// フォーカスの入力チャネルを独立に追跡する。
     fn wire_tooltip_hover(root: &Element) -> Result<(), JsValue> {
-        for (event_name, show) in [
-            ("pointerover", true),
-            ("pointerout", false),
-            ("focusin", true),
-            ("focusout", false),
+        let hover_state = Rc::new(TooltipHoverState::new());
+        for (event_name, is_pointer, entering) in [
+            ("pointerover", true, true),
+            ("pointerout", true, false),
+            ("focusin", false, true),
+            ("focusout", false, false),
         ] {
             let hover_root = root.clone();
+            let hover_state = hover_state.clone();
             let closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-                handle_tooltip_hover_event(&hover_root, &event, show);
+                handle_tooltip_hover_event(&hover_root, &hover_state, &event, is_pointer, entering);
             });
             root.add_event_listener_with_callback(event_name, closure.as_ref().unchecked_ref())?;
             closure.forget();
         }
+        Ok(())
+    }
+
+    /// `root` 配下の sidebar menu-button のうち、現在表示中の tooltip を
+    /// すべて非表示にする（Escape 押下時、イシュー #2074 codex-review P1
+    /// 是正「デスクトップ collapsed/icon 状態で focus/hover 表示中の
+    /// Tooltip を Escape で閉じられない」の是正。[`apply_tooltip_visibility`]
+    /// は冪等〔[`set_hidden`]/[`set_tooltip_data_state`] 参照〕なので、
+    /// 既に非表示の menu-button に対しても無害）。
+    fn close_open_menu_button_tooltips(root: &Element) {
+        for menu_button in query_all(root, MENU_BUTTON_SELECTOR) {
+            if menu_button.has_attribute("aria-describedby") {
+                apply_tooltip_visibility(root, &menu_button, false);
+            }
+        }
+    }
+
+    /// `root` 配下の sidebar menu-button それぞれについて、
+    /// [`tooltip_applicable`] が偽になった（例: `collapsed` → `expanded`
+    /// 遷移）にもかかわらず tooltip が開いたままのものを非表示に倒す
+    /// （イシュー #2074 Cursor Bugbot 指摘「Tooltip stays open after
+    /// expand」の是正）。[`wire_sidebar_state_observer`] から呼ばれる。
+    ///
+    /// hover/focus の入力チャネル自体（[`TooltipHoverState`]）は変更しない
+    /// （表示条件が再び真に戻ったとき、実際にまだ hover/focus 中であれば
+    /// 再表示は次の pointerover/focusin 等ではなく、このまま `stay_open`
+    /// が真の状態を保持している。ただし本関数は非表示化のみを行い、決して
+    /// 新規に表示はしない: 表示はユーザー入力イベント経由でのみ起こる
+    /// べきという既存の設計を踏襲する）。
+    fn recheck_menu_button_tooltips(root: &Element) {
+        for menu_button in query_all(root, MENU_BUTTON_SELECTOR) {
+            if !menu_button.has_attribute("aria-describedby") {
+                continue;
+            }
+            if !tooltip_applicable(root, &menu_button) {
+                apply_tooltip_visibility(root, &menu_button, false);
+            }
+        }
+    }
+
+    /// [`recheck_menu_button_tooltips`] を、sidebar 本体（`provider`/
+    /// `root` パーツ）の `data-state` 属性変異を検知して呼び出す
+    /// `MutationObserver` を配線する（イシュー #2074 Cursor Bugbot 指摘
+    /// 「Tooltip stays open after expand」の是正）。
+    ///
+    /// `attributeFilter` は `"data-state"` のみに絞るが、tooltip 自身が
+    /// [`apply_tooltip_visibility`] 経由で書き込む `data-state`（`data-scope
+    /// ="tooltip"` の要素）も同じ属性名のため `root` 配下の変異として拾って
+    /// しまう。コールバック内で変異対象要素の `data-scope` が `"sidebar"`
+    /// であることを再検証してから [`recheck_menu_button_tooltips`] を呼ぶ
+    /// ことで、tooltip 自身の書き込みには反応しない（`headless_avatar.rs::
+    /// wire_avatar_src_observer` と同型の防御的二重チェック）。
+    /// [`set_hidden`]/[`set_tooltip_data_state`] の冪等化と合わせた二重の
+    /// 自己発火ループ対策。
+    fn wire_sidebar_state_observer(root: &Element) -> Result<(), JsValue> {
+        let observed_root = root.clone();
+        let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
+            move |records: js_sys::Array, _observer: MutationObserver| {
+                let mut relevant = false;
+                for record in records.iter() {
+                    let Ok(record) = record.dyn_into::<MutationRecord>() else {
+                        continue;
+                    };
+                    if record.type_() != "attributes" {
+                        continue;
+                    }
+                    let Some(target) = record.target() else {
+                        continue;
+                    };
+                    let Some(element) = target.dyn_ref::<Element>() else {
+                        continue;
+                    };
+                    if !observed_root.contains(Some(element)) {
+                        continue;
+                    }
+                    if element.get_attribute("data-scope").as_deref() != Some(SIDEBAR_SCOPE) {
+                        continue;
+                    }
+                    relevant = true;
+                }
+                if relevant {
+                    recheck_menu_button_tooltips(&observed_root);
+                }
+            },
+        );
+        let observer = MutationObserver::new(callback.as_ref().unchecked_ref())?;
+        let init = MutationObserverInit::new();
+        init.set_attributes(true);
+        init.set_subtree(true);
+        init.set_attribute_filter(&js_sys::Array::of1(&JsValue::from_str("data-state")));
+        observer.observe_with_options(root, &init)?;
+        callback.forget();
         Ok(())
     }
 
@@ -770,6 +1010,7 @@ mod wiring {
         wire_keydown(&root)?;
         wire_pointerdown(&root)?;
         wire_tooltip_hover(&root)?;
+        wire_sidebar_state_observer(&root)?;
 
         // モバイル判定機能の失敗は他機能を止めない（モジュール doc
         // 「セキュリティ不変条件」参照）。エラー自体は握りつぶさず、
@@ -780,10 +1021,61 @@ mod wiring {
 
         Ok(())
     }
+
+    /// trigger/rail クリック（実クリックおよび本モジュールが合成する
+    /// click）を [`fandhe_frontend_headless_ui::sidebar::Sidebar`] 自身の
+    /// dispatch へ橋渡しする公開 API（イシュー #2074 codex-review P1
+    /// 是正: `crate::headless::MAPPING_TABLE` へ `(sidebar, trigger)`/
+    /// `(sidebar, rail)` → `"toggle"` を追加しただけでは、`root` へ
+    /// [`crate::headless::wire_headless_events`] を実際に登録する呼び出しが
+    /// どこにも存在せず、trigger/rail のクリックが dispatch へ到達しない
+    /// 構造的欠落があった。モジュール冒頭 doc・`Runtime::wire_sidebar`
+    /// （`crates/wasm-full/src/lib.rs`）の従来の doc コメントが「
+    /// `Self::wire`/`events::wire_events` の既存経路で成立している」と
+    /// 誤って記載していた点も本イシューで是正した。
+    ///
+    /// # なぜ `Runtime<C>` へ自動配線しないか
+    ///
+    /// `crate::headless::wire_headless_events`/`action_from_parts` は
+    /// `root` 配下の**すべての** `MAPPING_TABLE` 行（`collapsible`/
+    /// `dialog`/`accordion`/`tree-view` 等 20 行以上）を同一の
+    /// `ActionRef{action, payload}` として解決し、要素の識別情報は一切
+    /// 保持しない。アプリの単一フラットな最上位状態 `C` の
+    /// `Component::decode_action` へこれを直接橋渡しすると、同じ `root`
+    /// 配下に複数の headless-ui 部品（例: Sidebar と Collapsible が
+    /// 両方とも `"toggle"` を dispatch する）が同居する場合に「どの部品の
+    /// クリックか」を判別する手段が失われる（本質的な曖昧性であり、
+    /// `docs/design/wasm-full-architecture.md` §12.7 が `Runtime<C>` への
+    /// 自動統合を明示的にスコープ外としている理由）。このため本 API は
+    /// `crate::headless_select::wire_select_value_text`/
+    /// `crate::headless_signature_pad` と同型の**オプトイン**設計とし、
+    /// アプリが自身の `Rc<RefCell<Sidebar>>`
+    /// （headless-ui の `Sidebar` 自体が `Component` を実装しており、
+    /// `root` スコープの 1 インスタンスへの dispatch が一意に定まる）を
+    /// 渡して呼び出す契約とする。`root` は Sidebar インスタンスの anatomy
+    /// 境界（`provider`）を含む要素であること（`Self::mount`/
+    /// `Self::hydrate` に渡すアプリ全体の `root` である必要はなく、
+    /// provider を含む部分木の任意の祖先でよい）。
+    ///
+    /// `on_update` は dispatch 成功時のみ呼ばれ、DOM への `data-state`/
+    /// `aria-expanded` 等の反映（再描画）は呼び出し側の責務である
+    /// （[`crate::headless::wire_headless_component`] の既存契約）。
+    ///
+    /// # Errors
+    ///
+    /// [`crate::headless::wire_headless_component`]
+    /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    pub fn wire_sidebar_dispatch(
+        root: Element,
+        component: Rc<RefCell<fandhe_frontend_headless_ui::sidebar::Sidebar>>,
+        on_update: impl FnMut(&fandhe_frontend_headless_ui::sidebar::Sidebar, &Element) + 'static,
+    ) -> Result<(), JsValue> {
+        crate::headless::wire_headless_component(root, component, on_update)
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::{wire_sidebar_events, wire_sidebar_events_with_query};
+pub use wiring::{wire_sidebar_dispatch, wire_sidebar_events, wire_sidebar_events_with_query};
 
 #[cfg(test)]
 mod tests {

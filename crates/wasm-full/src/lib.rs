@@ -1683,14 +1683,44 @@ where
     /// へ配線する（イシュー #2074）。`Self::mount`/`Self::hydrate` の双方
     /// から `Self::wire_number_input` の直後に 1 回だけ呼ばれる。
     ///
-    /// trigger/rail のクリック開閉自体は `dispatch` チャネルを要さず
-    /// [`crate::headless::MAPPING_TABLE`] 経由で既に成立している
-    /// （`Self::wire`/`events::wire_events` の既存経路）ため、本メソッドは
-    /// [`sidebar::wire_sidebar_events`] へ `root` を渡すだけで、他の
-    /// `wire_*` メソッドのような `component`/`binding_table`/
-    /// `keyed_list_cache` の受け渡しを必要としない（`sidebar` モジュールが
-    /// 一切 `dispatch` を持たず click 合成のみで完結する設計、
-    /// `sidebar.rs` モジュール doc「click 合成で完結させる設計」参照）。
+    /// 本メソッドは [`sidebar::wire_sidebar_events`] へ `root` を渡すだけで、
+    /// 他の `wire_*` メソッドのような `component`/`binding_table`/
+    /// `keyed_list_cache` の受け渡しを行わない（`Self::wire`/
+    /// `events::wire_events` は `data-action` 属性ベースの委譲であり、
+    /// headless-ui のマークアップ（`data-scope`/`data-part`）には適合
+    /// しないため、本メソッド自身は sidebar の `dispatch` チャネルを
+    /// 持たない）。
+    ///
+    /// # trigger/rail クリックが実際に dispatch へ届くにはオプトインが必要
+    /// （イシュー #2074 codex-review P1 是正）
+    ///
+    /// `crate::headless::MAPPING_TABLE` に `(sidebar, trigger)`/
+    /// `(sidebar, rail)` → `"toggle"` の 2 行があるだけでは trigger/rail の
+    /// クリックは dispatch へ到達しない。`Self::wire`/`events::wire_events`
+    /// は `data-action` 属性のみを見るため MAPPING_TABLE を一切参照せず、
+    /// また本メソッド（`Runtime::mount`/`Runtime::hydrate` の一部として
+    /// 自動実行される経路）も `crate::headless::wire_headless_events`/
+    /// `wire_headless_component` を呼ばない。これは見落としではなく、
+    /// `root` 配下の全 `MAPPING_TABLE` 行を同一の
+    /// `ActionRef{action, payload}` として解決するこの配線を、識別情報を
+    /// 持たない単一フラットな `Runtime<C>` の `C` へ自動的に橋渡しすると、
+    /// 同じ `root` に複数の headless-ui 部品が同居する場合に「どの部品の
+    /// クリックか」を判別できない構造的な曖昧性があるため
+    /// （`docs/design/wasm-full-architecture.md` §12.7 が `Runtime<C>` への
+    /// 自動統合を明示的にスコープ外としている理由と同じ）。
+    ///
+    /// Sidebar の trigger/rail クリックを実際に開閉へ結び付けたいアプリは、
+    /// 自身が保持する `Rc<RefCell<fandhe_frontend_headless_ui::sidebar::
+    /// Sidebar>>` を [`sidebar::wire_sidebar_dispatch`]
+    /// （`headless_select::wire_select_value_text` と同型のオプトイン API）
+    /// へ渡して個別に配線する必要がある。本メソッドはそれを呼ばない
+    /// （呼ぶための `Sidebar` インスタンスを `Runtime<C>` は持たないため）。
+    ///
+    /// `sidebar` モジュール自身（[`sidebar::wire_sidebar_events`]）が
+    /// 配線する Cmd/Ctrl+B・モバイル drawer 切替・tooltip hover は、いずれも
+    /// trigger（無ければ rail）へ `click` を合成するのみで完結し、
+    /// 上記オプトインが無いアプリでは合成 click も無反応のまま
+    /// （`sidebar.rs` モジュール doc「click 合成で完結させる設計」参照）。
     ///
     /// # fail-closed（Sidebar 非搭載アプリへの副作用なし）
     ///

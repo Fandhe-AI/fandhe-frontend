@@ -905,34 +905,53 @@ tooltip hover 配線・`mobile` のメディアクエリ判定自体をいずれ
 「呼び出し文脈」「スコープ外」節）。`crates/wasm-full/src/sidebar.rs` が
 その配線を実装する。
 
-### 24.1 trigger/rail クリック開閉は `MAPPING_TABLE` の 2 行で完結
+### 24.1 trigger/rail クリック開閉は `MAPPING_TABLE` の 2 行 + アプリ側のオプトイン配線が必要（イシュー #2074 codex-review P1 是正）
 
-trigger/rail のクリック開閉自体は新規モジュールを要さず、
 `headless.rs::MAPPING_TABLE` へ `(sidebar, trigger)`/`(sidebar, rail)` →
-`"toggle"`（`requires_value: false`）の 2 行を追加するだけで
-`wire_headless_events`/`Self::wire` 経由の既存製品経路（クリック →
-`SidebarAction::Toggle` dispatch）が成立する（§12.3 参照）。`rail` は
+`"toggle"`（`requires_value: false`）の 2 行を追加するだけでは
+trigger/rail のクリックは dispatch へ到達**しない**（本イシューの初回
+実装時点の誤り）。`Self::wire`/`events::wire_events` は `data-action`
+属性のみを見る委譲であり `MAPPING_TABLE` を一切参照しないため、
+`Runtime::mount`/`Runtime::hydrate` は本表を自動では配線しない。`rail` は
 `tabindex="-1"` でキーボードフォーカス対象外だが、マウス/タッチの click
-イベント自体は他ボタンと同様に発火するため本表 1 行で足りる。
+イベント自体は他ボタンと同様に発火する。
 
-### 24.2 `sidebar.rs` の 2 層構成と `dispatch` チャネルを持たない設計
+実際に dispatch へ到達させるには、アプリが自身の
+`Rc<RefCell<fandhe_frontend_headless_ui::sidebar::Sidebar>>` を
+[`wiring::wire_sidebar_dispatch`]（`crate::headless::wire_headless_component`
+の薄いラッパー）へ渡して個別に配線する必要がある
+（`crate::headless_select::wire_select_value_text` と同型のオプトイン
+API）。`Runtime<C>` の単一フラットな最上位状態 `C` へ自動的に
+`wire_headless_events` を橋渡ししない設計上の理由は §12.7 と同じ:
+`MAPPING_TABLE` の解決結果 `ActionRef{action, payload}` は要素の識別
+情報を持たないため、同じ `root` に複数の headless-ui 部品（例: Sidebar
+と Collapsible が両方とも `"toggle"` を dispatch する）が同居する場合に
+「どの部品のクリックか」を判別できない構造的な曖昧性がある。
+
+### 24.2 `sidebar.rs` の 2 層構成・`wire_sidebar_events` 自身は `dispatch` チャネルを持たない
 
 Cmd/Ctrl+B・モバイル drawer 切替・tooltip hover 配線は新設
 `crates/wasm-full/src/sidebar.rs` が担う。`splitter.rs`/
 `headless_avatar.rs` と同型の 2 層構成（純粋ロジック層 +
 `#[cfg(target_arch = "wasm32")] mod wiring`）を採るが、`splitter`/
-`angle_slider` と異なり `on_action` コールバック（dispatch チャネル）を
-一切持たない。Cmd/Ctrl+B・Escape（モバイル drawer 閉鎖）・外側クリック
-（同）はいずれも trigger（無ければ rail）へ `HtmlElement::click()` を
-合成するのみで、§24.1 の `MAPPING_TABLE` 経由の製品 dispatch 経路を
-そのまま通す（`crate::keynav` モジュール doc の「状態を複製せず、決定は
-対象要素への click 合成で既存経路へ委譲する」原則を踏襲）。
+`angle_slider` と異なり `wire_sidebar_events` 自体は `on_action`
+コールバック（dispatch チャネル）を一切持たない。Cmd/Ctrl+B・Escape
+（モバイル drawer 閉鎖）・外側クリック（同）はいずれも trigger（無ければ
+rail）へ `HtmlElement::click()` を合成するのみで、§24.1 の
+`MAPPING_TABLE` 経由の dispatch 経路をそのまま通す（`crate::keynav`
+モジュール doc の「状態を複製せず、決定は対象要素への click 合成で
+既存経路へ委譲する」原則を踏襲）。ただし §24.1 のとおり、アプリが
+`wiring::wire_sidebar_dispatch` を別途配線していなければこの合成
+click も無反応のまま（trigger/rail はクリック可能な DOM 要素になるが
+状態は変化しない）。
 
 `Runtime::wire_sidebar(root)`（private）は `sidebar::wire_sidebar_events(root)`
 を呼ぶだけの薄いラッパーであり、`Self::mount`/`Self::hydrate` の双方から
 `Self::wire_number_input` の直後に 1 回だけ呼ばれる。他の `wire_*` と
 異なり `component`/`binding_table`/`keyed_list_cache` を受け渡さない
-（dispatch チャネルを持たないため）。
+（`wire_sidebar_events` 自体が dispatch チャネルを持たないため。
+`wiring::wire_sidebar_dispatch` は `Runtime::wire_sidebar` からは呼ばれず、
+アプリが自身の `Sidebar` インスタンスとともに個別に呼ぶ）。
 
 ### 24.3 `data-mobile` の書き込み主体は wasm
 
@@ -966,12 +985,22 @@ true/false のメディアクエリを注入するための API であり、DOM 
 `MOBILE_BREAKPOINT = 768` 相当）はその薄いラッパーであり
 `Runtime::wire_sidebar` が呼ぶ本番経路である。
 
-### 24.4 モバイル drawer の Escape・外側クリック閉鎖
+**登録順序（イシュー #2074 codex-review P1 是正）**: `wire_mobile` は
+`change` リスナー・`MutationObserver` の登録を初回の `apply_mobile_state`
+呼び出しより**先**に行う。モバイル `Expanded` 開始かつ
+`wiring::wire_sidebar_dispatch`（§24.1）が配線済みの構成では、初回呼び
+出しの `entering_mobile` 分岐が合成する click → dispatch →
+呼び出し側 `on_update` の構造フォールバック再描画が、初回呼び出し自身が
+付けた `data-mobile` を含む `provider`/`root` を巻き戻して消し得る。
+この巻き戻しを `MutationObserver` が捕捉できるのは、その click 合成
+より前に `observe` 済みである場合のみである。
+
+### 24.4 モバイル drawer・sidebar tooltip の Escape・外側クリック閉鎖
 
 `overlay::OverlayCloseController`（イシュー #585）は sidebar を知らず、
 headless `drawer` scope も wasm-full では配線されていないため、
 `sidebar.rs` 内で document keydown（Escape）・document pointerdown
-（外側クリック）を独立に完結させる。両者とも
+（外側クリック）を独立に完結させる。モバイル drawer の閉鎖は両者とも
 `should_dismiss_mobile_drawer(mobile, state)`（`data-mobile` あり
 かつ `data-state="expanded"`）が真のときのみ trigger/rail へ click を
 合成する。pointerdown は sidebar `root`・trigger・rail いずれの内側でも
@@ -979,6 +1008,20 @@ headless `drawer` scope も wasm-full では配線されていないため、
 なるため）。Cmd/Ctrl+B のキー判定（`is_toggle_shortcut`）と Escape 判定は
 同一の document keydown リスナー 1 個にまとめている
 （`Closure::forget` 定数個契約、§24.6 参照）。
+
+**Escape の 2 点是正（イシュー #2074 codex-review P1）**:
+
+- **内側部品が消費済みの Escape を再処理しない**: Escape 分岐の先頭で
+  `event.default_prevented()` を確認し、真なら即座に `return` する
+  （モバイル drawer 内の Combobox 等、`keynav.rs` の Close 処理が既に
+  `prevent_default()` 済みの Escape をこの関数が二重処理してしまう
+  不具合の是正。Cmd/Ctrl+B 分岐が既に踏襲していた契約と揃えた）。
+- **デスクトップの sidebar tooltip も Escape で閉じる**: Escape 分岐は
+  モバイル drawer 判定へ進む前に `close_open_menu_button_tooltips(root)`
+  を呼び、collapsed/icon 状態で focus/hover により開いている
+  `menu-button` tooltip（§24.5）を無条件に非表示へ倒す（この tooltip は
+  `OverlayCloseController` にも未登録のため、他に Escape で閉じる経路が
+  無かった）。
 
 ### 24.5 `collapsible=icon` 折りたたみ時の `menu-button` tooltip
 
@@ -992,9 +1035,32 @@ root へ pointerover/pointerout/focusin/focusout の 4 リスナーを委譲登�
 かつ `data-scope="tooltip"` `data-part="content"` の要素のみを採用する。
 表示/非表示は `hidden` 存在属性と `data-state`（`"open"`/`"closed"`、
 `crates/headless-ui/src/tooltip.rs::OpenState::as_data_state` と同一
-語彙）を content・その祖先 positioner・tooltip root へ反映する。hover
-離脱時（pointerout）は表示条件に関わらず必ず非表示にする。openDelay/
+語彙）を content・その祖先 positioner・tooltip root へ反映する。openDelay/
 closeDelay・位置計算の自動呼び出しはスコープ外（§24.7 参照）。
+
+**独立した hover/focus 追跡（イシュー #2074 codex-review P1 是正）**:
+`wire_tooltip_hover` は `TooltipHoverState`（`aria-describedby` 値を
+キーにした hover 中/focus 中インスタンスの 2 集合）を 4 リスナーで共有
+する。`pointerout`/`focusout` はそれぞれ自チャネルの活性集合を更新した
+上で、もう一方のチャネル（`stay_open`）がまだ表示継続を要求していれば
+非表示にしない。従来はいずれかの離脱イベントだけで無条件に非表示に
+しており、`crate::tooltip` モジュール doc「フォーカスと遅延の使い分け」
+契約（`DelayState` の `pointer_over_trigger`/`focused` 独立追跡と同じ
+原則）に反していた（例: menu-button にフォーカスを残したままポインタ
+だけ外す、または hover 中のフォーカス離脱だけで説明が消えていた）。
+
+**状態変化時の tooltip 再判定（イシュー #2074 Cursor Bugbot 指摘
+「Tooltip stays open after expand」是正）**: `wire_sidebar_state_observer`
+（`MutationObserver`、`attributeFilter: ["data-state"]`、`subtree: true`）
+が sidebar 本体（`data-scope="sidebar"`）の `data-state` 変異を検知する
+たびに `recheck_menu_button_tooltips` を呼び、`tooltip_applicable` が
+偽になった（例: `collapsed` → `expanded` 遷移）にもかかわらず開いた
+ままの tooltip を非表示に倒す。tooltip 自身が書き込む `data-state`
+（`data-scope="tooltip"`）は変異対象要素の `data-scope` を
+コールバック内で再検証して除外し、`set_hidden`/`set_tooltip_data_state`
+の冪等化（同じ値への再書き込みを行わない）と合わせて自己発火ループを
+防ぐ（`headless_avatar.rs::wire_avatar_src_observer` と同型の防御的
+二重チェック）。
 
 ### 24.6 セキュリティ不変条件・`Closure::forget` 定数個契約
 
@@ -1007,11 +1073,20 @@ sidebar `provider` パーツが 1 つも無ければリスナーを 1 つも登�
 `Ok(())` を返す（`splitter::wire_splitter_events` と同型の非搭載アプリ
 への副作用なし契約）。`Closure::forget` は provider 存在時のみマウント
 時 1 回・定数個（document keydown 1・document pointerdown 1・root
-pointerover/pointerout/focusin/focusout 4・`MediaQueryList` change 1・
-`MutationObserver` 1 の計 8 個）で登録する。`window.matchMedia` の失敗
-（`Err`/`None`）はモバイル判定機能のみを無効化し、trigger/rail クリック・
-Cmd/Ctrl+B・tooltip hover 配線は継続する（1 機能の失敗が他機能を道連れに
-しない多層防御）。
+pointerover/pointerout/focusin/focusout 4・sidebar 状態変異検知用
+`MutationObserver`（`data-state`、§24.5） 1・`MediaQueryList` change 1・
+モバイル判定用 `MutationObserver`（`childList`/`subtree`） 1 の計 9 個）
+で登録する。`window.matchMedia` の失敗（`Err`/`None`）はモバイル判定
+機能のみを無効化し、trigger/rail クリック・Cmd/Ctrl+B・tooltip hover
+配線は継続する（1 機能の失敗が他機能を道連れにしない多層防御）。
+
+**キーリピートの二重トグル防止（イシュー #2074 Cursor Bugbot 指摘
+「Held shortcut repeatedly toggles sidebar」是正）**: Cmd/Ctrl+B を
+押しっぱなしにした場合の連続 `keydown`（`KeyboardEvent::repeat()` が
+真）はブラウザ既定動作の抑止（`prevent_default`、enabled な trigger/rail
+が見つかった場合のみ）は repeat 中も一貫して行うが、trigger/rail への
+`click()` 合成（トグル本体）は最初の押下（`repeat() == false`）でのみ
+行う。
 
 ### 24.7 semver 判断・テスト・スコープ外
 
@@ -1078,3 +1153,33 @@ Cmd/Ctrl+B・tooltip hover 配線は継続する（1 機能の失敗が他機能
 - マウント後に動的挿入された sidebar の配線、複数 provider が存在する
   場合の個別ショートカット割り当て（最初の 1 件のみ対象）。
 - `/themes/sidebar/` docs ページ・Demo・coverage-map 更新（#2075）。
+
+#### PR #2248 codex-review/Cursor Bugbot 是正（イシュー #2074 追記）
+
+初回実装（本 PR の初回コミット）へのレビューで、trigger/rail クリックが
+実際には dispatch へ到達しない構造的欠落（§24.1）と 4 件の DOM 配線
+バグが見つかり、同一 PR 内で是正した:
+
+- **P1**: trigger/rail クリックの dispatch 到達には `wiring::
+  wire_sidebar_dispatch`（新設のオプトイン API）が必要（§24.1/§24.2）。
+- **P1**: `wire_mobile` の `MutationObserver`/`change` 登録順序を初回
+  `apply_mobile_state` より前へ（§24.3「登録順序」）。
+- **P1**: Escape が内側部品の処理済み `prevent_default()` を尊重する
+  よう修正、かつデスクトップ sidebar tooltip も Escape で閉じるよう
+  追加（§24.4）。
+- **P1**: tooltip の hover/focus を独立追跡し、片方の離脱だけで
+  非表示にしないよう修正（§24.5）。
+- **Cursor Bugbot（Medium）**: Cmd/Ctrl+B のキーリピートで毎回トグル
+  しないよう修正（§24.6）。
+- **Cursor Bugbot（Low）**: sidebar の `data-state` 変異
+  （collapsed → expanded 等）を検知して開いたままの tooltip を
+  非表示に倒す `wire_sidebar_state_observer` を追加（§24.5）。
+
+`crates/wasm-full/tests/sidebar_browser.rs` は `wire_headless_component`
+の直接呼び出しから新設 `wire_sidebar_dispatch` 経由へ切り替え、21 件
+すべて PASS を再確認済み（`wasm-pack test --headless --chrome
+crates/wasm-full --test sidebar_browser`）。上記修正はいずれも新規
+public API 追加（`wire_sidebar_dispatch`）を伴うが、`fandhe-frontend-
+wasm-full` はこの PR 内で既に 0.15.25 → 0.15.26 へ patch バンプ済み
+かつ crates.io 未公開のため、追加バンプは不要（`xtask
+check-version-bump`/`check-dep-versions` で確認済み）。

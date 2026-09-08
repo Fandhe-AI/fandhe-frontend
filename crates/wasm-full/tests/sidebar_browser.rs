@@ -7,10 +7,12 @@
 //! その先、配線層（`wiring`、`#[cfg(target_arch = "wasm32")]`）が実 DOM
 //! （headless Chromium）上で
 //!
-//! 1. trigger/rail クリック → [`fandhe_frontend_wasm_full::headless::
-//!    wire_headless_component`] 経由の `"toggle"` dispatch（
-//!    `crate::headless::MAPPING_TABLE` への `(sidebar, trigger)`/
-//!    `(sidebar, rail)` 追加分の実 DOM 確認、disabled trigger は no-op）
+//! 1. trigger/rail クリック → [`fandhe_frontend_wasm_full::sidebar::
+//!    wire_sidebar_dispatch`]（`crate::headless::wire_headless_component`
+//!    の薄いラッパー、イシュー #2074 codex-review P1 是正で新設）経由の
+//!    `"toggle"` dispatch（`crate::headless::MAPPING_TABLE` への
+//!    `(sidebar, trigger)`/`(sidebar, rail)` 追加分の実 DOM 確認、
+//!    disabled trigger は no-op）
 //! 2. Cmd/Ctrl+B ショートカット（document keydown）が trigger/rail への
 //!    click 合成で同じ dispatch 経路を通ること、Shift 併用・Alt 併用・
 //!    `preventDefault()` 済みイベント・trigger/rail 双方 disabled では
@@ -47,8 +49,9 @@ use fandhe_frontend_headless_ui::sidebar::{
 };
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_headless_ui::tooltip;
-use fandhe_frontend_wasm_full::headless::wire_headless_component;
-use fandhe_frontend_wasm_full::sidebar::{wire_sidebar_events, wire_sidebar_events_with_query};
+use fandhe_frontend_wasm_full::sidebar::{
+    wire_sidebar_dispatch, wire_sidebar_events, wire_sidebar_events_with_query,
+};
 
 /// テスト用の常時非一致メディアクエリ（デスクトップ扱いを強制する）。
 ///
@@ -193,9 +196,14 @@ fn query(container: &Element, selector: &str) -> Option<Element> {
 /// 返す。`trigger_disabled`/`rail_disabled` で `data-disabled` を付与
 /// できる。
 ///
-/// [`wire_headless_component`] で `container` 自体を root として配線し、
-/// `on_update` で `data-state` を provider/root へ反映する（モジュール冒頭
-/// doc「本ファイルのテストハーネス自身が模擬する」参照）。
+/// [`wire_sidebar_dispatch`]（イシュー #2074 codex-review P1 是正で新設
+/// した公開オプトイン API、`crate::headless::wire_headless_component` の
+/// 薄いラッパー）で `container` 自体を root として配線し、`on_update` で
+/// `data-state` を provider/root へ反映する（モジュール冒頭 doc「本ファイル
+/// のテストハーネス自身が模擬する」参照）。本番アプリがこの API を経由
+/// せずに `Runtime::mount`/`Runtime::hydrate` のみに頼った場合、trigger/
+/// rail クリックは dispatch へ到達しない（`wire_sidebar_events` 自体は
+/// dispatch チャネルを持たない、モジュール冒頭 doc §1 参照）。
 fn mount_sidebar(
     document: &Document,
     container: &Element,
@@ -246,7 +254,7 @@ fn mount_sidebar(
 
     let component = Rc::new(RefCell::new(sidebar));
     let update_container = container.clone();
-    wire_headless_component(container.clone(), component.clone(), move |state, _root| {
+    wire_sidebar_dispatch(container.clone(), component.clone(), move |state, _root| {
         let data_state = state.data_state();
         if let Some(el) = query(&update_container, PROVIDER_SELECTOR) {
             let _ = el.set_attribute("data-state", data_state);
@@ -255,7 +263,7 @@ fn mount_sidebar(
             let _ = el.set_attribute("data-state", data_state);
         }
     })
-    .expect("wire_headless_component must not fail");
+    .expect("wire_sidebar_dispatch must not fail");
 
     let _ = document;
     (component, provider_el, root_el, trigger_el, rail_el)
