@@ -95,7 +95,7 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 | `image_icon_css.rs` | image / icon |
 | `tag_kbd_code_css.rs` | tag / kbd / code |
 | `table_data_list_css.rs`（方式 b） | table / data_list |
-| `status_empty_state_css.rs` | status / empty_state |
+| `status_empty_state_css.rs` | status / empty_state（イシュー #2047 で empty_state の root/indicator variant 3 ブロックを golden 末尾へ純追加） |
 | `popover_tooltip_css.rs` | popover / tooltip |
 | `pie_donut_chart_css.rs` | pie_chart / donut_chart |
 | `charts_css.rs` | line_chart / area_chart / sparkline |

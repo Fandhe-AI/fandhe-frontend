@@ -827,6 +827,15 @@ chakra-ui の `feedback/status.md`/`feedback/empty-state.md` 相当。状態機�
   変わり得る呼び出し文脈で固定レベルを強制しない（`crate::alert::title` と
   同型の判断）。`indicator` はアイコン等を children として受け取り、外部
   リソース・アイコンフォントを本クレートが直接参照することはない。
+  イシュー #2047（shadcn/ui `Empty` 突合）で `root` の `variant`
+  （`EmptyStateVariant`、既定 `Plain`。`Outline` は破線枠、`Subtle` は
+  淡色単色背景）と `indicator` の `variant`（`indicator_with` 関数、
+  `EmptyStateIndicatorVariant`、既定 `Plain`。`Boxed` は `bg-muted` の
+  角丸タイル）を純追加した。いずれも既定値は class を出力せず、既存
+  `EmptyStateProps { size }` の呼び出し・既定 CSS 出力はバイト不変。
+  shadcn の `EmptyHeader`（indicator/title/description のグルーピング用
+  slot）は非追随（`content` の gap + section-gap で同等の視覚リズムを
+  実現済み）。
 
 ## 4i. タイポグラフィ静的部品（Heading / Text / Em / Mark / Blockquote / List）
 

@@ -202,6 +202,23 @@ const EMPTY_STATE_GOLDEN_CSS: &str = r#"[data-scope="empty-state"][data-part="ro
   --fandhe-empty-state-title-size: var(--fandhe-font-font-size-2xl);
   --fandhe-empty-state-description-size: var(--fandhe-font-font-size-lg);
 }
+
+[data-scope="empty-state"][data-part="root"].fd-empty-state--variant-outline {
+  border: 1px dashed var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-lg);
+}
+
+[data-scope="empty-state"][data-part="root"].fd-empty-state--variant-subtle {
+  background: var(--fandhe-color-bg-subtle);
+  border-radius: var(--fandhe-radius-lg);
+}
+
+[data-scope="empty-state"][data-part="indicator"].fd-empty-state--indicator-boxed {
+  padding: var(--fandhe-space-2);
+  border-radius: var(--fandhe-radius-lg);
+  background: var(--fandhe-color-bg-muted);
+  color: var(--fandhe-color-fg);
+}
 "#;
 
 #[test]
