@@ -811,14 +811,61 @@ mod wiring {
     ///   属性契約 [`ACTION_CHANGE_ATTR`] 一致を試みる（`<select>`/checkbox/
     ///   radio/date 等、input イベントでは確定しないフォーム要素向け。
     ///   イシュー #1120 で新規追加）。
+    /// - `compositionend`: IME 変換確定時の補完 dispatch（イシュー #2069
+    ///   codex-review P1 是正、[`dispatch_input_action`] doc「IME 確定時の
+    ///   補完 dispatch」節参照）。`input` リスナーは変換中
+    ///   （`InputEvent::is_composing()` が真）の "input" を dispatch せず
+    ///   延期するが、確定後に必ず新しい "input" が発火するとは限らない
+    ///   （Chrome は Enter で変換候補を確定する操作等で、確定直後の
+    ///   "input" を発火しないことがある既知挙動）。放置すると確定した
+    ///   最終値がアプリへ一切反映されない。`compositionend` は仕様上
+    ///   必ず発火するため、ここで確定値を直接 dispatch することで
+    ///   取りこぼしを防ぐ。
     ///
     /// アクション判定に成功した場合のみ `on_action` を呼ぶ（状態更新・再描画は
     /// 呼び出し側の責務。本関数は関知しない）。
     ///
-    /// `Closure::forget` は click / input / change の 3 回のみに限定する
-    /// （イシュー #1120 で change 分を追加）。マウントはアプリ生存期間に
-    /// 1 度だけの前提であり、リーク数は定数個に収まる（`forget` は safe API
-    /// であり `unsafe` を要しない）。
+    /// `Closure::forget` は click / input / change / compositionend の
+    /// 4 回のみに限定する（イシュー #1120 で change 分、イシュー #2069 で
+    /// compositionend 分を追加）。マウントはアプリ生存期間に 1 度だけの
+    /// 前提であり、リーク数は定数個に収まる（`forget` は safe API であり
+    /// `unsafe` を要しない）。
+    /// `input`/`compositionend` 双方から共有する dispatch 本体（イシュー
+    /// #2069 codex-review P1 是正）。
+    ///
+    /// # IME 確定時の補完 dispatch
+    ///
+    /// 変換中（`isComposing`）の "input" を延期する既存の安全網（[`wire_events`]
+    /// doc 参照）は、ブラウザが変換確定（`compositionend`）直後に必ず
+    /// 新しい "input" を発火するという前提に依存していたが、この前提は
+    /// 実ブラウザで常に成立するとは限らない（Chrome の一部確定操作で
+    /// 確定後の "input" が発火されない既知挙動）。本関数を `input`
+    /// クロージャと `compositionend` クロージャの双方から呼ぶことで、
+    /// どちらの経路で確定しても取りこぼさない。
+    ///
+    /// 属性契約 [`ACTION_INPUT_ATTR`] 一致 → レガシー経路
+    /// （`id="draft-input"`）の順に試み、dispatch した場合のみ使用した
+    /// 値を `Some` で返す（呼び出し側が「実際に dispatch したか」を
+    /// 判定できるようにする。二重 dispatch 回避に使う、[`wire_events`]
+    /// 内クロージャ doc 参照）。
+    fn dispatch_input_action(
+        input_root: &Element,
+        input_selector: &str,
+        target: &web_sys::EventTarget,
+        on_action_input: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
+    ) -> Option<String> {
+        if let Some(action_ref) = attribute_input_action(input_root, target, input_selector) {
+            let value = action_ref.payload.clone();
+            (on_action_input.borrow_mut())(action_ref);
+            return Some(value);
+        }
+        let input = target.dyn_ref::<HtmlInputElement>()?;
+        let value = input.value();
+        let action_ref = action_from_input(&input.id(), &value)?;
+        (on_action_input.borrow_mut())(action_ref);
+        Some(value)
+    }
+
     pub fn wire_events(
         root: Element,
         on_action: impl FnMut(ActionRef) + 'static,
@@ -827,12 +874,24 @@ mod wiring {
         let on_action_click = std::rc::Rc::new(std::cell::RefCell::new(on_action));
         let on_action_input = on_action_click.clone();
         let on_action_change = on_action_click.clone();
+        let on_action_compositionend = on_action_click.clone();
         let input_root = root.clone();
         let change_root = root.clone();
+        let compositionend_root = root.clone();
         // `closest` へ渡すセレクタ文字列はマウント時に 1 回だけ組み立てる
         // （毎イベントで `format!` を呼ぶアロケーションを避けるため、
         // イシュー #1120）。
         let input_selector = format!("[{ACTION_INPUT_ATTR}]");
+        let compositionend_selector = input_selector.clone();
+        // IME 確定（`compositionend`）で dispatch 済みの値（イシュー #2069
+        // codex-review P1 是正）。直後にブラウザが追加で "input" を発火する
+        // 場合（Safari/Firefox 等）に、同一値の再 dispatch（二重 dispatch）
+        // を防ぐための 1 ショットガード。`compositionend` 側で `Some(値)` を
+        // 書き込み、`input` 側で読み取り次第 `take()` して消費する
+        // （次の関係ない input まで誤ってスキップし続けない）。
+        let composed_dispatched_value: std::rc::Rc<std::cell::RefCell<Option<String>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
+        let input_composed_dispatched_value = composed_dispatched_value.clone();
         let change_selector = format!("[{ACTION_CHANGE_ATTR}]");
 
         let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
@@ -906,10 +965,10 @@ mod wiring {
             // を確認していても、この dispatch 自体を止めなければ手遅れ
             // （`crate::command` モジュール冒頭 doc「セキュリティ不変
             // 条件」節、`command::wiring::handle_input` の同型ガードと
-            // 対）。ブラウザは変換確定（compositionend）直後に
-            // `isComposing = false` の "input" イベントをもう一度発火する
-            // 仕様（Safari/Chrome/Firefox 共通）のため、ここで no-op に
-            // しても確定後に自動的に dispatch される。
+            // 対）。変換確定（compositionend）時の確定値反映は下記
+            // `compositionend_closure` が別途担う（イシュー #2069
+            // codex-review P1 是正: ブラウザが確定後に必ず追加の "input" を
+            // 発火するとは限らないため、この no-op のみに依存しない）。
             if event
                 .dyn_ref::<InputEvent>()
                 .is_some_and(InputEvent::is_composing)
@@ -919,27 +978,49 @@ mod wiring {
             let Some(target) = event.target() else {
                 return;
             };
-            // 属性契約 `data-action-input` を優先する（イシュー #1120）。値
-            // 要素自身（`event.target()`）が対象のため click と異なりテキスト
-            // ノード遡りは不要だが、`closest` は呼び出し要素自身も含めて
-            // 祖先方向へ辿るため、値要素自身に属性が付いている通常の構成では
-            // そのまま一致する。属性契約に一致しなかった場合のみレガシー
-            // 経路（`id="draft-input"` ハードコード）へフォールバックする
-            // （`action_from_input` doc 参照、既存アプリの非退行）。
-            if let Some(action_ref) = attribute_input_action(&input_root, &target, &input_selector)
-            {
-                (on_action_input.borrow_mut())(action_ref);
-                return;
+            // 二重 dispatch 回避（イシュー #2069 codex-review P1 是正）:
+            // 直前の `compositionend` で既に確定値を dispatch 済みの場合、
+            // ブラウザがその直後に追加で発火する非 composing な "input"
+            // （現在値が確定値と同一）はスキップする。値が異なれば
+            // （そのまま入力が続いた等）通常どおり dispatch する。1
+            // ショットのみ有効（`take()` で消費、次の無関係な input まで
+            // 誤ってスキップし続けない）。
+            if let Some(dispatched_value) = input_composed_dispatched_value.borrow_mut().take() {
+                if extract_form_value(&target).as_deref() == Some(dispatched_value.as_str()) {
+                    return;
+                }
             }
-            let Some(input) = target.dyn_ref::<HtmlInputElement>() else {
-                return;
-            };
-            if let Some(action_ref) = action_from_input(&input.id(), &input.value()) {
-                (on_action_input.borrow_mut())(action_ref);
-            }
+            dispatch_input_action(&input_root, &input_selector, &target, &on_action_input);
         });
         root.add_event_listener_with_callback("input", input_closure.as_ref().unchecked_ref())?;
         input_closure.forget();
+
+        let compositionend_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            // IME 確定時の補完 dispatch（イシュー #2069 codex-review P1
+            // 是正、[`dispatch_input_action`] doc「IME 確定時の補完
+            // dispatch」節参照）。`compositionend` は `isComposing` 判定を
+            // 要さず常に「変換確定済み」を意味するため、そのまま
+            // `dispatch_input_action` を呼んでよい。
+            let Some(target) = event.target() else {
+                return;
+            };
+            if let Some(value) = dispatch_input_action(
+                &compositionend_root,
+                &compositionend_selector,
+                &target,
+                &on_action_compositionend,
+            ) {
+                // 直後にブラウザが追加で "input" を発火する場合の二重
+                // dispatch を防ぐガードへ記録する（`input_closure` 側で
+                // 消費、上記コメント参照）。
+                *composed_dispatched_value.borrow_mut() = Some(value);
+            }
+        });
+        root.add_event_listener_with_callback(
+            "compositionend",
+            compositionend_closure.as_ref().unchecked_ref(),
+        )?;
+        compositionend_closure.forget();
 
         let change_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             let Some(target) = event.target() else {

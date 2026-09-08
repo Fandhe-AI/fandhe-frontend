@@ -25,7 +25,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{
     Document, Element, Event, EventInit, HtmlElement, HtmlInputElement, KeyboardEvent,
-    KeyboardEventInit,
+    KeyboardEventInit, MouseEvent, MouseEventInit,
 };
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -133,6 +133,27 @@ fn composing_input_event() -> Event {
         .expect("InputEvent::new must not fail")
         .dyn_into::<Event>()
         .expect("InputEvent must cast to Event")
+}
+
+/// IME 変換確定（`"compositionend"`）イベント。`handle_compositionend`
+/// （codex-review P1 是正、イシュー #2069）の回帰テストで使う。
+fn compositionend_event() -> Event {
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    Event::new_with_event_init_dict("compositionend", &init).expect("Event::new must not fail")
+}
+
+/// `bubbles: true`・`cancelable: true` の合成 `"mousedown"` イベント
+/// （`handle_mousedown` の回帰テストで使う、`focus_visible_browser.rs::
+/// dispatch_mouse_event` と同型）。
+fn mousedown_event() -> Event {
+    let init = MouseEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    MouseEvent::new_with_mouse_event_init_dict("mousedown", &init)
+        .expect("MouseEvent::new must not fail")
+        .dyn_into::<Event>()
+        .expect("MouseEvent must cast to Event")
 }
 
 /// `Element` を `HtmlElement` へキャストする（スクロール回帰テスト向けの
@@ -1563,6 +1584,56 @@ fn composing_input_with_data_action_input_is_not_dispatched_by_wire_events() {
     );
 }
 
+/// codex-review P1 是正の回帰テスト（イシュー #2069）: 上記
+/// `composing_input_with_data_action_input_is_not_dispatched_by_wire_events`
+/// が示すとおり `crate::events::wire_events` は変換中の "input" dispatch を
+/// 延期するが、確定後にブラウザが必ず追加の "input" を発火するとは限らない
+/// （Chrome の一部確定操作で確定後の "input" が発火されない既知挙動）。
+/// 追加の "input" を一切送らず `"compositionend"` のみを送る構成で、
+/// `data-action-input` の確定値 dispatch と絞り込み反映の双方が行われる
+/// ことを検証する（`crate::events::wiring::dispatch_input_action` の回帰）。
+#[wasm_bindgen_test]
+fn compositionend_dispatches_data_action_input_without_a_trailing_input_event() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("calendar", "Calendar", false), ("search", "Search", false)];
+    let (root, _dialog, input, _list, item_elements) = build_command_dom(
+        &document,
+        "cmd-action-input-compositionend",
+        &command,
+        &items,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    input
+        .set_attribute("data-action-input", "cmd_query")
+        .unwrap();
+
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorder = seen.clone();
+    fandhe_frontend_wasm_full::events::wire_events(root.clone(), move |action_ref| {
+        recorder.borrow_mut().push(action_ref.action.clone());
+    })
+    .expect("wire_events must not fail");
+    fandhe_frontend_wasm_full::command::wire_command_events(root.clone(), move |_action_ref| {})
+        .expect("wire_command_events must not fail");
+
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    html_input.set_value("cal");
+    input.dispatch_event(&composing_input_event()).unwrap();
+    // 追加の "input" を一切送らず、"compositionend" のみで確定させる。
+    input.dispatch_event(&compositionend_event()).unwrap();
+
+    assert!(
+        !seen.borrow().is_empty(),
+        "compositionend 確定後は追加の \"input\" が無くても data-action-input の値が dispatch される"
+    );
+    assert!(
+        item_elements[1].has_attribute("hidden"),
+        "compositionend 確定後は絞り込みも反映される"
+    );
+}
+
 // --- (i) aria-controls 改ざん ---
 
 #[wasm_bindgen_test]
@@ -1964,5 +2035,194 @@ fn data_action_input_dispatch_is_noop_when_wiring_root_disabled_survives_child_d
     assert!(
         !fresh_item_calendar.has_attribute("hidden"),
         "root 自体が data-disabled のとき、新しい DOM への絞り込み反映も行われない"
+    );
+}
+
+// --- (m) IME 確定（compositionend）時の補完 dispatch（codex-review P1、
+// イシュー #2069） ---
+
+/// `handle_input` は変換中（`isComposing`）の "input" を延期し、確定後に
+/// 追加で発火する "input" で反映される前提を置いていたが、この前提は
+/// 実ブラウザで常に成立するとは限らない（Chrome の一部確定操作で確定後の
+/// "input" が発火されない既知挙動）。本テストは「延期後に追加の "input"
+/// を一切送らず、`"compositionend"` のみを送る」構成で確定値が反映される
+/// ことを検証する（[`fandhe_frontend_wasm_full::command::wiring::
+/// handle_compositionend`] の回帰）。
+#[wasm_bindgen_test]
+fn compositionend_reflects_deferred_ime_filter_without_a_trailing_input_event() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [
+        ("calendar", "Calendar", false),
+        ("search", "Search Emoji", false),
+    ];
+    let (root, _dialog, input, _list, item_elements) =
+        build_command_dom(&document, "cmd-compositionend", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let (_component, _log) = wire(root.clone(), command);
+
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+
+    // 変換中: ブラウザは isComposing=true の "input" を発火するが、
+    // このイベントは反映されず延期される。
+    html_input.set_value("cal");
+    input.dispatch_event(&composing_input_event()).unwrap();
+    assert!(
+        !item_elements[1].has_attribute("hidden"),
+        "変換中は反映されず search は可視のまま"
+    );
+
+    // 変換確定: 追加の "input" を一切送らず "compositionend" のみで
+    // 確定値が反映されることを確認する。
+    input.dispatch_event(&compositionend_event()).unwrap();
+    assert!(
+        !item_elements[0].has_attribute("hidden"),
+        "calendar は可視のまま"
+    );
+    assert!(
+        item_elements[1].has_attribute("hidden"),
+        "compositionend 確定後は追加の \"input\" が無くても search が非表示になる"
+    );
+}
+
+/// `compositionend` 確定後、ブラウザによっては同一値の追加 "input"
+/// （`isComposing: false`）がもう一度発火することがある（Safari/Firefox
+/// 等）。この追加 "input" で同じ絞り込み反映を二重 dispatch しない
+/// （`ACTION_INPUT` を 2 回 dispatch しない）ことを検証する。
+#[wasm_bindgen_test]
+fn trailing_input_event_after_compositionend_with_same_value_does_not_double_dispatch() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("calendar", "Calendar", false)];
+    let (root, _dialog, input, _list, _item_elements) =
+        build_command_dom(&document, "cmd-compositionend-dedupe", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let inputs_seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorder = inputs_seen.clone();
+    fandhe_frontend_wasm_full::command::wire_command_events(root.clone(), move |action_ref| {
+        if action_ref.action == fandhe_frontend_wasm_full::command::ACTION_INPUT {
+            recorder.borrow_mut().push(action_ref.payload.clone());
+        }
+    })
+    .expect("wire_command_events must not fail");
+
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    html_input.set_value("cal");
+    input.dispatch_event(&composing_input_event()).unwrap();
+    input.dispatch_event(&compositionend_event()).unwrap();
+    // ブラウザが確定直後に追加で発火し得る、同一値・非 composing の
+    // "input"。
+    input.dispatch_event(&input_event()).unwrap();
+
+    assert_eq!(
+        inputs_seen.borrow().as_slice(),
+        ["cal".to_string()],
+        "compositionend で確定済みの値と同一の追加 input は二重 dispatch されない"
+    );
+}
+
+// --- (n) command:execute の実行フックが移したフォーカスの尊重
+// （codex-review P1、イシュー #2069） ---
+
+/// `command:execute`（[`fandhe_frontend_wasm_full::command::ACTION_EXECUTE`]）
+/// のアプリ側実行フックが、実行先の別要素（エディタ相当、Command の外側に
+/// あり接続済み）へ明示的に `focus()` している場合、直後の `reflect_filter`
+/// がそのフォーカスを `input` へ無条件に奪い返してはならないことを検証する
+/// （`crates/wasm-full/src/command.rs::wiring::focus_available_for_restore`
+/// の回帰）。
+#[wasm_bindgen_test]
+fn command_execute_focus_move_to_connected_element_is_respected() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, input, _list, _item_elements) =
+        build_command_dom(&document, "cmd-execute-focus", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let editor = document
+        .create_element("input")
+        .expect("create_element must not fail");
+    editor.set_id("cmd-execute-focus-editor");
+    document
+        .body()
+        .expect("document body must exist")
+        .append_child(&editor)
+        .expect("append_child must not fail");
+    let _cleanup_editor = RemoveOnDrop(editor.clone());
+    let execute_editor = html_element(&editor);
+
+    fandhe_frontend_wasm_full::command::wire_command_events(root.clone(), move |action_ref| {
+        if action_ref.action == fandhe_frontend_wasm_full::command::ACTION_EXECUTE {
+            let _ = execute_editor.focus();
+        }
+    })
+    .expect("wire_command_events must not fail");
+
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    html_input.focus().expect("focus must not fail");
+    input.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    input.dispatch_event(&keydown_event("Enter")).unwrap();
+
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(&editor),
+        "実行フックが移した先のフォーカスを reflect_filter が奪い返してはならない"
+    );
+}
+
+// --- (o) item 以外の mousedown も input のフォーカスを維持する
+// （Cursor Bugbot Medium、イシュー #2069） ---
+
+/// item 以外（`list`/`dialog`/`empty` 等）の mousedown でブラウザ既定動作
+/// （フォーカス移動）が起きると、`input` から blur し、以降
+/// `handle_keydown`/`handle_input`（いずれも `event.target()` が
+/// `INPUT_PART` であることを要求する）が矢印キー・Enter・入力・Escape を
+/// no-op として無視してしまう（`input` を再クリックするまで操作不能）。
+/// `handle_mousedown` が item に限らず Command インスタンス配下（`input`
+/// 自身を除く）で `prevent_default()` することを検証する。
+#[wasm_bindgen_test]
+fn mousedown_on_list_background_prevents_default_to_keep_input_focused() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, input, list, _item_elements) =
+        build_command_dom(&document, "cmd-mousedown-list", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let (_component, _log) = wire(root.clone(), command);
+
+    let event = mousedown_event();
+    list.dispatch_event(&event).unwrap();
+    assert!(
+        event.default_prevented(),
+        "item 以外（list 背景）の mousedown も input のフォーカス維持のため prevent_default される"
+    );
+
+    let _ = input;
+}
+
+/// `input` パーツ自身の mousedown はブラウザ既定動作（フォーカス・
+/// キャレット位置決定・テキスト選択）を妨げないことを確認する
+/// （`handle_mousedown` の非退行）。
+#[wasm_bindgen_test]
+fn mousedown_on_input_itself_is_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, input, _list, _item_elements) =
+        build_command_dom(&document, "cmd-mousedown-input", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let (_component, _log) = wire(root.clone(), command);
+
+    let event = mousedown_event();
+    input.dispatch_event(&event).unwrap();
+    assert!(
+        !event.default_prevented(),
+        "input パーツ自身の mousedown は既定動作を妨げない"
     );
 }

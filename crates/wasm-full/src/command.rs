@@ -182,10 +182,11 @@
 //!   root 外の要素を操作しない、`crate::keynav` の「Stale root」教訓と
 //!   同型）。document 上の Cmd/Ctrl+K も `root` 配下に `dialog` パーツが
 //!   存在するときのみ発火する。
-//! - `Closure::forget` はマウント時の定数回（root 5〔input の capture/
+//! - `Closure::forget` はマウント時の定数回（root 6〔input の capture/
 //!   bubble 各 1・keydown・click・mousedown（item のフォーカス維持用、
-//!   codex-review P1 是正）〕+ document 1）に限定する（A04 対策、
-//!   無制限リークの構造的回避）。
+//!   codex-review P1 是正）・compositionend（IME 確定時の補完 dispatch、
+//!   イシュー #2069 codex-review P1 是正）〕+ document 1）に限定する
+//!   （A04 対策、無制限リークの構造的回避）。
 //! - 未知キー・修飾キー付き・IME 変換中・`disabled`/`data-disabled`・
 //!   `data-value` 欠落・未選択 Enter・hidden な選択・`dialog` 不在の
 //!   Escape/Cmd+K はすべて no-op（fail-closed）。`Command::decode_action` が
@@ -527,14 +528,48 @@ mod wiring {
         )?;
         capture_focus_closure.forget();
 
+        // IME 確定（`compositionend`）で反映済みの値（イシュー #2069
+        // codex-review P1 是正）。[`handle_compositionend`] が確定値を
+        // 直接反映した際に記録し、[`handle_input`] がその直後にブラウザが
+        // 追加で発火する非 composing な "input"（同一値）を二重 dispatch
+        // しないためのガードに使う（[`handle_input`] doc参照）。
+        let composed_input_value: std::rc::Rc<std::cell::RefCell<Option<String>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
+
         let input_root = root.clone();
         let input_on_action = on_action.clone();
         let input_pre_focus = pre_input_focus.clone();
+        let input_composed_guard = composed_input_value.clone();
         let input_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_input(&input_root, &event, &input_on_action, &input_pre_focus);
+            handle_input(
+                &input_root,
+                &event,
+                &input_on_action,
+                &input_pre_focus,
+                &input_composed_guard,
+            );
         });
         root.add_event_listener_with_callback("input", input_closure.as_ref().unchecked_ref())?;
         input_closure.forget();
+
+        let compositionend_root = root.clone();
+        let compositionend_on_action = on_action.clone();
+        let compositionend_pre_focus = pre_input_focus.clone();
+        let compositionend_guard = composed_input_value;
+        let compositionend_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_compositionend(
+                &compositionend_root,
+                &event,
+                &compositionend_on_action,
+                &compositionend_pre_focus,
+                &compositionend_guard,
+            );
+        });
+        root.add_event_listener_with_callback(
+            "compositionend",
+            compositionend_closure.as_ref().unchecked_ref(),
+        )?;
+        compositionend_closure.forget();
 
         let keydown_root = root.clone();
         let keydown_on_action = on_action.clone();
@@ -855,6 +890,33 @@ mod wiring {
         }
     }
 
+    /// dispatch の結果、フォーカスが `input` 以外の要素へ意図的に移されて
+    /// いないかどうか（codex-review P1 是正、イシュー #2069）:
+    /// `command:execute`（[`ACTION_EXECUTE`]）のアプリ側実行フックが、実行
+    /// 先の別要素（例: エディタ）へ明示的に `focus()` している場合、
+    /// [`restore_focus_state`] を無条件に呼ぶと `reflect_filter` がその
+    /// フォーカスを `input` へ無条件に奪い返してしまい、アプリの実行フック
+    /// が意図したフォーカス移動を妨げる（dialog を持たない Command で
+    /// 顕著、Enter・item クリックの双方で発生し得る）。
+    ///
+    /// 構造フォールバック再描画による detach 由来のフォーカス喪失では、
+    /// 削除された要素にフォーカスが残ることはなくブラウザが自動的に
+    /// `document.body()` へフォーカスを戻す（`document.active_element()`
+    /// はフォーカスされている要素が無いとき `<body>` を返す DOM の仕様）。
+    /// このため「`active_element` が `None` または `<body>`」であれば
+    /// 再描画由来の喪失（安全に `input` へ復元してよい）、それ以外の
+    /// 接続済み要素であればアプリ側の意図的なフォーカス移動（尊重し復元
+    /// しない）と区別できる。
+    fn focus_available_for_restore(document: &Document) -> bool {
+        match document.active_element() {
+            None => true,
+            Some(active) => match document.body() {
+                Some(body) => active.is_same_node(Some(&body)),
+                None => false,
+            },
+        }
+    }
+
     /// [`capture_focus_state`] で記録した状態を、再描画後に再解決した
     /// `input`（生きた DOM）へ復元する。`focused` が `false`（dispatch 前に
     /// フォーカスされていなかった）なら no-op。
@@ -941,9 +1003,18 @@ mod wiring {
         // `input_focus_target_is_visible` は Cursor Bugbot High 是正:
         // `ACTION_EXECUTE` で dialog が閉じた（`hidden` が付いた）構成では
         // 復元先が非表示のままになるため、そのときは復元しない
-        // （fail-closed、同関数 doc 参照）。
+        // （fail-closed、同関数 doc 参照）。`focus_available_for_restore`
+        // は codex-review P1 是正（イシュー #2069）: 呼び出し側（`handle_
+        // input`/`handle_keydown`）の dispatch が `command:execute` の実行
+        // フックで別要素へ意図的にフォーカスを移していれば尊重し、`input`
+        // を奪い返さない（同関数 doc 参照）。
         if let Some(state) = outer_focus_state.as_ref() {
-            if state.focused && input_focus_target_is_visible(&input) {
+            if state.focused
+                && input_focus_target_is_visible(&input)
+                && input
+                    .owner_document()
+                    .is_some_and(|doc| focus_available_for_restore(&doc))
+            {
                 restore_focus_state(&input, state);
             }
         }
@@ -979,8 +1050,15 @@ mod wiring {
             // detach された場合、再解決した生きた `input` へフォーカス・
             // 選択範囲を復元する（codex-review P1 是正）。ただし復元先が
             // 非表示の command dialog 内なら復元しない（Cursor Bugbot High
-            // 是正、`input_focus_target_is_visible` doc 参照）。
-            if input_focus_target_is_visible(&fresh_input) {
+            // 是正、`input_focus_target_is_visible` doc 参照）。フォーカス
+            // が既に別の接続済み要素へ意図的に移されていれば復元しない
+            // （codex-review P1 是正、イシュー #2069、
+            // `focus_available_for_restore` doc 参照）。
+            if input_focus_target_is_visible(&fresh_input)
+                && fresh_input
+                    .owner_document()
+                    .is_some_and(|doc| focus_available_for_restore(&doc))
+            {
                 restore_focus_state(&fresh_input, &focus_state);
             }
             (
@@ -1095,11 +1173,17 @@ mod wiring {
     /// があれば dispatch は `crate::events::wire_events` に委ねて DOM 反映
     /// のみ行い、無ければ [`ACTION_INPUT`] を dispatch する（モジュール
     /// 冒頭 doc「二重 dispatch 回避」節参照）。
+    ///
+    /// IME 変換確定時の補完 dispatch は [`handle_compositionend`] が担う
+    /// （イシュー #2069 codex-review P1 是正）。`composed_guard` はその
+    /// 補完 dispatch との二重 dispatch 回避に使う 1 ショットガード
+    /// （[`handle_compositionend`] doc参照）。
     fn handle_input(
         root: &Element,
         event: &Event,
         on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
         pre_focus: &std::rc::Rc<std::cell::RefCell<Option<FocusState>>>,
+        composed_guard: &std::rc::Rc<std::cell::RefCell<Option<String>>>,
     ) {
         let Some(target) = event.target() else {
             return;
@@ -1135,20 +1219,86 @@ mod wiring {
         // 再描画で削除され、日本語などの IME 入力が中断される
         // （[`handle_keydown`]/[`handle_document_keydown`] の
         // `is_composing()`/`key_code() == 229` 判定と同型の安全網、
-        // モジュール冒頭 doc「セキュリティ不変条件」節）。ブラウザは
-        // 変換確定（compositionend）直後に `isComposing = false` の
-        // "input" イベントをもう一度発火する仕様（Safari/Chrome/Firefox
-        // 共通の既知挙動）のため、ここで no-op にしても確定後に自動的に
-        // 反映される。`data-action-input` を持つ input で `wire_events`
-        // 側が既に dispatch 済みの場合でも、本ハンドラ側の反映
-        // （`reflect_filter`）だけは変換中は行わないことで再描画による
-        // 入力欄削除を避ける。
+        // モジュール冒頭 doc「セキュリティ不変条件」節）。変換確定
+        // （compositionend）時の確定値反映は [`handle_compositionend`] が
+        // 別途担う（イシュー #2069 codex-review P1 是正: ブラウザが確定後に
+        // 必ず追加の "input" を発火するとは限らないため、この no-op のみに
+        // 依存しない）。
         if event
             .dyn_ref::<InputEvent>()
             .is_some_and(InputEvent::is_composing)
         {
             return;
         }
+        // 二重 dispatch 回避（イシュー #2069 codex-review P1 是正）: 直前の
+        // `compositionend` で既に確定値を反映済みの場合、ブラウザがその
+        // 直後に追加で発火する非 composing な "input"（現在値が確定値と
+        // 同一）はスキップする。値が異なれば通常どおり反映する。1 ショット
+        // のみ有効（`take()` で消費、次の無関係な input まで誤ってスキップ
+        // し続けない）。
+        if let Some(dispatched_value) = composed_guard.borrow_mut().take() {
+            let current_value = target_element
+                .clone()
+                .dyn_into::<HtmlInputElement>()
+                .ok()
+                .map(|el| el.value());
+            if current_value.as_deref() == Some(dispatched_value.as_str()) {
+                return;
+            }
+        }
+        dispatch_input_effect(root, target_element, on_action, pre_focus);
+    }
+
+    /// `compositionend` イベント: `INPUT_PART` 上でのみ反応する（イシュー
+    /// #2069 codex-review P1 是正）。
+    ///
+    /// [`handle_input`] は変換中（`isComposing`）の "input" を延期し、
+    /// 確定後に発火する追加の "input" で反映される前提を置いていたが、
+    /// この前提は実ブラウザで常に成立するとは限らない（Chrome の一部確定
+    /// 操作で確定後の "input" が発火されない既知挙動）。放置すると確定
+    /// した最終値（絞り込みクエリ）が反映されず、日本語などの IME 入力
+    /// 確定でアプリ状態・検索結果が更新されない。`compositionend` は
+    /// 仕様上必ず発火するため、ここで確定値を直接反映することで取りこぼし
+    /// を防ぐ。
+    ///
+    /// 反映後、使用した値を `composed_guard` へ記録する
+    /// （[`handle_input`] 側がブラウザの追加 "input" による二重 dispatch を
+    /// 避けるために消費する）。
+    fn handle_compositionend(
+        root: &Element,
+        event: &Event,
+        on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
+        pre_focus: &std::rc::Rc<std::cell::RefCell<Option<FocusState>>>,
+        composed_guard: &std::rc::Rc<std::cell::RefCell<Option<String>>>,
+    ) {
+        let Some(target) = event.target() else {
+            return;
+        };
+        let Some(target_element) = target.dyn_ref::<Element>() else {
+            return;
+        };
+        if !matches_part(target_element, INPUT_PART) {
+            return;
+        }
+        let value = target_element
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .ok()
+            .map(|el| el.value());
+        dispatch_input_effect(root, target_element, on_action, pre_focus);
+        *composed_guard.borrow_mut() = value;
+    }
+
+    /// [`handle_input`]（変換中でない "input"）と [`handle_compositionend`]
+    /// （IME 確定）の双方から共有する反映本体（イシュー #2069 codex-review
+    /// P1 是正）。disabled 判定・List パーツ解決・`ACTION_INPUT` dispatch・
+    /// [`reflect_filter`] 呼び出しをまとめる。
+    fn dispatch_input_effect(
+        root: &Element,
+        target_element: &Element,
+        on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
+        pre_focus: &std::rc::Rc<std::cell::RefCell<Option<FocusState>>>,
+    ) {
         // disabled/`data-disabled` な祖先（Command root 自体を含む）配下
         // では入力による状態更新も no-op とする（codex-review P1 是正:
         // 従来 [`handle_keydown`] のみが `has_disabled_ancestor` を確認して
@@ -1503,18 +1653,36 @@ mod wiring {
         }
     }
 
-    /// mousedown: item 上でのブラウザ既定動作（フォーカス移動、結果として
-    /// `input` が `blur` する）を抑止し、`input` のフォーカスを維持する
-    /// （codex-review P1 是正）。実ブラウザでは `click` イベントより前に
-    /// `mousedown` が発火し、その既定動作でフォーカス可能要素以外を
-    /// クリックすると現在のフォーカス（`input`）が失われる。`handle_click`
-    /// 側で `capture_focus_state` しても、その時点で既に `focused = false`
-    /// が確定してしまっており、`ACTION_EXECUTE` 実行後（パレットを開いた
-    /// ままにする構成）にフォーカスが復元されず、続く検索入力・矢印・
-    /// Enter が処理できなくなる。`ACTION_SELECT`/`ACTION_EXECUTE` が意図的
-    /// にフォーカスを移動させるまでは `input` のフォーカスを保つため、
-    /// disabled でない item 上の mousedown は `prevent_default()` で
-    /// blur 自体を起こさせない。
+    /// mousedown: Command インスタンス配下でのブラウザ既定動作（フォーカス
+    /// 移動、結果として `input` が `blur` する）を抑止し、`input` の
+    /// フォーカスを維持する（codex-review P1 是正、item 以外への拡張は
+    /// Cursor Bugbot Medium 是正・イシュー #2069）。実ブラウザでは `click`
+    /// イベントより前に `mousedown` が発火し、その既定動作でフォーカス
+    /// 可能要素以外をクリックすると現在のフォーカス（`input`）が失われる。
+    /// `handle_click` 側で `capture_focus_state` しても、その時点で既に
+    /// `focused = false` が確定してしまっており、`ACTION_EXECUTE` 実行後
+    /// （パレットを開いたままにする構成）にフォーカスが復元されず、続く
+    /// 検索入力・矢印・Enter が処理できなくなる。`ACTION_SELECT`/
+    /// `ACTION_EXECUTE` が意図的にフォーカスを移動させるまでは `input` の
+    /// フォーカスを保つため、`input` パーツ自身を除く Command インスタンス
+    /// 配下（`dialog`/`list`/`group`/`separator`/`empty`/`item` いずれも
+    /// 含む）の mousedown は `prevent_default()` で blur 自体を起こさせ
+    /// ない。
+    ///
+    /// item 上のみに限定していた従来実装は、`dialog`（`tabindex="-1"` で
+    /// フォーカス可能）・`list`/`group`/`separator`/`empty` 上の mousedown
+    /// で `input` から blur し、以降 `handle_keydown`/`handle_input`
+    /// （いずれも `event.target()` が `INPUT_PART` であることを要求する）
+    /// が矢印キー・Enter・入力・Escape を no-op として無視してしまう
+    /// 不具合があった（`input` を再クリックするまで操作不能になる。
+    /// Escape が処理されないことで `prevent_default()`/`stop_propagation()`
+    /// も呼ばれず、親オーバーレイの Escape ハンドラへ伝播して意図せず
+    /// 閉じてしまう副作用も含む、Cursor Bugbot Medium 指摘）。
+    ///
+    /// `input` パーツ自身の mousedown はブラウザ既定動作（フォーカス・
+    /// キャレット位置決定・テキスト選択）を妨げない。disabled な item は
+    /// 従来どおり除外する（クリックしても実行されないため blur してよい、
+    /// 既存の `handle_click` の disabled 判定と同型）。
     fn handle_mousedown(root: &Element, event: &Event) {
         let Some(target) = event.target() else {
             return;
@@ -1525,14 +1693,20 @@ mod wiring {
         if !root.contains(Some(target_element)) {
             return;
         }
-        let Some(item) = closest(target_element, ITEM_SELECTOR) else {
-            return;
-        };
-        if !root.contains(Some(&item)) {
+        if matches_part(target_element, INPUT_PART) {
             return;
         }
-        if has_disabled_ancestor(root, &item) {
+        // 改ざんされた `data-scope`/`data-part` で root 外の要素を操作
+        // させない fail-closed（モジュール冒頭 doc「セキュリティ不変条件」
+        // 節と同型）: `target_element` が実在の Command インスタンス
+        // （`ROOT_SELECTOR` 祖先）の配下であることを確認する。
+        if resolve_instance_root(root, target_element).is_none() {
             return;
+        }
+        if let Some(item) = closest(target_element, ITEM_SELECTOR) {
+            if root.contains(Some(&item)) && has_disabled_ancestor(root, &item) {
+                return;
+            }
         }
         event.prevent_default();
     }
