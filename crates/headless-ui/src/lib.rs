@@ -789,6 +789,7 @@ pub mod rating_group;
 pub mod scroll_area;
 pub mod segment_group;
 pub mod select;
+pub mod sidebar;
 pub mod signature_pad;
 pub mod skip_nav;
 pub mod slider;
@@ -889,6 +890,11 @@ pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
 pub use radio_group::{RadioGroup, RadioGroupProps};
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingGroupProps, RatingItemFlags};
 pub use segment_group::{SegmentGroup, SegmentGroupProps};
+pub use sidebar::{
+    Sidebar, SidebarAction, SidebarCollapsible, SidebarMenuButtonProps, SidebarMenuButtonSize,
+    SidebarMenuButtonVariant, SidebarMenuSubButtonProps, SidebarMenuSubButtonSize, SidebarProps,
+    SidebarSide, SidebarState, SidebarVariant,
+};
 pub use signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke, StrokeError};
 pub use slider::{Slider, SliderAction, SliderProps};
 pub use splitter::{PanelSpec, Splitter, SplitterAction};
