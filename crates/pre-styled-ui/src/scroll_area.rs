@@ -134,6 +134,66 @@
 //! escape hatch を用意しているため、軸追加の必要性は低いと判断する。
 //! 必要になった時点で再評価する。
 //!
+//! # shadcn/ui 突合（イシュー #2054）
+//!
+//! shadcn/ui（Base UI 版 `scroll-area.tsx` + `utils/scroll-fade`）と突合し、
+//! 以下 2 点を **`data-*` 属性 opt-in** として補完した（規約 B の
+//! `variant`/`size` 軸非提供は維持したまま、呼び出し側が付与する属性への
+//! CSS 規則追加で表現する。`crate::table::row`/`crate::card` の
+//! `data-align`/`data-bordered` と同型の「役割 B 亜種」、
+//! `docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2 参照）。
+//!
+//! - **横スクロール（`viewport[data-orientation="horizontal"]`）**:
+//!   `fandhe_frontend_headless_ui::data_attrs::data_orientation` を呼び出し
+//!   側が `viewport` へ付与すると、`content` を `display: flex; width:
+//!   max-content;` にする子結合子規則が有効になる（shadcn の `ScrollBar
+//!   orientation="horizontal"` 相当。`gap`/`padding` は呼び出し側の責務）。
+//! - **端フェード（`viewport[data-fade]`、shadcn `utils/scroll-fade`
+//!   相当）**: `mask-image` の `linear-gradient` により端をフェードする。
+//!   `animation-timeline: scroll(...)` に対応するブラウザでは
+//!   `@supports (animation-timeline: scroll())` 配下でスクロール量に応じて
+//!   フェード端を動的に切り替える（静止時は先頭端 crisp・末尾端フェード、
+//!   スクロール中は両端フェード、末尾到達で末尾端 crisp）。非対応ブラウザは
+//!   `@supports not` で両端固定フェードへ graceful degradation する。
+//!   `data-orientation="horizontal"` 併用時は横方向のグラデーションへ切り替え、
+//!   `:dir(rtl)` でグラデーション方向を反転する。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - **`@property` 登録なし**: shadcn の `scroll-fade` は custom property を
+//!   `@property … syntax: "<length-percentage>"` で登録し滑らかな補間を得るが、
+//!   本クレートは `<` を含む CSS リテラルを禁止する不変条件
+//!   （[`crate::css::is_valid_value`]、本モジュール・`tests/scroll_area_css.rs`
+//!   双方の `stylesheet_never_contains_style_breakout_sequences` が固定）を
+//!   持つため採用しない。結果として custom property の値は `@property` 登録
+//!   なしの既定（discrete）補間になり、`animation-range` の到達点でフェード
+//!   幅が離散的に切り替わる（連続的な滑らかさは持たない）。
+//! - **`-webkit-mask-image` の非付与**: [`crate::marquee`] の両端フェード
+//!   （イシュー #1582）と同じ判断で、unprefixed `mask-image` が現行ブラウザで
+//!   baseline サポート済みのため `-webkit-` 接頭辞は追加しない（未対応環境は
+//!   フェードなしへ graceful degradation する）。
+//! - **片端のみのフェード指定・段階的なフェード幅 variant**
+//!   （shadcn の `scroll-fade-t/-b/-s/-e`・`scroll-fade-<number>` 相当）は
+//!   スコープ外とする。必要な場合は利用側が `--fandhe-scroll-area-fade-start`/
+//!   `--fandhe-scroll-area-fade-end` を `0px` へ上書きすることで片端無効化
+//!   できる（1 変数 `--fandhe-scroll-area-fade-size` で段階も上書き可能）。
+//! - **`scrollbar-none` 相当のユーティリティ**は用意しない。既存の
+//!   `--fandhe-scroll-area-thumb-bg: transparent` 上書き（本モジュール上部
+//!   「参考サイト基準へのスタイル調整」節）で同等の見た目を実現できる。
+//! - **Base UI の計測由来 `data-*`**（`data-hovering`/`data-scrolling`/
+//!   `data-has-overflow-*` 等）は headless 層（`crates/headless-ui/src/scroll_area.rs`）
+//!   が採用していないため（§3.25 規則 2、装飾・計測の関心は headless へ
+//!   持ち込まない）本モジュールでも追随しない。
+//! - **既知のトレードオフ**: `viewport` への `mask-image` は inset
+//!   フォーカスリング・ネイティブ thumb のフェード端側も透過させる（shadcn
+//!   も同じ構造）。静止時は先頭端が crisp なのでリング上辺は視認できるが、
+//!   両側辺は `data-orientation="horizontal"` 併用時にフェードの影響を
+//!   受け得る。フェードは opt-in（`data-fade` 明示付与時のみ）であり既定
+//!   挙動は変えない。
+//! - **`prefers-reduced-motion` 対応は不要**: フェードの scroll-driven
+//!   animation はスクロール位置への写像であり、時間経過で動く視覚効果
+//!   （`prefers-reduced-motion` が対象とする類）ではないため対応を省略する。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - JS によるスクロール位置追従（thumb の位置・サイズをスクロール量に応じて
@@ -145,17 +205,22 @@
 //!   イシュー #1572/#1843）は別スコープ（`table`）専用のスクロール
 //!   コンテナであり、thumb 色が旧来の `border` のまま本モジュールと
 //!   意匠が乖離するが、本イシューでは触れない（別途 Issue 化を検討）。
+//! - shadcn の `scroll-fade-t/-b/-s/-e`（片端のみのフェード指定）・
+//!   `scrollbar-none` 相当のユーティリティ（上記「意図的に合わせなかった点」
+//!   節参照）。
 
-use crate::css::decl;
+use crate::css::{decl, serialize_rule};
 use crate::recipe::{
     focus_ring_declarations, FocusRingColor, FocusRingOffset, SlotRecipe, StateCondition,
 };
 
 // REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
 // みで styled パーツ関数を再定義しない（規約 B-1）。上記「variant は非提供
-// （イシュー #825 判断、#1584 で再確認）」節のとおり variant 軸を持たず
-// （規約 B-2）、CSS 到達は [data-scope]/[data-part] 属性セレクタのみに
-// 依存する（規約 B-3、イシュー #1062 規約参照）。
+// （イシュー #825 判断、#1584・#2054 で再確認）」節のとおり variant 軸を
+// 持たず（規約 B-2）、CSS 到達は [data-scope]/[data-part] 属性セレクタと
+// 呼び出し側が付与する data-orientation/data-fade（役割 B 亜種、上記
+// 「shadcn/ui 突合（イシュー #2054）」節）のみに依存する（規約 B-3、イシュー
+// #1062 規約参照）。
 pub use fandhe_frontend_headless_ui::scroll_area::*;
 
 /// headless `scroll_area` anatomy の `data-part` 一覧（`crates/headless-ui/src/scroll_area.rs`
@@ -281,6 +346,13 @@ fn recipe() -> SlotRecipe {
 /// リテラルを追記する（[`crate::spinner::css`] の `@keyframes` 追記と同型の
 /// precedent）。値はソースコード中の固定リテラル + テーマ CSS 変数参照のみで
 /// 構成され、外部入力は一切混入しない。
+///
+/// 続けて、イシュー #2054（shadcn/ui 突合）で補完した
+/// `data-orientation="horizontal"`（横スクロール）・`data-fade`（端フェード）
+/// の opt-in 規則を追記する（モジュール doc「shadcn/ui 突合（イシュー
+/// #2054）」節参照。既存規則の末尾への **純追加** であり、golden テスト
+/// （`tests/scroll_area_css.rs`）は旧 golden 全文が新出力の先頭に一致する
+/// ことも固定する）。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();
@@ -297,6 +369,60 @@ pub fn stylesheet() -> String {
          background-clip: content-box;\n}\n\
          [data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar-corner {\n  \
          background: transparent;\n}\n",
+    );
+    // 横スクロール（イシュー #2054）: `viewport` へ呼び出し側が
+    // `data-orientation="horizontal"` を付与した場合のみ、子の `content` を
+    // `flex` 化して横並びにする。`SlotRecipe` は子結合子（`>`）を表現できない
+    // ため（`crate::button_group` と同型の判断）`serialize_rule` を直接使う。
+    if let Some(rule) = serialize_rule(
+        "[data-scope=\"scroll-area\"][data-part=\"viewport\"][data-orientation=\"horizontal\"] > [data-scope=\"scroll-area\"][data-part=\"content\"]",
+        &[decl("display", "flex"), decl("width", "max-content")],
+    ) {
+        out.push_str(&rule);
+    }
+    // 端フェード（イシュー #2054、shadcn `utils/scroll-fade` 相当）。
+    // `mask-image`/`@supports`/`@keyframes` は `{`/`}` を含み
+    // `crate::css::is_valid_value` が拒否するため `SlotRecipe` では表現
+    // できず、`crate::marquee::css` と同型の固定リテラル追記で表現する。
+    // 値はすべてソースコード中のリテラル + テーマ変数参照のみで構成され、
+    // `<`（`</style` 脱出防止）・制御文字を含まない（本モジュールの
+    // `stylesheet_never_contains_style_breakout_sequences` テストが固定）。
+    out.push_str(
+        "@keyframes fandhe-scroll-area-fade-reveal-start {\n  \
+         from {\n    --fandhe-scroll-area-fade-start: 0px;\n  }\n  \
+         to {\n    --fandhe-scroll-area-fade-start: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n  }\n\
+         }\n\
+         @keyframes fandhe-scroll-area-fade-reveal-end {\n  \
+         from {\n    --fandhe-scroll-area-fade-end: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n  }\n  \
+         to {\n    --fandhe-scroll-area-fade-end: 0px;\n  }\n\
+         }\n\
+         [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade] {\n  \
+         mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fandhe-scroll-area-fade-start, 0px), #000 calc(100% - var(--fandhe-scroll-area-fade-end, 0px)), transparent 100%);\n  \
+         mask-repeat: no-repeat;\n\
+         }\n\
+         [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade][data-orientation=\"horizontal\"] {\n  \
+         mask-image: linear-gradient(to right, transparent 0, #000 var(--fandhe-scroll-area-fade-start, 0px), #000 calc(100% - var(--fandhe-scroll-area-fade-end, 0px)), transparent 100%);\n\
+         }\n\
+         [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade][data-orientation=\"horizontal\"]:dir(rtl) {\n  \
+         mask-image: linear-gradient(to left, transparent 0, #000 var(--fandhe-scroll-area-fade-start, 0px), #000 calc(100% - var(--fandhe-scroll-area-fade-end, 0px)), transparent 100%);\n\
+         }\n\
+         @supports (animation-timeline: scroll()) {\n  \
+         [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade] {\n    \
+         animation: fandhe-scroll-area-fade-reveal-start 1ms linear, fandhe-scroll-area-fade-reveal-end 1ms linear;\n    \
+         animation-timeline: scroll(self block), scroll(self block);\n    \
+         animation-range: 0 var(--fandhe-scroll-area-fade-reveal, var(--fandhe-space-8, 2rem)), calc(100% - var(--fandhe-scroll-area-fade-reveal, var(--fandhe-space-8, 2rem))) 100%;\n    \
+         animation-fill-mode: both;\n  \
+         }\n  \
+         [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade][data-orientation=\"horizontal\"] {\n    \
+         animation-timeline: scroll(self inline), scroll(self inline);\n  \
+         }\n\
+         }\n\
+         @supports not (animation-timeline: scroll()) {\n  \
+         [data-scope=\"scroll-area\"][data-part=\"viewport\"][data-fade] {\n    \
+         --fandhe-scroll-area-fade-start: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n    \
+         --fandhe-scroll-area-fade-end: var(--fandhe-scroll-area-fade-size, min(12%, var(--fandhe-space-10, 2.5rem)));\n  \
+         }\n\
+         }\n",
     );
     out
 }
@@ -482,5 +608,64 @@ mod tests {
         let html = render(&viewport(vec![], vec![]));
         assert!(html.contains(r#"data-part="viewport""#));
         assert!(html.contains(r#"tabindex="0""#));
+    }
+
+    #[test]
+    fn horizontal_content_rule_targets_child_combinator() {
+        // イシュー #2054: `data-orientation="horizontal"` は `viewport` の
+        // 直接の子である `content` のみを `flex` 化する（子孫全体ではなく
+        // 子結合子で表現、shadcn `ScrollBar orientation="horizontal"` 相当）。
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"scroll-area\"][data-part=\"viewport\"][data-orientation=\"horizontal\"] > [data-scope=\"scroll-area\"][data-part=\"content\"] {\n  display: flex;\n  width: max-content;\n}\n"
+        ));
+    }
+
+    #[test]
+    fn fade_rules_are_opt_in_via_data_fade() {
+        // イシュー #2054: フェードは `[data-fade]` セレクタ配下でのみ
+        // 有効になる opt-in であり、既定の `viewport` 規則には
+        // `mask-image` を含まない（既存出力を変えない純追加原則）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="scroll-area"][data-part="viewport"][data-fade] {"#));
+        assert!(css.contains("mask-image: linear-gradient(to bottom,"));
+        assert!(css.contains("mask-image: linear-gradient(to right,"));
+        assert!(css.contains(":dir(rtl)"));
+        assert!(css.contains("@supports (animation-timeline: scroll())"));
+        assert!(css.contains("@supports not (animation-timeline: scroll())"));
+        // `@property` は `<length-percentage>` のような `<` を含むリテラル
+        // 登録を伴うため採用しない（モジュール doc「意図的に合わせなかった
+        // 点」節参照）。`<` 不在の不変条件は本テストが二重に固定する。
+        assert!(!css.contains("@property"));
+        assert!(!css.contains('<'));
+        let default_block_start = css
+            .find("[data-scope=\"scroll-area\"][data-part=\"viewport\"] {\n")
+            .expect("viewport 既定 base ブロックが見つかりません");
+        let default_block_end = css[default_block_start..]
+            .find("\n}\n")
+            .expect("viewport 既定 base ブロックの終端が見つかりません");
+        let default_block = &css[default_block_start..default_block_start + default_block_end];
+        assert!(
+            !default_block.contains("mask-image"),
+            "viewport の既定 base 宣言に mask-image が混入しています: {default_block}"
+        );
+    }
+
+    #[test]
+    fn fade_custom_properties_use_scope_prefix() {
+        // `crates/docs-site/tests/css_var_scope_prefix.rs` の scope 一致契約
+        // （`--fandhe-<scope>-*`）を満たすことを固定する。
+        let css = stylesheet();
+        for name in [
+            "--fandhe-scroll-area-fade-size",
+            "--fandhe-scroll-area-fade-reveal",
+            "--fandhe-scroll-area-fade-start",
+            "--fandhe-scroll-area-fade-end",
+        ] {
+            assert!(
+                css.contains(name),
+                "{name} が stylesheet() に含まれていません"
+            );
+        }
     }
 }
