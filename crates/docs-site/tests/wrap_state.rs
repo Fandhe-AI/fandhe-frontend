@@ -608,10 +608,22 @@ const HEADLESS_UNWRAPPED: &[&str] = &["sidebar", "message"];
 /// 集合として引き続き 4 件のまま維持する）。
 const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "textarea"];
 
-/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（6 件。
+/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（7 件。
 /// イシュー #1685 で `field`、イシュー #1687 で `fieldset` がそれぞれ
-/// Themes ページ登録済みとなり本台帳から除外された）。
-const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
+/// Themes ページ登録済みとなり本台帳から除外された。イシュー #2079 で
+/// `radial_chart` を新設し、本イシューでは `/themes/radial-chart/` の
+/// ページ登録を行わないため一時的に本台帳へ追加した。兄弟イシュー #2080
+/// がページ登録した時点で本エントリを削除し `PRIMITIVES`/Themes 側の
+/// 「ラップ済み」台帳へ移すこと）。
+const NON_PAGE_TOP_LEVEL: &[&str] = &[
+    "class_attr",
+    "css",
+    "lib",
+    "radial_chart",
+    "recipe",
+    "stylesheet",
+    "theme",
+];
 
 /// §3.6: `charts/` のうち Themes ページに対応しないモジュール（8 件。
 /// `mod` は charts 索引ページとして別枠で扱うため含まない。`tooltip` は
@@ -976,7 +988,7 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        114,
+        115,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
          登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
@@ -992,7 +1004,11 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          `button_group` も WRAPPED_SAME_NAME バケットへ移った。イシュー \
          #2070 で command.rs を新設し 113 → 114。`/themes/command/` \
          ページ登録により `command` も WRAPPED_SAME_NAME バケットへ \
-         移った）"
+         移った。イシュー #2079 で radial_chart.rs を新設し 114 → 115。 \
+         本イシュー時点ではページ未登録のため `radial_chart` は \
+         NON_PAGE_TOP_LEVEL に暫定登録し、兄弟イシュー #2080 の \
+         `/themes/radial-chart/` ページ登録時に WRAPPED_SAME_NAME \
+         バケットへ移す）"
     );
     assert_eq!(
         scan.charts.len(),
