@@ -179,26 +179,28 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // が加わり 196 → 197 になった。イシュー #1683 で Collapsible が加わり
     // 197 → 198 になった。イシュー #1685 で Field が加わり 198 → 199 に
     // なった。イシュー #1687 で Fieldset が加わり 199 → 200 になった。
-    assert_eq!(pages.len(), 200, "expected 200 pages, got {pages:?}");
+    // イシュー #2062 で Input Group が加わり 200 → 201 になった。
+    assert_eq!(pages.len(), 201, "expected 201 pages, got {pages:?}");
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ
-    // （`/primitives/` 自身）1 件の 64 件。
+    // （`/primitives/` 自身）1 件の 64 件。イシュー #2062 で Input Group が
+    // 加わり 64 → 65 件になった。
     let primitives_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/primitives/"))
         .collect();
     assert_eq!(
         primitives_pages.len(),
-        64,
-        "expected 64 /primitives/ pages (63 部品 + 1 索引), got {primitives_pages:?}"
+        65,
+        "expected 65 /primitives/ pages (64 部品 + 1 索引), got {primitives_pages:?}"
     );
     let source_based_primitive_pages = pages
         .iter()
         .filter(|(source, _)| source.starts_with("site/primitives/"))
         .count();
     assert_eq!(
-        source_based_primitive_pages, 63,
-        "expected 63 pages sourced from site/primitives/"
+        source_based_primitive_pages, 64,
+        "expected 64 pages sourced from site/primitives/"
     );
     assert!(
         pages.contains(&("site/primitives.md", "/primitives/")),

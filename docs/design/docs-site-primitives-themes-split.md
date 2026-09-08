@@ -179,12 +179,14 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 ## 6. Primitives 台帳の判別規約
 
 **判別規則**: `crates/headless-ui/src/*.rs` のうち `anatomy(` を呼ぶもの
-(`anatomy.rs` 自身を除く)= **部品 63 件**。
+(`anatomy.rs` 自身を除く)= **部品 64 件**(イシュー #2062 で `input_group`
+を追加、旧 63 件)。
 
 **基盤モジュール 9 件**(部品ではない): `anatomy` / `aria` / `color` /
 `data_attrs` / `date` / `format` / `positioning` / `qr_encode` / `state`。
 
-63 + 9 + `lib.rs` = **73** = `crates/headless-ui/src/*.rs` の総数。
+64 + 9 + `lib.rs` = **74** = `crates/headless-ui/src/*.rs` の総数(旧
+63 + 9 + 1 = 73)。
 
 **`collapsible` / `field` / `fieldset` は `anatomy()` を持つ実部品**であり
 基盤ではない(CLAUDE.md の記述から基盤と誤読しないこと)。
@@ -206,10 +208,10 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 コマンドをそのまま埋める。
 
 ```bash
-# 部品 63 件
-grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 63
-# 総数 73(= 63 + 基盤 9 + lib.rs)
-ls crates/headless-ui/src/*.rs | wc -l                                            # => 73
+# 部品 64 件（イシュー #2062 で input_group を追加、旧 63）
+grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 64
+# 総数 74(= 64 + 基盤 9 + lib.rs、旧 73)
+ls crates/headless-ui/src/*.rs | wc -l                                            # => 74
 # Themes 部品ページ 110 件（イシュー #1017 で site/components/ から site/themes/ へ移行済み）
 ls site/themes/*.md | wc -l                                                       # => 110
 ```
@@ -217,8 +219,9 @@ ls site/themes/*.md | wc -l                                                     
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
 
 §6 は headless-ui ソース ↔ Primitives 台帳の**レイヤー内**ドリフト検知
-(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(63 部品)
-と Themes(110 部品)の**層をまたぐラップ状態**(どの Themes ページが
+(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(64 部品、
+イシュー #2062 で `input_group` を追加、旧 63)と Themes(110 部品)の
+**層をまたぐラップ状態**(どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
 テストは `crates/docs-site/tests/wrap_state.rs`(イシュー #1064)。
 
@@ -234,7 +237,8 @@ ls site/themes/*.md | wc -l                                                     
 
 `crates/pre-styled-ui/src/**/*.rs` の各モジュールについて、**非コメント行**
 に現れる `fandhe_frontend_headless_ui::<module>` のうち `<module>` が
-Primitives 台帳の 63 部品名に一致するものを「コード委譲あり」とする。
+Primitives 台帳の 64 部品名(イシュー #2062 で `input_group` を追加、旧 63)
+に一致するものを「コード委譲あり」とする。
 
 rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc に 1 文
 足すだけでカテゴリが変わる壊れやすい契約を避けるため、コード実体(`pub use`
@@ -265,11 +269,18 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 (`docs/policy/intentional-non-adoption.md` §3.25 が最も警戒する独自実装の
 兆候)。
 
+**イシュー #2062 追記(2026-09-08)**: headless-ui 層のみ新設した `input_group`
+は Themes 側(`crates/pre-styled-ui/src/input_group.rs`・
+`/themes/input-group/`)が #2063(未実装)のため、上記「0 件」は暫定的に
+「1 件」になる(`HEADLESS_UNWRAPPED = ["input_group"]`)。#2063 で
+Themes ページ登録が完了すると再び 0 件へ戻る想定。
+
 ### Primitives 側の未ラップ判定
 
 `crates/pre-styled-ui/src/**/*.rs` 全体のコード行から、どこからも参照され
-ていない headless 部品モジュールを求めると 0 件
-(`HEADLESS_UNWRAPPED`。`collapsible` はイシュー #1682、`fieldset` はイシュー
+ていない headless 部品モジュールを求めると 1 件
+(`HEADLESS_UNWRAPPED = ["input_group"]`。上記「イシュー #2062 追記」節
+参照。`collapsible` はイシュー #1682、`fieldset` はイシュー
 #1686 でそれぞれコード委譲済みになったため本台帳から外れた)。`field` は
 イシュー #1685 で `/themes/field/` ページを新設し
 `PRIMITIVES_WITHOUT_THEMES_PAGE` から除外済みで、`WRAPPED_SAME_NAME`
@@ -305,8 +316,8 @@ panic する。§6 の弱体化ではなく別レイヤー向けの規約であ�
 ```bash
 # Themes 部品ページ 110 件
 grep -oE 'source = "site/themes/[a-z0-9-]+\.md"' site/nav.toml | wc -l          # => 110
-# Primitives 部品 63 件
-grep -c 'path: "/primitives/' crates/docs-site/src/primitives_catalog.rs        # => 63
+# Primitives 部品 64 件（イシュー #2062 で input_group を追加、旧 63）
+grep -c 'path: "/primitives/' crates/docs-site/src/primitives_catalog.rs        # => 64
 # pre-styled ソース総数 124(トップレベル 110 + charts/ 14)
 ls crates/pre-styled-ui/src/*.rs | wc -l                                        # => 110
 ls crates/pre-styled-ui/src/charts/*.rs | wc -l                                 # => 14
@@ -348,8 +359,15 @@ ls crates/pre-styled-ui/src/charts/*.rs | wc -l                                 
   `json_tree_view` `scroll_area` `skip_nav` `splitter` `steps` `tour`
   `tree_view` `visually_hidden`
 
-**転記の検証記録**: 上記 6 グループの和集合と §6 のコード導出 63 件を
-`diff` で突合し、**差分なし(集合一致)** を確認済み。
+**転記の検証記録**: 上記 6 グループの和集合と §6 のコード導出 63 件(#2062
+以前の値)を `diff` で突合し、**差分なし(集合一致)** を確認済み。
+
+**イシュー #2062 追記(2026-09-08、Phase 4)**: 上記の逐語転記(#1024〜
+#1029 の対応 issue 一次情報)は変更しない。本イシューは Forms A へ
+`input_group`(12 件目、`image_cropper` と `listbox` の間)を追加し、
+Forms A は 11 → 12、6 グループ合計は 63 → 64 になった。§6 のコード導出
+64 件との一致は `crates/docs-site/tests/primitives_catalog.rs::category_counts_and_order_follow_the_design_spec`
+が機械検査する(本節末尾の表・部品名一覧は据え置き、本追記のみを正とする)。
 
 ```bash
 grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' \

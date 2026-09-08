@@ -559,11 +559,17 @@ const PRE_STYLED_ONLY: &[&str] = &[
 ];
 
 /// §3.4（受け入れ条件 3）: pre-styled-ui のどこからもコード委譲されていない
-/// headless 部品（module 名、0 件）。イシュー #1686 で `fieldset.rs`
+/// headless 部品（module 名、1 件）。イシュー #1686 で `fieldset.rs`
 /// （headless `fieldset::root` へコード委譲する同名モジュール）を追加し、
 /// イシュー #1687 で `/themes/fieldset/` ページ登録も完了したため、
-/// `fieldset` は [`WRAPPED_SAME_NAME`] へ分類される。
-const HEADLESS_UNWRAPPED: &[&str] = &[];
+/// `fieldset` は [`WRAPPED_SAME_NAME`] へ分類される。`input_group` は
+/// イシュー #2062（headless-ui 層のみ新設）時点では pre-styled-ui 側
+/// （`crates/pre-styled-ui/src/input_group.rs`・`/themes/input-group/`）が
+/// #2063（未実装）のため、暫定的に本台帳へ載せる
+/// （`PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
+/// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
+/// が検証する）。
+const HEADLESS_UNWRAPPED: &[&str] = &["input_group"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
