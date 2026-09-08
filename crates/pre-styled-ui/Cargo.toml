@@ -2415,7 +2415,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # variant 追加は網羅的 match を壊し得る 0.x の破壊的変更（イシュー #1434
 # `HeadingSize::Xs` 先例）としてマイナーバンプする。main 到達値の確認時点
 # （0.141.0）から +1 マイナーして 0.142.0 とする。
-version = "0.142.0"
+#
+# イシュー #2050: skeleton を shadcn/ui と突合し、欠落 variant/state が
+# ないことを確認した（`recipe()`/`css()`/公開 API は不変、golden
+# `tests/skeleton_css.rs` はバイト同一のまま据え置き）。変更は
+# `src/skeleton.rs` の rustdoc 追記のみ（突合結果の記録）であり、CSS・
+# API に影響しない。`docs/ci/style-refresh-version-bump-operation.md`
+# §3.1/§3.3 によりドキュメントのみの `src/` 変更は patch バンプとする。
+# main 到達値の確認時点（0.142.0）から +1 パッチして 0.142.1 とする。
+version = "0.142.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
