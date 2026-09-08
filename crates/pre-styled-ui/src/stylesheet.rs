@@ -365,6 +365,7 @@ mod tests {
             ("sparkline", crate::sparkline::stylesheet()),
             ("pie_chart", crate::pie_chart::css()),
             ("donut_chart", crate::donut_chart::css()),
+            ("radial_chart", crate::radial_chart::css()),
             ("charts/scatter_chart", crate::charts::scatter_chart::css()),
             ("charts/radar_chart", crate::charts::radar_chart::css()),
             ("toolbar", crate::toolbar::stylesheet()),

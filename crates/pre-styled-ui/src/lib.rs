@@ -130,6 +130,11 @@
 //!   グラフ。系列 1 本専用（多系列は fail-closed で拒否）、`size` variant
 //!   のみ（`color-palette` 軸は非提供、セグメント配色は
 //!   [`charts::series_color_var`] の循環で決まるため）。
+//! - [`mod@radial_chart`]（#2079、shadcn/ui Charts Radial 相当）: 同じく
+//!   [`charts::pie`] の環状セクタジオメトリ（角丸端は本イシューで新設した
+//!   [`charts::pie::annulus_sector_rounded_path`]）を用いた同心リング型
+//!   グラフ。複数系列を積み上げ表示できる点が [`mod@pie_chart`]/
+//!   [`mod@donut_chart`] と異なる（`size` variant のみ提供）。
 //!
 //! - headless 状態機械を持つ複合部品 5 種の styled ラッパー第 1 弾（#551）:
 //!   [`mod@dialog`] / [`mod@tabs`] / [`mod@accordion`] / [`mod@menu`] /
@@ -738,6 +743,7 @@ pub mod popover;
 pub mod progress;
 pub mod qr_code;
 pub mod quote;
+pub mod radial_chart;
 pub mod radio_card;
 pub mod radio_group;
 pub mod rating_group;
