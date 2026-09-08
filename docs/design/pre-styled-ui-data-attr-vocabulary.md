@@ -47,7 +47,7 @@
 | `data-selected` | `pagination.rs` / `tree_view.rs` / `calendar.rs` | headless `pagination.rs` / `tree_view.rs` ほか |
 | `data-placement` | `drawer.rs` | headless `drawer.rs` / `toast.rs` |
 | `data-position` | `image_cropper.rs` | headless `image_cropper.rs`（イシュー #1610 で `data-handle-position` から改名。参照実装〔ark-ui/zag.js〕の語彙と一致させるため） |
-| `data-side` / `data-align` | `tour.rs` / `tooltip.rs`（イシュー #2041）、`input_group.rs`（`addon` の `data-align` 4 値、イシュー #2063 で `input_group.rs` が state 規則として参照） | headless `positioning.rs` / headless `input_group.rs`（`addon` の `align` 引数） |
+| `data-side` / `data-align` | `tour.rs` / `tooltip.rs`（イシュー #2041）、`input_group.rs`（`addon` の `data-align` 4 値、イシュー #2063 で `input_group.rs` が state 規則として参照）、`table.rs`（`cell`/`column-header` の `data-align`〔start/center/end〕、イシュー #2052。下記「役割 B 亜種」注記参照） | headless `positioning.rs` / headless `input_group.rs`（`addon` の `align` 引数）。ただし `table.rs` の消費分は**呼び出し側**が付与し、`fandhe-frontend-wasm-full` の `position.rs` は `positioner` パートからのみ読み戻すため `td`/`th` とは干渉しない |
 | `data-placeholder` | `date_input.rs` | headless `date_input.rs` |
 | `data-placeholder-shown` | `editable.rs` | headless `editable.rs` / `select.rs` |
 | `data-autoresize` | `textarea.rs` | headless `field.rs` |
@@ -62,8 +62,10 @@
 | `data-inset` | `menu.rs`（イシュー #2033、shadcn/ui 突合。`item` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`item()` の `attrs` 経由で個別項目へ都度付与する値なし存在属性。headless・pre-styled のいずれも出力しない（下記「役割 B 亜種」注記参照） |
 | `data-has-action` | `card.rs`（イシュー #2046、shadcn/ui 突合。`header` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`header()` の `attrs` 経由で `("data-has-action", "")` を渡す値なし存在属性。header を grid 化し `action` パーツを右上へ配置する。card は headless 側部品を持たない（pre-styled 単独 anatomy）ため出力元は呼び出し側のみ |
 | `data-bordered` | `card.rs`（イシュー #2046、shadcn/ui 突合。`header`/`footer` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`header()`/`footer()` の `attrs` 経由で `("data-bordered", "")` を渡す値なし存在属性。header/footer に 1px の区切り線を opt-in で表示する |
+| `data-selected`（`table.rs`） | `table.rs`（イシュー #2052、shadcn/ui 突合。`row` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`row()` の `attrs` 経由で `("data-selected", "")` を渡す値なし存在属性。table は headless 側部品を持たない（pre-styled 単独 anatomy）ため出力元は呼び出し側のみ |
+| `data-align`（`table.rs` 消費分） | `table.rs`（イシュー #2052、shadcn/ui 突合。`cell`/`column-header` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`cell()`/`column_header()` の `attrs` 経由で `("data-align", "start")` 等（`start`/`center`/`end` のいずれか）を渡す。headless `positioning.rs` と同名・同一意味論（軸方向の整列）の共有語彙（B-2）だが、`table.rs` 分は `positioner` パートを経由せず呼び出し側が直接付与する |
 
-**役割 B 亜種（`data-danger`/`data-inset`）の注記**: 上記の役割 B は「出力元が他層（主に headless）」を前提とするが、`data-danger`/`data-inset` は headless・pre-styled のどちらも出力せず、**呼び出し側（アプリケーションコード）**が `item()` の自由 `attrs` 経由で個別インスタンスへ都度付与する値なし存在属性である。`item()` の予約キー一覧（`ITEM_RESERVED`、`crates/headless-ui/src/menu.rs`）に含まれないためそのまま出力され、pre-styled の recipe（`menu.rs`）は `StateCondition::Attr` で**参照のみ**する。役割 A（pre-styled が出力）・役割 B（他層が出力）のどちらの定義にも完全には一致しないため、本節の亜種として記録する（`crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当パートの是正（イシュー #2033）」節参照）。`data-has-action`/`data-bordered`（イシュー #2046）も同型の亜種である: card は headless 側部品を持たない pre-styled 単独 anatomy であり、`header()`/`footer()` はこれらの値を検証せずそのまま出力するため出力元は常に呼び出し側、pre-styled の recipe（`card.rs`）は `StateCondition::Attr` で**参照のみ**する（`crates/pre-styled-ui/src/card.rs` モジュール rustdoc「shadcn/ui 突合（イシュー #2046）」節参照）。
+**役割 B 亜種（`data-danger`/`data-inset`）の注記**: 上記の役割 B は「出力元が他層（主に headless）」を前提とするが、`data-danger`/`data-inset` は headless・pre-styled のどちらも出力せず、**呼び出し側（アプリケーションコード）**が `item()` の自由 `attrs` 経由で個別インスタンスへ都度付与する値なし存在属性である。`item()` の予約キー一覧（`ITEM_RESERVED`、`crates/headless-ui/src/menu.rs`）に含まれないためそのまま出力され、pre-styled の recipe（`menu.rs`）は `StateCondition::Attr` で**参照のみ**する。役割 A（pre-styled が出力）・役割 B（他層が出力）のどちらの定義にも完全には一致しないため、本節の亜種として記録する（`crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当パートの是正（イシュー #2033）」節参照）。`data-has-action`/`data-bordered`（イシュー #2046）も同型の亜種である: card は headless 側部品を持たない pre-styled 単独 anatomy であり、`header()`/`footer()` はこれらの値を検証せずそのまま出力するため出力元は常に呼び出し側、pre-styled の recipe（`card.rs`）は `StateCondition::Attr` で**参照のみ**する（`crates/pre-styled-ui/src/card.rs` モジュール rustdoc「shadcn/ui 突合（イシュー #2046）」節参照）。`table.rs`（イシュー #2052）の `data-selected`/`data-align` も同型の亜種である: table も headless 側部品を持たない pre-styled 単独 anatomy であり、`row()`/`cell()`/`column_header()` はこれらの値を検証せずそのまま出力するため出力元は常に呼び出し側、pre-styled の recipe（`table.rs`）は `StateCondition::Attr`/`StateCondition::AttrEq` で**参照のみ**する（`crates/pre-styled-ui/src/table.rs` モジュール rustdoc「`data-selected` 行状態」・「`data-align` セル整列」節参照）。
 
 ### 2.3 役割 C: 「予約名として防御的に列挙」される `data-*`
 
@@ -98,6 +100,7 @@ headless-ui に対応部品が存在しない pre-styled-only 部品（Button / 
 2. **B-2**: **同名属性は同一意味論でのみ再利用し、値域を部品モジュール rustdoc に明記する。意味論が異なる場合は別名を使う。**
    - 評価済みケース: `data-action`（pre-styled `tag` の dispatch action 識別子 / headless `timer` の control kind）は、いずれも「この要素をクリックしたときに発火する action の識別子」で意味論が同一であるため共有語彙と判定し、改名しない。値域が部品ごとに異なる点のみ rustdoc に明記する。
    - 評価済みケース: `data-value`（pre-styled `radio_card` / headless の 5 部品）も「項目の値」で意味論同一。共有語彙として維持する。
+   - 評価済みケース（イシュー #2052）: `data-align`（`table.rs` の `cell`/`column-header` / headless `positioning.rs` の `positioner`、`input_group.rs` の `addon`）は、いずれも「軸方向の整列」で意味論・値域（`start`/`center`/`end`。`positioning.rs` はこれに `top`/`bottom`/`left`/`right` 等を加えた広い値域を持つが `table.rs` は 3 値のみを消費）が一致するため共有語彙と判定し、改名しない。`table.rs` 分は呼び出し側が直接付与し `positioner` パート・`position.rs` を経由しない点のみ rustdoc（`crate::table` モジュール doc「`data-align` セル整列」節）に明記する。
 3. **B-3**: 語彙（属性名・値域・意味・付与条件・CSS 消費者の有無）を部品モジュール rustdoc に「`data-*` 語彙」節として明記し、本文書のレジストリから相互参照できるようにする。
 
 ### 3.3 規約 C（集約はしない）— 判断根拠

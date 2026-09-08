@@ -25,6 +25,16 @@
 //!    `base_selectors_match_actual_headless_markup` と同型の接続照合）。
 //! 7. `sticky_header`（イシュー #1571）の `false`/`true` クラスセレクタ・
 //!    custom property が出力に含まれる。
+//! 8. `interactive`（イシュー #2052）の `false`/`true` クラスセレクタ・
+//!    `--fandhe-table-row-hover-bg` custom property が出力に含まれる。
+//! 9. `row` の `[data-selected]` 状態規則（`accent-subtle`/
+//!    `accent-fg-subtle`）が `:nth-child(even)`（striped）規則より後に
+//!    出力される。
+//! 10. `cell`/`column-header` の `[data-align="start"|"center"|"end"]`
+//!     状態規則が出力に含まれる。
+//!
+//! いずれもバイト fixture ではなく規則の存在・相対位置を確認する形式（本
+//! ファイル冒頭の形式選択の理由に同じ）。
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
@@ -213,6 +223,50 @@ fn table_css_footer_has_medium_weight_and_no_border() {
     assert!(!footer_rule.contains("border"));
 }
 
+/// イシュー #2052: `interactive` variant の `false`/`true` クラスセレクタ・
+/// `--fandhe-table-row-hover-bg` custom property が出力に含まれることを
+/// 固定する（`sticky_header` と同型のアサーション、本ファイル冒頭「固定
+/// する観点」8 参照）。
+#[test]
+fn table_css_contains_interactive_variants() {
+    let css = table::css();
+    assert!(css.contains(r#"[data-scope="table"][data-part="root"].fd-table--interactive-false {"#));
+    assert!(css.contains(r#"[data-scope="table"][data-part="root"].fd-table--interactive-true {"#));
+    assert!(css.contains("--fandhe-table-row-hover-bg: transparent;"));
+    assert!(css.contains("--fandhe-table-row-hover-bg: var(--fandhe-color-bg-muted);"));
+}
+
+/// イシュー #2052: 選択行（`[data-selected]`）状態規則が
+/// `:nth-child(even)`（striped）規則より後に出力されることを固定する
+/// （本ファイル冒頭「固定する観点」9 参照。specificity が同じ (0,3,0) の
+/// ためソース順の後勝ちで選択が縞に勝つ契約）。
+#[test]
+fn table_css_selected_row_rule_is_output_after_striped_rule() {
+    let css = table::css();
+    let striped_pos = css
+        .find(r#"[data-scope="table"][data-part="row"]:nth-child(even) {"#)
+        .expect("striped 規則が css() 出力に存在すること");
+    let selected_pos = css
+        .find(r#"[data-scope="table"][data-part="row"][data-selected] {"#)
+        .expect("selected 規則が css() 出力に存在すること");
+    assert!(striped_pos < selected_pos);
+}
+
+/// イシュー #2052: `cell`/`column-header` の `data-align`（start/center/end）
+/// 状態規則が出力に含まれることを固定する（本ファイル冒頭「固定する観点」
+/// 10 参照）。
+#[test]
+fn table_css_contains_data_align_state_rules() {
+    let css = table::css();
+    for part in ["cell", "column-header"] {
+        for value in ["start", "center", "end"] {
+            let selector =
+                format!(r#"[data-scope="table"][data-part="{part}"][data-align="{value}"] {{"#);
+            assert!(css.contains(&selector), "missing {selector}\n{css}");
+        }
+    }
+}
+
 #[test]
 fn table_css_never_contains_style_breakout_sequences() {
     let css = table::css();
@@ -228,6 +282,7 @@ fn table_recipe_selectors_match_actual_rendered_markup() {
             size: Size::Lg,
             striped: true,
             sticky_header: true,
+            interactive: true,
         },
         vec![],
         vec![],
@@ -237,6 +292,7 @@ fn table_recipe_selectors_match_actual_rendered_markup() {
     assert!(html.contains("fd-table--size-lg"));
     assert!(html.contains("fd-table--striped-true"));
     assert!(html.contains("fd-table--sticky-header-true"));
+    assert!(html.contains("fd-table--interactive-true"));
 
     let cell_html = render(&table::cell(vec![], vec![]));
     assert!(cell_html.starts_with(r#"<td data-scope="table" data-part="cell""#));

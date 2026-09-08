@@ -44,6 +44,7 @@ use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::tab_nav;
+use fandhe_frontend_pre_styled_ui::table;
 use fandhe_frontend_pre_styled_ui::tag;
 
 /// XSS 回帰用の最小ペイロード（`xss_escape_styled.rs` の既存様式に合わせる）。
@@ -697,4 +698,51 @@ fn kbd_group_emits_no_self_produced_data_attrs() {
         data_attr_count, 2,
         "kbd::group は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
     );
+}
+
+/// `table.rs`（イシュー #2052、shadcn/ui 突合で `data-selected`/`data-align`
+/// の消費側規則を追加）の `row`/`cell`/`column_header` は、`avatar::group`/
+/// `kbd::group` と同型で独自の `data-*` を一切出力しない静的部品である。
+/// `data-selected`（行選択）・`data-align`（セル整列）はいずれも
+/// [`table.rs`](../src/table.rs) モジュール doc「`data-selected` 行状態」・
+/// 「`data-align` セル整列」節が記す**呼び出し側が付与する共有語彙**であり、
+/// `crate::table` 自身は生産しない。既定呼び出し（`attrs` 空）では
+/// `data-scope`/`data-part` の 2 個のみが出力されることと、呼び出し側が
+/// `data-selected`/`data-align` を渡した場合はそのまま透過する（生ペイロード
+/// は残らない）ことの両方を固定する。
+#[test]
+fn table_row_and_cell_data_attrs_are_caller_sourced_not_self_emitted() {
+    let row_html = render(&table::row(vec![], vec![]));
+    assert!(row_html.contains(r#"data-scope="table""#));
+    assert!(row_html.contains(r#"data-part="row""#));
+    assert_eq!(
+        row_html.matches("data-").count(),
+        2,
+        "table::row は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={row_html}"
+    );
+
+    let cell_html = render(&table::cell(vec![], vec![]));
+    assert_eq!(
+        cell_html.matches("data-").count(),
+        2,
+        "table::cell は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={cell_html}"
+    );
+
+    let column_header_html = render(&table::column_header(vec![], vec![]));
+    assert_eq!(
+        column_header_html.matches("data-").count(),
+        2,
+        "table::column_header は data-scope/data-part の 2 個以外の data-* を出力しないはず: \
+         html={column_header_html}"
+    );
+
+    // 呼び出し側が data-selected/data-align を渡した場合、そのまま透過する
+    // （table.rs 自身が別の値へ書き換えたり生ペイロードを握りつぶしたり
+    // しないことの確認。XSS 回帰は xss_escape_styled.rs 側で網羅する）。
+    let selected_row_html = render(&table::row(vec![("data-selected", "")], vec![]));
+    assert!(selected_row_html.contains("data-selected"));
+    assert_no_raw_payload(&selected_row_html, "table::row data-selected 経路");
+
+    let aligned_cell_html = render(&table::cell(vec![("data-align", "end")], vec![]));
+    assert!(aligned_cell_html.contains(r#"data-align="end""#));
 }
