@@ -2411,10 +2411,27 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2065: 依存先 `fandhe-frontend-headless-ui` が `item` モジュール
 # （新規 anatomy パーツのみの非破壊的追加）を新設し 0.68.1 → 0.68.2 へ
 # patch バンプしたことに伴う `check-dep-versions --fix` 追随。本クレート
-# 自体の公開 API・golden CSS 出力に変更はないが、依存グラフ上限確認・
-# semver バンプ運用（`docs/ci/style-refresh-version-bump-operation.md`）に
-# 従い patch バンプする。0.141.0 から +1 パッチして 0.141.1 とする。
-version = "0.141.1"
+# 自体の公開 API・golden CSS 出力に変更はない。
+#
+# イシュー #2049: progress を shadcn/ui と突合し、`ProgressVariant::Plain`
+# （新規 enum variant、shadcn/ui 既定表現に相当する枠線なし中立トラック）
+# を純追加した。既存 `ProgressVariant::Outline`/`Subtle` の CSS 出力・
+# 既定 variant はバイト同一のまま不変だが、`pub enum ProgressVariant` への
+# variant 追加は網羅的 match を壊し得る 0.x の破壊的変更（イシュー #1434
+# `HeadingSize::Xs` 先例）としてマイナーバンプする。main 到達値の確認時点
+# （0.141.0）から +1 マイナーして 0.142.0 とする。
+#
+# base 取り込み（イシュー #2065）: 独立に 0.141.1（headless-ui 0.68.2 への
+# patch 追随のみ、実体変更なし）へ到達していた本ブランチと、0.142.0
+# （progress の実体変更を伴うマイナーバンプ）へ到達していた main を統合
+# する。main は headless-ui 0.68.1 依存のままで 0.68.2 への追随は含んで
+# いないため、本ブランチ側の依存先 version 要求追随（下記
+# `fandhe-frontend-headless-ui = { path = ..., version = "0.68.2" }`）は
+# main に未反映の実体差分として残る。イシュー #1633（「base 取り込み後の
+# headless-ui 0.48.1 依存追随」）・#1660（「headless-ui 側がさらに patch
+# バンプしたため、依存元である本クレートも patch バンプする」）の先例に
+# 従い、main の到達値 0.142.0 から +1 パッチして 0.142.1 とする。
+version = "0.142.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

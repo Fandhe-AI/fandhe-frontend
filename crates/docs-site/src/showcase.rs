@@ -9518,7 +9518,9 @@ fn visually_hidden_section() -> Node {
 /// 契約、`crates/pre-styled-ui/src/progress.rs` rustdoc 参照）。circle 系
 /// パーツ（Circle/CircleTrack/CircleRange）は styled 層の独自ラッパーを持たず
 /// headless の inherent メソッドをそのまま呼ぶ。`ProgressVariant`（outline/
-/// subtle）は circle-track に影響しない設計（progress.rs rustdoc「意図的に
+/// subtle/plain。plain はイシュー #2049 で shadcn/ui 既定表現を補完した
+/// 第 3 variant、progress.rs rustdoc「イシュー #2049: shadcn/ui との突合」
+/// 節参照）は circle-track に影響しない設計（progress.rs rustdoc「意図的に
 /// 参考サイトへ合わせない点」節）のため、circle の variant 行は作らない。
 fn progress_section() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
@@ -9640,6 +9642,15 @@ fn progress_section() -> Node {
             "Subtle",
             "40%",
         ),
+        linear_demo(
+            &determinate,
+            &ProgressProps {
+                variant: ProgressVariant::Plain,
+                ..ProgressProps::default()
+            },
+            "Plain",
+            "40%",
+        ),
     ]);
 
     let palette_row = stack(
@@ -9748,7 +9759,7 @@ fn progress_section() -> Node {
 
     section(
         "Progress",
-        "Linear（Track/Range）と Circular（SVG）両対応の進捗インジケータ。size（xs〜xl）で --fandhe-progress-track-height/--fandhe-progress-size/--fandhe-progress-thickness を、variant（outline/subtle）で track の見た目を、color-palette（accent/info/success/warning/danger/neutral）で range の塗り色を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動したアニメーション（linear は横スライド、circular は回転）で表示し、prefers-reduced-motion: reduce では停止します。circular の indeterminate は回転に加え circle-range へ円周の 1/4 分の固定弧（stroke-dasharray）を持ち、complete（完全リング）と視覚的に区別されます（イシュー #1688）。この弧は animation を持たないため、prefers-reduced-motion: reduce でも静止した弧として残ります。",
+        "Linear（Track/Range）と Circular（SVG）両対応の進捗インジケータ。size（xs〜xl）で --fandhe-progress-track-height/--fandhe-progress-size/--fandhe-progress-thickness を、variant（outline/subtle/plain）で track の見た目を、color-palette（accent/info/success/warning/danger/neutral）で range の塗り色を切り替えます。plain は shadcn/ui 既定表現（枠線なしの中立トラック）を補完した variant です（イシュー #2049）。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動したアニメーション（linear は横スライド、circular は回転）で表示し、prefers-reduced-motion: reduce では停止します。circular の indeterminate は回転に加え circle-range へ円周の 1/4 分の固定弧（stroke-dasharray）を持ち、complete（完全リング）と視覚的に区別されます（イシュー #1688）。この弧は animation を持たないため、prefers-reduced-motion: reduce でも静止した弧として残ります。",
         vec![
             basic_row,
             size_row,
