@@ -531,11 +531,19 @@ fn recipe() -> SlotRecipe {
         )
         // `with_badge`（[`AvatarBadgeOverlay::Badge`]）: badge を子に持つ
         // root のみ `overflow: hidden`（既定）を解除する（本モジュール冒頭
-        // rustdoc「イシュー #2044 の shadcn/ui 突合」節参照）。
+        // rustdoc「イシュー #2044 の shadcn/ui 突合」節参照）。`isolation:
+        // isolate` は badge の `z-index: 1`（下記 `badge` base）による
+        // 重ね順をこの root 配下に閉じ込めるための stacking context
+        // 生成である。root は既定で `position: relative` のみを持ち
+        // `z-index` を持たないため stacking context を作らず、
+        // `AvatarStack::Group` 内で `stacked` と `with_badge` を併用すると
+        // 先行 Avatar の badge が後続 Avatar の画像より手前に描画され、
+        // 所属する Avatar の重なり順から逸脱していた（PR #2222
+        // codex-review P1 指摘）。
         .variant(
             AvatarBadgeOverlay::Badge,
             "root",
-            vec![decl("overflow", "visible")],
+            vec![decl("overflow", "visible"), decl("isolation", "isolate")],
         )
         // `badge` base: 右下の絶対配置ドット。`color`/`background` は
         // [`AvatarBadgeProps::palette`] の palette variant（下記）が

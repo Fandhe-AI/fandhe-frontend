@@ -176,6 +176,7 @@ const AVATAR_GOLDEN_CSS: &str = r#"[data-scope="avatar"][data-part="root"] {
 
 [data-scope="avatar"][data-part="root"].fd-avatar--overlay-badge {
   overflow: visible;
+  isolation: isolate;
 }
 
 [data-scope="avatar"][data-part="badge"].fd-avatar--size-xs {
