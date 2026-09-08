@@ -22,6 +22,7 @@ use hui::field::{self, FieldProps};
 use hui::fieldset::{self, FieldsetProps};
 use hui::file_upload;
 use hui::image_cropper::{self, GridAxis, HandlePosition, ImageCropper, ImageCropperProps};
+use hui::input_group::{self, InputGroupAlign, InputGroupProps};
 use hui::listbox;
 use hui::{angle_slider, checkbox, OpenState};
 
@@ -1316,6 +1317,97 @@ pub(super) fn image_cropper_section() -> Node {
         ),
     ];
     demo_page("Image Cropper", body)
+}
+
+/// 4 パーツ（root/addon/text/button）を 2 インスタンス（inline addon +
+/// `field::input` 合成 / block addon + `field::textarea` 合成）へ描き分ける
+/// （イシュー #2062）。`data-align` の 4 値すべてと `data-disabled`/
+/// `data-invalid` を Demo 木へ露出させる（`crate::primitive_showcase`
+/// モジュール doc の「パート網羅」規約対応）。最外殻を `input_group::root`
+/// にすることで scope 解決契約（最外側・初出の `data-scope` を採用）を守る。
+pub(super) fn input_group_section() -> Node {
+    let default_group = InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+    let price_field = default_group.merge_field_props(FieldProps {
+        id: "input-group-price",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    });
+
+    let disabled_invalid_group = InputGroupProps {
+        disabled: true,
+        invalid: true,
+    };
+    let bio_field = disabled_invalid_group.merge_field_props(FieldProps {
+        id: "input-group-bio",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    });
+
+    let body = vec![
+        // inline-start/inline-end addon + field::input 合成（既定状態）。
+        input_group::root(
+            &default_group,
+            vec![],
+            vec![
+                field::label(&price_field, vec![], vec![text("Price")]),
+                input_group::addon(
+                    InputGroupAlign::InlineStart,
+                    &default_group,
+                    vec![],
+                    vec![input_group::text(vec![], vec![text("$")])],
+                ),
+                field::input(
+                    &price_field,
+                    vec![("type", "text"), ("name", "price"), ("value", "")],
+                ),
+                input_group::addon(
+                    InputGroupAlign::InlineEnd,
+                    &default_group,
+                    vec![],
+                    vec![input_group::button(
+                        &default_group,
+                        vec![],
+                        vec![text("Clear")],
+                    )],
+                ),
+            ],
+        ),
+        // block-start/block-end addon + field::textarea 合成（disabled +
+        // invalid 状態、`merge_field_props` の OR 伝播で textarea 側にも
+        // `data-disabled`/`data-invalid`/`aria-invalid` が反映される）。
+        input_group::root(
+            &disabled_invalid_group,
+            vec![],
+            vec![
+                field::label(&bio_field, vec![], vec![text("Bio")]),
+                input_group::addon(
+                    InputGroupAlign::BlockStart,
+                    &disabled_invalid_group,
+                    vec![],
+                    vec![input_group::text(vec![], vec![text("Bio")])],
+                ),
+                field::textarea(&bio_field, false, vec![], vec![]),
+                input_group::addon(
+                    InputGroupAlign::BlockEnd,
+                    &disabled_invalid_group,
+                    vec![],
+                    vec![input_group::text(vec![], vec![text("0/280")])],
+                ),
+            ],
+        ),
+    ];
+    demo_page("Input Group", body)
 }
 
 pub(super) fn listbox_section() -> Node {

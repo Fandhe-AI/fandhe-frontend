@@ -2318,7 +2318,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # を取り込み 0.133.1 へ到達したが、本ブランチの到達値 0.134.0 は既にそれを
 # 上回るため追加のバンプは不要（`docs/ci/style-refresh-version-bump-operation.md`
 # §5 の手順は main の到達値を上回る値には適用しない）。
-version = "0.135.0"
+# イシュー #2062: 依存先 `fandhe-frontend-headless-ui` 0.67.0 → 0.68.0（新規
+# `input_group` モジュール追加、非破壊的）に伴う `dep-version-check --fix`
+# の `version = "..."` 追随バンプ（本クレート自身の実装変更は無い）。
+version = "0.135.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2333,7 +2336,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.67.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
