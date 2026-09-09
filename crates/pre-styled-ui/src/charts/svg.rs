@@ -23,19 +23,31 @@
 //! 以外の文字が混入する経路はない）。呼び出し元は `v` が有限であることを
 //! 事前に保証する契約とする（[`super::data::ChartData::new`]/
 //! [`super::scale::LinearScale::new`] の検証を経由した値のみを渡す）。
+//!
+//! # データ値の決定的文字列化（[`fmt_value`]）
+//!
+//! [`fmt_coord`] は SVG 上のピクセル座標・寸法向けの固定小数点第 2 位丸め
+//! であり、ピクセル単位では十分な精度だが、系列データ値そのもの（軸ラベル
+//! の数値表示・半径軸目盛の値表示等）に流用すると `0.001` のような小さい
+//! 値が丸めで一律 `"0"` に潰れてしまう（イシュー #2085、codex-review
+//! 指摘）。[`fmt_value`] は `|v| >= 0.01`（境界含む）または `v == 0.0` では
+//! [`fmt_coord`] と**バイト同一**の出力を返し（既存 golden・showcase の
+//! 通常データ域は無変更）、それより絶対値が小さい場合のみ値の桁数に応じて
+//! 精度を動的に引き上げる（有効数字が丸めで消えない最小精度）。両者は
+//! 共通のヘルパー [`fmt_fixed`] を共有し、丸め規則自体（末尾ゼロ除去・
+//! `-0` 正規化）は 1 箇所にのみ実装する。
 
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
 
-/// 座標・寸法の決定的文字列化（モジュール doc の丸め規則を参照）。
+/// `v` を小数点以下 `precision` 桁の固定小数点表記へ変換し、末尾の連続する
+/// `0`・続く `.`・退化した `-0` を正規化する（[`fmt_coord`]/[`fmt_value`]
+/// 共通の丸め規則本体）。
 ///
-/// `v` が非有限（`NaN`/`±inf`）の場合の出力は未規定とする（`debug_assert`
-/// で開発時に検出する。呼び出し元は本関数へ到達する前に
-/// [`super::data::ChartData::new`]/[`super::scale::LinearScale::new`] の
-/// 検証を経由した有限値のみを渡す契約、モジュール doc 参照）。
-#[must_use]
-pub fn fmt_coord(v: f64) -> String {
-    debug_assert!(v.is_finite(), "fmt_coord は有限値のみを契約入力とする");
-    let mut s = format!("{v:.2}");
+/// `v` が非有限の場合の出力は未規定（呼び出し元の契約は各公開関数の doc
+/// 参照）。`{v:.N$}`（Rust 標準の固定小数点フォーマット）のみを経由し、
+/// `{:e}`（指数表記）は文字集合 `[0-9.-]` を破るため使わない。
+fn fmt_fixed(v: f64, precision: usize) -> String {
+    let mut s = format!("{v:.precision$}");
     if s.contains('.') {
         while s.ends_with('0') {
             s.pop();
@@ -48,6 +60,42 @@ pub fn fmt_coord(v: f64) -> String {
         s = "0".to_string();
     }
     s
+}
+
+/// 座標・寸法の決定的文字列化（モジュール doc の丸め規則を参照）。
+///
+/// `v` が非有限（`NaN`/`±inf`）の場合の出力は未規定とする（`debug_assert`
+/// で開発時に検出する。呼び出し元は本関数へ到達する前に
+/// [`super::data::ChartData::new`]/[`super::scale::LinearScale::new`] の
+/// 検証を経由した有限値のみを渡す契約、モジュール doc 参照）。
+#[must_use]
+pub fn fmt_coord(v: f64) -> String {
+    debug_assert!(v.is_finite(), "fmt_coord は有限値のみを契約入力とする");
+    fmt_fixed(v, 2)
+}
+
+/// データ値の決定的文字列化（モジュール doc「データ値の決定的文字列化」
+/// 節を参照）。
+///
+/// ピクセル座標には使わない（[`fmt_coord`] を使う）。系列の値そのものを
+/// 文字列化する経路（軸ラベルの数値表示・半径軸目盛の値表示等）専用。
+///
+/// `v` が非有限の場合の出力は未規定（`debug_assert` で開発時に検出する。
+/// 呼び出し元の契約は [`fmt_coord`] と同じ）。
+#[must_use]
+pub fn fmt_value(v: f64) -> String {
+    debug_assert!(v.is_finite(), "fmt_value は有限値のみを契約入力とする");
+    if v == 0.0 || v.abs() >= 0.01 {
+        return fmt_fixed(v, 2);
+    }
+    // 有効数字を丸めで失わない最小精度: |v| < 0.01 のとき
+    // floor(-log10(|v|)) + 1 桁目に最初の有効数字が現れる
+    // （例: 0.001 → floor(2.something)+1 = 3 桁）。無限ループ・過大な
+    // 精度指定を避けるため上限を設ける（`security.md` A04 対応、
+    // `{:.N$}` の N が非現実的に巨大化しない構造的上限）。
+    const MAX_PRECISION: usize = 17;
+    let precision = ((-v.abs().log10()).floor() as i64 + 1).clamp(2, MAX_PRECISION as i64);
+    fmt_fixed(v, precision as usize)
 }
 
 /// SVG の `viewBox` 寸法（原点 + 幅 + 高さ）。
@@ -363,6 +411,57 @@ mod tests {
     fn fmt_coord_is_deterministic() {
         for v in [3.14259, -2.71928, 0.0, 42.0] {
             assert_eq!(fmt_coord(v), fmt_coord(v));
+        }
+    }
+
+    // 以下 fmt_value のテスト（イシュー #2085 codex-review 指摘: fmt_coord の
+    // 小数第 2 位丸め流用で小さい系列値が一律 "0" に潰れる不具合の是正）。
+
+    #[test]
+    fn fmt_value_matches_fmt_coord_for_normal_magnitude() {
+        // |v| >= 0.01（境界含む）は fmt_coord とバイト同一（既存 golden・
+        // showcase の通常データ域を無変更に保つ契約）。
+        for v in [0.0, 1.0, 1.5, 1.25, 100.0, 0.1, 0.01, -0.01, -1.5, -100.0] {
+            assert_eq!(fmt_value(v), fmt_coord(v));
+        }
+    }
+
+    #[test]
+    fn fmt_value_preserves_small_series_values() {
+        // shadcn ValueAndCategory 系の系列値が [0.001, 0.002, 0.003] の
+        // ような小さい値でも "0" に潰れず有効数字を保持する。
+        assert_eq!(fmt_value(0.001), "0.001");
+        assert_eq!(fmt_value(0.002), "0.002");
+        assert_eq!(fmt_value(0.003), "0.003");
+        assert_eq!(fmt_value(-0.002), "-0.002");
+        // 有効数字を最大限保持する精度（floor(-log10(|v|))+1 桁）で丸める
+        // ため、桁境界付近では通常の 10 進丸めが働く（"0" への収縮回避が
+        // 目的であり、任意精度の完全表現までは保証しない）。
+        assert_eq!(fmt_value(0.0015), "0.002");
+        assert_eq!(fmt_value(0.00099), "0.001");
+    }
+
+    #[test]
+    fn fmt_value_normalizes_negative_zero() {
+        assert_eq!(fmt_value(-0.0), "0");
+    }
+
+    #[test]
+    fn fmt_value_output_charset_is_closed() {
+        for v in [0.0, -0.0, 1.0, -1.5, 123.456, 0.001, -0.0005, 99999.99] {
+            let s = fmt_value(v);
+            assert!(
+                s.chars()
+                    .all(|c| c.is_ascii_digit() || c == '.' || c == '-'),
+                "unexpected char in {s:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn fmt_value_is_deterministic() {
+        for v in [3.14259, -2.71928, 0.0, 42.0, 0.0004321] {
+            assert_eq!(fmt_value(v), fmt_value(v));
         }
     }
 

@@ -43,7 +43,12 @@
 //! `d` 属性はすべて [`ChartData::new`](super::data::ChartData::new)/
 //! [`LinearScale::new`] が有限性検証済みの `f64` のみを
 //! [`super::svg::fmt_coord`]/[`super::svg::PathBuilder`] へ渡すため、
-//! 文字列注入経路を持たない。
+//! 文字列注入経路を持たない。系列値そのものの数値表示（`axis-value`
+//! tspan・`radius-label`）は同じく有限性検証済みの `f64` を
+//! [`super::svg::fmt_value`] へ渡す（イシュー #2085 追補: `fmt_coord`
+//! 固定小数第 2 位丸めの流用で小さい系列値が `"0"` へ収縮する codex-review
+//! 指摘の是正。出力文字集合は `fmt_coord` と同じ `[0-9.-]` に閉じるため
+//! 文字列注入経路は増えない）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -176,7 +181,7 @@ use std::f64::consts::PI;
 
 use super::data::ChartData;
 use super::scale::LinearScale;
-use super::svg::{self, fmt_coord, svg_text, PathBuilder, ViewBox};
+use super::svg::{self, fmt_coord, fmt_value, svg_text, PathBuilder, ViewBox};
 use super::ChartError;
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, VariantValue};
@@ -274,7 +279,11 @@ pub enum RadarGridFill {
     /// 塗りなし（既定）。
     #[default]
     None,
-    /// 先頭系列色でグリッドを塗る（`fill-opacity: 0.2`）。
+    /// 先頭系列色でグリッドを塗る（`fill-opacity: 0.2`）。同心グリッドの
+    /// 最外周リング 1 枚にのみ適用し、内側のリングは輪郭線のみを描く
+    /// （イシュー #2085 追補、Cursor Bugbot 指摘: 各リングは中心からの
+    /// 塗りつぶし円盤/多角形であり全リングへ適用すると内側ほど合成
+    /// 不透明度が重なって意図した一様なウォッシュを超えてしまうため）。
     Series,
 }
 
@@ -577,20 +586,36 @@ pub fn root(
         } else {
             vec![]
         };
-        for r in ring_radii {
+        // イシュー #2085 追補（Cursor Bugbot 指摘）: 各リングは中心から
+        // 半径 r までの塗りつぶし形状（同心「環」ではなく同心「円盤/多角形」）
+        // であるため、全リングへ一律 fill-opacity 0.2 を適用すると内側ほど
+        // 塗りが重なり合成不透明度が意図（0.2 の一様なウォッシュ）を大きく
+        // 超えてしまう。塗りは最外周リング 1 枚のみに適用し、内側のリングは
+        // 輪郭線（`grid` base の stroke）のみを描く。`ring_radii` は
+        // `RadarGridRings::Ticks`（`ticks()` の昇順出力を `value_scale.scale`
+        // で写像、`scale` は単調増加）/`RadarGridRings::Outer`（要素 1 件）の
+        // いずれも昇順であることを前提に、最終要素（インデックス最大）を
+        // 最外周と判定する。
+        let ring_count = ring_radii.len();
+        for (idx, r) in ring_radii.into_iter().enumerate() {
+            let is_outermost = idx + 1 == ring_count;
             let mut attrs: Vec<(&str, &str)> = vec![("data-scope", "radar-chart")];
             let node = match props.grid {
                 RadarGrid::Polygon => {
                     let d = polygon_d(center, center, r, n);
                     attrs.push(("data-part", "grid"));
-                    attrs.extend(grid_attrs_extra.iter().copied());
+                    if is_outermost {
+                        attrs.extend(grid_attrs_extra.iter().copied());
+                    }
                     let mut path_attrs = attrs;
                     path_attrs.push(("d", d.as_str()));
                     el("path", path_attrs, vec![])
                 }
                 RadarGrid::Circle => {
                     attrs.push(("data-part", "grid"));
-                    attrs.extend(grid_attrs_extra.iter().copied());
+                    if is_outermost {
+                        attrs.extend(grid_attrs_extra.iter().copied());
+                    }
                     svg::circle(center, center, r, attrs)
                 }
                 RadarGrid::None => unreachable!("外側の if で RadarGrid::None を除外済み"),
@@ -656,12 +681,16 @@ pub fn root(
                 // 表示する。値行は `data-part="axis-value"` を持つ `tspan`
                 // （font-weight を分ける）、カテゴリ行は `SLOTS` 未登録の
                 // 素の `tspan`（親 axis-label の書式を継承、モジュール
-                // 未登録 part を出力しない契約）。値は fmt_coord のみで
-                // 文字列化し `/` で連結する（文字集合 [0-9.-/] に閉じる）。
+                // 未登録 part を出力しない契約）。値は fmt_value（データ値
+                // 用、イシュー #2085 追補）のみで文字列化し `/` で連結する
+                // （文字集合 [0-9.-/] に閉じる）。座標用 fmt_coord の固定
+                // 小数第 2 位丸めを流用すると小さい系列値（例:
+                // [0.001, 0.002, 0.003]）が一律 "0" に潰れる不具合が
+                // あった（codex-review 指摘）。
                 let values: Vec<String> = data
                     .series()
                     .iter()
-                    .map(|s| fmt_coord(s.values[i]))
+                    .map(|s| fmt_value(s.values[i]))
                     .collect();
                 let value_line = values.join("/");
                 let (value_dy, category_dy) = if theta.sin() > ANCHOR_EPSILON {
@@ -773,7 +802,10 @@ pub fn root(
                     ("text-anchor", "middle"),
                     ("dominant-baseline", "middle"),
                 ],
-                vec![text(fmt_coord(tick))],
+                // `tick` は半径写像前のデータ値（ピクセル座標ではない）
+                // のため、値表示用 fmt_value を使う（イシュー #2085 追補、
+                // fmt_coord 流用による小さい値の "0" 収縮の是正）。
+                vec![text(fmt_value(tick))],
             ));
         }
     }
@@ -1212,6 +1244,25 @@ mod tests {
     }
 
     #[test]
+    fn grid_fill_series_variant_class_applies_to_outermost_ring_only() {
+        // イシュー #2085 追補（Cursor Bugbot 指摘）: `grid_fill: Series` を
+        // 全リングへ適用すると同心円盤/多角形の重なりで中心部の合成
+        // 不透明度が意図した 0.2 のウォッシュを大きく超える。修正後は
+        // variant class（塗り適用の目印）を持つ `grid` パーツが最外周
+        // 1 枚のみになることを固定する。
+        let data = sample_data(5);
+        let props = RadarChartProps {
+            grid_fill: RadarGridFill::Series,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        let filled_grid_count = html
+            .matches(r#"data-part="grid" class="fd-radar-chart--grid-fill-series""#)
+            .count();
+        assert_eq!(filled_grid_count, 1);
+    }
+
+    #[test]
     fn fill_none_emits_fill_none_on_series() {
         let data = sample_data(5);
         let props = RadarChartProps {
@@ -1263,6 +1314,61 @@ mod tests {
         assert!(html.contains(">80/50<"));
         assert!(html.contains("<tspan"));
         assert!(html.contains(r#"data-part="axis-value""#));
+    }
+
+    #[test]
+    fn axis_label_value_and_category_preserves_small_series_values() {
+        // codex-review 指摘（イシュー #2085 追補）: fmt_coord（座標用、
+        // 小数第 2 位丸め）の流用では [0.001, 0.002, 0.003] のような小さい
+        // 系列値がすべて "0" に潰れて読み取れなくなる。fmt_value 導入後は
+        // 有効数字が残ることを固定する。
+        let categories: Vec<String> = (0..3).map(|i| format!("axis{i}")).collect();
+        let data = ChartData::new(
+            categories,
+            vec![Series::new("s1", vec![0.001, 0.002, 0.003])],
+        )
+        .unwrap();
+        let props = RadarChartProps {
+            axis_label: RadarAxisLabel::ValueAndCategory,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        assert!(!html.contains(">0/axis0<"));
+        assert!(html.contains(">0.001<"));
+        assert!(html.contains(">0.002<"));
+        assert!(html.contains(">0.003<"));
+    }
+
+    #[test]
+    fn radius_axis_preserves_small_tick_values() {
+        // codex-review 指摘（イシュー #2085 追補）: 半径軸目盛の値表示も
+        // 同じ理由で "0" に潰れていた不具合の回帰防止。
+        let categories: Vec<String> = (0..3).map(|i| format!("axis{i}")).collect();
+        let data = ChartData::new(
+            categories,
+            vec![Series::new("s1", vec![0.001, 0.002, 0.003])],
+        )
+        .unwrap();
+        let props = RadarChartProps {
+            radius_axis: true,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        let radius_label_texts: Vec<&str> = html
+            .match_indices(r#"data-part="radius-label""#)
+            .map(|(pos, _)| {
+                let after = &html[pos..];
+                let open_end = after.find('>').expect("radius-label タグは閉じる");
+                let rest = &after[open_end + 1..];
+                let close = rest.find('<').expect("radius-label はテキストを持つ");
+                &rest[..close]
+            })
+            .collect();
+        assert!(!radius_label_texts.is_empty());
+        assert!(
+            radius_label_texts.iter().all(|t| *t != "0"),
+            "radius-label に \"0\" へ収縮した値があってはならない: {radius_label_texts:?}"
+        );
     }
 
     #[test]
