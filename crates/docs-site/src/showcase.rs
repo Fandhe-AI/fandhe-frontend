@@ -415,6 +415,19 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   （詳細度 (0,4,1)）で適用する（`data-bordered` を持たない他の h2
 ///   見出しデモは対象外のまま、`site.css` の `.docs-content h2` の
 ///   border-top をそのまま活かす）。
+/// - Sidebar Floating インスタンス（イシュー #2075、Cursor Bugbot Medium
+///   指摘対応）: `[data-scope="sidebar"][data-part="provider"]` の高さは
+///   上記ルールで `min-height: 20rem; height: auto;` へ縮めているが、
+///   `[data-scope="sidebar"][data-part="root"][data-variant="floating"]`
+///   自身は recipe（`crates/pre-styled-ui/src/sidebar.rs`）で
+///   `height: calc(100svh - var(--fandhe-space-4))` を持ち、`svh`（ビュー
+///   ポート単位）は祖先要素の高さに依存しないため `provider` 側の縮小が
+///   `root` へ伝播せず、コンパクトなはずの Floating デモがビューポート
+///   いっぱいの高さになっていた。`root` 側にも `height: auto` を明示
+///   再適用し、`header`/`content`/`footer` の実コンテンツ量に応じた
+///   自然な高さへ縮める（`provider` 側のルールと対をなす、`.pre-styled-
+///   showcase` 限定セレクタのため他ページの Floating 実使用には影響
+///   しない）。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
@@ -444,7 +457,8 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase h2[data-scope=\"heading\"][data-part=\"root\"][data-bordered] {\n  border-top: none;\n  padding-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"link\"][data-part=\"root\"]:hover {\n  text-decoration: var(--fandhe-link-text-decoration, none);\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  text-decoration: none;\n}\n\
-.pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 20rem;\n  height: auto;\n}\n";
+.pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 20rem;\n  height: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"root\"][data-variant=\"floating\"] {\n  height: auto;\n}\n";
 
 /// 部品ページ 1 件分のレジストリエントリ（イシュー #941）。
 ///
@@ -9957,10 +9971,23 @@ fn sidebar_section() -> Node {
                     ),
                     sidebar::menu_action("Pin Dashboard", vec![], vec![]),
                     sidebar::menu_badge(vec![], vec![text("3")]),
+                    // `menu_button` の `aria-describedby` が参照する補足
+                    // 説明を visually-hidden で実在させる（codex-review P2
+                    // 指摘対応: 参照先の要素が無いと支援技術に補足説明が
+                    // 伝わらない。`showcase-dialog-desc`/`showcase-drawer-desc`
+                    // と同型に、`describedby` の参照先は必ず用意する契約）。
+                    visually_hidden::root(
+                        vec![("id", "themes-sidebar-dashboard-tip")],
+                        vec![text("現在表示中のページです")],
+                    ),
                 ],
             ),
             projects_sub,
-            sidebar::menu_item(vec![], vec![sidebar::menu_skeleton(true, vec![])]),
+            // `menu_skeleton` は自身で `menu-item`（`li`）を返す戻り値
+            // 契約のため、`menu` の直接の子として配置する（`menu_item` で
+            // 二重に包まない。codex-review P2 指摘対応: `li` の直下に `li`
+            // を生成するとブラウザ補正で外側が空のリスト項目になっていた）。
+            sidebar::menu_skeleton(true, vec![]),
         ],
     );
 
