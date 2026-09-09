@@ -1035,6 +1035,63 @@ fn multiple_providers_under_shared_root_each_dismiss_independently_on_escape() {
 }
 
 #[wasm_bindgen_test]
+fn escape_dismiss_does_not_double_toggle_when_root_registered_via_parent_and_child() {
+    // イシュー #2074 codex-review P1 是正の回帰テスト（PR #2248）。
+    // `wire_sidebar_dispatch` は「provider を含む部分木の任意の祖先」を
+    // `root` として受け付ける契約であり、`Runtime` が自動配線する親
+    // `root` と、アプリが個別に `wire_sidebar_events_with_query` を
+    // 呼んで配線する子 `root`（provider を含む部分木）の双方が
+    // 登録される構成を禁止していない。この場合に同一 provider へ
+    // `decide`/dismiss（合成 click）が 2 回走ると、モバイル drawer が
+    // 1 回目の click で `expanded -> collapsed` に遷移した直後、2 回目の
+    // click で `collapsed -> expanded` へ押し戻され、Escape を押しても
+    // ドロワーが閉じないまま残る。親 `root`（container）と子 `root`
+    // （provider 自身を含む sub-container）の双方を個別に
+    // `wire_sidebar_events_with_query` で登録しても、Escape 1 回の
+    // dismiss で `Collapsed` へ確実に遷移する（Expanded へ押し戻され
+    // ない）ことを確認する。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-parent-child-root-escape-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let sub = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    container
+        .append_child(&sub)
+        .expect("append_child must not fail for sub");
+
+    // Collapsed で開始し、モバイル進入時の強制 collapse を経由させない。
+    let (sidebar, provider_el, _root_el, trigger_el, _rail_el) =
+        build_sidebar_markup(&sub, SidebarState::Collapsed, false, false);
+    let component = Rc::new(RefCell::new(sidebar));
+    wire_dispatch_reflecting_data_state(&sub, component.clone());
+
+    // 親 root（container、provider を含む部分木の祖先）と子 root
+    // （sub、provider 自身を含む部分木）の双方を個別配線する。両方の
+    // `root` から見て同じ provider が到達可能になる。
+    wire_sidebar_events_with_query(container.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail for parent root");
+    wire_sidebar_events_with_query(sub.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail for child root");
+
+    dispatch_click(&trigger_el);
+    assert_eq!(component.borrow().state(), SidebarState::Expanded);
+    assert_eq!(
+        provider_el.get_attribute("data-state").as_deref(),
+        Some("expanded")
+    );
+
+    dispatch_document_keydown(&document, "Escape", false, false, false);
+    assert_eq!(component.borrow().state(), SidebarState::Collapsed);
+    assert_eq!(
+        provider_el.get_attribute("data-state").as_deref(),
+        Some("collapsed")
+    );
+}
+
+#[wasm_bindgen_test]
 fn always_matching_query_does_not_force_collapse_when_already_collapsed() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");

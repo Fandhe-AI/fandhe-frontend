@@ -589,29 +589,69 @@ mod wiring {
     /// し得るため。`root` 自身が再描画で丸ごと差し替わることはない
     /// 前提）。`decide` の呼び出し自体は副作用（click 合成）を持たない
     /// ため、この再取得は「識別」だけを担い「判定」には関与しない。
+    ///
+    /// イシュー #2074 codex-review P1 是正（PR #2248）: 公開 API
+    /// （[`wire_sidebar_dispatch`]）は `root` 同士の包含関係を禁止して
+    /// いないため、[`Runtime`](crate::runtime::Runtime) が自動配線する
+    /// 親 `root` と、アプリが個別に `wire_sidebar_events_with_query` を
+    /// 呼んで配線する子 `root` の双方が [`REGISTERED_POINTERDOWN_ROOTS`]/
+    /// [`REGISTERED_KEYDOWN_ROOTS`] に登録され、かつ同一の `provider` が
+    /// 両方の部分木から到達可能な構成が起こり得る。この場合、旧実装は
+    /// `root` 自身の重複（`is_same_node` 比較）しか排除していなかった
+    /// ため、同一 `provider` に対する「識別」がフラット化した並びの中に
+    /// 2 回現れ、`decide` の判定確定（1 パス目）・dismiss の合成 click
+    /// （2 パス目）の双方が同一 provider に対して 2 回ずつ走っていた。
+    /// モバイル drawer が開いている状態で Escape・外側 pointerdown が
+    /// 発火すると、1 回目の合成 click で `expanded → collapsed` へ
+    /// 遷移した直後に 2 回目の合成 click が同じ trigger を再度叩いて
+    /// `collapsed → expanded` へ押し戻してしまい、drawer が閉じない。
+    ///
+    /// 各 `root` の provider 一覧は判定前に 1 回だけ収集し
+    /// （`per_root_providers`）、[`Node::is_same_node`] による参照
+    /// 同一性で重複する provider を検出して、最初に見つかったエントリ
+    /// （`(root_index, local_index)`）だけを一意な対象として残す
+    /// （`unique_entries`）。`decide` の呼び出し・dismiss の合成 click は
+    /// いずれもこの一意化後のエントリに対してのみ 1 回ずつ行う。重複
+    /// エントリを判定前に弾くため、`decide` が副作用を持たない前提
+    /// （上記段落）を保ったまま、同一 provider への二重 dismiss を構造的
+    /// に防げる。
     fn resolve_and_dismiss_providers_across_roots(
         roots: &[Element],
         mut decide: impl FnMut(&Element) -> bool,
     ) {
-        let provider_counts: Vec<usize> =
-            roots.iter().map(|root| all_providers(root).len()).collect();
-        let mut decisions: Vec<bool> = Vec::new();
-        for root in roots {
-            for provider in all_providers(root) {
-                decisions.push(decide(&provider));
+        let per_root_providers: Vec<Vec<Element>> = roots.iter().map(all_providers).collect();
+
+        // (root_index, local_index) の一意なエントリ列。同一 provider を
+        // 指す 2 個目以降のエントリ（親子 root の包含関係で同じ
+        // provider が双方から到達可能な場合に発生）は追加しない。
+        let mut unique_entries: Vec<(usize, usize)> = Vec::new();
+        for (root_index, providers) in per_root_providers.iter().enumerate() {
+            for (local_index, provider) in providers.iter().enumerate() {
+                let already_seen = unique_entries
+                    .iter()
+                    .any(|&(r, l)| per_root_providers[r][l].is_same_node(Some(provider)));
+                if !already_seen {
+                    unique_entries.push((root_index, local_index));
+                }
             }
         }
-        let mut cursor = 0usize;
-        for (root, count) in roots.iter().zip(provider_counts) {
-            for local_index in 0..count {
-                let should_dismiss = decisions[cursor];
-                cursor += 1;
-                if !should_dismiss {
-                    continue;
-                }
-                if let Some(provider) = all_providers(root).into_iter().nth(local_index) {
-                    click_trigger_or_rail(&provider);
-                }
+
+        let decisions: Vec<bool> = unique_entries
+            .iter()
+            .map(|&(root_index, local_index)| decide(&per_root_providers[root_index][local_index]))
+            .collect();
+
+        for (&(root_index, local_index), &should_dismiss) in
+            unique_entries.iter().zip(decisions.iter())
+        {
+            if !should_dismiss {
+                continue;
+            }
+            if let Some(provider) = all_providers(&roots[root_index])
+                .into_iter()
+                .nth(local_index)
+            {
+                click_trigger_or_rail(&provider);
             }
         }
     }
