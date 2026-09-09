@@ -90,10 +90,16 @@ pub fn fmt_value(v: f64) -> String {
     }
     // 有効数字を丸めで失わない最小精度: |v| < 0.01 のとき
     // floor(-log10(|v|)) + 1 桁目に最初の有効数字が現れる
-    // （例: 0.001 → floor(2.something)+1 = 3 桁）。無限ループ・過大な
-    // 精度指定を避けるため上限を設ける（`security.md` A04 対応、
-    // `{:.N$}` の N が非現実的に巨大化しない構造的上限）。
-    const MAX_PRECISION: usize = 17;
+    // （例: 0.001 → floor(2.something)+1 = 3 桁）。上限は f64 の指数範囲
+    // （非正規化数の最小値 2^-1074 ≈ 4.94e-324）に対応する桁数とする。
+    // `-log10(2^-1074)` ≈ 323.3 桁目に最初の有効数字が現れるため、
+    // f64 が表現しうる最小の非ゼロ値まで一律 "0" への収縮を避けるには
+    // 324 桁が必要（旧 17 桁では `fmt_value(1e-18)` 等の非ゼロ有限値が
+    // 丸めで "0" になっていた不具合、イシュー #2085 codex-review 指摘）。
+    // 上限自体は固定値であり `v` に依存して際限なく増加しないため、
+    // `{:.N$}` の N が非現実的に巨大化する経路にはならない
+    // （`security.md` A04 対応）。
+    const MAX_PRECISION: usize = 324;
     let precision = ((-v.abs().log10()).floor() as i64 + 1).clamp(2, MAX_PRECISION as i64);
     fmt_fixed(v, precision as usize)
 }
@@ -439,6 +445,22 @@ mod tests {
         // 目的であり、任意精度の完全表現までは保証しない）。
         assert_eq!(fmt_value(0.0015), "0.002");
         assert_eq!(fmt_value(0.00099), "0.001");
+    }
+
+    #[test]
+    fn fmt_value_preserves_extremely_small_nonzero_values() {
+        // codex-review 指摘（イシュー #2085）: 旧 MAX_PRECISION=17 では
+        // 1e-18/2e-18/3e-18 のような f64 が受理する有限な極小値が丸めで
+        // 一律 "0" になっていた。324 桁（f64 非正規化数の最小値付近まで
+        // 対応）へ拡張後は有効数字が保持されることを固定する。
+        assert_ne!(fmt_value(1e-18), "0");
+        assert_ne!(fmt_value(2e-18), "0");
+        assert_ne!(fmt_value(3e-18), "0");
+        assert_eq!(fmt_value(1e-18), "0.000000000000000001");
+        assert_eq!(fmt_value(2e-18), "0.000000000000000002");
+        assert_eq!(fmt_value(3e-18), "0.000000000000000003");
+        // f64 の最小正規化数付近でも同様に "0" へ収縮しない。
+        assert_ne!(fmt_value(f64::MIN_POSITIVE), "0");
     }
 
     #[test]
