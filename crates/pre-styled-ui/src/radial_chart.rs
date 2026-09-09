@@ -313,6 +313,11 @@ pub struct RadialChartProps<'a> {
     /// `data-hidden` を付与する。[`RadialChartProps::hidden_series`] と
     /// 独立に併用でき、いずれか一方でも一致すれば非表示になる。データに
     /// 存在しない index を指定してもエラーにしない（fail-soft）。
+    /// `track`（リング背景）も index `i` が一致すれば同じ条件で隠す
+    /// （Cursor Bugbot 指摘是正: 非表示リングでも既定グレー背景の
+    /// `track` が残ると視覚上「隠れていない」ため、`bar`/`label` と
+    /// 同じ `data-hidden` 伝搬に揃える。`track` はリング全体の背景で
+    /// 系列を持たないため `hidden_series` は対象にしない）。
     pub hidden_categories: &'a [usize],
 }
 
@@ -437,6 +442,14 @@ fn recipe() -> SlotRecipe {
         // 伝搬と揃える、pie/donut chart との整合）。
         .state(
             "label",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        // イシュー #2133 Cursor Bugbot 指摘是正: `hidden_categories` で
+        // 指定したリングの `track`（背景）も同じ条件で隠す（`bar`/`label`
+        // と揃え、非表示リングの既定グレー背景が残らないようにする）。
+        .state(
+            "track",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
         )
@@ -652,13 +665,27 @@ pub fn radial_chart<'a>(
 
         if props.show_track {
             let (d, evenodd) = ring_segment_path(r_outer, r_inner, start_rad, end_rad, 0.0);
-            let mut track_attrs: Vec<(&str, &str)> = vec![
-                ("data-scope", "radial-chart"),
-                ("data-part", "track"),
-                ("d", d.as_str()),
-            ];
+            let mut track_attrs: Vec<(&str, &str)> =
+                vec![("data-scope", "radial-chart"), ("data-part", "track")];
+            if props.show_tooltip {
+                // イシュー #2133 Cursor Bugbot 指摘是正: `track`
+                // （リング全体の背景）にも `bar`/`label` と同じ
+                // `data-index` 共有識別子を付与する（同じ
+                // `show_tooltip` ゲート）。付与しないと非表示リングの
+                // 既定グレー背景を後続のトグル配線から個別に狙えない。
+                track_attrs.push(("data-index", cat_idx_str.as_str()));
+            }
+            track_attrs.push(("d", d.as_str()));
             if evenodd {
                 track_attrs.push(("fill-rule", "evenodd"));
+            }
+            if category_hidden {
+                // イシュー #2133 Cursor Bugbot 指摘是正: `hidden_categories`
+                // に一致するリングは `track`（背景）も `bar`/`label` と
+                // 同じ条件で隠す（系列非表示 `hidden_series` は個々の
+                // `bar` のみが対象で `track` はリング全体の背景のため
+                // 対象外、`category_hidden` のみで判定する）。
+                track_attrs.push(("data-hidden", ""));
             }
             children.push(el("path", track_attrs, vec![]));
         }
@@ -1453,6 +1480,69 @@ mod tests {
         let label_b_idx = html.find(r#"data-part="label" data-index="1""#).unwrap();
         let label_b_end = html[label_b_idx..].find("</text>").unwrap();
         assert!(html[label_b_idx..label_b_idx + label_b_end].contains("data-hidden"));
+    }
+
+    // イシュー #2133 Cursor Bugbot 指摘是正（追補）: `track`（リング背景）
+    // にも `bar`/`label` と同じ `data-index`/`data-hidden` 伝搬を検証する。
+
+    #[test]
+    fn show_tooltip_default_adds_data_index_to_track() {
+        let html = render(
+            &radial_chart(&RadialChartProps::default(), &two_category_data(), vec![]).unwrap(),
+        );
+        assert!(html.contains(r#"data-part="track" data-index="0""#));
+        assert!(html.contains(r#"data-part="track" data-index="1""#));
+    }
+
+    #[test]
+    fn show_tooltip_false_omits_data_index_from_track() {
+        let props = RadialChartProps {
+            show_tooltip: false,
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
+        let track_idx = html.find(r#"data-part="track""#).unwrap();
+        let track_end = html[track_idx..].find('>').unwrap();
+        assert!(!html[track_idx..track_idx + track_end].contains("data-index"));
+    }
+
+    #[test]
+    fn hidden_categories_adds_data_hidden_to_matching_track_only() {
+        let props = RadialChartProps {
+            hidden_categories: &[1],
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
+        let track_a_idx = html.find(r#"data-part="track" data-index="0""#).unwrap();
+        let track_a_end = html[track_a_idx..].find('>').unwrap();
+        assert!(!html[track_a_idx..track_a_idx + track_a_end].contains("data-hidden"));
+        let track_b_idx = html.find(r#"data-part="track" data-index="1""#).unwrap();
+        let track_b_end = html[track_b_idx..].find('>').unwrap();
+        assert!(html[track_b_idx..track_b_idx + track_b_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_does_not_hide_track() {
+        // `track` はリング全体の背景で系列を持たないため、
+        // `hidden_series`（系列単位の非表示）では隠れない
+        // （`hidden_categories` のみを対象とする、モジュール rustdoc
+        // `RadialChartProps::hidden_categories` 参照）。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("s1", vec![10.0, 20.0]),
+                Series::new("s2", vec![15.0, 25.0]),
+            ],
+        )
+        .unwrap();
+        let props = RadialChartProps {
+            hidden_series: &["s1", "s2"],
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &data, vec![]).unwrap());
+        let track_idx = html.find(r#"data-part="track""#).unwrap();
+        let track_end = html[track_idx..].find('>').unwrap();
+        assert!(!html[track_idx..track_idx + track_end].contains("data-hidden"));
     }
 
     #[test]

@@ -92,6 +92,10 @@ const RADIAL_CHART_GOLDEN_CSS: &str = r#"[data-scope="radial-chart"][data-part="
 [data-scope="radial-chart"][data-part="label"][data-hidden] {
   display: none;
 }
+
+[data-scope="radial-chart"][data-part="track"][data-hidden] {
+  display: none;
+}
 "#;
 
 #[test]
