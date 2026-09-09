@@ -2713,6 +2713,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2109: `bubble` モジュール（recipe・golden テスト、headless
 # 側 anatomy は #2108）を新規公開する公開 API 純追加のため、`origin/main`
 # 到達値 0.162.1 から +1 マイナーして 0.163.0 とする。
+#
+# イシュー #2184: field.rs モジュール doc の「見送ったもの」→「採用した
+# もの」への移動（headless error_text の role="alert" 採用を反映）と
+# headless-ui 依存の version 要求追随のみで、本クレート自身の出力・API は
+# 不変のため patch バンプの 0.162.2 へ到達していたが、#2109 のマイナー
+# バンプ（0.163.0）がこれを上回るため 0.163.0 を採用する（0.x の破壊的
+# 変更／機能追加はマイナーバンプ優先の規約、同一版数への偶発的衝突では
+# ないため +1 の追加バンプは不要）。
 version = "0.163.0"
 
 edition = "2021"
@@ -2728,7 +2736,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.7" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.8" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

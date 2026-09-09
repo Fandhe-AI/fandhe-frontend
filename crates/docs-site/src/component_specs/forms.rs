@@ -821,8 +821,8 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             description: "`invalid` が `true` のときコントロールへ `\"true\"` を付与する。",
         },
         AriaRow {
-            attribute: "aria-live=\"polite\"",
-            description: "`error_text` パーツへ固定付与する。",
+            attribute: "role=\"alert\" / aria-live=\"polite\"",
+            description: "`error_text` パーツへ固定付与する。`role=\"alert\"` の暗黙 `aria-live=\"assertive\"` は明示 `polite` で上書きされ、shadcn/ui `FieldError` とのロール語彙パリティを純追加する（イシュー #2184）。",
         },
         AriaRow {
             attribute: "aria-hidden=\"true\"",
@@ -879,8 +879,8 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
             description: "`invalid` のとき error id、`has_helper_text` のとき helper id を空白区切りで合成し `root` へ付与する（headless `fieldset::root` の描画則）。",
         },
         AriaRow {
-            attribute: "aria-live=\"polite\"",
-            description: "`error_text` パーツへ固定付与する。",
+            attribute: "role=\"alert\" / aria-live=\"polite\"",
+            description: "`error_text` パーツへ固定付与する。`role=\"alert\"` の暗黙 `aria-live=\"assertive\"` は明示 `polite` で上書きされ、shadcn/ui `FieldError` とのロール語彙パリティを純追加する（イシュー #2184）。",
         },
         AriaRow {
             attribute: "disabled",

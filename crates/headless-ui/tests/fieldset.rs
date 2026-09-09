@@ -130,12 +130,14 @@ fn error_text_fail_closed_hidden_default() {
     let props = base_fieldset_props("f");
     let html = render(&error_text(&props, vec![], vec![text("bad")]));
     assert!(html.contains(r#"hidden="""#));
+    assert!(html.contains(r#"role="alert""#));
     assert!(html.contains(r#"aria-live="polite""#));
 
     let mut props_invalid = base_fieldset_props("f");
     props_invalid.invalid = true;
     let visible_html = render(&error_text(&props_invalid, vec![], vec![text("bad")]));
     assert!(!visible_html.contains("hidden"));
+    assert_eq!(visible_html.matches(r#"role="alert""#).count(), 1);
 }
 
 // --- 参考サイト突合契約（イシュー #1608） ---
@@ -267,30 +269,30 @@ fn no_part_outputs_state_orientation_motion_or_pointer_attrs() {
     }
 }
 
-/// 4 パーツいずれもネイティブ要素（`<fieldset>`/`<legend>`/`<span>`）の
-/// 暗黙ロールに依存し、明示 `role` 属性を持たないことを固定する
-/// （ark-ui Fieldset と一致）。
+/// `error-text` のみが明示 `role="alert"` を出力し（イシュー #2184、
+/// `field::error_text` と同型の shadcn/ui `FieldError` パリティ判断）、
+/// 他 3 パーツ（`<fieldset>`/`<legend>`/`<span>`）はネイティブ要素の暗黙
+/// ロールに依存し明示 `role` を持たないことを固定する。
 #[test]
-fn no_part_outputs_explicit_role() {
+fn only_error_text_outputs_explicit_role() {
     let mut props = base_fieldset_props("f");
     props.disabled = true;
     props.invalid = true;
 
-    let parts: [(&str, String); 4] = [
+    let non_role_parts: [(&str, String); 3] = [
         ("root", render(&root(&props, vec![], vec![]))),
         ("legend", render(&legend(&props, vec![], vec![text("L")]))),
         (
             "helper-text",
             render(&helper_text(&props, vec![], vec![text("H")])),
         ),
-        (
-            "error-text",
-            render(&error_text(&props, vec![], vec![text("E")])),
-        ),
     ];
-    for (part, html) in &parts {
+    for (part, html) in &non_role_parts {
         assert!(!html.contains(" role=\""), "{part}: {html}");
     }
+
+    let error_html = render(&error_text(&props, vec![], vec![text("E")]));
+    assert_eq!(error_html.matches(r#"role="alert""#).count(), 1);
 }
 
 /// `root`（`<fieldset>`）がネイティブ `disabled` 存在属性・
@@ -321,11 +323,13 @@ fn root_native_disabled_and_describedby_follow_ark_fieldset_rules() {
 
 /// `error_text` の可視性・`aria-live` が ark-ui Fieldset の ErrorText と
 /// 一致することを固定する（fail-closed: 非 invalid で `hidden`）。
+/// `role="alert"` は ark-ui 出力を超える純追加（イシュー #2184）。
 #[test]
 fn error_text_visibility_and_live_region_match_ark_fieldset() {
     let props = base_fieldset_props("f");
     let hidden_html = render(&error_text(&props, vec![], vec![text("bad")]));
     assert!(hidden_html.contains(r#"hidden="""#));
+    assert!(hidden_html.contains(r#"role="alert""#));
     assert!(hidden_html.contains(r#"aria-live="polite""#));
 
     let mut props_invalid = base_fieldset_props("f");

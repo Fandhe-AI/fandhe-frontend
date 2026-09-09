@@ -51,6 +51,7 @@ fn field_public_api_is_usable_from_crate_root_and_renders_expected_scaffolding()
     assert!(html.contains(r#"required=""#));
     assert!(html.contains(r#"aria-describedby="email-helper-text""#));
     assert!(html.contains(r#"aria-hidden="true""#));
+    assert!(html.contains(r#"role="alert""#));
     assert!(html.contains(r#"aria-live="polite""#));
     // required なので required_indicator（aria-hidden="true")は非表示にならない。
     assert!(html.contains(r#"data-part="required-indicator""#));
@@ -196,6 +197,7 @@ fn error_text_and_required_indicator_fail_closed_hidden_defaults() {
     let props = base_props("f");
     let error_html = render(&error_text(&props, vec![], vec![text("bad")]));
     assert!(error_html.contains(r#"hidden="""#));
+    assert!(error_html.contains(r#"role="alert""#));
     assert!(error_html.contains(r#"aria-live="polite""#));
 
     let indicator_html = render(&required_indicator(&props, vec![], vec![text("*")]));
@@ -411,17 +413,19 @@ fn no_part_outputs_state_orientation_motion_or_pointer_attrs() {
     }
 }
 
-/// 8 パーツいずれもネイティブ要素の暗黙ロールに依存し、明示 `role` 属性を
-/// 持たないことを固定する（zag.js Field と一致）。
+/// `error-text` のみが明示 `role="alert"` を出力し（イシュー #2184、
+/// shadcn/ui `FieldError` とのロール語彙パリティを意図した例外）、他 7
+/// パーツはネイティブ要素の暗黙ロールに依存し明示 `role` を持たないことを
+/// 固定する。
 #[test]
-fn no_part_outputs_explicit_role() {
+fn only_error_text_outputs_explicit_role() {
     let mut props = base_props("f");
     props.disabled = true;
     props.invalid = true;
     props.required = true;
     props.readonly = true;
 
-    let parts: [(&str, String); 8] = [
+    let non_role_parts: [(&str, String); 7] = [
         ("root", render(&root(&props, vec![], vec![]))),
         ("label", render(&label(&props, vec![], vec![text("L")]))),
         ("input", render(&input(&props, vec![]))),
@@ -432,17 +436,16 @@ fn no_part_outputs_explicit_role() {
             render(&helper_text(&props, vec![], vec![text("H")])),
         ),
         (
-            "error-text",
-            render(&error_text(&props, vec![], vec![text("E")])),
-        ),
-        (
             "required-indicator",
             render(&required_indicator(&props, vec![], vec![text("*")])),
         ),
     ];
-    for (part, html) in &parts {
+    for (part, html) in &non_role_parts {
         assert!(!html.contains(" role=\""), "{part}: {html}");
     }
+
+    let error_html = render(&error_text(&props, vec![], vec![text("E")]));
+    assert_eq!(error_html.matches(r#"role="alert""#).count(), 1);
 }
 
 /// input/textarea/select の 3 コントロールが zag.js Field のネイティブ属性則
