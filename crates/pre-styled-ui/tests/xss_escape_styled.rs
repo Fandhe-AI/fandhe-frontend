@@ -6181,3 +6181,98 @@ fn navigation_menu_indicator_value_attrs_and_children_are_escaped_for_all_payloa
         );
     }
 }
+
+/// Attachment 経路（イシュー #2112、headless 側 anatomy は #2111）: 8
+/// パーツいずれも見た目クラスを付与しない（`src/attachment.rs` モジュール
+/// doc「headless の `data-*` を参照する」節参照）ため、呼び出し側
+/// `attrs`・`class`（[`drop_class_attr`] により除去）、`action` の
+/// `label`（`aria-label` エスケープ）、children の各経路で既定エスケープ
+/// （REQ-1）が貫通することを固定する（`bubble_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn attachment_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::attachment::{self, AttachmentRootProps};
+
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&attachment::root(
+            AttachmentRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "attachment::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える）。
+        let html = render(&attachment::root(
+            AttachmentRootProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "attachment::root の class 属性に渡した生ペイロードが出力に\
+             残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled media の呼び出し側 attrs・children 経路。
+        let html = render(&attachment::media(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "attachment::media attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "attachment::media children コンテキスト");
+
+        // styled content の呼び出し側 attrs・children 経路。
+        let html = render(&attachment::content(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "attachment::content attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "attachment::content children コンテキスト");
+
+        // styled name の呼び出し側 attrs・children 経路。
+        let html = render(&attachment::name(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "attachment::name attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "attachment::name children コンテキスト");
+
+        // styled meta の呼び出し側 attrs・children 経路。
+        let html = render(&attachment::meta(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "attachment::meta attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "attachment::meta children コンテキスト");
+
+        // styled progress の呼び出し側 attrs・children 経路。
+        let html = render(&attachment::progress(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "attachment::progress attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "attachment::progress children コンテキスト");
+
+        // styled actions の呼び出し側 attrs・children 経路。
+        let html = render(&attachment::actions(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "attachment::actions attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "attachment::actions children コンテキスト");
+
+        // styled action の label（aria-label）・attrs・children 経路。
+        let html = render(&attachment::action(
+            payload,
+            false,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "attachment::action label コンテキスト");
+        assert_payload_is_escaped(payload, &html, "attachment::action attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "attachment::action children コンテキスト");
+    }
+}

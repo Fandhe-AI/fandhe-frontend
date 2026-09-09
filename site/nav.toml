@@ -891,6 +891,11 @@ source = "site/themes/alert.md"
 path = "/themes/alert/"
 
 [[section.group.page]]
+title = "Attachment"
+source = "site/themes/attachment.md"
+path = "/themes/attachment/"
+
+[[section.group.page]]
 title = "Avatar"
 source = "site/themes/avatar.md"
 path = "/themes/avatar/"

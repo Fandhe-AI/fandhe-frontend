@@ -507,6 +507,9 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
     },
     // --- Data Display / Utilities（14、#1029。イシュー #2111 で attachment 追加、旧 13。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
     PrimitiveEntry {
+        // イシュー #2111 で headless-ui 層を実装。Themes ページと title
+        // 一致（イシュー #2112、`site/themes/attachment.md` / `site/nav.toml`
+        // 参照。`PRIMITIVES_WITHOUT_THEMES_PAGE` からは除外済み）。
         module: "attachment",
         path: "/primitives/attachment/",
         title: "Attachment",
@@ -623,7 +626,7 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives。現在 1 件（`sidebar`）。`button_group` は #2059 時点では
+/// Primitives。現在 0 件（本台帳は現在空である）。`button_group` は #2059 時点では
 /// headless-ui 層のみを実装しており暫定的にこの台帳へ載っていたが、イシュー
 /// #2060 で Themes 層（`crates/pre-styled-ui/src/button_group.rs`・
 /// `site/themes/button-group.md`）を実装済みのため除外した（`collapsible`/
@@ -646,15 +649,16 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// `site/themes/sidebar.md`）を実装済みのため除外した。`bubble` も同様に
 /// イシュー #2108 で headless-ui 層のみ先行実装され暫定的にこの台帳へ
 /// 載っていたが、イシュー #2109 で Themes 層（`crates/pre-styled-ui/src/bubble.rs`・
-/// `site/themes/bubble.md`）を実装済みのため除外した。`attachment` は
-/// イシュー #2111 で headless-ui 層のみ先行実装したため本台帳へ載せる
-/// （Themes 層・`site/themes/attachment.md` は後続イシュー #2112 で実装
-/// 予定。実装後は上記各部品と同様にこの台帳から除外する）。
+/// `site/themes/bubble.md`）を実装済みのため除外した。`attachment` も
+/// 同様にイシュー #2111 で headless-ui 層のみ先行実装され暫定的にこの
+/// 台帳へ載っていたが、イシュー #2112 で Themes 層
+/// （`crates/pre-styled-ui/src/attachment.rs`・`site/themes/attachment.md`）
+/// を実装済みのため除外した。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["attachment"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &[];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {

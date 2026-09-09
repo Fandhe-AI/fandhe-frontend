@@ -227,7 +227,7 @@ ls crates/headless-ui/src/*.rs | wc -l                                          
 # イシュー #2063 で input_group、イシュー #2066 で item、イシュー #2060 で
 # button_group、イシュー #2070 で command、イシュー #2080 で radial_chart の
 # Themes ページが加わり 110→115）
-ls site/themes/*.md | wc -l                                                       # => 118
+ls site/themes/*.md | wc -l                                                       # => 119
 ```
 
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
@@ -237,10 +237,10 @@ ls site/themes/*.md | wc -l                                                     
 イシュー #2059 で `button_group`・イシュー #2062 で `input_group`・
 イシュー #2065 で `item`・イシュー #2068 で `command`・イシュー #2072 で
 `sidebar`・イシュー #2105 で `message`・イシュー #2108 で `bubble` を
-それぞれ追加、旧 63)と Themes(118 部品、イシュー #2063 で `input_group`・
+それぞれ追加、旧 63)と Themes(119 部品、イシュー #2063 で `input_group`・
 イシュー #2066 で `item`・イシュー #2060 で `button_group`・イシュー
 #2070 で `command`・イシュー #2080 で `radial_chart`・イシュー #2106 で
-`message`・イシュー #2109 で `bubble`
+`message`・イシュー #2109 で `bubble`・イシュー #2112 で `attachment`
 をそれぞれ追加、旧 110)の**層をまたぐラップ状態**
 (どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
@@ -737,3 +737,27 @@ pre-styled-ui recipe・Themes ページを実装しバケット移動」パタ�
   新規追加したため）
 - Themes 部品（§2/§6 の件数）: 117 → **118**
 - 旧 URL（移転案内）件数: 119 → **120**（`/components/bubble/` を追加）
+
+## 16. イシュー #2112 追記（attachment の Themes ページ登録）
+
+`/themes/attachment/` ページ（原稿 `site/themes/attachment.md`・
+`site/nav.toml` 登録・showcase Demo・`component_specs_nav_data.rs` の
+`ATTACHMENT` 原稿）を新設したことに伴い、`crates/pre-styled-ui/src/attachment.rs`
+（新規ファイル、headless `attachment::root`/`media`/`content`/`name`/
+`meta`/`progress`/`actions`/`action` へコード委譲）を追加し、
+`crates/docs-site/tests/wrap_state.rs` の台帳を以下のとおり更新した
+（§14/§15 と同型の「headless-ui 層のみ先行実装 → 後続イシューで
+pre-styled-ui recipe・Themes ページを実装しバケット移動」パターン）。
+
+- `HEADLESS_UNWRAPPED`: `["attachment"]` → **`[]`**（`attachment.rs` が
+  `fandhe_frontend_headless_ui::attachment` をコード委譲するようになった
+  ため）
+- `PRIMITIVES_WITHOUT_THEMES_PAGE`（`crates/docs-site/src/
+  primitives_catalog.rs`）: `["attachment"]` → **`[]`**（`/themes/attachment/`
+  ページが実在するため除外）
+- `WRAPPED_SAME_NAME`: 70 → **71**（`attachment` を追加。`angle-slider` と
+  `avatar` の間、ソート順）
+- `crates/pre-styled-ui/src/*.rs` 総数: 118 → **119**（`attachment.rs` を
+  新規追加したため）
+- Themes 部品（§2/§6 の件数）: 118 → **119**
+- 旧 URL（移転案内）件数: 120 → **121**（`/components/attachment/` を追加）

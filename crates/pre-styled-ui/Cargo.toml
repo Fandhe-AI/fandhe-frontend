@@ -2739,7 +2739,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # 上記マージ解消で到達した 0.164.0 が既に上回っているため、追加バンプ
 # 不要で 0.164.0 をそのまま採用する（本クレート自身の recipe・golden・
 # Themes ページ実装は後続イシュー #2112、出力・API は不変）。
-version = "0.164.1"
+#
+# イシュー #2112: `attachment` モジュール（recipe・golden・8 パーツの
+# styled ラッパー）を新設する公開 API 純追加のためマイナーバンプ（0.x の
+# 破壊的変更ではない純追加）。
+#
+# イシュー #2187 base 取り込み: 本ブランチ側では headless-ui 0.68.9 →
+# 0.68.10（navigation-menu へのルートレベル indicator パーツ新設）への
+# `dep-version-check` version 要求追随のみで 0.164.1 へ patch バンプして
+# いたが、本クレート自身の実体変更は伴わない。origin/main 側の到達値
+# 0.166.0（イシュー #2112 の実体変更を伴うマイナーバンプ）が既にこれを
+# 上回るため、追加バンプ不要で 0.166.0 をそのまま採用する（依存先
+# headless-ui の version 要求は本ブランチの 0.68.10 追随をそのまま採用、
+# 下記 `fandhe-frontend-headless-ui = { ... }` 参照）。
+version = "0.166.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

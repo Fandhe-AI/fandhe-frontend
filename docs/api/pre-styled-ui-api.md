@@ -11,19 +11,19 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 117 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 118 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
 #2070、`sidebar` はイシュー #2073、`message` はイシュー #2106、`bubble`
-はイシュー #2109 で追加）+
+はイシュー #2109、`attachment` はイシュー #2112 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。117 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。118 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
 操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
@@ -79,6 +79,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。10 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
 | headless ラッパー | `message`（§4f-6 参照。会話 1 発言。6 パーツ構成、軸なし。data-role/data-align/data-loading/data-error を AttrEq/Attr 参照するのみ） | [message](../../site/themes/message.md) |
 | headless ラッパー | `bubble`（§4f-7 参照。チャット吹き出し 1 個。6 パーツ構成、軸なし。data-variant/data-align/data-group-position/data-selected/data-state を AttrEq/Attr/AttrEqAll 参照するのみ） | [bubble](../../site/themes/bubble.md) |
+| headless ラッパー | `attachment`（§4f-8 参照。添付ファイル 1 件。8 パーツ構成、軸なし。data-variant/data-state/data-disabled を AttrEq/Attr 参照するのみ） | [attachment](../../site/themes/attachment.md) |
 | headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
@@ -958,6 +959,53 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。
 - **docs サイト**: [bubble](../../site/themes/bubble.md)
   （イシュー #2109 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-8. `attachment`（添付ファイル 1 件の表示、イシュー #2112、headless anatomy は #2111）
+
+`attachment` モジュールは `fandhe_frontend_headless_ui::attachment` の
+anatomy（`root`/`media`/`content`/`name`/`meta`/`progress`/`actions`/
+`action` の 8 パーツ）へ、横並びの行カード（`file` 形態）・縦積みの
+サムネイルカード（`image` 形態）の 2 意匠とアップロード失敗時の枠色を
+重ねる薄い委譲層である。
+
+- **公開 API**: 8 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::bubble` と同型のパターン）。
+  `AttachmentRootProps`/`AttachmentVariant`/`AttachmentState`（headless
+  からの再エクスポート）のみを選択的に公開する。`stylesheet()` が静的
+  CSS 全量を返す。
+- **軸を持たない**: `variant`/`state`/`disabled` は headless が固定出力
+  する `data-variant`/`data-state`/`data-disabled` を
+  `StateCondition::AttrEq`/`Attr` で参照するのみで、class ベースの
+  `SlotRecipe::variant` は持たない
+  （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2「役割 B:
+  参照のみ」、`crate::bubble` と同型の判断）。
+- **`file`/`image` の意匠**: `file`（既定）は横並びの行カード（`media`
+  は固定サイズの角丸アイコン枠、`actions` は末尾へ常時表示）。`image`
+  は縦積みのサムネイルカード（`media` を正方形で敷き詰め、子 `img` は
+  `object-fit: cover`）。
+- **`actions` の hover 表示とタッチ端末対策**: `image` 形態の `actions`
+  は既定で隠れ `root:hover`/`root:focus-within` で表示するが、この
+  `opacity: 0` の既定非表示規則そのものを `@media (hover: hover)` 配下
+  へ限定する。hover 機構を持たない端末（タッチ端末等）では規則が適用
+  されず CSS の初期値 `opacity: 1`（常時表示）のまま残るため、「見えない
+  ボタンで操作不能になる」到達不能を避ける（`src/attachment.rs` モジュール
+  doc「`actions` の hover 表示とタッチ端末対策」節参照）。
+- **`data-state="error"`**: `root` の枠色・`meta` の文字色を
+  `var(--fandhe-color-danger)` へ切り替える（`root`/`meta` は別 slot の
+  ため raw CSS で追記）。
+- **`progress` スロット**: attachment scope の単純なスロットであり
+  `crate::progress::Progress` を委譲しない。アップロード進捗を表示する
+  ときは呼び出し側がスタイル済み `progress`（`root`/`track`/`range`）を
+  中身へ入れ子にする契約（headless 契約を継承）。
+- **`action`**: ゴーストボタン（`type="button"` 固定・`label` が空文字列
+  でないときのみ `aria-label`）。`disabled` は `root` の disabled（opacity
+  0.5）とは独立し、二重減衰を避けるため `cursor: not-allowed` のみを
+  適用する。
+- **`ColorPalette` 軸は持たない**: 本イシューのスコープに含まれない
+  （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
+- **docs サイト**: [attachment](../../site/themes/attachment.md)
+  （イシュー #2112 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 
