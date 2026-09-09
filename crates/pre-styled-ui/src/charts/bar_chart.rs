@@ -1134,6 +1134,29 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                 }
             }
         }
+        // PR #2261 codex-review 指摘（threadId PRRT_kwDOTarxgc6gv_PK）:
+        // `highlight_negative: true` の実描画色（上記グループ棒ループの
+        // `is_negative` 分岐、`chart-2`）が系列色・カテゴリ色より優先される
+        // のと同じ優先順位を、ツールチップの色見本にも適用する。棒描画側の
+        // `is_negative` は積み上げ（`stacked`）では使わない（全系列非負の
+        // 契約があるため負値が発生しない）ため、ここでも `!stacked` で
+        // スコープを揃える。`row.value` は `entries_from_chart_data` が
+        // `series.values[index]`（描画ループの `value` と同じ生値）から
+        // 組み立てた値であり、追加の再計算なしに同じ判定に使える。負値
+        // 判定は `color_by_category` 上書きより後段で行い、両方 `true` の
+        // 場合は負値強調が勝つ（描画側の `if is_negative { .. } else if
+        // color_by_category { .. }` と同じ優先順位）。
+        if props.highlight_negative && !stacked {
+            let negative_color = crate::charts::SeriesColor::chart_slot(2)
+                .expect("chart_slot(2) は常に有効な範囲内");
+            for entry in &mut entries {
+                for row in &mut entry.rows {
+                    if row.value < 0.0 {
+                        row.color = negative_color.clone();
+                    }
+                }
+            }
+        }
         Some(entries)
     } else {
         None
@@ -1903,6 +1926,80 @@ mod tests {
         let all_positive = sample();
         let html2 = render(&root(&all_positive, props, "label").unwrap());
         assert!(!html2.contains("data-negative"));
+    }
+
+    /// PR #2261 codex-review 指摘（threadId PRRT_kwDOTarxgc6gv_PK）の回帰
+    /// テスト: `highlight_negative: true` の単一系列 `[-1, 1]` で、負値の
+    /// 棒は `chart-2` で描画される（`is_negative` 分岐）一方、ツールチップ
+    /// の色見本（`tooltip-indicator` の `--fandhe-chart-tooltip-color`）が
+    /// 是正前は系列色 `chart-1` のまま棒の実描画色と不一致だった。是正後は
+    /// 棒描画と同じ優先順位（負値強調 > 系列色）で色見本にも `chart-2` が
+    /// 反映されることを検証する。
+    #[test]
+    fn highlight_negative_tooltip_indicator_matches_negative_bar_color() {
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![-1.0, 1.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            highlight_negative: true,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+
+        let marker = "--fandhe-chart-tooltip-color: var(--fandhe-color-chart-";
+        let indicator_colors: Vec<&str> = html
+            .match_indices(marker)
+            .map(|(i, _)| {
+                let start = i + marker.len();
+                let end = start + html[start..].find(')').unwrap();
+                &html[start..end]
+            })
+            .collect();
+        assert_eq!(
+            indicator_colors,
+            vec!["2", "1"],
+            "負値カテゴリ（a, value=-1）の色見本は棒の実描画色 chart-2、正値カテゴリ（b, value=1）は既定系列色 chart-1 のはず: {indicator_colors:?}"
+        );
+    }
+
+    /// `highlight_negative` と `color_by_category` を両方有効にした場合、
+    /// 棒描画側の優先順位（`if is_negative { .. } else if color_by_category
+    /// { .. } else { .. }`）と同じく、負値強調がカテゴリ色より優先されて
+    /// 色見本に反映されることを検証する。
+    #[test]
+    fn highlight_negative_takes_priority_over_color_by_category_in_tooltip() {
+        // 3 カテゴリ（a=負値、b/c=正値）にすることで、color_by_category の
+        // 既定色（chart-slot(cat_idx % 6 + 1) = a:1, b:2, c:3）と負値強調色
+        // （chart-2）が cat_idx=0（a）でのみ衝突し、優先順位の実証になる
+        // （2 カテゴリだと b が偶然 chart-2 と一致し判別できないため避ける）。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s", vec![-1.0, 1.0, 1.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            highlight_negative: true,
+            color_by_category: true,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+
+        let marker = "--fandhe-chart-tooltip-color: var(--fandhe-color-chart-";
+        let indicator_colors: Vec<&str> = html
+            .match_indices(marker)
+            .map(|(i, _)| {
+                let start = i + marker.len();
+                let end = start + html[start..].find(')').unwrap();
+                &html[start..end]
+            })
+            .collect();
+        assert_eq!(
+            indicator_colors,
+            vec!["2", "2", "3"],
+            "負値カテゴリ a は color_by_category の既定色 chart-1 ではなく負値強調 chart-2 が優先されるはず: {indicator_colors:?}"
+        );
     }
 
     #[test]
