@@ -1036,10 +1036,24 @@ mod wiring {
     /// codex-review P1 是正。従来は `pointerout`/`focusout` のいずれかで
     /// 無条件に非表示にしており、`crate::tooltip` の契約に反していた）。
     ///
-    /// `pointerout` は `related_target` が同じ menu-button 内であれば
-    /// 状態更新自体を行わない（子要素間移動によるちらつき防止。`focusout`
-    /// はバブリングする `FocusEvent` だが `relatedTarget` 判定は行わない
-    /// 設計上の単純化、モジュール doc「スコープ外」節参照）。
+    /// `pointerover`/`pointerout` はいずれも `related_target` が同じ
+    /// menu-button 内であれば状態更新自体を行わずに `return` する（子要素
+    /// （icon span → label span 等）間のポインタ移動によるちらつき防止・
+    /// 誤再表示防止。`focusin`/`focusout` はバブリングする `FocusEvent` だが
+    /// `relatedTarget` 判定は行わない設計上の単純化、モジュール doc
+    /// 「スコープ外」節参照）。
+    ///
+    /// **PR #2248 Cursor Bugbot（Medium）是正**: 当初はこのガードを
+    /// `pointerout`（`!entering`）にのみ適用しており、[`close_open_menu_button_tooltips`]
+    /// （Escape）が両チャネルから該当インスタンスのキーを除去して非表示
+    /// にした直後でも、同一 menu-button 内の子要素間を移動する
+    /// `pointerover`（bubbling）は無条件に「新規進入」として扱われ
+    /// `hovering` へキーが再挿入され `stay_open` が真に戻り、Escape で
+    /// 閉じたはずの tooltip が再表示されてしまっていた。ガードを
+    /// `pointerover`/`pointerout` 双方（`is_pointer` のみを条件とし
+    /// `entering` を条件から外す）へ適用することで、真の再進入
+    /// （`related_target` が menu-button 外、または `None`）のみを
+    /// 新規進入として扱う。
     fn handle_tooltip_hover_event(
         root: &Element,
         hover_state: &TooltipHoverState,
@@ -1060,7 +1074,7 @@ mod wiring {
             return;
         };
 
-        if !entering && is_pointer {
+        if is_pointer {
             if let Some(mouse_event) = event.dyn_ref::<MouseEvent>() {
                 if let Some(related) = mouse_event.related_target() {
                     if let Ok(related_element) = related.dyn_into::<Element>() {
@@ -1141,6 +1155,13 @@ mod wiring {
     /// `<input>` 等で Escape がフォーカスそのものを外さなくても
     /// tooltip だけは消える一般的な UX 契約と揃える）。キーが取得できない
     /// menu-button（`tooltip_instance_key` が `None`）は非表示化のみ行う。
+    ///
+    /// 本関数がチャネルからキーを除去してもなお再表示が起き得た経緯は
+    /// [`handle_tooltip_hover_event`] doc の「PR #2248 Cursor Bugbot
+    /// （Medium）是正」節を参照（同一 menu-button 内の子要素間を移動する
+    /// bubbling `pointerover` が「新規進入」として誤って再挿入していた
+    /// 問題。本関数自体の修正ではなく、呼び出し側のイベント判定を対称化
+    /// する形で解消した）。
     fn close_open_menu_button_tooltips(root: &Element, hover_state: &TooltipHoverState) {
         for menu_button in query_all(root, MENU_BUTTON_SELECTOR) {
             if !menu_button.has_attribute("aria-describedby") {

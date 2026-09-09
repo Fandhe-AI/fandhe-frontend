@@ -23,7 +23,12 @@
 //!    内側 pointerdown は無視、デスクトップでは no-op）
 //! 5. `collapsible=icon` かつ collapsed の `menu-button` tooltip
 //!    hover/focus 表示（`aria-describedby` 解決・`hidden`/`data-state`
-//!    切替）、expanded/offcanvas/mobile では非表示のまま
+//!    切替）、expanded/offcanvas/mobile では非表示のまま。Escape で
+//!    非表示にした tooltip が、同一 menu-button 内の子要素間を移動する
+//!    bubbling `pointerover`（真の再進入ではない）で再表示されないこと
+//!    （イシュー #2074 PR #2248 Cursor Bugbot（Medium）是正の回帰、
+//!    `related_target` が menu-button 外の真の再進入では再表示される
+//!    ことも対照確認）
 //! 6. sidebar 非搭載 root への配線が no-op（Ctrl+B が `preventDefault()`
 //!    されない）
 //!
@@ -42,7 +47,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use fandhe_frontend_core::{render, text};
+use fandhe_frontend_core::{el, render, text};
 use fandhe_frontend_headless_ui::sidebar::{
     menu_button, provider, rail, root as sidebar_root, trigger, Sidebar, SidebarCollapsible,
     SidebarMenuButtonProps, SidebarProps, SidebarState,
@@ -64,8 +69,12 @@ use fandhe_frontend_wasm_full::sidebar::{
 const DESKTOP_QUERY: &str = "(max-width: 0px)";
 use std::cell::RefCell;
 use std::rc::Rc;
+use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, Event, EventInit, KeyboardEvent, KeyboardEventInit};
+use web_sys::{
+    Document, Element, Event, EventInit, EventTarget, KeyboardEvent, KeyboardEventInit, MouseEvent,
+    MouseEventInit,
+};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -179,6 +188,23 @@ fn dispatch_event_on(target: &Element, kind: &str) {
 fn dispatch_event_on_document(document: &Document, kind: &str) {
     document
         .dispatch_event(&bubbling_event(kind))
+        .expect("dispatch_event must not fail");
+}
+
+/// `bubbles: true` かつ `relatedTarget` を明示指定した合成 `pointerover`/
+/// `pointerout`（`MouseEvent`）を `target` へ dispatch する
+/// （イシュー #2074 PR #2248 Cursor Bugbot（Medium）是正の回帰テスト用。
+/// [`handle_tooltip_hover_event`] の `related_target` ガードは
+/// `MouseEvent::related_target()` のみを見るため、`bubbling_event` の
+/// 素の `Event` ではなく `MouseEvent` として組み立てる必要がある）。
+fn dispatch_pointer_event_with_related_target(target: &Element, kind: &str, related: &Element) {
+    let init = MouseEventInit::new();
+    init.set_bubbles(true);
+    init.set_related_target(Some(related.unchecked_ref::<EventTarget>()));
+    let event = MouseEvent::new_with_mouse_event_init_dict(kind, &init)
+        .expect("MouseEvent::new must not fail");
+    target
+        .dispatch_event(event.as_ref())
         .expect("dispatch_event must not fail");
 }
 
@@ -1150,6 +1176,13 @@ fn escape_and_outside_pointerdown_are_noop_on_desktop() {
 /// （provider/root/menu-button）と、`aria-describedby` で関連付けた
 /// tooltip（root/positioner/content）を組み立てる。`(menu_button, content)`
 /// を返す。
+///
+/// `menu-button` の子要素は素の `text("Home")` 1 個ではなく `<span
+/// class="icon">`/`<span class="label">` の 2 子要素にしている
+/// （イシュー #2074 PR #2248 Cursor Bugbot（Medium）是正の回帰テスト
+/// `escape_dismissed_tooltip_does_not_reshow_on_pointerover_between_children`
+/// が、同一 menu-button 内の子要素間を移動する `pointerover`/`relatedTarget`
+/// を組み立てるために 2 個の子要素を要求するため）。
 fn mount_sidebar_with_tooltip(container: &Element, mobile: bool) -> (Element, Element) {
     let sidebar = Sidebar::new(SidebarState::Collapsed);
     let props = SidebarProps {
@@ -1175,7 +1208,10 @@ fn mount_sidebar_with_tooltip(container: &Element, mobile: bool) -> (Element, El
                 vec![menu_button(
                     &menu_button_props,
                     Vec::new(),
-                    vec![text("Home")],
+                    vec![
+                        el("span", vec![("class", "icon")], vec![text("H")]),
+                        el("span", vec![("class", "label")], vec![text("Home")]),
+                    ],
                 )],
             ),
             tooltip::root(
@@ -1309,6 +1345,68 @@ fn escape_clears_focus_hover_channel_so_stray_pointerout_does_not_reshow_tooltip
         content_el.has_attribute("hidden"),
         "Escape 後の無関係な pointerout で tooltip が再表示されないこと\
          （`focused` チャネルが Escape でクリアされていない実装では再表示されてしまう）"
+    );
+}
+
+#[wasm_bindgen_test]
+fn escape_dismissed_tooltip_does_not_reshow_on_pointerover_between_children() {
+    // イシュー #2074 PR #2248 Cursor Bugbot（Medium）是正の回帰テスト
+    // （`crates/wasm-full/src/sidebar.rs::handle_tooltip_hover_event`
+    // doc「PR #2248 Cursor Bugbot（Medium）是正」節参照）。
+    //
+    // Escape で `close_open_menu_button_tooltips` が hover/focus 両
+    // チャネルをクリアし tooltip を非表示にした後、同一 menu-button の
+    // 子要素間（icon span → label span）を移動する bubbling
+    // `pointerover` は真の「再進入」ではないにもかかわらず、是正前は
+    // 無条件に新規進入として扱われ `hovering` へキーが再挿入されて
+    // tooltip が再表示されてしまっていた。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-tooltip-escape-pointerover-child-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let (menu_button_el, content_el) = mount_sidebar_with_tooltip(&container, false);
+    wire_sidebar_events_with_query(container.clone(), DESKTOP_QUERY)
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    let icon_el = menu_button_el
+        .query_selector(".icon")
+        .expect("query_selector must not fail")
+        .expect("icon span must exist");
+    let label_el = menu_button_el
+        .query_selector(".label")
+        .expect("query_selector must not fail")
+        .expect("label span must exist");
+
+    // pointerover で開く（`hovering` チャネルが活性化する）。
+    dispatch_event_on(&menu_button_el, "pointerover");
+    assert!(!content_el.has_attribute("hidden"));
+
+    // Escape で閉じる（`hovering`/`focused` 両チャネルがクリアされる）。
+    dispatch_document_keydown(&document, "Escape", false, false, false);
+    assert!(
+        content_el.has_attribute("hidden"),
+        "Escape 直後は tooltip が非表示であること"
+    );
+
+    // icon span → label span（いずれも同一 menu-button 内）への
+    // pointerover は真の再進入ではないため、Escape で明示的にクリアされた
+    // `hovering` チャネルへキーが再挿入されず tooltip は再表示されない
+    // こと（is-not-vacuous: 是正前の実装ではここで再表示されてしまう）。
+    dispatch_pointer_event_with_related_target(&label_el, "pointerover", &icon_el);
+    assert!(
+        content_el.has_attribute("hidden"),
+        "同一 menu-button 内の子要素間 pointerover で tooltip が再表示されないこと\
+         （`related_target` ガードが `pointerover` に適用されていない実装では再表示されてしまう）"
+    );
+
+    // 正の対照: `related_target` が menu-button 外（コンテナ自身）の
+    // pointerover は真の再進入として扱われ、再表示が許容されること
+    // （ガードが過剰に働いて真の再進入まで抑止していないことの確認）。
+    dispatch_pointer_event_with_related_target(&menu_button_el, "pointerover", &container);
+    assert!(
+        !content_el.has_attribute("hidden"),
+        "menu-button 外からの真の再進入 pointerover では tooltip が再表示されること"
     );
 }
 
