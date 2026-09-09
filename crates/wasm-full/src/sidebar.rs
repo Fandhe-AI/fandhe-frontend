@@ -330,6 +330,54 @@ mod wiring {
         query_all(root, selector).into_iter().next()
     }
 
+    /// `scope` 自身が `selector` に一致すればそれを返し、一致しなければ
+    /// `scope` 配下（子孫）から探す（`headless_select::instance_boundary`
+    /// と同型の自己一致救済。`Element::query_selector_all` は呼び出し
+    /// 元の要素自身にはマッチしない仕様のため、`find_first` 単体では
+    /// `scope` が探索対象そのものであるケースを取りこぼす）。
+    ///
+    /// イシュー #2074 codex-review P1 / Cursor Bugbot 是正
+    /// （`wire_sidebar_dispatch` は「`provider` を含む部分木の任意の
+    /// 祖先」を `root` として受け付ける契約であり、アプリが `provider`
+    /// 要素自身を渡すケースを含む。この場合に `find_first` だけを使うと
+    /// モバイル折りたたみの catch-up 判定が `provider` を発見できず
+    /// 無言で no-op になる）。
+    fn find_first_including_self(scope: &Element, selector: &str) -> Option<Element> {
+        if scope.matches(selector).unwrap_or(false) {
+            return Some(scope.clone());
+        }
+        find_first(scope, selector)
+    }
+
+    /// `root` 配下（または `root` 自身が `provider` の場合はそれ単独）の
+    /// すべての sidebar `provider` を返す。
+    ///
+    /// イシュー #2074 codex-review P1 / Cursor Bugbot 是正: document
+    /// キーボード/ポインタ委譲ハンドラ・`wire_mobile` の遷移エッジ判定が
+    /// [`find_first`]（`PROVIDER_SELECTOR` の最初の 1 件のみ）に依存して
+    /// いたため、同一 `root`（`Runtime` の mount root）配下に複数の
+    /// `Sidebar` `provider` が並存する構成（例: 左右 2 枚のサイドバーを
+    /// 同一画面に配線するアプリ）でモバイル進入時の折りたたみ・
+    /// Escape・外側クリックの各制御が**先頭の provider にしか適用され
+    /// ない**不具合があった（2 個目以降は `data-mobile` こそ付くが
+    /// `data-state="expanded"` のまま取り残され、Escape・外側クリック
+    /// でも閉じられない）。モバイル制御（本関数の呼び出し元）は必ず
+    /// この関数で列挙した**すべて**の provider に対して個別に判定・
+    /// 適用する（`root` 自身が `provider` の場合の自己一致は
+    /// [`find_first_including_self`] と同型の理由で必要）。
+    ///
+    /// Cmd/Ctrl+B ショートカット自体（[`handle_document_keydown`] の
+    /// 非 Escape 分岐）は複数 provider が並存する場合にどの provider を
+    /// 対象にするかという個別割り当て方針の問題であり、意図的に本関数の
+    /// 対象外（モジュール doc 「個別ショートカット割り当て」は元イシュー
+    /// #2074 のスコープ外、codex-review 指摘も「独立した問題」と明記）。
+    fn all_providers(root: &Element) -> Vec<Element> {
+        if root.matches(PROVIDER_SELECTOR).unwrap_or(false) {
+            return vec![root.clone()];
+        }
+        query_all(root, PROVIDER_SELECTOR)
+    }
+
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
     /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
     /// `.claude/rules/security.md`）。本モジュールが書き込む属性
@@ -435,13 +483,20 @@ mod wiring {
             // Escape で閉じる経路が無いため、本関数が完結させる。
             close_open_menu_button_tooltips(root);
 
-            let Some(provider) = find_first(root, PROVIDER_SELECTOR) else {
-                return;
-            };
-            let mobile = provider.has_attribute("data-mobile");
-            let state = provider.get_attribute("data-state");
-            if should_dismiss_mobile_drawer(mobile, state.as_deref()) {
-                click_trigger_or_rail(root);
+            // イシュー #2074 codex-review P1 是正: 単一 provider のみを
+            // 見る [`find_first`] ではなく [`all_providers`] で列挙した
+            // すべての provider に対して個別にモバイル drawer 閉鎖判定を
+            // 行う（`all_providers` doc「複数 provider 並存時の不具合」
+            // 参照）。`click_trigger_or_rail` も `root` 全体ではなく
+            // 各 `provider` 自身の部分木に限定して trigger/rail を探す
+            // ことで、provider ごとに正しい trigger/rail を合成 click
+            // する。
+            for provider in all_providers(root) {
+                let mobile = provider.has_attribute("data-mobile");
+                let state = provider.get_attribute("data-state");
+                if should_dismiss_mobile_drawer(mobile, state.as_deref()) {
+                    click_trigger_or_rail(&provider);
+                }
             }
             return;
         }
@@ -498,25 +553,30 @@ mod wiring {
         let Some(target_node) = target.dyn_ref::<Node>() else {
             return;
         };
-        let Some(provider) = find_first(root, PROVIDER_SELECTOR) else {
-            return;
-        };
-        let mobile = provider.has_attribute("data-mobile");
-        let state = provider.get_attribute("data-state");
-        if !should_dismiss_mobile_drawer(mobile, state.as_deref()) {
-            return;
-        }
-        if let Some(sidebar_root) = find_first(root, ROOT_SELECTOR) {
-            if sidebar_root.contains(Some(target_node)) {
-                return;
+        // イシュー #2074 codex-review P1 是正: [`all_providers`] で
+        // 列挙したすべての provider に対して独立に外側クリック判定を
+        // 行う（`all_providers` doc 参照）。ある provider の判定は
+        // その provider 自身の `root`/trigger/rail 部分木のみを見る
+        // （他の provider の内側をクリックした場合も、その provider から
+        // 見れば「外側」であり正しく閉鎖対象になる）。
+        for provider in all_providers(root) {
+            let mobile = provider.has_attribute("data-mobile");
+            let state = provider.get_attribute("data-state");
+            if !should_dismiss_mobile_drawer(mobile, state.as_deref()) {
+                continue;
             }
+            if let Some(sidebar_root) = find_first(&provider, ROOT_SELECTOR) {
+                if sidebar_root.contains(Some(target_node)) {
+                    continue;
+                }
+            }
+            if is_inside_any(&provider, TRIGGER_SELECTOR, target_node)
+                || is_inside_any(&provider, RAIL_SELECTOR, target_node)
+            {
+                continue;
+            }
+            click_trigger_or_rail(&provider);
         }
-        if is_inside_any(root, TRIGGER_SELECTOR, target_node)
-            || is_inside_any(root, RAIL_SELECTOR, target_node)
-        {
-            return;
-        }
-        click_trigger_or_rail(root);
     }
 
     /// `root`/`mql` から現在のモバイル判定を再取得し、`provider`/`root`
@@ -542,10 +602,17 @@ mod wiring {
 
         let entering_mobile = matches && !was_mobile.get();
         if entering_mobile {
-            if let Some(provider) = find_first(root, PROVIDER_SELECTOR) {
+            // イシュー #2074 codex-review P1 是正: [`find_first`] は
+            // 最初の provider にしか反応しないため、同一 `root` 配下に
+            // 複数 provider が並存すると 2 個目以降が `expanded` の
+            // まま取り残されていた。[`all_providers`] で列挙した全 provider
+            // それぞれに対して独立に折りたたみ判定・合成 click を行う
+            // （`click_trigger_or_rail` も各 `provider` 自身の部分木に
+            // 限定し、他 provider の trigger/rail を誤って click しない）。
+            for provider in all_providers(root) {
                 let state = provider.get_attribute("data-state");
                 if should_collapse_on_enter_mobile(true, state.as_deref()) {
-                    click_trigger_or_rail(root);
+                    click_trigger_or_rail(&provider);
                 }
             }
         }
@@ -1204,11 +1271,25 @@ mod wiring {
         // collapsed であれば no-op（`should_collapse_on_enter_mobile` が
         // 偽を返す）で、正常に折りたたみ済みだったケースを誤って
         // 再トグルすることはない。
-        if let Some(provider) = find_first(&reconcile_root, PROVIDER_SELECTOR) {
+        // イシュー #2074 Cursor Bugbot 是正（Catch-up collapse skips
+        // provider root）: 本関数の doc「なぜ `Runtime<C>` へ自動配線
+        // しないか」節が明記するとおり、`root` 引数は「provider を含む
+        // 部分木の**任意の祖先**」であればよい契約であり、アプリが
+        // `provider` 要素自身を渡すケースを含む。`find_first` は
+        // `Element::query_selector_all` に基づくため呼び出し元の要素
+        // 自身にはマッチせず、`reconcile_root` がまさに `provider` その
+        // ものである場合に判定が無言で no-op になっていた（結果、追いつき
+        // 用の折りたたみが再生されずモバイルマウントが `expanded` のまま
+        // 残る）。[`find_first_including_self`] で `reconcile_root` 自身が
+        // `provider` である場合も救済する。合成 click は発見した
+        // `provider` 自身の部分木に限定する（`reconcile_root` がより
+        // 広い祖先だった場合に無関係な trigger/rail を誤って click
+        // しないため）。
+        if let Some(provider) = find_first_including_self(&reconcile_root, PROVIDER_SELECTOR) {
             let mobile = provider.has_attribute("data-mobile");
             let state = provider.get_attribute("data-state");
             if should_collapse_on_enter_mobile(mobile, state.as_deref()) {
-                click_trigger_or_rail(&reconcile_root);
+                click_trigger_or_rail(&provider);
             }
         }
 

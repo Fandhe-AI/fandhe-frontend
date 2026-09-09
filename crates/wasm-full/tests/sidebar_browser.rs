@@ -596,6 +596,153 @@ fn dispatch_registered_after_mobile_wiring_still_collapses_on_mount() {
 }
 
 #[wasm_bindgen_test]
+fn dispatch_registered_with_provider_element_as_root_still_reconciles_mobile_collapse() {
+    // イシュー #2074 Cursor Bugbot 是正の回帰テスト（Catch-up collapse
+    // skips provider root）。`wire_sidebar_dispatch` の doc は「`root` は
+    // Sidebar インスタンスの anatomy 境界（`provider`）を含む要素で
+    // あればよい」契約であり、アプリが `provider` 要素そのものを渡す
+    // ケースを含む。`Element::query_selector_all` は呼び出し元の要素
+    // 自身にはマッチしないため、`find_first`（`find_first_including_self`
+    // 導入前）はこのケースで catch-up 折りたたみ判定を無言で no-op に
+    // していた。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-provider-as-root-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let (sidebar, provider_el, root_el, ..) =
+        build_sidebar_markup(&container, SidebarState::Expanded, false, false);
+
+    // モバイル配線を先に行う（dispatch 未登録のため初回の折りたたみ
+    // 合成 click は失われる、`dispatch_registered_after_mobile_wiring_
+    // still_collapses_on_mount` と同じ順序）。
+    wire_sidebar_events_with_query(container.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+    assert!(provider_el.has_attribute("data-mobile"));
+
+    let component = Rc::new(RefCell::new(sidebar));
+    let update_provider = provider_el.clone();
+    let update_root = root_el.clone();
+    // `container`（provider の祖先）ではなく `provider_el` 自身を
+    // `root` として渡す点が本回帰テストの核心。
+    wire_sidebar_dispatch(
+        provider_el.clone(),
+        component.clone(),
+        move |state, _root| {
+            let data_state = state.data_state();
+            let _ = update_provider.set_attribute("data-state", data_state);
+            let _ = update_root.set_attribute("data-state", data_state);
+        },
+    )
+    .expect("wire_sidebar_dispatch must not fail");
+
+    assert_eq!(component.borrow().state(), SidebarState::Collapsed);
+    assert_eq!(
+        provider_el.get_attribute("data-state").as_deref(),
+        Some("collapsed")
+    );
+    assert_eq!(
+        root_el.get_attribute("data-state").as_deref(),
+        Some("collapsed")
+    );
+}
+
+#[wasm_bindgen_test]
+fn multiple_providers_under_shared_root_both_collapse_on_mobile_entry() {
+    // イシュー #2074 codex-review P1 是正の回帰テスト。同一 `root`
+    // （`Runtime` の mount root 相当）配下に独立した 2 つの Sidebar
+    // `provider` が並存する構成で、モバイル進入時の折りたたみが
+    // 先頭の provider にしか適用されない不具合の再発防止。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let shared_root = create_container(&document, "sidebar-multi-provider-mobile-entry-root");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    let sub_a = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    let sub_b = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    shared_root
+        .append_child(&sub_a)
+        .expect("append_child must not fail for sub_a");
+    shared_root
+        .append_child(&sub_b)
+        .expect("append_child must not fail for sub_b");
+
+    let (sidebar_a, provider_a, ..) =
+        build_sidebar_markup(&sub_a, SidebarState::Expanded, false, false);
+    let (sidebar_b, provider_b, ..) =
+        build_sidebar_markup(&sub_b, SidebarState::Expanded, false, false);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+    wire_dispatch_reflecting_data_state(&sub_a, component_a.clone());
+    wire_dispatch_reflecting_data_state(&sub_b, component_b.clone());
+
+    // 単一の共有 root（両 provider の祖先）に対して 1 度だけ配線する
+    // （`Runtime::mount` が単一 app root へ 1 度だけ `wire_sidebar_events`
+    // を呼ぶ本番構成の再現）。
+    wire_sidebar_events_with_query(shared_root.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    assert!(provider_a.has_attribute("data-mobile"));
+    assert!(provider_b.has_attribute("data-mobile"));
+    // 2 個目（provider_b）が `Expanded` のまま取り残されないこと。
+    assert_eq!(component_a.borrow().state(), SidebarState::Collapsed);
+    assert_eq!(component_b.borrow().state(), SidebarState::Collapsed);
+}
+
+#[wasm_bindgen_test]
+fn multiple_providers_under_shared_root_each_dismiss_independently_on_escape() {
+    // イシュー #2074 codex-review P1 是正の回帰テスト。Escape によるモバイル
+    // drawer 閉鎖が先頭 provider にしか適用されず、2 個目以降が
+    // `expanded` のまま残っていた不具合の再発防止。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let shared_root = create_container(&document, "sidebar-multi-provider-escape-root");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    let sub_a = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    let sub_b = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    shared_root
+        .append_child(&sub_a)
+        .expect("append_child must not fail for sub_a");
+    shared_root
+        .append_child(&sub_b)
+        .expect("append_child must not fail for sub_b");
+
+    // Collapsed で開始し、モバイル進入時の強制 collapse を経由させない。
+    let (sidebar_a, _provider_a, _root_a, trigger_a, _rail_a) =
+        build_sidebar_markup(&sub_a, SidebarState::Collapsed, false, false);
+    let (sidebar_b, _provider_b, _root_b, trigger_b, _rail_b) =
+        build_sidebar_markup(&sub_b, SidebarState::Collapsed, false, false);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+    wire_dispatch_reflecting_data_state(&sub_a, component_a.clone());
+    wire_dispatch_reflecting_data_state(&sub_b, component_b.clone());
+
+    wire_sidebar_events_with_query(shared_root.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    // 両方のドロワーを開く。
+    dispatch_click(&trigger_a);
+    dispatch_click(&trigger_b);
+    assert_eq!(component_a.borrow().state(), SidebarState::Expanded);
+    assert_eq!(component_b.borrow().state(), SidebarState::Expanded);
+
+    dispatch_document_keydown(&document, "Escape", false, false, false);
+    assert_eq!(component_a.borrow().state(), SidebarState::Collapsed);
+    assert_eq!(component_b.borrow().state(), SidebarState::Collapsed);
+}
+
+#[wasm_bindgen_test]
 fn always_matching_query_does_not_force_collapse_when_already_collapsed() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
