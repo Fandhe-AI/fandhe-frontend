@@ -1116,7 +1116,25 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
     // （全系列を覆う矩形）を hit-area とする（§2.7「bar_chart」行）。
     // hit-area 自体には `data-series` を付けない（帯 = 全系列の代表）。
     let entries = if props.show_tooltip {
-        Some(tooltip::entries_from_chart_data(data))
+        let mut entries = tooltip::entries_from_chart_data(data);
+        if props.color_by_category {
+            // PR #2261 codex-review 指摘（threadId PRRT_kwDOTarxgc6gvfvY）:
+            // `color_by_category: true` の実描画色は上記ループの
+            // `super::series_color_var(cat_idx)`（カテゴリ index 基準。
+            // stacked/grouped いずれの分岐も同一カテゴリ内の全棒が同色）で
+            // あり、`entries_from_chart_data` の既定（系列 index 基準）とは
+            // 異なる。`tooltip-indicator` の色を実際の棒色に一致させるため
+            // pie_chart/donut_chart（同型の乖離）と同じ手当てで、カテゴリ
+            // index 基準へ上書きする。
+            for entry in &mut entries {
+                let color = crate::charts::SeriesColor::chart_slot(entry.index % 6 + 1)
+                    .expect("entry.index % 6 + 1 は常に 1..=6 の範囲内");
+                for row in &mut entry.rows {
+                    row.color = color.clone();
+                }
+            }
+        }
+        Some(entries)
     } else {
         None
     };
@@ -1819,6 +1837,51 @@ mod tests {
         let html = render(&root(&data, props, "label").unwrap());
         assert!(html.contains("chart-1"));
         assert!(html.contains("chart-2"));
+    }
+
+    /// PR #2261 codex-review 再指摘（Bugbot、threadId
+    /// PRRT_kwDOTarxgc6gvfvY）の回帰: `color_by_category: true` のとき、
+    /// 棒の実描画色は `super::series_color_var(cat_idx)`（カテゴリ index
+    /// 基準、上記 `root` 実装のループ参照）だが、ツールチップの
+    /// `tooltip-indicator` 色が是正前は `entries_from_chart_data` の既定
+    /// （系列 index 基準）のまま素通しされていたため、複数系列を持つ棒
+    /// グラフで各カテゴリのツールチップ色見本が実際の棒色と食い違って
+    /// いた。是正後は同一カテゴリ内の全系列行が、そのカテゴリの実描画色
+    /// （`chart-<cat_idx % 6 + 1>`）に揃うことを固定する。
+    #[test]
+    fn color_by_category_tooltip_rows_match_category_bar_color() {
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![
+                Series::new("s1", vec![1.0, 2.0]),
+                Series::new("s2", vec![3.0, 4.0]),
+            ],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            color_by_category: true,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+
+        // カテゴリ a（cat_idx=0）の全系列行が chart-1、カテゴリ b
+        // （cat_idx=1）の全系列行が chart-2 の tooltip-indicator 色を
+        // 持つことを、行の出現順（entries_from_chart_data はカテゴリ →
+        // 系列の順で行を並べる）に沿って検証する。
+        let marker = "--fandhe-chart-tooltip-color: var(--fandhe-color-chart-";
+        let indicator_colors: Vec<&str> = html
+            .match_indices(marker)
+            .map(|(i, _)| {
+                let start = i + marker.len();
+                let end = start + html[start..].find(')').unwrap();
+                &html[start..end]
+            })
+            .collect();
+        assert_eq!(
+            indicator_colors,
+            vec!["1", "1", "2", "2"],
+            "color_by_category=true では同一カテゴリ内の全系列行が同色（棒の実描画色）に揃うはず: {indicator_colors:?}"
+        );
     }
 
     #[test]

@@ -369,6 +369,11 @@ pub fn css() -> String {
 ///   （[`ViewBox::new`] の失敗を変換して）[`ChartError::NonFiniteValue`]
 /// - `props.point_radius` が非有限、または 0 以下の場合
 ///   [`ChartError::NonFiniteValue`]
+/// - `props.point_radius * HIT_AREA_RADIUS_FACTOR`（hit-area 半径）が
+///   非有限になる場合（PR #2261 codex-review P1 指摘: `point_radius` 単体は
+///   有限でも `f64::MAX` 級の極端な値では乗算結果がオーバーフローし
+///   `inf` になり得り、`svg::fmt_coord` の有限値契約に違反するため）
+///   [`ChartError::NonFiniteValue`]
 /// - x/y いずれかの domain 算出後の [`LinearScale::new`] が失敗した場合、
 ///   その失敗をそのまま返す（[`ChartData::domain`] 同型の退化パディングに
 ///   より通常は発生しない）
@@ -396,6 +401,16 @@ pub fn root(
     aria_label: &str,
 ) -> Result<Node, ChartError> {
     if !props.point_radius.is_finite() || props.point_radius <= 0.0 {
+        return Err(ChartError::NonFiniteValue);
+    }
+    // PR #2261 codex-review P1 指摘: `point_radius` 単体の有限性検証だけでは
+    // 不十分。`point_radius * HIT_AREA_RADIUS_FACTOR`（hit-area 半径、下記
+    // ループ内で使用）は `point_radius` が有限でも極端に大きい場合
+    // （例: `f64::MAX / 2` 超）に乗算でオーバーフローし `inf` になり得る。
+    // 既定の `show_tooltip: true` 経路で `svg::fmt_coord` の有限値契約に
+    // 違反し、debug ビルドでは panic、release ビルドでは不正な `r="inf"`
+    // を出力してしまうため、構築前に一括して検証し fail-closed に弾く。
+    if !(props.point_radius * HIT_AREA_RADIUS_FACTOR).is_finite() {
         return Err(ChartError::NonFiniteValue);
     }
     let view_box = ViewBox::new(0.0, 0.0, props.width, props.height)
@@ -594,6 +609,33 @@ mod tests {
                 &data,
                 ScatterChartProps {
                     point_radius: f64::NAN,
+                    ..ScatterChartProps::default()
+                },
+                "label"
+            )
+            .unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
+    fn root_rejects_point_radius_whose_hit_area_multiplication_overflows() {
+        // PR #2261 codex-review P1 指摘の再現・回帰: `point_radius` 自体は
+        // 有限（`is_finite()` を通過）でも、`point_radius * 2.5`
+        // （`HIT_AREA_RADIUS_FACTOR`）がオーバーフローして `inf` になる
+        // 極端な入力（`width`/`height` も同程度の巨大値で domain/scale の
+        // 計算自体は有限のまま通過する構成）で、必ず `ChartError` を返し
+        // `svg::fmt_coord` の有限値契約違反（debug panic / release での
+        // 不正な `r="inf"` 出力）へ到達しないことを固定する。
+        let data = sample_data();
+        let huge = f64::MAX / 2.0;
+        assert_eq!(
+            root(
+                &data,
+                ScatterChartProps {
+                    width: huge,
+                    height: huge,
+                    point_radius: huge,
                     ..ScatterChartProps::default()
                 },
                 "label"
