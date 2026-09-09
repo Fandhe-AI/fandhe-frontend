@@ -427,6 +427,11 @@ source = "site/primitives/json-tree-view.md"
 path = "/primitives/json-tree-view/"
 
 [[section.group.page]]
+title = "Message"
+source = "site/primitives/message.md"
+path = "/primitives/message/"
+
+[[section.group.page]]
 title = "Scroll Area"
 source = "site/primitives/scroll-area.md"
 path = "/primitives/scroll-area/"

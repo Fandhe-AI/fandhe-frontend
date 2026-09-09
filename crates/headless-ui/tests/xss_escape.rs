@@ -32,6 +32,7 @@ use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
 use fandhe_frontend_headless_ui::date_picker;
 use fandhe_frontend_headless_ui::file_upload;
 use fandhe_frontend_headless_ui::item::{self, ItemMediaVariant, ItemRootProps};
+use fandhe_frontend_headless_ui::message::{self, MessageRootProps};
 use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
@@ -2432,6 +2433,71 @@ fn sidebar_menu_button_href_rejects_dangerous_url_schemes() {
         assert!(
             !html.contains("href="),
             "危険な URL スキームなのに href 属性が出力されている: url={url:?}, html={html}"
+        );
+    }
+}
+
+/// イシュー #2105: `message` の `root`（呼び出し側 attrs）・`avatar`・
+/// `header`・`content`・`footer`（各 attrs/children）・`group`
+/// （`aria-label`・呼び出し側 attrs）の各動的スロットが既定エスケープを
+/// 経由することを固定する。
+#[test]
+fn message_root_avatar_header_content_footer_group_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_attrs_node = message::root(
+            MessageRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message::root の呼び出し側 attrs/children コンテキスト",
+        );
+
+        let avatar_node = message::avatar(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&avatar_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message::avatar の attrs/children コンテキスト",
+        );
+
+        let header_node = message::header(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&header_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message::header の attrs/children コンテキスト",
+        );
+
+        let content_node = message::content(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message::content の attrs/children コンテキスト",
+        );
+
+        let footer_node = message::footer(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&footer_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message::footer の attrs/children コンテキスト",
+        );
+
+        let group_label_node = message::group(payload, vec![], vec![]);
+        let html = render(&group_label_node);
+        assert_payload_is_escaped(payload, &html, "message::group の aria-label コンテキスト");
+
+        let group_attrs_node = message::group("", vec![("data-testid", payload)], vec![]);
+        let html = render(&group_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message::group の呼び出し側 attrs コンテキスト",
         );
     }
 }
