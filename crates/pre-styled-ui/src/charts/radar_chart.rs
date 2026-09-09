@@ -124,19 +124,92 @@
 //!   との線幅の見え方乖離回避、#1593/#1595/#1596 と同じ判断）
 //! - 系列パレット（`chart-1〜6`）の dark 近接見直しはスコープ外（#1866/#1867
 //!   と同じ判断）
+//!
+//! # shadcn/ui Charts（radar）突合（イシュー #2085）
+//!
+//! shadcn/ui Charts（radar）の registry 14 種を突合し、静的に描画できる
+//! 欠落バリアントを [`RadarChartProps`] の純追加で補完した（golden 純追加
+//! 原則、`docs/design/shadcn-reference-adoption-policy.md` §8 規則 3）。
+//! 既定値では本イシュー以前と**バイト同一の HTML**を出力する。
+//!
+//! | registry | shadcn の構成 | 本実装での対応 |
+//! |---|---|---|
+//! | `chart-radar-default` | `PolarGrid`（多角形）+ `PolarAngleAxis` + `Radar fillOpacity 0.6` | 既定（変更なし。`fill-opacity` は 0.2 を維持） |
+//! | `chart-radar-dots` | `Radar dot={{ r: 4, fillOpacity: 1 }}` | `dots: true`（新 part `point`、半径 4） |
+//! | `chart-radar-lines-only` | `PolarGrid radialLines={false}` + `Radar fillOpacity 0` | `fill: RadarFill::None` + `spokes: false` |
+//! | `chart-radar-label-custom` | `PolarAngleAxis tick` カスタム（値 + カテゴリ名の 2 行） | `axis_label: RadarAxisLabel::ValueAndCategory`（`tspan` 2 行） |
+//! | `chart-radar-grid-custom` | `PolarGrid radialLines={false} polarRadius={[90]}`（外周 1 本のみ） | `grid_rings: RadarGridRings::Outer` + `spokes: false` |
+//! | `chart-radar-grid-fill` | `PolarGrid` を系列色で塗る | `grid_fill: RadarGridFill::Series` |
+//! | `chart-radar-grid-none` | `PolarGrid` なし + dots | `grid: RadarGrid::None` + `dots: true` |
+//! | `chart-radar-grid-circle` | `PolarGrid gridType="circle"` + dots | `grid: RadarGrid::Circle` + `dots: true` |
+//! | `chart-radar-grid-circle-no-lines` | 同上 + `radialLines={false}` | `grid: RadarGrid::Circle` + `spokes: false` + `dots: true` |
+//! | `chart-radar-grid-circle-fill` | `gridType="circle"` + 系列色塗り | `grid: RadarGrid::Circle` + `grid_fill: RadarGridFill::Series` |
+//! | `chart-radar-multiple` | `Radar` ×2 | 既存対応（複数系列は変更なし） |
+//! | `chart-radar-legend` | `Radar` ×2 + `ChartLegend` | radar 側変更なし。[`super::legend::legend`] を並べて合成する |
+//! | `chart-radar-icons` | 同上 + `ChartConfig.icon` | radar 側変更なし。[`super::data::Series::with_icon`] + `legend` で合成する |
+//! | `chart-radar-radius` | `PolarRadiusAxis angle={60} orientation="middle" axisLine={false}` | `radius_axis: true`（新 part `radius-label`、軸 0/1 中間角の静的近似） |
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `fill-opacity` は shadcn の `0.6` ではなく既存の `0.2` を維持した
+//!   （既存 golden の色味変更禁止・[`super::area_chart`] との統一）。
+//! - `tickFormatter`・数値の書式（3 桁区切り等）はアプリ側整形の責務
+//!   （`docs/policy/intentional-non-adoption.md` §3.23/§3.25）。
+//! - グリッド外周 1 本（shadcn `polarRadius={[90]}`）の px 指定は非対応。
+//!   [`RadarGridRings::Outer`] は `plot_radius` 固定の静的近似。
+//! - 半径軸の角度指定（shadcn `angle` prop）は非対応。
+//!   [`RadarChartProps::radius_axis`] は軸 0/1 中間角固定。
+//! - `ChartTooltip`（indicator line / hideLabel 等）は静的表現が #2086、
+//!   マウス追従・hover 強調・hit-area `data-*` は #2128 の担当。
+//! - `ChartLegend`/icon は radar 部品へ内包せず [`super::legend`] との
+//!   合成で表現する（chakra 方式、イシュー #2077）。凡例の系列トグルは
+//!   #2132 の担当。
+//! - shadcn の `margin` 調整（legend/icons 用の負マージン）は非対応。
+//!   [`AXIS_LABEL_MARGIN`] は固定のまま。
+//! - dots の半径は shadcn `dot.r`（4.0）を採用する（新規追加分のため
+//!   参照値をそのまま使える。兄弟 [`crate::line_chart::POINT_RADIUS`]
+//!   （2.5）は既存 golden 固定値であり揃えない）。一方 `point` の背景色
+//!   ハロー（`stroke: var(--fandhe-color-bg)`）は line-chart `point` の
+//!   先例（dark 時の隣接系列との識別性）を維持する。
 
 use std::f64::consts::PI;
 
 use super::data::ChartData;
 use super::scale::LinearScale;
-use super::svg::{self, svg_text, PathBuilder, ViewBox};
+use super::svg::{self, fmt_coord, svg_text, PathBuilder, ViewBox};
 use super::ChartError;
 use crate::css::decl;
-use crate::recipe::SlotRecipe;
+use crate::recipe::{SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 
-/// `data-scope="radar-chart"` の part 一覧（recipe と揃える）。
-const SLOTS: &[&str] = &["root", "grid", "spoke", "axis-label", "series"];
+/// `data-scope="radar-chart"` の part 一覧（recipe と揃える）。イシュー
+/// #2085 で `point`（dots）・`axis-value`（値付き軸ラベル）・`radius-label`
+/// （半径軸目盛）を末尾へ純追加した。
+const SLOTS: &[&str] = &[
+    "root",
+    "grid",
+    "spoke",
+    "axis-label",
+    "series",
+    "point",
+    "axis-value",
+    "radius-label",
+];
+
+/// [`RadarChartProps::dots`] 有効時の点マーカー半径（shadcn `chart-radar-dots`
+/// の `dot.r` に合わせる。イシュー #2085 の新規追加分のため参照値をそのまま
+/// 採用できる。兄弟 [`crate::line_chart::POINT_RADIUS`] とは値が異なる、
+/// モジュール doc「意図的に合わせなかった点」参照）。
+const DOT_RADIUS: f64 = 4.0;
+
+/// [`RadarAxisLabel::ValueAndCategory`] の `tspan` 行間オフセット（下側
+/// ラベルの 2 行目・上側ラベルの値行に使う、`em` 単位固定文字列）。
+const AXIS_LABEL_LINE_DOWN: &str = "1.2em";
+/// 上側ラベルの値行（1 行目、基準線より上方向）に使う `dy`。
+const AXIS_LABEL_LINE_UP: &str = "-1.2em";
+/// 水平軸（`middle` baseline）の値行に使う `dy`（カテゴリ行との重なりを
+/// 避ける半行分のオフセット）。
+const AXIS_LABEL_LINE_HALF_UP: &str = "-0.6em";
 
 /// 軸ラベル用に確保する半径方向の余白（px 相当。[`super::bar_chart`] の
 /// `CATEGORY_LABEL_SPACE` と同型の判断）。
@@ -171,16 +244,111 @@ const GRID_TICK_TARGET: usize = 4;
 /// 浮動小数点誤差を吸収する）。
 const ANCHOR_EPSILON: f64 = 1e-6;
 
+/// 同心グリッドの形状（イシュー #2085、shadcn `PolarGrid gridType`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RadarGrid {
+    /// 正多角形のグリッド（既定。`chart-radar-default`）。
+    #[default]
+    Polygon,
+    /// 正円のグリッド（`chart-radar-grid-circle`）。
+    Circle,
+    /// グリッドを描画しない（`chart-radar-grid-none`）。
+    None,
+}
+
+/// グリッドの同心リング本数（イシュー #2085、shadcn `PolarGrid polarRadius`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RadarGridRings {
+    /// [`LinearScale::ticks`] の 0 超 tick ごとに 1 本ずつ描く（既定）。
+    #[default]
+    Ticks,
+    /// 外周（`plot_radius`）の 1 本のみ描く（`chart-radar-grid-custom` の
+    /// 静的近似。shadcn `polarRadius={[90]}` の px 直接指定は非対応、
+    /// モジュール doc「意図的に合わせなかった点」参照）。
+    Outer,
+}
+
+/// グリッドの塗り（イシュー #2085、shadcn `chart-radar-grid-fill` 系）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RadarGridFill {
+    /// 塗りなし（既定）。
+    #[default]
+    None,
+    /// 先頭系列色でグリッドを塗る（`fill-opacity: 0.2`）。
+    Series,
+}
+
+impl VariantValue for RadarGridFill {
+    fn axis(self) -> &'static str {
+        "grid-fill"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            RadarGridFill::None => "none",
+            RadarGridFill::Series => "series",
+        }
+    }
+}
+
+/// 系列ポリゴンの塗り（イシュー #2085、shadcn `chart-radar-lines-only`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RadarFill {
+    /// 系列色で半透明に塗る（既定、`fill-opacity: 0.2`）。
+    #[default]
+    Solid,
+    /// 塗りなし（輪郭のみ）。
+    None,
+}
+
+/// 軸ラベルの内容（イシュー #2085、shadcn `chart-radar-label-custom`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RadarAxisLabel {
+    /// カテゴリ名のみ（既定、従来どおり）。
+    #[default]
+    Category,
+    /// 各系列の値（`/` 区切り）+ カテゴリ名の 2 行。
+    ValueAndCategory,
+}
+
 /// [`root`] の描画パラメータ。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RadarChartProps {
     /// `viewBox` の一辺の長さ（正方形、px 相当。既定 300.0）。
     pub size: f64,
+    /// 同心グリッドの形状（イシュー #2085、既定 [`RadarGrid::Polygon`]）。
+    pub grid: RadarGrid,
+    /// グリッドの同心リング本数（イシュー #2085、既定 [`RadarGridRings::Ticks`]）。
+    pub grid_rings: RadarGridRings,
+    /// グリッドの塗り（イシュー #2085、既定 [`RadarGridFill::None`]）。
+    pub grid_fill: RadarGridFill,
+    /// スポーク（中心 → 各軸頂点の線）を描画するか（イシュー #2085、既定 `true`）。
+    pub spokes: bool,
+    /// 系列ポリゴンの塗り（イシュー #2085、既定 [`RadarFill::Solid`]）。
+    pub fill: RadarFill,
+    /// データ点マーカーを描画するか（イシュー #2085、既定 `false`）。
+    pub dots: bool,
+    /// 軸ラベルの内容（イシュー #2085、既定 [`RadarAxisLabel::Category`]）。
+    pub axis_label: RadarAxisLabel,
+    /// 半径軸（値目盛ラベル）を描画するか（イシュー #2085、既定 `false`）。
+    pub radius_axis: bool,
 }
 
 impl Default for RadarChartProps {
+    /// 既定値は #2085 以前の出力と完全に同一の HTML を生成する（golden
+    /// 純追加原則）。
     fn default() -> Self {
-        RadarChartProps { size: 300.0 }
+        RadarChartProps {
+            size: 300.0,
+            grid: RadarGrid::default(),
+            grid_rings: RadarGridRings::default(),
+            grid_fill: RadarGridFill::default(),
+            spokes: true,
+            fill: RadarFill::default(),
+            dots: false,
+            axis_label: RadarAxisLabel::default(),
+            radius_axis: false,
+        }
     }
 }
 
@@ -261,6 +429,47 @@ fn recipe() -> SlotRecipe {
                 decl("stroke-linejoin", "round"),
             ],
         )
+        // イシュー #2085: dots（shadcn `chart-radar-dots`）の点マーカー。
+        // line-chart の point base（`crate::line_chart::recipe`）と同じ背景色
+        // ハローで dark 時の隣接系列との識別性を確保する。
+        .base(
+            "point",
+            vec![
+                decl("stroke", "var(--fandhe-color-bg)"),
+                decl("stroke-width", "1"),
+            ],
+        )
+        // イシュー #2085: `RadarAxisLabel::ValueAndCategory` の値行
+        // （shadcn `fontWeight 500` 相当）。
+        .base(
+            "axis-value",
+            vec![
+                decl("fill", "var(--fandhe-color-fg)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+            ],
+        )
+        // イシュー #2085: `radius_axis: true`（shadcn `PolarRadiusAxis`）の
+        // 半径軸目盛ラベル。
+        .base(
+            "radius-label",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("font-family", "var(--fandhe-font-font-body)"),
+                decl("fill", "var(--fandhe-color-fg)"),
+            ],
+        )
+        // イシュー #2085: `grid_fill: RadarGridFill::Series`（shadcn
+        // `chart-radar-grid-fill`）。`grid` base の `fill: none` presentation
+        // 属性より CSS が勝つため、インライン `fill` ではなく variant class
+        // + `color` 属性 + `currentColor` で表現する（line_chart
+        // `LineDots::Hollow` と同じ手法）。`default_variant` は登録しない
+        // （登録すると全 radar-chart の grid class に無条件混入し HTML
+        // golden が壊れる、area_chart `AreaFill::Gradient` と同じ判断）。
+        .variant(
+            RadarGridFill::Series,
+            "grid",
+            vec![decl("fill", "currentColor"), decl("fill-opacity", "0.2")],
+        )
 }
 
 /// この RadarChart が生成する静的 CSS 全量を返す（決定的）。
@@ -337,37 +546,72 @@ pub fn root(
     let value_scale = LinearScale::new((0.0, domain_max), (0.0, plot_radius))?.nice();
 
     let mut children: Vec<Node> = Vec::new();
+    let recipe = recipe();
 
-    // グリッド（同心正多角形）。tick 0 は中心の 1 点に潰れ描画上意味を
-    // 持たないため除外する。
-    for tick in value_scale
-        .ticks(GRID_TICK_TARGET)?
-        .into_iter()
-        .filter(|t| *t > 0.0)
-    {
-        let r = value_scale.scale(tick);
-        let d = polygon_d(center, center, r, n);
-        children.push(el(
-            "path",
+    // グリッド（同心正多角形/正円）。`props.grid == RadarGrid::None` では
+    // 一切描画しない（イシュー #2085、shadcn `chart-radar-grid-none`）。
+    if props.grid != RadarGrid::None {
+        let ring_radii: Vec<f64> = match props.grid_rings {
+            // tick 0 は中心の 1 点に潰れ描画上意味を持たないため除外する
+            // （#851 以来の既存挙動）。
+            RadarGridRings::Ticks => value_scale
+                .ticks(GRID_TICK_TARGET)?
+                .into_iter()
+                .filter(|t| *t > 0.0)
+                .map(|tick| value_scale.scale(tick))
+                .collect(),
+            // shadcn `polarRadius={[90]}`（外周 1 本のみ）の静的近似。px
+            // 直接指定は非対応、モジュール doc「意図的に合わせなかった点」
+            // 参照。
+            RadarGridRings::Outer => vec![plot_radius],
+        };
+        let grid_fill_class;
+        let grid_fill_color;
+        let grid_attrs_extra: Vec<(&str, &str)> = if props.grid_fill == RadarGridFill::Series {
+            grid_fill_class = recipe.variant_class(RadarGridFill::Series);
+            grid_fill_color = data.series_color_var(0);
             vec![
-                ("data-scope", "radar-chart"),
-                ("data-part", "grid"),
-                ("d", d.as_str()),
-            ],
-            vec![],
-        ));
+                ("class", grid_fill_class.as_str()),
+                ("color", grid_fill_color.as_str()),
+            ]
+        } else {
+            vec![]
+        };
+        for r in ring_radii {
+            let mut attrs: Vec<(&str, &str)> = vec![("data-scope", "radar-chart")];
+            let node = match props.grid {
+                RadarGrid::Polygon => {
+                    let d = polygon_d(center, center, r, n);
+                    attrs.push(("data-part", "grid"));
+                    attrs.extend(grid_attrs_extra.iter().copied());
+                    let mut path_attrs = attrs;
+                    path_attrs.push(("d", d.as_str()));
+                    el("path", path_attrs, vec![])
+                }
+                RadarGrid::Circle => {
+                    attrs.push(("data-part", "grid"));
+                    attrs.extend(grid_attrs_extra.iter().copied());
+                    svg::circle(center, center, r, attrs)
+                }
+                RadarGrid::None => unreachable!("外側の if で RadarGrid::None を除外済み"),
+            };
+            children.push(node);
+        }
     }
 
-    // スポーク（中心 → 各軸の外周頂点）。
-    for i in 0..n {
-        let (x, y) = vertex(center, center, plot_radius, i, n);
-        children.push(svg::line(
-            center,
-            center,
-            x,
-            y,
-            vec![("data-scope", "radar-chart"), ("data-part", "spoke")],
-        ));
+    // スポーク（中心 → 各軸の外周頂点）。`props.spokes == false` では描画
+    // しない（イシュー #2085、shadcn `radialLines={false}`）。
+    if props.spokes {
+        for i in 0..n {
+            let (x, y) = vertex(center, center, plot_radius, i, n);
+            children.push(svg::line(
+                center,
+                center,
+                x,
+                y,
+                vec![("data-scope", "radar-chart"), ("data-part", "spoke")],
+            ));
+        }
     }
 
     // 軸ラベル。`text-anchor` は象限（cos(θ) の符号）で決定的に分岐する。
@@ -396,26 +640,76 @@ pub fn root(
         } else {
             "middle"
         };
-        children.push(svg_text(
-            x,
-            y,
-            vec![
-                ("data-scope", "radar-chart"),
-                ("data-part", "axis-label"),
-                ("text-anchor", anchor),
-                ("dominant-baseline", baseline),
-            ],
-            vec![text(category.as_str())],
-        ));
+        let text_attrs = vec![
+            ("data-scope", "radar-chart"),
+            ("data-part", "axis-label"),
+            ("text-anchor", anchor),
+            ("dominant-baseline", baseline),
+        ];
+        match props.axis_label {
+            RadarAxisLabel::Category => {
+                children.push(svg_text(x, y, text_attrs, vec![text(category.as_str())]));
+            }
+            RadarAxisLabel::ValueAndCategory => {
+                // shadcn `chart-radar-label-custom` の静的近似: 1 行目に
+                // 各系列の当該軸の値を `/` 区切りで、2 行目にカテゴリ名を
+                // 表示する。値行は `data-part="axis-value"` を持つ `tspan`
+                // （font-weight を分ける）、カテゴリ行は `SLOTS` 未登録の
+                // 素の `tspan`（親 axis-label の書式を継承、モジュール
+                // 未登録 part を出力しない契約）。値は fmt_coord のみで
+                // 文字列化し `/` で連結する（文字集合 [0-9.-/] に閉じる）。
+                let values: Vec<String> = data
+                    .series()
+                    .iter()
+                    .map(|s| fmt_coord(s.values[i]))
+                    .collect();
+                let value_line = values.join("/");
+                let (value_dy, category_dy) = if theta.sin() > ANCHOR_EPSILON {
+                    // 下側: 値行が基準線、カテゴリ行がその下（外側）。
+                    (None, Some(AXIS_LABEL_LINE_DOWN))
+                } else if theta.sin() < -ANCHOR_EPSILON {
+                    // 上側: 値行が基準線より上、カテゴリ行が基準線に乗る。
+                    (Some(AXIS_LABEL_LINE_UP), Some(AXIS_LABEL_LINE_DOWN))
+                } else {
+                    // 水平: 値行を半行上へ、カテゴリ行を半行下へ。
+                    (Some(AXIS_LABEL_LINE_HALF_UP), Some(AXIS_LABEL_LINE_DOWN))
+                };
+                let x_str = fmt_coord(x);
+                let mut value_attrs: Vec<(&str, &str)> = vec![
+                    ("data-scope", "radar-chart"),
+                    ("data-part", "axis-value"),
+                    ("x", x_str.as_str()),
+                ];
+                if let Some(dy) = value_dy {
+                    value_attrs.push(("dy", dy));
+                }
+                let value_tspan = el("tspan", value_attrs, vec![text(value_line)]);
+
+                let mut category_attrs: Vec<(&str, &str)> = vec![("x", x_str.as_str())];
+                if let Some(dy) = category_dy {
+                    category_attrs.push(("dy", dy));
+                }
+                let category_tspan = el("tspan", category_attrs, vec![text(category.as_str())]);
+
+                children.push(svg_text(
+                    x,
+                    y,
+                    text_attrs,
+                    vec![value_tspan, category_tspan],
+                ));
+            }
+        }
     }
 
-    // 系列ポリゴン。
+    // 系列ポリゴン + dots。
     for (series_idx, series) in data.series().iter().enumerate() {
         let color = data.series_color_var(series_idx);
+        let mut points: Vec<(f64, f64)> = Vec::with_capacity(n);
         let mut builder = PathBuilder::new();
         for (i, &value) in series.values.iter().enumerate() {
             let r = value_scale.scale(value);
             let (x, y) = vertex(center, center, r, i, n);
+            points.push((x, y));
             builder = if i == 0 {
                 builder.move_to(x, y)
             } else {
@@ -423,6 +717,11 @@ pub fn root(
             };
         }
         let d = builder.close().build();
+        let fill_attr = if props.fill == RadarFill::None {
+            "none"
+        } else {
+            color.as_str()
+        };
         children.push(el(
             "path",
             vec![
@@ -430,11 +729,53 @@ pub fn root(
                 ("data-part", "series"),
                 ("data-series", series.name.as_str()),
                 ("d", d.as_str()),
-                ("fill", color.as_str()),
+                ("fill", fill_attr),
                 ("stroke", color.as_str()),
             ],
             vec![],
         ));
+
+        if props.dots {
+            for &(x, y) in &points {
+                children.push(svg::circle(
+                    x,
+                    y,
+                    DOT_RADIUS,
+                    vec![
+                        ("data-scope", "radar-chart"),
+                        ("data-part", "point"),
+                        ("fill", color.as_str()),
+                    ],
+                ));
+            }
+        }
+    }
+
+    // 半径軸（値目盛ラベル、shadcn `PolarRadiusAxis` の静的近似）。角度は
+    // 軸 0 と軸 1 の中間（n=6 で shadcn `angle=60` と同じ右上方向）に固定
+    // する。`angle` prop の任意指定は非対応（モジュール doc参照）。
+    if props.radius_axis {
+        let radius_theta = vertex_angle(0, n) + PI / (n as f64);
+        for tick in value_scale
+            .ticks(GRID_TICK_TARGET)?
+            .into_iter()
+            .filter(|t| *t > 0.0)
+        {
+            let r = value_scale.scale(tick);
+            let x = center + r * radius_theta.cos();
+            let y = center + r * radius_theta.sin();
+            children.push(svg_text(
+                x,
+                y,
+                vec![
+                    ("data-scope", "radar-chart"),
+                    ("data-part", "radius-label"),
+                    ("text-anchor", "middle"),
+                    ("dominant-baseline", "middle"),
+                ],
+                vec![text(fmt_coord(tick))],
+            ));
+        }
     }
 
     Ok(svg::svg_root(
@@ -500,11 +841,27 @@ mod tests {
     fn root_rejects_non_positive_or_non_finite_size() {
         let data = sample_data(4);
         assert_eq!(
-            root(&data, RadarChartProps { size: 0.0 }, "label").unwrap_err(),
+            root(
+                &data,
+                RadarChartProps {
+                    size: 0.0,
+                    ..RadarChartProps::default()
+                },
+                "label"
+            )
+            .unwrap_err(),
             ChartError::NonFiniteValue
         );
         assert_eq!(
-            root(&data, RadarChartProps { size: f64::NAN }, "label").unwrap_err(),
+            root(
+                &data,
+                RadarChartProps {
+                    size: f64::NAN,
+                    ..RadarChartProps::default()
+                },
+                "label"
+            )
+            .unwrap_err(),
             ChartError::NonFiniteValue
         );
     }
@@ -514,7 +871,15 @@ mod tests {
         let data = sample_data(4);
         // AXIS_LABEL_MARGIN (60.0) * 2 = 120.0 以下では plot_radius <= 0。
         assert_eq!(
-            root(&data, RadarChartProps { size: 60.0 }, "label").unwrap_err(),
+            root(
+                &data,
+                RadarChartProps {
+                    size: 60.0,
+                    ..RadarChartProps::default()
+                },
+                "label"
+            )
+            .unwrap_err(),
             ChartError::PlotAreaTooSmall
         );
     }
@@ -691,5 +1056,261 @@ mod tests {
         assert!(css.contains("stroke-width: 2"));
         assert!(css.contains("stroke-linejoin: round"));
         assert!(css.contains("font-family: var(--fandhe-font-font-body)"));
+    }
+
+    // --- イシュー #2085: shadcn/ui Charts（radar）突合 ---
+
+    /// #2085 着手前（`origin/main`）の `RadarChartProps::default()` 出力を
+    /// バイトそのまま埋め込んだ golden fixture。新規 props はすべて既定値で
+    /// #2085 以前の出力と完全に同一の HTML を生成する（golden 純追加原則、
+    /// PR 本文の「純追加」主張の根拠）。
+    const PRE_2085_SAMPLE5_HTML: &str = concat!(
+        r#"<svg viewBox="0 0 300 300" role="img" data-scope="radar-chart" data-part="root" aria-label="sample5">"#,
+        r#"<path data-scope="radar-chart" data-part="grid" d="M150,132 L167.12,144.44 L160.58,164.56 L139.42,164.56 L132.88,144.44 Z"></path>"#,
+        r#"<path data-scope="radar-chart" data-part="grid" d="M150,114 L184.24,138.88 L171.16,179.12 L128.84,179.12 L115.76,138.88 Z"></path>"#,
+        r#"<path data-scope="radar-chart" data-part="grid" d="M150,96 L201.36,133.31 L181.74,193.69 L118.26,193.69 L98.64,133.31 Z"></path>"#,
+        r#"<path data-scope="radar-chart" data-part="grid" d="M150,78 L218.48,127.75 L192.32,208.25 L107.68,208.25 L81.52,127.75 Z"></path>"#,
+        r#"<path data-scope="radar-chart" data-part="grid" d="M150,60 L235.6,122.19 L202.9,222.81 L97.1,222.81 L64.4,122.19 Z"></path>"#,
+        r#"<line x1="150" y1="150" x2="150" y2="60" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<line x1="150" y1="150" x2="235.6" y2="122.19" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<line x1="150" y1="150" x2="202.9" y2="222.81" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<line x1="150" y1="150" x2="97.1" y2="222.81" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<line x1="150" y1="150" x2="64.4" y2="122.19" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<text x="150" y="54" data-scope="radar-chart" data-part="axis-label" text-anchor="middle" dominant-baseline="auto">axis0</text>"#,
+        r#"<text x="241.3" y="120.33" data-scope="radar-chart" data-part="axis-label" text-anchor="start" dominant-baseline="auto">axis1</text>"#,
+        r#"<text x="206.43" y="227.67" data-scope="radar-chart" data-part="axis-label" text-anchor="start" dominant-baseline="hanging">axis2</text>"#,
+        r#"<text x="93.57" y="227.67" data-scope="radar-chart" data-part="axis-label" text-anchor="end" dominant-baseline="hanging">axis3</text>"#,
+        r#"<text x="58.7" y="120.33" data-scope="radar-chart" data-part="axis-label" text-anchor="end" dominant-baseline="auto">axis4</text>"#,
+        r#"<path data-scope="radar-chart" data-part="series" data-series="s1" d="M150,132 L184.24,138.88 L181.74,193.69 L107.68,208.25 L64.4,122.19 Z" fill="var(--fandhe-color-chart-1)" stroke="var(--fandhe-color-chart-1)"></path>"#,
+        r#"</svg>"#,
+    );
+
+    /// showcase 相当の 2 系列 5 軸データの golden fixture（上記と同じ目的）。
+    const PRE_2085_SHOWCASE_HTML: &str = concat!(
+        r#"<svg viewBox="0 0 300 300" role="img" data-scope="radar-chart" data-part="root" aria-label="showcase demo">"#,
+        r#"<path data-scope="radar-chart" data-part="grid" d="M150,130 L169.02,143.82 L161.76,166.18 L138.24,166.18 L130.98,143.82 Z"></path>"#,
+        r#"<path data-scope="radar-chart" data-part="grid" d="M150,110 L188.04,137.64 L173.51,182.36 L126.49,182.36 L111.96,137.64 Z"></path>"#,
+        r#"<path data-scope="radar-chart" data-part="grid" d="M150,90 L207.06,131.46 L185.27,198.54 L114.73,198.54 L92.94,131.46 Z"></path>"#,
+        r#"<path data-scope="radar-chart" data-part="grid" d="M150,70 L226.08,125.28 L197.02,214.72 L102.98,214.72 L73.92,125.28 Z"></path>"#,
+        r#"<line x1="150" y1="150" x2="150" y2="60" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<line x1="150" y1="150" x2="235.6" y2="122.19" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<line x1="150" y1="150" x2="202.9" y2="222.81" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<line x1="150" y1="150" x2="97.1" y2="222.81" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<line x1="150" y1="150" x2="64.4" y2="122.19" data-scope="radar-chart" data-part="spoke"></line>"#,
+        r#"<text x="150" y="54" data-scope="radar-chart" data-part="axis-label" text-anchor="middle" dominant-baseline="auto">speed</text>"#,
+        r#"<text x="241.3" y="120.33" data-scope="radar-chart" data-part="axis-label" text-anchor="start" dominant-baseline="auto">power</text>"#,
+        r#"<text x="206.43" y="227.67" data-scope="radar-chart" data-part="axis-label" text-anchor="start" dominant-baseline="hanging">range</text>"#,
+        r#"<text x="93.57" y="227.67" data-scope="radar-chart" data-part="axis-label" text-anchor="end" dominant-baseline="hanging">control</text>"#,
+        r#"<text x="58.7" y="120.33" data-scope="radar-chart" data-part="axis-label" text-anchor="end" dominant-baseline="auto">armor</text>"#,
+        r#"<path data-scope="radar-chart" data-part="series" data-series="mercury" d="M150,70 L207.06,131.46 L173.51,182.36 L97.1,222.81 L102.45,134.55 Z" fill="var(--fandhe-color-chart-1)" stroke="var(--fandhe-color-chart-1)"></path>"#,
+        r#"<path data-scope="radar-chart" data-part="series" data-series="venus" d="M150,80 L235.6,122.19 L185.27,198.54 L126.49,182.36 L73.92,125.28 Z" fill="var(--fandhe-color-chart-2)" stroke="var(--fandhe-color-chart-2)"></path>"#,
+        r#"</svg>"#,
+    );
+
+    #[test]
+    fn default_props_html_is_byte_identical_to_pre_2085() {
+        let data5 = sample_data(5);
+        let html5 = render(&root(&data5, RadarChartProps::default(), "sample5").unwrap());
+        assert_eq!(html5, PRE_2085_SAMPLE5_HTML);
+
+        let data2 = ChartData::new(
+            vec![
+                "speed".into(),
+                "power".into(),
+                "range".into(),
+                "control".into(),
+                "armor".into(),
+            ],
+            vec![
+                Series::new("mercury", vec![80.0, 60.0, 40.0, 90.0, 50.0]),
+                Series::new("venus", vec![70.0, 90.0, 60.0, 40.0, 80.0]),
+            ],
+        )
+        .unwrap();
+        let html2 = render(&root(&data2, RadarChartProps::default(), "showcase demo").unwrap());
+        assert_eq!(html2, PRE_2085_SHOWCASE_HTML);
+    }
+
+    #[test]
+    fn default_props_output_has_no_new_parts() {
+        let data = sample_data(5);
+        let html = render(&root(&data, RadarChartProps::default(), "label").unwrap());
+        assert!(!html.contains(r#"data-part="point""#));
+        assert!(!html.contains(r#"data-part="axis-value""#));
+        assert!(!html.contains(r#"data-part="radius-label""#));
+        assert!(!html.contains("<circle"));
+        assert!(!html.contains("class="));
+        assert!(!html.contains("<tspan"));
+        assert!(!html.contains(r#"fill="none""#));
+    }
+
+    #[test]
+    fn grid_circle_renders_circle_elements() {
+        let data = sample_data(5);
+        let props = RadarChartProps {
+            grid: RadarGrid::Circle,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        let circle_grid_count = html.matches(r#"<circle"#).count();
+        assert!(circle_grid_count >= 1);
+        assert_eq!(
+            html.matches(r#"<path data-scope="radar-chart" data-part="grid""#)
+                .count(),
+            0
+        );
+    }
+
+    #[test]
+    fn grid_none_renders_no_grid_parts() {
+        let data = sample_data(5);
+        let props = RadarChartProps {
+            grid: RadarGrid::None,
+            dots: true,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        assert_eq!(html.matches(r#"data-part="grid""#).count(), 0);
+        // スポークは既定どおり残る（shadcn `chart-radar-grid-none` も
+        // `PolarAngleAxis` の軸線は残る、モジュール doc §2 参照）。
+        assert!(html.matches(r#"data-part="spoke""#).count() > 0);
+    }
+
+    #[test]
+    fn grid_rings_outer_renders_single_ring() {
+        let data = sample_data(5);
+        let props = RadarChartProps {
+            grid_rings: RadarGridRings::Outer,
+            spokes: false,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        assert_eq!(html.matches(r#"data-part="grid""#).count(), 1);
+    }
+
+    #[test]
+    fn spokes_false_renders_no_spoke() {
+        let data = sample_data(5);
+        let props = RadarChartProps {
+            spokes: false,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        assert_eq!(html.matches(r#"data-part="spoke""#).count(), 0);
+    }
+
+    #[test]
+    fn grid_fill_series_adds_variant_class_and_color() {
+        let data = sample_data(5);
+        let props = RadarChartProps {
+            grid_fill: RadarGridFill::Series,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        assert!(html.contains("fd-radar-chart--grid-fill-series"));
+        assert!(html.contains(r#"color="var(--fandhe-color-chart-1)""#));
+    }
+
+    #[test]
+    fn fill_none_emits_fill_none_on_series() {
+        let data = sample_data(5);
+        let props = RadarChartProps {
+            fill: RadarFill::None,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        assert!(html.contains(r#"data-part="series" data-series="s1" d="#));
+        assert!(html.contains(r#"fill="none""#));
+    }
+
+    #[test]
+    fn dots_render_one_point_per_vertex_per_series() {
+        let n = 5;
+        let categories: Vec<String> = (0..n).map(|i| format!("axis{i}")).collect();
+        let data = ChartData::new(
+            categories,
+            vec![
+                Series::new("s1", vec![10.0, 20.0, 30.0, 40.0, 50.0]),
+                Series::new("s2", vec![15.0, 25.0, 35.0, 45.0, 55.0]),
+            ],
+        )
+        .unwrap();
+        let props = RadarChartProps {
+            dots: true,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        assert_eq!(html.matches(r#"data-part="point""#).count(), n * 2);
+        assert!(html.contains(r#"r="4""#));
+    }
+
+    #[test]
+    fn axis_label_value_and_category_renders_two_tspans_with_joined_values() {
+        let categories: Vec<String> = (0..4).map(|i| format!("axis{i}")).collect();
+        let data = ChartData::new(
+            categories,
+            vec![
+                Series::new("s1", vec![80.0, 60.0, 40.0, 90.0]),
+                Series::new("s2", vec![50.0, 30.0, 20.0, 10.0]),
+            ],
+        )
+        .unwrap();
+        let props = RadarChartProps {
+            axis_label: RadarAxisLabel::ValueAndCategory,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        assert!(html.contains(">80/50<"));
+        assert!(html.contains("<tspan"));
+        assert!(html.contains(r#"data-part="axis-value""#));
+    }
+
+    #[test]
+    fn radius_axis_renders_one_label_per_positive_tick() {
+        let data = sample_data(5);
+        let props = RadarChartProps {
+            radius_axis: true,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        let expected = LinearScale::new((0.0, 50.0), (0.0, 90.0))
+            .unwrap()
+            .nice()
+            .ticks(GRID_TICK_TARGET)
+            .unwrap()
+            .into_iter()
+            .filter(|t| *t > 0.0)
+            .count();
+        assert_eq!(
+            html.matches(r#"data-part="radius-label""#).count(),
+            expected
+        );
+    }
+
+    #[test]
+    fn variants_are_deterministic() {
+        let data = sample_data(6);
+        let props = RadarChartProps {
+            grid: RadarGrid::Circle,
+            grid_rings: RadarGridRings::Outer,
+            grid_fill: RadarGridFill::Series,
+            spokes: false,
+            fill: RadarFill::None,
+            dots: true,
+            axis_label: RadarAxisLabel::ValueAndCategory,
+            radius_axis: true,
+            size: 300.0,
+        };
+        let a = render(&root(&data, props, "label").unwrap());
+        let b = render(&root(&data, props, "label").unwrap());
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn css_golden_prefix_is_unchanged() {
+        let css = css();
+        assert!(css.starts_with(
+            "[data-scope=\"radar-chart\"][data-part=\"root\"] {\n  display: block;\n  max-width: 100%;\n}\n\n"
+        ));
     }
 }

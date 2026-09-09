@@ -84,7 +84,9 @@ use fandhe_frontend_pre_styled_ui::charts::bar_segment;
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::charts::grid::{self, GridProps};
 use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
-use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
+use fandhe_frontend_pre_styled_ui::charts::radar_chart::{
+    self, RadarAxisLabel, RadarChartProps, RadarFill, RadarGrid, RadarGridFill, RadarGridRings,
+};
 use fandhe_frontend_pre_styled_ui::charts::scale::LinearScale;
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
@@ -12911,10 +12913,153 @@ fn radar_chart_section() -> Node {
     let node = radar_chart::root(&data, RadarChartProps::default(), "stat comparison")
         .expect("ショーケース固定データは軸数 3 以上・非負値・viewBox とも常に有効");
 
+    // イシュー #2085: shadcn/ui `chart-radar-grid-circle`/`-grid-circle-
+    // no-lines`/`-grid-none`/`-grid-custom`（グリッド種・スポーク有無）。
+    let grid_row = row(vec![
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                grid: RadarGrid::Circle,
+                ..RadarChartProps::default()
+            },
+            "circle grid",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                grid: RadarGrid::Circle,
+                spokes: false,
+                ..RadarChartProps::default()
+            },
+            "circle grid without spokes",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                grid: RadarGrid::None,
+                dots: true,
+                ..RadarChartProps::default()
+            },
+            "no grid with dots",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                grid_rings: RadarGridRings::Outer,
+                spokes: false,
+                ..RadarChartProps::default()
+            },
+            "outer ring only",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+    ]);
+
+    // イシュー #2085: shadcn/ui `chart-radar-grid-fill`/`-grid-circle-fill`
+    // （グリッドの系列色塗り）。
+    let grid_fill_row = row(vec![
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                grid_fill: RadarGridFill::Series,
+                ..RadarChartProps::default()
+            },
+            "polygon grid fill",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                grid: RadarGrid::Circle,
+                grid_fill: RadarGridFill::Series,
+                ..RadarChartProps::default()
+            },
+            "circle grid fill",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+    ]);
+
+    // イシュー #2085: shadcn/ui `chart-radar-dots`/`-lines-only`。
+    let fill_row = row(vec![
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                dots: true,
+                ..RadarChartProps::default()
+            },
+            "dots",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                fill: RadarFill::None,
+                spokes: false,
+                ..RadarChartProps::default()
+            },
+            "lines only",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+    ]);
+
+    // イシュー #2085: shadcn/ui `chart-radar-label-custom`/`-radius`
+    // （値付き軸ラベル・半径軸）。
+    let label_row = row(vec![
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                axis_label: RadarAxisLabel::ValueAndCategory,
+                ..RadarChartProps::default()
+            },
+            "value and category labels",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+        radar_chart::root(
+            &data,
+            RadarChartProps {
+                radius_axis: true,
+                ..RadarChartProps::default()
+            },
+            "radius axis",
+        )
+        .expect("ショーケース固定データは常に描画に成功する"),
+    ]);
+
+    // イシュー #2085: shadcn/ui `chart-radar-legend`/`-icons`。radar 部品自体
+    // へ凡例を内包せず charts::legend との合成で表現する（chakra 方式、
+    // イシュー #2077）。
+    let with_legend = {
+        let icon_data = ChartData::new(
+            vec![
+                "speed".to_string(),
+                "power".to_string(),
+                "range".to_string(),
+            ],
+            vec![
+                Series::new("mercury", vec![80.0, 60.0, 40.0]).with_icon(text("\u{2605}")),
+                Series::new("venus", vec![50.0, 85.0, 70.0]).with_icon(text("\u{25B2}")),
+            ],
+        )
+        .expect("ショーケース固定データは常に有効");
+        let chart = radar_chart::root(&icon_data, RadarChartProps::default(), "with legend")
+            .expect("ショーケース固定データは常に描画に成功する");
+        let legend_node = legend::legend(&icon_data, &LegendProps::default());
+        stack(vec![chart, legend_node])
+    };
+
     section(
         "RadarChart",
-        "ChartData（カテゴリ = 軸、系列 = ポリゴン）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのレーダーチャートです。頂点角度は θ_i = -π/2 + i・2π/n（12 時方向開始・時計回り）の決定的な式で算出します。凡例・ツールチップはイシュー #847 のスコープです。",
-        vec![node],
+        "ChartData（カテゴリ = 軸、系列 = ポリゴン）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのレーダーチャートです。頂点角度は θ_i = -π/2 + i・2π/n（12 時方向開始・時計回り）の決定的な式で算出します。イシュー #2085 で shadcn/ui Charts（radar、14 バリアント）と突合し、グリッド種・グリッド塗り・スポーク有無・dots・値付き軸ラベル・半径軸の静的バリアントを純追加で補完しました。凡例は charts::legend との合成で表現します。マウス追従ツールチップ・hover 強調は #2086/#2128、凡例の系列トグルは #2132 のスコープです。",
+        vec![
+            node,
+            grid_row,
+            grid_fill_row,
+            fill_row,
+            label_row,
+            with_legend,
+        ],
     )
 }
 
