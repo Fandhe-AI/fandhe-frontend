@@ -757,11 +757,12 @@ fn ex_menubar_shortcut_suffix() -> Node {
 /// 空のまま）。
 pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "トリガー起点で開閉するナビゲーションパネル。Root / List / Item / Trigger / ItemIndicator / Content / Link の 7 anatomy パーツを持つ（イシュー #1654 で ItemIndicator を新設し 6 → 7 パーツへ拡張）。",
+        "トリガー起点で開閉するナビゲーションパネル。Root / List / Item / Trigger / ItemIndicator / Content / Link / Indicator の 8 anatomy パーツを持つ（イシュー #1654 で ItemIndicator を新設し 6 → 7 パーツへ、イシュー #2187 でルートレベルの Indicator を新設し 7 → 8 パーツへ拡張）。",
         "高々 1 個の Trigger だけが開く状態機械（SingleSelect を埋め込んだ NavigationMenu）。dispatch は \"select\"/\"toggle\"/\"deselect\"。",
         "role は一切付与しない。root は素の nav の暗黙 ARIA role（navigation）に依拠し、role=\"menu\"/role=\"menuitem\" は付与しない（文書ナビを操作メニューと誤伝達しないための設計、nav_list と同じ判断）。",
         "アクティブリンクは aria-current=\"page\" + data-current で表す（role は付与しない）。",
         "data-motion（アニメーション方向の露出）・viewport 寸法測定は実装しない（intentional-non-adoption.md §3.25 規則 2 により headless 層へ持ち込まない設計判断）。",
+        "indicator（イシュー #2187）は開いている Trigger の下でスライドするポインタ。座標（x/width/y/height）は --fandhe-navigation-menu-indicator-* の CSS 変数契約で表現し、既定 0px フォールバックのため実座標が書き込まれない間は不可視。実座標の書き込みは wasm-full の責務（#2208/#2209 系の後続）。",
     ],
     arguments: &[
         ArgRow {
@@ -774,13 +775,19 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
             name: "state",
             kind: "OpenState",
             default: "",
-            description: "item/trigger/content の開閉状態（Open/Closed）。",
+            description: "item/trigger/content/indicator の開閉状態（Open/Closed）。",
         },
         ArgRow {
             name: "current",
             kind: "bool",
             default: "false",
             description: "link に付与。true のとき aria-current=\"page\" + data-current を出力する。",
+        },
+        ArgRow {
+            name: "value",
+            kind: "Option<&str>",
+            default: "None",
+            description: "indicator に付与。Some のときのみ data-value として開いている項目値を出力する。",
         },
     ],
     examples: &[ExampleEntry {
@@ -808,7 +815,7 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
         },
         AriaRow {
             attribute: "aria-hidden=\"true\"",
-            description: "item-indicator に固定付与。トリガーの aria-expanded から開閉状態が既に伝わるための装飾専用要素（イシュー #2035）。",
+            description: "item-indicator/indicator に固定付与。トリガーの aria-expanded から開閉状態が既に伝わるための装飾専用要素（item-indicator はイシュー #2035、indicator はイシュー #2187）。",
         },
     ],
     demo: None,

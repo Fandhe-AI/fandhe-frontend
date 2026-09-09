@@ -1,9 +1,9 @@
-//! styled Navigation Menu（イシュー #993、#2035 で 7 パーツへ拡張）の CSS
-//! 契約テスト。
+//! styled Navigation Menu（イシュー #993、#2035 で 7 パーツへ、#2187 で
+//! ルートレベル indicator を加え 8 パーツへ拡張）の CSS 契約テスト。
 //!
 //! `crates/pre-styled-ui/tests/menubar_css.rs` と同型の判断（golden fixture
 //! 方式は宣言 1 個の増減でも無関係な diff が広範囲に生じる brittle さの方が
-//! 実害が大きい）に従い、「7 スロット分のセレクタが存在する」「主要な状態
+//! 実害が大きい）に従い、「8 スロット分のセレクタが存在する」「主要な状態
 //! セレクタが揃っている」「CSS breakout を含まない」という不変条件を契約
 //! アサーションとして固定する。
 
@@ -17,6 +17,7 @@ const EXPECTED_SLOTS: &[&str] = &[
     "item-indicator",
     "content",
     "link",
+    "indicator",
 ];
 
 #[test]
@@ -25,7 +26,7 @@ fn stylesheet_is_deterministic() {
 }
 
 #[test]
-fn stylesheet_declares_selectors_for_all_seven_anatomy_slots() {
+fn stylesheet_declares_selectors_for_all_eight_anatomy_slots() {
     let css = navigation_menu::stylesheet();
     for part in EXPECTED_SLOTS {
         let needle = format!(r#"[data-scope="navigation-menu"][data-part="{part}"]"#);
@@ -175,4 +176,51 @@ fn stylesheet_declares_trigger_and_link_icon_gap() {
     assert!(css.contains(
         "[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  gap: var(--fandhe-space-2);\n}"
     ));
+}
+
+#[test]
+fn stylesheet_declares_root_position_relative() {
+    // イシュー #2187: ルートレベル indicator（絶対配置）の基準点。
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n  display: flex;\n  align-items: center;\n  position: relative;\n"
+    ));
+}
+
+#[test]
+fn stylesheet_declares_indicator_base_with_zero_width_fallback() {
+    // イシュー #2187: 座標追従（wasm-full 実測）が無い間は幅 0 で不可視、
+    // `pointer-events: none` でクリックを奪わない（`src/navigation_menu.rs`
+    // モジュール doc「shadcn/ui 突合（イシュー #2187）」節参照）。
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains(r#"[data-scope="navigation-menu"][data-part="indicator"] {"#));
+    assert!(css.contains("width: var(--fandhe-navigation-menu-indicator-width, 0px);"));
+    assert!(css.contains("transform: translateX(var(--fandhe-navigation-menu-indicator-x, 0px));"));
+    assert!(css.contains("pointer-events: none;"));
+}
+
+#[test]
+fn stylesheet_declares_indicator_closed_and_vertical_states() {
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains(
+        r#"[data-scope="navigation-menu"][data-part="indicator"][data-state="closed"] {"#
+    ));
+    assert!(css.contains(
+        r#"[data-scope="navigation-menu"][data-part="indicator"][data-orientation="vertical"] {"#
+    ));
+    assert!(css.contains("height: var(--fandhe-navigation-menu-indicator-height, 0px);"));
+    assert!(css.contains("transform: translateY(var(--fandhe-navigation-menu-indicator-y, 0px));"));
+}
+
+#[test]
+fn stylesheet_indicator_transition_covers_both_orientations() {
+    // PR #2269 Bugbot 指摘（Low）: transition-property が
+    // `transform, width` のみだと、vertical orientation で wasm-full が
+    // `--fandhe-navigation-menu-indicator-height` を書き込んだ際に
+    // `height` がイージングされずスナップしてしまう。`height` を
+    // base の transition-property へ含めておくことで、horizontal
+    // orientation（`height` は固定値のまま変化しない）へは無害に、
+    // vertical orientation の高さ変化はイージング対象になる。
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains("transition-property: transform, width, height;"));
 }

@@ -774,13 +774,15 @@
 //!   出力せず、上位層（`fandhe-frontend-pre-styled-ui`）が `separator`
 //!   パーツを再利用して描く契約とする（[`mod@marker`] モジュール doc
 //!   「区切り線は headless で描かない」参照）。
-//! - [`mod@navigation_menu`]: Root / List / Item / Trigger / Content / Link
-//!   の 6 anatomy パーツと、[`crate::state::SingleSelect`] を埋め込んだ
-//!   「高々 1 個の Trigger だけが開く」状態機械
-//!   [`navigation_menu::NavigationMenu`]（イシュー #993、
+//! - [`mod@navigation_menu`]: Root / List / Item / Trigger / ItemIndicator /
+//!   Content / Link / Indicator の 8 anatomy パーツと、
+//!   [`crate::state::SingleSelect`] を埋め込んだ「高々 1 個の Trigger だけが
+//!   開く」状態機械 [`navigation_menu::NavigationMenu`]（イシュー #993、
 //!   `docs/design/component-coverage-map.md` 実装対象、Radix Primitives
-//!   Navigation Menu 相当）。Radix が primitives 層に持ち込んでいる
-//!   viewport 寸法測定・`data-motion`（アニメーション方向の露出）は
+//!   Navigation Menu 相当。ItemIndicator はイシュー #1654、ルートレベルの
+//!   Indicator（スライドポインタ、構造 + `data-state` のみ）はイシュー
+//!   #2187 で追加）。Radix が primitives 層に持ち込んでいる viewport 寸法
+//!   測定・`data-motion`（アニメーション方向の露出）は
 //!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2（層の割り当て）
 //!   により本クレートへは持ち込まない（[`mod@navigation_menu`] モジュール
 //!   doc参照）。[`mod@nav_list`]（状態機械を持たない静的リンク集）とは
