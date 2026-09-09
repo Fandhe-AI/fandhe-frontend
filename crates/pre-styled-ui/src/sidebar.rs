@@ -70,6 +70,18 @@
 //! children 全体をまとめて中央寄せすると、ラベルが長い場合にアイコン自体が
 //! ラッパーの `overflow: hidden` の外側へ押し出されて切れてしまう。
 //!
+//! icon 折りたたみ時（`data-collapsible="icon"` かつ `data-state=
+//! "collapsed"`）のラベル非表示は、上記の外側ラッパー `overflow: hidden`
+//! だけには依存しない。折りたたみ幅（2rem）から icon 幅 + `gap` を引いた
+//! 端数がラッパー内に残るため、`overflow: hidden` のみではラベル先頭の
+//! 文字が可視のまま残ってしまう（PR #2245 codex-review P1 再指摘、
+//! discussion_r3966298361）。このため [`menu_button`] はアイコン以降の
+//! children（ラベルテキスト等）をさらに内側ラッパー
+//! `<span data-fandhe-sidebar-menu-button-label>` へ集約し、icon 折りたたみ時は
+//! [`stylesheet`] の raw CSS がこの内側ラッパーを `display: none` で
+//! 個別に非表示にする。外側ラッパーの `overflow: hidden` は非折りたたみ時
+//! （展開状態）の長いラベルのクリップ専用として維持する。
+//!
 //! # モバイル + collapsed の詳細度調整（幅を固定し `transform` のみで開閉する）
 //!
 //! [`root`] の折りたたみ幅規則（`AttrEqAll([("data-state","collapsed"),
@@ -191,6 +203,22 @@ const SLOTS: &[&str] = &[
 /// の手前でクリップする」節参照）。
 const SIDEBAR_MENU_BUTTON_LABEL_SELECTOR: &str =
     r#"[data-scope="sidebar"][data-part="menu-button"] > span"#;
+
+/// [`menu_button`] がアイコン以降の children（ラベルテキスト等）を包む
+/// 内側ラッパー `<span>` へ付与する装飾用マーカー属性名（`data-scope`/
+/// `data-part` を持たない headless anatomy 外の pre-styled-ui 専用属性。
+/// 呼び出し側の `class` 除去〔[`drop_class_attr`]〕とは無関係にこの関数
+/// 自身が生成する属性であり、呼び出し側からの偽装は起きない）。
+///
+/// icon 折りたたみ時（`ICON_COLLAPSED`）にこのマーカーを持つ内側
+/// ラッパーだけを `display: none` で個別に非表示にする（[`stylesheet`]
+/// 内の該当 `push` 呼び出し参照）。外側ラッパー
+/// （`SIDEBAR_MENU_BUTTON_LABEL_SELECTOR`）の `overflow: hidden` のみに
+/// 依存すると、外側ラッパーの残り幅（icon 幅 + `gap` を引いた端数、
+/// 例: `Sm` アイコン幅 1rem + `gap` 0.5rem を 2rem のボタン幅から引いた
+/// 残り 0.5rem）にラベル先頭の文字が可視のまま残ってしまう
+/// （codex-review P1 指摘、PR #2245 discussion_r3966298361）。
+const SIDEBAR_MENU_BUTTON_LABEL_MARKER_ATTR: &str = "data-fandhe-sidebar-menu-button-label";
 
 /// この styled Sidebar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
 /// のみが呼ぶ）。
@@ -430,6 +458,18 @@ fn recipe() -> SlotRecipe {
         decl("font-size", "var(--fandhe-font-font-size-xs)"),
         decl("padding", "0 var(--fandhe-space-1)"),
         decl("border-radius", "var(--fandhe-radius-md)"),
+        // 既定 `box-sizing`（`content-box`）のままだと `min-width: 1.25rem`
+        // は左右 `padding`（`--fandhe-space-1` = 0.25rem ずつ）を含まない
+        // ため、実際の最小幅は 1.75rem になる。一方 `menu-action` との
+        // オフセット分離（下記 `stylesheet` 内の一般兄弟結合子規則）・
+        // `menu-button` の終了側余白予約は、`menu-action` の固定 `width:
+        // 1.25rem` と揃えて `menu-badge` も 1.25rem として計算しているため、
+        // 実幅 1.75rem との不一致で既定値でもラベル・アクションと重なって
+        // しまう（codex-review P2 指摘、PR #2245 discussion_r3966298373）。
+        // `box-sizing: border-box` で `min-width` に padding を含める
+        // ことで、既定（1〜2 桁）の最小幅を計算上の想定どおり 1.25rem に
+        // 一致させる（[`crate::avatar`] の badge 実装と同型の対処）。
+        decl("box-sizing", "border-box"),
         decl("min-width", "1.25rem"),
         decl("text-align", "center"),
         // `menu-badge` は件数表示のみの装飾用 span であり、`menu-button`
@@ -867,15 +907,28 @@ pub fn stylesheet() -> String {
             // 自体がラッパーの `overflow: hidden` の外側へ押し出されて
             // 切れてしまう（イシュー #2073 レビュー対応で `menu-button`
             // 自身への `clip-path` を撤回し `overflow: hidden` をラッパー
-            // 側へ移した後も同じ理由で `flex-start` を維持する）。ラッパーの
-            // 幅は `menu-button` のコンテンツ box（`padding: 0` により本
-            // 規則適用時は幅 2rem 全域）と一致するため、はみ出す文字列側は
-            // ラッパーの `overflow: hidden`（`SIDEBAR_MENU_BUTTON_LABEL_
-            // SELECTOR` 規則）で視覚的に切り落とされる（モジュール doc
-            // 「icon 折りたたみ時のテキスト非表示」節の意図どおりの挙動）。
+            // 側へ移した後も同じ理由で `flex-start` を維持する）。
             decl("padding", "0"),
             decl("width", "2rem"),
         ],
+    );
+    // icon 折りたたみ時のラベル非表示は外側ラッパーの `overflow: hidden`
+    // （`SIDEBAR_MENU_BUTTON_LABEL_SELECTOR` 規則）だけには依存しない。
+    // 外側ラッパーの残り幅（icon 幅 + `gap` を `menu-button` の折りたたみ幅
+    // 2rem から引いた端数）にラベル先頭の文字が可視のまま残ってしまうため
+    // （codex-review P1 指摘、PR #2245 discussion_r3966298361。`Sm` アイコン
+    // 幅 1rem + `gap` 0.5rem = 1.5rem を 2rem から引いた残り 0.5rem に
+    // ラベルの先頭文字が表示される実例が報告された）、[`menu_button`]
+    // （本ファイル）がラベル以降の children を包む内側ラッパー
+    // （`SIDEBAR_MENU_BUTTON_LABEL_MARKER_ATTR` を持つ `<span>`）を
+    // `display: none` で個別に非表示にする。ボタン本体
+    // （背景・クリック領域・`:focus-visible` の outline）とアイコン
+    // （内側ラッパーの外、外側ラッパーの直下）は対象外のため維持される。
+    push(
+        &format!(
+            "{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-button\"] > span > span[{SIDEBAR_MENU_BUTTON_LABEL_MARKER_ATTR}]"
+        ),
+        &[decl("display", "none")],
     );
 
     // `menu-action`/`menu-badge` の併用時のオフセット分離（codex-review P2
@@ -1400,7 +1453,30 @@ pub fn menu_button<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let wrapped = vec![el("span", vec![], children)];
+    // 呼び出し規約（アイコンを children の最初の要素に置く、モジュール doc
+    // 「icon 折りたたみ時のテキスト非表示・長いラベルのクリップ」節参照）に
+    // 従い、先頭要素（アイコン）はそのまま外側ラッパーの直下に残し、残りの
+    // 要素（ラベルテキスト等）だけを内側ラッパー `<span
+    // data-fandhe-sidebar-menu-button-label>` へ集約する。icon 折りたたみ
+    // 時はこの内側ラッパーを [`stylesheet`] の raw CSS が `display: none`
+    // で個別に非表示にし、外側ラッパーの残り幅にラベル先頭の文字が
+    // 可視のまま残る不具合（codex-review P1 指摘）を防ぐ。children が
+    // 1 要素以下（アイコン単体、またはアイコンなしの単一要素）の場合は
+    // 内側ラッパーを作らない（隠すべき「ラベル以降の要素」が無いため）。
+    let mut children_iter = children.into_iter();
+    let mut wrapper_children: Vec<Node> = Vec::new();
+    if let Some(icon) = children_iter.next() {
+        wrapper_children.push(icon);
+    }
+    let label_children: Vec<Node> = children_iter.collect();
+    if !label_children.is_empty() {
+        wrapper_children.push(el(
+            "span",
+            vec![(SIDEBAR_MENU_BUTTON_LABEL_MARKER_ATTR, "")],
+            label_children,
+        ));
+    }
+    let wrapped = vec![el("span", vec![], wrapper_children)];
     fandhe_frontend_headless_ui::sidebar::menu_button(props, drop_class_attr(attrs), wrapped)
 }
 

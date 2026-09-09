@@ -182,6 +182,7 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   font-size: var(--fandhe-font-font-size-xs);
   padding: 0 var(--fandhe-space-1);
   border-radius: var(--fandhe-radius-md);
+  box-sizing: border-box;
   min-width: 1.25rem;
   text-align: center;
   pointer-events: none;
@@ -407,6 +408,10 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
 [data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] [data-scope=\"sidebar\"][data-part=\"menu-button\"] {
   padding: 0;
   width: 2rem;
+}
+
+[data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] [data-scope=\"sidebar\"][data-part=\"menu-button\"] > span > span[data-fandhe-sidebar-menu-button-label] {
+  display: none;
 }
 
 [data-scope=\"sidebar\"][data-part=\"menu-action\"] ~ [data-scope=\"sidebar\"][data-part=\"menu-badge\"] {
