@@ -12,10 +12,18 @@
 //!
 //! 削除・弱体化・`#[ignore]` 禁止（`.claude/rules/coding-rust.md`
 //! 「テスト」節）。
+//!
+//! イシュー #2082（shadcn/ui Charts（bar）突合）で `value-label`/
+//! `inside-label`/`bar[data-active]` の 3 ブロックを末尾へ純追加した。
+//! [`BAR_CHART_GOLDEN_CSS_BEFORE_2082`] は #2082 直前の全量と一致し、
+//! `bar_chart_css_is_a_pure_append_since_2082` が新 golden がこの定数から
+//! 始まる（バイト単位で先頭一致する）ことを固定する
+//! （`crates/pre-styled-ui/tests/scroll_area_css.rs` と同型の純追加固定）。
 
 use fandhe_frontend_pre_styled_ui::charts::bar_chart;
 
-const BAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="bar-chart"][data-part="root"] {
+/// イシュー #2082 直前（#1590 まで）の `bar_chart::css()` 全量。
+const BAR_CHART_GOLDEN_CSS_BEFORE_2082: &str = r#"[data-scope="bar-chart"][data-part="root"] {
   display: block;
   max-width: 100%;
   overflow: visible;
@@ -33,9 +41,51 @@ const BAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="bar-chart"][data-part="root"]
 }
 "#;
 
+const BAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="bar-chart"][data-part="root"] {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+}
+
+[data-scope="bar-chart"][data-part="bar"] {
+  stroke: var(--fandhe-color-bg);
+  stroke-width: 1;
+}
+
+[data-scope="bar-chart"][data-part="category-label"] {
+  font-size: var(--fandhe-font-font-size-xs);
+  font-family: var(--fandhe-font-font-body);
+  fill: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="bar-chart"][data-part="value-label"] {
+  font-size: var(--fandhe-font-font-size-xs);
+  font-family: var(--fandhe-font-font-body);
+  fill: var(--fandhe-color-fg);
+}
+
+[data-scope="bar-chart"][data-part="inside-label"] {
+  font-size: var(--fandhe-font-font-size-xs);
+  font-family: var(--fandhe-font-font-body);
+  fill: var(--fandhe-color-bg);
+}
+
+[data-scope="bar-chart"][data-part="bar"][data-active] {
+  fill-opacity: 0.8;
+  stroke: currentColor;
+  stroke-dasharray: 4;
+  stroke-dashoffset: 4;
+}
+"#;
+
 #[test]
 fn bar_chart_css_matches_golden_fixture() {
     assert_eq!(bar_chart::css(), BAR_CHART_GOLDEN_CSS);
+}
+
+#[test]
+fn bar_chart_css_is_a_pure_append_since_2082() {
+    assert!(bar_chart::css().starts_with(BAR_CHART_GOLDEN_CSS_BEFORE_2082));
 }
 
 #[test]

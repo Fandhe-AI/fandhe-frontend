@@ -12,7 +12,7 @@
 - `dialog` は `role="dialog"` + `aria-modal="true"` + `tabindex="-1"` を固定付与し、`label` が空文字列でないときのみ `aria-label` を付与します。closed のとき `hidden` 存在属性を付与します。
 - `group` は `labelledby` が `Some` のときのみ `role="group"` + `aria-labelledby` を出力します。`group-heading` の `id` が参照先になります。
 - `root`/`list`/`empty` はいずれも `empty: bool` 引数を取り、絞り込み結果 0 件のとき `data-empty` を出力します。表示切替（`hidden` 等）は呼び出し側または pre-styled-ui の CSS の責務です。
-- キーボード操作（矢印キー・Enter・Escape・Cmd/Ctrl+K）の実 DOM 配線は本層の範囲外です（`fandhe-frontend-wasm-full` の後続責務）。
+- キーボード操作（矢印キー・Enter・Escape・Cmd/Ctrl+K）の実 DOM 配線は `fandhe-frontend-wasm-full` の `command` モジュールが実装済みです（入力絞り込み・行選択・実行フック・dialog 開閉、イシュー #2069）。
 
 自前 CSS の最小例:
 

@@ -753,6 +753,7 @@ pub mod scroll_area;
 pub mod segment_group;
 pub mod select;
 pub mod separator;
+pub mod sidebar;
 pub mod signature_pad;
 pub mod skeleton;
 pub mod skip_nav;

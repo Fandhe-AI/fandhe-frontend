@@ -305,6 +305,34 @@ fandhe 独自の追加である。系列ラベル・色を束ねる `ChartConfig
 テストは #2073 実装時に確定する。`theme.rs` への変更は本書の範囲では
 行わない。
 
+#### 実装結果（イシュー #2073）
+
+上記方針どおり `DEFAULT_COLORS`（`crates/pre-styled-ui/src/theme.rs`）へ
+`sidebar-*` 7 ロールを追加した。`push_sidebar_color` 相当の専用 API は
+新設していない（`push_color`/`upsert_color` が任意名を受け付けるため、
+既存 API で足りると結論）。
+
+light/dark 値は安全側の初期値として既存トークンの複製から開始した
+（個別の色調整は別イシューへ）:
+
+| ロール | light | dark | 複製元 |
+|---|---|---|---|
+| `sidebar-bg` | `#f7f7f7` | `#1a1a1a` | `bg-subtle` |
+| `sidebar-fg` | `#111111` | `#f7f7f7` | `fg` |
+| `sidebar-accent` | `#3182ce` | `#4299e1` | `accent` |
+| `sidebar-accent-fg` | `#ffffff` | `#0b1720` | `accent-fg` |
+| `sidebar-muted` | `#eeeeee` | `#242424` | `bg-muted` |
+| `sidebar-border` | `#d9d9d9` | `#3a3a3a` | `border` |
+| `sidebar-focus-ring` | `#3182ce` | `#63b3ed` | `focus-ring` |
+
+golden テストは `crates/pre-styled-ui/tests/theme_css.rs::
+default_theme_css_contains_issue_2073_sidebar_tokens`（light/dark 双方の
+`--fandhe-color-sidebar-*` 出力を固定）。WCAG コントラスト回帰は
+`crates/pre-styled-ui/src/theme.rs` の `contrast` テストモジュール
+（`BODY_TEXT_PAIRS`/`LARGE_TEXT_UI_PAIRS`）へ `sidebar-fg`/`sidebar-bg`/
+`sidebar-muted`/`sidebar-accent`/`sidebar-accent-fg`/`sidebar-focus-ring`
+のペアを追加した。
+
 ### 9.4 oklch 表記の非採用
 
 `theme.rs` の WCAG コントラスト回帰テスト（`relative_luminance` 関数）は

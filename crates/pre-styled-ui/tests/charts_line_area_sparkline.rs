@@ -15,7 +15,7 @@ use fandhe_frontend_core::render;
 use fandhe_frontend_pre_styled_ui::area_chart::{area_chart, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::charts::ChartError;
-use fandhe_frontend_pre_styled_ui::line_chart::{line_chart, LineChartProps};
+use fandhe_frontend_pre_styled_ui::line_chart::{line_chart, LineChartProps, LineDots, LineLabel};
 use fandhe_frontend_pre_styled_ui::sparkline::{sparkline, SparklineProps};
 
 fn normal_data() -> ChartData {
@@ -109,6 +109,75 @@ fn line_chart_flat_data_matches_golden_html_center_line() {
             r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md">"#,
             r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="flat">"#,
             r#"<path data-scope="line-chart" data-part="series-line" d="M0,75 L300,75" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
+            r#"</svg></div>"#,
+        )
+    );
+}
+
+// イシュー #2083（shadcn/ui Charts（line）突合）: `dots`/`label` の合成
+// golden。`n == 3` 3 系列点それぞれに `point`（`data-part="point"`）+
+// `value-label` を出す（余白 `top` は `LABEL_TOP_MARGIN` 20px のみ確保）。
+#[test]
+fn line_chart_dots_and_value_label_matches_golden_html() {
+    let data = normal_data();
+    let mut props = LineChartProps::new(&data, "dots and label");
+    props.dots = LineDots::Filled;
+    props.label = LineLabel::Value;
+    let node = line_chart(&props, vec![]).unwrap();
+    assert_eq!(
+        render(&node),
+        concat!(
+            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md">"#,
+            r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="dots and label">"#,
+            r#"<path data-scope="line-chart" data-part="series-line" d="M0,150 L150,20 L300,85" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
+            r#"<circle data-scope="line-chart" data-part="point" cx="0" cy="150" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
+            r#"<circle data-scope="line-chart" data-part="point" cx="150" cy="20" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
+            r#"<circle data-scope="line-chart" data-part="point" cx="300" cy="85" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
+            r#"<text x="0" y="138" data-scope="line-chart" data-part="value-label" text-anchor="middle">10</text>"#,
+            r#"<text x="150" y="8" data-scope="line-chart" data-part="value-label" text-anchor="middle">30</text>"#,
+            r#"<text x="300" y="73" data-scope="line-chart" data-part="value-label" text-anchor="middle">20</text>"#,
+            r#"</svg></div>"#,
+        )
+    );
+}
+
+// イシュー #2083: 軸/グリッド合成（`show_x_axis`/`show_y_axis`/
+// `show_grid` 全有効）の golden。area-chart の余白規則
+// （`AXIS_LEFT_MARGIN`/`AXIS_BOTTOM_MARGIN`）を共有することを固定する。
+#[test]
+fn line_chart_axes_matches_golden_html() {
+    let data = normal_data();
+    let mut props = LineChartProps::new(&data, "axes");
+    props.show_x_axis = true;
+    props.show_y_axis = true;
+    props.show_grid = true;
+    let node = line_chart(&props, vec![]).unwrap();
+    assert_eq!(
+        render(&node),
+        concat!(
+            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md">"#,
+            r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="axes">"#,
+            r#"<g data-scope="chart" data-part="grid">"#,
+            r#"<line x1="40" y1="126" x2="300" y2="126" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
+            r#"<line x1="40" y1="94.5" x2="300" y2="94.5" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
+            r#"<line x1="40" y1="63" x2="300" y2="63" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
+            r#"<line x1="40" y1="31.5" x2="300" y2="31.5" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
+            r#"<line x1="40" y1="0" x2="300" y2="0" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
+            r#"</g>"#,
+            r#"<path data-scope="line-chart" data-part="series-line" d="M40,126 L170,0 L300,63" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
+            r#"<g data-scope="chart" data-part="y-axis">"#,
+            r#"<text x="30" y="126" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">10</text>"#,
+            r#"<text x="30" y="94.5" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">15</text>"#,
+            r#"<text x="30" y="63" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">20</text>"#,
+            r#"<text x="30" y="31.5" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">25</text>"#,
+            r#"<text x="30" y="0" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">30</text>"#,
+            r#"</g>"#,
+            r#"<text data-scope="chart" data-part="tick-label" x="40" y="142" text-anchor="middle">Jan</text>"#,
+            r#"<text data-scope="chart" data-part="tick-label" x="170" y="142" text-anchor="middle">Feb</text>"#,
+            r#"<text data-scope="chart" data-part="tick-label" x="300" y="142" text-anchor="middle">Mar</text>"#,
+            r#"<g data-scope="chart" data-part="x-axis">"#,
+            r#"<line x1="40" y1="126" x2="300" y2="126" data-scope="chart" data-part="axis-line"></line>"#,
+            r#"</g>"#,
             r#"</svg></div>"#,
         )
     );

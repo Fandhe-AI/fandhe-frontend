@@ -595,18 +595,32 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// 一時的に本リストへ加わっていたが、イシュー #2070 で pre-styled-ui 側
 /// （`crates/pre-styled-ui/src/command.rs`・`/themes/command/`）を新設し
 /// `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。イシュー
-/// #2072 で同様に headless-ui 層のみを実装した `sidebar` が新設され、
-/// pre-styled-ui recipe（後続 #2073）を持たないため本リストへ加える。
-/// イシュー #2105 で同様に headless-ui 層のみを実装した `message` が
-/// 一時的に本リストへ加わっていたが、イシュー #2106 で pre-styled-ui 側
-/// （`crates/pre-styled-ui/src/message.rs`・`/themes/message/`）を新設し
-/// `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。イシュー
-/// #2108 で同様に headless-ui 層のみを実装した `bubble` が新設され、
-/// pre-styled-ui recipe（後続 #2109）を持たないため本リストへ加える。
-/// （`PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
+/// #2072 で一時的に headless-ui 層のみを実装した `sidebar` が新設され
+/// 本リストへ加わっていたが、イシュー #2073 で pre-styled-ui 側
+/// （`crates/pre-styled-ui/src/sidebar.rs`）を新設し `sidebar` recipe が
+/// `fandhe_frontend_headless_ui::sidebar` をコード委譲するようになったため
+/// 本リストから除外した（`/themes/sidebar/` ページ自体は後続 #2075 まで
+/// 未登録のため、[`THEMES_RECIPE_WITHOUT_PAGE`] が橋渡しの暫定台帳を担う。
+/// `PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
-/// が検証する）。
-const HEADLESS_UNWRAPPED: &[&str] = &["sidebar", "bubble"];
+/// が検証する）。イシュー #2105 で同様に headless-ui 層のみを実装した
+/// `message` が一時的に本リストへ加わっていたが、イシュー #2106 で
+/// pre-styled-ui 側（`crates/pre-styled-ui/src/message.rs`・
+/// `/themes/message/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため本
+/// リストから除外した。イシュー #2108 で同様に headless-ui 層のみを実装
+/// した `bubble` が新設され、pre-styled-ui recipe（後続 #2109）を持たない
+/// ため本リストへ加える。
+const HEADLESS_UNWRAPPED: &[&str] = &["bubble"];
+
+/// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
+/// まだ持たない部品（イシュー #2073、後続 #2075 で `sidebar` を
+/// `WRAPPED_SAME_NAME` へ移し本台帳を空へ戻す想定の暫定台帳）。
+/// `HEADLESS_UNWRAPPED`（コード委譲の有無）と
+/// `PRIMITIVES_WITHOUT_THEMES_PAGE`（ページ登録の有無）の 2 台帳の間で
+/// 「コード委譲はあるがページはまだ無い」状態を表現するために追加した
+/// （`unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
+/// 参照）。
+const THEMES_RECIPE_WITHOUT_PAGE: &[&str] = &["sidebar"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
@@ -625,11 +639,13 @@ const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "text
 /// [`WRAPPED_SAME_NAME`] ではなく [`PRE_STYLED_ONLY`] へ分類する）。
 const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
 
-/// §3.6: `charts/` のうち Themes ページに対応しないモジュール（8 件。
+/// §3.6: `charts/` のうち Themes ページに対応しないモジュール（9 件。
 /// `mod` は charts 索引ページとして別枠で扱うため含まない。`tooltip` は
-/// トップレベルの同名ページに解決が奪われるためここに含む）。
+/// トップレベルの同名ページに解決が奪われるためここに含む。`curve` は
+/// イシュー #2081 で新設した曲線補間ジオメトリの純関数モジュールで、
+/// SVG ノード木を組み立てず単体の Themes ページを持たない）。
 const NON_PAGE_CHARTS: &[&str] = &[
-    "axis", "data", "grid", "legend", "pie", "scale", "svg", "tooltip",
+    "axis", "curve", "data", "grid", "legend", "pie", "scale", "svg", "tooltip",
 ];
 
 fn primitive_module_names() -> BTreeSet<&'static str> {
@@ -920,15 +936,18 @@ fn unwrapped_ledger_is_consistent_with_primitives_without_themes_page() {
     );
 
     let diff: BTreeSet<&str> = without_page.difference(&unwrapped).copied().collect();
-    let expected_diff: BTreeSet<&str> = BTreeSet::new();
+    let expected_diff: BTreeSet<&str> = THEMES_RECIPE_WITHOUT_PAGE.iter().copied().collect();
     assert_eq!(
         diff, expected_diff,
         "PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED は \
-         空集合であるはずです（`fieldset` はイシュー #1687 で \
-         `/themes/fieldset/` ページを登録し `WRAPPED_SAME_NAME` へ \
-         分類されたため、`PRIMITIVES_WITHOUT_THEMES_PAGE` から除外済み。\
-         `field` も同様にイシュー #1685 で `/themes/field/` ページを登録し \
-         `WRAPPED_SAME_NAME` へ分類されたため除外済み）"
+         THEMES_RECIPE_WITHOUT_PAGE と一致するはずです（`fieldset` は \
+         イシュー #1687 で `/themes/fieldset/` ページを登録し \
+         `WRAPPED_SAME_NAME` へ分類されたため、`PRIMITIVES_WITHOUT_THEMES_PAGE` \
+         から除外済み。`field` も同様にイシュー #1685 で `/themes/field/` \
+         ページを登録し `WRAPPED_SAME_NAME` へ分類されたため除外済み。\
+         `sidebar` はイシュー #2073 で pre-styled-ui recipe を実装済みだが \
+         `/themes/sidebar/` ページは後続 #2075 まで未登録のため \
+         `THEMES_RECIPE_WITHOUT_PAGE` に残る）"
     );
 
     let scan = scan_pre_styled_src(&pre_styled_ui_src_dir());
@@ -962,12 +981,19 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
         .filter(|s| !themes_modnames.contains(*s))
         .cloned()
         .collect();
-    let expected_non_page_top: BTreeSet<String> =
-        NON_PAGE_TOP_LEVEL.iter().map(|s| s.to_string()).collect();
+    let expected_non_page_top: BTreeSet<String> = NON_PAGE_TOP_LEVEL
+        .iter()
+        .chain(THEMES_RECIPE_WITHOUT_PAGE.iter())
+        .map(|s| s.to_string())
+        .collect();
     assert_eq!(
         non_page_top_actual, expected_non_page_top,
-        "src/ 直下の非ページモジュールが NON_PAGE_TOP_LEVEL と一致しません \
-         （新規モジュール追加時は Themes ページ新設漏れの可能性があります）"
+        "src/ 直下の非ページモジュールが NON_PAGE_TOP_LEVEL ∪ \
+         THEMES_RECIPE_WITHOUT_PAGE と一致しません（新規モジュール追加時は \
+         Themes ページ新設漏れの可能性があります。`sidebar` はイシュー #2073 \
+         で pre-styled-ui recipe を実装済みだが `/themes/sidebar/` ページは \
+         後続 #2075 まで未登録のため THEMES_RECIPE_WITHOUT_PAGE 経由で \
+         許容している）"
     );
 
     let non_page_charts_actual: BTreeSet<String> = scan
@@ -988,7 +1014,7 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        116,
+        117,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
          登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
@@ -1004,19 +1030,22 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          `button_group` も WRAPPED_SAME_NAME バケットへ移った。イシュー \
          #2070 で command.rs を新設し 113 → 114。`/themes/command/` \
          ページ登録により `command` も WRAPPED_SAME_NAME バケットへ \
-         移った。イシュー #2079 で radial_chart.rs を新設し 114 → 115。 \
+         移った。イシュー #2073 で sidebar.rs を新設し 114 → 115。 \
+         `/themes/sidebar/` ページは後続 #2075 まで未登録のため \
+         `sidebar` は THEMES_RECIPE_WITHOUT_PAGE 経由の暫定非ページ扱いと \
+         なる。イシュー #2079 で radial_chart.rs を新設し 115 → 116。 \
          本イシュー時点ではページ未登録のため `radial_chart` は \
          NON_PAGE_TOP_LEVEL に暫定登録していたが、イシュー #2080 で \
          `/themes/radial-chart/` を登録し PRE_STYLED_ONLY へ分類済み \
          （headless 側に対応 anatomy が無いため WRAPPED_SAME_NAME では \
-         ない）。イシュー #2106 で message.rs を新設し 115 → 116。 \
+         ない）。イシュー #2106 で message.rs を新設し 116 → 117。 \
          `/themes/message/` ページ登録により `message` も \
          WRAPPED_SAME_NAME バケットへ移った）"
     );
     assert_eq!(
         scan.charts.len(),
-        14,
-        "src/charts/*.rs の総数が想定と異なります"
+        15,
+        "src/charts/*.rs の総数が想定と異なります（イシュー #2081 で curve.rs を新設し 14 → 15）"
     );
 }
 

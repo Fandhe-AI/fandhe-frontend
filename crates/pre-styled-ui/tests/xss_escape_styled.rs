@@ -34,6 +34,7 @@
 
 use fandhe_frontend_core::{el, escape_html, render, text};
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertProps};
+use fandhe_frontend_pre_styled_ui::area_chart::{area_chart, AreaChartProps, AreaFill, AreaStack};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
@@ -70,6 +71,7 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, ImageProps};
 use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::line_chart::{line_chart, LineChartProps, LineDots, LineLabel};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps};
@@ -5173,6 +5175,137 @@ fn charts_scatter_and_radar_are_escaped_for_all_payloads() {
     }
 }
 
+/// (25a) AreaChart 経路（イシュー #2081、shadcn/ui Charts（area）突合）:
+/// `aria_label`・呼び出し側 `attrs`・軸ラベル経路（カテゴリ名、
+/// `show_x_axis` 有効時）の全ペイロードで既定エスケープが貫通することを
+/// 固定する。`stack`/`fill: AreaFill::Gradient` を有効にした構成でも
+/// 崩れないことをあわせて確認する（gradient の `<linearGradient>` は
+/// `SeriesColor` 固定形の `stop-color` のみを埋め込む契約、
+/// `crate::area_chart` モジュール doc「gradient の不変条件」参照）。
+#[test]
+fn area_chart_is_escaped_for_all_payloads() {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string()],
+        vec![Series::new("visits", vec![1.0, 2.0])],
+    )
+    .unwrap();
+
+    for payload in payloads::all() {
+        let html = render(&area_chart(&AreaChartProps::new(&data, payload), vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "area_chart aria_label 属性値コンテキスト");
+
+        let html = render(
+            &area_chart(
+                &AreaChartProps::new(&data, "attrs"),
+                vec![("data-testid", payload)],
+            )
+            .unwrap(),
+        );
+        assert_payload_is_escaped(payload, &html, "area_chart 呼び出し側 attrs コンテキスト");
+
+        // カテゴリ名（軸ラベル経路、show_x_axis 有効時のみ描画される）。
+        let payload_data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let mut axis_props = AreaChartProps::new(&payload_data, "axis-label");
+        axis_props.show_x_axis = true;
+        let html = render(&area_chart(&axis_props, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "area_chart X 軸カテゴリラベルコンテキスト");
+    }
+
+    // stack + gradient を有効にした構成でも既定エスケープが崩れないことを
+    // 確認する（gradient defs の `<defs>`/`<linearGradient>`/`<stop>` は
+    // すべて `el()` 経由でありユーザー入力を埋め込まない契約）。
+    let payload = "\"><script>alert(1)</script>";
+    let stacked_data = ChartData::new(
+        vec![payload.to_string(), "b".to_string()],
+        vec![
+            Series::new("a", vec![1.0, 2.0]),
+            Series::new("b", vec![1.0, 2.0]),
+        ],
+    )
+    .unwrap();
+    let mut stacked_props = AreaChartProps::new(&stacked_data, payload);
+    stacked_props.stack = AreaStack::Normal;
+    stacked_props.fill = AreaFill::Gradient;
+    stacked_props.show_x_axis = true;
+    let html = render(&area_chart(&stacked_props, vec![]).unwrap());
+    assert_payload_is_escaped(payload, &html, "area_chart stack+gradient 合成コンテキスト");
+}
+
+/// (25b) LineChart 経路（イシュー #2083、shadcn/ui Charts（line）突合）:
+/// `aria_label`・呼び出し側 `attrs`・カテゴリ名経路（`show_x_axis`/
+/// `label: LineLabel::Category` の 2 経路）の全ペイロードで既定エスケープが
+/// 貫通することを固定する。`curve: Curve::Natural`・`dots: LineDots::Hollow`・
+/// `label: LineLabel::Category`・軸/グリッド全有効を組み合わせた合成構成
+/// でも崩れないことをあわせて確認する（`(25a)` の area_chart
+/// stack+gradient 合成確認と同型）。
+#[test]
+fn line_chart_is_escaped_for_all_payloads() {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string()],
+        vec![Series::new("visits", vec![1.0, 2.0])],
+    )
+    .unwrap();
+
+    for payload in payloads::all() {
+        let html = render(&line_chart(&LineChartProps::new(&data, payload), vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "line_chart aria_label 属性値コンテキスト");
+
+        let html = render(
+            &line_chart(
+                &LineChartProps::new(&data, "attrs"),
+                vec![("data-testid", payload)],
+            )
+            .unwrap(),
+        );
+        assert_payload_is_escaped(payload, &html, "line_chart 呼び出し側 attrs コンテキスト");
+
+        // カテゴリ名（X 軸ラベル経路、show_x_axis 有効時のみ描画される）。
+        let payload_data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let mut axis_props = LineChartProps::new(&payload_data, "axis-label");
+        axis_props.show_x_axis = true;
+        let html = render(&line_chart(&axis_props, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "line_chart X 軸カテゴリラベルコンテキスト");
+
+        // カテゴリ名（value-label 経路、label: LineLabel::Category 有効時
+        // のみ描画される。`text()` ノード経由で軸ラベルとは別のコード
+        // パスを通るため独立して確認する）。
+        let mut label_props = LineChartProps::new(&payload_data, "label-category");
+        label_props.label = LineLabel::Category;
+        let html = render(&line_chart(&label_props, vec![]).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "line_chart value-label カテゴリコンテキスト",
+        );
+    }
+
+    // curve: Natural + dots: Hollow + label: Category + 軸/グリッド全有効の
+    // 合成構成でも既定エスケープが崩れないことを確認する。
+    let payload = "\"><script>alert(1)</script>";
+    let composite_data = ChartData::new(
+        vec![payload.to_string(), "b".to_string(), "c".to_string()],
+        vec![Series::new("s", vec![1.0, 2.0, 3.0])],
+    )
+    .unwrap();
+    let mut composite_props = LineChartProps::new(&composite_data, payload);
+    composite_props.curve = fandhe_frontend_pre_styled_ui::charts::Curve::Natural;
+    composite_props.dots = LineDots::Hollow;
+    composite_props.label = LineLabel::Category;
+    composite_props.show_x_axis = true;
+    composite_props.show_y_axis = true;
+    composite_props.show_grid = true;
+    let html = render(&line_chart(&composite_props, vec![]).unwrap());
+    assert_payload_is_escaped(payload, &html, "line_chart 合成コンテキスト");
+}
+
 /// (26) charts BarChart/BarList/BarSegment 経路（イシュー #849、親 Phase #845）:
 /// カテゴリ名・系列名・BarChart の `aria_label` の各所すべてで既定エスケープ
 /// （REQ-1）が貫通することを固定する。SVG（BarChart）/HTML（BarList/
@@ -5209,6 +5342,49 @@ fn bar_charts_category_series_and_aria_label_are_escaped_for_all_payloads() {
             payload,
             &html,
             "bar_chart::root の aria-label 属性値コンテキスト",
+        );
+
+        // BarChart（イシュー #2082）: `label: BarLabel::Inside` の
+        // inside-label（カテゴリ名を text() で描く新経路）。
+        let data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let inside_props = BarChartProps {
+            label: bar_chart::BarLabel::Inside,
+            ..BarChartProps::default()
+        };
+        let html = render(&bar_chart::root(&data, inside_props, "label").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_chart::root の inside-label（BarLabel::Inside）children コンテキスト",
+        );
+
+        // BarChart（イシュー #2082）: 積み上げ・角丸・active_index・軸を
+        // 合成した経路の `aria_label` 属性値コンテキスト。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![
+                Series::new("s1", vec![1.0, 2.0]),
+                Series::new("s2", vec![3.0, 4.0]),
+            ],
+        )
+        .unwrap();
+        let combined_props = BarChartProps {
+            stack: bar_chart::BarStack::Normal,
+            corner_radius: 4.0,
+            active_index: Some(0),
+            show_value_axis: true,
+            show_grid: true,
+            ..BarChartProps::default()
+        };
+        let html = render(&bar_chart::root(&data, combined_props, payload).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_chart::root の積み上げ/角丸/active/軸合成時の aria-label 属性値コンテキスト",
         );
 
         // BarList: カテゴリ名（children）経路。
@@ -5545,5 +5721,190 @@ fn button_group_parts_are_escaped_for_all_payloads() {
         ));
         assert_payload_is_escaped(payload, &html, "button_group::text attrs コンテキスト");
         assert_payload_is_escaped(payload, &html, "button_group::text children コンテキスト");
+    }
+}
+
+/// styled Sidebar（イシュー #2073、親 #2071）: 22 パーツ + `menu_skeleton`
+/// いずれも見た目クラスを付与しない（`src/sidebar.rs` モジュール doc
+/// 「選択的 re-export」節参照）ため、呼び出し側 `attrs`・`class`
+/// （`drop_class_attr` により除去）・`label`・`id`・`href`・`controls`・
+/// `describedby`・`labelledby`・children の各経路で既定エスケープ
+/// （REQ-1）が貫通することを固定する。`data-scope`/`data-part` 偽装が
+/// headless `Anatomy::part` により除去されることもあわせて固定する
+/// （`command_parts_are_escaped_for_all_payloads` と同型）。
+#[test]
+fn sidebar_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::sidebar::{
+        self, Sidebar, SidebarMenuButtonProps, SidebarMenuSubButtonProps, SidebarProps,
+        SidebarState,
+    };
+
+    let state = Sidebar::new(SidebarState::Expanded);
+    let props = SidebarProps::default();
+
+    for payload in payloads::all() {
+        let html = render(&sidebar::provider(
+            &state,
+            &props,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::provider attrs context");
+
+        let html = render(&sidebar::provider(
+            &state,
+            &props,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "sidebar::provider class payload leaked: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        let html = render(&sidebar::root(
+            &state,
+            &props,
+            payload,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::root label context");
+        assert_payload_is_escaped(payload, &html, "sidebar::root id context");
+
+        let html = render(&sidebar::header(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::header attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::header children context");
+
+        let html = render(&sidebar::content(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::content attrs context");
+
+        let html = render(&sidebar::footer(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::footer attrs context");
+
+        let html = render(&sidebar::separator(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::separator attrs context");
+
+        let html = render(&sidebar::input(vec![("data-testid", payload)]));
+        assert_payload_is_escaped(payload, &html, "sidebar::input attrs context");
+
+        let html = render(&sidebar::group(Some(payload), vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::group labelledby context");
+
+        let html = render(&sidebar::group_label(
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::group_label id context");
+        assert_payload_is_escaped(payload, &html, "sidebar::group_label children context");
+
+        let html = render(&sidebar::group_content(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::group_content attrs context");
+
+        let html = render(&sidebar::group_action(payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::group_action label context");
+
+        let html = render(&sidebar::menu(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu attrs context");
+
+        let html = render(&sidebar::menu_item(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_item attrs context");
+
+        let html = render(&sidebar::menu_button(
+            &SidebarMenuButtonProps {
+                href: Some(payload),
+                active: true,
+                describedby: Some(payload),
+                ..Default::default()
+            },
+            None,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_button href context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_button describedby context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_button attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_button children context");
+
+        let html = render(&sidebar::menu_action(payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_action label context");
+
+        let html = render(&sidebar::menu_badge(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_badge attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_badge children context");
+
+        let html = render(&sidebar::menu_sub(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub attrs context");
+
+        let html = render(&sidebar::menu_sub_item(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub_item attrs context");
+
+        let html = render(&sidebar::menu_sub_button(
+            &SidebarMenuSubButtonProps {
+                href: Some(payload),
+                active: true,
+                ..Default::default()
+            },
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub_button href context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub_button attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub_button children context");
+
+        let html = render(&sidebar::rail(&state, payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::rail label context");
+
+        let html = render(&sidebar::trigger(
+            &state,
+            payload,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::trigger label context");
+        assert_payload_is_escaped(payload, &html, "sidebar::trigger controls context");
+
+        let html = render(&sidebar::inset(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::inset attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::inset children context");
+
+        let html = render(&sidebar::menu_skeleton(
+            true,
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_skeleton attrs context");
+
+        let html = render(&sidebar::provider(
+            &state,
+            &props,
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "sidebar::provider data-scope/data-part spoof payload leaked: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="sidebar""#));
+        assert!(html.contains(r#"data-part="provider""#));
     }
 }

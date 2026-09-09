@@ -1212,6 +1212,57 @@ fn line_chart_example() -> Node {
     .expect("固定サンプルは常に有効")])
 }
 
+fn line_chart_curve_and_dots_example() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 35.0, 20.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![line_chart::line_chart(
+        &line_chart::LineChartProps {
+            curve: fandhe_frontend_pre_styled_ui::charts::Curve::Natural,
+            dots: line_chart::LineDots::Filled,
+            ..LineChartProps::new(&data, "natural curve with filled dots")
+        },
+        vec![],
+    )
+    .expect("固定サンプルは常に有効")])
+}
+
+fn line_chart_value_label_example() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![line_chart::line_chart(
+        &line_chart::LineChartProps {
+            label: line_chart::LineLabel::Value,
+            ..LineChartProps::new(&data, "monthly visits with value labels")
+        },
+        vec![],
+    )
+    .expect("固定サンプルは常に有効")])
+}
+
+fn line_chart_axes_example() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![line_chart::line_chart(
+        &line_chart::LineChartProps {
+            show_x_axis: true,
+            show_y_axis: true,
+            show_grid: true,
+            ..LineChartProps::new(&data, "monthly visits with axes and grid")
+        },
+        vec![],
+    )
+    .expect("固定サンプルは常に有効")])
+}
+
 const LINE_CHART_ARGUMENTS: &[ArgRow] = &[
     ArgRow {
         name: "data",
@@ -1237,21 +1288,70 @@ const LINE_CHART_ARGUMENTS: &[ArgRow] = &[
         default: "300.0 / 150.0",
         description: "viewBox の座標系寸法。",
     },
+    ArgRow {
+        name: "curve",
+        kind: "charts::Curve",
+        default: "Linear",
+        description: "曲線種（Linear/Natural/Step）。shadcn/ui `chart-line-linear`/`-default`（natural）/`-step` 相当。area_chart と共有する値型。",
+    },
+    ArgRow {
+        name: "dots",
+        kind: "LineDots",
+        default: "None",
+        description: "データ点マーカー（None/Filled/Hollow）。shadcn/ui `chart-line-dots`/`-dots-custom` 相当。",
+    },
+    ArgRow {
+        name: "label",
+        kind: "LineLabel",
+        default: "None",
+        description: "値/カテゴリラベル（None/Value/Category）。shadcn/ui `chart-line-label`/`-label-custom` 相当。",
+    },
+    ArgRow {
+        name: "color_by_category",
+        kind: "bool",
+        default: "false",
+        description: "データ点の色をカテゴリ index で chart-1〜6 循環へ切り替える。shadcn/ui `chart-line-dots-colors` 相当。",
+    },
+    ArgRow {
+        name: "show_x_axis / show_y_axis / show_grid",
+        kind: "bool",
+        default: "false",
+        description: "X 軸・Y 軸・水平グリッド線の描画有無。area_chart と同じ余白規則を共有する。",
+    },
 ];
 
 const LINE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャート",
         "系列色は charts::series_color_var(index) の固定色循環（color-palette 軸は非提供）",
-        "積み上げ・曲線補間は非対応（charts 共通 API 側の別イシュー）",
+        "曲線（Linear/Natural/Step）・データ点（None/Filled/Hollow）・値/カテゴリラベル・軸/グリッドの静的バリアント（イシュー #2083、shadcn/ui Charts（line）突合）",
+        "マウス追従ツールチップ・hover 強調・期間切替・凡例トグル等の実行時インタラクションは対象外（#2128/#2132）",
+        "積み上げ・横向きは shadcn/ui line registry に存在しないため非対応",
         "size（Xs〜Xl）で表示高さを切り替える",
     ],
     arguments: LINE_CHART_ARGUMENTS,
-    examples: &[ExampleEntry {
-        title: "単一系列の折れ線",
-        description: "3 カテゴリ 1 系列の折れ線を描画します。",
-        render: line_chart_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "単一系列の折れ線",
+            description: "3 カテゴリ 1 系列の折れ線を描画します。",
+            render: line_chart_example,
+        },
+        ExampleEntry {
+            title: "曲線 + データ点",
+            description: "curve: Curve::Natural + dots: LineDots::Filled で自然スプライン曲線とデータ点を表示します。",
+            render: line_chart_curve_and_dots_example,
+        },
+        ExampleEntry {
+            title: "値ラベル",
+            description: "label: LineLabel::Value で各データ点の上に値を表示します。",
+            render: line_chart_value_label_example,
+        },
+        ExampleEntry {
+            title: "軸・グリッド付き",
+            description: "show_x_axis/show_y_axis/show_grid で軸とグリッドを表示します。",
+            render: line_chart_axes_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,
@@ -1270,18 +1370,150 @@ fn area_chart_example() -> Node {
     .expect("固定サンプルは常に有効")])
 }
 
+fn area_chart_stacked_example() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![
+            Series::new("visits", vec![10.0, 30.0, 20.0]),
+            Series::new("signups", vec![4.0, 12.0, 8.0]),
+        ],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![area_chart::area_chart(
+        &area_chart::AreaChartProps {
+            stack: area_chart::AreaStack::Normal,
+            ..AreaChartProps::new(&data, "stacked visits and signups")
+        },
+        vec![],
+    )
+    .expect("固定サンプルは常に有効")])
+}
+
+fn area_chart_gradient_example() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![area_chart::area_chart(
+        &area_chart::AreaChartProps {
+            fill: area_chart::AreaFill::Gradient,
+            gradient_id: "api-doc-area-gradient",
+            ..AreaChartProps::new(&data, "gradient fill visits")
+        },
+        vec![],
+    )
+    .expect("固定サンプルは常に有効")])
+}
+
+fn area_chart_axes_example() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![area_chart::area_chart(
+        &area_chart::AreaChartProps {
+            show_x_axis: true,
+            show_y_axis: true,
+            show_grid: true,
+            ..AreaChartProps::new(&data, "axes and grid visits")
+        },
+        vec![],
+    )
+    .expect("固定サンプルは常に有効")])
+}
+
+/// AreaChart 専用の引数表（イシュー #2081、shadcn/ui Charts（area）突合で
+/// `curve`/`stack`/`fill`/`gradient_id`/`show_x_axis`/`show_y_axis`/
+/// `show_grid` を LineChart と共通の 4 引数へ純追加した）。
+const AREA_CHART_ARGUMENTS: &[ArgRow] = &[
+    ArgRow {
+        name: "data",
+        kind: "&ChartData",
+        default: "（必須）",
+        description: "描画する系列データ。",
+    },
+    ArgRow {
+        name: "aria_label",
+        kind: "&str",
+        default: "（必須）",
+        description: "svg 要素の aria-label（データ可視化のため必須引数）。",
+    },
+    ArgRow {
+        name: "size",
+        kind: "Size",
+        default: "Md",
+        description: "root の CSS 表示高さを切替える寸法 variant。",
+    },
+    ArgRow {
+        name: "width / height",
+        kind: "f64",
+        default: "300.0 / 150.0",
+        description: "viewBox の座標系寸法。",
+    },
+    ArgRow {
+        name: "curve",
+        kind: "AreaCurve",
+        default: "Linear",
+        description: "曲線種（Linear/Natural/Step）。shadcn/ui `chart-area-linear`/`-default`（natural）/`-step` 相当。",
+    },
+    ArgRow {
+        name: "stack",
+        kind: "AreaStack",
+        default: "None",
+        description: "積み上げ（None/Normal/Expand）。Expand は domain (0, 1) 固定・全系列の負値を拒否する。",
+    },
+    ArgRow {
+        name: "fill",
+        kind: "AreaFill",
+        default: "Solid",
+        description: "塗り（Solid/Gradient）。shadcn/ui `chart-area-gradient` 相当。",
+    },
+    ArgRow {
+        name: "gradient_id",
+        kind: "&str",
+        default: "\"fandhe-area\"",
+        description: "fill: Gradient 時の <linearGradient id> 接頭辞。同一ページに複数チャートを置く場合は一意な値を指定する。",
+    },
+    ArgRow {
+        name: "show_x_axis / show_y_axis / show_grid",
+        kind: "bool",
+        default: "false",
+        description: "X 軸・Y 軸・水平グリッド線の描画有無。shadcn/ui `chart-area-axes` 相当。",
+    },
+];
+
 const AREA_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "系列ごとに折れ線 + domain 下端へ閉じた塗りつぶし面を重ねて描く自己完結チャート",
-        "積み上げ・曲線補間は charts 共通 API 側の別イシュー",
+        "曲線（Linear/Natural/Step）・積み上げ（None/Normal/Expand）・塗り（Solid/Gradient）・軸/グリッドの静的バリアント（イシュー #2081、shadcn/ui Charts（area）突合）",
+        "マウス追従ツールチップ・期間切替・凡例トグル等の実行時インタラクションは対象外（#2128/#2132）",
         "size（Xs〜Xl）で表示高さを切り替える",
     ],
-    arguments: LINE_CHART_ARGUMENTS,
-    examples: &[ExampleEntry {
-        title: "単一系列の面グラフ",
-        description: "3 カテゴリ 1 系列の面グラフを描画します。",
-        render: area_chart_example,
-    }],
+    arguments: AREA_CHART_ARGUMENTS,
+    examples: &[
+        ExampleEntry {
+            title: "単一系列の面グラフ",
+            description: "3 カテゴリ 1 系列の面グラフを描画します。",
+            render: area_chart_example,
+        },
+        ExampleEntry {
+            title: "積み上げ面グラフ",
+            description: "stack: AreaStack::Normal で 2 系列を積み上げます。",
+            render: area_chart_stacked_example,
+        },
+        ExampleEntry {
+            title: "グラデーション塗り",
+            description: "fill: AreaFill::Gradient で縦方向グラデーション塗りにします。",
+            render: area_chart_gradient_example,
+        },
+        ExampleEntry {
+            title: "軸・グリッド付き",
+            description: "show_x_axis/show_y_axis/show_grid で軸とグリッドを表示します。",
+            render: area_chart_axes_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,

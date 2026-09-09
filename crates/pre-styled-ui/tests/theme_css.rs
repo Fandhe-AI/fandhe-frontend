@@ -464,3 +464,27 @@ fn push_motion_and_upsert_motion_share_scale_semantics() {
     assert!(css.contains("--fandhe-motion-duration-slow: 400ms;"));
     assert!(!css.contains("--fandhe-motion-duration-slow: 300ms;"));
 }
+
+/// イシュー #2073: `sidebar` recipe 専用の色トークン 7 ロール
+/// （`docs/design/color-token-system.md` §9.3）が light/dark 双方の
+/// CSS custom property として出力されることを固定する。
+#[test]
+fn default_theme_css_contains_issue_2073_sidebar_tokens() {
+    let css = Theme::default().to_css();
+
+    assert!(css.contains("--fandhe-color-sidebar-bg: #f7f7f7;"));
+    assert!(css.contains("--fandhe-color-sidebar-fg: #111111;"));
+    assert!(css.contains("--fandhe-color-sidebar-accent: #3182ce;"));
+    assert!(css.contains("--fandhe-color-sidebar-accent-fg: #ffffff;"));
+    assert!(css.contains("--fandhe-color-sidebar-muted: #eeeeee;"));
+    assert!(css.contains("--fandhe-color-sidebar-border: #d9d9d9;"));
+    assert!(css.contains("--fandhe-color-sidebar-focus-ring: #3182ce;"));
+
+    assert!(css.contains("--fandhe-color-sidebar-bg: #1a1a1a;"));
+    assert!(css.contains("--fandhe-color-sidebar-fg: #f7f7f7;"));
+    assert!(css.contains("--fandhe-color-sidebar-accent: #4299e1;"));
+    assert!(css.contains("--fandhe-color-sidebar-accent-fg: #0b1720;"));
+    assert!(css.contains("--fandhe-color-sidebar-muted: #242424;"));
+    assert!(css.contains("--fandhe-color-sidebar-border: #3a3a3a;"));
+    assert!(css.contains("--fandhe-color-sidebar-focus-ring: #63b3ed;"));
+}

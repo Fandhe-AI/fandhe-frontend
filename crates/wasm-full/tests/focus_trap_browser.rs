@@ -37,6 +37,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_core::{el, render};
+use fandhe_frontend_headless_ui::command;
 use fandhe_frontend_headless_ui::dialog;
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_wasm_full::focus_trap::FocusTrapController;
@@ -217,6 +218,33 @@ fn focus(el: &Element) {
         .expect("element must be an HtmlElement")
         .focus()
         .expect("focus() must not fail");
+}
+
+/// Command の `dialog` パーツ（イシュー #2069。`aria-modal="true"` +
+/// `tabindex="-1"` を固定出力する）を、渡された子ボタン群とあわせて組み立てる
+/// （`mount_modal_dialog` の command 版）。
+fn mount_command_dialog(
+    document: &Document,
+    container: &Element,
+    dialog_id: &str,
+    buttons: &[&str],
+) -> Element {
+    let children: Vec<fandhe_frontend_core::Node> = buttons
+        .iter()
+        .map(|id| el("button", vec![("id", *id), ("type", "button")], vec![]))
+        .collect();
+    let html = render(&command::dialog(
+        OpenState::Open,
+        "Command Menu",
+        vec![("id", dialog_id)],
+        children,
+    ));
+    container
+        .insert_adjacent_html("beforeend", &html)
+        .expect("insert_adjacent_html must not fail");
+    document
+        .get_element_by_id(dialog_id)
+        .expect("command dialog element must exist")
 }
 
 // --- (a)/(b) 初期フォーカス ---
@@ -673,5 +701,91 @@ fn tab_after_controller_drop_is_no_op() {
     assert!(
         !event.default_prevented(),
         "controller Drop 後は Tab の既定動作を prevent しないこと"
+    );
+}
+
+// --- Command（イシュー #2069）: `data-scope="command"` の `dialog` パーツ ---
+
+#[wasm_bindgen_test]
+fn push_trap_returns_some_and_traps_command_dialog() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "focus-trap-command-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let dialog_el = mount_command_dialog(
+        &document,
+        &placeholder,
+        "focus-trap-command-dialog",
+        &["focus-trap-command-a", "focus-trap-command-b"],
+    );
+
+    let controller = FocusTrapController::new(&document).expect("controller must be created");
+    let index = controller
+        .push_trap(&dialog_el, None)
+        .expect("command dialog（aria-modal=true）must be trapped");
+
+    assert_eq!(active_element_id(&document), "focus-trap-command-a");
+
+    let event = tab_event(false);
+    focus(
+        &document
+            .get_element_by_id("focus-trap-command-b")
+            .expect("last button must exist"),
+    );
+    document
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+    assert_eq!(
+        active_element_id(&document),
+        "focus-trap-command-a",
+        "末尾から Tab で先頭へ循環する"
+    );
+
+    controller.pop_trap(index);
+}
+
+#[wasm_bindgen_test]
+fn push_trap_returns_none_for_non_modal_command_dialog() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "focus-trap-command-non-modal-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    // `fandhe_frontend_headless_ui::command::dialog` は `aria-modal="true"` を
+    // 固定出力する契約のため、「非 modal な command dialog」を実プロダクト
+    // API で作れない。改ざんされた DOM（クライアントで `aria-modal` を
+    // 書き換えられたケース）への fail-closed 挙動として、生の `el()` で
+    // 直接組み立てる（`raw_html()` は使わない、REQ-1 準拠）。
+    let html = render(&el(
+        "div",
+        vec![
+            ("id", "focus-trap-command-non-modal-dialog"),
+            ("data-scope", "command"),
+            ("data-part", "dialog"),
+            ("role", "dialog"),
+            ("aria-modal", "false"),
+            ("tabindex", "-1"),
+        ],
+        vec![el(
+            "button",
+            vec![
+                ("id", "focus-trap-command-non-modal-button"),
+                ("type", "button"),
+            ],
+            vec![],
+        )],
+    ));
+    placeholder
+        .insert_adjacent_html("beforeend", &html)
+        .expect("insert_adjacent_html must not fail");
+    let dialog_el = document
+        .get_element_by_id("focus-trap-command-non-modal-dialog")
+        .expect("command dialog element must exist");
+
+    let controller = FocusTrapController::new(&document).expect("controller must be created");
+    assert!(
+        controller.push_trap(&dialog_el, None).is_none(),
+        "aria-modal=\"false\" の command dialog はトラップ対象外"
     );
 }

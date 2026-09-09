@@ -111,6 +111,16 @@ pub enum OverlayKind {
     /// `data-scope="action-bar"`（イシュー #1647。
     /// `crates/headless-ui/src/action_bar.rs`）。
     ActionBar,
+    /// `data-scope="command"`（イシュー #2069。
+    /// `crates/headless-ui/src/command.rs::dialog`。command palette を
+    /// dialog 内へ表示する構成の閉鎖制御対象は `dialog` パーツ自身であり、
+    /// `root` ではない。`dialog` パーツを `content` として本 kind で
+    /// `push_overlay` する責務は呼び出し側（#580 統合層）が担う —
+    /// `crate::command::wiring` 自身は `push_overlay`/
+    /// `OverlayCloseController` を呼ばず、`close_on_escape_for` を直接
+    /// 適用するのみ（`crate::command` モジュール doc「`OverlayKind::
+    /// Command` と Escape の収束」節参照）。
+    Command,
 }
 
 impl OverlayKind {
@@ -127,6 +137,7 @@ impl OverlayKind {
             "navigation-menu" => Some(Self::NavigationMenu),
             "menubar" => Some(Self::Menubar),
             "action-bar" => Some(Self::ActionBar),
+            "command" => Some(Self::Command),
             _ => None,
         }
     }
@@ -733,6 +744,10 @@ mod tests {
             OverlayKind::from_scope("action-bar"),
             Some(OverlayKind::ActionBar)
         );
+        assert_eq!(
+            OverlayKind::from_scope("command"),
+            Some(OverlayKind::Command)
+        );
     }
 
     #[test]
@@ -754,6 +769,7 @@ mod tests {
             OverlayKind::NavigationMenu,
             OverlayKind::Menubar,
             OverlayKind::ActionBar,
+            OverlayKind::Command,
         ] {
             assert!(kind.close_on_escape());
         }
@@ -930,6 +946,7 @@ mod tests {
             OverlayKind::NavigationMenu,
             OverlayKind::Menubar,
             OverlayKind::ActionBar,
+            OverlayKind::Command,
         ] {
             assert!(
                 outside_dismiss_blocks_propagation_for(kind, &content),

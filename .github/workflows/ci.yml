@@ -722,6 +722,16 @@ jobs:
           end_epoch="$(date +%s)"
           echo "::notice::position_browser (Popover + Menu/Select/Tooltip, issue #645) took $((end_epoch - start_epoch))s"
 
+      # イシュー #2069（親 #2067）: Command（`fandhe-frontend-headless-ui`
+      # `command` モジュール）の入力絞り込み・矢印キー選択・Enter 実行・
+      # dialog 開閉（Cmd/Ctrl+K）配線（crates/wasm-full/src/command.rs）の
+      # 実ブラウザ統合テスト（crates/wasm-full/tests/command_browser.rs）。
+      # 他の wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。
+      - name: Run wasm-full command browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test command_browser
+
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
   # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が

@@ -112,6 +112,13 @@
 //! ため、`crate::angle_slider` と同型の独立配線モジュールとして切り出す
 //! （`splitter` モジュール doc 参照）。
 //!
+//! [`command`] モジュール（イシュー #2069、親 #2067）は `fandhe-frontend-headless-ui`
+//! の Command（`command` モジュール、イシュー #2068）が SSR マークアップ・
+//! 絞り込み純粋関数・状態機械までを提供する一方、実 DOM 上の入力絞り込み
+//! 反映・矢印キーによる行選択・Enter による実行フック・Cmd/Ctrl+K での
+//! dialog 開閉を本クレートの後続責務としていたスコープ外を解消する（詳細は
+//! `command` モジュール doc 参照）。
+//!
 //! [`keynav`] モジュール（イシュー #582・#583・#1070・#1073・#1074）は
 //! Tabs/Accordion/Menu/Select/RadioGroup/Listbox/Menubar に加え Calendar
 //! （`fandhe-frontend-headless-ui` `calendar` モジュール）の gridcell 間
@@ -131,6 +138,7 @@
 #![deny(unsafe_code)]
 
 pub mod angle_slider;
+pub mod command;
 pub mod csr;
 pub mod events;
 pub mod focus_trap;
@@ -1034,6 +1042,12 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        Self::wire_command(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         Self::wire_sidebar(root.clone())?;
 
         Ok(Self {
@@ -1145,6 +1159,12 @@ where
             keyed_list_cache.clone(),
         )?;
         Self::wire_number_input(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
+        Self::wire_command(
             component.clone(),
             root.clone(),
             binding_table.clone(),
@@ -1677,11 +1697,54 @@ where
         )
     }
 
+    /// Command（`fandhe-frontend-headless-ui` `command` モジュール）の入力
+    /// 絞り込み・矢印キー選択・Enter 実行・Cmd/Ctrl+K 開閉配線を
+    /// [`command::wire_command_component`] 経由で `root` へ配線する
+    /// （イシュー #2069）。`Self::mount`/`Self::hydrate` の双方から
+    /// `Self::wire_number_input` の直後に 1 回だけ呼ばれる。
+    ///
+    /// `command::wire_command_component` は dispatch 成功後の DOM 反映を
+    /// `on_update` コールバックとして呼び出し側に委ねる設計
+    /// （`Self::wire_number_input`/`Self::wire_signature_pad` と同型）。
+    /// ここでは `Self::wire` の束縛点更新経路と同じロジック
+    /// （[`Self::apply_dirty_if_any`]）を渡し、新しい DOM 反映経路を
+    /// 増やさない。
+    ///
+    /// # fail-closed（Command 非搭載アプリへの副作用なし）
+    ///
+    /// `root` 配下に Command の Input パーツが存在しない場合、
+    /// `command::wiring` の scope/part 一致判定が不一致で早期 return する
+    /// ため、Command を使わないアプリへの影響はない。
+    ///
+    /// # Errors
+    ///
+    /// [`command::wire_command_component`]（`add_event_listener_with_callback`）
+    /// の失敗を伝播する。
+    fn wire_command(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        command::wire_command_component(
+            root,
+            component,
+            move |state: &C, updated_root: &web_sys::Element| {
+                Self::apply_dirty_if_any(state, updated_root, &binding_table, &keyed_list_cache);
+            },
+        )
+    }
+
     /// Sidebar（`fandhe-frontend-headless-ui` `sidebar` モジュール）の
     /// Cmd/Ctrl+B ショートカット・モバイル drawer 切替・`menu-button`
     /// tooltip hover 配線を [`sidebar::wire_sidebar_events`] 経由で `root`
     /// へ配線する（イシュー #2074）。`Self::mount`/`Self::hydrate` の双方
-    /// から `Self::wire_number_input` の直後に 1 回だけ呼ばれる。
+    /// から `Self::wire_command` の直後に 1 回だけ呼ばれる（`Self::wire_command`
+    /// 自体は `Self::wire_number_input` の直後）。
     ///
     /// 本メソッドは [`sidebar::wire_sidebar_events`] へ `root` を渡すだけで、
     /// 他の `wire_*` メソッドのような `component`/`binding_table`/
@@ -1708,6 +1771,19 @@ where
     /// クリックか」を判別できない構造的な曖昧性があるため
     /// （`docs/design/wasm-full-architecture.md` §12.7 が `Runtime<C>` への
     /// 自動統合を明示的にスコープ外としている理由と同じ）。
+    ///
+    /// なお `Self::wire_command`（本メソッドの直前に呼ばれる）は逆に
+    /// `component`/`binding_table`/`keyed_list_cache` を受け取り `C` へ自動
+    /// 橋渡しする（`command::wire_command_component` の `on_update`
+    /// コールバック経由）。この非対称は語彙の曖昧性の有無に起因する:
+    /// Command の dispatch action（`"command:execute"` 等）は他の headless-ui
+    /// 部品と語彙を共有しない専用チャネルであり、`command` scope 専用
+    /// セレクタで一意に解決できるため `C` への自動橋渡しに曖昧性がない。
+    /// 一方 sidebar の `"toggle"` は collapsible/dialog 等と語彙を共有し、
+    /// かつ `Runtime<C>` の `C` はアプリの最上位 Component であって
+    /// `Sidebar` 状態機械そのものではないため、`Rc<RefCell<Sidebar>>` を
+    /// 受け取るオプトイン API（[`sidebar::wire_sidebar_dispatch`]）を
+    /// 別途用意する設計を採る。
     ///
     /// Sidebar の trigger/rail クリックを実際に開閉へ結び付けたいアプリは、
     /// 自身が保持する `Rc<RefCell<fandhe_frontend_headless_ui::sidebar::

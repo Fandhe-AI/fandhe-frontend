@@ -32,6 +32,12 @@ const LINE_CHART_GOLDEN_CSS: &str = r#"[data-scope="line-chart"][data-part="root
   stroke-width: 1;
 }
 
+[data-scope="line-chart"][data-part="value-label"] {
+  font-size: var(--fandhe-font-font-size-xs);
+  font-family: var(--fandhe-font-font-body);
+  fill: var(--fandhe-color-fg);
+}
+
 [data-scope="line-chart"][data-part="root"].fd-line-chart--size-xs {
   --fandhe-line-chart-height: 58px;
 }
@@ -50,6 +56,12 @@ const LINE_CHART_GOLDEN_CSS: &str = r#"[data-scope="line-chart"][data-part="root
 
 [data-scope="line-chart"][data-part="root"].fd-line-chart--size-xl {
   --fandhe-line-chart-height: 306px;
+}
+
+[data-scope="line-chart"][data-part="point"].fd-line-chart--dots-hollow {
+  fill: var(--fandhe-color-bg);
+  stroke: currentColor;
+  stroke-width: 2;
 }
 "#;
 
@@ -100,6 +112,10 @@ const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root
 
 [data-scope="area-chart"][data-part="root"].fd-area-chart--size-xl {
   --fandhe-area-chart-height: 306px;
+}
+
+[data-scope="area-chart"][data-part="series-area"].fd-area-chart--fill-gradient {
+  fill-opacity: 1;
 }
 "#;
 

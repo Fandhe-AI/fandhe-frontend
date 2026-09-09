@@ -4223,7 +4223,7 @@ mod tests {
 // （events.rs/hydration.rs/dom.rs と同じ 2 層構成方針）。
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
-mod wiring {
+pub(crate) mod wiring {
     use crate::events::{classify_interactive_boundary, InteractiveBoundaryClass};
 
     use super::{
@@ -4916,14 +4916,22 @@ mod wiring {
     /// `element.closest(selector)` の失敗（`Err`）・不一致（`None`）をまとめて
     /// `None` として扱う薄いヘルパ。DOM API のクエリ不正は本モジュールの
     /// 責務外の異常系であり、安全側 no-op とする。
-    fn closest(element: &Element, selector: &str) -> Option<Element> {
+    ///
+    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が Escape/
+    /// Cmd+K 配線での root/dialog 再解決に再利用するため公開する。挙動変更
+    /// なし。
+    pub(crate) fn closest(element: &Element, selector: &str) -> Option<Element> {
         element.closest(selector).ok().flatten()
     }
 
     /// `list_or_root` 配下の `part_selector` に一致する要素を出現順に
     /// `Vec<Element>` として集める。`query_selector_all` の失敗は空 `Vec`
     /// として扱う（fail-closed、panic しない）。
-    fn collect_parts(list_or_root: &Element, part_selector: &str) -> Vec<Element> {
+    ///
+    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が item/
+    /// group/separator の絞り込み走査に再利用するため公開する。挙動変更
+    /// なし。
+    pub(crate) fn collect_parts(list_or_root: &Element, part_selector: &str) -> Vec<Element> {
         let Ok(node_list) = list_or_root.query_selector_all(part_selector) else {
             return Vec::new();
         };
@@ -5068,7 +5076,11 @@ mod wiring {
     /// 動的な入力から組み立てられるよう変更された場合の防御としても
     /// 機能する（`wasm-client::binding_dom` の `set_attribute` 呼び出しと
     /// 同じガード方針）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+    ///
+    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が
+    /// `data-selected`/`aria-selected`/`aria-activedescendant` の同期へ
+    /// 再利用するため公開する。挙動変更なし。
+    pub(crate) fn set_dom_attribute(element: &Element, name: &str, value: &str) {
         if fandhe_frontend_core::is_event_handler_attr(name) {
             return;
         }
@@ -5130,7 +5142,10 @@ mod wiring {
     }
 
     /// `event` の修飾キー状態を [`Modifiers`] へ変換する薄いアダプタ。
-    fn modifiers_of(event: &KeyboardEvent) -> Modifiers {
+    ///
+    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が独自定義
+    /// せず再利用するため公開する。挙動変更なし。
+    pub(crate) fn modifiers_of(event: &KeyboardEvent) -> Modifiers {
         Modifiers {
             ctrl: event.ctrl_key(),
             alt: event.alt_key(),
@@ -5543,7 +5558,7 @@ mod wiring {
             if i == next_index {
                 set_dom_attribute(item, "data-highlighted", "");
                 sync_item_text_highlighted(item, true);
-                scroll_item_into_view_if_needed(item);
+                scroll_item_into_view_if_needed(item, "[data-part=\"content\"]");
             } else {
                 let _ = item.remove_attribute("data-highlighted");
                 sync_item_text_highlighted(item, false);
@@ -5568,8 +5583,14 @@ mod wiring {
     /// レイアウト振動を避ける）。スクロール可能な祖先が見つからない
     /// 場合は何もしない（`document` へフォールバックしてページを
     /// パンしない。Cursor Bugbot 是正、イシュー #2019/PR #2165）。
-    fn scroll_item_into_view_if_needed(item: &Element) {
-        let Some(container) = nearest_scrollable_ancestor(item) else {
+    ///
+    /// `boundary_selector` は [`nearest_scrollable_ancestor`] の探索境界
+    /// （呼び出し元の anatomy に応じた「content 相当」パーツのセレクタ）
+    /// をそのまま受け渡す引数（`crate::command::wiring` からの再利用に
+    /// あたり `pub(crate)` 化し、Menu/Select 固有の `[data-part="content"]`
+    /// 決め打ちを剥がした、codex-review P1 是正・イシュー #2069）。
+    pub(crate) fn scroll_item_into_view_if_needed(item: &Element, boundary_selector: &str) {
+        let Some(container) = nearest_scrollable_ancestor(item, boundary_selector) else {
             return;
         };
         let item_rect = item.get_bounding_client_rect();
@@ -5593,24 +5614,27 @@ mod wiring {
     /// （[`scroll_item_into_view_if_needed`] 専用のヘルパー、Cursor
     /// Bugbot 是正、イシュー #2019/PR #2165）。
     ///
-    /// 探索範囲は `item` の最も近い `[data-part="content"]` 祖先
-    /// （Menu/Select/Combobox いずれも content を持つ、`crates/
-    /// headless-ui/src/{menu,select,combobox}.rs` の anatomy 参照）
-    /// **配下**に限定する（codex-review P1 是正、イシュー #2019/PR
-    /// #2165）。単純な `overflow-y` computed style 判定のみだと、
-    /// `content` に到達してもスクロール不可（overflow していない）で
-    /// あれば探索を続けてしまい、ページ側の祖先（例えば `body` へ
-    /// アプリ側が `overflow-y: auto` を設定している構成）まで遡って
-    /// document をパンし得る。`content` を境界として、それより外側の
-    /// 祖先は最初から候補にしない。`item` が `content` 配下にない
-    /// （anatomy 契約が崩れている等）場合や、`content` 配下にスクロール
-    /// 可能な祖先が無い場合はいずれも `None` を返し、呼び出し元は
-    /// ページ全体のスクロールへフォールバックしない（意図的な
-    /// fail-safe。ページをパンする副作用より「スクロール追随しない」
-    /// 方が安全なため）。
-    fn nearest_scrollable_ancestor(item: &Element) -> Option<Element> {
+    /// 探索範囲は `item` の最も近い `boundary_selector` 祖先（Menu/Select/
+    /// Combobox は `[data-part="content"]`、Command は `[data-scope="command"]
+    /// [data-part="list"]`。呼び出し元 anatomy に応じて渡す、`crates/
+    /// headless-ui/src/{menu,select,combobox,command}.rs` 参照）**配下**に
+    /// 限定する（codex-review P1 是正、イシュー #2019/PR #2165）。単純な
+    /// `overflow-y` computed style 判定のみだと、`boundary_selector` に到達
+    /// してもスクロール不可（overflow していない）であれば探索を続けて
+    /// しまい、ページ側の祖先（例えば `body` へアプリ側が `overflow-y:
+    /// auto` を設定している構成）まで遡って document をパンし得る。
+    /// `boundary_selector` を境界として、それより外側の祖先は最初から
+    /// 候補にしない。`item` が境界配下にない（anatomy 契約が崩れている等）
+    /// 場合や、境界配下にスクロール可能な祖先が無い場合はいずれも `None`
+    /// を返し、呼び出し元はページ全体のスクロールへフォールバックしない
+    /// （意図的な fail-safe。ページをパンする副作用より「スクロール追随
+    /// しない」方が安全なため）。
+    pub(crate) fn nearest_scrollable_ancestor(
+        item: &Element,
+        boundary_selector: &str,
+    ) -> Option<Element> {
         let window = web_sys::window()?;
-        let boundary = closest(item, "[data-part=\"content\"]")?;
+        let boundary = closest(item, boundary_selector)?;
         let mut current = item.parent_element();
         while let Some(candidate) = current {
             let is_scrollable = window
@@ -5623,8 +5647,8 @@ mod wiring {
                 return Some(candidate);
             }
             if candidate.is_same_node(Some(&boundary)) {
-                // content 境界に到達。これより外側（トリガー・
-                // ページ本体を含む）は探索しない。
+                // 境界に到達。これより外側（トリガー・ページ本体を含む）
+                // は探索しない。
                 return None;
             }
             current = candidate.parent_element();

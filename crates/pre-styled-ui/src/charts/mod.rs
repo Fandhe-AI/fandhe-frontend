@@ -21,6 +21,10 @@
 //!   任意で保持し、[`legend`]・line/area/bar/radar の各消費者が
 //!   [`ChartData::series_color_var`]/[`data::Series::display_label`] を
 //!   経由して共有する。
+//! - [`curve`]: 曲線補間ジオメトリ（natural spline / step、イシュー
+//!   #2081/#2083）。[`crate::area_chart`] の `AreaCurve::Natural`/
+//!   `AreaCurve::Step` と [`crate::line_chart`] の [`Curve::Natural`]/
+//!   [`Curve::Step`] が共有する純関数。
 //! - [`scale`]: 線形スケール（domain → range 写像）・1-2-5 nice tick 算出。
 //! - [`svg`]: SVG ノード木生成ヘルパー（`viewBox`・座標文字列化・`path` の
 //!   `d` 属性組み立て）。後続チャート部品はここを経由してのみ SVG を組み立てる。
@@ -66,6 +70,7 @@ pub mod axis;
 pub mod bar_chart;
 pub mod bar_list;
 pub mod bar_segment;
+pub mod curve;
 pub mod data;
 pub mod grid;
 pub mod legend;
@@ -76,6 +81,7 @@ pub mod scatter_chart;
 pub mod svg;
 pub mod tooltip;
 
+pub use curve::Curve;
 pub use data::{ChartData, Series, SeriesColor};
 pub use scale::LinearScale;
 
@@ -123,6 +129,22 @@ pub enum ChartError {
     /// 実描画領域までは検証しないため、放置するとバー/ポリゴンが潰れる、
     /// または viewBox 外に無警告で描画される silent failure になる。
     PlotAreaTooSmall,
+    /// [`crate::area_chart::AreaChartProps::gradient_id`] が
+    /// `is_valid_identifier`（英小文字始まり、以降英数小文字/ハイフン）を
+    /// 満たさない（イシュー #2081）。1 ページに複数チャートを置く場合の
+    /// `<linearGradient id>` 一意化を呼び出し側の責務とするための
+    /// fail-closed 検証（`crate::area_chart` モジュール doc「gradient の
+    /// 不変条件」参照）。
+    InvalidGradientId,
+    /// [`bar_chart::BarChartProps::corner_radius`] が非有限、または負値
+    /// （イシュー #2082、shadcn/ui Charts（bar）突合）。角丸半径は fail-closed
+    /// に拒否し、サイレントな不正描画（負の半径による自己交差 path 等）を
+    /// 作らない。
+    InvalidCornerRadius,
+    /// [`bar_chart::BarChartProps::active_index`] がカテゴリ数以上
+    /// （イシュー #2082）。範囲外インデックスをサイレントに無視せず
+    /// fail-closed に拒否する。
+    IndexOutOfRange,
 }
 
 impl std::fmt::Display for ChartError {
@@ -140,6 +162,11 @@ impl std::fmt::Display for ChartError {
             ChartError::PlotAreaTooSmall => {
                 "width/height must leave a positive plot area after reserving label space"
             }
+            ChartError::InvalidGradientId => {
+                "gradient id must be a lowercase identifier ([a-z][a-z0-9-]*)"
+            }
+            ChartError::InvalidCornerRadius => "corner radius must be finite and non-negative",
+            ChartError::IndexOutOfRange => "index must be within the category count",
         };
         write!(f, "{message}")
     }
@@ -219,6 +246,9 @@ mod tests {
             ChartError::ZeroTotal,
             ChartError::TooFewAxes,
             ChartError::PlotAreaTooSmall,
+            ChartError::InvalidGradientId,
+            ChartError::InvalidCornerRadius,
+            ChartError::IndexOutOfRange,
         ] {
             let message = err.to_string();
             assert!(!message.is_empty());

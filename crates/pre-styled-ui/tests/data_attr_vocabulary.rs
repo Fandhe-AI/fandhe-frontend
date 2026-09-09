@@ -159,6 +159,49 @@ fn charts_data_series_reflects_series_name() {
     assert_no_raw_payload(&html, "scatter_chart::root data-series 属性値コンテキスト");
 }
 
+/// `data-active`/`data-negative`（`charts/bar_chart.rs`、イシュー #2082）:
+/// [`BarChartProps::active_index`]/[`BarChartProps::highlight_negative`]
+/// が有効なときのみ存在属性として付与し、既定 props では一切出力しない
+/// ことを固定する（規約 B、`docs/design/pre-styled-ui-data-attr-vocabulary.md`
+/// §2.1。`data-active` は checkbox_group/radio_group/sidebar 等の既存
+/// headless 語彙を「強調表示中の項目」という同一意味論で再利用する
+/// B-2、`data-negative` は bar_chart 新設の pre-styled-only 語彙 B-3）。
+/// `root`（`svg_root`）は呼び出し元から任意属性を受け取らないため、
+/// 予約キー偽装（他部品で使う `attrs` 経由の偽装）の対象外である。
+#[test]
+fn bar_chart_data_active_and_data_negative_are_gated_by_props() {
+    use fandhe_frontend_pre_styled_ui::charts::bar_chart::{self, BarChartProps};
+
+    let data = ChartData::new(
+        vec!["a".to_string(), "b".to_string()],
+        vec![Series::new("s", vec![-5.0, 5.0])],
+    )
+    .expect("valid bar chart data");
+
+    // 既定 props: data-active/data-negative のいずれも出力しない。
+    let html = render(&bar_chart::root(&data, BarChartProps::default(), "label").unwrap());
+    assert!(!html.contains("data-active"));
+    assert!(!html.contains("data-negative"));
+
+    // active_index: 指定カテゴリの棒にのみ data-active（値域なし、
+    // 存在属性）を付与する。
+    let active_props = BarChartProps {
+        active_index: Some(0),
+        ..BarChartProps::default()
+    };
+    let html = render(&bar_chart::root(&data, active_props, "label").unwrap());
+    assert_eq!(html.matches(r#"data-active="""#).count(), 1);
+
+    // highlight_negative: 負値の棒にのみ data-negative を付与する
+    // （正値には付かない）。
+    let negative_props = BarChartProps {
+        highlight_negative: true,
+        ..BarChartProps::default()
+    };
+    let html = render(&bar_chart::root(&data, negative_props, "label").unwrap());
+    assert_eq!(html.matches(r#"data-negative="""#).count(), 1);
+}
+
 /// `data-current`（`tab_nav.rs::link`）: `current: true` のときのみ付与する。
 /// イシュー #1063 でヘルパ（`fandhe_frontend_headless_ui::data_attrs::
 /// data_current`）経由化した後も出力が完全に不変であることを固定する
@@ -1179,4 +1222,93 @@ fn bubble_root_variant_align_group_position_and_reaction_selected_vocabulary_is_
         &payload_html,
         "bubble::root の呼び出し側 attrs コンテキスト",
     );
+}
+
+#[test]
+fn sidebar_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::sidebar::{
+        self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarMenuButtonVariant,
+        SidebarMenuSubButtonProps, SidebarProps, SidebarSide, SidebarState, SidebarVariant,
+    };
+
+    let expanded = Sidebar::new(SidebarState::Expanded);
+    let collapsed = Sidebar::new(SidebarState::Collapsed);
+
+    let provider_html = render(&sidebar::provider(
+        &expanded,
+        &SidebarProps {
+            collapsible: SidebarCollapsible::Icon,
+            variant: SidebarVariant::Floating,
+            side: SidebarSide::Right,
+            mobile: true,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(provider_html.contains(r#"data-state="expanded""#));
+    assert!(provider_html.contains(r#"data-collapsible="icon""#));
+    assert!(provider_html.contains(r#"data-variant="floating""#));
+    assert!(provider_html.contains(r#"data-side="right""#));
+    assert!(provider_html.contains("data-mobile"));
+
+    let root_html = render(&sidebar::root(
+        &collapsed,
+        &SidebarProps::default(),
+        "App sidebar",
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains(r#"data-state="collapsed""#));
+    assert!(!root_html.contains("data-mobile"));
+
+    let menu_button_html = render(&sidebar::menu_button(
+        &SidebarMenuButtonProps {
+            active: true,
+            variant: SidebarMenuButtonVariant::Outline,
+            ..Default::default()
+        },
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(menu_button_html.contains("data-active"));
+    assert!(menu_button_html.contains(r#"data-size="default""#));
+    assert!(menu_button_html.contains(r#"data-variant="outline""#));
+
+    let menu_sub_button_html = render(&sidebar::menu_sub_button(
+        &SidebarMenuSubButtonProps::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(!menu_sub_button_html.contains("data-active"));
+    assert!(menu_sub_button_html.contains(r#"data-size="sm""#));
+
+    let rail_html = render(&sidebar::rail(&expanded, "Toggle sidebar", vec![], vec![]));
+    assert!(rail_html.contains(r#"data-state="expanded""#));
+
+    let trigger_html = render(&sidebar::trigger(
+        &collapsed,
+        "Toggle sidebar",
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(trigger_html.contains(r#"data-state="collapsed""#));
+    assert!(trigger_html.contains(r#"aria-expanded="false""#));
+
+    let skeleton_html = render(&sidebar::menu_skeleton(true, vec![]));
+    assert!(!skeleton_html.contains("data-active"));
+    assert!(!skeleton_html.contains("data-state"));
+
+    // `sidebar::stylesheet()` は `[data-state=`/`[data-collapsible=`/
+    // `[data-variant=`/`[data-mobile]`/`[data-active]`/`[data-size=` を
+    // CSS セレクタとして参照するだけで自前で `data-*` を組み立てない。
+    let css = sidebar::stylesheet();
+    assert!(css.contains(r#"[data-state="collapsed"]"#));
+    assert!(css.contains(r#"[data-collapsible="icon"]"#));
+    assert!(css.contains(r#"[data-variant="floating"]"#));
+    assert!(css.contains("[data-mobile]"));
+    assert!(css.contains("[data-active]"));
+    assert!(css.contains(r#"[data-size="sm"]"#));
 }
