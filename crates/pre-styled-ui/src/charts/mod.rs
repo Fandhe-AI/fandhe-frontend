@@ -35,10 +35,13 @@
 //! - [`axis`]: X/Y 軸（chakra-ui `charts/axes.md` 相当、イシュー #847）。
 //! - [`grid`]: CartesianGrid（chakra-ui `charts/cartesian-grid.md` 相当、
 //!   イシュー #847）。
-//! - [`legend`]: 凡例（chakra-ui `charts/legend.md` 相当、イシュー #847）。
+//! - [`legend`]: 凡例（chakra-ui `charts/legend.md` 相当、イシュー #847。
+//!   `hide_marker`/`align`/`marker` の opt-in variant 軸を shadcn/ui Charts
+//!   との突合で純追加した、イシュー #2086）。
 //! - [`tooltip`]: データ点のツールチップ表示（chakra-ui `charts/tooltip.md`
 //!   相当、イシュー #847。[`crate::tooltip`] とは別物、[`tooltip`] モジュール
-//!   doc 参照）。
+//!   doc 参照。複数行の静的ツールチップ本文 [`tooltip::datum_label_lines`]
+//!   を shadcn/ui Charts との突合で純追加した、イシュー #2086）。
 //! - [`bar_chart`]: 縦/横 orientation の SVG 棒グラフ（イシュー #849）。
 //! - [`bar_list`]: ランキング型バーリスト（HTML、イシュー #849）。
 //! - [`bar_segment`]: 構成比バー（HTML、100% 積み上げ、イシュー #849）。

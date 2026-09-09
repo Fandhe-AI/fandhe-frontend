@@ -1014,10 +1014,15 @@ fn charts_overview_example() -> Node {
     }
     let view_box = ViewBox::new(0.0, 0.0, 200.0, 120.0).expect("固定寸法は正の有限値");
     let chart = svg_root(&view_box, vec![("aria-label", "monthly visits")], children);
+    // イシュー #2086: align::Center + marker::Square（shadcn/ui Charts
+    // （tooltip）突合で追加した opt-in variant）を例示する。
     let legend_node = legend::legend(
         &data,
         &LegendProps {
             title: Some("Series".to_string()),
+            align: legend::LegendAlign::Center,
+            marker: legend::LegendMarker::Square,
+            ..Default::default()
         },
     );
     row(vec![chart, legend_node])
@@ -1027,9 +1032,10 @@ const CHARTS_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "外部依存ゼロの SVG ノード木生成ヘルパー群（軸・グリッド・凡例・ツールチップ）",
         "charts::axis / charts::grid / charts::legend / charts::tooltip の 4 サブモジュールで構成する",
-        "マウス追従型のツールチップは持たず、ブラウザネイティブの <title> + aria-label によるホバー詳細表示のみ（JS 不要。hover 時は前景色ストロークで強調）",
+        "マウス追従型のツールチップは持たず、ブラウザネイティブの <title> + aria-label によるホバー詳細表示のみ（JS 不要。hover 時は前景色ストロークで強調）。静的テキストは datum_label（1 行）と datum_label_lines（見出し省略可・整形済み値・footer の複数行）の 2 択。ツールチップ DOM・indicator・マウス追従の実装は #2128 系（#2129〜#2131）のスコープ",
         "系列の各データ点は既定で charts::series_color_var(index) の固定色循環（6 段階、shadcn/ui の 5 段階を包含）で着色する",
         "系列ごとに label / color / icon（shadcn/ui ChartConfig 相当）を Series::with_label / with_color / with_icon で個別に上書きできる。ChartData::series_color_var(index) が上書きの有無を一元的に解決し、凡例・line/area/bar/radar の全消費者が同じ値を共有する",
+        "凡例（legend）は hide_marker（マーカー/icon を出さない）・align（水平揃え、既定は左寄せ）・marker（円形/角丸四角、既定は円形）を LegendProps で opt-in できる。凡例と本体チャートの上下配置はノード合成順序が決める（CSS 軸を持たない）",
     ],
     arguments: &[
         ArgRow {
@@ -1055,6 +1061,18 @@ const CHARTS_SPEC: ComponentPageSpec = ComponentPageSpec {
             kind: "fn(...) -> Node",
             default: "",
             description: "データ点（<circle>）+ <title> によるホバー詳細を組み立てる（infallible）。",
+        },
+        ArgRow {
+            name: "tooltip::datum_label_lines",
+            kind: "fn(Option<&str>, &[(&str, &str)], Option<&str>) -> String",
+            default: "",
+            description: "見出し（省略可）+ 複数系列行 + footer（省略可）を \\n 区切りで連結した複数行のツールチップ本文を組み立てる（infallible。値の数値整形は呼び出し側の責務）。",
+        },
+        ArgRow {
+            name: "LegendProps { hide_marker, align, marker, .. }",
+            kind: "struct",
+            default: "false / LegendAlign::Start / LegendMarker::Circle",
+            description: "hide_marker はマーカー/icon slot を省略する（shadcn/ui hideIcon 相当）。align は水平揃え（Start/Center/End）。marker はマーカー形状（Circle/Square）。",
         },
         ArgRow {
             name: "Series::with_label / with_color / with_icon",

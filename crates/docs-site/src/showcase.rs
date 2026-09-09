@@ -12197,13 +12197,69 @@ fn charts_section() -> Node {
         &data,
         &LegendProps {
             title: Some("Series".to_string()),
+            ..Default::default()
         },
+    );
+
+    // イシュー #2086: shadcn/ui Charts（tooltip）突合の追加デモ。
+    //
+    // 1. 上配置合成: legend() は独立したノードであり、チャート本体との
+    //    上下位置は呼び出し側のノード合成順序が決める
+    //    （`crates/pre-styled-ui/src/charts/legend.rs` の
+    //    `LegendProps::align` doc「verticalAlign」節参照）。ここでは凡例を
+    //    先に並べることで「チャート上部」の配置例を示す。中央揃え
+    //    （`LegendAlign::Center`）+ 角丸四角マーカー（`LegendMarker::Square`）
+    //    を併用する。
+    let top_legend = legend::legend(
+        &data,
+        &LegendProps {
+            title: Some("Series".to_string()),
+            align: legend::LegendAlign::Center,
+            marker: legend::LegendMarker::Square,
+            ..Default::default()
+        },
+    );
+
+    // 2. `hide_marker` の実演（shadcn/ui `hideIcon` 相当）。
+    let hidden_marker_legend = legend::legend(
+        &data,
+        &LegendProps {
+            hide_marker: true,
+            ..Default::default()
+        },
+    );
+
+    // 3. `tooltip::datum_label_lines`（見出し + 複数系列行 + footer）の
+    //    実演。値は呼び出し側（本デモ）が固定文字列として渡す（部品側は
+    //    整形しない、モジュール doc「値の書式」節参照）。
+    let advanced_label = chart_tooltip::datum_label_lines(
+        Some("Jan"),
+        &[("Visits", "120"), ("Signups", "20")],
+        Some("Total: 140"),
+    );
+    let advanced_view_box = ViewBox::new(0.0, 0.0, 60.0, 60.0).expect("固定寸法は正の有限値");
+    let advanced_datum = chart_tooltip::datum(
+        30.0,
+        30.0,
+        6.0,
+        &advanced_label,
+        vec![("fill", "var(--fandhe-color-chart-1)")],
+    );
+    let advanced_tooltip_demo = svg_root(
+        &advanced_view_box,
+        vec![("aria-label", "datum_label_lines demo")],
+        vec![advanced_datum],
     );
 
     section(
         "Charts",
-        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。",
-        vec![stack(vec![chart, legend_node])],
+        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。凡例の中央揃え・角丸四角マーカー・`hideIcon` 相当・複数行ツールチップ本文は shadcn/ui Charts（tooltip）との突合（イシュー #2086）で追加した静的バリアントです。ツールチップ DOM・indicator・マウス追従は #2128 系（#2129〜#2131）、凡例の系列トグルは #2132 のスコープです。",
+        vec![
+            stack(vec![chart, legend_node]),
+            stack(vec![top_legend]),
+            stack(vec![hidden_marker_legend]),
+            stack(vec![advanced_tooltip_demo]),
+        ],
     )
 }
 
@@ -12318,6 +12374,7 @@ fn bar_chart_section() -> Node {
         &data,
         &LegendProps {
             title: Some("Series".to_string()),
+            ..Default::default()
         },
     );
 
