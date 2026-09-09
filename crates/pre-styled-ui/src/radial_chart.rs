@@ -130,7 +130,7 @@ use crate::charts::pie::{
     annulus_full_ring_path, annulus_sector_path, annulus_sector_rounded_path,
 };
 use crate::charts::svg::{circle, line, svg_root, svg_text, ViewBox};
-use crate::charts::{series_color_var, ChartData};
+use crate::charts::{series_color_var, tooltip, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, VariantValue};
@@ -284,6 +284,12 @@ pub struct RadialChartProps<'a> {
     pub show_grid: bool,
     /// 中央テキスト（既定 `None`）。
     pub center_text: Option<RadialCenterText<'a>>,
+    /// `true`（既定）なら hit-area・`data-index` と `hidden` の SSR
+    /// ツールチップ DOM（[`crate::charts::tooltip::layer`]）を出力する
+    /// （イシュー #2129、親 #2128。既存 `bar` の `data-series` は不変、
+    /// hit-area 自体には付与しない）。`false` の場合は本イシュー以前の
+    /// 出力とバイト一致する。
+    pub show_tooltip: bool,
 }
 
 impl Default for RadialChartProps<'_> {
@@ -299,6 +305,7 @@ impl Default for RadialChartProps<'_> {
             show_labels: false,
             show_grid: false,
             center_text: None,
+            show_tooltip: true,
         }
     }
 }
@@ -312,6 +319,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("--fandhe-radial-chart-size", "16rem"),
+                // イシュー #2129: `tooltip-layer`（`position: absolute`）の
+                // 配置規則（#2130 が唯一のロケータとして使う契約）を成立
+                // させるための末尾純追加。
+                decl("position", "relative"),
             ],
         )
         .base(
@@ -674,6 +685,49 @@ pub fn radial_chart<'a>(
         }
     }
 
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。各リング（カテゴリ）
+    // の全スイープ（`track` と同じ形状、`ring_segment_path(r_outer, r_inner,
+    // start_rad, end_rad, 0.0)`）を hit-area とする（`bar` の
+    // `data-series` は不変、hit-area 自体には付与しない、
+    // `charts::tooltip` モジュール doc「配置規則」参照）。
+    let entries = if props.show_tooltip {
+        let mut entries = tooltip::entries_from_chart_data(data);
+        // イシュー #2129 codex-review 指摘: `single_series` かつ
+        // `series.color` 未指定の場合、実描画色はカテゴリ index 基準の
+        // 循環（`fill` 計算部の `series_color_var(i)` 分岐参照）だが、
+        // `entries_from_chart_data` の既定は系列 index 基準（単一系列
+        // なので常に `chart-1` 固定）となり一致しない。`tooltip-indicator`
+        // の色を実際のセグメント色に合わせてカテゴリ index 基準へ
+        // 上書きする（`series.color` 指定時・multi series はいずれも
+        // 実描画と既定の色決定が一致するため上書き不要）。
+        if single_series && data.series()[0].color.is_none() {
+            for entry in &mut entries {
+                let color = crate::charts::SeriesColor::chart_slot(entry.index % 6 + 1)
+                    .expect("entry.index % 6 + 1 は常に 1..=6 の範囲内");
+                for row in &mut entry.rows {
+                    row.color = color.clone();
+                }
+            }
+        }
+        Some(entries)
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        for entry in entries {
+            let (r_inner, r_outer) = ring_radii(entry.index, r_inner_base, band, thickness);
+            let (d, evenodd) = ring_segment_path(r_outer, r_inner, start_rad, end_rad, 0.0);
+            let label = tooltip::hit_area_label(entry);
+            children.push(tooltip::hit_area_path(
+                &d,
+                entry.index,
+                None,
+                &label,
+                evenodd,
+            ));
+        }
+    }
+
     let view_box = ViewBox::new(0.0, 0.0, 100.0, 100.0)
         .expect("固定 viewBox 100x100 は常に有効な正の寸法である");
     let aria_label_value = props.aria_label.unwrap_or(DEFAULT_ARIA_LABEL);
@@ -687,12 +741,17 @@ pub fn radial_chart<'a>(
         children,
     );
 
+    let mut root_children = vec![chart_node];
+    if let Some(entries) = &entries {
+        root_children.push(tooltip::layer_from_entries(entries, None));
+    }
+
     let recipe = recipe();
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
 
-    Ok(ANATOMY.part("root", "div", merged, vec![chart_node]))
+    Ok(ANATOMY.part("root", "div", merged, root_children))
 }
 
 #[cfg(test)]
@@ -731,7 +790,10 @@ mod tests {
         assert!(html.contains(r#"aria-label="radial chart""#));
         assert_eq!(html.matches(r#"data-part="track""#).count(), 2);
         assert_eq!(html.matches(r#"data-part="bar""#).count(), 2);
-        assert_eq!(html.matches(r#"data-series="total""#).count(), 2);
+        // イシュー #2129: ツールチップ DOM（既定 `show_tooltip: true`）の
+        // `tooltip-item` も系列表示名を `data-series="total"` として出す
+        // ため、`bar` 分 2 + ツールチップ分 2 の計 4 に純増する。
+        assert_eq!(html.matches(r#"data-series="total""#).count(), 4);
     }
 
     #[test]
@@ -746,8 +808,11 @@ mod tests {
         // トラック 2 本の両方が `evenodd` 分岐を通る。加えて `two_category_data`
         // はリング A（値 80）が `domain_max`（80）と一致する単独系列であり、
         // その `bar` 自体の角度幅も配置された `props` の全スイープと一致する
-        // ため同じ全周退化分岐を通る（`track`/`bar` 共通規則の実例）。
-        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 3);
+        // ため同じ全周退化分岐を通る（`track`/`bar` 共通規則の実例）。イシュー
+        // #2129 codex-review 指摘の是正後は hit-area（`ring_segment_path` の
+        // `evenodd` 判定を `tooltip::hit_area_path` へ引き継ぐ）も 2 カテゴリ
+        // 分（同じ全周ジオメトリ）が加わり、3 + 2 の計 5 に純増する。
+        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 5);
     }
 
     #[test]
@@ -1079,7 +1144,7 @@ mod tests {
             ..RadialChartProps::default()
         };
         let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
-        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 3);
+        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 5);
     }
 
     #[test]
@@ -1105,7 +1170,7 @@ mod tests {
         )
         .unwrap();
         let html = render(&radial_chart(&RadialChartProps::default(), &data, vec![]).unwrap());
-        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 4);
+        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 6);
     }
 
     #[test]

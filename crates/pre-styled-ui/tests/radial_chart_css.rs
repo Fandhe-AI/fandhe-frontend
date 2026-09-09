@@ -10,6 +10,7 @@ use fandhe_frontend_pre_styled_ui::radial_chart;
 const RADIAL_CHART_GOLDEN_CSS: &str = r#"[data-scope="radial-chart"][data-part="root"] {
   display: inline-flex;
   --fandhe-radial-chart-size: 16rem;
+  position: relative;
 }
 
 [data-scope="radial-chart"][data-part="chart"] {

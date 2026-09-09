@@ -11,6 +11,7 @@ use fandhe_frontend_pre_styled_ui::{area_chart, line_chart, sparkline};
 const LINE_CHART_GOLDEN_CSS: &str = r#"[data-scope="line-chart"][data-part="root"] {
   display: block;
   --fandhe-line-chart-height: 150px;
+  position: relative;
 }
 
 [data-scope="line-chart"][data-part="plot"] {
@@ -68,6 +69,7 @@ const LINE_CHART_GOLDEN_CSS: &str = r#"[data-scope="line-chart"][data-part="root
 const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root"] {
   display: block;
   --fandhe-area-chart-height: 150px;
+  position: relative;
 }
 
 [data-scope="area-chart"][data-part="plot"] {
@@ -122,6 +124,7 @@ const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root
 const SPARKLINE_GOLDEN_CSS: &str = r#"[data-scope="sparkline"][data-part="root"] {
   display: inline-block;
   --fandhe-sparkline-height: 48px;
+  position: relative;
 }
 
 [data-scope="sparkline"][data-part="plot"] {

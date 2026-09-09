@@ -155,7 +155,7 @@ use crate::charts::data::ChartData;
 use crate::charts::grid::{self, GridProps};
 use crate::charts::scale::LinearScale;
 use crate::charts::svg::{fmt_coord, svg_root};
-use crate::charts::ChartError;
+use crate::charts::{tooltip, ChartError};
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, is_valid_identifier};
 use crate::line_chart::{category_x, view_box_from_dims};
@@ -294,6 +294,11 @@ pub struct AreaChartProps<'a> {
     pub show_y_axis: bool,
     /// 水平グリッド線を描画するか（イシュー #2081、既定 `false`）。
     pub show_grid: bool,
+    /// `true`（既定）なら hit-area・`data-index`/`data-series` と `hidden`
+    /// の SSR ツールチップ DOM（[`crate::charts::tooltip::layer`]）を
+    /// 出力する（イシュー #2129、親 #2128）。`false` の場合は本イシュー
+    /// 以前の出力とバイト一致する。
+    pub show_tooltip: bool,
 }
 
 impl<'a> AreaChartProps<'a> {
@@ -315,6 +320,7 @@ impl<'a> AreaChartProps<'a> {
             show_x_axis: false,
             show_y_axis: false,
             show_grid: false,
+            show_tooltip: true,
         }
     }
 }
@@ -328,6 +334,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "block"),
                 decl("--fandhe-area-chart-height", "150px"),
+                // イシュー #2129: `tooltip-layer`（`position: absolute`）の
+                // 配置規則（#2130 が唯一のロケータとして使う契約）を成立
+                // させるための末尾純追加。
+                decl("position", "relative"),
             ],
         )
         .base(
@@ -1071,6 +1081,46 @@ pub fn area_chart<'a>(
         }
     }
 
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。`left`/`plot_w`/`plot_h`
+    // は上記 4 分岐（stack None/Some × 軸あり/なし）すべてで同一規則
+    // （`show_y_axis`/`show_x_axis` に応じた余白差し引き、軸なしなら
+    // `left == 0.0`/`plot_w == props.width`/`plot_h == props.height`）で
+    // 算出済みのため、ここで独立に再計算しても分岐間の値と一致する
+    // （`charts::tooltip` モジュール doc「配置規則」参照）。
+    let entries = if props.show_tooltip {
+        Some(tooltip::entries_from_chart_data(props.data))
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        let n = props.data.categories().len();
+        let left = if props.show_y_axis {
+            AXIS_LEFT_MARGIN
+        } else {
+            0.0
+        };
+        let bottom = if props.show_x_axis {
+            AXIS_BOTTOM_MARGIN
+        } else {
+            0.0
+        };
+        let plot_w = props.width - left;
+        let plot_h = props.height - bottom;
+        for entry in entries {
+            let (band_left, band_right) = category_band(plot_w, n, entry.index);
+            let label = tooltip::hit_area_label(entry);
+            plot_children.push(tooltip::hit_area_rect(
+                left + band_left,
+                0.0,
+                band_right - band_left,
+                plot_h,
+                entry.index,
+                None,
+                &label,
+            ));
+        }
+    }
+
     let plot = svg_root(
         &view_box,
         vec![
@@ -1081,10 +1131,32 @@ pub fn area_chart<'a>(
         plot_children,
     );
 
+    let mut children = vec![plot];
+    if let Some(entries) = &entries {
+        children.push(tooltip::layer_from_entries(entries, None));
+    }
+
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    Ok(ANATOMY.part("root", "div", merged, vec![plot]))
+    Ok(ANATOMY.part("root", "div", merged, children))
+}
+
+/// カテゴリ `i`（`0..n`）の帯型 hit-area の `[left, right)` を、隣接
+/// [`category_x`] の中点で区切って算出する（内部ヘルパ、[`crate::line_chart`]/
+/// [`crate::sparkline`] も同型のロジックを持つ）。
+fn category_band(width: f64, n: usize, i: usize) -> (f64, f64) {
+    let left = if i == 0 {
+        0.0
+    } else {
+        (category_x(width, n, i - 1) + category_x(width, n, i)) / 2.0
+    };
+    let right = if n == 0 || i + 1 >= n {
+        width
+    } else {
+        (category_x(width, n, i) + category_x(width, n, i + 1)) / 2.0
+    };
+    (left, right)
 }
 
 #[cfg(test)]
@@ -1577,8 +1649,12 @@ mod tests {
         let html = render(&area_chart(&props, vec![]).unwrap());
         for token in html.split("data-").skip(1) {
             let name = token.split(['=', ' ', '>']).next().unwrap_or("");
+            // イシュー #2129: hit-area・ツールチップ DOM が `data-index`
+            // （0 起点序数、headless の splitter/pagination と共有する語彙）
+            // ・`data-series`（系列表示名）を新規追加した
+            // （`docs/design/pre-styled-ui-data-attr-vocabulary.md` 参照）。
             assert!(
-                name == "scope" || name == "part",
+                name == "scope" || name == "part" || name == "index" || name == "series",
                 "unexpected data-* attribute: data-{name}"
             );
         }

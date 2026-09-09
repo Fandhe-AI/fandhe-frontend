@@ -23,10 +23,15 @@
 //!    `ChartError::DegenerateDomain`/`NonFiniteValue` を誘発しない。固定
 //!    `±1.0` のみだと `f64::MAX` 付近で退化・非有限化が再発する不具合が
 //!    あった、Cursor Bugbot 指摘、イシュー #851 追補）。
-//! 3. **座標の文字列化**: すべて [`super::svg::fmt_coord`] のみを経由する
-//!    （独自フォーマット禁止、[`crate::charts`] モジュール doc 不変条件 2）。
+//! 3. **数値の文字列化**: ピクセル座標（`cx`/`cy`/`r`/hit-area 幾何）は
+//!    [`super::svg::fmt_coord`] のみを経由し、データ値そのもの（ツール
+//!    チップ本文の `x`/`y` 表示）は [`super::svg::fmt_value`] のみを経由
+//!    する（独自フォーマット禁止、[`crate::charts`] モジュール doc
+//!    不変条件 2「ピクセル座標なら `fmt_coord`、データ値なら
+//!    `fmt_value`」。イシュー #2129 PR #2261 codex-review P1 是正）。
 //! 4. **軸線・グリッド・凡例・ツールチップ**: 本モジュールのスコープ外
-//!    （イシュー #847 が担当）。
+//!    （イシュー #847 が担当。ただしイシュー #2129 で hit-area・SSR
+//!    ツールチップ DOM の一部を [`root`] 内で担う、下記参照）。
 //!
 //! # a11y
 //!
@@ -131,8 +136,8 @@
 
 use super::data::flat_domain_pad;
 use super::scale::LinearScale;
-use super::svg::{self, ViewBox};
-use super::{series_color_var, ChartError};
+use super::svg::{self, fmt_value, ViewBox};
+use super::{series_color_var, tooltip, ChartError};
 use crate::css::decl;
 use crate::recipe::SlotRecipe;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
@@ -195,6 +200,11 @@ impl ScatterSeries {
 ///
 /// 1. 系列は 1 件以上、かつ全系列合計で点が 1 件以上。
 /// 2. 全ての座標が有限（`NaN`/`±inf` を含まない）。
+/// 3. 系列名はすべて一意（イシュー #2129、PR #2261 codex-review P1 指摘）。
+///    hit-area/tooltip の識別キーは「系列名（`data-series`）+ 系列内の点
+///    序数（`data-index`）」のみで構成されるため（`root` 関数 doc
+///    参照）、系列名が重複すると異なる系列の点が同じキーへ衝突し
+///    hit-area とツールチップの対応付けが一意に定まらなくなる。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScatterData {
     series: Vec<ScatterSeries>,
@@ -208,6 +218,9 @@ impl ScatterData {
     /// - `series` が空、または全系列合計で点が 0 件の場合
     ///   [`ChartError::EmptyData`]
     /// - いずれかの座標が `NaN`/`±inf` の場合 [`ChartError::NonFiniteValue`]
+    /// - 系列名に重複がある場合 [`ChartError::DuplicateSeriesName`]
+    ///   （hit-area/tooltip の識別キー〔系列名 + 点序数〕の一意性を構築時
+    ///   に保証するため、イシュー #2129 codex-review P1 指摘）
     pub fn new(series: Vec<ScatterSeries>) -> Result<Self, ChartError> {
         if series.is_empty() || series.iter().all(|s| s.points.is_empty()) {
             return Err(ChartError::EmptyData);
@@ -218,6 +231,13 @@ impl ScatterData {
                 .any(|(x, y)| !x.is_finite() || !y.is_finite())
             {
                 return Err(ChartError::NonFiniteValue);
+            }
+        }
+        {
+            let mut names: Vec<&str> = series.iter().map(|s| s.name.as_str()).collect();
+            names.sort_unstable();
+            if names.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(ChartError::DuplicateSeriesName);
             }
         }
         Ok(ScatterData { series })
@@ -272,6 +292,14 @@ pub struct ScatterChartProps {
     pub height: f64,
     /// 点マーカーの半径（px 相当。既定 4.0）。
     pub point_radius: f64,
+    /// `true`（既定）なら hit-area・`data-index` と `hidden` の SSR
+    /// ツールチップ DOM（[`super::tooltip::layer`]）を出力する（イシュー
+    /// #2129、親 #2128）。`true` の場合、戻り値は素の `<svg data-part=
+    /// "root">` ではなく [`super::tooltip::frame`] で包んだ
+    /// `<div data-scope="chart" data-part="frame">` になる。`false` の
+    /// 場合は本イシュー以前の出力（素の `<svg>`）とバイト一致する
+    /// （progressive enhancement の opt-out 経路）。
+    pub show_tooltip: bool,
 }
 
 impl Default for ScatterChartProps {
@@ -280,9 +308,16 @@ impl Default for ScatterChartProps {
             width: 480.0,
             height: 300.0,
             point_radius: 4.0,
+            show_tooltip: true,
         }
     }
 }
+
+/// hit-area 半径 = `point_radius * HIT_AREA_RADIUS_FACTOR`（イシュー
+/// #2129）。可視の点マーカーより大きめのヒットターゲットを確保する
+/// （ポインタ操作のしやすさのための定数、根拠は WCAG 2.5.5 相当の実務
+/// 慣行であり、正確な最小サイズ規定への準拠を主張するものではない）。
+const HIT_AREA_RADIUS_FACTOR: f64 = 2.5;
 
 /// この ScatterChart の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが
 /// 呼ぶ）。
@@ -334,6 +369,11 @@ pub fn css() -> String {
 ///   （[`ViewBox::new`] の失敗を変換して）[`ChartError::NonFiniteValue`]
 /// - `props.point_radius` が非有限、または 0 以下の場合
 ///   [`ChartError::NonFiniteValue`]
+/// - `props.point_radius * HIT_AREA_RADIUS_FACTOR`（hit-area 半径）が
+///   非有限になる場合（PR #2261 codex-review P1 指摘: `point_radius` 単体は
+///   有限でも `f64::MAX` 級の極端な値では乗算結果がオーバーフローし
+///   `inf` になり得り、`svg::fmt_coord` の有限値契約に違反するため）
+///   [`ChartError::NonFiniteValue`]
 /// - x/y いずれかの domain 算出後の [`LinearScale::new`] が失敗した場合、
 ///   その失敗をそのまま返す（[`ChartData::domain`] 同型の退化パディングに
 ///   より通常は発生しない）
@@ -363,6 +403,16 @@ pub fn root(
     if !props.point_radius.is_finite() || props.point_radius <= 0.0 {
         return Err(ChartError::NonFiniteValue);
     }
+    // PR #2261 codex-review P1 指摘: `point_radius` 単体の有限性検証だけでは
+    // 不十分。`point_radius * HIT_AREA_RADIUS_FACTOR`（hit-area 半径、下記
+    // ループ内で使用）は `point_radius` が有限でも極端に大きい場合
+    // （例: `f64::MAX / 2` 超）に乗算でオーバーフローし `inf` になり得る。
+    // 既定の `show_tooltip: true` 経路で `svg::fmt_coord` の有限値契約に
+    // 違反し、debug ビルドでは panic、release ビルドでは不正な `r="inf"`
+    // を出力してしまうため、構築前に一括して検証し fail-closed に弾く。
+    if !(props.point_radius * HIT_AREA_RADIUS_FACTOR).is_finite() {
+        return Err(ChartError::NonFiniteValue);
+    }
     let view_box = ViewBox::new(0.0, 0.0, props.width, props.height)
         .map_err(|_| ChartError::NonFiniteValue)?;
 
@@ -383,27 +433,76 @@ pub fn root(
     let x_scale = LinearScale::new(x_domain, (r, props.width - r))?.nice();
     let y_scale = LinearScale::new(y_domain, (props.height - r, r))?.nice();
 
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。scatter は「系列 ×
+    // 点」単位のため `charts::tooltip::entries_from_chart_data` の
+    // カテゴリ単位モデルを使わず、`TooltipEntry` を独自に組み立てる
+    // （§2.5「scatter は系列 × 点単位」）。`index` は系列内の点序数、
+    // `series` は系列表示名（hit-area/point/tooltip の 3 者で共有）。
     let mut points: Vec<Node> = Vec::new();
+    let mut hit_areas: Vec<Node> = Vec::new();
+    let mut entries: Vec<tooltip::TooltipEntry> = Vec::new();
     for (series_idx, series) in data.series().iter().enumerate() {
         let fill = series_color_var(series_idx);
-        for &(x, y) in &series.points {
+        // hit-area・tooltip の色は `SeriesColor` 型で保持する（`String` の
+        // 任意連結を型で閉じる契約、`tooltip::TooltipRow::color` 参照）。
+        // `fill`（point の描画色）と同じ 6 色循環だが、`series.color` の
+        // 個別上書きは既存の `fill` 計算（`series_color_var` 直呼び）と
+        // 同様に反映しない（scatter の既存挙動を維持、イシュー #2129 の
+        // スコープ外）。
+        let tooltip_color = super::data::SeriesColor::chart_slot(series_idx % 6 + 1)
+            .expect("series_idx % 6 + 1 は常に 1..=6 の範囲内");
+        for (point_idx, &(x, y)) in series.points.iter().enumerate() {
             let cx = x_scale.scale(x);
             let cy = y_scale.scale(y);
-            points.push(svg::circle(
-                cx,
-                cy,
-                props.point_radius,
-                vec![
-                    ("data-scope", "scatter-chart"),
-                    ("data-part", "point"),
-                    ("data-series", series.name.as_str()),
-                    ("fill", fill.as_str()),
-                ],
-            ));
+            let point_idx_str = point_idx.to_string();
+            // イシュー #2129 codex-review 指摘: `data-index` は本イシューの
+            // 新規追加のため `show_tooltip` が `true` のときのみ付与する
+            // （`ScatterChartProps::show_tooltip` rustdoc の「バイト一致」
+            // 契約、bar_chart と同型）。`data-series` はイシュー #1063 由来
+            // の既存属性のため `show_tooltip` に関わらず常に付与する。
+            let mut point_attrs: Vec<(&str, &str)> =
+                vec![("data-scope", "scatter-chart"), ("data-part", "point")];
+            if props.show_tooltip {
+                point_attrs.push(("data-index", point_idx_str.as_str()));
+            }
+            point_attrs.push(("data-series", series.name.as_str()));
+            point_attrs.push(("fill", fill.as_str()));
+            points.push(svg::circle(cx, cy, props.point_radius, point_attrs));
+
+            if props.show_tooltip {
+                let entry = tooltip::TooltipEntry {
+                    index: point_idx,
+                    series: Some(series.name.clone()),
+                    label: format!("{} #{}", series.name, point_idx),
+                    rows: vec![tooltip::TooltipRow {
+                        // `x`/`y` はピクセル座標（`cx`/`cy`）ではなくデータ値
+                        // そのものであるため `fmt_value` を経由する
+                        // （[`crate::charts`] モジュール doc 不変条件 2、PR
+                        // #2261 codex-review P1 指摘: `fmt_coord` では
+                        // 小さいデータ値がツールチップ本文で `0` に丸め
+                        // 落ちていた）。
+                        name: format!("x: {}, y: {}", fmt_value(x), fmt_value(y)),
+                        series: series.name.clone(),
+                        value: y,
+                        color: tooltip_color.clone(),
+                    }],
+                };
+                let label = tooltip::hit_area_label(&entry);
+                hit_areas.push(tooltip::hit_area_circle(
+                    cx,
+                    cy,
+                    props.point_radius * HIT_AREA_RADIUS_FACTOR,
+                    point_idx,
+                    Some(series.name.as_str()),
+                    &label,
+                ));
+                entries.push(entry);
+            }
         }
     }
+    points.extend(hit_areas);
 
-    Ok(svg::svg_root(
+    let svg_node = svg::svg_root(
         &view_box,
         vec![
             ("data-scope", "scatter-chart"),
@@ -411,7 +510,16 @@ pub fn root(
             ("aria-label", aria_label),
         ],
         points,
-    ))
+    );
+
+    if props.show_tooltip {
+        Ok(tooltip::frame(vec![
+            svg_node,
+            tooltip::layer_from_entries(&entries, None),
+        ]))
+    } else {
+        Ok(svg_node)
+    }
 }
 
 #[cfg(test)]
@@ -434,6 +542,38 @@ mod tests {
             ScatterData::new(vec![ScatterSeries::new("a", vec![])]).unwrap_err(),
             ChartError::EmptyData
         );
+    }
+
+    #[test]
+    fn scatter_data_rejects_duplicate_series_names() {
+        // イシュー #2129 codex-review P1 指摘: 同名系列を許すと hit-area/
+        // tooltip の識別キー（系列名 + 系列内の点序数）が衝突し、異なる
+        // 系列の点が同じ `data-index`/`data-series` を持ってしまう。
+        // 構築時に fail-closed で拒否することを固定する。
+        assert_eq!(
+            ScatterData::new(vec![
+                ScatterSeries::new("a", vec![(0.0, 0.0)]),
+                ScatterSeries::new("a", vec![(1.0, 1.0)]),
+            ])
+            .unwrap_err(),
+            ChartError::DuplicateSeriesName
+        );
+        // 3 系列中 2 件のみ重複していても検知する。
+        assert_eq!(
+            ScatterData::new(vec![
+                ScatterSeries::new("a", vec![(0.0, 0.0)]),
+                ScatterSeries::new("b", vec![(1.0, 1.0)]),
+                ScatterSeries::new("a", vec![(2.0, 2.0)]),
+            ])
+            .unwrap_err(),
+            ChartError::DuplicateSeriesName
+        );
+        // 系列名が一意なら許可される（既存挙動を壊さない）。
+        assert!(ScatterData::new(vec![
+            ScatterSeries::new("a", vec![(0.0, 0.0)]),
+            ScatterSeries::new("b", vec![(1.0, 1.0)]),
+        ])
+        .is_ok());
     }
 
     #[test]
@@ -469,6 +609,33 @@ mod tests {
                 &data,
                 ScatterChartProps {
                     point_radius: f64::NAN,
+                    ..ScatterChartProps::default()
+                },
+                "label"
+            )
+            .unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
+    fn root_rejects_point_radius_whose_hit_area_multiplication_overflows() {
+        // PR #2261 codex-review P1 指摘の再現・回帰: `point_radius` 自体は
+        // 有限（`is_finite()` を通過）でも、`point_radius * 2.5`
+        // （`HIT_AREA_RADIUS_FACTOR`）がオーバーフローして `inf` になる
+        // 極端な入力（`width`/`height` も同程度の巨大値で domain/scale の
+        // 計算自体は有限のまま通過する構成）で、必ず `ChartError` を返し
+        // `svg::fmt_coord` の有限値契約違反（debug panic / release での
+        // 不正な `r="inf"` 出力）へ到達しないことを固定する。
+        let data = sample_data();
+        let huge = f64::MAX / 2.0;
+        assert_eq!(
+            root(
+                &data,
+                ScatterChartProps {
+                    width: huge,
+                    height: huge,
+                    point_radius: huge,
                     ..ScatterChartProps::default()
                 },
                 "label"
@@ -567,8 +734,11 @@ mod tests {
             .skip(1)
             .map(|rest| rest.split('"').next().unwrap().parse().unwrap())
             .collect();
-        assert_eq!(cx_values.len(), 2);
-        assert_eq!(cy_values.len(), 2);
+        // イシュー #2129: hit-area（既定 `show_tooltip: true`）は各点と
+        // 同じ中心座標の `<circle>` を追加するため、点 2 + hit-area 2 の
+        // 計 4 に純増する（中心座標の値自体は不変）。
+        assert_eq!(cx_values.len(), 4);
+        assert_eq!(cy_values.len(), 4);
         for &cx in &cx_values {
             assert!(cx >= props.point_radius - 1e-9);
             assert!(cx <= props.width - props.point_radius + 1e-9);
@@ -605,6 +775,20 @@ mod tests {
             render(&root(&data, ScatterChartProps::default(), "<script>xss</script>").unwrap());
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn tooltip_and_hit_area_label_preserve_small_data_values() {
+        // イシュー #2129 codex-review P1 指摘: `fmt_coord`（小数点以下 2 桁
+        // 固定）でデータ値を整形すると `0.001` のような小さい値がツール
+        // チップ本文・`aria-label` で `0` に丸め落ちる。`fmt_value` 経由に
+        // 修正したことを、SSR 出力の文字列に有効数字が残ることで固定する。
+        let data = ScatterData::new(vec![ScatterSeries::new("a", vec![(0.001, 0.001)])]).unwrap();
+        let html = render(&root(&data, ScatterChartProps::default(), "label").unwrap());
+        // `fmt_coord` なら "x: 0, y: 0" になるところ、`fmt_value` では
+        // 有効数字を保持した "0.001" になる。
+        assert!(html.contains("x: 0.001, y: 0.001"));
+        assert!(!html.contains("x: 0, y: 0"));
     }
 
     #[test]

@@ -187,6 +187,10 @@ fn radar_chart_all_variants_introduce_no_new_data_attr_vocabulary() {
         fill: RadarFill::None,
         spokes: false,
         axis_label: RadarAxisLabel::ValueAndCategory,
+        // イシュー #2129: ツールチップ DOM は hit-area・`data-index` を
+        // 新規追加するため、本テストの本来の関心（radar 固有の variant が
+        // 導入する語彙）を検証するには無効化する。
+        show_tooltip: false,
         ..RadarChartProps::default()
     };
     let html = render(&radar_chart::root(&data, props, "label").expect("valid radar chart"));
@@ -293,7 +297,15 @@ fn pie_chart_data_series_is_gated_by_stacked_flag() {
     )
     .expect("valid pie chart data");
 
-    let html = render(&pie_chart(&PieChartProps::default(), &data, vec![]).unwrap());
+    // イシュー #2129: ツールチップ DOM の `tooltip-item` は `data-series` を
+    // 常に出すため（stacked に関わらず）、本テストの本来の関心（segment
+    // への `data-series` 付与は `stacked: true` 限定）を検証するには
+    // ツールチップ DOM を無効化する。
+    let non_stacked_props = PieChartProps {
+        show_tooltip: false,
+        ..PieChartProps::default()
+    };
+    let html = render(&pie_chart(&non_stacked_props, &data, vec![]).unwrap());
     assert!(!html.contains("data-series"));
 
     let stacked_props = PieChartProps {
