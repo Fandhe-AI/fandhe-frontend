@@ -6005,16 +6005,26 @@ fn message_section() -> Node {
             // role="list" の親を required context として要求する
             // （headless message.rs モジュール doc「role="listitem"/
             // role="list"」参照）。ここでは同一グループとしての視覚的な
-            // まとめ（余白詰め・avatar 省略）は意図しないため、`row` の
-            // `.showcase-row` class に role="list" を足した素の div で
-            // 契約を満たす。
+            // まとめ（余白詰め・avatar 省略）は意図しないため、`stack` の
+            // `.showcase-stack` class に role="list" を足した素の div で
+            // 契約を満たす。message::root の end-aligned ルートは
+            // `align-self: flex-end`（交差軸）+ `margin-inline-start: auto`
+            // で右寄せする（`crates/pre-styled-ui/src/message.rs` 参照）
+            // ため、親は flex 縦積み（`.showcase-stack` の
+            // `flex-direction: column`）でなければならない。横並び wrap
+            // の `.showcase-row` を使うと main 軸が横方向になるため
+            // `margin-inline-start: auto` がその主軸方向へ右へ押し出す
+            // 一方、`align-self: flex-end` は行内での下寄せ（交差軸方向）
+            // にしかならず、チャットスレッドとして縦積みされず
+            // user/error メッセージが横方向にずれてしまう不具合があった
+            // （PR #2252 レビュー指摘）。
             div(
-                vec![("class", "showcase-row"), ("role", "list")],
+                vec![("class", "showcase-stack"), ("role", "list")],
                 vec![user_turn, assistant_turn],
             ),
             group_instance,
             div(
-                vec![("class", "showcase-row"), ("role", "list")],
+                vec![("class", "showcase-stack"), ("role", "list")],
                 vec![loading_instance, error_instance, system_instance],
             ),
         ],
