@@ -161,9 +161,13 @@ intentional-non-adoption.md の文言訂正）のみを成果物とし、
   の `"set_channel"` payload `"<channel>:<value>"` と同型）、
   `"increment"` / `"decrement"` / `"increment_large"` /
   `"decrement_large"` / `"home"` / `"end"` payload = `"<index>"`。
-  index は `usize` 厳密パース + `< values.len()` 検査、値は `f64`
-  厳密パース + 有限性検査、いずれも失敗は `None`（fail-closed
-  no-op）。
+  `Component::decode_action(name, payload)` は `self` を受け取らず
+  `values.len()` を参照できないため、ここで検証できるのは構文・有限性
+  までである: index は `usize` 厳密パース、値は `f64` 厳密パース +
+  有限性検査のみを行い、いずれも失敗時は `None`（fail-closed no-op）。
+  状態に依存する範囲外 index の判定（`< values.len()` 検査）は
+  `decode_action` では行わず、`self` を受け取れる `update()` 側で
+  no-op（対象 index が存在しなければ何もしない）として扱う契約とする。
 - hydration 契約: `data-hydrate-{min,max,step,values,min-steps,
   orientation}`。`values` はカンマ区切り（`splitter.rs::
   from_hydration_attrs` の `parse_list` と同型: 各要素の有限性・件数

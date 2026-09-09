@@ -1562,7 +1562,10 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）を
 
 slider の複数 thumb（イシュー #2188）行は、ユーザー判断確定時に以下のいずれかを
 実行する: (a) 採用と判断された場合、評価文書 `docs/design/slider-range-thumbs-evaluation.md`
-の分割案どおり sub-issue を起票し、本行を「実装済み」へ更新する。(b) 非採用と
+の分割案どおり sub-issue を起票し、本行を「採用済み・実装待ち」（追跡先の
+sub-issue 番号を付記）へ更新する。実装が完了した時点で改めて本行を
+「実装済み」へ更新する（採用判断・sub-issue 起票のみの段階で「実装済み」と
+書くと実態と乖離するため、この 2 段階更新を必須とする）。(b) 非採用と
 判断された場合、本行を削除し `docs/policy/intentional-non-adoption.md` §3.27 として
 移行する（評価文書 §4.5 の評価・再評価トリガーを転記）。
 
