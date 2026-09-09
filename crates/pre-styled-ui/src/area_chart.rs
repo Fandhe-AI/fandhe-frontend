@@ -406,7 +406,14 @@ pub fn stylesheet() -> String {
 /// カテゴリ位置ごとの点列を「面 path」「線 path」の `d` 属性へ変換する
 /// （内部ヘルパ、`curve` に応じて直線/自然スプライン/step のいずれかで
 /// 補間する）。`points` は `n >= 2` を契約とする。
-fn build_line_d(points: &[(f64, f64)], curve: AreaCurve) -> String {
+///
+/// `AreaCurve::Natural`（`n >= 3`）は
+/// [`crate::charts::curve::natural_control_points`] が `None` を返した場合
+/// （codex-review 指摘、イシュー #2081: 3 カテゴリ・極端に大きい `width`
+/// で Thomas 法の中間計算が桁あふれし非有限値になるケース）に
+/// [`ChartError::NonFiniteValue`] を返し、`fmt_coord` の「有限値のみを
+/// 契約入力とする」不変条件が破られる前に呼び出し元へエラーを伝播する。
+fn build_line_d(points: &[(f64, f64)], curve: AreaCurve) -> Result<String, ChartError> {
     let mut b = PathBuilder::new();
     let (x0, y0) = points[0];
     b = b.move_to(x0, y0);
@@ -417,7 +424,8 @@ fn build_line_d(points: &[(f64, f64)], curve: AreaCurve) -> String {
             }
         }
         AreaCurve::Natural if points.len() >= 3 => {
-            for (i, (cp1, cp2)) in natural_control_points(points).into_iter().enumerate() {
+            let cps = natural_control_points(points).ok_or(ChartError::NonFiniteValue)?;
+            for (i, (cp1, cp2)) in cps.into_iter().enumerate() {
                 let (x, y) = points[i + 1];
                 b = b.cubic_to(cp1.0, cp1.1, cp2.0, cp2.1, x, y);
             }
@@ -436,7 +444,7 @@ fn build_line_d(points: &[(f64, f64)], curve: AreaCurve) -> String {
             }
         }
     }
-    b.build()
+    Ok(b.build())
 }
 
 /// 系列 1 本を「面 + 線」（`n >= 2`）または中央の点マーカー（`n == 1`）として
@@ -466,14 +474,14 @@ fn render_series_none(
     fill: AreaFill,
     fill_class: &str,
     gradient_url: &str,
-) -> Vec<Node> {
+) -> Result<Vec<Node>, ChartError> {
     let n = values.len();
 
     if n <= 1 {
         let x = category_x(width, n, 0) + left;
         let y = values.first().copied().map_or(0.0, |v| y_scale.scale(v));
         let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
-        return vec![el(
+        return Ok(vec![el(
             "circle",
             vec![
                 ("data-scope", "area-chart"),
@@ -484,7 +492,7 @@ fn render_series_none(
                 ("fill", color),
             ],
             vec![],
-        )];
+        )]);
     }
 
     let points: Vec<(f64, f64)> = values
@@ -493,7 +501,7 @@ fn render_series_none(
         .map(|(i, &v)| (category_x(width, n, i) + left, y_scale.scale(v)))
         .collect();
 
-    let line_d = build_line_d(&points, curve);
+    let line_d = build_line_d(&points, curve)?;
 
     // 面 path: 折れ線を辿った後、baseline へ降りて逆方向の始点に戻り閉じる
     // （モジュール doc「面 path の閉じ方」参照）。Linear 以外の曲線でも
@@ -523,7 +531,7 @@ fn render_series_none(
         area_attrs.push(("class", fill_class));
     }
 
-    vec![
+    Ok(vec![
         el("path", area_attrs, vec![]),
         el(
             "path",
@@ -536,7 +544,7 @@ fn render_series_none(
             ],
             vec![],
         ),
-    ]
+    ])
 }
 
 /// 積み上げ時（`stack: AreaStack::Normal`/`Expand`）の系列群を描く
@@ -564,7 +572,7 @@ fn render_stacked(
     fill: AreaFill,
     fill_class: &str,
     gradient_id_prefix: &str,
-) -> Vec<Node> {
+) -> Result<Vec<Node>, ChartError> {
     let n = cum[0].len();
     let mut nodes = Vec::new();
 
@@ -606,8 +614,8 @@ fn render_stacked(
             .collect();
         lower_points.reverse();
 
-        let upper_d = build_line_d(&upper_points, curve);
-        let lower_d = build_line_d(&lower_points, curve);
+        let upper_d = build_line_d(&upper_points, curve)?;
+        let lower_d = build_line_d(&lower_points, curve)?;
         // lower_d は独立した `M..` から始まるため、先頭の `M` を `L` へ
         // 差し替えて上側 path の続きとして連結する（上側終点と下側
         // 逆順始点は同じカテゴリの下側境界であり座標が一致するため、
@@ -642,7 +650,7 @@ fn render_stacked(
         ));
     }
 
-    nodes
+    Ok(nodes)
 }
 
 /// `stack: AreaStack::Normal`/`Expand` 時のカテゴリごとの累積上限値を
@@ -935,7 +943,7 @@ pub fn area_chart<'a>(
                     props.fill,
                     &fill_class,
                     &format!("{}-{i}", props.gradient_id),
-                ));
+                )?);
             }
 
             if props.show_y_axis {
@@ -977,7 +985,7 @@ pub fn area_chart<'a>(
                     props.fill,
                     &fill_class,
                     &format!("{}-{i}", props.gradient_id),
-                ));
+                )?);
             }
         }
     } else {
@@ -1066,7 +1074,7 @@ pub fn area_chart<'a>(
                 props.fill,
                 &fill_class,
                 props.gradient_id,
-            ));
+            )?);
 
             if props.show_y_axis {
                 // `AreaStack::Expand` は domain `(0.0, 1.0)` のカテゴリ
@@ -1116,7 +1124,7 @@ pub fn area_chart<'a>(
                 props.fill,
                 &fill_class,
                 props.gradient_id,
-            ));
+            )?);
         }
     }
 
@@ -1309,6 +1317,27 @@ mod tests {
         let html = render(&area_chart(&props, vec![]).unwrap());
         assert!(!html.contains('C'));
         assert!(html.contains('L'));
+    }
+
+    #[test]
+    fn curve_natural_extreme_width_returns_non_finite_value_error() {
+        // codex-review 指摘（イシュー #2081, PR #2254）: 3 カテゴリ・
+        // 値 [0.0, 1.0, 0.0]・`width` が `f64::MAX` に近い極端値（`4e307`）
+        // のとき、`AreaCurve::Natural` の Thomas 法中間計算
+        // （`crate::charts::curve::control_points_1d` の
+        // `8 * x_{n-1} + x_n`）が桁あふれし `inf` になる。この入力は
+        // `view_box_from_dims` の寸法検証を通過し X 座標もすべて有限だが、
+        // `fmt_coord` へ非有限座標が渡る前に `ChartError::NonFiniteValue`
+        // を返すことを固定する（修正前は debug ビルドで
+        // `fmt_coord` の `debug_assert` に panic していた）。
+        let d = data(vec![0.0, 1.0, 0.0]);
+        let mut props = AreaChartProps::new(&d, "natural-overflow");
+        props.curve = AreaCurve::Natural;
+        props.width = 4e307;
+        assert_eq!(
+            area_chart(&props, vec![]).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
     }
 
     #[test]

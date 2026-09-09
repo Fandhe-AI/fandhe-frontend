@@ -63,6 +63,11 @@ fn control_points_1d(v: &[f64]) -> (Vec<f64>, Vec<f64>) {
     (a, b)
 }
 
+/// natural spline の区間ごとの 3 次 Bézier 制御点対（`(cp1, cp2)`）の列
+/// （`clippy::type_complexity` 回避の型エイリアス、[`natural_control_points`]
+/// のみが使う）。
+type ControlPointPairs = Vec<((f64, f64), (f64, f64))>;
+
 /// natural spline の区間ごとの 3 次 Bézier 制御点対を返す。
 ///
 /// 戻り値は `points.len() - 1` 個の要素を持ち、各要素 `(cp1, cp2)` は
@@ -74,10 +79,20 @@ fn control_points_1d(v: &[f64]) -> (Vec<f64>, Vec<f64>) {
 /// （呼び出し元契約違反の silent no-op。呼び出し元 [`crate::area_chart`]
 /// は `n == 2` を直線へ退化させ本関数を呼ばない契約のため、通常経路では
 /// 到達しない）。
+///
+/// 戻り値は `Option`: Thomas 法の中間計算（[`control_points_1d`]）は
+/// `points` 自体が全て有限でも桁あふれで非有限（`NaN`/`±inf`）に
+/// 達し得る（例: 3 カテゴリ・`width` が `f64::MAX` に近い極端値のとき、
+/// `8 * x_{n-1} + x_n` が `inf` になる。codex-review 指摘、イシュー
+/// #2081）。この非有限混入を検出したら `None` を返し、呼び出し元
+/// [`crate::area_chart::build_line_d`] が [`super::ChartError::NonFiniteValue`]
+/// へ変換して呼び出し元へ伝播する契約とする（`fmt_coord` の
+/// 「有限値のみを契約入力とする」不変条件を、非有限な制御点が
+/// `PathBuilder::cubic_to` へ渡る前段で守るための境界チェック）。
 #[must_use]
-pub(crate) fn natural_control_points(points: &[(f64, f64)]) -> Vec<((f64, f64), (f64, f64))> {
+pub(crate) fn natural_control_points(points: &[(f64, f64)]) -> Option<ControlPointPairs> {
     if points.len() < 3 {
-        return Vec::new();
+        return Some(Vec::new());
     }
 
     let xs: Vec<f64> = points.iter().map(|p| p.0).collect();
@@ -85,9 +100,21 @@ pub(crate) fn natural_control_points(points: &[(f64, f64)]) -> Vec<((f64, f64), 
     let (ax, bx) = control_points_1d(&xs);
     let (ay, by) = control_points_1d(&ys);
 
-    (0..points.len() - 1)
-        .map(|i| ((ax[i], ay[i]), (bx[i], by[i])))
-        .collect()
+    if ax
+        .iter()
+        .chain(bx.iter())
+        .chain(ay.iter())
+        .chain(by.iter())
+        .any(|v| !v.is_finite())
+    {
+        return None;
+    }
+
+    Some(
+        (0..points.len() - 1)
+            .map(|i| ((ax[i], ay[i]), (bx[i], by[i])))
+            .collect(),
+    )
 }
 
 /// step（区間中点で段差になる）補間の line-to 座標列を返す。
@@ -118,7 +145,7 @@ mod tests {
     #[test]
     fn natural_control_points_returns_one_pair_per_segment() {
         let points = vec![(0.0, 0.0), (1.0, 2.0), (2.0, 0.0), (3.0, 2.0)];
-        let cps = natural_control_points(&points);
+        let cps = natural_control_points(&points).expect("有限値のみの入力は Some を返す");
         assert_eq!(cps.len(), points.len() - 1);
     }
 
@@ -136,7 +163,7 @@ mod tests {
         // 固定する（自然境界条件の対称性チェック、浮動小数の桁落ちを
         // 考慮し許容誤差付きで比較する）。
         let points = vec![(0.0, 0.0), (1.0, 4.0), (2.0, 0.0)];
-        let cps = natural_control_points(&points);
+        let cps = natural_control_points(&points).expect("有限値のみの入力は Some を返す");
         assert_eq!(cps.len(), 2);
         let ((cp1a, cp1b), (cp2a, cp2b)) = (cps[0], cps[1]);
         assert!((cp1a.0 - (2.0 - cp2b.0)).abs() < 1e-9);
@@ -147,12 +174,25 @@ mod tests {
 
     #[test]
     fn natural_control_points_below_three_points_returns_empty() {
-        assert_eq!(natural_control_points(&[]), Vec::new());
-        assert_eq!(natural_control_points(&[(0.0, 0.0)]), Vec::new());
+        assert_eq!(natural_control_points(&[]), Some(Vec::new()));
+        assert_eq!(natural_control_points(&[(0.0, 0.0)]), Some(Vec::new()));
         assert_eq!(
             natural_control_points(&[(0.0, 0.0), (1.0, 1.0)]),
-            Vec::new()
+            Some(Vec::new())
         );
+    }
+
+    #[test]
+    fn natural_control_points_overflow_returns_none() {
+        // codex-review 指摘（イシュー #2081, PR #2254）: 3 点・x 座標が
+        // `f64::MAX` に近い極端値のとき、Thomas 法の中間計算
+        // `8 * x_{n-1} + x_n` が桁あふれし `inf` になる。入力自体は
+        // すべて有限（`is_finite()` を満たす）にもかかわらず、内部計算の
+        // 非有限混入を `None` として検出できることを固定する。
+        let huge: f64 = 4e307;
+        let points: Vec<(f64, f64)> = vec![(0.0, 0.0), (huge / 2.0, 1.0), (huge, 0.0)];
+        assert!(points.iter().all(|&(x, y)| x.is_finite() && y.is_finite()));
+        assert_eq!(natural_control_points(&points), None);
     }
 
     #[test]
