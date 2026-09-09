@@ -349,6 +349,53 @@ mod wiring {
         find_first(scope, selector)
     }
 
+    /// `root` 配下（`root` 自身を含む）から `selector` に一致する要素を
+    /// 収集する（[`find_first_including_self`] の複数版）。
+    ///
+    /// イシュー #2074 codex-review P1 是正: `apply_mobile_state` の
+    /// `data-mobile` 属性更新が [`query_all`]（子孫のみ）だけを使って
+    /// いたため、`wire_sidebar_events_with_query` へ `provider` 要素
+    /// 自身が `root` として渡された場合（[`find_first_including_self`]
+    /// doc の契約参照）、その `provider` 自身には `data-mobile` が
+    /// 一切反映されなかった。既定の `mobile: false` を仮定する
+    /// Escape・外側クリック閉鎖・`wire_sidebar_dispatch` の
+    /// 登録後 catch-up はいずれも provider 自身の `data-mobile` 属性を
+    /// 参照するため、この欠落は「配下の子孫 root だけがモバイル表示に
+    /// なり、provider 自身の制御が機能しない」不具合を招く。
+    fn query_all_including_self(root: &Element, selector: &str) -> Vec<Element> {
+        let mut out = Vec::new();
+        if root.matches(selector).unwrap_or(false) {
+            out.push(root.clone());
+        }
+        out.extend(query_all(root, selector));
+        out
+    }
+
+    /// `root` 配下の全 provider を、処理の直前に毎回 [`all_providers`]
+    /// を呼び直しながら順に `f` へ渡す。
+    ///
+    /// イシュー #2074 codex-review P1 是正: 複数 provider が並存する
+    /// 構成で、ある provider への合成 click（`f` 内で行われる）が
+    /// dispatch → `on_update` を経て共有ルートの構造フォールバック
+    /// 再描画を引き起こすと、事前に 1 回だけ収集した `Vec<Element>` に
+    /// 残る後続 provider の参照は document から切り離された古い要素に
+    /// なり、以降 `f` を呼んでも可視 DOM には反映されない
+    /// （`apply_mobile_state` のモバイル進入時折りたたみ判定で最初に
+    /// 見つかったのと同型の不具合が、Escape・外側クリックの複数 drawer
+    /// 閉鎖処理にも存在した）。provider の総数は再描画をまたいでも
+    /// 構造上不変という前提のもと、`index` 番目の provider をその時点の
+    /// 生きた DOM から取り直すことで、この種の再描画があっても全
+    /// provider を正しく処理できるようにする。
+    fn for_each_provider_refetching(root: &Element, mut f: impl FnMut(&Element)) {
+        let provider_count = all_providers(root).len();
+        for index in 0..provider_count {
+            let Some(provider) = all_providers(root).into_iter().nth(index) else {
+                continue;
+            };
+            f(&provider);
+        }
+    }
+
     /// `root` 配下（または `root` 自身が `provider` の場合はそれ単独）の
     /// すべての sidebar `provider` を返す。
     ///
@@ -491,13 +538,19 @@ mod wiring {
             // 各 `provider` 自身の部分木に限定して trigger/rail を探す
             // ことで、provider ごとに正しい trigger/rail を合成 click
             // する。
-            for provider in all_providers(root) {
+            //
+            // イシュー #2074 codex-review P1 是正: 複数 drawer が
+            // 開いている状態で先頭 provider への合成 click が共有ルートの
+            // 再描画を引き起こすと、事前収集した一覧の後続 provider は
+            // 切断済み参照になり閉じ残る（[`for_each_provider_refetching`]
+            // doc 参照）。処理直前に毎回 provider 一覧を取り直す。
+            for_each_provider_refetching(root, |provider| {
                 let mobile = provider.has_attribute("data-mobile");
                 let state = provider.get_attribute("data-state");
                 if should_dismiss_mobile_drawer(mobile, state.as_deref()) {
-                    click_trigger_or_rail(&provider);
+                    click_trigger_or_rail(provider);
                 }
-            }
+            });
             return;
         }
 
@@ -559,24 +612,30 @@ mod wiring {
         // その provider 自身の `root`/trigger/rail 部分木のみを見る
         // （他の provider の内側をクリックした場合も、その provider から
         // 見れば「外側」であり正しく閉鎖対象になる）。
-        for provider in all_providers(root) {
+        //
+        // イシュー #2074 codex-review P1 是正: 複数 drawer が開いている
+        // 状態で先頭 provider への合成 click が共有ルートの再描画を
+        // 引き起こすと、事前収集した一覧の後続 provider は切断済み参照
+        // になり閉じ残る（[`for_each_provider_refetching`] doc 参照）。
+        // 処理直前に毎回 provider 一覧を取り直す。
+        for_each_provider_refetching(root, |provider| {
             let mobile = provider.has_attribute("data-mobile");
             let state = provider.get_attribute("data-state");
             if !should_dismiss_mobile_drawer(mobile, state.as_deref()) {
-                continue;
+                return;
             }
-            if let Some(sidebar_root) = find_first(&provider, ROOT_SELECTOR) {
+            if let Some(sidebar_root) = find_first(provider, ROOT_SELECTOR) {
                 if sidebar_root.contains(Some(target_node)) {
-                    continue;
+                    return;
                 }
             }
-            if is_inside_any(&provider, TRIGGER_SELECTOR, target_node)
-                || is_inside_any(&provider, RAIL_SELECTOR, target_node)
+            if is_inside_any(provider, TRIGGER_SELECTOR, target_node)
+                || is_inside_any(provider, RAIL_SELECTOR, target_node)
             {
-                continue;
+                return;
             }
-            click_trigger_or_rail(&provider);
-        }
+            click_trigger_or_rail(provider);
+        });
     }
 
     /// `root`/`mql` から現在のモバイル判定を再取得し、`provider`/`root`
@@ -590,8 +649,13 @@ mod wiring {
     fn apply_mobile_state(root: &Element, mql: &MediaQueryList, was_mobile: &Rc<Cell<bool>>) {
         let matches = mql.matches();
 
+        // イシュー #2074 codex-review P1 是正: `query_all`（子孫のみ）
+        // ではなく `query_all_including_self` を使い、`root` 自身が
+        // `provider`/`sidebar-root` に一致する場合（`wire_sidebar_events_
+        // with_query` の契約、`query_all_including_self` doc 参照）にも
+        // `data-mobile` を反映する。
         for selector in [PROVIDER_SELECTOR, ROOT_SELECTOR] {
-            for element in query_all(root, selector) {
+            for element in query_all_including_self(root, selector) {
                 if matches {
                     set_dom_attribute(&element, "data-mobile", "");
                 } else {
@@ -629,16 +693,12 @@ mod wiring {
             // provider を取得してから判定・click する（provider の総数は
             // 再描画をまたいでも構造上不変という前提のもと、インデックス
             // ベースで安全に反復する）。
-            let provider_count = all_providers(root).len();
-            for index in 0..provider_count {
-                let Some(provider) = all_providers(root).into_iter().nth(index) else {
-                    continue;
-                };
+            for_each_provider_refetching(root, |provider| {
                 let state = provider.get_attribute("data-state");
                 if should_collapse_on_enter_mobile(true, state.as_deref()) {
-                    click_trigger_or_rail(&provider);
+                    click_trigger_or_rail(provider);
                 }
-            }
+            });
         }
         was_mobile.set(matches);
 

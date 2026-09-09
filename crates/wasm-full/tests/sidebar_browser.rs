@@ -408,6 +408,135 @@ fn wire_sidebar_events_with_query_wires_shortcut_when_root_is_provider_itself() 
 }
 
 #[wasm_bindgen_test]
+fn wire_sidebar_events_with_query_reflects_data_mobile_on_provider_root_itself() {
+    // イシュー #2074 codex-review P1 是正の回帰テスト（「配線ルート自身にも
+    // モバイル属性を反映する」）。`apply_mobile_state` の `data-mobile`
+    // 属性更新は元々 `query_all`（子孫のみ）だけを使っていたため、
+    // `wire_sidebar_events_with_query` へ `provider` 要素自身が `root`
+    // として渡された場合（上記
+    // `wire_sidebar_events_with_query_wires_shortcut_when_root_is_provider_itself`
+    // と同じ契約）、その `provider` 自身には `data-mobile` が一切
+    // 反映されなかった。既定の `mobile: false` を仮定する Escape・
+    // 外側クリック閉鎖・`wire_sidebar_dispatch` の登録後 catch-up は
+    // いずれも provider 自身の `data-mobile` 属性を参照するため、
+    // 常時一致クエリで `provider_el` 自身に `data-mobile` が付くことを
+    // 検証する。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-root-is-provider-mobile-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let (sidebar, provider_el, root_el, ..) =
+        build_sidebar_markup(&container, SidebarState::Collapsed, false, false);
+    let component = Rc::new(RefCell::new(sidebar));
+    wire_dispatch_reflecting_data_state(&container, component.clone());
+
+    // `container`（provider の祖先）ではなく `provider_el` 自身を `root`
+    // として渡す点が本回帰テストの核心。
+    wire_sidebar_events_with_query(provider_el.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    assert!(
+        provider_el.has_attribute("data-mobile"),
+        "root として渡された provider 自身にも data-mobile が反映されること"
+    );
+    assert!(
+        root_el.has_attribute("data-mobile"),
+        "provider 配下の sidebar-root（子孫）には従来どおり data-mobile が反映されること"
+    );
+}
+
+#[wasm_bindgen_test]
+fn multiple_providers_escape_dismiss_survives_sibling_structural_rerender() {
+    // イシュー #2074 codex-review P1 是正の回帰テスト（「複数 drawer の
+    // 閉鎖中も再描画後の provider を取得する」）。`handle_document_keydown`
+    // の Escape 分岐が本テスト導入前は `all_providers(root)` を反復開始時に
+    // 1 回だけ呼び出していたため、複数 drawer が開いている状態で 1 個目
+    // provider への合成 click が dispatch → `on_update` を経由して共有
+    // ルートの他の子孫（2 個目の provider を含む部分木）を丸ごと再描画
+    // すると、2 個目の `Element` ハンドルは差し替え後に document から
+    // 切り離された古い参照になり、`click_trigger_or_rail` を呼んでも
+    // 折りたたみが失われる（`multiple_providers_under_shared_root_
+    // collapse_survives_sibling_structural_rerender` のモバイル進入
+    // 版と同型の不具合が Escape 閉鎖にも存在した）。本テストは 1 個目の
+    // provider の `on_update` 内で意図的に 2 個目の provider を含む
+    // 兄弟部分木を丸ごと再構築し、2 個目が Escape 押下 1 回で期待どおり
+    // `Collapsed` へ折りたたまれることを検証する（各反復の直前に
+    // `all_providers` を呼び直す実装でのみ成立する）。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let shared_root = create_container(&document, "sidebar-multi-provider-escape-rerender-root");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    let sub_a = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    let sub_b = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    shared_root
+        .append_child(&sub_a)
+        .expect("append_child must not fail for sub_a");
+    shared_root
+        .append_child(&sub_b)
+        .expect("append_child must not fail for sub_b");
+
+    // 両方ともモバイル drawer が開いた状態（Expanded + data-mobile）で
+    // 開始する。
+    let (sidebar_a, provider_a, ..) =
+        build_sidebar_markup(&sub_a, SidebarState::Expanded, false, false);
+    let (sidebar_b, provider_b, ..) =
+        build_sidebar_markup(&sub_b, SidebarState::Expanded, false, false);
+    let _ = provider_a.set_attribute("data-mobile", "");
+    let _ = provider_b.set_attribute("data-mobile", "");
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+
+    // 2 個目（sub_b）は通常どおり配線する。
+    wire_dispatch_reflecting_data_state(&sub_b, component_b.clone());
+
+    // 1 個目（sub_a）の `on_update` は、自身の `data-state` 反映に加えて
+    // `sub_b` の中身を丸ごと再構築する（モバイル drawer 開状態を維持した
+    // まま「共有ルートの子孫を再描画する」構造フォールバック再描画を
+    // 模擬する）。
+    let update_sub_a = sub_a.clone();
+    let rerender_sub_b = sub_b.clone();
+    wire_sidebar_dispatch(sub_a.clone(), component_a.clone(), move |state, _root| {
+        let data_state = state.data_state();
+        if let Some(el) = query(&update_sub_a, PROVIDER_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        if let Some(el) = query(&update_sub_a, ROOT_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        let (_, new_provider_b, ..) =
+            build_sidebar_markup(&rerender_sub_b, SidebarState::Expanded, false, false);
+        let _ = new_provider_b.set_attribute("data-mobile", "");
+    })
+    .expect("wire_sidebar_dispatch must not fail");
+
+    // デスクトップ扱いのクエリで配線し、モバイル進入分岐（entering_mobile）
+    // 自体は経由させず、Escape 押下による閉鎖処理のみを検証する。
+    wire_sidebar_events_with_query(shared_root.clone(), DESKTOP_QUERY)
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    dispatch_document_keydown(&document, "Escape", false, false, false);
+
+    assert_eq!(
+        component_a.borrow().state(),
+        SidebarState::Collapsed,
+        "1 個目の provider は通常どおり Escape で閉じられること"
+    );
+    assert_eq!(
+        component_b.borrow().state(),
+        SidebarState::Collapsed,
+        "2 個目の provider が兄弟の構造再描画後も再取得され Escape で閉じられること\
+         （再取得なしの実装では差し替え後の生存 DOM に click が届かず開いたまま取り残される）"
+    );
+}
+
+#[wasm_bindgen_test]
 fn detached_root_document_listener_does_not_block_new_sidebar_shortcut() {
     // イシュー #2074 codex-review P1 是正の回帰テスト。
     //
