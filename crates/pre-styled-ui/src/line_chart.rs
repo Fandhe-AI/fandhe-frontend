@@ -1,17 +1,46 @@
 //! LineChart（イシュー #848、親 Phase #845）: `charts` 基盤（#846）の最初の
 //! 消費者。系列ごとの折れ線を SVG ノード木として描画する自己完結部品。
+//! #847（軸/グリッド）は本モジュールへ統合済み（`show_x_axis`/`show_y_axis`/
+//! `show_grid`、イシュー #2083）。
 //!
-//! chakra-ui `charts/line-chart.md` は recharts（`<LineChart><CartesianGrid/>
-//! <XAxis/>...<Line/></LineChart>` の合成）に依存するが、本フレームワークは
-//! 外部 JS ランタイムを持たないため、軸・グリッド・凡例・ツールチップ
-//! （chakra の `CartesianGrid`/`XAxis`/`YAxis`/`ChartLegend`/`ChartTooltip`
-//! 相当）は並行イシュー **#847 のスコープ**とし、本モジュールは「プロット
-//! 領域（折れ線のみ）を描く」ことに責務を限定する。#847 の軸/グリッド部品と
-//! 合成する場合、呼び出し側が [`svg_root`](crate::charts::svg::svg_root) の
-//! children として本モジュールの [`plot`] 出力と #847 の軸要素を並べる想定
-//! （統合ポイント、chakra は 1 コンポーネント内で JSX 合成するが、本実装は
-//! 呼び出し側の明示的な組み立てに委ねる。REQ-5 のマクロ DSL 非採用方針と
-//! 整合）。
+//! # shadcn/ui Charts（line）突合（イシュー #2083）
+//!
+//! shadcn/ui の line-chart registry は 10 バリアントを持つが、実行時
+//! インタラクション（マウス追従ツールチップ・hover 強調・`activeDot`・
+//! 期間切替・凡例トグル）を除く静的に描画できるバリアントを本イシューで
+//! props の純追加として補完した。
+//!
+//! | registry | 本実装での対応 |
+//! |---|---|
+//! | `chart-line-default` | `curve: Curve::Natural` + `show_grid` + `show_x_axis` |
+//! | `chart-line-linear` | `curve: Curve::Linear`（既定、既存出力と同一） |
+//! | `chart-line-step` | `curve: Curve::Step` |
+//! | `chart-line-multiple` | 複数系列（既存対応、変更なし） |
+//! | `chart-line-dots` | `dots: LineDots::Filled` |
+//! | `chart-line-dots-custom` | `dots: LineDots::Hollow`（任意アイコン形状は非対応、静的近似） |
+//! | `chart-line-dots-colors` | `color_by_category: true`（点の色をカテゴリ index で `chart-1〜6` 循環） |
+//! | `chart-line-label` | `label: LineLabel::Value` |
+//! | `chart-line-label-custom` | `label: LineLabel::Category` |
+//! | `chart-line-interactive` | 対象外（#2132、期間切替・凡例トグル） |
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `tickFormatter`（値の 3 文字切詰）はアプリ側整形の責務
+//!   （`docs/policy/intentional-non-adoption.md` §3.23/§3.25）
+//! - 任意アイコンによるカスタム点形状は非対応。`LineDots::Hollow` を
+//!   静的近似として提供する（`Series::icon` は凡例専用のまま不変）
+//! - `activeDot`（hover 時の点拡大）・マウス追従ツールチップ・hit-area
+//!   `data-*` は #2128 のスコープ
+//! - 点ごとの任意色は非対応。`color_by_category` によるトークン循環
+//!   （`chart-1〜6`）で代替する
+//! - shadcn の左右 margin（`margin: { left: 12, right: 12 }`）は
+//!   `overflow: visible`（本モジュール既存の是正）で端点ラベルの見切れを
+//!   回避しており、余白は `label`/`show_x_axis`/`show_y_axis` 有効時の
+//!   上下方向のみ確保する
+//! - 積み上げ・横向きは shadcn line registry に存在しないため非対応
+//! - 凡例は呼び出し側が [`crate::charts::legend`] を並べる想定のまま
+//!   （`Series::with_icon` で icon 表示可、イシュー #2077）
+//! - `-interactive`（期間切替）・凡例トグルは #2132
 //!
 //! # 座標写像・数値文字列化の一元化
 //!
@@ -29,9 +58,10 @@
 //! - y 軸: [`ChartData::domain`](crate::charts::data::ChartData::domain)
 //!   （フラットデータの非退化パディング込み）を
 //!   `LinearScale::new(domain, (height, 0.0))`（SVG の y 下向き正のため range
-//!   を反転）で写像する。`nice()` は適用しない（本モジュールは軸を持たず、
-//!   domain 拡張は無意味であり、#847 の軸合成時に呼び出し側が選ぶ余地を残す
-//!   ため）。
+//!   を反転）で写像する。軸/グリッド無効時（既定）は `nice()` を適用しない
+//!   （#2083 以前と同一の domain）。軸/グリッド有効時（`show_x_axis`/
+//!   `show_y_axis`/`show_grid` のいずれか）は [`crate::area_chart`] と
+//!   同じ規則で `nice()` を適用し目盛の切りの良い値へ拡張する。
 //!
 //! # エッジケース（golden テスト対象、`tests/charts_line_area_sparkline.rs`）
 //!
@@ -54,8 +84,10 @@
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - 軸・グリッド・凡例・ツールチップ・曲線補間（`curveType`）・積み上げは
-//!   #847 以降。
+//! - 凡例・ツールチップ・積み上げは非対応のまま（軸・グリッド・曲線補間は
+//!   #2083 で本モジュールへ統合済み）。
+//! - マウス追従ツールチップ・hover 強調・`activeDot`・hit-area `data-*` は
+//!   #2128、期間切替・凡例トグルは #2132。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（[`crate::qr_code`] の先例と同じ判断）。
 //!
@@ -92,7 +124,7 @@
 //!   （`stroke: var(--fandhe-color-bg)`）を追加し、背景・隣接系列色との
 //!   識別性を高めた
 //!
-//! ## 意図的に合わせなかった点
+//! ## 意図的に合わせなかった点（イシュー #1595）
 //!
 //! - `series-line` への `vector-effect: non-scaling-stroke` は、#1863（area-chart）
 //!   が「必要なら #1593 で横断的に」と先送りしたが #1593 は非採用のまま完了
@@ -104,29 +136,90 @@
 //! - `theme.rs` への opacity 等トークン新設は、消費者が chart 系のみで
 //!   契約テストへ波及するため見送った
 
+use crate::area_chart::AXIS_LEFT_MARGIN;
+use crate::area_chart::{grid_lines_for_ticks, x_axis_category_labels, AXIS_BOTTOM_MARGIN};
+use crate::charts::axis::{self, AxisProps};
+use crate::charts::curve::{self, Curve};
 use crate::charts::data::ChartData;
 use crate::charts::scale::LinearScale;
-use crate::charts::svg::{fmt_coord, svg_root, PathBuilder, ViewBox, ViewBoxError};
+use crate::charts::svg::{fmt_coord, svg_root, svg_text, ViewBox, ViewBoxError};
 use crate::charts::ChartError;
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, VariantValue};
-use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
+use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
 /// `data-scope="line-chart"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("line-chart");
 
-/// [`SlotRecipe::new`] に渡す slot 一覧。
-const SLOTS: &[&str] = &["root", "plot", "series-line", "point"];
+/// [`SlotRecipe::new`] に渡す slot 一覧。`value-label`（イシュー #2083）は
+/// [`LineLabel`] 有効時の値/カテゴリラベルが使う。
+const SLOTS: &[&str] = &["root", "plot", "series-line", "point", "value-label"];
 
 /// `viewBox` 幅の既定値（chakra `charts/line-chart.md` の代表例に近い横長比率）。
 pub const DEFAULT_WIDTH: f64 = 300.0;
 /// `viewBox` 高さの既定値。
 pub const DEFAULT_HEIGHT: f64 = 150.0;
 
-/// 単一カテゴリ（`n == 1`）時に描く点マーカーの半径（`viewBox` 座標系）。
+/// 単一カテゴリ（`n == 1`）時に描く点マーカー、および [`LineDots`] 有効時の
+/// データ点マーカーの半径（`viewBox` 座標系）。shadcn の `r=3`（dots）/
+/// `r=5`（dots-colors）へは合わせず、`n == 1` golden を固定する既存値を
+/// 共有する（イシュー #2083、golden 純追加原則）。
 const POINT_RADIUS: f64 = 2.5;
+
+/// [`LineLabel`] 有効時、データ点の上へ確保するラベルの垂直オフセット
+/// （shadcn `LabelList offset={12}` 相当、イシュー #2083）。
+const LABEL_OFFSET: f64 = 12.0;
+/// [`LineLabel`] 有効時にプロット領域上側へ確保する余白（shadcn
+/// `margin: { top: 20 }` 相当、イシュー #2083。bar_chart の `LABEL_MARGIN`
+/// と同値）。
+const LABEL_TOP_MARGIN: f64 = 20.0;
+
+/// データ点マーカーの表示（shadcn `dot`、イシュー #2083）。
+///
+/// 既定 [`LineDots::None`] は `n == 1`（単一カテゴリ）時の既存マーカーのみ
+/// 描く挙動（#2083 以前と同一）を保つ。`n >= 2` で有効化すると各データ点に
+/// 円マーカーを追加で描く。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LineDots {
+    /// マーカーなし（既定。`n == 1` の中央点マーカーは従来どおり描く）。
+    #[default]
+    None,
+    /// 系列色で塗りつぶした点（shadcn `chart-line-dots`）。
+    Filled,
+    /// 背景色で塗り系列色の輪郭を持つ点（shadcn `chart-line-dots-custom`
+    /// の静的近似。任意アイコン形状は非対応、モジュール doc「意図的に
+    /// 合わせなかった点」参照）。
+    Hollow,
+}
+
+impl VariantValue for LineDots {
+    fn axis(self) -> &'static str {
+        "dots"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            LineDots::None => "none",
+            LineDots::Filled => "filled",
+            LineDots::Hollow => "hollow",
+        }
+    }
+}
+
+/// データ点上の値ラベル（shadcn `LabelList`、イシュー #2083）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LineLabel {
+    /// ラベルなし（既定）。
+    #[default]
+    None,
+    /// 値をそのまま表示（shadcn `chart-line-label`）。
+    Value,
+    /// カテゴリ名を表示（shadcn `chart-line-label-custom`。config への
+    /// 表示名写像はアプリ側整形の責務、モジュール doc参照）。
+    Category,
+}
 
 /// [`line_chart`] の入力。
 pub struct LineChartProps<'a> {
@@ -145,10 +238,29 @@ pub struct LineChartProps<'a> {
     /// root へ付与する寸法 variant（svg の CSS 表示高さを切替える、
     /// [`crate::qr_code`] と同型）。
     pub size: Size,
+    /// 曲線種（イシュー #2083、既定 [`Curve::Linear`]）。既定値は #2083
+    /// 以前の出力と完全に同一の `d` 属性を生成する（golden 純追加原則）。
+    pub curve: Curve,
+    /// データ点マーカー（イシュー #2083、既定 [`LineDots::None`]）。
+    pub dots: LineDots,
+    /// 値/カテゴリラベル（イシュー #2083、既定 [`LineLabel::None`]）。
+    pub label: LineLabel,
+    /// データ点の色をカテゴリ index で `chart-1〜6`循環へ切り替えるか
+    /// （shadcn `chart-line-dots-colors`、イシュー #2083、既定 `false`）。
+    /// `false` のときは系列色（[`ChartData::series_color_var`]）のまま。
+    pub color_by_category: bool,
+    /// X 軸（カテゴリ）を描画するか（イシュー #2083、既定 `false`）。
+    pub show_x_axis: bool,
+    /// Y 軸（数値目盛）を描画するか（イシュー #2083、既定 `false`）。
+    pub show_y_axis: bool,
+    /// 水平グリッド線を描画するか（イシュー #2083、既定 `false`）。
+    pub show_grid: bool,
 }
 
 impl<'a> LineChartProps<'a> {
-    /// 既定寸法（`DEFAULT_WIDTH`/`DEFAULT_HEIGHT`・[`Size::Md`]）で組み立てる。
+    /// 既定寸法（`DEFAULT_WIDTH`/`DEFAULT_HEIGHT`・[`Size::Md`]）・既定
+    /// バリアント（Linear/None/None、軸/グリッドなし）で組み立てる。既定値は
+    /// #2083 以前の出力と完全に同一の HTML を生成する（golden 純追加原則）。
     #[must_use]
     pub fn new(data: &'a ChartData, aria_label: &'a str) -> Self {
         LineChartProps {
@@ -157,6 +269,13 @@ impl<'a> LineChartProps<'a> {
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
             size: Size::Md,
+            curve: Curve::default(),
+            dots: LineDots::default(),
+            label: LineLabel::default(),
+            color_by_category: false,
+            show_x_axis: false,
+            show_y_axis: false,
+            show_grid: false,
         }
     }
 }
@@ -237,6 +356,16 @@ fn recipe() -> SlotRecipe {
                 decl("stroke-width", "1"),
             ],
         )
+        .base(
+            "value-label",
+            // イシュー #2083: bar_chart `value-label` と同一 3 宣言
+            // （shadcn `fill-foreground`/`fontSize 12` 相当）。
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("font-family", "var(--fandhe-font-font-body)"),
+                decl("fill", "var(--fandhe-color-fg)"),
+            ],
+        )
         // イシュー #1681: `crate::area_chart::recipe` と同一の高さ値・
         // 導出根拠（差分 54→70 の拡大則を外挿）を共有する。
         .variant(
@@ -265,6 +394,22 @@ fn recipe() -> SlotRecipe {
             vec![decl("--fandhe-line-chart-height", "306px")],
         )
         .default_variant(Size::Md)
+        // イシュー #2083: `dots: LineDots::Hollow` variant は `default_variant`
+        // を登録しない（area_chart `AreaFill::Gradient` と同じ判断: 登録すると
+        // 全 line-chart の root class に無条件混入し HTML golden が壊れる）。
+        // 既存 `point` base の `stroke: var(--fandhe-color-bg)` が presentation
+        // 属性の `stroke` に勝つため、輪郭点は variant class + `color`
+        // presentation 属性（系列色）+ `currentColor` で表現する
+        // （bar_chart `bar[data-active]` と同じ手法）。
+        .variant(
+            LineDots::Hollow,
+            "point",
+            vec![
+                decl("fill", "var(--fandhe-color-bg)"),
+                decl("stroke", "currentColor"),
+                decl("stroke-width", "2"),
+            ],
+        )
 }
 
 /// この styled LineChart が生成する静的 CSS 全量を返す（決定的。
@@ -274,18 +419,69 @@ pub fn stylesheet() -> String {
     recipe().css()
 }
 
+/// [`render_series`] の描画パラメータ（内部ヘルパ、イシュー #2083:
+/// `curve`/`dots`/`label`/`color_by_category` の追加で引数が増えたため
+/// 構造体へまとめる。`recipe`/`categories` は系列を跨いで共有する参照）。
+struct SeriesRenderCtx<'a> {
+    left: f64,
+    curve: Curve,
+    dots: LineDots,
+    label: LineLabel,
+    color_by_category: bool,
+    categories: &'a [String],
+    recipe: &'a SlotRecipe,
+}
+
+/// データ点 1 個の上へ値/カテゴリラベルを描く（内部ヘルパ、shadcn
+/// `LabelList position="top" offset={12}` 相当、イシュー #2083）。
+/// `text_value` は [`LineLabel::Value`] なら [`fmt_coord`] 済みの値文字列、
+/// [`LineLabel::Category`] ならカテゴリ名（[`text`] ノード経由で既定
+/// エスケープを通る）。
+fn value_label(x: f64, y: f64, text_value: String) -> Node {
+    svg_text(
+        x,
+        y - LABEL_OFFSET,
+        vec![
+            ("data-scope", "line-chart"),
+            ("data-part", "value-label"),
+            ("text-anchor", "middle"),
+        ],
+        vec![text(text_value)],
+    )
+}
+
 /// 系列 1 本を折れ線 `path`（`n >= 2`）または中央の点マーカー（`n == 1`）
 /// として描く（内部ヘルパ）。`color` は呼び出し元（[`line_chart`]）が
 /// [`crate::charts::ChartData::series_color_var`] で解決済みの値
 /// （系列の色上書き、無ければ [`crate::charts::series_color_var`] の 6 色
-/// 循環、イシュー #2077）。
-fn render_series(width: f64, y_scale: &LinearScale, values: &[f64], color: &str) -> Node {
+/// 循環、イシュー #2077）。`n == 1` の既存マーカーは `ctx.dots ==
+/// LineDots::None` でも従来どおり描く（golden 固定、イシュー #2083）。
+/// `n == 1` は単一カテゴリの中央点という特別扱いのため、`ctx.dots ==
+/// LineDots::Hollow`・`ctx.color_by_category` は適用されず、常に系列色の
+/// `fill` 塗り点として描かれる（`n >= 2` の各点にのみ適用される。golden
+/// 固定を優先した意図的な非対称、`single_category_renders_point_not_path`
+/// テスト参照）。
+///
+/// # Errors
+///
+/// `ctx.curve` が [`Curve::Natural`] で自然スプラインの中間計算が桁あふれ
+/// した場合 [`ChartError::NonFiniteValue`]（[`curve::line_path_d`] 参照）。
+fn render_series(
+    width: f64,
+    y_scale: &LinearScale,
+    values: &[f64],
+    color: &str,
+    ctx: &SeriesRenderCtx<'_>,
+) -> Result<Vec<Node>, ChartError> {
     let n = values.len();
+    let mut nodes: Vec<Node> = Vec::new();
+
     if n <= 1 {
-        let x = category_x(width, n, 0);
-        let y = values.first().copied().map_or(0.0, |v| y_scale.scale(v));
+        let v = values.first().copied().unwrap_or(0.0);
+        let x = category_x(width, n, 0) + ctx.left;
+        let y = y_scale.scale(v);
         let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
-        return el(
+        nodes.push(el(
             "circle",
             vec![
                 ("data-scope", "line-chart"),
@@ -296,21 +492,26 @@ fn render_series(width: f64, y_scale: &LinearScale, values: &[f64], color: &str)
                 ("fill", color),
             ],
             vec![],
-        );
+        ));
+        if ctx.label != LineLabel::None {
+            let text_value = match ctx.label {
+                LineLabel::Value => fmt_coord(v),
+                LineLabel::Category => ctx.categories.first().cloned().unwrap_or_default(),
+                LineLabel::None => unreachable!("上の if で LineLabel::None を除外済み"),
+            };
+            nodes.push(value_label(x, y, text_value));
+        }
+        return Ok(nodes);
     }
 
-    let mut builder = PathBuilder::new();
-    for (i, &v) in values.iter().enumerate() {
-        let x = category_x(width, n, i);
-        let y = y_scale.scale(v);
-        builder = if i == 0 {
-            builder.move_to(x, y)
-        } else {
-            builder.line_to(x, y)
-        };
-    }
-    let d = builder.build();
-    el(
+    let points: Vec<(f64, f64)> = values
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| (category_x(width, n, i) + ctx.left, y_scale.scale(v)))
+        .collect();
+
+    let d = curve::line_path_d(&points, ctx.curve)?;
+    nodes.push(el(
         "path",
         vec![
             ("data-scope", "line-chart"),
@@ -320,17 +521,63 @@ fn render_series(width: f64, y_scale: &LinearScale, values: &[f64], color: &str)
             ("fill", "none"),
         ],
         vec![],
-    )
+    ));
+
+    if ctx.dots != LineDots::None {
+        for (i, &(x, y)) in points.iter().enumerate() {
+            let point_color = if ctx.color_by_category {
+                crate::charts::series_color_var(i)
+            } else {
+                color.to_string()
+            };
+            let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
+            let mut point_attrs: Vec<(&str, &str)> = vec![
+                ("data-scope", "line-chart"),
+                ("data-part", "point"),
+                ("cx", cx.as_str()),
+                ("cy", cy.as_str()),
+                ("r", r.as_str()),
+            ];
+            let hollow_class;
+            if ctx.dots == LineDots::Hollow {
+                hollow_class = ctx.recipe.variant_class(LineDots::Hollow);
+                point_attrs.push(("class", hollow_class.as_str()));
+                point_attrs.push(("color", point_color.as_str()));
+            } else {
+                point_attrs.push(("fill", point_color.as_str()));
+            }
+            nodes.push(el("circle", point_attrs, vec![]));
+        }
+    }
+
+    if ctx.label != LineLabel::None {
+        for (i, &(x, y)) in points.iter().enumerate() {
+            let text_value = match ctx.label {
+                LineLabel::Value => fmt_coord(values[i]),
+                LineLabel::Category => ctx.categories.get(i).cloned().unwrap_or_default(),
+                LineLabel::None => unreachable!("上の if で LineLabel::None を除外済み"),
+            };
+            nodes.push(value_label(x, y, text_value));
+        }
+    }
+
+    Ok(nodes)
 }
 
 /// LineChart 本体を組み立てる。
 ///
 /// # Errors
 ///
-/// `props.width`/`props.height` が非有限の場合 [`ChartError::NonFiniteValue`]、
-/// 0 以下の場合 [`ChartError::DegenerateDomain`]（[`view_box_from_dims`] 参照）。
+/// - `props.width`/`props.height` が非有限の場合 [`ChartError::NonFiniteValue`]、
+///   0 以下の場合 [`ChartError::DegenerateDomain`]（[`view_box_from_dims`] 参照）
+/// - `props.curve` が [`Curve::Natural`] で自然スプラインの中間計算が桁あふれ
+///   した場合 [`ChartError::NonFiniteValue`]（[`curve::line_path_d`] 参照）
+/// - `props.show_x_axis`/`props.show_y_axis`/`props.show_grid`/`props.label`
+///   のいずれかが有効で、余白差し引き後のプロット領域が 0 以下になる場合
+///   [`ChartError::PlotAreaTooSmall`]
+///
 /// `props.data` は呼び出し側が [`ChartData::new`](crate::charts::data::ChartData::new)
-/// を経由して構築済みであるため、それ以外のエラーは発生しない。
+/// を経由して構築済みであるため、上記以外のエラーは発生しない。
 ///
 /// # Examples
 ///
@@ -349,23 +596,129 @@ fn render_series(width: f64, y_scale: &LinearScale, values: &[f64], color: &str)
 /// assert!(html.contains(r#"data-scope="line-chart" data-part="root""#));
 /// assert!(html.contains("<path"));
 /// ```
+///
+/// `dots`/`label` を有効化した例（イシュー #2083）:
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+/// use fandhe_frontend_pre_styled_ui::line_chart::{line_chart, LineChartProps, LineDots, LineLabel};
+///
+/// let data = ChartData::new(
+///     vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+///     vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+/// )
+/// .unwrap();
+/// let mut props = LineChartProps::new(&data, "monthly visits");
+/// props.dots = LineDots::Filled;
+/// props.label = LineLabel::Value;
+/// let html = render(&line_chart(&props, vec![]).unwrap());
+/// assert!(html.contains(r#"data-part="point""#));
+/// assert!(html.contains(r#"data-part="value-label""#));
+/// ```
 pub fn line_chart<'a>(
     props: &LineChartProps<'a>,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Result<Node, ChartError> {
     let view_box = view_box_from_dims(props.width, props.height)?;
-    let y_scale = LinearScale::new(props.data.domain(), (props.height, 0.0))?;
 
-    let plot_children: Vec<Node> = props
-        .data
-        .series()
-        .iter()
-        .enumerate()
-        .map(|(i, s)| {
-            let color = props.data.series_color_var(i);
-            render_series(props.width, &y_scale, &s.values, &color)
-        })
-        .collect();
+    // 余白（イシュー #2083）: `show_y_axis`/`show_x_axis` は area_chart と
+    // 同じ規則で左/下を確保する。`label` は shadcn `margin: { top: 20 }`
+    // 相当で上のみ確保する（モジュール doc「意図的に合わせなかった点」の
+    // 左右 margin 非採用と対）。
+    let left = if props.show_y_axis {
+        AXIS_LEFT_MARGIN
+    } else {
+        0.0
+    };
+    let bottom = if props.show_x_axis {
+        AXIS_BOTTOM_MARGIN
+    } else {
+        0.0
+    };
+    let top = if props.label != LineLabel::None {
+        LABEL_TOP_MARGIN
+    } else {
+        0.0
+    };
+    let plot_w = props.width - left;
+    let plot_h = props.height - bottom - top;
+    let has_margin = left != 0.0 || bottom != 0.0 || top != 0.0;
+    if has_margin && (plot_w <= 0.0 || plot_h <= 0.0) {
+        return Err(ChartError::PlotAreaTooSmall);
+    }
+
+    let has_axes = props.show_x_axis || props.show_y_axis || props.show_grid;
+    let y_scale = if has_axes {
+        LinearScale::new(props.data.domain(), (top + plot_h, top))?.nice()
+    } else {
+        LinearScale::new(props.data.domain(), (top + plot_h, top))?
+    };
+
+    let recipe = recipe();
+    let mut plot_children: Vec<Node> = Vec::new();
+
+    let ticks = if has_axes {
+        y_scale.ticks(4)?
+    } else {
+        Vec::new()
+    };
+
+    if props.show_grid {
+        // area_chart と同じヘルパを再利用する（イシュー #2083:
+        // `grid_lines_for_ticks` は水平線のみ描くため第 3 引数 `plot_h` は
+        // 実質未使用、`top` オフセットは `ticks` を `y_scale.scale` 済みの
+        // 座標へ変換する時点で反映済み）。
+        plot_children.push(grid_lines_for_ticks(
+            left,
+            props.width,
+            plot_h,
+            &y_scale,
+            &ticks,
+        )?);
+    }
+
+    let render_ctx = SeriesRenderCtx {
+        left,
+        curve: props.curve,
+        dots: props.dots,
+        label: props.label,
+        color_by_category: props.color_by_category,
+        categories: props.data.categories(),
+        recipe: &recipe,
+    };
+    for (i, s) in props.data.series().iter().enumerate() {
+        let color = props.data.series_color_var(i);
+        plot_children.extend(render_series(
+            plot_w,
+            &y_scale,
+            &s.values,
+            &color,
+            &render_ctx,
+        )?);
+    }
+
+    if props.show_y_axis {
+        plot_children.push(axis::y_axis(
+            &y_scale,
+            &ticks,
+            left,
+            &AxisProps {
+                show_tick_lines: false,
+                show_axis_line: false,
+                ..AxisProps::default()
+            },
+        )?);
+    }
+    if props.show_x_axis {
+        plot_children.extend(x_axis_category_labels(
+            props.data.categories(),
+            plot_w,
+            left,
+            top + plot_h,
+            props.width,
+        )?);
+    }
 
     let plot = svg_root(
         &view_box,
@@ -377,7 +730,6 @@ pub fn line_chart<'a>(
         plot_children,
     );
 
-    let recipe = recipe();
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
@@ -542,5 +894,166 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    // イシュー #2083（shadcn/ui Charts（line）突合）: 既定 props（Linear/
+    // None/None、軸/グリッドなし）は #2083 以前の出力と完全に同一の HTML を
+    // 生成する（golden 純追加原則）ことを固定する。
+    #[test]
+    fn default_props_output_matches_pre_2083_baseline() {
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let html = render(&line_chart(&LineChartProps::new(&d, "baseline"), vec![]).unwrap());
+        assert!(!html.contains(r#"data-part="value-label""#));
+        assert!(!html.contains("dots-hollow"));
+        assert!(!html.contains(r#"data-part="grid-line""#));
+        assert!(!html.contains(r#"data-part="y-axis""#));
+        assert!(!html.contains(r#"data-part="axis-line""#));
+    }
+
+    #[test]
+    fn curve_natural_produces_cubic_segments() {
+        let d = data(vec![1.0, 4.0, 2.0, 8.0]);
+        let mut props = LineChartProps::new(&d, "natural");
+        props.curve = Curve::Natural;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert!(html.contains(" C"));
+    }
+
+    #[test]
+    fn curve_natural_two_points_degenerates_to_line() {
+        let d = data(vec![1.0, 4.0]);
+        let mut props = LineChartProps::new(&d, "natural-2");
+        props.curve = Curve::Natural;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert!(!html.contains(" C"));
+        assert!(html.contains(" L"));
+    }
+
+    #[test]
+    fn curve_step_produces_expected_line_to_count() {
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "step");
+        props.curve = Curve::Step;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        // step_points: 2 区間 * 2 点 + 終点 1 = 5 点、先頭は move_to のため
+        // `L` は 5 回。
+        assert_eq!(html.matches(" L").count(), 5);
+    }
+
+    #[test]
+    fn dots_filled_renders_point_per_category() {
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "dots");
+        props.dots = LineDots::Filled;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert_eq!(html.matches(r#"data-part="point""#).count(), 3);
+        assert!(!html.contains("dots-hollow"));
+    }
+
+    #[test]
+    fn dots_hollow_uses_variant_class_and_color_attr_without_fill() {
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "dots-hollow");
+        props.dots = LineDots::Hollow;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert!(html.contains("fd-line-chart--dots-hollow"));
+        assert!(html.contains("color=\"var(--fandhe-color-"));
+        // Hollow 点は `fill` presentation 属性を持たない（CSS の
+        // variant 宣言 `fill: var(--fandhe-color-bg)` に任せる）。
+        let point_start = html.find(r#"data-part="point""#).unwrap();
+        let point_tag_end = html[point_start..].find('>').unwrap() + point_start;
+        assert!(!html[point_start..point_tag_end].contains("fill="));
+    }
+
+    #[test]
+    fn color_by_category_uses_category_index_color_for_second_point() {
+        let d = data(vec![1.0, 4.0]);
+        let mut props = LineChartProps::new(&d, "color-by-category");
+        props.dots = LineDots::Filled;
+        props.color_by_category = true;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert!(html.contains("chart-2"));
+    }
+
+    #[test]
+    fn label_value_renders_formatted_value_text() {
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "label-value");
+        props.label = LineLabel::Value;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert_eq!(html.matches(r#"data-part="value-label""#).count(), 3);
+        assert!(html.contains(">4<"));
+    }
+
+    #[test]
+    fn label_category_renders_category_text() {
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "label-category");
+        props.label = LineLabel::Category;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert!(html.contains(">1<"));
+    }
+
+    #[test]
+    fn axes_and_grid_render_expected_parts() {
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "axes");
+        props.show_x_axis = true;
+        props.show_y_axis = true;
+        props.show_grid = true;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert!(html.contains(r#"data-part="grid-line""#));
+        assert!(html.contains(r#"data-part="y-axis""#));
+        assert!(html.contains(r#"data-part="tick-label""#));
+        assert!(html.contains(r#"data-part="axis-line""#));
+    }
+
+    #[test]
+    fn axes_reject_when_plot_area_too_small() {
+        let d = data(vec![1.0, 4.0]);
+        let mut props = LineChartProps::new(&d, "too-small");
+        props.width = 10.0;
+        props.show_y_axis = true;
+        assert_eq!(
+            line_chart(&props, vec![]).unwrap_err(),
+            ChartError::PlotAreaTooSmall
+        );
+    }
+
+    #[test]
+    fn curve_natural_extreme_width_returns_non_finite_value_error() {
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "extreme");
+        props.curve = Curve::Natural;
+        props.width = 4e307;
+        assert_eq!(
+            line_chart(&props, vec![]).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
+    fn line_chart_never_emits_data_attrs_beyond_scope_and_part() {
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "vocab");
+        props.dots = LineDots::Filled;
+        props.label = LineLabel::Value;
+        props.show_x_axis = true;
+        props.show_y_axis = true;
+        props.show_grid = true;
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        // `color` は presentation 属性であり `data-*` 語彙ではないため対象外。
+        assert!(!html.contains("data-state"));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-active"));
+    }
+
+    #[test]
+    fn stylesheet_includes_value_label_and_dots_hollow_selectors() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="line-chart"][data-part="value-label"]"#));
+        assert!(css.contains(
+            r#"[data-scope="line-chart"][data-part="point"].fd-line-chart--dots-hollow"#
+        ));
     }
 }

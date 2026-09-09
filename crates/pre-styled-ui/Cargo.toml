@@ -2616,7 +2616,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 純追加（`value-label`/`inside-label`/`bar[data-active]`）は 0.x の破壊的
 # 変更（フルリテラル構築を前提とする利用者コードが壊れる）のため
 # 0.156.0 へマイナーバンプする。
-version = "0.156.0"
+#
+# イシュー #2083（line-chart の shadcn/ui Charts（line）突合）:
+# `LineChartProps` への `pub` フィールド純追加（`curve`/`dots`/`label`/
+# `color_by_category`/`show_x_axis`/`show_y_axis`/`show_grid`）・
+# `LineDots`/`LineLabel`/`charts::curve::Curve` の新規 `pub` 型・
+# `stylesheet()` 出力の純追加（`value-label`/`point.fd-line-chart--dots-hollow`）
+# は 0.x の破壊的変更（フルリテラル構築を前提とする利用者コードが壊れる）
+# のため 0.157.0 へマイナーバンプする。
+version = "0.157.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

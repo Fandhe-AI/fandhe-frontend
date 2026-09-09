@@ -1,12 +1,14 @@
 //! 曲線補間ジオメトリ（イシュー #2081、shadcn/ui Charts（area）突合）。
 //!
-//! [`crate::area_chart`] の `curve: AreaCurve::Natural`/`AreaCurve::Step`
-//! バリアントが消費する純関数のみを置く。本モジュール自体は SVG ノード木を
-//! 組み立てず、`(x, y)` 座標列を受け取って別の `(x, y)` 座標列・制御点列を
-//! 返すだけの決定的なジオメトリ計算に閉じる（[`super::svg::PathBuilder`]
-//! への変換は呼び出し元 [`crate::area_chart`] が行う）。line-chart 側の
-//! 同種補間（#2083）が先に本モジュールを必要とした場合は重複実装せず
-//! ここへ合流する。
+//! [`crate::area_chart`]（`AreaCurve`）と [`crate::line_chart`]（[`Curve`]）が
+//! 共有する曲線補間ジオメトリ。line-chart 側の同種補間ニーズ
+//! （イシュー #2083、shadcn/ui Charts（line）突合）が area-chart 側
+//! （#2081）の実装へ合流し、[`line_path_d`] として一本化した
+//! （area-chart 側の内部ヘルパ `build_line_d` が本来持っていた `match`
+//! 分岐を本関数へ移動し、area 側は `impl From<AreaCurve> for Curve` 経由で
+//! 呼び出す）。本モジュール自体は SVG ノード木を組み立てず、`(x, y)`
+//! 座標列を受け取って [`super::svg::PathBuilder`] の `d` 属性文字列、または
+//! 別の `(x, y)` 座標列・制御点列を返すだけの決定的なジオメトリ計算に閉じる。
 //!
 //! # natural spline（[`natural_control_points`]）
 //!
@@ -22,6 +24,71 @@
 //! d3-shape `curveStep`（区間中点で段差になる版）相当。各区間 `k` の中点
 //! `m_k = (x_k + x_{k+1}) / 2` を経由し、`(m_k, y_k) → (m_k, y_{k+1})` の
 //! 2 点を追加した後、最終点 `(x_{n-1}, y_{n-1})` で締める。
+
+use super::svg::PathBuilder;
+use super::ChartError;
+
+/// 曲線種（d3-shape 相当）。[`crate::area_chart::AreaCurve`]/
+/// [`crate::line_chart::LineChartProps::curve`] が共有する値型
+/// （イシュー #2081/#2083）。
+///
+/// 既定 [`Curve::Linear`] は曲線補間導入前と完全に同一の `d` 属性を
+/// 生成する（golden 純追加原則、[`line_path_d`] doc 参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Curve {
+    /// 直線区間（既定）。
+    #[default]
+    Linear,
+    /// 自然三次スプライン補間（d3-shape `curveNatural` 相当、
+    /// [`natural_control_points`]）。
+    Natural,
+    /// 区間中点で段差になる補間（d3-shape `curveStep` 相当、
+    /// [`step_points`]）。
+    Step,
+}
+
+/// カテゴリ位置ごとの点列を折れ線 `path` の `d` 属性へ変換する
+/// （[`crate::area_chart`]/[`crate::line_chart`] 共通ヘルパ、`curve` に
+/// 応じて直線/自然スプライン/step のいずれかで補間する）。`points` は
+/// `points.len() >= 2` を契約とする。
+///
+/// [`Curve::Natural`]（`n >= 3`）は [`natural_control_points`] が `None`
+/// を返した場合（3 カテゴリ・極端に大きい座標値で Thomas 法の中間計算が
+/// 桁あふれし非有限値になるケース、codex-review 指摘 #2081）に
+/// [`ChartError::NonFiniteValue`] を返し、`fmt_coord` の「有限値のみを
+/// 契約入力とする」不変条件が破られる前に呼び出し元へエラーを伝播する。
+pub(crate) fn line_path_d(points: &[(f64, f64)], curve: Curve) -> Result<String, ChartError> {
+    let mut b = PathBuilder::new();
+    let (x0, y0) = points[0];
+    b = b.move_to(x0, y0);
+    match curve {
+        Curve::Linear => {
+            for &(x, y) in &points[1..] {
+                b = b.line_to(x, y);
+            }
+        }
+        Curve::Natural if points.len() >= 3 => {
+            let cps = natural_control_points(points).ok_or(ChartError::NonFiniteValue)?;
+            for (i, (cp1, cp2)) in cps.into_iter().enumerate() {
+                let (x, y) = points[i + 1];
+                b = b.cubic_to(cp1.0, cp1.1, cp2.0, cp2.1, x, y);
+            }
+        }
+        Curve::Natural => {
+            // n == 2: natural spline は区間 1 個未満で定義できないため
+            // 直線へ退化する。
+            for &(x, y) in &points[1..] {
+                b = b.line_to(x, y);
+            }
+        }
+        Curve::Step => {
+            for (x, y) in step_points(points) {
+                b = b.line_to(x, y);
+            }
+        }
+    }
+    Ok(b.build())
+}
 
 /// 1 次元数列 `v`（`x` 列または `y` 列）に対する natural cubic spline の
 /// 制御点対 `(a, b)` を返す（内部ヘルパ、d3-shape `natural.js` の
@@ -85,7 +152,7 @@ type ControlPointPairs = Vec<((f64, f64), (f64, f64))>;
 /// 達し得る（例: 3 カテゴリ・`width` が `f64::MAX` に近い極端値のとき、
 /// `8 * x_{n-1} + x_n` が `inf` になる。codex-review 指摘、イシュー
 /// #2081）。この非有限混入を検出したら `None` を返し、呼び出し元
-/// [`crate::area_chart::build_line_d`] が [`super::ChartError::NonFiniteValue`]
+/// [`line_path_d`] が [`super::ChartError::NonFiniteValue`]
 /// へ変換して呼び出し元へ伝播する契約とする（`fmt_coord` の
 /// 「有限値のみを契約入力とする」不変条件を、非有限な制御点が
 /// `PathBuilder::cubic_to` へ渡る前段で守るための境界チェック）。

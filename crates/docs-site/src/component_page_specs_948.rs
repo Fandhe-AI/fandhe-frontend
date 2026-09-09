@@ -1212,6 +1212,57 @@ fn line_chart_example() -> Node {
     .expect("固定サンプルは常に有効")])
 }
 
+fn line_chart_curve_and_dots_example() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 35.0, 20.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![line_chart::line_chart(
+        &line_chart::LineChartProps {
+            curve: fandhe_frontend_pre_styled_ui::charts::Curve::Natural,
+            dots: line_chart::LineDots::Filled,
+            ..LineChartProps::new(&data, "natural curve with filled dots")
+        },
+        vec![],
+    )
+    .expect("固定サンプルは常に有効")])
+}
+
+fn line_chart_value_label_example() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![line_chart::line_chart(
+        &line_chart::LineChartProps {
+            label: line_chart::LineLabel::Value,
+            ..LineChartProps::new(&data, "monthly visits with value labels")
+        },
+        vec![],
+    )
+    .expect("固定サンプルは常に有効")])
+}
+
+fn line_chart_axes_example() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![line_chart::line_chart(
+        &line_chart::LineChartProps {
+            show_x_axis: true,
+            show_y_axis: true,
+            show_grid: true,
+            ..LineChartProps::new(&data, "monthly visits with axes and grid")
+        },
+        vec![],
+    )
+    .expect("固定サンプルは常に有効")])
+}
+
 const LINE_CHART_ARGUMENTS: &[ArgRow] = &[
     ArgRow {
         name: "data",
@@ -1237,21 +1288,70 @@ const LINE_CHART_ARGUMENTS: &[ArgRow] = &[
         default: "300.0 / 150.0",
         description: "viewBox の座標系寸法。",
     },
+    ArgRow {
+        name: "curve",
+        kind: "charts::Curve",
+        default: "Linear",
+        description: "曲線種（Linear/Natural/Step）。shadcn/ui `chart-line-linear`/`-default`（natural）/`-step` 相当。area_chart と共有する値型。",
+    },
+    ArgRow {
+        name: "dots",
+        kind: "LineDots",
+        default: "None",
+        description: "データ点マーカー（None/Filled/Hollow）。shadcn/ui `chart-line-dots`/`-dots-custom` 相当。",
+    },
+    ArgRow {
+        name: "label",
+        kind: "LineLabel",
+        default: "None",
+        description: "値/カテゴリラベル（None/Value/Category）。shadcn/ui `chart-line-label`/`-label-custom` 相当。",
+    },
+    ArgRow {
+        name: "color_by_category",
+        kind: "bool",
+        default: "false",
+        description: "データ点の色をカテゴリ index で chart-1〜6 循環へ切り替える。shadcn/ui `chart-line-dots-colors` 相当。",
+    },
+    ArgRow {
+        name: "show_x_axis / show_y_axis / show_grid",
+        kind: "bool",
+        default: "false",
+        description: "X 軸・Y 軸・水平グリッド線の描画有無。area_chart と同じ余白規則を共有する。",
+    },
 ];
 
 const LINE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャート",
         "系列色は charts::series_color_var(index) の固定色循環（color-palette 軸は非提供）",
-        "積み上げ・曲線補間は非対応（charts 共通 API 側の別イシュー）",
+        "曲線（Linear/Natural/Step）・データ点（None/Filled/Hollow）・値/カテゴリラベル・軸/グリッドの静的バリアント（イシュー #2083、shadcn/ui Charts（line）突合）",
+        "マウス追従ツールチップ・hover 強調・期間切替・凡例トグル等の実行時インタラクションは対象外（#2128/#2132）",
+        "積み上げ・横向きは shadcn/ui line registry に存在しないため非対応",
         "size（Xs〜Xl）で表示高さを切り替える",
     ],
     arguments: LINE_CHART_ARGUMENTS,
-    examples: &[ExampleEntry {
-        title: "単一系列の折れ線",
-        description: "3 カテゴリ 1 系列の折れ線を描画します。",
-        render: line_chart_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "単一系列の折れ線",
+            description: "3 カテゴリ 1 系列の折れ線を描画します。",
+            render: line_chart_example,
+        },
+        ExampleEntry {
+            title: "曲線 + データ点",
+            description: "curve: Curve::Natural + dots: LineDots::Filled で自然スプライン曲線とデータ点を表示します。",
+            render: line_chart_curve_and_dots_example,
+        },
+        ExampleEntry {
+            title: "値ラベル",
+            description: "label: LineLabel::Value で各データ点の上に値を表示します。",
+            render: line_chart_value_label_example,
+        },
+        ExampleEntry {
+            title: "軸・グリッド付き",
+            description: "show_x_axis/show_y_axis/show_grid で軸とグリッドを表示します。",
+            render: line_chart_axes_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,
