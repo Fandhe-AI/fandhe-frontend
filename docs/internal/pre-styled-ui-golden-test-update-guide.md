@@ -111,7 +111,7 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 | `charts_parts_css.rs` | charts 内部パーツ: `charts::axis` / `charts::grid` / `charts::legend` / `charts::tooltip`（イシュー #2086 で `charts::legend` の `align`/`marker` variant 規則 3 ブロックを golden 末尾へ純追加。イシュー #2133 で `charts::legend` の `trigger` base（`icon` base 直後へ中間挿入）+ `trigger[aria-pressed="false"]`/`trigger:focus-visible` state（既存 variant ブロック群の後段へ実出力位置で挿入）、`charts::tooltip` の `tooltip-item[data-hidden]` state（`hit-area:focus-visible` の直後・`@media` 直前へ純追加）） |
 | `scatter_radar_chart_css.rs` | `charts::scatter_chart` / `charts::radar_chart`（イシュー #2085 で radar_chart の `point`/`axis-value`/`radius-label` base と `grid-fill: series` variant の 4 ブロックを末尾へ純追加。scatter_chart 分・radar_chart 既存 5 ブロックは不変。イシュー #2133 で scatter_chart の `point[data-hidden]`、radar_chart の `series[data-hidden]`/`point[data-hidden]` を各 golden 末尾へ純追加） |
 | `bar_chart_css.rs` | `charts::bar_chart`（イシュー #1590 で golden 新設。イシュー #2082 で `value-label`/`inside-label`/`bar[data-active]` の 3 ブロックを末尾へ純追加、`BAR_CHART_GOLDEN_CSS_BEFORE_2082` 定数 + `starts_with` の純追加固定テストを追加。イシュー #2133 で `bar[data-hidden]`/`value-label[data-hidden]`/`inside-label[data-hidden]` の 3 ブロックを末尾へ純追加） |
-| `radial_chart_css.rs` | `charts::radial_chart`（イシュー #2133 で `bar[data-hidden]` state を golden 末尾へ純追加） |
+| `radial_chart_css.rs` | `charts::radial_chart`（イシュー #2133 で `bar[data-hidden]` state を golden 末尾へ純追加。Cursor Bugbot 指摘是正〔`hidden_categories` によるリング単位非表示・`bar`/`label` の `data-index` 共有識別子追加〕で `label[data-hidden]` state を golden 末尾へ純追加） |
 | `bar_list_css.rs` | `charts::bar_list`（イシュー #1591 で新設） |
 | `tabs_css.rs` | tabs（`recipe_css.rs` は recipe 機構自体の golden であり tabs はその一実例として参照するのみ） |
 

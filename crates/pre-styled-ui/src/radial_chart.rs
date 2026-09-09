@@ -288,7 +288,12 @@ pub struct RadialChartProps<'a> {
     /// ツールチップ DOM（[`crate::charts::tooltip::layer`]）を出力する
     /// （イシュー #2129、親 #2128。既存 `bar` の `data-series` は不変、
     /// hit-area 自体には付与しない）。`false` の場合は本イシュー以前の
-    /// 出力とバイト一致する。
+    /// 出力とバイト一致する。イシュー #2133 Cursor Bugbot 指摘是正で、
+    /// 本フラグは可視要素 `bar`/`label` への `data-index`
+    /// （[`RadialChartProps::hidden_categories`]・
+    /// [`crate::charts::legend::category_legend`] の共有識別子）の出力も
+    /// 同じゲートで opt-in にする（`pie_chart`/`donut_chart` の segment と
+    /// 同じ規約。`false` でもバイト一致が崩れないのは変わらない）。
     pub show_tooltip: bool,
     /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
     /// とき root へ `data-range="<v>"` を出力する（既定 `None`＝非出力）。
@@ -297,6 +302,18 @@ pub struct RadialChartProps<'a> {
     /// へ値なし属性 `data-hidden` を付与する。データに存在しない名前を
     /// 指定してもエラーにしない（fail-soft）。
     pub hidden_series: &'a [&'a str],
+    /// 非表示カテゴリ（リング）index の一覧（イシュー #2133、Cursor
+    /// Bugbot 指摘「Radial hide wiring skips category rings」対応）。
+    /// [`crate::charts::legend::category_legend`] は系列ではなくカテゴリ
+    /// index で凡例トグルを表す（[`crate::pie_chart`]/[`crate::donut_chart`]
+    /// の非 stacked/単一リング variant と同じ語彙）。radial はリング=
+    /// カテゴリの構造が常に成立する（モジュール doc「データモデル・
+    /// 配色」節）ため、系列本数に関わらず本フィールドで index `i` の
+    /// リング内の全 `bar`（系列を問わず）と `label` へ値なし属性
+    /// `data-hidden` を付与する。[`RadialChartProps::hidden_series`] と
+    /// 独立に併用でき、いずれか一方でも一致すれば非表示になる。データに
+    /// 存在しない index を指定してもエラーにしない（fail-soft）。
+    pub hidden_categories: &'a [usize],
 }
 
 impl Default for RadialChartProps<'_> {
@@ -315,6 +332,7 @@ impl Default for RadialChartProps<'_> {
             show_tooltip: true,
             range: None,
             hidden_series: &[],
+            hidden_categories: &[],
         }
     }
 }
@@ -411,6 +429,14 @@ fn recipe() -> SlotRecipe {
         // 非表示にする（末尾純追加、既存ブロックは不変）。
         .state(
             "bar",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        // イシュー #2133 Cursor Bugbot 指摘是正: `hidden_categories` で
+        // 指定したリングの `label` も同じ条件で隠す（`bar` の data-hidden
+        // 伝搬と揃える、pie/donut chart との整合）。
+        .state(
+            "label",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
         )
@@ -617,6 +643,12 @@ pub fn radial_chart<'a>(
 
     for (i, category) in categories.iter().enumerate() {
         let (r_inner, r_outer) = ring_radii(i, r_inner_base, band, thickness);
+        // イシュー #2133 Cursor Bugbot 指摘是正: リング（カテゴリ）index
+        // を `bar`/`label` の共有識別子として使う（`category_legend` の
+        // trigger `data-index` と同一語彙、`pie_chart`/`donut_chart` の
+        // `data-index` 付与規約に合わせる）。
+        let cat_idx_str = i.to_string();
+        let category_hidden = props.hidden_categories.contains(&i);
 
         if props.show_track {
             let (d, evenodd) = ring_segment_path(r_outer, r_inner, start_rad, end_rad, 0.0);
@@ -656,13 +688,21 @@ pub fn radial_chart<'a>(
                 ("data-scope", "radial-chart"),
                 ("data-part", "bar"),
                 ("data-series", series.name.as_str()),
-                ("d", d.as_str()),
-                ("fill", fill.as_str()),
             ];
+            if props.show_tooltip {
+                // イシュー #2133 Cursor Bugbot 指摘是正: `bar` への
+                // `data-index` は tooltip 語彙（hit-area・#2129）と同じ
+                // ゲートで opt-in にする（`pie_chart`/`donut_chart` の
+                // segment と同じ規約、`category_legend` の trigger
+                // `data-index` から本要素を辿れるようにする）。
+                bar_attrs.push(("data-index", cat_idx_str.as_str()));
+            }
+            bar_attrs.push(("d", d.as_str()));
+            bar_attrs.push(("fill", fill.as_str()));
             if evenodd {
                 bar_attrs.push(("fill-rule", "evenodd"));
             }
-            if props.hidden_series.contains(&series.name.as_str()) {
+            if category_hidden || props.hidden_series.contains(&series.name.as_str()) {
                 bar_attrs.push(("data-hidden", ""));
             }
             children.push(el("path", bar_attrs, vec![]));
@@ -672,12 +712,19 @@ pub fn radial_chart<'a>(
             let label_r = (r_inner + r_outer) / 2.0;
             let (lx, ly) =
                 crate::charts::pie::point_on_circle(CENTER_X, CENTER_Y, label_r, start_rad);
-            children.push(svg_text(
-                lx,
-                ly,
-                vec![("data-scope", "radial-chart"), ("data-part", "label")],
-                vec![text(category.as_str())],
-            ));
+            let mut label_attrs: Vec<(&str, &str)> =
+                vec![("data-scope", "radial-chart"), ("data-part", "label")];
+            if props.show_tooltip {
+                // `bar` と同じゲート・語彙（同上、イシュー #2133）。
+                label_attrs.push(("data-index", cat_idx_str.as_str()));
+            }
+            if category_hidden {
+                // イシュー #2133 Cursor Bugbot 指摘是正: 非表示リングの
+                // カテゴリ名ラベルも伝搬して隠す（`bar` の data-hidden
+                // 伝搬と同じ条件）。
+                label_attrs.push(("data-hidden", ""));
+            }
+            children.push(svg_text(lx, ly, label_attrs, vec![text(category.as_str())]));
         }
     }
 
@@ -1343,5 +1390,113 @@ mod tests {
         let result = radial_chart(&props, &two_category_data(), vec![]);
         assert!(result.is_ok());
         assert!(!render(&result.unwrap()).contains("data-hidden"));
+    }
+
+    // イシュー #2133 Cursor Bugbot 指摘是正: `hidden_categories`（リング
+    // 単位の非表示）と `bar`/`label` の `data-index` 共有識別子。
+
+    #[test]
+    fn show_tooltip_default_adds_data_index_to_bar() {
+        let html = render(
+            &radial_chart(&RadialChartProps::default(), &two_category_data(), vec![]).unwrap(),
+        );
+        assert!(html.contains(r#"data-part="bar" data-series="total" data-index="0""#));
+        assert!(html.contains(r#"data-part="bar" data-series="total" data-index="1""#));
+    }
+
+    #[test]
+    fn show_tooltip_false_omits_data_index_from_bar() {
+        let props = RadialChartProps {
+            show_tooltip: false,
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
+        let bar_idx = html.find(r#"data-part="bar""#).unwrap();
+        let bar_end = html[bar_idx..].find('>').unwrap();
+        assert!(!html[bar_idx..bar_idx + bar_end].contains("data-index"));
+    }
+
+    #[test]
+    fn hidden_categories_adds_data_hidden_to_matching_ring_only() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("s1", vec![10.0, 20.0]),
+                Series::new("s2", vec![15.0, 25.0]),
+            ],
+        )
+        .unwrap();
+        let props = RadialChartProps {
+            hidden_categories: &[1],
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &data, vec![]).unwrap());
+        let idx1 = html.find(r#"data-index="1""#).unwrap();
+        let idx1_end = html[idx1..].find('>').unwrap();
+        assert!(html[idx1..idx1 + idx1_end].contains("data-hidden"));
+        let idx0 = html.find(r#"data-index="0""#).unwrap();
+        let idx0_end = html[idx0..].find('>').unwrap();
+        assert!(!html[idx0..idx0 + idx0_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_categories_propagates_data_hidden_to_label() {
+        let props = RadialChartProps {
+            show_labels: true,
+            hidden_categories: &[1],
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
+        let label_a_idx = html.find(r#"data-part="label" data-index="0""#).unwrap();
+        let label_a_end = html[label_a_idx..].find("</text>").unwrap();
+        assert!(!html[label_a_idx..label_a_idx + label_a_end].contains("data-hidden"));
+        let label_b_idx = html.find(r#"data-part="label" data-index="1""#).unwrap();
+        let label_b_end = html[label_b_idx..].find("</text>").unwrap();
+        assert!(html[label_b_idx..label_b_idx + label_b_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_categories_unknown_index_is_fail_soft() {
+        let props = RadialChartProps {
+            hidden_categories: &[99],
+            ..RadialChartProps::default()
+        };
+        let result = radial_chart(&props, &two_category_data(), vec![]);
+        assert!(result.is_ok());
+        assert!(!render(&result.unwrap()).contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_categories_and_hidden_series_are_independent_and_combine() {
+        // 同一リング内の一部系列のみを hidden_series で、別リング全体を
+        // hidden_categories で隠しても互いに干渉しないことを検証する。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("s1", vec![10.0, 20.0]),
+                Series::new("s2", vec![15.0, 25.0]),
+            ],
+        )
+        .unwrap();
+        let props = RadialChartProps {
+            hidden_series: &["s1"],
+            hidden_categories: &[1],
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &data, vec![]).unwrap());
+        // リング A（index 0）: s1 は hidden_series で隠れるが s2 は見える。
+        let a_s1_idx = html.find(r#"data-series="s1" data-index="0""#).unwrap();
+        let a_s1_end = html[a_s1_idx..].find('>').unwrap();
+        assert!(html[a_s1_idx..a_s1_idx + a_s1_end].contains("data-hidden"));
+        let a_s2_idx = html.find(r#"data-series="s2" data-index="0""#).unwrap();
+        let a_s2_end = html[a_s2_idx..].find('>').unwrap();
+        assert!(!html[a_s2_idx..a_s2_idx + a_s2_end].contains("data-hidden"));
+        // リング B（index 1）: hidden_categories により s1/s2 とも隠れる。
+        let b_s1_idx = html.find(r#"data-series="s1" data-index="1""#).unwrap();
+        let b_s1_end = html[b_s1_idx..].find('>').unwrap();
+        assert!(html[b_s1_idx..b_s1_idx + b_s1_end].contains("data-hidden"));
+        let b_s2_idx = html.find(r#"data-series="s2" data-index="1""#).unwrap();
+        let b_s2_end = html[b_s2_idx..].find('>').unwrap();
+        assert!(html[b_s2_idx..b_s2_idx + b_s2_end].contains("data-hidden"));
     }
 }
