@@ -9965,7 +9965,15 @@ fn sidebar_section() -> Node {
                             describedby: Some("themes-sidebar-dashboard-tip"),
                             ..Default::default()
                         },
-                        Some(icon(&IconProps::default(), vec![], vec![text("D")])),
+                        Some(icon(
+                            &IconProps::default(),
+                            vec![],
+                            vec![el(
+                                "path",
+                                vec![("d", "M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z")],
+                                vec![],
+                            )],
+                        )),
                         vec![],
                         vec![text("Dashboard")],
                     ),
@@ -10067,7 +10075,15 @@ fn sidebar_section() -> Node {
                     active: true,
                     ..Default::default()
                 },
-                Some(icon(&IconProps::default(), vec![], vec![text("D")])),
+                Some(icon(
+                    &IconProps::default(),
+                    vec![],
+                    vec![el(
+                        "path",
+                        vec![("d", "M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z")],
+                        vec![],
+                    )],
+                )),
                 vec![],
                 vec![text("Dashboard")],
             )],
