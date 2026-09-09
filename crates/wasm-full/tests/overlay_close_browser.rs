@@ -27,6 +27,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_core::render;
+use fandhe_frontend_headless_ui::command;
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::dialog;
 use fandhe_frontend_headless_ui::menubar;
@@ -193,6 +194,59 @@ fn mount_navigation_menu(
         .get_element_by_id(&content_id)
         .expect("navigation-menu content element must exist");
     (trigger, content)
+}
+
+/// 単一の Command（`dialog` パーツ + input + item 1 件）を `container` 配下
+/// へ展開し、`(dialog, input, item)` を返す（イシュー #2069。
+/// `command::dialog` が閉鎖制御対象、`command::input`/`command::item` が
+/// 内側インタラクション判定〔観点 (c)〕の対象）。
+fn mount_command_dialog(
+    document: &Document,
+    container: &Element,
+    id_prefix: &str,
+) -> (Element, Element, Element) {
+    let list_id = format!("{id_prefix}-list");
+    let dialog_id = format!("{id_prefix}-dialog");
+    let input_id = format!("{id_prefix}-input");
+    let item_id = format!("{id_prefix}-item");
+    let html = render(&command::root(
+        OpenState::Open,
+        false,
+        vec![],
+        vec![command::dialog(
+            OpenState::Open,
+            "Command Menu",
+            vec![("id", &dialog_id)],
+            vec![
+                command::input(OpenState::Open, "", &list_id, None, vec![("id", &input_id)]),
+                command::list(
+                    &list_id,
+                    "Suggestions",
+                    false,
+                    vec![],
+                    vec![command::item(
+                        false,
+                        false,
+                        "calendar",
+                        Some(&item_id),
+                        vec![],
+                        vec![],
+                    )],
+                ),
+            ],
+        )],
+    ));
+    container.set_inner_html(&html);
+    let dialog_el = document
+        .get_element_by_id(&dialog_id)
+        .expect("command dialog element must exist");
+    let input_el = document
+        .get_element_by_id(&input_id)
+        .expect("command input element must exist");
+    let item_el = document
+        .get_element_by_id(&item_id)
+        .expect("command item element must exist");
+    (dialog_el, input_el, item_el)
 }
 
 /// 単一の Menubar（trigger + positioner + content）を `container` 配下へ
@@ -927,5 +981,113 @@ fn menubar_item_value_xss_payload_does_not_produce_script_element_through_close_
             .expect("query_selector must not fail")
             .is_none(),
         "閉鎖要求の発火後も script 要素が生成されてはならない"
+    );
+}
+
+// --- Command（イシュー #2069）: `OverlayKind::Command` の scope 認識 ---
+
+#[wasm_bindgen_test]
+fn command_scope_is_recognized_and_escape_closes_it() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-command-escape-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (dialog_el, _input, _item) =
+        mount_command_dialog(&document, &placeholder, "overlay-command-escape");
+
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .push_overlay(&dialog_el, None)
+        .expect("command scope must be recognized");
+
+    document
+        .dispatch_event(&keydown_event("Escape"))
+        .expect("dispatch_event must not fail");
+
+    let recorded = requests.borrow().clone();
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0].index, index);
+}
+
+#[wasm_bindgen_test]
+fn command_outside_pointerdown_closes_it_by_default() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-command-outside-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (dialog_el, _input, _item) =
+        mount_command_dialog(&document, &placeholder, "overlay-command-outside");
+
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&dialog_el, None)
+        .expect("command scope must be recognized");
+
+    placeholder
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+
+    assert_eq!(
+        requests.borrow().len(),
+        1,
+        "command dialog の既定は外側インタラクションで閉じる（Dialog と同じ既定）"
+    );
+}
+
+#[wasm_bindgen_test]
+fn command_inside_pointerdown_on_input_or_item_does_not_close_it() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-command-inside-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (dialog_el, input_el, item_el) =
+        mount_command_dialog(&document, &placeholder, "overlay-command-inside");
+
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&dialog_el, None)
+        .expect("command scope must be recognized");
+
+    input_el
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+    item_el
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "dialog 内側（input/item）への pointerdown は閉鎖要求を発火しない"
+    );
+}
+
+#[wasm_bindgen_test]
+fn command_close_on_escape_false_opts_out() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-command-optout-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (dialog_el, _input, _item) =
+        mount_command_dialog(&document, &placeholder, "overlay-command-optout");
+    dialog_el
+        .set_attribute("data-close-on-escape", "false")
+        .expect("set_attribute must not fail");
+
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&dialog_el, None)
+        .expect("command scope must be recognized");
+
+    document
+        .dispatch_event(&keydown_event("Escape"))
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "data-close-on-escape=\"false\" の opt-out が command dialog にも効くこと"
     );
 }

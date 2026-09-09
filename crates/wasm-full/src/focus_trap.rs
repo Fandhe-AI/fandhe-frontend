@@ -38,14 +38,19 @@ use crate::events::AttrSource;
 
 /// `content` がフォーカストラップの対象かどうかを判定する。
 ///
-/// `data-scope="dialog"` かつ `aria-modal="true"` のときのみ `true`。
-/// それ以外（`data-scope` 欠落・非 dialog scope・`aria-modal` 欠落・
-/// `"false"`・不正値）はすべて `false` とする（クライアントで改ざんされ
-/// うる `data-*`/`aria-*` 入力に対する fail-closed。トラップを誤って
-/// 有効化するより、無効のまま panic しない安全側を優先する）。
+/// `data-scope` が `"dialog"` **または** `"command"`（イシュー #2069。
+/// `crates/headless-ui/src/command.rs::dialog` も `aria-modal="true"` +
+/// `tabindex="-1"` を固定出力する WAI-ARIA dialog パターンであるため、
+/// Dialog と同じフォーカストラップ対象に含める）かつ `aria-modal="true"`
+/// のときのみ `true`。それ以外（`data-scope` 欠落・非対応 scope・
+/// `aria-modal` 欠落・`"false"`・不正値）はすべて `false` とする
+/// （クライアントで改ざんされうる `data-*`/`aria-*` 入力に対する
+/// fail-closed。トラップを誤って有効化するより、無効のまま panic しない
+/// 安全側を優先する）。
 #[must_use]
 pub fn should_trap<T: AttrSource>(content: &T) -> bool {
-    content.attr("data-scope").as_deref() == Some("dialog")
+    let scope = content.attr("data-scope");
+    (scope.as_deref() == Some("dialog") || scope.as_deref() == Some("command"))
         && content.attr("aria-modal").as_deref() == Some("true")
 }
 
@@ -500,6 +505,20 @@ mod tests {
     #[test]
     fn should_trap_false_for_non_dialog_scope() {
         let content = element(&[("data-scope", "popover"), ("aria-modal", "true")]);
+        assert!(!should_trap(&content));
+    }
+
+    #[test]
+    fn should_trap_true_for_modal_command_dialog() {
+        // イシュー #2069: command palette の dialog パーツも Dialog と同じ
+        // フォーカストラップ対象に含める。
+        let content = element(&[("data-scope", "command"), ("aria-modal", "true")]);
+        assert!(should_trap(&content));
+    }
+
+    #[test]
+    fn should_trap_false_for_non_modal_command_dialog() {
+        let content = element(&[("data-scope", "command"), ("aria-modal", "false")]);
         assert!(!should_trap(&content));
     }
 
