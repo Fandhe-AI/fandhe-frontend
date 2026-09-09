@@ -1624,6 +1624,100 @@ fn outside_pointerdown_does_not_close_inside_drawer_after_sibling_close_rerender
     );
 }
 
+#[wasm_bindgen_test]
+fn outside_pointerdown_does_not_close_inside_drawer_across_separately_wired_roots() {
+    // イシュー #2074 codex-review P1 の直接の回帰テスト（ルート A・B が
+    // `wire_sidebar_events_with_query` を個別に呼んだ「本当に別々の
+    // ルート」構成であること自体が主眼）。上記
+    // `outside_pointerdown_does_not_close_inside_drawer_after_sibling_
+    // close_rerender` は A・B が同一 `shared_root`（1 回の
+    // `wire_sidebar_events_with_query` 呼び出し）配下の兄弟 provider
+    // であり、`resolve_and_dismiss_providers` の単一呼び出し内で判定が
+    // 確定するため P1 が指摘する「別々の document pointerdown
+    // リスナー間」の競合は再現しない。本テストは A・B を個別のコンテナ
+    // に対してそれぞれ独立に `wire_sidebar_events_with_query` を呼び、
+    // 別々の document pointerdown リスナーが登録される構成で、A の
+    // 外側クリック閉鎖が引き起こす B の構造再描画によって B の内側
+    // クリックが誤って「外側」と判定されないことを確認する。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container_a = create_container(&document, "sidebar-pointerdown-separate-root-a");
+    let _cleanup_a = RemoveOnDrop(container_a.clone());
+    let container_b = create_container(&document, "sidebar-pointerdown-separate-root-b");
+    let _cleanup_b = RemoveOnDrop(container_b.clone());
+
+    let (sidebar_a, _provider_a, _root_a, trigger_a, _rail_a) =
+        build_sidebar_markup(&container_a, SidebarState::Collapsed, false, false);
+    let (sidebar_b, _provider_b, root_b, trigger_b, _rail_b) =
+        build_sidebar_markup(&container_b, SidebarState::Collapsed, false, false);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+    wire_dispatch_reflecting_data_state(&container_b, component_b.clone());
+
+    // A が閉じるタイミングで B の部分木を再構築する（アプリの共有状態が
+    // A・B 双方の再描画を引き起こす構成の模擬。`data-mobile` は
+    // 再描画後も再設定し、本テストの狙いを対象ノード切断による内外
+    // 判定の誤りに限定する）。
+    let update_container_a = container_a.clone();
+    let rerender_container_b = container_b.clone();
+    wire_sidebar_dispatch(
+        container_a.clone(),
+        component_a.clone(),
+        move |state, _root| {
+            let data_state = state.data_state();
+            if let Some(el) = query(&update_container_a, PROVIDER_SELECTOR) {
+                let _ = el.set_attribute("data-state", data_state);
+            }
+            if let Some(el) = query(&update_container_a, ROOT_SELECTOR) {
+                let _ = el.set_attribute("data-state", data_state);
+            }
+            if data_state == SidebarState::Collapsed.as_data_state() {
+                let (_, new_provider_b, ..) = build_sidebar_markup(
+                    &rerender_container_b,
+                    SidebarState::Expanded,
+                    false,
+                    false,
+                );
+                let _ = new_provider_b.set_attribute("data-mobile", "");
+            }
+        },
+    )
+    .expect("wire_sidebar_dispatch must not fail");
+
+    // codex-review P1 が指摘する「個別ルート」構成そのもの: A・B を
+    // それぞれ独立したコンテナに対して個別に
+    // `wire_sidebar_events_with_query` で登録する（共有 `root` 配下の
+    // 兄弟 provider ではない）。
+    wire_sidebar_events_with_query(container_a.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query for container_a must not fail");
+    wire_sidebar_events_with_query(container_b.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query for container_b must not fail");
+
+    dispatch_click(&trigger_a);
+    dispatch_click(&trigger_b);
+    assert_eq!(component_a.borrow().state(), SidebarState::Expanded);
+    assert_eq!(component_b.borrow().state(), SidebarState::Expanded);
+
+    // B の `root`（trigger/rail ではない内側パーツ）を pointerdown する。
+    dispatch_event_on(&root_b, "pointerdown");
+
+    assert_eq!(
+        component_a.borrow().state(),
+        SidebarState::Collapsed,
+        "外側クリックとして A は通常どおり閉じられること"
+    );
+    assert_eq!(
+        component_b.borrow().state(),
+        SidebarState::Expanded,
+        "B の内側クリックであるにもかかわらず、A 用の document \
+         pointerdown リスナーが先に処理されて A を閉じ、その再描画で \
+         B の event.target() が切断済み参照になっても、既登録の全 \
+         root をまたいで判定を再描画前に確定しない実装では誤って \
+         「外側」と判定され B まで閉じられてしまう"
+    );
+}
+
 // --- 8. `wire_sidebar_dispatch` の共有 root 誤配線の拒否
 //        （イシュー #2074 Cursor Bugbot 是正の回帰テスト） ---
 

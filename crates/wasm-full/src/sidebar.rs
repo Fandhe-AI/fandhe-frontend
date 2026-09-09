@@ -263,6 +263,81 @@ mod wiring {
     /// Rail パーツの CSS セレクタ。
     const RAIL_SELECTOR: &str = "[data-scope=\"sidebar\"][data-part=\"rail\"]";
 
+    thread_local! {
+        /// [`wire_pointerdown`] を呼んだ `root` を蓄積する既登録集合
+        /// （イシュー #2074 codex-review P1 是正）。
+        ///
+        /// `wire_sidebar_events_with_query` はアプリが個別ルート（例:
+        /// 複数ページ・複数 SPA ルートにそれぞれ独立した `Sidebar`
+        /// `provider` を持つ構成）ごとに複数回呼ばれ得る契約であり、
+        /// 呼び出しごとに独立した `root` を束縛する document pointerdown
+        /// リスナー（[`wire_pointerdown`]）が個別に登録される。この
+        /// 「呼び出し単位で閉じた」設計のまま
+        /// [`resolve_and_dismiss_providers`] を各リスナー内で個別に
+        /// 呼ぶと、後続リスナー（例: ルート B）が判定を確定する時点
+        /// では、先に処理された別リスナー（ルート A）の合成 click が
+        /// 引き起こした共有ルートの構造フォールバック再描画が既に
+        /// ルート B の部分木を差し替え済みになり得る。この場合
+        /// `event.target()` はルート B の新しい部分木から見て切断済みの
+        /// 古い参照になり、実際にはルート B の内側をクリックしていても
+        /// `sidebar_root.contains(target)` が構造的に一致せず「外側」と
+        /// 誤判定してルート B まで閉じてしまう
+        /// （[`resolve_and_dismiss_providers`] doc の「`data-mobile` の
+        /// 消失」「click 対象ノードの切断」節が防いでいるのはあくまで
+        /// **同一** `resolve_and_dismiss_providers` 呼び出し内（＝同一
+        /// `root` 配下の複数 provider 間）の誤判定であり、別々の
+        /// `wire_sidebar_events_with_query` 呼び出しをまたぐ誤判定は
+        /// 防げない）。
+        ///
+        /// この既登録集合は、1 回の pointerdown イベントについて
+        /// **最初に処理する 1 個の document pointerdown リスナー**が、
+        /// 自分の `root` だけでなく既登録の全 `root` の provider を
+        /// まとめて 1 回の [`resolve_and_dismiss_providers`] 相当の
+        /// パスで判定・確定できるようにするために使う
+        /// （[`handle_document_pointerdown`] 実装参照）。判定確定後は
+        /// `Event::stop_immediate_propagation()` で同一 `document` に
+        /// 登録された他ルートの pointerdown リスナーの実行自体を止め、
+        /// 二重処理（既に判定・dismiss 済みの provider への再判定・
+        /// 二重 click によるトグルの巻き戻り）を構造的に防ぐ。
+        ///
+        /// 要素は分離時（アプリのアンマウント・テストの `RemoveOnDrop`
+        /// 等）にこの集合から明示的に取り除かれない
+        /// （`Closure::forget` と同じ意図的リーク方針、モジュール冒頭
+        /// doc「セキュリティ不変条件」参照）。使用側は必ず
+        /// `Element::is_connected()` で分離済みの `root` を除外して
+        /// から扱う（[`connected_registered_roots`] 参照）ため、リーク
+        /// した要素が誤って処理対象になることはない。
+        static REGISTERED_POINTERDOWN_ROOTS: RefCell<Vec<Element>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// `root` を [`REGISTERED_POINTERDOWN_ROOTS`] へ登録する（`Element`
+    /// の参照同一性で重複排除、`Node::is_same_node` 使用）。
+    fn register_pointerdown_root(root: &Element) {
+        REGISTERED_POINTERDOWN_ROOTS.with(|cell| {
+            let mut roots = cell.borrow_mut();
+            let already_registered = roots
+                .iter()
+                .any(|existing| existing.is_same_node(Some(root)));
+            if !already_registered {
+                roots.push(root.clone());
+            }
+        });
+    }
+
+    /// [`REGISTERED_POINTERDOWN_ROOTS`] のうち、まだ document に接続
+    /// されている（`Element::is_connected()` が真の）`root` のみを
+    /// スナップショットして返す。分離済みの旧 `root`（アンマウント済み
+    /// アプリ・テストの `RemoveOnDrop` 等）はここで除外する。
+    fn connected_registered_roots() -> Vec<Element> {
+        REGISTERED_POINTERDOWN_ROOTS.with(|cell| {
+            cell.borrow()
+                .iter()
+                .filter(|root| root.is_connected())
+                .cloned()
+                .collect()
+        })
+    }
+
     /// `root`（含む）まで祖先方向へ辿り、`data-scope`/`data-part` が指定値
     /// と一致する最初の要素を返す（`crate::splitter::wiring::closest_matching`
     /// と同型）。
@@ -417,6 +492,46 @@ mod wiring {
             }
             if let Some(provider) = all_providers(root).into_iter().nth(index) {
                 click_trigger_or_rail(&provider);
+            }
+        }
+    }
+
+    /// [`resolve_and_dismiss_providers`] の複数ルート版
+    /// （イシュー #2074 codex-review P1 是正、
+    /// [`REGISTERED_POINTERDOWN_ROOTS`] doc 参照）。個別に
+    /// `wire_sidebar_events_with_query` が呼ばれた複数の `root`
+    /// （＝互いに独立した document pointerdown リスナーの束縛先）を
+    /// またいで、`decide` の呼び出し（判定）を**いずれの `root` への
+    /// 合成 click よりも前に**すべて確定させてから dismiss（click 合成）
+    /// を行う。同一 `root` 内の複数 provider を扱う
+    /// [`resolve_and_dismiss_providers`] の設計をそのまま「`root` の
+    /// 集合」へ一般化したものであり、判定確定後の第 2 パスが各
+    /// `(root, root 内 index)` の組で provider を都度再取得する点も
+    /// 同型（`root` 自身が再描画で丸ごと差し替わることはない前提は
+    /// 単一 `root` 版と同じ）。
+    fn resolve_and_dismiss_providers_across_roots(
+        roots: &[Element],
+        mut decide: impl FnMut(&Element) -> bool,
+    ) {
+        let provider_counts: Vec<usize> =
+            roots.iter().map(|root| all_providers(root).len()).collect();
+        let mut decisions: Vec<bool> = Vec::new();
+        for root in roots {
+            for provider in all_providers(root) {
+                decisions.push(decide(&provider));
+            }
+        }
+        let mut cursor = 0usize;
+        for (root, count) in roots.iter().zip(provider_counts) {
+            for local_index in 0..count {
+                let should_dismiss = decisions[cursor];
+                cursor += 1;
+                if !should_dismiss {
+                    continue;
+                }
+                if let Some(provider) = all_providers(root).into_iter().nth(local_index) {
+                    click_trigger_or_rail(&provider);
+                }
             }
         }
     }
@@ -622,7 +737,9 @@ mod wiring {
         // `handle_document_keydown` と同型。取り外された旧 `root` の
         // document pointerdown リスナーが誤って外側クリック判定・
         // `click_trigger_or_rail` 合成 click を行わないよう、
-        // `root.is_connected()` が偽の場合は即座に no-op とする。
+        // `root.is_connected()` が偽の場合は即座に no-op とする（この
+        // 早期 return は `event.stop_immediate_propagation()` を呼ばない
+        // ため、他の既登録 `root` のリスナーが後続で処理を引き継げる）。
         if !root.is_connected() {
             return;
         }
@@ -633,25 +750,35 @@ mod wiring {
         let Some(target_node) = target.dyn_ref::<Node>() else {
             return;
         };
-        // イシュー #2074 codex-review P1 是正: [`all_providers`] で
-        // 列挙したすべての provider に対して独立に外側クリック判定を
-        // 行う（`all_providers` doc 参照）。ある provider の判定は
-        // その provider 自身の `root`/trigger/rail 部分木のみを見る
-        // （他の provider の内側をクリックした場合も、その provider から
-        // 見れば「外側」であり正しく閉鎖対象になる）。
+
+        // イシュー #2074 codex-review P1 是正（複数ルート間の外側クリック
+        // 判定競合）: `wire_sidebar_events_with_query` を個別ルート
+        // （例: 複数ページ・複数 SPA ルートにそれぞれ独立した provider）
+        // ごとに複数回呼んだ構成では、`root` ごとに独立した document
+        // pointerdown リスナーが登録される。これらを従来どおり各リスナー
+        // が個別に「自分の `root` だけ」を対象として処理すると、先に
+        // 実行されたリスナー（ルート A）の合成 click が共有ルートの
+        // 構造フォールバック再描画を引き起こし、別のリスナー（ルート B）
+        // の部分木を丸ごと差し替え得る。後から実行される B のリスナーが
+        // この再描画後の DOM に対して `target_node`（差し替え前の
+        // `event.target()` の時点で保持した古い参照）の内外判定を行うと、
+        // 実際には B の内側をクリックしていても構造的に一致せず「外側」
+        // と誤判定して B まで閉じてしまう
+        // （[`REGISTERED_POINTERDOWN_ROOTS`] doc 参照）。
         //
-        // イシュー #2074 codex-review P1 是正: `mobile`/`state`/内外
-        // 判定は、いずれの provider への合成 click よりも前に一括で
-        // 確定する（[`resolve_and_dismiss_providers`] doc 参照）。ある
-        // provider（例: drawer A）への合成 click が共有ルートの構造
-        // フォールバック再描画を引き起こし、別の provider（drawer B）の
-        // 部分木を丸ごと差し替えると、この `target_node`（`event.
-        // target()` の時点で保持した `Node`）は差し替え後の B から見て
-        // 切断済みの古い参照になる。この状態で B の `contains(target_
-        // node)` を読むと、実際には B の内側をクリックしていても構造的に
-        // 一致せず「外側」と誤判定して B まで閉じてしまう。内外判定を
-        // 再描画より前に確定することで、この誤判定を構造的に防ぐ。
-        resolve_and_dismiss_providers(root, |provider| {
+        // この誤判定を構造的に防ぐため、**このイベントを最初に処理する
+        // 1 個のリスナー**が [`connected_registered_roots`] で得た
+        // 既登録の全 `root`（自分の `root` を含む）の provider をまとめて
+        // 1 回の [`resolve_and_dismiss_providers_across_roots`] で判定・
+        // dismiss まで完結させる。判定確定前に
+        // `event.stop_immediate_propagation()` を呼び、同一 `document`
+        // に登録された他ルートのリスナーの実行自体を止めることで、
+        // 二重処理（既に判定・dismiss 済みの provider への再判定・
+        // 二重 click によるトグルの巻き戻り）も構造的に防ぐ。
+        event.stop_immediate_propagation();
+
+        let roots = connected_registered_roots();
+        resolve_and_dismiss_providers_across_roots(&roots, |provider| {
             let mobile = provider.has_attribute("data-mobile");
             let state = provider.get_attribute("data-state");
             if !should_dismiss_mobile_drawer(mobile, state.as_deref()) {
@@ -1485,7 +1612,14 @@ mod wiring {
 
     /// `root` へ document pointerdown（モバイル drawer の外側クリック閉鎖）
     /// リスナーを登録する。
+    ///
+    /// イシュー #2074 codex-review P1 是正: `root` を
+    /// [`REGISTERED_POINTERDOWN_ROOTS`] へ登録し、
+    /// [`handle_document_pointerdown`] が個々の `root` を越えて既登録の
+    /// 全 `root` を一括で判定できるようにする（同 doc 参照）。
     fn wire_pointerdown(root: &Element) -> Result<(), JsValue> {
+        register_pointerdown_root(root);
+
         let document = web_sys::window()
             .and_then(|window| window.document())
             .ok_or_else(|| JsValue::from_str("sidebar: no document"))?;
