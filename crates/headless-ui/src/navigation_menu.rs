@@ -427,13 +427,13 @@ pub fn content<'a>(
 /// 開閉状態が既に伝わるため常時 `aria-hidden="true"` を固定付与する
 /// （[`item_indicator`] と同じ判断）。`state` が [`OpenState::Closed`]
 /// （どの項目も開いていない）のとき `hidden` 存在属性を付与する（指す対象が
-/// 無い状態で位置不定の要素を表示しない fail-safe、[`crate::tabs`] の
+/// 無い状態で位置不定の要素を表示しない fail-safe、[`mod@crate::tabs`] の
 /// ルートレベル `indicator` と同じ判断）。`value` は `Some` のときのみ
 /// `data-value` として出力し、開いている項目値を構造情報として伝える
 /// （実座標の計測値ではない。将来の wasm 配線が追従先 Trigger を
 /// `[data-part="trigger"][data-value=…]` で特定するための入力）。
 ///
-/// **`style` 属性は出力しない**（[`crate::tabs`] のルートレベル
+/// **`style` 属性は出力しない**（[`mod@crate::tabs`] のルートレベル
 /// `indicator` とは意図的に異なる）。`--fandhe-` プレフィックスの CSS
 /// 変数命名契約は `fandhe-frontend-pre-styled-ui` 層の関心であり本層へ
 /// 持ち込まない。座標追従（`--fandhe-navigation-menu-indicator-*` への
