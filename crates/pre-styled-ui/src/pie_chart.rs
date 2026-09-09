@@ -459,6 +459,24 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
         )
+        // イシュー #2133 codex-review P1 是正: 非表示セグメントに付随する
+        // label / outside-label / label-line も同じ条件で隠す（segment の
+        // data-hidden 伝搬と揃える、line/bar chart との整合）。
+        .state(
+            "label",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "outside-label",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "label-line",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
 }
 
 /// この styled PieChart が生成する静的 CSS 全量を返す（決定的。
@@ -578,15 +596,18 @@ fn render_ring<'a>(
                 LEADER_RADIAL_LEN,
                 LEADER_HORIZONTAL_LEN,
             );
-            out.push(el(
-                "path",
-                vec![
-                    ("data-scope", "pie-chart"),
-                    ("data-part", "label-line"),
-                    ("d", leader_d.as_str()),
-                ],
-                vec![],
-            ));
+            let mut label_line_attrs: Vec<(&str, &str)> = vec![
+                ("data-scope", "pie-chart"),
+                ("data-part", "label-line"),
+                ("d", leader_d.as_str()),
+            ];
+            if hidden {
+                // イシュー #2133: 非表示セグメントの引き出し線も伝搬して
+                // 隠す（`segment` の data-hidden 伝搬と同じ条件、
+                // codex-review P1 指摘の是正）。
+                label_line_attrs.push(("data-hidden", ""));
+            }
+            out.push(el("path", label_line_attrs, vec![]));
             let (lx, ly) = outside_label_point(
                 CENTER_X,
                 CENTER_Y,
@@ -597,14 +618,20 @@ fn render_ring<'a>(
                 LEADER_LABEL_GAP,
             );
             let align = if is_right_half(mid) { "start" } else { "end" };
+            let mut outside_label_attrs: Vec<(&str, &str)> = vec![
+                ("data-scope", "pie-chart"),
+                ("data-part", "outside-label"),
+                ("data-align", align),
+            ];
+            if hidden {
+                // イシュー #2133: 非表示セグメントの外側ラベルも伝搬して
+                // 隠す（同上）。
+                outside_label_attrs.push(("data-hidden", ""));
+            }
             out.push(svg_text(
                 lx,
                 ly,
-                vec![
-                    ("data-scope", "pie-chart"),
-                    ("data-part", "outside-label"),
-                    ("data-align", align),
-                ],
+                outside_label_attrs,
                 vec![text(label_text.as_str())],
             ));
         } else {
@@ -615,10 +642,17 @@ fn render_ring<'a>(
             };
             let lx = CENTER_X + label_r * mid.cos();
             let ly = CENTER_Y + label_r * mid.sin();
+            let mut label_attrs: Vec<(&str, &str)> =
+                vec![("data-scope", "pie-chart"), ("data-part", "label")];
+            if hidden {
+                // イシュー #2133: 非表示セグメントの内側ラベルも伝搬して
+                // 隠す（同上）。
+                label_attrs.push(("data-hidden", ""));
+            }
             out.push(svg_text(
                 lx,
                 ly,
-                vec![("data-scope", "pie-chart"), ("data-part", "label")],
+                label_attrs,
                 vec![text(label_text.as_str())],
             ));
         }
@@ -1428,6 +1462,52 @@ mod tests {
         let idx0 = html.find(r#"data-index="0""#).unwrap();
         let idx0_end = html[idx0..].find('>').unwrap();
         assert!(!html[idx0..idx0 + idx0_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_categories_propagates_data_hidden_to_inside_label() {
+        // codex-review P1 是正（イシュー #2133）: segment だけでなく同じ
+        // カテゴリの label にも data-hidden が伝搬することを確認する
+        // （line/bar chart との整合）。
+        let props = PieChartProps {
+            show_labels: true,
+            hidden_categories: &[1],
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        let b_content = html.find(">B<").unwrap();
+        let b_tag_start = html[..b_content].rfind("<text").unwrap();
+        assert!(html[b_tag_start..b_content].contains("data-hidden"));
+        let a_content = html.find(">A<").unwrap();
+        let a_tag_start = html[..a_content].rfind("<text").unwrap();
+        assert!(!html[a_tag_start..a_content].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_categories_propagates_data_hidden_to_outside_label_and_label_line() {
+        // codex-review P1 是正（イシュー #2133）: outside-label 配置時も
+        // label-line/outside-label の双方に data-hidden が伝搬することを
+        // 確認する。
+        let props = PieChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            hidden_categories: &[1],
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        let lines: Vec<_> = html.match_indices(r#"data-part="label-line""#).collect();
+        assert_eq!(lines.len(), 2);
+        let first_end = html[lines[0].0..].find('>').unwrap();
+        assert!(!html[lines[0].0..lines[0].0 + first_end].contains("data-hidden"));
+        let second_end = html[lines[1].0..].find('>').unwrap();
+        assert!(html[lines[1].0..lines[1].0 + second_end].contains("data-hidden"));
+
+        let b_content = html.find(">B<").unwrap();
+        let b_tag_start = html[..b_content].rfind("<text").unwrap();
+        assert!(html[b_tag_start..b_content].contains("data-hidden"));
+        let a_content = html.find(">A<").unwrap();
+        let a_tag_start = html[..a_content].rfind("<text").unwrap();
+        assert!(!html[a_tag_start..a_content].contains("data-hidden"));
     }
 
     #[test]
