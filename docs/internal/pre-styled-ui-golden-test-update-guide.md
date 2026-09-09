@@ -103,7 +103,7 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 | `table_data_list_css.rs`（方式 b） | table / data_list |
 | `status_empty_state_css.rs` | status / empty_state（イシュー #2047 で empty_state の root/indicator variant 3 ブロックを golden 末尾へ純追加） |
 | `popover_tooltip_css.rs` | popover / tooltip |
-| `pie_donut_chart_css.rs` | pie_chart / donut_chart |
+| `pie_donut_chart_css.rs` | pie_chart / donut_chart（イシュー #2084 で `label-line`/`outside-label`（donut はさらに `center-value`/`center-label`）base を `label` base 直後へ中間挿入、`separator: None` variant と `outside-label[data-align="end"]` state を末尾へ純追加。`pie_chart_2084_pre_existing_blocks_remain_verbatim`/`donut_chart_2084_pre_existing_blocks_remain_verbatim` が #2084 以前の規則ブロックの verbatim 維持を固定する） |
 | `charts_css.rs` | line_chart / area_chart / sparkline（イシュー #2081 で area_chart の `fill: AreaFill::Gradient` variant 規則を golden 末尾へ純追加。イシュー #2083 で line_chart の `value-label` base（`point` base の直後・size variant の前へ中間挿入）と `dots: LineDots::Hollow` variant（末尾へ純追加）を追加） |
 | `charts_parts_css.rs` | charts 内部パーツ: `charts::axis` / `charts::grid` / `charts::legend` / `charts::tooltip` |
 | `scatter_radar_chart_css.rs` | `charts::scatter_chart` / `charts::radar_chart` |

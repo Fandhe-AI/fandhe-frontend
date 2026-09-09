@@ -2624,7 +2624,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # `stylesheet()` 出力の純追加（`value-label`/`point.fd-line-chart--dots-hollow`）
 # は 0.x の破壊的変更（フルリテラル構築を前提とする利用者コードが壊れる）
 # のため 0.157.0 へマイナーバンプする。
-version = "0.157.0"
+#
+# イシュー #2084（pie-chart / donut-chart の shadcn/ui Charts（pie）突合）:
+# `PieChartProps`/`DonutChartProps` への `pub` フィールド純追加
+# （`separator`/`label_content`/`label_position`/`stacked`、donut は加えて
+# `active_index`/`center_text`）・`PieSeparator`/`PieLabelContent`/
+# `PieLabelPosition`/`PieCenterText` の新規 `pub` 型・`css()` 出力の純追加
+# （`label-line`/`outside-label`/`segment.fd-*-chart--separator-none`、
+# donut は加えて `center-value`/`center-label`）・
+# `charts::legend::category_legend` の新規 `pub` 関数は 0.x の破壊的変更
+# （フルリテラル構築を前提とする利用者コードが壊れる）のため
+# 0.158.0 へマイナーバンプする。
+version = "0.158.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

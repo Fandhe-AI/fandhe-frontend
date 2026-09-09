@@ -202,6 +202,94 @@ fn bar_chart_data_active_and_data_negative_are_gated_by_props() {
     assert_eq!(html.matches(r#"data-negative="""#).count(), 1);
 }
 
+/// `data-active`（`donut_chart.rs`、イシュー #2084、shadcn
+/// `chart-pie-donut-active` 突合）: [`DonutChartProps::active_index`]
+/// が `Some` のときのみ、当該カテゴリのセグメントに存在属性として付与する
+/// （`bar_chart` の `data-active` と同一意味論「強調表示中の項目」の B-2
+/// 再利用、既定 props では一切出力しない）。
+#[test]
+fn donut_chart_data_active_is_gated_by_active_index() {
+    use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
+
+    let data = ChartData::new(
+        vec!["a".to_string(), "b".to_string()],
+        vec![Series::new("s", vec![60.0, 40.0])],
+    )
+    .expect("valid donut chart data");
+
+    let html = render(&donut_chart(&DonutChartProps::default(), &data, vec![]).unwrap());
+    assert!(!html.contains("data-active"));
+
+    let active_props = DonutChartProps {
+        active_index: Some(0),
+        ..DonutChartProps::default()
+    };
+    let html = render(&donut_chart(&active_props, &data, vec![]).unwrap());
+    assert_eq!(html.matches(r#"data-active="""#).count(), 1);
+}
+
+/// `data-series`（`pie_chart.rs`、イシュー #2084、shadcn `chart-pie-stacked`
+/// 突合）: [`PieChartProps::stacked`] が `true` のときのみ、系列名を
+/// そのまま各リングのセグメントへ反映する（既定 `false` では一切
+/// 出力しない、`charts::radar_chart`/`charts::scatter_chart` と同一意味論の
+/// B-2 再利用）。
+#[test]
+fn pie_chart_data_series_is_gated_by_stacked_flag() {
+    use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
+
+    let data = ChartData::new(
+        vec!["a".to_string(), "b".to_string()],
+        vec![Series::new("2024", vec![60.0, 40.0])],
+    )
+    .expect("valid pie chart data");
+
+    let html = render(&pie_chart(&PieChartProps::default(), &data, vec![]).unwrap());
+    assert!(!html.contains("data-series"));
+
+    let stacked_props = PieChartProps {
+        stacked: true,
+        ..PieChartProps::default()
+    };
+    let html = render(&pie_chart(&stacked_props, &data, vec![]).unwrap());
+    assert!(html.contains(r#"data-series="2024""#));
+}
+
+/// `data-align`（`pie_chart.rs`/`donut_chart.rs` の `outside-label`、
+/// イシュー #2084）: 値域は `start`/`end` の 2 値に固定され、呼び出し側
+/// `attrs` は `outside-label`（`svg_text` 内部生成のみ）へ到達しないため
+/// 偽装できないことを固定する（`root` への呼び出し側 `attrs` 透過契約と
+/// 独立、`pie_chart`/`donut_chart` モジュール doc「セキュリティ不変条件」
+/// 節）。
+#[test]
+fn pie_chart_data_align_is_restricted_to_start_or_end() {
+    use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps, PieLabelPosition};
+
+    let data = ChartData::new(
+        vec!["a".to_string(), "b".to_string()],
+        vec![Series::new("s", vec![60.0, 40.0])],
+    )
+    .expect("valid pie chart data");
+
+    let default_html = render(&pie_chart(&PieChartProps::default(), &data, vec![]).unwrap());
+    assert!(!default_html.contains("data-align"));
+
+    let outside_props = PieChartProps {
+        show_labels: true,
+        label_position: PieLabelPosition::Outside,
+        ..PieChartProps::default()
+    };
+    let html = render(&pie_chart(&outside_props, &data, vec![]).unwrap());
+    for captured in html.match_indices("data-align=\"").map(|(i, _)| {
+        let rest = &html[i + "data-align=\"".len()..];
+        &rest[..rest.find('"').unwrap_or(0)]
+    }) {
+        assert!(
+            captured == "start" || captured == "end",
+            "unexpected data-align value: {captured}"
+        );
+    }
+}
+
 /// `data-current`（`tab_nav.rs::link`）: `current: true` のときのみ付与する。
 /// イシュー #1063 でヘルパ（`fandhe_frontend_headless_ui::data_attrs::
 /// data_current`）経由化した後も出力が完全に不変であることを固定する

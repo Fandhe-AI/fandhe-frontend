@@ -35,6 +35,19 @@ const PIE_CHART_GOLDEN_CSS: &str = r#"[data-scope="pie-chart"][data-part="root"]
   stroke-linejoin: round;
 }
 
+[data-scope="pie-chart"][data-part="label-line"] {
+  stroke: var(--fandhe-color-fg-muted);
+  stroke-width: 0.5;
+  fill: none;
+}
+
+[data-scope="pie-chart"][data-part="outside-label"] {
+  fill: var(--fandhe-color-fg);
+  font-size: 5px;
+  text-anchor: start;
+  dominant-baseline: central;
+}
+
 [data-scope="pie-chart"][data-part="root"].fd-pie-chart--size-xs {
   --fandhe-pie-chart-size: 4rem;
 }
@@ -53,6 +66,14 @@ const PIE_CHART_GOLDEN_CSS: &str = r#"[data-scope="pie-chart"][data-part="root"]
 
 [data-scope="pie-chart"][data-part="root"].fd-pie-chart--size-xl {
   --fandhe-pie-chart-size: 28rem;
+}
+
+[data-scope="pie-chart"][data-part="segment"].fd-pie-chart--separator-none {
+  stroke: none;
+}
+
+[data-scope="pie-chart"][data-part="outside-label"][data-align="end"] {
+  text-anchor: end;
 }
 "#;
 
@@ -83,6 +104,34 @@ const DONUT_CHART_GOLDEN_CSS: &str = r#"[data-scope="donut-chart"][data-part="ro
   stroke-linejoin: round;
 }
 
+[data-scope="donut-chart"][data-part="label-line"] {
+  stroke: var(--fandhe-color-fg-muted);
+  stroke-width: 0.5;
+  fill: none;
+}
+
+[data-scope="donut-chart"][data-part="outside-label"] {
+  fill: var(--fandhe-color-fg);
+  font-size: 5px;
+  text-anchor: start;
+  dominant-baseline: central;
+}
+
+[data-scope="donut-chart"][data-part="center-value"] {
+  fill: var(--fandhe-color-fg);
+  font-size: 12px;
+  font-weight: var(--fandhe-font-font-weight-bold);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+[data-scope="donut-chart"][data-part="center-label"] {
+  fill: var(--fandhe-color-fg-muted);
+  font-size: 4px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
 [data-scope="donut-chart"][data-part="root"].fd-donut-chart--size-xs {
   --fandhe-donut-chart-size: 4rem;
 }
@@ -101,6 +150,14 @@ const DONUT_CHART_GOLDEN_CSS: &str = r#"[data-scope="donut-chart"][data-part="ro
 
 [data-scope="donut-chart"][data-part="root"].fd-donut-chart--size-xl {
   --fandhe-donut-chart-size: 28rem;
+}
+
+[data-scope="donut-chart"][data-part="segment"].fd-donut-chart--separator-none {
+  stroke: none;
+}
+
+[data-scope="donut-chart"][data-part="outside-label"][data-align="end"] {
+  text-anchor: end;
 }
 "#;
 
@@ -129,5 +186,40 @@ fn pie_and_donut_chart_css_have_no_color_palette_variant() {
     // 提供しない。
     for css in [pie_chart::css(), donut_chart::css()] {
         assert!(!css.contains("color-palette"));
+    }
+}
+
+/// #2084 以前（イシュー #1596/#1594 是正後）の CSS ブロック群が、本イシュー
+/// の追加後も verbatim（1 バイトも変わらず）に含まれていることを固定する
+/// （golden 純追加原則、`docs/design/shadcn-reference-adoption-policy.md`
+/// §8）。`assert_eq!` の全文比較は `label-line`/`outside-label` 等の中間
+/// 挿入により崩れるため、`starts_with` ではなく `contains` でブロック単位
+/// に固定する。
+#[test]
+fn pie_chart_2084_pre_existing_blocks_remain_verbatim() {
+    let css = pie_chart::css();
+    for block in [
+        "[data-scope=\"pie-chart\"][data-part=\"root\"] {\n  display: inline-flex;\n  --fandhe-pie-chart-size: 16rem;\n}\n",
+        "[data-scope=\"pie-chart\"][data-part=\"chart\"] {\n  width: var(--fandhe-pie-chart-size);\n  height: var(--fandhe-pie-chart-size);\n}\n",
+        "[data-scope=\"pie-chart\"][data-part=\"segment\"] {\n  stroke: var(--fandhe-color-bg);\n  stroke-width: 1;\n  stroke-linejoin: round;\n}\n",
+        "[data-scope=\"pie-chart\"][data-part=\"label\"] {\n  fill: var(--fandhe-color-fg);\n  font-size: 6px;\n  text-anchor: middle;\n  dominant-baseline: central;\n  paint-order: stroke;\n  stroke: var(--fandhe-color-bg);\n  stroke-width: 1;\n  stroke-linejoin: round;\n}\n",
+        "[data-scope=\"pie-chart\"][data-part=\"root\"].fd-pie-chart--size-xs {\n  --fandhe-pie-chart-size: 4rem;\n}\n",
+        "[data-scope=\"pie-chart\"][data-part=\"root\"].fd-pie-chart--size-xl {\n  --fandhe-pie-chart-size: 28rem;\n}\n",
+    ] {
+        assert!(css.contains(block), "missing block: {block}");
+    }
+}
+
+/// [`pie_chart_2084_pre_existing_blocks_remain_verbatim`] の donut 版。
+#[test]
+fn donut_chart_2084_pre_existing_blocks_remain_verbatim() {
+    let css = donut_chart::css();
+    for block in [
+        "[data-scope=\"donut-chart\"][data-part=\"root\"] {\n  display: inline-flex;\n  --fandhe-donut-chart-size: 16rem;\n}\n",
+        "[data-scope=\"donut-chart\"][data-part=\"segment\"] {\n  stroke: var(--fandhe-color-bg);\n  stroke-width: 1;\n  stroke-linejoin: round;\n}\n",
+        "[data-scope=\"donut-chart\"][data-part=\"label\"] {\n  fill: var(--fandhe-color-fg);\n  font-size: 6px;\n  text-anchor: middle;\n  dominant-baseline: central;\n  paint-order: stroke;\n  stroke: var(--fandhe-color-bg);\n  stroke-width: 1;\n  stroke-linejoin: round;\n}\n",
+        "[data-scope=\"donut-chart\"][data-part=\"root\"].fd-donut-chart--size-xl {\n  --fandhe-donut-chart-size: 28rem;\n}\n",
+    ] {
+        assert!(css.contains(block), "missing block: {block}");
     }
 }

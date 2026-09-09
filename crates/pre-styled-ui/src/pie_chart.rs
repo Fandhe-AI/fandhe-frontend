@@ -128,12 +128,15 @@
 //! - `label` の `font-size` トークン化・系列パレット見直し等、上記 3 点を
 //!   超える変更は双子部品（donut-chart）との整合を崩すため本 PR に含めない
 
-use crate::charts::pie::{sector_path, segment_angles, PieChartError};
-use crate::charts::svg::{circle, svg_root, svg_text, ViewBox};
+use crate::charts::pie::{
+    annulus_full_ring_path, annulus_sector_path, is_right_half, leader_line_path,
+    outside_label_point, sector_path, segment_angles, PieChartError,
+};
+use crate::charts::svg::{circle, fmt_coord, svg_root, svg_text, ViewBox};
 use crate::charts::{series_color_var, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, VariantValue};
+use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -141,7 +144,14 @@ use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 const ANATOMY: Anatomy = anatomy("pie-chart");
 
 /// [`SlotRecipe::new`] に渡す slot 一覧。
-const SLOTS: &[&str] = &["root", "chart", "segment", "label"];
+const SLOTS: &[&str] = &[
+    "root",
+    "chart",
+    "segment",
+    "label",
+    "label-line",
+    "outside-label",
+];
 
 /// viewBox に対する中心 X 座標（固定、モジュール doc「幾何・角度計算」節）。
 const CENTER_X: f64 = 50.0;
@@ -152,9 +162,75 @@ const OUTER_RADIUS: f64 = 45.0;
 /// ラベルを配置する半径（外径に対する比率。セグメント内側寄りに置く）。
 const LABEL_RADIUS_RATIO: f64 = 0.6;
 
+/// [`PieLabelPosition::Outside`] 使用時に縮小する外径（引き出し線・ラベルを
+/// viewBox 内に収めるため。モジュール doc「幾何上の制約」節、イシュー
+/// #2084、shadcn `chart-pie-label` 突合）。
+const OUTSIDE_LABEL_OUTER_RADIUS: f64 = 34.0;
+/// 引き出し線の放射方向の長さ（[`crate::charts::pie::leader_line_path`]）。
+const LEADER_RADIAL_LEN: f64 = 4.0;
+/// 引き出し線の水平方向の長さ。
+const LEADER_HORIZONTAL_LEN: f64 = 6.0;
+/// 引き出し線終端からラベルまでの追加余白。
+const LEADER_LABEL_GAP: f64 = 1.5;
+/// [`PieChartProps::stacked`]（shadcn `chart-pie-stacked`、イシュー #2084）
+/// 時のリング間の隙間（viewBox 単位）。
+const RING_GAP: f64 = 1.0;
+
 /// [`chart`] へ既定で付与する `aria-label`（[`PieChartProps::aria_label`]
 /// が `None` の場合に使う）。
 const DEFAULT_ARIA_LABEL: &str = "pie chart";
+
+/// セグメント間セパレータ（shadcn `chart-pie-separator-none` 突合、
+/// イシュー #2084）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PieSeparator {
+    /// 背景色ストロークで区切る（既定。イシュー #1596 以前からの挙動）。
+    #[default]
+    Line,
+    /// セパレータなし（`segment` の `stroke` を `none` にする）。
+    None,
+}
+
+impl VariantValue for PieSeparator {
+    fn axis(self) -> &'static str {
+        "separator"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            PieSeparator::Line => "line",
+            PieSeparator::None => "none",
+        }
+    }
+}
+
+/// セグメント上ラベルの内容（shadcn `chart-pie-label`/`chart-pie-label-list`
+/// 突合、イシュー #2084）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PieLabelContent {
+    /// カテゴリ名（既定。イシュー #1596 以前からの挙動）。
+    #[default]
+    Category,
+    /// 値（[`crate::charts::svg::fmt_coord`] 固定書式、shadcn
+    /// `chart-pie-label`。数値整形・単位付与はアプリ側の責務、
+    /// `.claude/rules/coding-rust.md` §3.25 と同じ判断軸）。
+    Value,
+}
+
+/// セグメント上ラベルの配置（shadcn `chart-pie-label`/`chart-pie-label-custom`
+/// 突合、イシュー #2084）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PieLabelPosition {
+    /// 扇形内側（既定。イシュー #1596 以前からの挙動）。
+    #[default]
+    Inside,
+    /// 扇形外側・引き出し線付き（shadcn `chart-pie-label`）。外径を
+    /// [`OUTSIDE_LABEL_OUTER_RADIUS`] へ縮小する（モジュール doc「幾何上の
+    /// 制約」節）。[`PieChartProps::stacked`] と併用した場合、引き出し
+    /// ラベルは最外周リングにのみ付く（他リングは [`Inside`] 相当の位置に
+    /// 描画する。モジュール doc参照）。
+    Outside,
+}
 
 /// [`pie_chart`] の設定。
 #[derive(Debug, Clone, Copy)]
@@ -166,6 +242,20 @@ pub struct PieChartProps<'a> {
     pub aria_label: Option<&'a str>,
     /// `true` ならカテゴリ名ラベルをセグメント上に描画する（既定 `false`）。
     pub show_labels: bool,
+    /// セグメント間セパレータ（既定 `Line`、イシュー #2084）。
+    pub separator: PieSeparator,
+    /// [`show_labels`](Self::show_labels) が `true` の場合のラベル内容
+    /// （既定 `Category`、イシュー #2084）。
+    pub label_content: PieLabelContent,
+    /// [`show_labels`](Self::show_labels) が `true` の場合のラベル配置
+    /// （既定 `Inside`、イシュー #2084）。
+    pub label_position: PieLabelPosition,
+    /// `true` なら複数系列をリング（多重円）として描画する（shadcn
+    /// `chart-pie-stacked`、既定 `false`、イシュー #2084）。`true` の場合
+    /// のみ複数系列を許容し（`false` は従来どおり単一系列専用）、系列
+    /// index がリング（0 が最内周）に対応する。モジュール doc「stacked」節
+    /// 参照。
+    pub stacked: bool,
 }
 
 impl Default for PieChartProps<'_> {
@@ -174,6 +264,10 @@ impl Default for PieChartProps<'_> {
             size: Size::Md,
             aria_label: None,
             show_labels: false,
+            separator: PieSeparator::Line,
+            label_content: PieLabelContent::Category,
+            label_position: PieLabelPosition::Inside,
+            stacked: false,
         }
     }
 }
@@ -229,6 +323,26 @@ fn recipe() -> SlotRecipe {
                 decl("stroke-linejoin", "round"),
             ],
         )
+        .base(
+            "label-line",
+            vec![
+                // イシュー #2084: shadcn `chart-pie-label` の引き出し線
+                // （`PieLabelPosition::Outside`）。
+                decl("stroke", "var(--fandhe-color-fg-muted)"),
+                decl("stroke-width", "0.5"),
+                decl("fill", "none"),
+            ],
+        )
+        .base(
+            "outside-label",
+            vec![
+                // イシュー #2084: 扇形外側ラベル（`PieLabelPosition::Outside`）。
+                decl("fill", "var(--fandhe-color-fg)"),
+                decl("font-size", "5px"),
+                decl("text-anchor", "start"),
+                decl("dominant-baseline", "central"),
+            ],
+        )
         // イシュー #1681: `crate::donut_chart::recipe` と同一の 6rem 刻み
         // 進行を共有する（size 値は donut と揃えている）。
         .variant(
@@ -257,6 +371,16 @@ fn recipe() -> SlotRecipe {
             vec![decl("--fandhe-pie-chart-size", "28rem")],
         )
         .default_variant(Size::Md)
+        // イシュー #2084: 外側ラベル使用時、水平方向終端（左半分）は
+        // `text-anchor: end` へ切り替える（[`is_right_half`] が偽の場合、
+        // `pie_chart` 本体が `data-align="end"` を付与する）。
+        .state(
+            "outside-label",
+            StateCondition::AttrEq("data-align", "end"),
+            vec![decl("text-anchor", "end")],
+        )
+        // イシュー #2084: shadcn `chart-pie-separator-none` 突合。
+        .variant(PieSeparator::None, "segment", vec![decl("stroke", "none")])
 }
 
 /// この styled PieChart が生成する静的 CSS 全量を返す（決定的。
@@ -266,18 +390,163 @@ pub fn css() -> String {
     recipe().css()
 }
 
-/// PieChart 1 個を組み立てる（`root` > `chart`(svg) > `segment`(path/circle)
-/// [+ `label`(text)]）。
+/// 1 リング分のセグメント（+ ラベル）ノードを `out` へ積む（内部ヘルパ、
+/// [`pie_chart`] の非 stacked/stacked 双方の描画経路が共有する）。
 ///
-/// `data` はカテゴリ数 = セグメント数、系列数は必ず 1（モジュール doc
-/// 「単一系列専用」節参照）。呼び出し側 `attrs` は `root` へ合成する
+/// `r_inner <= 0.0` は pie 型セグメント（[`sector_path`]/[`circle`]）、
+/// `r_inner > 0.0` は donut 型の環状セグメント（[`annulus_sector_path`]/
+/// [`annulus_full_ring_path`]）を描く。`series_name` は
+/// [`PieChartProps::stacked`] 時のみ `Some`（`data-series` 属性、既存 B-2
+/// 語彙の共有）。`is_outermost` が `false` の場合、
+/// [`PieLabelPosition::Outside`] でも [`PieLabelPosition::Inside`] 相当の
+/// 位置（`(r_inner + r_outer) / 2`）へフォールバックする（モジュール doc
+/// 「stacked」節、shadcn に stacked+外側ラベルの組み合わせは存在しないため
+/// 独自に定めた規則）。
+#[allow(clippy::too_many_arguments)]
+fn render_ring<'a>(
+    out: &mut Vec<Node>,
+    categories: &[String],
+    values: &[f64],
+    angles: &[(f64, f64)],
+    r_inner: f64,
+    r_outer: f64,
+    props: &PieChartProps<'a>,
+    separator_class: &str,
+    series_name: Option<&str>,
+    is_outermost: bool,
+) {
+    // 非ゼロ値のセグメントがちょうど 1 個の場合（全周セグメント）は
+    // sector_path/annulus_sector_path が始点=終点の退化 arc を返すため、
+    // 代わりに circle/annulus_full_ring_path を描画する
+    // （`crate::charts::pie` モジュール doc「境界規則」節）。
+    let non_zero_count = values.iter().filter(|&&v| v > 0.0).count();
+    let is_full_circle = non_zero_count == 1;
+
+    for (i, (&(start, end), &value)) in angles.iter().zip(values.iter()).enumerate() {
+        // 値 0 のセグメントは境界角が退化するため描画しない。
+        if value <= 0.0 {
+            continue;
+        }
+        let fill = series_color_var(i);
+
+        let mut segment_attrs: Vec<(&str, &str)> =
+            vec![("data-scope", "pie-chart"), ("data-part", "segment")];
+        if let Some(name) = series_name {
+            segment_attrs.push(("data-series", name));
+        }
+        if !separator_class.is_empty() {
+            segment_attrs.push(("class", separator_class));
+        }
+
+        let segment_node = if r_inner <= 0.0 {
+            if is_full_circle {
+                segment_attrs.push(("fill", fill.as_str()));
+                circle(CENTER_X, CENTER_Y, r_outer, segment_attrs)
+            } else {
+                let d = sector_path(CENTER_X, CENTER_Y, r_outer, start, end);
+                segment_attrs.push(("d", d.as_str()));
+                segment_attrs.push(("fill", fill.as_str()));
+                el("path", segment_attrs, vec![])
+            }
+        } else if is_full_circle {
+            let d = annulus_full_ring_path(CENTER_X, CENTER_Y, r_outer, r_inner);
+            segment_attrs.push(("d", d.as_str()));
+            segment_attrs.push(("fill", fill.as_str()));
+            segment_attrs.push(("fill-rule", "evenodd"));
+            el("path", segment_attrs, vec![])
+        } else {
+            let d = annulus_sector_path(CENTER_X, CENTER_Y, r_outer, r_inner, start, end);
+            segment_attrs.push(("d", d.as_str()));
+            segment_attrs.push(("fill", fill.as_str()));
+            el("path", segment_attrs, vec![])
+        };
+        out.push(segment_node);
+
+        if !props.show_labels {
+            continue;
+        }
+        let mid = (start + end) / 2.0;
+        let category = categories.get(i).map(String::as_str).unwrap_or_default();
+        let label_text = match props.label_content {
+            PieLabelContent::Category => category.to_string(),
+            PieLabelContent::Value => fmt_coord(value),
+        };
+
+        let use_outside = props.label_position == PieLabelPosition::Outside && is_outermost;
+        if use_outside {
+            let leader_d = leader_line_path(
+                CENTER_X,
+                CENTER_Y,
+                r_outer,
+                mid,
+                LEADER_RADIAL_LEN,
+                LEADER_HORIZONTAL_LEN,
+            );
+            out.push(el(
+                "path",
+                vec![
+                    ("data-scope", "pie-chart"),
+                    ("data-part", "label-line"),
+                    ("d", leader_d.as_str()),
+                ],
+                vec![],
+            ));
+            let (lx, ly) = outside_label_point(
+                CENTER_X,
+                CENTER_Y,
+                r_outer,
+                mid,
+                LEADER_RADIAL_LEN,
+                LEADER_HORIZONTAL_LEN,
+                LEADER_LABEL_GAP,
+            );
+            let align = if is_right_half(mid) { "start" } else { "end" };
+            out.push(svg_text(
+                lx,
+                ly,
+                vec![
+                    ("data-scope", "pie-chart"),
+                    ("data-part", "outside-label"),
+                    ("data-align", align),
+                ],
+                vec![text(label_text.as_str())],
+            ));
+        } else {
+            let label_r = if r_inner <= 0.0 {
+                r_outer * LABEL_RADIUS_RATIO
+            } else {
+                (r_inner + r_outer) / 2.0
+            };
+            let lx = CENTER_X + label_r * mid.cos();
+            let ly = CENTER_Y + label_r * mid.sin();
+            out.push(svg_text(
+                lx,
+                ly,
+                vec![("data-scope", "pie-chart"), ("data-part", "label")],
+                vec![text(label_text.as_str())],
+            ));
+        }
+    }
+}
+
+/// PieChart 1 個を組み立てる（`root` > `chart`(svg) > `segment`(path/circle)
+/// [+ `label-line`(path) + `outside-label`(text) | `label`(text)]）。
+///
+/// `data` はカテゴリ数 = セグメント数。[`PieChartProps::stacked`] が
+/// `false`（既定）の場合系列数は必ず 1（モジュール doc「単一系列専用」節
+/// 参照）、`true` の場合は系列 index がリング（0 が最内周）に対応する
+/// （モジュール doc「stacked」節）。呼び出し側 `attrs` は `root` へ合成する
 /// （`class` は [`drop_class_attr`] で除去してから recipe クラスへ一本化）。
 ///
 /// # Errors
 ///
-/// - `data.series().len() != 1` の場合 [`PieChartError::MultiSeries`]
-/// - 系列の値に非有限・負値が含まれる、または合計が `0` の場合
-///   [`crate::charts::pie::segment_angles`] のエラーをそのまま返す
+/// - `stacked == false` かつ `data.series().len() != 1` の場合
+///   [`PieChartError::MultiSeries`]
+/// - `stacked == true` かつ `data.series()` が空の場合
+///   [`PieChartError::MultiSeries`]
+/// - いずれかの系列の値に非有限・負値が含まれる、またはいずれかの系列の
+///   合計が `0` の場合 [`crate::charts::pie::segment_angles`] のエラーを
+///   そのまま返す
 ///
 /// # Examples
 ///
@@ -300,65 +569,71 @@ pub fn pie_chart<'a>(
     data: &ChartData,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Result<Node, PieChartError> {
-    if data.series().len() != 1 {
-        return Err(PieChartError::MultiSeries);
-    }
     let categories = data.categories();
-    let values = &data.series()[0].values;
-    let angles = segment_angles(values)?;
+    let recipe = recipe();
+    let separator_class = if props.separator == PieSeparator::None {
+        recipe.variant_class(PieSeparator::None)
+    } else {
+        String::new()
+    };
 
-    // 非ゼロ値のセグメントがちょうど 1 個の場合（全周セグメント）は
-    // sector_path が始点=終点の退化 arc を返すため、代わりに <circle> を
-    // 描画する（`crate::charts::pie` モジュール doc「境界規則」節）。
-    let non_zero_count = values.iter().filter(|&&v| v > 0.0).count();
-    let is_full_circle = non_zero_count == 1;
+    let mut nodes: Vec<Node> = Vec::new();
 
-    let mut segment_and_label_nodes: Vec<Node> = Vec::new();
-    for (i, (&(start, end), &value)) in angles.iter().zip(values.iter()).enumerate() {
-        // 値 0 のセグメントは境界角が退化するため描画しない。
-        if value <= 0.0 {
-            continue;
+    if props.stacked {
+        let series = data.series();
+        if series.is_empty() {
+            return Err(PieChartError::MultiSeries);
         }
-        let fill = series_color_var(i);
-        let segment_node = if is_full_circle {
-            circle(
-                CENTER_X,
-                CENTER_Y,
-                OUTER_RADIUS,
-                vec![
-                    ("data-scope", "pie-chart"),
-                    ("data-part", "segment"),
-                    ("fill", fill.as_str()),
-                ],
-            )
-        } else {
-            let d = sector_path(CENTER_X, CENTER_Y, OUTER_RADIUS, start, end);
-            el(
-                "path",
-                vec![
-                    ("data-scope", "pie-chart"),
-                    ("data-part", "segment"),
-                    ("d", d.as_str()),
-                    ("fill", fill.as_str()),
-                ],
-                vec![],
-            )
-        };
-        segment_and_label_nodes.push(segment_node);
-
-        if props.show_labels {
-            let mid = (start + end) / 2.0;
-            let lx = CENTER_X + OUTER_RADIUS * LABEL_RADIUS_RATIO * mid.cos();
-            let ly = CENTER_Y + OUTER_RADIUS * LABEL_RADIUS_RATIO * mid.sin();
-            let category = categories.get(i).map(String::as_str).unwrap_or_default();
-            let label_node = svg_text(
-                lx,
-                ly,
-                vec![("data-scope", "pie-chart"), ("data-part", "label")],
-                vec![text(category)],
+        let ring_count = series.len();
+        let band = OUTER_RADIUS / ring_count as f64;
+        for (k, s) in series.iter().enumerate() {
+            let angles = segment_angles(&s.values)?;
+            let r_outer = band * (k as f64 + 1.0);
+            let r_inner = if k == 0 {
+                0.0
+            } else {
+                let inner_no_gap = band * k as f64;
+                (inner_no_gap + RING_GAP)
+                    .min(r_outer - 0.1)
+                    .max(inner_no_gap)
+            };
+            render_ring(
+                &mut nodes,
+                categories,
+                &s.values,
+                &angles,
+                r_inner,
+                r_outer,
+                props,
+                &separator_class,
+                Some(s.name.as_str()),
+                k == ring_count - 1,
             );
-            segment_and_label_nodes.push(label_node);
         }
+    } else {
+        if data.series().len() != 1 {
+            return Err(PieChartError::MultiSeries);
+        }
+        let values = &data.series()[0].values;
+        let angles = segment_angles(values)?;
+        let outer_radius = if props.show_labels && props.label_position == PieLabelPosition::Outside
+        {
+            OUTSIDE_LABEL_OUTER_RADIUS
+        } else {
+            OUTER_RADIUS
+        };
+        render_ring(
+            &mut nodes,
+            categories,
+            values,
+            &angles,
+            0.0,
+            outer_radius,
+            props,
+            &separator_class,
+            None,
+            true,
+        );
     }
 
     let view_box = ViewBox::new(0.0, 0.0, 100.0, 100.0)
@@ -371,10 +646,9 @@ pub fn pie_chart<'a>(
             ("data-part", "chart"),
             ("aria-label", aria_label_value),
         ],
-        segment_and_label_nodes,
+        nodes,
     );
 
-    let recipe = recipe();
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
@@ -540,5 +814,118 @@ mod tests {
         assert!(a.contains("dominant-baseline: central"));
         assert!(a.contains("paint-order: stroke"));
         assert!(a.contains("stroke-linejoin: round"));
+    }
+
+    #[test]
+    fn separator_none_adds_variant_class_and_default_omits_it() {
+        let props = PieChartProps {
+            separator: PieSeparator::None,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains("fd-pie-chart--separator-none"));
+
+        let default_html =
+            render(&pie_chart(&PieChartProps::default(), &two_category_data(), vec![]).unwrap());
+        assert!(!default_html.contains("fd-pie-chart--separator-none"));
+    }
+
+    #[test]
+    fn label_content_value_uses_fmt_coord() {
+        let props = PieChartProps {
+            show_labels: true,
+            label_content: PieLabelContent::Value,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains(">60<"));
+        assert!(html.contains(">40<"));
+        assert!(!html.contains(">A<"));
+    }
+
+    #[test]
+    fn label_position_outside_renders_leader_line_and_outside_label() {
+        let props = PieChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert_eq!(html.matches(r#"data-part="label-line""#).count(), 2);
+        assert_eq!(html.matches(r#"data-part="outside-label""#).count(), 2);
+        assert!(!html.contains(r#"data-part="label""#));
+        assert!(html.contains(r#"data-align="start""#) || html.contains(r#"data-align="end""#));
+        // 外径が OUTSIDE_LABEL_OUTER_RADIUS(34) へ縮小されていること。
+        assert!(html.contains("34,34,0,"));
+        assert!(!html.contains("45,45,0,"));
+    }
+
+    #[test]
+    fn default_position_inside_does_not_shrink_outer_radius() {
+        let html =
+            render(&pie_chart(&PieChartProps::default(), &two_category_data(), vec![]).unwrap());
+        assert!(!html.contains(r#"data-part="label-line""#));
+        assert!(!html.contains(r#"data-part="outside-label""#));
+        assert!(!html.contains(r#"data-align""#));
+    }
+
+    #[test]
+    fn stacked_renders_one_ring_per_series_with_data_series_attribute() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("2023", vec![60.0, 40.0]),
+                Series::new("2024", vec![70.0, 30.0]),
+            ],
+        )
+        .unwrap();
+        let props = PieChartProps {
+            stacked: true,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &data, vec![]).unwrap());
+        assert_eq!(html.matches(r#"data-part="segment""#).count(), 4);
+        assert!(html.contains(r#"data-series="2023""#));
+        assert!(html.contains(r#"data-series="2024""#));
+    }
+
+    #[test]
+    fn stacked_single_series_matches_non_stacked_ring_geometry() {
+        let data = two_category_data();
+        let stacked_props = PieChartProps {
+            stacked: true,
+            ..PieChartProps::default()
+        };
+        let stacked_html = render(&pie_chart(&stacked_props, &data, vec![]).unwrap());
+        // n == 1 の stacked は非 stacked と同一のリング（r_inner=0,
+        // r_outer=OUTER_RADIUS）に退化する。
+        assert!(stacked_html.contains("45,45,0,") || stacked_html.contains("<circle"));
+    }
+
+    #[test]
+    fn stacked_false_still_rejects_multi_series() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("s1", vec![1.0, 2.0]),
+                Series::new("s2", vec![3.0, 4.0]),
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            pie_chart(&PieChartProps::default(), &data, vec![]).unwrap_err(),
+            PieChartError::MultiSeries
+        );
+    }
+
+    #[test]
+    fn default_output_never_contains_new_2084_attributes() {
+        let html =
+            render(&pie_chart(&PieChartProps::default(), &two_category_data(), vec![]).unwrap());
+        assert!(!html.contains("data-series"));
+        assert!(!html.contains("data-align"));
+        assert!(!html.contains("fd-pie-chart--separator-none"));
+        assert!(!html.contains("label-line"));
+        assert!(!html.contains("outside-label"));
     }
 }

@@ -106,7 +106,7 @@ use fandhe_frontend_pre_styled_ui::data_list::{
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
 use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
-use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
+use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps, PieCenterText};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -161,7 +161,9 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
 use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
-use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
+use fandhe_frontend_pre_styled_ui::pie_chart::{
+    pie_chart, PieChartProps, PieLabelContent, PieLabelPosition, PieSeparator,
+};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::quote::quote;
 use fandhe_frontend_pre_styled_ui::radial_chart::{
@@ -12711,12 +12713,78 @@ fn pie_chart_section() -> Node {
         vec![],
     )
     .expect("ショーケース固定データは常に描画に成功する");
-    let labels_row = row(vec![with_labels]);
+    let separator_none = pie_chart(
+        &PieChartProps {
+            separator: PieSeparator::None,
+            ..PieChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+    let outside_value_labels = pie_chart(
+        &PieChartProps {
+            show_labels: true,
+            label_content: PieLabelContent::Value,
+            label_position: PieLabelPosition::Outside,
+            ..PieChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+    let inside_value_labels = pie_chart(
+        &PieChartProps {
+            show_labels: true,
+            label_content: PieLabelContent::Value,
+            ..PieChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+    let labels_row = row(vec![
+        with_labels,
+        separator_none,
+        outside_value_labels,
+        inside_value_labels,
+    ]);
+
+    let with_legend = {
+        let chart = pie_chart(&PieChartProps::default(), &data, vec![])
+            .expect("ショーケース固定データは常に描画に成功する");
+        let legend_node = legend::category_legend(&data, &LegendProps::default());
+        stack(vec![chart, legend_node])
+    };
+
+    let stacked_data = ChartData::new(
+        vec![
+            "Q1".to_string(),
+            "Q2".to_string(),
+            "Q3".to_string(),
+            "Q4".to_string(),
+        ],
+        vec![
+            Series::new("2023", vec![300.0, 250.0, 200.0, 150.0]),
+            Series::new("2024", vec![400.0, 300.0, 300.0, 200.0]),
+        ],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+    let stacked = pie_chart(
+        &PieChartProps {
+            stacked: true,
+            ..PieChartProps::default()
+        },
+        &stacked_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+    let extras_row = row(vec![with_legend, stacked]);
 
     section(
         "PieChart",
-        "外部依存ゼロの SVG ノード木生成による円グラフ（イシュー #850）。size（Xs〜Xl）で --fandhe-pie-chart-size を切り替えます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
-        vec![size_row, labels_row],
+        "外部依存ゼロの SVG ノード木生成による円グラフ（イシュー #850。イシュー #2084 で shadcn/ui Charts（pie、11 バリアント）と突合し、separator/label_content/label_position/stacked を補完した。実行時インタラクション〔ツールチップ・期間切替〕は対象外、#2128/#2132）。size（Xs〜Xl）で --fandhe-pie-chart-size を切り替えます。show_labels を有効にするとラベルを描画し、label_content/label_position で内容・配置を切り替えます。separator: None でセグメント間の区切り線を消し、stacked で複数系列を多重リングとして描画します。",
+        vec![size_row, labels_row, extras_row],
     )
 }
 
@@ -12758,12 +12826,44 @@ fn donut_chart_section() -> Node {
         vec![],
     )
     .expect("inner_ratio=0.85 は許容範囲内であり常に描画に成功する");
-    let variant_row = row(vec![thin_ring]);
+    let separator_none = donut_chart(
+        &DonutChartProps {
+            separator: PieSeparator::None,
+            ..DonutChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+    let variant_row = row(vec![thin_ring, separator_none]);
+
+    let active = donut_chart(
+        &DonutChartProps {
+            active_index: Some(0),
+            ..DonutChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("active_index=Some(0) は範囲内であり常に描画に成功する");
+    let with_center_text = donut_chart(
+        &DonutChartProps {
+            center_text: Some(PieCenterText {
+                value: "1,200",
+                label: Some("Total"),
+            }),
+            ..DonutChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+    let extras_row = row(vec![active, with_center_text]);
 
     section(
         "DonutChart",
-        "外部依存ゼロの SVG ノード木生成によるドーナツグラフ（イシュー #850）。inner_ratio（既定 0.6）で内径を調整できます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
-        vec![size_row, variant_row],
+        "外部依存ゼロの SVG ノード木生成によるドーナツグラフ（イシュー #850。イシュー #2084 で shadcn/ui Charts（pie、11 バリアント）と突合し、separator/label_content/label_position/active_index/center_text を補完した。実行時インタラクション〔ツールチップ・期間切替〕は対象外、#2128/#2132）。inner_ratio（既定 0.6）で内径を調整できます。active_index で特定セグメントを強調表示し、center_text で中央テキストを描画します。",
+        vec![size_row, variant_row, extras_row],
     )
 }
 
