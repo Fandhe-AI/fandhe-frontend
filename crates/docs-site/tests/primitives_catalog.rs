@@ -200,23 +200,28 @@ fn foundation_modules_do_not_call_anatomy() {
 /// PRIMITIVES は 68 → 69、総数は 78 → 79 になった。イシュー #2108 で
 /// `bubble` が加わり PRIMITIVES は 69 → 70、総数は 79 → 80 になった。
 /// イシュー #2111 で `attachment` が加わり PRIMITIVES は 70 → 71、
-/// 総数は 80 → 81 になった。
+/// 総数は 80 → 81 になった。イシュー #2114 で `marker` が加わり
+/// PRIMITIVES は 71 → 72、総数は 81 → 82 になった。
 #[test]
 fn module_counts_are_consistent_with_the_source_tree() {
     let scan = scan_headless_ui_src(&headless_ui_src_dir());
 
-    assert_eq!(PRIMITIVES.len(), 71);
+    assert_eq!(PRIMITIVES.len(), 72);
     assert_eq!(FOUNDATION_MODULES.len(), 9);
     assert_eq!(
         PRIMITIVES.len() + FOUNDATION_MODULES.len() + 1,
         scan.total_rs_files,
-        "PRIMITIVES(71) + FOUNDATION_MODULES(9) + lib.rs(1) が \
+        "PRIMITIVES(72) + FOUNDATION_MODULES(9) + lib.rs(1) が \
          crates/headless-ui/src/*.rs の実測総数({})と一致しません",
         scan.total_rs_files
     );
 }
 
-/// 受け入れ条件 4: 6 グループ 13/11/10/10/13/13 = 70（イシュー #2108 で
+/// 受け入れ条件 4: 6 グループ 13/11/10/10/13/15 = 72（イシュー #2114 で
+/// Data Display / Utilities に `marker` を追加、旧 13/11/10/10/13/14 =
+/// 71。イシュー #2111 で
+/// Data Display / Utilities に `attachment` を追加、旧 13/11/10/10/13/13 =
+/// 70。イシュー #2108 で
 /// Data Display / Utilities に `bubble` を追加、旧 13/11/10/10/13/12 =
 /// 69。イシュー #2105 で
 /// Data Display / Utilities に `message` を追加、旧 13/11/10/10/13/11 =
@@ -226,7 +231,8 @@ fn module_counts_are_consistent_with_the_source_tree() {
 /// #2062 で Forms A に `input_group` を、#2059 で Navigation に
 /// `button_group` を追加、旧 11/11/10/10/11/10 = 63。イシュー #2068 で
 /// Forms A に `command` を追加、旧 12/11/10/10/12/11 = 66）、カテゴリ出現
-/// 順・グループ内順序が設計 §7 逐語（+ #2059/#2062/#2065/#2068/#2072/#2105/#2108 追記）で
+/// 順・グループ内順序が設計 §7 逐語（+
+/// #2059/#2062/#2065/#2068/#2072/#2105/#2108/#2111/#2114 追記）で
 /// あること。
 #[test]
 fn category_counts_and_order_follow_the_design_spec() {
@@ -325,6 +331,7 @@ fn category_counts_and_order_follow_the_design_spec() {
                 "carousel",
                 "item",
                 "json_tree_view",
+                "marker",
                 "message",
                 "scroll_area",
                 "skip_nav",
@@ -338,7 +345,7 @@ fn category_counts_and_order_follow_the_design_spec() {
     ];
 
     let expected_total: usize = spec.iter().map(|(_, modules)| modules.len()).sum();
-    assert_eq!(expected_total, 71);
+    assert_eq!(expected_total, 72);
 
     let actual_modules_in_order: Vec<&str> = PRIMITIVES.iter().map(|e| e.module).collect();
     let expected_modules_in_order: Vec<&str> = spec

@@ -34,6 +34,7 @@ use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
 use fandhe_frontend_headless_ui::date_picker;
 use fandhe_frontend_headless_ui::file_upload;
 use fandhe_frontend_headless_ui::item::{self, ItemMediaVariant, ItemRootProps};
+use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps};
 use fandhe_frontend_headless_ui::message::{self, MessageRootProps};
 use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
 use fandhe_frontend_headless_ui::qr_code;
@@ -2682,6 +2683,39 @@ fn attachment_root_media_content_name_meta_progress_actions_action_are_escaped_f
             payload,
             &html,
             "attachment::action の attrs/children コンテキスト",
+        );
+    }
+}
+
+#[test]
+fn marker_root_icon_content_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_attrs_node = marker::root(
+            MarkerRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "marker::root の呼び出し側 attrs/children コンテキスト",
+        );
+
+        let icon_node = marker::icon(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&icon_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "marker::icon の attrs/children コンテキスト",
+        );
+
+        let content_node = marker::content(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "marker::content の attrs/children コンテキスト",
         );
     }
 }

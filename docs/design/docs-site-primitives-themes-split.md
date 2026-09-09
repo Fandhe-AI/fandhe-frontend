@@ -541,6 +541,20 @@ pre-styled-ui recipe・Themes ページは後続 #2112 のスコープのため�
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。
 
+**追記(イシュー #2114)**: shadcn/ui のみに存在する `marker`
+（Marker、参照軸 #2001）を Data Display / Utilities カテゴリの
+`json_tree_view` の後に追加する。headless-ui 層のみを先行実装し
+pre-styled-ui recipe・Themes ページは後続 #2115 のスコープのため、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）へ `marker` を追加した。現在の実カテゴリ
+内訳は Data Display / Utilities 15・6 グループ**合計 71→72**であり、§6 の
+コード導出は**部品 72 件**（headless-ui `crates/headless-ui/src/*.rs`
+総数**82** = 部品 72 + 基盤 9 + `lib.rs`）との一致は
+`crates/docs-site/tests/primitives_catalog.rs::catalog_has_72_entries_in_six_categories_in_spec_order`
+/ `module_counts_are_consistent_with_the_source_tree` が機械検査する
+（本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
+正とする）。
+
 ## 8. `component-coverage-map.md` との関係
 
 `docs/design/component-coverage-map.md` は ark-ui / chakra-ui / Radix の
