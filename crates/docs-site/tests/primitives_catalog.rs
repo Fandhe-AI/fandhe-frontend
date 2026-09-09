@@ -197,17 +197,20 @@ fn foundation_modules_do_not_call_anatomy() {
 /// イシュー #2068 で `command` が加わり PRIMITIVES は 66 → 67、総数は
 /// 76 → 77 になった。イシュー #2072 で `sidebar` が加わり PRIMITIVES は
 /// 67 → 68、総数は 77 → 78 になった。イシュー #2105 で `message` が加わり
-/// PRIMITIVES は 68 → 69、総数は 78 → 79 になった。
+/// PRIMITIVES は 68 → 69、総数は 78 → 79 になった。イシュー #2108 で
+/// `bubble` が加わり PRIMITIVES は 69 → 70、総数は 79 → 80 になった。
+/// イシュー #2111 で `attachment` が加わり PRIMITIVES は 70 → 71、
+/// 総数は 80 → 81 になった。
 #[test]
 fn module_counts_are_consistent_with_the_source_tree() {
     let scan = scan_headless_ui_src(&headless_ui_src_dir());
 
-    assert_eq!(PRIMITIVES.len(), 70);
+    assert_eq!(PRIMITIVES.len(), 71);
     assert_eq!(FOUNDATION_MODULES.len(), 9);
     assert_eq!(
         PRIMITIVES.len() + FOUNDATION_MODULES.len() + 1,
         scan.total_rs_files,
-        "PRIMITIVES(70) + FOUNDATION_MODULES(9) + lib.rs(1) が \
+        "PRIMITIVES(71) + FOUNDATION_MODULES(9) + lib.rs(1) が \
          crates/headless-ui/src/*.rs の実測総数({})と一致しません",
         scan.total_rs_files
     );
@@ -316,6 +319,7 @@ fn category_counts_and_order_follow_the_design_spec() {
         (
             PrimitiveCategory::DataDisplayUtilities,
             &[
+                "attachment",
                 "avatar",
                 "bubble",
                 "carousel",
@@ -334,7 +338,7 @@ fn category_counts_and_order_follow_the_design_spec() {
     ];
 
     let expected_total: usize = spec.iter().map(|(_, modules)| modules.len()).sum();
-    assert_eq!(expected_total, 70);
+    assert_eq!(expected_total, 71);
 
     let actual_modules_in_order: Vec<&str> = PRIMITIVES.iter().map(|e| e.module).collect();
     let expected_modules_in_order: Vec<&str> = spec

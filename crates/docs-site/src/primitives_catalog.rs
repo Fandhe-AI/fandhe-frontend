@@ -3,7 +3,8 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! `/primitives/<kebab>/` 70 ページ（イシュー #2108 で `bubble` を追加、
+//! `/primitives/<kebab>/` 71 ページ（イシュー #2111 で `attachment` を
+//! 追加、旧 70。#2108 で `bubble` を追加、
 //! 旧 69。イシュー #2105 で `message` を追加、
 //! 旧 68。#2072 で `sidebar` を追加、旧 67。#2068 で `command` を追加、
 //! 旧 66。#2065 で `item` を追加、
@@ -25,17 +26,18 @@
 //! # 判別規約（設計 §6 の要旨）
 //!
 //! `crates/headless-ui/src/*.rs` のうち本文に `anatomy(` を含むもの
-//! （`anatomy.rs` 自身を除く）が部品 70 件（イシュー #2108 で `bubble`
+//! （`anatomy.rs` 自身を除く）が部品 71 件（イシュー #2111 で
+//! `attachment` が加わり 70 → 71。#2108 で `bubble`
 //! が加わり 69 → 70。イシュー #2105 で `message`
 //! が加わり 68 → 69。#2072 で `sidebar`
 //! が加わり 67 → 68。#2068 で `command`
 //! が加わり 66 → 67。#2065 で `item` が加わり 65 → 66。#2062 で
 //! `input_group`・#2059 で `button_group` が加わり 63 → 65）、基盤モジュール
-//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 80 件が
+//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 81 件が
 //! `crates/headless-ui/src/*.rs` の総数（実測:
-//! `ls crates/headless-ui/src/*.rs | wc -l` => 80、
+//! `ls crates/headless-ui/src/*.rs | wc -l` => 81、
 //! `grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l`
-//! => 70）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
+//! => 71）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
 //! 責務。
 
 use std::collections::BTreeSet;
@@ -123,7 +125,8 @@ impl PrimitiveCategory {
     }
 }
 
-/// Primitives 台帳（70 件、イシュー #2108 で `bubble` 追加、旧 69。イシュー
+/// Primitives 台帳（71 件、イシュー #2111 で `attachment` 追加、旧 70。
+/// イシュー #2108 で `bubble` 追加、旧 69。イシュー
 /// #2105 で `message` 追加、旧 68。#2072 で
 /// `sidebar` 追加、旧 67。#2068 で
 /// `command` 追加、旧 66。#2065 で
@@ -502,7 +505,13 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         title: "Toolbar",
         category: PrimitiveCategory::Navigation,
     },
-    // --- Data Display / Utilities（12、#1029。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
+    // --- Data Display / Utilities（14、#1029。イシュー #2111 で attachment 追加、旧 13。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
+    PrimitiveEntry {
+        module: "attachment",
+        path: "/primitives/attachment/",
+        title: "Attachment",
+        category: PrimitiveCategory::DataDisplayUtilities,
+    },
     PrimitiveEntry {
         module: "avatar",
         path: "/primitives/avatar/",
@@ -637,12 +646,15 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// `site/themes/sidebar.md`）を実装済みのため除外した。`bubble` も同様に
 /// イシュー #2108 で headless-ui 層のみ先行実装され暫定的にこの台帳へ
 /// 載っていたが、イシュー #2109 で Themes 層（`crates/pre-styled-ui/src/bubble.rs`・
-/// `site/themes/bubble.md`）を実装済みのため除外した。
+/// `site/themes/bubble.md`）を実装済みのため除外した。`attachment` は
+/// イシュー #2111 で headless-ui 層のみ先行実装したため本台帳へ載せる
+/// （Themes 層・`site/themes/attachment.md` は後続イシュー #2112 で実装
+/// 予定。実装後は上記各部品と同様にこの台帳から除外する）。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
-/// 作らない」の限定用途の 1 つ）。本台帳は現在空である。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &[];
+/// 作らない」の限定用途の 1 つ）。
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["attachment"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
@@ -841,10 +853,11 @@ mod tests {
     /// #2062 で `input_group` が Forms A へ追加され Forms A は 11 → 12、
     /// イシュー #2059 で `button_group` が Navigation へ追加され
     /// Navigation は 11 → 12、イシュー #2068 で `command` が Forms A へ
-    /// 追加され Forms A は 12 → 13）。
+    /// 追加され Forms A は 12 → 13、イシュー #2111 で `attachment` が
+    /// Data Display / Utilities へ追加され同カテゴリは 13 → 14）。
     #[test]
-    fn catalog_has_70_entries_in_six_categories_in_spec_order() {
-        assert_eq!(PRIMITIVES.len(), 70);
+    fn catalog_has_71_entries_in_six_categories_in_spec_order() {
+        assert_eq!(PRIMITIVES.len(), 71);
 
         let expected_order_and_counts: [(PrimitiveCategory, usize); 6] = [
             (PrimitiveCategory::FormsA, 13),
@@ -852,7 +865,7 @@ mod tests {
             (PrimitiveCategory::FormsCDateStatus, 10),
             (PrimitiveCategory::OverlayDisclosure, 10),
             (PrimitiveCategory::Navigation, 13),
-            (PrimitiveCategory::DataDisplayUtilities, 13),
+            (PrimitiveCategory::DataDisplayUtilities, 14),
         ];
 
         assert_eq!(
