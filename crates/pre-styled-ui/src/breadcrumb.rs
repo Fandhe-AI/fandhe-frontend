@@ -143,10 +143,9 @@
 //!   `BreadcrumbPage` はこの 2 属性に加え `aria-current="page"` を持つ
 //!   （本モジュールは `aria-current="page"` のみ）。ARIA セマンティクスは
 //!   headless-ui 層（`crates/headless-ui/src/breadcrumb.rs::current_link`）
-//!   の責務であり、本イシュー（pre-styled-ui のみ）のスコープ外。
-//!   headless-ui 側フォローアップ候補として記録するに留め、
-//!   `.claude/rules/out-of-scope-tracking.md` に従いユーザー承認なしに
-//!   Issue は起票しない。
+//!   の責務であり、イシュー #2182 で不採用（`role`/`aria-disabled` は付与
+//!   しない）と判断済み。根拠は headless-ui 側モジュール doc「shadcn/ui
+//!   `BreadcrumbPage` との差分（イシュー #2182）」節を参照。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!

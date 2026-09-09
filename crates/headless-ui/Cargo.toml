@@ -564,7 +564,11 @@ name = "fandhe-frontend-headless-ui"
 # data-group-position を新設。collapse-trigger/collapse-content は
 # collapsible の属性契約を bubble scope で再利用する）を新設した。既存
 # API への変更はなく非破壊的な追加のため patch バンプし 0.68.6 とする。
-version = "0.68.6"
+# イシュー #2182: breadcrumb の `current_link` へ shadcn/ui `BreadcrumbPage`
+# の `role="link"`/`aria-disabled="true"` を付与しない判断を rustdoc に
+# 記録した。出力・API 不変の rustdoc のみの変更のため patch バンプし
+# 0.68.7 とする。
+version = "0.68.7"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
