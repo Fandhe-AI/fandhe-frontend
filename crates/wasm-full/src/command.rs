@@ -624,6 +624,25 @@ mod wiring {
         )?;
         mousedown_closure.forget();
 
+        // 配線完了時点での初期絞り込み反映（codex-review P1 是正、イシュー
+        // #2069）: ここまでは入力/keydown 等のリスナー登録のみで、mount/
+        // hydrate 時に検索クエリを保持したまま描画された Command（全候補が
+        // 未絞り込みのまま DOM に出力されている）の List・選択状態は未同期
+        // のままだった。`root` 配下の全 Command インスタンスについて、
+        // 生きた input から [`resolve_list`] で List パーツを解決し、
+        // [`reflect_filter`] を 1 回ずつ呼んで絞り込み・選択整合を配線直後
+        // に同期する（`outer_focus_state: None` — 配線直後はまだ利用者
+        // 操作によるフォーカス変化がないため、[`reflect_filter`] 内部で
+        // 現在のフォーカス状態をそのまま採用させる）。ダイアログが初期
+        // 非表示（`hidden`）の構成でも安全に呼べる（[`reflect_filter`] は
+        // 生きた DOM の再解決のみに依存し、可視性を前提にしない）。
+        for input in collect_parts(&root, INPUT_SELECTOR) {
+            if let Some(list) = resolve_list(&root, &input) {
+                let list_id = list.id();
+                reflect_filter(&root, &list_id, &on_action, None);
+            }
+        }
+
         if let Some(window) = web_sys::window() {
             let document = window.document();
             if let Some(document) = document {
