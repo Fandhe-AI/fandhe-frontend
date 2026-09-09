@@ -619,8 +619,11 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// した `bubble` が一時的に本リストへ加わっていたが、イシュー #2109 で
 /// pre-styled-ui 側（`crates/pre-styled-ui/src/bubble.rs`・
 /// `/themes/bubble/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため本
-/// リストから除外した。本台帳は現在空である。
-const HEADLESS_UNWRAPPED: &[&str] = &[];
+/// リストから除外した。イシュー #2111 で headless-ui 層のみを実装した
+/// `attachment` が本リストへ加わった（pre-styled-ui 側・`/themes/
+/// attachment/` の実装は後続イシュー #2112 で行い、実装後は上記各部品と
+/// 同様に `WRAPPED_SAME_NAME` へ分類されて本リストから除外される想定）。
+const HEADLESS_UNWRAPPED: &[&str] = &["attachment"];
 
 /// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
 /// まだ持たない部品（イシュー #2073 で `sidebar` を一時的に載せた暫定

@@ -1,9 +1,10 @@
 //! Primitives 部品ページ原稿の充填（イシュー #1029、Data Display /
-//! Utilities 13 部品。イシュー #2108 で `bubble`・イシュー #2105 で
+//! Utilities 14 部品。イシュー #2111 で `attachment`・イシュー #2108 で
+//! `bubble`・イシュー #2105 で
 //! `message`・イシュー #2065 で `item` 追加、当初 10）を検証する
 //! 統合テスト。
 //!
-//! 対象は本カテゴリの 13 パスのみ（`tests/component_pages.rs`/
+//! 対象は本カテゴリの 14 パスのみ（`tests/component_pages.rs`/
 //! `tests/primitive_showcase.rs` は共有ファイルのため触らず、本イシュー
 //! 専用の検証は本ファイルへ切り出す。`tests/primitive_specs_overlay_disclosure.rs`
 //! （#1027）と同型の構成）。
@@ -28,10 +29,11 @@ fn repo_root() -> PathBuf {
         .expect("repo_root should resolve from CARGO_MANIFEST_DIR")
 }
 
-/// 本イシューの対象 13 パス（`site/primitives/*.md` のファイル名 = path 末尾）。
+/// 本イシューの対象 14 パス（`site/primitives/*.md` のファイル名 = path 末尾）。
 /// `primitives_catalog::PrimitiveCategory::DataDisplayUtilities` のカタログ順
 /// と一致させる（[`data_display_utilities_paths_match_catalog`] で突合する）。
 const PATHS: &[&str] = &[
+    "/primitives/attachment/",
     "/primitives/avatar/",
     "/primitives/bubble/",
     "/primitives/carousel/",
@@ -212,6 +214,7 @@ fn data_display_utilities_specs_are_registered_in_primitive_spec_tables() {
 #[test]
 fn data_display_utilities_markdown_sources_have_no_h2_headings() {
     const KEBABS: &[&str] = &[
+        "attachment",
         "avatar",
         "bubble",
         "carousel",

@@ -743,6 +743,23 @@
 //!   （`OpenState`・`aria-expanded`・`aria-controls`）を bubble scope の
 //!   まま再利用する。`fandhe-frontend-wasm-full` の折りたたみクリック配線は
 //!   未整備（[`mod@bubble`] モジュール doc「wasm-full 未配線」参照）。
+//! - [`mod@attachment`]: Root / Media / Content / Name / Meta / Progress /
+//!   Actions / Action の 8 anatomy パーツ（イシュー #2111、親 #2110、
+//!   shadcn/ui `Attachment` 相当、参照軸 #2001）。「添付ファイル 1 件の
+//!   表示」を表現し、[`mod@message`]/[`mod@bubble`] と同じく状態機械を
+//!   持たない静的部品。イシュータイトルの 7 パーツに加え、削除等の個別
+//!   操作を担う [`attachment::action`]（`button` + 任意 `aria-label`）を
+//!   8 番目のパーツとして追加する（[`mod@attachment`] モジュール doc
+//!   「イシュータイトルとの差分」参照）。`data-variant`（`file`/`image`）・
+//!   `data-state`（`idle`/`uploading`/`error`）・`data-disabled` を
+//!   [`attachment::root`] に付与するが、`data-role`/`data-align`
+//!   （会話系共通語彙、[`mod@message`] モジュール doc参照）は意図的に
+//!   持たない（[`mod@attachment`] モジュール doc「会話系 4 部品の共通
+//!   語彙への不追随」参照）。[`attachment::progress`] は
+//!   [`crate::progress::Progress`] のパーツを attachment scope のまま
+//!   入れ子にするスロットであり、`data-scope="progress"` を内包しない
+//!   （[`mod@attachment`] モジュール doc「`progress` は attachment scope
+//!   のスロット」参照）。
 //! - [`mod@navigation_menu`]: Root / List / Item / Trigger / Content / Link
 //!   の 6 anatomy パーツと、[`crate::state::SingleSelect`] を埋め込んだ
 //!   「高々 1 個の Trigger だけが開く」状態機械
@@ -764,6 +781,7 @@ pub mod action_bar;
 pub mod anatomy;
 pub mod angle_slider;
 pub mod aria;
+pub mod attachment;
 pub mod avatar;
 pub mod breadcrumb;
 pub mod bubble;
@@ -875,6 +893,7 @@ pub use aria::{
     aria_pressed, aria_roledescription, aria_selected, role, AriaAutocomplete, AriaChecked,
     AriaCurrent, AriaLive, AriaPopup,
 };
+pub use attachment::{AttachmentRootProps, AttachmentState, AttachmentVariant};
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use breadcrumb::{breadcrumb, BreadcrumbItem};
 pub use bubble::{BubbleGroupPosition, BubbleRootProps, BubbleVariant};

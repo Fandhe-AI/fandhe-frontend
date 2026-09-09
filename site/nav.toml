@@ -407,6 +407,11 @@ path = "/primitives/toolbar/"
 title = "Data Display / Utilities"
 
 [[section.group.page]]
+title = "Attachment"
+source = "site/primitives/attachment.md"
+path = "/primitives/attachment/"
+
+[[section.group.page]]
 title = "Avatar"
 source = "site/primitives/avatar.md"
 path = "/primitives/avatar/"

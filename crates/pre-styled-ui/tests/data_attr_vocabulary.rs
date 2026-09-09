@@ -27,6 +27,9 @@
 //! 以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{render, text};
+use fandhe_frontend_headless_ui::attachment::{
+    self, AttachmentRootProps, AttachmentState, AttachmentVariant,
+};
 use fandhe_frontend_headless_ui::bubble::{
     self, BubbleGroupPosition, BubbleRootProps, BubbleVariant,
 };
@@ -1544,4 +1547,114 @@ fn sidebar_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains("[data-mobile]"));
     assert!(css.contains("[data-active]"));
     assert!(css.contains(r#"[data-size="sm"]"#));
+}
+
+/// [`mod@fandhe_frontend_headless_ui::attachment`]（イシュー #2111）の
+/// `data-variant`（`file`/`image`）・`data-state`（`idle`/`uploading`/
+/// `error`）・`data-disabled`（存在属性）・`action` の `aria-label`/
+/// ネイティブ `disabled` の語彙を固定する。本イシュー時点では
+/// pre-styled-ui 側に `attachment` モジュールが未実装（#2112 のスコープ）
+/// のため headless 出力の直接固定のみを行う。#2112 で styled `attachment`
+/// が新設された際は、本テストに加えて `*_not_self_emitted` の
+/// headless-sourced 契約テストを追加する
+/// （`bubble_parts_data_attrs_are_headless_sourced_not_self_emitted` と
+/// 同型、`message_root_data_role_align_loading_error_vocabulary_is_fixed`
+/// の doc コメントで予告した運用の踏襲）。
+#[test]
+fn attachment_root_variant_state_disabled_and_action_vocabulary_is_fixed() {
+    // data-variant: file/image の 2 値。
+    for (variant, expected) in [
+        (AttachmentVariant::File, "file"),
+        (AttachmentVariant::Image, "image"),
+    ] {
+        let html = render(&attachment::root(
+            AttachmentRootProps {
+                variant,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(&format!(r#"data-variant="{expected}""#)));
+    }
+
+    // data-state: idle/uploading/error の 3 値。variant から独立した軸で
+    // あることを image + uploading の組み合わせで固定する。
+    for (state, expected) in [
+        (AttachmentState::Idle, "idle"),
+        (AttachmentState::Uploading, "uploading"),
+        (AttachmentState::Error, "error"),
+    ] {
+        let html = render(&attachment::root(
+            AttachmentRootProps {
+                variant: AttachmentVariant::Image,
+                state,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-variant="image""#));
+        assert!(html.contains(&format!(r#"data-state="{expected}""#)));
+    }
+
+    // data-disabled: 存在属性（bool から生成、非付与時は属性自体が出ない）。
+    let disabled = render(&attachment::root(
+        AttachmentRootProps {
+            disabled: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(disabled.contains(r#"data-disabled="""#));
+    let enabled = render(&attachment::root(
+        AttachmentRootProps::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(!enabled.contains("data-disabled"));
+
+    // action: aria-label（label が空文字列でないときのみ）+ ネイティブ
+    // disabled + data-disabled。
+    let action_with_label = render(&attachment::action(
+        "Delete report.pdf",
+        false,
+        vec![],
+        vec![],
+    ));
+    assert!(action_with_label.contains(r#"aria-label="Delete report.pdf""#));
+    assert!(!action_with_label.contains("disabled"));
+
+    let action_without_label = render(&attachment::action("", false, vec![], vec![]));
+    assert!(!action_without_label.contains("aria-label"));
+
+    let action_disabled = render(&attachment::action("Delete", true, vec![], vec![]));
+    assert!(action_disabled.contains(r#"disabled="""#));
+    assert!(action_disabled.contains(r#"data-disabled="""#));
+
+    // 呼び出し側 attrs による偽装除去（大文字小文字混在含む）。
+    let spoofed = render(&attachment::root(
+        AttachmentRootProps::default(),
+        vec![
+            ("Data-Variant", "image"),
+            ("DATA-STATE", "error"),
+            ("data-disabled", "spoofed"),
+        ],
+        vec![],
+    ));
+    assert!(spoofed.contains(r#"data-variant="file""#));
+    assert!(spoofed.contains(r#"data-state="idle""#));
+    assert!(!spoofed.contains("spoofed"));
+
+    // XSS 最小回帰（呼び出し側 attrs の動的値コンテキスト）。
+    let payload_html = render(&attachment::root(
+        AttachmentRootProps::default(),
+        vec![("data-testid", XSS_PAYLOAD)],
+        vec![],
+    ));
+    assert_no_raw_payload(
+        &payload_html,
+        "attachment::root の呼び出し側 attrs コンテキスト",
+    );
 }

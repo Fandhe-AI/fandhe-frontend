@@ -572,11 +572,21 @@ name = "fandhe-frontend-headless-ui"
 # （aria-live="polite" 明示は維持）。shadcn/ui FieldError とのロール語彙
 # パリティを確保する既存 API への非破壊的な属性追加のため patch バンプし
 # 0.68.8 とする。
+# イシュー #2111: `attachment`（Root / Media / Content / Name / Meta /
+# Progress / Actions / Action の 8 anatomy パーツ、shadcn/ui Attachment
+# 相当。data-variant/data-state/data-disabled を root へ付与し、progress
+# は attachment scope のスロットとして crate::progress::Progress の
+# パーツを入れ子にする契約）を新設した。既存 API への変更はなく非破壊的な
+# 追加のため patch バンプし 0.68.9 とする。
+#
 # イシュー #2186: select に separator / scroll-up-button / scroll-down-button
 # の 3 anatomy パーツを新設（15 → 18 パーツ）。§3.25 規則 2 の読み直しに
 # 従い、可視性判定・押下スクロールは含まない静的な構造・ARIA のみを追加
-# する既存 API への非破壊的な純追加のため patch バンプし 0.68.9 とする。
-version = "0.68.9"
+# する既存 API への非破壊的な純追加であり、本ブランチも独立に 0.68.9 へ
+# 到達していたが、origin/main（#2111）との統合で版数が偶発的に一致した
+# ため、同一版数も衝突として扱い main の到達値 0.68.9 から +1 して
+# 0.68.10 とする（`semver-same-version-is-conflict` の運用）。
+version = "0.68.10"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

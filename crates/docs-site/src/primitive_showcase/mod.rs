@@ -364,7 +364,11 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
         path: "/primitives/toolbar/",
         render: navigation::toolbar_section,
     },
-    // --- Data Display / Utilities（13、#1029。イシュー #2108 で bubble 追加、旧 12。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
+    // --- Data Display / Utilities（14、#1029。イシュー #2111 で attachment 追加、旧 13。イシュー #2108 で bubble 追加、旧 12。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
+    PrimitivePage {
+        path: "/primitives/attachment/",
+        render: data_display_utilities::attachment_section,
+    },
     PrimitivePage {
         path: "/primitives/avatar/",
         render: data_display_utilities::avatar_section,

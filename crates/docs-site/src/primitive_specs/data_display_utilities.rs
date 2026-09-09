@@ -1,6 +1,7 @@
 //! Primitives（`fandhe-frontend-headless-ui`）Data Display / Utilities 系
-//! 13 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
-//! Phase 5。イシュー #2108 で `bubble`・イシュー #2105 で `message`・
+//! 14 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
+//! Phase 5。イシュー #2111 で `attachment`・イシュー #2108 で `bubble`・
+//! イシュー #2105 で `message`・
 //! イシュー #2065 で `item` を追加、当初 10 部品）。
 //!
 //! # 役割・呼び出し文脈
@@ -13,9 +14,9 @@
 //! `data-*` 属性表（いずれも機械導出、Primitives 層は CSS 変数表を持たない）
 //! と合成して 6 節ページを組み立てる）。
 //!
-//! 対象は avatar・bubble・carousel・item・json-tree-view・message・
-//! scroll-area・skip-nav・splitter・steps・tour・tree-view・
-//! visually-hidden の 13 部品
+//! 対象は attachment・avatar・bubble・carousel・item・json-tree-view・
+//! message・scroll-area・skip-nav・splitter・steps・tour・tree-view・
+//! visually-hidden の 14 部品
 //! （`crates/docs-site/src/primitives_catalog.rs` の
 //! `PrimitiveCategory::DataDisplayUtilities` 並び順と一致させる）。
 //!
@@ -85,8 +86,9 @@
 //! 層）は一切呼ばない（受け入れ条件 3）。ダミー文字列は無害なもの
 //! （`example.com` 等の予約ドメイン、架空の名前）に限る。
 
-use fandhe_frontend_core::{button, code, div, p, pre, text, Node};
+use fandhe_frontend_core::{button, code, div, img, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
+use hui::attachment::{self, AttachmentRootProps, AttachmentState, AttachmentVariant};
 use hui::avatar::{self, ImageStatus};
 use hui::bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant};
 use hui::data_attrs::Orientation;
@@ -95,6 +97,7 @@ use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
 use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use hui::positioning::{Align, Placement, Side};
+use hui::progress::Progress;
 use hui::scroll_area;
 use hui::skip_nav;
 use hui::splitter;
@@ -119,6 +122,210 @@ fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
         ],
     )
 }
+
+// ---------------------------------------------------------------------
+// Attachment（/primitives/attachment/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/attachment.rs`（モジュール doc、
+/// イシュータイトルとの差分・会話系 4 部品の共通語彙への不追随・
+/// `progress` は attachment scope のスロット・shadcn/ui との意図的差分）、
+/// `root`/`media`/`content`/`name`/`meta`/`progress`/`actions`/`action`
+/// シグネチャ。非テスト行で `role`/`aria-*` の出力は `action` の
+/// `aria-label` のみ。
+fn ex_attachment_uploading_with_progress() -> Node {
+    let progress = Progress::new(0.0, 100.0, Some(64.0), Orientation::Horizontal);
+    attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::Image,
+            state: AttachmentState::Uploading,
+            disabled: false,
+        },
+        vec![],
+        vec![
+            attachment::media(
+                vec![],
+                vec![img(
+                    vec![
+                        ("src", crate::showcase::IMAGE_DEMO_SRC),
+                        ("alt", "photo.png のプレビュー"),
+                    ],
+                    vec![],
+                )],
+            ),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("photo.png")]),
+                    attachment::meta(vec![], vec![text("PNG · 2.4 MB · 64%")]),
+                ],
+            ),
+            attachment::progress(
+                vec![],
+                vec![progress.root(
+                    Some("64%"),
+                    vec![],
+                    vec![progress.track(vec![], vec![progress.range(vec![], vec![])])],
+                )],
+            ),
+        ],
+    )
+}
+
+/// 削除アクション（`action`、`aria-label` + ネイティブ `disabled`）を持つ
+/// エラー状態の例。
+fn ex_attachment_error_with_delete_action() -> Node {
+    attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Error,
+            disabled: false,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("📄")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("archive.zip")]),
+                    attachment::meta(vec![], vec![text("Upload failed")]),
+                ],
+            ),
+            attachment::actions(
+                vec![],
+                vec![attachment::action(
+                    "Delete archive.zip",
+                    false,
+                    vec![],
+                    vec![text("✕")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// 自前 CSS の最小例（`AVATAR_CUSTOM_CSS_SNIPPET` と同型のパターン）。
+/// CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const ATTACHMENT_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"attachment\"][data-part=\"root\"] {\n  \
+  display: flex;\n  gap: 0.5rem;\n  padding: 0.5rem;\n  border: 1px solid #d1d5db;\n  border-radius: 0.375rem;\n\
+}\n\
+[data-scope=\"attachment\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"attachment\"][data-part=\"root\"][data-state=\"error\"] {\n  \
+  border-color: #dc2626;\n\
+}\n\
+[data-scope=\"attachment\"][data-part=\"content\"] {\n  \
+  display: flex;\n  flex-direction: column;\n\
+}\n";
+
+fn ex_attachment_custom_css() -> Node {
+    let demo = attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Idle,
+            disabled: false,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("📄")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("report.pdf")]),
+                    attachment::meta(vec![], vec![text("PDF · 128 KB")]),
+                ],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            demo,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(ATTACHMENT_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
+pub const ATTACHMENT: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "添付ファイル 1 件の表示を表現する 8 anatomy パーツ（root/media/content/name/meta/progress/actions/action）を提供する（attachment.rs）。イシュータイトルの 7 パーツに加え、削除等の個別操作を担う action を追加した（attachment.rs「イシュータイトルとの差分」節）。状態機械を持たない静的部品であり wasm-full 側の配線は不要。",
+        "root へ data-variant（file/image）・data-state（idle/uploading/error）・data-disabled（存在属性）を付与する。会話系 4 部品（message/bubble/attachment/marker）の共通語彙（data-role/data-align）は意図的に持たない（attachment.rs「会話系 4 部品の共通語彙への不追随」節）。",
+        "progress は attachment scope の単純なスロットであり、呼び出し側が crate::progress::Progress のパーツ（root/track/range 等）を入れ子にする契約とする（attachment.rs「progress は attachment scope のスロット」節。data-scope=\"progress\" は attachment scope を上書きしない）。",
+        "name/meta は整形済み文字列を children で受け取るだけのスロットであり、byte → KB 変換等の数値・単位整形は行わない（docs/policy/intentional-non-adoption.md §3.23 と同じ判断軸、attachment.rs参照）。参照実体は shadcn/ui の Attachment のみ（ark-ui・chakra-ui・Radix に対応部品なし、参照軸 #2001）。size/orientation・trigger（カード全面クリックオーバーレイ）・group（横スクロールコンテナ）は意図的に非採用（attachment.rs「shadcn/ui 実 API との意図的差分」節）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root: props.variant",
+            kind: "AttachmentVariant",
+            default: "AttachmentVariant::File",
+            description: "表示形態（file/image）。data-variant へ出力する（attachment.rs）。",
+        },
+        ArgRow {
+            name: "root: props.state",
+            kind: "AttachmentState",
+            default: "AttachmentState::Idle",
+            description: "アップロード状態（idle/uploading/error）。data-state へ出力する（attachment.rs）。",
+        },
+        ArgRow {
+            name: "root: props.disabled",
+            kind: "bool",
+            default: "false",
+            description: "true のとき data-disabled 存在属性を付与する（attachment.rs）。",
+        },
+        ArgRow {
+            name: "action: label",
+            kind: "&str",
+            default: "\"\"",
+            description: "空でなければ aria-label へ出力する（attachment.rs）。",
+        },
+        ArgRow {
+            name: "action: disabled",
+            kind: "bool",
+            default: "false",
+            description: "true のときネイティブ disabled と data-disabled の両方を出力する（attachment.rs）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Uploading with progress",
+            description: "画像プレビュー + アップロード進捗（Progress の入れ子）を表示する例です。",
+            render: ex_attachment_uploading_with_progress,
+        },
+        ExampleEntry {
+            title: "Error with delete action",
+            description: "アップロード失敗状態と削除アクション（aria-label 付き button）の例です。",
+            render: ex_attachment_error_with_delete_action,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-state/data-disabled 属性セレクタでスタイルを当てる例です。",
+            render: ex_attachment_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "(なし)",
+        description: "root/media/content/name/meta/progress/actions はいずれもキー操作を提供しない静的コンテナである。action はネイティブ button のため Space/Enter で押下できる（attachment.rs）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "aria-label（action）",
+            description: "label が空でなければ action パーツへ出力する（attachment.rs「actions/action」節）。",
+        },
+        AriaRow {
+            attribute: "disabled（action、ネイティブ）",
+            description: "disabled 引数が true のとき action パーツへネイティブ disabled と data-disabled の両方を出力する（attachment.rs）。",
+        },
+    ],
+    demo: None,
+};
 
 // ---------------------------------------------------------------------
 // Avatar（/primitives/avatar/）
@@ -2364,13 +2571,15 @@ pub const VISUALLY_HIDDEN: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// 本カテゴリ 13 部品の `path -> ComponentPageSpec` テーブル
+/// 本カテゴリ 14 部品の `path -> ComponentPageSpec` テーブル
 /// （`crate::primitive_specs::SPEC_TABLES` へ集約される、#1027 と同型。
-/// イシュー #2108 で `bubble` 追加、旧 12。イシュー #2105 で `message` 追加、
+/// イシュー #2111 で `attachment` 追加、旧 13。イシュー #2108 で `bubble`
+/// 追加、旧 12。イシュー #2105 で `message` 追加、
 /// 旧 11）。
 /// 並び順は `crate::primitives_catalog::PrimitiveCategory::DataDisplayUtilities`
 /// のカタログ順と一致させる。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
+    ("/primitives/attachment/", ATTACHMENT),
     ("/primitives/avatar/", AVATAR),
     ("/primitives/bubble/", BUBBLE),
     ("/primitives/carousel/", CAROUSEL),

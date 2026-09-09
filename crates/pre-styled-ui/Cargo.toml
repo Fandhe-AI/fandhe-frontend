@@ -2738,6 +2738,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # conflict` の運用（一度この衝突を経て 0.163.0→0.164.0 とした際と同じ
 # 判断軸）に従い、再度の同一版数衝突として main の到達値 0.164.0 から
 # +1 マイナーして 0.165.0 とする。
+#
+# イシュー #2111（origin/main 再取り込み）: headless-ui 0.68.8 → 0.68.9
+# （`attachment` 新設、非破壊的追加）に伴う `dep-version-check --fix` の
+# `version = "..."` 追随（origin/main 側では 0.164.0 到達時点で反映済み）
+# は、上記マージ解消で到達した 0.165.0 が既に上回っているため、本クレート
+# 自身への追加バンプは不要で 0.165.0 をそのまま採用する（依存先の
+# version 要求文字列のみ後続で追随、本クレート自身の recipe・golden・
+# Themes ページ実装は後続イシュー #2112、出力・API は不変）。
+#
+# PR #2265 base 取り込み: headless-ui が本 PR（#2186）と main（#2111）の
+# 同一版数衝突により 0.68.9 → 0.68.10 へ+1 バンプされたため、下記の
+# 依存先 version 要求を "0.68.10" へ追随する（本クレート自身は上記
+# 0.165.0 のまま、`dep-version-check` の要求 = 依存先現行版数ルールに
+# 従うのみで追加バンプ不要）。
 version = "0.165.0"
 
 edition = "2021"
@@ -2753,7 +2767,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.9" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.10" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
