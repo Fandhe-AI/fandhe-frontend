@@ -9995,6 +9995,11 @@ fn sidebar_section() -> Node {
                 ],
             ),
             sidebar::footer(vec![], vec![text("Ada Lovelace")]),
+            // `rail` は `root`（`position: relative` の基準）に対する
+            // `position: absolute` + `inset-inline-end: -1rem` で配置される
+            // ため、`root` の兄弟ではなく直接の子として配置する（codex-review
+            // P1 指摘対応）。
+            sidebar::rail(&expanded_state, "Toggle sidebar rail", vec![], vec![]),
         ],
     );
 
@@ -10004,7 +10009,6 @@ fn sidebar_section() -> Node {
         vec![],
         vec![
             expanded_root,
-            sidebar::rail(&expanded_state, "Toggle sidebar rail", vec![], vec![]),
             sidebar::trigger(
                 &expanded_state,
                 "Toggle sidebar",
@@ -10052,6 +10056,10 @@ fn sidebar_section() -> Node {
             sidebar::header(vec![], vec![text("Acme Inc")]),
             sidebar::content(vec![], vec![collapsed_menu]),
             sidebar::footer(vec![], vec![text("Ada Lovelace")]),
+            // `rail` は `root` を位置決めの基準とするため、`root` の
+            // 直接の子として配置する（expanded インスタンスと同じ理由、
+            // codex-review P1 指摘対応）。
+            sidebar::rail(&collapsed_state, "Toggle sidebar rail", vec![], vec![]),
         ],
     );
     let collapsed_instance = sidebar::provider(
@@ -10060,7 +10068,6 @@ fn sidebar_section() -> Node {
         vec![],
         vec![
             collapsed_root,
-            sidebar::rail(&collapsed_state, "Toggle sidebar rail", vec![], vec![]),
             sidebar::trigger(
                 &collapsed_state,
                 "Toggle sidebar",
