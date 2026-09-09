@@ -839,7 +839,7 @@ pub fn root(
                 theta + half_step,
             );
             let label = tooltip::hit_area_label(entry);
-            children.push(tooltip::hit_area_path(&d, entry.index, None, &label));
+            children.push(tooltip::hit_area_path(&d, entry.index, None, &label, false));
         }
     }
 

@@ -714,7 +714,22 @@ pub fn pie_chart<'a>(
     // `charts::tooltip` モジュール doc「配置規則」参照）。値 0 のセグメント
     // は境界角が退化するため `render_ring` と同様に hit-area も出さない。
     let entries = if props.show_tooltip {
-        Some(tooltip::entries_from_chart_data(data))
+        // イシュー #2129 codex-review 指摘: pie の実描画色は
+        // `series_color_var(i)`（`i` はカテゴリ index。リング＝系列を
+        // またいで同一カテゴリは常に同色、上記 `render_ring` 参照。pie は
+        // `Series::color` による個別上書きを持たない）であり、
+        // `entries_from_chart_data` の既定（系列 index 基準）とは異なる。
+        // `tooltip-indicator` の色を実際のスライス色に一致させるため
+        // カテゴリ index 基準へ上書きする。
+        let mut entries = tooltip::entries_from_chart_data(data);
+        for entry in &mut entries {
+            let color = crate::charts::SeriesColor::chart_slot(entry.index % 6 + 1)
+                .expect("entry.index % 6 + 1 は常に 1..=6 の範囲内");
+            for row in &mut entry.rows {
+                row.color = color.clone();
+            }
+        }
+        Some(entries)
     } else {
         None
     };
@@ -793,7 +808,13 @@ pub fn pie_chart<'a>(
             } else {
                 annulus_sector_path(CENTER_X, CENTER_Y, r_outer, r_inner, start, end)
             };
-            nodes.push(tooltip::hit_area_path(&d, entry.index, None, &label));
+            nodes.push(tooltip::hit_area_path(
+                &d,
+                entry.index,
+                None,
+                &label,
+                is_full_circle,
+            ));
         }
     }
 

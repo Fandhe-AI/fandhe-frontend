@@ -420,18 +420,19 @@ pub fn root(
             let cx = x_scale.scale(x);
             let cy = y_scale.scale(y);
             let point_idx_str = point_idx.to_string();
-            points.push(svg::circle(
-                cx,
-                cy,
-                props.point_radius,
-                vec![
-                    ("data-scope", "scatter-chart"),
-                    ("data-part", "point"),
-                    ("data-index", point_idx_str.as_str()),
-                    ("data-series", series.name.as_str()),
-                    ("fill", fill.as_str()),
-                ],
-            ));
+            // イシュー #2129 codex-review 指摘: `data-index` は本イシューの
+            // 新規追加のため `show_tooltip` が `true` のときのみ付与する
+            // （`ScatterChartProps::show_tooltip` rustdoc の「バイト一致」
+            // 契約、bar_chart と同型）。`data-series` はイシュー #1063 由来
+            // の既存属性のため `show_tooltip` に関わらず常に付与する。
+            let mut point_attrs: Vec<(&str, &str)> =
+                vec![("data-scope", "scatter-chart"), ("data-part", "point")];
+            if props.show_tooltip {
+                point_attrs.push(("data-index", point_idx_str.as_str()));
+            }
+            point_attrs.push(("data-series", series.name.as_str()));
+            point_attrs.push(("fill", fill.as_str()));
+            points.push(svg::circle(cx, cy, props.point_radius, point_attrs));
 
             if props.show_tooltip {
                 let entry = tooltip::TooltipEntry {

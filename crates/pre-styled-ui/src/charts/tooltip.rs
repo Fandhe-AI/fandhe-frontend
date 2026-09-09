@@ -523,10 +523,28 @@ pub fn hit_area_circle(
 /// 弧型 hit-area（pie/donut/radial の扇形・リング用）。`d` は
 /// [`super::svg::PathBuilder`]/[`super::pie`] が生成した値のみを渡す契約
 /// （呼び出し元の任意文字列を連結しない、`.claude/rules/security.md` A03）。
+///
+/// `evenodd` は `d` が [`super::pie::annulus_full_ring_path`]（内外 2 円を
+/// 同方向に描く全周リング）由来のときに `true` を渡す契約とする
+/// （イシュー #2129 codex-review 指摘）。この形状は `fill-rule="evenodd"`
+/// が無いと内側の穴も塗りつぶされ、`pointer-events="all"`
+/// （ハイドレーション後、#2130）で外側リングが内側カテゴリの hit-area を
+/// 覆ってしまう。呼び出し側の描画コード（`segment_attrs`/`track_attrs`/
+/// `bar_attrs` 等）が同じ `d` に対して既に `fill-rule="evenodd"` を
+/// 付けているかどうかと必ず一致させる。
 #[must_use]
-pub fn hit_area_path(d: &str, index: usize, series: Option<&str>, label: &str) -> Node {
+pub fn hit_area_path(
+    d: &str,
+    index: usize,
+    series: Option<&str>,
+    label: &str,
+    evenodd: bool,
+) -> Node {
     let index_str = index.to_string();
     let mut merged: Vec<(&str, &str)> = vec![("d", d)];
+    if evenodd {
+        merged.push(("fill-rule", "evenodd"));
+    }
     merged.extend(hit_area_attrs(&index_str, series, label));
     el("path", merged, vec![])
 }
@@ -534,14 +552,28 @@ pub fn hit_area_path(d: &str, index: usize, series: Option<&str>, label: &str) -
 /// 1 エントリ分のツールチップ本体（`data-part="tooltip"`）を組み立てる
 /// （内部ヘルパ、[`layer_from_entries`] のみが呼ぶ）。`active` が
 /// `entry.index` と一致しない場合のみ `hidden` を出力する。
-fn tooltip_node(entry: &TooltipEntry, active: Option<usize>) -> Node {
+fn tooltip_node(entry: &TooltipEntry, active: Option<(usize, Option<&str>)>) -> Node {
     let index_str = entry.index.to_string();
     let mut attrs: Vec<(&str, &str)> = vec![
         ("data-scope", SCOPE),
         ("data-part", "tooltip"),
         ("data-index", index_str.as_str()),
     ];
-    if active != Some(entry.index) {
+    // イシュー #2129 codex-review 指摘: scatter（系列 × 点単位）は
+    // `entry.series` に系列名を持つが、この属性が無いと同じ点番号
+    // （`data-index`）を持つ複数系列のツールチップを hit-area の
+    // `data-series` と組で照合できない。hit-area 側（[`hit_area_attrs`]）
+    // と同じ語彙・同じ省略規則（カテゴリ単位＝`None` のときは省略）で
+    // 揃える。
+    if let Some(series) = entry.series.as_deref() {
+        attrs.push(("data-series", series));
+    }
+    // `active` は `(index, series)` の組で比較する（`index` 単独比較だと
+    // scatter のように系列をまたいで `index` が重複するモデルで複数
+    // エントリが同時に active 扱いになってしまうため、イシュー #2129
+    // codex-review 指摘）。カテゴリ単位（[`layer`] 経由、`entry.series`
+    // は常に `None`）は従来どおり `index` のみで一意に定まる。
+    if active != Some((entry.index, entry.series.as_deref())) {
         attrs.push(("hidden", ""));
     }
 
@@ -593,16 +625,22 @@ fn tooltip_node(entry: &TooltipEntry, active: Option<usize>) -> Node {
 /// （静的な「開いた」状態の Demo 用、#2131 が消費）。
 #[must_use]
 pub fn layer(data: &super::data::ChartData, active: Option<usize>) -> Node {
-    layer_from_entries(&entries_from_chart_data(data), active)
+    layer_from_entries(
+        &entries_from_chart_data(data),
+        active.map(|index| (index, None)),
+    )
 }
 
 /// 事前に組み立てた [`TooltipEntry`] 列からツールチップ層を組み立てる
 /// （scatter のように系列 × 点単位で `TooltipEntry` を独自構築する呼び出し
 /// 元向け）。層全体へ `aria-hidden="true"` を固定する（値は hit-area の
 /// `aria-label` と `datum` の `<title>` が既に提供しており、視覚的な重複
-/// 表示のため）。
+/// 表示のため）。`active` は `(index, series)` の組で比較する（[`layer`]
+/// はカテゴリ単位＝`series: None` で呼ぶため `index` 単独比較と等価だが、
+/// scatter のように `index` が系列をまたいで重複するモデルでも一意に
+/// 1 エントリだけを開ける、イシュー #2129 codex-review 指摘）。
 #[must_use]
-pub fn layer_from_entries(entries: &[TooltipEntry], active: Option<usize>) -> Node {
+pub fn layer_from_entries(entries: &[TooltipEntry], active: Option<(usize, Option<&str>)>) -> Node {
     let children = entries
         .iter()
         .map(|entry| tooltip_node(entry, active))
@@ -824,8 +862,12 @@ mod tests {
         let circle_html = render(&hit_area_circle(1.0, 2.0, 3.0, 0, None, "l"));
         assert!(circle_html.starts_with(r#"<circle cx="1" cy="2" r="3""#));
 
-        let path_html = render(&hit_area_path("M0,0 L1,1 Z", 0, None, "l"));
+        let path_html = render(&hit_area_path("M0,0 L1,1 Z", 0, None, "l", false));
         assert!(path_html.contains(r#"d="M0,0 L1,1 Z""#));
+        assert!(!path_html.contains("fill-rule"));
+
+        let evenodd_html = render(&hit_area_path("M0,0 L1,1 Z", 0, None, "l", true));
+        assert!(evenodd_html.contains(r#"fill-rule="evenodd""#));
     }
 
     #[test]

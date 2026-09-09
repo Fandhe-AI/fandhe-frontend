@@ -884,18 +884,19 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                 // イシュー #2129: hit-area・SSR ツールチップ DOM の共有語彙
                 // `data-index`（カテゴリ序数）/`data-series`（系列の生の名前。
                 // radar/radial/pie/scatter と同じ語彙、display_label ではない）を
-                // `show_tooltip` に関わらず常に付与する（`root` 全体の
-                // 出力形が opt-out で分岐するため、bar 単体への付与自体は
-                // 分岐しない設計。§2.7 の「各 bar には data-index +
-                // data-series」）。
+                // 付与する。`show_tooltip: false` は本イシュー以前の出力
+                // （`BarChartProps::show_tooltip` rustdoc の「バイト一致」
+                // 契約）を要求するため、`show_tooltip` の値で分岐する
+                // （codex-review 指摘、常時付与だった旧実装は契約違反
+                // だった）。
                 let cat_idx_str = cat_idx.to_string();
                 let series_label = series[s_idx].name.as_str();
-                let mut attrs: Vec<(&str, &str)> = vec![
-                    ("data-scope", "bar-chart"),
-                    ("data-part", "bar"),
-                    ("data-index", cat_idx_str.as_str()),
-                    ("data-series", series_label),
-                ];
+                let mut attrs: Vec<(&str, &str)> =
+                    vec![("data-scope", "bar-chart"), ("data-part", "bar")];
+                if props.show_tooltip {
+                    attrs.push(("data-index", cat_idx_str.as_str()));
+                    attrs.push(("data-series", series_label));
+                }
                 attrs.push(("fill", color.as_str()));
                 if is_active {
                     attrs.push(("data-active", ""));
@@ -998,16 +999,18 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     RoundedEnd::None
                 };
 
-                // イシュー #2129: 上記スタック分岐と同じ規則で `data-index`/
-                // `data-series` を常に付与する。
+                // イシュー #2129: 上記スタック分岐と同じ規則で `show_tooltip`
+                // が `true` のときのみ `data-index`/`data-series` を付与
+                // する（codex-review 指摘、`show_tooltip: false` 時の
+                // バイト一致契約を満たすため）。
                 let cat_idx_str = cat_idx.to_string();
                 let series_label = s.name.as_str();
-                let mut attrs: Vec<(&str, &str)> = vec![
-                    ("data-scope", "bar-chart"),
-                    ("data-part", "bar"),
-                    ("data-index", cat_idx_str.as_str()),
-                    ("data-series", series_label),
-                ];
+                let mut attrs: Vec<(&str, &str)> =
+                    vec![("data-scope", "bar-chart"), ("data-part", "bar")];
+                if props.show_tooltip {
+                    attrs.push(("data-index", cat_idx_str.as_str()));
+                    attrs.push(("data-series", series_label));
+                }
                 attrs.push(("fill", color.as_str()));
                 if is_active {
                     attrs.push(("data-active", ""));

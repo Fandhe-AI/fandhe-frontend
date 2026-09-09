@@ -691,16 +691,40 @@ pub fn radial_chart<'a>(
     // `data-series` は不変、hit-area 自体には付与しない、
     // `charts::tooltip` モジュール doc「配置規則」参照）。
     let entries = if props.show_tooltip {
-        Some(tooltip::entries_from_chart_data(data))
+        let mut entries = tooltip::entries_from_chart_data(data);
+        // イシュー #2129 codex-review 指摘: `single_series` かつ
+        // `series.color` 未指定の場合、実描画色はカテゴリ index 基準の
+        // 循環（`fill` 計算部の `series_color_var(i)` 分岐参照）だが、
+        // `entries_from_chart_data` の既定は系列 index 基準（単一系列
+        // なので常に `chart-1` 固定）となり一致しない。`tooltip-indicator`
+        // の色を実際のセグメント色に合わせてカテゴリ index 基準へ
+        // 上書きする（`series.color` 指定時・multi series はいずれも
+        // 実描画と既定の色決定が一致するため上書き不要）。
+        if single_series && data.series()[0].color.is_none() {
+            for entry in &mut entries {
+                let color = crate::charts::SeriesColor::chart_slot(entry.index % 6 + 1)
+                    .expect("entry.index % 6 + 1 は常に 1..=6 の範囲内");
+                for row in &mut entry.rows {
+                    row.color = color.clone();
+                }
+            }
+        }
+        Some(entries)
     } else {
         None
     };
     if let Some(entries) = &entries {
         for entry in entries {
             let (r_inner, r_outer) = ring_radii(entry.index, r_inner_base, band, thickness);
-            let (d, _evenodd) = ring_segment_path(r_outer, r_inner, start_rad, end_rad, 0.0);
+            let (d, evenodd) = ring_segment_path(r_outer, r_inner, start_rad, end_rad, 0.0);
             let label = tooltip::hit_area_label(entry);
-            children.push(tooltip::hit_area_path(&d, entry.index, None, &label));
+            children.push(tooltip::hit_area_path(
+                &d,
+                entry.index,
+                None,
+                &label,
+                evenodd,
+            ));
         }
     }
 
@@ -784,8 +808,11 @@ mod tests {
         // トラック 2 本の両方が `evenodd` 分岐を通る。加えて `two_category_data`
         // はリング A（値 80）が `domain_max`（80）と一致する単独系列であり、
         // その `bar` 自体の角度幅も配置された `props` の全スイープと一致する
-        // ため同じ全周退化分岐を通る（`track`/`bar` 共通規則の実例）。
-        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 3);
+        // ため同じ全周退化分岐を通る（`track`/`bar` 共通規則の実例）。イシュー
+        // #2129 codex-review 指摘の是正後は hit-area（`ring_segment_path` の
+        // `evenodd` 判定を `tooltip::hit_area_path` へ引き継ぐ）も 2 カテゴリ
+        // 分（同じ全周ジオメトリ）が加わり、3 + 2 の計 5 に純増する。
+        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 5);
     }
 
     #[test]
@@ -1117,7 +1144,7 @@ mod tests {
             ..RadialChartProps::default()
         };
         let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
-        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 3);
+        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 5);
     }
 
     #[test]
@@ -1143,7 +1170,7 @@ mod tests {
         )
         .unwrap();
         let html = render(&radial_chart(&RadialChartProps::default(), &data, vec![]).unwrap());
-        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 4);
+        assert_eq!(html.matches(r#"fill-rule="evenodd""#).count(), 6);
     }
 
     #[test]
