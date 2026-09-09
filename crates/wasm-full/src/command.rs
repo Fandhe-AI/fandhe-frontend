@@ -636,7 +636,34 @@ mod wiring {
         // 現在のフォーカス状態をそのまま採用させる）。ダイアログが初期
         // 非表示（`hidden`）の構成でも安全に呼べる（[`reflect_filter`] は
         // 生きた DOM の再解決のみに依存し、可視性を前提にしない）。
+        //
+        // `input` の現在値が空（＝一般的な初期状態。検索クエリを保持した
+        // まま mount/hydrate する構成ではない）の場合はこのループを一切
+        // 呼ばない（Cursor Bugbot High/Medium 是正、イシュー #2069）。
+        // 空クエリでは `filter_items` が全件一致するため絞り込み結果自体
+        // は変化しないが、[`reflect_filter`] は絞り込みに加えて
+        // [`selection_sync_plan`] による選択整合も行う関数であり、まだ
+        // どの item も `data-selected` を持たない通常の初期 DOM（サーバー
+        // 側で選択状態を確定させない構成）に対して呼ぶと、利用者の一切の
+        // 操作なしに `Select`（先頭 item の自動選択）または `Deselect`
+        // （全 item disabled 時）を無条件に dispatch してしまう
+        // （導入時の doc「空クエリでは...影響はない」という想定は誤りで
+        // あり、本コメントで訂正する）。この dispatch は disabled 判定
+        // 自体は [`selection_sync_plan`]/[`item_disabled_flags`] 経由で
+        // 正しく行われるが、そもそも mount 直後に発生してはならない
+        // （利用者操作に起因しない状態変化を dispatch しない、という
+        // モジュール冒頭 doc の設計方針に反する）。クエリが非空のときは
+        // 従来どおり同期し、絞り込み後の選択整合（disabled item を候補に
+        // しない [`selection_sync_plan`] の判定込み）を反映する。
         for input in collect_parts(&root, INPUT_SELECTOR) {
+            let has_query = input
+                .clone()
+                .dyn_into::<HtmlInputElement>()
+                .ok()
+                .is_some_and(|el| !el.value().is_empty());
+            if !has_query {
+                continue;
+            }
             if let Some(list) = resolve_list(&root, &input) {
                 let list_id = list.id();
                 reflect_filter(&root, &list_id, &on_action, None);
