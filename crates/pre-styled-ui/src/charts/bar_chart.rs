@@ -1637,6 +1637,35 @@ mod tests {
     }
 
     #[test]
+    fn stack_normal_rejects_overflowing_cumulative_sum() {
+        // PR #2255 レビュー指摘の再現ケース: 同一カテゴリの 2 系列に
+        // `1e308` を与えると `BarStack::Normal` の累積和が `f64::MAX` を
+        // 超えて `+inf` へオーバーフローする。`horizontal_label_margin` が
+        // `LinearScale::new` の domain 検証より先に `svg::fmt_coord` へ
+        // この非有限値を渡すと `debug_assert!(v.is_finite(), ...)` に反して
+        // デバッグビルドで panic するため、`stacked_cumulative` の時点で
+        // fail-closed に `ChartError::NonFiniteValue` を返すことを固定する。
+        let data = ChartData::new(
+            vec!["a".to_string()],
+            vec![
+                Series::new("s1", vec![1e308]),
+                Series::new("s2", vec![1e308]),
+            ],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            stack: BarStack::Normal,
+            orientation: Orientation::Horizontal,
+            label: BarLabel::Outside,
+            ..BarChartProps::default()
+        };
+        assert_eq!(
+            root(&data, props, "label").unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
     fn stack_rejects_negative_values() {
         let data =
             ChartData::new(vec!["a".to_string()], vec![Series::new("s", vec![-1.0])]).unwrap();
