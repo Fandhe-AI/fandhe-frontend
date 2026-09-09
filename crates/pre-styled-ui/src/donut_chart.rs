@@ -610,6 +610,13 @@ pub fn donut_chart<'a>(
                 ("data-part", "label-line"),
                 ("d", leader_d.as_str()),
             ];
+            if props.show_tooltip {
+                // `segment` と同じゲート・語彙（pie_chart::render_ring 同型、
+                // Cursor Bugbot 指摘「Donut labels lack shared identifiers」
+                // 対応。凡例トグルの共有セレクタ `[data-index]` から本要素も
+                // 一緒に非表示・復元できるようにする、イシュー #2133）。
+                label_line_attrs.push(("data-index", cat_idx_str.as_str()));
+            }
             if hidden {
                 // イシュー #2133: 非表示セグメントの引き出し線も伝搬して
                 // 隠す（`segment` の data-hidden 伝搬と同じ条件、
@@ -632,6 +639,11 @@ pub fn donut_chart<'a>(
                 ("data-part", "outside-label"),
                 ("data-align", align),
             ];
+            if props.show_tooltip {
+                // `segment`/`label-line` と同じゲート・語彙（同上、
+                // イシュー #2133）。
+                outside_label_attrs.push(("data-index", cat_idx_str.as_str()));
+            }
             if hidden {
                 // イシュー #2133: 非表示セグメントの外側ラベルも伝搬して
                 // 隠す（同上）。
@@ -650,6 +662,10 @@ pub fn donut_chart<'a>(
             let ly = CENTER_Y + label_r * mid.sin();
             let mut label_attrs: Vec<(&str, &str)> =
                 vec![("data-scope", "donut-chart"), ("data-part", "label")];
+            if props.show_tooltip {
+                // `segment` と同じゲート・語彙（同上、イシュー #2133）。
+                label_attrs.push(("data-index", cat_idx_str.as_str()));
+            }
             if hidden {
                 // イシュー #2133: 非表示セグメントの内側ラベルも伝搬して
                 // 隠す（同上）。
