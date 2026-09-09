@@ -67,9 +67,11 @@ use fandhe_frontend_wasm_full::sidebar::{
 /// テストは本定数を経由する [`wire_sidebar_events_with_query`] で
 /// デスクトップ固定にし、実ビューポート依存の flaky を避ける。
 const DESKTOP_QUERY: &str = "(max-width: 0px)";
+use js_sys::Promise;
 use std::cell::RefCell;
 use std::rc::Rc;
-use wasm_bindgen::JsCast;
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::*;
 use web_sys::{
     Document, Element, Event, EventInit, EventTarget, KeyboardEvent, KeyboardEventInit, MouseEvent,
@@ -1660,5 +1662,141 @@ fn wire_sidebar_dispatch_rejects_root_with_multiple_providers() {
         "root 配下に複数 provider がある場合は Err（fail-closed）で拒否\
          されること（同一 root を共有する複数の wire_sidebar_dispatch\
          呼び出しが無関係なサイドバーまで連動トグルする不具合の再発防止）"
+    );
+}
+
+// --- 9. `collapse_pending` による複数 Sidebar 同期登録時の取りこぼし
+//        是正（イシュー #2074 PR #2248 codex-review P1 再指摘の回帰） ---
+
+/// `setTimeout(ms)` を 1 回だけ発行し解決を待つ、マイクロタスク/次
+/// マクロタスクへ制御を明示的に渡すための猶予待機ヘルパー
+/// （`headless_timer_browser.rs::sleep_ms` と同型）。本ファイル内の他
+/// テストは配線の同期的な効果のみを検証するため不要だったが、本テストは
+/// `MutationObserver` コールバック（マイクロタスク）の発火を跨いで
+/// 状態変化を確認する必要があるため導入する。
+async fn sleep_ms(ms: i32) {
+    let promise = Promise::new(&mut |resolve, _reject| {
+        let window = web_sys::window().expect("window must exist");
+        let closure = Closure::once(move || {
+            resolve.call0(&JsValue::NULL).ok();
+        });
+        window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                ms,
+            )
+            .expect("setTimeout must not fail");
+        closure.forget();
+    });
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .expect("timeout promise must resolve");
+}
+
+#[wasm_bindgen_test]
+async fn sibling_wipe_during_catchup_click_still_collapses_via_mutation_observer_retry() {
+    // イシュー #2074 PR #2248 codex-review P1 再指摘の回帰テスト。
+    // `crates/wasm-full/src/sidebar.rs` の `wiring::apply_mobile_state`
+    // doc「`collapse_pending`」節が説明する不具合シナリオを、独立した
+    // 2 つの root（`sub_a`/`sub_b`。`multiple_providers_under_shared_root_*`
+    // 系テストと異なり、単一の共有 root ではなく個別の root として
+    // 各々に `wire_sidebar_events_with_query`/`wire_sidebar_dispatch` を
+    // 呼ぶ — 複数の独立した Sidebar インスタンスを持つアプリが個々に
+    // 配線する構成の再現）で忠実に再現する。
+    //
+    // 1. `wire_sidebar_events_with_query(sub_a, ..)`/`(sub_b, ..)` を
+    //    順に呼ぶ。常時一致クエリのため、双方とも初回 `apply_mobile_state`
+    //    が `entering_mobile`/`collapse_pending` を立てるが、この時点では
+    //    まだ dispatch が未登録のため折りたたみ click は no-op のまま
+    //    残る（`data-state="expanded"` は変わらない）。
+    // 2. `wire_sidebar_dispatch(sub_a, ..)` を登録する。この関数自身が
+    //    行う登録直後の catch-up が sub_a の折りたたみ click を dispatch
+    //    へ到達させ、`on_update` が呼ばれる。この `on_update` は sub_a
+    //    自身の `data-state` 反映に加えて、**意図的に sub_b の DOM を
+    //    丸ごと再構築する**（共有レンダーツリーを持つ実アプリで、A の
+    //    トグルに起因する広い再描画が無関係な B の部分木を巻き込む状況
+    //    の模擬）。この再構築は sub_b にとって `data-mobile` 属性の消失
+    //    （`build_sidebar_markup` は `mobile` を知らない headless-ui の
+    //    静的出力であり、`data-mobile` を持たない）を意味する。
+    // 3. `wire_sidebar_dispatch(sub_b, ..)` を登録する。この関数自身の
+    //    登録直後 catch-up は、直前の再構築で消えた sub_b の
+    //    `data-mobile` 属性を読むため「モバイルではない」と誤判定し、
+    //    折りたたみ click を送らない（この 1 回限りの読み取りが偽陰性に
+    //    なり得ることは `wire_sidebar_dispatch` 本体の doc コメントに
+    //    明記済み）。
+    // 4. しかし step 2 の sub_b 再構築は sub_b 自身の `MutationObserver`
+    //    （`wire_sidebar_events_with_query(sub_b, ..)` が同期実行中に
+    //    登録済み）が監視する `childList` 変異であるため、マイクロ
+    //    タスクとして後続で必ず発火する。この時点で dispatch_b は
+    //    既に登録済み（step 3 が同期的に先行するため）であり、
+    //    `collapse_pending`（sub_b はまだ 1 度も折りたたみを確認できて
+    //    いないため真のまま）に基づいて折りたたみ click を再試行し、
+    //    今度こそ dispatch へ到達して `Collapsed` へ収束する。
+    //
+    // `collapse_pending` 導入前の実装では、sub_b の `was_mobile` が
+    // step 1 の時点で既に真へ進んでいるため、この `MutationObserver`
+    // 発火時点で「遷移エッジではない」と判定され再試行が一切起きず、
+    // sub_b は `Expanded` のまま永続的に取り残されていた。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let sub_a = create_container(&document, "sidebar-sibling-wipe-sub-a");
+    let sub_b = create_container(&document, "sidebar-sibling-wipe-sub-b");
+    let _cleanup_a = RemoveOnDrop(sub_a.clone());
+    let _cleanup_b = RemoveOnDrop(sub_b.clone());
+
+    let (sidebar_a, ..) = build_sidebar_markup(&sub_a, SidebarState::Expanded, false, false);
+    let (sidebar_b, ..) = build_sidebar_markup(&sub_b, SidebarState::Expanded, false, false);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+
+    // step 1: 両方の root に対して mobile 配線のみ先に済ませる（まだ
+    // dispatch は未登録）。
+    wire_sidebar_events_with_query(sub_a.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail for sub_a");
+    wire_sidebar_events_with_query(sub_b.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail for sub_b");
+
+    // step 2: sub_a の dispatch を登録する。`on_update` は sub_a 自身の
+    // `data-state` 反映に加えて、sub_b の DOM を丸ごと再構築し「兄弟の
+    // 構造再描画による data-mobile 消失」を模擬する。
+    let update_sub_a = sub_a.clone();
+    let rebuild_sub_b = sub_b.clone();
+    wire_sidebar_dispatch(sub_a.clone(), component_a.clone(), move |state, _root| {
+        let data_state = state.data_state();
+        if let Some(el) = query(&update_sub_a, PROVIDER_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        if let Some(el) = query(&update_sub_a, ROOT_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        let _ = build_sidebar_markup(&rebuild_sub_b, SidebarState::Expanded, false, false);
+    })
+    .expect("wire_sidebar_dispatch must not fail for sub_a");
+
+    assert_eq!(
+        component_a.borrow().state(),
+        SidebarState::Collapsed,
+        "sub_a は登録直後 catch-up で通常どおり折りたたまれること"
+    );
+
+    // step 3: sub_b の dispatch を登録する。この時点の catch-up は
+    // 直前の再構築で消えた data-mobile を読むため偽陰性になり、
+    // 折りたたみ click を送らない。
+    wire_dispatch_reflecting_data_state(&sub_b, component_b.clone());
+
+    // step 4: sub_b 自身の `MutationObserver`（マイクロタスク）が
+    // 上記再構築を検知し、`collapse_pending` に基づいて折りたたみを
+    // 再試行するのを待つ。
+    sleep_ms(50).await;
+
+    assert_eq!(
+        component_b.borrow().state(),
+        SidebarState::Collapsed,
+        "兄弟（sub_a）の catch-up click が誘発した再描画で sub_b の \
+         data-mobile が一時的に消えても、sub_b 自身の MutationObserver \
+         が collapse_pending に基づき折りたたみを再試行し、最終的に \
+         Collapsed へ収束すること（is_connected ガードは observer 発火\
+         自体を妨げない — sub_b は document に接続されたまま）"
     );
 }

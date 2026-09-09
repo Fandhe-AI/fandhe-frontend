@@ -704,13 +704,45 @@ mod wiring {
 
     /// `root`/`mql` から現在のモバイル判定を再取得し、`provider`/`root`
     /// パーツへ `data-mobile` を反映する。デスクトップ→モバイルへの
-    /// **遷移エッジ**（`was_mobile` が偽から真へ変わる瞬間）に限り、
-    /// expanded なら collapsed へ寄せる（モジュール doc「モバイル進入時に
-    /// expanded を collapsed へ寄せる意図的差分」参照）。マウント直後の
-    /// 初回呼び出し・`MediaQueryList` の `change` イベント・
+    /// **遷移エッジ**（`was_mobile` が偽から真へ変わる瞬間）で
+    /// `collapse_pending` を立て、matches が真かつ `collapse_pending` が
+    /// 立っている間は呼ばれるたびに（遷移エッジかどうかを問わず）expanded
+    /// な provider への折りたたみ click を再試行する（モジュール doc
+    /// 「モバイル進入時に expanded を collapsed へ寄せる意図的差分」参照）。
+    /// マウント直後の初回呼び出し・`MediaQueryList` の `change` イベント・
     /// `MutationObserver`（再描画で `data-mobile` が失われた場合の再適用）
     /// の 3 経路から共通で呼ばれる。
-    fn apply_mobile_state(root: &Element, mql: &MediaQueryList, was_mobile: &Rc<Cell<bool>>) {
+    ///
+    /// # `collapse_pending`（複数 Sidebar 同期登録時の取りこぼし是正、
+    /// イシュー #2074 codex-review P1 再指摘）
+    ///
+    /// 当初の実装は「`was_mobile` が偽→真に変わった瞬間」の 1 回だけ
+    /// 折りたたみを試みていた。しかし複数 Sidebar インスタンスを同期的に
+    /// （`wire_sidebar_events`→`wire_sidebar_dispatch` の順で 1 個ずつ）
+    /// 登録するアプリでは、あるインスタンス A の登録直後の catch-up
+    /// click（[`wire_sidebar_dispatch`] doc「登録順序」節参照）が
+    /// `on_update` を経て別インスタンス B の部分木を巻き込んで再描画する
+    /// ことがあり、B 自身の初回 `apply_mobile_state` 呼び出しが既に
+    /// `was_mobile` を真へ進めた**後**にこの再描画が B の `data-mobile`
+    /// を消してしまうと、その後 `MutationObserver` が B の `data-mobile`
+    /// を再適用しても（`was_mobile` は既に真のまま、遷移エッジではない
+    /// ため）折りたたみが再試行されず、B の drawer が開いたまま取り
+    /// 残されていた。`collapse_pending` は「モバイルへ進入したが、まだ
+    /// 全 provider の折りたたみを確認できていない」状態を `was_mobile`
+    /// とは独立に保持し、`change`/`MutationObserver` のどの経路から
+    /// 再度呼ばれても、確認が取れるまで（＝全 provider が collapsed に
+    /// なるまで）折りたたみ click を再試行し続ける。デスクトップへ
+    /// 戻ると `collapse_pending` はクリアし（次にモバイルへ再進入した
+    /// 際に新規の遷移として扱うため）、既に折りたたみ済みで
+    /// ユーザーが意図的に再度開いた drawer を追いかけて閉じ続けることは
+    /// ない（`collapse_pending` は「初回折りたたみの確認待ち」の間のみ
+    /// 真であり、確認が取れた時点で偽に戻る）。
+    fn apply_mobile_state(
+        root: &Element,
+        mql: &MediaQueryList,
+        was_mobile: &Rc<Cell<bool>>,
+        collapse_pending: &Rc<Cell<bool>>,
+    ) {
         let matches = mql.matches();
 
         // イシュー #2074 codex-review P1 是正: `query_all`（子孫のみ）
@@ -730,6 +762,16 @@ mod wiring {
 
         let entering_mobile = matches && !was_mobile.get();
         if entering_mobile {
+            collapse_pending.set(true);
+        }
+        if !matches {
+            // デスクトップへ戻ったら「折りたたみ確認待ち」を破棄する。
+            // 次にモバイルへ再進入した際は改めて `entering_mobile` から
+            // 扱うため、ここで残しておく意味がない（残すと、次回進入時に
+            // 無関係な古い pending が誤って再試行を続ける可能性がある）。
+            collapse_pending.set(false);
+        }
+        if matches && collapse_pending.get() {
             // イシュー #2074 codex-review P1 是正: [`find_first`] は
             // 最初の provider にしか反応しないため、同一 `root` 配下に
             // 複数 provider が並存すると 2 個目以降が `expanded` の
@@ -763,6 +805,25 @@ mod wiring {
                     click_trigger_or_rail(provider);
                 }
             });
+
+            // click 合成の結果を再取得で確認する（`for_each_provider_
+            // refetching` 内の読み取りは click 前のスナップショットで
+            // あり得るため、ここで改めて生きた DOM から全 provider を
+            // 見直す）。dispatch が未登録（マウント直後の初回呼び出し等）
+            // で click が no-op だった場合、または兄弟の再描画で
+            // `data-mobile`/`data-state` が巻き戻された場合は、いずれかの
+            // provider がまだ expanded のまま残るため `collapse_pending`
+            // を真のまま保持し、次に本関数が呼ばれたとき（`change`／
+            // `MutationObserver`／`wire_sidebar_dispatch` の catch-up 経由の
+            // 再描画等）に再試行する。全 provider が collapsed に
+            // なったことを確認できて初めて `collapse_pending` を解除する。
+            let still_expanded = all_providers(root).into_iter().any(|provider| {
+                let state = provider.get_attribute("data-state");
+                should_collapse_on_enter_mobile(true, state.as_deref())
+            });
+            if !still_expanded {
+                collapse_pending.set(false);
+            }
         }
         was_mobile.set(matches);
 
@@ -809,13 +870,37 @@ mod wiring {
             .ok_or_else(|| JsValue::from_str("sidebar: matchMedia unsupported"))?;
 
         let was_mobile = Rc::new(Cell::new(false));
+        let collapse_pending = Rc::new(Cell::new(false));
 
         // `change`: viewport がブレークポイントをまたいだときに再適用する。
+        //
+        // イシュー #2074 Cursor Bugbot 是正（Detached roots still handle
+        // viewport changes）: `MediaQueryList` の `change` リスナーは
+        // `mql` 自身（root とは無関係な JS オブジェクト）へ登録されて
+        // おり、`root` を含むコンテナが後から DOM 差し替え・remount で
+        // 取り外されても、このリスナー自身を解除する手段を持たないまま
+        // `mql` に residual listener として残り続ける（上記
+        // `handle_document_keydown`/`handle_document_pointerdown` と同型の
+        // 問題）。取り外された旧 `root` に対して `apply_mobile_state` が
+        // 呼ばれ続けると、`entering_mobile`/`collapse_pending` の判定が
+        // detached ツリーへの trigger click を合成し、古い
+        // `wire_sidebar_dispatch` の `on_update`（呼び出し側がまだ保持して
+        // いれば）を誤って発火させ得る。`root.is_connected()` が偽（取り
+        // 外し済み）の場合は本コールバックを完全に no-op とする。
         let change_root = root.clone();
         let change_mql = mql.clone();
         let change_was_mobile = was_mobile.clone();
+        let change_collapse_pending = collapse_pending.clone();
         let change_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
-            apply_mobile_state(&change_root, &change_mql, &change_was_mobile);
+            if !change_root.is_connected() {
+                return;
+            }
+            apply_mobile_state(
+                &change_root,
+                &change_mql,
+                &change_was_mobile,
+                &change_collapse_pending,
+            );
         });
         mql.add_event_listener_with_callback("change", change_closure.as_ref().unchecked_ref())?;
         change_closure.forget();
@@ -826,12 +911,27 @@ mod wiring {
         // 監視しないため、本関数自身が書き込む `data-mobile` の変更では
         // 再発火しない（自己発火ループの構造的回避）。上記 doc「登録順序」
         // のとおり、初回 [`apply_mobile_state`] 呼び出しより先に登録する。
+        //
+        // イシュー #2074 Cursor Bugbot 是正: `observe_with_options(root, …)`
+        // は `root` へ直接紐づくため、`root` が DOM から取り外されても
+        // observer は登録された `Node` を対象に監視し続け得る（分離済み
+        // ツリー内の変異でもコールバックは発火し得る）。`change` と同じ
+        // 理由で `root.is_connected()` が偽の場合は no-op とする。
         let observer_root = root.clone();
         let observer_mql = mql.clone();
         let observer_was_mobile = was_mobile.clone();
+        let observer_collapse_pending = collapse_pending.clone();
         let observer_callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |_records: js_sys::Array, _observer: MutationObserver| {
-                apply_mobile_state(&observer_root, &observer_mql, &observer_was_mobile);
+                if !observer_root.is_connected() {
+                    return;
+                }
+                apply_mobile_state(
+                    &observer_root,
+                    &observer_mql,
+                    &observer_was_mobile,
+                    &observer_collapse_pending,
+                );
             },
         );
         let observer = MutationObserver::new(observer_callback.as_ref().unchecked_ref())?;
@@ -842,8 +942,12 @@ mod wiring {
         observer_callback.forget();
 
         // 初回適用（マウント時点の viewport を反映）。上記 `change`/
-        // `MutationObserver` の登録が完了した後に呼ぶ。
-        apply_mobile_state(root, &mql, &was_mobile);
+        // `MutationObserver` の登録が完了した後に呼ぶ。マウント直後の
+        // 呼び出しであり `root` は通常 connected だが、念のため
+        // `apply_mobile_state` 自体には `is_connected` ガードを入れない
+        // （`change`/`MutationObserver` コールバックのみに限定する設計、
+        // 上記 doc 参照）。
+        apply_mobile_state(root, &mql, &was_mobile, &collapse_pending);
 
         Ok(())
     }
@@ -1563,6 +1667,30 @@ mod wiring {
         // 一致することが保証されている（`root` が複数 provider を含む
         // 共有祖先だった場合は、この検証で既に `Err` として早期
         // returnしているため、ここに到達する時点で曖昧性は無い）。
+        //
+        // イシュー #2074 codex-review P1 再指摘（この読み取りが兄弟
+        // Sidebar の再描画で偽陰性になり得る）と本関数直下の読み取りの
+        // 役割分担: この 1 回限りの DOM 属性読み取りは「dispatch 登録後
+        // 何も DOM 変異が起きないケース」（`wire_mobile` の
+        // `MutationObserver`/`change` はいずれもイベント駆動であり、
+        // それらを一切トリガーしない静かな状態では再試行の機会が無い）を
+        // 拾うためのものであり、[`wiring::apply_mobile_state`]
+        // doc「`collapse_pending`」節が説明する**継続的な**再試行機構とは
+        // 別レイヤーである。複数 Sidebar を同期登録するアプリで、他
+        // インスタンスの catch-up click が本インスタンスの provider の
+        // `data-mobile`/`data-state` を一時的に巻き戻した直後にこの読み
+        // 取りが走ると、`mobile`/`state` は偽陰性（実際はモバイル進入
+        // 済みなのに attribute 上は false）になり得るが、その巻き戻し
+        // 自体が本インスタンスの `root` 配下の `childList` 変異である
+        // ため、本インスタンスの `wire_mobile` が持つ `MutationObserver`
+        // が必ず後続で発火し、`collapse_pending`（当該巻き戻しが起きた
+        // 時点で `wire_mobile` 初回呼び出し済みなら既に真になっている）
+        // に基づいて自律的に折りたたみを再試行する。したがって、この
+        // 読み取りが偽陰性で click を送らなくても、`collapse_pending`
+        // 機構が最終的に収束させるため、ここを `collapse_pending` 依存へ
+        // 書き換える必要はない（`collapse_pending` は `wire_mobile` の
+        // クロージャ内にのみ存在し、本関数からは参照できない設計上の
+        // 制約でもある）。
         if let Some(provider) = find_first_including_self(&reconcile_root, PROVIDER_SELECTOR) {
             let mobile = provider.has_attribute("data-mobile");
             let state = provider.get_attribute("data-state");
