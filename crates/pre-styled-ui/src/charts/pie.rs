@@ -447,22 +447,28 @@ pub fn outside_label_point(
 }
 
 /// [`PieLabelPosition::Outside`](crate::pie_chart::PieLabelPosition::Outside)
-/// 使用時の外径を、カテゴリ名の推定表示幅を考慮して縮小する
-/// （`pie_chart`/`donut_chart` 共通、イシュー #2084 レビュー指摘）。
+/// 使用時の外径を、実際に描画される外側ラベル文字列（カテゴリ名、または
+/// `label_content = Value` 時は値の文字列）の推定表示幅を考慮して縮小する
+/// （`pie_chart`/`donut_chart` 共通、イシュー #2084 レビュー指摘。当初は
+/// 呼び出し側がカテゴリ名の文字数のみを渡しており `label_content = Value`
+/// 表示時に値の桁数を考慮できていなかった、PR #2257 レビュー指摘で
+/// 呼び出し側を修正）。
 ///
 /// 固定径（`OUTSIDE_LABEL_OUTER_RADIUS`）のみで [`outside_label_point`] の
 /// 座標を決めると、[`leader_line_path`] の水平区間 + `gap` の余白しか
-/// viewBox 端との間に確保されず、通常長のカテゴリ名（例: "Chrome"）でも
+/// viewBox 端との間に確保されず、通常長のラベル文字列（例: "Chrome"）でも
 /// テキストが viewBox 外へはみ出す（等しい値の 2 カテゴリで x=95.5/4.5 と
 /// なり残り余白が 4.5 しかない実測が動機）。テキスト幅は SVG 実レンダリング
 /// 結果に依存し本クレート（外部依存ゼロ）では計測できないため、
 /// [`crate::charts::bar_chart`] の `AVG_LABEL_CHAR_WIDTH` 近似と同じ設計
 /// （固定 font-size に対する等幅想定の 1 文字あたり近似幅）を踏襲し、
-/// 最大文字数から必要な水平余白を逆算して外径を縮小する。
+/// 実際に描画されるラベル文字列の最大文字数から必要な水平余白を逆算して
+/// 外径を縮小する（`max_label_len` は呼び出し側が `label_content` に応じて
+/// カテゴリ名または値の表示文字列から算出する）。
 ///
 /// 返り値は `min_outer_radius..=max_outer_radius` にクランプする
 /// （`min_outer_radius` は退化しない下限を呼び出し側が指定する。
-/// 極端に長いカテゴリ名では下限クランプにより余白が不足しはみ出しうる
+/// 極端に長いラベル文字列では下限クランプにより余白が不足しはみ出しうる
 /// 既知の限界であり、`bar_chart::horizontal_label_margin` の
 /// `.max(LABEL_MARGIN)` と同種のトレードオフ）。
 #[must_use]
@@ -476,9 +482,9 @@ pub fn outside_label_effective_outer_radius(
     horizontal_len: f64,
     gap: f64,
     avg_char_width: f64,
-    max_category_len: usize,
+    max_label_len: usize,
 ) -> f64 {
-    let text_reserve = max_category_len as f64 * avg_char_width;
+    let text_reserve = max_label_len as f64 * avg_char_width;
     let available_half_width =
         (view_box_width - center_x) - radial_len - horizontal_len - gap - text_reserve;
     available_half_width.clamp(min_outer_radius, max_outer_radius)

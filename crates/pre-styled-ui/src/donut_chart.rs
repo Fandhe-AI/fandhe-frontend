@@ -143,7 +143,7 @@ const OUTER_RADIUS: f64 = 45.0;
 
 /// [`crate::pie_chart::PieLabelPosition::Outside`] 使用時に縮小する外径の
 /// 上限（[`crate::pie_chart`] モジュール doc「幾何上の制約」節と同一定数、
-/// イシュー #2084）。カテゴリ名が短い場合はこの値まで使う
+/// イシュー #2084）。ラベル文字列が短い場合はこの値まで使う
 /// （[`crate::charts::pie::outside_label_effective_outer_radius`] 参照）。
 const OUTSIDE_LABEL_OUTER_RADIUS: f64 = 34.0;
 /// [`OUTSIDE_LABEL_OUTER_RADIUS`] 縮小の下限（[`crate::pie_chart`] と
@@ -172,16 +172,23 @@ const ACTIVE_INSET: f64 = 4.0;
 /// [`chart`] へ既定で付与する `aria-label`。
 const DEFAULT_ARIA_LABEL: &str = "donut chart";
 
-/// [`crate::pie_chart::PieLabelPosition::Outside`] 使用時の外径を、
-/// `categories` 中の最長カテゴリ名の推定表示幅を考慮して縮小する
-/// （[`crate::pie_chart`] の同名ヘルパと同一設計、イシュー #2084
-/// レビュー指摘）。
-fn resolve_outside_label_outer_radius(categories: &[String]) -> f64 {
-    let max_category_len = categories
-        .iter()
-        .map(|c| c.chars().count())
-        .max()
-        .unwrap_or(0);
+/// [`crate::pie_chart::PieLabelPosition::Outside`] 使用時の外径を、実際に
+/// 描画される外側ラベル文字列（[`PieLabelContent::Category`] ならカテゴリ
+/// 名、[`PieLabelContent::Value`] なら [`fmt_coord`] 後の値文字列）の最長
+/// 推定表示幅を考慮して縮小する（[`crate::pie_chart`] の同名ヘルパと同一
+/// 設計、イシュー #2084 レビュー指摘。当初カテゴリ名のみを見ており
+/// `label_content = Value` 表示時に値の桁数がはみ出すすり抜けがあった、
+/// 同イシュー PR #2257 レビュー指摘で修正）。
+fn resolve_outside_label_outer_radius(
+    categories: &[String],
+    values: &[f64],
+    label_content: PieLabelContent,
+) -> f64 {
+    let max_label_len = match label_content {
+        PieLabelContent::Category => categories.iter().map(|c| c.chars().count()).max(),
+        PieLabelContent::Value => values.iter().map(|v| fmt_coord(*v).chars().count()).max(),
+    }
+    .unwrap_or(0);
     outside_label_effective_outer_radius(
         CENTER_X,
         VIEW_BOX_WIDTH,
@@ -191,7 +198,7 @@ fn resolve_outside_label_outer_radius(categories: &[String]) -> f64 {
         LEADER_HORIZONTAL_LEN,
         LEADER_LABEL_GAP,
         AVG_LABEL_CHAR_WIDTH,
-        max_category_len,
+        max_label_len,
     )
 }
 
@@ -452,7 +459,7 @@ pub fn donut_chart<'a>(
         && props.show_labels
         && props.label_position == PieLabelPosition::Outside
     {
-        resolve_outside_label_outer_radius(categories)
+        resolve_outside_label_outer_radius(categories, values, props.label_content)
     } else {
         OUTER_RADIUS
     };
@@ -913,6 +920,42 @@ mod tests {
             assert!(
                 margin_to_edge >= max_category_len * AVG_LABEL_CHAR_WIDTH - 1e-9,
                 "x={x} の余白 {margin_to_edge} は推定文字幅未満"
+            );
+        }
+    }
+
+    #[test]
+    fn outside_labels_reserve_value_text_width_margin_when_label_content_is_value() {
+        // 回帰テスト（PR #2257 codex-review P1、pie_chart.rs の同名テストと
+        // 同型）: `label_content = Value` の場合、外径縮小の余白計算が
+        // カテゴリ名の文字数のみを見ており実際に描画される値の文字列幅を
+        // 無視していた。カテゴリ名が短く（"A"/"B"）値の桁数が大きい
+        // （100000.0）と余白を超えてはみ出す。修正後は Value 表示時に
+        // `fmt_coord` 後の文字列幅を見込んで外径を縮小し、余白が確保される
+        // ことを確認する。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![Series::new("total", vec![100000.0, 100000.0])],
+        )
+        .unwrap();
+        let props = DonutChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            label_content: PieLabelContent::Value,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &data, vec![]).unwrap());
+        assert!(!html.contains(r#"x="95.5""#));
+        let max_value_len = 6.0; // fmt_coord(100000.0) は "100000"（6 文字）。
+        for x in extract_attr_values(&html, r#"data-part="outside-label""#, "x") {
+            assert!(
+                (0.0..=100.0).contains(&x),
+                "outside-label x={x} は viewBox(0..100) の外"
+            );
+            let margin_to_edge = if x >= 50.0 { 100.0 - x } else { x };
+            assert!(
+                margin_to_edge >= max_value_len * AVG_LABEL_CHAR_WIDTH - 1e-9,
+                "x={x} の余白 {margin_to_edge} は推定値文字幅未満"
             );
         }
     }

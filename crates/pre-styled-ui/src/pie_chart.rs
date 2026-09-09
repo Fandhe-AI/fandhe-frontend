@@ -165,11 +165,11 @@ const LABEL_RADIUS_RATIO: f64 = 0.6;
 
 /// [`PieLabelPosition::Outside`] 使用時に縮小する外径の上限（引き出し線・
 /// ラベルを viewBox 内に収めるため。モジュール doc「幾何上の制約」節、
-/// イシュー #2084、shadcn `chart-pie-label` 突合）。カテゴリ名が短い場合
+/// イシュー #2084、shadcn `chart-pie-label` 突合）。ラベル文字列が短い場合
 /// はこの値まで使う（[`crate::charts::pie::outside_label_effective_outer_radius`]
 /// 参照）。
 const OUTSIDE_LABEL_OUTER_RADIUS: f64 = 34.0;
-/// [`OUTSIDE_LABEL_OUTER_RADIUS`] 縮小の下限（退化防止。長いカテゴリ名で
+/// [`OUTSIDE_LABEL_OUTER_RADIUS`] 縮小の下限（退化防止。長いラベル文字列で
 /// クランプされた場合、テキストがはみ出しうる既知の限界はモジュール doc
 /// `outside_label_effective_outer_radius` rustdoc 参照）。
 const MIN_OUTSIDE_LABEL_OUTER_RADIUS: f64 = 15.0;
@@ -193,16 +193,23 @@ const RING_GAP: f64 = 1.0;
 /// が `None` の場合に使う）。
 const DEFAULT_ARIA_LABEL: &str = "pie chart";
 
-/// [`PieLabelPosition::Outside`] 使用時の外径を、`categories` 中の最長
-/// カテゴリ名の推定表示幅を考慮して縮小する（
-/// [`crate::charts::pie::outside_label_effective_outer_radius`] 参照。
-/// イシュー #2084 レビュー指摘）。
-fn resolve_outside_label_outer_radius(categories: &[String]) -> f64 {
-    let max_category_len = categories
-        .iter()
-        .map(|c| c.chars().count())
-        .max()
-        .unwrap_or(0);
+/// [`PieLabelPosition::Outside`] 使用時の外径を、実際に描画される外側
+/// ラベル文字列（[`PieLabelContent::Category`] ならカテゴリ名、
+/// [`PieLabelContent::Value`] なら [`fmt_coord`] 後の値文字列）の最長推定
+/// 表示幅を考慮して縮小する（[`crate::charts::pie::outside_label_effective_outer_radius`]
+/// 参照。イシュー #2084 レビュー指摘。当初カテゴリ名のみを見ており
+/// `label_content = Value` 表示時に値の桁数がはみ出すすり抜けがあった、
+/// 同イシュー PR #2257 レビュー指摘で修正）。
+fn resolve_outside_label_outer_radius(
+    categories: &[String],
+    values: &[f64],
+    label_content: PieLabelContent,
+) -> f64 {
+    let max_label_len = match label_content {
+        PieLabelContent::Category => categories.iter().map(|c| c.chars().count()).max(),
+        PieLabelContent::Value => values.iter().map(|v| fmt_coord(*v).chars().count()).max(),
+    }
+    .unwrap_or(0);
     outside_label_effective_outer_radius(
         CENTER_X,
         VIEW_BOX_WIDTH,
@@ -212,7 +219,7 @@ fn resolve_outside_label_outer_radius(categories: &[String]) -> f64 {
         LEADER_HORIZONTAL_LEN,
         LEADER_LABEL_GAP,
         AVG_LABEL_CHAR_WIDTH,
-        max_category_len,
+        max_label_len,
     )
 }
 
@@ -622,15 +629,24 @@ pub fn pie_chart<'a>(
         }
         let ring_count = series.len();
         // 最外周リングが Outside ラベルを持つ場合、非 stacked 分岐と同様に
-        // 外径をカテゴリ名の推定表示幅込みで縮小してから band 計算する
-        // （引き出し線・outside-label が viewBox 0..100 の外へはみ出すのを
-        // 防ぐ。イシュー #2084 レビュー指摘）。
-        let effective_outer_radius =
-            if props.show_labels && props.label_position == PieLabelPosition::Outside {
-                resolve_outside_label_outer_radius(categories)
-            } else {
-                OUTER_RADIUS
-            };
+        // 外径を実際の外側ラベル文字列（カテゴリ名 or 値）の推定表示幅込み
+        // で縮小してから band 計算する（引き出し線・outside-label が
+        // viewBox 0..100 の外へはみ出すのを防ぐ。イシュー #2084 レビュー
+        // 指摘、PR #2257 レビュー指摘で label_content = Value も考慮）。
+        // outside label は最外周リング（`series` 末尾）のみが持つため
+        // （`render_ring` の `is_outermost` 判定）、幅計算もその系列の値を
+        // 参照する。
+        let effective_outer_radius = if props.show_labels
+            && props.label_position == PieLabelPosition::Outside
+        {
+            let outermost_values = series
+                .last()
+                .map(|s| s.values.as_slice())
+                .unwrap_or_default();
+            resolve_outside_label_outer_radius(categories, outermost_values, props.label_content)
+        } else {
+            OUTER_RADIUS
+        };
         let band = effective_outer_radius / ring_count as f64;
         for (k, s) in series.iter().enumerate() {
             let angles = segment_angles(&s.values)?;
@@ -664,7 +680,7 @@ pub fn pie_chart<'a>(
         let angles = segment_angles(values)?;
         let outer_radius = if props.show_labels && props.label_position == PieLabelPosition::Outside
         {
-            resolve_outside_label_outer_radius(categories)
+            resolve_outside_label_outer_radius(categories, values, props.label_content)
         } else {
             OUTER_RADIUS
         };
@@ -887,6 +903,44 @@ mod tests {
         assert!(html.contains(">60<"));
         assert!(html.contains(">40<"));
         assert!(!html.contains(">A<"));
+    }
+
+    #[test]
+    fn outside_labels_reserve_value_text_width_margin_when_label_content_is_value() {
+        // 回帰テスト（PR #2257 codex-review P1）: `label_content = Value`
+        // の場合、外径縮小の余白計算がカテゴリ名の文字数のみを見ており
+        // 実際に描画される値の文字列幅を無視していた。カテゴリ名が短く
+        // （"A"/"B"）値が大きい（50000）と、値の 5 桁がカテゴリ名 1 文字分
+        // の余白（4.5 未満）を超えてはみ出す。修正後は Value 表示時に
+        // `fmt_coord` 後の文字列幅を見込んで外径を縮小し、余白が確保される
+        // ことを確認する。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![Series::new("total", vec![50000.0, 50000.0])],
+        )
+        .unwrap();
+        let props = PieChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            label_content: PieLabelContent::Value,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &data, vec![]).unwrap());
+        // 固定 34（カテゴリ名基準の余白のみ）のときの x=95.5 は使われて
+        // いないこと。
+        assert!(!html.contains(r#"x="95.5""#));
+        let max_value_len = 5.0; // fmt_coord(50000.0) は "50000"（5 文字）。
+        for x in extract_attr_values(&html, r#"data-part="outside-label""#, "x") {
+            assert!(
+                (0.0..=100.0).contains(&x),
+                "outside-label x={x} は viewBox(0..100) の外"
+            );
+            let margin_to_edge = if x >= 50.0 { 100.0 - x } else { x };
+            assert!(
+                margin_to_edge >= max_value_len * AVG_LABEL_CHAR_WIDTH - 1e-9,
+                "x={x} の余白 {margin_to_edge} は推定値文字幅未満"
+            );
+        }
     }
 
     #[test]
