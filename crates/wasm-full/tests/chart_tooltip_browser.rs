@@ -156,6 +156,73 @@ fn bar_like_markup(container_id: &str) {
         .set_inner_html(&html);
 }
 
+/// 同一 `container` 配下に独立した 2 つの bar 相当チャート（`bar_like_
+/// markup` と同型の frame/svg/layer/hit-area/tooltip 一式）を並置する
+/// マークアップ（イシュー #2130 PR #2267 codex-review P1 回帰テスト用）。
+/// `data-index` は両チャートとも `"0"`/`"1"` を再利用するため、呼び出し側
+/// は `container.query_selector_all("[data-scope=\"chart\"][data-part=
+/// \"frame\"]")` 等で個々の frame 要素へスコープしてから内部要素を
+/// 取得する必要がある。
+fn two_bar_charts_markup(container_id: &str) {
+    fn one_frame() -> fandhe_frontend_core::Node {
+        let bar0 = el(
+            "rect",
+            vec![
+                ("data-scope", "bar-chart"),
+                ("data-part", "bar"),
+                ("data-index", "0"),
+                ("data-series", "visits"),
+            ],
+            vec![],
+        );
+        let hit0 = el(
+            "rect",
+            vec![
+                ("data-scope", "chart"),
+                ("data-part", "hit-area"),
+                ("data-index", "0"),
+                ("fill", "none"),
+                ("pointer-events", "none"),
+                ("tabindex", "-1"),
+            ],
+            vec![],
+        );
+        let svg = el("svg", vec![("role", "img")], vec![bar0, hit0]);
+        let tooltip0 = el(
+            "div",
+            vec![
+                ("data-scope", "chart"),
+                ("data-part", "tooltip"),
+                ("data-index", "0"),
+                ("hidden", ""),
+            ],
+            vec![],
+        );
+        let layer = el(
+            "div",
+            vec![
+                ("data-scope", "chart"),
+                ("data-part", "tooltip-layer"),
+                ("aria-hidden", "true"),
+            ],
+            vec![tooltip0],
+        );
+        el(
+            "div",
+            vec![("data-scope", "chart"), ("data-part", "frame")],
+            vec![svg, layer],
+        )
+    }
+    let root = el("div", vec![], vec![one_frame(), one_frame()]);
+    let html = render(&root);
+    let container_selector = format!("#{container_id}");
+    web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.query_selector(&container_selector).ok().flatten())
+        .expect("container must exist")
+        .set_inner_html(&html);
+}
+
 /// scatter 相当（2 系列 × 同一 `data-index`）のマークアップ。
 fn scatter_like_markup(container_id: &str) {
     let point_a = el(
@@ -860,5 +927,88 @@ fn hover_exit_while_focus_holds_a_different_target_restores_focus_tooltip() {
     assert!(
         !hit1.has_attribute("data-active"),
         "非活性化した hover 側（hit-area 1）の強調表示は外れるはずである"
+    );
+}
+
+#[wasm_bindgen_test]
+fn focus_on_one_chart_survives_hover_on_a_different_chart() {
+    // codex-review P1 指摘（イシュー #2130 PR #2267、監視ラウンド）の
+    // 回帰テスト: 同じ Runtime 配下でチャート A の hit-area にキーボード
+    // フォーカスしたまま、別チャート B をポインタでホバーすると、旧
+    // 実装は `begin_or_update_session` の svg 不一致分岐が無条件で
+    // `close_session` を呼び、A のセッション（focus_target を含む）を
+    // 丸ごと破棄していた。これにより B から離れても A の tooltip/
+    // 強調表示が復帰しなかった。本テストは A・B が独立したセッションと
+    // して共存し、B のホバーが終了しても A の表示が最初から一度も
+    // 消えていないことを検証する（`SessionHandle` を `Vec<Session>` 化
+    // した是正）。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-test-cross-chart-focus-hover");
+    let _guard = RemoveOnDrop(container.clone());
+    two_bar_charts_markup("chart-test-cross-chart-focus-hover");
+    wire_chart_events(container.clone()).expect("wire_chart_events must succeed");
+
+    let frames = query_all(&container, "[data-scope=\"chart\"][data-part=\"frame\"]");
+    assert_eq!(
+        frames.len(),
+        2,
+        "2 チャート分の frame が生成されているはずである"
+    );
+    let frame_a = &frames[0];
+    let frame_b = &frames[1];
+
+    let hit_a = query(frame_a, "[data-part=\"hit-area\"]").expect("hit-area (chart A)");
+    let tooltip_a = query(frame_a, "[data-part=\"tooltip\"]").expect("tooltip (chart A)");
+    let hit_b = query(frame_b, "[data-part=\"hit-area\"]").expect("hit-area (chart B)");
+    let tooltip_b = query(frame_b, "[data-part=\"tooltip\"]").expect("tooltip (chart B)");
+    let svg_b = query(frame_b, "svg").expect("svg (chart B)");
+
+    // チャート A の hit-area をキーボードフォーカスする。
+    hit_a
+        .dispatch_event(focus_event("focusin", None).as_ref())
+        .expect("dispatch_event must not fail");
+    assert!(!tooltip_a.has_attribute("hidden"));
+    assert!(hit_a.has_attribute("data-active"));
+
+    // ポインタでチャート B をホバーする（A へは一切触れない、フォーカスを
+    // 保持したまま別チャートへ移る合成イベント）。
+    dispatch_pointer(hit_b.unchecked_ref(), "pointermove", "mouse", 5.0, 5.0);
+    assert!(
+        !tooltip_a.has_attribute("hidden"),
+        "別チャートのホバー開始だけでフォーカス側（チャート A）の tooltip が閉じてはならない"
+    );
+    assert!(
+        hit_a.has_attribute("data-active"),
+        "別チャートのホバー開始だけでフォーカス側（チャート A）の強調表示が外れてはならない"
+    );
+    assert!(!tooltip_b.has_attribute("hidden"));
+    assert!(hit_b.has_attribute("data-active"));
+
+    // ポインタがチャート B の svg 外へ抜ける。B のホバーセッションのみが
+    // 閉じ、A のフォーカスセッションは無関係のため引き続き表示される。
+    let init = web_sys::MouseEventInit::new();
+    init.set_bubbles(true);
+    init.set_related_target(Some(container.unchecked_ref::<EventTarget>()));
+    let leave = web_sys::MouseEvent::new_with_mouse_event_init_dict("pointerout", &init)
+        .expect("MouseEvent::new must not fail");
+    svg_b
+        .dispatch_event(leave.as_ref())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        !tooltip_a.has_attribute("hidden"),
+        "チャート B のホバー終了後もチャート A のフォーカス tooltip は表示されたままのはずである"
+    );
+    assert!(
+        hit_a.has_attribute("data-active"),
+        "チャート B のホバー終了後もチャート A の強調表示は残るはずである"
+    );
+    assert!(
+        tooltip_b.has_attribute("hidden"),
+        "チャート B のツールチップはホバー終了で隠れるはずである"
+    );
+    assert!(
+        !hit_b.has_attribute("data-active"),
+        "チャート B の強調表示はホバー終了で外れるはずである"
     );
 }

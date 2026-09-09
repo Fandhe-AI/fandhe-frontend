@@ -420,7 +420,37 @@ mod wiring {
     }
 
     /// 各イベント閉包が共有するセッション状態のハンドル。
-    type SessionHandle = Rc<RefCell<Option<Session>>>;
+    /// 同じ `Runtime` 配下で同時に開き得る複数チャート分のセッションを
+    /// 保持するハンドル（codex-review P1 是正、イシュー #2130 PR #2267）。
+    /// `Option<Session>` 単一保持だった旧実装は、あるチャートへ
+    /// キーボードフォーカスしたまま別チャートをポインタでホバーすると
+    /// `begin_or_update_session` の svg 不一致分岐がフォーカス側の
+    /// セッションを丸ごと `close_session` で破棄していた（hover と focus
+    /// を独立した表示継続理由として扱うモジュール契約に反する）。`svg`
+    /// をキーに 1 チャート 1 エントリで管理し、あるチャートへの操作が
+    /// 他チャートのセッションへ波及しないようにする。同時に開くセッション
+    /// 数は実用上ごく少数（hover 1 件 + focus 1 件程度）のため線形探索で
+    /// 十分であり、`HashMap` 等の追加依存は不要。
+    type SessionHandle = Rc<RefCell<Vec<Session>>>;
+
+    /// `sessions` から `svg` に対応するセッションのインデックスを探す
+    /// （`Element` の等価性は基底 `JsValue`/ノード同一性比較）。
+    fn session_index_for_svg(sessions: &[Session], svg: &Element) -> Option<usize> {
+        sessions.iter().position(|session| session.svg == *svg)
+    }
+
+    /// 現在 `hover_active` なセッションの `svg`（sticky セッションは
+    /// `hover_active` を使わないため対象外。高々 1 件のはずだが、複数
+    /// 存在しても最初の 1 件を返せば十分＝ポインタは単一のためここで
+    /// 選ばれなかった残りは次回の `pointerout`/`pointermove` で追随して
+    /// 解消される）。
+    fn hover_active_svg(handle: &SessionHandle) -> Option<Element> {
+        handle
+            .borrow()
+            .iter()
+            .find(|session| session.hover_active)
+            .map(|session| session.svg.clone())
+    }
 
     /// `layer` へポインタ/hit-area 相対座標からツールチップ位置カスタム
     /// プロパティを書き込む。数値以外の文字列は組み立てない（`format!`
@@ -488,13 +518,10 @@ mod wiring {
         set_tooltip_position(layer, client_x, client_y);
     }
 
-    /// 進行中のセッションを閉じ、`data-active`/tooltip の可視状態をセッ
+    /// 除去済み `session` の `data-active`/tooltip の可視状態をセッ
     /// ション開始時点のスナップショット（モジュール doc「`data-active` の
-    /// 既定値との共存」節）へ復元する。セッションが無ければ no-op。
-    fn close_session(handle: &SessionHandle) {
-        let Some(session) = handle.borrow_mut().take() else {
-            return;
-        };
+    /// 既定値との共存」節）へ復元する（[`close_session`] の実処理本体）。
+    fn restore_session(session: &Session) {
         for element in query_all(&session.svg, INDEXED_SELECTOR) {
             let is_initial = read_key(&element)
                 .map(|key| session.initial_active.contains(&key))
@@ -517,12 +544,18 @@ mod wiring {
         }
     }
 
-    /// 現在のセッションが `svg` に対するものであれば `true`。
-    fn session_matches_svg(handle: &SessionHandle, svg: &Element) -> bool {
-        handle
-            .borrow()
-            .as_ref()
-            .is_some_and(|session| session.svg == *svg)
+    /// `svg` に対応するセッションのみを閉じ、[`restore_session`] で
+    /// スナップショットへ復元する。他チャート（他 `svg`）のセッションには
+    /// 一切触れない（codex-review P1 是正、イシュー #2130 PR #2267）。
+    /// 該当セッションが無ければ no-op。
+    fn close_session(handle: &SessionHandle, svg: &Element) {
+        let removed = {
+            let mut sessions = handle.borrow_mut();
+            session_index_for_svg(&sessions, svg).map(|index| sessions.remove(index))
+        };
+        if let Some(session) = removed {
+            restore_session(&session);
+        }
     }
 
     /// hover/フォーカス/タッチ入力を集約し、セッションの開始・継続を行う
@@ -555,32 +588,54 @@ mod wiring {
             return;
         };
 
-        if !session_matches_svg(handle, &svg) {
-            close_session(handle);
-            let initial_active = snapshot_active_keys(&svg);
-            let initial_visible_tooltip = snapshot_visible_tooltip(&layer);
-            *handle.borrow_mut() = Some(Session {
-                svg: svg.clone(),
-                layer: layer.clone(),
-                frame,
-                sticky: matches!(trigger, Trigger::Touch),
-                hover_active: matches!(trigger, Trigger::Pointer),
-                focus_active: matches!(trigger, Trigger::Keyboard),
-                hover_target: matches!(trigger, Trigger::Pointer).then(|| hit_area.clone()),
-                focus_target: matches!(trigger, Trigger::Keyboard).then(|| hit_area.clone()),
-                initial_active,
-                initial_visible_tooltip,
-            });
-        } else if let Some(session) = handle.borrow_mut().as_mut() {
-            match trigger {
-                Trigger::Touch => session.sticky = true,
-                Trigger::Pointer => {
-                    session.hover_active = true;
-                    session.hover_target = Some(hit_area.clone());
-                }
-                Trigger::Keyboard => {
-                    session.focus_active = true;
-                    session.focus_target = Some(hit_area.clone());
+        // ポインタ由来の更新で、別チャート（別 svg）のセッションが
+        // `hover_active` を持ったまま残っていれば先に非活性化する
+        // （通常は当該チャートを離れる `pointerout`/`pointercancel` が
+        // 先行して処理するが、合成イベント等でそれを経由せず直接別
+        // チャートへ移った場合の残留防止。`svg` が異なるセッションのみが
+        // 対象で、`focus_active` を持つセッションは触れない）。
+        if matches!(trigger, Trigger::Pointer) {
+            let stale_hover_svg = handle
+                .borrow()
+                .iter()
+                .find(|session| session.hover_active && session.svg != svg)
+                .map(|session| session.svg.clone());
+            if let Some(stale_svg) = stale_hover_svg {
+                deactivate_hover(handle, &stale_svg);
+            }
+        }
+
+        let existing_index = session_index_for_svg(&handle.borrow(), &svg);
+        match existing_index {
+            None => {
+                let initial_active = snapshot_active_keys(&svg);
+                let initial_visible_tooltip = snapshot_visible_tooltip(&layer);
+                handle.borrow_mut().push(Session {
+                    svg: svg.clone(),
+                    layer: layer.clone(),
+                    frame,
+                    sticky: matches!(trigger, Trigger::Touch),
+                    hover_active: matches!(trigger, Trigger::Pointer),
+                    focus_active: matches!(trigger, Trigger::Keyboard),
+                    hover_target: matches!(trigger, Trigger::Pointer).then(|| hit_area.clone()),
+                    focus_target: matches!(trigger, Trigger::Keyboard).then(|| hit_area.clone()),
+                    initial_active,
+                    initial_visible_tooltip,
+                });
+            }
+            Some(index) => {
+                if let Some(session) = handle.borrow_mut().get_mut(index) {
+                    match trigger {
+                        Trigger::Touch => session.sticky = true,
+                        Trigger::Pointer => {
+                            session.hover_active = true;
+                            session.hover_target = Some(hit_area.clone());
+                        }
+                        Trigger::Keyboard => {
+                            session.focus_active = true;
+                            session.focus_target = Some(hit_area.clone());
+                        }
+                    }
                 }
             }
         }
@@ -598,10 +653,10 @@ mod wiring {
     /// 自身の座標から求める `hit_area_client_anchor` を使う。ポインタの
     /// 最新クライアント座標は保持していないため、hover 側の再適用でも
     /// 同じ関数で hit-area 基準の位置に揃える）。
-    fn reapply_active_target(handle: &SessionHandle) {
+    fn reapply_active_target(handle: &SessionHandle, svg: &Element) {
         let target = {
-            let guard = handle.borrow();
-            let Some(session) = guard.as_ref() else {
+            let sessions = handle.borrow();
+            let Some(session) = sessions.iter().find(|session| session.svg == *svg) else {
                 return;
             };
             if session.hover_active {
@@ -633,19 +688,19 @@ mod wiring {
     /// 片方の消失だけで閉じてはならない）。セッションが開いたまま残る
     /// 場合は、残っている focus 側の対象へ表示を戻す
     /// （[`reapply_active_target`]、codex-review P1 / Bugbot 指摘）。
-    fn deactivate_hover(handle: &SessionHandle) {
+    fn deactivate_hover(handle: &SessionHandle, svg: &Element) {
         let should_close = {
-            let mut guard = handle.borrow_mut();
-            let Some(session) = guard.as_mut() else {
+            let mut sessions = handle.borrow_mut();
+            let Some(session) = sessions.iter_mut().find(|session| session.svg == *svg) else {
                 return;
             };
             session.hover_active = false;
             should_close_session(session.hover_active, session.focus_active)
         };
         if should_close {
-            close_session(handle);
+            close_session(handle, svg);
         } else {
-            reapply_active_target(handle);
+            reapply_active_target(handle, svg);
         }
     }
 
@@ -654,7 +709,7 @@ mod wiring {
     /// hover を非活性化し、focus も非活性なセッションのみ閉じる
     /// （[`deactivate_hover`]）。
     fn handle_pointermove(root: &Element, handle: &SessionHandle, event: &Event) {
-        let sticky = handle.borrow().as_ref().map(|s| s.sticky).unwrap_or(false);
+        let sticky = handle.borrow().iter().any(|s| s.sticky);
         if sticky {
             return;
         }
@@ -677,7 +732,11 @@ mod wiring {
                     client_y,
                 );
             }
-            None => deactivate_hover(handle),
+            None => {
+                if let Some(svg) = hover_active_svg(handle) {
+                    deactivate_hover(handle, &svg);
+                }
+            }
         }
     }
 
@@ -701,17 +760,14 @@ mod wiring {
         begin_or_update_session(root, handle, &hit_area, Trigger::Touch, client_x, client_y);
     }
 
-    /// `root` へ pointerout を配線する。`related_target` が現在セッション
-    /// の `svg` 内でなければ hover を非活性化する（[`deactivate_hover`]、
-    /// focus も非活性なセッションのみ閉じる）。`pointerleave` はバブリング
-    /// しないため `pointerout` + `related_target` 判定
-    /// （`sidebar::wiring` の `pointerover` 判定と同型）。
+    /// `root` へ pointerout を配線する。現在 `hover_active` なセッション
+    /// （[`hover_active_svg`]、sticky セッションは対象外）の `svg` 内へ
+    /// `related_target` が留まっていなければ hover を非活性化する
+    /// （[`deactivate_hover`]、focus も非活性なセッションのみ閉じる）。
+    /// `pointerleave` はバブリングしないため `pointerout` + `related_target`
+    /// 判定（`sidebar::wiring` の `pointerover` 判定と同型）。
     fn handle_pointerout(handle: &SessionHandle, event: &Event) {
-        let sticky = handle.borrow().as_ref().map(|s| s.sticky).unwrap_or(false);
-        if sticky {
-            return;
-        }
-        let Some(session_svg) = handle.borrow().as_ref().map(|s| s.svg.clone()) else {
+        let Some(session_svg) = hover_active_svg(handle) else {
             return;
         };
         let related = event
@@ -723,16 +779,16 @@ mod wiring {
             .map(|element| session_svg.contains(Some(element)))
             .unwrap_or(false);
         if !still_within {
-            deactivate_hover(handle);
+            deactivate_hover(handle, &session_svg);
         }
     }
 
-    /// `root` へ pointercancel を配線する。hover を非活性化し、focus も
-    /// 非活性なセッションのみ閉じる（[`deactivate_hover`]）。
+    /// `root` へ pointercancel を配線する。現在 `hover_active` なセッション
+    /// （sticky セッションは対象外）を非活性化し、focus も非活性なら
+    /// 閉じる（[`deactivate_hover`]）。
     fn handle_pointercancel(handle: &SessionHandle) {
-        let sticky = handle.borrow().as_ref().map(|s| s.sticky).unwrap_or(false);
-        if !sticky {
-            deactivate_hover(handle);
+        if let Some(svg) = hover_active_svg(handle) {
+            deactivate_hover(handle, &svg);
         }
     }
 
@@ -751,6 +807,9 @@ mod wiring {
         if hit_area != target {
             return;
         }
+        let Some(svg) = svg_of(&hit_area) else {
+            return;
+        };
 
         let modifiers = Modifiers {
             ctrl: keyboard_event.ctrl_key(),
@@ -760,14 +819,11 @@ mod wiring {
         let key = keyboard_event.key();
         if key == "Escape" {
             if !modifiers.any() {
-                close_session(handle);
+                close_session(handle, &svg);
             }
             return;
         }
 
-        let Some(svg) = svg_of(&hit_area) else {
-            return;
-        };
         let hit_areas = query_all(&svg, HIT_AREA_SELECTOR);
         let Some(current) = hit_areas.iter().position(|el| *el == hit_area) else {
             return;
@@ -827,20 +883,17 @@ mod wiring {
         );
     }
 
-    /// `root` へ focusout を配線する。sticky（タッチ）セッション中は
-    /// 無視する（兄弟の `handle_pointermove`/`handle_pointerout`/
-    /// `handle_pointercancel` と同型のガード。タッチ由来で開始した
-    /// セッションはチャート外タップまで開いたままにする契約を守るため、
-    /// `handle_document_pointerdown` に閉鎖判定を委ねる）。`related_target`
-    /// が `root` 配下の hit-area でなければ focus を非活性化し、hover も
-    /// 非活性なセッションのみ閉じる（codex レビュー指摘: Tab フォーカス
-    /// 後に無関係なポインタ移動でツールチップが消えていた不具合の是正、
-    /// [`should_close_session`] 参照）。
+    /// `root` へ focusout を配線する。フォーカスを離れた hit-area 自身の
+    /// チャート（`svg`）が sticky（タッチ）セッション中は無視する（兄弟の
+    /// `handle_pointermove`/`handle_pointerout`/`handle_pointercancel` と
+    /// 同型のガードだが、判定対象は当該チャートのセッションに限定する。
+    /// タッチ由来で開始したセッションはチャート外タップまで開いたままに
+    /// する契約を守るため、`handle_document_pointerdown` に閉鎖判定を
+    /// 委ねる）。`related_target` が `root` 配下の hit-area でなければ
+    /// focus を非活性化し、hover も非活性なセッションのみ閉じる（codex
+    /// レビュー指摘: Tab フォーカス後に無関係なポインタ移動でツールチップ
+    /// が消えていた不具合の是正、[`should_close_session`] 参照）。
     fn handle_focusout(root: &Element, handle: &SessionHandle, event: &Event) {
-        let sticky = handle.borrow().as_ref().map(|s| s.sticky).unwrap_or(false);
-        if sticky {
-            return;
-        }
         let Some(target) = event_target_element(event) else {
             return;
         };
@@ -848,6 +901,18 @@ mod wiring {
             return;
         };
         if hit_area != target {
+            return;
+        }
+        let Some(svg) = svg_of(&hit_area) else {
+            return;
+        };
+        let sticky = handle
+            .borrow()
+            .iter()
+            .find(|session| session.svg == svg)
+            .map(|session| session.sticky)
+            .unwrap_or(false);
+        if sticky {
             return;
         }
         let Some(focus_event) = event.dyn_ref::<FocusEvent>() else {
@@ -863,8 +928,8 @@ mod wiring {
         if !still_within {
             let mut had_session = false;
             let should_close = {
-                let mut guard = handle.borrow_mut();
-                if let Some(session) = guard.as_mut() {
+                let mut sessions = handle.borrow_mut();
+                if let Some(session) = sessions.iter_mut().find(|session| session.svg == svg) {
                     had_session = true;
                     session.focus_active = false;
                     should_close_session(session.hover_active, session.focus_active)
@@ -873,32 +938,37 @@ mod wiring {
                 }
             };
             if should_close {
-                close_session(handle);
+                close_session(handle, &svg);
             } else if had_session {
                 // 残っている hover 側の対象へ表示を戻す（`deactivate_hover`
                 // と対称、codex-review P1 / Bugbot 指摘）。
-                reapply_active_target(handle);
+                reapply_active_target(handle, &svg);
             }
         }
     }
 
     /// document へ登録する pointerdown（sticky セッションのチャート外
-    /// タップ閉鎖）。`frame`（`svg`/`layer` の共通親）の外側への tap の
-    /// ときのみ閉じる。
+    /// タップ閉鎖）。sticky セッションはチャートごとに独立して開き得る
+    /// ため、`frame`（`svg`/`layer` の共通親）の外側への tap のとき、
+    /// 該当するチャートのセッションのみを個別に閉じる（他チャートの
+    /// sticky セッションには触れない）。
     fn handle_document_pointerdown(handle: &SessionHandle, event: &Event) {
-        let Some(frame) = handle
+        let sticky_entries: Vec<(Element, Element)> = handle
             .borrow()
-            .as_ref()
+            .iter()
             .filter(|session| session.sticky)
-            .map(|session| session.frame.clone())
-        else {
+            .map(|session| (session.svg.clone(), session.frame.clone()))
+            .collect();
+        if sticky_entries.is_empty() {
             return;
-        };
+        }
         let Some(target) = event_target_element(event) else {
             return;
         };
-        if !frame.contains(Some(&target)) {
-            close_session(handle);
+        for (svg, frame) in sticky_entries {
+            if !frame.contains(Some(&target)) {
+                close_session(handle, &svg);
+            }
         }
     }
 
@@ -933,22 +1003,18 @@ mod wiring {
         }
     }
 
-    /// セッションが保持する `svg` が `root` 配下から失われていれば（
-    /// [`crate::Runtime::rerender_subtree`] が古い `<svg>`/layer ごと
-    /// 差し替えた場合）セッションを破棄する。復元先の要素が既に DOM から
-    /// 切り離されているため [`close_session`] の属性復元（no-op）は経由
-    /// せず直接ハンドルを空にする（codex レビュー指摘: タッチで開いた
-    /// sticky セッション中に構造再描画で SVG が差し替わると、セッションが
-    /// 削除済み SVG を保持したまま以降の `pointermove` で復帰しなくなって
-    /// いた不具合の是正）。
+    /// `svg` が `root` 配下から失われたセッション（[`crate::Runtime::
+    /// rerender_subtree`] が古い `<svg>`/layer ごと差し替えた場合）を
+    /// すべて破棄する（他チャートのセッションは残す）。復元先の要素が
+    /// 既に DOM から切り離されているため [`close_session`] の属性復元
+    /// （no-op）は経由せず直接ハンドルから取り除く（codex レビュー指摘:
+    /// タッチで開いた sticky セッション中に構造再描画で SVG が差し替わる
+    /// と、セッションが削除済み SVG を保持したまま以降の `pointermove`
+    /// で復帰しなくなっていた不具合の是正）。
     fn discard_stale_session(root: &Element, handle: &SessionHandle) {
-        let stale = handle
-            .borrow()
-            .as_ref()
-            .is_some_and(|session| !root.contains(Some(&session.svg)));
-        if stale {
-            *handle.borrow_mut() = None;
-        }
+        handle
+            .borrow_mut()
+            .retain(|session| root.contains(Some(&session.svg)));
     }
 
     /// 再描画（[`crate::Runtime::rerender_subtree`] による `root` 配下の
@@ -995,7 +1061,7 @@ mod wiring {
     pub fn wire_chart_events(root: Element) -> Result<(), JsValue> {
         enhance(&root);
 
-        let handle: SessionHandle = Rc::new(RefCell::new(None));
+        let handle: SessionHandle = Rc::new(RefCell::new(Vec::new()));
 
         macro_rules! wire_root_event {
             ($event_name:literal, $handler:expr) => {{
