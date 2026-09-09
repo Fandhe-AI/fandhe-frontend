@@ -17,6 +17,23 @@
 //! 見た目を保つため。積み上げ時（`stack: AreaStack::Normal`/`Expand`）の
 //! 閉じ方は「積み上げ（`AreaStack`）」節を参照。
 //!
+//! # 積み上げ（`AreaStack`）
+//!
+//! [`AreaStack::Normal`]/[`AreaStack::Expand`] は [`cumulative_series`]
+//! （内部ヘルパ）で系列ごとのカテゴリ累積上限値を求め、[`render_stacked`]
+//! （内部ヘルパ）が系列 `i` を上側境界 `cum[i]`・下側境界 `cum[i-1]`
+//! （`i == 0` は 0）の帯として描く。下側境界は上側と同じ `curve` で
+//! 辿った点列を逆順に計算し直して `Z` で閉じる（baseline 節と異なり
+//! domain 下端ではなく下側系列の境界へ閉じる）。`Expand` は
+//! [`cumulative_series`] がカテゴリ合計で正規化するため domain
+//! `(0.0, 1.0)` に固定され、`show_y_axis` 時の目盛ラベルは
+//! [`crate::charts::axis::TickLabelFormat::label_scale`] `= 100.0` +
+//! `suffix: "%"` で比率を百分率表示する（座標計算は生の比率のまま）。
+//! `show_x_axis`/`show_y_axis`/`show_grid` は `stack: AreaStack::None` と
+//! 同じ余白規則（[`AXIS_LEFT_MARGIN`]/[`AXIS_BOTTOM_MARGIN`]）を適用する
+//! （イシュー #2081 Review 追補: 当初積み上げ時にこれらが無視される
+//! 欠陥があった）。
+//!
 //! # エッジケース（`n == 1`）
 //!
 //! [`crate::line_chart`] と同じ規則: 面・線のいずれも生成せず、中央
@@ -29,6 +46,19 @@
 //! 座標は `fmt_coord` 経由で文字集合 `[0-9.-]` に閉じる、CSS 宣言値は
 //! すべて静的リテラル）。gradient（`fill: AreaFill::Gradient`）の `<defs>`
 //! も同じ不変条件に従う（「gradient の不変条件」節参照）。
+//!
+//! # gradient の不変条件
+//!
+//! [`gradient_defs`]（内部ヘルパ）が組み立てる `<linearGradient>`/`<stop>`
+//! は、`stop-color` に [`ChartData::series_color_var`] の固定形
+//! （`var(--fandhe-color-<name>)`、`<name>` は `chart-1`〜`chart-6` 等の
+//! 固定トークン名でユーザー入力を含まない）のみを埋め込み、`offset`/
+//! `stop-opacity`/`x1`/`y1`/`x2`/`y2` はすべて静的リテラルである。
+//! `id` は呼び出し側 `gradient_id`（[`is_valid_identifier`] 通過済み、
+//! 英数字・`-`・`_` のみ）+ `-<index>`（系列インデックス、`usize` の
+//! 十進表記）のみで構成されるため、`fill="url(#<id>)"` 参照の文字集合が
+//! 閉じる。ユーザー由来の文字列（カテゴリ名・`aria_label`）はこの経路に
+//! 一切渡らない。
 //!
 //! # shadcn/ui 突合（イシュー #2081）
 //!
@@ -506,12 +536,18 @@ fn render_series_none(
 /// 下側境界 `cum[i-1]`（`i == 0` は 0）の帯として描く。下側境界は上側と
 /// 同じ `curve` で辿った点列を**逆順**に計算し直して閉じる（natural
 /// spline の端点条件は対称なため逆順計算でも同一曲線になる）。
+///
+/// `width` は軸/グリッド用余白差し引き後のプロット幅、`left` はその左端
+/// オフセット（`show_y_axis` 時の余白、イシュー #2081 Review 追補: 積み
+/// 上げ時に軸/グリッドが無視される欠陥の是正）。軸/グリッドなし
+/// （`left == 0.0`、`width == props.width`）では従来と同一の座標になる。
 #[allow(
     clippy::too_many_arguments,
-    reason = "積み上げ描画は系列群・累積値・色解決・曲線/塗り指定を同時に必要とし、分割すると対応関係が追いにくくなる"
+    reason = "積み上げ描画は系列群・累積値・色解決・曲線/塗り指定・軸余白オフセットを同時に必要とし、分割すると対応関係が追いにくくなる"
 )]
 fn render_stacked(
     width: f64,
+    left: f64,
     y_scale: &LinearScale,
     cum: &[Vec<f64>],
     data: &ChartData,
@@ -526,7 +562,7 @@ fn render_stacked(
     for (i, upper) in cum.iter().enumerate() {
         let color = data.series_color_var(i);
         if n <= 1 {
-            let x = category_x(width, n, 0);
+            let x = category_x(width, n, 0) + left;
             let y = upper.first().copied().map_or(0.0, |v| y_scale.scale(v));
             let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
             nodes.push(el(
@@ -547,7 +583,7 @@ fn render_stacked(
         let upper_points: Vec<(f64, f64)> = upper
             .iter()
             .enumerate()
-            .map(|(k, &v)| (category_x(width, n, k), y_scale.scale(v)))
+            .map(|(k, &v)| (category_x(width, n, k) + left, y_scale.scale(v)))
             .collect();
         let lower_values: Vec<f64> = if i == 0 {
             vec![0.0; n]
@@ -557,7 +593,7 @@ fn render_stacked(
         let mut lower_points: Vec<(f64, f64)> = lower_values
             .iter()
             .enumerate()
-            .map(|(k, &v)| (category_x(width, n, k), y_scale.scale(v)))
+            .map(|(k, &v)| (category_x(width, n, k) + left, y_scale.scale(v)))
             .collect();
         lower_points.reverse();
 
@@ -773,11 +809,17 @@ pub fn area_chart<'a>(
             let baseline_y = y_scale.scale(dom_lo);
 
             if props.show_grid {
+                // `cartesian_grid` はピクセル座標をそのまま SVG 座標として
+                // 使う（`grid.rs` doc 参照）ため、`axis::y_axis` と同様に
+                // `y_scale.scale(t)` で domain 値をピクセルへ写像してから
+                // 渡す（Review 指摘 #2081: domain の生の値をそのまま渡すと
+                // 目盛ラベルの位置とグリッド線の位置がずれる）。
+                let grid_y: Vec<f64> = ticks.iter().map(|&t| y_scale.scale(t)).collect();
                 plot_children.push(grid::cartesian_grid(
                     (left, props.width),
                     (0.0, plot_h),
                     &[],
-                    &ticks,
+                    &grid_y,
                     &GridProps {
                         horizontal: true,
                         vertical: false,
@@ -895,6 +937,13 @@ pub fn area_chart<'a>(
                     &AxisProps {
                         show_tick_lines: false,
                         show_axis_line: true,
+                        // `x_axis_linear` は `ticks` 非空を要求するため
+                        // ダミー tick `[0.0]` を渡すが、そのラベルは
+                        // カテゴリラベル（上のループで描画済み）と同じ
+                        // 座標に無関係な "0" として重複描画されてしまう
+                        // （Review 指摘 #2081）。軸線のみが目的のため
+                        // ラベル自体を抑止する。
+                        show_tick_labels: false,
                         ..AxisProps::default()
                     },
                 )?);
@@ -935,7 +984,44 @@ pub fn area_chart<'a>(
                 (0.0, max)
             }
         };
-        let y_scale = LinearScale::new(domain, (props.height, 0.0))?;
+
+        // 積み上げ時（`AreaStack::Normal`/`Expand`）も `stack: None` と
+        // 同じ規則で軸/グリッド用余白を差し引く（Review 指摘 #2081:
+        // 積み上げ時に `show_x_axis`/`show_y_axis`/`show_grid` が黙って
+        // 無視されていた欠陥の是正）。既定（軸/グリッドなし）は
+        // `left == 0.0`/`plot_w == props.width`/`plot_h == props.height`
+        // となり #2081 以前の出力と完全に一致する（golden 純追加原則）。
+        let has_axes = props.show_x_axis || props.show_y_axis || props.show_grid;
+        let (left, bottom) = (
+            if props.show_y_axis {
+                AXIS_LEFT_MARGIN
+            } else {
+                0.0
+            },
+            if props.show_x_axis {
+                AXIS_BOTTOM_MARGIN
+            } else {
+                0.0
+            },
+        );
+        let plot_w = props.width - left;
+        let plot_h = props.height - bottom;
+        if has_axes && (plot_w <= 0.0 || plot_h <= 0.0) {
+            return Err(ChartError::PlotAreaTooSmall);
+        }
+
+        // `AreaStack::None` 分岐（`props.data.domain()`）と同じ規則で、
+        // 軸/グリッド表示時のみ `nice()` を適用してドメイン上端を目盛の
+        // 切りの良い値へ拡張する。`Expand` は domain `(0.0, 1.0)` が
+        // カテゴリ合計比率の定義そのものであり、`nice()` で境界がずれると
+        // 「合計 100%」の不変条件が崩れるため対象外とする（実際には
+        // `nice_step` が 0.1 刻みで境界に揃うため通常はずれないが、定義上
+        // 意図的に固定のままにする）。
+        let y_scale = if has_axes && !expand {
+            LinearScale::new(domain, (plot_h, 0.0))?.nice()
+        } else {
+            LinearScale::new(domain, (plot_h, 0.0))?
+        };
 
         let colors: Vec<String> = (0..props.data.series().len())
             .map(|i| props.data.series_color_var(i))
@@ -944,16 +1030,111 @@ pub fn area_chart<'a>(
             plot_children.push(gradient_defs(props.gradient_id, &colors));
         }
 
-        plot_children.extend(render_stacked(
-            props.width,
-            &y_scale,
-            &cum,
-            props.data,
-            props.curve,
-            props.fill,
-            &fill_class,
-            props.gradient_id,
-        ));
+        if has_axes {
+            let ticks = y_scale.ticks(4)?;
+
+            if props.show_grid {
+                // None 分岐と同じ理由（`grid.rs` doc 参照）で domain 値を
+                // ピクセルへ写像してから渡す。
+                let grid_y: Vec<f64> = ticks.iter().map(|&t| y_scale.scale(t)).collect();
+                plot_children.push(grid::cartesian_grid(
+                    (left, props.width),
+                    (0.0, plot_h),
+                    &[],
+                    &grid_y,
+                    &GridProps {
+                        horizontal: true,
+                        vertical: false,
+                        ..GridProps::default()
+                    },
+                )?);
+            }
+
+            plot_children.extend(render_stacked(
+                plot_w,
+                left,
+                &y_scale,
+                &cum,
+                props.data,
+                props.curve,
+                props.fill,
+                &fill_class,
+                props.gradient_id,
+            ));
+
+            if props.show_y_axis {
+                // `AreaStack::Expand` は domain `(0.0, 1.0)` のカテゴリ
+                // 合計比率のため、目盛ラベルは `%` 表示にする
+                // （`label_scale: 100.0`、モジュール doc「積み上げ
+                // （`AreaStack`）」節参照）。位置計算（`y_scale.scale`）は
+                // 生の比率のまま使うため `Normal` と同じ座標系になる。
+                let format = if expand {
+                    axis::TickLabelFormat {
+                        suffix: "%",
+                        label_scale: 100.0,
+                        ..axis::TickLabelFormat::default()
+                    }
+                } else {
+                    axis::TickLabelFormat::default()
+                };
+                plot_children.push(axis::y_axis(
+                    &y_scale,
+                    &ticks,
+                    left,
+                    &AxisProps {
+                        show_tick_lines: false,
+                        show_axis_line: false,
+                        format,
+                        ..AxisProps::default()
+                    },
+                )?);
+            }
+            if props.show_x_axis {
+                // None 分岐と同じ理由（データ点の等間隔配置と
+                // `x_axis_categories` の band 中心配置がずれる）でラベルを
+                // 個別に描き、軸線のみ `x_axis_linear` を再利用する。
+                let n = props.data.categories().len();
+                for (k, category) in props.data.categories().iter().enumerate() {
+                    let cx = category_x(plot_w, n, k) + left;
+                    plot_children.push(el(
+                        "text",
+                        vec![
+                            ("data-scope", "chart"),
+                            ("data-part", "tick-label"),
+                            ("x", fmt_coord(cx).as_str()),
+                            ("y", fmt_coord(plot_h + 16.0).as_str()),
+                            ("text-anchor", "middle"),
+                        ],
+                        vec![fandhe_frontend_headless_ui::fandhe_frontend_core::text(
+                            category,
+                        )],
+                    ));
+                }
+                plot_children.push(axis::x_axis_linear(
+                    &LinearScale::new((0.0, 1.0), (left, props.width))?,
+                    &[0.0],
+                    plot_h,
+                    &AxisProps {
+                        show_tick_lines: false,
+                        show_axis_line: true,
+                        show_tick_labels: false,
+                        ..AxisProps::default()
+                    },
+                )?);
+            }
+        } else {
+            plot_children.extend(render_stacked(
+                plot_w,
+                left,
+                &y_scale,
+                &cum,
+                props.data,
+                props.curve,
+                props.fill,
+                &fill_class,
+                props.gradient_id,
+            ));
+        }
     }
 
     let plot = svg_root(
@@ -1179,6 +1360,68 @@ mod tests {
         .unwrap()
     }
 
+    /// テスト専用ヘルパ: `data-part="<part>"` を持つ各要素の開始タグから
+    /// `<attr>="..."` の値を抽出する（自己完結 HTML の座標検証専用の
+    /// 簡易パーサ。属性値は `fmt_coord` 経由の数値/固定リテラルのみで
+    /// `>`/`"` を含まないためこの単純な走査で足りる）。
+    fn attr_values_for_part(html: &str, part: &str, attr: &str) -> Vec<String> {
+        let part_marker = format!(r#"data-part="{part}""#);
+        let attr_marker = format!(r#"{attr}=""#);
+        let mut out = Vec::new();
+        let mut search_from = 0usize;
+        while let Some(rel_pos) = html[search_from..].find(&part_marker) {
+            let pos = search_from + rel_pos;
+            let tag_start = html[..pos].rfind('<').expect("tag start");
+            let tag_end = html[pos..].find('>').expect("tag end") + pos;
+            let tag = &html[tag_start..tag_end];
+            if let Some(rel_attr) = tag.find(&attr_marker) {
+                let val_start = rel_attr + attr_marker.len();
+                let val_end = tag[val_start..].find('"').expect("attr value end") + val_start;
+                out.push(tag[val_start..val_end].to_string());
+            }
+            search_from = tag_end;
+        }
+        out
+    }
+
+    /// Review 指摘 #2081: `show_grid` が `cartesian_grid` へ domain の生の
+    /// 値をそのまま渡しており、Y 軸目盛ラベルの位置とグリッド線の位置が
+    /// ずれていた欠陥の回帰テスト。グリッド線（`grid-line`）の `y1` 座標
+    /// 集合が Y 軸目盛ラベル（`tick-label`）の `y` 座標集合と完全一致する
+    /// ことを固定する（両者とも同じ `ticks` を同じ `y_scale.scale` で
+    /// ピクセルへ写像するため一致するはず）。
+    #[test]
+    fn grid_lines_use_pixel_coordinates_matching_y_axis_ticks() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "grid-align");
+        props.show_y_axis = true;
+        props.show_grid = true;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+
+        let mut grid_y1 = attr_values_for_part(&html, "grid-line", "y1");
+        let mut label_y = attr_values_for_part(&html, "tick-label", "y");
+        assert!(!grid_y1.is_empty());
+        assert_eq!(grid_y1.len(), label_y.len());
+        grid_y1.sort();
+        label_y.sort();
+        assert_eq!(grid_y1, label_y);
+    }
+
+    /// Review 指摘 #2081: `show_x_axis` が軸線描画のためだけに
+    /// `x_axis_linear(&[0.0], ...)` を呼んでおり、その目盛ラベル
+    /// （無関係な `"0"`）がカテゴリラベルと同じ座標に重複描画されて
+    /// いた欠陥の回帰テスト。`tick-label` の総数がカテゴリ数と一致する
+    /// （余分な `"0"` ラベルが増えていない）ことを固定する。
+    #[test]
+    fn x_axis_line_does_not_duplicate_zero_tick_label() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "x-only");
+        props.show_x_axis = true;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        let labels = attr_values_for_part(&html, "tick-label", "x");
+        assert_eq!(labels.len(), d.categories().len());
+    }
+
     #[test]
     fn stack_normal_renders_two_series_areas() {
         let d = multi_series_data();
@@ -1211,6 +1454,46 @@ mod tests {
         let a = render(&area_chart(&props, vec![]).unwrap());
         let b = render(&area_chart(&props, vec![]).unwrap());
         assert_eq!(a, b);
+    }
+
+    /// Review 指摘 #2081: `stack: AreaStack::Normal`/`Expand` 時に
+    /// `show_x_axis`/`show_y_axis`/`show_grid` が黙って無視されていた
+    /// 欠陥の回帰テスト。積み上げ時も軸・グリッドが実際に描画される
+    /// ことを固定する（`None` 分岐向けの `axes_and_grid_render_expected_parts`
+    /// と対の積み上げ版）。
+    #[test]
+    fn stack_normal_axes_and_grid_are_not_silently_ignored() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "stacked-axes");
+        props.stack = AreaStack::Normal;
+        props.show_x_axis = true;
+        props.show_y_axis = true;
+        props.show_grid = true;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(html.contains(r#"data-scope="chart" data-part="y-axis""#));
+        assert!(html.contains(r#"data-scope="chart" data-part="grid-line""#));
+        assert!(html.contains("Jan"));
+    }
+
+    /// `AreaStack::Expand` の `show_y_axis` はカテゴリ合計比率を `%` 表示
+    /// する（モジュール doc「積み上げ（`AreaStack`）」節、
+    /// `docs/api/pre-styled-ui-api.md` の記述と実装を一致させる、
+    /// Review 指摘 #2081）。
+    #[test]
+    fn stack_expand_y_axis_labels_use_percent_suffix() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "expand-axes");
+        props.stack = AreaStack::Expand;
+        props.show_y_axis = true;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(html.contains(r#"data-scope="chart" data-part="y-axis""#));
+        // ticks(4) は domain (0.0, 1.0) から 0/0.2/0.4/0.6/0.8/1.0 を
+        // 生成する。`label_scale: 100.0` により `fmt_coord` へ渡る前に
+        // 100 倍されるため、実際のラベル値（丸め誤差の混入含め）まで
+        // 固定する。
+        assert!(html.contains(">0%<"));
+        assert!(html.contains(">20%<"));
+        assert!(html.contains(">100%<"));
     }
 
     #[test]

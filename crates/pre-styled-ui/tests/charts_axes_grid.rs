@@ -153,6 +153,7 @@ fn tick_label_format_applies_prefix_and_suffix() {
     let format = TickLabelFormat {
         prefix: "$",
         suffix: "%",
+        ..TickLabelFormat::default()
     };
     assert_eq!(format.format(1.0), "$1%");
 }

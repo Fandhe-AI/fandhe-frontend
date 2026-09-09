@@ -2572,6 +2572,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既にバンプ済み。本ブランチの変更（上記 0.152.1 化）は main の
 # 0.153.0 より前のバージョンのため、同一版数衝突を避けるためさらに
 # 0.153.1 へバンプする。
+#
+# 0.153.1 → 0.154.0（イシュー #2081、shadcn/ui Charts（area）突合）:
+# `AreaChartProps` へ `curve`/`stack`/`fill`/`gradient_id`/`show_x_axis`/
+# `show_y_axis`/`show_grid` を、`crate::charts::axis::AxisProps` へ
+# `show_tick_labels` を、`TickLabelFormat` へ `label_scale` をそれぞれ
+# 純追加した（新規 pub enum `AreaCurve`/`AreaStack`/`AreaFill` の追加込み）。
+# 既定値はすべて #2081 以前の出力と完全に同一の HTML を生成する
+# （golden 純追加原則）が、pub struct へのフィールド追加は構造体リテラル
+# 構築を壊す 0.x 破壊的変更のためマイナーバンプする
+# （`.claude/rules/coding-rust.md` の semver バンプ必須規約）。Review 追補:
+# `TickLabelFormat`/`AxisProps` は `f64` フィールド（`label_scale`）追加に
+# 伴い `derive` を `Eq` → `PartialEq` のみへ縮約した（`f64` は `Eq` 非実装）。
+# これも構造体の trait 実装を減らす破壊的変更のため上記マイナーバンプに
+# 含める。
 version = "0.154.0"
 
 edition = "2021"

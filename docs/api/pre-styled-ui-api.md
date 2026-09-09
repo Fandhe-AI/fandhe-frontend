@@ -1092,7 +1092,7 @@ shadcn のような並列の `ChartConfig` マップは設けない）。色は
 | `stack` | `AreaStack`（`None`/`Normal`/`Expand`） | `None` | 積み上げ。`Normal`/`Expand` は全系列の負値を `ChartError::NegativeValue` として拒否する。`Expand` は domain `(0.0, 1.0)` 固定でカテゴリ合計比率を描く |
 | `fill` | `AreaFill`（`Solid`/`Gradient`） | `Solid` | 塗り。`Gradient` は系列ごとの `<linearGradient>`（縦方向、`stop-opacity` 0.8→0.1）を `<defs>` に生成し `series-area` へ `url(#...)` 参照を張る |
 | `gradient_id` | `&str` | `"fandhe-area"` | `fill: Gradient` 時の `<linearGradient id>` 接頭辞。`css::is_valid_identifier` を満たさなければ `ChartError::InvalidGradientId`。同一ページに複数チャートを置く場合は呼び出し側が一意化する |
-| `show_x_axis` / `show_y_axis` / `show_grid` | `bool` | `false` | X 軸（カテゴリラベル）・Y 軸（`nice()` 適用済み数値目盛）・水平グリッド線の描画有無。いずれか 1 つでも `true` ならプロット領域から軸ラベル用余白（Y: 40px、X: 24px）を差し引き、余白差し引き後の領域が 0 以下なら `ChartError::PlotAreaTooSmall` |
+| `show_x_axis` / `show_y_axis` / `show_grid` | `bool` | `false` | X 軸（カテゴリラベル）・Y 軸（`nice()` 適用済み数値目盛。`stack: AreaStack::Expand` は domain 固定のため `nice()` 対象外）・水平グリッド線の描画有無。いずれか 1 つでも `true` ならプロット領域から軸ラベル用余白（Y: 40px、X: 24px）を差し引き、余白差し引き後の領域が 0 以下なら `ChartError::PlotAreaTooSmall`。`stack: AreaStack::Normal`/`Expand` にも同じ規則で適用される（積み上げ時に無視される欠陥の是正）。`Expand` の Y 軸目盛ラベルはカテゴリ合計比率を `%` 表示する |
 
 意図的に対応しない点（`crate::area_chart` モジュール doc「意図的に合わせ
 なかった点」参照）: `series-area` の既定 `fill-opacity: 0.2`（chakra-ui 値、
