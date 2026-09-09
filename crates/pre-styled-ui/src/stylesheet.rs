@@ -371,6 +371,7 @@ mod tests {
             ("charts/radar_chart", crate::charts::radar_chart::css()),
             ("toolbar", crate::toolbar::stylesheet()),
             ("navigation_menu", crate::navigation_menu::stylesheet()),
+            ("sidebar", crate::sidebar::stylesheet()),
         ]
     }
 
