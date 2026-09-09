@@ -131,7 +131,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 静的部品（新規 anatomy、charts 基盤上層） | `charts::scatter_chart` / `charts::radar_chart`（`charts`（`ChartData`/`LinearScale`/SVG ヘルパー）の上に実装。headless-ui は変更なし、pre-styled 層で新規 anatomy `data-scope="scatter-chart"`/`"radar-chart"` を定義。`scatter_chart` は `ChartData` では表現できない `(x, y)` 数値ペアの集合を独自の `ScatterData`/`ScatterSeries` で表現し、x/y 双方の `LinearScale` で 2 軸写像する。`radar_chart` は `ChartData`（カテゴリ = 軸、系列 = ポリゴン）をそのまま使い、軸 index `i`・軸数 `n` から頂点角度 `θ_i = -π/2 + i・2π/n`（12 時方向開始・時計回り）を算出する private ヘルパへ角度→座標変換を一元化する。軸数 3 未満は `ChartError::TooFewAxes`、負値は `ChartError::NegativeValue`、プロット領域が小さすぎる場合は `ChartError::PlotAreaTooSmall` として構築時に拒否する（fail-closed）。`size`/`color-palette` variant は非提供（色は系列インデックスからの `series_color_var` インライン `fill` 属性で決まる静的部品）） | [scatter-chart](../../site/themes/scatter-chart.md) / [radar-chart](../../site/themes/radar-chart.md) |
 | headless ラッパー | `tour`（`fandhe_frontend_headless_ui::tour` が自由関数を持たず全パーツが `Tour` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Tour` を受け取る点は `steps` と同型。`color-palette` 軸のみ提供、`size` 軸は初版スコープ外（overlay 系の寸法は呼び出し側の CSS カスタムプロパティ上書きに委ねる）。`backdrop`/`spotlight`/`positioner` は `position: fixed` の全面オーバーレイで、closed 時 `[hidden]` を明示規則で `display: none` に固定する。`positioner` は `data-side`/`data-align` に応じた静的フォールバック配置のみ（実座標追従は `fandhe-frontend-wasm-full` 後続の責務）。`spotlight` は位置・寸法の `--fandhe-tour-spotlight-x/-y/-width/-height` に加え、角丸・縁取り幅の `--fandhe-tour-spotlight-radius/-ring-width`（イシュー #1550 新設）を持つ計 6 CSS 変数（既定値つき `var()`）で表現し、実測値の注入は同後続の責務。縁取り色は `var(--fandhe-palette, var(--fandhe-color-accent, #3182ce))`（`Theme` の accent light 既定値へのリテラルフォールバックを含む三段）に連動し、`backdrop`/`spotlight` の暗幕・`z-index` は `--fandhe-color-bg-overlay`/`--fandhe-z-index-overlay`、`positioner` は `--fandhe-z-index-modal` トークンへ揃えている（イシュー #1550）。イシュー #1551（0.65.0、破壊的変更）で `content` に `border`/`radius-lg`、scope 付き上書き変数 `--fandhe-tour-content-padding`/`-content-max-width`（既定値つき）を追加し、`close-trigger` を固定正方（`--fandhe-space-8`）+ `overflow: hidden` のアイコン専用ゴーストボタンへ変更した（呼び出し側は 1 グリフ + `aria-label` で渡す契約。テキスト children を渡す既存呼び出しは切り詰められる観測可能な破壊的変更）。`action-trigger` は solid palette 小ボタンへ是正し、文字色を `--fandhe-palette-fg`（未選択時 `--fandhe-color-accent-fg`）へ、hover（`--fandhe-hover-bg` 経由）・disabled（`[disabled]`/`[data-disabled]`）・`transition_declarations`・`focus_ring_declarations(FocusRingColor::Palette, ...)` を追加した。両トリガーの `:focus-visible` は canonical ヘルパ経由（生 `outline` 直書きは撤去） | [tour](../../site/themes/tour.md) |
 | 基盤（外部依存ゼロ SVG 生成） | `charts`（`data`/`scale`/`svg`。`ChartData`/`Series`・`LinearScale`・`svg::{fmt_coord, ViewBox, svg_root, PathBuilder, circle, line, rect, group, svg_text}` を提供する消費者向け基盤のみ。自身は UI コンポーネントを持たない。詳細は `docs/design/charts-foundation-design.md` 参照） | [charts](../../site/themes/charts.md) |
-| `charts` 基盤の消費者（新規 anatomy） | `line_chart` / `area_chart` / `sparkline`（§4k 参照。`charts` 基盤の最初の消費者。`area_chart` はイシュー #2081 で `charts::curve`（曲線補間ジオメトリ）を用いた曲線/積み上げ/グラデーション/軸・グリッドの静的バリアントを追加済み、`line_chart`/`sparkline` の積み上げ・曲線補間は引き続き別イシューのスコープ） | [line-chart](../../site/themes/line-chart.md) / [area-chart](../../site/themes/area-chart.md) / [sparkline](../../site/themes/sparkline.md) |
+| `charts` 基盤の消費者（新規 anatomy） | `line_chart` / `area_chart` / `sparkline`（§4k 参照。`charts` 基盤の最初の消費者。`area_chart` はイシュー #2081 で、`line_chart` はイシュー #2083 で、いずれも `charts::curve`（曲線補間ジオメトリ、両者で共有）を用いた曲線/データ点/軸・グリッドの静的バリアントを追加済み（`area_chart` はさらに積み上げ/グラデーション、`line_chart` はさらに値/カテゴリラベル）。`sparkline` の曲線補間は引き続き別イシューのスコープ） | [line-chart](../../site/themes/line-chart.md) / [area-chart](../../site/themes/area-chart.md) / [sparkline](../../site/themes/sparkline.md) |
 | charts（SVG） | `charts::bar_chart`（縦/横 orientation のグループ棒グラフ。値軸はベースライン 0 起点、カテゴリ軸はバンドレイアウト（両端 10% padding + 系列数で均等割り）。系列色は `series_color_var`（`chart-1`〜`chart-6` 循環）。イシュー #2082 で shadcn/ui Charts（bar）と突合し、`BarStack`（積み上げ Normal/Expand）・`corner_radius`（角丸）・`BarLabel`（値ラベル Outside/Inside）・`active_index`（強調表示）・`color_by_category`・`highlight_negative`・`show_value_axis`/`show_grid`/`show_category_labels` を `BarChartProps` へ純追加。凡例は引き続き呼び出し側が `charts::legend` を並べる。ツールチップは対象外（#2086）、詳細は `bar_chart.rs` rustdoc「shadcn/ui 突合（イシュー #2082）」節参照） | [bar-chart](../../site/themes/bar-chart.md) |
 | charts（HTML） | `charts::bar_list`（単一系列のランキング型バーリスト。バー幅は系列内最大値に対する比率（`--fandhe-bar-list-percent` custom property）。最大値 0 は全バー幅 0% を決定的に描画） | [bar-list](../../site/themes/bar-list.md) |
 | charts（HTML） | `charts::bar_segment`（単一系列の構成比 100% 積み上げバー + 凡例。セグメント幅は系列合計に対する比率（`--fandhe-bar-segment-percent` custom property）、配色はカテゴリ index で `series_color_var` を循環。系列合計 0 は `ChartError::ZeroTotal` で構築時に拒否） | [bar-segment](../../site/themes/bar-segment.md) |
@@ -1142,6 +1142,28 @@ shadcn のような並列の `ChartConfig` マップは設けない）。色は
 shadcn の `0.4` は不採用）・dots/label/横向きレイアウト・`tickFormatter`
 （アプリ側整形の責務）・マウス追従ツールチップ/期間切替/凡例トグル等の
 実行時インタラクション（#2128/#2132）。
+
+### LineChart の shadcn/ui 突合バリアント（イシュー #2083）
+
+`LineChartProps` は shadcn/ui Charts（line、10 バリアント）と突合した以下の
+追加フィールドを持つ（すべて既定値で #2083 以前の出力と完全に同一の HTML
+を生成する、golden 純追加原則）。`curve` は `area_chart` と同じ
+`charts::Curve`（`charts::curve` モジュールへ統合済み）を共有する。
+
+| フィールド | 型 | 既定 | 効果 |
+|---|---|---|---|
+| `curve` | `charts::Curve`（`Linear`/`Natural`/`Step`） | `Linear` | 曲線種。`area_chart::AreaCurve` と同じジオメトリ（`charts::curve::line_path_d`）を共有する |
+| `dots` | `LineDots`（`None`/`Filled`/`Hollow`） | `None` | データ点マーカー。`Filled` は系列色（または `color_by_category` 有効時はカテゴリ色）で塗りつぶし、`Hollow` は背景色塗り + 系列色輪郭の静的近似（shadcn `chart-line-dots-custom` の任意アイコン形状は非対応） |
+| `label` | `LineLabel`（`None`/`Value`/`Category`） | `None` | データ点上のラベル。`Value` は `fmt_coord` 済みの値、`Category` はカテゴリ名。有効時はプロット領域上側へ `LABEL_TOP_MARGIN`（20px）を確保する |
+| `color_by_category` | `bool` | `false` | `dots` 有効時、点の色をカテゴリ index で `charts::series_color_var` の 6 色循環へ切り替える（shadcn `chart-line-dots-colors` 相当）。`false` は系列色のまま |
+| `show_x_axis` / `show_y_axis` / `show_grid` | `bool` | `false` | X 軸・Y 軸・水平グリッド線の描画有無。`area_chart` と同じ余白規則（`show_y_axis` のみ左 40px、`show_x_axis` のみ下 24px）を共有する。`label` の上余白とは独立に確保する。いずれかの余白差し引き後の領域が 0 以下なら `ChartError::PlotAreaTooSmall` |
+
+意図的に対応しない点（`crate::line_chart` モジュール doc「意図的に合わせ
+なかった点」参照）: `tickFormatter`（アプリ側整形の責務）・任意アイコンに
+よるカスタム点形状・`activeDot`（hover 時の点拡大）・マウス追従ツール
+チップ・hit-area `data-*`（#2128）・期間切替・凡例トグル（#2132）・点ごとの
+任意色（`color_by_category` のトークン循環で代替）・積み上げ・横向き
+（shadcn line registry に存在しない）。
 
 ## 4l. `theme` モジュール: Theme トークン API と `upsert_*`（イシュー #547/#606/#1138/#1423/#1678）
 

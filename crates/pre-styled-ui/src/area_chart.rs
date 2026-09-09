@@ -150,11 +150,11 @@
 //!   ため見送った
 
 use crate::charts::axis::{self, AxisProps};
-use crate::charts::curve::{natural_control_points, step_points};
+use crate::charts::curve::{self, Curve};
 use crate::charts::data::ChartData;
 use crate::charts::grid::{self, GridProps};
 use crate::charts::scale::LinearScale;
-use crate::charts::svg::{fmt_coord, svg_root, PathBuilder};
+use crate::charts::svg::{fmt_coord, svg_root};
 use crate::charts::ChartError;
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, is_valid_identifier};
@@ -182,10 +182,12 @@ const POINT_RADIUS: f64 = 2.5;
 /// `show_y_axis` 有効時にプロット領域左側へ確保する Y 軸ラベル用の
 /// 余白（px）。`show_grid`/`show_x_axis` のみでは確保しない（Y 軸ラベルを
 /// 描かない構成に余白は不要という判断、Review 指摘 #2081）。
-const AXIS_LEFT_MARGIN: f64 = 40.0;
+/// [`crate::line_chart`]（イシュー #2083）からも同じ余白規則で参照される。
+pub(crate) const AXIS_LEFT_MARGIN: f64 = 40.0;
 /// `show_x_axis` 有効時にプロット領域下側へ確保する X 軸ラベル用の
 /// 余白（px）。`show_grid`/`show_y_axis` のみでは確保しない（同上）。
-const AXIS_BOTTOM_MARGIN: f64 = 24.0;
+/// [`crate::line_chart`]（イシュー #2083）からも同じ余白規則で参照される。
+pub(crate) const AXIS_BOTTOM_MARGIN: f64 = 24.0;
 
 /// `<linearGradient>` の既定 id 接頭辞（[`AreaChartProps::gradient_id`]）。
 pub const DEFAULT_GRADIENT_ID: &str = "fandhe-area";
@@ -205,6 +207,20 @@ pub enum AreaCurve {
     /// 区間中点で段差になる補間（d3-shape `curveStep` 相当、
     /// [`crate::charts::curve::step_points`]）。
     Step,
+}
+
+/// [`AreaCurve`] を line-chart 側と共有する [`Curve`] へ写像する
+/// （イシュー #2083: `line_path_d` を `charts::curve` へ合流させたことに
+/// 伴う橋渡し。`AreaCurve` は area-chart の公開 API として不変のまま、
+/// 内部実装のみ line-chart と共有する）。
+impl From<AreaCurve> for Curve {
+    fn from(value: AreaCurve) -> Self {
+        match value {
+            AreaCurve::Linear => Curve::Linear,
+            AreaCurve::Natural => Curve::Natural,
+            AreaCurve::Step => Curve::Step,
+        }
+    }
 }
 
 /// 積み上げ（shadcn `stackId`/`stackOffset="expand"`）。イシュー #2081。
@@ -414,37 +430,7 @@ pub fn stylesheet() -> String {
 /// [`ChartError::NonFiniteValue`] を返し、`fmt_coord` の「有限値のみを
 /// 契約入力とする」不変条件が破られる前に呼び出し元へエラーを伝播する。
 fn build_line_d(points: &[(f64, f64)], curve: AreaCurve) -> Result<String, ChartError> {
-    let mut b = PathBuilder::new();
-    let (x0, y0) = points[0];
-    b = b.move_to(x0, y0);
-    match curve {
-        AreaCurve::Linear => {
-            for &(x, y) in &points[1..] {
-                b = b.line_to(x, y);
-            }
-        }
-        AreaCurve::Natural if points.len() >= 3 => {
-            let cps = natural_control_points(points).ok_or(ChartError::NonFiniteValue)?;
-            for (i, (cp1, cp2)) in cps.into_iter().enumerate() {
-                let (x, y) = points[i + 1];
-                b = b.cubic_to(cp1.0, cp1.1, cp2.0, cp2.1, x, y);
-            }
-        }
-        AreaCurve::Natural => {
-            // n == 2: natural spline は区間 1 個未満で定義できないため
-            // 直線へ退化する（モジュール doc「本イシューのスコープ外」の
-            // 対応表とは独立の、幾何としての必然的な縮退）。
-            for &(x, y) in &points[1..] {
-                b = b.line_to(x, y);
-            }
-        }
-        AreaCurve::Step => {
-            for (x, y) in step_points(points) {
-                b = b.line_to(x, y);
-            }
-        }
-    }
-    Ok(b.build())
+    curve::line_path_d(points, curve.into())
 }
 
 /// 系列 1 本を「面 + 線」（`n >= 2`）または中央の点マーカー（`n == 1`）として
@@ -716,7 +702,7 @@ fn gradient_defs(gradient_id: &str, colors: &[String]) -> Node {
 /// `y_scale.scale(t)` で domain 値をピクセルへ写像してから渡す
 /// （domain の生の値をそのまま渡すと目盛ラベルの位置とグリッド線の位置が
 /// ずれる、Review 指摘 #2081）。
-fn area_grid_lines(
+pub(crate) fn grid_lines_for_ticks(
     left: f64,
     width: f64,
     plot_h: f64,
@@ -748,7 +734,7 @@ fn area_grid_lines(
 /// `ticks` 非空を要求するためダミー tick `[0.0]` を渡すが、そのラベルは
 /// カテゴリラベルと同じ座標に無関係な "0" として重複描画されてしまうため
 /// （Review 指摘 #2081）、`show_tick_labels: false` で軸線のみに抑止する。
-fn area_x_axis_category_labels(
+pub(crate) fn x_axis_category_labels(
     categories: &[String],
     plot_w: f64,
     left: f64,
@@ -874,7 +860,7 @@ pub fn area_chart<'a>(
             let baseline_y = y_scale.scale(dom_lo);
 
             if props.show_grid {
-                plot_children.push(area_grid_lines(
+                plot_children.push(grid_lines_for_ticks(
                     left,
                     props.width,
                     plot_h,
@@ -916,7 +902,7 @@ pub fn area_chart<'a>(
                 )?);
             }
             if props.show_x_axis {
-                plot_children.extend(area_x_axis_category_labels(
+                plot_children.extend(x_axis_category_labels(
                     props.data.categories(),
                     plot_w,
                     left,
@@ -1012,7 +998,7 @@ pub fn area_chart<'a>(
 
             if props.show_grid {
                 // None 分岐と同じヘルパを再利用する（Review 指摘 #2081）。
-                plot_children.push(area_grid_lines(
+                plot_children.push(grid_lines_for_ticks(
                     left,
                     props.width,
                     plot_h,
@@ -1062,7 +1048,7 @@ pub fn area_chart<'a>(
             }
             if props.show_x_axis {
                 // None 分岐と同じヘルパを再利用する（Review 指摘 #2081）。
-                plot_children.extend(area_x_axis_category_labels(
+                plot_children.extend(x_axis_category_labels(
                     props.data.categories(),
                     plot_w,
                     left,

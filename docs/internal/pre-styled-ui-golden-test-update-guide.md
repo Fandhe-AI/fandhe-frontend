@@ -105,7 +105,7 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 | `status_empty_state_css.rs` | status / empty_state（イシュー #2047 で empty_state の root/indicator variant 3 ブロックを golden 末尾へ純追加） |
 | `popover_tooltip_css.rs` | popover / tooltip |
 | `pie_donut_chart_css.rs` | pie_chart / donut_chart |
-| `charts_css.rs` | line_chart / area_chart / sparkline（イシュー #2081 で area_chart の `fill: AreaFill::Gradient` variant 規則を golden 末尾へ純追加） |
+| `charts_css.rs` | line_chart / area_chart / sparkline（イシュー #2081 で area_chart の `fill: AreaFill::Gradient` variant 規則を golden 末尾へ純追加。イシュー #2083 で line_chart の `value-label` base（`point` base の直後・size variant の前へ中間挿入）と `dots: LineDots::Hollow` variant（末尾へ純追加）を追加） |
 | `charts_parts_css.rs` | charts 内部パーツ: `charts::axis` / `charts::grid` / `charts::legend` / `charts::tooltip` |
 | `scatter_radar_chart_css.rs` | `charts::scatter_chart` / `charts::radar_chart` |
 | `bar_chart_css.rs` | `charts::bar_chart`（イシュー #1590 で golden 新設。イシュー #2082 で `value-label`/`inside-label`/`bar[data-active]` の 3 ブロックを末尾へ純追加、`BAR_CHART_GOLDEN_CSS_BEFORE_2082` 定数 + `starts_with` の純追加固定テストを追加） |

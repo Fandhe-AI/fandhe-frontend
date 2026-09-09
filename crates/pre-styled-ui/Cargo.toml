@@ -2649,7 +2649,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # main を追い越さないため、`semver-same-version-is-conflict` の運用に従い
 # main の到達値 0.156.0 から +1 マイナーして 0.157.0 とする（実体変更を
 # 伴うため patch ではなく minor を維持）。
-version = "0.157.0"
+# イシュー #2083（line-chart の shadcn/ui Charts（line）突合）:
+# `LineChartProps` への `pub` フィールド純追加（`curve`/`dots`/`label`/
+# `color_by_category`/`show_x_axis`/`show_y_axis`/`show_grid`）・
+# `LineDots`/`LineLabel`/`charts::curve::Curve` の新規 `pub` 型・
+# `stylesheet()` 出力の純追加（`value-label`/`point.fd-line-chart--dots-hollow`）
+# は 0.x の破壊的変更（フルリテラル構築を前提とする利用者コードが壊れる）
+# のため 0.157.0 へマイナーバンプする。
+#
+# base merge の同一版数衝突再発（イシュー #2073、2026-09-09）: 上記
+# 2 系統（本ブランチのイシュー #2073 base 再取り込み／main のイシュー
+# #2083〔line-chart 突合〕）は互いに独立に merge base 0.156.0 から
+# 0.157.0 へ到達していた（同一版数への偶発的衝突）。
+# `semver-same-version-is-conflict` の運用に従い、双方の実体変更
+# （`sidebar` モジュール新設・`DEFAULT_COLORS` への `sidebar-*` 7
+# ロール追加と `LineChartProps` 等の line-chart 突合フィールド純追加）
+# を統合した結果として 0.158.0 へさらにマイナーバンプする。
+version = "0.158.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
