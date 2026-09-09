@@ -52,9 +52,17 @@
 //!
 //! `root` は `flex-direction: column` へ切り替え、`media` を正方形
 //! （`aspect-ratio: 1 / 1`）のサムネイルとして子 `img` を `object-fit:
-//! cover` で敷き詰める。`actions` は右上へ絶対配置し、**タッチ端末対策**
-//! （下記「`actions` の hover 表示とタッチ端末対策」節参照）として
-//! `@media (hover: hover)` 配下でのみ既定非表示にする。
+//! cover` で敷き詰める。`media` の base 宣言は固定 `height:
+//! var(--fandhe-space-10)` を持つため、image 形態の上書き規則は
+//! `width: 100%` に加えて **`height: auto` も明示**する（CSS 仕様上
+//! `width`/`height` の両方が明示指定されていると `aspect-ratio` が
+//! 無視され正方形にならないため。golden スナップショットは出力
+//! バイト列を固定するのみで意味論までは検知できないため、この個別
+//! 事実は `attachment_css.rs::css_positions_image_variant_media_and_actions`
+//! が `height: auto;` の存在で追加固定する）。`actions` は右上へ絶対
+//! 配置し、**タッチ端末対策**（下記「`actions` の hover 表示とタッチ
+//! 端末対策」節参照）として `@media (hover: hover)` 配下でのみ既定
+//! 非表示にする。
 //!
 //! # `actions` の hover 表示とタッチ端末対策
 //!
@@ -344,7 +352,11 @@ pub fn stylesheet() -> String {
     append(
         serialize_rule(
             &media_selector,
-            &[decl("aspect-ratio", "1 / 1"), decl("width", "100%")],
+            &[
+                decl("aspect-ratio", "1 / 1"),
+                decl("width", "100%"),
+                decl("height", "auto"),
+            ],
         ),
         &mut out,
     );

@@ -133,6 +133,7 @@ const ATTACHMENT_GOLDEN_CSS: &str = "[data-scope=\"attachment\"][data-part=\"roo
 [data-scope=\"attachment\"][data-part=\"root\"][data-variant=\"image\"] > [data-scope=\"attachment\"][data-part=\"media\"] {
   aspect-ratio: 1 / 1;
   width: 100%;
+  height: auto;
 }
 
 [data-scope=\"attachment\"][data-part=\"root\"][data-variant=\"image\"] > [data-scope=\"attachment\"][data-part=\"media\"] img {
@@ -206,6 +207,12 @@ fn css_declares_variant_state_and_disabled_rules_without_class_selectors() {
 fn css_positions_image_variant_media_and_actions() {
     let css = attachment::stylesheet();
     assert!(css.contains("aspect-ratio: 1 / 1;"));
+    // `aspect-ratio` は `width`/`height` の両方が明示指定されていると
+    // 無視される（CSS 仕様）。`media` の base 宣言が固定 `height:
+    // var(--fandhe-space-10)` を持つため、image variant 側で
+    // `height: auto` に戻さないと正方形サムネイルにならない回帰
+    // （advisor 指摘・golden 側では検知できない意味論のため個別固定）。
+    assert!(css.contains("height: auto;"));
     assert!(css.contains("object-fit: cover;"));
     assert!(css.contains("position: absolute;"));
 }
