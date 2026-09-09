@@ -150,7 +150,7 @@
 use super::data::ChartData;
 use super::scale::LinearScale;
 use super::svg::{self, svg_text, PathBuilder, ViewBox, ViewBoxError};
-use super::ChartError;
+use super::{tooltip, ChartError};
 use crate::charts::axis::{self, AxisProps, TickLabelFormat};
 use crate::charts::grid::{self, GridProps};
 use crate::css::decl;
@@ -320,6 +320,14 @@ pub struct BarChartProps {
     pub show_grid: bool,
     /// カテゴリラベルを描画するか（イシュー #2082、既定 `true`）。
     pub show_category_labels: bool,
+    /// `true`（既定）なら hit-area・`data-index`/`data-series` と `hidden`
+    /// の SSR ツールチップ DOM（[`super::tooltip::layer`]）を出力する
+    /// （イシュー #2129、親 #2128）。`true` の場合、戻り値は素の
+    /// `<svg data-part="root">` ではなく [`super::tooltip::frame`] で
+    /// 包んだ `<div data-scope="chart" data-part="frame">` になる。
+    /// `false` の場合は本イシュー以前の出力（素の `<svg>`）とバイト一致
+    /// する（progressive enhancement の opt-out 経路）。
+    pub show_tooltip: bool,
 }
 
 impl Default for BarChartProps {
@@ -337,6 +345,7 @@ impl Default for BarChartProps {
             show_value_axis: false,
             show_grid: false,
             show_category_labels: true,
+            show_tooltip: true,
         }
     }
 }
@@ -872,8 +881,22 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     }
                 };
 
+                // イシュー #2129: hit-area・SSR ツールチップ DOM の共有語彙
+                // `data-index`（カテゴリ序数）/`data-series`（系列の生の名前。
+                // radar/radial/pie/scatter と同じ語彙、display_label ではない）を
+                // 付与する。`show_tooltip: false` は本イシュー以前の出力
+                // （`BarChartProps::show_tooltip` rustdoc の「バイト一致」
+                // 契約）を要求するため、`show_tooltip` の値で分岐する
+                // （codex-review 指摘、常時付与だった旧実装は契約違反
+                // だった）。
+                let cat_idx_str = cat_idx.to_string();
+                let series_label = series[s_idx].name.as_str();
                 let mut attrs: Vec<(&str, &str)> =
                     vec![("data-scope", "bar-chart"), ("data-part", "bar")];
+                if props.show_tooltip {
+                    attrs.push(("data-index", cat_idx_str.as_str()));
+                    attrs.push(("data-series", series_label));
+                }
                 attrs.push(("fill", color.as_str()));
                 if is_active {
                     attrs.push(("data-active", ""));
@@ -976,8 +999,18 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     RoundedEnd::None
                 };
 
+                // イシュー #2129: 上記スタック分岐と同じ規則で `show_tooltip`
+                // が `true` のときのみ `data-index`/`data-series` を付与
+                // する（codex-review 指摘、`show_tooltip: false` 時の
+                // バイト一致契約を満たすため）。
+                let cat_idx_str = cat_idx.to_string();
+                let series_label = s.name.as_str();
                 let mut attrs: Vec<(&str, &str)> =
                     vec![("data-scope", "bar-chart"), ("data-part", "bar")];
+                if props.show_tooltip {
+                    attrs.push(("data-index", cat_idx_str.as_str()));
+                    attrs.push(("data-series", series_label));
+                }
                 attrs.push(("fill", color.as_str()));
                 if is_active {
                     attrs.push(("data-active", ""));
@@ -1079,10 +1112,87 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
         });
     }
 
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。カテゴリ帯全体
+    // （全系列を覆う矩形）を hit-area とする（§2.7「bar_chart」行）。
+    // hit-area 自体には `data-series` を付けない（帯 = 全系列の代表）。
+    let entries = if props.show_tooltip {
+        let mut entries = tooltip::entries_from_chart_data(data);
+        if props.color_by_category {
+            // PR #2261 codex-review 指摘（threadId PRRT_kwDOTarxgc6gvfvY）:
+            // `color_by_category: true` の実描画色は上記ループの
+            // `super::series_color_var(cat_idx)`（カテゴリ index 基準。
+            // stacked/grouped いずれの分岐も同一カテゴリ内の全棒が同色）で
+            // あり、`entries_from_chart_data` の既定（系列 index 基準）とは
+            // 異なる。`tooltip-indicator` の色を実際の棒色に一致させるため
+            // pie_chart/donut_chart（同型の乖離）と同じ手当てで、カテゴリ
+            // index 基準へ上書きする。
+            for entry in &mut entries {
+                let color = crate::charts::SeriesColor::chart_slot(entry.index % 6 + 1)
+                    .expect("entry.index % 6 + 1 は常に 1..=6 の範囲内");
+                for row in &mut entry.rows {
+                    row.color = color.clone();
+                }
+            }
+        }
+        // PR #2261 codex-review 指摘（threadId PRRT_kwDOTarxgc6gv_PK）:
+        // `highlight_negative: true` の実描画色（上記グループ棒ループの
+        // `is_negative` 分岐、`chart-2`）が系列色・カテゴリ色より優先される
+        // のと同じ優先順位を、ツールチップの色見本にも適用する。棒描画側の
+        // `is_negative` は積み上げ（`stacked`）では使わない（全系列非負の
+        // 契約があるため負値が発生しない）ため、ここでも `!stacked` で
+        // スコープを揃える。`row.value` は `entries_from_chart_data` が
+        // `series.values[index]`（描画ループの `value` と同じ生値）から
+        // 組み立てた値であり、追加の再計算なしに同じ判定に使える。負値
+        // 判定は `color_by_category` 上書きより後段で行い、両方 `true` の
+        // 場合は負値強調が勝つ（描画側の `if is_negative { .. } else if
+        // color_by_category { .. }` と同じ優先順位）。
+        if props.highlight_negative && !stacked {
+            let negative_color = crate::charts::SeriesColor::chart_slot(2)
+                .expect("chart_slot(2) は常に有効な範囲内");
+            for entry in &mut entries {
+                for row in &mut entry.rows {
+                    if row.value < 0.0 {
+                        row.color = negative_color.clone();
+                    }
+                }
+            }
+        }
+        Some(entries)
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        for entry in entries {
+            let band_start = band * entry.index as f64;
+            let label = tooltip::hit_area_label(entry);
+            let (x, y, w, h) = match props.orientation {
+                Orientation::Vertical => (band_start + left_offset, 0.0, band, value_axis_extent),
+                Orientation::Horizontal => (0.0, band_start, value_axis_extent, band),
+            };
+            plot_children.push(tooltip::hit_area_rect(
+                x,
+                y,
+                w,
+                h,
+                entry.index,
+                None,
+                &label,
+            ));
+        }
+    }
+
     let attrs = vec![("data-scope", "bar-chart"), ("data-part", "root")];
     let mut merged_attrs = vec![("aria-label", aria_label)];
     merged_attrs.extend(attrs);
-    Ok(svg::svg_root(&view_box, merged_attrs, plot_children))
+    let svg_node = svg::svg_root(&view_box, merged_attrs, plot_children);
+
+    match entries {
+        Some(entries) => Ok(tooltip::frame(vec![
+            svg_node,
+            tooltip::layer_from_entries(&entries, None),
+        ])),
+        None => Ok(svg_node),
+    }
 }
 
 /// 値ラベル（棒先端の外側、イシュー #2082）を組み立てる（内部ヘルパ）。
@@ -1752,6 +1862,51 @@ mod tests {
         assert!(html.contains("chart-2"));
     }
 
+    /// PR #2261 codex-review 再指摘（Bugbot、threadId
+    /// PRRT_kwDOTarxgc6gvfvY）の回帰: `color_by_category: true` のとき、
+    /// 棒の実描画色は `super::series_color_var(cat_idx)`（カテゴリ index
+    /// 基準、上記 `root` 実装のループ参照）だが、ツールチップの
+    /// `tooltip-indicator` 色が是正前は `entries_from_chart_data` の既定
+    /// （系列 index 基準）のまま素通しされていたため、複数系列を持つ棒
+    /// グラフで各カテゴリのツールチップ色見本が実際の棒色と食い違って
+    /// いた。是正後は同一カテゴリ内の全系列行が、そのカテゴリの実描画色
+    /// （`chart-<cat_idx % 6 + 1>`）に揃うことを固定する。
+    #[test]
+    fn color_by_category_tooltip_rows_match_category_bar_color() {
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![
+                Series::new("s1", vec![1.0, 2.0]),
+                Series::new("s2", vec![3.0, 4.0]),
+            ],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            color_by_category: true,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+
+        // カテゴリ a（cat_idx=0）の全系列行が chart-1、カテゴリ b
+        // （cat_idx=1）の全系列行が chart-2 の tooltip-indicator 色を
+        // 持つことを、行の出現順（entries_from_chart_data はカテゴリ →
+        // 系列の順で行を並べる）に沿って検証する。
+        let marker = "--fandhe-chart-tooltip-color: var(--fandhe-color-chart-";
+        let indicator_colors: Vec<&str> = html
+            .match_indices(marker)
+            .map(|(i, _)| {
+                let start = i + marker.len();
+                let end = start + html[start..].find(')').unwrap();
+                &html[start..end]
+            })
+            .collect();
+        assert_eq!(
+            indicator_colors,
+            vec!["1", "1", "2", "2"],
+            "color_by_category=true では同一カテゴリ内の全系列行が同色（棒の実描画色）に揃うはず: {indicator_colors:?}"
+        );
+    }
+
     #[test]
     fn highlight_negative_marks_only_negative_bars() {
         let data = ChartData::new(
@@ -1771,6 +1926,80 @@ mod tests {
         let all_positive = sample();
         let html2 = render(&root(&all_positive, props, "label").unwrap());
         assert!(!html2.contains("data-negative"));
+    }
+
+    /// PR #2261 codex-review 指摘（threadId PRRT_kwDOTarxgc6gv_PK）の回帰
+    /// テスト: `highlight_negative: true` の単一系列 `[-1, 1]` で、負値の
+    /// 棒は `chart-2` で描画される（`is_negative` 分岐）一方、ツールチップ
+    /// の色見本（`tooltip-indicator` の `--fandhe-chart-tooltip-color`）が
+    /// 是正前は系列色 `chart-1` のまま棒の実描画色と不一致だった。是正後は
+    /// 棒描画と同じ優先順位（負値強調 > 系列色）で色見本にも `chart-2` が
+    /// 反映されることを検証する。
+    #[test]
+    fn highlight_negative_tooltip_indicator_matches_negative_bar_color() {
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![-1.0, 1.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            highlight_negative: true,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+
+        let marker = "--fandhe-chart-tooltip-color: var(--fandhe-color-chart-";
+        let indicator_colors: Vec<&str> = html
+            .match_indices(marker)
+            .map(|(i, _)| {
+                let start = i + marker.len();
+                let end = start + html[start..].find(')').unwrap();
+                &html[start..end]
+            })
+            .collect();
+        assert_eq!(
+            indicator_colors,
+            vec!["2", "1"],
+            "負値カテゴリ（a, value=-1）の色見本は棒の実描画色 chart-2、正値カテゴリ（b, value=1）は既定系列色 chart-1 のはず: {indicator_colors:?}"
+        );
+    }
+
+    /// `highlight_negative` と `color_by_category` を両方有効にした場合、
+    /// 棒描画側の優先順位（`if is_negative { .. } else if color_by_category
+    /// { .. } else { .. }`）と同じく、負値強調がカテゴリ色より優先されて
+    /// 色見本に反映されることを検証する。
+    #[test]
+    fn highlight_negative_takes_priority_over_color_by_category_in_tooltip() {
+        // 3 カテゴリ（a=負値、b/c=正値）にすることで、color_by_category の
+        // 既定色（chart-slot(cat_idx % 6 + 1) = a:1, b:2, c:3）と負値強調色
+        // （chart-2）が cat_idx=0（a）でのみ衝突し、優先順位の実証になる
+        // （2 カテゴリだと b が偶然 chart-2 と一致し判別できないため避ける）。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s", vec![-1.0, 1.0, 1.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            highlight_negative: true,
+            color_by_category: true,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+
+        let marker = "--fandhe-chart-tooltip-color: var(--fandhe-color-chart-";
+        let indicator_colors: Vec<&str> = html
+            .match_indices(marker)
+            .map(|(i, _)| {
+                let start = i + marker.len();
+                let end = start + html[start..].find(')').unwrap();
+                &html[start..end]
+            })
+            .collect();
+        assert_eq!(
+            indicator_colors,
+            vec!["2", "2", "3"],
+            "負値カテゴリ a は color_by_category の既定色 chart-1 ではなく負値強調 chart-2 が優先されるはず: {indicator_colors:?}"
+        );
     }
 
     #[test]
