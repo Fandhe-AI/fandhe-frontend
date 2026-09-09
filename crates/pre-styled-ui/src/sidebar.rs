@@ -173,6 +173,20 @@ const SLOTS: &[&str] = &[
 
 /// この styled Sidebar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
 /// のみが呼ぶ）。
+// 折りたたみ時（`visibility: hidden` を併用する各 state 規則、`recipe()`
+// の offcanvas collapsed `.state()` と `stylesheet()` の mobile collapsed
+// `push()` の双方から参照される）が `visibility` の切り替わりを
+// `width`/`transform` の遷移完了まで遅延させるための共通 `transition-delay`
+// 上書き（`recipe()` 内 `root_transition` 定義部の doc 参照。`width`/
+// `transform` の `delay` は base の `0s` のまま、`visibility` のみ
+// `duration-normal` 分だけ遅延する）。`recipe()`/`stylesheet()` は別関数
+// のためローカル変数を跨いで共有できず、モジュールスコープの `const` として
+// 定義する（`decl()` は `const fn`）。
+const ROOT_COLLAPSED_VISIBILITY_DELAY: crate::css::Declaration = decl(
+    "transition-delay",
+    "0s, 0s, var(--fandhe-motion-duration-normal)",
+);
+
 fn recipe() -> SlotRecipe {
     let provider_base = vec![
         decl("display", "flex"),
@@ -194,7 +208,38 @@ fn recipe() -> SlotRecipe {
             "1px solid var(--fandhe-color-sidebar-border)",
         ),
     ];
-    let root_transition = transition_declarations("width, transform", MotionDuration::Normal);
+    // `root` の遷移対象は `width`/`transform` のみだったため、折りたたみ時に
+    // 併用する `visibility: hidden`（offcanvas/mobile collapsed 規則参照）が
+    // 即座に適用され、`width`/`transform` のアニメーションが完了する前に
+    // 視覚的に消えてしまい閉じる動きが見えない（codex-review P2 指摘
+    // 「閉じるアニメーションの終了まで可視性を維持する」/Cursor Bugbot
+    // Medium 指摘「Collapse hides before animating」対応）。`visibility` は
+    // 離散プロパティであり、遷移の値切り替わりは
+    // `transition-delay + transition-duration`（= 100% 地点）で発生する
+    // （[CSS Transitions] discrete animation type の仕様）。ここでは
+    // `visibility` 自身の `duration` を `0s` に固定し、`delay` だけで
+    // 切り替わりタイミングを制御する: 展開時（本 base 規則、`delay: 0s`）は
+    // 即座に `visible` へ戻り、折りたたみ時（各 collapsed state 規則が
+    // `transition-delay` を `width`/`transform` と同じ `duration-normal` へ
+    // 上書き）は `width`/`transform` の遷移完了と同時に `hidden` へ切り替わる
+    // （`transition-duration`/`-property`/`-timing-function` は longhand の
+    // ままなので、collapsed state 側は `transition-delay` のみを再宣言すれば
+    // 他のロングハンド値はカスケードで本 base 規則から引き継がれる）。
+    let root_transition = vec![
+        decl("transition-property", "width, transform, visibility"),
+        decl(
+            "transition-duration",
+            "var(--fandhe-motion-duration-normal), var(--fandhe-motion-duration-normal), 0s",
+        ),
+        decl(
+            "transition-timing-function",
+            "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), linear",
+        ),
+        decl("transition-delay", "0s, 0s, 0s"),
+    ];
+    // 折りたたみ時の `transition-delay` 上書き値は `ROOT_COLLAPSED_VISIBILITY_DELAY`
+    // （モジュールスコープの `const`、`recipe()`/`stylesheet()` 双方から
+    // 参照するための定義、本モジュール冒頭の doc 参照）。
 
     let header_footer_base = vec![
         decl("display", "flex"),
@@ -418,6 +463,16 @@ fn recipe() -> SlotRecipe {
         decl("padding", "0"),
         decl("background", "transparent"),
         decl("cursor", "ew-resize"),
+        // `rail` は `root`（`-1rem` オフセットで `root` のボーダーボックス外へ
+        // はみ出す）の子孫であり `z-index` を持たない `position: absolute`
+        // （`z-index: auto`）のため、`root`/`inset` がいずれも `z-index` を
+        // 明示しない flex アイテム同士の場合、祖先の重ね順文脈次第では
+        // 後続の flex 兄弟 `inset` が `rail` の描画領域を覆い、折りたたみ
+        // グリップがクリック不能になる（Cursor Bugbot High 指摘「Rail
+        // toggle sits under inset」対応）。`z-index: 1` を明示し、`inset`
+        // （`z-index` 未指定 = `auto`）より確実に手前へ描画させる
+        // （`crate::avatar` の badge ローカル z-index と同型の最小限定数）。
+        decl("z-index", "1"),
     ];
 
     let trigger_base = vec![
@@ -548,6 +603,13 @@ fn recipe() -> SlotRecipe {
                 decl("border", "0"),
                 decl("overflow", "hidden"),
                 decl("visibility", "hidden"),
+                // `root_transition`（base）の `visibility` 遷移 delay（`0s`）を
+                // ここで `duration-normal` へ上書きし、`width`/`transform` の
+                // 遷移が終わるまで `visibility: hidden` への切り替わりを
+                // 遅延させる（codex-review P2 / Cursor Bugbot Medium 指摘
+                // 「閉じるアニメーションの終了まで可視性を維持する」対応、
+                // `root_transition` 定義部の doc 参照）。
+                ROOT_COLLAPSED_VISIBILITY_DELAY,
                 // `floating`/`inset` variant の `margin`（`var(--fandhe-
                 // space-2)`）が残ったままだと `width: 0` でも `root` が
                 // margin 分の領域を占め続け、main エリアが全幅を取れない
@@ -828,6 +890,96 @@ pub fn stylesheet() -> String {
             "calc(var(--fandhe-space-2) + 2 * 1.25rem + 2 * var(--fandhe-space-1))",
         )],
     );
+    // icon 折りたたみ時は `menu-action`/`menu-badge`（両パーツとも
+    // `{ICON_COLLAPSED} [data-part="group-action"/...]` 系の非表示規則の
+    // 対象外だが、`ICON_COLLAPSED [data-part="menu-button"]` 規則が
+    // `padding: 0` でラベル用の余白予約自体を解除する設計、上記
+    // `push(&format!("{ICON_COLLAPSED} ... menu-button"), ...)` 参照）でも、
+    // 直上の `:has()` 規則（属性 8 個相当・`:has()` 2 個分の内部
+    // セレクタ specificity を含む）が `ICON_COLLAPSED` 経由の規則
+    // （属性 6 個相当）より詳細度で勝るため `padding-inline-end` が
+    // 2 パーツ分のまま残留し、幅 2rem に縮小されたボタンから
+    // 3.5rem 相当の余白がはみ出す（codex-review P1 指摘「折りたたみ時は
+    // アクション・バッジ用の追加余白を除外する」対応。Cursor Bugbot High
+    // 指摘「Icon collapse clips action-badge buttons」と実質同根）。
+    // `ICON_COLLAPSED` を子結合子の前段に連結し、直上の `:has()` 規則より
+    // 詳細度を高くした専用の上書き規則で `padding-inline-end` を明示的に
+    // `0` へ戻す（`ICON_COLLAPSED [data-part="menu-button"]` の
+    // `padding: 0` ショートハンドは詳細度で負けて無効化されているため、
+    // ロングハンド `padding-inline-end` だけを個別に再上書きする）。
+    push(
+        &format!(
+            "{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-item\"]:has(> [data-scope=\"sidebar\"][data-part=\"menu-action\"]):has(> [data-scope=\"sidebar\"][data-part=\"menu-badge\"]) > [data-scope=\"sidebar\"][data-part=\"menu-button\"]"
+        ),
+        &[decl("padding-inline-end", "0")],
+    );
+
+    // 長いラベルをガター（`menu-action`/`menu-badge` 予約領域）の手前で
+    // クリップする（codex-review P2 指摘対応）。`overflow: hidden` の
+    // クリップ境界は padding box の外側端（= border box）であり、
+    // `padding-inline-end` で予約した領域自体は「空白」ではなく
+    // 「クリップされない描画可能領域」のため、`white-space: nowrap` の
+    // 生テキスト（headless 側が `<span>` で包まない、モジュール doc
+    // 「責務境界」節）は縮小できず予約領域へそのまま描画され、絶対配置の
+    // `menu-action`/`menu-badge`（背景 `transparent`）の下に透けて重なる。
+    // `clip-path: inset()` は box モデルの padding/border 区別と無関係に
+    // 指定した物理座標でピクセルごと切り落とすため、`padding-inline-end`
+    // と同じ計算式を使えば実際に「ガターの手前で」ラベルを止められる。
+    // `inset-inline-*` の論理版が無いため、`transform`（同ファイル
+    // 「モバイル drawer」節）と同型に既定（LTR）と `:dir(rtl)` の 2 規則で
+    // 物理方向を反転する。既定（1 パーツ分）はすべての `menu-button` へ
+    // 無条件適用し（`menu_button_base` の予約が無条件なのと対称）、
+    // 2 パーツ分・icon 折りたたみ時（余白予約なし）はそれぞれ専用の
+    // より詳細度の高い上書き規則で調整する。
+    push(
+        r#"[data-scope="sidebar"][data-part="menu-button"]"#,
+        &[decl(
+            "clip-path",
+            "inset(0 calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1)) 0 0)",
+        )],
+    );
+    push(
+        r#"[data-scope="sidebar"][data-part="menu-button"]:dir(rtl)"#,
+        &[decl(
+            "clip-path",
+            "inset(0 0 0 calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1)))",
+        )],
+    );
+    push(
+        r#"[data-scope="sidebar"][data-part="menu-item"]:has(> [data-scope="sidebar"][data-part="menu-action"]):has(> [data-scope="sidebar"][data-part="menu-badge"]) > [data-scope="sidebar"][data-part="menu-button"]"#,
+        &[decl(
+            "clip-path",
+            "inset(0 calc(var(--fandhe-space-2) + 2 * 1.25rem + 2 * var(--fandhe-space-1)) 0 0)",
+        )],
+    );
+    push(
+        r#"[data-scope="sidebar"][data-part="menu-item"]:has(> [data-scope="sidebar"][data-part="menu-action"]):has(> [data-scope="sidebar"][data-part="menu-badge"]) > [data-scope="sidebar"][data-part="menu-button"]:dir(rtl)"#,
+        &[decl(
+            "clip-path",
+            "inset(0 0 0 calc(var(--fandhe-space-2) + 2 * 1.25rem + 2 * var(--fandhe-space-1)))",
+        )],
+    );
+    // icon 折りたたみ時は余白予約自体が `0`（上記 `padding: 0`/
+    // `padding-inline-end: 0` 規則）のため、既定のガター分クリップを
+    // そのまま適用すると幅 2rem のボタンに対し calc 結果（約 2rem）が
+    // 上回りアイコンごと消えてしまう。`clip-path: none` で無条件規則を
+    // 打ち消し、`overflow: hidden`（`menu_button_base`）のみに戻す。
+    push(
+        &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-button\"]"),
+        &[decl("clip-path", "none")],
+    );
+    // 上記 icon 折りたたみ時の `clip-path: none` 上書き（属性 6 個相当）は、
+    // `menu-action`/`menu-badge` 併用時の 2 パーツ分クリップ規則（`:has()`
+    // 2 個込みで属性 8 個相当、上記 `padding-inline-end` の同型指摘と同じ
+    // 理由）より詳細度で負けるため、その組み合わせ（icon 折りたたみ +
+    // action/badge 併用）でも同じ「専用の上書き規則を icon 折りたたみと
+    // 連結して詳細度を上げる」パターンで打ち消す。
+    push(
+        &format!(
+            "{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-item\"]:has(> [data-scope=\"sidebar\"][data-part=\"menu-action\"]):has(> [data-scope=\"sidebar\"][data-part=\"menu-badge\"]) > [data-scope=\"sidebar\"][data-part=\"menu-button\"]"
+        ),
+        &[decl("clip-path", "none")],
+    );
 
     // モバイル表示中は固定オーバーレイになる。`floating`/`inset` variant が
     // 設定する `margin`/`border`/`border-radius`/`background`/`height` は
@@ -896,6 +1048,11 @@ pub fn stylesheet() -> String {
             decl("width", "var(--fandhe-sidebar-width-mobile, 18rem)"),
             decl("transform", "translateX(-100%)"),
             decl("visibility", "hidden"),
+            // `root_transition`（base）の `visibility` 遷移 delay を
+            // `duration-normal` へ上書きし、`transform` の退避アニメーション
+            // が終わるまで可視性を維持する（`root_collapsed_visibility_delay`
+            // 定義部の doc・上記 offcanvas collapsed 規則と同じ理由）。
+            ROOT_COLLAPSED_VISIBILITY_DELAY,
         ],
     );
     // `side="right"` + collapsed: 位置は上記の側指定専用規則が既に固定
