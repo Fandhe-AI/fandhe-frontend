@@ -708,11 +708,13 @@ pub fn pie_chart<'a>(
         );
     }
 
-    // イシュー #2129: hit-area・SSR ツールチップ DOM。幾何は最外周リング
-    // （非 stacked は唯一のリング、stacked は `series` 末尾）のみに基づく
-    // （モジュール doc「stacked」節と同じ「最外周のみ」規則、
-    // `charts::tooltip` モジュール doc「配置規則」参照）。値 0 のセグメント
-    // は境界角が退化するため `render_ring` と同様に hit-area も出さない。
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。非 stacked は唯一の
+    // リングの幾何のみに基づく。stacked はリングごとに独立した非ゼロ
+    // セグメント判定を行い、値を持つ全リングぶんの hit-area を生成する
+    // （PR #2261 codex-review 指摘、threadId PRRT_kwDOTarxgc6guRrW:
+    // 最外周のみを判定すると内周にのみ値を持つカテゴリの hit-area が
+    // 欠落するため）。値 0 のセグメントは境界角が退化するため
+    // `render_ring` と同様に hit-area も出さない（リング単位の判定）。
     let entries = if props.show_tooltip {
         // イシュー #2129 codex-review 指摘: pie の実描画色は
         // `series_color_var(i)`（`i` はカテゴリ index。リング＝系列を
@@ -734,26 +736,39 @@ pub fn pie_chart<'a>(
         None
     };
     if let Some(entries) = &entries {
-        let (outer_values, angles, r_inner, r_outer): (Vec<f64>, Vec<(f64, f64)>, f64, f64) =
-            if props.stacked {
-                let series = data.series();
-                let ring_count = series.len();
-                let effective_outer_radius =
-                    if props.show_labels && props.label_position == PieLabelPosition::Outside {
-                        let outermost_values = series
-                            .last()
-                            .map(|s| s.values.as_slice())
-                            .unwrap_or_default();
-                        resolve_outside_label_outer_radius(
-                            categories,
-                            outermost_values,
-                            props.label_content,
-                        )
-                    } else {
-                        OUTER_RADIUS
-                    };
-                let band = effective_outer_radius / ring_count as f64;
-                let k = ring_count - 1;
+        // イシュー #2129 codex-review 指摘（PR #2261、threadId
+        // PRRT_kwDOTarxgc6guRrW）: stacked pie は各リングの非ゼロ
+        // セグメントごとに hit-area を要る。当初は最外周リング
+        // （`series` 末尾）の値のみを判定していたため、内周にのみ値を
+        // 持つカテゴリ（例: category A が内周のみ非ゼロ、最外周は 0）の
+        // hit-area が生成されず、生成済みの hidden tooltip DOM に対応する
+        // 操作ターゲットが無い状態になっていた。stacked のときは全リング
+        // を走査し、各リングの非ゼロセグメントごとに（同一カテゴリでも
+        // 複数リングにまたがれば複数 hit-area を）そのリング自身の幾何
+        // （`render_ring` と同じ per-ring `is_full_circle` 判定）で生成
+        // する。ツールチップ本体は [`tooltip::entries_from_chart_data`]
+        // によりカテゴリ単位（全系列の行を内包）で 1 個のみ生成される
+        // ため、`data-index`（カテゴリ index）はリングをまたいで共有し、
+        // `data-series` は付与しない（従来どおり）。
+        if props.stacked {
+            let series = data.series();
+            let ring_count = series.len();
+            let effective_outer_radius =
+                if props.show_labels && props.label_position == PieLabelPosition::Outside {
+                    let outermost_values = series
+                        .last()
+                        .map(|s| s.values.as_slice())
+                        .unwrap_or_default();
+                    resolve_outside_label_outer_radius(
+                        categories,
+                        outermost_values,
+                        props.label_content,
+                    )
+                } else {
+                    OUTER_RADIUS
+                };
+            let band = effective_outer_radius / ring_count as f64;
+            for (k, s) in series.iter().enumerate() {
                 let r_outer = band * (k as f64 + 1.0);
                 let r_inner = if k == 0 {
                     0.0
@@ -763,58 +778,82 @@ pub fn pie_chart<'a>(
                         .min(r_outer - 0.1)
                         .max(inner_no_gap)
                 };
-                let outer_values = series.last().map(|s| s.values.clone()).unwrap_or_default();
-                let angles = segment_angles(&outer_values)?;
-                (outer_values, angles, r_inner, r_outer)
-            } else {
-                let outer_values = data.series()[0].values.clone();
-                let outer_radius =
-                    if props.show_labels && props.label_position == PieLabelPosition::Outside {
-                        resolve_outside_label_outer_radius(
-                            categories,
-                            &outer_values,
-                            props.label_content,
-                        )
+                let angles = segment_angles(&s.values)?;
+                let non_zero_count = s.values.iter().filter(|&&v| v > 0.0).count();
+                let is_full_circle = non_zero_count == 1;
+                for entry in entries {
+                    let value = s.values.get(entry.index).copied().unwrap_or(0.0);
+                    if value <= 0.0 {
+                        continue;
+                    }
+                    let label = tooltip::hit_area_label(entry);
+                    if is_full_circle && r_inner <= 0.0 {
+                        nodes.push(tooltip::hit_area_circle(
+                            CENTER_X,
+                            CENTER_Y,
+                            r_outer,
+                            entry.index,
+                            None,
+                            &label,
+                        ));
+                        continue;
+                    }
+                    let (start, end) = angles[entry.index];
+                    let d = if is_full_circle {
+                        annulus_full_ring_path(CENTER_X, CENTER_Y, r_outer, r_inner)
+                    } else if r_inner <= 0.0 {
+                        sector_path(CENTER_X, CENTER_Y, r_outer, start, end)
                     } else {
-                        OUTER_RADIUS
+                        annulus_sector_path(CENTER_X, CENTER_Y, r_outer, r_inner, start, end)
                     };
-                let angles = segment_angles(&outer_values)?;
-                (outer_values, angles, 0.0, outer_radius)
-            };
-        let non_zero_count = outer_values.iter().filter(|&&v| v > 0.0).count();
-        let is_full_circle = non_zero_count == 1;
-        for entry in entries {
-            let value = outer_values.get(entry.index).copied().unwrap_or(0.0);
-            if value <= 0.0 {
-                continue;
+                    nodes.push(tooltip::hit_area_path(
+                        &d,
+                        entry.index,
+                        None,
+                        &label,
+                        is_full_circle,
+                    ));
+                }
             }
-            let label = tooltip::hit_area_label(entry);
-            if is_full_circle && r_inner <= 0.0 {
-                nodes.push(tooltip::hit_area_circle(
-                    CENTER_X,
-                    CENTER_Y,
-                    r_outer,
+        } else {
+            let outer_values = data.series()[0].values.clone();
+            let outer_radius = if props.show_labels
+                && props.label_position == PieLabelPosition::Outside
+            {
+                resolve_outside_label_outer_radius(categories, &outer_values, props.label_content)
+            } else {
+                OUTER_RADIUS
+            };
+            let angles = segment_angles(&outer_values)?;
+            let non_zero_count = outer_values.iter().filter(|&&v| v > 0.0).count();
+            let is_full_circle = non_zero_count == 1;
+            for entry in entries {
+                let value = outer_values.get(entry.index).copied().unwrap_or(0.0);
+                if value <= 0.0 {
+                    continue;
+                }
+                let label = tooltip::hit_area_label(entry);
+                if is_full_circle {
+                    nodes.push(tooltip::hit_area_circle(
+                        CENTER_X,
+                        CENTER_Y,
+                        outer_radius,
+                        entry.index,
+                        None,
+                        &label,
+                    ));
+                    continue;
+                }
+                let (start, end) = angles[entry.index];
+                let d = sector_path(CENTER_X, CENTER_Y, outer_radius, start, end);
+                nodes.push(tooltip::hit_area_path(
+                    &d,
                     entry.index,
                     None,
                     &label,
+                    is_full_circle,
                 ));
-                continue;
             }
-            let (start, end) = angles[entry.index];
-            let d = if is_full_circle {
-                annulus_full_ring_path(CENTER_X, CENTER_Y, r_outer, r_inner)
-            } else if r_inner <= 0.0 {
-                sector_path(CENTER_X, CENTER_Y, r_outer, start, end)
-            } else {
-                annulus_sector_path(CENTER_X, CENTER_Y, r_outer, r_inner, start, end)
-            };
-            nodes.push(tooltip::hit_area_path(
-                &d,
-                entry.index,
-                None,
-                &label,
-                is_full_circle,
-            ));
         }
     }
 
@@ -1155,6 +1194,35 @@ mod tests {
         assert_eq!(html.matches(r#"data-part="segment""#).count(), 4);
         assert!(html.contains(r#"data-series="2023""#));
         assert!(html.contains(r#"data-series="2024""#));
+    }
+
+    #[test]
+    fn stacked_hit_area_covers_category_present_only_in_inner_ring() {
+        // PR #2261 codex-review 指摘（イシュー #2129、threadId
+        // PRRT_kwDOTarxgc6guRrW）の回帰テスト: stacked=true・カテゴリ
+        // A/B、内周系列（0 番目、最内周）が [1, 0]（A のみ非ゼロ）、
+        // 最外周系列が [0, 1]（B のみ非ゼロ）という構成では、最外周の値
+        // のみを判定する旧ロジックだと A の hit-area が省略され、
+        // 生成済みの hidden tooltip DOM に対応する操作ターゲットが
+        // 無くなっていた。修正後は両カテゴリぶんの hit-area
+        // （`data-part="hit-area"`）が生成され、それぞれ対応する
+        // `data-index` を持つことを検証する。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("inner", vec![1.0, 0.0]),
+                Series::new("outer", vec![0.0, 1.0]),
+            ],
+        )
+        .unwrap();
+        let props = PieChartProps {
+            stacked: true,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &data, vec![]).unwrap());
+        assert_eq!(html.matches(r#"data-part="hit-area""#).count(), 2);
+        assert!(html.contains(r#"data-index="0""#));
+        assert!(html.contains(r#"data-index="1""#));
     }
 
     #[test]
