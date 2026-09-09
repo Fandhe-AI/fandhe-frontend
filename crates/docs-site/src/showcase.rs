@@ -12368,6 +12368,13 @@ fn radial_chart_section() -> Node {
     let shape = radial_chart(
         &RadialChartProps {
             corner_radius: 4.0,
+            // 全周（既定 0〜360°）では ring_segment_path が全周分岐に入り
+            // corner_radius を無視するため、text デモと区別が付かなくなる
+            // （codex-review 指摘 #2250）。crate 側テスト
+            // （radial_chart.rs の shape_applies_corner_radius_to_bar_only 等）
+            // と同じ end_angle_deg: 250.0 を指定し、角丸の効果を実際に
+            // 目視確認できるようにする。
+            end_angle_deg: 250.0,
             center_text: Some(RadialCenterText {
                 value: "1,260",
                 label: Some("visitors"),
