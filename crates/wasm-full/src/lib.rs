@@ -138,6 +138,7 @@
 #![deny(unsafe_code)]
 
 pub mod angle_slider;
+pub mod chart;
 pub mod command;
 pub mod csr;
 pub mod events;
@@ -1049,6 +1050,7 @@ where
             keyed_list_cache.clone(),
         )?;
         Self::wire_sidebar(root.clone())?;
+        Self::wire_chart(root.clone())?;
 
         Ok(Self {
             component,
@@ -1171,6 +1173,7 @@ where
             keyed_list_cache.clone(),
         )?;
         Self::wire_sidebar(root.clone())?;
+        Self::wire_chart(root.clone())?;
 
         Ok(Self {
             component,
@@ -1810,6 +1813,22 @@ where
     /// の失敗を伝播する。
     fn wire_sidebar(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         sidebar::wire_sidebar_events(root)
+    }
+
+    /// `Self::mount`/`Self::hydrate` の双方から `Self::wire_sidebar` の
+    /// 直後に 1 回だけ呼ばれる。charts のポインタ追従・キーボード移動・
+    /// タッチ操作でツールチップ/`data-active` を切り替える配線
+    /// （[`chart::wire_chart_events`]、イシュー #2130）を `root` へ登録
+    /// する。`dispatch` チャネルを持たない属性専用配線（`Self::wire_sidebar`
+    /// と同型）のため、`sidebar` と異なりオプトイン API（`wire_*_dispatch`）
+    /// を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`chart::wire_chart_events`]（`add_event_listener_with_callback`）の
+    /// 失敗を伝播する。
+    fn wire_chart(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        chart::wire_chart_events(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
