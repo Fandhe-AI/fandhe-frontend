@@ -65,14 +65,28 @@ impl Default for TickLabelFormat {
 impl TickLabelFormat {
     /// 値 `v` をこの書式でラベル文字列化する（`prefix` +
     /// [`super::svg::fmt_coord`]`(v * label_scale)` + `suffix`）。
-    #[must_use]
-    pub fn format(&self, v: f64) -> String {
-        format!(
+    ///
+    /// # Errors
+    ///
+    /// `label_scale` 自身が非有限、または `v * label_scale` が非有限
+    /// （有限同士の乗算でもオーバーフローで `inf` になり得る）の場合
+    /// [`ChartError::NonFiniteValue`] を返す。本メソッドは公開 API として
+    /// 直接呼び出し可能であり、[`y_axis`]/[`x_axis_linear`] が呼び出し前
+    /// に行う同種の検証（呼び出し元の `ticks` 全体に対する事前チェック）
+    /// の有無に関わらず、この入口自身で [`super::svg::fmt_coord`] の
+    /// 有限値限定契約（違反時 debug panic / release 非有限文字列）を
+    /// 満たす（イシュー #2081 追補）。
+    pub fn format(&self, v: f64) -> Result<String, ChartError> {
+        let scaled = v * self.label_scale;
+        if !self.label_scale.is_finite() || !scaled.is_finite() {
+            return Err(ChartError::NonFiniteValue);
+        }
+        Ok(format!(
             "{}{}{}",
             self.prefix,
-            super::svg::fmt_coord(v * self.label_scale),
+            super::svg::fmt_coord(scaled),
             self.suffix
-        )
+        ))
     }
 }
 
@@ -223,7 +237,7 @@ pub fn y_axis(
             ));
         }
         if props.show_tick_labels {
-            let label = props.format.format(t);
+            let label = props.format.format(t)?;
             children.push(svg_text(
                 x - LABEL_GAP,
                 y,
@@ -300,7 +314,7 @@ pub fn x_axis_linear(
             ));
         }
         if props.show_tick_labels {
-            let label = props.format.format(t);
+            let label = props.format.format(t)?;
             children.push(svg_text(
                 x,
                 y + TICK_LENGTH + LABEL_GAP,
@@ -523,8 +537,11 @@ mod tests {
             suffix: "%",
             ..TickLabelFormat::default()
         };
-        assert_eq!(format.format(12.5), "$12.5%");
-        assert_eq!(TickLabelFormat::default().format(12.5), "12.5");
+        assert_eq!(format.format(12.5), Ok("$12.5%".to_string()));
+        assert_eq!(
+            TickLabelFormat::default().format(12.5),
+            Ok("12.5".to_string())
+        );
     }
 
     /// `label_scale`（イシュー #2081 追補、`crate::area_chart` の
@@ -537,9 +554,43 @@ mod tests {
             label_scale: 100.0,
             ..TickLabelFormat::default()
         };
-        assert_eq!(percent.format(0.25), "25%");
-        assert_eq!(percent.format(0.3), "30%");
+        assert_eq!(percent.format(0.25), Ok("25%".to_string()));
+        assert_eq!(percent.format(0.3), Ok("30%".to_string()));
         assert_eq!(TickLabelFormat::default().label_scale, 1.0);
+    }
+
+    /// イシュー #2081 追補（codex-review P1 是正）: `TickLabelFormat::format`
+    /// は公開 API として `y_axis`/`x_axis_linear` を経由せず直接呼び出せる
+    /// ため、この入口自身で `v * label_scale` の有限性を検証しなければ
+    /// ならない。`label_scale: 100.0` で `format(1e308)` を呼ぶと、
+    /// `label_scale` 自体・`v` 自体はいずれも有限でも積が `inf` になり、
+    /// `fmt_coord` の有限値限定契約に違反する（是正前は debug panic /
+    /// release で非有限ラベルを生成していた）。
+    #[test]
+    fn format_rejects_finite_inputs_whose_product_overflows_to_infinite() {
+        let percent = TickLabelFormat {
+            label_scale: 100.0,
+            ..TickLabelFormat::default()
+        };
+        assert!(percent.label_scale.is_finite());
+        assert!(1e308_f64.is_finite());
+        assert_eq!(percent.format(1e308), Err(ChartError::NonFiniteValue));
+    }
+
+    /// `label_scale` 自体が非有限（`NaN`/`inf`）の場合も同様に拒否する。
+    #[test]
+    fn format_rejects_non_finite_label_scale() {
+        let broken = TickLabelFormat {
+            label_scale: f64::INFINITY,
+            ..TickLabelFormat::default()
+        };
+        assert_eq!(broken.format(1.0), Err(ChartError::NonFiniteValue));
+
+        let nan_scale = TickLabelFormat {
+            label_scale: f64::NAN,
+            ..TickLabelFormat::default()
+        };
+        assert_eq!(nan_scale.format(1.0), Err(ChartError::NonFiniteValue));
     }
 
     #[test]
@@ -606,7 +657,7 @@ mod tests {
             suffix: "",
             ..TickLabelFormat::default()
         };
-        assert_eq!(format.format(1.0), "1");
+        assert_eq!(format.format(1.0), Ok("1".to_string()));
     }
 
     #[test]

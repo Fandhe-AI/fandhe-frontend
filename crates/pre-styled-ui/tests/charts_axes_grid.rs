@@ -155,5 +155,5 @@ fn tick_label_format_applies_prefix_and_suffix() {
         suffix: "%",
         ..TickLabelFormat::default()
     };
-    assert_eq!(format.format(1.0), "$1%");
+    assert_eq!(format.format(1.0), Ok("$1%".to_string()));
 }
