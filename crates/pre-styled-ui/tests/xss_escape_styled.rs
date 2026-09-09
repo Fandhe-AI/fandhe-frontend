@@ -1185,6 +1185,112 @@ fn message_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// Bubble 経路（イシュー #2109、headless 側 anatomy は #2108）: 6 パーツ
+/// いずれも見た目クラスを付与しない（`src/bubble.rs` モジュール doc
+/// 「headless の `data-*` を参照する」節参照）ため、呼び出し側
+/// `attrs`・`class`（[`drop_class_attr`] により除去）、`reactions` の
+/// `label`（`aria-label` エスケープ）、`collapse_trigger` の `controls`
+/// （`aria-controls` エスケープ）、`collapse_content` の `id` エスケープ、
+/// children の各経路で既定エスケープ（REQ-1）が貫通することを固定する
+/// （`message_parts_are_escaped_for_all_payloads` と同型）。
+#[test]
+fn bubble_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::bubble::{self, BubbleRootProps, OpenState};
+
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&bubble::root(
+            BubbleRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "bubble::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える）。
+        let html = render(&bubble::root(
+            BubbleRootProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "bubble::root の class 属性に渡した生ペイロードが出力に残って\
+             いる: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled content の呼び出し側 attrs・children 経路。
+        let html = render(&bubble::content(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "bubble::content attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "bubble::content children コンテキスト");
+
+        // styled reactions の label（aria-label）・attrs 経路。
+        let html = render(&bubble::reactions(
+            payload,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "bubble::reactions label コンテキスト");
+        assert_payload_is_escaped(payload, &html, "bubble::reactions attrs コンテキスト");
+
+        // styled reaction の呼び出し側 attrs・children 経路。
+        let html = render(&bubble::reaction(
+            false,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "bubble::reaction attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "bubble::reaction children コンテキスト");
+
+        // styled collapse_trigger の controls（aria-controls）・attrs・
+        // children 経路。
+        let html = render(&bubble::collapse_trigger(
+            OpenState::Closed,
+            Some(payload),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::collapse_trigger controls コンテキスト",
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::collapse_trigger attrs コンテキスト",
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::collapse_trigger children コンテキスト",
+        );
+
+        // styled collapse_content の id・attrs・children 経路。
+        let html = render(&bubble::collapse_content(
+            OpenState::Open,
+            Some(payload),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "bubble::collapse_content id コンテキスト");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::collapse_content attrs コンテキスト",
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::collapse_content children コンテキスト",
+        );
+    }
+}
+
 /// (8) NumberInput 経路（イシュー #738）: styled `root` の呼び出し側
 /// `attrs`・`class`、および headless-ui から選択的再エクスポートした
 /// `label` の children・`input` の `name` の 4 箇所すべてで既定エスケープ

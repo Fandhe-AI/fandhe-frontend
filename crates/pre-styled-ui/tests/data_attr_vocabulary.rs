@@ -1359,6 +1359,61 @@ fn bubble_root_variant_align_group_position_and_reaction_selected_vocabulary_is_
     );
 }
 
+/// `crate::bubble`（イシュー #2109）の 6 パーツは `data-variant`/
+/// `data-align`/`data-group-position`/`data-selected`/`data-state` を
+/// 一切自前で生成せず、headless
+/// [`mod@fandhe_frontend_headless_ui::bubble`]（#2108）が出力したものを
+/// `stylesheet()` が `AttrEq`/`Attr`/`AttrEqAll` で参照するのみである
+/// ことを固定する（`message_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型。本テストの追加は上記
+/// `bubble_root_variant_align_group_position_and_reaction_selected_vocabulary_is_fixed`
+/// の doc コメントで予告済み）。
+#[test]
+fn bubble_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::bubble as styled_bubble;
+
+    let root_html = render(&styled_bubble::root(
+        styled_bubble::BubbleRootProps::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains(r#"data-variant="solid""#));
+    assert!(root_html.contains(r#"data-align="start""#));
+    assert!(root_html.contains(r#"data-group-position="single""#));
+
+    let reaction_html = render(&styled_bubble::reaction(true, vec![], vec![]));
+    assert!(reaction_html.contains(r#"data-selected="""#));
+
+    let trigger_html = render(&styled_bubble::collapse_trigger(
+        OpenState::Open,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(trigger_html.contains(r#"data-state="open""#));
+
+    // `styled_bubble::stylesheet()` は `[data-variant="..."]`/
+    // `[data-align="..."]`/`[data-group-position="..."]`/`[data-selected]`/
+    // `[data-state="..."]` を CSS セレクタとして参照するだけで自前で
+    // `data-*` を組み立てない（class ベースの variant も持たない）。
+    let css = styled_bubble::stylesheet();
+    for variant in ["solid", "outline", "plain"] {
+        assert!(css.contains(&format!(r#"[data-variant="{variant}"]"#)));
+    }
+    assert!(css.contains(r#"[data-align="end"]"#));
+    assert!(css.contains(r#"[data-group-position="first"]"#));
+    assert!(css.contains("[data-selected]"));
+    assert!(css.contains(r#"[data-state="open"]"#));
+    assert!(!css.contains("fd-bubble--"));
+
+    // headless-ui は `class` を出力しない（styled 層も見た目クラスを
+    // 付与しない、`crate::bubble` モジュール doc「headless の `data-*`
+    // を参照する」節参照）。
+    assert!(!root_html.contains("class="));
+    assert!(!reaction_html.contains("class="));
+    assert!(!trigger_html.contains("class="));
+}
+
 #[test]
 fn sidebar_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     use fandhe_frontend_pre_styled_ui::sidebar::{
