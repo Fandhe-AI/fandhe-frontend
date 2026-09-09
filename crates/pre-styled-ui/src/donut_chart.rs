@@ -107,13 +107,15 @@
 //!   効果が限定的で pie-chart（#1596）との整合を崩すため見送る
 
 use crate::charts::pie::{
-    annulus_full_ring_path, annulus_sector_path, segment_angles, PieChartError,
+    annulus_full_ring_path, annulus_sector_path, is_right_half, leader_line_path,
+    outside_label_effective_outer_radius, outside_label_point, segment_angles, PieChartError,
 };
-use crate::charts::svg::{svg_root, svg_text, ViewBox};
+use crate::charts::svg::{fmt_coord, svg_root, svg_text, ViewBox};
 use crate::charts::{series_color_var, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, VariantValue};
+use crate::pie_chart::{PieLabelContent, PieLabelPosition, PieSeparator};
+use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -121,7 +123,16 @@ use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 const ANATOMY: Anatomy = anatomy("donut-chart");
 
 /// [`SlotRecipe::new`] に渡す slot 一覧。
-const SLOTS: &[&str] = &["root", "chart", "segment", "label"];
+const SLOTS: &[&str] = &[
+    "root",
+    "chart",
+    "segment",
+    "label",
+    "label-line",
+    "outside-label",
+    "center-value",
+    "center-label",
+];
 
 /// viewBox に対する中心 X 座標（[`crate::pie_chart`] と同一定数）。
 const CENTER_X: f64 = 50.0;
@@ -130,8 +141,79 @@ const CENTER_Y: f64 = 50.0;
 /// viewBox に対する外径。
 const OUTER_RADIUS: f64 = 45.0;
 
+/// [`crate::pie_chart::PieLabelPosition::Outside`] 使用時に縮小する外径の
+/// 上限（[`crate::pie_chart`] モジュール doc「幾何上の制約」節と同一定数、
+/// イシュー #2084）。ラベル文字列が短い場合はこの値まで使う
+/// （[`crate::charts::pie::outside_label_effective_outer_radius`] 参照）。
+const OUTSIDE_LABEL_OUTER_RADIUS: f64 = 34.0;
+/// [`OUTSIDE_LABEL_OUTER_RADIUS`] 縮小の下限（[`crate::pie_chart`] と
+/// 同一値。退化防止）。
+const MIN_OUTSIDE_LABEL_OUTER_RADIUS: f64 = 15.0;
+/// 外側ラベルの 1 文字あたり推定表示幅（[`crate::pie_chart`] と同一値、
+/// イシュー #2084 レビュー指摘）。
+const AVG_LABEL_CHAR_WIDTH: f64 = 3.0;
+/// viewBox の幅（固定 100×100）。
+const VIEW_BOX_WIDTH: f64 = 100.0;
+/// 引き出し線の放射方向の長さ（[`crate::pie_chart`] と同一値）。
+const LEADER_RADIAL_LEN: f64 = 4.0;
+/// 引き出し線の水平方向の長さ。
+const LEADER_HORIZONTAL_LEN: f64 = 6.0;
+/// 引き出し線終端からラベルまでの追加余白。
+const LEADER_LABEL_GAP: f64 = 1.5;
+/// [`DonutChartProps::active_index`]（shadcn `chart-pie-donut-active`、
+/// イシュー #2084）時、非活性セグメントの外径を [`OUTER_RADIUS`] から
+/// 縮める量。viewBox の外径 45 が上限のため活性セグメントを外側へ拡張
+/// できず、代わりに非活性セグメントを内側へ縮める逆転で「活性セグメントが
+/// 外側へ膨らんで見える」表現にする（[`crate::pie_chart`] モジュール doc
+/// 「幾何上の制約」節、`donut_chart` モジュール doc「意図的に合わせなかった
+/// 点」節参照）。
+const ACTIVE_INSET: f64 = 4.0;
+
 /// [`chart`] へ既定で付与する `aria-label`。
 const DEFAULT_ARIA_LABEL: &str = "donut chart";
+
+/// [`crate::pie_chart::PieLabelPosition::Outside`] 使用時の外径を、実際に
+/// 描画される外側ラベル文字列（[`PieLabelContent::Category`] ならカテゴリ
+/// 名、[`PieLabelContent::Value`] なら [`fmt_coord`] 後の値文字列）の最長
+/// 推定表示幅を考慮して縮小する（[`crate::pie_chart`] の同名ヘルパと同一
+/// 設計、イシュー #2084 レビュー指摘。当初カテゴリ名のみを見ており
+/// `label_content = Value` 表示時に値の桁数がはみ出すすり抜けがあった、
+/// 同イシュー PR #2257 レビュー指摘で修正）。
+fn resolve_outside_label_outer_radius(
+    categories: &[String],
+    values: &[f64],
+    label_content: PieLabelContent,
+) -> f64 {
+    let max_label_len = match label_content {
+        PieLabelContent::Category => categories.iter().map(|c| c.chars().count()).max(),
+        PieLabelContent::Value => values.iter().map(|v| fmt_coord(*v).chars().count()).max(),
+    }
+    .unwrap_or(0);
+    outside_label_effective_outer_radius(
+        CENTER_X,
+        VIEW_BOX_WIDTH,
+        OUTSIDE_LABEL_OUTER_RADIUS,
+        MIN_OUTSIDE_LABEL_OUTER_RADIUS,
+        LEADER_RADIAL_LEN,
+        LEADER_HORIZONTAL_LEN,
+        LEADER_LABEL_GAP,
+        AVG_LABEL_CHAR_WIDTH,
+        max_label_len,
+    )
+}
+
+/// donut 中央テキスト（shadcn `chart-pie-donut-text`、イシュー #2084）。
+///
+/// [`crate::radial_chart::RadialCenterText`]（#2079）と同型: 呼び出し側が
+/// 文字列を渡すのみで、合計値の算出・数値整形はコンポーネント側の責務外
+/// （`.claude/rules/coding-rust.md` §3.25）とする。
+#[derive(Debug, Clone, Copy)]
+pub struct PieCenterText<'a> {
+    /// 中央（`(50, 50)`）に描く主要な値。
+    pub value: &'a str,
+    /// 主要な値の下（`(50, 57)`）に描く補助ラベル（省略可）。
+    pub label: Option<&'a str>,
+}
 
 /// [`donut_chart`] の設定。
 #[derive(Debug, Clone, Copy)]
@@ -146,6 +228,22 @@ pub struct DonutChartProps<'a> {
     /// 外径に対する内径の比率（既定 `0.6`）。`0.0 < ratio < 1.0` の範囲・
     /// 有限値であること（モジュール doc「内径」節参照）。
     pub inner_ratio: f64,
+    /// セグメント間セパレータ（既定 `Line`、イシュー #2084。
+    /// [`crate::pie_chart::PieSeparator`] を共有する）。
+    pub separator: PieSeparator,
+    /// [`show_labels`](Self::show_labels) が `true` の場合のラベル内容
+    /// （既定 `Category`、イシュー #2084）。
+    pub label_content: PieLabelContent,
+    /// [`show_labels`](Self::show_labels) が `true` の場合のラベル配置
+    /// （既定 `Inside`、イシュー #2084）。
+    pub label_position: PieLabelPosition,
+    /// 強調表示するセグメントのカテゴリ index（既定 `None`、shadcn
+    /// `chart-pie-donut-active`、イシュー #2084）。範囲外はエラー
+    /// （モジュール doc「意図的に合わせなかった点」節参照）。
+    pub active_index: Option<usize>,
+    /// 中央テキスト（既定 `None`、shadcn `chart-pie-donut-text`、
+    /// イシュー #2084）。
+    pub center_text: Option<PieCenterText<'a>>,
 }
 
 impl Default for DonutChartProps<'_> {
@@ -155,6 +253,11 @@ impl Default for DonutChartProps<'_> {
             aria_label: None,
             show_labels: false,
             inner_ratio: 0.6,
+            separator: PieSeparator::Line,
+            label_content: PieLabelContent::Category,
+            label_position: PieLabelPosition::Inside,
+            active_index: None,
+            center_text: None,
         }
     }
 }
@@ -208,6 +311,48 @@ fn recipe() -> SlotRecipe {
                 decl("stroke-linejoin", "round"),
             ],
         )
+        .base(
+            "label-line",
+            vec![
+                // イシュー #2084: shadcn `chart-pie-label` の引き出し線
+                // （`PieLabelPosition::Outside`）。`crate::pie_chart` の
+                // 同名 slot と同一宣言。
+                decl("stroke", "var(--fandhe-color-fg-muted)"),
+                decl("stroke-width", "0.5"),
+                decl("fill", "none"),
+            ],
+        )
+        .base(
+            "outside-label",
+            vec![
+                // イシュー #2084: 環状外側ラベル（`PieLabelPosition::Outside`）。
+                decl("fill", "var(--fandhe-color-fg)"),
+                decl("font-size", "5px"),
+                decl("text-anchor", "start"),
+                decl("dominant-baseline", "central"),
+            ],
+        )
+        .base(
+            "center-value",
+            vec![
+                // イシュー #2084: shadcn `chart-pie-donut-text`。
+                // `crate::radial_chart` の `center-value` と同一宣言。
+                decl("fill", "var(--fandhe-color-fg)"),
+                decl("font-size", "12px"),
+                decl("font-weight", "var(--fandhe-font-font-weight-bold)"),
+                decl("text-anchor", "middle"),
+                decl("dominant-baseline", "central"),
+            ],
+        )
+        .base(
+            "center-label",
+            vec![
+                decl("fill", "var(--fandhe-color-fg-muted)"),
+                decl("font-size", "4px"),
+                decl("text-anchor", "middle"),
+                decl("dominant-baseline", "central"),
+            ],
+        )
         // イシュー #1681: Xs/Xl は Sm→Md→Lg の 6rem 刻み等差進行を外挿。
         .variant(
             Size::Xs,
@@ -235,6 +380,16 @@ fn recipe() -> SlotRecipe {
             vec![decl("--fandhe-donut-chart-size", "28rem")],
         )
         .default_variant(Size::Md)
+        // イシュー #2084: `crate::pie_chart` と同一の外側ラベル終端揃え。
+        .state(
+            "outside-label",
+            StateCondition::AttrEq("data-align", "end"),
+            vec![decl("text-anchor", "end")],
+        )
+        // イシュー #2084: shadcn `chart-pie-separator-none` 突合
+        // （`crate::pie_chart::PieSeparator` を共有、scope は
+        // `donut-chart` のため class 名は独立して生成される）。
+        .variant(PieSeparator::None, "segment", vec![decl("stroke", "none")])
 }
 
 /// この styled DonutChart が生成する静的 CSS 全量を返す（決定的）。
@@ -244,13 +399,20 @@ pub fn css() -> String {
 }
 
 /// DonutChart 1 個を組み立てる（`root` > `chart`(svg) > `segment`(path)
-/// [+ `label`(text)]）。[`crate::pie_chart::pie_chart`] と同型の契約。
+/// [+ `label-line`(path) + `outside-label`(text) | `label`(text)]
+/// [+ `center-value`(text) [+ `center-label`(text)]]）。
+/// [`crate::pie_chart::pie_chart`] と同型の契約。
 ///
 /// # Errors
 ///
 /// - `data.series().len() != 1` の場合 [`PieChartError::MultiSeries`]
 /// - `inner_ratio` が非有限、または `0.0 < ratio < 1.0` の範囲外の場合
 ///   [`PieChartError::InvalidInnerRatio`]
+/// - `active_index` が `Some` かつ `inner_ratio` が大きすぎ、非活性
+///   セグメントの縮小外径（[`ACTIVE_INSET`]）以上になる場合も
+///   [`PieChartError::InvalidInnerRatio`]（環が反転する退化構成を防ぐ）
+/// - `active_index` がカテゴリ数以上の場合
+///   [`PieChartError::InvalidActiveIndex`]
 /// - 系列の値に非有限・負値が含まれる、または合計が `0` の場合
 ///   [`crate::charts::pie::segment_angles`] のエラーをそのまま返す
 ///
@@ -283,8 +445,36 @@ pub fn donut_chart<'a>(
     }
     let categories = data.categories();
     let values = &data.series()[0].values;
+    if let Some(idx) = props.active_index {
+        if idx >= categories.len() {
+            return Err(PieChartError::InvalidActiveIndex);
+        }
+    }
+    // `active_index` 未使用時のみ、外側ラベル（`PieLabelPosition::Outside`）
+    // の外径縮小を適用する（モジュール doc「意図的に合わせなかった点」節、
+    // 両機能の組み合わせは shadcn に存在せず本 API のスコープ外）。
+    // `active_index` が `Some` の場合は常に `OUTER_RADIUS`（縮小なし）に
+    // なる分岐であるため、下記 `r_inner` の基準半径としてもそのまま使える。
+    let default_outer_radius = if props.active_index.is_none()
+        && props.show_labels
+        && props.label_position == PieLabelPosition::Outside
+    {
+        resolve_outside_label_outer_radius(categories, values, props.label_content)
+    } else {
+        OUTER_RADIUS
+    };
+
+    // レビュー指摘（イシュー #2084）: 外側ラベル使用時に外径だけが
+    // `default_outer_radius` へ縮小され、内径が固定 `OUTER_RADIUS` 基準の
+    // ままだと `r_outer > r_inner > 0`（`annulus_sector_path` 契約）が
+    // 崩れリングが反転しうる。実際に使うセグメント外径
+    // （`default_outer_radius`）を基準に内径を計算する。
+    let r_inner = default_outer_radius * props.inner_ratio;
+    if props.active_index.is_some() && r_inner >= OUTER_RADIUS - ACTIVE_INSET {
+        return Err(PieChartError::InvalidInnerRatio);
+    }
+
     let angles = segment_angles(values)?;
-    let r_inner = OUTER_RADIUS * props.inner_ratio;
 
     // 非ゼロ値のセグメントがちょうど 1 個の場合（全周セグメント）は
     // annulus path が始点=終点の退化 arc を返すため、
@@ -294,54 +484,129 @@ pub fn donut_chart<'a>(
     let non_zero_count = values.iter().filter(|&&v| v > 0.0).count();
     let is_full_circle = non_zero_count == 1;
 
-    let mut segment_and_label_nodes: Vec<Node> = Vec::new();
+    let recipe = recipe();
+    let separator_class = if props.separator == PieSeparator::None {
+        recipe.variant_class(PieSeparator::None)
+    } else {
+        String::new()
+    };
+
+    let mut nodes: Vec<Node> = Vec::new();
     for (i, (&(start, end), &value)) in angles.iter().zip(values.iter()).enumerate() {
         // 値 0 のセグメントは境界角が退化するため描画しない。
         if value <= 0.0 {
             continue;
         }
         let fill = series_color_var(i);
-        if is_full_circle {
-            let d = annulus_full_ring_path(CENTER_X, CENTER_Y, OUTER_RADIUS, r_inner);
-            segment_and_label_nodes.push(el(
-                "path",
-                vec![
-                    ("data-scope", "donut-chart"),
-                    ("data-part", "segment"),
-                    ("d", d.as_str()),
-                    ("fill", fill.as_str()),
-                    ("fill-rule", "evenodd"),
-                ],
-                vec![],
-            ));
+        let is_active = props.active_index == Some(i);
+        let r_outer = if props.active_index.is_some() {
+            if is_active {
+                OUTER_RADIUS
+            } else {
+                OUTER_RADIUS - ACTIVE_INSET
+            }
         } else {
-            let d = annulus_sector_path(CENTER_X, CENTER_Y, OUTER_RADIUS, r_inner, start, end);
-            segment_and_label_nodes.push(el(
-                "path",
-                vec![
-                    ("data-scope", "donut-chart"),
-                    ("data-part", "segment"),
-                    ("d", d.as_str()),
-                    ("fill", fill.as_str()),
-                ],
-                vec![],
-            ));
+            default_outer_radius
+        };
+
+        let mut segment_attrs: Vec<(&str, &str)> =
+            vec![("data-scope", "donut-chart"), ("data-part", "segment")];
+        if is_active {
+            segment_attrs.push(("data-active", ""));
+        }
+        if !separator_class.is_empty() {
+            segment_attrs.push(("class", separator_class.as_str()));
         }
 
-        if props.show_labels {
-            let mid = (start + end) / 2.0;
+        if is_full_circle {
+            let d = annulus_full_ring_path(CENTER_X, CENTER_Y, r_outer, r_inner);
+            segment_attrs.push(("d", d.as_str()));
+            segment_attrs.push(("fill", fill.as_str()));
+            segment_attrs.push(("fill-rule", "evenodd"));
+            nodes.push(el("path", segment_attrs, vec![]));
+        } else {
+            let d = annulus_sector_path(CENTER_X, CENTER_Y, r_outer, r_inner, start, end);
+            segment_attrs.push(("d", d.as_str()));
+            segment_attrs.push(("fill", fill.as_str()));
+            nodes.push(el("path", segment_attrs, vec![]));
+        }
+
+        if !props.show_labels {
+            continue;
+        }
+        let mid = (start + end) / 2.0;
+        let category = categories.get(i).map(String::as_str).unwrap_or_default();
+        let label_text = match props.label_content {
+            PieLabelContent::Category => category.to_string(),
+            PieLabelContent::Value => fmt_coord(value),
+        };
+
+        if props.active_index.is_none() && props.label_position == PieLabelPosition::Outside {
+            let leader_d = leader_line_path(
+                CENTER_X,
+                CENTER_Y,
+                r_outer,
+                mid,
+                LEADER_RADIAL_LEN,
+                LEADER_HORIZONTAL_LEN,
+            );
+            nodes.push(el(
+                "path",
+                vec![
+                    ("data-scope", "donut-chart"),
+                    ("data-part", "label-line"),
+                    ("d", leader_d.as_str()),
+                ],
+                vec![],
+            ));
+            let (lx, ly) = outside_label_point(
+                CENTER_X,
+                CENTER_Y,
+                r_outer,
+                mid,
+                LEADER_RADIAL_LEN,
+                LEADER_HORIZONTAL_LEN,
+                LEADER_LABEL_GAP,
+            );
+            let align = if is_right_half(mid) { "start" } else { "end" };
+            nodes.push(svg_text(
+                lx,
+                ly,
+                vec![
+                    ("data-scope", "donut-chart"),
+                    ("data-part", "outside-label"),
+                    ("data-align", align),
+                ],
+                vec![text(label_text.as_str())],
+            ));
+        } else {
             // ラベル半径は外径・内径の中間（`(r_inner + r_outer) / 2`）付近に置く。
-            let label_r = (r_inner + OUTER_RADIUS) / 2.0;
+            let label_r = (r_inner + r_outer) / 2.0;
             let lx = CENTER_X + label_r * mid.cos();
             let ly = CENTER_Y + label_r * mid.sin();
-            let category = categories.get(i).map(String::as_str).unwrap_or_default();
-            let label_node = svg_text(
+            nodes.push(svg_text(
                 lx,
                 ly,
                 vec![("data-scope", "donut-chart"), ("data-part", "label")],
-                vec![text(category)],
-            );
-            segment_and_label_nodes.push(label_node);
+                vec![text(label_text.as_str())],
+            ));
+        }
+    }
+
+    if let Some(center_text) = props.center_text {
+        nodes.push(svg_text(
+            CENTER_X,
+            CENTER_Y,
+            vec![("data-scope", "donut-chart"), ("data-part", "center-value")],
+            vec![text(center_text.value)],
+        ));
+        if let Some(label) = center_text.label {
+            nodes.push(svg_text(
+                CENTER_X,
+                57.0,
+                vec![("data-scope", "donut-chart"), ("data-part", "center-label")],
+                vec![text(label)],
+            ));
         }
     }
 
@@ -355,10 +620,9 @@ pub fn donut_chart<'a>(
             ("data-part", "chart"),
             ("aria-label", aria_label_value),
         ],
-        segment_and_label_nodes,
+        nodes,
     );
 
-    let recipe = recipe();
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
@@ -378,6 +642,34 @@ mod tests {
             vec![Series::new("total", vec![60.0, 40.0])],
         )
         .unwrap()
+    }
+
+    /// `needle`（例: `data-part="outside-label"`）を含む `<text ...>` 開始タグ
+    /// から `attr`（例: `x`）属性値を数値として抽出するテスト専用ヘルパ
+    /// （`pie_chart` モジュールの同名ヘルパと同一実装、イシュー #2084）。
+    fn extract_attr_values(html: &str, needle: &str, attr: &str) -> Vec<f64> {
+        let mut out = Vec::new();
+        for tag_start in html.match_indices("<text ").map(|(i, _)| i) {
+            let tag_end = html[tag_start..]
+                .find('>')
+                .map(|off| tag_start + off)
+                .unwrap_or(html.len());
+            let tag = &html[tag_start..tag_end];
+            if !tag.contains(needle) {
+                continue;
+            }
+            let pat = format!(r#"{attr}=""#);
+            if let Some(start) = tag.find(&pat) {
+                let value_start = start + pat.len();
+                if let Some(end_off) = tag[value_start..].find('"') {
+                    let value_str = &tag[value_start..value_start + end_off];
+                    if let Ok(value) = value_str.parse::<f64>() {
+                        out.push(value);
+                    }
+                }
+            }
+        }
+        out
     }
 
     #[test]
@@ -538,5 +830,216 @@ mod tests {
         assert!(a.contains("dominant-baseline: central"));
         assert!(a.contains("paint-order: stroke"));
         assert!(a.contains("stroke-linejoin: round"));
+    }
+
+    #[test]
+    fn separator_none_adds_variant_class_and_default_omits_it() {
+        let props = DonutChartProps {
+            separator: PieSeparator::None,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains("fd-donut-chart--separator-none"));
+
+        let default_html = render(
+            &donut_chart(&DonutChartProps::default(), &two_category_data(), vec![]).unwrap(),
+        );
+        assert!(!default_html.contains("fd-donut-chart--separator-none"));
+    }
+
+    #[test]
+    fn label_position_outside_renders_leader_line_and_outside_label() {
+        let props = DonutChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert_eq!(html.matches(r#"data-part="label-line""#).count(), 2);
+        assert_eq!(html.matches(r#"data-part="outside-label""#).count(), 2);
+        assert!(!html.contains(r#"data-part="label""#));
+    }
+
+    #[test]
+    fn outside_labels_shrink_inner_radius_together_with_outer_radius_to_avoid_ring_inversion() {
+        // レビュー指摘（イシュー #2084、codex-review P1 / Cursor Bugbot）:
+        // show_labels=true・label_position=Outside・active_index=None のとき
+        // 外径だけが OUTSIDE_LABEL_OUTER_RADIUS(34) へ縮小され、内径が旧
+        // `OUTER_RADIUS(45) * inner_ratio` のまま再計算されないと、
+        // inner_ratio=0.85 で内径 38.25 > 外径 34 となり
+        // `annulus_sector_path` の `r_outer > r_inner > 0` 契約に違反して
+        // リングが反転する。修正後は縮小後の外径（34）を基準に内径
+        // （34 * 0.85 = 28.9）を計算し、常に外径 > 内径を維持することを
+        // 確認する。
+        let props = DonutChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            inner_ratio: 0.85,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(
+            html.contains("A34,34,0,"),
+            "外径 34 が使われていない: {html}"
+        );
+        assert!(
+            html.contains("28.9,28.9,0,"),
+            "縮小後の外径基準の内径 28.9 が使われていない: {html}"
+        );
+        // 旧実装（`OUTER_RADIUS * inner_ratio` = 45 * 0.85 = 38.25）由来の
+        // 内径（外径 34 を超えてリングが反転する値）が残っていないこと。
+        assert!(!html.contains("38.25"));
+    }
+
+    #[test]
+    fn outside_labels_reserve_text_width_margin_for_longer_category_names() {
+        // レビュー指摘（イシュー #2084 codex-review P1、pie_chart.rs:503 と
+        // 同型）: 固定 OUTSIDE_LABEL_OUTER_RADIUS(34) のみでは通常長の
+        // カテゴリ名（"Chrome" 等）が viewBox 外へはみ出す。修正後は文字幅を
+        // 見込んで外径を縮小し、outside-label の x 座標が推定文字幅ぶんの
+        // 余白を viewBox 内に残すことを確認する。
+        let data = ChartData::new(
+            vec!["Chrome".to_string(), "Safari".to_string()],
+            vec![Series::new("total", vec![50.0, 50.0])],
+        )
+        .unwrap();
+        let props = DonutChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &data, vec![]).unwrap());
+        assert!(!html.contains(r#"x="95.5""#));
+        let max_category_len = 6.0; // "Chrome"/"Safari" いずれも 6 文字。
+        for x in extract_attr_values(&html, r#"data-part="outside-label""#, "x") {
+            assert!(
+                (0.0..=100.0).contains(&x),
+                "outside-label x={x} は viewBox(0..100) の外"
+            );
+            let margin_to_edge = if x >= 50.0 { 100.0 - x } else { x };
+            assert!(
+                margin_to_edge >= max_category_len * AVG_LABEL_CHAR_WIDTH - 1e-9,
+                "x={x} の余白 {margin_to_edge} は推定文字幅未満"
+            );
+        }
+    }
+
+    #[test]
+    fn outside_labels_reserve_value_text_width_margin_when_label_content_is_value() {
+        // 回帰テスト（PR #2257 codex-review P1、pie_chart.rs の同名テストと
+        // 同型）: `label_content = Value` の場合、外径縮小の余白計算が
+        // カテゴリ名の文字数のみを見ており実際に描画される値の文字列幅を
+        // 無視していた。カテゴリ名が短く（"A"/"B"）値の桁数が大きい
+        // （100000.0）と余白を超えてはみ出す。修正後は Value 表示時に
+        // `fmt_coord` 後の文字列幅を見込んで外径を縮小し、余白が確保される
+        // ことを確認する。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![Series::new("total", vec![100000.0, 100000.0])],
+        )
+        .unwrap();
+        let props = DonutChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            label_content: PieLabelContent::Value,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &data, vec![]).unwrap());
+        assert!(!html.contains(r#"x="95.5""#));
+        let max_value_len = 6.0; // fmt_coord(100000.0) は "100000"（6 文字）。
+        for x in extract_attr_values(&html, r#"data-part="outside-label""#, "x") {
+            assert!(
+                (0.0..=100.0).contains(&x),
+                "outside-label x={x} は viewBox(0..100) の外"
+            );
+            let margin_to_edge = if x >= 50.0 { 100.0 - x } else { x };
+            assert!(
+                margin_to_edge >= max_value_len * AVG_LABEL_CHAR_WIDTH - 1e-9,
+                "x={x} の余白 {margin_to_edge} は推定値文字幅未満"
+            );
+        }
+    }
+
+    #[test]
+    fn active_index_marks_segment_and_shrinks_others() {
+        let props = DonutChartProps {
+            active_index: Some(0),
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert_eq!(html.matches(r#"data-active="""#).count(), 1);
+        // 活性セグメントは外径 45（`A45,45,0,`）のまま。
+        assert!(html.contains("A45,45,0,"));
+        // 非活性セグメントは外径 45-4=41 へ縮む。
+        assert!(html.contains("A41,41,0,"));
+    }
+
+    #[test]
+    fn active_index_out_of_range_is_rejected() {
+        let props = DonutChartProps {
+            active_index: Some(5),
+            ..DonutChartProps::default()
+        };
+        assert_eq!(
+            donut_chart(&props, &two_category_data(), vec![]).unwrap_err(),
+            PieChartError::InvalidActiveIndex
+        );
+    }
+
+    #[test]
+    fn active_index_with_excessive_inner_ratio_is_rejected() {
+        let props = DonutChartProps {
+            active_index: Some(0),
+            inner_ratio: 0.95,
+            ..DonutChartProps::default()
+        };
+        assert_eq!(
+            donut_chart(&props, &two_category_data(), vec![]).unwrap_err(),
+            PieChartError::InvalidInnerRatio
+        );
+    }
+
+    #[test]
+    fn center_text_renders_value_and_optional_label() {
+        let props = DonutChartProps {
+            center_text: Some(PieCenterText {
+                value: "1,234",
+                label: Some("Total"),
+            }),
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains(r#"data-part="center-value""#));
+        assert!(html.contains(r#"data-part="center-label""#));
+        assert!(html.contains(">1,234<"));
+        assert!(html.contains(">Total<"));
+    }
+
+    #[test]
+    fn center_text_omits_label_when_none() {
+        let props = DonutChartProps {
+            center_text: Some(PieCenterText {
+                value: "42",
+                label: None,
+            }),
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains(r#"data-part="center-value""#));
+        assert!(!html.contains(r#"data-part="center-label""#));
+    }
+
+    #[test]
+    fn default_output_never_contains_new_2084_attributes() {
+        let html = render(
+            &donut_chart(&DonutChartProps::default(), &two_category_data(), vec![]).unwrap(),
+        );
+        assert!(!html.contains("data-active"));
+        assert!(!html.contains("data-align"));
+        assert!(!html.contains("fd-donut-chart--separator-none"));
+        assert!(!html.contains("label-line"));
+        assert!(!html.contains("outside-label"));
+        assert!(!html.contains("center-value"));
+        assert!(!html.contains("center-label"));
     }
 }

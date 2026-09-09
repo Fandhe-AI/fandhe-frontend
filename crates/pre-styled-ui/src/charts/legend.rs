@@ -190,6 +190,74 @@ pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
     )
 }
 
+/// カテゴリ単位の凡例（shadcn `chart-pie-legend`、イシュー #2084）。
+///
+/// [`legend`] は [`ChartData::series`] を単位に 1 item を組み立てるが、
+/// 円グラフ（[`crate::pie_chart`]/[`crate::donut_chart`]）は単一系列専用
+/// （モジュール doc「単一系列専用」節、`pie_chart`/`donut_chart` の
+/// モジュール doc参照）のため、`series` 単位の凡例ではカテゴリ 1 件ずつの
+/// 対応が組めない。本関数はカテゴリ 1 件 = item 1 件とし、マーカー色は
+/// [`super::series_color_var`]（カテゴリ index）で扇形の塗り色
+/// （`pie_chart`/`donut_chart` の `segment` 塗り色）と一致させる。
+///
+/// `data` の系列は 1 本目（`series()[0]`）のみを参照し、`icon` slot は
+/// 使わない（`icon` はカテゴリではなく系列単位の設定
+/// [`super::data::Series::icon`] のため本関数の対象外）。マークアップは
+/// [`legend`] と同じ scope/slot（`root`/`title`/`item`/`marker`/`label`）を
+/// 共有するため CSS（[`css`]）は変更しない。
+///
+/// `data.series()` が空の場合は `item` を 1 件も持たない `root` のみを
+/// 返す（fail-soft。呼び出し元は事前に [`ChartData`] の非空検証を通した
+/// データを渡す前提、`pie_chart`/`donut_chart` と同型の判断）。
+#[must_use]
+pub fn category_legend(data: &ChartData, props: &LegendProps) -> Node {
+    let mut children: Vec<Node> = Vec::new();
+
+    if let Some(title) = &props.title {
+        children.push(el(
+            "li",
+            vec![("data-scope", SCOPE), ("data-part", "title")],
+            vec![text(title)],
+        ));
+    }
+
+    let categories = data.categories();
+    for (i, category) in categories.iter().enumerate() {
+        let color = super::series_color_var(i);
+        let marker_style = format!("background: {color}");
+        let marker = el(
+            "span",
+            vec![
+                ("data-scope", SCOPE),
+                ("data-part", "marker"),
+                ("style", marker_style.as_str()),
+                ("aria-hidden", "true"),
+            ],
+            vec![],
+        );
+        let label = el(
+            "span",
+            vec![("data-scope", SCOPE), ("data-part", "label")],
+            vec![text(category.as_str())],
+        );
+        children.push(el(
+            "li",
+            vec![("data-scope", SCOPE), ("data-part", "item")],
+            vec![marker, label],
+        ));
+    }
+
+    el(
+        "ul",
+        vec![
+            ("data-scope", SCOPE),
+            ("data-part", "root"),
+            ("role", "list"),
+        ],
+        children,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,5 +319,58 @@ mod tests {
         let out = css();
         assert!(!out.contains('<'));
         assert!(out.contains("data-part=\"marker\""));
+    }
+
+    #[test]
+    fn category_legend_renders_one_item_per_category() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string(), "C".to_string()],
+            vec![Series::new("total", vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let html = render(&category_legend(&data, &LegendProps::default()));
+        assert_eq!(html.matches(r#"data-part="item""#).count(), 3);
+        assert!(html.contains("var(--fandhe-color-chart-1)"));
+        assert!(html.contains("var(--fandhe-color-chart-2)"));
+        assert!(html.contains("var(--fandhe-color-chart-3)"));
+        assert!(html.contains(">A<"));
+        assert!(html.contains(">B<"));
+        assert!(html.contains(">C<"));
+        assert!(!html.contains(r#"data-part="icon""#));
+    }
+
+    #[test]
+    fn category_legend_marker_color_matches_segment_color_cycle() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![Series::new("total", vec![1.0, 1.0])],
+        )
+        .unwrap();
+        let html = render(&category_legend(&data, &LegendProps::default()));
+        assert_eq!(
+            crate::charts::series_color_var(0),
+            "var(--fandhe-color-chart-1)"
+        );
+        assert!(html.contains(&format!(
+            "background: {}",
+            crate::charts::series_color_var(0)
+        )));
+        assert!(html.contains(&format!(
+            "background: {}",
+            crate::charts::series_color_var(1)
+        )));
+    }
+
+    #[test]
+    fn category_legend_xss_regression_category_name_is_escaped() {
+        let payload = "</ul><script>alert(1)</script>";
+        let data = ChartData::new(
+            vec![payload.to_string()],
+            vec![Series::new("total", vec![1.0])],
+        )
+        .unwrap();
+        let html = render(&category_legend(&data, &LegendProps::default()));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
     }
 }

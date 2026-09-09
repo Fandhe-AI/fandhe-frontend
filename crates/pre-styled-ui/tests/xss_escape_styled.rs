@@ -41,6 +41,7 @@ use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, close_button, icon_button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+use fandhe_frontend_pre_styled_ui::charts::legend::{category_legend, LegendProps};
 use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
@@ -50,7 +51,7 @@ use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::collapsible;
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateInputProps, DateSegment};
-use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
+use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps, PieCenterText};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -82,7 +83,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
-use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
+use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps, PieLabelPosition};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind, PinInputProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::quote::quote;
@@ -4903,6 +4904,13 @@ fn color_picker_style_dedup_attrs_and_reexported_parts_are_escaped_for_all_paylo
 /// 節の `label` パーツ）。(2) `aria_label` プロパティ（`chart` の
 /// `aria-label` 属性値経路）。(3) 呼び出し側 `attrs`（`root` への透過）。
 /// (4) 呼び出し側 `attrs` の `class`（`drop_class_attr` による単一化）。
+/// (5) `PieLabelPosition::Outside` 時のカテゴリ名ラベル（`outside-label`
+/// children テキスト経路、イシュー #2084）。(6)
+/// `PieChartProps::stacked` 時の `Series::name` → `data-series` 属性値
+/// 経路（イシュー #2084）。(7) `DonutChartProps::center_text.value`/
+/// `.label`（`center-value`/`center-label` children テキスト経路、
+/// イシュー #2084）。(8) `charts::legend::category_legend` のカテゴリ名
+/// （`label` children テキスト経路、イシュー #2084）。
 ///
 /// `d`/`fill` 属性は [`crate::charts::pie`]/[`crate::charts::svg::fmt_coord`]
 /// 経由の数値・固定リテラルのみで構成され任意文字列の混入経路を持たない
@@ -4992,6 +5000,71 @@ fn pie_and_donut_chart_are_escaped_for_all_payloads() {
             html.matches("class=\"").count(),
             1,
             "donut_chart の class 属性が複数出現している: html={html}"
+        );
+
+        // (5) PieLabelPosition::Outside 時のカテゴリ名ラベル（children
+        // テキスト経路、イシュー #2084）。
+        let pie_outside_props = PieChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&pie_outside_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pie_chart outside-label children コンテキスト",
+        );
+
+        let donut_outside_props = DonutChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&donut_outside_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "donut_chart outside-label children コンテキスト",
+        );
+
+        // (6) PieChartProps::stacked 時の Series::name → data-series
+        // 属性値経路（イシュー #2084）。
+        let stacked_data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![Series::new(payload, vec![60.0, 40.0])],
+        )
+        .unwrap();
+        let stacked_props = PieChartProps {
+            stacked: true,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&stacked_props, &stacked_data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "pie_chart data-series 属性値コンテキスト");
+
+        // (7) DonutChartProps::center_text.value / .label（children テキスト
+        // 経路、イシュー #2084）。
+        let center_text_props = DonutChartProps {
+            center_text: Some(PieCenterText {
+                value: payload,
+                label: Some(payload),
+            }),
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&center_text_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "donut_chart center_text children コンテキスト",
+        );
+
+        // (8) charts::legend::category_legend のカテゴリ名（children テキスト
+        // 経路、イシュー #2084）。
+        let html = render(&category_legend(&data, &LegendProps::default()));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "category_legend label children コンテキスト",
         );
     }
 }

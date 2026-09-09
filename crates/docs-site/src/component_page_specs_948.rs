@@ -75,7 +75,7 @@ use fandhe_frontend_pre_styled_ui::color_picker;
 use fandhe_frontend_pre_styled_ui::color_swatch::{Color, Rgb};
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
 use fandhe_frontend_pre_styled_ui::date_picker;
-use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
+use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps, PieCenterText};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::{
     Channel, ColorPicker,
@@ -90,7 +90,9 @@ use fandhe_frontend_pre_styled_ui::kbd::{group as kbd_group, kbd, KbdProps, KbdV
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
-use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
+use fandhe_frontend_pre_styled_ui::pie_chart::{
+    pie_chart, PieChartProps, PieLabelContent, PieLabelPosition, PieSeparator,
+};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radial_chart::{
     radial_chart, RadialCenterText, RadialChartProps,
@@ -1583,15 +1585,39 @@ fn pie_chart_example() -> Node {
         vec![],
     )
     .expect("固定サンプルは常に描画に成功する");
-    stack(vec![size_row, row(vec![with_labels])])
+    let outside_value_labels = pie_chart(
+        &PieChartProps {
+            show_labels: true,
+            label_content: PieLabelContent::Value,
+            label_position: PieLabelPosition::Outside,
+            ..PieChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("固定サンプルは常に描画に成功する");
+    let separator_none = pie_chart(
+        &PieChartProps {
+            separator: PieSeparator::None,
+            ..PieChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("固定サンプルは常に描画に成功する");
+    stack(vec![
+        size_row,
+        row(vec![with_labels, outside_value_labels, separator_none]),
+    ])
 }
 
 const PIE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "外部依存ゼロの SVG ノード木生成による円グラフ",
         "size（Xs〜Xl）で --fandhe-pie-chart-size を切り替える",
-        "show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画する",
+        "show_labels を有効にするとラベルをセグメント上に描画する（label_content で値/カテゴリ名、label_position で内側/外側+引き出し線を切り替える）",
         "ラベルは背景色ハロー + 扇形中心配置で系列色・ダーク時も可読",
+        "イシュー #2084 で shadcn/ui Charts（pie、11 バリアント）と突合し、separator（セパレータ線の有無）・stacked（複数系列の多重リング表示）を補完した。実行時インタラクション（ツールチップ・期間切替）は対象外（#2128/#2132）",
     ],
     arguments: &[
         ArgRow {
@@ -1610,12 +1636,36 @@ const PIE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
             name: "show_labels",
             kind: "bool",
             default: "false",
-            description: "true ならカテゴリ名ラベルをセグメント上に描画する。",
+            description: "true ならラベルをセグメント上に描画する。",
+        },
+        ArgRow {
+            name: "separator",
+            kind: "PieSeparator",
+            default: "Line",
+            description: "セグメント間セパレータ。None でセパレータ線を消す（イシュー #2084）。",
+        },
+        ArgRow {
+            name: "label_content",
+            kind: "PieLabelContent",
+            default: "Category",
+            description: "show_labels 有効時のラベル内容。Value は数値（イシュー #2084）。",
+        },
+        ArgRow {
+            name: "label_position",
+            kind: "PieLabelPosition",
+            default: "Inside",
+            description: "show_labels 有効時のラベル配置。Outside は引き出し線付きで扇形外側へ配置する（イシュー #2084）。",
+        },
+        ArgRow {
+            name: "stacked",
+            kind: "bool",
+            default: "false",
+            description: "true なら複数系列を多重リング（0 が最内周）として描画する（イシュー #2084）。false は従来どおり単一系列専用。",
         },
     ],
     examples: &[ExampleEntry {
         title: "size とラベル表示",
-        description: "size 5 段とラベル表示ありの掲示です。",
+        description: "size 5 段・ラベル表示（内側/外側）・separator: None の掲示です。",
         render: pie_chart_example,
     }],
     keyboard: &[],
@@ -1658,16 +1708,41 @@ fn donut_chart_example() -> Node {
         vec![],
     )
     .expect("inner_ratio=0.85 は許容範囲内であり常に描画に成功する");
-    stack(vec![size_row, row(vec![thin_ring])])
+    let active = donut_chart(
+        &DonutChartProps {
+            active_index: Some(0),
+            ..DonutChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("active_index=Some(0) は範囲内であり常に描画に成功する");
+    let with_center_text = donut_chart(
+        &DonutChartProps {
+            center_text: Some(PieCenterText {
+                value: "1,200",
+                label: Some("Total"),
+            }),
+            ..DonutChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("固定サンプルは常に描画に成功する");
+    stack(vec![
+        size_row,
+        row(vec![thin_ring, active, with_center_text]),
+    ])
 }
 
 const DONUT_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "外部依存ゼロの SVG ノード木生成によるドーナツグラフ",
         "inner_ratio（既定 0.6）で内径を調整できる",
-        "show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画する",
+        "show_labels を有効にするとラベルをセグメント上に描画する（pie_chart と同じ label_content/label_position）",
         "size（Xs〜Xl）で寸法を切り替える",
         "ラベルは背景色ハロー + 環帯中心配置で系列色・ダーク時も可読",
+        "イシュー #2084 で shadcn/ui Charts（pie、11 バリアント）と突合し、active_index（セグメント強調）・center_text（中央テキスト）・separator を補完した。実行時インタラクション（ツールチップ・期間切替）は対象外（#2128/#2132）",
     ],
     arguments: &[
         ArgRow {
@@ -1686,12 +1761,42 @@ const DONUT_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
             name: "show_labels",
             kind: "bool",
             default: "false",
-            description: "true ならカテゴリ名ラベルをセグメント上に描画する。",
+            description: "true ならラベルをセグメント上に描画する。",
+        },
+        ArgRow {
+            name: "separator",
+            kind: "PieSeparator",
+            default: "Line",
+            description: "セグメント間セパレータ。None でセパレータ線を消す（イシュー #2084）。",
+        },
+        ArgRow {
+            name: "label_content",
+            kind: "PieLabelContent",
+            default: "Category",
+            description: "show_labels 有効時のラベル内容（イシュー #2084）。",
+        },
+        ArgRow {
+            name: "label_position",
+            kind: "PieLabelPosition",
+            default: "Inside",
+            description: "show_labels 有効時のラベル配置（イシュー #2084）。",
+        },
+        ArgRow {
+            name: "active_index",
+            kind: "Option<usize>",
+            default: "None",
+            description: "強調表示するセグメントのカテゴリ index。範囲外はエラー（イシュー #2084）。",
+        },
+        ArgRow {
+            name: "center_text",
+            kind: "Option<PieCenterText>",
+            default: "None",
+            description: "中央テキスト（value・任意の label）。合計値の算出は呼び出し側の責務（イシュー #2084）。",
         },
     ],
     examples: &[ExampleEntry {
-        title: "size と内径調整",
-        description: "size 5 段と、内径を細くした薄いリング（inner_ratio=0.85）の掲示です。",
+        title: "内径調整・強調・中央テキスト",
+        description: "薄いリング（inner_ratio=0.85）・active_index による強調・center_text の掲示です。",
         render: donut_chart_example,
     }],
     keyboard: &[],

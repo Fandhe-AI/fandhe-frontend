@@ -135,7 +135,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | charts（SVG） | `charts::bar_chart`（縦/横 orientation のグループ棒グラフ。値軸はベースライン 0 起点、カテゴリ軸はバンドレイアウト（両端 10% padding + 系列数で均等割り）。系列色は `series_color_var`（`chart-1`〜`chart-6` 循環）。イシュー #2082 で shadcn/ui Charts（bar）と突合し、`BarStack`（積み上げ Normal/Expand）・`corner_radius`（角丸）・`BarLabel`（値ラベル Outside/Inside）・`active_index`（強調表示）・`color_by_category`・`highlight_negative`・`show_value_axis`/`show_grid`/`show_category_labels` を `BarChartProps` へ純追加。凡例は引き続き呼び出し側が `charts::legend` を並べる。ツールチップは対象外（#2086）、詳細は `bar_chart.rs` rustdoc「shadcn/ui 突合（イシュー #2082）」節参照） | [bar-chart](../../site/themes/bar-chart.md) |
 | charts（HTML） | `charts::bar_list`（単一系列のランキング型バーリスト。バー幅は系列内最大値に対する比率（`--fandhe-bar-list-percent` custom property）。最大値 0 は全バー幅 0% を決定的に描画） | [bar-list](../../site/themes/bar-list.md) |
 | charts（HTML） | `charts::bar_segment`（単一系列の構成比 100% 積み上げバー + 凡例。セグメント幅は系列合計に対する比率（`--fandhe-bar-segment-percent` custom property）、配色はカテゴリ index で `series_color_var` を循環。系列合計 0 は `ChartError::ZeroTotal` で構築時に拒否） | [bar-segment](../../site/themes/bar-segment.md) |
-| 単純 styled 部品（新規 anatomy、charts 基盤の初のチャート部品） | `pie_chart` / `donut_chart`（charts 基盤（`charts::pie` の円弧ジオメトリ・`charts::svg::PathBuilder::arc_to`）を用いた円グラフ・ドーナツグラフ。ark-ui に対応する headless anatomy がないため新規 anatomy `data-scope="pie-chart"`/`"donut-chart"` を本クレートのみで定義する。系列 1 本専用（`data.series().len() != 1` は `PieChartError::MultiSeries` で fail-closed 拒否）。`size` variant のみ、`color-palette` 軸は非提供（セグメント配色は `charts::series_color_var` の chart-1〜6 循環で決まるため）。`donut_chart` は追加で `inner_ratio`（既定 `0.6`、`0.0 < ratio < 1.0` を検証）を持つ） | [pie-chart](../../site/themes/pie-chart.md) / [donut-chart](../../site/themes/donut-chart.md) |
+| 単純 styled 部品（新規 anatomy、charts 基盤の初のチャート部品） | `pie_chart` / `donut_chart`（charts 基盤（`charts::pie` の円弧ジオメトリ・`charts::svg::PathBuilder::arc_to`）を用いた円グラフ・ドーナツグラフ。ark-ui に対応する headless anatomy がないため新規 anatomy `data-scope="pie-chart"`/`"donut-chart"` を本クレートのみで定義する。`stacked: false`（既定）は系列 1 本専用（`data.series().len() != 1` は `PieChartError::MultiSeries` で fail-closed 拒否）。`size` variant のみ、`color-palette` 軸は非提供（セグメント配色は `charts::series_color_var` の chart-1〜6 循環で決まるため）。`donut_chart` は追加で `inner_ratio`（既定 `0.6`、`0.0 < ratio < 1.0` を検証）を持つ。イシュー #2084 で shadcn/ui Charts（pie）と突合したバリアント補完は下記「PieChart / DonutChart の shadcn/ui 突合バリアント」節参照） | [pie-chart](../../site/themes/pie-chart.md) / [donut-chart](../../site/themes/donut-chart.md) |
 | 単純 styled 部品（新規 anatomy、イシュー #2079） | `radial_chart`（shadcn/ui Charts Radial 相当の同心リング型グラフ。`charts::pie` の環状セクタジオメトリ（角丸端は本イシューで新設した `charts::pie::annulus_sector_rounded_path`）を再利用する。ark-ui に対応する headless anatomy がないため新規 anatomy `data-scope="radial-chart"` を本クレートのみで定義する。`pie_chart`/`donut_chart` と異なり複数系列の積み上げ（stacked）に対応。プロパティは度数法・12 時方向 0°・時計回り正（`start_angle_deg`/`end_angle_deg`、既定 `0.0..360.0`）。`inner_ratio`（既定 `0.3`）・`corner_radius`（既定 `0.0`）・`show_track`/`show_labels`/`show_grid`・`center_text` を持つ。`size` variant のみ、`color-palette` 軸は非提供。エラー型は既存 `PieChartError`/`ChartError` とは独立の `RadialChartError`（`InvalidAngleRange`/`InvalidInnerRatio`/`InvalidCornerRadius`/`NegativeValue`/`ZeroTotal`）。docs サイトページは #2080 で登録） | [radial-chart](../../site/themes/radial-chart.md) |
 | headless ラッパー（非採用の再導入） | `angle_slider`（`size`/`palette` variant のため styled `root`（`slider` と同型）を再定義し、`pub use ...::*` ではなく必要な識別子のみを選択的に再エクスポートする。動的な回転角は `--fandhe-angle` custom property の 1 点のみで伝搬し `thumb_styled` が一元的に組み立てる（headless 自由関数 `thumb` は事故防止のため意図的に非公開のまま内部委譲）。状態機械 `AngleSlider` は `slider` の `Slider` 非再エクスポートと同型の判断であえて再エクスポートしない） | [angle-slider](../../site/themes/angle-slider.md) |
 | headless ラッパー（非採用の再導入） | `signature_pad`（canvas を使わない決定的 SVG path 方式。`root`/`control`/`segment`/`clear_trigger` を本モジュールで再定義する `qr_code` と同型の選択的 re-export（`label`/`segment_path`/`guide`/`hidden_input` はそのまま再エクスポート）。`raw_html()` を使用せず、CSS 宣言値はすべてコンパイル時静的リテラル。wasm 配線済み） | [signature-pad](../../site/themes/signature-pad.md) |
@@ -1164,6 +1164,38 @@ shadcn の `0.4` は不採用）・dots/label/横向きレイアウト・`tickFo
 チップ・hit-area `data-*`（#2128）・期間切替・凡例トグル（#2132）・点ごとの
 任意色（`color_by_category` のトークン循環で代替）・積み上げ・横向き
 （shadcn line registry に存在しない）。
+
+### PieChart / DonutChart の shadcn/ui 突合バリアント（イシュー #2084）
+
+`PieChartProps`/`DonutChartProps` は shadcn/ui Charts（pie、11 バリアント）と
+突合した以下の追加フィールドを持つ（すべて既定値で #2084 以前の出力と完全に
+同一の HTML/CSS を生成する、golden 純追加原則）。`PieSeparator`/
+`PieLabelContent`/`PieLabelPosition` は `pie_chart` モジュールで定義し、
+`donut_chart` は `pub use` で共有する。
+
+| フィールド | 対象 | 型 | 既定 | 効果 |
+|---|---|---|---|---|
+| `separator` | 両方 | `PieSeparator`（`Line`/`None`） | `Line` | セグメント間セパレータ。`None` は `segment` の `stroke` を `none` にする（shadcn `chart-pie-separator-none`） |
+| `label_content` | 両方 | `PieLabelContent`（`Category`/`Value`） | `Category` | `show_labels` 有効時のラベル内容。`Value` は `fmt_coord` 済みの値 |
+| `label_position` | 両方 | `PieLabelPosition`（`Inside`/`Outside`） | `Inside` | `show_labels` 有効時のラベル配置。`Outside` は外径を `OUTSIDE_LABEL_OUTER_RADIUS`（34、viewBox 単位）へ縮小し、引き出し線（`label-line` slot）+ 外側ラベル（`outside-label` slot、`data-align="start"`/`"end"`）を描画する（shadcn `chart-pie-label`） |
+| `stacked` | `pie_chart` のみ | `bool` | `false` | `true` なら複数系列をリング（0 が最内周）として描画する（shadcn `chart-pie-stacked`）。各セグメントへ系列名を `data-series` 属性として付与する。`false` は従来どおり単一系列専用 |
+| `active_index` | `donut_chart` のみ | `Option<usize>` | `None` | 強調表示するセグメントのカテゴリ index（shadcn `chart-pie-donut-active`）。当該セグメントへ `data-active` 存在属性を付与し外径を維持、非活性セグメントの外径を `ACTIVE_INSET`（4）だけ縮める（viewBox の外径 45 が上限のため、活性側を拡張せず非活性側を縮める逆転で表現する）。範囲外は `PieChartError::InvalidActiveIndex` |
+| `center_text` | `donut_chart` のみ | `Option<PieCenterText>` | `None` | 中央テキスト（`value`・任意の `label`）。`radial_chart::RadialCenterText` と同型で、合計値の算出・数値整形は呼び出し側の責務（shadcn `chart-pie-donut-text`） |
+
+新設 `pub` 関数 `charts::legend::category_legend(data, props) -> Node`
+（shadcn `chart-pie-legend`）は `ChartData` のカテゴリ 1 件を凡例 item 1 件
+として描画し、マーカー色を `charts::series_color_var`（カテゴリ index）で
+扇形と一致させる（既存 `legend()` は系列単位のため円グラフのカテゴリ単位
+凡例には使えない）。
+
+意図的に対応しない点（`crate::pie_chart`/`crate::donut_chart` モジュール
+doc「意図的に合わせなかった点」参照）: pie 側の `active_index`（shadcn に
+pie-active は存在しない）・カテゴリごとの任意色（`ChartData` の色モデルは
+系列単位）・`chart-pie-label-list` の `fill-background`（ダーク時可読性の
+既存判断 #1594/#1596 を維持し fg + 背景色ハローのまま）・弧に沿った回転
+（引き出しラベルは水平テキストのまま）。マウス追従ツールチップ・hover 強調・
+hit-area `data-*`（#2128）・`chart-pie-interactive`（期間切替）・凡例の
+系列トグル（#2132）は対象外。
 
 ## 4l. `theme` モジュール: Theme トークン API と `upsert_*`（イシュー #547/#606/#1138/#1423/#1678）
 

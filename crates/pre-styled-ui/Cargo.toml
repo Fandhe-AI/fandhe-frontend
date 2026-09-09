@@ -2671,7 +2671,24 @@ name = "fandhe-frontend-pre-styled-ui"
 # `root` 自身が既に保持し続ける margin と二重加算されないよう修正した
 # （`src/sidebar.rs` のコメント・golden CSS 参照）。CSS 出力内容の実体変更
 # のため 0.x の破壊的変更としてマイナーバンプする。
-version = "0.159.0"
+#
+# イシュー #2084（pie-chart / donut-chart の shadcn/ui Charts（pie）突合）:
+# `PieChartProps`/`DonutChartProps` への `pub` フィールド純追加
+# （`separator`/`label_content`/`label_position`/`stacked`、donut は加えて
+# `active_index`/`center_text`）・`PieSeparator`/`PieLabelContent`/
+# `PieLabelPosition`/`PieCenterText` の新規 `pub` 型・`css()` 出力の純追加
+# （`label-line`/`outside-label`/`segment.fd-*-chart--separator-none`、
+# donut は加えて `center-value`/`center-label`）・
+# `charts::legend::category_legend` の新規 `pub` 関数は 0.x の破壊的変更
+# （フルリテラル構築を前提とする利用者コードが壊れる）のため
+# 0.158.0 へマイナーバンプする予定だったが、本 PR の base 取り込み
+# （イシュー #2084、2026-09-09）で main は既に #2073（sidebar 新設・
+# line-chart 突合の同一版数衝突解消）により独立に 0.159.0 へ到達済み
+# であり、本ブランチ自身の到達値 0.158.0 は main を追い越さないため、
+# `semver-same-version-is-conflict` の運用に従い main の到達値
+# 0.159.0 から +1 マイナーして 0.160.0 とする（実体変更を伴うため
+# patch ではなく minor を維持）。
+version = "0.160.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
