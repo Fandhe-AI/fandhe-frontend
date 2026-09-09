@@ -27,6 +27,9 @@
 //! 以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{render, text};
+use fandhe_frontend_headless_ui::bubble::{
+    self, BubbleGroupPosition, BubbleRootProps, BubbleVariant,
+};
 use fandhe_frontend_headless_ui::data_attrs::{
     data_orientation, Orientation as ScrollAreaOrientation,
 };
@@ -1063,4 +1066,117 @@ fn message_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains(r#"[data-align="end"]"#));
     assert!(css.contains("[data-loading]"));
     assert!(css.contains("[data-error]"));
+}
+
+/// [`mod@fandhe_frontend_headless_ui::bubble`]（イシュー #2108）の
+/// `data-variant`（`solid`/`outline`/`plain`）・`data-align`（会話系共通
+/// 語彙、正は `crates/headless-ui/src/message.rs`）・
+/// `data-group-position`（`single`/`first`/`middle`/`last`）・
+/// `data-selected`（reaction の存在属性）・`data-state`（collapse の
+/// `open`/`closed`）の語彙を固定する。#2109 で pre-styled-ui 側に `bubble`
+/// モジュールが新設された際は、本テストに加えて `*_not_self_emitted` の
+/// headless-sourced 契約テストを追加する
+/// （`progress_parts_data_attrs_are_headless_sourced_not_self_emitted` と
+/// 同型）。
+#[test]
+fn bubble_root_variant_align_group_position_and_reaction_selected_vocabulary_is_fixed() {
+    // data-variant: solid/outline/plain の 3 値。
+    for (variant, expected) in [
+        (BubbleVariant::Solid, "solid"),
+        (BubbleVariant::Outline, "outline"),
+        (BubbleVariant::Plain, "plain"),
+    ] {
+        let html = render(&bubble::root(
+            BubbleRootProps {
+                variant,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(&format!(r#"data-variant="{expected}""#)));
+    }
+
+    // data-align: start/end の 2 値。message::MessageAlign と同一語彙で
+    // あることを固定する（会話系 4 部品の共通語彙、正は message.rs）。
+    for (align, expected) in [(MessageAlign::Start, "start"), (MessageAlign::End, "end")] {
+        let html = render(&bubble::root(
+            BubbleRootProps {
+                align,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(&format!(r#"data-align="{expected}""#)));
+    }
+
+    // data-group-position: single/first/middle/last の 4 値。variant/align
+    // から独立した軸であることを outline + end との組み合わせで固定する。
+    for (position, expected) in [
+        (BubbleGroupPosition::Single, "single"),
+        (BubbleGroupPosition::First, "first"),
+        (BubbleGroupPosition::Middle, "middle"),
+        (BubbleGroupPosition::Last, "last"),
+    ] {
+        let html = render(&bubble::root(
+            BubbleRootProps {
+                variant: BubbleVariant::Outline,
+                align: MessageAlign::End,
+                group_position: position,
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-variant="outline""#));
+        assert!(html.contains(r#"data-align="end""#));
+        assert!(html.contains(&format!(r#"data-group-position="{expected}""#)));
+    }
+
+    // data-selected: 存在属性（bool から生成、非付与時は属性自体が出ない）。
+    let selected = render(&bubble::reaction(true, vec![], vec![]));
+    assert!(selected.contains(r#"data-selected="""#));
+    let unselected = render(&bubble::reaction(false, vec![], vec![]));
+    assert!(!unselected.contains("data-selected"));
+
+    // data-state: collapse-trigger/collapse-content の open/closed。
+    let open_trigger = render(&bubble::collapse_trigger(
+        OpenState::Open,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(open_trigger.contains(r#"data-state="open""#));
+    let closed_content = render(&bubble::collapse_content(
+        OpenState::Closed,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(closed_content.contains(r#"data-state="closed""#));
+
+    // 呼び出し側 attrs による偽装除去（大文字小文字混在含む）。
+    let spoofed = render(&bubble::root(
+        BubbleRootProps::default(),
+        vec![
+            ("Data-Variant", "outline"),
+            ("DATA-ALIGN", "end"),
+            ("data-group-position", "last"),
+        ],
+        vec![],
+    ));
+    assert!(spoofed.contains(r#"data-variant="solid""#));
+    assert!(spoofed.contains(r#"data-align="start""#));
+    assert!(spoofed.contains(r#"data-group-position="single""#));
+
+    // XSS 最小回帰（呼び出し側 attrs の動的値コンテキスト）。
+    let payload_html = render(&bubble::root(
+        BubbleRootProps::default(),
+        vec![("data-testid", XSS_PAYLOAD)],
+        vec![],
+    ));
+    assert_no_raw_payload(
+        &payload_html,
+        "bubble::root の呼び出し側 attrs コンテキスト",
+    );
 }

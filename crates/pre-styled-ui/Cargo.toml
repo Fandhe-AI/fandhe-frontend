@@ -2576,6 +2576,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2106: `message.rs` 新設（`crate::item` と同型の styled
 # Message。6 パーツの委譲層 + role/align/loading/error 状態規則、公開 API
 # 純追加）のためマイナーバンプする。
+#
+# base 取り込み（本 PR、イシュー #2106）: main 側はイシュー #2108
+# （headless-ui 0.68.6 依存追随に伴う patch バンプ）で 0.153.1 → 0.153.2 へ
+# 到達済み。本ブランチの 0.154.0 は main の 0.153.2 より新しいため、
+# バージョン据え置きのまま維持する。
 version = "0.154.0"
 
 edition = "2021"
@@ -2591,7 +2596,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.5" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.6" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
