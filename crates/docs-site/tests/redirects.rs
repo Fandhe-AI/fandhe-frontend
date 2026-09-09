@@ -252,7 +252,10 @@ fn build_succeeds_with_zero_redirects_when_manifest_is_absent() {
 /// イシュー #2106 で Message の Themes ページ新設に伴い
 /// `/components/message/` を追加し、118 件になった。イシュー #2075 で
 /// Sidebar の Themes ページ新設に伴い `/components/sidebar/` を追加し、
-/// 現在は 120 件。本値の更新が要る
+/// 119 件になった。イシュー #2109 で Bubble の Themes ページ新設に伴い
+/// `/components/bubble/` を追加し、120 件になった。イシュー #2112 で
+/// Attachment の Themes ページ新設に伴い `/components/attachment/` を
+/// 追加し、現在は 121 件。本値の更新が要る
 /// 変更は fail-closed に検知する（黙って増減しても気付けるように
 /// する意図。`tests/site_build.rs` のページ数固定と同型）。
 #[test]
@@ -269,7 +272,7 @@ fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
         redirect::parse_redirects(&input).expect("site/redirects.toml should parse cleanly");
     assert_eq!(
         redirects.entries.len(),
-        120,
+        121,
         "site/redirects.toml の宣言件数が期待値と異なる: {:?}",
         redirects.entries
     );
@@ -315,7 +318,8 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
     // イシュー #2063 で 110 → 111、イシュー #2066 で 111 → 112、
     // イシュー #2060 で 112 → 113、イシュー #2070 で 113 → 114、
     // イシュー #2080 で 114 → 115、イシュー #2106 で 115 → 116、
-    // イシュー #2075 で 116 → 117）。
+    // イシュー #2075 で 116 → 117、イシュー #2109 で 117 → 118、
+    // イシュー #2112 で 118 → 119）。
     let themes_pages: Vec<(String, String)> = nav
         .all_pages()
         .filter_map(|p| {
@@ -327,8 +331,8 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         .collect();
     assert_eq!(
         themes_pages.len(),
-        118,
-        "expected 118 site/themes/ pages, got {}: {themes_pages:?}",
+        119,
+        "expected 119 site/themes/ pages, got {}: {themes_pages:?}",
         themes_pages.len()
     );
 

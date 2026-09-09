@@ -432,6 +432,7 @@ const WRAPPED_SAME_NAME: &[&str] = &[
     "accordion",
     "action-bar",
     "angle-slider",
+    "attachment",
     "avatar",
     "breadcrumb",
     "bubble",
@@ -619,11 +620,12 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// した `bubble` が一時的に本リストへ加わっていたが、イシュー #2109 で
 /// pre-styled-ui 側（`crates/pre-styled-ui/src/bubble.rs`・
 /// `/themes/bubble/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため本
-/// リストから除外した。イシュー #2111 で headless-ui 層のみを実装した
-/// `attachment` が本リストへ加わった（pre-styled-ui 側・`/themes/
-/// attachment/` の実装は後続イシュー #2112 で行い、実装後は上記各部品と
-/// 同様に `WRAPPED_SAME_NAME` へ分類されて本リストから除外される想定）。
-const HEADLESS_UNWRAPPED: &[&str] = &["attachment"];
+/// リストから除外した。イシュー #2111 で同様に headless-ui 層のみを実装
+/// した `attachment` が一時的に本リストへ加わっていたが、イシュー #2112 で
+/// pre-styled-ui 側（`crates/pre-styled-ui/src/attachment.rs`・
+/// `/themes/attachment/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため本
+/// リストから除外した。本リストは現在空である。
+const HEADLESS_UNWRAPPED: &[&str] = &[];
 
 /// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
 /// まだ持たない部品（イシュー #2073 で `sidebar` を一時的に載せた暫定
@@ -670,7 +672,7 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 118 件すべてが `resolve_page` で panic
+/// §3.5: nav 登録済み Themes ページ 119 件すべてが `resolve_page` で panic
 /// せず解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
@@ -678,7 +680,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        118,
+        119,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -1028,7 +1030,7 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        118,
+        119,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
          登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
@@ -1058,7 +1060,9 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          WRAPPED_SAME_NAME バケットへ移った。イシュー #2109 で \
          bubble.rs を新設し 117 → 118。`/themes/bubble/` ページ登録に \
          より `bubble` も HEADLESS_UNWRAPPED から WRAPPED_SAME_NAME \
-         バケットへ移った）"
+         バケットへ移った。イシュー #2112 で attachment.rs を新設し \
+         118 → 119。`/themes/attachment/` ページ登録により `attachment` \
+         も HEADLESS_UNWRAPPED から WRAPPED_SAME_NAME バケットへ移った）"
     );
     assert_eq!(
         scan.charts.len(),

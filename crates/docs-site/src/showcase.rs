@@ -64,6 +64,9 @@
 use fandhe_frontend_core::{div, el, p, render, span, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
+use fandhe_frontend_pre_styled_ui::attachment::{
+    self as attachment, AttachmentRootProps, AttachmentState, AttachmentVariant,
+};
 use fandhe_frontend_pre_styled_ui::avatar::{
     self, fallback, AvatarBadgeProps, AvatarProps, AvatarShape, AvatarVariant, ImageStatus,
 };
@@ -758,6 +761,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: bubble_section,
     },
     ComponentPage {
+        path: "/themes/attachment/",
+        render: attachment_section,
+    },
+    ComponentPage {
         path: "/themes/button-group/",
         render: button_group_section,
     },
@@ -1054,6 +1061,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::item::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::message::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::bubble::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::attachment::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -6170,6 +6178,120 @@ fn bubble_section() -> Node {
                 plain_start_single_closed_collapse,
             ]),
         ],
+    )
+}
+
+/// Attachment 節（イシュー #2112、親 #2110。headless anatomy は #2111）。
+/// `data-variant` 2 値（file/image）・`data-state` 3 値（idle/uploading/
+/// error）・`data-disabled` を掲示する。`variant`/`state`/`disabled` は
+/// headless の `data-*` を `AttrEq`/`Attr` で参照するのみで class 軸を
+/// 持たない（`attachment.rs` モジュール doc参照）。Anatomy 表・`data-*`
+/// 属性表の機械導出のため 8 パーツ・全 state 値をここで最低 1 度は出現
+/// させる（`crates/docs-site/src/primitive_showcase/data_display_utilities.rs::attachment_section`
+/// の headless 版と同じ組み合わせを styled 部品で再現する）。
+fn attachment_section() -> Node {
+    let file_idle = attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Idle,
+            disabled: false,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("📄")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("report.pdf")]),
+                    attachment::meta(vec![], vec![text("PDF · 128 KB")]),
+                ],
+            ),
+            attachment::actions(
+                vec![],
+                vec![attachment::action(
+                    "Delete report.pdf",
+                    false,
+                    vec![],
+                    vec![text("✕")],
+                )],
+            ),
+        ],
+    );
+
+    let image_uploading = {
+        use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+        let p = Progress::new(0.0, 100.0, Some(64.0), Orientation::Horizontal);
+        attachment::root(
+            AttachmentRootProps {
+                variant: AttachmentVariant::Image,
+                state: AttachmentState::Uploading,
+                disabled: false,
+            },
+            vec![],
+            vec![
+                attachment::media(
+                    vec![],
+                    vec![fandhe_frontend_core::img(
+                        vec![("src", IMAGE_DEMO_SRC), ("alt", "photo.png のプレビュー")],
+                        vec![],
+                    )],
+                ),
+                attachment::content(
+                    vec![],
+                    vec![
+                        attachment::name(vec![], vec![text("photo.png")]),
+                        attachment::meta(vec![], vec![text("PNG · 2.4 MB · 64%")]),
+                    ],
+                ),
+                attachment::progress(
+                    vec![],
+                    vec![fandhe_frontend_pre_styled_ui::progress::root(
+                        &p,
+                        &fandhe_frontend_pre_styled_ui::progress::ProgressProps::default(),
+                        Some("64%"),
+                        vec![],
+                        vec![p.track(
+                            vec![],
+                            vec![fandhe_frontend_pre_styled_ui::progress::range(&p, vec![])],
+                        )],
+                    )],
+                ),
+            ],
+        )
+    };
+
+    let error_disabled = attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Error,
+            disabled: true,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("📄")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("archive.zip")]),
+                    attachment::meta(vec![], vec![text("Upload failed")]),
+                ],
+            ),
+            attachment::actions(
+                vec![],
+                vec![attachment::action(
+                    "Retry archive.zip",
+                    true,
+                    vec![],
+                    vec![text("↻")],
+                )],
+            ),
+        ],
+    );
+
+    section(
+        "Attachment",
+        "添付ファイル 1 件の表示。data-variant（file/image）・data-state（idle/uploading/error）・data-disabled は headless の data-* を参照するのみで class 軸は持ちません。file 形態は横並びの行カード、image 形態は縦積みのサムネイルカードで actions は hover/focus-within（タッチ端末では常時表示）で現れます。progress スロットは styled Progress の入れ子です。",
+        vec![row(vec![file_idle, image_uploading, error_disabled])],
     )
 }
 
@@ -14158,7 +14280,8 @@ mod tests {
         // イシュー #2106 で Message を追加し 109 → 110 件になった。
         // イシュー #2075 で Sidebar を追加し 110 → 111 件になった。
         // イシュー #2109 で Bubble を追加し 111 → 112 件になった。
-        assert_eq!(paths.len(), 112, "COMPONENT_PAGES should have 112 entries");
+        // イシュー #2112 で Attachment を追加し 112 → 113 件になった。
+        assert_eq!(paths.len(), 113, "COMPONENT_PAGES should have 113 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

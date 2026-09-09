@@ -121,6 +121,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Accordion | `accordion` | Interactive | `/themes/accordion/` | `site/themes/accordion.md` | `accordion_section()` |
 | Action Bar | `action_bar` | Interactive | `/themes/action-bar/` | `site/themes/action-bar.md` | `action_bar_section()` |
 | Alert | `alert` | Data Display | `/themes/alert/` | `site/themes/alert.md` | `alert_section()` |
+| Attachment | `attachment` | Data Display | `/themes/attachment/` | `site/themes/attachment.md` | `attachment_section()`（#2112 で新設） |
 | Angle Slider | `angle_slider` | Forms | `/themes/angle-slider/` | `site/themes/angle-slider.md` | （なし・Phase 4 で新規） |
 | Area Chart | `area_chart` | Charts | `/themes/area-chart/` | `site/themes/area-chart.md` | `area_chart_section()` |
 | Avatar | `avatar` | Data Display | `/themes/avatar/` | `site/themes/avatar.md` | `avatar_section()` |
@@ -290,7 +291,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `clipboard` `collapsible` `dialog` `drawer` `floating_panel` `hover_card`
   `menu` `nav_list` `pagination` `popover` `sidebar` `splitter` `steps`
   `tabs` `toast` `toggle_tip` `tooltip` `tour`
-- **Data Display (24)**: `alert` `avatar` `badge` `bubble` `card` `color_swatch`
+- **Data Display (25)**: `alert` `attachment` `avatar` `badge` `bubble` `card` `color_swatch`
   `data_list` `empty_state` `icon` `image` `item` `json_tree_view` `message`
   `progress` `qr_code` `skeleton` `spinner` `stat` `status` `table` `tag`
   `timeline` `timer` `tree_view`

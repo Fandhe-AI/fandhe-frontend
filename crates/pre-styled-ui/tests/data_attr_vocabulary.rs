@@ -1521,14 +1521,13 @@ fn sidebar_parts_data_attrs_are_headless_sourced_not_self_emitted() {
 /// [`mod@fandhe_frontend_headless_ui::attachment`]（イシュー #2111）の
 /// `data-variant`（`file`/`image`）・`data-state`（`idle`/`uploading`/
 /// `error`）・`data-disabled`（存在属性）・`action` の `aria-label`/
-/// ネイティブ `disabled` の語彙を固定する。本イシュー時点では
-/// pre-styled-ui 側に `attachment` モジュールが未実装（#2112 のスコープ）
-/// のため headless 出力の直接固定のみを行う。#2112 で styled `attachment`
-/// が新設された際は、本テストに加えて `*_not_self_emitted` の
-/// headless-sourced 契約テストを追加する
+/// ネイティブ `disabled` の語彙を固定する（headless 出力の直接固定）。
+/// styled `attachment`（#2112）が headless の `data-*` を自前で組み立てず
+/// 参照のみで消費することは
+/// `attachment_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// が別途固定する
 /// （`bubble_parts_data_attrs_are_headless_sourced_not_self_emitted` と
-/// 同型、`message_root_data_role_align_loading_error_vocabulary_is_fixed`
-/// の doc コメントで予告した運用の踏襲）。
+/// 同型）。
 #[test]
 fn attachment_root_variant_state_disabled_and_action_vocabulary_is_fixed() {
     // data-variant: file/image の 2 値。
@@ -1626,4 +1625,51 @@ fn attachment_root_variant_state_disabled_and_action_vocabulary_is_fixed() {
         &payload_html,
         "attachment::root の呼び出し側 attrs コンテキスト",
     );
+}
+
+/// styled `attachment`（イシュー #2112、`crates/pre-styled-ui/src/attachment.rs`）
+/// が `data-variant`/`data-state`/`data-disabled` を自前で組み立てず、
+/// headless [`mod@fandhe_frontend_headless_ui::attachment`] の出力を
+/// そのまま透過するのみであることを固定する
+/// （`bubble_parts_data_attrs_are_headless_sourced_not_self_emitted` と
+/// 同型）。加えて `attachment::stylesheet()` が `[data-variant="..."]`/
+/// `[data-state="..."]`/`[data-disabled]` を CSS セレクタとして参照する
+/// のみで class ベースの `fd-attachment--` セレクタを生成しないことを
+/// 固定する。
+#[test]
+fn attachment_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::attachment as styled_attachment;
+
+    let root_html = render(&styled_attachment::root(
+        styled_attachment::AttachmentRootProps {
+            variant: styled_attachment::AttachmentVariant::Image,
+            state: styled_attachment::AttachmentState::Error,
+            disabled: true,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains(r#"data-variant="image""#));
+    assert!(root_html.contains(r#"data-state="error""#));
+    assert!(root_html.contains(r#"data-disabled="""#));
+
+    let action_html = render(&styled_attachment::action("Delete", true, vec![], vec![]));
+    assert!(action_html.contains(r#"data-disabled="""#));
+    assert!(action_html.contains(r#"disabled="""#));
+
+    // `styled_attachment::stylesheet()` は `[data-variant="..."]`/
+    // `[data-state="..."]`/`[data-disabled]` を CSS セレクタとして参照
+    // するだけで自前で `data-*` を組み立てない（class ベースの variant も
+    // 持たない）。
+    let css = styled_attachment::stylesheet();
+    assert!(css.contains(r#"[data-variant="image"]"#));
+    assert!(css.contains(r#"[data-state="error"]"#));
+    assert!(css.contains("[data-disabled]"));
+    assert!(!css.contains("fd-attachment--"));
+
+    // headless-ui は `class` を出力しない（styled 層も見た目クラスを
+    // 付与しない、`crate::attachment` モジュール doc「headless の
+    // `data-*` を参照する」節参照）。
+    assert!(!root_html.contains("class="));
+    assert!(!action_html.contains("class="));
 }
