@@ -30,29 +30,86 @@ fn sample_data() -> ChartData {
 
 /// golden レンダリングテスト: 2 系列の [`ChartData`] から組み立てた凡例が
 /// 期待する HTML と全文一致することを固定する。
+///
+/// イシュー #2086: root に align/marker の既定 variant class（`class="…"`）
+/// が付き、marker span 自身にも marker 軸の class が付く（意図した差分。
+/// root の直接の子・`data-*`・テキスト内容は不変）。
 #[test]
 fn legend_composed_from_chart_data_matches_golden_html() {
     let node = legend::legend(
         &sample_data(),
         &LegendProps {
             title: Some("Series".to_string()),
+            ..Default::default()
         },
     );
     let html = render(&node);
     assert_eq!(
         html,
         concat!(
-            r#"<ul data-scope="chart-legend" data-part="root" role="list">"#,
+            r#"<ul data-scope="chart-legend" data-part="root" role="list" class="fd-chart-legend--align-start fd-chart-legend--marker-circle">"#,
             r#"<li data-scope="chart-legend" data-part="title">Series</li>"#,
             r#"<li data-scope="chart-legend" data-part="item">"#,
-            r#"<span data-scope="chart-legend" data-part="marker" style="background: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart-legend" data-part="marker" class="fd-chart-legend--marker-circle" style="background: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
             r#"<span data-scope="chart-legend" data-part="label">visits</span>"#,
             r#"</li>"#,
             r#"<li data-scope="chart-legend" data-part="item">"#,
-            r#"<span data-scope="chart-legend" data-part="marker" style="background: var(--fandhe-color-chart-2)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart-legend" data-part="marker" class="fd-chart-legend--marker-circle" style="background: var(--fandhe-color-chart-2)" aria-hidden="true"></span>"#,
             r#"<span data-scope="chart-legend" data-part="label">signups</span>"#,
             r#"</li>"#,
             r#"</ul>"#,
+        )
+    );
+}
+
+/// [`LegendProps::hide_marker`]（イシュー #2086）が `true` のとき、marker/
+/// icon slot を一切描画しないことを固定する（shadcn/ui `hideIcon` 相当）。
+#[test]
+fn legend_hide_marker_true_omits_marker_slot_from_composed_html() {
+    let props = LegendProps {
+        hide_marker: true,
+        ..Default::default()
+    };
+    let html = render(&legend::legend(&sample_data(), &props));
+    assert!(!html.contains(r#"data-part="marker""#));
+    assert!(!html.contains(r#"data-part="icon""#));
+    assert!(html.contains(">visits<"));
+    assert!(html.contains(">signups<"));
+}
+
+/// [`LegendProps::align`]/[`LegendProps::marker`]（イシュー #2086）の
+/// opt-in variant が root/marker span に反映されることを固定する。
+#[test]
+fn legend_align_center_and_marker_square_reflected_in_composed_html() {
+    let props = LegendProps {
+        align: legend::LegendAlign::Center,
+        marker: legend::LegendMarker::Square,
+        ..Default::default()
+    };
+    let html = render(&legend::legend(&sample_data(), &props));
+    assert!(html.contains("fd-chart-legend--align-center"));
+    assert!(html.contains(r#"data-part="marker" class="fd-chart-legend--marker-square""#));
+}
+
+/// golden レンダリングテスト: [`tooltip::datum_label_lines`]（イシュー
+/// #2086）を使ったデータ点が、見出し・複数系列行・footer を `\n` 区切りで
+/// `<title>`/`aria-label` の両方に埋め込むことを固定する。
+#[test]
+fn tooltip_datum_with_datum_label_lines_matches_golden_html() {
+    let label = tooltip::datum_label_lines(
+        Some("Jan"),
+        &[("Visits", "120"), ("Signups", "20")],
+        Some("Total: 140"),
+    );
+    let node = tooltip::datum(1.0, 2.0, 4.0, &label, vec![]);
+    let html = render(&node);
+    assert_eq!(
+        html,
+        concat!(
+            "<circle data-scope=\"chart\" data-part=\"datum\" cx=\"1\" cy=\"2\" r=\"4\" ",
+            "aria-label=\"Jan\nVisits: 120\nSignups: 20\nTotal: 140\">",
+            "<title>Jan\nVisits: 120\nSignups: 20\nTotal: 140</title>",
+            "</circle>",
         )
     );
 }
@@ -120,6 +177,7 @@ fn xss_regression_legend_title_and_series_name_are_escaped() {
         ChartData::new(vec!["a".to_string()], vec![Series::new(payload, vec![1.0])]).unwrap();
     let props = LegendProps {
         title: Some(payload.to_string()),
+        ..Default::default()
     };
     let html = render(&legend::legend(&data, &props));
     assert!(!html.contains("<script>"));

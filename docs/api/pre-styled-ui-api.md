@@ -1031,8 +1031,8 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
 |---|---|---|
 | `charts::axis` | `y_axis(scale, ticks, x, props)` / `x_axis_linear(scale, ticks, y, props)` / `x_axis_categories(range, categories, y, props)` | `Result<Node, ChartError>` |
 | `charts::grid` | `cartesian_grid(x_range, y_range, x_positions, y_positions, props)` | `Result<Node, ChartError>` |
-| `charts::legend` | `legend(data: &ChartData, props: &LegendProps)` | `Node`（infallible） |
-| `charts::tooltip` | `datum_label(category, series, value)` / `datum(cx, cy, r, label, attrs)` | `String` / `Node`（いずれも infallible） |
+| `charts::legend` | `legend(data: &ChartData, props: &LegendProps)`（`LegendProps` は `title`/`hide_marker`/`align`/`marker`、イシュー #2086） | `Node`（infallible） |
+| `charts::tooltip` | `datum_label(category, series, value)` / `datum_label_lines(heading, entries, footer)`（複数行、イシュー #2086） / `datum(cx, cy, r, label, attrs)` | `String` / `String` / `Node`（いずれも infallible） |
 | `charts::data`（系列設定、イシュー #2077） | `Series::with_label(label)` / `with_color(SeriesColor)` / `with_icon(Node)` / `display_label()` | `Series` / `&str` |
 | `charts::data`（系列色、イシュー #2077） | `SeriesColor::token(name)` / `chart_slot(1..=6)` / `palette(ColorPalette)` / `ChartData::series_color_var(index)` | `Result<SeriesColor, ThemeError>`（`palette` のみ infallible） / `String` |
 
@@ -1049,6 +1049,9 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
   `<ul>`/`<li>`/`<span>` のため）。slot: `root`/`title`/`item`/`marker`/
   `label`/`icon`（イシュー #2077、`Series::icon` 指定時に `marker` の
   代わりに描画される代替スロット。shadcn/ui `ChartConfig.icon` 相当）。
+  `align`（`root` slot、`Start`（既定）/`Center`/`End`）・`marker`
+  （`marker` slot、`Circle`（既定）/`Square`）の 2 variant 軸をイシュー
+  #2086（shadcn/ui Charts 突合）で純追加した。
 - `grid` の線種は `GridLines`（`Solid`(既定)/`Dashed`）の 1 軸 variant。
 - `tooltip` の hover 強調は `crate::recipe::StateCondition::Hover`
   （`:hover` 擬似クラス）を使う唯一の消費者。base で背景色ハロー
@@ -1058,10 +1061,15 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
 ### SSR ツールチップ方式（JS 不使用）
 
 マウス追従型のリッチツールチップ（recharts `<Tooltip>` の cursor 追従）は
-JS ランタイムが必須のためスコープ外。代わりに `tooltip::datum` がデータ点
-（`<circle>`）へ子 `<title>` 要素（ブラウザネイティブな hover 表示）と
-`aria-label` 属性（同一文字列）を埋め込み、`StateCondition::Hover` による
-CSS のみの視覚強調と組み合わせて「ホバーで詳細が分かる」体験を実現する。
+JS ランタイムが必須のためスコープ外（#2128 系〔#2129〜#2131〕が実装を
+担う）。代わりに `tooltip::datum` がデータ点（`<circle>`）へ子 `<title>`
+要素（ブラウザネイティブな hover 表示）と `aria-label` 属性（同一文字列）
+を埋め込み、`StateCondition::Hover` による CSS のみの視覚強調と組み合わせ
+て「ホバーで詳細が分かる」体験を実現する。静的テキストは 1 行の
+`datum_label` と複数行の `datum_label_lines`（見出し省略可・整形済み値・
+footer、イシュー #2086、shadcn/ui `chart-tooltip-default`/
+`-advanced` 相当）の 2 択。indicator バリアント・icon 合成・ツールチップ
+DOM・hit-area は #2129/#2131 のスコープであり本モジュールには含まれない。
 
 ### 系列設定（`label`/`color`/`icon`、イシュー #2077）
 

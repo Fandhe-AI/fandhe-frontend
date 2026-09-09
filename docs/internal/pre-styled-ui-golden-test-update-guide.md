@@ -106,7 +106,7 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 | `popover_tooltip_css.rs` | popover / tooltip |
 | `pie_donut_chart_css.rs` | pie_chart / donut_chart（イシュー #2084 で `label-line`/`outside-label`（donut はさらに `center-value`/`center-label`）base を `label` base 直後へ中間挿入、`separator: None` variant と `outside-label[data-align="end"]` state を末尾へ純追加。`pie_chart_2084_pre_existing_blocks_remain_verbatim`/`donut_chart_2084_pre_existing_blocks_remain_verbatim` が #2084 以前の規則ブロックの verbatim 維持を固定する） |
 | `charts_css.rs` | line_chart / area_chart / sparkline（イシュー #2081 で area_chart の `fill: AreaFill::Gradient` variant 規則を golden 末尾へ純追加。イシュー #2083 で line_chart の `value-label` base（`point` base の直後・size variant の前へ中間挿入）と `dots: LineDots::Hollow` variant（末尾へ純追加）を追加） |
-| `charts_parts_css.rs` | charts 内部パーツ: `charts::axis` / `charts::grid` / `charts::legend` / `charts::tooltip` |
+| `charts_parts_css.rs` | charts 内部パーツ: `charts::axis` / `charts::grid` / `charts::legend` / `charts::tooltip`（イシュー #2086 で `charts::legend` の `align`/`marker` variant 規則 3 ブロックを golden 末尾へ純追加。`tooltip::css()` は無変更） |
 | `scatter_radar_chart_css.rs` | `charts::scatter_chart` / `charts::radar_chart`（イシュー #2085 で radar_chart の `point`/`axis-value`/`radius-label` base と `grid-fill: series` variant の 4 ブロックを末尾へ純追加。scatter_chart 分・radar_chart 既存 5 ブロックは不変） |
 | `bar_chart_css.rs` | `charts::bar_chart`（イシュー #1590 で golden 新設。イシュー #2082 で `value-label`/`inside-label`/`bar[data-active]` の 3 ブロックを末尾へ純追加、`BAR_CHART_GOLDEN_CSS_BEFORE_2082` 定数 + `starts_with` の純追加固定テストを追加） |
 | `bar_list_css.rs` | `charts::bar_list`（イシュー #1591 で新設） |

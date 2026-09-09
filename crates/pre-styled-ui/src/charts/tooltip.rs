@@ -75,6 +75,25 @@
 //!   契約テストへ波及し他部品にも影響するため）。
 //! - `vector-effect: non-scaling-stroke` 等のスケーリング対策はスコープ
 //!   外とした（兄弟部品との線幅の見え方の乖離を避けるため）。
+//!
+//! # shadcn/ui 突合（イシュー #2086）
+//!
+//! shadcn/ui Charts（tooltip ページ）の registry 9 バリアントを突合した。
+//!
+//! | shadcn/ui | 対応 |
+//! |---|---|
+//! | `chart-tooltip-default`（見出し + 複数系列行） | [`datum_label_lines`] を純追加（`<title>`/`aria-label` の複数行テキスト） |
+//! | `chart-tooltip-label-custom` / `-label-formatter` | `heading: Option<&str>` に呼び出し側の任意文字列を渡せる（既存 API の明示化） |
+//! | `chart-tooltip-label-none` | `heading: None` |
+//! | `chart-tooltip-formatter`（値の書式） | `entries` の値は呼び出し側が整形済み文字列で渡す契約（`.claude/rules/coding-rust.md` §「数値・日時整形は UI コンポーネント層の責務外」と同じ判断軸。本モジュールは値を整形しない） |
+//! | `chart-tooltip-advanced`（Total footer） | `footer: Option<&str>` |
+//! | `chart-tooltip-indicator-line` / `-indicator-none` | 採用しない。ツールチップ DOM・indicator バリアントは #2129/#2131 のスコープ |
+//! | `chart-tooltip-icons` | 採用しない。ツールチップ DOM への icon 合成は #2129 のスコープ |
+//!
+//! [`datum`]/[`datum_label`]/[`css`] の出力はバイト不変（golden 純追加
+//! 原則、`tests/charts_parts_css.rs`/`tests/charts_legend_tooltip.rs` 参照）。
+//! マウス追従・hover 配線は #2128 系（#2129/#2130/#2131）、凡例の系列トグル
+//! は #2132 が担う。
 
 use super::svg::fmt_coord;
 use crate::css::decl;
@@ -139,6 +158,46 @@ pub fn datum_label(category: &str, series: &str, value: f64) -> String {
     format!("{category} · {series}: {}", fmt_coord(value))
 }
 
+/// 複数行のツールチップ本文（`<title>`/`aria-label` 共用）を組み立てる
+/// （shadcn/ui `chart-tooltip-default`/`chart-tooltip-advanced` 相当、
+/// イシュー #2086）。[`datum_label`] は 1 系列・1 行専用だが、本関数は
+/// 見出し（`heading`）+ 複数系列行（`entries`）+ 合計等の末尾行
+/// （`footer`）を `'\n'` 区切りで連結する。
+///
+/// `entries` の各要素は `(系列表示ラベル, 整形済み値文字列)`。値の数値
+/// フォーマットは呼び出し側の責務（`.claude/rules/coding-rust.md` の
+/// 「数値・日時整形は UI コンポーネント層の責務外」判断軸、[`fmt_coord`]
+/// を使いたい場合は呼び出し側で呼ぶ）とし、本関数は文字列を単純連結する
+/// のみで数値を解釈しない。
+///
+/// `heading`/`footer` が `None` の場合は該当行を出力しない。`entries` が
+/// 空でも panic せず、`heading`/`footer` のみ（両方 `None` かつ `entries`
+/// も空なら空文字列）を返す決定的な文字列を返す（fail-soft。呼び出し元が
+/// 空の系列集合を渡す状況を事前に弾く責務は [`super::data::ChartData`] 側
+/// が担う）。
+///
+/// 出力先（`<title>`/`aria-label`）はともに [`fandhe_frontend_core::render`]
+/// の既定エスケープ（REQ-1）を経由するため改行はそのまま実体化されず通る
+/// （`&`/`<`/`>`/`"`/`'` のみ実体参照化される）。
+#[must_use]
+pub fn datum_label_lines(
+    heading: Option<&str>,
+    entries: &[(&str, &str)],
+    footer: Option<&str>,
+) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(heading) = heading {
+        lines.push(heading.to_string());
+    }
+    for (series, value_text) in entries {
+        lines.push(format!("{series}: {value_text}"));
+    }
+    if let Some(footer) = footer {
+        lines.push(footer.to_string());
+    }
+    lines.join("\n")
+}
+
 /// データ点（`<circle>`）を組み立てる。子 `<title>` 要素と `aria-label`
 /// 属性の両方に `label` を埋め込む（モジュール doc「SSR ツールチップ方式」
 /// 参照）。
@@ -187,6 +246,43 @@ mod tests {
     #[test]
     fn datum_label_is_deterministic() {
         assert_eq!(datum_label("a", "b", 1.0), datum_label("a", "b", 1.0));
+    }
+
+    #[test]
+    fn datum_label_lines_joins_heading_entries_and_footer_with_newlines() {
+        let out = datum_label_lines(
+            Some("Jan"),
+            &[("Visits", "120"), ("Signups", "20")],
+            Some("Total: 140"),
+        );
+        assert_eq!(out, "Jan\nVisits: 120\nSignups: 20\nTotal: 140");
+    }
+
+    #[test]
+    fn datum_label_lines_omits_heading_line_when_none() {
+        let out = datum_label_lines(None, &[("Visits", "120")], None);
+        assert_eq!(out, "Visits: 120");
+    }
+
+    #[test]
+    fn datum_label_lines_returns_empty_string_for_no_heading_entries_or_footer() {
+        assert_eq!(datum_label_lines(None, &[], None), "");
+    }
+
+    #[test]
+    fn datum_label_lines_is_deterministic() {
+        let a = datum_label_lines(Some("h"), &[("s", "v")], Some("f"));
+        let b = datum_label_lines(Some("h"), &[("s", "v")], Some("f"));
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn xss_regression_datum_label_lines_all_inputs_are_escaped() {
+        let payload = "</title><script>alert(1)</script>";
+        let label = datum_label_lines(Some(payload), &[(payload, payload)], Some(payload));
+        let html = render(&datum(0.0, 0.0, 1.0, &label, vec![]));
+        assert!(!html.contains("<script>"));
+        assert_eq!(html.matches("&lt;script&gt;").count(), 8);
     }
 
     #[test]

@@ -97,6 +97,20 @@ fn legend_css_matches_golden_fixture_byte_for_byte() {
         "  width: var(--fandhe-space-3);\n",
         "  height: var(--fandhe-space-3);\n",
         "}\n",
+        "\n",
+        // イシュー #2086: shadcn/ui Charts（tooltip）突合による opt-in variant
+        // 軸（align/marker）。既存 6 ブロックは不変（golden 純追加原則）。
+        "[data-scope=\"chart-legend\"][data-part=\"root\"].fd-chart-legend--align-center {\n",
+        "  justify-content: center;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"chart-legend\"][data-part=\"root\"].fd-chart-legend--align-end {\n",
+        "  justify-content: flex-end;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"chart-legend\"][data-part=\"marker\"].fd-chart-legend--marker-square {\n",
+        "  border-radius: var(--fandhe-radius-sm);\n",
+        "}\n",
     );
     assert_eq!(legend::css(), expected);
 }
