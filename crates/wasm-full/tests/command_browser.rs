@@ -1424,6 +1424,70 @@ fn clicking_independent_control_inside_item_does_not_dispatch() {
     );
 }
 
+/// Command を Tabs content や ScrollArea viewport 等、`tabindex="0"` を
+/// 固定で持つ外側パネルの内側へ合成配置した場合でも、通常の item クリック
+/// が `select`/`command:execute` を dispatch し続けることを検証する
+/// （codex-review P1 是正、イシュー #2069）。`INDEPENDENT_INTERACTIVE_
+/// SELECTOR` の除外判定は `Element::closest` が祖先方向へ無制限に探索
+/// する性質上、`root` の外側にある外側パネルの `tabindex="0"` まで誤って
+/// 一致させてしまい、通常の item クリックまで無効化する不具合があった。
+/// 一致した要素が `root` 配下に実在する場合のみ除外対象とする修正の回帰
+/// テスト。
+#[wasm_bindgen_test]
+fn clicking_item_inside_ancestor_tabindex_panel_still_dispatches() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, _input, _list, item_elements) = build_command_dom(
+        &document,
+        "cmd-click-ancestor-tabindex-panel",
+        &command,
+        &items,
+    );
+
+    // Command の外側（例: Tabs content パネルや ScrollArea viewport）を
+    // 模した `tabindex="0"` 固定の祖先パネルへ container ごと包む。
+    let container = root
+        .parent_element()
+        .expect("build_command_dom container must exist as root's parent");
+    let panel = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    panel
+        .set_attribute("tabindex", "0")
+        .expect("set_attribute must not fail");
+    document
+        .body()
+        .expect("document body must exist")
+        .append_child(&panel)
+        .expect("append_child must not fail");
+    panel
+        .append_child(&container)
+        .expect("append_child must not fail");
+    let _cleanup = RemoveOnDrop(panel);
+
+    let (_component, log) = wire(root, command);
+
+    let text_node = item_elements[0]
+        .first_child()
+        .expect("item element must contain a text node child (label)");
+    text_node.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        log.borrow().as_slice(),
+        [
+            ("select".to_string(), "a".to_string()),
+            (
+                fandhe_frontend_wasm_full::command::ACTION_EXECUTE.to_string(),
+                "a".to_string()
+            ),
+        ],
+        "外側パネルの tabindex=\"0\" に誤って一致し、通常の item クリック \
+         まで無効化されてはならない"
+    );
+}
+
 // --- (f) Escape ---
 
 #[wasm_bindgen_test]
@@ -2511,5 +2575,60 @@ fn mousedown_on_descendant_of_independent_interactive_element_is_not_prevented()
         !event.default_prevented(),
         "独立したインタラクティブ要素の子孫（option）への mousedown も \
          既定動作を妨げない"
+    );
+}
+
+/// Command を Tabs content や ScrollArea viewport 等、`tabindex="0"` を
+/// 固定で持つ外側パネルの内側へ合成配置した場合でも、通常の item への
+/// mousedown が `input` のフォーカス維持のため引き続き `prevent_default()`
+/// されることを検証する（codex-review P1 是正、イシュー #2069）。
+/// `INDEPENDENT_INTERACTIVE_SELECTOR` の除外判定は `Element::closest` が
+/// 祖先方向へ無制限に探索する性質上、`root` の外側にある外側パネルの
+/// `tabindex="0"` まで誤って一致させてしまい、item への mousedown まで
+/// 無効化する不具合があった。一致した要素が `root` 配下に実在する場合の
+/// み除外対象とする修正の回帰テスト（click 経路の
+/// `clicking_item_inside_ancestor_tabindex_panel_still_dispatches` と対）。
+#[wasm_bindgen_test]
+fn mousedown_on_item_inside_ancestor_tabindex_panel_prevents_default() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, _input, _list, item_elements) = build_command_dom(
+        &document,
+        "cmd-mousedown-ancestor-tabindex-panel",
+        &command,
+        &items,
+    );
+
+    // Command の外側（例: Tabs content パネルや ScrollArea viewport）を
+    // 模した `tabindex="0"` 固定の祖先パネルへ container ごと包む。
+    let container = root
+        .parent_element()
+        .expect("build_command_dom container must exist as root's parent");
+    let panel = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    panel
+        .set_attribute("tabindex", "0")
+        .expect("set_attribute must not fail");
+    document
+        .body()
+        .expect("document body must exist")
+        .append_child(&panel)
+        .expect("append_child must not fail");
+    panel
+        .append_child(&container)
+        .expect("append_child must not fail");
+    let _cleanup = RemoveOnDrop(panel);
+
+    let (_component, _log) = wire(root, command);
+
+    let event = mousedown_event();
+    item_elements[0].dispatch_event(&event).unwrap();
+    assert!(
+        event.default_prevented(),
+        "外側パネルの tabindex=\"0\" に誤って一致し、item への mousedown \
+         による input のフォーカス維持が妨げられてはならない"
     );
 }

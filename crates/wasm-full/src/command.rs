@@ -1777,6 +1777,18 @@ mod wiring {
     /// はフォーカス維持処理の対象から除外し、item や非インタラクティブな
     /// 背景（`dialog`/`list`/`group`/`separator`/`empty` の素の領域）に
     /// 限定して適用する。
+    ///
+    /// `closest()` は self-or-ancestor を祖先方向へ無制限に探索するため
+    /// （native `Element.closest` の仕様）、`root` の外側（Command を
+    /// `command::dialog` ではなく Tabs content や ScrollArea viewport 等の
+    /// 内側に合成配置した場合、それら親パネルが固定で持つ
+    /// `tabindex="0"`）まで一致してしまい、通常の item クリックまで無効化
+    /// されてしまう不具合があった（codex-review P1 再是正、イシュー
+    /// #2069）。一致した要素が `root` 配下（`root` 自身を含む）に実在する
+    /// ことを `root.contains` で確認し、`root` の外側の祖先への一致は
+    /// 無視する（item 自身が独立コントロールを兼ねることはない前提で、
+    /// item 内部の独立コントロール・`command::dialog` 直下の独立コント
+    /// ロールの両方を維持しつつ、外側パネルへの意図しない波及だけを断つ）。
     fn handle_mousedown(root: &Element, event: &Event) {
         let Some(target) = event.target() else {
             return;
@@ -1819,8 +1831,13 @@ mod wiring {
         }
         // 独立したインタラクティブ要素（またはその子孫）はブラウザ既定
         // 動作を妨げない（codex-review P1 是正、イシュー #2069。
-        // `INDEPENDENT_INTERACTIVE_SELECTOR` doc 参照）。
-        if closest(target_element, INDEPENDENT_INTERACTIVE_SELECTOR).is_some() {
+        // `INDEPENDENT_INTERACTIVE_SELECTOR` doc 参照）。一致した要素が
+        // `root` 配下に実在する場合のみ対象とする（`root` の外側の祖先
+        // パネルへの誤爆を防ぐ、[`handle_mousedown`] doc「祖先探索範囲の
+        // 限定」節参照）。
+        if closest(target_element, INDEPENDENT_INTERACTIVE_SELECTOR)
+            .is_some_and(|independent| root.contains(Some(&independent)))
+        {
             return;
         }
         if let Some(item) = closest(target_element, ITEM_SELECTOR) {
@@ -1882,7 +1899,17 @@ mod wiring {
         // `handle_mousedown` は既定動作を尊重する一方 `handle_click` が
         // 祖先 item まで遡って `select` → `command:execute` を dispatch し
         // `stop_propagation()` まで行っていた。
-        if closest(&target_element, INDEPENDENT_INTERACTIVE_SELECTOR).is_some() {
+        //
+        // `closest()` は祖先方向へ無制限に探索するため、一致した要素が
+        // `root` 配下（`root` 自身を含む）に実在する場合のみ対象とする
+        // （`root` の外側の祖先パネル、例えば Command を Tabs content や
+        // ScrollArea viewport の内側に合成配置した場合にそれらが固定で
+        // 持つ `tabindex="0"` への誤一致で通常の item クリックまで無効化
+        // してしまう不具合の是正。codex-review P1 再是正、イシュー #2069。
+        // [`handle_mousedown`] doc「祖先探索範囲の限定」節と同型）。
+        if closest(&target_element, INDEPENDENT_INTERACTIVE_SELECTOR)
+            .is_some_and(|independent| root.contains(Some(&independent)))
+        {
             return;
         }
         let Some(item) = closest(&target_element, ITEM_SELECTOR) else {
