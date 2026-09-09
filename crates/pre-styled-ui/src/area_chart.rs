@@ -665,6 +665,15 @@ fn cumulative_series(data: &ChartData, expand: bool) -> Result<Vec<Vec<f64>>, Ch
                 totals[k] += v;
             }
         }
+        // `ChartData::new` は個々の値が有限であることのみを検証するため、
+        // 同一カテゴリの系列合計が `f64::MAX` 超で `+inf` へオーバーフロー
+        // し得る（例: 1e308 の系列が 2 本）。合計が非有限のまま比率計算に
+        // 進むと各 contribution が 0 になり「カテゴリ合計比率を描く」契約
+        // に反するサイレント失敗（例: 本来 50% ずつのはずが全 0%）を招くため、
+        // ここで fail-closed に検出する。
+        if totals.iter().any(|t| !t.is_finite()) {
+            return Err(ChartError::NonFiniteValue);
+        }
     }
 
     let mut cum: Vec<Vec<f64>> = Vec::with_capacity(series.len());
@@ -1417,6 +1426,28 @@ mod tests {
         assert_eq!(
             area_chart(&props, vec![]).unwrap_err(),
             ChartError::NegativeValue
+        );
+    }
+
+    #[test]
+    fn stack_expand_rejects_category_total_overflow_to_infinity() {
+        // codex-review 指摘（PR #2254）: 同一カテゴリに 1e308 の系列が
+        // 2 本あると totals[k] が `f64::MAX` を超えて `+inf` になり、
+        // 是正前は各 contribution が 0 になって「本来 50% ずつ」が
+        // 全て 0% として正常終了する silent failure だった。
+        let d = ChartData::new(
+            vec!["a".to_string()],
+            vec![
+                Series::new("s1", vec![1e308]),
+                Series::new("s2", vec![1e308]),
+            ],
+        )
+        .unwrap();
+        let mut props = AreaChartProps::new(&d, "overflow");
+        props.stack = AreaStack::Expand;
+        assert_eq!(
+            area_chart(&props, vec![]).unwrap_err(),
+            ChartError::NonFiniteValue
         );
     }
 

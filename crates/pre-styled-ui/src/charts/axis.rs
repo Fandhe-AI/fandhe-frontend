@@ -169,7 +169,8 @@ pub fn css() -> String {
 /// # Errors
 ///
 /// - `ticks` が空の場合 [`ChartError::EmptyData`]
-/// - `x` または `ticks` のいずれかの要素が非有限の場合
+/// - `x`・`ticks` のいずれかの要素・`props.format.label_scale`・
+///   各 `tick * label_scale` のいずれかが非有限の場合
 ///   [`ChartError::NonFiniteValue`]
 pub fn y_axis(
     scale: &LinearScale,
@@ -181,6 +182,19 @@ pub fn y_axis(
         return Err(ChartError::EmptyData);
     }
     if !x.is_finite() || ticks.iter().any(|t| !t.is_finite()) {
+        return Err(ChartError::NonFiniteValue);
+    }
+    // `label_scale` は `AxisProps` 経由で呼び出し側から渡される未検証値
+    // （`TickLabelFormat` doc 参照）。`t` 自体は上で有限を確認済みだが、
+    // `label_scale` が NaN/inf、または有限同士でも積がオーバーフローする
+    // 場合、`format()` 内部で `svg::fmt_coord` の有限値限定契約に違反し
+    // debug ビルドで panic・release ビルドで非有限ラベルを生む。ここで
+    // fail-closed に検出する。
+    if !props.format.label_scale.is_finite()
+        || ticks
+            .iter()
+            .any(|t| !(t * props.format.label_scale).is_finite())
+    {
         return Err(ChartError::NonFiniteValue);
     }
 
@@ -236,7 +250,8 @@ pub fn y_axis(
 ///
 /// # Errors
 ///
-/// [`y_axis`] と同様（`ticks` 空 → [`ChartError::EmptyData`]、`y`/`ticks`
+/// [`y_axis`] と同様（`ticks` 空 → [`ChartError::EmptyData`]、`y`/`ticks`/
+/// `props.format.label_scale`/各 `tick * label_scale` のいずれかが
 /// 非有限 → [`ChartError::NonFiniteValue`]）。
 pub fn x_axis_linear(
     scale: &LinearScale,
@@ -248,6 +263,15 @@ pub fn x_axis_linear(
         return Err(ChartError::EmptyData);
     }
     if !y.is_finite() || ticks.iter().any(|t| !t.is_finite()) {
+        return Err(ChartError::NonFiniteValue);
+    }
+    // y_axis と同じ理由（上記コメント参照）で label_scale・積の有限性を
+    // 描画前に検証する。
+    if !props.format.label_scale.is_finite()
+        || ticks
+            .iter()
+            .any(|t| !(t * props.format.label_scale).is_finite())
+    {
         return Err(ChartError::NonFiniteValue);
     }
 
@@ -392,6 +416,51 @@ mod tests {
         );
         assert_eq!(
             y_axis(&scale(), &[0.0], f64::INFINITY, &AxisProps::default()).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
+    fn y_axis_rejects_non_finite_or_overflowing_label_scale() {
+        // codex-review 指摘（PR #2254）: label_scale が非有限、または有限
+        // 同士の積がオーバーフローする場合、是正前は検証なしで
+        // `svg::fmt_coord` の有限値限定契約に違反していた。
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::NAN;
+        assert_eq!(
+            y_axis(&scale(), &[10.0], 0.0, &props).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::INFINITY;
+        assert_eq!(
+            y_axis(&scale(), &[10.0], 0.0, &props).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+
+        // 有限同士でも積がオーバーフローするケース。
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::MAX;
+        assert_eq!(
+            y_axis(&scale(), &[10.0], 0.0, &props).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
+    fn x_axis_linear_rejects_non_finite_or_overflowing_label_scale() {
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::NAN;
+        assert_eq!(
+            x_axis_linear(&scale(), &[10.0], 0.0, &props).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::MAX;
+        assert_eq!(
+            x_axis_linear(&scale(), &[10.0], 0.0, &props).unwrap_err(),
             ChartError::NonFiniteValue
         );
     }
