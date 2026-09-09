@@ -5272,6 +5272,49 @@ fn bar_charts_category_series_and_aria_label_are_escaped_for_all_payloads() {
             "bar_chart::root の aria-label 属性値コンテキスト",
         );
 
+        // BarChart（イシュー #2082）: `label: BarLabel::Inside` の
+        // inside-label（カテゴリ名を text() で描く新経路）。
+        let data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let inside_props = BarChartProps {
+            label: bar_chart::BarLabel::Inside,
+            ..BarChartProps::default()
+        };
+        let html = render(&bar_chart::root(&data, inside_props, "label").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_chart::root の inside-label（BarLabel::Inside）children コンテキスト",
+        );
+
+        // BarChart（イシュー #2082）: 積み上げ・角丸・active_index・軸を
+        // 合成した経路の `aria_label` 属性値コンテキスト。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![
+                Series::new("s1", vec![1.0, 2.0]),
+                Series::new("s2", vec![3.0, 4.0]),
+            ],
+        )
+        .unwrap();
+        let combined_props = BarChartProps {
+            stack: bar_chart::BarStack::Normal,
+            corner_radius: 4.0,
+            active_index: Some(0),
+            show_value_axis: true,
+            show_grid: true,
+            ..BarChartProps::default()
+        };
+        let html = render(&bar_chart::root(&data, combined_props, payload).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_chart::root の積み上げ/角丸/active/軸合成時の aria-label 属性値コンテキスト",
+        );
+
         // BarList: カテゴリ名（children）経路。
         let data = ChartData::new(
             vec![payload.to_string(), "b".to_string()],

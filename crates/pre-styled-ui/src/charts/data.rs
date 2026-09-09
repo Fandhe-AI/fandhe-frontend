@@ -347,6 +347,82 @@ impl ChartData {
 
         Ok(ChartData { categories, series })
     }
+
+    /// 積み上げ系チャート（[`crate::area_chart::AreaStack`]/
+    /// [`crate::charts::bar_chart::BarStack`]）向けに、カテゴリごとの系列
+    /// 累積上限値を系列ごとに返す（イシュー #2081 で area_chart 専用実装
+    /// として導入、イシュー #2082 で bar_chart と共有するため本メソッドへ
+    /// 移設）。
+    ///
+    /// 戻り値 `cum[i][k]` は系列 `0..=i` のカテゴリ `k` における値の合計
+    /// （`cum[0]` は 1 系列目の値そのもの）。呼び出し元は系列 `i` を
+    /// 上側境界 `cum[i]`・下側境界 `cum[i-1]`（`i == 0` は 0）として描く。
+    ///
+    /// `expand` はカテゴリ合計で正規化し `(0.0, 1.0)` の比率にする
+    /// （合計 0 のカテゴリは比率 0 と定義し `NaN` を生まない）。
+    ///
+    /// # Errors
+    ///
+    /// - いずれかの値が負の場合 [`ChartError::NegativeValue`]（積み上げの
+    ///   帯は非負値のみで定義できるため）。
+    /// - `expand` 時、同一カテゴリの系列合計が `f64::MAX` 超で `+inf` へ
+    ///   オーバーフローした場合 [`ChartError::NonFiniteValue`]（比率計算が
+    ///   全 0 になるサイレント失敗を避けるため fail-closed に検出する）。
+    /// - 非 `expand`（[`BarStack::Normal`]/[`AreaStack::Normal`] 相当）時も、
+    ///   カテゴリごとの累積和が `f64::MAX` 超で `+inf` へオーバーフローした
+    ///   場合 [`ChartError::NonFiniteValue`]（PR #2255 レビュー指摘対応:
+    ///   この非有限値をチェックせず返すと、呼び出し元
+    ///   `bar_chart::max_value_label_len` が `LinearScale::new` による domain
+    ///   検証より先に `svg::fmt_coord` へ非有限値を渡してしまい、
+    ///   `fmt_coord` の `debug_assert!(v.is_finite(), ...)` 契約に反して
+    ///   デバッグビルドで panic する。累積和計算の時点で fail-closed に
+    ///   拒否し、非有限値がラベル幅計算・`fmt_coord` へ到達しないようにする）。
+    ///
+    /// [`BarStack::Normal`]: crate::charts::bar_chart::BarStack::Normal
+    /// [`AreaStack::Normal`]: crate::area_chart::AreaStack::Normal
+    pub fn stacked_cumulative(&self, expand: bool) -> Result<Vec<Vec<f64>>, ChartError> {
+        let series = &self.series;
+        let n = self.categories.len();
+        for s in series {
+            if s.values.iter().any(|&v| v < 0.0) {
+                return Err(ChartError::NegativeValue);
+            }
+        }
+
+        let mut totals = vec![0.0; n];
+        if expand {
+            for s in series {
+                for (k, &v) in s.values.iter().enumerate() {
+                    totals[k] += v;
+                }
+            }
+            if totals.iter().any(|t| !t.is_finite()) {
+                return Err(ChartError::NonFiniteValue);
+            }
+        }
+
+        let mut cum: Vec<Vec<f64>> = Vec::with_capacity(series.len());
+        let mut running = vec![0.0; n];
+        for s in series {
+            for (k, &v) in s.values.iter().enumerate() {
+                let contribution = if expand {
+                    if totals[k] == 0.0 {
+                        0.0
+                    } else {
+                        v / totals[k]
+                    }
+                } else {
+                    v
+                };
+                running[k] += contribution;
+            }
+            if running.iter().any(|v| !v.is_finite()) {
+                return Err(ChartError::NonFiniteValue);
+            }
+            cum.push(running.clone());
+        }
+        Ok(cum)
+    }
 }
 
 /// 系列の合計値（chakra-ui `useChart` の `getTotal` 相当）。
@@ -626,5 +702,44 @@ mod tests {
         let before = data.clone();
         let _ = data.sort_by_series("visits", SortDirection::Descending);
         assert_eq!(data, before);
+    }
+
+    #[test]
+    fn stacked_cumulative_normal_rejects_overflowing_sum() {
+        // PR #2255 レビュー指摘: `expand == false`（`BarStack::Normal`/
+        // `AreaStack::Normal` 相当）でも、カテゴリ累積和が `f64::MAX` を
+        // 超えて `+inf` へオーバーフローし得る。従来は `expand == true`
+        // （比率計算）のみ非有限性を検証しており、非 expand 側は無検証の
+        // まま `cum` を返していた。呼び出し元（`bar_chart::
+        // max_value_label_len`）はこの `cum` を `LinearScale::new` の domain
+        // 検証より先に `svg::fmt_coord` へ渡すため、非有限値が
+        // `fmt_coord` の `debug_assert!(v.is_finite(), ...)` 契約に反して
+        // デバッグビルドで panic していた。`stacked_cumulative` の時点で
+        // fail-closed に拒否することを固定する。
+        let data = ChartData::new(
+            vec!["a".to_string()],
+            vec![
+                Series::new("s1", vec![1e308]),
+                Series::new("s2", vec![1e308]),
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            data.stacked_cumulative(false).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
+    fn stacked_cumulative_normal_accepts_finite_sum() {
+        // 上記の fail-closed 検証がフォールスポジティブでないことの回帰
+        // （通常の有限値では従来どおり成功する）。
+        let data = ChartData::new(
+            vec!["a".to_string()],
+            vec![Series::new("s1", vec![10.0]), Series::new("s2", vec![20.0])],
+        )
+        .unwrap();
+        let cum = data.stacked_cumulative(false).unwrap();
+        assert_eq!(cum, vec![vec![10.0], vec![30.0]]);
     }
 }

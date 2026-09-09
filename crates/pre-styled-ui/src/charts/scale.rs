@@ -100,7 +100,18 @@ impl LinearScale {
     pub fn nice(&self) -> LinearScale {
         let (d0, d1) = self.domain;
         let (lo, hi) = if d0 <= d1 { (d0, d1) } else { (d1, d0) };
-        let step = nice_step((hi - lo) / 10.0);
+        let raw_step = (hi - lo) / 10.0;
+        // `hi - lo` が極小（例: 最小の正の非正規化数）の場合、10 で割ると
+        // `raw_step` 自体が 0.0 へアンダーフローし得る。`nice_step` の契約
+        // （`raw_step` は正の有限値、同関数 doc 参照）を満たせないためここで
+        // 呼び出さず、「nice」化を諦めて元の（既に有限であることが保証済み
+        // の）domain をそのまま返す（上記 `f64::MAX`/`f64::MIN` 付近の
+        // オーバーフロー時と同じ fail-safe 方針。PR #2255 レビュー指摘、
+        // イシュー #2082 追補）。
+        if !(raw_step.is_finite() && raw_step > 0.0) {
+            return *self;
+        }
+        let step = nice_step(raw_step);
         let nice_lo = (lo / step).floor() * step;
         let nice_hi = (hi / step).ceil() * step;
         let nice_lo = if nice_lo.is_finite() { nice_lo } else { lo };
@@ -132,7 +143,20 @@ impl LinearScale {
         }
         let (d0, d1) = self.domain;
         let (lo, hi) = if d0 <= d1 { (d0, d1) } else { (d1, d0) };
-        let step = nice_step((hi - lo) / target as f64);
+        let raw_step = (hi - lo) / target as f64;
+        // `hi - lo` が極小の場合、`target` で割ると `raw_step` 自体が 0.0 へ
+        // アンダーフローし得る。`nice_step` の契約（`raw_step` は正の有限値）
+        // を満たせないためここで呼び出さず、下記「1 件も目盛りを生成しない
+        // 場合」と同じ domain 両端フォールバックへ直行する（`nice()` 側の
+        // 同種修正と対をなす。PR #2255 レビュー指摘、イシュー #2082 追補）。
+        if !(raw_step.is_finite() && raw_step > 0.0) {
+            let mut values = vec![lo, hi];
+            if d0 > d1 {
+                values.reverse();
+            }
+            return Ok(values);
+        }
+        let step = nice_step(raw_step);
 
         let first = (lo / step).ceil() * step;
         let last = (hi / step).floor() * step;
@@ -397,5 +421,34 @@ mod tests {
         let niced = s.nice();
         let (nd0, nd1) = niced.domain();
         assert!(nd0.is_finite() && nd1.is_finite());
+    }
+
+    #[test]
+    fn nice_does_not_panic_when_raw_step_itself_underflows_to_zero() {
+        // codex-review 指摘（PR #2255、イシュー #2082 追補）: domain 幅が
+        // `f64::from_bits(1)`（最小の正の非正規化数）だと `(hi - lo) / 10.0`
+        // の除算自体で `raw_step` が 0.0 へアンダーフローし、`nice_step` の
+        // `debug_assert!(raw_step > 0.0)` に反して panic していた
+        // （`nice_stays_finite_for_tiny_domain` は `tiny * 10.0` を使うため
+        // この経路を通らず、この不具合を検知できていなかった）。
+        let tiny = f64::from_bits(1); // 最小の正の非正規化数
+        let s = LinearScale::new((0.0, tiny), (0.0, 100.0)).unwrap();
+
+        let niced = s.nice();
+        let (nd0, nd1) = niced.domain();
+        assert!(nd0.is_finite() && nd1.is_finite());
+    }
+
+    #[test]
+    fn ticks_does_not_panic_when_raw_step_itself_underflows_to_zero() {
+        // 上記 `nice` 分の `ticks` 版。`target` が大きいほど
+        // `raw_step = (hi - lo) / target` がアンダーフローしやすいため、
+        // 許容上限 50 で再現する。
+        let tiny = f64::from_bits(1); // 最小の正の非正規化数
+        let s = LinearScale::new((0.0, tiny), (0.0, 100.0)).unwrap();
+
+        let ticks = s.ticks(50).unwrap();
+        assert!(!ticks.is_empty());
+        assert!(ticks.iter().all(|t| t.is_finite()));
     }
 }

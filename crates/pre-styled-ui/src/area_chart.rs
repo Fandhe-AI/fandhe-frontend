@@ -654,54 +654,11 @@ fn render_stacked(
 }
 
 /// `stack: AreaStack::Normal`/`Expand` 時のカテゴリごとの累積上限値を
-/// 系列ごとに返す（内部ヘルパ）。負値混入は [`ChartError::NegativeValue`]。
-/// `Expand` はカテゴリ合計で正規化し `(0.0, 1.0)` の比率にする
-/// （合計 0 のカテゴリは比率 0 と定義し `NaN` を生まない）。
+/// 系列ごとに返す（内部ヘルパ）。実体は [`ChartData::stacked_cumulative`]
+/// （イシュー #2082 で bar_chart と共有するため `charts::data` へ移設済み。
+/// area_chart 側の呼び出し規約・エラー契約は変更なし）。
 fn cumulative_series(data: &ChartData, expand: bool) -> Result<Vec<Vec<f64>>, ChartError> {
-    let series = data.series();
-    let n = data.categories().len();
-    for s in series {
-        if s.values.iter().any(|&v| v < 0.0) {
-            return Err(ChartError::NegativeValue);
-        }
-    }
-
-    let mut totals = vec![0.0; n];
-    if expand {
-        for s in series {
-            for (k, &v) in s.values.iter().enumerate() {
-                totals[k] += v;
-            }
-        }
-        // `ChartData::new` は個々の値が有限であることのみを検証するため、
-        // 同一カテゴリの系列合計が `f64::MAX` 超で `+inf` へオーバーフロー
-        // し得る（例: 1e308 の系列が 2 本）。合計が非有限のまま比率計算に
-        // 進むと各 contribution が 0 になり「カテゴリ合計比率を描く」契約
-        // に反するサイレント失敗（例: 本来 50% ずつのはずが全 0%）を招くため、
-        // ここで fail-closed に検出する。
-        if totals.iter().any(|t| !t.is_finite()) {
-            return Err(ChartError::NonFiniteValue);
-        }
-    }
-
-    let mut cum: Vec<Vec<f64>> = Vec::with_capacity(series.len());
-    let mut running = vec![0.0; n];
-    for s in series {
-        for (k, &v) in s.values.iter().enumerate() {
-            let contribution = if expand {
-                if totals[k] == 0.0 {
-                    0.0
-                } else {
-                    v / totals[k]
-                }
-            } else {
-                v
-            };
-            running[k] += contribution;
-        }
-        cum.push(running.clone());
-    }
-    Ok(cum)
+    data.stacked_cumulative(expand)
 }
 
 /// `gradient_id` から系列ごとの `<linearGradient>` 定義（`<defs>` の中身）を
