@@ -14,12 +14,12 @@
 # `from` は `site/nav.toml` の既存ページ path と衝突してはならない
 # （衝突する場合はビルド失敗、`RedirectError::CollidesWithPage`）。
 #
-# 実宣言は現在 117 件（予防的移転案内 1 + 索引ページ移設 1 +
-# 部品ページ移行 115（#1017 の 107 + #1683 で追加した collapsible 1 +
+# 実宣言は現在 118 件（予防的移転案内 1 + 索引ページ移設 1 +
+# 部品ページ移行 116（#1017 の 107 + #1683 で追加した collapsible 1 +
 # #1685 で追加した field 1 + #1687 で追加した fieldset 1 +
 # #2063 で追加した input-group 1 + #2066 で追加した item 1 +
 # #2060 で追加した button-group 1 + #2070 で追加した command 1 +
-# #2106 で追加した message 1））。
+# #2080 で追加した radial-chart 1 + #2106 で追加した message 1））。
 # #1018 で索引ページを `/components/pre-styled-ui/` から `/themes/` へ
 # 移設し、旧索引 URL 自体のリダイレクトを追加した（残り 1 件のスコープを
 # 完了）。`/components/collapsible/`・`/components/field/`・
@@ -48,9 +48,10 @@ to = "/themes/"
 # /themes/ へ移行）の実宣言 + #1683 で追加した collapsible 1 件 + #1685 で
 # 追加した field 1 件 + #1687 で追加した fieldset 1 件 + #2063 で追加した
 # input-group 1 件 + #2066 で追加した item 1 件 + #2060 で追加した
-# button-group 1 件 + #2070 で追加した command 1 件 + #2106 で追加した
-# message 1 件。生成コマンドは nav.toml 更新後そのまま実行すれば 115 件を
-# 出力する（決定的・レビュー可能）:
+# button-group 1 件 + #2070 で追加した command 1 件 + #2080 で追加した
+# radial-chart 1 件 + #2106 で追加した message 1 件。生成コマンドは
+# nav.toml 更新後そのまま実行すれば 116 件を出力する（決定的・
+# レビュー可能）:
 #
 #   git show HEAD:site/nav.toml | grep -o 'source = "site/themes/[^"]*"' \
 #     | sed 's|.*site/themes/||; s|\.md"||' | sort \
@@ -394,6 +395,10 @@ to = "/themes/quote/"
 [[redirect]]
 from = "/components/radar-chart/"
 to = "/themes/radar-chart/"
+
+[[redirect]]
+from = "/components/radial-chart/"
+to = "/themes/radial-chart/"
 
 [[redirect]]
 from = "/components/radio-card/"

@@ -131,13 +131,14 @@ grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
   segment_group / select / signature_pad / skip_nav / slider / splitter /
   steps / switch / tabs / tags_input / timer / toast / toggle /
   toggle_group / toggle_tip / tooltip / tour / tree_view / visually_hidden
-- pre-styled-ui **107**（`grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs
+- pre-styled-ui **110**（`grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs
   | grep -vE '^pub mod (css|recipe|stylesheet|theme);$' | wc -l` の実測。
   下記列挙リストは #1685 で `field`、#1686 で `fieldset`、#2063 で
-  `input_group`、#2060 で `button_group` を追加したのみで、
-  それ以外の未列挙モジュール（callout / checkbox_group / menubar /
-  navigation_menu / quote / strong / tab_nav / toolbar 等）の棚卸しは本
-  イシューのスコープ外として PR 本文・親 #1671 コメントに記録する）:
+  `input_group`、#2060 で `button_group`、#2080 で `radial_chart` を
+  追加したのみで、それ以外の未列挙モジュール（callout / checkbox_group /
+  command / item / menubar / navigation_menu / quote / strong / tab_nav /
+  toolbar 等）の棚卸しは本イシューのスコープ外として PR 本文・親 #1671
+  コメントに記録する）:
   accordion / action_bar / alert / angle_slider / area_chart / avatar /
   badge / blockquote / breadcrumb / button / button_group / calendar / card / carousel /
   charts / checkbox / checkbox_card / clipboard / code / collapsible /
@@ -148,7 +149,7 @@ grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
   image / image_cropper / input / input_group / json_tree_view / kbd / line_chart / link /
   link_overlay / list / listbox / mark / marquee / menu / native_select /
   nav_list / number_input / pagination / password_input / pie_chart /
-  pin_input / popover / progress / qr_code / radio_card / radio_group /
+  pin_input / popover / progress / qr_code / radial_chart / radio_card / radio_group /
   rating_group / scroll_area / segment_group / select / separator /
   signature_pad / skeleton / skip_nav / slider / sparkline / spinner /
   splitter / stat / status / steps / switch / table / tabs / tag /
@@ -994,6 +995,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 | —（対応 md なし） | — | — | — | — | Message Scroller (`message-scroller`) | — | — | 実装対象 | 会話のスクロール固定・ストリーミング追従・履歴読み込み部品。§3.25 規則 2 に従い計測・DOM 操作は wasm-full 側、headless-ui は anatomy と `data-*` のみ。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2120。判定根拠の詳細は #2006 が §12 へ転記 |
 | —（対応 md なし） | — | — | — | — | Data Table (`data-table`) | — | — | 実装対象 | 構造・DOM 配線のみ追加（ユーザー判断 2026-09-07、#2006）。並べ替え・絞り込み・ページ取得のロジックは §3.25 規則 1 により非採用。Phase 4、#2124。判定根拠の詳細は #2006 が §12 へ転記 |
 | —（対応 md なし） | — | — | — | — | Sonner (`sonner`) | — | `toast`（スタック表示・Toaster 相当） | 実装済み | shadcn/ui v4 は旧来の `toast`（トースト単発表示）と新しい `sonner`（スタック表示ライブラリ）の両ページを別コンポーネントとして掲載する。fandhe の既存 `toast`（ark-ui `overlays/toast.md` 行。同行の shadcn 列は Toast の slug を記入済み）がスタック表示までを含めて対応する。#2040 でスタック表示の突合詳細を確認予定 |
+| —（対応 md なし） | — | — | — | — | Radial Chart (`charts/radial`) | — | `radial_chart` | 実装済み | styled 層のみ（headless anatomy なし、pie/donut と同判断）。#2078（#2079 SVG ジオメトリ・recipe / #2080 Themes ページ）。shadcn/ui Charts Library の simple/label/grid/text/shape/stacked 相当 |
 
 `aspect-ratio`（Part B `layout/aspect-ratio.md` 行、意図的非採用）・`direction`
 （Part D Direction Provider 行、保留）・`form`（v4 に独立コンポーネントとして
@@ -1004,10 +1006,9 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 種別デモを包含する（個別ページ・個別アンカーを持たない構成、
 `shadcn-inventory.md` §2 参照）。このうち Radar 種別は Part B
 `charts/radar-chart.md` 行（`charts::radar_chart`、実装済み）として既に
-独立行を持つ。Radial Chart は Radar とは別種のチャートであり、v4 の
-`chart.mdx`（docs/components スコープ）にも掲載がないため、本 Part への
-新規行は作らない（Radar の実装状況を根拠にはしない。判定の詳細・独立判断は
-§12.1 参照）。
+独立行を持つ。Radial Chart は Radar とは別種のチャートであるため個別判定を
+維持しつつ、ユーザー判断（2026-09-07、#2153 の shadcn 3 者主基準化）と
+#2078 配下の実装（#2079 / #2080）を受けて本 Part へ行を追加した。
 
 ## 6. `site/nav.toml` 掲載要否の判断
 
@@ -1338,6 +1339,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 | Questionnaire (`questionnaire`) | Part F | #2116 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Message Scroller (`message-scroller`) | Part F | #2120 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Data Table (`data-table`) | Part F | #2124 | 実装対象確定（構造・DOM 配線のみ。データ整形・並べ替えロジックは §3.25 規則 1 により非対象、ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
+| Radial Chart (`radial-chart`) | Part F | #2078 | 実装済み（#2079 / #2080） |
 
 **7 部品の判定根拠（イシュー #2006、`intentional-non-adoption.md` §3.25
 適用例）**: 上表の 7 行はいずれも実装確定済みだが、それぞれ §3.25 の
@@ -1398,12 +1400,15 @@ Library `https://ui.shadcn.com/charts/radial` 参照）は Radar とは異なる
 の `/charts/radial` は `docs/components/chart.mdx` とは別系統の Charts
 Library（registry ベースのショーケースページ群）に属し、`shadcn-inventory.md`
 §2 が定義する調査スコープ（`apps/v4/content/docs/components/*.mdx`）の外に
-ある（Blocks の対象外判断と同種の理由）。このため本節時点では Radial Chart
-専用の新規行・新規 issue 起票は行わない（Radar 実装で充足したためではなく、
-本書の調査スコープ外であるため。Charts Library 系ページを調査スコープへ
-含める判断が別途なされた場合は、その時点で Radial を独立に再判定する）。
-radar チャート自体は上記のとおり実装済みであり、既存 Part B
-`charts/radar-chart.md` 行の記録で完結する（追加対応は不要）。
+ある（Blocks の対象外判断と同種の理由）。起票時点はこの調査スコープ判断を
+理由に Radial Chart 専用の新規行・新規 issue 起票を見送っていたが、
+ユーザー判断（2026-09-07、#2153 の shadcn 3 者主基準化）を受けて #2078
+（親トラッキング）で実装対象へ改めて確定し、#2079（SVG ジオメトリ・
+`data-scope="radial-chart"` の新規 anatomy・recipe）・#2080（Themes ページ・
+Demo・nav 登録）で実装済みとなった（headless 側に対応 anatomy を持たない
+点は pie_chart/donut_chart と同判断、Part F 参照）。radar チャート自体は
+上記のとおり実装済みであり、既存 Part B `charts/radar-chart.md` 行の記録で
+完結する（追加対応は不要）。
 
 ### 12.2 保留
 

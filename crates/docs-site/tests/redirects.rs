@@ -247,10 +247,12 @@ fn build_succeeds_with_zero_redirects_when_manifest_is_absent() {
 /// 114 件になった。イシュー #2060 で Button Group の Themes ページ新設に
 /// 伴い `/components/button-group/` を追加し、115 件になった。イシュー
 /// #2070 で Command の Themes ページ新設に伴い `/components/command/` を
-/// 追加し、116 件になった。イシュー #2106 で Message の Themes ページ
-/// 新設に伴い `/components/message/` を追加し、現在は 117 件。本値の
-/// 更新が要る変更は fail-closed に検知する（黙って増減しても気付ける
-/// ようにする意図。`tests/site_build.rs` のページ数固定と同型）。
+/// 追加し、116 件になった。イシュー #2080 で Radial Chart の Themes ページ
+/// 新設に伴い `/components/radial-chart/` を追加し、117 件になった。
+/// イシュー #2106 で Message の Themes ページ新設に伴い
+/// `/components/message/` を追加し、現在は 118 件。本値の更新が要る
+/// 変更は fail-closed に検知する（黙って増減しても気付けるように
+/// する意図。`tests/site_build.rs` のページ数固定と同型）。
 #[test]
 fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -265,7 +267,7 @@ fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
         redirect::parse_redirects(&input).expect("site/redirects.toml should parse cleanly");
     assert_eq!(
         redirects.entries.len(),
-        117,
+        118,
         "site/redirects.toml の宣言件数が期待値と異なる: {:?}",
         redirects.entries
     );
@@ -306,11 +308,11 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         fandhe_frontend_docs_site::nav::parse_nav(&nav_input).expect("site/nav.toml should parse");
 
     // nav 側: `site/themes/<kebab>.md` を source に持つ全ページの
-    // (kebab, path) 集合（115 件、イシュー #1683 で 107 → 108、
+    // (kebab, path) 集合（116 件、イシュー #1683 で 107 → 108、
     // イシュー #1685 で 108 → 109、イシュー #1687 で 109 → 110、
     // イシュー #2063 で 110 → 111、イシュー #2066 で 111 → 112、
     // イシュー #2060 で 112 → 113、イシュー #2070 で 113 → 114、
-    // イシュー #2106 で 114 → 115）。
+    // イシュー #2080 で 114 → 115、イシュー #2106 で 115 → 116）。
     let themes_pages: Vec<(String, String)> = nav
         .all_pages()
         .filter_map(|p| {
@@ -322,8 +324,8 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         .collect();
     assert_eq!(
         themes_pages.len(),
-        115,
-        "expected 115 site/themes/ pages, got {}: {themes_pages:?}",
+        116,
+        "expected 116 site/themes/ pages, got {}: {themes_pages:?}",
         themes_pages.len()
     );
 

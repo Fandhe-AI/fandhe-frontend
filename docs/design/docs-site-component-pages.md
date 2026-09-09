@@ -192,6 +192,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Progress | `progress` | Data Display | `/themes/progress/` | `site/themes/progress.md` | `progress_section()` |
 | QR Code | `qr_code` | Data Display | `/themes/qr-code/` | `site/themes/qr-code.md` | `qr_code_section()` |
 | Radar Chart | `charts`（内包） | Charts | `/themes/radar-chart/` | `site/themes/radar-chart.md` | `radar_chart_section()` |
+| Radial Chart | `radial_chart` | Charts | `/themes/radial-chart/` | `site/themes/radial-chart.md` | `radial_chart_section()`（#2080 で新設） |
 | Radio Card | `radio_card` | Forms | `/themes/radio-card/` | `site/themes/radio-card.md` | `radio_card_section()` |
 | Radio Group | `radio_group` | Forms | `/themes/radio-group/` | `site/themes/radio-group.md` | `radio_group_section()` |
 | Rating Group | `rating_group` | Forms | `/themes/rating-group/` | `site/themes/rating-group.md` | `rating_group_section()` |
@@ -293,9 +294,9 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `timeline` `timer` `tree_view`
 - **Utilities (6)**: `link_overlay` `marquee` `scroll_area` `separator`
   `skip_nav` `visually_hidden`
-- **Charts (11)**: `charts`（共通 API） `area_chart` `bar_chart`
+- **Charts (12)**: `charts`（共通 API） `area_chart` `bar_chart`
   `bar_list` `bar_segment` `donut_chart` `line_chart` `pie_chart`
-  `radar_chart` `scatter_chart` `sparkline`
+  `radar_chart` `radial_chart` `scatter_chart` `sparkline`
 
 **Layout を設けない根拠（イシュー受け入れ条件）**: Radix Themes の
 layout プリミティブ（Box / Flex / Grid / Container / Section）と Theme

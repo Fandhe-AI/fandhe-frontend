@@ -163,6 +163,9 @@ use fandhe_frontend_pre_styled_ui::password_input::{
 use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::quote::quote;
+use fandhe_frontend_pre_styled_ui::radial_chart::{
+    radial_chart, RadialCenterText, RadialChartProps,
+};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{
     self, RatingGroup, RatingGroupProps, RatingItemFlags,
@@ -868,6 +871,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: radar_chart_section,
     },
     ComponentPage {
+        path: "/themes/radial-chart/",
+        render: radial_chart_section,
+    },
+    ComponentPage {
         path: "/themes/toolbar/",
         render: toolbar_section,
     },
@@ -1076,6 +1083,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&chart_tooltip::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pie_chart::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::donut_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::radial_chart::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::angle_slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image_cropper::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pin_input::stylesheet())?;
@@ -12473,6 +12481,118 @@ fn radar_chart_section() -> Node {
     )
 }
 
+/// RadialChart 節（イシュー #2079/#2080、親 #2078）: shadcn/ui Charts Radial
+/// 相当の同心リング型グラフ。simple / label / grid / text / shape / stacked
+/// の 6 バリアントを掲示する（`crates/pre-styled-ui/src/radial_chart.rs` の
+/// rustdoc「バリアント対応」表と対応）。
+fn radial_chart_section() -> Node {
+    let browsers_data = ChartData::new(
+        vec![
+            "chrome".to_string(),
+            "safari".to_string(),
+            "firefox".to_string(),
+            "edge".to_string(),
+        ],
+        vec![Series::new("visitors", vec![275.0, 200.0, 187.0, 90.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let single_ring_data = ChartData::new(
+        vec!["visitors".to_string()],
+        vec![Series::new("visitors", vec![1260.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let stacked_data = ChartData::new(
+        vec!["visitors".to_string()],
+        vec![
+            Series::new("desktop", vec![186.0]),
+            Series::new("mobile", vec![80.0]),
+        ],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let simple = radial_chart(&RadialChartProps::default(), &browsers_data, vec![])
+        .expect("ショーケース固定データは常に描画に成功する");
+
+    let label = radial_chart(
+        &RadialChartProps {
+            show_labels: true,
+            ..RadialChartProps::default()
+        },
+        &browsers_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let grid = radial_chart(
+        &RadialChartProps {
+            show_grid: true,
+            ..RadialChartProps::default()
+        },
+        &browsers_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let text = radial_chart(
+        &RadialChartProps {
+            center_text: Some(RadialCenterText {
+                value: "1,260",
+                label: Some("visitors"),
+            }),
+            ..RadialChartProps::default()
+        },
+        &single_ring_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let shape = radial_chart(
+        &RadialChartProps {
+            corner_radius: 4.0,
+            // 全周（既定 0〜360°）では ring_segment_path が全周分岐に入り
+            // corner_radius を無視するため、text デモと区別が付かなくなる
+            // （codex-review 指摘 #2250）。crate 側テスト
+            // （radial_chart.rs の shape_applies_corner_radius_to_bar_only 等）
+            // と同じ end_angle_deg: 250.0 を指定し、角丸の効果を実際に
+            // 目視確認できるようにする。
+            end_angle_deg: 250.0,
+            center_text: Some(RadialCenterText {
+                value: "1,260",
+                label: Some("visitors"),
+            }),
+            ..RadialChartProps::default()
+        },
+        &single_ring_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let stacked = radial_chart(
+        &RadialChartProps {
+            start_angle_deg: -90.0,
+            end_angle_deg: 90.0,
+            center_text: Some(RadialCenterText {
+                value: "266",
+                label: Some("visitors"),
+            }),
+            ..RadialChartProps::default()
+        },
+        &stacked_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let variant_row = row(vec![simple, label, grid, text, shape, stacked]);
+
+    section(
+        "RadialChart",
+        "外部依存ゼロの SVG ノード木生成による同心リング型グラフです（イシュー #2079/#2080、shadcn/ui Charts Radial 相当）。角度は度数法・12 時方向 0°・時計回り正の規約（既定 0〜360°）で、inner_ratio（既定 0.3）で内径を調整できます。左から simple / label（show_labels）/ grid（show_grid）/ text（center_text）/ shape（corner_radius）/ stacked（複数系列 + 半円 start/end）の 6 バリアントです。",
+        vec![variant_row],
+    )
+}
+
 /// Tag 節（イシュー #768）: variant / size / colorPalette と、
 /// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
 /// スコープ外）の掲示。
@@ -12986,8 +13106,9 @@ mod tests {
         // イシュー #2066 で Item を追加し 105 → 106 件になった。
         // イシュー #2060 で Button Group を追加し 106 → 107 件になった。
         // イシュー #2070 で Command を追加し 107 → 108 件になった。
-        // イシュー #2106 で Message を追加し 108 → 109 件になった。
-        assert_eq!(paths.len(), 109, "COMPONENT_PAGES should have 109 entries");
+        // イシュー #2080 で Radial Chart を追加し 108 → 109 件になった。
+        // イシュー #2106 で Message を追加し 109 → 110 件になった。
+        assert_eq!(paths.len(), 110, "COMPONENT_PAGES should have 110 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -13122,6 +13243,7 @@ mod tests {
             "sparkline",
             "scatter-chart",
             "radar-chart",
+            "radial-chart",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -13300,6 +13422,9 @@ mod tests {
         assert!(css.contains(r#"[data-scope="chart"][data-part="grid-line"]"#));
         assert!(css.contains(r#"[data-scope="chart-legend"][data-part="root"]"#));
         assert!(css.contains(r#"[data-scope="chart"][data-part="datum"]:hover"#));
+        // RadialChart（イシュー #2079/#2080）: stylesheet() への push_css
+        // 忘れの回帰防止（DownloadTrigger の先例と同型）。
+        assert!(css.contains(r#"[data-scope="radial-chart"][data-part="chart"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));

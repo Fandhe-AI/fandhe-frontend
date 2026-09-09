@@ -172,6 +172,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [Line Chart](./themes/line-chart.md)
 - [Pie Chart](./themes/pie-chart.md)
 - [Radar Chart](./themes/radar-chart.md)
+- [Radial Chart](./themes/radial-chart.md)
 - [Scatter Chart](./themes/scatter-chart.md)
 - [Sparkline](./themes/sparkline.md)
 
