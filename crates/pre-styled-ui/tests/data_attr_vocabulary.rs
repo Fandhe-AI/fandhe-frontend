@@ -1755,3 +1755,59 @@ fn marker_root_variant_and_tone_vocabulary_is_fixed_and_reuses_color_palette_wor
         "marker::root の呼び出し側 attrs コンテキスト",
     );
 }
+
+/// styled `marker`（イシュー #2115、`crates/pre-styled-ui/src/marker.rs`）
+/// が `data-variant`/`data-tone` を自前で組み立てず、headless
+/// [`mod@fandhe_frontend_headless_ui::marker`] の出力をそのまま透過する
+/// のみであることを固定する
+/// （`attachment_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。加えて `marker::stylesheet()` が `[data-variant="..."]`/
+/// `[data-tone="..."]` を CSS セレクタとして参照するのみで class ベースの
+/// `fd-marker--` セレクタを生成しないことを固定する。
+///
+/// `class` 不在 assert は `Note`（[`crate::separator::separator`] を
+/// 挟まない）props で行う: `Label` 形態は挟み込む separator 自身が
+/// `fd-separator--` class を出力するため（`class="` の完全不在ではなく
+/// `fd-marker--` の不在で判定する）。
+#[test]
+fn marker_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::marker as styled_marker;
+
+    let root_html = render(&styled_marker::root(
+        styled_marker::MarkerRootProps {
+            variant: styled_marker::MarkerVariant::Divider,
+            tone: styled_marker::MarkerTone::Danger,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains(r#"data-variant="divider""#));
+    assert!(root_html.contains(r#"data-tone="danger""#));
+    // Note 形態（class を出力しない headless marker::root と、separator を
+    // 挟まない styled root の両方が class 非付与のため `class=` 自体が
+    // 現れない）。
+    assert!(!root_html.contains("class="));
+
+    // `styled_marker::stylesheet()` は `[data-variant="..."]`/
+    // `[data-tone="..."]` を CSS セレクタとして参照するだけで自前で
+    // `data-*` を組み立てない（class ベースの variant/tone も持たない）。
+    let css = styled_marker::stylesheet();
+    assert!(css.contains(r#"[data-variant="divider"]"#));
+    assert!(css.contains(r#"[data-variant="label"]"#));
+    assert!(css.contains(r#"[data-tone="danger"]"#));
+    assert!(!css.contains("fd-marker--"));
+
+    // Label 形態: 挟み込む separator が `fd-separator--` class を出力する
+    // ため、`class=` の完全不在ではなく `fd-marker--` の不在で marker 自身
+    // が class を自己発行しないことを判定する。
+    let label_html = render(&styled_marker::root(
+        styled_marker::MarkerRootProps {
+            variant: styled_marker::MarkerVariant::Label,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(label_html.contains("fd-separator--"));
+    assert!(!label_html.contains("fd-marker--"));
+}

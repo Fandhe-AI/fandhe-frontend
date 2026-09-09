@@ -243,6 +243,7 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
         "/themes/attachment/",
         crate::component_specs_nav_data::ATTACHMENT,
     ),
+    ("/themes/marker/", crate::component_specs_nav_data::MARKER),
     ("/themes/sidebar/", crate::component_specs_nav_data::SIDEBAR),
     (
         "/themes/progress/",
