@@ -131,6 +131,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [Alert](./themes/alert.md)
 - [Avatar](./themes/avatar.md)
 - [Badge](./themes/badge.md)
+- [Bubble](./themes/bubble.md)
 - [Callout](./themes/callout.md)
 - [Card](./themes/card.md)
 - [Color Swatch](./themes/color-swatch.md)

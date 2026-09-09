@@ -11,18 +11,19 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 116 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 117 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
-#2070、`sidebar` はイシュー #2073、`message` はイシュー #2106 で追加）+
+#2070、`sidebar` はイシュー #2073、`message` はイシュー #2106、`bubble`
+はイシュー #2109 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。116 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。117 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
 操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
@@ -77,6 +78,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `item`（§4f-4 参照。media + title/description + actions からなる汎用リスト行。`variant`/`size` は headless の `data-variant`/`data-size` を AttrEq 参照するのみで class ベース軸を持たない） | [item](../../site/themes/item.md) |
 | headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。10 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
 | headless ラッパー | `message`（§4f-6 参照。会話 1 発言。6 パーツ構成、軸なし。data-role/data-align/data-loading/data-error を AttrEq/Attr 参照するのみ） | [message](../../site/themes/message.md) |
+| headless ラッパー | `bubble`（§4f-7 参照。チャット吹き出し 1 個。6 パーツ構成、軸なし。data-variant/data-align/data-group-position/data-selected/data-state を AttrEq/Attr/AttrEqAll 参照するのみ） | [bubble](../../site/themes/bubble.md) |
 | headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
@@ -909,6 +911,53 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。
 - **docs サイト**: [message](../../site/themes/message.md)
   （イシュー #2106 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-7. `bubble`（AI チャット UI の吹き出し 1 個、イシュー #2109、headless anatomy は #2108）
+
+`bubble` モジュールは `fandhe_frontend_headless_ui::bubble` の anatomy
+（`root`/`content`/`reactions`/`reaction`/`collapse-trigger`/
+`collapse-content` の 6 パーツ）へ、塗り・枠線・無装飾の 3 形態と連続発言
+の角丸連結を重ねる薄い委譲層である。
+
+- **公開 API**: 6 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::message` と同型のパターン）。
+  `BubbleRootProps`/`BubbleVariant`/`BubbleGroupPosition`（headless から
+  の再エクスポート）に加え、`MessageAlign`（会話系部品共通語彙）・
+  `OpenState`（`crate::collapsible` と同じ再エクスポート方式）のみを
+  選択的に公開する。`stylesheet()` が静的 CSS 全量を返す。
+- **軸を持たない**: `variant`/`align`/`group-position`/`selected`/`state`
+  は headless が固定出力する `data-variant`/`data-align`/
+  `data-group-position`/`data-selected`/`data-state` を
+  `StateCondition::AttrEq`/`Attr`/`AttrEqAll` で参照するのみで、class
+  ベースの `SlotRecipe::variant` は持たない
+  （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2「役割 B:
+  参照のみ」、`crate::message` と同型の判断）。
+- **variant 別の意匠**: `data-variant="solid"` は accent 塗り（既定）、
+  `"outline"` は枠線のみ、`"plain"` は無装飾（背景・枠線なし）。`root` が
+  公開する `--fandhe-bubble-bg`/`--fandhe-bubble-fg`/
+  `--fandhe-bubble-border` の 3 custom property を切り替える形で実装し、
+  呼び出し側の上書きフックとしても機能する。
+- **角丸連結**: `data-align`（`start`/`end`）×
+  `data-group-position`（`first`/`middle`/`last`。`single` は base の角丸
+  のまま）の複合条件を `StateCondition::AttrEqAll` のみで表現し、
+  `crate::message` と異なり raw CSS 追記は不要（`root` 自身の 2 属性の
+  組み合わせのみで完結するため）。「何番目か」の算出は利用者責務のまま
+  変わらない。
+- **`ColorPalette` 軸は持たない**: 実際の色調選択（アクセント・破壊的
+  操作色等）は headless 側の判断では `ColorPalette` 軸の責務とされているが、
+  本イシューのスコープには含めず、上記 3 custom property を上書きフック
+  として残した（軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25
+  規則 2 参照）。
+- **フェードの限界**: `collapse-content` は closed 時に headless が出力
+  する `hidden` 属性を伴うため、`display: none` により opacity 遷移が
+  computed-value time で無効化される。フェードが実際に見えるのは
+  クライアントランタイムが `hidden` を外す前後で `data-state` を切り替え
+  る場合のみで、SSR 単独では即時表示・即時非表示になる。
+- **`reactions`/`reaction` は非インタラクティブ**: 押下・集計・トグルは
+  実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。
+- **docs サイト**: [bubble](../../site/themes/bubble.md)
+  （イシュー #2109 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

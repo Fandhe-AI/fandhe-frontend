@@ -69,6 +69,9 @@ use fandhe_frontend_pre_styled_ui::avatar::{
 };
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
+use fandhe_frontend_pre_styled_ui::bubble::{
+    self as bubble, BubbleGroupPosition, BubbleRootProps, BubbleVariant,
+};
 use fandhe_frontend_pre_styled_ui::button::{
     button, close_button, icon_button, icon_size_for, ButtonProps, ButtonVariant,
 };
@@ -751,6 +754,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: breadcrumb_section,
     },
     ComponentPage {
+        path: "/themes/bubble/",
+        render: bubble_section,
+    },
+    ComponentPage {
         path: "/themes/button-group/",
         render: button_group_section,
     },
@@ -1046,6 +1053,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::item::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::message::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::bubble::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -6056,6 +6064,111 @@ fn message_section() -> Node {
                 vec![("class", "showcase-stack"), ("role", "list")],
                 vec![loading_instance, error_instance, system_instance],
             ),
+        ],
+    )
+}
+
+/// Bubble 節（イシュー #2109、親 #2107。headless anatomy は #2108）。
+/// `data-variant` 3 値（solid/outline/plain）と `data-align` 2 値
+/// （start/end）、`data-group-position` 4 値（single/first/middle/last）、
+/// `reactions`/`reaction` の選択状態、`collapse-trigger`/
+/// `collapse-content` の open/closed を掲示する。
+/// `variant`/`align`/`group-position`/`selected`/`state` は headless の
+/// `data-*` を `AttrEq`/`Attr`/`AttrEqAll` で参照するのみで class 軸を
+/// 持たない（`bubble.rs` モジュール doc参照）。Anatomy 表・`data-*` 属性表
+/// の機械導出のため 6 パーツ・全 state 値をここで最低 1 度は出現させる
+/// （`crates/docs-site/src/primitive_showcase/data_display_utilities.rs::bubble_section`
+/// の headless 版と同じ組み合わせを styled 部品で再現する）。
+fn bubble_section() -> Node {
+    let solid_start_single = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Solid,
+            align: MessageAlign::Start,
+            group_position: BubbleGroupPosition::Single,
+        },
+        vec![],
+        vec![bubble::content(
+            vec![],
+            vec![text("How do I center a div?")],
+        )],
+    );
+    let outline_end_first = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Outline,
+            align: MessageAlign::End,
+            group_position: BubbleGroupPosition::First,
+        },
+        vec![],
+        vec![bubble::content(vec![], vec![text("Use flexbox:")])],
+    );
+    let plain_end_middle = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Plain,
+            align: MessageAlign::End,
+            group_position: BubbleGroupPosition::Middle,
+        },
+        vec![],
+        vec![bubble::content(
+            vec![],
+            vec![text(
+                "display: flex; align-items: center; justify-content: center;",
+            )],
+        )],
+    );
+    let outline_end_last_with_reactions_and_collapse = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Outline,
+            align: MessageAlign::End,
+            group_position: BubbleGroupPosition::Last,
+        },
+        vec![],
+        vec![
+            bubble::content(vec![], vec![text("That should do it.")]),
+            bubble::reactions(
+                "2 reactions",
+                vec![],
+                vec![
+                    bubble::reaction(true, vec![], vec![text("👍")]),
+                    bubble::reaction(false, vec![], vec![text("❤")]),
+                ],
+            ),
+            bubble::collapse_trigger(
+                OpenState::Open,
+                Some("bubble-demo-detail"),
+                vec![],
+                vec![text("Hide details")],
+            ),
+            bubble::collapse_content(
+                OpenState::Open,
+                Some("bubble-demo-detail"),
+                vec![],
+                vec![text("Sent 09:41 · Edited")],
+            ),
+        ],
+    );
+    let plain_start_single_closed_collapse = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Plain,
+            align: MessageAlign::Start,
+            group_position: BubbleGroupPosition::Single,
+        },
+        vec![],
+        vec![
+            bubble::content(vec![], vec![text("Thanks!")]),
+            bubble::collapse_trigger(OpenState::Closed, None, vec![], vec![text("Show details")]),
+            bubble::collapse_content(OpenState::Closed, None, vec![], vec![text("Sent 09:42")]),
+        ],
+    );
+    section(
+        "Bubble",
+        "AI チャット UI の吹き出し 1 個。data-variant（solid/outline/plain）・data-align（start/end）・data-group-position（single/first/middle/last）は headless の data-* を参照するのみで class 軸は持ちません。reactions/reaction はリアクションチップ、collapse-trigger/collapse-content は折りたたみ詳細（opacity フェード）を表現します。",
+        vec![
+            row(vec![solid_start_single, outline_end_first]),
+            row(vec![plain_end_middle]),
+            stack(vec![
+                outline_end_last_with_reactions_and_collapse,
+                plain_start_single_closed_collapse,
+            ]),
         ],
     )
 }
@@ -14044,7 +14157,8 @@ mod tests {
         // イシュー #2080 で Radial Chart を追加し 108 → 109 件になった。
         // イシュー #2106 で Message を追加し 109 → 110 件になった。
         // イシュー #2075 で Sidebar を追加し 110 → 111 件になった。
-        assert_eq!(paths.len(), 111, "COMPONENT_PAGES should have 111 entries");
+        // イシュー #2109 で Bubble を追加し 111 → 112 件になった。
+        assert_eq!(paths.len(), 112, "COMPONENT_PAGES should have 112 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

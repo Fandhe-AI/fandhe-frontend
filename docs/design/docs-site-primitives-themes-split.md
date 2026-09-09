@@ -227,19 +227,20 @@ ls crates/headless-ui/src/*.rs | wc -l                                          
 # イシュー #2063 で input_group、イシュー #2066 で item、イシュー #2060 で
 # button_group、イシュー #2070 で command、イシュー #2080 で radial_chart の
 # Themes ページが加わり 110→115）
-ls site/themes/*.md | wc -l                                                       # => 116
+ls site/themes/*.md | wc -l                                                       # => 118
 ```
 
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
 
 §6 は headless-ui ソース ↔ Primitives 台帳の**レイヤー内**ドリフト検知
-(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(69 部品、
+(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(70 部品、
 イシュー #2059 で `button_group`・イシュー #2062 で `input_group`・
 イシュー #2065 で `item`・イシュー #2068 で `command`・イシュー #2072 で
-`sidebar`・イシュー #2105 で `message` をそれぞれ追加、
-旧 63)と Themes(116 部品、イシュー #2063 で `input_group`・イシュー #2066
-で `item`・イシュー #2060 で `button_group`・イシュー #2070 で `command`・
-イシュー #2080 で `radial_chart`・イシュー #2106 で `message`
+`sidebar`・イシュー #2105 で `message`・イシュー #2108 で `bubble` を
+それぞれ追加、旧 63)と Themes(118 部品、イシュー #2063 で `input_group`・
+イシュー #2066 で `item`・イシュー #2060 で `button_group`・イシュー
+#2070 で `command`・イシュー #2080 で `radial_chart`・イシュー #2106 で
+`message`・イシュー #2109 で `bubble`
 をそれぞれ追加、旧 110)の**層をまたぐラップ状態**
 (どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
@@ -698,3 +699,27 @@ sidebar` をコード委譲する Themes 層 recipe。`/themes/sidebar/` ペー�
   117 → 118、本イシューで `/components/sidebar/` を追加し 118 → **119**
 - `crates/pre-styled-ui/src/*.rs` 総数: **117 のまま不変**(`sidebar.rs`
   自体はイシュー #2073 で新設済みのため、ファイル数は増減しない)
+
+## 15. イシュー #2109 追記(bubble の Themes ページ登録)
+
+`/themes/bubble/` ページ(原稿 `site/themes/bubble.md`・`site/nav.toml`
+登録・showcase Demo・`component_specs_nav_data.rs` の `BUBBLE` 原稿)を
+新設したことに伴い、`crates/pre-styled-ui/src/bubble.rs`（新規ファイル、
+headless `bubble::root`/`content`/`reactions`/`reaction`/
+`collapse_trigger`/`collapse_content` へコード委譲）を追加し、
+`crates/docs-site/tests/wrap_state.rs` の台帳を以下のとおり更新した
+（§13/§14 と同型の「headless-ui 層のみ先行実装 → 後続イシューで
+pre-styled-ui recipe・Themes ページを実装しバケット移動」パターン）。
+
+- `HEADLESS_UNWRAPPED`: `["bubble"]` → **`[]`**（`bubble.rs` が
+  `fandhe_frontend_headless_ui::bubble` をコード委譲するようになった
+  ため）
+- `PRIMITIVES_WITHOUT_THEMES_PAGE`（`crates/docs-site/src/
+  primitives_catalog.rs`）: `["bubble"]` → **`[]`**（`/themes/bubble/`
+  ページが実在するため除外）
+- `WRAPPED_SAME_NAME`: 69 → **70**（`bubble` を追加。`breadcrumb` と
+  `button-group` の間、ソート順）
+- `crates/pre-styled-ui/src/*.rs` 総数: 117 → **118**（`bubble.rs` を
+  新規追加したため）
+- Themes 部品（§2/§6 の件数）: 117 → **118**
+- 旧 URL（移転案内）件数: 119 → **120**（`/components/bubble/` を追加）

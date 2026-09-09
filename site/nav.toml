@@ -896,6 +896,11 @@ source = "site/themes/badge.md"
 path = "/themes/badge/"
 
 [[section.group.page]]
+title = "Bubble"
+source = "site/themes/bubble.md"
+path = "/themes/bubble/"
+
+[[section.group.page]]
 title = "Callout"
 source = "site/themes/callout.md"
 path = "/themes/callout/"

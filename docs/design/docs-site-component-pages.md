@@ -125,6 +125,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Area Chart | `area_chart` | Charts | `/themes/area-chart/` | `site/themes/area-chart.md` | `area_chart_section()` |
 | Avatar | `avatar` | Data Display | `/themes/avatar/` | `site/themes/avatar.md` | `avatar_section()` |
 | Badge | `badge` | Data Display | `/themes/badge/` | `site/themes/badge.md` | `badge_section()` |
+| Bubble | `bubble` | Data Display | `/themes/bubble/` | `site/themes/bubble.md` | `bubble_section()`（#2109 で新設） |
 | Bar Chart | `charts`（内包） | Charts | `/themes/bar-chart/` | `site/themes/bar-chart.md` | `bar_chart_section()` |
 | Bar List | `charts`（内包） | Charts | `/themes/bar-list/` | `site/themes/bar-list.md` | `bar_list_section()` |
 | Bar Segment | `charts`（内包） | Charts | `/themes/bar-segment/` | `site/themes/bar-segment.md` | `bar_segment_section()` |
@@ -289,7 +290,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `clipboard` `collapsible` `dialog` `drawer` `floating_panel` `hover_card`
   `menu` `nav_list` `pagination` `popover` `sidebar` `splitter` `steps`
   `tabs` `toast` `toggle_tip` `tooltip` `tour`
-- **Data Display (23)**: `alert` `avatar` `badge` `card` `color_swatch`
+- **Data Display (24)**: `alert` `avatar` `badge` `bubble` `card` `color_swatch`
   `data_list` `empty_state` `icon` `image` `item` `json_tree_view` `message`
   `progress` `qr_code` `skeleton` `spinner` `stat` `status` `table` `tag`
   `timeline` `timer` `tree_view`
