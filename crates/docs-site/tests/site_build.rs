@@ -207,10 +207,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // （Primitives）が加わり、209 → 210、イシュー #2080 で Radial Chart の
     // Themes ページが加わり、210 → 211、イシュー #2106 で Message の
     // Themes ページが加わり、211 → 212、イシュー #2108 で Bubble
-    // （Primitives）が加わり、212 → 213 になった。
+    // （Primitives）が加わり、212 → 213、イシュー #2075 で Sidebar の
+    // Themes ページが加わり、213 → 214 になった。
     assert_eq!(
         report.written.len(),
-        213,
+        214,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -233,14 +234,15 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // `/components/pre-styled-ui/` から `/themes/` へ移設した。
     // `/components/` 配下の本体ページ（`report.written`。リダイレクトページは
     // `report.redirects` に別計上されるため対象外）は 0 件になり、移行先
-    // `/themes/` 配下に部品 116 件（イシュー #1683 で Collapsible が加わり
+    // `/themes/` 配下に部品 117 件（イシュー #1683 で Collapsible が加わり
     // 107 → 108、イシュー #1685 で Field が加わり 108 → 109、イシュー #1687
     // で Fieldset が加わり 109 → 110、イシュー #2063 で Input Group が
     // 加わり 110 → 111、イシュー #2066 で Item が加わり 111 → 112、
     // イシュー #2060 で Button Group が加わり 112 → 113、イシュー #2070 で
     // Command が加わり 113 → 114、イシュー #2080 で Radial Chart が加わり
-    // 114 → 115、イシュー #2106 で Message が加わり 115 → 116）+
-    // 索引 1 件 = 117 件が生成される。
+    // 114 → 115、イシュー #2106 で Message が加わり 115 → 116、
+    // イシュー #2075 で Sidebar が加わり 116 → 117）+
+    // 索引 1 件 = 118 件が生成される。
     // Phase 4 以降で部品が増減したら両方の値の更新が必要になる
     // （fail-closed。黙って減っても気付けるようにする意図）。
     let components_dir = out.0.join("components");
@@ -261,8 +263,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&themes_dir))
         .count();
     assert_eq!(
-        theme_pages, 117,
-        "/themes/ 配下の生成ページ数（部品 116 件 + 索引 1 件）"
+        theme_pages, 118,
+        "/themes/ 配下の生成ページ数（部品 117 件 + 索引 1 件）"
     );
 
     // イシュー #1021: `/primitives/` 配下は部品 63 件 + 索引 1 件 = 64 件。

@@ -77,6 +77,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `item`（§4f-4 参照。media + title/description + actions からなる汎用リスト行。`variant`/`size` は headless の `data-variant`/`data-size` を AttrEq 参照するのみで class ベース軸を持たない） | [item](../../site/themes/item.md) |
 | headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。10 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
 | headless ラッパー | `message`（§4f-6 参照。会話 1 発言。6 パーツ構成、軸なし。data-role/data-align/data-loading/data-error を AttrEq/Attr 参照するのみ） | [message](../../site/themes/message.md) |
+| headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -1424,12 +1425,12 @@ styled 部品が共用する 2 つの標準 variant 軸である。イシュー 
   Cmd/Ctrl+B のグローバルショートカット・モバイル判定（メディアクエリ）・
   `menu-button` の tooltip hover 配線は `fandhe-frontend-wasm-full`
   （後続イシュー #2074）の責務として実装しない。
-- **スコープ外**: #2074（wasm-full 配線）・`/themes/sidebar/` の docs-site
-  ページ・showcase Demo・`site/nav.toml` 登録（#2075。
-  `crates/docs-site/tests/wrap_state.rs` の `THEMES_RECIPE_WITHOUT_PAGE`
-  暫定台帳が橋渡しを担う）・`backdrop` パーツの新設・`menu-button`
-  テキストの headless 側 span 化による改善・`@media (min-width)` 対応
-  （breakpoint 機構 #2196/#2197 が未実装のため）。
+- **スコープ外**: #2074（wasm-full 配線、Cmd/Ctrl+B・モバイル判定・
+  tooltip hover）・`backdrop` パーツの新設・`menu-button` テキストの
+  headless 側 span 化による改善・`@media (min-width)` 対応（breakpoint
+  機構 #2196/#2197 が未実装のため）。
+- **docs サイト**: [sidebar](../../site/themes/sidebar.md)
+  （イシュー #2075 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 5. 関連ドキュメント
 

@@ -180,6 +180,10 @@ use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{
     group as separator_group, label as separator_label, separator, SeparatorProps, SeparatorVariant,
 };
+use fandhe_frontend_pre_styled_ui::sidebar::{
+    self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarMenuSubButtonProps,
+    SidebarProps, SidebarState, SidebarVariant,
+};
 use fandhe_frontend_pre_styled_ui::skeleton::{
     skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant,
 };
@@ -411,6 +415,19 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   （詳細度 (0,4,1)）で適用する（`data-bordered` を持たない他の h2
 ///   見出しデモは対象外のまま、`site.css` の `.docs-content h2` の
 ///   border-top をそのまま活かす）。
+/// - Sidebar Floating インスタンス（イシュー #2075、Cursor Bugbot Medium
+///   指摘対応）: `[data-scope="sidebar"][data-part="provider"]` の高さは
+///   上記ルールで `min-height: 20rem; height: auto;` へ縮めているが、
+///   `[data-scope="sidebar"][data-part="root"][data-variant="floating"]`
+///   自身は recipe（`crates/pre-styled-ui/src/sidebar.rs`）で
+///   `height: calc(100svh - var(--fandhe-space-4))` を持ち、`svh`（ビュー
+///   ポート単位）は祖先要素の高さに依存しないため `provider` 側の縮小が
+///   `root` へ伝播せず、コンパクトなはずの Floating デモがビューポート
+///   いっぱいの高さになっていた。`root` 側にも `height: auto` を明示
+///   再適用し、`header`/`content`/`footer` の実コンテンツ量に応じた
+///   自然な高さへ縮める（`provider` 側のルールと対をなす、`.pre-styled-
+///   showcase` 限定セレクタのため他ページの Floating 実使用には影響
+///   しない）。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
@@ -439,7 +456,9 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase h2[data-scope=\"heading\"][data-part=\"root\"][data-bordered] {\n  border-top: none;\n  padding-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"link\"][data-part=\"root\"]:hover {\n  text-decoration: var(--fandhe-link-text-decoration, none);\n}\n\
-.pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  text-decoration: none;\n}\n";
+.pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  text-decoration: none;\n}\n\
+.pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 20rem;\n  height: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"root\"][data-variant=\"floating\"] {\n  height: auto;\n}\n";
 
 /// 部品ページ 1 件分のレジストリエントリ（イシュー #941）。
 ///
@@ -907,6 +926,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         path: "/themes/nav-list/",
         render: nav_list_section,
     },
+    ComponentPage {
+        path: "/themes/sidebar/",
+        render: sidebar_section,
+    },
 ];
 
 /// [`COMPONENT_PAGES`] に登録済みの部品ページパスを登録順に返す。
@@ -1129,6 +1152,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     // `crate::skip_nav::stylesheet()` が `assets/skip-nav.css` として全ページ
     // 無条件で既に出荷しているため、ここへは追加しない（二重出荷回避）。
     sheet.push_css(&fandhe_frontend_pre_styled_ui::clipboard::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::sidebar::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -9875,6 +9899,278 @@ fn nav_list_section() -> Node {
     )
 }
 
+/// Sidebar 節（イシュー #2075）: headless `sidebar`（#2072）の 22 anatomy
+/// パーツすべてを styled recipe（#2073）で描画する。無 JS の docs サイトの
+/// ため Cmd/Ctrl+B・モバイル判定・rail/trigger の実開閉は配線しない
+/// （`fandhe-frontend-wasm-full` の責務、#2074）。expanded / collapsed の
+/// 2 インスタンスを静的に並べて `data-state` の Observed Values を
+/// 機械導出させる（`crates/docs-site/src/primitive_showcase/navigation.rs`
+/// の Primitives Demo と同型の 2 インスタンス構成）。
+fn sidebar_section() -> Node {
+    // expanded インスタンス: header / content（input・separator・group〔
+    // group-label・group-action・group-content > menu〕）/ footer を持つ
+    // `variant: Sidebar` の標準構成。`inset` は `provider` の直接の子に置く
+    // （`[data-variant="inset"] > [data-part="inset"]` 規則が直接子のみを
+    // 対象にするため、Primitives Demo が `inset` を `provider` の兄弟に
+    // 置いているのとは意図的に異なる）。
+    let expanded_state = Sidebar::new(SidebarState::Expanded);
+    let expanded_props = SidebarProps::default();
+
+    let menu_sub_open = OpenState::Open;
+    let projects_sub = el(
+        "li",
+        vec![],
+        vec![
+            collapsible::trigger(
+                menu_sub_open,
+                false,
+                Some("themes-sidebar-projects-sub"),
+                vec![],
+                vec![text("Projects")],
+            ),
+            collapsible::content(
+                menu_sub_open,
+                false,
+                Some("themes-sidebar-projects-sub"),
+                vec![],
+                vec![sidebar::menu_sub(
+                    vec![],
+                    vec![sidebar::menu_sub_item(
+                        vec![],
+                        vec![sidebar::menu_sub_button(
+                            &SidebarMenuSubButtonProps {
+                                href: Some(""),
+                                active: true,
+                                ..Default::default()
+                            },
+                            vec![],
+                            vec![text("Alpha")],
+                        )],
+                    )],
+                )],
+            ),
+        ],
+    );
+
+    let menu = sidebar::menu(
+        vec![],
+        vec![
+            sidebar::menu_item(
+                vec![],
+                vec![
+                    sidebar::menu_button(
+                        &SidebarMenuButtonProps {
+                            href: Some(""),
+                            active: true,
+                            describedby: Some("themes-sidebar-dashboard-tip"),
+                            ..Default::default()
+                        },
+                        Some(icon(
+                            &IconProps::default(),
+                            vec![],
+                            vec![el(
+                                "path",
+                                vec![("d", "M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z")],
+                                vec![],
+                            )],
+                        )),
+                        vec![],
+                        vec![text("Dashboard")],
+                    ),
+                    sidebar::menu_action("Pin Dashboard", vec![], vec![]),
+                    sidebar::menu_badge(vec![], vec![text("3")]),
+                    // `menu_button` の `aria-describedby` が参照する補足
+                    // 説明を visually-hidden で実在させる（codex-review P2
+                    // 指摘対応: 参照先の要素が無いと支援技術に補足説明が
+                    // 伝わらない。`showcase-dialog-desc`/`showcase-drawer-desc`
+                    // と同型に、`describedby` の参照先は必ず用意する契約）。
+                    visually_hidden::root(
+                        vec![("id", "themes-sidebar-dashboard-tip")],
+                        vec![text("現在表示中のページです")],
+                    ),
+                ],
+            ),
+            projects_sub,
+            // `menu_skeleton` は自身で `menu-item`（`li`）を返す戻り値
+            // 契約のため、`menu` の直接の子として配置する（`menu_item` で
+            // 二重に包まない。codex-review P2 指摘対応: `li` の直下に `li`
+            // を生成するとブラウザ補正で外側が空のリスト項目になっていた）。
+            sidebar::menu_skeleton(true, vec![]),
+        ],
+    );
+
+    let group = sidebar::group(
+        Some("themes-sidebar-platform-label"),
+        vec![],
+        vec![
+            sidebar::group_label(
+                Some("themes-sidebar-platform-label"),
+                vec![],
+                vec![text("Platform")],
+            ),
+            sidebar::group_action("Add project", vec![], vec![]),
+            sidebar::group_content(vec![], vec![menu]),
+        ],
+    );
+
+    let expanded_root = sidebar::root(
+        &expanded_state,
+        &expanded_props,
+        "Main navigation",
+        Some("themes-sidebar-nav-expanded"),
+        vec![],
+        vec![
+            sidebar::header(vec![], vec![text("Acme Inc")]),
+            sidebar::content(
+                vec![],
+                vec![
+                    sidebar::input(vec![("type", "search"), ("aria-label", "Search")]),
+                    sidebar::separator(vec![], vec![]),
+                    group,
+                ],
+            ),
+            sidebar::footer(vec![], vec![text("Ada Lovelace")]),
+            // `rail` は `root`（`position: relative` の基準）に対する
+            // `position: absolute` + `inset-inline-end: -1rem` で配置される
+            // ため、`root` の兄弟ではなく直接の子として配置する（codex-review
+            // P1 指摘対応）。
+            sidebar::rail(&expanded_state, "Toggle sidebar rail", vec![], vec![]),
+        ],
+    );
+
+    let expanded_instance = sidebar::provider(
+        &expanded_state,
+        &expanded_props,
+        vec![],
+        vec![
+            expanded_root,
+            sidebar::trigger(
+                &expanded_state,
+                "Toggle sidebar",
+                Some("themes-sidebar-nav-expanded"),
+                vec![],
+                vec![],
+            ),
+            sidebar::inset(vec![], vec![text("Page content")]),
+        ],
+    );
+
+    // collapsed インスタンス: `collapsible: Icon` で折りたたみ幅のまま
+    // 可視のトグルを掲示する（`mobile: true` は `root` を画面全体の
+    // 固定オーバーレイへ切り替える規則があり docs ページを覆ってしまう
+    // ため使わない、`offcanvas`〔既定〕の collapsed は `root` が画面外へ
+    // 退避し何も見えなくなるため同じ理由で避ける）。
+    let collapsed_state = Sidebar::new(SidebarState::Collapsed);
+    let collapsed_props = SidebarProps {
+        collapsible: SidebarCollapsible::Icon,
+        ..SidebarProps::default()
+    };
+    let collapsed_menu = sidebar::menu(
+        vec![],
+        vec![sidebar::menu_item(
+            vec![],
+            vec![sidebar::menu_button(
+                &SidebarMenuButtonProps {
+                    href: Some(""),
+                    active: true,
+                    ..Default::default()
+                },
+                Some(icon(
+                    &IconProps::default(),
+                    vec![],
+                    vec![el(
+                        "path",
+                        vec![("d", "M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z")],
+                        vec![],
+                    )],
+                )),
+                vec![],
+                vec![text("Dashboard")],
+            )],
+        )],
+    );
+    let collapsed_root = sidebar::root(
+        &collapsed_state,
+        &collapsed_props,
+        "Main navigation (icon collapsed)",
+        Some("themes-sidebar-nav-collapsed"),
+        vec![],
+        vec![
+            sidebar::header(vec![], vec![text("Acme Inc")]),
+            sidebar::content(vec![], vec![collapsed_menu]),
+            sidebar::footer(vec![], vec![text("Ada Lovelace")]),
+            // `rail` は `root` を位置決めの基準とするため、`root` の
+            // 直接の子として配置する（expanded インスタンスと同じ理由、
+            // codex-review P1 指摘対応）。
+            sidebar::rail(&collapsed_state, "Toggle sidebar rail", vec![], vec![]),
+        ],
+    );
+    let collapsed_instance = sidebar::provider(
+        &collapsed_state,
+        &collapsed_props,
+        vec![],
+        vec![
+            collapsed_root,
+            sidebar::trigger(
+                &collapsed_state,
+                "Toggle sidebar",
+                Some("themes-sidebar-nav-collapsed"),
+                vec![],
+                vec![],
+            ),
+            sidebar::inset(vec![], vec![text("Page content")]),
+        ],
+    );
+
+    // `variant: Floating` の小インスタンス（`data-variant` の Observed
+    // Values を expanded/collapsed だけでなく floating/inset の両方まで
+    // 充実させる）。
+    let floating_state = Sidebar::new(SidebarState::Expanded);
+    let floating_props = SidebarProps {
+        variant: SidebarVariant::Floating,
+        ..SidebarProps::default()
+    };
+    let floating_instance = sidebar::provider(
+        &floating_state,
+        &floating_props,
+        vec![],
+        vec![
+            sidebar::root(
+                &floating_state,
+                &floating_props,
+                "Floating navigation",
+                None,
+                vec![],
+                vec![
+                    sidebar::header(vec![], vec![text("Floating")]),
+                    sidebar::content(
+                        vec![],
+                        vec![sidebar::menu(
+                            vec![],
+                            vec![sidebar::menu_item(
+                                vec![],
+                                vec![sidebar::menu_button(
+                                    &SidebarMenuButtonProps::default(),
+                                    None,
+                                    vec![],
+                                    vec![text("Home")],
+                                )],
+                            )],
+                        )],
+                    ),
+                ],
+            ),
+            sidebar::inset(vec![], vec![text("Page content")]),
+        ],
+    );
+
+    section(
+        "Sidebar",
+        "アプリシェル用サイドバー。22 anatomy パーツすべてを 3 インスタンス（展開・icon 折りたたみ・floating）で示します。variant/collapsible/side は headless の data-* を CSS が参照するのみで class 軸を持ちません。Cmd/Ctrl+B・モバイル drawer 切替・tooltip 配線は fandhe-frontend-wasm-full の責務です。",
+        vec![expanded_instance, collapsed_instance, floating_instance],
+    )
+}
+
 /// Navigation Menu 節（イシュー #993、#2035 で 7 パーツへ拡張）:
 /// root/list/item/trigger/item-indicator/content/link の 7 anatomy パーツを
 /// 1 デモに全網羅する（Anatomy 節はデモ HTML から機械導出されるため、
@@ -13747,7 +14043,8 @@ mod tests {
         // イシュー #2070 で Command を追加し 107 → 108 件になった。
         // イシュー #2080 で Radial Chart を追加し 108 → 109 件になった。
         // イシュー #2106 で Message を追加し 109 → 110 件になった。
-        assert_eq!(paths.len(), 110, "COMPONENT_PAGES should have 110 entries");
+        // イシュー #2075 で Sidebar を追加し 110 → 111 件になった。
+        assert_eq!(paths.len(), 111, "COMPONENT_PAGES should have 111 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
