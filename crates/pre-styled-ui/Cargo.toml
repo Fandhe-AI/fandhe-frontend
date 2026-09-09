@@ -2607,7 +2607,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 実体変更（`AreaChartProps`/`AxisProps`/`TickLabelFormat` の純追加と
 # `message.rs` 新設）を統合した結果として 0.155.0 へさらにマイナー
 # バンプする。
-version = "0.155.0"
+#
+# イシュー #2082（bar-chart の shadcn/ui Charts（bar）突合）: `BarChartProps`
+# への `pub` フィールド純追加（`stack`/`corner_radius`/`label`/
+# `active_index`/`color_by_category`/`highlight_negative`/
+# `show_value_axis`/`show_grid`/`show_category_labels`）・`ChartError` の
+# variant 追加（`InvalidCornerRadius`/`IndexOutOfRange`）・`css()` 出力の
+# 純追加（`value-label`/`inside-label`/`bar[data-active]`）は 0.x の破壊的
+# 変更（フルリテラル構築を前提とする利用者コードが壊れる）のため
+# 0.156.0 へマイナーバンプする。
+version = "0.156.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

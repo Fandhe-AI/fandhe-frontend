@@ -159,6 +159,49 @@ fn charts_data_series_reflects_series_name() {
     assert_no_raw_payload(&html, "scatter_chart::root data-series 属性値コンテキスト");
 }
 
+/// `data-active`/`data-negative`（`charts/bar_chart.rs`、イシュー #2082）:
+/// [`BarChartProps::active_index`]/[`BarChartProps::highlight_negative`]
+/// が有効なときのみ存在属性として付与し、既定 props では一切出力しない
+/// ことを固定する（規約 B、`docs/design/pre-styled-ui-data-attr-vocabulary.md`
+/// §2.1。`data-active` は checkbox_group/radio_group/sidebar 等の既存
+/// headless 語彙を「強調表示中の項目」という同一意味論で再利用する
+/// B-2、`data-negative` は bar_chart 新設の pre-styled-only 語彙 B-3）。
+/// `root`（`svg_root`）は呼び出し元から任意属性を受け取らないため、
+/// 予約キー偽装（他部品で使う `attrs` 経由の偽装）の対象外である。
+#[test]
+fn bar_chart_data_active_and_data_negative_are_gated_by_props() {
+    use fandhe_frontend_pre_styled_ui::charts::bar_chart::{self, BarChartProps};
+
+    let data = ChartData::new(
+        vec!["a".to_string(), "b".to_string()],
+        vec![Series::new("s", vec![-5.0, 5.0])],
+    )
+    .expect("valid bar chart data");
+
+    // 既定 props: data-active/data-negative のいずれも出力しない。
+    let html = render(&bar_chart::root(&data, BarChartProps::default(), "label").unwrap());
+    assert!(!html.contains("data-active"));
+    assert!(!html.contains("data-negative"));
+
+    // active_index: 指定カテゴリの棒にのみ data-active（値域なし、
+    // 存在属性）を付与する。
+    let active_props = BarChartProps {
+        active_index: Some(0),
+        ..BarChartProps::default()
+    };
+    let html = render(&bar_chart::root(&data, active_props, "label").unwrap());
+    assert_eq!(html.matches(r#"data-active="""#).count(), 1);
+
+    // highlight_negative: 負値の棒にのみ data-negative を付与する
+    // （正値には付かない）。
+    let negative_props = BarChartProps {
+        highlight_negative: true,
+        ..BarChartProps::default()
+    };
+    let html = render(&bar_chart::root(&data, negative_props, "label").unwrap());
+    assert_eq!(html.matches(r#"data-negative="""#).count(), 1);
+}
+
 /// `data-current`（`tab_nav.rs::link`）: `current: true` のときのみ付与する。
 /// イシュー #1063 でヘルパ（`fandhe_frontend_headless_ui::data_attrs::
 /// data_current`）経由化した後も出力が完全に不変であることを固定する

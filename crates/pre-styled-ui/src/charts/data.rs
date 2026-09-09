@@ -347,6 +347,67 @@ impl ChartData {
 
         Ok(ChartData { categories, series })
     }
+
+    /// 積み上げ系チャート（[`crate::area_chart::AreaStack`]/
+    /// [`crate::charts::bar_chart::BarStack`]）向けに、カテゴリごとの系列
+    /// 累積上限値を系列ごとに返す（イシュー #2081 で area_chart 専用実装
+    /// として導入、イシュー #2082 で bar_chart と共有するため本メソッドへ
+    /// 移設）。
+    ///
+    /// 戻り値 `cum[i][k]` は系列 `0..=i` のカテゴリ `k` における値の合計
+    /// （`cum[0]` は 1 系列目の値そのもの）。呼び出し元は系列 `i` を
+    /// 上側境界 `cum[i]`・下側境界 `cum[i-1]`（`i == 0` は 0）として描く。
+    ///
+    /// `expand` はカテゴリ合計で正規化し `(0.0, 1.0)` の比率にする
+    /// （合計 0 のカテゴリは比率 0 と定義し `NaN` を生まない）。
+    ///
+    /// # Errors
+    ///
+    /// - いずれかの値が負の場合 [`ChartError::NegativeValue`]（積み上げの
+    ///   帯は非負値のみで定義できるため）。
+    /// - `expand` 時、同一カテゴリの系列合計が `f64::MAX` 超で `+inf` へ
+    ///   オーバーフローした場合 [`ChartError::NonFiniteValue`]（比率計算が
+    ///   全 0 になるサイレント失敗を避けるため fail-closed に検出する）。
+    pub fn stacked_cumulative(&self, expand: bool) -> Result<Vec<Vec<f64>>, ChartError> {
+        let series = &self.series;
+        let n = self.categories.len();
+        for s in series {
+            if s.values.iter().any(|&v| v < 0.0) {
+                return Err(ChartError::NegativeValue);
+            }
+        }
+
+        let mut totals = vec![0.0; n];
+        if expand {
+            for s in series {
+                for (k, &v) in s.values.iter().enumerate() {
+                    totals[k] += v;
+                }
+            }
+            if totals.iter().any(|t| !t.is_finite()) {
+                return Err(ChartError::NonFiniteValue);
+            }
+        }
+
+        let mut cum: Vec<Vec<f64>> = Vec::with_capacity(series.len());
+        let mut running = vec![0.0; n];
+        for s in series {
+            for (k, &v) in s.values.iter().enumerate() {
+                let contribution = if expand {
+                    if totals[k] == 0.0 {
+                        0.0
+                    } else {
+                        v / totals[k]
+                    }
+                } else {
+                    v
+                };
+                running[k] += contribution;
+            }
+            cum.push(running.clone());
+        }
+        Ok(cum)
+    }
 }
 
 /// 系列の合計値（chakra-ui `useChart` の `getTotal` 相当）。

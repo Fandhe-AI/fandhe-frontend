@@ -134,6 +134,15 @@ pub enum ChartError {
     /// fail-closed 検証（`crate::area_chart` モジュール doc「gradient の
     /// 不変条件」参照）。
     InvalidGradientId,
+    /// [`bar_chart::BarChartProps::corner_radius`] が非有限、または負値
+    /// （イシュー #2082、shadcn/ui Charts（bar）突合）。角丸半径は fail-closed
+    /// に拒否し、サイレントな不正描画（負の半径による自己交差 path 等）を
+    /// 作らない。
+    InvalidCornerRadius,
+    /// [`bar_chart::BarChartProps::active_index`] がカテゴリ数以上
+    /// （イシュー #2082）。範囲外インデックスをサイレントに無視せず
+    /// fail-closed に拒否する。
+    IndexOutOfRange,
 }
 
 impl std::fmt::Display for ChartError {
@@ -154,6 +163,8 @@ impl std::fmt::Display for ChartError {
             ChartError::InvalidGradientId => {
                 "gradient id must be a lowercase identifier ([a-z][a-z0-9-]*)"
             }
+            ChartError::InvalidCornerRadius => "corner radius must be finite and non-negative",
+            ChartError::IndexOutOfRange => "index must be within the category count",
         };
         write!(f, "{message}")
     }
@@ -234,6 +245,8 @@ mod tests {
             ChartError::TooFewAxes,
             ChartError::PlotAreaTooSmall,
             ChartError::InvalidGradientId,
+            ChartError::InvalidCornerRadius,
+            ChartError::IndexOutOfRange,
         ] {
             let message = err.to_string();
             assert!(!message.is_empty());
