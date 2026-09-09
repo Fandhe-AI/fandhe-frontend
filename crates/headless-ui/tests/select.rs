@@ -71,13 +71,16 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
         vec![],
         vec![item_group_label, item],
     );
+    let scroll_up_button = select::scroll_up_button(vec![], vec![text("\u{25b4}")]);
+    let separator = select::separator(vec![], vec![]);
+    let scroll_down_button = select::scroll_down_button(vec![], vec![text("\u{25be}")]);
     let content = select::content(
         OpenState::Open,
         Some("select-content-1"),
         Some("select-label-1"),
         Some("item-vue"),
         vec![],
-        vec![item_group],
+        vec![scroll_up_button, item_group, separator, scroll_down_button],
     );
     let positioner = select::positioner(OpenState::Open, vec![], vec![content]);
 
@@ -114,6 +117,9 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
         "item-text",
         "item-indicator",
         "hidden-select",
+        "scroll-up-button",
+        "separator",
+        "scroll-down-button",
     ] {
         assert!(
             html.contains(&format!(r#"data-part="{part}""#)),
@@ -132,6 +138,8 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     assert!(html.contains(r#"role="listbox""#));
     assert!(html.contains(r#"role="group""#));
     assert!(html.contains(r#"aria-selected="true""#));
+    assert!(html.contains(r#"role="separator""#));
+    assert!(html.contains(r#"aria-orientation="horizontal""#));
 
     // イシュー #1619 参照突合: item-group-label は role="presentation"、
     // item-indicator は aria-hidden="true"、選択中の item は data-selected を
@@ -367,6 +375,21 @@ fn caller_attrs_payload_is_escaped_end_to_end() {
     let html = render(&select::root(
         OpenState::Closed,
         &SelectProps::default(),
+        vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+        vec![],
+    ));
+    assert!(!html.contains("onmouseover=\"alert(1)"));
+}
+
+#[test]
+fn separator_and_scroll_button_attrs_payload_is_escaped_end_to_end() {
+    let html = render(&select::separator(
+        vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+        vec![],
+    )) + &render(&select::scroll_up_button(
+        vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+        vec![],
+    )) + &render(&select::scroll_down_button(
         vec![("data-testid", ATTR_BREAK_PAYLOAD)],
         vec![],
     ));

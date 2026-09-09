@@ -4,8 +4,9 @@
 //!（`.claude/skills/ark-ui/references/components/collections/select.md`）を
 //! 参考に、Root / Label / Control / Trigger / ValueText / ClearTrigger /
 //! Indicator / Positioner / Content / ItemGroup / ItemGroupLabel / Item /
-//! ItemText / ItemIndicator / HiddenSelect の 15 anatomy パーツと、Phase 1
-//! （#524）の [`crate::state::Disclosure`]（listbox の開閉）+
+//! ItemText / ItemIndicator / HiddenSelect / Separator / ScrollUpButton /
+//! ScrollDownButton の 18 anatomy パーツ（後 3 者はイシュー #2186 で追加）と、
+//! Phase 1（#524）の [`crate::state::Disclosure`]（listbox の開閉）+
 //! [`crate::state::SingleSelect`]（選択値）を合成した状態機械 [`Select`] を
 //! 提供する。
 //!
@@ -14,7 +15,8 @@
 //! SSR は本モジュールの自由関数（[`root`]/[`label`]/[`control`]/[`trigger`]/
 //! [`value_text`]/[`clear_trigger`]/[`indicator`]/[`positioner`]/[`content`]/
 //! [`item_group`]/[`item_group_label`]/[`item`]/[`item_text`]/
-//! [`item_indicator`]/[`hidden_select`]、いずれも純粋関数で完結）を直接呼んで
+//! [`item_indicator`]/[`hidden_select`]/[`separator`]/[`scroll_up_button`]/
+//! [`scroll_down_button`]、いずれも純粋関数で完結）を直接呼んで
 //! 組み立てる。CSR/hydration は [`Select`]（[`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] 実装）を経由し、dispatch
 //! （`"open"`/`"close"`/`"toggle"`/`"select"`/`"deselect"`）で listbox 開閉と
@@ -112,21 +114,32 @@
 //!   する（combobox #1605 の codex-review P1 是正と同型）。
 //!
 //! **意図的非追随**: anatomy 15 パーツは ark-ui と完全一致のため追加・削除
-//! なし。Radix 固有の Portal/Viewport/ScrollButton（レイアウト計測の関心、
+//! なし。Radix 固有の Portal/Viewport（レイアウト計測の関心、
 //! `docs/policy/intentional-non-adoption.md` §3.25 規則 2）・Arrow（Select は
-//! arrow を持たない、ADR §4.2）・Icon/Value（Indicator/ValueText と同義）・
-//! Separator（別部品の責務）は追加しない。`data-focus`（DOM ローカル
-//! focus、§3.25 規則 2）・`data-placement`/`data-side`（[`crate::positioning`]
-//! 経由で既に提供）・`data-activedescendant`（`aria-activedescendant` と
-//! 重複）も追加しない。
+//! arrow を持たない、ADR §4.2）・Icon/Value（Indicator/ValueText と同義）は
+//! 追加しない。`data-focus`（DOM ローカル focus、§3.25 規則 2）・
+//! `data-placement`/`data-side`（[`crate::positioning`] 経由で既に提供）・
+//! `data-activedescendant`（`aria-activedescendant` と重複）も追加しない。
+//!
+//! **ScrollUpButton/ScrollDownButton/Separator の追加（イシュー #2186）**:
+//! 当初は Radix 固有のレイアウト計測の関心（ScrollButton の可視性判定は
+//! Viewport 寸法の実測を要する）として非追随としていたが、§3.25 規則 2 は
+//! 「非採用」ではなく「配置」の規則である（headless には anatomy・a11y の
+//! みを置き、計測・装飾・実スクロールは pre-styled-ui/wasm-full の責務と
+//! する）と読み直し、この読みに沿って [`separator`]/[`scroll_up_button`]/
+//! [`scroll_down_button`] の 3 パーツを追加した。3 パーツとも `style`/
+//! `hidden`/寸法系属性を一切出力しない静的な構造・ARIA のみであり、
+//! 可視性判定（`canScrollUp`/`canScrollDown` 相当）・押下時の実スクロールは
+//! 本モジュールの責務外で `fandhe-frontend-wasm-full` の後続配線に委ねる。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
     aria_activedescendant, aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,
-    aria_labelledby, aria_selected, role, AriaPopup,
+    aria_labelledby, aria_orientation, aria_selected, role, AriaPopup,
 };
 use crate::data_attrs::{
     data_disabled, data_highlighted, data_invalid, data_readonly, data_required, data_state,
+    Orientation,
 };
 use crate::state::{Disclosure, OpenState, SingleSelect, SingleSelectAction};
 use fandhe_frontend_core::{el, text, Node, BIND_TEXT_ATTR};
@@ -245,6 +258,15 @@ const ITEM_TEXT_RESERVED: &[&str] = &["data-state", "data-disabled", "data-highl
 
 /// [`item_indicator`] が固定付与するキー一覧。
 const ITEM_INDICATOR_RESERVED: &[&str] = &["aria-hidden", "data-state", "hidden"];
+
+/// [`separator`] が固定付与するキー一覧（[`crate::menu::SEPARATOR_RESERVED`]
+/// と同型、イシュー #2186）。
+const SEPARATOR_RESERVED: &[&str] = &["role", "aria-orientation"];
+
+/// [`scroll_up_button`]/[`scroll_down_button`] が固定付与するキー一覧
+/// （イシュー #2186）。可視性判定・寸法計測を伴わない静的な `aria-hidden`
+/// のみのため 1 キー。
+const SCROLL_BUTTON_RESERVED: &[&str] = &["aria-hidden"];
 
 /// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
 /// 除外する（[`crate::combobox::drop_reserved`]/[`crate::listbox::drop_reserved`]
@@ -667,6 +689,51 @@ pub fn item_indicator<'a>(
     }
     merged.extend(attrs);
     ANATOMY.part("item-indicator", "span", merged, children)
+}
+
+/// Separator パーツ（`div`）。項目群の視覚的な区切り（イシュー #2186）。
+///
+/// `role="separator"` + `aria-orientation="horizontal"` を固定付与する
+/// （[`crate::menu::separator`] と同型のパターン）。`hr` ではなく `div` を
+/// 採用する理由は [`content`]（`role="listbox"`）配下に置く先例
+/// [`crate::command::separator`] に揃えるため（同モジュール doc「`empty`/
+/// `separator` の配置制約」節参照。`fandhe-frontend-pre-styled-ui` の recipe
+/// が `height`/`background` で区切り線を描画する）。
+#[must_use]
+pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, SEPARATOR_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![role("separator"), aria_orientation(Orientation::Horizontal)];
+    merged.extend(attrs);
+    ANATOMY.part("separator", "div", merged, children)
+}
+
+/// ScrollUpButton パーツ（`div`）。[`content`] の listbox を上方向へ
+/// スクロールする視覚要素（イシュー #2186）。
+///
+/// `aria-hidden="true"` を固定付与する（`docs/policy/intentional-non-adoption.md`
+/// §3.25 規則 2 の配置規則に従い、可視性判定〔スクロール可能かの計測〕・
+/// 押下時の実スクロールは本パーツの責務外で `fandhe-frontend-wasm-full` の
+/// 後続配線が担う。SSR/静的描画では常時出力し、`style`/`hidden`/寸法系
+/// 属性は一切持たない）。
+#[must_use]
+pub fn scroll_up_button<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, SCROLL_BUTTON_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![aria_hidden(true)];
+    merged.extend(attrs);
+    ANATOMY.part("scroll-up-button", "div", merged, children)
+}
+
+/// ScrollDownButton パーツ（`div`）。[`content`] の listbox を下方向へ
+/// スクロールする視覚要素（イシュー #2186）。[`scroll_up_button`] と同型の
+/// 契約（`aria-hidden="true"` 固定・可視性判定と押下スクロールは
+/// wasm-full の責務、§3.25 規則 2）。
+#[must_use]
+pub fn scroll_down_button<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, SCROLL_BUTTON_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![aria_hidden(true)];
+    merged.extend(attrs);
+    ANATOMY.part("scroll-down-button", "div", merged, children)
 }
 
 /// HiddenSelect パーツ（`select`）。フォーム統合用のネイティブ `<select>`。
@@ -2089,6 +2156,75 @@ mod tests {
         assert!(matches!(err, HydrateError::InvalidValue { .. }));
     }
 
+    // --- separator / scroll-up-button / scroll-down-button（イシュー #2186） ---
+
+    #[test]
+    fn separator_has_div_tag_role_and_aria_orientation() {
+        let html = render(&separator(vec![], vec![]));
+        assert!(html.contains(r#"<div"#));
+        assert!(html.contains(r#"data-scope="select""#));
+        assert!(html.contains(r#"data-part="separator""#));
+        assert!(html.contains(r#"role="separator""#));
+        assert!(html.contains(r#"aria-orientation="horizontal""#));
+    }
+
+    #[test]
+    fn separator_drops_caller_supplied_role_and_aria_orientation() {
+        let html = render(&separator(
+            vec![("role", "menu"), ("aria-orientation", "vertical")],
+            vec![],
+        ));
+        assert!(html.contains(r#"role="separator""#));
+        assert!(!html.contains(r#"role="menu""#));
+        assert!(html.contains(r#"aria-orientation="horizontal""#));
+        assert!(!html.contains(r#"aria-orientation="vertical""#));
+    }
+
+    #[test]
+    fn scroll_up_button_has_div_tag_and_aria_hidden() {
+        let html = render(&scroll_up_button(vec![], vec![]));
+        assert!(html.contains(r#"<div"#));
+        assert!(html.contains(r#"data-scope="select""#));
+        assert!(html.contains(r#"data-part="scroll-up-button""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+    }
+
+    #[test]
+    fn scroll_up_button_drops_caller_supplied_aria_hidden() {
+        let html = render(&scroll_up_button(vec![("aria-hidden", "false")], vec![]));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains(r#"aria-hidden="false""#));
+    }
+
+    #[test]
+    fn scroll_down_button_has_div_tag_and_aria_hidden() {
+        let html = render(&scroll_down_button(vec![], vec![]));
+        assert!(html.contains(r#"<div"#));
+        assert!(html.contains(r#"data-scope="select""#));
+        assert!(html.contains(r#"data-part="scroll-down-button""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+    }
+
+    #[test]
+    fn scroll_down_button_drops_caller_supplied_aria_hidden() {
+        let html = render(&scroll_down_button(vec![("aria-hidden", "false")], vec![]));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains(r#"aria-hidden="false""#));
+    }
+
+    // --- §3.25 規則 2: 可視性判定・寸法計測に関わる属性を一切出力しない機械的固定 ---
+
+    #[test]
+    fn scroll_buttons_and_separator_output_no_layout_or_visibility_attrs() {
+        let html = render(&separator(vec![], vec![]))
+            + &render(&scroll_up_button(vec![], vec![]))
+            + &render(&scroll_down_button(vec![], vec![]));
+        assert!(!html.contains("style="));
+        assert!(!html.contains(" hidden"));
+        assert!(!html.contains("data-side"));
+        assert!(!html.contains("data-positioned"));
+    }
+
     // --- XSS 回帰: 動的値にペイロードを渡してもエスケープされる ---
 
     const ATTR_BREAK_PAYLOAD: &str = "\" onmouseover=\"alert(1)";
@@ -2188,6 +2324,23 @@ mod tests {
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn separator_and_scroll_button_attrs_and_children_payload_is_escaped_on_render() {
+        let html = render(&separator(
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![text("<script>alert(1)</script>")],
+        )) + &render(&scroll_up_button(
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![text("<script>alert(1)</script>")],
+        )) + &render(&scroll_down_button(
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }

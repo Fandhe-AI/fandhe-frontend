@@ -613,6 +613,37 @@ fn item_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains("[href]"));
 }
 
+/// `select.rs`（イシュー #2186、新設 `separator`/`scroll-up-button`/
+/// `scroll-down-button` パーツ）は独自の `data-*`/ARIA を一切出力しない
+/// （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B。
+/// `item_parts_data_attrs_are_headless_sourced_not_self_emitted` と同型）。
+/// `role="separator"`/`aria-orientation="horizontal"`/`aria-hidden="true"`
+/// はいずれも headless `fandhe_frontend_headless_ui::select` が生成する
+/// ものであり、`select::stylesheet()` はそれらの属性を CSS セレクタとして
+/// 参照しない（3 パーツとも state/variant を持たず `[data-scope=`/
+/// `[data-part=` の base セレクタのみで着装するため）。
+#[test]
+fn select_scroll_button_and_separator_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::select;
+
+    let separator_html = render(&select::separator(vec![], vec![]));
+    assert!(separator_html.contains(r#"role="separator""#));
+    assert!(separator_html.contains(r#"aria-orientation="horizontal""#));
+
+    let scroll_up_html = render(&select::scroll_up_button(vec![], vec![]));
+    assert!(scroll_up_html.contains(r#"aria-hidden="true""#));
+
+    let scroll_down_html = render(&select::scroll_down_button(vec![], vec![]));
+    assert!(scroll_down_html.contains(r#"aria-hidden="true""#));
+
+    // `select::stylesheet()` は 3 パーツを `[data-scope="select"]
+    // [data-part="..."]` の base セレクタのみで着装し、`role`/`aria-*` を
+    // CSS セレクタとして参照しない（state/variant を持たないため）。
+    let css = select::stylesheet();
+    assert!(!css.contains("[role="));
+    assert!(!css.contains("[aria-"));
+}
+
 /// `dialog.rs`（イシュー #1690、親 #1675）の pre-styled-only `footer` パート
 /// と alert-dialog 構成は独自の `data-*` を一切出力しない（`docs/design/
 /// pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B、

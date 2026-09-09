@@ -2714,7 +2714,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # もの」への移動（headless error_text の role="alert" 採用を反映）と
 # headless-ui 依存の version 要求追随のみで、本クレート自身の出力・API は
 # 不変のため patch バンプし 0.162.2 とする。
-version = "0.162.2"
+#
+# イシュー #2186: select へ `separator`/`scroll_up_button`/
+# `scroll_down_button` の `pub use` 再エクスポート 3 件を純追加し、
+# [`recipe`] へ base 3 ブロックを新設（golden 変更）した。既存 API・出力は
+# 不変のまま公開 API を追加する非破壊的変更のため、#2106 の先例に倣い
+# マイナーバンプし 0.163.0 とする。
+version = "0.163.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2729,7 +2735,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.8" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.9" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
