@@ -302,6 +302,22 @@ mod wiring {
         hit_area.closest("svg").ok().flatten()
     }
 
+    /// `event.target()` が属する `<svg>`（`root` 配下のものに限る）を
+    /// 返す。`handle_pointerout`/`handle_pointercancel` が「イベントが
+    /// 実際に発生したチャート」を特定するために使う（Cursor Bugbot
+    /// "Sticky events close other hovers" 指摘、イシュー #2130
+    /// PR #2267）: これらのハンドラは従来 [`hover_active_svg`] が返す
+    /// 「Runtime 内のどこかで hover 中のセッション」を、イベント発生元の
+    /// チャートかどうか確認せず閉じていたため、あるチャートで sticky
+    /// （タッチ）セッション中に指を離す（`pointerout`）／
+    /// `pointercancel` が起きると、無関係な別チャートの hover セッション
+    /// まで一緒に閉じてしまっていた。
+    fn event_origin_svg(root: &Element, event: &Event) -> Option<Element> {
+        let target = event_target_element(event)?;
+        let svg = svg_of(&target)?;
+        root.contains(Some(&svg)).then_some(svg)
+    }
+
     /// `svg` の直後の兄弟が tooltip-layer であればそれを返す
     /// （モジュール doc「ロケータ契約」節、`crates/pre-styled-ui/src/
     /// charts/tooltip.rs` の SSR 出力契約）。
@@ -787,16 +803,30 @@ mod wiring {
         begin_or_update_session(root, handle, &hit_area, Trigger::Touch, client_x, client_y);
     }
 
-    /// `root` へ pointerout を配線する。現在 `hover_active` なセッション
-    /// （[`hover_active_svg`]、sticky セッションは対象外）の `svg` 内へ
-    /// `related_target` が留まっていなければ hover を非活性化する
-    /// （[`deactivate_hover`]、focus も非活性なセッションのみ閉じる）。
-    /// `pointerleave` はバブリングしないため `pointerout` + `related_target`
-    /// 判定（`sidebar::wiring` の `pointerover` 判定と同型）。
-    fn handle_pointerout(handle: &SessionHandle, event: &Event) {
-        let Some(session_svg) = hover_active_svg(handle) else {
+    /// `root` へ pointerout を配線する。イベント発生元（`event.target()`）
+    /// が属するチャート（[`event_origin_svg`]）がちょうど `hover_active`
+    /// なセッション（sticky セッションは対象外）であり、かつ
+    /// `related_target` がその `svg` 内へ留まっていなければ hover を
+    /// 非活性化する（[`deactivate_hover`]、focus も非活性なセッションの
+    /// み閉じる）。発生元チャートが異なる／`hover_active` でない場合は
+    /// no-op（Cursor Bugbot "Sticky events close other hovers" 指摘、
+    /// イシュー #2130 PR #2267: per-chart のセッションを [`hover_active_svg`]
+    /// だけで特定すると、あるチャートの sticky（タッチ）セッションで
+    /// 指を離したイベントが、無関係な別チャートの hover セッションを
+    /// 閉じてしまっていた）。`pointerleave` はバブリングしないため
+    /// `pointerout` + `related_target` 判定（`sidebar::wiring` の
+    /// `pointerover` 判定と同型）。
+    fn handle_pointerout(root: &Element, handle: &SessionHandle, event: &Event) {
+        let Some(session_svg) = event_origin_svg(root, event) else {
             return;
         };
+        let is_hover_active = handle
+            .borrow()
+            .iter()
+            .any(|session| session.svg == session_svg && session.hover_active && !session.sticky);
+        if !is_hover_active {
+            return;
+        }
         let related = event
             .dyn_ref::<MouseEvent>()
             .and_then(web_sys::MouseEvent::related_target)
@@ -810,12 +840,21 @@ mod wiring {
         }
     }
 
-    /// `root` へ pointercancel を配線する。現在 `hover_active` なセッション
-    /// （sticky セッションは対象外）を非活性化し、focus も非活性なら
-    /// 閉じる（[`deactivate_hover`]）。
-    fn handle_pointercancel(handle: &SessionHandle) {
-        if let Some(svg) = hover_active_svg(handle) {
-            deactivate_hover(handle, &svg);
+    /// `root` へ pointercancel を配線する。イベント発生元（[`event_origin_svg`]）
+    /// がちょうど `hover_active` なセッション（sticky セッションは対象外）
+    /// であるときのみそれを非活性化し、focus も非活性なら閉じる
+    /// （[`deactivate_hover`]）。発生元が異なるチャートの場合は no-op
+    /// （[`handle_pointerout`] と同じ Bugbot 指摘の是正）。
+    fn handle_pointercancel(root: &Element, handle: &SessionHandle, event: &Event) {
+        let Some(session_svg) = event_origin_svg(root, event) else {
+            return;
+        };
+        let is_hover_active = handle
+            .borrow()
+            .iter()
+            .any(|session| session.svg == session_svg && session.hover_active && !session.sticky);
+        if is_hover_active {
+            deactivate_hover(handle, &session_svg);
         }
     }
 
@@ -1127,14 +1166,14 @@ mod wiring {
         );
         wire_root_event!(
             "pointerout",
-            |_root: &Element, handle: &SessionHandle, event: &Event| {
-                handle_pointerout(handle, event);
+            |root: &Element, handle: &SessionHandle, event: &Event| {
+                handle_pointerout(root, handle, event);
             }
         );
         wire_root_event!(
             "pointercancel",
-            |_root: &Element, handle: &SessionHandle, _event: &Event| {
-                handle_pointercancel(handle);
+            |root: &Element, handle: &SessionHandle, event: &Event| {
+                handle_pointercancel(root, handle, event);
             }
         );
         wire_root_event!(

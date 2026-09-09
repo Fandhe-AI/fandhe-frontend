@@ -1012,3 +1012,81 @@ fn focus_on_one_chart_survives_hover_on_a_different_chart() {
         "チャート B の強調表示はホバー終了で外れるはずである"
     );
 }
+
+#[wasm_bindgen_test]
+fn sticky_pointerout_and_pointercancel_on_one_chart_do_not_close_another_charts_hover() {
+    // Cursor Bugbot "Sticky events close other hovers" 指摘（イシュー
+    // #2130 PR #2267）の回帰テスト: チャート A をタッチで sticky セッ
+    // ションにし、チャート B をマウスでホバーして開いたまま、A 側で
+    // `pointerout`（指を離す）・`pointercancel` を発生させる。旧実装は
+    // `handle_pointerout`/`handle_pointercancel` が `hover_active_svg`
+    // （Runtime 内のどこかで hover_active かつ非 sticky なセッション）を
+    // イベント発生元のチャートかどうか確認せず閉じていたため、A で
+    // 発生したこれらのイベントが無関係な B の hover tooltip まで閉じて
+    // いた。本テストは A・B 双方のイベント発生元判定（`event_origin_svg`）
+    // により、A 由来のイベントが B のセッションへ波及しないことを検証
+    // する。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-test-sticky-pointerout-cross-chart");
+    let _guard = RemoveOnDrop(container.clone());
+    two_bar_charts_markup("chart-test-sticky-pointerout-cross-chart");
+    wire_chart_events(container.clone()).expect("wire_chart_events must succeed");
+
+    let frames = query_all(&container, "[data-scope=\"chart\"][data-part=\"frame\"]");
+    assert_eq!(
+        frames.len(),
+        2,
+        "2 チャート分の frame が生成されているはずである"
+    );
+    let frame_a = &frames[0];
+    let frame_b = &frames[1];
+
+    let hit_a = query(frame_a, "[data-part=\"hit-area\"]").expect("hit-area (chart A)");
+    let svg_a = query(frame_a, "svg").expect("svg (chart A)");
+    let hit_b = query(frame_b, "[data-part=\"hit-area\"]").expect("hit-area (chart B)");
+    let tooltip_b = query(frame_b, "[data-part=\"tooltip\"]").expect("tooltip (chart B)");
+
+    // チャート A をタッチで sticky セッションにする。
+    dispatch_pointer(hit_a.unchecked_ref(), "pointerdown", "touch", 1.0, 1.0);
+    assert!(hit_a.has_attribute("data-active"));
+
+    // チャート B をマウスでホバーして開いたままにする。
+    dispatch_pointer(hit_b.unchecked_ref(), "pointermove", "mouse", 5.0, 5.0);
+    assert!(!tooltip_b.has_attribute("hidden"));
+    assert!(hit_b.has_attribute("data-active"));
+
+    // チャート A から指が離れる（`related_target` は frame 外・チャート
+    // 外の要素）。A はイベント発生元自身であり、かつ sticky のため
+    // no-op のはずだが、旧実装は無関係な B の hover セッションを閉じて
+    // いた。
+    let out_init = web_sys::MouseEventInit::new();
+    out_init.set_bubbles(true);
+    out_init.set_related_target(Some(container.unchecked_ref::<EventTarget>()));
+    let pointerout_on_a =
+        web_sys::MouseEvent::new_with_mouse_event_init_dict("pointerout", &out_init)
+            .expect("MouseEvent::new must not fail");
+    svg_a
+        .dispatch_event(pointerout_on_a.as_ref())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        !tooltip_b.has_attribute("hidden"),
+        "チャート A で発生した pointerout がチャート B の hover tooltip を閉じてはならない"
+    );
+    assert!(
+        hit_b.has_attribute("data-active"),
+        "チャート A で発生した pointerout がチャート B の強調表示を外してはならない"
+    );
+
+    // チャート A で pointercancel が発生しても同様に B は無関係のはず。
+    dispatch_pointer(svg_a.unchecked_ref(), "pointercancel", "touch", 1.0, 1.0);
+
+    assert!(
+        !tooltip_b.has_attribute("hidden"),
+        "チャート A で発生した pointercancel がチャート B の hover tooltip を閉じてはならない"
+    );
+    assert!(
+        hit_b.has_attribute("data-active"),
+        "チャート A で発生した pointercancel がチャート B の強調表示を外してはならない"
+    );
+}
