@@ -5796,3 +5796,188 @@ fn button_group_parts_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "button_group::text children コンテキスト");
     }
 }
+
+/// styled Sidebar（イシュー #2073、親 #2071）: 22 パーツ + `menu_skeleton`
+/// いずれも見た目クラスを付与しない（`src/sidebar.rs` モジュール doc
+/// 「選択的 re-export」節参照）ため、呼び出し側 `attrs`・`class`
+/// （`drop_class_attr` により除去）・`label`・`id`・`href`・`controls`・
+/// `describedby`・`labelledby`・children の各経路で既定エスケープ
+/// （REQ-1）が貫通することを固定する。`data-scope`/`data-part` 偽装が
+/// headless `Anatomy::part` により除去されることもあわせて固定する
+/// （`command_parts_are_escaped_for_all_payloads` と同型）。
+#[test]
+fn sidebar_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::sidebar::{
+        self, Sidebar, SidebarMenuButtonProps, SidebarMenuSubButtonProps, SidebarProps,
+        SidebarState,
+    };
+
+    let state = Sidebar::new(SidebarState::Expanded);
+    let props = SidebarProps::default();
+
+    for payload in payloads::all() {
+        let html = render(&sidebar::provider(
+            &state,
+            &props,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::provider attrs context");
+
+        let html = render(&sidebar::provider(
+            &state,
+            &props,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "sidebar::provider class payload leaked: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        let html = render(&sidebar::root(
+            &state,
+            &props,
+            payload,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::root label context");
+        assert_payload_is_escaped(payload, &html, "sidebar::root id context");
+
+        let html = render(&sidebar::header(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::header attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::header children context");
+
+        let html = render(&sidebar::content(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::content attrs context");
+
+        let html = render(&sidebar::footer(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::footer attrs context");
+
+        let html = render(&sidebar::separator(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::separator attrs context");
+
+        let html = render(&sidebar::input(vec![("data-testid", payload)]));
+        assert_payload_is_escaped(payload, &html, "sidebar::input attrs context");
+
+        let html = render(&sidebar::group(Some(payload), vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::group labelledby context");
+
+        let html = render(&sidebar::group_label(
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::group_label id context");
+        assert_payload_is_escaped(payload, &html, "sidebar::group_label children context");
+
+        let html = render(&sidebar::group_content(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::group_content attrs context");
+
+        let html = render(&sidebar::group_action(payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::group_action label context");
+
+        let html = render(&sidebar::menu(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu attrs context");
+
+        let html = render(&sidebar::menu_item(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_item attrs context");
+
+        let html = render(&sidebar::menu_button(
+            &SidebarMenuButtonProps {
+                href: Some(payload),
+                active: true,
+                describedby: Some(payload),
+                ..Default::default()
+            },
+            None,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_button href context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_button describedby context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_button attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_button children context");
+
+        let html = render(&sidebar::menu_action(payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_action label context");
+
+        let html = render(&sidebar::menu_badge(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_badge attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_badge children context");
+
+        let html = render(&sidebar::menu_sub(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub attrs context");
+
+        let html = render(&sidebar::menu_sub_item(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub_item attrs context");
+
+        let html = render(&sidebar::menu_sub_button(
+            &SidebarMenuSubButtonProps {
+                href: Some(payload),
+                active: true,
+                ..Default::default()
+            },
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub_button href context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub_button attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_sub_button children context");
+
+        let html = render(&sidebar::rail(&state, payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "sidebar::rail label context");
+
+        let html = render(&sidebar::trigger(
+            &state,
+            payload,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::trigger label context");
+        assert_payload_is_escaped(payload, &html, "sidebar::trigger controls context");
+
+        let html = render(&sidebar::inset(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::inset attrs context");
+        assert_payload_is_escaped(payload, &html, "sidebar::inset children context");
+
+        let html = render(&sidebar::menu_skeleton(
+            true,
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "sidebar::menu_skeleton attrs context");
+
+        let html = render(&sidebar::provider(
+            &state,
+            &props,
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "sidebar::provider data-scope/data-part spoof payload leaked: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="sidebar""#));
+        assert!(html.contains(r#"data-part="provider""#));
+    }
+}

@@ -2541,14 +2541,29 @@ name = "fandhe-frontend-pre-styled-ui"
 # 維持する。依存先 `fandhe-frontend-headless-ui` の version 要求は main 側の
 # 追随をそのまま採用する（下記参照）。
 #
-# 版数の再調整（本 PR、イシュー #2056、shadcn/ui 突合）: `HeadingProps` へ
+# base 再取り込み（本 PR、イシュー #2072、2026-09-09）: base 取り込み時点で
+# main は #2055 等により独立に 0.150.0 へ到達済みであり、本ブランチ自身の
+# 到達値 0.148.1（`fandhe-frontend-headless-ui` 0.68.4 の `sidebar` 新設への
+# 依存追随 patch バンプ）は main を追い越さないため、main の到達値 0.150.0
+# から +1 パッチして 0.150.1 とする（実体変更を伴わない依存追随のみのため
+# minor ではなく patch とする）。本クレート自体の実装（sidebar の Themes 層
+# recipe）は後続イシュー #2073。依存先 `fandhe-frontend-headless-ui` の
+# version 要求は本ブランチの 0.68.4 追随をそのまま採用する（下記参照）。
+#
+# イシュー #2073: `sidebar` モジュールを新設し `DEFAULT_COLORS` へ
+# `sidebar-*` 7 ロールを追加した。同名 `push_color` が
+# `ThemeError::DuplicateTokenName` になる観測可能な破壊的変更（#1422 の
+# 判断基準）に加え新規公開モジュールの追加を伴うため、0.150.1 から
+# +1 minor して 0.151.0 とする。
+#
+# 版数の再調整（本 PR、イシュー #2056、shadcn/ui 突合、main 側）: `HeadingProps` へ
 # `weight: HeadingWeight` フィールドを追加（構造体リテラル呼び出し元を壊す
 # 0.x 破壊的変更）し、`heading::css()` の出力へ weight variant 4 規則 +
 # `data-bordered` state 規則を純追加するため、`.claude/rules/coding-rust.md`
 # の semver バンプ規約に従いマイナーバンプする。origin/main 到達値
 # 0.150.0 から +1 マイナーして 0.151.0 とする。
 #
-# base 再取り込み（本 PR、イシュー #2056、2026-09-09）: base 取り込み時点で
+# base 再取り込み（main 側、本 PR、イシュー #2056、2026-09-09）: base 取り込み時点で
 # main は #2072（`fandhe-frontend-headless-ui` 0.68.4 の `sidebar` 新設への
 # 依存追随のみの patch バンプ）により独立に 0.150.1 へ到達済みだが、本
 # ブランチの到達値 0.151.0 は main を追い越しているため
@@ -2557,6 +2572,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `fandhe-frontend-headless-ui` の version 要求は本ブランチの 0.68.4 追随を
 # そのまま採用する（下記参照）。
 #
+# base 再取り込み（本 PR、イシュー #2073、2026-09-09）: 本ブランチ
+# （#2073、sidebar 新設で独立に 0.151.0 へ到達）と origin/main（#2056、
+# HeadingProps weight 追加で独立に同一版数 0.151.0 へ到達）が偶発的に同一
+# 版数へ衝突したため、`.claude/rules/coding-rust.md` の semver バンプ規約
+# （同一版数への偶発的衝突をそのまま採用しない）に従い main の到達値
+# 0.151.0 から +1 マイナーして 0.152.0 とする（実体変更を伴うため patch
+# ではなく minor を維持）。依存先 `fandhe-frontend-headless-ui` の version
+# 要求は双方一致（0.68.4）のためそのまま採用する。
 # イシュー #2077（Charts の系列設定: `Series` へ `label`/`color`/`icon` の
 # pub フィールドを純追加、`SeriesColor` を新設）: pub struct へのフィールド
 # 追加は構造体リテラル構築を壊す 0.x 破壊的変更のためマイナーバンプする
@@ -2600,7 +2623,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # 到達済み。本ブランチの 0.154.0 は main の 0.153.2 より新しいため、
 # バージョン据え置きのまま維持する。
 #
-# base merge の同一版数衝突回避（本 PR、イシュー #2081、2026-09-09）: 上記
+# base merge の同一版数衝突回避（イシュー #2081、2026-09-09）: 上記
 # 2 系統（本ブランチのイシュー #2081／main のイシュー #2106）は互いに
 # 独立に merge base 0.153.1 から 0.154.0 へ到達していた（同一版数への
 # 偶発的衝突）。`semver-same-version-is-conflict` の運用に従い、双方の
@@ -2617,6 +2640,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更（フルリテラル構築を前提とする利用者コードが壊れる）のため
 # 0.156.0 へマイナーバンプする。
 #
+# base 再取り込み（本 PR、イシュー #2073、2026-09-09）: base 取り込み時点で
+# main は #2082（bar-chart 突合）により独立に 0.156.0 へ到達済みであり、
+# 本ブランチ自身の到達値 0.155.0（`sidebar` モジュール新設・
+# `DEFAULT_COLORS` への `sidebar-*` 7 ロール追加。同名 `push_color` が
+# `ThemeError::DuplicateTokenName` になる観測可能な破壊的変更〔#1422 の
+# 判断基準〕に加え新規公開モジュール追加を伴うためマイナーバンプ済み）は
+# main を追い越さないため、`semver-same-version-is-conflict` の運用に従い
+# main の到達値 0.156.0 から +1 マイナーして 0.157.0 とする（実体変更を
+# 伴うため patch ではなく minor を維持）。
 # イシュー #2083（line-chart の shadcn/ui Charts（line）突合）:
 # `LineChartProps` への `pub` フィールド純追加（`curve`/`dots`/`label`/
 # `color_by_category`/`show_x_axis`/`show_y_axis`/`show_grid`）・
@@ -2624,6 +2656,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # `stylesheet()` 出力の純追加（`value-label`/`point.fd-line-chart--dots-hollow`）
 # は 0.x の破壊的変更（フルリテラル構築を前提とする利用者コードが壊れる）
 # のため 0.157.0 へマイナーバンプする。
+#
+# base merge の同一版数衝突再発（イシュー #2073、2026-09-09）: 上記
+# 2 系統（本ブランチのイシュー #2073 base 再取り込み／main のイシュー
+# #2083〔line-chart 突合〕）は互いに独立に merge base 0.156.0 から
+# 0.157.0 へ到達していた（同一版数への偶発的衝突）。
+# `semver-same-version-is-conflict` の運用に従い、双方の実体変更
+# （`sidebar` モジュール新設・`DEFAULT_COLORS` への `sidebar-*` 7
+# ロール追加と `LineChartProps` 等の line-chart 突合フィールド純追加）
+# を統合した結果として 0.158.0 へさらにマイナーバンプする。
+# イシュー #2073 PR #2245 レビュー（Cursor Bugbot 指摘「Inset collapse
+# doubles panel gap」）対応: `variant="inset"` + `collapsible="icon"` の
+# 折りたたみ時に `inset` パネル側へ margin を復元していた規則を削除し、
+# `root` 自身が既に保持し続ける margin と二重加算されないよう修正した
+# （`src/sidebar.rs` のコメント・golden CSS 参照）。CSS 出力内容の実体変更
+# のため 0.x の破壊的変更としてマイナーバンプする。
 #
 # イシュー #2084（pie-chart / donut-chart の shadcn/ui Charts（pie）突合）:
 # `PieChartProps`/`DonutChartProps` への `pub` フィールド純追加
@@ -2634,8 +2681,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # donut は加えて `center-value`/`center-label`）・
 # `charts::legend::category_legend` の新規 `pub` 関数は 0.x の破壊的変更
 # （フルリテラル構築を前提とする利用者コードが壊れる）のため
-# 0.158.0 へマイナーバンプする。
-version = "0.158.0"
+# 0.158.0 へマイナーバンプする予定だったが、本 PR の base 取り込み
+# （イシュー #2084、2026-09-09）で main は既に #2073（sidebar 新設・
+# line-chart 突合の同一版数衝突解消）により独立に 0.159.0 へ到達済み
+# であり、本ブランチ自身の到達値 0.158.0 は main を追い越さないため、
+# `semver-same-version-is-conflict` の運用に従い main の到達値
+# 0.159.0 から +1 マイナーして 0.160.0 とする（実体変更を伴うため
+# patch ではなく minor を維持）。
+version = "0.160.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

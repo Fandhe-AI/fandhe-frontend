@@ -11,18 +11,18 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 115 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 116 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
-#2070、`message` はイシュー #2106 で追加）+
+#2070、`sidebar` はイシュー #2073、`message` はイシュー #2106 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。115 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。116 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
 操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
@@ -1334,6 +1334,69 @@ styled 部品が共用する 2 つの標準 variant 軸である。イシュー 
 `palette_declarations` の 3 役割はそのまま維持）も同イシューで新設した。
 判断根拠・非採用事項・再評価トリガーの詳細は
 `docs/design/pre-styled-ui-size-and-color-palette-axes.md` を参照。
+
+## 4m. `sidebar`（イシュー #2073、親 #2071。headless anatomy は #2072）
+
+`fandhe_frontend_headless_ui::sidebar`（22 パーツ: `provider`/`root`/
+`header`/`content`/`footer`/`separator`/`input`/`group`/`group-label`/
+`group-content`/`group-action`/`menu`/`menu-item`/`menu-button`/
+`menu-action`/`menu-badge`/`menu-sub`/`menu-sub-item`/`menu-sub-button`/
+`rail`/`trigger`/`inset`）へ、`variant`（sidebar/floating/inset）3 種・
+`collapsible`（offcanvas/icon/none）3 種・`side`（left/right）2 種・
+モバイル drawer 表示という shadcn/ui `Sidebar` の意匠を重ねる薄い委譲層。
+`command`/`item` と同型の位置付けで、`size`/`variant`/`color-palette`
+いずれの軸クラスも持たない（見た目は headless の `data-*` を属性セレクタで
+参照するのみ）。
+
+- **公開 API**: 22 パーツの同名ラッパー関数（`headless-ui` と同一
+  シグネチャ、呼び出し側 `class` は `drop_class_attr` で除去して委譲）+
+  `stylesheet()` + `menu_skeleton(show_icon, attrs)`（下記参照）。状態機械
+  [`fandhe_frontend_headless_ui::sidebar::Sidebar`]/`SidebarAction`/
+  `SidebarState` と静的 props 型（`SidebarProps`/`SidebarCollapsible`/
+  `SidebarVariant`/`SidebarSide`/`SidebarMenuButtonProps`/
+  `SidebarMenuButtonSize`/`SidebarMenuButtonVariant`/
+  `SidebarMenuSubButtonProps`/`SidebarMenuSubButtonSize`）を選択的に
+  再エクスポートする（`provider`/`root`/`rail`/`trigger` が `&Sidebar` を
+  引数に取るため、`command` とは異なり `drawer` と同型で状態機械を
+  再エクスポートする）。
+- **軸を持たない理由**: `command`/`input_group` と同型（子の寸法に従属する
+  レイアウト部品。headless にも shadcn/ui にも軸が無い）。
+- **`--fandhe-sidebar-*`（scope 接頭辞）と `--fandhe-color-sidebar-*`
+  （色トークン）の使い分け**: 幅トークン（`--fandhe-sidebar-width`/
+  `--fandhe-sidebar-width-icon`/`--fandhe-sidebar-width-mobile`、
+  `--fandhe-drawer-size` と同型のフォールバック付き）は recipe scope
+  接頭辞 custom property。色は `docs/design/color-token-system.md` §9.3 の
+  決定に従い `Theme::default()` が追加する `--fandhe-color-sidebar-*` 7
+  ロール（`sidebar-bg`/`sidebar-fg`/`sidebar-accent`/`sidebar-accent-fg`/
+  `sidebar-muted`/`sidebar-border`/`sidebar-focus-ring`）を参照する。
+- **`menu_skeleton`（ローディング装飾）**: headless モジュール doc の
+  申し送りどおり、ランダム幅を持つ shadcn/ui 実装は SSR 決定性を壊すため
+  採用せず、[`crate::skeleton::skeleton`]（`Circle`〔`show_icon` が
+  `true` のときのみ〕+ `Text`）を固定幅で合成する決定的な
+  `fandhe_frontend_headless_ui::sidebar::menu_item` を返す。自前の
+  `data-*` は一切出力しない。
+- **icon 折りたたみ時のテキスト非表示**: headless `menu_button` はテキストを
+  `span` で包まないため、`data-collapsible="icon"` かつ折りたたみ時は
+  `menu-button` を `overflow: hidden` + 固定幅で視覚的に切り落とす
+  （アイコンを `children` の先頭に置く呼び出し規約が前提。改善は
+  スコープ外、後述）。
+- **モバイル + collapsed の詳細度調整**: `root` の折りたたみ幅規則
+  （属性 4 個）が `data-mobile` 単独（属性 3 個）より詳細度で勝つため、
+  `recipe().css()` に加え raw CSS（属性 4 個 + ソース順で後）で
+  `[data-mobile][data-state="collapsed"]` の幅を固定し、開閉は
+  `transform` のみで表現する。
+- **`backdrop` を追加しない理由**: headless anatomy に `backdrop` パーツが
+  無いため（`command` の `dialog` と同型の判断）。
+- **責務境界（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）**:
+  Cmd/Ctrl+B のグローバルショートカット・モバイル判定（メディアクエリ）・
+  `menu-button` の tooltip hover 配線は `fandhe-frontend-wasm-full`
+  （後続イシュー #2074）の責務として実装しない。
+- **スコープ外**: #2074（wasm-full 配線）・`/themes/sidebar/` の docs-site
+  ページ・showcase Demo・`site/nav.toml` 登録（#2075。
+  `crates/docs-site/tests/wrap_state.rs` の `THEMES_RECIPE_WITHOUT_PAGE`
+  暫定台帳が橋渡しを担う）・`backdrop` パーツの新設・`menu-button`
+  テキストの headless 側 span 化による改善・`@media (min-width)` 対応
+  （breakpoint 機構 #2196/#2197 が未実装のため）。
 
 ## 5. 関連ドキュメント
 
