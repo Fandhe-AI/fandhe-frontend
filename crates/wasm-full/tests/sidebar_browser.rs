@@ -1331,3 +1331,236 @@ fn wiring_is_noop_when_sidebar_not_present() {
         "sidebar 非搭載アプリでは Ctrl+B が preventDefault() されないこと"
     );
 }
+
+// --- 7. 複数 provider が並存する Escape・外側クリック閉鎖の判定タイミング
+//        （イシュー #2074 codex-review P1 追加是正の回帰テスト） ---
+
+#[wasm_bindgen_test]
+fn escape_dismiss_reads_mobile_before_sibling_close_rerender_drops_it() {
+    // codex-review P1（「再描画で失われるモバイル属性に閉鎖判定を
+    // 依存させない」）の回帰テスト。既存の
+    // `multiple_providers_escape_dismiss_survives_sibling_structural_
+    // rerender` は兄弟部分木の再構築後に手動で `data-mobile` を
+    // 再設定していたため、本不具合（headless-ui の既定
+    // `SidebarProps.mobile: false` により再描画で `data-mobile` が
+    // 実際に失われるケース）を再現できていなかった（is-not-vacuous
+    // 確認済み: 本テストは是正前の実装に対して FAIL する）。
+    //
+    // A（先に Escape で閉じられる provider）が閉じたことをきっかけに
+    // 共有ルートが B の部分木を丸ごと再構築し、その際 `data-mobile` を
+    // 一切設定しない（実際の headless-ui レンダリングと同じ既定値）。
+    // 判定を都度フレッシュな DOM から読み直す実装では、この再構築後に
+    // 読む B の `mobile` が `false` に化けて「閉じるべきなのに閉じない」
+    // 誤判定になる。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let shared_root = create_container(&document, "sidebar-escape-mobile-loss-root");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    let sub_a = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    let sub_b = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    shared_root
+        .append_child(&sub_a)
+        .expect("append_child must not fail for sub_a");
+    shared_root
+        .append_child(&sub_b)
+        .expect("append_child must not fail for sub_b");
+
+    // Collapsed で開始（マウント時の追いつき折りたたみ・entering_mobile
+    // 分岐を経由させない）。
+    let (sidebar_a, _provider_a, _root_a, trigger_a, _rail_a) =
+        build_sidebar_markup(&sub_a, SidebarState::Collapsed, false, false);
+    let (sidebar_b, _provider_b, _root_b, trigger_b, _rail_b) =
+        build_sidebar_markup(&sub_b, SidebarState::Collapsed, false, false);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+
+    // B は通常どおり配線（in-place `data-state` 反映のみ、部分木は
+    // 再構築しない）。
+    wire_dispatch_reflecting_data_state(&sub_b, component_b.clone());
+
+    // A の on_update は、A が閉じる（`data_state == "collapsed"`）
+    // タイミングでのみ B の部分木を丸ごと再構築する。開く方向では
+    // 何もしない（テスト前提の「両方開いた状態」を崩さないため）。
+    let update_sub_a = sub_a.clone();
+    let rerender_sub_b = sub_b.clone();
+    wire_sidebar_dispatch(sub_a.clone(), component_a.clone(), move |state, _root| {
+        let data_state = state.data_state();
+        if let Some(el) = query(&update_sub_a, PROVIDER_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        if let Some(el) = query(&update_sub_a, ROOT_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        if data_state == SidebarState::Collapsed.as_data_state() {
+            // headless-ui の既定 `mobile: false` を模すため、意図的に
+            // `data-mobile` を再設定しない（B は実際には開いたままの
+            // Expanded を維持する）。
+            let _ = build_sidebar_markup(&rerender_sub_b, SidebarState::Expanded, false, false);
+        }
+    })
+    .expect("wire_sidebar_dispatch must not fail");
+
+    // 常時一致クエリで両 provider に `data-mobile` を設定する
+    // （Collapsed のため entering_mobile の強制折りたたみは発火しない）。
+    wire_sidebar_events_with_query(shared_root.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    // 両方の drawer をユーザー操作で開く（A は開く方向のため on_update
+    // の再構築分岐を経由しない）。
+    dispatch_click(&trigger_b);
+    dispatch_click(&trigger_a);
+    assert_eq!(component_a.borrow().state(), SidebarState::Expanded);
+    assert_eq!(component_b.borrow().state(), SidebarState::Expanded);
+    assert!(
+        query(&sub_b, PROVIDER_SELECTOR)
+            .expect("provider_b must exist")
+            .has_attribute("data-mobile"),
+        "前提: Escape 押下前は B の data-mobile がまだ失われていないこと"
+    );
+
+    dispatch_document_keydown(&document, "Escape", false, false, false);
+
+    assert_eq!(
+        component_a.borrow().state(),
+        SidebarState::Collapsed,
+        "A は通常どおり Escape で閉じられること"
+    );
+    assert_eq!(
+        component_b.borrow().state(),
+        SidebarState::Collapsed,
+        "A の閉鎖が引き起こす共有ルートの再描画で B の data-mobile が \
+         同一 Escape 押下の処理中に失われても、判定は再描画より前に \
+         確定済みのため B も正しく閉じられること（判定を都度読み直す \
+         実装では mobile=false に化けて開いたまま取り残される）"
+    );
+}
+
+#[wasm_bindgen_test]
+fn outside_pointerdown_does_not_close_inside_drawer_after_sibling_close_rerender() {
+    // codex-review P1（「外側クリックの判定を再描画前に確定する」）の
+    // 回帰テスト。A を外側クリックで閉じる処理が引き起こす共有ルートの
+    // 構造フォールバック再描画により、B の内側クリックの
+    // `event.target()` が切断済み参照になり、内側クリックにも
+    // かかわらず B まで誤って閉じられないことを確認する。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let shared_root = create_container(&document, "sidebar-pointerdown-target-stale-root");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    let sub_a = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    let sub_b = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    shared_root
+        .append_child(&sub_a)
+        .expect("append_child must not fail for sub_a");
+    shared_root
+        .append_child(&sub_b)
+        .expect("append_child must not fail for sub_b");
+
+    let (sidebar_a, _provider_a, _root_a, trigger_a, _rail_a) =
+        build_sidebar_markup(&sub_a, SidebarState::Collapsed, false, false);
+    let (sidebar_b, _provider_b, root_b, trigger_b, _rail_b) =
+        build_sidebar_markup(&sub_b, SidebarState::Collapsed, false, false);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+    wire_dispatch_reflecting_data_state(&sub_b, component_b.clone());
+
+    // A が閉じるタイミングで B の部分木を再構築する。この再構築後も
+    // `data-mobile` は再設定する（本テストの狙いは P1-1（`data-mobile`
+    // 消失）ではなく、対象ノード切断による内外判定の誤りに限定する
+    // ため）。
+    let update_sub_a = sub_a.clone();
+    let rerender_sub_b = sub_b.clone();
+    wire_sidebar_dispatch(sub_a.clone(), component_a.clone(), move |state, _root| {
+        let data_state = state.data_state();
+        if let Some(el) = query(&update_sub_a, PROVIDER_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        if let Some(el) = query(&update_sub_a, ROOT_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        if data_state == SidebarState::Collapsed.as_data_state() {
+            let (_, new_provider_b, ..) =
+                build_sidebar_markup(&rerender_sub_b, SidebarState::Expanded, false, false);
+            let _ = new_provider_b.set_attribute("data-mobile", "");
+        }
+    })
+    .expect("wire_sidebar_dispatch must not fail");
+
+    wire_sidebar_events_with_query(shared_root.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    dispatch_click(&trigger_a);
+    dispatch_click(&trigger_b);
+    assert_eq!(component_a.borrow().state(), SidebarState::Expanded);
+    assert_eq!(component_b.borrow().state(), SidebarState::Expanded);
+
+    // B の `root`（trigger/rail ではない内側パーツ）を pointerdown する。
+    dispatch_event_on(&root_b, "pointerdown");
+
+    assert_eq!(
+        component_a.borrow().state(),
+        SidebarState::Collapsed,
+        "外側クリックとして A は通常どおり閉じられること"
+    );
+    assert_eq!(
+        component_b.borrow().state(),
+        SidebarState::Expanded,
+        "B の内側クリックであるにもかかわらず、A の閉鎖が引き起こす \
+         共有ルートの再描画で event.target() が切断済み参照になり、\
+         誤って「外側」と判定され B まで閉じられてはならない（判定を \
+         都度読み直す実装では B の root が新しい要素に差し替わり \
+         contains() が false になるため、内側クリックでも閉じてしまう）"
+    );
+}
+
+// --- 8. `wire_sidebar_dispatch` の共有 root 誤配線の拒否
+//        （イシュー #2074 Cursor Bugbot 是正の回帰テスト） ---
+
+#[wasm_bindgen_test]
+fn wire_sidebar_dispatch_rejects_root_with_multiple_providers() {
+    // Cursor Bugbot 指摘（「Shared-root dispatch toggles every
+    // sidebar」）の回帰テスト。`root` 配下（`root` 自身を含む）に
+    // sidebar provider が複数あると、`wire_sidebar_dispatch` がどの
+    // provider を対象にすべきか一意に定まらない。左右 2 枚のサイドバーを
+    // `Runtime` の単一 mount root のような共有 root へまとめて配線する
+    // 誤用を、クリック解決の曖昧さ（無関係なサイドバーまで連動して
+    // トグルする）としてではなく、配線登録時点の `Err`（fail-closed）
+    // として検知できることを確認する。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let shared_root = create_container(&document, "sidebar-dispatch-shared-root-rejected");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    // 1 個目の provider を shared_root 自身へ直接流し込む。
+    let (sidebar_a, ..) = build_sidebar_markup(&shared_root, SidebarState::Collapsed, false, false);
+
+    // 2 個目の provider を別の子要素へ流し込む。
+    let sub_b = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    shared_root
+        .append_child(&sub_b)
+        .expect("append_child must not fail for sub_b");
+    let (_sidebar_b, ..) = build_sidebar_markup(&sub_b, SidebarState::Collapsed, false, false);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let result = wire_sidebar_dispatch(shared_root.clone(), component_a, |_, _| {});
+
+    assert!(
+        result.is_err(),
+        "root 配下に複数 provider がある場合は Err（fail-closed）で拒否\
+         されること（同一 root を共有する複数の wire_sidebar_dispatch\
+         呼び出しが無関係なサイドバーまで連動トグルする不具合の再発防止）"
+    );
+}

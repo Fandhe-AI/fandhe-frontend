@@ -379,13 +379,19 @@ mod wiring {
     /// dispatch → `on_update` を経て共有ルートの構造フォールバック
     /// 再描画を引き起こすと、事前に 1 回だけ収集した `Vec<Element>` に
     /// 残る後続 provider の参照は document から切り離された古い要素に
-    /// なり、以降 `f` を呼んでも可視 DOM には反映されない
-    /// （`apply_mobile_state` のモバイル進入時折りたたみ判定で最初に
-    /// 見つかったのと同型の不具合が、Escape・外側クリックの複数 drawer
-    /// 閉鎖処理にも存在した）。provider の総数は再描画をまたいでも
-    /// 構造上不変という前提のもと、`index` 番目の provider をその時点の
-    /// 生きた DOM から取り直すことで、この種の再描画があっても全
-    /// provider を正しく処理できるようにする。
+    /// なり、以降 `f` を呼んでも可視 DOM には反映されない。provider の
+    /// 総数は再描画をまたいでも構造上不変という前提のもと、`index` 番目の
+    /// provider をその時点の生きた DOM から取り直すことで、この種の
+    /// 再描画があっても全 provider を正しく処理できるようにする。
+    ///
+    /// [`apply_mobile_state`] のモバイル進入時折りたたみ判定
+    /// （`entering_mobile` 分岐）専用: この判定は `data-state`
+    /// （app が正しく再描画する値）のみを読むため、`f` 内で毎回読み
+    /// 直しても誤判定は起きない。Escape・外側クリックの複数 drawer
+    /// 閉鎖処理は `data-mobile`（headless-ui が知らずアプリの再描画で
+    /// 消え得る値）や `event.target()`（再描画で切断され得る参照）を
+    /// 判定に使うため、本関数ではなく
+    /// [`resolve_and_dismiss_providers`] を使う（同関数 doc 参照）。
     fn for_each_provider_refetching(root: &Element, mut f: impl FnMut(&Element)) {
         let provider_count = all_providers(root).len();
         for index in 0..provider_count {
@@ -393,6 +399,56 @@ mod wiring {
                 continue;
             };
             f(&provider);
+        }
+    }
+
+    /// `root` 配下の全 provider に対する「閉鎖すべきか」の判定を、
+    /// いずれの合成 click よりも前の単一の同期パスで確定してから、
+    /// 判定が真の provider だけを都度生きた DOM から再取得して
+    /// [`click_trigger_or_rail`] で閉じる（Escape・外側クリック閉鎖の
+    /// 共通実装）。
+    ///
+    /// イシュー #2074 codex-review P1 是正（[`for_each_provider_
+    /// refetching`] では解決しない残存不具合）: 複数 drawer が並存する
+    /// 構成で、`decide` を [`for_each_provider_refetching`] のように
+    /// 「各 provider を処理する直前に毎回フレッシュな DOM から読み直す」
+    /// 実装にすると、以下 2 つの経路のいずれかで誤判定が起こる。
+    ///
+    /// 1. **`data-mobile` の消失**: 先頭 provider への合成 click が
+    ///    dispatch → `on_update` を経て共有ルートの構造フォールバック
+    ///    再描画を引き起こすと、headless-ui 側は `mobile` を知らない
+    ///    （既定 `SidebarProps.mobile: false`）ため、後続 provider の
+    ///    `data-mobile` がこの再描画で消え、`MutationObserver`
+    ///    （`childList`/`subtree` のみ監視、非同期実行）が再適用する前の
+    ///    間に後続 provider の判定を読むと `mobile=false` に化けて
+    ///    「閉じるべきなのに閉じない」誤判定になる。
+    /// 2. **click 対象ノードの切断**: 同じ再描画は後続 provider の部分木
+    ///    を丸ごと新しい要素へ差し替えるため、外側クリック判定に使う
+    ///    `event.target()`（呼び出し元が保持する `Node`）は差し替え後の
+    ///    新しい部分木からは切り離された古い参照になる。再取得した
+    ///    provider の `contains(target)` は構造的に一致し得ず、内側
+    ///    クリックだったにもかかわらず「外側」と誤判定して閉じてしまう。
+    ///
+    /// 本関数は `decide` を**全 provider に対して一括で**（`root` から
+    /// [`all_providers`] を 1 回だけ収集した直後、`on_dismiss` 相当の
+    /// click 合成を一切行う前に）呼び出すことで、上記いずれの誤判定も
+    /// 構造的に起こり得ないようにする。判定確定後の第 2 パスでは、
+    /// 各 provider の**識別**（クリック対象の DOM 要素の再取得）のみを
+    /// 都度行う（[`for_each_provider_refetching`] と同型の理由:
+    /// 先行する provider への click が後続 provider の参照を切断済みに
+    /// し得るため）。`decide` の呼び出し自体は副作用（click 合成）を
+    /// 持たないため、この再取得は「識別」だけを担い「判定」には関与
+    /// しない。
+    fn resolve_and_dismiss_providers(root: &Element, mut decide: impl FnMut(&Element) -> bool) {
+        let providers = all_providers(root);
+        let decisions: Vec<bool> = providers.iter().map(&mut decide).collect();
+        for (index, should_dismiss) in decisions.into_iter().enumerate() {
+            if !should_dismiss {
+                continue;
+            }
+            if let Some(provider) = all_providers(root).into_iter().nth(index) {
+                click_trigger_or_rail(&provider);
+            }
         }
     }
 
@@ -539,17 +595,19 @@ mod wiring {
             // ことで、provider ごとに正しい trigger/rail を合成 click
             // する。
             //
-            // イシュー #2074 codex-review P1 是正: 複数 drawer が
-            // 開いている状態で先頭 provider への合成 click が共有ルートの
-            // 再描画を引き起こすと、事前収集した一覧の後続 provider は
-            // 切断済み参照になり閉じ残る（[`for_each_provider_refetching`]
-            // doc 参照）。処理直前に毎回 provider 一覧を取り直す。
-            for_each_provider_refetching(root, |provider| {
+            // イシュー #2074 codex-review P1 是正: `mobile`/`state` の
+            // 判定は、いずれの provider への合成 click よりも前に一括で
+            // 確定する（[`resolve_and_dismiss_providers`] doc「`data-
+            // mobile` の消失」節参照）。先頭 provider への合成 click が
+            // 引き起こす共有ルートの構造フォールバック再描画は、
+            // headless-ui 側が `mobile` を知らない（既定
+            // `SidebarProps.mobile: false`）ため後続 provider の
+            // `data-mobile` を消し得る。判定をこの再描画より後に読むと
+            // 「モバイルなのに閉じない」誤判定になる。
+            resolve_and_dismiss_providers(root, |provider| {
                 let mobile = provider.has_attribute("data-mobile");
                 let state = provider.get_attribute("data-state");
-                if should_dismiss_mobile_drawer(mobile, state.as_deref()) {
-                    click_trigger_or_rail(provider);
-                }
+                should_dismiss_mobile_drawer(mobile, state.as_deref())
             });
             return;
         }
@@ -613,28 +671,34 @@ mod wiring {
         // （他の provider の内側をクリックした場合も、その provider から
         // 見れば「外側」であり正しく閉鎖対象になる）。
         //
-        // イシュー #2074 codex-review P1 是正: 複数 drawer が開いている
-        // 状態で先頭 provider への合成 click が共有ルートの再描画を
-        // 引き起こすと、事前収集した一覧の後続 provider は切断済み参照
-        // になり閉じ残る（[`for_each_provider_refetching`] doc 参照）。
-        // 処理直前に毎回 provider 一覧を取り直す。
-        for_each_provider_refetching(root, |provider| {
+        // イシュー #2074 codex-review P1 是正: `mobile`/`state`/内外
+        // 判定は、いずれの provider への合成 click よりも前に一括で
+        // 確定する（[`resolve_and_dismiss_providers`] doc 参照）。ある
+        // provider（例: drawer A）への合成 click が共有ルートの構造
+        // フォールバック再描画を引き起こし、別の provider（drawer B）の
+        // 部分木を丸ごと差し替えると、この `target_node`（`event.
+        // target()` の時点で保持した `Node`）は差し替え後の B から見て
+        // 切断済みの古い参照になる。この状態で B の `contains(target_
+        // node)` を読むと、実際には B の内側をクリックしていても構造的に
+        // 一致せず「外側」と誤判定して B まで閉じてしまう。内外判定を
+        // 再描画より前に確定することで、この誤判定を構造的に防ぐ。
+        resolve_and_dismiss_providers(root, |provider| {
             let mobile = provider.has_attribute("data-mobile");
             let state = provider.get_attribute("data-state");
             if !should_dismiss_mobile_drawer(mobile, state.as_deref()) {
-                return;
+                return false;
             }
             if let Some(sidebar_root) = find_first(provider, ROOT_SELECTOR) {
                 if sidebar_root.contains(Some(target_node)) {
-                    return;
+                    return false;
                 }
             }
             if is_inside_any(provider, TRIGGER_SELECTOR, target_node)
                 || is_inside_any(provider, RAIL_SELECTOR, target_node)
             {
-                return;
+                return false;
             }
-            click_trigger_or_rail(provider);
+            true
         });
     }
 
@@ -1297,7 +1361,34 @@ mod wiring {
     /// 渡して呼び出す契約とする。`root` は Sidebar インスタンスの anatomy
     /// 境界（`provider`）を含む要素であること（`Self::mount`/
     /// `Self::hydrate` に渡すアプリ全体の `root` である必要はなく、
-    /// provider を含む部分木の任意の祖先でよい）。
+    /// provider を含む部分木の任意の祖先でよい）。**ただし `root` 配下
+    /// （`root` 自身を含む）の sidebar `provider` はちょうど 1 つで
+    /// なければならない**（イシュー #2074 Cursor Bugbot 是正: 左右 2 枚の
+    /// サイドバーのように複数 provider を含む共有 root を渡すと、下記
+    /// 「複数 provider を含む共有 root を渡さない」節の理由により `Err`
+    /// になる。左右それぞれの provider を含む個別の祖先で本関数を 1 回
+    /// ずつ呼ぶこと）。
+    ///
+    /// # 複数 provider を含む共有 root を渡さない（イシュー #2074
+    /// Cursor Bugbot 是正）
+    ///
+    /// `crate::headless::wire_headless_events_scoped` の `predicate` は
+    /// 解決された part の `(scope, part)` のみを見て、DOM 上のどの
+    /// provider（＝どの Sidebar インスタンス）がクリックされたかを判別
+    /// する情報を持たない。`Runtime` の単一 mount root のように**複数**
+    /// の Sidebar `provider` を含む共有 root を渡して本関数を 2 回
+    /// （左右それぞれの `component` に対して）呼ぶと、一方の trigger
+    /// クリックが両方の登録へ届き、無関係なサイドバーまで連動して
+    /// トグルしてしまう（`stop_propagation` は「解決できた」場合にのみ
+    /// 呼ばれるため、複数登録間の二重解決を防げない）。本関数は登録時に
+    /// `root` 配下（`root` 自身を含む）の provider 数を検証し、ちょうど
+    /// 1 つでない場合は `Err`（fail-closed）で拒否する。この不変条件が
+    /// 保たれる限り、`root` の部分木で解決される sidebar の trigger/rail
+    /// は常にその唯一の provider に属すると判定してよいため、click
+    /// リスナー自体は（`provider` 要素へ限定するのではなく）従来どおり
+    /// `root` へ付ける（`root` は Sidebar 自身の再描画をまたいで生存する
+    /// 安定コンテナである前提を壊さないため。下記実装コメント「click
+    /// リスナー自体は…」参照）。
     ///
     /// # dispatch 対象を自身の trigger/rail に限定する（イシュー #2074
     /// codex-review P1 是正）
@@ -1325,13 +1416,55 @@ mod wiring {
     ///
     /// # Errors
     ///
-    /// [`crate::headless::wire_headless_events_scoped`]
-    /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    /// `root` 配下（`root` 自身を含む）の sidebar `provider` が 0 個・
+    /// 2 個以上の場合は `Err`（上記「複数 provider を含む共有 root を
+    /// 渡さない」節参照）。[`crate::headless::wire_headless_events_scoped`]
+    /// （`add_event_listener_with_callback`）の失敗も伝播する。
     pub fn wire_sidebar_dispatch(
         root: Element,
         component: Rc<RefCell<fandhe_frontend_headless_ui::sidebar::Sidebar>>,
         mut on_update: impl FnMut(&fandhe_frontend_headless_ui::sidebar::Sidebar, &Element) + 'static,
     ) -> Result<(), JsValue> {
+        // イシュー #2074 Cursor Bugbot 是正（Shared-root dispatch toggles
+        // every sidebar）: `root` は「provider を含む部分木の任意の
+        // 祖先でよい」という従来の契約のままだと、`Runtime` の単一
+        // mount root のような**複数の** Sidebar `provider` を含む共有
+        // root を渡すケースを区別できない。`crate::headless::
+        // wire_headless_events_scoped` の `predicate` は解決された part
+        // の `(scope, part)` のみを見て、どの DOM 要素（＝どの provider）
+        // が実際にクリックされたかを判別する手段を持たないため、同じ
+        // 共有 root へ 2 回（左右のサイドバーそれぞれに対して）
+        // `wire_sidebar_dispatch` を呼ぶと、一方の trigger クリックが
+        // 両方の登録（＝両方の `component`）へ届いてしまい、無関係な
+        // サイドバーまで連動してトグルする。
+        //
+        // 対処として、`root` 配下（`root` 自身を含む）の sidebar
+        // `provider` が**ちょうど 1 つ**であることを登録時に検証する
+        // （0 個・2 個以上は `Err`、fail-closed: どの provider を対象に
+        // すべきか一意に定まらない誤配線を暗黙に受理しない）。
+        //
+        // click リスナー自体は（`provider` 要素にではなく）従来どおり
+        // `root` へ付ける。`root` が「ちょうど 1 つの provider を含む」
+        // という上記の不変条件は、この Sidebar 自身の `on_update` が
+        // 自分の部分木を再描画してもアプリが `root` 自体を破棄しない
+        // 限り再描画をまたいで保たれるため、`root` の部分木で解決される
+        // sidebar の trigger/rail は常にその唯一の provider に属すると
+        // 判定してよい（別途 provider の DOM 参照を保持して再比較する
+        // 必要がない）。`provider` 要素自身に listener を付けると、
+        // モジュール doc「click 合成で完結させる設計」の構造フォール
+        // バック再描画（`provider` 要素自体が新しいノードへ差し替わる）
+        // で listener ごと失われ、以後の trigger/rail クリックが
+        // dispatch へ一切届かなくなる（`root` は再描画をまたいで生存する
+        // 安定コンテナである前提を壊す、イシュー #2074 レビュー時に
+        // 発見した回帰）。
+        if query_all_including_self(&root, PROVIDER_SELECTOR).len() != 1 {
+            return Err(JsValue::from_str(
+                "sidebar: wire_sidebar_dispatch requires exactly one sidebar provider under \
+                 root (found none or more than one); call once per provider with a root scoped \
+                 to that provider",
+            ));
+        }
+
         // イシュー #2074 codex-review P1 是正: `crate::headless::
         // wire_headless_component`（内部の `wire_headless_events`）は
         // `root` の部分木全体に対して `crate::headless::MAPPING_TABLE`
@@ -1402,20 +1535,13 @@ mod wiring {
         // collapsed であれば no-op（`should_collapse_on_enter_mobile` が
         // 偽を返す）で、正常に折りたたみ済みだったケースを誤って
         // 再トグルすることはない。
-        // イシュー #2074 Cursor Bugbot 是正（Catch-up collapse skips
-        // provider root）: 本関数の doc「なぜ `Runtime<C>` へ自動配線
-        // しないか」節が明記するとおり、`root` 引数は「provider を含む
-        // 部分木の**任意の祖先**」であればよい契約であり、アプリが
-        // `provider` 要素自身を渡すケースを含む。`find_first` は
-        // `Element::query_selector_all` に基づくため呼び出し元の要素
-        // 自身にはマッチせず、`reconcile_root` がまさに `provider` その
-        // ものである場合に判定が無言で no-op になっていた（結果、追いつき
-        // 用の折りたたみが再生されずモバイルマウントが `expanded` のまま
-        // 残る）。[`find_first_including_self`] で `reconcile_root` 自身が
-        // `provider` である場合も救済する。合成 click は発見した
-        // `provider` 自身の部分木に限定する（`reconcile_root` がより
-        // 広い祖先だった場合に無関係な trigger/rail を誤って click
-        // しないため）。
+        // イシュー #2074 Cursor Bugbot 是正（Catch-up collapse inspects
+        // only the first provider）: 上記の「`root` 配下の provider は
+        // ちょうど 1 つ」検証により、`find_first_including_self` が
+        // 返す provider は常に本関数が対象とする唯一の provider と
+        // 一致することが保証されている（`root` が複数 provider を含む
+        // 共有祖先だった場合は、この検証で既に `Err` として早期
+        // returnしているため、ここに到達する時点で曖昧性は無い）。
         if let Some(provider) = find_first_including_self(&reconcile_root, PROVIDER_SELECTOR) {
             let mobile = provider.has_attribute("data-mobile");
             let state = provider.get_attribute("data-state");
