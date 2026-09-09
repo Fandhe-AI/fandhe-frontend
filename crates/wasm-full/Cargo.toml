@@ -666,7 +666,10 @@ name = "fandhe-frontend-wasm-full"
 # 衝突したため、`docs/ci/style-refresh-version-bump-operation.md` §5 の
 # 手順に倣い main の到達値をさらに +1 する（本クレート自身の実装変更は
 # 無い）。
-version = "0.15.27"
+#
+# イシュー #2074 PR #2248 レビュー是正（codex-review P1 2 件 + Cursor
+# Bugbot 1 件、`crates/wasm-full/src/sidebar.rs`）に伴いさらに +1 する。
+version = "0.15.28"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

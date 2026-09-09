@@ -442,7 +442,7 @@ mod wiring {
     /// document keydown 委譲ハンドラ。Escape（モバイル drawer 閉鎖）と
     /// Cmd/Ctrl+B（開閉ショートカット）の双方をこの 1 関数で扱う
     /// （`Closure::forget` の定数個契約、モジュール doc参照）。
-    fn handle_document_keydown(root: &Element, event: &Event) {
+    fn handle_document_keydown(root: &Element, hover_state: &TooltipHoverState, event: &Event) {
         // イシュー #2074 codex-review P1 是正: `root` は document
         // リスナーへ `move` された `Element` クローンであり、`root` を
         // 含むコンテナが DOM から取り外され（例: 別画面のマウントに伴う
@@ -481,7 +481,7 @@ mod wiring {
             // 登録されておらず（モジュール doc「`overlay::
             // OverlayCloseController` へ統合しない理由」参照）、他に
             // Escape で閉じる経路が無いため、本関数が完結させる。
-            close_open_menu_button_tooltips(root);
+            close_open_menu_button_tooltips(root, hover_state);
 
             // イシュー #2074 codex-review P1 是正: 単一 provider のみを
             // 見る [`find_first`] ではなく [`all_providers`] で列挙した
@@ -609,7 +609,31 @@ mod wiring {
             // それぞれに対して独立に折りたたみ判定・合成 click を行う
             // （`click_trigger_or_rail` も各 `provider` 自身の部分木に
             // 限定し、他 provider の trigger/rail を誤って click しない）。
-            for provider in all_providers(root) {
+            //
+            // イシュー #2074 codex-review P1 是正（再取得なしの走査は
+            // 複数 provider 環境で 2 個目以降を取りこぼす）: 複数 provider
+            // が並存する構成では、1 個目の provider への合成 click が
+            // dispatch → `on_update` を経て共有ルートの構造フォールバック
+            // 再描画を引き起こし得る（`wire_sidebar_dispatch` doc「登録
+            // 順序」節と同型の理由）。この再描画は 2 個目以降の provider
+            // を含む DOM 部分木を新しい要素へ丸ごと差し替えるため、事前に
+            // 1 回だけ収集した `Vec<Element>`（本関数冒頭で `all_providers`
+            // を一括呼び出す従来実装）に残る 2 個目以降の `Element` は
+            // 差し替え後は document から切り離された古い参照になり、
+            // `click_trigger_or_rail` を呼んでも可視 DOM 上のモバイル
+            // drawer には一切反映されない（折りたたまれないまま
+            // 取り残される）。1 個目の provider への click 合成が
+            // 常に再描画を伴うとは限らない（`on_update` の実装次第）ため、
+            // 対策として各 provider を処理する直前に必ず `all_providers`
+            // を呼び直し、その時点の生きた DOM から `index` 番目の
+            // provider を取得してから判定・click する（provider の総数は
+            // 再描画をまたいでも構造上不変という前提のもと、インデックス
+            // ベースで安全に反復する）。
+            let provider_count = all_providers(root).len();
+            for index in 0..provider_count {
+                let Some(provider) = all_providers(root).into_iter().nth(index) else {
+                    continue;
+                };
                 let state = provider.get_attribute("data-state");
                 if should_collapse_on_enter_mobile(true, state.as_deref()) {
                     click_trigger_or_rail(&provider);
@@ -942,10 +966,17 @@ mod wiring {
     /// `root` へ pointerover/pointerout/focusin/focusout の 4 リスナーを
     /// 委譲登録する（`collapsible=icon` 折りたたみ時の `menu-button`
     /// tooltip、モジュール doc「セキュリティ不変条件」§`Closure::forget`
-    /// 参照）。4 リスナーは [`TooltipHoverState`] を共有し、ポインタと
-    /// フォーカスの入力チャネルを独立に追跡する。
-    fn wire_tooltip_hover(root: &Element) -> Result<(), JsValue> {
-        let hover_state = Rc::new(TooltipHoverState::new());
+    /// 参照）。4 リスナーは呼び出し元（[`wire_sidebar_events_with_query`]）
+    /// から渡された [`TooltipHoverState`] を共有し、ポインタとフォーカスの
+    /// 入力チャネルを独立に追跡する。`hover_state` は同一 `root` の
+    /// document keydown（Escape）配線（[`wire_keydown`]）とも共有され、
+    /// Escape 押下時にこの関数が追跡する hover/focus 状態を明示的に
+    /// クリアできるようにする（[`close_open_menu_button_tooltips`] doc
+    /// 参照）。
+    fn wire_tooltip_hover(
+        root: &Element,
+        hover_state: Rc<TooltipHoverState>,
+    ) -> Result<(), JsValue> {
         for (event_name, is_pointer, entering) in [
             ("pointerover", true, true),
             ("pointerout", true, false),
@@ -969,11 +1000,33 @@ mod wiring {
     /// Tooltip を Escape で閉じられない」の是正。[`apply_tooltip_visibility`]
     /// は冪等〔[`set_hidden`]/[`set_tooltip_data_state`] 参照〕なので、
     /// 既に非表示の menu-button に対しても無害）。
-    fn close_open_menu_button_tooltips(root: &Element) {
+    ///
+    /// イシュー #2074 Cursor Bugbot 是正（Escape leaves tooltip hover
+    /// state live）: 従来は [`apply_tooltip_visibility`] で DOM 上
+    /// 非表示にするだけで、[`TooltipHoverState`] の `hovering`/`focused`
+    /// 集合（pointerover/focusin 由来の入力チャネル）をクリアしていなかった。
+    /// Escape 後もポインタが menu-button 上に留まったまま（あるいは
+    /// フォーカスが残ったまま）だと `stay_open` が真であり続け、直後の
+    /// 無関係な pointerout → pointerover（あるいは focusout → focusin）の
+    /// ような何気ない再発火で `handle_tooltip_hover_event` が
+    /// `apply_tooltip_visibility(..., true)` を呼び、閉じたはずの tooltip
+    /// が意図せず再表示されてしまっていた。本関数は非表示化と同時に、
+    /// 対象 menu-button の [`tooltip_instance_key`] を両チャネルから
+    /// 明示的に除去し、hover/focus が実際には終わっていなくても
+    /// 「Escape で閉じた」という利用者の意図を優先する（ネイティブ
+    /// `<input>` 等で Escape がフォーカスそのものを外さなくても
+    /// tooltip だけは消える一般的な UX 契約と揃える）。キーが取得できない
+    /// menu-button（`tooltip_instance_key` が `None`）は非表示化のみ行う。
+    fn close_open_menu_button_tooltips(root: &Element, hover_state: &TooltipHoverState) {
         for menu_button in query_all(root, MENU_BUTTON_SELECTOR) {
-            if menu_button.has_attribute("aria-describedby") {
-                apply_tooltip_visibility(root, &menu_button, false);
+            if !menu_button.has_attribute("aria-describedby") {
+                continue;
             }
+            if let Some(key) = tooltip_instance_key(&menu_button) {
+                hover_state.hovering.borrow_mut().remove(&key);
+                hover_state.focused.borrow_mut().remove(&key);
+            }
+            apply_tooltip_visibility(root, &menu_button, false);
         }
     }
 
@@ -1056,13 +1109,16 @@ mod wiring {
     }
 
     /// `root` へ document keydown（Escape・Cmd/Ctrl+B）リスナーを登録する。
-    fn wire_keydown(root: &Element) -> Result<(), JsValue> {
+    /// `hover_state` は [`wire_tooltip_hover`] と共有する
+    /// [`TooltipHoverState`]（イシュー #2074 Cursor Bugbot 是正、
+    /// [`close_open_menu_button_tooltips`] doc 参照）。
+    fn wire_keydown(root: &Element, hover_state: Rc<TooltipHoverState>) -> Result<(), JsValue> {
         let document = web_sys::window()
             .and_then(|window| window.document())
             .ok_or_else(|| JsValue::from_str("sidebar: no document"))?;
         let keydown_root = root.clone();
         let closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_document_keydown(&keydown_root, &event);
+            handle_document_keydown(&keydown_root, &hover_state, &event);
         });
         document.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())?;
         closure.forget();
@@ -1114,13 +1170,28 @@ mod wiring {
     /// document keydown/pointerdown・root pointerover/pointerout/focusin/
     /// focusout の `add_event_listener_with_callback` 失敗を伝播する。
     pub fn wire_sidebar_events_with_query(root: Element, query: &str) -> Result<(), JsValue> {
-        if find_first(&root, PROVIDER_SELECTOR).is_none() {
+        // イシュー #2074 codex-review P1 是正: `root` は provider を含む
+        // 部分木の任意の祖先を受け付ける契約であり、アプリが `provider`
+        // 要素自身を渡すケースを含む（[`find_first_including_self`] doc
+        // 参照）。`find_first`（子孫のみ）のままだとこのケースで
+        // provider を発見できず、以降の keydown/pointerdown/tooltip
+        // hover/state observer/mobile の配線が丸ごと no-op になる
+        // （クリックによる開閉のみ `crate::headless` 側の別経路で動作し、
+        // ショートカット・モバイル切替・tooltip が一切動作しない不具合）。
+        if find_first_including_self(&root, PROVIDER_SELECTOR).is_none() {
             return Ok(());
         }
 
-        wire_keydown(&root)?;
+        // イシュー #2074 Cursor Bugbot 是正: [`wire_keydown`]（Escape 処理）
+        // と [`wire_tooltip_hover`]（pointerover/pointerout/focusin/
+        // focusout）が同一 [`TooltipHoverState`] を共有することで、
+        // Escape 押下時に [`close_open_menu_button_tooltips`] が
+        // hover/focus の入力チャネルも明示的にクリアできるようにする
+        // （`close_open_menu_button_tooltips` doc 参照）。
+        let hover_state = Rc::new(TooltipHoverState::new());
+        wire_keydown(&root, hover_state.clone())?;
         wire_pointerdown(&root)?;
-        wire_tooltip_hover(&root)?;
+        wire_tooltip_hover(&root, hover_state)?;
         wire_sidebar_state_observer(&root)?;
 
         // モバイル判定機能の失敗は他機能を止めない（モジュール doc

@@ -360,6 +360,54 @@ fn ctrl_b_shortcut_toggles_via_trigger_click_synthesis() {
 }
 
 #[wasm_bindgen_test]
+fn wire_sidebar_events_with_query_wires_shortcut_when_root_is_provider_itself() {
+    // イシュー #2074 codex-review P1 是正の回帰テスト
+    // （`wire_sidebar_events_with_query` の非搭載判定ガード）。ガードは
+    // 元々 `find_first`（子孫のみ）で provider の有無を判定していたため、
+    // `wire_sidebar_dispatch` と同じく「provider を含む部分木の任意の
+    // 祖先」を受け付ける契約のはずのこの API に、アプリが provider 要素
+    // 自身を `root` として渡すと「非搭載」と誤判定し、
+    // keydown/pointerdown/tooltip hover/state observer/mobile の全配線を
+    // 丸ごと skip していた（クリックによる開閉のみ `wire_sidebar_dispatch`
+    // 側の別経路で動作し、ショートカット・モバイル切替・tooltip が一切
+    // 動作しない）。`find_first_including_self` への置換により、`root`
+    // 自身が provider の場合も正しく配線されることを Ctrl+B ショート
+    // カットで検証する。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-root-is-provider-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let (sidebar, provider_el, root_el, ..) =
+        build_sidebar_markup(&container, SidebarState::Expanded, false, false);
+    let component = Rc::new(RefCell::new(sidebar));
+    let update_provider = provider_el.clone();
+    let update_root = root_el.clone();
+    wire_sidebar_dispatch(
+        provider_el.clone(),
+        component.clone(),
+        move |state, _root| {
+            let data_state = state.data_state();
+            let _ = update_provider.set_attribute("data-state", data_state);
+            let _ = update_root.set_attribute("data-state", data_state);
+        },
+    )
+    .expect("wire_sidebar_dispatch must not fail");
+
+    // `container`（provider の祖先）ではなく `provider_el` 自身を `root`
+    // として渡す点が本回帰テストの核心。
+    wire_sidebar_events_with_query(provider_el.clone(), DESKTOP_QUERY)
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    let not_prevented = dispatch_document_keydown(&document, "b", true, false, false);
+    assert_eq!(component.borrow().state(), SidebarState::Collapsed);
+    assert!(
+        !not_prevented,
+        "root が provider 自身でも Ctrl+B ショートカットが preventDefault() されること"
+    );
+}
+
+#[wasm_bindgen_test]
 fn detached_root_document_listener_does_not_block_new_sidebar_shortcut() {
     // イシュー #2074 codex-review P1 是正の回帰テスト。
     //
@@ -644,6 +692,93 @@ fn dispatch_registered_with_provider_element_as_root_still_reconciles_mobile_col
     assert_eq!(
         root_el.get_attribute("data-state").as_deref(),
         Some("collapsed")
+    );
+}
+
+#[wasm_bindgen_test]
+fn multiple_providers_under_shared_root_collapse_survives_sibling_structural_rerender() {
+    // イシュー #2074 codex-review P1 是正の回帰テスト（「モバイル移行中の
+    // 再描画後に provider を再取得する」）。`apply_mobile_state` の
+    // entering_mobile 分岐が本テスト導入前は `all_providers(root)` を
+    // ループ開始時に 1 回だけ呼び出し、その `Vec<Element>` をそのまま
+    // 反復していた。複数 provider 環境で 1 個目への合成 click が
+    // dispatch → `on_update` を経由し、共有ルートの他の子孫（2 個目の
+    // provider を含む部分木）を丸ごと再描画（`set_inner_html`）する
+    // 構成では、2 個目の `Element` ハンドルは差し替え後に document から
+    // 切り離された古い参照になり、`click_trigger_or_rail` を呼んでも
+    // 合成 click イベントが `sub_b`（delegation 登録先）まで伝播せず
+    // 折りたたみが失われる。本テストは 1 個目の provider の `on_update`
+    // 内で意図的に 2 個目の provider を含む兄弟部分木を丸ごと再構築し、
+    // 2 個目が期待どおり `Collapsed` へ折りたたまれることを検証する
+    // （各反復の直前に `all_providers` を呼び直すインデックスベースの
+    // 走査でのみ成立する）。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let shared_root = create_container(&document, "sidebar-multi-provider-sibling-rerender-root");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    let sub_a = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    let sub_b = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    shared_root
+        .append_child(&sub_a)
+        .expect("append_child must not fail for sub_a");
+    shared_root
+        .append_child(&sub_b)
+        .expect("append_child must not fail for sub_b");
+
+    let (sidebar_a, ..) = build_sidebar_markup(&sub_a, SidebarState::Expanded, false, false);
+    let (sidebar_b, ..) = build_sidebar_markup(&sub_b, SidebarState::Expanded, false, false);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+
+    // 2 個目（sub_b）は通常どおり配線する（delegation は `sub_b` 自身に
+    // 登録されるため、その子孫を後から丸ごと差し替えても配線自体は
+    // 生き続ける）。
+    wire_dispatch_reflecting_data_state(&sub_b, component_b.clone());
+
+    // 1 個目（sub_a）の `on_update` は、自身の `data-state` 反映に加えて
+    // `sub_b` の中身を丸ごと再構築する（「共有ルートの子孫を再描画する」
+    // 構造フォールバック再描画の模擬）。差し替え後も `sidebar_b`（state）は
+    // 元のまま `Expanded` を保つ（再描画は DOM のみを新調し、独立した
+    // component_b の状態は変更しない）。
+    let update_sub_a = sub_a.clone();
+    let rerender_sub_b = sub_b.clone();
+    wire_sidebar_dispatch(sub_a.clone(), component_a.clone(), move |state, _root| {
+        let data_state = state.data_state();
+        if let Some(el) = query(&update_sub_a, PROVIDER_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        if let Some(el) = query(&update_sub_a, ROOT_SELECTOR) {
+            let _ = el.set_attribute("data-state", data_state);
+        }
+        // sub_b の DOM を丸ごと新調する（新しい `Element` インスタンスへ
+        // 差し替え、旧ノードは document から切り離される）。
+        let _ = build_sidebar_markup(&rerender_sub_b, SidebarState::Expanded, false, false);
+    })
+    .expect("wire_sidebar_dispatch must not fail");
+
+    // 常時一致クエリで entering_mobile 分岐を確定的に起動する。この 1 回の
+    // 呼び出し内で 1 個目 provider への合成 click → 上記 `on_update` →
+    // sub_b 再構築 → 2 個目 provider への合成 click（再取得された新しい
+    // 要素に対して行われるべき）が連鎖する。
+    wire_sidebar_events_with_query(shared_root.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    assert_eq!(
+        component_a.borrow().state(),
+        SidebarState::Collapsed,
+        "1 個目の provider は通常どおり折りたたまれること"
+    );
+    assert_eq!(
+        component_b.borrow().state(),
+        SidebarState::Collapsed,
+        "2 個目の provider が兄弟の構造再描画後も再取得され折りたたまれること\
+         （再取得なしの実装では差し替え後の生存 DOM に click が届かず取り残される）"
     );
 }
 
@@ -1004,6 +1139,48 @@ fn tooltip_stays_hidden_when_mobile() {
 
     dispatch_event_on(&menu_button_el, "pointerover");
     assert!(content_el.has_attribute("hidden"));
+}
+
+#[wasm_bindgen_test]
+fn escape_clears_focus_hover_channel_so_stray_pointerout_does_not_reshow_tooltip() {
+    // イシュー #2074 Cursor Bugbot 是正の回帰テスト（Escape leaves
+    // tooltip hover state live）。従来の `close_open_menu_button_tooltips`
+    // は `apply_tooltip_visibility` で DOM 上非表示にするのみで
+    // `TooltipHoverState`（`hovering`/`focused`）をクリアしていなかった。
+    // focusin で開いた tooltip を Escape で閉じても `focused` 集合には
+    // キーが残り続けるため、その後の無関係な `pointerout`（
+    // `handle_tooltip_hover_event` が `stay_open()` を再評価する契機）で
+    // `focused` が真のまま残っていることを理由に tooltip が意図せず
+    // 再表示されてしまっていた。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-tooltip-escape-hover-state-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let (menu_button_el, content_el) = mount_sidebar_with_tooltip(&container, false);
+    wire_sidebar_events_with_query(container.clone(), DESKTOP_QUERY)
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    // focusin で開く（`focused` チャネルが活性化する）。
+    dispatch_event_on(&menu_button_el, "focusin");
+    assert!(!content_el.has_attribute("hidden"));
+
+    // Escape で閉じる。
+    dispatch_document_keydown(&document, "Escape", false, false, false);
+    assert!(
+        content_el.has_attribute("hidden"),
+        "Escape 直後は tooltip が非表示であること"
+    );
+
+    // 無関係な pointerout（実際にはユーザーの意図的な再表示要求ではない）
+    // が発生しても、Escape で明示的にクリアされた `focused` チャネルが
+    // 残っていない限り tooltip は再表示されないこと。
+    dispatch_event_on(&menu_button_el, "pointerout");
+    assert!(
+        content_el.has_attribute("hidden"),
+        "Escape 後の無関係な pointerout で tooltip が再表示されないこと\
+         （`focused` チャネルが Escape でクリアされていない実装では再表示されてしまう）"
+    );
 }
 
 // --- 6. sidebar 非搭載アプリへの副作用なし ---
