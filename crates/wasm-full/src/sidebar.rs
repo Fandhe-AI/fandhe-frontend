@@ -273,8 +273,9 @@ mod wiring {
         /// 呼び出しごとに独立した `root` を束縛する document pointerdown
         /// リスナー（[`wire_pointerdown`]）が個別に登録される。この
         /// 「呼び出し単位で閉じた」設計のまま
-        /// [`resolve_and_dismiss_providers`] を各リスナー内で個別に
-        /// 呼ぶと、後続リスナー（例: ルート B）が判定を確定する時点
+        /// `resolve_and_dismiss_providers`（単一 `root` 版、現在は
+        /// [`resolve_and_dismiss_providers_across_roots`] へ統合済み）を
+        /// 各リスナー内で個別に呼ぶと、後続リスナー（例: ルート B）が判定を確定する時点
         /// では、先に処理された別リスナー（ルート A）の合成 click が
         /// 引き起こした共有ルートの構造フォールバック再描画が既に
         /// ルート B の部分木を差し替え済みになり得る。この場合
@@ -282,9 +283,10 @@ mod wiring {
         /// 古い参照になり、実際にはルート B の内側をクリックしていても
         /// `sidebar_root.contains(target)` が構造的に一致せず「外側」と
         /// 誤判定してルート B まで閉じてしまう
-        /// （[`resolve_and_dismiss_providers`] doc の「`data-mobile` の
-        /// 消失」「click 対象ノードの切断」節が防いでいるのはあくまで
-        /// **同一** `resolve_and_dismiss_providers` 呼び出し内（＝同一
+        /// （[`resolve_and_dismiss_providers_across_roots`] doc の
+        /// 「`data-mobile` の消失」「click 対象ノードの切断」節が防いで
+        /// いるのはあくまで**同一** `root` を対象とする単一呼び出し内
+        /// （＝同一
         /// `root` 配下の複数 provider 間）の誤判定であり、別々の
         /// `wire_sidebar_events_with_query` 呼び出しをまたぐ誤判定は
         /// 防げない）。
@@ -292,13 +294,17 @@ mod wiring {
         /// この既登録集合は、1 回の pointerdown イベントについて
         /// **最初に処理する 1 個の document pointerdown リスナー**が、
         /// 自分の `root` だけでなく既登録の全 `root` の provider を
-        /// まとめて 1 回の [`resolve_and_dismiss_providers`] 相当の
+        /// まとめて 1 回の [`resolve_and_dismiss_providers_across_roots`] の
         /// パスで判定・確定できるようにするために使う
-        /// （[`handle_document_pointerdown`] 実装参照）。判定確定後は
-        /// `Event::stop_immediate_propagation()` で同一 `document` に
-        /// 登録された他ルートの pointerdown リスナーの実行自体を止め、
-        /// 二重処理（既に判定・dismiss 済みの provider への再判定・
-        /// 二重 click によるトグルの巻き戻り）を構造的に防ぐ。
+        /// （[`handle_document_pointerdown`] 実装参照）。判定確定前に
+        /// [`mark_event_handled`] が同一 `Event` へ処理済みマーカーを
+        /// 立てることで、同一 `document` に登録された他ルートの
+        /// pointerdown リスナーの二重処理（既に判定・dismiss 済みの
+        /// provider への再判定・二重 click によるトグルの巻き戻り）を
+        /// 構造的に防ぐ（`Event::stop_immediate_propagation()` は使わ
+        /// ない。同関数 doc「無条件 `stop_immediate_propagation` の
+        /// 問題」参照。他の無関係な document pointerdown リスナーの
+        /// 実行を妨げないようにするため）。
         ///
         /// 要素は分離時（アプリのアンマウント・テストの `RemoveOnDrop`
         /// 等）にこの集合から明示的に取り除かれない
@@ -308,7 +314,100 @@ mod wiring {
         /// から扱う（[`connected_registered_roots`] 参照）ため、リーク
         /// した要素が誤って処理対象になることはない。
         static REGISTERED_POINTERDOWN_ROOTS: RefCell<Vec<Element>> = const { RefCell::new(Vec::new()) };
+
+        /// [`wire_keydown`] を呼んだ `(root, hover_state)` を蓄積する
+        /// 既登録集合（イシュー #2074 codex-review P1 是正、Escape 版）。
+        ///
+        /// [`REGISTERED_POINTERDOWN_ROOTS`] と同型の理由（複数
+        /// `wire_sidebar_events_with_query` 呼び出しをまたぐ `data-mobile`
+        /// 消失・click 対象ノード切断の誤判定）で、Escape の判定
+        /// （[`handle_document_keydown`] の `key == "Escape"` 分岐）も
+        /// **このイベントを最初に処理する 1 個のリスナー**が既登録の
+        /// 全 `root` の provider をまとめて判定・確定する必要がある。
+        /// `hover_state` は `root` ごとに独立した
+        /// [`TooltipHoverState`]（`Rc`）であり、
+        /// [`close_open_menu_button_tooltips`] の呼び出しにはどの
+        /// `root` の呼び出しでもその `root` 自身の `hover_state` を
+        /// 使う必要があるため、`root` 単独ではなく組で保持する。
+        ///
+        /// pointerdown 版と異なり `Event::stop_immediate_propagation()`
+        /// は使わない（[`mark_pointerdown_handled`] doc「無条件
+        /// `stop_immediate_propagation` の問題」参照、Escape も同じ理由で
+        /// 他の document keydown リスナー（Sidebar 以外のコンポーネント）
+        /// を止めてはならない）。代わりに
+        /// [`mark_escape_handled`] が同一 `Event` オブジェクトへ処理済み
+        /// マーカーを立てることで、Sidebar 自身の複数 `root` リスナー間
+        /// のみを重複排除する。
+        static REGISTERED_KEYDOWN_ROOTS: RefCell<Vec<(Element, Rc<TooltipHoverState>)>> =
+            const { RefCell::new(Vec::new()) };
     }
+
+    /// `root` を [`REGISTERED_KEYDOWN_ROOTS`] へ `hover_state` と組で登録
+    /// する（`Element` の参照同一性で重複排除）。
+    fn register_keydown_root(root: &Element, hover_state: &Rc<TooltipHoverState>) {
+        REGISTERED_KEYDOWN_ROOTS.with(|cell| {
+            let mut roots = cell.borrow_mut();
+            let already_registered = roots
+                .iter()
+                .any(|(existing, _)| existing.is_same_node(Some(root)));
+            if !already_registered {
+                roots.push((root.clone(), hover_state.clone()));
+            }
+        });
+    }
+
+    /// [`REGISTERED_KEYDOWN_ROOTS`] のうち、まだ document に接続されて
+    /// いる `root` のみをスナップショットして返す
+    /// （[`connected_registered_roots`] の Escape 版）。
+    fn connected_registered_keydown_roots() -> Vec<(Element, Rc<TooltipHoverState>)> {
+        REGISTERED_KEYDOWN_ROOTS.with(|cell| {
+            cell.borrow()
+                .iter()
+                .filter(|(root, _)| root.is_connected())
+                .cloned()
+                .collect()
+        })
+    }
+
+    /// 同一 `Event` に対する Sidebar 側の重複処理を防ぐための処理済み
+    /// マーカーを `event` 自身へ立てる（[`js_sys::Reflect`] で expando
+    /// プロパティとして書き込む。ネイティブ `Event` オブジェクトへの
+    /// 任意プロパティ追加は標準的な JS の挙動であり、同一イベントを
+    /// 複数リスナーへ配送する document 委譲パターンでの重複排除に
+    /// 広く使われる手法）。
+    ///
+    /// 戻り値はマーカーが**既に**立っていたかどうか（`true` なら
+    /// 呼び出し元は処理をスキップしてよい）。`key` はイベント種別ごとに
+    /// 異なる文字列を使い、pointerdown 用マーカーと Escape 用マーカーが
+    /// 互いに干渉しないようにする（本モジュールが pointerdown と keydown
+    /// の双方でこの関数を使うため）。
+    ///
+    /// イシュー #2074 codex-review P1 / Cursor Bugbot 是正（無条件
+    /// `stop_immediate_propagation` の問題）: 従来は
+    /// [`handle_document_pointerdown`] が判定前に無条件で
+    /// `Event::stop_immediate_propagation()` を呼んでいたため、Sidebar
+    /// より後に同一 `document` へ登録された無関係なリスナー
+    /// （[`crate::overlay::wiring::OverlayCloseController`] 等）が
+    /// **すべての** pointerdown イベントについて実行されなくなって
+    /// いた（デスクトップ・drawer が既に閉じている等、Sidebar が何も
+    /// 閉じる必要のない場合を含む）。本関数によるイベント自体への
+    /// マーカー付与は、Sidebar 自身の複数 `root` リスナー間の重複処理
+    /// だけを防ぎ、`stop_immediate_propagation`/`stop_propagation` を
+    /// 一切呼ばないため、無関係な他コンポーネントのリスナーは常に
+    /// 実行され続ける。
+    fn mark_event_handled(event: &Event, key: &str) -> bool {
+        let property = JsValue::from_str(key);
+        if js_sys::Reflect::has(event, &property).unwrap_or(false) {
+            return true;
+        }
+        let _ = js_sys::Reflect::set(event, &property, &JsValue::TRUE);
+        false
+    }
+
+    /// [`mark_event_handled`] の pointerdown 用マーカーキー。
+    const POINTERDOWN_HANDLED_KEY: &str = "__fandheFrontendSidebarPointerdownHandled";
+    /// [`mark_event_handled`] の Escape 用マーカーキー。
+    const ESCAPE_HANDLED_KEY: &str = "__fandheFrontendSidebarEscapeHandled";
 
     /// `root` を [`REGISTERED_POINTERDOWN_ROOTS`] へ登録する（`Element`
     /// の参照同一性で重複排除、`Node::is_same_node` 使用）。
@@ -446,17 +545,20 @@ mod wiring {
         out
     }
 
-    /// `root` 配下の全 provider に対する「閉鎖すべきか」の判定を、
-    /// いずれの合成 click よりも前の単一の同期パスで確定してから、
-    /// 判定が真の provider だけを都度生きた DOM から再取得して
-    /// [`click_trigger_or_rail`] で閉じる（Escape・外側クリック閉鎖の
-    /// 共通実装）。
+    /// `roots` に登録された全 `root` 配下の全 provider に対する「閉鎖
+    /// すべきか」の判定を、いずれの合成 click よりも前の単一の同期パス
+    /// で確定してから、判定が真の provider だけを都度生きた DOM から
+    /// 再取得して [`click_trigger_or_rail`] で閉じる（Escape・外側
+    /// クリック閉鎖の共通実装）。単一 `root` のみを扱いたい呼び出し元は
+    /// `&[root.clone()]` のような 1 要素スライスを渡せばよい（複数
+    /// `root` を横断する一般形が単一 `root` の特殊形を包含する）。
     ///
-    /// イシュー #2074 codex-review P1 是正（`for_each_provider_refetching`（旧・削除済み）
-    /// では解決しない残存不具合）: 複数 drawer が並存する
-    /// 構成で、`decide` を `for_each_provider_refetching`（旧・削除済み）のように
-    /// 「各 provider を処理する直前に毎回フレッシュな DOM から読み直す」
-    /// 実装にすると、以下 2 つの経路のいずれかで誤判定が起こる。
+    /// イシュー #2074 codex-review P1 是正（`for_each_provider_refetching`
+    /// （旧・削除済み）では解決しない残存不具合）: 複数 drawer が並存
+    /// する構成で、`decide` を `for_each_provider_refetching`（旧・
+    /// 削除済み）のように「各 provider を処理する直前に毎回フレッシュな
+    /// DOM から読み直す」実装にすると、以下 2 つの経路のいずれかで
+    /// 誤判定が起こる。
     ///
     /// 1. **`data-mobile` の消失**: 先頭 provider への合成 click が
     ///    dispatch → `on_update` を経て共有ルートの構造フォールバック
@@ -473,42 +575,20 @@ mod wiring {
     ///    provider の `contains(target)` は構造的に一致し得ず、内側
     ///    クリックだったにもかかわらず「外側」と誤判定して閉じてしまう。
     ///
-    /// 本関数は `decide` を**全 provider に対して一括で**（`root` から
-    /// [`all_providers`] を 1 回だけ収集した直後、`on_dismiss` 相当の
-    /// click 合成を一切行う前に）呼び出すことで、上記いずれの誤判定も
-    /// 構造的に起こり得ないようにする。判定確定後の第 2 パスでは、
-    /// 各 provider の**識別**（クリック対象の DOM 要素の再取得）のみを
-    /// 都度行う（`for_each_provider_refetching`（旧・削除済み）と同型の理由:
+    /// 本関数は `decide` を**全 `root` の全 provider に対して一括で**
+    /// （各 `root` から [`all_providers`] を 1 回だけ収集した直後、
+    /// `on_dismiss` 相当の click 合成をいずれの `root`・`provider` に
+    /// ついても一切行う前に）呼び出すことで、上記いずれの誤判定も
+    /// 構造的に起こり得ないようにする（同一 `root` 内の複数 provider
+    /// 間の誤判定だけでなく、[`REGISTERED_POINTERDOWN_ROOTS`]/
+    /// [`REGISTERED_KEYDOWN_ROOTS`] doc が説明する `root` をまたぐ誤判定
+    /// も同じ機構で防ぐ）。判定確定後の第 2 パスでは、各 provider の
+    /// **識別**（クリック対象の DOM 要素の再取得）のみを都度行う
+    /// （`for_each_provider_refetching`（旧・削除済み）と同型の理由:
     /// 先行する provider への click が後続 provider の参照を切断済みに
-    /// し得るため）。`decide` の呼び出し自体は副作用（click 合成）を
-    /// 持たないため、この再取得は「識別」だけを担い「判定」には関与
-    /// しない。
-    fn resolve_and_dismiss_providers(root: &Element, mut decide: impl FnMut(&Element) -> bool) {
-        let providers = all_providers(root);
-        let decisions: Vec<bool> = providers.iter().map(&mut decide).collect();
-        for (index, should_dismiss) in decisions.into_iter().enumerate() {
-            if !should_dismiss {
-                continue;
-            }
-            if let Some(provider) = all_providers(root).into_iter().nth(index) {
-                click_trigger_or_rail(&provider);
-            }
-        }
-    }
-
-    /// [`resolve_and_dismiss_providers`] の複数ルート版
-    /// （イシュー #2074 codex-review P1 是正、
-    /// [`REGISTERED_POINTERDOWN_ROOTS`] doc 参照）。個別に
-    /// `wire_sidebar_events_with_query` が呼ばれた複数の `root`
-    /// （＝互いに独立した document pointerdown リスナーの束縛先）を
-    /// またいで、`decide` の呼び出し（判定）を**いずれの `root` への
-    /// 合成 click よりも前に**すべて確定させてから dismiss（click 合成）
-    /// を行う。同一 `root` 内の複数 provider を扱う
-    /// [`resolve_and_dismiss_providers`] の設計をそのまま「`root` の
-    /// 集合」へ一般化したものであり、判定確定後の第 2 パスが各
-    /// `(root, root 内 index)` の組で provider を都度再取得する点も
-    /// 同型（`root` 自身が再描画で丸ごと差し替わることはない前提は
-    /// 単一 `root` 版と同じ）。
+    /// し得るため。`root` 自身が再描画で丸ごと差し替わることはない
+    /// 前提）。`decide` の呼び出し自体は副作用（click 合成）を持たない
+    /// ため、この再取得は「識別」だけを担い「判定」には関与しない。
     fn resolve_and_dismiss_providers_across_roots(
         roots: &[Element],
         mut decide: impl FnMut(&Element) -> bool,
@@ -629,7 +709,7 @@ mod wiring {
     /// document keydown 委譲ハンドラ。Escape（モバイル drawer 閉鎖）と
     /// Cmd/Ctrl+B（開閉ショートカット）の双方をこの 1 関数で扱う
     /// （`Closure::forget` の定数個契約、モジュール doc参照）。
-    fn handle_document_keydown(root: &Element, hover_state: &TooltipHoverState, event: &Event) {
+    fn handle_document_keydown(root: &Element, event: &Event) {
         // イシュー #2074 codex-review P1 是正: `root` は document
         // リスナーへ `move` された `Element` クローンであり、`root` を
         // 含むコンテナが DOM から取り外され（例: 別画面のマウントに伴う
@@ -662,13 +742,35 @@ mod wiring {
                 return;
             }
 
+            // イシュー #2074 codex-review P1 是正（Escape の複数ルート間
+            // 判定競合、[`REGISTERED_KEYDOWN_ROOTS`] doc 参照）: 個別に
+            // `wire_sidebar_events_with_query` を呼んだ複数 `root`
+            // （＝互いに独立した document keydown リスナー）が同じ
+            // Escape イベントをそれぞれ「自分の `root` だけ」を対象に
+            // 処理すると、[`handle_document_pointerdown`] と同型の
+            // 誤判定（先行するリスナーの合成 click が引き起こす共有
+            // ルートの構造フォールバック再描画で、後続リスナーが
+            // 読む `data-mobile`/クリック対象ノードが化ける）が起こり
+            // 得る。[`mark_event_handled`] でこのイベントを最初に処理
+            // する 1 個のリスナーだけを選び出し、既登録の全 `root` を
+            // まとめて 1 回で確定させる（pointerdown 版と異なり
+            // `stop_immediate_propagation` は呼ばない、同 doc 参照）。
+            if mark_event_handled(event, ESCAPE_HANDLED_KEY) {
+                return;
+            }
+
+            let entries = connected_registered_keydown_roots();
+
             // イシュー #2074 codex-review P1 是正: デスクトップの
             // collapsed/icon 状態で focus/hover により開いている
             // menu-button tooltip は `overlay::OverlayCloseController` に
             // 登録されておらず（モジュール doc「`overlay::
             // OverlayCloseController` へ統合しない理由」参照）、他に
-            // Escape で閉じる経路が無いため、本関数が完結させる。
-            close_open_menu_button_tooltips(root, hover_state);
+            // Escape で閉じる経路が無いため、本関数が完結させる
+            // （複数 `root` が並存する場合はそのすべてを対象にする）。
+            for (entry_root, entry_hover_state) in &entries {
+                close_open_menu_button_tooltips(entry_root, entry_hover_state);
+            }
 
             // イシュー #2074 codex-review P1 是正: 単一 provider のみを
             // 見る [`find_first`] ではなく [`all_providers`] で列挙した
@@ -681,14 +783,18 @@ mod wiring {
             //
             // イシュー #2074 codex-review P1 是正: `mobile`/`state` の
             // 判定は、いずれの provider への合成 click よりも前に一括で
-            // 確定する（[`resolve_and_dismiss_providers`] doc「`data-
-            // mobile` の消失」節参照）。先頭 provider への合成 click が
-            // 引き起こす共有ルートの構造フォールバック再描画は、
-            // headless-ui 側が `mobile` を知らない（既定
+            // 確定する（[`resolve_and_dismiss_providers_across_roots`]
+            // doc「`data-mobile` の消失」節参照）。先頭 provider への
+            // 合成 click が引き起こす共有ルートの構造フォールバック
+            // 再描画は、headless-ui 側が `mobile` を知らない（既定
             // `SidebarProps.mobile: false`）ため後続 provider の
             // `data-mobile` を消し得る。判定をこの再描画より後に読むと
-            // 「モバイルなのに閉じない」誤判定になる。
-            resolve_and_dismiss_providers(root, |provider| {
+            // 「モバイルなのに閉じない」誤判定になる。この一括確定を
+            // 単一 `root` だけでなく既登録の全 `root` をまたいで行う
+            // ことで、上記マーカー由来の「最初の 1 個のリスナーが全体を
+            // 代表して処理する」設計と整合させる。
+            let roots: Vec<Element> = entries.into_iter().map(|(root, _)| root).collect();
+            resolve_and_dismiss_providers_across_roots(&roots, |provider| {
                 let mobile = provider.has_attribute("data-mobile");
                 let state = provider.get_attribute("data-state");
                 should_dismiss_mobile_drawer(mobile, state.as_deref())
@@ -770,12 +876,26 @@ mod wiring {
         // 1 個のリスナー**が [`connected_registered_roots`] で得た
         // 既登録の全 `root`（自分の `root` を含む）の provider をまとめて
         // 1 回の [`resolve_and_dismiss_providers_across_roots`] で判定・
-        // dismiss まで完結させる。判定確定前に
-        // `event.stop_immediate_propagation()` を呼び、同一 `document`
-        // に登録された他ルートのリスナーの実行自体を止めることで、
-        // 二重処理（既に判定・dismiss 済みの provider への再判定・
-        // 二重 click によるトグルの巻き戻り）も構造的に防ぐ。
-        event.stop_immediate_propagation();
+        // dismiss まで完結させる。
+        //
+        // イシュー #2074 codex-review P1 / Cursor Bugbot 是正（無条件
+        // `stop_immediate_propagation` の問題、[`mark_event_handled`]
+        // doc 参照）: 従来は判定確定前に `event.stop_immediate_
+        // propagation()` を呼び、同一 `document` に登録された他ルートの
+        // リスナーの実行自体を止めることで二重処理を防いでいたが、
+        // これは Sidebar 以外の無関係な document pointerdown リスナー
+        // （[`crate::overlay::wiring::OverlayCloseController`] 等）も
+        // 一律に止めてしまい、モバイル drawer を閉じる必要が一切ない
+        // pointerdown（デスクトップ・drawer が既に閉じている場合を
+        // 含む）でも他コンポーネントの外側クリック処理を壊していた。
+        // 代わりに [`mark_event_handled`] で同一 `Event` オブジェクトへ
+        // 処理済みマーカーを立てることで、Sidebar 自身の複数 `root`
+        // リスナー間のみを重複排除し、`stop_immediate_propagation`/
+        // `stop_propagation` は一切呼ばない（無関係な他リスナーは常に
+        // 実行され続ける）。
+        if mark_event_handled(event, POINTERDOWN_HANDLED_KEY) {
+            return;
+        }
 
         let roots = connected_registered_roots();
         resolve_and_dismiss_providers_across_roots(&roots, |provider| {
@@ -1596,14 +1716,26 @@ mod wiring {
     /// `root` へ document keydown（Escape・Cmd/Ctrl+B）リスナーを登録する。
     /// `hover_state` は [`wire_tooltip_hover`] と共有する
     /// [`TooltipHoverState`]（イシュー #2074 Cursor Bugbot 是正、
-    /// [`close_open_menu_button_tooltips`] doc 参照）。
+    /// [`close_open_menu_button_tooltips`] doc 参照）。[`handle_document_
+    /// keydown`] 自体は `hover_state` を直接受け取らず、Escape 分岐が
+    /// [`connected_registered_keydown_roots`] 経由で [`register_keydown_
+    /// root`] に登録済みの `(root, hover_state)` を都度取得する
+    /// （複数 `root` を横断する必要があるため、単一クロージャに束縛
+    /// された 1 個の `hover_state` だけでは足りない）。
     fn wire_keydown(root: &Element, hover_state: Rc<TooltipHoverState>) -> Result<(), JsValue> {
+        // イシュー #2074 codex-review P1 是正: `root` を
+        // [`REGISTERED_KEYDOWN_ROOTS`] へ登録し、
+        // [`handle_document_keydown`] の Escape 分岐が個々の `root` を
+        // 越えて既登録の全 `root` を一括で判定できるようにする（同 doc
+        // 参照）。
+        register_keydown_root(root, &hover_state);
+
         let document = web_sys::window()
             .and_then(|window| window.document())
             .ok_or_else(|| JsValue::from_str("sidebar: no document"))?;
         let keydown_root = root.clone();
         let closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_document_keydown(&keydown_root, &hover_state, &event);
+            handle_document_keydown(&keydown_root, &event);
         });
         document.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())?;
         closure.forget();

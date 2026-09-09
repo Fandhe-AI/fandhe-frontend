@@ -2099,3 +2099,168 @@ async fn stale_focused_channel_is_reconciled_after_structural_rerender_so_toolti
          tooltip が閉じなくなる（focused 側で stay_open が常に真のまま）"
     );
 }
+
+#[wasm_bindgen_test]
+fn escape_dismisses_mobile_drawer_across_separately_wired_roots_after_sibling_rerender() {
+    // イシュー #2074 PR #2248 codex-review P1 是正（「合成 Escape の閉鎖
+    // 判定を複数ルート間でも先に確定する」）の回帰テスト。上記
+    // `multiple_providers_escape_dismiss_survives_sibling_structural_
+    // rerender` は A・B が同一 `shared_root`（1 回の
+    // `wire_sidebar_events_with_query` 呼び出し）配下の兄弟 provider
+    // であり、単一 `root` 内の判定確定パスで解決するため「別々の
+    // document keydown リスナー間」の競合は再現しない。本テストは
+    // `outside_pointerdown_does_not_close_inside_drawer_across_
+    // separately_wired_roots`（pointerdown 版）と同型に、A・B を個別の
+    // コンテナに対してそれぞれ独立に `wire_sidebar_events_with_query`
+    // を呼び、別々の document keydown リスナーが登録される構成にする。
+    //
+    // A が Escape で閉じるタイミングで B の部分木を丸ごと再構築し、
+    // headless-ui の既定 `SidebarProps.mobile: false` を模して
+    // `data-mobile` を再設定しない。判定を各リスナーが個別に「自分の
+    // `root` だけ」を対象に都度フレッシュな DOM から読み直す実装では、
+    // A の処理（1 個目の document keydown リスナー）が先に走って A を
+    // 閉じ、その再描画で B の `data-mobile` が消えた後に B 用の
+    // リスナー（2 個目）が判定すると `mobile=false` に化けて
+    // 「閉じるべきなのに閉じない」誤判定になる。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container_a = create_container(&document, "sidebar-escape-separate-root-a");
+    let _cleanup_a = RemoveOnDrop(container_a.clone());
+    let container_b = create_container(&document, "sidebar-escape-separate-root-b");
+    let _cleanup_b = RemoveOnDrop(container_b.clone());
+
+    let (sidebar_a, _provider_a, _root_a, trigger_a, _rail_a) =
+        build_sidebar_markup(&container_a, SidebarState::Collapsed, false, false);
+    let (sidebar_b, _provider_b, _root_b, trigger_b, _rail_b) =
+        build_sidebar_markup(&container_b, SidebarState::Collapsed, false, false);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+
+    // B は通常どおり配線（in-place `data-state` 反映のみ、部分木は
+    // 再構築しない）。
+    wire_dispatch_reflecting_data_state(&container_b, component_b.clone());
+
+    // A の on_update は、A が閉じる（`data_state == "collapsed"`）
+    // タイミングでのみ B の部分木を丸ごと再構築する。headless-ui の
+    // 既定 `mobile: false` を模すため `data-mobile` は再設定しない。
+    let update_container_a = container_a.clone();
+    let rerender_container_b = container_b.clone();
+    wire_sidebar_dispatch(
+        container_a.clone(),
+        component_a.clone(),
+        move |state, _root| {
+            let data_state = state.data_state();
+            if let Some(el) = query(&update_container_a, PROVIDER_SELECTOR) {
+                let _ = el.set_attribute("data-state", data_state);
+            }
+            if let Some(el) = query(&update_container_a, ROOT_SELECTOR) {
+                let _ = el.set_attribute("data-state", data_state);
+            }
+            if data_state == SidebarState::Collapsed.as_data_state() {
+                let _ = build_sidebar_markup(
+                    &rerender_container_b,
+                    SidebarState::Expanded,
+                    false,
+                    false,
+                );
+            }
+        },
+    )
+    .expect("wire_sidebar_dispatch must not fail");
+
+    // codex-review P1 が指摘する「個別ルート」構成そのもの: A・B を
+    // それぞれ独立したコンテナに対して個別に
+    // `wire_sidebar_events_with_query` で登録する（共有 `root` 配下の
+    // 兄弟 provider ではない）。
+    wire_sidebar_events_with_query(container_a.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query for container_a must not fail");
+    wire_sidebar_events_with_query(container_b.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query for container_b must not fail");
+
+    dispatch_click(&trigger_b);
+    dispatch_click(&trigger_a);
+    assert_eq!(component_a.borrow().state(), SidebarState::Expanded);
+    assert_eq!(component_b.borrow().state(), SidebarState::Expanded);
+    assert!(
+        query(&container_b, PROVIDER_SELECTOR)
+            .expect("provider_b must exist")
+            .has_attribute("data-mobile"),
+        "前提: Escape 押下前は B の data-mobile がまだ失われていないこと"
+    );
+
+    dispatch_document_keydown(&document, "Escape", false, false, false);
+
+    assert_eq!(
+        component_a.borrow().state(),
+        SidebarState::Collapsed,
+        "A は通常どおり Escape で閉じられること"
+    );
+    assert_eq!(
+        component_b.borrow().state(),
+        SidebarState::Collapsed,
+        "A 用の document keydown リスナーが先に処理されて A を閉じ、\
+         その再描画で B の data-mobile が同一 Escape 押下の処理中に \
+         失われても、既登録の全 root をまたいで判定を再描画より前に \
+         確定しない実装では B が誤って開いたまま取り残される"
+    );
+}
+
+#[wasm_bindgen_test]
+fn outside_pointerdown_does_not_stop_propagation_to_unrelated_document_listener() {
+    // イシュー #2074 PR #2248 codex-review P1 / Cursor Bugbot 是正
+    // （「Sidebar と無関係な pointerdown リスナーを停止しない」）の
+    // 回帰テスト。従来は `handle_document_pointerdown` がモバイル・
+    // 開閉状態を判定する前に無条件で `Event::stop_immediate_
+    // propagation()` を呼んでいたため、Sidebar より後に同一 `document`
+    // へ登録された無関係なリスナー（`overlay::OverlayCloseController`
+    // 等）が実行されなくなっていた。本テストは Sidebar 配線の**後**に
+    // 素の document pointerdown リスナーを登録し、Sidebar が実際に
+    // モバイル drawer を閉じる pointerdown（＝従来
+    // `stop_immediate_propagation` が呼ばれていた経路）が発生しても、
+    // その無関係なリスナーが引き続き呼ばれることを確認する。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-pointerdown-unrelated-listener-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let (component, _provider_el, _root_el, trigger_el, _rail_el) =
+        mount_sidebar(&document, &container, SidebarState::Collapsed, false, false);
+    wire_sidebar_events_with_query(container.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    // Sidebar の document pointerdown リスナーより後に登録する
+    // （`OverlayCloseController` 等、Sidebar 配線後にオーバーレイを
+    // 配線するアプリの典型的な登録順を模す）。
+    let unrelated_listener_calls = Rc::new(RefCell::new(0u32));
+    let counter = unrelated_listener_calls.clone();
+    let unrelated_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+        *counter.borrow_mut() += 1;
+    });
+    document
+        .add_event_listener_with_callback("pointerdown", unrelated_closure.as_ref().unchecked_ref())
+        .expect("add_event_listener_with_callback must not fail");
+    unrelated_closure.forget();
+
+    dispatch_click(&trigger_el);
+    assert_eq!(component.borrow().state(), SidebarState::Expanded);
+
+    // container 自体は sidebar root ではないため「外側」扱いになり、
+    // Sidebar は実際に drawer を閉じる（＝従来 `stop_immediate_
+    // propagation` が呼ばれていた経路を確実に通す）。
+    dispatch_event_on_document(&document, "pointerdown");
+
+    assert_eq!(
+        component.borrow().state(),
+        SidebarState::Collapsed,
+        "外側クリックとして Sidebar は通常どおり閉じられること"
+    );
+    assert_eq!(
+        *unrelated_listener_calls.borrow(),
+        1,
+        "Sidebar が実際に drawer を閉じる pointerdown であっても、\
+         無条件の stop_immediate_propagation により Sidebar より後に \
+         登録された無関係な document pointerdown リスナー \
+         （OverlayCloseController 等）の実行が妨げられてはならない"
+    );
+}
