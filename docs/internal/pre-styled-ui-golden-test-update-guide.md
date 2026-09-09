@@ -104,7 +104,7 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 | `status_empty_state_css.rs` | status / empty_state（イシュー #2047 で empty_state の root/indicator variant 3 ブロックを golden 末尾へ純追加） |
 | `popover_tooltip_css.rs` | popover / tooltip |
 | `pie_donut_chart_css.rs` | pie_chart / donut_chart |
-| `charts_css.rs` | line_chart / area_chart / sparkline |
+| `charts_css.rs` | line_chart / area_chart / sparkline（イシュー #2081 で area_chart の `fill: AreaFill::Gradient` variant 規則を golden 末尾へ純追加） |
 | `charts_parts_css.rs` | charts 内部パーツ: `charts::axis` / `charts::grid` / `charts::legend` / `charts::tooltip` |
 | `scatter_radar_chart_css.rs` | `charts::scatter_chart` / `charts::radar_chart` |
 | `bar_chart_css.rs` | `charts::bar_chart`（イシュー #1590 で golden 新設） |

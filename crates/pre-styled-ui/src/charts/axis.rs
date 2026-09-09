@@ -30,35 +30,79 @@ const SCOPE: &str = "chart";
 const SLOTS: &[&str] = &["x-axis", "y-axis", "axis-line", "tick-line", "tick-label"];
 
 /// 目盛ラベルの書式（chakra-ui `tickFormatter` クロージャを固定接頭辞・
-/// 接尾辞のみへ縮約する。ロケール依存の日付フォーマット等は
+/// 接尾辞・倍率のみへ縮約する。ロケール依存の日付フォーマット等は
 /// スコープ外、[`crate::charts::mod`] rustdoc 参照）。
 ///
 /// 値本体の文字列化は常に [`super::svg::fmt_coord`] を経由する
 /// （`.claude/rules/coding-rust.md` の数値決定的文字列化の一元化）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+///
+/// `label_scale`（イシュー #2081 追補）は `crate::area_chart` の
+/// `AreaStack::Expand`（domain `(0.0, 1.0)` の比率）のように、目盛の
+/// 位置計算に使う domain 値とラベル表示値が異なる（比率 0.25 を
+/// 「25%」と表示したい）場合の乗数。位置計算（`scale.scale(t)`）は
+/// 生の domain 値 `t` を使い、ラベル文字列化のみ `t * label_scale` を
+/// 使う（`f64` は `Eq` を実装しないため本型は `PartialEq` のみ導出する）。
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TickLabelFormat {
     /// 値の前に付ける固定文字列（例: `"$"`）。
     pub prefix: &'static str,
     /// 値の後に付ける固定文字列（例: `"%"`）。
     pub suffix: &'static str,
+    /// ラベル表示前に値へ掛ける倍率（既定 `1.0`、位置計算には影響しない）。
+    pub label_scale: f64,
+}
+
+impl Default for TickLabelFormat {
+    fn default() -> Self {
+        TickLabelFormat {
+            prefix: "",
+            suffix: "",
+            label_scale: 1.0,
+        }
+    }
 }
 
 impl TickLabelFormat {
-    /// 値 `v` をこの書式でラベル文字列化する（`prefix` + [`super::svg::fmt_coord`]
-    /// + `suffix`）。
-    #[must_use]
-    pub fn format(&self, v: f64) -> String {
-        format!("{}{}{}", self.prefix, super::svg::fmt_coord(v), self.suffix)
+    /// 値 `v` をこの書式でラベル文字列化する（`prefix` +
+    /// [`super::svg::fmt_coord`]`(v * label_scale)` + `suffix`）。
+    ///
+    /// # Errors
+    ///
+    /// `label_scale` 自身が非有限、または `v * label_scale` が非有限
+    /// （有限同士の乗算でもオーバーフローで `inf` になり得る）の場合
+    /// [`ChartError::NonFiniteValue`] を返す。本メソッドは公開 API として
+    /// 直接呼び出し可能であり、[`y_axis`]/[`x_axis_linear`] が呼び出し前
+    /// に行う同種の検証（呼び出し元の `ticks` 全体に対する事前チェック）
+    /// の有無に関わらず、この入口自身で [`super::svg::fmt_coord`] の
+    /// 有限値限定契約（違反時 debug panic / release 非有限文字列）を
+    /// 満たす（イシュー #2081 追補）。
+    pub fn format(&self, v: f64) -> Result<String, ChartError> {
+        let scaled = v * self.label_scale;
+        if !self.label_scale.is_finite() || !scaled.is_finite() {
+            return Err(ChartError::NonFiniteValue);
+        }
+        Ok(format!(
+            "{}{}{}",
+            self.prefix,
+            super::svg::fmt_coord(scaled),
+            self.suffix
+        ))
     }
 }
 
 /// [`y_axis`]/[`x_axis_linear`]/[`x_axis_categories`] 共通の見た目 props。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AxisProps {
     /// 軸線（原点から端までの直線）を描画するかどうか（既定 `true`）。
     pub show_axis_line: bool,
     /// 目盛線（軸から突き出す短い線）を描画するかどうか（既定 `true`）。
     pub show_tick_lines: bool,
+    /// 目盛ラベル（`<text>`）を描画するかどうか（既定 `true`、イシュー
+    /// #2081 追補）。`crate::area_chart` が軸線のみを別スケール（カテゴリ
+    /// 位置合わせ用の `(0.0, 1.0)` ダミースケール）で描くために `false` を
+    /// 使う（`ticks` が空でないことを [`x_axis_linear`]/[`y_axis`] が要求
+    /// するため、ラベル自体は要らなくても `ticks` は渡す必要がある構成）。
+    pub show_tick_labels: bool,
     /// 目盛ラベルの書式（既定は接頭辞・接尾辞なし）。
     pub format: TickLabelFormat,
 }
@@ -68,6 +112,7 @@ impl Default for AxisProps {
         AxisProps {
             show_axis_line: true,
             show_tick_lines: true,
+            show_tick_labels: true,
             format: TickLabelFormat::default(),
         }
     }
@@ -138,7 +183,8 @@ pub fn css() -> String {
 /// # Errors
 ///
 /// - `ticks` が空の場合 [`ChartError::EmptyData`]
-/// - `x` または `ticks` のいずれかの要素が非有限の場合
+/// - `x`・`ticks` のいずれかの要素・`props.format.label_scale`・
+///   各 `tick * label_scale` のいずれかが非有限の場合
 ///   [`ChartError::NonFiniteValue`]
 pub fn y_axis(
     scale: &LinearScale,
@@ -150,6 +196,19 @@ pub fn y_axis(
         return Err(ChartError::EmptyData);
     }
     if !x.is_finite() || ticks.iter().any(|t| !t.is_finite()) {
+        return Err(ChartError::NonFiniteValue);
+    }
+    // `label_scale` は `AxisProps` 経由で呼び出し側から渡される未検証値
+    // （`TickLabelFormat` doc 参照）。`t` 自体は上で有限を確認済みだが、
+    // `label_scale` が NaN/inf、または有限同士でも積がオーバーフローする
+    // 場合、`format()` 内部で `svg::fmt_coord` の有限値限定契約に違反し
+    // debug ビルドで panic・release ビルドで非有限ラベルを生む。ここで
+    // fail-closed に検出する。
+    if !props.format.label_scale.is_finite()
+        || ticks
+            .iter()
+            .any(|t| !(t * props.format.label_scale).is_finite())
+    {
         return Err(ChartError::NonFiniteValue);
     }
 
@@ -177,18 +236,20 @@ pub fn y_axis(
                 vec![("data-scope", SCOPE), ("data-part", "tick-line")],
             ));
         }
-        let label = props.format.format(t);
-        children.push(svg_text(
-            x - LABEL_GAP,
-            y,
-            vec![
-                ("data-scope", SCOPE),
-                ("data-part", "tick-label"),
-                ("text-anchor", "end"),
-                ("dominant-baseline", "middle"),
-            ],
-            vec![text(&label)],
-        ));
+        if props.show_tick_labels {
+            let label = props.format.format(t)?;
+            children.push(svg_text(
+                x - LABEL_GAP,
+                y,
+                vec![
+                    ("data-scope", SCOPE),
+                    ("data-part", "tick-label"),
+                    ("text-anchor", "end"),
+                    ("dominant-baseline", "middle"),
+                ],
+                vec![text(&label)],
+            ));
+        }
     }
 
     Ok(group(
@@ -203,7 +264,8 @@ pub fn y_axis(
 ///
 /// # Errors
 ///
-/// [`y_axis`] と同様（`ticks` 空 → [`ChartError::EmptyData`]、`y`/`ticks`
+/// [`y_axis`] と同様（`ticks` 空 → [`ChartError::EmptyData`]、`y`/`ticks`/
+/// `props.format.label_scale`/各 `tick * label_scale` のいずれかが
 /// 非有限 → [`ChartError::NonFiniteValue`]）。
 pub fn x_axis_linear(
     scale: &LinearScale,
@@ -215,6 +277,15 @@ pub fn x_axis_linear(
         return Err(ChartError::EmptyData);
     }
     if !y.is_finite() || ticks.iter().any(|t| !t.is_finite()) {
+        return Err(ChartError::NonFiniteValue);
+    }
+    // y_axis と同じ理由（上記コメント参照）で label_scale・積の有限性を
+    // 描画前に検証する。
+    if !props.format.label_scale.is_finite()
+        || ticks
+            .iter()
+            .any(|t| !(t * props.format.label_scale).is_finite())
+    {
         return Err(ChartError::NonFiniteValue);
     }
 
@@ -242,17 +313,19 @@ pub fn x_axis_linear(
                 vec![("data-scope", SCOPE), ("data-part", "tick-line")],
             ));
         }
-        let label = props.format.format(t);
-        children.push(svg_text(
-            x,
-            y + TICK_LENGTH + LABEL_GAP,
-            vec![
-                ("data-scope", SCOPE),
-                ("data-part", "tick-label"),
-                ("text-anchor", "middle"),
-            ],
-            vec![text(&label)],
-        ));
+        if props.show_tick_labels {
+            let label = props.format.format(t)?;
+            children.push(svg_text(
+                x,
+                y + TICK_LENGTH + LABEL_GAP,
+                vec![
+                    ("data-scope", SCOPE),
+                    ("data-part", "tick-label"),
+                    ("text-anchor", "middle"),
+                ],
+                vec![text(&label)],
+            ));
+        }
     }
 
     Ok(group(
@@ -312,16 +385,18 @@ pub fn x_axis_categories(
                 vec![("data-scope", SCOPE), ("data-part", "tick-line")],
             ));
         }
-        children.push(svg_text(
-            cx,
-            y + TICK_LENGTH + LABEL_GAP,
-            vec![
-                ("data-scope", SCOPE),
-                ("data-part", "tick-label"),
-                ("text-anchor", "middle"),
-            ],
-            vec![text(category)],
-        ));
+        if props.show_tick_labels {
+            children.push(svg_text(
+                cx,
+                y + TICK_LENGTH + LABEL_GAP,
+                vec![
+                    ("data-scope", SCOPE),
+                    ("data-part", "tick-label"),
+                    ("text-anchor", "middle"),
+                ],
+                vec![text(category)],
+            ));
+        }
     }
 
     Ok(group(
@@ -360,6 +435,51 @@ mod tests {
     }
 
     #[test]
+    fn y_axis_rejects_non_finite_or_overflowing_label_scale() {
+        // codex-review 指摘（PR #2254）: label_scale が非有限、または有限
+        // 同士の積がオーバーフローする場合、是正前は検証なしで
+        // `svg::fmt_coord` の有限値限定契約に違反していた。
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::NAN;
+        assert_eq!(
+            y_axis(&scale(), &[10.0], 0.0, &props).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::INFINITY;
+        assert_eq!(
+            y_axis(&scale(), &[10.0], 0.0, &props).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+
+        // 有限同士でも積がオーバーフローするケース。
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::MAX;
+        assert_eq!(
+            y_axis(&scale(), &[10.0], 0.0, &props).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
+    fn x_axis_linear_rejects_non_finite_or_overflowing_label_scale() {
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::NAN;
+        assert_eq!(
+            x_axis_linear(&scale(), &[10.0], 0.0, &props).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+
+        let mut props = AxisProps::default();
+        props.format.label_scale = f64::MAX;
+        assert_eq!(
+            x_axis_linear(&scale(), &[10.0], 0.0, &props).unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
     fn y_axis_renders_axis_line_tick_lines_and_labels() {
         let node = y_axis(&scale(), &[0.0, 50.0, 100.0], 0.0, &AxisProps::default()).unwrap();
         let html = render(&node);
@@ -385,14 +505,92 @@ mod tests {
         assert!(html.contains(r#"data-part="tick-label""#));
     }
 
+    /// イシュー #2081 追補: `show_tick_labels: false` は `y_axis`/
+    /// `x_axis_linear`/`x_axis_categories` いずれでも目盛ラベルを抑止し、
+    /// 軸線自体はそのまま描画することを固定する（`crate::area_chart` が
+    /// カテゴリラベルを別途描く際に軸線のみを再利用する契約の前提）。
+    #[test]
+    fn show_tick_labels_false_suppresses_labels_for_all_three_axes() {
+        let props = AxisProps {
+            show_tick_labels: false,
+            ..AxisProps::default()
+        };
+
+        let y_html = render(&y_axis(&scale(), &[0.0, 100.0], 0.0, &props).unwrap());
+        assert!(!y_html.contains(r#"data-part="tick-label""#));
+        assert!(y_html.contains(r#"data-part="axis-line""#));
+
+        let x_html = render(&x_axis_linear(&scale(), &[0.0, 100.0], 0.0, &props).unwrap());
+        assert!(!x_html.contains(r#"data-part="tick-label""#));
+        assert!(x_html.contains(r#"data-part="axis-line""#));
+
+        let categories = vec!["a".to_string(), "b".to_string()];
+        let cat_html = render(&x_axis_categories((0.0, 100.0), &categories, 0.0, &props).unwrap());
+        assert!(!cat_html.contains(r#"data-part="tick-label""#));
+        assert!(cat_html.contains(r#"data-part="axis-line""#));
+    }
+
     #[test]
     fn tick_label_format_applies_prefix_and_suffix() {
         let format = TickLabelFormat {
             prefix: "$",
             suffix: "%",
+            ..TickLabelFormat::default()
         };
-        assert_eq!(format.format(12.5), "$12.5%");
-        assert_eq!(TickLabelFormat::default().format(12.5), "12.5");
+        assert_eq!(format.format(12.5), Ok("$12.5%".to_string()));
+        assert_eq!(
+            TickLabelFormat::default().format(12.5),
+            Ok("12.5".to_string())
+        );
+    }
+
+    /// `label_scale`（イシュー #2081 追補、`crate::area_chart` の
+    /// `AreaStack::Expand` 用）は位置計算に使わず、ラベル文字列化のみに
+    /// 掛かる倍率であることを固定する。
+    #[test]
+    fn label_scale_multiplies_before_formatting() {
+        let percent = TickLabelFormat {
+            suffix: "%",
+            label_scale: 100.0,
+            ..TickLabelFormat::default()
+        };
+        assert_eq!(percent.format(0.25), Ok("25%".to_string()));
+        assert_eq!(percent.format(0.3), Ok("30%".to_string()));
+        assert_eq!(TickLabelFormat::default().label_scale, 1.0);
+    }
+
+    /// イシュー #2081 追補（codex-review P1 是正）: `TickLabelFormat::format`
+    /// は公開 API として `y_axis`/`x_axis_linear` を経由せず直接呼び出せる
+    /// ため、この入口自身で `v * label_scale` の有限性を検証しなければ
+    /// ならない。`label_scale: 100.0` で `format(1e308)` を呼ぶと、
+    /// `label_scale` 自体・`v` 自体はいずれも有限でも積が `inf` になり、
+    /// `fmt_coord` の有限値限定契約に違反する（是正前は debug panic /
+    /// release で非有限ラベルを生成していた）。
+    #[test]
+    fn format_rejects_finite_inputs_whose_product_overflows_to_infinite() {
+        let percent = TickLabelFormat {
+            label_scale: 100.0,
+            ..TickLabelFormat::default()
+        };
+        assert!(percent.label_scale.is_finite());
+        assert!(1e308_f64.is_finite());
+        assert_eq!(percent.format(1e308), Err(ChartError::NonFiniteValue));
+    }
+
+    /// `label_scale` 自体が非有限（`NaN`/`inf`）の場合も同様に拒否する。
+    #[test]
+    fn format_rejects_non_finite_label_scale() {
+        let broken = TickLabelFormat {
+            label_scale: f64::INFINITY,
+            ..TickLabelFormat::default()
+        };
+        assert_eq!(broken.format(1.0), Err(ChartError::NonFiniteValue));
+
+        let nan_scale = TickLabelFormat {
+            label_scale: f64::NAN,
+            ..TickLabelFormat::default()
+        };
+        assert_eq!(nan_scale.format(1.0), Err(ChartError::NonFiniteValue));
     }
 
     #[test]
@@ -457,8 +655,9 @@ mod tests {
         let format = TickLabelFormat {
             prefix: "",
             suffix: "",
+            ..TickLabelFormat::default()
         };
-        assert_eq!(format.format(1.0), "1");
+        assert_eq!(format.format(1.0), Ok("1".to_string()));
     }
 
     #[test]
