@@ -111,7 +111,7 @@ use crate::charts::pie::{
     outside_label_effective_outer_radius, outside_label_point, segment_angles, PieChartError,
 };
 use crate::charts::svg::{fmt_coord, svg_root, svg_text, ViewBox};
-use crate::charts::{series_color_var, ChartData};
+use crate::charts::{series_color_var, tooltip, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::pie_chart::{PieLabelContent, PieLabelPosition, PieSeparator};
@@ -244,6 +244,11 @@ pub struct DonutChartProps<'a> {
     /// 中央テキスト（既定 `None`、shadcn `chart-pie-donut-text`、
     /// イシュー #2084）。
     pub center_text: Option<PieCenterText<'a>>,
+    /// `true`（既定）なら hit-area・`data-index` と `hidden` の SSR
+    /// ツールチップ DOM（[`crate::charts::tooltip::layer`]）を出力する
+    /// （イシュー #2129、親 #2128。単一系列専用のため `data-series` は
+    /// 出力しない）。`false` の場合は本イシュー以前の出力とバイト一致する。
+    pub show_tooltip: bool,
 }
 
 impl Default for DonutChartProps<'_> {
@@ -258,6 +263,7 @@ impl Default for DonutChartProps<'_> {
             label_position: PieLabelPosition::Inside,
             active_index: None,
             center_text: None,
+            show_tooltip: true,
         }
     }
 }
@@ -271,6 +277,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("--fandhe-donut-chart-size", "16rem"),
+                // イシュー #2129: `tooltip-layer`（`position: absolute`）の
+                // 配置規則（#2130 が唯一のロケータとして使う契約）を成立
+                // させるための末尾純追加。
+                decl("position", "relative"),
             ],
         )
         .base(
@@ -610,6 +620,42 @@ pub fn donut_chart<'a>(
         }
     }
 
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。`r_outer` は各セグメント
+    // の実描画値と同じ規則（`active_index` 指定時は強調セグメントのみ
+    // `OUTER_RADIUS`、他は `OUTER_RADIUS - ACTIVE_INSET`）で再算出する
+    // （`charts::tooltip` モジュール doc「配置規則」参照）。
+    let entries = if props.show_tooltip {
+        Some(tooltip::entries_from_chart_data(data))
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        for entry in entries {
+            let value = values.get(entry.index).copied().unwrap_or(0.0);
+            if value <= 0.0 {
+                continue;
+            }
+            let is_active = props.active_index == Some(entry.index);
+            let r_outer = if props.active_index.is_some() {
+                if is_active {
+                    OUTER_RADIUS
+                } else {
+                    OUTER_RADIUS - ACTIVE_INSET
+                }
+            } else {
+                default_outer_radius
+            };
+            let label = tooltip::hit_area_label(entry);
+            let d = if is_full_circle {
+                annulus_full_ring_path(CENTER_X, CENTER_Y, r_outer, r_inner)
+            } else {
+                let (start, end) = angles[entry.index];
+                annulus_sector_path(CENTER_X, CENTER_Y, r_outer, r_inner, start, end)
+            };
+            nodes.push(tooltip::hit_area_path(&d, entry.index, None, &label));
+        }
+    }
+
     let view_box = ViewBox::new(0.0, 0.0, 100.0, 100.0)
         .expect("固定 viewBox 100x100 は常に有効な正の寸法である");
     let aria_label_value = props.aria_label.unwrap_or(DEFAULT_ARIA_LABEL);
@@ -623,11 +669,16 @@ pub fn donut_chart<'a>(
         nodes,
     );
 
+    let mut children = vec![chart_node];
+    if let Some(entries) = &entries {
+        children.push(tooltip::layer_from_entries(entries, None));
+    }
+
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
 
-    Ok(ANATOMY.part("root", "div", merged, vec![chart_node]))
+    Ok(ANATOMY.part("root", "div", merged, children))
 }
 
 #[cfg(test)]
@@ -684,7 +735,10 @@ mod tests {
         // 環状 path の `d` 属性は `M...A...L...A...Z` の形（外周 arc + 内周
         // arc の 2 本）を持つ。1 セグメントあたり `A` が 2 回出現すること
         // で annulus_sector_path が実際に呼ばれていることを固定する。
-        assert_eq!(html.matches("A45,45,0,").count(), 2);
+        // イシュー #2129: hit-area（既定 `show_tooltip: true`）は各セグメント
+        // と同一 `d` 形状（`annulus_sector_path`）を再利用するため、
+        // セグメント分 2 + hit-area 分 2 の計 4 に純増する。
+        assert_eq!(html.matches("A45,45,0,").count(), 4);
         assert!(html.contains("L"));
     }
 

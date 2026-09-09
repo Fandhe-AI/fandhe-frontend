@@ -276,3 +276,75 @@ fn xss_regression_legend_icon_content_is_escaped() {
     assert!(!html.contains("<script>"));
     assert!(html.contains("&lt;script&gt;"));
 }
+
+/// [`tooltip::layer`]（イシュー #2129、親 #2128）の統合 golden。
+/// `entries_from_chart_data` → `layer` の結線を、クレート公開 API 経由の
+/// `ChartData` から end-to-end で固定する（各チャート個別の golden とは
+/// 独立に、`charts::tooltip` モジュール自体の契約を確認する）。
+#[test]
+fn tooltip_layer_end_to_end_golden_html() {
+    let data = sample_data();
+    let html = render(&tooltip::layer(&data, None));
+    assert_eq!(
+        html,
+        concat!(
+            r#"<div data-scope="chart" data-part="tooltip-layer" aria-hidden="true">"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Jan</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip-item" data-series="visits">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">visits</span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-value">10</span>"#,
+            r#"</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip-item" data-series="signups">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-2)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">signups</span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-value">1</span>"#,
+            r#"</div>"#,
+            r#"</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="1" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Feb</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip-item" data-series="visits">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">visits</span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-value">20</span>"#,
+            r#"</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip-item" data-series="signups">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-2)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">signups</span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-value">2</span>"#,
+            r#"</div>"#,
+            r#"</div>"#,
+            r#"</div>"#,
+        )
+    );
+}
+
+/// `active` 指定時、該当カテゴリのみ `hidden` が省かれることをクレート
+/// 公開 API 経由で固定する（`charts::tooltip` の単体テストと同じ契約を
+/// 統合レベルでも確認する）。
+#[test]
+fn tooltip_layer_active_omits_hidden_for_matching_index_only() {
+    let data = sample_data();
+    let html = render(&tooltip::layer(&data, Some(1)));
+    assert_eq!(html.matches(r#"hidden="""#).count(), 1);
+    let idx1_tooltip_start = html.find(r#"data-index="1""#).unwrap();
+    let idx1_tooltip = &html[idx1_tooltip_start..idx1_tooltip_start + 40];
+    assert!(!idx1_tooltip.contains("hidden"));
+}
+
+/// XSS 回帰: カテゴリ名・系列表示名が `tooltip-label`/`tooltip-name` の
+/// テキストノード、`data-series` 属性値のいずれでも既定エスケープを経由
+/// することを固定する（REQ-1、`.claude/rules/coding-rust.md`）。
+#[test]
+fn xss_regression_tooltip_layer_escapes_category_and_series_names() {
+    let payload = "</title><script>alert(1)</script>";
+    let data = ChartData::new(
+        vec![payload.to_string()],
+        vec![Series::new(payload, vec![1.0])],
+    )
+    .unwrap();
+    let html = render(&tooltip::layer(&data, None));
+    assert!(!html.contains("<script>"));
+    assert_eq!(html.matches("&lt;script&gt;").count(), 3);
+}

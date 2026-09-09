@@ -131,8 +131,8 @@
 
 use super::data::flat_domain_pad;
 use super::scale::LinearScale;
-use super::svg::{self, ViewBox};
-use super::{series_color_var, ChartError};
+use super::svg::{self, fmt_coord, ViewBox};
+use super::{series_color_var, tooltip, ChartError};
 use crate::css::decl;
 use crate::recipe::SlotRecipe;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
@@ -272,6 +272,14 @@ pub struct ScatterChartProps {
     pub height: f64,
     /// 点マーカーの半径（px 相当。既定 4.0）。
     pub point_radius: f64,
+    /// `true`（既定）なら hit-area・`data-index` と `hidden` の SSR
+    /// ツールチップ DOM（[`super::tooltip::layer`]）を出力する（イシュー
+    /// #2129、親 #2128）。`true` の場合、戻り値は素の `<svg data-part=
+    /// "root">` ではなく [`super::tooltip::frame`] で包んだ
+    /// `<div data-scope="chart" data-part="frame">` になる。`false` の
+    /// 場合は本イシュー以前の出力（素の `<svg>`）とバイト一致する
+    /// （progressive enhancement の opt-out 経路）。
+    pub show_tooltip: bool,
 }
 
 impl Default for ScatterChartProps {
@@ -280,9 +288,16 @@ impl Default for ScatterChartProps {
             width: 480.0,
             height: 300.0,
             point_radius: 4.0,
+            show_tooltip: true,
         }
     }
 }
+
+/// hit-area 半径 = `point_radius * HIT_AREA_RADIUS_FACTOR`（イシュー
+/// #2129）。可視の点マーカーより大きめのヒットターゲットを確保する
+/// （ポインタ操作のしやすさのための定数、根拠は WCAG 2.5.5 相当の実務
+/// 慣行であり、正確な最小サイズ規定への準拠を主張するものではない）。
+const HIT_AREA_RADIUS_FACTOR: f64 = 2.5;
 
 /// この ScatterChart の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが
 /// 呼ぶ）。
@@ -383,12 +398,28 @@ pub fn root(
     let x_scale = LinearScale::new(x_domain, (r, props.width - r))?.nice();
     let y_scale = LinearScale::new(y_domain, (props.height - r, r))?.nice();
 
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。scatter は「系列 ×
+    // 点」単位のため `charts::tooltip::entries_from_chart_data` の
+    // カテゴリ単位モデルを使わず、`TooltipEntry` を独自に組み立てる
+    // （§2.5「scatter は系列 × 点単位」）。`index` は系列内の点序数、
+    // `series` は系列表示名（hit-area/point/tooltip の 3 者で共有）。
     let mut points: Vec<Node> = Vec::new();
+    let mut hit_areas: Vec<Node> = Vec::new();
+    let mut entries: Vec<tooltip::TooltipEntry> = Vec::new();
     for (series_idx, series) in data.series().iter().enumerate() {
         let fill = series_color_var(series_idx);
-        for &(x, y) in &series.points {
+        // hit-area・tooltip の色は `SeriesColor` 型で保持する（`String` の
+        // 任意連結を型で閉じる契約、`tooltip::TooltipRow::color` 参照）。
+        // `fill`（point の描画色）と同じ 6 色循環だが、`series.color` の
+        // 個別上書きは既存の `fill` 計算（`series_color_var` 直呼び）と
+        // 同様に反映しない（scatter の既存挙動を維持、イシュー #2129 の
+        // スコープ外）。
+        let tooltip_color = super::data::SeriesColor::chart_slot(series_idx % 6 + 1)
+            .expect("series_idx % 6 + 1 は常に 1..=6 の範囲内");
+        for (point_idx, &(x, y)) in series.points.iter().enumerate() {
             let cx = x_scale.scale(x);
             let cy = y_scale.scale(y);
+            let point_idx_str = point_idx.to_string();
             points.push(svg::circle(
                 cx,
                 cy,
@@ -396,14 +427,40 @@ pub fn root(
                 vec![
                     ("data-scope", "scatter-chart"),
                     ("data-part", "point"),
+                    ("data-index", point_idx_str.as_str()),
                     ("data-series", series.name.as_str()),
                     ("fill", fill.as_str()),
                 ],
             ));
+
+            if props.show_tooltip {
+                let entry = tooltip::TooltipEntry {
+                    index: point_idx,
+                    series: Some(series.name.clone()),
+                    label: format!("{} #{}", series.name, point_idx),
+                    rows: vec![tooltip::TooltipRow {
+                        name: format!("x: {}, y: {}", fmt_coord(x), fmt_coord(y)),
+                        series: series.name.clone(),
+                        value: y,
+                        color: tooltip_color.clone(),
+                    }],
+                };
+                let label = tooltip::hit_area_label(&entry);
+                hit_areas.push(tooltip::hit_area_circle(
+                    cx,
+                    cy,
+                    props.point_radius * HIT_AREA_RADIUS_FACTOR,
+                    point_idx,
+                    Some(series.name.as_str()),
+                    &label,
+                ));
+                entries.push(entry);
+            }
         }
     }
+    points.extend(hit_areas);
 
-    Ok(svg::svg_root(
+    let svg_node = svg::svg_root(
         &view_box,
         vec![
             ("data-scope", "scatter-chart"),
@@ -411,7 +468,16 @@ pub fn root(
             ("aria-label", aria_label),
         ],
         points,
-    ))
+    );
+
+    if props.show_tooltip {
+        Ok(tooltip::frame(vec![
+            svg_node,
+            tooltip::layer_from_entries(&entries, None),
+        ]))
+    } else {
+        Ok(svg_node)
+    }
 }
 
 #[cfg(test)]
@@ -567,8 +633,11 @@ mod tests {
             .skip(1)
             .map(|rest| rest.split('"').next().unwrap().parse().unwrap())
             .collect();
-        assert_eq!(cx_values.len(), 2);
-        assert_eq!(cy_values.len(), 2);
+        // イシュー #2129: hit-area（既定 `show_tooltip: true`）は各点と
+        // 同じ中心座標の `<circle>` を追加するため、点 2 + hit-area 2 の
+        // 計 4 に純増する（中心座標の値自体は不変）。
+        assert_eq!(cx_values.len(), 4);
+        assert_eq!(cy_values.len(), 4);
         for &cx in &cx_values {
             assert!(cx >= props.point_radius - 1e-9);
             assert!(cx <= props.width - props.point_radius + 1e-9);

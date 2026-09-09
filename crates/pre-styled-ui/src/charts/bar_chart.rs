@@ -150,7 +150,7 @@
 use super::data::ChartData;
 use super::scale::LinearScale;
 use super::svg::{self, svg_text, PathBuilder, ViewBox, ViewBoxError};
-use super::ChartError;
+use super::{tooltip, ChartError};
 use crate::charts::axis::{self, AxisProps, TickLabelFormat};
 use crate::charts::grid::{self, GridProps};
 use crate::css::decl;
@@ -320,6 +320,14 @@ pub struct BarChartProps {
     pub show_grid: bool,
     /// カテゴリラベルを描画するか（イシュー #2082、既定 `true`）。
     pub show_category_labels: bool,
+    /// `true`（既定）なら hit-area・`data-index`/`data-series` と `hidden`
+    /// の SSR ツールチップ DOM（[`super::tooltip::layer`]）を出力する
+    /// （イシュー #2129、親 #2128）。`true` の場合、戻り値は素の
+    /// `<svg data-part="root">` ではなく [`super::tooltip::frame`] で
+    /// 包んだ `<div data-scope="chart" data-part="frame">` になる。
+    /// `false` の場合は本イシュー以前の出力（素の `<svg>`）とバイト一致
+    /// する（progressive enhancement の opt-out 経路）。
+    pub show_tooltip: bool,
 }
 
 impl Default for BarChartProps {
@@ -337,6 +345,7 @@ impl Default for BarChartProps {
             show_value_axis: false,
             show_grid: false,
             show_category_labels: true,
+            show_tooltip: true,
         }
     }
 }
@@ -872,8 +881,21 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     }
                 };
 
-                let mut attrs: Vec<(&str, &str)> =
-                    vec![("data-scope", "bar-chart"), ("data-part", "bar")];
+                // イシュー #2129: hit-area・SSR ツールチップ DOM の共有語彙
+                // `data-index`（カテゴリ序数）/`data-series`（系列の生の名前。
+                // radar/radial/pie/scatter と同じ語彙、display_label ではない）を
+                // `show_tooltip` に関わらず常に付与する（`root` 全体の
+                // 出力形が opt-out で分岐するため、bar 単体への付与自体は
+                // 分岐しない設計。§2.7 の「各 bar には data-index +
+                // data-series」）。
+                let cat_idx_str = cat_idx.to_string();
+                let series_label = series[s_idx].name.as_str();
+                let mut attrs: Vec<(&str, &str)> = vec![
+                    ("data-scope", "bar-chart"),
+                    ("data-part", "bar"),
+                    ("data-index", cat_idx_str.as_str()),
+                    ("data-series", series_label),
+                ];
                 attrs.push(("fill", color.as_str()));
                 if is_active {
                     attrs.push(("data-active", ""));
@@ -976,8 +998,16 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     RoundedEnd::None
                 };
 
-                let mut attrs: Vec<(&str, &str)> =
-                    vec![("data-scope", "bar-chart"), ("data-part", "bar")];
+                // イシュー #2129: 上記スタック分岐と同じ規則で `data-index`/
+                // `data-series` を常に付与する。
+                let cat_idx_str = cat_idx.to_string();
+                let series_label = s.name.as_str();
+                let mut attrs: Vec<(&str, &str)> = vec![
+                    ("data-scope", "bar-chart"),
+                    ("data-part", "bar"),
+                    ("data-index", cat_idx_str.as_str()),
+                    ("data-series", series_label),
+                ];
                 attrs.push(("fill", color.as_str()));
                 if is_active {
                     attrs.push(("data-active", ""));
@@ -1079,10 +1109,46 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
         });
     }
 
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。カテゴリ帯全体
+    // （全系列を覆う矩形）を hit-area とする（§2.7「bar_chart」行）。
+    // hit-area 自体には `data-series` を付けない（帯 = 全系列の代表）。
+    let entries = if props.show_tooltip {
+        Some(tooltip::entries_from_chart_data(data))
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        for entry in entries {
+            let band_start = band * entry.index as f64;
+            let label = tooltip::hit_area_label(entry);
+            let (x, y, w, h) = match props.orientation {
+                Orientation::Vertical => (band_start + left_offset, 0.0, band, value_axis_extent),
+                Orientation::Horizontal => (0.0, band_start, value_axis_extent, band),
+            };
+            plot_children.push(tooltip::hit_area_rect(
+                x,
+                y,
+                w,
+                h,
+                entry.index,
+                None,
+                &label,
+            ));
+        }
+    }
+
     let attrs = vec![("data-scope", "bar-chart"), ("data-part", "root")];
     let mut merged_attrs = vec![("aria-label", aria_label)];
     merged_attrs.extend(attrs);
-    Ok(svg::svg_root(&view_box, merged_attrs, plot_children))
+    let svg_node = svg::svg_root(&view_box, merged_attrs, plot_children);
+
+    match entries {
+        Some(entries) => Ok(tooltip::frame(vec![
+            svg_node,
+            tooltip::layer_from_entries(&entries, None),
+        ])),
+        None => Ok(svg_node),
+    }
 }
 
 /// 値ラベル（棒先端の外側、イシュー #2082）を組み立てる（内部ヘルパ）。

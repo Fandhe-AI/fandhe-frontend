@@ -180,9 +180,10 @@
 use std::f64::consts::PI;
 
 use super::data::ChartData;
+use super::pie;
 use super::scale::LinearScale;
 use super::svg::{self, fmt_coord, fmt_value, svg_text, PathBuilder, ViewBox};
-use super::ChartError;
+use super::{tooltip, ChartError};
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
@@ -341,6 +342,12 @@ pub struct RadarChartProps {
     pub axis_label: RadarAxisLabel,
     /// 半径軸（値目盛ラベル）を描画するか（イシュー #2085、既定 `false`）。
     pub radius_axis: bool,
+    /// `true`（既定）なら hit-area・`data-index` と `hidden` の SSR
+    /// ツールチップ DOM（[`super::tooltip::layer`]）を出力する（イシュー
+    /// #2129、親 #2128。既存 `series` の `data-series` は不変、hit-area
+    /// 自体には付与しない）。`false` の場合は本イシュー以前の出力と
+    /// バイト一致する。
+    pub show_tooltip: bool,
 }
 
 impl Default for RadarChartProps {
@@ -357,6 +364,7 @@ impl Default for RadarChartProps {
             dots: false,
             axis_label: RadarAxisLabel::default(),
             radius_axis: false,
+            show_tooltip: true,
         }
     }
 }
@@ -810,7 +818,32 @@ pub fn root(
         }
     }
 
-    Ok(svg::svg_root(
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。各軸（カテゴリ）の
+    // 頂点角 ± 半ステップの扇形を hit-area とする（`pie::sector_path` を
+    // `plot_radius` で再利用、§2.7「radar」行）。既存 `series` の
+    // `data-series` は不変、hit-area 自体には付与しない。
+    let entries = if props.show_tooltip {
+        Some(tooltip::entries_from_chart_data(data))
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        let half_step = PI / n as f64;
+        for entry in entries {
+            let theta = vertex_angle(entry.index, n);
+            let d = pie::sector_path(
+                center,
+                center,
+                plot_radius,
+                theta - half_step,
+                theta + half_step,
+            );
+            let label = tooltip::hit_area_label(entry);
+            children.push(tooltip::hit_area_path(&d, entry.index, None, &label));
+        }
+    }
+
+    let root_node = svg::svg_root(
         &view_box,
         vec![
             ("data-scope", "radar-chart"),
@@ -818,7 +851,15 @@ pub fn root(
             ("aria-label", aria_label),
         ],
         children,
-    ))
+    );
+
+    match entries {
+        Some(entries) => Ok(tooltip::frame(vec![
+            root_node,
+            tooltip::layer_from_entries(&entries, None),
+        ])),
+        None => Ok(root_node),
+    }
 }
 
 #[cfg(test)]
@@ -1141,8 +1182,16 @@ mod tests {
 
     #[test]
     fn default_props_html_is_byte_identical_to_pre_2085() {
+        // イシュー #2129: 既定は `show_tooltip: true` へ変更されたため、
+        // 本テストの本来の関心（#2085 以前のジオメトリが不変であること）を
+        // 検証するには `show_tooltip: false`（opt-out、本イシュー以前の
+        // 出力とバイト一致する契約）で確認する。
+        let props = RadarChartProps {
+            show_tooltip: false,
+            ..RadarChartProps::default()
+        };
         let data5 = sample_data(5);
-        let html5 = render(&root(&data5, RadarChartProps::default(), "sample5").unwrap());
+        let html5 = render(&root(&data5, props, "sample5").unwrap());
         assert_eq!(html5, PRE_2085_SAMPLE5_HTML);
 
         let data2 = ChartData::new(
@@ -1159,14 +1208,21 @@ mod tests {
             ],
         )
         .unwrap();
-        let html2 = render(&root(&data2, RadarChartProps::default(), "showcase demo").unwrap());
+        let html2 = render(&root(&data2, props, "showcase demo").unwrap());
         assert_eq!(html2, PRE_2085_SHOWCASE_HTML);
     }
 
     #[test]
     fn default_props_output_has_no_new_parts() {
+        // イシュー #2129: 同上の理由で `show_tooltip: false`（opt-out）を
+        // 使う。hit-area は `fill="none"` を出力するため既定
+        // （`show_tooltip: true`）ではこのアサーションが成立しない。
+        let props = RadarChartProps {
+            show_tooltip: false,
+            ..RadarChartProps::default()
+        };
         let data = sample_data(5);
-        let html = render(&root(&data, RadarChartProps::default(), "label").unwrap());
+        let html = render(&root(&data, props, "label").unwrap());
         assert!(!html.contains(r#"data-part="point""#));
         assert!(!html.contains(r#"data-part="axis-value""#));
         assert!(!html.contains(r#"data-part="radius-label""#));
@@ -1406,6 +1462,7 @@ mod tests {
             axis_label: RadarAxisLabel::ValueAndCategory,
             radius_axis: true,
             size: 300.0,
+            show_tooltip: true,
         };
         let a = render(&root(&data, props, "label").unwrap());
         let b = render(&root(&data, props, "label").unwrap());

@@ -61,10 +61,17 @@ fn line_chart_normal_data_matches_golden_html() {
     assert_eq!(
         render(&node),
         concat!(
-            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md">"#,
-            r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="monthly visits">"#,
-            r#"<path data-scope="line-chart" data-part="series-line" d="M0,150 L150,0 L300,75" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
-            r#"</svg></div>"#,
+            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md"><svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="monthly visits">"#,
+            r#"<path data-scope="line-chart" data-part="series-line" d="M0,150 L150,0 L300,75" stroke="var(--fandhe-color-chart-1)" fill="none"></path><rect x="0" y="0" width="75" height="150" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="Jan · visits: 10">"#,
+            r#"</rect><rect x="75" y="0" width="150" height="150" data-scope="chart" data-part="hit-area" data-index="1" fill="none" pointer-events="none" tabindex="-1" aria-label="Feb · visits: 30">"#,
+            r#"</rect><rect x="225" y="0" width="75" height="150" data-scope="chart" data-part="hit-area" data-index="2" fill="none" pointer-events="none" tabindex="-1" aria-label="Mar · visits: 20">"#,
+            r#"</rect></svg><div data-scope="chart" data-part="tooltip-layer" aria-hidden="true"><div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Jan</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">10</span></div></div><div data-scope="chart" data-part="tooltip" data-index="1" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Feb</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">30</span></div></div><div data-scope="chart" data-part="tooltip" data-index="2" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Mar</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">20</span></div></div></div></div>"#,
         )
     );
 }
@@ -76,10 +83,11 @@ fn line_chart_single_category_matches_golden_html() {
     assert_eq!(
         render(&node),
         concat!(
-            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md">"#,
-            r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="single point">"#,
-            r#"<circle data-scope="line-chart" data-part="point" cx="150" cy="75" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
-            r#"</svg></div>"#,
+            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md"><svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="single point">"#,
+            r#"<circle data-scope="line-chart" data-part="point" cx="150" cy="75" r="2.5" fill="var(--fandhe-color-chart-1)"></circle><rect x="0" y="0" width="300" height="150" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="only · visits: 7">"#,
+            r#"</rect></svg><div data-scope="chart" data-part="tooltip-layer" aria-hidden="true"><div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">only</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">7</span></div></div></div></div>"#,
         )
     );
 }
@@ -91,10 +99,17 @@ fn line_chart_negative_values_matches_golden_html() {
     assert_eq!(
         render(&node),
         concat!(
-            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md">"#,
-            r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="negative">"#,
-            r#"<path data-scope="line-chart" data-part="series-line" d="M0,150 L150,0 L300,80" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
-            r#"</svg></div>"#,
+            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md"><svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="negative">"#,
+            r#"<path data-scope="line-chart" data-part="series-line" d="M0,150 L150,0 L300,80" stroke="var(--fandhe-color-chart-1)" fill="none"></path><rect x="0" y="0" width="75" height="150" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="a · delta: -10">"#,
+            r#"</rect><rect x="75" y="0" width="150" height="150" data-scope="chart" data-part="hit-area" data-index="1" fill="none" pointer-events="none" tabindex="-1" aria-label="b · delta: 5">"#,
+            r#"</rect><rect x="225" y="0" width="75" height="150" data-scope="chart" data-part="hit-area" data-index="2" fill="none" pointer-events="none" tabindex="-1" aria-label="c · delta: -3">"#,
+            r#"</rect></svg><div data-scope="chart" data-part="tooltip-layer" aria-hidden="true"><div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">a</div><div data-scope="chart" data-part="tooltip-item" data-series="delta"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">delta</span><span data-scope="chart" data-part="tooltip-value">-10</span></div></div><div data-scope="chart" data-part="tooltip" data-index="1" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">b</div><div data-scope="chart" data-part="tooltip-item" data-series="delta"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">delta</span><span data-scope="chart" data-part="tooltip-value">5</span></div></div><div data-scope="chart" data-part="tooltip" data-index="2" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">c</div><div data-scope="chart" data-part="tooltip-item" data-series="delta"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">delta</span><span data-scope="chart" data-part="tooltip-value">-3</span></div></div></div></div>"#,
         )
     );
 }
@@ -106,10 +121,14 @@ fn line_chart_flat_data_matches_golden_html_center_line() {
     assert_eq!(
         render(&node),
         concat!(
-            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md">"#,
-            r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="flat">"#,
-            r#"<path data-scope="line-chart" data-part="series-line" d="M0,75 L300,75" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
-            r#"</svg></div>"#,
+            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md"><svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="flat">"#,
+            r#"<path data-scope="line-chart" data-part="series-line" d="M0,75 L300,75" stroke="var(--fandhe-color-chart-1)" fill="none"></path><rect x="0" y="0" width="150" height="150" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="a · flat: 5">"#,
+            r#"</rect><rect x="150" y="0" width="150" height="150" data-scope="chart" data-part="hit-area" data-index="1" fill="none" pointer-events="none" tabindex="-1" aria-label="b · flat: 5">"#,
+            r#"</rect></svg><div data-scope="chart" data-part="tooltip-layer" aria-hidden="true"><div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">a</div><div data-scope="chart" data-part="tooltip-item" data-series="flat"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">flat</span><span data-scope="chart" data-part="tooltip-value">5</span></div></div><div data-scope="chart" data-part="tooltip" data-index="1" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">b</div><div data-scope="chart" data-part="tooltip-item" data-series="flat"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">flat</span><span data-scope="chart" data-part="tooltip-value">5</span></div></div></div></div>"#,
         )
     );
 }
@@ -127,16 +146,20 @@ fn line_chart_dots_and_value_label_matches_golden_html() {
     assert_eq!(
         render(&node),
         concat!(
-            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md">"#,
-            r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="dots and label">"#,
-            r#"<path data-scope="line-chart" data-part="series-line" d="M0,150 L150,20 L300,85" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
-            r#"<circle data-scope="line-chart" data-part="point" cx="0" cy="150" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
-            r#"<circle data-scope="line-chart" data-part="point" cx="150" cy="20" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
-            r#"<circle data-scope="line-chart" data-part="point" cx="300" cy="85" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
-            r#"<text x="0" y="138" data-scope="line-chart" data-part="value-label" text-anchor="middle">10</text>"#,
-            r#"<text x="150" y="8" data-scope="line-chart" data-part="value-label" text-anchor="middle">30</text>"#,
-            r#"<text x="300" y="73" data-scope="line-chart" data-part="value-label" text-anchor="middle">20</text>"#,
-            r#"</svg></div>"#,
+            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md"><svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="dots and label">"#,
+            r#"<path data-scope="line-chart" data-part="series-line" d="M0,150 L150,20 L300,85" stroke="var(--fandhe-color-chart-1)" fill="none"></path><circle data-scope="line-chart" data-part="point" cx="0" cy="150" r="2.5" fill="var(--fandhe-color-chart-1)">"#,
+            r#"</circle><circle data-scope="line-chart" data-part="point" cx="150" cy="20" r="2.5" fill="var(--fandhe-color-chart-1)"></circle><circle data-scope="line-chart" data-part="point" cx="300" cy="85" r="2.5" fill="var(--fandhe-color-chart-1)">"#,
+            r#"</circle><text x="0" y="138" data-scope="line-chart" data-part="value-label" text-anchor="middle">10</text><text x="150" y="8" data-scope="line-chart" data-part="value-label" text-anchor="middle">"#,
+            r#"30</text><text x="300" y="73" data-scope="line-chart" data-part="value-label" text-anchor="middle">20</text><rect x="0" y="20" width="75" height="130" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="Jan · visits: 10">"#,
+            r#"</rect><rect x="75" y="20" width="150" height="130" data-scope="chart" data-part="hit-area" data-index="1" fill="none" pointer-events="none" tabindex="-1" aria-label="Feb · visits: 30">"#,
+            r#"</rect><rect x="225" y="20" width="75" height="130" data-scope="chart" data-part="hit-area" data-index="2" fill="none" pointer-events="none" tabindex="-1" aria-label="Mar · visits: 20">"#,
+            r#"</rect></svg><div data-scope="chart" data-part="tooltip-layer" aria-hidden="true"><div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Jan</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">10</span></div></div><div data-scope="chart" data-part="tooltip" data-index="1" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Feb</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">30</span></div></div><div data-scope="chart" data-part="tooltip" data-index="2" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Mar</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">20</span></div></div></div></div>"#,
         )
     );
 }
@@ -155,29 +178,43 @@ fn line_chart_axes_matches_golden_html() {
     assert_eq!(
         render(&node),
         concat!(
+            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md"><svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="axes">"#,
+            r#"<g data-scope="chart" data-part="grid"><line x1="40" y1="126" x2="300" y2="126" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid">"#,
+            r#"</line><line x1="40" y1="94.5" x2="300" y2="94.5" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line><line x1="40" y1="63" x2="300" y2="63" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid">"#,
+            r#"</line><line x1="40" y1="31.5" x2="300" y2="31.5" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line><line x1="40" y1="0" x2="300" y2="0" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid">"#,
+            r#"</line></g><path data-scope="line-chart" data-part="series-line" d="M40,126 L170,0 L300,63" stroke="var(--fandhe-color-chart-1)" fill="none"></path><g data-scope="chart" data-part="y-axis">"#,
+            r#"<text x="30" y="126" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">10</text><text x="30" y="94.5" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">"#,
+            r#"15</text><text x="30" y="63" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">20</text><text x="30" y="31.5" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">"#,
+            r#"25</text><text x="30" y="0" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">30</text></g><text data-scope="chart" data-part="tick-label" x="40" y="142" text-anchor="middle">"#,
+            r#"Jan</text><text data-scope="chart" data-part="tick-label" x="170" y="142" text-anchor="middle">Feb</text><text data-scope="chart" data-part="tick-label" x="300" y="142" text-anchor="middle">"#,
+            r#"Mar</text><g data-scope="chart" data-part="x-axis"><line x1="40" y1="126" x2="300" y2="126" data-scope="chart" data-part="axis-line"></line></g><rect x="40" y="0" width="65" height="126" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="Jan · visits: 10">"#,
+            r#"</rect><rect x="105" y="0" width="130" height="126" data-scope="chart" data-part="hit-area" data-index="1" fill="none" pointer-events="none" tabindex="-1" aria-label="Feb · visits: 30">"#,
+            r#"</rect><rect x="235" y="0" width="65" height="126" data-scope="chart" data-part="hit-area" data-index="2" fill="none" pointer-events="none" tabindex="-1" aria-label="Mar · visits: 20">"#,
+            r#"</rect></svg><div data-scope="chart" data-part="tooltip-layer" aria-hidden="true"><div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Jan</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">10</span></div></div><div data-scope="chart" data-part="tooltip" data-index="1" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Feb</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">30</span></div></div><div data-scope="chart" data-part="tooltip" data-index="2" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Mar</div><div data-scope="chart" data-part="tooltip-item" data-series="visits"><span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true">"#,
+            r#"</span><span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">20</span></div></div></div></div>"#,
+        )
+    );
+}
+
+#[test]
+fn line_chart_show_tooltip_false_matches_pre_2129_golden_html() {
+    // イシュー #2129: `show_tooltip: false` は本イシュー以前の出力と
+    // バイト一致する（progressive enhancement の機械的保証、opt-out 経路）。
+    let data = single_data();
+    let mut props = LineChartProps::new(&data, "single point");
+    props.show_tooltip = false;
+    let node = line_chart(&props, vec![]).unwrap();
+    assert_eq!(
+        render(&node),
+        concat!(
             r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md">"#,
-            r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="axes">"#,
-            r#"<g data-scope="chart" data-part="grid">"#,
-            r#"<line x1="40" y1="126" x2="300" y2="126" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
-            r#"<line x1="40" y1="94.5" x2="300" y2="94.5" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
-            r#"<line x1="40" y1="63" x2="300" y2="63" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
-            r#"<line x1="40" y1="31.5" x2="300" y2="31.5" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
-            r#"<line x1="40" y1="0" x2="300" y2="0" data-scope="chart" data-part="grid-line" class="fd-chart--lines-solid"></line>"#,
-            r#"</g>"#,
-            r#"<path data-scope="line-chart" data-part="series-line" d="M40,126 L170,0 L300,63" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
-            r#"<g data-scope="chart" data-part="y-axis">"#,
-            r#"<text x="30" y="126" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">10</text>"#,
-            r#"<text x="30" y="94.5" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">15</text>"#,
-            r#"<text x="30" y="63" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">20</text>"#,
-            r#"<text x="30" y="31.5" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">25</text>"#,
-            r#"<text x="30" y="0" data-scope="chart" data-part="tick-label" text-anchor="end" dominant-baseline="middle">30</text>"#,
-            r#"</g>"#,
-            r#"<text data-scope="chart" data-part="tick-label" x="40" y="142" text-anchor="middle">Jan</text>"#,
-            r#"<text data-scope="chart" data-part="tick-label" x="170" y="142" text-anchor="middle">Feb</text>"#,
-            r#"<text data-scope="chart" data-part="tick-label" x="300" y="142" text-anchor="middle">Mar</text>"#,
-            r#"<g data-scope="chart" data-part="x-axis">"#,
-            r#"<line x1="40" y1="126" x2="300" y2="126" data-scope="chart" data-part="axis-line"></line>"#,
-            r#"</g>"#,
+            r#"<svg viewBox="0 0 300 150" role="img" data-scope="line-chart" data-part="plot" aria-label="single point">"#,
+            r#"<circle data-scope="line-chart" data-part="point" cx="150" cy="75" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
             r#"</svg></div>"#,
         )
     );
@@ -198,7 +235,27 @@ fn area_chart_normal_data_matches_golden_html() {
             r#"<svg viewBox="0 0 300 150" role="img" data-scope="area-chart" data-part="plot" aria-label="monthly visits">"#,
             r#"<path data-scope="area-chart" data-part="series-area" d="M0,150 L150,0 L300,75 L300,150 L0,150 Z" fill="var(--fandhe-color-chart-1)"></path>"#,
             r#"<path data-scope="area-chart" data-part="series-line" d="M0,150 L150,0 L300,75" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
-            r#"</svg></div>"#,
+            r#"<rect x="0" y="0" width="75" height="150" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="Jan · visits: 10"></rect>"#,
+            r#"<rect x="75" y="0" width="150" height="150" data-scope="chart" data-part="hit-area" data-index="1" fill="none" pointer-events="none" tabindex="-1" aria-label="Feb · visits: 30"></rect>"#,
+            r#"<rect x="225" y="0" width="75" height="150" data-scope="chart" data-part="hit-area" data-index="2" fill="none" pointer-events="none" tabindex="-1" aria-label="Mar · visits: 20"></rect>"#,
+            r#"</svg>"#,
+            r#"<div data-scope="chart" data-part="tooltip-layer" aria-hidden="true">"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Jan</div><div data-scope="chart" data-part="tooltip-item" data-series="visits">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">10</span>"#,
+            r#"</div></div>"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="1" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Feb</div><div data-scope="chart" data-part="tooltip-item" data-series="visits">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">30</span>"#,
+            r#"</div></div>"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="2" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">Mar</div><div data-scope="chart" data-part="tooltip-item" data-series="visits">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">20</span>"#,
+            r#"</div></div>"#,
+            r#"</div></div>"#,
         )
     );
 }
@@ -207,6 +264,33 @@ fn area_chart_normal_data_matches_golden_html() {
 fn area_chart_single_category_matches_golden_html() {
     let data = single_data();
     let node = area_chart(&AreaChartProps::new(&data, "single point"), vec![]).unwrap();
+    assert_eq!(
+        render(&node),
+        concat!(
+            r#"<div data-scope="area-chart" data-part="root" class="fd-area-chart--size-md">"#,
+            r#"<svg viewBox="0 0 300 150" role="img" data-scope="area-chart" data-part="plot" aria-label="single point">"#,
+            r#"<circle data-scope="area-chart" data-part="point" cx="150" cy="75" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
+            r#"<rect x="0" y="0" width="300" height="150" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="only · visits: 7"></rect>"#,
+            r#"</svg>"#,
+            r#"<div data-scope="chart" data-part="tooltip-layer" aria-hidden="true">"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">only</div><div data-scope="chart" data-part="tooltip-item" data-series="visits">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">visits</span><span data-scope="chart" data-part="tooltip-value">7</span>"#,
+            r#"</div></div>"#,
+            r#"</div></div>"#,
+        )
+    );
+}
+
+#[test]
+fn area_chart_show_tooltip_false_matches_pre_2129_golden_html() {
+    // イシュー #2129: `show_tooltip: false` は本イシュー以前の出力と
+    // バイト一致する（progressive enhancement の機械的保証、opt-out 経路）。
+    let data = single_data();
+    let mut props = AreaChartProps::new(&data, "single point");
+    props.show_tooltip = false;
+    let node = area_chart(&props, vec![]).unwrap();
     assert_eq!(
         render(&node),
         concat!(
@@ -233,7 +317,41 @@ fn sparkline_normal_values_matches_golden_html() {
             r#"<svg viewBox="0 0 112 48" role="img" data-scope="sparkline" data-part="plot" aria-label="weekly trend">"#,
             r#"<path data-scope="sparkline" data-part="series-area" d="M0,48 L37.33,16 L74.67,32 L112,0 L112,48 L0,48 Z" fill="var(--fandhe-color-chart-1)"></path>"#,
             r#"<path data-scope="sparkline" data-part="series-line" d="M0,48 L37.33,16 L74.67,32 L112,0" stroke="var(--fandhe-color-chart-1)" fill="none"></path>"#,
-            r#"</svg></div>"#,
+            r#"<rect x="0" y="0" width="18.67" height="48" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="0 · value: 10"></rect>"#,
+            r#"<rect x="18.67" y="0" width="37.33" height="48" data-scope="chart" data-part="hit-area" data-index="1" fill="none" pointer-events="none" tabindex="-1" aria-label="1 · value: 30"></rect>"#,
+            r#"<rect x="56" y="0" width="37.33" height="48" data-scope="chart" data-part="hit-area" data-index="2" fill="none" pointer-events="none" tabindex="-1" aria-label="2 · value: 20"></rect>"#,
+            r#"<rect x="93.33" y="0" width="18.67" height="48" data-scope="chart" data-part="hit-area" data-index="3" fill="none" pointer-events="none" tabindex="-1" aria-label="3 · value: 40"></rect>"#,
+            r#"</svg>"#,
+            r#"<div data-scope="chart" data-part="tooltip-layer" aria-hidden="true">"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">0</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip-item" data-series="value">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">value</span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-value">10</span>"#,
+            r#"</div></div>"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="1" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">1</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip-item" data-series="value">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">value</span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-value">30</span>"#,
+            r#"</div></div>"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="2" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">2</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip-item" data-series="value">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">value</span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-value">20</span>"#,
+            r#"</div></div>"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="3" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">3</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip-item" data-series="value">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">value</span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-value">40</span>"#,
+            r#"</div></div>"#,
+            r#"</div></div>"#,
         )
     );
 }
@@ -242,6 +360,35 @@ fn sparkline_normal_values_matches_golden_html() {
 fn sparkline_single_value_matches_golden_html() {
     let values = [7.0];
     let node = sparkline(&SparklineProps::new(&values, "single"), vec![]).unwrap();
+    assert_eq!(
+        render(&node),
+        concat!(
+            r#"<div data-scope="sparkline" data-part="root" class="fd-sparkline--size-md">"#,
+            r#"<svg viewBox="0 0 112 48" role="img" data-scope="sparkline" data-part="plot" aria-label="single">"#,
+            r#"<circle data-scope="sparkline" data-part="point" cx="56" cy="24" r="2.5" fill="var(--fandhe-color-chart-1)"></circle>"#,
+            r#"<rect x="0" y="0" width="112" height="48" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="0 · value: 7"></rect>"#,
+            r#"</svg>"#,
+            r#"<div data-scope="chart" data-part="tooltip-layer" aria-hidden="true">"#,
+            r#"<div data-scope="chart" data-part="tooltip" data-index="0" hidden="">"#,
+            r#"<div data-scope="chart" data-part="tooltip-label">0</div>"#,
+            r#"<div data-scope="chart" data-part="tooltip-item" data-series="value">"#,
+            r#"<span data-scope="chart" data-part="tooltip-indicator" style="--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-name">value</span>"#,
+            r#"<span data-scope="chart" data-part="tooltip-value">7</span>"#,
+            r#"</div></div>"#,
+            r#"</div></div>"#,
+        )
+    );
+}
+
+#[test]
+fn sparkline_show_tooltip_false_matches_pre_2129_golden_html() {
+    // イシュー #2129: `show_tooltip: false` は本イシュー以前の出力と
+    // バイト一致する（progressive enhancement の機械的保証、opt-out 経路）。
+    let values = [7.0];
+    let mut props = SparklineProps::new(&values, "single");
+    props.show_tooltip = false;
+    let node = sparkline(&props, vec![]).unwrap();
     assert_eq!(
         render(&node),
         concat!(

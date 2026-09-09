@@ -2704,7 +2704,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # Charts（tooltip）突合）。`LegendProps` はフルリテラル構築を前提とする
 # 利用者コードが壊れる 0.x の破壊的変更のため、`origin/main` 到達値
 # 0.161.0 から +1 マイナーして 0.162.0 とする。
-version = "0.162.0"
+version = "0.163.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

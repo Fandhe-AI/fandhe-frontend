@@ -130,7 +130,7 @@ use crate::charts::pie::{
     annulus_full_ring_path, annulus_sector_path, annulus_sector_rounded_path,
 };
 use crate::charts::svg::{circle, line, svg_root, svg_text, ViewBox};
-use crate::charts::{series_color_var, ChartData};
+use crate::charts::{series_color_var, tooltip, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, VariantValue};
@@ -284,6 +284,12 @@ pub struct RadialChartProps<'a> {
     pub show_grid: bool,
     /// 中央テキスト（既定 `None`）。
     pub center_text: Option<RadialCenterText<'a>>,
+    /// `true`（既定）なら hit-area・`data-index` と `hidden` の SSR
+    /// ツールチップ DOM（[`crate::charts::tooltip::layer`]）を出力する
+    /// （イシュー #2129、親 #2128。既存 `bar` の `data-series` は不変、
+    /// hit-area 自体には付与しない）。`false` の場合は本イシュー以前の
+    /// 出力とバイト一致する。
+    pub show_tooltip: bool,
 }
 
 impl Default for RadialChartProps<'_> {
@@ -299,6 +305,7 @@ impl Default for RadialChartProps<'_> {
             show_labels: false,
             show_grid: false,
             center_text: None,
+            show_tooltip: true,
         }
     }
 }
@@ -312,6 +319,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("--fandhe-radial-chart-size", "16rem"),
+                // イシュー #2129: `tooltip-layer`（`position: absolute`）の
+                // 配置規則（#2130 が唯一のロケータとして使う契約）を成立
+                // させるための末尾純追加。
+                decl("position", "relative"),
             ],
         )
         .base(
@@ -674,6 +685,25 @@ pub fn radial_chart<'a>(
         }
     }
 
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。各リング（カテゴリ）
+    // の全スイープ（`track` と同じ形状、`ring_segment_path(r_outer, r_inner,
+    // start_rad, end_rad, 0.0)`）を hit-area とする（`bar` の
+    // `data-series` は不変、hit-area 自体には付与しない、
+    // `charts::tooltip` モジュール doc「配置規則」参照）。
+    let entries = if props.show_tooltip {
+        Some(tooltip::entries_from_chart_data(data))
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        for entry in entries {
+            let (r_inner, r_outer) = ring_radii(entry.index, r_inner_base, band, thickness);
+            let (d, _evenodd) = ring_segment_path(r_outer, r_inner, start_rad, end_rad, 0.0);
+            let label = tooltip::hit_area_label(entry);
+            children.push(tooltip::hit_area_path(&d, entry.index, None, &label));
+        }
+    }
+
     let view_box = ViewBox::new(0.0, 0.0, 100.0, 100.0)
         .expect("固定 viewBox 100x100 は常に有効な正の寸法である");
     let aria_label_value = props.aria_label.unwrap_or(DEFAULT_ARIA_LABEL);
@@ -687,12 +717,17 @@ pub fn radial_chart<'a>(
         children,
     );
 
+    let mut root_children = vec![chart_node];
+    if let Some(entries) = &entries {
+        root_children.push(tooltip::layer_from_entries(entries, None));
+    }
+
     let recipe = recipe();
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
 
-    Ok(ANATOMY.part("root", "div", merged, vec![chart_node]))
+    Ok(ANATOMY.part("root", "div", merged, root_children))
 }
 
 #[cfg(test)]
@@ -731,7 +766,10 @@ mod tests {
         assert!(html.contains(r#"aria-label="radial chart""#));
         assert_eq!(html.matches(r#"data-part="track""#).count(), 2);
         assert_eq!(html.matches(r#"data-part="bar""#).count(), 2);
-        assert_eq!(html.matches(r#"data-series="total""#).count(), 2);
+        // イシュー #2129: ツールチップ DOM（既定 `show_tooltip: true`）の
+        // `tooltip-item` も系列表示名を `data-series="total"` として出す
+        // ため、`bar` 分 2 + ツールチップ分 2 の計 4 に純増する。
+        assert_eq!(html.matches(r#"data-series="total""#).count(), 4);
     }
 
     #[test]

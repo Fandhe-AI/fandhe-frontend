@@ -143,7 +143,7 @@ use crate::charts::curve::{self, Curve};
 use crate::charts::data::ChartData;
 use crate::charts::scale::LinearScale;
 use crate::charts::svg::{fmt_coord, svg_root, svg_text, ViewBox, ViewBoxError};
-use crate::charts::ChartError;
+use crate::charts::{tooltip, ChartError};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, VariantValue};
@@ -255,6 +255,11 @@ pub struct LineChartProps<'a> {
     pub show_y_axis: bool,
     /// 水平グリッド線を描画するか（イシュー #2083、既定 `false`）。
     pub show_grid: bool,
+    /// `true`（既定）なら hit-area・`data-index`/`data-series` と `hidden`
+    /// の SSR ツールチップ DOM（[`crate::charts::tooltip::layer`]）を
+    /// 出力する（イシュー #2129、親 #2128）。`false` の場合は本イシュー
+    /// 以前の出力とバイト一致する。
+    pub show_tooltip: bool,
 }
 
 impl<'a> LineChartProps<'a> {
@@ -276,6 +281,7 @@ impl<'a> LineChartProps<'a> {
             show_x_axis: false,
             show_y_axis: false,
             show_grid: false,
+            show_tooltip: true,
         }
     }
 }
@@ -318,6 +324,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "block"),
                 decl("--fandhe-line-chart-height", "150px"),
+                // イシュー #2129: `tooltip-layer`（`position: absolute`）の
+                // 配置規則（#2130 が唯一のロケータとして使う契約）を成立
+                // させるための末尾純追加。
+                decl("position", "relative"),
             ],
         )
         .base(
@@ -720,6 +730,28 @@ pub fn line_chart<'a>(
         )?);
     }
 
+    let entries = if props.show_tooltip {
+        Some(tooltip::entries_from_chart_data(props.data))
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        let n = props.data.categories().len();
+        for entry in entries {
+            let (band_left, band_right) = category_band(plot_w, n, entry.index);
+            let label = tooltip::hit_area_label(entry);
+            plot_children.push(tooltip::hit_area_rect(
+                left + band_left,
+                top,
+                band_right - band_left,
+                plot_h,
+                entry.index,
+                None,
+                &label,
+            ));
+        }
+    }
+
     let plot = svg_root(
         &view_box,
         vec![
@@ -730,10 +762,32 @@ pub fn line_chart<'a>(
         plot_children,
     );
 
+    let mut children = vec![plot];
+    if let Some(entries) = &entries {
+        children.push(tooltip::layer_from_entries(entries, None));
+    }
+
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    Ok(ANATOMY.part("root", "div", merged, vec![plot]))
+    Ok(ANATOMY.part("root", "div", merged, children))
+}
+
+/// カテゴリ `i`（`0..n`）の帯型 hit-area の `[left, right)` を、隣接
+/// [`category_x`] の中点で区切って算出する（内部ヘルパ、[`crate::sparkline`]/
+/// [`crate::area_chart`] も同型のロジックを持つ）。
+fn category_band(width: f64, n: usize, i: usize) -> (f64, f64) {
+    let left = if i == 0 {
+        0.0
+    } else {
+        (category_x(width, n, i - 1) + category_x(width, n, i)) / 2.0
+    };
+    let right = if n == 0 || i + 1 >= n {
+        width
+    } else {
+        (category_x(width, n, i) + category_x(width, n, i + 1)) / 2.0
+    };
+    (left, right)
 }
 
 #[cfg(test)]
