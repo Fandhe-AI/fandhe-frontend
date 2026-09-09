@@ -707,7 +707,13 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #2184: headless-ui の version 要求追随のみ（本クレート自体の
 # field/fieldset の error_text 実配線は存在しない）のため patch バンプし
 # 0.16.4 とする。
-version = "0.16.4"
+#
+# イシュー #2130（親 #2128）: 新規モジュール `chart`（charts のポインタ
+# 追従・キーボード移動・タッチ操作でツールチップと hover 強調を切り替える
+# 配線）を追加。`Runtime::mount`/`Runtime::hydrate` へ `wire_chart` を統合
+# する非破壊的な公開面拡張（既存 API は変更なし）のため、イシュー #1741 と
+# 同じ判断で patch バンプとし 0.16.5 とする。
+version = "0.16.5"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -949,6 +955,16 @@ fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.6.1", defa
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 
+# イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
+# `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
+# roving tabindex 昇格）・`FocusEvent::related_target()`（`focusin`/
+# `focusout` の svg 内外判定）を使うため `SvgElement`/`FocusEvent` を追加
+# する。新規外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。
+# `PointerEvent::pointer_type()`（タッチ判定）・`MouseEvent::related_target()`
+# （`pointerout` の svg 内外判定）・`MutationObserver`/`Element`/
+# `HtmlElement`/`CssStyleDeclaration`/`KeyboardEvent`/`DomRect` は既存
+# feature を流用（追加不要）。`cargo metadata` 実測（パッケージ数・依存
+# グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies.web-sys]
 version = "0.3"
 features = [
@@ -965,6 +981,7 @@ features = [
   "EventTarget",
   "File",
   "FileList",
+  "FocusEvent",
   "History",
   "HtmlElement",
   "HtmlImageElement",
@@ -989,6 +1006,7 @@ features = [
   "ScrollIntoViewOptions",
   "ScrollLogicalPosition",
   "ScrollRestoration",
+  "SvgElement",
   "Window",
   "console",
 ]
@@ -1114,6 +1132,13 @@ wasm-bindgen-futures = "0.4"
 # スクロール可能な固定領域を再現するため `HtmlElement::style()` の戻り値
 # `CssStyleDeclaration`（`set_property`）を追加する（テスト専用の feature
 # 拡張。`HtmlElement` 自体は製品面の `[dependencies.web-sys]` に追加済み）。
+# イシュー #2130: `wasm-full/tests/chart_tooltip_browser.rs` が合成
+# `PointerEvent`（hover/タッチ座標・`pointer_type` 指定）・`FocusEvent`
+# （`related_target` を伴う `focusin`/`focusout`）・`KeyboardEvent`（矢印
+# キー移動）を組み立てるために `FocusEventInit` を追加する（テスト専用の
+# feature 拡張。`PointerEvent`/`FocusEvent`/`KeyboardEvent` 自体は製品面の
+# `[dependencies.web-sys]` に追加済みのため、ここでは Init 型のみを追加
+# すれば足りる）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [
@@ -1129,6 +1154,7 @@ features = [
   "KeyboardEventInit",
   "HtmlHeadElement",
   "PointerEventInit",
+  "FocusEventInit",
   "FilePropertyBag",
   "DataTransferItem",
   "DataTransferItemList",
