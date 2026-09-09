@@ -116,7 +116,7 @@ pub struct LegendProps {
     pub marker: LegendMarker,
 }
 
-/// Legend の recipe（scope `"chart-legend"`、[`SLOTS`] の 5 パーツ）。
+/// Legend の recipe（scope `"chart-legend"`、[`SLOTS`] の 6 パーツ）。
 ///
 /// # 参考サイト基準への調整（イシュー #1593）
 ///
@@ -328,9 +328,10 @@ pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
 /// `data.series()` が空の場合は `item` を 1 件も持たない `root` のみを
 /// 返す（fail-soft。呼び出し元は事前に [`ChartData`] の非空検証を通した
 /// データを渡す前提、`pie_chart`/`donut_chart` と同型の判断）。
-#[must_use]
+///
 /// [`LegendProps::hide_marker`]/`align`/`marker`（イシュー #2086）は
 /// [`legend`] と同じ意味論で適用される（recipe・slot を共有するため）。
+#[must_use]
 pub fn category_legend(data: &ChartData, props: &LegendProps) -> Node {
     let recipe = recipe();
     let root_class = recipe.variant_classes(&[

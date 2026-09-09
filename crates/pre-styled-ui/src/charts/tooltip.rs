@@ -85,7 +85,7 @@
 //! | `chart-tooltip-default`（見出し + 複数系列行） | [`datum_label_lines`] を純追加（`<title>`/`aria-label` の複数行テキスト） |
 //! | `chart-tooltip-label-custom` / `-label-formatter` | `heading: Option<&str>` に呼び出し側の任意文字列を渡せる（既存 API の明示化） |
 //! | `chart-tooltip-label-none` | `heading: None` |
-//! | `chart-tooltip-formatter`（値の書式） | `entries` の値は呼び出し側が整形済み文字列で渡す契約（`&.claude/rules/coding-rust.md` §「数値・日時整形は UI コンポーネント層の責務外」と同じ判断軸。本モジュールは値を整形しない） |
+//! | `chart-tooltip-formatter`（値の書式） | `entries` の値は呼び出し側が整形済み文字列で渡す契約（`.claude/rules/coding-rust.md` §「数値・日時整形は UI コンポーネント層の責務外」と同じ判断軸。本モジュールは値を整形しない） |
 //! | `chart-tooltip-advanced`（Total footer） | `footer: Option<&str>` |
 //! | `chart-tooltip-indicator-line` / `-indicator-none` | 採用しない。ツールチップ DOM・indicator バリアントは #2129/#2131 のスコープ |
 //! | `chart-tooltip-icons` | 採用しない。ツールチップ DOM への icon 合成は #2129 のスコープ |
