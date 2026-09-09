@@ -3,10 +3,12 @@
 //!
 //! Radix Primitives `Navigation Menu` / ark-ui `NavigationMenu`
 //!（`docs/design/component-coverage-map.md` §5 Part D / §9）を参照し、
-//! Root / List / Item / Trigger / ItemIndicator / Content / Link の 7 anatomy
-//! パーツと、[`crate::state::SingleSelect`] を埋め込んだ「高々 1 項目が開く」
-//! 状態機械 [`NavigationMenu`] を提供する（イシュー #1654 で ItemIndicator を
-//! 新設し 6 → 7 パーツへ拡張）。
+//! Root / List / Item / Trigger / ItemIndicator / Content / Link / Indicator
+//! の 8 anatomy パーツと、[`crate::state::SingleSelect`] を埋め込んだ
+//! 「高々 1 項目が開く」状態機械 [`NavigationMenu`] を提供する（イシュー
+//! #1654 で ItemIndicator を新設し 6 → 7 パーツへ、イシュー #2187 で
+//! ルートレベルの Indicator（開いている Trigger の下でスライドする
+//! ポインタ）を新設し 7 → 8 パーツへ拡張）。
 //!
 //! # `nav_list` との使い分け
 //!
@@ -56,8 +58,8 @@
 //! # 呼び出し文脈
 //!
 //! SSR は本モジュールの自由関数（[`root`]/[`list`]/[`item`]/[`trigger`]/
-//! [`item_indicator`]/[`content`]/[`link`]、いずれも純粋関数で完結）を
-//! 直接呼んで組み立てる。
+//! [`item_indicator`]/[`content`]/[`link`]/[`indicator`]、いずれも純粋関数で
+//! 完結）を直接呼んで組み立てる。
 //! 各パーツは項目ごとの [`crate::state::OpenState`] を引数で受け取るため
 //! [`NavigationMenu`] を経由しない構成でも共用できる。CSR/hydration は
 //! [`NavigationMenu`]（[`fandhe_frontend_interactive::Component`]/
@@ -84,14 +86,25 @@
 //!   [`crate::state::SingleSelect`] へ全委譲することで、panic せず
 //!   `HydrateError` を返す既存保証をそのまま継承する。
 //!
-//! # 参考サイト（Radix Primitives / ark-ui）との意図的な差分（イシュー #1654）
+//! # 参考サイト（Radix Primitives / ark-ui）との意図的な差分（イシュー
+//! #1654/#2187）
 //!
 //! `docs/policy/intentional-non-adoption.md` §3.25 規則 2（層の割り当て）に
 //! 基づき、以下は headless 層へ持ち込まない意図的な非採用である。
 //!
-//! - **Indicator（スライドバー）/ Viewport / ViewportPositioner / Arrow**:
-//!   レイアウト計測を伴う装飾関心であり、必要なら上層 `pre-styled-ui` の
-//!   責務として設計する。
+//! - **Viewport / ViewportPositioner / Arrow**: レイアウト計測を伴う
+//!   装飾関心であり、必要なら上層 `pre-styled-ui` の責務として設計する
+//!   （引き続き非採用）。
+//! - **Indicator（ルートレベルのスライドポインタ）**: イシュー #2187 で
+//!   §3.25 規則 2 のとおり「構造 + `data-state` は本層、着装（`style`・
+//!   CSS 変数）は `pre-styled-ui`、実座標の計測は `wasm-full`」の 3 層
+//!   分離で解消した（[`indicator`] 参照）。恒久除外ではなく層の割り当てを
+//!   変えた実例であり、Viewport / ViewportPositioner / Arrow とは扱いを
+//!   分ける。
+//! - **配置**: Radix は List を `div` で包んで Indicator を track の
+//!   兄弟として置くが、本モジュールの `list` は素の `<ul>` であるため
+//!   （[`list`]）、[`indicator`] は Radix と異なり [`root`] 直下・[`list`]
+//!   の後ろに置く（[`indicator`] rustdoc 参照）。
 //! - **Sub（入れ子ナビゲーション）**: 状態機械の入れ子は本イシューの範囲外。
 //! - **hover/delay による自動 open・open-follows-focus・typeahead**:
 //!   `crates/wasm-full/src/keynav.rs` のキーボード操作節（下記）参照。クリック
@@ -104,7 +117,12 @@
 //!
 //! - **`data-motion`・viewport 寸法測定**: 上記のとおり §3.25 規則 2 により
 //!   headless 層へ置かない。
-//! - **Indicator / Viewport / Sub\* パーツ**: 上記「意図的な差分」参照。
+//! - **Viewport / Sub\* パーツ**: 上記「意図的な差分」参照（Indicator は
+//!   #2187 で解消済み、[`indicator`] 参照）。
+//! - **[`indicator`] の実座標追従**（Trigger 矩形の計測・
+//!   `--fandhe-navigation-menu-indicator-*` の書き込み・スクロール/
+//!   リサイズ再計算）: `fandhe-frontend-wasm-full` の責務（イシュー
+//!   #2208/#2209 系と同じ機構の後続、本イシューの範囲外）。
 //! - **キーボード操作の実 DOM 配線**（矢印キー・Escape・フォーカス移動）:
 //!   `fandhe-frontend-wasm-full` の責務（[`mod@crate::menubar`]/
 //!   [`mod@crate::toolbar`] と同じ扱い）。`crates/wasm-full/src/keynav.rs`
@@ -206,6 +224,13 @@ const CONTENT_RESERVED: &[&str] = &["data-state", "data-orientation", "data-valu
 /// [`link`] が固定付与するキー一覧（`href` は必須引数のため reserved から
 /// 除外する）。
 const LINK_RESERVED: &[&str] = &["aria-current", "data-current"];
+/// [`indicator`] が固定付与するキー一覧。
+const INDICATOR_RESERVED: &[&str] = &[
+    "aria-hidden",
+    "data-state",
+    "data-orientation",
+    "data-value",
+];
 
 /// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
 /// 除外する（`crates/headless-ui/src/accordion.rs::drop_reserved` 等と同型の
@@ -386,6 +411,59 @@ pub fn content<'a>(
     ANATOMY.part("content", "div", merged, children)
 }
 
+/// `indicator` パーツ（`span`）。イシュー #2187 で新設（Radix
+/// `NavigationMenuIndicator` 相当、開いている Trigger の下でスライドする
+/// ポインタ）。ark-ui には対応物がない。
+///
+/// [`item_indicator`] が項目ごとに置く装飾パーツであるのに対し、本パーツは
+/// **[`root`] 直下・[`list`] の後ろ（兄弟）** に 1 つだけ置くルートレベルの
+/// 装飾パーツである。`list` は素の `<ul>` であり `<span>` を直下に置くと
+/// HTML content model 違反になるため、参考サイト（Radix は `List` を
+/// `div` で包んで track を兄弟配置している）とは異なり root 直下配置とする
+/// （意図的な差分。モジュール冒頭「参考サイト（Radix Primitives /
+/// ark-ui）との意図的な差分」節参照）。
+///
+/// 装飾用の視覚要素であり、支援技術へは [`trigger`] の `aria-expanded` から
+/// 開閉状態が既に伝わるため常時 `aria-hidden="true"` を固定付与する
+/// （[`item_indicator`] と同じ判断）。`state` が [`OpenState::Closed`]
+/// （どの項目も開いていない）のとき `hidden` 存在属性を付与する（指す対象が
+/// 無い状態で位置不定の要素を表示しない fail-safe、[`crate::tabs`] の
+/// ルートレベル `indicator` と同じ判断）。`value` は `Some` のときのみ
+/// `data-value` として出力し、開いている項目値を構造情報として伝える
+/// （実座標の計測値ではない。将来の wasm 配線が追従先 Trigger を
+/// `[data-part="trigger"][data-value=…]` で特定するための入力）。
+///
+/// **`style` 属性は出力しない**（[`crate::tabs`] のルートレベル
+/// `indicator` とは意図的に異なる）。`--fandhe-` プレフィックスの CSS
+/// 変数命名契約は `fandhe-frontend-pre-styled-ui` 層の関心であり本層へ
+/// 持ち込まない。座標追従（`--fandhe-navigation-menu-indicator-*` への
+/// 実測値の書き込み）は `fandhe-frontend-wasm-full` の責務（イシュー
+/// #2208/#2209 系と同じ機構）であり本イシューの範囲外。JS 無効時の
+/// 非破綻は pre-styled 層の CSS 変数フォールバック（既定 `0px`）で保証する。
+#[must_use]
+pub fn indicator<'a>(
+    state: OpenState,
+    props: &NavigationMenuProps,
+    value: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, INDICATOR_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        aria_hidden(true),
+        data_state(state.as_data_state()),
+        data_orientation(props.orientation),
+    ];
+    if let Some(value) = value {
+        merged.push(("data-value", value));
+    }
+    if !state.is_open() {
+        merged.push(("hidden", ""));
+    }
+    merged.extend(attrs);
+    ANATOMY.part("indicator", "span", merged, children)
+}
+
 /// `link` パーツ（`a`）。`current` が `true` のとき `aria-current="page"`
 /// と `data-current` を付与する（[`mod@crate::nav_list`] の `link` と同じ
 /// 語彙。Radix の `data-active` 語彙は採らず ark-ui 語彙で統一する、
@@ -520,6 +598,24 @@ impl NavigationMenu {
             attrs,
             children,
         )
+    }
+
+    /// [`indicator`] へ現在開いている項目値（[`Self::open_value`]）を注入
+    /// する利便メソッド（ルートレベルの単一インスタンス想定、
+    /// [`Self::item`]/[`Self::trigger`] 等の項目単位メソッドとは異なり
+    /// `value` 引数を取らない）。
+    #[must_use]
+    pub fn indicator<'a>(
+        &self,
+        props: &NavigationMenuProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        let state = match self.open_value() {
+            Some(_) => OpenState::Open,
+            None => OpenState::Closed,
+        };
+        indicator(state, props, self.open_value(), attrs, children)
     }
 }
 
@@ -1022,6 +1118,7 @@ mod tests {
             vec![],
         ));
         let link_html = render(&link("/docs", true, vec![], vec![]));
+        let indicator_html = render(&indicator(OpenState::Open, &h(), Some("a"), vec![], vec![]));
         for html in [
             root_html,
             item_html,
@@ -1029,6 +1126,7 @@ mod tests {
             item_indicator_html,
             content_html,
             link_html,
+            indicator_html,
         ] {
             assert!(!html.contains("data-motion"));
         }
@@ -1049,6 +1147,108 @@ mod tests {
         assert!(html.contains(r#"data-scope="navigation-menu""#));
         assert!(html.contains(r#"data-part="item""#));
         assert!(!html.contains("attacker"));
+    }
+
+    // --- イシュー #2187: ルートレベル indicator パーツ ---
+
+    #[test]
+    fn indicator_outputs_scope_part_state_orientation_and_aria_hidden() {
+        let html = render(&indicator(
+            OpenState::Open,
+            &h(),
+            Some("products"),
+            vec![],
+            vec![],
+        ));
+        assert!(html.starts_with("<span"));
+        assert!(html.contains(r#"data-scope="navigation-menu""#));
+        assert!(html.contains(r#"data-part="indicator""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
+        assert!(html.contains(r#"data-value="products""#));
+        assert!(!html.contains("hidden=\"\""));
+    }
+
+    #[test]
+    fn indicator_closed_adds_hidden_and_omits_data_value_when_none() {
+        let html = render(&indicator(OpenState::Closed, &h(), None, vec![], vec![]));
+        assert!(html.contains(r#"data-state="closed""#));
+        assert!(html.contains("hidden=\"\""));
+        assert!(!html.contains("data-value"));
+    }
+
+    #[test]
+    fn indicator_vertical_outputs_data_orientation_vertical() {
+        let html = render(&indicator(OpenState::Open, &v(), Some("a"), vec![], vec![]));
+        assert!(html.contains(r#"data-orientation="vertical""#));
+    }
+
+    #[test]
+    fn indicator_does_not_output_style_or_role() {
+        let html = render(&indicator(OpenState::Open, &h(), Some("a"), vec![], vec![]));
+        assert!(!html.contains("style="));
+        assert!(!html.contains("role="));
+    }
+
+    #[test]
+    fn indicator_caller_supplied_reserved_keys_are_dropped() {
+        let html = render(&indicator(
+            OpenState::Open,
+            &h(),
+            Some("a"),
+            vec![
+                ("aria-hidden", "false"),
+                ("data-state", "closed"),
+                ("data-orientation", "vertical"),
+                ("data-value", "attacker"),
+                ("data-scope", "attacker"),
+                ("data-part", "attacker"),
+                ("ARIA-HIDDEN", "false"),
+            ],
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
+        assert!(html.contains(r#"data-value="a""#));
+        assert!(html.contains(r#"data-scope="navigation-menu""#));
+        assert!(html.contains(r#"data-part="indicator""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn indicator_value_attrs_and_children_payload_is_escaped_on_render() {
+        let payload = "\"><script>alert(1)</script>";
+        let html = render(&indicator(
+            OpenState::Open,
+            &h(),
+            Some(payload),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn navigation_menu_indicator_convenience_reflects_open_value() {
+        let mut nm = NavigationMenu::default();
+        let closed_html = render(&nm.indicator(&h(), vec![], vec![]));
+        assert!(closed_html.contains(r#"data-state="closed""#));
+        assert!(closed_html.contains("hidden=\"\""));
+        assert!(!closed_html.contains("data-value"));
+
+        nm.update(SingleSelectAction::Select("products".to_string()));
+        let open_html = render(&nm.indicator(&h(), vec![], vec![]));
+        assert!(open_html.contains(r#"data-state="open""#));
+        assert!(open_html.contains(r#"data-value="products""#));
+        assert!(!open_html.contains("hidden=\"\""));
+
+        nm.update(SingleSelectAction::Deselect);
+        let closed_again_html = render(&nm.indicator(&h(), vec![], vec![]));
+        assert!(closed_again_html.contains(r#"data-state="closed""#));
+        assert!(closed_again_html.contains("hidden=\"\""));
     }
 
     // --- root > list > item > trigger + item-indicator + content(link) の組み立てテスト ---

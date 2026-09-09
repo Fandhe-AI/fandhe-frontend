@@ -1283,7 +1283,18 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     headless 側の実装はイシュー #993（`crates/headless-ui/src/navigation_menu.rs`）
     で完了した。`viewport` 測定・`data-motion` は同モジュールに一切現れない
     ことをテストで機械的に固定し（`no_part_outputs_data_motion`）、本規則の
-    適用を実装レベルでも保証している。
+    適用を実装レベルでも保証している。**イシュー #2187 の追加実例（規則 2
+    は「非採用」ではなく「配置」の規則であることの具体化）**: ルートレベル
+    の `NavigationMenuIndicator`（Trigger 直下でスライドするポインタ）は
+    当初「装飾関心のため実装しない」（headless-ui モジュール doc
+    「参考サイトとの意図的な差分」節）と記録されていたが、この記録は規則 2
+    の趣旨（配置の規則であり実装対象から外す規則ではない）と厳密には
+    整合していなかった。#2187 で構造 + `data-state` のみを headless-ui の
+    `indicator` パートへ追加し、着装（`--fandhe-navigation-menu-indicator-*`
+    の CSS 変数）を pre-styled-ui、実座標の計測を wasm-full（#2208/#2209
+    系の後続）へ配置する 3 層分離で解消した。Viewport / ViewportPositioner
+    / Arrow（真にレイアウト計測を要する部分）は引き続き規則 2 の対象として
+    非採用のまま据え置く。
   - **対照事例（規則 2 の対象外）**: `crates/headless-ui/src/positioning.rs`
     （anchor positioning の純粋関数）は viewport 寸法を引数で受け取るが、
     実 DOM 計測（`web-sys` 接触）も再計算トリガーの所有も行わないため

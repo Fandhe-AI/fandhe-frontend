@@ -149,7 +149,15 @@
 //!   （`crates/headless-ui/src/tabs.rs` `INDICATOR_STYLE_INITIAL`
 //!   rustdoc）。CSS を足しても幅 0 で不可視の dead CSS になり、将来配線
 //!   された際には active trigger の下線と二重線になるため、配線実装時に
-//!   あわせて設計する。
+//!   あわせて設計する。**イシュー #2187 との整合注記**:
+//!   `crate::navigation_menu` はルートレベル `indicator` へ幅 0
+//!   フォールバック付きの CSS 変数契約を先に固定する方式を採った（本方針
+//!   とは逆の判断）。両者の食い違いは意図的であり、navigation-menu の
+//!   `trigger` は下線を持たないため装飾を先に足しても二重線にならない
+//!   （`crate::navigation_menu` モジュール doc「shadcn/ui 突合（イシュー
+//!   #2187）」節参照）。tabs の `trigger` は下線を持つため本方針
+//!   （配線実装時にあわせて設計）を維持する。tabs 側への同方式適用の
+//!   再評価は本イシューのスコープ外（PR 本文の「スコープ外」参照）。
 //! - **active 時の `font-weight` 変化（Radix Themes 方式）は採らない**:
 //!   ページ内切り替えで幅が揺れる。代わりに全 trigger を最初から
 //!   medium にする（chakra 方式、`trigger` base の `font-weight`）。

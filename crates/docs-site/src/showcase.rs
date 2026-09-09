@@ -10284,10 +10284,11 @@ fn sidebar_section() -> Node {
     )
 }
 
-/// Navigation Menu 節（イシュー #993、#2035 で 7 パーツへ拡張）:
-/// root/list/item/trigger/item-indicator/content/link の 7 anatomy パーツを
-/// 1 デモに全網羅する（Anatomy 節はデモ HTML から機械導出されるため、
-/// 1 パーツでも欠けると節が不完全になる、
+/// Navigation Menu 節（イシュー #993、#2035 で 7 パーツへ、#2187 で
+/// ルートレベル indicator を加え 8 パーツへ拡張）:
+/// root/list/item/trigger/item-indicator/content/link/indicator の
+/// 8 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
+/// 機械導出されるため、1 パーツでも欠けると節が不完全になる、
 /// `crates/docs-site/src/component_specs_overlay.rs` 参照）。
 ///
 /// 1 項目目（Products）は Trigger を開いた状態（`data-state="open"`）で
@@ -10301,7 +10302,11 @@ fn sidebar_section() -> Node {
 /// （About）はディスクロージャを持たない単独リンクとし `current: true`
 /// （`aria-current="page"`）でアクティブリンク表現を掲示する。`href` は
 /// `showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
-/// linkcheck 中立性契約に従い空文字列固定とする。
+/// linkcheck 中立性契約に従い空文字列固定とする。ルートレベル
+/// indicator（イシュー #2187）は root 直下・list の兄弟として Products の
+/// 下に静的掲示する。実座標の追従は wasm-full の責務（#2208/#2209 系、
+/// 本 Demo は未配線）のため、`attrs` の `style` で CSS 変数を直接指定して
+/// 可視化する（既定 `0px` フォールバックのままだと幅 0 で不可視のため）。
 fn navigation_menu_section() -> Node {
     // 静的掲示のため状態機械（`NavigationMenu`）は経由せず、headless 層の
     // 自由関数へ `OpenState` を直接渡して組み立てる（`state` 引数を明示
@@ -10452,11 +10457,28 @@ fn navigation_menu_section() -> Node {
                     vec![navigation_menu::link("", true, vec![], vec![text("About")])],
                 ),
             ],
-        )],
+        ),
+            // イシュー #2187: ルートレベル indicator（root 直下・list の
+            // 兄弟）を Products（開いている項目）の下に静的掲示する。
+            // 座標追従は wasm-full の責務（#2208/#2209 系、本 Demo は
+            // 実測せず）のため、CSS 変数を `attrs` の `style` で直接
+            // 指定して可視化する（既定 `0px` フォールバックのままだと
+            // 幅 0 で不可視のため）。
+            navigation_menu::indicator(
+                OpenState::Open,
+                &nav_props,
+                Some("products"),
+                vec![(
+                    "style",
+                    "--fandhe-navigation-menu-indicator-x: 0px; --fandhe-navigation-menu-indicator-width: 5rem;",
+                )],
+                vec![],
+            ),
+        ],
     );
     section(
         "Navigation Menu",
-        "headless-ui の Navigation Menu（役割は素の nav/ul/li/button/div/a の暗黙 ARIA role に依拠し、role は一切付与しません）に pre-styled-ui の recipe CSS を適用した静的掲示です。Products トリガーを開いた状態（data-state=\"open\"）で item-indicator（開閉シェブロン、イシュー #2035）を回転済みの視覚で掲示し、Content 内は crate::text を併用したタイトル + 説明文の 2 列グリッドリンク合成を掲示します。Resources はアイコン + item-indicator を持つトリガーを閉じた状態（回転しない基準状態）で掲示し、About は Trigger/Content を持たない単独リンクとして aria-current=\"page\" によるアクティブリンク表現を掲示します。viewport 測定・data-motion・ルートレベルの NavigationMenuIndicator は headless 層に存在しないため掲示していません（詳細は headless-ui の navigation_menu モジュール doc、および pre-styled-ui の navigation_menu モジュール doc「shadcn/ui 突合（イシュー #2035）」節を参照）。",
+        "headless-ui の Navigation Menu（役割は素の nav/ul/li/button/div/a の暗黙 ARIA role に依拠し、role は一切付与しません）に pre-styled-ui の recipe CSS を適用した静的掲示です。Products トリガーを開いた状態（data-state=\"open\"）で item-indicator（開閉シェブロン、イシュー #2035）を回転済みの視覚で掲示し、Content 内は crate::text を併用したタイトル + 説明文の 2 列グリッドリンク合成を掲示します。Resources はアイコン + item-indicator を持つトリガーを閉じた状態（回転しない基準状態）で掲示し、About は Trigger/Content を持たない単独リンクとして aria-current=\"page\" によるアクティブリンク表現を掲示します。ルートレベルの indicator（Trigger 直下でスライドするポインタ、イシュー #2187）を Products の下に静的掲示します。実座標の追従は wasm-full の責務（#2208/#2209 系、本 Demo は未配線）のため、CSS 変数を style で直接指定して可視化しています。viewport 測定・data-motion は headless 層に存在しないため掲示していません（詳細は headless-ui の navigation_menu モジュール doc、および pre-styled-ui の navigation_menu モジュール doc「shadcn/ui 突合（イシュー #2035/#2187）」節を参照）。",
         vec![node],
     )
 }
