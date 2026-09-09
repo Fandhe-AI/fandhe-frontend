@@ -439,16 +439,21 @@ mod wiring {
         sessions.iter().position(|session| session.svg == *svg)
     }
 
-    /// 現在 `hover_active` なセッションの `svg`（sticky セッションは
-    /// `hover_active` を使わないため対象外。高々 1 件のはずだが、複数
-    /// 存在しても最初の 1 件を返せば十分＝ポインタは単一のためここで
-    /// 選ばれなかった残りは次回の `pointerout`/`pointermove` で追随して
-    /// 解消される）。
+    /// 現在 `hover_active` なセッションの `svg`（sticky セッションは明示的に
+    /// 除外する。マウスでホバー中のセッションをタッチで sticky に昇格
+    /// させても `hover_active` フラグ自体はそのまま残るため、フラグだけを
+    /// 見ると sticky セッションも返ってしまい、後続の `pointerout`/
+    /// `pointercancel` が `deactivate_hover` 経由でタッチ操作対象を誤って
+    /// 非活性化・クローズしてしまう（codex P1 / Cursor Bugbot "Sticky
+    /// session closes after hover" 指摘、イシュー #2130 PR #2267）。高々
+    /// 1 件のはずだが、複数存在しても最初の 1 件を返せば十分＝ポインタは
+    /// 単一のためここで選ばれなかった残りは次回の `pointerout`/
+    /// `pointermove` で追随して解消される）。
     fn hover_active_svg(handle: &SessionHandle) -> Option<Element> {
         handle
             .borrow()
             .iter()
-            .find(|session| session.hover_active)
+            .find(|session| session.hover_active && !session.sticky)
             .map(|session| session.svg.clone())
     }
 
@@ -688,12 +693,21 @@ mod wiring {
     /// 片方の消失だけで閉じてはならない）。セッションが開いたまま残る
     /// 場合は、残っている focus 側の対象へ表示を戻す
     /// （[`reapply_active_target`]、codex-review P1 / Bugbot 指摘）。
+    /// sticky（タッチ）セッションは対象外（no-op）: `hover_active_svg` が
+    /// sticky セッションを除外して返さなくなった後も、呼び出し側の取り
+    /// 違え等で sticky な `svg` が渡された場合に備えた二重の防御であり、
+    /// タッチで開いたセッションを hover 経路が誤って非活性化・クローズ
+    /// しないことを保証する（codex P1 / Cursor Bugbot "Sticky session
+    /// closes after hover" 指摘、イシュー #2130 PR #2267）。
     fn deactivate_hover(handle: &SessionHandle, svg: &Element) {
         let should_close = {
             let mut sessions = handle.borrow_mut();
             let Some(session) = sessions.iter_mut().find(|session| session.svg == *svg) else {
                 return;
             };
+            if session.sticky {
+                return;
+            }
             session.hover_active = false;
             should_close_session(session.hover_active, session.focus_active)
         };
@@ -704,21 +718,34 @@ mod wiring {
         }
     }
 
-    /// `root` へ pointermove（hover 追従）を配線する。sticky（タッチ）
-    /// セッション中は無視する。hit-area 以外（軸ラベル相当）への移動は
-    /// hover を非活性化し、focus も非活性なセッションのみ閉じる
-    /// （[`deactivate_hover`]）。
+    /// `root` へ pointermove（hover 追従）を配線する。イベント対象が属する
+    /// チャート（`svg`）が sticky（タッチ）セッション中のときのみ無視する。
+    /// hit-area 以外（軸ラベル相当）への移動は hover を非活性化し、focus
+    /// も非活性なセッションのみ閉じる（[`deactivate_hover`]）。
     fn handle_pointermove(root: &Element, handle: &SessionHandle, event: &Event) {
-        let sticky = handle.borrow().iter().any(|s| s.sticky);
-        if sticky {
-            return;
-        }
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
         let Some(target) = event_target_element(event) else {
             return;
         };
+        // sticky 判定はイベント対象が属するチャートに限定する。Runtime
+        // 全体のいずれかのセッションが sticky というだけで無視すると、
+        // タッチ対応 PC でチャート A をタップ後にマウスで別チャート B へ
+        // 移動しても B の pointermove が無視されツールチップが開かなく
+        // なる（codex P1 指摘、イシュー #2130 PR #2267）。対象が属する
+        // svg が無い（chart 外）場合は sticky 判定なしで従来どおり進む。
+        if let Some(target_svg) = svg_of(&target) {
+            if root.contains(Some(&target_svg)) {
+                let sticky = handle
+                    .borrow()
+                    .iter()
+                    .any(|s| s.svg == target_svg && s.sticky);
+                if sticky {
+                    return;
+                }
+            }
+        }
         let client_x = f64::from(pointer_event.client_x());
         let client_y = f64::from(pointer_event.client_y());
         match closest_hit_area(root, &target) {
@@ -921,10 +948,18 @@ mod wiring {
         let related = focus_event
             .related_target()
             .and_then(|target| target.dyn_into::<Element>().ok());
+        // 移動先 hit-area の svg が移動元（当該チャート）と同一の場合のみ
+        // 「内部移動」と判定する。`closest_hit_area(root, element)` だけでは
+        // root 配下の他チャートの hit-area も「留まっている」と誤判定し、
+        // 別チャートへ Tab 移動しても移動元の focus_active が解除されず
+        // ツールチップ・強調表示が残り続ける不具合になる（codex P1 /
+        // Cursor Bugbot "Focus session leaks across charts" 指摘、イシュー
+        // #2130 PR #2267）。
         let still_within = related
             .as_ref()
             .and_then(|element| closest_hit_area(root, element))
-            .is_some();
+            .and_then(|hit_area| svg_of(&hit_area))
+            .is_some_and(|related_svg| related_svg == svg);
         if !still_within {
             let mut had_session = false;
             let should_close = {
