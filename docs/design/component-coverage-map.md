@@ -989,7 +989,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 | —（対応 md なし） | — | — | — | — | Sidebar (`sidebar`) | `sidebar` | `sidebar` | 実装済み | headless+styled 実装済み（#2072 anatomy / #2073 recipe / #2074 wasm-full 配線 / #2075 Themes ページ）。22 slot、`data-state`/`data-collapsible`/`data-variant`/`data-side`/`data-mobile` を属性セレクタ参照 |
 | —（対応 md なし） | — | — | — | — | Message (`message`) | `message` | `message` | 実装済み | headless+styled 実装済み（#2105 anatomy / #2106 recipe・Themes ページ）。root/avatar/header/content/footer/group の 6 slot、`data-role`/`data-align`/`data-loading`/`data-error` を AttrEq/Attr 参照 |
 | —（対応 md なし） | — | — | — | — | Bubble (`bubble`) | `bubble` | `bubble` | 実装済み | headless+styled 実装済み（#2108 anatomy / #2109 recipe・Themes ページ）。root/content/reactions/reaction/collapse-trigger/collapse-content の 6 slot、`data-variant`/`data-align`/`data-group-position`/`data-selected`/`data-state` を AttrEq/Attr/AttrEqAll 参照 |
-| —（対応 md なし） | — | — | — | — | Attachment (`attachment`) | — | — | 実装対象 | AI チャット UI の添付ファイル表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2110。判定根拠の詳細は #2006 が §12 へ転記 |
+| —（対応 md なし） | — | — | — | — | Attachment (`attachment`) | `attachment` | `attachment` | 実装済み | headless+styled 実装済み（#2111 anatomy / #2112 recipe・Themes ページ）。root/media/content/name/meta/progress/actions/action の 8 slot、`data-variant`/`data-state`/`data-disabled` を AttrEq/Attr 参照 |
 | —（対応 md なし） | — | — | — | — | Marker (`marker`) | — | — | 実装対象 | AI チャット UI の区切りマーカー表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2113。判定根拠の詳細は #2006 が §12 へ転記 |
 | —（対応 md なし） | — | — | — | — | Questionnaire (`questionnaire`) | — | — | 実装対象 | 単一/複数選択・自由記述・スキップ可の多段階質問フロー部品。回答の保持・検証・分岐はアプリ責務（§3.25 規則 1）。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2116。判定根拠の詳細は #2006 が §12 へ転記 |
 | —（対応 md なし） | — | — | — | — | Message Scroller (`message-scroller`) | — | — | 実装対象 | 会話のスクロール固定・ストリーミング追従・履歴読み込み部品。§3.25 規則 2 に従い計測・DOM 操作は wasm-full 側、headless-ui は anatomy と `data-*` のみ。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2120。判定根拠の詳細は #2006 が §12 へ転記 |
@@ -1334,7 +1334,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 | Sidebar (`sidebar`) | Part F | #2071 | 実装済み（#2072 / #2073 / #2074 / #2075） |
 | Message (`message`) | Part F | #2104 | 実装済み（#2105 / #2106） |
 | Bubble (`bubble`) | Part F | #2107 | 実装済み（#2108 / #2109） |
-| Attachment (`attachment`) | Part F | #2110 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
+| Attachment (`attachment`) | Part F | #2110 | 実装済み（#2111 / #2112） |
 | Marker (`marker`) | Part F | #2113 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Questionnaire (`questionnaire`) | Part F | #2116 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Message Scroller (`message-scroller`) | Part F | #2120 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |

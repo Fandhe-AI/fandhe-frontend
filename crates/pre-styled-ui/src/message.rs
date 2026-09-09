@@ -151,8 +151,9 @@
 //!
 //! - wasm-full 配線・`examples/headless-pre-styled-ui` への message 追加
 //!   （[`crate::item`]/[`crate::command`] と同じ判断）。
-//! - 兄弟部品 bubble / attachment / marker の語彙追随（#2108 / #2111 /
-//!   #2114）。
+//! - 兄弟部品 bubble / marker の語彙追随（#2108 / #2114）。attachment は
+//!   #2112 で Themes 化済み（`data-role`/`data-align` を持たない設計の
+//!   ため語彙追随は不要、`crate::attachment` モジュール doc参照）。
 //! - 会話全体のスクロール・`aria-posinset`/`aria-setsize` 等は
 //!   message-scroller #2121 のスコープ。
 

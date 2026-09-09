@@ -599,8 +599,10 @@ fn scope_resolution_buckets_match_expected_counts() {
     // と一致）が加わり 105 -> 106、イシュー #2075 で Sidebar（path 由来の
     // kebab sidebar が data-scope="sidebar" と一致）が加わり 106 -> 107、
     // イシュー #2109 で Bubble（path 由来の kebab bubble が
-    // data-scope="bubble" と一致）が加わり 107 -> 108 へ増える。
-    assert_eq!(bucket1_path_match, 108);
+    // data-scope="bubble" と一致）が加わり 107 -> 108、イシュー #2112 で
+    // Attachment（path 由来の kebab attachment が data-scope="attachment"
+    // と一致）が加わり 108 -> 109 へ増える。
+    assert_eq!(bucket1_path_match, 109);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
