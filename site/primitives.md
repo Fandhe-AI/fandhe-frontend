@@ -100,6 +100,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 
 ## Data Display / Utilities
 
+- [Attachment](./primitives/attachment.md)
 - [Avatar](./primitives/avatar.md)
 - [Bubble](./primitives/bubble.md)
 - [Carousel](./primitives/carousel.md)

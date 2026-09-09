@@ -2717,7 +2717,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2184: field.rs モジュール doc の「見送ったもの」→「採用した
 # もの」への移動（headless error_text の role="alert" 採用を反映）と
 # headless-ui 依存の version 要求追随のみで、本クレート自身の出力・API は
-# 不変のため patch バンプし 0.162.2 とする（origin/main 到達値）。
+# 不変のため patch バンプの 0.162.2 へ到達していたが、#2109 のマイナー
+# バンプ（0.163.0）がこれを上回るため 0.163.0 を採用する（0.x の破壊的
+# 変更／機能追加はマイナーバンプ優先の規約、同一版数への偶発的衝突では
+# ないため +1 の追加バンプは不要）。
 #
 # 上記 0.162.2（origin/main）と本ブランチ側の 0.163.0（イシュー #2129 の
 # 実体変更に伴うマイナーバンプ）をマージした結果、双方とも独立に
@@ -2725,6 +2728,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 同じ番号を指す状態）となるため、衝突解消の印として +1 マイナーし
 # 0.164.0 を採用する（PR #2261 の codex-review / Bugbot 指摘修正コミットに
 # 伴う origin/main 再取り込み、イシュー #2129）。
+#
+# イシュー #2111: headless-ui 0.68.8 → 0.68.9（`attachment` 新設、非破壊的
+# 追加）に伴う `dep-version-check --fix` の `version = "..."` 追随バンプ
+# （本ブランチ側では 0.163.1 patch バンプとして到達）は、origin/main 側の
+# 上記マージ解消で到達した 0.164.0 が既に上回っているため、追加バンプ
+# 不要で 0.164.0 をそのまま採用する（本クレート自身の recipe・golden・
+# Themes ページ実装は後続イシュー #2112、出力・API は不変）。
 version = "0.164.0"
 
 edition = "2021"
@@ -2740,7 +2750,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.8" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.9" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
