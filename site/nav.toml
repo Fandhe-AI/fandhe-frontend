@@ -437,6 +437,11 @@ source = "site/primitives/json-tree-view.md"
 path = "/primitives/json-tree-view/"
 
 [[section.group.page]]
+title = "Marker"
+source = "site/primitives/marker.md"
+path = "/primitives/marker/"
+
+[[section.group.page]]
 title = "Message"
 source = "site/primitives/message.md"
 path = "/primitives/message/"

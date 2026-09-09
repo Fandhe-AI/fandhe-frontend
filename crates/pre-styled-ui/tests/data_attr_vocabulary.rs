@@ -36,6 +36,7 @@ use fandhe_frontend_headless_ui::bubble::{
 use fandhe_frontend_headless_ui::data_attrs::{
     data_orientation, Orientation as ScrollAreaOrientation,
 };
+use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use fandhe_frontend_headless_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use fandhe_frontend_headless_ui::progress::Progress;
 use fandhe_frontend_pre_styled_ui::alert;
@@ -53,6 +54,7 @@ use fandhe_frontend_pre_styled_ui::kbd;
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
+use fandhe_frontend_pre_styled_ui::recipe::{ColorPalette, VariantValue};
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::separator;
 use fandhe_frontend_pre_styled_ui::tab_nav;
@@ -1713,4 +1715,84 @@ fn charts_data_range_and_data_hidden_are_gated_by_opt_in_props() {
     payload_props.range = Some(XSS_PAYLOAD);
     let payload_html = render(&line_chart(&payload_props, vec![]).expect("valid chart"));
     assert_no_raw_payload(&payload_html, "line_chart data-range 属性値コンテキスト");
+}
+
+/// [`mod@fandhe_frontend_headless_ui::marker`]（イシュー #2114）の
+/// `data-variant`（`note`/`divider`/`label`）・`data-tone`
+/// （`neutral`/`info`/`warning`/`danger`）語彙の登録点。`data-tone` が
+/// `fandhe-frontend-pre-styled-ui` `recipe::ColorPalette` の同名 4 値と
+/// 文字列一致すること（新しい値語彙を持ち込まない、というイシュー要件の
+/// 機械検証）を assert する。styled `marker`（#2115）が新設された際は、
+/// 本テストに加えて `*_not_self_emitted` の headless-sourced 契約テストを
+/// 追加する（`attachment_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。
+#[test]
+fn marker_root_variant_and_tone_vocabulary_is_fixed_and_reuses_color_palette_words() {
+    // data-variant: note/divider/label の 3 値。
+    for (variant, expected) in [
+        (MarkerVariant::Note, "note"),
+        (MarkerVariant::Divider, "divider"),
+        (MarkerVariant::Label, "label"),
+    ] {
+        let html = render(&marker::root(
+            MarkerRootProps {
+                variant,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(&format!(r#"data-variant="{expected}""#)));
+    }
+
+    // data-tone: neutral/info/warning/danger の 4 値。
+    for (tone, expected) in [
+        (MarkerTone::Neutral, "neutral"),
+        (MarkerTone::Info, "info"),
+        (MarkerTone::Warning, "warning"),
+        (MarkerTone::Danger, "danger"),
+    ] {
+        let html = render(&marker::root(
+            MarkerRootProps {
+                tone,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(&format!(r#"data-tone="{expected}""#)));
+    }
+
+    // 既定値: note/neutral。
+    let default_html = render(&marker::root(MarkerRootProps::default(), vec![], vec![]));
+    assert!(default_html.contains(r#"data-variant="note""#));
+    assert!(default_html.contains(r#"data-tone="neutral""#));
+
+    // `data-tone` の値語彙は `recipe::ColorPalette` の同名 4 値と文字列
+    // 一致する（新語彙を増やさないことの機械検証、本テストの中核 assert）。
+    assert_eq!(MarkerTone::Neutral.as_str(), ColorPalette::Neutral.value());
+    assert_eq!(MarkerTone::Info.as_str(), ColorPalette::Info.value());
+    assert_eq!(MarkerTone::Warning.as_str(), ColorPalette::Warning.value());
+    assert_eq!(MarkerTone::Danger.as_str(), ColorPalette::Danger.value());
+
+    // 予約キー偽装除去。
+    let spoofed = render(&marker::root(
+        MarkerRootProps::default(),
+        vec![("Data-Variant", "spoofed"), ("DATA-TONE", "spoofed")],
+        vec![],
+    ));
+    assert!(spoofed.contains(r#"data-variant="note""#));
+    assert!(spoofed.contains(r#"data-tone="neutral""#));
+    assert!(!spoofed.contains("spoofed"));
+
+    // XSS 最小回帰: 呼び出し側 attrs 経由のペイロード。
+    let payload_html = render(&marker::root(
+        MarkerRootProps::default(),
+        vec![("data-testid", XSS_PAYLOAD)],
+        vec![],
+    ));
+    assert_no_raw_payload(
+        &payload_html,
+        "marker::root の呼び出し側 attrs コンテキスト",
+    );
 }

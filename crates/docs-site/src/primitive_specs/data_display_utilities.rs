@@ -1,6 +1,7 @@
 //! Primitives（`fandhe-frontend-headless-ui`）Data Display / Utilities 系
-//! 14 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
-//! Phase 5。イシュー #2111 で `attachment`・イシュー #2108 で `bubble`・
+//! 15 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
+//! Phase 5。イシュー #2114 で `marker`・イシュー #2111 で `attachment`・
+//! イシュー #2108 で `bubble`・
 //! イシュー #2105 で `message`・
 //! イシュー #2065 で `item` を追加、当初 10 部品）。
 //!
@@ -15,8 +16,8 @@
 //! と合成して 6 節ページを組み立てる）。
 //!
 //! 対象は attachment・avatar・bubble・carousel・item・json-tree-view・
-//! message・scroll-area・skip-nav・splitter・steps・tour・tree-view・
-//! visually-hidden の 14 部品
+//! marker・message・scroll-area・skip-nav・splitter・steps・tour・
+//! tree-view・visually-hidden の 15 部品
 //! （`crates/docs-site/src/primitives_catalog.rs` の
 //! `PrimitiveCategory::DataDisplayUtilities` 並び順と一致させる）。
 //!
@@ -95,6 +96,7 @@ use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
 use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
+use hui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use hui::positioning::{Align, Placement, Side};
 use hui::progress::Progress;
@@ -1313,6 +1315,167 @@ pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-expanded / aria-selected / aria-level / aria-posinset / aria-setsize",
             description: "crate::tree_view の branch/item から継承する（tree_view.rs:159-303）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Marker（/primitives/marker/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/marker.rs`（モジュール doc、区切り線は
+/// headless で描かない・`data-variant`/`data-tone` 語彙・会話系 4 部品の
+/// 共通語彙への不追随・アクセシビリティ）、`root`/`icon`/`content`
+/// シグネチャ。非テスト行で `role`/`aria-*` の出力は `icon` の
+/// `aria-hidden="true"` のみ。
+fn ex_marker_note_with_icon() -> Node {
+    marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Note,
+            tone: MarkerTone::Info,
+        },
+        vec![],
+        vec![
+            marker::icon(vec![], vec![text("i")]),
+            marker::content(vec![], vec![text("Explored 4 files")]),
+        ],
+    )
+}
+
+/// 中央ラベル + 左右の線（shadcn `separator` variant 相当）の区切りを表す
+/// 例。線要素は headless 層が出力しない（モジュール doc「区切り線は
+/// headless で描かない」参照）ため、Demo でも線を描かない。
+fn ex_marker_label_separator() -> Node {
+    marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Label,
+            tone: MarkerTone::Neutral,
+        },
+        vec![],
+        vec![marker::content(vec![], vec![text("Today")])],
+    )
+}
+
+/// `data-tone="warning"` の行境界線（shadcn `border` variant 相当）を表す
+/// 例。
+fn ex_marker_divider_tone_warning() -> Node {
+    marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Divider,
+            tone: MarkerTone::Warning,
+        },
+        vec![],
+        vec![marker::content(
+            vec![],
+            vec![text("Context window 80% full")],
+        )],
+    )
+}
+
+/// 自前 CSS の最小例（`ATTACHMENT_CUSTOM_CSS_SNIPPET` と同型のパターン）。
+/// CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const MARKER_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"marker\"][data-part=\"root\"] {\n  \
+  display: flex;\n  align-items: center;\n  gap: 0.375rem;\n  font-size: 0.8125rem;\n  color: #6b7280;\n\
+}\n\
+[data-scope=\"marker\"][data-part=\"root\"][data-tone=\"warning\"] {\n  \
+  color: #b45309;\n\
+}\n\
+[data-scope=\"marker\"][data-part=\"root\"][data-tone=\"danger\"] {\n  \
+  color: #b91c1c;\n\
+}\n\
+[data-scope=\"marker\"][data-part=\"root\"][data-variant=\"label\"] {\n  \
+  justify-content: center;\n\
+}\n";
+
+fn ex_marker_custom_css() -> Node {
+    let demo = marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Note,
+            tone: MarkerTone::Neutral,
+        },
+        vec![],
+        vec![marker::content(
+            vec![],
+            vec![text("Conversation compacted")],
+        )],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-variant / data-tone 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。区切り線（divider/label variant）の描画自体は本サンプルの範囲外です。",
+        vec![
+            demo,
+            pre(vec![], vec![code(vec![], vec![text(MARKER_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
+}
+
+pub const MARKER: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "会話スレッド内のインライン注記行（システム注記・日付等の区切り・ラベル付きセパレータ）を表現する 3 anatomy パーツ（root/icon/content）を提供する（marker.rs）。状態機械を持たない静的部品であり wasm-full 側の配線は不要。",
+        "root へ data-variant（note/divider/label）・data-tone（neutral/info/warning/danger）を付与する。会話系 4 部品（message/bubble/attachment/marker）の共通語彙（data-role/data-align）は意図的に持たない（marker.rs「会話系 4 部品の共通語彙への不追随」節）。",
+        "divider/label variant の区切り線（水平線・左右の線）は headless 層で一切出力しない。fandhe-frontend-pre-styled-ui 側が separator パーツの再利用または CSS で描く契約とする（marker.rs「区切り線は headless で描かない」節）。data-tone の値語彙は fandhe-frontend-pre-styled-ui recipe::ColorPalette の同名 4 値の部分集合であり新語彙を作らない。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root: props.variant",
+            kind: "MarkerVariant",
+            default: "MarkerVariant::Note",
+            description: "表示形態（note/divider/label）。data-variant へ出力する（marker.rs）。",
+        },
+        ArgRow {
+            name: "root: props.tone",
+            kind: "MarkerTone",
+            default: "MarkerTone::Neutral",
+            description: "色調（neutral/info/warning/danger）。data-tone へ出力する（marker.rs）。",
+        },
+        ArgRow {
+            name: "root/icon/content: attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "呼び出し側の追加属性。予約キー（data-variant/data-tone/aria-hidden）は大小文字無視でなりすまし除去される（marker.rs）。",
+        },
+        ArgRow {
+            name: "root/icon/content: children",
+            kind: "Vec<Node>",
+            default: "",
+            description: "子ノード。content は注記の本文テキストを受け取るスロット（marker.rs）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Note with icon",
+            description: "インライン注記（アイコン + 本文）の例です。",
+            render: ex_marker_note_with_icon,
+        },
+        ExampleEntry {
+            title: "Label separator",
+            description: "中央ラベル形式の区切りを表す例です（線自体は範囲外）。",
+            render: ex_marker_label_separator,
+        },
+        ExampleEntry {
+            title: "Divider, tone warning",
+            description: "警告色の行境界線を表す例です（線自体は範囲外）。",
+            render: ex_marker_divider_tone_warning,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-variant/data-tone 属性セレクタでスタイルを当てる例です。",
+            render: ex_marker_custom_css,
+        },
+    ],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "aria-hidden=\"true\"（icon、固定）",
+            description: "装飾スロットとして常に付与し、呼び出し側の aria-hidden=\"false\" 偽装は除去する（marker.rs「アクセシビリティ」節）。",
+        },
+        AriaRow {
+            attribute: "role（root、非固定）",
+            description: "静的注記に割り込み通知は不要なため root へ role を固定付与しない。ストリーミング中の注記へ role=\"status\" を付与する運用は呼び出し側の attrs で可能（marker.rs「アクセシビリティ」節）。",
         },
     ],
     demo: None,
@@ -2571,9 +2734,10 @@ pub const VISUALLY_HIDDEN: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// 本カテゴリ 14 部品の `path -> ComponentPageSpec` テーブル
+/// 本カテゴリ 15 部品の `path -> ComponentPageSpec` テーブル
 /// （`crate::primitive_specs::SPEC_TABLES` へ集約される、#1027 と同型。
-/// イシュー #2111 で `attachment` 追加、旧 13。イシュー #2108 で `bubble`
+/// イシュー #2114 で `marker` 追加、旧 14。イシュー #2111 で `attachment`
+/// 追加、旧 13。イシュー #2108 で `bubble`
 /// 追加、旧 12。イシュー #2105 で `message` 追加、
 /// 旧 11）。
 /// 並び順は `crate::primitives_catalog::PrimitiveCategory::DataDisplayUtilities`
@@ -2585,6 +2749,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/carousel/", CAROUSEL),
     ("/primitives/item/", ITEM),
     ("/primitives/json-tree-view/", JSON_TREE_VIEW),
+    ("/primitives/marker/", MARKER),
     ("/primitives/message/", MESSAGE),
     ("/primitives/scroll-area/", SCROLL_AREA),
     ("/primitives/skip-nav/", SKIP_NAV),
