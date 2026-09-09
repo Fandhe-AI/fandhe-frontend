@@ -41,12 +41,21 @@
 //!
 //! # slot 別の意匠
 //!
-//! - `root`: flex 行コンテナ（`avatar` + 縦積みの `header`/`content`/
-//!   `footer`）。`data-align="end"` で右寄せ + 行反転。`data-role` の 3 値
-//!   それぞれで `content` の背景・文字色を custom property 経由で切り替え
-//!   る（`user` は accent、`assistant` は muted、`system` は透明 + 斜体 +
-//!   控えめ文字色）。`data-loading` で半透明化、`data-error` で `content`
-//!   の背景・文字色・枠線を危険色へ切り替える。
+//! - `root`: 2 カラム grid コンテナ（1 列目 `avatar`、2 列目に `header`/
+//!   `content`/`footer` を縦積み）。`avatar` は `grid-row: 1 / span 3` で
+//!   2 列目の 3 パーツ分の行を縦に貫通し、`header`/`content`/`footer` は
+//!   いずれも 2 列目へ配置されることで縦積みになる（headless anatomy が
+//!   `avatar`/`header`/`content`/`footer` を `root` の直接の兄弟として
+//!   フラットに出力するため、grid の列固定 + 行スパンのみで「avatar +
+//!   縦積み本体」を表現する。ラッパー要素を追加しない制約は headless 側の
+//!   anatomy 契約のため変更不可）。`data-align="end"` で `grid-template-
+//!   columns` を反転しつつ、[`stylesheet`] が追記する raw CSS
+//!   （「raw CSS 追記の理由」節参照）で `avatar`/`header`/`content`/
+//!   `footer` の `grid-column` も入れ替え、右寄せレイアウトへ切り替える。
+//!   `data-role` の 3 値それぞれで `content` の背景・文字色を custom
+//!   property 経由で切り替える（`user` は accent、`assistant` は muted、
+//!   `system` は透明 + 斜体 + 控えめ文字色）。`data-loading` で半透明化、
+//!   `data-error` で `content` の背景・文字色・枠線を危険色へ切り替える。
 //! - `avatar`: 固定サイズの円形スロット（中身は呼び出し側が
 //!   `avatar::root`/`avatar::image` 等を自由に組み込む、headless rustdoc
 //!   「`avatar` はスロット」参照）。
@@ -58,12 +67,20 @@
 //! # raw CSS 追記の理由（[`SlotRecipe`] が子結合子を表現できないため）
 //!
 //! [`SlotRecipe`] はコンポーネント自身の slot にしか宣言を登録できず、
-//! `group` 配下で 2 件目以降に連続する `root`（および、その `avatar`）を
-//! 対象にした宣言を組めない（[`crate::item`] モジュール doc「raw CSS
-//! 追記の理由」と同型の制約）。[`stylesheet`] は `recipe().css()` の出力
-//! へ [`crate::css::serialize_rule`] を使った素の子結合子（`>`）+
-//! `:not(:first-child)` セレクタを追記する:
+//! `root` の `data-align` に応じて**別の slot**（`avatar`/`header`/
+//! `content`/`footer`）の `grid-column` を切り替える宣言や、`group`
+//! 配下で 2 件目以降に連続する `root`（および、その `avatar`）を対象に
+//! した宣言を組めない（[`crate::item`] モジュール doc「raw CSS 追記の
+//! 理由」と同型の制約）。[`stylesheet`] は `recipe().css()` の出力へ
+//! [`crate::css::serialize_rule`] を使った素の子結合子（`>`）+
+//! 属性セレクタを追記する:
 //!
+//! - `root[data-align="end"] > avatar`: `grid-column: 2` へ切り替える
+//!   （既定は 1 列目）。
+//! - `root[data-align="end"] > header`/`> content`/`> footer`:
+//!   `grid-column: 1` へ切り替える（既定は 2 列目）。`root` 自身の
+//!   `grid-template-columns` 反転（[`recipe`] の `data-align="end"` state）
+//!   と対にして、右寄せ時に列の意味を丸ごと入れ替える。
 //! - `group > root:not(:first-child)`: 連続発言間の余白を詰める
 //!   （`margin-top` を負値にして `group` の `gap` と打ち消し合わせる）。
 //! - `group > root:not(:first-child) > avatar`: `visibility: hidden` で
@@ -116,9 +133,11 @@ const SLOTS: &[&str] = &["root", "avatar", "header", "content", "footer", "group
 /// のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
     let root_base = vec![
-        decl("display", "flex"),
-        decl("gap", "var(--fandhe-space-3)"),
-        decl("align-items", "flex-start"),
+        decl("display", "grid"),
+        decl("grid-template-columns", "auto minmax(0, 1fr)"),
+        decl("column-gap", "var(--fandhe-space-3)"),
+        decl("row-gap", "var(--fandhe-space-1)"),
+        decl("align-items", "start"),
         decl("max-width", "var(--fandhe-message-max-width, 42rem)"),
         decl("min-width", "0"),
         decl("align-self", "flex-start"),
@@ -133,13 +152,15 @@ fn recipe() -> SlotRecipe {
     ];
 
     let avatar_base = vec![
-        decl("flex-shrink", "0"),
+        decl("grid-column", "1"),
+        decl("grid-row", "1 / span 3"),
         decl("width", "var(--fandhe-space-8)"),
         decl("height", "var(--fandhe-space-8)"),
         decl("border-radius", "var(--fandhe-radius-full)"),
     ];
 
     let header_base = vec![
+        decl("grid-column", "2"),
         decl("font-size", "var(--fandhe-font-font-size-xs)"),
         decl("color", "var(--fandhe-color-fg-muted)"),
         decl("display", "flex"),
@@ -147,6 +168,7 @@ fn recipe() -> SlotRecipe {
     ];
 
     let content_base = vec![
+        decl("grid-column", "2"),
         decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
         decl("border-radius", "var(--fandhe-radius-lg)"),
         decl("background", "var(--fandhe-message-content-bg)"),
@@ -157,6 +179,7 @@ fn recipe() -> SlotRecipe {
     ];
 
     let footer_base = vec![
+        decl("grid-column", "2"),
         decl("display", "flex"),
         decl("gap", "var(--fandhe-space-2)"),
         decl("align-items", "center"),
@@ -185,7 +208,7 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-align", "end"),
             vec![
                 decl("align-self", "flex-end"),
-                decl("flex-direction", "row-reverse"),
+                decl("grid-template-columns", "minmax(0, 1fr) auto"),
                 decl("margin-inline-start", "auto"),
             ],
         )
@@ -232,7 +255,7 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl(
                     "--fandhe-message-content-fg",
-                    "var(--fandhe-color-danger-fg)",
+                    "var(--fandhe-color-danger-fg-subtle)",
                 ),
                 decl(
                     "--fandhe-message-content-border",
@@ -251,7 +274,34 @@ pub fn stylesheet() -> String {
 
     const GROUP: &str = r#"[data-scope="message"][data-part="group"]"#;
     const ROOT: &str = r#"[data-scope="message"][data-part="root"]"#;
+    const ROOT_ALIGN_END: &str = r#"[data-scope="message"][data-part="root"][data-align="end"]"#;
     const AVATAR: &str = r#"[data-scope="message"][data-part="avatar"]"#;
+    const HEADER: &str = r#"[data-scope="message"][data-part="header"]"#;
+    const CONTENT: &str = r#"[data-scope="message"][data-part="content"]"#;
+    const FOOTER: &str = r#"[data-scope="message"][data-part="footer"]"#;
+
+    // `data-align="end"` 時、root の `grid-template-columns` 反転
+    // （`recipe` の state）と対にして各パーツの `grid-column` も入れ替える
+    // （モジュール doc「raw CSS 追記の理由」節参照。`SlotRecipe::state` は
+    // 自分自身の slot の宣言しか登録できず、`root` の属性で別 slot の
+    // 宣言を切り替えられないため raw CSS で補う）。
+    let align_end_avatar_selector = format!("{ROOT_ALIGN_END} > {AVATAR}");
+    if let Some(rule) = serialize_rule(&align_end_avatar_selector, &[decl("grid-column", "2")]) {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&rule);
+    }
+
+    for part in [HEADER, CONTENT, FOOTER] {
+        let selector = format!("{ROOT_ALIGN_END} > {part}");
+        if let Some(rule) = serialize_rule(&selector, &[decl("grid-column", "1")]) {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&rule);
+        }
+    }
 
     let consecutive_root_selector = format!("{GROUP} > {ROOT}:not(:first-child)");
     if let Some(rule) = serialize_rule(

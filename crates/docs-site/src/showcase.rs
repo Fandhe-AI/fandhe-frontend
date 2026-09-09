@@ -6001,9 +6001,22 @@ fn message_section() -> Node {
         "Message",
         "AI チャット UI の会話 1 発言。data-role（user/assistant/system）・data-align（start/end）は headless の data-* を参照するのみで class 軸は持ちません。group は連続発言をまとめ、2 件目以降の avatar を CSS で省略します。",
         vec![
-            row(vec![user_turn, assistant_turn]),
+            // headless message::root は role="listitem" を固定付与し、
+            // role="list" の親を required context として要求する
+            // （headless message.rs モジュール doc「role="listitem"/
+            // role="list"」参照）。ここでは同一グループとしての視覚的な
+            // まとめ（余白詰め・avatar 省略）は意図しないため、`row` の
+            // `.showcase-row` class に role="list" を足した素の div で
+            // 契約を満たす。
+            div(
+                vec![("class", "showcase-row"), ("role", "list")],
+                vec![user_turn, assistant_turn],
+            ),
             group_instance,
-            row(vec![loading_instance, error_instance, system_instance]),
+            div(
+                vec![("class", "showcase-row"), ("role", "list")],
+                vec![loading_instance, error_instance, system_instance],
+            ),
         ],
     )
 }

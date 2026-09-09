@@ -3140,8 +3140,14 @@ pub(crate) const ITEM: ComponentPageSpec = ComponentPageSpec {
 /// `/themes/message/` の Examples 節其の 1: user/assistant の 1 往復
 /// （`data-align` の 2 値を両方出現させる）。
 fn ex_message_conversation_turn() -> Node {
+    // headless message::root は role="listitem" を固定付与し、role="list"
+    // （またはそれと同等）の親を required context として要求する
+    // （headless message.rs モジュール doc「role="listitem"/role="list"」
+    // 参照）。ここでは同一グループとして視覚的にまとめる意図（余白詰め・
+    // avatar 省略）はないため message::group ではなく、role="list" のみを
+    // 付与した素の div でこの契約を満たす。
     div(
-        vec![],
+        vec![("role", "list")],
         vec![
             message::root(
                 MessageRootProps {
@@ -3254,8 +3260,10 @@ fn ex_message_consecutive_group() -> Node {
 /// `/themes/message/` の Examples 節其の 3: `data-loading`/`data-error` の
 /// 表示状態（応答待ち・送信失敗）。
 fn ex_message_loading_and_error() -> Node {
+    // 上と同じ理由（role="listitem" の required context）で role="list"
+    // を付与する。
     div(
-        vec![],
+        vec![("role", "list")],
         vec![
             message::root(
                 MessageRootProps {

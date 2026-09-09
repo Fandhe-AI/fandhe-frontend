@@ -13,9 +13,11 @@
 use fandhe_frontend_pre_styled_ui::message;
 
 const MESSAGE_GOLDEN_CSS: &str = "[data-scope=\"message\"][data-part=\"root\"] {
-  display: flex;
-  gap: var(--fandhe-space-3);
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--fandhe-space-3);
+  row-gap: var(--fandhe-space-1);
+  align-items: start;
   max-width: var(--fandhe-message-max-width, 42rem);
   min-width: 0;
   align-self: flex-start;
@@ -27,13 +29,15 @@ const MESSAGE_GOLDEN_CSS: &str = "[data-scope=\"message\"][data-part=\"root\"] {
 }
 
 [data-scope=\"message\"][data-part=\"avatar\"] {
-  flex-shrink: 0;
+  grid-column: 1;
+  grid-row: 1 / span 3;
   width: var(--fandhe-space-8);
   height: var(--fandhe-space-8);
   border-radius: var(--fandhe-radius-full);
 }
 
 [data-scope=\"message\"][data-part=\"header\"] {
+  grid-column: 2;
   font-size: var(--fandhe-font-font-size-xs);
   color: var(--fandhe-color-fg-muted);
   display: flex;
@@ -41,6 +45,7 @@ const MESSAGE_GOLDEN_CSS: &str = "[data-scope=\"message\"][data-part=\"root\"] {
 }
 
 [data-scope=\"message\"][data-part=\"content\"] {
+  grid-column: 2;
   padding: var(--fandhe-space-2) var(--fandhe-space-3);
   border-radius: var(--fandhe-radius-lg);
   background: var(--fandhe-message-content-bg);
@@ -51,6 +56,7 @@ const MESSAGE_GOLDEN_CSS: &str = "[data-scope=\"message\"][data-part=\"root\"] {
 }
 
 [data-scope=\"message\"][data-part=\"footer\"] {
+  grid-column: 2;
   display: flex;
   gap: var(--fandhe-space-2);
   align-items: center;
@@ -69,7 +75,7 @@ const MESSAGE_GOLDEN_CSS: &str = "[data-scope=\"message\"][data-part=\"root\"] {
 
 [data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] {
   align-self: flex-end;
-  flex-direction: row-reverse;
+  grid-template-columns: minmax(0, 1fr) auto;
   margin-inline-start: auto;
 }
 
@@ -93,8 +99,24 @@ const MESSAGE_GOLDEN_CSS: &str = "[data-scope=\"message\"][data-part=\"root\"] {
 
 [data-scope=\"message\"][data-part=\"root\"][data-error] {
   --fandhe-message-content-bg: var(--fandhe-color-danger-subtle);
-  --fandhe-message-content-fg: var(--fandhe-color-danger-fg);
+  --fandhe-message-content-fg: var(--fandhe-color-danger-fg-subtle);
   --fandhe-message-content-border: var(--fandhe-color-danger);
+}
+
+[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] > [data-scope=\"message\"][data-part=\"avatar\"] {
+  grid-column: 2;
+}
+
+[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] > [data-scope=\"message\"][data-part=\"header\"] {
+  grid-column: 1;
+}
+
+[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] > [data-scope=\"message\"][data-part=\"content\"] {
+  grid-column: 1;
+}
+
+[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] > [data-scope=\"message\"][data-part=\"footer\"] {
+  grid-column: 1;
 }
 
 [data-scope=\"message\"][data-part=\"group\"] > [data-scope=\"message\"][data-part=\"root\"]:not(:first-child) {
@@ -167,4 +189,33 @@ fn css_appends_consecutive_group_root_and_avatar_rules() {
         "[data-scope=\"message\"][data-part=\"group\"] > [data-scope=\"message\"][data-part=\"root\"]:not(:first-child) > [data-scope=\"message\"][data-part=\"avatar\"] {"
     ));
     assert!(css.contains("visibility: hidden;"));
+}
+
+/// `root` を 2 カラム grid とし、`avatar` が `header`/`content`/`footer`
+/// の行を `grid-row: 1 / span 3` で縦に貫通することで「avatar + 縦積み
+/// 本体」を表現していることを固定する（`src/message.rs` モジュール doc
+/// 「slot 別の意匠」節参照）。
+#[test]
+fn css_lays_out_root_as_two_column_grid_with_avatar_spanning_rows() {
+    let css = message::stylesheet();
+    assert!(css.contains("[data-scope=\"message\"][data-part=\"root\"] {\n  display: grid;"));
+    assert!(css.contains("grid-template-columns: auto minmax(0, 1fr);"));
+    assert!(css.contains("grid-row: 1 / span 3;"));
+}
+
+/// `data-align="end"` 時、root の `grid-template-columns` 反転に加えて
+/// `avatar`/`header`/`content`/`footer` の `grid-column` も raw CSS で
+/// 入れ替わることを固定する（`src/message.rs` モジュール doc「raw CSS
+/// 追記の理由」節参照）。
+#[test]
+fn css_swaps_grid_columns_for_data_align_end() {
+    let css = message::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] > [data-scope=\"message\"][data-part=\"avatar\"] {\n  grid-column: 2;"
+    ));
+    for part in ["header", "content", "footer"] {
+        assert!(css.contains(&format!(
+            "[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] > [data-scope=\"message\"][data-part=\"{part}\"] {{\n  grid-column: 1;"
+        )));
+    }
 }

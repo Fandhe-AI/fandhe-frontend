@@ -1010,7 +1010,6 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          ない）。イシュー #2106 で message.rs を新設し 115 → 116。 \
          `/themes/message/` ページ登録により `message` も \
          WRAPPED_SAME_NAME バケットへ移った）"
-
     );
     assert_eq!(
         scan.charts.len(),
