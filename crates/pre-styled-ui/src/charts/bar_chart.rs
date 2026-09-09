@@ -1666,6 +1666,33 @@ mod tests {
     }
 
     #[test]
+    fn tiny_positive_domain_does_not_panic_on_axis_generation() {
+        // codex-review 指摘（PR #2255、イシュー #2082 追補）: 1 カテゴリ・
+        // 1 系列の値に `f64::from_bits(1)`（最小の正の非正規化数）を与えると、
+        // `BarStack::Normal` の累積和 domain が `(0.0, 最小正値)` になる。
+        // 入力検証（NaN/±inf/空データチェック）は通過するが、
+        // `LinearScale::nice()` 内部で domain 幅 / 10 が 0.0 へアンダー
+        // フローし、`nice_step` の `debug_assert!(raw_step > 0.0)` に反して
+        // デバッグビルドで panic していた（`scale.rs` 側の修正で解消）。
+        let tiny = f64::from_bits(1);
+        let data =
+            ChartData::new(vec!["a".to_string()], vec![Series::new("s", vec![tiny])]).unwrap();
+        let props = BarChartProps {
+            stack: BarStack::Normal,
+            show_value_axis: true,
+            ..BarChartProps::default()
+        };
+        assert!(root(&data, props, "label").is_ok());
+
+        let props_grid = BarChartProps {
+            stack: BarStack::Normal,
+            show_grid: true,
+            ..BarChartProps::default()
+        };
+        assert!(root(&data, props_grid, "label").is_ok());
+    }
+
+    #[test]
     fn stack_rejects_negative_values() {
         let data =
             ChartData::new(vec!["a".to_string()], vec![Series::new("s", vec![-1.0])]).unwrap();
