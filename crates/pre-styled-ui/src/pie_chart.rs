@@ -585,7 +585,17 @@ pub fn pie_chart<'a>(
             return Err(PieChartError::MultiSeries);
         }
         let ring_count = series.len();
-        let band = OUTER_RADIUS / ring_count as f64;
+        // 最外周リングが Outside ラベルを持つ場合、非 stacked 分岐と同様に
+        // 外径を OUTSIDE_LABEL_OUTER_RADIUS へ縮小してから band 計算する
+        // （引き出し線・outside-label が viewBox 0..100 の外へはみ出すのを
+        // 防ぐ。イシュー #2084 レビュー指摘）。
+        let effective_outer_radius =
+            if props.show_labels && props.label_position == PieLabelPosition::Outside {
+                OUTSIDE_LABEL_OUTER_RADIUS
+            } else {
+                OUTER_RADIUS
+            };
+        let band = effective_outer_radius / ring_count as f64;
         for (k, s) in series.iter().enumerate() {
             let angles = segment_angles(&s.values)?;
             let r_outer = band * (k as f64 + 1.0);
@@ -900,6 +910,71 @@ mod tests {
         // n == 1 の stacked は非 stacked と同一のリング（r_inner=0,
         // r_outer=OUTER_RADIUS）に退化する。
         assert!(stacked_html.contains("45,45,0,") || stacked_html.contains("<circle"));
+    }
+
+    #[test]
+    fn stacked_outside_labels_shrink_outermost_ring_within_view_box() {
+        // レビュー指摘（イシュー #2084）: stacked + Outside ラベルの組み合わせで
+        // 最外周リングの引き出し線・outside-label が viewBox(0..100) の外へ
+        // はみ出していた不具合の回帰テスト。非 stacked 分岐と同様に
+        // OUTSIDE_LABEL_OUTER_RADIUS(34) へ縮小した半径から band を計算する
+        // ことを、生成された座標が viewBox 内に収まることで確認する。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("2023", vec![60.0, 40.0]),
+                Series::new("2024", vec![70.0, 30.0]),
+            ],
+        )
+        .unwrap();
+        let props = PieChartProps {
+            stacked: true,
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &data, vec![]).unwrap());
+        // 最外周リングのみ Outside ラベルを持つ（モジュール doc「stacked」節）。
+        assert_eq!(html.matches(r#"data-part="outside-label""#).count(), 2);
+        assert_eq!(html.matches(r#"data-part="label-line""#).count(), 2);
+        // 非 stacked 分岐と同じく 34（OUTSIDE_LABEL_OUTER_RADIUS）まで縮小されて
+        // おり、OUTER_RADIUS(45) は使われていないこと。
+        assert!(html.contains("34,34,0,") || html.contains("17,17,0,"));
+        assert!(!html.contains("45,45,0,"));
+        // outside-label の x 属性値が viewBox(0..100) を超えないこと。
+        for x in extract_attr_values(&html, r#"data-part="outside-label""#, "x") {
+            assert!(
+                (0.0..=100.0).contains(&x),
+                "outside-label x={x} は viewBox(0..100) の外"
+            );
+        }
+    }
+
+    /// `needle`（例: `data-part="outside-label"`）を含む `<text ...>` 開始タグ
+    /// から `attr`（例: `x`）属性値を数値として抽出するテスト専用ヘルパ。
+    fn extract_attr_values(html: &str, needle: &str, attr: &str) -> Vec<f64> {
+        let mut out = Vec::new();
+        for tag_start in html.match_indices("<text ").map(|(i, _)| i) {
+            let tag_end = html[tag_start..]
+                .find('>')
+                .map(|off| tag_start + off)
+                .unwrap_or(html.len());
+            let tag = &html[tag_start..tag_end];
+            if !tag.contains(needle) {
+                continue;
+            }
+            let pat = format!(r#"{attr}=""#);
+            if let Some(start) = tag.find(&pat) {
+                let value_start = start + pat.len();
+                if let Some(end_off) = tag[value_start..].find('"') {
+                    let value_str = &tag[value_start..value_start + end_off];
+                    if let Ok(value) = value_str.parse::<f64>() {
+                        out.push(value);
+                    }
+                }
+            }
+        }
+        out
     }
 
     #[test]
