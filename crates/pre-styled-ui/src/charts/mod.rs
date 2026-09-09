@@ -22,8 +22,9 @@
 //!   [`ChartData::series_color_var`]/[`data::Series::display_label`] を
 //!   経由して共有する。
 //! - [`curve`]: 曲線補間ジオメトリ（natural spline / step、イシュー
-//!   #2081）。[`crate::area_chart`] の `AreaCurve::Natural`/`AreaCurve::Step`
-//!   バリアントが消費する純関数。
+//!   #2081/#2083）。[`crate::area_chart`] の `AreaCurve::Natural`/
+//!   `AreaCurve::Step` と [`crate::line_chart`] の [`Curve::Natural`]/
+//!   [`Curve::Step`] が共有する純関数。
 //! - [`scale`]: 線形スケール（domain → range 写像）・1-2-5 nice tick 算出。
 //! - [`svg`]: SVG ノード木生成ヘルパー（`viewBox`・座標文字列化・`path` の
 //!   `d` 属性組み立て）。後続チャート部品はここを経由してのみ SVG を組み立てる。
@@ -80,6 +81,7 @@ pub mod scatter_chart;
 pub mod svg;
 pub mod tooltip;
 
+pub use curve::Curve;
 pub use data::{ChartData, Series, SeriesColor};
 pub use scale::LinearScale;
 

@@ -91,6 +91,7 @@ use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
 };
 use fandhe_frontend_pre_styled_ui::charts::svg::{svg_root, ViewBox};
 use fandhe_frontend_pre_styled_ui::charts::tooltip as chart_tooltip;
+use fandhe_frontend_pre_styled_ui::charts::Curve;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::checkbox_group;
@@ -143,7 +144,7 @@ use fandhe_frontend_pre_styled_ui::item::{
 };
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::{group as kbd_group, kbd, KbdProps, KbdVariant};
-use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
+use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps, LineDots, LineLabel};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::link_overlay;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
@@ -12411,10 +12412,107 @@ fn line_chart_section() -> Node {
         })
         .collect());
 
+    // イシュー #2083: shadcn/ui `chart-line-default`/`-linear`/`-step`
+    // （curve）の静的バリアント。曲線補間の見た目確認用に単一系列データを
+    // 使う（area_chart Demo の curve_row と同型）。
+    let natural_data = ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![Series::new("visits", vec![10.0, 35.0, 15.0, 28.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let curve_row = row(vec![
+        line_chart::line_chart(
+            &LineChartProps {
+                curve: Curve::Natural,
+                ..LineChartProps::new(&natural_data, "natural curve")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+        line_chart::line_chart(
+            &LineChartProps {
+                curve: Curve::Step,
+                ..LineChartProps::new(&natural_data, "step curve")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+    ]);
+
+    // イシュー #2083: shadcn/ui `chart-line-dots`/`-dots-custom`/
+    // `-dots-colors`。
+    let dots_row = row(vec![
+        line_chart::line_chart(
+            &LineChartProps {
+                dots: LineDots::Filled,
+                ..LineChartProps::new(&data, "filled dots")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+        line_chart::line_chart(
+            &LineChartProps {
+                dots: LineDots::Hollow,
+                ..LineChartProps::new(&data, "hollow dots")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+        line_chart::line_chart(
+            &LineChartProps {
+                dots: LineDots::Filled,
+                color_by_category: true,
+                ..LineChartProps::new(&data, "dots colored by category")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+    ]);
+
+    // イシュー #2083: shadcn/ui `chart-line-label`/`-label-custom`。
+    let label_row = row(vec![
+        line_chart::line_chart(
+            &LineChartProps {
+                label: LineLabel::Value,
+                ..LineChartProps::new(&data, "value labels")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+        line_chart::line_chart(
+            &LineChartProps {
+                label: LineLabel::Category,
+                ..LineChartProps::new(&data, "category labels")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+    ]);
+
+    // イシュー #2083: 軸・グリッド（`show_x_axis`/`show_y_axis`/
+    // `show_grid`）。
+    let axes_node = line_chart::line_chart(
+        &LineChartProps {
+            show_x_axis: true,
+            show_y_axis: true,
+            show_grid: true,
+            ..LineChartProps::new(&data, "axes and grid visits and signups")
+        },
+        vec![],
+    )
+    .expect("showcase 固定データは常に有効");
+
     section(
         "LineChart",
-        "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。複数系列（chart-1〜6 の固定ローテーション色）と size（Xs〜Xl）の段階を掲示します。軸・グリッド・凡例・ツールチップは別イシュー（#847）のスコープです。",
-        vec![node, size_row],
+        "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。複数系列（chart-1〜6 の固定ローテーション色）と size（Xs〜Xl）の段階に加え、曲線種・データ点・値/カテゴリラベル・軸/グリッドの静的バリアント（イシュー #2083、shadcn/ui Charts（line）突合）を掲示します。マウス追従ツールチップ・hover 強調・期間切替・凡例トグルは別イシュー（#2128/#2132）のスコープです。",
+        vec![
+            node, size_row, curve_row, dots_row, label_row, axes_node,
+        ],
     )
 }
 

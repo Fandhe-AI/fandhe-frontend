@@ -71,6 +71,7 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, ImageProps};
 use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::line_chart::{line_chart, LineChartProps, LineDots, LineLabel};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps};
@@ -5232,6 +5233,77 @@ fn area_chart_is_escaped_for_all_payloads() {
     stacked_props.show_x_axis = true;
     let html = render(&area_chart(&stacked_props, vec![]).unwrap());
     assert_payload_is_escaped(payload, &html, "area_chart stack+gradient 合成コンテキスト");
+}
+
+/// (25b) LineChart 経路（イシュー #2083、shadcn/ui Charts（line）突合）:
+/// `aria_label`・呼び出し側 `attrs`・カテゴリ名経路（`show_x_axis`/
+/// `label: LineLabel::Category` の 2 経路）の全ペイロードで既定エスケープが
+/// 貫通することを固定する。`curve: Curve::Natural`・`dots: LineDots::Hollow`・
+/// `label: LineLabel::Category`・軸/グリッド全有効を組み合わせた合成構成
+/// でも崩れないことをあわせて確認する（`(25a)` の area_chart
+/// stack+gradient 合成確認と同型）。
+#[test]
+fn line_chart_is_escaped_for_all_payloads() {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string()],
+        vec![Series::new("visits", vec![1.0, 2.0])],
+    )
+    .unwrap();
+
+    for payload in payloads::all() {
+        let html = render(&line_chart(&LineChartProps::new(&data, payload), vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "line_chart aria_label 属性値コンテキスト");
+
+        let html = render(
+            &line_chart(
+                &LineChartProps::new(&data, "attrs"),
+                vec![("data-testid", payload)],
+            )
+            .unwrap(),
+        );
+        assert_payload_is_escaped(payload, &html, "line_chart 呼び出し側 attrs コンテキスト");
+
+        // カテゴリ名（X 軸ラベル経路、show_x_axis 有効時のみ描画される）。
+        let payload_data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let mut axis_props = LineChartProps::new(&payload_data, "axis-label");
+        axis_props.show_x_axis = true;
+        let html = render(&line_chart(&axis_props, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "line_chart X 軸カテゴリラベルコンテキスト");
+
+        // カテゴリ名（value-label 経路、label: LineLabel::Category 有効時
+        // のみ描画される。`text()` ノード経由で軸ラベルとは別のコード
+        // パスを通るため独立して確認する）。
+        let mut label_props = LineChartProps::new(&payload_data, "label-category");
+        label_props.label = LineLabel::Category;
+        let html = render(&line_chart(&label_props, vec![]).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "line_chart value-label カテゴリコンテキスト",
+        );
+    }
+
+    // curve: Natural + dots: Hollow + label: Category + 軸/グリッド全有効の
+    // 合成構成でも既定エスケープが崩れないことを確認する。
+    let payload = "\"><script>alert(1)</script>";
+    let composite_data = ChartData::new(
+        vec![payload.to_string(), "b".to_string(), "c".to_string()],
+        vec![Series::new("s", vec![1.0, 2.0, 3.0])],
+    )
+    .unwrap();
+    let mut composite_props = LineChartProps::new(&composite_data, payload);
+    composite_props.curve = fandhe_frontend_pre_styled_ui::charts::Curve::Natural;
+    composite_props.dots = LineDots::Hollow;
+    composite_props.label = LineLabel::Category;
+    composite_props.show_x_axis = true;
+    composite_props.show_y_axis = true;
+    composite_props.show_grid = true;
+    let html = render(&line_chart(&composite_props, vec![]).unwrap());
+    assert_payload_is_escaped(payload, &html, "line_chart 合成コンテキスト");
 }
 
 /// (26) charts BarChart/BarList/BarSegment 経路（イシュー #849、親 Phase #845）:
