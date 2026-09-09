@@ -97,10 +97,13 @@
 //!   （#2131）。
 //! - 構造再描画（[`crate::Runtime::rerender_subtree`]）がセッション中の
 //!   `<svg>`/layer を差し替えた場合の要素再解決（`angle_slider::wiring`
-//!   の `PartKey`/`DragState` のような安定識別子ベースの追跡は行わない。
-//!   本モジュールが扱うのは離散的な hover/focus 切替でありドラッグ状態を
-//!   跨がないため、再描画を挟むとセッションは次の入力イベントで新規に
-//!   開始し直される）。
+//!   の `PartKey`/`DragState` のような安定識別子ベースの追跡は行わない）。
+//!   セッションの `svg` が `root` 配下から失われたことは
+//!   `wiring::wire_rerender_observer` が登録する `MutationObserver` が
+//!   検知して `wiring::discard_stale_session` がセッションを破棄するため、
+//!   次の入力イベントで新規にセッションが開始し直される（イシュー #2130
+//!   レビュー指摘の是正、旧要素への「復帰しない」不具合を防ぐのが目的で
+//!   あり、新 `<svg>` への引き継ぎ・位置追跡は行わない）。
 //! - Shift+矢印での複数ステップ移動、pointer capture を使うドラッグ追従。
 
 /// 本モジュールの anatomy scope（`crates/pre-styled-ui/src/charts/
@@ -228,12 +231,26 @@ pub fn matches_key(
     }
 }
 
+/// hover（ポインタ）・focus（キーボード）を「開いたままにする独立した理由」
+/// として扱い、セッションを閉じてよいかを判定する純粋関数（web-sys
+/// 非依存、native `cargo test` 可）。sticky（タッチ）セッションは
+/// `handle_document_pointerdown` のみが閉じる別経路のため対象外（呼び出し側
+/// が `sticky` を先にガードする）。`hover_active`/`focus_active` の
+/// いずれかが真であれば閉じない（Cursor Bugbot 指摘: 単一の非 sticky
+/// セッションが pointermove/pointerout/focusout のいずれからも独立に
+/// 閉じられ、互いの「開いたままにする理由」を打ち消していた不具合の是正、
+/// イシュー #2130 レビュー）。
+#[must_use]
+pub fn should_close_session(hover_active: bool, focus_active: bool) -> bool {
+    !hover_active && !focus_active
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
         anchor_relative, hit_area_anchor, hit_area_next_index, is_sticky_pointer, matches_key,
-        ACTIVE_ATTR, HIT_AREA_SELECTOR, INDEXED_SELECTOR, INDEX_ATTR, SCOPE, SERIES_ATTR,
-        TOOLTIP_LAYER_PART, TOOLTIP_SELECTOR, VAR_X, VAR_Y,
+        should_close_session, ACTIVE_ATTR, HIT_AREA_SELECTOR, INDEXED_SELECTOR, INDEX_ATTR, SCOPE,
+        SERIES_ATTR, TOOLTIP_LAYER_PART, TOOLTIP_SELECTOR, VAR_X, VAR_Y,
     };
     use crate::keynav::Modifiers;
     use std::cell::RefCell;
@@ -299,6 +316,30 @@ mod wiring {
         }
     }
 
+    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
+    /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
+    /// `.claude/rules/security.md`）。本モジュールが書き込む属性
+    /// （`hidden`/`data-active`/`tabindex`/`pointer-events`）はいずれも
+    /// `&'static str` リテラルで固定された非 URL・非イベントハンドラ属性で
+    /// あり実害はないが、`fandhe_frontend_core::url` のガード関数群
+    /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
+    /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
+    /// 入力から組み立てられるよう変更された場合の防御としても機能する
+    /// （`sidebar.rs`/`keynav.rs`/`headless_avatar.rs` の同名ラッパーと
+    /// 同じガード方針）。
+    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+        if fandhe_frontend_core::is_event_handler_attr(name) {
+            return;
+        }
+        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
+            return;
+        }
+        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
+            return;
+        }
+        let _ = element.set_attribute(name, value);
+    }
+
     /// `element` の `(data-index, data-series)` を読む。`data-index` を
     /// 持たない要素は `None`（hit-area・視覚要素とも必ず `data-index` を
     /// 持つ契約）。
@@ -328,6 +369,22 @@ mod wiring {
             .and_then(|el| read_key(&el))
     }
 
+    /// セッションを開始・継続させたイベント種別（codex レビュー指摘:
+    /// hover（ポインタ）と focus（キーボード）は独立して「開いたままに
+    /// する理由」であり、[`Session::hover_active`]/[`Session::focus_active`]
+    /// として個別に保持する。タッチは従来どおり [`Session::sticky`] を
+    /// 昇格させるのみで、`hover_active`/`focus_active` には影響しない
+    /// （sticky セッションは [`handle_document_pointerdown`] のみが
+    /// 閉じる別経路のため）。
+    enum Trigger {
+        /// `pointermove`/タッチ以外の `pointerdown`。
+        Pointer,
+        /// タッチ由来の `pointerdown`（sticky セッションを開始）。
+        Touch,
+        /// `focusin`/矢印キーによるフォーカス移動。
+        Keyboard,
+    }
+
     /// 現在進行中のホバー/フォーカス/タッチセッション（1 チャート分）。
     struct Session {
         svg: Element,
@@ -339,6 +396,14 @@ mod wiring {
         /// タッチ由来（`pointerdown`）で開始し、チャート外タップまで
         /// 開いたままにするセッションかどうか。
         sticky: bool,
+        /// ポインタ（`pointermove`/`pointerdown` 非タッチ）が現在 hit-area
+        /// 上にあるか。`pointermove`/`pointerout`/`pointercancel` が
+        /// 更新する（sticky セッションでは未使用）。
+        hover_active: bool,
+        /// キーボードフォーカスが現在 hit-area 上にあるか。`focusin`/
+        /// `focusout`/矢印キー移動が更新する（sticky セッションでは
+        /// 未使用）。
+        focus_active: bool,
         /// セッション開始時点の `data-active` 既定状態（閉鎖時に復元）。
         initial_active: Vec<(String, Option<String>)>,
         /// セッション開始時点の既定表示 tooltip（閉鎖時に復元）。
@@ -394,7 +459,7 @@ mod wiring {
             ) {
                 let _ = tooltip.remove_attribute("hidden");
             } else {
-                let _ = tooltip.set_attribute("hidden", "");
+                set_dom_attribute(&tooltip, "hidden", "");
             }
         }
         for element in query_all(svg, INDEXED_SELECTOR) {
@@ -406,7 +471,7 @@ mod wiring {
                 candidate_index.as_deref(),
                 candidate_series.as_deref(),
             ) {
-                let _ = element.set_attribute(ACTIVE_ATTR, "");
+                set_dom_attribute(&element, ACTIVE_ATTR, "");
             } else {
                 let _ = element.remove_attribute(ACTIVE_ATTR);
             }
@@ -426,7 +491,7 @@ mod wiring {
                 .map(|key| session.initial_active.contains(&key))
                 .unwrap_or(false);
             if is_initial {
-                let _ = element.set_attribute(ACTIVE_ATTR, "");
+                set_dom_attribute(&element, ACTIVE_ATTR, "");
             } else {
                 let _ = element.remove_attribute(ACTIVE_ATTR);
             }
@@ -438,7 +503,7 @@ mod wiring {
             if is_initial {
                 let _ = tooltip.remove_attribute("hidden");
             } else {
-                let _ = tooltip.set_attribute("hidden", "");
+                set_dom_attribute(&tooltip, "hidden", "");
             }
         }
     }
@@ -452,17 +517,19 @@ mod wiring {
     }
 
     /// hover/フォーカス/タッチ入力を集約し、セッションの開始・継続を行う
-    /// （`sticky`: タッチ `pointerdown` 由来で `pointerout` では閉じない
-    /// ことを示す）。別チャートへ移った場合は前セッションを
+    /// （`trigger`: [`Trigger::Touch`] は `pointerout` では閉じない sticky
+    /// セッションへ昇格させる）。別チャートへ移った場合は前セッションを
     /// [`close_session`] で閉じてから新規セッションを開く。既に同じ
     /// `svg` のセッションが開いている場合はスナップショットを取り直さず
-    /// 強調とツールチップだけを更新する（`sticky` は真のときのみ昇格
-    /// させ、非 sticky 側の呼び出しで sticky セッションを巻き戻さない）。
+    /// 強調とツールチップだけを更新する（`sticky`/`hover_active`/
+    /// `focus_active` は `trigger` に応じて真のときのみ昇格させ、他方の
+    /// 呼び出しで巻き戻さない。hover と focus は独立した「開いたままに
+    /// する理由」であり、`should_close_session` が両方を見て判定する）。
     fn begin_or_update_session(
         root: &Element,
         handle: &SessionHandle,
         hit_area: &Element,
-        sticky: bool,
+        trigger: Trigger,
         client_x: f64,
         client_y: f64,
     ) {
@@ -487,22 +554,47 @@ mod wiring {
                 svg: svg.clone(),
                 layer: layer.clone(),
                 frame,
-                sticky,
+                sticky: matches!(trigger, Trigger::Touch),
+                hover_active: matches!(trigger, Trigger::Pointer),
+                focus_active: matches!(trigger, Trigger::Keyboard),
                 initial_active,
                 initial_visible_tooltip,
             });
-        } else if sticky {
-            if let Some(session) = handle.borrow_mut().as_mut() {
-                session.sticky = true;
+        } else if let Some(session) = handle.borrow_mut().as_mut() {
+            match trigger {
+                Trigger::Touch => session.sticky = true,
+                Trigger::Pointer => session.hover_active = true,
+                Trigger::Keyboard => session.focus_active = true,
             }
         }
 
         apply_highlight(&layer, &svg, hit_area, client_x, client_y);
     }
 
+    /// hover が非活性化した（`pointermove`/`pointerout`/`pointercancel`
+    /// のいずれかが hit-area/svg 外への移動を検知した）ときの共通処理:
+    /// `hover_active` を `false` に落とし、focus も非活性なら
+    /// [`should_close_session`] に従いセッションを閉じる（codex/Bugbot
+    /// 指摘: pointer と focus は独立した「開いたままにする理由」であり、
+    /// 片方の消失だけで閉じてはならない）。
+    fn deactivate_hover(handle: &SessionHandle) {
+        let should_close = {
+            let mut guard = handle.borrow_mut();
+            let Some(session) = guard.as_mut() else {
+                return;
+            };
+            session.hover_active = false;
+            should_close_session(session.hover_active, session.focus_active)
+        };
+        if should_close {
+            close_session(handle);
+        }
+    }
+
     /// `root` へ pointermove（hover 追従）を配線する。sticky（タッチ）
     /// セッション中は無視する。hit-area 以外（軸ラベル相当）への移動は
-    /// 非 sticky セッションを閉じる。
+    /// hover を非活性化し、focus も非活性なセッションのみ閉じる
+    /// （[`deactivate_hover`]）。
     fn handle_pointermove(root: &Element, handle: &SessionHandle, event: &Event) {
         let sticky = handle.borrow().as_ref().map(|s| s.sticky).unwrap_or(false);
         if sticky {
@@ -518,9 +610,16 @@ mod wiring {
         let client_y = f64::from(pointer_event.client_y());
         match closest_hit_area(root, &target) {
             Some(hit_area) => {
-                begin_or_update_session(root, handle, &hit_area, false, client_x, client_y);
+                begin_or_update_session(
+                    root,
+                    handle,
+                    &hit_area,
+                    Trigger::Pointer,
+                    client_x,
+                    client_y,
+                );
             }
-            None => close_session(handle),
+            None => deactivate_hover(handle),
         }
     }
 
@@ -541,13 +640,14 @@ mod wiring {
         };
         let client_x = f64::from(pointer_event.client_x());
         let client_y = f64::from(pointer_event.client_y());
-        begin_or_update_session(root, handle, &hit_area, true, client_x, client_y);
+        begin_or_update_session(root, handle, &hit_area, Trigger::Touch, client_x, client_y);
     }
 
     /// `root` へ pointerout を配線する。`related_target` が現在セッション
-    /// の `svg` 内でなければ非 sticky セッションを閉じる（`pointerleave`
-    /// はバブリングしないため `pointerout` + `related_target` 判定、
-    /// `sidebar::wiring` の `pointerover` 判定と同型）。
+    /// の `svg` 内でなければ hover を非活性化する（[`deactivate_hover`]、
+    /// focus も非活性なセッションのみ閉じる）。`pointerleave` はバブリング
+    /// しないため `pointerout` + `related_target` 判定
+    /// （`sidebar::wiring` の `pointerover` 判定と同型）。
     fn handle_pointerout(handle: &SessionHandle, event: &Event) {
         let sticky = handle.borrow().as_ref().map(|s| s.sticky).unwrap_or(false);
         if sticky {
@@ -565,15 +665,16 @@ mod wiring {
             .map(|element| session_svg.contains(Some(element)))
             .unwrap_or(false);
         if !still_within {
-            close_session(handle);
+            deactivate_hover(handle);
         }
     }
 
-    /// `root` へ pointercancel を配線する。非 sticky セッションを閉じる。
+    /// `root` へ pointercancel を配線する。hover を非活性化し、focus も
+    /// 非活性なセッションのみ閉じる（[`deactivate_hover`]）。
     fn handle_pointercancel(handle: &SessionHandle) {
         let sticky = handle.borrow().as_ref().map(|s| s.sticky).unwrap_or(false);
         if !sticky {
-            close_session(handle);
+            deactivate_hover(handle);
         }
     }
 
@@ -621,17 +722,25 @@ mod wiring {
             return;
         };
         for (i, element) in hit_areas.iter().enumerate() {
-            let _ = element.set_attribute("tabindex", if i == next { "0" } else { "-1" });
+            set_dom_attribute(element, "tabindex", if i == next { "0" } else { "-1" });
         }
         if let Some(svg_element) = next_element.dyn_ref::<SvgElement>() {
             let _ = svg_element.focus();
         }
         let (client_x, client_y) = hit_area_client_anchor(next_element);
-        begin_or_update_session(root, handle, next_element, false, client_x, client_y);
+        begin_or_update_session(
+            root,
+            handle,
+            next_element,
+            Trigger::Keyboard,
+            client_x,
+            client_y,
+        );
     }
 
     /// `root` へ focusin を配線する。target が hit-area のとき roving
-    /// tabindex を更新し、非 sticky セッションを開く。
+    /// tabindex を更新し、focus を [`Trigger::Keyboard`] としてセッション
+    /// を開始・継続する。
     fn handle_focusin(root: &Element, handle: &SessionHandle, event: &Event) {
         let Some(target) = event_target_element(event) else {
             return;
@@ -647,10 +756,17 @@ mod wiring {
         };
         for element in query_all(&svg, HIT_AREA_SELECTOR) {
             let is_current = element == hit_area;
-            let _ = element.set_attribute("tabindex", if is_current { "0" } else { "-1" });
+            set_dom_attribute(&element, "tabindex", if is_current { "0" } else { "-1" });
         }
         let (client_x, client_y) = hit_area_client_anchor(&hit_area);
-        begin_or_update_session(root, handle, &hit_area, false, client_x, client_y);
+        begin_or_update_session(
+            root,
+            handle,
+            &hit_area,
+            Trigger::Keyboard,
+            client_x,
+            client_y,
+        );
     }
 
     /// `root` へ focusout を配線する。sticky（タッチ）セッション中は
@@ -658,7 +774,10 @@ mod wiring {
     /// `handle_pointercancel` と同型のガード。タッチ由来で開始した
     /// セッションはチャート外タップまで開いたままにする契約を守るため、
     /// `handle_document_pointerdown` に閉鎖判定を委ねる）。`related_target`
-    /// が `root` 配下の hit-area でなければ非 sticky セッションを閉じる。
+    /// が `root` 配下の hit-area でなければ focus を非活性化し、hover も
+    /// 非活性なセッションのみ閉じる（codex レビュー指摘: Tab フォーカス
+    /// 後に無関係なポインタ移動でツールチップが消えていた不具合の是正、
+    /// [`should_close_session`] 参照）。
     fn handle_focusout(root: &Element, handle: &SessionHandle, event: &Event) {
         let sticky = handle.borrow().as_ref().map(|s| s.sticky).unwrap_or(false);
         if sticky {
@@ -684,7 +803,18 @@ mod wiring {
             .and_then(|element| closest_hit_area(root, element))
             .is_some();
         if !still_within {
-            close_session(handle);
+            let should_close = {
+                let mut guard = handle.borrow_mut();
+                if let Some(session) = guard.as_mut() {
+                    session.focus_active = false;
+                    should_close_session(session.hover_active, session.focus_active)
+                } else {
+                    false
+                }
+            };
+            if should_close {
+                close_session(handle);
+            }
         }
     }
 
@@ -726,16 +856,34 @@ mod wiring {
                 continue;
             }
             for element in &hit_areas {
-                let _ = element.set_attribute("pointer-events", "all");
+                set_dom_attribute(element, "pointer-events", "all");
             }
             let has_roving_tabindex = hit_areas
                 .iter()
                 .any(|element| element.get_attribute("tabindex").as_deref() == Some("0"));
             if !has_roving_tabindex {
                 if let Some(first) = hit_areas.first() {
-                    let _ = first.set_attribute("tabindex", "0");
+                    set_dom_attribute(first, "tabindex", "0");
                 }
             }
+        }
+    }
+
+    /// セッションが保持する `svg` が `root` 配下から失われていれば（
+    /// [`crate::Runtime::rerender_subtree`] が古い `<svg>`/layer ごと
+    /// 差し替えた場合）セッションを破棄する。復元先の要素が既に DOM から
+    /// 切り離されているため [`close_session`] の属性復元（no-op）は経由
+    /// せず直接ハンドルを空にする（codex レビュー指摘: タッチで開いた
+    /// sticky セッション中に構造再描画で SVG が差し替わると、セッションが
+    /// 削除済み SVG を保持したまま以降の `pointermove` で復帰しなくなって
+    /// いた不具合の是正）。
+    fn discard_stale_session(root: &Element, handle: &SessionHandle) {
+        let stale = handle
+            .borrow()
+            .as_ref()
+            .is_some_and(|session| !root.contains(Some(&session.svg)));
+        if stale {
+            *handle.borrow_mut() = None;
         }
     }
 
@@ -744,12 +892,15 @@ mod wiring {
     /// tabindex="-1"`）へ戻るため、`MutationObserver`（`childList`/
     /// `subtree` のみを監視し `attributes` は監視しない＝自己発火ループを
     /// 構造的に回避する、`sidebar::wiring` と同型）で [`enhance`] を
-    /// 再適用する。
-    fn wire_rerender_observer(root: &Element) -> Result<(), JsValue> {
+    /// 再適用する。あわせて進行中セッションの `svg` が再描画で失われて
+    /// いないかを確認し、失われていれば破棄する
+    /// （[`discard_stale_session`]）。
+    fn wire_rerender_observer(root: &Element, handle: SessionHandle) -> Result<(), JsValue> {
         let observed_root = root.clone();
         let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |_records: js_sys::Array, _observer: MutationObserver| {
                 enhance(&observed_root);
+                discard_stale_session(&observed_root, &handle);
             },
         );
         let observer = MutationObserver::new(callback.as_ref().unchecked_ref())?;
@@ -762,21 +913,22 @@ mod wiring {
     }
 
     /// `root` 配下の chart hit-area へ pointermove/pointerdown/pointerout/
-    /// pointercancel/keydown/focusin/focusout の配線を 1 回だけ登録する
-    /// （マウント時 1 回契約、`crate::Runtime::wire_chart` から呼ばれる）。
-    /// `root` 配下に hit-area が 1 つも無ければリスナーを一切登録せず
-    /// `Ok(())` を返す（非搭載アプリ・`show_tooltip: false` 構成への
-    /// 副作用なし契約、`splitter::wire_splitter_events` と同型）。
+    /// pointercancel/keydown/focusin/focusout の配線と、構造再描画時の
+    /// 冪等な再エンハンス用 `MutationObserver`（[`wire_rerender_observer`]）
+    /// を 1 回だけ登録する（マウント時 1 回契約、`crate::Runtime::wire_chart`
+    /// から呼ばれる）。マウント時点で `root` 配下に hit-area が 1 つも
+    /// 無くても登録を省略しない（codex レビュー指摘: 従来は早期リターン
+    /// していたため、初期表示にチャートが無いアプリで後から
+    /// `rerender_subtree` によりチャートが追加されても `MutationObserver`
+    /// が存在せず配線されなかった不具合の是正）。登録するイベント
+    /// リスナー自体は `closest_hit_area` 判定で no-op になるため、
+    /// チャートを一切使わないアプリでも実害はない。
     ///
     /// # Errors
     ///
     /// `add_event_listener_with_callback`/`MutationObserver::new` の失敗を
     /// 伝播する。
     pub fn wire_chart_events(root: Element) -> Result<(), JsValue> {
-        if query_all(&root, HIT_AREA_SELECTOR).is_empty() {
-            return Ok(());
-        }
-
         enhance(&root);
 
         let handle: SessionHandle = Rc::new(RefCell::new(None));
@@ -852,7 +1004,7 @@ mod wiring {
         )?;
         document_closure.forget();
 
-        wire_rerender_observer(&root)?;
+        wire_rerender_observer(&root, handle.clone())?;
 
         Ok(())
     }
@@ -945,5 +1097,25 @@ mod tests {
         assert!(matches_key("1", Some("visits"), Some("1"), Some("visits")));
         assert!(!matches_key("1", Some("visits"), Some("1"), Some("clicks")));
         assert!(!matches_key("1", Some("visits"), Some("1"), None));
+    }
+
+    #[test]
+    fn should_close_session_only_when_both_reasons_inactive() {
+        assert!(should_close_session(false, false));
+    }
+
+    #[test]
+    fn should_close_session_keeps_open_while_hover_active() {
+        assert!(!should_close_session(true, false));
+    }
+
+    #[test]
+    fn should_close_session_keeps_open_while_focus_active() {
+        assert!(!should_close_session(false, true));
+    }
+
+    #[test]
+    fn should_close_session_keeps_open_while_both_active() {
+        assert!(!should_close_session(true, true));
     }
 }

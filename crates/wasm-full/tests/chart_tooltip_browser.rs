@@ -660,3 +660,137 @@ async fn structural_rerender_reapplies_enhance() {
     );
     assert_eq!(hit_area.get_attribute("tabindex").as_deref(), Some("0"));
 }
+
+/// `MutationObserver` のマイクロタスクキュー完了を待つ共通ヘルパー
+/// （`structural_rerender_reapplies_enhance` の待機コードを抽出、以下 3 件
+/// の回帰テストと共有する）。
+async fn await_next_tick() {
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        let closure = Closure::once_into_js(move || {
+            let _ = resolve.call0(&JsValue::UNDEFINED);
+        });
+        web_sys::window()
+            .unwrap()
+            .set_timeout_with_callback_and_timeout_and_arguments_0(closure.unchecked_ref(), 0)
+            .expect("setTimeout must not fail");
+    });
+    JsFuture::from(promise)
+        .await
+        .expect("timeout promise must resolve");
+}
+
+#[wasm_bindgen_test]
+async fn wire_chart_events_without_initial_charts_still_wires_later_inserted_chart() {
+    // codex レビュー指摘（イシュー #2130 PR #2267）の回帰テスト: 初期表示に
+    // チャート（hit-area）が 1 つも無い状態で `wire_chart_events` を呼んだ
+    // 場合でも、`MutationObserver` は常に登録され、後から
+    // `rerender_subtree` 相当でチャートが追加されたときに配線されることを
+    // 検証する（旧実装は hit-area が空なら早期リターンし、リスナー自体を
+    // 一切登録していなかった）。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-test-late-mount");
+    let _guard = RemoveOnDrop(container.clone());
+    // マウント時点では hit-area を含む子要素が 1 つも無い。
+    assert!(query(&container, "[data-part=\"hit-area\"]").is_none());
+    wire_chart_events(container.clone())
+        .expect("wire_chart_events must succeed even without any chart at mount time");
+
+    // 後から構造再描画相当でチャートを追加する。
+    bar_like_markup("chart-test-late-mount");
+    await_next_tick().await;
+
+    let hit0 = query(&container, "[data-part=\"hit-area\"][data-index=\"0\"]")
+        .expect("hit-area 0 must exist after late insertion");
+    let tooltip0 =
+        query(&container, "[data-part=\"tooltip\"][data-index=\"0\"]").expect("tooltip 0");
+
+    // enhance() が再適用され、pointermove がツールチップを開けることを
+    // 確認する（配線が実際に効いていることの直接証拠）。
+    dispatch_pointer(hit0.unchecked_ref(), "pointermove", "mouse", 5.0, 5.0);
+    assert!(!tooltip0.has_attribute("hidden"));
+    assert!(hit0.has_attribute("data-active"));
+}
+
+#[wasm_bindgen_test]
+fn focus_session_survives_unrelated_pointer_movement_and_closes_on_focusout() {
+    // codex/Bugbot レビュー指摘（イシュー #2130 PR #2267）の回帰テスト:
+    // キーボードフォーカスで開いたツールチップは、hit-area 以外
+    // （軸ラベル相当）への無関係なポインタ移動だけでは閉じない
+    // （hover/focus は独立した「開いたままにする理由」であり、両方非活性
+    // になって初めて閉じる、`should_close_session` 契約）。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-test-focus-pointer");
+    let _guard = RemoveOnDrop(container.clone());
+    bar_like_markup("chart-test-focus-pointer");
+    wire_chart_events(container.clone()).expect("wire_chart_events must succeed");
+
+    let hit0 = query(&container, "[data-part=\"hit-area\"][data-index=\"0\"]").expect("hit-area 0");
+    let axis_label = query(&container, "[data-part=\"axis-label\"]").expect("axis label");
+    let tooltip0 =
+        query(&container, "[data-part=\"tooltip\"][data-index=\"0\"]").expect("tooltip 0");
+
+    hit0.dispatch_event(focus_event("focusin", None).as_ref())
+        .expect("dispatch_event must not fail");
+    assert!(!tooltip0.has_attribute("hidden"));
+
+    // hit-area 以外へのポインタ移動は hover を非活性化するのみで、
+    // focus が活性のためセッションは閉じない。
+    dispatch_pointer(axis_label.unchecked_ref(), "pointermove", "mouse", 5.0, 5.0);
+    assert!(
+        !tooltip0.has_attribute("hidden"),
+        "focus セッションは無関係なポインタ移動だけでは閉じないはずである"
+    );
+
+    // フォーカスが root 配下の hit-area 以外へ移ると（hover も非活性の
+    // ため）セッションが閉じる。
+    hit0.dispatch_event(focus_event("focusout", Some(&container)).as_ref())
+        .expect("dispatch_event must not fail");
+    assert!(tooltip0.has_attribute("hidden"));
+}
+
+#[wasm_bindgen_test]
+async fn touch_sticky_session_discarded_after_svg_replacement_then_pointermove_recovers() {
+    // codex レビュー指摘（イシュー #2130 PR #2267）の回帰テスト: タッチで
+    // 開いた sticky セッション中に構造再描画（`rerender_subtree` 相当、
+    // 新しい `<svg>` 要素ごとの丸ごと差し替え）が起きると、セッションが
+    // 削除済み `<svg>` を保持したままになり、以降 `pointermove` が
+    // （古いセッションの `sticky == true` に阻まれて）機能しなくなって
+    // いた不具合の是正を検証する。`MutationObserver` が古い `svg` の消失を
+    // 検知してセッションを破棄するため、新しい `<svg>` への通常の
+    // `pointermove`（mouse）だけでツールチップが開けるようになる。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-test-touch-rerender");
+    let _guard = RemoveOnDrop(container.clone());
+    bar_like_markup("chart-test-touch-rerender");
+    wire_chart_events(container.clone()).expect("wire_chart_events must succeed");
+
+    let hit0_v1 =
+        query(&container, "[data-part=\"hit-area\"][data-index=\"0\"]").expect("hit-area 0 (v1)");
+    dispatch_pointer(hit0_v1.unchecked_ref(), "pointerdown", "touch", 5.0, 5.0);
+    let tooltip0_v1 =
+        query(&container, "[data-part=\"tooltip\"][data-index=\"0\"]").expect("tooltip 0 (v1)");
+    assert!(!tooltip0_v1.has_attribute("hidden"));
+
+    // container 配下の frame/svg/layer を丸ごと新規要素へ差し替える
+    // （`rerender_subtree` の丸ごと差し替えを模擬。既存 `<svg>` の
+    // `inner_html` 書き換えとは異なり `<svg>` 要素自体が別インスタンスに
+    // なる点が本回帰の再現に必須）。
+    bar_like_markup("chart-test-touch-rerender");
+    await_next_tick().await;
+
+    let hit0_v2 =
+        query(&container, "[data-part=\"hit-area\"][data-index=\"0\"]").expect("hit-area 0 (v2)");
+    assert_ne!(
+        hit0_v1, hit0_v2,
+        "再描画後の hit-area は別要素インスタンスであるはずである"
+    );
+
+    let tooltip0_v2 =
+        query(&container, "[data-part=\"tooltip\"][data-index=\"0\"]").expect("tooltip 0 (v2)");
+    dispatch_pointer(hit0_v2.unchecked_ref(), "pointermove", "mouse", 5.0, 5.0);
+    assert!(
+        !tooltip0_v2.has_attribute("hidden"),
+        "古い svg の破棄済みセッションに阻まれず pointermove が機能するはずである"
+    );
+    assert!(hit0_v2.has_attribute("data-active"));
+}
