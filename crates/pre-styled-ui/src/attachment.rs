@@ -104,8 +104,17 @@
 //! であり、[`crate::progress::Progress`] を委譲しない（headless モジュール
 //! doc「`progress` は attachment scope のスロット」参照）。呼び出し側が
 //! 中身へ [`crate::progress`] の styled パーツ群を入れ子にする契約を
-//! そのまま継承する。本モジュールは `progress` slot 自体には `width:
-//! 100%` の base 宣言のみを持つ。
+//! そのまま継承する。`root`（`media`/`content`/`progress`/`actions` の
+//! DOM 順で並ぶ、[`fandhe_frontend_headless_ui::attachment::root`] rustdoc
+//! 参照）は `display: flex` の単純な横並びのため、`progress` に `width:
+//! 100%` のみを与えると `flex-wrap` 既定値 `nowrap` の下では折り返さず
+//! `media`/`content`/`actions` と同じ行の兄弟要素になり、アップロード中
+//! カードで `name`/`meta` と同じ行へ全幅バーが割り込む見た目崩れになる
+//! （下段へスタックされるべきという意匠が壊れる）。そのため `root` へ
+//! `flex-wrap: wrap` を、`progress` へ `flex-basis: 100%` を追加し、
+//! `progress` が単独で残り幅を占有して強制的に次の行へ折り返るように
+//! する（`image` 形態は `flex-direction: column` へ切り替わり全パーツが
+//! 元々縦積みのため、この 2 宣言は無害な no-op のまま残る）。
 //!
 //! # `data-disabled`
 //!
@@ -187,6 +196,7 @@ fn recipe() -> SlotRecipe {
     let root_base = vec![
         decl("display", "flex"),
         decl("align-items", "center"),
+        decl("flex-wrap", "wrap"),
         decl("gap", "var(--fandhe-space-2)"),
         decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
         decl("border", "1px solid var(--fandhe-color-border)"),
@@ -228,7 +238,7 @@ fn recipe() -> SlotRecipe {
         decl("color", "var(--fandhe-color-fg-muted)"),
     ];
 
-    let progress_base = vec![decl("width", "100%")];
+    let progress_base = vec![decl("width", "100%"), decl("flex-basis", "100%")];
 
     let actions_base = vec![
         decl("display", "flex"),

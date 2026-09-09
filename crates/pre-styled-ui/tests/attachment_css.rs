@@ -18,6 +18,7 @@ use fandhe_frontend_pre_styled_ui::attachment;
 const ATTACHMENT_GOLDEN_CSS: &str = "[data-scope=\"attachment\"][data-part=\"root\"] {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--fandhe-space-2);
   padding: var(--fandhe-space-2) var(--fandhe-space-3);
   border: 1px solid var(--fandhe-color-border);
@@ -61,6 +62,7 @@ const ATTACHMENT_GOLDEN_CSS: &str = "[data-scope=\"attachment\"][data-part=\"roo
 
 [data-scope=\"attachment\"][data-part=\"progress\"] {
   width: 100%;
+  flex-basis: 100%;
 }
 
 [data-scope=\"attachment\"][data-part=\"actions\"] {
