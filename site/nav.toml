@@ -1067,6 +1067,11 @@ source = "site/themes/radar-chart.md"
 path = "/themes/radar-chart/"
 
 [[section.group.page]]
+title = "Radial Chart"
+source = "site/themes/radial-chart.md"
+path = "/themes/radial-chart/"
+
+[[section.group.page]]
 title = "Scatter Chart"
 source = "site/themes/scatter-chart.md"
 path = "/themes/scatter-chart/"
