@@ -987,7 +987,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 | —（対応 md なし） | — | — | — | — | Item (`item`) | `item` | `item` | 実装済み | headless+styled 実装済み（#2065 anatomy / #2066 recipe・Themes ページ）。root/media/content/title/description/actions/header/footer/group/separator の 10 slot、`data-variant`/`data-size` を AttrEq 参照 |
 | —（対応 md なし） | — | — | — | — | Command (`command`) | `command` | `command` | 実装済み | headless+styled 実装済み（#2068 anatomy / #2070 recipe・Themes ページ）。root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の 10 slot、`data-selected`/`data-empty`/`hidden` を参照 |
 | —（対応 md なし） | — | — | — | — | Sidebar (`sidebar`) | — | — | 実装対象 | アプリケーションシェルのサイドバー anatomy。Phase 4、#2071 |
-| —（対応 md なし） | — | — | — | — | Message (`message`) | — | — | 実装対象 | AI チャット UI のメッセージ表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2104。判定根拠の詳細は #2006 が §12 へ転記 |
+| —（対応 md なし） | — | — | — | — | Message (`message`) | `message` | `message` | 実装済み | headless+styled 実装済み（#2105 anatomy / #2106 recipe・Themes ページ）。root/avatar/header/content/footer/group の 6 slot、`data-role`/`data-align`/`data-loading`/`data-error` を AttrEq/Attr 参照 |
 | —（対応 md なし） | — | — | — | — | Bubble (`bubble`) | — | — | 実装対象 | AI チャット UI の吹き出し表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2107。判定根拠の詳細は #2006 が §12 へ転記 |
 | —（対応 md なし） | — | — | — | — | Attachment (`attachment`) | — | — | 実装対象 | AI チャット UI の添付ファイル表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2110。判定根拠の詳細は #2006 が §12 へ転記 |
 | —（対応 md なし） | — | — | — | — | Marker (`marker`) | — | — | 実装対象 | AI チャット UI の区切りマーカー表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2113。判定根拠の詳細は #2006 が §12 へ転記 |
@@ -1332,7 +1332,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 | Item (`item`) | Part F | #2064 | 実装済み（#2065 / #2066） |
 | Command (`command`) | Part F | #2067 | 実装済み（#2068 / #2070） |
 | Sidebar (`sidebar`) | Part F | #2071 | 実装対象確定（Phase 4） |
-| Message (`message`) | Part F | #2104 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
+| Message (`message`) | Part F | #2104 | 実装済み（#2105 / #2106） |
 | Bubble (`bubble`) | Part F | #2107 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Attachment (`attachment`) | Part F | #2110 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Marker (`marker`) | Part F | #2113 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |

@@ -237,6 +237,7 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
         crate::component_specs_nav_data::JSON_TREE_VIEW,
     ),
     ("/themes/item/", crate::component_specs_nav_data::ITEM),
+    ("/themes/message/", crate::component_specs_nav_data::MESSAGE),
     (
         "/themes/progress/",
         crate::component_specs_nav_data::PROGRESS,

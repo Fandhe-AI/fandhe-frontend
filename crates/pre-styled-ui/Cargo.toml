@@ -2591,7 +2591,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # （headless-ui 0.68.6 依存追随の patch バンプ）で 0.153.1 → 0.153.2 へ
 # 進んでいるが、本ブランチの 0.154.0 は既に main の 0.153.2 より新しいため
 # 追加バンプ不要（衝突なし）。
-version = "0.154.0"
+# イシュー #2106: `message.rs` 新設（`crate::item` と同型の styled
+# Message。6 パーツの委譲層 + role/align/loading/error 状態規則、公開 API
+# 純追加）のためマイナーバンプする。
+#
+# base 取り込み（本 PR、イシュー #2106）: main 側はイシュー #2108
+# （headless-ui 0.68.6 依存追随に伴う patch バンプ）で 0.153.1 → 0.153.2 へ
+# 到達済み。本ブランチの 0.154.0 は main の 0.153.2 より新しいため、
+# バージョン据え置きのまま維持する。
+#
+# base merge の同一版数衝突回避（本 PR、イシュー #2081、2026-09-09）: 上記
+# 2 系統（本ブランチのイシュー #2081／main のイシュー #2106）は互いに
+# 独立に merge base 0.153.1 から 0.154.0 へ到達していた（同一版数への
+# 偶発的衝突）。`semver-same-version-is-conflict` の運用に従い、双方の
+# 実体変更（`AreaChartProps`/`AxisProps`/`TickLabelFormat` の純追加と
+# `message.rs` 新設）を統合した結果として 0.155.0 へさらにマイナー
+# バンプする。
+version = "0.155.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
