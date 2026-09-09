@@ -11,18 +11,18 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 113 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 115 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
-#2070 で追加）+
+#2070、`message` はイシュー #2106 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。113 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。115 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
 操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
@@ -76,6 +76,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 静的フォーム部品 | `input_group`（§4f-3 参照。入力欄の前後 addon、軸なし） | [input-group](../../site/themes/input-group.md) |
 | headless ラッパー | `item`（§4f-4 参照。media + title/description + actions からなる汎用リスト行。`variant`/`size` は headless の `data-variant`/`data-size` を AttrEq 参照するのみで class ベース軸を持たない） | [item](../../site/themes/item.md) |
 | headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。10 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
+| headless ラッパー | `message`（§4f-6 参照。会話 1 発言。6 パーツ構成、軸なし。data-role/data-align/data-loading/data-error を AttrEq/Attr 参照するのみ） | [message](../../site/themes/message.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -865,6 +866,48 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   規則 1）。
 - **docs サイト**: [command](../../site/themes/command.md)
   （イシュー #2070 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-6. `message`（AI チャット UI の会話 1 発言、イシュー #2106、headless anatomy は #2105）
+
+`message` モジュールは `fandhe_frontend_headless_ui::message` の anatomy
+（`root`/`avatar`/`header`/`content`/`footer`/`group` の 6 パーツ）へ、
+発言者の役割・整列で背景色を切り替える shadcn/ui `Message` 相当の意匠を
+重ねる薄い委譲層である。
+
+- **公開 API**: 6 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::item`/`crate::command` と同型のパターン）。
+  `MessageRootProps`/`MessageRole`/`MessageAlign`（headless からの
+  再エクスポート）のみを選択的に公開する。`stylesheet()`（`css()` では
+  ない）が静的 CSS 全量を返す。
+- **軸を持たない**: `role`/`align`/`loading`/`error` は headless が固定
+  出力する `data-role`/`data-align`/`data-loading`/`data-error` を
+  `StateCondition::AttrEq`/`Attr` で参照するのみで、class ベースの
+  `SlotRecipe::variant` は持たない（`docs/design/pre-styled-ui-data-attr-vocabulary.md`
+  §2.2「役割 B: 参照のみ」、`crate::item` と同型の判断）。
+- **role 別の意匠**: `data-role="user"` は `content` の背景を accent
+  subtle、`"assistant"` は muted、`"system"` は透明 + 斜体 + 控えめ文字色
+  へ切り替える。`data-align="end"` は `root` を右寄せ + 行反転する
+  （role から独立した軸、headless message.rs モジュール doc「会話系 4
+  部品の共通語彙」参照）。
+- **loading/error の視覚差**: `data-loading` は `root` を半透明化
+  （`opacity: 0.7`）するのみでアニメーションは付けない。`data-error` は
+  `content` の背景・文字色・枠線を危険色（`--fandhe-color-danger-*`）へ
+  切り替える。いずれも見た目のみで、判定・再送はアプリ責務。
+- **`group` 連続発言のまとめと raw CSS 追記**: `SlotRecipe` は子結合子
+  セレクタを表現できないため、`stylesheet()` は `group` 配下 2 件目以降の
+  `root` の余白を詰める規則と、`avatar` を `visibility: hidden`（`display:
+  none` ではなく幅を残す）で省略する規則を `serialize_rule` で追記する
+  （`crate::item` の `media[data-variant="image"] > img` 追記と同型の
+  パターン）。
+- **`aria-live`/`aria-busy` は付与しない**: headless 契約の継承
+  （headless message.rs モジュール doc「aria-live/aria-busy を付けない
+  理由」参照）。通知が必要な場合は呼び出し側が自前で `aria-live`
+  リージョンを合成する。
+- **バリデーション責務外**: 送信処理・Markdown レンダリング・再送判定は
+  実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。
+- **docs サイト**: [message](../../site/themes/message.md)
+  （イシュー #2106 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

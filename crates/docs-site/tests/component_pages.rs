@@ -594,8 +594,10 @@ fn scope_resolution_buckets_match_expected_counts() {
     // 102 -> 103、イシュー #2070 で Command（path 由来の kebab
     // command が data-scope="command" と一致）が加わり 103 -> 104、イシュー
     // #2080 で Radial Chart（path 由来の kebab radial-chart が
-    // data-scope="radial-chart" と一致）が加わり 104 -> 105 へ増える。
-    assert_eq!(bucket1_path_match, 105);
+    // data-scope="radial-chart" と一致）が加わり 104 -> 105、イシュー
+    // #2106 で Message（path 由来の kebab message が data-scope="message"
+    // と一致）が加わり 105 -> 106 へ増える。
+    assert_eq!(bucket1_path_match, 106);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }

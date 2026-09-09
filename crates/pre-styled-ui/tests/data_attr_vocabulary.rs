@@ -1018,6 +1018,56 @@ fn message_root_data_role_align_loading_error_vocabulary_is_fixed() {
     );
 }
 
+/// `crate::message`（イシュー #2106）の 6 パーツは `data-role`/
+/// `data-align`/`data-loading`/`data-error`/`role`/`aria-label` を一切
+/// 自前で生成せず、headless
+/// [`fandhe_frontend_headless_ui::message`]（#2105）が出力したものを
+/// `stylesheet()` が `AttrEq`/`Attr` で参照するのみであることを固定する
+/// （`command_parts_data_attrs_are_headless_sourced_not_self_emitted` と
+/// 同型）。
+#[test]
+fn message_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::message as styled_message;
+
+    let root_html = render(&styled_message::root(
+        styled_message::MessageRootProps::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains(r#"role="listitem""#));
+    assert!(root_html.contains(r#"data-role="user""#));
+    assert!(root_html.contains(r#"data-align="start""#));
+    assert!(!root_html.contains("data-loading"));
+    assert!(!root_html.contains("data-error"));
+
+    let loading_error_html = render(&styled_message::root(
+        styled_message::MessageRootProps {
+            loading: true,
+            error: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(loading_error_html.contains("data-loading"));
+    assert!(loading_error_html.contains("data-error"));
+
+    let group_html = render(&styled_message::group("Conversation", vec![], vec![]));
+    assert!(group_html.contains(r#"role="list""#));
+    assert!(group_html.contains(r#"aria-label="Conversation""#));
+
+    // `styled_message::stylesheet()` は `[data-role="..."]`/
+    // `[data-align="end"]`/`[data-loading]`/`[data-error]` を CSS セレクタ
+    // として参照するだけで自前で `data-*` を組み立てない。
+    let css = styled_message::stylesheet();
+    for role in ["user", "assistant", "system"] {
+        assert!(css.contains(&format!(r#"[data-role="{role}"]"#)));
+    }
+    assert!(css.contains(r#"[data-align="end"]"#));
+    assert!(css.contains("[data-loading]"));
+    assert!(css.contains("[data-error]"));
+}
+
 /// [`mod@fandhe_frontend_headless_ui::bubble`]（イシュー #2108）の
 /// `data-variant`（`solid`/`outline`/`plain`）・`data-align`（会話系共通
 /// 語彙、正は `crates/headless-ui/src/message.rs`）・

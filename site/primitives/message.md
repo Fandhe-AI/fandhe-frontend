@@ -12,7 +12,7 @@ AI チャット UI の「会話 1 発言」を表現する shadcn/ui Message 相
 - `group` は `role="list"` を固定付与します。WAI-ARIA の `listitem` は `list`（または同等のコンテナ）を required context として要求するため、会話全体は「発言者ターンごとの `group`（list）の並び」として読み上げられる想定です。`label` を渡すと `aria-label` を出力します（空文字列のときは省略します）。`group` を介さず `root` 単体で使う場合は、呼び出し側が `ul` / `role="list"` コンテナへ置いてください。
 - `aria-live` / `aria-busy` は付与しません。ストリーミング応答の通知や応答待ちの読み上げはアプリケーション固有の UX 判断であり、本部品の責務外です。
 
-Themes（`fandhe-frontend-pre-styled-ui`）に対応するスタイル済み部品は今後追加予定です（イシュー #2106）。
+`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。Themes 版は [Message](../themes/message.md) を参照してください。
 
 自前 CSS の最小例:
 
