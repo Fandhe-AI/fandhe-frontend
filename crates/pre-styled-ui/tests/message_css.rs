@@ -119,6 +119,34 @@ const MESSAGE_GOLDEN_CSS: &str = "[data-scope=\"message\"][data-part=\"root\"] {
   grid-column: 1;
 }
 
+[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"avatar\"])) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"avatar\"])) > [data-scope=\"message\"][data-part=\"header\"] {
+  grid-column: 1;
+}
+
+[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"avatar\"])) > [data-scope=\"message\"][data-part=\"content\"] {
+  grid-column: 1;
+}
+
+[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"avatar\"])) > [data-scope=\"message\"][data-part=\"footer\"] {
+  grid-column: 1;
+}
+
+[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"header\"])):not(:has(> [data-scope=\"message\"][data-part=\"footer\"])) > [data-scope=\"message\"][data-part=\"avatar\"] {
+  grid-row: 1 / span 1;
+}
+
+[data-scope=\"message\"][data-part=\"root\"]:has(> [data-scope=\"message\"][data-part=\"header\"]):not(:has(> [data-scope=\"message\"][data-part=\"footer\"])) > [data-scope=\"message\"][data-part=\"avatar\"] {
+  grid-row: 1 / span 2;
+}
+
+[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"header\"])):has(> [data-scope=\"message\"][data-part=\"footer\"]) > [data-scope=\"message\"][data-part=\"avatar\"] {
+  grid-row: 1 / span 2;
+}
+
 [data-scope=\"message\"][data-part=\"group\"] > [data-scope=\"message\"][data-part=\"root\"]:not(:first-child) {
   margin-top: calc(-1 * var(--fandhe-space-1));
 }
@@ -218,4 +246,45 @@ fn css_swaps_grid_columns_for_data_align_end() {
             "[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] > [data-scope=\"message\"][data-part=\"{part}\"] {{\n  grid-column: 1;"
         )));
     }
+}
+
+/// `avatar` が省略された `root` は 2 カラム grid を単一カラムへ縮退させ、
+/// 空の 1 列目との境界に常時発生していた `column-gap`（アバターなし
+/// メッセージの余分なインデント、Bugbot 指摘）を消すことを固定する
+/// （`src/message.rs` モジュール doc「raw CSS 追記の理由」節参照）。
+#[test]
+fn css_collapses_root_to_single_column_when_avatar_is_absent() {
+    let css = message::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"avatar\"])) {\n  grid-template-columns: minmax(0, 1fr);"
+    ));
+    // `header`/`content`/`footer` の base 宣言は `grid-column: 2` 固定
+    // のため、単一カラム化と対で列 1 へ明示的に移さないと暗黙の列 2 が
+    // 生成されてしまう（`src/message.rs` モジュール doc「raw CSS 追記の
+    // 理由」節参照）。
+    for part in ["header", "content", "footer"] {
+        assert!(css.contains(&format!(
+            "[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"avatar\"])) > [data-scope=\"message\"][data-part=\"{part}\"] {{\n  grid-column: 1;"
+        )));
+    }
+}
+
+/// `avatar` の `grid-row` span が実在する `header`/`footer` の組み合わせ
+/// （0 個・片方のみ）に応じて 1〜2 段へ動的に切り替わり、省略された分の
+/// `row-gap` が下部の空行として残らないことを固定する（`src/message.rs`
+/// モジュール doc「raw CSS 追記の理由」節参照。`header`/`footer` の両方が
+/// 存在する既定ケースは `avatar_base` の `grid-row: 1 / span 3` のまま
+/// 据え置くため、ここでは 3 パターンの上書きのみ検証する）。
+#[test]
+fn css_adjusts_avatar_row_span_for_missing_header_or_footer() {
+    let css = message::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"header\"])):not(:has(> [data-scope=\"message\"][data-part=\"footer\"])) > [data-scope=\"message\"][data-part=\"avatar\"] {\n  grid-row: 1 / span 1;"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"message\"][data-part=\"root\"]:has(> [data-scope=\"message\"][data-part=\"header\"]):not(:has(> [data-scope=\"message\"][data-part=\"footer\"])) > [data-scope=\"message\"][data-part=\"avatar\"] {\n  grid-row: 1 / span 2;"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"message\"][data-part=\"root\"]:not(:has(> [data-scope=\"message\"][data-part=\"header\"])):has(> [data-scope=\"message\"][data-part=\"footer\"]) > [data-scope=\"message\"][data-part=\"avatar\"] {\n  grid-row: 1 / span 2;"
+    ));
 }

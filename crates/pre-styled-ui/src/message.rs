@@ -42,13 +42,23 @@
 //! # slot 別の意匠
 //!
 //! - `root`: 2 カラム grid コンテナ（1 列目 `avatar`、2 列目に `header`/
-//!   `content`/`footer` を縦積み）。`avatar` は `grid-row: 1 / span 3` で
-//!   2 列目の 3 パーツ分の行を縦に貫通し、`header`/`content`/`footer` は
-//!   いずれも 2 列目へ配置されることで縦積みになる（headless anatomy が
-//!   `avatar`/`header`/`content`/`footer` を `root` の直接の兄弟として
-//!   フラットに出力するため、grid の列固定 + 行スパンのみで「avatar +
-//!   縦積み本体」を表現する。ラッパー要素を追加しない制約は headless 側の
-//!   anatomy 契約のため変更不可）。`data-align="end"` で `grid-template-
+//!   `content`/`footer` を縦積み）。`avatar` は既定で `grid-row: 1 / span 3`
+//!   により 2 列目の 3 パーツ分の行を縦に貫通し、`header`/`content`/
+//!   `footer` はいずれも 2 列目へ配置されることで縦積みになる（headless
+//!   anatomy が `avatar`/`header`/`content`/`footer` を `root` の直接の
+//!   兄弟としてフラットに出力するため、grid の列固定 + 行スパンのみで
+//!   「avatar + 縦積み本体」を表現する。ラッパー要素を追加しない制約は
+//!   headless 側の anatomy 契約のため変更不可）。`avatar`/`header`/
+//!   `footer` はいずれも省略可能なスロットのため、[`stylesheet`] が
+//!   `:has()` を使った raw CSS（「raw CSS 追記の理由」節参照）で次の
+//!   2 点を補正する: (1) `avatar` が省略された `root` は 2 カラム grid
+//!   自体を単一カラムへ縮退させ、`column-gap` が空の 1 列目に対して
+//!   常時発生する「アバターなしメッセージの余分なインデント」を防ぐ、
+//!   (2) `avatar` の `grid-row` span を実際に存在する
+//!   `header`/`footer` の組み合わせ（0/1/2 個）に応じて 1〜3 段へ動的に
+//!   切り替え、`header`/`footer` が省略された分だけ確保され続けていた
+//!   `row-gap` 分の余白（例: content のみのメッセージで下部に生じる
+//!   空行分のギャップ）を防ぐ。`data-align="end"` で `grid-template-
 //!   columns` を反転しつつ、[`stylesheet`] が追記する raw CSS
 //!   （「raw CSS 追記の理由」節参照）で `avatar`/`header`/`content`/
 //!   `footer` の `grid-column` も入れ替え、右寄せレイアウトへ切り替える。
@@ -70,10 +80,12 @@
 //! `root` の `data-align` に応じて**別の slot**（`avatar`/`header`/
 //! `content`/`footer`）の `grid-column` を切り替える宣言や、`group`
 //! 配下で 2 件目以降に連続する `root`（および、その `avatar`）を対象に
-//! した宣言を組めない（[`crate::item`] モジュール doc「raw CSS 追記の
-//! 理由」と同型の制約）。[`stylesheet`] は `recipe().css()` の出力へ
-//! [`crate::css::serialize_rule`] を使った素の子結合子（`>`）+
-//! 属性セレクタを追記する:
+//! した宣言や、`root` に実際に存在する子スロット（`avatar`/`header`/
+//! `footer` は省略可能）に応じて `root` 自身・`avatar` の grid 定義を
+//! 切り替える宣言を組めない（[`crate::item`] モジュール doc「raw CSS
+//! 追記の理由」と同型の制約）。[`stylesheet`] は `recipe().css()` の
+//! 出力へ [`crate::css::serialize_rule`] を使った素の子結合子（`>`）+
+//! 属性セレクタ + `:has()`/`:not()` を追記する:
 //!
 //! - `root[data-align="end"] > avatar`: `grid-column: 2` へ切り替える
 //!   （既定は 1 列目）。
@@ -81,6 +93,35 @@
 //!   `grid-column: 1` へ切り替える（既定は 2 列目）。`root` 自身の
 //!   `grid-template-columns` 反転（[`recipe`] の `data-align="end"` state）
 //!   と対にして、右寄せ時に列の意味を丸ごと入れ替える。
+//! - `root:not(:has(> avatar))`: `grid-template-columns` を単一カラム
+//!   （`minmax(0, 1fr)`）へ縮退させる。2 カラム grid のまま `avatar` を
+//!   省略すると、中身のない 1 列目との境界に `column-gap` が常時発生し
+//!   「アバターなしメッセージの余分なインデント」になるため、
+//!   `avatar` 不在時は列自体を 1 つにして境界（＝ gap）を消す。この
+//!   セレクタは属性 2 つ + `:not(:has(...))`（`:has()` 内の複合セレクタ
+//!   と同じ特異度を持つ）で `[data-align="end"]` state（属性 3 つ）より
+//!   特異度が高いため、`data-align="end"` と同時に `avatar` が省略され
+//!   ても本ルールが優先される（cascade 順に依存しない）。
+//! - `root:not(:has(> avatar)) > header`/`> content`/`> footer`:
+//!   `grid-column: 1` へ明示的に移す。`header`/`content`/`footer` の
+//!   base 宣言は `grid-column: 2` 固定のため、`root` を単一カラムへ
+//!   縮退させただけでは列 2 が依然として参照され、単一カラムの grid に
+//!   暗黙の列 2（`grid-auto-columns: auto`）が生成されてしまう（列 1 の
+//!   `minmax(0, 1fr)` が空のまま幅を持ち続け、`column-gap` も暗黙列との
+//!   境界に残ってしまい上記の縮退が実効しない）。3 パーツとも列 1 へ
+//!   明示的に移すことで、単一カラム化を実際に列 1 個分へ収束させる。
+//! - `root:not(:has(> header)):not(:has(> footer)) > avatar`:
+//!   `grid-row: 1 / span 1`（`header`/`footer` とも省略＝`content` のみ
+//!   のメッセージ）。
+//! - `root:has(> header):not(:has(> footer)) > avatar` /
+//!   `root:not(:has(> header)):has(> footer) > avatar`:
+//!   `grid-row: 1 / span 2`（`header`/`footer` のどちらか一方のみ存在）。
+//!   `header`/`footer` の双方が存在する既定ケースは [`recipe`] の
+//!   `avatar_base`（`grid-row: 1 / span 3`）のまま据え置く（3 パーツ全て
+//!   存在するときのみ意味を持つ既定値のため、raw CSS での上書きが不要）。
+//!   これら 3 ルールがないと、`header`/`footer` が省略されても `avatar`
+//!   が常に 3 段分の高さを確保し続け、`row-gap` 分の余白が下部に空行と
+//!   して残ってしまう。
 //! - `group > root:not(:first-child)`: 連続発言間の余白を詰める
 //!   （`margin-top` を負値にして `group` の `gap` と打ち消し合わせる）。
 //! - `group > root:not(:first-child) > avatar`: `visibility: hidden` で
@@ -296,6 +337,66 @@ pub fn stylesheet() -> String {
     for part in [HEADER, CONTENT, FOOTER] {
         let selector = format!("{ROOT_ALIGN_END} > {part}");
         if let Some(rule) = serialize_rule(&selector, &[decl("grid-column", "1")]) {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&rule);
+        }
+    }
+
+    // `avatar` が省略された `root` を単一カラムへ縮退させる（モジュール
+    // doc「raw CSS 追記の理由」節参照）。省略時に 2 カラム grid のまま
+    // だと中身のない 1 列目との境界へ `column-gap` が常時発生し、
+    // アバターなしメッセージ（system 等）で余分なインデントが残る。
+    let no_avatar_selector = format!("{ROOT}:not(:has(> {AVATAR}))");
+    if let Some(rule) = serialize_rule(
+        &no_avatar_selector,
+        &[decl("grid-template-columns", "minmax(0, 1fr)")],
+    ) {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&rule);
+    }
+
+    // `header`/`content`/`footer` の base 宣言は `grid-column: 2` 固定
+    // のため、上記で `root` を単一カラムへ縮退させただけでは列 2 が
+    // 依然として参照され、単一カラムの grid に暗黙の列 2（`grid-auto-
+    // columns: auto`）が生成されてしまう（列 1 の `minmax(0, 1fr)` が
+    // 空のまま幅を持ち続け、`column-gap` も暗黙列との境界に残る）。
+    // 3 パーツとも列 1 へ明示的に移すことで、単一カラム化を実際に列
+    // 1 個分へ収束させる。
+    for part in [HEADER, CONTENT, FOOTER] {
+        let selector = format!("{ROOT}:not(:has(> {AVATAR})) > {part}");
+        if let Some(rule) = serialize_rule(&selector, &[decl("grid-column", "1")]) {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&rule);
+        }
+    }
+
+    // `avatar` の `grid-row` span を実在する `header`/`footer` の組み
+    // 合わせに応じて動的に切り替える（モジュール doc「raw CSS 追記の
+    // 理由」節参照）。`header`/`footer` とも存在する既定ケースは
+    // `avatar_base` の `grid-row: 1 / span 3` のまま据え置くため、ここ
+    // では「0 個存在」「片方のみ存在」の 3 パターンのみ上書きする。
+    let avatar_row_span_overrides: [(String, &str); 3] = [
+        (
+            format!("{ROOT}:not(:has(> {HEADER})):not(:has(> {FOOTER})) > {AVATAR}"),
+            "1 / span 1",
+        ),
+        (
+            format!("{ROOT}:has(> {HEADER}):not(:has(> {FOOTER})) > {AVATAR}"),
+            "1 / span 2",
+        ),
+        (
+            format!("{ROOT}:not(:has(> {HEADER})):has(> {FOOTER}) > {AVATAR}"),
+            "1 / span 2",
+        ),
+    ];
+    for (selector, span) in &avatar_row_span_overrides {
+        if let Some(rule) = serialize_rule(selector, &[decl("grid-row", span)]) {
             if !out.is_empty() {
                 out.push('\n');
             }
