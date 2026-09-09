@@ -411,7 +411,16 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
 }
 
 [data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] [data-scope=\"sidebar\"][data-part=\"menu-button\"] > span > span[data-fandhe-sidebar-menu-button-label] {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  overflow-wrap: normal;
+  border-width: 0;
 }
 
 [data-scope=\"sidebar\"][data-part=\"menu-action\"] ~ [data-scope=\"sidebar\"][data-part=\"menu-badge\"] {

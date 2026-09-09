@@ -1268,6 +1268,7 @@ fn sidebar_parts_data_attrs_are_headless_sourced_not_self_emitted() {
             variant: SidebarMenuButtonVariant::Outline,
             ..Default::default()
         },
+        None,
         vec![],
         vec![],
     ));

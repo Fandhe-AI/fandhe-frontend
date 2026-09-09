@@ -5826,6 +5826,7 @@ fn sidebar_parts_are_escaped_for_all_payloads() {
                 describedby: Some(payload),
                 ..Default::default()
             },
+            None,
             vec![("data-testid", payload)],
             vec![text(payload)],
         ));

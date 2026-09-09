@@ -53,34 +53,43 @@
 //!
 //! headless [`fandhe_frontend_headless_ui::sidebar::menu_button`] はテキスト
 //! を `span` で包まない（`children` をそのまま流し込む）ため、本 recipe の
-//! [`menu_button`] 関数（本ファイル）が headless へ渡す前に `children`
-//! （アイコン + ラベル）を装飾用の無印 `<span>`（`data-part`/`data-scope` を
-//! 持たない、headless anatomy 外の pre-styled-ui 専用要素。headless 側の
-//! anatomy 変更を伴わないため下記「スコープ外」節の判断と矛盾しない）で
-//! 1 段包む。`data-collapsible="icon"` かつ折りたたみ時・長いラベルの
-//! どちらも、`menu-button` 本体ではなくこのラッパー側の `overflow: hidden` +
-//! `white-space: nowrap` + `min-width: 0`（[`stylesheet`] 内
-//! `SIDEBAR_MENU_BUTTON_LABEL_SELECTOR` 規則）で視覚的に切り落とす（イシュー
-//! #2073 レビュー〔codex-review P1・Cursor Bugbot Medium〕対応。旧実装は
-//! `menu-button` 自身へ `overflow: hidden`/`clip-path` を適用しており、
-//! ボタン本体の背景・クリック領域・`:focus-visible` の outline まで一緒に
-//! 失われる regression があった）。アイコンを `children` の最初の要素に置く
-//! 呼び出し規約を前提とする。`justify-content: center` は使わない
+//! [`menu_button`] 関数（本ファイル）が headless へ渡す前に、装飾用アイコン
+//! （`icon` 引数）とラベル（`children`）をそれぞれ装飾用の無印 `<span>`
+//! （`data-part`/`data-scope` を持たない、headless anatomy 外の
+//! pre-styled-ui 専用要素。headless 側の anatomy 変更を伴わないため下記
+//! 「スコープ外」節の判断と矛盾しない）で包む。`data-collapsible="icon"`
+//! かつ折りたたみ時・長いラベルのどちらも、`menu-button` 本体ではなくこの
+//! ラッパー側の `overflow: hidden` + `white-space: nowrap` +
+//! `min-width: 0`（[`stylesheet`] 内 `SIDEBAR_MENU_BUTTON_LABEL_SELECTOR`
+//! 規則）で視覚的に切り落とす（イシュー #2073 レビュー〔codex-review P1・
+//! Cursor Bugbot Medium〕対応。旧実装は `menu-button` 自身へ
+//! `overflow: hidden`/`clip-path` を適用しており、ボタン本体の背景・
+//! クリック領域・`:focus-visible` の outline まで一緒に失われる
+//! regression があった）。装飾用アイコンは `children` の先頭要素という
+//! 位置規約ではなく [`menu_button`] の専用 `icon: Option<Node>` 引数として
+//! 明示的に渡す（PR #2245 Cursor Bugbot Medium 指摘対応。詳細は
+//! [`menu_button`] の rustdoc 参照）。`justify-content: center` は使わない
 //! （codex-review P1 指摘、[`stylesheet`] 内コメント参照）: ラッパー内で
-//! children 全体をまとめて中央寄せすると、ラベルが長い場合にアイコン自体が
-//! ラッパーの `overflow: hidden` の外側へ押し出されて切れてしまう。
+//! アイコン + ラベルをまとめて中央寄せすると、ラベルが長い場合にアイコン
+//! 自体がラッパーの `overflow: hidden` の外側へ押し出されて切れてしまう。
 //!
 //! icon 折りたたみ時（`data-collapsible="icon"` かつ `data-state=
 //! "collapsed"`）のラベル非表示は、上記の外側ラッパー `overflow: hidden`
 //! だけには依存しない。折りたたみ幅（2rem）から icon 幅 + `gap` を引いた
 //! 端数がラッパー内に残るため、`overflow: hidden` のみではラベル先頭の
 //! 文字が可視のまま残ってしまう（PR #2245 codex-review P1 再指摘、
-//! discussion_r3966298361）。このため [`menu_button`] はアイコン以降の
-//! children（ラベルテキスト等）をさらに内側ラッパー
-//! `<span data-fandhe-sidebar-menu-button-label>` へ集約し、icon 折りたたみ時は
-//! [`stylesheet`] の raw CSS がこの内側ラッパーを `display: none` で
-//! 個別に非表示にする。外側ラッパーの `overflow: hidden` は非折りたたみ時
-//! （展開状態）の長いラベルのクリップ専用として維持する。
+//! discussion_r3966298361）。このため [`menu_button`] は `children`
+//! （ラベルテキスト等、非空なら `icon` の有無を問わず常に）を内側ラッパー
+//! `<span data-fandhe-sidebar-menu-button-label>` へ集約し、icon 折りたたみ
+//! 時は [`stylesheet`] の raw CSS がこの内側ラッパーを個別に視覚的
+//! 非表示化する。`display: none` ではなく
+//! [`crate::visually_hidden::clip_declarations`] の clip 手法を用いる
+//! （PR #2245 codex-review P1 再指摘）: `menu-button` 本体（`a`/`button`）の
+//! アクセシブルネームはこの内側ラッパーのテキストに由来するため、
+//! `display: none` で支援技術からも除外すると icon 折りたたみ後にリンク・
+//! ボタンが無名の操作要素になる（WCAG 4.1.2 違反）。外側ラッパーの
+//! `overflow: hidden` は非折りたたみ時（展開状態）の長いラベルのクリップ
+//! 専用として維持する。
 //!
 //! # モバイル + collapsed の詳細度調整（幅を固定し `transform` のみで開閉する）
 //!
@@ -211,13 +220,27 @@ const SIDEBAR_MENU_BUTTON_LABEL_SELECTOR: &str =
 /// 自身が生成する属性であり、呼び出し側からの偽装は起きない）。
 ///
 /// icon 折りたたみ時（`ICON_COLLAPSED`）にこのマーカーを持つ内側
-/// ラッパーだけを `display: none` で個別に非表示にする（[`stylesheet`]
-/// 内の該当 `push` 呼び出し参照）。外側ラッパー
+/// ラッパーだけを個別に視覚的非表示化する（[`stylesheet`] 内の該当
+/// `push` 呼び出し参照）。外側ラッパー
 /// （`SIDEBAR_MENU_BUTTON_LABEL_SELECTOR`）の `overflow: hidden` のみに
 /// 依存すると、外側ラッパーの残り幅（icon 幅 + `gap` を引いた端数、
 /// 例: `Sm` アイコン幅 1rem + `gap` 0.5rem を 2rem のボタン幅から引いた
 /// 残り 0.5rem）にラベル先頭の文字が可視のまま残ってしまう
 /// （codex-review P1 指摘、PR #2245 discussion_r3966298361）。
+///
+/// 個別非表示の実装手段は `display: none` ではなく
+/// [`crate::visually_hidden::clip_declarations`]（[`crate::skip_nav`] とも
+/// 共有する単一情報源の clip 手法）を用いる（PR #2245 codex-review P1
+/// 再指摘）: `menu_button` の呼び出し規約上、装飾用アイコン
+/// （[`crate::icon`] の既定出力は `aria-hidden="true"`）が children の
+/// 先頭に置かれ、headless
+/// [`fandhe_frontend_headless_ui::sidebar::menu_button`] 自身もラベルを
+/// 補完しないケースでは、`menu-button` 本体（`a`/`button`）のアクセシブル
+/// ネームはこの内側ラッパーのテキストのみに由来する。`display: none` は
+/// 要素をアクセシビリティツリーから除外しアクセシブルネーム計算の対象外に
+/// するため、icon 折りたたみ時にリンク・ボタンが無名の操作要素になる
+/// （WCAG 4.1.2 Name, Role, Value 違反）。clip 手法は DOM 上に要素を残し
+/// 支援技術からの読み上げ対象に含めたまま、視覚的にのみ 1px 四方へ縮小する。
 const SIDEBAR_MENU_BUTTON_LABEL_MARKER_ATTR: &str = "data-fandhe-sidebar-menu-button-label";
 
 /// この styled Sidebar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
@@ -920,15 +943,27 @@ pub fn stylesheet() -> String {
     // 幅 1rem + `gap` 0.5rem = 1.5rem を 2rem から引いた残り 0.5rem に
     // ラベルの先頭文字が表示される実例が報告された）、[`menu_button`]
     // （本ファイル）がラベル以降の children を包む内側ラッパー
-    // （`SIDEBAR_MENU_BUTTON_LABEL_MARKER_ATTR` を持つ `<span>`）を
-    // `display: none` で個別に非表示にする。ボタン本体
-    // （背景・クリック領域・`:focus-visible` の outline）とアイコン
-    // （内側ラッパーの外、外側ラッパーの直下）は対象外のため維持される。
+    // （`SIDEBAR_MENU_BUTTON_LABEL_MARKER_ATTR` を持つ `<span>`）を個別に
+    // 非表示にする。ボタン本体（背景・クリック領域・`:focus-visible` の
+    // outline）とアイコン（内側ラッパーの外、外側ラッパーの直下）は対象外の
+    // ため維持される。
+    //
+    // `display: none` ではなく [`crate::visually_hidden::clip_declarations`]
+    // （[`crate::skip_nav`] とも共有する単一情報源の視覚的非表示手法）を使う
+    // （PR #2245 codex-review P1 再指摘）: `menu_button` の呼び出し規約
+    // （装飾アイコンを children 先頭・[`crate::icon`] の既定出力は
+    // `aria-hidden="true"`）では、`menu-button` 本体（`a`/`button`）の
+    // アクセシブルネームはこの内側ラッパーのテキストに由来する。
+    // `display: none` は要素をアクセシビリティツリーから除外し
+    // アクセシブルネーム計算の対象外にしてしまうため、icon 折りたたみ後は
+    // リンク・ボタンが無名の操作要素になる（WCAG 4.1.2 Name, Role, Value
+    // 違反）。clip 手法は DOM 上に要素を残し支援技術からの読み上げ対象に
+    // 含めたまま、視覚的にのみ 1px 四方へ縮小する。
     push(
         &format!(
             "{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-button\"] > span > span[{SIDEBAR_MENU_BUTTON_LABEL_MARKER_ATTR}]"
         ),
-        &[decl("display", "none")],
+        &crate::visually_hidden::clip_declarations(),
     );
 
     // `menu-action`/`menu-badge` の併用時のオフセット分離（codex-review P2
@@ -1431,49 +1466,52 @@ pub fn menu_item<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
     fandhe_frontend_headless_ui::sidebar::menu_item(drop_class_attr(attrs), children)
 }
 
-/// styled `menu-button` パーツを組み立てる。アイコンを `children` の最初の
-/// 要素に置く呼び出し規約を前提とする（モジュール doc「icon 折りたたみ時の
-/// テキスト非表示」節参照）。
+/// styled `menu-button` パーツを組み立てる。装飾用アイコンは `children` の
+/// 先頭要素という位置規約ではなく、専用の `icon` 引数として明示的に渡す
+/// （PR #2245 Cursor Bugbot Medium 指摘対応。旧実装の位置規約は `children`
+/// が 1 要素以下＝「アイコン単体、またはアイコンなしの単一要素」を区別
+/// できず、アイコンなしテキストのみの呼び出し（`crates/docs-site/src/
+/// primitive_showcase/navigation.rs` の実例のように `vec![text("Dashboard")]`
+/// を渡す、ごくありふれた構成）では内側ラッパーが作られず、icon 折りたたみ
+/// 時にラベル文字が残留する不具合＝本関数が解消しようとしていた問題自体が
+/// 再発していた）。
 ///
-/// `children`（アイコン + ラベル）は headless
-/// [`fandhe_frontend_headless_ui::sidebar::menu_button`] へ渡す前に、本関数が
-/// 装飾用の無印 `<span>`（`data-part`/`data-scope` を持たない、headless
-/// anatomy 外の pre-styled-ui 専用ラッパー。`docs/policy/
+/// `icon`（`Some` のとき）はそのまま外側ラッパーの直下へ残し、`children`
+/// （ラベルテキスト等）は非空であれば必ず内側ラッパー `<span
+/// data-fandhe-sidebar-menu-button-label>` へ集約してから headless
+/// [`fandhe_frontend_headless_ui::sidebar::menu_button`] へ渡す（`icon` の
+/// 有無に関わらず一貫した規則。モジュール doc「icon 折りたたみ時のテキスト
+/// 非表示」節参照）。この内側ラッパーは [`stylesheet`] の raw CSS が icon
+/// 折りたたみ時に個別に視覚的非表示化する。外側ラッパー・内側ラッパーは
+/// いずれも装飾用の無印 `<span>`（`data-part`/`data-scope` を持たない、
+/// headless anatomy 外の pre-styled-ui 専用要素。`docs/policy/
 /// intentional-non-adoption.md` §3.25 規則 2「装飾・レイアウト計測は Themes
-/// 層の責務」に従う）で 1 段包む。headless anatomy 自体は変更しない
-/// （headless 側でラベルを `span` 化する改善はモジュール doc「スコープ外」
-/// 節のとおり別イシュー）。この 1 段ラップにより、長いラベルの視覚的な
-/// クリップ（[`stylesheet`] 内コメント「長いラベルをガターの手前で
-/// クリップする」節）を `menu-button` 本体ではなくラッパー側に限定でき、
-/// ボタンの背景・クリック領域・`:focus-visible` の outline を一切損なわない
-/// （イシュー #2073 レビュー〔codex-review P1・Cursor Bugbot Medium〕対応）。
+/// 層の責務」に従う）であり、headless anatomy 自体は変更しない（headless
+/// 側でラベルを `span` 化する改善はモジュール doc「スコープ外」節のとおり
+/// 別イシュー）。この 2 段ラップにより、長いラベルの視覚的なクリップ
+/// （[`stylesheet`] 内コメント「長いラベルをガターの手前でクリップする」
+/// 節）を `menu-button` 本体ではなくラッパー側に限定でき、ボタンの背景・
+/// クリック領域・`:focus-visible` の outline を一切損なわない（イシュー
+/// #2073 レビュー〔codex-review P1・Cursor Bugbot Medium〕対応）。
 #[must_use]
 pub fn menu_button<'a>(
     props: &SidebarMenuButtonProps<'a>,
+    icon: Option<Node>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    // 呼び出し規約（アイコンを children の最初の要素に置く、モジュール doc
-    // 「icon 折りたたみ時のテキスト非表示・長いラベルのクリップ」節参照）に
-    // 従い、先頭要素（アイコン）はそのまま外側ラッパーの直下に残し、残りの
-    // 要素（ラベルテキスト等）だけを内側ラッパー `<span
-    // data-fandhe-sidebar-menu-button-label>` へ集約する。icon 折りたたみ
-    // 時はこの内側ラッパーを [`stylesheet`] の raw CSS が `display: none`
-    // で個別に非表示にし、外側ラッパーの残り幅にラベル先頭の文字が
-    // 可視のまま残る不具合（codex-review P1 指摘）を防ぐ。children が
-    // 1 要素以下（アイコン単体、またはアイコンなしの単一要素）の場合は
-    // 内側ラッパーを作らない（隠すべき「ラベル以降の要素」が無いため）。
-    let mut children_iter = children.into_iter();
     let mut wrapper_children: Vec<Node> = Vec::new();
-    if let Some(icon) = children_iter.next() {
+    if let Some(icon) = icon {
         wrapper_children.push(icon);
     }
-    let label_children: Vec<Node> = children_iter.collect();
-    if !label_children.is_empty() {
+    // `children`（ラベルテキスト等）が非空なら `icon` の有無を問わず必ず
+    // 内側ラッパーへ集約する（上記 rustdoc「位置規約ではなく明示引数」節
+    // 参照。アイコンなし単一テキストの呼び出しでも取りこぼさない）。
+    if !children.is_empty() {
         wrapper_children.push(el(
             "span",
             vec![(SIDEBAR_MENU_BUTTON_LABEL_MARKER_ATTR, "")],
-            label_children,
+            children,
         ));
     }
     let wrapped = vec![el("span", vec![], wrapper_children)];
@@ -1697,6 +1735,7 @@ mod tests {
 
         let html = render(&menu_button(
             &SidebarMenuButtonProps::default(),
+            None,
             vec![],
             vec![],
         ));
@@ -1769,6 +1808,7 @@ mod tests {
                                                 vec![
                                                     menu_button(
                                                         &SidebarMenuButtonProps::default(),
+                                                        None,
                                                         vec![("class", "evil")],
                                                         vec![],
                                                     ),
