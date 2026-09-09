@@ -505,6 +505,20 @@ Data Display / Utilities 12・6 グループ**合計 68→69**であり、§6 �
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。
 
+**追記(イシュー #2108)**: shadcn/ui のみに存在する `bubble`（Bubble、
+参照軸 #2001）を Data Display / Utilities カテゴリへ `avatar` の直後
+（`carousel` の前）に追加する。headless-ui 層のみを先行実装し
+pre-styled-ui recipe・Themes ページは後続 #2109 のスコープのため、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）へ `bubble` を追加した。現在の実カテゴリ内訳は
+Data Display / Utilities 13・6 グループ**合計 69→70**であり、§6 のコード
+導出は**部品 70 件**（headless-ui `crates/headless-ui/src/*.rs` 総数
+**80** = 部品 70 + 基盤 9 + `lib.rs`）との一致は
+`crates/docs-site/tests/primitives_catalog.rs::catalog_has_70_entries_in_six_categories_in_spec_order`
+/ `module_counts_are_consistent_with_the_source_tree` が機械検査する
+（本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
+正とする）。
+
 ## 8. `component-coverage-map.md` との関係
 
 `docs/design/component-coverage-map.md` は ark-ui / chakra-ui / Radix の

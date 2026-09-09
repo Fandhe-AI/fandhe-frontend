@@ -26,6 +26,7 @@
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{escape_html, render, text};
+use fandhe_frontend_headless_ui::bubble::{self, BubbleRootProps};
 use fandhe_frontend_headless_ui::calendar;
 use fandhe_frontend_headless_ui::command;
 use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
@@ -39,14 +40,15 @@ use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::sidebar::{
     self, Sidebar, SidebarMenuButtonProps, SidebarMenuSubButtonProps, SidebarProps, SidebarState,
 };
+use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, button_group, carousel, clipboard, color_picker,
     data_state, date_input, dialog, download_trigger, editable, floating_panel, hover_card,
     image_cropper, input_group, listbox, number_input, password_input, pin_input, popover,
     rating_group, segment_group, signature_pad, slider, splitter, tags_input, timer, toast,
-    tree_view, Calendar, DatePicker, ImageStatus, InputGroupAlign, InputGroupProps, OpenState,
-    Orientation, PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus, Tour,
+    tree_view, Calendar, DatePicker, ImageStatus, InputGroupAlign, InputGroupProps, Orientation,
+    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -2498,6 +2500,100 @@ fn message_root_avatar_header_content_footer_group_are_escaped_for_all_payloads(
             payload,
             &html,
             "message::group の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+#[test]
+fn bubble_root_content_reactions_reaction_collapse_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_attrs_node = bubble::root(
+            BubbleRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::root の呼び出し側 attrs/children コンテキスト",
+        );
+
+        let content_node = bubble::content(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::content の attrs/children コンテキスト",
+        );
+
+        let reactions_label_node = bubble::reactions(payload, vec![], vec![]);
+        let html = render(&reactions_label_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::reactions の aria-label コンテキスト",
+        );
+
+        let reactions_attrs_node = bubble::reactions("", vec![("data-testid", payload)], vec![]);
+        let html = render(&reactions_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::reactions の呼び出し側 attrs コンテキスト",
+        );
+
+        let reaction_node =
+            bubble::reaction(true, vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&reaction_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::reaction の attrs/children コンテキスト",
+        );
+
+        let collapse_trigger_controls_node =
+            bubble::collapse_trigger(OpenState::Closed, Some(payload), vec![], vec![]);
+        let html = render(&collapse_trigger_controls_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::collapse_trigger の controls (aria-controls) コンテキスト",
+        );
+
+        let collapse_trigger_attrs_node = bubble::collapse_trigger(
+            OpenState::Closed,
+            None,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&collapse_trigger_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::collapse_trigger の attrs/children コンテキスト",
+        );
+
+        let collapse_content_id_node =
+            bubble::collapse_content(OpenState::Open, Some(payload), vec![], vec![]);
+        let html = render(&collapse_content_id_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::collapse_content の id コンテキスト",
+        );
+
+        let collapse_content_attrs_node = bubble::collapse_content(
+            OpenState::Open,
+            None,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&collapse_content_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bubble::collapse_content の attrs/children コンテキスト",
         );
     }
 }
