@@ -26,6 +26,7 @@
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{escape_html, render, text};
+use fandhe_frontend_headless_ui::attachment::{self, AttachmentRootProps};
 use fandhe_frontend_headless_ui::bubble::{self, BubbleRootProps};
 use fandhe_frontend_headless_ui::calendar;
 use fandhe_frontend_headless_ui::command;
@@ -2594,6 +2595,93 @@ fn bubble_root_content_reactions_reaction_collapse_are_escaped_for_all_payloads(
             payload,
             &html,
             "bubble::collapse_content の attrs/children コンテキスト",
+        );
+    }
+}
+
+#[test]
+fn attachment_root_media_content_name_meta_progress_actions_action_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_attrs_node = attachment::root(
+            AttachmentRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "attachment::root の呼び出し側 attrs/children コンテキスト",
+        );
+
+        let media_node = attachment::media(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&media_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "attachment::media の attrs/children コンテキスト",
+        );
+
+        let content_node = attachment::content(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "attachment::content の attrs/children コンテキスト",
+        );
+
+        let name_node = attachment::name(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&name_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "attachment::name の attrs/children コンテキスト",
+        );
+
+        let meta_node = attachment::meta(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&meta_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "attachment::meta の attrs/children コンテキスト",
+        );
+
+        let progress_node =
+            attachment::progress(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&progress_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "attachment::progress の attrs/children コンテキスト",
+        );
+
+        let actions_node = attachment::actions(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&actions_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "attachment::actions の attrs/children コンテキスト",
+        );
+
+        let action_label_node = attachment::action(payload, false, vec![], vec![]);
+        let html = render(&action_label_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "attachment::action の label (aria-label) コンテキスト",
+        );
+
+        let action_attrs_node = attachment::action(
+            "",
+            false,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&action_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "attachment::action の attrs/children コンテキスト",
         );
     }
 }

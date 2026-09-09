@@ -1,11 +1,13 @@
-//! Primitives Demo — Data Display / Utilities（13 件、原稿は #1029。
-//! イシュー #2108 で `bubble` 追加、旧 12。イシュー #2105 で `message`
+//! Primitives Demo — Data Display / Utilities（14 件、原稿は #1029。
+//! イシュー #2111 で `attachment` 追加、旧 13。イシュー #2108 で `bubble`
+//! 追加、旧 12。イシュー #2105 で `message`
 //! 追加、旧 11。イシュー #2065 で `item`
 //! 追加、旧 10）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
 use fandhe_frontend_core::{button, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
+use hui::attachment::{self, AttachmentRootProps, AttachmentState, AttachmentVariant};
 use hui::avatar::{self, ImageStatus};
 use hui::bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant};
 use hui::data_attrs::Orientation;
@@ -14,6 +16,7 @@ use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
 use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use hui::positioning::{Align, Placement, Side};
+use hui::progress::Progress;
 use hui::scroll_area;
 use hui::skip_nav;
 use hui::splitter;
@@ -24,6 +27,112 @@ use hui::visually_hidden;
 use hui::OpenState;
 
 use super::demo_page;
+
+/// variant 2 値（file/image）× state 3 値（idle/uploading/error）×
+/// disabled あり/なしを複数の `root` で網羅し、`media`/`content`
+/// （`name`/`meta`）/`progress`（`Progress` の root/track/range を入れ子）/
+/// `actions` > `action`（有効/disabled）も描画する（デモ執筆規約 2「全
+/// anatomy パートを可能な限り全網羅する」・Anatomy/`data-*` 表の機械導出元、
+/// `crates/headless-ui/src/attachment.rs` モジュール doc参照）。
+pub(super) fn attachment_section() -> Node {
+    let file_idle = attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Idle,
+            disabled: false,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("📄")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("report.pdf")]),
+                    attachment::meta(vec![], vec![text("PDF · 128 KB")]),
+                ],
+            ),
+            attachment::actions(
+                vec![],
+                vec![attachment::action(
+                    "Delete report.pdf",
+                    false,
+                    vec![],
+                    vec![text("✕")],
+                )],
+            ),
+        ],
+    );
+
+    let image_uploading = {
+        let progress = Progress::new(0.0, 100.0, Some(64.0), Orientation::Horizontal);
+        attachment::root(
+            AttachmentRootProps {
+                variant: AttachmentVariant::Image,
+                state: AttachmentState::Uploading,
+                disabled: false,
+            },
+            vec![],
+            vec![
+                attachment::media(
+                    vec![],
+                    vec![fandhe_frontend_core::img(
+                        vec![
+                            ("src", crate::showcase::IMAGE_DEMO_SRC),
+                            ("alt", "photo.png のプレビュー"),
+                        ],
+                        vec![],
+                    )],
+                ),
+                attachment::content(
+                    vec![],
+                    vec![
+                        attachment::name(vec![], vec![text("photo.png")]),
+                        attachment::meta(vec![], vec![text("PNG · 2.4 MB · 64%")]),
+                    ],
+                ),
+                attachment::progress(
+                    vec![],
+                    vec![progress.root(
+                        Some("64%"),
+                        vec![],
+                        vec![progress.track(vec![], vec![progress.range(vec![], vec![])])],
+                    )],
+                ),
+            ],
+        )
+    };
+
+    let error_disabled = attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Error,
+            disabled: true,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("📄")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("archive.zip")]),
+                    attachment::meta(vec![], vec![text("Upload failed")]),
+                ],
+            ),
+            attachment::actions(
+                vec![],
+                vec![attachment::action(
+                    "Retry archive.zip",
+                    true,
+                    vec![],
+                    vec![text("↻")],
+                )],
+            ),
+        ],
+    );
+
+    let body = vec![file_idle, image_uploading, error_disabled];
+    demo_page("Attachment", body)
+}
 
 pub(super) fn avatar_section() -> Node {
     // Loaded インスタンス: 実在アセット（`crate::showcase::IMAGE_DEMO_SRC`）を
