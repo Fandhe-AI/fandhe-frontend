@@ -404,6 +404,15 @@ mod wiring {
         /// `focusout`/矢印キー移動が更新する（sticky セッションでは
         /// 未使用）。
         focus_active: bool,
+        /// `hover_active` が最後に指していた hit-area（codex-review P1 /
+        /// Bugbot 指摘: hover と focus が別の hit-area を指した状態で
+        /// 片方が非活性化しても、残っている方が指す対象へ表示を戻せる
+        /// よう、hover 由来の対象を個別に保持する。`hover_active` が
+        /// `false` の間は参照しない）。
+        hover_target: Option<Element>,
+        /// `focus_active` が最後に指していた hit-area（`hover_target` と
+        /// 対称。`focus_active` が `false` の間は参照しない）。
+        focus_target: Option<Element>,
         /// セッション開始時点の `data-active` 既定状態（閉鎖時に復元）。
         initial_active: Vec<(String, Option<String>)>,
         /// セッション開始時点の既定表示 tooltip（閉鎖時に復元）。
@@ -557,18 +566,63 @@ mod wiring {
                 sticky: matches!(trigger, Trigger::Touch),
                 hover_active: matches!(trigger, Trigger::Pointer),
                 focus_active: matches!(trigger, Trigger::Keyboard),
+                hover_target: matches!(trigger, Trigger::Pointer).then(|| hit_area.clone()),
+                focus_target: matches!(trigger, Trigger::Keyboard).then(|| hit_area.clone()),
                 initial_active,
                 initial_visible_tooltip,
             });
         } else if let Some(session) = handle.borrow_mut().as_mut() {
             match trigger {
                 Trigger::Touch => session.sticky = true,
-                Trigger::Pointer => session.hover_active = true,
-                Trigger::Keyboard => session.focus_active = true,
+                Trigger::Pointer => {
+                    session.hover_active = true;
+                    session.hover_target = Some(hit_area.clone());
+                }
+                Trigger::Keyboard => {
+                    session.focus_active = true;
+                    session.focus_target = Some(hit_area.clone());
+                }
             }
         }
 
         apply_highlight(&layer, &svg, hit_area, client_x, client_y);
+    }
+
+    /// hover/focus の一方が非活性化してもセッションが開いたまま残る場合
+    /// （[`should_close_session`] が `false` を返した場合）に呼ぶ。残って
+    /// いる入力（`hover_active` を優先、無ければ `focus_active`）が指す
+    /// 対象（[`Session::hover_target`]/[`Session::focus_target`]）へ
+    /// tooltip・強調表示・位置を再適用する（codex-review P1 / Bugbot
+    /// 指摘: 非活性化した側の対象が data-active/tooltip に残留し、残る
+    /// 入力側の対象へ表示が戻らない不具合の是正。位置は各対象の hit-area
+    /// 自身の座標から求める `hit_area_client_anchor` を使う。ポインタの
+    /// 最新クライアント座標は保持していないため、hover 側の再適用でも
+    /// 同じ関数で hit-area 基準の位置に揃える）。
+    fn reapply_active_target(handle: &SessionHandle) {
+        let target = {
+            let guard = handle.borrow();
+            let Some(session) = guard.as_ref() else {
+                return;
+            };
+            if session.hover_active {
+                session.hover_target.clone()
+            } else if session.focus_active {
+                session.focus_target.clone()
+            } else {
+                None
+            }
+        };
+        let Some(target) = target else {
+            return;
+        };
+        let Some(svg) = svg_of(&target) else {
+            return;
+        };
+        let Some(layer) = layer_of(&svg) else {
+            return;
+        };
+        let (client_x, client_y) = hit_area_client_anchor(&target);
+        apply_highlight(&layer, &svg, &target, client_x, client_y);
     }
 
     /// hover が非活性化した（`pointermove`/`pointerout`/`pointercancel`
@@ -576,7 +630,9 @@ mod wiring {
     /// `hover_active` を `false` に落とし、focus も非活性なら
     /// [`should_close_session`] に従いセッションを閉じる（codex/Bugbot
     /// 指摘: pointer と focus は独立した「開いたままにする理由」であり、
-    /// 片方の消失だけで閉じてはならない）。
+    /// 片方の消失だけで閉じてはならない）。セッションが開いたまま残る
+    /// 場合は、残っている focus 側の対象へ表示を戻す
+    /// （[`reapply_active_target`]、codex-review P1 / Bugbot 指摘）。
     fn deactivate_hover(handle: &SessionHandle) {
         let should_close = {
             let mut guard = handle.borrow_mut();
@@ -588,6 +644,8 @@ mod wiring {
         };
         if should_close {
             close_session(handle);
+        } else {
+            reapply_active_target(handle);
         }
     }
 
@@ -803,9 +861,11 @@ mod wiring {
             .and_then(|element| closest_hit_area(root, element))
             .is_some();
         if !still_within {
+            let mut had_session = false;
             let should_close = {
                 let mut guard = handle.borrow_mut();
                 if let Some(session) = guard.as_mut() {
+                    had_session = true;
                     session.focus_active = false;
                     should_close_session(session.hover_active, session.focus_active)
                 } else {
@@ -814,6 +874,10 @@ mod wiring {
             };
             if should_close {
                 close_session(handle);
+            } else if had_session {
+                // 残っている hover 側の対象へ表示を戻す（`deactivate_hover`
+                // と対称、codex-review P1 / Bugbot 指摘）。
+                reapply_active_target(handle);
             }
         }
     }

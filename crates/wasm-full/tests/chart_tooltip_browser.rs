@@ -794,3 +794,71 @@ async fn touch_sticky_session_discarded_after_svg_replacement_then_pointermove_r
     );
     assert!(hit0_v2.has_attribute("data-active"));
 }
+
+#[wasm_bindgen_test]
+fn hover_exit_while_focus_holds_a_different_target_restores_focus_tooltip() {
+    // codex-review P1 / Cursor Bugbot 指摘（イシュー #2130 PR #2267）の
+    // 回帰テスト: hit-area 0 をキーボードフォーカスしたまま hit-area 1 へ
+    // ポインタを移し、その後ポインタが svg 外へ抜けると、hover 非活性化
+    // （`deactivate_hover`）後もセッション自体は focus_active により
+    // 維持される（`should_close_session`）。この状態で tooltip/
+    // data-active が最後にホバーしていた hit-area 1 に残留せず、残って
+    // いる入力（focus）が指す hit-area 0 側へ戻ることを検証する
+    // （`reapply_active_target`）。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-test-hover-focus-mismatch");
+    let _guard = RemoveOnDrop(container.clone());
+    bar_like_markup("chart-test-hover-focus-mismatch");
+    wire_chart_events(container.clone()).expect("wire_chart_events must succeed");
+
+    let hit0 = query(&container, "[data-part=\"hit-area\"][data-index=\"0\"]").expect("hit-area 0");
+    let hit1 = query(&container, "[data-part=\"hit-area\"][data-index=\"1\"]").expect("hit-area 1");
+    let svg = query(&container, "svg").expect("svg");
+    let tooltip0 =
+        query(&container, "[data-part=\"tooltip\"][data-index=\"0\"]").expect("tooltip 0");
+    let tooltip1 =
+        query(&container, "[data-part=\"tooltip\"][data-index=\"1\"]").expect("tooltip 1");
+
+    // hit-area 0 をキーボードフォーカスする。
+    hit0.dispatch_event(focus_event("focusin", None).as_ref())
+        .expect("dispatch_event must not fail");
+    assert!(!tooltip0.has_attribute("hidden"));
+    assert!(hit0.has_attribute("data-active"));
+
+    // 同一チャートの hit-area 1 へポインタを移す（hover が hit-area 1 を
+    // 指す状態になる。focus は hit-area 0 のまま）。
+    dispatch_pointer(hit1.unchecked_ref(), "pointermove", "mouse", 5.0, 5.0);
+    assert!(!tooltip1.has_attribute("hidden"));
+    assert!(hit1.has_attribute("data-active"));
+
+    // ポインタが svg 外（container 直下）へ抜ける。hover は非活性化
+    // されるが focus が活性のためセッションは閉じない
+    // （`pointerout_outside_svg_closes_and_restores_initial_active` と
+    // 同型の `related_target` 付き `MouseEvent` として発火する。
+    // `handle_pointerout` は `event.dyn_ref::<MouseEvent>()` のみを見る
+    // ため `PointerEvent` である必要はない）。
+    let init = web_sys::MouseEventInit::new();
+    init.set_bubbles(true);
+    init.set_related_target(Some(container.unchecked_ref::<EventTarget>()));
+    let leave = web_sys::MouseEvent::new_with_mouse_event_init_dict("pointerout", &init)
+        .expect("MouseEvent::new must not fail");
+    svg.dispatch_event(leave.as_ref())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        !tooltip0.has_attribute("hidden"),
+        "残っている focus 側（hit-area 0）の tooltip が再表示されるはずである"
+    );
+    assert!(
+        tooltip1.has_attribute("hidden"),
+        "非活性化した hover 側（hit-area 1）の tooltip は隠れるはずである"
+    );
+    assert!(
+        hit0.has_attribute("data-active"),
+        "残っている focus 側（hit-area 0）の強調表示が復帰するはずである"
+    );
+    assert!(
+        !hit1.has_attribute("data-active"),
+        "非活性化した hover 側（hit-area 1）の強調表示は外れるはずである"
+    );
+}
