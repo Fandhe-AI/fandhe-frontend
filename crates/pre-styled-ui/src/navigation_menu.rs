@@ -460,7 +460,14 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "indicator",
-            transition_declarations("transform, width", MotionDuration::Fast),
+            // horizontal/vertical 両 orientation の可変プロパティ（`width`/`height`）
+            // をあらかじめ揃えて宣言する。各 orientation では該当しない側は
+            // 固定値のままのためトランジション対象に含めても無害であり、
+            // `.state` 側で orientation ごとに transition-property を
+            // 出し分ける必要をなくす（Bugbot 指摘: 縦方向の
+            // `--fandhe-navigation-menu-indicator-height` 書き込みが
+            // イージングされずスナップしていた不具合の修正）。
+            transition_declarations("transform, width, height", MotionDuration::Fast),
         )
         // イシュー #2187: vertical orientation では上下方向にスライドする
         // 縦バーへ切り替える（`top`/`left` を起点、`height`/`width` を
