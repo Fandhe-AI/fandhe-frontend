@@ -34,6 +34,7 @@
 
 use fandhe_frontend_core::{el, escape_html, render, text};
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertProps};
+use fandhe_frontend_pre_styled_ui::area_chart::{area_chart, AreaChartProps, AreaFill, AreaStack};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
@@ -5171,6 +5172,66 @@ fn charts_scatter_and_radar_are_escaped_for_all_payloads() {
             "radar_chart::root の aria_label 属性値コンテキスト",
         );
     }
+}
+
+/// (25a) AreaChart 経路（イシュー #2081、shadcn/ui Charts（area）突合）:
+/// `aria_label`・呼び出し側 `attrs`・軸ラベル経路（カテゴリ名、
+/// `show_x_axis` 有効時）の全ペイロードで既定エスケープが貫通することを
+/// 固定する。`stack`/`fill: AreaFill::Gradient` を有効にした構成でも
+/// 崩れないことをあわせて確認する（gradient の `<linearGradient>` は
+/// `SeriesColor` 固定形の `stop-color` のみを埋め込む契約、
+/// `crate::area_chart` モジュール doc「gradient の不変条件」参照）。
+#[test]
+fn area_chart_is_escaped_for_all_payloads() {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string()],
+        vec![Series::new("visits", vec![1.0, 2.0])],
+    )
+    .unwrap();
+
+    for payload in payloads::all() {
+        let html = render(&area_chart(&AreaChartProps::new(&data, payload), vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "area_chart aria_label 属性値コンテキスト");
+
+        let html = render(
+            &area_chart(
+                &AreaChartProps::new(&data, "attrs"),
+                vec![("data-testid", payload)],
+            )
+            .unwrap(),
+        );
+        assert_payload_is_escaped(payload, &html, "area_chart 呼び出し側 attrs コンテキスト");
+
+        // カテゴリ名（軸ラベル経路、show_x_axis 有効時のみ描画される）。
+        let payload_data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let mut axis_props = AreaChartProps::new(&payload_data, "axis-label");
+        axis_props.show_x_axis = true;
+        let html = render(&area_chart(&axis_props, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "area_chart X 軸カテゴリラベルコンテキスト");
+    }
+
+    // stack + gradient を有効にした構成でも既定エスケープが崩れないことを
+    // 確認する（gradient defs の `<defs>`/`<linearGradient>`/`<stop>` は
+    // すべて `el()` 経由でありユーザー入力を埋め込まない契約）。
+    let payload = "\"><script>alert(1)</script>";
+    let stacked_data = ChartData::new(
+        vec![payload.to_string(), "b".to_string()],
+        vec![
+            Series::new("a", vec![1.0, 2.0]),
+            Series::new("b", vec![1.0, 2.0]),
+        ],
+    )
+    .unwrap();
+    let mut stacked_props = AreaChartProps::new(&stacked_data, payload);
+    stacked_props.stack = AreaStack::Normal;
+    stacked_props.fill = AreaFill::Gradient;
+    stacked_props.show_x_axis = true;
+    let html = render(&area_chart(&stacked_props, vec![]).unwrap());
+    assert_payload_is_escaped(payload, &html, "area_chart stack+gradient 合成コンテキスト");
 }
 
 /// (26) charts BarChart/BarList/BarSegment 経路（イシュー #849、親 Phase #845）:

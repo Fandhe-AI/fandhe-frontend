@@ -21,6 +21,9 @@
 //!   任意で保持し、[`legend`]・line/area/bar/radar の各消費者が
 //!   [`ChartData::series_color_var`]/[`data::Series::display_label`] を
 //!   経由して共有する。
+//! - [`curve`]: 曲線補間ジオメトリ（natural spline / step、イシュー
+//!   #2081）。[`crate::area_chart`] の `AreaCurve::Natural`/`AreaCurve::Step`
+//!   バリアントが消費する純関数。
 //! - [`scale`]: 線形スケール（domain → range 写像）・1-2-5 nice tick 算出。
 //! - [`svg`]: SVG ノード木生成ヘルパー（`viewBox`・座標文字列化・`path` の
 //!   `d` 属性組み立て）。後続チャート部品はここを経由してのみ SVG を組み立てる。
@@ -66,6 +69,7 @@ pub mod axis;
 pub mod bar_chart;
 pub mod bar_list;
 pub mod bar_segment;
+pub mod curve;
 pub mod data;
 pub mod grid;
 pub mod legend;
@@ -123,6 +127,13 @@ pub enum ChartError {
     /// 実描画領域までは検証しないため、放置するとバー/ポリゴンが潰れる、
     /// または viewBox 外に無警告で描画される silent failure になる。
     PlotAreaTooSmall,
+    /// [`crate::area_chart::AreaChartProps::gradient_id`] が
+    /// `is_valid_identifier`（英小文字始まり、以降英数小文字/ハイフン）を
+    /// 満たさない（イシュー #2081）。1 ページに複数チャートを置く場合の
+    /// `<linearGradient id>` 一意化を呼び出し側の責務とするための
+    /// fail-closed 検証（`crate::area_chart` モジュール doc「gradient の
+    /// 不変条件」参照）。
+    InvalidGradientId,
 }
 
 impl std::fmt::Display for ChartError {
@@ -139,6 +150,9 @@ impl std::fmt::Display for ChartError {
             ChartError::TooFewAxes => "radar chart requires at least 3 axes",
             ChartError::PlotAreaTooSmall => {
                 "width/height must leave a positive plot area after reserving label space"
+            }
+            ChartError::InvalidGradientId => {
+                "gradient id must be a lowercase identifier ([a-z][a-z0-9-]*)"
             }
         };
         write!(f, "{message}")
@@ -219,6 +233,7 @@ mod tests {
             ChartError::ZeroTotal,
             ChartError::TooFewAxes,
             ChartError::PlotAreaTooSmall,
+            ChartError::InvalidGradientId,
         ] {
             let message = err.to_string();
             assert!(!message.is_empty());
