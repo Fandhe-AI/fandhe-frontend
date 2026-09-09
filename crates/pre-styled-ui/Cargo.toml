@@ -1,5 +1,9 @@
 [package]
 name = "fandhe-frontend-pre-styled-ui"
+# イシュー #2187: navigation-menu にルートレベル indicator パーツの CSS 変数
+# 契約付き着装（SLOTS 純追加・root への position:relative 1 宣言・indicator
+# の base/state 宣言）を追加した。既存パーツの出力バイトは変更していない
+# ため非破壊的な追加として patch バンプする。
 # イシュー #1422: DEFAULT_COLORS へ 26 色トークンを追加し Theme::default() の
 # 公開 CSS 契約を拡張した。利用者が同名（`accent-subtle` / `focus-ring` 等）で
 # 独自に `push_color()` していた場合、今後 `ThemeError::DuplicateTokenName` を
@@ -2746,7 +2750,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # `BarChartProps`/`RadarChartProps`/`ScatterChartProps` は `String`/
 # `Vec<String>` フィールド追加に伴い `Copy` を外した（0.x の破壊的変更）
 # ためマイナーバンプする。
+#
+# origin/main 側 base 取り込み時点の到達値は 0.166.0（イシュー #2112 の
+# 実体変更を伴うマイナーバンプ、詳細は同節参照）だったが、本ブランチの
+# 0.167.0 が既にこれを上回るため、追加バンプ不要で 0.167.0 をそのまま
+# 採用する。
 version = "0.167.0"
+
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2761,7 +2771,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.9" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.10" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
