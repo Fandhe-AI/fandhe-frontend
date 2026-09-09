@@ -725,6 +725,13 @@ fn recipe() -> SlotRecipe {
 ///    〔`root` に対する絶対配置で `root` のボーダーボックス外へはみ出す
 ///    開閉トグル〕がクリップされ再展開不能になるため、`root` ではなく
 ///    `header`/`footer` パーツへ個別に付与する）。
+/// 6. `menu-action`/`menu-badge` 併用時のオフセット分離（兄弟結合子 2 本）
+///    と `menu-button` 終了側余白の 2 パーツ分拡張（`:has()` 併用の子
+///    結合子。codex-review P2 指摘対応）。
+/// 7. `rail` hover ラインの物理端/RTL/side 反転 3 規則（子結合子セレクタの
+///    ため [`SlotRecipe::state`] の `Hover` を経由できず、`@media
+///    (hover: hover)` 集約 + `:not([data-disabled])` を raw CSS 側で
+///    手動併記する。Cursor Bugbot Low 指摘対応）。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();
@@ -778,6 +785,48 @@ pub fn stylesheet() -> String {
             decl("padding", "0"),
             decl("width", "2rem"),
         ],
+    );
+
+    // `menu-action`/`menu-badge` の併用時のオフセット分離（codex-review P2
+    // 指摘「アクションとバッジを併用すると表示が重なる」対応）。両パーツは
+    // `menu_action_base`/`menu_badge_base` でそれぞれ独立に
+    // `inset-inline-end: var(--fandhe-space-2)` の絶対配置を持ち、
+    // `menu-item` に両方を同時に配置すると同一位置（右端・垂直中央）へ
+    // 重なる。`SlotRecipe` は兄弟結合子を表現できないため（モジュール doc
+    // 参照）raw CSS で分離する。呼び出し規約（本ファイルのテスト・
+    // `crates/docs-site/src/primitive_showcase/navigation.rs` の実例が示す
+    // `menu-button` → `menu-action` → `menu-badge` の DOM 順）に対応する
+    // 一般兄弟結合子（`~`）を使い、後方のパーツを前方のパーツ 1 個分
+    // （幅 1.25rem + 隙間 `--fandhe-space-1`）だけ内側へ押し出す。順序を
+    // 入れ替えて呼び出された場合（`menu-badge` が先・`menu-action` が後）
+    // でも重ならないよう、両方向のセレクタを併記する。
+    push(
+        r#"[data-scope="sidebar"][data-part="menu-action"] ~ [data-scope="sidebar"][data-part="menu-badge"]"#,
+        &[decl(
+            "inset-inline-end",
+            "calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1))",
+        )],
+    );
+    push(
+        r#"[data-scope="sidebar"][data-part="menu-badge"] ~ [data-scope="sidebar"][data-part="menu-action"]"#,
+        &[decl(
+            "inset-inline-end",
+            "calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1))",
+        )],
+    );
+    // `menu-button` の終了側余白（`menu_button_base` の
+    // `padding-inline-end`）は 1 パーツ分のみを見込んでいるため、
+    // `menu-action`/`menu-badge` を併用する `menu-item` では 2 パーツ分の
+    // 余白へ拡張し、長いラベルが分離後のバッジ/アクションとも重ならない
+    // ようにする（codex-review P2 指摘「menu-button の終了側余白も両方の
+    // 幅に合わせる」対応）。`:has()` は本クレートで先例のある標準機能
+    // （`crate::list` 参照）であり、両パーツの共存を子結合子越しに検知する。
+    push(
+        r#"[data-scope="sidebar"][data-part="menu-item"]:has(> [data-scope="sidebar"][data-part="menu-action"]):has(> [data-scope="sidebar"][data-part="menu-badge"]) > [data-scope="sidebar"][data-part="menu-button"]"#,
+        &[decl(
+            "padding-inline-end",
+            "calc(var(--fandhe-space-2) + 2 * 1.25rem + 2 * var(--fandhe-space-1))",
+        )],
     );
 
     // モバイル表示中は固定オーバーレイになる。`floating`/`inset` variant が
@@ -972,36 +1021,43 @@ pub fn stylesheet() -> String {
     // では物理左端）が `root` との継ぎ目になる場合にのみ正しい。以下は
     // それ以外の 3 通り（継ぎ目が物理右端になる場合）を上書きする。
     //
-    // `data-side="right"` の `root` では `rail` が `root` の inline-start
-    // 側（上記位置反転規則）にドッキングし、`rail` の inline-end 端が
-    // 継ぎ目になる。LTR では inline-end = 物理右端のため、ヒントは
-    // `rail` の右端（`inset -2px 0 0`）に出す必要がある。
-    push(
-        r#"[data-scope="sidebar"][data-part="root"][data-side="right"] > [data-scope="sidebar"][data-part="rail"]:hover"#,
-        &[decl(
-            "box-shadow",
+    // 子結合子セレクタのため `SlotRecipe::state` の `Hover`
+    // （`@media (hover: hover)` 集約 + `:not([data-disabled])`、イシュー
+    // #1425）を経由できず raw CSS で書く必要があるが、この 3 規則も同じ
+    // hover 規約に従わせる（Cursor Bugbot Low 再指摘対応）。タッチ端末は
+    // `hover: hover` に一致しないため `@media` で括らないと、タップ後も
+    // `:hover` 状態が貼り付いたまま `side="right"`/RTL レールの
+    // indicator が残留する。`:not([data-disabled])` も基本規則と揃え、
+    // `rail` に `data-disabled` を持たせた場合は無効化する。実際の
+    // `@media` ブロック合成は `push` クロージャの可変借用が関数末尾まで
+    // 生存するため（後続の header/footer クリップ規則が `push` を再利用
+    // する）、`out` への直接書き込みを関数末尾（`push` の最終利用後）へ
+    // 先送りする（下記 `rail_hover_media` 参照）。
+    const RAIL_HOVER_OVERRIDES: [(&str, &str); 3] = [
+        (
+            // `data-side="right"` の `root` では `rail` が `root` の
+            // inline-start 側（上記位置反転規則）にドッキングし、`rail`
+            // の inline-end 端が継ぎ目になる。LTR では inline-end = 物理
+            // 右端のため、ヒントは `rail` の右端（`inset -2px 0 0`）に
+            // 出す必要がある。
+            r#"[data-scope="sidebar"][data-part="root"][data-side="right"] > [data-scope="sidebar"][data-part="rail"]:hover:not([data-disabled])"#,
             "inset -2px 0 0 var(--fandhe-color-sidebar-border)",
-        )],
-    );
-    // 既定 side（`data-side` 未指定）+ RTL: inline-start = 物理右端のため、
-    // 継ぎ目は `rail` の物理右端に移る。
-    push(
-        r#"[data-scope="sidebar"][data-part="root"] > [data-scope="sidebar"][data-part="rail"]:hover:dir(rtl)"#,
-        &[decl(
-            "box-shadow",
+        ),
+        (
+            // 既定 side（`data-side` 未指定）+ RTL: inline-start = 物理
+            // 右端のため、継ぎ目は `rail` の物理右端に移る。
+            r#"[data-scope="sidebar"][data-part="root"] > [data-scope="sidebar"][data-part="rail"]:hover:not([data-disabled]):dir(rtl)"#,
             "inset -2px 0 0 var(--fandhe-color-sidebar-border)",
-        )],
-    );
-    // `data-side="right"` + RTL: inline-end = 物理左端のため、継ぎ目は
-    // `rail` の物理左端に戻る（属性 7 個相当で上記 2 規則より詳細度が
-    // 高く、`data-side="right"` かつ RTL の場合に確実に優先する）。
-    push(
-        r#"[data-scope="sidebar"][data-part="root"][data-side="right"] > [data-scope="sidebar"][data-part="rail"]:hover:dir(rtl)"#,
-        &[decl(
-            "box-shadow",
+        ),
+        (
+            // `data-side="right"` + RTL: inline-end = 物理左端のため、
+            // 継ぎ目は `rail` の物理左端に戻る（属性 7 個相当で上記 2
+            // 規則より詳細度が高く、`data-side="right"` かつ RTL の場合
+            // に確実に優先する）。
+            r#"[data-scope="sidebar"][data-part="root"][data-side="right"] > [data-scope="sidebar"][data-part="rail"]:hover:not([data-disabled]):dir(rtl)"#,
             "inset 2px 0 0 var(--fandhe-color-sidebar-border)",
-        )],
-    );
+        ),
+    ];
 
     // icon 折りたたみ時の `header`/`footer` テキストクリップ。`root` は
     // `position: relative` の基準要素であり、`rail`（`position: absolute`
@@ -1023,6 +1079,35 @@ pub fn stylesheet() -> String {
         &format!("{ICON_COLLAPSED} > [data-scope=\"sidebar\"][data-part=\"footer\"]"),
         &[decl("overflow-x", "hidden")],
     );
+
+    // `RAIL_HOVER_OVERRIDES`（上記「`rail` hover ラインの物理端/RTL/side
+    // 反転」節）を `@media (hover: hover)` 配下へ集約して追記する。`push`
+    // クロージャは `out` を可変借用したままここまで生存するため（直前まで
+    // 呼び出しが続く）、この 1 箇所へ集約することで `out` への直接書き込み
+    // と `push` の可変借用が同時に競合しないようにする。
+    let mut rail_hover_media = String::new();
+    for (selector, box_shadow) in RAIL_HOVER_OVERRIDES {
+        if let Some(rule) = serialize_rule(selector, &[decl("box-shadow", box_shadow)]) {
+            rail_hover_media.push_str(&rule);
+            rail_hover_media.push('\n');
+        }
+    }
+    if !rail_hover_media.is_empty() {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str("@media (hover: hover) {\n");
+        for line in rail_hover_media.trim_end_matches('\n').lines() {
+            if line.is_empty() {
+                out.push('\n');
+            } else {
+                out.push_str("  ");
+                out.push_str(line);
+                out.push('\n');
+            }
+        }
+        out.push_str("}\n");
+    }
 
     out
 }

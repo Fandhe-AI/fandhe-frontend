@@ -409,6 +409,18 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   width: 2rem;
 }
 
+[data-scope=\"sidebar\"][data-part=\"menu-action\"] ~ [data-scope=\"sidebar\"][data-part=\"menu-badge\"] {
+  inset-inline-end: calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1));
+}
+
+[data-scope=\"sidebar\"][data-part=\"menu-badge\"] ~ [data-scope=\"sidebar\"][data-part=\"menu-action\"] {
+  inset-inline-end: calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1));
+}
+
+[data-scope=\"sidebar\"][data-part=\"menu-item\"]:has(> [data-scope=\"sidebar\"][data-part=\"menu-action\"]):has(> [data-scope=\"sidebar\"][data-part=\"menu-badge\"]) > [data-scope=\"sidebar\"][data-part=\"menu-button\"] {
+  padding-inline-end: calc(var(--fandhe-space-2) + 2 * 1.25rem + 2 * var(--fandhe-space-1));
+}
+
 [data-scope=\"sidebar\"][data-part=\"root\"][data-mobile]:not([data-collapsible=\"none\"]) {
   position: fixed;
   inset-block: 0;
@@ -488,24 +500,26 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   inset-inline-start: -1rem;
 }
 
-[data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"] > [data-scope=\"sidebar\"][data-part=\"rail\"]:hover {
-  box-shadow: inset -2px 0 0 var(--fandhe-color-sidebar-border);
-}
-
-[data-scope=\"sidebar\"][data-part=\"root\"] > [data-scope=\"sidebar\"][data-part=\"rail\"]:hover:dir(rtl) {
-  box-shadow: inset -2px 0 0 var(--fandhe-color-sidebar-border);
-}
-
-[data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"] > [data-scope=\"sidebar\"][data-part=\"rail\"]:hover:dir(rtl) {
-  box-shadow: inset 2px 0 0 var(--fandhe-color-sidebar-border);
-}
-
 [data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] > [data-scope=\"sidebar\"][data-part=\"header\"] {
   overflow-x: hidden;
 }
 
 [data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] > [data-scope=\"sidebar\"][data-part=\"footer\"] {
   overflow-x: hidden;
+}
+
+@media (hover: hover) {
+  [data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"] > [data-scope=\"sidebar\"][data-part=\"rail\"]:hover:not([data-disabled]) {
+    box-shadow: inset -2px 0 0 var(--fandhe-color-sidebar-border);
+  }
+
+  [data-scope=\"sidebar\"][data-part=\"root\"] > [data-scope=\"sidebar\"][data-part=\"rail\"]:hover:not([data-disabled]):dir(rtl) {
+    box-shadow: inset -2px 0 0 var(--fandhe-color-sidebar-border);
+  }
+
+  [data-scope=\"sidebar\"][data-part=\"root\"][data-side=\"right\"] > [data-scope=\"sidebar\"][data-part=\"rail\"]:hover:not([data-disabled]):dir(rtl) {
+    box-shadow: inset 2px 0 0 var(--fandhe-color-sidebar-border);
+  }
 }
 ";
 

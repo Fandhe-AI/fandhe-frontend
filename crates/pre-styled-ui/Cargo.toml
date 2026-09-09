@@ -2604,7 +2604,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # （headless-ui 0.68.6 依存追随に伴う patch バンプ）で 0.153.1 → 0.153.2 へ
 # 到達済み。本ブランチの 0.154.0 は main の 0.153.2 より新しいため、
 # バージョン据え置きのまま維持する。
-version = "0.154.0"
+version = "0.155.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
