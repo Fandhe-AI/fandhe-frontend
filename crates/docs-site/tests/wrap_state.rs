@@ -624,8 +624,11 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// した `attachment` が一時的に本リストへ加わっていたが、イシュー #2112 で
 /// pre-styled-ui 側（`crates/pre-styled-ui/src/attachment.rs`・
 /// `/themes/attachment/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため本
-/// リストから除外した。本リストは現在空である。
-const HEADLESS_UNWRAPPED: &[&str] = &[];
+/// リストから除外した。イシュー #2114 で同様に headless-ui 層のみを実装
+/// した `marker` が加わった。後続イシュー #2115 で pre-styled-ui 側
+/// （`crates/pre-styled-ui/src/marker.rs`・`/themes/marker/`）を新設した
+/// 時点で `WRAPPED_SAME_NAME` へ移り本リストから除外する予定。
+const HEADLESS_UNWRAPPED: &[&str] = &["marker"];
 
 /// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
 /// まだ持たない部品（イシュー #2073 で `sidebar` を一時的に載せた暫定
