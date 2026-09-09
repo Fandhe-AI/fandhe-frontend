@@ -77,6 +77,10 @@ pub enum PieChartError {
     /// [`donut_chart`](crate::donut_chart) の `inner_ratio` が
     /// `0.0 < ratio < 1.0` の範囲外、または非有限。
     InvalidInnerRatio,
+    /// [`donut_chart`](crate::donut_chart) の `active_index`
+    /// （イシュー #2084、shadcn `chart-pie-donut-active` 突合）が
+    /// カテゴリ数以上（範囲外）。
+    InvalidActiveIndex,
 }
 
 impl std::fmt::Display for PieChartError {
@@ -90,6 +94,7 @@ impl std::fmt::Display for PieChartError {
             PieChartError::InvalidInnerRatio => {
                 "inner_ratio must be finite and within 0.0 < ratio < 1.0"
             }
+            PieChartError::InvalidActiveIndex => "active_index must be less than category count",
         };
         write!(f, "{message}")
     }
@@ -382,6 +387,109 @@ fn full_circle_path(cx: f64, cy: f64, r: f64) -> String {
         .build()
 }
 
+/// 中間角 `mid_angle` が円の右半分（`cos(mid_angle) >= 0`）にあるかを
+/// 判定する純関数（イシュー #2084、shadcn `chart-pie-label` の外側ラベル・
+/// 引き出し線の左右分岐に使う。角度規約はモジュール doc「角度規約」節）。
+#[must_use]
+pub fn is_right_half(mid_angle: f64) -> bool {
+    mid_angle.cos() >= 0.0
+}
+
+/// 外側ラベル用の引き出し線（shadcn `chart-pie-label` の
+/// `Sector`→折れ線→ラベルの表現、イシュー #2084）の `d` 属性値を組み立てる。
+///
+/// `M 外周点 → L 放射方向へ radial_len 伸ばした点 → L 水平方向へ
+/// horizontal_len 伸ばした点`（[`PathBuilder`] 経由、`fmt_coord` 以外の
+/// 文字列化を持ち込まない）。水平方向の符号は [`is_right_half`] で決まる
+/// （右半分は `+x`、左半分は `-x`）。
+#[must_use]
+pub fn leader_line_path(
+    cx: f64,
+    cy: f64,
+    r: f64,
+    mid_angle: f64,
+    radial_len: f64,
+    horizontal_len: f64,
+) -> String {
+    let (x0, y0) = point_on_circle(cx, cy, r, mid_angle);
+    let (x1, y1) = point_on_circle(cx, cy, r + radial_len, mid_angle);
+    let x2 = if is_right_half(mid_angle) {
+        x1 + horizontal_len
+    } else {
+        x1 - horizontal_len
+    };
+    PathBuilder::new()
+        .move_to(x0, y0)
+        .line_to(x1, y1)
+        .line_to(x2, y1)
+        .build()
+}
+
+/// [`leader_line_path`] の引き出し線終端から `gap` だけ外側（[`is_right_half`]
+/// の符号方向）へ寄せたラベル座標を返す（イシュー #2084）。
+#[must_use]
+pub fn outside_label_point(
+    cx: f64,
+    cy: f64,
+    r: f64,
+    mid_angle: f64,
+    radial_len: f64,
+    horizontal_len: f64,
+    gap: f64,
+) -> (f64, f64) {
+    let (x1, y1) = point_on_circle(cx, cy, r + radial_len, mid_angle);
+    let x2 = if is_right_half(mid_angle) {
+        x1 + horizontal_len + gap
+    } else {
+        x1 - horizontal_len - gap
+    };
+    (x2, y1)
+}
+
+/// [`PieLabelPosition::Outside`](crate::pie_chart::PieLabelPosition::Outside)
+/// 使用時の外径を、実際に描画される外側ラベル文字列（カテゴリ名、または
+/// `label_content = Value` 時は値の文字列）の推定表示幅を考慮して縮小する
+/// （`pie_chart`/`donut_chart` 共通、イシュー #2084 レビュー指摘。当初は
+/// 呼び出し側がカテゴリ名の文字数のみを渡しており `label_content = Value`
+/// 表示時に値の桁数を考慮できていなかった、PR #2257 レビュー指摘で
+/// 呼び出し側を修正）。
+///
+/// 固定径（`OUTSIDE_LABEL_OUTER_RADIUS`）のみで [`outside_label_point`] の
+/// 座標を決めると、[`leader_line_path`] の水平区間 + `gap` の余白しか
+/// viewBox 端との間に確保されず、通常長のラベル文字列（例: "Chrome"）でも
+/// テキストが viewBox 外へはみ出す（等しい値の 2 カテゴリで x=95.5/4.5 と
+/// なり残り余白が 4.5 しかない実測が動機）。テキスト幅は SVG 実レンダリング
+/// 結果に依存し本クレート（外部依存ゼロ）では計測できないため、
+/// [`crate::charts::bar_chart`] の `AVG_LABEL_CHAR_WIDTH` 近似と同じ設計
+/// （固定 font-size に対する等幅想定の 1 文字あたり近似幅）を踏襲し、
+/// 実際に描画されるラベル文字列の最大文字数から必要な水平余白を逆算して
+/// 外径を縮小する（`max_label_len` は呼び出し側が `label_content` に応じて
+/// カテゴリ名または値の表示文字列から算出する）。
+///
+/// 返り値は `min_outer_radius..=max_outer_radius` にクランプする
+/// （`min_outer_radius` は退化しない下限を呼び出し側が指定する。
+/// 極端に長いラベル文字列では下限クランプにより余白が不足しはみ出しうる
+/// 既知の限界であり、`bar_chart::horizontal_label_margin` の
+/// `.max(LABEL_MARGIN)` と同種のトレードオフ）。
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn outside_label_effective_outer_radius(
+    center_x: f64,
+    view_box_width: f64,
+    max_outer_radius: f64,
+    min_outer_radius: f64,
+    radial_len: f64,
+    horizontal_len: f64,
+    gap: f64,
+    avg_char_width: f64,
+    max_label_len: usize,
+) -> f64 {
+    let text_reserve = max_label_len as f64 * avg_char_width;
+    let available_half_width =
+        (view_box_width - center_x) - radial_len - horizontal_len - gap - text_reserve;
+    available_half_width.clamp(min_outer_radius, max_outer_radius)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -586,5 +694,98 @@ mod tests {
                 || c == ','
                 || matches!(c, 'M' | 'L' | 'Z' | 'A')
         })
+    }
+
+    #[test]
+    fn is_right_half_true_at_zero_and_false_at_pi() {
+        assert!(is_right_half(0.0));
+        assert!(!is_right_half(PI));
+    }
+
+    #[test]
+    fn is_right_half_true_straight_up_by_convention() {
+        // mid = -pi/2（真上）は cos(mid) == 0 のため境界。`>= 0.0` の判定
+        // により右半分側（true）へ倒れることを固定する。
+        assert!(is_right_half(-FRAC_PI_2));
+    }
+
+    #[test]
+    fn leader_line_path_is_deterministic_and_closed_charset() {
+        let a = leader_line_path(50.0, 50.0, 34.0, 0.0, 6.0, 8.0);
+        let b = leader_line_path(50.0, 50.0, 34.0, 0.0, 6.0, 8.0);
+        assert_eq!(a, b);
+        assert!(is_closed_path_charset(&a), "d={a}");
+        assert_eq!(a.matches('L').count(), 2);
+        assert!(!a.contains('A'));
+    }
+
+    #[test]
+    fn leader_line_path_horizontal_direction_follows_half() {
+        // 右半分（mid=0）は x が増加方向、左半分（mid=PI）は減少方向へ
+        // 水平セグメントが伸びる。
+        let right = leader_line_path(50.0, 50.0, 34.0, 0.0, 6.0, 8.0);
+        let left = leader_line_path(50.0, 50.0, 34.0, PI, 6.0, 8.0);
+        assert!(right.contains("L98"), "right={right}");
+        assert!(left.contains("L2,"), "left={left}");
+    }
+
+    #[test]
+    fn outside_label_point_extends_beyond_leader_line_end() {
+        let (x_no_gap, y_no_gap) = outside_label_point(50.0, 50.0, 34.0, 0.0, 6.0, 8.0, 0.0);
+        let (x_gap, _) = outside_label_point(50.0, 50.0, 34.0, 0.0, 6.0, 8.0, 2.0);
+        assert!(x_gap > x_no_gap);
+        assert_eq!(y_no_gap, 50.0);
+    }
+
+    #[test]
+    fn outside_label_effective_outer_radius_shrinks_for_longer_category_names() {
+        // カテゴリ名が長いほど縮小幅が大きく（半径が小さく）なること。
+        let short =
+            outside_label_effective_outer_radius(50.0, 100.0, 34.0, 15.0, 4.0, 6.0, 1.5, 3.0, 1);
+        let long =
+            outside_label_effective_outer_radius(50.0, 100.0, 34.0, 15.0, 4.0, 6.0, 1.5, 3.0, 6);
+        assert!(long < short);
+    }
+
+    #[test]
+    fn outside_label_effective_outer_radius_leaves_text_width_margin_within_view_box() {
+        // pie_chart/donut_chart 実測値（イシュー #2084 レビュー指摘）: "Chrome"
+        // 相当（6 文字）のカテゴリ名でも、外側ラベルの起点から viewBox 端
+        // までの余白が推定文字幅以上確保されること。
+        let max_category_len = 6usize;
+        let avg_char_width = 3.0;
+        let r = outside_label_effective_outer_radius(
+            50.0,
+            100.0,
+            34.0,
+            15.0,
+            4.0,
+            6.0,
+            1.5,
+            avg_char_width,
+            max_category_len,
+        );
+        let label_x = 50.0 + r + 4.0 + 6.0 + 1.5;
+        let margin_to_edge = 100.0 - label_x;
+        assert!(
+            margin_to_edge >= max_category_len as f64 * avg_char_width - 1e-9,
+            "margin_to_edge={margin_to_edge} は推定文字幅未満"
+        );
+    }
+
+    #[test]
+    fn outside_label_effective_outer_radius_clamps_to_min_for_extreme_length() {
+        // 極端に長いカテゴリ名では下限にクランプされ、上限を超えて拡大は
+        // しない（退化防止、モジュール doc 参照）。
+        let r =
+            outside_label_effective_outer_radius(50.0, 100.0, 34.0, 15.0, 4.0, 6.0, 1.5, 3.0, 100);
+        assert_eq!(r, 15.0);
+    }
+
+    #[test]
+    fn outside_label_effective_outer_radius_clamps_to_max_for_empty_category() {
+        let r =
+            outside_label_effective_outer_radius(50.0, 100.0, 34.0, 15.0, 4.0, 6.0, 1.5, 3.0, 0);
+        assert_eq!(r, 34.0);
     }
 }
