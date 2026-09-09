@@ -130,7 +130,7 @@ use std::f64::consts::PI;
 use super::data::ChartData;
 use super::scale::LinearScale;
 use super::svg::{self, svg_text, PathBuilder, ViewBox};
-use super::{series_color_var, ChartError};
+use super::ChartError;
 use crate::css::decl;
 use crate::recipe::SlotRecipe;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
@@ -411,7 +411,7 @@ pub fn root(
 
     // 系列ポリゴン。
     for (series_idx, series) in data.series().iter().enumerate() {
-        let color = series_color_var(series_idx);
+        let color = data.series_color_var(series_idx);
         let mut builder = PathBuilder::new();
         for (i, &value) in series.values.iter().enumerate() {
             let r = value_scale.scale(value);
@@ -627,6 +627,21 @@ mod tests {
         let a = render(&root(&data, RadarChartProps::default(), "label").unwrap());
         let b = render(&root(&data, RadarChartProps::default(), "label").unwrap());
         assert_eq!(a, b);
+    }
+
+    /// 系列の [`crate::charts::data::SeriesColor`] 上書き（イシュー #2077）が
+    /// ポリゴンの `stroke`/`fill` へ反映されることを固定する。
+    #[test]
+    fn root_reflects_series_color_override() {
+        let categories: Vec<String> = (0..3).map(|i| format!("axis{i}")).collect();
+        let data = ChartData::new(
+            categories,
+            vec![Series::new("s1", vec![10.0, 20.0, 30.0])
+                .with_color(crate::charts::SeriesColor::token("info").unwrap())],
+        )
+        .unwrap();
+        let html = render(&root(&data, RadarChartProps::default(), "label").unwrap());
+        assert!(html.contains("var(--fandhe-color-info)"));
     }
 
     #[test]

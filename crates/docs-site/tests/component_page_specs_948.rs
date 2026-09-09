@@ -49,10 +49,11 @@ fn specs_paths_are_registered_component_pages() {
     }
 }
 
-/// #948 の担当 28 ページがちょうど登録されていること（過不足の検知）。
+/// #948 の担当 29 ページ（イシュー #2080 で radial-chart を追加し
+/// 28 → 29）がちょうど登録されていること（過不足の検知）。
 /// 分割算術は実装計画 §2.1 参照。
 #[test]
-fn specs_registers_exactly_the_expected_28_paths() {
+fn specs_registers_exactly_the_expected_29_paths() {
     const EXPECTED: &[&str] = &[
         "/themes/blockquote/",
         "/themes/code/",
@@ -73,6 +74,7 @@ fn specs_registers_exactly_the_expected_28_paths() {
         "/themes/line-chart/",
         "/themes/pie-chart/",
         "/themes/radar-chart/",
+        "/themes/radial-chart/",
         "/themes/scatter-chart/",
         "/themes/sparkline/",
         "/themes/download-trigger/",
@@ -87,8 +89,8 @@ fn specs_registers_exactly_the_expected_28_paths() {
     let actual: BTreeSet<&str> = SPECS.iter().map(|(path, _)| *path).collect();
     assert_eq!(
         expected.len(),
-        28,
-        "EXPECTED fixture itself must list 28 unique paths"
+        29,
+        "EXPECTED fixture itself must list 29 unique paths"
     );
     assert_eq!(actual, expected);
 }

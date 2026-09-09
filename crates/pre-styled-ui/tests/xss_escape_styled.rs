@@ -84,6 +84,9 @@ use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind, PinInputProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::quote::quote;
+use fandhe_frontend_pre_styled_ui::radial_chart::{
+    radial_chart, RadialCenterText, RadialChartProps,
+};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::scroll_area;
@@ -1108,6 +1111,74 @@ fn item_parts_are_escaped_for_all_payloads() {
         // styled separator の呼び出し側 attrs 経路。
         let html = render(&item::separator(vec![("data-testid", payload)], vec![]));
         assert_payload_is_escaped(payload, &html, "item::separator attrs コンテキスト");
+    }
+}
+
+/// Message 経路（イシュー #2106）: 6 パーツいずれも見た目クラスを付与しない
+/// （`src/message.rs` モジュール doc「role / align / loading / error の
+/// 表現」節参照）ため、呼び出し側 `attrs`・`class`（[`drop_class_attr`]
+/// により除去）、`group` の `label`（`aria-label` エスケープ）、children
+/// の各経路で既定エスケープ（REQ-1）が貫通することを固定する。
+#[test]
+fn message_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::message::{self, MessageRootProps};
+
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&message::root(
+            MessageRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える）。
+        let html = render(&message::root(
+            MessageRootProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "message::root の class 属性に渡した生ペイロードが出力に残って\
+             いる: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled avatar/header/content/footer の呼び出し側 attrs・children
+        // 経路。
+        let html = render(&message::avatar(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::avatar attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "message::avatar children コンテキスト");
+
+        let html = render(&message::header(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::header attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "message::header children コンテキスト");
+
+        let html = render(&message::content(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::content attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "message::content children コンテキスト");
+
+        let html = render(&message::footer(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::footer attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "message::footer children コンテキスト");
+
+        // styled group の label（aria-label）経路。
+        let html = render(&message::group(payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "message::group label コンテキスト");
     }
 }
 
@@ -4919,6 +4990,106 @@ fn pie_and_donut_chart_are_escaped_for_all_payloads() {
             html.matches("class=\"").count(),
             1,
             "donut_chart の class 属性が複数出現している: html={html}"
+        );
+    }
+}
+
+/// styled RadialChart（イシュー #2079）の XSS 回帰。
+///
+/// 攻撃面: (1) カテゴリ名ラベル（`show_labels: true` の children テキスト
+/// 経路、`crate::radial_chart` モジュール doc「anatomy」節の `label`
+/// パーツ）。(2) `aria_label` プロパティ（`chart` の `aria-label` 属性値
+/// 経路）。(3) 呼び出し側 `attrs`（`root` への透過）。(4) 呼び出し側
+/// `attrs` の `class`（`drop_class_attr` による単一化）。(5)
+/// `center_text.value`/`center_text.label`（`center-value`/`center-label`
+/// children テキスト経路）。(6) `Series::name` → `data-series` 属性値
+/// 経路。
+///
+/// `d`/`fill` 属性は [`crate::charts::pie`]/[`crate::charts::svg::fmt_coord`]
+/// 経由の数値・固定リテラルのみで構成され任意文字列の混入経路を持たない
+/// ため（`radial_chart.rs` モジュール doc「セキュリティ不変条件」節）、
+/// 本テストの対象外とする。
+#[test]
+fn radial_chart_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let data = ChartData::new(
+            vec![payload.to_string(), "other".to_string()],
+            vec![Series::new(payload.to_string(), vec![60.0, 40.0])],
+        )
+        .unwrap();
+
+        // (1) カテゴリ名ラベル（children テキスト経路）。
+        let props = RadialChartProps {
+            show_labels: true,
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "radial_chart label children コンテキスト");
+
+        // (2) aria_label 属性値経路。
+        let props = RadialChartProps {
+            aria_label: Some(payload),
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "radial_chart aria_label 属性値コンテキスト");
+
+        // (3) 呼び出し側 attrs（root への透過）。
+        let html = render(
+            &radial_chart(
+                &RadialChartProps::default(),
+                &data,
+                vec![("data-testid", payload)],
+            )
+            .unwrap(),
+        );
+        assert_payload_is_escaped(payload, &html, "radial_chart 呼び出し側 attrs コンテキスト");
+
+        // (4) 呼び出し側 attrs の class（drop_class_attr による単一化）。
+        let html = render(
+            &radial_chart(
+                &RadialChartProps::default(),
+                &data,
+                vec![("class", payload)],
+            )
+            .unwrap(),
+        );
+        assert!(
+            !html.contains(payload),
+            "radial_chart の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "radial_chart の class 属性が複数出現している: html={html}"
+        );
+
+        // (5) center_text.value / center_text.label（children テキスト経路）。
+        let single_category = ChartData::new(
+            vec!["visitors".to_string()],
+            vec![Series::new("total", vec![100.0])],
+        )
+        .unwrap();
+        let props = RadialChartProps {
+            center_text: Some(RadialCenterText {
+                value: payload,
+                label: Some(payload),
+            }),
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &single_category, vec![]).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radial_chart center_text children コンテキスト",
+        );
+
+        // (6) Series::name → data-series 属性値経路。
+        let html = render(&radial_chart(&RadialChartProps::default(), &data, vec![]).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radial_chart data-series 属性値コンテキスト",
         );
     }
 }

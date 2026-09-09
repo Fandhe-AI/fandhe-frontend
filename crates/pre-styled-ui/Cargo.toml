@@ -2556,7 +2556,32 @@ name = "fandhe-frontend-pre-styled-ui"
 # を要求しない）、追加の再調整はせず 0.151.0 を維持する。依存先
 # `fandhe-frontend-headless-ui` の version 要求は本ブランチの 0.68.4 追随を
 # そのまま採用する（下記参照）。
-version = "0.151.0"
+#
+# イシュー #2077（Charts の系列設定: `Series` へ `label`/`color`/`icon` の
+# pub フィールドを純追加、`SeriesColor` を新設）: pub struct へのフィールド
+# 追加は構造体リテラル構築を壊す 0.x 破壊的変更のためマイナーバンプする
+# （`.claude/rules/coding-rust.md` の semver バンプ必須規約）。
+#
+# 0.152.0 → 0.152.1（イシュー #2105）: 依存先 `fandhe-frontend-headless-ui`
+# 0.68.4 → 0.68.5（`message` 新設、非破壊的追加）に伴う
+# `dep-version-check --fix` の `version = "..."` 追随バンプ（本クレート
+# 自身の recipe・golden・Themes ページ実装は後続イシュー #2106）。
+#
+# base 取り込み（本 PR、イシュー #2105）: main 側はイシュー #2079
+# （radial_chart.rs 新設、公開 API 純追加）で 0.152.1 → 0.153.0 へ
+# 既にバンプ済み。本ブランチの変更（上記 0.152.1 化）は main の
+# 0.153.0 より前のバージョンのため、同一版数衝突を避けるためさらに
+# 0.153.1 へバンプする。
+#
+# イシュー #2106: `message.rs` 新設（`crate::item` と同型の styled
+# Message。6 パーツの委譲層 + role/align/loading/error 状態規則、公開 API
+# 純追加）のためマイナーバンプする。
+#
+# base 取り込み（本 PR、イシュー #2106）: main 側はイシュー #2108
+# （headless-ui 0.68.6 依存追随に伴う patch バンプ）で 0.153.1 → 0.153.2 へ
+# 到達済み。本ブランチの 0.154.0 は main の 0.153.2 より新しいため、
+# バージョン据え置きのまま維持する。
+version = "0.154.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2571,7 +2596,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.4" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.6" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

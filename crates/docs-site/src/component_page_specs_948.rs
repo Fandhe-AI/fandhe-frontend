@@ -1,18 +1,18 @@
 //! イシュー #948（親 #928 Phase 4、トラッキング #924）が供給する部品ページ
 //! 原稿データ。Typography / Utilities / Charts 系と、本文が明示列挙した他
-//! カテゴリ 11 件を合わせた 28 ページ分の [`ComponentPageSpec`] を持つ
+//! カテゴリ 11 件を合わせた 29 ページ分の [`ComponentPageSpec`] を持つ
 //! （原稿分割はイシュー番号単位であり、`docs/design/docs-site-component-pages.md`
 //! §5 の IA カテゴリ単位ではない。33 ページの厳密な内訳・分割算術は
-//! 実装 PR 本文を参照）。
+//! 実装 PR 本文を参照。#2080 で `radial-chart` を追加し 28 → 29 ページ）。
 //!
-//! # 対象 28 ページ（`ComponentPageSpec` を登録するモード A）
+//! # 対象 29 ページ（`ComponentPageSpec` を登録するモード A）
 //!
 //! - Typography: `blockquote` `code` `em` `heading` `highlight` `kbd` `list`
 //!   `mark` `text`
 //! - Utilities: `visually-hidden`
 //! - Charts: `charts`（共通 API） `area-chart` `bar-chart` `bar-list`
 //!   `bar-segment` `donut-chart` `line-chart` `pie-chart` `radar-chart`
-//!   `scatter-chart` `sparkline`
+//!   `radial-chart`（#2080） `scatter-chart` `sparkline`
 //! - 他カテゴリ（Interactive/Forms/Data Display から本文明示分）:
 //!   `download-trigger` `qr-code` `timer` `color-picker` `calendar`
 //!   `date-picker` `date-input`
@@ -92,6 +92,9 @@ use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
+use fandhe_frontend_pre_styled_ui::radial_chart::{
+    radial_chart, RadialCenterText, RadialChartProps,
+};
 use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
 use fandhe_frontend_pre_styled_ui::text::{
     text as styled_text, TextProps, TextSize, TextVariant, TextWeight,
@@ -939,13 +942,23 @@ fn charts_overview_example() -> Node {
     use fandhe_frontend_pre_styled_ui::charts::grid::{self, GridProps};
     use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
     use fandhe_frontend_pre_styled_ui::charts::scale::LinearScale;
-    use fandhe_frontend_pre_styled_ui::charts::series_color_var;
     use fandhe_frontend_pre_styled_ui::charts::svg::{svg_root, ViewBox};
     use fandhe_frontend_pre_styled_ui::charts::tooltip;
 
+    // イシュー #2077: `Series::with_label`/`with_color`/`with_icon`
+    // （shadcn/ui `ChartConfig` 相当の系列設定）を実演する。凡例のマーカー
+    // 色・表示ラベルは以下の `with_*` 呼び出しのみで、tooltip/axis/grid の
+    // 呼び出しコードは変更していない（`ChartData::series_color_var` が
+    // 全消費者の色を一元的に解決するため）。
     let data = ChartData::new(
         vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
-        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])
+            .with_label("Monthly Visits")
+            .with_color(
+                fandhe_frontend_pre_styled_ui::charts::SeriesColor::token("success")
+                    .expect("\"success\" はトークン名の命名規則を満たす固定文字列"),
+            )
+            .with_icon(fandhe_frontend_core::text("★"))],
     )
     .expect("固定サンプルは常に有効");
     let (plot_left, plot_right) = (30.0, 190.0);
@@ -979,7 +992,10 @@ fn charts_overview_example() -> Node {
     // 描画され、ダーク背景の docs-site では不可視になるため、系列 1 の色
     // トークンを明示的に渡す（`charts::tooltip` モジュール doc の契約:
     // 呼び出し側は `fill` 等の見た目属性のみを渡す）。
-    let color = series_color_var(0);
+    // イシュー #2077: `series_color_var(0)`（固定循環）ではなく
+    // `data.series_color_var(0)` を使い、上記の `with_color` 上書きが
+    // ツールチップの `fill` にも一元的に反映されることを示す。
+    let color = data.series_color_var(0);
     for (i, &v) in data.series()[0].values.iter().enumerate() {
         let cx = plot_left + (i as f64 + 0.5) * band;
         let cy = y_scale.scale(v);
@@ -1008,7 +1024,8 @@ const CHARTS_SPEC: ComponentPageSpec = ComponentPageSpec {
         "外部依存ゼロの SVG ノード木生成ヘルパー群（軸・グリッド・凡例・ツールチップ）",
         "charts::axis / charts::grid / charts::legend / charts::tooltip の 4 サブモジュールで構成する",
         "マウス追従型のツールチップは持たず、ブラウザネイティブの <title> + aria-label によるホバー詳細表示のみ（JS 不要。hover 時は前景色ストロークで強調）",
-        "系列の各データ点は charts::series_color_var(index) の固定色循環で着色する",
+        "系列の各データ点は既定で charts::series_color_var(index) の固定色循環（6 段階、shadcn/ui の 5 段階を包含）で着色する",
+        "系列ごとに label / color / icon（shadcn/ui ChartConfig 相当）を Series::with_label / with_color / with_icon で個別に上書きできる。ChartData::series_color_var(index) が上書きの有無を一元的に解決し、凡例・line/area/bar/radar の全消費者が同じ値を共有する",
     ],
     arguments: &[
         ArgRow {
@@ -1027,7 +1044,7 @@ const CHARTS_SPEC: ComponentPageSpec = ComponentPageSpec {
             name: "legend::legend",
             kind: "fn(&ChartData, &LegendProps) -> Node",
             default: "",
-            description: "系列名の凡例を組み立てる（infallible）。",
+            description: "系列名の凡例を組み立てる（infallible）。label/icon 指定時はそれぞれ表示ラベル・マーカー代替アイコンを描画する。",
         },
         ArgRow {
             name: "tooltip::datum",
@@ -1035,10 +1052,28 @@ const CHARTS_SPEC: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "データ点（<circle>）+ <title> によるホバー詳細を組み立てる（infallible）。",
         },
+        ArgRow {
+            name: "Series::with_label / with_color / with_icon",
+            kind: "fn(self, ...) -> Series",
+            default: "",
+            description: "系列設定（shadcn/ui ChartConfig 相当）のビルダー。label は凡例の表示ラベル、color は系列色の上書き、icon は凡例マーカーの代替ノード。",
+        },
+        ArgRow {
+            name: "SeriesColor::token / chart_slot / palette",
+            kind: "fn(...) -> Result<SeriesColor, ThemeError>",
+            default: "",
+            description: "系列色の上書き値を組み立てる。token は任意の色トークン名、chart_slot は既定 6 色循環スロット（1..=6）、palette は ColorPalette から。",
+        },
+        ArgRow {
+            name: "ChartData::series_color_var",
+            kind: "fn(&self, usize) -> String",
+            default: "",
+            description: "系列 index の色（var(--fandhe-color-...)）を解決する。系列の SeriesColor 上書きがあればそれ、無ければ series_color_var(index) の 6 色循環。",
+        },
     ],
     examples: &[ExampleEntry {
-        title: "軸 + グリッド + ツールチップ + 凡例の合成",
-        description: "本ページ配下の各チャート部品が共通で使う基盤 API の最小合成例です。系列を結ぶ折れ線・棒等は LineChart/BarChart 等の個別部品ページを参照してください。",
+        title: "軸 + グリッド + ツールチップ + 凡例の合成（系列設定つき）",
+        description: "本ページ配下の各チャート部品が共通で使う基盤 API の最小合成例です。系列に with_label/with_color/with_icon を設定し、凡例・ツールチップが ChartData::series_color_var 経由で同じ色を共有することを示します。系列を結ぶ折れ線・棒等は LineChart/BarChart 等の個別部品ページを参照してください。",
         render: charts_overview_example,
     }],
     keyboard: &[],
@@ -1518,6 +1553,64 @@ const RADAR_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
+};
+
+fn radial_chart_example() -> Node {
+    let data = ChartData::new(
+        vec!["visitors".to_string()],
+        vec![
+            Series::new("desktop", vec![186.0]),
+            Series::new("mobile", vec![80.0]),
+        ],
+    )
+    .expect("固定サンプルは常に有効な ChartData を構築できる");
+    row(vec![radial_chart(
+        &RadialChartProps {
+            start_angle_deg: -90.0,
+            end_angle_deg: 90.0,
+            center_text: Some(RadialCenterText {
+                value: "266",
+                label: Some("visitors"),
+            }),
+            ..RadialChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("固定サンプルは常に描画に成功する")])
+}
+
+const RADIAL_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "ChartData（カテゴリ = リング、系列 = リング内セグメント）+ SVG ノード木生成ヘルパーのみで組み立てる外部依存ゼロの同心リング型グラフ",
+        "角度は度数法・12 時方向 0°・時計回り正の規約（start_angle_deg/end_angle_deg、既定 0〜360°）",
+        "track・labels・grid・center_text・corner_radius・stacked（複数系列の半円配置）の 6 バリアントに対応する",
+        "全周退化時は annulus_full_ring_path + fill-rule=\"evenodd\" へ切り替える（pie/donut と同じ規約）",
+        "弧に沿ったラベル回転は意図的に非対応（UI 部品の責務境界、装飾的なレイアウト計測は上層の責務としない）",
+    ],
+    arguments: &[
+        ArgRow { name: "size", kind: "Size", default: "Md", description: "寸法 variant（Xs〜Xl）。" },
+        ArgRow { name: "aria_label", kind: "Option<&str>", default: "None", description: "chart（svg）へ付与する aria-label。None なら \"radial chart\"。" },
+        ArgRow { name: "start_angle_deg", kind: "f64", default: "0.0", description: "開始角（度数法・12 時方向 0°・時計回り正）。" },
+        ArgRow { name: "end_angle_deg", kind: "f64", default: "360.0", description: "終了角（度数法）。" },
+        ArgRow { name: "inner_ratio", kind: "f64", default: "0.3", description: "外径に対する内径の比率（0.0 < ratio < 1.0）。" },
+        ArgRow { name: "corner_radius", kind: "f64", default: "0.0", description: "セグメント弧端の角丸半径（viewBox 単位、0.0 以上）。" },
+        ArgRow { name: "show_track", kind: "bool", default: "true", description: "各リングの全スイープ背景トラックを描画する。" },
+        ArgRow { name: "show_labels", kind: "bool", default: "false", description: "リング開始角の点にカテゴリ名ラベルを描画する。" },
+        ArgRow { name: "show_grid", kind: "bool", default: "false", description: "極座標グリッド（同心円 + 放射スポーク）を描画する。" },
+        ArgRow { name: "center_text", kind: "Option<RadialCenterText>", default: "None", description: "中央に描画する値・補足ラベル。" },
+    ],
+    examples: &[ExampleEntry {
+        title: "半円の stacked（複数系列）",
+        description: "desktop/mobile の 2 系列を単一カテゴリの半円リングへ積み上げます。",
+        render: radial_chart_example,
+    }],
+    keyboard: &[],
+    aria: &[AriaRow {
+        attribute: "role=\"img\" / aria-label",
+        description: "chart（svg）へ付与する。aria_label 未指定時は既定文言 \"radial chart\"。",
+    }],
     demo: None,
 };
 
@@ -2228,6 +2321,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/line-chart/", LINE_CHART_SPEC),
     ("/themes/pie-chart/", PIE_CHART_SPEC),
     ("/themes/radar-chart/", RADAR_CHART_SPEC),
+    ("/themes/radial-chart/", RADIAL_CHART_SPEC),
     ("/themes/scatter-chart/", SCATTER_CHART_SPEC),
     ("/themes/sparkline/", SPARKLINE_SPEC),
     ("/themes/download-trigger/", DOWNLOAD_TRIGGER_SPEC),

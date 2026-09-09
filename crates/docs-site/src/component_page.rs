@@ -237,6 +237,7 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
         crate::component_specs_nav_data::JSON_TREE_VIEW,
     ),
     ("/themes/item/", crate::component_specs_nav_data::ITEM),
+    ("/themes/message/", crate::component_specs_nav_data::MESSAGE),
     (
         "/themes/progress/",
         crate::component_specs_nav_data::PROGRESS,
@@ -346,7 +347,7 @@ const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
 /// Phase 4（#945〜#948）の各 issue はカテゴリ 1 個につき 1 テーブルを追加し、
 /// 本配列へ 1 行追記する想定（[`spec_for`] が全テーブルを線形探索するため、
 /// モジュール間の重複パスは想定しない）。イシュー #948（Typography /
-/// Utilities / Charts 系ほか 28 件）は他カテゴリと異なりイシュー番号ごとの
+/// Utilities / Charts 系ほか 29 件、#2080 で radial-chart 追加）は他カテゴリと異なりイシュー番号ごとの
 /// フラットな別モジュール（[`crate::component_page_specs_948`]）に
 /// `pub const SPECS` を持たせる方式を採ったため、ここでは他カテゴリの
 /// テーブルと同列に 1 要素として追記する。

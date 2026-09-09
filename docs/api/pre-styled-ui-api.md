@@ -11,18 +11,18 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 113 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 115 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
-#2070 で追加）+
+#2070、`message` はイシュー #2106 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。113 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。115 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
 操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
@@ -76,6 +76,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 静的フォーム部品 | `input_group`（§4f-3 参照。入力欄の前後 addon、軸なし） | [input-group](../../site/themes/input-group.md) |
 | headless ラッパー | `item`（§4f-4 参照。media + title/description + actions からなる汎用リスト行。`variant`/`size` は headless の `data-variant`/`data-size` を AttrEq 参照するのみで class ベース軸を持たない） | [item](../../site/themes/item.md) |
 | headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。10 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
+| headless ラッパー | `message`（§4f-6 参照。会話 1 発言。6 パーツ構成、軸なし。data-role/data-align/data-loading/data-error を AttrEq/Attr 参照するのみ） | [message](../../site/themes/message.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -135,6 +136,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | charts（HTML） | `charts::bar_list`（単一系列のランキング型バーリスト。バー幅は系列内最大値に対する比率（`--fandhe-bar-list-percent` custom property）。最大値 0 は全バー幅 0% を決定的に描画） | [bar-list](../../site/themes/bar-list.md) |
 | charts（HTML） | `charts::bar_segment`（単一系列の構成比 100% 積み上げバー + 凡例。セグメント幅は系列合計に対する比率（`--fandhe-bar-segment-percent` custom property）、配色はカテゴリ index で `series_color_var` を循環。系列合計 0 は `ChartError::ZeroTotal` で構築時に拒否） | [bar-segment](../../site/themes/bar-segment.md) |
 | 単純 styled 部品（新規 anatomy、charts 基盤の初のチャート部品） | `pie_chart` / `donut_chart`（charts 基盤（`charts::pie` の円弧ジオメトリ・`charts::svg::PathBuilder::arc_to`）を用いた円グラフ・ドーナツグラフ。ark-ui に対応する headless anatomy がないため新規 anatomy `data-scope="pie-chart"`/`"donut-chart"` を本クレートのみで定義する。系列 1 本専用（`data.series().len() != 1` は `PieChartError::MultiSeries` で fail-closed 拒否）。`size` variant のみ、`color-palette` 軸は非提供（セグメント配色は `charts::series_color_var` の chart-1〜6 循環で決まるため）。`donut_chart` は追加で `inner_ratio`（既定 `0.6`、`0.0 < ratio < 1.0` を検証）を持つ） | [pie-chart](../../site/themes/pie-chart.md) / [donut-chart](../../site/themes/donut-chart.md) |
+| 単純 styled 部品（新規 anatomy、イシュー #2079） | `radial_chart`（shadcn/ui Charts Radial 相当の同心リング型グラフ。`charts::pie` の環状セクタジオメトリ（角丸端は本イシューで新設した `charts::pie::annulus_sector_rounded_path`）を再利用する。ark-ui に対応する headless anatomy がないため新規 anatomy `data-scope="radial-chart"` を本クレートのみで定義する。`pie_chart`/`donut_chart` と異なり複数系列の積み上げ（stacked）に対応。プロパティは度数法・12 時方向 0°・時計回り正（`start_angle_deg`/`end_angle_deg`、既定 `0.0..360.0`）。`inner_ratio`（既定 `0.3`）・`corner_radius`（既定 `0.0`）・`show_track`/`show_labels`/`show_grid`・`center_text` を持つ。`size` variant のみ、`color-palette` 軸は非提供。エラー型は既存 `PieChartError`/`ChartError` とは独立の `RadialChartError`（`InvalidAngleRange`/`InvalidInnerRatio`/`InvalidCornerRadius`/`NegativeValue`/`ZeroTotal`）。docs サイトページは #2080 で登録） | [radial-chart](../../site/themes/radial-chart.md) |
 | headless ラッパー（非採用の再導入） | `angle_slider`（`size`/`palette` variant のため styled `root`（`slider` と同型）を再定義し、`pub use ...::*` ではなく必要な識別子のみを選択的に再エクスポートする。動的な回転角は `--fandhe-angle` custom property の 1 点のみで伝搬し `thumb_styled` が一元的に組み立てる（headless 自由関数 `thumb` は事故防止のため意図的に非公開のまま内部委譲）。状態機械 `AngleSlider` は `slider` の `Slider` 非再エクスポートと同型の判断であえて再エクスポートしない） | [angle-slider](../../site/themes/angle-slider.md) |
 | headless ラッパー（非採用の再導入） | `signature_pad`（canvas を使わない決定的 SVG path 方式。`root`/`control`/`segment`/`clear_trigger` を本モジュールで再定義する `qr_code` と同型の選択的 re-export（`label`/`segment_path`/`guide`/`hidden_input` はそのまま再エクスポート）。`raw_html()` を使用せず、CSS 宣言値はすべてコンパイル時静的リテラル。wasm 配線済み） | [signature-pad](../../site/themes/signature-pad.md) |
 | headless ラッパー（非採用の再導入） | `image_cropper`（Root/Viewport/Image/Grid/Handle をそのまま再エクスポート（`ImageCropperProps`/`GridAxis`/`KeyModifiers`/`action_for_key` 等イシュー #1610 の新規公開項目も含む）し、crop 矩形（整数）のみの決定的状態機械。動的な位置・寸法は `--fandhe-image-cropper-x`/`-y`/`-w`/`-h` の 4 custom property のみで伝搬し `selection` が一元的に組み立てる（headless 自由関数 `selection` は意図的に非公開。イシュー #1610 で `state`/`props` 引数が増え、フォーカス可能な要素が `handle` から `selection` へ移ったため `:focus-visible` のフォーカスリングも `selection` へ移設）。状態機械 `ImageCropper` は `slider` と同型の判断であえて再エクスポートしない。canvas 実切り出し・pointer ドラッグ配線はスコープ外） | [image-cropper](../../site/themes/image-cropper.md) |
@@ -865,6 +867,48 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
 - **docs サイト**: [command](../../site/themes/command.md)
   （イシュー #2070 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
+### 4f-6. `message`（AI チャット UI の会話 1 発言、イシュー #2106、headless anatomy は #2105）
+
+`message` モジュールは `fandhe_frontend_headless_ui::message` の anatomy
+（`root`/`avatar`/`header`/`content`/`footer`/`group` の 6 パーツ）へ、
+発言者の役割・整列で背景色を切り替える shadcn/ui `Message` 相当の意匠を
+重ねる薄い委譲層である。
+
+- **公開 API**: 6 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::item`/`crate::command` と同型のパターン）。
+  `MessageRootProps`/`MessageRole`/`MessageAlign`（headless からの
+  再エクスポート）のみを選択的に公開する。`stylesheet()`（`css()` では
+  ない）が静的 CSS 全量を返す。
+- **軸を持たない**: `role`/`align`/`loading`/`error` は headless が固定
+  出力する `data-role`/`data-align`/`data-loading`/`data-error` を
+  `StateCondition::AttrEq`/`Attr` で参照するのみで、class ベースの
+  `SlotRecipe::variant` は持たない（`docs/design/pre-styled-ui-data-attr-vocabulary.md`
+  §2.2「役割 B: 参照のみ」、`crate::item` と同型の判断）。
+- **role 別の意匠**: `data-role="user"` は `content` の背景を accent
+  subtle、`"assistant"` は muted、`"system"` は透明 + 斜体 + 控えめ文字色
+  へ切り替える。`data-align="end"` は `root` を右寄せ + 行反転する
+  （role から独立した軸、headless message.rs モジュール doc「会話系 4
+  部品の共通語彙」参照）。
+- **loading/error の視覚差**: `data-loading` は `root` を半透明化
+  （`opacity: 0.7`）するのみでアニメーションは付けない。`data-error` は
+  `content` の背景・文字色・枠線を危険色（`--fandhe-color-danger-*`）へ
+  切り替える。いずれも見た目のみで、判定・再送はアプリ責務。
+- **`group` 連続発言のまとめと raw CSS 追記**: `SlotRecipe` は子結合子
+  セレクタを表現できないため、`stylesheet()` は `group` 配下 2 件目以降の
+  `root` の余白を詰める規則と、`avatar` を `visibility: hidden`（`display:
+  none` ではなく幅を残す）で省略する規則を `serialize_rule` で追記する
+  （`crate::item` の `media[data-variant="image"] > img` 追記と同型の
+  パターン）。
+- **`aria-live`/`aria-busy` は付与しない**: headless 契約の継承
+  （headless message.rs モジュール doc「aria-live/aria-busy を付けない
+  理由」参照）。通知が必要な場合は呼び出し側が自前で `aria-live`
+  リージョンを合成する。
+- **バリデーション責務外**: 送信処理・Markdown レンダリング・再送判定は
+  実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。
+- **docs サイト**: [message](../../site/themes/message.md)
+  （イシュー #2106 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 
 chakra-ui の `forms/checkbox-card.md`/`forms/radio-card.md` 相当。ark-ui には
@@ -989,6 +1033,8 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
 | `charts::grid` | `cartesian_grid(x_range, y_range, x_positions, y_positions, props)` | `Result<Node, ChartError>` |
 | `charts::legend` | `legend(data: &ChartData, props: &LegendProps)` | `Node`（infallible） |
 | `charts::tooltip` | `datum_label(category, series, value)` / `datum(cx, cy, r, label, attrs)` | `String` / `Node`（いずれも infallible） |
+| `charts::data`（系列設定、イシュー #2077） | `Series::with_label(label)` / `with_color(SeriesColor)` / `with_icon(Node)` / `display_label()` | `Series` / `&str` |
+| `charts::data`（系列色、イシュー #2077） | `SeriesColor::token(name)` / `chart_slot(1..=6)` / `palette(ColorPalette)` / `ChartData::series_color_var(index)` | `Result<SeriesColor, ThemeError>`（`palette` のみ infallible） / `String` |
 
 各モジュールは `css()` を公開し、`stylesheet.rs` の一元化リスト
 （`all_styled_component_css`）へ `"charts/axis"` 等のキーで登録済み。
@@ -1001,7 +1047,8 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
   `tick-label`（axis）・`grid`/`grid-line`（grid）・`datum`（tooltip）。
 - `legend` は独立 scope `"chart-legend"` を持つ（SVG 外の通常 HTML
   `<ul>`/`<li>`/`<span>` のため）。slot: `root`/`title`/`item`/`marker`/
-  `label`。
+  `label`/`icon`（イシュー #2077、`Series::icon` 指定時に `marker` の
+  代わりに描画される代替スロット。shadcn/ui `ChartConfig.icon` 相当）。
 - `grid` の線種は `GridLines`（`Solid`(既定)/`Dashed`）の 1 軸 variant。
 - `tooltip` の hover 強調は `crate::recipe::StateCondition::Hover`
   （`:hover` 擬似クラス）を使う唯一の消費者。base で背景色ハロー
@@ -1015,6 +1062,23 @@ JS ランタイムが必須のためスコープ外。代わりに `tooltip::dat
 （`<circle>`）へ子 `<title>` 要素（ブラウザネイティブな hover 表示）と
 `aria-label` 属性（同一文字列）を埋め込み、`StateCondition::Hover` による
 CSS のみの視覚強調と組み合わせて「ホバーで詳細が分かる」体験を実現する。
+
+### 系列設定（`label`/`color`/`icon`、イシュー #2077）
+
+shadcn/ui の `ChartConfig`（系列キー → `label`/`color`/`icon` を 1 箇所で
+定義する設定オブジェクト）相当の機能を、`charts::data::Series` の任意
+フィールド（`Series::with_label`/`with_color`/`with_icon`）として提供する。
+`ChartData` の消費者（`legend`・`line_chart`/`area_chart`/`bar_chart`/
+`radar_chart`）はいずれも `ChartData::series_color_var(index)` を経由して
+色を解決するため、系列 1 箇所への設定が全消費者へ一元的に反映される
+（chakra-ui `useChart` の `series: [{ name, color, label }]` と同型の設計。
+shadcn のような並列の `ChartConfig` マップは設けない）。色は
+`charts::data::SeriesColor`（`theme.rs` の `TokenName` allowlist を通過した
+色トークン名のみを保持する newtype）経由でのみ指定でき、`style`/`fill`/
+`stroke` へ渡る値は `var(--fandhe-color-<name>)` の固定形以外を生成しない
+（REQ-1 相当）。`--fandhe-color-chart-1`〜`-6`（6 段階）は shadcn/ui の
+`--chart-1`〜`-5`（5 段階）のスーパーセットのため変更していない（Phase 0
+イシュー #2005、`docs/design/color-token-system.md` §9.2 で決定済み）。
 
 ## 4k. LineChart / AreaChart / Sparkline（`charts` 基盤の消費者）
 

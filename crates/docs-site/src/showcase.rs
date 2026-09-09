@@ -151,6 +151,7 @@ use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
+use fandhe_frontend_pre_styled_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::nav_list;
 use fandhe_frontend_pre_styled_ui::navigation_menu;
@@ -162,6 +163,9 @@ use fandhe_frontend_pre_styled_ui::password_input::{
 use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::quote::quote;
+use fandhe_frontend_pre_styled_ui::radial_chart::{
+    radial_chart, RadialCenterText, RadialChartProps,
+};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{
     self, RatingGroup, RatingGroupProps, RatingItemFlags,
@@ -627,6 +631,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: item_section,
     },
     ComponentPage {
+        path: "/themes/message/",
+        render: message_section,
+    },
+    ComponentPage {
         path: "/themes/textarea/",
         render: textarea_section,
     },
@@ -863,6 +871,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: radar_chart_section,
     },
     ComponentPage {
+        path: "/themes/radial-chart/",
+        render: radial_chart_section,
+    },
+    ComponentPage {
         path: "/themes/toolbar/",
         render: toolbar_section,
     },
@@ -1005,6 +1017,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::item::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::message::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -1070,6 +1083,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&chart_tooltip::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pie_chart::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::donut_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::radial_chart::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::angle_slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image_cropper::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pin_input::stylesheet())?;
@@ -5814,6 +5828,206 @@ fn item_section() -> Node {
         "Item",
         "media（アイコン・画像・アバター）+ title/description + actions からなる汎用リスト行。variant/size は headless の data-variant/data-size を参照するのみで class 軸は持ちません。href を渡すと a として描画されます。",
         demos,
+    )
+}
+
+/// Message 節（イシュー #2106、親 #2104。headless anatomy は #2105）。
+/// `data-role` 3 値（user/assistant/system）と `data-align` 2 値
+/// （start/end）、`group` による連続発言（raw CSS 追記で 2 件目以降の
+/// avatar 省略・余白詰めを実演）、`data-loading`/`data-error` の状態を
+/// 掲示する。`role`/`align`/`loading`/`error` は headless の `data-*` を
+/// `AttrEq`/`Attr` で参照するのみで class 軸を持たない（`message.rs`
+/// モジュール doc「role / align / loading / error の表現」節参照）。
+/// Anatomy 表・`data-*` 属性表の機械導出のため 6 パーツ・全 state 値を
+/// ここで最低 1 度は出現させる。
+fn message_section() -> Node {
+    // 1 往復（user: align=end、assistant: align=start）。
+    let user_turn = message::root(
+        MessageRootProps {
+            role: MessageRole::User,
+            align: MessageAlign::End,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            message::avatar(
+                vec![],
+                vec![avatar::root(
+                    &AvatarProps::default(),
+                    vec![],
+                    vec![fallback(ImageStatus::Error, vec![], vec![text("YOU")])],
+                )],
+            ),
+            message::header(vec![], vec![text("You")]),
+            message::content(
+                vec![],
+                vec![text("What is the release checklist for this crate?")],
+            ),
+            message::footer(vec![], vec![text("09:41")]),
+        ],
+    );
+    let assistant_turn = message::root(
+        MessageRootProps {
+            role: MessageRole::Assistant,
+            align: MessageAlign::Start,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            message::avatar(
+                vec![],
+                vec![avatar::root(
+                    &AvatarProps::default(),
+                    vec![],
+                    vec![fallback(ImageStatus::Error, vec![], vec![text("AI")])],
+                )],
+            ),
+            message::header(vec![], vec![text("Assistant")]),
+            message::content(
+                vec![],
+                vec![text(
+                    "Bump the crate version, run the golden tests, then open a PR.",
+                )],
+            ),
+            message::footer(vec![], vec![text("Copy"), text(" · "), text("Regenerate")]),
+        ],
+    );
+
+    // group による連続発言のまとめ（raw CSS 追記で 2 件目以降の avatar を
+    // 省略・余白を詰める、`message.rs` モジュール doc「raw CSS 追記の
+    // 理由」節参照）。
+    let group_instance = message::group(
+        "Conversation",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![
+                    message::avatar(
+                        vec![],
+                        vec![avatar::root(
+                            &AvatarProps::default(),
+                            vec![],
+                            vec![fallback(ImageStatus::Error, vec![], vec![text("AI")])],
+                        )],
+                    ),
+                    message::content(vec![], vec![text("Here is the first part of the answer.")]),
+                ],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![
+                    message::avatar(
+                        vec![],
+                        vec![avatar::root(
+                            &AvatarProps::default(),
+                            vec![],
+                            vec![fallback(ImageStatus::Error, vec![], vec![text("AI")])],
+                        )],
+                    ),
+                    message::content(vec![], vec![text("...and here is a follow-up detail.")]),
+                ],
+            ),
+        ],
+    );
+
+    // loading（応答待ち）/ error（送信失敗）/ system の 3 状態。
+    let loading_instance = message::root(
+        MessageRootProps {
+            role: MessageRole::Assistant,
+            loading: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            message::avatar(
+                vec![],
+                vec![avatar::root(
+                    &AvatarProps::default(),
+                    vec![],
+                    vec![fallback(ImageStatus::Error, vec![], vec![text("AI")])],
+                )],
+            ),
+            message::content(
+                vec![],
+                vec![
+                    spinner_decorative(Size::Sm, ColorPalette::Neutral),
+                    text(" Thinking..."),
+                ],
+            ),
+        ],
+    );
+    let error_instance = message::root(
+        MessageRootProps {
+            role: MessageRole::User,
+            align: MessageAlign::End,
+            error: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            message::avatar(
+                vec![],
+                vec![avatar::root(
+                    &AvatarProps::default(),
+                    vec![],
+                    vec![fallback(ImageStatus::Error, vec![], vec![text("YOU")])],
+                )],
+            ),
+            message::content(vec![], vec![text("Message failed to send.")]),
+        ],
+    );
+    let system_instance = message::root(
+        MessageRootProps {
+            role: MessageRole::System,
+            ..Default::default()
+        },
+        vec![],
+        vec![message::content(
+            vec![],
+            vec![text("The assistant joined the conversation.")],
+        )],
+    );
+
+    section(
+        "Message",
+        "AI チャット UI の会話 1 発言。data-role（user/assistant/system）・data-align（start/end）は headless の data-* を参照するのみで class 軸は持ちません。group は連続発言をまとめ、2 件目以降の avatar を CSS で省略します。",
+        vec![
+            // headless message::root は role="listitem" を固定付与し、
+            // role="list" の親を required context として要求する
+            // （headless message.rs モジュール doc「role="listitem"/
+            // role="list"」参照）。ここでは同一グループとしての視覚的な
+            // まとめ（余白詰め・avatar 省略）は意図しないため、`stack` の
+            // `.showcase-stack` class に role="list" を足した素の div で
+            // 契約を満たす。message::root の end-aligned ルートは
+            // `align-self: flex-end`（交差軸）+ `margin-inline-start: auto`
+            // で右寄せする（`crates/pre-styled-ui/src/message.rs` 参照）
+            // ため、親は flex 縦積み（`.showcase-stack` の
+            // `flex-direction: column`）でなければならない。横並び wrap
+            // の `.showcase-row` を使うと main 軸が横方向になるため
+            // `margin-inline-start: auto` がその主軸方向へ右へ押し出す
+            // 一方、`align-self: flex-end` は行内での下寄せ（交差軸方向）
+            // にしかならず、チャットスレッドとして縦積みされず
+            // user/error メッセージが横方向にずれてしまう不具合があった
+            // （PR #2252 レビュー指摘）。
+            div(
+                vec![("class", "showcase-stack"), ("role", "list")],
+                vec![user_turn, assistant_turn],
+            ),
+            group_instance,
+            div(
+                vec![("class", "showcase-stack"), ("role", "list")],
+                vec![loading_instance, error_instance, system_instance],
+            ),
+        ],
     )
 }
 
@@ -12290,6 +12504,118 @@ fn radar_chart_section() -> Node {
     )
 }
 
+/// RadialChart 節（イシュー #2079/#2080、親 #2078）: shadcn/ui Charts Radial
+/// 相当の同心リング型グラフ。simple / label / grid / text / shape / stacked
+/// の 6 バリアントを掲示する（`crates/pre-styled-ui/src/radial_chart.rs` の
+/// rustdoc「バリアント対応」表と対応）。
+fn radial_chart_section() -> Node {
+    let browsers_data = ChartData::new(
+        vec![
+            "chrome".to_string(),
+            "safari".to_string(),
+            "firefox".to_string(),
+            "edge".to_string(),
+        ],
+        vec![Series::new("visitors", vec![275.0, 200.0, 187.0, 90.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let single_ring_data = ChartData::new(
+        vec!["visitors".to_string()],
+        vec![Series::new("visitors", vec![1260.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let stacked_data = ChartData::new(
+        vec!["visitors".to_string()],
+        vec![
+            Series::new("desktop", vec![186.0]),
+            Series::new("mobile", vec![80.0]),
+        ],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let simple = radial_chart(&RadialChartProps::default(), &browsers_data, vec![])
+        .expect("ショーケース固定データは常に描画に成功する");
+
+    let label = radial_chart(
+        &RadialChartProps {
+            show_labels: true,
+            ..RadialChartProps::default()
+        },
+        &browsers_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let grid = radial_chart(
+        &RadialChartProps {
+            show_grid: true,
+            ..RadialChartProps::default()
+        },
+        &browsers_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let text = radial_chart(
+        &RadialChartProps {
+            center_text: Some(RadialCenterText {
+                value: "1,260",
+                label: Some("visitors"),
+            }),
+            ..RadialChartProps::default()
+        },
+        &single_ring_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let shape = radial_chart(
+        &RadialChartProps {
+            corner_radius: 4.0,
+            // 全周（既定 0〜360°）では ring_segment_path が全周分岐に入り
+            // corner_radius を無視するため、text デモと区別が付かなくなる
+            // （codex-review 指摘 #2250）。crate 側テスト
+            // （radial_chart.rs の shape_applies_corner_radius_to_bar_only 等）
+            // と同じ end_angle_deg: 250.0 を指定し、角丸の効果を実際に
+            // 目視確認できるようにする。
+            end_angle_deg: 250.0,
+            center_text: Some(RadialCenterText {
+                value: "1,260",
+                label: Some("visitors"),
+            }),
+            ..RadialChartProps::default()
+        },
+        &single_ring_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let stacked = radial_chart(
+        &RadialChartProps {
+            start_angle_deg: -90.0,
+            end_angle_deg: 90.0,
+            center_text: Some(RadialCenterText {
+                value: "266",
+                label: Some("visitors"),
+            }),
+            ..RadialChartProps::default()
+        },
+        &stacked_data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+
+    let variant_row = row(vec![simple, label, grid, text, shape, stacked]);
+
+    section(
+        "RadialChart",
+        "外部依存ゼロの SVG ノード木生成による同心リング型グラフです（イシュー #2079/#2080、shadcn/ui Charts Radial 相当）。角度は度数法・12 時方向 0°・時計回り正の規約（既定 0〜360°）で、inner_ratio（既定 0.3）で内径を調整できます。左から simple / label（show_labels）/ grid（show_grid）/ text（center_text）/ shape（corner_radius）/ stacked（複数系列 + 半円 start/end）の 6 バリアントです。",
+        vec![variant_row],
+    )
+}
+
 /// Tag 節（イシュー #768）: variant / size / colorPalette と、
 /// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
 /// スコープ外）の掲示。
@@ -12803,7 +13129,9 @@ mod tests {
         // イシュー #2066 で Item を追加し 105 → 106 件になった。
         // イシュー #2060 で Button Group を追加し 106 → 107 件になった。
         // イシュー #2070 で Command を追加し 107 → 108 件になった。
-        assert_eq!(paths.len(), 108, "COMPONENT_PAGES should have 108 entries");
+        // イシュー #2080 で Radial Chart を追加し 108 → 109 件になった。
+        // イシュー #2106 で Message を追加し 109 → 110 件になった。
+        assert_eq!(paths.len(), 110, "COMPONENT_PAGES should have 110 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -12938,6 +13266,7 @@ mod tests {
             "sparkline",
             "scatter-chart",
             "radar-chart",
+            "radial-chart",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -13116,6 +13445,9 @@ mod tests {
         assert!(css.contains(r#"[data-scope="chart"][data-part="grid-line"]"#));
         assert!(css.contains(r#"[data-scope="chart-legend"][data-part="root"]"#));
         assert!(css.contains(r#"[data-scope="chart"][data-part="datum"]:hover"#));
+        // RadialChart（イシュー #2079/#2080）: stylesheet() への push_css
+        // 忘れの回帰防止（DownloadTrigger の先例と同型）。
+        assert!(css.contains(r#"[data-scope="radial-chart"][data-part="chart"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));

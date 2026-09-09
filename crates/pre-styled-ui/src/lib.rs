@@ -120,12 +120,21 @@
 //!   `docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留
 //!   （recharts 依存のため）を、外部依存ゼロの SVG ノード木生成へ置き換える
 //!   足場を提供する（個々のチャート部品は #847〜#851 のスコープ、配置先
-//!   判断は `docs/design/charts-foundation-design.md` 参照）。
+//!   判断は `docs/design/charts-foundation-design.md` 参照）。系列設定
+//!   （`label`/`color`/`icon`、shadcn/ui `ChartConfig` 相当、イシュー
+//!   #2077）は [`charts::data::Series::with_label`]/`with_color`/`with_icon`
+//!   が提供し、[`charts::data::ChartData::series_color_var`] を経由して
+//!   凡例・line/area/bar/radar の全消費者が同じ色を共有する。
 //! - [`mod@pie_chart`] / [`mod@donut_chart`]（#850、charts 基盤の初のチャート
 //!   部品）: [`charts::pie`] の円弧ジオメトリを用いた円グラフ・ドーナツ
 //!   グラフ。系列 1 本専用（多系列は fail-closed で拒否）、`size` variant
 //!   のみ（`color-palette` 軸は非提供、セグメント配色は
 //!   [`charts::series_color_var`] の循環で決まるため）。
+//! - [`mod@radial_chart`]（#2079、shadcn/ui Charts Radial 相当）: 同じく
+//!   [`charts::pie`] の環状セクタジオメトリ（角丸端は本イシューで新設した
+//!   [`charts::pie::annulus_sector_rounded_path`]）を用いた同心リング型
+//!   グラフ。複数系列を積み上げ表示できる点が [`mod@pie_chart`]/
+//!   [`mod@donut_chart`] と異なる（`size` variant のみ提供）。
 //!
 //! - headless 状態機械を持つ複合部品 5 種の styled ラッパー第 1 弾（#551）:
 //!   [`mod@dialog`] / [`mod@tabs`] / [`mod@accordion`] / [`mod@menu`] /
@@ -722,6 +731,7 @@ pub mod mark;
 pub mod marquee;
 pub mod menu;
 pub mod menubar;
+pub mod message;
 pub mod native_select;
 pub mod nav_list;
 pub mod navigation_menu;
@@ -734,6 +744,7 @@ pub mod popover;
 pub mod progress;
 pub mod qr_code;
 pub mod quote;
+pub mod radial_chart;
 pub mod radio_card;
 pub mod radio_group;
 pub mod rating_group;

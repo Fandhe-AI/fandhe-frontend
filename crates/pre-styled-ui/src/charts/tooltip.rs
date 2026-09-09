@@ -124,6 +124,16 @@ pub fn css() -> String {
 /// 決定的文字列を組み立てる。値の文字列化は [`super::svg::fmt_coord`] のみを
 /// 経由する（数値の決定的文字列化の一元化、`crates/pre-styled-ui/src/charts/mod.rs`
 /// 冒頭 doc 不変条件 2）。
+///
+/// # 系列設定（`label`/`color`/`icon`、イシュー #2077）との契約
+///
+/// `series` 引数には呼び出し側が [`super::data::Series::display_label`]
+/// の戻り値を渡す想定とする（`label` が未設定なら `name` を返すため、
+/// 既存呼び出しは変更不要）。本関数自体は `series` を単なる文字列として
+/// 連結するのみで `label`/`color`/`icon` を消費・解決しない。SSR
+/// ツールチップ DOM 側で `color`/`icon` を表示へ反映する（例: ツールチップ
+/// 内へマーカー色・アイコンを合成する）ことは本イシューのスコープ外とし、
+/// 実装するときは #2129（ツールチップ DOM・hit-area）を参照する。
 #[must_use]
 pub fn datum_label(category: &str, series: &str, value: f64) -> String {
     format!("{category} · {series}: {}", fmt_coord(value))

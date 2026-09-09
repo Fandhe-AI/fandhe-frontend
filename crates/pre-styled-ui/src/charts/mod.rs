@@ -16,7 +16,11 @@
 //!
 //! - [`data`]: `ChartData`/`Series` モデルと集計・ソート API
 //!   （chakra-ui `useChart` の getTotal/getMin/getMax/getValuePercent 相当を
-//!   明示的な Rust 純関数として吸収する）。
+//!   明示的な Rust 純関数として吸収する）。`Series` は `label`/`color`/
+//!   `icon` の系列設定（shadcn/ui `ChartConfig` 相当、イシュー #2077）を
+//!   任意で保持し、[`legend`]・line/area/bar/radar の各消費者が
+//!   [`ChartData::series_color_var`]/[`data::Series::display_label`] を
+//!   経由して共有する。
 //! - [`scale`]: 線形スケール（domain → range 写像）・1-2-5 nice tick 算出。
 //! - [`svg`]: SVG ノード木生成ヘルパー（`viewBox`・座標文字列化・`path` の
 //!   `d` 属性組み立て）。後続チャート部品はここを経由してのみ SVG を組み立てる。
@@ -37,6 +41,9 @@
 //! - [`pie`]: 円弧ジオメトリ（角度計算・sector/annulus path 生成、イシュー
 //!   #850）。[`crate::pie_chart`]/[`crate::donut_chart`]（styled 層）が
 //!   本モジュールを経由して円グラフ・ドーナツグラフの `d` 属性を組み立てる。
+//!   角丸端の環状セクタ（[`pie::annulus_sector_rounded_path`]、イシュー
+//!   #2079）は [`crate::radial_chart`]（同心リング型グラフ）の shape/text
+//!   バリアントが消費する。
 //!
 //! # 本モジュールの不変条件（[`crate`] クレート全体の不変条件を継承、
 //! `.claude/rules/coding-rust.md`）
@@ -69,7 +76,7 @@ pub mod scatter_chart;
 pub mod svg;
 pub mod tooltip;
 
-pub use data::{ChartData, Series};
+pub use data::{ChartData, Series, SeriesColor};
 pub use scale::LinearScale;
 
 /// charts 基盤全体（[`data`]/[`scale`]）が返す構築エラー。
@@ -158,6 +165,18 @@ impl std::error::Error for ChartError {}
 /// `crates/docs-site/tests/site_css_contract.rs` 等の契約テストへ波及し、
 /// charts 以外の他部品にも影響するため（先例の PR #1863/#1864 も同じ判断で
 /// `theme.rs` を不変としている）。
+///
+/// # 意図的に合わせなかった点（イシュー #2077、shadcn/ui `ChartConfig` 突合）
+///
+/// shadcn/ui の `--chart-1`〜`--chart-5`（5 段階）に対し、本フレームワーク
+/// の `chart-1`〜`chart-6`（6 段階）は変更しない。Phase 0（イシュー
+/// #2005、`docs/design/color-token-system.md` §9.2）で「6 は shadcn 5 の
+/// スーパーセット（5 段を包含し 1 段多い）であり変更不要」と既に決定済み
+/// であり、5 へ削ると `chart-6` を参照する既存の利用者コード・golden の
+/// 出力が壊れる（golden 純追加原則に反する）。系列ごとの色上書きは
+/// [`data::SeriesColor`]（[`data::Series::with_color`]）が個別に提供する
+/// ため、6 段循環に閉じない任意色の指定は既にでき、段階数を追随させる
+/// 実利は無い。
 #[must_use]
 pub fn series_color_var(index: usize) -> String {
     const SLOT_COUNT: usize = 6;

@@ -86,6 +86,17 @@ fn legend_css_matches_golden_fixture_byte_for_byte() {
         "  border-radius: var(--fandhe-radius-full);\n",
         "  flex-shrink: 0;\n",
         "}\n",
+        "\n",
+        // イシュー #2077: 系列アイコン（shadcn/ui `ChartConfig.icon` 相当）の
+        // 代替スロット。既存 5 ブロックは不変（golden 純追加原則）。
+        "[data-scope=\"chart-legend\"][data-part=\"icon\"] {\n",
+        "  display: inline-flex;\n",
+        "  align-items: center;\n",
+        "  justify-content: center;\n",
+        "  flex-shrink: 0;\n",
+        "  width: var(--fandhe-space-3);\n",
+        "  height: var(--fandhe-space-3);\n",
+        "}\n",
     );
     assert_eq!(legend::css(), expected);
 }

@@ -1,6 +1,7 @@
 //! Primitives（`fandhe-frontend-headless-ui`）Data Display / Utilities 系
-//! 10 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
-//! Phase 5）。
+//! 13 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
+//! Phase 5。イシュー #2108 で `bubble`・イシュー #2105 で `message`・
+//! イシュー #2065 で `item` を追加、当初 10 部品）。
 //!
 //! # 役割・呼び出し文脈
 //!
@@ -12,8 +13,9 @@
 //! `data-*` 属性表（いずれも機械導出、Primitives 層は CSS 変数表を持たない）
 //! と合成して 6 節ページを組み立てる）。
 //!
-//! 対象は avatar・carousel・json-tree-view・scroll-area・skip-nav・
-//! splitter・steps・tour・tree-view・visually-hidden の 10 部品
+//! 対象は avatar・bubble・carousel・item・json-tree-view・message・
+//! scroll-area・skip-nav・splitter・steps・tour・tree-view・
+//! visually-hidden の 13 部品
 //! （`crates/docs-site/src/primitives_catalog.rs` の
 //! `PrimitiveCategory::DataDisplayUtilities` 並び順と一致させる）。
 //!
@@ -86,10 +88,12 @@
 use fandhe_frontend_core::{button, code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::avatar::{self, ImageStatus};
+use hui::bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant};
 use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
 use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
+use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use hui::positioning::{Align, Placement, Side};
 use hui::scroll_area;
 use hui::skip_nav;
@@ -258,6 +262,213 @@ pub const AVATAR: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "root/image/fallback は固有の role/aria-* を出力しない（avatar.rs 全文の非テスト行で role/aria- grep 0 件）。image パーツの alt テキストのみが代替情報を提供する。参照 4 サイト（ark-ui/Zag.js・Radix Primitives・Radix Themes・chakra-ui）とも role/aria-* を付与しない点で一致する（イシュー #1659 突合）。",
     }],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Bubble（/primitives/bubble/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/bubble.rs`（モジュール doc「会話系
+/// 4 部品の共通語彙への追随」「`data-variant`（shadcn の 7 色調を 3 形態
+/// へ縮約）」「`data-group-position`（算出は利用者責務）」
+/// 「`reactions`/`reaction`」「折りたたみは bubble scope のまま
+/// `collapsible` の属性契約を再利用」参照）。基本の吹き出し 1 対を実演する。
+fn ex_bubble_basic_pair() -> Node {
+    div(
+        vec![],
+        vec![
+            bubble::root(
+                BubbleRootProps {
+                    variant: BubbleVariant::Outline,
+                    align: MessageAlign::End,
+                    ..Default::default()
+                },
+                vec![],
+                vec![bubble::content(
+                    vec![],
+                    vec![text("How do I center a div?")],
+                )],
+            ),
+            bubble::root(
+                BubbleRootProps::default(),
+                vec![],
+                vec![bubble::content(
+                    vec![],
+                    vec![text("Use display: flex + place-items: center.")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// 連続発言（同じ発言者の 3 個の吹き出し）で `data-group-position`
+/// （`first`/`middle`/`last`）の使い分けを実演する（モジュール doc
+/// 「`data-group-position`（算出は利用者責務）」参照。算出そのものは
+/// 呼び出し側が行い、本例では固定値として渡す）。
+fn ex_bubble_group_position() -> Node {
+    div(
+        vec![],
+        vec![
+            bubble::root(
+                BubbleRootProps {
+                    group_position: BubbleGroupPosition::First,
+                    ..Default::default()
+                },
+                vec![],
+                vec![bubble::content(
+                    vec![],
+                    vec![text("First, install the crate.")],
+                )],
+            ),
+            bubble::root(
+                BubbleRootProps {
+                    group_position: BubbleGroupPosition::Middle,
+                    ..Default::default()
+                },
+                vec![],
+                vec![bubble::content(
+                    vec![],
+                    vec![text("Then add it to your Cargo.toml.")],
+                )],
+            ),
+            bubble::root(
+                BubbleRootProps {
+                    group_position: BubbleGroupPosition::Last,
+                    ..Default::default()
+                },
+                vec![],
+                vec![bubble::content(vec![], vec![text("Then call render().")])],
+            ),
+        ],
+    )
+}
+
+/// 自前 CSS の最小例（`data-scope`/`data-part`/`data-variant`/`data-align`/
+/// `data-group-position` 属性セレクタのみを使う。headless-ui 自体は
+/// スタイルを持たない）。
+const BUBBLE_CUSTOM_CSS_SNIPPET: &str = "[data-scope=\"bubble\"][data-part=\"root\"] {\n  display: inline-block;\n  max-width: 32rem;\n  padding: 0.5rem 0.75rem;\n  border-radius: 0.75rem;\n}\n[data-scope=\"bubble\"][data-part=\"root\"][data-variant=\"solid\"] {\n  background: #e2e8f0;\n}\n[data-scope=\"bubble\"][data-part=\"root\"][data-variant=\"outline\"] {\n  border: 1px solid #cbd5e1;\n}\n[data-scope=\"bubble\"][data-part=\"root\"][data-group-position=\"first\"] {\n  border-radius: 0.75rem 0.75rem 0.75rem 0.25rem;\n}\n[data-scope=\"bubble\"][data-part=\"root\"][data-group-position=\"last\"] {\n  border-radius: 0.75rem 0.75rem 0.25rem 0.75rem;\n}\n";
+
+fn ex_bubble_custom_css() -> Node {
+    let node = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Solid,
+            group_position: BubbleGroupPosition::First,
+            ..Default::default()
+        },
+        vec![],
+        vec![bubble::content(
+            vec![],
+            vec![text("Styled with plain CSS.")],
+        )],
+    );
+    wrap_example(
+        "data-scope / data-part / data-variant / data-align / data-group-position 属性セレクタで塗り・角丸連結を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            node,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(BUBBLE_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
+pub const BUBBLE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "チャット吹き出し 1 個を表現する 6 anatomy パーツ（root/content/reactions/reaction/collapse-trigger/collapse-content）を提供する（bubble.rs）。状態機械を持たない静的部品。",
+        "data-align は会話系 4 部品（message/bubble/attachment/marker）の共通語彙（正は message.rs）をそのまま再利用する。data-variant（solid/outline/plain）は shadcn の 7 色調を「塗り・枠線・無装飾」の 3 形態へ縮約し、実際の色調選択は fandhe-frontend-pre-styled-ui の ColorPalette 軸へ委ねる（bubble.rs「data-variant」節）。",
+        "data-group-position（single/first/middle/last）は連続発言の角丸連結用の表示状態のみを持ち、算出（何番目かの判定）は利用者責務である（bubble.rs「data-group-position」節）。",
+        "reactions/reaction は role=\"group\" + 任意 aria-label（role=\"img\" は不採用）を採用し、reaction は data-selected 存在属性のみを持つ非インタラクティブな表示用パーツである。押下・集計・トグルは内包しない（bubble.rs「reactions/reaction」節）。",
+        "collapse-trigger/collapse-content は collapsible.rs の属性契約（OpenState・aria-expanded・aria-controls）を bubble scope のまま再利用する。fandhe-frontend-wasm-full の折りたたみクリック配線は現時点で未整備（bubble.rs「wasm-full 未配線」節）。参照実体は shadcn/ui の Bubble のみ（ark-ui・chakra-ui・Radix に対応部品なし、参照軸 #2001）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root: props.variant",
+            kind: "BubbleVariant",
+            default: "BubbleVariant::Solid",
+            description: "見た目の形態（solid/outline/plain）。data-variant へ出力する（bubble.rs）。",
+        },
+        ArgRow {
+            name: "root: props.align",
+            kind: "MessageAlign",
+            default: "MessageAlign::Start",
+            description: "水平整列（start/end）。message::MessageAlign を再利用し data-align へ出力する（bubble.rs）。",
+        },
+        ArgRow {
+            name: "root: props.group_position",
+            kind: "BubbleGroupPosition",
+            default: "BubbleGroupPosition::Single",
+            description: "連続発言中の位置（single/first/middle/last）。算出は利用者責務。data-group-position へ出力する（bubble.rs）。",
+        },
+        ArgRow {
+            name: "reactions: label",
+            kind: "&str",
+            default: "\"\"",
+            description: "空でなければ aria-label へ出力する（bubble.rs）。",
+        },
+        ArgRow {
+            name: "reaction: selected",
+            kind: "bool",
+            default: "false",
+            description: "true のとき data-selected 存在属性を付与する（bubble.rs）。",
+        },
+        ArgRow {
+            name: "collapse-trigger: state",
+            kind: "OpenState",
+            default: "(呼び出し側が指定)",
+            description: "aria-expanded・data-state を同期させる開閉状態（collapsible.rs の属性契約を再利用、bubble.rs）。",
+        },
+        ArgRow {
+            name: "collapse-trigger: controls",
+            kind: "Option<&str>",
+            default: "None",
+            description: "Some のとき aria-controls で collapse-content と関連付ける（bubble.rs）。",
+        },
+        ArgRow {
+            name: "collapse-content: state",
+            kind: "OpenState",
+            default: "(呼び出し側が指定)",
+            description: "closed のとき hidden 存在属性を付与する（bubble.rs）。",
+        },
+        ArgRow {
+            name: "collapse-content: id",
+            kind: "Option<&str>",
+            default: "None",
+            description: "Some のとき id 属性を出力し、collapse-trigger の controls と対で関連付ける（bubble.rs）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Basic bubble pair",
+            description: "outline（自分側、右寄せ）と solid（相手側、左寄せ）の 1 往復です。",
+            render: ex_bubble_basic_pair,
+        },
+        ExampleEntry {
+            title: "Consecutive bubbles with group position",
+            description: "同じ発言者の連続発言で data-group-position（first/middle/last）を使い分ける例です。",
+            render: ex_bubble_group_position,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-variant/data-align/data-group-position 属性セレクタでスタイルを当てる例です。",
+            render: ex_bubble_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "Space / Enter",
+        description: "collapse-trigger はネイティブ <button type=\"button\"> として描画され、ブラウザ標準の Space/Enter → click 発火に従う（bubble.rs。fandhe-frontend-wasm-full の click → \"toggle\" dispatch 配線は現時点で未整備のため、CSR での実際の開閉には呼び出し側の配線が必要）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"group\" / aria-label",
+            description: "reactions パーツに固定付与する。label が空でなければ aria-label を出力する（bubble.rs「reactions/reaction」節）。",
+        },
+        AriaRow {
+            attribute: "aria-expanded / aria-controls",
+            description: "collapse-trigger パーツに付与する。controls が Some のとき aria-controls で collapse-content と関連付ける（collapsible.rs の属性契約を再利用、bubble.rs）。",
+        },
+    ],
     demo: None,
 };
 
@@ -895,6 +1106,187 @@ pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-expanded / aria-selected / aria-level / aria-posinset / aria-setsize",
             description: "crate::tree_view の branch/item から継承する（tree_view.rs:159-303）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Message（/primitives/message/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/message.rs`（モジュール doc「会話系
+/// 4 部品の共通語彙」「`role="listitem"`/`role="list"`」「`aria-live`/
+/// `aria-busy` を付けない理由」）。基本の user/assistant 対を実演する。
+fn ex_message_basic_pair() -> Node {
+    message::group(
+        "Conversation",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::User,
+                    align: MessageAlign::End,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("How do I center a div?")],
+                )],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    align: MessageAlign::Start,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("Use display: flex + place-items: center.")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// 同じ発言者（assistant）の連続発言を 1 つの [`message::group`] へまとめる
+/// 例（モジュール doc「`group` は連続発言のまとめ」参照。先頭以外の avatar
+/// 省略は CSS 側の責務のため、本例では avatar パーツ自体を省略する）。
+fn ex_message_consecutive_group() -> Node {
+    message::group(
+        "Assistant reply (2 parts)",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("First, install the crate.")],
+                )],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(vec![], vec![text("Then call render().")])],
+            ),
+        ],
+    )
+}
+
+/// 自前 CSS の最小例（`data-scope`/`data-part`/`data-role`/`data-align`
+/// 属性セレクタのみを使う。headless-ui 自体はスタイルを持たない）。
+const MESSAGE_CUSTOM_CSS_SNIPPET: &str = "[data-scope=\"message\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  max-width: 32rem;\n}\n[data-scope=\"message\"][data-part=\"root\"][data-align=\"end\"] {\n  margin-left: auto;\n}\n[data-scope=\"message\"][data-part=\"content\"] {\n  padding: 0.5rem 0.75rem;\n  border-radius: 0.75rem;\n}\n";
+
+fn ex_message_custom_css() -> Node {
+    let node = message::group(
+        "Conversation",
+        vec![],
+        vec![message::root(
+            MessageRootProps {
+                role: MessageRole::User,
+                align: MessageAlign::End,
+                ..Default::default()
+            },
+            vec![],
+            vec![message::content(
+                vec![],
+                vec![text("Styled with plain CSS.")],
+            )],
+        )],
+    );
+    wrap_example(
+        "data-scope / data-part / data-role / data-align 属性セレクタで吹き出しの位置・余白を当てる最小例です。headless-ui 自体はスタイルを持ちません。root（role=\"listitem\"）は message::group（role=\"list\"）でラップし required context を満たします。",
+        vec![
+            node,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(MESSAGE_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
+pub const MESSAGE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "AI チャット UI の「会話 1 発言」を表現する 6 anatomy パーツ（root/avatar/header/content/footer/group）を提供する（message.rs）。状態機械を持たない静的部品であり wasm-full 側の配線は不要。",
+        "会話系 4 部品（message/bubble/attachment/marker）が共有する data-role（user/assistant/system）・data-align（start/end、data-role から独立した軸）・data-loading/data-error（存在属性）を本モジュールが最初に確定する（message.rs「会話系 4 部品の共通語彙」節）。",
+        "root は role=\"listitem\" を固定付与し、group は required context を満たす role=\"list\" + 任意 aria-label を固定付与する（message.rs「role=\"listitem\"/role=\"list\"」節）。",
+        "aria-live/aria-busy は付けない（ストリーミング通知・応答待ちの読み上げはアプリ責務、message.rs「aria-live/aria-busy を付けない理由」節）。参照実体は shadcn/ui の Message のみ（ark-ui・chakra-ui・Radix に対応部品なし、docs/design/component-coverage-map.md §12.1、参照軸 #2001）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root: props.role",
+            kind: "MessageRole",
+            default: "MessageRole::User",
+            description: "発言者の役割（user/assistant/system）。data-role へ出力する（message.rs）。",
+        },
+        ArgRow {
+            name: "root: props.align",
+            kind: "MessageAlign",
+            default: "MessageAlign::Start",
+            description: "root の水平整列（start/end）。data-role から独立した軸。data-align へ出力する（message.rs）。",
+        },
+        ArgRow {
+            name: "root: props.loading",
+            kind: "bool",
+            default: "false",
+            description: "true のとき data-loading 存在属性を付与する（応答待ちの表示のみ、message.rs）。",
+        },
+        ArgRow {
+            name: "root: props.error",
+            kind: "bool",
+            default: "false",
+            description: "true のとき data-error 存在属性を付与する（送信失敗の表示のみ、message.rs）。",
+        },
+        ArgRow {
+            name: "group: label",
+            kind: "&str",
+            default: "\"\"",
+            description: "空でなければ aria-label へ出力する（message.rs）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Basic user/assistant pair",
+            description: "user（右寄せ）と assistant（左寄せ）の 1 往復を group でまとめる基本例です。",
+            render: ex_message_basic_pair,
+        },
+        ExampleEntry {
+            title: "Consecutive messages in one group",
+            description: "同じ発言者（assistant）の連続発言を 1 つの group へまとめる例です。",
+            render: ex_message_consecutive_group,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-role/data-align 属性セレクタでスタイルを当てる例です。",
+            render: ex_message_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "(なし)",
+        description: "root/avatar/header/content/footer/group はいずれもキー操作を提供しない静的コンテナである（message.rs。子要素として置くインタラクティブ要素のキー操作はその要素自体に委ねる）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"listitem\"",
+            description: "root パーツに固定付与する（message.rs「role=\"listitem\"/role=\"list\"」節）。",
+        },
+        AriaRow {
+            attribute: "role=\"list\" / aria-label",
+            description: "group パーツに固定付与する。label が空でなければ aria-label を出力する（message.rs）。",
+        },
+        AriaRow {
+            attribute: "(aria-live / aria-busy は付与しない)",
+            description: "ストリーミング通知・応答待ちの読み上げはアプリ責務のため本モジュールは付与しない（message.rs「aria-live/aria-busy を付けない理由」節）。",
         },
     ],
     demo: None,
@@ -1972,15 +2364,19 @@ pub const VISUALLY_HIDDEN: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// 本カテゴリ 10 部品の `path -> ComponentPageSpec` テーブル
-/// （`crate::primitive_specs::SPEC_TABLES` へ集約される、#1027 と同型）。
+/// 本カテゴリ 13 部品の `path -> ComponentPageSpec` テーブル
+/// （`crate::primitive_specs::SPEC_TABLES` へ集約される、#1027 と同型。
+/// イシュー #2108 で `bubble` 追加、旧 12。イシュー #2105 で `message` 追加、
+/// 旧 11）。
 /// 並び順は `crate::primitives_catalog::PrimitiveCategory::DataDisplayUtilities`
 /// のカタログ順と一致させる。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/avatar/", AVATAR),
+    ("/primitives/bubble/", BUBBLE),
     ("/primitives/carousel/", CAROUSEL),
     ("/primitives/item/", ITEM),
     ("/primitives/json-tree-view/", JSON_TREE_VIEW),
+    ("/primitives/message/", MESSAGE),
     ("/primitives/scroll-area/", SCROLL_AREA),
     ("/primitives/skip-nav/", SKIP_NAV),
     ("/primitives/splitter/", SPLITTER),
