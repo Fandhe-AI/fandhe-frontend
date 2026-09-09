@@ -9,6 +9,11 @@
 //!
 //! `SCATTER_CHART_GOLDEN_CSS` はイシュー #1598（`root` の
 //! `overflow: visible` 追加・`point` の `stroke-width` 表記統一）で更新済み。
+//!
+//! `RADAR_CHART_GOLDEN_CSS` はイシュー #2085（shadcn/ui Charts（radar）
+//! 突合）で `point`/`axis-value`/`radius-label` の base ブロックと
+//! `grid-fill: series` variant ブロックを末尾へ純追加した。既存 5 ブロック
+//! （`root`/`grid`/`spoke`/`axis-label`/`series`）は不変。
 
 use fandhe_frontend_pre_styled_ui::charts::{radar_chart, scatter_chart};
 
@@ -48,6 +53,27 @@ const RADAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="radar-chart"][data-part="ro
   fill-opacity: 0.2;
   stroke-width: 2;
   stroke-linejoin: round;
+}
+
+[data-scope="radar-chart"][data-part="point"] {
+  stroke: var(--fandhe-color-bg);
+  stroke-width: 1;
+}
+
+[data-scope="radar-chart"][data-part="axis-value"] {
+  fill: var(--fandhe-color-fg);
+  font-weight: var(--fandhe-font-font-weight-medium);
+}
+
+[data-scope="radar-chart"][data-part="radius-label"] {
+  font-size: var(--fandhe-font-font-size-xs);
+  font-family: var(--fandhe-font-font-body);
+  fill: var(--fandhe-color-fg);
+}
+
+[data-scope="radar-chart"][data-part="grid"].fd-radar-chart--grid-fill-series {
+  fill: currentColor;
+  fill-opacity: 0.2;
 }
 "#;
 

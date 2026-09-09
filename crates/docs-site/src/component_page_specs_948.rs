@@ -66,7 +66,9 @@ use fandhe_frontend_pre_styled_ui::charts::bar_chart::{
 use fandhe_frontend_pre_styled_ui::charts::bar_list;
 use fandhe_frontend_pre_styled_ui::charts::bar_segment;
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
-use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
+use fandhe_frontend_pre_styled_ui::charts::radar_chart::{
+    self, RadarAxisLabel, RadarChartProps, RadarGrid, RadarGridFill,
+};
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
 };
@@ -1870,24 +1872,172 @@ fn radar_chart_example() -> Node {
     )])
 }
 
+/// イシュー #2085: shadcn/ui `chart-radar-grid-circle`/`-grid-fill`/`-dots`
+/// の静的バリアント合成例。
+fn radar_chart_grid_and_dots_example() -> Node {
+    let data = ChartData::new(
+        vec![
+            "speed".to_string(),
+            "power".to_string(),
+            "range".to_string(),
+            "control".to_string(),
+            "armor".to_string(),
+        ],
+        vec![Series::new("mercury", vec![80.0, 60.0, 40.0, 90.0, 55.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![radar_chart::root(
+        &data,
+        RadarChartProps {
+            grid: RadarGrid::Circle,
+            grid_fill: RadarGridFill::Series,
+            dots: true,
+            ..RadarChartProps::default()
+        },
+        "circle grid with fill and dots",
+    )
+    .expect("固定サンプルは常に描画に成功する")])
+}
+
+/// イシュー #2085: shadcn/ui `chart-radar-label-custom`/`-radius`
+/// （値付き軸ラベル・半径軸）の静的バリアント合成例。
+fn radar_chart_axis_label_example() -> Node {
+    let data = ChartData::new(
+        vec![
+            "speed".to_string(),
+            "power".to_string(),
+            "range".to_string(),
+            "control".to_string(),
+            "armor".to_string(),
+        ],
+        vec![Series::new("mercury", vec![80.0, 60.0, 40.0, 90.0, 55.0])],
+    )
+    .expect("固定サンプルは常に有効");
+    row(vec![radar_chart::root(
+        &data,
+        RadarChartProps {
+            axis_label: RadarAxisLabel::ValueAndCategory,
+            radius_axis: true,
+            ..RadarChartProps::default()
+        },
+        "value/category labels with radius axis",
+    )
+    .expect("固定サンプルは常に描画に成功する")])
+}
+
+/// イシュー #2085: shadcn/ui `chart-radar-legend`/`-icons`（凡例との合成）
+/// の静的バリアント合成例。radar 部品自体は凡例を内包しない
+/// （chakra 方式、イシュー #2077）。
+fn radar_chart_legend_example() -> Node {
+    use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
+
+    let data = ChartData::new(
+        vec![
+            "speed".to_string(),
+            "power".to_string(),
+            "range".to_string(),
+        ],
+        vec![
+            Series::new("mercury", vec![80.0, 60.0, 40.0]).with_icon(text("\u{2605}")),
+            Series::new("venus", vec![50.0, 85.0, 70.0]).with_icon(text("\u{25B2}")),
+        ],
+    )
+    .expect("固定サンプルは常に有効");
+    let chart = radar_chart::root(&data, RadarChartProps::default(), "with legend")
+        .expect("固定サンプルは常に描画に成功する");
+    let legend_node = legend::legend(&data, &LegendProps::default());
+    row(vec![div(vec![], vec![chart, legend_node])])
+}
+
+const RADAR_CHART_ARGUMENTS: &[ArgRow] = &[
+    ArgRow {
+        name: "size",
+        kind: "f64",
+        default: "300.0",
+        description: "viewBox の一辺の長さ（正方形、px 相当）。",
+    },
+    ArgRow {
+        name: "grid",
+        kind: "RadarGrid",
+        default: "Polygon",
+        description: "同心グリッドの形状（Polygon/Circle/None）。shadcn/ui `chart-radar-default`/`-grid-circle`/`-grid-none` 相当。",
+    },
+    ArgRow {
+        name: "grid_rings",
+        kind: "RadarGridRings",
+        default: "Ticks",
+        description: "グリッドの同心リング本数（Ticks/Outer）。Outer は外周 1 本のみ描く静的近似。shadcn/ui `chart-radar-grid-custom` 相当。",
+    },
+    ArgRow {
+        name: "grid_fill",
+        kind: "RadarGridFill",
+        default: "None",
+        description: "グリッドの塗り（None/Series）。Series は先頭系列色で塗る。shadcn/ui `chart-radar-grid-fill`/`-grid-circle-fill` 相当。",
+    },
+    ArgRow {
+        name: "spokes",
+        kind: "bool",
+        default: "true",
+        description: "スポーク（中心 → 各軸頂点の線）の描画有無。shadcn/ui `radialLines` 相当。",
+    },
+    ArgRow {
+        name: "fill",
+        kind: "RadarFill",
+        default: "Solid",
+        description: "系列ポリゴンの塗り（Solid/None）。shadcn/ui `chart-radar-lines-only` 相当。",
+    },
+    ArgRow {
+        name: "dots",
+        kind: "bool",
+        default: "false",
+        description: "データ点マーカーの描画有無。shadcn/ui `chart-radar-dots` 相当。",
+    },
+    ArgRow {
+        name: "axis_label",
+        kind: "RadarAxisLabel",
+        default: "Category",
+        description: "軸ラベルの内容（Category/ValueAndCategory）。ValueAndCategory は各系列の値を `/` 区切りで併記する。shadcn/ui `chart-radar-label-custom` 相当。",
+    },
+    ArgRow {
+        name: "radius_axis",
+        kind: "bool",
+        default: "false",
+        description: "半径軸（値目盛ラベル）の描画有無。角度は軸 0/1 中間角に固定（静的近似）。shadcn/ui `chart-radar-radius` 相当。",
+    },
+];
+
 const RADAR_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "ChartData（カテゴリ = 軸、系列 = ポリゴン）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる外部依存ゼロのレーダーチャート",
         "頂点角度は θ_i = -π/2 + i・2π/n（12 時方向開始・時計回り）の決定的な式で算出する",
         "系列ポリゴンの輪郭は stroke-width 2 / round join で line-chart・area-chart と統一（イシュー #1597）",
-        "凡例・ツールチップは charts（共通 API）側の別部品",
+        "グリッド種・グリッド塗り・スポーク有無・dots・値付き軸ラベル・半径軸の静的バリアント（イシュー #2085、shadcn/ui Charts（radar）突合）",
+        "既定値は #2085 以前と完全に同一の HTML を出力する（golden 純追加原則）",
+        "凡例は charts::legend、ツールチップは charts（共通 API）側の別部品との合成で表現する",
     ],
-    arguments: &[ArgRow {
-        name: "size",
-        kind: "f64",
-        default: "300.0",
-        description: "viewBox の一辺の長さ（正方形、px 相当）。",
-    }],
-    examples: &[ExampleEntry {
-        title: "2 系列のレーダーチャート",
-        description: "5 軸（speed/power/range/control/armor）× 2 系列（mercury/venus）を重ねて表示します。",
-        render: radar_chart_example,
-    }],
+    arguments: RADAR_CHART_ARGUMENTS,
+    examples: &[
+        ExampleEntry {
+            title: "2 系列のレーダーチャート",
+            description: "5 軸（speed/power/range/control/armor）× 2 系列（mercury/venus）を重ねて表示します。",
+            render: radar_chart_example,
+        },
+        ExampleEntry {
+            title: "グリッド種と塗り + dots",
+            description: "grid: RadarGrid::Circle + grid_fill: RadarGridFill::Series + dots: true で正円グリッドを系列色で塗り、データ点を表示します。",
+            render: radar_chart_grid_and_dots_example,
+        },
+        ExampleEntry {
+            title: "値付き軸ラベルと半径軸",
+            description: "axis_label: RadarAxisLabel::ValueAndCategory + radius_axis: true で各軸に値付きラベルと半径方向の目盛を表示します。",
+            render: radar_chart_axis_label_example,
+        },
+        ExampleEntry {
+            title: "凡例（icon 付き）との合成",
+            description: "charts::legend::legend を並べて凡例を合成します（系列に with_icon でアイコンを設定）。",
+            render: radar_chart_legend_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,
