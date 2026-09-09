@@ -130,10 +130,10 @@ use crate::charts::pie::{
     annulus_full_ring_path, annulus_sector_path, annulus_sector_rounded_path,
 };
 use crate::charts::svg::{circle, line, svg_root, svg_text, ViewBox};
-use crate::charts::{series_color_var, tooltip, ChartData};
+use crate::charts::{drop_range_attr, series_color_var, tooltip, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, VariantValue};
+use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 use std::f64::consts::{FRAC_PI_2, PI};
@@ -290,6 +290,13 @@ pub struct RadialChartProps<'a> {
     /// hit-area 自体には付与しない）。`false` の場合は本イシュー以前の
     /// 出力とバイト一致する。
     pub show_tooltip: bool,
+    /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
+    /// とき root へ `data-range="<v>"` を出力する（既定 `None`＝非出力）。
+    pub range: Option<&'a str>,
+    /// 非表示系列名の一覧（イシュー #2133）。系列名と完全一致する `bar`
+    /// へ値なし属性 `data-hidden` を付与する。データに存在しない名前を
+    /// 指定してもエラーにしない（fail-soft）。
+    pub hidden_series: &'a [&'a str],
 }
 
 impl Default for RadialChartProps<'_> {
@@ -306,6 +313,8 @@ impl Default for RadialChartProps<'_> {
             show_grid: false,
             center_text: None,
             show_tooltip: true,
+            range: None,
+            hidden_series: &[],
         }
     }
 }
@@ -397,6 +406,13 @@ fn recipe() -> SlotRecipe {
                 (Size::Lg, vec![decl("--fandhe-radial-chart-size", "22rem")]),
                 (Size::Xl, vec![decl("--fandhe-radial-chart-size", "28rem")]),
             ],
+        )
+        // イシュー #2133: `hidden_series` で指定した系列の描画要素を
+        // 非表示にする（末尾純追加、既存ブロックは不変）。
+        .state(
+            "bar",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
         )
 }
 
@@ -646,6 +662,9 @@ pub fn radial_chart<'a>(
             if evenodd {
                 bar_attrs.push(("fill-rule", "evenodd"));
             }
+            if props.hidden_series.contains(&series.name.as_str()) {
+                bar_attrs.push(("data-hidden", ""));
+            }
             children.push(el("path", bar_attrs, vec![]));
         }
 
@@ -749,7 +768,10 @@ pub fn radial_chart<'a>(
     let recipe = recipe();
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
-    merged.extend(drop_class_attr(attrs));
+    if let Some(range) = props.range {
+        merged.push(("data-range", range));
+    }
+    merged.extend(drop_range_attr(drop_class_attr(attrs)));
 
     Ok(ANATOMY.part("root", "div", merged, root_children))
 }
@@ -1267,5 +1289,59 @@ mod tests {
             assert!(!message.is_empty());
             assert!(!message.contains('<'));
         }
+    }
+
+    // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
+
+    #[test]
+    fn range_none_omits_data_range() {
+        let html = render(
+            &radial_chart(&RadialChartProps::default(), &two_category_data(), vec![]).unwrap(),
+        );
+        assert!(!html.contains("data-range"));
+    }
+
+    #[test]
+    fn range_some_emits_data_range_on_root() {
+        let props = RadialChartProps {
+            range: Some("90d"),
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains(r#"data-range="90d""#));
+    }
+
+    #[test]
+    fn hidden_series_adds_data_hidden_to_matching_bar_only() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("s1", vec![10.0, 20.0]),
+                Series::new("s2", vec![15.0, 25.0]),
+            ],
+        )
+        .unwrap();
+        let props = RadialChartProps {
+            hidden_series: &["s2"],
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &data, vec![]).unwrap());
+        let s2_idx = html.find(r#"data-series="s2""#).unwrap();
+        let s2_end = html[s2_idx..].find('>').unwrap();
+        assert!(html[s2_idx..s2_idx + s2_end].contains("data-hidden"));
+        let s1_idx = html.find(r#"data-series="s1""#).unwrap();
+        let s1_end = html[s1_idx..].find('>').unwrap();
+        assert!(!html[s1_idx..s1_idx + s1_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_unknown_name_is_fail_soft() {
+        let props = RadialChartProps {
+            hidden_series: &["does-not-exist"],
+            ..RadialChartProps::default()
+        };
+        let result = radial_chart(&props, &two_category_data(), vec![]);
+        assert!(result.is_ok());
+        assert!(!render(&result.unwrap()).contains("data-hidden"));
     }
 }

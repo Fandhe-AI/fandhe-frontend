@@ -76,6 +76,18 @@ const BAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="bar-chart"][data-part="root"]
   stroke-dasharray: 4;
   stroke-dashoffset: 4;
 }
+
+[data-scope="bar-chart"][data-part="bar"][data-hidden] {
+  display: none;
+}
+
+[data-scope="bar-chart"][data-part="value-label"][data-hidden] {
+  display: none;
+}
+
+[data-scope="bar-chart"][data-part="inside-label"][data-hidden] {
+  display: none;
+}
 "#;
 
 #[test]

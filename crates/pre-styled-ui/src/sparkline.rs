@@ -93,7 +93,7 @@
 use crate::charts::data::{ChartData, Series};
 use crate::charts::scale::LinearScale;
 use crate::charts::svg::{fmt_coord, svg_root, PathBuilder};
-use crate::charts::{series_color_var, tooltip, ChartError};
+use crate::charts::{drop_range_attr, series_color_var, tooltip, ChartError};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::line_chart::{category_x, view_box_from_dims};
@@ -137,6 +137,14 @@ pub struct SparklineProps<'a> {
     /// （イシュー #2129、親 #2128）。`false` の場合は本イシュー以前の出力と
     /// バイト一致する（progressive enhancement の opt-out 経路）。
     pub show_tooltip: bool,
+    /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
+    /// とき root へ `data-range="<v>"` を出力する（既定 `None`＝非出力）。
+    /// [`crate::line_chart::LineChartProps::range`] と同一の契約。単一
+    /// 系列専用の部品のため `hidden_series` は持たない（凡例トグルの
+    /// 対象は系列単位ではなく part 単位の表示/非表示になり本部品の対象外、
+    /// `crate::charts` モジュール doc「期間切替・凡例トグルの SSR 構造」
+    /// 参照）。
+    pub range: Option<&'a str>,
 }
 
 impl<'a> SparklineProps<'a> {
@@ -150,6 +158,7 @@ impl<'a> SparklineProps<'a> {
             height: DEFAULT_HEIGHT,
             size: Size::Md,
             show_tooltip: true,
+            range: None,
         }
     }
 }
@@ -415,7 +424,10 @@ pub fn sparkline<'a>(
     let recipe = recipe();
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
-    merged.extend(drop_class_attr(attrs));
+    if let Some(range) = props.range {
+        merged.push(("data-range", range));
+    }
+    merged.extend(drop_range_attr(drop_class_attr(attrs)));
     Ok(ANATOMY.part("root", "div", merged, children))
 }
 
@@ -561,5 +573,32 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    // イシュー #2133: 期間切替の SSR 構造（`hidden_series` は本部品では
+    // 持たない、`SparklineProps::range` rustdoc 参照）。
+
+    #[test]
+    fn range_none_omits_data_range() {
+        let html = render(&sparkline(&SparklineProps::new(&[1.0, 2.0], "range"), vec![]).unwrap());
+        assert!(!html.contains("data-range"));
+    }
+
+    #[test]
+    fn range_some_emits_data_range_on_root() {
+        let mut props = SparklineProps::new(&[1.0, 2.0], "range");
+        props.range = Some("7d");
+        let html = render(&sparkline(&props, vec![]).unwrap());
+        assert!(html.contains(r#"data-range="7d""#));
+    }
+
+    #[test]
+    fn caller_data_range_attr_is_dropped_not_duplicated() {
+        let mut props = SparklineProps::new(&[1.0, 2.0], "range");
+        props.range = Some("real");
+        let html = render(&sparkline(&props, vec![("data-range", "fake")]).unwrap());
+        assert_eq!(html.matches("data-range").count(), 1);
+        assert!(html.contains(r#"data-range="real""#));
+        assert!(!html.contains("fake"));
     }
 }

@@ -84,6 +84,10 @@ const RADIAL_CHART_GOLDEN_CSS: &str = r#"[data-scope="radial-chart"][data-part="
 [data-scope="radial-chart"][data-part="root"].fd-radial-chart--size-xl {
   --fandhe-radial-chart-size: 28rem;
 }
+
+[data-scope="radial-chart"][data-part="bar"][data-hidden] {
+  display: none;
+}
 "#;
 
 #[test]

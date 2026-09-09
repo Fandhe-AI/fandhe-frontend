@@ -141,12 +141,13 @@ use crate::area_chart::{grid_lines_for_ticks, x_axis_category_labels, AXIS_BOTTO
 use crate::charts::axis::{self, AxisProps};
 use crate::charts::curve::{self, Curve};
 use crate::charts::data::ChartData;
+use crate::charts::drop_range_attr;
 use crate::charts::scale::LinearScale;
 use crate::charts::svg::{fmt_coord, svg_root, svg_text, ViewBox, ViewBoxError};
 use crate::charts::{tooltip, ChartError};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, VariantValue};
+use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -260,6 +261,19 @@ pub struct LineChartProps<'a> {
     /// 出力する（イシュー #2129、親 #2128）。`false` の場合は本イシュー
     /// 以前の出力とバイト一致する。
     pub show_tooltip: bool,
+    /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
+    /// とき root へ `data-range="<v>"` を出力する（既定 `None`＝非出力）。
+    /// 期間→カテゴリ集合の写像は定義しない（アプリ/wasm-full〔#2134〕の
+    /// 責務、`crate::charts` モジュール doc「期間切替・凡例トグルの SSR
+    /// 構造」節参照）。呼び出し側 `attrs` に同名キーがあっても
+    /// [`crate::charts::drop_range_attr`] で除去してから合成する。
+    pub range: Option<&'a str>,
+    /// 非表示系列名の一覧（イシュー #2133）。[`super::data::Series::name`]
+    /// と完全一致する系列の `series-line`/`point`/`value-label` へ値なし
+    /// 属性 `data-hidden` を付与する。スケール/domain の算出には影響しない
+    /// （SSR は全範囲・全系列を出力する設計、モジュール doc参照）。
+    /// データに存在しない名前を指定してもエラーにしない（fail-soft）。
+    pub hidden_series: &'a [&'a str],
 }
 
 impl<'a> LineChartProps<'a> {
@@ -282,6 +296,8 @@ impl<'a> LineChartProps<'a> {
             show_y_axis: false,
             show_grid: false,
             show_tooltip: true,
+            range: None,
+            hidden_series: &[],
         }
     }
 }
@@ -420,6 +436,24 @@ fn recipe() -> SlotRecipe {
                 decl("stroke-width", "2"),
             ],
         )
+        // イシュー #2133: `hidden_series` で指定した系列の描画要素を非表示に
+        // する（SSR はスケール/domain を変えず全系列を出力したまま、CSS の
+        // みで隠す。末尾純追加、既存ブロックは不変）。
+        .state(
+            "series-line",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "point",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "value-label",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
 }
 
 /// この styled LineChart が生成する静的 CSS 全量を返す（決定的。
@@ -440,6 +474,32 @@ struct SeriesRenderCtx<'a> {
     color_by_category: bool,
     categories: &'a [String],
     recipe: &'a SlotRecipe,
+    /// 系列名（[`super::data::Series::name`]）。`show_series_attr` が
+    /// `true` のとき `series-line`/`point`/`value-label` へ `data-series`
+    /// として付与する（イシュー #2133）。
+    series_name: &'a str,
+    /// `true` なら `data-series` を付与する（`LineChartProps::show_tooltip`
+    /// と同じゲート。イシュー #2129 の契約「`false` の出力は #2129 以前と
+    /// バイト一致」を保つため、tooltip 用の `data-index`/`data-series`
+    /// 語彙と同じ opt-in にする、イシュー #2133）。
+    show_series_attr: bool,
+    /// `true` なら `series-line`/`point`/`value-label` へ値なし属性
+    /// `data-hidden` を付与する（イシュー #2133、
+    /// `LineChartProps::hidden_series` に系列名が含まれる場合）。
+    hidden: bool,
+}
+
+/// [`SeriesRenderCtx::show_series_attr`]/[`SeriesRenderCtx::hidden`] から
+/// `data-series`/`data-hidden` の追加属性列を組み立てる（内部ヘルパ）。
+fn series_extra_attrs<'a>(ctx: &SeriesRenderCtx<'a>) -> Vec<(&'a str, &'a str)> {
+    let mut extra: Vec<(&str, &str)> = Vec::new();
+    if ctx.show_series_attr {
+        extra.push(("data-series", ctx.series_name));
+    }
+    if ctx.hidden {
+        extra.push(("data-hidden", ""));
+    }
+    extra
 }
 
 /// データ点 1 個の上へ値/カテゴリラベルを描く（内部ヘルパ、shadcn
@@ -447,17 +507,19 @@ struct SeriesRenderCtx<'a> {
 /// `text_value` は [`LineLabel::Value`] なら [`fmt_coord`] 済みの値文字列、
 /// [`LineLabel::Category`] ならカテゴリ名（[`text`] ノード経由で既定
 /// エスケープを通る）。
-fn value_label(x: f64, y: f64, text_value: String) -> Node {
-    svg_text(
-        x,
-        y - LABEL_OFFSET,
-        vec![
-            ("data-scope", "line-chart"),
-            ("data-part", "value-label"),
-            ("text-anchor", "middle"),
-        ],
-        vec![text(text_value)],
-    )
+fn value_label<'a>(
+    x: f64,
+    y: f64,
+    text_value: String,
+    extra_attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
+    let mut attrs = vec![
+        ("data-scope", "line-chart"),
+        ("data-part", "value-label"),
+        ("text-anchor", "middle"),
+    ];
+    attrs.extend(extra_attrs);
+    svg_text(x, y - LABEL_OFFSET, attrs, vec![text(text_value)])
 }
 
 /// 系列 1 本を折れ線 `path`（`n >= 2`）または中央の点マーカー（`n == 1`）
@@ -485,31 +547,30 @@ fn render_series(
 ) -> Result<Vec<Node>, ChartError> {
     let n = values.len();
     let mut nodes: Vec<Node> = Vec::new();
+    let extra_attrs = series_extra_attrs(ctx);
 
     if n <= 1 {
         let v = values.first().copied().unwrap_or(0.0);
         let x = category_x(width, n, 0) + ctx.left;
         let y = y_scale.scale(v);
         let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
-        nodes.push(el(
-            "circle",
-            vec![
-                ("data-scope", "line-chart"),
-                ("data-part", "point"),
-                ("cx", cx.as_str()),
-                ("cy", cy.as_str()),
-                ("r", r.as_str()),
-                ("fill", color),
-            ],
-            vec![],
-        ));
+        let mut point_attrs: Vec<(&str, &str)> = vec![
+            ("data-scope", "line-chart"),
+            ("data-part", "point"),
+            ("cx", cx.as_str()),
+            ("cy", cy.as_str()),
+            ("r", r.as_str()),
+            ("fill", color),
+        ];
+        point_attrs.extend(extra_attrs.clone());
+        nodes.push(el("circle", point_attrs, vec![]));
         if ctx.label != LineLabel::None {
             let text_value = match ctx.label {
                 LineLabel::Value => fmt_coord(v),
                 LineLabel::Category => ctx.categories.first().cloned().unwrap_or_default(),
                 LineLabel::None => unreachable!("上の if で LineLabel::None を除外済み"),
             };
-            nodes.push(value_label(x, y, text_value));
+            nodes.push(value_label(x, y, text_value, extra_attrs.clone()));
         }
         return Ok(nodes);
     }
@@ -521,17 +582,15 @@ fn render_series(
         .collect();
 
     let d = curve::line_path_d(&points, ctx.curve)?;
-    nodes.push(el(
-        "path",
-        vec![
-            ("data-scope", "line-chart"),
-            ("data-part", "series-line"),
-            ("d", d.as_str()),
-            ("stroke", color),
-            ("fill", "none"),
-        ],
-        vec![],
-    ));
+    let mut line_attrs: Vec<(&str, &str)> = vec![
+        ("data-scope", "line-chart"),
+        ("data-part", "series-line"),
+        ("d", d.as_str()),
+        ("stroke", color),
+        ("fill", "none"),
+    ];
+    line_attrs.extend(extra_attrs.clone());
+    nodes.push(el("path", line_attrs, vec![]));
 
     if ctx.dots != LineDots::None {
         for (i, &(x, y)) in points.iter().enumerate() {
@@ -556,6 +615,7 @@ fn render_series(
             } else {
                 point_attrs.push(("fill", point_color.as_str()));
             }
+            point_attrs.extend(extra_attrs.clone());
             nodes.push(el("circle", point_attrs, vec![]));
         }
     }
@@ -567,7 +627,7 @@ fn render_series(
                 LineLabel::Category => ctx.categories.get(i).cloned().unwrap_or_default(),
                 LineLabel::None => unreachable!("上の if で LineLabel::None を除外済み"),
             };
-            nodes.push(value_label(x, y, text_value));
+            nodes.push(value_label(x, y, text_value, extra_attrs.clone()));
         }
     }
 
@@ -688,17 +748,20 @@ pub fn line_chart<'a>(
         )?);
     }
 
-    let render_ctx = SeriesRenderCtx {
-        left,
-        curve: props.curve,
-        dots: props.dots,
-        label: props.label,
-        color_by_category: props.color_by_category,
-        categories: props.data.categories(),
-        recipe: &recipe,
-    };
     for (i, s) in props.data.series().iter().enumerate() {
         let color = props.data.series_color_var(i);
+        let render_ctx = SeriesRenderCtx {
+            left,
+            curve: props.curve,
+            dots: props.dots,
+            label: props.label,
+            color_by_category: props.color_by_category,
+            categories: props.data.categories(),
+            recipe: &recipe,
+            series_name: s.name.as_str(),
+            show_series_attr: props.show_tooltip,
+            hidden: props.hidden_series.contains(&s.name.as_str()),
+        };
         plot_children.extend(render_series(
             plot_w,
             &y_scale,
@@ -769,7 +832,10 @@ pub fn line_chart<'a>(
 
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
-    merged.extend(drop_class_attr(attrs));
+    if let Some(range) = props.range {
+        merged.push(("data-range", range));
+    }
+    merged.extend(drop_range_attr(drop_class_attr(attrs)));
     Ok(ANATOMY.part("root", "div", merged, children))
 }
 
@@ -1109,5 +1175,85 @@ mod tests {
         assert!(css.contains(
             r#"[data-scope="line-chart"][data-part="point"].fd-line-chart--dots-hollow"#
         ));
+    }
+
+    // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
+
+    #[test]
+    fn range_none_omits_data_range() {
+        let d = data(vec![1.0, 2.0]);
+        let html = render(&line_chart(&LineChartProps::new(&d, "range"), vec![]).unwrap());
+        assert!(!html.contains("data-range"));
+    }
+
+    #[test]
+    fn range_some_emits_data_range_on_root() {
+        let d = data(vec![1.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "range");
+        props.range = Some("90d");
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert!(html.starts_with(
+            r#"<div data-scope="line-chart" data-part="root" class="fd-line-chart--size-md" data-range="90d">"#
+        ));
+    }
+
+    #[test]
+    fn caller_data_range_attr_is_dropped_not_duplicated() {
+        let d = data(vec![1.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "range");
+        props.range = Some("real");
+        let html = render(&line_chart(&props, vec![("data-range", "fake")]).unwrap());
+        assert_eq!(html.matches("data-range").count(), 1);
+        assert!(html.contains(r#"data-range="real""#));
+        assert!(!html.contains("fake"));
+    }
+
+    #[test]
+    fn hidden_series_adds_data_hidden_to_matching_series_elements_only() {
+        let d = ChartData::new(
+            vec!["Jan".to_string(), "Feb".to_string()],
+            vec![
+                Series::new("visits", vec![1.0, 2.0]),
+                Series::new("signups", vec![3.0, 4.0]),
+            ],
+        )
+        .unwrap();
+        let mut props = LineChartProps::new(&d, "hidden");
+        props.hidden_series = &["signups"];
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert!(html.contains(r#"data-series="visits""#));
+        assert!(html.contains(r#"data-series="signups" data-hidden="""#));
+        // visits 側の要素には data-hidden が付かないことを固定する。
+        let visits_path_start = html.find(r#"data-series="visits""#).unwrap();
+        let visits_fragment = &html[visits_path_start..visits_path_start + 40];
+        assert!(!visits_fragment.contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_unknown_name_is_fail_soft() {
+        let d = data(vec![1.0, 2.0]);
+        let mut props = LineChartProps::new(&d, "hidden");
+        props.hidden_series = &["does-not-exist"];
+        let result = line_chart(&props, vec![]);
+        assert!(result.is_ok());
+        let html = render(&result.unwrap());
+        assert!(!html.contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_does_not_change_geometry() {
+        // SSR はスケール/domain を hidden_series の有無で変えない（モジュール
+        // doc「スケール」節）。座標（`d=`/`cx=`/`cy=`）はビットごとに同一で、
+        // 差分は `data-hidden` 属性のみになることを固定する。
+        let d = data(vec![1.0, 4.0, 2.0]);
+        let baseline = render(&line_chart(&LineChartProps::new(&d, "geo"), vec![]).unwrap());
+        let mut props = LineChartProps::new(&d, "geo");
+        props.hidden_series = &["s"];
+        let hidden = render(&line_chart(&props, vec![]).unwrap());
+        let baseline_no_series_attr = baseline.replace(r#" data-series="s""#, "");
+        let hidden_no_attrs = hidden
+            .replace(r#" data-series="s""#, "")
+            .replace(r#" data-hidden="""#, "");
+        assert_eq!(baseline_no_series_attr, hidden_no_attrs);
     }
 }

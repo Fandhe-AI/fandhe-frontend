@@ -287,7 +287,11 @@ enum RoundedEnd {
 }
 
 /// [`root`] の描画パラメータ。
-#[derive(Debug, Clone, Copy, PartialEq)]
+///
+/// イシュー #2133 で `range`/`hidden_series`（`String`/`Vec<String>`）を
+/// 純追加したため `Copy` は外れ `Clone` のみになった（0.x の破壊的変更、
+/// `..BarChartProps::default()` の構造体更新記法は影響を受けない）。
+#[derive(Debug, Clone, PartialEq)]
 pub struct BarChartProps {
     /// 棒の向き（既定 [`Orientation::Vertical`]）。
     pub orientation: Orientation,
@@ -328,6 +332,18 @@ pub struct BarChartProps {
     /// `false` の場合は本イシュー以前の出力（素の `<svg>`）とバイト一致
     /// する（progressive enhancement の opt-out 経路）。
     pub show_tooltip: bool,
+    /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
+    /// とき root（`svg[data-part="root"]`）へ `data-range="<v>"` を出力
+    /// する（既定 `None`＝非出力）。`root` は呼び出し側 `attrs` を受け
+    /// 付けない部品のため属性偽装のおそれがなく、
+    /// [`crate::charts::drop_range_attr`] の適用対象外
+    /// （`crate::charts` モジュール doc参照）。
+    pub range: Option<String>,
+    /// 非表示系列名の一覧（イシュー #2133）。系列名と完全一致する
+    /// `bar`/`value-label`/`inside-label` へ値なし属性 `data-hidden` を
+    /// 付与する。スケール/domain の算出には影響しない。データに存在しない
+    /// 名前を指定してもエラーにしない（fail-soft）。
+    pub hidden_series: Vec<String>,
 }
 
 impl Default for BarChartProps {
@@ -346,6 +362,8 @@ impl Default for BarChartProps {
             show_grid: false,
             show_category_labels: true,
             show_tooltip: true,
+            range: None,
+            hidden_series: Vec::new(),
         }
     }
 }
@@ -454,6 +472,23 @@ fn recipe() -> SlotRecipe {
                 decl("stroke-dasharray", "4"),
                 decl("stroke-dashoffset", "4"),
             ],
+        )
+        // イシュー #2133: `hidden_series` で指定した系列の描画要素を
+        // 非表示にする（末尾純追加、既存ブロックは不変）。
+        .state(
+            "bar",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "value-label",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "inside-label",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
         )
 }
 
@@ -891,6 +926,10 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                 // だった）。
                 let cat_idx_str = cat_idx.to_string();
                 let series_label = series[s_idx].name.as_str();
+                let hidden = props
+                    .hidden_series
+                    .iter()
+                    .any(|n| n.as_str() == series_label);
                 let mut attrs: Vec<(&str, &str)> =
                     vec![("data-scope", "bar-chart"), ("data-part", "bar")];
                 if props.show_tooltip {
@@ -901,6 +940,9 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                 if is_active {
                     attrs.push(("data-active", ""));
                     attrs.push(("color", color.as_str()));
+                }
+                if hidden {
+                    attrs.push(("data-hidden", ""));
                 }
                 plot_children.push(bar_shape(
                     x,
@@ -928,11 +970,22 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         &super::svg::fmt_coord(total),
                         props.orientation,
                         true,
+                        // 積み上げ合計ラベルは特定の 1 系列に属さないため
+                        // `hidden_series` の対象外とする（イシュー #2133）。
+                        false,
                     ));
                 }
                 if s_idx == 0 && props.label == BarLabel::Inside {
-                    pending_inside_label =
-                        Some(inside_label(x, y, w, h, category, props.orientation, true));
+                    pending_inside_label = Some(inside_label(
+                        x,
+                        y,
+                        w,
+                        h,
+                        category,
+                        props.orientation,
+                        true,
+                        false,
+                    ));
                 }
             }
             if let Some(label_node) = pending_inside_label {
@@ -1005,6 +1058,10 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                 // バイト一致契約を満たすため）。
                 let cat_idx_str = cat_idx.to_string();
                 let series_label = s.name.as_str();
+                let hidden = props
+                    .hidden_series
+                    .iter()
+                    .any(|n| n.as_str() == series_label);
                 let mut attrs: Vec<(&str, &str)> =
                     vec![("data-scope", "bar-chart"), ("data-part", "bar")];
                 if props.show_tooltip {
@@ -1018,6 +1075,9 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                 }
                 if is_negative {
                     attrs.push(("data-negative", ""));
+                }
+                if hidden {
+                    attrs.push(("data-hidden", ""));
                 }
                 plot_children.push(bar_shape(
                     x,
@@ -1038,6 +1098,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         &super::svg::fmt_coord(value),
                         props.orientation,
                         positive,
+                        hidden,
                     ));
                 }
                 if series_idx == 0 && props.label == BarLabel::Inside {
@@ -1049,6 +1110,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         category,
                         props.orientation,
                         positive,
+                        hidden,
                     ));
                 }
             }
@@ -1070,7 +1132,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                 cat_plot_width,
                 cat_plot_height,
                 left_offset,
-                props,
+                &props,
             ));
         }
     }
@@ -1184,6 +1246,9 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
     let attrs = vec![("data-scope", "bar-chart"), ("data-part", "root")];
     let mut merged_attrs = vec![("aria-label", aria_label)];
     merged_attrs.extend(attrs);
+    if let Some(range) = &props.range {
+        merged_attrs.push(("data-range", range.as_str()));
+    }
     let svg_node = svg::svg_root(&view_box, merged_attrs, plot_children);
 
     match entries {
@@ -1208,6 +1273,10 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
 /// 正方向なら先端は矩形の最小座標側（Vertical: `y`、Horizontal: `x+w`）、
 /// 負方向なら先端は最大座標側（Vertical: `y+h`、Horizontal: `x`）になる。
 /// 先端のさらに外側へ [`LABEL_OFFSET`] だけずらす。
+#[allow(
+    clippy::too_many_arguments,
+    reason = "座標・寸法・値文字列・orientation・先端方向・非表示フラグは同一ラベル 1 個の描画に必須の同格パラメータであり、分割すると呼び出し側で対応関係が追いにくくなる（イシュー #2133 で hidden を純追加）"
+)]
 fn value_label(
     x: f64,
     y: f64,
@@ -1216,6 +1285,7 @@ fn value_label(
     value_str: &str,
     orientation: Orientation,
     positive: bool,
+    hidden: bool,
 ) -> Node {
     let (lx, ly, extra): (f64, f64, Vec<(&str, &str)>) = match orientation {
         Orientation::Vertical => {
@@ -1259,6 +1329,9 @@ fn value_label(
     let mut attrs: Vec<(&str, &str)> =
         vec![("data-scope", "bar-chart"), ("data-part", "value-label")];
     attrs.extend(extra);
+    if hidden {
+        attrs.push(("data-hidden", ""));
+    }
     svg_text(lx, ly, attrs, vec![text(value_str.to_string())])
 }
 
@@ -1269,6 +1342,10 @@ fn value_label(
 /// 名が表示されてしまう）。ベースライン側は正方向なら矩形最大座標側
 /// （Vertical: `y+h`、Horizontal: `x`）、負方向なら最小座標側
 /// （Vertical: `y`、Horizontal: `x+w`）。
+#[allow(
+    clippy::too_many_arguments,
+    reason = "座標・寸法・カテゴリ名・orientation・先端方向・非表示フラグは同一ラベル 1 個の描画に必須の同格パラメータであり、分割すると呼び出し側で対応関係が追いにくくなる（イシュー #2133 で hidden を純追加）"
+)]
 fn inside_label(
     x: f64,
     y: f64,
@@ -1277,6 +1354,7 @@ fn inside_label(
     category: &str,
     orientation: Orientation,
     positive: bool,
+    hidden: bool,
 ) -> Node {
     let (lx, ly, extra): (f64, f64, Vec<(&str, &str)>) = match orientation {
         Orientation::Vertical => {
@@ -1313,6 +1391,9 @@ fn inside_label(
     let mut attrs: Vec<(&str, &str)> =
         vec![("data-scope", "bar-chart"), ("data-part", "inside-label")];
     attrs.extend(extra);
+    if hidden {
+        attrs.push(("data-hidden", ""));
+    }
     svg_text(lx, ly, attrs, vec![text(category.to_string())])
 }
 
@@ -1328,7 +1409,7 @@ fn category_label(
     plot_width: f64,
     plot_height: f64,
     left_offset: f64,
-    props: BarChartProps,
+    props: &BarChartProps,
 ) -> Node {
     let (x, y, attrs) = match props.orientation {
         Orientation::Vertical => (
@@ -1510,7 +1591,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             ..BarChartProps::default()
         };
-        let node = root(&sample(), props, "label").unwrap();
+        let node = root(&sample(), props.clone(), "label").unwrap();
         let html = render(&node);
         assert!(html.contains(r#"data-part="bar""#));
     }
@@ -1527,7 +1608,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             ..BarChartProps::default()
         };
-        let node = root(&sample(), props, "label").unwrap();
+        let node = root(&sample(), props.clone(), "label").unwrap();
         let html = render(&node);
         // plot_width = 480 - 96 = 384, label x = 384 + 4 = 388。
         assert!(html.contains(r#"x="388""#));
@@ -1701,7 +1782,7 @@ mod tests {
             corner_radius: 10_000.0,
             ..BarChartProps::default()
         };
-        let a = render(&root(&sample(), props, "label").unwrap());
+        let a = render(&root(&sample(), props.clone(), "label").unwrap());
         let b = render(&root(&sample(), props, "label").unwrap());
         assert_eq!(a, b);
     }
@@ -1918,7 +1999,7 @@ mod tests {
             highlight_negative: true,
             ..BarChartProps::default()
         };
-        let html = render(&root(&data, props, "label").unwrap());
+        let html = render(&root(&data, props.clone(), "label").unwrap());
         assert_eq!(html.matches("data-negative").count(), 1);
         assert!(html.contains("chart-2"));
 
@@ -2268,5 +2349,58 @@ mod tests {
         assert!(out.contains(r#"[data-scope="bar-chart"][data-part="bar"][data-active]"#));
         assert!(out.contains("stroke: currentColor;"));
         assert!(!out.contains(":hover"));
+    }
+
+    // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
+
+    #[test]
+    fn range_none_omits_data_range() {
+        let html = render(&root(&sample(), BarChartProps::default(), "range").unwrap());
+        assert!(!html.contains("data-range"));
+    }
+
+    #[test]
+    fn range_some_emits_data_range_on_root() {
+        let props = BarChartProps {
+            range: Some("90d".to_string()),
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&sample(), props, "range").unwrap());
+        assert!(html.contains(r#"data-range="90d""#));
+    }
+
+    #[test]
+    fn hidden_series_adds_data_hidden_to_matching_bars_only() {
+        let d = ChartData::new(
+            vec!["Jan".to_string(), "Feb".to_string()],
+            vec![
+                Series::new("visits", vec![10.0, 30.0]),
+                Series::new("signups", vec![5.0, 8.0]),
+            ],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            hidden_series: vec!["signups".to_string()],
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&d, props, "hidden").unwrap());
+        assert!(html.contains(r#"data-series="visits""#));
+        let signups_idx = html.find(r#"data-series="signups""#).unwrap();
+        let signups_tag_end = html[signups_idx..].find('>').unwrap();
+        assert!(html[signups_idx..signups_idx + signups_tag_end].contains("data-hidden"));
+        let visits_idx = html.find(r#"data-series="visits""#).unwrap();
+        let visits_tag_end = html[visits_idx..].find('>').unwrap();
+        assert!(!html[visits_idx..visits_idx + visits_tag_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_unknown_name_is_fail_soft() {
+        let props = BarChartProps {
+            hidden_series: vec!["does-not-exist".to_string()],
+            ..BarChartProps::default()
+        };
+        let result = root(&sample(), props, "hidden");
+        assert!(result.is_ok());
+        assert!(!render(&result.unwrap()).contains("data-hidden"));
     }
 }

@@ -134,7 +134,7 @@ use crate::charts::pie::{
     PieChartError,
 };
 use crate::charts::svg::{circle, fmt_coord, svg_root, svg_text, ViewBox};
-use crate::charts::{series_color_var, tooltip, ChartData};
+use crate::charts::{drop_range_attr, series_color_var, tooltip, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
@@ -304,6 +304,21 @@ pub struct PieChartProps<'a> {
     /// 出力する（イシュー #2129、親 #2128）。`false` の場合は本イシュー
     /// 以前の出力とバイト一致する。
     pub show_tooltip: bool,
+    /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
+    /// とき root へ `data-range="<v>"` を出力する（既定 `None`＝非出力）。
+    pub range: Option<&'a str>,
+    /// 非表示カテゴリ index の一覧（イシュー #2133）。[`stacked`](Self::stacked)
+    /// が `false`（既定）のときのみ参照し、該当 index の `segment` へ
+    /// 値なし属性 `data-hidden` を付与する。`stacked: true` では無視する
+    /// （[`hidden_series`](Self::hidden_series) が代わりに効く）。
+    pub hidden_categories: &'a [usize],
+    /// 非表示系列名の一覧（イシュー #2133）。[`stacked`](Self::stacked)
+    /// が `true` のときのみ参照し、系列名（リング）と完全一致する全
+    /// `segment` へ `data-hidden` を付与する。`stacked: false` では無視
+    /// する（[`hidden_categories`](Self::hidden_categories) が代わりに
+    /// 効く）。データに存在しない名前/index を指定してもエラーにしない
+    /// （fail-soft）。
+    pub hidden_series: &'a [&'a str],
 }
 
 impl Default for PieChartProps<'_> {
@@ -317,6 +332,9 @@ impl Default for PieChartProps<'_> {
             label_position: PieLabelPosition::Inside,
             stacked: false,
             show_tooltip: true,
+            range: None,
+            hidden_categories: &[],
+            hidden_series: &[],
         }
     }
 }
@@ -434,6 +452,13 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #2084: shadcn `chart-pie-separator-none` 突合。
         .variant(PieSeparator::None, "segment", vec![decl("stroke", "none")])
+        // イシュー #2133: `hidden_categories`/`hidden_series` で指定した
+        // セグメントを非表示にする（末尾純追加、既存ブロックは不変）。
+        .state(
+            "segment",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
 }
 
 /// この styled PieChart が生成する静的 CSS 全量を返す（決定的。
@@ -484,11 +509,29 @@ fn render_ring<'a>(
 
         let mut segment_attrs: Vec<(&str, &str)> =
             vec![("data-scope", "pie-chart"), ("data-part", "segment")];
+        let cat_idx_str = i.to_string();
+        if props.show_tooltip {
+            // イシュー #2133: セグメントへの `data-index` は tooltip 語彙
+            // （hit-area・#2129）と同じゲートで opt-in にする
+            // （`category_legend` の trigger `data-index` から本要素を
+            // 辿れるようにする、`crate::charts::legend` モジュール doc参照）。
+            segment_attrs.push(("data-index", cat_idx_str.as_str()));
+        }
         if let Some(name) = series_name {
             segment_attrs.push(("data-series", name));
         }
         if !separator_class.is_empty() {
             segment_attrs.push(("class", separator_class));
+        }
+        // イシュー #2133: stacked はリング（系列）単位、非 stacked は
+        // カテゴリ単位で非表示を判定する（`PieChartProps::hidden_series`/
+        // `hidden_categories` rustdoc 参照）。
+        let hidden = match series_name {
+            Some(name) => props.hidden_series.contains(&name),
+            None => props.hidden_categories.contains(&i),
+        };
+        if hidden {
+            segment_attrs.push(("data-hidden", ""));
         }
 
         let segment_node = if r_inner <= 0.0 {
@@ -877,7 +920,10 @@ pub fn pie_chart<'a>(
 
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
-    merged.extend(drop_class_attr(attrs));
+    if let Some(range) = props.range {
+        merged.push(("data-range", range));
+    }
+    merged.extend(drop_range_attr(drop_class_attr(attrs)));
 
     Ok(ANATOMY.part("root", "div", merged, children))
 }
@@ -1335,5 +1381,86 @@ mod tests {
         assert!(!html.contains("fd-pie-chart--separator-none"));
         assert!(!html.contains("label-line"));
         assert!(!html.contains("outside-label"));
+    }
+
+    // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
+
+    #[test]
+    fn range_none_omits_data_range() {
+        let html =
+            render(&pie_chart(&PieChartProps::default(), &two_category_data(), vec![]).unwrap());
+        assert!(!html.contains("data-range"));
+    }
+
+    #[test]
+    fn range_some_emits_data_range_on_root() {
+        let props = PieChartProps {
+            range: Some("90d"),
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains(r#"data-range="90d""#));
+    }
+
+    #[test]
+    fn caller_data_range_attr_is_dropped_not_duplicated() {
+        let props = PieChartProps {
+            range: Some("real"),
+            ..PieChartProps::default()
+        };
+        let html =
+            render(&pie_chart(&props, &two_category_data(), vec![("data-range", "fake")]).unwrap());
+        assert_eq!(html.matches("data-range").count(), 1);
+        assert!(html.contains(r#"data-range="real""#));
+        assert!(!html.contains("fake"));
+    }
+
+    #[test]
+    fn hidden_categories_adds_data_hidden_to_matching_segment_only_non_stacked() {
+        let props = PieChartProps {
+            hidden_categories: &[1],
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        let idx1 = html.find(r#"data-index="1""#).unwrap();
+        let idx1_end = html[idx1..].find('>').unwrap();
+        assert!(html[idx1..idx1 + idx1_end].contains("data-hidden"));
+        let idx0 = html.find(r#"data-index="0""#).unwrap();
+        let idx0_end = html[idx0..].find('>').unwrap();
+        assert!(!html[idx0..idx0 + idx0_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_adds_data_hidden_to_matching_ring_only_when_stacked() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("s1", vec![10.0, 20.0]),
+                Series::new("s2", vec![15.0, 25.0]),
+            ],
+        )
+        .unwrap();
+        let props = PieChartProps {
+            stacked: true,
+            hidden_series: &["s2"],
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &data, vec![]).unwrap());
+        let s2_idx = html.find(r#"data-series="s2""#).unwrap();
+        let s2_end = html[s2_idx..].find('>').unwrap();
+        assert!(html[s2_idx..s2_idx + s2_end].contains("data-hidden"));
+        let s1_idx = html.find(r#"data-series="s1""#).unwrap();
+        let s1_end = html[s1_idx..].find('>').unwrap();
+        assert!(!html[s1_idx..s1_idx + s1_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_categories_and_hidden_series_are_fail_soft_for_unknown_values() {
+        let props = PieChartProps {
+            hidden_categories: &[99],
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(!html.contains("data-hidden"));
     }
 }

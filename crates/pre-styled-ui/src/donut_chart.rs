@@ -111,7 +111,7 @@ use crate::charts::pie::{
     outside_label_effective_outer_radius, outside_label_point, segment_angles, PieChartError,
 };
 use crate::charts::svg::{fmt_coord, svg_root, svg_text, ViewBox};
-use crate::charts::{series_color_var, tooltip, ChartData};
+use crate::charts::{drop_range_attr, series_color_var, tooltip, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::pie_chart::{PieLabelContent, PieLabelPosition, PieSeparator};
@@ -249,6 +249,13 @@ pub struct DonutChartProps<'a> {
     /// （イシュー #2129、親 #2128。単一系列専用のため `data-series` は
     /// 出力しない）。`false` の場合は本イシュー以前の出力とバイト一致する。
     pub show_tooltip: bool,
+    /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
+    /// とき root へ `data-range="<v>"` を出力する（既定 `None`＝非出力）。
+    pub range: Option<&'a str>,
+    /// 非表示カテゴリ index の一覧（イシュー #2133）。該当 index の
+    /// `segment` へ値なし属性 `data-hidden` を付与する。データに存在
+    /// しない index を指定してもエラーにしない（fail-soft）。
+    pub hidden_categories: &'a [usize],
 }
 
 impl Default for DonutChartProps<'_> {
@@ -264,6 +271,8 @@ impl Default for DonutChartProps<'_> {
             active_index: None,
             center_text: None,
             show_tooltip: true,
+            range: None,
+            hidden_categories: &[],
         }
     }
 }
@@ -400,6 +409,13 @@ fn recipe() -> SlotRecipe {
         // （`crate::pie_chart::PieSeparator` を共有、scope は
         // `donut-chart` のため class 名は独立して生成される）。
         .variant(PieSeparator::None, "segment", vec![decl("stroke", "none")])
+        // イシュー #2133: `hidden_categories` で指定したセグメントを
+        // 非表示にする（末尾純追加、既存ブロックは不変）。
+        .state(
+            "segment",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
 }
 
 /// この styled DonutChart が生成する静的 CSS 全量を返す（決定的）。
@@ -521,11 +537,20 @@ pub fn donut_chart<'a>(
 
         let mut segment_attrs: Vec<(&str, &str)> =
             vec![("data-scope", "donut-chart"), ("data-part", "segment")];
+        let cat_idx_str = i.to_string();
+        if props.show_tooltip {
+            // イシュー #2133: pie_chart::render_ring と同じゲート
+            // （tooltip 語彙・#2129 と共有）。
+            segment_attrs.push(("data-index", cat_idx_str.as_str()));
+        }
         if is_active {
             segment_attrs.push(("data-active", ""));
         }
         if !separator_class.is_empty() {
             segment_attrs.push(("class", separator_class.as_str()));
+        }
+        if props.hidden_categories.contains(&i) {
+            segment_attrs.push(("data-hidden", ""));
         }
 
         if is_full_circle {
@@ -697,7 +722,10 @@ pub fn donut_chart<'a>(
 
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
-    merged.extend(drop_class_attr(attrs));
+    if let Some(range) = props.range {
+        merged.push(("data-range", range));
+    }
+    merged.extend(drop_range_attr(drop_class_attr(attrs)));
 
     Ok(ANATOMY.part("root", "div", merged, children))
 }
@@ -1116,5 +1144,50 @@ mod tests {
         assert!(!html.contains("outside-label"));
         assert!(!html.contains("center-value"));
         assert!(!html.contains("center-label"));
+    }
+
+    // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
+
+    #[test]
+    fn range_none_omits_data_range() {
+        let html = render(
+            &donut_chart(&DonutChartProps::default(), &two_category_data(), vec![]).unwrap(),
+        );
+        assert!(!html.contains("data-range"));
+    }
+
+    #[test]
+    fn range_some_emits_data_range_on_root() {
+        let props = DonutChartProps {
+            range: Some("90d"),
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains(r#"data-range="90d""#));
+    }
+
+    #[test]
+    fn hidden_categories_adds_data_hidden_to_matching_segment_only() {
+        let props = DonutChartProps {
+            hidden_categories: &[1],
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        let idx1 = html.find(r#"data-index="1""#).unwrap();
+        let idx1_end = html[idx1..].find('>').unwrap();
+        assert!(html[idx1..idx1 + idx1_end].contains("data-hidden"));
+        let idx0 = html.find(r#"data-index="0""#).unwrap();
+        let idx0_end = html[idx0..].find('>').unwrap();
+        assert!(!html[idx0..idx0 + idx0_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_categories_unknown_index_is_fail_soft() {
+        let props = DonutChartProps {
+            hidden_categories: &[99],
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(!html.contains("data-hidden"));
     }
 }
