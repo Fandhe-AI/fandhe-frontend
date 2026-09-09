@@ -233,6 +233,10 @@
 //!   規則 2（装飾・アニメーション・レイアウト計測は headless 層へ持ち込ま
 //!   ない）により意図的に非採用。追加するには headless-ui 側の新規
 //!   anatomy 変更（ユーザー承認事項）が必要なため本イシューの範囲外。
+//!   **注記（イシュー #2187）**: headless-ui 側で新設した `indicator`
+//!   パート（構造 + `data-state` のみ）へ本モジュールが CSS 変数契約付きの
+//!   着装を追加し、この非採用は解消済み。下記「shadcn/ui 突合（イシュー
+//!   #2187）」節参照。
 //! - **`link` 内のタイトル + 説明文の個別スタイリング（新規 anatomy
 //!   パート）は追加しない**: shadcn の "Components" トリガーパネルは
 //!   2 列グリッド + 各リンクが太字タイトル + 淡色説明文を持つが、
@@ -244,6 +248,35 @@
 //!   呼び出し側の Examples/Demo コードで組める）。
 //! - **`:active`（押下）擬似クラスは追加しない**: 既存の判断（本ファイル
 //!   イシュー #1700 節）を継承する。
+//!
+//! # shadcn/ui 突合（イシュー #2187）
+//!
+//! headless-ui 側（`crates/headless-ui/src/navigation_menu.rs`）が新設した
+//! ルートレベルの `indicator` パート（イシュー #2187）へ、本モジュールが
+//! CSS 変数契約付きの着装を追加した。上記イシュー #2035 節「意図的に
+//! 合わせなかった点」の該当項目はこれにより解消済み。
+//!
+//! **参照競合の判定**: navigation-menu の indicator は shadcn-ui / Radix の
+//! 値（Trigger 直下でスライドする小さなポインタ）を採る。理由:
+//! chakra-ui には対応物が無く、shadcn/Radix が唯一の視覚参照であるため。
+//! 色・寸法は既存トークン運用（`--fandhe-color-border`・
+//! `--fandhe-radius-sm`・`--fandhe-space-1`）に合わせる。
+//!
+//! **CSS 変数契約**: `--fandhe-navigation-menu-indicator-x`/`-width`
+//! （horizontal）・`-y`/`-height`（vertical）の 4 変数を実測値の書き込み先
+//! として宣言する。書き込みは `fandhe-frontend-wasm-full` の責務（イシュー
+//! #2208/#2209 系と同じ機構の後続、本イシューの範囲外）であり、本モジュール
+//! は既定 `0px` フォールバックのみを CSS 側に持つ。書き込みが無い間は
+//! `width`/`height` が 0 のため不可視（[`mod@crate::tabs`] のルートレベル
+//! `indicator` が「幅 0 の dead CSS になり配線時に二重線になる」ため装飾を
+//! 追加しないと判断したのとは異なり、navigation-menu の `trigger` は下線を
+//! 持たないため二重線の問題が生じない。両モジュールの判断は食い違って
+//! いない）。
+//!
+//! **`data-state="closed"` は `opacity: 0` でも隠す**: headless 層の
+//! `hidden` 存在属性（指す対象が無いときの fail-safe）に加えた二重の
+//! 非破綻保証。`pointer-events: none` とあわせ、JS 無効時・座標未配線時の
+//! いずれでもクリックを奪わず表示も破綻しない。
 
 use crate::css::decl;
 use crate::recipe::{
@@ -279,6 +312,7 @@ const SLOTS: &[&str] = &[
     "item-indicator",
     "content",
     "link",
+    "indicator",
 ];
 
 /// この styled Navigation Menu の既定 CSS を組み立てる（内部ヘルパ、
@@ -287,7 +321,12 @@ fn recipe() -> SlotRecipe {
     SlotRecipe::new("navigation-menu", SLOTS)
         .base(
             "root",
-            vec![decl("display", "flex"), decl("align-items", "center")],
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                // イシュー #2187: ルートレベル indicator（絶対配置）の基準点。
+                decl("position", "relative"),
+            ],
         )
         .base(
             "list",
@@ -389,6 +428,76 @@ fn recipe() -> SlotRecipe {
         // イシュー #2035: アイコン付きリンク合成向けの余白（trigger と同じ
         // 判断・同じトークン値）。`display: flex` 化により実効する。
         .base("link", vec![decl("gap", "var(--fandhe-space-2)")])
+        // イシュー #2187: ルートレベル indicator（開いている trigger の下で
+        // スライドするポインタ）。座標（`x`/`width`）は
+        // `fandhe-frontend-wasm-full` が `--fandhe-navigation-menu-indicator-*`
+        // custom property を実測して書き込む契約であり（イシュー
+        // #2208/#2209 系と同じ機構、本イシューの範囲外）、本モジュールは
+        // 既定 `0px` フォールバックを持つ CSS 変数参照のみを宣言する
+        // （書き込みが無い間は幅 0 で不可視、`pointer-events: none` で
+        // クリックを奪わない）。`z-index: 11` は `content`（`10`）より
+        // 上に置くための固定値（トークン化不要）。
+        .base(
+            "indicator",
+            vec![
+                decl("position", "absolute"),
+                decl("top", "100%"),
+                decl("left", "0"),
+                decl("height", "var(--fandhe-space-1)"),
+                decl(
+                    "width",
+                    "var(--fandhe-navigation-menu-indicator-width, 0px)",
+                ),
+                decl(
+                    "transform",
+                    "translateX(var(--fandhe-navigation-menu-indicator-x, 0px))",
+                ),
+                decl("background", "var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl("pointer-events", "none"),
+                decl("z-index", "11"),
+            ],
+        )
+        .base(
+            "indicator",
+            // horizontal/vertical 両 orientation の可変プロパティ（`width`/`height`）
+            // をあらかじめ揃えて宣言する。各 orientation では該当しない側は
+            // 固定値のままのためトランジション対象に含めても無害であり、
+            // `.state` 側で orientation ごとに transition-property を
+            // 出し分ける必要をなくす（Bugbot 指摘: 縦方向の
+            // `--fandhe-navigation-menu-indicator-height` 書き込みが
+            // イージングされずスナップしていた不具合の修正）。
+            transition_declarations("transform, width, height", MotionDuration::Fast),
+        )
+        // イシュー #2187: vertical orientation では上下方向にスライドする
+        // 縦バーへ切り替える（`top`/`left` を起点、`height`/`width` を
+        // 入れ替え、`translateX` の代わりに `translateY`）。
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-orientation", "vertical"),
+            vec![
+                decl("top", "0"),
+                decl("left", "0"),
+                decl(
+                    "height",
+                    "var(--fandhe-navigation-menu-indicator-height, 0px)",
+                ),
+                decl("width", "var(--fandhe-space-1)"),
+                decl(
+                    "transform",
+                    "translateY(var(--fandhe-navigation-menu-indicator-y, 0px))",
+                ),
+            ],
+        )
+        // イシュー #2187: 指す対象が無い closed 状態は `hidden` 存在属性
+        // （headless 層の fail-safe）に加えて opacity でも二重に隠す
+        // （幅 0px フォールバックとあわせた 3 重の非破綻保証、
+        // headless 層 `indicator` rustdoc 参照）。
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-state", "closed"),
+            vec![decl("opacity", "0")],
+        )
         // 開いている trigger を視覚的に強調する。
         .state(
             "trigger",

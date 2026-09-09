@@ -437,6 +437,11 @@ source = "site/primitives/json-tree-view.md"
 path = "/primitives/json-tree-view/"
 
 [[section.group.page]]
+title = "Marker"
+source = "site/primitives/marker.md"
+path = "/primitives/marker/"
+
+[[section.group.page]]
 title = "Message"
 source = "site/primitives/message.md"
 path = "/primitives/message/"
@@ -889,6 +894,11 @@ title = "Data Display"
 title = "Alert"
 source = "site/themes/alert.md"
 path = "/themes/alert/"
+
+[[section.group.page]]
+title = "Attachment"
+source = "site/themes/attachment.md"
+path = "/themes/attachment/"
 
 [[section.group.page]]
 title = "Avatar"
