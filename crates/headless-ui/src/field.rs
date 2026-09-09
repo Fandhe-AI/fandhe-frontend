@@ -60,6 +60,35 @@
 //!   [`select`] はネイティブ `readonly` を出力しない（`data-readonly` は
 //!   styled 層セレクタ・CSR フック用に他コントロール同様に維持する）。実効的な
 //!   読み取り専用化はアプリ側（disabled option 等）または CSR 層の責務。
+//!
+//! # `role="alert"` の採用（イシュー #2184）
+//!
+//! [`error_text`] は `role="alert"` と明示 `aria-live="polite"` を併せて
+//! 出力する（`fieldset::error_text` も同型判断で同じ構成）。判断の根拠は
+//! 以下のとおり:
+//!
+//! 1. **ARIA 仕様上の併用可否**: WAI-ARIA の `alert` ロールは
+//!    `aria-live="assertive"`/`aria-atomic="true"` を *implicit value*
+//!    として持つが、作者が明示した属性値はこの既定値より優先される。
+//!    したがって `role="alert" aria-live="polite"` は「`alert` ロール
+//!    語彙を持つ polite な live region」として仕様上矛盾しない。
+//! 2. **既存の読み上げ挙動を変えない**: 明示 `polite` を維持するため、
+//!    読み上げの割り込み度合いは従来どおりであり、ark-ui（zag.js Field
+//!    ErrorText）が出力する `id`/`aria-live="polite"`/`data-*` の部分集合
+//!    関係は本変更後も保たれる（純追加）。
+//! 3. **採らなかった代替案**: `role="alert"` のみ（明示 `aria-live` 削除・
+//!    assertive 化）は読み上げ挙動の破壊的変更になるため不採用。
+//!    `role="status"`（暗黙 polite 相当）は shadcn/ui が採る `alert`
+//!    ロール語彙とのパリティを満たさないため不採用。現状維持は
+//!    shadcn/ui 突合（PR #2147）が対象外として記録した差分を放置する
+//!    ことになるため見送らなかった。
+//! 4. **`hidden` との相互作用**: `invalid=false` では `hidden` 存在属性に
+//!    より live region は不活性（読み上げなし）。SSR で `invalid=true`
+//!    のまま初期描画されるケースでは、一部支援技術がページ読み込み時に
+//!    `role="alert"` 要素を読み上げ得るが、送信後バリデーション結果の
+//!    通知としては許容する。
+//! 5. **`aria-atomic` は明示しない**: `alert` の暗黙値 `true` に委ね、
+//!    出力の差分を最小に保つ。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_describedby, aria_hidden, aria_invalid};
@@ -382,7 +411,9 @@ pub fn helper_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: V
 
 /// `error_text` パーツ（`div`）。`invalid` でないときは `hidden` 存在属性を
 /// 付与する fail-closed 描画とし、JS 不在の SSR でも誤表示しない。
-/// `aria-live="polite"` によりスクリーンリーダーへの通知を意図する。
+/// `role="alert"` と `aria-live="polite"` を併せて付与する
+/// （イシュー #2184、根拠は本モジュール doc の
+/// 「`role="alert"` の採用（イシュー #2184）」節を参照）。
 ///
 /// タグは `span`（phrasing content）ではなく `div`（flow content）とする。
 /// 呼び出し側（pre-styled-ui の shadcn/ui 突合、イシュー #2014）が複数
@@ -393,7 +424,11 @@ pub fn helper_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: V
 #[must_use]
 pub fn error_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     let error_id = props.error_text_id();
-    let mut merged: Vec<(&str, &str)> = vec![("id", error_id.as_str()), ("aria-live", "polite")];
+    let mut merged: Vec<(&str, &str)> = vec![
+        ("id", error_id.as_str()),
+        ("role", "alert"),
+        ("aria-live", "polite"),
+    ];
     if !props.invalid {
         merged.push(("hidden", ""));
     }
@@ -651,12 +686,14 @@ mod tests {
         let props_valid = base_props("f");
         let hidden_html = render(&error_text(&props_valid, vec![], vec![text("bad")]));
         assert!(hidden_html.contains(r#"hidden="""#));
+        assert!(hidden_html.contains(r#"role="alert""#));
         assert!(hidden_html.contains(r#"aria-live="polite""#));
 
         let mut props_invalid = base_props("f");
         props_invalid.invalid = true;
         let visible_html = render(&error_text(&props_invalid, vec![], vec![text("bad")]));
         assert!(!visible_html.contains("hidden"));
+        assert_eq!(visible_html.matches(r#"role="alert""#).count(), 1);
     }
 
     #[test]
