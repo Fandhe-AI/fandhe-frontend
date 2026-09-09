@@ -973,9 +973,20 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         // 積み上げ合計ラベルは特定の 1 系列に属さないため
                         // `hidden_series` の対象外とする（イシュー #2133）。
                         false,
+                        // 同様に特定の 1 系列に属さないため凡例トグルの
+                        // 共有識別子（`data-index`/`data-series`）も
+                        // 出力しない。
+                        None,
                     ));
                 }
                 if s_idx == 0 && props.label == BarLabel::Inside {
+                    // 積み上げのベースライン系列（series[0]）が
+                    // `hidden_series` で隠されている場合、対応する
+                    // カテゴリ内側ラベルも一緒に隠す（grouped 側の
+                    // `inside_label` 呼び出しと同じ規則。Cursor Bugbot
+                    // 指摘「Stacked inside labels ignore hidden series」
+                    // 対応、イシュー #2133）。`hidden` は本ループの
+                    // s_idx==0 反復で series[0] について計算済みの値。
                     pending_inside_label = Some(inside_label(
                         x,
                         y,
@@ -984,7 +995,12 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         category,
                         props.orientation,
                         true,
-                        false,
+                        hidden,
+                        if props.show_tooltip {
+                            Some((cat_idx_str.as_str(), series_label))
+                        } else {
+                            None
+                        },
                     ));
                 }
             }
@@ -1089,6 +1105,11 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     attrs,
                 ));
 
+                let index_and_series = if props.show_tooltip {
+                    Some((cat_idx_str.as_str(), series_label))
+                } else {
+                    None
+                };
                 if props.label != BarLabel::None {
                     plot_children.push(value_label(
                         x,
@@ -1099,6 +1120,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         props.orientation,
                         positive,
                         hidden,
+                        index_and_series,
                     ));
                 }
                 if series_idx == 0 && props.label == BarLabel::Inside {
@@ -1111,6 +1133,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         props.orientation,
                         positive,
                         hidden,
+                        index_and_series,
                     ));
                 }
             }
@@ -1275,7 +1298,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
 /// 先端のさらに外側へ [`LABEL_OFFSET`] だけずらす。
 #[allow(
     clippy::too_many_arguments,
-    reason = "座標・寸法・値文字列・orientation・先端方向・非表示フラグは同一ラベル 1 個の描画に必須の同格パラメータであり、分割すると呼び出し側で対応関係が追いにくくなる（イシュー #2133 で hidden を純追加）"
+    reason = "座標・寸法・値文字列・orientation・先端方向・非表示フラグ・凡例共有識別子は同一ラベル 1 個の描画に必須の同格パラメータであり、分割すると呼び出し側で対応関係が追いにくくなる（イシュー #2133 で hidden・index_and_series を純追加）"
 )]
 fn value_label(
     x: f64,
@@ -1286,6 +1309,12 @@ fn value_label(
     orientation: Orientation,
     positive: bool,
     hidden: bool,
+    // `(data-index 値, data-series 値)`。呼び出し側が `show_tooltip`/
+    // 系列帰属の有無を判断し `None` なら両属性とも出力しない
+    // （bar/segment の hit-area と同じゲート語彙を凡例トグル対象の
+    // satellite 要素にも広げる、Cursor Bugbot 指摘「Hidden satellites
+    // lack shared identifiers」対応、イシュー #2133）。
+    index_and_series: Option<(&str, &str)>,
 ) -> Node {
     let (lx, ly, extra): (f64, f64, Vec<(&str, &str)>) = match orientation {
         Orientation::Vertical => {
@@ -1329,6 +1358,10 @@ fn value_label(
     let mut attrs: Vec<(&str, &str)> =
         vec![("data-scope", "bar-chart"), ("data-part", "value-label")];
     attrs.extend(extra);
+    if let Some((index_str, series_label)) = index_and_series {
+        attrs.push(("data-index", index_str));
+        attrs.push(("data-series", series_label));
+    }
     if hidden {
         attrs.push(("data-hidden", ""));
     }
@@ -1344,7 +1377,7 @@ fn value_label(
 /// （Vertical: `y`、Horizontal: `x+w`）。
 #[allow(
     clippy::too_many_arguments,
-    reason = "座標・寸法・カテゴリ名・orientation・先端方向・非表示フラグは同一ラベル 1 個の描画に必須の同格パラメータであり、分割すると呼び出し側で対応関係が追いにくくなる（イシュー #2133 で hidden を純追加）"
+    reason = "座標・寸法・カテゴリ名・orientation・先端方向・非表示フラグ・凡例共有識別子は同一ラベル 1 個の描画に必須の同格パラメータであり、分割すると呼び出し側で対応関係が追いにくくなる（イシュー #2133 で hidden・index_and_series を純追加）"
 )]
 fn inside_label(
     x: f64,
@@ -1355,6 +1388,8 @@ fn inside_label(
     orientation: Orientation,
     positive: bool,
     hidden: bool,
+    // [`value_label`] の `index_and_series` と同じ契約。
+    index_and_series: Option<(&str, &str)>,
 ) -> Node {
     let (lx, ly, extra): (f64, f64, Vec<(&str, &str)>) = match orientation {
         Orientation::Vertical => {
@@ -1391,6 +1426,10 @@ fn inside_label(
     let mut attrs: Vec<(&str, &str)> =
         vec![("data-scope", "bar-chart"), ("data-part", "inside-label")];
     attrs.extend(extra);
+    if let Some((index_str, series_label)) = index_and_series {
+        attrs.push(("data-index", index_str));
+        attrs.push(("data-series", series_label));
+    }
     if hidden {
         attrs.push(("data-hidden", ""));
     }
@@ -2367,6 +2406,71 @@ mod tests {
         };
         let html = render(&root(&sample(), props, "range").unwrap());
         assert!(html.contains(r#"data-range="90d""#));
+    }
+
+    /// Cursor Bugbot 指摘（PR #2271「Stacked inside labels ignore hidden
+    /// series」）: 積み上げの `inside_label`（ベースライン系列 = series[0]
+    /// のカテゴリ名ラベル）が常に `hidden: false` で描画されており、
+    /// `hidden_series` でベースライン系列を隠しても内側ラベルが残留して
+    /// いた。ベースライン系列を隠したとき内側ラベルにも `data-hidden` が
+    /// 伝搬することを固定する。
+    #[test]
+    fn stack_inside_label_reflects_hidden_series_of_baseline_series() {
+        let data = ChartData::new(
+            vec!["a".to_string()],
+            vec![Series::new("s1", vec![1.0]), Series::new("s2", vec![2.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            stack: BarStack::Normal,
+            label: BarLabel::Inside,
+            hidden_series: vec!["s1".to_string()],
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        let inside_label_idx = html
+            .find(r#"data-part="inside-label""#)
+            .expect("inside-label が出力される");
+        let tag_end = html[inside_label_idx..].find('>').unwrap();
+        assert!(
+            html[inside_label_idx..inside_label_idx + tag_end].contains("data-hidden"),
+            "ベースライン系列 (series[0]) が hidden_series に含まれる場合、inside-label にも data-hidden が伝搬すること"
+        );
+    }
+
+    /// Cursor Bugbot 指摘（PR #2271「Hidden satellites lack shared
+    /// identifiers」）: `value-label`/`inside-label` に `data-hidden` は
+    /// 付与されるが、凡例トグルの共有セレクタ用 `data-series`/
+    /// `data-index`（bar 本体・radar/pie/scatter の point と同じ語彙）が
+    /// 欠けていた。`show_tooltip: true`（既定）で両属性が付与されることを
+    /// 固定する。
+    #[test]
+    fn value_label_and_inside_label_carry_data_series_and_data_index() {
+        let data = ChartData::new(
+            vec!["Jan".to_string()],
+            vec![Series::new("visits", vec![10.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            label: BarLabel::Inside,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "labels").unwrap());
+        let value_label_idx = html
+            .find(r#"data-part="value-label""#)
+            .expect("value-label が出力される");
+        let value_label_tag_end = html[value_label_idx..].find('>').unwrap();
+        let value_label_tag = &html[value_label_idx..value_label_idx + value_label_tag_end];
+        assert!(value_label_tag.contains(r#"data-index="0""#));
+        assert!(value_label_tag.contains(r#"data-series="visits""#));
+
+        let inside_label_idx = html
+            .find(r#"data-part="inside-label""#)
+            .expect("inside-label が出力される");
+        let inside_label_tag_end = html[inside_label_idx..].find('>').unwrap();
+        let inside_label_tag = &html[inside_label_idx..inside_label_idx + inside_label_tag_end];
+        assert!(inside_label_tag.contains(r#"data-index="0""#));
+        assert!(inside_label_tag.contains(r#"data-series="visits""#));
     }
 
     #[test]

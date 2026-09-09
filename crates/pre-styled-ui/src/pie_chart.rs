@@ -601,6 +601,17 @@ fn render_ring<'a>(
                 ("data-part", "label-line"),
                 ("d", leader_d.as_str()),
             ];
+            if props.show_tooltip {
+                // `segment` と同じゲート・語彙（Cursor Bugbot 指摘
+                // 「Hidden satellites lack shared identifiers」対応。
+                // 凡例トグルの共有セレクタ `[data-series]`/`[data-index]`
+                // から本要素も一緒に非表示・復元できるようにする、
+                // イシュー #2133）。
+                label_line_attrs.push(("data-index", cat_idx_str.as_str()));
+            }
+            if let Some(name) = series_name {
+                label_line_attrs.push(("data-series", name));
+            }
             if hidden {
                 // イシュー #2133: 非表示セグメントの引き出し線も伝搬して
                 // 隠す（`segment` の data-hidden 伝搬と同じ条件、
@@ -623,6 +634,14 @@ fn render_ring<'a>(
                 ("data-part", "outside-label"),
                 ("data-align", align),
             ];
+            if props.show_tooltip {
+                // `segment`/`label-line` と同じゲート・語彙（同上、
+                // イシュー #2133）。
+                outside_label_attrs.push(("data-index", cat_idx_str.as_str()));
+            }
+            if let Some(name) = series_name {
+                outside_label_attrs.push(("data-series", name));
+            }
             if hidden {
                 // イシュー #2133: 非表示セグメントの外側ラベルも伝搬して
                 // 隠す（同上）。
@@ -644,6 +663,13 @@ fn render_ring<'a>(
             let ly = CENTER_Y + label_r * mid.sin();
             let mut label_attrs: Vec<(&str, &str)> =
                 vec![("data-scope", "pie-chart"), ("data-part", "label")];
+            if props.show_tooltip {
+                // `segment` と同じゲート・語彙（同上、イシュー #2133）。
+                label_attrs.push(("data-index", cat_idx_str.as_str()));
+            }
+            if let Some(name) = series_name {
+                label_attrs.push(("data-series", name));
+            }
             if hidden {
                 // イシュー #2133: 非表示セグメントの内側ラベルも伝搬して
                 // 隠す（同上）。
@@ -1508,6 +1534,74 @@ mod tests {
         let a_content = html.find(">A<").unwrap();
         let a_tag_start = html[..a_content].rfind("<text").unwrap();
         assert!(!html[a_tag_start..a_content].contains("data-hidden"));
+    }
+
+    /// Cursor Bugbot 指摘（PR #2271「Hidden satellites lack shared
+    /// identifiers」）: `label`/`outside-label`/`label-line` に
+    /// `data-hidden` は伝搬するが、`segment` が持つ凡例トグル共有識別子
+    /// `data-index`（`show_tooltip` ゲート）・`data-series`（stacked 時）
+    /// が欠けていた。inside 配置（`label`）・outside 配置
+    /// （`outside-label`/`label-line`）の双方で `data-index` が伝搬する
+    /// ことを固定する。
+    #[test]
+    fn labels_carry_data_index_matching_segment() {
+        let props = PieChartProps {
+            show_labels: true,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        let a_content = html.find(">A<").unwrap();
+        let a_tag_start = html[..a_content].rfind("<text").unwrap();
+        assert!(html[a_tag_start..a_content].contains(r#"data-index="0""#));
+        let b_content = html.find(">B<").unwrap();
+        let b_tag_start = html[..b_content].rfind("<text").unwrap();
+        assert!(html[b_tag_start..b_content].contains(r#"data-index="1""#));
+    }
+
+    /// 同上（outside 配置版）。
+    #[test]
+    fn outside_labels_carry_data_index_matching_segment() {
+        let props = PieChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        let lines: Vec<_> = html.match_indices(r#"data-part="label-line""#).collect();
+        assert_eq!(lines.len(), 2);
+        let first_end = html[lines[0].0..].find('>').unwrap();
+        assert!(html[lines[0].0..lines[0].0 + first_end].contains(r#"data-index="0""#));
+        let second_end = html[lines[1].0..].find('>').unwrap();
+        assert!(html[lines[1].0..lines[1].0 + second_end].contains(r#"data-index="1""#));
+
+        let a_content = html.find(">A<").unwrap();
+        let a_tag_start = html[..a_content].rfind("<text").unwrap();
+        assert!(html[a_tag_start..a_content].contains(r#"data-index="0""#));
+        let b_content = html.find(">B<").unwrap();
+        let b_tag_start = html[..b_content].rfind("<text").unwrap();
+        assert!(html[b_tag_start..b_content].contains(r#"data-index="1""#));
+    }
+
+    /// stacked 時は `label`/`outside-label`/`label-line` にも `segment` と
+    /// 同じ `data-series` が伝搬することを固定する（同上バグ報告）。
+    #[test]
+    fn stacked_labels_carry_data_series_matching_segment() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("s1", vec![10.0, 20.0]),
+                Series::new("s2", vec![15.0, 25.0]),
+            ],
+        )
+        .unwrap();
+        let props = PieChartProps {
+            stacked: true,
+            show_labels: true,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &data, vec![]).unwrap());
+        assert!(html.contains(r#"data-part="label" data-index="0" data-series="s1""#));
+        assert!(html.contains(r#"data-part="label" data-index="0" data-series="s2""#));
     }
 
     #[test]

@@ -799,12 +799,20 @@ pub fn root(
         children.push(el("path", series_attrs, vec![]));
 
         if props.dots {
-            for &(x, y) in &points {
-                let mut point_attrs: Vec<(&str, &str)> = vec![
-                    ("data-scope", "radar-chart"),
-                    ("data-part", "point"),
-                    ("fill", color.as_str()),
-                ];
+            for (point_idx, &(x, y)) in points.iter().enumerate() {
+                let point_idx_str = point_idx.to_string();
+                let mut point_attrs: Vec<(&str, &str)> =
+                    vec![("data-scope", "radar-chart"), ("data-part", "point")];
+                if props.show_tooltip {
+                    // hit-area・`data-index` と同じゲート（scatter の
+                    // point と同型、Cursor Bugbot 指摘「Hidden satellites
+                    // lack shared identifiers」対応、イシュー #2133）。
+                    point_attrs.push(("data-index", point_idx_str.as_str()));
+                }
+                // `series`（path）の `data-series` と同じく既存語彙、
+                // `show_tooltip` に関わらず常に付与する。
+                point_attrs.push(("data-series", series.name.as_str()));
+                point_attrs.push(("fill", color.as_str()));
                 if hidden {
                     point_attrs.push(("data-hidden", ""));
                 }
@@ -1374,6 +1382,42 @@ mod tests {
         let html = render(&root(&data, props, "label").unwrap());
         assert_eq!(html.matches(r#"data-part="point""#).count(), n * 2);
         assert!(html.contains(r#"r="4""#));
+    }
+
+    /// Cursor Bugbot 指摘（PR #2271「Hidden satellites lack shared
+    /// identifiers」）: `point`（`dots: true`）に `data-hidden` は伝搬する
+    /// が、series（path）が既に持つ `data-series` と、hit-area と同じ
+    /// 語彙の `data-index` が欠けており、凡例トグルの共有セレクタから
+    /// point だけを一緒に非表示・復元できなかった。両属性が付与される
+    /// ことを固定する。
+    #[test]
+    fn dots_carry_data_series_and_data_index() {
+        let n = 5;
+        let categories: Vec<String> = (0..n).map(|i| format!("axis{i}")).collect();
+        let data = ChartData::new(
+            categories,
+            vec![Series::new("s1", vec![10.0, 20.0, 30.0, 40.0, 50.0])],
+        )
+        .unwrap();
+        let props = RadarChartProps {
+            dots: true,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        let point_tags: Vec<_> = html.match_indices(r#"data-part="point""#).collect();
+        assert_eq!(point_tags.len(), n);
+        for (point_idx, (idx, _)) in point_tags.iter().enumerate() {
+            let tag_end = html[*idx..].find('>').unwrap();
+            let tag = &html[*idx..*idx + tag_end];
+            assert!(
+                tag.contains(&format!(r#"data-index="{point_idx}""#)),
+                "point #{point_idx} に data-index が出力されること: {tag}"
+            );
+            assert!(
+                tag.contains(r#"data-series="s1""#),
+                "point #{point_idx} に data-series が出力されること: {tag}"
+            );
+        }
     }
 
     #[test]
