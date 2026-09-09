@@ -23,10 +23,15 @@
 //!    `ChartError::DegenerateDomain`/`NonFiniteValue` を誘発しない。固定
 //!    `±1.0` のみだと `f64::MAX` 付近で退化・非有限化が再発する不具合が
 //!    あった、Cursor Bugbot 指摘、イシュー #851 追補）。
-//! 3. **座標の文字列化**: すべて [`super::svg::fmt_coord`] のみを経由する
-//!    （独自フォーマット禁止、[`crate::charts`] モジュール doc 不変条件 2）。
+//! 3. **数値の文字列化**: ピクセル座標（`cx`/`cy`/`r`/hit-area 幾何）は
+//!    [`super::svg::fmt_coord`] のみを経由し、データ値そのもの（ツール
+//!    チップ本文の `x`/`y` 表示）は [`super::svg::fmt_value`] のみを経由
+//!    する（独自フォーマット禁止、[`crate::charts`] モジュール doc
+//!    不変条件 2「ピクセル座標なら `fmt_coord`、データ値なら
+//!    `fmt_value`」。イシュー #2129 PR #2261 codex-review P1 是正）。
 //! 4. **軸線・グリッド・凡例・ツールチップ**: 本モジュールのスコープ外
-//!    （イシュー #847 が担当）。
+//!    （イシュー #847 が担当。ただしイシュー #2129 で hit-area・SSR
+//!    ツールチップ DOM の一部を [`root`] 内で担う、下記参照）。
 //!
 //! # a11y
 //!
@@ -131,7 +136,7 @@
 
 use super::data::flat_domain_pad;
 use super::scale::LinearScale;
-use super::svg::{self, fmt_coord, ViewBox};
+use super::svg::{self, fmt_value, ViewBox};
 use super::{series_color_var, tooltip, ChartError};
 use crate::css::decl;
 use crate::recipe::SlotRecipe;
@@ -195,6 +200,11 @@ impl ScatterSeries {
 ///
 /// 1. 系列は 1 件以上、かつ全系列合計で点が 1 件以上。
 /// 2. 全ての座標が有限（`NaN`/`±inf` を含まない）。
+/// 3. 系列名はすべて一意（イシュー #2129、PR #2261 codex-review P1 指摘）。
+///    hit-area/tooltip の識別キーは「系列名（`data-series`）+ 系列内の点
+///    序数（`data-index`）」のみで構成されるため（`root` 関数 doc
+///    参照）、系列名が重複すると異なる系列の点が同じキーへ衝突し
+///    hit-area とツールチップの対応付けが一意に定まらなくなる。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScatterData {
     series: Vec<ScatterSeries>,
@@ -208,6 +218,9 @@ impl ScatterData {
     /// - `series` が空、または全系列合計で点が 0 件の場合
     ///   [`ChartError::EmptyData`]
     /// - いずれかの座標が `NaN`/`±inf` の場合 [`ChartError::NonFiniteValue`]
+    /// - 系列名に重複がある場合 [`ChartError::DuplicateSeriesName`]
+    ///   （hit-area/tooltip の識別キー〔系列名 + 点序数〕の一意性を構築時
+    ///   に保証するため、イシュー #2129 codex-review P1 指摘）
     pub fn new(series: Vec<ScatterSeries>) -> Result<Self, ChartError> {
         if series.is_empty() || series.iter().all(|s| s.points.is_empty()) {
             return Err(ChartError::EmptyData);
@@ -218,6 +231,13 @@ impl ScatterData {
                 .any(|(x, y)| !x.is_finite() || !y.is_finite())
             {
                 return Err(ChartError::NonFiniteValue);
+            }
+        }
+        {
+            let mut names: Vec<&str> = series.iter().map(|s| s.name.as_str()).collect();
+            names.sort_unstable();
+            if names.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(ChartError::DuplicateSeriesName);
             }
         }
         Ok(ScatterData { series })
@@ -440,7 +460,13 @@ pub fn root(
                     series: Some(series.name.clone()),
                     label: format!("{} #{}", series.name, point_idx),
                     rows: vec![tooltip::TooltipRow {
-                        name: format!("x: {}, y: {}", fmt_coord(x), fmt_coord(y)),
+                        // `x`/`y` はピクセル座標（`cx`/`cy`）ではなくデータ値
+                        // そのものであるため `fmt_value` を経由する
+                        // （[`crate::charts`] モジュール doc 不変条件 2、PR
+                        // #2261 codex-review P1 指摘: `fmt_coord` では
+                        // 小さいデータ値がツールチップ本文で `0` に丸め
+                        // 落ちていた）。
+                        name: format!("x: {}, y: {}", fmt_value(x), fmt_value(y)),
                         series: series.name.clone(),
                         value: y,
                         color: tooltip_color.clone(),
@@ -501,6 +527,38 @@ mod tests {
             ScatterData::new(vec![ScatterSeries::new("a", vec![])]).unwrap_err(),
             ChartError::EmptyData
         );
+    }
+
+    #[test]
+    fn scatter_data_rejects_duplicate_series_names() {
+        // イシュー #2129 codex-review P1 指摘: 同名系列を許すと hit-area/
+        // tooltip の識別キー（系列名 + 系列内の点序数）が衝突し、異なる
+        // 系列の点が同じ `data-index`/`data-series` を持ってしまう。
+        // 構築時に fail-closed で拒否することを固定する。
+        assert_eq!(
+            ScatterData::new(vec![
+                ScatterSeries::new("a", vec![(0.0, 0.0)]),
+                ScatterSeries::new("a", vec![(1.0, 1.0)]),
+            ])
+            .unwrap_err(),
+            ChartError::DuplicateSeriesName
+        );
+        // 3 系列中 2 件のみ重複していても検知する。
+        assert_eq!(
+            ScatterData::new(vec![
+                ScatterSeries::new("a", vec![(0.0, 0.0)]),
+                ScatterSeries::new("b", vec![(1.0, 1.0)]),
+                ScatterSeries::new("a", vec![(2.0, 2.0)]),
+            ])
+            .unwrap_err(),
+            ChartError::DuplicateSeriesName
+        );
+        // 系列名が一意なら許可される（既存挙動を壊さない）。
+        assert!(ScatterData::new(vec![
+            ScatterSeries::new("a", vec![(0.0, 0.0)]),
+            ScatterSeries::new("b", vec![(1.0, 1.0)]),
+        ])
+        .is_ok());
     }
 
     #[test]
@@ -675,6 +733,20 @@ mod tests {
             render(&root(&data, ScatterChartProps::default(), "<script>xss</script>").unwrap());
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn tooltip_and_hit_area_label_preserve_small_data_values() {
+        // イシュー #2129 codex-review P1 指摘: `fmt_coord`（小数点以下 2 桁
+        // 固定）でデータ値を整形すると `0.001` のような小さい値がツール
+        // チップ本文・`aria-label` で `0` に丸め落ちる。`fmt_value` 経由に
+        // 修正したことを、SSR 出力の文字列に有効数字が残ることで固定する。
+        let data = ScatterData::new(vec![ScatterSeries::new("a", vec![(0.001, 0.001)])]).unwrap();
+        let html = render(&root(&data, ScatterChartProps::default(), "label").unwrap());
+        // `fmt_coord` なら "x: 0, y: 0" になるところ、`fmt_value` では
+        // 有効数字を保持した "0.001" になる。
+        assert!(html.contains("x: 0.001, y: 0.001"));
+        assert!(!html.contains("x: 0, y: 0"));
     }
 
     #[test]

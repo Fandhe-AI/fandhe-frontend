@@ -153,6 +153,16 @@ pub enum ChartError {
     /// （イシュー #2082）。範囲外インデックスをサイレントに無視せず
     /// fail-closed に拒否する。
     IndexOutOfRange,
+    /// [`scatter_chart::ScatterData::new`] に、同名の系列が複数渡された
+    /// （イシュー #2129、PR #2261 codex-review P1 指摘）。散布図の
+    /// hit-area/tooltip 識別キーは「系列名 + 系列内の点序数」
+    /// （`data-series` + `data-index`）のみで構成されるため、系列名が
+    /// 重複すると異なる系列の点が同じキーへ衝突し、hit-area とツール
+    /// チップの対応付けが一意に定まらなくなる（ホバー時に別系列の値が
+    /// 表示される等の誤対応）。系列名を識別キーの一部に使う契約
+    /// （[`scatter_chart`] モジュール doc「`data-series` 語彙」節）を保つ
+    /// ため、構築時に重複を fail-closed に拒否する。
+    DuplicateSeriesName,
 }
 
 impl std::fmt::Display for ChartError {
@@ -175,6 +185,9 @@ impl std::fmt::Display for ChartError {
             }
             ChartError::InvalidCornerRadius => "corner radius must be finite and non-negative",
             ChartError::IndexOutOfRange => "index must be within the category count",
+            ChartError::DuplicateSeriesName => {
+                "series names must be unique (duplicate names break hit-area/tooltip identity)"
+            }
         };
         write!(f, "{message}")
     }

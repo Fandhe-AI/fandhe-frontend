@@ -96,7 +96,7 @@
 //! は #2132 が担う。
 
 use super::data::SeriesColor;
-use super::svg::fmt_coord;
+use super::svg::{fmt_coord, fmt_value};
 use crate::css::decl;
 use crate::recipe::{
     focus_ring_declarations, transition_declarations, FocusRingColor, FocusRingOffset,
@@ -434,7 +434,15 @@ pub fn entries_from_chart_data(data: &super::data::ChartData) -> Vec<TooltipEntr
 }
 
 /// hit-area の `aria-label`（カテゴリ + 全系列の値、[`datum_label`] と同型の
-/// 区切り記号 `" · "`。単一系列では [`datum_label`] と同一文字列になる）。
+/// 区切り記号 `" · "`）。
+///
+/// `row.value` はピクセル座標ではなくデータ値そのものであるため
+/// [`super::svg::fmt_value`] を経由する（[`crate::charts`] モジュール doc
+/// 不変条件 2「ピクセル座標なら `fmt_coord`、データ値なら `fmt_value`」。
+/// PR #2261 codex-review P1 指摘: `fmt_coord`（小数点以下 2 桁固定）では
+/// `0.001` のような小さいデータ値が `aria-label`/ツールチップ本文で `0`
+/// に丸め落ちしていた）。`|v| >= 0.01` では `fmt_coord` とバイト同一のため
+/// [`datum_label`] と同一文字列になるのは単一系列かつこの範囲の値のみ。
 #[must_use]
 pub fn hit_area_label(entry: &TooltipEntry) -> String {
     let mut parts = vec![entry.label.clone()];
@@ -442,7 +450,7 @@ pub fn hit_area_label(entry: &TooltipEntry) -> String {
         entry
             .rows
             .iter()
-            .map(|row| format!("{}: {}", row.name, fmt_coord(row.value))),
+            .map(|row| format!("{}: {}", row.name, fmt_value(row.value))),
     );
     parts.join(" · ")
 }
@@ -584,7 +592,10 @@ fn tooltip_node(entry: &TooltipEntry, active: Option<(usize, Option<&str>)>) -> 
     )];
     for row in &entry.rows {
         let style = format!("--fandhe-chart-tooltip-color: {}", row.color.var());
-        let value_text = fmt_coord(row.value);
+        // `row.value` はピクセル座標ではなくデータ値そのものであるため
+        // `fmt_value` を経由する（[`hit_area_label`] と同じ根拠、PR #2261
+        // codex-review P1 指摘）。
+        let value_text = fmt_value(row.value);
         children.push(el(
             "div",
             vec![
@@ -843,6 +854,21 @@ mod tests {
     }
 
     #[test]
+    fn hit_area_label_preserves_small_data_values() {
+        // イシュー #2129 codex-review P1 指摘: `row.value` はデータ値その
+        // ものであり、`fmt_coord`（小数点以下 2 桁固定）を使うと
+        // `0.001` のような小さい値が `aria-label` で `0` に丸め落ちる。
+        // `fmt_value` 経由への修正を固定する。
+        let data = super::super::data::ChartData::new(
+            vec!["Jan".to_string()],
+            vec![super::super::data::Series::new("visits", vec![0.001])],
+        )
+        .unwrap();
+        let entries = entries_from_chart_data(&data);
+        assert_eq!(hit_area_label(&entries[0]), "Jan · visits: 0.001");
+    }
+
+    #[test]
     fn hit_area_rect_renders_fill_none_pointer_events_none_and_tabindex() {
         let html = render(&hit_area_rect(0.0, 0.0, 10.0, 20.0, 0, None, "label"));
         assert!(html.starts_with(
@@ -900,6 +926,22 @@ mod tests {
         assert!(html.contains("--fandhe-chart-tooltip-color: var(--fandhe-color-chart-1)"));
         assert!(html.contains(r#"data-part="tooltip-name">visits<"#));
         assert!(html.contains(">10<"));
+    }
+
+    #[test]
+    fn layer_preserves_small_data_values_in_tooltip_item_text() {
+        // イシュー #2129 codex-review P1 指摘: ツールチップ本文の値表示
+        // （`tooltip-item` 内テキスト）も `fmt_coord` ではなく `fmt_value`
+        // を経由するため、`0.001` のような小さい値が `0` へ丸め落ちない
+        // ことを固定する。
+        let data = super::super::data::ChartData::new(
+            vec!["Jan".to_string()],
+            vec![super::super::data::Series::new("visits", vec![0.001])],
+        )
+        .unwrap();
+        let html = render(&layer(&data, None));
+        assert!(html.contains(">0.001<"));
+        assert!(!html.contains(">0<"));
     }
 
     #[test]
