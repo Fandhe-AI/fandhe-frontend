@@ -61,7 +61,7 @@ crate 名と結び付けられるようにするためである。
 | 対象 | URL | 件数 |
 |---|---|---|
 | Primitives 索引 | `/primitives/` | 1 |
-| Primitives 部品 | `/primitives/<kebab>/` | 67(イシュー #2059 で `button_group` が追加され 63→64、イシュー #2062 で `input_group` が追加され 64→65、イシュー #2065 で `item` が追加され 65→66、イシュー #2068 で `command` が追加され 66→67) |
+| Primitives 部品 | `/primitives/<kebab>/` | 69(イシュー #2059 で `button_group` が追加され 63→64、イシュー #2062 で `input_group` が追加され 64→65、イシュー #2065 で `item` が追加され 65→66、イシュー #2068 で `command` が追加され 66→67、イシュー #2072 で `sidebar` が追加され 67→68、イシュー #2105 で `message` が追加され 68→69) |
 | Themes 索引 | `/themes/` | 1 |
 | Themes 部品 | `/themes/<kebab>/` | 113(`/components/<kebab>/` から移転。イシュー #1683 で 107→108、イシュー #1685 で 108→109、イシュー #1687 で 109→110、イシュー #2063 で 110→111、イシュー #2066 で 111→112、イシュー #2060 で 112→113) |
 | 旧 URL(移転案内) | `/components/<kebab>/` ほか | 115 |
@@ -182,14 +182,16 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 ## 6. Primitives 台帳の判別規約
 
 **判別規則**: `crates/headless-ui/src/*.rs` のうち `anatomy(` を呼ぶもの
-(`anatomy.rs` 自身を除く)= **部品 67 件**(イシュー #2059 で `button_group`・
+(`anatomy.rs` 自身を除く)= **部品 69 件**(イシュー #2059 で `button_group`・
 イシュー #2062 で `input_group` がそれぞれ追加され 63→65、イシュー #2065 で
-`item` が追加され 65→66、イシュー #2068 で `command` が追加され 66→67)。
+`item` が追加され 65→66、イシュー #2068 で `command` が追加され 66→67、
+イシュー #2072 で `sidebar` が追加され 67→68、イシュー #2105 で `message`
+が追加され 68→69)。
 
 **基盤モジュール 9 件**(部品ではない): `anatomy` / `aria` / `color` /
 `data_attrs` / `date` / `format` / `positioning` / `qr_encode` / `state`。
 
-66 + 9 + `lib.rs` = **76** = `crates/headless-ui/src/*.rs` の総数(旧
+69 + 9 + `lib.rs` = **79** = `crates/headless-ui/src/*.rs` の総数(旧
 63 + 9 + 1 = 73、直近は 65 + 9 + 1 = 75)。
 
 **`collapsible` / `field` / `fieldset` は `anatomy()` を持つ実部品**であり
@@ -212,12 +214,13 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 コマンドをそのまま埋める。
 
 ```bash
-# 部品 67 件（イシュー #2059 で button_group・イシュー #2062 で
-# input_group・イシュー #2065 で item・イシュー #2068 で command が
-# それぞれ追加され 63→65→66→67）
-grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 67
-# 総数 77(= 67 + 基盤 9 + lib.rs、旧 73)
-ls crates/headless-ui/src/*.rs | wc -l                                            # => 77
+# 部品 69 件（イシュー #2059 で button_group・イシュー #2062 で
+# input_group・イシュー #2065 で item・イシュー #2068 で command・
+# イシュー #2072 で sidebar・イシュー #2105 で message が
+# それぞれ追加され 63→65→66→67→68→69）
+grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 69
+# 総数 79(= 69 + 基盤 9 + lib.rs、旧 73)
+ls crates/headless-ui/src/*.rs | wc -l                                            # => 79
 # Themes 部品ページ 113 件（イシュー #1017 で site/components/ から site/themes/ へ移行済み、
 # イシュー #2063 で input_group、イシュー #2066 で item、イシュー #2060 で
 # button_group の Themes ページが加わり 110→113）
@@ -227,9 +230,10 @@ ls site/themes/*.md | wc -l                                                     
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
 
 §6 は headless-ui ソース ↔ Primitives 台帳の**レイヤー内**ドリフト検知
-(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(67 部品、
+(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(69 部品、
 イシュー #2059 で `button_group`・イシュー #2062 で `input_group`・
-イシュー #2065 で `item`・イシュー #2068 で `command` をそれぞれ追加、
+イシュー #2065 で `item`・イシュー #2068 で `command`・イシュー #2072 で
+`sidebar`・イシュー #2105 で `message` をそれぞれ追加、
 旧 63)と Themes(114 部品、イシュー #2063 で `input_group`・イシュー #2066
 で `item`・イシュー #2060 で `button_group`・イシュー #2070 で `command`
 をそれぞれ追加、旧 110)の**層をまたぐラップ状態**
@@ -237,7 +241,7 @@ ls site/themes/*.md | wc -l                                                     
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
 テストは `crates/docs-site/tests/wrap_state.rs`(イシュー #1064)。
 
-**Primitives 側の未ラップ判定(イシュー #2059/#2065/#2068)**: `button_group`
+**Primitives 側の未ラップ判定(イシュー #2059/#2065/#2068/#2072/#2105)**: `button_group`
 はイシュー #2059 で headless-ui 層のみを実装しており、pre-styled-ui
 recipe・Themes ページを持たなかったが、イシュー #2060 で pre-styled-ui 側
 （`crates/pre-styled-ui/src/button_group.rs`・`/themes/button-group/`）を
@@ -249,7 +253,11 @@ pre-styled-ui recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移�
 (両リストからは除外済み)。`command` も同様にイシュー #2068 で
 headless-ui 層のみを実装していたが、イシュー #2070 で pre-styled-ui
 recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った(両リストから
-除外済み)。
+除外済み)。`sidebar`(イシュー #2072)・`message`(イシュー #2105)は
+現時点で headless-ui 層のみを実装しており、pre-styled-ui recipe・Themes
+ページを持たないため `HEADLESS_UNWRAPPED`/`PRIMITIVES_WITHOUT_THEMES_PAGE`
+の両リストに載っている(それぞれ後続イシュー #2073・#2106 で Themes 層を
+実装後に除外予定)。
 
 ### 名寄せキー
 
@@ -263,9 +271,10 @@ recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った(両リス
 
 `crates/pre-styled-ui/src/**/*.rs` の各モジュールについて、**非コメント行**
 に現れる `fandhe_frontend_headless_ui::<module>` のうち `<module>` が
-Primitives 台帳の 67 部品名(イシュー #2059 で `button_group`・イシュー
+Primitives 台帳の 69 部品名(イシュー #2059 で `button_group`・イシュー
 #2062 で `input_group`・イシュー #2065 で `item`・イシュー #2068 で
-`command` をそれぞれ追加、旧 63)に一致するものを
+`command`・イシュー #2072 で `sidebar`・イシュー #2105 で `message` を
+それぞれ追加、旧 63)に一致するものを
 「コード委譲あり」とする。
 
 rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc に 1 文
@@ -464,6 +473,32 @@ Forms A 13・6 グループ**合計 66→67**であり、§6 のコード導出�
 / `module_counts_are_consistent_with_the_source_tree` が機械検査する
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本訂正追記のみを
 合算値の正とする）。
+
+**追記(イシュー #2072)**: shadcn/ui のみに存在する `sidebar`（Sidebar、
+参照軸 #2001）を Navigation カテゴリへ `pagination` の直後（`tabs` の前）
+に追加する。headless-ui 層のみを先行実装し pre-styled-ui recipe・Themes
+ページは後続 #2073 のスコープのため、`PRIMITIVES_WITHOUT_THEMES_PAGE` /
+`HEADLESS_UNWRAPPED`（`tests/wrap_state.rs`）へ `sidebar` を追加した。
+現在の実カテゴリ内訳は Navigation 13・6 グループ合計 67→68 であり、§6 の
+コード導出 68 件（headless-ui `crates/headless-ui/src/*.rs` 総数 78 =
+部品 68 + 基盤 9 + `lib.rs`）との一致は
+`crates/docs-site/tests/primitives_catalog.rs::module_counts_are_consistent_with_the_source_tree`
+が機械検査する（本節末尾の表・部品名一覧・上記各追記は据え置き、本追記
+のみを合算値の正とする）。
+
+**追記(イシュー #2105)**: shadcn/ui のみに存在する `message`（Message、
+参照軸 #2001）を Data Display / Utilities カテゴリへ `json_tree_view` の
+直後（`scroll_area` の前）に追加する。headless-ui 層のみを先行実装し
+pre-styled-ui recipe・Themes ページは後続 #2106 のスコープのため、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）へ `message` を追加した。現在の実カテゴリ内訳は
+Data Display / Utilities 12・6 グループ**合計 68→69**であり、§6 のコード
+導出は**部品 69 件**（headless-ui `crates/headless-ui/src/*.rs` 総数
+**79** = 部品 69 + 基盤 9 + `lib.rs`）との一致は
+`crates/docs-site/tests/primitives_catalog.rs::catalog_has_69_entries_in_six_categories_in_spec_order`
+/ `module_counts_are_consistent_with_the_source_tree` が機械検査する
+（本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
+正とする）。
 
 ## 8. `component-coverage-map.md` との関係
 

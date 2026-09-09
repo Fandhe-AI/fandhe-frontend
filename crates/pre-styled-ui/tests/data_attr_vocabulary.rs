@@ -30,6 +30,7 @@ use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::data_attrs::{
     data_orientation, Orientation as ScrollAreaOrientation,
 };
+use fandhe_frontend_headless_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use fandhe_frontend_headless_ui::progress::Progress;
 use fandhe_frontend_pre_styled_ui::alert;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
@@ -916,4 +917,100 @@ fn scroll_area_viewport_data_attrs_are_caller_sourced_not_self_emitted() {
     let css = scroll_area::stylesheet();
     assert!(css.contains("[data-fade]"));
     assert!(css.contains("[data-orientation=\"horizontal\"]"));
+}
+
+/// 会話系 4 部品（message / bubble #2108 / attachment #2111 / marker #2114）
+/// が共有する `data-role`/`data-align`/`data-loading`/`data-error` 語彙の
+/// 登録点（イシュー #2105。正は `crates/headless-ui/src/message.rs`
+/// rustdoc「会話系 4 部品の共通語彙」）。#2106 で pre-styled-ui 側に
+/// `message` モジュールが新設された際は、本テストに加えて
+/// `*_not_self_emitted` の headless-sourced 契約テストを追加する
+/// （`progress_parts_data_attrs_are_headless_sourced_not_self_emitted` と
+/// 同型）。
+#[test]
+fn message_root_data_role_align_loading_error_vocabulary_is_fixed() {
+    // data-role: user/assistant/system の 3 値。
+    for (role, expected) in [
+        (MessageRole::User, "user"),
+        (MessageRole::Assistant, "assistant"),
+        (MessageRole::System, "system"),
+    ] {
+        let html = render(&message::root(
+            MessageRootProps {
+                role,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(&format!(r#"data-role="{expected}""#)));
+    }
+
+    // data-align: start/end の 2 値。data-role から独立した軸であることを
+    // role=assistant + align=end の組み合わせで固定する。
+    let assistant_end = render(&message::root(
+        MessageRootProps {
+            role: MessageRole::Assistant,
+            align: MessageAlign::End,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(assistant_end.contains(r#"data-role="assistant""#));
+    assert!(assistant_end.contains(r#"data-align="end""#));
+
+    // data-loading/data-error: 存在属性（bool から生成、非付与時は属性
+    // 自体が出ない）。
+    let loading = render(&message::root(
+        MessageRootProps {
+            loading: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(loading.contains(r#"data-loading="""#));
+    assert!(!loading.contains("data-error"));
+
+    let error = render(&message::root(
+        MessageRootProps {
+            error: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(error.contains(r#"data-error="""#));
+    assert!(!error.contains("data-loading"));
+
+    let neither = render(&message::root(MessageRootProps::default(), vec![], vec![]));
+    assert!(!neither.contains("data-loading"));
+    assert!(!neither.contains("data-error"));
+
+    // 呼び出し側 attrs による偽装除去（大文字小文字混在含む）。
+    let spoofed = render(&message::root(
+        MessageRootProps::default(),
+        vec![
+            ("Data-Role", "assistant"),
+            ("DATA-ALIGN", "end"),
+            ("data-loading", "spoofed"),
+            ("data-error", "spoofed"),
+        ],
+        vec![],
+    ));
+    assert!(spoofed.contains(r#"data-role="user""#));
+    assert!(spoofed.contains(r#"data-align="start""#));
+    assert!(!spoofed.contains("spoofed"));
+
+    // XSS 最小回帰（呼び出し側 attrs の動的値コンテキスト）。
+    let payload_html = render(&message::root(
+        MessageRootProps::default(),
+        vec![("data-testid", XSS_PAYLOAD)],
+        vec![],
+    ));
+    assert_no_raw_payload(
+        &payload_html,
+        "message::root の呼び出し側 attrs コンテキスト",
+    );
 }

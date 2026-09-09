@@ -711,6 +711,22 @@
 //!   `fandhe-frontend-wasm-full` に実装済み（[`mod@menubar`] モジュール doc
 //!   「参考サイトとの意図的な差分（イシュー #1652 で Radix Primitives
 //!   Menubar と参照突合）」参照）。
+//! - [`mod@message`]: Root / Avatar / Header / Content / Footer / Group の
+//!   6 anatomy パーツ（イシュー #2105、親 #2104、shadcn/ui `Message` 相当、
+//!   参照軸 #2001）。AI チャット UI の「会話 1 発言」を表現し、
+//!   [`mod@item`]/[`mod@button_group`] と同じく状態機械を持たない静的
+//!   部品。[`message::root`] は `role="listitem"` を固定付与し、
+//!   [`message::group`] は required context を満たす `role="list"` +
+//!   任意 `aria-label` を固定付与する（`a[href]` を持たない点で
+//!   [`mod@item`] の `role="group"` 差分化とは異なる、[`mod@message`]
+//!   モジュール doc「`role="listitem"`/`role="list"`」参照）。`data-role`
+//!   （`user`/`assistant`/`system`）・`data-align`（`start`/`end`。
+//!   `data-role` から独立した軸）・`data-loading`/`data-error`
+//!   （存在属性）は会話系 4 部品（message/bubble/attachment/marker）が
+//!   共有する語彙として本モジュールが最初に確定する（[`mod@message`]
+//!   モジュール doc「会話系 4 部品の共通語彙」参照）。`aria-live`/
+//!   `aria-busy` は付けない（ストリーミング通知・応答待ちの読み上げは
+//!   アプリ責務、[`mod@message`] モジュール doc参照）。
 //! - [`mod@navigation_menu`]: Root / List / Item / Trigger / Content / Link
 //!   の 6 anatomy パーツと、[`crate::state::SingleSelect`] を埋め込んだ
 //!   「高々 1 個の Trigger だけが開く」状態機械
@@ -773,6 +789,7 @@ pub mod link_overlay;
 pub mod listbox;
 pub mod menu;
 pub mod menubar;
+pub mod message;
 pub mod nav_list;
 pub mod navigation_menu;
 pub mod number_input;
@@ -874,6 +891,7 @@ pub use input_group::{InputGroupAlign, InputGroupProps};
 pub use item::{ItemMediaVariant, ItemRootProps, ItemSize, ItemVariant};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use menubar::{Menubar, MenubarAction};
+pub use message::{MessageAlign, MessageRole, MessageRootProps};
 pub use navigation_menu::NavigationMenu;
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
 pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};

@@ -30,7 +30,7 @@
 | 属性 | 出力箇所 | 値域 | 同名属性の他層での出力 | recipe（CSS）からの参照 | 判定 |
 |---|---|---|---|---|---|
 | `data-current` | `crates/pre-styled-ui/src/tab_nav.rs::link` | 存在属性（`""`） | headless に `data_attrs::data_current` ヘルパが既に存在 | なし | **是正済み**: 生タプル → ヘルパ経由へ変更 |
-| `data-loading` | `crates/pre-styled-ui/src/button.rs::button_internal`（`loading` 分岐） | 存在属性（`""`） | なし（headless-ui に 0 件） | なし（CSS 消費者なし・利用者 CSS/JS 用フック） | pre-styled-only 語彙として維持 + rustdoc 明文化 |
+| `data-loading` | `crates/pre-styled-ui/src/button.rs::button_internal`（`loading` 分岐） | 存在属性（`""`） | **追記（イシュー #2105）**: `crates/headless-ui/src/message.rs::root` が同名の存在属性を出力する初例（会話系 4 部品共通語彙の `data-loading`、応答待ちの表示のみ）。本行記録時点（0 件）は button 単体の pre-styled-only 語彙だったが、以後は headless-ui 側にも同名属性が存在する。値域（存在属性）・意味論（読み込み中の表示）は一致するが、button と message は別 scope（`data-scope` が異なる）であるため統合ヘルパ化は本イシューのスコープ外（§3.3 と同判断） | pre-styled-only 語彙として維持 + rustdoc 明文化（button 側）。message 側は headless-sourced（`crates/headless-ui/src/message.rs` rustdoc参照） |
 | `data-action` | `crates/pre-styled-ui/src/tag.rs::close_trigger` | 動的文字列（dispatch action 識別子） | `crates/headless-ui/src/timer.rs::action_trigger`（start/pause/resume/reset） | なし | **同一意味論の共有語彙**（「クリック時に発火する action 識別子」）。改名せず、値域差を rustdoc に明記 |
 | `data-value` | `crates/pre-styled-ui/src/radio_card.rs::item` | 動的文字列（選択肢の値） | headless の `radio_group` / `checkbox_group` / `toggle_group` / `tree_view` / `rating_group`（いずれも生タプル、ヘルパなし） | なし | 同一意味論の共有語彙。両層ともヘルパ未整備だが本イシューでは新設しない（§3.3） |
 | `data-series` | `crates/pre-styled-ui/src/charts/radar_chart.rs`、`crates/pre-styled-ui/src/charts/scatter_chart.rs` | 動的文字列（系列名） | なし | なし | charts は pre-styled-only。pre-styled-only 語彙として維持 + rustdoc 明文化 |

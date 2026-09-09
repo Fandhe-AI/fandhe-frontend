@@ -104,6 +104,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 - [Carousel](./primitives/carousel.md)
 - [Item](./primitives/item.md)
 - [JSON Tree View](./primitives/json-tree-view.md)
+- [Message](./primitives/message.md)
 - [Scroll Area](./primitives/scroll-area.md)
 - [Skip Nav](./primitives/skip-nav.md)
 - [Splitter](./primitives/splitter.md)

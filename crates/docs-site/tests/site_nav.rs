@@ -190,31 +190,33 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // になった。イシュー #2060 で Button Group の Themes ページが加わり
     // 206 → 207、イシュー #2070 で Command の Themes ページが加わり
     // 207 → 208、イシュー #2072 で Sidebar（Primitives）が加わり
-    // 208 → 209 になった。
-    assert_eq!(pages.len(), 209, "expected 209 pages, got {pages:?}");
+    // 208 → 209、イシュー #2105 で Message（Primitives）が加わり
+    // 209 → 210 になった。
+    assert_eq!(pages.len(), 210, "expected 210 pages, got {pages:?}");
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ
     // （`/primitives/` 自身）1 件の 64 件。イシュー #2059 で Button Group・
     // イシュー #2062 で Input Group がそれぞれ加わり 64 → 66 件になった。
     // イシュー #2065 で Item が加わり 66 → 67 件になった。イシュー #2068
     // で Command が加わり 67 → 68 件になった。イシュー #2072 で Sidebar
-    // が加わり 68 → 69 件になった。
+    // が加わり 68 → 69 件になった。イシュー #2105 で Message が加わり
+    // 69 → 70 件になった。
     let primitives_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/primitives/"))
         .collect();
     assert_eq!(
         primitives_pages.len(),
-        69,
-        "expected 69 /primitives/ pages (68 部品 + 1 索引), got {primitives_pages:?}"
+        70,
+        "expected 70 /primitives/ pages (69 部品 + 1 索引), got {primitives_pages:?}"
     );
     let source_based_primitive_pages = pages
         .iter()
         .filter(|(source, _)| source.starts_with("site/primitives/"))
         .count();
     assert_eq!(
-        source_based_primitive_pages, 68,
-        "expected 68 pages sourced from site/primitives/"
+        source_based_primitive_pages, 69,
+        "expected 69 pages sourced from site/primitives/"
     );
     assert!(
         pages.contains(&("site/primitives.md", "/primitives/")),
