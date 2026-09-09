@@ -419,11 +419,13 @@ fn resolve_page<'a>(scan: &'a PreStyledScan, page_kebab: &str) -> &'a FileScan {
 // ---------------------------------------------------------------------
 
 /// バケット A: 同名 Primitives 部品が存在し、同名 headless モジュールへ
-/// コード委譲している Themes ページ（kebab、ソート済み、68 件。
+/// コード委譲している Themes ページ（kebab、ソート済み、69 件。
 /// イシュー #1685 で `field`・イシュー #1687 で `fieldset`・イシュー #2063
 /// で `input-group`・イシュー #2066 で `item`・イシュー #2060 で
 /// `button-group`・イシュー #2070 で `command`・イシュー #2106 で
-/// `message`（`/themes/message/` ページ登録）を追加）。
+/// `message`（`/themes/message/` ページ登録）・イシュー #2075 で
+/// `sidebar`（`/themes/sidebar/` ページ登録、`THEMES_RECIPE_WITHOUT_PAGE`
+/// から本バケットへ移った）を追加）。
 const WRAPPED_SAME_NAME: &[&str] = &[
     "accordion",
     "action-bar",
@@ -475,6 +477,7 @@ const WRAPPED_SAME_NAME: &[&str] = &[
     "scroll-area",
     "segment-group",
     "select",
+    "sidebar",
     "signature-pad",
     "skip-nav",
     "slider",
@@ -599,8 +602,10 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// 本リストへ加わっていたが、イシュー #2073 で pre-styled-ui 側
 /// （`crates/pre-styled-ui/src/sidebar.rs`）を新設し `sidebar` recipe が
 /// `fandhe_frontend_headless_ui::sidebar` をコード委譲するようになったため
-/// 本リストから除外した（`/themes/sidebar/` ページ自体は後続 #2075 まで
-/// 未登録のため、[`THEMES_RECIPE_WITHOUT_PAGE`] が橋渡しの暫定台帳を担う。
+/// 本リストから除外した（`/themes/sidebar/` ページ自体は当時まだ未登録
+/// だったため、一時的に [`THEMES_RECIPE_WITHOUT_PAGE`] が橋渡しの暫定
+/// 台帳を担っていたが、イシュー #2075 でページを登録し
+/// [`WRAPPED_SAME_NAME`] へ移したため本台帳は現在空である。
 /// `PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
 /// が検証する）。イシュー #2105 で同様に headless-ui 層のみを実装した
@@ -613,14 +618,15 @@ const PRE_STYLED_ONLY: &[&str] = &[
 const HEADLESS_UNWRAPPED: &[&str] = &["bubble"];
 
 /// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
-/// まだ持たない部品（イシュー #2073、後続 #2075 で `sidebar` を
-/// `WRAPPED_SAME_NAME` へ移し本台帳を空へ戻す想定の暫定台帳）。
+/// まだ持たない部品（イシュー #2073 で `sidebar` を一時的に載せた暫定
+/// 台帳。イシュー #2075 で `sidebar` の Themes ページを登録し
+/// `WRAPPED_SAME_NAME` へ移したため、本台帳は現在空である）。
 /// `HEADLESS_UNWRAPPED`（コード委譲の有無）と
 /// `PRIMITIVES_WITHOUT_THEMES_PAGE`（ページ登録の有無）の 2 台帳の間で
 /// 「コード委譲はあるがページはまだ無い」状態を表現するために追加した
 /// （`unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
 /// 参照）。
-const THEMES_RECIPE_WITHOUT_PAGE: &[&str] = &["sidebar"];
+const THEMES_RECIPE_WITHOUT_PAGE: &[&str] = &[];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
@@ -656,7 +662,7 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 116 件すべてが `resolve_page` で panic
+/// §3.5: nav 登録済み Themes ページ 117 件すべてが `resolve_page` で panic
 /// せず解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
@@ -664,7 +670,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        116,
+        117,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -945,9 +951,10 @@ fn unwrapped_ledger_is_consistent_with_primitives_without_themes_page() {
          `WRAPPED_SAME_NAME` へ分類されたため、`PRIMITIVES_WITHOUT_THEMES_PAGE` \
          から除外済み。`field` も同様にイシュー #1685 で `/themes/field/` \
          ページを登録し `WRAPPED_SAME_NAME` へ分類されたため除外済み。\
-         `sidebar` はイシュー #2073 で pre-styled-ui recipe を実装済みだが \
-         `/themes/sidebar/` ページは後続 #2075 まで未登録のため \
-         `THEMES_RECIPE_WITHOUT_PAGE` に残る）"
+         `sidebar` はイシュー #2073 で pre-styled-ui recipe を実装済み、\
+         イシュー #2075 で `/themes/sidebar/` ページを登録し \
+         `WRAPPED_SAME_NAME` へ移ったため、`THEMES_RECIPE_WITHOUT_PAGE` は \
+         現在空である）"
     );
 
     let scan = scan_pre_styled_src(&pre_styled_ui_src_dir());
@@ -991,9 +998,8 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
         "src/ 直下の非ページモジュールが NON_PAGE_TOP_LEVEL ∪ \
          THEMES_RECIPE_WITHOUT_PAGE と一致しません（新規モジュール追加時は \
          Themes ページ新設漏れの可能性があります。`sidebar` はイシュー #2073 \
-         で pre-styled-ui recipe を実装済みだが `/themes/sidebar/` ページは \
-         後続 #2075 まで未登録のため THEMES_RECIPE_WITHOUT_PAGE 経由で \
-         許容している）"
+         で pre-styled-ui recipe を実装済み、イシュー #2075 で \
+         `/themes/sidebar/` ページを登録し WRAPPED_SAME_NAME へ移った）"
     );
 
     let non_page_charts_actual: BTreeSet<String> = scan
@@ -1030,10 +1036,11 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          `button_group` も WRAPPED_SAME_NAME バケットへ移った。イシュー \
          #2070 で command.rs を新設し 113 → 114。`/themes/command/` \
          ページ登録により `command` も WRAPPED_SAME_NAME バケットへ \
-         移った。イシュー #2073 で sidebar.rs を新設し 114 → 115。 \
-         `/themes/sidebar/` ページは後続 #2075 まで未登録のため \
-         `sidebar` は THEMES_RECIPE_WITHOUT_PAGE 経由の暫定非ページ扱いと \
-         なる。イシュー #2079 で radial_chart.rs を新設し 115 → 116。 \
+         移った。イシュー #2073 で sidebar.rs を新設し 114 → 115。当時は \
+         `/themes/sidebar/` ページが未登録のため THEMES_RECIPE_WITHOUT_PAGE \
+         経由の暫定非ページ扱いだったが、イシュー #2075 でページを登録し \
+         `sidebar` も WRAPPED_SAME_NAME バケットへ移った。イシュー #2079 で \
+         radial_chart.rs を新設し 115 → 116。 \
          本イシュー時点ではページ未登録のため `radial_chart` は \
          NON_PAGE_TOP_LEVEL に暫定登録していたが、イシュー #2080 で \
          `/themes/radial-chart/` を登録し PRE_STYLED_ONLY へ分類済み \

@@ -677,3 +677,24 @@ sidebar` をコード委譲する Themes 層 recipe。`/themes/sidebar/` ペー�
 - Themes 部品(§2/§6 の件数)は本イシューでは変化しない(`/themes/sidebar/`
   ページ登録は #2075 の責務。#2075 完了時に `THEMES_RECIPE_WITHOUT_PAGE`
   を空へ戻し、`sidebar` を `WRAPPED_SAME_NAME` へ分類し直す想定)
+
+## 14. イシュー #2075 追記(2026-09-09、sidebar の Themes ページ登録)
+
+`/themes/sidebar/` ページ(原稿 `site/themes/sidebar.md`・`site/nav.toml`
+登録・showcase Demo・`component_specs_nav_data.rs` の `SIDEBAR` 原稿)を
+新設したことに伴い、`crates/docs-site/tests/wrap_state.rs` の台帳を
+以下のとおり更新した(§13 の「#2075 完了時」想定どおり)。
+
+- `THEMES_RECIPE_WITHOUT_PAGE`: `["sidebar"]` → **`[]`**(`/themes/sidebar/`
+  ページを登録したため、暫定台帳は空へ戻った)
+- `PRIMITIVES_WITHOUT_THEMES_PAGE`(`crates/docs-site/src/
+  primitives_catalog.rs`): `["sidebar", "bubble"]` → **`["bubble"]`**
+  (`sidebar` の Themes ページが実在するため除外)
+- `WRAPPED_SAME_NAME`: 68 → **69**(`sidebar` を追加。`separator` と
+  `signature-pad` の間、ソート順)
+- Themes 部品(§2/§6 の件数、#2106 の未記録分〔115→116〕を含め併記):
+  イシュー #2106 で 115 → 116、本イシューで 116 → **117**
+- 旧 URL(移転案内)件数(同じく #2106 分を併記): イシュー #2106 で
+  117 → 118、本イシューで `/components/sidebar/` を追加し 118 → **119**
+- `crates/pre-styled-ui/src/*.rs` 総数: **117 のまま不変**(`sidebar.rs`
+  自体はイシュー #2073 で新設済みのため、ファイル数は増減しない)

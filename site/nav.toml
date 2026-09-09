@@ -828,6 +828,11 @@ source = "site/themes/popover.md"
 path = "/themes/popover/"
 
 [[section.group.page]]
+title = "Sidebar"
+source = "site/themes/sidebar.md"
+path = "/themes/sidebar/"
+
+[[section.group.page]]
 title = "Splitter"
 source = "site/themes/splitter.md"
 path = "/themes/splitter/"

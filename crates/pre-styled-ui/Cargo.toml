@@ -2704,6 +2704,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # Charts（tooltip）突合）。`LegendProps` はフルリテラル構築を前提とする
 # 利用者コードが壊れる 0.x の破壊的変更のため、`origin/main` 到達値
 # 0.161.0 から +1 マイナーして 0.162.0 とする。
+#
+# イシュー #2182: headless-ui の breadcrumb `current_link` に関する rustdoc
+# 記述（`role="link"`/`aria-disabled="true"` 不採用の根拠参照先更新）と
+# headless-ui 依存の version 要求追随のみで、出力・API は不変のため patch
+# バンプし 0.162.1 とする（origin/main 到達値）。
+#
+# 上記 0.162.1（origin/main）と本ブランチ側の 0.163.0（イシュー #2129 の
+# 実体変更に伴うマイナーバンプ）をマージした結果、0.163.0 が両者を上回る
+# ため、追加バンプなしで 0.163.0 を維持する。
 version = "0.163.0"
 
 edition = "2021"
@@ -2719,7 +2728,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.6" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.7" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

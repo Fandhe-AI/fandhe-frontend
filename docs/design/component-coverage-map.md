@@ -650,7 +650,7 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 | `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | — | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除。#1655 で first/last trigger・data-index を追加し ark-ui と突合済み） |
 | `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | — | — | — | `steps` | `steps` | 実装済み | headless+styled 実装済み（#752、#716 保留の解除。#1665 で参照突合済み） |
 | `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | — | — | — | `carousel` | `carousel` | 実装済み | headless+styled 実装済み（#754）。zag.js との参照突合済み（#1660、data-orientation 全パーツ拡張・data-index/data-inview 追加・First/Last dispatch 追加）。autoplay（play/pause/aria-live 切替/delay）・progress-text/autoplay-trigger パーツ・aria-hidden/aria-controls は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
-| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | — | — | Breadcrumb (`breadcrumb`) | `breadcrumb` | `breadcrumb` | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み。#1648 参照突合（差分なし、予約キー除去追加） |
+| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | — | — | Breadcrumb (`breadcrumb`) | `breadcrumb` | `breadcrumb` | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み。#1648 参照突合（差分なし、予約キー除去追加）。#2182: shadcn `BreadcrumbPage` の role/aria-disabled は不採用 |
 
 #### `.agents/skills/chakra-ui/references/components/feedback/`
 
@@ -986,7 +986,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 | —（対応 md なし） | — | — | — | — | Input Group (`input-group`) | `input_group` | `input_group` | 実装済み | headless+styled 実装済み（#2062 anatomy / #2063 recipe・Themes ページ）。root/addon/text/button の 4 slot + `data-align` 4 値、軸なし |
 | —（対応 md なし） | — | — | — | — | Item (`item`) | `item` | `item` | 実装済み | headless+styled 実装済み（#2065 anatomy / #2066 recipe・Themes ページ）。root/media/content/title/description/actions/header/footer/group/separator の 10 slot、`data-variant`/`data-size` を AttrEq 参照 |
 | —（対応 md なし） | — | — | — | — | Command (`command`) | `command` | `command` | 実装済み | headless+styled 実装済み（#2068 anatomy / #2070 recipe・Themes ページ）。root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の 10 slot、`data-selected`/`data-empty`/`hidden` を参照 |
-| —（対応 md なし） | — | — | — | — | Sidebar (`sidebar`) | — | — | 実装対象 | アプリケーションシェルのサイドバー anatomy。Phase 4、#2071 |
+| —（対応 md なし） | — | — | — | — | Sidebar (`sidebar`) | `sidebar` | `sidebar` | 実装済み | headless+styled 実装済み（#2072 anatomy / #2073 recipe / #2074 wasm-full 配線 / #2075 Themes ページ）。22 slot、`data-state`/`data-collapsible`/`data-variant`/`data-side`/`data-mobile` を属性セレクタ参照 |
 | —（対応 md なし） | — | — | — | — | Message (`message`) | `message` | `message` | 実装済み | headless+styled 実装済み（#2105 anatomy / #2106 recipe・Themes ページ）。root/avatar/header/content/footer/group の 6 slot、`data-role`/`data-align`/`data-loading`/`data-error` を AttrEq/Attr 参照 |
 | —（対応 md なし） | — | — | — | — | Bubble (`bubble`) | — | — | 実装対象 | AI チャット UI の吹き出し表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2107。判定根拠の詳細は #2006 が §12 へ転記 |
 | —（対応 md なし） | — | — | — | — | Attachment (`attachment`) | — | — | 実装対象 | AI チャット UI の添付ファイル表示部品。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2110。判定根拠の詳細は #2006 が §12 へ転記 |
@@ -1331,7 +1331,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 | Input Group (`input-group`) | Part F | #2061 | 実装済み（#2062 / #2063） |
 | Item (`item`) | Part F | #2064 | 実装済み（#2065 / #2066） |
 | Command (`command`) | Part F | #2067 | 実装済み（#2068 / #2070） |
-| Sidebar (`sidebar`) | Part F | #2071 | 実装対象確定（Phase 4） |
+| Sidebar (`sidebar`) | Part F | #2071 | 実装済み（#2072 / #2073 / #2074 / #2075） |
 | Message (`message`) | Part F | #2104 | 実装済み（#2105 / #2106） |
 | Bubble (`bubble`) | Part F | #2107 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Attachment (`attachment`) | Part F | #2110 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |

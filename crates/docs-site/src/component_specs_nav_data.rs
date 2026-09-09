@@ -44,9 +44,13 @@ use fandhe_frontend_pre_styled_ui::{
     item::{self, ItemMediaVariant, ItemRootProps},
     json_tree_view, marquee,
     message::{self, MessageAlign, MessageRole, MessageRootProps},
-    native_select, pagination, progress, scroll_area, separator, skeleton, spinner, splitter, stat,
-    status, steps, tab_nav, table, tag, timeline, tree_view, AlertProps, ColorPalette, Orientation,
-    Size,
+    native_select, pagination, progress, scroll_area, separator,
+    sidebar::{
+        self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
+        SidebarVariant,
+    },
+    skeleton, spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline, tree_view,
+    AlertProps, ColorPalette, Orientation, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -3361,6 +3365,243 @@ pub(crate) const MESSAGE: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "(付与しない) aria-live / aria-busy",
             description: "ストリーミング通知・応答待ちの読み上げはアプリ固有の UX 判断のため、本モジュールは data-loading/data-error の見た目のみを担い aria-live/aria-busy は付与しない（headless message.rs モジュール doc「aria-live/aria-busy を付けない理由」節参照）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Interactive: Sidebar（イシュー #2075）
+// ---------------------------------------------------------------------
+
+/// `crates/pre-styled-ui/src/sidebar.rs`（headless anatomy 22 パーツへ
+/// variant/collapsible/side の意匠を重ねる薄い委譲層、イシュー #2073）。
+/// 展開状態・group（label/action/content > menu）・menu-item（button/
+/// action/badge）を 1 例に統合する。
+fn ex_sidebar_expanded_with_group() -> Node {
+    let state = Sidebar::new(SidebarState::Expanded);
+    let props = SidebarProps::default();
+    let menu = sidebar::menu(
+        vec![],
+        vec![sidebar::menu_item(
+            vec![],
+            vec![
+                sidebar::menu_button(
+                    &SidebarMenuButtonProps {
+                        href: Some(""),
+                        active: true,
+                        ..Default::default()
+                    },
+                    None,
+                    vec![],
+                    vec![text("Dashboard")],
+                ),
+                sidebar::menu_action("Pin Dashboard", vec![], vec![]),
+                sidebar::menu_badge(vec![], vec![text("3")]),
+            ],
+        )],
+    );
+    let group = sidebar::group(
+        Some("example-sidebar-platform-label"),
+        vec![],
+        vec![
+            sidebar::group_label(
+                Some("example-sidebar-platform-label"),
+                vec![],
+                vec![text("Platform")],
+            ),
+            sidebar::group_content(vec![], vec![menu]),
+        ],
+    );
+    let root = sidebar::root(
+        &state,
+        &props,
+        "Main navigation",
+        None,
+        vec![],
+        vec![
+            sidebar::header(vec![], vec![text("Acme Inc")]),
+            sidebar::content(vec![], vec![group]),
+            sidebar::footer(vec![], vec![text("Ada Lovelace")]),
+        ],
+    );
+    sidebar::provider(&state, &props, vec![], vec![root])
+}
+
+/// `SidebarCollapsible::Icon` による折りたたみ例。折りたたみ幅でも
+/// `trigger` は可視のまま残る（`docs/policy/intentional-non-adoption.md`
+/// §3.25 規則 1 により実際のトグル配線は `fandhe-frontend-wasm-full` の
+/// 責務、静的掲示のためここでは `data-state="collapsed"` 固定）。
+fn ex_sidebar_icon_collapsed() -> Node {
+    let state = Sidebar::new(SidebarState::Collapsed);
+    let props = SidebarProps {
+        collapsible: SidebarCollapsible::Icon,
+        ..SidebarProps::default()
+    };
+    let root = sidebar::root(
+        &state,
+        &props,
+        "Main navigation (icon collapsed)",
+        None,
+        vec![],
+        vec![sidebar::trigger(
+            &state,
+            "Toggle sidebar",
+            None,
+            vec![],
+            vec![],
+        )],
+    );
+    sidebar::provider(&state, &props, vec![], vec![root])
+}
+
+/// `SidebarVariant::Inset` の例。`inset` パーツを `provider` の直接の子に
+/// 置く（`[data-variant="inset"] > [data-part="inset"]` 規則が直接子のみを
+/// 対象にするため、`sidebar.rs` モジュール doc 参照）。
+fn ex_sidebar_inset_variant() -> Node {
+    let state = Sidebar::new(SidebarState::Expanded);
+    let props = SidebarProps {
+        variant: SidebarVariant::Inset,
+        ..SidebarProps::default()
+    };
+    let root = sidebar::root(
+        &state,
+        &props,
+        "Inset navigation",
+        None,
+        vec![],
+        vec![sidebar::content(
+            vec![],
+            vec![sidebar::menu(
+                vec![],
+                vec![sidebar::menu_item(
+                    vec![],
+                    vec![sidebar::menu_button(
+                        &SidebarMenuButtonProps::default(),
+                        None,
+                        vec![],
+                        vec![text("Home")],
+                    )],
+                )],
+            )],
+        )],
+    );
+    sidebar::provider(
+        &state,
+        &props,
+        vec![],
+        vec![root, sidebar::inset(vec![], vec![text("Page content")])],
+    )
+}
+
+pub(crate) const SIDEBAR: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "provider/root/header/content/footer/separator/input/group/group-label/group-content/group-action/menu/menu-item/menu-button/menu-action/menu-badge/menu-sub/menu-sub-item/menu-sub-button/rail/trigger/inset の 22 パーツでアプリシェル用サイドバーを構造化する",
+        "SidebarVariant（Sidebar/Floating/Inset）・SidebarCollapsible（Offcanvas/Icon/None）・SidebarSide（Left/Right）はいずれも class 軸を持たず、headless が出力する data-variant/data-collapsible/data-side を CSS 属性セレクタとして参照するのみで見た目を切り替える",
+        "--fandhe-sidebar-width / --fandhe-sidebar-width-icon / --fandhe-sidebar-width-mobile が展開幅・icon 折りたたみ幅・モバイル drawer 幅を制御し、--fandhe-color-sidebar-* 7 ロールが配色を担う",
+        "icon 折りたたみ時、menu-button のラベルテキストは clip 手法で視覚的に非表示化しつつアクセシブルネームは維持する（WCAG 4.1.2）",
+        "menu_skeleton はローディング装飾用ヘルパーで、ランダム幅を持たない決定的な固定幅の skeleton を返す",
+        "Cmd/Ctrl+B のグローバルショートカット・モバイル判定（メディアクエリ）・menu-button の tooltip hover 配線はこの部品では実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1、fandhe-frontend-wasm-full の責務）",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "state",
+            kind: "&Sidebar",
+            default: "",
+            description: "provider/root/rail/trigger が共有する状態機械（SidebarState::Expanded/Collapsed）。",
+        },
+        ArgRow {
+            name: "props",
+            kind: "&SidebarProps",
+            default: "SidebarProps::default()",
+            description: "collapsible（Offcanvas/Icon/None）・variant（Sidebar/Floating/Inset）・side（Left/Right）・mobile（bool）をまとめた静的設定。",
+        },
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "",
+            description: "root（nav）の必須 aria-label。",
+        },
+        ArgRow {
+            name: "id",
+            kind: "Option<&str>",
+            default: "None",
+            description: "root の id。trigger の controls から aria-controls で関連付ける場合に指定する。",
+        },
+        ArgRow {
+            name: "icon",
+            kind: "Option<Node>",
+            default: "None",
+            description: "menu_button 固有の装飾アイコン引数（children の位置規約ではなく明示引数、PR #2245 対応）。",
+        },
+        ArgRow {
+            name: "controls",
+            kind: "Option<&str>",
+            default: "None",
+            description: "trigger が aria-controls として参照する root の id。",
+        },
+        ArgRow {
+            name: "show_icon",
+            kind: "bool",
+            default: "",
+            description: "menu_skeleton がアイコン用の円形 skeleton を先頭に合成するかどうか。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Expanded with a group",
+            description: "展開状態で group（label/action/content > menu）と menu-item（button/action/badge）を構造化する例です。",
+            render: ex_sidebar_expanded_with_group,
+        },
+        ExampleEntry {
+            title: "Icon-collapsed",
+            description: "SidebarCollapsible::Icon による折りたたみ状態（data-state=\"collapsed\"）の例です。",
+            render: ex_sidebar_icon_collapsed,
+        },
+        ExampleEntry {
+            title: "Inset variant",
+            description: "SidebarVariant::Inset。inset パーツを provider の直接の子として配置します。",
+            render: ex_sidebar_inset_variant,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "trigger・menu-button・menu-sub-button 間のフォーカス移動（ブラウザ既定のフォーカス順序）。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "trigger の開閉トグル（実際の開閉配線は fandhe-frontend-wasm-full、イシュー #2074 が担う）。",
+        },
+        KeyRow {
+            key: "Cmd/Ctrl+B",
+            description: "サイドバーの開閉ショートカット（本部品には実装されず、fandhe-frontend-wasm-full の後続配線、#2074 が担う）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "aria-label (root)",
+            description: "root（nav）の必須アクセシブルネーム。",
+        },
+        AriaRow {
+            attribute: "aria-expanded / aria-controls (trigger)",
+            description: "trigger は開閉状態と操作対象の root を伝える。",
+        },
+        AriaRow {
+            attribute: "aria-current=\"page\" (menu-button/menu-sub-button)",
+            description: "href を持ち active な menu-button/menu-sub-button（a 要素）にのみ付与される。",
+        },
+        AriaRow {
+            attribute: "role=\"group\" / aria-labelledby (group)",
+            description: "group は role=\"group\" を固定出力し、labelledby が Some のときのみ aria-labelledby を併記する。",
+        },
+        AriaRow {
+            attribute: "tabindex=\"-1\" (rail)",
+            description: "rail はマウス専用のドラッグ/クリック領域でありキーボードフォーカスの対象外。",
+        },
+        AriaRow {
+            attribute: "aria-describedby (menu-button)",
+            description: "tooltip との関連付けにのみ用いる（describedby が Some のときのみ出力）。",
         },
     ],
     demo: None,
