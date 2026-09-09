@@ -568,7 +568,11 @@ name = "fandhe-frontend-headless-ui"
 # の `role="link"`/`aria-disabled="true"` を付与しない判断を rustdoc に
 # 記録した。出力・API 不変の rustdoc のみの変更のため patch バンプし
 # 0.68.7 とする。
-version = "0.68.7"
+# イシュー #2184: field / fieldset の error_text へ role="alert" を純追加
+# （aria-live="polite" 明示は維持）。shadcn/ui FieldError とのロール語彙
+# パリティを確保する既存 API への非破壊的な属性追加のため patch バンプし
+# 0.68.8 とする。
+version = "0.68.8"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

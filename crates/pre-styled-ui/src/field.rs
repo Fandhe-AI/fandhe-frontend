@@ -101,6 +101,12 @@
 //!   マーカー非表示）があったため、`<ul>` を block（UA 既定）のまま
 //!   `<li>` 間の縦間隔を隣接兄弟セレクタの `margin-top` で表現する形へ
 //!   変更した（[`css`] 参照）。
+//! - **`FieldError` の `role="alert"`**（イシュー #2184）: headless
+//!   `error_text` が `role="alert"` と明示 `aria-live="polite"` を併せて
+//!   出力するようになった（`aria-live="polite"` は据え置き。判断根拠は
+//!   [`fandhe_frontend_headless_ui::field`] モジュール doc「`role="alert"`
+//!   の採用（イシュー #2184）」節を参照）。本モジュールは headless の
+//!   `error_text` を再エクスポートするのみで CSS 側の変更は不要。
 //!
 //! ## 見送ったもの（記録のみ、Issue 化はユーザー承認前提のため未実施）
 //!
@@ -114,10 +120,6 @@
 //! - **`FieldLegend` の `legend`/`label` 2 段見出しサイズ**: `fieldset.rs`
 //!   は本イシューの対象ファイル外（#2014 の対象は `field.rs` のみ）。
 //!   `fieldset` 専用の shadcn 突合が必要かは別途確認を要する。
-//! - **`FieldError` の `role="alert"`**（現状は headless `error_text` が
-//!   `aria-live="polite"` のみ）: ARIA 差分は headless-ui 層の責務であり
-//!   本イシューのスコープ外（breadcrumb の `role`/`aria-disabled` 記録と
-//!   同型のフォローアップ候補）。
 //! - **choice card（label が checkbox/radio を包む形）**: [`crate::checkbox_card`]/
 //!   [`crate::radio_card`] が既に独立 anatomy として提供済みであり
 //!   `field.rs` 側の対応は不要（gap なし）。
