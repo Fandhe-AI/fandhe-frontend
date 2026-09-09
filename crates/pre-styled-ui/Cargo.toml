@@ -2688,7 +2688,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # `semver-same-version-is-conflict` の運用に従い main の到達値
 # 0.159.0 から +1 マイナーして 0.160.0 とする（実体変更を伴うため
 # patch ではなく minor を維持）。
-version = "0.160.0"
+#
+# イシュー #2085（radar-chart の shadcn/ui Charts（radar）突合）:
+# `RadarChartProps` への `pub` フィールド純追加（`grid`/`grid_rings`/
+# `grid_fill`/`spokes`/`fill`/`dots`/`axis_label`/`radius_axis`）・
+# `RadarGrid`/`RadarGridRings`/`RadarGridFill`/`RadarFill`/
+# `RadarAxisLabel` の新規 `pub` 型・`css()` 出力の純追加（`point`/
+# `axis-value`/`radius-label` base・`grid-fill: series` variant）は
+# 0.x の破壊的変更（フルリテラル構築を前提とする利用者コードが壊れる）
+# のため、`origin/main` 到達値 0.160.0 から +1 マイナーして 0.161.0 と
+# する（実体変更を伴うため patch ではなく minor を維持）。
+version = "0.161.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

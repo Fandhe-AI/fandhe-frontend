@@ -159,6 +159,53 @@ fn charts_data_series_reflects_series_name() {
     assert_no_raw_payload(&html, "scatter_chart::root data-series 属性値コンテキスト");
 }
 
+/// `charts::radar_chart`（イシュー #2085、shadcn/ui Charts（radar）突合）:
+/// 全バリアント ON（`grid: Circle`・`grid_fill: Series`・`dots: true`・
+/// `radius_axis: true`・`fill: None`・`spokes: false`・
+/// `axis_label: ValueAndCategory`）の出力に含まれる `data-` 属性名が
+/// `data-scope`/`data-part`/`data-series` の 3 種のみであることを固定する
+/// （新規 `data-*` 語彙を持ち込んでいない契約、規約 B）。
+#[test]
+fn radar_chart_all_variants_introduce_no_new_data_attr_vocabulary() {
+    use fandhe_frontend_pre_styled_ui::charts::radar_chart::{
+        RadarAxisLabel, RadarFill, RadarGrid, RadarGridFill,
+    };
+
+    let data = ChartData::new(
+        vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        vec![Series::new("s1", vec![10.0, 20.0, 30.0])],
+    )
+    .expect("valid radar chart data");
+    let props = RadarChartProps {
+        grid: RadarGrid::Circle,
+        grid_fill: RadarGridFill::Series,
+        dots: true,
+        radius_axis: true,
+        fill: RadarFill::None,
+        spokes: false,
+        axis_label: RadarAxisLabel::ValueAndCategory,
+        ..RadarChartProps::default()
+    };
+    let html = render(&radar_chart::root(&data, props, "label").expect("valid radar chart"));
+
+    let mut names: Vec<&str> = Vec::new();
+    let mut rest = html.as_str();
+    while let Some(pos) = rest.find("data-") {
+        let candidate = &rest[pos..];
+        let end = candidate.find(['=', ' ', '>']).unwrap_or(candidate.len());
+        let name = &candidate[..end];
+        if !names.contains(&name) {
+            names.push(name);
+        }
+        rest = &candidate[end.min(candidate.len())..];
+        if rest.is_empty() {
+            break;
+        }
+    }
+    names.sort_unstable();
+    assert_eq!(names, vec!["data-part", "data-scope", "data-series"]);
+}
+
 /// `data-active`/`data-negative`（`charts/bar_chart.rs`、イシュー #2082）:
 /// [`BarChartProps::active_index`]/[`BarChartProps::highlight_negative`]
 /// が有効なときのみ存在属性として付与し、既定 props では一切出力しない

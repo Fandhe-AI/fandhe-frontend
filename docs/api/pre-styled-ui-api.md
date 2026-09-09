@@ -128,7 +128,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `calendar`（`size` variant のみ、`color-palette` 軸は非提供。`day-trigger` の `data-selected`/`data-today`/`data-outside-month`/`data-disabled` を CSS で切り替える。`Calendar` 状態機械はあえて再エクスポートしない。`day_trigger` の `date` 引数向けに `PlainDate`/`Weekday`（`fandhe_frontend_headless_ui::date`）も再エクスポートする） | [calendar](../../site/themes/calendar.md) |
 | headless ラッパー | `date_picker`（popover 基盤（`state::Disclosure`）を再利用する `crate::calendar` と同型の判断。`size` variant のみ。`content` 内部に `crate::calendar` の styled パーツを合成する想定。`DatePicker` 状態機械はあえて再エクスポートしない。イシュー #1627 以降、styled `root` は `&DatePickerProps` を追加引数として headless `root` へ透過する） | [date-picker](../../site/themes/date-picker.md) |
 | headless ラッパー | `timer`（`clipboard` と同型の判断で variant は非提供。`item-value` に `font-variant-numeric: tabular-nums` を付与し桁の増減時のレイアウトシフトを防ぐ。`root` の `data-state`（`completed` / `paused`）に応じて `--fandhe-timer-value-color` 経由で `item-value` の色を切り替え、`action-trigger` は outline 風ボタン（hover / focus-visible リング / disabled / transition）を持つ。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） | [timer](../../site/themes/timer.md) |
-| 静的部品（新規 anatomy、charts 基盤上層） | `charts::scatter_chart` / `charts::radar_chart`（`charts`（`ChartData`/`LinearScale`/SVG ヘルパー）の上に実装。headless-ui は変更なし、pre-styled 層で新規 anatomy `data-scope="scatter-chart"`/`"radar-chart"` を定義。`scatter_chart` は `ChartData` では表現できない `(x, y)` 数値ペアの集合を独自の `ScatterData`/`ScatterSeries` で表現し、x/y 双方の `LinearScale` で 2 軸写像する。`radar_chart` は `ChartData`（カテゴリ = 軸、系列 = ポリゴン）をそのまま使い、軸 index `i`・軸数 `n` から頂点角度 `θ_i = -π/2 + i・2π/n`（12 時方向開始・時計回り）を算出する private ヘルパへ角度→座標変換を一元化する。軸数 3 未満は `ChartError::TooFewAxes`、負値は `ChartError::NegativeValue`、プロット領域が小さすぎる場合は `ChartError::PlotAreaTooSmall` として構築時に拒否する（fail-closed）。`size`/`color-palette` variant は非提供（色は系列インデックスからの `series_color_var` インライン `fill` 属性で決まる静的部品）） | [scatter-chart](../../site/themes/scatter-chart.md) / [radar-chart](../../site/themes/radar-chart.md) |
+| 静的部品（新規 anatomy、charts 基盤上層） | `charts::scatter_chart` / `charts::radar_chart`（`charts`（`ChartData`/`LinearScale`/SVG ヘルパー）の上に実装。headless-ui は変更なし、pre-styled 層で新規 anatomy `data-scope="scatter-chart"`/`"radar-chart"` を定義。`scatter_chart` は `ChartData` では表現できない `(x, y)` 数値ペアの集合を独自の `ScatterData`/`ScatterSeries` で表現し、x/y 双方の `LinearScale` で 2 軸写像する。`radar_chart` は `ChartData`（カテゴリ = 軸、系列 = ポリゴン）をそのまま使い、軸 index `i`・軸数 `n` から頂点角度 `θ_i = -π/2 + i・2π/n`（12 時方向開始・時計回り）を算出する private ヘルパへ角度→座標変換を一元化する。軸数 3 未満は `ChartError::TooFewAxes`、負値は `ChartError::NegativeValue`、プロット領域が小さすぎる場合は `ChartError::PlotAreaTooSmall` として構築時に拒否する（fail-closed）。`size`/`color-palette` variant は非提供（色は系列インデックスからの `series_color_var` インライン `fill` 属性で決まる静的部品）。イシュー #2085 で `radar_chart` へ grid/fill/dots/axis-label/radius-axis の静的バリアントを純追加した（下記「RadarChart の shadcn/ui 突合バリアント」節参照）） | [scatter-chart](../../site/themes/scatter-chart.md) / [radar-chart](../../site/themes/radar-chart.md) |
 | headless ラッパー | `tour`（`fandhe_frontend_headless_ui::tour` が自由関数を持たず全パーツが `Tour` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Tour` を受け取る点は `steps` と同型。`color-palette` 軸のみ提供、`size` 軸は初版スコープ外（overlay 系の寸法は呼び出し側の CSS カスタムプロパティ上書きに委ねる）。`backdrop`/`spotlight`/`positioner` は `position: fixed` の全面オーバーレイで、closed 時 `[hidden]` を明示規則で `display: none` に固定する。`positioner` は `data-side`/`data-align` に応じた静的フォールバック配置のみ（実座標追従は `fandhe-frontend-wasm-full` 後続の責務）。`spotlight` は位置・寸法の `--fandhe-tour-spotlight-x/-y/-width/-height` に加え、角丸・縁取り幅の `--fandhe-tour-spotlight-radius/-ring-width`（イシュー #1550 新設）を持つ計 6 CSS 変数（既定値つき `var()`）で表現し、実測値の注入は同後続の責務。縁取り色は `var(--fandhe-palette, var(--fandhe-color-accent, #3182ce))`（`Theme` の accent light 既定値へのリテラルフォールバックを含む三段）に連動し、`backdrop`/`spotlight` の暗幕・`z-index` は `--fandhe-color-bg-overlay`/`--fandhe-z-index-overlay`、`positioner` は `--fandhe-z-index-modal` トークンへ揃えている（イシュー #1550）。イシュー #1551（0.65.0、破壊的変更）で `content` に `border`/`radius-lg`、scope 付き上書き変数 `--fandhe-tour-content-padding`/`-content-max-width`（既定値つき）を追加し、`close-trigger` を固定正方（`--fandhe-space-8`）+ `overflow: hidden` のアイコン専用ゴーストボタンへ変更した（呼び出し側は 1 グリフ + `aria-label` で渡す契約。テキスト children を渡す既存呼び出しは切り詰められる観測可能な破壊的変更）。`action-trigger` は solid palette 小ボタンへ是正し、文字色を `--fandhe-palette-fg`（未選択時 `--fandhe-color-accent-fg`）へ、hover（`--fandhe-hover-bg` 経由）・disabled（`[disabled]`/`[data-disabled]`）・`transition_declarations`・`focus_ring_declarations(FocusRingColor::Palette, ...)` を追加した。両トリガーの `:focus-visible` は canonical ヘルパ経由（生 `outline` 直書きは撤去） | [tour](../../site/themes/tour.md) |
 | 基盤（外部依存ゼロ SVG 生成） | `charts`（`data`/`scale`/`svg`。`ChartData`/`Series`・`LinearScale`・`svg::{fmt_coord, ViewBox, svg_root, PathBuilder, circle, line, rect, group, svg_text}` を提供する消費者向け基盤のみ。自身は UI コンポーネントを持たない。詳細は `docs/design/charts-foundation-design.md` 参照） | [charts](../../site/themes/charts.md) |
 | `charts` 基盤の消費者（新規 anatomy） | `line_chart` / `area_chart` / `sparkline`（§4k 参照。`charts` 基盤の最初の消費者。`area_chart` はイシュー #2081 で、`line_chart` はイシュー #2083 で、いずれも `charts::curve`（曲線補間ジオメトリ、両者で共有）を用いた曲線/データ点/軸・グリッドの静的バリアントを追加済み（`area_chart` はさらに積み上げ/グラデーション、`line_chart` はさらに値/カテゴリラベル）。`sparkline` の曲線補間は引き続き別イシューのスコープ） | [line-chart](../../site/themes/line-chart.md) / [area-chart](../../site/themes/area-chart.md) / [sparkline](../../site/themes/sparkline.md) |
@@ -1164,6 +1164,31 @@ shadcn の `0.4` は不採用）・dots/label/横向きレイアウト・`tickFo
 チップ・hit-area `data-*`（#2128）・期間切替・凡例トグル（#2132）・点ごとの
 任意色（`color_by_category` のトークン循環で代替）・積み上げ・横向き
 （shadcn line registry に存在しない）。
+
+### RadarChart の shadcn/ui 突合バリアント（イシュー #2085）
+
+`RadarChartProps` は shadcn/ui Charts（radar、14 バリアント）と突合した以下
+の追加フィールドを持つ（すべて既定値で #2085 以前の出力と完全に同一の
+HTML を生成する、golden 純追加原則）。
+
+| フィールド | 型 | 既定 | 効果 |
+|---|---|---|---|
+| `grid` | `RadarGrid`（`Polygon`/`Circle`/`None`） | `Polygon` | 同心グリッドの形状。`None` は一切描画しない（`chart-radar-grid-none` 相当。スポークは既定どおり残る） |
+| `grid_rings` | `RadarGridRings`（`Ticks`/`Outer`） | `Ticks` | グリッドの同心リング本数。`Outer` は外周（`plot_radius`）の 1 本のみ（`chart-radar-grid-custom` の静的近似、shadcn `polarRadius` の px 直接指定は非対応） |
+| `grid_fill` | `RadarGridFill`（`None`/`Series`） | `None` | グリッドの塗り。`Series` は先頭系列色（`fill-opacity: 0.2`）で塗る（`chart-radar-grid-fill`/`-grid-circle-fill` 相当） |
+| `spokes` | `bool` | `true` | スポーク（中心 → 各軸頂点の線）の描画有無（shadcn `radialLines` 相当） |
+| `fill` | `RadarFill`（`Solid`/`None`） | `Solid` | 系列ポリゴンの塗り。`None` は輪郭のみ（`chart-radar-lines-only` 相当） |
+| `dots` | `bool` | `false` | データ点マーカー（半径 4.0、shadcn `dot.r` 相当）の描画有無（`chart-radar-dots` 相当） |
+| `axis_label` | `RadarAxisLabel`（`Category`/`ValueAndCategory`） | `Category` | 軸ラベルの内容。`ValueAndCategory` は各系列の値を `/` 区切りで併記した 2 行（`chart-radar-label-custom` の静的近似） |
+| `radius_axis` | `bool` | `false` | 半径軸（値目盛ラベル）の描画有無。角度は軸 0/1 中間角に固定（shadcn `angle` prop の任意指定は非対応、`chart-radar-radius` の静的近似） |
+
+意図的に対応しない点（`crate::radar_chart` モジュール doc「意図的に合わせ
+なかった点」参照）: `fill-opacity` は shadcn の `0.6` ではなく既存の `0.2`
+を維持（既存 golden の色味変更禁止・`area_chart` との統一）・
+`tickFormatter`（アプリ側整形の責務）・グリッド外周の px 直接指定・半径軸
+の角度指定・マウス追従ツールチップ/hover 強調（#2086/#2128）・凡例の系列
+トグル（#2132）。`ChartLegend`/icon は radar 部品へ内包せず `charts::legend`
+との合成で表現する（`Series::with_icon`、イシュー #2077）。
 
 ### PieChart / DonutChart の shadcn/ui 突合バリアント（イシュー #2084）
 

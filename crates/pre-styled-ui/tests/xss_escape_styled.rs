@@ -5248,6 +5248,67 @@ fn charts_scatter_and_radar_are_escaped_for_all_payloads() {
     }
 }
 
+/// (25b) RadarChart 経路（イシュー #2085、shadcn/ui Charts（radar）突合）:
+/// `axis_label: RadarAxisLabel::ValueAndCategory` のカテゴリ名（`tspan`
+/// children 経路）と、全バリアント ON（`grid: Circle`・`grid_fill: Series`・
+/// `dots: true`・`radius_axis: true`・`fill: None`・`spokes: false`）時の
+/// `aria_label`・系列名（`data-series`）を `payloads::all()` で網羅する。
+#[test]
+fn radar_chart_shadcn_variants_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // ValueAndCategory: カテゴリ名（tspan children）経路。
+        let category_data = ChartData::new(
+            vec![payload.to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s1", vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let props = RadarChartProps {
+            axis_label: radar_chart::RadarAxisLabel::ValueAndCategory,
+            ..RadarChartProps::default()
+        };
+        let html = render(&radar_chart::root(&category_data, props, "label").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radar_chart::root の ValueAndCategory カテゴリ名 tspan children コンテキスト",
+        );
+
+        // 全バリアント ON: data-series 属性値・aria_label 属性値経路。
+        let all_on_props = RadarChartProps {
+            grid: radar_chart::RadarGrid::Circle,
+            grid_fill: radar_chart::RadarGridFill::Series,
+            dots: true,
+            radius_axis: true,
+            fill: radar_chart::RadarFill::None,
+            spokes: false,
+            ..RadarChartProps::default()
+        };
+        let series_data = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new(payload, vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let html = render(&radar_chart::root(&series_data, all_on_props, "label").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radar_chart::root（全バリアント ON）の data-series 属性値コンテキスト",
+        );
+
+        let plain_data = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s1", vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let html = render(&radar_chart::root(&plain_data, all_on_props, payload).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radar_chart::root（全バリアント ON）の aria_label 属性値コンテキスト",
+        );
+    }
+}
+
 /// (25a) AreaChart 経路（イシュー #2081、shadcn/ui Charts（area）突合）:
 /// `aria_label`・呼び出し側 `attrs`・軸ラベル経路（カテゴリ名、
 /// `show_x_axis` 有効時）の全ペイロードで既定エスケープが貫通することを
