@@ -373,6 +373,7 @@ pub(super) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
         "separator/ellipsis はいずれも role=\"presentation\"+aria-hidden=\"true\" で装飾扱いとし、スクリーンリーダーの読み上げから除外する（separator/ellipsis 関数）。",
         "root の aria-label は省略時 \"breadcrumb\"（DEFAULT_ARIA_LABEL）が既定値になる。",
         "参照実体は chakra-ui の Breadcrumb のみ（ark-ui/Radix Primitives/Radix Themes に対応部品なし）。anatomy 7 パーツ・WAI-ARIA とも一致し差分なし。data-current は本リポジトリが link/nav_list/pagination と共有する独自語彙（イシュー #1648 参照突合）。",
+        "shadcn/ui BreadcrumbPage の role=\"link\"+aria-disabled=\"true\" は §8-4（参照軸方針）と WAI-ARIA APG（非リンクの現在ページ要素を許容）の観点から不採用と判断した（イシュー #2182、根拠は breadcrumb.rs モジュール doc）。",
     ],
     arguments: &[
         ArgRow {
@@ -429,7 +430,7 @@ pub(super) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
         },
         AriaRow {
             attribute: "aria-current=\"page\"",
-            description: "current_link に固定付与（末尾項目の非対話 span）。",
+            description: "current_link に固定付与（末尾項目の非対話 span）。role=\"link\"/aria-disabled=\"true\"（shadcn/ui BreadcrumbPage 相当）は意図的に付与しない（イシュー #2182）。",
         },
         AriaRow {
             attribute: "role=\"presentation\" / aria-hidden=\"true\"",

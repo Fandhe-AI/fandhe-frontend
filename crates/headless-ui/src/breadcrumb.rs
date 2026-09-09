@@ -83,6 +83,46 @@
 //!   [`drop_reserved`] で除去するようにした（従来は
 //!   [`fandhe_frontend_core::el`] が属性の重複除去をしないため、同名属性
 //!   が重複出力される経路があった）。
+//!
+//! # shadcn/ui `BreadcrumbPage` との差分（イシュー #2182）
+//!
+//! shadcn/ui の `BreadcrumbPage`（chakra-ui の `Breadcrumb.CurrentLink` 相当）
+//! は `<span role="link" aria-disabled="true" aria-current="page">` を出力
+//! するが、本モジュールの [`current_link`] は `role`/`aria-disabled` を
+//! **付与しない**と判断した（不採用、根拠は以下）。
+//!
+//! 1. **WAI-ARIA APG Breadcrumb パターン**: 「The link to the current page
+//!    has `aria-current` set to `page`. If the element representing the
+//!    current page is not a link, `aria-current` is optional.」— APG は
+//!    現在ページ要素が非リンクである構成を明示的に許容しており、本実装の
+//!    非対話 `span[aria-current="page"]` は APG 準拠である。逆に、フォー
+//!    カス不能・`href` を持たない `span` へ `role="link"` を与えて
+//!    `aria-disabled="true"` で無効化する形は、支援技術へ「リンク・利用
+//!    不可」という「一時的に使えないリンク」の意味論を伝えてしまい、
+//!    「現在地」を示す本来の意図とずれる。ARIA 1.2 上 `link` ロールへの
+//!    `aria-disabled` は無効な ARIA ではないが、APG の Link パターン
+//!    （操作可能・フォーカス可能を前提）にも当てはまらない疑似リンクで
+//!    あり、より単純で意味論の明確な現行出力を上回る利点がない。
+//! 2. **参照軸の規約**（`docs/design/shadcn-reference-adoption-policy.md`
+//!    §8 第 4 項）: shadcn/ui の主基準化は `fandhe-frontend-pre-styled-ui`
+//!    の視覚言語に限られ、`fandhe-frontend-headless-ui`（Primitives 層）の
+//!    参照軸は ark-ui（ark-ui に無い部品は chakra-ui）のまま不変。shadcn
+//!    固有の属性パターンを headless-ui へ持ち込むことは §8-4 が明示的に
+//!    除外している。
+//! 3. **現行の参照実体 chakra-ui との一致**: chakra-ui
+//!    `Breadcrumb.CurrentLink` は非対話テキスト（`role` なし、
+//!    `aria-current="page"` のみ）であり、直前の「参考サイト突合（イシュー
+//!    #1648）」節が記録する chakra-ui 準拠の意図的差分（APG の
+//!    `<a aria-current="page">` との差分）の延長線上にある。
+//!
+//! 出力（SSR HTML）は不変のため golden・語彙テスト
+//! （`data_attr_vocabulary.rs`/`xss_escape_styled.rs` 等）の更新は不要。
+//!
+//! **再評価トリガー**: (a) §8 の headless-ui 参照軸方針が改訂され shadcn
+//! の ARIA パターンを Primitives 層でも採る決定がなされたとき、(b) 主要
+//! スクリーンリーダーで「非対話 `span` + `aria-current="page"`」がパンくず
+//! 末尾として認識されない実測報告が出たとき、(c) chakra-ui / ark-ui 側が
+//! `CurrentLink` へ `role="link"`/`aria-disabled` を採用したとき。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_current, aria_hidden, aria_label, role, AriaCurrent};
@@ -166,6 +206,9 @@ pub fn link<'a>(href: &'a str, attrs: Vec<(&'a str, &'a str)>, children: Vec<Nod
 /// `current-link` パーツ（`span`）。現在ページ（末尾項目）に使う非対話要素
 /// （chakra-ui 準拠、遷移先を持たないため `a` ではなく `span`）。
 /// `aria-current="page"` + `data-current` を常に付与する。
+/// `role="link"`/`aria-disabled="true"`（shadcn/ui `BreadcrumbPage` 相当）は
+/// 意図的に付与しない（根拠はモジュール doc「shadcn/ui `BreadcrumbPage`
+/// との差分（イシュー #2182）」参照）。
 #[must_use]
 pub fn current_link(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     let attrs = drop_reserved(attrs, CURRENT_LINK_RESERVED);
