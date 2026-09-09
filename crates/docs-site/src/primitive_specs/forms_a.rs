@@ -1683,8 +1683,8 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             description: "props.invalid が true のとき input/textarea/select へ \"true\" を付与する（field.rs:118-119）。",
         },
         AriaRow {
-            attribute: "aria-live=\"polite\"",
-            description: "error_text パーツへ固定付与する（field.rs:385-387）。",
+            attribute: "role=\"alert\" / aria-live=\"polite\"",
+            description: "error_text パーツへ固定付与する。role=\"alert\" の暗黙 aria-live=\"assertive\" は明示 polite で上書きされるため両者は併用でき、読み上げの割り込み度合いは polite のまま shadcn/ui FieldError とのロール語彙パリティを純追加する（field.rs:427-430、イシュー #2184）。",
         },
         AriaRow {
             attribute: "aria-hidden=\"true\"",
@@ -1839,8 +1839,8 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
             description: "root パーツへ、invalid のとき error id・has_helper_text のとき helper id を合成して付与する（fieldset.rs:123-146）。",
         },
         AriaRow {
-            attribute: "aria-live=\"polite\"",
-            description: "error_text パーツへ固定付与する（fieldset.rs:195-198）。",
+            attribute: "role=\"alert\" / aria-live=\"polite\"",
+            description: "error_text パーツへ固定付与する。role=\"alert\" の暗黙 aria-live=\"assertive\" は明示 polite で上書きされるため両者は併用でき、読み上げの割り込み度合いは polite のまま shadcn/ui FieldError とのロール語彙パリティを純追加する（fieldset.rs:205-209、イシュー #2184）。",
         },
         AriaRow {
             attribute: "<fieldset> + <legend>（ネイティブ命名）",

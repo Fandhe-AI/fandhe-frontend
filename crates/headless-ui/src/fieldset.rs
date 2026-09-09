@@ -192,9 +192,9 @@ pub fn helper_text(
 
 /// `error_text` パーツ（`div`）。`invalid` でないときは `hidden` 存在属性を
 /// 付与する fail-closed 描画とし、JS 不在の SSR でも誤表示しない。
-/// `aria-live="polite"` によりスクリーンリーダーへの通知を意図する
-/// （[`crate::field::error_text`] と同型。タグを `div` にする理由も同型、
-/// [`crate::field::error_text`] rustdoc 参照）。
+/// `role="alert"` と `aria-live="polite"` を併せて付与する
+/// （[`crate::field::error_text`] と同型。role / aria-live の判断根拠も
+/// 同型、イシュー #2184。[`crate::field::error_text`] rustdoc 参照）。
 #[must_use]
 pub fn error_text(
     props: &FieldsetProps<'_>,
@@ -202,7 +202,11 @@ pub fn error_text(
     children: Vec<Node>,
 ) -> Node {
     let error_id = props.error_text_id();
-    let mut merged: Vec<(&str, &str)> = vec![("id", error_id.as_str()), ("aria-live", "polite")];
+    let mut merged: Vec<(&str, &str)> = vec![
+        ("id", error_id.as_str()),
+        ("role", "alert"),
+        ("aria-live", "polite"),
+    ];
     if !props.invalid {
         merged.push(("hidden", ""));
     }
@@ -299,12 +303,14 @@ mod tests {
         let props = base_props("f");
         let hidden_html = render(&error_text(&props, vec![], vec![text("bad")]));
         assert!(hidden_html.contains(r#"hidden="""#));
+        assert!(hidden_html.contains(r#"role="alert""#));
         assert!(hidden_html.contains(r#"aria-live="polite""#));
 
         let mut props_invalid = base_props("f");
         props_invalid.invalid = true;
         let visible_html = render(&error_text(&props_invalid, vec![], vec![text("bad")]));
         assert!(!visible_html.contains("hidden"));
+        assert_eq!(visible_html.matches(r#"role="alert""#).count(), 1);
     }
 
     #[test]
