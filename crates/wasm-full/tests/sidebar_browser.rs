@@ -1800,3 +1800,208 @@ async fn sibling_wipe_during_catchup_click_still_collapses_via_mutation_observer
          自体を妨げない — sub_b は document に接続されたまま）"
     );
 }
+
+// --- 10. PR #2248 codex-review P1 再指摘 ×3 の回帰
+//         （collapse_pending の provider ごと独立追跡・catch-up 経由の
+//         折りたたみ確認・tooltip focused チャネルの構造再描画後再同期）
+//         ---
+
+#[wasm_bindgen_test]
+async fn catchup_collapse_via_attribute_only_change_clears_pending_so_reopened_drawer_survives_mutation(
+) {
+    // PR #2248 codex-review P1 是正の回帰テスト（`wiring::apply_mobile_
+    // state` doc「catch-up 経由の折りたたみ成功が pending を解除しない」
+    // 節参照）。`wire_sidebar_dispatch` の登録直後 catch-up click は
+    // `data-state` 属性の書き換えのみを行い `childList`/`subtree` の変異を
+    // 伴わないため、`wire_mobile` の `MutationObserver`（`childList`/
+    // `subtree` のみ監視）だけでは catch-up の成功を観測できない。
+    // `wire_sidebar_state_observer`（`data-state` 属性変異を監視）が
+    // `confirm_collapsed_pending` を経由してこの成功を確認・記録する
+    // ことを検証する。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-catchup-clears-pending-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let (sidebar, provider_el, _root_el, trigger_el, _rail_el) =
+        build_sidebar_markup(&container, SidebarState::Expanded, false, false);
+
+    // `wire_sidebar_events`（`wire_mobile` の初回 `apply_mobile_state`
+    // 呼び出し）を dispatch 登録より先に行う（本番の呼び出し順、
+    // `dispatch_registered_after_mobile_wiring_still_collapses_on_mount`
+    // と同じ順序）。この時点では折りたたみ合成 click は dispatch 未登録
+    // のため失われ、`data-state="expanded"` のまま残る。
+    wire_sidebar_events_with_query(container.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+    assert!(provider_el.has_attribute("data-mobile"));
+
+    let component = Rc::new(RefCell::new(sidebar));
+    wire_dispatch_reflecting_data_state(&container, component.clone());
+
+    // `wire_sidebar_dispatch` 登録直後の catch-up が折りたたみに成功する
+    // （`data-state` 属性のみを書き換える）。
+    assert_eq!(component.borrow().state(), SidebarState::Collapsed);
+
+    // `wire_sidebar_state_observer` が上記の `data-state` 属性変異を検知し
+    // `confirm_collapsed_pending` を呼ぶのを待つ（`MutationObserver` は
+    // マイクロタスクとして発火する）。
+    sleep_ms(50).await;
+
+    // ユーザーが drawer を開き直す。
+    dispatch_click(&trigger_el);
+    assert_eq!(component.borrow().state(), SidebarState::Expanded);
+
+    // 無関係な `childList` 変異（`wire_mobile` の `MutationObserver` を
+    // 発火させる）が起きても、既に確認済みの `collapse_pending` が空で
+    // あるため、開き直した drawer が再クローズされないこと。
+    let decoy = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    container
+        .append_child(&decoy)
+        .expect("append_child must not fail for decoy");
+    container
+        .remove_child(&decoy)
+        .expect("remove_child must not fail for decoy");
+
+    sleep_ms(50).await;
+
+    assert_eq!(
+        component.borrow().state(),
+        SidebarState::Expanded,
+        "wire_sidebar_dispatch の catch-up（data-state 属性のみの変更）で \
+         折りたたみが確認された後は、ユーザーが開き直した drawer が \
+         無関係な childList 変異のたびに再クローズされないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+async fn multiple_providers_confirmed_collapse_persists_independently_of_permanently_stuck_sibling()
+{
+    // PR #2248 codex-review P1 是正の回帰テスト（`wiring::apply_mobile_
+    // state` doc「root 全体で 1 フラグを共有すると provider 間で干渉する」
+    // 節参照）。sub_b は trigger/rail が双方 disabled のため、モバイル
+    // 進入時の折りたたみ合成 click が恒久的に no-op となり expanded の
+    // まま取り残される。単一 `bool` の `collapse_pending` だった旧実装
+    // では、sub_b が未確認のままである限り root 全体のフラグが解除
+    // されず、sub_a（正常に折りたたみ済み）をユーザーが開き直した後の
+    // 無関係な `childList` 変異のたびに sub_a まで巻き添えで再クローズ
+    // されていた。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let shared_root = create_container(&document, "sidebar-multi-provider-stuck-sibling-root");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    let sub_a = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    let sub_b = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    shared_root
+        .append_child(&sub_a)
+        .expect("append_child must not fail for sub_a");
+    shared_root
+        .append_child(&sub_b)
+        .expect("append_child must not fail for sub_b");
+
+    let (sidebar_a, _provider_a, _root_a, trigger_a, _rail_a) =
+        build_sidebar_markup(&sub_a, SidebarState::Expanded, false, false);
+    // sub_b: trigger/rail 双方 disabled — 折りたたみ合成 click が
+    // 恒久的に no-op になる provider。
+    let (sidebar_b, ..) = build_sidebar_markup(&sub_b, SidebarState::Expanded, true, true);
+
+    let component_a = Rc::new(RefCell::new(sidebar_a));
+    let component_b = Rc::new(RefCell::new(sidebar_b));
+    wire_dispatch_reflecting_data_state(&sub_a, component_a.clone());
+    wire_dispatch_reflecting_data_state(&sub_b, component_b.clone());
+
+    wire_sidebar_events_with_query(shared_root.clone(), "(min-width: 1px)")
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    assert_eq!(
+        component_a.borrow().state(),
+        SidebarState::Collapsed,
+        "sub_a はモバイル進入時に通常どおり折りたたまれること"
+    );
+    assert_eq!(
+        component_b.borrow().state(),
+        SidebarState::Expanded,
+        "sub_b は trigger/rail 双方 disabled のため折りたたみに失敗し \
+         expanded のまま残ること"
+    );
+
+    // ユーザーが sub_a を開き直す。
+    dispatch_click(&trigger_a);
+    assert_eq!(component_a.borrow().state(), SidebarState::Expanded);
+
+    // sub_b が恒久的に未確認のまま残っていても、sub_a の「確認済み」
+    // 状態は独立に保持されるべきであることを、無関係な `childList` 変異
+    // （`wire_mobile` の `MutationObserver` を発火させる）を経て検証する。
+    let decoy = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    shared_root
+        .append_child(&decoy)
+        .expect("append_child must not fail for decoy");
+    shared_root
+        .remove_child(&decoy)
+        .expect("remove_child must not fail for decoy");
+
+    sleep_ms(50).await;
+
+    assert_eq!(
+        component_a.borrow().state(),
+        SidebarState::Expanded,
+        "sub_a が既に折りたたみ確認済みであれば、恒久的に未確認の sub_b が \
+         同一 root に存在していても、無関係な childList 変異のたびに \
+         再クローズされないこと（provider ごと独立に確認済み状態を追跡する）"
+    );
+}
+
+#[wasm_bindgen_test]
+async fn stale_focused_channel_is_reconciled_after_structural_rerender_so_tooltip_can_close() {
+    // PR #2248 codex-review P1 是正の回帰テスト（`recheck_menu_button_
+    // tooltips` doc「`focused` チャネルの再同期」節参照）。構造再描画で
+    // 除去された menu-button の `focused` キーが残留すると、同じ
+    // `aria-describedby` を再利用する新しい menu-button への
+    // pointerover/pointerout だけでは tooltip が閉じなくなる（`focused`
+    // 側で `stay_open` が常に真になるため）。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "sidebar-tooltip-stale-focus-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let (menu_button_el, content_el) = mount_sidebar_with_tooltip(&container, false);
+    wire_sidebar_events_with_query(container.clone(), DESKTOP_QUERY)
+        .expect("wire_sidebar_events_with_query must not fail");
+
+    // focusin で `focused` チャネルを活性化する（実際の `.focus()` は
+    // 呼ばない — ブラウザの真のフォーカス移動を伴わない構造再描画後の
+    // focusout 取りこぼしを、決定的に再現するため）。
+    dispatch_event_on(&menu_button_el, "focusin");
+    assert!(!content_el.has_attribute("hidden"));
+
+    // 構造再描画: 同じ markup を再生成し、旧 menu-button を新しい
+    // `Element` インスタンスへ差し替える（`aria-describedby` は同じ値の
+    // まま）。focusout は一切発生しない。
+    let (new_menu_button_el, new_content_el) = mount_sidebar_with_tooltip(&container, false);
+
+    // `wire_mobile` の `MutationObserver`（`childList`/`subtree`）が
+    // 上記再描画を検知し `recheck_menu_button_tooltips` を呼ぶのを待つ
+    // （`focused` チャネルがここで `document.activeElement` と再同期
+    // される）。
+    sleep_ms(50).await;
+
+    // 新しい menu-button への実際の hover サイクル。
+    dispatch_event_on(&new_menu_button_el, "pointerover");
+    assert!(!new_content_el.has_attribute("hidden"));
+
+    dispatch_event_on(&new_menu_button_el, "pointerout");
+    assert!(
+        new_content_el.has_attribute("hidden"),
+        "構造再描画前の focusin に由来する古い focused キーが再同期されず \
+         残っていると、新しい menu-button への pointerout だけでは \
+         tooltip が閉じなくなる（focused 側で stay_open が常に真のまま）"
+    );
+}

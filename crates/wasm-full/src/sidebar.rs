@@ -371,46 +371,15 @@ mod wiring {
         out
     }
 
-    /// `root` 配下の全 provider を、処理の直前に毎回 [`all_providers`]
-    /// を呼び直しながら順に `f` へ渡す。
-    ///
-    /// イシュー #2074 codex-review P1 是正: 複数 provider が並存する
-    /// 構成で、ある provider への合成 click（`f` 内で行われる）が
-    /// dispatch → `on_update` を経て共有ルートの構造フォールバック
-    /// 再描画を引き起こすと、事前に 1 回だけ収集した `Vec<Element>` に
-    /// 残る後続 provider の参照は document から切り離された古い要素に
-    /// なり、以降 `f` を呼んでも可視 DOM には反映されない。provider の
-    /// 総数は再描画をまたいでも構造上不変という前提のもと、`index` 番目の
-    /// provider をその時点の生きた DOM から取り直すことで、この種の
-    /// 再描画があっても全 provider を正しく処理できるようにする。
-    ///
-    /// [`apply_mobile_state`] のモバイル進入時折りたたみ判定
-    /// （`entering_mobile` 分岐）専用: この判定は `data-state`
-    /// （app が正しく再描画する値）のみを読むため、`f` 内で毎回読み
-    /// 直しても誤判定は起きない。Escape・外側クリックの複数 drawer
-    /// 閉鎖処理は `data-mobile`（headless-ui が知らずアプリの再描画で
-    /// 消え得る値）や `event.target()`（再描画で切断され得る参照）を
-    /// 判定に使うため、本関数ではなく
-    /// [`resolve_and_dismiss_providers`] を使う（同関数 doc 参照）。
-    fn for_each_provider_refetching(root: &Element, mut f: impl FnMut(&Element)) {
-        let provider_count = all_providers(root).len();
-        for index in 0..provider_count {
-            let Some(provider) = all_providers(root).into_iter().nth(index) else {
-                continue;
-            };
-            f(&provider);
-        }
-    }
-
     /// `root` 配下の全 provider に対する「閉鎖すべきか」の判定を、
     /// いずれの合成 click よりも前の単一の同期パスで確定してから、
     /// 判定が真の provider だけを都度生きた DOM から再取得して
     /// [`click_trigger_or_rail`] で閉じる（Escape・外側クリック閉鎖の
     /// 共通実装）。
     ///
-    /// イシュー #2074 codex-review P1 是正（[`for_each_provider_
-    /// refetching`] では解決しない残存不具合）: 複数 drawer が並存する
-    /// 構成で、`decide` を [`for_each_provider_refetching`] のように
+    /// イシュー #2074 codex-review P1 是正（`for_each_provider_refetching`（旧・削除済み）
+    /// では解決しない残存不具合）: 複数 drawer が並存する
+    /// 構成で、`decide` を `for_each_provider_refetching`（旧・削除済み）のように
     /// 「各 provider を処理する直前に毎回フレッシュな DOM から読み直す」
     /// 実装にすると、以下 2 つの経路のいずれかで誤判定が起こる。
     ///
@@ -434,7 +403,7 @@ mod wiring {
     /// click 合成を一切行う前に）呼び出すことで、上記いずれの誤判定も
     /// 構造的に起こり得ないようにする。判定確定後の第 2 パスでは、
     /// 各 provider の**識別**（クリック対象の DOM 要素の再取得）のみを
-    /// 都度行う（[`for_each_provider_refetching`] と同型の理由:
+    /// 都度行う（`for_each_provider_refetching`（旧・削除済み）と同型の理由:
     /// 先行する provider への click が後続 provider の参照を切断済みに
     /// し得るため）。`decide` の呼び出し自体は副作用（click 合成）を
     /// 持たないため、この再取得は「識別」だけを担い「判定」には関与
@@ -702,19 +671,47 @@ mod wiring {
         });
     }
 
+    /// `collapse_pending` に残る index だけを対象に、都度生きた DOM から
+    /// provider を再取得して「現在 collapsed（またはそもそも折りたたみ
+    /// 不要）か」を確認し、真であれば pending から除去する（click 合成は
+    /// 一切行わない確認専用パス）。
+    ///
+    /// [`apply_mobile_state`]（自身の合成 click 直後の確認、および
+    /// `wire_mobile` の `childList`/`subtree` `MutationObserver` 経由の
+    /// 呼び出し）と [`wire_sidebar_state_observer`]（`data-state`
+    /// **属性**変異の検知、`attributes`/`subtree` のみ監視）の双方から
+    /// 呼ばれる（[`apply_mobile_state`] doc「`confirm_collapsed_pending`
+    /// と `wire_sidebar_state_observer` の連携」節参照）。provider 総数が
+    /// 「再描画をまたいでも不変」という前提に反して変わっていた場合、
+    /// その index はもはや対応する provider を特定できないため、無限に
+    /// 再試行し続けないよう pending から取り除く（fail-closed）。
+    fn confirm_collapsed_pending(root: &Element, collapse_pending: &Rc<RefCell<HashSet<usize>>>) {
+        let pending_indices: Vec<usize> = collapse_pending.borrow().iter().copied().collect();
+        for index in pending_indices {
+            let Some(provider) = all_providers(root).into_iter().nth(index) else {
+                collapse_pending.borrow_mut().remove(&index);
+                continue;
+            };
+            let state = provider.get_attribute("data-state");
+            if !should_collapse_on_enter_mobile(true, state.as_deref()) {
+                collapse_pending.borrow_mut().remove(&index);
+            }
+        }
+    }
+
     /// `root`/`mql` から現在のモバイル判定を再取得し、`provider`/`root`
     /// パーツへ `data-mobile` を反映する。デスクトップ→モバイルへの
     /// **遷移エッジ**（`was_mobile` が偽から真へ変わる瞬間）で
-    /// `collapse_pending` を立て、matches が真かつ `collapse_pending` が
-    /// 立っている間は呼ばれるたびに（遷移エッジかどうかを問わず）expanded
-    /// な provider への折りたたみ click を再試行する（モジュール doc
-    /// 「モバイル進入時に expanded を collapsed へ寄せる意図的差分」参照）。
-    /// マウント直後の初回呼び出し・`MediaQueryList` の `change` イベント・
-    /// `MutationObserver`（再描画で `data-mobile` が失われた場合の再適用）
-    /// の 3 経路から共通で呼ばれる。
+    /// `collapse_pending` へ全 provider の index を登録し、matches が真かつ
+    /// `collapse_pending` が空でない間は呼ばれるたびに（遷移エッジかどうかを
+    /// 問わず）未確認の provider への折りたたみ click を再試行する
+    /// （モジュール doc「モバイル進入時に expanded を collapsed へ寄せる
+    /// 意図的差分」参照）。マウント直後の初回呼び出し・`MediaQueryList` の
+    /// `change` イベント・`MutationObserver`（再描画で `data-mobile` が
+    /// 失われた場合の再適用）の 3 経路から共通で呼ばれる。
     ///
-    /// # `collapse_pending`（複数 Sidebar 同期登録時の取りこぼし是正、
-    /// イシュー #2074 codex-review P1 再指摘）
+    /// # `collapse_pending`（provider ごとの折りたたみ確認追跡、イシュー
+    /// #2074 codex-review P1 再指摘 ×2 の是正）
     ///
     /// 当初の実装は「`was_mobile` が偽→真に変わった瞬間」の 1 回だけ
     /// 折りたたみを試みていた。しかし複数 Sidebar インスタンスを同期的に
@@ -727,21 +724,79 @@ mod wiring {
     /// を消してしまうと、その後 `MutationObserver` が B の `data-mobile`
     /// を再適用しても（`was_mobile` は既に真のまま、遷移エッジではない
     /// ため）折りたたみが再試行されず、B の drawer が開いたまま取り
-    /// 残されていた。`collapse_pending` は「モバイルへ進入したが、まだ
-    /// 全 provider の折りたたみを確認できていない」状態を `was_mobile`
-    /// とは独立に保持し、`change`/`MutationObserver` のどの経路から
-    /// 再度呼ばれても、確認が取れるまで（＝全 provider が collapsed に
-    /// なるまで）折りたたみ click を再試行し続ける。デスクトップへ
-    /// 戻ると `collapse_pending` はクリアし（次にモバイルへ再進入した
-    /// 際に新規の遷移として扱うため）、既に折りたたみ済みで
-    /// ユーザーが意図的に再度開いた drawer を追いかけて閉じ続けることは
-    /// ない（`collapse_pending` は「初回折りたたみの確認待ち」の間のみ
-    /// 真であり、確認が取れた時点で偽に戻る）。
+    /// 残されていた。
+    ///
+    /// 単一の `Cell<bool>`（root 全体で共有する 1 フラグ）だった旧実装には
+    /// さらに 2 つの不具合があった（PR #2248 codex-review P1 再指摘 ×2）。
+    ///
+    /// 1. **catch-up 経由の折りたたみ成功が pending を解除しない**:
+    ///    [`wire_sidebar_dispatch`] の登録直後 catch-up click
+    ///    （dispatch 登録が完了した直後に一度だけ行う、同関数 doc 参照）は
+    ///    本関数を経由せずに折りたたみを成功させ得るため、単一フラグを
+    ///    書き換える手段を持たなかった。この catch-up 自身は
+    ///    `data-state` 属性の書き換えのみを行い、`childList`/`subtree`
+    ///    の変異を伴わないため、`wire_mobile` の `MutationObserver`
+    ///    （`childList`/`subtree` のみ監視、上記 doc 参照）は catch-up の
+    ///    成功を一切観測できず、本関数（フラグの唯一の書き換え主体）は
+    ///    catch-up の成功後しばらく呼ばれないまま残り得る。フラグが
+    ///    立ったまま残ると、ユーザーが drawer を開き直した後の無関係な
+    ///    `childList` 変異が本関数を呼び出したとき、その時点の生きた
+    ///    DOM を読んでも「ユーザーが今まさに開いている」状態にしか見えず
+    ///    （catch-up が成功していた事実そのものは観測機会が無いまま
+    ///    通り過ぎている）、依然「まだ折りたたみ未確認」と誤認して
+    ///    開き直した drawer を再び閉じてしまっていた。
+    /// 2. **root 全体で 1 フラグを共有すると provider 間で干渉する**:
+    ///    複数 provider が並存する構成で、一方（trigger/rail が
+    ///    disabled 等の理由で）恒久的に折りたたみに失敗し続けると、
+    ///    もう一方が既に折りたたみに成功していても `still_expanded`
+    ///    判定が常に真になり単一フラグが解除されない。結果、
+    ///    折りたたみ済みの provider をユーザーが開き直しても、次の
+    ///    `childList` 変異のたびに無関係な provider の未完了を理由に
+    ///    再び閉じられてしまっていた。
+    ///
+    /// この 2 つを踏まえ、`collapse_pending` は単一 `bool` ではなく
+    /// **provider の index（[`all_providers`] が返す順序）の集合**として
+    /// 保持する。モバイル進入エッジで現在の provider 数ぶんの index を
+    /// すべて挿入し、以降 [`apply_mobile_state`] が呼ばれるたびに集合に
+    /// 残る index だけを対象に、都度生きた DOM から provider を再取得して
+    /// 判定する（`for_each_provider_refetching`（旧・削除済み）/[`resolve_and_dismiss_
+    /// providers`] と同型の「再描画をまたいでも provider 総数は不変」
+    /// 前提に基づくインデックスベースの安全な反復）。ある index の
+    /// provider が現在 collapsed（またはそもそも折りたたみ不要）である
+    /// ことを**生きた DOM から直接確認できた時点**で、その click が
+    /// 本関数自身によるものか [`wire_sidebar_dispatch`] の catch-up に
+    /// よるものかを問わず、その index を集合から取り除いて「確認済み」に
+    /// 確定する（是正 1）。一度確認済みになった index は、以後
+    /// ユーザーが同じ provider を開き直しても集合に含まれないため、
+    /// 無関係な `childList` 変異で再び閉じられることはない（是正 2 も
+    /// 同時に解決: 各 index は他の index の状態に一切依存せず独立に
+    /// 追跡されるため、恒久的に折りたたみへ失敗し続ける provider が
+    /// あっても他の provider の確認済み状態を巻き込まない）。
+    /// デスクトップへ戻ると集合を空にする（次にモバイルへ再進入した際は
+    /// 改めて `entering_mobile` から全 index を登録し直すため）。
+    ///
+    /// # `confirm_collapsed_pending` と `wire_sidebar_state_observer` の連携
+    /// （是正 1 の実質的な担い手、イシュー #2074 codex-review P1 是正）
+    ///
+    /// 「生きた DOM から直接確認できた時点で pending から除去する」判定は
+    /// [`confirm_collapsed_pending`] へ切り出しており、本関数（`click`
+    /// 合成の直後）だけでなく [`wire_sidebar_state_observer`]（`root`
+    /// 部分木の `data-state` **属性**変異を検知する別の `MutationObserver`、
+    /// `attributes`/`subtree` のみ監視し `childList` は監視しない）からも
+    /// 呼ばれる。[`wire_sidebar_dispatch`] の catch-up click は `data-state`
+    /// 属性のみを書き換えるため、本関数（`childList`/`subtree` 監視）は
+    /// その成功を観測する機会を持たない一方、`wire_sidebar_state_observer`
+    /// は正確にその変異を捉える。この 2 系統の `MutationObserver`
+    /// （本関数の `childList`/`subtree` 用と `wire_sidebar_state_observer`
+    /// の `attributes`/`subtree` 用）が同じ `collapse_pending` を共有する
+    /// ことで、catch-up の成功が属性変異としてのみ現れても取りこぼさず
+    /// 確認・記録される。
     fn apply_mobile_state(
         root: &Element,
         mql: &MediaQueryList,
         was_mobile: &Rc<Cell<bool>>,
-        collapse_pending: &Rc<Cell<bool>>,
+        collapse_pending: &Rc<RefCell<HashSet<usize>>>,
+        hover_state: &TooltipHoverState,
     ) {
         let matches = mql.matches();
 
@@ -762,68 +817,43 @@ mod wiring {
 
         let entering_mobile = matches && !was_mobile.get();
         if entering_mobile {
-            collapse_pending.set(true);
+            // モバイルへ新規進入した瞬間の provider 総数ぶんの index を
+            // すべて「折りたたみ未確認」として登録し直す（上記 doc 参照）。
+            let provider_count = all_providers(root).len();
+            let mut pending = collapse_pending.borrow_mut();
+            pending.clear();
+            pending.extend(0..provider_count);
         }
         if !matches {
             // デスクトップへ戻ったら「折りたたみ確認待ち」を破棄する。
             // 次にモバイルへ再進入した際は改めて `entering_mobile` から
             // 扱うため、ここで残しておく意味がない（残すと、次回進入時に
             // 無関係な古い pending が誤って再試行を続ける可能性がある）。
-            collapse_pending.set(false);
+            collapse_pending.borrow_mut().clear();
         }
-        if matches && collapse_pending.get() {
-            // イシュー #2074 codex-review P1 是正: [`find_first`] は
-            // 最初の provider にしか反応しないため、同一 `root` 配下に
-            // 複数 provider が並存すると 2 個目以降が `expanded` の
-            // まま取り残されていた。[`all_providers`] で列挙した全 provider
-            // それぞれに対して独立に折りたたみ判定・合成 click を行う
-            // （`click_trigger_or_rail` も各 `provider` 自身の部分木に
-            // 限定し、他 provider の trigger/rail を誤って click しない）。
-            //
-            // イシュー #2074 codex-review P1 是正（再取得なしの走査は
-            // 複数 provider 環境で 2 個目以降を取りこぼす）: 複数 provider
-            // が並存する構成では、1 個目の provider への合成 click が
-            // dispatch → `on_update` を経て共有ルートの構造フォールバック
-            // 再描画を引き起こし得る（`wire_sidebar_dispatch` doc「登録
-            // 順序」節と同型の理由）。この再描画は 2 個目以降の provider
-            // を含む DOM 部分木を新しい要素へ丸ごと差し替えるため、事前に
-            // 1 回だけ収集した `Vec<Element>`（本関数冒頭で `all_providers`
-            // を一括呼び出す従来実装）に残る 2 個目以降の `Element` は
-            // 差し替え後は document から切り離された古い参照になり、
-            // `click_trigger_or_rail` を呼んでも可視 DOM 上のモバイル
-            // drawer には一切反映されない（折りたたまれないまま
-            // 取り残される）。1 個目の provider への click 合成が
-            // 常に再描画を伴うとは限らない（`on_update` の実装次第）ため、
-            // 対策として各 provider を処理する直前に必ず `all_providers`
-            // を呼び直し、その時点の生きた DOM から `index` 番目の
-            // provider を取得してから判定・click する（provider の総数は
-            // 再描画をまたいでも構造上不変という前提のもと、インデックス
-            // ベースで安全に反復する）。
-            for_each_provider_refetching(root, |provider| {
+        if matches && !collapse_pending.borrow().is_empty() {
+            // イシュー #2074 codex-review P1 是正: 集合に残る index
+            // だけを対象に、各 index を処理する直前に必ず `all_providers`
+            // を呼び直し、その時点の生きた DOM から provider を取得して
+            // から判定・click する（`for_each_provider_refetching`（旧・削除済み）doc
+            // 参照。1 個目への合成 click が構造フォールバック再描画を
+            // 引き起こし、事前に収集した参照が document から切り離される
+            // ケースへの対策）。この時点で既に collapsed（または
+            // そもそも折りたたみ不要）な index は [`confirm_collapsed_
+            // pending`] が担うため、ここでは click 合成のみ行う。
+            let pending_indices: Vec<usize> = collapse_pending.borrow().iter().copied().collect();
+            for index in pending_indices {
+                let Some(provider) = all_providers(root).into_iter().nth(index) else {
+                    continue;
+                };
                 let state = provider.get_attribute("data-state");
                 if should_collapse_on_enter_mobile(true, state.as_deref()) {
-                    click_trigger_or_rail(provider);
+                    click_trigger_or_rail(&provider);
                 }
-            });
-
-            // click 合成の結果を再取得で確認する（`for_each_provider_
-            // refetching` 内の読み取りは click 前のスナップショットで
-            // あり得るため、ここで改めて生きた DOM から全 provider を
-            // 見直す）。dispatch が未登録（マウント直後の初回呼び出し等）
-            // で click が no-op だった場合、または兄弟の再描画で
-            // `data-mobile`/`data-state` が巻き戻された場合は、いずれかの
-            // provider がまだ expanded のまま残るため `collapse_pending`
-            // を真のまま保持し、次に本関数が呼ばれたとき（`change`／
-            // `MutationObserver`／`wire_sidebar_dispatch` の catch-up 経由の
-            // 再描画等）に再試行する。全 provider が collapsed に
-            // なったことを確認できて初めて `collapse_pending` を解除する。
-            let still_expanded = all_providers(root).into_iter().any(|provider| {
-                let state = provider.get_attribute("data-state");
-                should_collapse_on_enter_mobile(true, state.as_deref())
-            });
-            if !still_expanded {
-                collapse_pending.set(false);
             }
+            // click 直後（および provider 総数が本関数の前提に反して
+            // 変わっていた場合を含め）に改めて生きた DOM から確認する。
+            confirm_collapsed_pending(root, collapse_pending);
         }
         was_mobile.set(matches);
 
@@ -838,8 +868,11 @@ mod wiring {
         // `data-mobile` を書き換えた直後に必ず [`recheck_menu_button_tooltips`]
         // を呼び、表示条件を明示的に再判定する（モバイル進入・離脱の両方向、
         // および上記の合成 click で `data-state` 変異が既に処理されている
-        // 場合も冪等に安全）。
-        recheck_menu_button_tooltips(root);
+        // 場合も冪等に安全）。本関数自身も `root` 部分木の `childList`
+        // 変異（[`wire_mobile`] の `MutationObserver`）を契機に呼ばれるため、
+        // ここで [`recheck_menu_button_tooltips`] へ `hover_state` を渡すと
+        // 構造再描画後の focus 状態再同期（同関数 doc 参照）も併せて行われる。
+        recheck_menu_button_tooltips(root, hover_state);
     }
 
     /// `window.matchMedia(query)` によるモバイル判定・`data-mobile` の
@@ -863,14 +896,18 @@ mod wiring {
     /// `observe` 済みである場合のみである（登録が初回呼び出しより後だと、
     /// 巻き戻しを取りこぼしたまま次の DOM 変更・メディアクエリ変更まで
     /// デスクトップ表示のまま残ってしまう）。
-    fn wire_mobile(root: &Element, query: &str) -> Result<(), JsValue> {
+    fn wire_mobile(
+        root: &Element,
+        query: &str,
+        hover_state: Rc<TooltipHoverState>,
+        collapse_pending: Rc<RefCell<HashSet<usize>>>,
+    ) -> Result<(), JsValue> {
         let window = web_sys::window().ok_or_else(|| JsValue::from_str("sidebar: no window"))?;
         let mql = window
             .match_media(query)?
             .ok_or_else(|| JsValue::from_str("sidebar: matchMedia unsupported"))?;
 
         let was_mobile = Rc::new(Cell::new(false));
-        let collapse_pending = Rc::new(Cell::new(false));
 
         // `change`: viewport がブレークポイントをまたいだときに再適用する。
         //
@@ -891,6 +928,7 @@ mod wiring {
         let change_mql = mql.clone();
         let change_was_mobile = was_mobile.clone();
         let change_collapse_pending = collapse_pending.clone();
+        let change_hover_state = hover_state.clone();
         let change_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
             if !change_root.is_connected() {
                 return;
@@ -900,6 +938,7 @@ mod wiring {
                 &change_mql,
                 &change_was_mobile,
                 &change_collapse_pending,
+                &change_hover_state,
             );
         });
         mql.add_event_listener_with_callback("change", change_closure.as_ref().unchecked_ref())?;
@@ -921,6 +960,7 @@ mod wiring {
         let observer_mql = mql.clone();
         let observer_was_mobile = was_mobile.clone();
         let observer_collapse_pending = collapse_pending.clone();
+        let observer_hover_state = hover_state.clone();
         let observer_callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |_records: js_sys::Array, _observer: MutationObserver| {
                 if !observer_root.is_connected() {
@@ -931,6 +971,7 @@ mod wiring {
                     &observer_mql,
                     &observer_was_mobile,
                     &observer_collapse_pending,
+                    &observer_hover_state,
                 );
             },
         );
@@ -947,7 +988,7 @@ mod wiring {
         // `apply_mobile_state` 自体には `is_connected` ガードを入れない
         // （`change`/`MutationObserver` コールバックのみに限定する設計、
         // 上記 doc 参照）。
-        apply_mobile_state(root, &mql, &was_mobile, &collapse_pending);
+        apply_mobile_state(root, &mql, &was_mobile, &collapse_pending, &hover_state);
 
         Ok(())
     }
@@ -1279,19 +1320,68 @@ mod wiring {
         }
     }
 
+    /// `root` 配下から現在フォーカス中の sidebar menu-button の
+    /// [`tooltip_instance_key`] を返す（`document.activeElement` が
+    /// `root` 配下の menu-button でない、または `window`/`document` を
+    /// 取得できない場合は `None`）。[`recheck_menu_button_tooltips`] の
+    /// focus 状態再同期でのみ使う。
+    fn active_menu_button_tooltip_key(root: &Element) -> Option<String> {
+        let active = web_sys::window()?.document()?.active_element()?;
+        if !root.contains(Some(&active)) {
+            return None;
+        }
+        if !active.matches(MENU_BUTTON_SELECTOR).unwrap_or(false) {
+            return None;
+        }
+        tooltip_instance_key(&active)
+    }
+
     /// `root` 配下の sidebar menu-button それぞれについて、
     /// [`tooltip_applicable`] が偽になった（例: `collapsed` → `expanded`
     /// 遷移）にもかかわらず tooltip が開いたままのものを非表示に倒す
     /// （イシュー #2074 Cursor Bugbot 指摘「Tooltip stays open after
-    /// expand」の是正）。[`wire_sidebar_state_observer`] から呼ばれる。
+    /// expand」の是正）。[`wire_sidebar_state_observer`]・
+    /// [`apply_mobile_state`] から呼ばれる（いずれも `root` 部分木の
+    /// 構造・状態変化を検知した直後の再同期ポイント）。
     ///
-    /// hover/focus の入力チャネル自体（[`TooltipHoverState`]）は変更しない
-    /// （表示条件が再び真に戻ったとき、実際にまだ hover/focus 中であれば
-    /// 再表示は次の pointerover/focusin 等ではなく、このまま `stay_open`
-    /// が真の状態を保持している。ただし本関数は非表示化のみを行い、決して
-    /// 新規に表示はしない: 表示はユーザー入力イベント経由でのみ起こる
-    /// べきという既存の設計を踏襲する）。
-    fn recheck_menu_button_tooltips(root: &Element) {
+    /// hover/focus の入力チャネル自体（[`TooltipHoverState`]）は基本的に
+    /// 変更しない（表示条件が再び真に戻ったとき、実際にまだ hover/focus
+    /// 中であれば再表示は次の pointerover/focusin 等ではなく、このまま
+    /// `stay_open` が真の状態を保持している。本関数は非表示化のみを行い、
+    /// 決して新規に表示はしない: 表示はユーザー入力イベント経由でのみ
+    /// 起こるべきという既存の設計を踏襲する）。
+    ///
+    /// # `focused` チャネルの再同期（PR #2248 codex-review P1 是正）
+    ///
+    /// 唯一の例外として、[`TooltipHoverState::focused`] は本関数の冒頭で
+    /// `document.activeElement` と突き合わせて再同期する。`focused` は
+    /// focusin/focusout（[`handle_tooltip_hover_event`]）でのみ更新される
+    /// 設計だが、対応する menu-button が構造再描画で DOM から除去された
+    /// 場合、ブラウザによっては（特に Firefox）除去された要素に対して
+    /// `focusout` が確実に発火するとは限らず、`focused` に古い
+    /// describedby キーが残留し得る。この残留キーは [`TooltipHoverState::
+    /// stay_open`] を通じて「まだフォーカス継続中」と偽の判定をさせ続け、
+    /// 同じ describedby を再利用する新しい menu-button（再描画後に
+    /// 生成された同一部品の新インスタンス）へポインタを出し入れしても
+    /// tooltip が閉じなくなる（`stay_open` が `focused` 側で常に真になる
+    /// ため、`hovering` チャネルの正しい pointerout 処理が無意味化する）。
+    /// 本関数は [`active_menu_button_tooltip_key`] で「今まさに
+    /// フォーカスされている menu-button の describedby」を ground truth
+    /// として取得し、`focused` 集合をその 1 要素（存在すれば）だけに
+    /// 絞り込む（本物のフォーカス移動は必ず先に `focusin`/`focusout` を
+    /// 経由してから DOM 変異が起こるため、この絞り込みは実際にまだ
+    /// フォーカス中の menu-button のキーを誤って消さない）。本関数は
+    /// [`wire_sidebar_state_observer`]（`data-state` 属性変異）・
+    /// [`apply_mobile_state`]（[`wire_mobile`] の `childList`/`subtree`
+    /// `MutationObserver`）の双方から呼ばれるため、属性変異・構造再描画
+    /// のいずれの経路でも再同期される。
+    fn recheck_menu_button_tooltips(root: &Element, hover_state: &TooltipHoverState) {
+        let active_key = active_menu_button_tooltip_key(root);
+        hover_state
+            .focused
+            .borrow_mut()
+            .retain(|key| Some(key.as_str()) == active_key.as_deref());
+
         for menu_button in query_all(root, MENU_BUTTON_SELECTOR) {
             if !menu_button.has_attribute("aria-describedby") {
                 continue;
@@ -1316,7 +1406,25 @@ mod wiring {
     /// wire_avatar_src_observer` と同型の防御的二重チェック）。
     /// [`set_hidden`]/[`set_tooltip_data_state`] の冪等化と合わせた二重の
     /// 自己発火ループ対策。
-    fn wire_sidebar_state_observer(root: &Element) -> Result<(), JsValue> {
+    ///
+    /// # `collapse_pending` の確認（イシュー #2074 codex-review P1 是正）
+    ///
+    /// 本関数が監視する `data-state` 属性変異は、[`wire_sidebar_dispatch`]
+    /// の登録直後 catch-up click（属性変更のみで `childList`/`subtree` を
+    /// 一切伴わない）を検知できる**唯一**の観測点である（[`wire_mobile`]
+    /// の `MutationObserver` は `childList`/`subtree` のみを監視しており、
+    /// この catch-up の成功を観測できない、[`apply_mobile_state`] doc
+    /// 「`confirm_collapsed_pending` と `wire_sidebar_state_observer` の
+    /// 連携」節参照）。`relevant`（sidebar `data-state` の変異である）が
+    /// 真の場合、[`recheck_menu_button_tooltips`] に加えて
+    /// [`confirm_collapsed_pending`] も呼び、`collapse_pending` に残る
+    /// index のうち今回の変異で collapsed になったものを確認・除去する
+    /// （click 合成は行わない確認専用パス、同関数 doc 参照）。
+    fn wire_sidebar_state_observer(
+        root: &Element,
+        hover_state: Rc<TooltipHoverState>,
+        collapse_pending: Rc<RefCell<HashSet<usize>>>,
+    ) -> Result<(), JsValue> {
         let observed_root = root.clone();
         let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |records: js_sys::Array, _observer: MutationObserver| {
@@ -1343,7 +1451,8 @@ mod wiring {
                     relevant = true;
                 }
                 if relevant {
-                    recheck_menu_button_tooltips(&observed_root);
+                    recheck_menu_button_tooltips(&observed_root, &hover_state);
+                    confirm_collapsed_pending(&observed_root, &collapse_pending);
                 }
             },
         );
@@ -1440,15 +1549,32 @@ mod wiring {
         let hover_state = Rc::new(TooltipHoverState::new());
         wire_keydown(&root, hover_state.clone())?;
         wire_pointerdown(&root)?;
-        wire_tooltip_hover(&root, hover_state)?;
-        wire_sidebar_state_observer(&root)?;
+
+        // イシュー #2074 codex-review P1 是正: `wire_sidebar_state_observer`
+        // （`data-state` 属性変異監視）と `wire_mobile`（`childList`/
+        // `subtree` 変異監視）は同一の `collapse_pending` を共有する
+        // （[`apply_mobile_state`] doc「`confirm_collapsed_pending` と
+        // `wire_sidebar_state_observer` の連携」節参照。[`wire_sidebar_
+        // dispatch`] の catch-up click が `data-state` 属性のみを
+        // 書き換えるケースを、`wire_mobile` 側の `MutationObserver`
+        // だけでは観測できないため）。
+        let collapse_pending: Rc<RefCell<HashSet<usize>>> = Rc::new(RefCell::new(HashSet::new()));
+
+        // イシュー #2074 codex-review P1 是正（focused チャネルの構造
+        // 再描画後再同期、[`recheck_menu_button_tooltips`] doc 参照）:
+        // `wire_sidebar_state_observer`/`wire_mobile` にも同一
+        // `hover_state` を共有させ、`data-state` 属性変異・`root` 部分木の
+        // `childList` 変異のいずれの経路でも `focused` を `document.
+        // activeElement` と再同期できるようにする。
+        wire_sidebar_state_observer(&root, hover_state.clone(), collapse_pending.clone())?;
+        wire_tooltip_hover(&root, hover_state.clone())?;
 
         // モバイル判定機能の失敗は他機能を止めない（モジュール doc
         // 「セキュリティ不変条件」参照）。エラー自体は握りつぶさず、
         // console へは出さないが戻り値としては伝播しない設計上の判断
         // （呼び出し側 `Runtime::mount`/`Runtime::hydrate` は `?` で
         // 即座に他配線を止めてしまうため、ここで吸収する）。
-        let _ = wire_mobile(&root, query);
+        let _ = wire_mobile(&root, query, hover_state, collapse_pending);
 
         Ok(())
     }
