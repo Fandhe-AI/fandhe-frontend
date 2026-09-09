@@ -130,7 +130,8 @@
 
 use crate::charts::pie::{
     annulus_full_ring_path, annulus_sector_path, is_right_half, leader_line_path,
-    outside_label_point, sector_path, segment_angles, PieChartError,
+    outside_label_effective_outer_radius, outside_label_point, sector_path, segment_angles,
+    PieChartError,
 };
 use crate::charts::svg::{circle, fmt_coord, svg_root, svg_text, ViewBox};
 use crate::charts::{series_color_var, ChartData};
@@ -162,10 +163,22 @@ const OUTER_RADIUS: f64 = 45.0;
 /// ラベルを配置する半径（外径に対する比率。セグメント内側寄りに置く）。
 const LABEL_RADIUS_RATIO: f64 = 0.6;
 
-/// [`PieLabelPosition::Outside`] 使用時に縮小する外径（引き出し線・ラベルを
-/// viewBox 内に収めるため。モジュール doc「幾何上の制約」節、イシュー
-/// #2084、shadcn `chart-pie-label` 突合）。
+/// [`PieLabelPosition::Outside`] 使用時に縮小する外径の上限（引き出し線・
+/// ラベルを viewBox 内に収めるため。モジュール doc「幾何上の制約」節、
+/// イシュー #2084、shadcn `chart-pie-label` 突合）。カテゴリ名が短い場合
+/// はこの値まで使う（[`crate::charts::pie::outside_label_effective_outer_radius`]
+/// 参照）。
 const OUTSIDE_LABEL_OUTER_RADIUS: f64 = 34.0;
+/// [`OUTSIDE_LABEL_OUTER_RADIUS`] 縮小の下限（退化防止。長いカテゴリ名で
+/// クランプされた場合、テキストがはみ出しうる既知の限界はモジュール doc
+/// `outside_label_effective_outer_radius` rustdoc 参照）。
+const MIN_OUTSIDE_LABEL_OUTER_RADIUS: f64 = 15.0;
+/// 外側ラベルの 1 文字あたり推定表示幅（`font-size: 5px` 相当、
+/// `bar_chart` モジュールの `AVG_LABEL_CHAR_WIDTH` と同じ等幅想定近似
+/// 設計。イシュー #2084 レビュー指摘）。
+const AVG_LABEL_CHAR_WIDTH: f64 = 3.0;
+/// viewBox の幅（固定 100×100、モジュール doc 参照）。
+const VIEW_BOX_WIDTH: f64 = 100.0;
 /// 引き出し線の放射方向の長さ（[`crate::charts::pie::leader_line_path`]）。
 const LEADER_RADIAL_LEN: f64 = 4.0;
 /// 引き出し線の水平方向の長さ。
@@ -179,6 +192,29 @@ const RING_GAP: f64 = 1.0;
 /// [`chart`] へ既定で付与する `aria-label`（[`PieChartProps::aria_label`]
 /// が `None` の場合に使う）。
 const DEFAULT_ARIA_LABEL: &str = "pie chart";
+
+/// [`PieLabelPosition::Outside`] 使用時の外径を、`categories` 中の最長
+/// カテゴリ名の推定表示幅を考慮して縮小する（
+/// [`crate::charts::pie::outside_label_effective_outer_radius`] 参照。
+/// イシュー #2084 レビュー指摘）。
+fn resolve_outside_label_outer_radius(categories: &[String]) -> f64 {
+    let max_category_len = categories
+        .iter()
+        .map(|c| c.chars().count())
+        .max()
+        .unwrap_or(0);
+    outside_label_effective_outer_radius(
+        CENTER_X,
+        VIEW_BOX_WIDTH,
+        OUTSIDE_LABEL_OUTER_RADIUS,
+        MIN_OUTSIDE_LABEL_OUTER_RADIUS,
+        LEADER_RADIAL_LEN,
+        LEADER_HORIZONTAL_LEN,
+        LEADER_LABEL_GAP,
+        AVG_LABEL_CHAR_WIDTH,
+        max_category_len,
+    )
+}
 
 /// セグメント間セパレータ（shadcn `chart-pie-separator-none` 突合、
 /// イシュー #2084）。
@@ -586,12 +622,12 @@ pub fn pie_chart<'a>(
         }
         let ring_count = series.len();
         // 最外周リングが Outside ラベルを持つ場合、非 stacked 分岐と同様に
-        // 外径を OUTSIDE_LABEL_OUTER_RADIUS へ縮小してから band 計算する
+        // 外径をカテゴリ名の推定表示幅込みで縮小してから band 計算する
         // （引き出し線・outside-label が viewBox 0..100 の外へはみ出すのを
         // 防ぐ。イシュー #2084 レビュー指摘）。
         let effective_outer_radius =
             if props.show_labels && props.label_position == PieLabelPosition::Outside {
-                OUTSIDE_LABEL_OUTER_RADIUS
+                resolve_outside_label_outer_radius(categories)
             } else {
                 OUTER_RADIUS
             };
@@ -628,7 +664,7 @@ pub fn pie_chart<'a>(
         let angles = segment_angles(values)?;
         let outer_radius = if props.show_labels && props.label_position == PieLabelPosition::Outside
         {
-            OUTSIDE_LABEL_OUTER_RADIUS
+            resolve_outside_label_outer_radius(categories)
         } else {
             OUTER_RADIUS
         };
@@ -868,6 +904,41 @@ mod tests {
         // 外径が OUTSIDE_LABEL_OUTER_RADIUS(34) へ縮小されていること。
         assert!(html.contains("34,34,0,"));
         assert!(!html.contains("45,45,0,"));
+    }
+
+    #[test]
+    fn outside_labels_reserve_text_width_margin_for_longer_category_names() {
+        // レビュー指摘（イシュー #2084 codex-review P1）: 等しい値の 2
+        // カテゴリで固定 OUTSIDE_LABEL_OUTER_RADIUS(34) のみを使うと
+        // outside-label の x 座標が 95.5/4.5 となり、viewBox 端までの余白
+        // 4.5 では "Chrome" のような通常長のカテゴリ名（6 文字）が
+        // はみ出す。修正後は文字幅を見込んで外径を縮小し、x 座標が
+        // 推定文字幅ぶんの余白を viewBox 内に残すことを確認する。
+        let data = ChartData::new(
+            vec!["Chrome".to_string(), "Safari".to_string()],
+            vec![Series::new("total", vec![50.0, 50.0])],
+        )
+        .unwrap();
+        let props = PieChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &data, vec![]).unwrap());
+        // 固定 34 のときの x=95.5（右半分）は使われていないこと。
+        assert!(!html.contains(r#"x="95.5""#));
+        let max_category_len = 6.0; // "Chrome"/"Safari" いずれも 6 文字。
+        for x in extract_attr_values(&html, r#"data-part="outside-label""#, "x") {
+            assert!(
+                (0.0..=100.0).contains(&x),
+                "outside-label x={x} は viewBox(0..100) の外"
+            );
+            let margin_to_edge = if x >= 50.0 { 100.0 - x } else { x };
+            assert!(
+                margin_to_edge >= max_category_len * AVG_LABEL_CHAR_WIDTH - 1e-9,
+                "x={x} の余白 {margin_to_edge} は推定文字幅未満"
+            );
+        }
     }
 
     #[test]

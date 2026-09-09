@@ -446,6 +446,44 @@ pub fn outside_label_point(
     (x2, y1)
 }
 
+/// [`PieLabelPosition::Outside`](crate::pie_chart::PieLabelPosition::Outside)
+/// 使用時の外径を、カテゴリ名の推定表示幅を考慮して縮小する
+/// （`pie_chart`/`donut_chart` 共通、イシュー #2084 レビュー指摘）。
+///
+/// 固定径（`OUTSIDE_LABEL_OUTER_RADIUS`）のみで [`outside_label_point`] の
+/// 座標を決めると、[`leader_line_path`] の水平区間 + `gap` の余白しか
+/// viewBox 端との間に確保されず、通常長のカテゴリ名（例: "Chrome"）でも
+/// テキストが viewBox 外へはみ出す（等しい値の 2 カテゴリで x=95.5/4.5 と
+/// なり残り余白が 4.5 しかない実測が動機）。テキスト幅は SVG 実レンダリング
+/// 結果に依存し本クレート（外部依存ゼロ）では計測できないため、
+/// [`crate::charts::bar_chart`] の `AVG_LABEL_CHAR_WIDTH` 近似と同じ設計
+/// （固定 font-size に対する等幅想定の 1 文字あたり近似幅）を踏襲し、
+/// 最大文字数から必要な水平余白を逆算して外径を縮小する。
+///
+/// 返り値は `min_outer_radius..=max_outer_radius` にクランプする
+/// （`min_outer_radius` は退化しない下限を呼び出し側が指定する。
+/// 極端に長いカテゴリ名では下限クランプにより余白が不足しはみ出しうる
+/// 既知の限界であり、`bar_chart::horizontal_label_margin` の
+/// `.max(LABEL_MARGIN)` と同種のトレードオフ）。
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn outside_label_effective_outer_radius(
+    center_x: f64,
+    view_box_width: f64,
+    max_outer_radius: f64,
+    min_outer_radius: f64,
+    radial_len: f64,
+    horizontal_len: f64,
+    gap: f64,
+    avg_char_width: f64,
+    max_category_len: usize,
+) -> f64 {
+    let text_reserve = max_category_len as f64 * avg_char_width;
+    let available_half_width =
+        (view_box_width - center_x) - radial_len - horizontal_len - gap - text_reserve;
+    available_half_width.clamp(min_outer_radius, max_outer_radius)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -691,5 +729,57 @@ mod tests {
         let (x_gap, _) = outside_label_point(50.0, 50.0, 34.0, 0.0, 6.0, 8.0, 2.0);
         assert!(x_gap > x_no_gap);
         assert_eq!(y_no_gap, 50.0);
+    }
+
+    #[test]
+    fn outside_label_effective_outer_radius_shrinks_for_longer_category_names() {
+        // カテゴリ名が長いほど縮小幅が大きく（半径が小さく）なること。
+        let short =
+            outside_label_effective_outer_radius(50.0, 100.0, 34.0, 15.0, 4.0, 6.0, 1.5, 3.0, 1);
+        let long =
+            outside_label_effective_outer_radius(50.0, 100.0, 34.0, 15.0, 4.0, 6.0, 1.5, 3.0, 6);
+        assert!(long < short);
+    }
+
+    #[test]
+    fn outside_label_effective_outer_radius_leaves_text_width_margin_within_view_box() {
+        // pie_chart/donut_chart 実測値（イシュー #2084 レビュー指摘）: "Chrome"
+        // 相当（6 文字）のカテゴリ名でも、外側ラベルの起点から viewBox 端
+        // までの余白が推定文字幅以上確保されること。
+        let max_category_len = 6usize;
+        let avg_char_width = 3.0;
+        let r = outside_label_effective_outer_radius(
+            50.0,
+            100.0,
+            34.0,
+            15.0,
+            4.0,
+            6.0,
+            1.5,
+            avg_char_width,
+            max_category_len,
+        );
+        let label_x = 50.0 + r + 4.0 + 6.0 + 1.5;
+        let margin_to_edge = 100.0 - label_x;
+        assert!(
+            margin_to_edge >= max_category_len as f64 * avg_char_width - 1e-9,
+            "margin_to_edge={margin_to_edge} は推定文字幅未満"
+        );
+    }
+
+    #[test]
+    fn outside_label_effective_outer_radius_clamps_to_min_for_extreme_length() {
+        // 極端に長いカテゴリ名では下限にクランプされ、上限を超えて拡大は
+        // しない（退化防止、モジュール doc 参照）。
+        let r =
+            outside_label_effective_outer_radius(50.0, 100.0, 34.0, 15.0, 4.0, 6.0, 1.5, 3.0, 100);
+        assert_eq!(r, 15.0);
+    }
+
+    #[test]
+    fn outside_label_effective_outer_radius_clamps_to_max_for_empty_category() {
+        let r =
+            outside_label_effective_outer_radius(50.0, 100.0, 34.0, 15.0, 4.0, 6.0, 1.5, 3.0, 0);
+        assert_eq!(r, 34.0);
     }
 }

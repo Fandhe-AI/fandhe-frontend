@@ -108,7 +108,7 @@
 
 use crate::charts::pie::{
     annulus_full_ring_path, annulus_sector_path, is_right_half, leader_line_path,
-    outside_label_point, segment_angles, PieChartError,
+    outside_label_effective_outer_radius, outside_label_point, segment_angles, PieChartError,
 };
 use crate::charts::svg::{fmt_coord, svg_root, svg_text, ViewBox};
 use crate::charts::{series_color_var, ChartData};
@@ -141,10 +141,19 @@ const CENTER_Y: f64 = 50.0;
 /// viewBox に対する外径。
 const OUTER_RADIUS: f64 = 45.0;
 
-/// [`crate::pie_chart::PieLabelPosition::Outside`] 使用時に縮小する外径
-/// （[`crate::pie_chart`] モジュール doc「幾何上の制約」節と同一定数、
-/// イシュー #2084）。
+/// [`crate::pie_chart::PieLabelPosition::Outside`] 使用時に縮小する外径の
+/// 上限（[`crate::pie_chart`] モジュール doc「幾何上の制約」節と同一定数、
+/// イシュー #2084）。カテゴリ名が短い場合はこの値まで使う
+/// （[`crate::charts::pie::outside_label_effective_outer_radius`] 参照）。
 const OUTSIDE_LABEL_OUTER_RADIUS: f64 = 34.0;
+/// [`OUTSIDE_LABEL_OUTER_RADIUS`] 縮小の下限（[`crate::pie_chart`] と
+/// 同一値。退化防止）。
+const MIN_OUTSIDE_LABEL_OUTER_RADIUS: f64 = 15.0;
+/// 外側ラベルの 1 文字あたり推定表示幅（[`crate::pie_chart`] と同一値、
+/// イシュー #2084 レビュー指摘）。
+const AVG_LABEL_CHAR_WIDTH: f64 = 3.0;
+/// viewBox の幅（固定 100×100）。
+const VIEW_BOX_WIDTH: f64 = 100.0;
 /// 引き出し線の放射方向の長さ（[`crate::pie_chart`] と同一値）。
 const LEADER_RADIAL_LEN: f64 = 4.0;
 /// 引き出し線の水平方向の長さ。
@@ -162,6 +171,29 @@ const ACTIVE_INSET: f64 = 4.0;
 
 /// [`chart`] へ既定で付与する `aria-label`。
 const DEFAULT_ARIA_LABEL: &str = "donut chart";
+
+/// [`crate::pie_chart::PieLabelPosition::Outside`] 使用時の外径を、
+/// `categories` 中の最長カテゴリ名の推定表示幅を考慮して縮小する
+/// （[`crate::pie_chart`] の同名ヘルパと同一設計、イシュー #2084
+/// レビュー指摘）。
+fn resolve_outside_label_outer_radius(categories: &[String]) -> f64 {
+    let max_category_len = categories
+        .iter()
+        .map(|c| c.chars().count())
+        .max()
+        .unwrap_or(0);
+    outside_label_effective_outer_radius(
+        CENTER_X,
+        VIEW_BOX_WIDTH,
+        OUTSIDE_LABEL_OUTER_RADIUS,
+        MIN_OUTSIDE_LABEL_OUTER_RADIUS,
+        LEADER_RADIAL_LEN,
+        LEADER_HORIZONTAL_LEN,
+        LEADER_LABEL_GAP,
+        AVG_LABEL_CHAR_WIDTH,
+        max_category_len,
+    )
+}
 
 /// donut 中央テキスト（shadcn `chart-pie-donut-text`、イシュー #2084）。
 ///
@@ -411,7 +443,26 @@ pub fn donut_chart<'a>(
             return Err(PieChartError::InvalidActiveIndex);
         }
     }
-    let r_inner = OUTER_RADIUS * props.inner_ratio;
+    // `active_index` 未使用時のみ、外側ラベル（`PieLabelPosition::Outside`）
+    // の外径縮小を適用する（モジュール doc「意図的に合わせなかった点」節、
+    // 両機能の組み合わせは shadcn に存在せず本 API のスコープ外）。
+    // `active_index` が `Some` の場合は常に `OUTER_RADIUS`（縮小なし）に
+    // なる分岐であるため、下記 `r_inner` の基準半径としてもそのまま使える。
+    let default_outer_radius = if props.active_index.is_none()
+        && props.show_labels
+        && props.label_position == PieLabelPosition::Outside
+    {
+        resolve_outside_label_outer_radius(categories)
+    } else {
+        OUTER_RADIUS
+    };
+
+    // レビュー指摘（イシュー #2084）: 外側ラベル使用時に外径だけが
+    // `default_outer_radius` へ縮小され、内径が固定 `OUTER_RADIUS` 基準の
+    // ままだと `r_outer > r_inner > 0`（`annulus_sector_path` 契約）が
+    // 崩れリングが反転しうる。実際に使うセグメント外径
+    // （`default_outer_radius`）を基準に内径を計算する。
+    let r_inner = default_outer_radius * props.inner_ratio;
     if props.active_index.is_some() && r_inner >= OUTER_RADIUS - ACTIVE_INSET {
         return Err(PieChartError::InvalidInnerRatio);
     }
@@ -431,18 +482,6 @@ pub fn donut_chart<'a>(
         recipe.variant_class(PieSeparator::None)
     } else {
         String::new()
-    };
-
-    // `active_index` 未使用時のみ、外側ラベル（`PieLabelPosition::Outside`）
-    // の外径縮小を適用する（モジュール doc「意図的に合わせなかった点」節、
-    // 両機能の組み合わせは shadcn に存在せず本 API のスコープ外）。
-    let default_outer_radius = if props.active_index.is_none()
-        && props.show_labels
-        && props.label_position == PieLabelPosition::Outside
-    {
-        OUTSIDE_LABEL_OUTER_RADIUS
-    } else {
-        OUTER_RADIUS
     };
 
     let mut nodes: Vec<Node> = Vec::new();
@@ -596,6 +635,34 @@ mod tests {
             vec![Series::new("total", vec![60.0, 40.0])],
         )
         .unwrap()
+    }
+
+    /// `needle`（例: `data-part="outside-label"`）を含む `<text ...>` 開始タグ
+    /// から `attr`（例: `x`）属性値を数値として抽出するテスト専用ヘルパ
+    /// （`pie_chart` モジュールの同名ヘルパと同一実装、イシュー #2084）。
+    fn extract_attr_values(html: &str, needle: &str, attr: &str) -> Vec<f64> {
+        let mut out = Vec::new();
+        for tag_start in html.match_indices("<text ").map(|(i, _)| i) {
+            let tag_end = html[tag_start..]
+                .find('>')
+                .map(|off| tag_start + off)
+                .unwrap_or(html.len());
+            let tag = &html[tag_start..tag_end];
+            if !tag.contains(needle) {
+                continue;
+            }
+            let pat = format!(r#"{attr}=""#);
+            if let Some(start) = tag.find(&pat) {
+                let value_start = start + pat.len();
+                if let Some(end_off) = tag[value_start..].find('"') {
+                    let value_str = &tag[value_start..value_start + end_off];
+                    if let Ok(value) = value_str.parse::<f64>() {
+                        out.push(value);
+                    }
+                }
+            }
+        }
+        out
     }
 
     #[test]
@@ -784,6 +851,70 @@ mod tests {
         assert_eq!(html.matches(r#"data-part="label-line""#).count(), 2);
         assert_eq!(html.matches(r#"data-part="outside-label""#).count(), 2);
         assert!(!html.contains(r#"data-part="label""#));
+    }
+
+    #[test]
+    fn outside_labels_shrink_inner_radius_together_with_outer_radius_to_avoid_ring_inversion() {
+        // レビュー指摘（イシュー #2084、codex-review P1 / Cursor Bugbot）:
+        // show_labels=true・label_position=Outside・active_index=None のとき
+        // 外径だけが OUTSIDE_LABEL_OUTER_RADIUS(34) へ縮小され、内径が旧
+        // `OUTER_RADIUS(45) * inner_ratio` のまま再計算されないと、
+        // inner_ratio=0.85 で内径 38.25 > 外径 34 となり
+        // `annulus_sector_path` の `r_outer > r_inner > 0` 契約に違反して
+        // リングが反転する。修正後は縮小後の外径（34）を基準に内径
+        // （34 * 0.85 = 28.9）を計算し、常に外径 > 内径を維持することを
+        // 確認する。
+        let props = DonutChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            inner_ratio: 0.85,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(
+            html.contains("A34,34,0,"),
+            "外径 34 が使われていない: {html}"
+        );
+        assert!(
+            html.contains("28.9,28.9,0,"),
+            "縮小後の外径基準の内径 28.9 が使われていない: {html}"
+        );
+        // 旧実装（`OUTER_RADIUS * inner_ratio` = 45 * 0.85 = 38.25）由来の
+        // 内径（外径 34 を超えてリングが反転する値）が残っていないこと。
+        assert!(!html.contains("38.25"));
+    }
+
+    #[test]
+    fn outside_labels_reserve_text_width_margin_for_longer_category_names() {
+        // レビュー指摘（イシュー #2084 codex-review P1、pie_chart.rs:503 と
+        // 同型）: 固定 OUTSIDE_LABEL_OUTER_RADIUS(34) のみでは通常長の
+        // カテゴリ名（"Chrome" 等）が viewBox 外へはみ出す。修正後は文字幅を
+        // 見込んで外径を縮小し、outside-label の x 座標が推定文字幅ぶんの
+        // 余白を viewBox 内に残すことを確認する。
+        let data = ChartData::new(
+            vec!["Chrome".to_string(), "Safari".to_string()],
+            vec![Series::new("total", vec![50.0, 50.0])],
+        )
+        .unwrap();
+        let props = DonutChartProps {
+            show_labels: true,
+            label_position: PieLabelPosition::Outside,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &data, vec![]).unwrap());
+        assert!(!html.contains(r#"x="95.5""#));
+        let max_category_len = 6.0; // "Chrome"/"Safari" いずれも 6 文字。
+        for x in extract_attr_values(&html, r#"data-part="outside-label""#, "x") {
+            assert!(
+                (0.0..=100.0).contains(&x),
+                "outside-label x={x} は viewBox(0..100) の外"
+            );
+            let margin_to_edge = if x >= 50.0 { 100.0 - x } else { x };
+            assert!(
+                margin_to_edge >= max_category_len * AVG_LABEL_CHAR_WIDTH - 1e-9,
+                "x={x} の余白 {margin_to_edge} は推定文字幅未満"
+            );
+        }
     }
 
     #[test]
