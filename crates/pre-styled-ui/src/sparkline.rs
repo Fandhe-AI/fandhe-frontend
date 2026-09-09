@@ -93,7 +93,7 @@
 use crate::charts::data::{ChartData, Series};
 use crate::charts::scale::LinearScale;
 use crate::charts::svg::{fmt_coord, svg_root, PathBuilder};
-use crate::charts::{series_color_var, ChartError};
+use crate::charts::{series_color_var, tooltip, ChartError};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::line_chart::{category_x, view_box_from_dims};
@@ -132,6 +132,11 @@ pub struct SparklineProps<'a> {
     pub height: f64,
     /// root へ付与する寸法 variant。
     pub size: Size,
+    /// `true`（既定）なら hit-area・`data-index` と `hidden` の SSR
+    /// ツールチップ DOM（[`crate::charts::tooltip::layer`]）を出力する
+    /// （イシュー #2129、親 #2128）。`false` の場合は本イシュー以前の出力と
+    /// バイト一致する（progressive enhancement の opt-out 経路）。
+    pub show_tooltip: bool,
 }
 
 impl<'a> SparklineProps<'a> {
@@ -144,6 +149,7 @@ impl<'a> SparklineProps<'a> {
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
             size: Size::Md,
+            show_tooltip: true,
         }
     }
 }
@@ -157,6 +163,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-block"),
                 decl("--fandhe-sparkline-height", "48px"),
+                // イシュー #2129: `frame`（既に `div[root] > svg[plot]`
+                // 構成を持つため `charts::tooltip::frame` は使わず、`root`
+                // 自体を配置基準にする）。`tooltip-layer`（`position:
+                // absolute`）の配置規則（#2130 が唯一のロケータとして使う
+                // 契約）を成立させるための末尾純追加。
+                decl("position", "relative"),
             ],
         )
         .base(
@@ -361,7 +373,29 @@ pub fn sparkline<'a>(
     let (dom_lo, _dom_hi) = data.domain();
     let baseline_y = y_scale.scale(dom_lo);
 
-    let plot_children = render_series(props.width, &y_scale, baseline_y, props.values);
+    let mut plot_children = render_series(props.width, &y_scale, baseline_y, props.values);
+
+    let entries = if props.show_tooltip {
+        Some(tooltip::entries_from_chart_data(&data))
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        let n = props.values.len();
+        for entry in entries {
+            let (left, right) = category_band(props.width, n, entry.index);
+            let label = tooltip::hit_area_label(entry);
+            plot_children.push(tooltip::hit_area_rect(
+                left,
+                0.0,
+                right - left,
+                props.height,
+                entry.index,
+                None,
+                &label,
+            ));
+        }
+    }
 
     let plot = svg_root(
         &view_box,
@@ -373,11 +407,34 @@ pub fn sparkline<'a>(
         plot_children,
     );
 
+    let mut children = vec![plot];
+    if let Some(entries) = &entries {
+        children.push(tooltip::layer_from_entries(entries, None));
+    }
+
     let recipe = recipe();
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    Ok(ANATOMY.part("root", "div", merged, vec![plot]))
+    Ok(ANATOMY.part("root", "div", merged, children))
+}
+
+/// カテゴリ `i`（`0..n`）の帯型 hit-area の `[left, right)` を、隣接
+/// `category_x` の中点で区切って算出する（内部ヘルパ、[`crate::line_chart`]/
+/// [`crate::area_chart`] も同型のロジックを持つ。両端は `0`/`width` へ
+/// クリップし、`n == 1` は全幅 1 帯になる）。
+fn category_band(width: f64, n: usize, i: usize) -> (f64, f64) {
+    let left = if i == 0 {
+        0.0
+    } else {
+        (category_x(width, n, i - 1) + category_x(width, n, i)) / 2.0
+    };
+    let right = if n == 0 || i + 1 >= n {
+        width
+    } else {
+        (category_x(width, n, i) + category_x(width, n, i + 1)) / 2.0
+    };
+    (left, right)
 }
 
 #[cfg(test)]

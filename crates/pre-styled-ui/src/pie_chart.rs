@@ -134,7 +134,7 @@ use crate::charts::pie::{
     PieChartError,
 };
 use crate::charts::svg::{circle, fmt_coord, svg_root, svg_text, ViewBox};
-use crate::charts::{series_color_var, ChartData};
+use crate::charts::{series_color_var, tooltip, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
@@ -299,6 +299,11 @@ pub struct PieChartProps<'a> {
     /// index がリング（0 が最内周）に対応する。モジュール doc「stacked」節
     /// 参照。
     pub stacked: bool,
+    /// `true`（既定）なら hit-area・`data-index`/`data-series` と `hidden`
+    /// の SSR ツールチップ DOM（[`crate::charts::tooltip::layer`]）を
+    /// 出力する（イシュー #2129、親 #2128）。`false` の場合は本イシュー
+    /// 以前の出力とバイト一致する。
+    pub show_tooltip: bool,
 }
 
 impl Default for PieChartProps<'_> {
@@ -311,6 +316,7 @@ impl Default for PieChartProps<'_> {
             label_content: PieLabelContent::Category,
             label_position: PieLabelPosition::Inside,
             stacked: false,
+            show_tooltip: true,
         }
     }
 }
@@ -324,6 +330,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("--fandhe-pie-chart-size", "16rem"),
+                // イシュー #2129: `tooltip-layer`（`position: absolute`）の
+                // 配置規則（#2130 が唯一のロケータとして使う契約）を成立
+                // させるための末尾純追加。
+                decl("position", "relative"),
             ],
         )
         .base(
@@ -698,6 +708,155 @@ pub fn pie_chart<'a>(
         );
     }
 
+    // イシュー #2129: hit-area・SSR ツールチップ DOM。非 stacked は唯一の
+    // リングの幾何のみに基づく。stacked はリングごとに独立した非ゼロ
+    // セグメント判定を行い、値を持つ全リングぶんの hit-area を生成する
+    // （PR #2261 codex-review 指摘、threadId PRRT_kwDOTarxgc6guRrW:
+    // 最外周のみを判定すると内周にのみ値を持つカテゴリの hit-area が
+    // 欠落するため）。値 0 のセグメントは境界角が退化するため
+    // `render_ring` と同様に hit-area も出さない（リング単位の判定）。
+    let entries = if props.show_tooltip {
+        // イシュー #2129 codex-review 指摘: pie の実描画色は
+        // `series_color_var(i)`（`i` はカテゴリ index。リング＝系列を
+        // またいで同一カテゴリは常に同色、上記 `render_ring` 参照。pie は
+        // `Series::color` による個別上書きを持たない）であり、
+        // `entries_from_chart_data` の既定（系列 index 基準）とは異なる。
+        // `tooltip-indicator` の色を実際のスライス色に一致させるため
+        // カテゴリ index 基準へ上書きする。
+        let mut entries = tooltip::entries_from_chart_data(data);
+        for entry in &mut entries {
+            let color = crate::charts::SeriesColor::chart_slot(entry.index % 6 + 1)
+                .expect("entry.index % 6 + 1 は常に 1..=6 の範囲内");
+            for row in &mut entry.rows {
+                row.color = color.clone();
+            }
+        }
+        Some(entries)
+    } else {
+        None
+    };
+    if let Some(entries) = &entries {
+        // イシュー #2129 codex-review 指摘（PR #2261、threadId
+        // PRRT_kwDOTarxgc6guRrW）: stacked pie は各リングの非ゼロ
+        // セグメントごとに hit-area を要る。当初は最外周リング
+        // （`series` 末尾）の値のみを判定していたため、内周にのみ値を
+        // 持つカテゴリ（例: category A が内周のみ非ゼロ、最外周は 0）の
+        // hit-area が生成されず、生成済みの hidden tooltip DOM に対応する
+        // 操作ターゲットが無い状態になっていた。stacked のときは全リング
+        // を走査し、各リングの非ゼロセグメントごとに（同一カテゴリでも
+        // 複数リングにまたがれば複数 hit-area を）そのリング自身の幾何
+        // （`render_ring` と同じ per-ring `is_full_circle` 判定）で生成
+        // する。ツールチップ本体は [`tooltip::entries_from_chart_data`]
+        // によりカテゴリ単位（全系列の行を内包）で 1 個のみ生成される
+        // ため、`data-index`（カテゴリ index）はリングをまたいで共有し、
+        // `data-series` は付与しない（従来どおり）。
+        if props.stacked {
+            let series = data.series();
+            let ring_count = series.len();
+            let effective_outer_radius =
+                if props.show_labels && props.label_position == PieLabelPosition::Outside {
+                    let outermost_values = series
+                        .last()
+                        .map(|s| s.values.as_slice())
+                        .unwrap_or_default();
+                    resolve_outside_label_outer_radius(
+                        categories,
+                        outermost_values,
+                        props.label_content,
+                    )
+                } else {
+                    OUTER_RADIUS
+                };
+            let band = effective_outer_radius / ring_count as f64;
+            for (k, s) in series.iter().enumerate() {
+                let r_outer = band * (k as f64 + 1.0);
+                let r_inner = if k == 0 {
+                    0.0
+                } else {
+                    let inner_no_gap = band * k as f64;
+                    (inner_no_gap + RING_GAP)
+                        .min(r_outer - 0.1)
+                        .max(inner_no_gap)
+                };
+                let angles = segment_angles(&s.values)?;
+                let non_zero_count = s.values.iter().filter(|&&v| v > 0.0).count();
+                let is_full_circle = non_zero_count == 1;
+                for entry in entries {
+                    let value = s.values.get(entry.index).copied().unwrap_or(0.0);
+                    if value <= 0.0 {
+                        continue;
+                    }
+                    let label = tooltip::hit_area_label(entry);
+                    if is_full_circle && r_inner <= 0.0 {
+                        nodes.push(tooltip::hit_area_circle(
+                            CENTER_X,
+                            CENTER_Y,
+                            r_outer,
+                            entry.index,
+                            None,
+                            &label,
+                        ));
+                        continue;
+                    }
+                    let (start, end) = angles[entry.index];
+                    let d = if is_full_circle {
+                        annulus_full_ring_path(CENTER_X, CENTER_Y, r_outer, r_inner)
+                    } else if r_inner <= 0.0 {
+                        sector_path(CENTER_X, CENTER_Y, r_outer, start, end)
+                    } else {
+                        annulus_sector_path(CENTER_X, CENTER_Y, r_outer, r_inner, start, end)
+                    };
+                    nodes.push(tooltip::hit_area_path(
+                        &d,
+                        entry.index,
+                        None,
+                        &label,
+                        is_full_circle,
+                    ));
+                }
+            }
+        } else {
+            let outer_values = data.series()[0].values.clone();
+            let outer_radius = if props.show_labels
+                && props.label_position == PieLabelPosition::Outside
+            {
+                resolve_outside_label_outer_radius(categories, &outer_values, props.label_content)
+            } else {
+                OUTER_RADIUS
+            };
+            let angles = segment_angles(&outer_values)?;
+            let non_zero_count = outer_values.iter().filter(|&&v| v > 0.0).count();
+            let is_full_circle = non_zero_count == 1;
+            for entry in entries {
+                let value = outer_values.get(entry.index).copied().unwrap_or(0.0);
+                if value <= 0.0 {
+                    continue;
+                }
+                let label = tooltip::hit_area_label(entry);
+                if is_full_circle {
+                    nodes.push(tooltip::hit_area_circle(
+                        CENTER_X,
+                        CENTER_Y,
+                        outer_radius,
+                        entry.index,
+                        None,
+                        &label,
+                    ));
+                    continue;
+                }
+                let (start, end) = angles[entry.index];
+                let d = sector_path(CENTER_X, CENTER_Y, outer_radius, start, end);
+                nodes.push(tooltip::hit_area_path(
+                    &d,
+                    entry.index,
+                    None,
+                    &label,
+                    is_full_circle,
+                ));
+            }
+        }
+    }
+
     let view_box = ViewBox::new(0.0, 0.0, 100.0, 100.0)
         .expect("固定 viewBox 100x100 は常に有効な正の寸法である");
     let aria_label_value = props.aria_label.unwrap_or(DEFAULT_ARIA_LABEL);
@@ -711,11 +870,16 @@ pub fn pie_chart<'a>(
         nodes,
     );
 
+    let mut children = vec![chart_node];
+    if let Some(entries) = &entries {
+        children.push(tooltip::layer_from_entries(entries, None));
+    }
+
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
 
-    Ok(ANATOMY.part("root", "div", merged, vec![chart_node]))
+    Ok(ANATOMY.part("root", "div", merged, children))
 }
 
 #[cfg(test)]
@@ -795,7 +959,10 @@ mod tests {
         )
         .unwrap();
         let html = render(&pie_chart(&PieChartProps::default(), &data, vec![]).unwrap());
-        assert_eq!(html.matches("<circle").count(), 1);
+        // イシュー #2129: 全周セグメント時の hit-area も `hit_area_circle`
+        // （`<circle>`）で描くため、既定（`show_tooltip: true`）ではセグメント
+        // + hit-area の 2 件になる（`<path>` を経由しない点は不変）。
+        assert_eq!(html.matches("<circle").count(), 2);
         assert!(!html.contains("<path"));
     }
 
@@ -897,6 +1064,11 @@ mod tests {
         let props = PieChartProps {
             show_labels: true,
             label_content: PieLabelContent::Value,
+            // イシュー #2129: ツールチップ DOM は `label_content` に関わらず
+            // 常にカテゴリ名（`tooltip-label`）を出す（segment 上ラベルとは
+            // 独立した契約）。本テストの関心はセグメント上ラベルのみのため
+            // ツールチップ DOM を無効化し、既存のアサーションをそのまま保つ。
+            show_tooltip: false,
             ..PieChartProps::default()
         };
         let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
@@ -1025,6 +1197,35 @@ mod tests {
     }
 
     #[test]
+    fn stacked_hit_area_covers_category_present_only_in_inner_ring() {
+        // PR #2261 codex-review 指摘（イシュー #2129、threadId
+        // PRRT_kwDOTarxgc6guRrW）の回帰テスト: stacked=true・カテゴリ
+        // A/B、内周系列（0 番目、最内周）が [1, 0]（A のみ非ゼロ）、
+        // 最外周系列が [0, 1]（B のみ非ゼロ）という構成では、最外周の値
+        // のみを判定する旧ロジックだと A の hit-area が省略され、
+        // 生成済みの hidden tooltip DOM に対応する操作ターゲットが
+        // 無くなっていた。修正後は両カテゴリぶんの hit-area
+        // （`data-part="hit-area"`）が生成され、それぞれ対応する
+        // `data-index` を持つことを検証する。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![
+                Series::new("inner", vec![1.0, 0.0]),
+                Series::new("outer", vec![0.0, 1.0]),
+            ],
+        )
+        .unwrap();
+        let props = PieChartProps {
+            stacked: true,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &data, vec![]).unwrap());
+        assert_eq!(html.matches(r#"data-part="hit-area""#).count(), 2);
+        assert!(html.contains(r#"data-index="0""#));
+        assert!(html.contains(r#"data-index="1""#));
+    }
+
+    #[test]
     fn stacked_single_series_matches_non_stacked_ring_geometry() {
         let data = two_category_data();
         let stacked_props = PieChartProps {
@@ -1120,8 +1321,15 @@ mod tests {
 
     #[test]
     fn default_output_never_contains_new_2084_attributes() {
-        let html =
-            render(&pie_chart(&PieChartProps::default(), &two_category_data(), vec![]).unwrap());
+        // イシュー #2129: ツールチップ DOM の `tooltip-item` は系列表示名を
+        // `data-series` として常に出す（stacked に関わらず）ため、
+        // 本テストの本来の関心（segment への `data-series` 付与は
+        // `stacked: true` 限定）を検証するにはツールチップ DOM を無効化する。
+        let props = PieChartProps {
+            show_tooltip: false,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
         assert!(!html.contains("data-series"));
         assert!(!html.contains("data-align"));
         assert!(!html.contains("fd-pie-chart--separator-none"));

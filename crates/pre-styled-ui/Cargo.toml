@@ -2717,11 +2717,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2184: field.rs モジュール doc の「見送ったもの」→「採用した
 # もの」への移動（headless error_text の role="alert" 採用を反映）と
 # headless-ui 依存の version 要求追随のみで、本クレート自身の出力・API は
-# 不変のため patch バンプの 0.162.2 へ到達していたが、#2109 のマイナー
-# バンプ（0.163.0）がこれを上回るため 0.163.0 を採用する（0.x の破壊的
-# 変更／機能追加はマイナーバンプ優先の規約、同一版数への偶発的衝突では
-# ないため +1 の追加バンプは不要）。
-version = "0.163.0"
+# 不変のため patch バンプし 0.162.2 とする（origin/main 到達値）。
+#
+# 上記 0.162.2（origin/main）と本ブランチ側の 0.163.0（イシュー #2129 の
+# 実体変更に伴うマイナーバンプ）をマージした結果、双方とも独立に
+# 0.163.0 へ到達しており、同一版数への偶発的衝突（互いに異なる実体変更が
+# 同じ番号を指す状態）となるため、衝突解消の印として +1 マイナーし
+# 0.164.0 を採用する（PR #2261 の codex-review / Bugbot 指摘修正コミットに
+# 伴う origin/main 再取り込み、イシュー #2129）。
+version = "0.164.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

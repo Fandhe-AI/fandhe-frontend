@@ -11,6 +11,7 @@ use fandhe_frontend_pre_styled_ui::{donut_chart, pie_chart};
 const PIE_CHART_GOLDEN_CSS: &str = r#"[data-scope="pie-chart"][data-part="root"] {
   display: inline-flex;
   --fandhe-pie-chart-size: 16rem;
+  position: relative;
 }
 
 [data-scope="pie-chart"][data-part="chart"] {
@@ -80,6 +81,7 @@ const PIE_CHART_GOLDEN_CSS: &str = r#"[data-scope="pie-chart"][data-part="root"]
 const DONUT_CHART_GOLDEN_CSS: &str = r#"[data-scope="donut-chart"][data-part="root"] {
   display: inline-flex;
   --fandhe-donut-chart-size: 16rem;
+  position: relative;
 }
 
 [data-scope="donut-chart"][data-part="chart"] {
@@ -199,7 +201,7 @@ fn pie_and_donut_chart_css_have_no_color_palette_variant() {
 fn pie_chart_2084_pre_existing_blocks_remain_verbatim() {
     let css = pie_chart::css();
     for block in [
-        "[data-scope=\"pie-chart\"][data-part=\"root\"] {\n  display: inline-flex;\n  --fandhe-pie-chart-size: 16rem;\n}\n",
+        "[data-scope=\"pie-chart\"][data-part=\"root\"] {\n  display: inline-flex;\n  --fandhe-pie-chart-size: 16rem;\n  position: relative;\n}\n",
         "[data-scope=\"pie-chart\"][data-part=\"chart\"] {\n  width: var(--fandhe-pie-chart-size);\n  height: var(--fandhe-pie-chart-size);\n}\n",
         "[data-scope=\"pie-chart\"][data-part=\"segment\"] {\n  stroke: var(--fandhe-color-bg);\n  stroke-width: 1;\n  stroke-linejoin: round;\n}\n",
         "[data-scope=\"pie-chart\"][data-part=\"label\"] {\n  fill: var(--fandhe-color-fg);\n  font-size: 6px;\n  text-anchor: middle;\n  dominant-baseline: central;\n  paint-order: stroke;\n  stroke: var(--fandhe-color-bg);\n  stroke-width: 1;\n  stroke-linejoin: round;\n}\n",
@@ -215,7 +217,7 @@ fn pie_chart_2084_pre_existing_blocks_remain_verbatim() {
 fn donut_chart_2084_pre_existing_blocks_remain_verbatim() {
     let css = donut_chart::css();
     for block in [
-        "[data-scope=\"donut-chart\"][data-part=\"root\"] {\n  display: inline-flex;\n  --fandhe-donut-chart-size: 16rem;\n}\n",
+        "[data-scope=\"donut-chart\"][data-part=\"root\"] {\n  display: inline-flex;\n  --fandhe-donut-chart-size: 16rem;\n  position: relative;\n}\n",
         "[data-scope=\"donut-chart\"][data-part=\"segment\"] {\n  stroke: var(--fandhe-color-bg);\n  stroke-width: 1;\n  stroke-linejoin: round;\n}\n",
         "[data-scope=\"donut-chart\"][data-part=\"label\"] {\n  fill: var(--fandhe-color-fg);\n  font-size: 6px;\n  text-anchor: middle;\n  dominant-baseline: central;\n  paint-order: stroke;\n  stroke: var(--fandhe-color-bg);\n  stroke-width: 1;\n  stroke-linejoin: round;\n}\n",
         "[data-scope=\"donut-chart\"][data-part=\"root\"].fd-donut-chart--size-xl {\n  --fandhe-donut-chart-size: 28rem;\n}\n",
