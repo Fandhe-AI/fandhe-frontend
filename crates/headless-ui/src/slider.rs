@@ -45,7 +45,9 @@
 //!     `docs/policy/intentional-non-adoption.md` §3.25 規則 2（装飾・
 //!     レイアウト計測は headless へ持ち込まない）に従い
 //!     `fandhe-frontend-pre-styled-ui` の `--fandhe-slider-percent` が担う。
-//!   - 複数 thumb（range slider、`data-index`）: #741 以来のスコープを維持。
+//!   - 複数 thumb（range slider、`data-index`）: イシュー #2188 で評価済み。
+//!     設計案・採否は `docs/design/slider-range-thumbs-evaluation.md` を正と
+//!     する。#741 の「将来拡張」はスコープ先送りであり意図的非採用ではない。
 //!   - `fandhe-frontend-wasm-full` の DOM keydown 配線（Arrow/Home/End/
 //!     PageUp/PageDown）: 本イシューでは見送り、状態機械 dispatch 契約の
 //!     完成のみに留めた（angle-slider #1601 と同型の判断。REQ-11 バンドル
@@ -110,8 +112,10 @@
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - **range slider（複数 thumb）**: 単一値スライダーのみを引き続きスコープ
-//!   とする（#741 以来のスコープを維持、モジュール冒頭「参照突合」節参照）。
+//! - **range slider（複数 thumb）**: イシュー #2188 で評価済み。設計案・採否は
+//!   `docs/design/slider-range-thumbs-evaluation.md` を正とする。#741 の
+//!   「将来拡張」はスコープ先送りであり意図的非採用ではない（モジュール冒頭
+//!   「参照突合」節参照）。
 //! - **pointer ドラッグ・DOM keydown 配線**: 他コンポーネント同様、
 //!   クライアントランタイム（`fandhe-frontend-wasm-full`）側の後続責務と
 //!   する。本モジュールは SSR 静的マークアップと dispatch 契約のみを提供
