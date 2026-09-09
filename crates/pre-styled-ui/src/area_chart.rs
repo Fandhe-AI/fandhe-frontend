@@ -55,10 +55,11 @@
 //! 固定トークン名でユーザー入力を含まない）のみを埋め込み、`offset`/
 //! `stop-opacity`/`x1`/`y1`/`x2`/`y2` はすべて静的リテラルである。
 //! `id` は呼び出し側 `gradient_id`（[`is_valid_identifier`] 通過済み、
-//! 英数字・`-`・`_` のみ）+ `-<index>`（系列インデックス、`usize` の
-//! 十進表記）のみで構成されるため、`fill="url(#<id>)"` 参照の文字集合が
-//! 閉じる。ユーザー由来の文字列（カテゴリ名・`aria_label`）はこの経路に
-//! 一切渡らない。
+//! 先頭が ASCII 小文字・以降は ASCII 小文字/数字/ハイフンのみ、
+//! `[a-z][a-z0-9-]*`。大文字・`_` は不可）+ `-<index>`（系列インデックス、
+//! `usize` の十進表記）のみで構成されるため、`fill="url(#<id>)"` 参照の
+//! 文字集合が閉じる。ユーザー由来の文字列（カテゴリ名・`aria_label`）は
+//! この経路に一切渡らない。
 //!
 //! # shadcn/ui 突合（イシュー #2081）
 //!
@@ -178,10 +179,12 @@ pub const DEFAULT_HEIGHT: f64 = 150.0;
 /// 単一カテゴリ時に描く点マーカーの半径（[`crate::line_chart`] と同値）。
 const POINT_RADIUS: f64 = 2.5;
 
-/// 軸/グリッド有効時（`show_x_axis`/`show_y_axis`/`show_grid` のいずれか）に
-/// プロット領域左側へ確保する Y 軸ラベル用の余白（px）。
+/// `show_y_axis` 有効時にプロット領域左側へ確保する Y 軸ラベル用の
+/// 余白（px）。`show_grid`/`show_x_axis` のみでは確保しない（Y 軸ラベルを
+/// 描かない構成に余白は不要という判断、Review 指摘 #2081）。
 const AXIS_LEFT_MARGIN: f64 = 40.0;
-/// 軸/グリッド有効時にプロット領域下側へ確保する X 軸ラベル用の余白（px）。
+/// `show_x_axis` 有効時にプロット領域下側へ確保する X 軸ラベル用の
+/// 余白（px）。`show_grid`/`show_y_axis` のみでは確保しない（同上）。
 const AXIS_BOTTOM_MARGIN: f64 = 24.0;
 
 /// `<linearGradient>` の既定 id 接頭辞（[`AreaChartProps::gradient_id`]）。
@@ -442,13 +445,19 @@ fn build_line_d(points: &[(f64, f64)], curve: AreaCurve) -> String {
 /// の閉じ方」参照）。`color` は呼び出し元が
 /// [`crate::charts::ChartData::series_color_var`] で解決済みの値
 /// （系列の色上書き、無ければ [`crate::charts::series_color_var`] の 6 色
-/// 循環、イシュー #2077）。
+/// 循環、イシュー #2077）。`left` はプロット領域の左端オフセット
+/// （`show_y_axis` 時の軸ラベル用余白。軸/グリッドなし呼び出しでは
+/// `0.0` を渡し、`width` を `props.width` そのものとすることで従来と
+/// 同一の座標になる。軸/グリッドあり呼び出しでは `width` に余白差し引き
+/// 後のプロット幅を渡す。Review 指摘 #2081: 重複していたインライン
+/// 描画をこのヘルパへ統合するために追加）。
 #[allow(
     clippy::too_many_arguments,
-    reason = "曲線種・塗り・gradient id は同一系列の描画に必須の同格パラメータであり、分割すると呼び出し側で対応関係が追いにくくなる"
+    reason = "曲線種・塗り・gradient id・左端オフセットは同一系列の描画に必須の同格パラメータであり、分割すると呼び出し側で対応関係が追いにくくなる"
 )]
 fn render_series_none(
     width: f64,
+    left: f64,
     y_scale: &LinearScale,
     baseline_y: f64,
     values: &[f64],
@@ -461,7 +470,7 @@ fn render_series_none(
     let n = values.len();
 
     if n <= 1 {
-        let x = category_x(width, n, 0);
+        let x = category_x(width, n, 0) + left;
         let y = values.first().copied().map_or(0.0, |v| y_scale.scale(v));
         let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
         return vec![el(
@@ -481,7 +490,7 @@ fn render_series_none(
     let points: Vec<(f64, f64)> = values
         .iter()
         .enumerate()
-        .map(|(i, &v)| (category_x(width, n, i), y_scale.scale(v)))
+        .map(|(i, &v)| (category_x(width, n, i) + left, y_scale.scale(v)))
         .collect();
 
     let line_d = build_line_d(&points, curve);
@@ -725,6 +734,88 @@ fn gradient_defs(gradient_id: &str, colors: &[String]) -> Node {
     el("defs", vec![], stops)
 }
 
+/// `show_grid` 有効時の水平グリッド線 1 本を組み立てる（内部ヘルパ）。
+/// `stack: AreaStack::None`/`Normal`/`Expand` の `has_axes` 分岐いずれからも
+/// 同一引数の組み合わせで呼ばれる（Review 指摘 #2081: 重複していたインライン
+/// 呼び出しをこのヘルパへ統合）。`cartesian_grid` はピクセル座標をそのまま
+/// SVG 座標として使う（`grid.rs` doc 参照）ため、`ticks` は
+/// `y_scale.scale(t)` で domain 値をピクセルへ写像してから渡す
+/// （domain の生の値をそのまま渡すと目盛ラベルの位置とグリッド線の位置が
+/// ずれる、Review 指摘 #2081）。
+fn area_grid_lines(
+    left: f64,
+    width: f64,
+    plot_h: f64,
+    y_scale: &LinearScale,
+    ticks: &[f64],
+) -> Result<Node, ChartError> {
+    let grid_y: Vec<f64> = ticks.iter().map(|&t| y_scale.scale(t)).collect();
+    grid::cartesian_grid(
+        (left, width),
+        (0.0, plot_h),
+        &[],
+        &grid_y,
+        &GridProps {
+            horizontal: true,
+            vertical: false,
+            ..GridProps::default()
+        },
+    )
+}
+
+/// `show_x_axis` 有効時のカテゴリラベル + 軸線を組み立てる（内部ヘルパ）。
+/// `stack: AreaStack::None`/`Normal`/`Expand` の `has_axes` 分岐いずれからも
+/// 同一引数の組み合わせで呼ばれる（Review 指摘 #2081: 重複していたインライン
+/// 呼び出しをこのヘルパへ統合）。`axis::x_axis_categories` は band 中心配置
+/// （`start + (i + 0.5) * width / n`）のためデータ点の `category_x`
+/// （両端に点を置く等間隔配置）とラベル位置がずれるため、ラベルは
+/// データ点の x 座標に直接合わせて描き、軸線のみ `axis` モジュールの
+/// CSS 選択子（`data-part="axis-line"`）を再利用する。`x_axis_linear` は
+/// `ticks` 非空を要求するためダミー tick `[0.0]` を渡すが、そのラベルは
+/// カテゴリラベルと同じ座標に無関係な "0" として重複描画されてしまうため
+/// （Review 指摘 #2081）、`show_tick_labels: false` で軸線のみに抑止する。
+fn area_x_axis_category_labels(
+    categories: &[String],
+    plot_w: f64,
+    left: f64,
+    plot_h: f64,
+    width: f64,
+) -> Result<Vec<Node>, ChartError> {
+    let n = categories.len();
+    let mut nodes: Vec<Node> = categories
+        .iter()
+        .enumerate()
+        .map(|(k, category)| {
+            let cx = category_x(plot_w, n, k) + left;
+            el(
+                "text",
+                vec![
+                    ("data-scope", "chart"),
+                    ("data-part", "tick-label"),
+                    ("x", fmt_coord(cx).as_str()),
+                    ("y", fmt_coord(plot_h + 16.0).as_str()),
+                    ("text-anchor", "middle"),
+                ],
+                vec![fandhe_frontend_headless_ui::fandhe_frontend_core::text(
+                    category,
+                )],
+            )
+        })
+        .collect();
+    nodes.push(axis::x_axis_linear(
+        &LinearScale::new((0.0, 1.0), (left, width))?,
+        &[0.0],
+        plot_h,
+        &AxisProps {
+            show_tick_lines: false,
+            show_axis_line: true,
+            show_tick_labels: false,
+            ..AxisProps::default()
+        },
+    )?);
+    Ok(nodes)
+}
+
 /// AreaChart 本体を組み立てる。
 ///
 /// # Errors
@@ -809,89 +900,32 @@ pub fn area_chart<'a>(
             let baseline_y = y_scale.scale(dom_lo);
 
             if props.show_grid {
-                // `cartesian_grid` はピクセル座標をそのまま SVG 座標として
-                // 使う（`grid.rs` doc 参照）ため、`axis::y_axis` と同様に
-                // `y_scale.scale(t)` で domain 値をピクセルへ写像してから
-                // 渡す（Review 指摘 #2081: domain の生の値をそのまま渡すと
-                // 目盛ラベルの位置とグリッド線の位置がずれる）。
-                let grid_y: Vec<f64> = ticks.iter().map(|&t| y_scale.scale(t)).collect();
-                plot_children.push(grid::cartesian_grid(
-                    (left, props.width),
-                    (0.0, plot_h),
-                    &[],
-                    &grid_y,
-                    &GridProps {
-                        horizontal: true,
-                        vertical: false,
-                        ..GridProps::default()
-                    },
+                plot_children.push(area_grid_lines(
+                    left,
+                    props.width,
+                    plot_h,
+                    &y_scale,
+                    &ticks,
                 )?);
             }
 
             for (i, s) in props.data.series().iter().enumerate() {
                 let color = props.data.series_color_var(i);
-                let points: Vec<(f64, f64)> = s
-                    .values
-                    .iter()
-                    .enumerate()
-                    .map(|(k, &v)| {
-                        (
-                            category_x(plot_w, s.values.len(), k) + left,
-                            y_scale.scale(v),
-                        )
-                    })
-                    .collect();
-                if s.values.len() <= 1 {
-                    let (x, y) = points[0];
-                    let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
-                    plot_children.push(el(
-                        "circle",
-                        vec![
-                            ("data-scope", "area-chart"),
-                            ("data-part", "point"),
-                            ("cx", cx.as_str()),
-                            ("cy", cy.as_str()),
-                            ("r", r.as_str()),
-                            ("fill", color.as_str()),
-                        ],
-                        vec![],
-                    ));
-                    continue;
-                }
-                let line_d = build_line_d(&points, props.curve);
-                let (last_x, _) = points[points.len() - 1];
-                let (first_x, _) = points[0];
-                let area_d = format!(
-                    "{line_d} L{},{} L{},{} Z",
-                    fmt_coord(last_x),
-                    fmt_coord(baseline_y),
-                    fmt_coord(first_x),
-                    fmt_coord(baseline_y)
-                );
-                let fill_value = match props.fill {
-                    AreaFill::Solid => color.clone(),
-                    AreaFill::Gradient => format!("url(#{}-{i})", props.gradient_id),
-                };
-                let mut area_attrs: Vec<(&str, &str)> = vec![
-                    ("data-scope", "area-chart"),
-                    ("data-part", "series-area"),
-                    ("d", area_d.as_str()),
-                    ("fill", fill_value.as_str()),
-                ];
-                if !fill_class.is_empty() {
-                    area_attrs.push(("class", fill_class.as_str()));
-                }
-                plot_children.push(el("path", area_attrs, vec![]));
-                plot_children.push(el(
-                    "path",
-                    vec![
-                        ("data-scope", "area-chart"),
-                        ("data-part", "series-line"),
-                        ("d", line_d.as_str()),
-                        ("stroke", color.as_str()),
-                        ("fill", "none"),
-                    ],
-                    vec![],
+                // 軸/グリッドなし呼び出し（else 分岐）と同じヘルパを再利用する
+                // （Review 指摘 #2081: 従来ここへインライン展開されていた
+                // 「面 + 線」描画ロジックが `render_series_none` とほぼ同一の
+                // 重複だったため、`left` オフセットを渡せるよう拡張して統合）。
+                plot_children.extend(render_series_none(
+                    plot_w,
+                    left,
+                    &y_scale,
+                    baseline_y,
+                    &s.values,
+                    &color,
+                    props.curve,
+                    props.fill,
+                    &fill_class,
+                    &format!("{}-{i}", props.gradient_id),
                 ));
             }
 
@@ -908,44 +942,12 @@ pub fn area_chart<'a>(
                 )?);
             }
             if props.show_x_axis {
-                // `axis::x_axis_categories` は band 中心配置（`start + (i +
-                // 0.5) * width / n`）のためデータ点の `category_x`（両端に
-                // 点を置く等間隔配置）とラベル位置がずれる。ラベルは
-                // データ点の x 座標に直接合わせ、軸線のみ `axis` モジュール
-                // の CSS 選択子（`data-part="axis-line"`）を再利用する。
-                let n = props.data.categories().len();
-                for (k, category) in props.data.categories().iter().enumerate() {
-                    let cx = category_x(plot_w, n, k) + left;
-                    plot_children.push(el(
-                        "text",
-                        vec![
-                            ("data-scope", "chart"),
-                            ("data-part", "tick-label"),
-                            ("x", fmt_coord(cx).as_str()),
-                            ("y", fmt_coord(plot_h + 16.0).as_str()),
-                            ("text-anchor", "middle"),
-                        ],
-                        vec![fandhe_frontend_headless_ui::fandhe_frontend_core::text(
-                            category,
-                        )],
-                    ));
-                }
-                plot_children.push(axis::x_axis_linear(
-                    &LinearScale::new((0.0, 1.0), (left, props.width))?,
-                    &[0.0],
+                plot_children.extend(area_x_axis_category_labels(
+                    props.data.categories(),
+                    plot_w,
+                    left,
                     plot_h,
-                    &AxisProps {
-                        show_tick_lines: false,
-                        show_axis_line: true,
-                        // `x_axis_linear` は `ticks` 非空を要求するため
-                        // ダミー tick `[0.0]` を渡すが、そのラベルは
-                        // カテゴリラベル（上のループで描画済み）と同じ
-                        // 座標に無関係な "0" として重複描画されてしまう
-                        // （Review 指摘 #2081）。軸線のみが目的のため
-                        // ラベル自体を抑止する。
-                        show_tick_labels: false,
-                        ..AxisProps::default()
-                    },
+                    props.width,
                 )?);
             }
         } else {
@@ -957,6 +959,7 @@ pub fn area_chart<'a>(
                 let color = props.data.series_color_var(i);
                 plot_children.extend(render_series_none(
                     props.width,
+                    0.0,
                     &y_scale,
                     baseline_y,
                     &s.values,
@@ -1034,19 +1037,13 @@ pub fn area_chart<'a>(
             let ticks = y_scale.ticks(4)?;
 
             if props.show_grid {
-                // None 分岐と同じ理由（`grid.rs` doc 参照）で domain 値を
-                // ピクセルへ写像してから渡す。
-                let grid_y: Vec<f64> = ticks.iter().map(|&t| y_scale.scale(t)).collect();
-                plot_children.push(grid::cartesian_grid(
-                    (left, props.width),
-                    (0.0, plot_h),
-                    &[],
-                    &grid_y,
-                    &GridProps {
-                        horizontal: true,
-                        vertical: false,
-                        ..GridProps::default()
-                    },
+                // None 分岐と同じヘルパを再利用する（Review 指摘 #2081）。
+                plot_children.push(area_grid_lines(
+                    left,
+                    props.width,
+                    plot_h,
+                    &y_scale,
+                    &ticks,
                 )?);
             }
 
@@ -1090,36 +1087,13 @@ pub fn area_chart<'a>(
                 )?);
             }
             if props.show_x_axis {
-                // None 分岐と同じ理由（データ点の等間隔配置と
-                // `x_axis_categories` の band 中心配置がずれる）でラベルを
-                // 個別に描き、軸線のみ `x_axis_linear` を再利用する。
-                let n = props.data.categories().len();
-                for (k, category) in props.data.categories().iter().enumerate() {
-                    let cx = category_x(plot_w, n, k) + left;
-                    plot_children.push(el(
-                        "text",
-                        vec![
-                            ("data-scope", "chart"),
-                            ("data-part", "tick-label"),
-                            ("x", fmt_coord(cx).as_str()),
-                            ("y", fmt_coord(plot_h + 16.0).as_str()),
-                            ("text-anchor", "middle"),
-                        ],
-                        vec![fandhe_frontend_headless_ui::fandhe_frontend_core::text(
-                            category,
-                        )],
-                    ));
-                }
-                plot_children.push(axis::x_axis_linear(
-                    &LinearScale::new((0.0, 1.0), (left, props.width))?,
-                    &[0.0],
+                // None 分岐と同じヘルパを再利用する（Review 指摘 #2081）。
+                plot_children.extend(area_x_axis_category_labels(
+                    props.data.categories(),
+                    plot_w,
+                    left,
                     plot_h,
-                    &AxisProps {
-                        show_tick_lines: false,
-                        show_axis_line: true,
-                        show_tick_labels: false,
-                        ..AxisProps::default()
-                    },
+                    props.width,
                 )?);
             }
         } else {
