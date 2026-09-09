@@ -486,14 +486,6 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   margin-inline-end: 0;
 }
 
-[data-scope=\"sidebar\"][data-part=\"provider\"][data-variant=\"inset\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] > [data-scope=\"sidebar\"][data-part=\"inset\"] {
-  margin-inline-start: var(--fandhe-space-2);
-}
-
-[data-scope=\"sidebar\"][data-part=\"provider\"][data-variant=\"inset\"][data-side=\"right\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] > [data-scope=\"sidebar\"][data-part=\"inset\"] {
-  margin-inline-end: var(--fandhe-space-2);
-}
-
 [data-scope=\"sidebar\"][data-part=\"menu-button\"][data-size=\"sm\"] ~ [data-scope=\"sidebar\"][data-part=\"menu-action\"] {
   top: 0.875rem;
 }

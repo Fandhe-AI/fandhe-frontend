@@ -2665,7 +2665,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # （`sidebar` モジュール新設・`DEFAULT_COLORS` への `sidebar-*` 7
 # ロール追加と `LineChartProps` 等の line-chart 突合フィールド純追加）
 # を統合した結果として 0.158.0 へさらにマイナーバンプする。
-version = "0.158.0"
+# イシュー #2073 PR #2245 レビュー（Cursor Bugbot 指摘「Inset collapse
+# doubles panel gap」）対応: `variant="inset"` + `collapsible="icon"` の
+# 折りたたみ時に `inset` パネル側へ margin を復元していた規則を削除し、
+# `root` 自身が既に保持し続ける margin と二重加算されないよう修正した
+# （`src/sidebar.rs` のコメント・golden CSS 参照）。CSS 出力内容の実体変更
+# のため 0.x の破壊的変更としてマイナーバンプする。
+version = "0.159.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

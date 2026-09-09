@@ -1113,28 +1113,24 @@ pub fn stylesheet() -> String {
         ],
     );
 
-    // `variant="inset"` + `collapsible="icon"` の折りたたみ時、`inset` 主
-    // パネルの margin を復元する（Bugbot 指摘「Inset panel margin not
-    // restored」対応）。上記 2 規則は展開時の既定・`side="right"` 反転のみを
-    // 扱い、`root`（ナビレール）が 3rem 幅へ縮む折りたたみ時の margin
-    // 調整を持たない。`root` に隣接する側（既定 left は
-    // `margin-inline-start`、`side="right"` は `margin-inline-end`）は
-    // 展開時の面パネル化規則が `0` にした値のままだと `inset` パネルが
-    // 縮んだレールへ密着してしまうため、折りたたみ時のみ
-    // `--fandhe-space-2` へ戻す（shadcn/ui `SidebarInset` の
-    // `peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2` と
-    // 同型の挙動）。`collapsible="offcanvas"` は `root` 自体を
-    // `visibility: hidden` + 幅 0 にして完全に消す設計（[`recipe`] 参照）
-    // のため margin 復元は不要（レールが無いのでそのまま隙間を詰めてよい）
-    // であり本規則の対象に含めない。
-    push(
-        r#"[data-scope="sidebar"][data-part="provider"][data-variant="inset"][data-state="collapsed"][data-collapsible="icon"] > [data-scope="sidebar"][data-part="inset"]"#,
-        &[decl("margin-inline-start", "var(--fandhe-space-2)")],
-    );
-    push(
-        r#"[data-scope="sidebar"][data-part="provider"][data-variant="inset"][data-side="right"][data-state="collapsed"][data-collapsible="icon"] > [data-scope="sidebar"][data-part="inset"]"#,
-        &[decl("margin-inline-end", "var(--fandhe-space-2)")],
-    );
+    // `variant="inset"` + `collapsible="icon"` の折りたたみ時に `inset` 主
+    // パネル側へ margin を追加で復元する規則は**意図的に持たない**
+    // （Cursor Bugbot 指摘「Inset collapse doubles panel gap」対応）。
+    // `root`（ナビレール）自体は `data-variant="inset"` の間、幅が
+    // `icon` 折りたたみで 3rem へ縮んでも `margin: var(--fandhe-space-2)`
+    // （`root` の `data-variant="inset"` state、本モジュール前半の
+    // `SlotRecipe::state` 参照）を折りたたみ状態に関わらず保持し続ける
+    // （`icon` 折りたたみの `state` 規則は `width`/`min-width` のみを
+    // 上書きし `margin` には触れない）。したがって `root` に隣接する側
+    // （既定 left は `margin-inline-end`、`side="right"` は
+    // `margin-inline-start`）の隙間は展開・折りたたみ双方で `root` 自身の
+    // margin だけで常に `--fandhe-space-2` の 1 個分になる。ここへさらに
+    // `inset` パネル側の隣接 margin を `--fandhe-space-2` へ「復元」する
+    // 規則を足すと、`root` の margin と合算されて隙間が 2 倍
+    // （`--fandhe-space-2` の 2 個分）になってしまう（実際にかつて存在した
+    // 復元規則がこの二重加算を引き起こしていた）。`collapsible="offcanvas"`
+    // は `root` 自体を `visibility: hidden` + 幅 0 + `margin: 0` にして
+    // 完全に消す別設計（上記 `state` 規則参照）であり本注記の対象外。
 
     // `menu-action`/`menu-badge` の垂直中央位置を `menu-button` の
     // `data-size` に追随させる（既定 `base` の `top: 1rem` は `menu-button`
