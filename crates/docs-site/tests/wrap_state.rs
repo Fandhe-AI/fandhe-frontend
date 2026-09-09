@@ -597,11 +597,13 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// pre-styled-ui recipe（後続 #2073）を持たないため本リストへ加える。
 /// イシュー #2105 で同様に headless-ui 層のみを実装した `message` が
 /// 新設され、pre-styled-ui recipe（後続 #2106）を持たないため本リストへ
+/// 加える。イシュー #2108 で同様に headless-ui 層のみを実装した `bubble`
+/// が新設され、pre-styled-ui recipe（後続 #2109）を持たないため本リストへ
 /// 加える。
 /// （`PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
 /// が検証する）。
-const HEADLESS_UNWRAPPED: &[&str] = &["sidebar", "message"];
+const HEADLESS_UNWRAPPED: &[&str] = &["sidebar", "message", "bubble"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ

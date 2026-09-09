@@ -558,7 +558,13 @@ name = "fandhe-frontend-headless-ui"
 # 共通語彙 data-role/data-align/data-loading/data-error を最初に確定する
 # モジュール）を新設した。既存 API への変更はなく非破壊的な追加のため
 # patch バンプし 0.68.5 とする。
-version = "0.68.5"
+# イシュー #2108: `bubble`（Root / Content / Reactions / Reaction /
+# CollapseTrigger / CollapseContent の 6 anatomy パーツ、shadcn/ui Bubble
+# 相当。data-align は message の共通語彙を再利用し、data-variant/
+# data-group-position を新設。collapse-trigger/collapse-content は
+# collapsible の属性契約を bubble scope で再利用する）を新設した。既存
+# API への変更はなく非破壊的な追加のため patch バンプし 0.68.6 とする。
+version = "0.68.6"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
