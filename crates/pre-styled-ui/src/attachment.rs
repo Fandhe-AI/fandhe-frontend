@@ -116,6 +116,42 @@
 //! する（`image` 形態は `flex-direction: column` へ切り替わり全パーツが
 //! 元々縦積みのため、この 2 宣言は無害な no-op のまま残る）。
 //!
+//! ## `actions` を常に末尾行へ固定する（`order`、イシュー #2112 レビュー
+//! 是正）
+//!
+//! 上記の `flex-basis: 100%` だけでは、DOM 順が `media`/`content`/
+//! `progress`/`actions` であるため、アップロード中カードは `progress` が
+//! 単独で 2 行目を占有した直後に続く `actions` がさらに 3 行目へ押し
+//! 出され、`root` が横並びカードの**末尾行**に `actions` を置くという
+//! 表示契約（本モジュール doc 冒頭「`data-variant="file"`」節参照）を
+//! 満たさなくなる（アップロード中に限って削除・キャンセル操作が独立行へ
+//! 孤立する見た目崩れ）。CSS の `flex-wrap` は DOM 順ではなく `order`
+//! （プロパティ）で決まる**視覚順**でライン分割するため、`progress` にの
+//! み `order: 1`（既定 `0` より後）を与えて視覚順を `media`/`content`/
+//! `actions`/`progress` へ変える。これにより `progress` が存在しない
+//! （`idle`/`error`）ときは `media`/`content`/`actions` の 1 行のみ、
+//! `progress` が存在する（`uploading`）ときは 1 行目 `media`/`content`/
+//! `actions` + 2 行目 `progress`（`flex-basis: 100%` により単独で折り
+//! 返る）の 2 行構成に固定され、`progress` の有無によらず `actions` は
+//! 常に末尾行を維持する（`image` 形態は `flex-direction: column` へ
+//! 切り替わり `order` を使わない元々の縦積みのため、この宣言も無害な
+//! no-op のまま残る）。
+//!
+//! ## `content` の `flex-basis` を `0` にする理由（長いファイル名対策、
+//! 同レビュー是正）
+//!
+//! `content`（`flex: 1 1 auto`）の flex-basis が `auto` のままだと、子
+//! `name`（`white-space: nowrap`）の min-content 幅がファイル名の全長
+//! そのものになり、flex の折り返し判定はこの hypothetical main size
+//! （`flex-shrink` 適用前の希望サイズ）を基準に行だけを分割する。長い
+//! ファイル名では `content` の希望幅が行の残り幅を超え、`flex-shrink`
+//! が効く前に `content` 自身が独立行へ折り返ってしまい、`media`/
+//! `actions` との横並びが崩れる（Cursor Bugbot 指摘）。`flex: 1 1 0%`
+//! （flex-basis を `0%` に固定）へ変更すると hypothetical main size が
+//! `0` になり、`flex-grow`/`flex-shrink` と `min-width: 0`（既存宣言）
+//! の組み合わせで `content` は常に `media`/`actions` と同じ行に留まり
+//! 残り幅まで縮小できる。
+//!
 //! # `data-disabled`
 //!
 //! `root` に既存ヘルパ [`crate::recipe::disabled_declarations`]
@@ -221,7 +257,7 @@ fn recipe() -> SlotRecipe {
         decl("display", "flex"),
         decl("flex-direction", "column"),
         decl("gap", "var(--fandhe-space-0-5)"),
-        decl("flex", "1 1 auto"),
+        decl("flex", "1 1 0%"),
         decl("min-width", "0"),
     ];
 
@@ -238,7 +274,16 @@ fn recipe() -> SlotRecipe {
         decl("color", "var(--fandhe-color-fg-muted)"),
     ];
 
-    let progress_base = vec![decl("width", "100%"), decl("flex-basis", "100%")];
+    let progress_base = vec![
+        decl("width", "100%"),
+        decl("flex-basis", "100%"),
+        // `actions` を常に末尾行へ固定する（モジュール doc「`actions` を
+        // 常に末尾行へ固定する」節参照）。DOM 順は media/content/
+        // progress/actions だが、`order` で視覚順を media/content/
+        // actions/progress へ変え、`progress` の有無によらず `actions` が
+        // 1 行目の末尾を維持するようにする。
+        decl("order", "1"),
+    ];
 
     let actions_base = vec![
         decl("display", "flex"),

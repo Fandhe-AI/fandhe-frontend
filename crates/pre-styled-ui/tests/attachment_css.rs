@@ -43,7 +43,7 @@ const ATTACHMENT_GOLDEN_CSS: &str = "[data-scope=\"attachment\"][data-part=\"roo
   display: flex;
   flex-direction: column;
   gap: var(--fandhe-space-0-5);
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-width: 0;
 }
 
@@ -63,6 +63,7 @@ const ATTACHMENT_GOLDEN_CSS: &str = "[data-scope=\"attachment\"][data-part=\"roo
 [data-scope=\"attachment\"][data-part=\"progress\"] {
   width: 100%;
   flex-basis: 100%;
+  order: 1;
 }
 
 [data-scope=\"attachment\"][data-part=\"actions\"] {
