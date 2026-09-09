@@ -42,9 +42,11 @@ use fandhe_frontend_pre_styled_ui::{
     button::{button, ButtonProps, ButtonVariant},
     callout, card, carousel, color_swatch, data_list, empty_state, field, icon, image,
     item::{self, ItemMediaVariant, ItemRootProps},
-    json_tree_view, marquee, native_select, pagination, progress, scroll_area, separator, skeleton,
-    spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline, tree_view, AlertProps,
-    ColorPalette, Orientation, Size,
+    json_tree_view, marquee,
+    message::{self, MessageAlign, MessageRole, MessageRootProps},
+    native_select, pagination, progress, scroll_area, separator, skeleton, spinner, splitter, stat,
+    status, steps, tab_nav, table, tag, timeline, tree_view, AlertProps, ColorPalette, Orientation,
+    Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -3128,5 +3130,238 @@ pub(crate) const ITEM: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし、href 指定時は a のネイティブ意味論)",
         description: "root/media/content 等は role/aria-* を独自付与しないレイアウト用パーツであり、href を渡した場合のみ a のネイティブなリンク意味論に委ねる（item.rs モジュール doc参照）。",
     }],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Message（イシュー #2106、親 #2104。headless anatomy は #2105）
+// ---------------------------------------------------------------------
+
+/// `/themes/message/` の Examples 節其の 1: user/assistant の 1 往復
+/// （`data-align` の 2 値を両方出現させる）。
+fn ex_message_conversation_turn() -> Node {
+    // headless message::root は role="listitem" を固定付与し、role="list"
+    // （またはそれと同等）の親を required context として要求する
+    // （headless message.rs モジュール doc「role="listitem"/role="list"」
+    // 参照）。ここでは同一グループとして視覚的にまとめる意図（余白詰め・
+    // avatar 省略）はないため message::group ではなく、role="list" のみを
+    // 付与した素の div でこの契約を満たす。
+    div(
+        vec![("role", "list")],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::User,
+                    align: MessageAlign::End,
+                    ..Default::default()
+                },
+                vec![],
+                vec![
+                    message::avatar(
+                        vec![],
+                        vec![avatar::root(
+                            &avatar::AvatarProps::default(),
+                            vec![],
+                            vec![avatar::fallback(
+                                avatar::ImageStatus::Error,
+                                vec![],
+                                vec![text("YOU")],
+                            )],
+                        )],
+                    ),
+                    message::content(vec![], vec![text("What is the release checklist?")]),
+                ],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    align: MessageAlign::Start,
+                    ..Default::default()
+                },
+                vec![],
+                vec![
+                    message::avatar(
+                        vec![],
+                        vec![avatar::root(
+                            &avatar::AvatarProps::default(),
+                            vec![],
+                            vec![avatar::fallback(
+                                avatar::ImageStatus::Error,
+                                vec![],
+                                vec![text("AI")],
+                            )],
+                        )],
+                    ),
+                    message::content(
+                        vec![],
+                        vec![text("Bump the version, run the golden tests, open a PR.")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// `/themes/message/` の Examples 節其の 2: `group` による連続発言のまとめ
+/// （raw CSS 追記で 2 件目以降の avatar を省略・余白を詰める実演）。
+fn ex_message_consecutive_group() -> Node {
+    message::group(
+        "Conversation",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![
+                    message::avatar(
+                        vec![],
+                        vec![avatar::root(
+                            &avatar::AvatarProps::default(),
+                            vec![],
+                            vec![avatar::fallback(
+                                avatar::ImageStatus::Error,
+                                vec![],
+                                vec![text("AI")],
+                            )],
+                        )],
+                    ),
+                    message::content(vec![], vec![text("Here is the first part.")]),
+                ],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![
+                    message::avatar(
+                        vec![],
+                        vec![avatar::root(
+                            &avatar::AvatarProps::default(),
+                            vec![],
+                            vec![avatar::fallback(
+                                avatar::ImageStatus::Error,
+                                vec![],
+                                vec![text("AI")],
+                            )],
+                        )],
+                    ),
+                    message::content(vec![], vec![text("...and a follow-up detail.")]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// `/themes/message/` の Examples 節其の 3: `data-loading`/`data-error` の
+/// 表示状態（応答待ち・送信失敗）。
+fn ex_message_loading_and_error() -> Node {
+    // 上と同じ理由（role="listitem" の required context）で role="list"
+    // を付与する。
+    div(
+        vec![("role", "list")],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    loading: true,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(vec![], vec![text("Thinking...")])],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::User,
+                    align: MessageAlign::End,
+                    error: true,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("Message failed to send.")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// `/themes/message/`（イシュー #2106、親 #2104。headless anatomy は
+/// #2105）の原稿データ。`role`/`align`/`loading`/`error` は headless の
+/// `data-*` を `AttrEq`/`Attr` で参照するのみで class 軸を持たない
+/// （`message.rs` モジュール doc「role / align / loading / error の表現」
+/// 節参照）。
+pub(crate) const MESSAGE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "MessageRole（User/Assistant/System、message.rs recipe() の data-role 参照）で発言者ごとに content の背景・文字色を切り替える",
+        "MessageAlign（Start/End）で root の水平整列を切り替える（data-role とは独立した軸、headless message.rs モジュール doc「会話系 4 部品の共通語彙」参照）",
+        "root/avatar/header/content/footer/group の 6 パーツで会話 1 発言を構造化する",
+        "loading/error の bool props で data-loading/data-error 存在属性を切り替え、応答待ち・送信失敗を見た目のみで表す（判定・再送はアプリ責務）",
+        "group は連続発言をまとめるコンテナで、2 件目以降の root の余白を詰め avatar を非表示にする raw CSS 追記を持つ（message.rs モジュール doc「raw CSS 追記の理由」節参照）",
+        "バリデーション・送信処理・Markdown レンダリングはこの部品では実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1、message.rs モジュール doc「責務境界」節）",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "role",
+            kind: "MessageRole",
+            default: "User",
+            description: "発言者の役割（User/Assistant/System。data-role として出力され、content の背景・文字色を切り替える）。",
+        },
+        ArgRow {
+            name: "align",
+            kind: "MessageAlign",
+            default: "Start",
+            description: "root の水平整列（Start/End。role から独立した軸で、center は持たない）。",
+        },
+        ArgRow {
+            name: "loading",
+            kind: "bool",
+            default: "false",
+            description: "true の場合 data-loading 存在属性を付与し、root を半透明化する（応答待ちの表示のみ）。",
+        },
+        ArgRow {
+            name: "error",
+            kind: "bool",
+            default: "false",
+            description: "true の場合 data-error 存在属性を付与し、content の背景・文字色・枠線を危険色へ切り替える（送信失敗の表示のみ）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Conversation turn",
+            description: "user（align=end）と assistant（align=start）の 1 往復の例です。",
+            render: ex_message_conversation_turn,
+        },
+        ExampleEntry {
+            title: "Consecutive assistant messages in a group",
+            description: "group で連続発言をまとめると、2 件目以降の avatar が省略され余白が詰まります。",
+            render: ex_message_consecutive_group,
+        },
+        ExampleEntry {
+            title: "Loading and error states",
+            description: "data-loading（応答待ち）と data-error（送信失敗）の表示状態の例です。",
+            render: ex_message_loading_and_error,
+        },
+    ],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"listitem\" (root)",
+            description: "root は role=\"listitem\" を固定付与する（headless message.rs モジュール doc「role=\"listitem\"/role=\"list\"」節参照）。",
+        },
+        AriaRow {
+            attribute: "role=\"list\" / aria-label (group)",
+            description: "group は role=\"list\" を固定付与し、渡した label が空でなければ aria-label へ出力する（root の listitem に対する required context）。",
+        },
+        AriaRow {
+            attribute: "(付与しない) aria-live / aria-busy",
+            description: "ストリーミング通知・応答待ちの読み上げはアプリ固有の UX 判断のため、本モジュールは data-loading/data-error の見た目のみを担い aria-live/aria-busy は付与しない（headless message.rs モジュール doc「aria-live/aria-busy を付けない理由」節参照）。",
+        },
+    ],
     demo: None,
 };

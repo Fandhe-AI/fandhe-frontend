@@ -71,6 +71,7 @@ image_cropper / **input_group（イシュー #2063 で golden 新設。`styleshe
 **item（イシュー #2066 で golden 新設。`stylesheet()` 全文）** /
 **link_overlay（イシュー #1580 で golden 新設）** /
 listbox / marquee / menu / **menubar（方式 b）** /
+**message（イシュー #2106 で golden 新設。`stylesheet()` 全文）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
 pin_input / progress / qr_code / **radial_chart（イシュー #2079 で
 golden 新設。`charts::pie` の環状セクタジオメトリを再利用する同心リング

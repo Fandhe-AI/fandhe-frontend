@@ -1114,6 +1114,74 @@ fn item_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// Message 経路（イシュー #2106）: 6 パーツいずれも見た目クラスを付与しない
+/// （`src/message.rs` モジュール doc「role / align / loading / error の
+/// 表現」節参照）ため、呼び出し側 `attrs`・`class`（[`drop_class_attr`]
+/// により除去）、`group` の `label`（`aria-label` エスケープ）、children
+/// の各経路で既定エスケープ（REQ-1）が貫通することを固定する。
+#[test]
+fn message_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::message::{self, MessageRootProps};
+
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&message::root(
+            MessageRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える）。
+        let html = render(&message::root(
+            MessageRootProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "message::root の class 属性に渡した生ペイロードが出力に残って\
+             いる: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled avatar/header/content/footer の呼び出し側 attrs・children
+        // 経路。
+        let html = render(&message::avatar(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::avatar attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "message::avatar children コンテキスト");
+
+        let html = render(&message::header(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::header attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "message::header children コンテキスト");
+
+        let html = render(&message::content(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::content attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "message::content children コンテキスト");
+
+        let html = render(&message::footer(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "message::footer attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "message::footer children コンテキスト");
+
+        // styled group の label（aria-label）経路。
+        let html = render(&message::group(payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "message::group label コンテキスト");
+    }
+}
+
 /// (8) NumberInput 経路（イシュー #738）: styled `root` の呼び出し側
 /// `attrs`・`class`、および headless-ui から選択的再エクスポートした
 /// `label` の children・`input` の `name` の 4 箇所すべてで既定エスケープ

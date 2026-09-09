@@ -3,7 +3,8 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! `/primitives/<kebab>/` 69 ページ（イシュー #2105 で `message` を追加、
+//! `/primitives/<kebab>/` 70 ページ（イシュー #2108 で `bubble` を追加、
+//! 旧 69。イシュー #2105 で `message` を追加、
 //! 旧 68。#2072 で `sidebar` を追加、旧 67。#2068 で `command` を追加、
 //! 旧 66。#2065 で `item` を追加、
 //! 旧 65。#2062 で `input_group`・#2059 で
@@ -24,16 +25,17 @@
 //! # 判別規約（設計 §6 の要旨）
 //!
 //! `crates/headless-ui/src/*.rs` のうち本文に `anatomy(` を含むもの
-//! （`anatomy.rs` 自身を除く）が部品 69 件（イシュー #2105 で `message`
+//! （`anatomy.rs` 自身を除く）が部品 70 件（イシュー #2108 で `bubble`
+//! が加わり 69 → 70。イシュー #2105 で `message`
 //! が加わり 68 → 69。#2072 で `sidebar`
 //! が加わり 67 → 68。#2068 で `command`
 //! が加わり 66 → 67。#2065 で `item` が加わり 65 → 66。#2062 で
 //! `input_group`・#2059 で `button_group` が加わり 63 → 65）、基盤モジュール
-//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 79 件が
+//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 80 件が
 //! `crates/headless-ui/src/*.rs` の総数（実測:
-//! `ls crates/headless-ui/src/*.rs | wc -l` => 79、
+//! `ls crates/headless-ui/src/*.rs | wc -l` => 80、
 //! `grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l`
-//! => 69）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
+//! => 70）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
 //! 責務。
 
 use std::collections::BTreeSet;
@@ -76,7 +78,8 @@ pub enum PrimitiveCategory {
     /// Navigation（13 件、原稿は #1028。イシュー #2072 で sidebar が追加され
     /// 12 → 13。イシュー #2059 で button_group が追加され 11 → 12）。
     Navigation,
-    /// Data Display / Utilities（12 件、原稿は #1029。イシュー #2105 で
+    /// Data Display / Utilities（13 件、原稿は #1029。イシュー #2108 で
+    /// `bubble` が追加され 12 → 13。イシュー #2105 で
     /// `message` が追加され 11 → 12。イシュー #2065 で
     /// `item` が追加され 10 → 11）。
     DataDisplayUtilities,
@@ -120,7 +123,8 @@ impl PrimitiveCategory {
     }
 }
 
-/// Primitives 台帳（69 件、イシュー #2105 で `message` 追加、旧 68。#2072 で
+/// Primitives 台帳（70 件、イシュー #2108 で `bubble` 追加、旧 69。イシュー
+/// #2105 で `message` 追加、旧 68。#2072 で
 /// `sidebar` 追加、旧 67。#2068 で
 /// `command` 追加、旧 66。#2065 で
 /// `item` 追加、旧 65。#2062 で `input_group`・#2059 で `button_group` 追加、
@@ -505,6 +509,12 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         category: PrimitiveCategory::DataDisplayUtilities,
     },
     PrimitiveEntry {
+        module: "bubble",
+        path: "/primitives/bubble/",
+        title: "Bubble",
+        category: PrimitiveCategory::DataDisplayUtilities,
+    },
+    PrimitiveEntry {
         module: "carousel",
         path: "/primitives/carousel/",
         title: "Carousel",
@@ -603,7 +613,7 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives。現在 0 件（空リスト）。`button_group` は #2059 時点では
+/// Primitives。現在 1 件（`sidebar`）。`button_group` は #2059 時点では
 /// headless-ui 層のみを実装しており暫定的にこの台帳へ載っていたが、イシュー
 /// #2060 で Themes 層（`crates/pre-styled-ui/src/button_group.rs`・
 /// `site/themes/button-group.md`）を実装済みのため除外した（`collapsible`/
@@ -617,15 +627,18 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// `site/themes/item.md`）を実装済みのため除外した。`command` も同様に
 /// イシュー #2068 が headless-ui 層を新設した時点では暫定的にこの台帳へ
 /// 載っていたが、イシュー #2070 で Themes 層（`crates/pre-styled-ui/src/command.rs`・
-/// `site/themes/command.md`）を実装済みのため除外した。`sidebar`・`message`
-/// は現在この台帳に載っている（`sidebar` はイシュー #2072、`message` は
-/// イシュー #2105 で headless-ui 層のみ先行実装。それぞれ後続イシュー
-/// #2074・#2106 で Themes 層を実装後に除外する予定）。
+/// `site/themes/command.md`）を実装済みのため除外した。`message` も同様に
+/// イシュー #2105 が headless-ui 層を新設した時点では暫定的にこの台帳へ
+/// 載っていたが、イシュー #2106 で Themes 層（`crates/pre-styled-ui/src/message.rs`・
+/// `site/themes/message.md`）を実装済みのため除外した。`sidebar`・`bubble`
+/// は現在この台帳に載っている（`sidebar` はイシュー #2072、`bubble` は
+/// イシュー #2108 で headless-ui 層のみ先行実装。それぞれ後続イシュー
+/// #2074・#2109 で Themes 層を実装後に除外する予定）。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["sidebar", "message"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["sidebar", "bubble"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
@@ -812,8 +825,10 @@ mod tests {
         assert!(result.is_clean(), "{result:?}");
     }
 
-    /// 台帳が 69 件・6 カテゴリで、件数配分（13/11/10/10/13/12）と
-    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2105 で
+    /// 台帳が 70 件・6 カテゴリで、件数配分（13/11/10/10/13/13）と
+    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2108 で
+    /// `bubble` が Data Display / Utilities へ追加され同カテゴリは
+    /// 12 → 13、イシュー #2105 で
     /// `message` が Data Display / Utilities へ追加され同カテゴリは
     /// 11 → 12、イシュー #2072 で
     /// `sidebar` が Navigation へ追加され同カテゴリは 12 → 13、イシュー
@@ -824,8 +839,8 @@ mod tests {
     /// Navigation は 11 → 12、イシュー #2068 で `command` が Forms A へ
     /// 追加され Forms A は 12 → 13）。
     #[test]
-    fn catalog_has_69_entries_in_six_categories_in_spec_order() {
-        assert_eq!(PRIMITIVES.len(), 69);
+    fn catalog_has_70_entries_in_six_categories_in_spec_order() {
+        assert_eq!(PRIMITIVES.len(), 70);
 
         let expected_order_and_counts: [(PrimitiveCategory, usize); 6] = [
             (PrimitiveCategory::FormsA, 13),
@@ -833,7 +848,7 @@ mod tests {
             (PrimitiveCategory::FormsCDateStatus, 10),
             (PrimitiveCategory::OverlayDisclosure, 10),
             (PrimitiveCategory::Navigation, 13),
-            (PrimitiveCategory::DataDisplayUtilities, 12),
+            (PrimitiveCategory::DataDisplayUtilities, 13),
         ];
 
         assert_eq!(

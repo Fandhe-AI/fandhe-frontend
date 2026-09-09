@@ -1,11 +1,11 @@
 //! イシュー #1064: Primitives（`fandhe-frontend-headless-ui`、67 部品）と
-//! Themes（`fandhe-frontend-pre-styled-ui`、115 部品）の**層をまたぐラップ状態**
+//! Themes（`fandhe-frontend-pre-styled-ui`、116 部品）の**層をまたぐラップ状態**
 //! を機械可視化する契約テスト。
 //!
 //! # 背景・既存テストとの分担
 //!
 //! `tests/primitives_catalog.rs` は headless-ui ソース ↔ 台帳のドリフトを
-//! レイヤー内で検知するのみで、「Themes 115 部品のどれが headless をラップし、
+//! レイヤー内で検知するのみで、「Themes 116 部品のどれが headless をラップし、
 //! どれが独自実装か」という層をまたぐ対応関係は検証しない
 //! （`primitives_titles_match_themes_page_titles_where_both_exist` は同名
 //! ページが両方に存在する場合の title 一致のみを見る）。本ファイルはその
@@ -14,7 +14,7 @@
 //! をすり抜けるのを防ぐ。判別規約は
 //! `docs/design/docs-site-primitives-themes-split.md` §6a を参照。
 //!
-//! # 4 バケット分割（Themes 115 部品）
+//! # 4 バケット分割（Themes 116 部品）
 //!
 //! - [`WRAPPED_SAME_NAME`]（66）: 同名の Primitives 部品が存在し、かつ同名
 //!   headless モジュールへコード委譲している
@@ -419,10 +419,11 @@ fn resolve_page<'a>(scan: &'a PreStyledScan, page_kebab: &str) -> &'a FileScan {
 // ---------------------------------------------------------------------
 
 /// バケット A: 同名 Primitives 部品が存在し、同名 headless モジュールへ
-/// コード委譲している Themes ページ（kebab、ソート済み、67 件。
+/// コード委譲している Themes ページ（kebab、ソート済み、68 件。
 /// イシュー #1685 で `field`・イシュー #1687 で `fieldset`・イシュー #2063
 /// で `input-group`・イシュー #2066 で `item`・イシュー #2060 で
-/// `button-group`・イシュー #2070 で `command` を追加）。
+/// `button-group`・イシュー #2070 で `command`・イシュー #2106 で
+/// `message`（`/themes/message/` ページ登録）を追加）。
 const WRAPPED_SAME_NAME: &[&str] = &[
     "accordion",
     "action-bar",
@@ -459,6 +460,7 @@ const WRAPPED_SAME_NAME: &[&str] = &[
     "listbox",
     "menu",
     "menubar",
+    "message",
     "nav-list",
     "navigation-menu",
     "number-input",
@@ -596,12 +598,15 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// #2072 で同様に headless-ui 層のみを実装した `sidebar` が新設され、
 /// pre-styled-ui recipe（後続 #2073）を持たないため本リストへ加える。
 /// イシュー #2105 で同様に headless-ui 層のみを実装した `message` が
-/// 新設され、pre-styled-ui recipe（後続 #2106）を持たないため本リストへ
-/// 加える。
+/// 一時的に本リストへ加わっていたが、イシュー #2106 で pre-styled-ui 側
+/// （`crates/pre-styled-ui/src/message.rs`・`/themes/message/`）を新設し
+/// `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。イシュー
+/// #2108 で同様に headless-ui 層のみを実装した `bubble` が新設され、
+/// pre-styled-ui recipe（後続 #2109）を持たないため本リストへ加える。
 /// （`PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
 /// が検証する）。
-const HEADLESS_UNWRAPPED: &[&str] = &["sidebar", "message"];
+const HEADLESS_UNWRAPPED: &[&str] = &["sidebar", "bubble"];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
@@ -635,7 +640,7 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 115 件すべてが `resolve_page` で panic
+/// §3.5: nav 登録済み Themes ページ 116 件すべてが `resolve_page` で panic
 /// せず解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
@@ -643,7 +648,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        115,
+        116,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -983,7 +988,7 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        115,
+        116,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
          登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
@@ -1004,7 +1009,9 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          NON_PAGE_TOP_LEVEL に暫定登録していたが、イシュー #2080 で \
          `/themes/radial-chart/` を登録し PRE_STYLED_ONLY へ分類済み \
          （headless 側に対応 anatomy が無いため WRAPPED_SAME_NAME では \
-         ない）"
+         ない）。イシュー #2106 で message.rs を新設し 115 → 116。 \
+         `/themes/message/` ページ登録により `message` も \
+         WRAPPED_SAME_NAME バケットへ移った）"
     );
     assert_eq!(
         scan.charts.len(),

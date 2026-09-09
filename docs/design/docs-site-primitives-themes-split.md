@@ -227,7 +227,7 @@ ls crates/headless-ui/src/*.rs | wc -l                                          
 # イシュー #2063 で input_group、イシュー #2066 で item、イシュー #2060 で
 # button_group、イシュー #2070 で command、イシュー #2080 で radial_chart の
 # Themes ページが加わり 110→115）
-ls site/themes/*.md | wc -l                                                       # => 115
+ls site/themes/*.md | wc -l                                                       # => 116
 ```
 
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
@@ -237,10 +237,10 @@ ls site/themes/*.md | wc -l                                                     
 イシュー #2059 で `button_group`・イシュー #2062 で `input_group`・
 イシュー #2065 で `item`・イシュー #2068 で `command`・イシュー #2072 で
 `sidebar`・イシュー #2105 で `message` をそれぞれ追加、
-旧 63)と Themes(115 部品、イシュー #2063 で `input_group`・イシュー #2066
+旧 63)と Themes(116 部品、イシュー #2063 で `input_group`・イシュー #2066
 で `item`・イシュー #2060 で `button_group`・イシュー #2070 で `command`・
-イシュー #2080 で `radial_chart` をそれぞれ追加、旧 110)の**層をまたぐ
-ラップ状態**
+イシュー #2080 で `radial_chart`・イシュー #2106 で `message`
+をそれぞれ追加、旧 110)の**層をまたぐラップ状態**
 (どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
 テストは `crates/docs-site/tests/wrap_state.rs`(イシュー #1064)。
@@ -257,11 +257,18 @@ pre-styled-ui recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移�
 (両リストからは除外済み)。`command` も同様にイシュー #2068 で
 headless-ui 層のみを実装していたが、イシュー #2070 で pre-styled-ui
 recipe・Themes ページを追加し `WRAPPED_SAME_NAME` へ移った(両リストから
-除外済み)。`sidebar`(イシュー #2072)・`message`(イシュー #2105)は
-現時点で headless-ui 層のみを実装しており、pre-styled-ui recipe・Themes
-ページを持たないため `HEADLESS_UNWRAPPED`/`PRIMITIVES_WITHOUT_THEMES_PAGE`
-の両リストに載っている(それぞれ後続イシュー #2073・#2106 で Themes 層を
-実装後に除外予定)。
+除外済み)。`message` も同様にイシュー #2105 で headless-ui 層のみを
+実装していたが、イシュー #2106 で pre-styled-ui recipe・Themes ページを
+追加し `WRAPPED_SAME_NAME` へ移った(両リストから除外済み)。`sidebar`
+(イシュー #2072)は現時点で headless-ui 層のみを実装しており、
+pre-styled-ui recipe・Themes ページを持たないため
+`HEADLESS_UNWRAPPED`/`PRIMITIVES_WITHOUT_THEMES_PAGE` の両リストに
+載っている(後続イシュー #2074 で Themes 層を実装後に除外予定)。
+
+**追記(イシュー #2106)**: 上記段落は `message` がまだ
+`HEADLESS_UNWRAPPED`/`PRIMITIVES_WITHOUT_THEMES_PAGE` に載っていた時点の
+記述だったが、本イシューで pre-styled-ui 側の実装が完了したため
+`sidebar` のみが両リストに残る状態へ更新した。
 
 ### 名寄せキー
 
@@ -289,7 +296,7 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 
 | バケット | 件数 | 定義 |
 |---|---|---|
-| WRAPPED_SAME_NAME | 67 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している(イシュー #1685 で `field`、イシュー #1687 で `fieldset`、イシュー #2063 で `input_group`、イシュー #2066 で `item`、イシュー #2060 で `button_group`、イシュー #2070 で `command` を追加) |
+| WRAPPED_SAME_NAME | 68 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している(イシュー #1685 で `field`、イシュー #1687 で `fieldset`、イシュー #2063 で `input_group`、イシュー #2066 で `item`、イシュー #2060 で `button_group`、イシュー #2070 で `command`、イシュー #2106 で `message` を追加) |
 | WRAPPED_CROSS_NAME | 4 | 同名 Primitives 部品は無いが、別名の headless 部品へコード委譲している |
 | DOC_REFERENCE_ONLY | 5 | headless 部品への参照が rustdoc のみ(コード委譲なし) |
 | PRE_STYLED_ONLY | 39 | headless 部品への参照がコード・rustdoc いずれにも無い(イシュー #2080 で `radial-chart` を追加、headless 側に対応 anatomy が無いため) |
@@ -501,6 +508,20 @@ Data Display / Utilities 12・6 グループ**合計 68→69**であり、§6 �
 導出は**部品 69 件**（headless-ui `crates/headless-ui/src/*.rs` 総数
 **79** = 部品 69 + 基盤 9 + `lib.rs`）との一致は
 `crates/docs-site/tests/primitives_catalog.rs::catalog_has_69_entries_in_six_categories_in_spec_order`
+/ `module_counts_are_consistent_with_the_source_tree` が機械検査する
+（本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
+正とする）。
+
+**追記(イシュー #2108)**: shadcn/ui のみに存在する `bubble`（Bubble、
+参照軸 #2001）を Data Display / Utilities カテゴリへ `avatar` の直後
+（`carousel` の前）に追加する。headless-ui 層のみを先行実装し
+pre-styled-ui recipe・Themes ページは後続 #2109 のスコープのため、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）へ `bubble` を追加した。現在の実カテゴリ内訳は
+Data Display / Utilities 13・6 グループ**合計 69→70**であり、§6 のコード
+導出は**部品 70 件**（headless-ui `crates/headless-ui/src/*.rs` 総数
+**80** = 部品 70 + 基盤 9 + `lib.rs`）との一致は
+`crates/docs-site/tests/primitives_catalog.rs::catalog_has_70_entries_in_six_categories_in_spec_order`
 / `module_counts_are_consistent_with_the_source_tree` が機械検査する
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。
