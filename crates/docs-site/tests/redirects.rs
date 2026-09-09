@@ -252,7 +252,7 @@ fn build_succeeds_with_zero_redirects_when_manifest_is_absent() {
 /// イシュー #2106 で Message の Themes ページ新設に伴い
 /// `/components/message/` を追加し、118 件になった。イシュー #2075 で
 /// Sidebar の Themes ページ新設に伴い `/components/sidebar/` を追加し、
-/// 現在は 119 件。本値の更新が要る
+/// 現在は 120 件。本値の更新が要る
 /// 変更は fail-closed に検知する（黙って増減しても気付けるように
 /// する意図。`tests/site_build.rs` のページ数固定と同型）。
 #[test]
@@ -269,7 +269,7 @@ fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
         redirect::parse_redirects(&input).expect("site/redirects.toml should parse cleanly");
     assert_eq!(
         redirects.entries.len(),
-        119,
+        120,
         "site/redirects.toml の宣言件数が期待値と異なる: {:?}",
         redirects.entries
     );
@@ -327,8 +327,8 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         .collect();
     assert_eq!(
         themes_pages.len(),
-        117,
-        "expected 117 site/themes/ pages, got {}: {themes_pages:?}",
+        118,
+        "expected 118 site/themes/ pages, got {}: {themes_pages:?}",
         themes_pages.len()
     );
 

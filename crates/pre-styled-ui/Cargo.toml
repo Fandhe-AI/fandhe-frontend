@@ -2710,17 +2710,25 @@ name = "fandhe-frontend-pre-styled-ui"
 # headless-ui 依存の version 要求追随のみで、出力・API は不変のため patch
 # バンプし 0.162.1 とする。
 #
+# イシュー #2109: `bubble` モジュール（recipe・golden テスト、headless
+# 側 anatomy は #2108）を新規公開する公開 API 純追加のため、`origin/main`
+# 到達値 0.162.1 から +1 マイナーして 0.163.0 とする。
+#
 # イシュー #2184: field.rs モジュール doc の「見送ったもの」→「採用した
 # もの」への移動（headless error_text の role="alert" 採用を反映）と
 # headless-ui 依存の version 要求追随のみで、本クレート自身の出力・API は
-# 不変のため patch バンプし 0.162.2 とする。
+# 不変のため patch バンプの 0.162.2 へ到達していたが、#2109 のマイナー
+# バンプ（0.163.0）がこれを上回るため 0.163.0 を採用していた（0.x の破壊的
+# 変更／機能追加はマイナーバンプ優先の規約）。
 #
 # イシュー #2186: select へ `separator`/`scroll_up_button`/
 # `scroll_down_button` の `pub use` 再エクスポート 3 件を純追加し、
 # [`recipe`] へ base 3 ブロックを新設（golden 変更）した。既存 API・出力は
 # 不変のまま公開 API を追加する非破壊的変更のため、#2106 の先例に倣い
-# マイナーバンプし 0.163.0 とする。
-version = "0.163.0"
+# マイナーバンプ対象だったが、独立に 0.163.0 へ到達していた main（#2109）
+# との統合で版数が偶発的に一致したため、同一版数も衝突として扱い main から
+# +1 して 0.164.0 とする。
+version = "0.164.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

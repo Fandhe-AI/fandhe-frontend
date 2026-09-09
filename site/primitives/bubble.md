@@ -14,7 +14,7 @@
 - `collapse-trigger` は `aria-expanded` と `data-state` を開閉状態に同期させます。`controls` を渡すと `aria-controls` で `collapse-content` と関連付けます。
 - `collapse-content` は closed のとき `hidden` 存在属性を付与し、JS なしの SSR でも閉状態を表現します。
 
-Themes（`fandhe-frontend-pre-styled-ui`）に対応するスタイル済み部品は今後追加予定です（イシュー #2109）。
+`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。Themes 版は [Bubble](../themes/bubble.md) を参照してください。
 
 自前 CSS の最小例:
 

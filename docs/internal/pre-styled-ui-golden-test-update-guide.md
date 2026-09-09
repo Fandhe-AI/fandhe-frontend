@@ -58,6 +58,7 @@ accordion / **alert（イシュー #1553 で golden 新設。イシュー #2043 
 `action` パートの `[data-part="action"]` ブロックを 1 個追加）** /
 **badge（イシュー #1555 で golden 新設）** /
 **bar_segment（イシュー #1592 で golden 新設。`charts::bar_segment`）** /
+**bubble（イシュー #2109 で golden 新設。`stylesheet()` 全文）** /
 **button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文）** /
 callout / carousel / **collapsible（イシュー #1682 で golden 新設）** /
 checkbox / checkbox_card / checkbox_group /

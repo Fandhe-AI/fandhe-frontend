@@ -39,6 +39,7 @@
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::{
     alert, avatar, badge, breadcrumb,
+    bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant},
     button::{button, ButtonProps, ButtonVariant},
     callout, card, carousel, color_swatch, data_list, empty_state, field, icon, image,
     item::{self, ItemMediaVariant, ItemRootProps},
@@ -50,7 +51,7 @@ use fandhe_frontend_pre_styled_ui::{
         SidebarVariant,
     },
     skeleton, spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline, tree_view,
-    AlertProps, ColorPalette, Orientation, Size,
+    AlertProps, ColorPalette, OpenState, Orientation, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -3365,6 +3366,241 @@ pub(crate) const MESSAGE: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "(付与しない) aria-live / aria-busy",
             description: "ストリーミング通知・応答待ちの読み上げはアプリ固有の UX 判断のため、本モジュールは data-loading/data-error の見た目のみを担い aria-live/aria-busy は付与しない（headless message.rs モジュール doc「aria-live/aria-busy を付けない理由」節参照）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Bubble（イシュー #2109、親 #2107。headless anatomy は #2108）
+// ---------------------------------------------------------------------
+
+/// `/themes/bubble/` の Examples 節其の 1: solid（start）と outline（end）
+/// の 1 往復（`data-align` の 2 値・`data-variant` の 2 値を出現させる）。
+fn ex_bubble_conversation() -> Node {
+    div(
+        vec![],
+        vec![
+            bubble::root(
+                BubbleRootProps {
+                    variant: BubbleVariant::Solid,
+                    align: MessageAlign::Start,
+                    group_position: BubbleGroupPosition::Single,
+                },
+                vec![],
+                vec![bubble::content(
+                    vec![],
+                    vec![text("How do I center a div?")],
+                )],
+            ),
+            bubble::root(
+                BubbleRootProps {
+                    variant: BubbleVariant::Outline,
+                    align: MessageAlign::End,
+                    group_position: BubbleGroupPosition::Single,
+                },
+                vec![],
+                vec![bubble::content(vec![], vec![text("Use flexbox.")])],
+            ),
+        ],
+    )
+}
+
+/// `/themes/bubble/` の Examples 節其の 2: 連続発言の角丸連結
+/// （`data-group-position` の `first`/`middle`/`last` を出現させる）。
+fn ex_bubble_group_position() -> Node {
+    div(
+        vec![],
+        vec![
+            bubble::root(
+                BubbleRootProps {
+                    variant: BubbleVariant::Solid,
+                    align: MessageAlign::Start,
+                    group_position: BubbleGroupPosition::First,
+                },
+                vec![],
+                vec![bubble::content(vec![], vec![text("Here is the plan:")])],
+            ),
+            bubble::root(
+                BubbleRootProps {
+                    variant: BubbleVariant::Solid,
+                    align: MessageAlign::Start,
+                    group_position: BubbleGroupPosition::Middle,
+                },
+                vec![],
+                vec![bubble::content(vec![], vec![text("1. Bump the version.")])],
+            ),
+            bubble::root(
+                BubbleRootProps {
+                    variant: BubbleVariant::Solid,
+                    align: MessageAlign::Start,
+                    group_position: BubbleGroupPosition::Last,
+                },
+                vec![],
+                vec![bubble::content(vec![], vec![text("2. Open a PR.")])],
+            ),
+        ],
+    )
+}
+
+/// `/themes/bubble/` の Examples 節其の 3: `plain` variant・`reactions`/
+/// `reaction`（selected あり/なし）・`collapse-trigger`/`collapse-content`
+/// （open/closed）を出現させる。
+fn ex_bubble_reactions_and_collapse() -> Node {
+    div(
+        vec![],
+        vec![
+            bubble::root(
+                BubbleRootProps {
+                    variant: BubbleVariant::Outline,
+                    align: MessageAlign::End,
+                    group_position: BubbleGroupPosition::Single,
+                },
+                vec![],
+                vec![
+                    bubble::content(vec![], vec![text("That should do it.")]),
+                    bubble::reactions(
+                        "2 reactions",
+                        vec![],
+                        vec![
+                            bubble::reaction(true, vec![], vec![text("\u{1f44d}")]),
+                            bubble::reaction(false, vec![], vec![text("\u{2764}")]),
+                        ],
+                    ),
+                    bubble::collapse_trigger(
+                        OpenState::Open,
+                        Some("bubble-example-detail"),
+                        vec![],
+                        vec![text("Hide details")],
+                    ),
+                    bubble::collapse_content(
+                        OpenState::Open,
+                        Some("bubble-example-detail"),
+                        vec![],
+                        vec![text("Sent 09:41 \u{b7} Edited")],
+                    ),
+                ],
+            ),
+            bubble::root(
+                BubbleRootProps {
+                    variant: BubbleVariant::Plain,
+                    align: MessageAlign::Start,
+                    group_position: BubbleGroupPosition::Single,
+                },
+                vec![],
+                vec![
+                    bubble::content(vec![], vec![text("Thanks!")]),
+                    bubble::collapse_trigger(
+                        OpenState::Closed,
+                        None,
+                        vec![],
+                        vec![text("Show details")],
+                    ),
+                    bubble::collapse_content(
+                        OpenState::Closed,
+                        None,
+                        vec![],
+                        vec![text("Sent 09:42")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// `/themes/bubble/`（イシュー #2109、親 #2107。headless anatomy は
+/// #2108）の原稿データ。`variant`/`align`/`group-position`/`selected`/
+/// `state` は headless の `data-*` を `AttrEq`/`Attr`/`AttrEqAll` で参照
+/// するのみで class 軸を持たない（`bubble.rs` モジュール doc参照）。
+pub(crate) const BUBBLE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "BubbleVariant（Solid/Outline/Plain、bubble.rs recipe() の data-variant 参照）で塗り・枠線・無装飾の 3 形態を切り替える",
+        "MessageAlign（Start/End、会話系部品共通語彙）で root の水平整列を切り替える",
+        "BubbleGroupPosition（Single/First/Middle/Last）で連続発言の隣接辺の角丸を連結する（算出はアプリ側の責務）",
+        "root/content/reactions/reaction/collapse-trigger/collapse-content の 6 パーツで吹き出し 1 個を構造化する",
+        "reactions/reaction はリアクションチップの表示のみを担う非対話パーツで、押下・集計・トグルは実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1）",
+        "collapse-trigger/collapse-content は OpenState の open/closed を data-state・hidden・opacity フェードへ反映する（closed 時は hidden により display: none を伴うため、フェード遷移が見えるのはクライアントランタイムが hidden を外す前後のみ）",
+        "root は --fandhe-bubble-bg/--fandhe-bubble-fg/--fandhe-bubble-border の 3 custom property を公開し、ColorPalette 軸を持たない代わりに呼び出し側が色を上書きできる",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "BubbleVariant",
+            default: "Solid",
+            description: "見た目の形態（Solid/Outline/Plain。data-variant として出力され、背景・文字色・枠線を切り替える）。",
+        },
+        ArgRow {
+            name: "align",
+            kind: "MessageAlign",
+            default: "Start",
+            description: "root の水平整列（Start/End。会話系部品共通語彙、center は持たない）。",
+        },
+        ArgRow {
+            name: "group_position",
+            kind: "BubbleGroupPosition",
+            default: "Single",
+            description: "連続発言中の位置（Single/First/Middle/Last。align と組み合わせて隣接辺の角丸を潰す。何番目かの算出は利用者責務）。",
+        },
+        ArgRow {
+            name: "selected",
+            kind: "bool",
+            default: "false",
+            description: "reaction の選択状態（true の場合 data-selected 存在属性を付与し、背景・枠線・文字色を強調する）。",
+        },
+        ArgRow {
+            name: "state",
+            kind: "OpenState",
+            default: "Closed",
+            description: "collapse-trigger/collapse-content の開閉状態（Open/Closed。data-state・aria-expanded・hidden へ反映する）。",
+        },
+        ArgRow {
+            name: "controls / id",
+            kind: "Option<&str>",
+            default: "None",
+            description: "collapse-trigger の aria-controls と collapse-content の id を関連付ける識別子（Some のときのみ出力）。",
+        },
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "\"\"",
+            description: "reactions の aria-label（空文字列のときは省略）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Conversation turn",
+            description: "solid（align=start）と outline（align=end）の 1 往復の例です。",
+            render: ex_bubble_conversation,
+        },
+        ExampleEntry {
+            title: "Consecutive group position",
+            description: "group-position（first/middle/last）で連続発言の隣接辺の角丸が連結される例です。",
+            render: ex_bubble_group_position,
+        },
+        ExampleEntry {
+            title: "Reactions and collapse",
+            description: "reactions/reaction（selected あり/なし）と collapse-trigger/collapse-content（open/closed）の例です。",
+            render: ex_bubble_reactions_and_collapse,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Space / Enter",
+            description: "collapse-trigger はネイティブ button[type=\"button\"] として描画され、ブラウザ標準の click 発火に従う（wasm-full の toggle 配線は本イシューのスコープ外）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"group\" / aria-label (reactions)",
+            description: "reactions は role=\"group\" を固定付与し、渡した label が空でなければ aria-label へ出力する（bubble.rs モジュール doc「reactions/reaction」節参照）。",
+        },
+        AriaRow {
+            attribute: "aria-expanded / aria-controls / data-state (collapse-trigger)",
+            description: "collapse-trigger は開閉状態を aria-expanded と data-state に同期させ、controls を渡すと aria-controls で collapse-content と関連付ける。",
+        },
+        AriaRow {
+            attribute: "hidden (collapse-content)",
+            description: "collapse-content は closed のとき hidden 存在属性を付与し、JS なしの SSR でも閉状態を表現する。",
         },
     ],
     demo: None,
