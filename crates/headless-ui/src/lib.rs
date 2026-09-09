@@ -760,13 +760,29 @@
 //!   入れ子にするスロットであり、`data-scope="progress"` を内包しない
 //!   （[`mod@attachment`] モジュール doc「`progress` は attachment scope
 //!   のスロット」参照）。
-//! - [`mod@navigation_menu`]: Root / List / Item / Trigger / Content / Link
-//!   の 6 anatomy パーツと、[`crate::state::SingleSelect`] を埋め込んだ
-//!   「高々 1 個の Trigger だけが開く」状態機械
-//!   [`navigation_menu::NavigationMenu`]（イシュー #993、
+//! - [`mod@marker`]: Root / Icon / Content の 3 anatomy パーツ（イシュー
+//!   #2114、親 #2113、shadcn/ui `Marker` 相当、参照軸 #2001）。会話
+//!   スレッド内のインライン注記行を表現し、[`mod@message`]/[`mod@bubble`]/
+//!   [`mod@attachment`] と同じく状態機械を持たない静的部品。
+//!   `data-variant`（`note`/`divider`/`label`）・`data-tone`
+//!   （`neutral`/`info`/`warning`/`danger`、`fandhe-frontend-pre-styled-ui`
+//!   `recipe::ColorPalette` の同名語彙の部分集合）を [`marker::root`] に
+//!   付与するが、`data-role`/`data-align`（会話系共通語彙、
+//!   [`mod@message`] モジュール doc参照）は意図的に持たない
+//!   （[`mod@marker`] モジュール doc「会話系 4 部品の共通語彙への
+//!   不追随」参照）。`divider`/`label` variant の区切り線は本モジュールが
+//!   出力せず、上位層（`fandhe-frontend-pre-styled-ui`）が `separator`
+//!   パーツを再利用して描く契約とする（[`mod@marker`] モジュール doc
+//!   「区切り線は headless で描かない」参照）。
+//! - [`mod@navigation_menu`]: Root / List / Item / Trigger / ItemIndicator /
+//!   Content / Link / Indicator の 8 anatomy パーツと、
+//!   [`crate::state::SingleSelect`] を埋め込んだ「高々 1 個の Trigger だけが
+//!   開く」状態機械 [`navigation_menu::NavigationMenu`]（イシュー #993、
 //!   `docs/design/component-coverage-map.md` 実装対象、Radix Primitives
-//!   Navigation Menu 相当）。Radix が primitives 層に持ち込んでいる
-//!   viewport 寸法測定・`data-motion`（アニメーション方向の露出）は
+//!   Navigation Menu 相当。ItemIndicator はイシュー #1654、ルートレベルの
+//!   Indicator（スライドポインタ、構造 + `data-state` のみ）はイシュー
+//!   #2187 で追加）。Radix が primitives 層に持ち込んでいる viewport 寸法
+//!   測定・`data-motion`（アニメーション方向の露出）は
 //!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2（層の割り当て）
 //!   により本クレートへは持ち込まない（[`mod@navigation_menu`] モジュール
 //!   doc参照）。[`mod@nav_list`]（状態機械を持たない静的リンク集）とは
@@ -822,6 +838,7 @@ pub mod json_tree_view;
 pub mod link;
 pub mod link_overlay;
 pub mod listbox;
+pub mod marker;
 pub mod menu;
 pub mod menubar;
 pub mod message;
@@ -926,6 +943,7 @@ pub use format::{
 pub use hover_card::{HoverCard, HoverCardDelays};
 pub use input_group::{InputGroupAlign, InputGroupProps};
 pub use item::{ItemMediaVariant, ItemRootProps, ItemSize, ItemVariant};
+pub use marker::{MarkerRootProps, MarkerTone, MarkerVariant};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use menubar::{Menubar, MenubarAction};
 pub use message::{MessageAlign, MessageRole, MessageRootProps};

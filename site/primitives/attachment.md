@@ -14,7 +14,7 @@
 - `action` の `label` が空文字列でないときのみ `aria-label` を出力します。アイコンのみのボタンでは必ず `label` を渡してください。
 - `action` の `disabled` はネイティブ `disabled`（ブラウザ標準の Space/Enter 抑止）と `data-disabled` の両方に反映します。
 
-`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品は現時点でまだありません（Themes 版は後続イシューで追加予定です）。
+`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。Themes 版は [Attachment](../themes/attachment.md) を参照してください。
 
 自前 CSS の最小例:
 

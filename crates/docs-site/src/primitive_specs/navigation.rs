@@ -1924,10 +1924,11 @@ fn ex_navigation_menu() -> Node {
 /// `aria-current` の実出力テスト）。
 pub(super) const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "トリガー起点で開閉するナビゲーションパネル。Root / List / Item / Trigger / Content / Link の 6 anatomy パーツを持つ（navigation_menu.rs モジュール doc）。",
+        "トリガー起点で開閉するナビゲーションパネル。Root / List / Item / Trigger / ItemIndicator / Content / Link / Indicator の 8 anatomy パーツを持つ（navigation_menu.rs モジュール doc）。",
         "高々 1 個の Trigger だけが開く状態機械（SingleSelect を埋め込んだ NavigationMenu、dispatch は \"select\"/\"toggle\"/\"deselect\"）。",
         "role は一切付与しない。root は素の nav の暗黙 ARIA role（navigation）に依拠し、role=\"menu\"/role=\"menuitem\" は付与しない（nav_list と同じ判断、文書ナビを操作メニューと誤伝達しないための設計）。",
         "data-motion（アニメーション方向の露出）・viewport 寸法測定は実装しない（intentional-non-adoption.md §3.25 規則 2 により headless 層へ持ち込まない設計判断、module doc「data-motion・viewport 測定を実装しない」節）。",
+        "indicator（イシュー #2187）はルートレベルの装飾パーツ（root 直下・list の兄弟）で、開いている Trigger の下でスライドするポインタを表す。構造 + data-state のみを本層が担い、着装（CSS 変数）は pre-styled-ui、実座標の計測は wasm-full の責務（#2208/#2209 系の後続）。",
     ],
     arguments: &[
         ArgRow {
@@ -1948,6 +1949,12 @@ pub(super) const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
             default: "false",
             description: "true のとき aria-current=\"page\"+data-current を出力する。",
         },
+        ArgRow {
+            name: "indicator(state, value)",
+            kind: "(OpenState, Option<&str>)",
+            default: "",
+            description: "ルートレベルの装飾パーツ。value は Some のときのみ data-value として出力（開いている項目値を構造情報として伝える）。state が Closed のとき hidden を付与する。",
+        },
     ],
     examples: &[ExampleEntry {
         title: "全項目 closed の初期表示",
@@ -1967,6 +1974,10 @@ pub(super) const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-current=\"page\"",
             description: "link に付与（current が true のときのみ）。role は付与しない。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "indicator に常時付与。装飾用の視覚要素であり、支援技術へは trigger の aria-expanded から開閉状態が既に伝わる。",
         },
     ],
     demo: None,

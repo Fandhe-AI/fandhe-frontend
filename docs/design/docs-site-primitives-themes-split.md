@@ -227,7 +227,7 @@ ls crates/headless-ui/src/*.rs | wc -l                                          
 # イシュー #2063 で input_group、イシュー #2066 で item、イシュー #2060 で
 # button_group、イシュー #2070 で command、イシュー #2080 で radial_chart の
 # Themes ページが加わり 110→115）
-ls site/themes/*.md | wc -l                                                       # => 118
+ls site/themes/*.md | wc -l                                                       # => 119
 ```
 
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
@@ -237,10 +237,10 @@ ls site/themes/*.md | wc -l                                                     
 イシュー #2059 で `button_group`・イシュー #2062 で `input_group`・
 イシュー #2065 で `item`・イシュー #2068 で `command`・イシュー #2072 で
 `sidebar`・イシュー #2105 で `message`・イシュー #2108 で `bubble` を
-それぞれ追加、旧 63)と Themes(118 部品、イシュー #2063 で `input_group`・
+それぞれ追加、旧 63)と Themes(119 部品、イシュー #2063 で `input_group`・
 イシュー #2066 で `item`・イシュー #2060 で `button_group`・イシュー
 #2070 で `command`・イシュー #2080 で `radial_chart`・イシュー #2106 で
-`message`・イシュー #2109 で `bubble`
+`message`・イシュー #2109 で `bubble`・イシュー #2112 で `attachment`
 をそれぞれ追加、旧 110)の**層をまたぐラップ状態**
 (どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
@@ -541,6 +541,20 @@ pre-styled-ui recipe・Themes ページは後続 #2112 のスコープのため�
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。
 
+**追記(イシュー #2114)**: shadcn/ui のみに存在する `marker`
+（Marker、参照軸 #2001）を Data Display / Utilities カテゴリの
+`json_tree_view` の後に追加する。headless-ui 層のみを先行実装し
+pre-styled-ui recipe・Themes ページは後続 #2115 のスコープのため、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）へ `marker` を追加した。現在の実カテゴリ
+内訳は Data Display / Utilities 15・6 グループ**合計 71→72**であり、§6 の
+コード導出は**部品 72 件**（headless-ui `crates/headless-ui/src/*.rs`
+総数**82** = 部品 72 + 基盤 9 + `lib.rs`）との一致は
+`crates/docs-site/tests/primitives_catalog.rs::catalog_has_72_entries_in_six_categories_in_spec_order`
+/ `module_counts_are_consistent_with_the_source_tree` が機械検査する
+（本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
+正とする）。
+
 ## 8. `component-coverage-map.md` との関係
 
 `docs/design/component-coverage-map.md` は ark-ui / chakra-ui / Radix の
@@ -737,3 +751,27 @@ pre-styled-ui recipe・Themes ページを実装しバケット移動」パタ�
   新規追加したため）
 - Themes 部品（§2/§6 の件数）: 117 → **118**
 - 旧 URL（移転案内）件数: 119 → **120**（`/components/bubble/` を追加）
+
+## 16. イシュー #2112 追記（attachment の Themes ページ登録）
+
+`/themes/attachment/` ページ（原稿 `site/themes/attachment.md`・
+`site/nav.toml` 登録・showcase Demo・`component_specs_nav_data.rs` の
+`ATTACHMENT` 原稿）を新設したことに伴い、`crates/pre-styled-ui/src/attachment.rs`
+（新規ファイル、headless `attachment::root`/`media`/`content`/`name`/
+`meta`/`progress`/`actions`/`action` へコード委譲）を追加し、
+`crates/docs-site/tests/wrap_state.rs` の台帳を以下のとおり更新した
+（§14/§15 と同型の「headless-ui 層のみ先行実装 → 後続イシューで
+pre-styled-ui recipe・Themes ページを実装しバケット移動」パターン）。
+
+- `HEADLESS_UNWRAPPED`: `["attachment"]` → **`[]`**（`attachment.rs` が
+  `fandhe_frontend_headless_ui::attachment` をコード委譲するようになった
+  ため）
+- `PRIMITIVES_WITHOUT_THEMES_PAGE`（`crates/docs-site/src/
+  primitives_catalog.rs`）: `["attachment"]` → **`[]`**（`/themes/attachment/`
+  ページが実在するため除外）
+- `WRAPPED_SAME_NAME`: 70 → **71**（`attachment` を追加。`angle-slider` と
+  `avatar` の間、ソート順）
+- `crates/pre-styled-ui/src/*.rs` 総数: 118 → **119**（`attachment.rs` を
+  新規追加したため）
+- Themes 部品（§2/§6 の件数）: 118 → **119**
+- 旧 URL（移転案内）件数: 120 → **121**（`/components/attachment/` を追加）

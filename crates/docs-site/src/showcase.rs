@@ -64,6 +64,9 @@
 use fandhe_frontend_core::{div, el, p, render, span, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
+use fandhe_frontend_pre_styled_ui::attachment::{
+    self as attachment, AttachmentRootProps, AttachmentState, AttachmentVariant,
+};
 use fandhe_frontend_pre_styled_ui::avatar::{
     self, fallback, AvatarBadgeProps, AvatarProps, AvatarShape, AvatarVariant, ImageStatus,
 };
@@ -320,6 +323,25 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   節参照。menubar の `align-items: flex-start` 上書きが showcase 側の
 ///   中和として必要だったのとは異なり、navigation-menu は recipe 自体が
 ///   `flex-start` を既定にしているため showcase 側の追加中和は不要）。
+/// - `[data-scope="navigation-menu"][data-part="indicator"]` の `top` を
+///   固定 px へ中和（イシュー #2187 修正ラウンド、Bugbot 指摘）: recipe CSS
+///   の `indicator` は `top: 100%`（root 基準）で開いている Trigger の直下に
+///   掲示する設計だが、直前の `content` static 中和により Products の
+///   `item` が Content の高さぶん縦に伸び、`root`（`list` のみを子に持ち
+///   その高さに一致）も連動して伸びるため、`top: 100%` が Trigger 直下では
+///   なく展開済み Content の下端に着地してしまう（production では `content`
+///   が `position: absolute` のままフローに寄与しないため、この中和は
+///   showcase 限定の副作用）。`content` 側の中和を撤回すると本 doc 冒頭の
+///   About 項目・後続セクションへの重なりが再発するため、代わりに
+///   `indicator` 自身の `top` を Trigger 行の実測高さへ固定する。値
+///   `28.75px` は本ビルドの `/themes/navigation-menu/` を headless
+///   Chromium で描画し、開いている Products Trigger の
+///   `getBoundingClientRect().bottom` と `root` の `.top` の差分を実測した
+///   もの（トークン合成では表現できない: `trigger` は `<button>` であり
+///   `font`/`line-height` を明示継承しないため padding トークンからの
+///   計算値は実測値と一致しない）。デモの静的性質上ズレても破綻しない
+///   （indicator 自体は装飾専用・`aria-hidden="true"`）が、ここで Trigger
+///   直下に揃えることで実配線時（wasm-full）の見た目に近い静的掲示にする。
 /// - `[data-scope="blockquote"][data-part="content"]`（素の `<blockquote>`
 ///   要素）のリセット（イシュー #771 タイポグラフィ節掲示、Bugbot 指摘）:
 ///   `site.css` の `.docs-content blockquote` が `padding`/`border-left`/
@@ -449,6 +471,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"indicator\"] {\n  top: 28.75px;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
@@ -758,6 +781,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: bubble_section,
     },
     ComponentPage {
+        path: "/themes/attachment/",
+        render: attachment_section,
+    },
+    ComponentPage {
         path: "/themes/button-group/",
         render: button_group_section,
     },
@@ -1054,6 +1081,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::item::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::message::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::bubble::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::attachment::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -6185,6 +6213,120 @@ fn bubble_section() -> Node {
     )
 }
 
+/// Attachment 節（イシュー #2112、親 #2110。headless anatomy は #2111）。
+/// `data-variant` 2 値（file/image）・`data-state` 3 値（idle/uploading/
+/// error）・`data-disabled` を掲示する。`variant`/`state`/`disabled` は
+/// headless の `data-*` を `AttrEq`/`Attr` で参照するのみで class 軸を
+/// 持たない（`attachment.rs` モジュール doc参照）。Anatomy 表・`data-*`
+/// 属性表の機械導出のため 8 パーツ・全 state 値をここで最低 1 度は出現
+/// させる（`crates/docs-site/src/primitive_showcase/data_display_utilities.rs::attachment_section`
+/// の headless 版と同じ組み合わせを styled 部品で再現する）。
+fn attachment_section() -> Node {
+    let file_idle = attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Idle,
+            disabled: false,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("📄")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("report.pdf")]),
+                    attachment::meta(vec![], vec![text("PDF · 128 KB")]),
+                ],
+            ),
+            attachment::actions(
+                vec![],
+                vec![attachment::action(
+                    "Delete report.pdf",
+                    false,
+                    vec![],
+                    vec![text("✕")],
+                )],
+            ),
+        ],
+    );
+
+    let image_uploading = {
+        use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+        let p = Progress::new(0.0, 100.0, Some(64.0), Orientation::Horizontal);
+        attachment::root(
+            AttachmentRootProps {
+                variant: AttachmentVariant::Image,
+                state: AttachmentState::Uploading,
+                disabled: false,
+            },
+            vec![],
+            vec![
+                attachment::media(
+                    vec![],
+                    vec![fandhe_frontend_core::img(
+                        vec![("src", IMAGE_DEMO_SRC), ("alt", "photo.png のプレビュー")],
+                        vec![],
+                    )],
+                ),
+                attachment::content(
+                    vec![],
+                    vec![
+                        attachment::name(vec![], vec![text("photo.png")]),
+                        attachment::meta(vec![], vec![text("PNG · 2.4 MB · 64%")]),
+                    ],
+                ),
+                attachment::progress(
+                    vec![],
+                    vec![fandhe_frontend_pre_styled_ui::progress::root(
+                        &p,
+                        &fandhe_frontend_pre_styled_ui::progress::ProgressProps::default(),
+                        Some("64%"),
+                        vec![],
+                        vec![p.track(
+                            vec![],
+                            vec![fandhe_frontend_pre_styled_ui::progress::range(&p, vec![])],
+                        )],
+                    )],
+                ),
+            ],
+        )
+    };
+
+    let error_disabled = attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Error,
+            disabled: true,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("📄")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("archive.zip")]),
+                    attachment::meta(vec![], vec![text("Upload failed")]),
+                ],
+            ),
+            attachment::actions(
+                vec![],
+                vec![attachment::action(
+                    "Retry archive.zip",
+                    true,
+                    vec![],
+                    vec![text("↻")],
+                )],
+            ),
+        ],
+    );
+
+    section(
+        "Attachment",
+        "添付ファイル 1 件の表示。data-variant（file/image）・data-state（idle/uploading/error）・data-disabled は headless の data-* を参照するのみで class 軸は持ちません。file 形態は横並びの行カード、image 形態は縦積みのサムネイルカードで actions は hover/focus-within（タッチ端末では常時表示）で現れます。progress スロットは styled Progress の入れ子です。",
+        vec![row(vec![file_idle, image_uploading, error_disabled])],
+    )
+}
+
 /// Textarea 節: Outline（既定）/ Invalid / Disabled の 3 態（イシュー
 /// #2022、shadcn/ui 突合。`input_section` の Invalid デモ・
 /// `.showcase-form-field-group` ラッパー併設コメントと同型）。
@@ -10296,10 +10438,11 @@ fn sidebar_section() -> Node {
     )
 }
 
-/// Navigation Menu 節（イシュー #993、#2035 で 7 パーツへ拡張）:
-/// root/list/item/trigger/item-indicator/content/link の 7 anatomy パーツを
-/// 1 デモに全網羅する（Anatomy 節はデモ HTML から機械導出されるため、
-/// 1 パーツでも欠けると節が不完全になる、
+/// Navigation Menu 節（イシュー #993、#2035 で 7 パーツへ、#2187 で
+/// ルートレベル indicator を加え 8 パーツへ拡張）:
+/// root/list/item/trigger/item-indicator/content/link/indicator の
+/// 8 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
+/// 機械導出されるため、1 パーツでも欠けると節が不完全になる、
 /// `crates/docs-site/src/component_specs_overlay.rs` 参照）。
 ///
 /// 1 項目目（Products）は Trigger を開いた状態（`data-state="open"`）で
@@ -10313,7 +10456,11 @@ fn sidebar_section() -> Node {
 /// （About）はディスクロージャを持たない単独リンクとし `current: true`
 /// （`aria-current="page"`）でアクティブリンク表現を掲示する。`href` は
 /// `showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
-/// linkcheck 中立性契約に従い空文字列固定とする。
+/// linkcheck 中立性契約に従い空文字列固定とする。ルートレベル
+/// indicator（イシュー #2187）は root 直下・list の兄弟として Products の
+/// 下に静的掲示する。実座標の追従は wasm-full の責務（#2208/#2209 系、
+/// 本 Demo は未配線）のため、`attrs` の `style` で CSS 変数を直接指定して
+/// 可視化する（既定 `0px` フォールバックのままだと幅 0 で不可視のため）。
 fn navigation_menu_section() -> Node {
     // 静的掲示のため状態機械（`NavigationMenu`）は経由せず、headless 層の
     // 自由関数へ `OpenState` を直接渡して組み立てる（`state` 引数を明示
@@ -10464,11 +10611,28 @@ fn navigation_menu_section() -> Node {
                     vec![navigation_menu::link("", true, vec![], vec![text("About")])],
                 ),
             ],
-        )],
+        ),
+            // イシュー #2187: ルートレベル indicator（root 直下・list の
+            // 兄弟）を Products（開いている項目）の下に静的掲示する。
+            // 座標追従は wasm-full の責務（#2208/#2209 系、本 Demo は
+            // 実測せず）のため、CSS 変数を `attrs` の `style` で直接
+            // 指定して可視化する（既定 `0px` フォールバックのままだと
+            // 幅 0 で不可視のため）。
+            navigation_menu::indicator(
+                OpenState::Open,
+                &nav_props,
+                Some("products"),
+                vec![(
+                    "style",
+                    "--fandhe-navigation-menu-indicator-x: 0px; --fandhe-navigation-menu-indicator-width: 5rem;",
+                )],
+                vec![],
+            ),
+        ],
     );
     section(
         "Navigation Menu",
-        "headless-ui の Navigation Menu（役割は素の nav/ul/li/button/div/a の暗黙 ARIA role に依拠し、role は一切付与しません）に pre-styled-ui の recipe CSS を適用した静的掲示です。Products トリガーを開いた状態（data-state=\"open\"）で item-indicator（開閉シェブロン、イシュー #2035）を回転済みの視覚で掲示し、Content 内は crate::text を併用したタイトル + 説明文の 2 列グリッドリンク合成を掲示します。Resources はアイコン + item-indicator を持つトリガーを閉じた状態（回転しない基準状態）で掲示し、About は Trigger/Content を持たない単独リンクとして aria-current=\"page\" によるアクティブリンク表現を掲示します。viewport 測定・data-motion・ルートレベルの NavigationMenuIndicator は headless 層に存在しないため掲示していません（詳細は headless-ui の navigation_menu モジュール doc、および pre-styled-ui の navigation_menu モジュール doc「shadcn/ui 突合（イシュー #2035）」節を参照）。",
+        "headless-ui の Navigation Menu（役割は素の nav/ul/li/button/div/a の暗黙 ARIA role に依拠し、role は一切付与しません）に pre-styled-ui の recipe CSS を適用した静的掲示です。Products トリガーを開いた状態（data-state=\"open\"）で item-indicator（開閉シェブロン、イシュー #2035）を回転済みの視覚で掲示し、Content 内は crate::text を併用したタイトル + 説明文の 2 列グリッドリンク合成を掲示します。Resources はアイコン + item-indicator を持つトリガーを閉じた状態（回転しない基準状態）で掲示し、About は Trigger/Content を持たない単独リンクとして aria-current=\"page\" によるアクティブリンク表現を掲示します。ルートレベルの indicator（Trigger 直下でスライドするポインタ、イシュー #2187）を Products の下に静的掲示します。実座標の追従は wasm-full の責務（#2208/#2209 系、本 Demo は未配線）のため、CSS 変数を style で直接指定して可視化しています。viewport 測定・data-motion は headless 層に存在しないため掲示していません（詳細は headless-ui の navigation_menu モジュール doc、および pre-styled-ui の navigation_menu モジュール doc「shadcn/ui 突合（イシュー #2035/#2187）」節を参照）。",
         vec![node],
     )
 }
@@ -14170,7 +14334,8 @@ mod tests {
         // イシュー #2106 で Message を追加し 109 → 110 件になった。
         // イシュー #2075 で Sidebar を追加し 110 → 111 件になった。
         // イシュー #2109 で Bubble を追加し 111 → 112 件になった。
-        assert_eq!(paths.len(), 112, "COMPONENT_PAGES should have 112 entries");
+        // イシュー #2112 で Attachment を追加し 112 → 113 件になった。
+        assert_eq!(paths.len(), 113, "COMPONENT_PAGES should have 113 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

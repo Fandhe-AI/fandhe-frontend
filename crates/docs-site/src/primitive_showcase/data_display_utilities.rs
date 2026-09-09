@@ -1,5 +1,6 @@
-//! Primitives Demo — Data Display / Utilities（14 件、原稿は #1029。
-//! イシュー #2111 で `attachment` 追加、旧 13。イシュー #2108 で `bubble`
+//! Primitives Demo — Data Display / Utilities（15 件、原稿は #1029。
+//! イシュー #2114 で `marker` 追加、旧 14。イシュー #2111 で `attachment`
+//! 追加、旧 13。イシュー #2108 で `bubble`
 //! 追加、旧 12。イシュー #2105 で `message`
 //! 追加、旧 11。イシュー #2065 で `item`
 //! 追加、旧 10）。
@@ -14,6 +15,7 @@ use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
 use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
+use hui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use hui::positioning::{Align, Placement, Side};
 use hui::progress::Progress;
@@ -378,6 +380,58 @@ pub(super) fn json_tree_view_section() -> Node {
     let tree = json_tree_view::expanded_to_depth(&value, 2);
     let body = vec![json_tree_view::render_json(&tree, &value)];
     demo_page("JSON Tree View", body)
+}
+
+/// イシュー #2114: 3 anatomy パーツ全て（root/icon/content）と
+/// `data-variant` 3 値（note/divider/label）× `data-tone` 4 値
+/// （neutral/info/warning/danger）を複数の `root` で全網羅する（デモ執筆
+/// 規約 2「全 anatomy パートを可能な限り全網羅する」・Anatomy/`data-*` 表の
+/// 機械導出元、`crates/headless-ui/src/marker.rs` モジュール doc参照）。
+/// 区切り線は headless 層が出力しないため（同モジュール doc「区切り線は
+/// headless で描かない」参照）、Demo でも線要素は描画しない。
+pub(super) fn marker_section() -> Node {
+    let note_neutral = marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Note,
+            tone: MarkerTone::Neutral,
+        },
+        vec![],
+        vec![
+            marker::icon(vec![], vec![text("i")]),
+            marker::content(vec![], vec![text("Explored 4 files")]),
+        ],
+    );
+    let divider_info = marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Divider,
+            tone: MarkerTone::Info,
+        },
+        vec![],
+        vec![marker::content(
+            vec![],
+            vec![text("Conversation compacted")],
+        )],
+    );
+    let label_warning = marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Label,
+            tone: MarkerTone::Warning,
+        },
+        vec![],
+        vec![marker::content(vec![], vec![text("Today")])],
+    );
+    let note_danger = marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Note,
+            tone: MarkerTone::Danger,
+        },
+        vec![],
+        vec![marker::content(vec![], vec![text("Connection lost")])],
+    );
+    demo_page(
+        "Marker",
+        vec![note_neutral, divider_info, label_warning, note_danger],
+    )
 }
 
 /// イシュー #2105: 6 anatomy パーツ全て（root/avatar/header/content/footer/

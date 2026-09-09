@@ -2,10 +2,14 @@
 
 トリガーのクリックで開くナビゲーションパネル（高々 1 項目のみ開く）です。
 `fandhe-frontend-headless-ui` の `navigation_menu` mod は Root / List / Item /
-Trigger / ItemIndicator / Content / Link の 7 anatomy パーツを提供する
-unstyled 部品であり、Themes 版と異なりスタイル（CSS）は一切持ちません。
+Trigger / ItemIndicator / Content / Link / Indicator の 8 anatomy パーツを
+提供する unstyled 部品であり、Themes 版と異なりスタイル（CSS）は一切持ちません。
 `nav_list`（ディスクロージャなしの静的リンク集）とは、開閉状態機械の有無で
-使い分けます。
+使い分けます。ルートレベルの `indicator`（開いている Trigger の下でスライド
+するポインタ）は root 直下・list の兄弟に置く装飾パーツで、`aria-hidden="true"`
+と `data-state`（開いている項目が 1 つでもあれば open）・`data-orientation`・
+`data-value`（開いている項目値、`Some` のときのみ）を出力します。`style` 属性
+は出力しません（座標追従・CSS 変数命名は上層の責務、下記参照）。
 
 `NavigationMenuProps { orientation }`（既定 `Horizontal`）を root / list /
 item / content へ渡すと `data-orientation` が出力され、`item` / `content` は
@@ -31,10 +35,16 @@ ark-ui NavigationMenu・Radix Primitives Navigation Menu と突合し、
 `ItemIndicator` パートを新設（6 → 7 anatomy パーツ）、`NavigationMenuProps`
 による `data-orientation`（root/list/item/content）、`data-value`
 （item/content）を追加し、各パーツ関数の呼び出し側 `attrs` から固定属性
-キーの偽装を除去する `drop_reserved` を追加しました。一方、以下は意図的に
-合わせていません。
+キーの偽装を除去する `drop_reserved` を追加しました。ルートレベルの
+`Indicator`（7 → 8 anatomy パーツ）も新設し、Radix の「構造 + 装飾 + 実測を
+1 パーツで担う」設計とは異なり、構造 + `data-state` のみを本層で担い、
+着装は `fandhe-frontend-pre-styled-ui`、実座標の計測は
+`fandhe-frontend-wasm-full` の責務に分離しました。Radix は List を `div` で
+包んで Indicator を track の兄弟に置きますが、本モジュールの `list` は素の
+`<ul>` のため `Indicator` は root 直下・list の兄弟に置きます。一方、以下は
+意図的に合わせていません。
 
-- **Indicator（スライドバー）/ Viewport / ViewportPositioner / Arrow**: レイアウト計測を伴う装飾関心のため headless 層には持ち込みません（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。
+- **Viewport / ViewportPositioner / Arrow**: レイアウト計測を伴う装飾関心のため headless 層には持ち込みません（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。
 - **Sub（入れ子ナビゲーション）**: 状態機械の入れ子は未実装です。
 - **hover / delay による自動 open・open-follows-focus・typeahead**: クリック起点の開閉のみをサポートし、ホバーでの自動展開は実装しません。
 - **`data-trigger-proxy-id`（ark-ui）**: 実行時 proxy 要素向けの内部属性のため不採用です。

@@ -38,7 +38,9 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::{
-    alert, avatar, badge, breadcrumb,
+    alert,
+    attachment::{self, AttachmentRootProps, AttachmentState, AttachmentVariant},
+    avatar, badge, breadcrumb,
     bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant},
     button::{button, ButtonProps, ButtonVariant},
     callout, card, carousel, color_swatch, data_list, empty_state, field, icon, image,
@@ -3508,6 +3510,118 @@ fn ex_bubble_reactions_and_collapse() -> Node {
     )
 }
 
+/// `/themes/attachment/` の Examples 節其の 1: `file` 形態（idle）と
+/// `media`/`content`/`actions` パーツを出現させる。
+fn ex_attachment_file() -> Node {
+    attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Idle,
+            disabled: false,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("\u{1f4c4}")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("report.pdf")]),
+                    attachment::meta(vec![], vec![text("PDF \u{b7} 128 KB")]),
+                ],
+            ),
+            attachment::actions(
+                vec![],
+                vec![attachment::action(
+                    "Delete report.pdf",
+                    false,
+                    vec![],
+                    vec![text("\u{2715}")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// `/themes/attachment/` の Examples 節其の 2: `image` 形態
+/// （uploading）と `progress` スロットへ入れ子にした styled Progress を
+/// 出現させる。
+fn ex_attachment_image_uploading() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    let p = Progress::new(0.0, 100.0, Some(64.0), Orientation::Horizontal);
+    attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::Image,
+            state: AttachmentState::Uploading,
+            disabled: false,
+        },
+        vec![],
+        vec![
+            attachment::media(
+                vec![],
+                vec![fandhe_frontend_core::img(
+                    vec![
+                        ("src", crate::showcase::IMAGE_DEMO_SRC),
+                        ("alt", "photo.png のプレビュー"),
+                    ],
+                    vec![],
+                )],
+            ),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("photo.png")]),
+                    attachment::meta(vec![], vec![text("PNG \u{b7} 2.4 MB \u{b7} 64%")]),
+                ],
+            ),
+            attachment::progress(
+                vec![],
+                vec![fandhe_frontend_pre_styled_ui::progress::root(
+                    &p,
+                    &fandhe_frontend_pre_styled_ui::progress::ProgressProps::default(),
+                    Some("64%"),
+                    vec![],
+                    vec![p.track(
+                        vec![],
+                        vec![fandhe_frontend_pre_styled_ui::progress::range(&p, vec![])],
+                    )],
+                )],
+            ),
+        ],
+    )
+}
+
+/// `/themes/attachment/` の Examples 節其の 3: `error` 状態と
+/// `disabled`（root/action 双方）を出現させる。
+fn ex_attachment_error() -> Node {
+    attachment::root(
+        AttachmentRootProps {
+            variant: AttachmentVariant::File,
+            state: AttachmentState::Error,
+            disabled: true,
+        },
+        vec![],
+        vec![
+            attachment::media(vec![], vec![text("\u{1f4c4}")]),
+            attachment::content(
+                vec![],
+                vec![
+                    attachment::name(vec![], vec![text("archive.zip")]),
+                    attachment::meta(vec![], vec![text("Upload failed")]),
+                ],
+            ),
+            attachment::actions(
+                vec![],
+                vec![attachment::action(
+                    "Retry archive.zip",
+                    true,
+                    vec![],
+                    vec![text("\u{21bb}")],
+                )],
+            ),
+        ],
+    )
+}
+
 /// `/themes/bubble/`（イシュー #2109、親 #2107。headless anatomy は
 /// #2108）の原稿データ。`variant`/`align`/`group-position`/`selected`/
 /// `state` は headless の `data-*` を `AttrEq`/`Attr`/`AttrEqAll` で参照
@@ -3601,6 +3715,88 @@ pub(crate) const BUBBLE: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "hidden (collapse-content)",
             description: "collapse-content は closed のとき hidden 存在属性を付与し、JS なしの SSR でも閉状態を表現する。",
+        },
+    ],
+    demo: None,
+};
+
+/// `/themes/attachment/`（イシュー #2112、親 #2110。headless anatomy は
+/// #2111）の原稿データ。`variant`/`state`/`disabled` は headless の
+/// `data-*` を `AttrEq`/`Attr` で参照するのみで class 軸を持たない
+/// （`attachment.rs` モジュール doc参照）。
+pub(crate) const ATTACHMENT: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "AttachmentVariant（File/Image、attachment.rs recipe() の data-variant 参照）で横並びの行カード・縦積みのサムネイルカードを切り替える",
+        "AttachmentState（Idle/Uploading/Error）で通常表示・アップロード進行中・失敗時の枠色/文字色を切り替える",
+        "root/media/content/name/meta/progress/actions/action の 8 パーツで添付ファイル 1 件を構造化する",
+        "image 形態の actions は既定で隠れ、root への hover/focus-within で表示する（タッチ端末等 hover 機構を持たない端末では opacity: 0 の既定非表示規則自体が @media (hover: hover) 配下に限定されるため常時表示のまま残る、attachment.rs モジュール doc「actions の hover 表示とタッチ端末対策」節参照）",
+        "progress は attachment scope の単純なスロットで、呼び出し側が styled Progress（root/track/range）を入れ子にする契約",
+        "name/meta は整形済み文字列を受け取るだけのスロットで、byte → KB 変換等の数値整形は実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1）",
+        "action は type=\"button\" 固定・label が空文字列でないときのみ aria-label・disabled はネイティブ disabled + data-disabled の両方に反映する",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "AttachmentVariant",
+            default: "File",
+            description: "表示形態（File/Image。data-variant として出力され、横並びの行カードと縦積みのサムネイルカードを切り替える）。",
+        },
+        ArgRow {
+            name: "state",
+            kind: "AttachmentState",
+            default: "Idle",
+            description: "アップロード状態（Idle/Uploading/Error。data-state として出力され、Error は枠色・meta 文字色を切り替える）。",
+        },
+        ArgRow {
+            name: "disabled",
+            kind: "bool",
+            default: "false",
+            description: "root の data-disabled（true の場合 opacity: 0.5 + cursor: not-allowed を適用）。",
+        },
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "\"\"",
+            description: "action の aria-label（空文字列のときは省略）。",
+        },
+        ArgRow {
+            name: "disabled (action)",
+            kind: "bool",
+            default: "false",
+            description: "action 自身の disabled（root の disabled とは独立。ネイティブ disabled + data-disabled の両方に反映し、cursor: not-allowed のみを適用する）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "File variant",
+            description: "横並びの行カード（idle）と media/content/actions パーツの例です。",
+            render: ex_attachment_file,
+        },
+        ExampleEntry {
+            title: "Image variant uploading",
+            description: "縦積みのサムネイルカード（uploading）と progress スロットへ入れ子にした styled Progress の例です。",
+            render: ex_attachment_image_uploading,
+        },
+        ExampleEntry {
+            title: "Error and disabled",
+            description: "アップロード失敗時（error）と disabled 状態の例です。",
+            render: ex_attachment_error,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "action はネイティブ button[type=\"button\"] として描画され、ブラウザ標準のフォーカス順序・click 発火に従う（wasm-full の配線は不要、静的部品）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "type=\"button\" / aria-label (action)",
+            description: "action は type=\"button\" を固定付与し（フォーム内配置時の意図しない submit を防ぐ）、渡した label が空文字列でなければ aria-label へ出力する。",
+        },
+        AriaRow {
+            attribute: "disabled / data-disabled (action)",
+            description: "action の disabled 引数はネイティブ disabled 属性と data-disabled の両方へ反映する。",
         },
     ],
     demo: None,

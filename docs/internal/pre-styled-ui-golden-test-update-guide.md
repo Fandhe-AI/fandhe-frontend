@@ -56,6 +56,7 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 
 accordion / **alert（イシュー #1553 で golden 新設。イシュー #2043 で
 `action` パートの `[data-part="action"]` ブロックを 1 個追加）** /
+**attachment（イシュー #2112 で golden 新設。`stylesheet()` 全文）** /
 **badge（イシュー #1555 で golden 新設）** /
 **bar_segment（イシュー #1592 で golden 新設。`charts::bar_segment`）** /
 **bubble（イシュー #2109 で golden 新設。`stylesheet()` 全文）** /

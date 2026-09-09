@@ -20,6 +20,9 @@ use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 /// 併せて確認する。あわせて `NavigationMenuProps::orientation` が SSR →
 /// hydration の一巡を通じて `data-orientation` として保持されることも
 /// 固定する（イシュー #1654、参考サイトとの anatomy/data-* 突合）。
+/// ルートレベル `indicator`（イシュー #2187）も root 直下・list の兄弟に
+/// 組み込み、SSR では closed（`hidden`）、dispatch 後の再描画では open
+/// （`data-value` 付き）になることを固定する。
 #[test]
 fn full_cycle_ssr_then_dispatch_then_hydration() {
     let initial = NavigationMenu::default();
@@ -31,54 +34,57 @@ fn full_cycle_ssr_then_dispatch_then_hydration() {
         &props,
         "Main",
         vec![],
-        vec![navigation_menu::list(
-            &props,
-            vec![],
-            vec![
-                initial.item(
-                    "products",
-                    false,
-                    &props,
-                    vec![],
-                    vec![
-                        initial.trigger(
-                            "products",
-                            false,
-                            Some("trigger-products"),
-                            Some("content-products"),
-                            vec![],
-                            vec![text("Products")],
-                        ),
-                        initial.content(
-                            "products",
-                            &props,
-                            Some("content-products"),
-                            Some("trigger-products"),
-                            vec![],
-                            vec![navigation_menu::link(
-                                "/products/a",
-                                false,
-                                vec![],
-                                vec![text("Product A")],
-                            )],
-                        ),
-                    ],
-                ),
-                navigation_menu::item(
-                    OpenState::Closed,
-                    false,
-                    &props,
-                    "about",
-                    vec![],
-                    vec![navigation_menu::link(
-                        "/about",
-                        true,
+        vec![
+            navigation_menu::list(
+                &props,
+                vec![],
+                vec![
+                    initial.item(
+                        "products",
+                        false,
+                        &props,
                         vec![],
-                        vec![text("About")],
-                    )],
-                ),
-            ],
-        )],
+                        vec![
+                            initial.trigger(
+                                "products",
+                                false,
+                                Some("trigger-products"),
+                                Some("content-products"),
+                                vec![],
+                                vec![text("Products")],
+                            ),
+                            initial.content(
+                                "products",
+                                &props,
+                                Some("content-products"),
+                                Some("trigger-products"),
+                                vec![],
+                                vec![navigation_menu::link(
+                                    "/products/a",
+                                    false,
+                                    vec![],
+                                    vec![text("Product A")],
+                                )],
+                            ),
+                        ],
+                    ),
+                    navigation_menu::item(
+                        OpenState::Closed,
+                        false,
+                        &props,
+                        "about",
+                        vec![],
+                        vec![navigation_menu::link(
+                            "/about",
+                            true,
+                            vec![],
+                            vec![text("About")],
+                        )],
+                    ),
+                ],
+            ),
+            initial.indicator(&props, vec![], vec![]),
+        ],
     ));
     assert!(ssr_html.starts_with("<nav"));
     assert!(ssr_html.contains(r#"aria-label="Main""#));
@@ -86,9 +92,34 @@ fn full_cycle_ssr_then_dispatch_then_hydration() {
     assert!(ssr_html.contains(r#"hidden="""#));
     assert!(ssr_html.contains(r#"aria-current="page""#));
     assert!(ssr_html.contains(r#"data-orientation="vertical""#));
+    assert!(ssr_html.contains(r#"data-part="indicator""#));
     assert!(!ssr_html.contains("role="));
     assert!(!ssr_html.contains("data-motion"));
     assert!(!ssr_html.contains("data-hydrate-"));
+    // SSR 時点は未選択（全項目 closed）のため indicator も closed かつ
+    // 指す対象が無い（`data-value` 不在）。
+    assert!(ssr_html.contains(r#"data-part="indicator" aria-hidden="true" data-state="closed" data-orientation="vertical" hidden="""#));
+
+    // 決定性（同一入力 2 回で同一文字列、SSR 出力の決定性）。
+    let ssr_html_again = render(&navigation_menu::root(
+        &props,
+        "Main",
+        vec![],
+        vec![
+            navigation_menu::list(&props, vec![], vec![]),
+            initial.indicator(&props, vec![], vec![]),
+        ],
+    ));
+    let ssr_html_repeat = render(&navigation_menu::root(
+        &props,
+        "Main",
+        vec![],
+        vec![
+            navigation_menu::list(&props, vec![], vec![]),
+            initial.indicator(&props, vec![], vec![]),
+        ],
+    ));
+    assert_eq!(ssr_html_again, ssr_html_repeat);
 
     // クライアント側（wasm-full 相当）の dispatch で products を開く。
     let mut client_state = initial;
@@ -104,6 +135,11 @@ fn full_cycle_ssr_then_dispatch_then_hydration() {
         vec![text("Products")],
     ));
     assert!(opened_trigger_html.contains(r#"aria-expanded="true""#));
+
+    let opened_indicator_html = render(&client_state.indicator(&props, vec![], vec![]));
+    assert!(opened_indicator_html.contains(r#"data-state="open""#));
+    assert!(opened_indicator_html.contains(r#"data-value="products""#));
+    assert!(!opened_indicator_html.contains("hidden=\"\""));
 
     // hydration ラウンドトリップ（SSR に埋め込む属性を再構築できる）。
     let hydrated_html = render(&render_for_hydration(&client_state));

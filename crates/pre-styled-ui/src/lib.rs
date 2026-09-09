@@ -674,6 +674,7 @@ pub mod action_bar;
 pub mod alert;
 pub mod angle_slider;
 pub mod area_chart;
+pub mod attachment;
 pub mod avatar;
 pub mod badge;
 pub mod blockquote;

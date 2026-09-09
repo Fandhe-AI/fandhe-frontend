@@ -1,5 +1,9 @@
 [package]
 name = "fandhe-frontend-pre-styled-ui"
+# イシュー #2187: navigation-menu にルートレベル indicator パーツの CSS 変数
+# 契約付き着装（SLOTS 純追加・root への position:relative 1 宣言・indicator
+# の base/state 宣言）を追加した。既存パーツの出力バイトは変更していない
+# ため非破壊的な追加として patch バンプする。
 # イシュー #1422: DEFAULT_COLORS へ 26 色トークンを追加し Theme::default() の
 # 公開 CSS 契約を拡張した。利用者が同名（`accent-subtle` / `focus-ring` 等）で
 # 独自に `push_color()` していた場合、今後 `ThemeError::DuplicateTokenName` を
@@ -2747,12 +2751,36 @@ name = "fandhe-frontend-pre-styled-ui"
 # version 要求文字列のみ後続で追随、本クレート自身の recipe・golden・
 # Themes ページ実装は後続イシュー #2112、出力・API は不変）。
 #
-# PR #2265 base 取り込み: headless-ui が本 PR（#2186）と main（#2111）の
-# 同一版数衝突により 0.68.9 → 0.68.10 へ+1 バンプされたため、下記の
-# 依存先 version 要求を "0.68.10" へ追随する（本クレート自身は上記
-# 0.165.0 のまま、`dep-version-check` の要求 = 依存先現行版数ルールに
-# 従うのみで追加バンプ不要）。
-version = "0.165.0"
+# イシュー #2112: `attachment` モジュール（recipe・golden・8 パーツの
+# styled ラッパー）を新設する公開 API 純追加のためマイナーバンプ（0.x の
+# 破壊的変更ではない純追加）。
+#
+# イシュー #2187 base 取り込み: 本ブランチ側では headless-ui 0.68.9 →
+# 0.68.10（navigation-menu へのルートレベル indicator パーツ新設）への
+# `dep-version-check` version 要求追随のみで 0.164.1 へ patch バンプして
+# いたが、本クレート自身の実体変更は伴わない。origin/main 側の到達値
+# 0.166.0（イシュー #2112 の実体変更を伴うマイナーバンプ）が既にこれを
+# 上回るため、追加バンプ不要で 0.166.0 をそのまま採用していた。
+#
+# イシュー #2114 base 取り込み: 本ブランチ側では依存先
+# `fandhe-frontend-headless-ui` 0.68.9 → 0.68.10（`marker` 新設）への
+# `dep-version-check` version 要求追随のみで 0.166.1 へ patch バンプして
+# いたが、本クレート自身の実体変更は伴わない（`marker` recipe・golden・
+# Themes ページ実装は後続イシュー #2115）。base 取り込みで headless-ui が
+# さらに 0.68.11 へ patch バンプした（同一版数への偶発的衝突をそのまま
+# 採用しない原則、`crates/headless-ui/Cargo.toml` 参照）ため、この
+# dep-version-check 追随分をさらに 0.166.2 へ patch バンプする。
+#
+# PR #2265 base 取り込み: headless-ui が本 PR（#2186）由来の同一版数衝突
+# 解消でさらに 0.68.12 へ patch バンプした（`crates/headless-ui/
+# Cargo.toml` 参照）ため、この dep-version-check 追随分も併せて反映する。
+# 本クレート自身は select へ `separator`/`scroll_up_button`/
+# `scroll_down_button` の `pub use` 再エクスポート 3 件を純追加し、
+# [`recipe`] へ base 3 ブロックを新設（golden 変更）する既存 API・出力は
+# 不変のまま公開 API を追加する非破壊的変更のため、#2106 の先例に倣い
+# マイナーバンプする。origin/main 到達値 0.166.2 を上回る必要があるため
+# 0.167.0 とする。
+version = "0.167.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2767,7 +2795,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.10" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.12" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

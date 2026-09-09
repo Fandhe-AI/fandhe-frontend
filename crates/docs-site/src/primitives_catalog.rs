@@ -3,7 +3,8 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! `/primitives/<kebab>/` 71 ページ（イシュー #2111 で `attachment` を
+//! `/primitives/<kebab>/` 72 ページ（イシュー #2114 で `marker` を
+//! 追加、旧 71。イシュー #2111 で `attachment` を
 //! 追加、旧 70。#2108 で `bubble` を追加、
 //! 旧 69。イシュー #2105 で `message` を追加、
 //! 旧 68。#2072 で `sidebar` を追加、旧 67。#2068 で `command` を追加、
@@ -26,18 +27,19 @@
 //! # 判別規約（設計 §6 の要旨）
 //!
 //! `crates/headless-ui/src/*.rs` のうち本文に `anatomy(` を含むもの
-//! （`anatomy.rs` 自身を除く）が部品 71 件（イシュー #2111 で
+//! （`anatomy.rs` 自身を除く）が部品 72 件（イシュー #2114 で `marker`
+//! が加わり 71 → 72。イシュー #2111 で
 //! `attachment` が加わり 70 → 71。#2108 で `bubble`
 //! が加わり 69 → 70。イシュー #2105 で `message`
 //! が加わり 68 → 69。#2072 で `sidebar`
 //! が加わり 67 → 68。#2068 で `command`
 //! が加わり 66 → 67。#2065 で `item` が加わり 65 → 66。#2062 で
 //! `input_group`・#2059 で `button_group` が加わり 63 → 65）、基盤モジュール
-//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 81 件が
+//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 82 件が
 //! `crates/headless-ui/src/*.rs` の総数（実測:
-//! `ls crates/headless-ui/src/*.rs | wc -l` => 81、
+//! `ls crates/headless-ui/src/*.rs | wc -l` => 82、
 //! `grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l`
-//! => 71）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
+//! => 72）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
 //! 責務。
 
 use std::collections::BTreeSet;
@@ -80,7 +82,9 @@ pub enum PrimitiveCategory {
     /// Navigation（13 件、原稿は #1028。イシュー #2072 で sidebar が追加され
     /// 12 → 13。イシュー #2059 で button_group が追加され 11 → 12）。
     Navigation,
-    /// Data Display / Utilities（13 件、原稿は #1029。イシュー #2108 で
+    /// Data Display / Utilities（15 件、原稿は #1029。イシュー #2114 で
+    /// `marker` が追加され 14 → 15。イシュー #2111 で `attachment` が
+    /// 追加され 13 → 14。イシュー #2108 で
     /// `bubble` が追加され 12 → 13。イシュー #2105 で
     /// `message` が追加され 11 → 12。イシュー #2065 で
     /// `item` が追加され 10 → 11）。
@@ -125,7 +129,8 @@ impl PrimitiveCategory {
     }
 }
 
-/// Primitives 台帳（71 件、イシュー #2111 で `attachment` 追加、旧 70。
+/// Primitives 台帳（72 件、イシュー #2114 で `marker` 追加、旧 71。
+/// イシュー #2111 で `attachment` 追加、旧 70。
 /// イシュー #2108 で `bubble` 追加、旧 69。イシュー
 /// #2105 で `message` 追加、旧 68。#2072 で
 /// `sidebar` 追加、旧 67。#2068 で
@@ -505,8 +510,11 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         title: "Toolbar",
         category: PrimitiveCategory::Navigation,
     },
-    // --- Data Display / Utilities（14、#1029。イシュー #2111 で attachment 追加、旧 13。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
+    // --- Data Display / Utilities（15、#1029。イシュー #2114 で marker 追加、旧 14。イシュー #2111 で attachment 追加、旧 13。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
     PrimitiveEntry {
+        // イシュー #2111 で headless-ui 層を実装。Themes ページと title
+        // 一致（イシュー #2112、`site/themes/attachment.md` / `site/nav.toml`
+        // 参照。`PRIMITIVES_WITHOUT_THEMES_PAGE` からは除外済み）。
         module: "attachment",
         path: "/primitives/attachment/",
         title: "Attachment",
@@ -540,6 +548,14 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         module: "json_tree_view",
         path: "/primitives/json-tree-view/",
         title: "JSON Tree View",
+        category: PrimitiveCategory::DataDisplayUtilities,
+    },
+    PrimitiveEntry {
+        // イシュー #2114 で headless-ui 層のみ先行実装。Themes ページは
+        // #2115 で追加予定（`PRIMITIVES_WITHOUT_THEMES_PAGE` 参照）。
+        module: "marker",
+        path: "/primitives/marker/",
+        title: "Marker",
         category: PrimitiveCategory::DataDisplayUtilities,
     },
     PrimitiveEntry {
@@ -623,7 +639,7 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives。現在 1 件（`sidebar`）。`button_group` は #2059 時点では
+/// Primitives。現在 0 件（本台帳は現在空である）。`button_group` は #2059 時点では
 /// headless-ui 層のみを実装しており暫定的にこの台帳へ載っていたが、イシュー
 /// #2060 で Themes 層（`crates/pre-styled-ui/src/button_group.rs`・
 /// `site/themes/button-group.md`）を実装済みのため除外した（`collapsible`/
@@ -646,15 +662,19 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// `site/themes/sidebar.md`）を実装済みのため除外した。`bubble` も同様に
 /// イシュー #2108 で headless-ui 層のみ先行実装され暫定的にこの台帳へ
 /// 載っていたが、イシュー #2109 で Themes 層（`crates/pre-styled-ui/src/bubble.rs`・
-/// `site/themes/bubble.md`）を実装済みのため除外した。`attachment` は
-/// イシュー #2111 で headless-ui 層のみ先行実装したため本台帳へ載せる
-/// （Themes 層・`site/themes/attachment.md` は後続イシュー #2112 で実装
-/// 予定。実装後は上記各部品と同様にこの台帳から除外する）。
+/// `site/themes/bubble.md`）を実装済みのため除外した。`attachment` も
+/// 同様にイシュー #2111 で headless-ui 層のみ先行実装され暫定的にこの
+/// 台帳へ載っていたが、イシュー #2112 で Themes 層
+/// （`crates/pre-styled-ui/src/attachment.rs`・`site/themes/attachment.md`）
+/// を実装済みのため除外した。`marker` はイシュー #2114 が headless-ui 層を
+/// 新設した時点では headless 先行のためこの台帳に載る。イシュー #2115 で
+/// Themes 層（`crates/pre-styled-ui/src/marker.rs`・
+/// `site/themes/marker.md`）を実装した時点で本リストから除外する予定。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["attachment"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["marker"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
@@ -841,8 +861,12 @@ mod tests {
         assert!(result.is_clean(), "{result:?}");
     }
 
-    /// 台帳が 70 件・6 カテゴリで、件数配分（13/11/10/10/13/13）と
-    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2108 で
+    /// 台帳が 72 件・6 カテゴリで、件数配分（13/11/10/10/13/15）と
+    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2114 で
+    /// `marker` が Data Display / Utilities へ追加され同カテゴリは
+    /// 14 → 15、イシュー #2111 で `attachment` が
+    /// Data Display / Utilities へ追加され同カテゴリは 13 → 14、イシュー
+    /// #2108 で
     /// `bubble` が Data Display / Utilities へ追加され同カテゴリは
     /// 12 → 13、イシュー #2105 で
     /// `message` が Data Display / Utilities へ追加され同カテゴリは
@@ -853,11 +877,10 @@ mod tests {
     /// #2062 で `input_group` が Forms A へ追加され Forms A は 11 → 12、
     /// イシュー #2059 で `button_group` が Navigation へ追加され
     /// Navigation は 11 → 12、イシュー #2068 で `command` が Forms A へ
-    /// 追加され Forms A は 12 → 13、イシュー #2111 で `attachment` が
-    /// Data Display / Utilities へ追加され同カテゴリは 13 → 14）。
+    /// 追加され Forms A は 12 → 13）。
     #[test]
-    fn catalog_has_71_entries_in_six_categories_in_spec_order() {
-        assert_eq!(PRIMITIVES.len(), 71);
+    fn catalog_has_72_entries_in_six_categories_in_spec_order() {
+        assert_eq!(PRIMITIVES.len(), 72);
 
         let expected_order_and_counts: [(PrimitiveCategory, usize); 6] = [
             (PrimitiveCategory::FormsA, 13),
@@ -865,7 +888,7 @@ mod tests {
             (PrimitiveCategory::FormsCDateStatus, 10),
             (PrimitiveCategory::OverlayDisclosure, 10),
             (PrimitiveCategory::Navigation, 13),
-            (PrimitiveCategory::DataDisplayUtilities, 14),
+            (PrimitiveCategory::DataDisplayUtilities, 15),
         ];
 
         assert_eq!(
