@@ -653,9 +653,17 @@ mod wiring {
         begin_or_update_session(root, handle, &hit_area, false, client_x, client_y);
     }
 
-    /// `root` へ focusout を配線する。`related_target` が同一 svg の
-    /// hit-area でなければ非 sticky セッションを閉じる。
+    /// `root` へ focusout を配線する。sticky（タッチ）セッション中は
+    /// 無視する（兄弟の `handle_pointermove`/`handle_pointerout`/
+    /// `handle_pointercancel` と同型のガード。タッチ由来で開始した
+    /// セッションはチャート外タップまで開いたままにする契約を守るため、
+    /// `handle_document_pointerdown` に閉鎖判定を委ねる）。`related_target`
+    /// が `root` 配下の hit-area でなければ非 sticky セッションを閉じる。
     fn handle_focusout(root: &Element, handle: &SessionHandle, event: &Event) {
+        let sticky = handle.borrow().as_ref().map(|s| s.sticky).unwrap_or(false);
+        if sticky {
+            return;
+        }
         let Some(target) = event_target_element(event) else {
             return;
         };

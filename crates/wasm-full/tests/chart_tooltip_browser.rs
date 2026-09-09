@@ -511,6 +511,41 @@ fn touch_pointerdown_opens_sticky_session_and_outside_tap_closes() {
 }
 
 #[wasm_bindgen_test]
+fn touch_sticky_session_ignores_focusout_and_only_outside_tap_closes() {
+    // handle_focusout の sticky ガード回帰テスト。タッチ由来の sticky
+    // セッション中にフォーカス不可能な要素（軸ラベル相当・related_target
+    // なし）へ focusout が発火しても、ドキュメント契約
+    // （「タッチ由来で開始したセッションはチャート外タップまで開いた
+    // ままにする」）どおり閉じないことを検証する。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-test-touch-focusout");
+    let _guard = RemoveOnDrop(container.clone());
+    bar_like_markup("chart-test-touch-focusout");
+    wire_chart_events(container.clone()).expect("wire_chart_events must succeed");
+
+    let hit0 = query(&container, "[data-part=\"hit-area\"][data-index=\"0\"]").expect("hit-area 0");
+    let tooltip0 =
+        query(&container, "[data-part=\"tooltip\"][data-index=\"0\"]").expect("tooltip 0");
+
+    dispatch_pointer(hit0.unchecked_ref(), "pointerdown", "touch", 5.0, 5.0);
+    assert!(!tooltip0.has_attribute("hidden"));
+
+    // sticky セッション中の focusout（related_target なし）は無視される。
+    hit0.dispatch_event(focus_event("focusout", None).as_ref())
+        .expect("dispatch_event must not fail");
+    assert!(!tooltip0.has_attribute("hidden"));
+
+    // frame 外側（body）への pointerdown のみが sticky セッションを閉じる。
+    let outside: Element = document
+        .body()
+        .expect("document body must exist")
+        .dyn_into()
+        .expect("body is an Element");
+    dispatch_pointer(outside.unchecked_ref(), "pointerdown", "touch", 0.0, 0.0);
+    assert!(tooltip0.has_attribute("hidden"));
+}
+
+#[wasm_bindgen_test]
 fn scatter_series_matching_shows_only_matching_series() {
     let document = web_sys::window().unwrap().document().unwrap();
     let container = create_container(&document, "chart-test-scatter");
