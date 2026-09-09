@@ -2632,3 +2632,139 @@ fn mousedown_on_item_inside_ancestor_tabindex_panel_prevents_default() {
          による input のフォーカス維持が妨げられてはならない"
     );
 }
+
+/// [`clicking_item_inside_ancestor_tabindex_panel_still_dispatches`]・
+/// [`mousedown_on_item_inside_ancestor_tabindex_panel_prevents_default`]
+/// は `wire()` の `root` 引数へ Command 自身の `ROOT_SELECTOR` 要素を渡して
+/// いたため、`tabindex="0"` パネルは元々その `root` の外側（`root.contains`
+/// が false）であり、独立コントロール除外判定の祖先探索範囲を `root` で
+/// 判定していた旧実装でも誤検知を再現できていなかった（実運用の
+/// `Runtime::wire_command` は Command 自身の root ではなく、Tabs content/
+/// ScrollArea viewport を含むアプリ全体の Runtime mount root を
+/// `wire_command_events` へ渡すため、パネルは `root` の**内側**に位置し
+/// `root.contains(panel)` が true になる）。本テストは `wire()` へ渡す
+/// `root` を「パネルの外側にあるアプリ全体の Runtime root」に変え、
+/// Command の `ROOT_SELECTOR` 要素より広い `wired_root` を再現したうえで
+/// item クリックが引き続き `select`/`command:execute` を dispatch する
+/// ことを検証する（codex-review P1 再是正・Cursor Bugbot High 是正の
+/// 直接回帰テスト、イシュー #2069）。
+#[wasm_bindgen_test]
+fn clicking_item_inside_ancestor_tabindex_panel_still_dispatches_when_wired_root_is_wider() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, _input, _list, item_elements) = build_command_dom(
+        &document,
+        "cmd-click-ancestor-tabindex-panel-wide-root",
+        &command,
+        &items,
+    );
+
+    // Command の外側（例: Tabs content パネルや ScrollArea viewport）を
+    // 模した `tabindex="0"` 固定の祖先パネルへ container ごと包み、その
+    // パネルをさらに包む `runtime_root`（アプリ全体の Runtime mount root
+    // を模す）を用意する。`wire()` へは Command 自身の root ではなく
+    // `runtime_root` を渡し、パネルが `wired_root` の内側に位置する実運用
+    // 構成を再現する。
+    let container = root
+        .parent_element()
+        .expect("build_command_dom container must exist as root's parent");
+    let panel = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    panel
+        .set_attribute("tabindex", "0")
+        .expect("set_attribute must not fail");
+    let runtime_root = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    document
+        .body()
+        .expect("document body must exist")
+        .append_child(&runtime_root)
+        .expect("append_child must not fail");
+    runtime_root
+        .append_child(&panel)
+        .expect("append_child must not fail");
+    panel
+        .append_child(&container)
+        .expect("append_child must not fail");
+    let _cleanup = RemoveOnDrop(runtime_root.clone());
+
+    let (_component, log) = wire(runtime_root, command);
+
+    let text_node = item_elements[0]
+        .first_child()
+        .expect("item element must contain a text node child (label)");
+    text_node.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        log.borrow().as_slice(),
+        [
+            ("select".to_string(), "a".to_string()),
+            (
+                fandhe_frontend_wasm_full::command::ACTION_EXECUTE.to_string(),
+                "a".to_string()
+            ),
+        ],
+        "wired_root がパネルより広い実運用構成で、外側パネルの \
+         tabindex=\"0\" に誤って一致し通常の item クリックまで無効化されて \
+         はならない"
+    );
+}
+
+/// [`clicking_item_inside_ancestor_tabindex_panel_still_dispatches_when_wired_root_is_wider`]
+/// の mousedown 版。`wired_root` がパネルより広い実運用構成でも、item への
+/// mousedown が引き続き `prevent_default()` される（`input` のフォーカス
+/// 維持が妨げられない）ことを検証する（codex-review P1 再是正の直接回帰
+/// テスト、イシュー #2069）。
+#[wasm_bindgen_test]
+fn mousedown_on_item_inside_ancestor_tabindex_panel_prevents_default_when_wired_root_is_wider() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, _input, _list, item_elements) = build_command_dom(
+        &document,
+        "cmd-mousedown-ancestor-tabindex-panel-wide-root",
+        &command,
+        &items,
+    );
+
+    let container = root
+        .parent_element()
+        .expect("build_command_dom container must exist as root's parent");
+    let panel = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    panel
+        .set_attribute("tabindex", "0")
+        .expect("set_attribute must not fail");
+    let runtime_root = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    document
+        .body()
+        .expect("document body must exist")
+        .append_child(&runtime_root)
+        .expect("append_child must not fail");
+    runtime_root
+        .append_child(&panel)
+        .expect("append_child must not fail");
+    panel
+        .append_child(&container)
+        .expect("append_child must not fail");
+    let _cleanup = RemoveOnDrop(runtime_root.clone());
+
+    let (_component, _log) = wire(runtime_root, command);
+
+    let event = mousedown_event();
+    item_elements[0].dispatch_event(&event).unwrap();
+    assert!(
+        event.default_prevented(),
+        "wired_root がパネルより広い実運用構成で、外側パネルの \
+         tabindex=\"0\" に誤って一致し item への mousedown による input の \
+         フォーカス維持が妨げられてはならない"
+    );
+}

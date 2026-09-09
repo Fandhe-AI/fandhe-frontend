@@ -1826,17 +1826,26 @@ mod wiring {
         // させない fail-closed（モジュール冒頭 doc「セキュリティ不変条件」
         // 節と同型）: `target_element` が実在の Command インスタンス
         // （`ROOT_SELECTOR` 祖先）の配下であることを確認する。
-        if resolve_instance_root(root, target_element).is_none() {
+        let Some(instance_root) = resolve_instance_root(root, target_element) else {
             return;
-        }
+        };
         // 独立したインタラクティブ要素（またはその子孫）はブラウザ既定
         // 動作を妨げない（codex-review P1 是正、イシュー #2069。
         // `INDEPENDENT_INTERACTIVE_SELECTOR` doc 参照）。一致した要素が
-        // `root` 配下に実在する場合のみ対象とする（`root` の外側の祖先
-        // パネルへの誤爆を防ぐ、[`handle_mousedown`] doc「祖先探索範囲の
-        // 限定」節参照）。
+        // **この Command インスタンス（`instance_root`）配下**に実在する
+        // 場合のみ対象とする。`root`（配線登録時の Runtime root）配下かで
+        // 判定すると、Command を Tabs content や ScrollArea viewport の
+        // 子孫として配置した構成で、それらパネルが固定で持つ
+        // `tabindex="0"` に `closest` が一致し、かつパネル自体は
+        // Command インスタンスの外側の祖先でありながら広域の `root` には
+        // 含まれてしまうため、通常の item クリックまで誤って無効化されて
+        // いた（codex-review P1 再是正・Cursor Bugbot High 是正、イシュー
+        // #2069）。`instance_root` は Command 自身の root であり、その外側
+        // の祖先パネルは `instance_root.contains` で確実に除外される一方、
+        // item 内部の独立コントロールは `instance_root` の子孫のため
+        // 引き続き正しく対象になる。
         if closest(target_element, INDEPENDENT_INTERACTIVE_SELECTOR)
-            .is_some_and(|independent| root.contains(Some(&independent)))
+            .is_some_and(|independent| instance_root.contains(Some(&independent)))
         {
             return;
         }
@@ -1886,6 +1895,13 @@ mod wiring {
         if !root.contains(Some(&target_element)) {
             return;
         }
+        // 改ざんされた `data-scope`/`data-part` で root 外の要素を操作
+        // させない fail-closed（[`handle_mousedown`] と同型）に加え、
+        // 直後の独立コントロール除外判定の探索範囲を確定する（下記）ため、
+        // 先に Command インスタンスの root を解決しておく。
+        let Some(target_instance_root) = resolve_instance_root(root, &target_element) else {
+            return;
+        };
         // item 内に配置された独立インタラクティブ要素（`button`/
         // `a[href]`/`input`/`select`/`textarea`、`INDEPENDENT_INTERACTIVE_
         // SELECTOR` doc 参照）のクリックは、その要素自身の既定動作
@@ -1901,14 +1917,17 @@ mod wiring {
         // `stop_propagation()` まで行っていた。
         //
         // `closest()` は祖先方向へ無制限に探索するため、一致した要素が
-        // `root` 配下（`root` 自身を含む）に実在する場合のみ対象とする
-        // （`root` の外側の祖先パネル、例えば Command を Tabs content や
-        // ScrollArea viewport の内側に合成配置した場合にそれらが固定で
-        // 持つ `tabindex="0"` への誤一致で通常の item クリックまで無効化
-        // してしまう不具合の是正。codex-review P1 再是正、イシュー #2069。
-        // [`handle_mousedown`] doc「祖先探索範囲の限定」節と同型）。
+        // **この Command インスタンス（`target_instance_root`）配下**に
+        // 実在する場合のみ対象とする。`root`（配線登録時の Runtime root）
+        // 配下かで判定すると、Command を Tabs content や ScrollArea
+        // viewport の子孫として配置した構成で、それらパネルが固定で持つ
+        // `tabindex="0"` に `closest` が一致し、かつパネル自体は Command
+        // インスタンスの外側の祖先でありながら広域の `root` には含まれて
+        // しまうため、通常の item クリックまで誤って無効化されていた
+        // （codex-review P1 再是正・Cursor Bugbot High 是正、イシュー
+        // #2069。[`handle_mousedown`] doc「祖先探索範囲の限定」節と同型）。
         if closest(&target_element, INDEPENDENT_INTERACTIVE_SELECTOR)
-            .is_some_and(|independent| root.contains(Some(&independent)))
+            .is_some_and(|independent| target_instance_root.contains(Some(&independent)))
         {
             return;
         }
