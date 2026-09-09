@@ -35,6 +35,8 @@
 | `data-action` | `crates/pre-styled-ui/src/tag.rs::close_trigger` | 動的文字列（dispatch action 識別子） | `crates/headless-ui/src/timer.rs::action_trigger`（start/pause/resume/reset） | なし | **同一意味論の共有語彙**（「クリック時に発火する action 識別子」）。改名せず、値域差を rustdoc に明記 |
 | `data-value` | `crates/pre-styled-ui/src/radio_card.rs::item` | 動的文字列（選択肢の値） | headless の `radio_group` / `checkbox_group` / `toggle_group` / `tree_view` / `rating_group`（いずれも生タプル、ヘルパなし） | なし | 同一意味論の共有語彙。両層ともヘルパ未整備だが本イシューでは新設しない（§3.3） |
 | `data-series` | `crates/pre-styled-ui/src/charts/radar_chart.rs`、`crates/pre-styled-ui/src/charts/scatter_chart.rs` | 動的文字列（系列名） | なし | なし | charts は pre-styled-only。pre-styled-only 語彙として維持 + rustdoc 明文化 |
+| `data-active`（`bar_chart.rs` 消費分） | `crates/pre-styled-ui/src/charts/bar_chart.rs::root`（イシュー #2082、shadcn/ui Charts（bar）突合。`BarChartProps::active_index` と一致するカテゴリの全系列棒） | 存在属性（`""`） | headless の `checkbox_group` / `radio_group` / `sidebar` 等（いずれも生タプル、ヘルパなし） | `bar_chart.rs::recipe()` が `StateCondition::Attr("data-active")` で `bar` slot の強調表示（`fill-opacity`/`stroke: currentColor` の破線）を参照 | 同一意味論（「強調表示中の項目」）の共有語彙。**将来 wasm-full 側で同属性を付け外しする前提**（SSR 初期値 + JS が移動する progressive enhancement、#2128 の担当）を rustdoc に明記 |
+| `data-negative` | `crates/pre-styled-ui/src/charts/bar_chart.rs::root`（イシュー #2082、`BarChartProps::highlight_negative` 有効時の負値の棒） | 存在属性（`""`） | なし | なし | bar_chart 新設の pre-styled-only 語彙。CSS 消費者なし（`fill` は presentation 属性で決まる） |
 
 ### 2.2 役割 B: pre-styled-ui が「参照のみ」する `data-*`（recipe の `StateCondition`）
 

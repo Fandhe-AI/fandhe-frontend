@@ -648,21 +648,33 @@ name = "fandhe-frontend-wasm-full"
 # 0.68.2 → 0.68.3（`command` 新設、非破壊的追加）に伴う
 # `dep-version-check --fix` の `version = "..."` 追随バンプ（本クレート
 # 自身の実装変更は無い）。
-# 0.15.24 → 0.15.25（イシュー #2072）: 依存先 `fandhe-frontend-headless-ui`
-# 0.68.3 → 0.68.4（`sidebar` 新設、非破壊的追加）に伴う
-# `dep-version-check --fix` の `version = "..."` 追随バンプ（本クレート
-# 自身の実配線は後続イシュー #2074）。
-# 0.15.25 → 0.15.26（イシュー #2105）: 依存先 `fandhe-frontend-headless-ui`
-# 0.68.4 → 0.68.5（`message` 新設、非破壊的追加）に伴う
-# `dep-version-check --fix` の `version = "..."` 追随バンプ（本クレート
-# 自身の実配線は不要。`message` は状態機械を持たない静的部品のため）。
-# 0.15.26 → 0.15.27（イシュー #2108）: 依存先 `fandhe-frontend-headless-ui`
-# 0.68.5 → 0.68.6（`bubble` 新設、非破壊的追加）に伴う
-# `dep-version-check --fix` の `version = "..."` 追随バンプ（本クレート
-# 自身の実配線は不要。`bubble` は状態機械を持たない静的部品のため。
-# collapse-trigger の click → "toggle" dispatch 配線は #2108 のスコープ外の
-# 後続作業）。
-version = "0.15.27"
+# 0.15.24 → 0.16.0（イシュー #2069）: Command（`fandhe-frontend-headless-ui`
+# `command` モジュール、イシュー #2068）の入力絞り込み・矢印キー選択・
+# Enter 実行・dialog 開閉（Cmd/Ctrl+K）配線を新設する `crates/wasm-full/
+# src/command.rs` を追加。公開 API へ `overlay::OverlayKind::Command`
+# variant（既存の `#[non_exhaustive]` なし enum への追加、`match` 網羅を
+# 前提とする既存呼び出し元で破壊的変更となりうる）を追加したため
+# minor バンプとする（0.x の破壊的変更はマイナーバンプ、`.claude/rules/
+# coding-rust.md` #638 条項。#1173 の `OverlayKind::NavigationMenu`/
+# `Menubar` 追加時と同型の判断）。
+# 0.15.24 → 0.15.25（イシュー #2072、base 取り込み）: 依存先
+# `fandhe-frontend-headless-ui` 0.68.3 → 0.68.4（`sidebar` 新設、非破壊的
+# 追加）に伴う `dep-version-check --fix` の `version = "..."` 追随バンプ
+# （本クレート自身の実配線は後続イシュー #2074）。0.16.0 が既にこの
+# バンプを上回るため実値への影響はない。
+# 0.15.25 → 0.15.26（イシュー #2105、base 取り込み）: 依存先
+# `fandhe-frontend-headless-ui` 0.68.4 → 0.68.5（`message` 新設、非破壊的
+# 追加）に伴う `dep-version-check --fix` の `version = "..."` 追随バンプ
+# （本クレート自身の実配線は不要。`message` は状態機械を持たない静的部品
+# のため）。0.16.0 が既にこのバンプを上回るため実値への影響はない。
+# 0.15.26 → 0.15.27（イシュー #2108、base 取り込み）: 依存先
+# `fandhe-frontend-headless-ui` 0.68.5 → 0.68.6（`bubble` 新設、非破壊的
+# 追加）に伴う `dep-version-check --fix` の `version = "..."` 追随バンプ
+# （本クレート自身の実配線は不要。`bubble` は状態機械を持たない静的部品
+# のため。collapse-trigger の click → "toggle" dispatch 配線は #2108 の
+# スコープ外の後続作業）。0.16.0 が既にこのバンプを上回るため実値への
+# 影響はない。
+version = "0.16.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -919,6 +931,8 @@ features = [
   "HtmlInputElement",
   "HtmlSelectElement",
   "HtmlTextAreaElement",
+  "InputEvent",
+  "InputEventInit",
   "KeyboardEvent",
   "Location",
   "MouseEvent",

@@ -355,6 +355,8 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 
 headless-ui は 0.27.0 → 0.28.0（0.x の破壊的変更、マイナーバンプ）、依存元の `fandhe-frontend-pre-styled-ui` は再エクスポート経由の破壊的変更として 0.39.0 → 0.40.0、`fandhe-frontend-wasm-full` は追加的変更として 0.5.0 → 0.5.1 をバンプした（`.claude/rules/coding-rust.md` 公開済みクレートの semver バンプ規約）。`crates/wasm-full/src/overlay.rs::OverlayKind` に `navigation-menu`/`menubar` を含めない（Escape/外側クリックによる content の実閉鎖の一元化を行わない）既知のギャップは本イシューのスコープ外として残置していたが、イシュー #1173 で解消済み（§22 参照）。
 
+**`command`/`item` 行を追加しない理由（イシュー #2069）**: `crate::clipboard`（`"clipboard:"` 名前空間）・`crate::angle_slider`（矢印キーのみ配線・方向を符号化できない）と同じ「乗せない理由」が本表にも当てはまる。command palette の item クリックは「行選択（`"select"`）」と「実行（`"command:execute"`、§24 参照）」の 2 アクションを要するが、本表は (scope, part) → 単一アクションの同期写像であり、単一行では表現できない。行を足すと `crate::headless::wire_headless_component` を併用するアプリで `"select"` が二重 dispatch される（`crate::command::wiring::handle_click` が独立配線モジュールとして item クリックを 2 段 dispatch で処理する、§24 参照）。
+
 ### 12.4 fail-closed 契約（受け入れ条件 3）
 
 - マッピング表にない (scope, part) の組は `None`（no-op）。
@@ -892,3 +894,66 @@ headless-ui マークアップには存在しないため実 DOM 上では発火
   追加されるまで navigation-menu の配線は発火しない（§23.3 参照）。
   再導入提案時は `docs/policy/intentional-non-adoption.md` の評価軸充足
   確認が必須。
+
+## 24. `command` モジュール新設: Command の入力絞り込み・矢印キー選択・Enter 実行・dialog 開閉配線（イシュー #2069、親 #2067）
+
+`fandhe-frontend-headless-ui` の Command（`command` モジュール、イシュー #2068、shadcn/ui `Command`（cmdk 由来）相当）は SSR マークアップ・絞り込み純粋関数（`filter_items`、`combobox::filter_options` へ全委譲）・状態機械（`Command` = `Disclosure` + `TextInput` + `SingleSelect`）までを提供する一方、実 DOM 上のイベント配線（同モジュール冒頭 doc「out-of-scope」節）を本クレートへ申し送っていた。本イシューは `crates/wasm-full/src/command.rs` を新設してその配線を実装する。
+
+### 24.1 `MAPPING_TABLE` へ乗せない理由
+
+§12.3 末尾「`command`/`item` 行を追加しない理由」参照。item クリックは「行選択」と「実行」の 2 アクションを要するため単一行では表現できず、`crate::clipboard`/`crate::angle_slider` と同型の独立配線モジュールとして切り出した。
+
+### 24.2 アクション対応表
+
+| 契機 | dispatch | DOM 反映 |
+|---|---|---|
+| `input` 上の `input` | `"input"`（`data-action-input` があれば `crate::events::wire_events` が担う） | 絞り込み反映（`hidden`/`data-empty`）+ 選択整合 |
+| `input` 上の ArrowDown/ArrowUp/Home/End | `"select"` | `data-selected`/`aria-selected`/`aria-activedescendant` 同期 |
+| `input` 上の Enter | `"command:execute"` | なし |
+| item クリック（非 disabled） | `"select"` → `"command:execute"` | 選択同期 |
+| `input` 上の Escape（open な `dialog` パーツ内のみ） | `"close"` | なし |
+| document 上の Cmd/Ctrl+K | `"toggle"` | 再描画後 open なら `input` へ `focus()` |
+
+`"command:execute"` のみ名前空間付き（`crate::headless_clipboard` の `"clipboard:"` と同じ理由: Runtime が無条件配線するため裸の名前はアプリ独自のアクションと衝突しうる）。`Command::decode_action` は未知アクションとして `"command:execute"` を無視する（fail-closed の二重の安全網）。
+
+### 24.3 `"input"` dispatch と `crate::events::wire_events` の二重 dispatch 回避
+
+`input` パーツに `data-action-input` 属性があれば dispatch は `crate::events::wire_events` が担い、本モジュールは絞り込み DOM 反映のみ行う。無ければ本モジュールが `"input"` を dispatch する。両者は同一 root へ bubble 登録され `wire_events` が先に登録されるため（`Runtime::mount`/`hydrate` が `events::wire_events` を `Self::wire_command` より先に呼ぶ）、本モジュールの DOM 反映は常にアプリ再描画の後に走る。
+
+### 24.4 絞り込みの DOM 反映と選択整合
+
+判定は `fandhe_frontend_headless_ui::command::filter_items` をそのまま呼ぶ（新規アルゴリズムを持ち込まない）。各 item のラベルは `text_content()` から `shortcut` パーツ子孫を除外して読む（`Ctrl`/`⌘` 等の入力が shortcut を持つ全 item に一致するのを防ぐ）。反映先は item/group/separator の 3 パーツのみで `dialog` の `hidden` には触れない。絞り込み後、選択中 item が hidden/未選択なら先頭の可視・非 disabled item を `"select"` dispatch + DOM 同期し（cmdk の自動先頭選択）、可視 item が 0 件なら `"deselect"` を dispatch して `aria-activedescendant` を除去する。DOM 直書きに留めず実際に dispatch するのは、アプリ状態（`SingleSelect`）を更新しないと次回の再描画で DOM 直書き分が巻き戻ってしまうためである。
+
+### 24.5 行選択（矢印キー）
+
+候補列は同一インスタンス配下の非 `hidden` item。`crate::keynav` の `disabled_flags`/`highlight_next_index`/`menu_loop_focus_from_attr` をそのまま再利用する（`pub(crate)` 化のみ、挙動変更なし）。cmdk は既定で非循環（`loop_focus` 既定 `false`、`data-loop-focus="true"` で opt-in）。`data-highlighted` は書かない（`Command` の item は `data-highlighted` を出力しない契約、`crates/headless-ui/src/command.rs` モジュール doc「`item` の選択表現」節参照）。
+
+修飾キー付き（Ctrl/Alt/Meta）は `command_key_action` が `Modifiers::any()` で no-op にする一方、Shift は `Modifiers`（`crate::keynav::Modifiers`、公開型）が持たないフィールドのため配線層（`handle_keydown`）が `KeyboardEvent::shift_key()` を直接見て `command_key_action` 呼び出し・`prevent_default()` より前に no-op へ倒す（codex-review P1 是正）。省略すると検索欄で Shift+Home/Shift+End/Shift+ArrowDown を押したときブラウザ既定のテキスト範囲選択が奪われ候補選択に化けてしまう。
+
+また、item 内に利用者が併設した独立インタラクティブ要素（`button`/`a[href]`/`input`/`select`/`textarea`）のクリックは、`handle_click` が `INDEPENDENT_INTERACTIVE_SELECTOR` に一致する祖先を検出した時点で何も dispatch せず即座に return する（`handle_mousedown` と同じ判定を共有、Cursor Bugbot Medium 是正）。これを怠ると item 内のボタン等をクリックしただけで祖先 item まで遡って `select`/`command:execute` が dispatch され `stop_propagation()` まで行われてしまう。
+
+### 24.6 `OverlayKind::Command` と既定値
+
+`overlay::OverlayKind::Command`（`from_scope("command")`）を追加した。既定値は Dialog と同じ（`close_on_escape`/`close_on_interact_outside`/`outside_dismiss_blocks_propagation_by_default` いずれも `true`）。呼び出し側（#580 統合層）が dispatch すべき名前は `"close"`（`CommandAction::Close`、冪等）。`OverlayKind` は `#[non_exhaustive]` を持たない公開 enum のため、variant 追加は 0.x の破壊的変更であり `fandhe-frontend-wasm-full` を 0.15.24 → 0.16.0 へマイナーバンプした（`.claude/rules/coding-rust.md` イシュー #638 規約、§22 の #1173 前例と同型の判断）。`cargo run -p xtask -- check-dep-versions` で確認したとおり `wasm-full` を path+version 依存する workspace メンバーは存在せず、追随バンプは不要だった。
+
+### 24.7 収束分析: 本モジュールの Escape と `OverlayCloseController` の二重処理
+
+本モジュールの Escape（`input` 上 bubble）→ `"close"` dispatch と、`overlay::wiring::OverlayCloseController`（document 上）→ アプリの `"close"` dispatch は、どちらが先でも `Disclosure::Close` の冪等性により同一 closed 状態へ収束する（§22.3 と同型の分析）。
+
+### 24.8 `focus_trap::should_trap` の拡張
+
+`data-scope` が `"dialog"` **または** `"command"` かつ `aria-modal="true"` で `true` を返すよう拡張した（`command::dialog` は `aria-modal="true"` + `tabindex="-1"` を固定出力するため）。
+
+### 24.9 テスト
+
+- native 単体テスト（`crates/wasm-full/src/command.rs` `#[cfg(test)]`）: `command_key_action`（Arrow/Home/End/Enter/Escape 判定表、修飾キー付き no-op）、`is_toggle_shortcut`（Ctrl/Meta XOR・Alt 排他）、`group_should_hide`。
+- native 単体テスト（`crates/wasm-full/src/overlay.rs`/`focus_trap.rs`）: `OverlayKind::from_scope("command")`・`Command` 既定値の列挙固定、`should_trap` の `data-scope="command"` 受理。
+- 実ブラウザ回帰テスト（`crates/wasm-full/tests/command_browser.rs`、新設）: 入力絞り込み（item/group/separator/`data-empty`）・shortcut テキスト除外・矢印キー選択（disabled スキップ・非循環）・IME 変換中/修飾キー付き no-op・Shift 付きキー操作の no-op（`shift_arrow_home_end_is_noop_and_does_not_prevent_default`、codex-review P1 是正の回帰）・Enter 実行（選択なし/disabled/hidden は no-op）・item クリック（`"select"` → `"command:execute"`）・item 内独立コントロールのクリックが dispatch しないこと（`clicking_independent_control_inside_item_does_not_dispatch`、Cursor Bugbot Medium 是正の回帰）・Escape（open dialog 内のみ）・Cmd/Ctrl+K（Alt/Ctrl+Meta 同時/dialog 不在は no-op、focus 移動）・`data-action-input` との二重 dispatch 回避・`aria-controls` 改ざんの fail-closed・XSS 回帰。
+- 実ブラウザ回帰テスト（`crates/wasm-full/tests/overlay_close_browser.rs`/`focus_trap_browser.rs` への追加）: command dialog の scope 認識（Escape・外側/内側 pointerdown・opt-out）、`push_trap` の Some/None 判定・Tab 循環。
+
+### 24.10 スコープ外（out-of-scope-tracking）
+
+- `empty` パーツの live region（`aria-live`）通知: 通知テキストの選定が pre-styled-ui/アプリの責務と重なるため実装しない。
+- 同一 root 上の複数 command インスタンス識別（`"toggle"`/`"close"`/`"select"` の payload によるインスタンス識別）。
+- cmdk の Alt+Arrow（group 単位ジャンプ）・Meta+Arrow（先頭/末尾）等の修飾キー付き操作（既存方針どおり修飾キー付きは no-op）。
+- `docs/design/component-coverage-map.md` の区分更新・`site/themes/command.md`（イシュー #2070 の受け入れ条件）。

@@ -105,10 +105,10 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 | `status_empty_state_css.rs` | status / empty_state（イシュー #2047 で empty_state の root/indicator variant 3 ブロックを golden 末尾へ純追加） |
 | `popover_tooltip_css.rs` | popover / tooltip |
 | `pie_donut_chart_css.rs` | pie_chart / donut_chart |
-| `charts_css.rs` | line_chart / area_chart / sparkline |
+| `charts_css.rs` | line_chart / area_chart / sparkline（イシュー #2081 で area_chart の `fill: AreaFill::Gradient` variant 規則を golden 末尾へ純追加） |
 | `charts_parts_css.rs` | charts 内部パーツ: `charts::axis` / `charts::grid` / `charts::legend` / `charts::tooltip` |
 | `scatter_radar_chart_css.rs` | `charts::scatter_chart` / `charts::radar_chart` |
-| `bar_chart_css.rs` | `charts::bar_chart`（イシュー #1590 で golden 新設） |
+| `bar_chart_css.rs` | `charts::bar_chart`（イシュー #1590 で golden 新設。イシュー #2082 で `value-label`/`inside-label`/`bar[data-active]` の 3 ブロックを末尾へ純追加、`BAR_CHART_GOLDEN_CSS_BEFORE_2082` 定数 + `starts_with` の純追加固定テストを追加） |
 | `bar_list_css.rs` | `charts::bar_list`（イシュー #1591 で新設） |
 | `tabs_css.rs` | tabs（`recipe_css.rs` は recipe 機構自体の golden であり tabs はその一実例として参照するのみ） |
 

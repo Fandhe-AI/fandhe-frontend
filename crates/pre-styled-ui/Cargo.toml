@@ -2596,6 +2596,24 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.153.0 より前のバージョンのため、同一版数衝突を避けるためさらに
 # 0.153.1 へバンプする。
 #
+# 0.153.1 → 0.154.0（イシュー #2081、shadcn/ui Charts（area）突合）:
+# `AreaChartProps` へ `curve`/`stack`/`fill`/`gradient_id`/`show_x_axis`/
+# `show_y_axis`/`show_grid` を、`crate::charts::axis::AxisProps` へ
+# `show_tick_labels` を、`TickLabelFormat` へ `label_scale` をそれぞれ
+# 純追加した（新規 pub enum `AreaCurve`/`AreaStack`/`AreaFill` の追加込み）。
+# 既定値はすべて #2081 以前の出力と完全に同一の HTML を生成する
+# （golden 純追加原則）が、pub struct へのフィールド追加は構造体リテラル
+# 構築を壊す 0.x 破壊的変更のためマイナーバンプする
+# （`.claude/rules/coding-rust.md` の semver バンプ必須規約）。Review 追補:
+# `TickLabelFormat`/`AxisProps` は `f64` フィールド（`label_scale`）追加に
+# 伴い `derive` を `Eq` → `PartialEq` のみへ縮約した（`f64` は `Eq` 非実装）。
+# これも構造体の trait 実装を減らす破壊的変更のため上記マイナーバンプに
+# 含める。
+#
+# base 取り込み（本 PR、イシュー #2081）: main 側はイシュー #2108
+# （headless-ui 0.68.6 依存追随の patch バンプ）で 0.153.1 → 0.153.2 へ
+# 進んでいるが、本ブランチの 0.154.0 は既に main の 0.153.2 より新しいため
+# 追加バンプ不要（衝突なし）。
 # イシュー #2106: `message.rs` 新設（`crate::item` と同型の styled
 # Message。6 パーツの委譲層 + role/align/loading/error 状態規則、公開 API
 # 純追加）のためマイナーバンプする。
@@ -2604,7 +2622,34 @@ name = "fandhe-frontend-pre-styled-ui"
 # （headless-ui 0.68.6 依存追随に伴う patch バンプ）で 0.153.1 → 0.153.2 へ
 # 到達済み。本ブランチの 0.154.0 は main の 0.153.2 より新しいため、
 # バージョン据え置きのまま維持する。
-version = "0.155.0"
+#
+# base merge の同一版数衝突回避（イシュー #2081、2026-09-09）: 上記
+# 2 系統（本ブランチのイシュー #2081／main のイシュー #2106）は互いに
+# 独立に merge base 0.153.1 から 0.154.0 へ到達していた（同一版数への
+# 偶発的衝突）。`semver-same-version-is-conflict` の運用に従い、双方の
+# 実体変更（`AreaChartProps`/`AxisProps`/`TickLabelFormat` の純追加と
+# `message.rs` 新設）を統合した結果として 0.155.0 へさらにマイナー
+# バンプする。
+#
+# イシュー #2082（bar-chart の shadcn/ui Charts（bar）突合）: `BarChartProps`
+# への `pub` フィールド純追加（`stack`/`corner_radius`/`label`/
+# `active_index`/`color_by_category`/`highlight_negative`/
+# `show_value_axis`/`show_grid`/`show_category_labels`）・`ChartError` の
+# variant 追加（`InvalidCornerRadius`/`IndexOutOfRange`）・`css()` 出力の
+# 純追加（`value-label`/`inside-label`/`bar[data-active]`）は 0.x の破壊的
+# 変更（フルリテラル構築を前提とする利用者コードが壊れる）のため
+# 0.156.0 へマイナーバンプする。
+#
+# base 再取り込み（本 PR、イシュー #2073、2026-09-09）: base 取り込み時点で
+# main は #2082（bar-chart 突合）により独立に 0.156.0 へ到達済みであり、
+# 本ブランチ自身の到達値 0.155.0（`sidebar` モジュール新設・
+# `DEFAULT_COLORS` への `sidebar-*` 7 ロール追加。同名 `push_color` が
+# `ThemeError::DuplicateTokenName` になる観測可能な破壊的変更〔#1422 の
+# 判断基準〕に加え新規公開モジュール追加を伴うためマイナーバンプ済み）は
+# main を追い越さないため、`semver-same-version-is-conflict` の運用に従い
+# main の到達値 0.156.0 から +1 マイナーして 0.157.0 とする（実体変更を
+# 伴うため patch ではなく minor を維持）。
+version = "0.157.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

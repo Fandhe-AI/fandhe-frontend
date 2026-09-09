@@ -12203,7 +12203,9 @@ fn charts_section() -> Node {
 }
 
 /// BarChart 節（イシュー #849、親 Phase #845）: 外部依存ゼロの SVG グループ棒
-/// グラフ。縦（既定）/横 orientation を並べて掲示する。
+/// グラフ。縦（既定）/横 orientation を並べて掲示する。イシュー #2082 で
+/// shadcn/ui Charts（bar）突合の静的バリアント（角丸+グリッド+値軸・値
+/// ラベル・積み上げ・active・negative）の行を追加した。
 fn bar_chart_section() -> Node {
     let data = bar_charts_sample_data();
     let vertical = bar_chart::root(
@@ -12222,10 +12224,146 @@ fn bar_chart_section() -> Node {
     )
     .expect("ショーケース固定データは domain・viewBox とも常に有効");
 
+    // イシュー #2082: shadcn/ui `chart-bar-default` 相当（角丸 + グリッド +
+    // 値軸）。
+    let rounded_with_axes = bar_chart::root(
+        &data,
+        BarChartProps {
+            corner_radius: 8.0,
+            show_grid: true,
+            show_value_axis: true,
+            ..BarChartProps::default()
+        },
+        "monthly visits and signups (rounded, grid, value axis)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    // イシュー #2082: shadcn/ui `chart-bar-label`（値ラベル Outside）。
+    let single_series = ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![Series::new("visits", vec![120.0, 200.0, 150.0, 80.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let labeled = bar_chart::root(
+        &single_series,
+        BarChartProps {
+            corner_radius: 4.0,
+            label: bar_chart::BarLabel::Outside,
+            ..BarChartProps::default()
+        },
+        "monthly visits (value labels)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    // イシュー #2082: shadcn/ui `chart-bar-label-custom`（横棒 + カテゴリ名
+    // を棒内側に、軸のカテゴリラベルは非表示）。
+    let inside_labeled = bar_chart::root(
+        &single_series,
+        BarChartProps {
+            orientation: BarChartOrientation::Horizontal,
+            corner_radius: 4.0,
+            label: bar_chart::BarLabel::Inside,
+            show_category_labels: false,
+            ..BarChartProps::default()
+        },
+        "monthly visits (inside labels, horizontal)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    // イシュー #2082: shadcn/ui `chart-bar-mixed`（カテゴリごとに別色）。
+    let mixed = bar_chart::root(
+        &single_series,
+        BarChartProps {
+            corner_radius: 4.0,
+            color_by_category: true,
+            ..BarChartProps::default()
+        },
+        "monthly visits (colored by category)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    // イシュー #2082: shadcn/ui `chart-bar-stacked`（Normal 積み上げ）+
+    // `-stacked-expand`（100% 積み上げ）。
+    let stacked_normal = bar_chart::root(
+        &data,
+        BarChartProps {
+            stack: bar_chart::BarStack::Normal,
+            corner_radius: 4.0,
+            ..BarChartProps::default()
+        },
+        "monthly visits and signups (stacked)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+    let stacked_expand = bar_chart::root(
+        &data,
+        BarChartProps {
+            stack: bar_chart::BarStack::Expand,
+            show_value_axis: true,
+            ..BarChartProps::default()
+        },
+        "monthly visits and signups (100% stacked)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+    let stacked_legend = legend::legend(
+        &data,
+        &LegendProps {
+            title: Some("Series".to_string()),
+        },
+    );
+
+    // イシュー #2082: shadcn/ui `chart-bar-active`（強調表示）。
+    let active = bar_chart::root(
+        &single_series,
+        BarChartProps {
+            corner_radius: 4.0,
+            active_index: Some(1),
+            ..BarChartProps::default()
+        },
+        "monthly visits (Feb highlighted)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    // イシュー #2082: shadcn/ui `chart-bar-negative`（正負で色分け）。
+    let signed_data = ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![Series::new("net change", vec![12.0, -8.0, 20.0, -5.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let negative = bar_chart::root(
+        &signed_data,
+        BarChartProps {
+            highlight_negative: true,
+            ..BarChartProps::default()
+        },
+        "monthly net change (negative highlighted)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
     section(
         "BarChart",
-        "ChartData（複数系列）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのグループ棒グラフです。orientation で縦/横を切り替えます。軸線・グリッド・凡例・ツールチップはイシュー #847 のスコープです。",
-        vec![row(vec![vertical]), row(vec![horizontal])],
+        "ChartData（複数系列）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのグループ棒グラフです。orientation で縦/横を切り替えます。イシュー #2082 で shadcn/ui Charts（bar）と突合し、角丸・値ラベル・積み上げ・強調表示・正負色分け・軸/グリッドの静的バリアントを追加しました。マウス追従ツールチップ・凡例トグル等の実行時インタラクションは別イシュー（#2086/#2132）のスコープです。",
+        vec![
+            row(vec![vertical]),
+            row(vec![horizontal]),
+            row(vec![rounded_with_axes]),
+            row(vec![labeled]),
+            row(vec![inside_labeled]),
+            row(vec![mixed]),
+            stack(vec![row(vec![stacked_normal]), stacked_legend]),
+            row(vec![stacked_expand]),
+            row(vec![active]),
+            row(vec![negative]),
+        ],
     )
 }
 
@@ -12295,7 +12433,8 @@ fn bar_segment_section() -> Node {
 }
 
 /// AreaChart 節（イシュー #848、親 #845）: 折れ線 + domain 下端へ閉じた
-/// 塗りつぶし面を重ねて描く。
+/// 塗りつぶし面を重ねて描く。イシュー #2081（shadcn/ui Charts（area）突合）
+/// で curve/stack/fill/軸・グリッドの静的バリアントを追加した。
 fn area_chart_section() -> Node {
     // イシュー #1589: 系列色の識別性（内部整合の評価軸）を Demo で視覚
     // 確認できるよう、2 系列（visits/signups）へ拡張する。
@@ -12324,10 +12463,87 @@ fn area_chart_section() -> Node {
         })
         .collect());
 
+    // イシュー #2081: shadcn/ui `chart-area-linear`/`-step`（curve）の
+    // 静的バリアント。Natural（`chart-area-default` 相当）は曲線補間の
+    // 見た目確認用に単一系列データを使う。
+    let natural_data = ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![Series::new("visits", vec![10.0, 35.0, 15.0, 28.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let curve_row = row(vec![
+        area_chart::area_chart(
+            &AreaChartProps {
+                curve: area_chart::AreaCurve::Natural,
+                ..AreaChartProps::new(&natural_data, "natural curve")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+        area_chart::area_chart(
+            &AreaChartProps {
+                curve: area_chart::AreaCurve::Step,
+                ..AreaChartProps::new(&natural_data, "step curve")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+    ]);
+
+    // イシュー #2081: shadcn/ui `chart-area-stacked`/`-stacked-expand`。
+    let stacked_row = row(vec![
+        area_chart::area_chart(
+            &AreaChartProps {
+                stack: area_chart::AreaStack::Normal,
+                ..AreaChartProps::new(&data, "stacked visits and signups")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+        area_chart::area_chart(
+            &AreaChartProps {
+                stack: area_chart::AreaStack::Expand,
+                ..AreaChartProps::new(&data, "stacked expand visits and signups")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+    ]);
+
+    // イシュー #2081: shadcn/ui `chart-area-gradient`。`gradient_id` は
+    // ページ内の他チャートと衝突しない一意な値を明示する（モジュール doc
+    // 「gradient の不変条件」参照）。
+    let gradient_node = area_chart::area_chart(
+        &AreaChartProps {
+            fill: area_chart::AreaFill::Gradient,
+            gradient_id: "showcase-area-gradient",
+            ..AreaChartProps::new(&data, "gradient fill visits and signups")
+        },
+        vec![],
+    )
+    .expect("showcase 固定データは常に有効");
+
+    // イシュー #2081: shadcn/ui `chart-area-axes`。
+    let axes_node = area_chart::area_chart(
+        &AreaChartProps {
+            show_x_axis: true,
+            show_y_axis: true,
+            show_grid: true,
+            ..AreaChartProps::new(&data, "axes and grid visits and signups")
+        },
+        vec![],
+    )
+    .expect("showcase 固定データは常に有効");
+
     section(
         "AreaChart",
-        "系列ごとに折れ線 + 塗りつぶし面を重ねて描く自己完結チャートです。複数系列（chart-1〜6 の固定ローテーション色）と size（Xs〜Xl）の段階を掲示します。積み上げ・曲線補間は別イシュー（#847 以降）のスコープです。",
-        vec![node, size_row],
+        "系列ごとに折れ線 + 塗りつぶし面を重ねて描く自己完結チャートです。複数系列（chart-1〜6 の固定ローテーション色）・size（Xs〜Xl）に加え、shadcn/ui Charts（area）と突合した曲線（linear/natural/step）・積み上げ（normal/expand）・グラデーション塗り・軸/グリッドの各静的バリアントを掲示します（イシュー #2081）。マウス追従ツールチップ・期間切替等の実行時インタラクションは対象外です。",
+        vec![node, size_row, curve_row, stacked_row, gradient_node, axes_node],
     )
 }
 
