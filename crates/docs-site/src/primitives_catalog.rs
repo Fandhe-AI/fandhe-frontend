@@ -482,8 +482,9 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         category: PrimitiveCategory::Navigation,
     },
     PrimitiveEntry {
-        // イシュー #2072: headless-ui 層のみ先行実装（`PRIMITIVES_WITHOUT_THEMES_PAGE`
-        // 参照。`command`/`button_group` と同じ経緯）。
+        // イシュー #2072 で headless-ui 層を実装。Themes ページと title
+        // 一致（イシュー #2075、`site/themes/sidebar.md` / `site/nav.toml`
+        // 参照。`PRIMITIVES_WITHOUT_THEMES_PAGE` からは除外済み）。
         module: "sidebar",
         path: "/primitives/sidebar/",
         title: "Sidebar",
@@ -630,15 +631,17 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// `site/themes/command.md`）を実装済みのため除外した。`message` も同様に
 /// イシュー #2105 が headless-ui 層を新設した時点では暫定的にこの台帳へ
 /// 載っていたが、イシュー #2106 で Themes 層（`crates/pre-styled-ui/src/message.rs`・
-/// `site/themes/message.md`）を実装済みのため除外した。`sidebar`・`bubble`
-/// は現在この台帳に載っている（`sidebar` はイシュー #2072、`bubble` は
-/// イシュー #2108 で headless-ui 層のみ先行実装。それぞれ後続イシュー
-/// #2074・#2109 で Themes 層を実装後に除外する予定）。
+/// `site/themes/message.md`）を実装済みのため除外した。`sidebar` も同様に
+/// イシュー #2072 で headless-ui 層のみ先行実装され暫定的にこの台帳へ
+/// 載っていたが、イシュー #2075 で Themes 層（`crates/pre-styled-ui/src/sidebar.rs`・
+/// `site/themes/sidebar.md`）を実装済みのため除外した。`bubble` は現在
+/// この台帳に載っている（イシュー #2108 で headless-ui 層のみ先行実装。
+/// 後続イシュー #2109 で Themes 層を実装後に除外する予定）。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["sidebar", "bubble"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["bubble"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {

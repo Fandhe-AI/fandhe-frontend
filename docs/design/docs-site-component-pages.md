@@ -201,6 +201,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Segment Group | `segment_group` | Forms | `/themes/segment-group/` | `site/themes/segment-group.md` | `segment_group_section()` |
 | Select | `select` | Forms | `/themes/select/` | `site/themes/select.md` | `select_section()` |
 | Separator | `separator` | Utilities | `/themes/separator/` | `site/themes/separator.md` | `separator_section()` |
+| Sidebar | `sidebar` | Interactive | `/themes/sidebar/` | `site/themes/sidebar.md` | `sidebar_section()`（#2075 で新設） |
 | Signature Pad | `signature_pad` | Forms | `/themes/signature-pad/` | `site/themes/signature-pad.md` | （なし・Phase 4 で新規） |
 | Skeleton | `skeleton` | Data Display | `/themes/skeleton/` | `site/themes/skeleton.md` | `skeleton_section()` |
 | Skip Nav | `skip_nav` | Utilities | `/themes/skip-nav/` | `site/themes/skip-nav.md` | （なし・`component_specs::interactive_utilities` の Demo フォールバック、#1155） |
@@ -283,11 +284,11 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `number_input` `password_input` `pin_input` `radio_card` `radio_group`
   `rating_group` `segment_group` `select` `signature_pad` `slider` `switch`
   `tags_input` `textarea` `toggle` `toggle_group`
-- **Interactive (22)**: `accordion` `action_bar` `breadcrumb` `button_group`
+- **Interactive (23)**: `accordion` `action_bar` `breadcrumb` `button_group`
   `carousel`
   `clipboard` `collapsible` `dialog` `drawer` `floating_panel` `hover_card`
-  `menu` `nav_list` `pagination` `popover` `splitter` `steps` `tabs` `toast`
-  `toggle_tip` `tooltip` `tour`
+  `menu` `nav_list` `pagination` `popover` `sidebar` `splitter` `steps`
+  `tabs` `toast` `toggle_tip` `tooltip` `tour`
 - **Data Display (23)**: `alert` `avatar` `badge` `card` `color_swatch`
   `data_list` `empty_state` `icon` `image` `item` `json_tree_view` `message`
   `progress` `qr_code` `skeleton` `spinner` `stat` `status` `table` `tag`

@@ -117,6 +117,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [Nav List](./themes/nav-list.md)
 - [Pagination](./themes/pagination.md)
 - [Popover](./themes/popover.md)
+- [Sidebar](./themes/sidebar.md)
 - [Splitter](./themes/splitter.md)
 - [Steps](./themes/steps.md)
 - [Tabs](./themes/tabs.md)
