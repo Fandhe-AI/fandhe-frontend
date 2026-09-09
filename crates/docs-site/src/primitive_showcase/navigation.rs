@@ -696,99 +696,104 @@ pub(super) fn navigation_menu_section() -> Node {
     // の網羅検査）を満たすため、disabled 項目（`data-disabled`）と
     // current リンク（`data-current`）を追加し、open 項目の trigger 内に
     // `item_indicator`（`data-orientation`/`data-value`/`aria-hidden`）を
-    // 併掲する。
+    // 併掲する。イシュー #2187: ルートレベル `indicator`（root 直下・list
+    // の兄弟）を追加し、開いている `products` 項目値を `data-value` で
+    // 反映する（`primitive_showcase.rs` の Anatomy 網羅検査対象）。
     let props = navigation_menu::NavigationMenuProps::default();
     let body = vec![navigation_menu::root(
         &props,
         "Main",
         vec![],
-        vec![navigation_menu::list(
-            &props,
-            vec![],
-            vec![
-                navigation_menu::item(
-                    open,
-                    false,
-                    &props,
-                    "products",
-                    vec![],
-                    vec![
-                        navigation_menu::trigger(
-                            open,
-                            false,
-                            "products",
-                            Some("nm-trigger-0"),
-                            Some("nm-content-0"),
-                            vec![],
-                            vec![
-                                text("Products"),
-                                navigation_menu::item_indicator(
-                                    open,
-                                    &props,
-                                    "products",
-                                    vec![],
-                                    vec![text("▾")],
-                                ),
-                            ],
-                        ),
-                        navigation_menu::content(
-                            open,
-                            &props,
-                            "products",
-                            Some("nm-content-0"),
-                            Some("nm-trigger-0"),
-                            vec![],
-                            vec![
-                                navigation_menu::link(
-                                    "https://example.com/products/core/",
-                                    false,
-                                    vec![],
-                                    vec![text("Core")],
-                                ),
-                                navigation_menu::link(
-                                    "https://example.com/products/current/",
-                                    true,
-                                    vec![],
-                                    vec![text("Current")],
-                                ),
-                            ],
-                        ),
-                    ],
-                ),
-                navigation_menu::item(
-                    closed,
-                    false,
-                    &props,
-                    "docs",
-                    vec![],
-                    vec![navigation_menu::trigger(
+        vec![
+            navigation_menu::list(
+                &props,
+                vec![],
+                vec![
+                    navigation_menu::item(
+                        open,
+                        false,
+                        &props,
+                        "products",
+                        vec![],
+                        vec![
+                            navigation_menu::trigger(
+                                open,
+                                false,
+                                "products",
+                                Some("nm-trigger-0"),
+                                Some("nm-content-0"),
+                                vec![],
+                                vec![
+                                    text("Products"),
+                                    navigation_menu::item_indicator(
+                                        open,
+                                        &props,
+                                        "products",
+                                        vec![],
+                                        vec![text("▾")],
+                                    ),
+                                ],
+                            ),
+                            navigation_menu::content(
+                                open,
+                                &props,
+                                "products",
+                                Some("nm-content-0"),
+                                Some("nm-trigger-0"),
+                                vec![],
+                                vec![
+                                    navigation_menu::link(
+                                        "https://example.com/products/core/",
+                                        false,
+                                        vec![],
+                                        vec![text("Core")],
+                                    ),
+                                    navigation_menu::link(
+                                        "https://example.com/products/current/",
+                                        true,
+                                        vec![],
+                                        vec![text("Current")],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                    navigation_menu::item(
                         closed,
                         false,
+                        &props,
                         "docs",
-                        None,
-                        None,
                         vec![],
-                        vec![text("Docs")],
-                    )],
-                ),
-                navigation_menu::item(
-                    closed,
-                    true,
-                    &props,
-                    "enterprise",
-                    vec![],
-                    vec![navigation_menu::trigger(
+                        vec![navigation_menu::trigger(
+                            closed,
+                            false,
+                            "docs",
+                            None,
+                            None,
+                            vec![],
+                            vec![text("Docs")],
+                        )],
+                    ),
+                    navigation_menu::item(
                         closed,
                         true,
+                        &props,
                         "enterprise",
-                        None,
-                        None,
                         vec![],
-                        vec![text("Enterprise")],
-                    )],
-                ),
-            ],
-        )],
+                        vec![navigation_menu::trigger(
+                            closed,
+                            true,
+                            "enterprise",
+                            None,
+                            None,
+                            vec![],
+                            vec![text("Enterprise")],
+                        )],
+                    ),
+                ],
+            ),
+            navigation_menu::indicator(open, &props, Some("products"), vec![], vec![]),
+        ],
     )];
     demo_page("Navigation Menu", body)
 }

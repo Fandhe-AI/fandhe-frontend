@@ -78,6 +78,7 @@ use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps};
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
+use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::password_input::{
@@ -6146,6 +6147,38 @@ fn sidebar_parts_are_escaped_for_all_payloads() {
         );
         assert!(html.contains(r#"data-scope="sidebar""#));
         assert!(html.contains(r#"data-part="provider""#));
+    }
+}
+
+/// navigation-menu の indicator（イシュー #2187 で新設したルートレベル
+/// パーツ）を pre-styled 再エクスポート経由で描画し、`value`（`data-value`
+/// へ透過）・呼び出し側 `attrs`・`children` の 3 経路が既定エスケープ
+/// されることを固定する。`data_attr_vocabulary.rs` は headless anatomy
+/// 由来の語彙（`.part("indicator"` 等）を対象としないため（pre-styled は
+/// glob 再エクスポートのみで自身が anatomy を定義しない）、本ファイルが
+/// XSS 回帰の唯一の固定先となる。
+#[test]
+fn navigation_menu_indicator_value_attrs_and_children_are_escaped_for_all_payloads() {
+    let props = NavigationMenuProps::default();
+    for payload in payloads::all() {
+        let html = render(&navigation_menu::indicator(
+            OpenState::Open,
+            &props,
+            Some(payload),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "navigation_menu::indicator data-value context",
+        );
+        assert_payload_is_escaped(payload, &html, "navigation_menu::indicator attrs context");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "navigation_menu::indicator children context",
+        );
     }
 }
 
