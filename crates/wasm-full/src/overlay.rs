@@ -114,9 +114,12 @@ pub enum OverlayKind {
     /// `data-scope="command"`（イシュー #2069。
     /// `crates/headless-ui/src/command.rs::dialog`。command palette を
     /// dialog 内へ表示する構成の閉鎖制御対象は `dialog` パーツ自身であり、
-    /// `root` ではない — `crate::command::wiring` の Escape/Cmd+K 配線は
-    /// `dialog` パーツを `content` として本 kind を push する、モジュール
-    /// doc「`command` の配線」節参照）。
+    /// `root` ではない。`dialog` パーツを `content` として本 kind で
+    /// `push_overlay` する責務は呼び出し側（#580 統合層）が担う —
+    /// `crate::command::wiring` 自身は `push_overlay`/
+    /// `OverlayCloseController` を呼ばず、`close_on_escape_for` を直接
+    /// 適用するのみ（`crate::command` モジュール doc「`OverlayKind::
+    /// Command` と Escape の収束」節参照）。
     Command,
 }
 

@@ -4949,10 +4949,7 @@ pub(crate) mod wiring {
 
     /// 各要素の disabled 状態（ネイティブ `disabled` 属性または
     /// `data-disabled` 属性の存在）を列挙する。
-    ///
-    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が矢印
-    /// キー行選択の disabled 除外に再利用するため公開する。挙動変更なし。
-    pub(crate) fn disabled_flags(elements: &[Element]) -> Vec<bool> {
+    fn disabled_flags(elements: &[Element]) -> Vec<bool> {
         elements
             .iter()
             .map(|el| el.has_attribute("disabled") || el.has_attribute("data-disabled"))

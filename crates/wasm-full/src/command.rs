@@ -1559,8 +1559,7 @@ mod wiring {
         // `Modifiers`（[`crate::keynav::Modifiers`]）は Ctrl/Alt/Meta の
         // 3 フィールドのみを持ち Shift を含まない公開型であり、破壊的
         // 変更を避けるため本モジュールでは拡張せず `KeyboardEvent` から
-        // 直接判定する（`crate::keynav::wiring::handle_document_keydown`
-        // が既に同じ手法を採る先例に合わせる）。これを省略すると
+        // 直接判定する。これを省略すると
         // 検索欄で Shift+Home/Shift+End/Shift+ArrowDown を押したとき
         // `command_key_action` が `MoveSelection` を返し
         // `prevent_default()` されてしまい、ブラウザ既定のテキスト範囲
