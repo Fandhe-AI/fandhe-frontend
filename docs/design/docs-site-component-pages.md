@@ -169,6 +169,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Input Group | `input_group` | Forms | `/themes/input-group/` | `site/themes/input-group.md` | `input_group_section()`（#2063 で新設） |
 | Item | `item` | Data Display | `/themes/item/` | `site/themes/item.md` | `item_section()`（#2066 で新設） |
 | JSON Tree View | `json_tree_view` | Data Display | `/themes/json-tree-view/` | `site/themes/json-tree-view.md` | `json_tree_view_section()` |
+| Message | `message` | Data Display | `/themes/message/` | `site/themes/message.md` | `message_section()`（#2106 で新設） |
 | Kbd | `kbd` | Typography | `/themes/kbd/` | `site/themes/kbd.md` | `kbd_section()` |
 | Line Chart | `line_chart` | Charts | `/themes/line-chart/` | `site/themes/line-chart.md` | `line_chart_section()` |
 | Link | `link` | Typography | `/themes/link/` | `site/themes/link.md` | `link_section()`（イシュー #1154） |
@@ -191,6 +192,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Progress | `progress` | Data Display | `/themes/progress/` | `site/themes/progress.md` | `progress_section()` |
 | QR Code | `qr_code` | Data Display | `/themes/qr-code/` | `site/themes/qr-code.md` | `qr_code_section()` |
 | Radar Chart | `charts`（内包） | Charts | `/themes/radar-chart/` | `site/themes/radar-chart.md` | `radar_chart_section()` |
+| Radial Chart | `radial_chart` | Charts | `/themes/radial-chart/` | `site/themes/radial-chart.md` | `radial_chart_section()`（#2080 で新設） |
 | Radio Card | `radio_card` | Forms | `/themes/radio-card/` | `site/themes/radio-card.md` | `radio_card_section()` |
 | Radio Group | `radio_group` | Forms | `/themes/radio-group/` | `site/themes/radio-group.md` | `radio_group_section()` |
 | Rating Group | `rating_group` | Forms | `/themes/rating-group/` | `site/themes/rating-group.md` | `rating_group_section()` |
@@ -286,15 +288,15 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `clipboard` `collapsible` `dialog` `drawer` `floating_panel` `hover_card`
   `menu` `nav_list` `pagination` `popover` `splitter` `steps` `tabs` `toast`
   `toggle_tip` `tooltip` `tour`
-- **Data Display (22)**: `alert` `avatar` `badge` `card` `color_swatch`
-  `data_list` `empty_state` `icon` `image` `item` `json_tree_view` `progress`
-  `qr_code` `skeleton` `spinner` `stat` `status` `table` `tag` `timeline`
-  `timer` `tree_view`
+- **Data Display (23)**: `alert` `avatar` `badge` `card` `color_swatch`
+  `data_list` `empty_state` `icon` `image` `item` `json_tree_view` `message`
+  `progress` `qr_code` `skeleton` `spinner` `stat` `status` `table` `tag`
+  `timeline` `timer` `tree_view`
 - **Utilities (6)**: `link_overlay` `marquee` `scroll_area` `separator`
   `skip_nav` `visually_hidden`
-- **Charts (11)**: `charts`（共通 API） `area_chart` `bar_chart`
+- **Charts (12)**: `charts`（共通 API） `area_chart` `bar_chart`
   `bar_list` `bar_segment` `donut_chart` `line_chart` `pie_chart`
-  `radar_chart` `scatter_chart` `sparkline`
+  `radar_chart` `radial_chart` `scatter_chart` `sparkline`
 
 **Layout を設けない根拠（イシュー受け入れ条件）**: Radix Themes の
 layout プリミティブ（Box / Flex / Grid / Container / Section）と Theme

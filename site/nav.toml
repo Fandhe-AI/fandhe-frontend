@@ -412,6 +412,11 @@ source = "site/primitives/avatar.md"
 path = "/primitives/avatar/"
 
 [[section.group.page]]
+title = "Bubble"
+source = "site/primitives/bubble.md"
+path = "/primitives/bubble/"
+
+[[section.group.page]]
 title = "Carousel"
 source = "site/primitives/carousel.md"
 path = "/primitives/carousel/"
@@ -425,6 +430,11 @@ path = "/primitives/item/"
 title = "JSON Tree View"
 source = "site/primitives/json-tree-view.md"
 path = "/primitives/json-tree-view/"
+
+[[section.group.page]]
+title = "Message"
+source = "site/primitives/message.md"
+path = "/primitives/message/"
 
 [[section.group.page]]
 title = "Scroll Area"
@@ -926,6 +936,11 @@ source = "site/themes/json-tree-view.md"
 path = "/themes/json-tree-view/"
 
 [[section.group.page]]
+title = "Message"
+source = "site/themes/message.md"
+path = "/themes/message/"
+
+[[section.group.page]]
 title = "Progress"
 source = "site/themes/progress.md"
 path = "/themes/progress/"
@@ -1060,6 +1075,11 @@ path = "/themes/pie-chart/"
 title = "Radar Chart"
 source = "site/themes/radar-chart.md"
 path = "/themes/radar-chart/"
+
+[[section.group.page]]
+title = "Radial Chart"
+source = "site/themes/radial-chart.md"
+path = "/themes/radial-chart/"
 
 [[section.group.page]]
 title = "Scatter Chart"

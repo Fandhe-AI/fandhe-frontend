@@ -1,11 +1,11 @@
 //! イシュー #1064: Primitives（`fandhe-frontend-headless-ui`、67 部品）と
-//! Themes（`fandhe-frontend-pre-styled-ui`、114 部品）の**層をまたぐラップ状態**
+//! Themes（`fandhe-frontend-pre-styled-ui`、116 部品）の**層をまたぐラップ状態**
 //! を機械可視化する契約テスト。
 //!
 //! # 背景・既存テストとの分担
 //!
 //! `tests/primitives_catalog.rs` は headless-ui ソース ↔ 台帳のドリフトを
-//! レイヤー内で検知するのみで、「Themes 113 部品のどれが headless をラップし、
+//! レイヤー内で検知するのみで、「Themes 116 部品のどれが headless をラップし、
 //! どれが独自実装か」という層をまたぐ対応関係は検証しない
 //! （`primitives_titles_match_themes_page_titles_where_both_exist` は同名
 //! ページが両方に存在する場合の title 一致のみを見る）。本ファイルはその
@@ -14,7 +14,7 @@
 //! をすり抜けるのを防ぐ。判別規約は
 //! `docs/design/docs-site-primitives-themes-split.md` §6a を参照。
 //!
-//! # 4 バケット分割（Themes 113 部品）
+//! # 4 バケット分割（Themes 116 部品）
 //!
 //! - [`WRAPPED_SAME_NAME`]（66）: 同名の Primitives 部品が存在し、かつ同名
 //!   headless モジュールへコード委譲している
@@ -419,10 +419,11 @@ fn resolve_page<'a>(scan: &'a PreStyledScan, page_kebab: &str) -> &'a FileScan {
 // ---------------------------------------------------------------------
 
 /// バケット A: 同名 Primitives 部品が存在し、同名 headless モジュールへ
-/// コード委譲している Themes ページ（kebab、ソート済み、67 件。
+/// コード委譲している Themes ページ（kebab、ソート済み、68 件。
 /// イシュー #1685 で `field`・イシュー #1687 で `fieldset`・イシュー #2063
 /// で `input-group`・イシュー #2066 で `item`・イシュー #2060 で
-/// `button-group`・イシュー #2070 で `command` を追加）。
+/// `button-group`・イシュー #2070 で `command`・イシュー #2106 で
+/// `message`（`/themes/message/` ページ登録）を追加）。
 const WRAPPED_SAME_NAME: &[&str] = &[
     "accordion",
     "action-bar",
@@ -459,6 +460,7 @@ const WRAPPED_SAME_NAME: &[&str] = &[
     "listbox",
     "menu",
     "menubar",
+    "message",
     "nav-list",
     "navigation-menu",
     "number-input",
@@ -529,9 +531,11 @@ const DOC_REFERENCE_ONLY: &[(&str, &str)] = &[
 ];
 
 /// バケット D: headless 部品への参照がコード・rustdoc いずれにも無い
-/// Themes ページ（kebab、ソート済み、38 件。イシュー #1064 本文の受け入れ
+/// Themes ページ（kebab、ソート済み、39 件。イシュー #1064 本文の受け入れ
 /// 条件 2 が求める一覧。イシュー #2045 で badge がバケット C へ移動し
-/// 39 → 38）。
+/// 39 → 38。イシュー #2080 で `/themes/radial-chart/` を登録し、headless
+/// 側に対応 anatomy が無い（pie-chart/donut-chart と同判断）ため本バケット
+/// へ 38 → 39 で追加した）。
 const PRE_STYLED_ONLY: &[&str] = &[
     "alert",
     "area-chart",
@@ -559,6 +563,7 @@ const PRE_STYLED_ONLY: &[&str] = &[
     "pie-chart",
     "quote",
     "radar-chart",
+    "radial-chart",
     "scatter-chart",
     "separator",
     "skeleton",
@@ -598,8 +603,14 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// 未登録のため、[`THEMES_RECIPE_WITHOUT_PAGE`] が橋渡しの暫定台帳を担う。
 /// `PRIMITIVES_WITHOUT_THEMES_PAGE` と同期する契約は
 /// `unwrapped_ledger_is_consistent_with_primitives_without_themes_page`
-/// が検証する）。
-const HEADLESS_UNWRAPPED: &[&str] = &[];
+/// が検証する）。イシュー #2105 で同様に headless-ui 層のみを実装した
+/// `message` が一時的に本リストへ加わっていたが、イシュー #2106 で
+/// pre-styled-ui 側（`crates/pre-styled-ui/src/message.rs`・
+/// `/themes/message/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため本
+/// リストから除外した。イシュー #2108 で同様に headless-ui 層のみを実装
+/// した `bubble` が新設され、pre-styled-ui recipe（後続 #2109）を持たない
+/// ため本リストへ加える。
+const HEADLESS_UNWRAPPED: &[&str] = &["bubble"];
 
 /// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
 /// まだ持たない部品（イシュー #2073、後続 #2075 で `sidebar` を
@@ -621,7 +632,11 @@ const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "text
 
 /// §3.6: トップレベルのうち Themes ページに対応しないモジュール（6 件。
 /// イシュー #1685 で `field`、イシュー #1687 で `fieldset` がそれぞれ
-/// Themes ページ登録済みとなり本台帳から除外された）。
+/// Themes ページ登録済みとなり本台帳から除外された。イシュー #2079 で
+/// `radial_chart` を新設した時点では `/themes/radial-chart/` 未登録のため
+/// 一時的に本台帳へ加えていたが、イシュー #2080 で `/themes/radial-chart/`
+/// を登録したため除外した（headless 側に対応 anatomy が無いため
+/// [`WRAPPED_SAME_NAME`] ではなく [`PRE_STYLED_ONLY`] へ分類する）。
 const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
 
 /// §3.6: `charts/` のうち Themes ページに対応しないモジュール（8 件。
@@ -639,7 +654,7 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 114 件すべてが `resolve_page` で panic
+/// §3.5: nav 登録済み Themes ページ 116 件すべてが `resolve_page` で panic
 /// せず解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
@@ -647,7 +662,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        114,
+        116,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -997,7 +1012,7 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        115,
+        117,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
          登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
@@ -1016,7 +1031,14 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          移った。イシュー #2073 で sidebar.rs を新設し 114 → 115。 \
          `/themes/sidebar/` ページは後続 #2075 まで未登録のため \
          `sidebar` は THEMES_RECIPE_WITHOUT_PAGE 経由の暫定非ページ扱いと \
-         なる）"
+         なる。イシュー #2079 で radial_chart.rs を新設し 115 → 116。 \
+         本イシュー時点ではページ未登録のため `radial_chart` は \
+         NON_PAGE_TOP_LEVEL に暫定登録していたが、イシュー #2080 で \
+         `/themes/radial-chart/` を登録し PRE_STYLED_ONLY へ分類済み \
+         （headless 側に対応 anatomy が無いため WRAPPED_SAME_NAME では \
+         ない）。イシュー #2106 で message.rs を新設し 116 → 117。 \
+         `/themes/message/` ページ登録により `message` も \
+         WRAPPED_SAME_NAME バケットへ移った）"
     );
     assert_eq!(
         scan.charts.len(),

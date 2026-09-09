@@ -1,14 +1,18 @@
-//! Primitives Demo — Data Display / Utilities（11 件、原稿は #1029。
-//! イシュー #2065 で `item` 追加、旧 10）。
+//! Primitives Demo — Data Display / Utilities（13 件、原稿は #1029。
+//! イシュー #2108 で `bubble` 追加、旧 12。イシュー #2105 で `message`
+//! 追加、旧 11。イシュー #2065 で `item`
+//! 追加、旧 10）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
 use fandhe_frontend_core::{button, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::avatar::{self, ImageStatus};
+use hui::bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant};
 use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
 use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
+use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use hui::positioning::{Align, Placement, Side};
 use hui::scroll_area;
 use hui::skip_nav;
@@ -55,6 +59,101 @@ pub(super) fn avatar_section() -> Node {
     );
     let body = vec![loaded_avatar, error_avatar];
     demo_page("Avatar", body)
+}
+
+/// variant 3 値 × align 2 値 × group-position 4 値を複数の `root` で網羅し、
+/// `reactions`/`reaction`（selected あり/なし）・`collapse-trigger`/
+/// `collapse-content`（open/closed の両方）も描画する（デモ執筆規約 2「全
+/// anatomy パートを可能な限り全網羅する」・Anatomy/`data-*` 表の機械導出元、
+/// `crates/headless-ui/src/bubble.rs` モジュール doc参照）。
+pub(super) fn bubble_section() -> Node {
+    let solid_start_single = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Solid,
+            align: MessageAlign::Start,
+            group_position: BubbleGroupPosition::Single,
+        },
+        vec![],
+        vec![bubble::content(
+            vec![],
+            vec![text("How do I center a div?")],
+        )],
+    );
+    let outline_end_first = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Outline,
+            align: MessageAlign::End,
+            group_position: BubbleGroupPosition::First,
+        },
+        vec![],
+        vec![bubble::content(vec![], vec![text("Use flexbox:")])],
+    );
+    let plain_end_middle = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Plain,
+            align: MessageAlign::End,
+            group_position: BubbleGroupPosition::Middle,
+        },
+        vec![],
+        vec![bubble::content(
+            vec![],
+            vec![text(
+                "display: flex; align-items: center; justify-content: center;",
+            )],
+        )],
+    );
+    let outline_end_last_with_reactions_and_collapse = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Outline,
+            align: MessageAlign::End,
+            group_position: BubbleGroupPosition::Last,
+        },
+        vec![],
+        vec![
+            bubble::content(vec![], vec![text("That should do it.")]),
+            bubble::reactions(
+                "2 reactions",
+                vec![],
+                vec![
+                    bubble::reaction(true, vec![], vec![text("👍")]),
+                    bubble::reaction(false, vec![], vec![text("❤")]),
+                ],
+            ),
+            bubble::collapse_trigger(
+                OpenState::Open,
+                Some("bubble-demo-detail"),
+                vec![],
+                vec![text("Hide details")],
+            ),
+            bubble::collapse_content(
+                OpenState::Open,
+                Some("bubble-demo-detail"),
+                vec![],
+                vec![text("Sent 09:41 · Edited")],
+            ),
+        ],
+    );
+    let plain_start_single_closed_collapse = bubble::root(
+        BubbleRootProps {
+            variant: BubbleVariant::Plain,
+            align: MessageAlign::Start,
+            group_position: BubbleGroupPosition::Single,
+        },
+        vec![],
+        vec![
+            bubble::content(vec![], vec![text("Thanks!")]),
+            bubble::collapse_trigger(OpenState::Closed, None, vec![], vec![text("Show details")]),
+            bubble::collapse_content(OpenState::Closed, None, vec![], vec![text("Sent 09:42")]),
+        ],
+    );
+    let body = vec![
+        solid_start_single,
+        outline_end_first,
+        plain_end_middle,
+        outline_end_last_with_reactions_and_collapse,
+        plain_start_single_closed_collapse,
+    ];
+    demo_page("Bubble", body)
 }
 
 pub(super) fn carousel_section() -> Node {
@@ -170,6 +269,70 @@ pub(super) fn json_tree_view_section() -> Node {
     let tree = json_tree_view::expanded_to_depth(&value, 2);
     let body = vec![json_tree_view::render_json(&tree, &value)];
     demo_page("JSON Tree View", body)
+}
+
+/// イシュー #2105: 6 anatomy パーツ全て（root/avatar/header/content/footer/
+/// group）と `data-role` 3 値 × `data-align` 2 値 + `data-loading`/
+/// `data-error` を必ず描画する（`anatomy_coverage_matches_known_uncovered_exactly`
+/// が `.part("…")` 集合の完全一致を、`data-*` 表が観測値のみを機械導出する
+/// ため）。`avatar` スロットへ既存 `avatar` モジュールを入れ子にする
+/// （scope フィルタにより message 側の表を汚さない、モジュール doc
+/// 「`avatar` はスロット」参照）。
+pub(super) fn message_section() -> Node {
+    let user_message = message::root(
+        MessageRootProps {
+            role: MessageRole::User,
+            align: MessageAlign::End,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            message::avatar(
+                vec![],
+                vec![avatar::image(
+                    ImageStatus::Loaded,
+                    crate::showcase::IMAGE_DEMO_SRC,
+                    "You",
+                    vec![],
+                )],
+            ),
+            message::header(vec![], vec![text("You")]),
+            message::content(vec![], vec![text("How do I center a div?")]),
+            message::footer(vec![], vec![text("09:41")]),
+        ],
+    );
+    let assistant_loading = message::root(
+        MessageRootProps {
+            role: MessageRole::Assistant,
+            align: MessageAlign::Start,
+            loading: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            message::avatar(vec![], vec![text("AI")]),
+            message::content(vec![], vec![text("Thinking...")]),
+        ],
+    );
+    let system_error = message::root(
+        MessageRootProps {
+            role: MessageRole::System,
+            align: MessageAlign::Start,
+            error: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![message::content(
+            vec![],
+            vec![text("Failed to send message.")],
+        )],
+    );
+    let group = message::group(
+        "Conversation",
+        vec![],
+        vec![user_message, assistant_loading, system_error],
+    );
+    demo_page("Message", vec![group])
 }
 
 // イシュー #1662（参考サイトとの突合）: Radix Primitives の Anatomy は
