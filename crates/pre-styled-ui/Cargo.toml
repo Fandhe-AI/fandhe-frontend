@@ -2729,12 +2729,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # との統合で版数が偶発的に一致したため、同一版数も衝突として扱い main から
 # +1 して 0.164.0 とする。
 #
-# その後の origin/main 側の独立した進展（#2129 の実体変更に伴うマイナー
+# その後の origin/main 側の独立した進展（#2129 の `charts` hit-area・
+# data-index/data-series・SSR ツールチップ DOM 追加、実体変更に伴うマイナー
 # バンプ・PR #2261 の codex-review / Bugbot 指摘修正コミットに伴う再取り込み）
-# でも main は独立に 0.164.0 へ到達しており、本ブランチの取り込み時点で
-# 双方の到達値が 0.164.0 で一致していることを確認済み（同一版数のまま
-# 実体差分なし、追加の衝突解消バンプは不要）。
-version = "0.164.0"
+# でも main は独立に 0.164.0 へ到達していた。本ブランチの `select` 変更
+# （イシュー #2186）と main の `charts` 変更は互いに異なる実体変更であり
+# ながら偶発的に同じ 0.164.0 を指す状態のため、`semver-same-version-is-
+# conflict` の運用（一度この衝突を経て 0.163.0→0.164.0 とした際と同じ
+# 判断軸）に従い、再度の同一版数衝突として main の到達値 0.164.0 から
+# +1 マイナーして 0.165.0 とする。
+version = "0.165.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

@@ -237,13 +237,17 @@
 //! - **`size` variant への変数追加なし**: padding は固定の `space-1` とし、
 //!   既存 variant（`--fandhe-select-content-padding` 等）の出力・golden は
 //!   不変。
-//! - **既知の制限（wasm-full 後続イシューの範囲）**: `keynav::
-//!   set_highlight_on_host` の `scroll_item_into_view_if_needed` は
-//!   `content` の矩形基準で `scrollTop` を補正するため、sticky ボタンが
-//!   上下端の highlight 中 item に重なり得る（ボタン高さ分のオフセット
-//!   補正は未実施）。可視性判定（スクロール可能かの計測）・押下時の実
-//!   スクロールもいずれも `fandhe-frontend-wasm-full` の後続イシューの
-//!   範囲であり、本イシューでは扱わない。
+//! - **sticky ボタンの highlight 隠れ補正（codex-review P1 是正）**:
+//!   `keynav::set_highlight_on_host` の `scroll_item_into_view_if_needed`
+//!   は `content` の矩形から `[data-scope="select"][data-part=
+//!   "scroll-up-button"/"scroll-down-button"]` の実測高さを差し引いた
+//!   実効領域（`wiring::effective_scroll_band`）を基準に `scrollTop` を
+//!   補正するため、矢印キーで進めた項目が sticky ボタンの下に隠れない
+//!   （`crates/wasm-full/src/keynav.rs`。ボタンを持たない Menu/Combobox/
+//!   Command 等の呼び出し元では従来どおり `content` 矩形そのものを
+//!   band とするため挙動は変わらない）。可視性判定（スクロール可能かの
+//!   計測）・押下時の実スクロールはいずれも `fandhe-frontend-wasm-full`
+//!   の後続イシューの範囲であり、本イシューでは扱わない（不変）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

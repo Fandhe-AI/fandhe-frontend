@@ -712,7 +712,18 @@ name = "fandhe-frontend-wasm-full"
 # separator/scroll-up-button/scroll-down-button の可視性判定・押下
 # スクロール配線は本クレートの後続イシューへ委ね、本 PR では未実装）のため
 # patch バンプし 0.16.5 とする。
-version = "0.16.5"
+#
+# イシュー #2186（PR #2265 codex-review P1 是正）: `keynav::
+# scroll_item_into_view_if_needed` が sticky な Select scroll-up-button/
+# scroll-down-button の高さを考慮しない従来実装のままだと、矢印キーで
+# highlight した上下端の item がボタンの下に隠れ得た。`keynav::
+# scroll_delta_for_band`（新規 `pub fn`、web-sys 非依存の純粋関数）と
+# `wiring::effective_scroll_band` を追加し、sticky ボタンの実測矩形を
+# 差し引いた実効領域を基準にスクロール補正するよう是正した。新規
+# `pub fn` の追加のみで既存公開 API は不変（非破壊的変更）のため patch
+# バンプし 0.16.6 とする。可視性判定・押下時の実スクロールは変わらず
+# 後続イシューの範囲。
+version = "0.16.6"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
