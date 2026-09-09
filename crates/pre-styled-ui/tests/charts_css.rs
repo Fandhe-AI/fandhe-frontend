@@ -101,6 +101,10 @@ const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root
 [data-scope="area-chart"][data-part="root"].fd-area-chart--size-xl {
   --fandhe-area-chart-height: 306px;
 }
+
+[data-scope="area-chart"][data-part="series-area"].fd-area-chart--fill-gradient {
+  fill-opacity: 1;
+}
 "#;
 
 const SPARKLINE_GOLDEN_CSS: &str = r#"[data-scope="sparkline"][data-part="root"] {

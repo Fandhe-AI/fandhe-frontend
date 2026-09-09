@@ -206,8 +206,10 @@ pub fn svg_text<'a>(x: f64, y: f64, attrs: Vec<(&'a str, &'a str)>, children: Ve
 /// #849〜#851 が主に使用する想定）。
 ///
 /// 出力文字列の文字集合は `M`（moveto）・`L`（lineto）・`Z`（closepath）・
-/// `A`（elliptical arc、[`Self::arc_to`]、イシュー #850）・半角スペース・
-/// 半角数字・`.`・`-`・座標区切りの `,` に閉じる（座標は [`fmt_coord`] の
+/// `A`（elliptical arc、[`Self::arc_to`]、イシュー #850）・`C`（cubic
+/// Bézier、[`Self::cubic_to`]、イシュー #2081。natural spline 補間の
+/// 制御点表現に使う、[`super::curve`] 参照）・半角スペース・半角数字・
+/// `.`・`-`・座標区切りの `,` に閉じる（座標は [`fmt_coord`] の
 /// みを経由し、フラグは `"0"`/`"1"` の固定リテラルであるため、任意文字列の
 /// 混入経路を持たない）。
 #[derive(Debug, Clone, Default)]
@@ -242,6 +244,24 @@ impl PathBuilder {
     #[must_use]
     pub fn close(mut self) -> Self {
         self.segments.push("Z".to_string());
+        self
+    }
+
+    /// `C x1,y1,x2,y2,x,y`（cubic Bézier）セグメントを追加する（イシュー
+    /// #2081、[`super::curve::natural_control_points`] が返す制御点対を
+    /// natural spline 補間の 1 区間として描くための呼び出し元、
+    /// [`crate::area_chart`]/[`crate::line_chart`] 参照）。
+    #[must_use]
+    pub fn cubic_to(mut self, x1: f64, y1: f64, x2: f64, y2: f64, x: f64, y: f64) -> Self {
+        self.segments.push(format!(
+            "C{},{},{},{},{},{}",
+            fmt_coord(x1),
+            fmt_coord(y1),
+            fmt_coord(x2),
+            fmt_coord(y2),
+            fmt_coord(x),
+            fmt_coord(y)
+        ));
         self
     }
 
@@ -300,7 +320,7 @@ mod tests {
                 || c == '-'
                 || c == ' '
                 || c == ','
-                || matches!(c, 'M' | 'L' | 'Z' | 'A')
+                || matches!(c, 'M' | 'L' | 'Z' | 'A' | 'C')
         })
     }
 
@@ -427,6 +447,16 @@ mod tests {
     #[test]
     fn path_builder_empty_produces_empty_string() {
         assert_eq!(PathBuilder::new().build(), "");
+    }
+
+    #[test]
+    fn path_builder_cubic_to_produces_closed_charset_d_attribute() {
+        let d = PathBuilder::new()
+            .move_to(0.0, 0.0)
+            .cubic_to(1.0, 2.0, 3.0, 4.0, 5.0, 6.0)
+            .build();
+        assert_eq!(d, "M0,0 C1,2,3,4,5,6");
+        assert!(is_closed_charset(&d));
     }
 
     #[test]

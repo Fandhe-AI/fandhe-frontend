@@ -2,16 +2,11 @@
 //! `charts` 基盤（#846）の消費者。系列ごとに、折れ線（`series-line`）と
 //! domain 下端へ閉じた塗りつぶし面（`series-area`）を重ねて描く自己完結部品。
 //!
-//! chakra-ui `charts/area-chart.md` は `stackId`（積み上げ）・`curveType`
-//! （曲線補間）等を提供するが、これらは #847 以降のスコープ外とする
-//! （[`crate::line_chart`] モジュール doc「本イシューのスコープ外」と同じ
-//! 判断）。系列ごとに独立した面を重ね描きする素朴な構成のみを提供する。
-//!
 //! 座標写像・path 生成・数値文字列化の一元化方針、x/y 軸の写像規則は
 //! [`crate::line_chart`] モジュール doc を参照（[`crate::line_chart::category_x`]/
 //! [`crate::line_chart::view_box_from_dims`] を共有ヘルパとして再利用する）。
 //!
-//! # 面 path の閉じ方（baseline）
+//! # 面 path の閉じ方（baseline、`stack: AreaStack::None`）
 //!
 //! 系列の折れ線経路を辿った後、x 軸の逆順で `domain` 下端（`data.domain().0`、
 //! [`ChartData::domain`](crate::charts::data::ChartData::domain) が返す
@@ -19,24 +14,63 @@
 //! 戻って閉じる（`M .. L .. L (last.x, baseline) L (first.x, baseline) Z`）。
 //! `y = 0` 固定ではなく domain 下端を使うのは、全値が負の系列で面が上下反転
 //! （画面上端へ張り付く）せず、値の小さい方へ塗りつぶしが伸びる直感的な
-//! 見た目を保つため。
+//! 見た目を保つため。積み上げ時（`stack: AreaStack::Normal`/`Expand`）の
+//! 閉じ方は「積み上げ（`AreaStack`）」節を参照。
 //!
 //! # エッジケース（`n == 1`）
 //!
 //! [`crate::line_chart`] と同じ規則: 面・線のいずれも生成せず、中央
-//! （`width / 2.0`）に点マーカーのみを描く（0 除算・退化した面の回避）。
+//! （`width / 2.0`）に点マーカーのみを描く（0 除算・退化した面の回避。
+//! 積み上げ時は累積値に配置する）。
 //!
 //! # セキュリティ不変条件
 //!
 //! [`crate::line_chart`] モジュール doc と同一（`raw_html()` 不使用、
 //! 座標は `fmt_coord` 経由で文字集合 `[0-9.-]` に閉じる、CSS 宣言値は
-//! すべて静的リテラル）。
+//! すべて静的リテラル）。gradient（`fill: AreaFill::Gradient`）の `<defs>`
+//! も同じ不変条件に従う（「gradient の不変条件」節参照）。
 //!
-//! # 本イシューのスコープ外
+//! # shadcn/ui 突合（イシュー #2081）
 //!
-//! 積み上げ（`stackId`）・曲線補間・軸/グリッド/凡例/ツールチップは #847
-//! 以降。`examples/headless-pre-styled-ui` への追随は crates.io 公開後
-//! （[`crate::line_chart`] と同じ判断）。
+//! shadcn/ui Charts（area、10 バリアント）と突合し、静的に描画できる
+//! バリアントを props の純追加で補完した。マウス追従ツールチップ・
+//! hover 強調・期間切替・凡例トグルのような実行時インタラクションは
+//! 対象外（後述「本イシューのスコープ外」）。
+//!
+//! | shadcn/ui registry | 本実装の対応 |
+//! |---|---|
+//! | `chart-area-default`（natural + 横グリッド + X 軸） | `curve: AreaCurve::Natural` + `show_grid` + `show_x_axis` |
+//! | `chart-area-linear` | `curve: AreaCurve::Linear`（既定、既存出力と同一） |
+//! | `chart-area-step` | `curve: AreaCurve::Step` |
+//! | `chart-area-legend` | [`crate::charts::legend`] を呼び出し側が並べる（既存） |
+//! | `chart-area-stacked` | `stack: AreaStack::Normal` |
+//! | `chart-area-stacked-expand` | `stack: AreaStack::Expand`（domain `(0, 1)` 固定） |
+//! | `chart-area-icons` | [`crate::charts::data::Series::with_icon`] + legend（イシュー #2077 で対応済み） |
+//! | `chart-area-gradient` | `fill: AreaFill::Gradient` |
+//! | `chart-area-axes` | `show_x_axis` + `show_y_axis` + `show_grid` |
+//! | `chart-area-interactive` | 対象外（下記） |
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `series-area` の既定 `fill-opacity: 0.2`（chakra-ui 値）は据え置く。
+//!   shadcn の `0.4` は既存 golden の再 churn になるため採らず、gradient
+//!   variant の stop-opacity（0.8→0.1）でのみ shadcn 値を採用する
+//! - dots / label / 横向き（`layout="vertical"`）は shadcn area registry に
+//!   存在しない（line/bar 側の variant）ため非対応（#2083/#2082 の判断に
+//!   委ねる）
+//! - X 軸ラベルの `tickFormatter`（月名 3 文字切り詰め等）はアプリ側整形
+//!   （`docs/policy/intentional-non-adoption.md` §3.23/§3.25）のため非対応。
+//!   カテゴリ文字列をそのまま描く
+//! - `data-series`/hit-area 等の新規 `data-*` は付けない（マウス追従
+//!   ツールチップ・hover 強調は #2128 の担当）
+//! - `theme.rs` へのトークン追加（gradient stop-opacity 等）は行わない
+//!   （`site_css_contract` への波及回避、#1589/#1593 と同じ判断）
+//!
+//! ## 本イシューのスコープ外
+//!
+//! マウス追従ツールチップ・hover 強調・hit-area `data-*` は #2128、期間
+//! 切替・凡例トグルは #2132。`examples/headless-pre-styled-ui` への追随は
+//! crates.io 公開後（[`crate::line_chart`] と同じ判断）。
 //!
 //! # 参考サイト基準への調整（イシュー #1589）
 //!
@@ -70,7 +104,7 @@
 //!   （`stroke: var(--fandhe-color-bg)`）を追加し、面と同色の系列色でも
 //!   輪郭を識別できるようにした
 //!
-//! ## 意図的に合わせなかった点
+//! ## 意図的に合わせなかった点（イシュー #1589）
 //!
 //! - `series-line` への `vector-effect: non-scaling-stroke`（Xl で viewBox
 //!   が約 2 倍に拡大されると線幅も約 4px 相当になる）は、兄弟部品
@@ -84,12 +118,15 @@
 //!   chart 系のみで `theme.rs` 変更が docs-site 側の契約テストへ波及する
 //!   ため見送った
 
+use crate::charts::axis::{self, AxisProps};
+use crate::charts::curve::{natural_control_points, step_points};
 use crate::charts::data::ChartData;
+use crate::charts::grid::{self, GridProps};
 use crate::charts::scale::LinearScale;
 use crate::charts::svg::{fmt_coord, svg_root, PathBuilder};
 use crate::charts::ChartError;
 use crate::class_attr::drop_class_attr;
-use crate::css::decl;
+use crate::css::{decl, is_valid_identifier};
 use crate::line_chart::{category_x, view_box_from_dims};
 use crate::recipe::{Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
@@ -111,8 +148,74 @@ pub const DEFAULT_HEIGHT: f64 = 150.0;
 /// 単一カテゴリ時に描く点マーカーの半径（[`crate::line_chart`] と同値）。
 const POINT_RADIUS: f64 = 2.5;
 
-/// [`area_chart`] の入力。フィールドの意味は [`crate::line_chart::LineChartProps`]
-/// と同一。
+/// 軸/グリッド有効時（`show_x_axis`/`show_y_axis`/`show_grid` のいずれか）に
+/// プロット領域左側へ確保する Y 軸ラベル用の余白（px）。
+const AXIS_LEFT_MARGIN: f64 = 40.0;
+/// 軸/グリッド有効時にプロット領域下側へ確保する X 軸ラベル用の余白（px）。
+const AXIS_BOTTOM_MARGIN: f64 = 24.0;
+
+/// `<linearGradient>` の既定 id 接頭辞（[`AreaChartProps::gradient_id`]）。
+pub const DEFAULT_GRADIENT_ID: &str = "fandhe-area";
+
+/// 曲線種（shadcn `type`）。イシュー #2081、shadcn/ui Charts（area）突合。
+///
+/// 既定 [`AreaCurve::Linear`] は現行（#2081 以前）の折れ線出力と完全に
+/// 同一の `d` 属性を生成する（golden 純追加原則、モジュール doc参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AreaCurve {
+    /// 直線区間（既定）。
+    #[default]
+    Linear,
+    /// 自然三次スプライン補間（d3-shape `curveNatural` 相当、
+    /// [`crate::charts::curve::natural_control_points`]）。
+    Natural,
+    /// 区間中点で段差になる補間（d3-shape `curveStep` 相当、
+    /// [`crate::charts::curve::step_points`]）。
+    Step,
+}
+
+/// 積み上げ（shadcn `stackId`/`stackOffset="expand"`）。イシュー #2081。
+///
+/// 積み上げ時（[`AreaStack::Normal`]/[`AreaStack::Expand`]）は全系列の値が
+/// 非負であることを要求する（負値は帯として定義できないため
+/// [`ChartError::NegativeValue`]、`bar_segment`/`radar_chart` と同じ判断）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AreaStack {
+    /// 積み上げなし（既定）。系列ごとに独立した面を重ね描きする。
+    #[default]
+    None,
+    /// 累積和による積み上げ（帯状の面が積み重なる）。
+    Normal,
+    /// カテゴリ合計で正規化した積み上げ（domain `(0.0, 1.0)` 固定、
+    /// Y 軸ラベルは `%` 表示）。
+    Expand,
+}
+
+/// 塗り（shadcn `chart-area-gradient` variant）。イシュー #2081。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AreaFill {
+    /// 単色塗り（既定、`fill-opacity: 0.2` の系列色）。
+    #[default]
+    Solid,
+    /// 縦方向グラデーション塗り（`<linearGradient>`、
+    /// モジュール doc「gradient の不変条件」参照）。
+    Gradient,
+}
+
+impl VariantValue for AreaFill {
+    fn axis(self) -> &'static str {
+        "fill"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            AreaFill::Solid => "solid",
+            AreaFill::Gradient => "gradient",
+        }
+    }
+}
+
+/// [`area_chart`] の入力。
 pub struct AreaChartProps<'a> {
     /// 描画するチャートデータ。
     pub data: &'a ChartData,
@@ -124,10 +227,30 @@ pub struct AreaChartProps<'a> {
     pub height: f64,
     /// root へ付与する寸法 variant。
     pub size: Size,
+    /// 曲線種（イシュー #2081、既定 [`AreaCurve::Linear`]）。
+    pub curve: AreaCurve,
+    /// 積み上げ（イシュー #2081、既定 [`AreaStack::None`]）。
+    pub stack: AreaStack,
+    /// 塗り（イシュー #2081、既定 [`AreaFill::Solid`]）。
+    pub fill: AreaFill,
+    /// `fill: AreaFill::Gradient` 時の `<linearGradient id>` 接頭辞
+    /// （既定 [`DEFAULT_GRADIENT_ID`]）。[`is_valid_identifier`] を満たさ
+    /// なければ [`ChartError::InvalidGradientId`]。1 ページに複数チャート
+    /// を置く呼び出し側が一意化する（モジュール doc「gradient の不変
+    /// 条件」参照）。
+    pub gradient_id: &'a str,
+    /// X 軸（カテゴリ）を描画するか（イシュー #2081、既定 `false`）。
+    pub show_x_axis: bool,
+    /// Y 軸（数値目盛）を描画するか（イシュー #2081、既定 `false`）。
+    pub show_y_axis: bool,
+    /// 水平グリッド線を描画するか（イシュー #2081、既定 `false`）。
+    pub show_grid: bool,
 }
 
 impl<'a> AreaChartProps<'a> {
-    /// 既定寸法（[`Size::Md`]）で組み立てる。
+    /// 既定寸法（[`Size::Md`]）・既定バリアント（Linear/None/Solid、
+    /// 軸/グリッドなし）で組み立てる。既定値は #2081 以前の出力と完全に
+    /// 同一の HTML を生成する（golden 純追加原則）。
     #[must_use]
     pub fn new(data: &'a ChartData, aria_label: &'a str) -> Self {
         AreaChartProps {
@@ -136,6 +259,13 @@ impl<'a> AreaChartProps<'a> {
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
             size: Size::Md,
+            curve: AreaCurve::default(),
+            stack: AreaStack::default(),
+            fill: AreaFill::default(),
+            gradient_id: DEFAULT_GRADIENT_ID,
+            show_x_axis: false,
+            show_y_axis: false,
+            show_grid: false,
         }
     }
 }
@@ -221,6 +351,17 @@ fn recipe() -> SlotRecipe {
             vec![decl("--fandhe-area-chart-height", "306px")],
         )
         .default_variant(Size::Md)
+        // イシュー #2081: gradient variant は `default_variant` を登録
+        // しない（root の `variant_classes` 呼び出しは `size` のみを選択
+        // するため、既定を登録すると全 area-chart の root class に
+        // `fd-area-chart--fill-solid` が無条件で混入し HTML golden が
+        // 壊れる。`series-area` へは `recipe.variant_class(AreaFill::Gradient)`
+        // で個別に付与する、モジュール doc「gradient の不変条件」参照）。
+        .variant(
+            AreaFill::Gradient,
+            "series-area",
+            vec![decl("fill-opacity", "1")],
+        )
 }
 
 /// この styled AreaChart が生成する静的 CSS 全量を返す（決定的）。
@@ -229,18 +370,63 @@ pub fn stylesheet() -> String {
     recipe().css()
 }
 
+/// カテゴリ位置ごとの点列を「面 path」「線 path」の `d` 属性へ変換する
+/// （内部ヘルパ、`curve` に応じて直線/自然スプライン/step のいずれかで
+/// 補間する）。`points` は `n >= 2` を契約とする。
+fn build_line_d(points: &[(f64, f64)], curve: AreaCurve) -> String {
+    let mut b = PathBuilder::new();
+    let (x0, y0) = points[0];
+    b = b.move_to(x0, y0);
+    match curve {
+        AreaCurve::Linear => {
+            for &(x, y) in &points[1..] {
+                b = b.line_to(x, y);
+            }
+        }
+        AreaCurve::Natural if points.len() >= 3 => {
+            for (i, (cp1, cp2)) in natural_control_points(points).into_iter().enumerate() {
+                let (x, y) = points[i + 1];
+                b = b.cubic_to(cp1.0, cp1.1, cp2.0, cp2.1, x, y);
+            }
+        }
+        AreaCurve::Natural => {
+            // n == 2: natural spline は区間 1 個未満で定義できないため
+            // 直線へ退化する（モジュール doc「本イシューのスコープ外」の
+            // 対応表とは独立の、幾何としての必然的な縮退）。
+            for &(x, y) in &points[1..] {
+                b = b.line_to(x, y);
+            }
+        }
+        AreaCurve::Step => {
+            for (x, y) in step_points(points) {
+                b = b.line_to(x, y);
+            }
+        }
+    }
+    b.build()
+}
+
 /// 系列 1 本を「面 + 線」（`n >= 2`）または中央の点マーカー（`n == 1`）として
-/// 描く（内部ヘルパ）。`baseline_y` は `data.domain().0` を y スケールで
-/// 写像した座標（モジュール doc「面 path の閉じ方」参照）。`color` は
-/// 呼び出し元が [`crate::charts::ChartData::series_color_var`] で解決済みの
-/// 値（系列の色上書き、無ければ [`crate::charts::series_color_var`] の 6 色
+/// 描く（内部ヘルパ、`stack: AreaStack::None` 専用）。`baseline_y` は
+/// `data.domain().0` を y スケールで写像した座標（モジュール doc「面 path
+/// の閉じ方」参照）。`color` は呼び出し元が
+/// [`crate::charts::ChartData::series_color_var`] で解決済みの値
+/// （系列の色上書き、無ければ [`crate::charts::series_color_var`] の 6 色
 /// 循環、イシュー #2077）。
-fn render_series(
+#[allow(
+    clippy::too_many_arguments,
+    reason = "曲線種・塗り・gradient id は同一系列の描画に必須の同格パラメータであり、分割すると呼び出し側で対応関係が追いにくくなる"
+)]
+fn render_series_none(
     width: f64,
     y_scale: &LinearScale,
     baseline_y: f64,
     values: &[f64],
     color: &str,
+    curve: AreaCurve,
+    fill: AreaFill,
+    fill_class: &str,
+    gradient_url: &str,
 ) -> Vec<Node> {
     let n = values.len();
 
@@ -268,45 +454,38 @@ fn render_series(
         .map(|(i, &v)| (category_x(width, n, i), y_scale.scale(v)))
         .collect();
 
-    // 面 path: 折れ線を順方向に辿った後、baseline へ降りて逆方向の始点に戻り
-    // 閉じる（モジュール doc「面 path の閉じ方」参照）。
-    let mut area_builder = PathBuilder::new();
-    for (i, &(x, y)) in points.iter().enumerate() {
-        area_builder = if i == 0 {
-            area_builder.move_to(x, y)
-        } else {
-            area_builder.line_to(x, y)
-        };
-    }
+    let line_d = build_line_d(&points, curve);
+
+    // 面 path: 折れ線を辿った後、baseline へ降りて逆方向の始点に戻り閉じる
+    // （モジュール doc「面 path の閉じ方」参照）。Linear 以外の曲線でも
+    // 下側の閉じ方自体は baseline 2 直線のまま変えない（塗りの見た目は
+    // 上側の曲線形状で決まり、下側は viewBox 外へは出ないため）。
     let (last_x, _) = points[points.len() - 1];
     let (first_x, _) = points[0];
-    let area_d = area_builder
-        .line_to(last_x, baseline_y)
-        .line_to(first_x, baseline_y)
-        .close()
-        .build();
+    let area_d = format!(
+        "{line_d} L{},{} L{},{} Z",
+        fmt_coord(last_x),
+        fmt_coord(baseline_y),
+        fmt_coord(first_x),
+        fmt_coord(baseline_y)
+    );
 
-    let mut line_builder = PathBuilder::new();
-    for (i, &(x, y)) in points.iter().enumerate() {
-        line_builder = if i == 0 {
-            line_builder.move_to(x, y)
-        } else {
-            line_builder.line_to(x, y)
-        };
+    let fill_value = match fill {
+        AreaFill::Solid => color.to_string(),
+        AreaFill::Gradient => format!("url(#{gradient_url})"),
+    };
+    let mut area_attrs: Vec<(&str, &str)> = vec![
+        ("data-scope", "area-chart"),
+        ("data-part", "series-area"),
+        ("d", area_d.as_str()),
+        ("fill", fill_value.as_str()),
+    ];
+    if !fill_class.is_empty() {
+        area_attrs.push(("class", fill_class));
     }
-    let line_d = line_builder.build();
 
     vec![
-        el(
-            "path",
-            vec![
-                ("data-scope", "area-chart"),
-                ("data-part", "series-area"),
-                ("d", area_d.as_str()),
-                ("fill", color),
-            ],
-            vec![],
-        ),
+        el("path", area_attrs, vec![]),
         el(
             "path",
             vec![
@@ -321,12 +500,207 @@ fn render_series(
     ]
 }
 
+/// 積み上げ時（`stack: AreaStack::Normal`/`Expand`）の系列群を描く
+/// （内部ヘルパ）。`cum` は `series[i]` のカテゴリごとの累積上限値
+/// （`cum[0]` は 1 系列目の値そのもの）。系列 `i` は上側境界 `cum[i]`・
+/// 下側境界 `cum[i-1]`（`i == 0` は 0）の帯として描く。下側境界は上側と
+/// 同じ `curve` で辿った点列を**逆順**に計算し直して閉じる（natural
+/// spline の端点条件は対称なため逆順計算でも同一曲線になる）。
+#[allow(
+    clippy::too_many_arguments,
+    reason = "積み上げ描画は系列群・累積値・色解決・曲線/塗り指定を同時に必要とし、分割すると対応関係が追いにくくなる"
+)]
+fn render_stacked(
+    width: f64,
+    y_scale: &LinearScale,
+    cum: &[Vec<f64>],
+    data: &ChartData,
+    curve: AreaCurve,
+    fill: AreaFill,
+    fill_class: &str,
+    gradient_id_prefix: &str,
+) -> Vec<Node> {
+    let n = cum[0].len();
+    let mut nodes = Vec::new();
+
+    for (i, upper) in cum.iter().enumerate() {
+        let color = data.series_color_var(i);
+        if n <= 1 {
+            let x = category_x(width, n, 0);
+            let y = upper.first().copied().map_or(0.0, |v| y_scale.scale(v));
+            let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
+            nodes.push(el(
+                "circle",
+                vec![
+                    ("data-scope", "area-chart"),
+                    ("data-part", "point"),
+                    ("cx", cx.as_str()),
+                    ("cy", cy.as_str()),
+                    ("r", r.as_str()),
+                    ("fill", color.as_str()),
+                ],
+                vec![],
+            ));
+            continue;
+        }
+
+        let upper_points: Vec<(f64, f64)> = upper
+            .iter()
+            .enumerate()
+            .map(|(k, &v)| (category_x(width, n, k), y_scale.scale(v)))
+            .collect();
+        let lower_values: Vec<f64> = if i == 0 {
+            vec![0.0; n]
+        } else {
+            cum[i - 1].clone()
+        };
+        let mut lower_points: Vec<(f64, f64)> = lower_values
+            .iter()
+            .enumerate()
+            .map(|(k, &v)| (category_x(width, n, k), y_scale.scale(v)))
+            .collect();
+        lower_points.reverse();
+
+        let upper_d = build_line_d(&upper_points, curve);
+        let lower_d = build_line_d(&lower_points, curve);
+        // lower_d は独立した `M..` から始まるため、先頭の `M` を `L` へ
+        // 差し替えて上側 path の続きとして連結する（上側終点と下側
+        // 逆順始点は同じカテゴリの下側境界であり座標が一致するため、
+        // 連結しても幾何が破綻しない）。
+        let lower_continuation = lower_d.replacen('M', "L", 1);
+        let area_d = format!("{upper_d} {lower_continuation} Z");
+
+        let fill_value = match fill {
+            AreaFill::Solid => color.clone(),
+            AreaFill::Gradient => format!("url(#{gradient_id_prefix}-{i})"),
+        };
+        let mut area_attrs: Vec<(&str, &str)> = vec![
+            ("data-scope", "area-chart"),
+            ("data-part", "series-area"),
+            ("d", area_d.as_str()),
+            ("fill", fill_value.as_str()),
+        ];
+        if !fill_class.is_empty() {
+            area_attrs.push(("class", fill_class));
+        }
+        nodes.push(el("path", area_attrs, vec![]));
+        nodes.push(el(
+            "path",
+            vec![
+                ("data-scope", "area-chart"),
+                ("data-part", "series-line"),
+                ("d", upper_d.as_str()),
+                ("stroke", color.as_str()),
+                ("fill", "none"),
+            ],
+            vec![],
+        ));
+    }
+
+    nodes
+}
+
+/// `stack: AreaStack::Normal`/`Expand` 時のカテゴリごとの累積上限値を
+/// 系列ごとに返す（内部ヘルパ）。負値混入は [`ChartError::NegativeValue`]。
+/// `Expand` はカテゴリ合計で正規化し `(0.0, 1.0)` の比率にする
+/// （合計 0 のカテゴリは比率 0 と定義し `NaN` を生まない）。
+fn cumulative_series(data: &ChartData, expand: bool) -> Result<Vec<Vec<f64>>, ChartError> {
+    let series = data.series();
+    let n = data.categories().len();
+    for s in series {
+        if s.values.iter().any(|&v| v < 0.0) {
+            return Err(ChartError::NegativeValue);
+        }
+    }
+
+    let mut totals = vec![0.0; n];
+    if expand {
+        for s in series {
+            for (k, &v) in s.values.iter().enumerate() {
+                totals[k] += v;
+            }
+        }
+    }
+
+    let mut cum: Vec<Vec<f64>> = Vec::with_capacity(series.len());
+    let mut running = vec![0.0; n];
+    for s in series {
+        for (k, &v) in s.values.iter().enumerate() {
+            let contribution = if expand {
+                if totals[k] == 0.0 {
+                    0.0
+                } else {
+                    v / totals[k]
+                }
+            } else {
+                v
+            };
+            running[k] += contribution;
+        }
+        cum.push(running.clone());
+    }
+    Ok(cum)
+}
+
+/// `gradient_id` から系列ごとの `<linearGradient>` 定義（`<defs>` の中身）を
+/// 組み立てる（内部ヘルパ、モジュール doc「gradient の不変条件」参照）。
+/// `stop-color` は [`ChartData::series_color_var`] の固定形
+/// （`var(--fandhe-color-<name>)`）のみ、`offset`/`stop-opacity`/座標は
+/// 静的リテラルであり、`id` は [`is_valid_identifier`] 通過済み文字列 +
+/// `-<index>` のみのため、`fill="url(#<id>)"` の文字集合が閉じる。
+fn gradient_defs(gradient_id: &str, colors: &[String]) -> Node {
+    let stops: Vec<Node> = colors
+        .iter()
+        .enumerate()
+        .map(|(i, color)| {
+            let id = format!("{gradient_id}-{i}");
+            el(
+                "linearGradient",
+                vec![
+                    ("id", id.as_str()),
+                    ("x1", "0"),
+                    ("y1", "0"),
+                    ("x2", "0"),
+                    ("y2", "1"),
+                ],
+                vec![
+                    el(
+                        "stop",
+                        vec![
+                            ("offset", "5%"),
+                            ("stop-color", color.as_str()),
+                            ("stop-opacity", "0.8"),
+                        ],
+                        vec![],
+                    ),
+                    el(
+                        "stop",
+                        vec![
+                            ("offset", "95%"),
+                            ("stop-color", color.as_str()),
+                            ("stop-opacity", "0.1"),
+                        ],
+                        vec![],
+                    ),
+                ],
+            )
+        })
+        .collect();
+    el("defs", vec![], stops)
+}
+
 /// AreaChart 本体を組み立てる。
 ///
 /// # Errors
 ///
-/// [`crate::line_chart::line_chart`] と同じ契約
-/// （[`crate::line_chart::view_box_from_dims`] 参照）。
+/// - `width`/`height`/`aria_label` に関する契約は
+///   [`crate::line_chart::line_chart`] と同じ（[`crate::line_chart::view_box_from_dims`] 参照）
+/// - `stack` が [`AreaStack::Normal`]/[`AreaStack::Expand`] で系列に負値が
+///   含まれる場合 [`ChartError::NegativeValue`]
+/// - `fill` が [`AreaFill::Gradient`] で `gradient_id` が
+///   [`is_valid_identifier`] を満たさない場合 [`ChartError::InvalidGradientId`]
+/// - `show_x_axis`/`show_y_axis`/`show_grid` のいずれかが有効で、余白
+///   差し引き後のプロット領域が 0 以下になる場合 [`ChartError::PlotAreaTooSmall`]
 ///
 /// # Examples
 ///
@@ -349,20 +723,238 @@ pub fn area_chart<'a>(
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Result<Node, ChartError> {
     let view_box = view_box_from_dims(props.width, props.height)?;
-    let y_scale = LinearScale::new(props.data.domain(), (props.height, 0.0))?;
-    let (dom_lo, _dom_hi) = props.data.domain();
-    let baseline_y = y_scale.scale(dom_lo);
 
-    let plot_children: Vec<Node> = props
-        .data
-        .series()
-        .iter()
-        .enumerate()
-        .flat_map(|(i, s)| {
-            let color = props.data.series_color_var(i);
-            render_series(props.width, &y_scale, baseline_y, &s.values, &color)
-        })
-        .collect();
+    if props.fill == AreaFill::Gradient && !is_valid_identifier(props.gradient_id) {
+        return Err(ChartError::InvalidGradientId);
+    }
+
+    let recipe = recipe();
+    let fill_class = if props.fill == AreaFill::Gradient {
+        recipe.variant_class(AreaFill::Gradient)
+    } else {
+        String::new()
+    };
+
+    let has_axes = props.show_x_axis || props.show_y_axis || props.show_grid;
+
+    let mut plot_children: Vec<Node> = Vec::new();
+
+    if props.stack == AreaStack::None {
+        let colors: Vec<String> = (0..props.data.series().len())
+            .map(|i| props.data.series_color_var(i))
+            .collect();
+        if props.fill == AreaFill::Gradient {
+            plot_children.push(gradient_defs(props.gradient_id, &colors));
+        }
+
+        if has_axes {
+            let (left, bottom) = (
+                if props.show_y_axis {
+                    AXIS_LEFT_MARGIN
+                } else {
+                    0.0
+                },
+                if props.show_x_axis {
+                    AXIS_BOTTOM_MARGIN
+                } else {
+                    0.0
+                },
+            );
+            let plot_w = props.width - left;
+            let plot_h = props.height - bottom;
+            if plot_w <= 0.0 || plot_h <= 0.0 {
+                return Err(ChartError::PlotAreaTooSmall);
+            }
+            let y_scale = LinearScale::new(props.data.domain(), (plot_h, 0.0))?.nice();
+            let ticks = y_scale.ticks(4)?;
+            // baseline は nice 化後 domain の下端（負値のみの系列でも面が
+            // 上下反転しない、モジュール doc「面 path の閉じ方」と同じ判断）。
+            let (dom_lo, _) = y_scale.domain();
+            let baseline_y = y_scale.scale(dom_lo);
+
+            if props.show_grid {
+                plot_children.push(grid::cartesian_grid(
+                    (left, props.width),
+                    (0.0, plot_h),
+                    &[],
+                    &ticks,
+                    &GridProps {
+                        horizontal: true,
+                        vertical: false,
+                        ..GridProps::default()
+                    },
+                )?);
+            }
+
+            for (i, s) in props.data.series().iter().enumerate() {
+                let color = props.data.series_color_var(i);
+                let points: Vec<(f64, f64)> = s
+                    .values
+                    .iter()
+                    .enumerate()
+                    .map(|(k, &v)| {
+                        (
+                            category_x(plot_w, s.values.len(), k) + left,
+                            y_scale.scale(v),
+                        )
+                    })
+                    .collect();
+                if s.values.len() <= 1 {
+                    let (x, y) = points[0];
+                    let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
+                    plot_children.push(el(
+                        "circle",
+                        vec![
+                            ("data-scope", "area-chart"),
+                            ("data-part", "point"),
+                            ("cx", cx.as_str()),
+                            ("cy", cy.as_str()),
+                            ("r", r.as_str()),
+                            ("fill", color.as_str()),
+                        ],
+                        vec![],
+                    ));
+                    continue;
+                }
+                let line_d = build_line_d(&points, props.curve);
+                let (last_x, _) = points[points.len() - 1];
+                let (first_x, _) = points[0];
+                let area_d = format!(
+                    "{line_d} L{},{} L{},{} Z",
+                    fmt_coord(last_x),
+                    fmt_coord(baseline_y),
+                    fmt_coord(first_x),
+                    fmt_coord(baseline_y)
+                );
+                let fill_value = match props.fill {
+                    AreaFill::Solid => color.clone(),
+                    AreaFill::Gradient => format!("url(#{}-{i})", props.gradient_id),
+                };
+                let mut area_attrs: Vec<(&str, &str)> = vec![
+                    ("data-scope", "area-chart"),
+                    ("data-part", "series-area"),
+                    ("d", area_d.as_str()),
+                    ("fill", fill_value.as_str()),
+                ];
+                if !fill_class.is_empty() {
+                    area_attrs.push(("class", fill_class.as_str()));
+                }
+                plot_children.push(el("path", area_attrs, vec![]));
+                plot_children.push(el(
+                    "path",
+                    vec![
+                        ("data-scope", "area-chart"),
+                        ("data-part", "series-line"),
+                        ("d", line_d.as_str()),
+                        ("stroke", color.as_str()),
+                        ("fill", "none"),
+                    ],
+                    vec![],
+                ));
+            }
+
+            if props.show_y_axis {
+                plot_children.push(axis::y_axis(
+                    &y_scale,
+                    &ticks,
+                    left,
+                    &AxisProps {
+                        show_tick_lines: false,
+                        show_axis_line: false,
+                        ..AxisProps::default()
+                    },
+                )?);
+            }
+            if props.show_x_axis {
+                // `axis::x_axis_categories` は band 中心配置（`start + (i +
+                // 0.5) * width / n`）のためデータ点の `category_x`（両端に
+                // 点を置く等間隔配置）とラベル位置がずれる。ラベルは
+                // データ点の x 座標に直接合わせ、軸線のみ `axis` モジュール
+                // の CSS 選択子（`data-part="axis-line"`）を再利用する。
+                let n = props.data.categories().len();
+                for (k, category) in props.data.categories().iter().enumerate() {
+                    let cx = category_x(plot_w, n, k) + left;
+                    plot_children.push(el(
+                        "text",
+                        vec![
+                            ("data-scope", "chart"),
+                            ("data-part", "tick-label"),
+                            ("x", fmt_coord(cx).as_str()),
+                            ("y", fmt_coord(plot_h + 16.0).as_str()),
+                            ("text-anchor", "middle"),
+                        ],
+                        vec![fandhe_frontend_headless_ui::fandhe_frontend_core::text(
+                            category,
+                        )],
+                    ));
+                }
+                plot_children.push(axis::x_axis_linear(
+                    &LinearScale::new((0.0, 1.0), (left, props.width))?,
+                    &[0.0],
+                    plot_h,
+                    &AxisProps {
+                        show_tick_lines: false,
+                        show_axis_line: true,
+                        ..AxisProps::default()
+                    },
+                )?);
+            }
+        } else {
+            let y_scale = LinearScale::new(props.data.domain(), (props.height, 0.0))?;
+            let (dom_lo, _dom_hi) = props.data.domain();
+            let baseline_y = y_scale.scale(dom_lo);
+
+            for (i, s) in props.data.series().iter().enumerate() {
+                let color = props.data.series_color_var(i);
+                plot_children.extend(render_series_none(
+                    props.width,
+                    &y_scale,
+                    baseline_y,
+                    &s.values,
+                    &color,
+                    props.curve,
+                    props.fill,
+                    &fill_class,
+                    &format!("{}-{i}", props.gradient_id),
+                ));
+            }
+        }
+    } else {
+        let expand = props.stack == AreaStack::Expand;
+        let cum = cumulative_series(props.data, expand)?;
+        let domain = if expand {
+            (0.0, 1.0)
+        } else {
+            let max = cum
+                .last()
+                .map(|last| last.iter().copied().fold(f64::NEG_INFINITY, f64::max))
+                .unwrap_or(0.0);
+            if max <= 0.0 {
+                (0.0, 1.0)
+            } else {
+                (0.0, max)
+            }
+        };
+        let y_scale = LinearScale::new(domain, (props.height, 0.0))?;
+
+        let colors: Vec<String> = (0..props.data.series().len())
+            .map(|i| props.data.series_color_var(i))
+            .collect();
+        if props.fill == AreaFill::Gradient {
+            plot_children.push(gradient_defs(props.gradient_id, &colors));
+        }
+
+        plot_children.extend(render_stacked(
+            props.width,
+            &y_scale,
+            &cum,
+            props.data,
+            props.curve,
+            props.fill,
+            &fill_class,
+            props.gradient_id,
+        ));
+    }
 
     let plot = svg_root(
         &view_box,
@@ -374,7 +966,6 @@ pub fn area_chart<'a>(
         plot_children,
     );
 
-    let recipe = recipe();
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
@@ -533,5 +1124,203 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    // --- イシュー #2081: shadcn/ui Charts（area）突合バリアント ---
+
+    #[test]
+    fn curve_natural_renders_cubic_segments() {
+        let d = data(vec![1.0, 5.0, 2.0, 8.0]);
+        let mut props = AreaChartProps::new(&d, "natural");
+        props.curve = AreaCurve::Natural;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(html.contains('C'));
+    }
+
+    #[test]
+    fn curve_natural_two_points_degenerates_to_line() {
+        let d = data(vec![1.0, 5.0]);
+        let mut props = AreaChartProps::new(&d, "natural-2");
+        props.curve = AreaCurve::Natural;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(!html.contains('C'));
+        assert!(html.contains('L'));
+    }
+
+    #[test]
+    fn curve_step_renders_midpoint_transitions() {
+        let d = data(vec![1.0, 5.0, 2.0]);
+        let mut props = AreaChartProps::new(&d, "step");
+        props.curve = AreaCurve::Step;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(html.contains("data-part=\"series-line\""));
+    }
+
+    #[test]
+    fn curve_linear_output_matches_pre_2081_baseline() {
+        let d = data(vec![1.0, 5.0, 2.0]);
+        let default_props = AreaChartProps::new(&d, "linear");
+        let mut explicit_props = AreaChartProps::new(&d, "linear");
+        explicit_props.curve = AreaCurve::Linear;
+        assert_eq!(
+            render(&area_chart(&default_props, vec![]).unwrap()),
+            render(&area_chart(&explicit_props, vec![]).unwrap())
+        );
+    }
+
+    fn multi_series_data() -> ChartData {
+        ChartData::new(
+            vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+            vec![
+                Series::new("a", vec![10.0, 20.0, 15.0]),
+                Series::new("b", vec![5.0, 8.0, 12.0]),
+            ],
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn stack_normal_renders_two_series_areas() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "stacked");
+        props.stack = AreaStack::Normal;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert_eq!(html.matches(r#"data-part="series-area""#).count(), 2);
+    }
+
+    #[test]
+    fn stack_normal_rejects_negative_values() {
+        let d = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![-1.0, 2.0])],
+        )
+        .unwrap();
+        let mut props = AreaChartProps::new(&d, "neg");
+        props.stack = AreaStack::Normal;
+        assert_eq!(
+            area_chart(&props, vec![]).unwrap_err(),
+            ChartError::NegativeValue
+        );
+    }
+
+    #[test]
+    fn stack_expand_is_deterministic_and_uses_full_height_domain() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "expand");
+        props.stack = AreaStack::Expand;
+        let a = render(&area_chart(&props, vec![]).unwrap());
+        let b = render(&area_chart(&props, vec![]).unwrap());
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn gradient_fill_emits_defs_and_url_reference() {
+        let d = data(vec![1.0, 2.0, 3.0]);
+        let mut props = AreaChartProps::new(&d, "gradient");
+        props.fill = AreaFill::Gradient;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(html.contains("<linearGradient"));
+        assert!(html.contains(r#"fill="url(#fandhe-area-0)""#));
+        assert!(html.contains("fd-area-chart--fill-gradient"));
+    }
+
+    #[test]
+    fn gradient_fill_with_multiple_series_uses_distinct_ids() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "gradient-multi");
+        props.fill = AreaFill::Gradient;
+        props.gradient_id = "showcase-area";
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(html.contains(r#"id="showcase-area-0""#));
+        assert!(html.contains(r#"id="showcase-area-1""#));
+    }
+
+    #[test]
+    fn gradient_fill_rejects_invalid_gradient_id() {
+        let d = data(vec![1.0, 2.0]);
+        let mut props = AreaChartProps::new(&d, "bad-id");
+        props.fill = AreaFill::Gradient;
+        props.gradient_id = "Invalid Id!";
+        assert_eq!(
+            area_chart(&props, vec![]).unwrap_err(),
+            ChartError::InvalidGradientId
+        );
+    }
+
+    #[test]
+    fn solid_fill_root_class_is_unaffected_by_fill_axis() {
+        // fill axis に default_variant を登録していないため、root の
+        // class は size のみで構成され `fd-area-chart--fill-*` を
+        // 一切含まないことを固定する（モジュール doc「gradient の不変
+        // 条件」参照、recipe.rs `variant_classes` の axis 補完規則）。
+        let d = data(vec![1.0, 2.0]);
+        let html = render(&area_chart(&AreaChartProps::new(&d, "root"), vec![]).unwrap());
+        assert!(html.starts_with(
+            r#"<div data-scope="area-chart" data-part="root" class="fd-area-chart--size-md">"#
+        ));
+    }
+
+    #[test]
+    fn axes_and_grid_render_expected_parts() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "axes");
+        props.show_x_axis = true;
+        props.show_y_axis = true;
+        props.show_grid = true;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(html.contains(r#"data-scope="chart" data-part="y-axis""#));
+        assert!(
+            html.contains(r#"data-scope="chart" data-part="grid-line""#)
+                || html.contains("data-part=\"grid\"")
+        );
+        assert!(html.contains("Jan"));
+    }
+
+    #[test]
+    fn axes_reject_when_plot_area_too_small() {
+        let d = data(vec![1.0, 2.0]);
+        let mut props = AreaChartProps::new(&d, "tiny");
+        props.width = 10.0;
+        props.height = 10.0;
+        props.show_x_axis = true;
+        props.show_y_axis = true;
+        assert_eq!(
+            area_chart(&props, vec![]).unwrap_err(),
+            ChartError::PlotAreaTooSmall
+        );
+    }
+
+    #[test]
+    fn axes_category_labels_are_escaped() {
+        let payload = "</text><script>alert(1)</script>";
+        let d = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let mut props = AreaChartProps::new(&d, "xss-axis");
+        props.show_x_axis = true;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn area_chart_never_emits_data_attrs_beyond_scope_and_part() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "vocab");
+        props.show_x_axis = true;
+        props.show_y_axis = true;
+        props.show_grid = true;
+        props.stack = AreaStack::Normal;
+        props.fill = AreaFill::Gradient;
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        for token in html.split("data-").skip(1) {
+            let name = token.split(['=', ' ', '>']).next().unwrap_or("");
+            assert!(
+                name == "scope" || name == "part",
+                "unexpected data-* attribute: data-{name}"
+            );
+        }
     }
 }

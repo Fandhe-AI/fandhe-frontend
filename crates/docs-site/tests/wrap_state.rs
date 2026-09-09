@@ -620,11 +620,13 @@ const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "text
 /// [`WRAPPED_SAME_NAME`] ではなく [`PRE_STYLED_ONLY`] へ分類する）。
 const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
 
-/// §3.6: `charts/` のうち Themes ページに対応しないモジュール（8 件。
+/// §3.6: `charts/` のうち Themes ページに対応しないモジュール（9 件。
 /// `mod` は charts 索引ページとして別枠で扱うため含まない。`tooltip` は
-/// トップレベルの同名ページに解決が奪われるためここに含む）。
+/// トップレベルの同名ページに解決が奪われるためここに含む。`curve` は
+/// イシュー #2081 で新設した曲線補間ジオメトリの純関数モジュールで、
+/// SVG ノード木を組み立てず単体の Themes ページを持たない）。
 const NON_PAGE_CHARTS: &[&str] = &[
-    "axis", "data", "grid", "legend", "pie", "scale", "svg", "tooltip",
+    "axis", "curve", "data", "grid", "legend", "pie", "scale", "svg", "tooltip",
 ];
 
 fn primitive_module_names() -> BTreeSet<&'static str> {
@@ -1008,8 +1010,8 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
     );
     assert_eq!(
         scan.charts.len(),
-        14,
-        "src/charts/*.rs の総数が想定と異なります"
+        15,
+        "src/charts/*.rs の総数が想定と異なります（イシュー #2081 で curve.rs を新設し 14 → 15）"
     );
 }
 

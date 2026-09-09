@@ -2572,7 +2572,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既にバンプ済み。本ブランチの変更（上記 0.152.1 化）は main の
 # 0.153.0 より前のバージョンのため、同一版数衝突を避けるためさらに
 # 0.153.1 へバンプする。
-version = "0.153.1"
+version = "0.154.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

@@ -12089,7 +12089,8 @@ fn bar_segment_section() -> Node {
 }
 
 /// AreaChart 節（イシュー #848、親 #845）: 折れ線 + domain 下端へ閉じた
-/// 塗りつぶし面を重ねて描く。
+/// 塗りつぶし面を重ねて描く。イシュー #2081（shadcn/ui Charts（area）突合）
+/// で curve/stack/fill/軸・グリッドの静的バリアントを追加した。
 fn area_chart_section() -> Node {
     // イシュー #1589: 系列色の識別性（内部整合の評価軸）を Demo で視覚
     // 確認できるよう、2 系列（visits/signups）へ拡張する。
@@ -12118,10 +12119,87 @@ fn area_chart_section() -> Node {
         })
         .collect());
 
+    // イシュー #2081: shadcn/ui `chart-area-linear`/`-step`（curve）の
+    // 静的バリアント。Natural（`chart-area-default` 相当）は曲線補間の
+    // 見た目確認用に単一系列データを使う。
+    let natural_data = ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![Series::new("visits", vec![10.0, 35.0, 15.0, 28.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let curve_row = row(vec![
+        area_chart::area_chart(
+            &AreaChartProps {
+                curve: area_chart::AreaCurve::Natural,
+                ..AreaChartProps::new(&natural_data, "natural curve")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+        area_chart::area_chart(
+            &AreaChartProps {
+                curve: area_chart::AreaCurve::Step,
+                ..AreaChartProps::new(&natural_data, "step curve")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+    ]);
+
+    // イシュー #2081: shadcn/ui `chart-area-stacked`/`-stacked-expand`。
+    let stacked_row = row(vec![
+        area_chart::area_chart(
+            &AreaChartProps {
+                stack: area_chart::AreaStack::Normal,
+                ..AreaChartProps::new(&data, "stacked visits and signups")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+        area_chart::area_chart(
+            &AreaChartProps {
+                stack: area_chart::AreaStack::Expand,
+                ..AreaChartProps::new(&data, "stacked expand visits and signups")
+            },
+            vec![],
+        )
+        .expect("showcase 固定データは常に有効"),
+    ]);
+
+    // イシュー #2081: shadcn/ui `chart-area-gradient`。`gradient_id` は
+    // ページ内の他チャートと衝突しない一意な値を明示する（モジュール doc
+    // 「gradient の不変条件」参照）。
+    let gradient_node = area_chart::area_chart(
+        &AreaChartProps {
+            fill: area_chart::AreaFill::Gradient,
+            gradient_id: "showcase-area-gradient",
+            ..AreaChartProps::new(&data, "gradient fill visits and signups")
+        },
+        vec![],
+    )
+    .expect("showcase 固定データは常に有効");
+
+    // イシュー #2081: shadcn/ui `chart-area-axes`。
+    let axes_node = area_chart::area_chart(
+        &AreaChartProps {
+            show_x_axis: true,
+            show_y_axis: true,
+            show_grid: true,
+            ..AreaChartProps::new(&data, "axes and grid visits and signups")
+        },
+        vec![],
+    )
+    .expect("showcase 固定データは常に有効");
+
     section(
         "AreaChart",
-        "系列ごとに折れ線 + 塗りつぶし面を重ねて描く自己完結チャートです。複数系列（chart-1〜6 の固定ローテーション色）と size（Xs〜Xl）の段階を掲示します。積み上げ・曲線補間は別イシュー（#847 以降）のスコープです。",
-        vec![node, size_row],
+        "系列ごとに折れ線 + 塗りつぶし面を重ねて描く自己完結チャートです。複数系列（chart-1〜6 の固定ローテーション色）・size（Xs〜Xl）に加え、shadcn/ui Charts（area）と突合した曲線（linear/natural/step）・積み上げ（normal/expand）・グラデーション塗り・軸/グリッドの各静的バリアントを掲示します（イシュー #2081）。マウス追従ツールチップ・期間切替等の実行時インタラクションは対象外です。",
+        vec![node, size_row, curve_row, stacked_row, gradient_node, axes_node],
     )
 }
 
