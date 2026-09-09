@@ -732,6 +732,17 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test command_browser
 
+      # イシュー #2074（親 #2071/#2072）: Sidebar（`fandhe-frontend-headless-ui`
+      # `sidebar` モジュール）の trigger/rail 開閉・Cmd/Ctrl+B ショートカット・
+      # モバイル drawer 切替・`collapsible=icon` 時の menu-button tooltip
+      # hover/focus 配線（crates/wasm-full/src/sidebar.rs）の実ブラウザ統合
+      # テスト（crates/wasm-full/tests/sidebar_browser.rs）。他の wasm-full
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。
+      - name: Run wasm-full sidebar browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test sidebar_browser
+
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
   # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が

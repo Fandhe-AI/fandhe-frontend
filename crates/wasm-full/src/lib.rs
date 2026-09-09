@@ -156,6 +156,7 @@ pub mod nav;
 pub mod number_input;
 pub mod overlay;
 pub mod position;
+pub mod sidebar;
 pub mod splitter;
 pub mod tooltip;
 
@@ -1047,6 +1048,7 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        Self::wire_sidebar(root.clone())?;
 
         Ok(Self {
             component,
@@ -1168,6 +1170,7 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        Self::wire_sidebar(root.clone())?;
 
         Ok(Self {
             component,
@@ -1734,6 +1737,79 @@ where
                 Self::apply_dirty_if_any(state, updated_root, &binding_table, &keyed_list_cache);
             },
         )
+    }
+
+    /// Sidebar（`fandhe-frontend-headless-ui` `sidebar` モジュール）の
+    /// Cmd/Ctrl+B ショートカット・モバイル drawer 切替・`menu-button`
+    /// tooltip hover 配線を [`sidebar::wire_sidebar_events`] 経由で `root`
+    /// へ配線する（イシュー #2074）。`Self::mount`/`Self::hydrate` の双方
+    /// から `Self::wire_command` の直後に 1 回だけ呼ばれる（`Self::wire_command`
+    /// 自体は `Self::wire_number_input` の直後）。
+    ///
+    /// 本メソッドは [`sidebar::wire_sidebar_events`] へ `root` を渡すだけで、
+    /// 他の `wire_*` メソッドのような `component`/`binding_table`/
+    /// `keyed_list_cache` の受け渡しを行わない（`Self::wire`/
+    /// `events::wire_events` は `data-action` 属性ベースの委譲であり、
+    /// headless-ui のマークアップ（`data-scope`/`data-part`）には適合
+    /// しないため、本メソッド自身は sidebar の `dispatch` チャネルを
+    /// 持たない）。
+    ///
+    /// # trigger/rail クリックが実際に dispatch へ届くにはオプトインが必要
+    /// （イシュー #2074 codex-review P1 是正）
+    ///
+    /// `crate::headless::MAPPING_TABLE` に `(sidebar, trigger)`/
+    /// `(sidebar, rail)` → `"toggle"` の 2 行があるだけでは trigger/rail の
+    /// クリックは dispatch へ到達しない。`Self::wire`/`events::wire_events`
+    /// は `data-action` 属性のみを見るため MAPPING_TABLE を一切参照せず、
+    /// また本メソッド（`Runtime::mount`/`Runtime::hydrate` の一部として
+    /// 自動実行される経路）も `crate::headless::wire_headless_events`/
+    /// `wire_headless_component` を呼ばない。これは見落としではなく、
+    /// `root` 配下の全 `MAPPING_TABLE` 行を同一の
+    /// `ActionRef{action, payload}` として解決するこの配線を、識別情報を
+    /// 持たない単一フラットな `Runtime<C>` の `C` へ自動的に橋渡しすると、
+    /// 同じ `root` に複数の headless-ui 部品が同居する場合に「どの部品の
+    /// クリックか」を判別できない構造的な曖昧性があるため
+    /// （`docs/design/wasm-full-architecture.md` §12.7 が `Runtime<C>` への
+    /// 自動統合を明示的にスコープ外としている理由と同じ）。
+    ///
+    /// なお `Self::wire_command`（本メソッドの直前に呼ばれる）は逆に
+    /// `component`/`binding_table`/`keyed_list_cache` を受け取り `C` へ自動
+    /// 橋渡しする（`command::wire_command_component` の `on_update`
+    /// コールバック経由）。この非対称は語彙の曖昧性の有無に起因する:
+    /// Command の dispatch action（`"command:execute"` 等）は他の headless-ui
+    /// 部品と語彙を共有しない専用チャネルであり、`command` scope 専用
+    /// セレクタで一意に解決できるため `C` への自動橋渡しに曖昧性がない。
+    /// 一方 sidebar の `"toggle"` は collapsible/dialog 等と語彙を共有し、
+    /// かつ `Runtime<C>` の `C` はアプリの最上位 Component であって
+    /// `Sidebar` 状態機械そのものではないため、`Rc<RefCell<Sidebar>>` を
+    /// 受け取るオプトイン API（[`sidebar::wire_sidebar_dispatch`]）を
+    /// 別途用意する設計を採る。
+    ///
+    /// Sidebar の trigger/rail クリックを実際に開閉へ結び付けたいアプリは、
+    /// 自身が保持する `Rc<RefCell<fandhe_frontend_headless_ui::sidebar::
+    /// Sidebar>>` を [`sidebar::wire_sidebar_dispatch`]
+    /// （`headless_select::wire_select_value_text` と同型のオプトイン API）
+    /// へ渡して個別に配線する必要がある。本メソッドはそれを呼ばない
+    /// （呼ぶための `Sidebar` インスタンスを `Runtime<C>` は持たないため）。
+    ///
+    /// `sidebar` モジュール自身（[`sidebar::wire_sidebar_events`]）が
+    /// 配線する Cmd/Ctrl+B・モバイル drawer 切替・tooltip hover は、いずれも
+    /// trigger（無ければ rail）へ `click` を合成するのみで完結し、
+    /// 上記オプトインが無いアプリでは合成 click も無反応のまま
+    /// （`sidebar.rs` モジュール doc「click 合成で完結させる設計」参照）。
+    ///
+    /// # fail-closed（Sidebar 非搭載アプリへの副作用なし）
+    ///
+    /// `root` 配下に Sidebar の `provider` パーツが存在しない場合、
+    /// [`sidebar::wire_sidebar_events`] はリスナーを 1 つも登録せず
+    /// `Ok(())` を返す。
+    ///
+    /// # Errors
+    ///
+    /// [`sidebar::wire_sidebar_events`]（`add_event_listener_with_callback`）
+    /// の失敗を伝播する。
+    fn wire_sidebar(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        sidebar::wire_sidebar_events(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

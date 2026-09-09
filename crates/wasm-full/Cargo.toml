@@ -674,7 +674,33 @@ name = "fandhe-frontend-wasm-full"
 # のため。collapse-trigger の click → "toggle" dispatch 配線は #2108 の
 # スコープ外の後続作業）。0.16.0 が既にこのバンプを上回るため実値への
 # 影響はない。
-version = "0.16.0"
+# 0.16.0 → 0.16.1（イシュー #2074、PR #2248 のマージコンフリクト解消に伴う
+# base 再取り込み）: sidebar の trigger/rail 開閉・Cmd/Ctrl+B ショートカット・
+# モバイル drawer 切替（`data-mobile` 付け外し）・`collapsible=icon` 時の
+# menu-button tooltip hover/focus 配線を新規 `sidebar` モジュールとして追加
+# （公開 API 追加のみの非破壊的変更）。codex-review P1 2 件 + Cursor Bugbot
+# 2 件（うち 1 件は本 base 取り込み時点で是正）を反映済み。並行 PR #2237
+# （Command、0.16.0）マージ後は回避理由が消滅したため、本ブランチが独自に
+# 到達していた 0.17.0 ではなく main の到達値（0.16.0）からの patch バンプ
+# として 0.16.1 に是正する。
+# 0.16.1 → 0.16.2（イシュー #2074、PR #2248 codex-review P1 是正）:
+# (1) `sidebar::wiring::handle_document_pointerdown` が判定前に無条件で
+# `Event::stop_immediate_propagation()` を呼び、Sidebar より後に document
+# へ登録された無関係な pointerdown リスナー（`overlay::
+# OverlayCloseController` 等）を一律に止めてしまう不具合を是正。
+# `mark_event_handled`（`js_sys::Reflect` によるイベント自身への処理済み
+# マーカー付与）で Sidebar 自身の複数 `root` リスナー間のみを重複排除する
+# 方式へ変更し、`stop_immediate_propagation`/`stop_propagation` は一切
+# 呼ばないようにした。(2) 合成 Escape の閉鎖判定（`handle_document_
+# keydown`）が単一 `root` 内でしか確定していなかったため、
+# `wire_sidebar_events_with_query` を個別に呼んだ複数ルート構成で、先に
+# 処理されたルートの合成 click が引き起こす共有ルートの構造フォールバック
+# 再描画により後続ルートの `data-mobile` が消え「閉じるべきなのに閉じ
+# ない」誤判定になり得た不具合を是正。`REGISTERED_KEYDOWN_ROOTS` を新設し、
+# pointerdown 版と同型に既登録の全 `root` をまたいで判定をいずれの合成
+# click よりも前に一括確定するよう変更した。いずれも内部実装のみの修正
+# （公開 API 変更なし）のため patch バンプ。
+version = "0.16.2"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -879,6 +905,13 @@ categories = ["wasm", "web-programming"]
 # `DomRectReadOnly` を追加する。新規外部クレート追加ゼロ、既存 web-sys の
 # feature 追加のみ。`cargo metadata` 実測（パッケージ数・依存グラフ深さ）
 # に変化がないことを PR 本文に記録する。
+# イシュー #2074（Sidebar の trigger/rail 開閉・Cmd/Ctrl+B・モバイル drawer
+# 切替・tooltip hover 配線）: `sidebar::wiring` が `Window::match_media` で
+# モバイル判定（`(max-width: 767px)`）を行い `MediaQueryList::matches`/
+# `change` イベント購読で viewport 変化に追随するため `MediaQueryList` を
+# 追加する。新規外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。
+# `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを
+# PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.2.6" }
 fandhe-frontend-core = { path = "../core", version = "0.4.3" }
@@ -935,6 +968,7 @@ features = [
   "InputEventInit",
   "KeyboardEvent",
   "Location",
+  "MediaQueryList",
   "MouseEvent",
   "MutationObserver",
   "MutationObserverInit",

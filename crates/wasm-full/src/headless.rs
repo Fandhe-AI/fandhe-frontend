@@ -331,6 +331,25 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "toggle",
         requires_value: true,
     },
+    // Sidebar（イシュー #2074、`crates/headless-ui/src/sidebar.rs`）:
+    // `trigger`/`rail` はいずれもクリックで開閉を反転する
+    // "toggle"（`SidebarAction::Toggle`、payload 不使用）。`rail` は
+    // `tabindex="-1"` でキーボードフォーカス対象外だが、マウス/タッチの
+    // click イベント自体は他ボタンと同様に発火するため本表 1 行で足りる
+    // （headless-ui 側の rustdoc「呼び出し文脈」節が本イシューへ配線を
+    // 申し送っている）。
+    MappingRow {
+        scope: "sidebar",
+        part: "trigger",
+        action: "toggle",
+        requires_value: false,
+    },
+    MappingRow {
+        scope: "sidebar",
+        part: "rail",
+        action: "toggle",
+        requires_value: false,
+    },
 ];
 
 /// クリックされた要素（またはその祖先方向の 1 要素）の anatomy 属性を表す
@@ -465,13 +484,42 @@ pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
 /// 境界による打ち切りは従来どおり）。
 #[must_use]
 pub fn action_from_parts(parts: &[PartRef]) -> Option<ActionRef> {
+    action_from_parts_scoped(parts, |_| true)
+}
+
+/// [`action_from_parts`] の限定版。クリック位置から根方向へ辿って**最初に
+/// 解決できた** part（`disabled`/`readonly`/`content` 境界の扱いは
+/// [`action_from_parts`] と同一）が `predicate` を満たす場合のみ
+/// [`ActionRef`] を返す。満たさない場合は、より外側の祖先で改めて別の
+/// 行を探すことをせず、その時点で `None` を返す（探索を打ち切る）。
+///
+/// # なぜ「最初の解決の可否」で打ち切るのか
+///
+/// 複数の headless-ui コンポーネントは `"toggle"` 等の action 語彙を
+/// 共有するため、[`action_from_parts`] が返す [`ActionRef`] だけでは
+/// 「どの (scope, part) が実際にこの click を解決したか」を呼び出し元が
+/// 判別できない。特定コンポーネント専用の dispatch 配線（例:
+/// `crate::sidebar::wiring::wire_sidebar_dispatch`）は、`root` の部分木に
+/// ネストした無関係な別コンポーネント（例: Sidebar content 内の
+/// `Collapsible`）のクリックを自分自身のアクションとして誤って解決しては
+/// ならない。`predicate` を **最初に見つかった解決可能な part**（＝実際に
+/// クリックされた対象に最も近い part）にのみ適用し、それが要求する
+/// scope/part と一致しない場合は即座に `None` へ倒すことで、より外側の
+/// 祖先（例: 呼び出し元コンポーネント自身の trigger/rail）へフォール
+/// バックして誤 dispatch する事態を防ぐ（イシュー #2074 codex-review P1
+/// 是正）。
+#[must_use]
+pub fn action_from_parts_scoped(
+    parts: &[PartRef],
+    predicate: impl Fn(&PartRef) -> bool,
+) -> Option<ActionRef> {
     if parts.iter().any(|part| part.disabled) {
         return None;
     }
     for (i, part) in parts.iter().enumerate() {
         if !instance_is_readonly(parts, i) {
             if let Some(action) = action_for_part(part) {
-                return Some(action);
+                return if predicate(part) { Some(action) } else { None };
             }
         }
         if part.part == "content" {
@@ -519,7 +567,7 @@ fn instance_is_readonly(parts: &[PartRef], index: usize) -> bool {
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{action_from_parts, ActionRef, PartRef};
+    use super::{ActionRef, PartRef};
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event};
@@ -624,6 +672,23 @@ mod wiring {
         root: Element,
         on_action: impl FnMut(ActionRef) + 'static,
     ) -> Result<(), JsValue> {
+        wire_headless_events_scoped(root, |_| true, on_action)
+    }
+
+    /// [`wire_headless_events`] の限定版。`root` の部分木で解決された
+    /// click が `predicate` を満たす part によるものだった場合のみ
+    /// `on_action` を呼ぶ（[`super::action_from_parts_scoped`] 参照）。
+    ///
+    /// 特定コンポーネント専用の dispatch 配線（例:
+    /// `crate::sidebar::wiring::wire_sidebar_dispatch`）が、`root` の
+    /// 部分木にネストした無関係な別コンポーネント（例: Sidebar content
+    /// 内の `Collapsible`）のクリックを自分自身のアクションとして誤って
+    /// 解決しないための API（イシュー #2074 codex-review P1 是正）。
+    pub fn wire_headless_events_scoped(
+        root: Element,
+        predicate: impl Fn(&PartRef) -> bool + 'static,
+        on_action: impl FnMut(ActionRef) + 'static,
+    ) -> Result<(), JsValue> {
         let on_action = std::rc::Rc::new(std::cell::RefCell::new(on_action));
         let click_root = root.clone();
 
@@ -644,7 +709,7 @@ mod wiring {
                 }
             };
             let parts = collect_part_refs(&click_root, &target_element);
-            if let Some(action_ref) = action_from_parts(&parts) {
+            if let Some(action_ref) = super::action_from_parts_scoped(&parts, &predicate) {
                 // ネストした外側 root（例: Dialog の外側リスナー）へ同一
                 // click イベントが bubble して二重解決されるのを防ぐ
                 // （上記関数 doc 参照）。
@@ -660,7 +725,7 @@ mod wiring {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::wire_headless_events;
+pub use wiring::{wire_headless_events, wire_headless_events_scoped};
 
 /// dispatch への橋渡し便宜 API（`#[cfg(target_arch = "wasm32")]`）。
 ///
@@ -1063,6 +1128,66 @@ mod tests {
         assert_eq!(
             action_for_part(&part("menubar", "trigger", Some("1"), true)),
             None
+        );
+    }
+
+    // --- Sidebar（イシュー #2074）: trigger/rail → "toggle"（value 不使用） ---
+
+    #[test]
+    fn sidebar_trigger_and_rail_map_to_toggle() {
+        let trigger_action = action_for_part(&part("sidebar", "trigger", None, false)).unwrap();
+        assert_eq!(trigger_action.action, "toggle");
+        assert_eq!(trigger_action.payload, "");
+
+        let rail_action = action_for_part(&part("sidebar", "rail", None, false)).unwrap();
+        assert_eq!(rail_action.action, "toggle");
+        assert_eq!(rail_action.payload, "");
+    }
+
+    #[test]
+    fn sidebar_trigger_disabled_is_none() {
+        assert_eq!(
+            action_for_part(&part("sidebar", "trigger", None, true)),
+            None
+        );
+    }
+
+    // --- action_from_parts_scoped: 特定 scope への限定（イシュー #2074
+    // codex-review P1 是正）---
+
+    #[test]
+    fn action_from_parts_scoped_accepts_when_innermost_match_satisfies_predicate() {
+        // クリック位置が sidebar 自身の trigger である場合はそのまま解決する。
+        let parts = vec![part("sidebar", "trigger", None, false)];
+        let action = action_from_parts_scoped(&parts, |p| p.scope == "sidebar").unwrap();
+        assert_eq!(action.action, "toggle");
+    }
+
+    #[test]
+    fn action_from_parts_scoped_rejects_when_innermost_match_is_a_different_scope() {
+        // Sidebar content 内にネストした Collapsible の trigger がクリック
+        // 位置の最も内側でマッチする場合、外側に Sidebar 自身の trigger/rail
+        // が存在しても、それへフォールバックせず None を返す（誤って
+        // Sidebar 自身の dispatch へ渡さないための境界）。
+        let parts = vec![
+            part("collapsible", "trigger", None, false),
+            part("sidebar", "trigger", None, false),
+        ];
+        assert_eq!(
+            action_from_parts_scoped(&parts, |p| p.scope == "sidebar"),
+            None
+        );
+    }
+
+    #[test]
+    fn action_from_parts_scoped_with_always_true_predicate_matches_action_from_parts() {
+        let parts = vec![
+            part("menu", "item-text", None, false),
+            part("menu", "item", None, false),
+        ];
+        assert_eq!(
+            action_from_parts_scoped(&parts, |_| true),
+            action_from_parts(&parts)
         );
     }
 
