@@ -193,6 +193,16 @@ const LABEL_OFFSET: f64 = 4.0;
 /// 内側ラベルの、棒端からの内向きオフセット（px、イシュー #2082）。
 const INSIDE_LABEL_OFFSET: f64 = 8.0;
 
+/// [`BarChartProps::label`] が [`BarLabel::None`] 以外のとき、値軸方向の
+/// 両端（Vertical は上下、Horizontal は左右）に確保する外側ラベル用の
+/// 追加余白（px、PR #2255 レビュー指摘「Value labels overflow the
+/// viewBox」対応）。`value_label` は棒の先端（最大値側 or 最小値側）の
+/// さらに外側 [`LABEL_OFFSET`] へ `font-size xs`（≒12px）のテキストを
+/// 置くため、余白が無いと最大値/最小値の棒でラベルが `viewBox` 端に
+/// クリップされる、またはカテゴリラベル領域と衝突する。`LABEL_OFFSET` +
+/// 1 行分のテキスト高さ + 余裕を丸めた実用値。
+const LABEL_MARGIN: f64 = 20.0;
+
 /// `data-scope="bar-chart"` の part 一覧（recipe と揃える）。
 const SLOTS: &[&str] = &[
     "root",
@@ -629,21 +639,41 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
     } else {
         0.0
     };
+    // 外側ラベル用の余白（[`LABEL_MARGIN`]、`props.label != BarLabel::None`
+    // のときのみ非 0）。値軸方向の両端（正方向の先端・負方向の先端）の
+    // どちらにも外側ラベルが出得るため両端に確保する。
+    let label_margin = if props.label != BarLabel::None {
+        LABEL_MARGIN
+    } else {
+        0.0
+    };
 
     // `left_offset` は Vertical のみ非 0（値軸用の左余白）。Horizontal は
     // 値軸余白を高さ側（下）から差し引くため、プロット幅の左端は 0 のまま
     // （既存 #849 の座標系を維持、golden 純追加原則）。
-    let (plot_width, plot_height, left_offset) = match props.orientation {
-        Orientation::Vertical => (
-            props.width - value_axis_margin,
-            props.height - category_space,
-            value_axis_margin,
-        ),
-        Orientation::Horizontal => (
-            props.width - category_space,
-            props.height - value_axis_margin,
-            0.0,
-        ),
+    // `value_axis_extent` は「値軸方向にカテゴリ軸余白を除いて使える
+    // 全ピクセル幅」（ラベル余白差し引き前）。カテゴリラベルはこの終端
+    // 直後に置かれる不変条件を維持するため、`category_label` へは
+    // 縮小後の `plot_width`/`plot_height` ではなくこちらを渡す。
+    let (plot_width, plot_height, left_offset, value_axis_extent) = match props.orientation {
+        Orientation::Vertical => {
+            let value_axis_extent = props.height - category_space;
+            (
+                props.width - value_axis_margin,
+                value_axis_extent - 2.0 * label_margin,
+                value_axis_margin,
+                value_axis_extent,
+            )
+        }
+        Orientation::Horizontal => {
+            let value_axis_extent = props.width - category_space;
+            (
+                value_axis_extent - 2.0 * label_margin,
+                props.height - value_axis_margin,
+                0.0,
+                value_axis_extent,
+            )
+        }
     };
     // `ViewBox::new` は width/height が正であることのみ検証し、余白差し引き
     // 後の実プロット領域までは検証しない。ここで拒否しないと、幅・高さが
@@ -656,9 +686,12 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
     let has_axes = props.show_value_axis || props.show_grid;
 
     let value_range = match props.orientation {
-        // SVG は y が下向き正のため、値の大小を上下反転させる。
-        Orientation::Vertical => (plot_height, 0.0),
-        Orientation::Horizontal => (0.0, plot_width),
+        // SVG は y が下向き正のため、値の大小を上下反転させる。上下
+        // （Vertical）/左右（Horizontal）それぞれに `label_margin` を
+        // 確保し、外側ラベルが正方向・負方向どちらの先端でも viewBox 内に
+        // 収まるようにする（PR #2255 レビュー指摘）。
+        Orientation::Vertical => (label_margin + plot_height, label_margin),
+        Orientation::Horizontal => (label_margin, label_margin + plot_width),
     };
     let raw_scale =
         LinearScale::new(domain, value_range).map_err(|_| ChartError::NonFiniteValue)?;
@@ -787,6 +820,9 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                 // 値ラベル（Normal のみ、最上段の先端に合計値を 1 つ。
                 // Expand は常に 100% のため表示しない）。カテゴリ名の内側
                 // ラベルは s_idx == 0（ベースライン側の帯）にのみ付ける。
+                // 積み上げは全系列非負であることをモジュール冒頭 doc の
+                // 契約で要求済み（stacked_cumulative 呼び出し前の検証）
+                // のため、`positive` は常に `true`（先端は常に正方向）。
                 if s_idx == n - 1 && props.label != BarLabel::None && !expand {
                     let total = upper;
                     plot_children.push(value_label(
@@ -796,10 +832,11 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         h,
                         &super::svg::fmt_coord(total),
                         props.orientation,
+                        true,
                     ));
                 }
                 if s_idx == 0 && props.label == BarLabel::Inside {
-                    plot_children.push(inside_label(x, y, w, h, category, props.orientation));
+                    plot_children.push(inside_label(x, y, w, h, category, props.orientation, true));
                 }
             }
         } else {
@@ -833,17 +870,26 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     }
                 };
 
+                // 棒がベースラインから正方向（Vertical は上、Horizontal は
+                // 右）へ伸びているか。`rounded_end` の判定と同じ大小関係を
+                // 共有し、`value_label`/`inside_label` へラベル配置方向の
+                // 反転判定として渡す（PR #2255 レビュー指摘対応）。
+                let positive = match props.orientation {
+                    Orientation::Vertical => scaled <= baseline,
+                    Orientation::Horizontal => scaled >= baseline,
+                };
+
                 let rounded_end = if props.corner_radius > 0.0 {
                     match props.orientation {
                         Orientation::Vertical => {
-                            if scaled <= baseline {
+                            if positive {
                                 RoundedEnd::Top
                             } else {
                                 RoundedEnd::Bottom
                             }
                         }
                         Orientation::Horizontal => {
-                            if scaled >= baseline {
+                            if positive {
                                 RoundedEnd::Right
                             } else {
                                 RoundedEnd::Left
@@ -882,21 +928,38 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         h,
                         &super::svg::fmt_coord(value),
                         props.orientation,
+                        positive,
                     ));
                 }
                 if series_idx == 0 && props.label == BarLabel::Inside {
-                    plot_children.push(inside_label(x, y, w, h, category, props.orientation));
+                    plot_children.push(inside_label(
+                        x,
+                        y,
+                        w,
+                        h,
+                        category,
+                        props.orientation,
+                        positive,
+                    ));
                 }
             }
         }
 
         if props.show_category_labels {
+            // カテゴリラベルは値軸方向の全体終端（ラベル余白差し引き前の
+            // `value_axis_extent`）の直後に置く。`plot_width`/`plot_height`
+            // をそのまま渡すと `label_margin` 分だけ手前にずれてしまう
+            // （PR #2255 レビュー指摘、`value_axis_extent` 定義箇所参照）。
+            let (cat_plot_width, cat_plot_height) = match props.orientation {
+                Orientation::Vertical => (plot_width, value_axis_extent),
+                Orientation::Horizontal => (value_axis_extent, plot_height),
+            };
             plot_children.push(category_label(
                 category,
                 band_start,
                 band,
-                plot_width,
-                plot_height,
+                cat_plot_width,
+                cat_plot_height,
                 left_offset,
                 props,
             ));
@@ -948,27 +1011,64 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
 
 /// 値ラベル（棒先端の外側、イシュー #2082）を組み立てる（内部ヘルパ）。
 /// `(x, y, w, h)` は棒の矩形（角丸適用前の論理座標、`bar_shape` と同じ
-/// 引数）。ベースラインより上（Vertical）/ 右（Horizontal）に伸びる棒を
-/// 「正方向」とし、先端側へ [`LABEL_OFFSET`] だけ外側にずらす。
-fn value_label(x: f64, y: f64, w: f64, h: f64, value_str: &str, orientation: Orientation) -> Node {
+/// 引数、`y`/`x` は常に矩形の最小座標で `scaled.min(baseline)` から来る）。
+///
+/// `positive` は「この棒がベースラインから正方向（Vertical は上、
+/// Horizontal は右）へ伸びているか」を呼び出し側（`scaled`/`baseline` の
+/// 大小関係を知っている）が渡す。矩形の最小座標基準の `(x, y, w, h)` だけ
+/// では正負を判別できないため必須の引数とする（PR #2255 レビュー指摘:
+/// 負値の棒で常に正方向の先端＝ここでは `y`/`x + w` 側へラベルを置いて
+/// いたため、先端ではなくベースライン側に表示される不具合があった）。
+/// 正方向なら先端は矩形の最小座標側（Vertical: `y`、Horizontal: `x+w`）、
+/// 負方向なら先端は最大座標側（Vertical: `y+h`、Horizontal: `x`）になる。
+/// 先端のさらに外側へ [`LABEL_OFFSET`] だけずらす。
+fn value_label(
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    value_str: &str,
+    orientation: Orientation,
+    positive: bool,
+) -> Node {
     let (lx, ly, extra): (f64, f64, Vec<(&str, &str)>) = match orientation {
         Orientation::Vertical => {
-            // y が棒の上端（数値が大きいほど上、SVG 座標は上ほど小さい値）。
-            // 上端が原点（0,0）に近い、すなわち棒がベースラインより上に
-            // 伸びている（正方向）とみなし、ラベルは上端のさらに外側へ置く。
-            // h == 0（値がベースラインと一致）の退化ケースは上側扱いで問題
-            // ない（見た目上どちらでも同じ位置になる）。
-            (
-                x + w / 2.0,
-                y - LABEL_OFFSET,
-                vec![("text-anchor", "middle")],
-            )
+            if positive {
+                // 先端は矩形上端（y）。h == 0（値がベースラインと一致）の
+                // 退化ケースも上側扱いで問題ない（見た目上どちらでも同じ
+                // 位置になる）。
+                (
+                    x + w / 2.0,
+                    y - LABEL_OFFSET,
+                    vec![("text-anchor", "middle")],
+                )
+            } else {
+                // 先端は矩形下端（y+h）。テキストがさらに下へ「垂れ下がる」
+                // よう `dominant-baseline: hanging` を指定する（既定の
+                // alphabetic baseline だとテキストが上方向へ伸び、棒と
+                // 重なってしまう）。
+                (
+                    x + w / 2.0,
+                    y + h + LABEL_OFFSET,
+                    vec![("text-anchor", "middle"), ("dominant-baseline", "hanging")],
+                )
+            }
         }
-        Orientation::Horizontal => (
-            x + w + LABEL_OFFSET,
-            y + h / 2.0,
-            vec![("text-anchor", "start"), ("dominant-baseline", "middle")],
-        ),
+        Orientation::Horizontal => {
+            if positive {
+                (
+                    x + w + LABEL_OFFSET,
+                    y + h / 2.0,
+                    vec![("text-anchor", "start"), ("dominant-baseline", "middle")],
+                )
+            } else {
+                (
+                    x - LABEL_OFFSET,
+                    y + h / 2.0,
+                    vec![("text-anchor", "end"), ("dominant-baseline", "middle")],
+                )
+            }
+        }
     };
     let mut attrs: Vec<(&str, &str)> =
         vec![("data-scope", "bar-chart"), ("data-part", "value-label")];
@@ -977,19 +1077,52 @@ fn value_label(x: f64, y: f64, w: f64, h: f64, value_str: &str, orientation: Ori
 }
 
 /// 内側ラベル（棒のベースライン側内部にカテゴリ名、イシュー #2082）を
-/// 組み立てる（内部ヘルパ）。`(x, y, w, h)` は [`value_label`] と同じ。
-fn inside_label(x: f64, y: f64, w: f64, h: f64, category: &str, orientation: Orientation) -> Node {
+/// 組み立てる（内部ヘルパ）。`(x, y, w, h)`/`positive` は [`value_label`]
+/// と同じ契約（PR #2255 レビュー指摘: 負値の棒でベースライン側が矩形の
+/// 最小座標側へ入れ替わるため、`positive` を反映しないと先端側にカテゴリ
+/// 名が表示されてしまう）。ベースライン側は正方向なら矩形最大座標側
+/// （Vertical: `y+h`、Horizontal: `x`）、負方向なら最小座標側
+/// （Vertical: `y`、Horizontal: `x+w`）。
+fn inside_label(
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    category: &str,
+    orientation: Orientation,
+    positive: bool,
+) -> Node {
     let (lx, ly, extra): (f64, f64, Vec<(&str, &str)>) = match orientation {
-        Orientation::Vertical => (
-            x + w / 2.0,
-            y + h - INSIDE_LABEL_OFFSET,
-            vec![("text-anchor", "middle")],
-        ),
-        Orientation::Horizontal => (
-            x + INSIDE_LABEL_OFFSET,
-            y + h / 2.0,
-            vec![("text-anchor", "start"), ("dominant-baseline", "middle")],
-        ),
+        Orientation::Vertical => {
+            if positive {
+                (
+                    x + w / 2.0,
+                    y + h - INSIDE_LABEL_OFFSET,
+                    vec![("text-anchor", "middle")],
+                )
+            } else {
+                (
+                    x + w / 2.0,
+                    y + INSIDE_LABEL_OFFSET,
+                    vec![("text-anchor", "middle"), ("dominant-baseline", "hanging")],
+                )
+            }
+        }
+        Orientation::Horizontal => {
+            if positive {
+                (
+                    x + INSIDE_LABEL_OFFSET,
+                    y + h / 2.0,
+                    vec![("text-anchor", "start"), ("dominant-baseline", "middle")],
+                )
+            } else {
+                (
+                    x + w - INSIDE_LABEL_OFFSET,
+                    y + h / 2.0,
+                    vec![("text-anchor", "end"), ("dominant-baseline", "middle")],
+                )
+            }
+        }
     };
     let mut attrs: Vec<(&str, &str)> =
         vec![("data-scope", "bar-chart"), ("data-part", "inside-label")];
@@ -1562,6 +1695,95 @@ mod tests {
         assert!(html.contains(r#"data-part="inside-label""#));
         assert!(html.contains("Jan"));
         assert!(!html.contains(r#"data-part="category-label""#));
+    }
+
+    /// PR #2255 レビュー指摘（codex-review P1 / Cursor Bugbot Low、
+    /// bar_chart.rs:963,968,985,989 相当）: 負値の棒は `value_label` の
+    /// 先端が矩形最大座標側（Vertical は `y+h`）に来るため、常に矩形最小
+    /// 座標側（`y`）へ配置していた旧実装は正方向の棒と同じ位置＝ベース
+    /// ライン側にラベルが出てしまっていた。修正後は正負で配置方向と
+    /// `dominant-baseline` を反転する。
+    #[test]
+    fn label_outside_negative_value_places_label_beyond_negative_tip() {
+        // width=480, height=300（既定）。show_category_labels 既定 true
+        // なので category_space=24、label!=None なので label_margin=20。
+        // value_axis_extent = 300-24 = 276, plot_height = 276-40 = 236。
+        // value_range = (256, 20)。domain=(-10,10) 対称のため
+        // baseline=scale(0)=138。
+        // value=-10: scaled=range.0=256, y=min(256,138)=138,
+        //   h=|256-138|=118 → 先端（矩形下端）= y+h = 256。
+        //   value_label 負方向: ly = 256+LABEL_OFFSET(4) = 260。
+        // value=10: scaled=range.1=20, y=min(20,138)=20, h=118 →
+        //   先端（矩形上端）= y = 20。
+        //   value_label 正方向: ly = 20-LABEL_OFFSET(4) = 16。
+        let neg_data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![-10.0, 10.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            label: BarLabel::Outside,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&neg_data, props, "label").unwrap());
+        // 負値側ラベル: ベースラインより下（y="260"）へ、テキストが下方向
+        // へ垂れ下がるよう `dominant-baseline="hanging"` を伴って出力される
+        // （先端の外側、ベースライン側ではないことの確認）。
+        assert!(html.contains(r#"y="260""#));
+        assert!(html.contains(r#"dominant-baseline="hanging""#));
+        // 正値側ラベルは従来どおり先端（上端）のさらに外側 y="16"。
+        assert!(html.contains(r#"y="16""#));
+    }
+
+    /// 同上（Horizontal 版）。負方向（左）へ伸びる棒は `text-anchor="end"`
+    /// で先端の左外側へ、正方向（右）へ伸びる棒は従来どおり
+    /// `text-anchor="start"` で先端の右外側へ配置する。
+    #[test]
+    fn label_outside_negative_value_horizontal_places_label_left_of_negative_tip() {
+        let neg_data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![-10.0, 10.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            orientation: Orientation::Horizontal,
+            label: BarLabel::Outside,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&neg_data, props, "label").unwrap());
+        // 負値棒の value-label は先端（左）側、正値棒は先端（右）側に
+        // text-anchor が分かれる（双方存在すること＝両方向の反転を確認）。
+        assert_eq!(html.matches(r#"data-part="value-label""#).count(), 2);
+        assert!(html.contains(r#"text-anchor="end""#));
+        assert!(html.contains(r#"text-anchor="start""#));
+    }
+
+    /// PR #2255 レビュー指摘（Cursor Bugbot Medium「Value labels overflow
+    /// the viewBox」）: `BarLabel::Outside`/`Inside` 使用時、最大値の棒の
+    /// 外側ラベルが `viewBox` 上端（Vertical）を越えて負の y 座標へ出て
+    /// クリップされていた。`label_margin` 確保後は正方向の先端ラベルの
+    /// y 座標が常に非負に収まることを固定する。
+    #[test]
+    fn label_outside_margin_keeps_positive_tip_label_within_view_box() {
+        let props = BarChartProps {
+            label: BarLabel::Outside,
+            ..BarChartProps::default()
+        };
+        // 最大値（Feb: 30）が事実上 viewBox 最上端に達する構成。
+        let html = render(&root(&sample(), props, "label").unwrap());
+        for cap in html.match_indices(r#"data-part="value-label""#) {
+            // 直前の <text ... y="..."> から y 座標を読み取り、非負である
+            // ことを確認する（label_margin が無いと最大値側で負値になる）。
+            let before = &html[..cap.0];
+            let text_start = before.rfind("<text").expect("value-label は <text> 内");
+            let y_start = html[text_start..].find("y=\"").expect("y 属性が必須") + text_start + 3;
+            let y_end = html[y_start..].find('"').expect("y 属性の閉じ引用符") + y_start;
+            let y_value: f64 = html[y_start..y_end].parse().expect("y は数値");
+            assert!(
+                y_value >= 0.0,
+                "value-label の y 座標が viewBox 上端を越えている: {y_value}"
+            );
+        }
     }
 
     #[test]
