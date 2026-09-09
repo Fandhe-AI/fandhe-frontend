@@ -200,8 +200,20 @@ const INSIDE_LABEL_OFFSET: f64 = 8.0;
 /// さらに外側 [`LABEL_OFFSET`] へ `font-size xs`（≒12px）のテキストを
 /// 置くため、余白が無いと最大値/最小値の棒でラベルが `viewBox` 端に
 /// クリップされる、またはカテゴリラベル領域と衝突する。`LABEL_OFFSET` +
-/// 1 行分のテキスト高さ + 余裕を丸めた実用値。
+/// 1 行分のテキスト高さ + 余裕を丸めた実用値。[`Orientation::Vertical`]
+/// はラベルが `text-anchor="middle"` で数字の上下に伸びるだけのため
+/// この固定値のみを使うが、[`Orientation::Horizontal`] は
+/// [`horizontal_label_margin`] が文字幅を考慮した値へ拡張する（下記）。
 const LABEL_MARGIN: f64 = 20.0;
+
+/// [`Orientation::Horizontal`] の値ラベル 1 文字あたりの近似幅（px、
+/// PR #2255 レビュー指摘「横棒の値ラベルに文字幅に応じた余白がない」
+/// 対応）。`font-size xs`（≒12px）の等幅想定近似値であり、
+/// [`CATEGORY_LABEL_SPACE_HORIZONTAL`] のコメントと同じくフォント
+/// メトリクス計測は行わない（本モジュールの方針）ため厳密な無クリップ
+/// 保証はしないが、`fmt_coord` が出力する数字・`-`・`.` の文字集合に対する
+/// 実用的な近似値として採用する。
+const AVG_LABEL_CHAR_WIDTH: f64 = 7.0;
 
 /// `data-scope="bar-chart"` の part 一覧（recipe と揃える）。
 const SLOTS: &[&str] = &[
@@ -531,6 +543,51 @@ fn bar_shape(
     el("path", full_attrs, vec![])
 }
 
+/// [`Orientation::Horizontal`] で実際に描画される値ラベル文字列
+/// （[`value_label`] へ渡される `super::svg::fmt_coord` 出力）の最大文字数を
+/// 求める（内部ヘルパ、PR #2255 レビュー指摘対応）。積み上げ（Normal）は
+/// カテゴリ最上段の合計値のみラベル表示される（[`BarStack::Expand`] は
+/// 常に 100% のため非表示）ため、その値だけを対象にする。非積み上げは
+/// 全系列・全カテゴリの値を対象にする。
+fn max_value_label_len(data: &ChartData, cum: &Option<Vec<Vec<f64>>>, expand: bool) -> usize {
+    if let Some(cum) = cum {
+        if expand {
+            0
+        } else {
+            cum.last()
+                .map(|last| {
+                    last.iter()
+                        .map(|&v| svg::fmt_coord(v).len())
+                        .max()
+                        .unwrap_or(0)
+                })
+                .unwrap_or(0)
+        }
+    } else {
+        data.series()
+            .iter()
+            .flat_map(|s| s.values.iter())
+            .map(|&v| svg::fmt_coord(v).len())
+            .max()
+            .unwrap_or(0)
+    }
+}
+
+/// [`Orientation::Horizontal`] の外側ラベル余白を、実際に描画される値
+/// ラベル文字列の最大文字数から見積もる（内部ヘルパ、PR #2255 レビュー
+/// 指摘「横棒(Horizontal)の値ラベルに文字幅に応じた余白がなくカテゴリ名と
+/// 重なる」対応）。[`LABEL_MARGIN`] 固定値は数字の高さ方向の余白としては
+/// 十分だが、Horizontal は値ラベルが横方向（`text-anchor="start"`/`"end"`）
+/// に文字幅分だけ伸びるため、複数桁の値では固定 20px を越えてカテゴリ名
+/// ラベル領域（正方向側）やプロット左端（負方向側）へはみ出す。
+/// [`AVG_LABEL_CHAR_WIDTH`] による近似幅 + [`LABEL_OFFSET`] を
+/// [`LABEL_MARGIN`] の下限と比較し大きい方を採用する（短い値のときも
+/// 既存 20px を下回らない）。
+fn horizontal_label_margin(data: &ChartData, cum: &Option<Vec<Vec<f64>>>, expand: bool) -> f64 {
+    let max_len = max_value_label_len(data, cum, expand);
+    (LABEL_OFFSET + max_len as f64 * AVG_LABEL_CHAR_WIDTH).max(LABEL_MARGIN)
+}
+
 /// BarChart 本体を組み立てる。
 ///
 /// `aria_label` は `svg_root` の `role="img"` に対する代替テキストとして
@@ -639,11 +696,17 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
     } else {
         0.0
     };
-    // 外側ラベル用の余白（[`LABEL_MARGIN`]、`props.label != BarLabel::None`
-    // のときのみ非 0）。値軸方向の両端（正方向の先端・負方向の先端）の
-    // どちらにも外側ラベルが出得るため両端に確保する。
+    // 外側ラベル用の余白（`props.label != BarLabel::None` のときのみ非 0）。
+    // 値軸方向の両端（正方向の先端・負方向の先端）のどちらにも外側ラベルが
+    // 出得るため両端に確保する。Horizontal はラベルが横方向に文字幅分
+    // 伸びるため、[`LABEL_MARGIN`] 固定値ではなく実際の値文字列長から
+    // 見積もる [`horizontal_label_margin`] を使う（PR #2255 レビュー
+    // 指摘対応、上記 doc 参照）。
     let label_margin = if props.label != BarLabel::None {
-        LABEL_MARGIN
+        match props.orientation {
+            Orientation::Vertical => LABEL_MARGIN,
+            Orientation::Horizontal => horizontal_label_margin(data, &cum, expand),
+        }
     } else {
         0.0
     };
@@ -755,6 +818,15 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
 
         if let Some(cum) = &cum {
             let n = cum.len();
+            // s_idx==0（ベースライン側の帯）の inside-label は、後続系列の
+            // セグメントがまだ描画されていない時点で追加すると、その後の
+            // `plot_children.push` でセグメントが描画順（後勝ち）でラベルを
+            // 覆い隠してしまう（PR #2255 レビュー指摘「積み上げの内側
+            // ラベルが全セグメント描画前に追加され後続セグメントに塗り
+            // つぶされる」対応）。ここでは即座に push せず保持しておき、
+            // このカテゴリの全セグメントを描画し終えた後（下記ループ外）で
+            // まとめて追加する。
+            let mut pending_inside_label: Option<Node> = None;
             for (s_idx, series_cum) in cum.iter().enumerate() {
                 let upper = series_cum[cat_idx];
                 let lower = if s_idx == 0 {
@@ -836,8 +908,12 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     ));
                 }
                 if s_idx == 0 && props.label == BarLabel::Inside {
-                    plot_children.push(inside_label(x, y, w, h, category, props.orientation, true));
+                    pending_inside_label =
+                        Some(inside_label(x, y, w, h, category, props.orientation, true));
                 }
+            }
+            if let Some(label_node) = pending_inside_label {
+                plot_children.push(label_node);
             }
         } else {
             for (series_idx, s) in series.iter().enumerate() {
@@ -1697,6 +1773,63 @@ mod tests {
         assert!(!html.contains(r#"data-part="category-label""#));
     }
 
+    /// `<text ... data-part="<part>" ...>` を順に走査し、各要素の `x`
+    /// 属性値を数値として集める（テスト専用ヘルパ）。
+    fn text_x_values_for_part(html: &str, part: &str) -> Vec<f64> {
+        let marker = format!(r#"data-part="{part}""#);
+        let mut out = Vec::new();
+        for (idx, _) in html.match_indices(&marker) {
+            let before = &html[..idx];
+            let text_start = before.rfind("<text").expect("<text> が前方にある");
+            let x_start = html[text_start..].find("x=\"").expect("x 属性が必須") + text_start + 3;
+            let x_end = html[x_start..].find('"').expect("x 属性の閉じ引用符") + x_start;
+            out.push(html[x_start..x_end].parse::<f64>().expect("x は数値"));
+        }
+        out
+    }
+
+    /// PR #2255 レビュー指摘 P1「横棒(Horizontal)の値ラベルに文字幅に応じた
+    /// 余白がなくカテゴリ名と重なる」の再現条件（既定寸法・値
+    /// [50000, 100000]・label: Outside）を固定する。修正前は
+    /// [`LABEL_MARGIN`] 固定 20px しか確保されず、6 桁の値ラベル
+    /// （"100000"）がカテゴリ名ラベルの開始位置と重なっていた。
+    #[test]
+    fn horizontal_label_margin_scales_with_value_text_width() {
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![50000.0, 100000.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            orientation: Orientation::Horizontal,
+            label: BarLabel::Outside,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+
+        let value_label_xs = text_x_values_for_part(&html, "value-label");
+        let category_label_xs = text_x_values_for_part(&html, "category-label");
+        assert_eq!(value_label_xs.len(), 2);
+        assert_eq!(category_label_xs.len(), 2);
+        // カテゴリラベルは全カテゴリで同一 x（プロット領域終端の直後）。
+        let category_label_x = category_label_xs[0];
+        assert!(category_label_xs.iter().all(|&x| x == category_label_x));
+
+        // 正方向の先端ラベル（"100000"、6 文字）が最もカテゴリラベル側へ
+        // 近づく。その位置とカテゴリラベルの間に 6 文字分の余白（近似）が
+        // 確保されていることを固定する。
+        let max_value_label_x = value_label_xs
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max);
+        let gap = category_label_x - max_value_label_x;
+        let expected_min_margin = LABEL_OFFSET + 6.0 * AVG_LABEL_CHAR_WIDTH;
+        assert!(
+            gap >= expected_min_margin,
+            "value-label と category-label の間隔が不足: gap={gap}, expected>={expected_min_margin}"
+        );
+    }
+
     /// PR #2255 レビュー指摘（codex-review P1 / Cursor Bugbot Low、
     /// bar_chart.rs:963,968,985,989 相当）: 負値の棒は `value_label` の
     /// 先端が矩形最大座標側（Vertical は `y+h`）に来るため、常に矩形最小
@@ -1756,6 +1889,50 @@ mod tests {
         assert_eq!(html.matches(r#"data-part="value-label""#).count(), 2);
         assert!(html.contains(r#"text-anchor="end""#));
         assert!(html.contains(r#"text-anchor="start""#));
+    }
+
+    /// PR #2255 レビュー指摘 P1「積み上げ(stacked)の内側ラベル(Inside)が
+    /// 全セグメントより先に描画され、後続セグメントに塗りつぶされる」の
+    /// 再現条件（Horizontal・stack: Normal・label: Inside・
+    /// show_category_labels: false・系列値 1 と 99）を固定する。SVG は
+    /// 後に描画された要素が手前に来るため、inside-label（s_idx==0 の帯へ
+    /// 付与）が s_idx==1 の帯の `<path>`/`<rect>` より前に出力されると、
+    /// 後続セグメントに覆い隠されて見えなくなっていた。修正後は
+    /// inside-label がこのカテゴリの全セグメント（すべての `data-part="bar"`）
+    /// より後（= 手前）に出力されることを固定する。
+    #[test]
+    fn stack_inside_label_is_drawn_after_all_segments_of_its_category() {
+        let data = ChartData::new(
+            vec!["a".to_string()],
+            vec![Series::new("s1", vec![1.0]), Series::new("s2", vec![99.0])],
+        )
+        .unwrap();
+        let props = BarChartProps {
+            orientation: Orientation::Horizontal,
+            stack: BarStack::Normal,
+            label: BarLabel::Inside,
+            show_category_labels: false,
+            ..BarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+
+        let bar_indices: Vec<usize> = html
+            .match_indices(r#"data-part="bar""#)
+            .map(|(i, _)| i)
+            .collect();
+        let inside_label_index = html
+            .find(r#"data-part="inside-label""#)
+            .expect("inside-label が出力される");
+        assert_eq!(
+            bar_indices.len(),
+            2,
+            "1 カテゴリ 2 系列で 2 本のセグメントが出力される"
+        );
+        let last_bar_index = *bar_indices.iter().max().expect("bar が 1 本以上ある");
+        assert!(
+            inside_label_index > last_bar_index,
+            "inside-label（{inside_label_index}）が最後のセグメント（{last_bar_index}）より前に描画され、塗りつぶされ得る"
+        );
     }
 
     /// PR #2255 レビュー指摘（Cursor Bugbot Medium「Value labels overflow
