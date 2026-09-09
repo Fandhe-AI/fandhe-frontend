@@ -320,6 +320,25 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   節参照。menubar の `align-items: flex-start` 上書きが showcase 側の
 ///   中和として必要だったのとは異なり、navigation-menu は recipe 自体が
 ///   `flex-start` を既定にしているため showcase 側の追加中和は不要）。
+/// - `[data-scope="navigation-menu"][data-part="indicator"]` の `top` を
+///   固定 px へ中和（イシュー #2187 修正ラウンド、Bugbot 指摘）: recipe CSS
+///   の `indicator` は `top: 100%`（root 基準）で開いている Trigger の直下に
+///   掲示する設計だが、直前の `content` static 中和により Products の
+///   `item` が Content の高さぶん縦に伸び、`root`（`list` のみを子に持ち
+///   その高さに一致）も連動して伸びるため、`top: 100%` が Trigger 直下では
+///   なく展開済み Content の下端に着地してしまう（production では `content`
+///   が `position: absolute` のままフローに寄与しないため、この中和は
+///   showcase 限定の副作用）。`content` 側の中和を撤回すると本 doc 冒頭の
+///   About 項目・後続セクションへの重なりが再発するため、代わりに
+///   `indicator` 自身の `top` を Trigger 行の実測高さへ固定する。値
+///   `28.75px` は本ビルドの `/themes/navigation-menu/` を headless
+///   Chromium で描画し、開いている Products Trigger の
+///   `getBoundingClientRect().bottom` と `root` の `.top` の差分を実測した
+///   もの（トークン合成では表現できない: `trigger` は `<button>` であり
+///   `font`/`line-height` を明示継承しないため padding トークンからの
+///   計算値は実測値と一致しない）。デモの静的性質上ズレても破綻しない
+///   （indicator 自体は装飾専用・`aria-hidden="true"`）が、ここで Trigger
+///   直下に揃えることで実配線時（wasm-full）の見た目に近い静的掲示にする。
 /// - `[data-scope="blockquote"][data-part="content"]`（素の `<blockquote>`
 ///   要素）のリセット（イシュー #771 タイポグラフィ節掲示、Bugbot 指摘）:
 ///   `site.css` の `.docs-content blockquote` が `padding`/`border-left`/
@@ -449,6 +468,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"indicator\"] {\n  top: 28.75px;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
