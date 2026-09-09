@@ -2709,7 +2709,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 記述（`role="link"`/`aria-disabled="true"` 不採用の根拠参照先更新）と
 # headless-ui 依存の version 要求追随のみで、出力・API は不変のため patch
 # バンプし 0.162.1 とする。
-version = "0.162.1"
+#
+# イシュー #2109: `bubble` モジュール（recipe・golden テスト、headless
+# 側 anatomy は #2108）を新規公開する公開 API 純追加のため、`origin/main`
+# 到達値 0.162.1 から +1 マイナーして 0.163.0 とする。
+version = "0.163.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

@@ -313,6 +313,7 @@ mod tests {
             ("json_tree_view", crate::json_tree_view::stylesheet()),
             ("pagination", crate::pagination::stylesheet()),
             ("breadcrumb", crate::breadcrumb::stylesheet()),
+            ("bubble", crate::bubble::stylesheet()),
             ("carousel", crate::carousel::stylesheet()),
             ("image", crate::image::css()),
             ("image_cropper", crate::image_cropper::stylesheet()),
