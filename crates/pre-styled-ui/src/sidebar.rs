@@ -48,19 +48,27 @@
 //! `--fandhe-sidebar-width-mobile`、[`crate::drawer`] の
 //! `--fandhe-drawer-size` と同型のフォールバック付き）である。
 //!
-//! # icon 折りたたみ時のテキスト非表示（`menu-button` の `overflow: hidden`）
+//! # icon 折りたたみ時のテキスト非表示・長いラベルのクリップ
+//! （`menu-button` の装飾用ラッパー `<span>` の `overflow: hidden`）
 //!
 //! headless [`fandhe_frontend_headless_ui::sidebar::menu_button`] はテキスト
-//! を `span` で包まない（`children` をそのまま流し込む）ため、本 recipe は
-//! `data-collapsible="icon"` かつ折りたたみ時に `menu-button` の既定
-//! `justify-content: flex-start`（先頭寄せ、[`recipe`] の `menu-button` 側で
-//! 上書きしない）+ 固定幅 + `overflow: hidden` でテキストを視覚的に切り落と
-//! す方式を採る。アイコンを `children` の最初の要素に置く呼び出し規約を
-//! 前提とする（headless 側で span 化する改善は本イシューのスコープ外、
-//! 下記「スコープ外」節参照）。`justify-content: center` は使わない
-//! （codex-review P1 指摘、[`stylesheet`] 内コメント参照）: children 全体を
-//! まとめて中央寄せすると、ラベルが長い場合にアイコン自体が
-//! `overflow: hidden` の外側へ押し出されて切れてしまう。
+//! を `span` で包まない（`children` をそのまま流し込む）ため、本 recipe の
+//! [`menu_button`] 関数（本ファイル）が headless へ渡す前に `children`
+//! （アイコン + ラベル）を装飾用の無印 `<span>`（`data-part`/`data-scope` を
+//! 持たない、headless anatomy 外の pre-styled-ui 専用要素。headless 側の
+//! anatomy 変更を伴わないため下記「スコープ外」節の判断と矛盾しない）で
+//! 1 段包む。`data-collapsible="icon"` かつ折りたたみ時・長いラベルの
+//! どちらも、`menu-button` 本体ではなくこのラッパー側の `overflow: hidden` +
+//! `white-space: nowrap` + `min-width: 0`（[`stylesheet`] 内
+//! `SIDEBAR_MENU_BUTTON_LABEL_SELECTOR` 規則）で視覚的に切り落とす（イシュー
+//! #2073 レビュー〔codex-review P1・Cursor Bugbot Medium〕対応。旧実装は
+//! `menu-button` 自身へ `overflow: hidden`/`clip-path` を適用しており、
+//! ボタン本体の背景・クリック領域・`:focus-visible` の outline まで一緒に
+//! 失われる regression があった）。アイコンを `children` の最初の要素に置く
+//! 呼び出し規約を前提とする。`justify-content: center` は使わない
+//! （codex-review P1 指摘、[`stylesheet`] 内コメント参照）: ラッパー内で
+//! children 全体をまとめて中央寄せすると、ラベルが長い場合にアイコン自体が
+//! ラッパーの `overflow: hidden` の外側へ押し出されて切れてしまう。
 //!
 //! # モバイル + collapsed の詳細度調整（幅を固定し `transform` のみで開閉する）
 //!
@@ -117,9 +125,13 @@
 //! - **`backdrop` パーツの新設**: headless anatomy の変更を伴うため本
 //!   イシューでは追随しない（上記「backdrop を追加しない理由」節参照）。
 //! - **`menu-button` テキストのアイコン折りたたみ時の非表示を headless 側
-//!   span 化で改善する案**: 本イシューでは `overflow: hidden` の視覚的
-//!   切り落としに留める（上記「icon 折りたたみ時のテキスト非表示」節
-//!   参照）。
+//!   （`fandhe_frontend_headless_ui::sidebar::menu_button` の anatomy）で
+//!   span 化する案**: 本イシューでは pre-styled-ui 層（[`menu_button`]、
+//!   本ファイル）が装飾用ラッパー `<span>` を追加する方式に留め、headless
+//!   anatomy 自体は変更しない（上記「icon 折りたたみ時のテキスト非表示・
+//!   長いラベルのクリップ」節参照。イシュー #2073 レビュー対応でラッパー
+//!   追加へ変更したのは pre-styled-ui 層内で完結する範囲であり、この
+//!   スコープ外判断自体は維持している）。
 //! - **`@media (min-width)` 対応**: breakpoint 機構
 //!   （イシュー #2196/#2197）が未実装のため、レスポンシブなレイアウト
 //!   切り替えは対象外。
@@ -131,7 +143,7 @@ use crate::recipe::{
     MotionDuration, SlotRecipe, StateCondition,
 };
 use crate::skeleton::{skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant};
-use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
 
 // `provider`/`root`/`rail`/`trigger` が `&Sidebar` を引数に取るため、状態
 // 機械型を選択的に再エクスポートする（モジュール doc「選択的 re-export」節、
@@ -170,6 +182,15 @@ const SLOTS: &[&str] = &[
     "trigger",
     "inset",
 ];
+
+/// [`menu_button`] が children を包む装飾用ラッパー `<span>`
+/// （`data-part`/`data-scope` を持たない、headless anatomy 外の
+/// pre-styled-ui 専用要素）を選択する CSS セレクタ。`menu-button` の
+/// 唯一の直下子であるため子結合子 1 段で一意に特定できる（イシュー
+/// #2073 レビュー対応、[`stylesheet`] 内コメント「長いラベルをガター
+/// の手前でクリップする」節参照）。
+const SIDEBAR_MENU_BUTTON_LABEL_SELECTOR: &str =
+    r#"[data-scope="sidebar"][data-part="menu-button"] > span"#;
 
 /// この styled Sidebar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
 /// のみが呼ぶ）。
@@ -330,9 +351,14 @@ fn recipe() -> SlotRecipe {
     let menu_item_base = vec![decl("position", "relative")];
 
     let menu_button_base = vec![
+        // `display: flex` + `align-items: center` は [`menu_button`]（本
+        // ファイル）が children を包む唯一の直下子（装飾用ラッパー
+        // `<span>`、下記「長いラベルをガターの手前でクリップする」節参照）
+        // を垂直中央に配置するためのもの。アイコン・ラベル間の `gap` は
+        // ラッパー側（`SIDEBAR_MENU_BUTTON_LABEL_SELECTOR` 規則）が持つ
+        // （子が 1 個のみのため `menu-button` 自身の `gap` は不要）。
         decl("display", "flex"),
         decl("align-items", "center"),
-        decl("gap", "var(--fandhe-space-2)"),
         decl("width", "100%"),
         decl("box-sizing", "border-box"),
         decl("height", "2rem"),
@@ -360,8 +386,6 @@ fn recipe() -> SlotRecipe {
         decl("text-align", "start"),
         decl("text-decoration", "none"),
         decl("cursor", "pointer"),
-        decl("overflow", "hidden"),
-        decl("white-space", "nowrap"),
     ];
     let menu_button_transition = transition_declarations("background, color", MotionDuration::Fast);
 
@@ -836,13 +860,18 @@ pub fn stylesheet() -> String {
         &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-button\"]"),
         &[
             // `justify-content: center` は使わない（codex-review P1 指摘）:
-            // headless 側はテキストを `span` で包まないため children 全体
-            // （アイコン + テキストの匿名 flex アイテム）がまとめて中央寄せ
-            // されてしまい、ラベルが長いとアイコン自体が `overflow: hidden`
-            // の外側へ押し出されて切れる。既定の `flex-start`（先頭寄せ）を
-            // 保つことでアイコン（children の最初の要素、呼び出し規約）を
-            // 常にコンテナ左端に残し、はみ出す文字列側だけを
-            // `overflow: hidden` で視覚的に切り落とす（モジュール doc
+            // [`menu_button`]（本ファイル）が children（アイコン + テキスト）
+            // をまとめて包む装飾用ラッパー `<span>` は既定 `justify-content:
+            // flex-start` のためアイコンは常にラッパー左端に残る。`center`
+            // にすると `padding: 0` で幅 2rem に縮小されたボタン内でアイコン
+            // 自体がラッパーの `overflow: hidden` の外側へ押し出されて
+            // 切れてしまう（イシュー #2073 レビュー対応で `menu-button`
+            // 自身への `clip-path` を撤回し `overflow: hidden` をラッパー
+            // 側へ移した後も同じ理由で `flex-start` を維持する）。ラッパーの
+            // 幅は `menu-button` のコンテンツ box（`padding: 0` により本
+            // 規則適用時は幅 2rem 全域）と一致するため、はみ出す文字列側は
+            // ラッパーの `overflow: hidden`（`SIDEBAR_MENU_BUTTON_LABEL_
+            // SELECTOR` 規則）で視覚的に切り落とされる（モジュール doc
             // 「icon 折りたたみ時のテキスト非表示」節の意図どおりの挙動）。
             decl("padding", "0"),
             decl("width", "2rem"),
@@ -915,70 +944,45 @@ pub fn stylesheet() -> String {
     );
 
     // 長いラベルをガター（`menu-action`/`menu-badge` 予約領域）の手前で
-    // クリップする（codex-review P2 指摘対応）。`overflow: hidden` の
-    // クリップ境界は padding box の外側端（= border box）であり、
-    // `padding-inline-end` で予約した領域自体は「空白」ではなく
-    // 「クリップされない描画可能領域」のため、`white-space: nowrap` の
-    // 生テキスト（headless 側が `<span>` で包まない、モジュール doc
-    // 「責務境界」節）は縮小できず予約領域へそのまま描画され、絶対配置の
-    // `menu-action`/`menu-badge`（背景 `transparent`）の下に透けて重なる。
-    // `clip-path: inset()` は box モデルの padding/border 区別と無関係に
-    // 指定した物理座標でピクセルごと切り落とすため、`padding-inline-end`
-    // と同じ計算式を使えば実際に「ガターの手前で」ラベルを止められる。
-    // `inset-inline-*` の論理版が無いため、`transform`（同ファイル
-    // 「モバイル drawer」節）と同型に既定（LTR）と `:dir(rtl)` の 2 規則で
-    // 物理方向を反転する。既定（1 パーツ分）はすべての `menu-button` へ
-    // 無条件適用し（`menu_button_base` の予約が無条件なのと対称）、
-    // 2 パーツ分・icon 折りたたみ時（余白予約なし）はそれぞれ専用の
-    // より詳細度の高い上書き規則で調整する。
+    // クリップする（codex-review P2 指摘対応）。イシュー #2073 レビュー
+    // （codex-review P1・Cursor Bugbot Medium、いずれも `menu-button` 全体
+    // への `clip-path: inset()` 適用を指摘）を受け、旧実装（`menu-button`
+    // 自身への `clip-path` 適用）を撤回した。CSS Masking の仕様上
+    // `clip-path` は要素のペイント・ヒットテスト対象を丸ごと切り落とす
+    // ため、ボタン本体の背景・クリック領域・`:focus-visible` の
+    // outline（`outline-offset` により border-box 外側に描画される）まで
+    // 一緒に失われる（WCAG 2.4.7 Focus Visible 違反の回帰、かつ
+    // `menu-badge` の `pointer-events: none`〔`menu_badge_base` 参照〕に
+    // よる `menu-button` へのクリック透過も破壊する）。
+    //
+    // 代わりに [`menu_button`]（本ファイル、headless
+    // `fandhe_frontend_headless_ui::sidebar::menu_button` への薄い委譲
+    // 関数）が `children` 全体を装飾用の無印 `<span>`（`data-part`/
+    // `data-scope` を持たない、headless anatomy 外の pre-styled-ui 専用
+    // ラッパー。`docs/policy/intentional-non-adoption.md` §3.25 規則 2
+    // 「装飾・レイアウト計測は Themes 層の責務」に従う）で包んでから
+    // headless へ渡す。このラッパー span 自身に `overflow: hidden` +
+    // `white-space: nowrap` + `min-width: 0` を適用する（下記
+    // `SIDEBAR_MENU_BUTTON_LABEL_SELECTOR` 規則）。`overflow: hidden` の
+    // クリップ境界は要素自身の padding box 外側端であり、ラッパー span は
+    // `padding` を持たないため、境界は `menu-button` の**コンテンツ box**
+    // （`padding-inline-end` で予約したガターを除いた領域）と一致する。
+    // これにより `menu-button` 本体は一切クリップされないまま
+    // （背景・クリック領域・outline を保持）、ラベルだけがガター手前で
+    // 正しく切り落とされる。`padding-inline-end` の計算式（1 パーツ分・
+    // 2 パーツ分・icon 折りたたみ時 `0`）は変更なしで維持し、この
+    // ガター確保がそのままラッパーのクリップ境界として機能する。
     push(
-        r#"[data-scope="sidebar"][data-part="menu-button"]"#,
-        &[decl(
-            "clip-path",
-            "inset(0 calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1)) 0 0)",
-        )],
-    );
-    push(
-        r#"[data-scope="sidebar"][data-part="menu-button"]:dir(rtl)"#,
-        &[decl(
-            "clip-path",
-            "inset(0 0 0 calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1)))",
-        )],
-    );
-    push(
-        r#"[data-scope="sidebar"][data-part="menu-item"]:has(> [data-scope="sidebar"][data-part="menu-action"]):has(> [data-scope="sidebar"][data-part="menu-badge"]) > [data-scope="sidebar"][data-part="menu-button"]"#,
-        &[decl(
-            "clip-path",
-            "inset(0 calc(var(--fandhe-space-2) + 2 * 1.25rem + 2 * var(--fandhe-space-1)) 0 0)",
-        )],
-    );
-    push(
-        r#"[data-scope="sidebar"][data-part="menu-item"]:has(> [data-scope="sidebar"][data-part="menu-action"]):has(> [data-scope="sidebar"][data-part="menu-badge"]) > [data-scope="sidebar"][data-part="menu-button"]:dir(rtl)"#,
-        &[decl(
-            "clip-path",
-            "inset(0 0 0 calc(var(--fandhe-space-2) + 2 * 1.25rem + 2 * var(--fandhe-space-1)))",
-        )],
-    );
-    // icon 折りたたみ時は余白予約自体が `0`（上記 `padding: 0`/
-    // `padding-inline-end: 0` 規則）のため、既定のガター分クリップを
-    // そのまま適用すると幅 2rem のボタンに対し calc 結果（約 2rem）が
-    // 上回りアイコンごと消えてしまう。`clip-path: none` で無条件規則を
-    // 打ち消し、`overflow: hidden`（`menu_button_base`）のみに戻す。
-    push(
-        &format!("{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-button\"]"),
-        &[decl("clip-path", "none")],
-    );
-    // 上記 icon 折りたたみ時の `clip-path: none` 上書き（属性 6 個相当）は、
-    // `menu-action`/`menu-badge` 併用時の 2 パーツ分クリップ規則（`:has()`
-    // 2 個込みで属性 8 個相当、上記 `padding-inline-end` の同型指摘と同じ
-    // 理由）より詳細度で負けるため、その組み合わせ（icon 折りたたみ +
-    // action/badge 併用）でも同じ「専用の上書き規則を icon 折りたたみと
-    // 連結して詳細度を上げる」パターンで打ち消す。
-    push(
-        &format!(
-            "{ICON_COLLAPSED} [data-scope=\"sidebar\"][data-part=\"menu-item\"]:has(> [data-scope=\"sidebar\"][data-part=\"menu-action\"]):has(> [data-scope=\"sidebar\"][data-part=\"menu-badge\"]) > [data-scope=\"sidebar\"][data-part=\"menu-button\"]"
-        ),
-        &[decl("clip-path", "none")],
+        SIDEBAR_MENU_BUTTON_LABEL_SELECTOR,
+        &[
+            decl("display", "flex"),
+            decl("align-items", "center"),
+            decl("gap", "var(--fandhe-space-2)"),
+            decl("min-width", "0"),
+            decl("flex", "1 1 auto"),
+            decl("overflow", "hidden"),
+            decl("white-space", "nowrap"),
+        ],
     );
 
     // モバイル表示中は固定オーバーレイになる。`floating`/`inset` variant が
@@ -1381,13 +1385,27 @@ pub fn menu_item<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
 /// styled `menu-button` パーツを組み立てる。アイコンを `children` の最初の
 /// 要素に置く呼び出し規約を前提とする（モジュール doc「icon 折りたたみ時の
 /// テキスト非表示」節参照）。
+///
+/// `children`（アイコン + ラベル）は headless
+/// [`fandhe_frontend_headless_ui::sidebar::menu_button`] へ渡す前に、本関数が
+/// 装飾用の無印 `<span>`（`data-part`/`data-scope` を持たない、headless
+/// anatomy 外の pre-styled-ui 専用ラッパー。`docs/policy/
+/// intentional-non-adoption.md` §3.25 規則 2「装飾・レイアウト計測は Themes
+/// 層の責務」に従う）で 1 段包む。headless anatomy 自体は変更しない
+/// （headless 側でラベルを `span` 化する改善はモジュール doc「スコープ外」
+/// 節のとおり別イシュー）。この 1 段ラップにより、長いラベルの視覚的な
+/// クリップ（[`stylesheet`] 内コメント「長いラベルをガターの手前で
+/// クリップする」節）を `menu-button` 本体ではなくラッパー側に限定でき、
+/// ボタンの背景・クリック領域・`:focus-visible` の outline を一切損なわない
+/// （イシュー #2073 レビュー〔codex-review P1・Cursor Bugbot Medium〕対応）。
 #[must_use]
 pub fn menu_button<'a>(
     props: &SidebarMenuButtonProps<'a>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    fandhe_frontend_headless_ui::sidebar::menu_button(props, drop_class_attr(attrs), children)
+    let wrapped = vec![el("span", vec![], children)];
+    fandhe_frontend_headless_ui::sidebar::menu_button(props, drop_class_attr(attrs), wrapped)
 }
 
 /// styled `menu-action` パーツを組み立てる。

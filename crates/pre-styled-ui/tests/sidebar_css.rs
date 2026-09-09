@@ -134,7 +134,6 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
 [data-scope=\"sidebar\"][data-part=\"menu-button\"] {
   display: flex;
   align-items: center;
-  gap: var(--fandhe-space-2);
   width: 100%;
   box-sizing: border-box;
   height: 2rem;
@@ -150,8 +149,6 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   text-align: start;
   text-decoration: none;
   cursor: pointer;
-  overflow: hidden;
-  white-space: nowrap;
 }
 
 [data-scope=\"sidebar\"][data-part=\"menu-button\"] {
@@ -428,28 +425,14 @@ const SIDEBAR_GOLDEN_CSS: &str = "[data-scope=\"sidebar\"][data-part=\"provider\
   padding-inline-end: 0;
 }
 
-[data-scope=\"sidebar\"][data-part=\"menu-button\"] {
-  clip-path: inset(0 calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1)) 0 0);
-}
-
-[data-scope=\"sidebar\"][data-part=\"menu-button\"]:dir(rtl) {
-  clip-path: inset(0 0 0 calc(var(--fandhe-space-2) + 1.25rem + var(--fandhe-space-1)));
-}
-
-[data-scope=\"sidebar\"][data-part=\"menu-item\"]:has(> [data-scope=\"sidebar\"][data-part=\"menu-action\"]):has(> [data-scope=\"sidebar\"][data-part=\"menu-badge\"]) > [data-scope=\"sidebar\"][data-part=\"menu-button\"] {
-  clip-path: inset(0 calc(var(--fandhe-space-2) + 2 * 1.25rem + 2 * var(--fandhe-space-1)) 0 0);
-}
-
-[data-scope=\"sidebar\"][data-part=\"menu-item\"]:has(> [data-scope=\"sidebar\"][data-part=\"menu-action\"]):has(> [data-scope=\"sidebar\"][data-part=\"menu-badge\"]) > [data-scope=\"sidebar\"][data-part=\"menu-button\"]:dir(rtl) {
-  clip-path: inset(0 0 0 calc(var(--fandhe-space-2) + 2 * 1.25rem + 2 * var(--fandhe-space-1)));
-}
-
-[data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] [data-scope=\"sidebar\"][data-part=\"menu-button\"] {
-  clip-path: none;
-}
-
-[data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] [data-scope=\"sidebar\"][data-part=\"menu-item\"]:has(> [data-scope=\"sidebar\"][data-part=\"menu-action\"]):has(> [data-scope=\"sidebar\"][data-part=\"menu-badge\"]) > [data-scope=\"sidebar\"][data-part=\"menu-button\"] {
-  clip-path: none;
+[data-scope=\"sidebar\"][data-part=\"menu-button\"] > span {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 [data-scope=\"sidebar\"][data-part=\"root\"][data-mobile]:not([data-collapsible=\"none\"]) {
