@@ -98,6 +98,24 @@ fn keydown_event_with_repeat(key: &str, ctrl: bool, meta: bool, alt: bool) -> Ev
         .expect("KeyboardEvent must cast to Event")
 }
 
+/// Shift 押下のみを付けた合成 `"keydown"` イベント（codex-review P1 是正の
+/// 回帰テストで使う。検索欄でのテキスト範囲選択操作、例えば
+/// Shift+Home/Shift+End/Shift+ArrowDown が候補選択へ奪われないことを
+/// 検証する）。純粋層（[`command::command_key_action`] 相当）は `Modifiers`
+/// （Ctrl/Alt/Meta のみ）しか知らないため Shift 単体は native テストでは
+/// 検証できず、本ブラウザテストでのみ固定できる。
+fn keydown_event_with_shift(key: &str) -> Event {
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key(key);
+    init.set_shift_key(true);
+    KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .expect("KeyboardEvent::new must not fail")
+        .dyn_into::<Event>()
+        .expect("KeyboardEvent must cast to Event")
+}
+
 fn keydown_event_composing(key: &str) -> Event {
     let init = KeyboardEventInit::new();
     init.set_bubbles(true);
@@ -1150,6 +1168,41 @@ fn arrow_key_with_modifier_or_during_ime_composition_is_noop() {
     assert!(!item_elements[0].has_attribute("data-selected"));
 }
 
+/// Shift 付きの ArrowDown/Home/End は no-op（`prevent_default()` されず、
+/// 選択状態も変化せず、`on_action` へも何も dispatch されない）ことを
+/// 検証する（codex-review P1 是正、イシュー #2069）。`Modifiers`
+/// （Ctrl/Alt/Meta のみ）を経由する既存の
+/// `arrow_key_with_modifier_or_during_ime_composition_is_noop` では
+/// Shift 単体を再現できないため独立したテストとして追加する。省略すると
+/// 検索欄で Shift+Home/Shift+End によるテキスト範囲選択（ブラウザ既定
+/// 動作）が候補選択へ奪われてしまう。
+#[wasm_bindgen_test]
+fn shift_arrow_home_end_is_noop_and_does_not_prevent_default() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false), ("b", "Beta", false)];
+    let (root, _dialog, input, _list, item_elements) =
+        build_command_dom(&document, "cmd-shift-arrow-noop", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let (_component, log) = wire(root, command);
+
+    for key in ["ArrowDown", "ArrowUp", "Home", "End"] {
+        let event = keydown_event_with_shift(key);
+        input.dispatch_event(&event).unwrap();
+        assert!(
+            !event.default_prevented(),
+            "Shift+{key} は claim されず prevent_default() が呼ばれない"
+        );
+    }
+    assert!(!item_elements[0].has_attribute("data-selected"));
+    assert!(!item_elements[1].has_attribute("data-selected"));
+    assert!(
+        log.borrow().is_empty(),
+        "Shift 付きキー操作は on_action へ何も dispatch しない"
+    );
+}
+
 // --- (d) Enter による実行 ---
 
 #[wasm_bindgen_test]
@@ -1315,6 +1368,60 @@ fn clicking_disabled_item_is_noop() {
 
     item_elements[0].dispatch_event(&click_event()).unwrap();
     assert!(log.borrow().is_empty());
+}
+
+/// item 内に配置された独立インタラクティブ要素（`button`）をクリックしても
+/// 祖先 item を解決した `select`/`command:execute` が dispatch されないこと
+/// を検証する（Cursor Bugbot Medium 是正、イシュー #2069）。従来は
+/// `handle_mousedown` が既定動作を尊重する一方 `handle_click` のみが
+/// `INDEPENDENT_INTERACTIVE_SELECTOR` を見ずに祖先 item まで遡って
+/// dispatch し `stop_propagation()` まで行っていた
+/// （`mousedown_on_independent_select_inside_dialog_is_not_prevented` と
+/// 対で click 経路を固定する）。item 本体（テキストラベル部分）への
+/// クリックは従来どおり 2 アクション dispatch されることも併せて確認する。
+#[wasm_bindgen_test]
+fn clicking_independent_control_inside_item_does_not_dispatch() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut command = Command::default();
+    command.update(CommandAction::Open);
+    let items = [("a", "Alpha", false)];
+    let (root, _dialog, _input, _list, item_elements) =
+        build_command_dom(&document, "cmd-click-independent-in-item", &command, &items);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // item 内に利用者が併設した独立コントロール（例: お気に入り登録
+    // ボタン）を追加する。Command のパーツではない。
+    let button = document
+        .create_element("button")
+        .expect("create_element must not fail");
+    item_elements[0]
+        .append_child(&button)
+        .expect("append_child must not fail");
+
+    let (_component, log) = wire(root, command);
+
+    button.dispatch_event(&click_event()).unwrap();
+    assert!(
+        log.borrow().is_empty(),
+        "item 内の独立コントロールのクリックは select/command:execute を \
+         dispatch しない"
+    );
+
+    // item 本体（テキストラベル）への通常クリックは従来どおり機能する。
+    let text_node = item_elements[0]
+        .first_child()
+        .expect("item element must contain a text node child (label)");
+    text_node.dispatch_event(&click_event()).unwrap();
+    assert_eq!(
+        log.borrow().as_slice(),
+        [
+            ("select".to_string(), "a".to_string()),
+            (
+                fandhe_frontend_wasm_full::command::ACTION_EXECUTE.to_string(),
+                "a".to_string()
+            ),
+        ]
+    );
 }
 
 // --- (f) Escape ---

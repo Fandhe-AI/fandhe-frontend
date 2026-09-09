@@ -168,6 +168,12 @@
 //!   の `"toggle"` を dispatch する（単一インスタンス前提）。
 //! - cmdk の Alt+Arrow（group 単位ジャンプ）・Meta+Arrow（先頭/末尾）等の
 //!   修飾キー付き操作は未対応（修飾キー付きは no-op、既存方針どおり）。
+//!   Shift も同様に no-op とする（[`crate::keynav::Modifiers`] は Ctrl/Alt/
+//!   Meta の 3 フィールドのみを持つ公開型で拡張しないため、`handle_keydown`
+//!   が `KeyboardEvent::shift_key()` を直接判定する。省略すると検索欄で
+//!   Shift+Home/Shift+End/Shift+ArrowDown を押したときブラウザ既定の
+//!   テキスト範囲選択を奪って候補選択に化けてしまう、codex-review P1
+//!   是正）。
 //! - `empty` パーツの live region（`aria-live`）通知は実装しない（後続課題
 //!   として起票を提案する、`.claude/rules/out-of-scope-tracking.md`）。
 //!
@@ -187,10 +193,17 @@
 //!   codex-review P1 是正）・compositionend（IME 確定時の補完 dispatch、
 //!   イシュー #2069 codex-review P1 是正）〕+ document 1）に限定する
 //!   （A04 対策、無制限リークの構造的回避）。
-//! - 未知キー・修飾キー付き・IME 変換中・`disabled`/`data-disabled`・
-//!   `data-value` 欠落・未選択 Enter・hidden な選択・`dialog` 不在の
-//!   Escape/Cmd+K はすべて no-op（fail-closed）。`Command::decode_action` が
-//!   [`ACTION_EXECUTE`] を未知アクションとして無視する二重の安全網も働く。
+//! - 未知キー・修飾キー付き（Shift 含む）・IME 変換中・`disabled`/
+//!   `data-disabled`・`data-value` 欠落・未選択 Enter・hidden な選択・
+//!   `dialog` 不在の Escape/Cmd+K はすべて no-op（fail-closed）。
+//!   `Command::decode_action` が [`ACTION_EXECUTE`] を未知アクションとして
+//!   無視する二重の安全網も働く。
+//! - item 内に利用者が併設した独立インタラクティブ要素（`button`/
+//!   `a[href]`/`input`/`select`/`textarea`）のクリックは、その要素自身の
+//!   既定動作に委ね、祖先 item を解決した `select`/`command:execute` を
+//!   dispatch しない（`handle_click`/`handle_mousedown` の 2 経路で
+//!   `INDEPENDENT_INTERACTIVE_SELECTOR` 判定を共有し無効化契約を一致
+//!   させる、Cursor Bugbot Medium 是正）。
 
 use crate::keynav::Modifiers;
 
@@ -1542,6 +1555,22 @@ mod wiring {
             .filter(|dialog| root.contains(Some(dialog)) && !dialog.has_attribute("hidden"));
         let in_open_dialog = open_dialog.is_some();
 
+        // Shift 押下は no-op（codex-review P1 是正、イシュー #2069）。
+        // `Modifiers`（[`crate::keynav::Modifiers`]）は Ctrl/Alt/Meta の
+        // 3 フィールドのみを持ち Shift を含まない公開型であり、破壊的
+        // 変更を避けるため本モジュールでは拡張せず `KeyboardEvent` から
+        // 直接判定する（`crate::keynav::wiring::handle_document_keydown`
+        // が既に同じ手法を採る先例に合わせる）。これを省略すると
+        // 検索欄で Shift+Home/Shift+End/Shift+ArrowDown を押したとき
+        // `command_key_action` が `MoveSelection` を返し
+        // `prevent_default()` されてしまい、ブラウザ既定のテキスト範囲
+        // 選択（Shift によるキャレット選択拡張）を奪ってしまう
+        // （「プレーン HTML/JS 尊重」に反する、修飾キー付きは常に no-op
+        // という本関数冒頭 doc の契約にも反する）。
+        if keyboard_event.shift_key() {
+            return;
+        }
+
         let modifiers = modifiers_of(keyboard_event);
         let Some(key_action) = command_key_action(&keyboard_event.key(), modifiers, in_open_dialog)
         else {
@@ -1839,6 +1868,22 @@ mod wiring {
             }
         };
         if !root.contains(Some(&target_element)) {
+            return;
+        }
+        // item 内に配置された独立インタラクティブ要素（`button`/
+        // `a[href]`/`input`/`select`/`textarea`、`INDEPENDENT_INTERACTIVE_
+        // SELECTOR` doc 参照）のクリックは、その要素自身の既定動作
+        // （フォーム送信・リンク遷移・チェック切替等）に委ね、祖先の
+        // item を解決した `select`/`command:execute` の二重発火をさせない
+        // （Cursor Bugbot Medium 是正、イシュー #2069）。[`handle_mousedown`]
+        // は既にこの判定を採用しており、click と mousedown の 2 経路で
+        // 無効化契約を一致させる（[`handle_keydown`]/[`handle_click`] 間で
+        // `has_disabled_ancestor` を共有するのと同じ設計判断）。従来は
+        // ここを通過してしまい、item 内の `button` をクリックすると
+        // `handle_mousedown` は既定動作を尊重する一方 `handle_click` が
+        // 祖先 item まで遡って `select` → `command:execute` を dispatch し
+        // `stop_propagation()` まで行っていた。
+        if closest(&target_element, INDEPENDENT_INTERACTIVE_SELECTOR).is_some() {
             return;
         }
         let Some(item) = closest(&target_element, ITEM_SELECTOR) else {

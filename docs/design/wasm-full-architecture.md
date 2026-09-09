@@ -928,6 +928,10 @@ headless-ui マークアップには存在しないため実 DOM 上では発火
 
 候補列は同一インスタンス配下の非 `hidden` item。`crate::keynav` の `disabled_flags`/`highlight_next_index`/`menu_loop_focus_from_attr` をそのまま再利用する（`pub(crate)` 化のみ、挙動変更なし）。cmdk は既定で非循環（`loop_focus` 既定 `false`、`data-loop-focus="true"` で opt-in）。`data-highlighted` は書かない（`Command` の item は `data-highlighted` を出力しない契約、`crates/headless-ui/src/command.rs` モジュール doc「`item` の選択表現」節参照）。
 
+修飾キー付き（Ctrl/Alt/Meta）は `command_key_action` が `Modifiers::any()` で no-op にする一方、Shift は `Modifiers`（`crate::keynav::Modifiers`、公開型）が持たないフィールドのため配線層（`handle_keydown`）が `KeyboardEvent::shift_key()` を直接見て `command_key_action` 呼び出し・`prevent_default()` より前に no-op へ倒す（codex-review P1 是正）。省略すると検索欄で Shift+Home/Shift+End/Shift+ArrowDown を押したときブラウザ既定のテキスト範囲選択が奪われ候補選択に化けてしまう。
+
+また、item 内に利用者が併設した独立インタラクティブ要素（`button`/`a[href]`/`input`/`select`/`textarea`）のクリックは、`handle_click` が `INDEPENDENT_INTERACTIVE_SELECTOR` に一致する祖先を検出した時点で何も dispatch せず即座に return する（`handle_mousedown` と同じ判定を共有、Cursor Bugbot Medium 是正）。これを怠ると item 内のボタン等をクリックしただけで祖先 item まで遡って `select`/`command:execute` が dispatch され `stop_propagation()` まで行われてしまう。
+
 ### 24.6 `OverlayKind::Command` と既定値
 
 `overlay::OverlayKind::Command`（`from_scope("command")`）を追加した。既定値は Dialog と同じ（`close_on_escape`/`close_on_interact_outside`/`outside_dismiss_blocks_propagation_by_default` いずれも `true`）。呼び出し側（#580 統合層）が dispatch すべき名前は `"close"`（`CommandAction::Close`、冪等）。`OverlayKind` は `#[non_exhaustive]` を持たない公開 enum のため、variant 追加は 0.x の破壊的変更であり `fandhe-frontend-wasm-full` を 0.15.24 → 0.16.0 へマイナーバンプした（`.claude/rules/coding-rust.md` イシュー #638 規約、§22 の #1173 前例と同型の判断）。`cargo run -p xtask -- check-dep-versions` で確認したとおり `wasm-full` を path+version 依存する workspace メンバーは存在せず、追随バンプは不要だった。
@@ -944,7 +948,7 @@ headless-ui マークアップには存在しないため実 DOM 上では発火
 
 - native 単体テスト（`crates/wasm-full/src/command.rs` `#[cfg(test)]`）: `command_key_action`（Arrow/Home/End/Enter/Escape 判定表、修飾キー付き no-op）、`is_toggle_shortcut`（Ctrl/Meta XOR・Alt 排他）、`group_should_hide`。
 - native 単体テスト（`crates/wasm-full/src/overlay.rs`/`focus_trap.rs`）: `OverlayKind::from_scope("command")`・`Command` 既定値の列挙固定、`should_trap` の `data-scope="command"` 受理。
-- 実ブラウザ回帰テスト（`crates/wasm-full/tests/command_browser.rs`、新設）: 入力絞り込み（item/group/separator/`data-empty`）・shortcut テキスト除外・矢印キー選択（disabled スキップ・非循環）・IME 変換中/修飾キー付き no-op・Enter 実行（選択なし/disabled/hidden は no-op）・item クリック（`"select"` → `"command:execute"`）・Escape（open dialog 内のみ）・Cmd/Ctrl+K（Alt/Ctrl+Meta 同時/dialog 不在は no-op、focus 移動）・`data-action-input` との二重 dispatch 回避・`aria-controls` 改ざんの fail-closed・XSS 回帰。
+- 実ブラウザ回帰テスト（`crates/wasm-full/tests/command_browser.rs`、新設）: 入力絞り込み（item/group/separator/`data-empty`）・shortcut テキスト除外・矢印キー選択（disabled スキップ・非循環）・IME 変換中/修飾キー付き no-op・Shift 付きキー操作の no-op（`shift_arrow_home_end_is_noop_and_does_not_prevent_default`、codex-review P1 是正の回帰）・Enter 実行（選択なし/disabled/hidden は no-op）・item クリック（`"select"` → `"command:execute"`）・item 内独立コントロールのクリックが dispatch しないこと（`clicking_independent_control_inside_item_does_not_dispatch`、Cursor Bugbot Medium 是正の回帰）・Escape（open dialog 内のみ）・Cmd/Ctrl+K（Alt/Ctrl+Meta 同時/dialog 不在は no-op、focus 移動）・`data-action-input` との二重 dispatch 回避・`aria-controls` 改ざんの fail-closed・XSS 回帰。
 - 実ブラウザ回帰テスト（`crates/wasm-full/tests/overlay_close_browser.rs`/`focus_trap_browser.rs` への追加）: command dialog の scope 認識（Escape・外側/内側 pointerdown・opt-out）、`push_trap` の Some/None 判定・Tab 循環。
 
 ### 24.10 スコープ外（out-of-scope-tracking）
