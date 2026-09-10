@@ -17,7 +17,7 @@ click → dispatch 配線・キーボード操作・Escape キーでの閉鎖は
 |---|---|---|
 | ArrowDown / ArrowUp / Enter / Space | Trigger（closed） | Menu を開き、先頭（ArrowUp は末尾）の非 disabled 項目を highlight します。 |
 | ArrowDown / ArrowUp / Home / End | Content（open） | highlight 中の項目を次/前/先頭/末尾の非 disabled 項目へ移動します。既定は循環なし、`data-loop-focus="true"` で有効化できます。 |
-| Enter / Space | Content（open、highlight 中の項目） | highlight 中の項目へ click を合成します。Item は利用者の click ハンドラへ、TriggerItem は `"toggle"` を dispatch します。CheckboxItem/RadioItem は click 合成による checked トグルの配線が未実装です。 |
+| Enter / Space | Content（open、highlight 中の項目） | highlight 中の項目へ click を合成します。Item は利用者の click ハンドラへ、TriggerItem は `"toggle"` を dispatch します。CheckboxItem は `"toggle"`、RadioItem は `"select"` を dispatch します。 |
 | 印字可能文字 | Content（open） | typeahead（350ms バッファ）。ItemText 子があればそのテキストを優先してマッチします。 |
 | ArrowRight | TriggerItem（highlight 中） | 非 disabled でサブメニューが解決できるときのみサブメニューを展開します。 |
 | ArrowLeft | サブメニュー内 | 親 TriggerItem へ復帰しサブメニューを閉じます。 |
@@ -39,7 +39,6 @@ ark-ui Menu・Radix Primitives Dropdown Menu・chakra-ui Menu と突合し、
 - **`asChild`**: 本リポジトリ全体で保留継続中の意図的非採用方針です。
 - **ark-ui の `closeOnSelect`/`lazyMount`/portal**: クライアント配置・実行時関心のため未採用です。
 - **Escape 後の「trigger へのフォーカス復帰」**: 本実装がそもそも trigger からフォーカスを離さない設計のため、構造的に同等の結果になります（追加実装は不要）。
-- **checkbox-item/radio-item への Enter/Space（click 合成による checked トグル）**: `fandhe-frontend-wasm-full` の `MAPPING_TABLE` に対応行が無く未実装です。
 
 スタイル済みの表示例は [Menu](../themes/menu.md) を参照してください。
 

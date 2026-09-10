@@ -128,6 +128,42 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "toggle",
         requires_value: false,
     },
+    // checkbox-item/radio-item（イシュー #2205、`crates/headless-ui/src/menu.rs`
+    // の `checkbox_item`/`radio_item`）: `MENU_ITEM_SELECTOR`（`crate::keynav`）
+    // が highlight・typeahead の対象に含め、Enter/Space が合成する `click()`
+    // がこの 2 行を経由して dispatch へ到達する（#1651 の既知ギャップの解消）。
+    //
+    // checkbox-item は `MenuCheckboxItem`（`Checkable` 埋め込み）が
+    // `"toggle"`（`CheckableAction::Toggle`）を受理し payload を無視するため
+    // `requires_value: false`（`menu`/`trigger-item` 行と同型）。
+    //
+    // radio-item は `MenuRadioItemGroup`（`SingleSelect` 埋め込み）が
+    // `"select"` のみを受理し payload（`data-value`）を選択項目として使う
+    // ため `requires_value: true`。`radio_item` は `data-value` を常時
+    // 出力するため欠落は通常起きないが、欠落時は fail-closed で `None`。
+    //
+    // これら 2 行は `Menu`（`Disclosure` 埋め込み）の `"toggle"` 語彙と
+    // 衝突する（`Disclosure::decode_action("toggle")` も `Some` を返す）。
+    // checkbox-item/radio-item は Menu 自身へではなく
+    // `MenuCheckboxItem`/`MenuRadioItemGroup` の専用インスタンスへ
+    // `wire_headless_component` する契約とし、`stop_propagation` で外側の
+    // Menu への越境 dispatch を防ぐ（`menu`/`trigger-item` → 子 Menu と
+    // 同型、`docs/design/wasm-full-architecture.md` §31 参照）。
+    // checkbox-item/radio-item の状態機械を配線していないアプリでは、
+    // クリックが外側 Menu の `"toggle"` として解決され Menu が開閉する
+    // （既存 `menu`/`trigger-item` 行と同じ性質であり新規のリスクではない）。
+    MappingRow {
+        scope: "menu",
+        part: "checkbox-item",
+        action: "toggle",
+        requires_value: false,
+    },
+    MappingRow {
+        scope: "menu",
+        part: "radio-item",
+        action: "select",
+        requires_value: true,
+    },
     // close-trigger（Dialog/Popover）は "close"。
     MappingRow {
         scope: "dialog",
@@ -329,6 +365,36 @@ const MAPPING_TABLE: &[MappingRow] = &[
         scope: "menubar",
         part: "trigger",
         action: "toggle",
+        requires_value: true,
+    },
+    // Menubar checkbox-item/radio-item（イシュー #2205）: Menubar 自身は
+    // checked 状態機械を持たないため、`crates/headless-ui/src/menubar.rs`
+    // の `checkbox_item`/`radio_item` も `menu` 側と同じ `MenuCheckboxItem`/
+    // `MenuRadioItemGroup`（`crates/headless-ui/src/menu.rs`）を流用する。
+    //
+    // `requires_value: false` は menubar/trigger 行と異なり必須:
+    // `Menubar::decode_action("toggle", payload)` は
+    // `payload.parse::<usize>()` を行う（`crates/headless-ui/src/menubar.rs`）
+    // ため、`requires_value: true` にして `data-value`（checkbox-item は
+    // 値そのものであり Menu index ではない）をそのまま流すと、
+    // checkbox-item のみを配線し Menubar を配線していないアプリで
+    // 「index N の Menu を開閉する」という無関係な誤 dispatch を招く
+    // おそれがある。payload を常に空文字列にすることで
+    // `"".parse::<usize>()` は必ず `Err` となり `None`（fail-closed）で
+    // Menubar 側には到達しない。
+    MappingRow {
+        scope: "menubar",
+        part: "checkbox-item",
+        action: "toggle",
+        requires_value: false,
+    },
+    // radio-item は `MenuRadioItemGroup` が `"select"` のみを受理し
+    // `Menubar::decode_action` は `"select"` を `None` にする（衝突しない）
+    // ため、menu/radio-item 行と同じ `requires_value: true` でよい。
+    MappingRow {
+        scope: "menubar",
+        part: "radio-item",
+        action: "select",
         requires_value: true,
     },
     // Sidebar（イシュー #2074、`crates/headless-ui/src/sidebar.rs`）:

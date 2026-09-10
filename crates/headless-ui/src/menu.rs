@@ -76,8 +76,10 @@
 //!   表現）のみを対象とし、配線は wasm ランタイム側の将来イシュー（#580/
 //!   PR #611・#626 系列）のスコープ。checkbox-item/radio-item への
 //!   Enter/Space（click 合成による checked トグル dispatch）は
-//!   `fandhe-frontend-wasm-full` の `headless::MAPPING_TABLE` に行が無く
-//!   イシュー #1651 時点でも未実装（別 Issue 化を検討する対象外事項）。
+//!   `fandhe-frontend-wasm-full` の `keynav`（highlight・typeahead）・
+//!   `headless::MAPPING_TABLE`（`"toggle"`/`"select"`）へイシュー #2205 で
+//!   配線済み（イシュー #1651 時点の既知ギャップは解消済み）。`closeOnSelect`
+//!   相当（決定時に Menu を閉じる）は依然スコープ外。
 //! - `loopFocus`/`typeahead`/`closeOnSelect`/キーボード操作・portal・
 //!   `lazyMount`: wasm クライアントランタイム側の将来イシューのスコープ
 //!   （Popover/Tooltip と共通の判断）。

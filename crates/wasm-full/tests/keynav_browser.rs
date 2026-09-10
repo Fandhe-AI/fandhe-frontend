@@ -97,6 +97,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
+use fandhe_frontend_headless_ui::menu::{MenuCheckboxItem, MenuRadioItemGroup};
 use fandhe_frontend_headless_ui::tree_view::{TreeNode, TreeView};
 use fandhe_frontend_wasm_full::events::{wire_events, ActionRef};
 use fandhe_frontend_wasm_full::headless::wire_headless_component;
@@ -318,6 +319,120 @@ fn build_menu_dom(
             item.set_attribute("data-disabled", "").unwrap();
         }
         item.set_text_content(Some(label));
+        content.append_child(&item).unwrap();
+    }
+    root.append_child(&content).unwrap();
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+    root
+}
+
+/// [`build_menu_dom_with_checkable_items`] の項目仕様（イシュー #2205）。
+/// `Item`/`CheckboxItem`/`RadioItem` を混在配置できる（`MENU_ITEM_SELECTOR`
+/// が highlight 対象に含める `item`/`checkbox-item`/`radio-item` の checkable
+/// 3 種、`trigger-item` を除く）。`CheckboxItem`/`RadioItem`
+/// の `bool` 末尾は初期 checked 状態。
+enum MenuItemSpec<'a> {
+    Item(&'a str, &'a str, bool),
+    CheckboxItem(&'a str, &'a str, bool, bool),
+    RadioItem(&'a str, &'a str, bool, bool),
+}
+
+/// `crates/headless-ui/src/menu.rs::checkbox_item`/`radio_item` の SSR 出力
+/// 契約（`role`/`aria-checked`/`data-state`/`data-value`、`item-text` 子）を
+/// 手組みで再現し、通常 `item`・`checkbox-item`・`radio-item` を混在配置
+/// した menu DOM を組み立てる（イシュー #2205、[`build_menu_dom`] の
+/// checkable 版）。各要素は `item_label`/typeahead が優先参照する
+/// `[data-part="item-text"]` 子を持つ（`item_label` doc 参照。indicator
+/// のみを子に持つ構成では indicator テキストがラベルへ混入しうるため
+/// テストフィクスチャは必ず `item-text` を持たせる）。`id` は
+/// `{root_id}-item-{value}`（`build_menu_dom` と同一命名）。
+fn build_menu_dom_with_checkable_items(
+    document: &Document,
+    root_id: &str,
+    items: &[MenuItemSpec],
+    open: bool,
+) -> Element {
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "menu").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+
+    let trigger = document.create_element("button").unwrap();
+    trigger.set_attribute("data-scope", "menu").unwrap();
+    trigger.set_attribute("data-part", "trigger").unwrap();
+    trigger.set_attribute("type", "button").unwrap();
+    let trigger_id = format!("{root_id}-trigger");
+    let content_id = format!("{root_id}-content");
+    trigger.set_attribute("id", &trigger_id).unwrap();
+    trigger.set_attribute("aria-haspopup", "menu").unwrap();
+    trigger
+        .set_attribute("aria-expanded", if open { "true" } else { "false" })
+        .unwrap();
+    trigger.set_attribute("aria-controls", &content_id).unwrap();
+    trigger.set_text_content(Some("Menu"));
+    root.append_child(&trigger).unwrap();
+
+    let content = document.create_element("div").unwrap();
+    content.set_attribute("data-scope", "menu").unwrap();
+    content.set_attribute("data-part", "content").unwrap();
+    content.set_attribute("id", &content_id).unwrap();
+    content.set_attribute("role", "menu").unwrap();
+    if !open {
+        content.set_attribute("hidden", "").unwrap();
+    }
+
+    fn append_item_text(document: &Document, parent: &Element, label: &str) {
+        let item_text = document.create_element("span").unwrap();
+        item_text.set_attribute("data-part", "item-text").unwrap();
+        item_text.set_text_content(Some(label));
+        parent.append_child(&item_text).unwrap();
+    }
+
+    for spec in items {
+        let (part_name, role_value, value, label, disabled, checked) = match spec {
+            MenuItemSpec::Item(value, label, disabled) => {
+                ("item", "menuitem", *value, *label, *disabled, None)
+            }
+            MenuItemSpec::CheckboxItem(value, label, disabled, checked) => (
+                "checkbox-item",
+                "menuitemcheckbox",
+                *value,
+                *label,
+                *disabled,
+                Some(*checked),
+            ),
+            MenuItemSpec::RadioItem(value, label, disabled, checked) => (
+                "radio-item",
+                "menuitemradio",
+                *value,
+                *label,
+                *disabled,
+                Some(*checked),
+            ),
+        };
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "menu").unwrap();
+        item.set_attribute("data-part", part_name).unwrap();
+        item.set_attribute("role", role_value).unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        item.set_attribute("id", &format!("{root_id}-item-{value}"))
+            .unwrap();
+        if let Some(checked) = checked {
+            item.set_attribute("aria-checked", if checked { "true" } else { "false" })
+                .unwrap();
+            item.set_attribute("data-state", if checked { "checked" } else { "unchecked" })
+                .unwrap();
+        }
+        if disabled {
+            item.set_attribute("aria-disabled", "true").unwrap();
+            item.set_attribute("data-disabled", "").unwrap();
+        }
+        append_item_text(document, &item, label);
         content.append_child(&item).unwrap();
     }
     root.append_child(&content).unwrap();
@@ -1513,6 +1628,406 @@ fn menu_open_enter_and_space_click_highlighted_item_and_skip_disabled() {
     let _ = item_a.remove_attribute("data-clicked");
     trigger.dispatch_event(&keydown_event(" ")).unwrap();
     assert!(item_a.has_attribute("data-clicked"));
+}
+
+// --- イシュー #2205: Menu checkbox-item/radio-item の highlight・Enter/Space ---
+
+/// checkbox-item を highlight した状態で Enter/Space を押すと
+/// `MenuCheckboxItem` へ `"toggle"` が dispatch され、`on_update` を経由して
+/// DOM の `aria-checked`/`data-state` が反映されることを検証する（受け入れ
+/// 条件 A）。DOM への反映自体は headless.rs モジュール doc §out-of-scope
+/// のとおり呼び出し側の責務であり、本テストの `on_update` がその役割を
+/// 代行する。
+#[wasm_bindgen_test]
+fn menu_open_enter_and_space_toggle_highlighted_checkbox_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom_with_checkable_items(
+        &document,
+        "kn-menu-checkbox1",
+        &[MenuItemSpec::CheckboxItem(
+            "wrap",
+            "Word wrap",
+            false,
+            false,
+        )],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let item = document
+        .get_element_by_id("kn-menu-checkbox1-item-wrap")
+        .unwrap();
+
+    let component = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    let wired_item = item.clone();
+    wire_headless_component(item.clone(), component.clone(), move |state, _root| {
+        let _ = wired_item.set_attribute(
+            "aria-checked",
+            if state.is_checked() { "true" } else { "false" },
+        );
+        let _ = wired_item.set_attribute("data-state", state.data_state());
+    })
+    .expect("wire_headless_component must not fail");
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-menu-checkbox1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // highlight を checkbox-item へ移動してから Enter でトグル。
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(component.borrow().is_checked());
+    assert_eq!(item.get_attribute("aria-checked").as_deref(), Some("true"));
+    assert_eq!(item.get_attribute("data-state").as_deref(), Some("checked"));
+
+    // Space で再度トグル（unchecked へ戻る）。
+    trigger.dispatch_event(&keydown_event(" ")).unwrap();
+    assert!(!component.borrow().is_checked());
+    assert_eq!(item.get_attribute("aria-checked").as_deref(), Some("false"));
+    assert_eq!(
+        item.get_attribute("data-state").as_deref(),
+        Some("unchecked")
+    );
+}
+
+/// radio-item を highlight した状態で Enter を押すとグループ内排他選択され、
+/// `on_update` 経由で全項目の `aria-checked`/`data-state` が同期されることを
+/// 検証する（受け入れ条件 A）。
+#[wasm_bindgen_test]
+fn menu_open_enter_selects_highlighted_radio_item_exclusively() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom_with_checkable_items(
+        &document,
+        "kn-menu-radio1",
+        &[
+            MenuItemSpec::RadioItem("grid", "Grid", false, false),
+            MenuItemSpec::RadioItem("list", "List", false, false),
+        ],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let grid_item = document
+        .get_element_by_id("kn-menu-radio1-item-grid")
+        .unwrap();
+    let list_item = document
+        .get_element_by_id("kn-menu-radio1-item-list")
+        .unwrap();
+    let items = vec![("grid", grid_item.clone()), ("list", list_item.clone())];
+
+    let component = Rc::new(RefCell::new(MenuRadioItemGroup::default()));
+    for (_, item) in &items {
+        let items_for_update = items.clone();
+        wire_headless_component(item.clone(), component.clone(), move |state, _root| {
+            for (value, el) in &items_for_update {
+                let checked = state.is_checked(value);
+                let _ = el.set_attribute("aria-checked", if checked { "true" } else { "false" });
+                let _ =
+                    el.set_attribute("data-state", if checked { "checked" } else { "unchecked" });
+            }
+        })
+        .expect("wire_headless_component must not fail");
+    }
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-menu-radio1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(component.borrow().is_checked("grid"));
+    assert_eq!(
+        grid_item.get_attribute("aria-checked").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        list_item.get_attribute("aria-checked").as_deref(),
+        Some("false")
+    );
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(component.borrow().is_checked("list"));
+    assert!(!component.borrow().is_checked("grid"));
+    assert_eq!(
+        list_item.get_attribute("aria-checked").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        grid_item.get_attribute("aria-checked").as_deref(),
+        Some("false")
+    );
+}
+
+/// Arrow キーが item/checkbox-item/radio-item 混在の並びを通過して
+/// `aria-activedescendant` を追随させ、disabled checkbox-item をスキップ
+/// すること（`MENU_ITEM_SELECTOR` 拡張・`filter_own_scope_items` 既存契約）
+/// を検証する。あわせて checkbox-item 配下の `item-text` へ
+/// `data-highlighted` が同期されること（`sync_item_text_highlighted` の
+/// part 拡張、イシュー #2205）も確認する。
+#[wasm_bindgen_test]
+fn menu_open_arrow_keys_reach_checkbox_and_radio_items_and_skip_disabled() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom_with_checkable_items(
+        &document,
+        "kn-menu-mixed1",
+        &[
+            MenuItemSpec::Item("a", "A", false),
+            MenuItemSpec::CheckboxItem("wrap", "Word wrap", true, false),
+            MenuItemSpec::RadioItem("grid", "Grid", false, false),
+        ],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let item_a = document.get_element_by_id("kn-menu-mixed1-item-a").unwrap();
+    let checkbox_item = document
+        .get_element_by_id("kn-menu-mixed1-item-wrap")
+        .unwrap();
+    let radio_item = document
+        .get_element_by_id("kn-menu-mixed1-item-grid")
+        .unwrap();
+    let radio_item_text = radio_item
+        .query_selector(r#"[data-part="item-text"]"#)
+        .unwrap()
+        .unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let trigger = document
+        .get_element_by_id("kn-menu-mixed1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    let content = document
+        .get_element_by_id("kn-menu-mixed1-content")
+        .unwrap();
+
+    // a → checkbox-item（disabled）をスキップ → radio-item。
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some(item_a.id().as_str())
+    );
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some(radio_item.id().as_str()),
+        "disabled checkbox-item はスキップされ radio-item へ直接移動すること"
+    );
+    assert!(radio_item.has_attribute("data-highlighted"));
+    assert!(
+        radio_item_text.has_attribute("data-highlighted"),
+        "radio-item 配下の item-text へも data-highlighted が同期されること \
+         （sync_item_text_highlighted の part 拡張、イシュー #2205）"
+    );
+    assert!(!checkbox_item.has_attribute("data-highlighted"));
+}
+
+/// checkbox-item のラベル（`item-text` の text content）が攻撃者制御文字列
+/// でも、keynav 経由の Enter 活性化で `script` 要素が生成されないことを
+/// 固定する（REQ-1、`menu_typeahead_with_attacker_controlled_label_...` と
+/// 同型の回帰）。
+#[wasm_bindgen_test]
+fn menu_checkbox_item_keyboard_activation_with_attacker_controlled_label_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom_with_checkable_items(
+        &document,
+        "kn-menu-checkbox-xss1",
+        &[MenuItemSpec::CheckboxItem(
+            "wrap",
+            "<img src=x onerror=alert(1)>",
+            false,
+            false,
+        )],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let item = document
+        .get_element_by_id("kn-menu-checkbox-xss1-item-wrap")
+        .unwrap();
+    assert!(item.query_selector("img").unwrap().is_none());
+
+    let component = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    wire_headless_component(item.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-menu-checkbox-xss1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+
+    assert!(component.borrow().is_checked());
+    assert!(
+        item.query_selector("img").unwrap().is_none(),
+        "攻撃者制御ラベルでの Enter 活性化後も img/script 等の要素が \
+         生成されてはならない"
+    );
+}
+
+// --- イシュー #2205: Menubar checkbox-item/radio-item の highlight・Enter/Space ---
+
+/// Menubar 自身は checked 状態機械を持たないため `menu::MenuCheckboxItem`/
+/// `MenuRadioItemGroup` を流用する（`crates/headless-ui/src/menubar.rs`
+/// モジュール doc・native テスト `headless_wiring.rs` と同じ判断）。
+/// content を最初から open（`hidden` 属性なし）にして配置し、
+/// `MENUBAR_ITEM_SELECTOR` 拡張が checkbox-item/radio-item を highlight・
+/// 決定操作の対象に含めることを Enter/Space 双方で検証する。
+#[wasm_bindgen_test]
+fn menubar_open_enter_and_space_toggle_checkbox_item_and_select_radio_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    let root = document.create_element("div").unwrap();
+    root.set_id("kn-menubar-checkable1");
+    root.set_attribute("data-scope", "menubar").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+
+    let menu_wrapper = document.create_element("div").unwrap();
+    menu_wrapper.set_attribute("data-scope", "menubar").unwrap();
+    menu_wrapper.set_attribute("data-part", "menu").unwrap();
+    menu_wrapper.set_attribute("data-state", "open").unwrap();
+
+    let trigger = document.create_element("button").unwrap();
+    trigger.set_attribute("data-scope", "menubar").unwrap();
+    trigger.set_attribute("data-part", "trigger").unwrap();
+    trigger.set_attribute("type", "button").unwrap();
+    trigger.set_attribute("role", "menuitem").unwrap();
+    trigger.set_attribute("aria-haspopup", "menu").unwrap();
+    trigger.set_attribute("aria-expanded", "true").unwrap();
+    trigger.set_attribute("tabindex", "0").unwrap();
+    trigger.set_attribute("data-value", "0").unwrap();
+    trigger
+        .set_attribute("id", "kn-menubar-checkable1-trigger")
+        .unwrap();
+    trigger
+        .set_attribute("aria-controls", "kn-menubar-checkable1-content")
+        .unwrap();
+    trigger.set_text_content(Some("View"));
+    menu_wrapper.append_child(&trigger).unwrap();
+
+    let content = document.create_element("div").unwrap();
+    content.set_attribute("data-scope", "menubar").unwrap();
+    content.set_attribute("data-part", "content").unwrap();
+    content
+        .set_attribute("id", "kn-menubar-checkable1-content")
+        .unwrap();
+    content.set_attribute("role", "menu").unwrap();
+    content.set_attribute("data-state", "open").unwrap();
+
+    fn checkable_item(
+        document: &Document,
+        part_name: &str,
+        role_value: &str,
+        value: &str,
+        id: &str,
+        label: &str,
+    ) -> Element {
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "menubar").unwrap();
+        item.set_attribute("data-part", part_name).unwrap();
+        item.set_attribute("role", role_value).unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        item.set_attribute("id", id).unwrap();
+        item.set_attribute("aria-checked", "false").unwrap();
+        item.set_attribute("data-state", "unchecked").unwrap();
+        let item_text = document.create_element("span").unwrap();
+        item_text.set_attribute("data-part", "item-text").unwrap();
+        item_text.set_text_content(Some(label));
+        item.append_child(&item_text).unwrap();
+        item
+    }
+
+    let checkbox_item = checkable_item(
+        &document,
+        "checkbox-item",
+        "menuitemcheckbox",
+        "wrap",
+        "kn-menubar-checkable1-item-wrap",
+        "Word wrap",
+    );
+    let radio_item = checkable_item(
+        &document,
+        "radio-item",
+        "menuitemradio",
+        "grid",
+        "kn-menubar-checkable1-item-grid",
+        "Grid",
+    );
+    content.append_child(&checkbox_item).unwrap();
+    content.append_child(&radio_item).unwrap();
+    menu_wrapper.append_child(&content).unwrap();
+    root.append_child(&menu_wrapper).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let checkbox_component = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    let wired_checkbox_item = checkbox_item.clone();
+    wire_headless_component(
+        checkbox_item.clone(),
+        checkbox_component.clone(),
+        move |state, _root| {
+            let _ = wired_checkbox_item.set_attribute(
+                "aria-checked",
+                if state.is_checked() { "true" } else { "false" },
+            );
+            let _ = wired_checkbox_item.set_attribute("data-state", state.data_state());
+        },
+    )
+    .expect("checkbox-item wire_headless_component must not fail");
+
+    let radio_component = Rc::new(RefCell::new(MenuRadioItemGroup::default()));
+    let wired_radio_item = radio_item.clone();
+    wire_headless_component(
+        radio_item.clone(),
+        radio_component.clone(),
+        move |state, _root| {
+            let checked = state.is_checked("grid");
+            let _ = wired_radio_item
+                .set_attribute("aria-checked", if checked { "true" } else { "false" });
+            let _ = wired_radio_item
+                .set_attribute("data-state", if checked { "checked" } else { "unchecked" });
+        },
+    )
+    .expect("radio-item wire_headless_component must not fail");
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(
+        checkbox_component.borrow().is_checked(),
+        "menubar checkbox-item は Enter でトグルすること"
+    );
+    assert_eq!(
+        checkbox_item.get_attribute("aria-checked").as_deref(),
+        Some("true")
+    );
+
+    trigger.dispatch_event(&keydown_event(" ")).unwrap();
+    assert!(
+        !checkbox_component.borrow().is_checked(),
+        "Space で再トグルし unchecked へ戻ること"
+    );
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(
+        radio_component.borrow().is_checked("grid"),
+        "menubar radio-item は Enter で選択されること"
+    );
+    assert_eq!(
+        radio_item.get_attribute("aria-checked").as_deref(),
+        Some("true")
+    );
 }
 
 /// Select も Menu と同じ highlight/決定契約を共有する（`role="listbox"`/
