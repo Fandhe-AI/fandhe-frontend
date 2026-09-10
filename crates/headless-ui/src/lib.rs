@@ -788,6 +788,26 @@
 //!   doc参照）。[`mod@nav_list`]（状態機械を持たない静的リンク集）とは
 //!   ディスクロージャの有無で使い分ける（[`mod@navigation_menu`] モジュール
 //!   doc「`nav_list` との使い分け」参照）。
+//! - [`mod@questionnaire`]: Root / Progress / Question / Prompt /
+//!   Description / Options / Freeform / Actions / Back / Next / Skip の
+//!   11 anatomy パーツ（イシュー #2117、親 #2116、祖父 #2057、shadcn/ui
+//!   `Questionnaire` 相当、参照軸 #2001）と、[`mod@steps`] と同型に
+//!   `count`/`step` から 3 状態を導出する状態機械
+//!   [`questionnaire::Questionnaire`]。イシュータイトルの 6 パーツ
+//!   （root/progress/question/options/freeform/actions）に、親 #2116 が
+//!   列挙する prompt/description/back/next/skip を加えた 11 パーツを持つ
+//!   （[`mod@questionnaire`] モジュール doc「イシュータイトルとの差分」
+//!   参照）。`data-state` は [`mod@steps`] とは異なる値語彙
+//!   （`active`/`completed`/`upcoming`）を持つ（[`mod@questionnaire`]
+//!   モジュール doc参照）。回答値の保持・検証・分岐・送信は
+//!   アプリケーション責務であり本クレートへ持ち込まない
+//!   （`.claude/rules/coding-rust.md` §UI 部品の責務境界 規則 1）。
+//!   選択肢は [`mod@radio_group`]/[`mod@checkbox_group`]、自由記述は
+//!   [`crate::field::textarea`] を options/freeform スロットへ入れ子に
+//!   する契約とする。`fandhe-frontend-wasm-full` への配線・
+//!   `fandhe-frontend-pre-styled-ui` のスタイル済み recipe はそれぞれ
+//!   後続イシュー #2118/#2119 のスコープ（[`mod@questionnaire`] モジュール
+//!   doc「out-of-scope」参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -853,6 +873,7 @@ pub mod positioning;
 pub mod progress;
 pub mod qr_code;
 mod qr_encode;
+pub mod questionnaire;
 pub mod radio_group;
 pub mod rating_group;
 pub mod scroll_area;
@@ -960,6 +981,7 @@ pub use positioning::{
 };
 pub use progress::{Progress, ProgressAction};
 pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
+pub use questionnaire::{QuestionProps, Questionnaire, QuestionnaireAction};
 pub use radio_group::{RadioGroup, RadioGroupProps};
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingGroupProps, RatingItemFlags};
 pub use segment_group::{SegmentGroup, SegmentGroupProps};

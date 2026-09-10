@@ -207,9 +207,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 217 → 218、イシュー #2115 で Marker の Themes ページが加わり
     // 218 → 219 になった。イシュー #2088 で Blocks セクション（索引 1 +
     // login-01 1 = 2 ページ）が新設され、219 → 221 になった。イシュー
-    // #2089 で dashboard-01 が加わり、221 → 222 になった。イシュー #2090
-    // で sidebar-07 が加わり、222 → 223 になった。
-    assert_eq!(pages.len(), 223, "expected 223 pages, got {pages:?}");
+    // #2089 で dashboard-01 が加わり、221 → 222 になった。イシュー #2117
+    // で Questionnaire（Primitives）が加わり、222 → 223 になった。イシュー
+    // #2090 で sidebar-07 が加わり、223 → 224 になった。
+    assert_eq!(pages.len(), 224, "expected 224 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
@@ -248,23 +249,24 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // が加わり 68 → 69 件になった。イシュー #2105 で Message が加わり
     // 69 → 70 件になった。イシュー #2108 で Bubble が加わり 70 → 71 件に
     // なった。イシュー #2111 で Attachment が加わり 71 → 72 件になった。
-    // イシュー #2114 で Marker が加わり 72 → 73 件になった。
+    // イシュー #2114 で Marker が加わり 72 → 73 件になった。イシュー
+    // #2117 で Questionnaire が加わり 73 → 74 件になった。
     let primitives_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/primitives/"))
         .collect();
     assert_eq!(
         primitives_pages.len(),
-        73,
-        "expected 73 /primitives/ pages (72 部品 + 1 索引), got {primitives_pages:?}"
+        74,
+        "expected 74 /primitives/ pages (73 部品 + 1 索引), got {primitives_pages:?}"
     );
     let source_based_primitive_pages = pages
         .iter()
         .filter(|(source, _)| source.starts_with("site/primitives/"))
         .count();
     assert_eq!(
-        source_based_primitive_pages, 72,
-        "expected 72 pages sourced from site/primitives/"
+        source_based_primitive_pages, 73,
+        "expected 73 pages sourced from site/primitives/"
     );
     assert!(
         pages.contains(&("site/primitives.md", "/primitives/")),

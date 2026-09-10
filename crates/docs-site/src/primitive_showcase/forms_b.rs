@@ -1,12 +1,15 @@
-//! Primitives Demo — Forms B（11 件、原稿は #1025）。
+//! Primitives Demo — Forms B（12 件、原稿は #1025。イシュー #2117 で
+//! `questionnaire` を追加、旧 11）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
-use fandhe_frontend_core::{text, Node};
+use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::data_attrs::Orientation;
+use hui::field::{self, FieldIds, FieldProps};
 use hui::number_input::{self, NumberInputFlags};
 use hui::password_input::{self, PasswordAutocomplete, PasswordInputProps};
 use hui::pin_input::{self, PinInputKind, PinInputProps};
+use hui::questionnaire::QuestionProps;
 use hui::radio_group;
 use hui::rating_group::{self, RatingGroupProps, RatingItemFlags};
 use hui::segment_group;
@@ -15,7 +18,7 @@ use hui::signature_pad::{self, Point, SignaturePad, Stroke};
 use hui::slider;
 use hui::switch::{self, SwitchProps};
 use hui::tags_input;
-use hui::OpenState;
+use hui::{OpenState, Questionnaire};
 
 use super::demo_page;
 
@@ -409,6 +412,185 @@ pub(super) fn pin_input_section() -> Node {
         pin_input_instance(&["1", "2", "", ""], true, &readonly_props, "Read-only"),
     ];
     demo_page("Pin Input", body)
+}
+
+/// `field-textarea-answer` を id とする [`FieldProps`]（freeform スロットの
+/// 自由記述用、[`questionnaire_section`] のみが呼ぶ）。
+fn questionnaire_freeform_field_props() -> FieldProps<'static> {
+    FieldProps {
+        id: "field-textarea-answer",
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    }
+}
+
+/// Questionnaire Demo（イシュー #2117）。11 anatomy パーツ全件
+/// （root/progress/question/prompt/description/options/freeform/actions/
+/// back/next/skip）を露出するよう、進行中（単一選択の質問、options
+/// スロットへ [`radio_group`] を入れ子）・自由記述（freeform スロットへ
+/// [`field::textarea`] を入れ子、`QuestionProps::required`/`invalid` で
+/// `data-required`/`data-invalid`/`aria-invalid="true"` を露出）・完了
+/// （`step == count` で `data-complete`・next/skip disabled）の 3
+/// インスタンスを並べる。回答値の保持・検証・分岐・送信はアプリ責務の
+/// ため本デモには含めない（`.claude/rules/coding-rust.md` §UI 部品の
+/// 責務境界）。
+pub(super) fn questionnaire_section() -> Node {
+    let in_progress = Questionnaire::new(3, 1, Orientation::Horizontal);
+    let radio_props = radio_group::RadioGroupProps::default();
+    let single_choice = in_progress.question(
+        1,
+        QuestionProps {
+            answered: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            in_progress.prompt(
+                vec![("id", "questionnaire-showcase-single-choice-prompt")],
+                vec![text("Do you like Rust?")],
+            ),
+            in_progress.description(vec![], vec![text("Pick one.")]),
+            in_progress.options(
+                vec![],
+                vec![radio_group::root(
+                    &radio_props,
+                    None,
+                    Some("questionnaire-showcase-single-choice-prompt"),
+                    vec![],
+                    vec![
+                        radio_group::item(
+                            true,
+                            &radio_props,
+                            "yes",
+                            vec![],
+                            vec![
+                                radio_group::item_control(true, &radio_props, vec![]),
+                                radio_group::item_text(
+                                    true,
+                                    &radio_props,
+                                    vec![],
+                                    vec![text("Yes")],
+                                ),
+                                radio_group::item_hidden_input(
+                                    true,
+                                    &radio_props,
+                                    Some("like-rust"),
+                                    "yes",
+                                    vec![],
+                                ),
+                            ],
+                        ),
+                        radio_group::item(
+                            false,
+                            &radio_props,
+                            "no",
+                            vec![],
+                            vec![
+                                radio_group::item_control(false, &radio_props, vec![]),
+                                radio_group::item_text(
+                                    false,
+                                    &radio_props,
+                                    vec![],
+                                    vec![text("No")],
+                                ),
+                                radio_group::item_hidden_input(
+                                    false,
+                                    &radio_props,
+                                    Some("like-rust"),
+                                    "no",
+                                    vec![],
+                                ),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+            in_progress.actions(
+                vec![],
+                vec![
+                    in_progress.back(false, vec![], vec![text("Back")]),
+                    in_progress.next(false, vec![], vec![text("Next")]),
+                    in_progress.skip(false, vec![], vec![text("Skip")]),
+                ],
+            ),
+        ],
+    );
+
+    let freeform_field_props = questionnaire_freeform_field_props();
+    let freeform_question = in_progress.question(
+        1,
+        QuestionProps {
+            required: true,
+            invalid: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![
+            in_progress.prompt(vec![], vec![text("What could we improve?")]),
+            in_progress.freeform(
+                vec![],
+                vec![
+                    field::label(&freeform_field_props, vec![], vec![text("Your answer")]),
+                    field::textarea(&freeform_field_props, false, vec![], vec![]),
+                ],
+            ),
+            in_progress.actions(
+                vec![],
+                vec![
+                    in_progress.back(false, vec![], vec![text("Back")]),
+                    in_progress.next(true, vec![], vec![text("Next")]),
+                    in_progress.skip(false, vec![], vec![text("Skip")]),
+                ],
+            ),
+        ],
+    );
+
+    // `step == count`（全質問完了）の状態は、モジュール doc の状態モデル
+    // （`index == step` の質問が active になるのは `step < count` のときのみ、
+    // `step == count` なら「該当する質問が存在しないため active な質問は
+    // ない」）により、どの `index` を渡しても [`Questionnaire::question`]
+    // は `hidden` を付与する。そのため完了後のサンクス表示・アクション
+    // バーは `.question()`（per-question fieldset）へ入れ子にせず、`root`
+    // 直下のアプリ側マークアップとして描画する（Cursor Bugbot 指摘、PR
+    // #2279。`data-complete`〔`root` が公開する〕を CSS セレクタにして
+    // 実アプリはこのパネルの表示切り替えを行う契約）。
+    let completed = Questionnaire::new(3, 3, Orientation::Horizontal);
+    let completed_thanks = div(
+        vec![("class", "primitives-demo-questionnaire-thanks")],
+        vec![text("Thanks for completing the survey!")],
+    );
+    let completed_actions = completed.actions(
+        vec![],
+        vec![
+            completed.back(false, vec![], vec![text("Back")]),
+            completed.next(false, vec![], vec![text("Next")]),
+            completed.skip(false, vec![], vec![text("Skip")]),
+        ],
+    );
+
+    let body = vec![
+        in_progress.root(
+            vec![],
+            vec![
+                in_progress.progress("Questionnaire progress", vec![], vec![]),
+                single_choice,
+            ],
+        ),
+        in_progress.root(vec![], vec![freeform_question]),
+        completed.root(
+            vec![],
+            vec![
+                completed.progress("Questionnaire progress", vec![], vec![]),
+                completed_thanks,
+                completed_actions,
+            ],
+        ),
+    ];
+    demo_page("Questionnaire", body)
 }
 
 /// `label_text`/`label_id`/`name`/`props`/`orientation`/`items`（各項目は

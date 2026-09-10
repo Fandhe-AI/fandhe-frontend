@@ -39,6 +39,8 @@ use fandhe_frontend_headless_ui::data_attrs::{
 use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use fandhe_frontend_headless_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use fandhe_frontend_headless_ui::progress::Progress;
+use fandhe_frontend_headless_ui::questionnaire::QuestionProps;
+use fandhe_frontend_headless_ui::{Orientation as QuestionnaireOrientation, Questionnaire};
 use fandhe_frontend_pre_styled_ui::alert;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
@@ -1959,4 +1961,71 @@ fn marker_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     ));
     assert!(label_html.contains("fd-separator--"));
     assert!(!label_html.contains("fd-marker--"));
+}
+
+/// `questionnaire`（イシュー #2117、`crates/headless-ui/src/questionnaire.rs`。
+/// styled recipe は後続イシュー #2119 のため本テストは headless 出力を
+/// 直接固定する）の `data-state`（active/completed/upcoming の 3 値）・
+/// `data-step`・`data-orientation`・`data-complete`・`data-answered`/
+/// `data-skipped`/`data-required`/`data-invalid`（存在属性）・
+/// back/next/skip の `disabled`+`data-disabled` 語彙を固定する
+/// （`attachment_root_variant_state_disabled_and_action_vocabulary_is_fixed`
+/// と同型）。
+#[test]
+fn questionnaire_root_question_and_trigger_vocabulary_is_fixed() {
+    // data-state: active/completed/upcoming の 3 値。
+    let q = Questionnaire::new(3, 1, QuestionnaireOrientation::Horizontal);
+    let props = QuestionProps::default();
+    for (index, expected) in [(0, "completed"), (1, "active"), (2, "upcoming")] {
+        let html = render(&q.question(index, props, vec![], vec![]));
+        assert!(html.contains(&format!(r#"data-state="{expected}""#)));
+    }
+
+    // data-step / data-orientation。
+    let root_html = render(&q.root(vec![], vec![]));
+    assert!(root_html.contains(r#"data-step="1""#));
+    assert!(root_html.contains(r#"data-orientation="horizontal""#));
+    assert!(!root_html.contains("data-complete"));
+
+    // data-complete: step == count のときのみ root へ付与する。
+    let done = Questionnaire::new(3, 3, QuestionnaireOrientation::Vertical);
+    let done_html = render(&done.root(vec![], vec![]));
+    assert!(done_html.contains("data-complete"));
+    assert!(done_html.contains(r#"data-orientation="vertical""#));
+
+    // QuestionProps の 4 存在属性: answered/skipped/required/invalid。
+    let all_true = QuestionProps {
+        answered: true,
+        skipped: true,
+        required: true,
+        invalid: true,
+    };
+    let question_html = render(&q.question(1, all_true, vec![], vec![]));
+    assert!(question_html.contains("data-answered"));
+    assert!(question_html.contains("data-skipped"));
+    assert!(question_html.contains("data-required"));
+    assert!(question_html.contains("data-invalid"));
+    assert!(question_html.contains(r#"aria-invalid="true""#));
+
+    let all_false = QuestionProps::default();
+    let question_false_html = render(&q.question(1, all_false, vec![], vec![]));
+    assert!(!question_false_html.contains("data-answered"));
+    assert!(!question_false_html.contains("data-skipped"));
+    assert!(!question_false_html.contains("data-required"));
+    assert!(!question_false_html.contains("data-invalid"));
+
+    // back/next/skip: 境界時に native disabled + data-disabled を出力する。
+    let at_start = Questionnaire::new(3, 0, QuestionnaireOrientation::Horizontal);
+    let back_html = render(&at_start.back(false, vec![], vec![]));
+    assert!(back_html.contains("disabled"));
+    assert!(back_html.contains("data-disabled"));
+
+    let at_end = Questionnaire::new(3, 3, QuestionnaireOrientation::Horizontal);
+    let next_html = render(&at_end.next(false, vec![], vec![]));
+    assert!(next_html.contains("disabled"));
+    assert!(next_html.contains("data-disabled"));
+
+    let skip_html = render(&at_end.skip(false, vec![], vec![]));
+    assert!(skip_html.contains("disabled"));
+    assert!(skip_html.contains("data-disabled"));
 }

@@ -206,18 +206,20 @@ fn foundation_modules_do_not_call_anatomy() {
 fn module_counts_are_consistent_with_the_source_tree() {
     let scan = scan_headless_ui_src(&headless_ui_src_dir());
 
-    assert_eq!(PRIMITIVES.len(), 72);
+    assert_eq!(PRIMITIVES.len(), 73);
     assert_eq!(FOUNDATION_MODULES.len(), 9);
     assert_eq!(
         PRIMITIVES.len() + FOUNDATION_MODULES.len() + 1,
         scan.total_rs_files,
-        "PRIMITIVES(72) + FOUNDATION_MODULES(9) + lib.rs(1) が \
+        "PRIMITIVES(73) + FOUNDATION_MODULES(9) + lib.rs(1) が \
          crates/headless-ui/src/*.rs の実測総数({})と一致しません",
         scan.total_rs_files
     );
 }
 
-/// 受け入れ条件 4: 6 グループ 13/11/10/10/13/15 = 72（イシュー #2114 で
+/// 受け入れ条件 4: 6 グループ 13/12/10/10/13/15 = 73（イシュー #2117 で
+/// Forms B に `questionnaire` を追加、旧 13/11/10/10/13/15 = 72。
+/// イシュー #2114 で
 /// Data Display / Utilities に `marker` を追加、旧 13/11/10/10/13/14 =
 /// 71。イシュー #2111 で
 /// Data Display / Utilities に `attachment` を追加、旧 13/11/10/10/13/13 =
@@ -264,6 +266,7 @@ fn category_counts_and_order_follow_the_design_spec() {
                 "number_input",
                 "password_input",
                 "pin_input",
+                "questionnaire",
                 "radio_group",
                 "rating_group",
                 "segment_group",
@@ -345,7 +348,7 @@ fn category_counts_and_order_follow_the_design_spec() {
     ];
 
     let expected_total: usize = spec.iter().map(|(_, modules)| modules.len()).sum();
-    assert_eq!(expected_total, 72);
+    assert_eq!(expected_total, 73);
 
     let actual_modules_in_order: Vec<&str> = PRIMITIVES.iter().map(|e| e.module).collect();
     let expected_modules_in_order: Vec<&str> = spec
