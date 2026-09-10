@@ -1,5 +1,6 @@
 //! styled Dialog（`size` variant 展開、イシュー #729）の決定的 CSS 出力
-//! ゴールデンテスト。
+//! ゴールデンテスト。イシュー #2193 で `close-trigger` の text variant
+//! （`[data-variant="text"]`）state 規則を追加した。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
@@ -196,6 +197,21 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 [data-scope="dialog"][data-part="close-trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="dialog"][data-part="close-trigger"][data-variant="text"] {
+  position: static;
+  inset-block-start: auto;
+  inset-inline-end: auto;
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  background: var(--fandhe-color-bg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  padding: var(--fandhe-space-2) var(--fandhe-space-3);
+  color: var(--fandhe-color-fg);
 }
 
 @media (hover: hover) {

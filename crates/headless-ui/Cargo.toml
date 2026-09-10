@@ -620,12 +620,25 @@ name = "fandhe-frontend-headless-ui"
 # 0.68.13 へ到達済みだったため、その到達値からさらに +1 して 0.68.14
 # とする（PR #2279 review 対応での base 取り込み）。
 #
+# イシュー #2193: dialog / drawer の close-trigger をアイコン専用契約から
+# 平文ボタンでも再利用できる形へ再設計する。`dialog::CloseTriggerVariant`・
+# `dialog::close_trigger_with_variant`・`drawer::close_trigger_with_variant`
+# を新規追加した。既存 `close_trigger`（dialog/drawer 双方）の出力は
+# バイト単位で不変（`data-variant` を出力しない）のため非破壊的な純追加、
+# patch バンプ対象だったが、origin/main が #2117（questionnaire 新設）で
+# 独立に 0.68.14 へ到達済みだったため、同一版数への偶発的衝突をそのまま
+# 採用しない原則により main の到達値 0.68.14 からさらに +1 して 0.68.15
+# とする。
+#
 # イシュー #2125: `data_table`（Root/Toolbar/ColumnHeader/SortTrigger/
 # SelectAll/SelectRow/Footer/SelectionCount の 8 anatomy パーツ + ソート
 # 方向・非表示列の表示状態のみを持つ `DataTable` 状態機械、shadcn/ui
 # Data Table 相当）を新設。既存 API への変更はなく非破壊的な追加のため
-# patch バンプ、0.68.14 から 0.68.15 とする。
-version = "0.68.15"
+# patch バンプ対象だったが、origin/main が #2193（close-trigger 再設計）
+# で独立に 0.68.15 へ到達済みだったため、同一版数への偶発的衝突をそのまま
+# 採用しない原則により main の到達値 0.68.15 からさらに +1 して 0.68.16
+# とする。
+version = "0.68.16"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

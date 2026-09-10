@@ -701,6 +701,16 @@ impl Hydrate for DataTable {
             (Some(column_raw), Some(direction_raw)) => {
                 let column_list = codec::decode_list(column_raw);
                 let attr_name_column = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_SORT_COLUMN);
+                // NOTE: `column_list.len() != 1` を明示的に拒否する（末尾要素のみを
+                // 黙って採用し残りを捨てる `.next()` 単独運用は非対称かつ非決定的な
+                // フォールバックであり、クライアント改ざん入力に対する fail-closed
+                // 不変条件（モジュール doc「セキュリティ不変条件」）に反する）。
+                if column_list.len() != 1 {
+                    return Err(HydrateError::InvalidValue {
+                        attr: attr_name_column,
+                        reason: "expected a single non-empty column id".to_string(),
+                    });
+                }
                 let id = column_list
                     .into_iter()
                     .next()
@@ -1122,6 +1132,42 @@ mod tests {
         )];
         let err = DataTable::from_hydration_attrs(&attrs).unwrap_err();
         assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    /// レビュー指摘（イシュー #2125）: `data-hydrate-sort-column` に複数値が
+    /// 詰められた改ざん入力を、末尾要素を黙って捨てて先頭のみ採用する
+    /// フォールバックではなく fail-closed に拒否することを固定する
+    /// （`hidden-columns` 側の重複拒否と対称な検証）。
+    #[test]
+    fn hydration_rejects_multiple_sort_column_values() {
+        let attrs = vec![
+            (
+                format!("{HYDRATE_ATTR_PREFIX}{}", DataTable::FIELD_SORT_COLUMN),
+                codec::encode_list(&["a".to_string(), "b".to_string()]),
+            ),
+            (
+                format!("{HYDRATE_ATTR_PREFIX}{}", DataTable::FIELD_SORT_DIRECTION),
+                "ascending".to_string(),
+            ),
+        ];
+        let err = DataTable::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    #[test]
+    fn hydration_accepts_single_sort_column_value() {
+        let attrs = vec![
+            (
+                format!("{HYDRATE_ATTR_PREFIX}{}", DataTable::FIELD_SORT_COLUMN),
+                codec::encode_list(&["name".to_string()]),
+            ),
+            (
+                format!("{HYDRATE_ATTR_PREFIX}{}", DataTable::FIELD_SORT_DIRECTION),
+                "ascending".to_string(),
+            ),
+        ];
+        let restored = DataTable::from_hydration_attrs(&attrs).unwrap();
+        assert_eq!(restored.sort(), Some(("name", SortDirection::Ascending)));
     }
 
     #[test]

@@ -81,6 +81,10 @@ const DATE_INPUT_GOLDEN_CSS: &str = r#"[data-scope="date-input"][data-part="root
   cursor: not-allowed;
 }
 
+[data-scope="date-input"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}
+
 [data-scope="date-input"][data-part="segment-group"][data-invalid] {
   border-color: var(--fandhe-color-danger);
 }

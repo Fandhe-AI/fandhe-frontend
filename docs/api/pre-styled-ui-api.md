@@ -11,13 +11,13 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 119 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 120 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
 #2070、`sidebar` はイシュー #2073、`message` はイシュー #2106、`bubble`
 はイシュー #2109、`attachment` はイシュー #2112、`marker` はイシュー
-#2115 で追加）+
+#2115、`questionnaire` はイシュー #2119 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
@@ -66,7 +66,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 単純 styled 部品 | `highlight`（テキスト中の一致語句を `<mark>` で強調する `<span>` + `<mark>`。`query`（複数可）・`ignore_case`（ASCII 限定）・`match_all` の 3 プロパティ。一致判定は正規表現不使用の決定的な部分文字列検索のみ（ReDoS 非該当）。`color-palette`/`size` 軸は非提供） | [highlight](../../site/themes/highlight.md) |
 | 単純 styled 部品 | `visually_hidden`（視覚的には隠すが支援技術には読ませ続けるテキストコンテナ。variant 軸を持たず clip 手法の CSS のみ。`aria-hidden` を一切出力しない） | [visually-hidden](../../site/themes/visually-hidden.md) |
 | 単純 styled 部品 | `skip_nav`（WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link`/`content` の 2 slot recipe。`link` は `visually_hidden` の clip 手法を base に持ち `:focus-visible` でのみ視覚的に復元する。docs-site の全ページレイアウトへ実適用済み） | [skip-nav](../../site/themes/skip-nav.md) |
-| headless ラッパー | `dialog` / `tabs` / `accordion` / `menu` / `select` | [dialog](../../site/themes/dialog.md) / [tabs](../../site/themes/tabs.md) / [accordion](../../site/themes/accordion.md) / [menu](../../site/themes/menu.md) / [select](../../site/themes/select.md) |
+| headless ラッパー | `dialog` / `tabs` / `accordion` / `menu` / `select`（`dialog` はイシュー #2193 で `close-trigger` に `[data-variant="text"]` state 規則を追加し、`close_trigger_with_variant` で footer 内の平文ボタンとしても再利用可能。アイコン専用契約（`data-variant` 非出力の既存 `close_trigger`）は不変） | [dialog](../../site/themes/dialog.md) / [tabs](../../site/themes/tabs.md) / [accordion](../../site/themes/accordion.md) / [menu](../../site/themes/menu.md) / [select](../../site/themes/select.md) |
 | headless ラッパー | `popover` / `tooltip` | [popover](../../site/themes/popover.md) / [tooltip](../../site/themes/tooltip.md) |
 | headless ラッパー | `switch` | [switch](../../site/themes/switch.md) |
 | headless ラッパー | `radio_group`（§4c 参照） | [radio-group](../../site/themes/radio-group.md) |
@@ -82,6 +82,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `bubble`（§4f-7 参照。チャット吹き出し 1 個。6 パーツ構成、軸なし。data-variant/data-align/data-group-position/data-selected/data-state を AttrEq/Attr/AttrEqAll 参照するのみ） | [bubble](../../site/themes/bubble.md) |
 | headless ラッパー | `attachment`（§4f-8 参照。添付ファイル 1 件。8 パーツ構成、軸なし。data-variant/data-state/data-disabled を AttrEq/Attr 参照するのみ） | [attachment](../../site/themes/attachment.md) |
 | headless ラッパー | `marker`（§4f-9 参照。会話中の注記行。3 パーツ構成、軸なし。data-variant/data-tone を AttrEq 参照するのみ） | [marker](../../site/themes/marker.md) |
+| headless ラッパー | `questionnaire`（§4f-10 参照。多段質問 UI。11 パーツ構成、軸なし。data-state/data-answered/data-skipped/data-invalid/data-disabled/data-complete を AttrEq/Attr 参照するのみ） | [questionnaire](../../site/themes/questionnaire.md) |
 | headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
@@ -101,7 +102,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `steps`（`size`/`color-palette` 両軸。`fandhe_frontend_headless_ui::steps` が自由関数を持たず全パーツが `Steps` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Steps` を受け取る点が他コンポーネントと異なる。PR #1814 codex-review 対応で追加した `body`（`data-scope="steps" data-part="body"`）のみ headless に対応物を持たない pre-styled-ui 専用のグルーピングパーツで、`state: &Steps` を取らずプレーンな `<div>` を直接構築する。縦向き（`Orientation::Vertical`）で `root` が `flex-direction: row` へ切り替わる際、`list` 以外を `body` でまとめて `root` 直下を `list`/`body` の 2 要素に保つ契約〔`steps::root` rustdoc 参照〕） | [steps](../../site/themes/steps.md) |
 | headless ラッパー | `breadcrumb`（状態機械なし。`size`/`BreadcrumbVariant`（`link` の下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への伝搬は root スコープ CSS custom property の継承で行う） | [breadcrumb](../../site/themes/breadcrumb.md) |
 | headless ラッパー | `carousel`（`size` variant のみ・`color-palette` 軸は非提供（選択・チェック状態を示す部品ではないため）。`item-group` の transform は `--fandhe-carousel-index` CSS カスタムプロパティ 1 点のみで伝搬し、`data-orientation="vertical"` で `translateX`/`translateY` を切り替える。autoplay は初期実装スコープ外） | [carousel](../../site/themes/carousel.md) |
-| headless ラッパー | `drawer`（dialog の変種。状態機械は headless の `dialog::Dialog` をそのまま再利用し新規状態機械は作らない。`size`（drawer の占有幅/高さ）variant のみを root へ付与し `color-palette` 軸は非提供。placement（`start`/`end`/`top`/`bottom`）は variant ではなく headless 層が出力する `data-placement` に連動する CSS で表現する） | [drawer](../../site/themes/drawer.md) |
+| headless ラッパー | `drawer`（dialog の変種。状態機械は headless の `dialog::Dialog` をそのまま再利用し新規状態機械は作らない。`size`（drawer の占有幅/高さ）variant のみを root へ付与し `color-palette` 軸は非提供。placement（`start`/`end`/`top`/`bottom`）は variant ではなく headless 層が出力する `data-placement` に連動する CSS で表現する。dialog と対称の `close-trigger` text variant（イシュー #2193）も持つが、`fandhe-frontend-wasm-full` が drawer scope を未配線のため現状 inert） | [drawer](../../site/themes/drawer.md) |
 | headless ラッパー | `link` / `link_overlay` / `nav_list`（状態機械なし。`link_overlay` は `::before` 疑似要素の代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する。イシュー #1580 で `overlay` に `:focus-visible` の共通フォーカスリング・`cursor: pointer` を追加し、`root`/`overlay` 双方へ `border-radius: inherit` を連鎖させて `root` の角丸へフォーカスリングが追従するようにした。`nav_list` は `fandhe-frontend-docs-site::nav.rs::sidebar` が直接使う想定のため、`root` 以外（`heading`/`list`/`item`/`link`）は headless 自由関数をそのまま選択的に再エクスポートする） | [link](../../site/themes/link.md) / [link-overlay](../../site/themes/link-overlay.md) / [nav-list](../../site/themes/nav-list.md) |
 | headless ラッパー | `action_bar`（`size`/`color-palette` 軸は非提供。`positioner` の `position: fixed; bottom: ...; left: 50%; transform: translateX(-50%)` による画面下部固定配置と `data-state` 連動の見た目切り替えのみを提供する。`z-index: 900`（menu/select の dropdown positioner（10）より上、dialog backdrop（1000）より下）） | [action-bar](../../site/themes/action-bar.md) |
 | headless ラッパー | `toolbar`（イシュー #991。`size`/`color-palette` 軸は非提供。`root` の `data-orientation="vertical"` で `flex-direction: column` へ切り替え、`separator` は `aria-orientation` の値（toolbar 自身と直交）で向き別の太さを出し分ける。押下状態の管理は独自 CSS を持たず既存の `toggle_group` recipe と同型の `data-state="on"` 強調のみ提供する） | [toolbar](../../site/themes/toolbar.md) |
@@ -1052,6 +1053,48 @@ anatomy（`root`/`media`/`content`/`name`/`meta`/`progress`/`actions`/
   （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
 - **docs サイト**: [marker](../../site/themes/marker.md)
   （イシュー #2115 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-10. `questionnaire`（多段質問 UI、イシュー #2119、headless anatomy は #2117、wasm-full 配線は #2118）
+
+`questionnaire` モジュールは `fandhe_frontend_headless_ui::questionnaire`
+の anatomy（`root`/`progress`/`question`/`prompt`/`description`/`options`/
+`freeform`/`actions`/`back`/`next`/`skip` の 11 パーツ）へ、質問カード・
+進捗ゲージ・選択肢の choice card 風表示・completed/upcoming の視覚差を
+重ねる薄い委譲層である。
+
+- **公開 API**: 11 関数すべてが `state: &Questionnaire`（headless-ui の
+  状態機械）を第 1 引数に取り、内部で `state.<part>(...)` へ委譲する
+  （`crate::steps` と同型。headless 側に自由関数がないため）。見た目
+  クラスは付与せず、呼び出し側 `class` を `drop_class_attr` で除去して
+  から委譲する。`QuestionProps`/`QuestionnaireAction`（headless からの
+  再エクスポート）のみを選択的に公開する。`Questionnaire` 状態機械自体は
+  再エクスポートしない（呼び出し側は `fandhe_frontend_headless_ui::
+  questionnaire::Questionnaire` を直接 import する）。`stylesheet()` が
+  静的 CSS 全量を返す。
+- **軸を持たない**: `size`/`colorPalette` は持たず、headless が固定出力
+  する `data-state`（`active`/`completed`/`upcoming`）・`data-answered`/
+  `data-skipped`/`data-invalid`/`data-disabled`/`data-complete` を
+  `StateCondition::Attr`/`AttrEq` で参照するのみ。`data-state="active"`
+  は base と同値のため state 規則を持たない。
+- **`progress` の塗り**: styled `progress` を入れ子にせず、`step`/`count`
+  から百分率を計算した `--fandhe-questionnaire-percent` custom property
+  を `style` へ設定し、CSS の `linear-gradient` で塗り幅を表現する
+  （`crate::progress::range` の `percent_style`/`drop_style_attr` と同型
+  のパターン）。既知の制約: `fandhe-frontend-wasm-full`（イシュー #2118）
+  はクライアント側遷移で `aria-valuenow`/`aria-valuetext` を更新するが
+  本 custom property は更新しないため、遷移直後はアプリ側再描画まで
+  ゲージが古い値を示す。
+- **選択肢の choice card 風表示**: `options` slot 配下の
+  `[data-scope="radio-group"][data-part="item"]`/
+  `[data-scope="checkbox-group"][data-part="item"]` をカード状に整形する
+  子孫セレクタを `stylesheet()` に含む（`SlotRecipe` が子孫セレクタを
+  表現できないための raw CSS 追記、`crate::marker` と同型）。item 自体の
+  基本規則は含まないため、`crate::radio_group::stylesheet`/
+  `crate::checkbox_group::stylesheet` の併用が必要。
+- **`ColorPalette` 軸は持たない**: 本イシューのスコープに含まれない
+  （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
+- **docs サイト**: [questionnaire](../../site/themes/questionnaire.md)
+  （イシュー #2119 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

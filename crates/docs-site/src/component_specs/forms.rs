@@ -72,7 +72,7 @@ use fandhe_frontend_pre_styled_ui::switch::SwitchProps;
 use fandhe_frontend_pre_styled_ui::{BadgeProps, KbdProps};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
-use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry};
+use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
 /// Forms 30 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
 /// 削除・#997 で Checkbox Group・#1685 で Field・#1687 で Fieldset・#2063 で
@@ -99,6 +99,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/password-input/", PASSWORD_INPUT),
     ("/themes/pin-input/", PIN_INPUT),
     ("/themes/radio-card/", RADIO_CARD),
+    ("/themes/questionnaire/", QUESTIONNAIRE),
     ("/themes/radio-group/", RADIO_GROUP),
     ("/themes/rating-group/", RATING_GROUP),
     ("/themes/segment-group/", SEGMENT_GROUP),
@@ -1601,6 +1602,76 @@ const RADIO_CARD: ComponentPageSpec = ComponentPageSpec {
     examples: &[],
     keyboard: &[],
     aria: &[],
+    demo: None,
+};
+
+/// Questionnaire（イシュー #2119、headless anatomy は #2117、wasm-full
+/// 配線は #2118）。全パーツが `state: &Questionnaire` を取る
+/// （`crates/pre-styled-ui/src/questionnaire.rs` モジュール doc参照）。
+const QUESTIONNAIRE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "count（全質問数）/step（現在位置）を持つ headless Questionnaire 状態機械への薄い委譲層。全 11 パーツ関数が state: &Questionnaire を第 1 引数に取る。",
+        "size/colorPalette のような見た目クラス軸は持たず、headless の data-state（active/completed/upcoming）・data-answered・data-skipped・data-required・data-invalid・data-disabled・data-complete を CSS セレクタとして参照するのみ。",
+        "progress は styled progress を入れ子にせず、step/count から百分率を計算した --fandhe-questionnaire-percent を style へ設定し、CSS の linear-gradient で塗り幅を表現する。",
+        "options スロットへ入れ子にした RadioGroup/CheckboxGroup の item を choice card 風に整形する子孫セレクタを持つ（RadioGroup/CheckboxGroup 自身の stylesheet() 併用が必要）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "state",
+            kind: "&Questionnaire",
+            default: "",
+            description: "count/step/orientation を保持する headless 状態機械（fandhe_frontend_headless_ui::questionnaire::Questionnaire）。",
+        },
+        ArgRow {
+            name: "props",
+            kind: "QuestionProps",
+            default: "QuestionProps::default()",
+            description: "answered/skipped/required/invalid の 4 存在属性フラグ（questionnaire::question の第 3 引数）。",
+        },
+        ArgRow {
+            name: "index",
+            kind: "usize",
+            default: "",
+            description: "質問のインデックス（0..count、questionnaire::question の第 2 引数）。",
+        },
+        ArgRow {
+            name: "disabled",
+            kind: "bool",
+            default: "false",
+            description: "back/next/skip を強制的に無効化する（questionnaire::back/next/skip の第 2 引数）。",
+        },
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "\"\"",
+            description: "progress の aria-label（questionnaire::progress の第 2 引数）。空文字なら付与しない。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "back/next/skip（ネイティブ button）間、および options/freeform に入れ子にした部品内のフォーカス移動。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "フォーカス中の back/next/skip をアクティブ化する（ネイティブ button）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"progressbar\"",
+            description: "progress パーツへ固定付与し、aria-valuemin/aria-valuemax/aria-valuenow/aria-valuetext を伴う（headless questionnaire.rs）。",
+        },
+        AriaRow {
+            attribute: "aria-invalid=\"true\"",
+            description: "QuestionProps.invalid が true のとき question（fieldset）へ付与する。",
+        },
+        AriaRow {
+            attribute: "hidden",
+            description: "非 active（completed/upcoming）な question へ常に付与する。",
+        },
+    ],
     demo: None,
 };
 

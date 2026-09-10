@@ -51,6 +51,7 @@ use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::collapsible;
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateInputProps, DateSegment};
+use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps, PieCenterText};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
@@ -567,6 +568,23 @@ fn size_variant_root_caller_class_attr_is_dropped_not_merged_raw_for_all_payload
         assert_eq!(html.matches("class=\"").count(), 1);
         assert!(html.contains("fd-select--"));
 
+        // イシュー #2195: `date_picker::root`（styled ラッパー、`class`
+        // 合成 + 呼び出し側 `attrs` 透過）の未登録だった補完（新しい動的値
+        // 経路の追加ではなく、既存部品の登録漏れの補完）。
+        let html = render(&date_picker::root(
+            Size::Md,
+            OpenState::Closed,
+            &date_picker::DatePickerProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "date_picker::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-date-picker--"));
+
         let html = render(&drawer::root(
             Size::Md,
             OpenState::Closed,
@@ -624,6 +642,21 @@ fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "select::root 呼び出し側 attrs コンテキスト");
+
+        // イシュー #2195: `date_picker::root` の呼び出し側 attrs 経路
+        // （既存部品の登録漏れ補完、上記「(6)」節の class 属性経路と対）。
+        let html = render(&date_picker::root(
+            Size::Md,
+            OpenState::Closed,
+            &date_picker::DatePickerProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_picker::root 呼び出し側 attrs コンテキスト",
+        );
 
         // イシュー #2186: 新設 3 パーツ（separator/scroll-up-button/
         // scroll-down-button）の attrs/children 経路。
@@ -6502,5 +6535,189 @@ fn marker_parts_are_escaped_for_all_payloads() {
             &label_html,
             "marker::root (Label) children コンテキスト",
         );
+    }
+}
+
+/// Questionnaire 経路（イシュー #2119、headless 側 anatomy は #2117）:
+/// 11 パーツいずれも見た目クラスを付与しない（`src/questionnaire.rs`
+/// モジュール doc「class 軸を持たない理由」節参照）ため、呼び出し側
+/// `attrs`（`data-testid`）・`class`（[`drop_class_attr`] により除去）・
+/// children・`progress` の `label`（`aria-label`）・`progress` の呼び出し側
+/// `style`（除去され、自前の `--fandhe-questionnaire-percent` のみ残る）の
+/// 各経路で既定エスケープ（REQ-1）が貫通することを固定する
+/// （`marker_parts_are_escaped_for_all_payloads` と同型）。
+#[test]
+fn questionnaire_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::questionnaire::Questionnaire;
+    use fandhe_frontend_headless_ui::Orientation;
+    use fandhe_frontend_pre_styled_ui::questionnaire::{self, QuestionProps};
+
+    let q = Questionnaire::new(3, 1, Orientation::Horizontal);
+
+    for payload in payloads::all() {
+        // root: attrs 経路。
+        let html = render(&questionnaire::root(
+            &q,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "questionnaire::root attrs コンテキスト");
+
+        // root: class 属性経路（見た目クラスを持たないため drop_class_attr
+        // により class 属性自体が出力から消える）。
+        let html = render(&questionnaire::root(&q, vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "questionnaire::root の class 属性に渡した生ペイロードが出力に\
+             残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // question: attrs・children 経路。
+        let html = render(&questionnaire::question(
+            &q,
+            1,
+            QuestionProps::default(),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "questionnaire::question attrs コンテキスト");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::question children コンテキスト",
+        );
+
+        // prompt/description/options/freeform/actions: attrs・children 経路。
+        let html = render(&questionnaire::prompt(
+            &q,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "questionnaire::prompt attrs コンテキスト");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::prompt children コンテキスト",
+        );
+
+        // back/next/skip: attrs・children 経路。
+        let html = render(&questionnaire::back(
+            &q,
+            false,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "questionnaire::back attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "questionnaire::back children コンテキスト");
+
+        // progress: label（aria-label）経路。
+        let html = render(&questionnaire::progress(&q, payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "questionnaire::progress label コンテキスト");
+
+        // progress: 呼び出し側 style は除去され、自前の
+        // `--fandhe-questionnaire-percent` のみが残る（動的値を style へ
+        // 流さない不変条件）。
+        let html = render(&questionnaire::progress(
+            &q,
+            "",
+            vec![("style", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "questionnaire::progress の style 属性に渡した生ペイロードが\
+             出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert!(html.contains("--fandhe-questionnaire-percent"));
+        assert_eq!(html.matches("style=\"").count(), 1);
+    }
+}
+
+/// (30) `dialog::close_trigger_with_variant`/`drawer::close_trigger_with_variant`
+/// 経路（イシュー #2193）: pre-styled 層はこれらを headless-ui から選択的に
+/// re-export しているのみ（`crate::dialog`/`crate::drawer` のトップに
+/// `pub use` 文がある）で自ら Node を組み立てないが、`fandhe-frontend-headless-ui`
+/// のクレート境界をまたいだ回帰として、children・呼び出し側 attrs・
+/// `data-scope`/`data-part`/`data-variant` 偽装ペイロードの全経路で既定
+/// エスケープ（REQ-1）が貫通し、偽装が除去されることを pre-styled-ui 側でも
+/// 固定する。
+#[test]
+fn dialog_and_drawer_close_trigger_with_variant_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // dialog: children 経路。
+        let html = render(&dialog::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "dialog::close_trigger_with_variant children コンテキスト",
+        );
+
+        // dialog: 呼び出し側 attrs（aria-label）経路。
+        let html = render(&dialog::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![("aria-label", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "dialog::close_trigger_with_variant 呼び出し側 attrs コンテキスト",
+        );
+
+        // dialog: data-scope/data-part/data-variant 偽装は headless 層
+        // （`Anatomy::part`/`close_trigger_with_variant` 自体の予約キー除去）
+        // が除去する。
+        let html = render(&dialog::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![
+                ("data-scope", payload),
+                ("data-part", payload),
+                ("data-variant", payload),
+            ],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "dialog::close_trigger_with_variant の data-scope/data-part/data-variant \
+             偽装ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="dialog""#));
+        assert!(html.contains(r#"data-part="close-trigger""#));
+        assert!(html.contains(r#"data-variant="text""#));
+
+        // drawer: dialog と対称の経路を固定する。
+        let html = render(&drawer::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "drawer::close_trigger_with_variant children コンテキスト",
+        );
+
+        let html = render(&drawer::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![
+                ("data-scope", payload),
+                ("data-part", payload),
+                ("data-variant", payload),
+            ],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "drawer::close_trigger_with_variant の data-scope/data-part/data-variant \
+             偽装ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="drawer""#));
+        assert!(html.contains(r#"data-part="close-trigger""#));
+        assert!(html.contains(r#"data-variant="text""#));
     }
 }
