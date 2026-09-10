@@ -207,6 +207,16 @@
 //! | left | anchor の左 | 右 | `135deg` |
 //! | right | anchor の右 | 左 | `315deg` |
 //!
+//! `--fandhe-tooltip-arrow-rotate` と同じく `--fandhe-tooltip-arrow-x`/
+//! `-y` も継承される CSS custom property であるため、`positioner` の
+//! base 規則（詳細度 2）は既定（top 相当）の静的座標
+//! （`50%`/`100%`、下辺中央）を明示的に再定義する（PR #2334
+//! codex-review 指摘、イシュー #2210）。これを怠ると、SSR/no-JS で
+//! `data-side="bottom"` 等の祖先 Tooltip にネストした既定（data-side
+//! 未指定）の子 Tooltip が祖先の `--fandhe-tooltip-arrow-y: 0` 等を
+//! 継承してしまい、回転（`-rotate` は base 規則で既にリセット済み）と
+//! 座標が食い違って矢印が誤った辺に表示される。
+//!
 //! ## `[data-positioned]` の順序・リセット（既知の落とし穴）
 //!
 //! `positioner[data-side="left"]`（詳細度 0,3,0）と
@@ -315,6 +325,22 @@ fn recipe() -> SlotRecipe {
                 // `positioner[data-side=...]` state（詳細度 3）はこの
                 // base 規則（詳細度 2）より常に優先される。
                 decl("--fandhe-tooltip-arrow-rotate", "225deg"),
+                // イシュー #2210 PR #2334 codex-review 指摘（P2）: 回転と
+                // 同様に `--fandhe-tooltip-arrow-x`/`-y` も継承される CSS
+                // custom property である。SSR/no-JS で `data-side="bottom"`
+                // 等の祖先 Tooltip の中に既定（未指定 = top 相当）の
+                // Tooltip をネストすると、回転は上記のフォールバックで
+                // リセットされるが座標 var() は継承値（例:
+                // `--fandhe-tooltip-arrow-y: 0`）をそのまま使ってしまい、
+                // 矢印が本来の下辺（`bottom: 100%` 配置なので arrow は
+                // content 下辺）ではなく上辺相当の座標に表示される不具合が
+                // あった。base 規則で既定（top 相当）の静的座標
+                // （下辺中央 = `left: 50%; top: 100%`。436〜441 行目の
+                // フォールバック値と同一）を明示的に再定義し、祖先からの
+                // 意図しない座標継承を断つ（静的配置契約を子の positioner
+                // 内で完結させる）。
+                decl("--fandhe-tooltip-arrow-x", "50%"),
+                decl("--fandhe-tooltip-arrow-y", "100%"),
             ],
         )
         // イシュー #2041: shadcn/ui の `TooltipContent` は `side`
@@ -643,6 +669,39 @@ mod tests {
             css.contains(r#"[data-scope="tooltip"][data-part="positioner"][data-side="right"]"#)
         );
         assert!(css.contains("--fandhe-tooltip-arrow-rotate: 315deg;"));
+    }
+
+    #[test]
+    fn positioner_base_rule_resets_arrow_coordinate_vars_to_top_side_default() {
+        // イシュー #2210 PR #2334 codex-review 指摘（P2）の回帰固定:
+        // `--fandhe-tooltip-arrow-x`/`-y` は `--fandhe-tooltip-arrow-rotate`
+        // と同様に継承される CSS custom property である。SSR/no-JS で
+        // `data-side="bottom"` 等の祖先 Tooltip にネストした既定
+        // （data-side 未指定 = top 相当）の Tooltip が、祖先の
+        // `--fandhe-tooltip-arrow-y: 0` 等を継承してしまわないよう、
+        // positioner の base 規則（詳細度 2）が明示的に既定座標
+        // （下辺中央 = `50%`/`100%`）を再定義していることを固定する。
+        let css = stylesheet();
+        let rule_start = css
+            .find(r#"[data-scope="tooltip"][data-part="positioner"] {"#)
+            .expect("positioner base rule must exist");
+        let rule_end = css[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("positioner base rule must be closed");
+        let base_rule = &css[rule_start..rule_end];
+        assert!(
+            base_rule.contains("--fandhe-tooltip-arrow-x: 50%;"),
+            "positioner base rule must locally reset --fandhe-tooltip-arrow-x \
+             to break unintended inheritance from an ancestor Tooltip's \
+             data-side state; rule was: {base_rule:?}"
+        );
+        assert!(
+            base_rule.contains("--fandhe-tooltip-arrow-y: 100%;"),
+            "positioner base rule must locally reset --fandhe-tooltip-arrow-y \
+             to break unintended inheritance from an ancestor Tooltip's \
+             data-side state; rule was: {base_rule:?}"
+        );
     }
 
     #[test]

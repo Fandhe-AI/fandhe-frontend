@@ -189,6 +189,8 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   z-index: var(--fandhe-z-index-tooltip, 1100);
   margin-bottom: var(--fandhe-space-1);
   --fandhe-tooltip-arrow-rotate: 225deg;
+  --fandhe-tooltip-arrow-x: 50%;
+  --fandhe-tooltip-arrow-y: 100%;
 }
 
 [data-scope="tooltip"][data-part="content"] {
