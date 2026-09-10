@@ -35,10 +35,18 @@
 //!
 //! 出力ディレクトリは `env!("CARGO_TARGET_TMPDIR")` 基点（コンパイル時に
 //! 確定する値のみを使い、実行時フォールバックで `/tmp` へリークしない、
-//! `ci.md` イシュー #637 の一時領域配置方針）にテストバイナリのプロセス ID
-//! を含む一意なパスとして作成する。テストプロセスの生存期間中のみ使う
-//! 使い捨て領域のため明示的な削除は行わない（CI runner はジョブごとに
-//! 使い捨てのため恒久蓄積しない）。
+//! `ci.md` イシュー #637 の一時領域配置方針）に「プロセス ID + 起動時刻
+//! （ナノ秒）」を含む一意なパスとして作成する。同名ディレクトリが既に
+//! 存在する場合（PID 再利用 + 時刻衝突という極端な場合）は中身ごと削除して
+//! から空で作り直し、`build_site` が旧ファイルを清掃しないことによる
+//! 削除済みページ等の混入（`no_js_contract.rs` のディレクトリ走査に
+//! 影響する）を防ぐ。`static` に保持するため `Drop` は走らず（プロセス
+//! 終了時に実行されない）、代わりに次回の初期化時に同じ prefix を持つ
+//! 旧世代のうち mtime が [`STALE_MIN_AGE`]（1 時間）より古いものを回収して
+//! 蓄積を有界化する（`crates/cli/tests/new_gate_e2e.rs::cleanup_stale_scratch`
+//! と同じ「次回実行時に旧世代を回収する」方針。並走中の別テストバイナリの
+//! 出力を誤って消さないよう、直近 1 時間以内に更新されたものは残す）。
+//! CI runner はジョブごとに使い捨てのため、CI 上では恒久蓄積しない。
 //!
 //! `#[path = "support/shared_site.rs"] mod shared_site;` で取り込む各
 //! テストバイナリは個別にコンパイル・実行される別プロセスであるため、
@@ -78,11 +86,56 @@ pub struct SharedSite {
     pub report: BuildReport,
 }
 
+/// 共有ビルド出力ディレクトリ名の prefix（旧世代回収の対象判定にも使う）。
+const OUT_DIR_PREFIX: &str = "fandhe-frontend-docs-site-shared-real-site-";
+
+/// 旧世代の共有ビルド出力を回収する際の最小経過時間。これより新しいものは
+/// 並走中の別テストバイナリが使用中の可能性があるため残す。
+const STALE_MIN_AGE: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
+/// `scratch_root()` 直下の旧世代の共有ビルド出力（同じ prefix を持ち、
+/// mtime が [`STALE_MIN_AGE`] より古いディレクトリ）を回収する。失敗は
+/// 無視する（回収はベストエフォートであり、テストの合否に影響させない）。
+fn reclaim_stale_out_dirs(root: &Path) {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    let now = std::time::SystemTime::now();
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        if !name.starts_with(OUT_DIR_PREFIX) {
+            continue;
+        }
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+        let is_stale = meta
+            .modified()
+            .ok()
+            .and_then(|m| now.duration_since(m).ok())
+            .is_some_and(|age| age >= STALE_MIN_AGE);
+        if meta.is_dir() && is_stale {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
 static SHARED_SITE: LazyLock<SharedSite> = LazyLock::new(|| {
-    let out_dir = scratch_root().join(format!(
-        "fandhe-frontend-docs-site-shared-real-site-{}",
-        std::process::id()
-    ));
+    let root = scratch_root();
+    reclaim_stale_out_dirs(&root);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let out_dir = root.join(format!("{OUT_DIR_PREFIX}{}-{nanos}", std::process::id()));
+    // 万一同名ディレクトリが残っていても旧ファイルを引き継がない（空で作り直す）。
+    if out_dir.exists() {
+        std::fs::remove_dir_all(&out_dir)
+            .unwrap_or_else(|e| panic!("clear stale shared real-site out dir {out_dir:?}: {e}"));
+    }
     std::fs::create_dir_all(&out_dir)
         .unwrap_or_else(|e| panic!("create shared real-site out dir {out_dir:?}: {e}"));
     let report = build_site(&repo_root(), &out_dir)
