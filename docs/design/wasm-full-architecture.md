@@ -1491,8 +1491,19 @@ dispatch される（`sidebar` が `"toggle"` 共有を理由にオプトイン 
 自動配線が同じクリックへ反応すると `root` へ登録された 2 個のクリック
 リスナーが二重に状態を進める（イシュー #2118 PR #2286 codex-review P1
 指摘）。`trigger_action`（`resolve_trigger` から渡される
-`has_explicit_action`）は一致した要素自身が `data-action` を持つ場合
-`None` を返し、この二重遷移を防ぐ。
+`has_explicit_action`）は一致した要素（back/next/skip の trigger 自身）が
+`data-action` を持つ場合 `None` を返し、この二重遷移を防ぐ。
+
+明示アクションは trigger 自身だけでなく、trigger 内の子要素（例:
+`<button data-part="next"><span data-action="validate_and_next">`
+のようなアイコン/ラベル用 span）に付与されることもある。`resolve_trigger`
+はクリック対象（`start`）から trigger 要素まで祖先方向へ辿る過程で
+`data-action` の有無を累積判定する（経路上のどこかに 1 つでもあれば
+`has_explicit_action = true`）ため、子要素上のクリックでも trigger 自身に
+`data-action` が無いことを理由に自動遷移してしまう抜け道を防ぐ
+（イシュー #2118 PR #2286 codex-review P1 指摘、
+`crates/wasm-full/tests/questionnaire_browser.rs::click_on_child_with_explicit_data_action_defers_to_manual_wiring`
+参照）。
 
 ### 27.3 アプリ状態 `C` への通知（`questionnaire:*`）
 

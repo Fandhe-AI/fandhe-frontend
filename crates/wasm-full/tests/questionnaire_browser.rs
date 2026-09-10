@@ -15,6 +15,10 @@
 //!    back で完了解除（`disabled` 除去）
 //! 5. 完了状態での no-op next（before == after）で DOM 不変・通知なし
 //! 6. `data-disabled`/ネイティブ `disabled` 祖先を持つ click の no-op
+//!    （trigger 内の子要素に明示 `data-action` がある click は自動配線を
+//!    抑止しアプリの手動配線〔`events::wire_events`〕へ委譲すること、
+//!    disabled 判定の起点が実際のクリック対象であり trigger 内の子要素の
+//!    `data-disabled` も見逃さないことを含む）
 //! 7. button 内テキストノードを target にした click が trigger へ解決
 //!    されること
 //! 8. 改ざん入力（非数値 `data-step`・範囲外 `data-step`・非数値
@@ -475,6 +479,94 @@ async fn click_on_natively_disabled_trigger_is_noop() {
     settle().await;
 
     assert_eq!(root.get_attribute("data-step").as_deref(), Some("0"));
+    assert_eq!(actions.borrow().len(), 0);
+}
+
+// --- 検証: 子要素の明示 `data-action` は自動配線を抑止する -------------
+
+#[wasm_bindgen_test]
+async fn click_on_child_with_explicit_data_action_defers_to_manual_wiring() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "questionnaire-explicit-action-child-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let q = Questionnaire::new(2, 0, Orientation::Horizontal);
+    container.set_inner_html(&questionnaire_markup(&q, "qn-explicit-action-child"));
+    let root = root_element(&container, "qn-explicit-action-child");
+
+    // next ボタン内に `data-action` を明示した子要素（span）を置く。
+    // アプリはこの `data-action` を `events::wire_events` の汎用配線
+    // （`closest("[data-action]")` → `C::decode_action`）で処理する意図
+    // であり、本モジュールの自動配線がこのクリックへも反応すると二重に
+    // 遷移してしまう（イシュー #2118 PR #2286 codex-review P1 指摘）。
+    let next = part_element(&root, "next");
+    let span = document
+        .create_element("span")
+        .expect("create_element must not fail");
+    span.set_attribute("data-action", "validate_and_next")
+        .expect("set_attribute must not fail");
+    span.set_text_content(Some("Next"));
+    next.append_child(&span)
+        .expect("append_child must not fail");
+
+    let actions = std::rc::Rc::new(std::cell::RefCell::new(Vec::<ActionRef>::new()));
+    let actions_clone = actions.clone();
+    wire_questionnaire_events(container.clone(), move |action_ref| {
+        actions_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_questionnaire_events must not fail");
+
+    span.dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    settle().await;
+
+    // 自動配線は遷移せず（`data-step` 不変）、`questionnaire:next` 通知も
+    // 発生しない（アプリの手動配線に委譲する契約）。
+    assert_eq!(root.get_attribute("data-step").as_deref(), Some("0"));
+    assert_eq!(actions.borrow().len(), 0);
+}
+
+// --- 検証: disabled 判定はクリック対象自身の子孫属性も見る --------------
+
+#[wasm_bindgen_test]
+async fn click_on_child_with_data_disabled_is_noop() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "questionnaire-disabled-child-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let q = Questionnaire::new(3, 1, Orientation::Horizontal);
+    container.set_inner_html(&questionnaire_markup(&q, "qn-disabled-child"));
+    let root = root_element(&container, "qn-disabled-child");
+
+    // next ボタン自身は disabled ではないが、クリック対象となる子要素
+    // （span）に `data-disabled` を付与する。判定の起点が実際のクリック
+    // 対象（`target_element`）でなく解決済み trigger 要素のままだと、
+    // この子要素の `data-disabled` を見逃して遷移してしまう
+    // （イシュー #2118 PR #2286 codex-review P1 指摘）。
+    let next = part_element(&root, "next");
+    let span = document
+        .create_element("span")
+        .expect("create_element must not fail");
+    span.set_attribute("data-disabled", "")
+        .expect("set_attribute must not fail");
+    span.set_text_content(Some("Next"));
+    next.append_child(&span)
+        .expect("append_child must not fail");
+
+    let actions = std::rc::Rc::new(std::cell::RefCell::new(Vec::<ActionRef>::new()));
+    let actions_clone = actions.clone();
+    wire_questionnaire_events(container.clone(), move |action_ref| {
+        actions_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_questionnaire_events must not fail");
+
+    span.dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    settle().await;
+
+    assert_eq!(root.get_attribute("data-step").as_deref(), Some("1"));
     assert_eq!(actions.borrow().len(), 0);
 }
 

@@ -211,8 +211,10 @@ pub const ACTION_SKIP: &str = "questionnaire:skip";
 /// 変換（完全一致のみ）。`scope` が `"questionnaire"` でない、または `part`
 /// が back/next/skip のいずれでもない場合は `None`（fail-closed）。
 ///
-/// `has_explicit_action`（その要素自身が `data-action` 属性を持つか）が
-/// `true` の場合も `None` を返す。`TRIGGER_RESERVED`
+/// `has_explicit_action`（クリック対象から当該要素までの経路上に
+/// `data-action` を持つ要素が 1 つでもあるか。呼び出し元
+/// `wiring::resolve_trigger`（wasm32 のみ）が祖先方向へ辿りながら
+/// 累積して渡す）が `true` の場合も `None` を返す。`TRIGGER_RESERVED`
 /// （`crates/headless-ui/src/questionnaire.rs`）は `"type"`/`"disabled"`/
 /// `"data-disabled"` のみを予約し `"data-action"` を落とさないため、
 /// アプリは back/next/skip へ `data-action` を明示的に付与して
@@ -223,9 +225,12 @@ pub const ACTION_SKIP: &str = "questionnaire:skip";
 /// 二重に処理し、`C` 側の遷移と本モジュールの DOM 直書き遷移が別々に
 /// 状態を進めて二重遷移になる（イシュー #2118 PR #2286 codex-review P1
 /// 指摘）。`data-action` の存在はアプリが手動配線を明示的に選んだ合図と
-/// みなし、本モジュールの自動配線はその要素に対しては早期に諦める
-/// （継続して祖先を探索しない。back/next/skip 自身より外側の祖先に
-/// 偶然 back/next/skip が存在することは想定しない）。
+/// みなし、本モジュールの自動配線はその要素に対しては諦める。
+/// `has_explicit_action` フラグは呼び出し元 `wiring::resolve_trigger`
+/// がクリック対象からの経路上で累積して渡すため、以後さらに外側の祖先に
+/// back/next/skip が存在してもこのフラグが立ったままであれば一致させない
+/// （子要素の明示 `data-action` を検出した以降の祖先探索も自動配線を
+/// 抑止し続ける、イシュー #2118 PR #2286 codex-review P1 指摘）。
 #[must_use]
 pub fn trigger_action(
     scope: Option<&str>,
@@ -429,21 +434,37 @@ mod wiring {
         None
     }
 
-    /// `target` から `root`（含む）まで祖先方向へ辿り、back/next/skip の
+    /// `start` から `root`（含む）まで祖先方向へ辿り、back/next/skip の
     /// いずれかに一致する最初の要素と、対応する dispatch アクション名を
     /// 返す（[`super::trigger_action`] の allowlist 判定を各祖先へ適用）。
-    /// 一致した要素が `data-action` を持つ場合は、アプリが手動配線を
-    /// 明示的に選んだものとして自動配線を諦める（[`super::trigger_action`]
-    /// rustdoc 参照。祖先探索は継続しない）。
+    /// `start` 自身または `start` から一致要素までの経路上のいずれかの
+    /// 要素が `data-action` を持つ場合は、アプリが手動配線を明示的に
+    /// 選んだものとして自動配線を諦める（[`super::trigger_action`]
+    /// rustdoc 参照。`data-action` の有無は経路全体で累積判定するため、
+    /// 一致要素自身に `data-action` が無くても、そこへ至る経路上の子孫
+    /// 要素が持っていれば自動配線は抑止される）。
     fn resolve_trigger(root: &Element, start: &Element) -> Option<(Element, &'static str)> {
         let mut current = Some(start.clone());
+        // クリック対象（`start`）自身から見ていくため、`data-action` の
+        // 有無は要素単体ではなく「`start` から現在の祖先までの経路上に
+        // 1 つでも存在するか」を累積して判定する。next/back/skip の
+        // ボタン内に `data-action` 付きの子要素（例: `<span
+        // data-action="validate_and_next">`）を置くケースでは、その
+        // 子要素自身が back/next/skip の `data-part` を持たないため
+        // 祖先方向へ探索が継続する。継続後にボタン本体（`data-action`
+        // なし）が back/next/skip として一致しても、経路上で既に明示
+        // アクションが検出されているならアプリの手動配線
+        // （`events::wire_events` の汎用配線）へ委譲すべきであり、本
+        // モジュールの自動配線は抑止する（イシュー #2118 PR #2286
+        // codex-review P1 指摘）。
+        let mut has_explicit_action = false;
         while let Some(element) = current {
             if !root.contains(Some(&element)) {
                 break;
             }
+            has_explicit_action |= element.has_attribute("data-action");
             let scope = element.get_attribute("data-scope");
             let part = element.get_attribute("data-part");
-            let has_explicit_action = element.has_attribute("data-action");
             if let Some(action) =
                 trigger_action(scope.as_deref(), part.as_deref(), has_explicit_action)
             {
@@ -662,7 +683,14 @@ mod wiring {
             return;
         };
 
-        if has_disabled_ancestor(&instance_root, &trigger) {
+        // 判定の起点は実際のクリック対象（`target_element`）とする。
+        // `trigger`（解決された back/next/skip 要素）を起点にすると、
+        // ボタン内の子要素（例: アイコン用の `<span data-disabled>`）に
+        // 付与された `data-disabled` を見逃す（モジュール冒頭
+        // 「fail-closed 契約」節の「クリック対象またはインスタンス root
+        // までの祖先が disabled/data-disabled なら no-op」契約に反する、
+        // イシュー #2118 PR #2286 codex-review P1 指摘）。
+        if has_disabled_ancestor(&instance_root, &target_element) {
             return;
         }
 
