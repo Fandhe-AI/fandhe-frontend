@@ -122,6 +122,8 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
 - [x] `SlotRecipe` へ `@starting-style` / `transition-behavior` サポートを追加する（案 C を採る場合の前提）ことの承認：**承認**
 - [x] #2191 / #2192 の再スコープ要否：**要**。§9 の案 C 対応どおり
 
+- [x] 実装方針の追加指示（2026-09-10）：**機構は部品非依存の共通実装とする**。`SlotRecipe` の `@starting-style` / `transition-behavior` は部品横断の DSL 機能として `crate::recipe` に置き、wasm-full の高さ実測・CSS 変数書き込みも部品非依存の共通ヘルパーとして実装する。collapsible / accordion はその適用側にとどめ、bubble 等への後続適用は同じ機構の適用イシュー（#2001 配下に起票）で扱う
+
 2026-09-10 に確定済み。#2191 / #2192 は §9 の案 C 対応へ再スコープのうえ着手可。
 
 ## 8. 再評価トリガー
