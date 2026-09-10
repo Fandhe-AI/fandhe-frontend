@@ -114,17 +114,17 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
 
 案 B′ は「JS 無効時に閲覧可能」を文字どおり満たす唯一の案だが、headless-ui のマイナーバンプ・マーカー機構・フラッシュ対策のコストを伴う。案 B 単体は役割 (ii)(iii) を CSS/JS 側の追加実装なしには失うため非推奨。案 A は現状維持であり、#2192（pre-styled-ui のトランジション実装）の前提が成立しない。
 
-### ユーザー判断（イシュー #2190、日付未記入）
+### ユーザー判断（イシュー #2190、2026-09-10 確定）
 
-以下は本 PR の時点では**未確定**であり、確定後に本節へ日付付きで追記する。
+- [x] 採用案（A / B / B′ / C）：**案 C**（`hidden` 維持 + `allow-discrete`/`@starting-style` + wasm-full 高さ計測）
+- [x] JS 無効時方針（§6 (a) / (b) / (c)）：**§6 (a) 原則維持**
+- [x] collapsible に加え accordion / bubble を同時対象にするか：**collapsible + accordion**。bubble（`collapse_content`）は対象外（別イシューで再評価）
+- [x] `SlotRecipe` へ `@starting-style` / `transition-behavior` サポートを追加する（案 C を採る場合の前提）ことの承認：**承認**
+- [x] #2191 / #2192 の再スコープ要否：**要**。§9 の案 C 対応どおり
 
-- [ ] 採用案（A / B / B′ / C）
-- [ ] JS 無効時方針（§6 (a) / (b) / (c)）
-- [ ] collapsible に加え accordion / bubble を同時対象にするか
-- [ ] `SlotRecipe` へ `@starting-style` / `transition-behavior` サポートを追加する（案 C を採る場合の前提）ことの承認
-- [ ] #2191 / #2192 の再スコープ要否（案 C なら #2191 は「headless 変更なし・wasm-full 計測配線」へ縮小、案 B′ なら #2191 にマーカー付与の実装を追加）
+- [x] 実装方針の追加指示（2026-09-10）：**機構は部品非依存の共通実装とする**。`SlotRecipe` の `@starting-style` / `transition-behavior` は部品横断の DSL 機能として `crate::recipe` に置き、wasm-full の高さ実測・CSS 変数書き込みも部品非依存の共通ヘルパーとして実装する。collapsible / accordion はその適用側にとどめ、bubble 等への後続適用は同じ機構の適用イシュー（#2001 配下に起票）で扱う
 
-**上記チェックリストの確定までは #2191 / #2192 を着手しない。**
+2026-09-10 に確定済み。#2191 / #2192 は §9 の案 C 対応へ再スコープのうえ着手可。
 
 ## 8. 再評価トリガー
 
@@ -133,6 +133,8 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
 - Primitives 層（`fandhe-frontend-headless-ui`）のみを利用する開発者から「JS 無効時に content を開いて見せたい」という具体的要望が生じた時点（案 B′ の再評価）。
 
 ## 9. 実装 issue 分割案（既存 #2191 / #2192 との対応）
+
+（2026-09-10 案 C 確定。#2191 / #2192 の本文は同日に再スコープ済み）
 
 採用案が確定した後、以下の対応関係を目安に #2191 / #2192 を更新する（更新自体はユーザー承認事項であり、`update-issue-tree` で行う）。
 
