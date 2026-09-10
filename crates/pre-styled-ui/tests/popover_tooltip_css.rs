@@ -13,6 +13,26 @@
 //! 新設を反映する（詳細は `crates/pre-styled-ui/src/tooltip.rs` の
 //! モジュール rustdoc「イシュー #1548 の参照サイト比較（7 軸チェック）」
 //! 節を参照）。
+//!
+//! イシュー #2210 で `arrow`/`arrow-tip` の `data-side` 連動装飾を追加した
+//! golden 更新。`POPOVER_GOLDEN_CSS` は `arrow`/`arrow-tip` base 2 ブロック
+//! を `content` 直前へ中間挿入し、末尾側 states へ `positioner[data-side=
+//! "top"/"left"/"right"]`（回転変数定義のみ）と `positioner[data-positioned]`
+//! （wasm 実座標追従）を純追加した。`TOOLTIP_GOLDEN_CSS` は `arrow`/
+//! `arrow-tip` base 2 ブロックを `content` 直前へ中間挿入し、既存の
+//! `positioner[data-side=...]` 3 ブロックへ回転・静的座標変数の宣言を
+//! 追記、さらに `positioner[data-positioned]`（`data-side` 3 state より
+//! 後段に登録し `bottom`/`right`/`margin-*` をフルリセットする）を追加
+//! した。他ブロックはバイト同一（詳細は `crates/pre-styled-ui/src/
+//! popover.rs`/`crates/pre-styled-ui/src/tooltip.rs` モジュール rustdoc
+//! 「arrow / arrow-tip の `data-side` 連動」節参照）。
+//!
+//! **codex レビュー是正（イシュー #2210 PR #2334）**: `positioner
+//! [data-positioned]` は [`crate::menu`] と異なり `transform:
+//! translate3d(...)` を使わず `top`/`left` へ直接 `--fandhe-x`/
+//! `--fandhe-y` を消費させる（popover/tooltip の `content` は任意の
+//! ネストした Tooltip/Menu/Popover を保持しうるため、`transform` が
+//! 作る包含ブロックで nested `position: fixed` の座標が壊れるのを防ぐ）。
 
 use fandhe_frontend_pre_styled_ui::{popover, tooltip};
 
@@ -39,6 +59,25 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
   left: 0;
   z-index: var(--fandhe-z-index-popover, 10);
   margin-top: var(--fandhe-space-1);
+  --fandhe-popover-arrow-rotate: 45deg;
+  --fandhe-arrow-x: initial;
+  --fandhe-arrow-y: initial;
+}
+
+[data-scope="popover"][data-part="arrow"] {
+  position: absolute;
+  left: var(--fandhe-arrow-x, 50%);
+  top: var(--fandhe-arrow-y, 0);
+  transform: translate(-50%, -50%);
+}
+
+[data-scope="popover"][data-part="arrow-tip"] {
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--fandhe-color-bg);
+  border-left: 1px solid var(--fandhe-color-border);
+  border-top: 1px solid var(--fandhe-color-border);
+  transform: rotate(var(--fandhe-popover-arrow-rotate, 45deg));
 }
 
 [data-scope="popover"][data-part="content"] {
@@ -98,6 +137,25 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
+[data-scope="popover"][data-part="positioner"][data-side="top"] {
+  --fandhe-popover-arrow-rotate: 225deg;
+}
+
+[data-scope="popover"][data-part="positioner"][data-side="left"] {
+  --fandhe-popover-arrow-rotate: 135deg;
+}
+
+[data-scope="popover"][data-part="positioner"][data-side="right"] {
+  --fandhe-popover-arrow-rotate: 315deg;
+}
+
+[data-scope="popover"][data-part="positioner"][data-positioned] {
+  position: fixed;
+  top: var(--fandhe-y, 0px);
+  left: var(--fandhe-x, 0px);
+  margin-top: 0;
+}
+
 @media (hover: hover) {
   [data-scope="popover"][data-part="trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
@@ -132,6 +190,11 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   left: 0;
   z-index: var(--fandhe-z-index-tooltip, 1100);
   margin-bottom: var(--fandhe-space-1);
+  --fandhe-tooltip-arrow-rotate: 225deg;
+  --fandhe-tooltip-arrow-x: 50%;
+  --fandhe-tooltip-arrow-y: 100%;
+  --fandhe-arrow-x: initial;
+  --fandhe-arrow-y: initial;
 }
 
 [data-scope="tooltip"][data-part="content"] {
@@ -144,11 +207,28 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   max-width: 20rem;
 }
 
+[data-scope="tooltip"][data-part="arrow"] {
+  left: var(--fandhe-arrow-x, var(--fandhe-tooltip-arrow-x, 50%));
+  top: var(--fandhe-arrow-y, var(--fandhe-tooltip-arrow-y, 100%));
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+[data-scope="tooltip"][data-part="arrow-tip"] {
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--fandhe-color-fg);
+  transform: rotate(var(--fandhe-tooltip-arrow-rotate, 225deg));
+}
+
 [data-scope="tooltip"][data-part="positioner"][data-side="bottom"] {
   top: 100%;
   bottom: auto;
   margin-bottom: 0;
   margin-top: var(--fandhe-space-1);
+  --fandhe-tooltip-arrow-rotate: 45deg;
+  --fandhe-tooltip-arrow-x: 50%;
+  --fandhe-tooltip-arrow-y: 0;
 }
 
 [data-scope="tooltip"][data-part="positioner"][data-side="left"] {
@@ -158,6 +238,9 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   right: 100%;
   margin-bottom: 0;
   margin-right: var(--fandhe-space-1);
+  --fandhe-tooltip-arrow-rotate: 135deg;
+  --fandhe-tooltip-arrow-x: 100%;
+  --fandhe-tooltip-arrow-y: 50%;
 }
 
 [data-scope="tooltip"][data-part="positioner"][data-side="right"] {
@@ -166,6 +249,18 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   left: 100%;
   margin-bottom: 0;
   margin-left: var(--fandhe-space-1);
+  --fandhe-tooltip-arrow-rotate: 315deg;
+  --fandhe-tooltip-arrow-x: 0;
+  --fandhe-tooltip-arrow-y: 50%;
+}
+
+[data-scope="tooltip"][data-part="positioner"][data-positioned] {
+  position: fixed;
+  top: var(--fandhe-y, 0px);
+  left: var(--fandhe-x, 0px);
+  bottom: auto;
+  right: auto;
+  margin: 0;
 }
 
 [data-scope="tooltip"][data-part="content"][data-state="closed"] {

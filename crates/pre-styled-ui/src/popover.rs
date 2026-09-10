@@ -44,8 +44,43 @@
 //! 消費する（[`crate::select`] と同じフォールバック判断。popover の
 //! `content` は menu/select の listbox と異なり任意の自由形式コンテンツを
 //! 保持するため、`auto` フォールバックが `10rem` 固定より適切）。
-//! `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
-//! [`crate::menu`] と同じ理由で本イシューの対象外とする。
+//! `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）はイシュー
+//! #1534 時点では [`crate::menu`] と同じ理由で対象外としていたが、イシュー
+//! #2210 で `arrow`/`arrow-tip`/`positioner[data-positioned]`/
+//! `positioner[data-side=...]` を消費するよう実装した（下記「arrow /
+//! arrow-tip の `data-side` 連動」節参照）。
+//!
+//! # arrow / arrow-tip の `data-side` 連動（イシュー #2210）
+//!
+//! `positioner` の `data-side`（wasm 層のみが書き込む、headless SSR 出力
+//! には現れない属性）に連動して、`arrow-tip` の回転角を anchor に面する
+//! 辺へ先端が向くよう切り替える。CSS custom property の継承
+//! （`positioner[data-side=X]` state が `--fandhe-popover-arrow-rotate` を
+//! **定義のみ**し、`arrow-tip` の base 規則が `var(..., 45deg)` で
+//! **消費**する）で実現し、[`crate::recipe::SlotRecipe`] が持たない子孫
+//! 結合子（イシュー #708 で意図的に非採用）は使わない。SSR は常に bottom
+//! 配置のため `positioner` 自体のジオメトリ（position/top/left 等）は
+//! `data-side` state で宣言しない（純追加に保つ判断、[`crate::menu`] と
+//! 同型）。また `positioner` に wasm 層が付与する `data-positioned`
+//! マーカーが立ったら確定座標（viewport 座標系の `position: fixed`）へ
+//! 切り替える規則も追加した（SSR 静的フォールバックは不変）。
+//! **[`crate::menu`] と異なり `transform: translate3d(...)` は使わず
+//! `top`/`left` へ直接 `--fandhe-x`/`--fandhe-y` を消費させる**: popover
+//! の `content` は任意のネストした Tooltip/Menu/Popover を保持しうるが、
+//! `transform` を持つ祖先は `position: fixed` な子孫の包含ブロックを
+//! 作り直してしまう（CSS の仕様）ため、`transform` を使うと nested
+//! overlay の座標が `wasm-full` の `reposition_one`（viewport 基準の
+//! 座標をそのまま子へ設定する契約）と不整合を起こす（codex レビュー
+//! 指摘、イシュー #2210 PR #2334）。回転値は floating（positioner）が anchor の
+//! どちら側に出るかで決まる（`arrow`/`arrow-tip` は `border-left`/
+//! `border-top` 固定 + `translate(-50%, -50%)` で辺上に中心配置する前提）:
+//!
+//! | `data-side` | floating の位置 | 先端の向き | rotate |
+//! |---|---|---|---|
+//! | bottom（既定） | anchor の下 | 上 | `45deg` |
+//! | top | anchor の上 | 下 | `225deg` |
+//! | left | anchor の左 | 右 | `135deg` |
+//! | right | anchor の右 | 左 | `315deg` |
 //!
 //! # イシュー #1534 の参照サイト比較（7 軸チェック）
 //!
@@ -256,6 +291,32 @@ fn recipe() -> SlotRecipe {
                 // 方針）。
                 decl("z-index", "var(--fandhe-z-index-popover, 10)"),
                 decl("margin-top", "var(--fandhe-space-1)"),
+                // イシュー #2210 Bugbot 指摘（[`crate::menu`] と同型）:
+                // `--fandhe-popover-arrow-rotate` は継承される CSS custom
+                // property のため、data-side が既定（未指定 = bottom
+                // 相当）の positioner にもこの base 規則でフォールバック値
+                // （45deg）を明示的に再定義し、祖先からの意図しない継承を
+                // 断つ。`positioner[data-side=...]` state（詳細度 3）は
+                // この base 規則（詳細度 2）より常に優先される。
+                decl("--fandhe-popover-arrow-rotate", "45deg"),
+                // codex-review 再指摘（イシュー #2210 PR #2334、cursor bot
+                // Medium）: `--fandhe-popover-arrow-rotate` と同型の継承
+                // 断ち切りを、wasm 実測座標（`--fandhe-arrow-x`/`-y`。
+                // `crates/wasm-full/src/position.rs::wiring::
+                // reposition_one` が open な positioner/arrow 自身へ
+                // inline style として都度上書きする値）にも適用する。
+                // 開いた祖先 Popover/Tooltip/Menu の `content` にネストした
+                // Popover が、自身がまだ `reposition_one` で位置決めされて
+                // いない間（初回ペイント・非表示時点等）に祖先の
+                // `--fandhe-arrow-x`/`-y`（実 px 座標）をそのまま継承して
+                // しまう可能性があった。`initial`（guaranteed-invalid
+                // value）を明示することで、arrow 規則の `var(--fandhe-arrow-x,
+                // 50%)`/`var(--fandhe-arrow-y, 0)` のフォールバックへ必ず
+                // 戻す。inline style は常にこの stylesheet 規則より優先
+                // されるため、wasm が実際に位置決めした positioner/arrow
+                // 自身の挙動には影響しない。
+                decl("--fandhe-arrow-x", "initial"),
+                decl("--fandhe-arrow-y", "initial"),
             ],
         )
         .base(
@@ -277,6 +338,39 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("padding", "var(--fandhe-space-4)"),
                 decl("min-width", "var(--fandhe-reference-width, auto)"),
+            ],
+        )
+        // イシュー #2210: `crates/wasm-full/src/position.rs::reposition_one`
+        // が positioner の `style` に加えて arrow 要素自身の `style` へも
+        // 同じ値を複製するため、arrow の base 規則で直接
+        // `var(--fandhe-arrow-x, 50%)`/`var(--fandhe-arrow-y, 0)` を参照
+        // できる（[`crate::menu`] と同じ配線・同じフォールバック値、SSR
+        // 既定 placement = bottom で anchor 中央上端に相当）。
+        .base(
+            "arrow",
+            vec![
+                decl("position", "absolute"),
+                decl("left", "var(--fandhe-arrow-x, 50%)"),
+                decl("top", "var(--fandhe-arrow-y, 0)"),
+                decl("transform", "translate(-50%, -50%)"),
+            ],
+        )
+        .base(
+            "arrow-tip",
+            vec![
+                decl("width", "0.5rem"),
+                decl("height", "0.5rem"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("border-left", "1px solid var(--fandhe-color-border)"),
+                decl("border-top", "1px solid var(--fandhe-color-border)"),
+                // `positioner[data-side=...]` state が定義する
+                // `--fandhe-popover-arrow-rotate` を消費する。フォール
+                // バック値 45deg は無指定（SSR 既定の bottom 配置）時の
+                // 従来値と一致する。
+                decl(
+                    "transform",
+                    "rotate(var(--fandhe-popover-arrow-rotate, 45deg))",
+                ),
             ],
         )
         .base(
@@ -356,6 +450,55 @@ fn recipe() -> SlotRecipe {
             "close-trigger",
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // イシュー #2210: `positioner` の `data-side`（wasm 層のみが書き込む）
+        // に連動して arrow-tip の回転角を切り替える。回転変数の**定義のみ**
+        // を宣言し、positioner 自体のジオメトリ（position/top/left 等）に
+        // は触れない（SSR は常に bottom 配置のため、data-side ごとの静的
+        // ジオメトリは不要。[`crate::menu`] と同じ判断）。
+        .state(
+            "positioner",
+            StateCondition::AttrEq("data-side", "top"),
+            vec![decl("--fandhe-popover-arrow-rotate", "225deg")],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEq("data-side", "left"),
+            vec![decl("--fandhe-popover-arrow-rotate", "135deg")],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEq("data-side", "right"),
+            vec![decl("--fandhe-popover-arrow-rotate", "315deg")],
+        )
+        // イシュー #2210: wasm 層が `data-positioned` マーカーを付与したら
+        // 確定座標（viewport 座標系の `position: fixed`）へ切り替える。
+        // base の `positioner` 規則（absolute）より詳細度が高く、CSS
+        // 記述順（states は最後尾）でも上書きする。
+        //
+        // codex レビュー指摘（イシュー #2210 PR #2334）: [`crate::menu`] は
+        // 同じ確定座標を `transform: translate3d(...)` で消費するが、
+        // popover の `content` は任意のネストした Tooltip/Menu/Popover を
+        // 保持しうる。`transform` を持つ祖先は `position: fixed` な子孫の
+        // 包含ブロックを作り直す（CSS の仕様）ため、popover 自身が開いた
+        // 状態で `transform` を持つと、その `content` 内で開いたネスト
+        // オーバーレイの `position: fixed` が viewport ではなくこの
+        // positioner を基準に配置されてしまい、`wasm-full` の
+        // `reposition_one`（viewport 基準で計算した座標をそのまま子へ
+        // 設定する契約）と不整合を起こす。これを避けるため、ここでは
+        // `transform` を使わず `top`/`left` へ直接 `--fandhe-x`/
+        // `--fandhe-y` を消費させる（オフセットに何を使うかは包含
+        // ブロックの決定に無関係だが、`transform` プロパティ自体の
+        // 不在が包含ブロックを作らない条件のため、これで足りる）。
+        .state(
+            "positioner",
+            StateCondition::Attr("data-positioned"),
+            vec![
+                decl("position", "fixed"),
+                decl("top", "var(--fandhe-y, 0px)"),
+                decl("left", "var(--fandhe-x, 0px)"),
+                decl("margin-top", "0"),
+            ],
         )
 }
 
@@ -503,6 +646,98 @@ mod tests {
         // auto へフォールバック。select と同じ判断）。
         let css = stylesheet();
         assert!(css.contains("min-width: var(--fandhe-reference-width, auto);"));
+    }
+
+    #[test]
+    fn positioner_switches_to_fixed_geometry_when_data_positioned_marker_is_present() {
+        // イシュー #2210: wasm 層が付与する `data-positioned` マーカーが
+        // 立っているときのみ、positioner が確定座標（viewport 座標系の
+        // `position: fixed`）へ切り替わることを固定する。[`crate::menu`]
+        // の同名テストと異なり `transform` は使わない（`top`/`left` へ
+        // 直接消費させる、モジュール rustdoc 参照）。
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"popover\"][data-part=\"positioner\"][data-positioned] {\n  \
+             position: fixed;\n  top: var(--fandhe-y, 0px);\n  \
+             left: var(--fandhe-x, 0px);\n  margin-top: 0;\n}\n"
+        ));
+    }
+
+    #[test]
+    fn positioner_data_positioned_rule_never_uses_transform() {
+        // codex レビュー指摘の回帰固定（イシュー #2210 PR #2334）: popover
+        // の `content` は任意のネストした Tooltip/Menu/Popover を保持し
+        // うるため、`positioner[data-positioned]` に `transform` を持たせ
+        // ない（`transform` を持つ祖先は `position: fixed` な子孫の包含
+        // ブロックを作り直し、nested overlay の viewport 基準座標契約
+        // ［`wasm-full::reposition_one`］と不整合を起こすため）。
+        let css = stylesheet();
+        let rule_start = css
+            .find(r#"[data-scope="popover"][data-part="positioner"][data-positioned] {"#)
+            .expect("data-positioned rule must exist");
+        let rule_end = css[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("data-positioned rule must be closed");
+        let rule = &css[rule_start..rule_end];
+        assert!(
+            !rule.contains("transform"),
+            "positioner[data-positioned] must not declare transform \
+             (would create a containing block for nested fixed overlays); \
+             rule was: {rule:?}"
+        );
+    }
+
+    #[test]
+    fn arrow_consumes_fandhe_arrow_geometry_css_vars_and_arrow_tip_is_declared() {
+        // イシュー #2210: arrow はマーカー切り替え不要で
+        // `--fandhe-arrow-x`/`--fandhe-arrow-y` を変数フォールバックのみで
+        // 消費する（[`crate::menu`] と同型）。arrow-tip は座標変数を持たず
+        // 回転変数のみを消費する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="popover"][data-part="arrow"]"#));
+        assert!(css.contains("left: var(--fandhe-arrow-x, 50%);"));
+        assert!(css.contains("top: var(--fandhe-arrow-y, 0);"));
+        assert!(css.contains(r#"[data-scope="popover"][data-part="arrow-tip"]"#));
+        assert!(css.contains("transform: rotate(var(--fandhe-popover-arrow-rotate, 45deg));"));
+    }
+
+    #[test]
+    fn arrow_tip_rotation_follows_positioner_data_side() {
+        // イシュー #2210 受け入れ条件: `positioner[data-side=...]` に連動して
+        // `--fandhe-popover-arrow-rotate` の値が切り替わることを固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="popover"][data-part="positioner"][data-side="top"]"#));
+        assert!(css.contains("--fandhe-popover-arrow-rotate: 225deg;"));
+        assert!(css.contains(r#"[data-scope="popover"][data-part="positioner"][data-side="left"]"#));
+        assert!(css.contains("--fandhe-popover-arrow-rotate: 135deg;"));
+        assert!(
+            css.contains(r#"[data-scope="popover"][data-part="positioner"][data-side="right"]"#)
+        );
+        assert!(css.contains("--fandhe-popover-arrow-rotate: 315deg;"));
+    }
+
+    #[test]
+    fn position_geometry_var_references_never_lack_an_explicit_fallback() {
+        // イシュー #2210: 位置ジオメトリ変数（`--fandhe-x`/`--fandhe-y`/
+        // `--fandhe-arrow-*`）への `var()` 参照が必ず明示フォールバックを
+        // 持つことを固定する（裸の `var(--fandhe-x)` 等の禁止、
+        // [`crate::menu`] の同名テストと同型）。
+        let css = stylesheet();
+        for marker in ["var(--fandhe-x", "var(--fandhe-y", "var(--fandhe-arrow-"] {
+            for occurrence in css.match_indices(marker) {
+                let start = occurrence.0;
+                let end = css[start..]
+                    .find(')')
+                    .map(|offset| start + offset)
+                    .unwrap_or(css.len());
+                assert!(
+                    css[start..end].contains(','),
+                    "var() reference without fallback: {}",
+                    &css[start..end.min(css.len())]
+                );
+            }
+        }
     }
 
     #[test]

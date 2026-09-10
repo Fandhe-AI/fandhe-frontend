@@ -2007,7 +2007,7 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
         "WAI-ARIA tooltip パターンに従い、trigger は aria-describedby で content と関連付ける（aria-expanded / aria-controls は使わない）。content 側が role=\"tooltip\" を持つ。",
         "openDelay / closeDelay（表示・非表示までの遅延タイマー）は wasm-full 側の後続スコープ。",
         "開閉は Disclosure を埋め込んだ状態機械 Tooltip が管理する。",
-        "positioner は data-side 属性（top（既定）/ bottom / left / right）で表示位置を切り替えられる（イシュー #2041、shadcn/ui の side prop 相当。実座標追従ではなく静的フォールバックのみ）。",
+        "positioner は data-side 属性（top（既定）/ bottom / left / right）で表示位置を切り替えられる（イシュー #2041、shadcn/ui の side prop 相当。fandhe-frontend-wasm-full のハイドレーション下では実座標追従、SSR / no-JS では静的フォールバック、イシュー #2210）。",
         "content の children へテキストと fandhe-frontend-pre-styled-ui::kbd を組み合わせるキーボードショートカット併記パターンが可能（イシュー #2041、shadcn/ui の With Keyboard Shortcut Example 相当。下記 Examples 節参照）。",
     ],
     arguments: &[
@@ -2021,7 +2021,7 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
             name: "positioner の attrs",
             kind: "Vec<(&str, &str)>",
             default: "",
-            description: "positioner へ透過する属性。data-side=\"bottom\"/\"left\"/\"right\" を渡すと表示位置の静的フォールバックが切り替わる（未指定は top 相当）。left/right は root 幅が trigger 幅に一致する文脈（flex アイテム等で shrink-wrap される場合）でのみ trigger に隣接する位置になる。",
+            description: "positioner へ透過する属性。data-side=\"bottom\"/\"left\"/\"right\" を渡すと表示位置の静的フォールバックが切り替わる（未指定は top 相当）。fandhe-frontend-wasm-full のハイドレーション下では実測座標へ追従するため、この制約は解消する（イシュー #2210）。SSR / no-JS の静的フォールバックでは、left/right は root 幅が trigger 幅に一致する文脈（flex アイテム等で shrink-wrap される場合）でのみ trigger に隣接する位置になる。",
         },
     ],
     examples: &[ExampleEntry {

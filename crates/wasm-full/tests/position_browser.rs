@@ -1989,6 +1989,27 @@ mod auto_wiring {
         ("right", 350.0, 185.0, 0.0, 25.0),
     ];
 
+    /// [`EXPECTED_PLACEMENTS`] に `PositionedKind::offset_default()` の 4px
+    /// （Popover/Tooltip のみ、`crates/wasm-full/src/position.rs` 参照）を
+    /// 主軸方向へ加味した期待値表。
+    ///
+    /// `main_axis_coordinate`（`crates/headless-ui/src/positioning.rs`）は
+    /// side ごとに `anchor` から遠ざかる向きへ offset を適用する
+    /// （Bottom/Right は `+offset`、Top/Left は `-offset`）ため、
+    /// [`EXPECTED_PLACEMENTS`] の該当軸へ ±4px を反映する。交差軸座標・
+    /// arrow 座標（`arrow_position`）は offset の影響を受けないため
+    /// [`EXPECTED_PLACEMENTS`] と同一値のまま据え置く。Menu は
+    /// `offset_default() == 0.0`（`transform: translate3d` で確定座標を
+    /// 消費する既存設計、イシュー #663）のままのため
+    /// [`EXPECTED_PLACEMENTS`] を直接使い続ける（本定数は Popover/Tooltip
+    /// 専用）。
+    const EXPECTED_PLACEMENTS_WITH_GAP: [(&str, f64, f64, f64, f64); 4] = [
+        ("bottom", 275.0, 224.0, 50.0, 0.0),
+        ("top", 275.0, 146.0, 50.0, 50.0),
+        ("left", 196.0, 185.0, 100.0, 25.0),
+        ("right", 354.0, 185.0, 0.0, 25.0),
+    ];
+
     #[wasm_bindgen_test]
     fn wire_headless_component_auto_repositions_tooltip_to_exact_real_coordinates_for_every_side() {
         let window = web_sys::window().expect("window must exist in browser test environment");
@@ -1996,7 +2017,7 @@ mod auto_wiring {
         ensure_fixed_floating_size_stylesheet(&document);
 
         for (side, expected_x, expected_y, expected_arrow_x, expected_arrow_y) in
-            EXPECTED_PLACEMENTS
+            EXPECTED_PLACEMENTS_WITH_GAP
         {
             let container =
                 create_placeholder(&document, &format!("position-browser-auto-tooltip-{side}"));
@@ -2807,7 +2828,7 @@ mod auto_wiring {
         ensure_fixed_floating_size_stylesheet(&document);
 
         for (side, expected_x, expected_y, expected_arrow_x, expected_arrow_y) in
-            EXPECTED_PLACEMENTS
+            EXPECTED_PLACEMENTS_WITH_GAP
         {
             let container =
                 create_placeholder(&document, &format!("position-browser-auto-popover-{side}"));

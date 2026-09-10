@@ -319,14 +319,18 @@ Popover/Tooltip/NavigationMenu は `false`（Menubar/NavigationMenu はイシュ
 を書き込む。`headless-ui` 層（本モジュール）は SSR/SSG のいずれの出力
 経路でもこの属性を一切出力しない（[`placement_attrs`] は `data-side`/
 `data-align` の 2 属性のみを返す）。`fandhe-frontend-pre-styled-ui`
-（`crates/pre-styled-ui/src/menu.rs`/`select.rs` の `recipe()`）はこの
-非対称性を利用し、マーカーの有無で「SSR 静的フォールバック（`position:
-absolute` + ローカル座標系）」と「wasm 確定座標（`position: fixed` +
-viewport 座標系、`--fandhe-x`/`--fandhe-y` を `transform: translate3d`
-で消費）」を切り替える。マーカー不在（wasm 未稼働）では常に静的表示へ
-fail-closed に留まる。arrow（Menu のみ、`has_arrow()` が Select を対象外
-とする、§4a.2）は `--fandhe-arrow-x`/`--fandhe-arrow-y` を変数フォール
-バックのみで消費し、マーカー切り替えを必要としない。
+（`crates/pre-styled-ui/src/menu.rs`/`select.rs` の `recipe()`。イシュー
+#2210 で `popover.rs`/`tooltip.rs` の `positioner` にも同型の state 規則を
+追加した）はこの非対称性を利用し、マーカーの有無で「SSR 静的フォール
+バック（`position: absolute` + ローカル座標系）」と「wasm 確定座標
+（`position: fixed` + viewport 座標系、`--fandhe-x`/`--fandhe-y` を
+`transform: translate3d` で消費）」を切り替える。マーカー不在（wasm
+未稼働）では常に静的表示へ fail-closed に留まる。arrow（Popover/Tooltip/
+Menu のみ、`has_arrow()` が Select を対象外とする、§4a.2）は
+`--fandhe-arrow-x`/`--fandhe-arrow-y` を変数フォールバックのみで消費し、
+マーカー切り替えを必要としない（イシュー #2210 で `popover.rs`/
+`tooltip.rs` も arrow/arrow-tip を消費するようになったため、この一文は
+3 部品共通の契約として読み替える）。
 
 ## 4c. 暦計算コア（`date` モジュール）
 

@@ -973,7 +973,14 @@ name = "fandhe-frontend-wasm-full"
 # 偶発的に衝突しているため、main の到達値 0.20.0 からさらに +1（マイナー
 # バンプ、`default` へ `position` feature を追加した破壊的変更のため）して
 # 0.20.1 とする。
-version = "0.20.1"
+#
+# イシュー #2210 PR #2334 codex-review 指摘（P1）の是正: `resolve_position`
+# の offset を kind 別既定値化する `PositionedKind::offset_default`（新規
+# pub const fn）を追加し、Popover/Tooltip のみ 4px（`--fandhe-space-1`
+# 相当）を主軸オフセットへ適用するようにした。新規 API の追加のみで既存
+# 公開関数のシグネチャ変更を伴わない非破壊的変更のため patch バンプとし、
+# 0.20.1 を +1 した 0.20.2 とする。
+version = "0.20.2"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
