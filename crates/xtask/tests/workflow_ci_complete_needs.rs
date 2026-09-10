@@ -20,11 +20,15 @@
 //! 2. **`if: always()`**: `ci-complete` 自身がちょうど 1 個の
 //!    `if: always()`（リテラル一致。`${{ always() }}` 等の表記揺れは
 //!    意図的に非受理）を持つ。
-//! 3. **`skipped` 許容リストの整合**: 集約ステップの jq 式が許容する
-//!    `skipped` 結果は、本ファイル内の定数 [`SKIPPED_ALLOWLIST`] と
-//!    1 対 1 で一致し、許容対象ジョブは実際にジョブレベル `if:` を
-//!    持ち、逆に `ci-complete` 以外でジョブレベル `if:`（値が
-//!    `always()` でない）を持つジョブは全て許容リストに含まれる。
+//! 3. **`skipped` 許容リストの整合**: 集約ステップの `RESULTS` への
+//!    `toJSON(needs)` 束縛・`echo "${RESULTS}" | jq -e '...' > /dev/null`
+//!    という入力配線からプログラム全体（`-e` フラグ・select 述語・
+//!    最終判定〔`| length == 0`〕を含む）まで、行全体の完全一致で
+//!    検証する。jq 式が許容する `skipped` 結果は、本ファイル内の定数
+//!    [`SKIPPED_ALLOWLIST`] と 1 対 1 で一致し、許容対象ジョブは実際に
+//!    ジョブレベル `if:` を持ち、逆に `ci-complete` 以外でジョブレベル
+//!    `if:`（値が `always()` でない）を持つジョブは全て許容リストに
+//!    含まれる。
 //!
 //! `SKIPPED_ALLOWLIST` は ci.yml から自動導出せず、本ファイル内の定数と
 //! して固定する。ci.yml 側だけで `if:` と jq 式を同時に書き換えても
@@ -174,25 +178,6 @@ fn key_at_indent4(stripped_line: &str) -> Option<(String, String)> {
     Some((key.to_string(), value))
 }
 
-/// インデント 4 の `<key>: <value>` 行から、キー部分の文字種妥当性を検証
-/// せずに生のキー文字列（コロン直前まで）だけを抽出する。`key_at_indent4`
-/// はクォート付きキー等の未対応表記を `None` として握りつぶすため、
-/// 「`if` に正規化できるが唯一の正規形と一致しない」表記（イシュー #2324
-/// の P1 是正、下記 [`classify_if_like_key`] 参照）を検知する下請けとして
-/// 別に用意する。
-fn raw_key_at_indent4(stripped_line: &str) -> Option<String> {
-    let trimmed_end = stripped_line.trim_end();
-    if !trimmed_end.starts_with("    ") {
-        return None;
-    }
-    if trimmed_end.as_bytes().get(4) == Some(&b' ') {
-        return None;
-    }
-    let rest = &trimmed_end[4..];
-    let colon_pos = rest.find(':')?;
-    Some(rest[..colon_pos].to_string())
-}
-
 /// 前後を同じ引用符（`"..."` または `'...'`）で囲まれている場合のみ、
 /// その引用符を剥がす。囲まれていなければそのまま返す。
 fn strip_matching_quotes(s: &str) -> &str {
@@ -207,16 +192,81 @@ fn strip_matching_quotes(s: &str) -> &str {
     s
 }
 
+/// インデント `indent` の `<key>: <value>` 行を `(key, value)` として
+/// 抽出する（`key_at_indent4` の任意インデント版）。ジョブ本文の基準
+/// インデントはジョブごとに異なり得る（`block_base_indent` 参照）ため、
+/// `scan_job_if` はこちらを使う。
+fn key_at_indent(stripped_line: &str, indent: usize) -> Option<(String, String)> {
+    let trimmed_end = stripped_line.trim_end();
+    let leading = trimmed_end.len() - trimmed_end.trim_start_matches(' ').len();
+    if leading != indent {
+        return None;
+    }
+    let rest = &trimmed_end[indent..];
+    let colon_pos = rest.find(':')?;
+    let key = &rest[..colon_pos];
+    if key.is_empty()
+        || !key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return None;
+    }
+    let value = rest[colon_pos + 1..].trim().to_string();
+    Some((key.to_string(), value))
+}
+
+/// インデント `indent` の `<key>: <value>` 行から、キー文字種の妥当性を
+/// 検証せずに生のキー文字列だけを抽出する（`key_at_indent` の姉妹関数。
+/// 用途は `key_at_indent` と同じで、`scan_job_if` が「`if` に正規化できる
+/// が唯一の正規形と一致しない」表記を検知する下請けとして使う）。
+fn raw_key_at_indent(stripped_line: &str, indent: usize) -> Option<String> {
+    let trimmed_end = stripped_line.trim_end();
+    let leading = trimmed_end.len() - trimmed_end.trim_start_matches(' ').len();
+    if leading != indent {
+        return None;
+    }
+    let rest = &trimmed_end[indent..];
+    let colon_pos = rest.find(':')?;
+    Some(rest[..colon_pos].to_string())
+}
+
+/// ジョブ本文（`block_start..block_end`）内の非空行の最小インデント幅を
+/// 「そのジョブ本文直下キーの基準インデント」として返す。
+///
+/// 従来は `key_at_indent4` によりジョブ本文のキーは常にインデント 4
+/// という前提で走査していたが、YAML 仕様上は
+/// 兄弟キー同士のインデントが揃っていれば値は自由（親より深ければ何桁でも
+/// 妥当）である。許容リスト外ジョブの本文全体をインデント 6（等）へ
+/// 揃えたうえで `if:` をそこに書くと、インデント 4 固定の走査では
+/// 「`if:` が存在しない」と読み飛ばしてしまい、条件付きジョブの検知が
+/// すり抜ける（イシュー #2324 の P1 指摘）。ジョブ直下キー（`needs:`
+/// 等）は他のどの行よりも浅いインデントで書かれる（それより深い行は
+/// ネストされた値・block sequence 要素）ため、非空行の最小インデントが
+/// 基準インデントに一致する。
+fn block_base_indent(stripped: &[String], block_start: usize, block_end: usize) -> Option<usize> {
+    stripped[block_start..block_end]
+        .iter()
+        .filter(|line| !line.is_empty())
+        .map(|line| line.len() - line.trim_start_matches(' ').len())
+        .min()
+}
+
 /// ジョブ本文 1 件分（`block_start..block_end`）を走査し、ジョブレベル
 /// `if:` の状態を判定する。
 ///
-/// - `canonical`: 唯一の正規形 `    if: <value>`（クォート無しキー）で
-///   見つかった最初の 1 件の `(行番号, value)`。
-/// - `non_canonical`: キーを引用符除去すると `if` に一致するが、唯一の
-///   正規形とは一致しない行（クォート付きキー `"if"`/`'if'` 等）の
-///   `(行番号, 生テキスト)` 一覧。`key_at_indent4` はこれらを黙って
-///   `None` にして読み飛ばしてしまう（イシュー #2324 の P1 指摘）ため、
-///   反転判定により呼び出し側で違反として報告する材料として集める。
+/// 基準インデントは `block_base_indent` でジョブごとに動的に決定する
+/// （固定インデント 4 決め打ちにしない。イシュー #2324 の P1 是正 2 点目。
+/// 上記 doc コメント参照）。ブロックが空（非空行が 1 行もない）場合のみ
+/// 実 ci.yml の慣例であるインデント 4 へフォールバックする。
+///
+/// - `canonical`: 基準インデントちょうどの `if: <value>`（クォート無し
+///   キー）で見つかった最初の 1 件の `(行番号, value)`。
+/// - `non_canonical`: キーを引用符除去すると `if` に一致するが、
+///   クォート無しキーとは一致しない行（クォート付きキー `"if"`/`'if'`
+///   等）の `(行番号, 生テキスト)` 一覧。`key_at_indent` はこれらを
+///   黙って `None` にして読み飛ばしてしまうため、反転判定により
+///   呼び出し側で違反として報告する材料として集める。
 struct JobIfScan {
     canonical: Option<(usize, String)>,
     non_canonical: Vec<(usize, String)>,
@@ -225,6 +275,7 @@ struct JobIfScan {
 fn scan_job_if(stripped: &[String], block_start: usize, block_end: usize) -> JobIfScan {
     let mut canonical = None;
     let mut non_canonical = Vec::new();
+    let indent = block_base_indent(stripped, block_start, block_end).unwrap_or(4);
     for (i, line) in stripped
         .iter()
         .enumerate()
@@ -234,13 +285,13 @@ fn scan_job_if(stripped: &[String], block_start: usize, block_end: usize) -> Job
         if line.is_empty() {
             continue;
         }
-        if let Some((key, value)) = key_at_indent4(line) {
+        if let Some((key, value)) = key_at_indent(line, indent) {
             if key == "if" && canonical.is_none() {
                 canonical = Some((i, value));
             }
             continue;
         }
-        if let Some(raw_key) = raw_key_at_indent4(line) {
+        if let Some(raw_key) = raw_key_at_indent(line, indent) {
             if strip_matching_quotes(raw_key.trim()) == "if" {
                 non_canonical.push((i, line.trim().to_string()));
             }
@@ -538,25 +589,30 @@ fn check_ci_complete_needs_contract(contents: &str) -> Result<(), Vec<String>> {
     }
 
     // --- skipped 許容リストの整合（ci-complete ブロック内テキスト走査） ---
-    let block_text: String = stripped[block_start..block_end].join("\n");
-    if !block_text.contains("toJSON(needs)") {
-        violations.push(
-            "`ci-complete` の集約ステップに `toJSON(needs)` が見つからない（`needs` の結果を\
-             丸ごと検証する契約が失われている）"
-                .to_string(),
-        );
-    }
-    // `SKIPPED_ALLOWLIST` から jq の判定式全体（`map(select((...) | not))`
-    // の `(...)` 内側）を機械的に組み立て、集約ステップのテキストと
-    // **部分文字列の存在ではなく式全体の完全一致**で照合する（イシュー
-    // #2324 の P1 是正）。部分文字列一致（旧実装）は `\"skipped\"` の
-    // 出現回数や個別の判定式の存在だけを見るため、既存の許容式へ
-    // `or true` 等の無関係な追加節を継ぎ足す改変（許容外ジョブの
-    // 失敗・skip を丸ごと PASS 扱いにする fail-open 化）があっても、
-    // 元の判定式が部分文字列として残っている限り検知できない。
-    // `map(select((` と `) | not))` という唯一の正規形の境界で予測式を
-    // 完全一致検証することで、境界内へのどんな追加節も差分として検知
-    // する。
+    //
+    // `SKIPPED_ALLOWLIST` から jq プログラム全体（`jq -e '...'` の
+    // `'...'` 内側、`to_entries` から `| length == 0` までの全文）と、
+    // それを実行するシェル行全体（`RESULTS` への束縛・`echo "${RESULTS}"`
+    // による入力・jq への配線を含む）を機械的に組み立て、集約ステップの
+    // テキストと **部分文字列の存在ではなく行全体の完全一致** で照合する
+    // （イシュー #2324 の P1 是正。PR #2335 の codex-review 再指摘、および
+    // 自己レビュー追補を受け、select 述語の内側だけでなくプログラム全体・
+    // 入力配線（`env: RESULTS` と `echo "${RESULTS}" |` のパイプ）まで
+    // 検証範囲を拡張した）。
+    //
+    // 旧実装は `map(select((...) | not))` の `(...)` 内側（select 述語）
+    // だけを完全一致検証しており、その外側（`-e` フラグの有無・
+    // `| length == 0` という最終判定・そもそも `jq` へ何を流し込んでいる
+    // か）は一切検証していなかった。このため、述語自体はそのままに
+    // (a) 末尾へ `or true` を継ぎ足す、(b) `| length == 0` を
+    // `| length >= 0` へ緩める、(c) `-e` フラグを外す、(d) `env:` の
+    // `RESULTS` を `toJSON(needs)` から別式（例: `toJSON(github)`）へ
+    // すり替える、(e) `echo "${RESULTS}" |` を `echo '{}' |` 等の無関係な
+    // 固定入力へすり替える（`RESULTS` の束縛自体は残したまま jq への
+    // 入力経路だけ差し替えるため、`toJSON(needs)` の部分文字列存在
+    // チェックだけでは検知できない）といった改変を個別に検知できな
+    // かった。`env:` 配下の `RESULTS` 行・`jq` を呼ぶシェル行の双方を
+    // 行全体の完全一致で照合することで、これらすべての迂回を検知する。
     let allowlist_clause = SKIPPED_ALLOWLIST
         .iter()
         .map(|name| format!("(.key == \"{name}\" and .value.result == \"skipped\")"))
@@ -567,32 +623,72 @@ fn check_ci_complete_needs_contract(contents: &str) -> Result<(), Vec<String>> {
     } else {
         format!(".value.result == \"success\" or {allowlist_clause}")
     };
-    const PREDICATE_PREFIX: &str = "map(select((";
-    const PREDICATE_SUFFIX: &str = ") | not))";
-    match block_text.find(PREDICATE_PREFIX) {
-        None => violations.push(format!(
-            "`ci-complete` の集約ステップに唯一の正規形 `{PREDICATE_PREFIX}...{PREDICATE_SUFFIX}` \
-             が見つからない（反転判定により違反として扱う）"
+    let expected_program =
+        format!("to_entries | map(select(({expected_predicate}) | not)) | length == 0");
+
+    // `env:` 配下で `RESULTS` を `toJSON(needs)` へ束縛する行が、唯一の
+    // 正規形でちょうど 1 回だけ存在すること（環境変数名を変える・
+    // 束縛先の式を変える・複数束縛して未使用の別名を紛れ込ませる等の
+    // 迂回をすべて違反側へ倒す反転判定）。
+    const EXPECTED_RESULTS_BINDING: &str = "RESULTS: ${{ toJSON(needs) }}";
+    let results_binding_lines: Vec<usize> = stripped[block_start..block_end]
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| line.trim() == EXPECTED_RESULTS_BINDING)
+        .map(|(i, _)| block_start + i)
+        .collect();
+    match results_binding_lines.len() {
+        1 => {}
+        0 => violations.push(format!(
+            "`ci-complete` の集約ステップに唯一の正規形の `env:` 束縛 \
+             `{EXPECTED_RESULTS_BINDING}` が見つからない（`needs` の結果を丸ごと束縛する\
+             契約が失われている、または表記が非正規形になっている。反転判定により違反として\
+             扱う）"
         )),
-        Some(prefix_idx) => {
-            let after_prefix = &block_text[prefix_idx + PREDICATE_PREFIX.len()..];
-            match after_prefix.find(PREDICATE_SUFFIX) {
-                None => violations.push(format!(
-                    "`ci-complete` の集約ステップの `{PREDICATE_PREFIX}` に対応する \
-                     `{PREDICATE_SUFFIX}` が見つからない（反転判定により違反として扱う）"
-                )),
-                Some(suffix_idx) => {
-                    let actual_predicate = &after_prefix[..suffix_idx];
-                    if actual_predicate != expected_predicate {
-                        violations.push(format!(
-                            "`ci-complete` の集約ステップの skipped 許容式が `SKIPPED_ALLOWLIST` \
-                             から構成した期待式と完全一致しない（部分文字列一致ではなく式全体の\
-                             一致を要求する）。\n  期待: {expected_predicate}\n  実際: {actual_predicate}"
-                        ));
-                    }
-                }
+        n => violations.push(format!(
+            "`ci-complete` の集約ステップに `{EXPECTED_RESULTS_BINDING}` が {n} 回出現している\
+             （1 回のみ想定）"
+        )),
+    }
+
+    // `RESULTS` を jq へ渡すシェル行全体（`echo "${RESULTS}" | jq -e '...'
+    // > /dev/null`）が、唯一の正規形でちょうど 1 回だけ存在すること。
+    // 行全体一致にすることで、`RESULTS` の束縛は正規のまま入力だけ固定値
+    // へすり替える迂回（`echo '{}' | jq ...`）・`-e` フラグの有無・
+    // 出力先の変更・述語や最終判定の緩和のいずれも単一の照合で検知する。
+    let expected_jq_line =
+        format!("echo \"${{RESULTS}}\" | jq -e '{expected_program}' > /dev/null");
+    let jq_lines: Vec<(usize, String)> = stripped[block_start..block_end]
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| line.trim_start().starts_with("echo \"${RESULTS}\""))
+        .map(|(i, line)| (block_start + i, line.trim().to_string()))
+        .collect();
+    match jq_lines.len() {
+        1 => {
+            let (line_no, actual) = &jq_lines[0];
+            if actual != &expected_jq_line {
+                violations.push(format!(
+                    "ci.yml:{}: `ci-complete` の集約ステップの `RESULTS` を jq へ渡すシェル行が\
+                     期待する正規形と完全一致しない（部分文字列一致ではなく `echo` の入力・\
+                     パイプ・`-e` フラグ・select 述語・最終判定〔`| length == 0`〕・出力先を\
+                     含む行全体の一致を要求する）。\n  期待: {expected_jq_line}\n  \
+                     実際: {actual}",
+                    line_no + 1
+                ));
             }
         }
+        0 => violations.push(format!(
+            "`ci-complete` の集約ステップに `RESULTS` を jq へ渡す唯一の正規形の行 \
+             `{expected_jq_line}` が見つからない（`echo \"${{RESULTS}}\"` で始まる行が存在\
+             しない。`needs` の結果を丸ごと検証する契約が失われている、または `RESULTS` の\
+             入力経路が固定値・別の式へすり替えられている可能性がある。反転判定により違反\
+             として扱う）"
+        )),
+        n => violations.push(format!(
+            "`ci-complete` の集約ステップに `echo \"${{RESULTS}}\"` で始まる行が {n} 回出現\
+             している（1 回のみ想定）"
+        )),
     }
 
     // --- 許容リストの各ジョブが実在し、ジョブレベル if: を持つこと ---
@@ -913,6 +1009,109 @@ mod fixture_tests {
             "    \"if\": ${{ github.event_name == 'pull_request' }}\n",
         );
         assert_violations_contain(&contents, "version-bump-guard");
+    }
+
+    /// イシュー #2324 の PR #2335 codex-review 再指摘 1 点目: select 述語
+    /// 自体は変更せず、末尾の最終判定だけを `| length == 0` から
+    /// `| length >= 0` へ緩めると、`map(select(...))` が非空（＝許容外の
+    /// 失敗・skip が実在）でも集約ステップが PASS してしまう fail-open に
+    /// なる。旧実装は select 述語の内側だけを完全一致検証しており、この
+    /// 末尾緩和を検知できなかった。最終判定まで含めて検証することを
+    /// 固定する。
+    #[test]
+    fn fail_skipped_length_check_relaxed_is_violation() {
+        let contents = base_fixture().replace("| length == 0", "| length >= 0");
+        assert_violations_contain(&contents, "完全一致");
+    }
+
+    /// PR #2335 の自己レビュー追補: `length_check_ok` が「`| length == 0`
+    /// の直後が英数字でなければ受理」という緩い判定だったため、
+    /// `| length == 0 or true'`（jq 上 `(length == 0) or true` と解釈され
+    /// 常に真になる）という迂回は、直後の文字が空白であり英数字でない
+    /// ため誤って PASS してしまっていた（select 述語内側への `or true`
+    /// 迂回と同型だが、プログラム末尾側で起きる変種）。jq プログラム
+    /// 全体（`jq -e '...'`）を単一の完全一致で照合する現行実装では
+    /// この迂回も自動的に検知されることを固定する。
+    #[test]
+    fn fail_skipped_length_check_or_true_appended_is_violation() {
+        let contents = base_fixture().replace("| length == 0'", "| length == 0 or true'");
+        assert_violations_contain(&contents, "完全一致");
+    }
+
+    /// jq プログラム全体を検証する現行実装は `-e` フラグの有無も検証
+    /// 対象に含む。`-e` 無しの jq はフィルタ結果の真偽に関わらず構文的に
+    /// 成功すれば終了コード 0 になり得るため、フラグを外す改変も集約を
+    /// vacuous にする迂回として検知できることを固定する。
+    #[test]
+    fn fail_jq_e_flag_removed_is_violation() {
+        let contents = base_fixture().replace("jq -e '", "jq '");
+        assert_violations_contain(&contents, "jq -e '");
+    }
+
+    /// 自己レビュー追補（P1-1 の入力配線側）: `RESULTS` の束縛（`env:`）は
+    /// 正規のまま残し、jq への入力だけ無関係な固定値へすり替える迂回
+    /// （`echo "${RESULTS}" | jq ...` → `echo '{}' | jq ...`）は、`{}` を
+    /// `to_entries` すると `[]` になり `length == 0` が常に真になるため
+    /// 集約が vacuous になる。旧実装（`toJSON(needs)` の部分文字列存在
+    /// チェックのみ）はこの迂回を検知できなかった（`RESULTS` の束縛自体は
+    /// 変更されないため）。`echo "${RESULTS}" | jq ...` という行全体の
+    /// 完全一致検証で検知できることを固定する。
+    #[test]
+    fn fail_jq_input_decoy_is_violation() {
+        let contents =
+            base_fixture().replace("echo \"${RESULTS}\" | jq -e '", "echo '{}' | jq -e '");
+        assert_violations_contain(&contents, "見つからない");
+    }
+
+    /// 自己レビュー追補（P1-1 の入力配線側、その 2）: `RESULTS` を
+    /// `toJSON(needs)` ではなく無関係な式（`toJSON(github)`）へ束縛し、
+    /// 本来の `toJSON(needs)` は使われない別の環境変数（`UNUSED`）へ
+    /// 束縛し直す迂回は、`block_text.contains("toJSON(needs)")` という
+    /// 旧実装の部分文字列チェックでは（`UNUSED` 側に文字列が残るため）
+    /// 検知できなかった。`RESULTS: ${{ toJSON(needs) }}` という行全体の
+    /// 完全一致検証（`UNUSED` 側は無視する）で検知できることを固定する。
+    #[test]
+    fn fail_tojson_needs_bound_to_unused_env_var() {
+        let contents = base_fixture().replace(
+            "          RESULTS: ${{ toJSON(needs) }}\n",
+            "          RESULTS: ${{ toJSON(github) }}\n          UNUSED: ${{ toJSON(needs) }}\n",
+        );
+        assert_violations_contain(&contents, "RESULTS: ${{ toJSON(needs) }}");
+    }
+
+    /// イシュー #2324 の PR #2335 codex-review 再指摘 2 点目:
+    /// `key_at_indent4`（固定インデント 4）で
+    /// `scan_job_if` を実装していた旧実装は、許容リスト外ジョブの本文
+    /// 全体を（YAML として妥当な）インデント 6 へ揃えたうえで同じ階層に
+    /// `if: success()` を書く迂回を検知できなかった（ジョブレベル `if:`
+    /// が「存在しない」と誤って読み飛ばされ、`SKIPPED_ALLOWLIST` への
+    /// 追加漏れがすり抜ける）。`block_base_indent` でジョブごとに実際の
+    /// 基準インデントを動的検出することで検知できることを固定する。
+    #[test]
+    fn fail_conditional_job_reindented_body_if_is_violation() {
+        let contents = base_fixture().replace(
+            "  job-b:\n    runs-on: ubuntu-latest\n    steps:\n      - run: \"true\"\n",
+            "  job-b:\n      runs-on: ubuntu-latest\n      if: success()\n      steps:\n        - run: \"true\"\n",
+        );
+        // 「job-b」という文字列一致だけでなく、実際に条件付きジョブ検知
+        // 経路（`SKIPPED_ALLOWLIST` 追加漏れ）が発火したことを確認する
+        // （job-b への別種の言及で偶然一致する誤判定を防ぐ）。
+        assert_violations_contain(&contents, "SKIPPED_ALLOWLIST");
+        assert_violations_contain(&contents, "job-b");
+    }
+
+    /// 上記の逆側: 本文全体をインデント 6 へ揃えたジョブでも、それが
+    /// 既に `SKIPPED_ALLOWLIST` に載っているジョブ（`version-bump-guard`）
+    /// であれば、動的検出した基準インデントで正しく `if:` を検知し PASS
+    /// することを固定する（過剰検知〔インデント一般化が誤って正規ジョブ
+    /// まで弾く〕がないことの確認）。
+    #[test]
+    fn pass_allowlist_job_reindented_body_if_is_detected() {
+        let contents = base_fixture().replace(
+            "  version-bump-guard:\n    if: ${{ github.event_name == 'pull_request' }}\n    runs-on: ubuntu-latest\n    steps:\n      - run: \"true\"\n",
+            "  version-bump-guard:\n      if: ${{ github.event_name == 'pull_request' }}\n      runs-on: ubuntu-latest\n      steps:\n        - run: \"true\"\n",
+        );
+        assert_eq!(check_ci_complete_needs_contract(&contents), Ok(()));
     }
 
     #[test]
