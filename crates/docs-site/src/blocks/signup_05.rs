@@ -261,6 +261,15 @@ pub const BLOCK: Block = Block {
 /// 「block 固有 CSS の置き場」節。`login_01`/`sidebar_03`/`sidebar_07`/
 /// `dashboard_01` と同型で `pub(super)` として `super::stylesheet` から
 /// 連結される）。
+///
+/// `[data-scope="field"][data-part="separator-content"]` の背景色上書きは
+/// `crates/pre-styled-ui/src/field.rs` の `separator-content` 既定
+/// （`--fandhe-color-bg`）が、本 block を包む `.blocks-demo` 共通枠の
+/// 背景（`--fandhe-color-bg-subtle`、`crate::blocks::LAYOUT_CSS`）と
+/// 食い違い、「Or」ラベル周囲にコントラストのある箱が出る不整合を
+/// block 側のスコープ限定セレクタで是正するもの（`field::separator`
+/// 自体の既定色は他クレート・他 block からの利用契約に影響するため
+/// 変更しない。block 内で唯一 `field::separator` を使うのは本 block のみ）。
 pub(super) const LAYOUT_CSS: &str = "\
 .blocks-signup-05 {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  min-height: 24rem;\n}\n\
 [data-blocks-signup-05-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n  width: 100%;\n  max-width: 24rem;\n  margin: 0 auto;\n}\n\
@@ -269,6 +278,7 @@ pub(super) const LAYOUT_CSS: &str = "\
 .blocks-signup-05-signin-row {\n  font-size: 0.875rem;\n  text-align: center;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-signup-05-field] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n}\n\
 [data-blocks-signup-05-submit] {\n  width: 100%;\n}\n\
+.blocks-signup-05 [data-scope=\"field\"][data-part=\"separator-content\"] {\n  background-color: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-signup-05-providers] {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: 1rem;\n}\n\
 [data-blocks-signup-05-provider] {\n  width: 100%;\n}\n\
 .blocks-signup-05-terms {\n  font-size: 0.75rem;\n  text-align: center;\n  color: var(--fandhe-color-fg-muted);\n  padding: 0 1.5rem;\n}\n\
