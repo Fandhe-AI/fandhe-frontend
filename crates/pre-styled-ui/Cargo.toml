@@ -3057,6 +3057,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.68.15 のまま）は main の 0.179.0 に含まれていない実体変更のため、
 # main の到達値 0.179.0 からさらに +1（patch）して 0.180.0 とする。
 #
+# イシュー #2282: bubble の `collapse-content` slot へ #2192 の共通高さ
+# トランジション機構（`SlotRecipe::content_height_transition`）を適用。
+# CSS 出力の追加のみで公開 API シグネチャは不変のため patch バンプ
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.3）。
 # 本コンフリクト解消（イシュー #2201、PR #2302 の base 取り込み・3 回目）:
 # 上記 2 回目の解消時点で本ブランチは 0.179.1 へ到達していたが、origin/main
 # も別経路（PR #2296 の headless-ui 0.68.16 依存追随の base 取り込み〔4 回目〕）
@@ -3066,6 +3070,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方の実体変更を統合した結果として main の到達値 0.180.0 をさらに上回る
 # 0.180.1 へ patch バンプする（本ブランチの変更自体が patch 相当のため、統合後も
 # マイナーバンプへは切り上げない）。
+# base 取り込み（PR #2282、イシュー #2194、5 回目）: 本ブランチ（#2282 の bubble
+# collapse-content への共通高さトランジション機構適用、patch 相当）と
+# origin/main（イシュー #2201/PR #2302 の pseudo_element API 追加取り込みを含む
+# 0.180.1）が同一版数 0.180.1 へ偶発的に到達していたため、同一版数への
+# 偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を統合した結果
+# として main の到達値 0.180.1 をさらに上回る 0.180.2 へ patch バンプする。
 #
 # イシュー #2202: splitter resize-trigger の `::after` ヒットエリア拡張を
 # 追加した（CSS 出力への純追加・公開 API 形状は不変のため patch）。本
@@ -3077,7 +3087,29 @@ name = "fandhe-frontend-pre-styled-ui"
 # breadcrumb breakpoint 適用 + pseudo_element API 追加、いずれも patch 相当の
 # 純追加）を統合した結果として 0.180.2 の patch をさらに +1 した 0.180.3 を
 # 採用する。
-version = "0.180.3"
+# 本コンフリクト解消（PR #2309、イシュー #2198、main 取り込み・再々衝突、
+# 同一版数への偶発的衝突）: 上記のとおり本ブランチ（#2198 breadcrumb
+# breakpoint 適用、patch 相当）は main 取り込み時に 0.180.0 の patch を
+# +1 した 0.180.1 へ到達していたが、origin/main 側も別経路（イシュー
+# #2201 pseudo_element API 追加、PR #2302 の base 取り込み・3 回目）で
+# 独立に同じ 0.180.1 へ到達していた。同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、双方の実体変更（breadcrumb breakpoint 適用 +
+# pseudo_element API 追加、いずれも patch 相当の純追加）を統合した結果
+# として 0.180.1 の patch をさらに +1 した 0.180.2 を採用する。
+#
+# 本コンフリクト解消（PR #2311、イシュー #2282、main 取り込み・同一版数への
+# 偶発的衝突）: 本ブランチ（#2282 bubble collapse-content 適用、patch
+# 相当）と origin/main（PR #2309 breadcrumb breakpoint 適用、patch 相当）が
+# 双方とも独立に 0.180.2 へ到達していたため、同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、双方の実体変更を統合した結果として 0.180.2 をさらに
+# +1 した 0.180.3 へ patch バンプする。
+# 本コンフリクト解消（PR #2315、イシュー #2202、main 取り込み・同一版数への
+# 偶発的衝突）: 本ブランチ（#2202 splitter resize-trigger の `::after` ヒット
+# エリア拡張、patch 相当）と origin/main（PR #2311 bubble collapse-content
+# 適用、patch 相当）が双方とも独立に 0.180.3 へ到達していたため、同一版数への
+# 偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を統合した結果として
+# 0.180.3 をさらに +1 した 0.180.4 へ patch バンプする。
+version = "0.180.4"
 
 
 edition = "2021"

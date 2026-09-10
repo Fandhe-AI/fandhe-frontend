@@ -895,7 +895,11 @@ name = "fandhe-frontend-wasm-full"
 # 0.18.4 とする。加えて依存先 `fandhe-frontend-headless-ui` の version
 # 要求を 0.68.17 へ追随させる（`cargo run -p xtask -- check-dep-versions
 # --fix`）。
-version = "0.18.4"
+#
+# イシュー #2282: `content_height::TARGETS` へ bubble の
+# `collapse-content` を 1 行追加（公開シグネチャ不変・テスト追加のみ）。
+# patch バンプ（`docs/ci/style-refresh-version-bump-operation.md` §3.3）。
+version = "0.18.5"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

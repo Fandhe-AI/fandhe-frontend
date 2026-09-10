@@ -16,6 +16,7 @@
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::accordion::{self, AccordionProps};
+use fandhe_frontend_headless_ui::bubble;
 use fandhe_frontend_headless_ui::collapsible;
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_wasm_full::content_height::{
@@ -46,7 +47,7 @@ fn target_selector_is_static_and_stable() {
     let selector = target_selector();
     assert_eq!(
         selector,
-        r#"[data-scope="collapsible"][data-part="content"],[data-scope="accordion"][data-part="item-content"]"#
+        r#"[data-scope="collapsible"][data-part="content"],[data-scope="accordion"][data-part="item-content"],[data-scope="bubble"][data-part="collapse-content"]"#
     );
     // 2 回呼んでも同一（副作用・グローバル状態を持たない純粋関数である
     // ことの確認）。
@@ -97,6 +98,21 @@ fn targets_table_matches_accordion_item_content_output() {
         false,
         &props,
         None,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert_scope_part_present(&html, scope, part);
+    assert!(is_target(scope, part));
+}
+
+#[test]
+fn targets_table_matches_bubble_collapse_content_output() {
+    let (scope, part) = TARGETS[2];
+    assert_eq!((scope, part), ("bubble", "collapse-content"));
+
+    let html = render(&bubble::collapse_content(
+        OpenState::Open,
         None,
         vec![],
         vec![],
@@ -163,5 +179,30 @@ fn accordion_item_content_closed_has_hidden_open_does_not() {
     assert!(
         !open.contains("hidden"),
         "open の item-content は hidden を持たないこと: {open}"
+    );
+}
+
+#[test]
+fn bubble_collapse_content_closed_has_hidden_open_does_not() {
+    let closed = render(&bubble::collapse_content(
+        OpenState::Closed,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(
+        closed.contains("hidden"),
+        "closed の collapse-content は hidden を持つこと: {closed}"
+    );
+
+    let open = render(&bubble::collapse_content(
+        OpenState::Open,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(
+        !open.contains("hidden"),
+        "open の collapse-content は hidden を持たないこと: {open}"
     );
 }
