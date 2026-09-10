@@ -31,6 +31,22 @@ const SCATTER_CHART_GOLDEN_CSS: &str = r#"[data-scope="scatter-chart"][data-part
 [data-scope="scatter-chart"][data-part="point"][data-hidden] {
   display: none;
 }
+
+[data-scope="scatter-chart"][data-part="point"][data-index] {
+  opacity: var(--fandhe-chart-inactive-opacity, 1);
+  transition-property: opacity;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="scatter-chart"][data-part="point"][data-active] {
+  opacity: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.5);
+  stroke: var(--fandhe-color-fg);
+  stroke-width: 2;
+}
 "#;
 
 const RADAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="radar-chart"][data-part="root"] {
@@ -86,6 +102,22 @@ const RADAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="radar-chart"][data-part="ro
 
 [data-scope="radar-chart"][data-part="point"][data-hidden] {
   display: none;
+}
+
+[data-scope="radar-chart"][data-part="point"][data-index] {
+  opacity: var(--fandhe-chart-inactive-opacity, 1);
+  transition-property: opacity;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="radar-chart"][data-part="point"][data-active] {
+  opacity: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.5);
+  stroke: var(--fandhe-color-fg);
+  stroke-width: 2;
 }
 "#;
 

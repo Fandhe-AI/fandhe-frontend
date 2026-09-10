@@ -87,7 +87,7 @@
 //! | `chart-tooltip-label-none` | `heading: None` |
 //! | `chart-tooltip-formatter`（値の書式） | `entries` の値は呼び出し側が整形済み文字列で渡す契約（`.claude/rules/coding-rust.md` §「数値・日時整形は UI コンポーネント層の責務外」と同じ判断軸。本モジュールは値を整形しない） |
 //! | `chart-tooltip-advanced`（Total footer） | `footer: Option<&str>` |
-//! | `chart-tooltip-indicator-line` / `-indicator-none` | 採用しない。ツールチップ DOM・indicator バリアントは #2129/#2131 のスコープ |
+//! | `chart-tooltip-indicator-line` / `-indicator-none` | 採用（[`TooltipIndicator::Line`]/[`TooltipIndicator::None`]、イシュー #2131） |
 //! | `chart-tooltip-icons` | 採用しない。ツールチップ DOM への icon 合成は #2129 のスコープ |
 //!
 //! [`datum`]/[`datum_label`]/[`css`] の出力はバイト不変（golden 純追加
@@ -98,13 +98,63 @@
 //! `data-hidden` を出力せず（`layer_from_entries` の引数拡張は #2134 へ
 //! 引き継ぐ、モジュール doc「本イシューのスコープ外」節）、wasm-full 側
 //! （#2134）が click 時に付け外しする設計。
+//!
+//! # indicator バリアント（イシュー #2131）
+//!
+//! [`TooltipIndicator`] は `tooltip-item`/`tooltip-indicator` の見た目を
+//! 切り替える variant 軸（shadcn/ui `indicator` prop 相当）。既定
+//! [`TooltipIndicator::Dot`] は本イシュー以前の出力と完全に同一（登録
+//! 済み `variant`/`default_variant` を持たず、[`tooltip_node`] も class
+//! を付与しない）。[`TooltipIndicator::Line`]/[`TooltipIndicator::Dashed`]
+//! は寸法・形状を variant class（`fd-chart--indicator-line`/`-dashed`）で
+//! 上書きする。[`TooltipIndicator::None`] は `tooltip-indicator` の
+//! `<span>` 自体を出力しない（legend [`super::legend`] の `hide_marker`
+//! と同じ「要素省略」意味論）。[`layer`]/[`layer_from_entries`] は
+//! [`TooltipLayerProps::default`]（`indicator: Dot`）へ委譲する薄い
+//! ラッパのため、既存呼び出しの golden はバイト不変（[`layer_with`]/
+//! [`layer_from_entries_with`] が indicator を選べる新規 API）。
+//!
+//! # hover 強調（active 拡張・非 active 減光、イシュー #2131）
+//!
+//! マウス追従・ホバー配線（#2130、PR #2267）は `data-active`（視覚要素の
+//! 強調表示）と `hidden`（ツールチップの表示切替）のみを付け外しし、
+//! 祖先要素へホバー状態を示す属性は**付与しない**。本モジュール（と各
+//! styled チャート）が減光 CSS を発火させるために要求する
+//! `[data-part="frame"][data-has-active]` /
+//! `[data-part="root"][data-has-active]`（styled 6 部品の `root`）は、
+//! **wasm-full 側の付け外し配線が未実装**（セッション開始/終了で
+//! `frame`/`root` へ属性を付け外しする変更は #2130 のスコープに含まれて
+//! いなかった）。このため本イシューの減光 CSS は、SSR が明示的に
+//! [`FrameProps { has_active: true }`](FrameProps) を渡す静的 Demo
+//! （docs-site `/themes/charts/`）以外では実際のマウス操作で発火しない。
+//! 実際のホバー操作で減光させるフォローアップ（`crates/wasm-full/src/chart.rs`
+//! の session begin/end に `data-has-active` の付け外しを追加する）は
+//! 別イシューへ引き継ぐ（本モジュール・各 styled チャートの CSS 自体は
+//! 属性さえ立てば直ちに機能する設計のため、フォローアップは wasm-full
+//! 側の変更のみで完結する）。
+//!
+//! 減光・拡張の消費規則（[`crate::table`] の `--fandhe-table-stripe-bg`
+//! と同型の「祖先の状態 → 継承される custom property → 各要素が消費」
+//! 方式。`SlotRecipe` は子孫・兄弟セレクタを持たないため、`:has()` 相当の
+//! 表現はできない、#708 参照）:
+//!
+//! | 要素 | 属性 | CSS |
+//! |---|---|---|
+//! | `frame`（[`frame_with`]）/ styled 6 部品の `root` | `data-has-active` | `--fandhe-chart-inactive-opacity: 0.4` を宣言 |
+//! | 視覚要素（`datum`/`point`/`segment`/`bar`） | `data-index`（既存語彙） | `opacity: var(--fandhe-chart-inactive-opacity, 1)` + transition（祖先が `data-has-active` を持たないときは `1` へフォールバックし常時フル不透明） |
+//! | 同要素 | `data-active`（既存語彙） | `opacity: 1` を `[data-index]` 規則より後に登録し上書き（拡大等の追加強調は各 styled チャートの rustdoc 参照） |
+//!
+//! `prefers-reduced-motion: reduce` は [`crate::theme::Theme::to_css`] の
+//! `--fandhe-motion-duration-*: 0ms` 一括上書きで自動対応するため、本
+//! モジュールに `@media` を追加する必要はない（既存 `datum:hover`
+//! 是正〔#1593〕と同じ判断）。
 
 use super::data::SeriesColor;
 use super::svg::{fmt_coord, fmt_value};
 use crate::css::decl;
 use crate::recipe::{
     focus_ring_declarations, transition_declarations, FocusRingColor, FocusRingOffset,
-    MotionDuration, SlotRecipe, StateCondition,
+    MotionDuration, SlotRecipe, StateCondition, VariantValue,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 
@@ -131,6 +181,62 @@ const SLOTS: &[&str] = &[
 /// で除去する対象。`crates/pre-styled-ui/src/table.rs` の `COLUMN_HEADER_RESERVED`
 /// と同型の判断）。
 const DATUM_RESERVED: &[&str] = &["data-scope", "data-part", "cx", "cy", "r", "aria-label"];
+
+/// ツールチップの色見本（`tooltip-indicator`）の見た目（shadcn/ui
+/// `ChartTooltipContent` の `indicator` prop 相当、イシュー #2131）。
+///
+/// 既定 [`TooltipIndicator::Dot`] は本イシュー以前の出力（`tooltip-item`/
+/// `tooltip-indicator` へ class を付与しない）と完全に同一（golden 純追加
+/// 原則。`recipe()` は `Dot`/`None` の `variant`/`default_variant` を登録
+/// しない、モジュール doc「indicator バリアント」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TooltipIndicator {
+    /// 円形マーカー（既定。shadcn `chart-tooltip-default`）。
+    #[default]
+    Dot,
+    /// 縦線マーカー（shadcn `chart-tooltip-indicator-line`）。
+    Line,
+    /// 破線の縦線マーカー（shadcn/ui Charts 系の `dashed` 系統に相当する
+    /// 静的近似。参照サイトに直接の registry 例は無いため内部整合のみ）。
+    Dashed,
+    /// マーカーを描画しない（shadcn `chart-tooltip-indicator-none`）。
+    /// [`tooltip_node`] は `tooltip-indicator` の `<span>` 自体を出力
+    /// しない（`super::legend` の `hide_marker` と同じ「要素省略」意味論）。
+    None,
+}
+
+impl VariantValue for TooltipIndicator {
+    fn axis(self) -> &'static str {
+        "indicator"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            TooltipIndicator::Dot => "dot",
+            TooltipIndicator::Line => "line",
+            TooltipIndicator::Dashed => "dashed",
+            TooltipIndicator::None => "none",
+        }
+    }
+}
+
+/// [`layer`]/[`layer_from_entries`] の見た目パラメータ（イシュー #2131）。
+/// 将来の軸追加を見越し、単一の `bool`/enum 引数ではなく構造体で拡張する
+/// （`crate::line_chart::LineChartProps` と同型の判断）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TooltipLayerProps {
+    /// `tooltip-indicator` の見た目（既定 [`TooltipIndicator::Dot`]）。
+    pub indicator: TooltipIndicator,
+}
+
+/// [`frame`] の見た目パラメータ（イシュー #2131）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FrameProps {
+    /// `true` のとき `data-has-active`（存在属性）を出力する。減光 CSS の
+    /// 起点（モジュール doc「hover 強調」節）。既定 `false`（非出力、
+    /// 本イシュー以前の [`frame`] 出力とバイト一致）。
+    pub has_active: bool,
+}
 
 /// Tooltip（データ点強調表示）の recipe（scope `"chart"`、[`SLOTS`] の
 /// 1 パーツ）。
@@ -217,6 +323,46 @@ fn recipe() -> SlotRecipe {
                 decl("font-variant-numeric", "tabular-nums"),
             ],
         )
+        // イシュー #2131: `TooltipIndicator::Line`/`Dashed`（shadcn/ui
+        // `chart-tooltip-indicator-line` 系突合）。`tooltip-item` 側は
+        // dot の中央揃え（既存 `align-items: center`）を線形マーカーの
+        // 全高に合わせて stretch へ切り替える。`Dot`/`None` は variant を
+        // 登録しない（登録すると全 tooltip-item/tooltip-indicator の
+        // class に無条件混入し既存 golden が壊れる、`line_chart::LineDots`
+        // と同じ判断）。
+        .variant(
+            TooltipIndicator::Line,
+            "tooltip-item",
+            vec![decl("align-items", "stretch")],
+        )
+        .variant(
+            TooltipIndicator::Dashed,
+            "tooltip-item",
+            vec![decl("align-items", "stretch")],
+        )
+        .variant(
+            TooltipIndicator::Line,
+            "tooltip-indicator",
+            vec![
+                decl("width", "1px"),
+                decl("height", "auto"),
+                decl("border-radius", "0"),
+            ],
+        )
+        .variant(
+            TooltipIndicator::Dashed,
+            "tooltip-indicator",
+            vec![
+                decl("width", "0"),
+                decl("height", "auto"),
+                decl("background", "transparent"),
+                decl(
+                    "border",
+                    "1.5px dashed var(--fandhe-chart-tooltip-color, currentColor)",
+                ),
+                decl("border-radius", "0"),
+            ],
+        )
         .state(
             "datum",
             StateCondition::Hover,
@@ -240,6 +386,45 @@ fn recipe() -> SlotRecipe {
             "tooltip-item",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
+        )
+        // イシュー #2131: hover 強調（減光）の起点。祖先（`frame`/styled
+        // 6 部品の `root`）が `data-has-active` を持つときのみ、`datum`
+        // へ `--fandhe-chart-inactive-opacity` を継承させる（モジュール
+        // doc「hover 強調」節）。値は shadcn/ui `ChartTooltip` の
+        // 非アクティブ系列薄化に近い固定値。
+        .state(
+            "frame",
+            StateCondition::Attr("data-has-active"),
+            vec![decl("--fandhe-chart-inactive-opacity", "0.4")],
+        )
+        // イシュー #2131: `data-index` を持つ `datum`（tooltip 語彙が
+        // 到達している要素＝#2130 が配線対象とする要素と機械的に一致する）
+        // を、祖先の減光宣言に応じて減光する。祖先が `data-has-active` を
+        // 持たない（誰もホバーしていない）ときは custom property が未定義
+        // のため `opacity: 1`（フォールバック）へ解決され、常時フル不透明
+        // のまま変化しない。
+        .state("datum", StateCondition::Attr("data-index"), {
+            let mut decls = vec![decl("opacity", "var(--fandhe-chart-inactive-opacity, 1)")];
+            decls.extend(transition_declarations("opacity", MotionDuration::Fast));
+            decls
+        })
+        // イシュー #2131: active な点は `[data-index]` の減光を上書きし
+        // フル不透明へ戻す（`[data-index]` 規則より後に登録することで
+        // 同一 specificity をソース順後勝ちで上書きする、`SlotRecipe::css`
+        // の states 出力順契約参照）。加えて系列色との識別性向上のため
+        // 拡大する（`datum:hover` の是正〔#1593〕と同じ色・線幅）。SVG
+        // 要素のため `transform-box`/`transform-origin` を明示する。
+        .state(
+            "datum",
+            StateCondition::Attr("data-active"),
+            vec![
+                decl("opacity", "1"),
+                decl("transform-box", "fill-box"),
+                decl("transform-origin", "center"),
+                decl("transform", "scale(1.5)"),
+                decl("stroke", "var(--fandhe-color-fg)"),
+                decl("stroke-width", "2"),
+            ],
         )
 }
 
@@ -369,7 +554,13 @@ pub fn datum<'a>(cx: f64, cy: f64, r: f64, label: &str, attrs: Vec<(&'a str, &'a
 //   への昇格と `svg_root` の `role="img"` 内包問題の扱いは #2130/#2128 への
 //   引き継ぎとし、本モジュールでは変更しない。
 // - `data-active` は本モジュールでは出力しない（#2130 が hit-area・視覚
-//   要素へ付与し、#2131 が CSS で消費する語彙として予約する）。
+//   要素へ付け外しし、#2131（本モジュール・各 styled チャート）が CSS で
+//   消費する語彙）。
+// - `data-has-active`（減光 CSS の起点、モジュール doc「hover 強調」節）は
+//   祖先要素（`frame`/`root`）への付け外しを #2130 が担う想定だったが、
+//   #2130（PR #2267）は実装しなかった。wasm-full 側でこの属性を付け外し
+//   する配線は未実装のフォローアップであり、本モジュールでは
+//   [`frame_with`] が明示フラグでのみ出力する（静的 Demo 用）。
 
 /// ツールチップ本文 1 行（1 系列分）。名前は
 /// [`super::data::Series::display_label`]、色は
@@ -573,9 +764,13 @@ pub fn hit_area_path(
 }
 
 /// 1 エントリ分のツールチップ本体（`data-part="tooltip"`）を組み立てる
-/// （内部ヘルパ、[`layer_from_entries`] のみが呼ぶ）。`active` が
+/// （内部ヘルパ、[`layer_from_entries_with`] のみが呼ぶ）。`active` が
 /// `entry.index` と一致しない場合のみ `hidden` を出力する。
-fn tooltip_node(entry: &TooltipEntry, active: Option<(usize, Option<&str>)>) -> Node {
+fn tooltip_node(
+    entry: &TooltipEntry,
+    active: Option<(usize, Option<&str>)>,
+    props: &TooltipLayerProps,
+) -> Node {
     let index_str = entry.index.to_string();
     let mut attrs: Vec<(&str, &str)> = vec![
         ("data-scope", SCOPE),
@@ -605,42 +800,57 @@ fn tooltip_node(entry: &TooltipEntry, active: Option<(usize, Option<&str>)>) -> 
         vec![("data-scope", SCOPE), ("data-part", "tooltip-label")],
         vec![text(entry.label.as_str())],
     )];
+    // イシュー #2131: `Dot`（既定）・`None`（class を持つ CSS 規則が
+    // 存在しない）は class を付与しない（golden 純追加原則、モジュール doc
+    // 「indicator バリアント」節）。`variant_class` は登録有無を見ず
+    // axis/value から文字列を組み立てるだけのため、ここで明示的に対象を
+    // 絞る（`recipe()` に variant を登録していない値でも非空文字列を
+    // 返してしまうため）。
+    let item_class = match props.indicator {
+        TooltipIndicator::Line | TooltipIndicator::Dashed => {
+            recipe().variant_class(props.indicator)
+        }
+        TooltipIndicator::Dot | TooltipIndicator::None => String::new(),
+    };
     for row in &entry.rows {
         let style = format!("--fandhe-chart-tooltip-color: {}", row.color.var());
         // `row.value` はピクセル座標ではなくデータ値そのものであるため
         // `fmt_value` を経由する（[`hit_area_label`] と同じ根拠、PR #2261
         // codex-review P1 指摘）。
         let value_text = fmt_value(row.value);
-        children.push(el(
-            "div",
-            vec![
-                ("data-scope", SCOPE),
-                ("data-part", "tooltip-item"),
-                ("data-series", row.series.as_str()),
-            ],
-            vec![
-                el(
-                    "span",
-                    vec![
-                        ("data-scope", SCOPE),
-                        ("data-part", "tooltip-indicator"),
-                        ("style", style.as_str()),
-                        ("aria-hidden", "true"),
-                    ],
-                    vec![],
-                ),
-                el(
-                    "span",
-                    vec![("data-scope", SCOPE), ("data-part", "tooltip-name")],
-                    vec![text(row.name.as_str())],
-                ),
-                el(
-                    "span",
-                    vec![("data-scope", SCOPE), ("data-part", "tooltip-value")],
-                    vec![text(value_text.as_str())],
-                ),
-            ],
+        let mut item_attrs: Vec<(&str, &str)> = vec![
+            ("data-scope", SCOPE),
+            ("data-part", "tooltip-item"),
+            ("data-series", row.series.as_str()),
+        ];
+        if !item_class.is_empty() {
+            item_attrs.push(("class", item_class.as_str()));
+        }
+        let mut item_children: Vec<Node> = Vec::new();
+        // イシュー #2131: `TooltipIndicator::None` は `tooltip-indicator`
+        // の `<span>` 自体を出力しない（shadcn `hideIndicator` 相当、
+        // `super::legend` の `hide_marker` と同じ「要素省略」意味論）。
+        if props.indicator != TooltipIndicator::None {
+            let mut indicator_attrs: Vec<(&str, &str)> =
+                vec![("data-scope", SCOPE), ("data-part", "tooltip-indicator")];
+            if !item_class.is_empty() {
+                indicator_attrs.push(("class", item_class.as_str()));
+            }
+            indicator_attrs.push(("style", style.as_str()));
+            indicator_attrs.push(("aria-hidden", "true"));
+            item_children.push(el("span", indicator_attrs, vec![]));
+        }
+        item_children.push(el(
+            "span",
+            vec![("data-scope", SCOPE), ("data-part", "tooltip-name")],
+            vec![text(row.name.as_str())],
         ));
+        item_children.push(el(
+            "span",
+            vec![("data-scope", SCOPE), ("data-part", "tooltip-value")],
+            vec![text(value_text.as_str())],
+        ));
+        children.push(el("div", item_attrs, item_children));
     }
     el("div", attrs, children)
 }
@@ -648,12 +858,25 @@ fn tooltip_node(entry: &TooltipEntry, active: Option<(usize, Option<&str>)>) -> 
 /// [`super::data::ChartData`] から直接ツールチップ層を組み立てる（内部で
 /// [`entries_from_chart_data`] を経由する薄いラッパ）。`active` が
 /// `Some(index)` の場合、そのカテゴリのツールチップのみ `hidden` を省く
-/// （静的な「開いた」状態の Demo 用、#2131 が消費）。
+/// （静的な「開いた」状態の Demo 用、#2131 が消費）。indicator は既定
+/// [`TooltipIndicator::Dot`]（本イシュー以前の出力とバイト一致、
+/// [`layer_with`] を使うと選べる）。
 #[must_use]
 pub fn layer(data: &super::data::ChartData, active: Option<usize>) -> Node {
-    layer_from_entries(
+    layer_with(data, active, &TooltipLayerProps::default())
+}
+
+/// [`layer`] の indicator 選択版（イシュー #2131）。
+#[must_use]
+pub fn layer_with(
+    data: &super::data::ChartData,
+    active: Option<usize>,
+    props: &TooltipLayerProps,
+) -> Node {
+    layer_from_entries_with(
         &entries_from_chart_data(data),
         active.map(|index| (index, None)),
+        props,
     )
 }
 
@@ -664,12 +887,24 @@ pub fn layer(data: &super::data::ChartData, active: Option<usize>) -> Node {
 /// 表示のため）。`active` は `(index, series)` の組で比較する（[`layer`]
 /// はカテゴリ単位＝`series: None` で呼ぶため `index` 単独比較と等価だが、
 /// scatter のように `index` が系列をまたいで重複するモデルでも一意に
-/// 1 エントリだけを開ける、イシュー #2129 codex-review 指摘）。
+/// 1 エントリだけを開ける、イシュー #2129 codex-review 指摘）。indicator
+/// は既定 [`TooltipIndicator::Dot`]（本イシュー以前の出力とバイト一致、
+/// [`layer_from_entries_with`] を使うと選べる）。
 #[must_use]
 pub fn layer_from_entries(entries: &[TooltipEntry], active: Option<(usize, Option<&str>)>) -> Node {
+    layer_from_entries_with(entries, active, &TooltipLayerProps::default())
+}
+
+/// [`layer_from_entries`] の indicator 選択版（イシュー #2131）。
+#[must_use]
+pub fn layer_from_entries_with(
+    entries: &[TooltipEntry],
+    active: Option<(usize, Option<&str>)>,
+    props: &TooltipLayerProps,
+) -> Node {
     let children = entries
         .iter()
-        .map(|entry| tooltip_node(entry, active))
+        .map(|entry| tooltip_node(entry, active, props))
         .collect();
     el(
         "div",
@@ -686,13 +921,22 @@ pub fn layer_from_entries(entries: &[TooltipEntry], active: Option<(usize, Optio
 /// `<svg data-part="root">` を返す基盤 3 部品（bar/scatter/radar）専用。
 /// 既に `div[root] > svg[plot|chart]` を持つ styled 6 部品は使わず、各
 /// root recipe の base へ `position: relative` を直接追加する）。
+/// `data-has-active` は出力しない（本イシュー以前の出力とバイト一致、
+/// [`frame_with`] を使うと出力できる）。
 #[must_use]
 pub fn frame(children: Vec<Node>) -> Node {
-    el(
-        "div",
-        vec![("data-scope", SCOPE), ("data-part", "frame")],
-        children,
-    )
+    frame_with(&FrameProps::default(), children)
+}
+
+/// [`frame`] の `data-has-active` 選択版（イシュー #2131、静的 Demo・
+/// wasm-full フォローアップ配線の双方が使う想定）。
+#[must_use]
+pub fn frame_with(props: &FrameProps, children: Vec<Node>) -> Node {
+    let mut attrs: Vec<(&str, &str)> = vec![("data-scope", SCOPE), ("data-part", "frame")];
+    if props.has_active {
+        attrs.push(("data-has-active", ""));
+    }
+    el("div", attrs, children)
 }
 
 #[cfg(test)]
@@ -998,5 +1242,145 @@ mod tests {
         let a = render(&layer(&data, None));
         let b = render(&layer_from_entries(&entries_from_chart_data(&data), None));
         assert_eq!(a, b);
+    }
+
+    // ------------------------------------------------------------------
+    // イシュー #2131: indicator バリアント・hover 強調 CSS・
+    // `frame_with`/`FrameProps` の回帰テスト。
+
+    #[test]
+    fn layer_default_matches_layer_with_dot_indicator() {
+        let data = sample_data();
+        let a = render(&layer(&data, None));
+        let b = render(&layer_with(&data, None, &TooltipLayerProps::default()));
+        assert_eq!(a, b);
+        assert!(!a.contains("fd-chart--indicator"));
+    }
+
+    #[test]
+    fn layer_with_line_indicator_adds_class_to_item_and_indicator() {
+        let data = sample_data();
+        let html = render(&layer_with(
+            &data,
+            None,
+            &TooltipLayerProps {
+                indicator: TooltipIndicator::Line,
+            },
+        ));
+        assert!(html.contains(
+            r#"data-part="tooltip-item" data-series="visits" class="fd-chart--indicator-line""#
+        ));
+        assert!(html.contains(r#"data-part="tooltip-indicator" class="fd-chart--indicator-line""#));
+    }
+
+    #[test]
+    fn layer_with_dashed_indicator_adds_class_to_item_and_indicator() {
+        let data = sample_data();
+        let html = render(&layer_with(
+            &data,
+            None,
+            &TooltipLayerProps {
+                indicator: TooltipIndicator::Dashed,
+            },
+        ));
+        assert!(html.contains("fd-chart--indicator-dashed"));
+    }
+
+    #[test]
+    fn layer_with_none_indicator_omits_indicator_span() {
+        let data = sample_data();
+        let html = render(&layer_with(
+            &data,
+            None,
+            &TooltipLayerProps {
+                indicator: TooltipIndicator::None,
+            },
+        ));
+        assert!(!html.contains(r#"data-part="tooltip-indicator""#));
+        // 値・ラベル自体は引き続き出力される。
+        assert!(html.contains(r#"data-part="tooltip-name""#));
+    }
+
+    #[test]
+    fn layer_from_entries_with_and_layer_with_agree_for_equivalent_data() {
+        let data = sample_data();
+        let props = TooltipLayerProps {
+            indicator: TooltipIndicator::Line,
+        };
+        let a = render(&layer_with(&data, None, &props));
+        let b = render(&layer_from_entries_with(
+            &entries_from_chart_data(&data),
+            None,
+            &props,
+        ));
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn xss_regression_layer_with_all_indicator_variants_escape_untrusted_inputs() {
+        // イシュー #2131 レビュー観点: indicator 4 種いずれでも
+        // category/series 名は既定エスケープを経由する（REQ-1）。
+        let payload = "</title><script>alert(1)</script>";
+        let data = super::super::data::ChartData::new(
+            vec![payload.to_string()],
+            vec![super::super::data::Series::new(payload, vec![1.0])],
+        )
+        .unwrap();
+        for indicator in [
+            TooltipIndicator::Dot,
+            TooltipIndicator::Line,
+            TooltipIndicator::Dashed,
+            TooltipIndicator::None,
+        ] {
+            let html = render(&layer_with(&data, None, &TooltipLayerProps { indicator }));
+            assert!(!html.contains("<script>"), "indicator={indicator:?}");
+            assert!(html.contains("&lt;script&gt;"), "indicator={indicator:?}");
+        }
+    }
+
+    #[test]
+    fn frame_with_default_matches_frame() {
+        let html_a = render(&frame(vec![text("child")]));
+        let html_b = render(&frame_with(&FrameProps::default(), vec![text("child")]));
+        assert_eq!(html_a, html_b);
+        assert!(!html_a.contains("data-has-active"));
+    }
+
+    #[test]
+    fn frame_with_has_active_true_outputs_data_has_active() {
+        let html = render(&frame_with(
+            &FrameProps { has_active: true },
+            vec![text("child")],
+        ));
+        assert!(html.contains("data-has-active"));
+    }
+
+    #[test]
+    fn css_output_declares_indicator_variants_and_hover_emphasis_vocabulary() {
+        let out = css();
+        assert!(out.contains("fd-chart--indicator-line"));
+        assert!(out.contains("fd-chart--indicator-dashed"));
+        assert!(out.contains(r#"[data-scope="chart"][data-part="frame"][data-has-active]"#));
+        assert!(out.contains("--fandhe-chart-inactive-opacity: 0.4"));
+        assert!(out.contains(r#"[data-scope="chart"][data-part="datum"][data-index]"#));
+        assert!(out.contains("var(--fandhe-chart-inactive-opacity, 1)"));
+        assert!(out.contains(r#"[data-scope="chart"][data-part="datum"][data-active]"#));
+        assert!(!out.contains('<'));
+    }
+
+    #[test]
+    fn css_output_orders_data_active_override_after_data_index_dimming() {
+        // `[data-active]` の `opacity: 1` は `[data-index]` の減光規則より
+        // 後にソース順で現れる必要がある（`SlotRecipe::css` の states
+        // 出力順＝登録順で後勝ち上書きを成立させる契約、モジュール doc
+        // 「hover 強調」節参照）。
+        let out = css();
+        let dimming_pos = out
+            .find(r#"[data-scope="chart"][data-part="datum"][data-index]"#)
+            .expect("data-index 減光規則が出力されること");
+        let active_pos = out
+            .find(r#"[data-scope="chart"][data-part="datum"][data-active]"#)
+            .expect("data-active 上書き規則が出力されること");
+        assert!(active_pos > dimming_pos);
     }
 }

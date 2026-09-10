@@ -1,5 +1,12 @@
 [package]
 name = "fandhe-frontend-pre-styled-ui"
+# イシュー #2131: charts のツールチップに indicator バリアント（dot/line/
+# dashed/none、`charts::tooltip::TooltipIndicator`）と hover 強調 CSS
+# （`data-has-active`/`data-index`/`data-active` の減光・拡張、8 チャート
+# 部品への末尾純追加）を追加した。新規公開 API（`TooltipIndicator`/
+# `TooltipLayerProps`/`FrameProps`/`layer_with`/`layer_from_entries_with`/
+# `frame_with`）のみで既存関数シグネチャ・golden CSS の既存ブロックは不変
+# のため非破壊的な追加として minor バンプする。
 # イシュー #2187: navigation-menu にルートレベル indicator パーツの CSS 変数
 # 契約付き着装（SLOTS 純追加・root への position:relative 1 宣言・indicator
 # の base/state 宣言）を追加した。既存パーツの出力バイトは変更していない
@@ -2772,7 +2779,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # base 取り込みで origin/main 側の到達値 0.166.0 を確認したが、本ブランチ
 # 側の 0.167.0 が既にこれを上回るため、追加バンプ不要で 0.167.0 を
 # そのまま採用する。
-version = "0.167.0"
+version = "0.168.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

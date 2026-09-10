@@ -147,7 +147,9 @@ use crate::charts::svg::{fmt_coord, svg_root, svg_text, ViewBox, ViewBoxError};
 use crate::charts::{tooltip, ChartError};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    transition_declarations, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -453,6 +455,39 @@ fn recipe() -> SlotRecipe {
             "value-label",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
+        )
+        // イシュー #2131: hover 強調（減光）の起点。`root` は
+        // `tooltip-layer`（`position: absolute`）の配置に必要な
+        // `position: relative` を既に持つ祖先であり、ここで
+        // `--fandhe-chart-inactive-opacity` を宣言して `point` へ継承
+        // させる（`crate::charts::tooltip` モジュール doc「hover 強調」節
+        // 参照。wasm-full 側の `data-has-active` 付け外し配線は未実装の
+        // フォローアップ）。
+        .state(
+            "root",
+            StateCondition::Attr("data-has-active"),
+            vec![decl("--fandhe-chart-inactive-opacity", "0.4")],
+        )
+        .state("point", StateCondition::Attr("data-index"), {
+            let mut decls = vec![decl("opacity", "var(--fandhe-chart-inactive-opacity, 1)")];
+            decls.extend(transition_declarations("opacity", MotionDuration::Fast));
+            decls
+        })
+        // イシュー #2131: active な点は上記の減光を上書きしフル不透明へ
+        // 戻し、系列色との識別性向上のため拡大する（`SlotRecipe::css` の
+        // states 出力順契約により `[data-index]` 規則より後で上書き。
+        // `chart::tooltip::datum:hover` 是正〔#1593〕と同じ色・線幅）。
+        .state(
+            "point",
+            StateCondition::Attr("data-active"),
+            vec![
+                decl("opacity", "1"),
+                decl("transform-box", "fill-box"),
+                decl("transform-origin", "center"),
+                decl("transform", "scale(1.5)"),
+                decl("stroke", "var(--fandhe-color-fg)"),
+                decl("stroke-width", "2"),
+            ],
         )
 }
 

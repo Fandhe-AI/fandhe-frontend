@@ -115,7 +115,9 @@ use crate::charts::{drop_range_attr, series_color_var, tooltip, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::pie_chart::{PieLabelContent, PieLabelPosition, PieSeparator};
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    transition_declarations, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -434,6 +436,41 @@ fn recipe() -> SlotRecipe {
             "label-line",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
+        )
+        // イシュー #2131: hover 強調（減光・拡張）。既存 `segment[data-active]`
+        // （#2084）は `active_index` 由来の**外径拡張済み `d`**（presentation
+        // 属性）を前提としているため、CSS 拡大を常時有効にすると二重に
+        // 拡大してしまう。`--fandhe-chart-active-scale` を
+        // `root[data-has-active]`（wasm-full 側のホバー配線が付ける、
+        // モジュール doc「hover 強調」節参照）のときのみ `1.05` へ設定し、
+        // それ以外は `[data-active]` 側のフォールバック `1` に解決される
+        // ため、静的な `active_index` 指定のみ（ホバーなし）では見た目が
+        // 変わらない（`crate::pie_chart::recipe` と同型）。
+        .state(
+            "root",
+            StateCondition::Attr("data-has-active"),
+            vec![
+                decl("--fandhe-chart-inactive-opacity", "0.4"),
+                decl("--fandhe-chart-active-scale", "1.05"),
+            ],
+        )
+        .state("segment", StateCondition::Attr("data-index"), {
+            let mut decls = vec![decl("opacity", "var(--fandhe-chart-inactive-opacity, 1)")];
+            decls.extend(transition_declarations(
+                "opacity, transform",
+                MotionDuration::Fast,
+            ));
+            decls
+        })
+        .state(
+            "segment",
+            StateCondition::Attr("data-active"),
+            vec![
+                decl("opacity", "1"),
+                decl("transform-box", "view-box"),
+                decl("transform-origin", "50% 50%"),
+                decl("transform", "scale(var(--fandhe-chart-active-scale, 1))"),
+            ],
         )
 }
 

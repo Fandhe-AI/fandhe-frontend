@@ -154,7 +154,7 @@ use super::{tooltip, ChartError};
 use crate::charts::axis::{self, AxisProps, TickLabelFormat};
 use crate::charts::grid::{self, GridProps};
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{transition_declarations, MotionDuration, SlotRecipe, StateCondition};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 
 /// バンド内の両端余白（片側、バンド幅に対する比率）。
@@ -489,6 +489,32 @@ fn recipe() -> SlotRecipe {
             "inside-label",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
+        )
+        // イシュー #2131: hover 強調（減光）の消費側。祖先の
+        // `chart::tooltip::frame`（scope `"chart"`、`<svg>` の親）が
+        // `data-has-active` を持つときに継承する
+        // `--fandhe-chart-inactive-opacity`（scope をまたいで custom
+        // property は通常どおり継承される）を消費する。祖先が
+        // `data-has-active` を持たない（誰もホバーしていない）ときは
+        // フォールバック `1` に解決され常時フル不透明のまま変化しない
+        // （`crate::charts::tooltip` モジュール doc「hover 強調」節参照。
+        // wasm-full 側の `data-has-active` 付け外し配線は未実装のため、
+        // 実際のホバー操作では現状発火しない）。
+        .state("bar", StateCondition::Attr("data-index"), {
+            let mut decls = vec![decl("opacity", "var(--fandhe-chart-inactive-opacity, 1)")];
+            decls.extend(transition_declarations("opacity", MotionDuration::Fast));
+            decls
+        })
+        // イシュー #2131: active な棒は上記の減光を上書きしフル不透明へ
+        // 戻す（`[data-index]` 規則より後に登録することでソース順後勝ちで
+        // 上書きする、`SlotRecipe::css` の states 出力順契約参照）。
+        // 既存の `bar[data-active]`（#2082、破線強調）は変更しない
+        // （拡大は行わない。`crate::charts::tooltip` モジュール doc
+        // 「hover 強調」節「同要素」行参照）。
+        .state(
+            "bar",
+            StateCondition::Attr("data-active"),
+            vec![decl("opacity", "1")],
         )
 }
 
@@ -1752,13 +1778,16 @@ mod tests {
     }
 
     #[test]
-    fn css_has_no_hover_or_transition_rules() {
+    fn css_has_no_hover_pseudo_class_but_declares_data_index_transition() {
         // bar/category-label は表示専用 slot（モジュール doc「イシュー
-        // #1590 でのスコープ外判断」参照）。将来 <title> 付与等で hover を
-        // 導入する場合はこのテストを意図的に更新すること。
+        // #1590 でのスコープ外判断」参照）で `:hover` 疑似クラスは今も
+        // 持たない。ただしイシュー #2131 で `bar[data-index]` の減光に
+        // `transition-property: opacity` を追加したため、本テストの
+        // 「transition 皆無」判定は意図的に更新した（テスト名・アサーション
+        // を実態へ合わせる。コメントの「将来更新すること」を実行した）。
         let out = css();
         assert!(!out.contains(":hover"));
-        assert!(!out.contains("transition-"));
+        assert!(out.contains("transition-property: opacity"));
     }
 
     // ---- イシュー #2082: shadcn/ui Charts（bar）突合バリアント ----

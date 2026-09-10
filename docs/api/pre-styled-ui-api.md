@@ -1131,6 +1131,7 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
 | `charts::grid` | `cartesian_grid(x_range, y_range, x_positions, y_positions, props)` | `Result<Node, ChartError>` |
 | `charts::legend` | `legend(data: &ChartData, props: &LegendProps)` / `category_legend(data, props)`（`LegendProps` は `title`/`hide_marker`/`align`/`marker`〔イシュー #2086〕/`hidden_series`/`hidden_categories`/`controls`〔イシュー #2133〕。各 item は `<button aria-pressed>` を持つ `trigger` slot） | `Node`（infallible） |
 | `charts::tooltip` | `datum_label(category, series, value)` / `datum_label_lines(heading, entries, footer)`（複数行、イシュー #2086） / `datum(cx, cy, r, label, attrs)` | `String` / `String` / `Node`（いずれも infallible） |
+| `charts::tooltip`（indicator/hover 強調、イシュー #2131） | `layer_with(data, active, &TooltipLayerProps)` / `layer_from_entries_with(entries, active, &TooltipLayerProps)`（`TooltipLayerProps { indicator: TooltipIndicator }`。既定 `Dot` は既存 `layer`/`layer_from_entries` とバイト一致） / `frame_with(&FrameProps, children)`（`FrameProps { has_active: bool }`） | `Node`（いずれも infallible） |
 | `charts::data`（系列設定、イシュー #2077） | `Series::with_label(label)` / `with_color(SeriesColor)` / `with_icon(Node)` / `display_label()` | `Series` / `&str` |
 | `charts::data`（系列色、イシュー #2077） | `SeriesColor::token(name)` / `chart_slot(1..=6)` / `palette(ColorPalette)` / `ChartData::series_color_var(index)` | `Result<SeriesColor, ThemeError>`（`palette` のみ infallible） / `String` |
 
@@ -1159,15 +1160,44 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
 ### SSR ツールチップ方式（JS 不使用）
 
 マウス追従型のリッチツールチップ（recharts `<Tooltip>` の cursor 追従）は
-JS ランタイムが必須のためスコープ外（#2128 系〔#2129〜#2131〕が実装を
-担う）。代わりに `tooltip::datum` がデータ点（`<circle>`）へ子 `<title>`
-要素（ブラウザネイティブな hover 表示）と `aria-label` 属性（同一文字列）
-を埋め込み、`StateCondition::Hover` による CSS のみの視覚強調と組み合わせ
-て「ホバーで詳細が分かる」体験を実現する。静的テキストは 1 行の
-`datum_label` と複数行の `datum_label_lines`（見出し省略可・整形済み値・
-footer、イシュー #2086、shadcn/ui `chart-tooltip-default`/
-`-advanced` 相当）の 2 択。indicator バリアント・icon 合成・ツールチップ
-DOM・hit-area は #2129/#2131 のスコープであり本モジュールには含まれない。
+JS ランタイムが必須のためスコープ外（#2128 系〔#2129 が SSR ツールチップ
+DOM・hit-area、#2130 が JS 配線〕が実装を担う）。代わりに `tooltip::datum`
+がデータ点（`<circle>`）へ子 `<title>` 要素（ブラウザネイティブな hover
+表示）と `aria-label` 属性（同一文字列）を埋め込み、`StateCondition::Hover`
+による CSS のみの視覚強調と組み合わせて「ホバーで詳細が分かる」体験を
+実現する。静的テキストは 1 行の `datum_label` と複数行の
+`datum_label_lines`（見出し省略可・整形済み値・footer、イシュー #2086、
+shadcn/ui `chart-tooltip-default`/`-advanced` 相当）の 2 択。icon 合成は
+#2129 のスコープ外であり本モジュールには含まれない。
+
+#### indicator バリアント・hover 強調（イシュー #2131）
+
+`tooltip-indicator`（ツールチップの色見本）の見た目は `TooltipIndicator`
+（`Dot`〔既定〕/`Line`/`Dashed`/`None`）から選べる。`layer_with`/
+`layer_from_entries_with`（`layer`/`layer_from_entries` の indicator 選択
+版）が `TooltipLayerProps { indicator }` を受け取る。`Dot`（既定）/`None`
+は CSS class を持たず（golden 純追加原則）、`None` は `tooltip-indicator`
+の `<span>` 自体を省略する（shadcn/ui `hideIndicator` 相当）。
+
+hover 強調（active な点の拡張・非 active 点の減光）は「祖先の状態 →
+継承される custom property → 各要素が消費」方式（`table::root` の
+`--fandhe-table-stripe-bg` と同型、`SlotRecipe` が子孫・兄弟セレクタを
+持たないため）:
+
+| 要素 | 属性 | CSS |
+|---|---|---|
+| `tooltip::frame` / 8 個の chart 部品それぞれの `root` | `data-has-active`（`tooltip::frame_with` の `FrameProps { has_active: true }` で明示できる） | `--fandhe-chart-inactive-opacity: 0.4`（pie/donut/radial は追加で `--fandhe-chart-active-scale: 1.05`）を宣言 |
+| 視覚要素（`datum`/`point`/`bar`/`segment`） | `data-index`（既存語彙） | `opacity: var(--fandhe-chart-inactive-opacity, 1)` + transition。祖先が `data-has-active` を持たなければ `1` へフォールバックし常時フル不透明 |
+| 同要素 | `data-active`（既存語彙） | `opacity: 1` で上記を上書き。donut の外径拡張済み `active_index` との二重拡大を避けるため、pie/donut/radial は `transform: scale(var(--fandhe-chart-active-scale, 1))`（`root[data-has-active]` が無ければ `1` で拡大なし）、他は固定 `scale(1.5)` |
+
+**実際のマウス操作で `data-has-active` を付け外しする wasm-full 側の配線は
+本イシュー（#2131）の時点では未実装**（#2130 は `data-active`/`hidden` の
+付け外しのみ実装し、祖先属性の付け外しはスコープに含まれなかった）。
+このため上記の減光 CSS は、SSR が [`FrameProps { has_active: true }`] を
+明示する静的 Demo（`/themes/charts/`）以外の経路では発火しない。
+`prefers-reduced-motion: reduce` は `Theme::to_css` の
+`--fandhe-motion-duration-*: 0ms` 一括上書きで自動対応するため、本モジュール
+には `@media` を追加していない。
 
 ### 系列設定（`label`/`color`/`icon`、イシュー #2077）
 

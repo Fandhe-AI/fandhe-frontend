@@ -139,7 +139,7 @@ use super::scale::LinearScale;
 use super::svg::{self, fmt_value, ViewBox};
 use super::{series_color_var, tooltip, ChartError};
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{transition_declarations, MotionDuration, SlotRecipe, StateCondition};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 /// `data-scope="scatter-chart"` の part 一覧（recipe と揃える）。
@@ -369,6 +369,32 @@ fn recipe() -> SlotRecipe {
             "point",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
+        )
+        // イシュー #2131: hover 強調（減光）の消費側。祖先の
+        // `chart::tooltip::frame`（`<svg>` の親）が `data-has-active` を
+        // 持つときに継承する `--fandhe-chart-inactive-opacity` を消費する
+        // （`crate::charts::tooltip` モジュール doc「hover 強調」節参照。
+        // wasm-full 側の付け外し配線は未実装のフォローアップ）。
+        .state("point", StateCondition::Attr("data-index"), {
+            let mut decls = vec![decl("opacity", "var(--fandhe-chart-inactive-opacity, 1)")];
+            decls.extend(transition_declarations("opacity", MotionDuration::Fast));
+            decls
+        })
+        // イシュー #2131: active な点は上記の減光を上書きしフル不透明へ
+        // 戻し、系列色との識別性向上のため拡大する（`SlotRecipe::css` の
+        // states 出力順契約により `[data-index]` 規則より後で上書き。
+        // `chart::tooltip::datum:hover` 是正〔#1593〕と同じ色・線幅）。
+        .state(
+            "point",
+            StateCondition::Attr("data-active"),
+            vec![
+                decl("opacity", "1"),
+                decl("transform-box", "fill-box"),
+                decl("transform-origin", "center"),
+                decl("transform", "scale(1.5)"),
+                decl("stroke", "var(--fandhe-color-fg)"),
+                decl("stroke-width", "2"),
+            ],
         )
 }
 

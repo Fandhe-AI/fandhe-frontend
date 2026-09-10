@@ -161,7 +161,9 @@ use crate::charts::{drop_range_attr, tooltip, ChartError};
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, is_valid_identifier};
 use crate::line_chart::{category_x, view_box_from_dims};
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    transition_declarations, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -453,6 +455,31 @@ fn recipe() -> SlotRecipe {
             "point",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
+        )
+        // イシュー #2131: hover 強調（減光）の起点・消費側（`crate::charts::tooltip`
+        // モジュール doc「hover 強調」節参照。wasm-full 側の
+        // `data-has-active` 付け外し配線は未実装のフォローアップ）。
+        .state(
+            "root",
+            StateCondition::Attr("data-has-active"),
+            vec![decl("--fandhe-chart-inactive-opacity", "0.4")],
+        )
+        .state("point", StateCondition::Attr("data-index"), {
+            let mut decls = vec![decl("opacity", "var(--fandhe-chart-inactive-opacity, 1)")];
+            decls.extend(transition_declarations("opacity", MotionDuration::Fast));
+            decls
+        })
+        .state(
+            "point",
+            StateCondition::Attr("data-active"),
+            vec![
+                decl("opacity", "1"),
+                decl("transform-box", "fill-box"),
+                decl("transform-origin", "center"),
+                decl("transform", "scale(1.5)"),
+                decl("stroke", "var(--fandhe-color-fg)"),
+                decl("stroke-width", "2"),
+            ],
         )
 }
 
