@@ -83,7 +83,7 @@
 //! には現れない属性。上記「位置ジオメトリ」節参照）に連動して、
 //! `arrow-tip` の回転角を anchor に面する辺へ先端が向くよう切り替える。
 //! CSS custom property の継承（`positioner[data-side=X]` state が
-//! `--fandhe-menu-arrow-rotate` を**定義のみ**し、`arrow-tip` の base 規則
+//! `--fandhe-menu-arrow-rotate` を**定義**し、`arrow-tip` の base 規則
 //! が `var(..., 45deg)` で**消費**する）で実現し、[`crate::recipe::
 //! SlotRecipe`] が持たない子孫結合子（イシュー #708 で意図的に非採用）は
 //! 使わない。SSR は常に bottom 配置のため `positioner` 自体のジオメトリ
@@ -91,6 +91,20 @@
 //! 保つ判断）。回転値は floating（positioner）が anchor のどちら側に
 //! 出るかで決まる（`arrow`/`arrow-tip` は `border-left`/`border-top` 固定
 //! + `translate(-50%, -50%)` で辺上に中心配置する前提）:
+//!
+//! **ネストしたサブメニューへの継承漏れ対策（Bugbot 指摘、イシュー
+//! #2210）**: `--fandhe-menu-arrow-rotate` は継承される CSS custom
+//! property のため、`data-side` state（`top`/`left`/`right`）だけが
+//! この変数を定義し既定（bottom 相当・`data-side` 未指定）の
+//! `positioner` が何も定義しないと、祖先 `positioner`（例: 画面端で
+//! `top` へ反転した親メニュー）の値をネストしたサブメニューの
+//! `positioner` が継承してしまい、子の `arrow-tip` が誤った向きを
+//! 指す。これを防ぐため `positioner` の **base** 規則
+//! （`data-side` 未指定にもマッチする、詳細度 2）でも
+//! `--fandhe-menu-arrow-rotate: 45deg;` を明示的に再定義し、既定側の
+//! 継承を子孫ごとにローカルへ断ち切る。`data-side` state（詳細度 3）
+//! は base 規則より詳細度が高いため、top/left/right への切り替えは
+//! 従来どおり上書きされる。
 //!
 //! | `data-side` | floating の位置 | 先端の向き | rotate |
 //! |---|---|---|---|
@@ -480,6 +494,17 @@ fn recipe() -> SlotRecipe {
                 decl("left", "0"),
                 decl("z-index", "10"),
                 decl("margin-top", "var(--fandhe-space-1)"),
+                // イシュー #2210 Bugbot 指摘: `--fandhe-menu-arrow-rotate`
+                // は CSS custom property であり継承される。data-side が
+                // 既定（未指定 = bottom 相当）の positioner にこの base
+                // 規則で明示的にフォールバック値（45deg）を再定義して
+                // おかないと、祖先 positioner（ネストしたサブメニュー等）
+                // が top/left/right の値を持つ場合にそれを継承してしまい
+                // arrow-tip の向きを誤る。`positioner[data-side=...]`
+                // state（詳細度 3）はこの base 規則（詳細度 2）より
+                // 常に優先されるため、既定以外の分岐は従来どおり上書き
+                // される。
+                decl("--fandhe-menu-arrow-rotate", "45deg"),
             ],
         )
         .base(
@@ -1327,6 +1352,37 @@ mod tests {
         assert!(css.contains("--fandhe-menu-arrow-rotate: 135deg;"));
         assert!(css.contains(r#"[data-scope="menu"][data-part="positioner"][data-side="right"]"#));
         assert!(css.contains("--fandhe-menu-arrow-rotate: 315deg;"));
+    }
+
+    #[test]
+    fn positioner_base_rule_resets_arrow_rotate_to_prevent_inherited_side_leaking_into_nested_menus(
+    ) {
+        // イシュー #2210 Bugbot 指摘の回帰固定: `--fandhe-menu-arrow-rotate`
+        // は CSS custom property のため継承される。`positioner` の base
+        // 規則（`data-side` 未指定 = 既定 bottom 相当）が明示的に
+        // フォールバック値（45deg）を再定義していないと、ネストした
+        // サブメニューの positioner が data-side 未指定（既定）でも
+        // 祖先 positioner（例: `data-side="top"`）の 225deg を継承して
+        // しまい、子の arrow-tip が誤った向きを指す。base 規則
+        // （`[data-scope="menu"][data-part="positioner"] {`、詳細度 2）
+        // に `--fandhe-menu-arrow-rotate: 45deg;` が含まれることを固定
+        // する。この宣言は `positioner[data-side=...]` state（詳細度 3）
+        // より低い詳細度のため、data-side 明示時の上書きは壊さない。
+        let css = stylesheet();
+        let base_rule_start = css
+            .find("[data-scope=\"menu\"][data-part=\"positioner\"] {")
+            .expect("positioner base rule must exist");
+        let base_rule_end = css[base_rule_start..]
+            .find('}')
+            .map(|offset| base_rule_start + offset)
+            .expect("positioner base rule must be closed");
+        let base_rule = &css[base_rule_start..base_rule_end];
+        assert!(
+            base_rule.contains("--fandhe-menu-arrow-rotate: 45deg;"),
+            "positioner base rule must locally reset --fandhe-menu-arrow-rotate \
+             so nested default-side positioners do not inherit an ancestor's \
+             non-default rotate value; base rule was: {base_rule:?}"
+        );
     }
 
     #[test]

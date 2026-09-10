@@ -284,6 +284,14 @@ fn recipe() -> SlotRecipe {
                 // 方針）。
                 decl("z-index", "var(--fandhe-z-index-popover, 10)"),
                 decl("margin-top", "var(--fandhe-space-1)"),
+                // イシュー #2210 Bugbot 指摘（[`crate::menu`] と同型）:
+                // `--fandhe-popover-arrow-rotate` は継承される CSS custom
+                // property のため、data-side が既定（未指定 = bottom
+                // 相当）の positioner にもこの base 規則でフォールバック値
+                // （45deg）を明示的に再定義し、祖先からの意図しない継承を
+                // 断つ。`positioner[data-side=...]` state（詳細度 3）は
+                // この base 規則（詳細度 2）より常に優先される。
+                decl("--fandhe-popover-arrow-rotate", "45deg"),
             ],
         )
         .base(

@@ -301,6 +301,15 @@ fn recipe() -> SlotRecipe {
                 // （1700）。旧来値 1100 を fallback に据える。
                 decl("z-index", "var(--fandhe-z-index-tooltip, 1100)"),
                 decl("margin-bottom", "var(--fandhe-space-1)"),
+                // イシュー #2210 Bugbot 指摘（[`crate::menu`] と同型）:
+                // `--fandhe-tooltip-arrow-rotate` は継承される CSS custom
+                // property のため、data-side が既定（未指定 = top 相当）の
+                // positioner にもこの base 規則でフォールバック値
+                // （225deg、無指定時の先端下向きと一致）を明示的に再定義
+                // し、祖先からの意図しない継承を断つ。
+                // `positioner[data-side=...]` state（詳細度 3）はこの
+                // base 規則（詳細度 2）より常に優先される。
+                decl("--fandhe-tooltip-arrow-rotate", "225deg"),
             ],
         )
         // イシュー #2041: shadcn/ui の `TooltipContent` は `side`
