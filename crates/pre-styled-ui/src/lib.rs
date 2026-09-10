@@ -743,6 +743,7 @@ pub mod marquee;
 pub mod menu;
 pub mod menubar;
 pub mod message;
+pub mod message_scroller;
 pub mod native_select;
 pub mod nav_list;
 pub mod navigation_menu;

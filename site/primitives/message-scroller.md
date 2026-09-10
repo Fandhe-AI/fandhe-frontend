@@ -21,7 +21,7 @@ AI チャット UI の会話ログを収めるスクロールコンテナを表�
 - `jump_to_latest` / `load_more` はネイティブ `button`（`type="button"`）で、Enter・Space が既定で作動します。
 - `aria-live` / `aria-busy` / `aria-posinset` / `aria-setsize` はいずれも付与しません。通知タイミング・総数（無限履歴では SSR 時点で確定できません）はアプリケーション固有の判断であり、本部品の責務外です。
 
-スタイル済みの表示例（recipe・golden テスト・Themes ページ）は現時点では未実装です（後続イシュー #2123）。
+`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。Themes 版は [Message Scroller](../themes/message-scroller.md) を参照してください。
 
 自前 CSS の最小例:
 

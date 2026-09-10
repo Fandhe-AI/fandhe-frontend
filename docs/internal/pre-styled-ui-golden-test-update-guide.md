@@ -84,6 +84,8 @@ image_cropper / **input_group（イシュー #2063 で golden 新設。`styleshe
 listbox / **marker（イシュー #2115 で golden 新設。`stylesheet()` 全文）** /
 marquee / menu / **menubar（方式 b）** /
 **message（イシュー #2106 で golden 新設。`stylesheet()` 全文）** /
+**message_scroller（イシュー #2123 で golden 新設。`stylesheet()` 全文
+〔raw CSS 子結合子規則を含む〕）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
 pin_input / progress / qr_code / **questionnaire（イシュー #2119 で
 golden 新設。`stylesheet()` 全文〔raw CSS 子孫規則を含む〕）** /
