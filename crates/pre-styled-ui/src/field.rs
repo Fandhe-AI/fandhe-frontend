@@ -129,6 +129,37 @@
 //!   `list.rs` 型の手書き descendant セレクタ追記が必要。効果が視覚微調整
 //!   に留まる割に新規複雑化を伴うため不採用。
 //!
+//! ## 採用したもの（イシュー #2185、上記「見送ったもの」からの是正）
+//!
+//! headless-ui 側で `group`/`content`/`title`/テキスト付き `separator`
+//! （内部パーツ `separator-line`/`separator-content`）の anatomy が新設
+//! （イシュー #2185）されたことを受け、本モジュールも 6 slot を追加登録
+//! して着装する（`SLOTS` 末尾に純追加、既存 5 slot の base/state 出力
+//! バイトは変更しない）。
+//!
+//! - **`group` の間隔**: shadcn/ui の合成（複数 `Field` を縦積みし線区切り
+//!   する構成、`docs/design/reference-screenshots/shadcn-field-1.png`）を
+//!   採るが、値は本リポジトリの space トークン
+//!   （`--fandhe-space-6` = 1.5rem。shadcn `gap-7` = 1.75rem に最も近い
+//!   段）を採る。理由: トークン外の生 `rem` 値は #1423 のスケール決定に
+//!   反する。
+//! - **`separator` の線描画**: `border-*`（chakra-ui 方式）を採る。理由:
+//!   [`crate::separator`]（#2053）が既に持つ `--fandhe-separator-thickness`
+//!   の上書き契約を共有し、区切り線の太さ制御を一貫させるため。線は実要素
+//!   `separator-line`（`hr`）の `border-top` で描き、擬似要素は使わない
+//!   （[`StateCondition`] が擬似要素セレクタを表現できないため）。
+//! - **`title`**: `label` と同じ型階層（サイズ・太さ・行間・配色）を採る。
+//!   `<label for>` を結べない場面の見出しとして視覚的に同格に見せるため。
+//! - **`content`**: disabled 時の減光を付与しない（子の `label`/`title`/
+//!   `helper-text` が既に減光するため、コンテナ自身が二重に薄くなるのを
+//!   避ける）。
+//!
+//! 参照スクショについての注記: イシュー本文が指す番号と実ファイルが食い
+//! 違うため、Examples（docs-site 側）では `shadcn-field-1.png`
+//! （Payment Method フォーム: 複数 field の縦積み・区切り線）と
+//! `shadcn-field-2.png`（Username/Password の content レイアウト）の両方を
+//! 参照する。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 全出力は [`fandhe_frontend_core::el`]/[`fandhe_frontend_core::text`]
@@ -155,17 +186,25 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // （呼び出し側はそれぞれのモジュールから `input`/`textarea`/`native_select`
 // を使う）。
 pub use fandhe_frontend_headless_ui::field::{
-    error_text, helper_text, label, required_indicator, FieldIds, FieldProps,
+    content, error_text, group, helper_text, label, required_indicator, separator, title, FieldIds,
+    FieldProps,
 };
 
 /// slot 一覧（headless [`fandhe_frontend_headless_ui::field`] の anatomy の
-/// うち、本モジュールが CSS を持つ 5 パーツ）。
+/// うち、本モジュールが CSS を持つ 11 パーツ）。末尾 6 件はイシュー #2185
+/// で純追加した拡張パーツ（既存 5 slot の宣言順・出力は不変）。
 const SLOTS: &[&str] = &[
     "root",
     "label",
     "helper-text",
     "error-text",
     "required-indicator",
+    "group",
+    "content",
+    "title",
+    "separator",
+    "separator-line",
+    "separator-content",
 ];
 
 /// `root` の配置軸（chakra-ui v3 `Field.Root` の `orientation` prop 相当）。
@@ -254,6 +293,77 @@ fn recipe() -> SlotRecipe {
                 decl("line-height", "var(--fandhe-font-line-height-tight)"),
             ],
         )
+        // 以下 6 slot はイシュー #2185 の純追加（shadcn/ui FieldGroup/
+        // FieldContent/FieldTitle/テキスト付き FieldSeparator 相当、モジュール
+        // doc「採用したもの（イシュー #2185）」節の判断根拠を参照）。
+        .base(
+            "group",
+            vec![
+                decl("display", "flex"),
+                decl("flex-direction", "column"),
+                decl("gap", "var(--fandhe-space-6)"),
+                decl("width", "100%"),
+            ],
+        )
+        .base(
+            "content",
+            vec![
+                decl("display", "flex"),
+                decl("flex", "1 1 0%"),
+                decl("flex-direction", "column"),
+                decl("gap", "var(--fandhe-space-1-5, 0.375rem)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+            ],
+        )
+        .base(
+            "title",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-1)"),
+                decl("width", "fit-content"),
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("user-select", "none"),
+            ],
+        )
+        .base(
+            "separator",
+            vec![
+                decl("position", "relative"),
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("height", "var(--fandhe-space-5)"),
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+            ],
+        )
+        .base(
+            "separator-line",
+            vec![
+                decl("position", "absolute"),
+                decl("inset-inline", "0"),
+                decl("top", "50%"),
+                decl("margin", "0"),
+                decl("border-width", "0"),
+                decl("border-top-width", "var(--fandhe-separator-thickness, 1px)"),
+                decl("border-top-style", "solid"),
+                decl("border-top-color", "var(--fandhe-color-border)"),
+            ],
+        )
+        .base(
+            "separator-content",
+            vec![
+                decl("position", "relative"),
+                decl("padding-inline", "var(--fandhe-space-2)"),
+                decl("background-color", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("white-space", "nowrap"),
+            ],
+        )
         .variant(
             FieldOrientation::Horizontal,
             "root",
@@ -297,6 +407,21 @@ fn recipe() -> SlotRecipe {
         // 高める。
         .state(
             "label",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("color", "var(--fandhe-color-danger)")],
+        )
+        // `title` は `label` と同じ型階層（モジュール doc「採用したもの
+        // （イシュー #2185）」節参照）のため、disabled 減光・invalid 配色も
+        // `label` と同じ規則に揃える。`content` には付与しない（子の
+        // `label`/`title`/`helper-text` が既に減光するため二重減光を避ける、
+        // モジュール doc 参照）。
+        .state(
+            "title",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "title",
             StateCondition::Attr("data-invalid"),
             vec![decl("color", "var(--fandhe-color-danger)")],
         )

@@ -589,7 +589,13 @@ name = "fandhe-frontend-headless-ui"
 # 変更はなく非破壊的な追加のため patch バンプする。origin/main で #2111
 # （attachment）が同じく 0.68.9 → 0.68.10 の patch バンプを先行取得済み
 # だったため、同一版数の衝突を避けて 0.68.11 とする。
-version = "0.68.11"
+# イシュー #2185: `field` へ `group`/`content`/`title`/テキスト付き
+# `separator`（内部パーツ `separator-line`/`separator-content`）を新設した
+# （PR #2147 で「対応する headless anatomy が存在しない」として見送られた
+# shadcn/ui FieldGroup/FieldContent/FieldTitle/FieldSeparator 相当）。
+# 既存 8 パーツ・`FieldProps`/`FieldIds` のシグネチャ・出力は不変のため
+# 非破壊的な純追加、patch バンプする。
+version = "0.68.12"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

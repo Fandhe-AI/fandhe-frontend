@@ -124,6 +124,7 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{
     self, EmptyStateIndicatorVariant, EmptyStateProps, EmptyStateVariant,
 };
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::ColorPicker;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::data_attrs::data_state;
@@ -5342,6 +5343,65 @@ fn field_section() -> Node {
         ],
     );
 
+    // イシュー #2185 拡張パーツ（group/content/title/separator/
+    // separator-line/separator-content）を掲示するインスタンス。
+    // shadcn-field-1.png（複数 field の縦積み・線区切り・checkbox 行）と
+    // shadcn-field-2.png（content/title レイアウト）双方の合成を反映する
+    // （field.rs モジュール doc「参照スクショについての注記」節参照）。
+    let payment_field_a = field_with_helper("showcase-field-card-number");
+    let payment_field_b = plain_field("showcase-field-expiry");
+    let newsletter_field = field_with_helper("showcase-field-newsletter");
+    let group_instance = field::group(
+        vec![],
+        vec![
+            field_instance(
+                FieldOrientation::Vertical,
+                &payment_field_a,
+                "Card number",
+                "4242 4242 4242 4242",
+                Some("16-digit card number."),
+            ),
+            field::separator(vec![], vec![]),
+            field::separator(vec![], vec![text("Or continue with")]),
+            field_instance(
+                FieldOrientation::Vertical,
+                &payment_field_b,
+                "Expiry date",
+                "MM / YY",
+                None,
+            ),
+            field::content(
+                &newsletter_field,
+                vec![],
+                vec![
+                    field::title(
+                        &newsletter_field,
+                        vec![("id", "showcase-field-newsletter-title")],
+                        vec![text("Notifications")],
+                    ),
+                    // `content`/`title` の合成先コントロールは checkbox/
+                    // radio 群等が典型だが、本節は field 自体の型階層・
+                    // 余白掲示が目的のため、コントロール本体は最小構成
+                    // （headless `field::input`）で足りる（既存 6 態と
+                    // 同じく `fandhe_frontend_pre_styled_ui::input` に
+                    // 委ねる複雑な checkbox 部品構成までは持ち込まない）。
+                    hui::field::input(
+                        &newsletter_field,
+                        vec![
+                            ("type", "checkbox"),
+                            ("aria-labelledby", "showcase-field-newsletter-title"),
+                        ],
+                    ),
+                    field::helper_text(
+                        &newsletter_field,
+                        vec![],
+                        vec![text("Receive product updates by email.")],
+                    ),
+                ],
+            ),
+        ],
+    );
+
     section(
         "Field",
         "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。",
@@ -5353,6 +5413,7 @@ fn field_section() -> Node {
             required_instance,
             horizontal_instance,
             multi_error_instance,
+            group_instance,
         ])],
     )
 }

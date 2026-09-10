@@ -424,6 +424,78 @@ fn field_root_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains("[data-disabled]"));
 }
 
+/// `field.rs` 拡張パーツ（`group`/`content`/`title`/`separator`、イシュー
+/// #2185）も同じ規約 A・役割 B に従う: `group`/`separator` は
+/// [`FieldProps`] を取らないため 4 フラグの data-* を一切出力せず、
+/// `content`/`title` は headless
+/// `fandhe_frontend_headless_ui::field::{content, title}` が [`FieldProps`]
+/// から生成する 4 フラグをそのまま透過するのみで自前出力はしない。
+/// `field::css()` の `title[data-disabled]`/`title[data-invalid]` も
+/// セレクタとしての参照のみであることを固定する
+/// （`field_root_data_attrs_are_headless_sourced_not_self_emitted` と同型）。
+#[test]
+fn field_extended_2185_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    fn field(id: &str) -> FieldProps<'_> {
+        FieldProps {
+            id,
+            ids: FieldIds::default(),
+            disabled: false,
+            invalid: false,
+            required: false,
+            readonly: false,
+            has_helper_text: false,
+        }
+    }
+
+    // group/separator は FieldProps を取らないため、常に 4 フラグを
+    // 出力しない。
+    let group_html = render(&field::group(vec![], vec![]));
+    let separator_html = render(&field::separator(vec![], vec![]));
+    for html in [&group_html, &separator_html] {
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-required"));
+        assert!(!html.contains("data-readonly"));
+    }
+
+    // content/title: 全フラグ false のとき出力なし。
+    let f_false = field("f");
+    let content_html_false = render(&field::content(&f_false, vec![], vec![]));
+    let title_html_false = render(&field::title(&f_false, vec![], vec![]));
+    for html in [&content_html_false, &title_html_false] {
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-required"));
+        assert!(!html.contains("data-readonly"));
+    }
+
+    // content/title: 全フラグ true のとき、4 種すべてが headless 経由で
+    // 出力される（styled 側は data-* を組み立てない）。
+    let f_true = FieldProps {
+        id: "f",
+        ids: FieldIds::default(),
+        disabled: true,
+        invalid: true,
+        required: true,
+        readonly: true,
+        has_helper_text: false,
+    };
+    let content_html_true = render(&field::content(&f_true, vec![], vec![]));
+    let title_html_true = render(&field::title(&f_true, vec![], vec![]));
+    for html in [&content_html_true, &title_html_true] {
+        assert!(html.contains("data-disabled"));
+        assert!(html.contains("data-invalid"));
+        assert!(html.contains("data-required"));
+        assert!(html.contains("data-readonly"));
+    }
+
+    // `field::css()` の title[data-disabled]/title[data-invalid] は
+    // セレクタ参照のみ（自前出力はしない）。
+    let css = field::css();
+    assert!(css.contains(r#"[data-part="title"][data-disabled]"#));
+    assert!(css.contains(r#"[data-part="title"][data-invalid]"#));
+}
+
 /// `fieldset.rs`（イシュー #1686）は独自の `data-*` を一切出力しない
 /// （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・
 /// 役割 B）。styled `root` 出力に現れる `data-disabled`/`data-invalid` は

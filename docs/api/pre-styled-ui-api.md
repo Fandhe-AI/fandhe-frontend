@@ -693,16 +693,27 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
 ラベル・補助テキスト・エラーテキスト・必須マークの型階層と `root` の
 余白レイアウトを重ねる薄い委譲層である。`input`/`textarea`/`native_select`
 （§4f）と同じく `"field"` recipe scope を共有するが、宣言する slot は
-`root`/`label`/`helper-text`/`error-text`/`required-indicator` の 5 つのみで、
-`input`/`textarea`/`select` slot は宣言しない（§4f の 3 モジュールが引き
-続き所有する）。
+`root`/`label`/`helper-text`/`error-text`/`required-indicator`/`group`/
+`content`/`title`/`separator`/`separator-line`/`separator-content` の 11 つ
+（末尾 6 つはイシュー #2185 で純追加。既存 5 slot の CSS 出力バイトは不変）
+のみで、`input`/`textarea`/`select` slot は宣言しない（§4f の 3 モジュールが
+引き続き所有する）。
 
 - **公開 API**: `root(&FieldRootProps, &FieldProps<'_>, attrs, children)`
   （見た目 variant クラスを重ねて headless `field::root` へ委譲）、
   `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`）、
   `FieldRootProps`。`label`/`helper_text`/`error_text`/`required_indicator`/
-  `FieldIds`/`FieldProps` は headless からの選択的再エクスポート（見た目は
-  属性セレクタのみで到達するため styled 側の再定義は不要）。
+  `group`/`content`/`title`/`separator`/`FieldIds`/`FieldProps` は headless
+  からの選択的再エクスポート（見た目は属性セレクタのみで到達するため
+  styled 側の再定義は不要）。`group`/`content`/`title`/`separator` は
+  イシュー #2185 で純追加した拡張パーツ（shadcn/ui FieldGroup/
+  FieldContent/FieldTitle/FieldSeparator 相当）。
+- **イシュー #2185 の追加着装**: `group` の間隔は space トークン
+  `--fandhe-space-6`、`separator` の線描画は `border-*`（`crate::separator`
+  の `--fandhe-separator-thickness` 上書き契約を共有）、`title` は `label`
+  と同じ型階層（disabled 減光・invalid 配色も同一規則）を採用する
+  （判断根拠は `field.rs` モジュール doc「採用したもの（イシュー #2185）」
+  節参照）。
 - **`orientation` 軸のみ**: `size`/`color-palette` 軸は持たない（子の寸法に
   従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
   入力系は palette 非提供という §4f と同じ判断）。
