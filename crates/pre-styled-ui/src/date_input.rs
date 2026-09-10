@@ -126,6 +126,17 @@
 //!   上記「スタイル調整」節のとおり本イシューのスコープ外とする。
 //! - styled `root` への `readonly`/`focused` 引数露出（イシュー #1626、
 //!   上記「styled `root` が露出しない `readonly`/`focused`」節参照）。
+//!
+//! # スタイル調整（イシュー #2195、Forms 家族横断の disabled 規則）
+//!
+//! 詳細な決定根拠・対応表は
+//! `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` を正とする
+//! （[`crate::date_picker`] 等同名節と同型の記録方針）。date-input は
+//! `root` が opacity を所有する「コンテナ所有型」であり、`control[data-
+//! disabled]` は `segment-group` と同じく `cursor: not-allowed` のみを
+//! 追加する（`root` の opacity 0.5 と二重適用しない）。headless
+//! `date_input` は `label` へ `data-required` を出さないため、`label` 側の
+//! 対応は不要（Forms 家族横断規則 R2 とも整合する）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -174,6 +185,18 @@ fn recipe() -> SlotRecipe {
             "root",
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
+        )
+        // `control[data-disabled]`（イシュー #2195、Forms 家族横断の
+        // disabled 規則。詳細は
+        // `docs/design/pre-styled-ui-forms-disabled-required-matrix.md`）:
+        // headless（`control`）が `data-disabled` を出す。date-input は
+        // `root` が opacity を所有するコンテナ所有型のため、内側 `control`
+        // は `segment-group` と同じく `cursor: not-allowed` のみに留める
+        // （二重減光の回避）。
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
         )
         .base(
             "label",
@@ -439,6 +462,19 @@ mod tests {
         assert!(css.contains(r#"[data-scope="date-input"][data-part="root"][data-disabled] {"#));
         assert!(css.contains("opacity: 0.5;"));
         assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn control_disabled_is_cursor_only_per_forms_matrix() {
+        // イシュー #2195（Forms 家族横断の disabled 規則、R1「opacity 単一
+        // 階層」）: `root` が opacity を所有するコンテナ所有型のため、内側
+        // `control` は `segment-group` と同じく `cursor: not-allowed` のみ。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="date-input"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}"#
+        ));
     }
 
     #[test]
