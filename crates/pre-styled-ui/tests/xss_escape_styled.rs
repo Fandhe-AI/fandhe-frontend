@@ -6538,6 +6538,102 @@ fn marker_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// Questionnaire 経路（イシュー #2119、headless 側 anatomy は #2117）:
+/// 11 パーツいずれも見た目クラスを付与しない（`src/questionnaire.rs`
+/// モジュール doc「class 軸を持たない理由」節参照）ため、呼び出し側
+/// `attrs`（`data-testid`）・`class`（[`drop_class_attr`] により除去）・
+/// children・`progress` の `label`（`aria-label`）・`progress` の呼び出し側
+/// `style`（除去され、自前の `--fandhe-questionnaire-percent` のみ残る）の
+/// 各経路で既定エスケープ（REQ-1）が貫通することを固定する
+/// （`marker_parts_are_escaped_for_all_payloads` と同型）。
+#[test]
+fn questionnaire_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::questionnaire::Questionnaire;
+    use fandhe_frontend_headless_ui::Orientation;
+    use fandhe_frontend_pre_styled_ui::questionnaire::{self, QuestionProps};
+
+    let q = Questionnaire::new(3, 1, Orientation::Horizontal);
+
+    for payload in payloads::all() {
+        // root: attrs 経路。
+        let html = render(&questionnaire::root(
+            &q,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "questionnaire::root attrs コンテキスト");
+
+        // root: class 属性経路（見た目クラスを持たないため drop_class_attr
+        // により class 属性自体が出力から消える）。
+        let html = render(&questionnaire::root(&q, vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "questionnaire::root の class 属性に渡した生ペイロードが出力に\
+             残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // question: attrs・children 経路。
+        let html = render(&questionnaire::question(
+            &q,
+            1,
+            QuestionProps::default(),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "questionnaire::question attrs コンテキスト");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::question children コンテキスト",
+        );
+
+        // prompt/description/options/freeform/actions: attrs・children 経路。
+        let html = render(&questionnaire::prompt(
+            &q,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "questionnaire::prompt attrs コンテキスト");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::prompt children コンテキスト",
+        );
+
+        // back/next/skip: attrs・children 経路。
+        let html = render(&questionnaire::back(
+            &q,
+            false,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "questionnaire::back attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "questionnaire::back children コンテキスト");
+
+        // progress: label（aria-label）経路。
+        let html = render(&questionnaire::progress(&q, payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "questionnaire::progress label コンテキスト");
+
+        // progress: 呼び出し側 style は除去され、自前の
+        // `--fandhe-questionnaire-percent` のみが残る（動的値を style へ
+        // 流さない不変条件）。
+        let html = render(&questionnaire::progress(
+            &q,
+            "",
+            vec![("style", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "questionnaire::progress の style 属性に渡した生ペイロードが\
+             出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert!(html.contains("--fandhe-questionnaire-percent"));
+        assert_eq!(html.matches("style=\"").count(), 1);
+    }
+}
+
 /// (30) `dialog::close_trigger_with_variant`/`drawer::close_trigger_with_variant`
 /// 経路（イシュー #2193）: pre-styled 層はこれらを headless-ui から選択的に
 /// re-export しているのみ（`crate::dialog`/`crate::drawer` のトップに

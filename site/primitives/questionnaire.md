@@ -55,7 +55,7 @@ shadcn/ui の `Questionnaire` は回答状態管理・バリデーション・�
 - `QuestionnaireChoice` / `QuestionnaireInput` / 英数字キーによるショートカット / `required` / `multiple` の回答ロジック: 非採用です。選択肢は Radio Group / Checkbox Group、自由記述は Field の `textarea` の再利用で賄います。
 - `items` 配列からの一括描画・回答状態管理・バリデーション・失敗時のフォーカス移動: 非採用です（アプリケーションロジック・クライアント DOM 操作の関心）。
 
-スタイル済みの表示例（recipe・golden テスト・Themes ページ）は現時点では未実装です（後続イシュー #2119）。
+スタイル済みの表示例（recipe・golden テスト）は [Questionnaire](../themes/questionnaire.md) を参照してください。
 
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)
 

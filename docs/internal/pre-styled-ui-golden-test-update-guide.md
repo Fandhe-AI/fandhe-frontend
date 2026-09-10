@@ -79,7 +79,9 @@ listbox / **marker（イシュー #2115 で golden 新設。`stylesheet()` 全�
 marquee / menu / **menubar（方式 b）** /
 **message（イシュー #2106 で golden 新設。`stylesheet()` 全文）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
-pin_input / progress / qr_code / **radial_chart（イシュー #2079 で
+pin_input / progress / qr_code / **questionnaire（イシュー #2119 で
+golden 新設。`stylesheet()` 全文〔raw CSS 子孫規則を含む〕）** /
+**radial_chart（イシュー #2079 で
 golden 新設。`charts::pie` の環状セクタジオメトリを再利用する同心リング
 型グラフ、`stylesheet()` 全文）** / radio_card / radio_group / rating_group /
 **scroll_area（イシュー #1584 で golden 新設。#2054 で横スクロール・端フェード規則を末尾へ純追加、`starts_with` による純追加固定アサーションも追加）** /
