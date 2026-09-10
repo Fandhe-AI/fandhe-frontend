@@ -346,3 +346,70 @@ bubble（`collapse_content`）は #2282 で共通機構を横展開済み（head
 - `docs/design/shadcn-reference-adoption-policy.md` §8
 - `docs/internal/pre-styled-ui-golden-test-update-guide.md`
 - MDN Web Docs: `transition-behavior`、`@starting-style`、`inert` 属性、`interpolate-size` / `calc-size()`、`hidden="until-found"`、CSS Transitions（duration 0 の `transitionend` 非発火）の各仕様は、採用案確定後の実装 issue（#2191/#2192）着手時に reference-researcher が MDN / 仕様書から取得日付付きで再確認し、実装 PR の設計コメントへ引用する（本評価時点では執筆者の記憶に基づく数値の断定を避け、機能名と挙動の定性的な記述にとどめている）。
+
+## 12. 他部品への適用候補の棚卸し（イシュー #2283）
+
+親 #2189（案 C）で整備した共通高さトランジション機構は、次の 2 つの部品非依存の実装で構成されている（§7・§9 参照）。
+
+- wasm-full: `crates/wasm-full/src/content_height.rs`（`CONTENT_HEIGHT_VAR = "--fandhe-content-height"`。対象は静的表 [`TARGETS`] のみで宣言し、`content_height.rs` 内にもコメントで明記されるとおり「部品名で分岐するコードは書かない」設計。現在の登録は `("collapsible", "content")` / `("accordion", "item-content")` の 2 行のみで、対象を増やす場合はこの表への 1 行追加で足りる）
+- pre-styled-ui: `crates/pre-styled-ui/src/recipe.rs` の `SlotRecipe::content_height_transition(slot, MotionDuration)` preset（base + `StateCondition::Attr("hidden")` state + `@starting-style` + `@supports not (calc-size)` の宣言群を登録する。閉状態のキーは `[hidden]` 属性セレクタで、既存の `state()` 呼び出しと同一 slot・同一条件を重複登録しても `SlotRecipe::css()`（同ファイル）は base/states/variants を単純に走査して順に出力するのみで重複を検出・統合しないため、既存の `[hidden]` state と preset の `[hidden]` state は共存する 2 規則として出力される契約である）
+
+本節は、collapsible / accordion（適用済み）・bubble（#2282、PR #2311 で適用中）以外で `hidden` による開閉を持つ部品について「宣言のみで乗るか・高さ遷移が意味論的に妥当か・§3.25 整合・既存オーバーレイ配線との干渉」を評価し、適用提案を記録する。
+
+### 12.1 `hidden` 出力パーツの全量棚卸し（headless-ui）
+
+§2.1 の表は代表 8 モジュールのみのため、本節では `crates/headless-ui/src/` 全体を対象に完全な表を持つ（§2.1 は編集しない）。
+
+| 分類 | モジュール | `hidden` を持つパーツ |
+|---|---|---|
+| 適用済み | collapsible / accordion | `content` / `item-content` |
+| 適用中（#2282、PR #2311） | bubble | `collapse-content` |
+| インライン disclosure | tree_view | `branch-content`（content 自身。`data-state` 併出力） |
+| インライン disclosure | navigation_menu | `content`（content 自身、positioner なし） |
+| パネル折り畳み | floating_panel | `positioner` / `content`（closed） / `body`（`Stage::Minimized` のとき body 自身） |
+| オーバーレイ（positioned） | popover / tooltip / toggle_tip / hover_card / menu / menubar / select / combobox / date_picker / color_picker / action_bar / tour | `positioner` **と** `content`（tour は overlay/spotlight/positioner 等） |
+| モーダル | dialog / drawer / command（`dialog` 部） | `backdrop` / `positioner` / `content` |
+| 切替系 | tabs（非選択 `content`） / steps（非 current の `content`・`completed-content`） | `content` |
+| 非対象（開閉部品ではない `hidden` 利用） | editable / field / fieldset / checkbox_card / 各部品の `item-indicator`（menu・select・combobox・listbox・tree_view・menubar）/ avatar・clipboard（`data-state="hidden"`）/ pin_input・rating_group・color_picker（`type="hidden"`）/ sidebar（`hidden` 非使用、`data-state="collapsed"` の幅遷移） | 開閉トグルの表示切替ではない、または既に別機構（幅遷移等）を持つため対象外 |
+
+### 12.2 評価表
+
+列の意味: (1) 宣言のみ（`SlotRecipe::content_height_transition` 呼び出し 1 行 + wasm-full `TARGETS` 1 行）で適用可能か／(2) 高さ遷移の意味論妥当性（参照軸 chakra-ui / Radix Themes / shadcn/ui の挙動と整合するか）／(3) §3.25 整合（機構は wasm-full + pre-styled-ui に閉じ headless-ui 差分ゼロ。キーが `[hidden]` のため全候補で headless 変更は不要）／(4) 既存配線との干渉。
+
+| 部品・スロット | 判定 | 主な根拠 |
+|---|---|---|
+| tree-view `branch-content` | **適用提案** | `hidden` は content 自身に付き、祖先に `display: none` の positioner を持たない。wasm-full `headless.rs::MAPPING_TABLE` に `("tree-view", "branch", "toggle")` 行が既にあり、`wire_headless_component` 経由の in-place 開閉で `sync_content_height` が効く。ただし pre-styled-ui `tree_view.rs` は既に `.state("branch-content", Attr("hidden"), [display: none])` を持ち base が `display: flex`（`[hidden]` の UA 既定を詳細度で上書きするための既存規則、Bugbot 指摘 PR #798 由来）であるため、`content_height_transition` の `[hidden]` state 追加は §7 で述べた「同一 slot・同一条件の重複登録」に該当する。既存規則を削除せず共存させ、golden テストで固定することが適用条件（golden 純追加原則）。祖先 branch が閉じている入れ子ブランチは実測 0 → CSS 変数除去のフォールバック（`content_height.rs` の 0 除去仕様）で破綻しない |
+| floating-panel `body`（`Stage::Minimized`） | **条件付き適用提案** | `hidden` が body 自身に付き、最小化はヘッダのみ残す高さ折り畳みで意味論上妥当。ただし wasm-full `headless.rs::MAPPING_TABLE` に floating-panel の行が存在せず、stage 変更は headless イベント経由ではなくアプリ駆動（#2282/PR #2311 の bubble と同型の「アプリが開閉を駆動する」注記が必要）。pre-styled-ui 側の閉状態表現・maximized 時の `content` 宣言との整合確認を適用イシューの受け入れ条件とする |
+| navigation-menu `content` | **見送り（再評価トリガー付き）** | `hidden` は content のみで技術的には宣言適用可能だが、base が `position: absolute; top: 100%` でフローに参加せず、参照軸（Radix の `data-motion` によるスライド、shadcn のフェード）は高さ遷移ではなく位置/不透明度遷移を採る。§3.25 規則 2（viewport 計測等の装飾関心を headless へ持ち込まない）とも整合しない |
+| popover / tooltip / toggle-tip / hover-card / menu / menubar / select / combobox / date-picker / color-picker / action-bar / tour | **見送り** | (4) `positioner` にも `hidden` が付き、`position.rs::resolve_position` は `set_dom_attribute(positioner, "style", &result.style)` で `style` 属性を丸ごと上書きする。`positioner` を `TARGETS` に加えると、この上書きが `sync_content_height` の書き込んだ `--fandhe-content-height` インラインスタイルを消去する干渉がある。`content` 側のみを対象にしても、祖先 `positioner[hidden]` 配下（`display: none`）では高さが実測できず、`content_height.rs` の「`hidden` 要素はスキップ」仕様により機構が働かない。(2) 参照軸はフェード/スケール系トランジション（例: `--radix-*-content-transform-origin`）であり高さ遷移を採用していない。select/combobox の content は `overflow-y: auto` + `max-height` のスクロール要素であり、preset の `height`/`overflow` 宣言と衝突する |
+| dialog / drawer / command（`dialog` 部） | **見送り** | `backdrop`/`positioner`/`content` の 3 要素に `hidden`。意味論はフェード（backdrop）+ スケール/スライド（content）であり、参照軸に高さ遷移の採用例がない |
+| tabs `content` / steps `content`・`completed-content` | **見送り** | 排他選択の切替であり disclosure（開閉の重畳）ではない。参照軸（chakra-ui / Radix Themes / shadcn/ui）はタブ・ステップ切替に高さ遷移を採用していない |
+| sidebar | **対象外** | `hidden` 契約を持たず、`data-state="collapsed"` による幅遷移が既に別機構として存在する |
+
+### 12.3 見送り部品の再評価トリガー
+
+§8 の既存トリガー（`interpolate-size`/`calc-size()` の 3 エンジン対応、headless 横断の `hidden` 置換判断、案 B′ 要望）は本節でも共通して参照する。部品固有の追加トリガーは次のとおり。
+
+- オーバーレイ/モーダル家族（popover・tooltip・menu 系・select 系・dialog・drawer 等）: `SlotRecipe` へ「positioner レベルの `[hidden]` allow-discrete + content の opacity/transform を `@starting-style` で与えるフェード/スケール専用 preset」がユーザー判断のうえ追加された時点、または `position.rs::resolve_position` の `style` 書き込みが属性丸ごと上書きから CSSOM プロパティ単位の部分更新へ移行した時点（`TARGETS` 干渉の解消）
+- navigation-menu: 上記フェード/スライド preset 追加時点、または利用者から高さ遷移の具体要望が出た時点
+- tabs / steps: 参照軸（chakra-ui / Radix Themes / shadcn/ui）のいずれかがタブ・ステップ切替に高さ遷移を既定採用した時点
+- floating-panel（条件付き適用を見送る場合）: wasm-full `headless.rs::MAPPING_TABLE` に floating-panel の stage 配線が入った時点
+
+### 12.4 起票提案（1 部品 1 イシュー、親 #2189、依存 #2191/#2192〔closed〕、同型先例 #2282）
+
+以下 2 件をイシュー #2283 のコメントで起票提案する（Issue 起票自体はユーザー承認事項のため本文書では起票しない）。
+
+1. **tree-view の `branch-content` への適用**: `crates/pre-styled-ui/src/tree_view.rs`（`.content_height_transition("branch-content", MotionDuration::Normal)`、既存 `[hidden]` state との共存を golden で固定）/ `tests/tree_view_css.rs` / `crates/wasm-full/src/content_height.rs` `TARGETS` へ `("tree-view", "branch-content")` 1 行 / `tests/content_height_browser.rs` 同型ケース / `site/themes/tree-view.md` 等の文言更新 / pre-styled-ui・wasm-full の semver バンプ + `check-dep-versions --fix`。headless-ui 差分ゼロ
+2. **floating-panel の `body`（minimized）への適用（条件付き）**: wasm-full 配線が無いこと・`data-stage` 条件との二重化整理・maximized 時の `content` 宣言との整合確認を受け入れ条件に明記する。ユーザーが見送りを選ぶ場合は §12.3 の再評価トリガー行へ移す
+
+### 12.5 適用イシューではない拡張候補（別途ユーザー判断事項、本イシューでは起票提案しない）
+
+- オーバーレイ家族向けフェード/スケール preset（新 DSL 機能、#2189 の受け入れ条件外）
+- `Runtime::apply_dirty_if_any` 経路への `sync_content_height` 統合
+- bubble / floating-panel の `MAPPING_TABLE` 行追加（headless-ui バンプを伴う）
+- `crates/pre-styled-ui/src/dialog.rs` rustdoc の #2283 参照更新（`src/` 差分のため後続 PR で扱う）
+- `position.rs` の positioner `style` 書き込みの CSSOM 化
+
+### 12.6 セキュリティ考慮（§10 と同型、docs のみ）
+
+本節はコードを変更しない。§12.4 で提案する適用イシューは、既存機構（CSS 変数値は `content_height.rs::format_content_height` の非負整数 px 固定書式、セレクタ・スロット名はいずれも `&'static str` リテラル）への宣言追加のみであり、新たな文字列連結経路・`raw_html()` を持ち込まない設計を維持することを条件として明記する。

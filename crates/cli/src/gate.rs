@@ -7,9 +7,16 @@
 //! 実装詳細の説明に留め、判定ルールの単一の情報源は同文書とする。
 //!
 //! [`crate::structure`]（TASK-13.1）が定義する `structure.toml` を唯一の情報源
-//! として宣言クレート・ディレクトリを求め、7 チェック（型チェック・既定エスケープ
-//! 検査・URL 属性検証（イシュー #401）・lint・wasm32 target 向け lint（イシュー
-//! #1174）・テスト・依存ポリシー）を実行し、集約結果を JSON で stdout へ出力する。
+//! として宣言クレート・ディレクトリを求め、既定（`--only` 省略時）では 7 チェック
+//! （型チェック・既定エスケープ検査・URL 属性検証（イシュー #401）・lint・
+//! wasm32 target 向け lint（イシュー #1174）・テスト・依存ポリシー）をすべて
+//! 実行し、集約結果を JSON で stdout へ出力する。`--only <check>[,<check>...]`
+//! （イシュー #2305）を指定すると実行チェックをその部分集合へ限定でき、
+//! 選択されなかったチェックの外部コマンドは起動しない（CI ジョブ単位の並列
+//! 分割 #2306 の前提）。この場合 JSON に `selected_checks` が追加され、
+//! `docs/policy/ai-self-maintenance-policy.md` が自動適用の前提とする
+//! 「フル実行の PASS」とは区別される（[`GateReport::selected_checks`] doc
+//! コメント、`docs/design/gate-design.md` §4.1 参照）。
 //! AI 自己保守フック・CI からは本サブコマンドの終了コード（0 = PASS / 1 = BLOCKED /
 //! 2 = 使用法エラー / 3 = ERROR〔イシュー #1116 で追加。実行環境にツールが無いだけの
 //! 不合格〕）と JSON の `gate_result`（`"PASS"` / `"BLOCKED"` / `"ERROR"`）を照合し、
@@ -113,6 +120,17 @@ pub(crate) struct GateReport {
     pub(crate) checks: Vec<GateCheck>,
     pub(crate) gate_result: &'static str,
     pub(crate) action: String,
+    /// `--only` による部分実行時のみ `Some`（イシュー #2305）。canonical 順
+    /// （[`CHECK_NAMES`] の順）に並べ替え済み・重複なしの選択チェック名一覧。
+    /// `None` は既定のフル実行（7 チェックすべて）を表す。
+    ///
+    /// CI 分割（#2306）・AI 自己保守フック向けの契約: `selected_checks` が
+    /// `Some` を持つレポートは「選択したチェックだけの PASS」であり、
+    /// `docs/policy/ai-self-maintenance-policy.md` が前提とする「フル PASS」
+    /// （7 チェック全実行での `gate_result == \"PASS\"`）とは区別しなければ
+    /// ならない。呼び出し側はこのキーの有無で両者を見分ける
+    /// （`docs/design/gate-design.md` §4.1）。
+    pub(crate) selected_checks: Option<Vec<&'static str>>,
 }
 
 /// 外部コマンド起動を注入可能にする境界（テストで実プロセスを起動せずに
@@ -142,27 +160,149 @@ impl CommandRunner for RealCommandRunner {
     }
 }
 
+/// `fw gate` の usage 文言（イシュー #2305 で `--only` を追記）。usage エラー
+/// （終了コード 2）の全経路がこの 1 箇所を共有し、`main.rs::print_usage` の
+/// `gate` 行と内容が食い違わないよう保つ。
+const GATE_USAGE: &str =
+    "fw gate: usage: fw gate [--project <dir>] [--verbose] [--only <check>[,<check>...]]";
+
+/// `--only <value>` の全出現をインデックス走査で抜き出し、`--verbose` も
+/// 除去した残余引数（[`crate::parse_project_arg`] へ渡す）を得る
+/// （イシュー #2305）。
+///
+/// `--only` が複数回現れた場合は全ての生の値をそのまま集めて返す（複数指定の
+/// 和集合としての解決は [`parse_only_arg`] 側の責務）。値が欠落している
+/// （引数列の末尾、または次トークンが `--` で始まるフラグ）場合は fail-closed
+/// に `Err` を返す（黙示的に無視しない、security.md A05）。`--only=<value>`
+/// 形式は受理しない（構文を 1 つに絞る設計判断）: `=` を含むトークンは
+/// `--only` との完全一致にならず残余引数へ落ち、後段の `parse_project_arg` が
+/// usage エラーとして扱う。
+fn extract_only_values(args: &[String]) -> Result<(Vec<String>, Vec<String>), String> {
+    let mut only_values = Vec::new();
+    let mut remaining = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        if a == "--verbose" {
+            i += 1;
+            continue;
+        }
+        if a == "--only" {
+            match args.get(i + 1) {
+                Some(v) if !v.starts_with("--") => {
+                    only_values.push(v.clone());
+                    i += 2;
+                }
+                _ => return Err("--only requires a value (e.g. --only test,lint)".to_string()),
+            }
+            continue;
+        }
+        remaining.push(a.clone());
+        i += 1;
+    }
+    Ok((only_values, remaining))
+}
+
+/// `--only` の生の値（カンマ区切り・複数回指定の和集合）を [`CHECK_NAMES`]
+/// との完全一致で検証し、canonical 順（`CHECK_NAMES` の順）へ正規化した
+/// 重複なしリストを返す（イシュー #2305）。
+///
+/// fail-closed 条件（いずれも `Err` でユーザー向け理由文字列を返す。終了コード
+/// 2 の usage エラーとして扱われる）: 要素が空文字列（連続カンマ・先頭/末尾
+/// カンマ・完全な空文字列を含む）、`CHECK_NAMES` に完全一致しない名前が
+/// 1 件でも含まれる、または（呼び出し元の保証により通常到達しないが）値が
+/// 1 件もない場合。
+///
+/// セキュリティ不変条件: この関数が受理した名前は [`run_check_by_name`] の
+/// 静的 allowlist（`match` の腕）との比較にのみ使われ、`Command` の引数・
+/// 出力文言へは一切埋め込まない。未知名のエラーメッセージには既知チェック名
+/// 一覧のみを提示し、入力値そのものは echo しない（security.md A03）。
+fn parse_only_arg(raw_values: &[String]) -> Result<Vec<&'static str>, String> {
+    let known = || CHECK_NAMES.join(", ");
+    let mut selected: Vec<&'static str> = Vec::new();
+    for raw in raw_values {
+        for part in raw.split(',') {
+            if part.is_empty() {
+                return Err(format!(
+                    "--only contains an empty check name (known checks: {})",
+                    known()
+                ));
+            }
+            match CHECK_NAMES.iter().find(|&&name| name == part) {
+                Some(&name) => {
+                    if !selected.contains(&name) {
+                        selected.push(name);
+                    }
+                }
+                None => {
+                    return Err(format!(
+                        "unknown check name for --only (known checks: {})",
+                        known()
+                    ));
+                }
+            }
+        }
+    }
+    if selected.is_empty() {
+        return Err(format!(
+            "--only requires at least one check name (known checks: {})",
+            known()
+        ));
+    }
+    selected.sort_by_key(|name| CHECK_NAMES.iter().position(|c| c == name));
+    Ok(selected)
+}
+
 /// `fw gate` 本体。`main.rs` の `run()` からディスパッチされるエントリポイント。
 ///
-/// 1. `--verbose` フラグを除去し、`--project` 引数を解決（[`crate::parse_project_arg`]
+/// 1. `--only <check>[,<check>...]`（イシュー #2305）を抜き出し、`--verbose`
+///    フラグを除去し、`--project` 引数を解決（[`crate::parse_project_arg`]
 ///    を再利用、`structure` と同一の使用法エラー規約）
 /// 2. `<project>/structure.toml` を [`structure::load`] + [`StructureManifest::validate`]
 ///    で読み込む。失敗時は即 BLOCKED（fail-closed。マニフェストが読めない時点で
 ///    宣言クレート一覧が定まらず、以降のチェックが無意味になるため。プロジェクト
-///    側の設定不備でありコード起因のため `ERROR` ではなく `BLOCKED` とする）
-/// 3. 7 チェックをすべて実行（早期打ち切りしない。AI エージェントが一括修正できる
-///    よう全違反を報告する PoC-7 の方針を踏襲）
+///    側の設定不備でありコード起因のため `ERROR` ではなく `BLOCKED` とする）。
+///    `--only` が指定されていてもこの経路はバイパスできない（選択によって
+///    fail-closed 経路を迂回させない）
+/// 3. 既定（`--only` なし）は 7 チェックをすべて実行（早期打ち切りしない。
+///    AI エージェントが一括修正できるよう全違反を報告する PoC-7 の方針を
+///    踏襲）。`--only` 指定時は選択したチェックのみを実行し、選択されなかった
+///    チェックの外部コマンドは起動しない
 /// 4. JSON レポートを stdout へ出力し、`gate_result` に応じた終了コードを返す
 ///    （0 = PASS / 1 = BLOCKED / 2 = usage / 3 = ERROR。イシュー #1116 で
-///    環境エラー専用の終了コード 3 を追加した）
+///    環境エラー専用の終了コード 3 を追加した）。`--only` 指定時は JSON に
+///    `selected_checks` を追加し、部分実行の PASS を既定のフル実行 PASS と
+///    区別できるようにする（`docs/design/gate-design.md` §4.1）
 pub(crate) fn run_gate(args: &[String]) -> i32 {
+    let (only_values, remaining) = match extract_only_values(args) {
+        Ok(v) => v,
+        Err(msg) => {
+            eprintln!("fw gate: {msg}");
+            eprintln!("{GATE_USAGE}");
+            return 2;
+        }
+    };
+    // `extract_only_values` は `--verbose` を残余（`remaining`）から除去する
+    // 契約のため、判定は元の `args` に対して行う。
     let verbose = args.iter().any(|a| a == "--verbose");
-    let remaining: Vec<String> = args.iter().filter(|a| *a != "--verbose").cloned().collect();
+
+    let selection: Option<Vec<&'static str>> = if only_values.is_empty() {
+        None
+    } else {
+        match parse_only_arg(&only_values) {
+            Ok(names) => Some(names),
+            Err(msg) => {
+                eprintln!("fw gate: {msg}");
+                eprintln!("{GATE_USAGE}");
+                return 2;
+            }
+        }
+    };
 
     let project_dir = match crate::parse_project_arg(&remaining) {
         Ok(dir) => dir,
         Err(()) => {
-            eprintln!("fw gate: usage: fw gate [--project <dir>] [--verbose]");
+            eprintln!("{GATE_USAGE}");
             return 2;
         }
     };
@@ -179,6 +319,7 @@ pub(crate) fn run_gate(args: &[String]) -> i32 {
                 )],
                 gate_result: "BLOCKED",
                 action: "fix structure.toml and re-run `fw gate`".to_string(),
+                selected_checks: selection.clone(),
             };
             println!("{}", render_report(&report));
             eprintln!("fw gate: BLOCKED (structure.toml could not be loaded: {e})");
@@ -196,13 +337,20 @@ pub(crate) fn run_gate(args: &[String]) -> i32 {
             checks: vec![GateCheck::new("structure_manifest", false, output)],
             gate_result: "BLOCKED",
             action: "fix structure.toml and re-run `fw gate`".to_string(),
+            selected_checks: selection.clone(),
         };
         println!("{}", render_report(&report));
         eprintln!("fw gate: BLOCKED (structure.toml failed internal validation)");
         return 1;
     }
 
-    let mut report = run_all_checks(&manifest, &project_dir, &RealCommandRunner, verbose);
+    let mut report = run_selected_checks(
+        &manifest,
+        &project_dir,
+        &RealCommandRunner,
+        verbose,
+        selection.as_deref(),
+    );
     if !verbose {
         // `run_cargo_test`（`run_all_checks` 経由）は `verbose` を受け取り、
         // truncate 前の生出力に対して既に要約を適用済み（Bugbot 指摘
@@ -271,52 +419,126 @@ fn declared_client_entrypoint_crate_names(manifest: &StructureManifest) -> Vec<&
         .collect()
 }
 
-/// 7 チェックを実行して [`GateReport`] を組み立てる（実プロセス起動を伴う本番経路）。
+/// `checks[].name` の canonical 一覧・順序（PoC-7 互換の JSON 出力契約、
+/// `docs/design/gate-design.md` §4）。既定のフル実行（`--only` なし）は
+/// この順序で全件を実行する。`--only`（イシュー #2305）が選択するチェック名は
+/// この配列との完全一致でのみ受理し（[`parse_only_arg`]）、`checks` に現れる
+/// 並びも常にこの配列の部分列（canonical 順）へ正規化する——ユーザーが
+/// `--only` へ渡した指定順をそのまま出力へ反映しない契約とする。
+const CHECK_NAMES: [&str; 7] = [
+    "type_check",
+    "default_escape_check",
+    "url_validation_check",
+    "lint",
+    "lint_wasm32",
+    "test",
+    "policy",
+];
+
+/// 1 チェックを名前で dispatch する（[`run_selected_checks`] の共通経路、
+/// イシュー #2305）。`--only` による部分実行でも「選択されなかったチェックの
+/// 外部コマンドを一切起動しない」ことが本関数分離の目的であり（CI 分割 #2306
+/// が並列ジョブ化する前提）、名前は [`CHECK_NAMES`] の静的 allowlist との
+/// 完全一致比較にのみ使う（`Command` の引数・出力文言へは一切埋め込まない、
+/// security.md A03）。
+///
+/// `asset_only` が `true` の場合、cargo 系 5 チェック（`type_check`/`lint`/
+/// `lint_wasm32`/`test`/`policy`）は [`not_applicable_check`] へ差し替える
+/// （§2.5 の既存契約をそのまま保持。`default_escape_check`/`url_validation_check`
+/// はテキスト走査ベースで cargo パッケージの有無に依存しないため通常実行する）。
+fn run_check_by_name(
+    name: &'static str,
+    manifest: &StructureManifest,
+    project_dir: &Path,
+    runner: &dyn CommandRunner,
+    verbose: bool,
+    crates: &[&str],
+    client_entrypoint_crates: &[&str],
+) -> GateCheck {
+    // asset-only 判定は `manifest` のみから求まる（呼び出し元ごとに再計算する
+    // 手間より、引数を 1 つ減らし `clippy::too_many_arguments` を満たすことを
+    // 優先する。値自体は [`is_asset_only_project`] と同一）。
+    let asset_only = is_asset_only_project(manifest);
+    match name {
+        "type_check" if asset_only => not_applicable_check("type_check"),
+        "type_check" => run_cargo_check(runner, project_dir, crates),
+        "default_escape_check" => default_escape_check(manifest, project_dir),
+        "url_validation_check" => url_validation_check(manifest, project_dir),
+        "lint" if asset_only => not_applicable_check("lint"),
+        "lint" => run_cargo_clippy(runner, project_dir, crates),
+        "lint_wasm32" if asset_only => not_applicable_check("lint_wasm32"),
+        "lint_wasm32" => run_cargo_clippy_wasm32(runner, project_dir, client_entrypoint_crates),
+        "test" if asset_only => not_applicable_check("test"),
+        "test" => run_cargo_test(runner, project_dir, crates, verbose),
+        "policy" if asset_only => not_applicable_check("policy"),
+        "policy" => policy_check(runner, project_dir),
+        other => unreachable!(
+            "run_check_by_name received `{other}`, which is outside CHECK_NAMES \
+(caller must validate names against CHECK_NAMES before dispatch, see parse_only_arg)"
+        ),
+    }
+}
+
+/// 選択されたチェックのみを実行して [`GateReport`] を組み立てる（実プロセス
+/// 起動を伴う本番経路）。`selection` が `None` の場合は [`CHECK_NAMES`] の
+/// 全件を実行する既定動作（フル実行）であり、[`run_all_checks`] はこの薄い
+/// ラッパとして定義する。`Some` の場合は指定されたチェックのみ実行し、
+/// `GateReport::selected_checks` へ選択リスト（canonical 順）を設定して
+/// 部分実行であることを JSON 出力上で明示する（イシュー #2305）。
 ///
 /// テストからは `runner` に実行を伴わないフェイクを注入して集約ロジックのみを
 /// 検証する（実プロセス起動なしのテスト容易性、計画 §3.3）。
 ///
 /// `fw new --template embed`（イシュー #410）が生成する静的単一ファイル
-/// プロジェクトのように cargo パッケージを持たない構成では、cargo 系 4 チェック
-/// （`type_check`/`lint`/`test`/`policy`）は検証対象クレートが存在せず
-/// 「検証不能」と「検証したが違反なし」を区別できない。[`is_asset_only_project`]
-/// が明示宣言（同関数 doc コメント参照）を検出した場合のみ、この 4 チェックを
-/// [`not_applicable_check`] で not-applicable PASS 化する。テキスト走査ベースの
-/// `default_escape_check`（保険層）・`url_validation_check` は cargo パッケージの
-/// 有無に依存しないため静的専用モードでも通常どおり実行し、asset ディレクトリ
-/// 配下へ Rust コードが混入した場合の回帰検出を維持する（security.md A05）。
+/// プロジェクトのように cargo パッケージを持たない構成では、cargo 系チェックは
+/// 検証対象クレートが存在せず「検証不能」と「検証したが違反なし」を区別できない。
+/// [`is_asset_only_project`] が明示宣言（同関数 doc コメント参照）を検出した
+/// 場合のみ [`run_check_by_name`] が該当チェックを not-applicable PASS 化する。
+fn run_selected_checks(
+    manifest: &StructureManifest,
+    project_dir: &Path,
+    runner: &dyn CommandRunner,
+    verbose: bool,
+    selection: Option<&[&'static str]>,
+) -> GateReport {
+    let crates = declared_crate_names(manifest);
+    let client_entrypoint_crates = declared_client_entrypoint_crate_names(manifest);
+
+    let names: &[&'static str] = selection.unwrap_or(&CHECK_NAMES);
+    let checks: Vec<GateCheck> = names
+        .iter()
+        .map(|&name| {
+            run_check_by_name(
+                name,
+                manifest,
+                project_dir,
+                runner,
+                verbose,
+                &crates,
+                &client_entrypoint_crates,
+            )
+        })
+        .collect();
+
+    let mut report = aggregate(checks);
+    report.selected_checks = selection.map(<[&str]>::to_vec);
+    report
+}
+
+/// 7 チェックすべてを既定順序で実行する（`--only` 省略時の既定動作、
+/// [`run_selected_checks`] の `selection: None` 呼び出し）。本番経路
+/// （[`run_gate`]）は `run_selected_checks(..., None)` を直接呼ぶため、本関数は
+/// 既存ユニットテスト群との互換のためのテスト専用ラッパとして残す
+/// （`#[cfg(test)]`。本体側の呼び出し規約変更を避け、フル実行の名前・順序
+/// 契約テストの呼び出し形を無変更に保つ）。
+#[cfg(test)]
 fn run_all_checks(
     manifest: &StructureManifest,
     project_dir: &Path,
     runner: &dyn CommandRunner,
     verbose: bool,
 ) -> GateReport {
-    let crates = declared_crate_names(manifest);
-    let client_entrypoint_crates = declared_client_entrypoint_crate_names(manifest);
-
-    let checks = if is_asset_only_project(manifest) {
-        vec![
-            not_applicable_check("type_check"),
-            default_escape_check(manifest, project_dir),
-            url_validation_check(manifest, project_dir),
-            not_applicable_check("lint"),
-            not_applicable_check("lint_wasm32"),
-            not_applicable_check("test"),
-            not_applicable_check("policy"),
-        ]
-    } else {
-        vec![
-            run_cargo_check(runner, project_dir, &crates),
-            default_escape_check(manifest, project_dir),
-            url_validation_check(manifest, project_dir),
-            run_cargo_clippy(runner, project_dir, &crates),
-            run_cargo_clippy_wasm32(runner, project_dir, &client_entrypoint_crates),
-            run_cargo_test(runner, project_dir, &crates, verbose),
-            policy_check(runner, project_dir),
-        ]
-    };
-
-    aggregate(checks)
+    run_selected_checks(manifest, project_dir, runner, verbose, None)
 }
 
 /// 静的専用（asset-only）判定条件: 宣言クレートが 0 件、かつ宣言ディレクトリ
@@ -362,6 +584,7 @@ fn aggregate(checks: Vec<GateCheck>) -> GateReport {
             checks,
             gate_result: "PASS",
             action: "all checks passed; changes may proceed".to_string(),
+            selected_checks: None,
         }
     } else if failing.iter().all(|c| c.environment_error) {
         GateReport {
@@ -370,12 +593,14 @@ fn aggregate(checks: Vec<GateCheck>) -> GateReport {
             action: "fix the runner environment (see environment-error checks) and re-run \
 `fw gate`"
                 .to_string(),
+            selected_checks: None,
         }
     } else {
         GateReport {
             checks,
             gate_result: "BLOCKED",
             action: "fix the reported failing checks and re-run `fw gate`".to_string(),
+            selected_checks: None,
         }
     }
 }
@@ -2085,6 +2310,18 @@ fn render_report(report: &GateReport) -> String {
     buf.push_str(&quoted(report.gate_result));
     buf.push_str(",\"action\":");
     buf.push_str(&quoted(&report.action));
+    // イシュー #2305 で追加した後方互換拡張キー。`--only` 未指定（既定の
+    // フル実行）では `selected_checks` が `None` のためキー自体を出力せず、
+    // `--only` なしの JSON はバイト同一のまま維持する（既存 3 キーの形状・
+    // 順序も不変、末尾へ追記するのみ）。呼び出し側はこのキーの有無で
+    // 「フル実行の PASS」と「部分実行の PASS」を区別する
+    // （`docs/design/gate-design.md` §4.1、`GateReport::selected_checks` doc
+    // コメント参照）。
+    if let Some(names) = &report.selected_checks {
+        let owned: Vec<String> = names.iter().map(|s| (*s).to_string()).collect();
+        buf.push_str(",\"selected_checks\":");
+        buf.push_str(&crate::json_out::string_array(&owned));
+    }
     buf.push('}');
     buf
 }
@@ -3821,6 +4058,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
             )],
             gate_result: "BLOCKED",
             action: "fix".to_string(),
+            selected_checks: None,
         };
         let json = render_report(&report);
         assert!(json.contains("\\\"unused\\\""));
@@ -3843,6 +4081,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
             checks: vec![env_check, cmd_check],
             gate_result: "BLOCKED",
             action: "fix".to_string(),
+            selected_checks: None,
         };
         let json_text = render_report(&report);
         let parsed = crate::json::parse(&json_text).expect("must be valid JSON");
@@ -3934,6 +4173,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
             ],
             gate_result: "PASS",
             action: String::new(),
+            selected_checks: None,
         };
         summarize_passing_test_output(&mut report);
 
@@ -3956,6 +4196,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
             checks: vec![not_applicable_check("test")],
             gate_result: "PASS",
             action: String::new(),
+            selected_checks: None,
         };
         summarize_passing_test_output(&mut report);
         assert_eq!(
@@ -4563,6 +4804,213 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[test]
+    fn run_all_checks_returns_no_selected_checks_for_full_run() {
+        // `--only` 未指定（既定のフル実行）は `selected_checks` を持たない
+        // （`render_report` がキーごと省略する前提の契約、イシュー #2305）。
+        let (manifest, dir) = all_checks_pass_fixture();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![
+                (true, String::new()),
+                (true, String::new()),
+                (true, String::new()),
+                (true, String::new()),
+                (true, String::new()),
+                (true, String::new()),
+            ]),
+        };
+        let report = run_all_checks(&manifest, &dir, &runner, false);
+        assert!(report.selected_checks.is_none());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ------------------------------------------------------------------
+    // イシュー #2305: `fw gate --only <check>[,<check>...]` — 実行チェック選択。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn parse_only_arg_accepts_single_name() {
+        assert_eq!(parse_only_arg(&["test".to_string()]), Ok(vec!["test"]));
+    }
+
+    #[test]
+    fn parse_only_arg_normalizes_to_canonical_order_and_dedupes() {
+        // ユーザー指定順（policy → test）ではなく CHECK_NAMES の canonical 順
+        // （test → policy）へ正規化し、重複（2 個目の "test"）は除去する。
+        assert_eq!(
+            parse_only_arg(&["policy,test,test".to_string()]),
+            Ok(vec!["test", "policy"])
+        );
+    }
+
+    #[test]
+    fn parse_only_arg_merges_multiple_only_occurrences_as_union() {
+        // `--only` を複数回指定した場合は和集合として解決する。
+        assert_eq!(
+            parse_only_arg(&["test".to_string(), "lint".to_string()]),
+            Ok(vec!["lint", "test"])
+        );
+    }
+
+    #[test]
+    fn parse_only_arg_rejects_unknown_check_name() {
+        let err = parse_only_arg(&["bogus_check".to_string()]).unwrap_err();
+        assert!(err.contains("unknown check name"));
+        // 既知チェック名の案内は含むが、入力値そのもの（"bogus_check"）は
+        // echo しない（security.md A03: 未知入力を出力へそのまま埋め込まない）。
+        assert!(!err.contains("bogus_check"));
+        assert!(err.contains("test"));
+    }
+
+    #[test]
+    fn parse_only_arg_rejects_empty_name_from_double_comma() {
+        let err = parse_only_arg(&["test,,lint".to_string()]).unwrap_err();
+        assert!(err.contains("empty check name"));
+    }
+
+    #[test]
+    fn parse_only_arg_rejects_leading_and_trailing_comma() {
+        assert!(parse_only_arg(&[",test".to_string()]).is_err());
+        assert!(parse_only_arg(&["test,".to_string()]).is_err());
+    }
+
+    #[test]
+    fn extract_only_values_collects_multiple_occurrences_and_strips_verbose() {
+        let args = vec![
+            "--project".to_string(),
+            "dir".to_string(),
+            "--only".to_string(),
+            "test".to_string(),
+            "--verbose".to_string(),
+            "--only".to_string(),
+            "lint".to_string(),
+        ];
+        let (only_values, remaining) = extract_only_values(&args).unwrap();
+        assert_eq!(only_values, vec!["test".to_string(), "lint".to_string()]);
+        assert_eq!(remaining, vec!["--project".to_string(), "dir".to_string()]);
+    }
+
+    #[test]
+    fn extract_only_values_errors_when_value_missing_at_end() {
+        let args = vec![
+            "--project".to_string(),
+            "dir".to_string(),
+            "--only".to_string(),
+        ];
+        assert!(extract_only_values(&args).is_err());
+    }
+
+    #[test]
+    fn extract_only_values_errors_when_next_token_is_a_flag() {
+        let args = vec!["--only".to_string(), "--verbose".to_string()];
+        assert!(extract_only_values(&args).is_err());
+    }
+
+    #[test]
+    fn run_selected_checks_runs_only_the_named_check_and_marks_selection() {
+        let (manifest, dir) = all_checks_pass_fixture();
+        // `test` チェックのみを選択すると runner の呼び出しはちょうど 1 回
+        // （`cargo test`）になる。フェイクの応答を 1 件しか積まないことで、
+        // 2 回目以降の呼び出しが起きれば `Mutex` の `remove(0)` が panic し、
+        // 「選択されなかったチェックの外部コマンドを起動しない」契約を検証する。
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![(true, String::new())]),
+        };
+        let report = run_selected_checks(&manifest, &dir, &runner, false, Some(&["test"]));
+        assert_eq!(report.gate_result, "PASS");
+        assert_eq!(
+            report.checks.iter().map(|c| c.name).collect::<Vec<_>>(),
+            vec!["test"]
+        );
+        assert_eq!(report.selected_checks, Some(vec!["test"]));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn run_selected_checks_with_pure_checks_only_never_invokes_runner() {
+        let (manifest, dir) = all_checks_pass_fixture();
+        // `default_escape_check`/`url_validation_check` はテキスト走査のみの
+        // 純粋関数でありプロセス起動を伴わない。`PanicIfCalledRunner` を注入し、
+        // 万一 cargo 系チェックへ迂回していれば即座に顕在化させる。
+        let report = run_selected_checks(
+            &manifest,
+            &dir,
+            &PanicIfCalledRunner,
+            false,
+            Some(&["default_escape_check", "url_validation_check"]),
+        );
+        assert_eq!(report.gate_result, "PASS");
+        assert_eq!(
+            report.checks.iter().map(|c| c.name).collect::<Vec<_>>(),
+            vec!["default_escape_check", "url_validation_check"]
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn run_selected_checks_asset_only_single_check_is_not_applicable_pass() {
+        // asset-only プロジェクトへ `--only test` を適用した場合の契約
+        // （実装計画 §4.4）: `checks` は `test` 1 件のみで not-applicable PASS、
+        // `selected_checks` を保持し、cargo は一切起動されない。
+        let manifest = asset_only_manifest();
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-only-asset-only-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let report = run_selected_checks(
+            &manifest,
+            &dir,
+            &PanicIfCalledRunner,
+            false,
+            Some(&["test"]),
+        );
+        assert_eq!(report.gate_result, "PASS");
+        assert_eq!(report.checks.len(), 1);
+        assert_eq!(report.checks[0].name, "test");
+        assert!(report.checks[0].output.contains("static-only project"));
+        assert_eq!(report.selected_checks, Some(vec!["test"]));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn render_report_omits_selected_checks_key_when_none() {
+        // `--only` 未指定時の JSON はバイト同一を維持する契約
+        // （`selected_checks` キー自体を出力しない）。
+        let report = GateReport {
+            checks: vec![GateCheck::new("test", true, "ok".to_string())],
+            gate_result: "PASS",
+            action: "all checks passed; changes may proceed".to_string(),
+            selected_checks: None,
+        };
+        let json_text = render_report(&report);
+        assert!(!json_text.contains("selected_checks"));
+    }
+
+    #[test]
+    fn render_report_appends_selected_checks_array_when_some() {
+        let report = GateReport {
+            checks: vec![GateCheck::new("test", true, "ok".to_string())],
+            gate_result: "PASS",
+            action: "all checks passed; changes may proceed".to_string(),
+            selected_checks: Some(vec!["lint", "test"]),
+        };
+        let json_text = render_report(&report);
+        let parsed = crate::json::parse(&json_text).expect("must be valid JSON");
+        let selected = parsed
+            .get("selected_checks")
+            .and_then(|v| v.as_array())
+            .expect("selected_checks must be a JSON array");
+        let names: Vec<&str> = selected.iter().filter_map(|v| v.as_str()).collect();
+        assert_eq!(names, vec!["lint", "test"]);
+    }
+
     // ------------------------------------------------------------------
     // イシュー #410: `fw new --template embed` が生成する静的専用
     // （asset-only）プロジェクトに対する `fw gate` の明示的オプトインモード。
@@ -4722,6 +5170,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
             ],
             gate_result: "BLOCKED",
             action: "fix the reported failing checks and re-run `fw gate`".to_string(),
+            selected_checks: None,
         };
         let json_text = render_report(&report);
 
