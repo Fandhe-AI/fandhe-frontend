@@ -51,6 +51,7 @@ use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::collapsible;
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateInputProps, DateSegment};
+use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps, PieCenterText};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
@@ -567,6 +568,23 @@ fn size_variant_root_caller_class_attr_is_dropped_not_merged_raw_for_all_payload
         assert_eq!(html.matches("class=\"").count(), 1);
         assert!(html.contains("fd-select--"));
 
+        // イシュー #2195: `date_picker::root`（styled ラッパー、`class`
+        // 合成 + 呼び出し側 `attrs` 透過）の未登録だった補完（新しい動的値
+        // 経路の追加ではなく、既存部品の登録漏れの補完）。
+        let html = render(&date_picker::root(
+            Size::Md,
+            OpenState::Closed,
+            &date_picker::DatePickerProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "date_picker::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-date-picker--"));
+
         let html = render(&drawer::root(
             Size::Md,
             OpenState::Closed,
@@ -624,6 +642,21 @@ fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "select::root 呼び出し側 attrs コンテキスト");
+
+        // イシュー #2195: `date_picker::root` の呼び出し側 attrs 経路
+        // （既存部品の登録漏れ補完、上記「(6)」節の class 属性経路と対）。
+        let html = render(&date_picker::root(
+            Size::Md,
+            OpenState::Closed,
+            &date_picker::DatePickerProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_picker::root 呼び出し側 attrs コンテキスト",
+        );
 
         // イシュー #2186: 新設 3 パーツ（separator/scroll-up-button/
         // scroll-down-button）の attrs/children 経路。

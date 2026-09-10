@@ -248,6 +248,24 @@
 //!   band とするため挙動は変わらない）。可視性判定（スクロール可能かの
 //!   計測）・押下時の実スクロールはいずれも `fandhe-frontend-wasm-full`
 //!   の後続イシューの範囲であり、本イシューでは扱わない（不変）。
+//!
+//! # スタイル調整（イシュー #2195、Forms 家族横断の disabled / required 規則）
+//!
+//! 詳細な決定根拠・対応表は
+//! `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` を正とする
+//! （[`crate::date_picker`]/[`crate::combobox`] 同名節と同型の記録方針）。
+//!
+//! - **`control[data-disabled]` は `cursor: not-allowed` のみ**: headless
+//!   が `control` へ `data-disabled` を出すようになった
+//!   （headless-ui 0.41.0、#1627）が、`trigger` という葉パーツが既に
+//!   `disabled_declarations()` を適用する葉所有型のため、レイアウトのみの
+//!   `control` へ opacity を重ねない
+//! - **`clear-trigger[data-disabled]` は `disabled_declarations()`**:
+//!   `clear-trigger` は `trigger` と同格の単独クリック可能な `<button>`
+//!   （葉）であるため適用する
+//! - **`label` の `data-required` 視覚化は見送る（決定として確定）**:
+//!   `field::required_indicator` による表現へ統一する Forms 家族横断規則
+//!   （R2）であり、CSS 生成コンテンツは追加しない
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -593,6 +611,26 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
         )
+        // `control[data-disabled]`（イシュー #2195、Forms 家族横断の
+        // disabled 規則。詳細は
+        // `docs/design/pre-styled-ui-forms-disabled-required-matrix.md`）:
+        // headless（`control`）が `data-disabled` を出すようになった
+        // （headless-ui 0.41.0、#1627）。`trigger` という葉パーツが既に
+        // `disabled_declarations()` を適用する葉所有型のため、レイアウト
+        // のみの `control` は `cursor: not-allowed` のみに留める。
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
+        )
+        // `clear-trigger[data-disabled]`（イシュー #2195）: `clear-trigger`
+        // は `trigger` と同格の単独クリック可能な `<button>`（葉）である
+        // ため `disabled_declarations()` を適用する。
+        .state(
+            "clear-trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
         // イシュー #1501: trigger の hover 実適用（`--fandhe-hover-bg` の
         // 間接参照経由。`@media (hover: hover)` + `:not([data-disabled])`
         // は `Hover` 側が自動付与する、モジュール rustdoc「担当パートの
@@ -759,6 +797,22 @@ mod tests {
     use fandhe_frontend_core::render;
     use fandhe_frontend_headless_ui::state::OpenState;
 
+    /// `css` 中で `selector_with_brace`（例: `"...[data-disabled] {"`）から
+    /// 対応する `}` までの本文を抜き出す（イシュー #2195 の
+    /// `control_and_clear_trigger_consume_data_disabled_per_forms_matrix`
+    /// テスト専用ヘルパ。`date_picker.rs`/`combobox.rs` の同名ヘルパと同型）。
+    fn extract_block<'a>(css: &'a str, selector_with_brace: &str) -> &'a str {
+        let block_start = css
+            .find(selector_with_brace)
+            .unwrap_or_else(|| panic!("selector not found: {selector_with_brace}, css={css}"));
+        let body_start = block_start + selector_with_brace.len();
+        let body_end = css[body_start..]
+            .find('}')
+            .map(|offset| body_start + offset)
+            .unwrap_or_else(|| panic!("unterminated block for {selector_with_brace}"));
+        &css[body_start..body_end]
+    }
+
     #[test]
     fn stylesheet_is_deterministic_and_targets_data_scope_selectors() {
         let a = stylesheet();
@@ -921,6 +975,31 @@ mod tests {
         assert!(css.contains(r#"[data-scope="select"][data-part="trigger"][data-disabled] {"#));
         assert!(css.contains("opacity: 0.5;"));
         assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn control_and_clear_trigger_consume_data_disabled_per_forms_matrix() {
+        // イシュー #2195（Forms 家族横断の disabled 規則、R1「opacity 単一
+        // 階層」）: `trigger` が opacity を所有する葉所有型のため `control`
+        // は `cursor: not-allowed` のみ、`clear-trigger` は `trigger` と
+        // 同格の葉として `disabled_declarations()` を適用する。
+        let css = stylesheet();
+        let control_block = extract_block(
+            &css,
+            r#"[data-scope="select"][data-part="control"][data-disabled] {"#,
+        );
+        assert!(
+            !control_block.contains("opacity"),
+            "control[data-disabled] must not own opacity: {control_block}"
+        );
+        assert!(control_block.contains("cursor: not-allowed"));
+
+        let clear_trigger_block = extract_block(
+            &css,
+            r#"[data-scope="select"][data-part="clear-trigger"][data-disabled] {"#,
+        );
+        assert!(clear_trigger_block.contains("opacity: 0.5"));
+        assert!(clear_trigger_block.contains("cursor: not-allowed"));
     }
 
     #[test]
