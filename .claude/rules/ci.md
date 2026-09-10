@@ -191,7 +191,7 @@
 
 - `.github/workflows/ci.yml` の `ci-complete` ジョブは ci.yml の全ジョブを `needs:` に列挙し、`if: always()` で全結果を検証する集約ジョブである（`success` 以外は FAIL。`skipped` の許容は `version-bump-guard`〔`if: pull_request` の条件付きジョブ〕のみに限定し、他ジョブの skip は検知して FAIL する fail-closed 設計。条件付きジョブを増やす場合は許容リストへの明示追加が必要）
 - ruleset `main-protection` の必須チェックはこの集約により `ci-complete` + `deps-check`（別 workflow のため `needs` にできず単独維持）+ `codex-review / codex` の 3 件へ集約されている。ci.yml のジョブ追加・改名時に ruleset の required_status_checks を追随更新する必要はない
-- **ci.yml へジョブを追加するときは必ず `ci-complete` の `needs:` へ追加する**（忘れると当該ジョブの失敗が必須チェックに反映されない。レビューで確認する）
+- **ci.yml へジョブを追加するときは必ず `ci-complete` の `needs:` へ追加する**（忘れると当該ジョブの失敗が必須チェックに反映されない）。この網羅性は `crates/xtask/tests/workflow_ci_complete_needs.rs` が `cargo test -p xtask` 時点で fail-closed に機械検知する（イシュー #2324、人手レビュー頼みの確認は不要になった）。契約は 3 点固定: (1) `jobs:` 直下の全トップレベルジョブ（`ci-complete` 自身を除く）と `needs:` の集合一致（追加漏れ・改名の取り残し・重複のいずれも違反）、(2) `ci-complete` 自身がちょうど 1 個の `if: always()`（`${{ always() }}` 等の表記揺れは意図的に非受理）を持つこと、(3) 集約ステップの jq 式が許容する `skipped` 結果が、テストファイル内の定数 `SKIPPED_ALLOWLIST` と 1 対 1 で一致し、許容対象ジョブが実際にジョブレベル `if:` を持ち、逆に `ci-complete` 以外でジョブレベル `if:`（値が `always()` でない）を持つジョブは全て `SKIPPED_ALLOWLIST` に含まれること。条件付きジョブを増やす場合は ci.yml の `if:`・jq 式に加え、**この `SKIPPED_ALLOWLIST` 定数への追加も必要**（`SKIPPED_ALLOWLIST` は ci.yml から自動導出しない意図的な第 3 の摩擦点であり、ci.yml 側だけの変更では同テストが FAIL する）。判定は `workflow_runner_policy.rs` 等と同じ反転判定（許容する正規形に一致しない・認識できない表記はすべて違反）で行い、外部 YAML パーサは使わない（REQ-3）
 
 ## ワークフロー YAML の規約
 
