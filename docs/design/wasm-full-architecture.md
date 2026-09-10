@@ -2443,3 +2443,92 @@ dispatch されてしまう（`crates/wasm-full/tests/feature_gating_contract.rs
 問わず判定する）を使い、「既知の操作対象境界だが解決できなかった」場合に
 祖先探索をその場で打ち切るようにした。「マッピング表に存在しない
 part」（`item-text` 等）は従来どおり祖先方向への探索を継続する。
+
+## 36. `tabs_indicator` モジュール（イシュー #2211）
+
+### 36.1 背景・責務境界
+
+`fandhe-frontend-headless-ui` の `tabs`（#601）は `indicator` パーツを
+`TabsProps::indicator` で opt-in 出力できるが、SSR 時点では
+`style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"` という
+決定的な初期値のみを出力し、選択タブの実位置・実寸法の反映（Zag.js の
+`setIndicatorRect` 相当）は「wasm/CSR 層の後続責務」と明記している
+（`crates/headless-ui/src/tabs.rs` の `INDICATOR_STYLE_INITIAL` doc
+参照）。レイアウト計測は headless-ui へ持ち込まず wasm-full /
+pre-styled-ui の責務とする判断軸
+（`.claude/rules/coding-rust.md`・`docs/policy/intentional-non-adoption.md`
+§3.25 規則 2）に従い、本モジュールが wasm-full 側の実測・書き込みを
+担う。headless-ui 側の変更は一切伴わない（差分ゼロ）。
+
+`crate::content_height`（#2191、§28）と同じ 2 層構成を踏襲する:
+
+- 純粋層（`format_px`/`indicator_rect`/`Rect`）は web-sys に依存せず、
+  native の `cargo test` で検証できる。
+- 配線層（`wiring::sync_tabs_indicator`/
+  `wiring::sync_tabs_indicator_in_list`）のみ
+  `#[cfg(target_arch = "wasm32")]` でゲートする。
+
+### 36.2 書き込む CSS 変数は headless 契約の 4 変数のみ
+
+`--left`/`--top`/`--width`/`--height`（`INDICATOR_LEFT_VAR`/
+`INDICATOR_TOP_VAR`/`INDICATOR_WIDTH_VAR`/`INDICATOR_HEIGHT_VAR`）は
+headless-ui の `INDICATOR_STYLE_INITIAL` が既に公開済みの契約であり、
+`site/primitives/tabs.md` も利用者 CSS 例として掲載済みである。
+navigation-menu（#2187）が採った名前空間付き座標変数
+（`--fandhe-navigation-menu-indicator-x` 等）とは意図的に異なる判断で、
+tabs は #601 で Zag 同名の契約が headless 側に既に存在するため既存契約
+をそのまま再利用する（`crates/pre-styled-ui/src/tabs.rs`・
+`navigation_menu.rs` のモジュール doc にも同旨を記録する）。
+
+### 36.3 実測の数式・書き込み手段（CSSOM）
+
+`indicator` は `list` の padding box を包含ブロックとする絶対配置
+（`crates/pre-styled-ui/src/tabs.rs` の `list` base へ `position:
+relative` を追加）。`x = trigger.left − list.left − list.client_left +
+list.scroll_left`、`y` も同型、`width`/`height` は trigger のそれを
+そのまま使う。書き込み手段は `content_height`（§28.3）と同じ理由
+（利用者インライン宣言の破壊回避・CSP `style-src` 制約下での動作）で
+CSSOM（`HtmlElement::style().set_property`/`remove_property`）を用い、
+`set_attribute("style", ...)` 直書きは採らない。
+
+### 36.4 `hidden`・0px・未選択時の扱い
+
+`content_height` の「0 は焼き込まない」（§28.4）と同型の判断を採る:
+`width`/`height` が 0 以下（`display: none` 下等でレイアウト未確定）
+なら 4 変数への書き込みを一切行わず既存値を壊さない。選択中 trigger が
+`list` 内に見つからない場合は `data-state="inactive"`・`hidden` を設定
+し、4 変数は SSR 初期値のまま触らない。
+
+### 36.5 `crate::keynav`/`crate::headless::wire_headless_component` との統合
+
+- `sync_tabs_indicator` は `crate::keynav::wire_keynav` のマウント時
+  （初期同期）から呼ばれる。
+- `sync_tabs_indicator_in_list` は `crate::keynav` の `activate_tab`
+  （click 委譲・automatic activation の keydown の双方）呼び出し直後に
+  呼ばれる。manual activation の keydown（フォーカス移動のみで
+  `activate_tab` を呼ばない分岐）では呼ばれない（indicator は選択に
+  追従し、フォーカスには追従しないため）。
+- `sync_tabs_indicator` は `crate::headless::wire_headless_component`
+  の配線時先行同期・`on_update` 直後同期の 2 箇所からも呼ばれる
+  （再描画で indicator 要素が作り直され初期値 `0px` に戻る経路への
+  対処、`content_height` §28.5 と同じ統合パターン。順序は
+  `on_update → sync_content_height → sync_tabs_indicator` で固定する）。
+
+### 36.6 semver 判断
+
+新規公開モジュール `tabs_indicator`（`sync_tabs_indicator`/
+`sync_tabs_indicator_in_list` 他）の追加と `wire_headless_component`/
+`keynav` への非破壊的な内部統合（公開シグネチャ不変）のみのため、
+`fandhe-frontend-wasm-full` は 0.20.2 → 0.20.3 の patch バンプとする。
+`fandhe-frontend-pre-styled-ui` も `tabs` recipe への `indicator`
+base/state 純追加（既存パーツの出力バイト不変）のみのため 0.183.3 →
+0.183.4 の patch バンプとする。
+
+### 36.7 契約テスト
+
+`crates/wasm-full/tests/tabs_indicator_browser.rs`（wasm32 ブラウザ実測、
+マウント時同期・click/automatic/manual 活性化・`indicator: false` の
+no-op を検証）・`crates/pre-styled-ui/tests/tabs_indicator_var_drift.rs`
+（headless-ui の SSR 出力・wasm-full の定数と CSS 変数名が一致すること
+の native 突合）・`crates/pre-styled-ui/tests/tabs_css.rs`（golden CSS）
+が担う。

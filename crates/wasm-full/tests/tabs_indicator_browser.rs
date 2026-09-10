@@ -144,13 +144,40 @@ fn build_tabs_dom_with_indicator(
     }
 
     if with_indicator {
+        // `selected` が有効な（`disabled` でない）trigger と一致するかどうかで
+        // 初期 `data-state`/`hidden` を決める。実際の headless SSR
+        // （`crates/headless-ui/src/tabs.rs`
+        // `indicator_true_with_active_tab_full_html_snapshot` 等の golden）は
+        // 一致する場合 `data-state="active"`・`hidden` 属性なしで出力し、
+        // 4 変数（`--left`/`--top`/`--width`/`--height`）のみ `0px` 固定の
+        // ままとする（実測配線前は `wire_keynav`/`wire_headless_component` が
+        // 呼ばれるまで測定値を持たない）。このフィクスチャは SSR 契約を
+        // 忠実に再現するため、`data-state`/`hidden` を無条件固定にしない。
+        let is_initially_active = selected.is_some_and(|value| {
+            triggers
+                .iter()
+                .any(|(v, _, disabled)| *v == value && !disabled)
+        });
         let indicator = document.create_element("span").unwrap();
         indicator.set_attribute("data-scope", "tabs").unwrap();
         indicator.set_attribute("data-part", "indicator").unwrap();
-        indicator.set_attribute("data-state", "inactive").unwrap();
+        indicator
+            .set_attribute(
+                "data-state",
+                if is_initially_active {
+                    "active"
+                } else {
+                    "inactive"
+                },
+            )
+            .unwrap();
         indicator.set_attribute("aria-hidden", "true").unwrap();
-        indicator.set_attribute("hidden", "").unwrap();
-        // headless `INDICATOR_STYLE_INITIAL` と同じ `0px` 初期値。
+        if !is_initially_active {
+            indicator.set_attribute("hidden", "").unwrap();
+        }
+        // headless `INDICATOR_STYLE_INITIAL` と同じ `0px` 初期値（`data-state`
+        // が `active` の場合でも、headless は実測を行わないため 4 変数は
+        // `0px` 固定のまま出力する）。
         indicator
             .set_attribute(
                 "style",
@@ -190,8 +217,12 @@ fn indicator_of(list: &Element) -> Element {
 
 /// 検証: `wire_keynav` のマウント時初期同期（`sync_tabs_indicator`）が、
 /// SSR 初期状態で選択中の trigger（`selected: Some(...)`）に対して
-/// indicator の 4 変数を実測値へ更新し、`data-state="active"`・`hidden`
-/// 除去を行う。
+/// indicator の 4 変数（headless は測定を行わないため SSR 出力は `0px`
+/// 固定のまま）を実測値へ更新する。`data-state="active"`・`hidden` 除去
+/// 自体は headless SSR が選択一致時点で既に行う
+/// （`crates/headless-ui/src/tabs.rs`
+/// `indicator_true_with_active_tab_full_html_snapshot` 参照）ため、
+/// wire 前後で変化しない。
 #[wasm_bindgen_test]
 fn mount_time_sync_updates_indicator_for_initially_selected_trigger() {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -211,9 +242,15 @@ fn mount_time_sync_updates_indicator_for_initially_selected_trigger() {
         .unwrap();
     let indicator = indicator_of(&list);
 
-    // wire_keynav 前は SSR 初期値のまま。
+    // wire_keynav 前は SSR 初期値のまま: 選択中 trigger と一致するため
+    // `data-state="active"`・`hidden` なしは SSR 時点で既に成立しているが、
+    // 4 変数は headless が測定しないため `0px` 固定のまま。
     assert_eq!(style_var(&indicator, INDICATOR_WIDTH_VAR), "0px");
-    assert!(indicator.has_attribute("hidden"));
+    assert_eq!(
+        indicator.get_attribute("data-state").as_deref(),
+        Some("active")
+    );
+    assert!(!indicator.has_attribute("hidden"));
 
     wire_keynav(root.clone()).expect("wire_keynav must succeed");
 

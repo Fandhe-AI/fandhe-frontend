@@ -980,6 +980,15 @@ name = "fandhe-frontend-wasm-full"
 # 相当）を主軸オフセットへ適用するようにした。新規 API の追加のみで既存
 # 公開関数のシグネチャ変更を伴わない非破壊的変更のため patch バンプとし、
 # 0.20.1 を +1 した 0.20.2 とする。
+#
+# イシュー #2211: tabs の `indicator` パーツの位置を実測して CSS 変数へ
+# 書き込む新規モジュール `tabs_indicator`（新規公開関数
+# `sync_tabs_indicator`/`sync_tabs_indicator_in_list`）を追加し、
+# `headless::wire_headless_component`（配線時・`on_update` 後）と
+# `keynav`（マウント時・activate_tab 直後）から呼ぶ配線を追加した。
+# 新規公開 API の追加と既存公開関数（`wire_headless_component`）への
+# 副作用追加のみで、既存公開関数のシグネチャ変更は伴わないため非破壊的
+# 変更として patch バンプとし、0.20.2 を +1 した 0.20.3 とする。
 version = "0.20.3"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
