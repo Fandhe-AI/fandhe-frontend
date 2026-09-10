@@ -101,7 +101,9 @@ use fandhe_frontend_headless_ui::menu::{MenuCheckboxItem, MenuRadioItemGroup};
 use fandhe_frontend_headless_ui::tree_view::{TreeNode, TreeView};
 use fandhe_frontend_wasm_full::events::{wire_events, ActionRef};
 use fandhe_frontend_wasm_full::headless::wire_headless_component;
-use fandhe_frontend_wasm_full::keynav::{wire_keynav, TYPEAHEAD_TIMEOUT_MS};
+use fandhe_frontend_wasm_full::keynav::{
+    wire_keynav, wire_readonly_click_guard, TYPEAHEAD_TIMEOUT_MS,
+};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
@@ -3795,6 +3797,86 @@ fn radio_group_readonly_click_on_item_control_blocks_wire_events_action() {
         input_b.get_attribute("data-state").as_deref(),
         Some("unchecked"),
         "readonly 項目への click 後も data-state は unchecked のまま"
+    );
+}
+
+/// イシュー #2327（`keynav` の scope 別分岐を scope feature で cfg
+/// ゲートする分離）の受け入れ確認: readonly RadioGroup の click capture
+/// 保護は [`wire_readonly_click_guard`] のみが単独で担保できることを
+/// 実測で固定する。上記
+/// `radio_group_readonly_click_on_item_control_blocks_wire_events_action`
+/// と異なり [`wire_keynav`] を一切呼ばない（`keynav` feature が off の
+/// 構成、または `radio-group` scope feature が off で
+/// `keynav::wiring::wire_keynav` 内の `"radio"` match arm・`change`
+/// リスナーが cfg で失われた構成を模す）。`wire_readonly_click_guard` は
+/// これらの feature いずれにも依存せず常時配線される
+/// （`crates/wasm-full/src/lib.rs::Runtime::mount`/`hydrate` 参照）ため、
+/// 保護は失われない。
+#[wasm_bindgen_test]
+fn radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-guard-only",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-guard-only-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+    item_b.set_attribute("data-action", "select").unwrap();
+    item_b.set_attribute("data-payload", "b").unwrap();
+
+    let item_control_b = item_b
+        .query_selector("[data-part=\"item-control\"]")
+        .unwrap()
+        .expect("item-control must exist");
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+    // `wire_keynav` は呼ばない（本テストの主眼）。実プロダクトと同じく
+    // `wire_events` の直後に `wire_readonly_click_guard` を配線する
+    // （`Runtime::mount`/`hydrate` の呼び出し順、`lib.rs` 参照）。
+    wire_readonly_click_guard(root.clone()).expect("wire_readonly_click_guard must succeed");
+
+    let prevented = !item_control_b
+        .dispatch_event(&cancelable_click_event())
+        .unwrap();
+    assert!(
+        prevented,
+        "wire_keynav なしでも wire_readonly_click_guard 単独で \
+         readonly item への click（item-control ターゲット）は \
+         preventDefault で打ち消されるべき"
+    );
+    assert!(
+        actions.borrow().is_empty(),
+        "wire_keynav なしでも wire_readonly_click_guard 単独で \
+         readonly item への click は wire_events の data-action 委譲へ \
+         到達してはならない"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "wire_keynav なしでも readonly 項目は click しても checked にならない"
+    );
+    assert_eq!(
+        input_b.get_attribute("data-state").as_deref(),
+        Some("unchecked"),
+        "wire_keynav なしでも readonly 項目への click 後は data-state が \
+         unchecked のまま"
     );
 }
 

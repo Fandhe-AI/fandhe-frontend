@@ -2138,11 +2138,11 @@ codex-review 指摘を受けて分離を実装したため、記述を更新し�
 
 ### 33.5 スコープ外・後続への引き継ぎ
 
-`docs/design/wasm-full-feature-gating-evaluation.md` §13 の残項目（keynav
-の scope 分岐・`MAPPING_TABLE` 行の cfg 化とテストの `required-features`
-追随・CI feature matrix・dist-server 経路の feature 集合決定と
-`bundle_size.rs` 契約更新・利用者向け docs/examples 反映）は本イシューの
-スコープ外とし、同文書側で引き続き追跡する（readonly RadioGroup 保護の
+`docs/design/wasm-full-feature-gating-evaluation.md` §13 の残項目のうち
+「keynav の scope 分岐・`MAPPING_TABLE` 行の cfg 化」はイシュー #2327
+（§34 参照）で実装済み。残る「CI feature matrix・dist-server 経路の
+feature 集合決定と `bundle_size.rs` 契約更新・利用者向け docs/examples
+反映」は引き続き #2328/#2329/#2330 へ引き継ぐ（readonly RadioGroup 保護の
 分離は上記 33.4 のとおり完了済み）。
 ## 34. positioning の自動呼び出し統合（イシュー #2209、親 #2208）
 
@@ -2325,3 +2325,95 @@ position_browser` で実測 PASS（既存 21 テスト含め全 21 件 PASS）�
   dist-server 経路の `bundle_size.rs` は #2329（dist-server 最小 feature
   集合の決定）がマージされるまで FAIL のままである（本イシュー単独では
   解消しない。feature gating は #2329 が分離手段として使うための布石）。
+
+## 35. MAPPING_TABLE / keynav の scope feature gating（イシュー #2327）
+
+### 35.1 背景・目的
+
+§33 の配線群別 feature（`wire_*` 呼び出し単位）は
+`headless::MAPPING_TABLE`（18 scope・32 行）と `keynav::wire_keynav`
+内部の scope 別 `match scope` 分岐（13 arm）までは gate しておらず、
+`keynav` feature を絞っても丸ごとリンクされていた
+（`docs/design/wasm-full-feature-gating-evaluation.md` §13 項目 2）。
+本イシューは scope（部品）単位の feature 16 件（既定 on）を新設し、
+MAPPING_TABLE の行・keynav の match arm をそれぞれ cfg ゲートする。
+目的は §33.1 と同じく REQ-11 gzip 上限に対する余地確保であり、既定は
+すべて on のため既定構成の挙動・`bundle_size` 実測値は変わらない。
+
+### 35.2 対応表
+
+`crates/wasm-full/src/lib.rs` クレート doc §scope feature・
+`crates/wasm-full/Cargo.toml` `[features]` 直前コメントの対応表と同一。
+二重管理を避けるためここでは転記せず参照する。
+
+### 35.3 設計判断
+
+- 配線群別 feature（§33）とは独立の第 2 軸とする。`keynav` は
+  `wire_keynav` 呼び出し自体の有無を、scope feature は `wire_keynav` 内部
+  の個々の scope 分岐の有無を制御する。
+- MAPPING_TABLE 行は配列リテラル要素への `#[cfg(feature = "...")]` で
+  cfg 化する（Rust の cfg 属性は配列要素にも安定して適用できる）。
+- keynav の match arm は各 `"..." =>` へ `#[cfg(feature = "...")]` を付与
+  する。全 arm が off の構成でも `matched`/`keyboard_event` が未使用に
+  ならないよう、フォールスルー `_` arm で明示的に参照する。
+- cfg 化で到達不能になる private helper 関数・定数は
+  `#[cfg_attr(not(...), allow(dead_code))]` で lint のみ許容し、コード
+  自体は削除しない（wasm-ld の dead code elimination がリンク時に除去
+  するため、この許容は lint 衛生のみの目的）。許容条件は「新設 16
+  feature がすべて off」という単一の広い述語（scope feature 16 件の
+  `any` の否定）へ統一し、個々の関数ごとに narrow な述語を作り込まない
+  （§4-5 で検証する 4 構成〔最小・既定・all-features・keynav 単体無効〕
+  はいずれも「新設 16 feature が全 on」または「全 off」のいずれかで
+  あり、この単純化で当該構成群のカバレッジは失われない）。
+- readonly RadioGroup の click capture 保護（`keynav::wire_readonly_click_guard`）
+  はいずれの scope feature にも依存しない常時配線のまま
+  （`crates/wasm-full/tests/keynav_browser.rs` の
+  `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`
+  が `wire_keynav` を一切呼ばずに保護が機能することを実測で固定する）。
+
+### 35.4 semver 判断
+
+`fandhe-frontend-wasm-full` を 0.19.0 → 0.20.0 へ minor バンプした。
+`default-features = false` を使う既存利用者が MAPPING_TABLE 行・keynav
+分岐を失う破壊的変更にあたるため（§33.3 と同型の判断）。
+
+### 35.5 契約テスト
+
+`crates/wasm-full/tests/feature_gating_contract.rs`（native）が、
+MAPPING_TABLE 各行・keynav 各 arm の cfg 付与、Cargo.toml への feature
+宣言・`default` 列挙、readonly click guard の常時配線を機械検知する。
+
+### 35.6 スコープ外
+
+CI feature matrix・browser テストの per-test cfg（`keynav_browser.rs`/
+`headless_wiring_browser.rs`）は #2328、dist-server 経路の feature 集合
+決定は #2329、利用者向け docs/examples 反映は #2330 へ引き継ぐ。
+
+### 35.7 MAPPING_TABLE 行削除方式の是正（codex-review PR #2339 P0 指摘）
+
+§35.3 で採用した「配列リテラル要素への `#[cfg(feature = "...")]`」（行を
+feature 無効時に配列から丸ごと除去する方式）は、
+`crate::headless::action_from_parts_scoped`（クリック位置から根方向へ
+祖先探索し、最初に解決できた part のアクションを返す）に fail-open の
+回帰を持ち込んでいた: 無効化した scope（例: `collapsible`）の行が消えると
+`action_for_part` は当該 part を単に「表に無い part」（`item-text` 等と
+区別不能）として `None` を返すため、探索は祖先方向へ継続し、無効化した
+scope の祖先に別 scope（例: `sidebar`）の行があればそちらへ誤って
+dispatch されてしまう（`crates/wasm-full/tests/feature_gating_contract.rs`
+とは独立に、Bugbot が `action_from_parts_scoped_rejects_when_innermost_match_is_a_different_scope`
+テストの feature-gate 漏れとして副作用を指摘）。
+
+是正として、`MappingRow` へ `enabled: bool`（`cfg!(feature = "...")` で
+評価）フィールドを追加し、行自体は feature の有無に関わらず常に
+`MAPPING_TABLE` に存在させる方式へ変更した。`#[cfg(feature = "...")]` は
+配列要素ではなく撤去し、各フィールドの直後に `enabled: cfg!(feature =
+"...")` を書く（`feature_gating_contract.rs` の契約 1 もこの新方式へ
+追随更新済み: `MappingRow {` の直後行から `enabled: cfg!(feature =
+"X"),` の 1 行を機械検知する形へ変更し、行数 32 の期待値は維持）。
+`action_for_part` は `row.enabled == false` のとき引き続き `None` を返し
+実際の dispatch は起きない（既定の fail-closed 契約は不変）。一方
+`action_from_parts_scoped` は新設した `is_known_mapping_target`
+（`MAPPING_TABLE` に (scope, part) の行が存在するかどうかを `enabled` を
+問わず判定する）を使い、「既知の操作対象境界だが解決できなかった」場合に
+祖先探索をその場で打ち切るようにした。「マッピング表に存在しない
+part」（`item-text` 等）は従来どおり祖先方向への探索を継続する。

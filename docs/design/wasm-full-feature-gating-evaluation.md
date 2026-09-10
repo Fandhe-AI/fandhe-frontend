@@ -439,6 +439,29 @@ readonly RadioGroup の click capture 保護（`keynav.rs:7678` 付近）を
    バンプを行うこと。(i) を選ぶだけで feature 追加要求を伴う構成を
    採用可能とはしない（§10 参照）。
 
+**実測値の留保の解消（イシュー #2327、分離後の再計測）**: 上記「実測値の
+留保」が求めていた「readonly RadioGroup 保護分離後の再計測」を、
+scope feature 実装（イシュー #2327）と同時に完了した。計測手順は §3 と
+同一（`cargo build --release --target wasm32-unknown-unknown` →
+`wasm-bindgen --target web --no-typescript --remove-name-section
+--remove-producers-section` → `gzip -9` の wasm+js 合計、ローカル
+cargo 1.96.0 / wasm-bindgen 0.2.128、wasm-opt は未適用）。絶対値は
+ローカル環境依存のため相対比較として記録する。
+
+| 変種 | feature 指定 | 合計 gzip バイト | (a) 比削減率 | 200,000 − 実測 |
+|---|---|---|---|---|
+| (a) ベースライン（既定） | 既定 | 199,167 B | — | 833 B |
+| (b) keynav 単体除去 | 全 scope feature + 他 wire_\* on、`keynav` off | 180,203 B | 9.5% | 19,797 B |
+| (d') button/input/dialog 相当 | `wasm-bindgen-exports` + MAPPING_TABLE 全行を持つ 18 scope feature（`keynav`・他 wire_\* 群は off） | 129,558 B | 34.9% | 70,442 B |
+| (e') 理論下限 | `wasm-bindgen-exports` のみ | 114,317 B | 42.6% | 85,683 B |
+
+**判定（§11 事前登録ルール適用）**: (d') は (a) 比 34.9%（20% 基準を
+充足）、200,000 − (d') = 70,442 B（30 KB 基準を充足）。分離後も判定
+ルールを満たすことを確認した。条件 4（keynav gating 時の readonly
+RadioGroup 保護維持）は §14/`docs/design/wasm-full-architecture.md`
+§33.4/§34.3 のとおり満たされている。§13 項目 2 は実装済みへ更新する
+（下記）。
+
 **実装結果の追記（イシュー #2326、codex-review/Bugbot 是正）**: 条件 4 は
 `wire_keynav`（`keynav.rs`）から readonly RadioGroup の click capture 保護を
 `wire_readonly_click_guard`（新設、`keynav` feature に関わらず常時登録）へ
@@ -472,19 +495,25 @@ headless-ui 部品のクリック dispatch 全般）も同時に登録してい�
    0.18.7 → 0.19.0 へ minor バンプ）。対応表・詳細は
    `docs/design/wasm-full-architecture.md` §33 を参照。項目 2〜5 は未着手
    のまま本文書側で引き続き追跡する。
-2. **readonly RadioGroup 保護の分離は実装済み（イシュー #2326、上記
-   「実装結果の追記」参照）。** `keynav.rs:7678` 付近にあった click
-   capture 保護は `wire_readonly_click_guard`（`keynav` feature に
-   関わらず常時登録）へ分離済みであり、§11 条件 4 を満たす。**未着手
-   のまま残るのは**、(a) `MAPPING_TABLE`/keynav の scope 分岐の cfg 化
-   と `headless_wiring.rs`/`keynav_native.rs` の `required-features`
-   追随、(b) 分離後の構成での §5/§11 削減量の再計測（再計測結果が
-   判定ルールの 20%/30 KB を下回る場合は採用可否を再検討する）の 2 点
-   のみである。
+2. **実装済み（イシュー #2326 の readonly RadioGroup 保護分離 + イシュー
+   #2327 の scope feature gating）。** `keynav.rs:7678` 付近にあった
+   click capture 保護は `wire_readonly_click_guard`（`keynav` feature に
+   関わらず常時登録）へ分離済み（イシュー #2326、§11 条件 4 を満たす）。
+   `MAPPING_TABLE`（18 scope・32 行）・keynav の scope 別 `match scope`
+   分岐（13 arm）の cfg 化と `headless_wiring.rs`/`headless.rs` の
+   `mod tests`/`keynav_browser.rs` 新規テストの `#[cfg(feature = "...")]`
+   追随はイシュー #2327 で実装済み（対応表・設計判断は
+   `docs/design/wasm-full-architecture.md` §35）。分離後の構成での
+   §5/§11 削減量の再計測は上記「実測値の留保の解消」で完了し、判定
+   ルール（20%/30 KB）を満たすことを確認した。
 3. CI feature matrix（`--no-default-features` / 各 feature / `--all-features`）
    の追加。`clippy-wasm32` ジョブへの反映要否を含めて検討する。readonly
    RadioGroup 保護（項目 2）が `keynav` feature 無効時にも機能することを
-   検証するテストケースを追加する。
+   検証するテストケース自体はイシュー #2327 で追加済み
+   （`crates/wasm-full/tests/keynav_browser.rs` の
+   `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`）
+   が、CI 上での `browser-test` ジョブの feature matrix 化（縮小構成での
+   実行）自体は本項目（イシュー #2328）のスコープとして残る。
 4. dist-server 経路の feature 集合決定（§8 (A)/(B) のユーザー判断）と
    `bundle_size.rs` 契約の更新。
 5. docs（feature 一覧の利用者向けドキュメント化、§11 条件 5 の移行手順を
