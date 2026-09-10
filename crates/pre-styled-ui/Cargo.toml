@@ -2893,6 +2893,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # golden CSS の既存ブロックは不変のため非破壊的な追加として、PR と main
 # が同一到達値 0.173.0 で衝突するため main +1 の 0.174.0 へバンプする。
 #
+# 本コンフリクト解消（PR #2293、イシュー #2193）: 本ブランチ（#2193 の
+# dialog/drawer close-trigger 再設計）と origin/main（#2134 codex-review
+# 指摘是正、donut/pie/radial legend 追加）がいずれも独立に 0.174.0 へ
+# 到達しており、同一版数への偶発的衝突をそのまま採用しない原則に従い、
+# 双方の実体変更を統合した結果として main の到達値 0.174.0 をさらに
+# 上回る 0.175.0 へマイナーバンプする（0.x の破壊的変更はマイナー
+# バンプの規約）。
+#
+# イシュー #2195: Forms 家族横断の `control`/`clear-trigger` の
+# `data-disabled` 消費規則を確定・実装した（CSS 出力の純追加）ため
+# 0.176.0 へマイナーバンプする。
+
 # 本コンフリクト解消（PR #2291、イシュー #2119 の main 取り込み・1 回目）:
 # 本ブランチ（styled questionnaire 追加）と origin/main（#2285 是正）は
 # それぞれ独立に 0.174.0 へ到達しており、同一版数はコンフリクトとして
@@ -2911,22 +2923,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方の実体変更（styled questionnaire・dialog/drawer close-trigger 再設計・
 # #2285 是正）を内包した 0.176.0 をそのまま維持する。
 #
-# 本コンフリクト解消（PR #2295、イシュー #2121）base 取り込み: 本ブランチは
-# 依存先 `fandhe-frontend-headless-ui` 0.68.14 → 0.68.15（`message_scroller`
-# 新設）への `dep-version-check` version 要求追随のみで 0.174.1 へ patch
-# バンプ済みだったが、origin/main（本コンフリクト解消時点）は #2119
-# （styled questionnaire）+ #2193（dialog/drawer close-trigger 再設計）+
-# #2134（donut/pie/radial legend 追加）を統合済みで既に 0.176.0 へ到達して
-# いた。本ブランチの到達値 0.175.1 は origin/main の到達値 0.176.0 を
-# 下回り、かつ本ブランチ側に pre-styled-ui の実体変更はない（#2121 は
-# headless-ui 層のみのスコープ）ため、単純に origin/main の 0.176.0 を
-# 採用する。加えて本マージで依存先 `fandhe-frontend-headless-ui` 自体が
-# #2121 と #2193 の同一版数衝突（0.68.15 同士）解消により 0.68.16 へ
-# さらに patch バンプされたため、その `dep-version-check` version 要求
-# 追随のみを理由に main の到達値 0.176.0 からさらに patch バンプし
-# 0.176.1 とする（styled `message-scroller` recipe・golden・Themes ページ
-# 実装は引き続き後続イシュー #2123）。
-version = "0.176.1"
+# 本コンフリクト解消（PR #2295、イシュー #2121）base 取り込み・2 回目: 本
+# ブランチは 1 回目の base 取り込み（PR #2295 内、#2121）で 0.176.1 へ
+# 到達済みだったが、origin/main（本コンフリクト解消時点）は別経路（#2195
+# Forms 家族横断の disabled/required 決定と #2119 questionnaire 実装の
+# 取り込み・#2193/#2134 是正の統合、PR #2297）で独立に 0.177.0 へ到達して
+# いた。origin/main の到達値 0.177.0 は本ブランチの到達値 0.176.1 を
+# 上回り、かつ本ブランチ側に pre-styled-ui の実体変更はない（#2121 は
+# headless-ui 層のみのスコープ）ため、単純に origin/main の 0.177.0 を
+# 採用する（styled `message-scroller` recipe・golden・Themes ページ実装は
+# 引き続き後続イシュー #2123）。
+version = "0.177.0"
 
 
 edition = "2021"

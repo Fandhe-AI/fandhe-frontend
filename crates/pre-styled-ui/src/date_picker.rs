@@ -202,6 +202,7 @@
 //!   #1471 が「Themes 側の後続判断に委ね #1470 へ追跡」としていた積み残し
 //!   であり、chakra/ark 基準からの継続課題であって shadcn/ui との比較で
 //!   新たに判明した差分ではないため、scope 混同を避け #1470 側へ委ねる
+//!   （#2195 で是正済み、次節参照）
 //! - **range 選択・複数月表示・presets 行・自然言語入力・date+time 合成は
 //!   実装しない**: shadcn/ui の Examples（Range / Natural Language /
 //!   Date & Time / Presets 等）はいずれも (a) headless
@@ -217,6 +218,30 @@
 //! - **ダークモード・トークン整合**: 新規トークンを追加していないため
 //!   無変更（既存 `--fandhe-color-danger` はダーク再定義済み、
 //!   `docs/design/pre-styled-ui-scale-tokens.md` 準拠）
+//!
+//! # スタイル調整（イシュー #2195、Forms 家族横断の disabled / required 規則）
+//!
+//! #1471・#2013 が「Themes 側の後続判断に委ねる」として見送っていた
+//! `control`/`clear-trigger` への `data-disabled` 視覚追加を、Forms 家族
+//! 横断の規則として確定し是正した。詳細な決定根拠・対応表は
+//! `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` を正とする
+//! （二重管理回避のため本節では結論のみ記す）。
+//!
+//! - **`control[data-disabled]` は `cursor: not-allowed` のみ**: headless
+//!   （`crates/headless-ui/src/date_picker.rs::control`）が
+//!   `data-disabled` を出すようになったため消費するが、date-picker は
+//!   `input`/`trigger` という「葉」パーツが `disabled_declarations()`
+//!   （opacity 0.5 を含む）を既に適用する葉所有型であり、レイアウトのみの
+//!   `control` へ重ねて opacity を足すと二重減光になる（`tags_input.rs`
+//!   の `control`/`item` と同じ判断軸）
+//! - **`clear-trigger[data-disabled]` は `disabled_declarations()`**:
+//!   headless（`clear_trigger`）が `data-disabled` を出すようになった。
+//!   `clear-trigger` は `trigger` と同じく単独で操作されるクリック可能な
+//!   `<button>` （葉）であり、`control` の内側 slot ではなく `input`/
+//!   `trigger` と同格の要素であるため `disabled_declarations()` を適用する
+//! - **`label` の `data-required` 視覚化は見送る（決定として確定）**:
+//!   `field::required_indicator` による表現へ統一する Forms 家族横断規則
+//!   （R2）であり、`*` 等の CSS 生成コンテンツは追加しない
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -391,9 +416,7 @@ fn recipe() -> SlotRecipe {
         // `disabled_declarations()`（`cursor: not-allowed` 等）が確実に
         // 最終適用されるよう最後に置く。headless
         // （`crates/headless-ui/src/date_picker.rs`）が `input`/`trigger`
-        // へ出す `data-disabled` を消費する（`control`/`clear-trigger`
-        // へは出さないため対象外、モジュール rustdoc「スタイル調整」節
-        // 参照）。
+        // へ出す `data-disabled` を消費する。
         .state(
             "input",
             StateCondition::Attr("data-disabled"),
@@ -401,6 +424,28 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // `control[data-disabled]`（イシュー #2195、モジュール rustdoc
+        // 「スタイル調整（イシュー #2195）」節参照）: headless
+        // （`control`）が `data-disabled` を出すようになった
+        // （headless-ui 0.41.0、#1627）。`control` は純レイアウトの
+        // コンテナで `input`/`trigger` という葉パーツが既に
+        // `disabled_declarations()`（opacity 0.5 を含む）を適用する
+        // ため、`cursor: not-allowed` のみに留め二重減光を避ける
+        // （`tags_input.rs` の `control` と同じ判断軸）。
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
+        )
+        // `clear-trigger[data-disabled]`（イシュー #2195）: headless
+        // （`clear_trigger`）が `data-disabled` を出すようになった。
+        // `clear-trigger` は `trigger` と同格の単独クリック可能な
+        // `<button>`（葉）であるため `disabled_declarations()` を適用する。
+        .state(
+            "clear-trigger",
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
         )
@@ -511,6 +556,23 @@ pub fn root<'a>(
 mod tests {
     use super::*;
     use fandhe_frontend_core::render;
+
+    /// `css` 中で `selector_with_brace`（例: `"...[data-disabled] {"`）から
+    /// 対応する `}` までの本文を抜き出す（イシュー #2195 の
+    /// `disabled_declarations_follow_forms_matrix` テスト専用ヘルパ）。
+    /// `size_variants_define_calendar_day_size_for_grid_propagation` の
+    /// ブロック抽出パターンと同型。
+    fn extract_block<'a>(css: &'a str, selector_with_brace: &str) -> &'a str {
+        let block_start = css
+            .find(selector_with_brace)
+            .unwrap_or_else(|| panic!("selector not found: {selector_with_brace}, css={css}"));
+        let body_start = block_start + selector_with_brace.len();
+        let body_end = css[body_start..]
+            .find('}')
+            .map(|offset| body_start + offset)
+            .unwrap_or_else(|| panic!("unterminated block for {selector_with_brace}"));
+        &css[body_start..body_end]
+    }
 
     #[test]
     fn stylesheet_is_deterministic_and_targets_data_scope_selectors() {
@@ -624,15 +686,45 @@ mod tests {
     }
 
     #[test]
-    fn disabled_declarations_apply_to_input_and_trigger_only() {
+    fn disabled_declarations_follow_forms_matrix() {
+        // イシュー #2195（Forms 家族横断の disabled 規則、R1「opacity 単一
+        // 階層」）: date-picker は `input`/`trigger` という葉パーツが
+        // opacity を所有する「葉所有型」であるため、`control`（純レイアウト
+        // コンテナ）は `cursor: not-allowed` のみを持ち `opacity` を含まない
+        // （二重減光の回避）。`clear-trigger` は `trigger` と同格の葉
+        // （単独操作可能な `<button>`）であるため `disabled_declarations()`
+        // （opacity 0.5 + cursor）を適用する。
+        // 詳細な対応表は
+        // `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` 参照。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="date-picker"][data-part="input"][data-disabled]"#));
         assert!(css.contains(r#"[data-scope="date-picker"][data-part="trigger"][data-disabled]"#));
-        assert!(!css.contains(r#"[data-scope="date-picker"][data-part="control"][data-disabled]"#));
-        assert!(!css
-            .contains(r#"[data-scope="date-picker"][data-part="clear-trigger"][data-disabled]"#));
+        assert!(css.contains(r#"[data-scope="date-picker"][data-part="control"][data-disabled]"#));
+        assert!(
+            css.contains(r#"[data-scope="date-picker"][data-part="clear-trigger"][data-disabled]"#)
+        );
         assert!(css.contains("opacity: 0.5"));
         assert!(css.contains("cursor: not-allowed"));
+
+        let control_block = extract_block(
+            &css,
+            r#"[data-scope="date-picker"][data-part="control"][data-disabled] {"#,
+        );
+        assert!(
+            !control_block.contains("opacity"),
+            "control[data-disabled] must not own opacity (input/trigger already do): {control_block}"
+        );
+        assert!(control_block.contains("cursor: not-allowed"));
+
+        let clear_trigger_block = extract_block(
+            &css,
+            r#"[data-scope="date-picker"][data-part="clear-trigger"][data-disabled] {"#,
+        );
+        assert!(
+            clear_trigger_block.contains("opacity: 0.5"),
+            "clear-trigger[data-disabled] must apply disabled_declarations() (leaf slot): {clear_trigger_block}"
+        );
+        assert!(clear_trigger_block.contains("cursor: not-allowed"));
     }
 
     #[test]
