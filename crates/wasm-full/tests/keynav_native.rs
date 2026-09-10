@@ -20,10 +20,10 @@ use fandhe_frontend_wasm_full::keynav::{
     accordion_next_index, calendar_next_index, combobox_key_action, highlight_next_index,
     is_typeahead_key, listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
     navigation_menu_link_next_index, navigation_menu_trigger_key_action, radio_next_index,
-    splitter_key_action, submenu_nav, tabs_next_index, toggle_group_next_index, tree_key_action,
-    tree_visible_flags, typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers,
-    NavigationMenuKeyAction, Orientation, SplitterKeyAction, SubmenuNav, TreeItemMeta,
-    TreeKeyAction, TYPEAHEAD_TIMEOUT_MS,
+    scroll_delta_for_band, splitter_key_action, submenu_nav, tabs_next_index,
+    toggle_group_next_index, tree_key_action, tree_visible_flags, typeahead_next_index,
+    typeahead_push, ComboboxKeyAction, Modifiers, NavigationMenuKeyAction, Orientation,
+    SplitterKeyAction, SubmenuNav, TreeItemMeta, TreeKeyAction, TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -999,4 +999,40 @@ fn splitter_dispatch_out_of_range_trigger_is_noop_without_panic() {
     ));
     assert_eq!(s.size(0), Some(50.0));
     assert_eq!(s.size(1), Some(50.0));
+}
+
+/// 検証: 項目が band 内に完全に収まっていれば delta は 0（no-op）。
+#[test]
+fn scroll_delta_for_band_item_within_band_is_noop() {
+    assert_eq!(scroll_delta_for_band(20.0, 40.0, 0.0, 100.0), 0.0);
+}
+
+/// 検証: 項目上端が band 上端より上にはみ出ていれば負の delta（上方向補正）。
+#[test]
+fn scroll_delta_for_band_item_above_band_top_scrolls_up() {
+    // band_top が sticky scroll-up-button の高さ分（例: 32px）だけ下がった
+    // ケース相当。ボタンに重なる項目は band_top 未満として補正対象になる。
+    assert_eq!(scroll_delta_for_band(10.0, 30.0, 32.0, 200.0), 10.0 - 32.0);
+}
+
+/// 検証: 項目下端が band 下端より下にはみ出ていれば正の delta（下方向補正）。
+#[test]
+fn scroll_delta_for_band_item_below_band_bottom_scrolls_down() {
+    // band_bottom が sticky scroll-down-button の高さ分だけ上がったケース
+    // 相当。ボタンに重なる項目は band_bottom 超過として補正対象になる。
+    assert_eq!(
+        scroll_delta_for_band(150.0, 210.0, 0.0, 200.0),
+        210.0 - 200.0
+    );
+}
+
+/// 検証: band がスクロールボタンなしのコンテナ矩形そのもの（Menu/
+/// Combobox 等）でも、従来どおり境界比較のみで delta を計算する
+/// （回帰防止: band 計算導入前後で挙動が変わらないことの確認）。
+#[test]
+fn scroll_delta_for_band_without_buttons_matches_container_rect_behavior() {
+    // band == container rect（ボタンが存在しない呼び出し元と等価）。
+    assert_eq!(scroll_delta_for_band(5.0, 15.0, 0.0, 100.0), 0.0);
+    assert_eq!(scroll_delta_for_band(-5.0, 15.0, 0.0, 100.0), -5.0);
+    assert_eq!(scroll_delta_for_band(90.0, 110.0, 0.0, 100.0), 10.0);
 }

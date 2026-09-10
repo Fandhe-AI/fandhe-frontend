@@ -490,14 +490,15 @@ const SEGMENT_GROUP: ComponentPageSpec = ComponentPageSpec {
 /// `hidden_select` 406-457）。
 const SELECT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Label / Control / Trigger / ValueText / ClearTrigger / Indicator / Positioner / Content / ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15 anatomy パーツを提供する（ark-ui と完全一致、イシュー #1619 参照突合で追加・削除なし）。",
+        "Root / Label / Control / Trigger / ValueText / ClearTrigger / Indicator / Positioner / Content / ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect / Separator / ScrollUpButton / ScrollDownButton の 18 anatomy パーツを提供する（前 15 者は ark-ui と完全一致、イシュー #1619 参照突合で追加・削除なし。後 3 者はイシュー #2186 で追加）。",
         "listbox の開閉（`Disclosure`）+ 選択値（`SingleSelect`、高々 1 個）を合成した状態機械を持つ。`data-state` 値語彙は `crate::state::OpenState` の `\"open\"`/`\"closed\"` に一元化し、選択有無の表現にも同じ語彙を再利用する（ark-ui の `checked`/`unchecked` は不採用）。",
         "`SelectProps`（`disabled`/`readonly`/`invalid`/`required`）を root/label/control/trigger/value-text/clear-trigger/indicator/item-group へ一律付与する（イシュー #1619。`label` にのみ `data-required` を追加）。呼び出し側 `attrs` に同名キーが混入していても fail-closed で除去する。",
         "`trigger` は `data-placeholder-shown` を持つ（ark-ui/Radix 双方が trigger に持つ属性）。`item` は root disabled の伝播（`props.disabled || disabled`）と、選択時のみ付与する `data-selected` を持つ。`item_text` は `item` と同じ 3 状態属性（`data-state`/`data-disabled`/`data-highlighted`）を持つ。",
         "`hidden_select` はフォーム統合専用のネイティブ `<select>` であり `aria-hidden=\"true\"` + `tabindex=\"-1\"` を固定付与して視覚 UI（`trigger`/`content`）との二重露出を防ぐ。未選択時は非表示 placeholder option を自動挿入し、ブラウザの「先頭 option 自動選択」による誤送信を防ぐ。`props.required` はネイティブ `required` へ反映する（`readonly` は `<select readonly>` が無効な HTML のため非採用）。",
         "位置決め（`positioner` の `style`/`data-side`/`data-align`）は `crate::positioning`（#590）が算出した値を呼び出し側が渡す。Select は arrow を持たない。",
         "highlight 移動・typeahead・キーボードナビゲーション自体は CSR 挙動層のスコープであり、本モジュールは `item(highlighted)`/`content(activedescendant)` の SSR 静的表現のみを提供する。",
-        "意図的に非追随: `data-state` の `checked`/`unchecked` 化・Radix 固有の Portal/Viewport/ScrollButton（レイアウト計測の関心、headless 層へ持ち込まない）・Arrow（Select は arrow を持たない）・`data-focus`（DOM ローカル focus）・`data-placement`/`data-side`（`crate::positioning` 経由で既に提供）。",
+        "`separator`（`div` + `aria-hidden=\"true\"`）・`scroll_up_button`/`scroll_down_button`（`div` + `aria-hidden=\"true\"`）の 3 パーツをイシュー #2186 で追加した。`separator` は当初 `role=\"separator\"` + `aria-orientation=\"horizontal\"` を固定付与していたが、親 `content`（`role=\"listbox\"`）は `option`/`group` のみを子に持てる `aria-required-children` 制約に違反するため、Radix `SelectSeparator` と同型の `aria-hidden` のみへ改めた（Bugbot 指摘対応）。可視性判定（スクロール可能かの計測）・押下時の実スクロールはいずれも本モジュールの責務外で `fandhe-frontend-wasm-full` の後続イシューが担う（SSR/静的描画では `style`/`hidden`/寸法系属性を一切出力せず常時描画する）。",
+        "意図的に非追随: `data-state` の `checked`/`unchecked` 化・Radix 固有の Portal/Viewport（レイアウト計測の関心、headless 層へ持ち込まない）・Arrow（Select は arrow を持たない）・`data-focus`（DOM ローカル focus）・`data-placement`/`data-side`（`crate::positioning` 経由で既に提供）。",
     ],
     arguments: &[
         ArgRow { name: "root/control/trigger/indicator/positioner/content/item/item_text/item_indicator(state)", kind: "OpenState", default: "OpenState::Closed", description: "開閉（または選択有無）状態。`data-state` へ反映する。" },
@@ -520,6 +521,7 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         ArgRow { name: "hidden_select(name)", kind: "Option<&str>", default: "", description: "`Some` のとき `name` 属性を出力する。" },
         ArgRow { name: "hidden_select(props)", kind: "&SelectProps", default: "", description: "`props.disabled`/`props.required` をそれぞれネイティブ `disabled`/`required` 存在属性へ反映する（イシュー #1619）。" },
         ArgRow { name: "hidden_select(options)", kind: "Vec<(&str, &str)>", default: "", description: "`(value, label)` の列。各要素を `<option>` として組み立てる。" },
+        ArgRow { name: "separator/scroll_up_button/scroll_down_button(attrs, children)", kind: "Vec<(&str, &str)>, Vec<Node>", default: "", description: "3 パーツとも state 引数を持たない（SSR は可視性を判定できないため常時描画する、イシュー #2186）。" },
     ],
     examples: &[
         ExampleEntry {
@@ -552,6 +554,8 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         AriaRow { attribute: "aria-hidden=\"true\" (item_indicator)", description: "装飾アイコンであり `item` 自身の `aria-selected` が選択状態を伝達するため、支援技術の二重読み上げを防ぐ（イシュー #1619）。" },
         AriaRow { attribute: "aria-disabled (item)", description: "`props.disabled || disabled`（root disabled 伝播）が `true` のとき付与する（イシュー #1619）。" },
         AriaRow { attribute: "aria-hidden=\"true\" / tabindex=\"-1\" (hidden_select)", description: "視覚 UI（`trigger`/`content`）との二重露出・二重フォーカスを防ぐため固定付与する。" },
+        AriaRow { attribute: "aria-hidden=\"true\" (separator)", description: "固定付与（イシュー #2186。`content` は listbox の `aria-required-children`〔`option`/`group` のみ子に持てる〕制約があるため `role`/`aria-orientation` は持たず、Radix `SelectSeparator` と同型の `aria-hidden` のみへ統一する、Bugbot 指摘対応）。" },
+        AriaRow { attribute: "aria-hidden=\"true\" (scroll_up_button / scroll_down_button)", description: "固定付与（イシュー #2186）。装飾要素であり可視性判定・実スクロールを持たないため支援技術から隠す。" },
     ],
     demo: None,
 };

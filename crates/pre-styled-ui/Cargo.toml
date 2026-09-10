@@ -2729,22 +2729,33 @@ name = "fandhe-frontend-pre-styled-ui"
 # もの」への移動（headless error_text の role="alert" 採用を反映）と
 # headless-ui 依存の version 要求追随のみで、本クレート自身の出力・API は
 # 不変のため patch バンプの 0.162.2 へ到達していたが、#2109 のマイナー
-# バンプ（0.163.0）がこれを上回るため 0.163.0 を採用する（0.x の破壊的
-# 変更／機能追加はマイナーバンプ優先の規約、同一版数への偶発的衝突では
-# ないため +1 の追加バンプは不要）。
+# バンプ（0.163.0）がこれを上回るため 0.163.0 を採用していた（0.x の破壊的
+# 変更／機能追加はマイナーバンプ優先の規約）。
 #
-# 上記 0.162.2（origin/main）と本ブランチ側の 0.163.0（イシュー #2129 の
-# 実体変更に伴うマイナーバンプ）をマージした結果、双方とも独立に
-# 0.163.0 へ到達しており、同一版数への偶発的衝突（互いに異なる実体変更が
-# 同じ番号を指す状態）となるため、衝突解消の印として +1 マイナーし
-# 0.164.0 を採用する（PR #2261 の codex-review / Bugbot 指摘修正コミットに
-# 伴う origin/main 再取り込み、イシュー #2129）。
+# イシュー #2186: select へ `separator`/`scroll_up_button`/
+# `scroll_down_button` の `pub use` 再エクスポート 3 件を純追加し、
+# [`recipe`] へ base 3 ブロックを新設（golden 変更）した。既存 API・出力は
+# 不変のまま公開 API を追加する非破壊的変更のため、#2106 の先例に倣い
+# マイナーバンプ対象だったが、独立に 0.163.0 へ到達していた main（#2109）
+# との統合で版数が偶発的に一致したため、同一版数も衝突として扱い main から
+# +1 して 0.164.0 とする。
 #
-# イシュー #2111: headless-ui 0.68.8 → 0.68.9（`attachment` 新設、非破壊的
-# 追加）に伴う `dep-version-check --fix` の `version = "..."` 追随バンプ
-# （本ブランチ側では 0.163.1 patch バンプとして到達）は、origin/main 側の
-# 上記マージ解消で到達した 0.164.0 が既に上回っているため、追加バンプ
-# 不要で 0.164.0 をそのまま採用する（本クレート自身の recipe・golden・
+# その後の origin/main 側の独立した進展（#2129 の `charts` hit-area・
+# data-index/data-series・SSR ツールチップ DOM 追加、実体変更に伴うマイナー
+# バンプ・PR #2261 の codex-review / Bugbot 指摘修正コミットに伴う再取り込み）
+# でも main は独立に 0.164.0 へ到達していた。本ブランチの `select` 変更
+# （イシュー #2186）と main の `charts` 変更は互いに異なる実体変更であり
+# ながら偶発的に同じ 0.164.0 を指す状態のため、`semver-same-version-is-
+# conflict` の運用（一度この衝突を経て 0.163.0→0.164.0 とした際と同じ
+# 判断軸）に従い、再度の同一版数衝突として main の到達値 0.164.0 から
+# +1 マイナーして 0.165.0 とする。
+#
+# イシュー #2111（origin/main 再取り込み）: headless-ui 0.68.8 → 0.68.9
+# （`attachment` 新設、非破壊的追加）に伴う `dep-version-check --fix` の
+# `version = "..."` 追随（origin/main 側では 0.164.0 到達時点で反映済み）
+# は、上記マージ解消で到達した 0.165.0 が既に上回っているため、本クレート
+# 自身への追加バンプは不要で 0.165.0 をそのまま採用する（依存先の
+# version 要求文字列のみ後続で追随、本クレート自身の recipe・golden・
 # Themes ページ実装は後続イシュー #2112、出力・API は不変）。
 #
 # イシュー #2112: `attachment` モジュール（recipe・golden・8 パーツの
@@ -2772,6 +2783,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # Themes ページ実装は後続イシュー #2115）。base 取り込みで headless-ui が
 # さらに 0.68.11 へ patch バンプした（同一版数への偶発的衝突をそのまま
 # 採用しない原則、`crates/headless-ui/Cargo.toml` 参照）ため、この
+# dep-version-check 追随分をさらに 0.166.2 へ patch バンプする。
+#
+# PR #2265 base 取り込み: headless-ui が本 PR（#2186）由来の同一版数衝突
+# 解消でさらに 0.68.12 へ patch バンプした（`crates/headless-ui/
+# Cargo.toml` 参照）ため、この dep-version-check 追随分も併せて反映する。
+# 本クレート自身は select へ `separator`/`scroll_up_button`/
+# `scroll_down_button` の `pub use` 再エクスポート 3 件を純追加し、
+# [`recipe`] へ base 3 ブロックを新設（golden 変更）する既存 API・出力は
+# 不変のまま公開 API を追加する非破壊的変更のため、#2106 の先例に倣い
+# マイナーバンプする。origin/main 到達値 0.166.2 を上回る必要があるため
+# 0.167.0 とする。
 # dep-version-check 追随分をさらに 0.166.2 へ patch バンプしていた。
 #
 # イシュー #2131: 本ブランチ側は上記 0.166.2 を起点に、本イシューの
@@ -2785,7 +2807,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 到達値 0.169.0 をさらに上回る 0.170.0 へマイナーバンプする（0.x の
 # 破壊的変更はマイナーバンプの規約。同一版数への偶発的衝突をそのまま
 # 採用しない原則と同様、片方の到達値をそのまま採用しない）。
-version = "0.170.0"
+#
+# base 再取り込み（本コンフリクト解消）: origin/main 側は別系統の
+# イシュー #2133 ブランチが独立に同じ 0.166.2 を起点として 0.167.0 →
+# （PR #2265 との偶発的同一版数衝突で）0.168.0 → （イシュー #2115 の
+# marker 新設 PR #2274 取り込みで）0.170.0 へ到達しており、本ブランチの
+# 到達値 0.170.0 と偶然一致していた（同一版数はコンフリクトとして扱い
+# main +1 する運用、`docs/ci/version-bump-publish-order-gap.md` 系の
+# 先例と同一方針）。この偶発的一致をそのまま採用せず 0.171.0 へさらに
+# マイナーバンプする。
+version = "0.171.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2800,7 +2831,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.11" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.12" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

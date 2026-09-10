@@ -213,10 +213,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // （Primitives）が加わり、215 → 216、イシュー #2112 で Attachment の
     // Themes ページが加わり、216 → 217、イシュー #2114 で Marker
     // （Primitives）が加わり、217 → 218、イシュー #2115 で Marker の
-    // Themes ページが加わり、218 → 219 になった。
+    // Themes ページが加わり、218 → 219 になった。イシュー #2088 で
+    // Blocks セクション（索引 1 + login-01 1 = 2 ページ）が新設され、
+    // 219 → 221 になった。
     assert_eq!(
         report.written.len(),
-        219,
+        221,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -302,8 +304,9 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // ため実サイトでは fixture（5 件）より多い。イシュー #1022 で
     // primitives-showcase.css が加わり 6 → 7 になり、イシュー #1562 で
     // Image 節 demo のビルド時生成 SVG（`showcase::image_demo_svg`）が
-    // 加わり 7 → 8 になった）。
-    assert_eq!(report.assets.len(), 8, "{:?}", report.assets);
+    // 加わり 7 → 8 になった）。イシュー #2088 で Blocks 専用 CSS
+    // （`blocks.css`）が加わり 8 → 9 になった。
+    assert_eq!(report.assets.len(), 9, "{:?}", report.assets);
 
     // イシュー #1016: リダイレクトページは `written`（本体ページ）にも
     // `assets` にも含めない独立フィールド（`BuildReport::redirects`）。
@@ -406,6 +409,12 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         ("themes/index.html", false),
         // イシュー #1017 で /components/dialog/ から /themes/dialog/ へ移行。
         ("themes/dialog/index.html", true),
+        // イシュー #2088: Blocks 索引ページは Rust 生成コンテンツを
+        // 持たず pre-styled-ui.css を配線しない。login-01 は合成に使う
+        // 部品（card/field/input/button）の見た目のため pre-styled-ui.css
+        // を配線する（`crate::blocks` モジュール doc「CSS の置き場」節）。
+        ("blocks/index.html", false),
+        ("blocks/login-01/index.html", true),
         ("api/component-api/index.html", false),
     ];
 
