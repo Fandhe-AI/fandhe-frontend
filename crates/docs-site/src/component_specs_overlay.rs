@@ -120,6 +120,7 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
         "size variant（Xs/Sm/Md/Lg/Xl）を root へ付与し、item-trigger / item-content の padding を切り替える。",
         "item-trigger はキーボード操作時のみのフォーカスリング（:focus-visible）を持つ。",
         "開閉状態（data-state）は呼び出し側が SSR/SSG のビルド時に渡した値がそのまま出力される。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動・ネイティブ details/summary への代替パターンは「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
+        "JS 有効時、item-content の開閉は高さトランジションになる（イシュー #2192、案 C）。fandhe-frontend-wasm-full が実測した content 高さを CSS 変数（--fandhe-content-height）へ書き込み、@starting-style + transition-behavior: allow-discrete で hidden 属性の即時切り替えを遷移させる。JS 無効時（変数未設定）は auto フォールバックにより従来どおり hidden による即時切り替えのまま動作する。",
     ],
     arguments: &[ArgRow {
         name: "size",
@@ -330,7 +331,7 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
         "data-disabled を 4 パート全てへ反映する（trigger のみネイティブ disabled 存在属性も伴う）。",
         "size/variant/colorPalette は提供しない（参照 4 サイト chakra-ui/Ark UI/Radix Primitives/shadcn-ui のいずれも Collapsible に持たないため）。",
         "closed のとき content は headless 層が付与する hidden 存在属性のみで隠れる（base では display を宣言せず、UA 既定の [hidden] { display: none } を上書きしない）。",
-        "開閉時の高さアニメーション（Radix の collapsedHeight 相当）は意図的に非採用とする。理由はコンテンツ高さの実測が JS 前提という点だけでなく、headless 層が closed 時に content へ付与する hidden 存在属性を base 規則で上書きすると閉状態でも DOM 上へ再露出してしまう構造的な制約にもよる（shadcn/ui にも JS レスの代替実装は無い）。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動は「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
+        "JS 有効時、content の開閉は高さトランジションになる（イシュー #2192、案 C）。fandhe-frontend-wasm-full が実測した content 高さを CSS 変数（--fandhe-content-height）へ書き込み、@starting-style + transition-behavior: allow-discrete で hidden 属性の即時切り替えを遷移させる（hidden 契約そのものは維持し、Radix の collapsedHeight のような JS 実測依存の部分表示は再現しない）。JS 無効時（変数未設定）は auto フォールバックにより従来どおり hidden による即時切り替えのまま動作する。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動は「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
         "shadcn/ui（Base UI）の Examples（Basic / Settings Panel / File Tree）はいずれも既存 API（root/trigger/indicator/content の再帰的な組み合わせ）で再現できる合成パターンであり、新規の variant/size/state 軸を追加しない（下記 Examples 節参照）。",
     ],
     arguments: &[

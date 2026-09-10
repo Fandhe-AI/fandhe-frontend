@@ -121,6 +121,59 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
   詳細・実ブラウザ確認範囲は `docs/design/wasm-full-architecture.md`
   §28.6 参照。
 
+### 5.2 実装記録（イシュー #2192）
+
+- **閉状態のキーは `StateCondition::Attr("hidden")` に確定**した
+  （`AttrEq("data-state", "closed")` ではなく）。`hidden` は headless の
+  disclosure 系全部品で保証された契約であり、bubble 等への横展開（#2282）
+  時に部品ごとの `data-state` 出力有無を確認する必要がなくなる。
+  collapsible `content`・accordion `item-content` はいずれも `data-state`
+  と `hidden` の両方を出力するためどちらでも成立するが、契約の一般性を
+  理由に `hidden` を採用した。
+- **`@starting-style` を利用する `SlotRecipe` の公開 DSL** として
+  `starting_style`/`starting_style_state`（Hover 系条件は fail-closed に
+  除外）を追加し、`transition_declarations_allow_discrete`
+  （`transition_declarations` + `transition-behavior: allow-discrete`）と
+  組み合わせて `content_height_transition` preset へ統合した
+  （`docs/api/pre-styled-recipe-api.md` §2 参照）。base 2 個目ブロック・
+  `[hidden]` state・`@starting-style` の 3 規則を 1 呼び出しで登録する。
+- **`box-sizing: border-box` を含める**。#2191 の実測値は `scrollHeight`
+  （padding 込み）のため、content-box のまま `height: <px>` を当てると
+  開いた定常状態で padding 分だけ箱が伸びてしまう。
+- **`padding-block` も閉状態・`@starting-style`・`transition-property` に
+  含める**。`height: 0` 単独だと閉じる途中で padding 分の高さが残ったまま
+  `display: none` に落ちる見た目のジャンプが生じるため。代償として、
+  変数未設定の初回オープン（劣化経路）では `height` が `auto` へ即時
+  スナップする一方 `padding-block` は `0 → P` を補間できてしまい、200ms
+  かけて padding だけが広がる見た目になり得るが、閉じ切る直前の padding
+  ジャンプを消す利点（サポート経路の見た目）を優先した。
+- **既知の限界（定常状態のクリップ）**: 開いた定常状態で `height: <px>`
+  固定 + `overflow: hidden` のため、ウィンドウ幅変化で本文が伸びた場合や
+  内包要素の後発的な高さ変化（#2191 の同期タイミング外）でクリップされ
+  得る。#2191 が記録する「縮んだ場合に前回値が残る」限界（§5.1）とは
+  逆方向の限界であり、対策（`interpolate-size: allow-keywords` の
+  progressive enhancement・resize 時の再同期）は本イシューのスコープ外
+  として別イシュー提案の対象とする。
+- **`scrollHeight` は border を含まない**ため、border-box で
+  `height: <scrollHeight>px` を当てると collapsible（1px border）では
+  content 領域が上下計 2px 短くなる（`overflow: hidden` の切り取り境界は
+  padding box のため本文は切れず、下 padding が実質 14px に見えるだけ）。
+  accordion は border なしで完全一致する。修正不要の「意図した限界」と
+  して記録する。
+- **`@starting-style` ブロックの出力位置**は states の後・
+  `@media (hover: hover)` の前に 1 個だけ集約する（hover ブロックと同じ
+  「常に末尾に 1 個」契約を壊さないため）。`@starting-style` を利用しない
+  既存部品の golden は差分ゼロ（純追加）。
+- **動作確認の範囲**: docs-site は JS ハイドレーションを行わないため、
+  Themes ページ上で開閉トランジションそのものを観察することは構造的に
+  できない。`make docs` の生成 CSS に新ブロックが載ること・静的 Demo
+  （open 固定）の見た目が `box-sizing: border-box` + `auto` フォール
+  バックで従来と同寸であることの確認に留める。実ブラウザでの遷移確認は
+  `crates/wasm-full/tests/content_height_browser.rs` の in-place 再開閉
+  ケースが担う（wasm-full は pre-styled-ui に依存しないため、pre-styled-ui
+  側の CSS を実際に注入した browser テストの新規追加は本イシューのスコープ
+  外）。
+
 ## 6. JS 無効時の表示方針（親 #2189 の受け入れ条件「JS 無効時に content が閲覧可能」への回答）
 
 - **(a) 原則維持**: `docs/guides/no-js-ssg.md` の原則どおり、JS ゼロ構成では `data-state` をビルド時に固定する。「JS 無効でも読ませたい content」は呼び出し側が `OpenState::Open` で SSR するか、`<details>`/`<summary>` を使う運用をガイドへ明記する（案 A・案 C はこの読み替えで受け入れ条件を満たす）。

@@ -850,3 +850,182 @@ fn hover_state_and_other_states_coexist_with_hover_block_emitted_once_at_end() {
         "@media ブロックが css() 出力の末尾であること"
     );
 }
+
+// イシュー #2192: `@starting-style` / `transition-behavior: allow-discrete`
+// DSL・`content_height_transition` preset の統合テスト（設計は
+// `docs/design/collapsible-height-animation.md` 案 C）。
+
+use fandhe_frontend_pre_styled_ui::recipe::{
+    content_height_closed_declarations, content_height_open_declarations,
+    transition_declarations_allow_discrete, CONTENT_HEIGHT_VAR,
+};
+
+#[test]
+fn transition_declarations_allow_discrete_appends_behavior_longhand() {
+    // 先頭 3 宣言は `transition_declarations` と同一で、4 宣言目に
+    // `transition-behavior: allow-discrete` が追加されることを固定する。
+    let base = transition_declarations("height, display", MotionDuration::Normal);
+    let with_behavior =
+        transition_declarations_allow_discrete("height, display", MotionDuration::Normal);
+
+    assert_eq!(with_behavior.len(), 4);
+    assert_eq!(with_behavior[0].property(), base[0].property());
+    assert_eq!(with_behavior[0].value(), base[0].value());
+    assert_eq!(with_behavior[1].property(), base[1].property());
+    assert_eq!(with_behavior[1].value(), base[1].value());
+    assert_eq!(with_behavior[2].property(), base[2].property());
+    assert_eq!(with_behavior[2].value(), base[2].value());
+    assert_eq!(with_behavior[3].property(), "transition-behavior");
+    assert_eq!(with_behavior[3].value(), "allow-discrete");
+}
+
+#[test]
+fn starting_style_block_is_emitted_once_after_states_and_before_hover_media() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .starting_style("root", vec![decl("opacity", "0")])
+        .state(
+            "root",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state("root", StateCondition::Hover, hover_surface_declarations());
+
+    let css = recipe.css();
+    assert_eq!(css.matches("@starting-style").count(), 1);
+
+    let disabled_pos = css
+        .find("[data-disabled]")
+        .expect("disabled state must exist");
+    let starting_style_pos = css
+        .find("@starting-style")
+        .expect("@starting-style block must exist");
+    let media_pos = css
+        .find("@media (hover: hover)")
+        .expect("hover media block must exist");
+    assert!(
+        disabled_pos < starting_style_pos,
+        "states は @starting-style より前に出力される"
+    );
+    assert!(
+        starting_style_pos < media_pos,
+        "@starting-style は @media (hover: hover) より前に出力される"
+    );
+
+    let expected_block = concat!(
+        "@starting-style {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "    opacity: 0;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert!(css.contains(expected_block));
+}
+
+#[test]
+fn starting_style_without_rules_emits_no_block() {
+    // 未使用時は `@starting-style` が一切出ない（既存 golden の差分ゼロの
+    // 根拠。`starting_style`/`starting_style_state` を呼ばない部品の
+    // 出力はイシュー #2192 前後でバイト不変）。
+    let recipe = SlotRecipe::new("widget", &["root"]).base("root", vec![decl("display", "flex")]);
+    assert!(!recipe.css().contains("@starting-style"));
+}
+
+#[test]
+fn starting_style_state_generates_conditioned_selector() {
+    let recipe = SlotRecipe::new("widget", &["root"]).starting_style_state(
+        "root",
+        StateCondition::AttrEq("data-state", "open"),
+        vec![decl("height", "0")],
+    );
+
+    let expected = concat!(
+        "@starting-style {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"][data-state=\"open\"] {\n",
+        "    height: 0;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
+#[test]
+fn starting_style_fail_closed_cases_are_skipped_not_panicking() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        // 1. slot が slots 未宣言。
+        .starting_style("ghost-slot", vec![decl("color", "red")])
+        // 2. 状態条件の属性名が識別子として不正。
+        .starting_style_state(
+            "root",
+            StateCondition::Attr("Data-Highlighted"),
+            vec![decl("color", "green")],
+        )
+        // 3. Hover 系条件は starting style として意味を持たないため除外される。
+        .starting_style_state("root", StateCondition::Hover, vec![decl("color", "purple")])
+        // 有効な規則も混在させ、無効規則の除外が他の規則へ波及しないことを確認する。
+        .starting_style("root", vec![decl("opacity", "0")]);
+
+    let css = recipe.css();
+    assert!(!css.contains("ghost-slot"));
+    assert!(!css.contains("green"));
+    assert!(!css.contains("purple"));
+    assert!(css.contains("opacity: 0;"));
+    assert_eq!(css.matches("@starting-style").count(), 1);
+}
+
+#[test]
+fn content_height_transition_preset_registers_base_state_and_starting_style() {
+    let recipe = SlotRecipe::new("collapsible", &["content"])
+        .content_height_transition("content", MotionDuration::Normal);
+    let css = recipe.css();
+
+    // base: フォールバック付き `var()` 参照であり、`display` 宣言そのもの
+    // は持たない（`transition-property` の列挙に `display` を含むのみ）。
+    assert!(css.contains(&format!("height: var({CONTENT_HEIGHT_VAR}, auto);")));
+    assert!(css.contains("box-sizing: border-box;"));
+    assert!(css.contains("overflow: hidden;"));
+    assert!(css.contains("transition-property: height, padding-block, display;"));
+    assert!(css.contains("transition-behavior: allow-discrete;"));
+    assert!(!css.contains("display: none;"));
+    assert!(!css.contains("display: block;"));
+
+    // `[hidden]` state: 縮小方向の宣言のみ。
+    assert!(css.contains(r#"[data-scope="collapsible"][data-part="content"][hidden] {"#));
+
+    // `@starting-style`: 開く遷移の開始点を `height: 0` に固定する。
+    let expected_starting_style = concat!(
+        "@starting-style {\n",
+        "  [data-scope=\"collapsible\"][data-part=\"content\"] {\n",
+        "    height: 0;\n",
+        "    padding-block: 0;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert!(css.contains(expected_starting_style));
+}
+
+#[test]
+fn content_height_declarations_helpers_match_preset_contract() {
+    let open = content_height_open_declarations(MotionDuration::Normal);
+    assert_eq!(open[0].property(), "box-sizing");
+    assert_eq!(open[0].value(), "border-box");
+    assert_eq!(open[1].property(), "overflow");
+    assert_eq!(open[1].value(), "hidden");
+    assert_eq!(open[2].property(), "height");
+    assert_eq!(open[2].value(), format!("var({CONTENT_HEIGHT_VAR}, auto)"));
+    assert_eq!(open[3].property(), "transition-property");
+    assert_eq!(open[3].value(), "height, padding-block, display");
+    assert_eq!(open.last().unwrap().property(), "transition-behavior");
+    assert_eq!(open.last().unwrap().value(), "allow-discrete");
+
+    let closed = content_height_closed_declarations();
+    assert_eq!(closed.len(), 2);
+    assert_eq!(closed[0].property(), "height");
+    assert_eq!(closed[0].value(), "0");
+    assert_eq!(closed[1].property(), "padding-block");
+    assert_eq!(closed[1].value(), "0");
+}
+
+#[test]
+fn content_height_var_matches_wasm_full_literal() {
+    assert_eq!(CONTENT_HEIGHT_VAR, "--fandhe-content-height");
+}

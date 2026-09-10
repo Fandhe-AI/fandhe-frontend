@@ -2869,7 +2869,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更）を統合した結果として main の到達値 0.172.0 をさらに上回る
 # 0.173.0 へマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約。
 # 片方の到達値をそのまま採用しない原則）。
-version = "0.173.0"
+#
+# イシュー #2192: `SlotRecipe` へ `@starting-style`/`transition-behavior:
+# allow-discrete` の公開 DSL（`starting_style`/`starting_style_state`/
+# `transition_declarations_allow_discrete`/`content_height_transition` 等）を
+# 追加する公開 API 追加のため 0.174.0 へマイナーバンプする。
+version = "0.174.0"
 
 
 edition = "2021"

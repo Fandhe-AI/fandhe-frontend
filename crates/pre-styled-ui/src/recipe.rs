@@ -607,6 +607,85 @@ pub fn transition_declarations(
     ]
 }
 
+/// [`transition_declarations`] の 3 宣言に `transition-behavior:
+/// allow-discrete` を加えた 4 宣言を返す（イシュー #2192。案 C
+/// 〔`docs/design/collapsible-height-animation.md`〕の中核 DSL）。
+///
+/// `properties` に `display` を含めるのが典型的な用途（`hidden` 属性による
+/// `display: none` の実適用を、遷移完了まで遅延させる。`display:
+/// none`/`block` は本来トランジションできないプロパティだが、
+/// `allow-discrete` を付けると離散値プロパティも `@starting-style` と
+/// 組み合わせて遷移させられる、[MDN `transition-behavior`]）。未対応
+/// ブラウザでは `transition-behavior` 宣言自体が無視され、`display` の
+/// 切り替えは即時になる（構造的な自然劣化、破綻はしない）。
+///
+/// [MDN `transition-behavior`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transition-behavior
+#[must_use]
+pub fn transition_declarations_allow_discrete(
+    properties: &'static str,
+    duration: MotionDuration,
+) -> Vec<Declaration> {
+    let mut declarations = transition_declarations(properties, duration);
+    declarations.push(decl("transition-behavior", "allow-discrete"));
+    declarations
+}
+
+/// `fandhe-frontend-wasm-full` が collapsible/accordion 等の content 要素の
+/// 実測高さ（px）を書き込む CSS custom property 名（イシュー #2192、案 C
+/// 〔`docs/design/collapsible-height-animation.md`〕）。
+///
+/// # 他クレートとの契約
+///
+/// 値の出典は `crates/wasm-full/src/content_height.rs::CONTENT_HEIGHT_VAR`
+/// であり、本定数はそのリテラルの写し。両者のドリフトは
+/// `crates/pre-styled-ui/tests/content_height_var_drift.rs` が実行時に
+/// wasm-full 側ソースを読んで fail-closed に検知する（`fandhe-frontend-
+/// pre-styled-ui` は `fandhe-frontend-wasm-full` に依存しないため、
+/// コンパイル時の型共有はできない）。wasm-full 側は「`hidden` 要素は
+/// スキップし、実測 0 なら変数を除去する（`0px` を書き込まない）」契約
+/// （CSSOM `set_property`/`remove_property` 経由）を持つため、本クレート
+/// 側は必ず [`CONTENT_HEIGHT_VAR_REF`] のようにフォールバック付きで参照
+/// する（変数が未設定の環境・JS 無効時でも `auto` へ安全に劣化する）。
+pub const CONTENT_HEIGHT_VAR: &str = "--fandhe-content-height";
+
+/// `var(--fandhe-content-height, auto)` 参照リテラル。フォールバックは
+/// 常に `auto`（wasm-full 未配線・JS 無効時に content の高さを `auto` へ
+/// 落として全文表示を保つ、イシュー #2192）。[`Declaration::value`] の
+/// `&'static str` 制約のため `format!(CONTENT_HEIGHT_VAR)` ではなく固定
+/// リテラルとして持つ。
+const CONTENT_HEIGHT_VAR_REF: &str = "var(--fandhe-content-height, auto)";
+
+/// [`SlotRecipe::content_height_transition`] が base（非 `hidden`）状態へ
+/// 登録する宣言（イシュー #2192）。`box-sizing: border-box` は wasm-full の
+/// 実測値（`scrollHeight`、padding 込み）と齟齬なく `height` を適用する
+/// ため、`overflow: hidden` は縮む方向の遷移中に内容を切り取るために
+/// それぞれ必須。`transition-property` に `display` を含めるため
+/// [`transition_declarations_allow_discrete`] を使う（`hidden` 属性による
+/// `display: none` の実適用を遷移完了まで遅延させる）。
+#[must_use]
+pub fn content_height_open_declarations(duration: MotionDuration) -> Vec<Declaration> {
+    let mut declarations = vec![
+        decl("box-sizing", "border-box"),
+        decl("overflow", "hidden"),
+        decl("height", CONTENT_HEIGHT_VAR_REF),
+    ];
+    declarations.extend(transition_declarations_allow_discrete(
+        "height, padding-block, display",
+        duration,
+    ));
+    declarations
+}
+
+/// [`SlotRecipe::content_height_transition`] が `[hidden]` state・
+/// `@starting-style` の両方へ登録する縮小状態の宣言（イシュー #2192）。
+/// `padding-block: 0` も含めるのは、`height: 0` 単独だと閉じる途中で
+/// padding 分の高さが残ったまま `display: none` に落ちる見た目のジャンプ
+/// を避けるため（`docs/design/collapsible-height-animation.md` §5.2）。
+#[must_use]
+pub fn content_height_closed_declarations() -> Vec<Declaration> {
+    vec![decl("height", "0"), decl("padding-block", "0")]
+}
+
 /// slot 1 個への base 宣言登録（内部表現）。
 struct BaseRule {
     slot: &'static str,
@@ -778,6 +857,21 @@ struct StateRule {
     declarations: Vec<Declaration>,
 }
 
+/// slot 1 個・任意の状態条件への `@starting-style` 内規則登録（内部表現、
+/// イシュー #2192）。`condition` が `None` の場合は無条件（`@starting-style
+/// { [data-scope][data-part] { ... } }`）を表し、`Some` の場合は
+/// [`SlotRecipe::state`] と同じ [`StateCondition`] 検証・セレクタ組み立て
+/// 経路（`state_condition_selector`）を通る。Hover 系条件（[`StateCondition::
+/// Hover`] 等）は `@starting-style` 内で意味を持たない（starting style は
+/// 遷移開始前のスナップショットであり `:hover` のような動的擬似クラスの
+/// 「開始状態」という概念が成立しない）ため [`SlotRecipe::css`] が規則ごと
+/// 除外する（fail-closed）。
+struct StartingStyleRule {
+    slot: &'static str,
+    condition: Option<StateCondition>,
+    declarations: Vec<Declaration>,
+}
+
 /// compound variant の条件 1 件（axis, value の型消去された組）。
 ///
 /// [`when()`] を通じてのみ [`VariantValue`] 実装 enum から構築できる（生の
@@ -828,6 +922,125 @@ pub struct SlotRecipe {
     default_variants: Vec<DefaultVariant>,
     compound_variants: Vec<CompoundVariantRule>,
     states: Vec<StateRule>,
+    starting_style: Vec<StartingStyleRule>,
+}
+
+/// [`StateCondition`] 1 個が識別子として妥当かどうかを判定する（内部
+/// ヘルパ）。[`state_condition_selector`] から呼ばれ、[`SlotRecipe::css`]
+/// の states ループ・`@starting-style` ループの双方が同じ検証経路を
+/// 通るようにする（二重実装によるドリフト防止）。
+fn state_condition_is_valid(condition: &StateCondition) -> bool {
+    match condition {
+        StateCondition::Attr(name) => is_valid_identifier(name),
+        StateCondition::AttrEq(name, value) => {
+            is_valid_identifier(name) && is_valid_identifier(value)
+        }
+        StateCondition::FocusVisible => true,
+        StateCondition::FocusWithin => true,
+        StateCondition::NthChildEven => true,
+        StateCondition::LastChild => true,
+        StateCondition::AttrEqAll(pairs) => {
+            !pairs.is_empty()
+                && pairs
+                    .iter()
+                    .all(|(name, value)| is_valid_identifier(name) && is_valid_identifier(value))
+        }
+        StateCondition::Hover => true,
+        StateCondition::HoverExcept(name, value) => {
+            is_valid_identifier(name) && is_valid_identifier(value)
+        }
+        StateCondition::HoverExceptAttr(name) => is_valid_identifier(name),
+        StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
+            is_valid_identifier(attr_name)
+                && is_valid_identifier(eq_name)
+                && is_valid_identifier(eq_value)
+        }
+    }
+}
+
+/// [`StateCondition`] 1 個からセレクタ接尾辞（例: `[hidden]`・
+/// `:focus-visible`・`:hover:not([data-disabled])`）を組み立てる（内部
+/// ヘルパ）。不正な入力（[`state_condition_is_valid`] が `false`）は
+/// `None` を返す（fail-closed）。[`SlotRecipe::css`] の states ループ・
+/// `@starting-style` ループの双方が本関数を通る（セレクタ組み立てを二重
+/// 実装しない、イシュー #2192 で `@starting-style` 追加時に切り出した）。
+fn state_condition_selector(condition: &StateCondition) -> Option<String> {
+    if !state_condition_is_valid(condition) {
+        return None;
+    }
+    let mut suffix = String::new();
+    match condition {
+        StateCondition::Attr(name) => suffix.push_str(&format!("[{name}]")),
+        StateCondition::AttrEq(name, value) => {
+            suffix.push_str(&format!("[{name}=\"{value}\"]"));
+        }
+        StateCondition::FocusVisible => suffix.push_str(":focus-visible"),
+        StateCondition::FocusWithin => suffix.push_str(":focus-within"),
+        StateCondition::NthChildEven => suffix.push_str(":nth-child(even)"),
+        StateCondition::LastChild => suffix.push_str(":last-child"),
+        StateCondition::AttrEqAll(pairs) => {
+            for (name, value) in *pairs {
+                suffix.push_str(&format!("[{name}=\"{value}\"]"));
+            }
+        }
+        StateCondition::Hover => {
+            // タッチ端末での hover 貼り付きを避けるため `@media (hover:
+            // hover)` 配下へまとめて出力する（イシュー #1425）。
+            // `:not([data-disabled])` で disabled 規則との勝敗を記述順に
+            // 依存させない。
+            suffix.push_str(":hover:not([data-disabled])");
+        }
+        StateCondition::HoverExcept(name, value) => {
+            suffix.push_str(&format!(
+                ":hover:not([data-disabled]):not([{name}=\"{value}\"])"
+            ));
+        }
+        StateCondition::HoverExceptAttr(name) => {
+            suffix.push_str(&format!(":hover:not([data-disabled]):not([{name}])"));
+        }
+        StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
+            suffix.push_str(&format!(
+                ":hover:not([data-disabled]):not([{attr_name}]):not([{eq_name}=\"{eq_value}\"])"
+            ));
+        }
+    }
+    Some(suffix)
+}
+
+/// `condition` が Hover 系（[`StateCondition::Hover`]・[`StateCondition::
+/// HoverExcept`]・[`StateCondition::HoverExceptAttr`]・[`StateCondition::
+/// HoverExceptAttrEq`]）かどうかを判定する（内部ヘルパ）。[`SlotRecipe::css`]
+/// の states ループが `@media (hover: hover)` 側バッファへ振り分けるため、
+/// `@starting-style` ループが Hover 系規則を除外するために使う（イシュー
+/// #2192。理由は [`StartingStyleRule`] rustdoc 参照）。
+fn is_hover_family(condition: &StateCondition) -> bool {
+    matches!(
+        condition,
+        StateCondition::Hover
+            | StateCondition::HoverExcept(_, _)
+            | StateCondition::HoverExceptAttr(_)
+            | StateCondition::HoverExceptAttrEq(_, _, _)
+    )
+}
+
+/// `<selector> { ... }` 規則列を 1 個の at-rule ブロック（`@media (hover:
+/// hover) { ... }`・`@starting-style { ... }` 等）へインデント付きで包む
+/// （内部ヘルパ）。[`SlotRecipe::css`] の hover ブロック・`@starting-style`
+/// ブロックの双方が同じインデント付与ロジックを共有する（イシュー #2192
+/// で `@starting-style` 追加時に切り出した。書式は変更しない）。
+fn write_at_rule_block(out: &mut String, at_rule: &str, inner_css: &str) {
+    out.push_str(at_rule);
+    out.push_str(" {\n");
+    for line in inner_css.trim_end_matches('\n').lines() {
+        if line.is_empty() {
+            out.push('\n');
+        } else {
+            out.push_str("  ");
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out.push_str("}\n");
 }
 
 impl SlotRecipe {
@@ -843,6 +1056,7 @@ impl SlotRecipe {
             default_variants: Vec::new(),
             compound_variants: Vec::new(),
             states: Vec::new(),
+            starting_style: Vec::new(),
         }
     }
 
@@ -991,6 +1205,95 @@ impl SlotRecipe {
         self
     }
 
+    /// `slot` への `@starting-style` 規則（無条件）を登録する（builder、
+    /// 自己消費。イシュー #2192）。
+    ///
+    /// [MDN `@starting-style`] は「要素がまだ存在しない/表示されていない
+    /// 状態から遷移する」ときの開始スタイルを宣言する at-rule で、
+    /// `transition-behavior: allow-discrete`（[`transition_declarations_allow_discrete`]）
+    /// と組み合わせて `display: none` からの遷移（およびその逆）を可能に
+    /// する。`slot` が `slots` に未宣言、または識別子として不正な場合は
+    /// [`SlotRecipe::css`] の出力から除外される（fail-closed。既存
+    /// `base`/`state` と同じ方針）。
+    ///
+    /// 状態条件付き（`[data-state="open"]` 等に限定した開始スタイル）が
+    /// 必要な場合は [`SlotRecipe::starting_style_state`] を使う。
+    ///
+    /// [MDN `@starting-style`]: https://developer.mozilla.org/en-US/docs/Web/CSS/@starting-style
+    #[must_use]
+    pub fn starting_style(mut self, slot: &'static str, declarations: Vec<Declaration>) -> Self {
+        self.starting_style.push(StartingStyleRule {
+            slot,
+            condition: None,
+            declarations,
+        });
+        self
+    }
+
+    /// `slot` への `@starting-style` 規則（状態条件付き）を登録する
+    /// （builder、自己消費。イシュー #2192）。
+    ///
+    /// [`SlotRecipe::starting_style`] の一般化で、`condition` が Hover 系
+    /// （[`StateCondition::Hover`]・[`StateCondition::HoverExcept`] 等）の
+    /// 場合は [`SlotRecipe::css`] が規則ごと除外する（fail-closed。
+    /// `@starting-style` は遷移開始前の静的スナップショットであり、
+    /// `:hover` のような動的擬似クラスの「開始状態」という概念が成立
+    /// しないため）。他の除外条件は [`SlotRecipe::state`] と同じ
+    /// （`slot` 未宣言・識別子不正）。
+    #[must_use]
+    pub fn starting_style_state(
+        mut self,
+        slot: &'static str,
+        condition: StateCondition,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.starting_style.push(StartingStyleRule {
+            slot,
+            condition: Some(condition),
+            declarations,
+        });
+        self
+    }
+
+    /// `slot`（headless の disclosure 系 content パート）へ
+    /// `--fandhe-content-height` 連動の高さトランジションを 1 呼び出しで
+    /// 適用する（builder、自己消費。イシュー #2192、案 C
+    /// 〔`docs/design/collapsible-height-animation.md`〕の中核 preset）。
+    ///
+    /// [`SlotRecipe::base`]・[`SlotRecipe::state`]（[`StateCondition::Attr`]
+    /// `"hidden"`）・[`SlotRecipe::starting_style`] の 3 登録を一括で行う:
+    ///
+    /// - base: [`content_height_open_declarations`]（`height:
+    ///   var(--fandhe-content-height, auto)` 等）
+    /// - `[hidden]` state: [`content_height_closed_declarations`]
+    /// - `@starting-style`: [`content_height_closed_declarations`]（開く
+    ///   遷移の開始点を `height: 0` に固定する）
+    ///
+    /// 閉状態のキーに `[hidden]`（[`StateCondition::Attr`]）を採るのは、
+    /// `data-state="closed"` ではなく `hidden` 存在属性が headless の
+    /// disclosure 系全部品（collapsible `content`・accordion
+    /// `item-content` 等）で保証された契約だから（`crates/headless-ui`
+    /// 側の共通契約、`docs/design/collapsible-height-animation.md` §5.1）。
+    ///
+    /// # 他クレートとの契約
+    ///
+    /// `--fandhe-content-height` の実測・書き込みは `fandhe-frontend-
+    /// wasm-full`（[`CONTENT_HEIGHT_VAR`] rustdoc 参照）が担う。本メソッドは
+    /// 変数が未設定（JS 無効・wasm-full 未配線）でも `auto` フォールバックで
+    /// 安全に劣化するが、逆に変数が設定された状態からの内容の後発的な高さ
+    /// 変化には追従しない（実測は wasm-full 側の配線タイミングに限る、
+    /// 既知の限界。同設計文書 §5.2 参照）。
+    #[must_use]
+    pub fn content_height_transition(self, slot: &'static str, duration: MotionDuration) -> Self {
+        self.base(slot, content_height_open_declarations(duration))
+            .state(
+                slot,
+                StateCondition::Attr("hidden"),
+                content_height_closed_declarations(),
+            )
+            .starting_style(slot, content_height_closed_declarations())
+    }
+
     /// この slot に属するかどうかを判定する（`slots` 未宣言の slot を
     /// fail-closed で除外するための内部ヘルパ）。
     fn is_declared_slot(&self, slot: &str) -> bool {
@@ -1015,7 +1318,10 @@ impl SlotRecipe {
     /// 対する複数回の呼び出しは常にバイト単位で同一の文字列を返す）。
     ///
     /// 出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound
-    /// variants（登録順、イシュー #604）→ states（登録順、イシュー #643）」。
+    /// variants（登録順、イシュー #604）→ states（登録順、イシュー #643）→
+    /// `@starting-style`（登録順、1 個のブロックへ集約、イシュー #2192）→
+    /// `@media (hover: hover)`（登録順、1 個のブロックへ集約、イシュー
+    /// #1425）」。
     /// セレクタは base が `[data-scope="<scope>"][data-part="<slot>"]`、
     /// variant が
     /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
@@ -1142,99 +1448,19 @@ impl SlotRecipe {
             if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
                 continue;
             }
-            let condition_valid = match rule.condition {
-                StateCondition::Attr(name) => is_valid_identifier(name),
-                StateCondition::AttrEq(name, value) => {
-                    is_valid_identifier(name) && is_valid_identifier(value)
-                }
-                StateCondition::FocusVisible => true,
-                StateCondition::FocusWithin => true,
-                StateCondition::NthChildEven => true,
-                StateCondition::LastChild => true,
-                StateCondition::AttrEqAll(pairs) => {
-                    !pairs.is_empty()
-                        && pairs.iter().all(|(name, value)| {
-                            is_valid_identifier(name) && is_valid_identifier(value)
-                        })
-                }
-                StateCondition::Hover => true,
-                StateCondition::HoverExcept(name, value) => {
-                    is_valid_identifier(name) && is_valid_identifier(value)
-                }
-                StateCondition::HoverExceptAttr(name) => is_valid_identifier(name),
-                StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
-                    is_valid_identifier(attr_name)
-                        && is_valid_identifier(eq_name)
-                        && is_valid_identifier(eq_value)
-                }
-            };
-            if !condition_valid {
+            let Some(suffix) = state_condition_selector(&rule.condition) else {
                 continue;
-            }
+            };
             let mut selector = format!(
                 "[data-scope=\"{}\"][data-part=\"{}\"]",
                 self.scope, rule.slot
             );
-            match rule.condition {
-                StateCondition::Attr(name) => selector.push_str(&format!("[{name}]")),
-                StateCondition::AttrEq(name, value) => {
-                    selector.push_str(&format!("[{name}=\"{value}\"]"));
-                }
-                StateCondition::FocusVisible => selector.push_str(":focus-visible"),
-                StateCondition::FocusWithin => selector.push_str(":focus-within"),
-                StateCondition::NthChildEven => selector.push_str(":nth-child(even)"),
-                StateCondition::LastChild => selector.push_str(":last-child"),
-                StateCondition::AttrEqAll(pairs) => {
-                    for (name, value) in pairs {
-                        selector.push_str(&format!("[{name}=\"{value}\"]"));
-                    }
-                }
-                StateCondition::Hover => {
-                    // タッチ端末での hover 貼り付き（tap 後もホバー状態が
-                    // 残り続ける）を避けるため `@media (hover: hover)` 配下へ
-                    // まとめて出力する（イシュー #1425）。`:not([data-disabled])`
-                    // で disabled 規則との勝敗を記述順に依存させない。
-                    selector.push_str(":hover:not([data-disabled])");
-                }
-                StateCondition::HoverExcept(name, value) => {
-                    // [`Hover`] と同じく `@media (hover: hover)` 配下へ集約
-                    // 出力される（下記 `matches!` の対象に含める）。加えて
-                    // `[<name>="<value>"]` に一致する要素を hover 対象から
-                    // 除外する（`StateCondition::HoverExcept` rustdoc 参照）。
-                    selector.push_str(&format!(
-                        ":hover:not([data-disabled]):not([{name}=\"{value}\"])"
-                    ));
-                }
-                StateCondition::HoverExceptAttr(name) => {
-                    // [`HoverExcept`] の存在属性版（値等価ではなく
-                    // `[<name>]` の有無で除外する。`StateCondition::
-                    // HoverExceptAttr` rustdoc 参照）。同じく `@media
-                    // (hover: hover)` 配下へ集約出力される（下記 `matches!`
-                    // の対象に含める）。
-                    selector.push_str(&format!(":hover:not([data-disabled]):not([{name}])"));
-                }
-                StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
-                    // [`HoverExceptAttr`]（存在属性除外）と [`HoverExcept`]
-                    // （値等価除外）を 1 規則で両方適用する（`StateCondition::
-                    // HoverExceptAttrEq` rustdoc 参照）。同じく `@media
-                    // (hover: hover)` 配下へ集約出力される（下記 `matches!`
-                    // の対象に含める）。
-                    selector.push_str(&format!(
-                        ":hover:not([data-disabled]):not([{attr_name}]):not([{eq_name}=\"{eq_value}\"])"
-                    ));
-                }
-            }
+            selector.push_str(&suffix);
             // Hover/HoverExcept/HoverExceptAttr は states ループの通常出力先
             // ではなく専用バッファへ集約し、css() 末尾で `@media (hover:
             // hover)` に 1 つだけまとめて出す（イシュー #1425、本関数
             // rustdoc の出力順序節参照）。
-            let target = if matches!(
-                rule.condition,
-                StateCondition::Hover
-                    | StateCondition::HoverExcept(_, _)
-                    | StateCondition::HoverExceptAttr(_)
-                    | StateCondition::HoverExceptAttrEq(_, _, _)
-            ) {
+            let target = if is_hover_family(&rule.condition) {
                 &mut hover_css
             } else {
                 &mut out
@@ -1245,21 +1471,44 @@ impl SlotRecipe {
             }
         }
 
-        if !hover_css.is_empty() {
-            // hover_css 側の各規則末尾に付与済みの区切り空行はそのまま
-            // 空行として保持し、非空行のみへインデントを足す（空行への
-            // 余計な末尾空白混入を避ける）。
-            out.push_str("@media (hover: hover) {\n");
-            for line in hover_css.trim_end_matches('\n').lines() {
-                if line.is_empty() {
-                    out.push('\n');
-                } else {
-                    out.push_str("  ");
-                    out.push_str(line);
-                    out.push('\n');
+        let mut starting_style_css = String::new();
+
+        for rule in &self.starting_style {
+            if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
+                continue;
+            }
+            let mut selector = format!(
+                "[data-scope=\"{}\"][data-part=\"{}\"]",
+                self.scope, rule.slot
+            );
+            if let Some(condition) = &rule.condition {
+                // Hover 系条件は starting style として意味を持たないため
+                // 規則ごと除外する（fail-closed、`StartingStyleRule` rustdoc
+                // 参照）。
+                if is_hover_family(condition) {
+                    continue;
+                }
+                match state_condition_selector(condition) {
+                    Some(suffix) => selector.push_str(&suffix),
+                    None => continue,
                 }
             }
-            out.push_str("}\n");
+            if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                starting_style_css.push_str(&css);
+                starting_style_css.push('\n');
+            }
+        }
+
+        if !starting_style_css.is_empty() {
+            write_at_rule_block(&mut out, "@starting-style", &starting_style_css);
+            // 他の規則ブロック間と同じ「規則間は空行 1 つ」書式
+            // （本関数末尾の最終トリムと対をなす）を @media ブロックとの
+            // 間にも適用する。
+            out.push('\n');
+        }
+
+        if !hover_css.is_empty() {
+            write_at_rule_block(&mut out, "@media (hover: hover)", &hover_css);
         }
 
         // 末尾の空行は規則ブロック間の区切りとしてのみ入れるため、

@@ -54,14 +54,20 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 
 ### 3.1 1 対 1 対応（規則: `<snake>_css.rs`）
 
-accordion / **alert（イシュー #1553 で golden 新設。イシュー #2043 で
+**accordion（イシュー #2192 で `item-content` の 2 個目 base ブロックを
+中間挿入、`[hidden]` state と `@starting-style` ブロックを末尾側へ純追加、
+`accordion_pre_2192_blocks_remain_verbatim` を追加）** /
+**alert（イシュー #1553 で golden 新設。イシュー #2043 で
 `action` パートの `[data-part="action"]` ブロックを 1 個追加）** /
 **attachment（イシュー #2112 で golden 新設。`stylesheet()` 全文）** /
 **badge（イシュー #1555 で golden 新設）** /
 **bar_segment（イシュー #1592 で golden 新設。`charts::bar_segment`）** /
 **bubble（イシュー #2109 で golden 新設。`stylesheet()` 全文）** /
 **button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文）** /
-callout / carousel / **collapsible（イシュー #1682 で golden 新設）** /
+callout / carousel / **collapsible（イシュー #1682 で golden 新設。イシュー
+#2192 で `content` の 2 個目 base ブロックを中間挿入、`[hidden]` state と
+`@starting-style` ブロックを末尾側へ純追加、
+`collapsible_pre_2192_blocks_remain_verbatim` を追加）** /
 checkbox / checkbox_card / checkbox_group /
 **command（イシュー #2070 で golden 新設。`stylesheet()` 全文）** /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /

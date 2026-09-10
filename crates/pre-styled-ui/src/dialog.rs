@@ -158,10 +158,17 @@
 //!   間に遷移前スタイルを一度描画させる状態管理（JS 側のタイミング制御が
 //!   前提になり得る）
 //! - `@starting-style` + `transition-behavior: allow-discrete`
-//!   （CSS ネイティブの離散プロパティ遷移機構）を [`crate::recipe::SlotRecipe`]
-//!   へ新規サポートとして追加する設計（`recipe.rs` は全 styled 部品が
-//!   共有する基盤であり、fail-closed 検証・出力順序・
-//!   `tests/recipe_css.rs` 契約への影響を伴う横断判断が必要）
+//!   （CSS ネイティブの離散プロパティ遷移機構）: イシュー #2192 で
+//!   [`crate::recipe::SlotRecipe`] へ `starting_style`/`starting_style_state`・
+//!   [`crate::recipe::transition_declarations_allow_discrete`] として実装
+//!   済み（案 C、`docs/design/collapsible-height-animation.md`。適用第 1 弾は
+//!   `[hidden]` state をキーに使える [`crate::collapsible`]/[`crate::accordion`]
+//!   の content 高さトランジション）。dialog への適用は、上記機構が
+//!   `hidden` 属性の付け外しタイミング自体は変えない（headless 層が
+//!   同一フレームで即時付け外しする契約は #2192 でも不変）ため本節冒頭の
+//!   制約は解消しておらず、別途「headless 層と協調したタイミング制御」
+//!   （本節 1 番目の代替案）との組み合わせ要否を含めた棚卸し
+//!   （イシュー #2283）の対象として残す。
 //! - **footer 相当のアクション配置**: 当時は headless anatomy に `footer`
 //!   パートが存在せず、[`crate::recipe::SlotRecipe`] は子孫セレクタ機構を
 //!   持たない（イシュー #708 で不採用確定）ため、専用 footer パートの CSS を
