@@ -6332,3 +6332,80 @@ fn attachment_parts_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "attachment::action children コンテキスト");
     }
 }
+
+/// Marker 経路（イシュー #2115、headless 側 anatomy は #2114）: 3 パーツ
+/// いずれも見た目クラスを付与しない（`src/marker.rs` モジュール doc
+/// 「headless の `data-*` を参照する」節参照）ため、呼び出し側 `attrs`・
+/// `class`（[`drop_class_attr`] により除去）、children の各経路で既定
+/// エスケープ（REQ-1）が貫通することを固定する
+/// （`attachment_parts_are_escaped_for_all_payloads` と同型）。加えて
+/// `Label` 形態で挟み込む [`crate::separator::separator`] を経由しても
+/// attrs・children ペイロードがエスケープされることを 1 ケース固定する。
+#[test]
+fn marker_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::marker::{self, MarkerRootProps, MarkerVariant};
+
+    for payload in payloads::all() {
+        // styled root（Note 形態、separator を挟まない）の呼び出し側
+        // attrs 経路。
+        let html = render(&marker::root(
+            MarkerRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "marker::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える。
+        // Note 形態は separator を挟まないため class 完全不在で判定する）。
+        let html = render(&marker::root(
+            MarkerRootProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "marker::root の class 属性に渡した生ペイロードが出力に残って\
+             いる: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled icon の呼び出し側 attrs・children 経路。
+        let html = render(&marker::icon(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "marker::icon attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "marker::icon children コンテキスト");
+
+        // styled content の呼び出し側 attrs・children 経路。
+        let html = render(&marker::content(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "marker::content attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "marker::content children コンテキスト");
+
+        // Label 形態: separator 挟み込み後も root の attrs・children
+        // ペイロードがエスケープされることを固定する（モジュール doc
+        // 「区切り線の描画方式」節参照）。
+        let label_html = render(&marker::root(
+            MarkerRootProps {
+                variant: MarkerVariant::Label,
+                ..Default::default()
+            },
+            vec![("data-testid", payload)],
+            vec![marker::content(vec![], vec![text(payload)])],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &label_html,
+            "marker::root (Label) attrs コンテキスト",
+        );
+        assert_payload_is_escaped(
+            payload,
+            &label_html,
+            "marker::root (Label) children コンテキスト",
+        );
+    }
+}

@@ -551,8 +551,10 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         category: PrimitiveCategory::DataDisplayUtilities,
     },
     PrimitiveEntry {
-        // イシュー #2114 で headless-ui 層のみ先行実装。Themes ページは
-        // #2115 で追加予定（`PRIMITIVES_WITHOUT_THEMES_PAGE` 参照）。
+        // イシュー #2114 で headless-ui 層を先行実装し、#2115 で Themes 層
+        // （`crates/pre-styled-ui/src/marker.rs`・`site/themes/marker.md`）
+        // を実装済み（Themes ページと title 一致、`PRIMITIVES_WITHOUT_THEMES_PAGE`
+        // からは除外済み）。
         module: "marker",
         path: "/primitives/marker/",
         title: "Marker",
@@ -666,15 +668,15 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// 同様にイシュー #2111 で headless-ui 層のみ先行実装され暫定的にこの
 /// 台帳へ載っていたが、イシュー #2112 で Themes 層
 /// （`crates/pre-styled-ui/src/attachment.rs`・`site/themes/attachment.md`）
-/// を実装済みのため除外した。`marker` はイシュー #2114 が headless-ui 層を
-/// 新設した時点では headless 先行のためこの台帳に載る。イシュー #2115 で
+/// を実装済みのため除外した。`marker` も同様にイシュー #2114 で headless-ui
+/// 層のみ先行実装され暫定的にこの台帳へ載っていたが、イシュー #2115 で
 /// Themes 層（`crates/pre-styled-ui/src/marker.rs`・
-/// `site/themes/marker.md`）を実装した時点で本リストから除外する予定。
+/// `site/themes/marker.md`）を実装済みのため除外した。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["marker"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &[];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
