@@ -22,9 +22,5 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [sidebar-07](./blocks/sidebar-07.md)
 - [sidebar-03](./blocks/sidebar-03.md)
 - [signup-01](./blocks/signup-01.md)
+- [signup-05](./blocks/signup-05.md)
 
-## 掲載予定
-
-以下は今後追加予定の block です（未掲載のためリンクはありません）。
-
-- signup-05

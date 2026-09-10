@@ -285,3 +285,37 @@ Phase 6（#2087・#2088〜#2095）は本決定と完全に整合しており、*
   の `max-width: 24rem`。フィールド数が多い（4 件）ため `min-height` は
   `login-01`（24rem）より広い `32rem` とした。
 - **使用部品**: Card / Field / Input / Button（`login-01` と同一の 4 部品）。
+
+## 13. `signup-05`（#2095）実装記録
+
+shadcn/ui Blocks `signup-05`（registry `new-york-v4/signup-05`）実物を確認
+したところ、Issue 本文の見立て（`card`/`separator`/`link`）は実物と一致
+しなかった（Card なし・入力欄は Email 1 個のみ・区切りは `FieldSeparator`・
+リンクは `<a href="#">` の死リンク）。実物へ合わせて以下のとおり構成した。
+
+- **`card` を不採用**: shadcn 実物に Card が無いため、外枠は素の `div`
+  （`data-blocks-signup-05-stack`）で構成した。
+- **ブランド見出しに `heading::heading`（H3）を採用**: shadcn 実物は
+  `<h1>` だが、Demo 内へ `h1` を置くとページ本体の H1（`crate::layout`
+  が生成）と重複するため `HeadingLevel::H3` を選んだ。`heading` は
+  `data-scope="heading"` を持つため `crate::layout::with_heading_anchors`
+  の TOC 収集対象外であり（`card::title` と同じ機構）、H1 → `## Demo` の
+  下に正しくネストする。
+- **ロゴを非リンク `div` + `role="img"` の `icon` にした理由**: 死リンク
+  不使用方針（本文書 §8 と同型）のため `<a href="#">` を出力しない。
+  `icon::IconProps.label` に `Some("Acme Inc.")` を渡すことで
+  `role="img"` + `aria-label` が付与され、shadcn 側の sr-only span 相当の
+  アクセシブルネームを代替できるため、追加のラッパー要素は不要と判断した。
+- **プロバイダ名の一般化**: 実企業名・実ブランド・商標ロゴは持ち込まない
+  方針（§8）のため、「Continue with Apple」「Continue with Google」を
+  「Continue with provider A」「Continue with provider B」へ置換し、
+  アイコンは `sidebar_03`/`sidebar_07` と同型の自作幾何図形を使った。
+- **`@media (max-width: 39.99rem)` の採用**: shadcn 側の
+  `Field.grid.gap-4.sm:grid-cols-2`（Tailwind `sm` ブレークポイント
+  640px 未満で 1 列）相当を、既存 block が使っていない `@media` クエリで
+  再現した（`field::separator` の採用は #2276 で追加されたテキスト付き
+  separator パーツを充てた）。
+
+不足部品は無かった（`field::separator`・`heading`・`icon`・アイコン付き
+`button` はいずれも実装時点で既存）。
+

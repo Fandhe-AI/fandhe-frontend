@@ -2893,6 +2893,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # golden CSS の既存ブロックは不変のため非破壊的な追加として、PR と main
 # が同一到達値 0.173.0 で衝突するため main +1 の 0.174.0 へバンプする。
 #
+# 本コンフリクト解消（PR #2293、イシュー #2193）: 本ブランチ（#2193 の
+# dialog/drawer close-trigger 再設計）と origin/main（#2134 codex-review
+# 指摘是正、donut/pie/radial legend 追加）がいずれも独立に 0.174.0 へ
+# 到達しており、同一版数への偶発的衝突をそのまま採用しない原則に従い、
+# 双方の実体変更を統合した結果として main の到達値 0.174.0 をさらに
+# 上回る 0.175.0 へマイナーバンプする（0.x の破壊的変更はマイナー
+# バンプの規約）。
+#
+# イシュー #2195: Forms 家族横断の `control`/`clear-trigger` の
+# `data-disabled` 消費規則を確定・実装した（CSS 出力の純追加）ため
+# 0.176.0 へマイナーバンプする。
+
 # 本コンフリクト解消（PR #2291、イシュー #2119 の main 取り込み・1 回目）:
 # 本ブランチ（styled questionnaire 追加）と origin/main（#2285 是正）は
 # それぞれ独立に 0.174.0 へ到達しており、同一版数はコンフリクトとして
@@ -2910,7 +2922,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.175.0 を既に上回っているため、同一版数への偶発的衝突には該当せず、
 # 双方の実体変更（styled questionnaire・dialog/drawer close-trigger 再設計・
 # #2285 是正）を内包した 0.176.0 をそのまま維持する。
-version = "0.176.0"
+#
+# イシュー #2197: `recipe.rs` に `@media (min-width: ...)` を表現する
+# breakpoint 条件（`recipe::Breakpoint`・`recipe::SlotRecipe::breakpoint`）と
+# `theme::Theme` へのブレークポイントトークン（`push_breakpoint`/
+# `upsert_breakpoint`/`breakpoint_var`、4 段）を追加した。既存関数
+# シグネチャ・golden CSS は変更していない（純追加）。
+#
+# 本コンフリクト解消（イシュー #2197、main 取り込み）: 本ブランチは上記
+# breakpoint 追加により 0.176.0 → 0.177.0 へマイナーバンプ済みだったが、
+# origin/main も別経路（イシュー #2195 Forms 家族横断の disabled/required
+# 決定 + #2119 questionnaire 実装の取り込み・#2193/#2134 是正の統合）で
+# 独立に同じ 0.177.0 へ到達していた。同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、双方の実体変更を統合した結果として main の到達値
+# 0.177.0 をさらに上回る 0.178.0 へマイナーバンプする（0.x の破壊的変更は
+# マイナーバンプの規約）。
+version = "0.178.0"
 
 
 edition = "2021"

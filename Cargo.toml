@@ -25,3 +25,36 @@ codegen-units = 1
 codegen-units = 1
 [profile.release.package.fandhe-frontend-wasm-full]
 codegen-units = 1
+
+# イシュー #2299（CI 所要時間短縮）: `cargo test` が使う test プロファイルに
+# 限り、docs-site とその描画チェーン（core / interactive / app / server /
+# headless-ui / pre-styled-ui）を opt-level 1 でビルドする。docs-site の統合
+# テストは実サイト 227 ページのフルビルドを行うため、opt-level 0 では
+# 1 回あたり約 100 秒（CI 実測）かかり、`cargo test --workspace`・`fw gate`
+# の `test` チェックの所要時間を支配していた。ローカル実測では opt-level 1
+# で実行時間が 1/2〜1/2.5 になり、opt-level 3 との差はほぼない（コンパイル
+# 時間の増加が小さい 1 を採る）。
+# 適用範囲は test プロファイルのみ（ただし `cargo test` で当該 6 クレートを
+# 依存として使う workspace 内の全テストバイナリ〔cli / wasm-full の native
+# テスト等〕に及ぶ。他クレートのテストのコンパイル時間が伸びた場合は本設定を
+# 疑うこと）: `cargo build`（dev）・`cargo bench`
+# （bench = release 継承、REQ-10 の rebuild-latency 計測）・release・wasm
+# ターゲット（`.cargo/config.toml`）には波及しない。副作用として、同じ
+# クレートでも `cargo build` と `cargo test` の成果物は別プロファイル設定
+# として区別されるため、ローカルで build / test を交互に実行すると当該
+# クレートが二重にコンパイルされる（初回のみ。以降はそれぞれキャッシュ
+# される）。
+[profile.test.package.fandhe-frontend-docs-site]
+opt-level = 1
+[profile.test.package.fandhe-frontend-core]
+opt-level = 1
+[profile.test.package.fandhe-frontend-interactive]
+opt-level = 1
+[profile.test.package.fandhe-frontend-app]
+opt-level = 1
+[profile.test.package.fandhe-frontend-server]
+opt-level = 1
+[profile.test.package.fandhe-frontend-headless-ui]
+opt-level = 1
+[profile.test.package.fandhe-frontend-pre-styled-ui]
+opt-level = 1
