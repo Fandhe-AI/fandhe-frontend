@@ -302,24 +302,24 @@ mod wiring {
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event, MutationObserver, MutationObserverInit, MutationRecord};
 
-    /// `[data-scope="message-scroller"][data-part="<part>"]` セレクタを
-    /// 組み立てる（[`SCOPE`]/引数の `part` はいずれも `&'static str`
-    /// リテラルのみから呼ばれる契約、モジュール doc「セキュリティ不変
-    /// 条件」参照）。呼び出し先パートが実行時に決まらない
-    /// [`scoped_parts`] からのみ使う（固定パートは下記 `*_SELECTOR`
-    /// 定数リテラルを使い、`format!` の実行時コスト・コードサイズを
-    /// 避ける、`sidebar.rs` の `PROVIDER_SELECTOR` 等と同じ方針）。
-    fn part_selector(part: &str) -> String {
-        format!(r#"[data-scope="{SCOPE}"][data-part="{part}"]"#)
-    }
-
     /// `[data-part="root"]` セレクタの固定リテラル（`sidebar.rs` の
-    /// `ROOT_SELECTOR` と同じ方針、[`part_selector`] doc 参照）。
+    /// `ROOT_SELECTOR` と同じ方針）。呼び出し先パートは本モジュール内
+    /// すべて `&'static str` リテラルで決まるため、`format!` によるセレクタ
+    /// 組み立て（実行時コスト・コードサイズ増）を避け、パートごとに固定
+    /// リテラル定数を用意する（バンドルサイズ抑制の一部、レビュー指摘
+    /// #2122: REQ-11 gzip 上限超過対応の一環。[`scoped_parts`] も本方針に
+    /// 合わせ、呼び出し元が渡す `part` 文字列ではなく事前組み立て済みの
+    /// `*_SELECTOR` 定数を受け取る形へ変更した。この変更単独では上限
+    /// 超過を解消しない — 残るギャップの扱いはユーザー判断待ち、PR 本文
+    /// 参照）。
     const ROOT_SELECTOR: &str = "[data-scope=\"message-scroller\"][data-part=\"root\"]";
     /// `[data-part="viewport"]` セレクタの固定リテラル。
     const VIEWPORT_SELECTOR: &str = "[data-scope=\"message-scroller\"][data-part=\"viewport\"]";
     /// `[data-part="content"]` セレクタの固定リテラル。
     const CONTENT_SELECTOR: &str = "[data-scope=\"message-scroller\"][data-part=\"content\"]";
+    /// `[data-part="jump-to-latest"]` セレクタの固定リテラル。
+    const JUMP_TO_LATEST_SELECTOR: &str =
+        "[data-scope=\"message-scroller\"][data-part=\"jump-to-latest\"]";
 
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
     /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
@@ -423,15 +423,16 @@ mod wiring {
         sync_jump_to_latest_visibility(instance_root, stuck);
     }
 
-    /// `instance_root` 配下から `part` に一致し、かつ最も近い
-    /// `data-part="root"` 祖先が `instance_root` 自身である要素のみを
-    /// 集めて返す（ネストしたインスタンスの同名パートを誤って対象に
-    /// 含めない、バンドルサイズ抑制のため
+    /// `instance_root` 配下から `selector`（`*_SELECTOR` 定数のいずれか）
+    /// に一致し、かつ最も近い `data-part="root"` 祖先が `instance_root`
+    /// 自身である要素のみを集めて返す（ネストしたインスタンスの同名
+    /// パートを誤って対象に含めない、バンドルサイズ抑制のため
     /// [`sync_jump_to_latest_visibility`]/[`handle_click`] の
-    /// NodeList 走査を共通化した）。
-    fn scoped_parts(instance_root: &Element, part: &str) -> Vec<Element> {
-        let selector = part_selector(part);
-        let Ok(nodes) = instance_root.query_selector_all(&selector) else {
+    /// NodeList 走査を共通化した）。呼び出し元は `&'static str` の
+    /// 事前組み立て済みセレクタ定数のみを渡す契約（`part_selector`/
+    /// `format!` を廃止したため、実行時の部分文字列は受け付けない）。
+    fn scoped_parts(instance_root: &Element, selector: &str) -> Vec<Element> {
+        let Ok(nodes) = instance_root.query_selector_all(selector) else {
             return Vec::new();
         };
         let mut result = Vec::new();
@@ -453,7 +454,7 @@ mod wiring {
     /// `jump_to_latest` の排他契約と同型）を [`jump_visible`] に同期する。
     fn sync_jump_to_latest_visibility(instance_root: &Element, stuck: super::MessageScrollerStuck) {
         let visible = jump_visible(stuck);
-        for element in scoped_parts(instance_root, PART_JUMP_TO_LATEST) {
+        for element in scoped_parts(instance_root, JUMP_TO_LATEST_SELECTOR) {
             if visible {
                 set_dom_attribute(&element, "data-visible", "");
                 let _ = element.remove_attribute("hidden");
@@ -664,7 +665,7 @@ mod wiring {
             let Some(instance_root) = closest_matching(root, &jump, PART_ROOT) else {
                 return;
             };
-            for viewport in scoped_parts(&instance_root, PART_VIEWPORT) {
+            for viewport in scoped_parts(&instance_root, VIEWPORT_SELECTOR) {
                 scroll_viewport_to_bottom(&viewport);
                 upsert_snapshot(snapshots, &viewport);
             }
