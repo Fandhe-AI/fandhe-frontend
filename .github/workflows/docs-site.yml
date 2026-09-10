@@ -187,6 +187,17 @@ jobs:
         # 生成 SVG（`crate::showcase::image_demo_svg`）を相対パスで参照する
         # 形へ是正した。生成先 `assets/image-demo.svg` の存在も fail-closed
         # で確認する。
+        #
+        # イシュー #2088: Blocks セクション（`/blocks/`、shadcn/ui Blocks
+        # 相当の既存部品合成例）が新設され、索引ページ（blocks/index.html）・
+        # 雛形実例（blocks/login-01/index.html）・専用 CSS
+        # （assets/blocks.css、`crate::blocks::stylesheet`）が実際に書き出される
+        # ようになった。`site/blocks/*.md`/`site/blocks.md` は既存 `site/**`
+        # glob に包含されるため paths への個別エントリ追加は不要（ci.md 参照）。
+        # ページ総数・レジストリ突合の期待値は crates/docs-site/tests/
+        # site_build.rs / blocks_nav.rs が、生成内容（節順序・`<form>` 不在・
+        # CSS 配線）の検証は crates/docs-site/tests/blocks_contract.rs が
+        # 保持し、ここでは二重管理しない。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
@@ -202,6 +213,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/primitives/accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/primitives-showcase.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/image-demo.svg"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
 
       - name: Upload dist artifact
         # 汎用 artifact として dist を渡し、Pages 専用形式への変換以降は

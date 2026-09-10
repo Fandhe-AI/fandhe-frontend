@@ -64,9 +64,12 @@ fn site_nav_parses_successfully() {
 /// Examples の後・Themes の前へ加わり、セクション数は 5 → 6 になった
 /// （ヘッダー上の並びは設計 §2「Primitives → Themes」）。
 #[test]
-fn site_nav_registers_six_sections_with_expected_titles() {
+fn site_nav_registers_seven_sections_with_expected_titles() {
     let nav = load_nav();
     let titles: Vec<&str> = nav.sections.iter().map(|s| s.title.as_str()).collect();
+    // イシュー #2088: Blocks セクション（shadcn/ui Blocks 相当の既存部品
+    // 合成例）が Themes の直後・API Reference の直前へ加わり、
+    // セクション数は 6 → 7 になった。
     assert_eq!(
         titles,
         vec![
@@ -75,6 +78,7 @@ fn site_nav_registers_six_sections_with_expected_titles() {
             "Examples",
             "Primitives",
             "Themes",
+            "Blocks",
             "API Reference"
         ]
     );
@@ -107,6 +111,7 @@ fn site_nav_declares_index_path_for_every_section() {
             ("Examples", "/examples/"),
             ("Primitives", "/primitives/"),
             ("Themes", "/themes/"),
+            ("Blocks", "/blocks/"),
             ("API Reference", "/api/"),
         ]
     );
@@ -199,8 +204,30 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 214 → 215、イシュー #2111 で Attachment（Primitives）が加わり
     // 215 → 216、イシュー #2112 で Attachment の Themes ページが加わり
     // 216 → 217、イシュー #2114 で Marker（Primitives）が加わり
-    // 217 → 218 になった（Themes ページは #2115 で追加予定）。
-    assert_eq!(pages.len(), 218, "expected 218 pages, got {pages:?}");
+    // 217 → 218 になった（Themes ページは #2115 で追加予定）。イシュー
+    // #2088 で Blocks セクション（索引 1 + login-01 1 = 2 ページ）が
+    // 新設され、218 → 220 になった。
+    assert_eq!(pages.len(), 220, "expected 220 pages, got {pages:?}");
+
+    // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
+    // login-01 1 件の 2 件。
+    let blocks_pages: Vec<&(&str, &str)> = pages
+        .iter()
+        .filter(|(_, path)| path.starts_with("/blocks/"))
+        .collect();
+    assert_eq!(
+        blocks_pages.len(),
+        2,
+        "expected 2 /blocks/ pages (index + login-01), got {blocks_pages:?}"
+    );
+    assert!(
+        pages.contains(&("site/blocks.md", "/blocks/")),
+        "nav.toml is missing the Blocks index page"
+    );
+    assert!(
+        pages.contains(&("site/blocks/login-01.md", "/blocks/login-01/")),
+        "nav.toml is missing the login-01 block page"
+    );
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ
     // （`/primitives/` 自身）1 件の 64 件。イシュー #2059 で Button Group・
