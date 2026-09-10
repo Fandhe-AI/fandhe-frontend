@@ -3297,11 +3297,13 @@ fn dialog_section() -> Node {
                                 dialog::footer(
                                     vec![],
                                     vec![
-                                        button(
-                                            &ButtonProps {
-                                                variant: ButtonVariant::Outline,
-                                                ..ButtonProps::default()
-                                            },
+                                        // イシュー #2193: footer 内の text
+                                        // variant close-trigger（機能配線
+                                        // 済みの平文 Cancel ボタン、data-*
+                                        // 属性表へ data-variant を機械
+                                        // 導出させるための実演）。
+                                        dialog::close_trigger_with_variant(
+                                            dialog::CloseTriggerVariant::Text,
                                             vec![],
                                             vec![text("Cancel")],
                                         ),
