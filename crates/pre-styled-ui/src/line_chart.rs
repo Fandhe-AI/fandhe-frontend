@@ -283,6 +283,21 @@ pub struct LineChartProps<'a> {
     /// （SSR は全範囲・全系列を出力する設計、モジュール doc参照）。
     /// データに存在しない名前を指定してもエラーにしない（fail-soft）。
     pub hidden_series: &'a [&'a str],
+    /// このチャートを [`crate::charts::legend`] の凡例トグルと組み合わせて
+    /// 使うか（明示的 opt-in、既定 `false`、イシュー #2134 codex-review
+    /// 指摘）。`show_tooltip`/`range.is_some()`/`hidden_series` 非空の
+    /// いずれでも判定できない「凡例は使うが初期状態は全系列表示
+    /// （`hidden_series` が空）かつ `show_tooltip: false`」という構成
+    /// では `show_series_attr` のそれまでの判定条件が偽になり識別属性
+    /// （`data-series`）が出力されないため、凡例クリックで系列を非表示に
+    /// できなかった（`wasm-full::chart_range::wiring::sync_chart` が
+    /// `data-series` を判定源にするため）。呼び出し側が凡例を併設すると
+    /// きは `true` を明示することで、初期表示から識別属性を出力させる。
+    /// 凡例を使わない構成（既定 `false`）では従来どおり #2129 以前の
+    /// 出力とバイト一致する契約を変えない
+    /// （`line_chart_show_tooltip_false_matches_pre_2129_golden_html`
+    /// 参照）。
+    pub legend: bool,
 }
 
 impl<'a> LineChartProps<'a> {
@@ -307,6 +322,7 @@ impl<'a> LineChartProps<'a> {
             show_tooltip: true,
             range: None,
             hidden_series: &[],
+            legend: false,
         }
     }
 }
@@ -522,16 +538,20 @@ struct SeriesRenderCtx<'a> {
     series_name: &'a str,
     /// `true` なら識別属性（`data-series`/`point`・`value-label` の
     /// `data-index`）を付与する。`LineChartProps::show_tooltip` 単独では
-    /// なく `show_tooltip || range.is_some() || !hidden_series.is_empty()`
-    /// （凡例トグル・期間切替のいずれかが実際に使われているか）で判定
-    /// する。素の `show_tooltip: false`・凡例/期間切替とも不使用の
-    /// 構成では従来どおり #2129 以前とバイト一致する（`line_chart_show_
+    /// なく `show_tooltip || range.is_some() || !hidden_series.is_empty()
+    /// || legend`（凡例トグル・期間切替のいずれかが実際に使われている
+    /// か、または凡例併設の明示的 opt-in）で判定する。素の
+    /// `show_tooltip: false`・凡例/期間切替とも不使用の構成では従来
+    /// どおり #2129 以前とバイト一致する（`line_chart_show_
     /// tooltip_false_matches_pre_2129_golden_html` 参照）一方、
     /// `show_tooltip: false` のまま `range`/`hidden_series` を使う構成
     /// では識別属性が出力され、`wasm-full::chart_range` の凡例同期・
     /// 期間切替が機能する（イシュー #2134 codex-review 指摘: 識別属性の
     /// 出力を tooltip 表示設定のみに結び付けると、tooltip を出さずに
-    /// 凡例・期間切替だけを使う構成で同期が機能しなかった）。
+    /// 凡例・期間切替だけを使う構成で同期が機能しなかった）。`legend`
+    /// は「凡例は使うが初期状態は全系列表示（`hidden_series` が空）」
+    /// という構成を追加で救う opt-in（2 ラウンド目の codex-review 指摘、
+    /// [`LineChartProps::legend`] rustdoc 参照）。
     show_series_attr: bool,
     /// `true` なら `series-line`/`point`/`value-label` へ値なし属性
     /// `data-hidden` を付与する（イシュー #2133、
@@ -839,7 +859,8 @@ pub fn line_chart<'a>(
             series_name: s.name.as_str(),
             show_series_attr: props.show_tooltip
                 || props.range.is_some()
-                || !props.hidden_series.is_empty(),
+                || !props.hidden_series.is_empty()
+                || props.legend,
             hidden: props.hidden_series.contains(&s.name.as_str()),
         };
         plot_children.extend(render_series(

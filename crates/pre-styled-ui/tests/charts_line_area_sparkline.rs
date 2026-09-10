@@ -269,7 +269,7 @@ fn area_chart_single_category_matches_golden_html() {
         concat!(
             r#"<div data-scope="area-chart" data-part="root" class="fd-area-chart--size-md">"#,
             r#"<svg viewBox="0 0 300 150" role="img" data-scope="area-chart" data-part="plot" aria-label="single point">"#,
-            r#"<circle data-scope="area-chart" data-part="point" cx="150" cy="75" r="2.5" fill="var(--fandhe-color-chart-1)" data-series="visits"></circle>"#,
+            r#"<circle data-scope="area-chart" data-part="point" cx="150" cy="75" r="2.5" fill="var(--fandhe-color-chart-1)" data-index="0" data-series="visits"></circle>"#,
             r#"<rect x="0" y="0" width="300" height="150" data-scope="chart" data-part="hit-area" data-index="0" fill="none" pointer-events="none" tabindex="-1" aria-label="only · visits: 7"></rect>"#,
             r#"</svg>"#,
             r#"<div data-scope="chart" data-part="tooltip-layer" aria-hidden="true">"#,
@@ -300,6 +300,39 @@ fn area_chart_show_tooltip_false_matches_pre_2129_golden_html() {
             r#"</svg></div>"#,
         )
     );
+}
+
+#[test]
+fn area_chart_legend_opt_in_emits_identify_attrs_with_tooltip_off_and_no_range_or_hidden() {
+    // イシュー #2134 codex-review 指摘（2 ラウンド目）: `show_tooltip:
+    // false` かつ `range: None` かつ `hidden_series` 空（凡例併設だが
+    // 初期状態は全系列表示）という構成では、`legend: true` を明示しない
+    // 限り識別属性（`data-series`/`data-index`）が出力されず、凡例
+    // クリックでの系列非表示が機能しない。`legend: true` がこの初期
+    // 全表示状態を救うことを固定する。単一カテゴリのため `point`
+    // （`circle`）に `data-index="0"` も付与される
+    // （`render_series_none` の `n <= 1` 分岐、`chart_range.rs`
+    // `INDEXED_SELECTOR` の判定対象にするため）。
+    let data = single_data();
+    let mut props = AreaChartProps::new(&data, "single point");
+    props.show_tooltip = false;
+    props.legend = true;
+    let html = render(&area_chart(&props, vec![]).unwrap());
+    assert!(html.contains(r#"data-series="visits""#));
+    assert!(html.contains(r#"data-index="0""#));
+}
+
+#[test]
+fn line_chart_legend_opt_in_emits_identify_attrs_with_tooltip_off_and_no_range_or_hidden() {
+    // AreaChart 版と同じ契約を LineChart でも固定する
+    // （`LineChartProps::legend` rustdoc 参照）。
+    let data = single_data();
+    let mut props = LineChartProps::new(&data, "single point");
+    props.show_tooltip = false;
+    props.legend = true;
+    let html = render(&line_chart(&props, vec![]).unwrap());
+    assert!(html.contains(r#"data-series="visits""#));
+    assert!(html.contains(r#"data-index="0""#));
 }
 
 // ---------------------------------------------------------------------

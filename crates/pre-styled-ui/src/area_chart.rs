@@ -321,6 +321,21 @@ pub struct AreaChartProps<'a> {
     /// （SSR は全範囲・全系列を出力する設計）。データに存在しない名前を
     /// 指定してもエラーにしない（fail-soft）。
     pub hidden_series: &'a [&'a str],
+    /// このチャートを [`crate::charts::legend`] の凡例トグルと組み合わせて
+    /// 使うか（明示的 opt-in、既定 `false`、イシュー #2134 codex-review
+    /// 指摘）。`show_tooltip`/`range.is_some()`/`hidden_series` 非空の
+    /// いずれでも判定できない「凡例は使うが初期状態は全系列表示
+    /// （`hidden_series` が空）かつ `show_tooltip: false`」という構成では
+    /// [`identify_series`] のそれまでの判定条件が偽になり識別属性
+    /// （`data-series`）が出力されないため、凡例クリックで系列を非表示に
+    /// できなかった（`wasm-full::chart_range::wiring::sync_chart` が
+    /// `data-series` を判定源にするため）。呼び出し側が凡例を併設すると
+    /// きは `true` を明示することで、初期表示から識別属性を出力させる。
+    /// 凡例を使わない構成（既定 `false`）では従来どおり #2129 以前の
+    /// 出力とバイト一致する契約を変えない
+    /// （`area_chart_show_tooltip_false_matches_pre_2129_golden_html`
+    /// 参照）。
+    pub legend: bool,
 }
 
 impl<'a> AreaChartProps<'a> {
@@ -345,6 +360,7 @@ impl<'a> AreaChartProps<'a> {
             show_tooltip: true,
             range: None,
             hidden_series: &[],
+            legend: false,
         }
     }
 }
@@ -552,6 +568,16 @@ fn render_series_none(
             ("r", r.as_str()),
             ("fill", color),
         ];
+        // 単一カテゴリの point へ `data-index="0"` を付与する（イシュー
+        // #2134 codex-review 指摘、`render_stacked` の同型分岐 rustdoc
+        // 参照）。`extra_attrs` に `data-series` が含まれる＝呼び出し元
+        // ([`area_chart`]) の識別属性出力ゲート（[`identify_series`]）が
+        // 有効という意味であり、その判定結果をここでも再利用する
+        // （path 用の `extra_attrs` に `data-index` を混入させないため、
+        // 判定結果のみを読み取り値は追加しない）。
+        if extra_attrs.iter().any(|(key, _)| *key == "data-series") {
+            point_attrs.push(("data-index", "0"));
+        }
         point_attrs.extend(extra_attrs.iter().copied());
         return Ok(vec![el("circle", point_attrs, vec![])]);
     }
@@ -661,6 +687,19 @@ fn render_stacked(
                 ("r", r.as_str()),
                 ("fill", color.as_str()),
             ];
+            // 単一カテゴリの point へ `data-index="0"` を付与する（イシュー
+            // #2134 codex-review 指摘: `data-series` のみでは
+            // `chart_range.rs::wiring::sync_chart` の `INDEXED_SELECTOR`
+            // （`[data-index]`）判定対象外になり、唯一のカテゴリ 0 を
+            // 範囲から除外しても hit-area/tooltip は隠れる一方でこの点だけ
+            // 残ってしまう。`SERIES_ONLY_SELECTOR`（`[data-series]:not
+            // ([data-index])`）は複数カテゴリに跨る path 専用のため、
+            // カテゴリ単位で表示同期すべき単独点はここへ回さない。
+            // `line_chart.rs::render_series` の `n <= 1` 分岐（
+            // `point_extra_attrs`）と同型）。
+            if show_series_attr {
+                point_attrs.push(("data-index", "0"));
+            }
             point_attrs.extend(extra_attrs.iter().copied());
             nodes.push(el("circle", point_attrs, vec![]));
             continue;
@@ -862,9 +901,12 @@ pub(crate) fn x_axis_category_labels(
 /// の追加属性列を組み立てる（内部ヘルパ、イシュー #2133。
 /// [`crate::line_chart`] の `series_extra_attrs` と同型）。`data-series`
 /// は `show_tooltip` 単独ではなく `show_tooltip || range.is_some() ||
-/// !hidden_series.is_empty()` でゲートする（イシュー #2134 codex-review
-/// 指摘: 凡例トグル・期間切替のいずれかが実際に使われているときは
-/// `show_tooltip: false` でも識別属性を出す必要がある。素の
+/// !hidden_series.is_empty() || legend` でゲートする（イシュー #2134
+/// codex-review 指摘: 凡例トグル・期間切替のいずれかが実際に使われて
+/// いるときは `show_tooltip: false` でも識別属性を出す必要がある。
+/// `range`/`hidden_series` だけでは「凡例を併設するが初期状態は全系列
+/// 表示」という構成を見逃すため、[`AreaChartProps::legend`] の明示的
+/// opt-in を追加した（2 ラウンド目の codex-review 指摘）。素の
 /// `show_tooltip: false`・凡例/期間切替とも不使用の構成では従来どおり
 /// #2129 以前とバイト一致する、`area_chart_show_tooltip_false_matches_
 /// pre_2129_golden_html` 参照）。
@@ -885,7 +927,7 @@ fn series_extra_attrs<'a>(
 /// [`series_extra_attrs`]/`render_stacked` 呼び出し双方が共有する識別
 /// 属性出力ゲート判定（内部ヘルパ、イシュー #2134 codex-review 指摘）。
 fn identify_series(props: &AreaChartProps<'_>) -> bool {
-    props.show_tooltip || props.range.is_some() || !props.hidden_series.is_empty()
+    props.show_tooltip || props.range.is_some() || !props.hidden_series.is_empty() || props.legend
 }
 
 /// AreaChart 本体を組み立てる。
