@@ -2937,7 +2937,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 採用しない原則に従い、双方の実体変更を統合した結果として main の到達値
 # 0.177.0 をさらに上回る 0.178.0 へマイナーバンプする（0.x の破壊的変更は
 # マイナーバンプの規約）。
-version = "0.178.0"
+#
+# イシュー #2198: breadcrumb `list` の `gap` へ breakpoint（`Breakpoint::Sm`、
+# #2197 で新設済みの機構の初適用）を追加した。CSS 宣言の純追加・Rust 公開
+# API シグネチャ不変のため `docs/ci/style-refresh-version-bump-operation.md`
+# §3.3（意匠調整は patch）に従い patch バンプする。
+version = "0.178.1"
 
 
 edition = "2021"

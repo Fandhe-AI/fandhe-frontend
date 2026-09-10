@@ -1633,7 +1633,9 @@ impl SlotRecipe {
 複合条件（`@media` 内の `.fd-*` クラス・`:hover` 規則）は未実装
 （スコープ外、`docs/design/pre-styled-ui-scale-tokens.md` §3.6/§7 参照）。
 段の値（chakra-ui v3・shadcn/ui〔Tailwind v4〕と `sm` 以外で完全一致、
-`2xl` は見送り）の採用根拠は同文書 §3.6 を参照。
+`2xl` は見送り）の採用根拠は同文書 §3.6 を参照。最初の消費者は
+`breadcrumb` の `list`（`gap` を `Breakpoint::Sm` で拡張、イシュー
+#2198）。
 
 ## 4m. `sidebar`（イシュー #2073、親 #2071。headless anatomy は #2072）
 
