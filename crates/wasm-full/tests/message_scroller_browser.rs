@@ -10,6 +10,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
+use fandhe_frontend_core::keyed::keyed_list;
 use fandhe_frontend_core::{el_owned, render, text, Node};
 use fandhe_frontend_headless_ui::message_scroller::{
     content, jump_to_latest, load_more, root, viewport, MessageScrollerRootProps,
@@ -487,6 +488,164 @@ async fn prepend_while_bottom_stays_at_bottom_after_correction() {
     assert_eq!(
         instance_root.get_attribute("data-stuck").as_deref(),
         Some("bottom")
+    );
+}
+
+#[wasm_bindgen_test]
+async fn streaming_text_replacement_is_classified_as_grow_not_prepend() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-stream-text-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    // ストリーミング本文を表示する束縛点（`bind_text` が
+    // `set_text_content` で書き換える対象）を模した、初期状態が空の
+    // block 要素を 1 件持つメッセージを組み立てる。`line-height` を固定
+    // することで、テキスト追加前後の高さ変化（0px → 20px）をフォントに
+    // 依存せず決定的にする。
+    let body_span = el_owned(
+        "span",
+        vec![(
+            "style".to_string(),
+            "display:block;line-height:20px".to_string(),
+        )],
+        vec![],
+    );
+    let message_item = el_owned("div", vec![], vec![body_span]);
+    // viewport（100px）を既存の固定高さ項目（90px）でほぼ埋めておき、
+    // ストリーミング本文の増分（0px → 20px）で `scrollHeight` が
+    // `clientHeight`（100px）を超えて実際に増加するようにする
+    // （`scrollHeight` は `clientHeight` を下回らないため、埋めずに
+    // 増分だけでは高さ変化が観測できない）。
+    let node = root(
+        MessageScrollerRootProps {
+            stuck: HeadlessStuck::Free,
+            has_new: false,
+        },
+        vec![("id", "ms-stream-text")],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:100px;overflow-y:auto")],
+                vec![content(vec![], vec![fixed_height_child(90), message_item])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    );
+    let instance_root = mount(&container, &node);
+    let content_el = find_content(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    let body_el = content_el
+        .query_selector("span")
+        .expect("query_selector must not fail")
+        .expect("body span must exist");
+
+    // `fandhe-frontend-wasm-client::binding_dom::apply_one`（`bind_text`）
+    // と同じ DOM API（`Node::set_text_content`）で本文を書き換える。この
+    // `childList` レコードは既存の子を丸ごと入れ替えるため、追加された
+    // 唯一の子ノードは `previousSibling` を持たない（旧実装がこれを
+    // 先頭挿入＝Prepend と誤判定していたケース、レビュー指摘 #2122:
+    // codex-review P1 / Cursor Bugbot 双方）。
+    let viewport = find_viewport(&instance_root);
+    body_el.set_text_content(Some("Hello"));
+
+    wait_for(|| instance_root.has_attribute("data-has-new")).await;
+    assert!(
+        instance_root.has_attribute("data-has-new"),
+        "本文テキストの置換が誤って Prepend 判定されず、Grow として \
+         data-has-new が立つこと"
+    );
+    // Prepend と誤判定されていれば `correct_prepend` によるスクロール
+    // 補正が働き、Free でも scrollTop が動く。Grow として正しく分類
+    // されていれば Free 状態は自動スクロールしないため、scrollTop は
+    // 不変（0）のままであることも確認する。
+    assert_eq!(viewport.scroll_top(), 0);
+}
+
+#[wasm_bindgen_test]
+async fn prepend_into_keyed_list_wrapper_inside_content_is_detected() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-keyed-list-prepend-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    // `docs/design/wasm-full-architecture.md` §31.8 がサポート経路とする
+    // 「`content` 配下を keyed list（`fandhe_frontend_core::keyed::
+    // keyed_list`）で差分更新する」構成を再現する。`keyed_list` の出力は
+    // `content` 自身ではなく、`data-bind-list` を持つ子要素（リストの
+    // 親）を挟む。真の先頭挿入はこの `data-bind-list` 要素への
+    // `insertBefore` として観測されるため、`content` 自身への挿入のみを
+    // 対象とする実装ではこのケースを取りこぼす（先頭挿入が誤って Grow
+    // 扱いになる）。
+    let list = keyed_list(
+        "div",
+        vec![],
+        "messages",
+        vec![
+            ("a".to_string(), fixed_height_child(60)),
+            ("b".to_string(), fixed_height_child(60)),
+            ("c".to_string(), fixed_height_child(60)),
+        ],
+    )
+    .expect("keyed_list must not fail for well-formed items");
+    let node = root(
+        MessageScrollerRootProps {
+            stuck: HeadlessStuck::Free,
+            has_new: false,
+        },
+        vec![("id", "ms-keyed-list-prepend")],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:100px;overflow-y:auto")],
+                vec![content(vec![], vec![list])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    );
+    let instance_root = mount(&container, &node);
+    let viewport = find_viewport(&instance_root);
+    let content_el = find_content(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    // free のまま、利用者が少し下へスクロールした状態を作る
+    // （`prepend_while_free_preserves_visual_position` と同じ検証形）。
+    simulate_user_scroll(&viewport, 40);
+    wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    let before_top = viewport.scroll_top();
+    let before_height = viewport.scroll_height();
+
+    let list_wrapper = content_el
+        .query_selector("[data-bind-list]")
+        .expect("query_selector must not fail")
+        .expect("data-bind-list wrapper must exist");
+    let prepend_html = render(&fixed_height_child(40));
+    list_wrapper
+        .insert_adjacent_html("afterbegin", &prepend_html)
+        .expect("insert_adjacent_html must not fail");
+
+    let expected_delta = 40;
+    wait_for(|| viewport.scroll_height() == before_height + expected_delta).await;
+    assert_eq!(viewport.scroll_height(), before_height + expected_delta);
+    // `MutationObserver` コールバックはマイクロタスクで走るため、高さの
+    // 反映（同期的な DOM 更新）と `scrollTop` 補正の反映（非同期）とで
+    // 別々に `wait_for` する必要がある（上の高さの `wait_for` はマイクロ
+    // タスクを待たずに真になり得るため、`scrollTop` の `wait_for` を
+    // 省略すると補正の反映前に読んでしまう。
+    // `prepend_while_free_preserves_visual_position` と同型）。
+    wait_for(|| viewport.scroll_top() == before_top + expected_delta).await;
+    assert_eq!(
+        viewport.scroll_top(),
+        before_top + expected_delta,
+        "keyed_list の data-bind-list 要素への先頭挿入が Prepend として \
+         検知され、scrollTop が高さ増分だけ補正されること"
     );
 }
 

@@ -1959,7 +1959,19 @@ scrollTop=0 でも先頭挿入が viewport 上端より下に位置し `Grow` �
 限る（ネストしたインスタンス自身の変異を外側の分類へ波及させない、
 `scoped_parts` と同じネスト分離パターン。レビュー指摘 #2122:
 `content.contains(target)` のみの判定ではネストしたインスタンスの
-`content` への挿入も外側の分類に漏れ込んでいた）。`Prepend` は
+`content` への挿入も外側の分類に漏れ込んでいた）。さらに target 自身が
+`content` そのもの、または `fandhe_frontend_core::keyed::keyed_list` が
+出力するリストの親要素（`BIND_LIST_ATTR` = `data-bind-list` を持つ要素。
+§31.8 がサポート経路とする「`content` 配下を keyed list で差分更新」
+構成における実際の挿入先はこの要素であり、`content` 自身とは限らない）
+のいずれかであることも要求する（レビュー指摘 #2122: `bind_text`
+〔`fandhe-frontend-wasm-client::binding_dom::apply_one` の
+`set_text_content`〕によるストリーミング本文のテキスト置換は、既存の
+子ノードを丸ごと入れ替える `childList` レコードを `content`/
+`data-bind-list` 要素ではない本文の子孫要素へ生み、置き換え後の唯一の
+子ノードが `previousSibling` を持たないため、この target 種別の判定を
+欠くと先頭挿入〔Prepend〕と誤判定していた。codex-review P1・
+Cursor Bugbot 双方の指摘）。`Prepend` は
 `corrected_scroll_top`（`prev_scroll_top + (new_height - prev_height)`、
 負値は 0 へクランプ）で `scrollTop` を補正する。
 

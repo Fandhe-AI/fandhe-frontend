@@ -759,6 +759,29 @@ mod wiring {
             if closest_matching(content, target_element, PART_ROOT).is_some() {
                 continue;
             }
+            // target 自身が `content` そのもの、または `keyed_list()`
+            // （`fandhe-frontend-core::keyed`）が出力するリストの親要素
+            // （`BIND_LIST_ATTR` = `data-bind-list` を持つ要素。§31.8 が
+            // サポート経路とする「`content` 配下を keyed list で差分更新」
+            // 構成における実際の挿入先はこの要素であり、`content` 自身とは
+            // 限らない）であることを要求する。`bind_text`
+            // （`fandhe-frontend-wasm-client::binding_dom::apply_one` の
+            // `set_text_content`、ストリーミング本文の更新）は本文を表示
+            // する、`data-bind-list` を持たない任意の子孫要素（メッセージ
+            // 1 件の内部にあるテキスト表示要素）へ `childList` レコードを
+            // 生む（既存の子ノードを丸ごと入れ替えるため、置き換え後の
+            // 唯一の子ノードは `previousSibling` を持たない）。本文内で
+            // 子要素だけを追加するケース（テキストではなく Element を
+            // 追記する段階的レンダリング）の target も同様に
+            // `data-bind-list` を持たない子孫要素である。これらは
+            // `content`/`data-bind-list` 要素そのものへの挿入ではないため
+            // 除外し、先頭挿入（Prepend）と誤判定しない（レビュー指摘
+            // #2122: codex-review P1 / Cursor Bugbot 双方）。
+            if target_element != content
+                && !target_element.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR)
+            {
+                continue;
+            }
             let added = record.added_nodes();
             if added.length() == 0 {
                 continue;
