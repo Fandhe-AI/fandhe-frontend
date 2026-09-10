@@ -321,6 +321,14 @@ pub struct PieChartProps<'a> {
     /// 効く）。データに存在しない名前/index を指定してもエラーにしない
     /// （fail-soft）。
     pub hidden_series: &'a [&'a str],
+    /// `legend`/`category_legend`（[`crate::charts::legend`]）を
+    /// 併設していることの明示的 opt-in（既定 `false`、イシュー #2134
+    /// codex-review 指摘）。`show_tooltip: false` かつ `range`/
+    /// `hidden_categories`/`hidden_series` がいずれも初期状態を表せない
+    /// （凡例は使うが初期状態は全件表示）構成を救うための opt-in で、
+    /// `true` のとき [`identify_segments`] が `data-index` を出力させる
+    /// （`BarChartProps::legend`/`LineChartProps::legend` と同型）。
+    pub legend: bool,
 }
 
 impl Default for PieChartProps<'_> {
@@ -337,8 +345,26 @@ impl Default for PieChartProps<'_> {
             range: None,
             hidden_categories: &[],
             hidden_series: &[],
+            legend: false,
         }
     }
+}
+
+/// `segment`/`label`/`label-line`/`outside-label` へ凡例トグル・期間
+/// 切替の共有識別子（`data-index`/`data-series`）を出力するかどうかの
+/// ゲート判定（内部ヘルパ、イシュー #2134 codex-review 指摘）。
+/// `show_tooltip` 単独ではなく `show_tooltip || range.is_some() ||
+/// !hidden_categories.is_empty() || !hidden_series.is_empty() || legend`
+/// で判定する（`donut_chart.rs::identify_segments`・
+/// `radial_chart.rs::identify_bars` と同型判定）。素の
+/// `show_tooltip: false`・凡例/期間切替とも不使用の構成では従来どおり
+/// バイト一致する契約は変えない。
+fn identify_segments(props: &PieChartProps) -> bool {
+    props.show_tooltip
+        || props.range.is_some()
+        || !props.hidden_categories.is_empty()
+        || !props.hidden_series.is_empty()
+        || props.legend
 }
 
 /// この styled PieChart の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが
@@ -565,7 +591,7 @@ fn render_ring<'a>(
         let mut segment_attrs: Vec<(&str, &str)> =
             vec![("data-scope", "pie-chart"), ("data-part", "segment")];
         let cat_idx_str = i.to_string();
-        if props.show_tooltip {
+        if identify_segments(props) {
             // イシュー #2133: セグメントへの `data-index` は tooltip 語彙
             // （hit-area・#2129）と同じゲートで opt-in にする
             // （`category_legend` の trigger `data-index` から本要素を
@@ -638,7 +664,7 @@ fn render_ring<'a>(
                 ("data-part", "label-line"),
                 ("d", leader_d.as_str()),
             ];
-            if props.show_tooltip {
+            if identify_segments(props) {
                 // `segment` と同じゲート・語彙（Cursor Bugbot 指摘
                 // 「Hidden satellites lack shared identifiers」対応。
                 // 凡例トグルの共有セレクタ `[data-series]`/`[data-index]`
@@ -671,7 +697,7 @@ fn render_ring<'a>(
                 ("data-part", "outside-label"),
                 ("data-align", align),
             ];
-            if props.show_tooltip {
+            if identify_segments(props) {
                 // `segment`/`label-line` と同じゲート・語彙（同上、
                 // イシュー #2133）。
                 outside_label_attrs.push(("data-index", cat_idx_str.as_str()));
@@ -700,7 +726,7 @@ fn render_ring<'a>(
             let ly = CENTER_Y + label_r * mid.sin();
             let mut label_attrs: Vec<(&str, &str)> =
                 vec![("data-scope", "pie-chart"), ("data-part", "label")];
-            if props.show_tooltip {
+            if identify_segments(props) {
                 // `segment` と同じゲート・語彙（同上、イシュー #2133）。
                 label_attrs.push(("data-index", cat_idx_str.as_str()));
             }
@@ -1481,6 +1507,46 @@ mod tests {
     }
 
     // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
+
+    #[test]
+    fn legend_opt_in_emits_data_index_even_when_tooltip_and_range_and_hidden_are_absent() {
+        // イシュー #2134 codex-review 指摘: `show_tooltip: false` のまま
+        // `legend`/`category_legend` を併設し、かつ初期状態は全カテゴリ
+        // 表示（`hidden_categories`/`hidden_series` が空）・期間切替も
+        // 使わない構成では、`legend: true` の明示的 opt-in がないと
+        // `data-index` が一切出力されず、凡例クリックが
+        // `wasm-full::chart_range` 側で同期できない
+        // （`identify_segments` の `legend` 分岐の回帰、`donut_chart`/
+        // `radial_chart` の同型テストと対）。
+        let props = PieChartProps {
+            show_tooltip: false,
+            legend: true,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains(r#"data-index="0""#));
+        assert!(html.contains(r#"data-index="1""#));
+    }
+
+    #[test]
+    fn show_tooltip_false_without_legend_range_or_hidden_omits_data_index() {
+        // 上記テストの対照: `legend`/`range`/`hidden_categories`/
+        // `hidden_series` のいずれも使わない素の `show_tooltip: false` は
+        // 識別属性を出力しない（#2129 以前の出力とバイト一致する契約、
+        // `identify_segments` の既定 `false` 経路）。
+        let html = render(
+            &pie_chart(
+                &PieChartProps {
+                    show_tooltip: false,
+                    ..PieChartProps::default()
+                },
+                &two_category_data(),
+                vec![],
+            )
+            .unwrap(),
+        );
+        assert!(!html.contains("data-index"));
+    }
 
     #[test]
     fn range_none_omits_data_range() {
