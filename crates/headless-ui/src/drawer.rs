@@ -334,10 +334,44 @@ pub fn description<'a>(
 
 /// CloseTrigger パーツ（`button`）。[`crate::dialog::close_trigger`] と
 /// 同一契約（`type="button"` 固定、ラベルは呼び出し側が `attrs`/`children` で
-/// 付与する）。
+/// 付与する）。`data-variant` を出力しないため、`fandhe-frontend-pre-styled-ui`
+/// 側は content 右上のアイコン専用ゴーストボタン契約（既定）を適用する。
+/// footer 内で平文ボタンとして再利用したい場合は
+/// [`close_trigger_with_variant`] を使う（本関数の出力はイシュー #2193
+/// 導入時点からバイト単位で不変）。
 #[must_use]
 pub fn close_trigger<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
+    merged.extend(attrs);
+    ANATOMY.part("close-trigger", "button", merged, children)
+}
+
+/// CloseTrigger パーツ（`button`）。[`crate::dialog::close_trigger_with_variant`]
+/// と同一契約（`data-variant` を [`crate::dialog::CloseTriggerVariant`] の
+/// 語彙で固定出力する）。イシュー #2193。
+///
+/// **wasm-full 未配線の注意**: drawer scope は `fandhe-frontend-wasm-full`
+/// の click 配線（`headless.rs` の part → action 対応表）が一切対象と
+/// していない（本モジュール doc「スコープ外」節・イシュー #1639 参照）。
+/// このため footer 内に本関数で text variant の close-trigger を置いても、
+/// 別イシューで drawer scope の配線が整うまでクリックしても閉じない
+/// （inert）。headless/pre-styled 側は dialog と対称に実装しておき、
+/// 配線が追加された時点で構造的に同じ挙動を共有する設計とする。
+///
+/// 呼び出し側 `attrs` に含まれる `data-variant`（ASCII 大文字小文字
+/// 無視）はなりすまし防止のため除去し、`variant` 引数の値を必ず優先する。
+#[must_use]
+pub fn close_trigger_with_variant<'a>(
+    variant: crate::dialog::CloseTriggerVariant,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs: Vec<(&'a str, &'a str)> = attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("data-variant"))
+        .collect();
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![("type", "button"), ("data-variant", variant.as_str())];
     merged.extend(attrs);
     ANATOMY.part("close-trigger", "button", merged, children)
 }
@@ -699,6 +733,36 @@ mod tests {
         assert!(html.contains(r#"<button"#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"data-part="close-trigger""#));
+    }
+
+    #[test]
+    fn close_trigger_never_outputs_data_variant() {
+        // イシュー #2193: 既存契約はバイト単位で不変（data-variant を持たない）。
+        let html = render(&close_trigger(vec![], vec![text("Close")]));
+        assert!(!html.contains("data-variant"));
+    }
+
+    #[test]
+    fn close_trigger_with_variant_outputs_data_variant_text() {
+        let html = render(&close_trigger_with_variant(
+            crate::dialog::CloseTriggerVariant::Text,
+            vec![],
+            vec![text("Cancel")],
+        ));
+        assert!(html.contains(r#"data-variant="text""#));
+        assert!(html.contains(r#"data-part="close-trigger""#));
+        assert!(html.contains("Cancel"));
+    }
+
+    #[test]
+    fn close_trigger_with_variant_drops_spoofed_data_variant() {
+        let html = render(&close_trigger_with_variant(
+            crate::dialog::CloseTriggerVariant::Text,
+            vec![("data-variant", "icon"), ("DATA-VARIANT", "icon")],
+            vec![],
+        ));
+        assert_eq!(html.matches("data-variant").count(), 1);
+        assert!(html.contains(r#"data-variant="text""#));
     }
 
     #[test]

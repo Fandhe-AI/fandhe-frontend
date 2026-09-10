@@ -109,13 +109,19 @@
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
+//!   CloseTrigger は [`dialog::close_trigger_with_variant`] で
+//!   `data-variant`（[`dialog::CloseTriggerVariant`]、`icon`/`text`）を
+//!   選択でき、footer 内の平文ボタンとしても再利用できる（イシュー #2193）。
 //! - [`mod@drawer`]: Dialog パターンの変種（画面端からスライドインするパネル）
 //!   である [`drawer::Drawer`]。dialog と同じ 8 anatomy パーツ（`data-scope="drawer"`）
 //!   を持つが、開閉状態機械は新設せず [`dialog::Dialog`] へ全委譲する
 //!   （[`segment_group::SegmentGroup`] が [`radio_group::RadioGroup`] へ
 //!   全委譲するのと同型のパターン）。固有に持つのは画面端の方向を表す
 //!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。`content`
-//!   は `tabindex="-1"` 固定（イシュー #1639、参考サイト突合）。
+//!   は `tabindex="-1"` 固定（イシュー #1639、参考サイト突合）。CloseTrigger
+//!   は dialog と対称に [`drawer::close_trigger_with_variant`] を持つが、
+//!   `fandhe-frontend-wasm-full` が drawer scope 自体を未配線のため
+//!   text variant を置いても現状 inert（イシュー #2193、#1639）。
 //! - [`mod@download_trigger`]: `root`（`a[download]`）1 anatomy パーツ
 //!   （イシュー #828）。ark-ui/chakra-ui の DownloadTrigger（JS の `Blob`
 //!   生成前提）を `a[download]` 属性による宣言的トリガーとして静的部品化

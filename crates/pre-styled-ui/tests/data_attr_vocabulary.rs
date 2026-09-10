@@ -834,6 +834,63 @@ fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
     assert!(html.contains(r#"data-state="closed""#));
 }
 
+/// `close_trigger_with_variant`（イシュー #2193）の `data-variant`
+/// （`icon`/`text`）は headless 層（`fandhe_frontend_headless_ui::dialog`/
+/// `drawer`）が出力する語彙であり、pre-styled 層（`crate::dialog`/
+/// `crate::drawer` の `recipe()`）は参照するのみで自ら組み立てない（役割 B、
+/// `docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2）。既存
+/// `close_trigger`（variant 引数を持たない）は `data-variant` を出力
+/// しないことも併せて固定する。呼び出し側が偽装した `data-variant` は
+/// headless 側の予約キー除去（`crate::dialog::CLOSE_TRIGGER_RESERVED`
+/// 相当、クレート境界のためテストはレンダリング結果で固定する）で除去され、
+/// `variant` 引数の値のみが必ず出力される。
+#[test]
+fn dialog_and_drawer_close_trigger_data_variant_is_headless_sourced() {
+    // dialog: Icon/Text の双方を data-variant として出力する。
+    let icon_html = render(&dialog::close_trigger_with_variant(
+        dialog::CloseTriggerVariant::Icon,
+        vec![],
+        vec![],
+    ));
+    assert!(icon_html.contains(r#"data-variant="icon""#));
+
+    let text_html = render(&dialog::close_trigger_with_variant(
+        dialog::CloseTriggerVariant::Text,
+        vec![],
+        vec![text("Cancel")],
+    ));
+    assert!(text_html.contains(r#"data-variant="text""#));
+
+    // 呼び出し側の data-variant 偽装は除去され、variant 引数の値のみが残る。
+    let spoofed_html = render(&dialog::close_trigger_with_variant(
+        dialog::CloseTriggerVariant::Text,
+        vec![("data-variant", "icon")],
+        vec![],
+    ));
+    assert_eq!(spoofed_html.matches("data-variant").count(), 1);
+    assert!(spoofed_html.contains(r#"data-variant="text""#));
+
+    // 既存 close_trigger（variant 引数なし）は data-variant を出力しない。
+    let legacy_html = render(&dialog::close_trigger(vec![], vec![]));
+    assert!(!legacy_html.contains("data-variant"));
+
+    // drawer も dialog と対称の契約を持つ。
+    let drawer_text_html = render(
+        &fandhe_frontend_pre_styled_ui::drawer::close_trigger_with_variant(
+            fandhe_frontend_pre_styled_ui::drawer::CloseTriggerVariant::Text,
+            vec![],
+            vec![text("Cancel")],
+        ),
+    );
+    assert!(drawer_text_html.contains(r#"data-variant="text""#));
+
+    let drawer_legacy_html = render(&fandhe_frontend_pre_styled_ui::drawer::close_trigger(
+        vec![],
+        vec![],
+    ));
+    assert!(!drawer_legacy_html.contains("data-variant"));
+}
+
 /// `alert.rs`（イシュー #2043、親トラッキングは shadcn/ui 突合ツリー）の
 /// pre-styled-only `action` パートは独自の `data-*` を一切出力しない
 /// （`dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs`
