@@ -689,6 +689,13 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   挙動をそのまま残す最小サブセットとする。`<select readonly>` が HTML
   仕様上無効なためネイティブ `readonly` を出力しない判断は headless 層に
   委譲済みで、本モジュールは再実装しない。
+- **`native_select` は option/optgroup を system color で着色する（イシュー
+  #2204）**: `option`/`optgroup`/`optgroup > option` の背景色を `select` と
+  同じ `--fandhe-color-bg` トークン（`Canvas` フォールバック）で着色する。
+  `SlotRecipe` が子孫セレクタを表現できないため `recipe().css()` の外側へ
+  固定 CSS 文字列を追記する（`field`/`status` と同型のパターン）。文字色
+  （`color`）は明示せず `select` の継承に委ねる（`option:disabled` の UA
+  既定減色を保つため）。
 
 ### 4f-1. `field`（ラベル・補助テキスト・エラーテキストの型階層、イシュー #1684）
 

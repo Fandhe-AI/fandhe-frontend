@@ -3076,7 +3076,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 採用しない原則に従い、双方の実体変更（breadcrumb breakpoint 適用 +
 # pseudo_element API 追加、いずれも patch 相当の純追加）を統合した結果
 # として 0.180.1 の patch をさらに +1 した 0.180.2 を採用する。
-version = "0.180.2"
+# イシュー #2204（native-select の option/optgroup へ system color 適用手段
+# を評価）: `native_select::css()` へ生 CSS 純追加ブロックを追加した
+# （`field.rs`/`status.rs` と同型の recipe 外追記パターン、DSL 拡張は
+# #708/#2201 の既定判断どおり非採用）。CSS 実体の純追加のため patch を
+# +1 した 0.180.3 とする。
+version = "0.180.3"
 
 
 edition = "2021"
