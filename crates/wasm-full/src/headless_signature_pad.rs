@@ -33,15 +33,24 @@
 //! `pointerdown` を無視する）。ark-ui SignaturePad も同様にマルチタッチでの
 //! 同時複数ストローク描画をサポートしないため、この単純化は仕様追随である。
 //!
-//! # clear-trigger のクリックは既存の汎用配線を再利用する
+//! # clear-trigger のクリックは既存の汎用配線を再利用する（イシュー #2326
+//! で `Runtime::wire_headless` へ分離）
 //!
 //! ClearTrigger のクリックは `data-scope`/`data-part` から文字列アクションへの
 //! 静的マッピング（[`crate::headless::MAPPING_TABLE`] へ
 //! `("signature-pad", "clear-trigger") -> "clear"` 行を追加）と
-//! [`crate::headless::wire_headless_component`]（イシュー #580）をそのまま
-//! 再利用し、本モジュールは重複するクリック判定コードを持たない。
-//! [`wiring::wire_signature_pad_component`] はこの汎用クリック配線と
-//! ポインタ座標収集配線の両方を 1 回のマウントで組み込む。
+//! [`crate::headless::wire_headless_component`]（イシュー #580）を再利用する。
+//! ただし `wire_headless_component` は `MAPPING_TABLE` 全行（Dialog/
+//! Collapsible/Popover/Tooltip/Menu 等、signature-pad と無関係な全
+//! headless-ui 部品のクリック dispatch）を一括で担う汎用配線であり、
+//! signature-pad 固有の関心ではない。そのため本モジュールの
+//! [`wiring::wire_signature_pad_component`] からは呼ばず、`lib.rs` の
+//! `Runtime::wire_headless`（`events::wire_events` と同じくどの feature にも
+//! ゲートされない常時配線）が 1 回だけ登録する（イシュー #2326
+//! codex-review/Bugbot 是正: `signature-pad` feature を無効化すると他の
+//! headless-ui 部品のクリック配線まで失われる不具合の是正）。
+//! [`wiring::wire_signature_pad_component`] はポインタ座標収集配線のみを
+//! 組み込む。
 //!
 //! # セキュリティ不変条件
 //!
@@ -700,19 +709,29 @@ mod wiring {
         Ok(())
     }
 
-    /// [`wire_stroke_collector`]（描画のポインタ座標収集）と
-    /// [`crate::headless::wire_headless_component`]（ClearTrigger クリック、
-    /// モジュール doc「clear-trigger のクリックは既存の汎用配線を再利用
-    /// する」参照）の両方を 1 回のマウントで組み込む便宜 API。
+    /// [`wire_stroke_collector`]（描画のポインタ座標収集）を組み込む便宜
+    /// API（イシュー #2326 で ClearTrigger クリック配線を
+    /// `crate::lib::Runtime::wire_headless` へ分離。モジュール doc
+    /// 「clear-trigger のクリックは既存の汎用配線を再利用する」参照）。
     ///
-    /// 両配線とも成功時のみ `on_update` を呼ぶ
-    /// （[`crate::lib::Runtime::wire`] と同じ「配線は状態更新・再描画に
-    /// 結合しない」方針）。
+    /// 成功時のみ `on_update` を呼ぶ（[`crate::lib::Runtime::wire`] と同じ
+    /// 「配線は状態更新・再描画に結合しない」方針）。
+    ///
+    /// # `Runtime` を経由せず本関数を直接呼ぶ利用者への移行手順（イシュー
+    /// #2326、破壊的変更）
+    ///
+    /// 本関数はもはや ClearTrigger のクリック配線を含まない
+    /// （上記「ClearTrigger クリック配線を分離」参照）。`Runtime::mount`/
+    /// `Runtime::hydrate` を使わず本関数を直接呼ぶ利用者は、従来どおり
+    /// ClearTrigger のクリックを配線するために
+    /// `crate::headless::wire_headless_component` を同じ `root`/
+    /// `component` へ追加で呼ぶ必要がある（詳細は `crate` ルート doc の
+    /// 「`wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ
+    /// 利用者への移行手順」節を参照）。
     ///
     /// # Errors
     ///
-    /// [`wire_stroke_collector`]・[`crate::headless::wire_headless_component`]
-    /// のいずれかの失敗をそのまま伝播する。
+    /// [`wire_stroke_collector`] の失敗をそのまま伝播する。
     pub fn wire_signature_pad_component<C>(
         root: Element,
         component: std::rc::Rc<std::cell::RefCell<C>>,
@@ -722,22 +741,6 @@ mod wiring {
         C: Component + 'static,
     {
         let on_update = std::rc::Rc::new(std::cell::RefCell::new(on_update));
-
-        // クリック（ClearTrigger）: 既存の汎用マッピング表配線を再利用する。
-        {
-            let click_component = component.clone();
-            let click_on_update = on_update.clone();
-            let click_root = root.clone();
-            crate::headless::wire_headless_component(
-                click_root,
-                click_component,
-                move |state, r| {
-                    if let Ok(mut cb) = click_on_update.try_borrow_mut() {
-                        (cb)(state, r);
-                    }
-                },
-            )?;
-        }
 
         // ポインタ座標収集（描画）: dispatch 成功時のみ on_update を呼ぶ。
         {
