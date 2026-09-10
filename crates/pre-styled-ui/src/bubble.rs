@@ -75,15 +75,73 @@
 //! そのまま返す）。角丸連結の算出対象（何番目の発言か）を求める計算自体は
 //! 利用者責務のまま変わらない（headless 契約を継承、上記責務境界節参照）。
 //!
-//! # フェードの限界（`hidden` と `opacity` transition の関係）
+//! # 高さトランジション（イシュー #2192 の共通機構を適用、#2282）
 //!
-//! headless `collapse_content` は closed 時に `hidden` 属性を出力し、
-//! `display: none` は transition を無効化する
-//! （[`crate::dialog`] の backdrop と同じ前提）。そのため opacity 遷移が
-//! 実際に見えるのはクライアントランタイムが `hidden` を外す前後で
+//! 当初（イシュー #2109）は `collapse-content` の `opacity` を
+//! `data-state` で 0/1 切り替える構成だったが、headless
+//! `collapse_content` は closed 時に `hidden` 属性を出力し
+//! `display: none` は transition を無効化するため
+//! （[`crate::dialog`] の backdrop と同じ前提）、opacity 遷移が実際に
+//! 見えるのはクライアントランタイムが `hidden` を外す前後で
 //! `data-state` を切り替える場合のみであり、SSR 単独では即時表示・
-//! 即時非表示になる。`prefers-reduced-motion` は `Theme::to_css` が
-//! duration トークンを 0ms へ一括上書きするため本モジュール側では書かない
+//! 即時非表示になっていた（既知の「フェードの限界」）。
+//!
+//! [`crate::collapsible`]/[`crate::accordion`] が採用済みの案 C
+//! （`docs/design/collapsible-height-animation.md`、`hidden` 契約を維持
+//! したまま `@starting-style` + `transition-behavior: allow-discrete`
+//! と `fandhe-frontend-wasm-full` の実測高さ CSS 変数
+//! （`--fandhe-content-height`）を組み合わせる方式）の共通機構
+//! （[`crate::recipe::SlotRecipe::content_height_transition`]、
+//! イシュー #2192）を `collapse-content` slot へそのまま適用した
+//! （`recipe()` 末尾参照）。
+//!
+//! `collapse-content` の高さトランジションが実際に成立するかどうかは、
+//! (1) `hidden` を切り替える**トリガーの配線**と (2) 共通 preset が
+//! 出す CSS 自体の**遷移条件**という別々の 2 点に依存する（`content_
+//! height_transition` の CSS が要求する条件は codex レビュー指摘により
+//! ここで明確化する。`crates/pre-styled-ui/src/recipe.rs` の
+//! `content_height_open_declarations`/`supports_not_calc_size_height_
+//! state` rustdoc 参照）。
+//!
+//! - **トリガー未配線（既知の限界）**: `crates/wasm-full/src/headless.rs`
+//!   の `MAPPING_TABLE` に `(bubble, collapse-trigger)` の行が無く
+//!   （headless [`mod@fandhe_frontend_headless_ui::bubble`] rustdoc
+//!   「wasm-full 未配線」節参照）、`wire_headless_component` 経由の
+//!   クリックでは `hidden` の切り替え自体が dispatch されない。呼び出し
+//!   側が独自に `data-state`/`hidden` を切り替える経路を用意する必要が
+//!   ある（実運用上の限界、`.claude/rules/out-of-scope-tracking.md`
+//!   対応候補）。
+//! - **`calc-size()` 対応ブラウザ**: `hidden` の切り替えだけで高さ
+//!   トランジションが成立する。`fandhe-frontend-wasm-full` の
+//!   `content_height` 同期（`--fandhe-content-height` への実測値
+//!   書き込み）は**不要**であり、同期しなくても `height:
+//!   calc-size(auto, size)` が定常状態を `auto` 相当として扱いつつ
+//!   `0 → 定常値` の遷移を自動で成立させる。
+//! - **`calc-size()` 未対応ブラウザ**: 共通 preset の `@supports not
+//!   (height: calc-size(auto, size))` ブロックが `transition: none`
+//!   相当を適用するため、`content_height` 同期の有無に関わらず高さ
+//!   トランジションは成立せず、`var(--fandhe-content-height, auto)`
+//!   の `auto` フォールバックによる `hidden` の即時切替（閉固定）の
+//!   ままになる。
+//!
+//! preset の base 2 個目ブロックは既存の `opacity` transition 宣言
+//! （`transition-property: opacity` 等）より後に登録されるため
+//! `transition-property`/`transition-duration`/`transition-timing-function`
+//! の longhand を上書きし、`opacity` は遷移対象から外れて `data-state`
+//! による離散切替になる（フェードは実質廃止）。既存の `opacity` state
+//! 規則・base 規則は golden 純追加原則により削除しない（下記
+//! `stylesheet_fades_collapse_content_and_hides_hidden` テスト参照。
+//! テキストとしては残るためブロック自体は PASS するが実際の見た目は
+//! 高さトランジションに従う）。
+//!
+//! 既知の限界: `root` の `gap: var(--fandhe-space-1)` は
+//! `collapse-content` が `display: none` へ到達した瞬間に消えるため、
+//! 閉じ切りの直前に軽微な段差（レイアウトのずれ）が生じる
+//! （対策は本イシュー外、`.claude/rules/out-of-scope-tracking.md`
+//! 対応候補）。
+//!
+//! `prefers-reduced-motion` は `Theme::to_css` が duration トークンを
+//! 0ms へ一括上書きするため本モジュール側では書かない
 //! （[`crate::calendar`] と同型）。
 //!
 //! # セキュリティ不変条件
@@ -352,6 +410,10 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("hidden"),
             vec![decl("display", "none")],
         )
+        // 高さトランジション（イシュー #2192 の共通機構を適用、#2282）。
+        // base 2 個目ブロック・`[hidden]` state・`@starting-style` を
+        // 一括登録する（モジュール doc「高さトランジション」節参照）。
+        .content_height_transition("collapse-content", MotionDuration::Normal)
 }
 
 /// この styled Bubble が生成する静的 CSS 全量を返す（決定的。
@@ -476,10 +538,33 @@ mod tests {
 
     #[test]
     fn stylesheet_fades_collapse_content_and_hides_hidden() {
+        // イシュー #2282 以降、実際の開閉挙動は下記
+        // `collapse_content_declares_height_transition_and_hidden_collapse`
+        // が固定する高さトランジションへ移行済み（`opacity` state・
+        // `transition-property: opacity` の宣言テキスト自体は golden
+        // 純追加原則で残るため PASS するが、`data-state` による離散切替
+        // になる。モジュール doc「高さトランジション」節参照）。
         let out = stylesheet();
         assert!(out.contains("opacity: 0;"));
         assert!(out.contains("display: none;"));
         assert!(out.contains("transition-property: opacity"));
+    }
+
+    #[test]
+    fn collapse_content_declares_height_transition_and_hidden_collapse() {
+        // イシュー #2192 の共通機構（`content_height_transition`）を
+        // `collapse-content` slot へ適用したことを固定する
+        // （[`crate::collapsible`] の
+        // `content_declares_height_transition_and_hidden_collapse` と同型。
+        // 値の詳細は recipe.rs 側の
+        // `content_height_transition_preset_registers_base_state_and_starting_style`
+        // が固定するため、本テストは「bubble の collapse-content slot に
+        // 実際に適用されている」ことのみを確認する）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="bubble"][data-part="collapse-content"][hidden] {"#));
+        assert!(css.contains("@starting-style {"));
+        assert!(css.contains("transition-behavior: allow-discrete;"));
+        assert!(css.contains("height: var(--fandhe-content-height, auto);"));
     }
 
     #[test]
