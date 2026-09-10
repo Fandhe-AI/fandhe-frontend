@@ -14,14 +14,15 @@
 # `from` は `site/nav.toml` の既存ページ path と衝突してはならない
 # （衝突する場合はビルド失敗、`RedirectError::CollidesWithPage`）。
 #
-# 実宣言は現在 122 件（予防的移転案内 1 + 索引ページ移設 1 +
-# 部品ページ移行 120（#1017 の 107 + #1683 で追加した collapsible 1 +
+# 実宣言は現在 123 件（予防的移転案内 1 + 索引ページ移設 1 +
+# 部品ページ移行 121（#1017 の 107 + #1683 で追加した collapsible 1 +
 # #1685 で追加した field 1 + #1687 で追加した fieldset 1 +
 # #2063 で追加した input-group 1 + #2066 で追加した item 1 +
 # #2060 で追加した button-group 1 + #2070 で追加した command 1 +
 # #2080 で追加した radial-chart 1 + #2106 で追加した message 1 +
 # #2075 で追加した sidebar 1 + #2109 で追加した bubble 1 +
-# #2112 で追加した attachment 1 + #2115 で追加した marker 1））。
+# #2112 で追加した attachment 1 + #2115 で追加した marker 1 +
+# #2119 で追加した questionnaire 1））。
 # #1018 で索引ページを `/components/pre-styled-ui/` から `/themes/` へ
 # 移設し、旧索引 URL 自体のリダイレクトを追加した（残り 1 件のスコープを
 # 完了）。`/components/collapsible/`・`/components/field/`・
@@ -403,6 +404,10 @@ to = "/themes/progress/"
 [[redirect]]
 from = "/components/qr-code/"
 to = "/themes/qr-code/"
+
+[[redirect]]
+from = "/components/questionnaire/"
+to = "/themes/questionnaire/"
 
 [[redirect]]
 from = "/components/quote/"
