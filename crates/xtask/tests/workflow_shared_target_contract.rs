@@ -40,7 +40,7 @@
 //! | 契約 | 判断 | 根拠 |
 //! |------|------|------|
 //! | release.yml の専用 `CARGO_TARGET_DIR` 隔離（2 テスト） | **維持** | packaged コピー検証ビルドとワークスペースビルドの分離は runner 種別に依存せず正しい。`actions/cache` 導入後は「汚染 rlib をキャッシュへ保存しない」保証としても機能する |
-//! | ci.yml 3 ジョブのガードステップ（3 テスト） | **維持・強化** | ホステッドでは `CARGO_TARGET_DIR` 未設定のため no-op（条件分岐付きで残置、#1229）。`actions/cache` で `target/` を復元した場合の自己修復・ローカル開発での多層防御として引き続き必要。ガード検出をステップ名の完全一致に限定し、無関係なステップ内のコメント引用による vacuous PASS を防ぐ（イシュー #1226 レビュー指摘） |
+//! | ci.yml 5 ジョブのガードステップ（5 テスト、イシュー #2306 で `gate-self-apply` から分離した `gate-self-apply-lint-wasm32`/`gate-self-apply-test` の 2 件を追加） | **維持・強化** | ホステッドでは `CARGO_TARGET_DIR` 未設定のため no-op（条件分岐付きで残置、#1229）。`actions/cache` で `target/` を復元した場合の自己修復・ローカル開発での多層防御として引き続き必要。ガード検出をステップ名の完全一致に限定し、無関係なステップ内のコメント引用による vacuous PASS を防ぐ（イシュー #1226 レビュー指摘） |
 //! | ci.yml で `target` をキャッシュするジョブへのガード必須契約 | **新設・強化** | `actions/cache` 導入時にガードステップを付け忘れると #1192 型 flaky がキャッシュ経由でサイレント再発する。単なるマーカー存在ではなく、(a) キャッシュ復元ステップより**後段**に置かれていること（`actions/cache` の復元はそのステップ実行時に起きるため、先行するガードは復元後の汚染を除去できない）、(b) キャッシュされたパスと**同一の参照**（環境変数名またはリテラルパス）を削除対象にしていること、の 2 点を検証する（イシュー #1226 レビュー指摘 High/Medium 各 1 件） |
 //! | ci.yml/release.yml の `target` キャッシュ検出ヒューリスティック | **強化** | `path:` 値の走査を大小文字非依存にし、`${{ env.CARGO_TARGET_DIR }}` のような自然な env 参照形（`target` が `CARGO_TARGET_DIR` の一部として大文字でのみ現れる）を見逃さない（イシュー #1226 レビュー指摘 Medium） |
 //! | release.yml での target キャッシュ禁止契約（新設） | **追加** | release.yml の検証ビルドは `RUNNER_TEMP` 配下の隔離 target を使うため、ワークスペース `target` のキャッシュ復元は無意味かつ汚染 rlib の供給源になり得る。§3.3 のジョブ系統分離を「release.yml では target 系パスをキャッシュしない」という最も単純で決定的な形で機械強制する（`~/.cargo/registry` 等の非 target キャッシュは許容） |
@@ -279,7 +279,7 @@ fn step_is_guard_step(step: &str) -> bool {
 
 /// ガードステップ本文が、無ハッシュ cdylib rlib 3 種（wasm-thin/wasm-full/
 /// wasm-client）すべてを削除し、かつ広域削除（`rm -rf`）を持ち込んでいない
-/// ことを検証する共通ロジック。`check_job_has_guard_step`（既知 3 ジョブ）と
+/// ことを検証する共通ロジック。`check_job_has_guard_step`（既知 5 ジョブ）と
 /// `check_ci_jobs_caching_target_have_guard`（`actions/cache` を横断検査する
 /// 汎用契約）の双方から呼ぶ。1 種類でも欠けると当該クレートの flaky を
 /// 見逃すため、3 種すべてを個別に確認する（部分的な対策で「対策済み」と
@@ -356,6 +356,176 @@ fn ci_workflow_test_job_has_shared_target_guard() {
 #[test]
 fn ci_workflow_gate_self_apply_job_has_shared_target_guard() {
     assert_job_has_guard_step("gate-self-apply");
+}
+
+/// イシュー #2306: `gate-self-apply` から `lint_wasm32` チェックを分離した
+/// `gate-self-apply-lint-wasm32` ジョブも `-p fandhe-frontend-dist-server`
+/// を含む型チェック依存や cdylib+rlib クレートのビルドを行うため、
+/// 既知 3 ジョブと同じガードステップ完全性を要求する。
+#[test]
+fn ci_workflow_gate_self_apply_lint_wasm32_job_has_shared_target_guard() {
+    assert_job_has_guard_step("gate-self-apply-lint-wasm32");
+}
+
+/// イシュー #2306: `gate-self-apply` から `test` チェックを分離した
+/// `gate-self-apply-test` ジョブ（分割後の CI 最長ジョブ想定）も同様に
+/// ガードステップ完全性を要求する。
+#[test]
+fn ci_workflow_gate_self_apply_test_job_has_shared_target_guard() {
+    assert_job_has_guard_step("gate-self-apply-test");
+}
+
+// ---------------------------------------------------------------------
+// イシュー #2306: `fw gate --only` による CI 分割の網羅契約
+//
+// `gate-self-apply`/`gate-self-apply-lint-wasm32`/`gate-self-apply-test` の
+// 3 ジョブは `crates/cli/src/gate.rs` の `CHECK_NAMES`（7 チェック）を群分け
+// して分担する。gate.rs にチェックが追加・削除されたのに ci.yml 側の
+// `--only` 引数が追随し忘れると、当該チェックが CI から静かに脱落する
+// （PASS 常時保証が「実は 1 チェック分だけ検証していない」状態に劣化する）。
+// これを構造的に防ぐため、CHECK_NAMES をハードコードで複製せず gate.rs の
+// ソーステキストから機械抽出し、ci.yml の `--only` 群の和集合と突合する。
+// ---------------------------------------------------------------------
+
+fn gate_source_path() -> PathBuf {
+    workspace_root().join("crates/cli/src/gate.rs")
+}
+
+fn read_gate_source() -> String {
+    std::fs::read_to_string(gate_source_path())
+        .expect("crates/cli/src/gate.rs の読み込みに失敗した")
+}
+
+/// `crates/cli/src/gate.rs` のソーステキストから
+/// `const CHECK_NAMES: [&str; N] = [ ... ];` の配列リテラルを行ベースで
+/// 抽出する（`wasm_bindgen_version_sync.rs` が Dockerfile を走査するのと
+/// 同じ方式。外部 Rust パーサは追加しない、REQ-3・xtask 外部依存ゼロ方針）。
+///
+/// 抽出できない場合は `Err` を返す（呼び出し側で panic させ fail-closed に
+/// する。gate.rs の定数名・書式が変わった場合に本テストが静かに vacuous
+/// PASS することを防ぐ）。
+fn extract_check_names_from_gate_source(gate_source: &str) -> Result<Vec<String>, String> {
+    // 宣言全体（型注釈の `[&str; 7]` を含む）を先に固定文字列で探し、
+    // その直後に続く `= [` を境に値本体の配列リテラルへ進む。型注釈側の
+    // `[`/`]` を値本体側の探索に混同させないため、2 段階の固定文字列一致で
+    // 進める（正規表現・外部 Rust パーサは追加しない、REQ-3）。
+    let start_marker = "const CHECK_NAMES: [&str;";
+    let start = gate_source
+        .find(start_marker)
+        .ok_or_else(|| format!("gate.rs に `{start_marker}` が見つからない"))?;
+    let after_marker = &gate_source[start + start_marker.len()..];
+
+    let assign_marker = "= [";
+    let assign_rel = after_marker
+        .find(assign_marker)
+        .ok_or_else(|| "CHECK_NAMES の `= [` が見つからない".to_string())?;
+    let body_start = assign_rel + assign_marker.len();
+    let after_assign = &after_marker[body_start..];
+
+    let body_end = after_assign
+        .find(']')
+        .ok_or_else(|| "CHECK_NAMES の値本体を閉じる `]` が見つからない".to_string())?;
+    let body = &after_assign[..body_end];
+
+    let names: Vec<String> = body
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.trim_matches('"').to_string())
+        .collect();
+    if names.is_empty() {
+        return Err("CHECK_NAMES の抽出結果が空だった".to_string());
+    }
+    Ok(names)
+}
+
+/// ci.yml の `run:` 本文から `cargo run ... -- gate --project .` 系の呼び出し
+/// 行を集め、各行の `--only <value>` 引数値（カンマ区切り）を集める。
+/// `--only` を持たない `gate --project .` 呼び出しが 1 件でもあれば
+/// フル実行経路の意図しない残置とみなし `Err` を返す。
+fn collect_only_groups_from_ci(ci_contents: &str) -> Result<Vec<Vec<String>>, String> {
+    let mut groups = Vec::new();
+    for line in ci_contents.lines() {
+        let trimmed = line.trim();
+        // `gate --project .` を含む cargo run 行のみを対象にする。JSON 出力の
+        // grep（`gate_result`）やコメント中の言及は `-- gate --project .` の
+        // 完全な部分列を含まないため誤マッチしない。
+        if !trimmed.contains("-- gate --project .") {
+            continue;
+        }
+        let Some(only_idx) = trimmed.find("--only ") else {
+            return Err(format!(
+                "ci.yml に `--only` を伴わない `gate --project .` 呼び出しが \
+                 見つかった（フル実行経路が CI へ残置されている）: {trimmed}"
+            ));
+        };
+        let after_only = &trimmed[only_idx + "--only ".len()..];
+        // 値はパイプ `|` （tee への接続）または行末までの空白なしトークン。
+        let value_end = after_only
+            .find(|c: char| c.is_whitespace())
+            .unwrap_or(after_only.len());
+        let value = &after_only[..value_end];
+        let names: Vec<String> = value.split(',').map(|s| s.trim().to_string()).collect();
+        groups.push(names);
+    }
+    if groups.is_empty() {
+        return Err("ci.yml に `gate --project .` 呼び出しが 1 件も見つからない".to_string());
+    }
+    Ok(groups)
+}
+
+/// ci.yml の `gate --only` 群の和集合が `crates/cli/src/gate.rs` の
+/// `CHECK_NAMES` と過不足なく・重複なく一致することを検証する純粋関数
+/// （ファイル I/O なし。実ファイル読み込みは呼び出し側の `#[test]` が行う）。
+fn check_gate_only_coverage(ci_contents: &str, gate_source: &str) -> Result<(), String> {
+    let check_names = extract_check_names_from_gate_source(gate_source)?;
+    let groups = collect_only_groups_from_ci(ci_contents)?;
+
+    let mut seen: Vec<&str> = Vec::new();
+    for group in &groups {
+        for name in group {
+            if !check_names.iter().any(|n| n == name) {
+                return Err(format!(
+                    "ci.yml の `--only` に CHECK_NAMES 未知のチェック名 \
+                     `{name}` が含まれている"
+                ));
+            }
+            if seen.contains(&name.as_str()) {
+                return Err(format!(
+                    "ci.yml の複数ジョブが同じチェック `{name}` を \
+                     `--only` に含んでいる（重複実行、保証形の論理積の前提が崩れる）"
+                ));
+            }
+            seen.push(name);
+        }
+    }
+
+    let missing: Vec<&String> = check_names
+        .iter()
+        .filter(|n| !seen.contains(&n.as_str()))
+        .collect();
+    if !missing.is_empty() {
+        return Err(format!(
+            "gate.rs の CHECK_NAMES にあるが ci.yml のどの `--only` にも \
+             含まれていないチェックがある（CI から脱落している）: {missing:?}"
+        ));
+    }
+
+    Ok(())
+}
+
+/// イシュー #2306: ci.yml の `gate-self-apply`/`gate-self-apply-lint-wasm32`/
+/// `gate-self-apply-test` の `--only` 群が `crates/cli/src/gate.rs` の
+/// `CHECK_NAMES`（7 チェック）を過不足なく分担していることを検証する。
+/// gate.rs にチェックが追加・削除されたのに CI 側の `--only` 引数が
+/// 追随し忘れると本テストが fail-closed に検知する。
+#[test]
+fn ci_workflow_gate_self_apply_jobs_cover_all_checks_exactly_once() {
+    let ci_contents = read_ci_workflow();
+    let gate_source = read_gate_source();
+    if let Err(msg) = check_gate_only_coverage(&ci_contents, &gate_source) {
+        panic!("{msg}");
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -594,7 +764,7 @@ fn guard_step_covers_target_ref(guard_step: &str, target_ref: &CacheTargetRef) -
 /// ジョブ系統分離を補完する。
 ///
 /// 一致したガードステップには `check_guard_step_completeness`（3 クレート
-/// 網羅・`rm -rf` 不使用）も適用する。完全性チェックを既知 3 ジョブ
+/// 網羅・`rm -rf` 不使用）も適用する。完全性チェックを既知 5 ジョブ
 /// （`check_job_has_guard_step`）専用のままにしておくと、Phase 2 で新設
 /// されるキャッシュ利用ジョブが「ステップ名はガードマーカーと一致するが
 /// 1 種類しか削除しない」不完全なガードでも本契約をすり抜けてしまう
@@ -691,6 +861,96 @@ fn release_workflow_must_not_cache_target_dir() {
 #[cfg(test)]
 mod fixture_tests {
     use super::*;
+
+    // -------------------------------------------------------------
+    // イシュー #2306: check_gate_only_coverage のフィクスチャテスト
+    // -------------------------------------------------------------
+
+    const FIXTURE_GATE_SOURCE_7_CHECKS: &str = "const CHECK_NAMES: [&str; 7] = [\n    \"type_check\",\n    \"default_escape_check\",\n    \"url_validation_check\",\n    \"lint\",\n    \"lint_wasm32\",\n    \"test\",\n    \"policy\",\n];\n";
+
+    fn fixture_ci_three_jobs_full_coverage() -> String {
+        "\njobs:\n  gate-self-apply:\n    steps:\n      - name: gate\n        run: |\n          if cargo run -p fandhe-frontend-cli --locked -- gate --project . --only type_check,default_escape_check,url_validation_check,lint,policy | tee gate-report.json; then\n            exit 0\n          fi\n  gate-self-apply-lint-wasm32:\n    steps:\n      - name: gate\n        run: |\n          if cargo run -p fandhe-frontend-cli --locked -- gate --project . --only lint_wasm32 | tee gate-report.json; then\n            exit 0\n          fi\n  gate-self-apply-test:\n    steps:\n      - name: gate\n        run: |\n          if cargo run -p fandhe-frontend-cli --locked -- gate --project . --only test | tee gate-report.json; then\n            exit 0\n          fi\n".to_string()
+    }
+
+    /// (2306-a) 3 ジョブが 7 チェックを過不足なく分担していれば PASS する。
+    #[test]
+    fn fixture_gate_only_coverage_full_split_passes() {
+        let ci = fixture_ci_three_jobs_full_coverage();
+        assert!(check_gate_only_coverage(&ci, FIXTURE_GATE_SOURCE_7_CHECKS).is_ok());
+    }
+
+    /// (2306-b) 1 チェック（`policy`）が CI 側のどの `--only` にも含まれて
+    /// いない場合は FAIL する（CI からの脱落を検知）。
+    #[test]
+    fn fixture_gate_only_coverage_missing_check_fails() {
+        let ci = fixture_ci_three_jobs_full_coverage().replace(",policy", "");
+        let err = check_gate_only_coverage(&ci, FIXTURE_GATE_SOURCE_7_CHECKS).unwrap_err();
+        assert!(
+            err.contains("policy"),
+            "エラーメッセージに欠落チェック名が含まれるべき: {err}"
+        );
+    }
+
+    /// (2306-c) 同じチェック（`test`）が 2 ジョブの `--only` に重複して
+    /// 含まれている場合は FAIL する（論理積の前提である「相互排他な分担」
+    /// が崩れているため）。
+    #[test]
+    fn fixture_gate_only_coverage_duplicate_check_fails() {
+        let ci = fixture_ci_three_jobs_full_coverage()
+            .replace("--only lint_wasm32 |", "--only lint_wasm32,test |");
+        let err = check_gate_only_coverage(&ci, FIXTURE_GATE_SOURCE_7_CHECKS).unwrap_err();
+        assert!(
+            err.contains("test"),
+            "エラーメッセージに重複チェック名が含まれるべき: {err}"
+        );
+    }
+
+    /// (2306-d) `--only` を伴わない `gate --project .` 呼び出しが混在して
+    /// いる場合は FAIL する（フル実行経路の意図しない残置を検知）。
+    #[test]
+    fn fixture_gate_only_coverage_full_run_without_only_fails() {
+        let ci = format!(
+            "{}\n  extra:\n    steps:\n      - name: gate\n        run: cargo run -p fandhe-frontend-cli --locked -- gate --project . | tee gate-report.json\n",
+            fixture_ci_three_jobs_full_coverage()
+        );
+        let err = check_gate_only_coverage(&ci, FIXTURE_GATE_SOURCE_7_CHECKS).unwrap_err();
+        assert!(
+            err.contains("--only"),
+            "エラーメッセージが `--only` 欠落を指摘すべき: {err}"
+        );
+    }
+
+    /// (2306-e) CHECK_NAMES に存在しない未知のチェック名が `--only` に
+    /// 含まれている場合は FAIL する。
+    #[test]
+    fn fixture_gate_only_coverage_unknown_check_fails() {
+        let ci = fixture_ci_three_jobs_full_coverage()
+            .replace("--only test |", "--only test,bogus_check |");
+        let err = check_gate_only_coverage(&ci, FIXTURE_GATE_SOURCE_7_CHECKS).unwrap_err();
+        assert!(
+            err.contains("bogus_check"),
+            "エラーメッセージに未知チェック名が含まれるべき: {err}"
+        );
+    }
+
+    /// (2306-f) `extract_check_names_from_gate_source` は実 gate.rs 形式
+    /// （型注釈込みの `[&str; N]`）から 7 チェックを順序通り抽出できる。
+    #[test]
+    fn fixture_extract_check_names_parses_real_shape() {
+        let names = extract_check_names_from_gate_source(FIXTURE_GATE_SOURCE_7_CHECKS).unwrap();
+        assert_eq!(
+            names,
+            vec![
+                "type_check",
+                "default_escape_check",
+                "url_validation_check",
+                "lint",
+                "lint_wasm32",
+                "test",
+                "policy",
+            ]
+        );
+    }
 
     const NO_CACHE: &str = "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout\n        uses: actions/checkout@v4\n      - name: Build\n        run: cargo build\n";
 

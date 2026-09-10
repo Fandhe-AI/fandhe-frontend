@@ -30,6 +30,12 @@
 
 2026-08-07 時点で `runs-on: self-hosted`（または `[self-hosted, Windows]`）を
 使用するワークフローは以下の 9 件、ジョブ数は合計 21（うち `ci.yml` が 18）。
+本表は移行検討時点のスナップショットであり、その後 `ci.yml` は
+`test-docs-site` 新設（#2299）・`gate-self-apply` の 3 ジョブ分割（`gate-self-apply`/
+`gate-self-apply-lint-wasm32`/`gate-self-apply-test`、#2306）を含む複数の
+ジョブ構成変更を経ている。現行のジョブ一覧は `.github/workflows/ci.yml`
+自体を正とし、本表の「合計 21」「`ci.yml` が 18」は追随更新しない
+（移行完了時点の記録として維持する）。
 
 | ワークフロー | ジョブ | 主な依存 |
 |-------------|--------|---------|
