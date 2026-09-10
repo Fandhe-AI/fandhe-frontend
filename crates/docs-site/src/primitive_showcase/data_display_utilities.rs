@@ -7,7 +7,7 @@
 //! 追加、旧 10）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
-use fandhe_frontend_core::{button, div, li, text, ul, Node};
+use fandhe_frontend_core::{button, li, table, tbody, td, text, thead, tr, ul, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::attachment::{self, AttachmentRootProps, AttachmentState, AttachmentVariant};
 use hui::avatar::{self, ImageStatus};
@@ -438,28 +438,37 @@ pub(super) fn data_table_section() -> Node {
         ],
     );
 
+    // codex-review P1 指摘（PR #2303）の是正: `column_header`/`select_all`
+    // は `th`、`select_row` は `td` を生成するため、`table`/`thead`/`tbody`/
+    // `tr`（core のノード API）で正規の table 構造を組んでからその中へ
+    // 配置する。`div` 直下に置くとブラウザの HTML 解析で `th`/`td` が
+    // table 構造外として無視され、`aria-sort`/`hidden`/`data-part` 等の
+    // 表示状態が失われるため（呼び出し側の責務。モジュール doc「責務
+    // 境界」参照。headless-ui 自体は新規に表組みを生成しない）。
+    let header_row = tr(vec![], vec![select_all_header, name_header, email_header]);
+    let body_row = tr(
+        vec![],
+        vec![
+            select_row_cell,
+            td(vec![], vec![text("Ada Lovelace")]),
+            td(vec![], vec![text("ada@example.com")]),
+        ],
+    );
+    let data_table = table(
+        vec![("class", "primitives-demo-data-table")],
+        vec![
+            thead(vec![], vec![header_row]),
+            tbody(vec![], vec![body_row]),
+        ],
+    );
+
     let root = DataTable::root(
         DataTableProps {
             loading: false,
             empty: false,
         },
         vec![],
-        vec![
-            toolbar,
-            div(
-                vec![("class", "primitives-demo-data-table-header-row")],
-                vec![select_all_header, name_header, email_header],
-            ),
-            div(
-                vec![("class", "primitives-demo-data-table-row")],
-                vec![
-                    select_row_cell,
-                    div(vec![], vec![text("Ada Lovelace")]),
-                    div(vec![], vec![text("ada@example.com")]),
-                ],
-            ),
-            footer,
-        ],
+        vec![toolbar, data_table, footer],
     );
     demo_page("Data Table", vec![root])
 }

@@ -89,7 +89,7 @@
 //! 層）は一切呼ばない（受け入れ条件 3）。ダミー文字列は無害なもの
 //! （`example.com` 等の予約ドメイン、架空の名前）に限る。
 
-use fandhe_frontend_core::{button, code, div, img, p, pre, text, Node};
+use fandhe_frontend_core::{button, code, div, img, p, pre, table, text, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::attachment::{self, AttachmentRootProps, AttachmentState, AttachmentVariant};
 use hui::avatar::{self, ImageStatus};
@@ -994,9 +994,13 @@ fn ex_data_table_sorted_header() -> Node {
         vec![],
         vec![t.sort_trigger("name", vec![], vec![text("Name ▼")])],
     );
+    // codex-review P1 指摘（PR #2303）と同型の是正: column_header は `th`
+    // を生成するため、有効な table 構造（table > thead > tr）の中に
+    // 配置する（`div` 直下では HTML 解析で `th` が無視され aria-sort 等が
+    // 失われる）。
     wrap_example(
         "aria-sort=\"descending\" が column_header に、data-value=\"name\" が sort_trigger に出力されます。",
-        vec![node],
+        vec![table(vec![], vec![thead(vec![], vec![tr(vec![], vec![node])])])],
     )
 }
 
@@ -1015,9 +1019,12 @@ fn ex_data_table_indeterminate_select_all() -> Node {
             vec![text("−")],
         )],
     );
+    // codex-review P1 指摘（PR #2303）と同型の是正: select_all は `th`
+    // を生成するため、有効な table 構造（table > thead > tr）の中に
+    // 配置する（上記 ex_data_table_sorted_header と同じ理由）。
     wrap_example(
         "一部の行のみ選択されている状態を data-state=\"indeterminate\" で表現します（checkbox::CheckedState::Indeterminate をそのまま select_all へ渡す）。",
-        vec![node],
+        vec![table(vec![], vec![thead(vec![], vec![tr(vec![], vec![node])])])],
     )
 }
 

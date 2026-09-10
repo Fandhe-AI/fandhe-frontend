@@ -412,11 +412,15 @@ impl DataTable {
 
     /// 指定した値で [`DataTable`] を生成する（`hidden_columns` は
     /// [`normalize_hidden_columns`] で fail-closed に重複除去する。
-    /// 呼び出し側の不正な入力で panic しない）。
+    /// `sort` の列 id が空文字列の場合は未ソート（`None`）へ正規化する
+    /// （[`DataTable::hydration_attrs`]/[`DataTable::from_hydration_attrs`]
+    /// ラウンドトリップ・[`DataTableAction::Sort`] の空文字列 no-op 扱いと
+    /// 同じ「空の列 id はソート対象になりえない」契約を、生成経路でも
+    /// 統一するため。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(sort: Option<(String, SortDirection)>, hidden_columns: Vec<String>) -> Self {
         Self {
-            sort,
+            sort: sort.filter(|(id, _)| !id.is_empty()),
             hidden_columns: normalize_hidden_columns(hidden_columns),
         }
     }
@@ -580,6 +584,14 @@ impl Component for DataTable {
     fn update(&mut self, action: DataTableAction) {
         match action {
             DataTableAction::Sort(id) => {
+                // 空文字列の列 id は no-op（[`DataTable::decode_action`] の
+                // wire dispatch と同じ扱い。空 id でソート状態へ到達させると
+                // [`DataTable::new`]/hydration ラウンドトリップの「空の列 id は
+                // ソート対象になりえない」契約と矛盾するため、公開 `update()`
+                // 経路でも同じ不変条件を保つ）。
+                if id.is_empty() {
+                    return;
+                }
                 let next = match &self.sort {
                     Some((sorted_id, dir)) if *sorted_id == id => dir.cycle_next(),
                     _ => SortDirection::Ascending,
@@ -776,6 +788,41 @@ mod tests {
         let t = DataTable::default();
         assert_eq!(t.sort(), None);
         assert!(t.hidden_columns().is_empty());
+    }
+
+    /// codex-review P1 指摘（PR #2303）の回帰テスト: `DataTable::new` は
+    /// 空文字列の列 id を持つ `sort` を未ソート（`None`）へ正規化する。
+    /// 正規化前はこの状態が `hydration_attrs()` →
+    /// `from_hydration_attrs()` のラウンドトリップで `InvalidValue` に
+    /// なる契約不整合を起こしていた（生成時と hydration 時の非空条件が
+    /// 統一されていなかったため）。
+    #[test]
+    fn new_normalizes_empty_sort_column_id_to_unsorted() {
+        let t = DataTable::new(Some((String::new(), SortDirection::Ascending)), Vec::new());
+        assert_eq!(t.sort(), None);
+
+        // 正規化後の状態は hydration ラウンドトリップを往復できる
+        // （from_hydration_attrs が InvalidValue を返さない）。
+        let attrs = t.hydration_attrs();
+        let restored = DataTable::from_hydration_attrs(&attrs).expect("round trip must succeed");
+        assert_eq!(restored.sort(), None);
+    }
+
+    /// codex-review P1 指摘（PR #2303）の回帰テスト: 公開 `update()` を
+    /// `DataTableAction::Sort(String::new())` で直接呼んでも、
+    /// `decode_action` の wire dispatch（空 payload は `None`）と同じ
+    /// no-op 扱いになり、空 id でソート状態へ到達できない。
+    #[test]
+    fn update_sort_with_empty_id_is_a_no_op() {
+        let mut t = DataTable::default();
+        t.update(DataTableAction::Sort(String::new()));
+        assert_eq!(t.sort(), None);
+
+        // 既にソート中の状態でも空 id の Sort は現状を変えない。
+        t.update(DataTableAction::Sort("name".to_string()));
+        assert_eq!(t.sort(), Some(("name", SortDirection::Ascending)));
+        t.update(DataTableAction::Sort(String::new()));
+        assert_eq!(t.sort(), Some(("name", SortDirection::Ascending)));
     }
 
     // --- ソート巡回 ---
