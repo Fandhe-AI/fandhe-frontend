@@ -341,6 +341,25 @@ fn recipe() -> SlotRecipe {
                 // 内で完結させる）。
                 decl("--fandhe-tooltip-arrow-x", "50%"),
                 decl("--fandhe-tooltip-arrow-y", "100%"),
+                // codex-review 再指摘（イシュー #2210 PR #2334、cursor bot
+                // Medium）: 上記 2 件と同型の継承断ち切りを、wasm 実測座標
+                // （`--fandhe-arrow-x`/`-y`。`crates/wasm-full/src/
+                // position.rs::wiring::reposition_one` が open な
+                // positioner/arrow 自身へ inline style として都度上書きする
+                // 値）にも適用する。この 2 変数は `--fandhe-tooltip-arrow-*`
+                // と異なり base 規則での再定義を一切持たなかったため、開いた
+                // 祖先 Tooltip/Popover/Menu の `content` にネストした
+                // Tooltip/Popover が、自身がまだ `reposition_one` で
+                // 位置決めされていない間（初回ペイント・非表示時点等）に
+                // 祖先の `--fandhe-arrow-x`/`-y`（実 px 座標）をそのまま
+                // 継承してしまう可能性があった。`initial`
+                // （guaranteed-invalid value）を明示することで `var()` の
+                // フォールバック（`--fandhe-tooltip-arrow-x`/`-y` 経由の
+                // 静的座標）へ必ず戻す。inline style は常にこの stylesheet
+                // 規則より優先されるため、wasm が実際に位置決めした
+                // positioner/arrow 自身の挙動には影響しない。
+                decl("--fandhe-arrow-x", "initial"),
+                decl("--fandhe-arrow-y", "initial"),
             ],
         )
         // イシュー #2041: shadcn/ui の `TooltipContent` は `side`

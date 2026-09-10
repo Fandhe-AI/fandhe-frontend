@@ -165,6 +165,28 @@ impl PositionedKind {
     pub const fn same_width_default(self) -> bool {
         matches!(self, Self::Menu | Self::Select | Self::Menubar)
     }
+
+    /// 主軸方向のギャップ（px）の kind 別既定。
+    ///
+    /// codex レビュー指摘（イシュー #2210 PR #2334 P1）: [`crate::position::resolve_position`]
+    /// が `offset: 0.0` 固定だった時点では、Popover/Tooltip の
+    /// `data-positioned` 後 CSS（`fandhe_frontend_pre_styled_ui::popover`/
+    /// `tooltip`）が `top`/`left` を `--fandhe-x`/`--fandhe-y` の実座標へ
+    /// 直接束縛するため、SSR 時点で `margin-top`（`var(--fandhe-space-1)`
+    /// 相当・4px）が担っていたトリガーとの余白が確定座標切り替え後に
+    /// 失われていた（トリガーへ密着する回帰）。Popover/Tooltip はこの
+    /// 4px（pre-styled-ui 側 `--fandhe-space-1` の実値、`crates/pre-styled-ui/
+    /// src/tooltip.rs` モジュール doc 参照）を offset として要求する。
+    /// Menu/Select/Menubar/NavigationMenu は `transform: translate3d(...)`
+    /// で確定座標を消費する既存設計（イシュー #663）のままで、この余白
+    /// 消失の対象ではないため既定 `0.0` を維持する（挙動変更なし）。
+    #[must_use]
+    pub const fn offset_default(self) -> f64 {
+        match self {
+            Self::Popover | Self::Tooltip => 4.0,
+            Self::Menu | Self::Select | Self::NavigationMenu | Self::Menubar => 0.0,
+        }
+    }
 }
 
 /// `data-side` 属性値の fail-closed パース。欠落・未知値は既定
@@ -246,9 +268,9 @@ pub struct RepositionResult {
 /// `css_vars_style` の呼び出しをまとめた本クレート側のエントリポイント）。
 ///
 /// flip/shift は常に有効（ADR が定める既定挙動、opt-out API は本イシューの
-/// スコープ外）。offset は `0.0` 固定（呼び出し側がギャップを持たせたい
-/// 場合は将来イシューで `PositioningConfig` をそのまま公開する拡張余地を
-/// 残す）。
+/// スコープ外）。offset は [`PositionedKind::offset_default`] による
+/// kind 別既定値を使う（呼び出し側が個別のギャップを持たせたい場合は
+/// 将来イシューで `PositioningConfig` をそのまま公開する拡張余地を残す）。
 #[must_use]
 pub fn resolve_position(
     kind: PositionedKind,
@@ -257,7 +279,7 @@ pub fn resolve_position(
 ) -> RepositionResult {
     let config = PositioningConfig {
         placement: requested,
-        offset: 0.0,
+        offset: kind.offset_default(),
         flip: true,
         shift: true,
         same_width: kind.same_width_default(),
@@ -1013,6 +1035,56 @@ mod tests {
             );
             assert!(!result.style.contains("--fandhe-arrow-x:"), "kind={kind:?}");
             assert!(!result.style.contains("--fandhe-arrow-y:"), "kind={kind:?}");
+        }
+    }
+
+    #[test]
+    fn offset_default_is_4px_for_popover_and_tooltip_only() {
+        // codex レビュー指摘（イシュー #2210 PR #2334 P1）の回帰: Popover/
+        // Tooltip の `data-positioned` 後 CSS は SSR 時点の
+        // `margin-top: var(--fandhe-space-1)`（4px 相当）を `margin: 0`/
+        // `margin-top: 0` へ差し替えるため、確定座標側で同じ 4px を
+        // 主軸オフセットとして補わない限りトリガーとの余白が失われる。
+        // Menu/Select/Menubar/NavigationMenu は `transform: translate3d`
+        // で確定座標を消費する既存設計（イシュー #663）のままのため
+        // 0.0 を維持する。
+        assert_eq!(PositionedKind::Popover.offset_default(), 4.0);
+        assert_eq!(PositionedKind::Tooltip.offset_default(), 4.0);
+        assert_eq!(PositionedKind::Menu.offset_default(), 0.0);
+        assert_eq!(PositionedKind::Select.offset_default(), 0.0);
+        assert_eq!(PositionedKind::Menubar.offset_default(), 0.0);
+        assert_eq!(PositionedKind::NavigationMenu.offset_default(), 0.0);
+    }
+
+    #[test]
+    fn resolve_position_applies_4px_gap_for_tooltip_and_popover() {
+        // `resolve_position` が `offset_default()` を実際に
+        // `PositioningConfig::offset` へ配線していることを、Bottom 配置での
+        // 主軸座標（y）が offset なし（`anchor.y + anchor.height`）より
+        // 4px 大きいことで確認する（`main_axis_coordinate` の
+        // `Side::Bottom => anchor.y + anchor.height + offset` 参照）。
+        let m = measurement();
+        let expected_y_without_offset = m.anchor.y + m.anchor.height;
+        for kind in [PositionedKind::Popover, PositionedKind::Tooltip] {
+            let result = resolve_position(kind, m, Placement::new(Side::Bottom, Align::Center));
+            let expected_y = expected_y_without_offset + 4.0;
+            assert!(
+                result
+                    .style
+                    .contains(&format!("--fandhe-y: {expected_y}px")),
+                "kind={kind:?} style={}",
+                result.style
+            );
+        }
+        for kind in [PositionedKind::Menu, PositionedKind::Select] {
+            let result = resolve_position(kind, m, Placement::new(Side::Bottom, Align::Center));
+            assert!(
+                result
+                    .style
+                    .contains(&format!("--fandhe-y: {expected_y_without_offset}px")),
+                "kind={kind:?} style={}",
+                result.style
+            );
         }
     }
 

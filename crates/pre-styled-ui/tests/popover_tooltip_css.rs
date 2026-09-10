@@ -60,6 +60,8 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
   z-index: var(--fandhe-z-index-popover, 10);
   margin-top: var(--fandhe-space-1);
   --fandhe-popover-arrow-rotate: 45deg;
+  --fandhe-arrow-x: initial;
+  --fandhe-arrow-y: initial;
 }
 
 [data-scope="popover"][data-part="arrow"] {
@@ -191,6 +193,8 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   --fandhe-tooltip-arrow-rotate: 225deg;
   --fandhe-tooltip-arrow-x: 50%;
   --fandhe-tooltip-arrow-y: 100%;
+  --fandhe-arrow-x: initial;
+  --fandhe-arrow-y: initial;
 }
 
 [data-scope="tooltip"][data-part="content"] {

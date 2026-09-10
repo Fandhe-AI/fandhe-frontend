@@ -299,6 +299,24 @@ fn recipe() -> SlotRecipe {
                 // 断つ。`positioner[data-side=...]` state（詳細度 3）は
                 // この base 規則（詳細度 2）より常に優先される。
                 decl("--fandhe-popover-arrow-rotate", "45deg"),
+                // codex-review 再指摘（イシュー #2210 PR #2334、cursor bot
+                // Medium）: `--fandhe-popover-arrow-rotate` と同型の継承
+                // 断ち切りを、wasm 実測座標（`--fandhe-arrow-x`/`-y`。
+                // `crates/wasm-full/src/position.rs::wiring::
+                // reposition_one` が open な positioner/arrow 自身へ
+                // inline style として都度上書きする値）にも適用する。
+                // 開いた祖先 Popover/Tooltip/Menu の `content` にネストした
+                // Popover が、自身がまだ `reposition_one` で位置決めされて
+                // いない間（初回ペイント・非表示時点等）に祖先の
+                // `--fandhe-arrow-x`/`-y`（実 px 座標）をそのまま継承して
+                // しまう可能性があった。`initial`（guaranteed-invalid
+                // value）を明示することで、arrow 規則の `var(--fandhe-arrow-x,
+                // 50%)`/`var(--fandhe-arrow-y, 0)` のフォールバックへ必ず
+                // 戻す。inline style は常にこの stylesheet 規則より優先
+                // されるため、wasm が実際に位置決めした positioner/arrow
+                // 自身の挙動には影響しない。
+                decl("--fandhe-arrow-x", "initial"),
+                decl("--fandhe-arrow-y", "initial"),
             ],
         )
         .base(
