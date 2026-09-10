@@ -2070,3 +2070,74 @@ position.rs`（配線層）の責務として設計する。評価文書 §7 の
 限定 opt-in の簡略版、`data-position="item-aligned"` を利用者が `attrs`
 で付与し wasm-full 側で分岐）が推奨案であり、headless-ui
 `crates/headless-ui/src/select.rs` は不変のまま成立する。
+
+## 33. 配線群別 feature gating（イシュー #2326）
+
+### 33.1 背景・目的
+
+REQ-11 の gzip 上限（200,000 B）に対し main は余地がほぼなく、新規配線の
+追加（message-scroller・data-table 等）が上限を割れない懸念が生じた
+（`docs/design/wasm-full-feature-gating-evaluation.md` §12 の再評価トリガー
+が発火）。本イシューは同評価文書 §6 (ii)（配線群別 feature gating）の
+第 1 段（§13 項目 1）として、`Runtime::mount`/`hydrate` が呼ぶ配線
+（`wire_*`）を配線 1 件 = feature 1 件（既定 on）へ分割した。既定は
+すべて on のため、本イシュー単体では既定構成の挙動・`bundle_size` 実測値
+に変化はない（下流〔dist-server 経路の feature 集合決定・CI feature
+matrix〕での活用は同評価文書 §13 項目 3/4 として後続 issue へ引き継ぐ）。
+
+### 33.2 対応表
+
+| `Runtime::mount`/`hydrate` の呼び出し | feature |
+|---|---|
+| `events::wire_events` | ゲートしない（`data-action` 委譲、全構成必須） |
+| `keynav::wire_keynav` | `keynav` |
+| `focus_visible::wire_focus_visible` | `focus-visible` |
+| `Runtime::wire_avatar` | `avatar` |
+| `Runtime::wire_clipboard` | `clipboard` |
+| `Runtime::wire_timer` | `timer` |
+| `Runtime::wire_angle_slider` | `angle-slider` |
+| `Runtime::wire_splitter` | `splitter` |
+| `Runtime::wire_signature_pad` | `signature-pad` |
+| `Runtime::wire_number_input` | `number-input` |
+| `Runtime::wire_command` | `command` |
+| `Runtime::wire_sidebar` | `sidebar` |
+| `Runtime::wire_chart` | `chart` |
+| `Runtime::wire_chart_range` | `chart-range` |
+| `Runtime::wire_questionnaire` | `questionnaire` |
+
+`overlay`/`tooltip`/`position`/`focus_trap`/`headless_file_upload`/
+`headless_select` は `Runtime` を経由しないアプリ側直接利用 API のため
+gating 対象外（feature を持たない）。ゲートの粒度は (a) `mount`/`hydrate`
+内の呼び出し文、(b) private `fn wire_*`（12 件）の定義の両方であり、
+モジュール宣言（`pub mod keynav;` 等）自体はゲートしない（テストと
+`examples/interactive-view-transitions/wasm` が直接 import するため。
+モジュールを残しても wasm-ld が到達不能コードを GC するためサイズ効果は
+呼び出し文の除去だけで得られる）。
+
+### 33.3 semver 判断（§11 条件 5 の確定）
+
+同評価文書 §11 条件 5（`default-features = false` 利用者との互換）は
+「(ii) 0.x minor の破壊的変更として移行手順を明記する」方式で確定した。
+理由: (i) の互換維持策（entry のエクスポート面のみを切り離す構成）は
+本体側の削減効果を持たず、§8 (A) の既採用方針と両立しないため。
+`fandhe-frontend-wasm-full` を 0.18.7 → 0.19.0 へ minor バンプし、
+`default-features = false` 利用者が失う 14 配線と、従来挙動を維持する
+ための `features` 明示列挙を `Cargo.toml` コメント・`lib.rs` クレート
+ドキュメントの両方に記載した。
+
+### 33.4 `keynav` off 時の制約
+
+`keynav::wire_keynav` は readonly RadioGroup の click capture 保護
+（イシュー #1616）も同関数内で登録しているため、`keynav` を off にすると
+この保護も同時に無効になる。既定 on のため既定構成・全既存テストでの
+挙動退行はないが、`keynav` を off にする利用者は readonly RadioGroup を
+含むアプリでこの保護を失う。保護コードの分離は行わず、次項の後続 issue
+へ引き継ぐ。
+
+### 33.5 スコープ外・後続への引き継ぎ
+
+`docs/design/wasm-full-feature-gating-evaluation.md` §13 の残項目（keynav
+の scope 分岐・`MAPPING_TABLE` 行の cfg 化とテストの `required-features`
+追随・readonly RadioGroup 保護の分離・CI feature matrix・dist-server 経路
+の feature 集合決定と `bundle_size.rs` 契約更新・利用者向け docs/examples
+反映）は本イシューのスコープ外とし、同文書側で引き続き追跡する。

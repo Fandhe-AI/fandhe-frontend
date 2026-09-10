@@ -146,6 +146,73 @@
 //! 3 点を `core/tests/unsafe_boundary.rs`（`DENY_UNSAFE_FFI_MEMBERS`）が
 //! CI（`.github/workflows/ci.yml` の `forbid-unsafe` ジョブ）で機械的に強制し、
 //! アプリロジック層への forbid(unsafe_code) 相当の CI 強制を実現する（#155）。
+//!
+//! # 配線群別 feature（イシュー #2326）
+//!
+//! [`Runtime::mount`]/[`Runtime::hydrate`] が呼ぶ配線（`wire_*`）は、配線
+//! 1 件 = feature 1 件（既定 on）へ分割されている。目的は REQ-11 gzip 上限
+//! （200,000 B）に対する余地確保
+//! （`docs/design/wasm-full-feature-gating-evaluation.md` §6 (ii)）であり、
+//! 既定はすべて on のため既定構成の挙動・`bundle_size` 実測値は本変更で
+//! 変わらない。
+//!
+//! 対応表（`mount`/`hydrate` の呼び出し順 = `Cargo.toml` の `default` 配列の順）:
+//!
+//! | 配線 | feature |
+//! |---|---|
+//! | [`events::wire_events`] | ゲートしない（`data-action` 委譲、全構成必須） |
+//! | [`keynav::wire_keynav`] | `keynav` |
+//! | [`focus_visible::wire_focus_visible`] | `focus-visible` |
+//! | `Runtime::wire_avatar` | `avatar` |
+//! | `Runtime::wire_clipboard` | `clipboard` |
+//! | `Runtime::wire_timer` | `timer` |
+//! | `Runtime::wire_angle_slider` | `angle-slider` |
+//! | `Runtime::wire_splitter` | `splitter` |
+//! | `Runtime::wire_signature_pad` | `signature-pad` |
+//! | `Runtime::wire_number_input` | `number-input` |
+//! | `Runtime::wire_command` | `command` |
+//! | `Runtime::wire_sidebar` | `sidebar` |
+//! | `Runtime::wire_chart` | `chart` |
+//! | `Runtime::wire_chart_range` | `chart-range` |
+//! | `Runtime::wire_questionnaire` | `questionnaire` |
+//!
+//! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
+//! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
+//! gating 対象外（feature を持たない）。
+//!
+//! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
+//!
+//! `default-features = false` を使う利用者は上記 14 配線を失う
+//! （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の (ii)
+//! を採用）。従来どおりの挙動を維持するには `features = [
+//! "wasm-bindgen-exports", "keynav", "focus-visible", "avatar", "clipboard",
+//! "timer", "angle-slider", "splitter", "signature-pad", "number-input",
+//! "command", "sidebar", "chart", "chart-range", "questionnaire"]`
+//! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
+//! 明示すること。
+//!
+//! ## `keynav` off 時の注意
+//!
+//! [`keynav::wire_keynav`] は readonly RadioGroup の click capture 保護
+//! （イシュー #1616）も同関数内で登録しているため、`keynav` を off にすると
+//! この保護も同時に無効になる（分離は後続 issue、同評価文書 §13 項目 2）。
+//! readonly RadioGroup を含むアプリは `keynav` を off にしないこと。
+//!
+//! ## 新規配線を追加する場合の規約
+//!
+//! 新しい `wire_*` を `mount`/`hydrate` へ追加するときは次の手順に従う
+//! （`Cargo.toml` の `[features]` 直前コメントにも同内容を記載）:
+//!
+//! 1. `Cargo.toml` の `[features]` へ同名 feature（`= []`）を追加し
+//!    `default` へ列挙する。
+//! 2. `mount`/`hydrate` 双方の呼び出し文と対応する private `fn wire_*`
+//!    定義（存在する場合）へ `#[cfg(feature = "...")]` を付ける。
+//! 3. 本節の対応表と `Cargo.toml` のコメントを更新する。
+//! 4. `--no-default-features --features wasm-bindgen-exports` / 既定 /
+//!    `--all-features` の 3 構成で `cargo check --target
+//!    wasm32-unknown-unknown` と `cargo clippy --all-targets` を確認する。
+//!
+//! 呼び出し列の順序・表の順序・`default` 配列の順序を揃えること。
 
 #![deny(unsafe_code)]
 
@@ -972,6 +1039,10 @@ where
     /// `keyed_list_cache` を `Self::wire` と共有し、dispatch 後の束縛点更新経路
     /// （`Self::apply_update_for_dirty`）へ合流する。
     ///
+    /// `events::wire_events` を除く各配線は同名 feature（既定 on）でゲートされ、
+    /// クレートドキュメント「配線群別 feature（イシュー #2326）」節の対応表に
+    /// 従う。
+    ///
     /// # Errors
     ///
     /// `root_id` に対応する要素が存在しない場合、またはイベント配線
@@ -1024,49 +1095,63 @@ where
             keyed_list_cache.clone(),
         );
         events::wire_events(root.clone(), on_action)?;
+        #[cfg(feature = "keynav")]
         keynav::wire_keynav(root.clone())?;
+        #[cfg(feature = "focus-visible")]
         focus_visible::wire_focus_visible(root.clone())?;
+        #[cfg(feature = "avatar")]
         Self::wire_avatar(component.clone(), root.clone())?;
+        #[cfg(feature = "clipboard")]
         Self::wire_clipboard(component.clone(), root.clone())?;
+        #[cfg(feature = "timer")]
         Self::wire_timer(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "angle-slider")]
         Self::wire_angle_slider(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "splitter")]
         Self::wire_splitter(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "signature-pad")]
         Self::wire_signature_pad(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "number-input")]
         Self::wire_number_input(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "command")]
         Self::wire_command(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "sidebar")]
         Self::wire_sidebar(root.clone())?;
+        #[cfg(feature = "chart")]
         Self::wire_chart(root.clone())?;
+        #[cfg(feature = "chart-range")]
         Self::wire_chart_range(root.clone())?;
+        #[cfg(feature = "questionnaire")]
         Self::wire_questionnaire(
             component.clone(),
             root.clone(),
@@ -1092,6 +1177,10 @@ where
     /// （同書第 4 節・判断 5。改ざんされうるクライアント入力を信頼しない、
     /// panic しない不変条件）。成功・失敗いずれの経路でもイベント配線は
     /// [`Self::wire`]・[`Self::wire_avatar`] 経由で 1 回のみ行う。
+    ///
+    /// `events::wire_events` を除く各配線は `mount` と同じく同名 feature
+    /// （既定 on）でゲートされ、クレートドキュメント「配線群別 feature
+    /// （イシュー #2326）」節の対応表に従う。
     ///
     /// # Errors
     ///
@@ -1154,49 +1243,63 @@ where
             keyed_list_cache.clone(),
         );
         events::wire_events(root.clone(), on_action)?;
+        #[cfg(feature = "keynav")]
         keynav::wire_keynav(root.clone())?;
+        #[cfg(feature = "focus-visible")]
         focus_visible::wire_focus_visible(root.clone())?;
+        #[cfg(feature = "avatar")]
         Self::wire_avatar(component.clone(), root.clone())?;
+        #[cfg(feature = "clipboard")]
         Self::wire_clipboard(component.clone(), root.clone())?;
+        #[cfg(feature = "timer")]
         Self::wire_timer(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "angle-slider")]
         Self::wire_angle_slider(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "splitter")]
         Self::wire_splitter(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "signature-pad")]
         Self::wire_signature_pad(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "number-input")]
         Self::wire_number_input(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "command")]
         Self::wire_command(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "sidebar")]
         Self::wire_sidebar(root.clone())?;
+        #[cfg(feature = "chart")]
         Self::wire_chart(root.clone())?;
+        #[cfg(feature = "chart-range")]
         Self::wire_chart_range(root.clone())?;
+        #[cfg(feature = "questionnaire")]
         Self::wire_questionnaire(
             component.clone(),
             root.clone(),
@@ -1239,6 +1342,7 @@ where
     ///
     /// [`headless_avatar::wire_avatar_events`]（`add_event_listener_with_callback_and_bool`）
     /// の失敗を伝播する。
+    #[cfg(feature = "avatar")]
     fn wire_avatar(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1286,6 +1390,7 @@ where
     ///
     /// [`headless_clipboard::wire_clipboard_events`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "clipboard")]
     fn wire_clipboard(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1371,6 +1476,7 @@ where
     ///
     /// [`headless_timer::wire_timer_events`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "timer")]
     fn wire_timer(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1517,6 +1623,7 @@ where
     ///
     /// [`angle_slider::wire_angle_slider_events`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "angle-slider")]
     fn wire_angle_slider(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1599,6 +1706,7 @@ where
     ///
     /// [`splitter::wire_splitter_events`]（`add_event_listener_with_callback`）
     /// の失敗を伝播する。
+    #[cfg(feature = "splitter")]
     fn wire_splitter(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1653,6 +1761,7 @@ where
     ///
     /// [`headless_signature_pad::wire_signature_pad_component`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "signature-pad")]
     fn wire_signature_pad(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1710,6 +1819,7 @@ where
     ///
     /// [`number_input::wire_number_input_component`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "number-input")]
     fn wire_number_input(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1752,6 +1862,7 @@ where
     ///
     /// [`command::wire_command_component`]（`add_event_listener_with_callback`）
     /// の失敗を伝播する。
+    #[cfg(feature = "command")]
     fn wire_command(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1840,6 +1951,7 @@ where
     ///
     /// [`sidebar::wire_sidebar_events`]（`add_event_listener_with_callback`）
     /// の失敗を伝播する。
+    #[cfg(feature = "sidebar")]
     fn wire_sidebar(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         sidebar::wire_sidebar_events(root)
     }
@@ -1856,6 +1968,7 @@ where
     ///
     /// [`chart::wire_chart_events`]（`add_event_listener_with_callback`）の
     /// 失敗を伝播する。
+    #[cfg(feature = "chart")]
     fn wire_chart(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         chart::wire_chart_events(root)
     }
@@ -1873,6 +1986,7 @@ where
     /// [`chart_range::wiring::wire_chart_range_events`]
     /// （`add_event_listener_with_callback`/`MutationObserver::new`）の
     /// 失敗を伝播する。
+    #[cfg(feature = "chart-range")]
     fn wire_chart_range(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         chart_range::wiring::wire_chart_range_events(root)
     }
@@ -1918,6 +2032,7 @@ where
     ///
     /// [`questionnaire::wire_questionnaire_events`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "questionnaire")]
     fn wire_questionnaire(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,

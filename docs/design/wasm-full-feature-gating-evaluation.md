@@ -451,10 +451,14 @@ readonly RadioGroup の click capture 保護（`keynav.rs:7678` 付近）を
 
 条件付き採用（§11）に基づき、採用する場合の分割案:
 
-1. `wasm-full` に配線群別 feature を追加（既定 on、`Runtime::mount`/
-   `hydrate` の `wire_*` 呼び出しを cfg ゲート）。§11 条件 5 に従い、
-   `default-features = false` 利用者との互換維持策・移行手順のいずれかを
-   本 issue で確定する。
+1. **実装済み（イシュー #2326）。** `wasm-full` に配線群別 feature を追加
+   （既定 on、`Runtime::mount`/`hydrate` の `wire_*` 呼び出しを cfg
+   ゲート）。§11 条件 5 は「(ii) 0.x minor の破壊的変更として移行手順を
+   明記する」方式で確定した（`default-features = false` 利用者は 14 配線を
+   失う。`Cargo.toml`・`lib.rs` クレートドキュメントに移行手順を記載、
+   0.18.7 → 0.19.0 へ minor バンプ）。対応表・詳細は
+   `docs/design/wasm-full-architecture.md` §33 を参照。項目 2〜5 は未着手
+   のまま本文書側で引き続き追跡する。
 2. `MAPPING_TABLE`/keynav の scope 分岐の cfg 化と、
    `headless_wiring.rs`/`keynav_native.rs` の `required-features` 追随。
    §11 条件 4 に従い、readonly RadioGroup の click capture 保護
