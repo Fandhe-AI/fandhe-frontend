@@ -506,14 +506,35 @@ headless-ui 部品のクリック dispatch 全般）も同時に登録してい�
    `docs/design/wasm-full-architecture.md` §35）。分離後の構成での
    §5/§11 削減量の再計測は上記「実測値の留保の解消」で完了し、判定
    ルール（20%/30 KB）を満たすことを確認した。
-3. CI feature matrix（`--no-default-features` / 各 feature / `--all-features`）
-   の追加。`clippy-wasm32` ジョブへの反映要否を含めて検討する。readonly
-   RadioGroup 保護（項目 2）が `keynav` feature 無効時にも機能することを
-   検証するテストケース自体はイシュー #2327 で追加済み
-   （`crates/wasm-full/tests/keynav_browser.rs` の
-   `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`）
-   が、CI 上での `browser-test` ジョブの feature matrix 化（縮小構成での
-   実行）自体は本項目（イシュー #2328）のスコープとして残る。
+3. **実装済み（イシュー #2328）。** CI feature matrix
+   （`--no-default-features` / 各 feature / `--all-features`）を
+   `.github/workflows/ci.yml` へ追加した。既存 `clippy-wasm32` ジョブ
+   （`--all-targets` 全構成・部分組合せ 3 件、イシュー #2327）は変更せず、
+   独立トップレベルジョブ 4 件（`wasm-full-feature-matrix-baseline` /
+   `-wiring` / `-scope` / `-readonly-guard`）を新設した（`strategy.matrix`
+   は不採用。ruleset `main-protection` の `required_status_checks` が
+   context を個別静的列挙する契約〔`workflow_required_checks_manifest.rs`〕
+   と matrix 展開が両立しないため）。`-baseline` は
+   `--no-default-features` / 同 + `wasm-bindgen-exports` / 既定 /
+   `--all-features` の 4 構成を `cargo check` + `cargo clippy` で検証し、
+   `-wiring`/`-scope` は `perf-assert` + `default` 掲載の 15 配線群 feature・
+   scope feature 16 件（計 31 件、`crates/wasm-full/Cargo.toml`
+   `[features]` から `wasm-bindgen-exports` を除いた全集合）を
+   `wasm-bindgen-exports` のみとの単体構成で 1 feature 1 ステップずつ
+   clippy する（`crates/xtask/tests/workflow_wasm_full_feature_matrix.rs`
+   が feature 集合との過不足なき一致を fail-closed に検証）。readonly
+   RadioGroup 保護（項目 2）が `keynav` feature 無効時にも機能することの
+   検証は `-readonly-guard` ジョブが native テスト 2 種
+   （`readonly_click_outcome`・`feature_gating_contract`）+ browser テスト
+   （`keynav_browser.rs` の
+   `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`、
+   イシュー #2327 で追加済み）を `--no-default-features --features
+   wasm-bindgen-exports` 構成で実行して担う。per-test cfg 化（縮小構成で
+   `keynav_browser.rs`/`headless_wiring_browser.rs` の browser テスト全件を
+   常設実行する方式、`docs/design/wasm-full-architecture.md` §34.6 が
+   #2328 へ引き継いでいた案）は、上記 matrix + フィルタ実行で受入基準を
+   満たせたため本イシューでは実施せず、必要になれば後続 issue として
+   別途検討する（スコープ外の明示）。
 4. dist-server 経路の feature 集合決定（§8 (A)/(B) のユーザー判断）と
    `bundle_size.rs` 契約の更新。
 5. docs（feature 一覧の利用者向けドキュメント化、§11 条件 5 の移行手順を

@@ -115,6 +115,22 @@
       "integration_id": 15368
     },
     {
+      "context": "wasm-full feature matrix: baseline (no-default / default / all-features, issue #2328)",
+      "integration_id": 15368
+    },
+    {
+      "context": "wasm-full feature matrix: readonly RadioGroup guard without keynav (issue #2328)",
+      "integration_id": 15368
+    },
+    {
+      "context": "wasm-full feature matrix: scope features (issue #2328)",
+      "integration_id": 15368
+    },
+    {
+      "context": "wasm-full feature matrix: wiring features (issue #2328)",
+      "integration_id": 15368
+    },
+    {
       "context": "wasm32 target clippy (-D warnings, issue #1160)",
       "integration_id": 15368
     },
