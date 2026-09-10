@@ -34,7 +34,10 @@
 //!
 //! - `data-close-on-escape="false"`: Escape キーでの閉鎖を無効化する。
 //! - `data-close-on-interact-outside="false"`: 外側クリックでの閉鎖を
-//!   無効化する（`role="alertdialog"` のときは既定で無効）。
+//!   無効化する（`role="alertdialog"` のときは既定で無効）。右クリック・
+//!   ctrl+左クリックの外側 pointerdown は opt-out 属性の有無によらず常に
+//!   閉鎖しない（イシュー #2194、下記「shadcn/ui（Radix Primitives）a11y
+//!   チェックリストとの突合」節 D6 参照）。
 //!
 //! `data-autofocus` はフォーカストラップの初期フォーカス先を指定する
 //! オプトイン属性だが、[`content`] の `attrs` ではなく [`content`] の
@@ -67,6 +70,40 @@
 //! - **Radix AlertDialog の `Cancel`/`Action` パート**: `DialogRole::Alertdialog`
 //!   と [`close_trigger`] と素の `button` で構成でき、ark-ui にも該当パートは
 //!   無いため不採用（Themes 側 alert-dialog 設計イシュー #1675 へ申し送り）。
+//!
+//! # shadcn/ui（Radix Primitives）a11y チェックリストとの突合（イシュー #2194）
+//!
+//! 挙動の正は shadcn/ui v4 `radix` バリアント = Radix Primitives
+//! （`docs/design/radix-primitives-inventory.md`）。Base UI バリアントは
+//! `dismissible`/`modal` 等で微差があり、本表では扱わない。本表は headless-ui
+//! （anatomy・属性出力）と `fandhe-frontend-wasm-full`（`overlay`/
+//! `focus_trap`、実 DOM 配線）を跨いだ実挙動の突合であり、判定は「一致 /
+//! 実装 / 意図的差分 / 見送り（保留）」の 4 値。
+//!
+//! | # | 項目 | shadcn/ui（Radix） | 本リポジトリ | 判定 |
+//! |---|---|---|---|---|
+//! | D1 | Tab/Shift+Tab のフォーカス循環（モーダル時） | FocusScope `trapped`+`loop` | `wasm_full::focus_trap` 最上位トラップで循環 | 一致 |
+//! | D2 | 開時の初期フォーカス | content 内先頭 tabbable | `data-autofocus` → 先頭 tabbable → content 自身 | 一致（`data-autofocus` は上位互換） |
+//! | D3 | 閉鎖時のフォーカス復帰 | trigger | push 時 `activeElement`（無ければ trigger） | 一致 |
+//! | D4 | Escape 閉鎖（最上位のみ） | 最上位レイヤーのみ | `overlay::escape_close_index` 最上位のみ | 一致 |
+//! | D5 | 外側 pointerdown で閉鎖 | `onPointerDownOutside` | `overlay::outside_close_indices` | 一致 |
+//! | D6 | 右クリック/ctrl+左クリックの外側 pointerdown | 閉鎖しない（`isRightClick`） | `overlay::OverlayKind::ignores_non_primary_outside_pointer` で閉鎖しない | **実装**（イシュー #2194） |
+//! | D7 | `role="alertdialog"` の外側クリック | 閉鎖しない | `close_on_interact_outside_for` 既定 false | 一致 |
+//! | D8 | AlertDialog の初期フォーカス | Cancel ボタン | 先頭 tabbable（`data-autofocus` を Cancel へ付ければ同等） | 意図的差分（#1638 判断を維持） |
+//! | D9 | focusout 外側の引き戻し | FocusScope が focusin/focusout で引き戻す | Tab 経路のみ遮断 | 見送り（保留、`docs/policy/intentional-non-adoption.md` §7） |
+//! | D10 | 背景の `aria-hidden`/`inert` 化 | `hideOthers` | なし（`aria-modal="true"` で AT は外側を無視） | 見送り（保留、同 §7） |
+//! | D11 | body スクロールロック/`pointer-events:none` | あり | なし | 見送り（保留。§3.25 規則 2 の装飾関心） |
+//! | D12 | Portal | あり | 不採用済み（#1638、§3.25 規則 2） | 意図的差分（既記録） |
+//! | D13 | touch 時の pointerdown 後 click 待ち | あり | pointerdown で即判定 | 意図的差分（決定性優先） |
+//! | D14 | D1〜D7 の `wire_headless_component` への自動統合 | `<Dialog>` を置くだけ | `push_trap`/`push_overlay` はアプリ側契約のまま未統合 | 見送り（保留、同 §7） |
+//!
+//! D6 は `OverlayKind::ignores_non_primary_outside_pointer`
+//! （`fandhe-frontend-wasm-full` の `overlay.rs`、本クレートは依存しないため
+//! 意図的にリンクしない平文参照）として実装した（headless-ui 自体はコード
+//! 変更なし。属性出力は変わらず、`content` の `role`/`data-*` はこの節の
+//! 前段落で説明した通り）。適用範囲は Dialog と Command（command palette の
+//! dialog パターン）に限定し、Menu/Popover/NavigationMenu/Menubar/
+//! ActionBar/Tooltip の外側 pointerdown 判定は変更していない。
 //!
 //! # セキュリティ不変条件
 //!

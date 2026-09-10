@@ -1692,3 +1692,96 @@ CSS 遷移そのものの成立可否〔#2192 側の CSS 実装に依存〕は�
   解消（測定方式の再検討）。
 - bubble（#2282）・他部品（#2283）への `TARGETS` 追加は既存イシューで
   扱う。
+
+## 29. Dialog/Tabs の shadcn（Radix）a11y 突合と外側 pointerdown のボタン判定（イシュー #2194）
+
+### 29.1 背景
+
+Phase 3 の Themes 側突合（dialog #2030 → PR #2148、tabs #2039 → PR #2173）は
+`pre-styled-ui` の視覚言語のみを扱い、headless-ui + wasm-full の実挙動
+（フォーカストラップ・Escape・外側クリック・キーボード操作）は shadcn/ui
+（実体は Radix Primitives）チェックリストとの突合が申し送りとして残って
+いた。本イシューはこの申し送りを解消し、差分表（`crates/headless-ui/src/
+dialog.rs`/`tabs.rs` rustdoc、`docs/design/component-coverage-map.md`）へ
+記録したうえで、唯一の実装対象（D6: 右クリック/ctrl+左クリックの外側
+pointerdown）を `overlay.rs` へ実装した。
+
+### 29.2 D6: 右クリック（＋ctrl+左クリック）の外側 pointerdown を Dialog/Command で無視する
+
+Radix `packages/react/dialog/src/dialog.tsx` の `DialogContentModal` は
+`onPointerDownOutside` ハンドラで
+`isRightClick = originalEvent.button === 2 || (originalEvent.button === 0
+&& originalEvent.ctrlKey === true)` を判定し、`true` のとき
+`event.preventDefault()` して閉鎖しない（コミット
+`f7ecd5ab16f5e1e820eb5786a1419a98a2d594ae` 時点の `radix-ui/primitives` で
+確認。この右クリック判定は `DismissableLayer` 自体にはなく、Dialog 側が
+`onPointerDownOutside` で個別に実装している点に注意）。これは
+コンテキストメニュー操作中に背後の Dialog が閉じる UX 劣化を防ぐための
+判定であり、macOS の ctrl+左クリック（右クリック相当のシステム規約）も
+同じ理由で対象に含めている。**中クリック（`button === 1`）はこの判定に
+含まれない**（Radix は右クリックのみを特別扱いする）。
+
+純粋層（`overlay.rs`、`#[cfg(test)]` で native 検証）:
+
+- `OverlayKind::ignores_non_primary_outside_pointer(self) -> bool`
+  （`const fn`）: `Dialog`/`Command` のみ `true`。適用範囲をこの 2 種別に
+  限定し、Menu/Popover/NavigationMenu/Menubar/ActionBar/Tooltip の既定
+  挙動は変えない（各部品の参照突合イシューで個別判断する方針を維持）。
+- `is_primary_outside_pointer(button: i16, ctrl_key: bool) -> bool`:
+  `!(button == 2 || (button == 0 && ctrl_key))`（Radix の `isRightClick`
+  の否定と等価）。中クリック（`button == 1`）は Radix と同じく
+  `true`（閉鎖対象）のまま — 独自に対象を広げず Radix との挙動一致を
+  優先した。
+- `outside_close_indices_with_pointer(stack, contains_target,
+  primary_pointer) -> Vec<usize>`: `primary_pointer == false` のとき、
+  `ignores_non_primary_outside_pointer() == true` なエントリを
+  「ターゲットを含む（内側扱い）」として既存 `outside_close_indices` へ
+  委譲する。これにより当該エントリで走査が打ち切られる（Radix の
+  `preventDefault` と同じ「レイヤー方式」。下層オーバーレイへは透過
+  させない）。`primary_pointer == true` は常に既存
+  `outside_close_indices` と同一結果（後方互換）。
+
+配線層（`wiring::OverlayCloseController` の pointerdown クロージャ）は
+`event.dyn_ref::<web_sys::MouseEvent>()` で `button()`/`ctrl_key()` を読み、
+ダウンキャストに失敗した場合（既存 browser テストの素の `Event`、
+`MouseEvent` を継承しない将来実装）はプライマリ扱い（従来どおり閉鎖）に
+フォールバックする — `button` はブラウザ生成値で改ざん不能であり、
+fail-open にしても安全性を損なわない（既存挙動の維持を優先）。
+
+### 29.3 テスト構成
+
+- native: `overlay.rs` の `#[cfg(test)] mod tests` へ
+  `ignores_non_primary_outside_pointer_only_dialog_and_command`/
+  `is_primary_outside_pointer_matches_radix_is_right_click_negation`/
+  `is_primary_outside_pointer_middle_click_matches_radix_no_special_case`/
+  `outside_close_indices_with_pointer_*`（非プライマリで Dialog が閉じ
+  ない・入れ子で下層へ伝播しない・Menu は対象外のまま閉じる・プライマリ
+  では既存関数と同一結果・長さ不一致で空・Command も対象、の 7 件）。
+- browser（`crates/wasm-full/tests/overlay_close_browser.rs`）: ヘルパー
+  `pointer_event_with_button(button, ctrl)` を `PointerEvent`
+  （`MouseEvent` を継承）で追加し、既存 `pointerdown_event()`（素の
+  `Event`、フォールバック経路の回帰固定）はそのまま残す。新規ケース
+  （検証観点 (g)）6 件: 右クリックで閉じない・ctrl+左クリックで閉じ
+  ない・`PointerEvent` 経路でもプライマリなら閉じる・入れ子 Dialog で
+  両層とも閉じない・Menu は対象外のまま閉じる・Command dialog パターン
+  でも閉じない。
+
+### 29.4 見送り項目（D9/D10/D11/D14）
+
+`docs/policy/intentional-non-adoption.md` §7 の保留表へ記録した（本行
+参照。再評価トリガー付き）。D9（focusin 引き戻し）/D10（背景
+`aria-hidden`/`inert` 化）は `focus_trap.rs` の既存スコープ外節へも
+イシュー番号を追記した。D11（body スクロールロック）は §3.25 規則 2の
+装飾関心のため headless/wasm-full へ持ち込まない。D14
+（`wire_headless_component` での `push_trap`/`push_overlay` 自動統合）は
+`on_update` 契約の再設計を要する大物であり本イシューのスコープに含め
+ない。Tabs（T1〜T10）はコード実装項目なし（既存 `keynav_browser.rs` が
+T1〜T7 を固定済み）。
+
+### 29.5 semver 判断
+
+`overlay.rs` へ公開 fn/`const fn` を**追加のみ**（既存シグネチャ・
+`OverlayKind` の variant は不変）のため、`fandhe-frontend-wasm-full` は
+patch バンプとする。`fandhe-frontend-headless-ui` は rustdoc のみの変更
+だが `src/` 変更のため version-bump-guard 対象であり、同じく patch
+バンプとする（#1638 前例と同型）。

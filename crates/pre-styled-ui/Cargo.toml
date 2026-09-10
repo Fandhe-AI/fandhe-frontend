@@ -2869,7 +2869,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更）を統合した結果として main の到達値 0.172.0 をさらに上回る
 # 0.173.0 へマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約。
 # 片方の到達値をそのまま採用しない原則）。
-version = "0.173.0"
+#
+# イシュー #2194: 依存先 `fandhe-frontend-headless-ui` 0.68.14 → 0.68.15
+# （dialog/tabs の shadcn a11y 突合、rustdoc のみ）への `version = "..."`
+# 追随のみ（`cargo run -p xtask -- check-dep-versions --fix`）。本クレート
+# 自身の実体変更は伴わないため patch バンプとし 0.173.1 とする。
+version = "0.173.1"
 
 
 edition = "2021"
@@ -2885,7 +2890,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.14" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.15" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

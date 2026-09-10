@@ -619,7 +619,12 @@ name = "fandhe-frontend-headless-ui"
 # API への変更はなく非破壊的な追加であり、origin/main が上記 #2185 で
 # 0.68.13 へ到達済みだったため、その到達値からさらに +1 して 0.68.14
 # とする（PR #2279 review 対応での base 取り込み）。
-version = "0.68.14"
+#
+# イシュー #2194: dialog/tabs の shadcn（Radix Primitives）a11y チェックリスト
+# 差分を rustdoc へ記録する（`crates/headless-ui/src/dialog.rs`/`tabs.rs`）。
+# コード変更なし（rustdoc のみ）だが `src/` 変更のため version-bump-guard
+# 対象であり、#1638 前例と同型で patch バンプする。0.68.15 とする。
+version = "0.68.15"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

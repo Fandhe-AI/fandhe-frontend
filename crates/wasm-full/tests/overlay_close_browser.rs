@@ -23,6 +23,9 @@
 //! (e) `remove_overlay` 後・controller `Drop` 後はイベントを発しても発火しない
 //!     （登録・解除の対称性の回帰固定）
 //! (f) 未知 `data-scope`・改ざん属性で panic せず no-op
+//! (g) 右クリック / ctrl+左クリックの外側 pointerdown は Dialog/Command を
+//!     閉じない（イシュー #2194 D6、レイヤー方式の伝播遮断・Menu は対象外の
+//!     まま閉じることを含む）
 
 #![cfg(target_arch = "wasm32")]
 
@@ -30,6 +33,7 @@ use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::command;
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::dialog;
+use fandhe_frontend_headless_ui::menu;
 use fandhe_frontend_headless_ui::menubar;
 use fandhe_frontend_headless_ui::navigation_menu;
 use fandhe_frontend_headless_ui::popover;
@@ -37,7 +41,10 @@ use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_wasm_full::overlay::{OverlayCloseController, OverlayCloseRequest};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, Event, EventInit, KeyboardEvent, KeyboardEventInit};
+use web_sys::{
+    Document, Element, Event, EventInit, KeyboardEvent, KeyboardEventInit, PointerEvent,
+    PointerEventInit,
+};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -90,6 +97,21 @@ fn pointerdown_event() -> Event {
     Event::new_with_event_init_dict("pointerdown", &init).expect("Event::new must not fail")
 }
 
+/// ボタン種別・ctrl 修飾を指定した合成 `pointerdown` イベントを生成する
+/// （イシュー #2194、D6: 右クリック / ctrl+左クリックの外側 pointerdown
+/// 判定）。`overlay::wiring` の配線層は `MouseEvent` へダウンキャストして
+/// `button()`/`ctrl_key()` を読むため、[`pointerdown_event`]（素の `Event`）
+/// とは別に `PointerEvent`（`MouseEvent` を継承）で生成する。
+fn pointer_event_with_button(button: i16, ctrl_key: bool) -> Event {
+    let init = PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_button(button);
+    init.set_ctrl_key(ctrl_key);
+    PointerEvent::new_with_event_init_dict("pointerdown", &init)
+        .expect("PointerEvent::new must not fail")
+        .unchecked_into::<Event>()
+}
+
 /// 直近の閉鎖要求を蓄積するだけの記録用コールバック（dispatch・DOM 更新は
 /// 行わない。本モジュールの責務分離を検証側でも尊重する）。
 type Requests = std::rc::Rc<std::cell::RefCell<Vec<OverlayCloseRequest>>>;
@@ -124,6 +146,47 @@ fn mount_dialog(document: &Document, container: &Element, id_prefix: &str) -> (E
                 },
                 vec![],
                 vec![],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let trigger = document
+        .get_element_by_id(&trigger_id)
+        .expect("trigger element must exist");
+    let content = document
+        .get_element_by_id(&content_id)
+        .expect("content element must exist");
+    (trigger, content)
+}
+
+/// 単一の Menu（trigger + positioner + content）を `container` 配下へ展開し、
+/// `(trigger, content)` を返す（イシュー #2194、D6 検証で `OverlayKind::Menu`
+/// が非プライマリボタンの対象外のまま従来どおり閉じることを固定するために
+/// 使う）。
+fn mount_menu(document: &Document, container: &Element, id_prefix: &str) -> (Element, Element) {
+    let trigger_id = format!("{id_prefix}-trigger");
+    let content_id = format!("{id_prefix}-content");
+    let html = render(&menu::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                Some(&content_id),
+                vec![("id", &trigger_id)],
+                vec![],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![],
+                vec![menu::content(
+                    OpenState::Open,
+                    Some(&content_id),
+                    None,
+                    vec![],
+                    vec![],
+                )],
             ),
         ],
     ));
@@ -1089,5 +1152,159 @@ fn command_close_on_escape_false_opts_out() {
     assert!(
         requests.borrow().is_empty(),
         "data-close-on-escape=\"false\" の opt-out が command dialog にも効くこと"
+    );
+}
+
+// --- (g) イシュー #2194 D6: 非プライマリボタンの外側 pointerdown ---
+
+#[wasm_bindgen_test]
+fn right_click_outside_dialog_does_not_close() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-right-click-dialog-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) = mount_dialog(&document, &placeholder, "overlay-right-click");
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("dialog scope must be recognized");
+
+    placeholder
+        .dispatch_event(&pointer_event_with_button(2, false))
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "右クリック（button=2）の外側 pointerdown は Dialog を閉じないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn ctrl_left_click_outside_dialog_does_not_close() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-ctrl-click-dialog-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) = mount_dialog(&document, &placeholder, "overlay-ctrl-click");
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("dialog scope must be recognized");
+
+    placeholder
+        .dispatch_event(&pointer_event_with_button(0, true))
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "ctrl+左クリック（macOS の右クリック相当）の外側 pointerdown は Dialog を閉じないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn primary_pointer_event_outside_dialog_closes() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-primary-pointerevent-dialog-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) = mount_dialog(&document, &placeholder, "overlay-primary-pointerevent");
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("dialog scope must be recognized");
+
+    // `PointerEvent`（`MouseEvent` を継承）経路でも、プライマリボタン
+    // （button=0, ctrl なし）なら従来どおり閉じることを固定する。
+    placeholder
+        .dispatch_event(&pointer_event_with_button(0, false))
+        .expect("dispatch_event must not fail");
+
+    let recorded = requests.borrow().clone();
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0].index, index);
+}
+
+#[wasm_bindgen_test]
+fn right_click_outside_nested_dialog_closes_neither_layer() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-right-click-nested-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    // 親 Dialog の外側に子 Dialog を積む（入れ子構成、レイヤー方式の
+    // 固定: 最上位 Dialog を右クリックで内側扱いにすると、そこで走査が
+    // 打ち切られ親 Dialog も巻き添えで閉じない）。
+    let (outer_trigger, outer_content) =
+        mount_dialog(&document, &placeholder, "overlay-right-click-nested-outer");
+    let (inner_trigger, inner_content) =
+        mount_dialog(&document, &placeholder, "overlay-right-click-nested-inner");
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&outer_content, Some(&outer_trigger))
+        .expect("outer dialog scope must be recognized");
+    controller
+        .push_overlay(&inner_content, Some(&inner_trigger))
+        .expect("inner dialog scope must be recognized");
+
+    placeholder
+        .dispatch_event(&pointer_event_with_button(2, false))
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "右クリックの外側 pointerdown は最上位 Dialog で走査が打ち切られ、下層 Dialog も閉じないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn right_click_outside_menu_still_closes() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-right-click-menu-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) = mount_menu(&document, &placeholder, "overlay-right-click-menu");
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("menu scope must be recognized");
+
+    placeholder
+        .dispatch_event(&pointer_event_with_button(2, false))
+        .expect("dispatch_event must not fail");
+
+    let recorded = requests.borrow().clone();
+    assert_eq!(
+        recorded.len(),
+        1,
+        "Menu は D6 の対象外のため右クリックでも従来どおり閉じること"
+    );
+    assert_eq!(recorded[0].index, index);
+}
+
+#[wasm_bindgen_test]
+fn right_click_outside_command_dialog_does_not_close() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-right-click-command-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (dialog_el, _input, _item) =
+        mount_command_dialog(&document, &placeholder, "overlay-right-click-command");
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&dialog_el, None)
+        .expect("command scope must be recognized");
+
+    placeholder
+        .dispatch_event(&pointer_event_with_button(2, false))
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "Command も dialog パターンとして D6 の対象に含み、右クリックでは閉じないこと"
     );
 }
