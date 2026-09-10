@@ -161,6 +161,8 @@
 //! | 配線 | feature |
 //! |---|---|
 //! | [`events::wire_events`] | ゲートしない（`data-action` 委譲、全構成必須） |
+//! | [`keynav::wire_readonly_click_guard`] | ゲートしない（readonly RadioGroup の click capture 保護、イシュー #2326 codex-review 是正） |
+//! | `Runtime::wire_headless` | ゲートしない（`headless::MAPPING_TABLE` 全行のクリック dispatch、イシュー #2326 Bugbot 是正） |
 //! | [`keynav::wire_keynav`] | `keynav` |
 //! | [`focus_visible::wire_focus_visible`] | `focus-visible` |
 //! | `Runtime::wire_avatar` | `avatar` |
@@ -193,10 +195,12 @@
 //!
 //! ## `keynav` off 時の注意
 //!
-//! [`keynav::wire_keynav`] は readonly RadioGroup の click capture 保護
-//! （イシュー #1616）も同関数内で登録しているため、`keynav` を off にすると
-//! この保護も同時に無効になる（分離は後続 issue、同評価文書 §13 項目 2）。
-//! readonly RadioGroup を含むアプリは `keynav` を off にしないこと。
+//! readonly RadioGroup の click capture 保護（イシュー #1616）は
+//! [`keynav::wire_readonly_click_guard`] へ分離済みで、`keynav` の
+//! 有効/無効に関わらず常時登録される（イシュー #2326 codex-review P1
+//! 是正、`docs/design/wasm-full-feature-gating-evaluation.md` §11
+//! 条件 4）。`keynav` を off にした場合に失われるのはキーボード操作
+//! （Arrow/Home/End/typeahead 等）のみである。
 //!
 //! ## 新規配線を追加する場合の規約
 //!
@@ -1095,6 +1099,22 @@ where
             keyed_list_cache.clone(),
         );
         events::wire_events(root.clone(), on_action)?;
+        // readonly RadioGroup の click capture 保護（イシュー #1616）は
+        // `keynav` feature の有効/無効に関わらず常時登録する（イシュー
+        // #2326 codex-review P1 是正、`keynav.rs::wire_readonly_click_guard`
+        // doc・`docs/design/wasm-full-feature-gating-evaluation.md` §11
+        // 条件 4 参照）。
+        keynav::wire_readonly_click_guard(root.clone())?;
+        // headless-ui 部品（Dialog/Collapsible/Popover/Tooltip/Menu・
+        // SignaturePad ClearTrigger 等）のクリック dispatch は
+        // `signature-pad` 等の個別 feature に結合させず常時登録する
+        // （イシュー #2326 Bugbot 是正、`Self::wire_headless` doc 参照）。
+        Self::wire_headless(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         #[cfg(feature = "keynav")]
         keynav::wire_keynav(root.clone())?;
         #[cfg(feature = "focus-visible")]
@@ -1243,6 +1263,22 @@ where
             keyed_list_cache.clone(),
         );
         events::wire_events(root.clone(), on_action)?;
+        // readonly RadioGroup の click capture 保護（イシュー #1616）は
+        // `keynav` feature の有効/無効に関わらず常時登録する（イシュー
+        // #2326 codex-review P1 是正、`keynav.rs::wire_readonly_click_guard`
+        // doc・`docs/design/wasm-full-feature-gating-evaluation.md` §11
+        // 条件 4 参照）。
+        keynav::wire_readonly_click_guard(root.clone())?;
+        // headless-ui 部品（Dialog/Collapsible/Popover/Tooltip/Menu・
+        // SignaturePad ClearTrigger 等）のクリック dispatch は
+        // `signature-pad` 等の個別 feature に結合させず常時登録する
+        // （イシュー #2326 Bugbot 是正、`Self::wire_headless` doc 参照）。
+        Self::wire_headless(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         #[cfg(feature = "keynav")]
         keynav::wire_keynav(root.clone())?;
         #[cfg(feature = "focus-visible")]
@@ -1723,12 +1759,60 @@ where
         )
     }
 
+    /// `crate::headless::MAPPING_TABLE` の全行（Dialog/Collapsible/
+    /// Popover/Tooltip/Menu・SignaturePad ClearTrigger 等、headless-ui
+    /// 部品のクリック dispatch 全般）を [`headless::wire_headless_component`]
+    /// 経由で `root` へ一括配線する（イシュー #2326 codex-review/Bugbot
+    /// 是正）。
+    ///
+    /// 以前は `signature-pad` feature の `Self::wire_signature_pad` が
+    /// `wire_headless_component` を呼ぶ唯一の経路だったため、
+    /// `signature-pad` を無効化すると SignaturePad と無関係な他の全
+    /// headless-ui 部品のクリック配線まで失われる意図しない結合があった
+    /// （Cursor Bugbot 指摘）。本メソッドは `events::wire_events` と同じく
+    /// どの配線群別 feature にもゲートされない（`root` に `MAPPING_TABLE`
+    /// 該当パーツが存在しなければ dispatch 側が scope/part 不一致で
+    /// 早期 return する fail-closed 設計のため、該当部品を使わないアプリ
+    /// への副作用はない）。`Self::mount`/`Self::hydrate` 双方から
+    /// `events::wire_events`/`keynav::wire_readonly_click_guard` の直後に
+    /// 1 回だけ呼ばれる。
+    ///
+    /// # Errors
+    ///
+    /// [`headless::wire_headless_component`]（`add_event_listener_with_callback`）
+    /// の失敗を伝播する。
+    fn wire_headless(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        headless::wire_headless_component(
+            root,
+            component,
+            move |state: &C, updated_root: &web_sys::Element| {
+                // `Self::wire_signature_pad` と同じく `Self::apply_dirty_if_any`
+                // （`Self::wire` の束縛点更新経路）へ委譲する（イシュー
+                // #1120/#1959 の共通化方針を継承）。
+                Self::apply_dirty_if_any(state, updated_root, &binding_table, &keyed_list_cache);
+            },
+        )
+    }
+
     /// SignaturePad（`fandhe-frontend-headless-ui` `signature_pad` モジュール）
-    /// のポインタ座標収集（描画）・ClearTrigger クリック配線を
+    /// のポインタ座標収集（描画）配線を
     /// [`headless_signature_pad::wire_signature_pad_component`] 経由で
     /// `root` へ配線する（イシュー #843、Bugbot 指摘「Runtime omits
     /// signature pad wiring」の是正）。`Self::mount`/`Self::hydrate` の
     /// 双方から `Self::wire_angle_slider` の直後に 1 回だけ呼ばれる。
+    /// ClearTrigger クリック配線は `signature-pad` feature 無効化時にも
+    /// 他 headless-ui 部品のクリック配線を巻き込まないよう
+    /// `Self::wire_headless`（ゲートしない常時配線）へ分離済み
+    /// （イシュー #2326 codex-review/Bugbot 是正）。
     ///
     /// `wire_signature_pad_component` は dispatch 成功後の DOM 反映を
     /// `on_update` コールバックとして呼び出し側に委ねる設計
@@ -1752,10 +1836,10 @@ where
     ///
     /// `root` 配下に SignaturePad の描画領域（Control / Segment /
     /// SegmentPath、`headless_signature_pad::is_drawable_part` が受理する
-    /// 3 パーツ）/ ClearTrigger パーツが存在しない場合、
-    /// `wire_signature_pad_component` 内のポインタ/クリック判定が
-    /// scope/part 不一致で早期 return するため、SignaturePad を使わない
-    /// アプリへの影響はない。
+    /// 3 パーツ）が存在しない場合、`wire_signature_pad_component` 内の
+    /// ポインタ判定が scope/part 不一致で早期 return するため、
+    /// SignaturePad を使わないアプリへの影響はない（ClearTrigger クリック
+    /// は `Self::wire_headless` 側の同型 fail-closed 判定に委ねる）。
     ///
     /// # Errors
     ///

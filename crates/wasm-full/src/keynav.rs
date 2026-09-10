@@ -8039,7 +8039,82 @@ pub(crate) mod wiring {
 
         Ok(())
     }
+
+    /// readonly な RadioGroup に対する click capture 保護（イシュー #1616
+    /// 是正）だけを、`keynav` feature の有効/無効に関わらず常時登録する
+    /// 専用配線（イシュー #2326 codex-review P1 是正）。
+    ///
+    /// [`wire_keynav`] は `keynav` feature でゲートされるが、同関数内の
+    /// capture フェーズ click リスナーは TreeView roving tabindex 復元
+    /// （キーボード操作前提の keynav 固有機能）と readonly RadioGroup の
+    /// click 保護（ネイティブ `<input type="radio">` の checked 確定・
+    /// headless dispatch 双方の抑止、`data-readonly` の視覚的表示との
+    /// 整合を保つセキュリティ相当の不変条件）を同居させている。
+    /// `keynav` feature を無効化して `wire_keynav` の呼び出し自体を
+    /// 除去すると、TreeView 復元だけでなくこの保護も丸ごと消え、
+    /// readonly RadioGroup が「クリックで選択状態が変わってしまう」
+    /// 退行を招く（`docs/design/wasm-full-feature-gating-evaluation.md`
+    /// §9/§11 条件 4 参照）。
+    ///
+    /// 本関数は `Self::wire`（`lib.rs`、`events::wire_events` の bubble
+    /// リスナー登録）より先に発火する capture フェーズリスナーとして、
+    /// この保護部分のみを複製し、`Runtime::mount`/`hydrate` から
+    /// `keynav` feature に関わらず無条件に呼び出す（`wire_keynav` 有効時
+    /// は同種の判定が二重登録されるが、`stop_propagation`/
+    /// `prevent_default` は冪等であり実害はない）。TreeView 復元
+    /// （`tree_click_pending`）はキーボード操作前提の keynav 固有機能の
+    /// ため本関数には含めない。
+    ///
+    /// # Errors
+    ///
+    /// `add_event_listener_with_callback_and_bool` が失敗した場合に
+    /// `Err` を返す。
+    pub fn wire_readonly_click_guard(root: Element) -> Result<(), JsValue> {
+        let guard_root = root.clone();
+        let guard_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            let Some(target) = event.target() else {
+                return;
+            };
+            let target_element: Element = match target.dyn_ref::<Element>() {
+                Some(element) => element.clone(),
+                None => {
+                    let Some(node) = target.dyn_ref::<web_sys::Node>() else {
+                        return;
+                    };
+                    let Some(parent) = node.parent_element() else {
+                        return;
+                    };
+                    parent
+                }
+            };
+            if !guard_root.contains(Some(&target_element)) {
+                return;
+            }
+            // RadioGroup readonly（イシュー #1616 是正・イシュー #2326
+            // codex-review P1 是正で `wire_keynav` から独立登録に変更）:
+            // `radio_group_readonly_click_outcome` の判定・分岐は
+            // `wire_keynav` の capture リスナーと同一（同関数 doc 参照）。
+            match radio_group_readonly_click_outcome(&target_element) {
+                RadioGroupReadonlyClickOutcome::FullSuppression => {
+                    event.stop_propagation();
+                    event.prevent_default();
+                }
+                RadioGroupReadonlyClickOutcome::PreventDefaultOnly => {
+                    event.prevent_default();
+                }
+                RadioGroupReadonlyClickOutcome::NoSuppression => {}
+            }
+        });
+        root.add_event_listener_with_callback_and_bool(
+            "click",
+            guard_closure.as_ref().unchecked_ref(),
+            true,
+        )?;
+        guard_closure.forget();
+
+        Ok(())
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::wire_keynav;
+pub use wiring::{wire_keynav, wire_readonly_click_guard};

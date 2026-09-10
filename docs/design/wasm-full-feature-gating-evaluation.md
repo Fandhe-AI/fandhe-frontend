@@ -439,6 +439,19 @@ readonly RadioGroup の click capture 保護（`keynav.rs:7678` 付近）を
    バンプを行うこと。(i) を選ぶだけで feature 追加要求を伴う構成を
    採用可能とはしない（§10 参照）。
 
+**実装結果の追記（イシュー #2326、codex-review/Bugbot 是正）**: 条件 4 は
+`wire_keynav`（`keynav.rs`）から readonly RadioGroup の click capture 保護を
+`wire_readonly_click_guard`（新設、`keynav` feature に関わらず常時登録）へ
+分離する方式で実装した。加えてレビューで、`signature-pad` feature が
+`Runtime::wire_signature_pad` をゲートし、同関数が
+`crate::headless::wire_headless_component`（`MAPPING_TABLE` 全行、
+Dialog/Collapsible/Popover/Tooltip/Menu 等 signature-pad と無関係な
+headless-ui 部品のクリック dispatch 全般）も同時に登録している未文書化の
+結合が別途発覚したため、この汎用クリック dispatch も `Runtime::wire_headless`
+（ゲートしない常時配線）へ分離した。両者とも fail-closed
+（対象パーツが `root` 配下に存在しなければ早期 return）のため、当該部品を
+使わないアプリへの副作用はない。
+
 ## 12. 再評価トリガー
 
 - `bundle-size` が #1968 の警告しきい値（190,000 B）を恒常的に超える。
