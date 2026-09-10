@@ -368,6 +368,21 @@ impl Default for BarChartProps {
     }
 }
 
+/// `bar`/`value-label`/`inside-label` へ凡例トグル・期間切替の共有識別子
+/// （`data-index`/`data-series`）を出力するかどうかのゲート判定（内部
+/// ヘルパ、イシュー #2134 codex-review 指摘）。`show_tooltip` 単独では
+/// なく `show_tooltip || range.is_some() || !hidden_series.is_empty()`
+/// で判定する: 凡例トグル・期間切替のいずれかが実際に使われているときは
+/// `show_tooltip: false`（tooltip 非表示、opt-out）でも識別属性を出す
+/// 必要がある（`wasm-full::chart_range::wiring::sync_chart` が
+/// `data-index`/`data-series` を判定源にするため）。素の
+/// `show_tooltip: false`・凡例/期間切替とも不使用の構成では従来どおり
+/// #2129 以前の出力とバイト一致する契約は変えない
+/// （`BarChartProps::show_tooltip` rustdoc 参照）。
+fn identify_bars(props: &BarChartProps) -> bool {
+    props.show_tooltip || props.range.is_some() || !props.hidden_series.is_empty()
+}
+
 /// この BarChart の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが呼ぶ）。
 ///
 /// 色は棒ごとに [`super::ChartData::series_color_var`] のインライン `fill` 属性で決まるため、
@@ -958,7 +973,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     .any(|n| n.as_str() == series_label);
                 let mut attrs: Vec<(&str, &str)> =
                     vec![("data-scope", "bar-chart"), ("data-part", "bar")];
-                if props.show_tooltip {
+                if identify_bars(&props) {
                     attrs.push(("data-index", cat_idx_str.as_str()));
                     attrs.push(("data-series", series_label));
                 }
@@ -1022,7 +1037,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         props.orientation,
                         true,
                         hidden,
-                        if props.show_tooltip {
+                        if identify_bars(&props) {
                             Some((cat_idx_str.as_str(), series_label))
                         } else {
                             None
@@ -1106,7 +1121,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     .any(|n| n.as_str() == series_label);
                 let mut attrs: Vec<(&str, &str)> =
                     vec![("data-scope", "bar-chart"), ("data-part", "bar")];
-                if props.show_tooltip {
+                if identify_bars(&props) {
                     attrs.push(("data-index", cat_idx_str.as_str()));
                     attrs.push(("data-series", series_label));
                 }
@@ -1131,7 +1146,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     attrs,
                 ));
 
-                let index_and_series = if props.show_tooltip {
+                let index_and_series = if identify_bars(&props) {
                     Some((cat_idx_str.as_str(), series_label))
                 } else {
                     None

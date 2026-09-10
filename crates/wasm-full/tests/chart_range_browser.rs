@@ -825,6 +825,110 @@ fn disabled_range_item_click_is_rejected() {
     );
 }
 
+/// hit-area 3 件（`data-index` 0/1/2）+ readonly な期間切替 select
+/// （`data-value="30d"` の item が `data-range-from="1"`/`data-range-to="3"`
+/// を持つ）を `container_id` 配下へ構築する（イシュー #2134 codex-review
+/// 指摘: `SelectProps::readonly` による `data-readonly` は
+/// `headless_ui::select::item` 自身ではなく `root`/`trigger` へ付与される
+/// 設計〔`SelectProps::readonly` rustdoc 参照〕であるため、`item` 自身では
+/// なく `root` へ `data-readonly` を付与する）。
+fn readonly_select_range_markup(container_id: &str) {
+    fn hit_area(index: &'static str) -> fandhe_frontend_core::Node {
+        el(
+            "rect",
+            vec![
+                ("data-scope", "chart"),
+                ("data-part", "hit-area"),
+                ("data-index", index),
+            ],
+            vec![],
+        )
+    }
+
+    let svg = el(
+        "svg",
+        vec![("data-part", "root"), ("id", "chart-root")],
+        vec![hit_area("0"), hit_area("1"), hit_area("2")],
+    );
+
+    let select_root = el(
+        "div",
+        vec![
+            ("data-scope", "select"),
+            ("data-part", "root"),
+            ("aria-controls", "chart-root"),
+            ("data-readonly", ""),
+        ],
+        vec![
+            el(
+                "div",
+                vec![
+                    ("data-scope", "select"),
+                    ("data-part", "item"),
+                    ("data-value", "30d"),
+                    ("data-range-from", "1"),
+                    ("data-range-to", "3"),
+                ],
+                vec![],
+            ),
+            el(
+                "div",
+                vec![
+                    ("data-scope", "select"),
+                    ("data-part", "item"),
+                    ("data-value", "90d"),
+                ],
+                vec![],
+            ),
+        ],
+    );
+
+    let html = render(&el("div", vec![], vec![svg, select_root]));
+    web_sys::window()
+        .expect("window must exist")
+        .document()
+        .expect("document must exist")
+        .get_element_by_id(container_id)
+        .expect("container must exist")
+        .set_inner_html(&html);
+}
+
+/// イシュー #2134 codex-review 指摘: 従来は `data-disabled` のみを確認
+/// しており、`SelectProps::readonly` による `data-readonly`（`root` へ
+/// 付与、`item` 自身には付かない）を無視していた。readonly な select の
+/// 表示中 item をクリックしても、既存 headless dispatch
+/// （`crate::headless::instance_is_readonly` と同じ「最も近い同 scope の
+/// root」契約）と同様に `data-range` を書き換えないことを固定する。
+#[wasm_bindgen_test]
+fn readonly_select_range_item_click_is_rejected() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-range-test-readonly-select-item");
+    let _guard = RemoveOnDrop(container.clone());
+    readonly_select_range_markup("chart-range-test-readonly-select-item");
+
+    let item_30d = query(
+        &container,
+        "[data-scope=\"select\"][data-part=\"item\"][data-value=\"30d\"]",
+    )
+    .expect("30d item must exist");
+
+    wire_chart_range_events(container.clone()).expect("wiring must not fail");
+
+    let chart_root = document
+        .get_element_by_id("chart-root")
+        .expect("chart root must exist");
+    assert!(chart_root.get_attribute("data-range").is_none());
+
+    click(&item_30d);
+
+    assert!(
+        chart_root.get_attribute("data-range").is_none(),
+        "clicking an item inside a data-readonly select root must not \
+         write data-range (SelectProps::readonly contract, イシュー #2134 \
+         codex-review 指摘)"
+    );
+}
+
 /// hit-area 3 件（`data-index` 0/1/2）+ 期間切替 toggle-group（`data-value`
 /// `"invalid"` の item が `data-range-from="not-a-number"`
 /// `data-range-to="2"` を持つ）を `container_id` 配下へ構築する（イシュー

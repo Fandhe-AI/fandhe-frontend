@@ -630,6 +630,40 @@ pub(crate) mod wiring {
         true
     }
 
+    /// `item` から見て「最も近い同 scope の root」までの範囲内に
+    /// `data-readonly` を持つ祖先（`item` 自身を含む）があるかどうかを
+    /// 判定する（`crate::headless::instance_is_readonly` と同じ同一
+    /// インスタンス内判定契約、イシュー #2134 codex-review 指摘）。
+    ///
+    /// `[data-scope="select"][data-part="item"]` は
+    /// `headless_ui::select::item` が `data-readonly` を持たない（readonly
+    /// は `root`/`trigger`/`label`/`content` のみに付与される設計、
+    /// `SelectProps::readonly` rustdoc 参照）ため、`item` 自身の属性だけを
+    /// 見ても readonly な Select を検知できない。祖先方向へ辿りつつ
+    /// `data-scope` が `item` と一致する要素だけを候補にすることで、
+    /// ネストした無関係な別インスタンスの readonly が越境して伝播しない
+    /// ようにし、`data-part="root"` に到達した時点で探索を打ち切る
+    /// （`instance_is_readonly` と同じ境界規則。`toggle-group` は readonly
+    /// 概念を持たないため常に `false` で返る）。
+    fn item_is_readonly(item: &Element) -> bool {
+        let Some(scope) = item.get_attribute("data-scope") else {
+            return false;
+        };
+        let mut current = Some(item.clone());
+        while let Some(element) = current {
+            if element.get_attribute("data-scope").as_deref() == Some(scope.as_str()) {
+                if element.has_attribute("data-readonly") {
+                    return true;
+                }
+                if element.get_attribute("data-part").as_deref() == Some("root") {
+                    break;
+                }
+            }
+            current = element.parent_element();
+        }
+        false
+    }
+
     /// 期間切替コントロール item クリック（`data-value` の
     /// チャート root `data-range` への転記 + 同期）を処理する。
     fn handle_range_item_click(root: &Element, target: &Element) {
@@ -647,6 +681,16 @@ pub(crate) mod wiring {
         // 確認せず無効化された item のクリックでも `data-range` を更新
         // してしまっていた）。
         if item.closest("[data-disabled]").ok().flatten().is_some() {
+            return;
+        }
+        // `SelectProps::readonly` による `data-readonly` を確認して拒否
+        // する（イシュー #2134 codex-review 指摘: `data-disabled` のみの
+        // 確認では readonly な Select で表示中の item をクリックしても
+        // `data-range` が書き換わってしまっていた。`crate::headless::
+        // instance_is_readonly` と同じ「item から見て最も近い同 scope の
+        // root までの範囲」に限定した同一インスタンス内判定、
+        // `item_is_readonly` rustdoc参照）。
+        if item_is_readonly(&item) {
             return;
         }
         let Ok(Some(anchor)) = item.closest("[aria-controls]") else {

@@ -860,19 +860,32 @@ pub(crate) fn x_axis_category_labels(
 
 /// `props.show_tooltip`/`props.hidden_series` から `data-series`/`data-hidden`
 /// の追加属性列を組み立てる（内部ヘルパ、イシュー #2133。
-/// [`crate::line_chart`] の `series_extra_attrs` と同型）。
+/// [`crate::line_chart`] の `series_extra_attrs` と同型）。`data-series`
+/// は `show_tooltip` 単独ではなく `show_tooltip || range.is_some() ||
+/// !hidden_series.is_empty()` でゲートする（イシュー #2134 codex-review
+/// 指摘: 凡例トグル・期間切替のいずれかが実際に使われているときは
+/// `show_tooltip: false` でも識別属性を出す必要がある。素の
+/// `show_tooltip: false`・凡例/期間切替とも不使用の構成では従来どおり
+/// #2129 以前とバイト一致する、`area_chart_show_tooltip_false_matches_
+/// pre_2129_golden_html` 参照）。
 fn series_extra_attrs<'a>(
     props: &AreaChartProps<'a>,
     series_name: &'a str,
 ) -> Vec<(&'a str, &'a str)> {
     let mut extra: Vec<(&str, &str)> = Vec::new();
-    if props.show_tooltip {
+    if identify_series(props) {
         extra.push(("data-series", series_name));
     }
     if props.hidden_series.contains(&series_name) {
         extra.push(("data-hidden", ""));
     }
     extra
+}
+
+/// [`series_extra_attrs`]/`render_stacked` 呼び出し双方が共有する識別
+/// 属性出力ゲート判定（内部ヘルパ、イシュー #2134 codex-review 指摘）。
+fn identify_series(props: &AreaChartProps<'_>) -> bool {
+    props.show_tooltip || props.range.is_some() || !props.hidden_series.is_empty()
 }
 
 /// AreaChart 本体を組み立てる。
@@ -1120,7 +1133,7 @@ pub fn area_chart<'a>(
                 props.fill,
                 &fill_class,
                 props.gradient_id,
-                props.show_tooltip,
+                identify_series(props),
                 props.hidden_series,
             )?);
 
@@ -1172,7 +1185,7 @@ pub fn area_chart<'a>(
                 props.fill,
                 &fill_class,
                 props.gradient_id,
-                props.show_tooltip,
+                identify_series(props),
                 props.hidden_series,
             )?);
         }
