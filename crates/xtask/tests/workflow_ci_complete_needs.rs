@@ -1,7 +1,13 @@
-//! `.github/workflows/ci.yml` の `ci-complete` 集約ジョブ（ruleset
-//! `main-protection` の必須チェック集約先、`.claude/rules/ci.md` §
-//! 「`ci-complete` 集約ジョブと ruleset 必須チェック」）が持つ 3 つの
+//! `.github/workflows/ci.yml` の `ci-complete` 集約ジョブ（`.claude/rules/ci.md`
+//! §「`ci-complete` 集約ジョブと ruleset 必須チェック」）が持つ 3 つの
 //! 不変条件を fail-closed に機械検知する契約テスト（イシュー #2324）。
+//!
+//! ruleset `main-protection` は本ジョブへ集約せず PR HEAD へ報告される
+//! 全 context を個別列挙する（`.github/required-status-checks.json` が正、
+//! イシュー #2325）。`ci-complete` はその**第 2 の防御層**（ruleset への
+//! ジョブ登録漏れがあっても本ジョブの失敗経由で検知できる）という位置
+//! づけであり、本テストが検証する 3 つの不変条件（`needs:` の網羅性等）
+//! 自体はイシュー #2325 の前後で変わらない。
 //!
 //! ## 背景
 //!

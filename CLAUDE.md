@@ -63,6 +63,9 @@ fandhe-frontend/
 │   └── dev/                    # 開発用 Docker イメージ・compose 定義
 │       ├── Dockerfile         # Rust toolchain + wasm32 + 開発ツール一式。`make docker-dev-build` で構築
 │       └── compose.yml        # `make docker-dev-build` / `make docker-dev` で利用
+├── .github/
+│   ├── workflows/              # CI ワークフロー（ci.yml / deps-check.yml / musl-smoke.yml / image-size.yml / codex-review.yml / docs-site.yml / release.yml / update-external.yml）
+│   └── required-status-checks.json  # ruleset `main-protection` の required_status_checks の正のマニフェスト（`{context, integration_id}` の一覧。`gh api rulesets/<id>` の出力から生成、手書きしない。ワークフローとの整合は `crates/xtask/tests/workflow_required_checks_manifest.rs`、live ruleset との整合は `xtask check-ruleset-sync`〔`dep-version-check` ジョブ〕が検証する。イシュー #2325、`.claude/rules/ci.md` §「`ci-complete` 集約ジョブと ruleset 必須チェック」参照）
 ├── tools/                      # CI・開発スクリプト
 │   ├── ci/                    # CI 用ブートストラップ（ensure-gate-tools.sh）
 │   └── hooks/                 # Git hooks スクリプト（lefthook 実行対象）
