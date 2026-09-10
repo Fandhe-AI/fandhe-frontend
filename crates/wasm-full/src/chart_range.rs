@@ -166,19 +166,22 @@ pub fn category_hidden_by_range(index: usize, range: Option<(usize, usize)>) -> 
 ///
 /// `category_governed`/`series_governed` は、この要素の
 /// カテゴリ（`index`）/系列（`series`）を対象とする凡例 trigger が
-/// （押下状態を問わず）1 件でも存在するかどうかを表す。**いずれの
-/// 凡例にも管理されていない**（両方 `false`、または `series` が
-/// `None` かつ `category_governed` が `false`）要素は、`hidden_series`/
-/// `hidden_categories`（凡例が無ければ常に空集合）ではなく
-/// `declared_hidden`（SSR/直近の再描画が宣言した非表示状態）を
-/// フォールバックとして使う。これは `BarChartProps::hidden_series` 等で
-/// 系列を非表示にしつつ凡例 UI を配線しない構成で、期間切替コントロール
-/// だけの同期が SSR の非表示設定を「凡例なし＝全件表示」へ誤って
-/// 上書きしないための契約（イシュー #2134 codex-review 指摘）。
-/// 期間範囲（`range`）は凡例の有無に関わらず常に優先して非表示化する
-/// （period コントロールは凡例と独立に機能する）。
-/// [`is_indexed_element_hidden`] への入力をまとめる（clippy
-/// `too_many_arguments` 回避と呼び出し側の可読性向上を兼ねる）。
+/// （押下状態を問わず）1 件でも存在するかどうかを表す。**凡例が
+/// 管理していない次元**は、`hidden_categories`/`hidden_series`（凡例が
+/// 無ければ常に空集合）ではなく `declared_category_hidden`/
+/// `declared_series_hidden`（[`decompose_declared_hidden`] が
+/// SSR/直近の再描画から次元別に分解した宣言済み非表示状態）を
+/// フォールバックとして使う。これは `RadialChartProps { hidden_categories:
+/// &[1], .. }` に系列凡例だけを併設する・`hidden_series` にカテゴリ凡例
+/// だけを併設する、のように**片方の次元だけ凡例が管理する**構成で、
+/// 凡例が管理していない次元の非表示設定を維持するための契約（イシュー
+/// #2134 codex-review 指摘: 従来は `category_governed || series_governed`
+/// の単一 `declared_hidden` を丸ごと破棄しており、凡例が管理していない
+/// 次元の非表示が初期同期で解除されていた）。期間範囲（`range`）は
+/// 凡例の有無に関わらず常に優先して非表示化する（period コントロールは
+/// 凡例と独立に機能する）。[`is_indexed_element_hidden`] への入力を
+/// まとめる（clippy `too_many_arguments` 回避と呼び出し側の可読性向上を
+/// 兼ねる）。
 pub struct IndexedElementVisibility<'a> {
     /// `data-index` の値。
     pub index: usize,
@@ -192,9 +195,14 @@ pub struct IndexedElementVisibility<'a> {
     pub hidden_series: &'a [String],
     /// `series` を対象とする legend trigger が存在するか。
     pub series_governed: bool,
-    /// SSR/直近の再描画が宣言した非表示状態（[`is_indexed_element_hidden`]
-    /// rustdoc の `declared_hidden` フォールバック参照）。
-    pub declared_hidden: bool,
+    /// SSR/直近の再描画が宣言したカテゴリ次元の非表示状態
+    /// （[`decompose_declared_hidden`] が算出、`category_governed`
+    /// が `false` のときのみ参照する）。
+    pub declared_category_hidden: bool,
+    /// SSR/直近の再描画が宣言した系列次元の非表示状態
+    /// （[`decompose_declared_hidden`] が算出、`series_governed`
+    /// が `false` のときのみ参照する）。
+    pub declared_series_hidden: bool,
     /// 期間切替コントロールが解決した表示範囲。
     pub range: Option<(usize, usize)>,
 }
@@ -204,16 +212,81 @@ pub fn is_indexed_element_hidden(input: IndexedElementVisibility<'_>) -> bool {
     if category_hidden_by_range(input.index, input.range) {
         return true;
     }
-    if input.category_governed && input.hidden_categories.contains(&input.index) {
+    let category_hidden = if input.category_governed {
+        input.hidden_categories.contains(&input.index)
+    } else {
+        input.declared_category_hidden
+    };
+    if category_hidden {
         return true;
     }
     if let Some(series) = input.series {
-        if input.series_governed && input.hidden_series.iter().any(|hidden| hidden == series) {
+        let series_hidden = if input.series_governed {
+            input.hidden_series.iter().any(|hidden| hidden == series)
+        } else {
+            input.declared_series_hidden
+        };
+        if series_hidden {
             return true;
         }
     }
-    let governed = input.category_governed || input.series_governed;
-    !governed && input.declared_hidden
+    false
+}
+
+/// [`is_indexed_element_hidden`] の `declared_category_hidden`/
+/// `declared_series_hidden` を、要素 1 件分の SSR マーカーから分解する
+/// 純粋関数（web-sys 非依存、イシュー #2134 codex-review 指摘）。
+///
+/// SSR が出力する `data-hidden` は、要素 1 件につき「カテゴリ非表示
+/// (`hidden_categories`) または系列非表示 (`hidden_series`)」の融合済み
+/// 論理和である。両次元が同一要素で同時に効き得るのは
+/// `crates/pre-styled-ui/src/radial_chart.rs` の `bar`
+/// （`category_hidden || hidden_series.contains(series)`）のみで、bar は
+/// この融合とは別に、値なし属性 `data-hidden-category`/
+/// `data-hidden-series`（`RadialChartProps::hidden_categories`/
+/// `hidden_series` それぞれ単独の宣言、`crates/pre-styled-ui/src/charts/mod.rs`
+/// モジュール doc「凡例トグルの SSR 構造」節参照）を出力する。donut は
+/// 常にカテゴリのみ・pie は `stacked` による排他選択・bar/line は常に
+/// 系列のみのため、これら以外の要素は自身の融合済み `data-hidden`
+/// （`declared_combined`）がそのまま単一次元の宣言値になる。
+///
+/// - `has_category_marker`/`has_series_marker`: 要素自身の
+///   `data-hidden-category`/`data-hidden-series`（radial `bar` のみが
+///   持つ）。
+/// - `has_series_attr`: 要素が `data-series` を持つか（`category_governed`
+///   に対応する `declared_category_hidden` の算出のみに使う。`data-series`
+///   が無い要素、donut の `segment`・radial の `track`/`label` 等は定義上
+///   カテゴリのみに依存するため `declared_combined` をそのまま使う）。
+/// - `declared_combined`: 要素自身の `data-hidden`（SSR/直近の再描画が
+///   宣言した、凡例・期間切替を通す前の値）。
+///
+/// 戻り値は `(declared_category_hidden, declared_series_hidden)`。
+#[must_use]
+pub fn decompose_declared_hidden(
+    has_category_marker: bool,
+    has_series_marker: bool,
+    has_series_attr: bool,
+    declared_combined: bool,
+) -> (bool, bool) {
+    let category = has_category_marker || (!has_series_attr && declared_combined);
+    let series = if !has_series_attr {
+        // `data-series` を持たない要素（donut の `segment`・radial の
+        // `track`/`label` 等）は系列概念自体が無い。
+        false
+    } else if has_series_marker {
+        true
+    } else if has_category_marker {
+        // radial の `bar`: カテゴリ側の寄与は明示されているが系列側の
+        // マーカーが無い＝系列は非表示ではない（融合済み値をそのまま
+        // 系列の宣言値として使うと誤って非表示扱いになる、イシュー
+        // #2134 codex-review 指摘の再発防止）。
+        false
+    } else {
+        // マーカーが無い要素（bar/line・radial でカテゴリが可視だった
+        // bar・series-only 要素）は、融合済み値がそのまま系列の宣言値。
+        declared_combined
+    };
+    (category, series)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -224,8 +297,8 @@ pub(crate) mod wiring {
     use web_sys::{Element, Event, MutationObserver, MutationObserverInit};
 
     use super::{
-        category_hidden_by_range, is_indexed_element_hidden, parse_range_bound, resolve_range,
-        IndexedElementVisibility,
+        category_hidden_by_range, decompose_declared_hidden, is_indexed_element_hidden,
+        parse_range_bound, resolve_range, IndexedElementVisibility,
     };
 
     /// 凡例 trigger を列挙する静的セレクタ（`legend`/`category_legend`
@@ -260,12 +333,22 @@ pub(crate) mod wiring {
     /// bookkeeping 属性（`"true"`/`"false"` の 2 値のみ、利用者由来
     /// 文字列は書き込まない、`security.md` A03）。凡例に管理されていない
     /// 系列/カテゴリの非表示状態を [`sync_chart`] の複数回の同期を跨いで
-    /// 保持するために使う（[`is_indexed_element_hidden`] の
-    /// `declared_hidden` 引数 rustdoc 参照）。構造再描画で要素が丸ごと
+    /// 保持するために使う（[`super::decompose_declared_hidden`] の
+    /// `declared_combined` 引数 rustdoc 参照）。構造再描画で要素が丸ごと
     /// 再生成されるたびに、その時点のフレッシュな SSR 出力から再度
     /// 記録される（本モジュールは内部にミュータブルな状態を持たない設計
     /// のため、DOM 上のこの属性が唯一の永続化先）。
     const DECLARED_HIDDEN_ATTR: &str = "data-declared-hidden";
+    /// radial `bar` のみが持つ、カテゴリ次元単独の宣言済み非表示マーカー
+    /// （`crates/pre-styled-ui/src/radial_chart.rs` の `bar` 描画・
+    /// `crates/pre-styled-ui/src/charts/mod.rs` モジュール doc「凡例
+    /// トグルの SSR 構造」節参照）。[`super::decompose_declared_hidden`]
+    /// の `has_category_marker` 引数として渡す。
+    const DECLARED_HIDDEN_CATEGORY_ATTR: &str = "data-hidden-category";
+    /// radial `bar` のみが持つ、系列次元単独の宣言済み非表示マーカー
+    /// （同上）。[`super::decompose_declared_hidden`] の
+    /// `has_series_marker` 引数として渡す。
+    const DECLARED_HIDDEN_SERIES_ATTR: &str = "data-hidden-series";
 
     /// `element` の `data-index` を `usize` として読む（無い・パース
     /// 不能な要素は `None`、fail-closed で対象から除外する）。
@@ -291,10 +374,23 @@ pub(crate) mod wiring {
         }
     }
 
-    /// [`ensure_declared_hidden_marker`] が記録した宣言済み非表示状態を
-    /// 読む（未記録なら `false`、fail-closed）。
+    /// [`ensure_declared_hidden_marker`] が記録した、融合済みの宣言済み
+    /// 非表示状態を読む（未記録なら `false`、fail-closed）。
+    /// [`super::decompose_declared_hidden`] へ渡して次元別に分解する。
     fn declared_hidden(element: &Element) -> bool {
         element.get_attribute(DECLARED_HIDDEN_ATTR).as_deref() == Some("true")
+    }
+
+    /// `element` の [`super::decompose_declared_hidden`] 入力を DOM から
+    /// 組み立てて呼び出す（`ensure_declared_hidden_marker` を先に呼んで
+    /// おく必要がある、[`declared_hidden`] rustdoc 参照）。
+    fn declared_dims(element: &Element) -> (bool, bool) {
+        decompose_declared_hidden(
+            element.has_attribute(DECLARED_HIDDEN_CATEGORY_ATTR),
+            element.has_attribute(DECLARED_HIDDEN_SERIES_ATTR),
+            element.has_attribute("data-series"),
+            declared_hidden(element),
+        )
     }
 
     /// 凡例トグルから合成した非表示集合と、その系列/カテゴリが凡例に
@@ -516,6 +612,7 @@ pub(crate) mod wiring {
             // 前に必ず呼ぶ（rustdoc「同期を跨いだ宣言状態の保持」契約）。
             ensure_declared_hidden_marker(&element);
             let series = element.get_attribute("data-series");
+            let (declared_category_hidden, declared_series_hidden) = declared_dims(&element);
             let hidden = is_indexed_element_hidden(IndexedElementVisibility {
                 index,
                 series: series.as_deref(),
@@ -523,7 +620,8 @@ pub(crate) mod wiring {
                 category_governed: legend.category_governed(index),
                 hidden_series: &legend.hidden_series,
                 series_governed: series.as_deref().is_some_and(|s| legend.series_governed(s)),
-                declared_hidden: declared_hidden(&element),
+                declared_category_hidden,
+                declared_series_hidden,
                 range,
             });
             if hidden {
@@ -558,7 +656,7 @@ pub(crate) mod wiring {
             let hidden = if governed {
                 legend.hidden_series.iter().any(|hidden| hidden == &series)
             } else {
-                declared_hidden(&element)
+                declared_dims(&element).1
             };
             if hidden {
                 set_dom_attribute(&element, HIDDEN_ATTR, "");
@@ -894,7 +992,8 @@ mod tests {
             category_governed: true,
             hidden_series: &hidden_series,
             series_governed: true,
-            declared_hidden: false,
+            declared_category_hidden: false,
+            declared_series_hidden: false,
             range: None,
         }));
         // 系列 b は凡例で非表示。
@@ -905,7 +1004,8 @@ mod tests {
             category_governed: true,
             hidden_series: &hidden_series,
             series_governed: true,
-            declared_hidden: false,
+            declared_category_hidden: false,
+            declared_series_hidden: false,
             range: None,
         }));
         // カテゴリ 5 は category_legend で非表示。
@@ -916,7 +1016,8 @@ mod tests {
             category_governed: true,
             hidden_series: &hidden_series,
             series_governed: true,
-            declared_hidden: false,
+            declared_category_hidden: false,
+            declared_series_hidden: false,
             range: None,
         }));
         // 範囲外カテゴリ。
@@ -927,7 +1028,8 @@ mod tests {
             category_governed: true,
             hidden_series: &hidden_series,
             series_governed: true,
-            declared_hidden: false,
+            declared_category_hidden: false,
+            declared_series_hidden: false,
             range: Some((0, 3)),
         }));
         // hit-area は series を持たない場合がある（None）。
@@ -938,7 +1040,8 @@ mod tests {
             category_governed: true,
             hidden_series: &hidden_series,
             series_governed: true,
-            declared_hidden: false,
+            declared_category_hidden: false,
+            declared_series_hidden: false,
             range: Some((0, 3)),
         }));
     }
@@ -948,8 +1051,8 @@ mod tests {
         // 凡例が一切無い（category/series いずれも `governed = false`）
         // 構成: `hidden_categories`/`hidden_series` は常に空集合になる
         // ため、凡例が誤って「全件表示」を宣言したものとして扱わず、
-        // SSR/直近の再描画が宣言した `declared_hidden` を維持する
-        // （イシュー #2134 codex-review 指摘）。
+        // SSR/直近の再描画が宣言した declared 状態を維持する（イシュー
+        // #2134 codex-review 指摘）。
         assert!(is_indexed_element_hidden(IndexedElementVisibility {
             index: 0,
             series: Some("a"),
@@ -957,7 +1060,8 @@ mod tests {
             category_governed: false,
             hidden_series: &[],
             series_governed: false,
-            declared_hidden: true,
+            declared_category_hidden: false,
+            declared_series_hidden: true,
             range: None,
         }));
         assert!(!is_indexed_element_hidden(IndexedElementVisibility {
@@ -967,7 +1071,8 @@ mod tests {
             category_governed: false,
             hidden_series: &[],
             series_governed: false,
-            declared_hidden: false,
+            declared_category_hidden: false,
+            declared_series_hidden: false,
             range: None,
         }));
         // 期間範囲は凡例の有無に関わらず優先して非表示化する。
@@ -978,11 +1083,72 @@ mod tests {
             category_governed: false,
             hidden_series: &[],
             series_governed: false,
-            declared_hidden: false,
+            declared_category_hidden: false,
+            declared_series_hidden: false,
             range: Some((0, 3)),
         }));
-        // いずれかの次元が凡例に管理されていれば、`declared_hidden`
-        // フォールバックは使わない（凡例側の判定が優先する）。
+    }
+
+    #[test]
+    fn is_indexed_element_hidden_series_governed_still_applies_ungoverned_category_declared_state()
+    {
+        // イシュー #2134 codex-review 指摘（本 PR 是正対象）: 系列凡例
+        // だけを併設した `RadialChartProps { hidden_categories: &[1], .. }`
+        // では、category 次元が凡例に管理されていなくても
+        // `declared_category_hidden` の非表示を維持しなければならない
+        // （series 側が可視でも、category 側の宣言が優先して非表示に
+        // なる）。
+        assert!(is_indexed_element_hidden(IndexedElementVisibility {
+            index: 1,
+            series: Some("a"),
+            hidden_categories: &[],
+            category_governed: false,
+            hidden_series: &[],
+            series_governed: true,
+            declared_category_hidden: true,
+            declared_series_hidden: false,
+            range: None,
+        }));
+        // 系列凡例が対象系列を非表示にしていなければ、category 側の
+        // 宣言が無い場合は可視のまま。
+        assert!(!is_indexed_element_hidden(IndexedElementVisibility {
+            index: 0,
+            series: Some("a"),
+            hidden_categories: &[],
+            category_governed: false,
+            hidden_series: &[],
+            series_governed: true,
+            declared_category_hidden: false,
+            declared_series_hidden: false,
+            range: None,
+        }));
+    }
+
+    #[test]
+    fn is_indexed_element_hidden_category_governed_still_applies_ungoverned_series_declared_state()
+    {
+        // イシュー #2134 codex-review 指摘（本 PR 是正対象、上記の対称
+        // ケース）: category 凡例だけを併設した `RadialChartProps {
+        // hidden_series: &["b"], .. }` では、series 次元が凡例に管理され
+        // ていなくても `declared_series_hidden` の非表示を維持しなければ
+        // ならない（category 側が可視でも、series 側の宣言が優先して
+        // 非表示になる）。
+        assert!(is_indexed_element_hidden(IndexedElementVisibility {
+            index: 0,
+            series: Some("b"),
+            hidden_categories: &[],
+            category_governed: true,
+            hidden_series: &[],
+            series_governed: false,
+            declared_category_hidden: false,
+            declared_series_hidden: true,
+            range: None,
+        }));
+        // category 凡例が対象カテゴリを非表示にしていなければ、series
+        // 側の宣言が無い場合は可視のまま（旧テストが「いずれかの次元が
+        // 凡例に管理されていれば declared フォールバックを使わない」と
+        // 誤って断定していた組み合わせの是正: series 側の宣言が実際に
+        // `false` なら、この場合は従来どおり可視で変わらない）。
         assert!(!is_indexed_element_hidden(IndexedElementVisibility {
             index: 0,
             series: Some("a"),
@@ -990,8 +1156,96 @@ mod tests {
             category_governed: true,
             hidden_series: &[],
             series_governed: false,
-            declared_hidden: true,
+            declared_category_hidden: false,
+            declared_series_hidden: false,
             range: None,
         }));
+    }
+
+    #[test]
+    fn decompose_declared_hidden_radial_bar_category_marker_only_is_category_hidden_only() {
+        // イシュー #2134 codex-review 指摘の再現構成（RadialChart 相当）:
+        // `hidden_categories: &[1]` の bar（data-index="1"
+        // data-series="s"）は SSR で `data-hidden`/`data-hidden-category`
+        // を持つが `data-hidden-series` は持たない（系列 "s" 自体は
+        // 非表示系列ではないため）。
+        let (category, series) = decompose_declared_hidden(true, false, true, true);
+        assert!(category);
+        assert!(!series);
+        // 系列凡例だけを併設した構成（category_governed = false,
+        // series_governed = true）でも、category 側の宣言が優先して
+        // 非表示を維持する（系列 "s" 自体は可視のまま）。
+        assert!(is_indexed_element_hidden(IndexedElementVisibility {
+            index: 1,
+            series: Some("s"),
+            hidden_categories: &[],
+            category_governed: false,
+            hidden_series: &[],
+            series_governed: true,
+            declared_category_hidden: category,
+            declared_series_hidden: series,
+            range: None,
+        }));
+    }
+
+    #[test]
+    fn decompose_declared_hidden_radial_bar_series_marker_only_is_series_hidden_only() {
+        // 上記の対称ケース（RadialChart 相当）: `hidden_series: &["b"]`
+        // の bar（category は可視）は SSR で `data-hidden`/
+        // `data-hidden-series` を持つが `data-hidden-category` は
+        // 持たない。
+        let (category, series) = decompose_declared_hidden(false, true, true, true);
+        assert!(!category);
+        assert!(series);
+        // category 凡例だけを併設した構成（category_governed = true,
+        // series_governed = false）でも、series 側の宣言が優先して
+        // 非表示を維持する（カテゴリ自体は可視のまま）。
+        assert!(is_indexed_element_hidden(IndexedElementVisibility {
+            index: 0,
+            series: Some("b"),
+            hidden_categories: &[],
+            category_governed: true,
+            hidden_series: &[],
+            series_governed: false,
+            declared_category_hidden: category,
+            declared_series_hidden: series,
+            range: None,
+        }));
+    }
+
+    #[test]
+    fn decompose_declared_hidden_radial_bar_no_marker_but_category_visible_is_series_hidden() {
+        // radial bar でカテゴリが可視（マーカー無し）のとき、combined
+        // （`declared_combined`）は系列の寄与のみで説明できるため、
+        // series 側へそのまま伝播する（category 側は `false`）。
+        let (category, series) = decompose_declared_hidden(false, false, true, true);
+        assert!(!category);
+        assert!(series);
+    }
+
+    #[test]
+    fn decompose_declared_hidden_bar_line_no_marker_has_series_attr_reads_combined_as_series() {
+        // BarChart/LineChart（category 概念自体が無い。マーカーは
+        // 常に無い）の bar/point: `declared_combined` はそのまま系列の
+        // 宣言値になり、category 側は常に `false`（category 概念が無い
+        // ことを表す）。
+        let (category, series) = decompose_declared_hidden(false, false, true, true);
+        assert!(!category);
+        assert!(series);
+        let (category_visible, series_visible) =
+            decompose_declared_hidden(false, false, true, false);
+        assert!(!category_visible);
+        assert!(!series_visible);
+    }
+
+    #[test]
+    fn decompose_declared_hidden_category_only_element_without_series_attr_reads_combined_as_category(
+    ) {
+        // donut の `segment`・pie 非 stacked の `segment`・radial の
+        // `track`/`label` 等（`data-series` を持たない）は
+        // `declared_combined` がそのままカテゴリの宣言値になる。
+        let (category, series) = decompose_declared_hidden(false, false, false, true);
+        assert!(category);
+        assert!(!series);
     }
 }
