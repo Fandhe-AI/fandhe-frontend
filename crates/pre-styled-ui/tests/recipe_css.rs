@@ -1008,6 +1008,22 @@ fn content_height_transition_preset_registers_base_state_and_starting_style() {
         "}\n",
     );
     assert!(css.contains(expected_starting_style));
+
+    // `@supports not (height: calc-size(auto, size))`: 未対応ブラウザでは
+    // 開いた定常状態を `height: auto`/`overflow: visible` へ戻し、
+    // `transition: none` でアニメーションを無効化する（PR #2289 codex
+    // レビュー P1 是正、`SlotRecipe::content_height_transition` rustdoc
+    // 「calc-size() 未対応ブラウザでの表示回帰対策」節参照）。
+    let expected_supports_fallback = concat!(
+        "@supports not (height: calc-size(auto, size)) {\n",
+        "  [data-scope=\"collapsible\"][data-part=\"content\"] {\n",
+        "    height: auto;\n",
+        "    overflow: visible;\n",
+        "    transition: none;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert!(css.contains(expected_supports_fallback));
 }
 
 #[test]

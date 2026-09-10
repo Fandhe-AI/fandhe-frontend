@@ -982,6 +982,7 @@ pub struct SlotRecipe {
     compound_variants: Vec<CompoundVariantRule>,
     states: Vec<StateRule>,
     starting_style: Vec<StartingStyleRule>,
+    supports_not_calc_size: Vec<BaseRule>,
 }
 
 /// [`StateCondition`] 1 個が識別子として妥当かどうかを判定する（内部
@@ -1116,6 +1117,7 @@ impl SlotRecipe {
             compound_variants: Vec::new(),
             states: Vec::new(),
             starting_style: Vec::new(),
+            supports_not_calc_size: Vec::new(),
         }
     }
 
@@ -1314,19 +1316,44 @@ impl SlotRecipe {
         self
     }
 
+    /// `slot` へ `@supports not (height: calc-size(auto, size))` 配下の
+    /// 上書き宣言を登録する（builder、自己消費。イシュー #2192、PR #2289
+    /// codex レビュー P1 是正）。[`SlotRecipe::css`] の出力末尾に
+    /// `@starting-style`・`@media (hover: hover)` と同様 1 個のブロックへ
+    /// 集約される。セレクタは常に無条件の base セレクタ
+    /// （`[data-scope="<scope>"][data-part="<slot>"]`）を用いる（`[hidden]`
+    /// state 規則は本 slot への通常の base より詳細度が高いため、閉状態は
+    /// 引き続き [hidden] state 規則が優先される。カスケード上「開いた
+    /// 定常状態の上書き」としてのみ効く）。
+    #[must_use]
+    pub fn supports_not_calc_size_height(
+        mut self,
+        slot: &'static str,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.supports_not_calc_size
+            .push(BaseRule { slot, declarations });
+        self
+    }
+
     /// `slot`（headless の disclosure 系 content パート）へ
     /// `--fandhe-content-height` 連動の高さトランジションを 1 呼び出しで
     /// 適用する（builder、自己消費。イシュー #2192、案 C
     /// 〔`docs/design/collapsible-height-animation.md`〕の中核 preset）。
     ///
     /// [`SlotRecipe::base`]・[`SlotRecipe::state`]（[`StateCondition::Attr`]
-    /// `"hidden"`）・[`SlotRecipe::starting_style`] の 3 登録を一括で行う:
+    /// `"hidden"`）・[`SlotRecipe::starting_style`]・
+    /// [`SlotRecipe::supports_not_calc_size_height`] の 4 登録を一括で
+    /// 行う:
     ///
     /// - base: [`content_height_open_declarations`]（`height:
     ///   var(--fandhe-content-height, auto)` 等）
     /// - `[hidden]` state: [`content_height_closed_declarations`]
     /// - `@starting-style`: [`content_height_closed_declarations`]（開く
     ///   遷移の開始点を `height: 0` に固定する）
+    /// - `@supports not (height: calc-size(auto, size))`: `height: auto` /
+    ///   `overflow: visible` / `transition: none`（PR #2289 codex レビュー
+    ///   P1 是正、下記「calc-size() 未対応ブラウザでの表示回帰対策」参照）
     ///
     /// 閉状態のキーに `[hidden]`（[`StateCondition::Attr`]）を採るのは、
     /// `data-state="closed"` ではなく `hidden` 存在属性が headless の
@@ -1334,18 +1361,29 @@ impl SlotRecipe {
     /// `item-content` 等）で保証された契約だから（`crates/headless-ui`
     /// 側の共通契約、`docs/design/collapsible-height-animation.md` §5.1）。
     ///
-    /// # 他クレートとの契約
+    /// # calc-size() 未対応ブラウザでの表示回帰対策
     ///
-    /// `--fandhe-content-height` の実測・書き込みは `fandhe-frontend-
-    /// wasm-full`（[`CONTENT_HEIGHT_VAR`] rustdoc 参照）が担う。本メソッドは
-    /// 変数が未設定（JS 無効・wasm-full 未配線）でも `auto` フォールバックで
-    /// 安全に劣化する。`calc-size()` 対応ブラウザ（[`content_height_open_
-    /// declarations`] rustdoc 参照）では開いた定常状態が常に `auto` として
-    /// 評価されるため、内容の後発的な高さ変化（ウィンドウ幅変化・遅延
-    /// 読み込み等）にも継続追従しクリップされない。未対応ブラウザでは
-    /// 従来どおり wasm-full の実測タイミング（配線時・`on_update` 直後）
-    /// に限られたままであり、その間の後発的な高さ変化には追従しない
-    /// （既知の限界、同設計文書 §5.2 参照）。
+    /// [`content_height_open_declarations`] は `height: calc-size(auto,
+    /// size)` の progressive enhancement を持つが、これは対応ブラウザの
+    /// みで有効になる宣言であり、未対応ブラウザでは直前の `height:
+    /// var(--fandhe-content-height, auto)`（wasm-full の実測 px 固定値）が
+    /// そのまま残る。本メソッドが従来これを「既知の限界」として放置して
+    /// いたのは、本 PR（イシュー #2192）が height トランジションを導入
+    /// する**前**（`height: auto` を継続的に評価していた）と比べて表示
+    /// 回帰にあたる（PR #2289 codex レビュー P1 指摘）: 開いた後の画面幅
+    /// 縮小・画像の遅延読み込み等で内容が固定 px 高さを超えて伸びると、
+    /// `overflow: hidden` により本文・操作要素が切り取られてしまう。
+    /// [`SlotRecipe::supports_not_calc_size_height`] で登録する
+    /// `@supports not (height: calc-size(auto, size))` ブロックが、
+    /// 未対応ブラウザに限って開いた定常状態を `height: auto` /
+    /// `overflow: visible` へ強制的に戻し、`transition: none` で
+    /// トランジション自体も無効化する（`[hidden]` state 規則は本 base
+    /// セレクタより詳細度が高いため閉状態には影響しない）。この結果、
+    /// 未対応ブラウザは本 PR 適用前と同じ「`auto` に継続追従し、開閉は
+    /// 即時（無アニメーション）」という安全な劣化へ戻る。対応ブラウザ
+    /// （[`content_height_open_declarations`] rustdoc 参照）では `@supports`
+    /// 条件が不成立のためこのブロックは適用されず、`calc-size()` による
+    /// アニメーション付きの高さ追従がそのまま有効になる。
     #[must_use]
     pub fn content_height_transition(self, slot: &'static str, duration: MotionDuration) -> Self {
         self.base(slot, content_height_open_declarations(duration))
@@ -1355,6 +1393,14 @@ impl SlotRecipe {
                 content_height_closed_declarations(),
             )
             .starting_style(slot, content_height_closed_declarations())
+            .supports_not_calc_size_height(
+                slot,
+                vec![
+                    decl("height", "auto"),
+                    decl("overflow", "visible"),
+                    decl("transition", "none"),
+                ],
+            )
     }
 
     /// この slot に属するかどうかを判定する（`slots` 未宣言の slot を
@@ -1567,6 +1613,36 @@ impl SlotRecipe {
             // 他の規則ブロック間と同じ「規則間は空行 1 つ」書式
             // （本関数末尾の最終トリムと対をなす）を @media ブロックとの
             // 間にも適用する。
+            out.push('\n');
+        }
+
+        // `@supports not (height: calc-size(auto, size))` ブロック
+        // （イシュー #2192、PR #2289 codex レビュー P1 是正）。
+        // `supports_not_calc_size_height` rustdoc 参照。セレクタは常に
+        // 無条件の base セレクタを使うため `state`/`@starting-style` の
+        // ような条件分岐を持たない（フィルタリングのみ base ループと同じ
+        // `is_declared_slot`/`is_valid_identifier` 検証を通す）。
+        let mut supports_not_calc_size_css = String::new();
+        for rule in &self.supports_not_calc_size {
+            if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
+                continue;
+            }
+            let selector = format!(
+                "[data-scope=\"{}\"][data-part=\"{}\"]",
+                self.scope, rule.slot
+            );
+            if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                supports_not_calc_size_css.push_str(&css);
+                supports_not_calc_size_css.push('\n');
+            }
+        }
+
+        if !supports_not_calc_size_css.is_empty() {
+            write_at_rule_block(
+                &mut out,
+                "@supports not (height: calc-size(auto, size))",
+                &supports_not_calc_size_css,
+            );
             out.push('\n');
         }
 

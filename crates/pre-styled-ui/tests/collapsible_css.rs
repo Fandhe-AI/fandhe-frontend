@@ -3,7 +3,9 @@
 //!
 //! `crates/pre-styled-ui/tests/accordion_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
-//! （base → states → `@starting-style` → `@media (hover: hover)`）が崩れた
+//! （base → states → `@starting-style` →
+//! `@supports not (height: calc-size(auto, size))`〔PR #2289 codex レビュー
+//! P1 是正、イシュー #2192〕→ `@media (hover: hover)`）が崩れた
 //! 場合や意図しない宣言の追加・欠落があった場合に、この golden テストが
 //! 即座に検知する。`collapsible` は size/variant 軸を提供しないため
 //! （`crate::collapsible` モジュール doc 参照）、variant セクションは
@@ -170,6 +172,14 @@ const COLLAPSIBLE_GOLDEN_CSS: &str = r#"[data-scope="collapsible"][data-part="ro
     height: 0;
     padding-block: 0;
     margin-block: 0;
+  }
+}
+
+@supports not (height: calc-size(auto, size)) {
+  [data-scope="collapsible"][data-part="content"] {
+    height: auto;
+    overflow: visible;
+    transition: none;
   }
 }
 

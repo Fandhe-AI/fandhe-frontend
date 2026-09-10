@@ -160,11 +160,25 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
   非遷移時の定常状態が常に `auto` として評価されるため、内容の後発的な
   高さ変化にも継続追従しクリップされなくなる（`calc-size()` は
   `interpolate-size: allow-keywords` を当該宣言へ自動適用する仕様のため、
-  `0 → 定常値` のトランジションも同時に成立する）。**残存する限界**:
-  `calc-size()` 未対応ブラウザでは今も固定 px + JS 実測タイミングに
-  限定されたクリップの限界が残る（resize 時の再同期は引き続き本イシュー
-  のスコープ外・別イシュー提案の対象）。#2191 が記録する「縮んだ場合に
-  前回値が残る」限界（§5.1）はブラウザ対応状況によらず不変。
+  `0 → 定常値` のトランジションも同時に成立する）。
+- **calc-size() 未対応ブラウザでの表示回帰の解消（PR #2289 codex レビュー
+  P1 是正）**: 上記 progressive enhancement だけでは、`calc-size()` 未対応
+  ブラウザにおいて本 PR（#2192）適用前（`height: auto` を継続的に評価）
+  より表示が悪化する回帰が残っていた: 開いた後の画面幅縮小・画像の遅延
+  読み込み等で内容が固定 px 高さを超えて伸びると `overflow: hidden` に
+  よって本文・操作要素が切り取られる。これを是正するため
+  `SlotRecipe::supports_not_calc_size_height`（`content_height_transition`
+  preset へ統合）で `@supports not (height: calc-size(auto, size))` ブロック
+  を追加した。未対応ブラウザに限って開いた定常状態を `height: auto` /
+  `overflow: visible` へ強制的に戻し `transition: none` でアニメーション
+  自体も無効化する（`[hidden]` state 規則は詳細度が高いため閉状態には
+  影響しない）。結果として未対応ブラウザは本 PR 適用前と同じ「`auto` に
+  継続追従・開閉は即時（無アニメーション）」という安全な劣化へ戻り、
+  対応ブラウザのみアニメーション付きの高さ追従が有効になる。resize 時の
+  再同期（対応ブラウザでの計測タイミング外の高さ変化に JS が追従する
+  機能自体）は引き続き本イシューのスコープ外・別イシュー提案の対象。
+  #2191 が記録する「縮んだ場合に前回値が残る」限界（§5.1）はブラウザ
+  対応状況によらず不変。
 - **`scrollHeight` は border を含まない**ため、border-box で
   `height: <scrollHeight>px` を当てると collapsible（1px border）では
   content 領域が上下計 2px 短くなる（`overflow: hidden` の切り取り境界は
