@@ -13402,6 +13402,12 @@ fn charts_section() -> Node {
         &{
             let mut props = LineChartProps::new(&data, "Series (toggle) chart");
             props.hidden_series = &["Signups"];
+            // 凡例併設の明示的 opt-in（イシュー #2134 codex-review
+            // 指摘）: 凡例クリックで系列を再表示する操作（Signups →
+            // 表示）を経ても識別属性が維持されるよう、初期状態が非空の
+            // `hidden_series` に頼らず `legend: true` を明示する
+            // （`LineChartProps::legend` rustdoc 参照）。
+            props.legend = true;
             props
         },
         vec![("id", "charts-showcase-toggle-chart")],

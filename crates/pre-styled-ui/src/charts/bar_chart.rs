@@ -344,6 +344,19 @@ pub struct BarChartProps {
     /// 付与する。スケール/domain の算出には影響しない。データに存在しない
     /// 名前を指定してもエラーにしない（fail-soft）。
     pub hidden_series: Vec<String>,
+    /// このチャートを [`super::legend`] の凡例トグルと組み合わせて使うか
+    /// （明示的 opt-in、既定 `false`、イシュー #2134 codex-review 指摘）。
+    /// `show_tooltip`/`range.is_some()`/`hidden_series` 非空のいずれでも
+    /// 判定できない「凡例は使うが初期状態は全系列表示（`hidden_series`
+    /// が空）かつ `show_tooltip: false`」という構成では、[`identify_bars`]
+    /// のそれまでの判定条件が偽になり識別属性（`data-series`）が出力
+    /// されないため、凡例クリックで系列を非表示にできなかった
+    /// （`wasm-full::chart_range::wiring::sync_chart` が `data-series` を
+    /// 判定源にするため）。呼び出し側が凡例を併設するときは `true` を
+    /// 明示することで、初期表示から識別属性を出力させる。凡例を使わない
+    /// 構成（既定 `false`）では従来どおり #2129 以前の出力とバイト一致
+    /// する契約を変えない（`BarChartProps::show_tooltip` rustdoc 参照）。
+    pub legend: bool,
 }
 
 impl Default for BarChartProps {
@@ -364,8 +377,29 @@ impl Default for BarChartProps {
             show_tooltip: true,
             range: None,
             hidden_series: Vec::new(),
+            legend: false,
         }
     }
+}
+
+/// `bar`/`value-label`/`inside-label` へ凡例トグル・期間切替の共有識別子
+/// （`data-index`/`data-series`）を出力するかどうかのゲート判定（内部
+/// ヘルパ、イシュー #2134 codex-review 指摘）。`show_tooltip` 単独では
+/// なく `show_tooltip || range.is_some() || !hidden_series.is_empty() ||
+/// legend` で判定する: 凡例トグル・期間切替のいずれかが実際に使われて
+/// いるときは `show_tooltip: false`（tooltip 非表示、opt-out）でも識別
+/// 属性を出す必要がある（`wasm-full::chart_range::wiring::sync_chart` が
+/// `data-index`/`data-series` を判定源にするため）。`range`/
+/// `hidden_series` は「実際に範囲指定・非表示系列がある」ことでしか
+/// opt-in を検出できず、`show_tooltip: false` かつ凡例を併設するが
+/// 初期状態は全系列表示（`hidden_series` が空）という構成を見逃す
+/// （2 ラウンド目の codex-review 指摘）。[`BarChartProps::legend`] は
+/// この初期全表示状態を含めて明示的に判定するための opt-in フラグ。
+/// 素の `show_tooltip: false`・凡例/期間切替とも不使用の構成では従来
+/// どおり #2129 以前の出力とバイト一致する契約は変えない
+/// （`BarChartProps::show_tooltip` rustdoc 参照）。
+fn identify_bars(props: &BarChartProps) -> bool {
+    props.show_tooltip || props.range.is_some() || !props.hidden_series.is_empty() || props.legend
 }
 
 /// この BarChart の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが呼ぶ）。
@@ -958,7 +992,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     .any(|n| n.as_str() == series_label);
                 let mut attrs: Vec<(&str, &str)> =
                     vec![("data-scope", "bar-chart"), ("data-part", "bar")];
-                if props.show_tooltip {
+                if identify_bars(&props) {
                     attrs.push(("data-index", cat_idx_str.as_str()));
                     attrs.push(("data-series", series_label));
                 }
@@ -1022,7 +1056,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                         props.orientation,
                         true,
                         hidden,
-                        if props.show_tooltip {
+                        if identify_bars(&props) {
                             Some((cat_idx_str.as_str(), series_label))
                         } else {
                             None
@@ -1106,7 +1140,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     .any(|n| n.as_str() == series_label);
                 let mut attrs: Vec<(&str, &str)> =
                     vec![("data-scope", "bar-chart"), ("data-part", "bar")];
-                if props.show_tooltip {
+                if identify_bars(&props) {
                     attrs.push(("data-index", cat_idx_str.as_str()));
                     attrs.push(("data-series", series_label));
                 }
@@ -1131,7 +1165,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
                     attrs,
                 ));
 
-                let index_and_series = if props.show_tooltip {
+                let index_and_series = if identify_bars(&props) {
                     Some((cat_idx_str.as_str(), series_label))
                 } else {
                     None
