@@ -89,6 +89,7 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   left: 0;
   z-index: 10;
   margin-top: var(--fandhe-space-1);
+  --fandhe-menu-arrow-rotate: 45deg;
 }
 
 [data-scope="menu"][data-part="content"] {

@@ -63,8 +63,15 @@
 //! `data-side` state で宣言しない（純追加に保つ判断、[`crate::menu`] と
 //! 同型）。また `positioner` に wasm 層が付与する `data-positioned`
 //! マーカーが立ったら確定座標（viewport 座標系の `position: fixed`）へ
-//! 切り替える規則も追加した（[`crate::menu`] と同型の規則、SSR 静的
-//! フォールバックは不変）。回転値は floating（positioner）が anchor の
+//! 切り替える規則も追加した（SSR 静的フォールバックは不変）。
+//! **[`crate::menu`] と異なり `transform: translate3d(...)` は使わず
+//! `top`/`left` へ直接 `--fandhe-x`/`--fandhe-y` を消費させる**: popover
+//! の `content` は任意のネストした Tooltip/Menu/Popover を保持しうるが、
+//! `transform` を持つ祖先は `position: fixed` な子孫の包含ブロックを
+//! 作り直してしまう（CSS の仕様）ため、`transform` を使うと nested
+//! overlay の座標が `wasm-full` の `reposition_one`（viewport 基準の
+//! 座標をそのまま子へ設定する契約）と不整合を起こす（codex レビュー
+//! 指摘、イシュー #2210 PR #2334）。回転値は floating（positioner）が anchor の
 //! どちら側に出るかで決まる（`arrow`/`arrow-tip` は `border-left`/
 //! `border-top` 固定 + `translate(-50%, -50%)` で辺上に中心配置する前提）:
 //!
@@ -447,22 +454,32 @@ fn recipe() -> SlotRecipe {
             vec![decl("--fandhe-popover-arrow-rotate", "315deg")],
         )
         // イシュー #2210: wasm 層が `data-positioned` マーカーを付与したら
-        // 確定座標（viewport 座標系の `position: fixed`）へ切り替える
-        // （[`crate::menu`] と同型の規則）。base の `positioner` 規則
-        // （absolute）より詳細度が高く、CSS 記述順（states は最後尾）でも
-        // 上書きする。
+        // 確定座標（viewport 座標系の `position: fixed`）へ切り替える。
+        // base の `positioner` 規則（absolute）より詳細度が高く、CSS
+        // 記述順（states は最後尾）でも上書きする。
+        //
+        // codex レビュー指摘（イシュー #2210 PR #2334）: [`crate::menu`] は
+        // 同じ確定座標を `transform: translate3d(...)` で消費するが、
+        // popover の `content` は任意のネストした Tooltip/Menu/Popover を
+        // 保持しうる。`transform` を持つ祖先は `position: fixed` な子孫の
+        // 包含ブロックを作り直す（CSS の仕様）ため、popover 自身が開いた
+        // 状態で `transform` を持つと、その `content` 内で開いたネスト
+        // オーバーレイの `position: fixed` が viewport ではなくこの
+        // positioner を基準に配置されてしまい、`wasm-full` の
+        // `reposition_one`（viewport 基準で計算した座標をそのまま子へ
+        // 設定する契約）と不整合を起こす。これを避けるため、ここでは
+        // `transform` を使わず `top`/`left` へ直接 `--fandhe-x`/
+        // `--fandhe-y` を消費させる（オフセットに何を使うかは包含
+        // ブロックの決定に無関係だが、`transform` プロパティ自体の
+        // 不在が包含ブロックを作らない条件のため、これで足りる）。
         .state(
             "positioner",
             StateCondition::Attr("data-positioned"),
             vec![
                 decl("position", "fixed"),
-                decl("top", "0"),
-                decl("left", "0"),
+                decl("top", "var(--fandhe-y, 0px)"),
+                decl("left", "var(--fandhe-x, 0px)"),
                 decl("margin-top", "0"),
-                decl(
-                    "transform",
-                    "translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0)",
-                ),
             ],
         )
 }
@@ -617,14 +634,40 @@ mod tests {
     fn positioner_switches_to_fixed_geometry_when_data_positioned_marker_is_present() {
         // イシュー #2210: wasm 層が付与する `data-positioned` マーカーが
         // 立っているときのみ、positioner が確定座標（viewport 座標系の
-        // `position: fixed`）へ切り替わることを固定する（[`crate::menu`]
-        // の同名テストと同型）。
+        // `position: fixed`）へ切り替わることを固定する。[`crate::menu`]
+        // の同名テストと異なり `transform` は使わない（`top`/`left` へ
+        // 直接消費させる、モジュール rustdoc 参照）。
         let css = stylesheet();
         assert!(css.contains(
             "[data-scope=\"popover\"][data-part=\"positioner\"][data-positioned] {\n  \
-             position: fixed;\n  top: 0;\n  left: 0;\n  margin-top: 0;\n  \
-             transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);\n}\n"
+             position: fixed;\n  top: var(--fandhe-y, 0px);\n  \
+             left: var(--fandhe-x, 0px);\n  margin-top: 0;\n}\n"
         ));
+    }
+
+    #[test]
+    fn positioner_data_positioned_rule_never_uses_transform() {
+        // codex レビュー指摘の回帰固定（イシュー #2210 PR #2334）: popover
+        // の `content` は任意のネストした Tooltip/Menu/Popover を保持し
+        // うるため、`positioner[data-positioned]` に `transform` を持たせ
+        // ない（`transform` を持つ祖先は `position: fixed` な子孫の包含
+        // ブロックを作り直し、nested overlay の viewport 基準座標契約
+        // ［`wasm-full::reposition_one`］と不整合を起こすため）。
+        let css = stylesheet();
+        let rule_start = css
+            .find(r#"[data-scope="popover"][data-part="positioner"][data-positioned] {"#)
+            .expect("data-positioned rule must exist");
+        let rule_end = css[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("data-positioned rule must be closed");
+        let rule = &css[rule_start..rule_end];
+        assert!(
+            !rule.contains("transform"),
+            "positioner[data-positioned] must not declare transform \
+             (would create a containing block for nested fixed overlays); \
+             rule was: {rule:?}"
+        );
     }
 
     #[test]

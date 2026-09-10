@@ -18,15 +18,21 @@
 //! golden 更新。`POPOVER_GOLDEN_CSS` は `arrow`/`arrow-tip` base 2 ブロック
 //! を `content` 直前へ中間挿入し、末尾側 states へ `positioner[data-side=
 //! "top"/"left"/"right"]`（回転変数定義のみ）と `positioner[data-positioned]`
-//! （wasm 実座標追従、[`crate::menu`] と同型）を純追加した。
-//! `TOOLTIP_GOLDEN_CSS` は `arrow`/`arrow-tip` base 2 ブロックを `content`
-//! 直前へ中間挿入し、既存の `positioner[data-side=...]` 3 ブロックへ回転・
-//! 静的座標変数の宣言を追記、さらに `positioner[data-positioned]`
-//! （`data-side` 3 state より後段に登録し `bottom`/`right`/`margin-*` を
-//! フルリセットする）を追加した。他ブロックはバイト同一（詳細は
-//! `crates/pre-styled-ui/src/popover.rs`/`crates/pre-styled-ui/src/
-//! tooltip.rs` モジュール rustdoc「arrow / arrow-tip の `data-side` 連動」
-//! 節参照）。
+//! （wasm 実座標追従）を純追加した。`TOOLTIP_GOLDEN_CSS` は `arrow`/
+//! `arrow-tip` base 2 ブロックを `content` 直前へ中間挿入し、既存の
+//! `positioner[data-side=...]` 3 ブロックへ回転・静的座標変数の宣言を
+//! 追記、さらに `positioner[data-positioned]`（`data-side` 3 state より
+//! 後段に登録し `bottom`/`right`/`margin-*` をフルリセットする）を追加
+//! した。他ブロックはバイト同一（詳細は `crates/pre-styled-ui/src/
+//! popover.rs`/`crates/pre-styled-ui/src/tooltip.rs` モジュール rustdoc
+//! 「arrow / arrow-tip の `data-side` 連動」節参照）。
+//!
+//! **codex レビュー是正（イシュー #2210 PR #2334）**: `positioner
+//! [data-positioned]` は [`crate::menu`] と異なり `transform:
+//! translate3d(...)` を使わず `top`/`left` へ直接 `--fandhe-x`/
+//! `--fandhe-y` を消費させる（popover/tooltip の `content` は任意の
+//! ネストした Tooltip/Menu/Popover を保持しうるため、`transform` が
+//! 作る包含ブロックで nested `position: fixed` の座標が壊れるのを防ぐ）。
 
 use fandhe_frontend_pre_styled_ui::{popover, tooltip};
 
@@ -53,6 +59,7 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
   left: 0;
   z-index: var(--fandhe-z-index-popover, 10);
   margin-top: var(--fandhe-space-1);
+  --fandhe-popover-arrow-rotate: 45deg;
 }
 
 [data-scope="popover"][data-part="arrow"] {
@@ -142,10 +149,9 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
 
 [data-scope="popover"][data-part="positioner"][data-positioned] {
   position: fixed;
-  top: 0;
-  left: 0;
+  top: var(--fandhe-y, 0px);
+  left: var(--fandhe-x, 0px);
   margin-top: 0;
-  transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
 }
 
 @media (hover: hover) {
@@ -182,6 +188,7 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   left: 0;
   z-index: var(--fandhe-z-index-tooltip, 1100);
   margin-bottom: var(--fandhe-space-1);
+  --fandhe-tooltip-arrow-rotate: 225deg;
 }
 
 [data-scope="tooltip"][data-part="content"] {
@@ -243,12 +250,11 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
 
 [data-scope="tooltip"][data-part="positioner"][data-positioned] {
   position: fixed;
-  top: 0;
-  left: 0;
+  top: var(--fandhe-y, 0px);
+  left: var(--fandhe-x, 0px);
   bottom: auto;
   right: auto;
   margin: 0;
-  transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
 }
 
 [data-scope="tooltip"][data-part="content"][data-state="closed"] {
