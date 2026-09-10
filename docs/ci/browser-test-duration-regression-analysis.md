@@ -219,3 +219,54 @@ wasm-client / wasm-full 自身のユニットハッシュも dev/test で分岐�
   入る場合は、同じ衝突が再発しないか本書 §2.4・§2.6 の手順で再検証する。
 - 新規 cdylib+rlib クレートが追加された場合、同種の固定名衝突リスクを
   持つため導入時に本書を参照する。
+
+## 5. 実装結果（#2308）
+
+- 本書 §3 の結論（案 A）に従い、ルート `Cargo.toml` の `[profile.test.package.*]`
+  節（docs-site とその描画チェーン 7 クレート: docs-site / core / interactive /
+  app / server / headless-ui / pre-styled-ui）を `[profile.dev.package.*]` へ
+  全面移設した。test プロファイルは dev を継承する（本書 §2.6）ため、
+  `test-docs-site` ジョブの短縮効果（イシュー #2299）は移設後も維持される。
+  節直前のコメントブロックも、§3.5 で「本 PR では修正しない」としていた
+  誤り（「wasm ターゲットへは波及しない」「build / test 交互実行の二重
+  コンパイルは初回のみ」）を含めて全面書き換えた。
+- **禁止契約の新設**: `[profile.test.*]` 節（`[profile.test]` 本体・
+  `[profile.test.package.*]`・`[profile.test.build-override]` およびドット
+  付きキーによる同等の迂回）を今後もルート `Cargo.toml` へ置かないことを
+  `crates/xtask/tests/profile_dev_test_parity.rs` が fail-closed に強制する
+  （反転判定、`.claude/rules/ci.md` 参照）。あわせて dev 側 7 クレートの
+  `opt-level = 1` 上書きが欠落していないことも同テストが検証し、
+  `test-docs-site` の短縮効果が黙って失われることを防ぐ。
+- **ローカル再現検証**: `crates/wasm-full` を隔離 `CARGO_TARGET_DIR` で
+  `cargo build --tests --target wasm32-unknown-unknown --test hydration_browser`
+  （dev）→ `cargo test --target wasm32-unknown-unknown --test hydration_browser
+  --no-run`（test）の順に実行し、2 回目の呼び出しで `Compiling` 行が 0 件
+  （`Finished ... in 0.0Xs` のみ）になることを確認した。移設前の構成
+  （`[profile.test.package.*]` のみに上書きがある状態）では 2 回目でも
+  `fandhe-frontend-core` 等が再コンパイルされていたのに対し、移設後は
+  dev/test のユニットハッシュが一致しキャッシュがそのまま再利用される。
+- **`test-docs-site` 非悪化確認**: `cargo test -p fandhe-frontend-docs-site
+  --locked` を実行し、全 12 テストバイナリが PASS することを確認した
+  （ローカル実測: 合計約 114 秒。opt-level 1 の docs-site 側短縮効果が
+  dev 側の宣言のみで維持されていることの裏付け）。
+- **REQ-11 非回帰確認**: `cargo test -p fandhe-frontend-wasm-full --locked
+  --test bundle_size` は、CI と同じく `wasm-opt`（binaryen）が PATH に
+  存在しない環境で PASS することを確認した（ローカルに homebrew 経由で
+  `wasm-opt` が入っている場合は `wasm-bindgen` 単独より gzip 後サイズが
+  悪化し FAIL する既知の環境差、`docs/ci/wasm-opt-adoption-evaluation.md`
+  参照。本変更による回帰ではない）。`.cargo/config.toml` の wasm32
+  `-C opt-level=s` は変更しておらず、REQ-11 のコード生成には影響しない。
+- **CI 実測・ジョブ分割の要否判断**: 実装計画の判定規則（`browser-test`
+  ≤ 210s なら分割不要）に従い、対応する PR の CI 実測結果をもって判定する。
+  本コミット時点ではローカル検証（二重コンパイル解消・非回帰確認）のみを
+  実施しており、CI 実測値は PR 作成後の run で追記する。
+
+## 6. 意図的に触らなかったもの（実装結果を踏まえた確定）
+
+- ルート `Cargo.toml` の `[profile.release.package.*] codegen-units = 1`・
+  `.cargo/config.toml` の wasm32 `-C opt-level=s`・
+  `docs/ci/hosted-runner-migration.md` の過去実測（履歴記録）は変更していない。
+- 本書 §4 の再評価トリガーのうち「dev/test 間で対象クレート集合が再び
+  乖離する変更が入る場合」は、#2308 で新設した契約テスト
+  `crates/xtask/tests/profile_dev_test_parity.rs` により機械強制されるように
+  なった（手動レビュー頼みだった検知が `cargo test -p xtask` で自動化された）。
