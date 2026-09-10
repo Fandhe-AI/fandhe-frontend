@@ -242,16 +242,24 @@ anchor positioning の CSS 変数は、既存の `positioner`/`arrow`/`arrow_tip
    （`transform` 消費は再レイアウトを避ける定石。base 規則より属性 1 個ぶん
    詳細度が高く、`SlotRecipe::css` の出力順も base→states 固定のため確実に
    上書きされる。）
-4. **arrow（Menu のみ、§4.2 で Select は arrow 非対象）はマーカー不要で変数
-   フォールバックのみで両立する。** `reposition_one` は positioner の
+4. **arrow（当初 Menu のみ、§4.2 で Select は arrow 非対象）はマーカー不要で
+   変数フォールバックのみで両立する。** `reposition_one` は positioner の
    `style`（CSS カスタムプロパティは子孫へ継承される）に加えて arrow 要素
    自身にも `style` を複製済みのため、arrow の base 規則で直接消費できる:
    - `arrow`: `position: absolute; left: var(--fandhe-arrow-x, 50%); top:
      var(--fandhe-arrow-y, 0); transform: translate(-50%, -50%);`（フォール
      バック `50%`/`0` は SSR 既定 placement（bottom）で anchor 中央上端に
      相当する）
-   - `arrow-tip`: 座標変数を持たない装飾要素（`width`/`height`/`background`/
-     `border-left`/`border-top`/`transform: rotate(45deg)` の固定値）。
+   - `arrow-tip`: `width`/`height`/`background`/`border-left`/`border-top`
+     は固定値。回転（`transform: rotate(...)`）はイシュー #663 時点では
+     固定 `45deg` だったが、イシュー #2210 で `positioner[data-side=...]`
+     に連動して切り替わる CSS custom property（`--fandhe-menu-arrow-
+     rotate` 等）を消費するよう拡張した（座標変数は不変）。
+   - **イシュー #2210 での拡張**: Popover/Tooltip にも同型の arrow/
+     arrow-tip 消費と `positioner[data-positioned]` state を追加した
+     （Menu と同じ設計、詳細は `crates/pre-styled-ui/src/popover.rs`/
+     `tooltip.rs` モジュール rustdoc「arrow / arrow-tip の `data-side`
+     連動」節参照）。
 5. **fail-closed 原則**: 本節で追加する `var(--fandhe-*)` 参照はすべて明示
    フォールバック値を持つ（裸の `var()` 禁止）。変数未定義（SSR・wasm 失敗時）
    でも表示が壊れない（`crates/pre-styled-ui/src/menu.rs`/`select.rs` の
