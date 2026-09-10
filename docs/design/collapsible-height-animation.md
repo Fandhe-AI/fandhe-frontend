@@ -112,14 +112,14 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
   直後・および配線時点の 2 箇所で `content_height::sync_content_height`
   を呼ぶ）。`Runtime::apply_dirty_if_any` 経路への統合は #2191 のスコープ
   外として整理した（詳細は `docs/design/wasm-full-architecture.md`
-  §27.8）。
+  §28.8）。
 - **遷移成立条件の実測結果**: `Element::scroll_height()` はスタイル
   再計算を同期的に強制するため、`hidden` 解除直後の最初のスタイル
   計算時点で変数が未設定だと `@starting-style` 方式の `0 → auto` 遷移は
   補間不能。本ヘルパー（ステートレス）は同一要素に前回値が残る
   in-place 開閉の 2 回目以降でのみオープン方向の遷移を成立させられる。
   詳細・実ブラウザ確認範囲は `docs/design/wasm-full-architecture.md`
-  §27.6 参照。
+  §28.6 参照。
 
 ## 6. JS 無効時の表示方針（親 #2189 の受け入れ条件「JS 無効時に content が閲覧可能」への回答）
 
