@@ -1626,6 +1626,135 @@ fn select_open_arrow_down_scrolls_highlighted_item_into_view_when_content_overfl
     );
 }
 
+/// スクロール可能な Select `content`（`container`）の内側に、別の（入れ子の）
+/// Select の `content` + `scroll-down-button` が DOM 上の子孫として存在する
+/// 場合でも、`effective_scroll_band` が外側 `container` 自身に属さないその
+/// ボタンを可視領域の帯計算に混入させないことを検証する（codex-review P1
+/// 是正、イシュー #2186。`container.query_selector` は全子孫を探索するため、
+/// スコープ検証なしに最初に見つかったボタンを採用すると、内側 Select の
+/// ボタンで外側の可視領域を誤って狭め、既に完全に見えている外側の項目にも
+/// 不要なスクロール補正が発生していた）。
+///
+/// 内側 Select の `scroll-down-button` は `position: absolute` で外側
+/// `content`（`position: relative` を明示）の座標系上、`item1`
+/// （`[30px, 60px]`）の下端 5px に重なる `[55px, 80px]` 領域へ配置する。
+/// この配置は「外側 `content` 自身の `scroll-up-button`/
+/// `scroll-down-button`」であれば正当に band を狭める対象と区別が付かない
+/// 座標だが、DOM 上の所属（`closest("[data-part=\"content\"]")` が外側
+/// `container` ではなく内側 `content` に解決される）で除外されるべき
+/// ケースである。是正前の実装ではこのボタンが band_bottom を `80px` から
+/// `55px` へ誤って引き下げ、`item1`（下端 `60px`）が band を超過した扱いに
+/// なり `content.scroll_top()` が `0` から動いてしまう（本テストが検出する
+/// 回帰）。
+#[wasm_bindgen_test]
+fn select_open_arrow_down_ignores_foreign_scroll_button_from_nested_select() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-nested-scroll1", &items, true, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-nested-scroll1-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-nested-scroll1-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("position", "relative")
+        .unwrap();
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-nested-scroll1-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    // 内側（入れ子）Select の content + scroll-down-button を、外側
+    // content の**子孫**として追加する（内側 Select が外側 Select の
+    // content 内で開いている構成を模す）。内側 content は座標に影響
+    // させないよう `position: static`（既定）のまま追加してよい
+    // （scroll-down-button 自身の `position: absolute` は最も近い
+    // positioned 祖先——外側 content——基準で配置されるため、内側
+    // content の DOM 上の位置は座標計算に影響しない）。
+    let nested_content = document.create_element("div").unwrap();
+    nested_content
+        .set_attribute("data-scope", "select")
+        .unwrap();
+    nested_content
+        .set_attribute("data-part", "content")
+        .unwrap();
+    nested_content
+        .set_attribute("id", "kn-select-nested-scroll1-inner-content")
+        .unwrap();
+    let nested_down_button = document.create_element("div").unwrap();
+    nested_down_button
+        .set_attribute("data-scope", "select")
+        .unwrap();
+    nested_down_button
+        .set_attribute("data-part", "scroll-down-button")
+        .unwrap();
+    let nested_down_html = html_element(&nested_down_button);
+    nested_down_html
+        .style()
+        .set_property("position", "absolute")
+        .unwrap();
+    nested_down_html
+        .style()
+        .set_property("top", "55px")
+        .unwrap();
+    nested_down_html.style().set_property("left", "0").unwrap();
+    nested_down_html
+        .style()
+        .set_property("width", "100%")
+        .unwrap();
+    nested_down_html
+        .style()
+        .set_property("height", "25px")
+        .unwrap();
+    nested_content.append_child(&nested_down_button).unwrap();
+    content.append_child(&nested_content).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+    assert_eq!(content_html.scroll_top(), 0);
+
+    // item0 → item1 の順に highlight を進める（2 回目の ArrowDown で
+    // item1 が highlight される）。
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+
+    let item1 = document
+        .get_element_by_id("kn-select-nested-scroll1-item-item1")
+        .unwrap();
+    assert!(item1.has_attribute("data-highlighted"));
+    assert_eq!(
+        content_html.scroll_top(),
+        0,
+        "a scroll-down-button belonging to a nested Select's content must not \
+         shrink the outer container's own visible band and trigger an \
+         unnecessary scroll for an already-visible item"
+    );
+}
+
 /// Menu 自身（`content`）にはスクロール可能な overflow が無いが、`root` を
 /// `overflow-y: auto` + 固定 `height` の外側スクロールコンテナへ入れ子配置
 /// した場合、highlight 移動（ArrowDown 連打）を行っても外側コンテナの

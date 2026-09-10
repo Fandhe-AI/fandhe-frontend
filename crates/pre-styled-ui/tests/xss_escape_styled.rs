@@ -625,6 +625,38 @@ fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
         ));
         assert_payload_is_escaped(payload, &html, "select::root 呼び出し側 attrs コンテキスト");
 
+        // イシュー #2186: 新設 3 パーツ（separator/scroll-up-button/
+        // scroll-down-button）の attrs/children 経路。
+        let html = render(&select::separator(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "select::separator attrs/children コンテキスト",
+        );
+
+        let html = render(&select::scroll_up_button(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "select::scroll_up_button attrs/children コンテキスト",
+        );
+
+        let html = render(&select::scroll_down_button(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "select::scroll_down_button attrs/children コンテキスト",
+        );
+
         let html = render(&drawer::root(
             Size::Md,
             OpenState::Closed,

@@ -44,6 +44,11 @@
 //! `[data-readonly]`（`cursor: default`、`[data-disabled]` より前に登録）
 //! を追加した。詳細は `crates/pre-styled-ui/src/select.rs` モジュール
 //! rustdoc「shadcn/ui 突合（イシュー #2019）」節参照。
+//!
+//! イシュー #2186 で `separator`/`scroll-up-button`/`scroll-down-button` の
+//! base 3 ブロックを `hidden-select` ブロック直後（`SLOTS` 末尾追加、純追加
+//! 原則）へ新設した。詳細は `crates/pre-styled-ui/src/select.rs` モジュール
+//! rustdoc「Separator / ScrollButton の着装（イシュー #2186）」節参照。
 
 use fandhe_frontend_pre_styled_ui::select;
 
@@ -161,6 +166,41 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+[data-scope="select"][data-part="separator"] {
+  height: 1px;
+  background: var(--fandhe-color-border-muted);
+  margin: var(--fandhe-space-1) calc(-1 * var(--fandhe-select-content-padding, var(--fandhe-space-2)));
+  pointer-events: none;
+}
+
+[data-scope="select"][data-part="scroll-up-button"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  padding: var(--fandhe-space-1) 0;
+  margin: 0 calc(-1 * var(--fandhe-select-content-padding, var(--fandhe-space-2)));
+  position: sticky;
+  top: 0;
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg-muted);
+  z-index: 1;
+}
+
+[data-scope="select"][data-part="scroll-down-button"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  padding: var(--fandhe-space-1) 0;
+  margin: 0 calc(-1 * var(--fandhe-select-content-padding, var(--fandhe-space-2)));
+  position: sticky;
+  bottom: 0;
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg-muted);
+  z-index: 1;
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-xs {
@@ -334,4 +374,142 @@ fn size_variants_carry_content_max_height_scale() {
     assert!(css.contains("--fandhe-select-content-max-height: 16rem;"));
     assert!(css.contains("--fandhe-select-content-max-height: 20rem;"));
     assert!(css.contains("--fandhe-select-content-max-height: 24rem;"));
+}
+
+// イシュー #2186: separator / scroll-up-button / scroll-down-button の着装。
+
+#[test]
+fn separator_and_scroll_buttons_have_base_rules() {
+    let css = select::stylesheet();
+    assert!(css.contains(r#"[data-scope="select"][data-part="separator"] {"#));
+    assert!(css.contains(r#"[data-scope="select"][data-part="scroll-up-button"] {"#));
+    assert!(css.contains(r#"[data-scope="select"][data-part="scroll-down-button"] {"#));
+    assert!(css.contains("height: 1px;"));
+    assert!(css.contains("position: sticky;"));
+    assert!(css.contains("top: 0;"));
+    assert!(css.contains("bottom: 0;"));
+}
+
+#[test]
+fn golden_prefix_through_hidden_select_is_unchanged() {
+    // #2019 以前からの golden 前半（`root` 〜 `hidden-select` ブロック末尾）
+    // が本イシューの純追加で変化していないことをバイト単位で固定する
+    // （`crates/pre-styled-ui/tests/scroll_area_css.rs` #2054 と同型のパターン）。
+    const GOLDEN_PREFIX_THROUGH_HIDDEN_SELECT: &str = r#"[data-scope="select"][data-part="root"] {
+  position: relative;
+}
+
+[data-scope="select"][data-part="label"] {
+  display: block;
+  color: var(--fandhe-color-fg);
+  font-size: var(--fandhe-font-font-size-sm);
+  margin-bottom: var(--fandhe-space-1);
+}
+
+[data-scope="select"][data-part="control"] {
+  display: inline-flex;
+}
+
+[data-scope="select"][data-part="trigger"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fandhe-space-2);
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
+  cursor: pointer;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="select"][data-part="trigger"] {
+  transition-property: border-color, background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="select"][data-part="value-text"] {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-scope="select"][data-part="clear-trigger"] {
+  cursor: pointer;
+  color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="select"][data-part="indicator"] {
+  display: inline-block;
+  color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="select"][data-part="indicator"] {
+  transition-property: transform;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="select"][data-part="positioner"] {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  margin-top: var(--fandhe-space-1);
+}
+
+[data-scope="select"][data-part="content"] {
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  box-shadow: var(--fandhe-shadow-md);
+  padding: var(--fandhe-select-content-padding, var(--fandhe-space-2));
+  min-width: var(--fandhe-reference-width, auto);
+  overflow-y: auto;
+  max-height: var(--fandhe-select-content-max-height, 16rem);
+}
+
+[data-scope="select"][data-part="item-group-label"] {
+  color: var(--fandhe-color-fg-muted);
+  font-size: var(--fandhe-font-font-size-xs);
+  padding: var(--fandhe-space-2) var(--fandhe-space-3);
+}
+
+[data-scope="select"][data-part="item"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
+  padding: var(--fandhe-select-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
+  cursor: pointer;
+  border-radius: var(--fandhe-radius-sm);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="select"][data-part="item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="select"][data-part="item-indicator"] {
+  margin-left: auto;
+}
+
+[data-scope="select"][data-part="hidden-select"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+"#;
+    assert!(select::stylesheet().starts_with(GOLDEN_PREFIX_THROUGH_HIDDEN_SELECT));
 }

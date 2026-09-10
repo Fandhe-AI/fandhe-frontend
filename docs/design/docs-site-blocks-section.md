@@ -175,3 +175,40 @@ Phase 6（#2087・#2088〜#2095）は本決定と完全に整合しており、*
 サイト `/blocks/` セクション（案 A）前提で Phase 6 を起票している」という
 一文の「確定」への更新（`gh issue edit`）は、本 PR のマージ後の別作業として
 切り出す（本イシューのスコープ外）。
+
+## 10. 実装記録（#2088）
+
+基盤整備（nav 登録・ページ雛形・契約テスト）の実装で確定した規約。
+後続 7 イシュー（#2089〜#2095）はこれをそのまま複製する。
+
+- **セクションの並び順**: ヘッダー順は Getting Started / Guides / Examples /
+  Primitives / Themes / **Blocks** / API Reference（Blocks は Themes の
+  直後・API Reference の直前）。Issue 本文の提案（Primitives の前）とは
+  異なるが、Primitives → Themes → Blocks という粒度の小→大の導線を優先し、
+  `crates/docs-site/tests/primitives_nav.rs` が固定する「Primitives は
+  index 3・直後が Themes」を変えない配置を選んだ。
+- **雛形実例**: `login-01`（`/blocks/login-01/`）。sidebar 非依存かつ使用
+  部品が最小（card/field/input/button）のため、雛形検証に十分と判断した。
+  shadcn 側との忠実度・スクリーンショット比較は #2092 の責務として残す。
+- **ページ組み立て方式**: `crates/docs-site/src/blocks/mod.rs::insert_generated_sections`
+  が Markdown ブロック列の最初の `h2` の直前へ「Demo」「使用部品」の 2 節を
+  挿入する（`component_page::generated_content` の「後方追記」とは異なる）。
+  `build.rs` は `component_page`/`Layer` 経路とは独立した分岐としてこれを
+  呼ぶ（`Layer::from_page_path` の全域判定に Blocks を通さないため）。
+- **マーカー規約**: `.rs` 側は `// blocks-code:begin`/`// blocks-code:end`
+  の行マーカーで `use` 宣言 + `pub fn demo() -> Node` を囲み、`.md` 側の
+  最初の rust フェンス本文（末尾空白のみ trim 許容）と行単位で一致させる。
+  `crates/docs-site/tests/blocks_code_drift.rs` が fail-closed に固定する。
+- **CSS**: ビルド時生成の専用スタイルシート `assets/blocks.css`
+  （`crate::blocks::stylesheet`、`primitive_showcase::stylesheet` と同型）。
+  block ページには本 CSS に加え、合成に使う部品自体の見た目のため
+  `assets/pre-styled-ui.css`（`crate::showcase::STYLESHEET_REL_PATH`）も
+  配線する。`/blocks/` 索引ページにはいずれも配線しない。
+- **`<form>` を使わない**: `crate::layout` の無 JS 制約（Enter キーでの
+  暗黙 submit 回避）に従い、Demo は `<form>` を持たず、ボタンは
+  `button::button` の既定 `type="button"` のまま用いる。遷移先の無い
+  「パスワードを忘れた」「サインアップ」は `link::root` の `href="#"` では
+  なく `ButtonVariant::Link` の見た目のみリンク風ボタンで表現する。
+  `crates/docs-site/tests/blocks_contract.rs` が固定する。
+- **nav 構成**: `[[section.group]]` を使わずフラットな `[[section.page]]`
+  のみ（1 block = 1 ページで階層化する動機がないため）。
