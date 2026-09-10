@@ -15,7 +15,7 @@ use fandhe_frontend_headless_ui::Orientation;
 use fandhe_frontend_pre_styled_ui::decl;
 use fandhe_frontend_pre_styled_ui::recipe::{
     disabled_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
-    palette_declarations, palette_scale_declarations, transition_declarations, when,
+    palette_declarations, palette_scale_declarations, transition_declarations, when, Breakpoint,
     ColorPalette as StdColorPalette, MotionDuration, Size, SlotRecipe, StateCondition,
     VariantValue,
 };
@@ -849,4 +849,108 @@ fn hover_state_and_other_states_coexist_with_hover_block_emitted_once_at_end() {
         css.ends_with("}\n"),
         "@media ブロックが css() 出力の末尾であること"
     );
+}
+
+// イシュー #2197: breakpoint 条件（`@media (min-width: ...)`）のテスト。
+
+#[test]
+fn breakpoint_values_match_reference_scale() {
+    // shadcn/ui（Tailwind v4 既定）・chakra-ui v3 と `sm` 以外で完全一致する
+    // 4 段スケール（採用根拠は `docs/design/pre-styled-ui-scale-tokens.md`
+    // §3.6 参照）。
+    let actual: Vec<(&str, &str)> = Breakpoint::ALL
+        .iter()
+        .map(|bp| (bp.value(), bp.min_width()))
+        .collect();
+    assert_eq!(
+        actual,
+        vec![
+            ("sm", "640px"),
+            ("md", "768px"),
+            ("lg", "1024px"),
+            ("xl", "1280px"),
+        ]
+    );
+}
+
+#[test]
+fn breakpoint_rules_match_golden_and_are_emitted_in_ascending_order() {
+    // `Md` を先・`Sm` を後に登録しても、出力は Breakpoint::ALL の昇順
+    // （sm → md、mobile-first）になることを固定する（登録順ではない）。
+    // ブロック内は登録順（後勝ち）。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .breakpoint("root", Breakpoint::Md, vec![decl("gap", "12px")])
+        .breakpoint("root", Breakpoint::Sm, vec![decl("gap", "8px")]);
+
+    let expected = concat!(
+        "@media (min-width: 640px) {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "    gap: 8px;\n",
+        "  }\n",
+        "}\n",
+        "\n",
+        "@media (min-width: 768px) {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "    gap: 12px;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
+#[test]
+fn breakpoint_blocks_are_emitted_after_states_and_before_hover_block() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .state(
+            "root",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state("root", StateCondition::Hover, hover_surface_declarations())
+        .breakpoint("root", Breakpoint::Sm, vec![decl("gap", "8px")]);
+
+    let css = recipe.css();
+    let disabled_pos = css
+        .find("[data-disabled]")
+        .expect("disabled rule must exist");
+    let breakpoint_pos = css
+        .find("@media (min-width: 640px)")
+        .expect("breakpoint block must exist");
+    let hover_pos = css
+        .find("@media (hover: hover)")
+        .expect("hover block must exist");
+    assert!(
+        disabled_pos < breakpoint_pos,
+        "state は breakpoint ブロックより前に出力される"
+    );
+    assert!(
+        breakpoint_pos < hover_pos,
+        "breakpoint ブロックは hover ブロックより前に出力される"
+    );
+    assert!(
+        css.ends_with("}\n"),
+        "hover ブロックが css() 出力の末尾であること"
+    );
+    assert_eq!(css.matches("@media (hover: hover)").count(), 1);
+}
+
+#[test]
+fn breakpoint_fail_closed_cases_are_skipped_not_panicking() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        // slots 未宣言の slot。
+        .breakpoint("ghost", Breakpoint::Sm, vec![decl("gap", "8px")])
+        // 不正な slot 名（構造破壊文字）。
+        .breakpoint("root\"] {} div[", Breakpoint::Sm, vec![decl("gap", "8px")])
+        // 無効な宣言のみ（プロパティ名が構造破壊文字）。
+        .breakpoint("root", Breakpoint::Sm, vec![decl("gap:hack", "8px")]);
+
+    assert!(!recipe.css().contains("@media (min-width"));
+}
+
+#[test]
+fn breakpoint_without_declarations_is_byte_identical_to_recipe_without_breakpoints() {
+    // `.breakpoint()` を一切呼ばない recipe の css() 出力に breakpoint
+    // ブロックが混入しないことを固定する（既存 golden の純追加不変条件）。
+    let recipe = SlotRecipe::new("widget", &["root"]).base("root", vec![decl("display", "flex")]);
+    assert!(!recipe.css().contains("@media (min-width"));
 }

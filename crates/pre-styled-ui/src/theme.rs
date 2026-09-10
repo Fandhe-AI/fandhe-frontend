@@ -77,6 +77,18 @@ pub enum ThemeError {
         /// 検証に失敗した入力。
         value: String,
     },
+    /// [`Theme::push_breakpoint`] / [`Theme::upsert_breakpoint`] に渡された
+    /// 値が breakpoint の閾値として無効だった（イシュー #2197）。`CssValue`
+    /// の文字 allowlist は満たすが、`@media (min-width: ...)` の値として
+    /// 意味を持たない入力（色・`var(...)`・`calc(...)`・負値・単位なし
+    /// 数値〔`0` を除く〕・CSS-wide keyword）をここで拒否する。許可される
+    /// のは非負の CSS `<length>`（数値 + 単位、または単位なしの `0`）のみ
+    /// （#1423/#1424 の専用検証と同じ判断軸: `CssValue` の文字集合は満たす
+    /// が用途として無意味な値を追加で拒否する）。
+    InvalidBreakpointValue {
+        /// 検証に失敗した入力。
+        value: String,
+    },
 }
 
 impl fmt::Display for ThemeError {
@@ -101,6 +113,12 @@ impl fmt::Display for ThemeError {
                 write!(
                     f,
                     "invalid focus-ring dimension value (not a CSS length or global value): {value:?}"
+                )
+            }
+            ThemeError::InvalidBreakpointValue { value } => {
+                write!(
+                    f,
+                    "invalid breakpoint value (not a non-negative CSS length): {value:?}"
                 )
             }
         }
@@ -285,6 +303,16 @@ pub struct Theme {
     /// reduce` 下で [`Theme::to_css`] が `0ms` へ一括上書きする
     /// （[`Theme::to_css`] rustdoc の出力構造 5. を参照）。
     motions: Vec<ScaleToken>,
+    /// レスポンシブブレークポイントのモード非依存スケール（イシュー #2197）。
+    /// 既定値（[`DEFAULT_BREAKPOINTS`]）は [`crate::recipe::Breakpoint::ALL`]/
+    /// `min_width()` から構築し、`crate::recipe` 側のリテラルと手打ち
+    /// ドリフトしない。**参照専用**のトークンであり、[`Theme::to_css`] が
+    /// 出力する `--fandhe-breakpoint-<段>` を変更しても
+    /// [`crate::recipe::SlotRecipe::breakpoint`] が生成する `@media
+    /// (min-width: ...)` の閾値は変わらない（CSS custom property が
+    /// `@media` プレリュードで使えない仕様上の制約。`crate::recipe`
+    /// モジュール doc「breakpoint 条件」節参照）。
+    breakpoints: Vec<ScaleToken>,
 }
 
 impl Default for Theme {
@@ -308,6 +336,7 @@ impl Default for Theme {
             focus_ring: Vec::new(),
             sizes: Vec::new(),
             motions: Vec::new(),
+            breakpoints: Vec::new(),
         };
 
         for (name, light, dark) in DEFAULT_COLORS {
@@ -352,6 +381,11 @@ impl Default for Theme {
         }
         for (name, value) in DEFAULT_MOTIONS {
             theme.push_motion(name, value).expect(
+                "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
+            );
+        }
+        for (name, value) in DEFAULT_BREAKPOINTS {
+            theme.push_breakpoint(name, value).expect(
                 "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
             );
         }
@@ -669,6 +703,37 @@ const DEFAULT_MOTIONS: &[(&str, &str)] = &[
     ("easing-emphasized", "cubic-bezier(0.2, 0, 0, 1)"),
 ];
 
+/// 既定のブレークポイントトークン（name, value、イシュー #2197）。
+///
+/// [`crate::recipe::Breakpoint`] の `const fn value()`/`min_width()` を
+/// **唯一の定義元**として構築する（リテラルをここで手打ちしない）。これに
+/// より `crate::recipe::SlotRecipe::breakpoint` が `@media (min-width: ...)`
+/// へ埋め込む閾値と、本テーマトークンの初期値が構造的に同期する
+/// （本ファイル下部 `tests` モジュールの
+/// `default_breakpoints_are_synchronized_with_recipe_breakpoint_enum`、
+/// および `crates/pre-styled-ui/tests/theme_css.rs` の
+/// `theme_breakpoint_values_are_consistent_with_recipe_breakpoint_enum` が
+/// 実行時にも再確認する）。値そのもの（4 段の px 値・採用根拠）は
+/// `docs/design/pre-styled-ui-scale-tokens.md` §3.6 を参照。
+const DEFAULT_BREAKPOINTS: &[(&str, &str)] = &[
+    (
+        crate::recipe::Breakpoint::Sm.value(),
+        crate::recipe::Breakpoint::Sm.min_width(),
+    ),
+    (
+        crate::recipe::Breakpoint::Md.value(),
+        crate::recipe::Breakpoint::Md.min_width(),
+    ),
+    (
+        crate::recipe::Breakpoint::Lg.value(),
+        crate::recipe::Breakpoint::Lg.min_width(),
+    ),
+    (
+        crate::recipe::Breakpoint::Xl.value(),
+        crate::recipe::Breakpoint::Xl.min_width(),
+    ),
+];
+
 impl Theme {
     /// 空のテーマを構築する（既定トークンなし）。カスタムテーマをゼロから
     /// 組み立てたい呼び出し元向け。既定パレットが欲しい場合は
@@ -685,6 +750,7 @@ impl Theme {
             focus_ring: Vec::new(),
             sizes: Vec::new(),
             motions: Vec::new(),
+            breakpoints: Vec::new(),
         }
     }
 
@@ -849,6 +915,38 @@ impl Theme {
         push_scale(&mut self.motions, name, value)
     }
 
+    /// モード非依存のブレークポイントトークンを追加する（イシュー #2197）。
+    ///
+    /// **このトークンは参照専用**であり、`crate::recipe::SlotRecipe::breakpoint`
+    /// が生成する `@media (min-width: ...)` の閾値には一切影響しない
+    /// （CSS custom property が `@media` プレリュードで使えない仕様上の
+    /// 制約。JS の `matchMedia`・利用者の独自スタイルシートから
+    /// `getComputedStyle(document.documentElement).getPropertyValue(...)`
+    /// で読む用途を想定する。`crate::recipe` モジュール doc「breakpoint
+    /// 条件」節参照）。
+    ///
+    /// # Errors
+    ///
+    /// - `name` が [`TokenName`] の命名規則を満たさない場合
+    /// - `value` が breakpoint の閾値として無効な場合
+    ///   （[`ThemeError::InvalidBreakpointValue`]。非負の CSS `<length>` の
+    ///   みを許可、詳細は同バリアントの rustdoc 参照）
+    /// - `name` が breakpoints グループ内で既に登録済みの場合
+    ///   （[`ThemeError::DuplicateTokenName`]）
+    pub fn push_breakpoint(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        let name = TokenName::new(name)?;
+        let value = validate_breakpoint_value(value)?;
+
+        if self.breakpoints.iter().any(|t| t.name == name) {
+            return Err(ThemeError::DuplicateTokenName {
+                name: name.as_str().to_string(),
+            });
+        }
+
+        self.breakpoints.push(ScaleToken { name, value });
+        Ok(())
+    }
+
     /// ライト/ダーク値を持つ色トークンを追加、または既存トークンを上書きする
     /// （イシュー #1138）。
     ///
@@ -986,20 +1084,44 @@ impl Theme {
         upsert_scale(&mut self.motions, name, value)
     }
 
+    /// ブレークポイントトークンを追加、または既存トークンを上書きする
+    /// （イシュー #2197）。[`Theme::push_breakpoint`] と同様の値検証
+    /// （[`ThemeError::InvalidBreakpointValue`]）を経てから、既存位置が
+    /// あれば in-place 置換・なければ末尾追加する。参照専用トークンで
+    /// あるという性質は [`Theme::push_breakpoint`] rustdoc 参照。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが検証を通過しない場合。
+    pub fn upsert_breakpoint(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        let name = TokenName::new(name)?;
+        let value = validate_breakpoint_value(value)?;
+
+        if let Some(existing) = self.breakpoints.iter_mut().find(|t| t.name == name) {
+            existing.value = value;
+        } else {
+            self.breakpoints.push(ScaleToken { name, value });
+        }
+        Ok(())
+    }
+
     /// テーマを決定的なプレーン CSS 文字列へ変換する。
     ///
     /// 出力構造（固定順、`docs` は伴わず本 rustdoc が正）:
     ///
     /// 1. `:root { color-scheme: light dark; --fandhe-... }`（light 値、
     ///    colors → spaces → typography → radii → shadows → z-indices →
-    ///    focus-ring → sizes → motions の順。radii/z-indices/focus-ring/
-    ///    sizes/motions はモード非依存のため 1 値、shadows は light 値を
-    ///    ここに出力する。イシュー #606 で追加した radii/shadows、イシュー
-    ///    #1423 で追加した z-indices、イシュー #1424 で追加した focus-ring
-    ///    （寸法。リング色は `colors` グループの `focus-ring` エントリが
-    ///    担う）、イシュー #1678 で追加した sizes、イシュー #1425 で追加した
-    ///    motions はいずれも末尾に純追加する構成のため、当該グループを push
-    ///    しないテーマの出力は追加前とバイト同一になる）
+    ///    focus-ring → sizes → motions → breakpoints の順。radii/z-indices/
+    ///    focus-ring/sizes/motions/breakpoints はモード非依存のため 1 値、
+    ///    shadows は light 値をここに出力する。イシュー #606 で追加した
+    ///    radii/shadows、イシュー #1423 で追加した z-indices、イシュー
+    ///    #1424 で追加した focus-ring（寸法。リング色は `colors` グループの
+    ///    `focus-ring` エントリが担う）、イシュー #1678 で追加した sizes、
+    ///    イシュー #1425 で追加した motions、イシュー #2197 で追加した
+    ///    breakpoints（参照専用。`crate::recipe::SlotRecipe::breakpoint`
+    ///    の `@media` 閾値には影響しない、[`Theme::push_breakpoint`]
+    ///    rustdoc 参照）はいずれも末尾に純追加する構成のため、当該グループを
+    ///    push しないテーマの出力は追加前とバイト同一になる）
     /// 2. `:root[data-theme="light"] { color-scheme: light; }`
     /// 3. `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }`
     ///    （dark 値。OS 設定追従。colors → shadows の順）
@@ -1084,6 +1206,13 @@ impl Theme {
         for token in &self.motions {
             out.push_str(&format!(
                 "  {VAR_PREFIX}-motion-{}: {};\n",
+                token.name.as_str(),
+                token.value.as_str()
+            ));
+        }
+        for token in &self.breakpoints {
+            out.push_str(&format!(
+                "  {VAR_PREFIX}-breakpoint-{}: {};\n",
                 token.name.as_str(),
                 token.value.as_str()
             ));
@@ -1357,6 +1486,52 @@ fn validate_focus_ring_value(
     }
 }
 
+/// [`Theme::push_breakpoint`] / [`Theme::upsert_breakpoint`] 共通の値検証
+/// ロジック（イシュー #2197）。[`CssValue::new`] の文字 allowlist 検証に
+/// 加え、breakpoint の閾値として意味を持つ値のみを許可する: 非負の CSS
+/// `<length>`（[`CSS_LENGTH_UNITS`] のいずれかの単位を伴う数値、または
+/// 単位なしの `0`）のみ。CSS-wide keyword（`inherit` 等。メディアクエリ内
+/// では無意味）・負値・単位なし数値（`0` 以外）・色・`var()`・`calc()`
+/// 等の値は文字 allowlist は満たすが breakpoint としては無意味なため
+/// ここで拒否する（#1423/#1424 の専用検証と同じ判断軸。`push_focus_ring`
+/// の [`FocusRingTokenKind::Width`] と同じ「非負の length のみ」判定
+/// ロジックを流用する）。
+///
+/// # Errors
+///
+/// [`CssValue::new`] が失敗した場合は [`ThemeError::InvalidCssValue`]、
+/// 文字集合は満たすが非負の `<length>` でない場合は
+/// [`ThemeError::InvalidBreakpointValue`] を返す。
+fn validate_breakpoint_value(value: &str) -> Result<CssValue, ThemeError> {
+    let css_value = CssValue::new(value)?;
+    let s = css_value.as_str();
+
+    let is_negative = s.starts_with('-');
+    let numeric_part = s
+        .strip_prefix('-')
+        .or_else(|| s.strip_prefix('+'))
+        .unwrap_or(s);
+    let is_bare_zero = numeric_part == "0";
+
+    let is_length_with_unit = CSS_LENGTH_UNITS.iter().any(|unit| {
+        let Some(rest) = strip_suffix_ignore_ascii_case(numeric_part, unit) else {
+            return false;
+        };
+        is_valid_css_number(rest)
+    });
+
+    let is_valid_length = is_bare_zero || is_length_with_unit;
+    let is_non_negative_length = is_valid_length && (!is_negative || is_bare_zero);
+
+    if is_non_negative_length {
+        Ok(css_value)
+    } else {
+        Err(ThemeError::InvalidBreakpointValue {
+            value: value.to_string(),
+        })
+    }
+}
+
 /// ASCII 大文字小文字を無視して `s` の末尾から `suffix` を剥がす
 /// （[`validate_focus_ring_value`] 専用の内部ヘルパ。`str::strip_suffix`
 /// は大文字小文字を区別するため、単位表記の揺れ（`PX`/`Px` 等）を
@@ -1573,6 +1748,20 @@ pub fn motion_var(name: &str) -> Result<String, ThemeError> {
 pub fn typography_var(name: &str) -> Result<String, ThemeError> {
     let name = TokenName::new(name)?;
     Ok(format!("var({VAR_PREFIX}-font-{})", name.as_str()))
+}
+
+/// ブレークポイントトークン名から `var(--fandhe-breakpoint-<name>)` 参照を
+/// 組み立てる（イシュー #2197）。**参照専用**のトークンであり、
+/// `crate::recipe::SlotRecipe::breakpoint` の `@media (min-width: ...)`
+/// 閾値には使えない（[`Theme::push_breakpoint`] rustdoc 参照。JS の
+/// `matchMedia`・利用者の独自スタイルシート向け）。
+///
+/// # Errors
+///
+/// [`color_var`] と同様。
+pub fn breakpoint_var(name: &str) -> Result<String, ThemeError> {
+    let name = TokenName::new(name)?;
+    Ok(format!("var({VAR_PREFIX}-breakpoint-{})", name.as_str()))
 }
 
 #[cfg(test)]
@@ -2572,5 +2761,122 @@ mod tests {
                 "DEFAULT_SIZES の {name} の値 {value:?} が CssValue の allowlist を満たさない"
             );
         }
+    }
+
+    // イシュー #2197: breakpoint トークンのユニットテスト。
+
+    #[test]
+    fn default_breakpoints_are_synchronized_with_recipe_breakpoint_enum() {
+        // `DEFAULT_BREAKPOINTS` は `crate::recipe::Breakpoint::ALL`/
+        // `value()`/`min_width()` を唯一の定義元として構築する
+        // （手打ちドリフト防止、`crate::theme` モジュール内 doc 参照）。
+        let expected: Vec<(&str, &str)> = crate::recipe::Breakpoint::ALL
+            .iter()
+            .map(|bp| (bp.value(), bp.min_width()))
+            .collect();
+        assert_eq!(DEFAULT_BREAKPOINTS, expected.as_slice());
+    }
+
+    #[test]
+    fn breakpoint_var_builds_expected_reference() {
+        assert_eq!(breakpoint_var("sm").unwrap(), "var(--fandhe-breakpoint-sm)");
+        assert!(breakpoint_var("Sm").is_err());
+    }
+
+    #[test]
+    fn push_breakpoint_rejects_duplicate_name() {
+        let mut theme = Theme::empty();
+        theme.push_breakpoint("sm", "640px").unwrap();
+        assert!(theme.push_breakpoint("sm", "700px").is_err());
+    }
+
+    #[test]
+    fn upsert_breakpoint_overwrites_existing_value() {
+        let mut theme = Theme::empty();
+        theme.push_breakpoint("sm", "640px").unwrap();
+        theme.upsert_breakpoint("sm", "700px").unwrap();
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-breakpoint-sm: 700px;"));
+        assert!(!css.contains("640px"));
+    }
+
+    #[test]
+    fn upsert_breakpoint_appends_when_absent() {
+        let mut theme = Theme::empty();
+        theme.upsert_breakpoint("sm", "640px").unwrap();
+        assert!(theme.to_css().contains("--fandhe-breakpoint-sm: 640px;"));
+    }
+
+    #[test]
+    fn push_breakpoint_accepts_valid_lengths() {
+        let mut theme = Theme::empty();
+        assert!(theme.push_breakpoint("a", "640px").is_ok());
+        assert!(theme.push_breakpoint("b", "0").is_ok());
+        assert!(theme.push_breakpoint("c", "48rem").is_ok());
+        assert!(theme.push_breakpoint("d", "0px").is_ok());
+    }
+
+    #[test]
+    fn push_breakpoint_rejects_css_wide_keyword() {
+        let mut theme = Theme::empty();
+        assert_eq!(
+            theme.push_breakpoint("sm", "inherit"),
+            Err(ThemeError::InvalidBreakpointValue {
+                value: "inherit".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn push_breakpoint_rejects_negative_length() {
+        let mut theme = Theme::empty();
+        assert!(theme.push_breakpoint("sm", "-640px").is_err());
+    }
+
+    #[test]
+    fn push_breakpoint_rejects_unitless_nonzero_number() {
+        let mut theme = Theme::empty();
+        assert!(theme.push_breakpoint("sm", "640").is_err());
+    }
+
+    #[test]
+    fn push_breakpoint_rejects_color_value() {
+        let mut theme = Theme::empty();
+        assert!(theme.push_breakpoint("sm", "red").is_err());
+    }
+
+    #[test]
+    fn upsert_breakpoint_rejects_invalid_value() {
+        let mut theme = Theme::empty();
+        assert!(theme.upsert_breakpoint("sm", "red").is_err());
+    }
+
+    #[test]
+    fn default_theme_breakpoints_do_not_appear_in_dark_blocks() {
+        // breakpoints はモード非依存のため、dark 側（`@media
+        // (prefers-color-scheme: dark)` ブロック・`:root[data-theme="dark"]`
+        // ブロック）には出力されない（`write_dark_declarations` の対象外、
+        // `radii`/`z_indices`/`focus_ring`/`sizes`/`motions` と同じ扱い）。
+        let css = Theme::default().to_css();
+        let dark_media_start = css
+            .find("@media (prefers-color-scheme: dark) {")
+            .expect("dark media block must exist");
+        let dark_media_end = css[dark_media_start..]
+            .find("\n}\n")
+            .map(|idx| dark_media_start + idx)
+            .expect("dark media block must be closed");
+        assert!(!css[dark_media_start..dark_media_end].contains("--fandhe-breakpoint-"));
+    }
+
+    #[test]
+    fn empty_theme_without_breakpoints_omits_breakpoint_vars() {
+        // breakpoints を一切 push しないテーマの `to_css()` 出力は、本
+        // イシュー（#2197）で追加した breakpoints グループの純追加である
+        // ことを保証する回帰テスト。
+        let mut theme = Theme::empty();
+        theme.push_color("bg", "#ffffff", "#111111").unwrap();
+
+        let css = theme.to_css();
+        assert!(!css.contains("--fandhe-breakpoint-"));
     }
 }

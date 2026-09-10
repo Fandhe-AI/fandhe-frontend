@@ -20,6 +20,9 @@ use std::process::Command;
 
 use fandhe_frontend_docs_site::build::{build_site, BuildError};
 
+#[path = "support/shared_site.rs"]
+mod shared_site;
+
 /// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
 /// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
 /// 実行時 env による明示上書きのみ許容する。`/tmp` へは一切フォールバック
@@ -157,16 +160,15 @@ fn build_site_fails_closed_and_writes_nothing_for_broken_link_fixture() {
 /// 保証として固定する。以後の docs 編集によるリンク切れも本テストが検出する。
 #[test]
 fn build_site_succeeds_for_the_real_repository_site() {
-    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("resolve repository root");
-    let out = TempDir::new("real-site");
-
-    let report = build_site(&repo_root, &out.0).expect("real site/nav.toml should build cleanly");
+    // 共有ビルド（イシュー #2299）: 読み取り専用のため実サイトビルドを
+    // 使い回す。
+    let shared = shared_site::real_site();
+    let report = &shared.report;
+    let out = shared.out_dir.as_path();
+    let repo_root = shared_site::repo_root();
     assert!(!report.written.is_empty());
     assert!(!report.assets.is_empty());
-    assert!(out.0.join("index.html").exists());
+    assert!(out.join("index.html").exists());
 
     // イシュー #944: #943 で部品ページ 99 件が加わり、実サイトの生成ページ数は
     // 121（既存 22 + 部品 99）になった。site_nav.rs は nav 登録側の件数を、
@@ -222,10 +224,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 224 → 225 になった。イシュー #2119 で Questionnaire の Themes
     // ページが加わり、225 → 226 になった。イシュー #2094 で signup-01 が
     // 加わり、226 → 227 になった。イシュー #2121 で Message Scroller
-    // （Primitives）が加わり、227 → 228 になった。
+    // （Primitives）が加わり、227 → 228 になった。イシュー #2095 で
+    // signup-05 が加わり、228 → 229 になった。
     assert_eq!(
         report.written.len(),
-        228,
+        229,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -262,7 +265,7 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 索引 1 件 = 122 件が生成される。
     // Phase 4 以降で部品が増減したら両方の値の更新が必要になる
     // （fail-closed。黙って減っても気付けるようにする意図）。
-    let components_dir = out.0.join("components");
+    let components_dir = out.join("components");
     let component_index_pages = report
         .written
         .iter()
@@ -273,7 +276,7 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "/components/ 配下の生成ページ数（本体ページは全件 /themes/ へ移行済み）"
     );
 
-    let themes_dir = out.0.join("themes");
+    let themes_dir = out.join("themes");
     let theme_pages = report
         .written
         .iter()
@@ -298,7 +301,7 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Questionnaire が加わり部品 73 件 + 索引 1 件 = 74 件になった。
     // イシュー #2121 で Message Scroller が加わり部品 74 件 + 索引 1 件 =
     // 75 件になった。
-    let primitives_dir = out.0.join("primitives");
+    let primitives_dir = out.join("primitives");
     let primitive_pages = report
         .written
         .iter()
@@ -336,13 +339,13 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "リダイレクト宣言数と生成リダイレクトページ数が一致しない"
     );
     assert!(
-        out.0.join("components/index.html").exists(),
+        out.join("components/index.html").exists(),
         "redirect declared from /components/ should produce components/index.html"
     );
     // イシュー #1018: 索引ページ移設に伴う旧 URL 互換リダイレクト
     // （`/components/pre-styled-ui/` → `/themes/`）の生成物を固定する。
     assert!(
-        out.0.join("components/pre-styled-ui/index.html").exists(),
+        out.join("components/pre-styled-ui/index.html").exists(),
         "redirect declared from /components/pre-styled-ui/ should produce components/pre-styled-ui/index.html"
     );
     for rel in [
@@ -353,18 +356,18 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "assets/pre-styled-ui.css",
         "assets/search-index.json",
     ] {
-        assert!(out.0.join(rel).exists(), "{rel} should be written");
+        assert!(out.join(rel).exists(), "{rel} should be written");
     }
 
     // イシュー #908: 実サイトの nav.toml が持つセクション別ドロップダウン
     // ヘッダーナビが実際に配線されていることを確認する（`nav::header_nav`
     // が全ページ共通で `layout::docs_page_with_assets` へ渡される契約）。
     let index_html =
-        std::fs::read_to_string(out.0.join("index.html")).expect("read generated index.html");
+        std::fs::read_to_string(out.join("index.html")).expect("read generated index.html");
     assert!(index_html.contains(r#"class="docs-header-nav""#));
     assert!(index_html.contains("Getting Started"));
-    assert!(out.0.join("assets/site.css").exists());
-    let site_css = std::fs::read_to_string(out.0.join("assets/site.css"))
+    assert!(out.join("assets/site.css").exists());
+    let site_css = std::fs::read_to_string(out.join("assets/site.css"))
         .expect("read generated assets/site.css");
     assert!(site_css.contains(".docs-header-dropdown"));
 
@@ -397,13 +400,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
 /// 変更しない）。
 #[test]
 fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
-    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("resolve repository root");
-    let out = TempDir::new("all-page-kinds");
-
-    build_site(&repo_root, &out.0).expect("real site/nav.toml should build cleanly");
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
 
     // (相対パス, ショーケースページか否か)。ショーケースのみ
     // `assets/pre-styled-ui.css` への追加 `<link>` を持つ
@@ -430,7 +428,7 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
     ];
 
     for (relative, is_showcase) in pages {
-        let html = std::fs::read_to_string(out.0.join(relative))
+        let html = std::fs::read_to_string(out.join(relative))
             .unwrap_or_else(|e| panic!("read generated {relative}: {e}"));
 
         for needle in [
@@ -467,7 +465,7 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
     // 内容が `script::site_js()` とバイト一致することを固定する
     // （`build.rs` の `fs::write` 書き出しが常に同一内容を書くことの回帰
     // テスト。生成物が実装から乖離した場合に検知する）。
-    let dist_site_js = std::fs::read_to_string(out.0.join("assets/site.js"))
+    let dist_site_js = std::fs::read_to_string(out.join("assets/site.js"))
         .expect("dist/assets/site.js should be generated");
     assert_eq!(dist_site_js, fandhe_frontend_docs_site::script::site_js());
 }
@@ -482,13 +480,8 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
 /// スコープ」節参照）。
 #[test]
 fn real_site_sidebar_is_scoped_to_the_current_section() {
-    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("resolve repository root");
-    let out = TempDir::new("sidebar-scope");
-
-    build_site(&repo_root, &out.0).expect("real site/nav.toml should build cleanly");
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
 
     // `docs-sidebar` ブロックのみを取り出すヘルパ。
     fn sidebar_window(html: &str) -> &str {
@@ -505,7 +498,7 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
     // Guides セクション内のページ（Components 配下は 1 件も出ない）。
     // イシュー #1017 で部品ページの URL が `/themes/` へ移行したため、
     // ここでの否定確認対象も `/themes/` へ追随する。
-    let guides_html = std::fs::read_to_string(out.0.join("guides/view-transitions/index.html"))
+    let guides_html = std::fs::read_to_string(out.join("guides/view-transitions/index.html"))
         .expect("read generated guides/view-transitions/index.html");
     let guides_window = sidebar_window(&guides_html);
     assert!(guides_window.contains(r#"href="/fandhe-frontend/guides/""#));
@@ -519,7 +512,7 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
     // `/themes/button/` へ移行。イシュー #1021: Primitives セクション新設に
     // 伴い、`/primitives/` が 1 件も混入しないことも合わせて固定する
     // （逆方向の混入も同時に fail-closed にする、計画 §6-1b）。
-    let themes_html = std::fs::read_to_string(out.0.join("themes/button/index.html"))
+    let themes_html = std::fs::read_to_string(out.join("themes/button/index.html"))
         .expect("read generated themes/button/index.html");
     let themes_window = sidebar_window(&themes_html);
     assert!(themes_window.contains("docs-nav-group"));
@@ -546,7 +539,7 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
     // イシュー #2117 で Questionnaire・イシュー #2121 で Message Scroller が
     // それぞれ加わり
     // 63 → 65 → 66 → 67 → 69 → 70 → 71 → 72 → 73 → 74 部品）。
-    let primitives_html = std::fs::read_to_string(out.0.join("primitives/accordion/index.html"))
+    let primitives_html = std::fs::read_to_string(out.join("primitives/accordion/index.html"))
         .expect("read generated primitives/accordion/index.html");
     let primitives_window = sidebar_window(&primitives_html);
     assert!(!primitives_window.contains("/themes/"));

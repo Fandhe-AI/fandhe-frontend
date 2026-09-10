@@ -12,14 +12,22 @@
 //! 内部ストレージは `Vec` のみを使い、`HashMap`/`HashSet` は使わない
 //! （反復順序がプロセスごとに変わりうる型を持ち込まない）。[`SlotRecipe::css`]
 //! の出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound variants
-//! （登録順、イシュー #604）→ states（登録順、イシュー #643）」に固定し、
+//! （登録順、イシュー #604）→ states（登録順、イシュー #643）→ breakpoints
+//! （[`Breakpoint`] の昇順、イシュー #2197）→ hover（[`StateCondition::Hover`]
+//! 等の `@media (hover: hover)` ブロック、常に最後尾）」に固定し、
 //! 同一 slot・同一 axis/value への複数回登録は「後に登録された規則が CSS 中で
 //! 後に出力される」（CSS のカスケードにおいて後勝ちになる）という素直な規約に
-//! 従う。この規約より複雑な優先順位判定は行わない。states を最後尾に置くのは、
-//! 各 styled 部品が従来 `state_css()`（`serialize_rule` 直呼び）で手書きして
-//! いた `data-state` 連動規則を [`SlotRecipe::state`] へ移行した際に、
-//! 「`stylesheet() = recipe().css() + state_css()`（状態規則が常に最後）」
-//! という既存のカスケード上の性質をそのまま保存するため（イシュー #643）。
+//! 従う。この規約より複雑な優先順位判定は行わない。states を
+//! variants/compound variants の直後（breakpoints・hover よりは前）に
+//! 置くのは、各 styled 部品が従来 `state_css()`（`serialize_rule`
+//! 直呼び）で手書きしていた `data-state` 連動規則を [`SlotRecipe::state`] へ
+//! 移行した際に、「`stylesheet() = recipe().css() + state_css()`（状態規則が
+//! 常に最後）」という既存のカスケード上の性質をそのまま保存するため
+//! （イシュー #643）。breakpoints を states の後・hover の前に置くのは、
+//! `@media (min-width: ...)` によるレイアウト調整が通常の状態規則より
+//! 優先されるべきだが、タッチ端末の hover 貼り付き対策（イシュー #1425）で
+//! 集約している hover ブロックより手前に置くことでカスケード上の意味を
+//! 単純に保つため（[`SlotRecipe::breakpoint`] rustdoc 参照）。
 //!
 //! # 状態条件付き規則（イシュー #643）
 //!
@@ -52,6 +60,25 @@
 //! 切り替わる。styled 部品側の色宣言は `var(--fandhe-palette)` 等を参照する
 //! だけでよく、palette 軸の追加を機に既存の `var(--fandhe-color-accent)` 直書き
 //! を書き換える（Button/Badge/Spinner/Alert、`crate` rustdoc 参照）。
+//!
+//! # breakpoint 条件（イシュー #2197）
+//!
+//! [`SlotRecipe::breakpoint`] は `@media (min-width: ...)` を伴う規則を
+//! 登録する。[`Breakpoint`] enum の 4 段（`sm`=640px/`md`=768px/`lg`=1024px/
+//! `xl`=1280px）は shadcn/ui（Tailwind v4 既定）・chakra-ui v3 の値と
+//! `sm` 以外で完全一致する（比較・採用根拠は
+//! `docs/design/pre-styled-ui-scale-tokens.md` §3.6 参照）。`min_width()` が
+//! 返すリテラルが `@media` プレリュードの**唯一の**組み立て元であり、
+//! [`crate::theme::Theme`] 側の同名トークン（`--fandhe-breakpoint-<段>`）は
+//! CSS custom property が `@media` プレリュードで使えない制約により
+//! **参照専用**（JS の `matchMedia`・利用者の独自スタイルシート向け）で
+//! [`SlotRecipe::css`] の出力には一切関与しない。両者の値は `Breakpoint`
+//! を唯一の定義元として構築するため手打ちドリフトが起きない
+//! （`crate::theme::DEFAULT_BREAKPOINTS` 参照）。
+//!
+//! breakpoint × variant / breakpoint × state の複合条件（`@media` 内での
+//! `.fd-<scope>--<axis>-<value>` や `:hover` 規則）は本イシューのスコープ外
+//! （`docs/design/pre-styled-ui-scale-tokens.md` §7 の再評価トリガー参照）。
 
 use crate::css::{decl, is_valid_identifier, serialize_rule, Declaration};
 
@@ -116,6 +143,80 @@ impl VariantValue for Size {
             Size::Md => "md",
             Size::Lg => "lg",
             Size::Xl => "xl",
+        }
+    }
+}
+
+/// レスポンシブブレークポイント（`@media (min-width: ...)`）の閾値
+/// （イシュー #2197）。[`StateCondition`] と並ぶ「条件」だが、variant 軸
+/// （[`VariantValue`]）でも状態条件（[`StateCondition`]）でもない別カテゴリ
+/// のため独立した enum とする（[`SlotRecipe::breakpoint`] からのみ使う。
+/// 公開 `match` の網羅性を壊さないよう、既存の `StateCondition` へ variant
+/// を追加する形は採らない）。
+///
+/// `sm`/`md`/`lg`/`xl` の 4 段のみを持つ（`2xl` は追加しない。[`Size`] の
+/// 「共通 enum に載せると全部品が空の段を抱える」前例と同じ判断。必要になった
+/// 時点で純追加できる）。値は shadcn/ui（Tailwind v4 既定）・chakra-ui v3 と
+/// `sm` 以外で完全一致する（比較表は
+/// `docs/design/pre-styled-ui-scale-tokens.md` §3.6 参照）。既定値
+/// （`Default`）は実装しない（[`Size`]/[`ColorPalette`] と異なり呼び出し元が
+/// 明示的に段を選ぶ契約のため、安全側判断）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Breakpoint {
+    /// `>= 640px`。
+    Sm,
+    /// `>= 768px`。
+    Md,
+    /// `>= 1024px`。
+    Lg,
+    /// `>= 1280px`。
+    Xl,
+}
+
+impl Breakpoint {
+    /// 全段を昇順（`sm` → `xl`）で列挙する。[`SlotRecipe::css`] が
+    /// breakpoint ブロックを mobile-first（小さい段から）の順に出力する際、
+    /// および [`crate::theme::DEFAULT_BREAKPOINTS`] がテーマトークンを
+    /// 構築する際の唯一の反復元として使う。
+    pub const ALL: [Breakpoint; 4] = [
+        Breakpoint::Sm,
+        Breakpoint::Md,
+        Breakpoint::Lg,
+        Breakpoint::Xl,
+    ];
+
+    /// この段の名前（例: `"sm"`）。[`SlotRecipe`] のクラス名接尾辞
+    /// （`fd-<scope>--<axis>-<value>`）には使わない（本イシューでは
+    /// breakpoint × variant の複合条件を実装しないため、`Breakpoint` を
+    /// `VariantValue` として使う経路自体が存在しない）。
+    /// [`crate::theme::DEFAULT_BREAKPOINTS`] がテーマトークン名
+    /// （`--fandhe-breakpoint-<value()>`）としてはこの値をそのまま使う。
+    #[must_use]
+    pub const fn value(self) -> &'static str {
+        match self {
+            Breakpoint::Sm => "sm",
+            Breakpoint::Md => "md",
+            Breakpoint::Lg => "lg",
+            Breakpoint::Xl => "xl",
+        }
+    }
+
+    /// `@media (min-width: ...)` に埋め込む px 値（例: `"640px"`）。
+    ///
+    /// この `const fn` がリテラルを返すソース内の**唯一の定義元**であり、
+    /// [`SlotRecipe::css`] はこの戻り値のみを `@media` プレリュードへ
+    /// 埋め込む（呼び出し元由来の文字列は一切通さない。既存の
+    /// [`Declaration`] が `&'static str` のみを保持する不変条件と同型の
+    /// 安全性根拠）。[`crate::theme::DEFAULT_BREAKPOINTS`] もこの値を
+    /// テーマトークンの初期値として再利用し、2 箇所の手打ちドリフトを
+    /// 構造的に防ぐ。
+    #[must_use]
+    pub const fn min_width(self) -> &'static str {
+        match self {
+            Breakpoint::Sm => "640px",
+            Breakpoint::Md => "768px",
+            Breakpoint::Lg => "1024px",
+            Breakpoint::Xl => "1280px",
         }
     }
 }
@@ -778,6 +879,13 @@ struct StateRule {
     declarations: Vec<Declaration>,
 }
 
+/// slot 1 個・breakpoint 1 個への宣言登録（内部表現、イシュー #2197）。
+struct BreakpointRule {
+    slot: &'static str,
+    breakpoint: Breakpoint,
+    declarations: Vec<Declaration>,
+}
+
 /// compound variant の条件 1 件（axis, value の型消去された組）。
 ///
 /// [`when()`] を通じてのみ [`VariantValue`] 実装 enum から構築できる（生の
@@ -809,6 +917,41 @@ struct CompoundVariantRule {
     declarations: Vec<Declaration>,
 }
 
+/// `@media (...) { ... }` ブロックを組み立てて `out` へ追記する内部ヘルパ
+/// （イシュー #1425 の hover ブロック生成処理を、イシュー #2197 の
+/// breakpoint ブロックと共用するために抽出した）。
+///
+/// `inner` が空文字列なら何も出力しない（有効な規則が 1 件もない
+/// breakpoint/hover ブロックを出力しない、という [`SlotRecipe::css`] の
+/// fail-closed 方針を担う）。`inner` の各行を 2 スペースでインデントし、
+/// 規則間の区切り空行（`inner` の各規則末尾に付与済み）はインデントせずに
+/// そのまま保持する（空行への余計な末尾空白混入を避ける）。ブロックの
+/// 末尾には他の規則ブロックと同じ区切り空行を 1 つ追加する（イシュー
+/// #2197 で breakpoint ブロックを複数個連続出力するようになったため、
+/// `@media` ブロック同士の間も他の規則間と同じ書式に揃える）。この
+/// 末尾の空行は [`SlotRecipe::css`] 末尾の trim（`out.ends_with("\n\n")`
+/// なら 1 文字削る）が最終出力からは除去するため、hover のみ・
+/// breakpoint のみの既存/新規いずれの出力も `css()` の最終バイト列は
+/// `}\n`（空行なし）で終わる。
+fn push_media_block(out: &mut String, prelude: &str, inner: &str) {
+    if inner.is_empty() {
+        return;
+    }
+    out.push_str(prelude);
+    out.push_str(" {\n");
+    for line in inner.trim_end_matches('\n').lines() {
+        if line.is_empty() {
+            out.push('\n');
+        } else {
+            out.push_str("  ");
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out.push_str("}\n");
+    out.push('\n');
+}
+
 /// slot recipe: `scope`（headless anatomy と同一値）・`slots`・base・variants・
 /// defaultVariants を保持し、静的 CSS とクラス名を決定的に生成する。
 ///
@@ -828,6 +971,7 @@ pub struct SlotRecipe {
     default_variants: Vec<DefaultVariant>,
     compound_variants: Vec<CompoundVariantRule>,
     states: Vec<StateRule>,
+    breakpoints: Vec<BreakpointRule>,
 }
 
 impl SlotRecipe {
@@ -843,6 +987,7 @@ impl SlotRecipe {
             default_variants: Vec::new(),
             compound_variants: Vec::new(),
             states: Vec::new(),
+            breakpoints: Vec::new(),
         }
     }
 
@@ -991,6 +1136,42 @@ impl SlotRecipe {
         self
     }
 
+    /// breakpoint 条件（[`Breakpoint`]）が満たされたときの `slot` への宣言を
+    /// 登録する（builder、自己消費、イシュー #2197）。`@media (min-width:
+    /// <bp.min_width()>)` ブロック配下へ出力される。
+    ///
+    /// 以下のいずれかに該当する規則は [`SlotRecipe::css`] の出力から除外される
+    /// （fail-closed。既存 `base`/`variant`/`state` と同じ「不正入力は
+    /// panic せず出力から除外する」方針）:
+    ///
+    /// - `slot` が `slots` に未宣言、または識別子として不正
+    /// - 有効な宣言が 1 件もない（`declarations` が空、または全て
+    ///   `is_valid_property`/`is_valid_value` を満たさない）
+    ///
+    /// breakpoint 規則のセレクタは base と同じ
+    /// `[data-scope="<scope>"][data-part="<slot>"]`（詳細度 (0,2,0)）で
+    /// あり、variant（(0,3,0)）より低い。同一 slot・同一プロパティを
+    /// variant が宣言していると、`@media` の内外に関わらず variant が
+    /// 常に勝つ（詳細度優先。呼び出し元は対象プロパティが variant で
+    /// 宣言されていないことを確認する契約）。breakpoint × variant /
+    /// breakpoint × state の複合条件（`@media` 内での `.fd-*`/`:hover`
+    /// セレクタ）は本メソッドでは表現できない（本イシューのスコープ外、
+    /// `crate` モジュール doc「breakpoint 条件」節参照）。
+    #[must_use]
+    pub fn breakpoint(
+        mut self,
+        slot: &'static str,
+        bp: Breakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.breakpoints.push(BreakpointRule {
+            slot,
+            breakpoint: bp,
+            declarations,
+        });
+        self
+    }
+
     /// この slot に属するかどうかを判定する（`slots` 未宣言の slot を
     /// fail-closed で除外するための内部ヘルパ）。
     fn is_declared_slot(&self, slot: &str) -> bool {
@@ -1038,12 +1219,22 @@ impl SlotRecipe {
     /// 貼り付き対策として `@media (hover: hover) { ... }` 配下へまとめて
     /// 出力する形へ変更し、`:not([data-disabled])` を付与して disabled 規則
     /// との勝敗を記述順に依存させない契約にした。この `@media` ブロックは
-    /// 通常の state 規則がすべて出力された後、[`SlotRecipe::css`] の
-    /// 出力の最後尾に 1 つだけ現れる）のいずれか（`Hover` 以外は出力順が
-    /// 最後尾のため CSS カスケードの後勝ちで variant/compound variant を
-    /// 上書きする。`LastChild` は同一 slot への他の state 規則より後に
-    /// 登録することで詳細度が同じでも記述順の後勝ちで上書きする契約、
-    /// `state()` の「登録順」規約参照）。
+    /// 通常の state 規則がすべて出力された後、breakpoint ブロック（後述）
+    /// よりさらに後、[`SlotRecipe::css`] の出力の最後尾に 1 つだけ現れる）
+    /// のいずれか（`Hover` 以外は出力順が最後尾のため CSS カスケードの
+    /// 後勝ちで variant/compound variant を上書きする。`LastChild` は同一
+    /// slot への他の state 規則より後に登録することで詳細度が同じでも
+    /// 記述順の後勝ちで上書きする契約、`state()` の「登録順」規約参照）。
+    ///
+    /// breakpoint（[`SlotRecipe::breakpoint`]、イシュー #2197）は states の
+    /// 後・hover ブロックの前に出力される。[`Breakpoint`] の昇順（`sm` →
+    /// `xl`、mobile-first）で breakpoint ごとに 1 つの
+    /// `@media (min-width: <bp.min_width()>) { ... }` ブロックへ集約し
+    /// （同一 breakpoint 内は登録順）、有効な規則が 1 件もない breakpoint の
+    /// ブロックは出力しない。セレクタは base と同じ `[data-scope="<scope>"]
+    /// [data-part="<slot>"]`（詳細度 (0,2,0)）であり、同一 slot・同一
+    /// プロパティを variant（(0,3,0)）が宣言していると variant が常に勝つ
+    /// （[`SlotRecipe::breakpoint`] rustdoc 参照）。
     ///
     /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
     /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
@@ -1245,22 +1436,32 @@ impl SlotRecipe {
             }
         }
 
-        if !hover_css.is_empty() {
-            // hover_css 側の各規則末尾に付与済みの区切り空行はそのまま
-            // 空行として保持し、非空行のみへインデントを足す（空行への
-            // 余計な末尾空白混入を避ける）。
-            out.push_str("@media (hover: hover) {\n");
-            for line in hover_css.trim_end_matches('\n').lines() {
-                if line.is_empty() {
-                    out.push('\n');
-                } else {
-                    out.push_str("  ");
-                    out.push_str(line);
-                    out.push('\n');
+        // breakpoints は Breakpoint::ALL の昇順（mobile-first、sm → xl）で
+        // 1 breakpoint = 1 @media ブロックとして出力する（イシュー #2197、
+        // 本関数 rustdoc の出力構造節参照）。states の後・hover の前。
+        for bp in Breakpoint::ALL {
+            let mut block = String::new();
+            for rule in self.breakpoints.iter().filter(|r| r.breakpoint == bp) {
+                if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
+                    continue;
+                }
+                let selector = format!(
+                    "[data-scope=\"{}\"][data-part=\"{}\"]",
+                    self.scope, rule.slot
+                );
+                if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                    block.push_str(&css);
+                    block.push('\n');
                 }
             }
-            out.push_str("}\n");
+            push_media_block(
+                &mut out,
+                &format!("@media (min-width: {})", bp.min_width()),
+                &block,
+            );
         }
+
+        push_media_block(&mut out, "@media (hover: hover)", &hover_css);
 
         // 末尾の空行は規則ブロック間の区切りとしてのみ入れるため、
         // 最後の 1 つを削って「規則間は空行 1 つ」書式を保つ。

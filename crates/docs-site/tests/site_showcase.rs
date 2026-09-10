@@ -8,56 +8,17 @@
 //! を対象に、生成 HTML への styled 部品マークアップの埋め込み・専用 CSS
 //! （`assets/pre-styled-ui.css`）の書き出し・`<link>` 参照を end-to-end で
 //! 固定する。`tests/site_build.rs` の実サイトビルド検証と同じくリポジトリ
-//! ルートを `--root` 相当として `build_site` を直接呼ぶ。
+//! ルートを `--root` 相当として `build_site` を直接呼ぶ。全テストが実サイト
+//! ビルド結果を読み取り専用で参照するのみのため、イシュー #2299 で
+//! `tests/support/shared_site.rs` の共有ビルドへ切り替え済み（テストごとの
+//! 再ビルドを撤去）。
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use fandhe_frontend_docs_site::build::build_site;
 use fandhe_frontend_docs_site::showcase;
 
-/// 統合テストのスクラッチ基点（`tests/site_build.rs` と同一パターン、
-/// イシュー #637/#658。`/tmp` へはフォールバックしない）。
-fn scratch_root() -> PathBuf {
-    let root = std::env::var("CARGO_TARGET_TMPDIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
-    let _ = std::fs::create_dir_all(&root);
-    root
-}
-
-/// テスト専用の一時出力ディレクトリ（外部クレート `tempfile` を追加しない、
-/// REQ-3。`tests/site_build.rs` の `TempDir` と同方針）。
-struct TempDir(PathBuf);
-
-impl TempDir {
-    fn new(tag: &str) -> Self {
-        let unique = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = scratch_root().join(format!(
-            "fandhe-frontend-docs-site-showcase-{tag}-{}-{unique}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&path).expect("create temp dir for site_showcase.rs test");
-        Self(path)
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// `CARGO_MANIFEST_DIR`（`crates/docs-site`）から repo_root を解決する
-/// （`tests/site_css_contract.rs` と同じ規約）。
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("repo_root should resolve from CARGO_MANIFEST_DIR")
-}
+#[path = "support/shared_site.rs"]
+mod shared_site;
 
 /// 部品ページの HTML を読み出す（`page_rel` は `showcase::COMPONENT_PAGES`
 /// / `nav.toml` の `page.path` から先頭 `/` を除いたもの）。
@@ -69,12 +30,15 @@ fn read_component_page(out: &Path, page_rel: &str) -> String {
 
 #[test]
 fn real_site_build_emits_component_pages_and_dedicated_css() {
-    let out = TempDir::new("real-site");
-    let report = build_site(&repo_root(), &out.0).expect("real site should build");
+    // 共有ビルド（イシュー #2299）: 読み取り専用のため実サイトビルドを
+    // 使い回す。
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
+    let report = &shared.report;
 
     // 基本部品（Button）: Demo 節の styled 部品マークアップ・CSS 配線を
     // 固定する。
-    let button_html = read_component_page(&out.0, "themes/button");
+    let button_html = read_component_page(out, "themes/button");
     assert!(button_html.contains(r#"data-scope="button""#));
     assert!(button_html.contains(">Demo<"));
     // サイト骨格 CSS と部品ページ専用 CSS の両方を <link> 参照する
@@ -84,7 +48,7 @@ fn real_site_build_emits_component_pages_and_dedicated_css() {
 
     // 専用 CSS が書き出され、テーマトークン + recipe セレクタを含む
     // （全部品ページが共有する単一の CSS 束、showcase::stylesheet 参照）。
-    let css_path = out.0.join(showcase::STYLESHEET_REL_PATH);
+    let css_path = out.join(showcase::STYLESHEET_REL_PATH);
     assert!(css_path.exists());
     assert!(report.assets.iter().any(|a| a == &css_path));
     let css = std::fs::read_to_string(&css_path).unwrap();
@@ -115,7 +79,7 @@ fn real_site_build_emits_component_pages_and_dedicated_css() {
             .to_string()
     };
 
-    let accordion_html = read_component_page(&out.0, "themes/accordion");
+    let accordion_html = read_component_page(out, "themes/accordion");
     let accordion_toc = toc_of(&accordion_html);
     assert!(accordion_toc.contains(">Demo<"));
     assert!(
@@ -123,21 +87,21 @@ fn real_site_build_emits_component_pages_and_dedicated_css() {
         "accordion trigger heading must not leak into TOC: {accordion_toc}"
     );
 
-    let card_html = read_component_page(&out.0, "themes/card");
+    let card_html = read_component_page(out, "themes/card");
     let card_toc = toc_of(&card_html);
     assert!(
         !card_toc.contains(">Elevated<"),
         "card title heading must not leak into TOC: {card_toc}"
     );
 
-    let dialog_html = read_component_page(&out.0, "themes/dialog");
+    let dialog_html = read_component_page(out, "themes/dialog");
     let dialog_toc = toc_of(&dialog_html);
     assert!(
         !dialog_toc.contains("Confirm action"),
         "dialog title heading must not leak into TOC: {dialog_toc}"
     );
 
-    let popover_html = read_component_page(&out.0, "themes/popover");
+    let popover_html = read_component_page(out, "themes/popover");
     let popover_toc = toc_of(&popover_html);
     assert!(
         !popover_toc.contains("About this feature"),
@@ -160,10 +124,10 @@ fn real_site_build_emits_component_pages_and_dedicated_css() {
 /// （HTML → CSS の片方向網羅、`tests/site_css_contract.rs` の層 2 と同型）。
 #[test]
 fn forms_demo_fallback_pages_ship_scoped_css() {
-    let out = TempDir::new("forms-demo-fallback-css");
-    build_site(&repo_root(), &out.0).expect("real site should build");
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
 
-    let css_path = out.0.join(showcase::STYLESHEET_REL_PATH);
+    let css_path = out.join(showcase::STYLESHEET_REL_PATH);
     let css = std::fs::read_to_string(&css_path).unwrap();
 
     for (page_rel, expected_scope) in [
@@ -177,7 +141,7 @@ fn forms_demo_fallback_pages_ship_scoped_css() {
         ("themes/link-overlay", "link-overlay"),
         ("themes/nav-list", "nav-list"),
     ] {
-        let html = read_component_page(&out.0, page_rel);
+        let html = read_component_page(out, page_rel);
         let marker = format!(r#"data-scope="{expected_scope}""#);
         assert!(
             html.contains(&marker),
@@ -197,12 +161,12 @@ fn forms_demo_fallback_pages_ship_scoped_css() {
 
 #[test]
 fn non_showcase_pages_do_not_reference_showcase_css() {
-    let out = TempDir::new("no-extra-link");
-    build_site(&repo_root(), &out.0).expect("real site should build");
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
 
     // Markdown のみのページには追加 <link> を差し込まない（サイト骨格の
     // カスケードへ影響させない分離契約）。
-    let index_html = std::fs::read_to_string(out.0.join("index.html")).unwrap();
+    let index_html = std::fs::read_to_string(out.join("index.html")).unwrap();
     assert!(!index_html.contains("pre-styled-ui.css"));
 
     // イシュー #943: `/components/pre-styled-ui/`（索引ページ）は Rust
@@ -215,7 +179,7 @@ fn non_showcase_pages_do_not_reference_showcase_css() {
     // `<link ... href="...">` の実配線有無で判定する
     // （素の部分文字列一致だと本文中の言及と誤検知が区別できない）。
     let index_page_rel = showcase::PAGE_PATH.trim_start_matches('/');
-    let component_index_html = read_component_page(&out.0, index_page_rel);
+    let component_index_html = read_component_page(out, index_page_rel);
     assert!(!component_index_html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#));
     assert!(!component_index_html.contains(r#"data-scope="button""#));
     assert!(!component_index_html.contains(r#"class="pre-styled-showcase""#));
@@ -223,7 +187,7 @@ fn non_showcase_pages_do_not_reference_showcase_css() {
     // イシュー #1022: `/primitives/<kebab>/` は headless-ui の Demo を持つが、
     // Themes 側の専用 CSS（`pre-styled-ui.css`、`[data-scope=` recipe）を
     // 一切参照しない（層混同の中核回帰。モジュール doc §1.2 相当）。
-    let accordion_html = read_component_page(&out.0, "primitives/accordion");
+    let accordion_html = read_component_page(out, "primitives/accordion");
     assert!(!accordion_html.contains("pre-styled-ui.css"));
     assert!(accordion_html.contains("primitives-showcase.css"));
     assert!(!accordion_html.contains(r#"class="pre-styled-showcase""#));
@@ -237,8 +201,8 @@ fn non_showcase_pages_do_not_reference_showcase_css() {
 /// いた。原稿撤去後は各見出しがちょうど 1 回だけ出現することを固定する。
 #[test]
 fn toggle_pages_toc_has_no_duplicate_headings() {
-    let out = TempDir::new("toggle-toc-dedup");
-    build_site(&repo_root(), &out.0).expect("real site should build");
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
 
     let toc_of = |html: &str| -> String {
         html.split(r#"<nav class="docs-toc" aria-labelledby="docs-toc-heading">"#)
@@ -249,7 +213,7 @@ fn toggle_pages_toc_has_no_duplicate_headings() {
     };
 
     for page_rel in ["themes/toggle", "themes/toggle-group"] {
-        let html = read_component_page(&out.0, page_rel);
+        let html = read_component_page(out, page_rel);
         let toc = toc_of(&html);
         for heading in [
             "Demo",
@@ -302,10 +266,10 @@ fn link_and_nav_list_hover_rules_neutralize_docs_content_a_hover() {
 /// `crates/pre-styled-ui/tests/progress_css.rs` の該当規則と同一。
 #[test]
 fn progress_page_ships_circular_indeterminate_arc_from_issue_1688() {
-    let out = TempDir::new("progress-circular-arc");
-    build_site(&repo_root(), &out.0).expect("real site should build");
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
 
-    let html = read_component_page(&out.0, "themes/progress");
+    let html = read_component_page(out, "themes/progress");
     // Demo の circle 状態比較行が indeterminate（固定弧）と complete
     // （完全リング）の両方の circle-range を掲示していることを固定する
     // （弧と完全リングの対比が Demo だけで読み取れる契約）。
@@ -320,7 +284,7 @@ fn progress_page_ships_circular_indeterminate_arc_from_issue_1688() {
         "progress page demo should render a complete circle-range for contrast: {html}"
     );
 
-    let css_path = out.0.join(showcase::STYLESHEET_REL_PATH);
+    let css_path = out.join(showcase::STYLESHEET_REL_PATH);
     let css = std::fs::read_to_string(&css_path)
         .unwrap_or_else(|e| panic!("dedicated stylesheet should exist at {css_path:?}: {e}"));
     assert!(
