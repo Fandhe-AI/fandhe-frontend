@@ -1356,6 +1356,11 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
   列表示切替の `data-hidden`（列定義・列順の永続化は非対象）・`pagination`
   再利用のページング footer（ページサイズに応じたデータ取得は非対象）・
   `empty-state`/`skeleton` 再利用の空状態/読み込み中表示までである。
+  headless-ui 層は #2125 で実装済み（`<table>`/`<thead>`/`<tbody>`/`<tr>`
+  は生成せず、`column_attrs`/`column_header_attrs`/`row_attrs` の属性
+  ヘルパで pre-styled `table::*` へパススルーする設計）。pre-styled-ui
+  recipe・golden・Themes ページ・本表の「実装対象」→「実装済み」区分
+  変更は後続イシュー #2127 のスコープ。
 - **Message / Bubble / Attachment / Marker（会話系 4 部品、#2104 / #2107 /
   #2110 / #2113、規則 1 適用）**: 4 部品は AI チャット UI の**表示**部品群
   であり、ストリーミング表示・送信・履歴取得・必須回答判定等のアプリ

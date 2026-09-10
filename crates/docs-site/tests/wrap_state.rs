@@ -642,8 +642,11 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// みを実装した `message_scroller` が一時的に本リストへ加わっていたが、
 /// イシュー #2123 で pre-styled-ui 側（`crates/pre-styled-ui/src/
 /// message_scroller.rs`・`/themes/message-scroller/`）を新設し
-/// `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。
-const HEADLESS_UNWRAPPED: &[&str] = &[];
+/// `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。イシュー
+/// #2125 で同様に headless-ui 層のみを実装した `data_table` が新設され
+/// 本リストへ加わった。pre-styled-ui recipe・Themes ページは後続イシュー
+/// #2127 のスコープであり、実装され次第 `WRAPPED_SAME_NAME` へ移す。
+const HEADLESS_UNWRAPPED: &[&str] = &["data_table"];
 
 /// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
 /// まだ持たない部品（イシュー #2073 で `sidebar` を一時的に載せた暫定
