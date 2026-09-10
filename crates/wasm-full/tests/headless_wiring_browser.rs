@@ -27,6 +27,7 @@ use fandhe_frontend_wasm_full::headless::wire_headless_component;
 use fandhe_frontend_wasm_full::headless_select::wire_select_value_text;
 use std::cell::RefCell;
 use std::rc::Rc;
+use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, Event, EventInit};
 
@@ -1275,6 +1276,356 @@ fn submenu_trigger_item_click_toggles_child_menu_and_does_not_cross_dispatch_to_
         !parent_component.borrow().is_open(),
         "content 配下の子アイテムクリックが親 Menu インスタンスへクロス \
          ディスパッチされてはならない"
+    );
+}
+
+// --- イシュー #2205: Menu checkbox-item/radio-item の実 DOM クリック配線 ---
+
+#[wasm_bindgen_test]
+fn menu_checkbox_item_click_toggles_in_real_dom() {
+    use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-menu-checkbox-item-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let component = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    let html = fandhe_frontend_core::render(&component.borrow().checkbox_item(
+        "wrap",
+        false,
+        false,
+        vec![],
+        vec![fandhe_frontend_core::text("Word wrap")],
+    ));
+    container.set_inner_html(&html);
+    let item = container
+        .first_element_child()
+        .expect("checkbox-item element must exist");
+
+    wire_headless_component(item.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+
+    dispatch_click(&item);
+    assert!(
+        component.borrow().is_checked(),
+        "checkbox-item クリックでチェック状態がトグルすること"
+    );
+
+    dispatch_click(&item);
+    assert!(
+        !component.borrow().is_checked(),
+        "再クリックで元のチェック状態へ戻ること"
+    );
+}
+
+#[wasm_bindgen_test]
+fn menu_radio_item_group_click_selects_exclusively_in_real_dom() {
+    use fandhe_frontend_headless_ui::menu::MenuRadioItemGroup;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-menu-radio-item-group-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let component = Rc::new(RefCell::new(MenuRadioItemGroup::default()));
+    let group = component.borrow();
+    let html = fandhe_frontend_core::render(&group.radio_item_group(
+        None,
+        vec![],
+        vec![
+            group.radio_item("grid", false, false, vec![], vec![]),
+            group.radio_item("list", false, false, vec![], vec![]),
+        ],
+    ));
+    drop(group);
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("radio-item-group element must exist");
+    let items = root
+        .query_selector_all(r#"[data-part="radio-item"]"#)
+        .expect("query_selector_all must not fail");
+    let grid_item: Element = items
+        .item(0)
+        .expect("grid radio-item must exist")
+        .dyn_into()
+        .expect("must be Element");
+    let list_item: Element = items
+        .item(1)
+        .expect("list radio-item must exist")
+        .dyn_into()
+        .expect("must be Element");
+
+    wire_headless_component(root.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+
+    dispatch_click(&grid_item);
+    assert!(component.borrow().is_checked("grid"));
+    assert!(!component.borrow().is_checked("list"));
+
+    dispatch_click(&list_item);
+    assert!(
+        component.borrow().is_checked("list"),
+        "別項目のクリックで排他的に選択が切り替わること"
+    );
+    assert!(!component.borrow().is_checked("grid"));
+}
+
+/// checkbox-item の `"toggle"` は外側 `Menu`（Disclosure）とも語彙が
+/// 一致するため、`crates/wasm-full/tests/headless_wiring_browser.rs::
+/// submenu_trigger_item_click_toggles_child_menu_and_does_not_cross_dispatch_to_parent`
+/// と同じ per-instance 配線 + `stop_propagation` 契約により、checkbox-item
+/// クリックが外側 Menu の開閉状態へ越境しないことを固定する。
+#[wasm_bindgen_test]
+fn menu_checkbox_item_click_does_not_cross_dispatch_to_outer_menu() {
+    use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-menu-checkbox-item-cross-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let outer_root = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    outer_root.set_attribute("data-scope", "menu").unwrap();
+    outer_root.set_attribute("data-part", "root").unwrap();
+
+    let checkbox_item_html = fandhe_frontend_core::render(
+        &MenuCheckboxItem::default().checkbox_item("wrap", false, false, vec![], vec![]),
+    );
+    outer_root.set_inner_html(&checkbox_item_html);
+    container.append_child(&outer_root).unwrap();
+    let item = outer_root
+        .first_element_child()
+        .expect("checkbox-item element must exist");
+
+    let outer_menu = Rc::new(RefCell::new(Menu::default()));
+    let inner_checkbox = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    wire_headless_component(outer_root.clone(), outer_menu.clone(), |_, _| {})
+        .expect("outer wire_headless_component must not fail");
+    wire_headless_component(item.clone(), inner_checkbox.clone(), |_, _| {})
+        .expect("inner wire_headless_component must not fail");
+
+    dispatch_click(&item);
+
+    assert!(
+        inner_checkbox.borrow().is_checked(),
+        "checkbox-item 自身の専用配線によりチェック状態がトグルすること"
+    );
+    assert!(
+        !outer_menu.borrow().is_open(),
+        "checkbox-item クリックが bubble して外側 Menu の toggle へ誤って \
+         クロスディスパッチされてはならない（`stop_propagation` 契約、\
+         submenu_trigger_item_click_... と同型）"
+    );
+}
+
+/// codex-review（PR #2321 P1 指摘）の是正回帰: checkbox-item 専用の
+/// `MenuCheckboxItem` インスタンスを一切配線せず、外側 `Menu`（Disclosure）
+/// の root だけを `wire_headless_component` した既存アプリの再現。
+/// checkbox-item の checked 状態は（本テストのように）アプリ独自の
+/// click ハンドラで管理される想定であり、checkbox-item クリックが外側
+/// Menu の `"toggle"` として誤って解決され Menu が意図せず開閉しては
+/// ならない。
+#[wasm_bindgen_test]
+fn menu_checkbox_item_click_without_dedicated_instance_wiring_does_not_toggle_outer_menu() {
+    use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-menu-checkbox-item-unwired-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let outer_root = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    outer_root.set_attribute("data-scope", "menu").unwrap();
+    outer_root.set_attribute("data-part", "root").unwrap();
+
+    let checkbox_item_html = fandhe_frontend_core::render(
+        &MenuCheckboxItem::default().checkbox_item("wrap", false, false, vec![], vec![]),
+    );
+    outer_root.set_inner_html(&checkbox_item_html);
+    container.append_child(&outer_root).unwrap();
+    let item = outer_root
+        .first_element_child()
+        .expect("checkbox-item element must exist");
+
+    // checkbox-item 専用インスタンスは配線しない（既存アプリが独自の
+    // click ハンドラで checked を管理している状況の再現）。外側 Menu の
+    // root だけを配線する。
+    let outer_menu = Rc::new(RefCell::new(Menu::default()));
+    wire_headless_component(outer_root.clone(), outer_menu.clone(), |_, _| {})
+        .expect("outer wire_headless_component must not fail");
+
+    dispatch_click(&item);
+
+    assert!(
+        !outer_menu.borrow().is_open(),
+        "checkbox-item 専用インスタンスを配線していない既存アプリで、\
+         checkbox-item クリックが外側 Menu の toggle として誤って \
+         解決されてはならない（fail-closed、codex-review PR #2321 P1 指摘の \
+         是正）"
+    );
+}
+
+#[wasm_bindgen_test]
+fn menu_checkbox_item_data_value_xss_payload_click_does_not_produce_script_element() {
+    use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-menu-checkbox-item-xss-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let component = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    let html = fandhe_frontend_core::render(&component.borrow().checkbox_item(
+        "\"><script>alert(1)</script>",
+        false,
+        false,
+        vec![],
+        vec![],
+    ));
+    container.set_inner_html(&html);
+    assert!(container.query_selector("script").unwrap().is_none());
+    let item = container
+        .first_element_child()
+        .expect("checkbox-item element must exist");
+
+    wire_headless_component(item.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+
+    dispatch_click(&item);
+    assert!(component.borrow().is_checked());
+    assert!(
+        container.query_selector("script").unwrap().is_none(),
+        "checkbox-item クリック後も script 要素が生成されてはならない"
+    );
+}
+
+// --- イシュー #2205: Menubar checkbox-item/radio-item の実 DOM クリック配線 ---
+//
+// Menubar 自身は checked 状態機械を持たないため `menu::MenuCheckboxItem`/
+// `MenuRadioItemGroup` を流用する（native テスト `headless_wiring.rs` と
+// 同じ判断）。
+
+#[wasm_bindgen_test]
+fn menubar_checkbox_item_and_radio_item_click_in_real_dom() {
+    use fandhe_frontend_headless_ui::menu::{MenuCheckboxItem, MenuRadioItemGroup};
+    use fandhe_frontend_headless_ui::menubar::{self, Menubar};
+    use fandhe_frontend_headless_ui::state::OpenState;
+    use fandhe_frontend_headless_ui::Orientation;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-menubar-checkable-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = fandhe_frontend_core::render(&menubar::root(
+        Orientation::Horizontal,
+        "App menu",
+        vec![],
+        vec![menubar::menu(
+            OpenState::Closed,
+            vec![],
+            vec![
+                menubar::trigger(
+                    true,
+                    OpenState::Closed,
+                    false,
+                    false,
+                    0,
+                    None,
+                    vec![],
+                    vec![fandhe_frontend_core::text("View")],
+                ),
+                menubar::checkbox_item(false, "wrap", false, false, vec![], vec![]),
+                menubar::radio_item_group(
+                    None,
+                    vec![],
+                    vec![
+                        menubar::radio_item(false, "grid", false, false, vec![], vec![]),
+                        menubar::radio_item(false, "list", false, false, vec![], vec![]),
+                    ],
+                ),
+            ],
+        )],
+    ));
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("menubar root must exist");
+    let trigger = root
+        .query_selector(r#"[data-part="trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("trigger element must exist");
+    let checkbox_item = root
+        .query_selector(r#"[data-part="checkbox-item"]"#)
+        .expect("query_selector must not fail")
+        .expect("checkbox-item element must exist");
+    let radio_item_group = root
+        .query_selector(r#"[data-part="radio-item-group"]"#)
+        .expect("query_selector must not fail")
+        .expect("radio-item-group element must exist");
+    let radio_items = root
+        .query_selector_all(r#"[data-part="radio-item"]"#)
+        .expect("query_selector_all must not fail");
+    let grid_item: Element = radio_items
+        .item(0)
+        .expect("grid radio-item must exist")
+        .dyn_into()
+        .expect("must be Element");
+
+    let menubar_component = Rc::new(RefCell::new(Menubar::new(
+        0,
+        1,
+        None,
+        false,
+        Orientation::Horizontal,
+    )));
+    let checkbox_component = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    let radio_component = Rc::new(RefCell::new(MenuRadioItemGroup::default()));
+
+    wire_headless_component(root.clone(), menubar_component.clone(), |_, _| {})
+        .expect("menubar wire_headless_component must not fail");
+    wire_headless_component(checkbox_item.clone(), checkbox_component.clone(), |_, _| {})
+        .expect("checkbox-item wire_headless_component must not fail");
+    // `MenuRadioItemGroup` の専用インスタンス root は radio-item-group 自身
+    // （個々の radio-item ではない、`menu_radio_item_group_click_selects_exclusively_in_real_dom`
+    // と同じ判断。codex-review PR #2321 P1 指摘の是正により、専用インス
+    // タンス root 以外での解決は fail-closed になったため、grid_item 単体
+    // を root にすると resolve しなくなる）。
+    wire_headless_component(radio_item_group.clone(), radio_component.clone(), |_, _| {})
+        .expect("radio-item-group wire_headless_component must not fail");
+
+    dispatch_click(&checkbox_item);
+    assert!(
+        checkbox_component.borrow().is_checked(),
+        "menubar checkbox-item クリックでチェック状態がトグルすること"
+    );
+    assert!(
+        menubar_component.borrow().open().is_none(),
+        "checkbox-item クリックが menubar の open 状態を変えてはならない \
+         （payload 常に空文字列で `Menubar::decode_action` 側が fail-closed）"
+    );
+
+    dispatch_click(&grid_item);
+    assert!(
+        radio_component.borrow().is_checked("grid"),
+        "menubar radio-item クリックで選択状態になること"
+    );
+    assert!(
+        menubar_component.borrow().open().is_none(),
+        "radio-item クリックが menubar の open 状態を変えてはならない"
+    );
+
+    dispatch_click(&trigger);
+    assert_eq!(
+        menubar_component.borrow().open(),
+        Some(0),
+        "trigger クリックは引き続き menubar を開くこと（回帰なし）"
     );
 }
 
