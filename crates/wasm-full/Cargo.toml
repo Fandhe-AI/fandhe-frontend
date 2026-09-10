@@ -980,7 +980,7 @@ name = "fandhe-frontend-wasm-full"
 # 相当）を主軸オフセットへ適用するようにした。新規 API の追加のみで既存
 # 公開関数のシグネチャ変更を伴わない非破壊的変更のため patch バンプとし、
 # 0.20.1 を +1 した 0.20.2 とする。
-version = "0.20.2"
+version = "0.20.3"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

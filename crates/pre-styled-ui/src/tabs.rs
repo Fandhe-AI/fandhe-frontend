@@ -143,21 +143,32 @@
 //! **意図的に合わせなかった点**（根拠を記録し、再評価は
 //! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
 //!
-//! - **`indicator` パーツの装飾は追加しない**: headless は
-//!   `--left`/`--top`/`--width`/`--height` を `0px` 固定で出力し、
-//!   wasm-full 側に実測して更新する配線がまだない
-//!   （`crates/headless-ui/src/tabs.rs` `INDICATOR_STYLE_INITIAL`
-//!   rustdoc）。CSS を足しても幅 0 で不可視の dead CSS になり、将来配線
-//!   された際には active trigger の下線と二重線になるため、配線実装時に
-//!   あわせて設計する。**イシュー #2187 との整合注記**:
-//!   `crate::navigation_menu` はルートレベル `indicator` へ幅 0
-//!   フォールバック付きの CSS 変数契約を先に固定する方式を採った（本方針
-//!   とは逆の判断）。両者の食い違いは意図的であり、navigation-menu の
-//!   `trigger` は下線を持たないため装飾を先に足しても二重線にならない
-//!   （`crate::navigation_menu` モジュール doc「shadcn/ui 突合（イシュー
-//!   #2187）」節参照）。tabs の `trigger` は下線を持つため本方針
-//!   （配線実装時にあわせて設計）を維持する。tabs 側への同方式適用の
-//!   再評価は本イシューのスコープ外（PR 本文の「スコープ外」参照）。
+//! - **`indicator` パーツの装飾（イシュー #2211 で解消）**: 旧版（#1542
+//!   時点）は「headless が `--left`/`--top`/`--width`/`--height` を `0px`
+//!   固定で出力し wasm-full 側の実測配線がまだ無いため、CSS を足しても
+//!   dead CSS になる」として装飾追加を見送っていた。イシュー #2211 で
+//!   `fandhe-frontend-wasm-full`（`crates/wasm-full/src/tabs_indicator.rs`）
+//!   が実測配線を実装したため、本モジュールも `[data-part="indicator"]`
+//!   の絶対配置 + `border-bottom`（下線）を追加した（[`recipe`] の
+//!   `indicator` base/state 参照）。**選択中 trigger の下線
+//!   （`trigger` state の `border-bottom-color`）と二重にならない理由**:
+//!   両者は同一の `color-palette` 強調色（`var(--fandhe-palette, ...)`）を
+//!   使うが、trigger 側は `margin-bottom: -1px` で `list` の 1px 罫線に
+//!   重なる高さに固定されているのに対し、indicator は `list` の padding
+//!   box 内で trigger の実測 `top`/`height` へ絶対配置されるため、
+//!   Enclosed variant（trigger 下線を持たない）でも indicator 側の下線が
+//!   選択状態を示す唯一の視覚手がかりとして機能する。Line variant では
+//!   両者が視覚的に重なるが、indicator は `pointer-events: none` で
+//!   クリックを奪わないため実害はない。**イシュー #2187 との整合注記
+//!   （navigation-menu との相違点）**: `crate::navigation_menu` は
+//!   `transform: translateX/Y` でスライドするのに対し、tabs の indicator
+//!   は headless `INDICATOR_STYLE_INITIAL` 契約（`left`/`top`/`width`/
+//!   `height` を絶対値で受け取る）に合わせ `left`/`top`/`width`/`height`
+//!   を直接指定する（navigation-menu は `x`/`width`/`height` 座標変数を
+//!   独自契約として新設したため `transform` で表現できたが、tabs は
+//!   Zag.js 同名契約を再利用しているため契約側の形式に従う、モジュール
+//!   冒頭 rustdoc「書き込む CSS 変数は headless 契約の 4 変数のみ」節
+//!   参照）。
 //! - **active 時の `font-weight` 変化（Radix Themes 方式）は採らない**:
 //!   ページ内切り替えで幅が揺れる。代わりに全 trigger を最初から
 //!   medium にする（chakra 方式、`trigger` base の `font-weight`）。
@@ -257,6 +268,11 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("gap", "var(--fandhe-space-2)"),
+                // イシュー #2211: `indicator`（絶対配置、`fandhe-frontend-wasm-full`
+                // が実測値を書き込む）の包含ブロックを `list` の padding box に
+                // 固定する（`crates/wasm-full/src/tabs_indicator.rs` モジュール
+                // doc「実測の数式」節が前提とする座標系）。
+                decl("position", "relative"),
                 // イシュー #2039: Enclosed variant が `list` を角丸の淡色
                 // コンテナへ切り替えられるよう custom property 化した。Line
                 // （既定）はフォールバックと同一値で下線 + 罫線のまま。
@@ -352,6 +368,47 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("color", "var(--fandhe-color-fg)"),
             ],
+        )
+        // イシュー #2211: `indicator` パーツ（選択中 trigger の下でスライド
+        // する下線）。座標は `fandhe-frontend-wasm-full`
+        // （`crates/wasm-full/src/tabs_indicator.rs`）が headless 契約の 4
+        // 変数（`--left`/`--top`/`--width`/`--height`、`INDICATOR_STYLE_INITIAL`
+        // 由来）を実測して書き込む。本モジュールは `var(..., 0px)`
+        // フォールバック付きの参照のみを持ち、書き込みが無い間（配線前・
+        // `indicator: false`）は幅・高さ 0 で不可視のまま安全に留まる
+        // （navigation-menu の `indicator` パートと同型のフェイルセーフ、
+        // `crate::navigation_menu` モジュール doc 参照）。navigation-menu が
+        // `transform: translateX/Y` で移動するのに対し、tabs の indicator は
+        // `left`/`top`/`width`/`height` を絶対値で受け取る契約
+        // （headless `INDICATOR_STYLE_INITIAL` 参照）のため `left`/`top` を
+        // 直接指定する。
+        .base(
+            "indicator",
+            vec![
+                decl("position", "absolute"),
+                decl("left", "var(--left, 0px)"),
+                decl("top", "var(--top, 0px)"),
+                decl("width", "var(--width, 0px)"),
+                decl("height", "var(--height, 0px)"),
+                decl(
+                    "border-bottom",
+                    "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl("pointer-events", "none"),
+            ],
+        )
+        .base(
+            "indicator",
+            transition_declarations("left, top, width, height", MotionDuration::Fast),
+        )
+        // イシュー #2211: 選択中 trigger が無い間（`sync_tabs_indicator_in_list`
+        // が `hidden` 属性と併せて設定する fail-safe 状態）は opacity でも
+        // 二重に隠す（`crate::navigation_menu` の `data-state="closed"` 規則と
+        // 同型）。
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-state", "inactive"),
+            vec![decl("opacity", "0")],
         )
         // イシュー #551 受け入れ条件: 選択中の `trigger` を強調する。
         // イシュー #729: 強調色は `color-palette` variant（root へ登録される

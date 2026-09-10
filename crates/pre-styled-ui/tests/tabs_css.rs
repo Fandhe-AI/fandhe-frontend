@@ -86,6 +86,7 @@ use fandhe_frontend_pre_styled_ui::tabs;
 const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   display: flex;
   gap: var(--fandhe-space-2);
+  position: relative;
   border-bottom: var(--fandhe-tabs-list-border-bottom, 1px solid var(--fandhe-color-border));
   background: var(--fandhe-tabs-list-background, transparent);
   border-radius: var(--fandhe-tabs-list-radius, 0);
@@ -120,6 +121,22 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
 [data-scope="tabs"][data-part="content"] {
   padding: var(--fandhe-tabs-content-padding, var(--fandhe-space-4) 0);
   color: var(--fandhe-color-fg);
+}
+
+[data-scope="tabs"][data-part="indicator"] {
+  position: absolute;
+  left: var(--left, 0px);
+  top: var(--top, 0px);
+  width: var(--width, 0px);
+  height: var(--height, 0px);
+  border-bottom: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
+  pointer-events: none;
+}
+
+[data-scope="tabs"][data-part="indicator"] {
+  transition-property: left, top, width, height;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="tabs"][data-part="root"].fd-tabs--size-xs {
@@ -247,6 +264,10 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
   --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
+}
+
+[data-scope="tabs"][data-part="indicator"][data-state="inactive"] {
+  opacity: 0;
 }
 
 [data-scope="tabs"][data-part="trigger"][data-state="active"] {

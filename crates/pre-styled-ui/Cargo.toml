@@ -3258,7 +3258,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # 塞いだ（`--fandhe-tooltip-arrow-rotate`/`-x`/`-y` に既に適用済みの継承
 # 遮断と同型）。CSS 出力の純追加のみで公開 API シグネチャ変更を伴わない
 # ため patch バンプとし、0.183.2 を +1 した 0.183.3 とする。
-version = "0.183.3"
+version = "0.183.4"
 
 
 edition = "2021"

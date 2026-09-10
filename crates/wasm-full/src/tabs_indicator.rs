@@ -133,11 +133,18 @@ pub const LIST_SELECTOR: &str = r#"[data-scope="tabs"][data-part="list"]"#;
 pub const ACTIVE_TRIGGER_SELECTOR: &str =
     r#"[data-scope="tabs"][data-part="trigger"][data-state="active"]"#;
 
-/// `data-state` 属性値 "active"。[`crates::headless-ui::tabs`] の
-/// `DATA_STATE_ACTIVE` と同一リテラル（クレートを跨ぐため定数の共有は
-/// せず、値のみ一致させる）。
+/// `data-state` 属性値 "active"。`fandhe-frontend-headless-ui` の
+/// `crates::headless-ui::tabs` モジュールが持つ `DATA_STATE_ACTIVE` と
+/// 同一リテラル（クレートを跨ぐため定数の共有はせず、値のみ一致させる）。
+///
+/// 利用箇所（[`wiring::sync_one`]）が `#[cfg(target_arch = "wasm32")]`
+/// 配下のみのため、native（`cargo test`）ビルドでの `dead_code` 警告を
+/// 避けるべく宣言自体も同条件でゲートする（`crate::content_height` の
+/// `pub const` 群と異なり公開 API ではないため `pub` 化では代替しない）。
+#[cfg(target_arch = "wasm32")]
 const DATA_STATE_ACTIVE: &str = "active";
-/// `data-state` 属性値 "inactive"。
+/// [`DATA_STATE_ACTIVE`] と対を成す `data-state` 属性値 "inactive"。
+#[cfg(target_arch = "wasm32")]
 const DATA_STATE_INACTIVE: &str = "inactive";
 
 /// 矩形（実測 `getBoundingClientRect()` および indicator 座標算出の
@@ -326,15 +333,22 @@ mod wiring {
     }
 
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
-    /// （`crate::keynav::wiring::set_dom_attribute` と同じ方針。
-    /// `name`/`value` はいずれも `&'static str` リテラルで固定された
-    /// 非 URL・非イベントハンドラ属性だが、将来の変更に対する防御として
-    /// 同じガードを経由する）。
+    /// （`crate::keynav::wiring::set_dom_attribute` と同じ方針・同じ 4 種
+    /// のガードを経由する。`name`/`value` はいずれも `&'static str`
+    /// リテラルで固定された非 URL・非イベントハンドラ・非 `srcset` 属性
+    /// だが、将来の変更に対する防御として同じガードを経由する。`fw gate`
+    /// の `url_validation_check`〔U1〕は DOM 属性 sink 呼び出しファイル内で
+    /// `is_url_attr`/`is_safe_url`/`is_safe_srcset`/`is_event_handler_attr`
+    /// の 4 種すべての呼び出しを機械要求するため、`srcset` 属性を扱わない
+    /// 本関数でも `is_safe_srcset` 呼び出しを省略しない）。
     fn set_dom_attribute(element: &Element, name: &str, value: &str) {
         if fandhe_frontend_core::is_event_handler_attr(name) {
             return;
         }
         if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
+            return;
+        }
+        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
             return;
         }
         let _ = element.set_attribute(name, value);
@@ -366,9 +380,14 @@ mod tests {
     #[test]
     fn format_px_rounds_to_two_decimals() {
         assert_eq!(format_px(12.5), Some("12.5px".to_string()));
-        assert_eq!(format_px(12.005), Some("12px".to_string()));
+        // 12.005 は f64 表現上わずかに 12.005 を上回るため、小数第 2 位
+        // 四捨五入（`format_px` doc 参照）で "12.01px" になる（境界値の
+        // 四捨五入方向を誤って期待していた既知の不具合の修正）。
+        assert_eq!(format_px(12.005), Some("12.01px".to_string()));
         assert_eq!(format_px(12.126), Some("12.13px".to_string()));
-        assert_eq!(format_px(-3.14159), Some("-3.14px".to_string()));
+        // `clippy::approx_constant`（π近似値）を避けるため符号・値を
+        // ずらした非境界値を使う。
+        assert_eq!(format_px(-3.24159), Some("-3.24px".to_string()));
     }
 
     #[test]
