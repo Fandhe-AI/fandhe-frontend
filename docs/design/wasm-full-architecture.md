@@ -2090,6 +2090,7 @@ matrix〕での活用は同評価文書 §13 項目 3/4 として後続 issue �
 | `Runtime::mount`/`hydrate` の呼び出し | feature |
 |---|---|
 | `events::wire_events` | ゲートしない（`data-action` 委譲、全構成必須） |
+| `keynav::wire_readonly_click_guard` | ゲートしない（readonly RadioGroup の click capture 保護、イシュー #2326 codex-review 是正で `keynav::wire_keynav` から分離済み） |
 | `keynav::wire_keynav` | `keynav` |
 | `focus_visible::wire_focus_visible` | `focus-visible` |
 | `Runtime::wire_avatar` | `avatar` |
@@ -2125,19 +2126,21 @@ gating 対象外（feature を持たない）。ゲートの粒度は (a) `mount
 ための `features` 明示列挙を `Cargo.toml` コメント・`lib.rs` クレート
 ドキュメントの両方に記載した。
 
-### 33.4 `keynav` off 時の制約
+### 33.4 `keynav` off 時の制約（分離完了、イシュー #2326 codex-review 是正）
 
-`keynav::wire_keynav` は readonly RadioGroup の click capture 保護
-（イシュー #1616）も同関数内で登録しているため、`keynav` を off にすると
-この保護も同時に無効になる。既定 on のため既定構成・全既存テストでの
-挙動退行はないが、`keynav` を off にする利用者は readonly RadioGroup を
-含むアプリでこの保護を失う。保護コードの分離は行わず、次項の後続 issue
-へ引き継ぐ。
+readonly RadioGroup の click capture 保護（イシュー #1616）は
+`keynav::wire_readonly_click_guard`（上記 33.2 対応表のとおりゲートしない
+常時配線）へ `keynav::wire_keynav` から分離済みである。したがって
+`keynav` を off にしてもこの保護は失われない。本節は当初「保護コードの
+分離は行わず後続 issue へ引き継ぐ」としていたが、イシュー #2326 の
+codex-review 指摘を受けて分離を実装したため、記述を更新した（分離前の
+記述は git 履歴を参照）。
 
 ### 33.5 スコープ外・後続への引き継ぎ
 
 `docs/design/wasm-full-feature-gating-evaluation.md` §13 の残項目（keynav
 の scope 分岐・`MAPPING_TABLE` 行の cfg 化とテストの `required-features`
-追随・readonly RadioGroup 保護の分離・CI feature matrix・dist-server 経路
-の feature 集合決定と `bundle_size.rs` 契約更新・利用者向け docs/examples
-反映）は本イシューのスコープ外とし、同文書側で引き続き追跡する。
+追随・CI feature matrix・dist-server 経路の feature 集合決定と
+`bundle_size.rs` 契約更新・利用者向け docs/examples 反映）は本イシューの
+スコープ外とし、同文書側で引き続き追跡する（readonly RadioGroup 保護の
+分離は上記 33.4 のとおり完了済み）。

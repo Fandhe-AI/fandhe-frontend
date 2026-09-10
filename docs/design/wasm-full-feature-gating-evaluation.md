@@ -472,13 +472,15 @@ headless-ui 部品のクリック dispatch 全般）も同時に登録してい�
    0.18.7 → 0.19.0 へ minor バンプ）。対応表・詳細は
    `docs/design/wasm-full-architecture.md` §33 を参照。項目 2〜5 は未着手
    のまま本文書側で引き続き追跡する。
-2. `MAPPING_TABLE`/keynav の scope 分岐の cfg 化と、
-   `headless_wiring.rs`/`keynav_native.rs` の `required-features` 追随。
-   §11 条件 4 に従い、readonly RadioGroup の click capture 保護
-   （`keynav.rs:7678` 付近）を `keynav` feature から独立した常時有効な
-   配線へ切り出し、切り出し後の構成で §5/§11 の削減量を再計測する
-   （再計測結果が判定ルールの 20%/30 KB を下回る場合は採用可否を
-   再検討する）。
+2. **readonly RadioGroup 保護の分離は実装済み（イシュー #2326、上記
+   「実装結果の追記」参照）。** `keynav.rs:7678` 付近にあった click
+   capture 保護は `wire_readonly_click_guard`（`keynav` feature に
+   関わらず常時登録）へ分離済みであり、§11 条件 4 を満たす。**未着手
+   のまま残るのは**、(a) `MAPPING_TABLE`/keynav の scope 分岐の cfg 化
+   と `headless_wiring.rs`/`keynav_native.rs` の `required-features`
+   追随、(b) 分離後の構成での §5/§11 削減量の再計測（再計測結果が
+   判定ルールの 20%/30 KB を下回る場合は採用可否を再検討する）の 2 点
+   のみである。
 3. CI feature matrix（`--no-default-features` / 各 feature / `--all-features`）
    の追加。`clippy-wasm32` ジョブへの反映要否を含めて検討する。readonly
    RadioGroup 保護（項目 2）が `keynav` feature 無効時にも機能することを

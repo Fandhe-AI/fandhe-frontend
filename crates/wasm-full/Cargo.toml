@@ -1264,6 +1264,9 @@ crate-type = ["cdylib", "rlib"]
 #
 # 対応表（`Runtime::mount`/`hydrate` の呼び出し順 = 下記 `default` の列挙順）:
 #   events::wire_events            -> ゲートしない（`data-action` 委譲、全構成必須）
+#   keynav::wire_readonly_click_guard -> ゲートしない（readonly RadioGroup の click
+#                                          capture 保護、イシュー #2326 codex-review 是正で
+#                                          `keynav::wire_keynav` から分離済み）
 #   keynav::wire_keynav            -> "keynav"
 #   focus_visible::wire_focus_visible -> "focus-visible"
 #   Self::wire_avatar              -> "avatar"
@@ -1291,11 +1294,12 @@ crate-type = ["cdylib", "rlib"]
 # "chart-range", "questionnaire"]`（`entry` のエクスポートが不要なら
 # `wasm-bindgen-exports` は省略可）を明示すること。
 #
-# `keynav` off 時の注意: `keynav::wire_keynav` は readonly RadioGroup の
-# click capture 保護（イシュー #1616）も同関数内で登録しているため、`keynav`
-# を off にするとこの保護も同時に無効になる（分離は後続 issue、
-# `docs/design/wasm-full-feature-gating-evaluation.md` §13 項目 2）。readonly
-# RadioGroup を含むアプリは `keynav` を off にしないこと。
+# `keynav` off 時の注意（イシュー #1616 / #2326）: readonly RadioGroup の
+# click capture 保護は `keynav::wire_readonly_click_guard`（上記対応表の
+# とおりゲートしない常時配線）が担う。`keynav::wire_keynav` から分離済み
+# （イシュー #2326 codex-review P1 是正、`docs/design/wasm-full-feature-gating-evaluation.md`
+# §13 項目 2 は分離完了済みとして扱う）のため、`keynav` を off にしても
+# readonly RadioGroup の click capture 保護は失われない。
 #
 # 新規配線を `mount`/`hydrate` へ追加する場合の規約
 # （`lib.rs` クレートドキュメントにも同内容を記載）:
