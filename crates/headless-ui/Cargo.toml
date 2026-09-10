@@ -620,6 +620,11 @@ name = "fandhe-frontend-headless-ui"
 # 0.68.13 へ到達済みだったため、その到達値からさらに +1 して 0.68.14
 # とする（PR #2279 review 対応での base 取り込み）。
 #
+# イシュー #2121: `message_scroller`（Root/Viewport/Content/Anchor/
+# JumpToLatest/LoadMore の 6 anatomy パーツ、shadcn/ui Message Scroller
+# 相当）を新設。既存 API への変更はなく非破壊的な追加のため patch
+# バンプする。
+#
 # イシュー #2193: dialog / drawer の close-trigger をアイコン専用契約から
 # 平文ボタンでも再利用できる形へ再設計する。`dialog::CloseTriggerVariant`・
 # `dialog::close_trigger_with_variant`・`drawer::close_trigger_with_variant`
@@ -629,7 +634,13 @@ name = "fandhe-frontend-headless-ui"
 # 独立に 0.68.14 へ到達済みだったため、同一版数への偶発的衝突をそのまま
 # 採用しない原則により main の到達値 0.68.14 からさらに +1 して 0.68.15
 # とする。
-version = "0.68.15"
+#
+# PR #2295（イシュー #2121）base 取り込み: 本ブランチは上記 #2121 で
+# 0.68.14 → 0.68.15 へ patch バンプ済みだったが、origin/main も #2193
+# （dialog/drawer close-trigger 再設計）で独立に 0.68.15 へ到達しており、
+# 同一版数への偶発的衝突をそのまま採用しない原則により main の到達値
+# 0.68.15 からさらに +1 して 0.68.16 とする。
+version = "0.68.16"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
