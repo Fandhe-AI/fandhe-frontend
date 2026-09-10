@@ -137,8 +137,7 @@ fn headless_mapping_table_rows_carry_their_scope_feature_enabled_field() {
         // この行（`MappingRow { .. },`）の範囲内に
         // `enabled: cfg!(feature = "X"),` が存在するかを走査する。
         let mut found_enabled = false;
-        for forward in (row_start + 1)..lines.len() {
-            let (_, candidate) = lines[forward];
+        for &(_, candidate) in lines.iter().skip(row_start + 1) {
             let candidate_trim = candidate.trim();
             let expected = format!("enabled: cfg!(feature = \"{scope}\"),");
             if candidate_trim == expected {
