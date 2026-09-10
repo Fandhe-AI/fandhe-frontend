@@ -140,6 +140,10 @@ const RATING_GROUP_GOLDEN_CSS: &str = r#"[data-scope="rating-group"][data-part="
   cursor: default;
 }
 
+[data-scope="rating-group"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}
+
 [data-scope="rating-group"][data-part="control"]:focus-within {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
