@@ -88,6 +88,19 @@
 // 担う設計、`docs/design/pre-styled-ui-data-attr-vocabulary.md` 参照）。
 // [`legend::LegendProps`] の `trigger` slot（`data-series`/`data-index`）と
 // 同一の識別子語彙を共有する。
+//
+// `crate::radial_chart` の `bar` のみ、カテゴリ・系列の非表示理由が
+// 同一要素で同時に効き得る唯一の要素（`category_hidden ||
+// hidden_series.contains(series)`）であり、値なし属性
+// `data-hidden`（融合済み）に加えて `data-hidden-category`/
+// `data-hidden-series`（各次元単独の宣言、該当する場合のみ出力）も
+// 併せて出力する（イシュー #2134 codex-review 指摘是正）。
+// `crates/wasm-full/src/chart_range.rs` の
+// `decompose_declared_hidden` がこれを読み、片方の次元だけ凡例が
+// 管理する構成でも凡例が管理していない次元の宣言済み非表示状態を
+// 正しく復元する。他のチャート（donut は常にカテゴリのみ・pie は
+// `stacked` による排他選択・bar/line は常に系列のみ）は融合が
+// あいまいにならないため、この追加属性を持たない。
 pub mod axis;
 pub mod bar_chart;
 pub mod bar_list;

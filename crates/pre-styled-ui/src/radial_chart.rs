@@ -302,7 +302,11 @@ pub struct RadialChartProps<'a> {
     pub range: Option<&'a str>,
     /// 非表示系列名の一覧（イシュー #2133）。系列名と完全一致する `bar`
     /// へ値なし属性 `data-hidden` を付与する。データに存在しない名前を
-    /// 指定してもエラーにしない（fail-soft）。
+    /// 指定してもエラーにしない（fail-soft）。[`RadialChartProps::hidden_categories`]
+    /// との融合があいまいにならないよう、該当する `bar` へは値なし属性
+    /// `data-hidden-series` も併せて付与する（イシュー #2134
+    /// codex-review 指摘是正、`crates/pre-styled-ui/src/charts/mod.rs`
+    /// モジュール doc参照）。
     pub hidden_series: &'a [&'a str],
     /// 非表示カテゴリ（リング）index の一覧（イシュー #2133、Cursor
     /// Bugbot 指摘「Radial hide wiring skips category rings」対応）。
@@ -319,8 +323,21 @@ pub struct RadialChartProps<'a> {
     /// （Cursor Bugbot 指摘是正: 非表示リングでも既定グレー背景の
     /// `track` が残ると視覚上「隠れていない」ため、`bar`/`label` と
     /// 同じ `data-hidden` 伝搬に揃える。`track` はリング全体の背景で
-    /// 系列を持たないため `hidden_series` は対象にしない）。
+    /// 系列を持たないため `hidden_series` は対象にしない）。`bar` へは
+    /// [`RadialChartProps::hidden_series`] との融合があいまいにならない
+    /// よう値なし属性 `data-hidden-category` も併せて付与する
+    /// （[`RadialChartProps::hidden_series`] rustdoc参照）。`track`/`label` は元々 `hidden_series` の影響を
+    /// 受けずカテゴリのみに依存するため追加属性は不要。
     pub hidden_categories: &'a [usize],
+    /// `legend`/`category_legend`（[`crate::charts::legend`]）を
+    /// 併設していることの明示的 opt-in（既定 `false`、イシュー #2134
+    /// codex-review 指摘）。`show_tooltip: false` かつ `range`/
+    /// `hidden_categories`/`hidden_series` がいずれも初期状態を表せない
+    /// （凡例は使うが初期状態は全件表示）構成を救うための opt-in で、
+    /// `true` のとき [`identify_bars`] が `data-index` を出力させる
+    /// （`pie_chart.rs::identify_segments`/`donut_chart.rs::identify_segments`
+    /// と同型）。
+    pub legend: bool,
 }
 
 impl Default for RadialChartProps<'_> {
@@ -340,8 +357,25 @@ impl Default for RadialChartProps<'_> {
             range: None,
             hidden_series: &[],
             hidden_categories: &[],
+            legend: false,
         }
     }
+}
+
+/// `track`/`bar`/`label` へ凡例トグル・期間切替の共有識別子
+/// （`data-index`）を出力するかどうかのゲート判定（内部ヘルパ、イシュー
+/// #2134 codex-review 指摘）。`show_tooltip` 単独ではなく
+/// `show_tooltip || range.is_some() || !hidden_categories.is_empty() ||
+/// !hidden_series.is_empty() || legend` で判定する
+/// （`pie_chart.rs::identify_segments`/`donut_chart.rs::identify_segments`
+/// と同型判定）。素の `show_tooltip: false`・凡例/期間切替とも不使用の
+/// 構成では従来どおりバイト一致する契約は変えない。
+fn identify_bars(props: &RadialChartProps) -> bool {
+    props.show_tooltip
+        || props.range.is_some()
+        || !props.hidden_categories.is_empty()
+        || !props.hidden_series.is_empty()
+        || props.legend
 }
 
 /// この styled RadialChart の既定 CSS を組み立てる（内部ヘルパ、[`css`] の
@@ -701,7 +735,7 @@ pub fn radial_chart<'a>(
             let (d, evenodd) = ring_segment_path(r_outer, r_inner, start_rad, end_rad, 0.0);
             let mut track_attrs: Vec<(&str, &str)> =
                 vec![("data-scope", "radial-chart"), ("data-part", "track")];
-            if props.show_tooltip {
+            if identify_bars(props) {
                 // イシュー #2133 Cursor Bugbot 指摘是正: `track`
                 // （リング全体の背景）にも `bar`/`label` と同じ
                 // `data-index` 共有識別子を付与する（同じ
@@ -750,7 +784,7 @@ pub fn radial_chart<'a>(
                 ("data-part", "bar"),
                 ("data-series", series.name.as_str()),
             ];
-            if props.show_tooltip {
+            if identify_bars(props) {
                 // イシュー #2133 Cursor Bugbot 指摘是正: `bar` への
                 // `data-index` は tooltip 語彙（hit-area・#2129）と同じ
                 // ゲートで opt-in にする（`pie_chart`/`donut_chart` の
@@ -763,7 +797,26 @@ pub fn radial_chart<'a>(
             if evenodd {
                 bar_attrs.push(("fill-rule", "evenodd"));
             }
-            if category_hidden || props.hidden_series.contains(&series.name.as_str()) {
+            let series_hidden = props.hidden_series.contains(&series.name.as_str());
+            // イシュー #2134 codex-review 指摘是正: `bar` は `category`/
+            // `series` の非表示理由を独立に持ち得る唯一の要素（`track`/
+            // `label` はカテゴリのみ、`crates/wasm-full/src/chart_range.rs`
+            // モジュール doc参照）。融合済み `data-hidden` だけでは、
+            // 片方の次元だけ凡例が管理する構成でクライアント側が理由を
+            // 復元できないため、次元単独の宣言を値なし属性
+            // `data-hidden-category`/`data-hidden-series` として別途
+            // 出力する（`crates/wasm-full` の
+            // `chart_range::decompose_declared_hidden` が読む契約、
+            // `crates/pre-styled-ui/src/charts/mod.rs` モジュール doc
+            // 「凡例トグルの SSR 構造」節参照）。`data-hidden` 自体と
+            // 同じく `identify_bars` ゲートに関わらず常に出力する。
+            if category_hidden {
+                bar_attrs.push(("data-hidden-category", ""));
+            }
+            if series_hidden {
+                bar_attrs.push(("data-hidden-series", ""));
+            }
+            if category_hidden || series_hidden {
                 bar_attrs.push(("data-hidden", ""));
             }
             children.push(el("path", bar_attrs, vec![]));
@@ -775,7 +828,7 @@ pub fn radial_chart<'a>(
                 crate::charts::pie::point_on_circle(CENTER_X, CENTER_Y, label_r, start_rad);
             let mut label_attrs: Vec<(&str, &str)> =
                 vec![("data-scope", "radial-chart"), ("data-part", "label")];
-            if props.show_tooltip {
+            if identify_bars(props) {
                 // `bar` と同じゲート・語彙（同上、イシュー #2133）。
                 label_attrs.push(("data-index", cat_idx_str.as_str()));
             }
@@ -1402,6 +1455,46 @@ mod tests {
     // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
 
     #[test]
+    fn legend_opt_in_emits_data_index_even_when_tooltip_and_range_and_hidden_are_absent() {
+        // イシュー #2134 codex-review 指摘: `show_tooltip: false` のまま
+        // `legend`/`category_legend` を併設し、かつ初期状態は全カテゴリ
+        // 表示（`hidden_categories`/`hidden_series` が空）・期間切替も
+        // 使わない構成では、`legend: true` の明示的 opt-in がないと
+        // `data-index` が一切出力されず、凡例クリックが
+        // `wasm-full::chart_range` 側で同期できない
+        // （`identify_bars` の `legend` 分岐の回帰、`donut_chart`/
+        // `pie_chart` の同型テストと対）。
+        let props = RadialChartProps {
+            show_tooltip: false,
+            legend: true,
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains(r#"data-index="0""#));
+        assert!(html.contains(r#"data-index="1""#));
+    }
+
+    #[test]
+    fn show_tooltip_false_without_legend_range_or_hidden_omits_data_index() {
+        // 上記テストの対照: `legend`/`range`/`hidden_categories`/
+        // `hidden_series` のいずれも使わない素の `show_tooltip: false` は
+        // 識別属性を出力しない（#2129 以前の出力とバイト一致する契約、
+        // `identify_bars` の既定 `false` 経路）。
+        let html = render(
+            &radial_chart(
+                &RadialChartProps {
+                    show_tooltip: false,
+                    ..RadialChartProps::default()
+                },
+                &two_category_data(),
+                vec![],
+            )
+            .unwrap(),
+        );
+        assert!(!html.contains("data-index"));
+    }
+
+    #[test]
     fn range_none_omits_data_range() {
         let html = render(
             &radial_chart(&RadialChartProps::default(), &two_category_data(), vec![]).unwrap(),
@@ -1622,5 +1715,65 @@ mod tests {
         let b_s2_idx = html.find(r#"data-series="s2" data-index="1""#).unwrap();
         let b_s2_end = html[b_s2_idx..].find('>').unwrap();
         assert!(html[b_s2_idx..b_s2_idx + b_s2_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn bar_emits_per_dimension_origin_markers_independently_of_combined_data_hidden() {
+        // イシュー #2134 codex-review 指摘是正: `bar` はカテゴリ・系列
+        // 双方の非表示理由を同時に持ち得る唯一の要素であり、融合済み
+        // `data-hidden` に加えて次元単独の宣言 `data-hidden-category`/
+        // `data-hidden-series` を出力することを検証する
+        // （`crates/wasm-full/src/chart_range.rs::decompose_declared_hidden`
+        // が読む契約）。`track`/`label` はカテゴリのみに依存するため
+        // これらの追加属性を持たない。
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string(), "C".to_string()],
+            vec![
+                Series::new("s1", vec![10.0, 20.0, 5.0]),
+                Series::new("s2", vec![15.0, 25.0, 5.0]),
+            ],
+        )
+        .unwrap();
+        let props = RadialChartProps {
+            hidden_series: &["s2"],
+            hidden_categories: &[1],
+            ..RadialChartProps::default()
+        };
+        let html = render(&radial_chart(&props, &data, vec![]).unwrap());
+
+        // カテゴリ 1（index=1）のみが非表示: bar は data-hidden-category
+        // を持つが data-hidden-series は持たない（系列 s1 自体は非表示
+        // 系列ではないため）。
+        let b_s1_idx = html.find(r#"data-series="s1" data-index="1""#).unwrap();
+        let b_s1_end = html[b_s1_idx..].find('>').unwrap();
+        let b_s1_tag = &html[b_s1_idx..b_s1_idx + b_s1_end];
+        assert!(b_s1_tag.contains("data-hidden-category"));
+        assert!(!b_s1_tag.contains("data-hidden-series"));
+        assert!(b_s1_tag.contains("data-hidden=\""));
+
+        // 系列 s2 のみが非表示（カテゴリ 0 は可視）: bar は
+        // data-hidden-series を持つが data-hidden-category は持たない。
+        let a_s2_idx = html.find(r#"data-series="s2" data-index="0""#).unwrap();
+        let a_s2_end = html[a_s2_idx..].find('>').unwrap();
+        let a_s2_tag = &html[a_s2_idx..a_s2_idx + a_s2_end];
+        assert!(!a_s2_tag.contains("data-hidden-category"));
+        assert!(a_s2_tag.contains("data-hidden-series"));
+
+        // カテゴリ 1・系列 s2 の両方が非表示（bar は index=1, series=s2）:
+        // 両方のマーカーを持つ。
+        let b_s2_idx = html.find(r#"data-series="s2" data-index="1""#).unwrap();
+        let b_s2_end = html[b_s2_idx..].find('>').unwrap();
+        let b_s2_tag = &html[b_s2_idx..b_s2_idx + b_s2_end];
+        assert!(b_s2_tag.contains("data-hidden-category"));
+        assert!(b_s2_tag.contains("data-hidden-series"));
+
+        // track/label（カテゴリ 1）は data-hidden は持つが、系列概念が
+        // 無いため -category/-series いずれの追加マーカーも持たない。
+        let track_idx = html.find(r#"data-part="track" data-index="1""#).unwrap();
+        let track_end = html[track_idx..].find('>').unwrap();
+        let track_tag = &html[track_idx..track_idx + track_end];
+        assert!(track_tag.contains("data-hidden=\""));
+        assert!(!track_tag.contains("data-hidden-category"));
+        assert!(!track_tag.contains("data-hidden-series"));
     }
 }
