@@ -231,10 +231,12 @@
 //! 対応）:
 //!
 //! - **ハンドルの当たり判定の視覚外拡張**（shadcn `ResizableHandle` の
-//!   `::after` による見えないヒットエリア拡張）: 本リポジトリの
+//!   `::after` による見えないヒットエリア拡張）: 実装当時の
 //!   [`SlotRecipe`]/[`StateCondition`] は疑似要素セレクタ（`::before`/
-//!   `::after`）を表現する手段を持たないため実装できない。DSL 拡張は
-//!   本イシューの影響範囲を超えるため見送り、別途 Issue 化を検討する
+//!   `::after`）を表現する手段を持たなかったため実装できなかった。イシュー
+//!   #2201 で [`SlotRecipe::pseudo_element`]/[`crate::recipe::PseudoElement`]
+//!   が DSL 側へ追加されたが、splitter 自体への適用は本イシューの影響範囲
+//!   を超えるため引き続き見送り、後続の別 Issue で対応する
 //!   （`.claude/rules/out-of-scope-tracking.md` 対応）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）

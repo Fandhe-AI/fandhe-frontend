@@ -2976,6 +2976,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 統合した結果として main の到達値 0.176.0 をさらに上回る 0.177.0 へ
 # マイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
 #
+# イシュー #2201: `recipe.rs` に疑似要素（`::before`/`::after`）宣言 API
+# （`SlotRecipe::pseudo_element`/`PseudoElement`）を追加した。公開 API の
+# 純追加（既存シグネチャ・既存 CSS 出力は不変）のため patch バンプとする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。本ブランチ
+# はこの時点で 0.177.0 → 0.177.1 へ patch バンプ済みだった。
 # base 取り込み（PR #2296、イシュー #2194、3 回目）: 本ブランチの到達値
 # 0.176.1（2 回目の base 取り込み解消時点、headless-ui 0.68.16 依存追随の
 # みの patch バンプ）に対し、origin/main は独立に 0.177.0（#2195 Forms
@@ -2997,6 +3002,28 @@ name = "fandhe-frontend-pre-styled-ui"
 # `upsert_breakpoint`/`breakpoint_var`、4 段）を追加した。既存関数
 # シグネチャ・golden CSS は変更していない（純追加）。
 #
+# 本コンフリクト解消（イシュー #2201、PR #2302 の base 取り込み・1 回目）:
+# 本ブランチ（#2201 疑似要素宣言、pure addition・patch 相当）は 0.177.1 へ
+# 到達済みだったが、origin/main は別経路（#2197 breakpoint 条件追加 +
+# イシュー #2195 Forms 家族横断の disabled/required 決定の統合、PR #2297/
+# #2299）で独立に 0.178.0 へ到達していた。origin/main の到達値 0.178.0 が
+# 本ブランチの 0.177.1 を上回るため同一版数への偶発的衝突には該当しないが、
+# 本ブランチの実体変更（pseudo_element API 追加）が origin/main へまだ
+# 取り込まれていない点を反映し、双方の実体変更（breakpoint 条件 +
+# 疑似要素宣言、いずれも公開 API の純追加）を統合した結果として main の
+# 到達値 0.178.0 をさらに上回る 0.178.1 へ patch バンプする（本ブランチの
+# 変更自体が patch 相当のため、統合後もマイナーバンプへは切り上げない）。
+#
+# 本コンフリクト解消（イシュー #2201、PR #2302 の base 取り込み・2 回目）:
+# 上記 1 回目の解消時点で本ブランチは 0.178.1 へ到達していたが、origin/main
+# も別経路（イシュー #2197 breakpoint 条件・トークン追加、PR #2289 の
+# @starting-style/transition-behavior DSL・overflow 是正の統合、PR #2300）
+# で独立に 0.179.0 へ到達していた。origin/main の到達値 0.179.0 が本
+# ブランチの 0.178.1 を上回るため同一版数への偶発的衝突には該当しないが、
+# 本ブランチの実体変更（pseudo_element API 追加）は依然 origin/main へ
+# 取り込まれていないため、双方の実体変更を統合した結果として main の
+# 到達値 0.179.0 をさらに上回る 0.179.1 へ patch バンプする（本ブランチの
+# 変更自体が patch 相当のため、統合後もマイナーバンプへは切り上げない）。
 # 本コンフリクト解消（イシュー #2197、main 取り込み）: 本ブランチは上記
 # breakpoint 追加により 0.176.0 → 0.177.0 へマイナーバンプ済みだったが、
 # origin/main も別経路（イシュー #2195 Forms 家族横断の disabled/required
@@ -3028,7 +3055,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # トランジション機構（`SlotRecipe::content_height_transition`）を適用。
 # CSS 出力の追加のみで公開 API シグネチャは不変のため patch バンプ
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.3）。
-version = "0.180.1"
+# 本コンフリクト解消（イシュー #2201、PR #2302 の base 取り込み・3 回目）:
+# 上記 2 回目の解消時点で本ブランチは 0.179.1 へ到達していたが、origin/main
+# も別経路（PR #2296 の headless-ui 0.68.16 依存追随の base 取り込み〔4 回目〕）
+# で独立に 0.180.0 へ到達していた。origin/main の到達値 0.180.0 が本ブランチの
+# 0.179.1 を上回るため同一版数への偶発的衝突には該当しないが、本ブランチの
+# 実体変更（pseudo_element API 追加）は依然 origin/main へ取り込まれていないため、
+# 双方の実体変更を統合した結果として main の到達値 0.180.0 をさらに上回る
+# 0.180.1 へ patch バンプする（本ブランチの変更自体が patch 相当のため、統合後も
+# マイナーバンプへは切り上げない）。
+# base 取り込み（PR #2282、イシュー #2194、5 回目）: 本ブランチ（#2282 の bubble
+# collapse-content への共通高さトランジション機構適用、patch 相当）と
+# origin/main（イシュー #2201/PR #2302 の pseudo_element API 追加取り込みを含む
+# 0.180.1）が同一版数 0.180.1 へ偶発的に到達していたため、同一版数への
+# 偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を統合した結果
+# として main の到達値 0.180.1 をさらに上回る 0.180.2 へ patch バンプする。
+version = "0.180.2"
 
 
 
