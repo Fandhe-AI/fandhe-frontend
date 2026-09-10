@@ -2050,9 +2050,18 @@ item をトリガーへ位置合わせして開く挙動）を既定とするが
   イベント駆動か `reposition_now()` の明示呼び出しのみ）、「開いた瞬間に
   1 回だけ位置決めする」item-aligned のライフサイクルと噛み合わない。
 - `content` は #2019 以降スクロール要素であり、#2165 の keynav
-  `scroll_item_into_view_if_needed` や #2186 の sticky scroll button が
-  `scrollTop` を操作する。item-aligned の位置計算を素朴に scroll 再計算
-  経路へ乗せると、これらと `scrollTop` の書き込みを取り合う。
+  `scroll_item_into_view_if_needed` が highlight 変更時に `scrollTop` を
+  操作する。item-aligned の位置計算を素朴に scroll 再計算経路へ乗せると、
+  この `scrollTop` の書き込みと取り合う。#2186 の sticky scroll button
+  （`scroll-up-button`/`scroll-down-button`）は現時点では anatomy・装飾
+  （`crates/headless-ui/src/select.rs`）と keynav 側のボタン高さ差引き
+  （可視領域計算、`crates/wasm-full/src/keynav.rs`）までが実装範囲であり、
+  押下時の実スクロール自体は同モジュールの契約・
+  `docs/design/component-coverage-map.md` に後続配線として記録された未実装
+  の関心である（現時点で `scrollTop` を書き込むのは keynav の highlight
+  追従のみ）。押下スクロールが将来配線された場合は、item-aligned の位置
+  計算・keynav・ボタン押下の 3 者が `scrollTop` を取り合う競合が新たに
+  生じる点も、現状の競合とは区別して記録しておく。
 
 ### 32.3 採用時の配置（§3.25 規則 2 に基づき wasm-full）
 

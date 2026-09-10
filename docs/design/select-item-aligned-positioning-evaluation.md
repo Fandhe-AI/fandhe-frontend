@@ -29,7 +29,7 @@
 | shadcn/ui | **既定**。`SelectContent` の `position` prop は `"item-aligned"` が既定値であり、`position === "popper"` のときのみ popper 用クラスを付与する（`apps/v4/registry/new-york-v4/ui/select.tsx` L55 付近） | GitHub raw 取得で確認 |
 | Radix Themes | **既定**。wrapper `select.tsx` は `position` の既定値を定めず Radix Primitives の既定 `Position.ItemAligned` をそのまま継承する。docs `select.mdx` §Position は「`position="popper"` を指定するとトリガー下へ配置される」と記す（＝指定しない既定は item-aligned） | GitHub raw 取得で確認。props 定義ファイル（`select.props`）は取得が空だったため既定値の根拠として引用しない |
 | chakra-ui（ark-ui / zag.js） | **非対応**。`select` machine は floating-ui ベースの `positioning` prop（placement/offset/flip/shift 相当）のみを持ち、item-aligned 相当のモードは存在しない | ark-ui / chakra-ui スキル参照 |
-| Radix Primitives の算法（`packages/react/select/src/select.tsx` の `SelectItemAlignedPosition`） | trigger の矩形・value-node の矩形・**選択中の item** の item-text 矩形・content 矩形・viewport（scroll container）を計測し、`left = valueNodeRect.left - (itemTextRect.left - contentRect.left)` を `CONTENT_MARGIN = 10px` で viewport 内へ clamp する。縦方向は「選択 item の中心をトリガー中心へ合わせて下方展開できるか」で上下いずれに展開するかを決め、content wrapper へ `height`/`minHeight`/`maxHeight` を書き込み、上方展開時は viewport（scroll container）の `scrollTop` を設定する。**選択中の item が存在しない場合はこの計算自体を行わない**（popper 相当の配置へ委譲する）。`flip`/`shift` の候補探索や `data-side`/`data-align` の出力は行わない | GitHub raw 取得で確認 |
+| Radix Primitives の算法（`packages/react/select/src/select.tsx` の `SelectItemAlignedPosition`） | trigger の矩形・value-node の矩形・**選択中の item** の item-text 矩形・content 矩形・viewport（scroll container）を計測し、`left = valueNodeRect.left - (itemTextRect.left - contentRect.left)` を `CONTENT_MARGIN = 10px` で viewport 内へ clamp する。縦方向は「選択 item の中心をトリガー中心へ合わせて下方展開できるか」で上下いずれに展開するかを決め、content wrapper へ `height`/`minHeight`/`maxHeight` を書き込み、上方展開時は viewport（scroll container）の `scrollTop` を設定する。**選択値が未設定でも `itemRefCallback` が最初の有効な（disabled でない）item を `selectedItem` として設定するため、この計算は選択値の有無によらず常に実行される**（`packages/react/select/src/select.tsx` の `itemRefCallback` 参照。`item-aligned`/`popper` の切り替えは `position` prop の明示指定のみで決まり、選択状態には連動しない）。`flip`/`shift` の候補探索や `data-side`/`data-align` の出力は行わない | GitHub raw 取得で確認 |
 
 参照 3 者の分布は「既定として採用 2（shadcn/ui・Radix Themes）：非対応
 1（chakra-ui）」である。**「参照 1 者に無い」ことだけを非採用根拠には
@@ -129,8 +129,13 @@
    おり、現時点の根拠は PR #2165 の対象外節のみで**利用要望 issue は
    存在しない**。
 5. **4 軸評価**:
-   - **明示性**: △。選択 item の有無で配置モードが暗黙に変わる
-     （未選択時は popper 相当へフォールバックする必要がある）。
+   - **明示性**: △。§7 案 B（本リポジトリ独自の簡略化案）は
+     `[data-selected]` item の有無で item-aligned 計算の実行可否を
+     分岐させる設計だが、これは Radix 実装の忠実な反映ではない（§2 の
+     とおり Radix は選択値が無くても最初の有効な item へ整列し、
+     `item-aligned`/`popper` の切り替えは `position` prop 指定のみで
+     決まる）。未選択時に popper 相当へフォールバックする分岐を案 B が
+     独自に追加すると、配置モードが暗黙に変わる点は課題として残る。
    - **決定性**: △。value-text と item-text のテキスト矩形差に依存し、
      フォント読込・`size` variant・アイコン有無で結果が揺れうる。
      Radix 自身も item-aligned 起因の不具合報告が多く、shadcn/ui
@@ -157,7 +162,13 @@
 
 - **案 A: Radix 忠実移植**（content の高さ・`scrollTop` 制御込み）。
   忠実だが §5 の 2〜4 をすべて抱えるため非推奨。
-- **案 B: Select 限定 opt-in の簡略版**。
+- **案 B: Select 限定 opt-in の簡略版**。`[data-selected]` item の
+  有無で計算可否を分岐させる下記の条件は、Radix の
+  `itemRefCallback`（選択値が無くても最初の有効な item へ
+  常に整列する、§2 参照）を忠実移植したものではなく、
+  **本リポジトリ独自の簡略化判断**である（未選択時は「最初の有効な
+  item への整列」を実装せず popper 相当へフォールバックする方が
+  §5 の衝突・実装コストを抑えられるという判断。忠実移植は案 A）。
   - SSR で `positioner` に `data-position="item-aligned"`（利用者が
     `attrs` で付与、headless-ui は不変）を持たせる。
   - wasm-full `reposition_one` は `kind == Select && data-position ==
