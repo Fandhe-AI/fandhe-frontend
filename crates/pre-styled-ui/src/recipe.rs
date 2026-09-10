@@ -656,7 +656,9 @@ pub const CONTENT_HEIGHT_VAR: &str = "--fandhe-content-height";
 const CONTENT_HEIGHT_VAR_REF: &str = "var(--fandhe-content-height, auto)";
 
 /// [`content_height_open_declarations`] 専用の `transition-timing-function`
-/// 値（PR #2289 codex レビュー P1 是正、イシュー #2192）。
+/// 値（PR #2289 codex レビュー P1 是正、イシュー #2192）。開く遷移
+/// （base が終端スタイル）にのみ適用する（下記「開閉で非対称にする理由」
+/// 参照。閉じる遷移には [`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`] を使う）。
 ///
 /// `transition-property: height, padding-block, margin-block, display,
 /// overflow` の 5 項目に位置対応する 5 値のカンマ列。先頭 4 項目
@@ -665,32 +667,52 @@ const CONTENT_HEIGHT_VAR_REF: &str = "var(--fandhe-content-height, auto)";
 /// `step-end` を使う。理由: `overflow`（離散値プロパティ）の値切り替え
 /// タイミングをトランジション完了の瞬間に固定するため。`step-end` は
 /// 「進捗が 1（完了）に達するまで開始値のまま、完了と同時に終了値へ切り
-/// 替わる」ため、以下の非対称な要件を単一の共有宣言（`[hidden]` state は
-/// `transition-property` 等を再宣言しない契約、`content_height_transition`
-/// rustdoc 参照）だけで満たせる:
+/// 替わる」ため、開く遷移（base が終端スタイル）の要件を満たせる: 終端値は
+/// `overflow: visible`。`step-end` によりトランジション進行中は開始値
+/// `hidden`（`[hidden]` state/`@starting-style` 側）のまま据え置かれ、
+/// 完了の瞬間にだけ `visible` へ切り替わる。これにより開いた定常状態
+/// （トランジション完了後）では常に `overflow: visible` となり、content
+/// 内の `position: absolute` な Popover 等（`top: 100%` で自身の高さの
+/// 外へはみ出す構成）が親のクリップで切り取られる回帰（calc-size() 対応
+/// ブラウザで発生、codex レビュー指摘）を解消する。
 ///
-/// - 開く遷移（base が終端スタイル）: 終端値は `overflow: visible`。
-///   `step-end` によりトランジション進行中は開始値 `hidden`（`[hidden]`
-///   state/`@starting-style` 側）のまま据え置かれ、完了の瞬間にだけ
-///   `visible` へ切り替わる。これにより開いた定常状態（トランジション
-///   完了後）では常に `overflow: visible` となり、content 内の
-///   `position: absolute` な Popover 等（`top: 100%` で自身の高さの外へ
-///   はみ出す構成）が親のクリップで切り取られる回帰
-///   （calc-size() 対応ブラウザで発生、codex レビュー指摘）を解消する。
-/// - 閉じる遷移（`[hidden]` state が終端スタイル）: 終端値は
-///   `overflow: hidden`。`step-end` によりトランジション進行中は開始値
-///   `visible`（base 側）のまま据え置かれ、完了の瞬間（`display: none`
-///   適用と同時）にだけ `hidden` へ切り替わる。`display` も
-///   `allow-discrete` により「終端値が `none` の場合は完了まで適用を
-///   遅延する」という同じタイミングモデルで振る舞う（[MDN
-///   `transition-behavior`]）ため、`overflow` を同じ `step-end` に揃える
-///   ことは既存の `display` の振る舞いと整合する。トレードオフとして、
-///   閉じる方向のシュリンクアニメーション中は content が
-///   `overflow: visible` のまま（クリップされない）だが、`display` が
-///   遅延適用される期間と同じ区間であり新規の破綻ではない。
+/// # 開閉で非対称にする理由（PR #2289 codex レビュー第 2 ラウンド是正）
+///
+/// 閉じる遷移（`[hidden]` state が終端スタイル）へも同じ `step-end` を
+/// 適用すると、終端値 `overflow: hidden` への切り替えが完了の瞬間まで
+/// 遅延される。`calc-size()` 対応ブラウザでは `height`/`padding-block`
+/// が先に縮み始める一方 `overflow` は `visible` のまま据え置かれるため、
+/// 縮小中の content がクリップされず後続の Accordion 項目や Collapsible
+/// 下のコンテンツに重なって表示され、`display: none` 適用の瞬間に突然
+/// 消えるという表示回帰が生じる（height トランジション導入前にはなかった
+/// 見た目、codex レビュー指摘）。閉じる遷移では代わりに
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`]（`overflow` に `step-start`）
+/// を使い、縮小開始の瞬間から `overflow: hidden` を有効にする。
 ///
 /// [MDN `transition-behavior`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transition-behavior
 const CONTENT_HEIGHT_TIMING_FUNCTION: &str = "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-end";
+
+/// [`content_height_closed_transition_declarations`] 専用の
+/// `transition-timing-function` 値（PR #2289 codex レビュー第 2 ラウンド
+/// 是正、イシュー #2192）。閉じる遷移（`[hidden]` state が終端スタイル）
+/// にのみ適用する。
+///
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] と先頭 4 値（共通 easing）は同じだが、
+/// 末尾の `overflow` だけ `step-start` にする。`step-start` は「進捗が
+/// 0（開始）を超えた瞬間に終了値へ切り替わり、以降は終了値のまま」の
+/// ため、閉じる遷移の終端値 `overflow: hidden`（[`content_height_closed_
+/// declarations`]）が縮小開始の瞬間から有効になる。CSS Transitions Level 2
+/// の `transition-behavior: allow-discrete` は「離散値プロパティの値切り
+/// 替えを timing function 適用後の進捗に従って行う」仕様であり、
+/// `step-start` を使えば `[hidden]` state 規則（開閉遷移のうち閉じる方向の
+/// 終端スタイル）自身が宣言する `overflow` を、遷移開始と同時に有効化
+/// できる。これにより `height`/`padding-block` が `calc-size()` で縮み
+/// 始めるのと同時に `overflow: hidden` も有効になり、縮小中の content が
+/// 後続要素に重なって表示されてから突然消える表示回帰
+/// （[`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc「開閉で非対称にする理由」
+/// 参照）を解消する。開く遷移（base が終端スタイル）には従来どおり
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`]（`step-end`）を使う。
+const CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING: &str = "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-start";
 
 /// [`SlotRecipe::content_height_transition`] が base（非 `hidden`）状態へ
 /// 登録する宣言（イシュー #2192、codex レビュー是正で追補）。
@@ -762,10 +784,16 @@ const CONTENT_HEIGHT_TIMING_FUNCTION: &str = "var(--fandhe-motion-easing-standar
 /// 恒常値としては持たない。代わりに [`CONTENT_HEIGHT_TIMING_FUNCTION`]
 /// （`step-end`）で `overflow` の値切り替えをトランジション完了の瞬間
 /// だけに限定し、`overflow: visible` を開いた定常状態の終端値として
-/// 登録する。トランジション進行中は開始値（`[hidden]` state/
-/// `@starting-style` 側の `overflow: hidden`）が `step-end` により
-/// 維持されるため、縮む方向の遷移中に内容が切り取られる従来の効果は
-/// 変わらず保たれる。
+/// 登録する（このタイミング関数は開く遷移＝本関数が終端スタイルになる
+/// 方向にのみ適用する。閉じる遷移側の終端スタイル
+/// [`content_height_closed_transition_declarations`] は別の
+/// `step-start` タイミング関数を自前で宣言し、閉じる方向の overflow
+/// 切り替えタイミングを個別制御する。理由は
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc「開閉で非対称にする理由」
+/// 節参照。PR #2289 codex レビュー第 2 ラウンド是正）。トランジション
+/// 進行中は開始値（`[hidden]` state/`@starting-style` 側の
+/// `overflow: hidden`）が `step-end` により維持されるため、開く方向の
+/// 遷移中に内容が切り取られる従来の効果は変わらず保たれる。
 #[must_use]
 pub fn content_height_open_declarations(duration: MotionDuration) -> Vec<Declaration> {
     vec![
@@ -803,10 +831,19 @@ pub fn content_height_open_declarations(duration: MotionDuration) -> Vec<Declara
 /// `overflow: hidden` を追補したのは PR #2289 codex レビュー P1 是正
 /// （[`content_height_open_declarations`] rustdoc「開いた定常状態での
 /// クリップ対策」節参照）の一部: `[hidden]` state・`@starting-style` の
-/// 双方をトランジションの「開始値」（`step-end` により、閉じる遷移では
-/// 完了の瞬間まで、開く遷移では開始の瞬間から進行中ずっと有効になる
-/// 値）として使うため、この関数が `overflow: hidden` を明示しないと
-/// 縮む方向の遷移中に内容が切り取られなくなってしまう。
+/// 双方をトランジションの「開始値」として使うため、この関数が
+/// `overflow: hidden` を明示しないと縮む方向の遷移中に内容が切り取られ
+/// なくなってしまう。
+///
+/// 本関数自体は `transition-property` 等を宣言しない（`@starting-style`
+/// はトランジション対象プロパティの開始値スナップショットであり、
+/// 自前の `transition-*` 宣言を必要としないため）。`[hidden]` state は
+/// 代わりに [`content_height_closed_transition_declarations`] を使い、
+/// 閉じる遷移専用の `transition-timing-function`
+/// （[`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`]）を自前で宣言する
+/// （PR #2289 codex レビュー第 2 ラウンド是正、理由は
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc「開閉で非対称にする理由」
+/// 節参照）。
 #[must_use]
 pub fn content_height_closed_declarations() -> Vec<Declaration> {
     vec![
@@ -815,6 +852,48 @@ pub fn content_height_closed_declarations() -> Vec<Declaration> {
         decl("margin-block", "0"),
         decl("overflow", "hidden"),
     ]
+}
+
+/// [`SlotRecipe::content_height_transition`] が `[hidden]` state
+/// （閉じる遷移の終端スタイル）へ登録する宣言（PR #2289 codex レビュー
+/// 第 2 ラウンド是正、イシュー #2192）。
+///
+/// [`content_height_closed_declarations`] の 4 値宣言に加えて、閉じる
+/// 遷移専用の `transition-property`/`transition-duration`/
+/// `transition-timing-function`（[`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`]、
+/// `overflow` に `step-start`）/`transition-behavior` を自前で宣言する。
+///
+/// # `[hidden]` state が独自に `transition-*` を宣言する理由
+///
+/// CSS Transitions は、値が変化した瞬間に適用される
+/// `transition-property`/`transition-duration`/`transition-timing-function`
+/// を、その時点でカスケードにより有効な（＝遷移先の）計算値から決定する。
+/// [`content_height_open_declarations`]（base）が宣言する
+/// `transition-timing-function`（[`CONTENT_HEIGHT_TIMING_FUNCTION`]、
+/// `overflow` に `step-end`）は、base が遷移先になる方向（開く遷移）に
+/// のみ実効させたい。しかし `[hidden]` セレクタは base より詳細度が高い
+/// ため、本関数が `transition-*` を明示しなければ base の宣言がそのまま
+/// カスケードを通過し、閉じる遷移（`[hidden]` が遷移先）にも同じ
+/// `step-end` が適用されてしまう（表示回帰の原因、
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc 参照）。`[hidden]` 自身が
+/// `transition-timing-function` を宣言することで、閉じる遷移の実効値を
+/// `step-start` へ個別に固定できる（CSS カスケードは宣言単位＝longhand
+/// 単位で決まるため、他の longhand（`height` 等の値）は
+/// [`content_height_closed_declarations`] のまま変わらない）。
+#[must_use]
+pub fn content_height_closed_transition_declarations(duration: MotionDuration) -> Vec<Declaration> {
+    let mut declarations = content_height_closed_declarations();
+    declarations.push(decl(
+        "transition-property",
+        "height, padding-block, margin-block, display, overflow",
+    ));
+    declarations.push(decl("transition-duration", duration.var_ref()));
+    declarations.push(decl(
+        "transition-timing-function",
+        CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING,
+    ));
+    declarations.push(decl("transition-behavior", "allow-discrete"));
+    declarations
 }
 
 /// slot 1 個への base 宣言登録（内部表現）。
@@ -1420,9 +1499,13 @@ impl SlotRecipe {
     ///
     /// - base: [`content_height_open_declarations`]（`height:
     ///   var(--fandhe-content-height, auto)` 等）
-    /// - `[hidden]` state: [`content_height_closed_declarations`]
+    /// - `[hidden]` state: [`content_height_closed_transition_declarations`]
+    ///   （閉じる遷移専用の `transition-timing-function` を自前で宣言し、
+    ///   `overflow` の切り替えタイミングを開く遷移と非対称にする。理由は
+    ///   同関数 rustdoc 参照、PR #2289 codex レビュー第 2 ラウンド是正）
     /// - `@starting-style`: [`content_height_closed_declarations`]（開く
-    ///   遷移の開始点を `height: 0` に固定する）
+    ///   遷移の開始点を `height: 0` に固定する。`transition-*` は宣言
+    ///   しない）
     /// - `@supports not (height: calc-size(auto, size))`: `height: auto` /
     ///   `overflow: visible` / `transition: none`（PR #2289 codex レビュー
     ///   P1 是正、下記「calc-size() 未対応ブラウザでの表示回帰対策」参照）
@@ -1462,7 +1545,7 @@ impl SlotRecipe {
             .state(
                 slot,
                 StateCondition::Attr("hidden"),
-                content_height_closed_declarations(),
+                content_height_closed_transition_declarations(duration),
             )
             .starting_style(slot, content_height_closed_declarations())
             .supports_not_calc_size_height(

@@ -856,8 +856,8 @@ fn hover_state_and_other_states_coexist_with_hover_block_emitted_once_at_end() {
 // `docs/design/collapsible-height-animation.md` 案 C）。
 
 use fandhe_frontend_pre_styled_ui::recipe::{
-    content_height_closed_declarations, content_height_open_declarations,
-    transition_declarations_allow_discrete, CONTENT_HEIGHT_VAR,
+    content_height_closed_declarations, content_height_closed_transition_declarations,
+    content_height_open_declarations, transition_declarations_allow_discrete, CONTENT_HEIGHT_VAR,
 };
 
 #[test]
@@ -1004,7 +1004,24 @@ fn content_height_transition_preset_registers_base_state_and_starting_style() {
     assert!(!css.contains("display: block;"));
 
     // `[hidden]` state: 縮小方向の宣言（`overflow: hidden` を含む）。
-    assert!(css.contains(r#"[data-scope="collapsible"][data-part="content"][hidden] {"#));
+    // 閉じる遷移専用の `transition-*` を自前で宣言し、`overflow` の
+    // timing-function は `step-start`（PR #2289 codex レビュー第 2
+    // ラウンド是正）。base（開く遷移）側は `step-end` のまま変わらない
+    // （`CONTENT_HEIGHT_TIMING_FUNCTION` rustdoc「開閉で非対称にする
+    // 理由」節参照）。
+    let expected_hidden_state = concat!(
+        "[data-scope=\"collapsible\"][data-part=\"content\"][hidden] {\n",
+        "  height: 0;\n",
+        "  padding-block: 0;\n",
+        "  margin-block: 0;\n",
+        "  overflow: hidden;\n",
+        "  transition-property: height, padding-block, margin-block, display, overflow;\n",
+        "  transition-duration: var(--fandhe-motion-duration-normal);\n",
+        "  transition-timing-function: var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-start;\n",
+        "  transition-behavior: allow-discrete;\n",
+        "}\n",
+    );
+    assert!(css.contains(expected_hidden_state));
 
     // `@starting-style`: 開く遷移の開始点を `height: 0`/`overflow: hidden`
     // に固定する。
@@ -1077,6 +1094,40 @@ fn content_height_declarations_helpers_match_preset_contract() {
     assert_eq!(closed[2].value(), "0");
     assert_eq!(closed[3].property(), "overflow");
     assert_eq!(closed[3].value(), "hidden");
+}
+
+#[test]
+fn content_height_closed_transition_declarations_uses_step_start_for_overflow() {
+    // PR #2289 codex レビュー第 2 ラウンド是正: `[hidden]` state
+    // （閉じる遷移の終端スタイル）は自前で `transition-*` を宣言し、
+    // `overflow` の timing-function を `step-start` にする
+    // （`content_height_open_declarations` の `step-end` とは非対称）。
+    let closed_transition = content_height_closed_transition_declarations(MotionDuration::Normal);
+    let base_closed = content_height_closed_declarations();
+
+    // 先頭 4 値は `content_height_closed_declarations` と同一。
+    assert_eq!(closed_transition.len(), base_closed.len() + 4);
+    for (a, b) in closed_transition.iter().zip(base_closed.iter()) {
+        assert_eq!(a.property(), b.property());
+        assert_eq!(a.value(), b.value());
+    }
+
+    assert_eq!(closed_transition[4].property(), "transition-property");
+    assert_eq!(
+        closed_transition[4].value(),
+        "height, padding-block, margin-block, display, overflow"
+    );
+    assert_eq!(closed_transition[5].property(), "transition-duration");
+    assert_eq!(
+        closed_transition[6].property(),
+        "transition-timing-function"
+    );
+    assert_eq!(
+        closed_transition[6].value(),
+        "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-start"
+    );
+    assert_eq!(closed_transition[7].property(), "transition-behavior");
+    assert_eq!(closed_transition[7].value(), "allow-discrete");
 }
 
 #[test]

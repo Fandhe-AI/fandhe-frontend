@@ -196,16 +196,30 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
   （トランジション中は開始値 `hidden` が維持されるため、縮む方向の
   遷移中に内容が切り取られる従来の効果は保たれる）ため、開いた定常状態
   では常に `overflow: visible` となり Popover のクリップが解消される。
-  閉じる遷移は終端値 `overflow: hidden` へ完了の瞬間（`display: none`
-  適用と同時）にのみ切り替わるため、シュリンクアニメーション中は
-  `overflow: visible` のまま（`display` の `allow-discrete`「終端値が
-  `none` の場合は完了まで適用を遅延する」という既存の振る舞いと同じ
-  タイミングモデル）というトレードオフを受け入れる。閉状態
-  （`[hidden]` state・`@starting-style`）は `overflow: hidden` を明示する
-  （`content_height_closed_declarations`）。実装詳細は
-  `crates/pre-styled-ui/src/recipe.rs` の
-  `CONTENT_HEIGHT_TIMING_FUNCTION`/`content_height_open_declarations`
-  rustdoc を正とする。
+  閉状態（`[hidden]` state・`@starting-style`）は `overflow: hidden` を
+  明示する（`content_height_closed_declarations`）。
+- **閉じる遷移の `overflow` は `step-start`（PR #2289 codex レビュー第 2
+  ラウンド是正）**: 上記 `step-end` を開閉双方へ共有すると、閉じる遷移の
+  `overflow: hidden` への切り替えが完了の瞬間（`display: none` 適用と
+  同時）まで遅延される。`calc-size()` 対応ブラウザでは `height`/
+  `padding-block` が先に縮み始める一方 `overflow` は `visible` のまま
+  据え置かれるため、縮小中の content がクリップされず後続の Accordion
+  項目や Collapsible 下のコンテンツに重なって表示され、`display: none`
+  適用の瞬間に突然消えるという表示回帰が生じる（height トランジション
+  導入前にはなかった見た目）。是正として、`[hidden]` state 規則
+  （閉じる遷移の終端スタイル）が `transition-property`/
+  `transition-duration`/`transition-timing-function`/
+  `transition-behavior` を自前で宣言し（CSS Transitions は遷移先の
+  計算値からこれらを決定するため、詳細度で base より勝る `[hidden]` が
+  独自に宣言すれば閉じる方向だけへ個別適用できる）、`overflow` の
+  timing-function を `step-start`（進捗が開始を超えた瞬間に終了値へ
+  切り替わり、以降は終了値のまま）にする。これにより
+  `overflow: hidden` が縮小開始の瞬間から有効になり、後続要素への重なり
+  が解消される。開く遷移（base 側）の `step-end` は変更しない。実装詳細
+  は `crates/pre-styled-ui/src/recipe.rs` の
+  `CONTENT_HEIGHT_TIMING_FUNCTION`/`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`/
+  `content_height_open_declarations`/
+  `content_height_closed_transition_declarations` rustdoc を正とする。
 - **`scrollHeight` は border を含まない**ため、border-box で
   `height: <scrollHeight>px` を当てると collapsible（1px border）では
   content 領域が上下計 2px 短くなる（`overflow: hidden` の切り取り境界は

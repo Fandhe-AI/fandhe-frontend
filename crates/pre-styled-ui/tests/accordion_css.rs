@@ -246,6 +246,10 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
   padding-block: 0;
   margin-block: 0;
   overflow: hidden;
+  transition-property: height, padding-block, margin-block, display, overflow;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-start;
+  transition-behavior: allow-discrete;
 }
 
 @starting-style {
