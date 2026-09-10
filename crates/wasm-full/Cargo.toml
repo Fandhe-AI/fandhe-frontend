@@ -786,7 +786,7 @@ name = "fandhe-frontend-wasm-full"
 # クレート自体の配線は未着手）。origin/main の到達値 0.17.2 からさらに
 # +1（patch）して 0.17.3 とする。
 #
-# イシュー #2191（親トラッキング #2189）: 新規公開モジュール
+# イシュー #2191（親トラッキング #2189）base 取り込み: 新規公開モジュール
 # `content_height`（`CONTENT_HEIGHT_VAR`/`TARGETS`/`is_target`/
 # `target_selector`/`format_content_height`/`sync_content_height`）の
 # 追加、および `headless::wire_headless_component` への非破壊的な内部統合
@@ -802,8 +802,22 @@ name = "fandhe-frontend-wasm-full"
 # 挙動が新たに増える実体変更のため、`chart` モジュール追加時（0.17.0）と
 # 同じ判断基準でマイナーバンプし、origin/main の到達値 0.17.4 を上回る
 # 0.18.0 とする。
-version = "0.18.0"
-
+#
+# イシュー #2118（origin/main 側、base 取り込み）: `questionnaire`
+# モジュール（back/next/skip クリックから `data-state` 更新への配線）を
+# 新規追加し、`Runtime::mount`/`Runtime::hydrate` へ自動配線した（新規
+# 公開 API の追加＝機能追加）。0.x の非破壊的機能追加のため minor バンプ
+# とし、origin/main の到達値 0.17.4 から 0.18.0 とする（`chart` モジュール
+# 追加時〔#2130〕の先例と同型の判断）。
+#
+# イシュー #2134 base 取り込み: 本ブランチは独立に 0.17.4 → 0.18.0
+# （chart_range 追加、上記）へマイナーバンプ済みだったが、origin/main も
+# 並行 PR（#2118）で独立に 0.18.0 へ到達しており、同一版数への偶発的衝突を
+# そのまま採用しない原則により main の到達値 0.18.0 からさらに +1（patch）
+# して 0.18.1 とする（`Runtime::mount`/`hydrate` へ `wire_chart_range` と
+# `wire_questionnaire` の双方を配線する非破壊的統合のみで、公開 API の
+# シグネチャ変更を伴わないため patch バンプで足りる）。
+version = "0.18.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

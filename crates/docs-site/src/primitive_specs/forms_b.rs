@@ -331,7 +331,7 @@ const QUESTIONNAIRE: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[
         KeyRow { key: "Tab / Shift+Tab", description: "back/next/skip はネイティブ `button` のため既定のタブ操作を継承する。非 active な質問は `hidden` 属性により Tab 到達不能。" },
         KeyRow { key: "Enter / Space", description: "フォーカス中の back/next/skip ボタンを押下する（ネイティブ `button` の既定動作）。" },
-        KeyRow { key: "（実 DOM 配線）", description: "back/next/skip の click から dispatch（`\"prev\"`/`\"next\"`/`\"skip\"`）への実配線は `fandhe-frontend-wasm-full` 側の責務であり、本クレートのスコープ外（後続イシュー #2118）。" },
+        KeyRow { key: "（実 DOM 配線）", description: "back/next/skip の click から dispatch（`\"prev\"`/`\"next\"`/`\"skip\"`）への実配線は `fandhe-frontend-wasm-full` 側の責務（本クレートのスコープ外）。0.18.0 以降 `Runtime::mount`/`Runtime::hydrate` が自動配線し、境界での `disabled` 付け外し・`\"questionnaire:*\"` 通知まで行う（イシュー #2118）。" },
     ],
     aria: &[
         AriaRow { attribute: "role=\"progressbar\" (progress)", description: "`aria-valuemin`/`aria-valuemax`/`aria-valuenow`/`aria-valuetext` を併せて出力する。" },

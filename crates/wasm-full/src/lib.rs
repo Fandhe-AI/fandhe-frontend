@@ -171,6 +171,7 @@ pub mod nav;
 pub mod number_input;
 pub mod overlay;
 pub mod position;
+pub mod questionnaire;
 pub mod sidebar;
 pub mod splitter;
 pub mod tooltip;
@@ -1066,6 +1067,12 @@ where
         Self::wire_sidebar(root.clone())?;
         Self::wire_chart(root.clone())?;
         Self::wire_chart_range(root.clone())?;
+        Self::wire_questionnaire(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
@@ -1190,6 +1197,12 @@ where
         Self::wire_sidebar(root.clone())?;
         Self::wire_chart(root.clone())?;
         Self::wire_chart_range(root.clone())?;
+        Self::wire_questionnaire(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
@@ -1862,6 +1875,86 @@ where
     /// 失敗を伝播する。
     fn wire_chart_range(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         chart_range::wiring::wire_chart_range_events(root)
+    }
+
+    /// Questionnaire（`fandhe-frontend-headless-ui` `questionnaire` モジュール）
+    /// の back / next / skip クリックから `data-state` 更新への配線を
+    /// [`questionnaire::wire_questionnaire_events`] 経由で `root` へ登録する
+    /// （イシュー #2118）。`Self::mount`/`Self::hydrate` の双方から
+    /// `Self::wire_chart` の直後に 1 回だけ呼ばれる。
+    ///
+    /// # `C` への dispatch 後の再描画接続
+    ///
+    /// [`questionnaire`] は DOM 上の `data-*` 表示属性から都度
+    /// `fandhe_frontend_headless_ui::questionnaire::Questionnaire` を
+    /// 再構築して表示更新を完結させるため（`questionnaire.rs` 冒頭 doc
+    /// 参照）、`C::decode_action` が `"questionnaire:*"` を認識しない
+    /// （`dispatched == false`）場合でも表示更新自体は成立する。一方で `C`
+    /// がこの通知を自身の状態機械へ組み込み、その値を `view()` の別の
+    /// 束縛点（`data-bind-text` 等）で参照している場合、dispatch が成功し
+    /// `dirty_fields()` が非空になったときのみ [`Self::apply_dirty_if_any`]
+    /// へ委譲して束縛点・keyed list を更新する（`Self::wire_timer` と同型の
+    /// 「`dispatched` かつ `dirty` 非空」早期 return 手順）。
+    ///
+    /// ## Questionnaire 自身の `data-*` 直書きとの二重描画にならない根拠
+    ///
+    /// [`questionnaire::wiring::handle_click`] は DOM への書き戻し
+    /// （`write_questionnaire`）を実行し終えてから、状態が実際に変化した
+    /// 場合のみ `on_action`（→ このクロージャ → `C` への dispatch →
+    /// `apply_dirty_if_any`）を呼ぶ。`C` 側の更新は同じアクションに対する
+    /// 最後の書き手であり、束縛済み属性への再書き込みがあっても同値の
+    /// 冪等な上書きに留まる（`Self::wire_timer` と同じ順序保証）。
+    ///
+    /// # `root` は任意の祖先でよい（`Self::wire_timer` との対照）
+    ///
+    /// [`questionnaire`] はインスタンス root を click 位置から都度解決する
+    /// ため（`questionnaire.rs` 冒頭 doc「DOM を Questionnaire の一時的な
+    /// 真として扱う」節参照）、`Self::wire_timer` と異なり `root` 自身が
+    /// Questionnaire の Root パーツである必要はない。`Self::mount`
+    /// （`set_inner_html` で `C.view()` を子として流し込む構成）でも
+    /// `Self::hydrate` でも同様に機能する。
+    ///
+    /// # Errors
+    ///
+    /// [`questionnaire::wire_questionnaire_events`]
+    /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    fn wire_questionnaire(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        // `wire_questionnaire_events` のコールバックは `ActionRef` のみを
+        // 渡すため、`apply_dirty_if_any` へ渡す DOM ルートはここで複製して
+        // 保持する（`root` 自体は `wire_questionnaire_events` へ move する）。
+        let questionnaire_root = root.clone();
+        questionnaire::wire_questionnaire_events(root, move |action_ref: events::ActionRef| {
+            let Ok(mut state) = component.try_borrow_mut() else {
+                return;
+            };
+            // `questionnaire::wiring` が Questionnaire 自身の `data-*` 反映を
+            // 独自に完結させるため（上記「二重描画にならない根拠」参照）、
+            // ここでの dispatch は `C` 自身が `questionnaire:*` を認識する
+            // 場合の追随を目的とする。
+            let dispatched = fandhe_frontend_interactive::dispatch(
+                &mut *state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+            if !dispatched {
+                return;
+            }
+            Self::apply_dirty_if_any(
+                &state,
+                &questionnaire_root,
+                &binding_table,
+                &keyed_list_cache,
+            );
+        })
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

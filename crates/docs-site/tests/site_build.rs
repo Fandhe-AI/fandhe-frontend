@@ -218,10 +218,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Blocks セクション（索引 1 + login-01 1 = 2 ページ）が新設され、
     // 220 → 222 になった。イシュー #2089 で dashboard-01 が加わり、
     // 222 → 223 になった。イシュー #2090 で sidebar-07 が加わり、
-    // 223 → 224 になった。
+    // 223 → 224 になった。イシュー #2091 で sidebar-03 が加わり、
+    // 224 → 225 になった。
     assert_eq!(
         report.written.len(),
-        224,
+        225,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
