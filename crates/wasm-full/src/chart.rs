@@ -246,7 +246,7 @@ pub fn should_close_session(hover_active: bool, focus_active: bool) -> bool {
 }
 
 #[cfg(target_arch = "wasm32")]
-mod wiring {
+pub(crate) mod wiring {
     use super::{
         anchor_relative, hit_area_anchor, hit_area_next_index, is_sticky_pointer, matches_key,
         should_close_session, ACTIVE_ATTR, HIT_AREA_SELECTOR, INDEXED_SELECTOR, INDEX_ATTR, SCOPE,
@@ -263,8 +263,10 @@ mod wiring {
     };
 
     /// `root` 配下で `selector` に一致する要素を文書順の `Vec` として返す
-    /// （`sidebar::wiring::query_all` と同型）。
-    fn query_all(root: &Element, selector: &str) -> Vec<Element> {
+    /// （`sidebar::wiring::query_all` と同型）。`crate::chart_range::wiring`
+    /// （イシュー #2134）が期間切替・凡例トグルの配線で再利用するため
+    /// `pub(crate)` にしている（REQ-11 bundle size 抑制、重複実装を避ける）。
+    pub(crate) fn query_all(root: &Element, selector: &str) -> Vec<Element> {
         let Ok(list) = root.query_selector_all(selector) else {
             return Vec::new();
         };
@@ -281,8 +283,8 @@ mod wiring {
     }
 
     /// `event.target()` を `Element` として取得する（`Text` ノード等は
-    /// `None`）。
-    fn event_target_element(event: &Event) -> Option<Element> {
+    /// `None`）。`crate::chart_range::wiring`（イシュー #2134）と共有する。
+    pub(crate) fn event_target_element(event: &Event) -> Option<Element> {
         event.target()?.dyn_into::<Element>().ok()
     }
 
@@ -343,7 +345,7 @@ mod wiring {
     /// 入力から組み立てられるよう変更された場合の防御としても機能する
     /// （`sidebar.rs`/`keynav.rs`/`headless_avatar.rs` の同名ラッパーと
     /// 同じガード方針）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+    pub(crate) fn set_dom_attribute(element: &Element, name: &str, value: &str) {
         if fandhe_frontend_core::is_event_handler_attr(name) {
             return;
         }
