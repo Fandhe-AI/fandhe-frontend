@@ -2193,6 +2193,7 @@ pub(crate) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
         "BreadcrumbVariant（Plain/Underline、crates/pre-styled-ui/src/breadcrumb.rs:266-272）でリンクの下線表示を切り替える",
         "root は既定で aria-label=\"breadcrumb\" を付与する（breadcrumb.rs:152-154）",
         "current_link は aria-current=\"page\"、separator は role=\"presentation\" を固定付与する（breadcrumb.rs:184-188）",
+        "list の gap は既定 --fandhe-space-1-5（0.375rem）、ビューポート幅 640px 以上（recipe::Breakpoint::Sm）で --fandhe-space-2-5（0.625rem）へ広がる（イシュー #2198、breadcrumb.rs recipe() 参照）",
     ],
     arguments: &[
         ArgRow {
@@ -2208,11 +2209,18 @@ pub(crate) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
             description: "None の場合は既定値 \"breadcrumb\" を使う（breadcrumb.rs:122-134, 152-154）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Two levels",
-        description: "Docs → Components の 2 階層パンくずの例です。",
-        render: ex_breadcrumb,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Two levels",
+            description: "Docs → Components の 2 階層パンくずの例です。",
+            render: ex_breadcrumb,
+        },
+        ExampleEntry {
+            title: "Responsive gap",
+            description: "4 階層のパンくず。ビューポート幅 640px 以上で項目間の余白が広がります（@media (min-width: 640px)、イシュー #2198）。",
+            render: ex_breadcrumb_responsive_gap,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -2226,6 +2234,47 @@ pub(crate) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// イシュー #2198: `list` の `gap` breakpoint（`Breakpoint::Sm`）を実演する
+/// 4 階層のパンくず。`href` は `crate::linkcheck::check_links` の突合対象
+/// のため、実在ページへ解決する相対パス（`/themes/` 配下の兄弟ページ）を
+/// 使う。
+fn ex_breadcrumb_responsive_gap() -> Node {
+    breadcrumb::root(
+        Size::Md,
+        breadcrumb::BreadcrumbVariant::Plain,
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            vec![
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link("../table/", vec![], vec![text("Docs")])],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link("../menu/", vec![], vec![text("Themes")])],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link(
+                        "../steps/",
+                        vec![],
+                        vec![text("Navigation")],
+                    )],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::current_link(vec![], vec![text("Breadcrumb")])],
+                ),
+            ],
+        )],
+    )
+}
 
 /// `crates/pre-styled-ui/src/tab_nav.rs:171`（`root` が `aria-label` を必須
 /// 引数として要求）・`:198-209`（`link` が `current` に応じて

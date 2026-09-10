@@ -119,13 +119,6 @@
 //! **意図的に追随しない差分**（根拠を記録し、再評価は
 //! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
 //!
-//! - **`list` の `sm:gap-2.5`（`>= 640px` で `gap` を広げるレスポンシブ
-//!   breakpoint）**: shadcn 実 registry ソースで存在を確認したが、本
-//!   リポジトリの [`crate::recipe::SlotRecipe`]・全 110+ Themes 部品の
-//!   どこにも `@media (min-width: …)` breakpoint プリミティブの前例が
-//!   ない。単一部品のための新設は横断設計判断（新規機構の導入）であり
-//!   本イシュー単体のスコープ外と判断し、`gap` は `--fandhe-space-1-5`
-//!   固定のまま据え置く。
 //! - **responsive drawer への折り畳み退避**: shadcn の Examples 節に
 //!   ビューポート幅に応じたパンくず全体のドロワー退避パターンがあるが、
 //!   JS によるビューポート計測を要し `docs/policy/intentional-non-adoption.md`
@@ -147,6 +140,29 @@
 //!   しない）と判断済み。根拠は headless-ui 側モジュール doc「shadcn/ui
 //!   `BreadcrumbPage` との差分（イシュー #2182）」節を参照。
 //!
+//! # breakpoint 初適用（イシュー #2198）
+//!
+//! #2197（PR #2300）で [`crate::recipe::SlotRecipe::breakpoint`] /
+//! [`crate::recipe::Breakpoint`] が新設されたことを受け、上節（shadcn/ui
+//! 突合、イシュー #2027）でスコープ外としていた shadcn `BreadcrumbList`
+//! の `sm:gap-2.5`（`>= 640px` で `gap` を広げるレスポンシブ
+//! breakpoint）を本部品が機構の最初の消費者として適用した:
+//!
+//! - **`list` の `gap`**: 既定 `var(--fandhe-space-1-5, 0.375rem)` に
+//!   加え、[`Breakpoint::Sm`]（`>= 640px`）で
+//!   `var(--fandhe-space-2-5, 0.625rem)` へ広げる。`item` の `gap`
+//!   （`--fandhe-space-1-5` 固定）は shadcn 側も `sm:` を持たないため
+//!   対象外のまま据え置く。
+//! - **詳細度・variant 衝突なしの確認**: `list` の `gap` は base でのみ
+//!   宣言され、`root` variant（`--fandhe-breadcrumb-font-size`/
+//!   `--fandhe-breadcrumb-link-text-decoration` の custom property）は
+//!   slot・プロパティとも異なるため衝突しない。breakpoint 規則の
+//!   セレクタは base と同じ `[data-scope][data-part]`（詳細度
+//!   (0,2,0)）であり、base と同詳細度・出力順で後（states の後・
+//!   `@media (hover: hover)` の前）のため CSS カスケードの後勝ちで
+//!   正しく上書きされる（`docs/design/pre-styled-ui-scale-tokens.md`
+//!   §3.6 参照）。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
@@ -157,7 +173,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    focus_ring_declarations, transition_declarations, FocusRingColor, FocusRingOffset,
+    focus_ring_declarations, transition_declarations, Breakpoint, FocusRingColor, FocusRingOffset,
     MotionDuration, SlotRecipe, StateCondition, VariantValue,
 };
 pub use fandhe_frontend_headless_ui::breadcrumb::{
@@ -327,6 +343,18 @@ fn recipe() -> SlotRecipe {
             "link",
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // イシュー #2198: shadcn `BreadcrumbList` の `sm:gap-2.5` 相当。
+        // base の `--fandhe-space-1-5` を `>= 640px` で
+        // `--fandhe-space-2-5` へ広げる。フォールバックの理由は base の
+        // `gap` と同じ（codex-review #1791 P1 指摘、`Theme::empty()` 系
+        // カスタムテーマでの後方互換）。`item` は shadcn 側も固定 gap の
+        // ため対象外（モジュール doc「breakpoint 初適用（イシュー
+        // #2198）」節参照）。
+        .breakpoint(
+            "list",
+            Breakpoint::Sm,
+            vec![decl("gap", "var(--fandhe-space-2-5, 0.625rem)")],
         )
         .variant(
             crate::recipe::Size::Xs,
@@ -571,6 +599,16 @@ mod tests {
         // イシュー #2027: shadcn/ui `BreadcrumbList` の `break-words` 相当
         // （`overflow-wrap: break-word`）を golden fixture として固定する。
         assert!(css.contains("overflow-wrap: break-word;"));
+        // イシュー #2198: `list` の breakpoint（`Breakpoint::Sm`）による
+        // `gap` 拡張を golden fixture として固定する。states の後・hover
+        // ブロックの前に出力される契約（`SlotRecipe::breakpoint` rustdoc
+        // 参照）を出力位置の前後関係でも検証する。
+        assert!(css.contains("@media (min-width: 640px)"));
+        assert!(css.contains("gap: var(--fandhe-space-2-5, 0.625rem);"));
+        assert!(
+            css.find("@media (min-width: 640px)").unwrap()
+                < css.find("@media (hover: hover)").unwrap()
+        );
     }
 
     #[test]
