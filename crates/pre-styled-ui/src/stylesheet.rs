@@ -293,6 +293,7 @@ mod tests {
             ("input_group", crate::input_group::stylesheet()),
             ("item", crate::item::stylesheet()),
             ("message", crate::message::stylesheet()),
+            ("message_scroller", crate::message_scroller::stylesheet()),
             ("textarea", crate::textarea::css()),
             ("native_select", crate::native_select::css()),
             ("number_input", crate::number_input::stylesheet()),

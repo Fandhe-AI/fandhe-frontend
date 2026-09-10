@@ -991,6 +991,11 @@ source = "site/themes/message.md"
 path = "/themes/message/"
 
 [[section.group.page]]
+title = "Message Scroller"
+source = "site/themes/message-scroller.md"
+path = "/themes/message-scroller/"
+
+[[section.group.page]]
 title = "Progress"
 source = "site/themes/progress.md"
 path = "/themes/progress/"

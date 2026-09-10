@@ -1473,14 +1473,14 @@ fn message_parts_data_attrs_are_headless_sourced_not_self_emitted() {
 /// [`mod@fandhe_frontend_headless_ui::message_scroller`]（イシュー #2121）
 /// の `data-stuck`（`bottom`/`free`）・`data-has-new`（存在属性）・
 /// `data-visible`（`jump_to_latest` の存在属性）・`data-loading`/
-/// `data-disabled`（`load_more` の存在属性）の語彙を固定する。本イシュー
-/// 時点では `fandhe-frontend-pre-styled-ui` 側に `message_scroller`
-/// モジュールがまだ存在しない（styled recipe・golden・Themes ページは
-/// 後続イシュー #2123）ため、headless 出力元
-/// [`fandhe_frontend_headless_ui::message_scroller`] を直接呼んで語彙を
-/// 記録する（`message_root_data_role_align_loading_error_vocabulary_is_fixed`
-/// と同型。#2123 で styled モジュールが新設された際は、本テストに加えて
-/// `*_not_self_emitted` の headless-sourced 契約テストを追加する）。
+/// `data-disabled`（`load_more` の存在属性）の語彙を固定する。headless
+/// 出力元 [`fandhe_frontend_headless_ui::message_scroller`] を直接呼んで
+/// 語彙を記録する（`message_root_data_role_align_loading_error_vocabulary_is_fixed`
+/// と同型）。styled 側（`fandhe-frontend-pre-styled-ui::message_scroller`、
+/// イシュー #2123）が同じ語彙を自前で生成せず headless から継承するのみ
+/// であることは、直後の
+/// [`message_scroller_parts_data_attrs_are_headless_sourced_not_self_emitted`]
+/// が固定する。
 #[test]
 fn message_scroller_root_stuck_has_new_visible_loading_disabled_vocabulary_is_fixed() {
     // data-stuck: bottom/free の 2 値。
@@ -1557,6 +1557,89 @@ fn message_scroller_root_stuck_has_new_visible_loading_disabled_vocabulary_is_fi
         &payload_html,
         "message_scroller::root の呼び出し側 attrs コンテキスト",
     );
+}
+
+/// `crate::message_scroller`（イシュー #2123）の 6 パーツは `data-stuck`/
+/// `data-has-new`/`data-visible`/`hidden`/`data-loading`/`data-disabled`/
+/// `tabindex`/`role`/`aria-label`/`aria-hidden`/`type` を一切自前で生成
+/// せず、headless [`fandhe_frontend_headless_ui::message_scroller`]
+/// （#2121）が出力したものを `stylesheet()` が `AttrEq`/`Attr` で参照する
+/// のみであることを固定する（`message_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。
+#[test]
+fn message_scroller_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::message_scroller as styled_message_scroller;
+
+    let root_html = render(&styled_message_scroller::root(
+        styled_message_scroller::MessageScrollerRootProps::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains(r#"data-stuck="bottom""#));
+    assert!(!root_html.contains("data-has-new"));
+
+    let has_new_html = render(&styled_message_scroller::root(
+        styled_message_scroller::MessageScrollerRootProps {
+            has_new: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(has_new_html.contains(r#"data-has-new="""#));
+
+    let jump_visible_html = render(&styled_message_scroller::jump_to_latest(
+        "Jump to latest",
+        true,
+        vec![],
+        vec![],
+    ));
+    assert!(jump_visible_html.contains(r#"data-visible="""#));
+    assert!(jump_visible_html.contains(r#"aria-label="Jump to latest""#));
+    assert!(!jump_visible_html.contains("hidden"));
+
+    let jump_hidden_html = render(&styled_message_scroller::jump_to_latest(
+        "",
+        false,
+        vec![],
+        vec![],
+    ));
+    assert!(jump_hidden_html.contains(r#"hidden="""#));
+    assert!(!jump_hidden_html.contains("data-visible"));
+
+    let load_more_html = render(&styled_message_scroller::load_more(
+        true,
+        true,
+        vec![],
+        vec![],
+    ));
+    assert!(load_more_html.contains(r#"data-loading="""#));
+    assert!(load_more_html.contains(r#"data-disabled="""#));
+    assert!(load_more_html.contains(r#"disabled="""#));
+
+    let viewport_html = render(&styled_message_scroller::viewport(
+        "Conversation",
+        vec![],
+        vec![],
+    ));
+    assert!(viewport_html.contains(r#"tabindex="0""#));
+    assert!(viewport_html.contains(r#"role="region""#));
+    assert!(viewport_html.contains(r#"aria-label="Conversation""#));
+
+    let anchor_html = render(&styled_message_scroller::anchor(vec![]));
+    assert!(anchor_html.contains(r#"aria-hidden="true""#));
+
+    // `styled_message_scroller::stylesheet()` は `[data-stuck="..."]`/
+    // `[data-has-new]`/`[data-visible]`/`[hidden]`/`[data-loading]`/
+    // `[data-disabled]` を CSS セレクタとして参照するだけで自前で
+    // `data-*` を組み立てない。
+    let css = styled_message_scroller::stylesheet();
+    assert!(css.contains(r#"[data-has-new]"#));
+    assert!(css.contains(r#"[data-stuck="bottom"]"#));
+    assert!(css.contains("[hidden]"));
+    assert!(css.contains("[data-visible]"));
+    assert!(css.contains("[data-loading]"));
+    assert!(css.contains("[data-disabled]"));
 }
 
 /// [`mod@fandhe_frontend_headless_ui::bubble`]（イシュー #2108）の
