@@ -960,11 +960,40 @@ fn ex_field_content_and_title() -> Node {
                 vec![("id", "ex-field-newsletter-title")],
                 vec![text("Notifications")],
             ),
-            fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::field::input(
-                &newsletter_props,
+            // `field::input`（`data-scope="field" data-part="input"`）を
+            // checkbox 用途へ転用すると Themes 側 `input::css()`
+            // （テキスト入力用の `width: 100%` 等）が意図せず適用され
+            // 表示が崩れるため（イシュー #2185 PR #2276 レビュー指摘）、
+            // テキスト入力用セレクタに一致しない `checkbox`
+            // コンポーネント（`data-scope="checkbox"`）を使う。可視ラベル
+            // テキストは外側の `field::title` のみが持ち、`checkbox::root`
+            // の `label` パーツ（可視テキスト用）は使わず
+            // `aria-labelledby`/`aria-describedby` で関連付ける
+            // （`showcase.rs` の同型修正と対をなす）。
+            checkbox::root(
+                Size::Md,
+                ColorPalette::Accent,
+                &CheckboxProps::default(),
+                vec![],
                 vec![
-                    ("type", "checkbox"),
-                    ("aria-labelledby", "ex-field-newsletter-title"),
+                    checkbox::hidden_input(
+                        &CheckboxProps::default(),
+                        "ex-field-newsletter",
+                        "on",
+                        vec![
+                            ("aria-labelledby", "ex-field-newsletter-title"),
+                            ("aria-describedby", "ex-field-newsletter-helper-text"),
+                        ],
+                    ),
+                    checkbox::control(
+                        &CheckboxProps::default(),
+                        vec![],
+                        vec![checkbox::indicator(
+                            &CheckboxProps::default(),
+                            vec![],
+                            vec![],
+                        )],
+                    ),
                 ],
             ),
             field::helper_text(

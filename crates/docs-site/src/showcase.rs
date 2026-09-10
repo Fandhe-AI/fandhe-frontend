@@ -124,7 +124,6 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{
     self, EmptyStateIndicatorVariant, EmptyStateProps, EmptyStateVariant,
 };
-use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::ColorPicker;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::data_attrs::data_state;
@@ -5388,16 +5387,44 @@ fn field_section() -> Node {
                         vec![text("Notifications")],
                     ),
                     // `content`/`title` の合成先コントロールは checkbox/
-                    // radio 群等が典型だが、本節は field 自体の型階層・
-                    // 余白掲示が目的のため、コントロール本体は最小構成
-                    // （headless `field::input`）で足りる（既存 6 態と
-                    // 同じく `fandhe_frontend_pre_styled_ui::input` に
-                    // 委ねる複雑な checkbox 部品構成までは持ち込まない）。
-                    hui::field::input(
-                        &newsletter_field,
+                    // radio 群等が典型（イシュー #2185 PR #2276 レビュー
+                    // 指摘）。`field::input`（`data-scope="field"
+                    // data-part="input"`）を checkbox 用途へ転用すると
+                    // Themes 側 `input::css()`（`width: 100%` 等テキスト
+                    // 入力用スタイル）が意図せず適用され表示が崩れるため、
+                    // ここではテキスト入力用セレクタに一致しない専用
+                    // コンポーネント（`fandhe_frontend_pre_styled_ui::checkbox`、
+                    // `data-scope="checkbox"`）を使う。`checkbox::root` の
+                    // `label` パーツ（可視テキスト）は使わず、外側の
+                    // `field::title` を唯一のラベルとして `aria-labelledby`
+                    // で関連付け、helper_text も `aria-describedby` で
+                    // 関連付ける（`table.rs` 由来の `row_select_checkbox`
+                    // と同型の root+hidden_input+control+indicator 合成、
+                    // 本ファイル該当箇所参照）。
+                    checkbox::root(
+                        Size::Md,
+                        ColorPalette::Accent,
+                        &CheckboxProps::default(),
+                        vec![],
                         vec![
-                            ("type", "checkbox"),
-                            ("aria-labelledby", "showcase-field-newsletter-title"),
+                            checkbox::hidden_input(
+                                &CheckboxProps::default(),
+                                "showcase-field-newsletter",
+                                "on",
+                                vec![
+                                    ("aria-labelledby", "showcase-field-newsletter-title"),
+                                    ("aria-describedby", "showcase-field-newsletter-helper-text"),
+                                ],
+                            ),
+                            checkbox::control(
+                                &CheckboxProps::default(),
+                                vec![],
+                                vec![checkbox::indicator(
+                                    &CheckboxProps::default(),
+                                    vec![],
+                                    vec![],
+                                )],
+                            ),
                         ],
                     ),
                     field::helper_text(
