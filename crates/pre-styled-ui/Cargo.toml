@@ -2869,7 +2869,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更）を統合した結果として main の到達値 0.172.0 をさらに上回る
 # 0.173.0 へマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約。
 # 片方の到達値をそのまま採用しない原則）。
-version = "0.173.0"
+#
+# イシュー #2193: dialog / drawer の close-trigger をアイコン専用契約から
+# 平文ボタンでも再利用できる形へ再設計する。`recipe()` へ
+# `[data-part="close-trigger"][data-variant="text"]` state 規則を純追加
+# した（`stylesheet()` の公開 CSS 出力が増える、既存 variant のバイト列は
+# 不変）。dialog::CloseTriggerVariant/close_trigger_with_variant・
+# drawer::close_trigger_with_variant の選択的 re-export も追加。
+# 0.x の破壊的変更ではない純追加だが、公開 CSS 出力契約の拡張のため
+# 安全側でマイナーバンプする対象だったが、origin/main が並行 PR で
+# 独立に 0.173.0 へ到達済みだったため、同一版数への偶発的衝突をそのまま
+# 採用しない原則により main の到達値 0.173.0 からさらに +1（マイナー）
+# して 0.174.0 とする。
+version = "0.174.0"
 
 
 edition = "2021"
