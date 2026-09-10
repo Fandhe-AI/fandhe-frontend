@@ -60,6 +60,13 @@
 //! 除外する fail-closed 方針。既存 `state_css()` 群が個別に手書きしていた
 //! セレクタ組み立てをここへ一本化し、fail-closed 検証の迂回経路を増やさない）。
 //!
+//! 存在属性同士の AND 条件は [`StateCondition::AttrAll`]（イシュー #2203）が
+//! 担う。[`StateCondition::AttrEqAll`] は値付き属性専用のため、値なし存在
+//! 属性（例: `data-highlighted`）同士の組み合わせを表現しようとして値に
+//! 空文字列を渡すと [`is_valid_identifier`] に拒否され規則ごと無音で脱落
+//! する（[`crate::menu`] の `item` における `data-danger` × `data-highlighted`
+//! 背景色合成が最初の消費者）。
+//!
 //! compound variant（[`SlotRecipe::compound_variant`]）は複数軸の条件を
 //! `.fd-<scope>--<a1>-<v1>.fd-<scope>--<a2>-<v2>...` のように連結したセレクタ
 //! として出力する。条件 2 個以上なら詳細度が単一 variant セレクタより必ず
@@ -1200,6 +1207,26 @@ pub enum StateCondition {
     /// 要素は `(name, value)` の組。空スライスは無条件規則（`base` と同義）
     /// になる意味のない規則のため [`SlotRecipe::css`] が除外する。
     AttrEqAll(&'static [(&'static str, &'static str)]),
+    /// 複数の存在属性（boolean 属性）の AND 条件
+    /// `[<name1>][<name2>]...`（イシュー #2203）。
+    ///
+    /// [`StateCondition::AttrEqAll`] は値付き属性専用であり、値なし
+    /// 存在属性（例: `data-highlighted=""`）を渡そうとすると値に空文字列
+    /// `""` を渡すことになるが [`is_valid_identifier`] が空文字列を拒否
+    /// するため規則ごと無音に脱落してしまう（[`StateCondition::
+    /// HoverExceptAttr`] rustdoc に記載の罠と同型）。本 variant は値なし
+    /// 存在属性同士の AND を表現する唯一の経路として追加した。
+    ///
+    /// 要素はスライス順に連結される。空スライスは無条件規則（`base` と
+    /// 同義）になる意味のない規則のため [`SlotRecipe::css`] が除外する
+    /// （[`AttrEqAll`](StateCondition::AttrEqAll) と同じ扱い）。要素 1 個は
+    /// [`StateCondition::Attr`] と等価だが `AttrEqAll` の前例に合わせて
+    /// 許容する。
+    ///
+    /// specificity は属性セレクタ数分（N 個で 通常規則の base (0,2,0) +
+    /// N を加算した (0,2+N,0)）。最初の消費者は [`crate::menu`] の
+    /// `item`（`data-danger` × `data-highlighted` の背景色合成）。
+    AttrAll(&'static [&'static str]),
     /// `:hover` 擬似クラス（イシュー #847）。
     ///
     /// [`crate::charts::tooltip`] のデータ点（`datum` slot）専用の追加。
@@ -1502,6 +1529,9 @@ fn state_condition_is_valid(condition: &StateCondition) -> bool {
                     .iter()
                     .all(|(name, value)| is_valid_identifier(name) && is_valid_identifier(value))
         }
+        StateCondition::AttrAll(names) => {
+            !names.is_empty() && names.iter().all(|name| is_valid_identifier(name))
+        }
         StateCondition::Hover => true,
         StateCondition::HoverExcept(name, value) => {
             is_valid_identifier(name) && is_valid_identifier(value)
@@ -1538,6 +1568,11 @@ fn state_condition_selector(condition: &StateCondition) -> Option<String> {
         StateCondition::AttrEqAll(pairs) => {
             for (name, value) in *pairs {
                 suffix.push_str(&format!("[{name}=\"{value}\"]"));
+            }
+        }
+        StateCondition::AttrAll(names) => {
+            for name in *names {
+                suffix.push_str(&format!("[{name}]"));
             }
         }
         StateCondition::Hover => {

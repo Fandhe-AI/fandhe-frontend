@@ -36,6 +36,12 @@
 //! `data-danger`/`data-inset` 状態を反映した golden 更新。`item-indicator`
 //! は意図的に `.base` を追加しない（`crates/pre-styled-ui/src/menu.rs`
 //! モジュール rustdoc「担当パートの是正（イシュー #2033）」節参照）。
+//!
+//! イシュー #2203 で `item` の `[data-highlighted]` 規則直後・
+//! `[data-disabled]` 規則直前へ `[data-danger][data-highlighted]` 合成
+//! ブロック（`StateCondition::AttrAll` 由来）を純追加した golden 更新。
+//! 他ブロックはバイト同一（`crates/pre-styled-ui/src/menu.rs` モジュール
+//! rustdoc「destructive（危険操作）項目 `data-danger`」節参照）。
 
 use fandhe_frontend_pre_styled_ui::menu;
 
@@ -249,6 +255,11 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   color: var(--fandhe-color-accent-fg);
 }
 
+[data-scope="menu"][data-part="item"][data-danger][data-highlighted] {
+  background: var(--fandhe-color-danger-subtle);
+  color: var(--fandhe-color-danger-fg-subtle);
+}
+
 [data-scope="menu"][data-part="item"][data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
@@ -389,6 +400,33 @@ fn new_parts_state_selectors_are_present() {
     // context-trigger は disabled 引数を持たないため data-disabled 規則は
     // 登録しない（モジュール rustdoc「担当パートの是正（#1527）」節参照）。
     assert!(!css.contains(r#"[data-scope="menu"][data-part="context-trigger"][data-disabled]"#));
+}
+
+/// イシュー #2203 focused テスト: `item` の `[data-danger][data-highlighted]`
+/// 合成規則の存在・宣言・ソース順（`[data-highlighted]` 規則の直後）を
+/// 固定する。hover 規則が引き続き `:not([data-highlighted])` を持つ
+/// （合成規則追加で hover 規則の除外対象が変わっていない）ことも固定する。
+#[test]
+fn issue_2203_danger_highlighted_composite_rule_is_present() {
+    let css = menu::stylesheet();
+    let composite_selector =
+        r#"[data-scope="menu"][data-part="item"][data-danger][data-highlighted] {"#;
+    let highlighted_selector = r#"[data-scope="menu"][data-part="item"][data-highlighted] {"#;
+
+    assert!(css.contains(composite_selector));
+    assert!(css.contains("background: var(--fandhe-color-danger-subtle);"));
+    assert!(css.contains("color: var(--fandhe-color-danger-fg-subtle);"));
+
+    let highlighted_pos = css.find(highlighted_selector).unwrap();
+    let composite_pos = css.find(composite_selector).unwrap();
+    assert!(
+        composite_pos > highlighted_pos,
+        "合成規則は [data-highlighted] 規則より後（source 順）に出力される"
+    );
+
+    assert!(css.contains(
+        r#"[data-scope="menu"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted])"#
+    ));
 }
 
 #[test]

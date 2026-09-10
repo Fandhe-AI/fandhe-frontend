@@ -634,6 +634,19 @@ fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
         ));
         assert_payload_is_escaped(payload, &html, "menu::root 呼び出し側 attrs コンテキスト");
 
+        // イシュー #2203: `data-danger` × `data-highlighted` 合成規則の
+        // 追加経路（`item()` の自由 `attrs`）でも既定エスケープを経由する
+        // ことを固定する（highlighted=true にして合成規則が実際に生成
+        // される DOM 形状で検証する）。
+        let html = render(&menu::item(
+            "delete",
+            false,
+            true,
+            vec![("data-danger", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "menu::item data-danger attrs コンテキスト");
+
         let html = render(&select::root(
             Size::Md,
             OpenState::Closed,

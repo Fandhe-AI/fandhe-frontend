@@ -317,28 +317,25 @@
 //!   出力される（headless 側の変更は不要）。反映するのは
 //!   `--fandhe-color-danger-fg-subtle` の文字色のみ（[`crate::theme`] の
 //!   コントラストペアに登録済みのトークンを流用し、新規コントラスト検証の
-//!   追加は不要）。**highlighted と重なる場合の背景色変更・素のポインタ
-//!   hover（`data-highlighted` が付かない状態）時の赤系背景化はいずれも
-//!   意図的に対応しない**: 前者は `data-danger`/`data-highlighted` が
-//!   共に値なし存在属性（値は常に空文字列）であり、両方の AND を 1
-//!   セレクタで表現する [`crate::recipe::StateCondition`] の variant が
-//!   現状存在しない（`AttrEqAll` へ空文字列を渡すと `is_valid_identifier`
-//!   が拒否し規則ごと無音に脱落する、[`crate::recipe::StateCondition::
-//!   HoverExceptAttr`] rustdoc に記録済みの罠と同型）ため、新 variant の
-//!   追加（`recipe.rs` の変更）を要し本イシューでは見送る。後者は既存の
-//!   `item` hover 規則（`StateCondition::HoverExceptAttr("data-highlighted")`）
-//!   を書き換えると既存 golden のバイト出力が変わり「純追加」の原則に
-//!   反するため見送る。`data-danger` の state 規則は
-//!   `data-highlighted` の state 規則より**前**に登録してある（いずれも
-//!   単一属性セレクタで specificity 同点のため source 順で後勝ちする）:
-//!   両属性が同時に立つ場合は検証済みコントラストペア（accent 背景 +
-//!   accent-fg 文字色）を持つ highlight 側が優先され、danger の文字色は
-//!   highlighted **でない**ときのみ反映される。逆順（danger を後に登録）
-//!   だと `danger-fg-subtle` 文字色 + `accent` 背景という
-//!   [`crate::theme`] に未登録・未検証のコントラストペアが highlighted
-//!   状態で露出してしまうため、意図的にこの順序を選ぶ。`checkbox-item`/
-//!   `radio-item`/`trigger-item` への対応も行わない（shadcn の
-//!   destructive item は素の item 用途が中心のため過剰実装を避ける）。
+//!   追加は不要）。**highlighted と重なる場合の背景色変更**はイシュー
+//!   #2203 で [`crate::recipe::StateCondition::AttrAll`]（値なし存在属性
+//!   同士の AND を表現する新 variant）を追加して実装済み: `item` へ
+//!   `[data-danger][data-highlighted]` 専用規則
+//!   （`--fandhe-color-danger-subtle` 背景 + `--fandhe-color-danger-fg-subtle`
+//!   文字色、いずれも [`crate::theme`] のコントラストペアに登録済みの
+//!   トークンを流用）を追加した。この合成規則の specificity は属性
+//!   セレクタ 2 個分 (0,4,0) で単体規則（各 (0,3,0)）より必ず高いため、
+//!   両属性が同時に立つ場合は登録順に関わらずこの規則が勝つ。**素の
+//!   ポインタ hover（`data-highlighted` が付かない状態）時の赤系背景化**
+//!   は引き続き意図的に対応しない: 既存の `item` hover 規則
+//!   （`StateCondition::HoverExceptAttr("data-highlighted")`）を書き換える
+//!   と既存 golden のバイト出力が変わり「純追加」の原則に反するため見送る。
+//!   `data-danger` の state 規則は `data-highlighted` の state 規則より
+//!   **前**に登録したまま据え置く（golden バイト安定のための順序維持であり、
+//!   合成規則追加により両者の勝敗自体は specificity で決まるため登録順は
+//!   もはや非本質）。`checkbox-item`/`radio-item`/`trigger-item` への対応
+//!   も行わない（shadcn の destructive item は素の item 用途が中心のため
+//!   過剰実装を避ける）。
 //! - **inset 項目 `data-inset`（値なし存在属性）**: アイコン/インジケータを
 //!   持たない項目のテキスト位置を、持つ項目と視覚的に揃える。
 //!   `padding-inline-start` のみを `--fandhe-space-6`
@@ -680,6 +677,30 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-accent-fg)"),
             ],
         )
+        // イシュー #2203: `data-danger` × `data-highlighted` の背景色合成
+        // （`StateCondition::AttrAll` 追加により実装。上記 2 規則との
+        // カスケード分析）。本規則の specificity は属性セレクタ 2 個分
+        // (0,4,0) で `[data-danger]`・`[data-highlighted]` 単体（いずれも
+        // (0,3,0)）より高いため、登録順に依存せず両属性が同時に立つ場合は
+        // 常にこの規則が勝つ（上記の「danger を highlighted より前に登録」
+        // という順序は golden バイト安定のため据え置くが、本規則の勝敗には
+        // もはや無関係）。`item` の hover 規則は
+        // `HoverExceptAttr("data-highlighted")`（highlighted を除外）の
+        // ため本規則と衝突しない。色は `--fandhe-color-danger-subtle` /
+        // `--fandhe-color-danger-fg-subtle`（`theme.rs` の
+        // `BODY_TEXT_PAIRS` に登録済み・4.5:1 検証済みのコントラストペア）
+        // を流用し、新規トークン・`color-mix`・`Theme` 変更は行わない
+        // （shadcn の `bg-destructive/10` + `text-destructive` に相当）。
+        // 素のポインタ hover（`data-highlighted` が付かない状態）時の
+        // 赤系背景化は引き続き意図的に非対応（モジュール rustdoc参照）。
+        .state(
+            "item",
+            StateCondition::AttrAll(&["data-danger", "data-highlighted"]),
+            vec![
+                decl("background", "var(--fandhe-color-danger-subtle)"),
+                decl("color", "var(--fandhe-color-danger-fg-subtle)"),
+            ],
+        )
         // イシュー #1526: headless `item`（`crates/headless-ui/src/menu.rs`）
         // が `disabled` 引数と対で付与する `data-disabled` を消費する
         // （select 2/2・combobox 2/2 と同型）。
@@ -948,11 +969,13 @@ fn recipe() -> SlotRecipe {
         // 項目右端へ押し出すための伸縮のみ（`crate::listbox` の
         // `item-text` と同型）。`item-indicator`（下記）には意図的に
         // `.base` を追加しない。`data-danger`（危険操作項目）の state 規則は
-        // highlight 規則との衝突順序を保証するため、下記へ移さず
-        // `data-highlighted` 規則より**前**（このコメント直前ではなく
-        // モジュール前半、`item[data-highlighted]` 規則の直前）へ登録して
-        // ある（モジュール rustdoc「担当パートの是正（イシュー #2033）」
-        // 節参照）。
+        // golden バイト安定のため、下記へ移さず `data-highlighted` 規則
+        // より**前**（このコメント直前ではなくモジュール前半、
+        // `item[data-highlighted]` 規則の直前）へ登録してある（イシュー
+        // #2203 で `[data-danger][data-highlighted]` 合成規則
+        // （`StateCondition::AttrAll`）を追加済みのため両者の勝敗自体は
+        // specificity で決まり、この登録順序はもはや非本質。モジュール
+        // rustdoc「担当パートの是正（イシュー #2033）」節参照）。
         // イシュー #2033: `data-inset`（アイコン/インジケータを持たない
         // 項目のテキスト位置を、持つ項目と揃えるための存在属性。値は
         // `item-indicator` の実測ではなく `item` の `gap`
@@ -1376,6 +1399,46 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="menu"][data-part="item"][data-danger] {"#));
         assert!(css.contains("color: var(--fandhe-color-danger-fg-subtle);"));
+    }
+
+    #[test]
+    fn data_danger_and_highlighted_item_gets_composite_rule() {
+        // イシュー #2203: `data-danger` × `data-highlighted` が同時に
+        // 立った item は `StateCondition::AttrAll` 由来の合成規則
+        // （背景色 + 文字色）でスタイルされることを固定する。
+        let html = render(&item(
+            "delete",
+            false,
+            true,
+            vec![("data-danger", "")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-danger="""#));
+        assert!(html.contains(r#"data-highlighted="""#));
+
+        let css = stylesheet();
+        assert!(css
+            .contains(r#"[data-scope="menu"][data-part="item"][data-danger][data-highlighted] {"#));
+        assert!(css.contains("background: var(--fandhe-color-danger-subtle);"));
+        assert!(css.contains("color: var(--fandhe-color-danger-fg-subtle);"));
+    }
+
+    #[test]
+    fn data_danger_attr_with_forged_value_does_not_break_out_of_attribute() {
+        // A03 回帰: `data-danger` は呼び出し側が任意値を渡せる `attrs`
+        // 経由で出力されるため、偽装ペイロードを渡しても `render()` の
+        // 既定エスケープ（REQ-1）が属性値を安全にエスケープし、
+        // `<script>` タグや属性からの脱出が残らないことを固定する。
+        let payload = "\"><script>alert(1)</script>";
+        let html = render(&item(
+            "delete",
+            false,
+            true,
+            vec![("data-danger", payload)],
+            vec![],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(!html.contains("\"><script"));
     }
 
     #[test]

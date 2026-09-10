@@ -88,7 +88,9 @@ image_cropper / **input_group（イシュー #2063 で golden 新設。`styleshe
 **item（イシュー #2066 で golden 新設。`stylesheet()` 全文）** /
 **link_overlay（イシュー #1580 で golden 新設）** /
 listbox / **marker（イシュー #2115 で golden 新設。`stylesheet()` 全文）** /
-marquee / menu / **menubar（方式 b）** /
+marquee / **menu（イシュー #2203 で `item[data-highlighted]` の直後へ
+`[data-danger][data-highlighted]` 合成ブロックを中間挿入。純追加）** /
+**menubar（方式 b）** /
 **message（イシュー #2106 で golden 新設。`stylesheet()` 全文）** /
 **message_scroller（イシュー #2123 で golden 新設。`stylesheet()` 全文
 〔raw CSS 子結合子規則を含む〕）** /

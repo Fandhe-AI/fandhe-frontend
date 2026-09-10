@@ -3633,10 +3633,58 @@ fn menu_section() -> Node {
             ),
         ],
     );
+    // イシュー #2203: destructive 項目が highlighted（キーボードフォーカス
+    // 位置）のときの背景色合成（`StateCondition::AttrAll` 由来の
+    // `[data-danger][data-highlighted]` 規則）を掲示する 2 つ目のコンパクト
+    // な Menu インスタンス。virtual focus 位置は 1 インスタンスにつき 1 つ
+    // のため（上の `node` は既に "edit" 項目が highlighted）、同一節内に
+    // 2 つ目の独立インスタンスとして並べる（menubar showcase が複数静的
+    // インスタンスを並べる前例と同型）。content id はメイン掲示の
+    // `showcase-menu-content`/`showcase-menu-submenu-content` と重複
+    // しない `showcase-menu-danger-content` を使う。
+    let danger_node = menu::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                Some("showcase-menu-danger-content"),
+                vec![],
+                vec![text("Account")],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![],
+                vec![menu::content(
+                    OpenState::Open,
+                    Some("showcase-menu-danger-content"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::item("profile", false, false, vec![], vec![text("Profile")]),
+                        menu::separator(vec![], vec![]),
+                        // destructive（危険操作）項目が highlighted のとき、
+                        // `[data-danger][data-highlighted]` 合成規則により
+                        // 背景色（danger-subtle）+ 文字色（danger-fg-subtle）
+                        // が同時に反映される。
+                        menu::item(
+                            "delete-account",
+                            false,
+                            true,
+                            vec![("data-danger", "")],
+                            vec![text("Delete account")],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    );
     section(
         "Menu",
-        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・グループ+ラベル・checkbox/radio 項目・サブメニュー・ショートカット（kbd 合成）・inset・destructive・separator・disabled の各状態を含みます。positioner はフロー内配置へ中和しています。",
-        vec![node],
+        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・グループ+ラベル・checkbox/radio 項目・サブメニュー・ショートカット（kbd 合成）・inset・destructive・separator・disabled の各状態を含みます。2 つ目のインスタンスは destructive 項目が highlighted のときの背景色合成（イシュー #2203）を示します。positioner はフロー内配置へ中和しています。",
+        vec![node, danger_node],
     )
 }
 
