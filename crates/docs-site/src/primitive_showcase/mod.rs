@@ -387,6 +387,11 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
         path: "/primitives/carousel/",
         render: data_display_utilities::carousel_section,
     },
+    // イシュー #2125: `data_table` を追加。
+    PrimitivePage {
+        path: "/primitives/data-table/",
+        render: data_display_utilities::data_table_section,
+    },
     PrimitivePage {
         path: "/primitives/item/",
         render: data_display_utilities::item_section,

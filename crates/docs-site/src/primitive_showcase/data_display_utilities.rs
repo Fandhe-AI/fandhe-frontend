@@ -1,5 +1,6 @@
 //! Primitives Demo — Data Display / Utilities（16 件、原稿は #1029。
-//! イシュー #2121 で `message_scroller` 追加、旧 15。
+//! イシュー #2125 で `data_table` 追加、旧 15。
+//! イシュー #2121 で `message_scroller` 追加、旧 14。
 //! イシュー #2114 で `marker` 追加、旧 14。イシュー #2111 で `attachment`
 //! 追加、旧 13。イシュー #2108 で `bubble`
 //! 追加、旧 12。イシュー #2105 で `message`
@@ -7,18 +8,23 @@
 //! 追加、旧 10）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
-use fandhe_frontend_core::{button, li, text, ul, Node};
+use fandhe_frontend_core::{button, li, table, tbody, td, text, thead, tr, ul, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::attachment::{self, AttachmentRootProps, AttachmentState, AttachmentVariant};
 use hui::avatar::{self, ImageStatus};
 use hui::bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant};
+use hui::checkbox::{self, CheckboxProps, CheckedState};
 use hui::data_attrs::Orientation;
+use hui::data_table::{self, ColumnProps, DataTable, DataTableProps};
 use hui::fandhe_frontend_interactive::Component;
+use hui::field::{self, FieldIds, FieldProps};
 use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
 use hui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
+use hui::menu;
 use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use hui::message_scroller::{self, MessageScrollerRootProps, MessageScrollerStuck};
+use hui::pagination::{ItemMode, Pagination};
 use hui::positioning::{Align, Placement, Side};
 use hui::progress::Progress;
 use hui::scroll_area;
@@ -307,6 +313,229 @@ pub(super) fn carousel_section() -> Node {
         ],
     )];
     demo_page("Carousel", body)
+}
+
+/// DataTable（イシュー #2125）の Demo。8 パーツ（root/toolbar/
+/// column-header/sort-trigger/select-all/select-row/footer/
+/// selection-count）を、フィルタ入力（`field::input`）・列表示切替
+/// （`menu` の checkbox item）・行選択（`checkbox`）・ページング
+/// （`pagination`）を入れ子にして 1 行分の構成として示す。headless-ui は
+/// `<table>` を生成しないため（モジュール doc「イシュータイトルとの差分」
+/// 参照）、Demo でも表組み要素は使わず素の `div` で構造を示す。
+pub(super) fn data_table_section() -> Node {
+    let t = DataTable::new(
+        Some((
+            "name".to_string(),
+            hui::data_table::SortDirection::Ascending,
+        )),
+        vec!["email".to_string()],
+    );
+
+    let filter_field = FieldProps {
+        id: "data-table-filter",
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+
+    let email_column = ColumnProps {
+        id: "email",
+        hidden: true,
+    };
+
+    // codex-review P1 指摘（PR #2303）の是正: `menu::root` 直下に
+    // `role="menuitemcheckbox"` の項目だけを置くと `role="menu"` を持つ
+    // `menu::content` が存在せず、支援技術から見て孤立した項目になる
+    // （`crates/headless-ui/src/menu.rs` の `content` doc 参照）。
+    // `trigger`/`positioner`/`content` を正規の anatomy で組み、Demo として
+    // 常時視認できるよう [`OpenState::Open`] で開いた状態を示す。
+    let column_toggle_state = OpenState::Open;
+    let toolbar = data_table::toolbar(
+        vec![],
+        vec![
+            field::input(&filter_field, vec![("placeholder", "Filter names...")]),
+            menu::root(
+                column_toggle_state,
+                vec![],
+                vec![
+                    menu::trigger(
+                        column_toggle_state,
+                        false,
+                        Some("data-table-column-toggle-menu"),
+                        vec![("id", "data-table-column-toggle-trigger")],
+                        vec![text("Columns")],
+                    ),
+                    menu::positioner(
+                        column_toggle_state,
+                        vec![],
+                        vec![menu::content(
+                            column_toggle_state,
+                            Some("data-table-column-toggle-menu"),
+                            Some("data-table-column-toggle-trigger"),
+                            vec![],
+                            vec![
+                                data_table::column_toggle_item(
+                                    &ColumnProps {
+                                        id: "name",
+                                        hidden: false,
+                                    },
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![text("Name")],
+                                ),
+                                data_table::column_toggle_item(
+                                    &email_column,
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![text("Email")],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    let name_header = t.column_header(
+        "name",
+        true,
+        vec![],
+        vec![t.sort_trigger("name", vec![], vec![text("Name ▲")])],
+    );
+    let email_header = t.column_header("email", false, vec![], vec![text("Email")]);
+    // codex-review P1 指摘（PR #2303）の是正: `checkbox::control` は
+    // `aria-hidden="true"` の視覚専用パーツであり、アクセシビリティの実体は
+    // `checkbox::hidden_input` が担う契約（`crates/headless-ui/src/
+    // checkbox.rs` の `control`/`hidden_input` doc 参照）。`forms_a.rs` の
+    // `checkbox_instance` と同じ構成（control > indicator / label /
+    // hidden_input）へ揃え、可視ラベルはデモの文脈上冗長なため
+    // `visually_hidden::root` でアクセシブルな名前のみ与える。
+    let select_all_props = CheckboxProps {
+        checked: CheckedState::Indeterminate,
+        ..Default::default()
+    };
+    let select_all_header = DataTable::select_all(
+        CheckedState::Indeterminate,
+        vec![],
+        vec![checkbox::root(
+            &select_all_props,
+            vec![],
+            vec![
+                checkbox::control(
+                    &select_all_props,
+                    vec![],
+                    vec![checkbox::indicator(
+                        &select_all_props,
+                        vec![],
+                        vec![text("◐")],
+                    )],
+                ),
+                checkbox::label(
+                    &select_all_props,
+                    vec![],
+                    vec![visually_hidden::root(vec![], vec![text("Select all rows")])],
+                ),
+                checkbox::hidden_input(&select_all_props, "data-table-select-all", "on", vec![]),
+            ],
+        )],
+    );
+
+    let select_row_props = CheckboxProps {
+        checked: CheckedState::Checked,
+        ..Default::default()
+    };
+    let select_row_cell = DataTable::select_row(
+        CheckedState::Checked,
+        vec![],
+        vec![checkbox::root(
+            &select_row_props,
+            vec![],
+            vec![
+                checkbox::control(
+                    &select_row_props,
+                    vec![],
+                    vec![checkbox::indicator(
+                        &select_row_props,
+                        vec![],
+                        vec![text("✓")],
+                    )],
+                ),
+                checkbox::label(
+                    &select_row_props,
+                    vec![],
+                    vec![visually_hidden::root(
+                        vec![],
+                        vec![text("Select row: Ada Lovelace")],
+                    )],
+                ),
+                checkbox::hidden_input(&select_row_props, "data-table-select-row-1", "on", vec![]),
+            ],
+        )],
+    );
+
+    let pager = Pagination::new(30, 10, 1, 1, 1);
+    let footer = data_table::footer(
+        vec![],
+        vec![
+            data_table::selection_count(vec![], vec![text("1 of 3 row(s) selected")]),
+            pager.root(
+                "Table pagination",
+                vec![],
+                vec![
+                    pager.prev_trigger(ItemMode::Button, vec![], vec![text("‹")]),
+                    pager.item(ItemMode::Button, 1, false, vec![], vec![text("1")]),
+                    pager.next_trigger(ItemMode::Button, vec![], vec![text("›")]),
+                ],
+            ),
+        ],
+    );
+
+    // codex-review P1 指摘（PR #2303）の是正: `column_header`/`select_all`
+    // は `th`、`select_row` は `td` を生成するため、`table`/`thead`/`tbody`/
+    // `tr`（core のノード API）で正規の table 構造を組んでからその中へ
+    // 配置する。`div` 直下に置くとブラウザの HTML 解析で `th`/`td` が
+    // table 構造外として無視され、`aria-sort`/`hidden`/`data-part` 等の
+    // 表示状態が失われるため（呼び出し側の責務。モジュール doc「責務
+    // 境界」参照。headless-ui 自体は新規に表組みを生成しない）。
+    let header_row = tr(vec![], vec![select_all_header, name_header, email_header]);
+    let body_row = tr(
+        vec![],
+        vec![
+            select_row_cell,
+            td(vec![], vec![text("Ada Lovelace")]),
+            td(
+                data_table::column_attrs(&email_column),
+                vec![text("ada@example.com")],
+            ),
+        ],
+    );
+    // primitives-showcase.css は headless-ui のマークアップへスタイルを
+    // 到達させない不変条件を持つため（モジュール doc「スタイル分離が
+    // 必須である理由」参照）、`table`/`th`/`td` を装飾する class は
+    // 付与しない（codex-review P1 指摘、PR #2303 是正）。
+    let data_table = table(
+        vec![],
+        vec![
+            thead(vec![], vec![header_row]),
+            tbody(vec![], vec![body_row]),
+        ],
+    );
+
+    let root = DataTable::root(
+        DataTableProps {
+            loading: false,
+            empty: false,
+        },
+        vec![],
+        vec![toolbar, data_table, footer],
+    );
+    demo_page("Data Table", vec![root])
 }
 
 /// Item（イシュー #2065）の Demo。10 パーツ（root/media/content/title/

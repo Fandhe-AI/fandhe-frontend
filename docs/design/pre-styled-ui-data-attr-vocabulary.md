@@ -94,6 +94,42 @@
 | `data-align`（`table.rs` 消費分） | `table.rs`（イシュー #2052、shadcn/ui 突合。`cell`/`column-header` slot への state 規則） | **呼び出し側（アプリケーションコード）**。`cell()`/`column_header()` の `attrs` 経由で `("data-align", "start")` 等（`start`/`center`/`end` のいずれか）を渡す。headless `positioning.rs` と同名・同一意味論（軸方向の整列）の共有語彙（B-2）だが、`table.rs` 分は `positioner` パートを経由せず呼び出し側が直接付与する |
 | `data-align`（`message.rs` 消費分） | `message.rs`（イシュー #2106）。`crates/headless-ui/src/message.rs::root` が固定出力する `start`/`end` の 2 値（`table.rs`/`positioning.rs` の `start`/`center`/`end` より狭い値域、`center` を持たない） | **headless-sourced（役割 B）**。`crates/pre-styled-ui/src/message.rs::recipe()` は `StateCondition::AttrEq("data-align", "end")` で**参照のみ**し自前で出力しない。「軸方向の整列」という意味論は `positioning.rs`/`table.rs` と共有する（B-2）が、値域が異なるため rustdoc に明記する |
 
+**追記（イシュー #2125）**: headless `data_table.rs` が新設され、以下の
+既存語彙・新規語彙に寄与する（pre-styled 側の recipe・Themes ページは
+後続イシュー #2127 のスコープのため、下記はいずれも headless 出力元の
+記録のみ）。
+
+- `data-loading`（33 行の button/message に続く 3 件目の出力元。値域
+  （存在属性）・意味論（読み込み中の表示）は一致するが、`data-table` は
+  別 scope のため統合ヘルパ化は対象外、§3.3 と同判断）: `root` が
+  `loading=true` のときのみ出力（`aria-busy="true"` を併出力）。
+- `data-hidden`（46 行の charts と同名別意味論。charts は系列/カテゴリの
+  opt-in 非表示、`data-table` は非表示列の `hidden` 属性併出力）:
+  `column_attrs`/`column_header_attrs` が `ColumnProps::hidden` から
+  導出（呼び出し側が渡すのではなく headless 自身が出力する点が charts
+  と異なる）。
+- `data-selected`（58 行の pagination/tree_view/calendar/command、90 行の
+  `table.rs` に続く出力元。`table.rs` 行は「table は headless 側部品を
+  持たない」と記すが、`data_table::row_attrs` は headless 側が
+  `data-selected` を生成する属性ヘルパとして提供する点が新規。
+  意味論（選択中の行）は `table.rs` と一致するため、Themes 経路
+  〔#2127〕で `table::row` の attrs へパススルーする設計）。
+- `data-empty`（72 行の signature_pad/command に続く出力元。`root` が
+  `empty=true` のときのみ出力、意味論〔対象なし表示〕は一致）。
+- `data-state`（checkbox 語彙〔`unchecked`/`checked`/`indeterminate`〕を
+  `select-all`/`select-row` セルが鏡写しする。呼び出し側が入れ子にする
+  `checkbox` パーツ自身の `data-state` とは別に、セル要素側にも同じ
+  3 値を出力する設計）。
+- `data-sort`（新規）: `aria-sort` と同値（`none`/`ascending`/
+  `descending`/`other`）。`column-header`/`sort-trigger` の両方に出力
+  （`aria-sort` は `column-header` のみ）。
+- `data-column`（新規）: 列 id（呼び出し側の任意文字列を既定エスケープで
+  出力）。`column_attrs`/`column_header_attrs` が共通して出力する。
+- `data-value`（38 行の radio_card / headless 5 部品に続く出力元）:
+  `sort-trigger` が列 id を出力する（`fandhe-frontend-wasm-full` の
+  `MAPPING_TABLE` が `requires_value: true` として読む契約、
+  accordion/menubar と同型）。
+
 **役割 B 亜種（`data-danger`/`data-inset`）の注記**: 上記の役割 B は「出力元が他層（主に headless）」を前提とするが、`data-danger`/`data-inset` は headless・pre-styled のどちらも出力せず、**呼び出し側（アプリケーションコード）**が `item()` の自由 `attrs` 経由で個別インスタンスへ都度付与する値なし存在属性である。`item()` の予約キー一覧（`ITEM_RESERVED`、`crates/headless-ui/src/menu.rs`）に含まれないためそのまま出力され、pre-styled の recipe（`menu.rs`）は `StateCondition::Attr` で**参照のみ**する。役割 A（pre-styled が出力）・役割 B（他層が出力）のどちらの定義にも完全には一致しないため、本節の亜種として記録する（`crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当パートの是正（イシュー #2033）」節参照）。`data-has-action`/`data-bordered`（イシュー #2046）も同型の亜種である: card は headless 側部品を持たない pre-styled 単独 anatomy であり、`header()`/`footer()` はこれらの値を検証せずそのまま出力するため出力元は常に呼び出し側、pre-styled の recipe（`card.rs`）は `StateCondition::Attr` で**参照のみ**する（`crates/pre-styled-ui/src/card.rs` モジュール rustdoc「shadcn/ui 突合（イシュー #2046）」節参照）。`heading.rs`（イシュー #2056）の `data-bordered` も同型の亜種である: heading も headless 側部品を持たない pre-styled 単独 anatomy であり、`heading()` はこの値を検証せずそのまま出力するため出力元は常に呼び出し側、pre-styled の recipe（`heading.rs`）は `StateCondition::Attr` で**参照のみ**する（`crates/pre-styled-ui/src/heading.rs` モジュール rustdoc「イシュー #2056 の shadcn/ui 突合」節参照）。`table.rs`（イシュー #2052）の `data-selected`/`data-align` も同型の亜種である: table も headless 側部品を持たない pre-styled 単独 anatomy であり、`row()`/`cell()`/`column_header()` はこれらの値を検証せずそのまま出力するため出力元は常に呼び出し側、pre-styled の recipe（`table.rs`）は `StateCondition::Attr`/`StateCondition::AttrEq` で**参照のみ**する（`crates/pre-styled-ui/src/table.rs` モジュール rustdoc「`data-selected` 行状態」・「`data-align` セル整列」節参照）。`scroll_area.rs`（イシュー #2054、shadcn/ui 突合）の `data-orientation`（呼び出し側が headless `data_attrs::data_orientation` と共有する既存語彙を `viewport` へ付与）・`data-fade`（値なし存在属性、`scroll_area.rs` が新設した語彙）も同型の亜種である: `viewport()` はこれらの値を検証せずそのまま出力するため出力元は常に呼び出し側、pre-styled の `stylesheet()` はセレクタとして**参照のみ**する（`crates/pre-styled-ui/src/scroll_area.rs` モジュール rustdoc「shadcn/ui 突合（イシュー #2054）」節参照）。
 
 ### 2.3 役割 C: 「予約名として防御的に列挙」される `data-*`

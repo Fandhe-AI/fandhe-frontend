@@ -1,6 +1,7 @@
 //! Primitives（`fandhe-frontend-headless-ui`）Data Display / Utilities 系
-//! 15 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
-//! Phase 5。イシュー #2114 で `marker`・イシュー #2111 で `attachment`・
+//! 16 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
+//! Phase 5。イシュー #2125 で `data_table`・イシュー #2114 で `marker`・
+//! イシュー #2111 で `attachment`・
 //! イシュー #2108 で `bubble`・
 //! イシュー #2105 で `message`・
 //! イシュー #2065 で `item` を追加、当初 10 部品）。
@@ -15,9 +16,10 @@
 //! `data-*` 属性表（いずれも機械導出、Primitives 層は CSS 変数表を持たない）
 //! と合成して 6 節ページを組み立てる）。
 //!
-//! 対象は attachment・avatar・bubble・carousel・item・json-tree-view・
+//! 対象は attachment・avatar・bubble・carousel・data-table・item・
+//! json-tree-view・
 //! marker・message・scroll-area・skip-nav・splitter・steps・tour・
-//! tree-view・visually-hidden の 15 部品
+//! tree-view・visually-hidden の 16 部品
 //! （`crates/docs-site/src/primitives_catalog.rs` の
 //! `PrimitiveCategory::DataDisplayUtilities` 並び順と一致させる）。
 //!
@@ -87,11 +89,12 @@
 //! 層）は一切呼ばない（受け入れ条件 3）。ダミー文字列は無害なもの
 //! （`example.com` 等の予約ドメイン、架空の名前）に限る。
 
-use fandhe_frontend_core::{button, code, div, img, p, pre, text, Node};
+use fandhe_frontend_core::{button, code, div, img, p, pre, table, text, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::attachment::{self, AttachmentRootProps, AttachmentState, AttachmentVariant};
 use hui::avatar::{self, ImageStatus};
 use hui::bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant};
+use hui::checkbox::{self, CheckboxProps, CheckedState};
 use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
 use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
@@ -969,6 +972,136 @@ pub const CAROUSEL: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-current=\"true\"",
             description: "indicator が current のときのみ出力する（carousel.rs::indicator。zag.js には存在しない超集合）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Data Table（/primitives/data-table/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/data_table.rs`（モジュール doc、
+/// イシュー #2125）。ソート済み列ヘッダー（`aria-sort="descending"`）の
+/// 最小例。
+fn ex_data_table_sorted_header() -> Node {
+    let t = hui::DataTable::new(
+        Some(("name".to_string(), hui::SortDirection::Descending)),
+        vec![],
+    );
+    let node = t.column_header(
+        "name",
+        true,
+        vec![],
+        vec![t.sort_trigger("name", vec![], vec![text("Name ▼")])],
+    );
+    // codex-review P1 指摘（PR #2303）と同型の是正: column_header は `th`
+    // を生成するため、有効な table 構造（table > thead > tr）の中に
+    // 配置する（`div` 直下では HTML 解析で `th` が無視され aria-sort 等が
+    // 失われる）。
+    wrap_example(
+        "aria-sort=\"descending\" が column_header に、data-value=\"name\" が sort_trigger に出力されます。",
+        vec![table(vec![], vec![thead(vec![], vec![tr(vec![], vec![node])])])],
+    )
+}
+
+/// 全選択チェックボックスが `data-state=\"indeterminate\"`（一部行のみ選択）
+/// を表示する最小例。
+fn ex_data_table_indeterminate_select_all() -> Node {
+    let node = hui::DataTable::select_all(
+        hui::checkbox::CheckedState::Indeterminate,
+        vec![],
+        vec![checkbox::indicator(
+            &CheckboxProps {
+                checked: CheckedState::Indeterminate,
+                ..Default::default()
+            },
+            vec![],
+            vec![text("−")],
+        )],
+    );
+    // codex-review P1 指摘（PR #2303）と同型の是正: select_all は `th`
+    // を生成するため、有効な table 構造（table > thead > tr）の中に
+    // 配置する（上記 ex_data_table_sorted_header と同じ理由）。
+    wrap_example(
+        "一部の行のみ選択されている状態を data-state=\"indeterminate\" で表現します（checkbox::CheckedState::Indeterminate をそのまま select_all へ渡す）。",
+        vec![table(vec![], vec![thead(vec![], vec![tr(vec![], vec![node])])])],
+    )
+}
+
+pub const DATA_TABLE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "Root / Toolbar / ColumnHeader / SortTrigger / SelectAll / SelectRow / Footer / SelectionCount の 8 anatomy パーツを提供する（data_table.rs 冒頭）。",
+        "aria-sort/data-sort は none/ascending/descending/other の 4 値を SortDirection が一元管理し、ソート可能だが未ソートの列は \"none\"、ソート不可能な列は属性自体を出力しない（data_table.rs::SortDirection/column_header）。",
+        "<table>/<thead>/<tbody>/<tr> は生成せず、column_attrs/column_header_attrs/row_attrs という node を作らない属性ヘルパで pre-styled table::* へパススルーできる設計（data_table.rs モジュール doc「イシュータイトルとの差分」節）。",
+        "行選択集合・並べ替え・フィルタ・ページング処理そのものは保持しない。DataTable 状態機械はソート方向（高々 1 列）と非表示列集合のみを持つ（data_table.rs モジュール doc「責務境界」節）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "column_header: id, sortable",
+            kind: "&str, bool",
+            default: "",
+            description: "列 id（data-column/aria-sort 対象）とソート可能かどうか（data_table.rs::DataTable::column_header）。",
+        },
+        ArgRow {
+            name: "sort_trigger: id",
+            kind: "&str",
+            default: "",
+            description: "列 id。data-value として出力され、#2126 の DOM 配線が dispatch(\"sort\", id) を結び付ける契約（data_table.rs::DataTable::sort_trigger）。",
+        },
+        ArgRow {
+            name: "select_all/select_row: state",
+            kind: "checkbox::CheckedState",
+            default: "",
+            description: "呼び出し側が算出した選択状態（checked/unchecked/indeterminate）。選択集合の保持は行わない（data_table.rs::DataTable::select_all/select_row）。",
+        },
+        ArgRow {
+            name: "root: props",
+            kind: "DataTableProps { loading, empty }",
+            default: "",
+            description: "loading は data-loading + aria-busy=\"true\"、empty は data-empty を出力する（data_table.rs::DataTable::root）。",
+        },
+        ArgRow {
+            name: "DataTable::new: sort, hidden_columns",
+            kind: "Option<(String, SortDirection)>, Vec<String>",
+            default: "",
+            description: "状態機械の初期値。hidden_columns は重複を除去して正規化される（data_table.rs::DataTable::new）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "ソート済みヘッダー",
+            description: "降順ソート中の列ヘッダー（aria-sort=\"descending\"）と sort_trigger の data-value を示す例です。",
+            render: ex_data_table_sorted_header,
+        },
+        ExampleEntry {
+            title: "全選択の indeterminate 表示",
+            description: "一部の行のみ選択されている状態を data-state=\"indeterminate\" で表現する select_all の例です。",
+            render: ex_data_table_indeterminate_select_all,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "sort_trigger（button）・toolbar/footer に入れ子にした field/menu/checkbox/pagination の各フォーカス可能要素間を移動する。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "sort_trigger（button）を活性化する（実 DOM 配線は #2126 のスコープ）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "aria-sort=\"none\"|\"ascending\"|\"descending\"|\"other\"",
+            description: "ソート可能な column_header に出力する（data_table.rs::SortDirection::as_aria_sort）。",
+        },
+        AriaRow {
+            attribute: "scope=\"col\"",
+            description: "column_header/select_all に固定出力する（data_table.rs::DataTable::column_header/select_all）。",
+        },
+        AriaRow {
+            attribute: "aria-busy=\"true\"",
+            description: "root が loading=true のときのみ出力する（data_table.rs::DataTable::root）。",
         },
     ],
     demo: None,
@@ -3031,6 +3164,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/avatar/", AVATAR),
     ("/primitives/bubble/", BUBBLE),
     ("/primitives/carousel/", CAROUSEL),
+    ("/primitives/data-table/", DATA_TABLE),
     ("/primitives/item/", ITEM),
     ("/primitives/json-tree-view/", JSON_TREE_VIEW),
     ("/primitives/marker/", MARKER),
