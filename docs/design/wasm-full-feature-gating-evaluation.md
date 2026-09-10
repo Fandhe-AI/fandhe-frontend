@@ -517,8 +517,8 @@ headless-ui 部品のクリック dispatch 全般）も同時に登録してい�
    と matrix 展開が両立しないため）。`-baseline` は
    `--no-default-features` / 同 + `wasm-bindgen-exports` / 既定 /
    `--all-features` の 4 構成を `cargo check` + `cargo clippy` で検証し、
-   `-wiring`/`-scope` は `perf-assert` + `default` 掲載の 14 配線群 feature・
-   scope feature 16 件（計 30 件、`crates/wasm-full/Cargo.toml`
+   `-wiring`/`-scope` は `perf-assert` + `default` 掲載の 15 配線群 feature・
+   scope feature 16 件（計 31 件、`crates/wasm-full/Cargo.toml`
    `[features]` から `wasm-bindgen-exports` を除いた全集合）を
    `wasm-bindgen-exports` のみとの単体構成で 1 feature 1 ステップずつ
    clippy する（`crates/xtask/tests/workflow_wasm_full_feature_matrix.rs`

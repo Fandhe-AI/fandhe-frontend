@@ -2094,7 +2094,7 @@ jobs:
       - name: "cargo clippy (wasm32-unknown-unknown, --all-features, issue #2328)"
         run: cargo clippy -p fandhe-frontend-wasm-full --all-features --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
-  # イシュー #2328: 配線群 feature（`perf-assert` + `default` 掲載の 14 件、
+  # イシュー #2328: 配線群 feature（`perf-assert` + `default` 掲載の 15 件、
   # `wasm-full-feature-gating-evaluation.md` §Cargo.toml 冒頭コメント対応表
   # 参照）を `wasm-bindgen-exports` のみと組み合わせた単体構成で clippy する。
   # `perf-assert` は `default` に非掲載のため本ジョブが唯一の検証経路。
@@ -2193,6 +2193,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,chart-range --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: questionnaire, issue #2328)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,questionnaire --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: position, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,position --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
   # イシュー #2328: scope feature（イシュー #2327 で新設した MAPPING_TABLE
   # 行・keynav match arm 単位の 16 件）を `wasm-bindgen-exports` のみと
