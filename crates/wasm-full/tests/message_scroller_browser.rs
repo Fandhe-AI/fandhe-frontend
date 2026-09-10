@@ -280,6 +280,10 @@ async fn user_scroll_away_from_bottom_sets_free_and_shows_jump_to_latest() {
 
     simulate_user_scroll(&viewport, 0);
     wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    assert_eq!(
+        instance_root.get_attribute("data-stuck").as_deref(),
+        Some("free")
+    );
 
     let jump = find_jump_to_latest(&instance_root);
     assert!(jump.has_attribute("data-visible"));
@@ -302,6 +306,10 @@ async fn jump_to_latest_click_scrolls_to_bottom_and_restores_stuck() {
 
     simulate_user_scroll(&viewport, 0);
     wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    assert_eq!(
+        instance_root.get_attribute("data-stuck").as_deref(),
+        Some("free")
+    );
 
     let jump = find_jump_to_latest(&instance_root);
     dispatch_click(&jump);
@@ -332,6 +340,10 @@ async fn jump_to_latest_click_is_noop_when_disabled_ancestor() {
 
     simulate_user_scroll(&viewport, 0);
     wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    assert_eq!(
+        instance_root.get_attribute("data-stuck").as_deref(),
+        Some("free")
+    );
 
     let jump = find_jump_to_latest(&instance_root);
     jump.set_attribute("data-disabled", "")
@@ -369,6 +381,7 @@ async fn append_while_free_marks_has_new_without_scrolling() {
         .expect("insert_adjacent_html must not fail");
 
     wait_for(|| instance_root.has_attribute("data-has-new")).await;
+    assert!(instance_root.has_attribute("data-has-new"));
     assert_eq!(
         viewport.scroll_top(),
         before_top,
@@ -400,6 +413,7 @@ async fn append_while_bottom_follows_to_new_bottom_without_has_new() {
 
     let expected = viewport.scroll_height() - viewport.client_height();
     wait_for(|| viewport.scroll_top() == expected).await;
+    assert_eq!(viewport.scroll_top(), expected);
     assert!(!instance_root.has_attribute("data-has-new"));
 }
 
@@ -423,6 +437,10 @@ async fn prepend_while_free_preserves_visual_position() {
     // free のまま、利用者が少し下へスクロールした状態を作る。
     simulate_user_scroll(&viewport, 40);
     wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    assert_eq!(
+        instance_root.get_attribute("data-stuck").as_deref(),
+        Some("free")
+    );
     let before_top = viewport.scroll_top();
     let before_height = viewport.scroll_height();
 
@@ -438,7 +456,9 @@ async fn prepend_while_free_preserves_visual_position() {
 
     let expected_delta = 80;
     wait_for(|| viewport.scroll_height() == before_height + expected_delta).await;
+    assert_eq!(viewport.scroll_height(), before_height + expected_delta);
     wait_for(|| viewport.scroll_top() == before_top + expected_delta).await;
+    assert_eq!(viewport.scroll_top(), before_top + expected_delta);
 }
 
 #[wasm_bindgen_test]
@@ -463,6 +483,7 @@ async fn prepend_while_bottom_stays_at_bottom_after_correction() {
 
     let expected = viewport.scroll_height() - viewport.client_height();
     wait_for(|| viewport.scroll_top() == expected).await;
+    assert_eq!(viewport.scroll_top(), expected);
     assert_eq!(
         instance_root.get_attribute("data-stuck").as_deref(),
         Some("bottom")
@@ -603,6 +624,7 @@ async fn two_instances_in_same_container_are_independent() {
         .expect("insert_adjacent_html must not fail");
 
     wait_for(|| instance_b.has_attribute("data-has-new")).await;
+    assert!(instance_b.has_attribute("data-has-new"));
     assert!(
         !instance_a.has_attribute("data-has-new"),
         "片方への追記がもう片方の data-* へ波及しないこと"

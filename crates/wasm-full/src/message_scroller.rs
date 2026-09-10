@@ -491,7 +491,14 @@ mod wiring {
         }
     }
 
-    /// `root` 配下の全 message-scroller インスタンスへ初期同期を適用する。
+    /// `root` 配下の全 message-scroller インスタンスへ初期同期を適用する
+    /// （マウント直後の一括初期化専用。既存インスタンス分も無条件で
+    /// `initial_sync_instance` を呼び直し、スナップショットを「今の」
+    /// 計測値で上書きする。`handle_mutations` から呼ぶと
+    /// `prev_scroll_top`/`prev_scroll_height` がミューテーション適用後の
+    /// 値で上書きされてしまい `classify_change` が常に `None` を返す
+    /// 退行を招くため、その用途には [`initial_sync_new_viewports`] を
+    /// 使うこと）。
     fn initial_sync_all(root: &Element, snapshots: &SnapshotList) {
         let selector = part_selector(PART_VIEWPORT);
         let Ok(nodes) = root.query_selector_all(&selector) else {
@@ -502,6 +509,37 @@ mod wiring {
             let Ok(viewport) = node.dyn_into::<Element>() else {
                 continue;
             };
+            let Some(instance_root) = closest_matching(root, &viewport, PART_ROOT) else {
+                continue;
+            };
+            initial_sync_instance(&instance_root, &viewport, snapshots);
+        }
+        prune_snapshots(snapshots, root);
+    }
+
+    /// `root` 配下のうち、まだスナップショット未登録の viewport
+    /// （構造フォールバック再描画で新規に現れたインスタンス）のみへ
+    /// 初期同期を適用する。`handle_mutations` の冒頭専用: 既存
+    /// インスタンスのスナップショットは触らず、`prev_scroll_top`/
+    /// `prev_scroll_height` を後続の変化判定用に温存する
+    /// （Review 指摘 #2122: `initial_sync_all` を毎回呼ぶと
+    /// 既存インスタンス分の prev 値がミューテーション適用後の現在値で
+    /// 上書きされ、`classify_change` が常に `ContentChange::None` を
+    /// 返してしまい、新着検知・履歴読み込み時の位置維持が機能しなく
+    /// なる退行があった）。
+    fn initial_sync_new_viewports(root: &Element, snapshots: &SnapshotList) {
+        let selector = part_selector(PART_VIEWPORT);
+        let Ok(nodes) = root.query_selector_all(&selector) else {
+            return;
+        };
+        for i in 0..nodes.length() {
+            let Some(node) = nodes.get(i) else { continue };
+            let Ok(viewport) = node.dyn_into::<Element>() else {
+                continue;
+            };
+            if find_snapshot_index(snapshots, &viewport).is_some() {
+                continue;
+            }
             let Some(instance_root) = closest_matching(root, &viewport, PART_ROOT) else {
                 continue;
             };
@@ -705,9 +743,16 @@ mod wiring {
 
         // 新規インスタンス発見（構造フォールバック再描画で viewport が
         // 作り直された場合を含む）にも対応するため、レコード解決に
-        // 先立って現在の viewport 集合へ未登録分を初期同期しておく
-        // （二重初期化は `initial_sync_instance` が index 更新で吸収する）。
-        initial_sync_all(root, snapshots);
+        // 先立って現在の viewport 集合へ未登録分のみを初期同期しておく。
+        // 既存インスタンス分は触らない: `initial_sync_all`（無条件で
+        // 全 viewport を再同期し `data-stuck == Bottom` なら毎回
+        // 強制スクロールする）をここで使うと、直後の per-record ループが
+        // 読む `prev_scroll_top`/`prev_scroll_height` がミューテーション
+        // 適用後の現在値で上書きされてしまい、`classify_change` が
+        // 常に `ContentChange::None` を返す（`new <= prev` 恒真）ため
+        // 新着検知・履歴読み込み時の位置維持が機能しなくなる
+        // （Review 指摘 #2122）。
+        initial_sync_new_viewports(root, snapshots);
 
         let mut seen_viewports: Vec<Element> = Vec::new();
         for record in &record_list {
