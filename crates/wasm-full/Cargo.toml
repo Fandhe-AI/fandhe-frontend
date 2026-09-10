@@ -955,7 +955,25 @@ name = "fandhe-frontend-wasm-full"
 # `scroll_top_after_delta`（新設・純粋関数）で `f64 → i32` の 0 方向切り捨て
 # による 1px 未満のはみ出しを是正した。既存シグネチャ不変の加算的変更
 # （純粋関数追加 + 丸め是正）のため patch バンプ、0.19.0 から 0.19.1 とする。
-version = "0.20.0"
+#
+# イシュー #2209（親 #2208）: `position` モジュールへ新規公開関数
+# `reposition_within`/`reposition_all`（再エクスポート）/
+# `ensure_global_controller` を追加し、`headless::wire_headless_component`
+# の挙動（配線時・dispatch 後に自動的に positioning を再計算するように
+# なる）を変更した。加えて自動呼び出しの 3 箇所（`ensure_global_controller`
+# 呼び出し・配線時 `reposition_within`・dispatch 後 `reposition_within`）を
+# 新設 feature `position`（既定 on）でゲートする。新規公開 API の追加と
+# 既存公開関数の副作用変更を含むため 0.x のマイナーバンプとし、main の
+# 到達値 0.19.1 から +1 して 0.20.0 とする
+# （`.claude/rules/coding-rust.md` の 0.x 破壊的変更判断）。
+#
+# base 取り込み（イシュー #2209、PR #2332、同一版数への偶発的衝突）:
+# 本ブランチ（上記の通り独立に 0.20.0 へ到達）と origin/main（#2327/#2339
+# の scope feature 追加を経て同じく独立に 0.20.0 へ到達）が同一版数へ
+# 偶発的に衝突しているため、main の到達値 0.20.0 からさらに +1（マイナー
+# バンプ、`default` へ `position` feature を追加した破壊的変更のため）して
+# 0.20.1 とする。
+version = "0.20.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1303,7 +1321,13 @@ crate-type = ["cdylib", "rlib"]
 #
 # `overlay`/`tooltip`/`position`/`focus_trap`/`headless_file_upload`/
 # `headless_select` は `Runtime` を経由しないアプリ側直接利用 API のため
-# gating 対象外（feature を持たない）。
+# gating 対象外（feature を持たない）。ただし `position` のみ例外があり、
+# `headless::wire_headless_component` 内の自動 positioning 呼び出し
+# （`ensure_global_controller`・`reposition_within` 2 箇所）は feature
+# `"position"`（既定 on）でゲートする（イシュー #2209、親 #2208。
+# `docs/design/wasm-full-architecture.md` §34.2）。`position` モジュール
+# 自体・`pub use` はゲートしない。上記対応表の 14 件（`Runtime::mount`/
+# `hydrate` が呼ぶ配線）とは別枠の feature のため対応表には含めない。
 #
 # 破壊的変更の注意（BREAKING CHANGE、0.19.0 で minor バンプ）: 本バージョンから
 # `default-features = false` を使う利用者は上記 14 配線を失う。従来どおりの
@@ -1311,7 +1335,10 @@ crate-type = ["cdylib", "rlib"]
 # "focus-visible", "avatar", "clipboard", "timer", "angle-slider", "splitter",
 # "signature-pad", "number-input", "command", "sidebar", "chart",
 # "chart-range", "questionnaire"]`（`entry` のエクスポートが不要なら
-# `wasm-bindgen-exports` は省略可）を明示すること。
+# `wasm-bindgen-exports` は省略可）を明示すること。上記 14 件に加え、
+# `wire_headless_component` の自動 positioning 呼び出しを維持するには
+# `"position"` も列挙に含めること（別枠の feature、既定 15 件目として
+# `default` 配列に列挙されている）。
 #
 # `keynav` off 時の注意（イシュー #1616 / #2326）: readonly RadioGroup の
 # click capture 保護は `keynav::wire_readonly_click_guard`（上記対応表の
@@ -1400,6 +1427,7 @@ default = [
   "chart",
   "chart-range",
   "questionnaire",
+  "position",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -1434,6 +1462,11 @@ sidebar = []
 chart = []
 chart-range = []
 questionnaire = []
+# イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
+# 自動 positioning 呼び出し（`ensure_global_controller`・
+# `reposition_within`）専用の feature。`position` モジュール自体・
+# 公開 API はゲートしない（上記コメント参照）。
+position = []
 
 # イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
 # `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの

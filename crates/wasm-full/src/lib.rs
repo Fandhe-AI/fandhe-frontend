@@ -65,6 +65,14 @@
 //! `data-align` を反映する。`events`/`overlay` と同じ 2 層構成を踏襲し、
 //! scroll/resize イベント契機の離散的な再計算（`autoUpdate` 相当の連続監視は
 //! 非採用、`docs/design/anchor-positioning-design.md` §4.3）を提供する。
+//! [`headless::wire_headless_component`] は配線時・dispatch 成功後の 2 箇所で
+//! `position::reposition_within` を自動的に呼び、thread_local 単一の
+//! `PositionController` を遅延生成する（イシュー #2209、親 #2208。
+//! `docs/design/wasm-full-architecture.md` §34）ため、利用者が
+//! `PositionController` を明示的に組み立てなくても popover/tooltip/menu の
+//! 実座標が反映される。この自動呼び出しは feature `"position"`（既定 on）
+//! でゲートする。`position` モジュール自体・公開 API はゲート対象外
+//! （下記「配線群別 feature」対応表参照）。
 //!
 //! [`tooltip`] モジュール（イシュー #587、親 #584）は Tooltip の
 //! `openDelay`/`closeDelay`/`interactive`（表示・非表示遅延タイマーと
@@ -180,7 +188,15 @@
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
-//! gating 対象外（feature を持たない）。
+//! gating 対象外（feature を持たない）。ただし [`position`] のみ例外があり、
+//! [`headless::wire_headless_component`] 内の自動 positioning 呼び出し
+//! （`ensure_global_controller`・`reposition_within` 2 箇所）は feature
+//! `"position"`（既定 on）でゲートする（イシュー #2209、親 #2208。
+//! `docs/design/wasm-full-architecture.md` §34.2）。`Runtime::mount`/
+//! `hydrate` の呼び出しではない（`wire_headless_component` は上記対応表の
+//! `Runtime::wire_headless` からゲートなしで呼ばれる）ため本対応表には
+//! 含めないが、`position` モジュール自体・`pub use` は引き続きゲート対象外
+//! のまま、この自動呼び出しのみを off にできる。
 //!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
@@ -191,7 +207,10 @@
 //! "timer", "angle-slider", "splitter", "signature-pad", "number-input",
 //! "command", "sidebar", "chart", "chart-range", "questionnaire"]`
 //! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
-//! 明示すること。
+//! 明示すること。上記 14 件に加え、[`headless::wire_headless_component`] の
+//! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
+//! こと（`position` はこの 14 配線とは別枠の feature であり、既定 15 件目
+//! として `Cargo.toml` の `default` 配列に列挙されている）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
