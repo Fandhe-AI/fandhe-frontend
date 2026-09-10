@@ -2027,3 +2027,46 @@ Menubar は checked 状態機械を持たないため、`menubar::checkbox_item`
 - `item_label` が `item-text` 非保持・`item-indicator` 保持の構成で
   indicator テキストを typeahead ラベルへ含めてしまう点の是正（本イシュー
   はテストフィクスチャ側で `item-text` を保持させる回避のみ）。
+
+## 32. select の item-aligned 位置決め（Align Item）の評価（イシュー #2207）
+
+### 32.1 結論
+
+shadcn/ui・Radix Themes は Select の `position="item-aligned"`（選択中の
+item をトリガーへ位置合わせして開く挙動）を既定とするが、本イシューでの
+評価結果は**見送り（保留、ユーザー判断待ち）**である。詳細な一次ソース
+突合・設計案・4 軸評価は
+`docs/design/select-item-aligned-positioning-evaluation.md` を参照し、
+本節では現行 `position.rs` 契約との不整合点と、採用する場合の配置のみを
+要約する（二重管理を避けるため評価の本文は評価文書側に置く）。
+
+### 32.2 現行 `position.rs` 契約との不整合点
+
+- `PositionedKind`/`resolve_position` は anchor 矩形・floating 寸法・
+  viewport 寸法のみを入力とする kind 横断の純粋関数であり、item-aligned
+  が要求する「選択中の item・value-text・content の scroll container」の
+  矩形を扱う経路がない。
+- `PositionController` に on-open の再計算フックが存在せず（scroll/resize
+  イベント駆動か `reposition_now()` の明示呼び出しのみ）、「開いた瞬間に
+  1 回だけ位置決めする」item-aligned のライフサイクルと噛み合わない。
+- `content` は #2019 以降スクロール要素であり、#2165 の keynav
+  `scroll_item_into_view_if_needed` が highlight 変更時に `scrollTop` を
+  操作する。item-aligned の位置計算を素朴に scroll 再計算経路へ乗せると、
+  この `scrollTop` の書き込みと取り合う。#2186 の sticky scroll button
+  （`scroll-up-button`/`scroll-down-button`）は現時点では anatomy・装飾
+  （`crates/headless-ui/src/select.rs`）と keynav 側のボタン高さ差引き
+  （可視領域計算、`crates/wasm-full/src/keynav.rs`）までが実装範囲であり、
+  押下時の実スクロール自体は同モジュールの契約・
+  `docs/design/component-coverage-map.md` に後続配線として記録された未実装
+  の関心である（現時点で `scrollTop` を書き込むのは keynav の highlight
+  追従のみ）。押下スクロールが将来配線された場合は、item-aligned の位置
+  計算・keynav・ボタン押下の 3 者が `scrollTop` を取り合う競合が新たに
+  生じる点も、現状の競合とは区別して記録しておく。
+
+### 32.3 採用時の配置（§3.25 規則 2 に基づき wasm-full）
+
+計測・位置計算は headless-ui へは持ち込まず、`crates/wasm-full/src/
+position.rs`（配線層）の責務として設計する。評価文書 §7 の案 B（Select
+限定 opt-in の簡略版、`data-position="item-aligned"` を利用者が `attrs`
+で付与し wasm-full 側で分岐）が推奨案であり、headless-ui
+`crates/headless-ui/src/select.rs` は不変のまま成立する。
