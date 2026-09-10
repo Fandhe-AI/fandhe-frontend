@@ -159,6 +159,9 @@ use fandhe_frontend_pre_styled_ui::link_overlay;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
+use fandhe_frontend_pre_styled_ui::marker::{
+    self as marker, MarkerRootProps, MarkerTone, MarkerVariant,
+};
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
 use fandhe_frontend_pre_styled_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
@@ -786,6 +789,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: attachment_section,
     },
     ComponentPage {
+        path: "/themes/marker/",
+        render: marker_section,
+    },
+    ComponentPage {
         path: "/themes/button-group/",
         render: button_group_section,
     },
@@ -1083,6 +1090,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::message::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::bubble::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::attachment::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::marker::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -6373,6 +6381,62 @@ fn attachment_section() -> Node {
         "Attachment",
         "添付ファイル 1 件の表示。data-variant（file/image）・data-state（idle/uploading/error）・data-disabled は headless の data-* を参照するのみで class 軸は持ちません。file 形態は横並びの行カード、image 形態は縦積みのサムネイルカードで actions は hover/focus-within（タッチ端末では常時表示）で現れます。progress スロットは styled Progress の入れ子です。",
         vec![row(vec![file_idle, image_uploading, error_disabled])],
+    )
+}
+
+/// Marker 節（イシュー #2115、親 #2113。headless anatomy は #2114）。
+/// `data-variant` 3 値（note/divider/label）× `data-tone` 4 値
+/// （neutral/info/warning/danger）の全 12 組み合わせを最低 1 度は出現
+/// させ、Anatomy 表・`data-*` 属性表の機械導出に必要な `icon`/`content`
+/// 両パーツも各カードで使う（`attachment_section` と同型のデモ執筆
+/// 規約）。`variant`/`tone` は headless の `data-*` を `AttrEq` で参照
+/// するのみで class 軸を持たない（`marker.rs` モジュール doc参照）。
+fn marker_section() -> Node {
+    let combinations: Vec<(MarkerVariant, MarkerTone, &str)> = vec![
+        (MarkerVariant::Note, MarkerTone::Neutral, "System note"),
+        (
+            MarkerVariant::Note,
+            MarkerTone::Info,
+            "New feature available",
+        ),
+        (MarkerVariant::Note, MarkerTone::Warning, "Response delayed"),
+        (
+            MarkerVariant::Note,
+            MarkerTone::Danger,
+            "Message failed to send",
+        ),
+        (MarkerVariant::Divider, MarkerTone::Neutral, "Earlier"),
+        (MarkerVariant::Divider, MarkerTone::Info, "New messages"),
+        (MarkerVariant::Divider, MarkerTone::Warning, "Reconnecting"),
+        (
+            MarkerVariant::Divider,
+            MarkerTone::Danger,
+            "Connection lost",
+        ),
+        (MarkerVariant::Label, MarkerTone::Neutral, "2026-09-10"),
+        (MarkerVariant::Label, MarkerTone::Info, "Unread"),
+        (MarkerVariant::Label, MarkerTone::Warning, "Draft"),
+        (MarkerVariant::Label, MarkerTone::Danger, "Failed"),
+    ];
+
+    let cards: Vec<Node> = combinations
+        .into_iter()
+        .map(|(variant, tone, label)| {
+            marker::root(
+                MarkerRootProps { variant, tone },
+                vec![],
+                vec![
+                    marker::icon(vec![], vec![text("●")]),
+                    marker::content(vec![], vec![text(label)]),
+                ],
+            )
+        })
+        .collect();
+
+    section(
+        "Marker",
+        "会話スレッド内のインライン注記行。data-variant（note/divider/label）・data-tone（neutral/info/warning/danger）は headless の data-* を参照するのみで class 軸は持ちません。divider 形態は行下の境界線、label 形態は左右へ separator パーツを挟んだ中央ラベルです。",
+        vec![stack(cards)],
     )
 }
 
@@ -14418,7 +14482,7 @@ mod tests {
         // イシュー #2075 で Sidebar を追加し 110 → 111 件になった。
         // イシュー #2109 で Bubble を追加し 111 → 112 件になった。
         // イシュー #2112 で Attachment を追加し 112 → 113 件になった。
-        assert_eq!(paths.len(), 113, "COMPONENT_PAGES should have 113 entries");
+        assert_eq!(paths.len(), 114, "COMPONENT_PAGES should have 114 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

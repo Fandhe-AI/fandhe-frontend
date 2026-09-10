@@ -202,7 +202,8 @@
 //! - `ColorPalette` 軸の追加（上記「`ColorPalette` 軸を持たない理由」
 //!   参照）。
 //! - `examples/headless-pre-styled-ui` への attachment 追加。
-//! - 兄弟部品 marker（#2114）への語彙追随。
+//! - marker は #2115 で Themes 化済み（`data-role`/`data-align` を持たない
+//!   設計のため語彙追随は不要、`crate::marker` モジュール doc参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, serialize_rule};

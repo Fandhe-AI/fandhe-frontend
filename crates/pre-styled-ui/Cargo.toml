@@ -2767,20 +2767,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # 採用しない原則、`crates/headless-ui/Cargo.toml` 参照）ため、この
 # dep-version-check 追随分をさらに 0.166.2 へ patch バンプしていた。
 #
-# 本ブランチ（イシュー #2133）側は上記 0.166.2 を起点に、本イシューの
-# 実体変更（公開 API 拡張）に伴い 0.167.0 へマイナーバンプ済み。今回の
-# base 取り込みで origin/main 側の到達値 0.166.0 を確認したが、本ブランチ
-# 側の 0.167.0 が既にこれを上回るため、追加バンプ不要で 0.167.0 を
-# そのまま採用していた。
-#
 # イシュー #2185 base 取り込み: 本ブランチ側では `field` へ headless-ui
 # 側で新設した `group`/`content`/`title`/テキスト付き `separator` の
 # 6 slot（base/state 宣言・再エクスポート）を追加着装し、既存 5 slot の
 # CSS 出力バイト・API シグネチャは不変の純追加として 0.166.3 へ patch
-# バンプしていたが、origin/main 側の #2133 分（0.167.0、マイナーバンプ）
-# が本ブランチ側の到達値を上回るため、同一版数への偶発的衝突をそのまま
-# 採用しない原則により 0.167.1 へ patch バンプする。
-version = "0.167.1"
+# バンプしていた。origin/main 側は並行 PR（イシュー #2115 の marker 新設、
+# イシュー #2133 の Legend button 化等）を経て 0.169.0 へ到達済みであり、
+# 本ブランチ側の到達値を上回るため、同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、本ブランチの実体変更（field への 6 slot 純追加）
+# を反映した結果として main の到達値 0.169.0 をさらに上回る 0.170.0 へ
+# マイナーバンプする。
+version = "0.170.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
