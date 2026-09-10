@@ -58,7 +58,13 @@
 //!
 //! 状態遷移が実際に起きた（before ≠ after）場合のみ、`on_action` 経由で
 //! `C` へ [`ACTION_PREV`]/[`ACTION_NEXT`]/[`ACTION_SKIP`] を通知する。
-//! payload は**遷移前の `step`**（10 進文字列）。headless-ui は「どの質問を
+//! payload は [`encode_notification_payload`]（`"{遷移前の step}|{instance
+//! root の id 属性値（未設定時は空文字列）}"`）でエンコードし、アプリは
+//! [`decode_notification_payload`] で分割する。`step` を先頭に置くのは
+//! `step` が区切り文字 `|` を含み得ない `usize` の 10 進文字列であるのに
+//! 対し `instance_id` はアプリが任意の文字列を設定できるため（イシュー
+//! #2118 PR #2286 codex-review P1 指摘: 複数インスタンス時に通知だけでは
+//! どのインスタンスの遷移か判別できなかった）。headless-ui は「どの質問を
 //! スキップしたか」を保持しない設計のため、アプリはこの通知で
 //! `QuestionProps::skipped`/`answered` を自身の状態へ記録できる。境界での
 //! no-op click（例: 完了状態で next）は DOM も書かず通知もしない（アプリが
@@ -204,9 +210,32 @@ pub const ACTION_SKIP: &str = "questionnaire:skip";
 /// dispatch アクション名（`"prev"`/`"next"`/`"skip"`）を決定する allowlist
 /// 変換（完全一致のみ）。`scope` が `"questionnaire"` でない、または `part`
 /// が back/next/skip のいずれでもない場合は `None`（fail-closed）。
+///
+/// `has_explicit_action`（その要素自身が `data-action` 属性を持つか）が
+/// `true` の場合も `None` を返す。`TRIGGER_RESERVED`
+/// （`crates/headless-ui/src/questionnaire.rs`）は `"type"`/`"disabled"`/
+/// `"data-disabled"` のみを予約し `"data-action"` を落とさないため、
+/// アプリは back/next/skip へ `data-action` を明示的に付与して
+/// `crate::events::wire_events` の汎用配線（`closest("[data-action]")` →
+/// `C::decode_action`）に委ねることができる。この場合に本モジュールの
+/// 自動配線も反応すると、`root` へ登録された 2 個のクリックリスナー
+/// （`events::wire_events` と本モジュールの委譲リスナー）が同一クリックを
+/// 二重に処理し、`C` 側の遷移と本モジュールの DOM 直書き遷移が別々に
+/// 状態を進めて二重遷移になる（イシュー #2118 PR #2286 codex-review P1
+/// 指摘）。`data-action` の存在はアプリが手動配線を明示的に選んだ合図と
+/// みなし、本モジュールの自動配線はその要素に対しては早期に諦める
+/// （継続して祖先を探索しない。back/next/skip 自身より外側の祖先に
+/// 偶然 back/next/skip が存在することは想定しない）。
 #[must_use]
-pub fn trigger_action(scope: Option<&str>, part: Option<&str>) -> Option<&'static str> {
+pub fn trigger_action(
+    scope: Option<&str>,
+    part: Option<&str>,
+    has_explicit_action: bool,
+) -> Option<&'static str> {
     if scope != Some(QUESTIONNAIRE_SCOPE) {
+        return None;
+    }
+    if has_explicit_action {
         return None;
     }
     match part {
@@ -227,6 +256,36 @@ pub fn notification_action(action: &str) -> Option<&'static str> {
         "skip" => Some(ACTION_SKIP),
         _ => None,
     }
+}
+
+/// 通知 payload の区切り文字。`step` は `usize` の 10 進文字列のため
+/// 区切り文字を含み得ない（fail-closed に一意分割できる、
+/// [`decode_notification_payload`] 参照）。
+const NOTIFICATION_PAYLOAD_SEP: char = '|';
+
+/// `C` への通知 payload をエンコードする（モジュール冒頭「アプリ状態 `C`
+/// への通知」節参照）。`step` を先頭に置くのは、`step` が区切り文字を
+/// 含み得ない `usize` の 10 進文字列であるのに対し `instance_id`
+/// （インスタンス root の `id` 属性値、未設定時は空文字列）はアプリが
+/// 任意の文字列を設定でき区切り文字を含み得るため（イシュー #2118
+/// PR #2286 codex-review P1 指摘: 複数インスタンス時に通知からどの
+/// インスタンスか判別できない）。`instance_id` を先頭に置く設計は
+/// `id` に区切り文字が含まれた場合に `step` 側の分割が曖昧になり得る。
+#[must_use]
+pub fn encode_notification_payload(step: usize, instance_id: &str) -> String {
+    format!("{step}{NOTIFICATION_PAYLOAD_SEP}{instance_id}")
+}
+
+/// [`encode_notification_payload`] の逆変換。`(step, instance_id)` を
+/// 返す。区切り文字が見つからない、または `step` 側が非数値の場合は
+/// `None`（fail-closed。改ざんされうるクライアント入力ではなく本モジュール
+/// 自身が生成した payload の形式検証だが、契約破りの入力を潜在的に受け
+/// 得る任意の呼び出し元のため同じ規律を適用する）。
+#[must_use]
+pub fn decode_notification_payload(payload: &str) -> Option<(usize, &str)> {
+    let (step, instance_id) = payload.split_once(NOTIFICATION_PAYLOAD_SEP)?;
+    let step = step.parse::<usize>().ok()?;
+    Some((step, instance_id))
 }
 
 /// インスタンス root の表示属性（`data-step`/`data-orientation`）と、
@@ -330,10 +389,10 @@ pub fn trigger_boundary_transition(
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        is_question_hidden, notification_action, progress_values, question_data_state,
-        questionnaire_from_display_attrs, trigger_action, trigger_boundary_transition,
-        Questionnaire, BACK_PART, NEXT_PART, PROGRESS_PART, QUESTIONNAIRE_SCOPE, QUESTION_PART,
-        ROOT_PART, SKIP_PART,
+        encode_notification_payload, is_question_hidden, notification_action, progress_values,
+        question_data_state, questionnaire_from_display_attrs, trigger_action,
+        trigger_boundary_transition, Questionnaire, BACK_PART, NEXT_PART, PROGRESS_PART,
+        QUESTIONNAIRE_SCOPE, QUESTION_PART, ROOT_PART, SKIP_PART,
     };
     use crate::events::ActionRef;
     use std::cell::RefCell;
@@ -373,6 +432,9 @@ mod wiring {
     /// `target` から `root`（含む）まで祖先方向へ辿り、back/next/skip の
     /// いずれかに一致する最初の要素と、対応する dispatch アクション名を
     /// 返す（[`super::trigger_action`] の allowlist 判定を各祖先へ適用）。
+    /// 一致した要素が `data-action` を持つ場合は、アプリが手動配線を
+    /// 明示的に選んだものとして自動配線を諦める（[`super::trigger_action`]
+    /// rustdoc 参照。祖先探索は継続しない）。
     fn resolve_trigger(root: &Element, start: &Element) -> Option<(Element, &'static str)> {
         let mut current = Some(start.clone());
         while let Some(element) = current {
@@ -381,7 +443,10 @@ mod wiring {
             }
             let scope = element.get_attribute("data-scope");
             let part = element.get_attribute("data-part");
-            if let Some(action) = trigger_action(scope.as_deref(), part.as_deref()) {
+            let has_explicit_action = element.has_attribute("data-action");
+            if let Some(action) =
+                trigger_action(scope.as_deref(), part.as_deref(), has_explicit_action)
+            {
                 return Some((element, action));
             }
             if element == *root {
@@ -616,7 +681,17 @@ mod wiring {
 
         let _ = write_questionnaire(&instance_root, &before, &questionnaire);
         if let Some(notif) = notification_action(action) {
-            notify_action(notif, &before.step().to_string(), on_action);
+            // インスタンス root の `id` 属性を安定なインスタンス識別子として
+            // 通知へ含める（イシュー #2118 PR #2286 codex-review P1 指摘。
+            // 未設定時は空文字列 — 単一インスタンスのアプリはこれまでどおり
+            // 空の識別子で動作し、複数インスタンスを区別したいアプリは
+            // root へ `id` を設定する契約とする。`id` はアプリが authoring
+            // 時に付与する属性でありクライアント改ざん入力ではないため、
+            // そのまま通知へ転記して構わない（HTML/セレクタとしては解釈
+            // しない、不透明な文字列として扱う）。
+            let instance_id = instance_root.get_attribute("id").unwrap_or_default();
+            let payload = encode_notification_payload(before.step(), &instance_id);
+            notify_action(notif, &payload, on_action);
         }
     }
 
@@ -663,24 +738,46 @@ mod tests {
     #[test]
     fn trigger_action_matches_back_next_skip_exact_scope() {
         assert_eq!(
-            trigger_action(Some("questionnaire"), Some("back")),
+            trigger_action(Some("questionnaire"), Some("back"), false),
             Some("prev")
         );
         assert_eq!(
-            trigger_action(Some("questionnaire"), Some("next")),
+            trigger_action(Some("questionnaire"), Some("next"), false),
             Some("next")
         );
         assert_eq!(
-            trigger_action(Some("questionnaire"), Some("skip")),
+            trigger_action(Some("questionnaire"), Some("skip"), false),
             Some("skip")
         );
     }
 
     #[test]
     fn trigger_action_rejects_wrong_scope_or_unknown_part() {
-        assert_eq!(trigger_action(Some("steps"), Some("next")), None);
-        assert_eq!(trigger_action(Some("questionnaire"), Some("root")), None);
-        assert_eq!(trigger_action(None, None), None);
+        assert_eq!(trigger_action(Some("steps"), Some("next"), false), None);
+        assert_eq!(
+            trigger_action(Some("questionnaire"), Some("root"), false),
+            None
+        );
+        assert_eq!(trigger_action(None, None, false), None);
+    }
+
+    #[test]
+    fn trigger_action_yields_to_explicit_data_action() {
+        // `data-action` を明示的に持つ back/next/skip は、アプリが手動配線
+        // （`events::wire_events`）を選んだものとみなし自動配線を諦める
+        // （イシュー #2118 PR #2286 codex-review P1 指摘、二重遷移回帰）。
+        assert_eq!(
+            trigger_action(Some("questionnaire"), Some("back"), true),
+            None
+        );
+        assert_eq!(
+            trigger_action(Some("questionnaire"), Some("next"), true),
+            None
+        );
+        assert_eq!(
+            trigger_action(Some("questionnaire"), Some("skip"), true),
+            None
+        );
     }
 
     // --- notification_action ---
@@ -692,6 +789,47 @@ mod tests {
         assert_eq!(notification_action("skip"), Some(ACTION_SKIP));
         assert_eq!(notification_action("goto"), None);
         assert_eq!(notification_action("bogus"), None);
+    }
+
+    // --- encode_notification_payload / decode_notification_payload ---
+
+    #[test]
+    fn notification_payload_round_trips_with_instance_id() {
+        let encoded = encode_notification_payload(2, "qn-instance-a");
+        assert_eq!(encoded, "2|qn-instance-a");
+        assert_eq!(
+            decode_notification_payload(&encoded),
+            Some((2, "qn-instance-a"))
+        );
+    }
+
+    #[test]
+    fn notification_payload_round_trips_with_empty_instance_id() {
+        // 単一インスタンスのアプリは root へ `id` を設定しない想定
+        // （後方互換: 空文字列の識別子として動作する）。
+        let encoded = encode_notification_payload(0, "");
+        assert_eq!(encoded, "0|");
+        assert_eq!(decode_notification_payload(&encoded), Some((0, "")));
+    }
+
+    #[test]
+    fn notification_payload_decode_rejects_missing_separator() {
+        assert_eq!(decode_notification_payload("2"), None);
+        assert_eq!(decode_notification_payload(""), None);
+    }
+
+    #[test]
+    fn notification_payload_decode_rejects_non_numeric_step() {
+        assert_eq!(decode_notification_payload("abc|qn-instance-a"), None);
+    }
+
+    #[test]
+    fn notification_payload_instance_id_may_contain_separator() {
+        // `step` を先頭に置く設計により、`instance_id` 自体に `|` が
+        // 含まれていても `split_once` は最初の `|` で分割するため
+        // `step` 側の解釈は曖昧にならない。
+        let encoded = encode_notification_payload(1, "a|b");
+        assert_eq!(decode_notification_payload(&encoded), Some((1, "a|b")));
     }
 
     // --- questionnaire_from_display_attrs（fail-closed） ---

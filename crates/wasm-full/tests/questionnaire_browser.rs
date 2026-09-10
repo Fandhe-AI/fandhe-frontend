@@ -241,7 +241,9 @@ async fn next_click_advances_step_and_updates_dom() {
 
     assert_eq!(actions.borrow().len(), 1);
     assert_eq!(actions.borrow()[0].action, "questionnaire:next");
-    assert_eq!(actions.borrow()[0].payload, "0");
+    // payload は "{遷移前の step}|{instance root の id}"（イシュー #2118
+    // PR #2286 codex-review P1 指摘: 複数インスタンス識別）。
+    assert_eq!(actions.borrow()[0].payload, "0|qn-next");
 }
 
 // --- 検証: prev クリックで back が再度 disabled になること ------------
@@ -311,7 +313,7 @@ async fn skip_click_advances_step_and_notifies_skip_action() {
 
     assert_eq!(actions.borrow().len(), 1);
     assert_eq!(actions.borrow()[0].action, "questionnaire:skip");
-    assert_eq!(actions.borrow()[0].payload, "1");
+    assert_eq!(actions.borrow()[0].payload, "1|qn-skip");
 }
 
 // --- 検証: 完了到達と、そこからの back による完了解除 -------------------
@@ -635,8 +637,12 @@ async fn two_instances_in_same_container_are_independent() {
     let root_a = root_element(&container, "qn-instance-a");
     let root_b = root_element(&container, "qn-instance-b");
 
-    wire_questionnaire_events(container.clone(), |_action_ref| {})
-        .expect("wire_questionnaire_events must not fail");
+    let actions = std::rc::Rc::new(std::cell::RefCell::new(Vec::<ActionRef>::new()));
+    let actions_clone = actions.clone();
+    wire_questionnaire_events(container.clone(), move |action_ref| {
+        actions_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_questionnaire_events must not fail");
 
     part_element(&root_a, "next")
         .dispatch_event(&synthetic_click())
@@ -648,6 +654,23 @@ async fn two_instances_in_same_container_are_independent() {
     .await;
 
     assert_eq!(root_b.get_attribute("data-step").as_deref(), Some("0"));
+
+    part_element(&root_b, "next")
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+
+    wait_for("instance B data-step to become 1", || {
+        root_b.get_attribute("data-step").as_deref() == Some("1")
+    })
+    .await;
+
+    // 通知 payload のインスタンス識別子（`instance root` の `id`）が
+    // クリックしたインスタンスごとに異なることを確認する（イシュー #2118
+    // PR #2286 codex-review P1 指摘: 通知だけではどのインスタンスの
+    // 遷移か判別できなかった不具合の回帰防止）。
+    assert_eq!(actions.borrow().len(), 2);
+    assert_eq!(actions.borrow()[0].payload, "0|qn-instance-a");
+    assert_eq!(actions.borrow()[1].payload, "0|qn-instance-b");
 }
 
 // --- 検証: `Runtime::hydrate` 統合（`questionnaire:next` 通知後の束縛点
@@ -744,6 +767,20 @@ mod runtime_dirty_rerender {
         }
 
         fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+            // `questionnaire::wiring::notify_action` は `C` 側の名前空間衝突
+            // 回避のため `"questionnaire:"` で修飾したアクション名
+            // （`ACTION_PREV`/`ACTION_NEXT`/`ACTION_SKIP`）を通知する
+            // （questionnaire.rs モジュール冒頭「`headless::MAPPING_TABLE` へ
+            // 登録しない理由」節参照）。一方 `Questionnaire::decode_action`
+            // 自身は他コンポーネントからも同じ語彙で再利用可能であることを
+            // 意図し、修飾なしの `"prev"`/`"next"`/`"skip"` のみを受理する
+            // （wasm-full 内部の DOM 追跡用エフェメラル `Questionnaire` の
+            // dispatch も同じ修飾なし語彙を使う、questionnaire.rs
+            // `handle_click` 参照）。このためアプリ側 `Component` が
+            // `Questionnaire::decode_action` へそのまま委譲する構成では、
+            // 通知された修飾済みアクション名を委譲前に剥がす必要がある
+            // （Bugbot/cursor 指摘、イシュー #2118 PR #2286 レビュー）。
+            let name = name.strip_prefix("questionnaire:").unwrap_or(name);
             Questionnaire::decode_action(name, payload)
         }
     }

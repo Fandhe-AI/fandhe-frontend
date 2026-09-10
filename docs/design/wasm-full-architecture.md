@@ -1483,13 +1483,30 @@ dispatch される（`sidebar` が `"toggle"` 共有を理由にオプトイン 
 **`questionnaire` の back/next/skip は §12.3 の表に登録しない（本節
 参照）**。
 
+`TRIGGER_RESERVED`（`crates/headless-ui/src/questionnaire.rs`）は
+`"type"`/`"disabled"`/`"data-disabled"` のみを予約し `"data-action"` を
+落とさないため、アプリは back/next/skip へ `data-action` を明示的に
+付与して `events::wire_events` の汎用配線（`closest("[data-action]")` →
+`C::decode_action`）に委ねることもできる。この場合、本モジュールの
+自動配線が同じクリックへ反応すると `root` へ登録された 2 個のクリック
+リスナーが二重に状態を進める（イシュー #2118 PR #2286 codex-review P1
+指摘）。`trigger_action`（`resolve_trigger` から渡される
+`has_explicit_action`）は一致した要素自身が `data-action` を持つ場合
+`None` を返し、この二重遷移を防ぐ。
+
 ### 27.3 アプリ状態 `C` への通知（`questionnaire:*`）
 
 状態遷移が実際に起きた（before ≠ after）場合のみ、`on_action` 経由で
 `C` へ `"questionnaire:prev"`/`"questionnaire:next"`/`"questionnaire:skip"`
 （`headless_timer` の `"timer:*"` 先例と同型）を通知する。payload は
-**遷移前の `step`**（10 進文字列）。headless-ui は「どの質問をスキップ
-したか」を保持しない設計のため、アプリはこの通知で
+`encode_notification_payload`（`crates/wasm-full/src/questionnaire.rs`）で
+`"{遷移前の step}|{instance root の id 属性値（未設定時は空文字列）}"`へ
+エンコードし、アプリは `decode_notification_payload` で分割する。`step`
+を先頭に置くのは `step` が区切り文字 `|` を含み得ない `usize` の 10 進
+文字列であるのに対し `instance_id` はアプリが任意の文字列を設定できる
+ため（同一 `root` 配下の複数インスタンスを通知だけで判別できなかった
+不具合、イシュー #2118 PR #2286 codex-review P1 指摘）。headless-ui は
+「どの質問をスキップしたか」を保持しない設計のため、アプリはこの通知で
 `QuestionProps::skipped`/`answered` を自身の状態へ記録できる。境界での
 no-op click（例: 完了状態で next）は DOM も書かず通知もしない（アプリが
 「起きていないスキップ」を記録しないための fail-closed）。

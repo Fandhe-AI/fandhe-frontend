@@ -39,7 +39,8 @@ fn public_constants_are_reachable_from_outside_the_crate() {
 #[test]
 fn next_trigger_action_dispatch_advances_step() {
     let mut q = Questionnaire::new(3, 0, Orientation::Horizontal);
-    let action = trigger_action(Some("questionnaire"), Some("next")).expect("next must resolve");
+    let action =
+        trigger_action(Some("questionnaire"), Some("next"), false).expect("next must resolve");
     assert!(dispatch(&mut q, action, ""));
     assert_eq!(q.step(), 1);
 }
@@ -47,7 +48,8 @@ fn next_trigger_action_dispatch_advances_step() {
 #[test]
 fn prev_trigger_action_dispatch_retreats_step() {
     let mut q = Questionnaire::new(3, 1, Orientation::Horizontal);
-    let action = trigger_action(Some("questionnaire"), Some("back")).expect("back must resolve");
+    let action =
+        trigger_action(Some("questionnaire"), Some("back"), false).expect("back must resolve");
     assert!(dispatch(&mut q, action, ""));
     assert_eq!(q.step(), 0);
 }
@@ -55,7 +57,8 @@ fn prev_trigger_action_dispatch_retreats_step() {
 #[test]
 fn skip_trigger_action_dispatch_advances_step_same_as_next() {
     let mut q = Questionnaire::new(3, 1, Orientation::Horizontal);
-    let action = trigger_action(Some("questionnaire"), Some("skip")).expect("skip must resolve");
+    let action =
+        trigger_action(Some("questionnaire"), Some("skip"), false).expect("skip must resolve");
     assert!(dispatch(&mut q, action, ""));
     assert_eq!(q.step(), 2);
 }
@@ -64,7 +67,8 @@ fn skip_trigger_action_dispatch_advances_step_same_as_next() {
 fn next_at_boundary_is_a_dispatch_noop_transition() {
     let mut q = Questionnaire::new(2, 2, Orientation::Horizontal);
     let before = q;
-    let action = trigger_action(Some("questionnaire"), Some("next")).expect("next must resolve");
+    let action =
+        trigger_action(Some("questionnaire"), Some("next"), false).expect("next must resolve");
     // headless-ui の `decode_action` は境界であっても `Some` を返すため
     // dispatch 自体は成功する（`true`）が、状態は変化しない
     // （モジュール冒頭「アプリ状態 `C` への通知」節の no-op 判定根拠）。
@@ -77,7 +81,7 @@ fn next_at_boundary_is_a_dispatch_noop_transition() {
 #[test]
 fn notification_action_covers_every_trigger_action_output() {
     for part in ["back", "next", "skip"] {
-        let action = trigger_action(Some("questionnaire"), Some(part))
+        let action = trigger_action(Some("questionnaire"), Some(part), false)
             .unwrap_or_else(|| panic!("{part} must resolve to a dispatch action"));
         assert!(
             notification_action(action).is_some(),
