@@ -561,6 +561,20 @@ pre-styled-ui recipe・Themes ページは後続 #2115 のスコープのため�
 （`tests/wrap_state.rs`）から `marker` を除外して `WRAPPED_SAME_NAME` へ
 移した。Themes は 119→**120** 部品となる（Primitives 72 部品は不変）。
 
+**追記(イシュー #2117)**: shadcn/ui のみに存在する `questionnaire`
+（Questionnaire、参照軸 #2001）を Forms B カテゴリの `pin_input` の後
+（`radio_group` の前）に追加する。headless-ui 層のみを先行実装し
+pre-styled-ui recipe・Themes ページは後続 #2119 のスコープのため、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）へ `questionnaire` を追加した。現在の実カテゴリ
+内訳は Forms B 12・6 グループ**合計 72→73**であり、§6 のコード導出は
+**部品 73 件**（headless-ui `crates/headless-ui/src/*.rs` 総数
+**83** = 部品 73 + 基盤 9 + `lib.rs`）との一致は
+`crates/docs-site/tests/primitives_catalog.rs::catalog_has_72_entries_in_six_categories_in_spec_order`
+/ `module_counts_are_consistent_with_the_source_tree` が機械検査する
+（本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
+正とする）。
+
 ## 8. `component-coverage-map.md` との関係
 
 `docs/design/component-coverage-map.md` は ark-ui / chakra-ui / Radix の

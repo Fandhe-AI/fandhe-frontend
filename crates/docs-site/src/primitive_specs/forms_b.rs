@@ -1,5 +1,6 @@
-//! Primitives（`fandhe-frontend-headless-ui`）Forms B カテゴリ（入力系 11
-//! 部品）原稿データ（イシュー #1025、親 #1030、トラッキング #1035）。
+//! Primitives（`fandhe-frontend-headless-ui`）Forms B カテゴリ（入力系 12
+//! 部品。イシュー #2117 で `questionnaire` を追加、旧 11）原稿データ
+//! （イシュー #1025、親 #1030、トラッキング #1035）。
 //!
 //! # 役割・呼び出し文脈
 //!
@@ -82,9 +83,11 @@
 use fandhe_frontend_core::{code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::data_attrs::Orientation;
+use hui::field::{self, FieldIds, FieldProps};
 use hui::number_input::{self, NumberInputFlags};
 use hui::password_input::{self, PasswordAutocomplete, PasswordInputProps};
 use hui::pin_input::{self, PinInputKind, PinInputProps};
+use hui::questionnaire::QuestionProps;
 use hui::radio_group;
 use hui::rating_group::{self, RatingGroupProps, RatingItemFlags};
 use hui::segment_group;
@@ -93,11 +96,11 @@ use hui::signature_pad;
 use hui::slider;
 use hui::switch::{self, SwitchProps};
 use hui::tags_input::{self, TagItem, TagsInputProps};
-use hui::OpenState;
+use hui::{OpenState, Questionnaire};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
-/// Forms B 11 ページの `path -> ComponentPageSpec` テーブル。順序は
+/// Forms B 12 ページの `path -> ComponentPageSpec` テーブル。順序は
 /// `crate::primitives_catalog` の `PrimitiveCategory::FormsB` 台帳順
 /// （`crates/docs-site/src/primitives_catalog.rs` 参照）に合わせる。
 /// [`crate::primitive_specs::SPEC_TABLES`] が集約する。
@@ -105,6 +108,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/number-input/", NUMBER_INPUT),
     ("/primitives/password-input/", PASSWORD_INPUT),
     ("/primitives/pin-input/", PIN_INPUT),
+    ("/primitives/questionnaire/", QUESTIONNAIRE),
     ("/primitives/radio-group/", RADIO_GROUP),
     ("/primitives/rating-group/", RATING_GROUP),
     ("/primitives/segment-group/", SEGMENT_GROUP),
@@ -288,6 +292,52 @@ const PIN_INPUT: ComponentPageSpec = ComponentPageSpec {
         AriaRow { attribute: "data-index (input)", description: "0-origin の桁インデックス（ark-ui/Radix 双方が持つ語彙、イシュー #1615）。" },
         AriaRow { attribute: "data-filled (input)", description: "当該桁の値が非空のときのみの存在属性（イシュー #1615）。" },
         AriaRow { attribute: "data-complete", description: "全桁充足時のみの存在属性。`root`/`label`/`input` が共有する。" },
+    ],
+    demo: None,
+};
+
+/// 一次情報: `crates/headless-ui/src/questionnaire.rs`（モジュール doc
+/// 全体、`QuestionProps` 構造体、`Questionnaire` の各パーツメソッド。
+/// イシュー #2117、親 #2116、祖父 #2057、shadcn/ui `Questionnaire` 相当、
+/// 参照軸 #2001）。
+const QUESTIONNAIRE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "Root / Progress / Question / Prompt / Description / Options / Freeform / Actions / Back / Next / Skip の 11 anatomy パーツと、`count`/`step` から質問の表示状態を導出する状態機械 `Questionnaire` を提供する（`crate::steps::Steps` と同型の正規化・dispatch 契約）。",
+        "回答値の保持・検証（必須判定）・分岐・送信はアプリケーション責務であり本クレートは持たない。`next`/`skip` の `data-disabled` は、必須判定の結果（真偽）だけを引数として受け取る（`.claude/rules/coding-rust.md` §UI 部品の責務境界 規則 1）。",
+        "`question` の `data-state`（`active`/`completed`/`upcoming`）は `count`/`step`/`index` から導出する。非 active な質問は `hidden` 属性で隠す（`crate::steps::Steps::content` と同型契約）。",
+        "選択肢は `options` スロットへ `radio_group`/`checkbox_group` のパーツを、自由記述は `freeform` スロットへ `field::textarea` を入れ子にする契約（両者の `data-scope` は questionnaire scope と独立して残る）。",
+        "`Skip` は状態遷移としては `Next` と同一（`min(step + 1, count)`）であり、「どの質問をスキップしたか」は `QuestionProps::skipped` として呼び出し側が保持する。",
+    ],
+    arguments: &[
+        ArgRow { name: "new(count, step, orientation)", kind: "usize, usize, Orientation", default: "", description: "`count.max(1)`・`step.min(count)` で fail-closed 正規化する。" },
+        ArgRow { name: "progress(label)", kind: "&str", default: "\"\"", description: "空文字でないときのみ `aria-label` を付与する（shadcn「named progressbar」）。" },
+        ArgRow { name: "question(index)", kind: "usize", default: "", description: "0-origin の質問インデックス（`data-index`・`data-state` 導出に使う）。" },
+        ArgRow { name: "question(props)", kind: "QuestionProps", default: "QuestionProps::default()", description: "`answered`/`skipped`/`required`/`invalid` の 4 存在属性。`invalid` は `aria-invalid=\"true\"` も付与する。" },
+        ArgRow { name: "back(disabled)", kind: "bool", default: "false", description: "`step == 0` との OR で `disabled`+`data-disabled` を決める。" },
+        ArgRow { name: "next/skip(disabled)", kind: "bool", default: "false", description: "`step == count` との OR で `disabled`+`data-disabled` を決める（責務境界規則 1: 必須判定の結果だけを渡す）。" },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Single choice question",
+            description: "options スロットへ `radio_group` を入れ子にした単一選択の質問。",
+            render: ex_questionnaire_single_choice,
+        },
+        ExampleEntry {
+            title: "Freeform question (invalid)",
+            description: "freeform スロットへ `field::textarea` を入れ子にし、`QuestionProps::invalid` で `data-invalid`/`aria-invalid=\"true\"` を露出する。",
+            render: ex_questionnaire_freeform,
+        },
+    ],
+    keyboard: &[
+        KeyRow { key: "Tab / Shift+Tab", description: "back/next/skip はネイティブ `button` のため既定のタブ操作を継承する。非 active な質問は `hidden` 属性により Tab 到達不能。" },
+        KeyRow { key: "Enter / Space", description: "フォーカス中の back/next/skip ボタンを押下する（ネイティブ `button` の既定動作）。" },
+        KeyRow { key: "（実 DOM 配線）", description: "back/next/skip の click から dispatch（`\"prev\"`/`\"next\"`/`\"skip\"`）への実配線は `fandhe-frontend-wasm-full` 側の責務であり、本クレートのスコープ外（後続イシュー #2118）。" },
+    ],
+    aria: &[
+        AriaRow { attribute: "role=\"progressbar\" (progress)", description: "`aria-valuemin`/`aria-valuemax`/`aria-valuenow`/`aria-valuetext` を併せて出力する。" },
+        AriaRow { attribute: "aria-invalid (question)", description: "`QuestionProps::invalid` が `true` のときのみ `\"true\"` を出力する（valid のときは属性自体を省略する）。" },
+        AriaRow { attribute: "hidden (question)", description: "非 active な質問へ付与し、支援技術・タブ操作の双方から除外する。" },
+        AriaRow { attribute: "disabled / data-disabled (back/next/skip)", description: "境界（`step == 0`/`step == count`）または呼び出し側の判定結果で活性化を抑止する。" },
     ],
     demo: None,
 };
@@ -1204,6 +1254,153 @@ fn ex_pin_input_custom_css() -> Node {
         "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
         vec![demo, snippet],
     )
+}
+
+/// `questionnaire::questionnaire` Example 1: options スロットへ
+/// `radio_group` を入れ子にした単一選択の質問（イシュー #2117）。回答値の
+/// 保持はアプリ責務のため、初期表示状態（`checked`/`answered`）のみを
+/// 静的に示す。ネイティブ `name` 属性は同じ部品ページの Demo セクション
+/// （`primitive_showcase::forms_b::questionnaire_section`）が `"like-rust"`
+/// を使うため、同一ページ上での意図しないグループ共有（一方選択で他方が
+/// クリアされる、Cursor Bugbot 指摘 PR #2279）を避けて `"like-rust-example"`
+/// を使う。
+fn ex_questionnaire_single_choice() -> Node {
+    let q = Questionnaire::new(3, 1, Orientation::Horizontal);
+    let radio_props = radio_group::RadioGroupProps::default();
+    let body = vec![q.root(
+        vec![],
+        vec![
+            q.progress("Questionnaire progress", vec![], vec![]),
+            q.question(
+                1,
+                QuestionProps {
+                    answered: true,
+                    ..Default::default()
+                },
+                vec![],
+                vec![
+                    q.prompt(
+                        vec![("id", "questionnaire-single-choice-prompt")],
+                        vec![text("Do you like Rust?")],
+                    ),
+                    q.description(vec![], vec![text("Pick one.")]),
+                    q.options(
+                        vec![],
+                        vec![radio_group::root(
+                            &radio_props,
+                            None,
+                            Some("questionnaire-single-choice-prompt"),
+                            vec![],
+                            vec![
+                                radio_group::item(
+                                    true,
+                                    &radio_props,
+                                    "yes",
+                                    vec![],
+                                    vec![
+                                        radio_group::item_control(true, &radio_props, vec![]),
+                                        radio_group::item_text(
+                                            true,
+                                            &radio_props,
+                                            vec![],
+                                            vec![text("Yes")],
+                                        ),
+                                        radio_group::item_hidden_input(
+                                            true,
+                                            &radio_props,
+                                            Some("like-rust-example"),
+                                            "yes",
+                                            vec![],
+                                        ),
+                                    ],
+                                ),
+                                radio_group::item(
+                                    false,
+                                    &radio_props,
+                                    "no",
+                                    vec![],
+                                    vec![
+                                        radio_group::item_control(false, &radio_props, vec![]),
+                                        radio_group::item_text(
+                                            false,
+                                            &radio_props,
+                                            vec![],
+                                            vec![text("No")],
+                                        ),
+                                        radio_group::item_hidden_input(
+                                            false,
+                                            &radio_props,
+                                            Some("like-rust-example"),
+                                            "no",
+                                            vec![],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        )],
+                    ),
+                    q.actions(
+                        vec![],
+                        vec![
+                            q.back(false, vec![], vec![text("Back")]),
+                            q.next(false, vec![], vec![text("Next")]),
+                            q.skip(false, vec![], vec![text("Skip")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )];
+    div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// `questionnaire::questionnaire` Example 2: freeform スロットへ
+/// `field::textarea` を入れ子にした自由記述の質問。`QuestionProps::invalid`
+/// で `data-invalid`/`aria-invalid="true"` を露出し、`next` を
+/// `disabled: true`（必須判定の結果、アプリが渡す）で無効化する
+/// （責務境界規則 1）。
+fn ex_questionnaire_freeform() -> Node {
+    let q = Questionnaire::new(3, 1, Orientation::Horizontal);
+    let field_props = FieldProps {
+        id: "questionnaire-freeform-answer",
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let body = vec![q.root(
+        vec![],
+        vec![q.question(
+            1,
+            QuestionProps {
+                required: true,
+                invalid: true,
+                ..Default::default()
+            },
+            vec![],
+            vec![
+                q.prompt(vec![], vec![text("What could we improve?")]),
+                q.freeform(
+                    vec![],
+                    vec![
+                        field::label(&field_props, vec![], vec![text("Your answer")]),
+                        field::textarea(&field_props, false, vec![], vec![]),
+                    ],
+                ),
+                q.actions(
+                    vec![],
+                    vec![
+                        q.back(false, vec![], vec![text("Back")]),
+                        q.next(true, vec![], vec![text("Next")]),
+                        q.skip(false, vec![], vec![text("Skip")]),
+                    ],
+                ),
+            ],
+        )],
+    )];
+    div(vec![("class", "primitives-demo-frame")], body)
 }
 
 fn ex_radio_group_vertical_disabled() -> Node {
