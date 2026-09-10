@@ -1,11 +1,12 @@
 //! Primitives 部品ページ原稿の充填（イシュー #1029、Data Display /
-//! Utilities 15 部品。イシュー #2114 で `marker`・イシュー #2111 で
+//! Utilities 16 部品。イシュー #2125 で `data_table`・イシュー #2114 で
+//! `marker`・イシュー #2111 で
 //! `attachment`・イシュー #2108 で
 //! `bubble`・イシュー #2105 で
 //! `message`・イシュー #2065 で `item` 追加、当初 10）を検証する
 //! 統合テスト。
 //!
-//! 対象は本カテゴリの 15 パスのみ（`tests/component_pages.rs`/
+//! 対象は本カテゴリの 16 パスのみ（`tests/component_pages.rs`/
 //! `tests/primitive_showcase.rs` は共有ファイルのため触らず、本イシュー
 //! 専用の検証は本ファイルへ切り出す。`tests/primitive_specs_overlay_disclosure.rs`
 //! （#1027）と同型の構成）。
@@ -38,6 +39,7 @@ const PATHS: &[&str] = &[
     "/primitives/avatar/",
     "/primitives/bubble/",
     "/primitives/carousel/",
+    "/primitives/data-table/",
     "/primitives/item/",
     "/primitives/json-tree-view/",
     "/primitives/marker/",

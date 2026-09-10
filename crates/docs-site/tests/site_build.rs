@@ -220,10 +220,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 222 → 223 になった。イシュー #2090 で sidebar-07 が加わり、
     // 223 → 224 になった。イシュー #2091 で sidebar-03 が加わり、
     // 224 → 225 になった。イシュー #2094 で signup-01 が加わり、
-    // 225 → 226 になった。
+    // 225 → 226 になった。イシュー #2125 で Data Table（Primitives）が
+    // 加わり、226 → 227 になった。
     assert_eq!(
         report.written.len(),
-        226,
+        227,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -293,6 +294,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 索引 1 件 = 72 件になった。イシュー #2114 で Marker が加わり
     // 部品 72 件 + 索引 1 件 = 73 件になった。イシュー #2117 で
     // Questionnaire が加わり部品 73 件 + 索引 1 件 = 74 件になった。
+    // イシュー #2125 で Data Table が加わり部品 74 件 + 索引 1 件 =
+    // 75 件になった。
     let primitives_dir = out.0.join("primitives");
     let primitive_pages = report
         .written
@@ -300,8 +303,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&primitives_dir))
         .count();
     assert_eq!(
-        primitive_pages, 74,
-        "/primitives/ 配下の生成ページ数（部品 73 件 + 索引 1 件）"
+        primitive_pages, 75,
+        "/primitives/ 配下の生成ページ数（部品 74 件 + 索引 1 件）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /
@@ -538,9 +541,9 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
     // Button Group・イシュー #2062 で Input Group・イシュー #2065 で Item・
     // イシュー #2068 で Command・イシュー #2105 で Message・イシュー #2108 で
     // Bubble・イシュー #2111 で Attachment・イシュー #2114 で Marker・
-    // イシュー #2117 で Questionnaire が
+    // イシュー #2117 で Questionnaire・イシュー #2125 で Data Table が
     // それぞれ加わり
-    // 63 → 65 → 66 → 67 → 69 → 70 → 71 → 72 → 73 部品）。
+    // 63 → 65 → 66 → 67 → 69 → 70 → 71 → 72 → 73 → 74 部品）。
     let primitives_html = std::fs::read_to_string(out.0.join("primitives/accordion/index.html"))
         .expect("read generated primitives/accordion/index.html");
     let primitives_window = sidebar_window(&primitives_html);
@@ -563,8 +566,8 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
         .matches("/fandhe-frontend/primitives/")
         .count();
     assert_eq!(
-        primitives_link_count, 74,
-        "Primitives サイドバーのリンク数が索引 1 + 部品 73 = 74 件と一致しない: {primitives_window}"
+        primitives_link_count, 75,
+        "Primitives サイドバーのリンク数が索引 1 + 部品 74 = 75 件と一致しない: {primitives_window}"
     );
 }
 

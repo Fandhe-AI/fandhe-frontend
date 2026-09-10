@@ -201,23 +201,28 @@ fn foundation_modules_do_not_call_anatomy() {
 /// `bubble` が加わり PRIMITIVES は 69 → 70、総数は 79 → 80 になった。
 /// イシュー #2111 で `attachment` が加わり PRIMITIVES は 70 → 71、
 /// 総数は 80 → 81 になった。イシュー #2114 で `marker` が加わり
-/// PRIMITIVES は 71 → 72、総数は 81 → 82 になった。
+/// PRIMITIVES は 71 → 72、総数は 81 → 82 になった。イシュー #2117 で
+/// `questionnaire` が加わり PRIMITIVES は 72 → 73、総数は 82 → 83 に
+/// なった。イシュー #2125 で `data_table` が加わり PRIMITIVES は 73 → 74、
+/// 総数は 83 → 84 になった。
 #[test]
 fn module_counts_are_consistent_with_the_source_tree() {
     let scan = scan_headless_ui_src(&headless_ui_src_dir());
 
-    assert_eq!(PRIMITIVES.len(), 73);
+    assert_eq!(PRIMITIVES.len(), 74);
     assert_eq!(FOUNDATION_MODULES.len(), 9);
     assert_eq!(
         PRIMITIVES.len() + FOUNDATION_MODULES.len() + 1,
         scan.total_rs_files,
-        "PRIMITIVES(73) + FOUNDATION_MODULES(9) + lib.rs(1) が \
+        "PRIMITIVES(74) + FOUNDATION_MODULES(9) + lib.rs(1) が \
          crates/headless-ui/src/*.rs の実測総数({})と一致しません",
         scan.total_rs_files
     );
 }
 
-/// 受け入れ条件 4: 6 グループ 13/12/10/10/13/15 = 73（イシュー #2117 で
+/// 受け入れ条件 4: 6 グループ 13/12/10/10/13/16 = 74（イシュー #2125 で
+/// Data Display / Utilities に `data_table` を追加、旧 13/12/10/10/13/15 = 73。
+/// イシュー #2117 で
 /// Forms B に `questionnaire` を追加、旧 13/11/10/10/13/15 = 72。
 /// イシュー #2114 で
 /// Data Display / Utilities に `marker` を追加、旧 13/11/10/10/13/14 =
@@ -332,6 +337,7 @@ fn category_counts_and_order_follow_the_design_spec() {
                 "avatar",
                 "bubble",
                 "carousel",
+                "data_table",
                 "item",
                 "json_tree_view",
                 "marker",
@@ -348,7 +354,7 @@ fn category_counts_and_order_follow_the_design_spec() {
     ];
 
     let expected_total: usize = spec.iter().map(|(_, modules)| modules.len()).sum();
-    assert_eq!(expected_total, 73);
+    assert_eq!(expected_total, 74);
 
     let actual_modules_in_order: Vec<&str> = PRIMITIVES.iter().map(|e| e.module).collect();
     let expected_modules_in_order: Vec<&str> = spec

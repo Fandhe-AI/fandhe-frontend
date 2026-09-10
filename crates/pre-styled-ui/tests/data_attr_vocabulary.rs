@@ -33,9 +33,11 @@ use fandhe_frontend_headless_ui::attachment::{
 use fandhe_frontend_headless_ui::bubble::{
     self, BubbleGroupPosition, BubbleRootProps, BubbleVariant,
 };
+use fandhe_frontend_headless_ui::checkbox::CheckedState;
 use fandhe_frontend_headless_ui::data_attrs::{
     data_orientation, Orientation as ScrollAreaOrientation,
 };
+use fandhe_frontend_headless_ui::data_table::{ColumnHeaderProps, ColumnProps, SortDirection};
 use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use fandhe_frontend_headless_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use fandhe_frontend_headless_ui::progress::Progress;
@@ -2062,4 +2064,110 @@ fn questionnaire_root_question_and_trigger_vocabulary_is_fixed() {
     let skip_html = render(&at_end.skip(false, vec![], vec![]));
     assert!(skip_html.contains("disabled"));
     assert!(skip_html.contains("data-disabled"));
+}
+
+/// headless `data_table`（イシュー #2125）が出力する `aria-sort`/
+/// `data-sort`（4 値）・`data-column`・`hidden`+`data-hidden`・
+/// `data-state`（checked/unchecked/indeterminate）・`data-selected`・
+/// `data-loading`+`aria-busy`・`data-empty`・`sort-trigger` の
+/// `data-value` の語彙をレンダリング結果で直接固定する（Themes 経路
+/// 〔#2127〕が pre-styled `table::*` の attrs へパススルーする前提となる
+/// 出力契約。本クレートは headless-ui へ依存する側であり、依存先の出力
+/// が意図せず変わっていないかをここで検知する）。
+#[test]
+fn data_table_sort_column_selection_and_state_vocabulary_is_fixed() {
+    use fandhe_frontend_headless_ui::DataTable;
+
+    // aria-sort/data-sort の 4 値。
+    for (dir, expected) in [
+        (SortDirection::None, "none"),
+        (SortDirection::Ascending, "ascending"),
+        (SortDirection::Descending, "descending"),
+        (SortDirection::Other, "other"),
+    ] {
+        let column = ColumnProps {
+            id: "name",
+            hidden: false,
+        };
+        let props = ColumnHeaderProps {
+            column,
+            sort: Some(dir),
+        };
+        let th = fandhe_frontend_core::el(
+            "th",
+            fandhe_frontend_headless_ui::data_table::column_header_attrs(&props),
+            vec![],
+        );
+        let html = render(&th);
+        assert!(html.contains(&format!(r#"aria-sort="{expected}""#)));
+        assert!(html.contains(&format!(r#"data-sort="{expected}""#)));
+    }
+
+    // data-column、hidden + data-hidden の併出力。
+    let hidden_column = ColumnProps {
+        id: "email",
+        hidden: true,
+    };
+    let td = fandhe_frontend_core::el(
+        "td",
+        fandhe_frontend_headless_ui::data_table::column_attrs(&hidden_column),
+        vec![],
+    );
+    let hidden_html = render(&td);
+    assert!(hidden_html.contains(r#"data-column="email""#));
+    assert!(hidden_html.contains("hidden"));
+    assert!(hidden_html.contains("data-hidden"));
+
+    // select-all/select-row の data-state 3 値。
+    for (state, expected) in [
+        (CheckedState::Unchecked, "unchecked"),
+        (CheckedState::Checked, "checked"),
+        (CheckedState::Indeterminate, "indeterminate"),
+    ] {
+        let select_all_html = render(&DataTable::select_all(state, vec![], vec![]));
+        assert!(select_all_html.contains(&format!(r#"data-state="{expected}""#)));
+        let select_row_html = render(&DataTable::select_row(state, vec![], vec![]));
+        assert!(select_row_html.contains(&format!(r#"data-state="{expected}""#)));
+    }
+
+    // data-selected（row_attrs）。
+    let selected = fandhe_frontend_core::el(
+        "tr",
+        fandhe_frontend_headless_ui::data_table::row_attrs(true),
+        vec![],
+    );
+    assert!(render(&selected).contains("data-selected"));
+    let unselected = fandhe_frontend_core::el(
+        "tr",
+        fandhe_frontend_headless_ui::data_table::row_attrs(false),
+        vec![],
+    );
+    assert!(!render(&unselected).contains("data-selected"));
+
+    // root: data-loading + aria-busy="true" / data-empty。
+    let loading_html = render(&DataTable::root(
+        fandhe_frontend_headless_ui::DataTableProps {
+            loading: true,
+            empty: false,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(loading_html.contains("data-loading"));
+    assert!(loading_html.contains(r#"aria-busy="true""#));
+
+    let empty_html = render(&DataTable::root(
+        fandhe_frontend_headless_ui::DataTableProps {
+            loading: false,
+            empty: true,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(empty_html.contains("data-empty"));
+
+    // sort-trigger: data-value（列 id）。
+    let t = DataTable::default();
+    let trigger_html = render(&t.sort_trigger("name", vec![], vec![]));
+    assert!(trigger_html.contains(r#"data-value="name""#));
 }

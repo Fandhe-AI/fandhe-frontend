@@ -2875,7 +2875,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 宣言）を新規追加した。新規公開 API・新規属性のみで既存関数シグネチャ・
 # golden CSS の既存ブロックは不変のため非破壊的な追加として、PR と main
 # が同一到達値 0.173.0 で衝突するため main +1 の 0.174.0 へバンプする。
-version = "0.174.0"
+# イシュー #2125: 依存先 fandhe-frontend-headless-ui 0.68.14 → 0.68.15
+# （`data_table` 新設）への `check-dep-versions --fix` 追随のみ。本クレート
+# 自体の実体変更はないため patch バンプ、0.174.0 から 0.174.1 とする。
+version = "0.174.1"
 
 
 edition = "2021"
@@ -2891,7 +2894,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.14" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.15" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

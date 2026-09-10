@@ -3,7 +3,8 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! `/primitives/<kebab>/` 73 ページ（イシュー #2117 で `questionnaire`
+//! `/primitives/<kebab>/` 74 ページ（イシュー #2125 で `data_table`
+//! を追加、旧 73。イシュー #2117 で `questionnaire`
 //! を追加、旧 72。イシュー #2114 で `marker` を
 //! 追加、旧 71。イシュー #2111 で `attachment` を
 //! 追加、旧 70。#2108 で `bubble` を追加、
@@ -28,7 +29,8 @@
 //! # 判別規約（設計 §6 の要旨）
 //!
 //! `crates/headless-ui/src/*.rs` のうち本文に `anatomy(` を含むもの
-//! （`anatomy.rs` 自身を除く）が部品 73 件（イシュー #2117 で
+//! （`anatomy.rs` 自身を除く）が部品 74 件（イシュー #2125 で
+//! `data_table` が加わり 73 → 74。イシュー #2117 で
 //! `questionnaire` が加わり 72 → 73。イシュー #2114 で `marker`
 //! が加わり 71 → 72。イシュー #2111 で
 //! `attachment` が加わり 70 → 71。#2108 で `bubble`
@@ -37,11 +39,11 @@
 //! が加わり 67 → 68。#2068 で `command`
 //! が加わり 66 → 67。#2065 で `item` が加わり 65 → 66。#2062 で
 //! `input_group`・#2059 で `button_group` が加わり 63 → 65）、基盤モジュール
-//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 83 件が
+//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 84 件が
 //! `crates/headless-ui/src/*.rs` の総数（実測:
-//! `ls crates/headless-ui/src/*.rs | wc -l` => 83、
+//! `ls crates/headless-ui/src/*.rs | wc -l` => 84、
 //! `grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l`
-//! => 73）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
+//! => 74）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
 //! 責務。
 
 use std::collections::BTreeSet;
@@ -84,7 +86,8 @@ pub enum PrimitiveCategory {
     /// Navigation（13 件、原稿は #1028。イシュー #2072 で sidebar が追加され
     /// 12 → 13。イシュー #2059 で button_group が追加され 11 → 12）。
     Navigation,
-    /// Data Display / Utilities（15 件、原稿は #1029。イシュー #2114 で
+    /// Data Display / Utilities（16 件、原稿は #1029。イシュー #2125 で
+    /// `data_table` が追加され 15 → 16。イシュー #2114 で
     /// `marker` が追加され 14 → 15。イシュー #2111 で `attachment` が
     /// 追加され 13 → 14。イシュー #2108 で
     /// `bubble` が追加され 12 → 13。イシュー #2105 で
@@ -131,7 +134,8 @@ impl PrimitiveCategory {
     }
 }
 
-/// Primitives 台帳（73 件、イシュー #2117 で `questionnaire` 追加、旧 72。
+/// Primitives 台帳（74 件、イシュー #2125 で `data_table` 追加、旧 73。
+/// イシュー #2117 で `questionnaire` 追加、旧 72。
 /// イシュー #2114 で `marker` 追加、旧 71。
 /// イシュー #2111 で `attachment` 追加、旧 70。
 /// イシュー #2108 で `bubble` 追加、旧 69。イシュー
@@ -523,7 +527,7 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         title: "Toolbar",
         category: PrimitiveCategory::Navigation,
     },
-    // --- Data Display / Utilities（15、#1029。イシュー #2114 で marker 追加、旧 14。イシュー #2111 で attachment 追加、旧 13。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
+    // --- Data Display / Utilities（16、#1029。イシュー #2125 で data_table 追加、旧 15。イシュー #2114 で marker 追加、旧 14。イシュー #2111 で attachment 追加、旧 13。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
     PrimitiveEntry {
         // イシュー #2111 で headless-ui 層を実装。Themes ページと title
         // 一致（イシュー #2112、`site/themes/attachment.md` / `site/nav.toml`
@@ -549,6 +553,15 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         module: "carousel",
         path: "/primitives/carousel/",
         title: "Carousel",
+        category: PrimitiveCategory::DataDisplayUtilities,
+    },
+    PrimitiveEntry {
+        // イシュー #2125 で headless-ui 層のみ先行実装（Themes 層は後続
+        // イシュー #2127 のスコープ、`PRIMITIVES_WITHOUT_THEMES_PAGE`
+        // 参照）。
+        module: "data_table",
+        path: "/primitives/data-table/",
+        title: "Data Table",
         category: PrimitiveCategory::DataDisplayUtilities,
     },
     PrimitiveEntry {
@@ -691,8 +704,11 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
-/// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["questionnaire"];
+/// 作らない」の限定用途の 1 つ）。`data_table` も同型の暫定登録であり、
+/// イシュー #2125 で headless-ui 層のみ先行実装した（Themes 層・styled
+/// recipe・golden・`site/themes/data-table.md` は後続イシュー #2127 の
+/// スコープ）。
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["data_table", "questionnaire"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
@@ -900,7 +916,7 @@ mod tests {
     /// 追加され Forms A は 12 → 13）。
     #[test]
     fn catalog_has_72_entries_in_six_categories_in_spec_order() {
-        assert_eq!(PRIMITIVES.len(), 73);
+        assert_eq!(PRIMITIVES.len(), 74);
 
         let expected_order_and_counts: [(PrimitiveCategory, usize); 6] = [
             (PrimitiveCategory::FormsA, 13),
@@ -908,7 +924,7 @@ mod tests {
             (PrimitiveCategory::FormsCDateStatus, 10),
             (PrimitiveCategory::OverlayDisclosure, 10),
             (PrimitiveCategory::Navigation, 13),
-            (PrimitiveCategory::DataDisplayUtilities, 15),
+            (PrimitiveCategory::DataDisplayUtilities, 16),
         ];
 
         assert_eq!(

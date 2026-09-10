@@ -575,6 +575,21 @@ pre-styled-ui recipe・Themes ページは後続 #2119 のスコープのため�
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。
 
+**追記(イシュー #2125)**: shadcn/ui のみに存在する `data_table`
+（Data Table、参照軸 #2001。ark-ui に対応 component なしのため headless
+は ark-ui 系統を維持）を Data Display / Utilities カテゴリの `carousel`
+の後（`item` の前）に追加する。headless-ui は上層（`table`/`empty-state`/
+`skeleton`）へ依存できないため `<table>`/`<thead>`/`<tbody>`/`<tr>` を
+生成しない設計とし、headless-ui 層のみを先行実装した。pre-styled-ui
+recipe・Themes ページは後続 #2127 のスコープのため、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）へ `data_table` を追加した。現在の実カテゴリ
+内訳は Data Display / Utilities 15→**16**・6 グループ**合計 73→74**で
+あり、§6 のコード導出は**部品 74 件**（headless-ui
+`crates/headless-ui/src/*.rs` 総数**84** = 部品 74 + 基盤 9 +
+`lib.rs`）との一致は同上 2 テストが機械検査する（本節末尾の表・部品名
+一覧・上記各追記は据え置き、本追記のみを合算値の正とする）。
+
 ## 8. `component-coverage-map.md` との関係
 
 `docs/design/component-coverage-map.md` は ark-ui / chakra-ui / Radix の

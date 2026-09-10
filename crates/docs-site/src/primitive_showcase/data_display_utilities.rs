@@ -1,4 +1,5 @@
-//! Primitives Demo — Data Display / Utilities（15 件、原稿は #1029。
+//! Primitives Demo — Data Display / Utilities（16 件、原稿は #1029。
+//! イシュー #2125 で `data_table` 追加、旧 15。
 //! イシュー #2114 で `marker` 追加、旧 14。イシュー #2111 で `attachment`
 //! 追加、旧 13。イシュー #2108 で `bubble`
 //! 追加、旧 12。イシュー #2105 で `message`
@@ -6,17 +7,22 @@
 //! 追加、旧 10）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
-use fandhe_frontend_core::{button, li, text, ul, Node};
+use fandhe_frontend_core::{button, div, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::attachment::{self, AttachmentRootProps, AttachmentState, AttachmentVariant};
 use hui::avatar::{self, ImageStatus};
 use hui::bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant};
+use hui::checkbox::{self, CheckboxProps, CheckedState};
 use hui::data_attrs::Orientation;
+use hui::data_table::{self, ColumnProps, DataTable, DataTableProps};
 use hui::fandhe_frontend_interactive::Component;
+use hui::field::{self, FieldIds, FieldProps};
 use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
 use hui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
+use hui::menu;
 use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
+use hui::pagination::{ItemMode, Pagination};
 use hui::positioning::{Align, Placement, Side};
 use hui::progress::Progress;
 use hui::scroll_area;
@@ -305,6 +311,157 @@ pub(super) fn carousel_section() -> Node {
         ],
     )];
     demo_page("Carousel", body)
+}
+
+/// DataTable（イシュー #2125）の Demo。8 パーツ（root/toolbar/
+/// column-header/sort-trigger/select-all/select-row/footer/
+/// selection-count）を、フィルタ入力（`field::input`）・列表示切替
+/// （`menu` の checkbox item）・行選択（`checkbox`）・ページング
+/// （`pagination`）を入れ子にして 1 行分の構成として示す。headless-ui は
+/// `<table>` を生成しないため（モジュール doc「イシュータイトルとの差分」
+/// 参照）、Demo でも表組み要素は使わず素の `div` で構造を示す。
+pub(super) fn data_table_section() -> Node {
+    let t = DataTable::new(
+        Some((
+            "name".to_string(),
+            hui::data_table::SortDirection::Ascending,
+        )),
+        vec!["email".to_string()],
+    );
+
+    let filter_field = FieldProps {
+        id: "data-table-filter",
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+
+    let email_column = ColumnProps {
+        id: "email",
+        hidden: true,
+    };
+
+    let toolbar = data_table::toolbar(
+        vec![],
+        vec![
+            field::input(&filter_field, vec![("placeholder", "Filter names...")]),
+            menu::root(
+                OpenState::Closed,
+                vec![],
+                vec![
+                    data_table::column_toggle_item(
+                        &ColumnProps {
+                            id: "name",
+                            hidden: false,
+                        },
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Name")],
+                    ),
+                    data_table::column_toggle_item(
+                        &email_column,
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Email")],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    let name_header = t.column_header(
+        "name",
+        true,
+        vec![],
+        vec![t.sort_trigger("name", vec![], vec![text("Name ▲")])],
+    );
+    let email_header = t.column_header("email", false, vec![], vec![text("Email")]);
+    let select_all_header = DataTable::select_all(
+        CheckedState::Indeterminate,
+        vec![],
+        vec![checkbox::root(
+            &CheckboxProps {
+                checked: CheckedState::Indeterminate,
+                ..Default::default()
+            },
+            vec![],
+            vec![checkbox::control(
+                &CheckboxProps {
+                    checked: CheckedState::Indeterminate,
+                    ..Default::default()
+                },
+                vec![],
+                vec![],
+            )],
+        )],
+    );
+
+    let select_row_cell = DataTable::select_row(
+        CheckedState::Checked,
+        vec![],
+        vec![checkbox::root(
+            &CheckboxProps {
+                checked: CheckedState::Checked,
+                ..Default::default()
+            },
+            vec![],
+            vec![checkbox::control(
+                &CheckboxProps {
+                    checked: CheckedState::Checked,
+                    ..Default::default()
+                },
+                vec![],
+                vec![],
+            )],
+        )],
+    );
+
+    let pager = Pagination::new(30, 10, 1, 1, 1);
+    let footer = data_table::footer(
+        vec![],
+        vec![
+            data_table::selection_count(vec![], vec![text("1 of 3 row(s) selected")]),
+            pager.root(
+                "Table pagination",
+                vec![],
+                vec![
+                    pager.prev_trigger(ItemMode::Button, vec![], vec![text("‹")]),
+                    pager.item(ItemMode::Button, 1, false, vec![], vec![text("1")]),
+                    pager.next_trigger(ItemMode::Button, vec![], vec![text("›")]),
+                ],
+            ),
+        ],
+    );
+
+    let root = DataTable::root(
+        DataTableProps {
+            loading: false,
+            empty: false,
+        },
+        vec![],
+        vec![
+            toolbar,
+            div(
+                vec![("class", "primitives-demo-data-table-header-row")],
+                vec![select_all_header, name_header, email_header],
+            ),
+            div(
+                vec![("class", "primitives-demo-data-table-row")],
+                vec![
+                    select_row_cell,
+                    div(vec![], vec![text("Ada Lovelace")]),
+                    div(vec![], vec![text("ada@example.com")]),
+                ],
+            ),
+            footer,
+        ],
+    );
+    demo_page("Data Table", vec![root])
 }
 
 /// Item（イシュー #2065）の Demo。10 パーツ（root/media/content/title/
