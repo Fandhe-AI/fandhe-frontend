@@ -646,6 +646,90 @@ fn state_fail_closed_cases_are_skipped_not_panicking() {
     assert!(css.contains("display: none;"));
 }
 
+/// イシュー #2203 golden テスト: [`StateCondition::AttrAll`] が複数の
+/// 存在属性を AND 連結したセレクタ `[<a>][<b>]...` を生成することを
+/// 固定する（[`crate::menu`] の `item` における `data-danger` ×
+/// `data-highlighted` 背景色合成が最初の消費者。要素の連結順がスライス順
+/// のまま保持されることも固定する）。
+#[test]
+fn state_attr_all_generates_conjunction_selector() {
+    let recipe = SlotRecipe::new("widget", &["item"]).state(
+        "item",
+        StateCondition::AttrAll(&["data-danger", "data-highlighted"]),
+        vec![decl("background", "red")],
+    );
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"item\"][data-danger][data-highlighted] {\n",
+        "  background: red;\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+
+    // 逆順スライスは逆順のセレクタを生成する（連結順の固定）。
+    let reversed = SlotRecipe::new("widget", &["item"]).state(
+        "item",
+        StateCondition::AttrAll(&["b-attr", "a-attr"]),
+        vec![decl("background", "blue")],
+    );
+    assert!(reversed
+        .css()
+        .contains(r#"[data-scope="widget"][data-part="item"][b-attr][a-attr] {"#));
+}
+
+/// イシュー #2203 fail-closed テスト: [`StateCondition::AttrAll`] は
+/// 空スライス・不正識別子を含むスライスを panic せず出力から除外する
+/// （[`StateCondition::AttrEqAll`] と同じ方針）。
+#[test]
+fn state_attr_all_fail_closed_cases_are_skipped_not_panicking() {
+    let recipe = SlotRecipe::new("widget", &["item"])
+        // 1. 空スライスは無条件規則（base と同義）のため除外される。
+        .state(
+            "item",
+            StateCondition::AttrAll(&[]),
+            vec![decl("color", "red")],
+        )
+        // 2. 不正識別子（大文字始まり）を含むスライスは規則ごと除外される。
+        .state(
+            "item",
+            StateCondition::AttrAll(&["data-danger", "Data-Highlighted"]),
+            vec![decl("color", "green")],
+        )
+        // 有効な規則も混在させ、無効規則の除外が他の規則へ波及しないことを確認する。
+        .state(
+            "item",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        );
+
+    let css = recipe.css();
+    assert!(!css.contains("color: red;"));
+    assert!(!css.contains("green"));
+    assert!(css.contains(r#"[data-scope="widget"][data-part="item"][hidden] {"#));
+    assert!(css.contains("display: none;"));
+}
+
+/// イシュー #2203: [`StateCondition::AttrAll`] は非 Hover 系であり
+/// `@starting-style` へ受理されることを固定する（[`is_hover_family`] の
+/// `matches!` 網羅に `AttrAll` が漏れていないことの回帰）。
+#[test]
+fn starting_style_state_accepts_attr_all() {
+    let recipe = SlotRecipe::new("widget", &["root"]).starting_style_state(
+        "root",
+        StateCondition::AttrAll(&["data-danger", "data-highlighted"]),
+        vec![decl("height", "0")],
+    );
+
+    let expected = concat!(
+        "@starting-style {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"][data-danger][data-highlighted] {\n",
+        "    height: 0;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
 // イシュー #1424: フォーカスリング宣言ヘルパ・size_variants の統合テスト。
 
 use fandhe_frontend_pre_styled_ui::recipe::{

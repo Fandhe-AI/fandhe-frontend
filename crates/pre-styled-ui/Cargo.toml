@@ -3195,7 +3195,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 本ブランチの到達値を上回っている。同一版数への偶発的衝突ではなく origin/main が
 # 本ブランチを上回るケースだが、本ブランチの変更はマイナーバンプ相当の破壊的変更である
 # ため、origin/main の到達値 0.181.2 をさらに上回るようマイナーバンプし 0.182.0 とする。
-version = "0.182.0"
+# イシュー #2203: `StateCondition` へ `AttrAll` variant（値なし存在属性
+# 同士の AND、例: `[data-danger][data-highlighted]`）を追加した。
+# `StateCondition` は `#[non_exhaustive]` ではないため、variant 追加は
+# 0.x 利用者の網羅 match を破る破壊的変更（前例: PR #1803
+# `HoverExceptAttrEq` 追加で 0.60.5 → 0.61.0）。origin/main の到達値
+# 0.182.0 を上回るようマイナーバンプし 0.183.0 とする。
+version = "0.183.0"
 
 
 edition = "2021"
