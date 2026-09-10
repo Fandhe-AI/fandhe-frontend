@@ -245,6 +245,21 @@ gating を採用しても、`crates/dist-server/build.rs` のネストビルド�
 あり本リポジトリでは変更しない（親 #1953 の既定方針）。自動運転のため
 本評価では (A)/(B) いずれかへの決定は行わず、推奨（§11）のみ記す。
 
+**採用結果（ユーザー判断 2026-09-11、イシュー #2329）**: (A) を採用した。
+`crates/dist-server/src/wasm_dist_features.rs` を新設し、
+`WASM_DIST_FEATURES`（`wasm-bindgen-exports`/`collapsible`/`dialog`/
+`popover`/`tooltip`/`position` の 6 件、「最小インタラクティブ
+コンポーネント」の定義）を `crates/dist-server/build.rs`
+（配布物のネストビルド）と `crates/wasm-full/tests/bundle_size.rs`
+（REQ-11 計測）が `#[path]` によるソースレベル共有で唯一の正として
+参照する構成にした。判断根拠（`keynav.rs` に cfg 分岐を持たない scope
+= click 操作のみで完結する 4 部品を採用し、keynav・focus-visible・
+他の scope feature・配線群別 feature は除外）は同ファイル冒頭コメント
+参照。一致は `crates/xtask/tests/wasm_dist_features_contract.rs` が
+fail-closed に固定する。実測（PR #2329 実装コミット時点）:
+`bundle-size: total_gzip_bytes=120618/200000 files=2 result=PASS`
+（上限余裕 79,382 B ≥ 30,000 B、190,000 B 未満の判定基準も満たす）。
+
 ## 9. `intentional-non-adoption.md` §2 の 4 軸評価
 
 （`docs/policy/intentional-non-adoption.md` の評価軸に基づく。対象は
@@ -536,7 +551,8 @@ headless-ui 部品のクリック dispatch 全般）も同時に登録してい�
    満たせたため本イシューでは実施せず、必要になれば後続 issue として
    別途検討する（スコープ外の明示）。
 4. dist-server 経路の feature 集合決定（§8 (A)/(B) のユーザー判断）と
-   `bundle_size.rs` 契約の更新。
+   `bundle_size.rs` 契約の更新。**実装済み（イシュー #2329）**: §8 追記
+   参照。
 5. docs（feature 一覧の利用者向けドキュメント化、§11 条件 5 の移行手順を
    含む）・examples への反映。
 

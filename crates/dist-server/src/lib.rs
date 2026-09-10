@@ -70,6 +70,13 @@ mod test_scratch;
 /// する（`src/wasm_build_gate.rs` 冒頭コメント参照）。
 #[doc(hidden)]
 pub mod wasm_build_gate;
+/// dist-server が配布する `fandhe-frontend-wasm-full` の feature 集合
+/// （最小インタラクティブ構成、イシュー #2329）。`build.rs` と
+/// `crates/wasm-full/tests/bundle_size.rs` が唯一の正として参照する
+/// （`src/wasm_dist_features.rs` 冒頭コメント参照）。他の `#[path]` 共有
+/// モジュールと同様に `#[doc(hidden)]` とする。
+#[doc(hidden)]
+pub mod wasm_dist_features;
 /// TASK-10.2c（イシュー #111）: `build.rs` の WASM ビルドステージ キャッシュ
 /// 判定ロジック（fingerprint 計算・成果物完全性チェック）。`build.rs` 自身は
 /// パッケージ自身の lib を `build-dependencies` にできないため、
