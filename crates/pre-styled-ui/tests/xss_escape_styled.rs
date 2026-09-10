@@ -5176,6 +5176,62 @@ fn pie_and_donut_chart_are_escaped_for_all_payloads() {
     }
 }
 
+/// charts の期間切替・凡例トグル SSR 構造（イシュー #2133）の XSS 回帰。
+///
+/// 攻撃面: (1) `LineChartProps::range`（root `data-range` 属性値経路。
+/// `line_chart` を代表とし、他チャートも同一の `drop_range_attr` 経由の
+/// 属性合成であることをソースレビューで確認済み）。(2)
+/// `charts::legend::legend` の `trigger` の `data-series`（`Series::name`
+/// が button の属性値として流れる経路。従来のテキストノード children
+/// コンテキストとは別の属性値コンテキスト）。(3)
+/// `LegendProps::controls`（`aria-controls` 属性値経路）。
+#[test]
+fn charts_range_and_legend_trigger_attrs_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::line_chart::{line_chart, LineChartProps};
+
+    for payload in payloads::all() {
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("visits", vec![1.0, 2.0])],
+        )
+        .unwrap();
+
+        // (1) range 属性値経路。
+        let mut props = LineChartProps::new(&data, "label");
+        props.range = Some(payload);
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "line_chart data-range 属性値コンテキスト");
+
+        // (2) legend trigger の data-series 属性値経路（系列名）。
+        let series_data =
+            ChartData::new(vec!["a".to_string()], vec![Series::new(payload, vec![1.0])]).unwrap();
+        let html = render(&fandhe_frontend_pre_styled_ui::charts::legend::legend(
+            &series_data,
+            &LegendProps::default(),
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "legend trigger data-series 属性値コンテキスト",
+        );
+
+        // (3) LegendProps::controls の aria-controls 属性値経路。
+        let controls_props = LegendProps {
+            controls: Some(payload.to_string()),
+            ..LegendProps::default()
+        };
+        let html = render(&fandhe_frontend_pre_styled_ui::charts::legend::legend(
+            &data,
+            &controls_props,
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "legend trigger aria-controls 属性値コンテキスト",
+        );
+    }
+}
+
 /// styled RadialChart（イシュー #2079）の XSS 回帰。
 ///
 /// 攻撃面: (1) カテゴリ名ラベル（`show_labels: true` の children テキスト
@@ -5395,7 +5451,7 @@ fn radar_chart_shadcn_variants_are_escaped_for_all_payloads() {
             vec![Series::new(payload, vec![1.0, 2.0, 3.0])],
         )
         .unwrap();
-        let html = render(&radar_chart::root(&series_data, all_on_props, "label").unwrap());
+        let html = render(&radar_chart::root(&series_data, all_on_props.clone(), "label").unwrap());
         assert_payload_is_escaped(
             payload,
             &html,
@@ -6274,5 +6330,82 @@ fn attachment_parts_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "attachment::action label コンテキスト");
         assert_payload_is_escaped(payload, &html, "attachment::action attrs コンテキスト");
         assert_payload_is_escaped(payload, &html, "attachment::action children コンテキスト");
+    }
+}
+
+/// Marker 経路（イシュー #2115、headless 側 anatomy は #2114）: 3 パーツ
+/// いずれも見た目クラスを付与しない（`src/marker.rs` モジュール doc
+/// 「headless の `data-*` を参照する」節参照）ため、呼び出し側 `attrs`・
+/// `class`（[`drop_class_attr`] により除去）、children の各経路で既定
+/// エスケープ（REQ-1）が貫通することを固定する
+/// （`attachment_parts_are_escaped_for_all_payloads` と同型）。加えて
+/// `Label` 形態で挟み込む [`crate::separator::separator`] を経由しても
+/// attrs・children ペイロードがエスケープされることを 1 ケース固定する。
+#[test]
+fn marker_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::marker::{self, MarkerRootProps, MarkerVariant};
+
+    for payload in payloads::all() {
+        // styled root（Note 形態、separator を挟まない）の呼び出し側
+        // attrs 経路。
+        let html = render(&marker::root(
+            MarkerRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "marker::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（見た目クラスを持たない
+        // ため drop_class_attr により class 属性自体が出力から消える。
+        // Note 形態は separator を挟まないため class 完全不在で判定する）。
+        let html = render(&marker::root(
+            MarkerRootProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "marker::root の class 属性に渡した生ペイロードが出力に残って\
+             いる: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // styled icon の呼び出し側 attrs・children 経路。
+        let html = render(&marker::icon(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "marker::icon attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "marker::icon children コンテキスト");
+
+        // styled content の呼び出し側 attrs・children 経路。
+        let html = render(&marker::content(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "marker::content attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "marker::content children コンテキスト");
+
+        // Label 形態: separator 挟み込み後も root の attrs・children
+        // ペイロードがエスケープされることを固定する（モジュール doc
+        // 「区切り線の描画方式」節参照）。
+        let label_html = render(&marker::root(
+            MarkerRootProps {
+                variant: MarkerVariant::Label,
+                ..Default::default()
+            },
+            vec![("data-testid", payload)],
+            vec![marker::content(vec![], vec![text(payload)])],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &label_html,
+            "marker::root (Label) attrs コンテキスト",
+        );
+        assert_payload_is_escaped(
+            payload,
+            &label_html,
+            "marker::root (Label) children コンテキスト",
+        );
     }
 }

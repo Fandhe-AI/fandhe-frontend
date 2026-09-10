@@ -104,9 +104,10 @@
 //! - `ColorPalette` 軸の追加（上記「`ColorPalette` 軸を持たない理由」
 //!   参照）。
 //! - `examples/headless-pre-styled-ui` への bubble 追加。
-//! - 兄弟部品 marker（#2114）への語彙追随。attachment は #2112 で
-//!   Themes 化済み（`data-role`/`data-align` を持たない設計のため語彙
-//!   追随は不要、`crate::attachment` モジュール doc参照）。
+//! - marker は #2115 で Themes 化済み（`data-role`/`data-align` を持たない
+//!   設計のため語彙追随は不要、`crate::marker` モジュール doc参照）。
+//!   attachment は #2112 で同様に Themes 化済み（`crate::attachment`
+//!   モジュール doc参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

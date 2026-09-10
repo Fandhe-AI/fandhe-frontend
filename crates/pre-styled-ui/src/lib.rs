@@ -730,6 +730,7 @@ pub mod link_overlay;
 pub mod list;
 pub mod listbox;
 pub mod mark;
+pub mod marker;
 pub mod marquee;
 pub mod menu;
 pub mod menubar;

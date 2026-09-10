@@ -92,8 +92,12 @@
 //!
 //! [`datum`]/[`datum_label`]/[`css`] の出力はバイト不変（golden 純追加
 //! 原則、`tests/charts_parts_css.rs`/`tests/charts_legend_tooltip.rs` 参照）。
-//! マウス追従・hover 配線は #2128 系（#2129/#2130/#2131）、凡例の系列トグル
-//! は #2132 が担う。
+//! マウス追従・hover 配線は #2128 系（#2129/#2130/#2131）。凡例の系列
+//! トグルの SSR 構造（`[data-hidden]` で `tooltip-item` を隠す CSS 規則）は
+//! 本イシュー（#2133）で追加した。SSR 側は `tooltip-item` 自体へ
+//! `data-hidden` を出力せず（`layer_from_entries` の引数拡張は #2134 へ
+//! 引き継ぐ、モジュール doc「本イシューのスコープ外」節）、wasm-full 側
+//! （#2134）が click 時に付け外しする設計。
 
 use super::data::SeriesColor;
 use super::svg::{fmt_coord, fmt_value};
@@ -225,6 +229,17 @@ fn recipe() -> SlotRecipe {
             "hit-area",
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // イシュー #2133: 各チャートの系列要素と同じ `[data-hidden]`
+        // セレクタで `tooltip-item` 行を非表示にする（凡例トグルで隠した
+        // 系列のツールチップ行も連動して消える。末尾純追加、既存ブロックは
+        // 不変）。SSR 側は `tooltip-item` へ `data-hidden` を出力しない
+        // （モジュール doc「本イシューのスコープ外」節、#2134 が付け外しを
+        // 担う）。
+        .state(
+            "tooltip-item",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
         )
 }
 

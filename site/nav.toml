@@ -961,6 +961,11 @@ source = "site/themes/json-tree-view.md"
 path = "/themes/json-tree-view/"
 
 [[section.group.page]]
+title = "Marker"
+source = "site/themes/marker.md"
+path = "/themes/marker/"
+
+[[section.group.page]]
 title = "Message"
 source = "site/themes/message.md"
 path = "/themes/message/"

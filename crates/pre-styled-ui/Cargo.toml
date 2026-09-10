@@ -2743,6 +2743,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2112: `attachment` モジュール（recipe・golden・8 パーツの
 # styled ラッパー）を新設する公開 API 純追加のためマイナーバンプ（0.x の
 # 破壊的変更ではない純追加）。
+# イシュー #2133: charts の凡例を button + aria-pressed 化し、data-range/
+# data-hidden の SSR 構造を追加する。`LegendProps` へ `hidden_series`/
+# `hidden_categories`/`controls` を、各チャート Props へ `range`/
+# `hidden_series`（または `hidden_categories`）を純追加した公開 API 拡張。
+# `BarChartProps`/`RadarChartProps`/`ScatterChartProps` は `String`/
+# `Vec<String>` フィールド追加に伴い `Copy` を外した（0.x の破壊的変更）
+# ためマイナーバンプする。
 #
 # イシュー #2187 base 取り込み: 本ブランチ側では headless-ui 0.68.9 →
 # 0.68.10（navigation-menu へのルートレベル indicator パーツ新設）への
@@ -2758,8 +2765,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # Themes ページ実装は後続イシュー #2115）。base 取り込みで headless-ui が
 # さらに 0.68.11 へ patch バンプした（同一版数への偶発的衝突をそのまま
 # 採用しない原則、`crates/headless-ui/Cargo.toml` 参照）ため、この
-# dep-version-check 追随分をさらに 0.166.2 へ patch バンプする。
-version = "0.166.2"
+# dep-version-check 追随分をさらに 0.166.2 へ patch バンプしていた。
+#
+# イシュー #2115: styled `marker`（recipe・golden テスト・Themes ページ）
+# を新設する公開 API 純追加のため 0.167.0 へマイナーバンプする。
+#
+# base 取り込み: origin/main 側は並行 PR（イシュー #2133 の Legend
+# button 化等）で 0.167.0 → 0.168.0 へ到達済みだった。本ブランチの
+# 0.167.0 と main の 0.167.0 が偶発的に同一版数へ衝突したため
+# （同一版数への偶発的衝突をそのまま採用しない原則）、main の到達値
+# 0.168.0 をさらに上回る 0.169.0 へマイナーバンプする（marker 追加は
+# 破壊的変更ではない純追加だが、衝突解消のため main+1 を採用する）。
+version = "0.169.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

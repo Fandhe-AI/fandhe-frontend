@@ -1334,3 +1334,95 @@ public API 追加（`wire_sidebar_dispatch`）を伴うが、`fandhe-frontend-
 wasm-full` はこの PR 内で既に 0.15.25 → 0.15.26 へ patch バンプ済み
 かつ crates.io 未公開のため、追加バンプは不要（`xtask
 check-version-bump`/`check-dep-versions` で確認済み）。
+
+## 26. `chart` モジュール（イシュー #2130、親 #2128）
+
+`crates/pre-styled-ui/src/charts/tooltip.rs`（イシュー #2129）は
+bar/line/area/sparkline/pie/donut/radial/radar/scatter の各チャートへ、
+SSR 時点で透明な hit-area（`data-scope="chart" data-part="hit-area"
+data-index="<n>" [data-series="<name>"]`、`fill="none"
+pointer-events="none" tabindex="-1"`）を `<svg>` 末尾へ、`<svg>` の
+直後の兄弟として `tooltip-layer`（`aria-hidden="true"
+position: absolute; inset: 0; pointer-events: none`）とその子 `tooltip`
+（既定 `hidden`）を出力する。「どの hit-area が指されているかに応じて
+`hidden`/`data-active`/`--fandhe-chart-tooltip-x/y` を切り替える」JS
+配線は同モジュール冒頭 rustdoc「各チャートへの引き継ぎ契約」節が本
+イシューへ申し送っていた。`crates/wasm-full/src/chart.rs` がその配線を
+実装する。
+
+### 26.1 2 層構成・`dispatch` チャネルを持たない属性専用配線
+
+`sidebar.rs`/`angle_slider.rs` と同型の 2 層構成（純粋ロジック層
+`hit_area_next_index`/`is_sticky_pointer`/`anchor_relative`/
+`hit_area_anchor`/`matches_key` + `#[cfg(target_arch = "wasm32")]
+mod wiring`）を採る。`sidebar::wire_sidebar_events` と同じく `on_action`
+コールバック（dispatch チャネル）を一切持たない属性専用配線であり、
+状態機械へ波及しないため `Runtime::mount`/`Runtime::hydrate` の双方から
+`Self::wire_sidebar` の直後に自動配線する（`wire_sidebar_dispatch` の
+ようなオプトイン API は不要）。`pointerdown`/`pointermove` のような
+click/input 以外のイベント種別を扱うため `headless::MAPPING_TABLE` には
+乗せない。
+
+### 26.2 ロケータ契約（fail-closed）と「最近傍点」の決定
+
+- hit-area: イベント target から `closest('[data-scope="chart"]
+  [data-part="hit-area"]')`（静的セレクタ）で解決し、`root` 配下に
+  収まっていることを検証する。
+- svg: hit-area の `closest("svg")`。
+- layer: `svg.next_element_sibling()` が `[data-scope="chart"]
+  [data-part="tooltip-layer"]` であるもの。
+- 位置基準: layer は `position: absolute; inset: 0` のため layer 自身の
+  `getBoundingClientRect()` を containing block として使う。
+
+いずれか欠落（`show_tooltip: false` で出力されたチャート・未知構造）は
+no-op とする。「最近傍点」はイベント target が属する hit-area そのもの
+であり、ランタイムでの幾何計算（bounding rect 距離）は行わない
+（SSR 時点でプロット領域をカテゴリ帯/扇形/点円に分割済みのため、
+`crates/pre-styled-ui/src/charts/` 側がこの判定の実体を担う）。
+
+### 26.3 マッチング規則（#2131 が CSS 側で依拠する契約）
+
+同一 `<svg>` と対応 layer の中で、候補要素は `data-index` が hit-area の
+`data-index` と文字列一致し、かつ hit-area が `data-series` を持つ場合は
+候補の `data-series` も一致必須（hit-area が `data-series` を持たない
+場合は候補側の `data-series` を無視する）のとき一致とみなす
+（`matches_key`）。`data-series`/`data-index` は利用者由来の任意文字列
+のため、`query_selector` へ絶対に補間しない（`security.md` A03。常に
+静的セレクタで列挙し `get_attribute` の戻り値を Rust 側で比較する）。
+
+### 26.4 `data-active` の既定値との共存
+
+`charts/tooltip.rs` は `data-active` を出力しないが、`bar_chart`/
+`donut_chart` は独立した `active_index` プロパティで静的な
+`data-active`（開発者指定のハイライト）を出力し得る。セッション開始時に
+`data-active` を持つ既存要素と既定表示中の tooltip をスナップショット
+し、セッション終了時（`close_session`）にその状態へ復元することで、
+JS 操作終了後もこの静的な既定強調を保持する。
+
+### 26.5 イベント配線とセッション
+
+`pointermove`（hover）/`pointerdown`（タッチ由来の sticky セッション
+開始。`pointer_type() == "touch"` のみ）/`pointerout`（`related_target`
+がセッション svg 外なら非 sticky セッションを閉じる）/`pointercancel`
+（非 sticky セッションを閉じる）/`keydown`（矢印キー・Home/End・
+Escape）/`focusin`/`focusout` を `root` へ委譲登録し、加えて document
+へ 1 件、sticky セッション中のチャート外タップ閉鎖用 `pointerdown` を
+登録する（`wire_chart_events` 1 回につき 1 リスナー）。矢印キーは両軸
+（ArrowRight/ArrowDown が `+1`、ArrowLeft/ArrowUp が `-1`）を同等に扱い、
+非循環（端でのさらなる移動キーは no-op、`prevent_default` を呼ばない）。
+
+### 26.6 再描画時の再エンハンス・スコープ外
+
+`Runtime::rerender_subtree` による構造フォールバックで hit-area が SSR
+値（`pointer-events="none" tabindex="-1"`）へ戻るため、`MutationObserver`
+（`childList`/`subtree` のみを監視し `attributes` は監視しない、
+`sidebar.rs` と同型）で enhance（`pointer-events="all"` 化・roving
+tabindex 初期化）を再適用する。構造再描画がセッション中の `<svg>`/
+layer 自体を差し替えた場合の要素再解決（`angle_slider::wiring` の
+`PartKey`/`DragState` のような安定識別子ベースの追跡）は行わない
+（本モジュールが扱うのは離散的な hover/focus 切替でありドラッグ状態を
+跨がないため、次の入力イベントでセッションが新規に開始し直される。
+スコープ外、追跡は #2130 完了コメント参照）。`svg_root` の
+`role="img"` 内にフォーカス可能な hit-area を置く a11y 問題の是正・
+bar/scatter 以外の視覚要素への `data-index` 付与と消費 CSS/Demo は
+#2131 が担う。

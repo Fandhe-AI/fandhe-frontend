@@ -1676,6 +1676,47 @@ fn attachment_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(!action_html.contains("class="));
 }
 
+/// `data-range`/`data-hidden`（charts、イシュー #2133）: 期間切替・凡例
+/// トグルの SSR 構造。両方とも opt-in（規約 B のゲート）であり、既定では
+/// 一切出力しない。`line_chart` を代表として固定する（他チャートは
+/// `crates/pre-styled-ui/src/{line_chart,area_chart,sparkline,
+/// charts/bar_chart,charts/radar_chart,charts/scatter_chart,pie_chart,
+/// donut_chart,radial_chart}.rs` の `#[cfg(test)]` が個別に固定する）。
+#[test]
+fn charts_data_range_and_data_hidden_are_gated_by_opt_in_props() {
+    use fandhe_frontend_pre_styled_ui::line_chart::{line_chart, LineChartProps};
+
+    let data = ChartData::new(
+        vec!["a".to_string(), "b".to_string()],
+        vec![Series::new("visits", vec![1.0, 2.0])],
+    )
+    .expect("valid line chart data");
+
+    // 既定は data-range/data-hidden を一切出力しない。
+    let default_html =
+        render(&line_chart(&LineChartProps::new(&data, "label"), vec![]).expect("valid chart"));
+    assert!(!default_html.contains("data-range"));
+    assert!(!default_html.contains("data-hidden"));
+
+    // range: Some のときのみ root へ data-range を出力する。
+    let mut range_props = LineChartProps::new(&data, "label");
+    range_props.range = Some("90d");
+    let range_html = render(&line_chart(&range_props, vec![]).expect("valid chart"));
+    assert!(range_html.contains(r#"data-range="90d""#));
+
+    // hidden_series に含まれる系列名のみ data-hidden を出力する。
+    let mut hidden_props = LineChartProps::new(&data, "label");
+    hidden_props.hidden_series = &["visits"];
+    let hidden_html = render(&line_chart(&hidden_props, vec![]).expect("valid chart"));
+    assert!(hidden_html.contains("data-hidden"));
+
+    // XSS 回帰: range は不透明な文字列として既定エスケープを通る。
+    let mut payload_props = LineChartProps::new(&data, "label");
+    payload_props.range = Some(XSS_PAYLOAD);
+    let payload_html = render(&line_chart(&payload_props, vec![]).expect("valid chart"));
+    assert_no_raw_payload(&payload_html, "line_chart data-range 属性値コンテキスト");
+}
+
 /// [`mod@fandhe_frontend_headless_ui::marker`]（イシュー #2114）の
 /// `data-variant`（`note`/`divider`/`label`）・`data-tone`
 /// （`neutral`/`info`/`warning`/`danger`）語彙の登録点。`data-tone` が
@@ -1754,4 +1795,60 @@ fn marker_root_variant_and_tone_vocabulary_is_fixed_and_reuses_color_palette_wor
         &payload_html,
         "marker::root の呼び出し側 attrs コンテキスト",
     );
+}
+
+/// styled `marker`（イシュー #2115、`crates/pre-styled-ui/src/marker.rs`）
+/// が `data-variant`/`data-tone` を自前で組み立てず、headless
+/// [`mod@fandhe_frontend_headless_ui::marker`] の出力をそのまま透過する
+/// のみであることを固定する
+/// （`attachment_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。加えて `marker::stylesheet()` が `[data-variant="..."]`/
+/// `[data-tone="..."]` を CSS セレクタとして参照するのみで class ベースの
+/// `fd-marker--` セレクタを生成しないことを固定する。
+///
+/// `class` 不在 assert は `Note`（[`crate::separator::separator`] を
+/// 挟まない）props で行う: `Label` 形態は挟み込む separator 自身が
+/// `fd-separator--` class を出力するため（`class="` の完全不在ではなく
+/// `fd-marker--` の不在で判定する）。
+#[test]
+fn marker_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::marker as styled_marker;
+
+    let root_html = render(&styled_marker::root(
+        styled_marker::MarkerRootProps {
+            variant: styled_marker::MarkerVariant::Divider,
+            tone: styled_marker::MarkerTone::Danger,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains(r#"data-variant="divider""#));
+    assert!(root_html.contains(r#"data-tone="danger""#));
+    // Note 形態（class を出力しない headless marker::root と、separator を
+    // 挟まない styled root の両方が class 非付与のため `class=` 自体が
+    // 現れない）。
+    assert!(!root_html.contains("class="));
+
+    // `styled_marker::stylesheet()` は `[data-variant="..."]`/
+    // `[data-tone="..."]` を CSS セレクタとして参照するだけで自前で
+    // `data-*` を組み立てない（class ベースの variant/tone も持たない）。
+    let css = styled_marker::stylesheet();
+    assert!(css.contains(r#"[data-variant="divider"]"#));
+    assert!(css.contains(r#"[data-variant="label"]"#));
+    assert!(css.contains(r#"[data-tone="danger"]"#));
+    assert!(!css.contains("fd-marker--"));
+
+    // Label 形態: 挟み込む separator が `fd-separator--` class を出力する
+    // ため、`class=` の完全不在ではなく `fd-marker--` の不在で marker 自身
+    // が class を自己発行しないことを判定する。
+    let label_html = render(&styled_marker::root(
+        styled_marker::MarkerRootProps {
+            variant: styled_marker::MarkerVariant::Label,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(label_html.contains("fd-separator--"));
+    assert!(!label_html.contains("fd-marker--"));
 }

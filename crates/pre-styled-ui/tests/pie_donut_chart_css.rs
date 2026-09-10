@@ -76,6 +76,22 @@ const PIE_CHART_GOLDEN_CSS: &str = r#"[data-scope="pie-chart"][data-part="root"]
 [data-scope="pie-chart"][data-part="outside-label"][data-align="end"] {
   text-anchor: end;
 }
+
+[data-scope="pie-chart"][data-part="segment"][data-hidden] {
+  display: none;
+}
+
+[data-scope="pie-chart"][data-part="label"][data-hidden] {
+  display: none;
+}
+
+[data-scope="pie-chart"][data-part="outside-label"][data-hidden] {
+  display: none;
+}
+
+[data-scope="pie-chart"][data-part="label-line"][data-hidden] {
+  display: none;
+}
 "#;
 
 const DONUT_CHART_GOLDEN_CSS: &str = r#"[data-scope="donut-chart"][data-part="root"] {
@@ -160,6 +176,22 @@ const DONUT_CHART_GOLDEN_CSS: &str = r#"[data-scope="donut-chart"][data-part="ro
 
 [data-scope="donut-chart"][data-part="outside-label"][data-align="end"] {
   text-anchor: end;
+}
+
+[data-scope="donut-chart"][data-part="segment"][data-hidden] {
+  display: none;
+}
+
+[data-scope="donut-chart"][data-part="label"][data-hidden] {
+  display: none;
+}
+
+[data-scope="donut-chart"][data-part="outside-label"][data-hidden] {
+  display: none;
+}
+
+[data-scope="donut-chart"][data-part="label-line"][data-hidden] {
+  display: none;
 }
 "#;
 

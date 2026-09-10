@@ -158,6 +158,9 @@ use fandhe_frontend_pre_styled_ui::link_overlay;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
+use fandhe_frontend_pre_styled_ui::marker::{
+    self as marker, MarkerRootProps, MarkerTone, MarkerVariant,
+};
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
 use fandhe_frontend_pre_styled_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
@@ -785,6 +788,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: attachment_section,
     },
     ComponentPage {
+        path: "/themes/marker/",
+        render: marker_section,
+    },
+    ComponentPage {
         path: "/themes/button-group/",
         render: button_group_section,
     },
@@ -1082,6 +1089,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::message::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::bubble::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::attachment::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::marker::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -6312,6 +6320,62 @@ fn attachment_section() -> Node {
         "Attachment",
         "添付ファイル 1 件の表示。data-variant（file/image）・data-state（idle/uploading/error）・data-disabled は headless の data-* を参照するのみで class 軸は持ちません。file 形態は横並びの行カード、image 形態は縦積みのサムネイルカードで actions は hover/focus-within（タッチ端末では常時表示）で現れます。progress スロットは styled Progress の入れ子です。",
         vec![row(vec![file_idle, image_uploading, error_disabled])],
+    )
+}
+
+/// Marker 節（イシュー #2115、親 #2113。headless anatomy は #2114）。
+/// `data-variant` 3 値（note/divider/label）× `data-tone` 4 値
+/// （neutral/info/warning/danger）の全 12 組み合わせを最低 1 度は出現
+/// させ、Anatomy 表・`data-*` 属性表の機械導出に必要な `icon`/`content`
+/// 両パーツも各カードで使う（`attachment_section` と同型のデモ執筆
+/// 規約）。`variant`/`tone` は headless の `data-*` を `AttrEq` で参照
+/// するのみで class 軸を持たない（`marker.rs` モジュール doc参照）。
+fn marker_section() -> Node {
+    let combinations: Vec<(MarkerVariant, MarkerTone, &str)> = vec![
+        (MarkerVariant::Note, MarkerTone::Neutral, "System note"),
+        (
+            MarkerVariant::Note,
+            MarkerTone::Info,
+            "New feature available",
+        ),
+        (MarkerVariant::Note, MarkerTone::Warning, "Response delayed"),
+        (
+            MarkerVariant::Note,
+            MarkerTone::Danger,
+            "Message failed to send",
+        ),
+        (MarkerVariant::Divider, MarkerTone::Neutral, "Earlier"),
+        (MarkerVariant::Divider, MarkerTone::Info, "New messages"),
+        (MarkerVariant::Divider, MarkerTone::Warning, "Reconnecting"),
+        (
+            MarkerVariant::Divider,
+            MarkerTone::Danger,
+            "Connection lost",
+        ),
+        (MarkerVariant::Label, MarkerTone::Neutral, "2026-09-10"),
+        (MarkerVariant::Label, MarkerTone::Info, "Unread"),
+        (MarkerVariant::Label, MarkerTone::Warning, "Draft"),
+        (MarkerVariant::Label, MarkerTone::Danger, "Failed"),
+    ];
+
+    let cards: Vec<Node> = combinations
+        .into_iter()
+        .map(|(variant, tone, label)| {
+            marker::root(
+                MarkerRootProps { variant, tone },
+                vec![],
+                vec![
+                    marker::icon(vec![], vec![text("●")]),
+                    marker::content(vec![], vec![text(label)]),
+                ],
+            )
+        })
+        .collect();
+
+    section(
+        "Marker",
+        "会話スレッド内のインライン注記行。data-variant（note/divider/label）・data-tone（neutral/info/warning/danger）は headless の data-* を参照するのみで class 軸は持ちません。divider 形態は行下の境界線、label 形態は左右へ separator パーツを挟んだ中央ラベルです。",
+        vec![stack(cards)],
     )
 }
 
@@ -12824,14 +12888,48 @@ fn charts_section() -> Node {
         vec![advanced_datum],
     );
 
+    // イシュー #2133: 凡例を button + aria-pressed 化し、`hidden_series`
+    // （非表示系列の `aria-pressed="false"` 減光）・`controls`
+    // （`aria-controls` opt-in）の SSR 構造を実演する（click 配線は
+    // #2134 のスコープ、静的 HTML では見た目の減光のみが確認できる）。
+    // `controls` が指す ID（`charts-showcase-toggle-chart`）は下記
+    // `toggle_chart`（root へ id 属性を付与した line_chart）が実際に
+    // 保持する要素であり、`aria-controls` の参照先が実在することを
+    // デモ上でも保証する（codex-review 指摘、イシュー #2133 PR #2271）。
+    let toggle_legend = legend::legend(
+        &data,
+        &LegendProps {
+            title: Some("Series (toggle)".to_string()),
+            hidden_series: vec!["Signups".to_string()],
+            controls: Some("charts-showcase-toggle-chart".to_string()),
+            ..Default::default()
+        },
+    );
+
+    // `toggle_legend` の `aria-controls="charts-showcase-toggle-chart"` が
+    // 参照する実チャート。凡例側の `hidden_series` と同じ系列（Signups）を
+    // `LineChartProps::hidden_series` へも渡し、凡例のトグル状態とチャート
+    // 側の `data-hidden` が対応する構成を静的 HTML 上で実演する（click
+    // 配線・実データ連動自体は #2134 のスコープ）。
+    let toggle_chart = line_chart::line_chart(
+        &{
+            let mut props = LineChartProps::new(&data, "Series (toggle) chart");
+            props.hidden_series = &["Signups"];
+            props
+        },
+        vec![("id", "charts-showcase-toggle-chart")],
+    )
+    .expect("showcase 固定データは不変条件を満たす");
+
     section(
         "Charts",
-        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。凡例の中央揃え・角丸四角マーカー・`hideIcon` 相当・複数行ツールチップ本文は shadcn/ui Charts（tooltip）との突合（イシュー #2086）で追加した静的バリアントです。ツールチップ DOM・indicator・マウス追従は #2128 系（#2129〜#2131）、凡例の系列トグルは #2132 のスコープです。",
+        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。凡例の中央揃え・角丸四角マーカー・`hideIcon` 相当・複数行ツールチップ本文は shadcn/ui Charts（tooltip）との突合（イシュー #2086）で追加した静的バリアントです。凡例は `button` + `aria-pressed` の SSR 構造を持ち（イシュー #2133）、`hidden_series`/`controls` で非表示系列の減光・`aria-controls` opt-in を実演します（末尾の凡例デモ。click 配線・チャート側の期間切替 `data-range`/系列 `data-hidden` の実データ連動は #2134 のスコープ）。ツールチップ DOM・indicator・マウス追従は #2128 系（#2129〜#2131）のスコープです。",
         vec![
             stack(vec![chart, legend_node]),
             stack(vec![top_legend]),
             stack(vec![hidden_marker_legend]),
             stack(vec![advanced_tooltip_demo]),
+            stack(vec![toggle_legend, toggle_chart]),
         ],
     )
 }
@@ -14323,7 +14421,7 @@ mod tests {
         // イシュー #2075 で Sidebar を追加し 110 → 111 件になった。
         // イシュー #2109 で Bubble を追加し 111 → 112 件になった。
         // イシュー #2112 で Attachment を追加し 112 → 113 件になった。
-        assert_eq!(paths.len(), 113, "COMPONENT_PAGES should have 113 entries");
+        assert_eq!(paths.len(), 114, "COMPONENT_PAGES should have 114 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

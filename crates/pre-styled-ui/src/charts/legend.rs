@@ -1,9 +1,16 @@
 //! チャート凡例（イシュー #847、chakra-ui `charts/legend.md` 相当）。
 //!
-//! [`super::data::ChartData`] の系列一覧から `<ul>` ベースの凡例を組み立てる
-//! （インタラクティブ legend——hover で対象系列を強調・click で表示トグル——は
-//! JS/wasm ランタイム連携が必要なためスコープ外、`crates/pre-styled-ui/src/charts/mod.rs`
-//! のスコープ外節参照。#2132 が実装を担う）。
+//! [`super::data::ChartData`] の系列一覧から `<ul>` ベースの凡例を組み立てる。
+//! 各 item の内側は `<button type="button">`（新 slot `"trigger"`）で
+//! marker/icon/label を包み、`aria-pressed` で表示中/非表示を表す
+//! （イシュー #2133。以前は静的 `<span>` のみで hover 強調・click トグルは
+//! 「JS/wasm ランタイム連携が必要なためスコープ外」としていたが、本
+//! イシューで SSR 構造（`button` と `aria-pressed`・`data-series`/
+//! `data-index`・`aria-controls` opt-in の組み合わせ）へ確定させた。JS
+//! 無効時は押しても表示が変わらないだけで、構造・表示は progressive
+//! enhancement として単独で成立する。実際の click 配線（`aria-pressed`
+//! の付け外し・対応するチャート系列の表示トグル）は wasm-full 側
+//! （イシュー #2134）が担う。
 //!
 //! # shadcn/ui 突合（イシュー #2086）
 //!
@@ -22,6 +29,32 @@
 //! 据え置く（golden 純追加原則。既存消費者の見た目を再 churn させない）。
 //! shadcn-ui 側の値は opt-in variant として追加した。
 //!
+//! # `trigger` slot の `data-*`/`aria-*` 語彙（イシュー #2133）
+//!
+//! - [`legend`] の trigger には `data-series="<Series::name>"`
+//!   （[`super::data::Series::display_label`] ではなく生の `name`。
+//!   line/area/bar/radar/scatter/pie(stacked)/radial・
+//!   [`super::tooltip`] の `tooltip-item` と同一の `data-series` 語彙、
+//!   イシュー #2129/#2130）を付与する。[`category_legend`] の trigger には
+//!   `data-index="<カテゴリ index の 10 進文字列>"`（同語彙のカテゴリ版）を
+//!   付与する。
+//! - [`LegendProps::hidden_series`]/[`LegendProps::hidden_categories`] は
+//!   **照合にのみ**使い、値そのものは出力しない（一致した item の
+//!   `aria-pressed` を `"false"` にするだけ）。系列名/カテゴリ index が
+//!   データに存在しなくてもエラーにしない（fail-soft、表示状態の指定は
+//!   描画の妥当性を損なわないため）。
+//! - [`LegendProps::controls`] が `Some(id)` のとき、全 trigger へ
+//!   `aria-controls="<id>"` を付与する（凡例は独立ノードでチャート root と
+//!   親子関係を持たないため、wasm-full 側〔#2134〕が凡例からチャート
+//!   root を決定的に辿るための明示的なリンク。チャート root 側の `id` は
+//!   呼び出し側が各チャート関数の `attrs` で渡す）。`None`（既定）では
+//!   出力しない。
+//! - 系列名の一意性: `data-series` によるトグルは系列名が一意であることを
+//!   前提とする。[`super::data::ChartData::new`] は系列名の重複を検証
+//!   しない（[`super::scatter_chart::ScatterData::new`] のみ検証、
+//!   [`super::ChartError::DuplicateSeriesName`]）ため、重複名では複数系列が
+//!   同じ `data-series` に当たる。
+//!
 //! # セキュリティ不変条件
 //!
 //! - タイトル・系列名/表示ラベルはすべて [`fandhe_frontend_core::text`]
@@ -39,17 +72,25 @@
 
 use super::data::ChartData;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, transition_declarations, FocusRingColor, FocusRingOffset,
+    MotionDuration, SlotRecipe, StateCondition, VariantValue,
+};
+use fandhe_frontend_headless_ui::aria::aria_pressed;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 
 /// 本モジュールの anatomy scope。[`super::axis`]/[`super::grid`] とは別の
 /// scope（凡例は SVG 外の通常 HTML であり、パーツ集合が異なるため）。
 const SCOPE: &str = "chart-legend";
 
-/// [`recipe`] に渡す slot 一覧。`icon`（末尾、イシュー #2077）は
+/// [`recipe`] に渡す slot 一覧。`icon`（イシュー #2077）は
 /// [`super::data::Series::icon`] 指定時に `marker` の代わりに描画される
-/// 代替スロット（shadcn/ui `ChartConfig.icon` 相当）。
-const SLOTS: &[&str] = &["root", "title", "item", "marker", "label", "icon"];
+/// 代替スロット（shadcn/ui `ChartConfig.icon` 相当）。`trigger`（末尾、
+/// イシュー #2133）は各 item の内側を包む `<button type="button">`
+/// （marker/icon/label の親、`aria-pressed` を持つ）。
+const SLOTS: &[&str] = &[
+    "root", "title", "item", "marker", "label", "icon", "trigger",
+];
 
 /// 凡例の水平揃え軸（shadcn/ui `verticalAlign` の水平版に相当する
 /// `justify-content` 選択、イシュー #2086）。
@@ -114,9 +155,21 @@ pub struct LegendProps {
     pub align: LegendAlign,
     /// マーカー形状（既定 [`LegendMarker::Circle`]、イシュー #2086）。
     pub marker: LegendMarker,
+    /// [`legend`] のみが参照する非表示系列名の一覧（イシュー #2133）。
+    /// [`super::data::Series::name`] と完全一致する系列の trigger を
+    /// `aria-pressed="false"` にする。[`category_legend`] は無視する。
+    pub hidden_series: Vec<String>,
+    /// [`category_legend`] のみが参照する非表示カテゴリ index の一覧
+    /// （イシュー #2133）。含まれる index の item の trigger を
+    /// `aria-pressed="false"` にする。[`legend`] は無視する。
+    pub hidden_categories: Vec<usize>,
+    /// `Some(id)` のとき全 trigger へ `aria-controls="<id>"` を付与する
+    /// （イシュー #2133、モジュール doc「`trigger` slot の語彙」節参照）。
+    /// 既定 `None`（出力しない）。
+    pub controls: Option<String>,
 }
 
-/// Legend の recipe（scope `"chart-legend"`、[`SLOTS`] の 6 パーツ）。
+/// Legend の recipe（scope `"chart-legend"`、[`SLOTS`] の 7 パーツ）。
 ///
 /// # 参考サイト基準への調整（イシュー #1593）
 ///
@@ -187,6 +240,40 @@ fn recipe() -> SlotRecipe {
                 decl("height", "var(--fandhe-space-3)"),
             ],
         )
+        .base(
+            "trigger",
+            vec![
+                // UA の <button> 既定装飾を解除し、旧 `item` の横並び
+                // レイアウト（`display: inline-flex; align-items: center;
+                // gap: var(--fandhe-space-2)`）を引き継ぐ（イシュー #2133:
+                // marker/icon/label が `item` の直接の子から `trigger` の
+                // 直接の子へ移ったため）。`item` 自身の base は不変。
+                decl("appearance", "none"),
+                decl("background", "none"),
+                decl("border", "0"),
+                decl("padding", "0"),
+                decl("margin", "0"),
+                decl("font", "inherit"),
+                decl("color", "inherit"),
+                decl("cursor", "pointer"),
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+            ]
+            .into_iter()
+            .chain(transition_declarations("opacity", MotionDuration::Fast))
+            .collect::<Vec<_>>(),
+        )
+        .state(
+            "trigger",
+            StateCondition::AttrEq("aria-pressed", "false"),
+            vec![decl("opacity", "0.5")],
+        )
+        .state(
+            "trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
         .variant(
             LegendAlign::Center,
             "root",
@@ -230,6 +317,9 @@ pub fn css() -> String {
 /// variant も class として出力する」既存規約、`recipe().variant_classes`
 /// 参照）。マーカー span 自身にも `marker` 軸の class を付与する（`root`
 /// へ落とすだけでは `[data-part="marker"]` セレクタの規則が当たらないため）。
+/// marker/icon/label は `<li>` の直接の子ではなく `<button type="button"
+/// data-part="trigger">` の子として描画する（イシュー #2133、モジュール doc
+/// 「`trigger` slot の語彙」節参照）。
 #[must_use]
 pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
     let recipe = recipe();
@@ -254,7 +344,7 @@ pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
 
     for (i, series) in data.series().iter().enumerate() {
         let color = data.series_color_var(i);
-        let mut item_children: Vec<Node> = Vec::new();
+        let mut trigger_children: Vec<Node> = Vec::new();
         if !props.hide_marker {
             let marker = if let Some(icon) = &series.icon {
                 let icon_style = format!("color: {color}");
@@ -282,18 +372,33 @@ pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
                     vec![],
                 )
             };
-            item_children.push(marker);
+            trigger_children.push(marker);
         }
         let label = el(
             "span",
             vec![("data-scope", SCOPE), ("data-part", "label")],
             vec![text(series.display_label())],
         );
-        item_children.push(label);
+        trigger_children.push(label);
+
+        let pressed = !props.hidden_series.iter().any(|name| name == &series.name);
+        let pressed_attr = aria_pressed(pressed);
+        let mut trigger_attrs: Vec<(&str, &str)> = vec![
+            ("type", "button"),
+            ("data-scope", SCOPE),
+            ("data-part", "trigger"),
+            ("data-series", series.name.as_str()),
+            pressed_attr,
+        ];
+        if let Some(controls) = &props.controls {
+            trigger_attrs.push(("aria-controls", controls.as_str()));
+        }
+        let trigger = el("button", trigger_attrs, trigger_children);
+
         children.push(el(
             "li",
             vec![("data-scope", SCOPE), ("data-part", "item")],
-            item_children,
+            vec![trigger],
         ));
     }
 
@@ -322,8 +427,8 @@ pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
 /// `data` の系列は 1 本目（`series()[0]`）のみを参照し、`icon` slot は
 /// 使わない（`icon` はカテゴリではなく系列単位の設定
 /// [`super::data::Series::icon`] のため本関数の対象外）。マークアップは
-/// [`legend`] と同じ scope/slot（`root`/`title`/`item`/`marker`/`label`）を
-/// 共有するため CSS（[`css`]）は変更しない。
+/// [`legend`] と同じ scope/slot（`root`/`title`/`item`/`trigger`/`marker`/
+/// `label`）を共有するため CSS（[`css`]）は変更しない。
 ///
 /// `data.series()` が空の場合は `item` を 1 件も持たない `root` のみを
 /// 返す（fail-soft。呼び出し元は事前に [`ChartData`] の非空検証を通した
@@ -331,6 +436,8 @@ pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
 ///
 /// [`LegendProps::hide_marker`]/`align`/`marker`（イシュー #2086）は
 /// [`legend`] と同じ意味論で適用される（recipe・slot を共有するため）。
+/// trigger の `data-index`・[`LegendProps::hidden_categories`]・
+/// [`LegendProps::controls`] は本関数専用（イシュー #2133）。
 #[must_use]
 pub fn category_legend(data: &ChartData, props: &LegendProps) -> Node {
     let recipe = recipe();
@@ -352,10 +459,10 @@ pub fn category_legend(data: &ChartData, props: &LegendProps) -> Node {
     let categories = data.categories();
     for (i, category) in categories.iter().enumerate() {
         let color = super::series_color_var(i);
-        let mut item_children: Vec<Node> = Vec::new();
+        let mut trigger_children: Vec<Node> = Vec::new();
         if !props.hide_marker {
             let marker_style = format!("background: {color}");
-            item_children.push(el(
+            trigger_children.push(el(
                 "span",
                 vec![
                     ("data-scope", SCOPE),
@@ -372,11 +479,27 @@ pub fn category_legend(data: &ChartData, props: &LegendProps) -> Node {
             vec![("data-scope", SCOPE), ("data-part", "label")],
             vec![text(category.as_str())],
         );
-        item_children.push(label);
+        trigger_children.push(label);
+
+        let pressed = !props.hidden_categories.contains(&i);
+        let pressed_attr = aria_pressed(pressed);
+        let index_str = i.to_string();
+        let mut trigger_attrs: Vec<(&str, &str)> = vec![
+            ("type", "button"),
+            ("data-scope", SCOPE),
+            ("data-part", "trigger"),
+            ("data-index", index_str.as_str()),
+            pressed_attr,
+        ];
+        if let Some(controls) = &props.controls {
+            trigger_attrs.push(("aria-controls", controls.as_str()));
+        }
+        let trigger = el("button", trigger_attrs, trigger_children);
+
         children.push(el(
             "li",
             vec![("data-scope", SCOPE), ("data-part", "item")],
-            item_children,
+            vec![trigger],
         ));
     }
 
@@ -572,5 +695,133 @@ mod tests {
         let html = render(&category_legend(&data, &LegendProps::default()));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
+    }
+
+    // イシュー #2133: button + aria-pressed 化。
+
+    #[test]
+    fn legend_trigger_is_button_with_aria_pressed_true_by_default() {
+        let html = render(&legend(&sample(), &LegendProps::default()));
+        assert!(html.contains(
+            r#"<button type="button" data-scope="chart-legend" data-part="trigger" data-series="visits" aria-pressed="true">"#
+        ));
+        assert!(html.contains(r#"data-series="signups" aria-pressed="true""#));
+    }
+
+    #[test]
+    fn legend_hidden_series_sets_aria_pressed_false_only_for_matching_series() {
+        let props = LegendProps {
+            hidden_series: vec!["signups".to_string()],
+            ..Default::default()
+        };
+        let html = render(&legend(&sample(), &props));
+        assert!(html.contains(r#"data-series="visits" aria-pressed="true""#));
+        assert!(html.contains(r#"data-series="signups" aria-pressed="false""#));
+    }
+
+    #[test]
+    fn legend_hidden_series_matching_unknown_name_is_fail_soft() {
+        let props = LegendProps {
+            hidden_series: vec!["does-not-exist".to_string()],
+            ..Default::default()
+        };
+        let html = render(&legend(&sample(), &props));
+        assert!(html.contains(r#"data-series="visits" aria-pressed="true""#));
+        assert!(html.contains(r#"data-series="signups" aria-pressed="true""#));
+    }
+
+    #[test]
+    fn legend_controls_adds_aria_controls_to_every_trigger() {
+        let props = LegendProps {
+            controls: Some("chart-1".to_string()),
+            ..Default::default()
+        };
+        let html = render(&legend(&sample(), &props));
+        assert_eq!(html.matches(r#"aria-controls="chart-1""#).count(), 2);
+    }
+
+    #[test]
+    fn legend_omits_aria_controls_when_none() {
+        let html = render(&legend(&sample(), &LegendProps::default()));
+        assert!(!html.contains("aria-controls"));
+    }
+
+    #[test]
+    fn legend_hide_marker_still_wraps_label_in_button_trigger() {
+        let props = LegendProps {
+            hide_marker: true,
+            ..Default::default()
+        };
+        let html = render(&legend(&sample(), &props));
+        assert!(html.contains(r#"data-part="trigger""#));
+        assert!(html.contains("<button"));
+    }
+
+    #[test]
+    fn category_legend_trigger_has_data_index_and_default_aria_pressed_true() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![Series::new("total", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let html = render(&category_legend(&data, &LegendProps::default()));
+        assert!(html.contains(r#"data-index="0" aria-pressed="true""#));
+        assert!(html.contains(r#"data-index="1" aria-pressed="true""#));
+    }
+
+    #[test]
+    fn category_legend_hidden_categories_sets_aria_pressed_false() {
+        let data = ChartData::new(
+            vec!["A".to_string(), "B".to_string()],
+            vec![Series::new("total", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let props = LegendProps {
+            hidden_categories: vec![1],
+            ..Default::default()
+        };
+        let html = render(&category_legend(&data, &props));
+        assert!(html.contains(r#"data-index="0" aria-pressed="true""#));
+        assert!(html.contains(r#"data-index="1" aria-pressed="false""#));
+    }
+
+    #[test]
+    fn legend_hidden_categories_and_category_legend_hidden_series_are_ignored() {
+        // legend() は hidden_categories を、category_legend() は
+        // hidden_series を無視する（LegendProps フィールドの意味論境界）。
+        let props = LegendProps {
+            hidden_categories: vec![0],
+            ..Default::default()
+        };
+        let html = render(&legend(&sample(), &props));
+        assert!(html.contains(r#"aria-pressed="true""#));
+        assert!(!html.contains(r#"aria-pressed="false""#));
+
+        let data =
+            ChartData::new(vec!["A".to_string()], vec![Series::new("total", vec![1.0])]).unwrap();
+        let props2 = LegendProps {
+            hidden_series: vec!["total".to_string()],
+            ..Default::default()
+        };
+        let html2 = render(&category_legend(&data, &props2));
+        assert!(html2.contains(r#"aria-pressed="true""#));
+    }
+
+    #[test]
+    fn xss_regression_controls_id_is_escaped() {
+        let payload = "\"><script>alert(1)</script>";
+        let props = LegendProps {
+            controls: Some(payload.to_string()),
+            ..Default::default()
+        };
+        let html = render(&legend(&sample(), &props));
+        assert!(!html.contains("<script>"));
+    }
+
+    #[test]
+    fn css_output_includes_trigger_declarations() {
+        let out = css();
+        assert!(out.contains(r#"data-part="trigger""#));
+        assert!(out.contains("aria-pressed=\"false\""));
     }
 }

@@ -342,6 +342,7 @@ mod tests {
             ("text", crate::text::css()),
             ("em", crate::em::css()),
             ("mark", crate::mark::css()),
+            ("marker", crate::marker::stylesheet()),
             ("blockquote", crate::blockquote::css()),
             ("list", crate::list::css()),
             ("quote", crate::quote::css()),

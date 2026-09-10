@@ -204,10 +204,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 214 → 215、イシュー #2111 で Attachment（Primitives）が加わり
     // 215 → 216、イシュー #2112 で Attachment の Themes ページが加わり
     // 216 → 217、イシュー #2114 で Marker（Primitives）が加わり
-    // 217 → 218 になった（Themes ページは #2115 で追加予定）。イシュー
-    // #2088 で Blocks セクション（索引 1 + login-01 1 = 2 ページ）が
-    // 新設され、218 → 220 になった。
-    assert_eq!(pages.len(), 220, "expected 220 pages, got {pages:?}");
+    // 217 → 218、イシュー #2115 で Marker の Themes ページが加わり
+    // 218 → 219 になった。イシュー #2088 で Blocks セクション（索引 1 +
+    // login-01 1 = 2 ページ）が新設され、219 → 221 になった。
+    assert_eq!(pages.len(), 221, "expected 221 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。
@@ -292,15 +292,15 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // イシュー #2080 で 114 → 115、イシュー #2106 で 115 → 116、
     // イシュー #2075 で Sidebar が加わり 116 → 117、イシュー #2109 で
     // Bubble が加わり 117 → 118、イシュー #2112 で Attachment が加わり
-    // 118 → 119）。
+    // 118 → 119、イシュー #2115 で Marker が加わり 119 → 120）。
     let themes_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/themes/"))
         .collect();
     assert_eq!(
         themes_pages.len(),
-        120,
-        "expected 120 /themes/ pages (119 部品 + 1 索引), got {themes_pages:?}"
+        121,
+        "expected 121 /themes/ pages (120 部品 + 1 索引), got {themes_pages:?}"
     );
 
     let source_based_component_pages = pages
@@ -308,8 +308,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .filter(|(source, _)| source.starts_with("site/themes/"))
         .count();
     assert_eq!(
-        source_based_component_pages, 119,
-        "expected 119 pages sourced from site/themes/"
+        source_based_component_pages, 120,
+        "expected 120 pages sourced from site/themes/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ
