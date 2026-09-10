@@ -314,6 +314,10 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 |---|---|---|---|
 | `collapsible`/`dialog`/`popover`/`tooltip`/`menu` | `trigger` | `"toggle"` | `""` |
 | `menu` | `trigger-item` | `"toggle"` | `""` |
+| `menu` | `checkbox-item` | `"toggle"` | `""` |
+| `menu` | `radio-item` | `"select"` | `data-value` |
+| `menubar` | `checkbox-item` | `"toggle"` | `""` |
+| `menubar` | `radio-item` | `"select"` | `data-value` |
 | `dialog`/`popover` | `close-trigger` | `"close"` | `""` |
 | `tabs` | `trigger` | `"select"` | `data-value` |
 | `radio-group` | `item` | `"select"` | `data-value` |
@@ -342,6 +346,8 @@ toolbar / menubar / date-input / pin-input の各 `decode_action` と共有
 経由するアプリで同一 click が二重解決・誤 dispatch されるため、専用の
 click 委譲（`questionnaire::wire_questionnaire_events`）を別途 `root` へ
 登録する。
+
+`menu`/`menubar` の `checkbox-item`/`radio-item` の 4 行はイシュー #2205 で追加した（詳細・keynav 側の対応拡張は §31 参照）。
 
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
 
@@ -1610,9 +1616,9 @@ closed のとき content 要素へ `hidden` 存在属性を付与する契約
   `#[cfg(target_arch = "wasm32")]`。
 
 対象パーツは `TARGETS: &[(&str, &str)] = &[("collapsible", "content"),
-("accordion", "item-content")]` という静的表のみで宣言し、部品名で
-分岐するコードを持たない。対象追加（例: bubble、#2282）はこの表への
-1 行追加のみで乗る設計。
+("accordion", "item-content"), ("bubble", "collapse-content")]`
+という静的表のみで宣言し、部品名で分岐するコードを持たない。bubble の
+`collapse-content`（#2282）はこの表への 1 行追加のみで適用した。
 
 ### 28.3 書き込み手段: CSSOM（Issue 記載パターンとの差分）
 
@@ -1690,8 +1696,10 @@ CSS 遷移そのものの成立可否〔#2192 側の CSS 実装に依存〕は�
   `animation` 方式採用との協調。
 - `overflow: hidden` 下で content が縮んだ場合に前回値が残る限界の
   解消（測定方式の再検討）。
-- bubble（#2282）・他部品（#2283）への `TARGETS` 追加は既存イシューで
-  扱う。
+- bubble（#2282 で `TARGETS` 適用済み。ただし `MAPPING_TABLE` に
+  `(bubble, collapse-trigger)` の配線が無いため `wire_headless_component`
+  経由のクリックでは dispatch されない実運用上の限界が残る）・他部品
+  （#2283）への `TARGETS` 追加は既存イシューで扱う。
 
 ## 29. `chart_range` モジュール（イシュー #2134、親 #2132）
 
@@ -1857,3 +1865,165 @@ T1〜T7 を固定済み）。
 patch バンプとする。`fandhe-frontend-headless-ui` は rustdoc のみの変更
 だが `src/` 変更のため version-bump-guard 対象であり、同じく patch
 バンプとする（#1638 前例と同型）。
+
+## 31. keynav / headless への menu・menubar checkbox-item / radio-item 配線（イシュー #2205）
+
+### 31.1 背景
+
+`crates/headless-ui/src/menu.rs`/`menubar.rs` は `checkbox_item`（
+`role="menuitemcheckbox"`・`aria-checked`・`data-state`・`data-value`）/
+`radio_item_group`/`radio_item`（`role="menuitemradio"`）を anatomy として
+出力し、状態機械 `menu::MenuCheckboxItem`（`state::Checkable` 埋め込み、
+`decode_action` は `"check"`/`"uncheck"`/`"toggle"`）/`menu::MenuRadioItemGroup`
+（`state::SingleSelect` 埋め込み、`decode_action` は `"select"` のみ）を
+提供済みだった（イシュー #597）。Menubar 側は開閉状態機械（`Menubar`）
+のみで checked 状態機械を持たず、`menubar::checkbox_item`/`radio_item`
+（イシュー #1652）も `menu::MenuCheckboxItem`/`MenuRadioItemGroup` を流用
+する前提で anatomy のみ供給していた。
+
+一方 wasm-full 側では (1) `crate::headless::MAPPING_TABLE` に
+`checkbox-item`/`radio-item` の行が無く、マウスクリックでも checked
+トグルが dispatch されない、(2) `crate::keynav` の
+`MENU_ITEM_SELECTOR`/`MENUBAR_ITEM_SELECTOR` が highlight・typeahead の
+対象に含めないため Enter/Space の click 合成の対象外、の 2 点が既知の
+ギャップとして残っていた（#1651（menu）/#1652（menubar、PR #2164 対象外
+節・#1924）参照）。本イシューはこの 2 点を解消する。
+
+### 31.2 `MAPPING_TABLE` への 4 行追加
+
+| data-scope | data-part | action | requires_value | 根拠 |
+|---|---|---|---|---|
+| `menu` | `checkbox-item` | `"toggle"` | `false` | `Checkable::decode_action` は payload を無視する。`menu`/`trigger-item` 行と同型 |
+| `menu` | `radio-item` | `"select"` | `true` | `MenuRadioItemGroup::decode_action` は `"select"` のみ受理し payload を項目値として使う |
+| `menubar` | `checkbox-item` | `"toggle"` | `false`（menu 側と異なり必須） | `Menubar::decode_action("toggle", payload)` は `payload.parse::<usize>()` する。`requires_value: true` にすると `data-value`（checkbox-item の値、Menu index ではない）がそのまま流れ、checkbox-item のみ配線し Menubar を配線していないアプリで無関係な index への誤 dispatch を招くおそれがある。payload を常に空文字列にすることで `"".parse::<usize>()` は必ず `Err` になり fail-closed で Menubar 側へは到達しない |
+| `menubar` | `radio-item` | `"select"` | `true` | `Menubar::decode_action` は `"select"` を `None` にするため衝突しない |
+
+`checkbox-item` の `"toggle"` は `Disclosure::decode_action("toggle")` にも
+一致するため、`action_for_part` 単体（(scope, part) の 1 段判定）で見れば
+checkbox-item クリックは外側 `Menu`（Disclosure 埋め込み）の `"toggle"`
+とも解釈できてしまう。本リポジトリの既存規約は「各コンポーネントインス
+タンスを自身の境界要素へ個別に `wire_headless_component` し、内側で解決
+した click は `stop_propagation` で外側へ伝播させない」（
+`crates/wasm-full/tests/headless_wiring_browser.rs::
+submenu_trigger_item_click_toggles_child_menu_and_does_not_cross_dispatch_to_parent`
+参照）であり、`checkbox_item`/`radio_item_group` もこの契約に従って
+個別配線する（`menu_checkbox_item_click_does_not_cross_dispatch_to_outer_menu`
+がこの越境防止を固定する）。
+
+**checkbox-item/radio-item の状態機械を配線していないアプリでの誤 dispatch
+是正（codex-review PR #2321 P1 指摘、実装は
+[`crate::headless::action_from_parts_scoped`] 内
+`resolved_part_targets_wired_root`）**: 当初の実装は
+`action_from_parts`（実クリック配線が経由する多段解決）が checkbox-item
+自体をそのまま解決してしまい、外側 Menu だけを配線し checkbox-item の
+checked 状態を独自の click ハンドラで管理している既存アプリで、
+checkbox-item クリックが外側 Menu の `"toggle"` として誤って dispatch
+され Menu が意図せず閉じる回帰を招いていた（実装当初は「設計上の既知
+トレードオフ」として許容していたが、`stop_propagation` 契約が前提とする
+「内側で解決した click は必ず内側の専用インスタンスへのものである」を
+実際には満たしていなかった不整合であり、是正した）。是正後は
+`collect_part_refs` の契約（`parts` の末尾は常に配線起点 root 自身の
+`PartRef`）を利用し、「解決に使われた part（checkbox-item/radio-item）が
+wire された root 自身（checkbox-item 自身 / radio-item-group 自身）で
+なければ、その解決を採用しない」を `action_from_parts_scoped` 内で
+機械的に判定する。checkbox-item/radio-item 専用インスタンスへ
+`wire_headless_component` している場合（`menu_checkbox_item_click_toggles_in_real_dom`
+等）は従来どおり解決される。native 回帰は
+`menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`/
+`menubar_checkbox_item_click_bubbled_to_outer_menubar_root_does_not_resolve`
+等、browser 回帰は
+`menu_checkbox_item_click_without_dedicated_instance_wiring_does_not_toggle_outer_menu`
+が固定する。menubar 側は `Menubar::decode_action` が元々 "toggle"（空
+payload）/"select" のいずれも受理しないため Menubar 自身への誤
+dispatch は起きないが、ガード無しでは `action_from_parts_scoped` が
+`Some` を返し `stop_propagation` だけが呼ばれてしまう（dispatch 失敗の
+有無に関わらず解決成立時点で呼ぶ契約）ため、checkbox-item/radio-item を
+独自 click ハンドラで管理する既存アプリのクリックが無言で握りつぶされる
+同種の問題が起き得た。`resolved_part_targets_wired_root` は scope を
+区別せず `menu`/`menubar` の双方へ同じ制約を課すことでこれも予防する。
+
+Menubar は checked 状態機械を持たないため、`menubar::checkbox_item`/
+`radio_item` から生成される要素も `menu::MenuCheckboxItem`/
+`MenuRadioItemGroup` を流用する（native/browser 双方のテストでこの流用
+パターンを固定する）。
+
+### 31.3 `keynav.rs` 側の拡張
+
+- `MENU_ITEM_SELECTOR` へ `[data-scope="menu"][data-part="checkbox-item"]`/
+  `[data-scope="menu"][data-part="radio-item"]` を追加。
+- `MENUBAR_ITEM_SELECTOR` へ `[data-scope="menubar"][data-part="checkbox-item"]`/
+  `[data-scope="menubar"][data-part="radio-item"]` を追加。
+- `sync_item_text_highlighted`（highlight 状態を `item-text` 子へ同期する
+  内部関数）の所有判定セレクタ `[data-part="item"]` を
+  `[data-part="item"], [data-part="checkbox-item"], [data-part="radio-item"]`
+  へ拡張。拡張しないと checkbox-item/radio-item 配下の `item-text` へ
+  `data-highlighted` が同期されず、highlight 表示が半端に欠落する。
+- `collect_parts`/`filter_own_scope_items`/`find_highlighted_index`/
+  `set_highlight`/`activate_or_open_submenu`/`item_label` はいずれも
+  part 名非依存（セレクタ・要素列のみを扱う）のため無変更で新パーツに
+  働く。Enter/Space は `activate_or_open_submenu` が highlight 中要素へ
+  `HtmlElement::click()` を合成し、`wire_headless_component` →
+  `action_from_parts` → `MAPPING_TABLE` 新行 → dispatch へ到達する
+  （keynav は `aria-checked`/`data-state` を直接書かない既存原則を維持）。
+- `item_label`（typeahead のラベル解決）は `item-text` 子を優先し、無け
+  れば要素自身の `text_content()` へフォールバックする既存の挙動を継承
+  する。`item-indicator` のみを子に持つ構成では indicator テキストが
+  ラベルへ混入しうるため、テストフィクスチャは `item-text` を持たせる
+  （是正はスコープ外、§31.6 参照）。
+
+### 31.4 テスト構成
+
+- native（`crates/wasm-full/tests/headless_wiring.rs`）: `menu`/`menubar`
+  それぞれ checkbox-item/radio-item のドリフト検知（`assert_scope_part_present`）・
+  dispatch 遷移（トグル/排他選択）・`data-value` 欠落や `disabled` の
+  fail-closed・`"toggle"`/`"select"` 語彙衝突（`action_for_part` 単体では
+  checkbox-item が外側 Menu の toggle とも解釈できるが、実クリック配線が
+  経由する `action_from_parts` は専用インスタンス root でない解決を
+  fail-closed で拒否する。`menu_checkbox_item_toggle_action_manually_dispatched_to_menu_disclosure_opens_it`
+  が `action_for_part` 単体の語彙衝突を、
+  `menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`/
+  `menubar_checkbox_item_click_bubbled_to_outer_menubar_root_does_not_resolve`/
+  `menubar_radio_item_click_bubbled_to_outer_menubar_root_does_not_resolve`
+  が `action_from_parts` 側の拒否をそれぞれ固定する。radio-item は
+  Menu/Menubar 双方でそもそも語彙が受理されず no-op）・XSS エスケープの
+  回帰を固定。
+- browser（`crates/wasm-full/tests/headless_wiring_browser.rs`）: 実 DOM
+  クリックでの checkbox-item トグル・radio-item-group 排他選択・外側
+  Menu への非越境（`stop_propagation` 契約。専用インスタンスを配線した
+  場合の `menu_checkbox_item_click_does_not_cross_dispatch_to_outer_menu`
+  に加え、専用インスタンスを一切配線していない既存アプリの再現である
+  `menu_checkbox_item_click_without_dedicated_instance_wiring_does_not_toggle_outer_menu`
+  も固定）・menubar checkbox-item/radio-item の実クリック
+  （`Menubar::open()` が不変であることも含む）・XSS 回帰を固定。
+- browser（`crates/wasm-full/tests/keynav_browser.rs`、受け入れ条件）:
+  `build_menu_dom_with_checkable_items`（`MenuItemSpec::Item`/
+  `CheckboxItem`/`RadioItem` を混在配置できる `build_menu_dom` の
+  checkable 版）を新設し、(a) Enter/Space での checkbox-item トグル・
+  DOM 反映（`on_update` 経由）、(b) Enter でのグループ内排他選択・DOM
+  反映、(c) Arrow キーでの disabled checkbox-item スキップと
+  `item-text` への `data-highlighted` 同期、(d) 攻撃者制御ラベルでの
+  XSS 回帰、(e) menubar 版（checkbox-item トグル + radio-item 選択、
+  `Menubar` 自体の open 状態は変えない）を固定する。
+
+### 31.5 semver 判断
+
+`crate::headless::MAPPING_TABLE` への行追加・`crate::keynav` のセレクタ
+拡張はいずれも加算的変更（既存シグネチャ不変）のため、
+`fandhe-frontend-wasm-full` は patch バンプとする。`fandhe-frontend-headless-ui`
+は rustdoc（既知ギャップ記述の更新）のみの変更であり、公開 API・SSR
+出力は不変のため `version-bump-exempt` を PR 本文で宣言する。
+
+### 31.6 スコープ外（Issue 化をユーザーへ提案）
+
+- `aria-checked`/`data-state` をクライアント側で自動反映する補助モジュール
+  （`headless_select::wire_select_value_text` 相当の `headless_menu`）の
+  新設。現状は `wire_headless_component` の `on_update` で呼び出し側が
+  DOM 反映を行う契約のまま（§12.2 と同じ既存原則）。
+- checkbox-item/radio-item 決定時に Menu 自体を閉じる（`closeOnSelect`
+  相当）挙動。
+- `pre-styled-ui` 側 menubar 新パーツの `SLOTS`/CSS（#1528 からの申し送り
+  継続）。
+- docs サイトの menu/menubar keyboard 節（`KeyRow`）への行追加の要否精査。
+- `item_label` が `item-text` 非保持・`item-indicator` 保持の構成で
+  indicator テキストを typeahead ラベルへ含めてしまう点の是正（本イシュー
+  はテストフィクスチャ側で `item-text` を保持させる回避のみ）。

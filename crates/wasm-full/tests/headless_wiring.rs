@@ -29,7 +29,7 @@ use fandhe_frontend_headless_ui::{
     Tooltip,
 };
 use fandhe_frontend_interactive::dispatch;
-use fandhe_frontend_wasm_full::headless::{action_for_part, PartRef};
+use fandhe_frontend_wasm_full::headless::{action_for_part, action_from_parts, PartRef};
 
 fn part(scope: &str, part: &str, value: Option<&str>, disabled: bool) -> PartRef {
     PartRef {
@@ -210,6 +210,333 @@ fn menu_trigger_item_click_toggles_submenu_open_closed() {
     let mut m = Menu::default();
     assert!(dispatch(&mut m, &action_ref.action, &action_ref.payload));
     assert!(m.is_open());
+}
+
+// --- イシュー #2205: Menu checkbox-item/radio-item の highlight・click dispatch ---
+
+/// checkbox-item クリックが `MenuCheckboxItem`（`Checkable` 埋め込み）の
+/// `"toggle"` dispatch を経由してチェック状態をトグルすることを検証する
+/// （`requires_value: false`。`Checkable::decode_action` は payload を
+/// 無視する、`menu`/`trigger-item` 行と同型）。
+#[test]
+fn menu_checkbox_item_click_toggles_checked() {
+    use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
+
+    let html =
+        render(&MenuCheckboxItem::default().checkbox_item("wrap", false, false, vec![], vec![]));
+    assert_scope_part_present(&html, "menu", "checkbox-item");
+
+    let action_ref = action_for_part(&part("menu", "checkbox-item", Some("wrap"), false)).unwrap();
+    assert_eq!(action_ref.action, "toggle");
+    assert_eq!(action_ref.payload, "");
+
+    let mut item = MenuCheckboxItem::default();
+    assert!(!item.is_checked());
+    assert!(dispatch(&mut item, &action_ref.action, &action_ref.payload));
+    assert!(item.is_checked());
+    assert!(dispatch(&mut item, &action_ref.action, &action_ref.payload));
+    assert!(!item.is_checked());
+}
+
+/// radio-item クリックが `MenuRadioItemGroup`（`SingleSelect` 埋め込み）の
+/// `"select"` dispatch を経由してグループ内排他選択されることを検証する
+/// （`requires_value: true`、`data-value` を項目値として使う）。
+#[test]
+fn menu_radio_item_click_selects_exclusively() {
+    use fandhe_frontend_headless_ui::menu::MenuRadioItemGroup;
+
+    let group = MenuRadioItemGroup::default();
+    let html = render(&group.radio_item("grid", false, false, vec![], vec![]));
+    assert_scope_part_present(&html, "menu", "radio-item");
+
+    let action_ref = action_for_part(&part("menu", "radio-item", Some("grid"), false)).unwrap();
+    assert_eq!(action_ref.action, "select");
+    assert_eq!(action_ref.payload, "grid");
+
+    let mut g = MenuRadioItemGroup::default();
+    assert!(dispatch(&mut g, &action_ref.action, &action_ref.payload));
+    assert!(g.is_checked("grid"));
+    assert!(!g.is_checked("list"));
+
+    let list_action = action_for_part(&part("menu", "radio-item", Some("list"), false)).unwrap();
+    assert!(dispatch(&mut g, &list_action.action, &list_action.payload));
+    assert!(g.is_checked("list"));
+    assert!(!g.is_checked("grid"));
+}
+
+#[test]
+fn menu_checkbox_item_without_data_value_still_resolves() {
+    // checkbox-item は `requires_value: false` のため `data-value` 欠落でも
+    // fail-closed にならない（`menu`/`trigger-item` 行と同型の判断）。
+    let action_ref = action_for_part(&part("menu", "checkbox-item", None, false)).unwrap();
+    assert_eq!(action_ref.action, "toggle");
+    assert_eq!(action_ref.payload, "");
+}
+
+#[test]
+fn menu_radio_item_without_data_value_is_noop() {
+    // radio-item は `requires_value: true` のため `data-value` 欠落は
+    // fail-closed で `None`（改ざん・欠損入力を dispatch へ流さない）。
+    assert_eq!(
+        action_for_part(&part("menu", "radio-item", None, false)),
+        None
+    );
+}
+
+#[test]
+fn menu_checkbox_item_and_radio_item_disabled_are_noop() {
+    assert_eq!(
+        action_for_part(&part("menu", "checkbox-item", Some("wrap"), true)),
+        None
+    );
+    assert_eq!(
+        action_for_part(&part("menu", "radio-item", Some("grid"), true)),
+        None
+    );
+}
+
+/// [`action_for_part`] は (scope, part) の 1 段判定のみを行うため、
+/// checkbox-item 単体で見れば `"toggle"`（`Disclosure::decode_action`
+/// にも一致する語彙）を返す。**この結果を実際の Menu Disclosure へ手動で
+/// dispatch すれば当然開閉は連動する**が、これは `action_for_part` 自体の
+/// 契約確認であり、実 DOM クリック配線の挙動ではない（実クリックは常に
+/// [`action_from_parts`]/`action_from_parts_scoped` 経由で解決され、以下の
+/// [`menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`]
+/// が示すとおり外側 Menu root への誤 dispatch は起きない、codex-review
+/// PR #2321 P1 指摘の是正）。
+#[test]
+fn menu_checkbox_item_toggle_action_manually_dispatched_to_menu_disclosure_opens_it() {
+    let action_ref = action_for_part(&part("menu", "checkbox-item", Some("wrap"), false)).unwrap();
+
+    let mut m = Menu::default();
+    assert!(dispatch(&mut m, &action_ref.action, &action_ref.payload));
+    assert!(m.is_open());
+}
+
+/// 実クリック配線の回帰: `MenuCheckboxItem` の専用インスタンスへ
+/// `wire_headless_component` せず、外側 Menu の root だけを配線した既存
+/// アプリで checkbox-item をクリックした場合の再現（`collect_part_refs`
+/// が構築する内側優先の part 列を模す。`parts` の末尾が wire された root
+/// 自身、doc は [`fandhe_frontend_wasm_full::headless::action_from_parts`]
+/// 参照）。[`action_for_part`] 単体は `"toggle"` を返すが、
+/// [`action_from_parts`] は「解決に使われた part（checkbox-item）が wire
+/// された root（menu/root）自身ではない」ため `None` を返し、外側 Menu へ
+/// 誤って dispatch されない（codex-review PR #2321 P1 指摘の是正）。
+#[test]
+fn menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve() {
+    let parts = vec![
+        part("menu", "checkbox-item", Some("wrap"), false),
+        part("menu", "content", None, false),
+        part("menu", "positioner", None, false),
+        part("menu", "root", None, false),
+    ];
+    assert!(action_from_parts(&parts).is_none());
+}
+
+/// radio-item の `"select"` は `Menu`（Disclosure 埋め込み）の
+/// `decode_action` では `None` になる（Disclosure は "select" を受理しない）
+/// ため、`action_for_part` を手動 dispatch した場合でも外側 Menu へ越境
+/// しない（`action_from_parts` 経由の実クリック配線では checkbox-item も
+/// `resolved_part_targets_wired_root` により同様に越境しない、
+/// `menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`
+/// 参照）。
+#[test]
+fn menu_radio_item_select_action_is_noop_for_menu_disclosure() {
+    let action_ref = action_for_part(&part("menu", "radio-item", Some("grid"), false)).unwrap();
+
+    let mut m = Menu::default();
+    assert!(!dispatch(&mut m, &action_ref.action, &action_ref.payload));
+    assert!(!m.is_open());
+}
+
+#[test]
+fn menu_checkbox_item_data_value_xss_payload_is_escaped_on_render() {
+    use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
+
+    let html = render(&MenuCheckboxItem::default().checkbox_item(
+        "\"><script>alert(1)</script>",
+        false,
+        false,
+        vec![],
+        vec![],
+    ));
+    assert!(!html.contains("<script>"));
+    assert!(html.contains("&lt;script&gt;"));
+}
+
+// --- イシュー #2205: Menubar checkbox-item/radio-item の click dispatch ---
+//
+// Menubar 自身は checked 状態機械を持たないため、`menu::MenuCheckboxItem`/
+// `MenuRadioItemGroup` を流用する（`crates/headless-ui/src/menubar.rs`
+// モジュール doc 参照）。
+
+/// Menubar checkbox-item は `requires_value: false`（menu 側と異なり必須）:
+/// `Menubar::decode_action("toggle", payload)` は
+/// `payload.parse::<usize>()` を行うため、`data-value`（checkbox-item の
+/// 値、Menu index ではない）をそのまま流すと無関係な index への誤 dispatch
+/// を招くおそれがある。payload を常に空文字列にすることで
+/// `Menubar::decode_action` 側は必ず `None` になる（下の
+/// `menubar_checkbox_item_toggle_does_not_drive_menubar_open_state` で固定）。
+#[test]
+fn menubar_checkbox_item_click_toggles_checked() {
+    use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
+    use fandhe_frontend_headless_ui::menubar;
+
+    let html = render(&menubar::checkbox_item(
+        false,
+        "wrap",
+        false,
+        false,
+        vec![],
+        vec![],
+    ));
+    assert_scope_part_present(&html, "menubar", "checkbox-item");
+
+    let action_ref =
+        action_for_part(&part("menubar", "checkbox-item", Some("wrap"), false)).unwrap();
+    assert_eq!(action_ref.action, "toggle");
+    assert_eq!(action_ref.payload, "");
+
+    let mut item = MenuCheckboxItem::default();
+    assert!(dispatch(&mut item, &action_ref.action, &action_ref.payload));
+    assert!(item.is_checked());
+}
+
+#[test]
+fn menubar_radio_item_click_selects_exclusively() {
+    use fandhe_frontend_headless_ui::menu::MenuRadioItemGroup;
+    use fandhe_frontend_headless_ui::menubar;
+
+    let html = render(&menubar::radio_item(
+        false,
+        "grid",
+        false,
+        false,
+        vec![],
+        vec![],
+    ));
+    assert_scope_part_present(&html, "menubar", "radio-item");
+
+    let action_ref = action_for_part(&part("menubar", "radio-item", Some("grid"), false)).unwrap();
+    assert_eq!(action_ref.action, "select");
+    assert_eq!(action_ref.payload, "grid");
+
+    let mut g = MenuRadioItemGroup::default();
+    assert!(dispatch(&mut g, &action_ref.action, &action_ref.payload));
+    assert!(g.is_checked("grid"));
+}
+
+#[test]
+fn menubar_checkbox_item_and_radio_item_disabled_are_noop() {
+    assert_eq!(
+        action_for_part(&part("menubar", "checkbox-item", Some("wrap"), true)),
+        None
+    );
+    assert_eq!(
+        action_for_part(&part("menubar", "radio-item", Some("grid"), true)),
+        None
+    );
+}
+
+#[test]
+fn menubar_radio_item_without_data_value_is_noop() {
+    assert_eq!(
+        action_for_part(&part("menubar", "radio-item", None, false)),
+        None
+    );
+}
+
+/// menubar checkbox-item の `"toggle"` payload が常に空文字列であることの
+/// 安全性を固定する: `Menubar::decode_action("toggle", "")` は
+/// `"".parse::<usize>()` が `Err` になるため `None`（fail-closed）となり、
+/// checkbox-item クリックが無関係な Menu の開閉を誤って引き起こさない
+/// （`requires_value: true` にした場合の誤 dispatch リスクの回帰テスト）。
+#[test]
+fn menubar_checkbox_item_toggle_does_not_drive_menubar_open_state() {
+    use fandhe_frontend_headless_ui::menubar::Menubar;
+
+    let action_ref =
+        action_for_part(&part("menubar", "checkbox-item", Some("wrap"), false)).unwrap();
+
+    let mut mb = Menubar::new(
+        0,
+        2,
+        None,
+        false,
+        fandhe_frontend_headless_ui::Orientation::Horizontal,
+    );
+    assert!(!dispatch(&mut mb, &action_ref.action, &action_ref.payload));
+    assert_eq!(mb.open(), None);
+}
+
+/// menubar radio-item の `"select"` は `Menubar::decode_action` では
+/// `None` になる（Menubar は "select" を受理しない）ため、Menu 側と同様に
+/// 外側 Menubar へ越境 dispatch しない。
+#[test]
+fn menubar_radio_item_select_is_noop_for_menubar() {
+    use fandhe_frontend_headless_ui::menubar::Menubar;
+
+    let action_ref = action_for_part(&part("menubar", "radio-item", Some("grid"), false)).unwrap();
+
+    let mut mb = Menubar::new(
+        0,
+        2,
+        None,
+        false,
+        fandhe_frontend_headless_ui::Orientation::Horizontal,
+    );
+    assert!(!dispatch(&mut mb, &action_ref.action, &action_ref.payload));
+    assert_eq!(mb.open(), None);
+}
+
+/// 実クリック配線の回帰（menu 側の
+/// `menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`
+/// と同型）: checkbox-item/radio-item の専用インスタンスへ
+/// `wire_headless_component` せず、外側 Menubar の root だけを配線した
+/// 既存アプリで checkbox-item/radio-item をクリックした場合の再現。
+/// `Menubar::decode_action` 側は元々 fail-closed（前掲 2 テスト）だが、
+/// ガードが無いと [`action_from_parts`] が `Some` を返し、配線層が
+/// dispatch 成功の有無に関わらず `stop_propagation` を呼んでしまうため、
+/// checkbox-item/radio-item を独自の click ハンドラで管理している既存
+/// アプリのクリックが無言で握りつぶされる（codex-review PR #2321 P1
+/// 指摘・同種再発の予防的是正）。
+#[test]
+fn menubar_checkbox_item_click_bubbled_to_outer_menubar_root_does_not_resolve() {
+    let parts = vec![
+        part("menubar", "checkbox-item", Some("wrap"), false),
+        part("menubar", "content", None, false),
+        part("menubar", "positioner", None, false),
+        part("menubar", "root", None, false),
+    ];
+    assert!(action_from_parts(&parts).is_none());
+}
+
+#[test]
+fn menubar_radio_item_click_bubbled_to_outer_menubar_root_does_not_resolve() {
+    let parts = vec![
+        part("menubar", "radio-item", Some("grid"), false),
+        part("menubar", "radio-item-group", None, false),
+        part("menubar", "content", None, false),
+        part("menubar", "positioner", None, false),
+        part("menubar", "root", None, false),
+    ];
+    assert!(action_from_parts(&parts).is_none());
+}
+
+#[test]
+fn menubar_checkbox_item_data_value_xss_payload_is_escaped_on_render() {
+    use fandhe_frontend_headless_ui::menubar;
+
+    let html = render(&menubar::checkbox_item(
+        false,
+        "\"><script>alert(1)</script>",
+        false,
+        false,
+        vec![],
+        vec![],
+    ));
+    assert!(!html.contains("<script>"));
+    assert!(html.contains("&lt;script&gt;"));
 }
 
 // --- 受け入れ条件 2: Tabs/RadioGroup/Select の select dispatch ---

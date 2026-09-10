@@ -167,6 +167,9 @@ use fandhe_frontend_pre_styled_ui::marker::{
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
 use fandhe_frontend_pre_styled_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
+use fandhe_frontend_pre_styled_ui::message_scroller::{
+    self, MessageScrollerRootProps, MessageScrollerStuck,
+};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::nav_list;
 use fandhe_frontend_pre_styled_ui::navigation_menu;
@@ -699,6 +702,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: message_section,
     },
     ComponentPage {
+        path: "/themes/message-scroller/",
+        render: message_scroller_section,
+    },
+    ComponentPage {
         path: "/themes/textarea/",
         render: textarea_section,
     },
@@ -1102,6 +1109,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::item::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::message::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::message_scroller::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::bubble::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::attachment::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::marker::stylesheet())?;
@@ -3625,10 +3633,58 @@ fn menu_section() -> Node {
             ),
         ],
     );
+    // イシュー #2203: destructive 項目が highlighted（キーボードフォーカス
+    // 位置）のときの背景色合成（`StateCondition::AttrAll` 由来の
+    // `[data-danger][data-highlighted]` 規則）を掲示する 2 つ目のコンパクト
+    // な Menu インスタンス。virtual focus 位置は 1 インスタンスにつき 1 つ
+    // のため（上の `node` は既に "edit" 項目が highlighted）、同一節内に
+    // 2 つ目の独立インスタンスとして並べる（menubar showcase が複数静的
+    // インスタンスを並べる前例と同型）。content id はメイン掲示の
+    // `showcase-menu-content`/`showcase-menu-submenu-content` と重複
+    // しない `showcase-menu-danger-content` を使う。
+    let danger_node = menu::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                Some("showcase-menu-danger-content"),
+                vec![],
+                vec![text("Account")],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![],
+                vec![menu::content(
+                    OpenState::Open,
+                    Some("showcase-menu-danger-content"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::item("profile", false, false, vec![], vec![text("Profile")]),
+                        menu::separator(vec![], vec![]),
+                        // destructive（危険操作）項目が highlighted のとき、
+                        // `[data-danger][data-highlighted]` 合成規則により
+                        // 背景色（danger-subtle）+ 文字色（danger-fg-subtle）
+                        // が同時に反映される。
+                        menu::item(
+                            "delete-account",
+                            false,
+                            true,
+                            vec![("data-danger", "")],
+                            vec![text("Delete account")],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    );
     section(
         "Menu",
-        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・グループ+ラベル・checkbox/radio 項目・サブメニュー・ショートカット（kbd 合成）・inset・destructive・separator・disabled の各状態を含みます。positioner はフロー内配置へ中和しています。",
-        vec![node],
+        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・グループ+ラベル・checkbox/radio 項目・サブメニュー・ショートカット（kbd 合成）・inset・destructive・separator・disabled の各状態を含みます。2 つ目のインスタンスは destructive 項目が highlighted のときの背景色合成（イシュー #2203）を示します。positioner はフロー内配置へ中和しています。",
+        vec![node, danger_node],
     )
 }
 
@@ -5393,6 +5449,13 @@ fn field_section() -> Node {
     let payment_field_a = field_with_helper("showcase-field-card-number");
     let payment_field_b = plain_field("showcase-field-expiry");
     let newsletter_field = field_with_helper("showcase-field-newsletter");
+    // `orientation="responsive"`（イシュー #2199）は `group`（container
+    // slot）の内側でのみ 448px 以上で横並びへ切り替わる（`field.rs`
+    // モジュール doc「`orientation="responsive"`」節参照）。デモの実効性を
+    // 保つため必ず `field::group` の内側へ 2 件配置する（`group` の外に
+    // 置くと container が無いため常に縦積みのまま）。
+    let responsive_field_a = field_with_helper("showcase-field-responsive-name");
+    let responsive_field_b = plain_field("showcase-field-responsive-username");
     let group_instance = field::group(
         vec![],
         vec![
@@ -5410,6 +5473,21 @@ fn field_section() -> Node {
                 &payment_field_b,
                 "Expiry date",
                 "MM / YY",
+                None,
+            ),
+            field::separator(vec![], vec![]),
+            field_instance(
+                FieldOrientation::Responsive,
+                &responsive_field_a,
+                "Full name",
+                "Ada Lovelace",
+                Some("448px 以上でラベルと入力欄が横並びになります。"),
+            ),
+            field_instance(
+                FieldOrientation::Responsive,
+                &responsive_field_b,
+                "Username",
+                "ada",
                 None,
             ),
             field::content(
@@ -5474,7 +5552,7 @@ fn field_section() -> Node {
 
     section(
         "Field",
-        "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。",
+        "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。orientation=\"responsive\" は group（container）を 448px 以上に広げると横並びへ切り替わります。",
         vec![stack(vec![
             default_instance,
             invalid_instance,
@@ -6223,6 +6301,129 @@ fn message_section() -> Node {
                 vec![("class", "showcase-stack"), ("role", "list")],
                 vec![loading_instance, error_instance, system_instance],
             ),
+        ],
+    )
+}
+
+/// Message Scroller 節（イシュー #2123、親 #2120。headless anatomy は
+/// #2121）。`data-stuck` 2 値（bottom/free）・`data-has-new`・
+/// `data-visible`（jump-to-latest）・`data-loading`/`data-disabled`
+/// （load-more）は headless の `data-*` を `AttrEq`/`Attr` で参照するのみで
+/// class 軸を持たない（`message_scroller.rs` モジュール doc「表現」節
+/// 参照）。6 anatomy パーツ全て（root/viewport/content/anchor/
+/// jump-to-latest/load-more）を必ず描画する（Anatomy 表・`data-*` 属性表の
+/// 機械導出のため）。`crates/docs-site/src/primitive_showcase/
+/// data_display_utilities.rs::message_scroller_section`（Primitives 側
+/// Demo）と同じ 2 インスタンス構成（既定状態/離脱状態）を styled
+/// [`message`]/[`message_scroller`] で組み立てる。`content` には styled
+/// [`message::group`]/[`message::root`] を入れ子にする（headless
+/// `content` の required context を満たす）。
+fn message_scroller_section() -> Node {
+    let conversation = message::group(
+        "Conversation",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::User,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("How do I center a div?")],
+                )],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("Use display: flex and align-items: center.")],
+                )],
+            ),
+        ],
+    );
+    let at_bottom = message_scroller::root(
+        MessageScrollerRootProps {
+            stuck: MessageScrollerStuck::Bottom,
+            has_new: false,
+        },
+        vec![("style", "height: 14rem;")],
+        vec![
+            message_scroller::viewport(
+                "Conversation history",
+                vec![],
+                vec![
+                    // 「古いメッセージを読み込む」トリガーは一般的な chat UI の
+                    // 慣習に合わせ、スクロール領域（viewport）内の上端に置く
+                    // （headless 側に入れ子契約はないが、常時表示される
+                    // 位置としてこちらが自然。イシュー #2123 レビュー指摘）。
+                    message_scroller::load_more(
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Load older messages")],
+                    ),
+                    message_scroller::content(vec![], vec![conversation]),
+                    message_scroller::anchor(vec![]),
+                ],
+            ),
+            message_scroller::jump_to_latest("Jump to latest", false, vec![], vec![text("↓")]),
+        ],
+    );
+
+    let scrolled_up_thread = message::group(
+        "Conversation",
+        vec![],
+        vec![message::root(
+            MessageRootProps {
+                role: MessageRole::Assistant,
+                ..Default::default()
+            },
+            vec![],
+            vec![message::content(
+                vec![],
+                vec![text("New reply while you were scrolled up.")],
+            )],
+        )],
+    );
+    let scrolled_up = message_scroller::root(
+        MessageScrollerRootProps {
+            stuck: MessageScrollerStuck::Free,
+            has_new: true,
+        },
+        vec![("style", "height: 14rem;")],
+        vec![
+            message_scroller::viewport(
+                "Conversation history",
+                vec![],
+                vec![
+                    // 上記 at_bottom と同じ配置判断（viewport 内の上端、
+                    // イシュー #2123 レビュー指摘）。
+                    message_scroller::load_more(
+                        true,
+                        true,
+                        vec![],
+                        vec![text("Loading older messages...")],
+                    ),
+                    message_scroller::content(vec![], vec![scrolled_up_thread]),
+                    message_scroller::anchor(vec![]),
+                ],
+            ),
+            message_scroller::jump_to_latest("Jump to latest", true, vec![], vec![text("↓")]),
+        ],
+    );
+
+    section(
+        "Message Scroller",
+        "会話ログを収めるスクロールコンテナ。data-stuck（bottom/free）・data-has-new・jump-to-latest の data-visible・load-more の data-loading/data-disabled は headless の data-* を参照するのみで class 軸は持ちません。1 例目は最下部に張り付いている既定状態（末尾フェード解除）、2 例目は手動スクロールで離脱し新着がある状態（jump-to-latest 強調・load-more 読み込み中）です。",
+        vec![
+            div(vec![("class", "showcase-stack")], vec![at_bottom]),
+            div(vec![("class", "showcase-stack")], vec![scrolled_up]),
         ],
     )
 }
@@ -14962,7 +15163,8 @@ mod tests {
         // イシュー #2109 で Bubble を追加し 111 → 112 件になった。
         // イシュー #2112 で Attachment を追加し 112 → 113 件になった。
         // イシュー #2119 で questionnaire が加わり 114 → 115。
-        assert_eq!(paths.len(), 115, "COMPONENT_PAGES should have 115 entries");
+        // イシュー #2123 で Message Scroller を追加し 115 → 116 件になった。
+        assert_eq!(paths.len(), 116, "COMPONENT_PAGES should have 116 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

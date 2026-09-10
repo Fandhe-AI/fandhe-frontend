@@ -128,6 +128,49 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "toggle",
         requires_value: false,
     },
+    // checkbox-item/radio-item（イシュー #2205、`crates/headless-ui/src/menu.rs`
+    // の `checkbox_item`/`radio_item`）: `MENU_ITEM_SELECTOR`（`crate::keynav`）
+    // が highlight・typeahead の対象に含め、Enter/Space が合成する `click()`
+    // がこの 2 行を経由して dispatch へ到達する（#1651 の既知ギャップの解消）。
+    //
+    // checkbox-item は `MenuCheckboxItem`（`Checkable` 埋め込み）が
+    // `"toggle"`（`CheckableAction::Toggle`）を受理し payload を無視するため
+    // `requires_value: false`（`menu`/`trigger-item` 行と同型）。
+    //
+    // radio-item は `MenuRadioItemGroup`（`SingleSelect` 埋め込み）が
+    // `"select"` のみを受理し payload（`data-value`）を選択項目として使う
+    // ため `requires_value: true`。`radio_item` は `data-value` を常時
+    // 出力するため欠落は通常起きないが、欠落時は fail-closed で `None`。
+    //
+    // これら 2 行は `Menu`（`Disclosure` 埋め込み）の `"toggle"` 語彙と
+    // 衝突する（`Disclosure::decode_action("toggle")` も `Some` を返す）。
+    // checkbox-item/radio-item は Menu 自身へではなく
+    // `MenuCheckboxItem`/`MenuRadioItemGroup` の専用インスタンス（それぞれ
+    // root を checkbox-item 自身 / radio-item-group 自身とする
+    // `wire_headless_component` 呼び出し）へのみ dispatch される契約とする。
+    // 外側 Menu だけを `wire_headless_component` し checkbox-item/radio-item
+    // の状態を独自に管理する既存アプリでこの契約が破られクリックが誤って
+    // 外側 Menu の `"toggle"` へ解決されないよう、
+    // [`resolved_part_targets_wired_root`] が `action_from_parts_scoped` 内で
+    // 「解決に使われた part 列の末尾（＝ wire された root 自身の
+    // `PartRef`、[`collect_part_refs`] の契約により常に末尾）」が
+    // checkbox-item/radio-item-group であることを機械的に確認し、専用
+    // インスタンス以外からの解決を fail-closed で拒否する（codex-review
+    // PR #2321 P1 指摘の是正。`menu`/`trigger-item` → 子 Menu の
+    // `stop_propagation` による越境防止とは異なる機構だが目的は同型、
+    // `docs/design/wasm-full-architecture.md` §31 参照）。
+    MappingRow {
+        scope: "menu",
+        part: "checkbox-item",
+        action: "toggle",
+        requires_value: false,
+    },
+    MappingRow {
+        scope: "menu",
+        part: "radio-item",
+        action: "select",
+        requires_value: true,
+    },
     // close-trigger（Dialog/Popover）は "close"。
     MappingRow {
         scope: "dialog",
@@ -331,6 +374,36 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "toggle",
         requires_value: true,
     },
+    // Menubar checkbox-item/radio-item（イシュー #2205）: Menubar 自身は
+    // checked 状態機械を持たないため、`crates/headless-ui/src/menubar.rs`
+    // の `checkbox_item`/`radio_item` も `menu` 側と同じ `MenuCheckboxItem`/
+    // `MenuRadioItemGroup`（`crates/headless-ui/src/menu.rs`）を流用する。
+    //
+    // `requires_value: false` は menubar/trigger 行と異なり必須:
+    // `Menubar::decode_action("toggle", payload)` は
+    // `payload.parse::<usize>()` を行う（`crates/headless-ui/src/menubar.rs`）
+    // ため、`requires_value: true` にして `data-value`（checkbox-item は
+    // 値そのものであり Menu index ではない）をそのまま流すと、
+    // checkbox-item のみを配線し Menubar を配線していないアプリで
+    // 「index N の Menu を開閉する」という無関係な誤 dispatch を招く
+    // おそれがある。payload を常に空文字列にすることで
+    // `"".parse::<usize>()` は必ず `Err` となり `None`（fail-closed）で
+    // Menubar 側には到達しない。
+    MappingRow {
+        scope: "menubar",
+        part: "checkbox-item",
+        action: "toggle",
+        requires_value: false,
+    },
+    // radio-item は `MenuRadioItemGroup` が `"select"` のみを受理し
+    // `Menubar::decode_action` は `"select"` を `None` にする（衝突しない）
+    // ため、menu/radio-item 行と同じ `requires_value: true` でよい。
+    MappingRow {
+        scope: "menubar",
+        part: "radio-item",
+        action: "select",
+        requires_value: true,
+    },
     // Sidebar（イシュー #2074、`crates/headless-ui/src/sidebar.rs`）:
     // `trigger`/`rail` はいずれもクリックで開閉を反転する
     // "toggle"（`SidebarAction::Toggle`、payload 不使用）。`rail` は
@@ -482,6 +555,22 @@ pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
 /// part ごとに [`instance_is_readonly`] で同一インスタンス内判定を行い、
 /// 該当すればその part の解決だけをスキップして列挙を継続する（`content`
 /// 境界による打ち切りは従来どおり）。
+///
+/// **専用インスタンス root への限定（`menu`/`menubar` の checkbox-item/
+/// radio-item、codex-review PR #2321 P1 指摘の是正）**: `readonly`/`disabled`
+/// と並ぶ第 4 の判定規則として、[`resolved_part_targets_wired_root`] が
+/// 「解決に使われた part が checkbox-item/radio-item のとき、wire された
+/// root 自身（`parts` の末尾、`collect_part_refs` の契約）がその専用
+/// インスタンス root（checkbox-item 自身 / radio-item-group 自身）で
+/// なければその解決を採用しない」を判定する（該当すればその part の解決
+/// だけをスキップして列挙を継続し、`readonly` と同型に扱う）。これが無いと
+/// checkbox-item/radio-item の `"toggle"`/`"select"` は外側 `Menu`
+/// （Disclosure 埋め込み）とも語彙が一致するため、外側 Menu/Menubar の
+/// root だけを配線し checkbox-item/radio-item を独自の click ハンドラで
+/// 管理している既存アプリで、意図しない越境 dispatch（menu）・click の
+/// 無言な握りつぶし（menubar、`stop_propagation` が dispatch 成功の有無に
+/// 関わらず解決成立時点で呼ばれるため）が起きる。詳細は
+/// `docs/design/wasm-full-architecture.md` §31.2 参照。
 #[must_use]
 pub fn action_from_parts(parts: &[PartRef]) -> Option<ActionRef> {
     action_from_parts_scoped(parts, |_| true)
@@ -517,7 +606,7 @@ pub fn action_from_parts_scoped(
         return None;
     }
     for (i, part) in parts.iter().enumerate() {
-        if !instance_is_readonly(parts, i) {
+        if !instance_is_readonly(parts, i) && resolved_part_targets_wired_root(parts, part) {
             if let Some(action) = action_for_part(part) {
                 return if predicate(part) { Some(action) } else { None };
             }
@@ -527,6 +616,59 @@ pub fn action_from_parts_scoped(
         }
     }
     None
+}
+
+/// `menu`/`checkbox-item` と `menu`/`radio-item` の 2 行（[`MAPPING_TABLE`]
+/// 該当節参照）は、それぞれの専用インスタンス（`MenuCheckboxItem`/
+/// `MenuRadioItemGroup`。root を checkbox-item 自身 / radio-item-group
+/// 自身とする `wire_headless_component` 呼び出し）へ配線された場合のみ
+/// 解決してよく、外側 Menu（`Disclosure` 埋め込み）の汎用 root へ配線
+/// されただけの場合は `false` を返し、この part の解決を拒否する
+/// （codex-review PR #2321 P1 指摘の是正: 外側 Menu だけを
+/// `wire_headless_component` し checkbox-item の checked 状態を独自の
+/// click ハンドラで管理している既存アプリで、checkbox-item クリックが
+/// Menu の `"toggle"` として誤って dispatch され意図せず閉じる回帰を防ぐ）。
+///
+/// `parts` の**末尾**は常に「クリックされた要素から祖先方向へ辿って
+/// 到達した、配線の起点である root 要素自身」の [`PartRef`] である
+/// （`collect_part_refs` は `element == *root` に到達した時点でその
+/// `PartRef` を積んで走査を止める契約、[`action_from_parts`] doc 参照）。
+/// そのため「解決対象が checkbox-item/radio-item-group 自身を root として
+/// 配線されたか」は `parts.last()` の (scope, part) を見るだけで native の
+/// `cargo test`（web-sys 非依存）でも判定できる。
+///
+/// checkbox-item/radio-item 以外の part は本関数の対象外として常に
+/// `true`（既存の全マッピング行の挙動を変えない）。
+fn resolved_part_targets_wired_root(parts: &[PartRef], resolved: &PartRef) -> bool {
+    // `menu`/`menubar` の双方が `MappingRow { part: "checkbox-item"/
+    // "radio-item", .. }` を持つ（menubar は checked 状態機械を持たず
+    // `menu::MenuCheckboxItem`/`MenuRadioItemGroup` を流用する、
+    // `MAPPING_TABLE` 該当節参照）。scope を区別せず両方に同じ「専用
+    // インスタンス root でのみ解決する」制約を課す: menubar 側は
+    // `Menubar::decode_action` が "toggle" の payload を `usize` として
+    // パースする（"select" は受理しない）ため誤って Menubar 自身の開閉を
+    // 引き起こす経路はもともと無いが、本関数のガードが無いままだと
+    // `action_from_parts_scoped` は resolved を `Some` として返し、配線層
+    // （[`wire_headless_events_scoped`]）が dispatch 成功の有無に関わらず
+    // `stop_propagation` を呼んでしまう（`action_for_part` 成功時点で
+    // 呼ぶ契約）。これは menubar の checkbox-item/radio-item を独自の
+    // click ハンドラで管理している既存アプリのクリックを、Menubar 側には
+    // 何も起きないまま無言で握りつぶす（menu 側の誤 toggle とは異なる形の
+    // 同種の責務境界侵害）。scope を区別する理由が無いため
+    // `menu`/`menubar` を同一ロジックで扱う。
+    if resolved.scope != "menu" && resolved.scope != "menubar" {
+        return true;
+    }
+    let wired_root = parts.last();
+    match resolved.part.as_str() {
+        "checkbox-item" => {
+            matches!(wired_root, Some(root) if root.scope == resolved.scope && root.part == "checkbox-item")
+        }
+        "radio-item" => {
+            matches!(wired_root, Some(root) if root.scope == resolved.scope && root.part == "radio-item-group")
+        }
+        _ => true,
+    }
 }
 
 /// `parts[index]` が属する「同一インスタンス」（`parts[index]` 自身から
@@ -1326,6 +1468,64 @@ mod tests {
         let parts = vec![
             part("select", "item", Some("opt-1"), false),
             part("select", "root", None, true),
+        ];
+        assert_eq!(action_from_parts(&parts), None);
+    }
+
+    // --- checkbox-item/radio-item は専用インスタンス root 配線でのみ解決
+    // する（codex-review PR #2321 P1 指摘の是正回帰） ---
+
+    #[test]
+    fn checkbox_item_resolves_when_wired_at_its_own_root() {
+        // `MenuCheckboxItem` の専用インスタンス配線（root = checkbox-item
+        // 自身）。`collect_part_refs` の契約により parts の末尾が wire
+        // された root 自身の PartRef になるため、単一要素の列で
+        // checkbox-item 自身が root を兼ねる。
+        let parts = vec![part("menu", "checkbox-item", None, false)];
+        let action_ref = action_from_parts(&parts).expect("dedicated instance should resolve");
+        assert_eq!(action_ref.action, "toggle");
+    }
+
+    #[test]
+    fn checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve() {
+        // 外側 Menu だけを `wire_headless_component` し checkbox-item の
+        // checked 状態を独自の click ハンドラで管理している既存アプリの
+        // 再現: root は "root"（Menu 自身）であり checkbox-item 専用
+        // インスタンスではないため、外側 Menu の "toggle" として誤って
+        // 解決されてはならない（fail-closed で None）。
+        let parts = vec![
+            part("menu", "checkbox-item", None, false),
+            part("menu", "content", None, false),
+            part("menu", "positioner", None, false),
+            part("menu", "root", None, false),
+        ];
+        assert_eq!(action_from_parts(&parts), None);
+    }
+
+    #[test]
+    fn radio_item_resolves_when_wired_at_radio_item_group_root() {
+        // `MenuRadioItemGroup` の専用インスタンス配線（root =
+        // radio-item-group）。クリックされた radio-item 自身から祖先方向へ
+        // 辿って radio-item-group（root）へ到達する列。
+        let parts = vec![
+            part("menu", "radio-item", Some("a"), false),
+            part("menu", "radio-item-group", None, false),
+        ];
+        let action_ref = action_from_parts(&parts).expect("dedicated instance should resolve");
+        assert_eq!(action_ref.action, "select");
+        assert_eq!(action_ref.payload, "a");
+    }
+
+    #[test]
+    fn radio_item_click_bubbled_to_outer_menu_root_does_not_resolve() {
+        // checkbox-item と同型の回帰: radio-item-group を経由せず外側 Menu
+        // root へ直接配線された場合は解決しない。
+        let parts = vec![
+            part("menu", "radio-item", Some("a"), false),
+            part("menu", "radio-item-group", None, false),
+            part("menu", "content", None, false),
+            part("menu", "positioner", None, false),
+            part("menu", "root", None, false),
         ];
         assert_eq!(action_from_parts(&parts), None);
     }

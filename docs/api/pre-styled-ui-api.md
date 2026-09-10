@@ -11,13 +11,14 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 120 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 121 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
 #2070、`sidebar` はイシュー #2073、`message` はイシュー #2106、`bubble`
 はイシュー #2109、`attachment` はイシュー #2112、`marker` はイシュー
-#2115、`questionnaire` はイシュー #2119 で追加）+
+#2115、`questionnaire` はイシュー #2119、`message_scroller` はイシュー
+#2123 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
@@ -66,7 +67,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 単純 styled 部品 | `highlight`（テキスト中の一致語句を `<mark>` で強調する `<span>` + `<mark>`。`query`（複数可）・`ignore_case`（ASCII 限定）・`match_all` の 3 プロパティ。一致判定は正規表現不使用の決定的な部分文字列検索のみ（ReDoS 非該当）。`color-palette`/`size` 軸は非提供） | [highlight](../../site/themes/highlight.md) |
 | 単純 styled 部品 | `visually_hidden`（視覚的には隠すが支援技術には読ませ続けるテキストコンテナ。variant 軸を持たず clip 手法の CSS のみ。`aria-hidden` を一切出力しない） | [visually-hidden](../../site/themes/visually-hidden.md) |
 | 単純 styled 部品 | `skip_nav`（WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link`/`content` の 2 slot recipe。`link` は `visually_hidden` の clip 手法を base に持ち `:focus-visible` でのみ視覚的に復元する。docs-site の全ページレイアウトへ実適用済み） | [skip-nav](../../site/themes/skip-nav.md) |
-| headless ラッパー | `dialog` / `tabs` / `accordion` / `menu` / `select`（`dialog` はイシュー #2193 で `close-trigger` に `[data-variant="text"]` state 規則を追加し、`close_trigger_with_variant` で footer 内の平文ボタンとしても再利用可能。アイコン専用契約（`data-variant` 非出力の既存 `close_trigger`）は不変） | [dialog](../../site/themes/dialog.md) / [tabs](../../site/themes/tabs.md) / [accordion](../../site/themes/accordion.md) / [menu](../../site/themes/menu.md) / [select](../../site/themes/select.md) |
+| headless ラッパー | `dialog` / `tabs` / `accordion` / `menu` / `select`（`dialog` はイシュー #2193 で `close-trigger` に `[data-variant="text"]` state 規則を追加し、`close_trigger_with_variant` で footer 内の平文ボタンとしても再利用可能。アイコン専用契約（`data-variant` 非出力の既存 `close_trigger`）は不変。`menu` はイシュー #2203 で `item` の `data-danger`（destructive 項目、呼び出し側が `attrs` 経由で付与する pre-styled-only の存在属性）が `data-highlighted` と同時に立つ場合の背景色合成を `StateCondition::AttrAll`（値なし存在属性同士の AND）で実装済み） | [dialog](../../site/themes/dialog.md) / [tabs](../../site/themes/tabs.md) / [accordion](../../site/themes/accordion.md) / [menu](../../site/themes/menu.md) / [select](../../site/themes/select.md) |
 | headless ラッパー | `popover` / `tooltip` | [popover](../../site/themes/popover.md) / [tooltip](../../site/themes/tooltip.md) |
 | headless ラッパー | `switch` | [switch](../../site/themes/switch.md) |
 | headless ラッパー | `radio_group`（§4c 参照） | [radio-group](../../site/themes/radio-group.md) |
@@ -83,6 +84,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `attachment`（§4f-8 参照。添付ファイル 1 件。8 パーツ構成、軸なし。data-variant/data-state/data-disabled を AttrEq/Attr 参照するのみ） | [attachment](../../site/themes/attachment.md) |
 | headless ラッパー | `marker`（§4f-9 参照。会話中の注記行。3 パーツ構成、軸なし。data-variant/data-tone を AttrEq 参照するのみ） | [marker](../../site/themes/marker.md) |
 | headless ラッパー | `questionnaire`（§4f-10 参照。多段質問 UI。11 パーツ構成、軸なし。data-state/data-answered/data-skipped/data-invalid/data-disabled/data-complete を AttrEq/Attr 参照するのみ） | [questionnaire](../../site/themes/questionnaire.md) |
+| headless ラッパー | `message_scroller`（§4f-11 参照。会話ログのスクロールコンテナ。6 パーツ構成、軸なし。data-stuck/data-has-new/data-visible/hidden/data-loading/data-disabled を AttrEq/Attr 参照するのみ） | [message-scroller](../../site/themes/message-scroller.md) |
 | headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
@@ -704,7 +706,8 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
 
 - **公開 API**: `root(&FieldRootProps, &FieldProps<'_>, attrs, children)`
   （見た目 variant クラスを重ねて headless `field::root` へ委譲）、
-  `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`）、
+  `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`/
+  `Responsive`、イシュー #2199 で `Responsive` を追加）、
   `FieldRootProps`。`label`/`helper_text`/`error_text`/`required_indicator`/
   `group`/`content`/`title`/`separator`/`FieldIds`/`FieldProps` は headless
   からの選択的再エクスポート（見た目は属性セレクタのみで到達するため
@@ -717,6 +720,20 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   と同じ型階層（disabled 減光・invalid 配色も同一規則）を採用する
   （判断根拠は `field.rs` モジュール doc「採用したもの（イシュー #2185）」
   節参照）。
+- **`orientation="responsive"`（イシュー #2199）**: `group` を
+  `crate::recipe::SlotRecipe::container_slot` として宣言し、`root` へ
+  `crate::recipe::SlotRecipe::container_variant`（`ContainerBreakpoint::
+  Md` = 448px、`Horizontal` と同一の宣言を共有）を登録した。`group` の
+  inline サイズが 448px 以上のときのみ `Horizontal` と同じ配置へ切り替
+  わり、`group` の外に置いた場合は常に縦積みのまま（mobile-first の
+  安全な劣化）。受け入れ条件が述べる `data-orientation="responsive"` は
+  実装しない: headless `field::root` は `data-orientation` を意図的に
+  持たず、本モジュールも独自 `data-*` を出力しない契約
+  （`crates/pre-styled-ui/tests/data_attr_vocabulary.rs`）のため、既存の
+  `horizontal` と同じくクラス `fd-field--orientation-responsive` として
+  語彙化した。判断根拠は `field.rs` モジュール doc
+  「`orientation="responsive"`」節・`docs/design/pre-styled-ui-scale-tokens.md`
+  §3.7 参照。
 - **`orientation` 軸のみ**: `size`/`color-palette` 軸は持たない（子の寸法に
   従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
   入力系は palette 非提供という §4f と同じ判断）。
@@ -964,11 +981,20 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   本イシューのスコープには含めず、上記 3 custom property を上書きフック
   として残した（軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25
   規則 2 参照）。
-- **フェードの限界**: `collapse-content` は closed 時に headless が出力
-  する `hidden` 属性を伴うため、`display: none` により opacity 遷移が
-  computed-value time で無効化される。フェードが実際に見えるのは
-  クライアントランタイムが `hidden` を外す前後で `data-state` を切り替え
-  る場合のみで、SSR 単独では即時表示・即時非表示になる。
+- **高さトランジション（イシュー #2192 の共通機構を #2282 で適用）**:
+  `collapse-content` の開閉は `@starting-style`/
+  `transition-behavior: allow-discrete` による高さトランジション
+  （`collapsible`/`accordion` と同型）。`calc-size()` 対応ブラウザでは
+  `hidden` の切り替えだけで遷移が成立し、`fandhe-frontend-wasm-full` の
+  実測高さ CSS 変数（`--fandhe-content-height`）への書き込みは不要。
+  `calc-size()` 未対応ブラウザでは共通 preset の `@supports not (...)`
+  が常に遷移を無効化するため、実測値を同期しても `hidden` による即時
+  切り替えのままになる（`auto` フォールバック）。加えて
+  `fandhe-frontend-wasm-full` の `MAPPING_TABLE` に
+  `(bubble, collapse-trigger)` の配線が無いため、`wire_headless_component`
+  経由のクリックでは `hidden` の切り替え自体が発火しない（呼び出し側が
+  独自に切り替える経路を用意する必要がある）。トリガー未配線と CSS の
+  遷移条件は独立した別々の前提である。
 - **`reactions`/`reaction` は非インタラクティブ**: 押下・集計・トグルは
   実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。
 - **docs サイト**: [bubble](../../site/themes/bubble.md)
@@ -1095,6 +1121,65 @@ anatomy（`root`/`media`/`content`/`name`/`meta`/`progress`/`actions`/
   （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
 - **docs サイト**: [questionnaire](../../site/themes/questionnaire.md)
   （イシュー #2119 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-11. `message_scroller`（会話ログのスクロールコンテナ、イシュー #2123、headless anatomy は #2121、wasm-full 配線は #2122）
+
+`message_scroller` モジュールは
+`fandhe_frontend_headless_ui::message_scroller` の anatomy（`root`/
+`viewport`/`content`/`anchor`/`jump-to-latest`/`load-more` の 6 パーツ）へ、
+高さ確保・ネイティブスクロール・端フェード・浮遊 jump-to-latest ボタン・
+履歴読み込みトリガーの意匠を重ねる薄い委譲層である。
+
+- **公開 API**: 6 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::message` と同型のパターン）。
+  `MessageScrollerRootProps`/`MessageScrollerStuck`（headless からの
+  再エクスポート）のみを選択的に公開する。`stylesheet()` が静的 CSS 全量を
+  返す。
+- **軸を持たない**: `data-stuck`（`bottom`/`free`）・`data-has-new`・
+  `jump_to_latest` の `data-visible`/`hidden`・`load_more` の
+  `data-loading`/`data-disabled` はいずれも headless が固定出力するもの
+  を `StateCondition::AttrEq`/`Attr` で参照するのみで、class ベースの
+  `SlotRecipe::variant` は持たない（`docs/design/
+  pre-styled-ui-data-attr-vocabulary.md` §2.2「役割 B: 参照のみ」、
+  `crate::message` と同型の判断）。
+- **端フェードは既定 on**: `viewport` は `mask-image` による両端フェードを
+  base 宣言として持つ（`crate::scroll_area` の `data-fade` は opt-in だが、
+  本部品は会話ログ専用の新規部品であり既定挙動を変える既存利用者が
+  存在しないため既定 on にした）。`--fandhe-message-scroller-fade-start`/
+  `-end` を `0px` へ上書きすれば片端無効化できる。`root[data-stuck=
+  "bottom"] > viewport` の raw CSS 追記（子結合子）で末尾フェードを
+  `0px` へ上書きし、最下部に張り付いているときは最新メッセージを霞ませ
+  ない。`crate::scroll_area` が持つ `@supports (animation-timeline:
+  scroll())` によるスクロール量連動アニメーションは採用しない（意図的
+  非採用、`src/message_scroller.rs` モジュール doc「端フェードの採否」
+  節参照）。
+- **`hidden` 属性の上書き**: `jump-to-latest` の base 宣言が
+  `display: inline-flex` を持つため、UA スタイルシートの
+  `[hidden] { display: none }` を詳細度で上書きしてしまう。
+  `.state("jump-to-latest", StateCondition::Attr("hidden"), [display:
+  none])` を明示登録して回避する（`crate::command`/`crate::bubble` と
+  同型の論法）。
+- **`root[data-has-new] > jump-to-latest` の raw CSS 追記**:
+  `SlotRecipe` は別 slot の宣言を切り替える規則を組めないため
+  （`crate::message` と同型の制約）、`serialize_rule` による子結合子
+  規則で `data-has-new` 付き `root` 配下の `jump-to-latest` をアクセント
+  色へ強調する。
+- **`load-more` の spinner**: `SlotRecipe::pseudo_element`（イシュー
+  #2201）は状態条件と合成できないため `[data-loading]::before` は DSL で
+  書けない。かわりに `crate::button` と同型で、styled `load_more` が
+  `loading == true` のとき `crate::spinner::spinner_decorative`
+  （`Size::Sm`・`ColorPalette::Neutral`、装飾的・`aria-hidden` のみ）を
+  children 先頭へ埋め込む。
+- **`aria-live`/`aria-busy`/`aria-posinset`/`aria-setsize` を付与しない
+  理由**: headless 判断の継承。通知タイミング・総数の伝達はアプリ固有の
+  判断であり、本モジュールは見た目のみを担う。
+- **`ColorPalette` 軸は持たない**: 本イシューのスコープに含まれない
+  （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
+- **docs サイト**: [message-scroller](../../site/themes/message-scroller.md)
+  （イシュー #2123 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+- **スコープ外**: wasm-full 配線（最下部追従・新着検知・履歴読み込み時の
+  位置維持・`data-*` の実行時更新）は #2122。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 
@@ -1633,7 +1718,64 @@ impl SlotRecipe {
 複合条件（`@media` 内の `.fd-*` クラス・`:hover` 規則）は未実装
 （スコープ外、`docs/design/pre-styled-ui-scale-tokens.md` §3.6/§7 参照）。
 段の値（chakra-ui v3・shadcn/ui〔Tailwind v4〕と `sm` 以外で完全一致、
-`2xl` は見送り）の採用根拠は同文書 §3.6 を参照。
+`2xl` は見送り）の採用根拠は同文書 §3.6 を参照。最初の消費者は
+`breadcrumb` の `list`（`gap` を `Breakpoint::Sm` で拡張、イシュー
+#2198）。
+
+### `recipe::ContainerBreakpoint` / `SlotRecipe::container_slot` / `container` / `container_variant`（イシュー #2199）
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContainerBreakpoint { Sm, Md, Lg, Xl }
+
+impl ContainerBreakpoint {
+    pub const ALL: [ContainerBreakpoint; 4];
+    pub const fn value(self) -> &'static str;      // "sm" / "md" / "lg" / "xl"
+    pub const fn min_width(self) -> &'static str;   // "384px" / "448px" / "512px" / "576px"
+}
+
+impl SlotRecipe {
+    pub fn container_slot(self, slot: &'static str) -> Self; // builder、自己消費
+
+    pub fn container(
+        self,
+        slot: &'static str,
+        cb: ContainerBreakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self; // builder、自己消費
+
+    pub fn container_variant<V: VariantValue>(
+        self,
+        v: V,
+        slot: &'static str,
+        cb: ContainerBreakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self; // builder、自己消費
+}
+```
+
+`Breakpoint`（viewport 幅の `@media`）と並列・独立の enum で、
+`ContainerBreakpoint` は要素自身の inline サイズを基準にする
+`@container` クエリを表現する。`container_slot(slot)` は
+`container-type: inline-size; container-name: fd-<scope>-<slot>;` を
+当該 slot の base ブロック群の直後へ出力し、`container()`/
+`container_variant()` が登録した規則は `SlotRecipe::css()` の出力で
+「breakpoints の後・hover ブロックの前」に、`ContainerBreakpoint::ALL`
+の昇順（`sm` → `xl`、mobile-first）で
+`@container fd-<scope>-<container_slot> (min-width: <cb.min_width()>)`
+ブロックとして出力される（1 段 = 1 ブロック、同一段内は登録順）。
+`container()` は base と同じ詳細度 `[data-scope][data-part]`
+（0,2,0）のセレクタ、`container_variant()` は variant と同じ
+`[data-scope][data-part].fd-<scope>--<axis>-<value>`（0,3,0）のセレクタを
+使う。`container_slot()` を呼んでいない、または宣言した slot が
+未宣言・不正識別子の場合は `container()`/`container_variant()` に
+登録された規則を一切出力しない（fail-closed、孤児 `@container` を
+出さない）。段の値（shadcn/ui〔Tailwind v4〕既定のコンテナクエリ
+スケールと一致、`3xs`〜`xs`・`2xl` 以上は見送り）・container slot の
+決め方（無名 `@container` を不採用とする理由を含む）の採用根拠は
+`docs/design/pre-styled-ui-scale-tokens.md` §3.7 を参照。最初の消費者は
+`field` の `orientation="responsive"`（`group` を container slot・`root`
+を `container_variant` の対象、イシュー #2199）。
 
 ## 4m. `sidebar`（イシュー #2073、親 #2071。headless anatomy は #2072）
 

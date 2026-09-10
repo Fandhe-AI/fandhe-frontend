@@ -1175,7 +1175,7 @@ pub(super) const MENU: ComponentPageSpec = ComponentPageSpec {
         "ContextTrigger は右クリック起点のトリガーであり、ARIA 属性を一切付与しない（右クリックは SSR/no-JS では成立せず、ARIA を付けると JS なしで実現できない操作性を誤って約束するため）。",
         "開閉は Disclosure を埋め込んだ状態機械 Menu が管理する（dispatch は \"open\"/\"close\"/\"toggle\"）。",
         "参考サイトとの意図的な差分（イシュー #1651）: Portal（DOM 配置）/ data-placement・data-side・data-align の positioner 集約 / data-orientation（content・item）/ chakra ItemCommand（ショートカット表示）/ asChild はいずれも非採用。キーボードは trigger にフォーカスを留めたまま aria-activedescendant + data-highlighted で仮想フォーカスを表現する設計（#583）のため、Escape 後の「trigger へのフォーカス復帰」は構造的に不要で、Tab は無配線（zag は Tab で閉じるが本実装は閉じない）。",
-        "checkbox-item/radio-item への Enter/Space（click 合成による checked トグル dispatch）は crates/wasm-full/src/headless.rs の MAPPING_TABLE に行が無く未実装（イシュー #1651 時点）。",
+        "checkbox-item/radio-item は crates/wasm-full/src/keynav.rs の highlight・typeahead・Enter/Space の click 合成対象に含まれ、crates/wasm-full/src/headless.rs::MAPPING_TABLE の対応行（\"toggle\"/\"select\"）を経由して MenuCheckboxItem/MenuRadioItemGroup へ dispatch される（イシュー #2205 で配線済み）。checked 状態の aria-checked/data-state への DOM 反映は wire_headless_component の on_update で呼び出し側が行う契約のまま。",
     ],
     arguments: &[
         ArgRow {
@@ -1261,7 +1261,7 @@ pub(super) const MENU: ComponentPageSpec = ComponentPageSpec {
         },
         KeyRow {
             key: "Enter / Space（open、highlight 中の項目）",
-            description: "highlight 中の項目へ click を合成する。item は利用者の click ハンドラへ、trigger-item は \"toggle\" を dispatch する。checkbox-item/radio-item は crates/wasm-full/src/headless.rs::MAPPING_TABLE に対応行が無く、checked トグルは dispatch されない（未実装）。",
+            description: "highlight 中の項目へ click を合成する。item は利用者の click ハンドラへ、trigger-item は \"toggle\" を dispatch する。checkbox-item は \"toggle\"、radio-item は \"select\" を dispatch する（crates/wasm-full/src/headless.rs::MAPPING_TABLE、イシュー #2205）。",
         },
         KeyRow {
             key: "印字可能文字",

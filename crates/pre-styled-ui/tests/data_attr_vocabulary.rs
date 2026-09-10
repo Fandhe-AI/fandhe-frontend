@@ -33,9 +33,11 @@ use fandhe_frontend_headless_ui::attachment::{
 use fandhe_frontend_headless_ui::bubble::{
     self, BubbleGroupPosition, BubbleRootProps, BubbleVariant,
 };
+use fandhe_frontend_headless_ui::checkbox::CheckedState;
 use fandhe_frontend_headless_ui::data_attrs::{
     data_orientation, Orientation as ScrollAreaOrientation,
 };
+use fandhe_frontend_headless_ui::data_table::{ColumnHeaderProps, ColumnProps, SortDirection};
 use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use fandhe_frontend_headless_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
 use fandhe_frontend_headless_ui::message_scroller::{
@@ -462,6 +464,50 @@ fn field_root_data_attrs_are_headless_sourced_not_self_emitted() {
     // 参照は許容、自前出力はしないという役割 B の境界を固定）。
     let css = field::css();
     assert!(css.contains("[data-disabled]"));
+
+    // `orientation="responsive"`（イシュー #2199）を選択しても、上記規約 A・
+    // 役割 B の境界は変わらない: `container-type` は CSS 側（`group` slot）
+    // のみに現れ、HTML 属性を一切増やさない。全フラグ false/true の両方で
+    // クラス `fd-field--orientation-responsive` のみが付き、独自 `data-*`
+    // （`data-orientation` 含む）は一切出力されないことを固定する。
+    let f_responsive_false = field("f");
+    let responsive_props = FieldRootProps {
+        orientation: field::FieldOrientation::Responsive,
+    };
+    let html = render(&field::root(
+        &responsive_props,
+        &f_responsive_false,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains("fd-field--orientation-responsive"));
+    assert!(!html.contains("data-orientation"));
+    assert!(!html.contains("data-disabled"));
+    assert!(!html.contains("data-invalid"));
+    assert!(!html.contains("data-required"));
+    assert!(!html.contains("data-readonly"));
+
+    let f_responsive_true = FieldProps {
+        id: "f",
+        ids: FieldIds::default(),
+        disabled: true,
+        invalid: true,
+        required: true,
+        readonly: true,
+        has_helper_text: false,
+    };
+    let html = render(&field::root(
+        &responsive_props,
+        &f_responsive_true,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains("fd-field--orientation-responsive"));
+    assert!(!html.contains("data-orientation"));
+    assert!(html.contains("data-disabled"));
+    assert!(html.contains("data-invalid"));
+    assert!(html.contains("data-required"));
+    assert!(html.contains("data-readonly"));
 }
 
 /// `field.rs` 拡張パーツ（`group`/`content`/`title`/`separator`、イシュー
@@ -1471,14 +1517,14 @@ fn message_parts_data_attrs_are_headless_sourced_not_self_emitted() {
 /// [`mod@fandhe_frontend_headless_ui::message_scroller`]（イシュー #2121）
 /// の `data-stuck`（`bottom`/`free`）・`data-has-new`（存在属性）・
 /// `data-visible`（`jump_to_latest` の存在属性）・`data-loading`/
-/// `data-disabled`（`load_more` の存在属性）の語彙を固定する。本イシュー
-/// 時点では `fandhe-frontend-pre-styled-ui` 側に `message_scroller`
-/// モジュールがまだ存在しない（styled recipe・golden・Themes ページは
-/// 後続イシュー #2123）ため、headless 出力元
-/// [`fandhe_frontend_headless_ui::message_scroller`] を直接呼んで語彙を
-/// 記録する（`message_root_data_role_align_loading_error_vocabulary_is_fixed`
-/// と同型。#2123 で styled モジュールが新設された際は、本テストに加えて
-/// `*_not_self_emitted` の headless-sourced 契約テストを追加する）。
+/// `data-disabled`（`load_more` の存在属性）の語彙を固定する。headless
+/// 出力元 [`fandhe_frontend_headless_ui::message_scroller`] を直接呼んで
+/// 語彙を記録する（`message_root_data_role_align_loading_error_vocabulary_is_fixed`
+/// と同型）。styled 側（`fandhe-frontend-pre-styled-ui::message_scroller`、
+/// イシュー #2123）が同じ語彙を自前で生成せず headless から継承するのみ
+/// であることは、直後の
+/// [`message_scroller_parts_data_attrs_are_headless_sourced_not_self_emitted`]
+/// が固定する。
 #[test]
 fn message_scroller_root_stuck_has_new_visible_loading_disabled_vocabulary_is_fixed() {
     // data-stuck: bottom/free の 2 値。
@@ -1555,6 +1601,89 @@ fn message_scroller_root_stuck_has_new_visible_loading_disabled_vocabulary_is_fi
         &payload_html,
         "message_scroller::root の呼び出し側 attrs コンテキスト",
     );
+}
+
+/// `crate::message_scroller`（イシュー #2123）の 6 パーツは `data-stuck`/
+/// `data-has-new`/`data-visible`/`hidden`/`data-loading`/`data-disabled`/
+/// `tabindex`/`role`/`aria-label`/`aria-hidden`/`type` を一切自前で生成
+/// せず、headless [`fandhe_frontend_headless_ui::message_scroller`]
+/// （#2121）が出力したものを `stylesheet()` が `AttrEq`/`Attr` で参照する
+/// のみであることを固定する（`message_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。
+#[test]
+fn message_scroller_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::message_scroller as styled_message_scroller;
+
+    let root_html = render(&styled_message_scroller::root(
+        styled_message_scroller::MessageScrollerRootProps::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains(r#"data-stuck="bottom""#));
+    assert!(!root_html.contains("data-has-new"));
+
+    let has_new_html = render(&styled_message_scroller::root(
+        styled_message_scroller::MessageScrollerRootProps {
+            has_new: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(has_new_html.contains(r#"data-has-new="""#));
+
+    let jump_visible_html = render(&styled_message_scroller::jump_to_latest(
+        "Jump to latest",
+        true,
+        vec![],
+        vec![],
+    ));
+    assert!(jump_visible_html.contains(r#"data-visible="""#));
+    assert!(jump_visible_html.contains(r#"aria-label="Jump to latest""#));
+    assert!(!jump_visible_html.contains("hidden"));
+
+    let jump_hidden_html = render(&styled_message_scroller::jump_to_latest(
+        "",
+        false,
+        vec![],
+        vec![],
+    ));
+    assert!(jump_hidden_html.contains(r#"hidden="""#));
+    assert!(!jump_hidden_html.contains("data-visible"));
+
+    let load_more_html = render(&styled_message_scroller::load_more(
+        true,
+        true,
+        vec![],
+        vec![],
+    ));
+    assert!(load_more_html.contains(r#"data-loading="""#));
+    assert!(load_more_html.contains(r#"data-disabled="""#));
+    assert!(load_more_html.contains(r#"disabled="""#));
+
+    let viewport_html = render(&styled_message_scroller::viewport(
+        "Conversation",
+        vec![],
+        vec![],
+    ));
+    assert!(viewport_html.contains(r#"tabindex="0""#));
+    assert!(viewport_html.contains(r#"role="region""#));
+    assert!(viewport_html.contains(r#"aria-label="Conversation""#));
+
+    let anchor_html = render(&styled_message_scroller::anchor(vec![]));
+    assert!(anchor_html.contains(r#"aria-hidden="true""#));
+
+    // `styled_message_scroller::stylesheet()` は `[data-stuck="..."]`/
+    // `[data-has-new]`/`[data-visible]`/`[hidden]`/`[data-loading]`/
+    // `[data-disabled]` を CSS セレクタとして参照するだけで自前で
+    // `data-*` を組み立てない。
+    let css = styled_message_scroller::stylesheet();
+    assert!(css.contains(r#"[data-has-new]"#));
+    assert!(css.contains(r#"[data-stuck="bottom"]"#));
+    assert!(css.contains("[hidden]"));
+    assert!(css.contains("[data-visible]"));
+    assert!(css.contains("[data-loading]"));
+    assert!(css.contains("[data-disabled]"));
 }
 
 /// [`mod@fandhe_frontend_headless_ui::bubble`]（イシュー #2108）の
@@ -2213,6 +2342,112 @@ fn questionnaire_root_question_and_trigger_vocabulary_is_fixed() {
     let skip_html = render(&at_end.skip(false, vec![], vec![]));
     assert!(skip_html.contains("disabled"));
     assert!(skip_html.contains("data-disabled"));
+}
+
+/// headless `data_table`（イシュー #2125）が出力する `aria-sort`/
+/// `data-sort`（4 値）・`data-column`・`hidden`+`data-hidden`・
+/// `data-state`（checked/unchecked/indeterminate）・`data-selected`・
+/// `data-loading`+`aria-busy`・`data-empty`・`sort-trigger` の
+/// `data-value` の語彙をレンダリング結果で直接固定する（Themes 経路
+/// 〔#2127〕が pre-styled `table::*` の attrs へパススルーする前提となる
+/// 出力契約。本クレートは headless-ui へ依存する側であり、依存先の出力
+/// が意図せず変わっていないかをここで検知する）。
+#[test]
+fn data_table_sort_column_selection_and_state_vocabulary_is_fixed() {
+    use fandhe_frontend_headless_ui::DataTable;
+
+    // aria-sort/data-sort の 4 値。
+    for (dir, expected) in [
+        (SortDirection::None, "none"),
+        (SortDirection::Ascending, "ascending"),
+        (SortDirection::Descending, "descending"),
+        (SortDirection::Other, "other"),
+    ] {
+        let column = ColumnProps {
+            id: "name",
+            hidden: false,
+        };
+        let props = ColumnHeaderProps {
+            column,
+            sort: Some(dir),
+        };
+        let th = fandhe_frontend_core::el(
+            "th",
+            fandhe_frontend_headless_ui::data_table::column_header_attrs(&props),
+            vec![],
+        );
+        let html = render(&th);
+        assert!(html.contains(&format!(r#"aria-sort="{expected}""#)));
+        assert!(html.contains(&format!(r#"data-sort="{expected}""#)));
+    }
+
+    // data-column、hidden + data-hidden の併出力。
+    let hidden_column = ColumnProps {
+        id: "email",
+        hidden: true,
+    };
+    let td = fandhe_frontend_core::el(
+        "td",
+        fandhe_frontend_headless_ui::data_table::column_attrs(&hidden_column),
+        vec![],
+    );
+    let hidden_html = render(&td);
+    assert!(hidden_html.contains(r#"data-column="email""#));
+    assert!(hidden_html.contains("hidden"));
+    assert!(hidden_html.contains("data-hidden"));
+
+    // select-all/select-row の data-state 3 値。
+    for (state, expected) in [
+        (CheckedState::Unchecked, "unchecked"),
+        (CheckedState::Checked, "checked"),
+        (CheckedState::Indeterminate, "indeterminate"),
+    ] {
+        let select_all_html = render(&DataTable::select_all(state, vec![], vec![]));
+        assert!(select_all_html.contains(&format!(r#"data-state="{expected}""#)));
+        let select_row_html = render(&DataTable::select_row(state, vec![], vec![]));
+        assert!(select_row_html.contains(&format!(r#"data-state="{expected}""#)));
+    }
+
+    // data-selected（row_attrs）。
+    let selected = fandhe_frontend_core::el(
+        "tr",
+        fandhe_frontend_headless_ui::data_table::row_attrs(true),
+        vec![],
+    );
+    assert!(render(&selected).contains("data-selected"));
+    let unselected = fandhe_frontend_core::el(
+        "tr",
+        fandhe_frontend_headless_ui::data_table::row_attrs(false),
+        vec![],
+    );
+    assert!(!render(&unselected).contains("data-selected"));
+
+    // root: data-loading + aria-busy="true" / data-empty。
+    let loading_html = render(&DataTable::root(
+        fandhe_frontend_headless_ui::DataTableProps {
+            loading: true,
+            empty: false,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(loading_html.contains("data-loading"));
+    assert!(loading_html.contains(r#"aria-busy="true""#));
+
+    let empty_html = render(&DataTable::root(
+        fandhe_frontend_headless_ui::DataTableProps {
+            loading: false,
+            empty: true,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(empty_html.contains("data-empty"));
+
+    // sort-trigger: data-value（列 id）。
+    let t = DataTable::default();
+    let trigger_html = render(&t.sort_trigger("name", vec![], vec![]));
+    assert!(trigger_html.contains(r#"data-value="name""#));
 }
 
 /// イシュー #2195（Forms 家族横断の `label[data-required]` 規則、R2）:

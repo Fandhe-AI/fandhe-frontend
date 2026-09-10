@@ -432,6 +432,11 @@ source = "site/primitives/carousel.md"
 path = "/primitives/carousel/"
 
 [[section.group.page]]
+title = "Data Table"
+source = "site/primitives/data-table.md"
+path = "/primitives/data-table/"
+
+[[section.group.page]]
 title = "Item"
 source = "site/primitives/item.md"
 path = "/primitives/item/"
@@ -984,6 +989,11 @@ path = "/themes/marker/"
 title = "Message"
 source = "site/themes/message.md"
 path = "/themes/message/"
+
+[[section.group.page]]
+title = "Message Scroller"
+source = "site/themes/message-scroller.md"
+path = "/themes/message-scroller/"
 
 [[section.group.page]]
 title = "Progress"

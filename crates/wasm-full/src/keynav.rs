@@ -4275,10 +4275,15 @@ pub(crate) mod wiring {
     const MENU_TRIGGER_SELECTOR: &str = "[data-scope=\"menu\"][data-part=\"trigger\"]";
     /// `[data-scope="menu"][data-part="content"]` セレクタ。
     const MENU_CONTENT_SELECTOR: &str = "[data-scope=\"menu\"][data-part=\"content\"]";
-    /// `[data-scope="menu"][data-part="item"]`/`[data-scope="menu"][data-part="trigger-item"]`
-    /// セレクタ（いずれも highlight 対象、モジュール doc §Menu/Select 参照）。
+    /// `[data-scope="menu"][data-part="item"]`/`[data-scope="menu"][data-part="trigger-item"]`/
+    /// `[data-scope="menu"][data-part="checkbox-item"]`/
+    /// `[data-scope="menu"][data-part="radio-item"]` セレクタ（いずれも
+    /// highlight 対象、モジュール doc §Menu/Select 参照）。checkbox-item/
+    /// radio-item はイシュー #2205 で追加した（従来は highlight・
+    /// typeahead・Enter/Space の click 合成いずれの対象にもならず、#1651 の
+    /// 既知ギャップだった）。
     const MENU_ITEM_SELECTOR: &str =
-        "[data-scope=\"menu\"][data-part=\"item\"], [data-scope=\"menu\"][data-part=\"trigger-item\"]";
+        "[data-scope=\"menu\"][data-part=\"item\"], [data-scope=\"menu\"][data-part=\"trigger-item\"], [data-scope=\"menu\"][data-part=\"checkbox-item\"], [data-scope=\"menu\"][data-part=\"radio-item\"]";
     /// `[data-scope="menu"][data-part="trigger-item"]` セレクタ（サブメニューを
     /// 開くための menu item、`crates/headless-ui/src/menu.rs::trigger_item` の
     /// SSR 出力。イシュー #662、アクティブ content チェーン解決・
@@ -4320,9 +4325,13 @@ pub(crate) mod wiring {
     /// [`MENUBAR_CONTENT_SELECTOR`] 単独では sub-content を拾えない）。
     const MENUBAR_CONTENT_ANY_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"content\"], [data-scope=\"menubar\"][data-part=\"sub-content\"]";
     /// `[data-scope="menubar"][data-part="item"]`/
-    /// `[data-scope="menubar"][data-part="sub-trigger"]` セレクタ
-    /// （いずれも highlight 対象）。
-    const MENUBAR_ITEM_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"item\"], [data-scope=\"menubar\"][data-part=\"sub-trigger\"]";
+    /// `[data-scope="menubar"][data-part="sub-trigger"]`/
+    /// `[data-scope="menubar"][data-part="checkbox-item"]`/
+    /// `[data-scope="menubar"][data-part="radio-item"]` セレクタ
+    /// （いずれも highlight 対象）。checkbox-item/radio-item はイシュー
+    /// #2205 で追加した（`MENU_ITEM_SELECTOR` と同型の拡張、#1652 の
+    /// 既知ギャップの解消）。
+    const MENUBAR_ITEM_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"item\"], [data-scope=\"menubar\"][data-part=\"sub-trigger\"], [data-scope=\"menubar\"][data-part=\"checkbox-item\"], [data-scope=\"menubar\"][data-part=\"radio-item\"]";
     /// `[data-scope="menubar"][data-part="sub-trigger"]` セレクタ
     /// （サブメニューを開く項目、`menu` の `trigger-item` に相当）。
     const MENUBAR_SUB_TRIGGER_SELECTOR: &str =
@@ -5770,8 +5779,12 @@ pub(crate) mod wiring {
     /// item-text を誤って掴んで更新してしまう（codex-review/Cursor Bugbot
     /// 再指摘、イシュー #1619。`crates/wasm-full/src/headless_select.rs::
     /// own_scope_child` と同型の「最も近い item 祖先が自身と一致する」
-    /// 判定）。見つかった item-text の最も近い `[data-part="item"]` 祖先が
-    /// `item` 自身と一致するものだけへ絞り込む。
+    /// 判定）。見つかった item-text の最も近い
+    /// `[data-part="item"]`/`[data-part="checkbox-item"]`/
+    /// `[data-part="radio-item"]` 祖先が `item` 自身と一致するものだけへ
+    /// 絞り込む（checkbox-item/radio-item の追加はイシュー #2205。これを
+    /// 拡張しないと checkbox-item/radio-item 配下の item-text へ
+    /// `data-highlighted` が同期されず、highlight 表示のみ半端に欠落する）。
     fn sync_item_text_highlighted(item: &Element, highlighted: bool) {
         let Ok(node_list) = item.query_selector_all("[data-part=\"item-text\"]") else {
             return;
@@ -5783,8 +5796,11 @@ pub(crate) mod wiring {
             let Ok(item_text) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
                 continue;
             };
-            let owns = closest(&item_text, "[data-part=\"item\"]")
-                .is_some_and(|nearest| nearest.is_same_node(Some(item)));
+            let owns = closest(
+                &item_text,
+                "[data-part=\"item\"], [data-part=\"checkbox-item\"], [data-part=\"radio-item\"]",
+            )
+            .is_some_and(|nearest| nearest.is_same_node(Some(item)));
             if !owns {
                 continue;
             }

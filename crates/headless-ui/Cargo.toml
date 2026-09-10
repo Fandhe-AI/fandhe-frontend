@@ -640,18 +640,35 @@ name = "fandhe-frontend-headless-ui"
 # 採用しない原則により main の到達値 0.68.14 からさらに +1 して 0.68.15
 # とする。
 #
-# base 取り込み（PR #2296、イシュー #2194）: 本ブランチ（#2194 の rustdoc
-# のみの純追加）と origin/main（#2193 の close-trigger variant 再設計）が
-# いずれも独立に 0.68.15 へ到達しており、同一版数への偶発的衝突をそのまま
-# 採用しない原則に従い、main の到達値 0.68.15 からさらに +1 して 0.68.16
+# イシュー #2125: `data_table`（Root/Toolbar/ColumnHeader/SortTrigger/
+# SelectAll/SelectRow/Footer/SelectionCount の 8 anatomy パーツ + ソート
+# 方向・非表示列の表示状態のみを持つ `DataTable` 状態機械、shadcn/ui
+# Data Table 相当）を新設。既存 API への変更はなく非破壊的な追加のため
+# patch バンプ対象だったが、origin/main が #2193（close-trigger 再設計）
+# で独立に 0.68.15 へ到達済みだったため、同一版数への偶発的衝突をそのまま
+# 採用しない原則により main の到達値 0.68.15 からさらに +1 して 0.68.16
 # とする。
 #
-# base 取り込み（PR #2296、イシュー #2194、再マージ）: 本ブランチは上記の
-# 通り独立に 0.68.16 へ到達済みだったが、origin/main も PR #2295（イシュー
-# #2121、message_scroller 新設）で独立に 0.68.16 へ到達しており、同一版数
-# への偶発的衝突をそのまま採用しない原則により main の到達値 0.68.16 から
-# さらに +1 して 0.68.17 とする。
-version = "0.68.17"
+# codex-review P1 指摘（PR #2303、イシュー #2125）の是正: `DataTable::new`
+# が空文字列の列 id を持つ `sort` をそのまま受理でき、その状態が
+# `hydration_attrs()` → `from_hydration_attrs()` のラウンドトリップで
+# `InvalidValue` になる契約不整合があった。`DataTable::new`/`update()`
+# の `DataTableAction::Sort` の双方で空文字列の列 id を「未ソート」へ
+# 正規化する（呼び出し側が観測できる状態遷移が変わる 0.x の破壊的変更）
+# ため、マイナーバンプする。
+#
+# PR #2295（イシュー #2121）base 取り込み: origin/main が #2121（message
+# scroller 新設）・#2193（dialog/drawer close-trigger 再設計）を独立に
+# 経て 0.68.16 へ到達していたが、本ブランチは上記 #2125 の破壊的変更で
+# 0.69.0 へマイナーバンプ済みであり、main の到達値 0.68.16 より高いため
+# 追加のバンプは不要（0.69.0 を維持する）。
+#
+# base 取り込み（PR #2303、イシュー #2125、再マージ）: origin/main は
+# PR #2296（イシュー #2194）の base 取り込みを重ね、独立に 0.68.17 へ
+# 到達していたが、本ブランチは上記の通り 0.69.0 へマイナーバンプ済みで
+# あり、main の到達値 0.68.17 より高いため追加のバンプは不要（0.69.0 を
+# 維持する）。
+version = "0.69.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
