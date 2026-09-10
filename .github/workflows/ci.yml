@@ -2458,6 +2458,14 @@ jobs:
         # pipefail` を維持したまま条件式内で pipefail 失敗による即時中断を
         # 回避する）で、"environment error: "（runner/GitHub API 起因）と
         # ドリフト検知（コード起因の FAIL）を CI アノテーションとして区別する。
+        #
+        # `if: always()`: 本ステップは同一ジョブ内の先行ステップ
+        # `check-dep-versions`（バージョン追随検知）とは独立したゲートで
+        # あり、先行ステップが失敗しても ruleset drift 検知を止めては
+        # ならない（Cursor Bugbot 指摘、PR #2338）。既定の `if:` 省略は
+        # 先行ステップ失敗時に自動的にスキップされるため、`always()` で
+        # 明示的に無条件実行へ切り替える。
+        if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

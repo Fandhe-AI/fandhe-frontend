@@ -34,7 +34,10 @@
 //!    PASS / `missing-in-ruleset`（マニフェストにあるが live にない） /
 //!    `extra-in-ruleset`（live にあるがマニフェストにない） /
 //!    `integration-id-mismatch`（両方にあるが `integration_id` が異なる、
-//!    または live 側が数値でない）を判定する。
+//!    または live 側が数値でない） /
+//!    `duplicate-integration-id-conflict`（live 側に同一 context が異なる
+//!    `integration_id` で複数存在し、どの値が有効か本関数からは判別
+//!    不能。イシュー #2325 codex-review 指摘）を判定する。
 //!
 //! ## fail-closed 契約
 //!
@@ -348,6 +351,14 @@ pub enum EntryJudgement {
     MissingInRuleset,
     ExtraInRuleset,
     IntegrationIdMismatch,
+    /// live 側に同一 context が異なる `integration_id` で複数存在する
+    /// （別 ruleset・別 App が同じ context 名を異なる App ID で登録して
+    /// いる状態）。`compare` はこれを単純な先勝ちマージで握り潰さず、
+    /// マニフェストとの一致判定より優先して FAIL にする（イシュー #2325
+    /// codex-review 指摘: manifest/live が共に (ci-complete, 15368) を
+    /// 持つ場合でも live にもう 1 件 (ci-complete, 9999) があれば不一致
+    /// として検知する）。
+    DuplicateIntegrationIdConflict,
 }
 
 impl EntryJudgement {
@@ -357,6 +368,9 @@ impl EntryJudgement {
             EntryJudgement::MissingInRuleset => "FAIL:missing-in-ruleset",
             EntryJudgement::ExtraInRuleset => "FAIL:extra-in-ruleset",
             EntryJudgement::IntegrationIdMismatch => "FAIL:integration-id-mismatch",
+            EntryJudgement::DuplicateIntegrationIdConflict => {
+                "FAIL:duplicate-integration-id-conflict"
+            }
         }
     }
 
@@ -377,11 +391,13 @@ pub struct EntryReport {
 
 /// マニフェストと live ruleset の union を context 単位で比較する。
 ///
-/// マニフェスト・live の双方に重複 context が無いことは呼び出し前提とする
-/// （マニフェスト側は [`parse_manifest`] が拒否する。live 側の重複は
-/// ここでは「後勝ち」ではなく最初に見つかった方を採用しつつ、重複自体は
-/// 呼び出し側の責務ではなく本関数の対象外とする——GitHub API が同一
-/// context を複数の rule で重複して返すことは想定しないため）。
+/// マニフェスト側に重複 context が無いことは呼び出し前提とする
+/// （[`parse_manifest`] が拒否する）。**live 側は重複 context を先勝ちで
+/// 握り潰さない**: 複数の rule（別 ruleset・別 App）が同一 context を
+/// 異なる `integration_id` で報告した場合、`compare` はその全エントリを
+/// 保持して不一致を検知する（イシュー #2325 codex-review 指摘。GitHub API
+/// が同一 context を複数の rule で重複して返すことは実際に起こり得るため、
+/// 「想定しない」として先勝ちマージするのは fail-open だった）。
 pub fn compare(manifest: &Manifest, live: &[CheckEntry]) -> Vec<EntryReport> {
     use std::collections::HashMap;
 
@@ -390,11 +406,15 @@ pub fn compare(manifest: &Manifest, live: &[CheckEntry]) -> Vec<EntryReport> {
         .iter()
         .map(|c| (c.context.as_str(), c.integration_id.unwrap_or(0)))
         .collect();
-    let mut live_map: HashMap<&str, Option<i64>> = HashMap::new();
+    // context ごとに観測された全 integration_id を保持する（先勝ちで
+    // 1 件へ潰さない）。同一 context に異なる値が複数観測された場合は
+    // `DuplicateIntegrationIdConflict` として扱う。
+    let mut live_map: HashMap<&str, Vec<Option<i64>>> = HashMap::new();
     for c in live {
         live_map
             .entry(c.context.as_str())
-            .or_insert(c.integration_id);
+            .or_default()
+            .push(c.integration_id);
     }
 
     let mut contexts: Vec<&str> = manifest_map
@@ -410,19 +430,49 @@ pub fn compare(manifest: &Manifest, live: &[CheckEntry]) -> Vec<EntryReport> {
         .into_iter()
         .map(|context| {
             let manifest_id = manifest_map.get(context).copied();
-            let live_id = live_map.get(context).copied().flatten();
-            let (judgement, reported_id) = match (manifest_id, live_map.contains_key(context)) {
-                (Some(m), true) => {
-                    if Some(m) == live_id {
-                        (EntryJudgement::Pass, live_id)
-                    } else {
-                        (EntryJudgement::IntegrationIdMismatch, live_id)
+            let live_ids = live_map.get(context);
+            // live 側で観測された integration_id の重複なし集合。2 件以上の
+            // 異なる値があれば、当該 context の live 状態自体が破損している
+            // （どの ID が実際に有効な ruleset なのか本関数からは判別不能）。
+            let distinct_live_ids: Option<Vec<Option<i64>>> = live_ids.map(|ids| {
+                let mut uniq: Vec<Option<i64>> = Vec::new();
+                for id in ids {
+                    if !uniq.contains(id) {
+                        uniq.push(*id);
                     }
                 }
-                (Some(_), false) => (EntryJudgement::MissingInRuleset, manifest_id),
-                (None, true) => (EntryJudgement::ExtraInRuleset, live_id),
-                (None, false) => {
-                    unreachable!("context はマニフェストか live のいずれかから収集したもののみ")
+                uniq
+            });
+            let live_present = live_ids.is_some();
+            let live_id =
+                distinct_live_ids.as_ref().and_then(
+                    |ids| {
+                        if ids.len() == 1 {
+                            ids[0]
+                        } else {
+                            None
+                        }
+                    },
+                );
+            let (judgement, reported_id) = if distinct_live_ids
+                .as_ref()
+                .is_some_and(|ids| ids.len() > 1)
+            {
+                (EntryJudgement::DuplicateIntegrationIdConflict, live_id)
+            } else {
+                match (manifest_id, live_present) {
+                    (Some(m), true) => {
+                        if Some(m) == live_id {
+                            (EntryJudgement::Pass, live_id)
+                        } else {
+                            (EntryJudgement::IntegrationIdMismatch, live_id)
+                        }
+                    }
+                    (Some(_), false) => (EntryJudgement::MissingInRuleset, manifest_id),
+                    (None, true) => (EntryJudgement::ExtraInRuleset, live_id),
+                    (None, false) => {
+                        unreachable!("context はマニフェストか live のいずれかから収集したもののみ")
+                    }
                 }
             };
             EntryReport {
@@ -580,6 +630,25 @@ mod tests {
         let reports = compare(&manifest, &live);
         assert_eq!(reports.len(), 1);
         assert_eq!(reports[0].judgement, EntryJudgement::ExtraInRuleset);
+    }
+
+    #[test]
+    fn compare_reports_duplicate_integration_id_conflict_even_if_one_matches_manifest() {
+        // イシュー #2325 codex-review 指摘の再現: manifest/live が共に
+        // (ci-complete, 15368) を持つため先勝ちマージでは PASS になって
+        // しまうが、live 側にもう 1 件 (ci-complete, 9999) が別 rule から
+        // 観測される場合は不一致として検知しなければならない。
+        let manifest = Manifest {
+            strict_required_status_checks_policy: false,
+            checks: vec![entry("ci-complete", 15368)],
+        };
+        let live = vec![entry("ci-complete", 15368), entry("ci-complete", 9999)];
+        let reports = compare(&manifest, &live);
+        assert_eq!(reports.len(), 1);
+        assert_eq!(
+            reports[0].judgement,
+            EntryJudgement::DuplicateIntegrationIdConflict
+        );
     }
 
     #[test]

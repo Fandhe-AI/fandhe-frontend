@@ -155,8 +155,10 @@ fn strip_comment(line: &str) -> String {
 }
 
 /// `jobs:` 直下（インデント 2）のジョブ id 行かどうかを判定する
-/// （`workflow_ci_complete_needs.rs::job_name_at_indent2` と同一ロジック、
-/// 意図的な複製）。
+/// （元は `workflow_ci_complete_needs.rs::job_name_at_indent2` と同一
+/// ロジックの意図的な複製だったが、イシュー #2325 codex-review 指摘を
+/// 受けてクォート付きキーの受理・未知表記の明示拒否〔panic〕を本関数側
+/// にのみ追加したため、現在はロジックが分岐している）。
 fn job_id_at_indent2(stripped_line: &str) -> Option<String> {
     let trimmed_end = stripped_line.trim_end();
     if !trimmed_end.starts_with("  ") {
@@ -170,13 +172,30 @@ fn job_id_at_indent2(stripped_line: &str) -> Option<String> {
     if name.is_empty() {
         return None;
     }
-    if !name
+    // YAML の block mapping キーはクォート付き（`"job-id":`）も許容される
+    // ため、英数字・`_`・`-` の判定前にクォートを剥がす（イシュー #2325
+    // codex-review 指摘: クォート付きジョブ id を追加しても本関数が黙って
+    // 無視し、`all_workflow_files_are_classified` 等の検知が素通りして
+    // いた）。
+    let unquoted = strip_matching_quotes(name);
+    if unquoted.is_empty() {
+        return None;
+    }
+    if !unquoted
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
     {
-        return None;
+        // CI 規約（`.claude/rules/ci.md`）の「反転判定」原則: 認識できない
+        // ジョブ id 表記を黙って無視して期待集合から欠落させず、パニック
+        // で明示的に拒否する。
+        panic!(
+            "認識できないジョブ id 表記: `{trimmed_end}`。\
+`jobs:` 直下（インデント 2）のキーは英数字・`_`・`-`（クォート付き可）のみ \
+対応している。新しい表記が必要な場合は本関数（job_id_at_indent2）を \
+拡張すること（未知表記を黙って無視しない）。"
+        );
     }
-    Some(name.to_string())
+    Some(unquoted.to_string())
 }
 
 /// 前後を同じ引用符で囲まれている場合のみそれを剥がす
@@ -283,7 +302,7 @@ fn classify_workflow_file(file_name: &str) -> Option<Classification> {
     None
 }
 
-/// `.github/workflows/*.yml` 全件と外部 App 定数から、期待される
+/// `.github/workflows/*.yml`・`*.yaml` 全件と外部 App 定数から、期待される
 /// `{context, integration_id}` 集合を導出する。分類表に無いファイルが
 /// あれば呼び出し側でパニックさせるため、`(未分類ファイル名一覧, 期待集合)`
 /// を返す。
@@ -293,7 +312,17 @@ fn derive_expected_checks() -> (Vec<String>, Vec<(String, i64)>) {
         .unwrap_or_else(|e| panic!("{:?} の読み込みに失敗した: {e}", dir))
         .filter_map(|e| e.ok())
         .map(|e| e.path())
-        .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("yml"))
+        .filter(|p| {
+            // GitHub Actions は `.github/workflows/` 配下の `.yml`・`.yaml`
+            // いずれの拡張子もワークフローとして受理する。`yml` のみに
+            // 限定すると `.yaml` で追加されたワークフローが分類表の検証
+            // 対象から漏れ、未分類ファイル検知（`all_workflow_files_are_classified`）
+            // を素通りしてしまう（イシュー #2325 codex-review 指摘）。
+            matches!(
+                p.extension().and_then(|s| s.to_str()),
+                Some("yml") | Some("yaml")
+            )
+        })
         .collect();
     entries.sort();
 
