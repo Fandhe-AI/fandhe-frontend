@@ -210,9 +210,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // #2089 で dashboard-01 が加わり、221 → 222 になった。イシュー #2117
     // で Questionnaire（Primitives）が加わり、222 → 223 になった。イシュー
     // #2090 で sidebar-07 が加わり、223 → 224 になった。イシュー #2091 で
-    // sidebar-03 が加わり、224 → 225 になった。イシュー #2094 で signup-01
-    // が加わり、225 → 226 になった。
-    assert_eq!(pages.len(), 226, "expected 226 pages, got {pages:?}");
+    // sidebar-03 が加わり、224 → 225 になった。イシュー #2119 で
+    // Questionnaire の Themes ページが加わり、225 → 226 になった。イシュー
+    // #2094 で signup-01 が加わり、226 → 227 になった。
+    assert_eq!(pages.len(), 227, "expected 227 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
@@ -316,15 +317,16 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // イシュー #2080 で 114 → 115、イシュー #2106 で 115 → 116、
     // イシュー #2075 で Sidebar が加わり 116 → 117、イシュー #2109 で
     // Bubble が加わり 117 → 118、イシュー #2112 で Attachment が加わり
-    // 118 → 119、イシュー #2115 で Marker が加わり 119 → 120）。
+    // 118 → 119、イシュー #2115 で Marker が加わり 119 → 120、イシュー
+    // #2119 で Questionnaire が加わり 120 → 121）。
     let themes_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/themes/"))
         .collect();
     assert_eq!(
         themes_pages.len(),
-        121,
-        "expected 121 /themes/ pages (120 部品 + 1 索引), got {themes_pages:?}"
+        122,
+        "expected 122 /themes/ pages (121 部品 + 1 索引), got {themes_pages:?}"
     );
 
     let source_based_component_pages = pages
@@ -332,8 +334,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .filter(|(source, _)| source.starts_with("site/themes/"))
         .count();
     assert_eq!(
-        source_based_component_pages, 120,
-        "expected 120 pages sourced from site/themes/"
+        source_based_component_pages, 121,
+        "expected 121 pages sourced from site/themes/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ

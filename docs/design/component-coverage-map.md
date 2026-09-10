@@ -991,7 +991,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 | —（対応 md なし） | — | — | — | — | Bubble (`bubble`) | `bubble` | `bubble` | 実装済み | headless+styled 実装済み（#2108 anatomy / #2109 recipe・Themes ページ）。root/content/reactions/reaction/collapse-trigger/collapse-content の 6 slot、`data-variant`/`data-align`/`data-group-position`/`data-selected`/`data-state` を AttrEq/Attr/AttrEqAll 参照 |
 | —（対応 md なし） | — | — | — | — | Attachment (`attachment`) | `attachment` | `attachment` | 実装済み | headless+styled 実装済み（#2111 anatomy / #2112 recipe・Themes ページ）。root/media/content/name/meta/progress/actions/action の 8 slot、`data-variant`/`data-state`/`data-disabled` を AttrEq/Attr 参照 |
 | —（対応 md なし） | — | — | — | — | Marker (`marker`) | `marker` | `marker` | 実装済み | headless+styled 実装済み（#2114 anatomy / #2115 recipe・Themes ページ）。root/icon/content の 3 slot、`data-variant`/`data-tone` を AttrEq 参照 |
-| —（対応 md なし） | — | — | — | — | Questionnaire (`questionnaire`) | — | — | 実装対象 | 単一/複数選択・自由記述・スキップ可の多段階質問フロー部品。回答の保持・検証・分岐はアプリ責務（§3.25 規則 1）。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2116。判定根拠の詳細は #2006 が §12 へ転記 |
+| —（対応 md なし） | — | — | — | — | Questionnaire (`questionnaire`) | `questionnaire` | `questionnaire` | 実装済み | headless+styled 実装済み（#2117 anatomy / #2118 wasm-full 配線 / #2119 recipe・Themes ページ）。root/progress/question/prompt/description/options/freeform/actions/back/next/skip の 11 slot、`data-state`/`data-answered`/`data-skipped`/`data-invalid`/`data-disabled`/`data-complete` を AttrEq/Attr 参照。回答の保持・検証・分岐はアプリ責務（§3.25 規則 1） |
 | —（対応 md なし） | — | — | — | — | Message Scroller (`message-scroller`) | — | — | 実装対象 | 会話のスクロール固定・ストリーミング追従・履歴読み込み部品。§3.25 規則 2 に従い計測・DOM 操作は wasm-full 側、headless-ui は anatomy と `data-*` のみ。ユーザー判断 2026-09-07 で追加確定（#2006）。Phase 4、#2120。判定根拠の詳細は #2006 が §12 へ転記 |
 | —（対応 md なし） | — | — | — | — | Data Table (`data-table`) | — | — | 実装対象 | 構造・DOM 配線のみ追加（ユーザー判断 2026-09-07、#2006）。並べ替え・絞り込み・ページ取得のロジックは §3.25 規則 1 により非採用。Phase 4、#2124。判定根拠の詳細は #2006 が §12 へ転記 |
 | —（対応 md なし） | — | — | — | — | Sonner (`sonner`) | — | `toast`（スタック表示・Toaster 相当） | 実装済み | shadcn/ui v4 は旧来の `toast`（トースト単発表示）と新しい `sonner`（スタック表示ライブラリ）の両ページを別コンポーネントとして掲載する。fandhe の既存 `toast`（ark-ui `overlays/toast.md` 行。同行の shadcn 列は Toast の slug を記入済み）がスタック表示までを含めて対応する。#2040 でスタック表示の突合詳細を確認予定 |
@@ -1336,7 +1336,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 | Bubble (`bubble`) | Part F | #2107 | 実装済み（#2108 / #2109） |
 | Attachment (`attachment`) | Part F | #2110 | 実装済み（#2111 / #2112） |
 | Marker (`marker`) | Part F | #2113 | 実装済み（#2114 / #2115） |
-| Questionnaire (`questionnaire`) | Part F | #2116 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
+| Questionnaire (`questionnaire`) | Part F | #2116 | 実装済み（#2117 / #2118 / #2119） |
 | Message Scroller (`message-scroller`) | Part F | #2120 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Data Table (`data-table`) | Part F | #2124 | 実装対象確定（構造・DOM 配線のみ。データ整形・並べ替えロジックは §3.25 規則 1 により非対象、ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Radial Chart (`radial-chart`) | Part F | #2078 | 実装済み（#2079 / #2080） |

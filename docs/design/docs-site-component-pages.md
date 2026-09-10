@@ -197,6 +197,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Radar Chart | `charts`（内包） | Charts | `/themes/radar-chart/` | `site/themes/radar-chart.md` | `radar_chart_section()` |
 | Radial Chart | `radial_chart` | Charts | `/themes/radial-chart/` | `site/themes/radial-chart.md` | `radial_chart_section()`（#2080 で新設） |
 | Radio Card | `radio_card` | Forms | `/themes/radio-card/` | `site/themes/radio-card.md` | `radio_card_section()` |
+| Questionnaire | `questionnaire` | Forms | `/themes/questionnaire/` | `site/themes/questionnaire.md` | `questionnaire_section()`（#2119 で新設） |
 | Radio Group | `radio_group` | Forms | `/themes/radio-group/` | `site/themes/radio-group.md` | `radio_group_section()` |
 | Rating Group | `rating_group` | Forms | `/themes/rating-group/` | `site/themes/rating-group.md` | `rating_group_section()` |
 | Scatter Chart | `charts`（内包） | Charts | `/themes/scatter-chart/` | `site/themes/scatter-chart.md` | `scatter_chart_section()` |
@@ -278,13 +279,15 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 - **Typography (12、イシュー #995 で `quote`/`strong` を追加)**:
   `blockquote` `code` `em` `heading` `highlight` `kbd` `link` `list` `mark`
   `quote` `strong` `text`
-- **Forms (35、イシュー #1685 で `field`・#1687 で `fieldset`・#2063 で
-  `input_group`・#2070 で `command` を追加)**: `angle_slider` `button`
+- **Forms (36、イシュー #1685 で `field`・#1687 で `fieldset`・#2063 で
+  `input_group`・#2070 で `command`・#2119 で `questionnaire` を追加)**:
+  `angle_slider` `button`
   `calendar` `checkbox` `checkbox_card` `color_picker` `combobox` `command`
   `date_input` `date_picker` `download_trigger` `editable` `field`
   `fieldset`
   `file_upload` `image_cropper` `input` `input_group` `listbox` `native_select`
-  `number_input` `password_input` `pin_input` `radio_card` `radio_group`
+  `number_input` `password_input` `pin_input` `questionnaire` `radio_card`
+  `radio_group`
   `rating_group` `segment_group` `select` `signature_pad` `slider` `switch`
   `tags_input` `textarea` `toggle` `toggle_group`
 - **Interactive (23)**: `accordion` `action_bar` `breadcrumb` `button_group`
