@@ -2204,9 +2204,14 @@ MAPPING_TABLE 各行・keynav 各 arm の cfg 付与、Cargo.toml への feature
 
 ### 34.6 スコープ外
 
-CI feature matrix・browser テストの per-test cfg（`keynav_browser.rs`/
-`headless_wiring_browser.rs`）は #2328、dist-server 経路の feature 集合
-決定は #2329、利用者向け docs/examples 反映は #2330 へ引き継ぐ。
+CI feature matrix は #2328 で実装済み（`.github/workflows/ci.yml` の
+`wasm-full-feature-matrix-baseline`/`-wiring`/`-scope`/`-readonly-guard`
+ジョブ、詳細は `docs/design/wasm-full-feature-gating-evaluation.md` §13
+項目 3 参照）。browser テストの per-test cfg（`keynav_browser.rs`/
+`headless_wiring_browser.rs` を縮小構成でも全件常設実行する方式）は
+#2328 の受入基準を matrix + フィルタ実行で満たせたため実施せず、必要に
+なれば別途後続 issue で検討する。dist-server 経路の feature 集合決定は
+#2329、利用者向け docs/examples 反映は #2330 へ引き継ぐ。
 
 ### 34.7 MAPPING_TABLE 行削除方式の是正（codex-review PR #2339 P0 指摘）
 
