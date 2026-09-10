@@ -836,6 +836,42 @@ name = "fandhe-frontend-wasm-full"
 # `wire_questionnaire` の双方を配線する非破壊的統合のみで、公開 API の
 # シグネチャ変更を伴わないため patch バンプで足りる）。
 #
+# 上記 main 到達値 0.18.1 に対し、本ブランチ側 (イシュー #2194) は
+# 同一 base から独立に 0.18.2 へ patch バンプ済みのため、main 側の
+# 実体変更 (#2134) を取り込んだ上でさらに上回る 0.18.2 を維持する。
+# イシュー #2118: `questionnaire` モジュール（back/next/skip クリックから
+# `data-state` 更新への配線）を新規追加し、`Runtime::mount`/`Runtime::hydrate`
+# へ自動配線した（新規公開 API の追加＝機能追加）。0.x の非破壊的機能追加
+# のため minor バンプとし、origin/main の到達値 0.17.4 から 0.18.0 とする
+# （`chart` モジュール追加時〔#2130〕の先例と同型の判断）。
+#
+# イシュー #2194: `overlay.rs` へ `OverlayKind::ignores_non_primary_outside_pointer`/
+# `is_primary_outside_pointer`/`outside_close_indices_with_pointer` を追加し、
+# Dialog/Command の外側 pointerdown で右クリック・ctrl+左クリックを
+# 閉鎖対象外にした（shadcn/ui = Radix Primitives の Dialog `isRightClick`
+# 判定との突合）。既存シグネチャ・`OverlayKind` の variant は不変で公開 fn/
+# `const fn` の追加のみのため patch バンプ対象だが、同一 base（0.18.0）から
+# 独立に 0.18.1 へ patch バンプ済みの #2285（`chart` の期間切替・系列トグル
+# 配線）が origin/main へ先にマージされ到達値が 0.18.1 になっていたため、
+# 無言のバージョン重複（3-way merge が同一文字列を無変更としてすり抜ける）
+# を避けてさらに +1 し、0.18.2 とする（review 指摘対応）。
+#
+# 本コンフリクト解消（PR #2293、イシュー #2193、base 側）: 本ブランチ
+# （headless-ui 0.68.14 → 0.68.15 への version 要求追随）と origin/main
+# （#2134 base 取り込み、chart_range/questionnaire 統合）がいずれも独立に
+# 0.18.1 へ到達しており、同一版数への偶発的衝突をそのまま採用しない原則に
+# 従い、双方の実体変更を統合した結果として main の到達値 0.18.1 をさらに
+# 上回る 0.18.2 へ patch バンプする（headless-ui への version 要求追随の
+# みで本クレート自身の `src/` 実体変更は伴わないため、非破壊的な patch
+# バンプで足りる）。
+#
+# base 取り込み（PR #2296、イシュー #2194）: 上記のとおり本ブランチ
+# （overlay.rs への実体変更、0.18.2 到達）と origin/main（PR #2293 の
+# コンフリクト解消、同じく 0.18.2 到達）が同一版数へ偶発的に衝突している
+# ため、main の到達値 0.18.2 からさらに +1 して 0.18.3 とする。加えて
+# 依存先 `fandhe-frontend-headless-ui` の version 要求を 0.68.16 へ追随
+# させる（`cargo run -p xtask -- check-dep-versions --fix`）。
+#
 # イシュー #2121: 依存先 `fandhe-frontend-headless-ui` 0.68.14 → 0.68.15
 # （`message_scroller` 新設に伴う patch バンプ）への `dep-version-check`
 # version 要求追随のみ（`message-scroller` scope のスクロール計測・
@@ -868,7 +904,15 @@ name = "fandhe-frontend-wasm-full"
 # 統合を経て 0.18.3 へ到達していたが、本ブランチは上記 #2125 の codex-review
 # 是正で 0.18.4 へ到達済みであり main の到達値 0.18.3 より高いため、
 # 追加のバンプは不要（0.18.4 を維持する）。
-version = "0.18.4"
+#
+# base 取り込み（PR #2303、イシュー #2125、再マージ）: 本ブランチ（上記の
+# 通り独立に 0.18.4 へ到達）と origin/main（PR #2296 の base 取り込み・
+# message-scroller 統合を経て同じく独立に 0.18.4 へ到達）が同一版数へ
+# 偶発的に衝突しているため、main の到達値 0.18.4 からさらに +1 して
+# 0.18.5 とする。加えて依存先 `fandhe-frontend-headless-ui` の version
+# 要求を 0.69.0 へ追随させる（`cargo run -p xtask -- check-dep-versions
+# --fix`）。
+version = "0.18.5"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

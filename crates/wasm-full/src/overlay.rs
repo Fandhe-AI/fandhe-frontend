@@ -194,6 +194,60 @@ impl OverlayKind {
     pub const fn outside_dismiss_blocks_propagation_by_default(self) -> bool {
         !matches!(self, Self::Tooltip)
     }
+
+    /// 外側 pointerdown の閉鎖判定で、右クリック（またはその相当操作）に
+    /// よる発火を無視する種別か（イシュー #2194、shadcn/ui = Radix
+    /// Primitives の Dialog `isRightClick` 判定との突合）。
+    ///
+    /// Radix `packages/react/dialog/src/dialog.tsx` の
+    /// `DialogContentModal` は `onPointerDownOutside` で
+    /// `isRightClick = originalEvent.button === 2 ||
+    /// (originalEvent.button === 0 && originalEvent.ctrlKey === true)`
+    /// を判定し、`true` のとき `event.preventDefault()` して閉鎖しない
+    /// （コミット `f7ecd5ab16f5e1e820eb5786a1419a98a2d594ae` 時点の
+    /// `radix-ui/primitives` で確認。DismissableLayer 自体には右クリック
+    /// 判定は無く、Dialog 側が `onPointerDownOutside` で個別に実装して
+    /// いる）。これはコンテキストメニュー（右クリック）操作中に背後の
+    /// Dialog が閉じてしまう UX 劣化を防ぐための判定であり、macOS の
+    /// ctrl+左クリック（右クリック相当のシステム規約）も同じ理由で対象に
+    /// 含める（[`is_primary_outside_pointer`] 参照）。中クリック
+    /// （`button === 1`）は Radix の判定対象に含まれない（このため
+    /// [`is_primary_outside_pointer`] も中クリックをプライマリ扱いとし、
+    /// Radix と同じく閉鎖対象に含める）。
+    ///
+    /// **適用範囲を [`Self::Dialog`]/[`Self::Command`] に限定する**
+    /// （本イシューの突合対象は shadcn/ui の Dialog チェックリストのみで
+    /// あり、Menu/Popover/NavigationMenu/Menubar/ActionBar/Tooltip は
+    /// 各部品の参照突合イシューで個別に判断する。既定挙動を暗黙に変えない
+    /// 安全側の判断、`docs/design/wasm-full-architecture.md` §29 参照）。
+    /// `Command` は command palette を dialog 内へ表示する構成
+    /// （[`Self::Command`] の doc 参照）であり、同じ dialog パターンとして
+    /// 扱う。
+    #[must_use]
+    pub const fn ignores_non_primary_outside_pointer(self) -> bool {
+        matches!(self, Self::Dialog | Self::Command)
+    }
+}
+
+/// 外側 pointerdown が Radix の `isRightClick` 判定でいう「右クリックでは
+/// ない」（＝閉鎖対象として扱ってよい）ものかどうかを判定する
+/// （[`OverlayKind::ignores_non_primary_outside_pointer`] 参照）。
+///
+/// Radix Dialog の `isRightClick = button === 2 || (button === 0 &&
+/// ctrlKey === true)` を否定した式（`!(button == 2 || (button == 0 &&
+/// ctrl_key))`）と等価で、右クリック（`button == 2`）・ctrl+左クリック
+/// （macOS で右クリック相当としてシステムが解釈する組み合わせ）のみ
+/// `false` を返す。中クリック（`button == 1`）は Radix の判定対象に
+/// 含まれないため、本関数でも `true`（閉鎖してよい）を返す — Radix との
+/// 挙動一致を優先し、独自に中クリックを対象へ追加しない。
+///
+/// `button`/`ctrl_key` はブラウザが生成する `MouseEvent` の値であり、
+/// アプリケーションコードから改ざんできない入力である（A05 fail-closed の
+/// 前提。呼び出し側は本関数の結果のみに基づいて判定し、他の `data-*` 等
+/// 改ざん可能な属性は参照しない）。
+#[must_use]
+pub const fn is_primary_outside_pointer(button: i16, ctrl_key: bool) -> bool {
+    !(button == 2 || (button == 0 && ctrl_key))
 }
 
 /// `data-close-on-escape` opt-out 属性を読み、[`OverlayKind::close_on_escape`]
@@ -358,6 +412,43 @@ pub fn outside_close_indices(stack: &[OverlayEntry], contains_target: &[bool]) -
     closing
 }
 
+/// [`outside_close_indices`] のポインタボタン種別対応版
+/// （イシュー #2194、[`OverlayKind::ignores_non_primary_outside_pointer`]）。
+///
+/// `primary_pointer == false`（右クリック・中クリック・ctrl+左クリック等）
+/// のとき、`kind.ignores_non_primary_outside_pointer()` が `true` の
+/// エントリについては「ターゲットを含む（内側扱い）」として扱う —
+/// 既存 `outside_close_indices` の `contains_target` を書き換えて委譲する
+/// ことで、当該エントリが走査を打ち切る（Radix の `preventDefault` と同じ
+/// く、そのレイヤーで伝播が止まる「レイヤー方式」。下層オーバーレイへは
+/// 透過させない。`kind` が対象外の種別は従来どおり `contains_target` を
+/// そのまま使い、非プライマリボタンでも通常どおり閉じる）。
+///
+/// `primary_pointer == true` の場合は常に既存 `outside_close_indices` と
+/// 同一の結果を返す（後方互換）。
+///
+/// `stack`/`contains_target` の長さが一致しない場合は空を返す（委譲先と
+/// 同じ fail-closed 契約）。
+#[must_use]
+pub fn outside_close_indices_with_pointer(
+    stack: &[OverlayEntry],
+    contains_target: &[bool],
+    primary_pointer: bool,
+) -> Vec<usize> {
+    if primary_pointer {
+        return outside_close_indices(stack, contains_target);
+    }
+    if stack.len() != contains_target.len() {
+        return Vec::new();
+    }
+    let adjusted: Vec<bool> = stack
+        .iter()
+        .zip(contains_target.iter())
+        .map(|(entry, &contains)| contains || entry.kind.ignores_non_primary_outside_pointer())
+        .collect();
+    outside_close_indices(stack, &adjusted)
+}
+
 /// 閉鎖制御の配線層（[`wiring::OverlayCloseController`]）が発する、閉鎖を
 /// 要求されたオーバーレイの通知。
 ///
@@ -413,13 +504,13 @@ pub struct OverlayCloseRequest {
 mod wiring {
     use super::{
         close_on_escape_for, close_on_interact_outside_for, escape_close_index,
-        outside_close_indices, outside_dismiss_blocks_propagation_for, OverlayCloseRequest,
-        OverlayEntry, OverlayKind,
+        is_primary_outside_pointer, outside_close_indices_with_pointer,
+        outside_dismiss_blocks_propagation_for, OverlayCloseRequest, OverlayEntry, OverlayKind,
     };
     use crate::events::AttrSource;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Document, Element, Event, KeyboardEvent, Node};
+    use web_sys::{Document, Element, Event, KeyboardEvent, MouseEvent, Node};
 
     /// `web_sys::Element` を [`AttrSource`] へ橋渡しする薄いラッパー
     /// （`events.rs::wiring::ElementAttrSource` と同じ意図の配線層専用アダプタ）。
@@ -520,6 +611,23 @@ mod wiring {
                     None => return,
                 };
 
+                // `button`/`ctrl_key` はイシュー #2194（D6: 右クリック /
+                // ctrl+左クリックの外側 pointerdown で Dialog を閉じない）
+                // の判定に使う。`MouseEvent` へのダウンキャストに失敗した
+                // 場合（既存 browser テストが合成する素の `Event`、および
+                // `MouseEvent` を継承しない将来の実装）はプライマリ扱い
+                // （従来どおり閉鎖）にフォールバックする — `button` は
+                // ブラウザ生成値で改ざん不能であり、fail-open にしても
+                // 安全性を損なわない（既存挙動の維持を優先する判断、
+                // `OverlayKind::ignores_non_primary_outside_pointer` doc
+                // 参照）。
+                let primary_pointer = match event.dyn_ref::<MouseEvent>() {
+                    Some(mouse_event) => {
+                        is_primary_outside_pointer(mouse_event.button(), mouse_event.ctrl_key())
+                    }
+                    None => true,
+                };
+
                 let stack_ref = pointerdown_stack.borrow();
                 let entries: Vec<OverlayEntry> =
                     stack_ref.iter().map(|mounted| mounted.entry).collect();
@@ -534,7 +642,8 @@ mod wiring {
                         in_content || in_trigger
                     })
                     .collect();
-                let closing_indices = outside_close_indices(&entries, &contains_target);
+                let closing_indices =
+                    outside_close_indices_with_pointer(&entries, &contains_target, primary_pointer);
                 if closing_indices.is_empty() {
                     return;
                 }
@@ -1159,5 +1268,130 @@ mod tests {
         ];
         let contains_target = [false, false, false];
         assert_eq!(outside_close_indices(&stack, &contains_target), vec![0]);
+    }
+
+    // --- イシュー #2194: D6 非プライマリボタンの外側 pointerdown ---
+
+    #[test]
+    fn ignores_non_primary_outside_pointer_only_dialog_and_command() {
+        assert!(OverlayKind::Dialog.ignores_non_primary_outside_pointer());
+        assert!(OverlayKind::Command.ignores_non_primary_outside_pointer());
+        assert!(!OverlayKind::Popover.ignores_non_primary_outside_pointer());
+        assert!(!OverlayKind::Menu.ignores_non_primary_outside_pointer());
+        assert!(!OverlayKind::Tooltip.ignores_non_primary_outside_pointer());
+        assert!(!OverlayKind::NavigationMenu.ignores_non_primary_outside_pointer());
+        assert!(!OverlayKind::Menubar.ignores_non_primary_outside_pointer());
+        assert!(!OverlayKind::ActionBar.ignores_non_primary_outside_pointer());
+    }
+
+    #[test]
+    fn is_primary_outside_pointer_matches_radix_is_right_click_negation() {
+        // Radix Dialog の `isRightClick = button === 2 || (button === 0 &&
+        // ctrlKey === true)` を否定した式と一致することを固定する。
+        assert!(is_primary_outside_pointer(0, false), "左クリックは primary");
+        assert!(
+            !is_primary_outside_pointer(0, true),
+            "ctrl+左クリックは macOS の右クリック相当のため非 primary"
+        );
+        assert!(
+            !is_primary_outside_pointer(2, false),
+            "右クリックは非 primary"
+        );
+        assert!(
+            !is_primary_outside_pointer(2, true),
+            "button==2 の時点で isRightClick は true（ctrl 有無は無関係）なので非 primary"
+        );
+    }
+
+    #[test]
+    fn is_primary_outside_pointer_middle_click_matches_radix_no_special_case() {
+        // Radix の isRightClick 判定は button==1（中クリック）を対象に
+        // 含まないため、本関数も中クリックを primary（閉鎖してよい）として
+        // 扱う（Radix との挙動一致を優先し、独自に対象を広げない）。
+        assert!(
+            is_primary_outside_pointer(1, false),
+            "中クリックは Radix の isRightClick 対象外のため primary"
+        );
+        assert!(
+            is_primary_outside_pointer(1, true),
+            "ctrl+中クリックも Radix の isRightClick 対象外のため primary"
+        );
+    }
+
+    #[test]
+    fn outside_close_indices_with_pointer_non_primary_does_not_close_dialog() {
+        let stack = [entry(OverlayKind::Dialog, true, true)];
+        let contains_target = [false];
+        assert_eq!(
+            outside_close_indices_with_pointer(&stack, &contains_target, false),
+            Vec::<usize>::new(),
+            "非プライマリボタンの外側 pointerdown は Dialog を閉じない"
+        );
+    }
+
+    #[test]
+    fn outside_close_indices_with_pointer_non_primary_blocks_propagation_below_dialog() {
+        // Dialog(0) の下に Popover(1) がある入れ子。非プライマリボタンで
+        // Dialog を内側扱いにすると、そこで走査が打ち切られ Popover も
+        // 巻き添えで閉じない（レイヤー方式、Radix の preventDefault と同型）。
+        let stack = [
+            entry(OverlayKind::Popover, true, true),
+            entry(OverlayKind::Dialog, true, true),
+        ];
+        let contains_target = [false, false];
+        assert_eq!(
+            outside_close_indices_with_pointer(&stack, &contains_target, false),
+            Vec::<usize>::new(),
+            "非プライマリボタンで最上位 Dialog を内側扱いにすると下層 Popover も走査が打ち切られる"
+        );
+    }
+
+    #[test]
+    fn outside_close_indices_with_pointer_non_primary_still_closes_menu() {
+        let stack = [entry(OverlayKind::Menu, true, true)];
+        let contains_target = [false];
+        assert_eq!(
+            outside_close_indices_with_pointer(&stack, &contains_target, false),
+            vec![0],
+            "Menu は対象外のため非プライマリボタンでも従来どおり閉じる"
+        );
+    }
+
+    #[test]
+    fn outside_close_indices_with_pointer_primary_matches_outside_close_indices() {
+        let stack = [
+            entry(OverlayKind::Dialog, true, true),
+            entry(OverlayKind::Popover, true, true),
+        ];
+        let contains_target = [false, false];
+        assert_eq!(
+            outside_close_indices_with_pointer(&stack, &contains_target, true),
+            outside_close_indices(&stack, &contains_target),
+            "プライマリボタンでは既存 outside_close_indices と同一結果"
+        );
+    }
+
+    #[test]
+    fn outside_close_indices_with_pointer_mismatched_lengths_returns_empty() {
+        let stack = [entry(OverlayKind::Dialog, true, true)];
+        assert_eq!(
+            outside_close_indices_with_pointer(&stack, &[], false),
+            Vec::<usize>::new()
+        );
+    }
+
+    #[test]
+    fn outside_close_indices_with_pointer_non_primary_does_not_close_command() {
+        // Command も Dialog と同じ dialog パターンとして対象に含む
+        // （`OverlayKind::Command` doc 参照）。非プライマリボタン
+        // （右クリック・ctrl+左クリック等）は閉鎖対象外にするため、
+        // ここでは「閉じない」ことを検証する（テスト名は挙動と逆だった
+        // ため review 指摘を受けて是正、イシュー #2194）。
+        let stack = [entry(OverlayKind::Command, true, true)];
+        let contains_target = [false];
+        assert_eq!(
+            outside_close_indices_with_pointer(&stack, &contains_target, false),
+            Vec::<usize>::new()
+        );
     }
 }

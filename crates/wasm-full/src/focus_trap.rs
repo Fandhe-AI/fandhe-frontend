@@ -33,6 +33,10 @@
 //! - スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応済み、兄弟
 //!   イシューで追跡中）: 背景コンテンツの `inert`/`aria-hidden` 化、focusin
 //!   による強制引き戻し、Tooltip の `openDelay`/`closeDelay`（イシュー #587）。
+//!   イシュー #2194（Dialog/Tabs の shadcn/Radix a11y 突合）でこの 2 点
+//!   （背景 `inert`/`aria-hidden` 化＝D10、focusin 引き戻し＝D9）を改めて
+//!   保留として記録した（`docs/policy/intentional-non-adoption.md` §7、
+//!   再評価トリガー付き）。
 
 use crate::events::AttrSource;
 
