@@ -136,6 +136,14 @@
 //! 続けて自動的に呼ばれ、headless-ui 側の変更は伴わない
 //! （`content_height` モジュール doc 参照）。
 //!
+//! [`message_scroller`] モジュール（イシュー #2122、親 #2120）は
+//! Message Scroller（`fandhe-frontend-headless-ui` `message_scroller`
+//! モジュール）の最下部追従（stick-to-bottom）・新着検知・履歴読み込み
+//! 時のスクロール位置維持を配線する。`questionnaire`/`sidebar` と同じ
+//! 2 層構成を踏襲し、`Runtime::mount`/`Runtime::hydrate` の双方から
+//! `Self::wire_questionnaire` の直後で配線する（`message_scroller`
+//! モジュール doc 参照）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -167,6 +175,7 @@ pub mod headless_signature_pad;
 pub mod headless_timer;
 pub mod hydration;
 pub mod keynav;
+pub mod message_scroller;
 pub mod nav;
 pub mod number_input;
 pub mod overlay;
@@ -1073,6 +1082,12 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        Self::wire_message_scroller(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
@@ -1198,6 +1213,12 @@ where
         Self::wire_chart(root.clone())?;
         Self::wire_chart_range(root.clone())?;
         Self::wire_questionnaire(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
+        Self::wire_message_scroller(
             component.clone(),
             root.clone(),
             binding_table.clone(),
@@ -1955,6 +1976,59 @@ where
                 &keyed_list_cache,
             );
         })
+    }
+
+    /// Message Scroller（`fandhe-frontend-headless-ui` `message_scroller`
+    /// モジュール）の最下部追従・新着検知・履歴読み込み時のスクロール
+    /// 位置維持を [`message_scroller::wire_message_scroller_events`]
+    /// 経由で `root` へ登録する（イシュー #2122）。
+    ///
+    /// [`message_scroller::wiring`] は `data-stuck`/`data-has-new`/
+    /// `jump-to-latest` の `data-visible`/`hidden` の DOM 反映を独自に
+    /// 完結させる（`Runtime::apply_dirty_if_any` を経由しない）。本
+    /// メソッドが橋渡しするのは `load-more` クリックの `C` への通知
+    /// （[`message_scroller::ACTION_LOAD_MORE`]）のみで、`C` が同名の
+    /// アクションを認識しない場合でも他配線（最下部追従・新着検知）は
+    /// 独立して成立する（`Self::wire_questionnaire` と同じ橋渡し方針）。
+    ///
+    /// # Errors
+    ///
+    /// [`message_scroller::wire_message_scroller_events`]
+    /// （`add_event_listener_with_callback_and_bool`/
+    /// `MutationObserver::observe_with_options` 等）の失敗を伝播する。
+    fn wire_message_scroller(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        let message_scroller_root = root.clone();
+        message_scroller::wire_message_scroller_events(
+            root,
+            move |action_ref: events::ActionRef| {
+                let Ok(mut state) = component.try_borrow_mut() else {
+                    return;
+                };
+                let dispatched = fandhe_frontend_interactive::dispatch(
+                    &mut *state,
+                    &action_ref.action,
+                    &action_ref.payload,
+                );
+                if !dispatched {
+                    return;
+                }
+                Self::apply_dirty_if_any(
+                    &state,
+                    &message_scroller_root,
+                    &binding_table,
+                    &keyed_list_cache,
+                );
+            },
+        )
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

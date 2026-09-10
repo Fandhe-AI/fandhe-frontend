@@ -895,7 +895,14 @@ name = "fandhe-frontend-wasm-full"
 # 0.18.4 とする。加えて依存先 `fandhe-frontend-headless-ui` の version
 # 要求を 0.68.17 へ追随させる（`cargo run -p xtask -- check-dep-versions
 # --fix`）。
-version = "0.18.4"
+# イシュー #2122（親 #2120）: Message Scroller（`fandhe-frontend-headless-ui`
+# `message_scroller` モジュール）の最下部追従・新着検知・履歴読み込み時の
+# スクロール位置維持を配線する新規公開モジュール `message_scroller` を
+# 追加（`Runtime::mount`/`Runtime::hydrate` からの配線含む）。web-sys の
+# `ScrollBehavior`/`ScrollToOptions` feature を追加する。新規外部クレート
+# 追加はゼロ（既存 web-sys の feature 追加のみ）。公開 API の新規追加
+# のため minor バンプ（0.18.4 → 0.19.0）。
+version = "0.19.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1185,9 +1192,11 @@ features = [
   "NodeList",
   "PointerEvent",
   "PopStateEvent",
+  "ScrollBehavior",
   "ScrollIntoViewOptions",
   "ScrollLogicalPosition",
   "ScrollRestoration",
+  "ScrollToOptions",
   "SvgElement",
   "Window",
   "console",

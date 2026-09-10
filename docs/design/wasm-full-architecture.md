@@ -1857,3 +1857,167 @@ T1〜T7 を固定済み）。
 patch バンプとする。`fandhe-frontend-headless-ui` は rustdoc のみの変更
 だが `src/` 変更のため version-bump-guard 対象であり、同じく patch
 バンプとする（#1638 前例と同型）。
+
+## 31. `message_scroller` モジュール（イシュー #2122、親 #2120）
+
+### 31.1 背景・責務境界
+
+`crates/headless-ui/src/message_scroller.rs`（イシュー #2121、親 #2120）は
+Message Scroller（shadcn/ui `Message Scroller` 相当）の anatomy（`root`/
+`viewport`/`content`/`anchor`/`jump-to-latest`/`load-more`）と表示状態
+`data-*`（`data-stuck`/`data-has-new`/`jump-to-latest` の `data-visible`/
+`load-more` の `data-loading`）のみを提供し、実行時のスクロール計測・
+自動追従・新着検知・履歴読み込み時の位置補正は本クレートへ申し送られて
+いた（同モジュール冒頭 rustdoc「呼び出し文脈」節）。`.claude/rules/
+coding-rust.md` §3.25 規則 2（参照元が primitives 層へ持ち込んでいる
+レイアウト計測の関心は headless-ui へ持ち込まず wasm-full/pre-styled-ui
+の責務とする）に従い、本イシューがその配線（`crates/wasm-full/src/
+message_scroller.rs`）を実装する。
+
+責務境界（§3.25 規則 1）: ストリーミングの購読・履歴取得（`load-more`
+押下後の実データ取得）はアプリケーション責務であり、本モジュールは
+持たない。`load-more` クリックは `ACTION_LOAD_MORE`
+（`"message-scroller:load-more"`）としてアプリへ通知するのみで、
+`data-loading`/`data-disabled` の付け外し・要素の挿入は一切行わない。
+
+### 31.2 2 層構成
+
+`questionnaire.rs`/`sidebar.rs`/`content_height.rs` と同型の 2 層構成を
+踏襲する。
+
+- 純粋層（web-sys 非依存）: `is_at_bottom`/`stuck_from_attr`/
+  `jump_visible`/`classify_change`/`corrected_scroll_top`/
+  `plan_after_change`/`encode_notification_payload` を native の
+  `cargo test` で検証する。
+- 配線層（`#[cfg(target_arch = "wasm32")] mod wiring`）:
+  `wire_message_scroller_events` のみ wasm32 限定でコンパイルする。
+
+### 31.3 リスナー構成と搭載判定ゲート・`Closure::forget` 3 個契約
+
+`root` 配下（`root` 自身を含む）に `[data-scope="message-scroller"]
+[data-part="root"]` が 1 件も無ければリスナーを 1 つも登録せず `Ok(())`
+を返す（非搭載アプリへの副作用なし契約、`sidebar`/`splitter` と同型。
+マウント後に動的挿入された message-scroller は配線対象外というトレード
+オフも同じ）。
+
+`Closure::forget` は配線 1 回につき定数 3 個に限定する:
+
+1. `scroll`（capture フェーズ、`root` へ 1 個）: `scroll` はバブルしない
+   ため capture 委譲で viewport 差し替え後も生存させる。
+2. `click`（バブル、`root` へ 1 個）: `jump-to-latest`/`load-more` を
+   バブル委譲で解決する。
+3. `MutationObserver` コールバック（`root` へ 1 個）: `childList`/
+   `subtree`/`characterData` を監視し、`attributes` は監視しない（自身が
+   書く `data-*` で自己発火ループを構造的に回避する）。
+
+### 31.4 最下部判定と `data-*` 書き戻し規則
+
+最下部判定は `IntersectionObserver` ベースの `anchor` 観測ではなく、
+しきい値付き `scrollTop`/`scrollHeight`/`clientHeight` 算術
+（`is_at_bottom`、`STICK_THRESHOLD_PX = 8`）で行う。`IntersectionObserver`
+は web-sys feature 未追加であり、算術経路は追加のレイアウト読み取りを
+要しないための判断（本イテレーションでは `anchor` パーツを観測しない。
+DOM 上の `anchor` はそのまま残し、除去も要求もしない。`IntersectionObserver`
+ベースの検知への移行は将来のスコープ外事項とする）。
+
+`root` の `data-stuck` 属性値から `MessageScrollerStuck` を導出する
+`stuck_from_attr` は、`"bottom"`/`"free"` 以外（欠落・改ざん）を
+`Free` として扱う（不明な状態で利用者のスクロールを勝手に奪わない
+fail-closed 方針）。
+
+`jump-to-latest` の可視判定（`jump_visible`）は `stuck == Free` のときの
+み可視とする。`data-has-new` は独立したスタイルフックであり可視条件に
+含めない（新着が無くても上へスクロールした利用者が最下部へ戻る手段を
+持つべきという判断。shadcn/ui の ScrollToBottom ボタンが「最下部に
+いない」だけで現れる挙動に揃える）。
+
+プログラム的スクロールは常に即時（`ScrollBehavior::Instant`）とする。
+smooth だと中間 `scroll` イベントで `free` へ誤遷移し `data-has-new` の
+誤検知を招くため（smooth なジャンプ演出はスコープ外）。
+
+### 31.5 変異の分類と `scrollHeight` 差分補正
+
+`MutationObserver` コールバックは、今回のバッチで最初に追加された要素
+ノードの `getBoundingClientRect().top` と viewport 上端の位置関係から
+`classify_change` で `Prepend`/`Grow`/`None` を判定する（`Prepend` は
+可視領域より上への挿入、`Grow` はそれ以外の高さ増加、`None` は高さ不変・
+減少）。`Prepend` は `corrected_scroll_top`（`prev_scroll_top + (new_height
+- prev_height)`、負値は 0 へクランプ）で `scrollTop` を補正する。
+
+配線時の初期同期（`initial_sync_instance`）で各 viewport に CSSOM 経由
+（`CssStyleDeclaration::set_property`、`content_height.rs` と同じ書き込み
+手段）で `overflow-anchor: none` を設定する。ブラウザのネイティブ scroll
+anchoring が上方向挿入時に独自補正を行うと `corrected_scroll_top` と
+二重補正になるため。
+
+### 31.6 `load-more` 通知契約
+
+`load-more` クリックは、クリック対象からインスタンス root までの祖先に
+`data-disabled`/ネイティブ `disabled`/`data-loading` のいずれかがあれば
+no-op（fail-closed、多重発火防止）。子要素に明示 `data-action` があれば
+自動通知を抑止する（`questionnaire::wiring::resolve_trigger` の
+`has_explicit_action` 累積判定と同じ意図、`crate::events::wire_events` と
+の二重 dispatch 回避）。通知 payload はインスタンス root の `id` 属性値
+（未設定時は空文字列。questionnaire の `"{step}|{id}"` と異なり step を
+持たないため `id` のみで区切り文字は使わない）。`data-loading` の付け
+外し・履歴取得・要素挿入は一切行わない（§31.1 責務境界）。
+
+### 31.7 `Runtime` への統合
+
+`Runtime::wire_message_scroller`（`questionnaire::wire_questionnaire_events`
+の橋渡しと同型）を `Runtime::mount`/`Runtime::hydrate` の双方から
+`Self::wire_questionnaire` の直後で呼ぶ。`message_scroller::wiring` が
+`data-stuck`/`data-has-new`/`jump-to-latest` の可視状態の DOM 反映を独自に
+完結させるため、`Runtime` 側の dispatch は `C` が
+`"message-scroller:load-more"` を認識する場合の追随を目的とし、認識しない
+場合でも他配線（最下部追従・新着検知）は独立して成立する。
+
+### 31.8 構造フォールバックの扱い・既知の限界
+
+構造フォールバック（`rerender_subtree`）で viewport が丸ごと差し替え
+られた場合、旧 viewport の `scrollTop` は復元しない。新 viewport は
+`scrollTop = 0` で現れ、アプリの `view()` が出力した `data-stuck`
+（既定 `Bottom`）に従って初期同期される。サポートされる経路は「`content`
+配下を keyed list（`data-keyed-list`）で差分更新し、ストリーミング本文を
+`bind_text` 束縛点で更新する構成」である。
+
+既知の限界: (1) 同一 `MutationObserver` コールバック内で上方向挿入と
+下方向追記が同時に起きた場合、`scrollHeight` 差分での補正は追記分だけ
+過補正になる。(2) 画像ロード等、DOM 変異を伴わない高さ変化
+（`ResizeObserver` 相当）は検知しない。(3) 配線後の再描画で初めて出現
+する message-scroller への遅延配線は行わない（§31.3 搭載判定ゲートの
+トレードオフ）。
+
+### 31.9 semver 判断・テスト
+
+新規公開モジュール `message_scroller`（純粋層 + 配線層）の追加、
+`Runtime::mount`/`Runtime::hydrate` への新規リスナー登録、web-sys の
+`ScrollBehavior`/`ScrollToOptions` feature 追加を伴うため、
+`fandhe-frontend-wasm-full` は minor バンプ（0.18.4 → 0.19.0）とする。
+
+テストは native（`crates/wasm-full/src/message_scroller.rs` 内
+`#[cfg(test)] mod tests` の純粋関数単体テスト、
+`crates/wasm-full/tests/message_scroller_native.rs` の headless-ui 出力
+ドリフト検知）と browser（`crates/wasm-full/tests/
+message_scroller_browser.rs`、`wasm-pack test --headless --chrome`）の
+双方を追加し、`.github/workflows/ci.yml` の `browser-test` ジョブへ
+実行ステップを追加した。
+
+### 31.10 スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
+
+- 構造フォールバック再描画で viewport が差し替えられた際の `id` キーに
+  よる `scrollTop`/`data-stuck` スナップショット復元。
+- `jump-to-latest` の smooth スクロール（`prefers-reduced-motion` 連動を
+  含む）。現状は即時固定。
+- DOM 変異を伴わない高さ変化（画像ロード・フォント読み込み）の追従
+  （`ResizeObserver` は web-sys feature 未追加・意図的に未採用）。
+- 同一バッチ内で先頭挿入と末尾追記が同時に起きた場合の過補正の解消
+  （幾何ベースの精密補正）。
+- `anchor` パーツを `IntersectionObserver` ベースの最下部検知へ使う移行
+  （本イテレーションは `scrollTop` 算術のみ、§31.4 参照）。
+- しきい値（`STICK_THRESHOLD_PX`）の利用者側カスタマイズ（`data-*` に
+  よる上書き等）。
+- 配線後の再描画で初めて出現する message-scroller への遅延配線
+  （搭載判定ゲートのトレードオフ、`sidebar` と同じ）。
+- `docs/design/component-coverage-map.md` の「実装済み」化・
+  pre-styled-ui recipe・Themes ページ（#2123）。
