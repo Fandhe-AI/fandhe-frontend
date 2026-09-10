@@ -5644,27 +5644,66 @@ pub(crate) mod wiring {
     /// `container.get_bounding_client_rect()` をそのまま返し、従来の
     /// 挙動を変えない。ボタンが描画されていても高さ 0（display:none 等）
     /// の場合はそのボタンによる補正を行わない。
+    ///
+    /// `container.query_selector` は全子孫を探索するため、`container`
+    /// （スクロール可能な親 Menu/Select の content）の内側に別の Select が
+    /// 開いている構成では、内側 Select の scroll-up/down-button まで誤って
+    /// 掴んでしまい、親の可視領域を不要に狭めてしまう（codex-review P1
+    /// 指摘、イシュー #2186）。[`sync_item_text_highlighted`] の
+    /// 「最も近い `[data-part="item"]` 祖先が自身と一致するものだけを
+    /// 採用する」所有スコープ検証と同型に、見つかったボタンの最も近い
+    /// `[data-part="content"]` 祖先が `container` 自身と一致するものだけを
+    /// 採用する。
     fn effective_scroll_band(container: &Element) -> (f64, f64) {
         let container_rect = container.get_bounding_client_rect();
         let mut top = container_rect.top();
         let mut bottom = container_rect.bottom();
-        if let Ok(Some(up)) =
-            container.query_selector("[data-scope=\"select\"][data-part=\"scroll-up-button\"]")
-        {
+        if let Some(up) = owned_scroll_button(
+            container,
+            "[data-scope=\"select\"][data-part=\"scroll-up-button\"]",
+        ) {
             let rect = up.get_bounding_client_rect();
             if rect.height() > 0.0 {
                 top = top.max(rect.bottom());
             }
         }
-        if let Ok(Some(down)) =
-            container.query_selector("[data-scope=\"select\"][data-part=\"scroll-down-button\"]")
-        {
+        if let Some(down) = owned_scroll_button(
+            container,
+            "[data-scope=\"select\"][data-part=\"scroll-down-button\"]",
+        ) {
             let rect = down.get_bounding_client_rect();
             if rect.height() > 0.0 {
                 bottom = bottom.min(rect.top());
             }
         }
         (top, bottom)
+    }
+
+    /// `container` 配下から `selector`（scroll-up-button/scroll-down-button
+    /// の data-part セレクタ）に一致する要素を探し、その最も近い
+    /// `[data-part="content"]` 祖先が `container` 自身と一致するものだけを
+    /// 返す（[`effective_scroll_band`] 専用ヘルパー、codex-review P1 是正、
+    /// イシュー #2186）。`container.query_selector` の単発呼び出しは最初に
+    /// 見つかった 1 件を無条件に採用するため、`container` 内側に別の
+    /// Select が開いている構成では内側 Select のボタンを誤って親のものと
+    /// して扱ってしまう。[`sync_item_text_highlighted`] の所有スコープ
+    /// 検証と同型に、`query_selector_all` で全候補を走査し、
+    /// `closest(candidate, "[data-part=\"content\"]")` が `container` と
+    /// 同一ノードである最初の 1 件のみを採用する。
+    fn owned_scroll_button(container: &Element, selector: &str) -> Option<Element> {
+        let node_list = container.query_selector_all(selector).ok()?;
+        for i in 0..node_list.length() {
+            let node = node_list.get(i)?;
+            let Ok(candidate) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
+                continue;
+            };
+            let owns = closest(&candidate, "[data-part=\"content\"]")
+                .is_some_and(|nearest| nearest.is_same_node(Some(container)));
+            if owns {
+                return Some(candidate);
+            }
+        }
+        None
     }
 
     /// `item` から `parent_element()` を辿り、`overflow-y` が
