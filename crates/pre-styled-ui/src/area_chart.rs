@@ -97,8 +97,14 @@
 //!
 //! ## 本イシューのスコープ外
 //!
-//! マウス追従ツールチップ・hover 強調は #2128（hit-area・`data-index`/
-//! `data-series` は #2129 で追加済み、`show_tooltip` 参照）。期間切替・
+//! マウス追従ツールチップの JS 配線は #2130（hit-area・`data-index`/
+//! `data-series` は #2129 で追加済み、`show_tooltip` 参照）。hover 強調
+//! （active 拡張・非 active 減光）の CSS 語彙（`root[data-has-active]`）は
+//! #2131 で追加済みだが、`point` slot 自体への `data-index` 付与は本
+//! チャートでは行っていない（`show_tooltip` は `data-series` のみを
+//! 付与する契約、`SeriesRenderCtx` 参照）ため、`point[data-index]` の
+//! 減光規則は現状マッチしない（フォローアップ、`crate::charts::tooltip`
+//! モジュール doc「hover 強調」節参照）。期間切替・
 //! 凡例トグルの SSR 構造（`data-range`・`series-area`/`series-line`/
 //! `point` の `data-series`/`data-hidden`）は本イシュー（#2133）で追加
 //! 済み（[`AreaChartProps::range`]/[`AreaChartProps::hidden_series`]

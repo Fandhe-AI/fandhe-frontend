@@ -165,7 +165,10 @@
 //! - 半径軸の角度指定（shadcn `angle` prop）は非対応。
 //!   [`RadarChartProps::radius_axis`] は軸 0/1 中間角固定。
 //! - `ChartTooltip`（indicator line / hideLabel 等）は静的表現が #2086、
-//!   マウス追従・hover 強調・hit-area `data-*` は #2128 の担当。
+//!   マウス追従の JS 配線は #2130、hit-area `data-*` は #2129 の担当。
+//!   hover 強調（active 拡張・非 active 減光）の CSS 語彙
+//!   （`root[data-has-active]`/`point[data-index]`/`point[data-active]`）
+//!   は #2131 で追加済み。
 //! - `ChartLegend`/icon は radar 部品へ内包せず [`super::legend`] との
 //!   合成で表現する（chakra 方式、イシュー #2077）。凡例の系列トグルは
 //!   #2132 の担当。

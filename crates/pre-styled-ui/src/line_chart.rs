@@ -86,8 +86,15 @@
 //!
 //! - 凡例・ツールチップ・積み上げは非対応のまま（軸・グリッド・曲線補間は
 //!   #2083 で本モジュールへ統合済み）。
-//! - マウス追従ツールチップ・hover 強調・`activeDot`・hit-area `data-*` は
-//!   #2128、期間切替・凡例トグルは #2132。
+//! - マウス追従ツールチップの JS 配線は #2130、hit-area・`data-*` は
+//!   #2129。hover 強調（active 拡張・非 active 減光）の CSS 語彙
+//!   （`root[data-has-active]`）は #2131 で追加済みだが、`point` slot への
+//!   `data-index` 付与は本チャートでは行っていない（`SeriesRenderCtx`
+//!   参照）ため `point[data-index]` の減光規則は現状マッチしない
+//!   （フォローアップ）。`activeDot`（hover 時の拡大）自体の CSS は
+//!   `point[data-active]` として追加済み。期間切替・凡例トグルの SSR
+//!   構造は #2133 で追加済み（本ファイル [`LineChartProps::range`]/
+//!   [`LineChartProps::hidden_series`] 参照）。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（[`crate::qr_code`] の先例と同じ判断）。
 //!
