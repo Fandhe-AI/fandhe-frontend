@@ -3023,7 +3023,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # ではないが、本ブランチの headless-ui 0.68.16 依存追随（origin/main は
 # 0.68.15 のまま）は main の 0.179.0 に含まれていない実体変更のため、
 # main の到達値 0.179.0 からさらに +1（patch）して 0.180.0 とする。
-version = "0.180.0"
+#
+# イシュー #2282: bubble の `collapse-content` slot へ #2192 の共通高さ
+# トランジション機構（`SlotRecipe::content_height_transition`）を適用。
+# CSS 出力の追加のみで公開 API シグネチャは不変のため patch バンプ
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.3）。
+version = "0.180.1"
 
 
 

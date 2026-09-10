@@ -964,11 +964,16 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   本イシューのスコープには含めず、上記 3 custom property を上書きフック
   として残した（軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25
   規則 2 参照）。
-- **フェードの限界**: `collapse-content` は closed 時に headless が出力
-  する `hidden` 属性を伴うため、`display: none` により opacity 遷移が
-  computed-value time で無効化される。フェードが実際に見えるのは
-  クライアントランタイムが `hidden` を外す前後で `data-state` を切り替え
-  る場合のみで、SSR 単独では即時表示・即時非表示になる。
+- **高さトランジション（イシュー #2192 の共通機構を #2282 で適用）**:
+  `collapse-content` の開閉は `@starting-style`/
+  `transition-behavior: allow-discrete` + `fandhe-frontend-wasm-full` の
+  実測高さ CSS 変数（`--fandhe-content-height`）による高さトランジション
+  （`collapsible`/`accordion` と同型）。ただし
+  `fandhe-frontend-wasm-full` の `MAPPING_TABLE` に
+  `(bubble, collapse-trigger)` の配線が無いため、`wire_headless_component`
+  経由のクリックでは同期されない（呼び出し側が独自に同期経路を呼ぶ場合
+  にのみ働く）。JS 無効時（変数未設定）は `auto` フォールバックにより
+  `hidden` による即時切り替えのまま動作する。
 - **`reactions`/`reaction` は非インタラクティブ**: 押下・集計・トグルは
   実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。
 - **docs サイト**: [bubble](../../site/themes/bubble.md)
