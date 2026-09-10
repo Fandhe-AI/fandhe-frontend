@@ -16,8 +16,8 @@ use fandhe_frontend_pre_styled_ui::decl;
 use fandhe_frontend_pre_styled_ui::recipe::{
     disabled_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
     palette_declarations, palette_scale_declarations, transition_declarations, when,
-    ColorPalette as StdColorPalette, MotionDuration, Size, SlotRecipe, StateCondition,
-    VariantValue,
+    ColorPalette as StdColorPalette, MotionDuration, PseudoElement, Size, SlotRecipe,
+    StateCondition, VariantValue,
 };
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 
@@ -849,4 +849,142 @@ fn hover_state_and_other_states_coexist_with_hover_block_emitted_once_at_end() {
         css.ends_with("}\n"),
         "@media ブロックが css() 出力の末尾であること"
     );
+}
+
+// イシュー #2201: pseudo-element（`::before`/`::after`）宣言の golden・
+// fail-closed・出力順テスト。
+
+#[test]
+fn pseudo_element_before_and_after_generate_selectors_with_default_content() {
+    // `content` プロパティを渡さない場合、`content: "";` が先頭へ自動的に
+    // 前置されることを固定する（`SlotRecipe::pseudo_element` rustdoc 参照）。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .pseudo_element(
+            "root",
+            PseudoElement::Before,
+            vec![decl("display", "block")],
+        )
+        .pseudo_element("root", PseudoElement::After, vec![decl("display", "block")]);
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"root\"]::before {\n",
+        "  content: \"\";\n",
+        "  display: block;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"widget\"][data-part=\"root\"]::after {\n",
+        "  content: \"\";\n",
+        "  display: block;\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
+#[test]
+fn pseudo_element_keeps_caller_supplied_content_without_duplication() {
+    // 呼び出し側が `content` を渡した場合はそのままの順序を使い、二重化
+    // しないことを固定する。
+    let recipe = SlotRecipe::new("widget", &["root"]).pseudo_element(
+        "root",
+        PseudoElement::After,
+        vec![decl("display", "block"), decl("content", "\"x\"")],
+    );
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"root\"]::after {\n",
+        "  display: block;\n",
+        "  content: \"x\";\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+    assert_eq!(recipe.css().matches("content").count(), 1);
+}
+
+#[test]
+fn pseudo_element_is_emitted_after_states_and_before_hover_media_block() {
+    // 出力順は「states（Hover 系除く）→ pseudo-elements → `@media (hover:
+    // hover)`」であることを固定する（`SlotRecipe::css` rustdoc 出力順序節
+    // 参照）。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .state(
+            "root",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state("root", StateCondition::Hover, hover_surface_declarations())
+        .pseudo_element("root", PseudoElement::After, vec![decl("display", "block")]);
+
+    let css = recipe.css();
+    let state_pos = css
+        .find("[data-disabled]")
+        .expect("state 規則が存在すること");
+    let pseudo_pos = css
+        .find("::after")
+        .expect("pseudo-element 規則が存在すること");
+    let media_pos = css
+        .find("@media (hover: hover)")
+        .expect("hover media block が存在すること");
+
+    assert!(
+        state_pos < pseudo_pos,
+        "state は pseudo-element より前に出力される"
+    );
+    assert!(
+        pseudo_pos < media_pos,
+        "pseudo-element は @media (hover: hover) ブロックより前に出力される"
+    );
+    assert_eq!(css.matches("@media (hover: hover)").count(), 1);
+    assert!(
+        css.ends_with("}\n"),
+        "@media ブロックが css() 出力の末尾であること"
+    );
+}
+
+#[test]
+fn pseudo_element_fail_closed_cases_are_skipped_not_panicking() {
+    // 未宣言 slot・不正識別子 slot・空 declarations・不正な content 値は
+    // panic せず個別に出力から除外され、有効な規則のみ残ることを固定する
+    // （`SlotRecipe::pseudo_element` rustdoc の fail-closed 条件参照）。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        // 未宣言 slot（`slots` に "root" しか無い）。
+        .pseudo_element(
+            "not-declared",
+            PseudoElement::Before,
+            vec![decl("display", "block")],
+        )
+        // 不正識別子 slot（大文字を含む）。
+        .pseudo_element(
+            "Root",
+            PseudoElement::Before,
+            vec![decl("display", "block")],
+        )
+        // 空 declarations（無意味な規則として除外）。
+        .pseudo_element("root", PseudoElement::Before, vec![])
+        // content 値が不正（`<` を含む）: content 行のみ除外され、他の
+        // 有効な宣言があれば規則自体は出力される（既定値の再注入はしない）。
+        .pseudo_element(
+            "root",
+            PseudoElement::Before,
+            vec![decl("content", "\"<script>\""), decl("display", "block")],
+        )
+        // 有効な規則。
+        .pseudo_element("root", PseudoElement::After, vec![decl("display", "flex")]);
+
+    let css = recipe.css();
+
+    assert!(!css.contains("not-declared"));
+    assert!(!css.contains("Root"));
+    assert!(!css.contains("<script>"));
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"root\"]::before {\n",
+        "  display: block;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"widget\"][data-part=\"root\"]::after {\n",
+        "  content: \"\";\n",
+        "  display: flex;\n",
+        "}\n",
+    );
+    assert_eq!(css, expected);
 }

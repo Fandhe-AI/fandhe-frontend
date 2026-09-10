@@ -55,7 +55,9 @@
 //!   `docs/design/pre-styled-ui-size-and-color-palette-axes.md`）。
 //!   compoundVariants 相当（複数 variant 軸の組み合わせ条件スタイル）は
 //!   [`recipe::SlotRecipe::compound_variant`]・[`recipe::VariantCondition`]・
-//!   [`recipe::when`]（イシュー #604）。
+//!   [`recipe::when`]（イシュー #604）。疑似要素（`::before`/`::after`）は
+//!   [`recipe::SlotRecipe::pseudo_element`]・[`recipe::PseudoElement`]
+//!   （イシュー #2201）。
 //! - 状態機械を要しない単純 styled 部品 5 種（#550、#606 で colorPalette 軸・
 //!   radii/shadow トークン参照へ配線）:
 //!   - [`mod@button`]: [`button::button`]（単一 recipe、`<button type="button">`。

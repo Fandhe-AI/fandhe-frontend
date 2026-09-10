@@ -2931,7 +2931,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更（Forms 家族 disabled/required 決定 + questionnaire 完全実装統合）を
 # 統合した結果として main の到達値 0.176.0 をさらに上回る 0.177.0 へ
 # マイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
-version = "0.177.0"
+#
+# イシュー #2201: `recipe.rs` に疑似要素（`::before`/`::after`）宣言 API
+# （`SlotRecipe::pseudo_element`/`PseudoElement`）を追加した。公開 API の
+# 純追加（既存シグネチャ・既存 CSS 出力は不変）のため patch バンプとする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
+version = "0.177.1"
 
 
 edition = "2021"

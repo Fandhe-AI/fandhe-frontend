@@ -42,6 +42,7 @@ impl SlotRecipe {
     pub fn variant<V: VariantValue>(self, v: V, slot: &'static str, declarations: Vec<Declaration>) -> Self;
     pub fn default_variant<V: VariantValue>(self, v: V) -> Self;
     pub fn compound_variant(self, conditions: Vec<VariantCondition>, slot: &'static str, declarations: Vec<Declaration>) -> Self;
+    pub fn pseudo_element(self, slot: &'static str, pseudo: PseudoElement, declarations: Vec<Declaration>) -> Self;
     pub fn css(&self) -> String;
     pub fn variant_class<V: VariantValue>(&self, v: V) -> String;
     pub fn variant_classes(&self, selection: &[(&str, &str)]) -> String;
@@ -50,6 +51,9 @@ impl SlotRecipe {
 // compoundVariants 相当
 pub struct VariantCondition { /* axis, value: &'static str（型消去済み） */ }
 pub fn when<V: VariantValue>(v: V) -> VariantCondition;
+
+// 疑似要素（イシュー #2201）
+pub enum PseudoElement { Before, After } // ::before / ::after
 ```
 
 `SlotRecipe::new`/`base`/`variant`/`default_variant` は自己消費の builder
@@ -75,6 +79,23 @@ recipe.compound_variant(
 生の文字列ではなく `when()` を介した enum ベースの構築のみを許すことで、
 `variant()` と同じ型安全性を条件部でも保つ（`tests/recipe_css.rs` の
 `tabs_recipe()` 参照）。
+
+疑似要素（`::before`/`::after`）は [`SlotRecipe::pseudo_element`] で表現する
+（イシュー #2201）:
+
+```rust
+recipe.pseudo_element(
+    "handle",
+    PseudoElement::After,
+    vec![decl("position", "absolute")],
+)
+```
+
+`declarations` に `content` プロパティが含まれない場合は `content: "";` が
+自動的に先頭へ前置される（疑似要素はブラウザの既定で `content` が無いと
+ボックスを生成しないため）。呼び出し側が `content` を渡した場合は二重化せず
+そのままの順序を使う。`content` の不正な値（`<`/`;`/`{`/`}`/制御文字を含む）
+はその宣言のみが除外され、既定値の再注入は行わない（§6 参照）。
 
 ## 3. `scope` と headless 層との契約
 
@@ -106,6 +127,11 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
   （`conditions` の登録順に条件クラスを連結する。新しいクラス名は生成せず、
   `variant_classes()` が emit する既存の軸別クラスの共起にセレクタとして
   反応するだけなので、HTML 側への影響はない）
+- 疑似要素セレクタ（イシュー #2201）:
+  `[data-scope="<scope>"][data-part="<slot>"]::before` /
+  `[data-scope="<scope>"][data-part="<slot>"]::after`（結合子を含まない、
+  同一要素上の複合セレクタの末尾への付加のみ。`SlotRecipe` は子孫/子/隣接
+  結合子を生成する経路を持たないという既存方針〔イシュー #708〕を変更しない）
 - クラス名形式: `fd-{scope}--{axis}-{value}`（prefix `fd` はライブラリ固定。変更用
   API は設けない）
 - 出力書式（golden テストの前提、変更しない）:
@@ -113,7 +139,10 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
     スペース、1 宣言 1 行）
   - 規則間は空行 1 つ
   - `SlotRecipe::css()` 全体の出力順: base（`slots` 宣言順）→ variants
-    （登録順）→ compound variants（登録順）
+    （登録順）→ compound variants（登録順）→ states（登録順。`Hover` 系は
+    `@media (hover: hover)` へ集約され末尾に回る）→ pseudo-elements
+    （登録順、イシュー #2201）→ `@media (hover: hover) { ... }`（`Hover` 系
+    state が存在する場合のみ、常に出力全体の末尾）
 
 ### 4.1 compound variant の上書き保証（2 段）
 
@@ -166,6 +195,16 @@ chakra-ui の「compoundVariants は variants を上書きする」という意�
     （検証は `css()` 呼び出し時に行うため builder の呼び出し順には依存しない）
 - いずれも panic なし・スキップ動作。`crates/pre-styled-ui/tests/recipe_css.rs::invalid_identifiers_and_structural_chars_are_skipped_not_panicking`
   が固定する
+- pseudo-element 固有の検証（イシュー #2201、
+  `crates/pre-styled-ui/tests/recipe_css.rs::pseudo_element_fail_closed_cases_are_skipped_not_panicking`
+  が固定する）:
+  - `slots` に宣言していない slot、または識別子として不正な slot への登録は除外する
+  - `declarations` が空の規則は無意味な規則として除外する（`::after { content: "" }`
+    だけの dead CSS を混入させない）
+  - `content` の値が不正（`<`/`;`/`{`/`}`/制御文字を含む）な場合は `content` 宣言
+    のみを除外する。他の宣言が有効であれば規則自体は出力される。**既定値の
+    再注入は行わない**（不正な値を親切に空文字列へ差し替えると、fail-closed の
+    意味が薄れるため）
 
 ## 7. テーマトークンとの関係
 

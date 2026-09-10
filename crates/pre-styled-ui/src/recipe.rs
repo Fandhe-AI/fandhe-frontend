@@ -12,14 +12,29 @@
 //! 内部ストレージは `Vec` のみを使い、`HashMap`/`HashSet` は使わない
 //! （反復順序がプロセスごとに変わりうる型を持ち込まない）。[`SlotRecipe::css`]
 //! の出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound variants
-//! （登録順、イシュー #604）→ states（登録順、イシュー #643）」に固定し、
-//! 同一 slot・同一 axis/value への複数回登録は「後に登録された規則が CSS 中で
-//! 後に出力される」（CSS のカスケードにおいて後勝ちになる）という素直な規約に
-//! 従う。この規約より複雑な優先順位判定は行わない。states を最後尾に置くのは、
+//! （登録順、イシュー #604）→ states（登録順、イシュー #643。`Hover` 系のみ
+//! `@media (hover: hover)` へ集約され末尾に回る）→ pseudo-elements（登録順、
+//! イシュー #2201）→ `@media (hover: hover) { ... }`（存在する場合のみ、常に
+//! 出力全体の末尾）」に固定し、同一 slot・同一 axis/value への複数回登録は
+//! 「後に登録された規則が CSS 中で後に出力される」（CSS のカスケードにおいて
+//! 後勝ちになる）という素直な規約に従う。この規約より複雑な優先順位判定は
+//! 行わない。states を最後尾に置くのは、
 //! 各 styled 部品が従来 `state_css()`（`serialize_rule` 直呼び）で手書きして
 //! いた `data-state` 連動規則を [`SlotRecipe::state`] へ移行した際に、
 //! 「`stylesheet() = recipe().css() + state_css()`（状態規則が常に最後）」
 //! という既存のカスケード上の性質をそのまま保存するため（イシュー #643）。
+//! pseudo-elements を states の直後・`@media` ブロックの直前に置くのは、
+//! `@media` ブロックが `css()` 出力全体の末尾であることを固定する既存
+//! テスト（`hover_state_and_other_states_coexist_with_hover_block_emitted_once_at_end`）
+//! を壊さないためであり、疑似要素セレクタは要素本体の規則とはカスケード上
+//! 競合しない（別ボックスであり specificity 勝負にならない）ため、相対位置
+//! そのものは挙動へ影響しない（決定性と既存 golden の不変のみが制約）。
+//!
+//! # 疑似要素（イシュー #2201）
+//!
+//! [`SlotRecipe::pseudo_element`] は `::before` / `::after` を付加した規則を
+//! recipe 経由で表現するための API。詳細（`content` 既定注入・fail-closed
+//! 検証・#708 との整合）は [`PseudoElement`] の rustdoc を参照。
 //!
 //! # 状態条件付き規則（イシュー #643）
 //!
@@ -778,6 +793,56 @@ struct StateRule {
     declarations: Vec<Declaration>,
 }
 
+/// [`SlotRecipe::pseudo_element`] が受け付ける疑似要素の種類（イシュー #2201）。
+///
+/// PR #2172（splitter の shadcn/ui `ResizableHandle` 突合）で、`::after` による
+/// 「見えないヒットエリア拡張」を実装しようとしたが当時の [`SlotRecipe`] が
+/// 疑似要素セレクタを表現する手段を持たず見送りになった（`crate::splitter`
+/// rustdoc 参照）。本 enum はその一次手段として、既存の
+/// `[data-scope="<scope>"][data-part="<slot>"]` セレクタへ `::before` /
+/// `::after` を付加した規則を [`SlotRecipe::css`] から出力できるようにする。
+///
+/// [`StateCondition`] へ `Before`/`After` variant を足す設計は採らなかった
+/// （実行時の状態条件を表す `StateCondition` と、常に静的に存在するボックスを
+/// 表す疑似要素は意味論が異なる。加えて `content` 既定注入は疑似要素固有の
+/// 挙動であり、`states` ループへ特例分岐を持ち込みたくないため）。
+///
+/// # #708（子孫セレクタ機構を追加しない判断）との整合
+///
+/// 疑似要素セレクタは結合子（子孫 ` ` / 子 `>` 等）を一切含まない、同一要素
+/// 上の複合セレクタの末尾に付与するだけの拡張である。[`SlotRecipe`] は
+/// 引き続き子孫 / 子 / 隣接結合子を生成する経路を持たない（#708 の非採用は
+/// 本イシューで変更しない）。[`crate::scroll_area`] の `stylesheet()` が固定
+/// 文字列で追記する `::-webkit-scrollbar` 系規則は本 enum が担う機構とは別物
+/// であり、本イシューでは recipe DSL 側へ移行しない。
+///
+/// 生のセレクタ文字列を受け取る API は設けない（[`StateCondition`] と同じ
+/// 方針。追加できる疑似要素はソースコード中の固定リテラルのみ）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PseudoElement {
+    /// `::before`
+    Before,
+    /// `::after`
+    After,
+}
+
+impl PseudoElement {
+    /// セレクタへ付加する固定リテラル。
+    const fn selector_suffix(self) -> &'static str {
+        match self {
+            PseudoElement::Before => "::before",
+            PseudoElement::After => "::after",
+        }
+    }
+}
+
+/// slot 1 個・疑似要素 1 個への宣言登録（内部表現、イシュー #2201）。
+struct PseudoElementRule {
+    slot: &'static str,
+    pseudo: PseudoElement,
+    declarations: Vec<Declaration>,
+}
+
 /// compound variant の条件 1 件（axis, value の型消去された組）。
 ///
 /// [`when()`] を通じてのみ [`VariantValue`] 実装 enum から構築できる（生の
@@ -828,6 +893,7 @@ pub struct SlotRecipe {
     default_variants: Vec<DefaultVariant>,
     compound_variants: Vec<CompoundVariantRule>,
     states: Vec<StateRule>,
+    pseudo_elements: Vec<PseudoElementRule>,
 }
 
 impl SlotRecipe {
@@ -843,6 +909,7 @@ impl SlotRecipe {
             default_variants: Vec::new(),
             compound_variants: Vec::new(),
             states: Vec::new(),
+            pseudo_elements: Vec::new(),
         }
     }
 
@@ -991,6 +1058,45 @@ impl SlotRecipe {
         self
     }
 
+    /// 指定した `slot` の `pseudo`（`::before` / `::after`）への宣言を
+    /// 登録する（builder、自己消費。イシュー #2201）。
+    ///
+    /// `declarations` に `content` プロパティの宣言が 1 件も含まれない場合、
+    /// [`SlotRecipe::css`] は `content: "";` を宣言列の先頭へ自動的に前置する
+    /// （疑似要素はブラウザの既定で `content` が無いとボックスを生成しない
+    /// ため）。呼び出し側が `content` を渡した場合はその宣言列をそのままの
+    /// 順序で使い、二重化はしない。**`content` の値そのものは検証によって
+    /// 差し替えない**: 呼び出し側の `content` 値が [`crate::css::is_valid_value`]
+    /// に落ちる（`<`/`;`/`{`/`}`/制御文字を含む）場合、その宣言は
+    /// [`serialize_rule`] が除外し `content` を持たない規則が出力される
+    /// （ブラウザは `content` の無い疑似要素のボックスを生成しないため、
+    /// 既定値を「親切に」再注入せず fail-closed のまま挙動させる）。
+    ///
+    /// `declarations` が空の場合は規則ごと [`SlotRecipe::css`] の出力から
+    /// 除外される（`::after { content: ""; }` だけの無意味な規則を混入させ
+    /// ない。`compound_variant` の「無意味な規則の除外」と同じ方針）。
+    ///
+    /// 以下のいずれかに該当する規則も [`SlotRecipe::css`] の出力から除外
+    /// される（fail-closed。既存 `base`/`variant`/`state` と同じ「不正入力は
+    /// panic せず出力から除外する」方針）:
+    ///
+    /// - `slot` が `slots` に未宣言、または識別子として不正
+    /// - `declarations` が空
+    #[must_use]
+    pub fn pseudo_element(
+        mut self,
+        slot: &'static str,
+        pseudo: PseudoElement,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.pseudo_elements.push(PseudoElementRule {
+            slot,
+            pseudo,
+            declarations,
+        });
+        self
+    }
+
     /// この slot に属するかどうかを判定する（`slots` 未宣言の slot を
     /// fail-closed で除外するための内部ヘルパ）。
     fn is_declared_slot(&self, slot: &str) -> bool {
@@ -1015,7 +1121,9 @@ impl SlotRecipe {
     /// 対する複数回の呼び出しは常にバイト単位で同一の文字列を返す）。
     ///
     /// 出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound
-    /// variants（登録順、イシュー #604）→ states（登録順、イシュー #643）」。
+    /// variants（登録順、イシュー #604）→ states（登録順、イシュー #643）→
+    /// pseudo-elements（登録順、イシュー #2201）→ `@media (hover: hover)
+    /// { ... }`（`Hover` 系 states が存在する場合のみ、常に出力全体の末尾）」。
     /// セレクタは base が `[data-scope="<scope>"][data-part="<slot>"]`、
     /// variant が
     /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
@@ -1043,7 +1151,11 @@ impl SlotRecipe {
     /// 最後尾のため CSS カスケードの後勝ちで variant/compound variant を
     /// 上書きする。`LastChild` は同一 slot への他の state 規則より後に
     /// 登録することで詳細度が同じでも記述順の後勝ちで上書きする契約、
-    /// `state()` の「登録順」規約参照）。
+    /// `state()` の「登録順」規約参照）。pseudo-element は
+    /// `[data-scope="<scope>"][data-part="<slot>"]::before` /
+    /// `[data-scope="<scope>"][data-part="<slot>"]::after`（[`PseudoElement`]
+    /// rustdoc 参照。`content` プロパティが呼び出し側の宣言列に無い場合は
+    /// `content: "";` を自動的に先頭へ前置する）。
     ///
     /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
     /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
@@ -1242,6 +1354,40 @@ impl SlotRecipe {
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {
                 target.push_str(&css);
                 target.push('\n');
+            }
+        }
+
+        for rule in &self.pseudo_elements {
+            if rule.declarations.is_empty()
+                || !self.is_declared_slot(rule.slot)
+                || !is_valid_identifier(rule.slot)
+            {
+                continue;
+            }
+            let selector = format!(
+                "[data-scope=\"{}\"][data-part=\"{}\"]{}",
+                self.scope,
+                rule.slot,
+                rule.pseudo.selector_suffix()
+            );
+            // `content` を呼び出し側が渡していない場合のみ、疑似要素が
+            // ブラウザの既定で無効化されないよう `content: "";` を先頭へ
+            // 前置する（`pseudo_element` rustdoc の「content 既定注入」節
+            // 参照。渡された場合は二重化せずそのままの順序を使う）。
+            let has_content = rule.declarations.iter().any(|d| d.property() == "content");
+            if has_content {
+                if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                    out.push_str(&css);
+                    out.push('\n');
+                }
+            } else {
+                let mut declarations = Vec::with_capacity(rule.declarations.len() + 1);
+                declarations.push(decl("content", "\"\""));
+                declarations.extend(rule.declarations.iter().copied());
+                if let Some(css) = serialize_rule(&selector, &declarations) {
+                    out.push_str(&css);
+                    out.push('\n');
+                }
             }
         }
 
