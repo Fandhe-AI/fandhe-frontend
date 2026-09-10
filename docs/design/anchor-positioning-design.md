@@ -282,6 +282,30 @@ anchor positioning の CSS 変数は、既存の `positioner`/`arrow`/`arrow_tip
 | Select positioner の消費（arrow 非対象） | `crates/pre-styled-ui/src/select.rs::recipe` |
 | マーカー契約の API 記述 | `docs/api/headless-ui-api.md` §4a |
 
+### 4.4c 自動呼び出し（イシュー #2209、親 #2208）
+
+本 ADR §4.1 は当初「再計算契機は呼び出し側からの明示呼び出し
+（`PositionController::reposition_now()`/scroll・resize リスナー）」を
+前提としていたが、標準の headless 配線 API
+（`fandhe-frontend-wasm-full::headless::wire_headless_component`）が
+positioning を一切呼び出さないままだと、利用者が `PositionController` を
+自前で組み立てない限り `data-positioned` マーカー・`--fandhe-*` CSS 変数
+が一切書き込まれず、pre-styled-ui 側の SSR 静的フォールバックから常に
+遷移しない（§4.4b の想定する「wasm 稼働時は fixed 座標系へ切り替わる」が
+成立しない）という実運用上のギャップがあった。
+
+イシュー #2209 でこの契機を統合層（`wire_headless_component`）へ組み込み、
+(1) 配線時（SSR 初期状態が open な positioner の先行同期）・(2) dispatch
+成功後の再描画直後、の 2 箇所で `position::reposition_within(&root)` を
+自動的に呼ぶようにした。scroll/resize 契機の継続的な再計算は、配線時に
+一度だけ生成する thread_local 単一の `PositionController`
+（`position::ensure_global_controller`）に委ねる。詳細な設計判断・
+テスト・semver 判断は `docs/design/wasm-full-architecture.md` §34 を参照
+（本節では二重管理しない）。`wire_headless_component` を経由しない開閉
+経路（`tooltip::TooltipDelayController` 等）向けに、`reposition_all`/
+`reposition_within` は引き続き呼び出し側から明示的に呼べる公開 API として
+残る。
+
 ### 4.5 CSS Anchor Positioning（Web 標準）採用可否の評価
 
 CSS Anchor Positioning（`anchor-name` / `position-anchor` / `position-try-fallbacks` 等）

@@ -2144,10 +2144,212 @@ codex-review 指摘を受けて分離を実装したため、記述を更新し�
 feature 集合決定と `bundle_size.rs` 契約更新・利用者向け docs/examples
 反映」は引き続き #2328/#2329/#2330 へ引き継ぐ（readonly RadioGroup 保護の
 分離は上記 33.4 のとおり完了済み）。
+## 34. positioning の自動呼び出し統合（イシュー #2209、親 #2208）
 
-## 34. MAPPING_TABLE / keynav の scope feature gating（イシュー #2327）
+### 34.1 背景
 
-### 34.1 背景・目的
+`position` モジュール（イシュー #590、親 #588。§23 参照）は anchor
+positioning の座標計算・DOM 反映（`wiring::reposition_one`/`reposition_all`・
+`PositionController`）自体はすでに実装済みだったが、`crate::headless::
+wire_headless_component`（標準の headless 配線 API）は positioning を一切
+呼び出さず、利用者が `PositionController::new(&window)?.reposition_now()` を
+明示的に組み立てて呼ぶ必要があった。このため pre-styled-ui の
+popover/tooltip/menu を `wire_headless_component` のみで開くと
+`--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-x`/`--fandhe-arrow-y` が書き込まれず、
+PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` で
+トリガー隣接がずれる」制約が残っていた。本節はこの統合層（§12 が「#580
+統合層の責務」として据え置いていた部分）を `wire_headless_component` へ
+実装した経緯・設計判断を記録する。
+
+### 34.2 設計判断
+
+- **`position::reposition_within(root: &Element)` を新設**（`wiring` 内に
+  実装し `pub use` で再エクスポート）。root 自身が
+  `[data-part="positioner"][data-state="open"]` に一致する場合を含め
+  （`content_height::sync_content_height` と同じ「root 自身を含める」
+  設計）、`root` 配下の開いている positioner のみを再計算する。
+  `web_sys::window()` が取得できない場合は no-op（fail-closed）。
+  `reposition_all`（document 全体走査、既存の `PositionController` が
+  scroll/resize 契機に使う）も `pub use` で公開のままとし、
+  `wire_headless_component` を経由しない開閉経路（`tooltip::
+  TooltipDelayController` 等）向けに呼び出し側が明示的に呼べる API として
+  残す。
+- **`headless::wire_headless_component` から自動呼び出し**（`content_height`
+  と同型の統合）: (1) 配線時に `sync_content_height` の直後で
+  `reposition_within(&root)`（SSR 初期状態が open な positioner の先行
+  同期）、(2) dispatch 成功後は `on_update → sync_content_height →
+  reposition_within` の順で呼ぶ（再描画で positioner 要素が作り直された
+  後の要素に対して計測・書き込みする）。`wire_headless_events`/
+  `wire_headless_events_scoped`（アクション通知のみの低レベル API）には
+  統合しない（`content_height` と同じ判断）。部品名での分岐は持たず、
+  対象判定は既存の `PositionedKind::from_scope`（未知 scope は no-op）に
+  委ねる。
+- **scroll/resize 追従は thread_local 単一 `PositionController` に委ねる**:
+  `position::wiring::GLOBAL_CONTROLLER`（`thread_local! { RefCell<Option<
+  PositionController>> }`）を `ensure_global_controller(&Window)` が配線
+  時に 1 度だけ生成する（`sidebar.rs`/`nav.rs` の既存 thread_local 単一
+  コントローラパターンと同型）。`wire_headless_component` を何度呼んでも
+  scroll/resize リスナーは増えない（`PositionController::new` が生成時に
+  1 組のみ登録し `Closure::forget` せず `Self` の生存期間に結びつける
+  既存設計のまま）。`PositionController::new` が `Err` を返した場合（リス
+  ナー登録失敗）も panic せず `None` のまま継続する（fail-closed。
+  scroll/resize 追従のみが失われ、配線時・dispatch 後の即時反映は妨げ
+  ない）。利用者が独自に `PositionController::new` を呼ぶ既存コード
+  （`examples/interactive-view-transitions` の menubar 等）とは共存し、
+  同一 positioner が二重に再計算されるだけで冪等。
+- **自動呼び出しは新設 feature `position`（既定 on）でゲートする**:
+  #2326（§33）の配線群別 feature 規約は `Runtime::mount`/`hydrate` の
+  `wire_*` 呼び出しを対象としており、本統合点（`headless::
+  wire_headless_component`）はその規約の対象外だが、`position` モジュール
+  自体は同規約以前から「`Runtime` を経由しないアプリ側直接利用 API のため
+  gating 対象外」と位置づけられている（§33.2 対応表）。この位置づけは
+  維持しつつ、**自動呼び出し 3 箇所のみ**（`ensure_global_controller` の
+  呼び出し、配線時 `reposition_within`、dispatch 後 `reposition_within`）を
+  `#[cfg(feature = "position")]` でゲートする（モジュール本体・`pub use`
+  は無条件公開のまま。`examples/interactive-view-transitions` のように
+  `PositionController::new` を直接呼ぶ既存利用者を `default-features =
+  false` で二重に壊さないため）。既定 on のため既定構成（クレート単体の
+  `cargo build`/`wasm-pack test`）の挙動は変わらない一方、REQ-11 の gzip
+  上限に対する余地確保として `position` を off にできる選択肢を用意する。
+  **配布物（`dist-server` 経路）側はこの選択肢を本イシュー内で実際に使う**:
+  `position` 追加分（gzip 後 約 2.6 KB）だけで REQ-11 の 200,000 B 上限を
+  超過することが判明したため、`dist-server/build.rs::run_wasm_build`
+  （および契約テスト `crates/wasm-full/tests/bundle_size.rs`）のネスト
+  `cargo build -p fandhe-frontend-wasm-full` へ `--no-default-features
+  --features <WASM_FULL_DIST_FEATURES>`（`default` から `position` のみを
+  除いた集合）を追加した。クレート自身の `default` は変更しない（`position`
+  は既定 on のまま、§34.4 の browser テストが feature 引数なし＝クレート
+  既定で実行されるため）。feature 集合の網羅的な最小化（#2329 が担う
+  「最小インタラクティブ構成」全体の決定）はスコープ外のまま残し、本対応は
+  本イシューが追加した超過分のみを打ち消す最小限の措置とする。
+- **`style` 属性はもはや完全上書きしない（CSSOM `set_property` による
+  個別宣言更新へ移行済み）**: codex-review 指摘（イシュー #2209、P1）を
+  受け、`reposition_one` は `set_attribute("style", ...)` による `style`
+  属性全体の置き換えをやめ、`position::wiring::apply_css_vars` が
+  `HtmlElement::style()`（`CssStyleDeclaration`）の `set_property` で
+  `css_vars_style` が生成した `--fandhe-*` の各宣言のみを個別に更新する
+  （既存になければ追加、既にあれば値のみ更新）。利用者が positioner/
+  arrow へ配線前から付けていた `position`/`width`/`z-index` 等の他の
+  インライン宣言は上書きされず保持される。`data-side`/`data-align`/
+  `data-positioned`/`data-requested-side`/`data-requested-align` の各
+  属性は従来どおり `set_dom_attribute`（`set_attribute` ラッパー）で
+  書き込む（`style` 属性のみが対象外、`position.rs` の
+  `set_dom_attribute` は `debug_assert!` で `"style"` 名の呼び出しを
+  release ビルド外で検出する）。詳細は `crates/wasm-full/src/
+  position.rs` の `apply_css_vars` rustdoc を参照。
+- **`offset`（`sideOffset` 相当）は 0 固定のまま**: `resolve_position` の
+  `offset: 0.0` は変更しない。shadcn の `sideOffset`（4px）相当の隙間は、
+  positioner の実測寸法に padding を含める（`getBoundingClientRect` は
+  ボーダーボックス）ことで pre-styled-ui 側（#2210）が wasm-full の変更
+  なしに実現できる。
+
+### 34.3 対象ファイル
+
+- `crates/wasm-full/Cargo.toml`: `[features]` へ `position = []` を新設し
+  `default` へ列挙する。対応表コメント（§33.2 相当）へ「`headless::
+  wire_headless_component` 内の自動 positioning 呼び出し → `"position"`」
+  の行を追加し、`position` モジュール自体・`pub use` はゲート対象外である
+  旨を明記する。
+- `crates/wasm-full/src/position.rs`: `wiring::reposition_within`・
+  `wiring::ensure_global_controller`（+ `GLOBAL_CONTROLLER` thread_local）
+  を新設し、`reposition_all`/`reposition_within`/`ensure_global_controller`/
+  `PositionController` を `pub use` で再エクスポート。モジュール doc を
+  更新（「統合呼び出しは #580 統合層の責務」から「`wire_headless_component`
+  が自動的に統合する」へ）。
+- `crates/wasm-full/src/headless.rs`: `wire_headless_component` へ
+  (1) 配線時の `ensure_global_controller` + `reposition_within(&root)`、
+  (2) dispatch 成功後の `reposition_within(&wired_root)`（`on_update →
+  sync_content_height → reposition_within` の順）を追加。
+- `crates/wasm-full/tests/position_browser.rs`: `wire_headless_component`
+  経由の実座標テストを追加（§33.4）。
+- `crates/dist-server/build.rs`: `run_wasm_build` のネスト `cargo build`
+  へ `--no-default-features --features <WASM_FULL_DIST_FEATURES>` を追加
+  （REQ-11 是正、§34.2 参照）。`fandhe-frontend-dist-server` は patch
+  バンプ（0.2.7 → 0.2.8）。
+- `crates/wasm-full/tests/bundle_size.rs`: 同一 feature 集合
+  （`WASM_FULL_DIST_FEATURES`、`build.rs` と同期を維持する独立実装複製）
+  をネストビルドへ追加。
+
+### 34.4 テスト
+
+`crates/wasm-full/tests/position_browser.rs` へ、`wire_headless_component`
+のみで配線した実座標検証（§34.2 の統合層を対象とする、既存 (a)〜(o) は
+`PositionController::reposition_now()` の明示呼び出し経路のみを検証して
+いた）を追加した。tooltip に加え menu / popover も同型で検証し、
+menu / popover は `--fandhe-arrow-x`/`--fandhe-arrow-y` も期待値と厳密
+一致（許容誤差 0.5px）で固定する。いずれも `#[cfg(feature = "position")]`
+配下（既定 on）に置く:
+
+- `wire_headless_component_auto_repositions_tooltip_to_exact_real_coordinates_for_every_side`:
+  trigger を `position: fixed; left: 300px; top: 200px; width: 50px;
+  height: 20px;`・floating を 100x50 に固定した場合の
+  `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-x`/`--fandhe-arrow-y` を、
+  headless-ui `positioning.rs` の `main_axis_coordinate`/
+  `cross_axis_coordinate`/`arrow_position` から機械的に導ける期待値との
+  厳密一致（許容誤差 0.5px）で bottom/top/left/right の 4 side について
+  固定する。
+- `wire_headless_component_prewires_positioner_that_is_already_open_at_wiring_time`:
+  SSR 初期状態が open な positioner が click 前に反映されること。
+- `wire_headless_component_leaves_closed_positioner_unrepositioned`:
+  closed のままの positioner に `style`/`data-positioned` が付与されない
+  こと。
+- `wire_headless_component_alone_tracks_resize_and_scroll_without_an_explicit_controller`:
+  テスト側で `PositionController` を一切生成せず、`wire_headless_component`
+  のみで配線した状態から合成 `resize`/`scroll` を発火すると座標が再計算
+  されること（`ensure_global_controller` の自動追従）。
+- `wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_tooltip_content`:
+  script/属性インジェクションペイロードを含む content でも、自動再計算
+  経路が既定エスケープ保証を弱めないこと（REQ-1 拡張回帰）。
+- `wire_headless_component_auto_repositions_menu_to_exact_real_coordinates`・
+  `wire_headless_component_auto_repositions_popover_to_exact_real_coordinates`:
+  tooltip と同型の厳密一致検証を menu / popover に対しても行い、tooltip
+  限定だった受け入れ条件のギャップを埋める。
+- `wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_menu_content`・
+  `..._for_popover_content`: REQ-1 拡張回帰を menu / popover にも同型で
+  追加する。
+
+いずれも `wasm-pack test --headless --chrome crates/wasm-full --test
+position_browser` で実測 PASS（既存 21 テスト含め全 21 件 PASS）。
+あわせて `headless_wiring_browser.rs`（26 件）・`content_height_browser.rs`
+（10 件）・`overlay_close_browser.rs`（32 件）が回帰しないことを実測確認
+した（`wire_headless_component` の全体変更のため）。
+
+### 34.5 semver 判断
+
+新規公開関数（`reposition_within`/`ensure_global_controller`、および
+既存 private だった `reposition_all` の公開昇格）の追加、既存公開関数
+`wire_headless_component` の副作用変更（呼び出しごとに DOM 書き込みが
+増える）、および新設 feature `position` の追加を含むため、
+`fandhe-frontend-wasm-full` は 0.x のマイナーバンプとする。base 取り込み
+時点（#2326 の配線群別 feature gating・#2337 の select scrollIntoView を
+経て main は 0.19.1 へ到達済み）に対し +1 して 0.20.0 とする。
+
+### 34.6 スコープ外（Issue 化をユーザーへ提案）
+
+- `PositionedKind::from_scope` に未登録の scope: `combobox`/`date-picker`
+  （pre-styled-ui が `data-positioned` 規則を持つが wasm-full が付与
+  しない）、`hover-card`/`toggle-tip`（`overlay::OverlayKind` にも未登録）。
+- `offset`（`sideOffset` 相当）の `data-*` オプトイン化。#2210 では
+  positioner の padding で代替可能。
+- `Runtime`（`lib.rs`）および `tooltip::TooltipDelayController` コール
+  バック経路への自動再計算統合（本イシューでは `reposition_all`/
+  `reposition_within` の公開で利用者が呼べる状態にするまで）。
+- `examples/interactive-view-transitions` の crates.io 版追随
+  （0.7.0 固定のため本イシューでは触れない）。
+- `crates/pre-styled-ui/` 側の `--fandhe-arrow-*` 消費・arrow/arrow-tip の
+  `data-side` 連動装飾（親 #2208 の sub-issue #2210 が担当）。
+- REQ-11（gzip 200,000 B 上限）: `dist-server` 経路の `bundle_size.rs` は
+  `position` 追加分の超過（約 2.6 KB）を §34.2 の `--no-default-features
+  --features <WASM_FULL_DIST_FEATURES>` 対応で打ち消し、本イシュー内で
+  PASS（実測 199,307 B、95% 警告閾値超過の warn 付き）へ回復済み。
+  `default` 全体（`position` 以外を含む）の網羅的な最小化・CI feature
+  matrix・`bundle_size.rs` の測定構成そのものの見直しは引き続き #2329 へ
+  引き継ぐ（本対応は #2329 が分離手段として使う布石を、本イシューが
+  追加した超過分にのみ先取り適用したもの）。
+
+## 35. MAPPING_TABLE / keynav の scope feature gating（イシュー #2327）
+
+### 35.1 背景・目的
 
 §33 の配線群別 feature（`wire_*` 呼び出し単位）は
 `headless::MAPPING_TABLE`（18 scope・32 行）と `keynav::wire_keynav`
@@ -2159,13 +2361,13 @@ MAPPING_TABLE の行・keynav の match arm をそれぞれ cfg ゲートする�
 目的は §33.1 と同じく REQ-11 gzip 上限に対する余地確保であり、既定は
 すべて on のため既定構成の挙動・`bundle_size` 実測値は変わらない。
 
-### 34.2 対応表
+### 35.2 対応表
 
 `crates/wasm-full/src/lib.rs` クレート doc §scope feature・
 `crates/wasm-full/Cargo.toml` `[features]` 直前コメントの対応表と同一。
 二重管理を避けるためここでは転記せず参照する。
 
-### 34.3 設計判断
+### 35.3 設計判断
 
 - 配線群別 feature（§33）とは独立の第 2 軸とする。`keynav` は
   `wire_keynav` 呼び出し自体の有無を、scope feature は `wire_keynav` 内部
@@ -2190,19 +2392,19 @@ MAPPING_TABLE の行・keynav の match arm をそれぞれ cfg ゲートする�
   `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`
   が `wire_keynav` を一切呼ばずに保護が機能することを実測で固定する）。
 
-### 34.4 semver 判断
+### 35.4 semver 判断
 
 `fandhe-frontend-wasm-full` を 0.19.0 → 0.20.0 へ minor バンプした。
 `default-features = false` を使う既存利用者が MAPPING_TABLE 行・keynav
 分岐を失う破壊的変更にあたるため（§33.3 と同型の判断）。
 
-### 34.5 契約テスト
+### 35.5 契約テスト
 
 `crates/wasm-full/tests/feature_gating_contract.rs`（native）が、
 MAPPING_TABLE 各行・keynav 各 arm の cfg 付与、Cargo.toml への feature
 宣言・`default` 列挙、readonly click guard の常時配線を機械検知する。
 
-### 34.6 スコープ外
+### 35.6 スコープ外
 
 CI feature matrix は #2328 で実装済み（`.github/workflows/ci.yml` の
 `wasm-full-feature-matrix-baseline`/`-wiring`/`-scope`/`-readonly-guard`
@@ -2213,9 +2415,9 @@ CI feature matrix は #2328 で実装済み（`.github/workflows/ci.yml` の
 なれば別途後続 issue で検討する。dist-server 経路の feature 集合決定は
 #2329、利用者向け docs/examples 反映は #2330 へ引き継ぐ。
 
-### 34.7 MAPPING_TABLE 行削除方式の是正（codex-review PR #2339 P0 指摘）
+### 35.7 MAPPING_TABLE 行削除方式の是正（codex-review PR #2339 P0 指摘）
 
-§34.3 で採用した「配列リテラル要素への `#[cfg(feature = "...")]`」（行を
+§35.3 で採用した「配列リテラル要素への `#[cfg(feature = "...")]`」（行を
 feature 無効時に配列から丸ごと除去する方式）は、
 `crate::headless::action_from_parts_scoped`（クリック位置から根方向へ
 祖先探索し、最初に解決できた part のアクションを返す）に fail-open の

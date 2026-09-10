@@ -503,7 +503,7 @@ headless-ui 部品のクリック dispatch 全般）も同時に登録してい�
    分岐（13 arm）の cfg 化と `headless_wiring.rs`/`headless.rs` の
    `mod tests`/`keynav_browser.rs` 新規テストの `#[cfg(feature = "...")]`
    追随はイシュー #2327 で実装済み（対応表・設計判断は
-   `docs/design/wasm-full-architecture.md` §34）。分離後の構成での
+   `docs/design/wasm-full-architecture.md` §35）。分離後の構成での
    §5/§11 削減量の再計測は上記「実測値の留保の解消」で完了し、判定
    ルール（20%/30 KB）を満たすことを確認した。
 3. **実装済み（イシュー #2328）。** CI feature matrix
