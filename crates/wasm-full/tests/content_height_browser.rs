@@ -490,14 +490,23 @@ fn nested_zero_measurement_removes_existing_var() {
     // 祖先が display:none（closed accordion item content 相当）の下に
     // open な collapsible content を置く。scroll_height は祖先の
     // display:none により 0 になる。
-    let inner_html = fandhe_frontend_core::render(&collapsible::content(
+    let inner = collapsible::content(
         OpenState::Open,
         false,
         None,
         vec![],
         vec![fixed_height_child(240)],
-    ));
-    let outer_html = format!(r#"<div style="display:none">{inner_html}</div>"#);
+    );
+    // 外側の div も HTML 文字列直接組み立てではなくノード木 API
+    // （`el_owned`）で構築し、collapsible::content の Node を子として
+    // 渡してから全体を render する（coding-rust.md「HTML 文字列の直接
+    // 組み立て禁止」規約準拠）。
+    let outer = fandhe_frontend_core::el_owned(
+        "div",
+        vec![("style".to_string(), "display:none".to_string())],
+        vec![inner],
+    );
+    let outer_html = fandhe_frontend_core::render(&outer);
     container.set_inner_html(&outer_html);
 
     let inner = container
