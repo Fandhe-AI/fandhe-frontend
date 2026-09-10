@@ -91,9 +91,10 @@ pub const STYLESHEET_REL_PATH: &str = "assets/blocks.css";
 /// （block 固有 class は [`Block::demo_class`] として追加で付与する）。
 pub const DEMO_CLASS: &str = "blocks-demo";
 
-/// Demo 節の全幅ラッパ・block 固有レイアウトの中和 CSS
-/// （モジュール doc「CSS の置き場」節参照）。`login_01` 用のレイアウト規則を
-/// 含む（後続イシューが block を追加する際は本定数へ追記する）。
+/// Demo 節の全幅ラッパ（`.blocks-demo`）のみを持つ共通 CSS
+/// （モジュール doc「CSS の置き場」節参照）。block 固有のレイアウト規則は
+/// 各モジュール側の `pub(super) const LAYOUT_CSS`（`login_01` を含む全 block
+/// が個別に持つ、下記「block 固有 CSS の置き場」節参照）に置く。
 ///
 /// # セレクタが `class` と `[data-*]` で混在する理由（イシュー #2088 PR #2277
 /// codex-review P1 / Cursor Bugbot 指摘の是正）
@@ -105,31 +106,26 @@ pub const DEMO_CLASS: &str = "blocks-demo";
 /// `login_01.rs` はこれら 3 パーツの Demo 固有スタイルを `class` ではなく
 /// 呼び出し側 `attrs` にそのまま残る `data-*` 属性（`data-blocks-login-01-*`）
 /// で渡し、本 CSS 側も `[data-blocks-login-01-*]` 属性セレクタで対応する
-/// （`blocks-login-01-card`/`-field`/`-submit`）。一方 `card::footer`（variant
-/// を持たず `attrs` をそのまま連結する）や素の `div` には `class` がそのまま
-/// 効くため、それらは従来どおり `.blocks-login-01-*` クラスセレクタのままで
-/// よい（`-footer`/`-password-row`/`-signup-row`）。後続 block（#2089〜#2095）
-/// が `card::root`/`field::root`/`button::button` を使う際は同じ判断（対象
-/// パーツが `drop_class_attr` を経由するか）で `class` か `data-*` かを選ぶ。
+/// （`blocks-login-01-card`/`-field`/`-submit`）。一方 `card::header`/
+/// `card::body`（variant を持たず `attrs` をそのまま連結する）や素の `div`
+/// には `class` がそのまま効くため、それらは従来どおり `.blocks-login-01-*`
+/// クラスセレクタのままでよい（`-password-row`/`-actions`/`-signup-row`）。
+/// 後続 block（#2089〜#2095）が `card::root`/`field::root`/`button::button`
+/// を使う際は同じ判断（対象パーツが `drop_class_attr` を経由するか）で
+/// `class` か `data-*` かを選ぶ。
 /// 実際に生成 HTML へ属性が出力され CSS 側のセレクタと対になっていることは
 /// `crates/docs-site/tests/blocks_contract.rs` が固定する。
 ///
 /// # block 固有 CSS の置き場（イシュー #2089 以降の分離、並列進行対策）
 ///
-/// 本 `LAYOUT_CSS` は `login_01` のレイアウト規則のみを持つ。#2089〜#2095 が
+/// 本 `LAYOUT_CSS` は `.blocks-demo` の共通枠のみを持つ（`login_01` も
+/// #2092 で `pub(super) const LAYOUT_CSS` へ分離済み）。#2089〜#2095 が
 /// 並列進行する状況で全 block が単一定数へ追記すると PR 間で必ず衝突するため、
-/// 2 件目以降（`dashboard_01` 等）は各モジュール側に `pub(super) const
-/// LAYOUT_CSS` を個別に持ち、[`stylesheet`] が `push_css` を複数回呼んで
-/// 連結する（詳細は `docs/design/docs-site-blocks-section.md` §10 追記節）。
+/// 各モジュール側が個別に `pub(super) const LAYOUT_CSS` を持ち、[`stylesheet`]
+/// が `push_css` を複数回呼んで連結する（詳細は
+/// `docs/design/docs-site-blocks-section.md` §10 追記節）。
 const LAYOUT_CSS: &str = "\
-.blocks-demo {\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: 1.5rem;\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n}\n\
-.blocks-login-01 {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  min-height: 24rem;\n}\n\
-[data-blocks-login-01-card] {\n  width: 100%;\n  max-width: 24rem;\n}\n\
-[data-blocks-login-01-field] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n  margin: 0 0 1rem;\n}\n\
-.blocks-login-01-password-row {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: 0.5rem;\n}\n\
-.blocks-login-01-footer {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n}\n\
-[data-blocks-login-01-submit] {\n  width: 100%;\n}\n\
-.blocks-login-01-signup-row {\n  font-size: 0.875rem;\n  text-align: center;\n  color: var(--fandhe-color-fg-muted);\n}\n";
+.blocks-demo {\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: 1.5rem;\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n}\n";
 
 /// 使用部品一覧の 1 件（`## 使用部品` の `<li><a>`）。`path` は
 /// `/themes/<kebab>/` または `/primitives/<kebab>/` を指す。
@@ -244,6 +240,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&Theme::default());
     sheet.push_css(LAYOUT_CSS)?;
+    sheet.push_css(login_01::LAYOUT_CSS)?;
     sheet.push_css(dashboard_01::LAYOUT_CSS)?;
     sheet.push_css(sidebar_07::LAYOUT_CSS)?;
     sheet.push_css(sidebar_03::LAYOUT_CSS)?;
