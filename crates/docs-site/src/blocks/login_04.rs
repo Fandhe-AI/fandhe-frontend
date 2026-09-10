@@ -311,6 +311,39 @@ pub const BLOCK: Block = Block {
 /// Cursor Bugbot 指摘、イシュー #2093）。Card body と同様にセレクタを
 /// `[data-scope="image"][data-part="root"][data-blocks-login-04-img]`
 /// （詳細度 (0,3,0)）へ結合し、Image recipe を確実に上書きする。
+///
+/// # `.blocks-login-04-intro` の見出し/説明文の間隔
+///
+/// `card::title`/`card::description` は `margin: 0` で `card::header` の
+/// `gap`（`var(--fandhe-space-1-5)`、`crates/pre-styled-ui/src/card.rs`）に
+/// 依存する。本 block はこの 2 パーツを `card::header` ではなく素の `div`
+/// （`.blocks-login-04-intro`）で包んでいるため、`text-align`/`margin` の
+/// みでは `gap` が無く見出しと説明文が詰まって表示される（PR #2292
+/// codex-review / Cursor Bugbot 指摘、イシュー #2093）。`card::header` と
+/// 同じ `display: flex; flex-direction: column; gap:
+/// var(--fandhe-space-1-5);` を明示し、間隔を復元する。
+///
+/// # `[data-blocks-login-04-provider]` の詳細度を Button recipe 以上にする
+///
+/// `icon_button` が出力する要素は `[data-scope="button"][data-part="root"]`
+/// （詳細度 (0,2,0)）に加え `.fd-button--icon-only`（詳細度 (0,3,0)）で
+/// 固定 `aspect-ratio: 1 / 1`・`padding: 0` を持ち、size ごとの
+/// `compound_variant`（詳細度 (0,4,0)）で `height` を固定する
+/// （`crates/pre-styled-ui/src/button.rs` `recipe()` 参照）。block 側の
+/// `[data-blocks-login-04-provider]` 単独（詳細度 (0,1,0)）では幅指定が
+/// なく、grid セルいっぱいに広がらず小さな正方形のまま表示される（PR
+/// #2292 codex-review / Cursor Bugbot 指摘、イシュー #2093）。Card body・
+/// Image と同様にセレクタを
+/// `[data-scope="button"][data-part="root"][data-blocks-login-04-provider]`
+/// （詳細度 (0,3,0)）へ結合する。icon-only variant の `aspect-ratio: 1 / 1`
+/// と同じ詳細度だが、block CSS は component recipe より後段で連結される
+/// ためソース順で上書きされる（Card body/Image と同じ「同詳細度・後勝ち」
+/// 設計）。`height` は compound variant の固定値のまま変えず、`width:
+/// 100%` のみを追加するため、幅と高さの両方が確定値になり
+/// `aspect-ratio` は実効しない（CSS Box Sizing の仕様上、width/height が
+/// ともに definite なら aspect-ratio は無視される）。念のため
+/// `aspect-ratio: auto` も明示し、shadcn 参照画面と同じ横長ボタン表示を
+/// 詳細度に依存せず保証する。
 pub(super) const LAYOUT_CSS: &str = "\
 .blocks-login-04 {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  min-height: 28rem;\n}\n\
 [data-blocks-login-04-stack] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 1.5rem;\n  width: 100%;\n}\n\
@@ -318,10 +351,11 @@ pub(super) const LAYOUT_CSS: &str = "\
 [data-scope=\"card\"][data-part=\"body\"][data-blocks-login-04-body] {\n  padding: 0;\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n}\n\
 [data-blocks-login-04-form] {\n  padding: 2rem;\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-blocks-login-04-field] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n}\n\
-.blocks-login-04-intro {\n  text-align: center;\n  margin: 0 0 0.5rem;\n}\n\
+.blocks-login-04-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1-5);\n  text-align: center;\n  margin: 0 0 0.5rem;\n}\n\
 .blocks-login-04-password-row {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: 0.5rem;\n}\n\
 [data-blocks-login-04-submit] {\n  width: 100%;\n}\n\
 [data-blocks-login-04-providers] {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: 1rem;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-login-04-provider] {\n  width: 100%;\n  aspect-ratio: auto;\n}\n\
 .blocks-login-04-signup-row {\n  font-size: 0.875rem;\n  text-align: center;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-login-04-image] {\n  position: relative;\n  background: var(--fandhe-color-bg-subtle);\n  min-height: 100%;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-login-04-img] {\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n}\n\

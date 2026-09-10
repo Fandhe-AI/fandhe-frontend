@@ -217,10 +217,12 @@ shadcn/ui `login-04`（`apps/v4/registry/new-york-v4/blocks/login-04/`）との
   「パスワードを忘れた」「サインアップ」「利用規約」「プライバシー
   ポリシー」は死リンク（`href="#"`）ではなく見た目だけリンク風の
   `ButtonVariant::Link` ボタンとして実装しています。
-- **見出し「Welcome back」は heading 要素にしない**: `card::title` +
-  `card::description` を用いています。Demo 内に `h1`〜`h3` を置くと
-  docs サイトの右目次・折りたたみ目次を汚染するためです（`login-01` と
-  同一判断）。
+- **見出し「Welcome back」は `card::title`（`h3`）を使う**: `card::title` +
+  `card::description` を用いています。`card::title` は `h3` を生成します
+  が、`data-scope` 属性を持つ部品 anatomy の内部要素であるため
+  `crate::layout::with_heading_anchors`（docs サイトの右目次・折りたたみ
+  目次の見出し収集）が `data-scope` を持つ部分木を丸ごと走査対象外とし、
+  この `h3` は目次へ混入しません（`login-01` と同一判断）。
 - **プロバイダロゴ（Apple/Google/Meta）→ 自作の単純幾何図形**: shadcn 側は
   各社ロゴ入り Outline `IconButton` を持ちますが、実企業名・商標ロゴは
   持ち込まない方針（`docs/design/docs-site-blocks-section.md` §8）のため、
