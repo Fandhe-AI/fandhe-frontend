@@ -777,7 +777,15 @@ name = "fandhe-frontend-wasm-full"
 # origin/main も並行 PR で独立に 0.17.1 へ到達しており、同一版数への
 # 偶発的衝突をそのまま採用しない原則により main の到達値 0.17.1 から
 # さらに +1（patch）して 0.17.2 とする。
-version = "0.17.2"
+#
+# イシュー #2134: charts の期間切替コントロール・凡例系列トグルを
+# `data-range`/`aria-pressed`/`data-hidden` へ配線する新規モジュール
+# `chart_range`（`wire_chart_range_events` 等の新規公開 API）を追加した。
+# `crate::chart::wiring` の一部関数を `pub(crate)` へ引き上げて再利用した
+# のみで既存公開 API は不変（純追加）だが、`Runtime::mount`/`hydrate` の
+# 挙動が新たに増える実体変更のため、`chart` モジュール追加時（0.17.0）と
+# 同じ判断基準でマイナーバンプし 0.18.0 とする。
+version = "0.18.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

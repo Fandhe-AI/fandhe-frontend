@@ -1426,3 +1426,76 @@ layer 自体を差し替えた場合の要素再解決（`angle_slider::wiring` 
 `role="img"` 内にフォーカス可能な hit-area を置く a11y 問題の是正・
 bar/scatter 以外の視覚要素への `data-index` 付与と消費 CSS/Demo は
 #2131 が担う。
+
+## 27. `chart_range` モジュール（イシュー #2134、親 #2132）
+
+`crates/pre-styled-ui/src/charts/legend.rs`（イシュー #2133）の凡例
+trigger（`aria-pressed`・`data-series`/`data-index`・opt-in
+`aria-controls`）と各チャートの opt-in `range` プロパティ
+（`data-range="<不透明文字列>"`）を受け、(1) 凡例 trigger クリックで
+`aria-pressed` を反転させ、(2) 期間切替コントロール（toggle-group/
+select の item）クリックでチャート root の `data-range` を更新し、
+(3) 上記 2 つと連動して描画要素・hit-area・tooltip-item の
+`data-hidden` を DOM から導出して同期する。詳細な設計判断は
+`crates/wasm-full/src/chart_range.rs` のモジュール doc（ロケータ契約・
+2 層構成・Runtime への統合・スコープ外）を正とし、本節では横断的な
+決定記録のみを残す。
+
+### 27.1 スケール再計算は本イシューでスコープ外（hide-only 判断）
+
+親 #2132 は「スケール再計算を追従させるか固定にするかは実装時に決める」
+としていたが、本イシューでは REQ-11 の bundle size 制約（実測: ベース
+ライン 195,964/200,000 B、`fandhe-frontend-wasm-client` 0.6.1 依存の
+headroom は約 4 KB。#2130 の tooltip 配線単体で約 4.8 KB 消費した実績が
+ある）と実装コストを踏まえ、**全チャート種別で「非表示のみ
+（hide-only）」に統一し、軸スケール・domain の再計算は行わない**と
+判断した。これにより:
+
+- `fandhe-frontend-pre-styled-ui` への新規依存を追加しない（`chart.rs`
+  と同じく、テストのみ `fandhe_frontend_core::el` で SSR 出力契約を
+  手組みする）。
+- `crates/pre-styled-ui` 側の新規 `data-scale-*`/`data-values`/
+  `data-value` 契約（当初計画）は導入しない。
+- 系列/カテゴリの非表示に伴う軸・domain・tick ラベルの見た目は非表示前
+  のまま変化しない（bar の 0 基準線・line の折れ線ギャップも含め、
+  視覚的な「詰め直し」は行わない）。
+
+再評価トリガー: REQ-11 の headroom に余裕が生まれた場合（wasm-client の
+軽量化・依存削減等）、または軸再計算を求める実利用フィードバックが
+生じた場合に、`crates/pre-styled-ui/src/charts/scale.rs`（存在する場合）
+の純関数を再利用する形での再計算対応を再検討する。後続 Issue の起票を
+提案する。
+
+### 27.2 tooltip/tooltip-item は `chart_root` の子孫ではなく兄弟
+`tooltip-layer` の子孫（実装時の是正）
+
+`chart_range::wiring::sync_chart` は当初 `query_all(chart_root, ..)`
+で tooltip/tooltip-item を直接探索していたが、`charts/tooltip.rs` の
+SSR 出力契約（`chart.rs` モジュール doc「ロケータ契約」節）により
+tooltip-layer は `chart_root`（`svg[data-part="root"]`）の**子孫では
+なく直後の兄弟**であるため、この探索は常に空集合を返し系列トグル・
+期間切替のいずれも tooltip 側へ反映されない不具合があった
+（`tests/chart_range_browser.rs::legend_trigger_click_flips_aria_pressed_and_hides_matching_series`
+の実ブラウザ回帰で検出）。`chart.rs::wiring::layer_of`
+（`svg.next_element_sibling()` + `data-scope`/`data-part` 確認）と同じ
+ロケータ契約で `chart_range::wiring::tooltip_layer_of` を実装し、
+tooltip/tooltip-item の探索基点を `chart_root` から解決済み
+tooltip-layer へ差し替えて是正した。layer 未解決（`show_tooltip: false`
+で出力されたチャート・未知構造）はこの 2 種の同期のみ no-op とする
+（描画要素・hit-area の同期には影響しない）。
+
+### 27.3 テスト・スコープ外
+
+- 純粋ロジック層（`parse_range_bound`/`resolve_range`/
+  `category_hidden_by_range`/`is_indexed_element_hidden`）は native
+  `cargo test`（7 件）で検証する。
+- 配線層は `tests/chart_range_browser.rs`（`wasm-pack test --headless
+  --chrome`、5 件）で凡例トグル・期間切替・roving tabindex 再配分・
+  未解決 `aria-controls` の no-op・構造再描画後の `MutationObserver`
+  再同期を検証する。
+- `chart.rs::handle_keydown` の矢印移動が `display="none"` の範囲外
+  hit-area へ到達し得る点（`focus()` が失敗して止まるのみで panic
+  しない）・期間切替に伴うデータ再取得やカテゴリ集合の再構成
+  （アプリ責務）・`examples/headless-pre-styled-ui` への追随
+  （crates.io 公開後の既存運用方針）はスコープ外（`chart_range.rs`
+  モジュール doc「スコープ外」節参照）。

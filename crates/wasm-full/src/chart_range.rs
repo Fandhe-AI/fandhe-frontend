@@ -176,7 +176,6 @@ pub fn is_indexed_element_hidden(
 #[cfg(target_arch = "wasm32")]
 pub(crate) mod wiring {
     use crate::chart::wiring::{event_target_element, query_all, set_dom_attribute};
-    use std::collections::BTreeSet;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event, MutationObserver, MutationObserverInit};
@@ -279,6 +278,26 @@ pub(crate) mod wiring {
         None
     }
 
+    /// `chart_root`（`svg[data-part="root"]`）の tooltip-layer を返す
+    /// （`chart.rs::wiring::layer_of` と同じロケータ契約:
+    /// `chart_root.next_element_sibling()` が `[data-scope="chart"]
+    /// [data-part="tooltip-layer"]` であるものだけを返す。`charts/
+    /// tooltip.rs` の SSR 出力契約により tooltip/tooltip-item は
+    /// `chart_root`（`<svg>`）の子孫ではなく、`<svg>` の直後の兄弟
+    /// `tooltip-layer` の子孫として出力されるため、`query_all(chart_root,
+    /// ..)` では到達できない。show_tooltip: false で出力されたチャート・
+    /// 未知構造は `None`（no-op、モジュール doc「ロケータ契約」節）。
+    fn tooltip_layer_of(chart_root: &Element) -> Option<Element> {
+        let sibling = chart_root.next_element_sibling()?;
+        if sibling.get_attribute("data-scope").as_deref() == Some("chart")
+            && sibling.get_attribute("data-part").as_deref() == Some("tooltip-layer")
+        {
+            Some(sibling)
+        } else {
+            None
+        }
+    }
+
     /// `chart_root` 配下の hit-area から総カテゴリ数（`data-index` の
     /// 最大値 + 1）を推定する。hit-area が無ければ `0`（範囲による非表示
     /// を行わない、[`resolve_range`] が `to <= from` で無効化する）。
@@ -358,26 +377,31 @@ pub(crate) mod wiring {
         // されないが、範囲変更前に開いていたセッションを確実に閉じる
         // ための多層防御として `hidden` を強制する（`chart.rs::wiring` が
         // 使う `hidden` 属性と同じ語彙、native boolean attribute）。
-        let hidden_category_set: BTreeSet<usize> = hidden_categories
-            .iter()
-            .copied()
-            .chain((0..total).filter(|index| category_hidden_by_range(*index, range)))
-            .collect();
-        for tooltip in query_all(chart_root, TOOLTIP_SELECTOR) {
-            if let Some(index) = indexed(&tooltip) {
-                if hidden_category_set.contains(&index) {
-                    set_dom_attribute(&tooltip, "hidden", "");
+        //
+        // tooltip/tooltip-item は `chart_root`（`<svg>`）の子孫ではなく
+        // その直後の兄弟 `tooltip-layer` の子孫（`tooltip_layer_of`
+        // rustdoc 参照）のため、`chart_root` ではなく layer を走査基点に
+        // する。layer が無い（`show_tooltip: false` で出力されたチャート）
+        // 場合は no-op。
+        if let Some(layer) = tooltip_layer_of(chart_root) {
+            for tooltip in query_all(&layer, TOOLTIP_SELECTOR) {
+                if let Some(index) = indexed(&tooltip) {
+                    let hidden = hidden_categories.contains(&index)
+                        || category_hidden_by_range(index, range);
+                    if hidden {
+                        set_dom_attribute(&tooltip, "hidden", "");
+                    }
                 }
             }
-        }
-        for item in query_all(chart_root, TOOLTIP_ITEM_SELECTOR) {
-            let hidden = item
-                .get_attribute("data-series")
-                .is_some_and(|series| hidden_series.contains(&series));
-            if hidden {
-                set_dom_attribute(&item, HIDDEN_ATTR, "");
-            } else {
-                let _ = item.remove_attribute(HIDDEN_ATTR);
+            for item in query_all(&layer, TOOLTIP_ITEM_SELECTOR) {
+                let hidden = item
+                    .get_attribute("data-series")
+                    .is_some_and(|series| hidden_series.contains(&series));
+                if hidden {
+                    set_dom_attribute(&item, HIDDEN_ATTR, "");
+                } else {
+                    let _ = item.remove_attribute(HIDDEN_ATTR);
+                }
             }
         }
     }
@@ -498,7 +522,7 @@ pub(crate) mod wiring {
             },
         ) as Box<dyn FnMut(js_sys::Array, MutationObserver)>);
         let observer = MutationObserver::new(closure.as_ref().unchecked_ref())?;
-        let mut init = MutationObserverInit::new();
+        let init = MutationObserverInit::new();
         init.set_child_list(true);
         init.set_subtree(true);
         observer.observe_with_options(&root, &init)?;
@@ -531,6 +555,13 @@ pub(crate) mod wiring {
         wire_rerender_observer(root)
     }
 }
+
+/// `chart.rs::wire_chart_events` と同型の再エクスポート。`wiring` 自体は
+/// `pub(crate)` のため、ブラウザ回帰テスト（`tests/chart_range_browser.rs`）
+/// から `fandhe_frontend_wasm_full::chart_range::wire_chart_range_events`
+/// として到達できるよう配線エントリポイントのみ crate 外へ公開する。
+#[cfg(target_arch = "wasm32")]
+pub use wiring::wire_chart_range_events;
 
 #[cfg(test)]
 mod tests {
