@@ -734,3 +734,92 @@ fn blocks_source_does_not_use_raw_html_or_build_html_strings() {
         );
     }
 }
+
+/// signup-01 ページが `blocks-demo`/block 固有 class・両スタイルシート・
+/// `data-blocks-signup-01-*` CSS フックを実際に出力し、`blocks.css` 側にも
+/// 対応するセレクタが存在することを固定する（login_01 と同型の検証、
+/// イシュー #2094）。
+#[test]
+fn signup_01_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/signup-01/index.html"))
+        .expect("blocks/signup-01/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-signup-01\""),
+        "signup-01 page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "signup-01 page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "signup-01 page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-signup-01-card=\"\"",
+        "data-blocks-signup-01-field=\"\"",
+        "data-blocks-signup-01-submit=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "signup-01 page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-signup-01-card]",
+        "[data-blocks-signup-01-field]",
+        "[data-blocks-signup-01-submit]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// signup-01 の合成部品（card/field::group/input/button の 3 variant +
+/// helper_text 3 件）が shadcn `signup-01` 相当の構成で実際に出力されて
+/// いること、`<form>`・死リンク（`href="#"`）・`field::error_text` の
+/// `role="alert"`・`card::footer`・実企業名（Google）を持ち込んでいない
+/// ことを固定する（login_01_composes_expected_parts と同型、イシュー
+/// #2094）。
+#[test]
+fn signup_01_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/signup-01/index.html"))
+        .expect("blocks/signup-01/index.html should be generated");
+    for needle in [
+        "data-scope=\"card\"",
+        "data-part=\"group\"",
+        "data-part=\"helper-text\"",
+        "placeholder=\"John Doe\"",
+        "type=\"email\"",
+        "placeholder=\"m@example.com\"",
+        "type=\"password\"",
+        "fd-button--variant-outline",
+        "fd-button--variant-link",
+        "Sign up with SSO",
+        "Create Account",
+    ] {
+        assert!(
+            html.contains(needle),
+            "signup-01 page should contain {needle}"
+        );
+    }
+    for absent in [
+        "<form",
+        "href=\"#\"",
+        "role=\"alert\"",
+        "data-part=\"footer\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "signup-01 should never contain {absent}"
+        );
+    }
+}

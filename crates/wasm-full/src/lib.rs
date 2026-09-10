@@ -151,6 +151,7 @@
 
 pub mod angle_slider;
 pub mod chart;
+pub mod chart_range;
 pub mod command;
 pub mod content_height;
 pub mod csr;
@@ -1065,6 +1066,7 @@ where
         )?;
         Self::wire_sidebar(root.clone())?;
         Self::wire_chart(root.clone())?;
+        Self::wire_chart_range(root.clone())?;
         Self::wire_questionnaire(
             component.clone(),
             root.clone(),
@@ -1194,6 +1196,7 @@ where
         )?;
         Self::wire_sidebar(root.clone())?;
         Self::wire_chart(root.clone())?;
+        Self::wire_chart_range(root.clone())?;
         Self::wire_questionnaire(
             component.clone(),
             root.clone(),
@@ -1855,6 +1858,23 @@ where
     /// 失敗を伝播する。
     fn wire_chart(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         chart::wire_chart_events(root)
+    }
+
+    /// `Self::mount`/`Self::hydrate` の双方から `Self::wire_chart` の
+    /// 直後に 1 回だけ呼ばれる。charts の期間切替コントロール・凡例系列
+    /// トグルを `data-range`/`aria-pressed`/`data-hidden` へ配線する
+    /// （[`chart_range::wiring::wire_chart_range_events`]、イシュー
+    /// #2134）。`Self::wire_chart` と同じく `dispatch` チャネルを持たない
+    /// 属性専用配線のため、オプトイン API（`wire_*_dispatch`）を必要と
+    /// しない（`chart_range` モジュール doc「Runtime への統合」節参照）。
+    ///
+    /// # Errors
+    ///
+    /// [`chart_range::wiring::wire_chart_range_events`]
+    /// （`add_event_listener_with_callback`/`MutationObserver::new`）の
+    /// 失敗を伝播する。
+    fn wire_chart_range(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        chart_range::wiring::wire_chart_range_events(root)
     }
 
     /// Questionnaire（`fandhe-frontend-headless-ui` `questionnaire` モジュール）

@@ -2869,6 +2869,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更）を統合した結果として main の到達値 0.172.0 をさらに上回る
 # 0.173.0 へマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約。
 # 片方の到達値をそのまま採用しない原則）。
+# イシュー #2134 codex-review 指摘是正（PR #2285）: donut/pie/radial の
+# 各 chart props へ `legend: bool` opt-in を追加し、radial の `bar` へ
+# 値なし属性 `data-hidden-category`/`data-hidden-series`（次元単独の
+# 宣言）を新規追加した。新規公開 API・新規属性のみで既存関数シグネチャ・
+# golden CSS の既存ブロックは不変のため非破壊的な追加として、PR と main
+# が同一到達値 0.173.0 で衝突するため main +1 の 0.174.0 へバンプする。
+#
+# 上記 main 到達値 0.174.0 に対し、本ブランチ側 (イシュー #2194) は
+# headless-ui 0.68.15 への version 追随のみで 0.174.1 まで進めていたため、
+# main 側の実体変更 (#2285) を取り込んだ上でさらに上回る 0.174.1 を維持する。
 #
 # イシュー #2194: 依存先 `fandhe-frontend-headless-ui` 0.68.14 → 0.68.15
 # （dialog/tabs の shadcn a11y 突合、rustdoc のみ）への `version = "..."`
