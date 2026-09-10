@@ -159,6 +159,49 @@ fn mount_dialog(document: &Document, container: &Element, id_prefix: &str) -> (E
     (trigger, content)
 }
 
+/// 単一の Dialog（trigger + content）を `host` の**子として追加**し
+/// （`insert_adjacent_html("beforeend", ...)`）、`(trigger, content)` を
+/// 返す。[`mount_dialog`] は `container.set_inner_html` で既存の子を
+/// 置換するため、同一コンテナへ 2 回呼ぶと 1 回目の DOM が消えてしまい
+/// 「入れ子オーバーレイ」の実体を再現できない（イシュー #2194、
+/// Cursor Bugbot 指摘）。実際にネストした DOM 構造で外側クリック判定
+/// （祖先方向の走査打ち切り）を検証したいテストはこちらを使う。
+fn mount_dialog_nested_within(
+    document: &Document,
+    host: &Element,
+    id_prefix: &str,
+) -> (Element, Element) {
+    let trigger_id = format!("{id_prefix}-trigger");
+    let content_id = format!("{id_prefix}-content");
+    let html = render(&dialog::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            dialog::trigger(OpenState::Open, None, vec![("id", &trigger_id)], vec![]),
+            dialog::content(
+                OpenState::Open,
+                dialog::DialogRole::Dialog,
+                true,
+                dialog::ContentIds {
+                    id: Some(&content_id),
+                    ..Default::default()
+                },
+                vec![],
+                vec![],
+            ),
+        ],
+    ));
+    host.insert_adjacent_html("beforeend", &html)
+        .expect("insert_adjacent_html must not fail");
+    let trigger = document
+        .get_element_by_id(&trigger_id)
+        .expect("trigger element must exist");
+    let content = document
+        .get_element_by_id(&content_id)
+        .expect("content element must exist");
+    (trigger, content)
+}
+
 /// 単一の Menu（trigger + positioner + content）を `container` 配下へ展開し、
 /// `(trigger, content)` を返す（イシュー #2194、D6 検証で `OverlayKind::Menu`
 /// が非プライマリボタンの対象外のまま従来どおり閉じることを固定するために
@@ -1234,13 +1277,20 @@ fn right_click_outside_nested_dialog_closes_neither_layer() {
     let placeholder = create_placeholder(&document, "overlay-right-click-nested-root");
     let _cleanup = RemoveOnDrop(placeholder.clone());
 
-    // 親 Dialog の外側に子 Dialog を積む（入れ子構成、レイヤー方式の
-    // 固定: 最上位 Dialog を右クリックで内側扱いにすると、そこで走査が
-    // 打ち切られ親 Dialog も巻き添えで閉じない）。
+    // 親 Dialog の content 内に子 Dialog を実際にネストして積む（入れ子構成、
+    // レイヤー方式の固定: 最上位 Dialog を右クリックで内側扱いにすると、
+    // そこで走査が打ち切られ親 Dialog も巻き添えで閉じない）。同一
+    // `placeholder` へ [`mount_dialog`] を 2 回呼ぶと `set_inner_html` が
+    // 1 回目の DOM を消してしまい実ネストを再現できないため、内側 Dialog
+    // は [`mount_dialog_nested_within`] で `outer_content` の子として
+    // `insert_adjacent_html` する（イシュー #2194、Cursor Bugbot 指摘）。
     let (outer_trigger, outer_content) =
         mount_dialog(&document, &placeholder, "overlay-right-click-nested-outer");
-    let (inner_trigger, inner_content) =
-        mount_dialog(&document, &placeholder, "overlay-right-click-nested-inner");
+    let (inner_trigger, inner_content) = mount_dialog_nested_within(
+        &document,
+        &outer_content,
+        "overlay-right-click-nested-inner",
+    );
     let (controller, requests) = recording_controller(&document);
     controller
         .push_overlay(&outer_content, Some(&outer_trigger))
