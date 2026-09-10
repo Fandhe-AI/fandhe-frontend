@@ -2208,10 +2208,20 @@ PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` 
   `#[cfg(feature = "position")]` でゲートする（モジュール本体・`pub use`
   は無条件公開のまま。`examples/interactive-view-transitions` のように
   `PositionController::new` を直接呼ぶ既存利用者を `default-features =
-  false` で二重に壊さないため）。既定 on のため既定構成の挙動は変わらない
-  一方、REQ-11 の gzip 上限に対する余地確保（#2329 が dist-server 側の
-  feature 集合を最小化する際の分離点）として `position` を off にできる
-  選択肢を用意する。
+  false` で二重に壊さないため）。既定 on のため既定構成（クレート単体の
+  `cargo build`/`wasm-pack test`）の挙動は変わらない一方、REQ-11 の gzip
+  上限に対する余地確保として `position` を off にできる選択肢を用意する。
+  **配布物（`dist-server` 経路）側はこの選択肢を本イシュー内で実際に使う**:
+  `position` 追加分（gzip 後 約 2.6 KB）だけで REQ-11 の 200,000 B 上限を
+  超過することが判明したため、`dist-server/build.rs::run_wasm_build`
+  （および契約テスト `crates/wasm-full/tests/bundle_size.rs`）のネスト
+  `cargo build -p fandhe-frontend-wasm-full` へ `--no-default-features
+  --features <WASM_FULL_DIST_FEATURES>`（`default` から `position` のみを
+  除いた集合）を追加した。クレート自身の `default` は変更しない（`position`
+  は既定 on のまま、§34.4 の browser テストが feature 引数なし＝クレート
+  既定で実行されるため）。feature 集合の網羅的な最小化（#2329 が担う
+  「最小インタラクティブ構成」全体の決定）はスコープ外のまま残し、本対応は
+  本イシューが追加した超過分のみを打ち消す最小限の措置とする。
 - **`style` 属性はもはや完全上書きしない（CSSOM `set_property` による
   個別宣言更新へ移行済み）**: codex-review 指摘（イシュー #2209、P1）を
   受け、`reposition_one` は `set_attribute("style", ...)` による `style`
@@ -2252,6 +2262,13 @@ PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` 
   sync_content_height → reposition_within` の順）を追加。
 - `crates/wasm-full/tests/position_browser.rs`: `wire_headless_component`
   経由の実座標テストを追加（§33.4）。
+- `crates/dist-server/build.rs`: `run_wasm_build` のネスト `cargo build`
+  へ `--no-default-features --features <WASM_FULL_DIST_FEATURES>` を追加
+  （REQ-11 是正、§34.2 参照）。`fandhe-frontend-dist-server` は patch
+  バンプ（0.2.7 → 0.2.8）。
+- `crates/wasm-full/tests/bundle_size.rs`: 同一 feature 集合
+  （`WASM_FULL_DIST_FEATURES`、`build.rs` と同期を維持する独立実装複製）
+  をネストビルドへ追加。
 
 ### 34.4 テスト
 
@@ -2321,10 +2338,14 @@ position_browser` で実測 PASS（既存 21 テスト含め全 21 件 PASS）�
   （0.7.0 固定のため本イシューでは触れない）。
 - `crates/pre-styled-ui/` 側の `--fandhe-arrow-*` 消費・arrow/arrow-tip の
   `data-side` 連動装飾（親 #2208 の sub-issue #2210 が担当）。
-- REQ-11（gzip 200,000 B 上限）: `position` を既定 on にするため、
-  dist-server 経路の `bundle_size.rs` は #2329（dist-server 最小 feature
-  集合の決定）がマージされるまで FAIL のままである（本イシュー単独では
-  解消しない。feature gating は #2329 が分離手段として使うための布石）。
+- REQ-11（gzip 200,000 B 上限）: `dist-server` 経路の `bundle_size.rs` は
+  `position` 追加分の超過（約 2.6 KB）を §34.2 の `--no-default-features
+  --features <WASM_FULL_DIST_FEATURES>` 対応で打ち消し、本イシュー内で
+  PASS（実測 199,307 B、95% 警告閾値超過の warn 付き）へ回復済み。
+  `default` 全体（`position` 以外を含む）の網羅的な最小化・CI feature
+  matrix・`bundle_size.rs` の測定構成そのものの見直しは引き続き #2329 へ
+  引き継ぐ（本対応は #2329 が分離手段として使う布石を、本イシューが
+  追加した超過分にのみ先取り適用したもの）。
 
 ## 35. MAPPING_TABLE / keynav の scope feature gating（イシュー #2327）
 
