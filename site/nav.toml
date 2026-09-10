@@ -1121,6 +1121,28 @@ title = "Sparkline"
 source = "site/themes/sparkline.md"
 path = "/themes/sparkline/"
 
+# Blocks セクション（イシュー #2088 / 設計 docs/design/docs-site-blocks-section.md）。
+# shadcn/ui Blocks 相当の「既存部品を合成した実例」を掲載するセクション。
+# Primitives（粒度: 最小部品）→ Themes（粒度: スタイル済み部品）→ Blocks
+# （粒度: 合成例）という読み手の導線を優先し、Themes の直後・API Reference の
+# 直前へ配置する（crates/docs-site/tests/primitives_nav.rs が固定する
+# 「Primitives は index 3・直後が Themes」を変えないための配置判断でもある）。
+# [[section.group]] は使わずフラットな [[section.page]] のみで構成する
+# （設計文書 §6。1 block = 1 ページのみで階層化する動機がない）。
+[[section]]
+title = "Blocks"
+index_path = "/blocks/"
+
+[[section.page]]
+title = "Blocks 一覧"
+source = "site/blocks.md"
+path = "/blocks/"
+
+[[section.page]]
+title = "login-01"
+source = "site/blocks/login-01.md"
+path = "/blocks/login-01/"
+
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。
 #   サイト非出力は「nav 未登録」だけで構造的に担保する（同文書 §3-3 / §4 A05）。

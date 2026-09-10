@@ -49,6 +49,19 @@
 //! linkcheck と同じく **書き出しより前** に行い、失敗時は `out_dir` を汚さない
 //! （fail-closed の処理順を維持する）。
 //!
+//! # Blocks ページ（[`crate::blocks`]、イシュー #2088）
+//!
+//! `/blocks/<kebab>/` は上記「Rust 生成コンテンツページ」とは独立した第 3 の
+//! 経路である。`component_page::generated_content`/[`Layer`] を経由せず、
+//! ステップ 2（`render_markdown` の直後）で
+//! [`blocks::insert_generated_sections`] を呼び、生成した「Demo」「使用部品」
+//! の 2 節を Markdown 本文の**最初の `h2` の直前**へ挿入する（後方追記では
+//! ない。詳細は [`crate::blocks`] モジュール doc「ページ組み立て方式」節）。
+//! 該当ページには Themes 側の [`showcase::STYLESHEET_REL_PATH`]（合成に使う
+//! 部品自体の見た目）と Blocks 専用 [`blocks::STYLESHEET_REL_PATH`]（Demo
+//! 全幅ラッパ・block 固有レイアウト）の 2 本を配線する。CSS 本体の組み立ては
+//! showcase/admonition と同じく書き出しより前に完了させる（fail-closed）。
+//!
 //! # admonition 構文（[`crate::markdown`]）が使う CSS（イシュー #715）
 //!
 //! `> [!NOTE]` 等の admonition マーカーは [`markdown::render_markdown`] が
@@ -112,6 +125,7 @@ use fandhe_frontend_server::ssg::{self, SsgError};
 use fandhe_frontend_pre_styled_ui::StylesheetError;
 
 use crate::admonition;
+use crate::blocks;
 use crate::component_page::{self, Layer};
 use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
@@ -130,7 +144,8 @@ use crate::skip_nav;
 /// [`site_theme::STYLESHEET_REL_PATH`]/[`skip_nav::STYLESHEET_REL_PATH`]/
 /// [`showcase::STYLESHEET_REL_PATH`]/[`admonition::STYLESHEET_REL_PATH`]/
 /// [`primitive_showcase::STYLESHEET_REL_PATH`]/[`script::SCRIPT_REL_PATH`]/
-/// [`search_index::REL_PATH`]/[`showcase::IMAGE_DEMO_ASSET_REL_PATH`]
+/// [`search_index::REL_PATH`]/[`showcase::IMAGE_DEMO_ASSET_REL_PATH`]/
+/// [`blocks::STYLESHEET_REL_PATH`]（イシュー #2088）
 /// （イシュー #1562）はいずれも `assets/<basename>` の形をしており、
 /// `site/assets/` 直下との名前衝突は basename の一致だけで判定できる。
 const RESERVED_ASSET_NAMES: &[&str] = &[
@@ -142,6 +157,7 @@ const RESERVED_ASSET_NAMES: &[&str] = &[
     "site.js",
     "search-index.json",
     "image-demo.svg",
+    "blocks.css",
 ];
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
@@ -365,6 +381,13 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     // linkcheck 用 href 登録を「実際に使われているときだけ」行う（モジュール
     // doc の admonition 節参照）。
     let mut has_admonition = false;
+    // Blocks ページ（イシュー #2088）を 1 件以上組み込んだか。showcase/
+    // primitive_showcase と同型の判定。Blocks ページは Themes 側の
+    // `pre-styled-ui.css`（合成に使う部品自体の見た目）と Blocks 専用
+    // `blocks.css`（Demo 全幅ラッパ・block 固有レイアウト）の両方を必要と
+    // するため、本フラグが立った場合は `has_showcase_page` も併せて立てる
+    // （`crate::blocks` モジュール doc「CSS の置き場」節参照）。
+    let mut has_blocks_page = false;
     // 検索インデックス（イシュー #957）用に収集するページエントリ。
     // `nav.all_pages()` の宣言順（= サイドバー順）で積まれ、この順序が
     // #958 の検索結果スコア同点時のタイブレークの正となる（設計文書 §3-1）。
@@ -381,8 +404,15 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
                 source: source_err,
             })?;
 
-        let blocks = render_markdown(&markdown_input);
-        let raw_body = div(vec![], blocks);
+        let markdown_blocks = render_markdown(&markdown_input);
+        // Blocks ページ（イシュー #2088）専用の途中挿入。`component_page`
+        // の「後方追記」（下の `generated`/`body_children` 節）とは独立した
+        // 分岐であり、`crate::blocks::Block::path` に一致しないページでは
+        // no-op（`markdown_blocks` をそのまま返す）。`crate::blocks`
+        // モジュール doc「ページ組み立て方式」節参照。
+        let markdown_blocks =
+            blocks::insert_generated_sections(&page.path, &nav.site.base_path, markdown_blocks);
+        let raw_body = div(vec![], markdown_blocks);
         let rewritten_body = linkcheck::rewrite_md_links(
             raw_body,
             &page.source,
@@ -426,6 +456,17 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         }
         if page_has_admonition {
             extra_stylesheets.push(admonition::STYLESHEET_REL_PATH);
+        }
+        // Blocks ページ専用 CSS の配線（イシュー #2088）。`component_page::
+        // generated_content`/`Layer` の判定とは独立に、`crate::blocks` の
+        // レジストリを直接照会する（モジュール doc「役割・呼び出し文脈」節
+        // 参照。`Layer::from_page_path` の全域判定に Blocks ページを
+        // 通さないための構造的な分離）。
+        if blocks::block_for_path(&page.path).is_some() {
+            has_showcase_page = true;
+            has_blocks_page = true;
+            extra_stylesheets.push(showcase::STYLESHEET_REL_PATH);
+            extra_stylesheets.push(blocks::STYLESHEET_REL_PATH);
         }
 
         let mut body_children = vec![rewritten_body];
@@ -493,6 +534,17 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             primitive_showcase::STYLESHEET_REL_PATH,
         ));
         Some(primitive_showcase::stylesheet()?)
+    } else {
+        None
+    };
+    // Blocks 専用 CSS（イシュー #2088）。showcase_sheet/primitive_showcase_sheet
+    // と同型の「該当ページが実在するときだけ書き出し・href 登録する」判定。
+    let blocks_sheet = if has_blocks_page {
+        asset_hrefs.push(layout::asset_href(
+            &nav.site.base_path,
+            blocks::STYLESHEET_REL_PATH,
+        ));
+        Some(blocks::stylesheet()?)
     } else {
         None
     };
@@ -569,6 +621,12 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     if let Some(sheet) = primitive_showcase_sheet {
         generated_assets.push((
             format!("/{}", primitive_showcase::STYLESHEET_REL_PATH),
+            sheet.as_css().to_string(),
+        ));
+    }
+    if let Some(sheet) = blocks_sheet {
+        generated_assets.push((
+            format!("/{}", blocks::STYLESHEET_REL_PATH),
             sheet.as_css().to_string(),
         ));
     }
