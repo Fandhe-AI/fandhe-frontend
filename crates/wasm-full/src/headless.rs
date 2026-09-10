@@ -740,6 +740,14 @@ pub use wiring::{wire_headless_events, wire_headless_events_scoped};
 /// `try_borrow_mut` が失敗する場合（イベントハンドラ内からの再入等）は
 /// 状態変更・`on_update` 呼び出しのいずれも行わず no-op とする
 /// （panic 回避、`.claude/rules/coding-rust.md`）。
+///
+/// DOM 反映（再描画）は上記のとおり呼び出し側の責務のままだが、その
+/// 直後に本関数自身が `crate::content_height::sync_content_height` を
+/// 呼び、collapsible / accordion の content 実測高さを CSS 変数へ同期
+/// する（イシュー #2191。対象は `(data-scope, data-part)` の静的表のみで
+/// 決まる部品非依存の配線であり、`headless.rs` 側に collapsible/
+/// accordion 固有の分岐は持たない）。配線直後（初期表示）にも 1 回同じ
+/// 同期を行う。
 #[cfg(target_arch = "wasm32")]
 pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'static>(
     root: web_sys::Element,
@@ -748,6 +756,11 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
 ) -> Result<(), wasm_bindgen::JsValue> {
     let on_update = std::rc::Rc::new(std::cell::RefCell::new(on_update));
     let wired_root = root.clone();
+
+    // 配線時点の SSR 初期状態（open な content があればその高さ）を
+    // 先に確定させる（イシュー #2191。in-place 再開閉時の遷移始点を
+    // 用意するための先行同期であり、`on_update` を経由しない）。
+    let _ = crate::content_height::sync_content_height(&root);
 
     wire_headless_events(root, move |action_ref: ActionRef| {
         let Ok(mut state) = component.try_borrow_mut() else {
@@ -762,6 +775,11 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
             return;
         }
         (on_update.borrow_mut())(&state, &wired_root);
+        // 呼び出し側の再描画（`on_update`）で content 要素が作り直され
+        // た後の要素に対して実測・書き込みを行う（イシュー #2191。
+        // 順序は「on_update → sync」で固定する、`content_height`
+        // モジュール doc「`wire_headless_component` との統合」節参照）。
+        let _ = crate::content_height::sync_content_height(&wired_root);
     })
 }
 
