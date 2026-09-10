@@ -73,6 +73,7 @@
 
 mod dashboard_01;
 mod login_01;
+mod login_04;
 mod sidebar_03;
 mod sidebar_07;
 mod signup_01;
@@ -165,6 +166,7 @@ pub struct Block {
 /// との三方突合を `crates/docs-site/tests/blocks_nav.rs` が固定する。
 pub const BLOCKS: &[Block] = &[
     login_01::BLOCK,
+    login_04::BLOCK,
     dashboard_01::BLOCK,
     sidebar_07::BLOCK,
     sidebar_03::BLOCK,
@@ -245,6 +247,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_theme(&Theme::default());
     sheet.push_css(LAYOUT_CSS)?;
     sheet.push_css(login_01::LAYOUT_CSS)?;
+    sheet.push_css(login_04::LAYOUT_CSS)?;
     sheet.push_css(dashboard_01::LAYOUT_CSS)?;
     sheet.push_css(sidebar_07::LAYOUT_CSS)?;
     sheet.push_css(sidebar_03::LAYOUT_CSS)?;
