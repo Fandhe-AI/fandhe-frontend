@@ -11,13 +11,14 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 120 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 121 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
 #2070、`sidebar` はイシュー #2073、`message` はイシュー #2106、`bubble`
 はイシュー #2109、`attachment` はイシュー #2112、`marker` はイシュー
-#2115、`questionnaire` はイシュー #2119 で追加）+
+#2115、`questionnaire` はイシュー #2119、`message_scroller` はイシュー
+#2123 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
@@ -83,6 +84,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `attachment`（§4f-8 参照。添付ファイル 1 件。8 パーツ構成、軸なし。data-variant/data-state/data-disabled を AttrEq/Attr 参照するのみ） | [attachment](../../site/themes/attachment.md) |
 | headless ラッパー | `marker`（§4f-9 参照。会話中の注記行。3 パーツ構成、軸なし。data-variant/data-tone を AttrEq 参照するのみ） | [marker](../../site/themes/marker.md) |
 | headless ラッパー | `questionnaire`（§4f-10 参照。多段質問 UI。11 パーツ構成、軸なし。data-state/data-answered/data-skipped/data-invalid/data-disabled/data-complete を AttrEq/Attr 参照するのみ） | [questionnaire](../../site/themes/questionnaire.md) |
+| headless ラッパー | `message_scroller`（§4f-11 参照。会話ログのスクロールコンテナ。6 パーツ構成、軸なし。data-stuck/data-has-new/data-visible/hidden/data-loading/data-disabled を AttrEq/Attr 参照するのみ） | [message-scroller](../../site/themes/message-scroller.md) |
 | headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
@@ -1111,6 +1113,65 @@ anatomy（`root`/`media`/`content`/`name`/`meta`/`progress`/`actions`/
   （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
 - **docs サイト**: [questionnaire](../../site/themes/questionnaire.md)
   （イシュー #2119 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-11. `message_scroller`（会話ログのスクロールコンテナ、イシュー #2123、headless anatomy は #2121、wasm-full 配線は #2122）
+
+`message_scroller` モジュールは
+`fandhe_frontend_headless_ui::message_scroller` の anatomy（`root`/
+`viewport`/`content`/`anchor`/`jump-to-latest`/`load-more` の 6 パーツ）へ、
+高さ確保・ネイティブスクロール・端フェード・浮遊 jump-to-latest ボタン・
+履歴読み込みトリガーの意匠を重ねる薄い委譲層である。
+
+- **公開 API**: 6 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::message` と同型のパターン）。
+  `MessageScrollerRootProps`/`MessageScrollerStuck`（headless からの
+  再エクスポート）のみを選択的に公開する。`stylesheet()` が静的 CSS 全量を
+  返す。
+- **軸を持たない**: `data-stuck`（`bottom`/`free`）・`data-has-new`・
+  `jump_to_latest` の `data-visible`/`hidden`・`load_more` の
+  `data-loading`/`data-disabled` はいずれも headless が固定出力するもの
+  を `StateCondition::AttrEq`/`Attr` で参照するのみで、class ベースの
+  `SlotRecipe::variant` は持たない（`docs/design/
+  pre-styled-ui-data-attr-vocabulary.md` §2.2「役割 B: 参照のみ」、
+  `crate::message` と同型の判断）。
+- **端フェードは既定 on**: `viewport` は `mask-image` による両端フェードを
+  base 宣言として持つ（`crate::scroll_area` の `data-fade` は opt-in だが、
+  本部品は会話ログ専用の新規部品であり既定挙動を変える既存利用者が
+  存在しないため既定 on にした）。`--fandhe-message-scroller-fade-start`/
+  `-end` を `0px` へ上書きすれば片端無効化できる。`root[data-stuck=
+  "bottom"] > viewport` の raw CSS 追記（子結合子）で末尾フェードを
+  `0px` へ上書きし、最下部に張り付いているときは最新メッセージを霞ませ
+  ない。`crate::scroll_area` が持つ `@supports (animation-timeline:
+  scroll())` によるスクロール量連動アニメーションは採用しない（意図的
+  非採用、`src/message_scroller.rs` モジュール doc「端フェードの採否」
+  節参照）。
+- **`hidden` 属性の上書き**: `jump-to-latest` の base 宣言が
+  `display: inline-flex` を持つため、UA スタイルシートの
+  `[hidden] { display: none }` を詳細度で上書きしてしまう。
+  `.state("jump-to-latest", StateCondition::Attr("hidden"), [display:
+  none])` を明示登録して回避する（`crate::command`/`crate::bubble` と
+  同型の論法）。
+- **`root[data-has-new] > jump-to-latest` の raw CSS 追記**:
+  `SlotRecipe` は別 slot の宣言を切り替える規則を組めないため
+  （`crate::message` と同型の制約）、`serialize_rule` による子結合子
+  規則で `data-has-new` 付き `root` 配下の `jump-to-latest` をアクセント
+  色へ強調する。
+- **`load-more` の spinner**: `SlotRecipe::pseudo_element`（イシュー
+  #2201）は状態条件と合成できないため `[data-loading]::before` は DSL で
+  書けない。かわりに `crate::button` と同型で、styled `load_more` が
+  `loading == true` のとき `crate::spinner::spinner_decorative`
+  （`Size::Sm`・`ColorPalette::Neutral`、装飾的・`aria-hidden` のみ）を
+  children 先頭へ埋め込む。
+- **`aria-live`/`aria-busy`/`aria-posinset`/`aria-setsize` を付与しない
+  理由**: headless 判断の継承。通知タイミング・総数の伝達はアプリ固有の
+  判断であり、本モジュールは見た目のみを担う。
+- **`ColorPalette` 軸は持たない**: 本イシューのスコープに含まれない
+  （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
+- **docs サイト**: [message-scroller](../../site/themes/message-scroller.md)
+  （イシュー #2123 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+- **スコープ外**: wasm-full 配線（最下部追従・新着検知・履歴読み込み時の
+  位置維持・`data-*` の実行時更新）は #2122。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

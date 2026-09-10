@@ -26,35 +26,36 @@ codegen-units = 1
 [profile.release.package.fandhe-frontend-wasm-full]
 codegen-units = 1
 
-# イシュー #2299（CI 所要時間短縮）: `cargo test` が使う test プロファイルに
-# 限り、docs-site とその描画チェーン（core / interactive / app / server /
-# headless-ui / pre-styled-ui）を opt-level 1 でビルドする。docs-site の統合
-# テストは実サイト 227 ページのフルビルドを行うため、opt-level 0 では
-# 1 回あたり約 100 秒（CI 実測）かかり、`cargo test --workspace`・`fw gate`
-# の `test` チェックの所要時間を支配していた。ローカル実測では opt-level 1
-# で実行時間が 1/2〜1/2.5 になり、opt-level 3 との差はほぼない（コンパイル
-# 時間の増加が小さい 1 を採る）。
-# 適用範囲は test プロファイルのみ（ただし `cargo test` で当該 6 クレートを
-# 依存として使う workspace 内の全テストバイナリ〔cli / wasm-full の native
-# テスト等〕に及ぶ。他クレートのテストのコンパイル時間が伸びた場合は本設定を
-# 疑うこと）: `cargo build`（dev）・`cargo bench`
-# （bench = release 継承、REQ-10 の rebuild-latency 計測）・release・wasm
-# ターゲット（`.cargo/config.toml`）には波及しない。副作用として、同じ
-# クレートでも `cargo build` と `cargo test` の成果物は別プロファイル設定
-# として区別されるため、ローカルで build / test を交互に実行すると当該
-# クレートが二重にコンパイルされる（初回のみ。以降はそれぞれキャッシュ
-# される）。
-[profile.test.package.fandhe-frontend-docs-site]
+# イシュー #2299（CI 所要時間短縮）/ #2307・#2308（browser-test 回帰是正）:
+# docs-site とその描画チェーン（core / interactive / app / server / headless-ui /
+# pre-styled-ui）を dev プロファイルで opt-level 1 にする。
+# - 目的: docs-site の統合テストは実サイト 227 ページのフルビルドを行うため、
+#   opt-level 0 では 1 回あたり約 100 秒（CI 実測）かかる。opt-level 1 で
+#   実行時間が 1/2〜1/2.5（opt-level 3 との差はほぼなし）。
+# - dev に置く理由: test プロファイルは dev を継承する（package 上書きも
+#   継承される、docs/ci/browser-test-duration-regression-analysis.md §2.6）ので
+#   `cargo test` の短縮効果は dev 側の宣言だけで得られる。逆に test 側にだけ
+#   置くと dev/test のユニットハッシュが乖離し、`wasm-pack test` の
+#   `cargo build --tests`（dev）→ `cargo test`（test）の 2 段呼び出しが
+#   cdylib+rlib クレート（wasm-client / wasm-full / wasm-thin、固定名生成物）
+#   を毎回二重コンパイルする（同 §2.7）。**`[profile.test.*]` 節は置かない**
+#   （`crates/xtask/tests/profile_dev_test_parity.rs` が fail-closed に強制）。
+# - 波及範囲: `cargo build` / `cargo run`（dev）で当該 7 クレートのコンパイル
+#   時間が若干伸びる代わりに docs-site 生成等の実行は速くなる。release /
+#   bench（REQ-10 `rebuild_latency` は `cargo build --release` を計測）には
+#   波及しない。wasm32 ターゲットにも適用されるが、`.cargo/config.toml` の
+#   `-C opt-level=s` が後勝ちでコード生成は不変（REQ-11 不変）。
+[profile.dev.package.fandhe-frontend-docs-site]
 opt-level = 1
-[profile.test.package.fandhe-frontend-core]
+[profile.dev.package.fandhe-frontend-core]
 opt-level = 1
-[profile.test.package.fandhe-frontend-interactive]
+[profile.dev.package.fandhe-frontend-interactive]
 opt-level = 1
-[profile.test.package.fandhe-frontend-app]
+[profile.dev.package.fandhe-frontend-app]
 opt-level = 1
-[profile.test.package.fandhe-frontend-server]
+[profile.dev.package.fandhe-frontend-server]
 opt-level = 1
-[profile.test.package.fandhe-frontend-headless-ui]
+[profile.dev.package.fandhe-frontend-headless-ui]
 opt-level = 1
-[profile.test.package.fandhe-frontend-pre-styled-ui]
+[profile.dev.package.fandhe-frontend-pre-styled-ui]
 opt-level = 1
