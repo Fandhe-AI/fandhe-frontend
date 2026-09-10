@@ -3060,7 +3060,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方の実体変更を統合した結果として main の到達値 0.180.0 をさらに上回る
 # 0.180.1 へ patch バンプする（本ブランチの変更自体が patch 相当のため、統合後も
 # マイナーバンプへは切り上げない）。
-version = "0.180.1"
+#
+# イシュー #2202: splitter resize-trigger の `::after` ヒットエリア拡張を
+# 追加した（CSS 出力への純追加・公開 API 形状は不変のため patch）。
+# origin/main 到達値 0.180.1 と同一のため衝突として +1 する
+# （semver-same-version-is-conflict 運用）。
+version = "0.180.2"
 
 
 
