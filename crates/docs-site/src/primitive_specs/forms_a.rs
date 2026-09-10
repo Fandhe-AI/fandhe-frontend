@@ -1622,9 +1622,60 @@ fn ex_field_custom_css() -> Node {
     )
 }
 
+/// [`FIELD`] の Examples 節「group + separator」レンダラ（イシュー
+/// #2185）。純追加した `group`/`separator`（内部パーツ `separator-line`/
+/// `separator-content`）を最小構成で示す。
+fn ex_field_group_separator() -> Node {
+    let a = FieldProps {
+        id: "f4-card-number",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let b = FieldProps {
+        id: "f4-expiry",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let markup = field::group(
+        vec![],
+        vec![
+            field::root(
+                &a,
+                vec![],
+                vec![
+                    field::label(&a, vec![], vec![text("Card number")]),
+                    field::input(&a, vec![("type", "text"), ("value", "")]),
+                ],
+            ),
+            field::separator(vec![], vec![]),
+            field::separator(vec![], vec![text("Or continue with")]),
+            field::root(
+                &b,
+                vec![],
+                vec![
+                    field::label(&b, vec![], vec![text("Expiry date")]),
+                    field::input(&b, vec![("type", "text"), ("value", "")]),
+                ],
+            ),
+        ],
+    );
+    wrap_example(
+        "複数の Field を group で縦積みし、線のみの separator とテキスト付き separator を挟む最小例です（イシュー #2185）。",
+        vec![markup],
+    )
+}
+
 const FIELD: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/label/input/textarea/select/helper_text/error_text/required_indicator の 8 パーツ anatomy を持ち、1 個のコントロールへ label・helper_text・error_text を一貫して結び付ける（ark-ui Field と一致。field.rs:1-10, 54）。",
+        "root/label/input/textarea/select/helper_text/error_text/required_indicator の 8 パーツ anatomy を持ち、1 個のコントロールへ label・helper_text・error_text を一貫して結び付ける（ark-ui Field と一致。field.rs:1-10, 54）。純追加のイシュー #2185 で group/content/title/separator（内部パーツ separator-line/separator-content）の 6 パーツを拡張した（shadcn/ui FieldGroup/FieldContent/FieldTitle/FieldSeparator 相当）。",
         "disabled/invalid/required/readonly の 4 種の data-* 存在属性を 8 パーツすべてへ一貫して付与する（zag.js Field の dataAttrs 規約と一致、field.rs::state_data_attrs）。data-state/data-orientation/data-motion 等の局所操作状態・レイアウト計測の関心は出力しない（chakra-ui の orientation バリアントは styled 層の関心として Themes 側の検討事項、`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。Radix Form.Field の data-valid も Form 自体の不採用（同 §3.25 規則 1）に伴い導入しない。",
         "aria-describedby は invalid のとき error id を先頭に、has_helper_text のとき helper id を続けて空白区切りで決定的に合成する（field.rs:249-258, 305-311）。",
         "invalid のとき input/textarea/select へ aria-invalid=\"true\" を付与し、error_text を表示状態にする（field.rs:118-119）。",
@@ -1656,6 +1707,18 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "同一の aria-describedby/aria-invalid 合成則に従う 3 種のコントロールパーツ（field.rs:311-374）。",
         },
+        ArgRow {
+            name: "group(attrs, children) / separator(attrs, content)",
+            kind: "Vec<(&str, &str)>, ..",
+            default: "",
+            description: "イシュー #2185 で純追加。group は FieldProps を取らず data-* を出力しない。separator は content が空なら線のみ、非空なら separator-content を追加描画する。",
+        },
+        ArgRow {
+            name: "content(props, attrs, children) / title(props, attrs, children)",
+            kind: "&FieldProps, ..",
+            default: "",
+            description: "イシュー #2185 で純追加。title は for/id を自動導出しないため、呼び出し側が attrs で id を渡しコントロールへ aria-labelledby で結び付ける。",
+        },
     ],
     examples: &[
         ExampleEntry {
@@ -1667,6 +1730,11 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             title: "自前 CSS の最小例",
             description: "data-scope / data-part / data-invalid / data-disabled / data-required 属性セレクタで見た目を組み立てる最小例です。",
             render: ex_field_custom_css,
+        },
+        ExampleEntry {
+            title: "group + separator",
+            description: "複数の Field を group で縦積みし、線のみ/テキスト付きの separator を挟む最小例です（イシュー #2185）。",
+            render: ex_field_group_separator,
         },
     ],
     keyboard: &[KeyRow {
@@ -1693,6 +1761,14 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "label[for] / control id",
             description: "label の for と input/textarea/select の id は同一 props から決定的に対応する（ids 上書き時も一貫して伝播する、field.rs::control_id/label_id）。",
+        },
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "group パーツへ固定付与する（イシュー #2185）。",
+        },
+        AriaRow {
+            attribute: "role=\"separator\" / aria-orientation=\"horizontal\"",
+            description: "separator-line（hr）へ固定付与する。テキストは presentational な子孫にならないよう別要素（separator-content）へ分離する（イシュー #2185）。",
         },
     ],
     demo: None,
