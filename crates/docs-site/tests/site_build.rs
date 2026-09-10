@@ -215,10 +215,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // （Primitives）が加わり、217 → 218、イシュー #2115 で Marker の
     // Themes ページが加わり、218 → 219 になった。イシュー #2088 で
     // Blocks セクション（索引 1 + login-01 1 = 2 ページ）が新設され、
-    // 219 → 221 になった。
+    // 219 → 221 になった。イシュー #2089 で dashboard-01 が加わり、
+    // 221 → 222 になった。
     assert_eq!(
         report.written.len(),
-        221,
+        222,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
