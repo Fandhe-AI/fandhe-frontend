@@ -65,6 +65,14 @@
 //! `data-align` を反映する。`events`/`overlay` と同じ 2 層構成を踏襲し、
 //! scroll/resize イベント契機の離散的な再計算（`autoUpdate` 相当の連続監視は
 //! 非採用、`docs/design/anchor-positioning-design.md` §4.3）を提供する。
+//! [`headless::wire_headless_component`] は配線時・dispatch 成功後の 2 箇所で
+//! `position::reposition_within` を自動的に呼び、thread_local 単一の
+//! `PositionController` を遅延生成する（イシュー #2209、親 #2208。
+//! `docs/design/wasm-full-architecture.md` §34）ため、利用者が
+//! `PositionController` を明示的に組み立てなくても popover/tooltip/menu の
+//! 実座標が反映される。この自動呼び出しは feature `"position"`（既定 on）
+//! でゲートする。`position` モジュール自体・公開 API はゲート対象外
+//! （下記「配線群別 feature」対応表参照）。
 //!
 //! [`tooltip`] モジュール（イシュー #587、親 #584）は Tooltip の
 //! `openDelay`/`closeDelay`/`interactive`（表示・非表示遅延タイマーと
@@ -146,6 +154,180 @@
 //! 3 点を `core/tests/unsafe_boundary.rs`（`DENY_UNSAFE_FFI_MEMBERS`）が
 //! CI（`.github/workflows/ci.yml` の `forbid-unsafe` ジョブ）で機械的に強制し、
 //! アプリロジック層への forbid(unsafe_code) 相当の CI 強制を実現する（#155）。
+//!
+//! # 配線群別 feature（イシュー #2326）
+//!
+//! [`Runtime::mount`]/[`Runtime::hydrate`] が呼ぶ配線（`wire_*`）は、配線
+//! 1 件 = feature 1 件（既定 on）へ分割されている。目的は REQ-11 gzip 上限
+//! （200,000 B）に対する余地確保
+//! （`docs/design/wasm-full-feature-gating-evaluation.md` §6 (ii)）であり、
+//! 既定はすべて on のため既定構成の挙動・`bundle_size` 実測値は本変更で
+//! 変わらない。
+//!
+//! 対応表（`mount`/`hydrate` の呼び出し順 = `Cargo.toml` の `default` 配列の順）:
+//!
+//! | 配線 | feature |
+//! |---|---|
+//! | [`events::wire_events`] | ゲートしない（`data-action` 委譲、全構成必須） |
+//! | [`keynav::wire_readonly_click_guard`] | ゲートしない（readonly RadioGroup の click capture 保護、イシュー #2326 codex-review 是正） |
+//! | `Runtime::wire_headless` | ゲートしない（`headless::MAPPING_TABLE` 全行のクリック dispatch、イシュー #2326 Bugbot 是正） |
+//! | [`keynav::wire_keynav`] | `keynav` |
+//! | [`focus_visible::wire_focus_visible`] | `focus-visible` |
+//! | `Runtime::wire_avatar` | `avatar` |
+//! | `Runtime::wire_clipboard` | `clipboard` |
+//! | `Runtime::wire_timer` | `timer` |
+//! | `Runtime::wire_angle_slider` | `angle-slider` |
+//! | `Runtime::wire_splitter` | `splitter` |
+//! | `Runtime::wire_signature_pad` | `signature-pad` |
+//! | `Runtime::wire_number_input` | `number-input` |
+//! | `Runtime::wire_command` | `command` |
+//! | `Runtime::wire_sidebar` | `sidebar` |
+//! | `Runtime::wire_chart` | `chart` |
+//! | `Runtime::wire_chart_range` | `chart-range` |
+//! | `Runtime::wire_questionnaire` | `questionnaire` |
+//!
+//! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
+//! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
+//! gating 対象外（feature を持たない）。ただし [`position`] のみ例外があり、
+//! [`headless::wire_headless_component`] 内の自動 positioning 呼び出し
+//! （`ensure_global_controller`・`reposition_within` 2 箇所）は feature
+//! `"position"`（既定 on）でゲートする（イシュー #2209、親 #2208。
+//! `docs/design/wasm-full-architecture.md` §34.2）。`Runtime::mount`/
+//! `hydrate` の呼び出しではない（`wire_headless_component` は上記対応表の
+//! `Runtime::wire_headless` からゲートなしで呼ばれる）ため本対応表には
+//! 含めないが、`position` モジュール自体・`pub use` は引き続きゲート対象外
+//! のまま、この自動呼び出しのみを off にできる。
+//!
+//! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
+//!
+//! `default-features = false` を使う利用者は上記 14 配線を失う
+//! （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の (ii)
+//! を採用）。従来どおりの挙動を維持するには `features = [
+//! "wasm-bindgen-exports", "keynav", "focus-visible", "avatar", "clipboard",
+//! "timer", "angle-slider", "splitter", "signature-pad", "number-input",
+//! "command", "sidebar", "chart", "chart-range", "questionnaire"]`
+//! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
+//! 明示すること。上記 14 件に加え、[`headless::wire_headless_component`] の
+//! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
+//! こと（`position` はこの 14 配線とは別枠の feature であり、既定 15 件目
+//! として `Cargo.toml` の `default` 配列に列挙されている）。
+//!
+//! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
+//!
+//! [`headless_signature_pad::wire_signature_pad_component`] は本イシュー
+//! （#2326）以前は SignaturePad のポインタ座標収集配線と ClearTrigger の
+//! クリック配線の両方を単独で組み込んでいたが、本変更で ClearTrigger
+//! クリック配線を [`Self::wire_headless`]（`headless::wire_headless_component`
+//! 経由、`default-features = false` でも feature ゲートされない常時配線）
+//! へ分離した。`Runtime::mount`/`Runtime::hydrate` を使う利用者は
+//! `Self::wire_headless` が自動的に呼ばれるため挙動は変わらないが、
+//! `Runtime` を経由せず
+//! [`headless_signature_pad::wire_signature_pad_component`] を直接呼んで
+//! いる利用者（自前のマウント処理を組み立てているアプリ）は、既定 feature
+//! 構成であっても ClearTrigger のクリック配線を失う。これは上記の
+//! `default-features = false` 節（14 配線を失う contract）とは別の変更で
+//! あり、そちらの feature 列挙を明示しても救済されない。
+//!
+//! 従来どおり ClearTrigger のクリックを配線するには、
+//! `wire_signature_pad_component` の呼び出しに加えて
+//! [`headless::wire_headless_component`] を同じ `root`/`component` へ
+//! 明示的に呼ぶこと（`Self::wire_headless` の実装と同型の呼び出しで足りる。
+//! `on_update` は SignaturePad 側と同じ束縛点更新ロジックを渡してよい）。
+//!
+//! ## `keynav` off 時の注意
+//!
+//! readonly RadioGroup の click capture 保護（イシュー #1616）は
+//! [`keynav::wire_readonly_click_guard`] へ分離済みで、`keynav` の
+//! 有効/無効に関わらず常時登録される（イシュー #2326 codex-review P1
+//! 是正、`docs/design/wasm-full-feature-gating-evaluation.md` §11
+//! 条件 4）。`keynav` を off にした場合に失われるのはキーボード操作
+//! （Arrow/Home/End/typeahead 等）のみである。
+//!
+//! ## 新規配線を追加する場合の規約
+//!
+//! 新しい `wire_*` を `mount`/`hydrate` へ追加するときは次の手順に従う
+//! （`Cargo.toml` の `[features]` 直前コメントにも同内容を記載）:
+//!
+//! 1. `Cargo.toml` の `[features]` へ同名 feature（`= []`）を追加し
+//!    `default` へ列挙する。
+//! 2. `mount`/`hydrate` 双方の呼び出し文と対応する private `fn wire_*`
+//!    定義（存在する場合）へ `#[cfg(feature = "...")]` を付ける。
+//! 3. 本節の対応表と `Cargo.toml` のコメントを更新する。
+//! 4. `--no-default-features --features wasm-bindgen-exports` / 既定 /
+//!    `--all-features` の 3 構成で `cargo check --target
+//!    wasm32-unknown-unknown` と `cargo clippy --all-targets` を確認する。
+//!
+//! 呼び出し列の順序・表の順序・`default` 配列の順序を揃えること。
+//!
+//! # scope feature（イシュー #2327）
+//!
+//! 上記の配線群別 feature（`wire_*` 呼び出し単位）とは独立の第 2 軸
+//! として、[`headless::MAPPING_TABLE`]（18 scope・32 行）の各行と
+//! [`keynav::wire_keynav`] 内部の `match scope` 分岐（13 arm）を、
+//! 部品（scope）単位の feature 16 件（既定 on）で cfg ゲートしている。
+//! 配線群別 feature は「その配線を呼ぶか否か」を切り替えるのに対し、
+//! scope feature は「[`keynav::wire_keynav`] 自体は呼ぶが、特定 scope の
+//! クリック dispatch・キーボード操作だけを個別に外せる」ための粒度
+//! である。両軸は独立: 「クリックだけ使いキーボード操作は不要」=
+//! 当該 scope feature のみ、「キーボード操作も使う」= `keynav` +
+//! 当該 scope feature。
+//!
+//! 対応表（feature 名 = MAPPING_TABLE の `scope` 文字列。keynav の arm
+//! リテラルが scope 文字列と異なる場合のみ併記する）:
+//!
+//! | feature | MAPPING_TABLE 行数 | keynav の match arm |
+//! |---|---|---|
+//! | `accordion` | 1 | `"accordion"` |
+//! | `calendar` | 3 | `"calendar"` |
+//! | `collapsible` | 1 | なし |
+//! | `combobox` | 3 | `"combobox"` |
+//! | `dialog` | 2 | なし |
+//! | `listbox` | 0（keynav 専用） | `"listbox"` |
+//! | `menu` | 4 | `"menu"` |
+//! | `menubar` | 3 | `"menubar"` |
+//! | `navigation-menu` | 1 | `"navigation-menu-trigger"`・`"navigation-menu-link"` |
+//! | `popover` | 2 | なし |
+//! | `radio-group` | 1 | `"radio"`・`change` リスナー（[`keynav`] の `handle_radio_change`） |
+//! | `select` | 3 | `"select"` |
+//! | `tabs` | 1 | `"tabs"`・bubble click の `handle_trigger_click` |
+//! | `toggle-group` | 1 | `"toggle-group"` |
+//! | `tooltip` | 1 | なし |
+//! | `tree-view` | 2 | `"tree-view"`・`initialize_tree_roving_tabindex`・capture/bubble の tree 復元 |
+//!
+//! （既存の配線群別 feature である `sidebar`・`signature-pad` も、
+//! それぞれの MAPPING_TABLE 行〔2 行／1 行〕を同名 feature で追加ゲート
+//! する。新設 16 件との重複回避のため上表には含めない。）
+//!
+//! `tooltip`/`select`/`menu` 等の feature 名は MAPPING_TABLE 行・keynav
+//! 分岐のみを gate し、[`tooltip`]/[`headless_select`]/[`overlay`]/
+//! [`position`]/[`focus_trap`] モジュール（`Runtime` を経由しないアプリ
+//! 直接利用 API）は引き続き gating 対象外である（上記配線群別 feature の
+//! 節と同じ境界）。
+//!
+//! readonly RadioGroup の click capture 保護（[`keynav::wire_readonly_click_guard`]）
+//! はいずれの scope feature にも依存しない常時配線のまま（イシュー #2333
+//! で `keynav::wire_keynav` から分離済み、`radio-group` を off にしても
+//! 保護は失われない。`crates/wasm-full/tests/keynav_browser.rs` の
+//! `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`
+//! が実測で固定する）。
+//!
+//! ## 破壊的変更（BREAKING CHANGE、0.20.0 で minor バンプ）
+//!
+//! `default-features = false` を使う利用者は、上記 16 feature が gate
+//! する MAPPING_TABLE 行・keynav 分岐を失う。従来どおりの挙動を維持
+//! するには、配線群別 14 feature に加えて上表の 16 feature（＋既存の
+//! `sidebar`・`signature-pad`）をすべて明示すること。
+//!
+//! ## 新規 MAPPING_TABLE 行・keynav match arm を追加する場合の規約
+//!
+//! `Cargo.toml` の `[features]` 直前コメントの規約 (a')〜(d') と同内容:
+//! 対象 scope の feature が既存であればそれを、無ければ同名 feature を
+//! 新設して `default` へ列挙し（(a')）、`headless::MAPPING_TABLE` の行・
+//! `keynav::wire_keynav` の arm へ `#[cfg(feature = "...")]` を付け
+//! （(b')）、本節・`Cargo.toml` のコメント・
+//! `docs/design/wasm-full-architecture.md` §12/§33 を更新し（(c')）、
+//! `crates/wasm-full/tests/feature_gating_contract.rs` が新しい対応を
+//! 機械検知することを確認する（(d')）。
 
 #![deny(unsafe_code)]
 
@@ -972,6 +1154,10 @@ where
     /// `keyed_list_cache` を `Self::wire` と共有し、dispatch 後の束縛点更新経路
     /// （`Self::apply_update_for_dirty`）へ合流する。
     ///
+    /// `events::wire_events` を除く各配線は同名 feature（既定 on）でゲートされ、
+    /// クレートドキュメント「配線群別 feature（イシュー #2326）」節の対応表に
+    /// 従う。
+    ///
     /// # Errors
     ///
     /// `root_id` に対応する要素が存在しない場合、またはイベント配線
@@ -1024,49 +1210,79 @@ where
             keyed_list_cache.clone(),
         );
         events::wire_events(root.clone(), on_action)?;
+        // readonly RadioGroup の click capture 保護（イシュー #1616）は
+        // `keynav` feature の有効/無効に関わらず常時登録する（イシュー
+        // #2326 codex-review P1 是正、`keynav.rs::wire_readonly_click_guard`
+        // doc・`docs/design/wasm-full-feature-gating-evaluation.md` §11
+        // 条件 4 参照）。
+        keynav::wire_readonly_click_guard(root.clone())?;
+        // headless-ui 部品（Dialog/Collapsible/Popover/Tooltip/Menu・
+        // SignaturePad ClearTrigger 等）のクリック dispatch は
+        // `signature-pad` 等の個別 feature に結合させず常時登録する
+        // （イシュー #2326 Bugbot 是正、`Self::wire_headless` doc 参照）。
+        Self::wire_headless(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
+        #[cfg(feature = "keynav")]
         keynav::wire_keynav(root.clone())?;
+        #[cfg(feature = "focus-visible")]
         focus_visible::wire_focus_visible(root.clone())?;
+        #[cfg(feature = "avatar")]
         Self::wire_avatar(component.clone(), root.clone())?;
+        #[cfg(feature = "clipboard")]
         Self::wire_clipboard(component.clone(), root.clone())?;
+        #[cfg(feature = "timer")]
         Self::wire_timer(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "angle-slider")]
         Self::wire_angle_slider(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "splitter")]
         Self::wire_splitter(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "signature-pad")]
         Self::wire_signature_pad(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "number-input")]
         Self::wire_number_input(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "command")]
         Self::wire_command(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "sidebar")]
         Self::wire_sidebar(root.clone())?;
+        #[cfg(feature = "chart")]
         Self::wire_chart(root.clone())?;
+        #[cfg(feature = "chart-range")]
         Self::wire_chart_range(root.clone())?;
+        #[cfg(feature = "questionnaire")]
         Self::wire_questionnaire(
             component.clone(),
             root.clone(),
@@ -1092,6 +1308,10 @@ where
     /// （同書第 4 節・判断 5。改ざんされうるクライアント入力を信頼しない、
     /// panic しない不変条件）。成功・失敗いずれの経路でもイベント配線は
     /// [`Self::wire`]・[`Self::wire_avatar`] 経由で 1 回のみ行う。
+    ///
+    /// `events::wire_events` を除く各配線は `mount` と同じく同名 feature
+    /// （既定 on）でゲートされ、クレートドキュメント「配線群別 feature
+    /// （イシュー #2326）」節の対応表に従う。
     ///
     /// # Errors
     ///
@@ -1154,49 +1374,79 @@ where
             keyed_list_cache.clone(),
         );
         events::wire_events(root.clone(), on_action)?;
+        // readonly RadioGroup の click capture 保護（イシュー #1616）は
+        // `keynav` feature の有効/無効に関わらず常時登録する（イシュー
+        // #2326 codex-review P1 是正、`keynav.rs::wire_readonly_click_guard`
+        // doc・`docs/design/wasm-full-feature-gating-evaluation.md` §11
+        // 条件 4 参照）。
+        keynav::wire_readonly_click_guard(root.clone())?;
+        // headless-ui 部品（Dialog/Collapsible/Popover/Tooltip/Menu・
+        // SignaturePad ClearTrigger 等）のクリック dispatch は
+        // `signature-pad` 等の個別 feature に結合させず常時登録する
+        // （イシュー #2326 Bugbot 是正、`Self::wire_headless` doc 参照）。
+        Self::wire_headless(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
+        #[cfg(feature = "keynav")]
         keynav::wire_keynav(root.clone())?;
+        #[cfg(feature = "focus-visible")]
         focus_visible::wire_focus_visible(root.clone())?;
+        #[cfg(feature = "avatar")]
         Self::wire_avatar(component.clone(), root.clone())?;
+        #[cfg(feature = "clipboard")]
         Self::wire_clipboard(component.clone(), root.clone())?;
+        #[cfg(feature = "timer")]
         Self::wire_timer(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "angle-slider")]
         Self::wire_angle_slider(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "splitter")]
         Self::wire_splitter(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "signature-pad")]
         Self::wire_signature_pad(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "number-input")]
         Self::wire_number_input(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "command")]
         Self::wire_command(
             component.clone(),
             root.clone(),
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "sidebar")]
         Self::wire_sidebar(root.clone())?;
+        #[cfg(feature = "chart")]
         Self::wire_chart(root.clone())?;
+        #[cfg(feature = "chart-range")]
         Self::wire_chart_range(root.clone())?;
+        #[cfg(feature = "questionnaire")]
         Self::wire_questionnaire(
             component.clone(),
             root.clone(),
@@ -1239,6 +1489,7 @@ where
     ///
     /// [`headless_avatar::wire_avatar_events`]（`add_event_listener_with_callback_and_bool`）
     /// の失敗を伝播する。
+    #[cfg(feature = "avatar")]
     fn wire_avatar(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1286,6 +1537,7 @@ where
     ///
     /// [`headless_clipboard::wire_clipboard_events`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "clipboard")]
     fn wire_clipboard(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1371,6 +1623,7 @@ where
     ///
     /// [`headless_timer::wire_timer_events`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "timer")]
     fn wire_timer(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1517,6 +1770,7 @@ where
     ///
     /// [`angle_slider::wire_angle_slider_events`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "angle-slider")]
     fn wire_angle_slider(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1599,6 +1853,7 @@ where
     ///
     /// [`splitter::wire_splitter_events`]（`add_event_listener_with_callback`）
     /// の失敗を伝播する。
+    #[cfg(feature = "splitter")]
     fn wire_splitter(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1615,12 +1870,60 @@ where
         )
     }
 
+    /// `crate::headless::MAPPING_TABLE` の全行（Dialog/Collapsible/
+    /// Popover/Tooltip/Menu・SignaturePad ClearTrigger 等、headless-ui
+    /// 部品のクリック dispatch 全般）を [`headless::wire_headless_component`]
+    /// 経由で `root` へ一括配線する（イシュー #2326 codex-review/Bugbot
+    /// 是正）。
+    ///
+    /// 以前は `signature-pad` feature の `Self::wire_signature_pad` が
+    /// `wire_headless_component` を呼ぶ唯一の経路だったため、
+    /// `signature-pad` を無効化すると SignaturePad と無関係な他の全
+    /// headless-ui 部品のクリック配線まで失われる意図しない結合があった
+    /// （Cursor Bugbot 指摘）。本メソッドは `events::wire_events` と同じく
+    /// どの配線群別 feature にもゲートされない（`root` に `MAPPING_TABLE`
+    /// 該当パーツが存在しなければ dispatch 側が scope/part 不一致で
+    /// 早期 return する fail-closed 設計のため、該当部品を使わないアプリ
+    /// への副作用はない）。`Self::mount`/`Self::hydrate` 双方から
+    /// `events::wire_events`/`keynav::wire_readonly_click_guard` の直後に
+    /// 1 回だけ呼ばれる。
+    ///
+    /// # Errors
+    ///
+    /// [`headless::wire_headless_component`]（`add_event_listener_with_callback`）
+    /// の失敗を伝播する。
+    fn wire_headless(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        headless::wire_headless_component(
+            root,
+            component,
+            move |state: &C, updated_root: &web_sys::Element| {
+                // `Self::wire_signature_pad` と同じく `Self::apply_dirty_if_any`
+                // （`Self::wire` の束縛点更新経路）へ委譲する（イシュー
+                // #1120/#1959 の共通化方針を継承）。
+                Self::apply_dirty_if_any(state, updated_root, &binding_table, &keyed_list_cache);
+            },
+        )
+    }
+
     /// SignaturePad（`fandhe-frontend-headless-ui` `signature_pad` モジュール）
-    /// のポインタ座標収集（描画）・ClearTrigger クリック配線を
+    /// のポインタ座標収集（描画）配線を
     /// [`headless_signature_pad::wire_signature_pad_component`] 経由で
     /// `root` へ配線する（イシュー #843、Bugbot 指摘「Runtime omits
     /// signature pad wiring」の是正）。`Self::mount`/`Self::hydrate` の
     /// 双方から `Self::wire_angle_slider` の直後に 1 回だけ呼ばれる。
+    /// ClearTrigger クリック配線は `signature-pad` feature 無効化時にも
+    /// 他 headless-ui 部品のクリック配線を巻き込まないよう
+    /// `Self::wire_headless`（ゲートしない常時配線）へ分離済み
+    /// （イシュー #2326 codex-review/Bugbot 是正）。
     ///
     /// `wire_signature_pad_component` は dispatch 成功後の DOM 反映を
     /// `on_update` コールバックとして呼び出し側に委ねる設計
@@ -1644,15 +1947,16 @@ where
     ///
     /// `root` 配下に SignaturePad の描画領域（Control / Segment /
     /// SegmentPath、`headless_signature_pad::is_drawable_part` が受理する
-    /// 3 パーツ）/ ClearTrigger パーツが存在しない場合、
-    /// `wire_signature_pad_component` 内のポインタ/クリック判定が
-    /// scope/part 不一致で早期 return するため、SignaturePad を使わない
-    /// アプリへの影響はない。
+    /// 3 パーツ）が存在しない場合、`wire_signature_pad_component` 内の
+    /// ポインタ判定が scope/part 不一致で早期 return するため、
+    /// SignaturePad を使わないアプリへの影響はない（ClearTrigger クリック
+    /// は `Self::wire_headless` 側の同型 fail-closed 判定に委ねる）。
     ///
     /// # Errors
     ///
     /// [`headless_signature_pad::wire_signature_pad_component`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "signature-pad")]
     fn wire_signature_pad(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1710,6 +2014,7 @@ where
     ///
     /// [`number_input::wire_number_input_component`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "number-input")]
     fn wire_number_input(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1752,6 +2057,7 @@ where
     ///
     /// [`command::wire_command_component`]（`add_event_listener_with_callback`）
     /// の失敗を伝播する。
+    #[cfg(feature = "command")]
     fn wire_command(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -1840,6 +2146,7 @@ where
     ///
     /// [`sidebar::wire_sidebar_events`]（`add_event_listener_with_callback`）
     /// の失敗を伝播する。
+    #[cfg(feature = "sidebar")]
     fn wire_sidebar(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         sidebar::wire_sidebar_events(root)
     }
@@ -1856,6 +2163,7 @@ where
     ///
     /// [`chart::wire_chart_events`]（`add_event_listener_with_callback`）の
     /// 失敗を伝播する。
+    #[cfg(feature = "chart")]
     fn wire_chart(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         chart::wire_chart_events(root)
     }
@@ -1873,6 +2181,7 @@ where
     /// [`chart_range::wiring::wire_chart_range_events`]
     /// （`add_event_listener_with_callback`/`MutationObserver::new`）の
     /// 失敗を伝播する。
+    #[cfg(feature = "chart-range")]
     fn wire_chart_range(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         chart_range::wiring::wire_chart_range_events(root)
     }
@@ -1918,6 +2227,7 @@ where
     ///
     /// [`questionnaire::wire_questionnaire_events`]
     /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    #[cfg(feature = "questionnaire")]
     fn wire_questionnaire(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,

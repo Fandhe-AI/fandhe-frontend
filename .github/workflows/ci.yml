@@ -1969,6 +1969,29 @@ jobs:
         # wasm-client/wasm-thin の tests/ がコンパイルされずギャップが残るため。
         run: cargo clippy -p fandhe-frontend-wasm-full -p fandhe-frontend-wasm-client -p fandhe-frontend-wasm-thin --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
+      - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: tabs only, issue #2327)"
+        # イシュー #2327 レビュー是正: `keynav.rs::wiring` の個別関数・
+        # フィールドへ付与した `#[cfg_attr(not(any(feature = "...")), allow(dead_code))]`
+        # は、対象 feature の組み合わせを誤ると特定の部分選択（全 on/全 off の
+        # 両極端以外）でのみ dead_code error になる（全 on/全 off は上記
+        # `--all-targets` ステップと `default`/`--no-default-features` 系の
+        # 既存ジョブがカバーするため、ここでは「一部の scope feature だけを
+        # 有効にする」実利用パターンを狙って再現する）。`--locked` は
+        # 既存ステップと同じくワークスペース Cargo.lock を尊重する。
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,tabs --target wasm32-unknown-unknown --locked -- -D warnings
+
+      - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: menu+select, issue #2327)"
+        # 上記と同じ動機。menu/select は `ScopeSelectors`/`TypeaheadState` 等の
+        # 共有ヘルパーを介した複数 scope 共有パターンの代表例（レビューが
+        # 実際に FAIL を報告した組み合わせ）として選ぶ。
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,menu,select --target wasm32-unknown-unknown --locked -- -D warnings
+
+      - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: listbox+tree-view+calendar, issue #2327)"
+        # 3 つ目の組み合わせ。TypeaheadState を共有する listbox/tree-view と
+        # 独立系統の calendar を混在させ、単一 feature 検証だけでは拾えない
+        # 組み合わせ由来の dead_code 回帰を追加でカバーする。
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,listbox,tree-view,calendar --target wasm32-unknown-unknown --locked -- -D warnings
+
   # PR #1301（`runs-on` の ubuntu-latest 単一化）: `fw new` の非 Unix
   # （`#[cfg(not(unix))]`）分岐を実機検証していた Windows ワークフロー
   # （fw-new-windows-verify.yml）の削除に伴う代替検証。Linux ホストでは
@@ -2393,8 +2416,16 @@ jobs:
     # ホステッドランナー移行（トラッキング #1220、実装 #1229）。
     runs-on: ubuntu-latest
     # ホステッドランナーではジョブごとに xtask を毎回コールドビルドする分の
-    # 余裕を見込み延長する（イシュー #1229。ネットワーク照会なしの設計は不変）。
+    # 余裕を見込み延長する（イシュー #1229）。`check-dep-versions` 自体は
+    # ネットワーク照会なしの設計のまま不変だが、本ジョブはイシュー #2325 で
+    # `check-ruleset-sync`（GitHub API への読み取り専用照会）も担うように
+    # なったため、その分の余裕も含める。
     timeout-minutes: 15
+    # `check-ruleset-sync` が GitHub API のレート制限（匿名 60 req/h、
+    # ホステッドランナーは IP 共有のため到達しやすい）を避けるために読む。
+    # 値はステップの env にのみ注入し、ログへは一切出力しない
+    # （security.md 秘密情報の露出防止）。`permissions: contents: read` の
+    # 既定 GITHUB_TOKEN で足り、権限追加は不要（読み取り専用 API のため）。
     steps:
       - name: Checkout
         # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。docs/spec サブ
@@ -2435,18 +2466,84 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ruleset `main-protection` の必須チェック集約先（イシューなし・運用変更）。
-  # 本ワークフローの全ジョブを needs に列挙し、ruleset 側は本ジョブ
-  # （ci-complete）のみを必須チェックとして参照する。これによりジョブの
-  # 追加・改名時に ruleset の required_status_checks を追随更新する必要が
-  # なくなる。**ジョブ追加時は needs への追加が必要**（追加を忘れると当該
-  # ジョブの失敗が必須チェックに反映されないため、レビューで必ず確認する）。
+      - name: Run xtask check-ruleset-sync
+        # イシュー #2325: ruleset `main-protection` の live
+        # required_status_checks と .github/required-status-checks.json
+        # （正のマニフェスト）が一致しているかを検知する。GITHUB_TOKEN は
+        # このステップの env にのみ注入し、`xtask check-ruleset-sync` の
+        # curl 呼び出しへ Authorization ヘッダとしてのみ渡す（stdout・
+        # ログには一切出力されない、check_ruleset_sync::fetch_branch_rules
+        # 参照）。既定の GITHUB_TOKEN（contents: read）で十分（読み取り専用
+        # の rules/branches エンドポイントに書き込み権限は不要）。
+        #
+        # `check-version-bump`/`version-bump-guard` ジョブと同型の判定
+        # パイプライン（`if PIPELINE; then exit 0; fi` の形。`set -euo
+        # pipefail` を維持したまま条件式内で pipefail 失敗による即時中断を
+        # 回避する）で、"environment error: "（runner/GitHub API 起因）と
+        # ドリフト検知（コード起因の FAIL）を CI アノテーションとして区別する。
+        #
+        # `if: always()`: 本ステップは同一ジョブ内の先行ステップ
+        # `check-dep-versions`（バージョン追随検知）とは独立したゲートで
+        # あり、先行ステップが失敗しても ruleset drift 検知を止めては
+        # ならない（Cursor Bugbot 指摘、PR #2338）。既定の `if:` 省略は
+        # 先行ステップ失敗時に自動的にスキップされるため、`always()` で
+        # 明示的に無条件実行へ切り替える。
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if cargo run --locked -p xtask -- check-ruleset-sync 2>&1 | tee ruleset-sync.log; then
+            exit 0
+          fi
+          if grep -q 'environment error: ' ruleset-sync.log; then
+            echo "::error::check-ruleset-sync failed: environment error (runner/GitHub API issue, not code). See 'environment error:' lines above; verify this runner can reach https://api.github.com."
+          else
+            echo "::error::check-ruleset-sync failed: the live ruleset main-protection required_status_checks and .github/required-status-checks.json are out of sync (see 'ruleset-sync:'/'result=FAIL:...' lines above, or strict=true). See .claude/rules/ci.md ('ci-complete 集約ジョブと ruleset 必須チェック') for the update procedure (issue #2325)."
+          fi
+          exit 1
+
+      - name: Publish ruleset-sync summary
+        if: always()
+        # format_entry_line/format_strict_line
+        # （crates/xtask/src/check_ruleset_sync.rs）の 1 行サマリ契約
+        # 「ruleset-sync: context=<context> integration_id=<n>
+        # result=<PASS|FAIL:...>」と末尾「ruleset-sync: strict=<bool>
+        # result=<PASS|FAIL>」を Step Summary に転記する。この契約はテストで
+        # 固定される（crates/xtask/tests/cli_check_ruleset_sync.rs）。
+        run: |
+          {
+            echo '## ruleset-sync (issue #2325)'
+            echo '```'
+            grep '^ruleset-sync:' ruleset-sync.log || echo 'ruleset-sync: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ruleset `main-protection` の必須チェックは PR HEAD へ報告される全
+  # context を個別列挙する（`.github/required-status-checks.json` が正、
+  # イシュー #2325。implement-issue-tree の autoMerge G0 ゲートが要求する
+  # 「ruleset に含まれない context（client-only チェック）が 1 件でもあれば
+  # 辞退」という実際の挙動に合わせるためであり、本ジョブ（ci-complete）
+  # だけへ集約すると他ジョブは client-only になり G0 が常に辞退する。詳細・
+  # 決定記録・運用手順は `.claude/rules/ci.md` §「ci-complete 集約ジョブと
+  # ruleset 必須チェック」参照）。
+  #
+  # 本ワークフローの全ジョブを needs に列挙し全結果を集約する点は変わらず、
+  # `ci-complete` は ruleset 個別列挙の**第 2 の防御層**として機能する
+  # （ruleset へのジョブ登録漏れがあっても、本ジョブの失敗経由で検知できる）。
+  # **ジョブ追加時は needs への追加が必要**（追加を忘れると当該
+  # ジョブの失敗が必須チェックに反映されない）。この網羅性は
+  # `crates/xtask/tests/workflow_ci_complete_needs.rs` が `cargo test -p
+  # xtask` 時点で fail-closed に機械検知する（イシュー #2324。needs の
+  # 網羅性・`if: always()`・下記 skipped 許容リストの整合の 3 点を検証する）。
   # `skipped` の許容は version-bump-guard（`if: pull_request` の条件付き
   # ジョブ）のみに限定し、他ジョブは success のみ受理する（skipped を全
   # ジョブで無条件許容すると、将来 `if:` が誤って追加されたジョブの skip を
   # 検知できず fail-open になるため。team-hub #1733 の codex 指摘と同型の
-  # 是正）。deps-check.yml（別 workflow のため needs にできない）と
-  # codex-review は従来どおり単独の必須チェックとして ruleset に残す。
+  # 是正）。条件付きジョブを増やす場合は同テストの `SKIPPED_ALLOWLIST`
+  # 定数への追加も必要（ci.yml 側だけの変更では同テストが FAIL する）。
+  # deps-check.yml（別 workflow のため needs にできない）と codex-review は
+  # 従来どおり単独の必須チェックとして ruleset に残す。
   ci-complete:
     name: ci-complete
     if: always()

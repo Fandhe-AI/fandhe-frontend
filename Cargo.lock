@@ -76,7 +76,7 @@ version = "0.4.3"
 
 [[package]]
 name = "fandhe-frontend-dist-server"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
@@ -146,7 +146,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-full"
-version = "0.18.7"
+version = "0.20.1"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
