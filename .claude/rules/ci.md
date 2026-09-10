@@ -124,7 +124,9 @@
   拒否され属性ごと欠落していた不具合を、ビルド時生成 SVG の相対パス参照へ
   切り替えて是正した）/ `blocks/index.html`・`blocks/login-01/index.html`・
   `assets/blocks.css`（イシュー #2088、Blocks セクションの索引・雛形実例・
-  専用 CSS。`crate::blocks::stylesheet` が生成）である。
+  専用 CSS。`crate::blocks::stylesheet` が生成）/
+  `blocks/dashboard-01/index.html`（イシュー #2089、sidebar + stat cards +
+  area chart + data table + tabs の合成 block）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

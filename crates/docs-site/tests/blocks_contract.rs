@@ -165,8 +165,16 @@ fn login_01_page_wires_demo_class_and_both_stylesheets_index_page_does_not() {
 #[test]
 fn block_pages_never_contain_a_form_element_or_data_uri() {
     let out = build_real_site();
-    for relative in ["blocks/index.html", "blocks/login-01/index.html"] {
-        let html = std::fs::read_to_string(out.join(relative))
+    let mut relatives: Vec<String> = vec!["blocks/index.html".to_string()];
+    relatives.extend(blocks::BLOCKS.iter().map(|block| {
+        let kebab = block
+            .path
+            .trim_start_matches("/blocks/")
+            .trim_end_matches('/');
+        format!("blocks/{kebab}/index.html")
+    }));
+    for relative in relatives {
+        let html = std::fs::read_to_string(out.join(&relative))
             .unwrap_or_else(|e| panic!("{relative}: {e}"));
         assert!(
             !html.contains("<form"),
@@ -177,6 +185,99 @@ fn block_pages_never_contain_a_form_element_or_data_uri() {
             "{relative} should never contain a data: URI src"
         );
     }
+}
+
+/// dashboard-01 の Demo 固有 CSS フック（sidebar/inset/stats 等）が実際に
+/// 生成 HTML へ出力され、`blocks::stylesheet()` にも対応するセレクタが
+/// 存在することを固定する（login-01 のイシュー #2088 codex-review 是正と
+/// 同型: `sidebar` の全パーツ・`card::root`・`stat::root` 等は
+/// `drop_class_attr` で呼び出し側 `class` を除去するため、CSS フックは
+/// `class` ではなく `data-*` 属性で渡す契約になっている、
+/// `crates/docs-site/src/blocks/dashboard_01.rs` モジュール doc参照）。
+#[test]
+fn dashboard_01_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/dashboard-01/index.html"))
+        .expect("blocks/dashboard-01/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-dashboard-01\""),
+        "dashboard-01 page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "dashboard-01 page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "dashboard-01 page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-dashboard-01-card=\"\"",
+        "data-blocks-dashboard-01-header=\"\"",
+        "data-blocks-dashboard-01-chart=\"\"",
+        "data-blocks-dashboard-01-table=\"\"",
+        "data-blocks-dashboard-01-header-link=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "dashboard-01 page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-dashboard-01-card]",
+        "[data-blocks-dashboard-01-header]",
+        "[data-blocks-dashboard-01-chart]",
+        "[data-blocks-dashboard-01-table]",
+        "[data-blocks-dashboard-01-header-link]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// dashboard-01 の合成部品（sidebar/stat/gradient area-chart/toggle-group/
+/// tabs/table）が anatomy の `data-*` として実際に出力されていることを
+/// 固定する。
+#[test]
+fn dashboard_01_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/dashboard-01/index.html"))
+        .expect("blocks/dashboard-01/index.html should be generated");
+    for needle in [
+        "data-scope=\"sidebar\"",
+        "data-variant=\"inset\"",
+        "data-scope=\"stat\"",
+        "<linearGradient",
+        "data-range=\"90d\"",
+        "aria-label=\"Select date range\"",
+        "aria-sort=\"ascending\"",
+        "data-selected",
+        "data-scope=\"tabs\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "dashboard-01 page should contain {needle}"
+        );
+    }
+    assert!(
+        !html.contains("<form"),
+        "dashboard-01 should never contain a <form>"
+    );
+    assert!(
+        !html.contains("href=\"#\""),
+        "dashboard-01 should never contain a dead href=\"#\" link"
+    );
+    assert!(
+        !html.contains("aria-labelledby=\"blocks-dashboard-01-range-label\""),
+        "dashboard-01 should not reference a range-toggle label id that has no matching element \
+         (regression: codex-review P1 / Cursor Bugbot Low on PR #2280)"
+    );
 }
 
 #[test]

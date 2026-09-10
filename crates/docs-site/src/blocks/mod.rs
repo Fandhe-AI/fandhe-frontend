@@ -71,6 +71,7 @@
 //! （pre-styled-ui 全 recipe。合成に使う部品自体の見た目）も配線する
 //! （`/blocks/` 索引ページには配線しない）。
 
+mod dashboard_01;
 mod login_01;
 
 use fandhe_frontend_core::{a, div, h2, li, text, ul, Node};
@@ -110,6 +111,14 @@ pub const DEMO_CLASS: &str = "blocks-demo";
 /// パーツが `drop_class_attr` を経由するか）で `class` か `data-*` かを選ぶ。
 /// 実際に生成 HTML へ属性が出力され CSS 側のセレクタと対になっていることは
 /// `crates/docs-site/tests/blocks_contract.rs` が固定する。
+///
+/// # block 固有 CSS の置き場（イシュー #2089 以降の分離、並列進行対策）
+///
+/// 本 `LAYOUT_CSS` は `login_01` のレイアウト規則のみを持つ。#2089〜#2095 が
+/// 並列進行する状況で全 block が単一定数へ追記すると PR 間で必ず衝突するため、
+/// 2 件目以降（`dashboard_01` 等）は各モジュール側に `pub(super) const
+/// LAYOUT_CSS` を個別に持ち、[`stylesheet`] が `push_css` を複数回呼んで
+/// 連結する（詳細は `docs/design/docs-site-blocks-section.md` §10 追記節）。
 const LAYOUT_CSS: &str = "\
 .blocks-demo {\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: 1.5rem;\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 .blocks-login-01 {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  min-height: 24rem;\n}\n\
@@ -154,7 +163,7 @@ pub struct Block {
 
 /// Blocks レジストリ本体。`site/nav.toml` の `/blocks/*` ページ（索引を除く）
 /// との三方突合を `crates/docs-site/tests/blocks_nav.rs` が固定する。
-pub const BLOCKS: &[Block] = &[login_01::BLOCK];
+pub const BLOCKS: &[Block] = &[login_01::BLOCK, dashboard_01::BLOCK];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
 /// `crate::build::build_site` が「このページを Blocks 専用分岐に乗せるか」を
@@ -228,6 +237,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&Theme::default());
     sheet.push_css(LAYOUT_CSS)?;
+    sheet.push_css(dashboard_01::LAYOUT_CSS)?;
     Ok(sheet)
 }
 

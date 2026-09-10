@@ -8,13 +8,14 @@ UI 部品スタイル調整（参考サイト基準への調整、ルート issu
 - `shadcn-<slug>-<n>.png`: shadcn/ui（https://ui.shadcn.com）の各部品ページ（`/docs/components/base/<slug>`）の先頭デモ領域（`[data-slot="preview"]` の要素スクリーンショット、最大 3 枚）。`shadcn-charts-<category>-<n>.png` は `/charts/<category>` の各デモカード（iframe を内包する `div.rounded-xl.bg-background`）の要素スクリーンショット、`shadcn-block-<block>-<n>.png` は `/view/new-york-v4/<block>` のブロック単体ビュー（取得日 2026-09-07、viewport 1280x900）。画像ごとの取得元 URL は `SOURCES.md` を参照
 - 例外的な取得元: `shadcn-typography-<n>.png` は `/docs/components/base/typography` がコード例のみでデモを持たないため、レンダリング済みの文字組みを示す `/typeset`（プリセット 01 / 03 / 05）のデモ枠を取得している。`shadcn-sidebar-1.png` は同ページ唯一のレンダリング済みデモ（`figure` 内の iframe）1 枚のみで、残りのサイドバー比較資料は `shadcn-block-sidebar-*.png` が担う（コードブロック・インストールコマンドは取得対象にしない）
 - `themes-<kebab>.png` / `primitives-<kebab>.png`: 本リポジトリ docs サイト（`make docs` 出力）の各部品ページ Demo 領域（ライトテーマ、同日取得）
+- `blocks-<kebab>.png`: 本リポジトリ docs サイトの `/blocks/<kebab>/` フルページ（Blocks セクション、イシュー #2089。合成部品ページのため部品 Demo 領域限定ではなくページ全体を対象とする）
 
 ## 命名・配置規約（確定版、イシュー #1428）
 
 本ディレクトリはフラット配置（サブディレクトリを持たない）とし、ファイル名は以下の 2 パターンのいずれかに正規化する。
 
 - 参照サイト側: `<site>-<slug>-<n>.png`（正規表現: `^(chakra|ark|radixp|radixt|shadcn)-[a-z0-9-]+-[0-9]+\.png$`）。`site` は `chakra`（chakra-ui、241 枚）/ `ark`（Ark UI、150 枚）/ `radixt`（Radix Themes、116 枚）/ `radixp`（Radix Primitives、26 枚）/ `shadcn`（shadcn/ui、215 枚。部品 186 + charts 21 + blocks 8）の 5 種。`slug` は部品名の kebab-case、`n` は同一部品内での連番（デモのバリエーション違いに対応）
-- ローカル側: `<layer>-<kebab>.png`（正規表現: `^(themes|primitives)-[a-z0-9-]+\.png$`）。`themes-<kebab>.png` は Themes 層（`fandhe-frontend-pre-styled-ui` 相当、107 部品と一致）、`primitives-<kebab>.png` は Primitives 層（`fandhe-frontend-headless-ui` 相当、63 部品と一致）
+- ローカル側: `<layer>-<kebab>.png`（正規表現: `^(themes|primitives|blocks)-[a-z0-9-]+\.png$`）。`themes-<kebab>.png` は Themes 層（`fandhe-frontend-pre-styled-ui` 相当、107 部品と一致）、`primitives-<kebab>.png` は Primitives 層（`fandhe-frontend-headless-ui` 相当、63 部品と一致）、`blocks-<kebab>.png` は Blocks セクション（`crate::blocks::BLOCKS` の登録 block と一致、イシュー #2089）
 
 **イシュー当初案（`local/<layer>-<kebab>.png` のようなサブディレクトリ分離）は不採用と確定する。** 根拠は次の 3 点である。
 
@@ -33,7 +34,7 @@ find docs/design/reference-screenshots -mindepth 1 -type d -not -path 'docs/desi
 # (2) トップレベルファイルが命名規約 2 パターンまたは付随文書 3 点のいずれかに一致すること
 find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename \
   | grep -vE '^(chakra|ark|radixp|radixt|shadcn)-[a-z0-9-]+-[0-9]+\.png$' \
-  | grep -vE '^(themes|primitives)-[a-z0-9-]+\.png$' \
+  | grep -vE '^(themes|primitives|blocks)-[a-z0-9-]+\.png$' \
   | grep -vE '^(README|SOURCES|THIRD_PARTY_NOTICES)\.md$'
 # 空出力なら PASS（2026-08-30 時点の 703 枚全件、2026-09-07 の shadcn 215 枚追加後の全件で確認済み）
 ```
