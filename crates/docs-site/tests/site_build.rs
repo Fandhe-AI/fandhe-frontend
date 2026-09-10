@@ -221,10 +221,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 223 → 224 になった。イシュー #2091 で sidebar-03 が加わり、
     // 224 → 225 になった。イシュー #2119 で Questionnaire の Themes
     // ページが加わり、225 → 226 になった。イシュー #2094 で signup-01 が
-    // 加わり、226 → 227 になった。
+    // 加わり、226 → 227 になった。イシュー #2095 で signup-05 が加わり、
+    // 227 → 228 になった。
     assert_eq!(
         report.written.len(),
-        227,
+        228,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
