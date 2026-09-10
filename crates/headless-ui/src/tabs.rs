@@ -48,6 +48,30 @@
 //! `root_attrs` が渡されても）が `id`/`data-orientation` を偽装・上書きする
 //! 経路を型レベルではなく実行時 fail-closed で塞ぐ。
 //!
+//! # shadcn/ui（Radix Primitives）a11y チェックリストとの突合（イシュー #2194）
+//!
+//! 挙動の正は shadcn/ui v4 `radix` バリアント = Radix Primitives
+//! （`docs/design/radix-primitives-inventory.md`）。判定は「一致 / 実装 /
+//! 意図的差分 / 見送り（保留）」の 4 値。実キーボード操作は本モジュール
+//! （SSR マークアップのみ）ではなく `fandhe-frontend-wasm-full` の
+//! `keynav`（`tabs_next_index`/`handle_tabs_keydown`/`activate_tab`）が担う。
+//!
+//! | # | 項目 | shadcn/ui（Radix） | 本リポジトリ | 判定 |
+//! |---|---|---|---|---|
+//! | T1 | orientation 別 Arrow（他軸 no-op） | RovingFocusGroup | `keynav::tabs_next_index` | 一致 |
+//! | T2 | Home/End（disabled スキップ） | 先頭/末尾 | 同左 | 一致 |
+//! | T3 | 端での循環 | `loop` 既定 true | `data-loop-focus` 既定 true、`"false"` のみ無効 | 一致 |
+//! | T4 | automatic activation（focus イベントで活性化、マウス起因除外） | あり | Arrow/Home/End と click 経路でのみ活性化 | 意図的差分（DOM 属性を単一情報源とする決定的配線。選択なし/選択タブ disabled で Tab キー入場した場合のみ差が出る） |
+//! | T5 | manual activation（Enter/Space） | あり | ネイティブ button の click → `handle_trigger_click` | 一致 |
+//! | T6 | disabled trigger のスキップ・非活性 | あり | あり | 一致 |
+//! | T7 | content `tabindex="0"` | `tabIndex=0` | 固定出力（[`content`] 参照） | 一致 |
+//! | T8 | trigger の活性化イベント（`onMouseDown`、左・非 ctrl のみ） | あり | click（マウス・キーボード共通経路） | 意図的差分（click 経路統一原則） |
+//! | T9 | `dir="rtl"` での Left/Right 反転 | あり | なし | 見送り（`docs/policy/intentional-non-adoption.md` §7 の Direction Provider 保留行に従属） |
+//! | T10 | ARIA（`role`/`aria-selected`/`aria-controls`/`aria-labelledby`/`data-state`/`data-disabled`/`data-orientation`） | あり | あり | 一致 |
+//!
+//! コード実装項目はなし（T1〜T7 は既存 `crates/wasm-full/tests/
+//! keynav_browser.rs` が固定済み）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - `value`/`id`/ラベル等の動的値はすべて [`fandhe_frontend_core::el`] の
