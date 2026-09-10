@@ -92,16 +92,18 @@
 //! - X 軸ラベルの `tickFormatter`（月名 3 文字切り詰め等）はアプリ側整形
 //!   （`docs/policy/intentional-non-adoption.md` §3.23/§3.25）のため非対応。
 //!   カテゴリ文字列をそのまま描く
-//! - `data-series`/hit-area 等の新規 `data-*` は付けない（マウス追従
-//!   ツールチップ・hover 強調は #2128 の担当）
 //! - `theme.rs` へのトークン追加（gradient stop-opacity 等）は行わない
 //!   （`site_css_contract` への波及回避、#1589/#1593 と同じ判断）
 //!
 //! ## 本イシューのスコープ外
 //!
-//! マウス追従ツールチップ・hover 強調・hit-area `data-*` は #2128、期間
-//! 切替・凡例トグルは #2132。`examples/headless-pre-styled-ui` への追随は
-//! crates.io 公開後（[`crate::line_chart`] と同じ判断）。
+//! マウス追従ツールチップ・hover 強調は #2128（hit-area・`data-index`/
+//! `data-series` は #2129 で追加済み、`show_tooltip` 参照）。期間切替・
+//! 凡例トグルの SSR 構造（`data-range`・`series-area`/`series-line`/
+//! `point` の `data-series`/`data-hidden`）は本イシュー（#2133）で追加
+//! 済み（[`AreaChartProps::range`]/[`AreaChartProps::hidden_series`]
+//! 参照）。wasm-full 側の click 配線は #2134。`examples/headless-pre-styled-ui`
+//! への追随は crates.io 公開後（[`crate::line_chart`] と同じ判断）。
 //!
 //! # 参考サイト基準への調整（イシュー #1589）
 //!
@@ -155,11 +157,11 @@ use crate::charts::data::ChartData;
 use crate::charts::grid::{self, GridProps};
 use crate::charts::scale::LinearScale;
 use crate::charts::svg::{fmt_coord, svg_root};
-use crate::charts::{tooltip, ChartError};
+use crate::charts::{drop_range_attr, tooltip, ChartError};
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, is_valid_identifier};
 use crate::line_chart::{category_x, view_box_from_dims};
-use crate::recipe::{Size, SlotRecipe, VariantValue};
+use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -299,6 +301,18 @@ pub struct AreaChartProps<'a> {
     /// 出力する（イシュー #2129、親 #2128）。`false` の場合は本イシュー
     /// 以前の出力とバイト一致する。
     pub show_tooltip: bool,
+    /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
+    /// とき root へ `data-range="<v>"` を出力する（既定 `None`＝非出力）。
+    /// [`crate::line_chart::LineChartProps::range`] と同一の契約
+    /// （`crate::charts` モジュール doc「期間切替・凡例トグルの SSR 構造」
+    /// 参照）。
+    pub range: Option<&'a str>,
+    /// 非表示系列名の一覧（イシュー #2133）。[`super::charts::data::Series::name`]
+    /// と完全一致する系列の `series-area`/`series-line`/`point` へ値なし
+    /// 属性 `data-hidden` を付与する。スケール/domain の算出には影響しない
+    /// （SSR は全範囲・全系列を出力する設計）。データに存在しない名前を
+    /// 指定してもエラーにしない（fail-soft）。
+    pub hidden_series: &'a [&'a str],
 }
 
 impl<'a> AreaChartProps<'a> {
@@ -321,6 +335,8 @@ impl<'a> AreaChartProps<'a> {
             show_y_axis: false,
             show_grid: false,
             show_tooltip: true,
+            range: None,
+            hidden_series: &[],
         }
     }
 }
@@ -421,6 +437,23 @@ fn recipe() -> SlotRecipe {
             "series-area",
             vec![decl("fill-opacity", "1")],
         )
+        // イシュー #2133: `hidden_series` で指定した系列の描画要素を
+        // 非表示にする（末尾純追加、既存ブロックは不変）。
+        .state(
+            "series-area",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "series-line",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "point",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
 }
 
 /// この styled AreaChart が生成する静的 CSS 全量を返す（決定的）。
@@ -470,6 +503,7 @@ fn render_series_none(
     fill: AreaFill,
     fill_class: &str,
     gradient_url: &str,
+    extra_attrs: &[(&str, &str)],
 ) -> Result<Vec<Node>, ChartError> {
     let n = values.len();
 
@@ -477,18 +511,16 @@ fn render_series_none(
         let x = category_x(width, n, 0) + left;
         let y = values.first().copied().map_or(0.0, |v| y_scale.scale(v));
         let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
-        return Ok(vec![el(
-            "circle",
-            vec![
-                ("data-scope", "area-chart"),
-                ("data-part", "point"),
-                ("cx", cx.as_str()),
-                ("cy", cy.as_str()),
-                ("r", r.as_str()),
-                ("fill", color),
-            ],
-            vec![],
-        )]);
+        let mut point_attrs: Vec<(&str, &str)> = vec![
+            ("data-scope", "area-chart"),
+            ("data-part", "point"),
+            ("cx", cx.as_str()),
+            ("cy", cy.as_str()),
+            ("r", r.as_str()),
+            ("fill", color),
+        ];
+        point_attrs.extend(extra_attrs.iter().copied());
+        return Ok(vec![el("circle", point_attrs, vec![])]);
     }
 
     let points: Vec<(f64, f64)> = values
@@ -526,20 +558,20 @@ fn render_series_none(
     if !fill_class.is_empty() {
         area_attrs.push(("class", fill_class));
     }
+    area_attrs.extend(extra_attrs.iter().copied());
+
+    let mut line_attrs: Vec<(&str, &str)> = vec![
+        ("data-scope", "area-chart"),
+        ("data-part", "series-line"),
+        ("d", line_d.as_str()),
+        ("stroke", color),
+        ("fill", "none"),
+    ];
+    line_attrs.extend(extra_attrs.iter().copied());
 
     Ok(vec![
         el("path", area_attrs, vec![]),
-        el(
-            "path",
-            vec![
-                ("data-scope", "area-chart"),
-                ("data-part", "series-line"),
-                ("d", line_d.as_str()),
-                ("stroke", color),
-                ("fill", "none"),
-            ],
-            vec![],
-        ),
+        el("path", line_attrs, vec![]),
     ])
 }
 
@@ -568,28 +600,36 @@ fn render_stacked(
     fill: AreaFill,
     fill_class: &str,
     gradient_id_prefix: &str,
+    show_series_attr: bool,
+    hidden_series: &[&str],
 ) -> Result<Vec<Node>, ChartError> {
     let n = cum[0].len();
     let mut nodes = Vec::new();
 
     for (i, upper) in cum.iter().enumerate() {
         let color = data.series_color_var(i);
+        let series_name = data.series()[i].name.as_str();
+        let mut extra_attrs: Vec<(&str, &str)> = Vec::new();
+        if show_series_attr {
+            extra_attrs.push(("data-series", series_name));
+        }
+        if hidden_series.contains(&series_name) {
+            extra_attrs.push(("data-hidden", ""));
+        }
         if n <= 1 {
             let x = category_x(width, n, 0) + left;
             let y = upper.first().copied().map_or(0.0, |v| y_scale.scale(v));
             let (cx, cy, r) = (fmt_coord(x), fmt_coord(y), fmt_coord(POINT_RADIUS));
-            nodes.push(el(
-                "circle",
-                vec![
-                    ("data-scope", "area-chart"),
-                    ("data-part", "point"),
-                    ("cx", cx.as_str()),
-                    ("cy", cy.as_str()),
-                    ("r", r.as_str()),
-                    ("fill", color.as_str()),
-                ],
-                vec![],
-            ));
+            let mut point_attrs: Vec<(&str, &str)> = vec![
+                ("data-scope", "area-chart"),
+                ("data-part", "point"),
+                ("cx", cx.as_str()),
+                ("cy", cy.as_str()),
+                ("r", r.as_str()),
+                ("fill", color.as_str()),
+            ];
+            point_attrs.extend(extra_attrs.iter().copied());
+            nodes.push(el("circle", point_attrs, vec![]));
             continue;
         }
 
@@ -632,18 +672,17 @@ fn render_stacked(
         if !fill_class.is_empty() {
             area_attrs.push(("class", fill_class));
         }
+        area_attrs.extend(extra_attrs.iter().copied());
         nodes.push(el("path", area_attrs, vec![]));
-        nodes.push(el(
-            "path",
-            vec![
-                ("data-scope", "area-chart"),
-                ("data-part", "series-line"),
-                ("d", upper_d.as_str()),
-                ("stroke", color.as_str()),
-                ("fill", "none"),
-            ],
-            vec![],
-        ));
+        let mut line_attrs: Vec<(&str, &str)> = vec![
+            ("data-scope", "area-chart"),
+            ("data-part", "series-line"),
+            ("d", upper_d.as_str()),
+            ("stroke", color.as_str()),
+            ("fill", "none"),
+        ];
+        line_attrs.extend(extra_attrs.iter().copied());
+        nodes.push(el("path", line_attrs, vec![]));
     }
 
     Ok(nodes)
@@ -786,6 +825,23 @@ pub(crate) fn x_axis_category_labels(
     Ok(nodes)
 }
 
+/// `props.show_tooltip`/`props.hidden_series` から `data-series`/`data-hidden`
+/// の追加属性列を組み立てる（内部ヘルパ、イシュー #2133。
+/// [`crate::line_chart`] の `series_extra_attrs` と同型）。
+fn series_extra_attrs<'a>(
+    props: &AreaChartProps<'a>,
+    series_name: &'a str,
+) -> Vec<(&'a str, &'a str)> {
+    let mut extra: Vec<(&str, &str)> = Vec::new();
+    if props.show_tooltip {
+        extra.push(("data-series", series_name));
+    }
+    if props.hidden_series.contains(&series_name) {
+        extra.push(("data-hidden", ""));
+    }
+    extra
+}
+
 /// AreaChart 本体を組み立てる。
 ///
 /// # Errors
@@ -881,6 +937,7 @@ pub fn area_chart<'a>(
 
             for (i, s) in props.data.series().iter().enumerate() {
                 let color = props.data.series_color_var(i);
+                let extra_attrs = series_extra_attrs(props, s.name.as_str());
                 // 軸/グリッドなし呼び出し（else 分岐）と同じヘルパを再利用する
                 // （Review 指摘 #2081: 従来ここへインライン展開されていた
                 // 「面 + 線」描画ロジックが `render_series_none` とほぼ同一の
@@ -896,6 +953,7 @@ pub fn area_chart<'a>(
                     props.fill,
                     &fill_class,
                     &format!("{}-{i}", props.gradient_id),
+                    &extra_attrs,
                 )?);
             }
 
@@ -927,6 +985,7 @@ pub fn area_chart<'a>(
 
             for (i, s) in props.data.series().iter().enumerate() {
                 let color = props.data.series_color_var(i);
+                let extra_attrs = series_extra_attrs(props, s.name.as_str());
                 plot_children.extend(render_series_none(
                     props.width,
                     0.0,
@@ -938,6 +997,7 @@ pub fn area_chart<'a>(
                     props.fill,
                     &fill_class,
                     &format!("{}-{i}", props.gradient_id),
+                    &extra_attrs,
                 )?);
             }
         }
@@ -1027,6 +1087,8 @@ pub fn area_chart<'a>(
                 props.fill,
                 &fill_class,
                 props.gradient_id,
+                props.show_tooltip,
+                props.hidden_series,
             )?);
 
             if props.show_y_axis {
@@ -1077,6 +1139,8 @@ pub fn area_chart<'a>(
                 props.fill,
                 &fill_class,
                 props.gradient_id,
+                props.show_tooltip,
+                props.hidden_series,
             )?);
         }
     }
@@ -1138,7 +1202,10 @@ pub fn area_chart<'a>(
 
     let class = recipe.variant_classes(&[("size", props.size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
-    merged.extend(drop_class_attr(attrs));
+    if let Some(range) = props.range {
+        merged.push(("data-range", range));
+    }
+    merged.extend(drop_range_attr(drop_class_attr(attrs)));
     Ok(ANATOMY.part("root", "div", merged, children))
 }
 
@@ -1646,6 +1713,8 @@ mod tests {
         props.show_grid = true;
         props.stack = AreaStack::Normal;
         props.fill = AreaFill::Gradient;
+        props.range = Some("90d");
+        props.hidden_series = &["b"];
         let html = render(&area_chart(&props, vec![]).unwrap());
         for token in html.split("data-").skip(1) {
             let name = token.split(['=', ' ', '>']).next().unwrap_or("");
@@ -1653,10 +1722,83 @@ mod tests {
             // （0 起点序数、headless の splitter/pagination と共有する語彙）
             // ・`data-series`（系列表示名）を新規追加した
             // （`docs/design/pre-styled-ui-data-attr-vocabulary.md` 参照）。
+            // イシュー #2133: 期間切替・凡例トグルの SSR 構造として
+            // `data-range`（root、opt-in 文字列値）・`data-hidden`
+            // （系列要素、opt-in 値なし属性）を新規追加した。
             assert!(
-                name == "scope" || name == "part" || name == "index" || name == "series",
+                name == "scope"
+                    || name == "part"
+                    || name == "index"
+                    || name == "series"
+                    || name == "range"
+                    || name == "hidden",
                 "unexpected data-* attribute: data-{name}"
             );
         }
+    }
+
+    // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
+
+    #[test]
+    fn range_none_omits_data_range() {
+        let d = data(vec![1.0, 2.0]);
+        let html = render(&area_chart(&AreaChartProps::new(&d, "range"), vec![]).unwrap());
+        assert!(!html.contains("data-range"));
+    }
+
+    #[test]
+    fn range_some_emits_data_range_on_root() {
+        let d = data(vec![1.0, 2.0]);
+        let mut props = AreaChartProps::new(&d, "range");
+        props.range = Some("90d");
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(html.starts_with(
+            r#"<div data-scope="area-chart" data-part="root" class="fd-area-chart--size-md" data-range="90d">"#
+        ));
+    }
+
+    #[test]
+    fn caller_data_range_attr_is_dropped_not_duplicated() {
+        let d = data(vec![1.0, 2.0]);
+        let mut props = AreaChartProps::new(&d, "range");
+        props.range = Some("real");
+        let html = render(&area_chart(&props, vec![("data-range", "fake")]).unwrap());
+        assert_eq!(html.matches("data-range").count(), 1);
+        assert!(html.contains(r#"data-range="real""#));
+        assert!(!html.contains("fake"));
+    }
+
+    #[test]
+    fn hidden_series_adds_data_hidden_to_matching_series_only_none_stack() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "hidden");
+        props.hidden_series = &["b"];
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        assert!(html.contains(r#"data-series="a""#));
+        let b_idx = html.find(r#"data-series="b""#).unwrap();
+        assert!(html[b_idx..b_idx + 40].contains("data-hidden"));
+        let a_idx = html.find(r#"data-series="a""#).unwrap();
+        assert!(!html[a_idx..a_idx + 40].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_adds_data_hidden_in_stacked_mode() {
+        let d = multi_series_data();
+        let mut props = AreaChartProps::new(&d, "hidden-stacked");
+        props.stack = AreaStack::Normal;
+        props.hidden_series = &["b"];
+        let html = render(&area_chart(&props, vec![]).unwrap());
+        let b_idx = html.find(r#"data-series="b""#).unwrap();
+        assert!(html[b_idx..b_idx + 40].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_unknown_name_is_fail_soft() {
+        let d = data(vec![1.0, 2.0]);
+        let mut props = AreaChartProps::new(&d, "hidden");
+        props.hidden_series = &["does-not-exist"];
+        let result = area_chart(&props, vec![]);
+        assert!(result.is_ok());
+        assert!(!render(&result.unwrap()).contains("data-hidden"));
     }
 }

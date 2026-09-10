@@ -27,6 +27,10 @@ const SCATTER_CHART_GOLDEN_CSS: &str = r#"[data-scope="scatter-chart"][data-part
   stroke: var(--fandhe-color-bg);
   stroke-width: 1;
 }
+
+[data-scope="scatter-chart"][data-part="point"][data-hidden] {
+  display: none;
+}
 "#;
 
 const RADAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="radar-chart"][data-part="root"] {
@@ -74,6 +78,14 @@ const RADAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="radar-chart"][data-part="ro
 [data-scope="radar-chart"][data-part="grid"].fd-radar-chart--grid-fill-series {
   fill: currentColor;
   fill-opacity: 0.2;
+}
+
+[data-scope="radar-chart"][data-part="series"][data-hidden] {
+  display: none;
+}
+
+[data-scope="radar-chart"][data-part="point"][data-hidden] {
+  display: none;
 }
 "#;
 

@@ -1036,6 +1036,7 @@ const CHARTS_SPEC: ComponentPageSpec = ComponentPageSpec {
         "系列の各データ点は既定で charts::series_color_var(index) の固定色循環（6 段階、shadcn/ui の 5 段階を包含）で着色する",
         "系列ごとに label / color / icon（shadcn/ui ChartConfig 相当）を Series::with_label / with_color / with_icon で個別に上書きできる。ChartData::series_color_var(index) が上書きの有無を一元的に解決し、凡例・line/area/bar/radar の全消費者が同じ値を共有する",
         "凡例（legend）は hide_marker（マーカー/icon を出さない）・align（水平揃え、既定は左寄せ）・marker（円形/角丸四角、既定は円形）を LegendProps で opt-in できる。凡例と本体チャートの上下配置はノード合成順序が決める（CSS 軸を持たない）",
+        "凡例の各 item は button + aria-pressed の SSR 構造を持つ（イシュー #2133）。trigger には data-series（legend）/data-index（category_legend）を付与し、LegendProps::hidden_series/hidden_categories で aria-pressed=\"false\" の減光を、controls で aria-controls を opt-in できる。各チャート root は range（data-range）・hidden_series/hidden_categories（描画要素への data-hidden）で期間切替・凡例トグルの SSR 構造を提供する（click 配線・実データ連動は #2134）",
     ],
     arguments: &[
         ArgRow {
@@ -1073,6 +1074,12 @@ const CHARTS_SPEC: ComponentPageSpec = ComponentPageSpec {
             kind: "struct",
             default: "false / LegendAlign::Start / LegendMarker::Circle",
             description: "hide_marker はマーカー/icon slot を省略する（shadcn/ui hideIcon 相当）。align は水平揃え（Start/Center/End）。marker はマーカー形状（Circle/Square）。",
+        },
+        ArgRow {
+            name: "LegendProps { hidden_series, hidden_categories, controls }",
+            kind: "struct",
+            default: "vec![] / vec![] / None",
+            description: "イシュー #2133。hidden_series は legend() の、hidden_categories は category_legend() の非表示対象（一致した trigger を aria-pressed=\"false\" にする）。controls は Some(id) で全 trigger へ aria-controls を付与する。",
         },
         ArgRow {
             name: "Series::with_label / with_color / with_icon",
@@ -1347,7 +1354,7 @@ const LINE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
         "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャート",
         "系列色は charts::series_color_var(index) の固定色循環（color-palette 軸は非提供）",
         "曲線（Linear/Natural/Step）・データ点（None/Filled/Hollow）・値/カテゴリラベル・軸/グリッドの静的バリアント（イシュー #2083、shadcn/ui Charts（line）突合）",
-        "マウス追従ツールチップ・hover 強調・期間切替・凡例トグル等の実行時インタラクションは対象外（#2128/#2132）",
+        "マウス追従ツールチップ・hover 強調等の実行時インタラクションは対象外（#2128）。期間切替（data-range）・凡例トグルの SSR 構造（range/hidden_series）は #2133 で追加済み、実データ連動は #2134",
         "積み上げ・横向きは shadcn/ui line registry に存在しないため非対応",
         "size（Xs〜Xl）で表示高さを切り替える",
     ],
@@ -1510,7 +1517,7 @@ const AREA_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "系列ごとに折れ線 + domain 下端へ閉じた塗りつぶし面を重ねて描く自己完結チャート",
         "曲線（Linear/Natural/Step）・積み上げ（None/Normal/Expand）・塗り（Solid/Gradient）・軸/グリッドの静的バリアント（イシュー #2081、shadcn/ui Charts（area）突合）",
-        "マウス追従ツールチップ・期間切替・凡例トグル等の実行時インタラクションは対象外（#2128/#2132）",
+        "マウス追従ツールチップ等の実行時インタラクションは対象外（#2128）。期間切替（data-range）・凡例トグルの SSR 構造（range/hidden_series）は #2133 で追加済み、実データ連動は #2134",
         "size（Xs〜Xl）で表示高さを切り替える",
     ],
     arguments: AREA_CHART_ARGUMENTS,
@@ -1637,7 +1644,7 @@ const PIE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
         "size（Xs〜Xl）で --fandhe-pie-chart-size を切り替える",
         "show_labels を有効にするとラベルをセグメント上に描画する（label_content で値/カテゴリ名、label_position で内側/外側+引き出し線を切り替える）",
         "ラベルは背景色ハロー + 扇形中心配置で系列色・ダーク時も可読",
-        "イシュー #2084 で shadcn/ui Charts（pie、11 バリアント）と突合し、separator（セパレータ線の有無）・stacked（複数系列の多重リング表示）を補完した。実行時インタラクション（ツールチップ・期間切替）は対象外（#2128/#2132）",
+        "イシュー #2084 で shadcn/ui Charts（pie、11 バリアント）と突合し、separator（セパレータ線の有無）・stacked（複数系列の多重リング表示）を補完した。マウス追従ツールチップは対象外（#2128）。期間切替（data-range）・凡例トグルの SSR 構造（range/hidden_categories/hidden_series）は #2133 で追加済み、実データ連動は #2134",
     ],
     arguments: &[
         ArgRow {
@@ -1762,7 +1769,7 @@ const DONUT_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
         "show_labels を有効にするとラベルをセグメント上に描画する（pie_chart と同じ label_content/label_position）",
         "size（Xs〜Xl）で寸法を切り替える",
         "ラベルは背景色ハロー + 環帯中心配置で系列色・ダーク時も可読",
-        "イシュー #2084 で shadcn/ui Charts（pie、11 バリアント）と突合し、active_index（セグメント強調）・center_text（中央テキスト）・separator を補完した。実行時インタラクション（ツールチップ・期間切替）は対象外（#2128/#2132）",
+        "イシュー #2084 で shadcn/ui Charts（pie、11 バリアント）と突合し、active_index（セグメント強調）・center_text（中央テキスト）・separator を補完した。マウス追従ツールチップは対象外（#2128）。期間切替（data-range）・凡例トグルの SSR 構造（range/hidden_categories/hidden_series）は #2133 で追加済み、実データ連動は #2134",
     ],
     arguments: &[
         ArgRow {

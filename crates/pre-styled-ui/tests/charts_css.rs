@@ -64,6 +64,18 @@ const LINE_CHART_GOLDEN_CSS: &str = r#"[data-scope="line-chart"][data-part="root
   stroke: currentColor;
   stroke-width: 2;
 }
+
+[data-scope="line-chart"][data-part="series-line"][data-hidden] {
+  display: none;
+}
+
+[data-scope="line-chart"][data-part="point"][data-hidden] {
+  display: none;
+}
+
+[data-scope="line-chart"][data-part="value-label"][data-hidden] {
+  display: none;
+}
 "#;
 
 const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root"] {
@@ -118,6 +130,18 @@ const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root
 
 [data-scope="area-chart"][data-part="series-area"].fd-area-chart--fill-gradient {
   fill-opacity: 1;
+}
+
+[data-scope="area-chart"][data-part="series-area"][data-hidden] {
+  display: none;
+}
+
+[data-scope="area-chart"][data-part="series-line"][data-hidden] {
+  display: none;
+}
+
+[data-scope="area-chart"][data-part="point"][data-hidden] {
+  display: none;
 }
 "#;
 

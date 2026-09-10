@@ -1140,7 +1140,7 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
 |---|---|---|
 | `charts::axis` | `y_axis(scale, ticks, x, props)` / `x_axis_linear(scale, ticks, y, props)` / `x_axis_categories(range, categories, y, props)` | `Result<Node, ChartError>` |
 | `charts::grid` | `cartesian_grid(x_range, y_range, x_positions, y_positions, props)` | `Result<Node, ChartError>` |
-| `charts::legend` | `legend(data: &ChartData, props: &LegendProps)`（`LegendProps` は `title`/`hide_marker`/`align`/`marker`、イシュー #2086） | `Node`（infallible） |
+| `charts::legend` | `legend(data: &ChartData, props: &LegendProps)` / `category_legend(data, props)`（`LegendProps` は `title`/`hide_marker`/`align`/`marker`〔イシュー #2086〕/`hidden_series`/`hidden_categories`/`controls`〔イシュー #2133〕。各 item は `<button aria-pressed>` を持つ `trigger` slot） | `Node`（infallible） |
 | `charts::tooltip` | `datum_label(category, series, value)` / `datum_label_lines(heading, entries, footer)`（複数行、イシュー #2086） / `datum(cx, cy, r, label, attrs)` | `String` / `String` / `Node`（いずれも infallible） |
 | `charts::data`（系列設定、イシュー #2077） | `Series::with_label(label)` / `with_color(SeriesColor)` / `with_icon(Node)` / `display_label()` | `Series` / `&str` |
 | `charts::data`（系列色、イシュー #2077） | `SeriesColor::token(name)` / `chart_slot(1..=6)` / `palette(ColorPalette)` / `ChartData::series_color_var(index)` | `Result<SeriesColor, ThemeError>`（`palette` のみ infallible） / `String` |
@@ -1303,8 +1303,9 @@ HTML を生成する、golden 純追加原則）。
 なかった点」参照）: `fill-opacity` は shadcn の `0.6` ではなく既存の `0.2`
 を維持（既存 golden の色味変更禁止・`area_chart` との統一）・
 `tickFormatter`（アプリ側整形の責務）・グリッド外周の px 直接指定・半径軸
-の角度指定・マウス追従ツールチップ/hover 強調（#2086/#2128）・凡例の系列
-トグル（#2132）。`ChartLegend`/icon は radar 部品へ内包せず `charts::legend`
+の角度指定・マウス追従ツールチップ/hover 強調（#2086/#2128）。凡例の系列
+トグルの SSR 構造（`range`/`hidden_series`）は #2133 で追加済み。
+`ChartLegend`/icon は radar 部品へ内包せず `charts::legend`
 との合成で表現する（`Series::with_icon`、イシュー #2077）。
 
 ### PieChart / DonutChart の shadcn/ui 突合バリアント（イシュー #2084）

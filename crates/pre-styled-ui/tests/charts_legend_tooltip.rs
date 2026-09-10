@@ -50,16 +50,38 @@ fn legend_composed_from_chart_data_matches_golden_html() {
             r#"<ul data-scope="chart-legend" data-part="root" role="list" class="fd-chart-legend--align-start fd-chart-legend--marker-circle">"#,
             r#"<li data-scope="chart-legend" data-part="title">Series</li>"#,
             r#"<li data-scope="chart-legend" data-part="item">"#,
+            r#"<button type="button" data-scope="chart-legend" data-part="trigger" data-series="visits" aria-pressed="true">"#,
             r#"<span data-scope="chart-legend" data-part="marker" class="fd-chart-legend--marker-circle" style="background: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
             r#"<span data-scope="chart-legend" data-part="label">visits</span>"#,
+            r#"</button>"#,
             r#"</li>"#,
             r#"<li data-scope="chart-legend" data-part="item">"#,
+            r#"<button type="button" data-scope="chart-legend" data-part="trigger" data-series="signups" aria-pressed="true">"#,
             r#"<span data-scope="chart-legend" data-part="marker" class="fd-chart-legend--marker-circle" style="background: var(--fandhe-color-chart-2)" aria-hidden="true"></span>"#,
             r#"<span data-scope="chart-legend" data-part="label">signups</span>"#,
+            r#"</button>"#,
             r#"</li>"#,
             r#"</ul>"#,
         )
     );
+}
+
+/// イシュー #2133: [`LegendProps::hidden_series`] が一致した系列の trigger を
+/// `aria-pressed="false"` にし、[`LegendProps::controls`] が全 trigger へ
+/// `aria-controls` を付与することを合成 HTML で固定する。
+#[test]
+fn legend_hidden_series_and_controls_reflected_in_composed_html() {
+    let node = legend::legend(
+        &sample_data(),
+        &LegendProps {
+            hidden_series: vec!["signups".to_string()],
+            controls: Some("line-1".to_string()),
+            ..Default::default()
+        },
+    );
+    let html = render(&node);
+    assert!(html.contains(r#"data-series="visits" aria-pressed="true" aria-controls="line-1""#));
+    assert!(html.contains(r#"data-series="signups" aria-pressed="false" aria-controls="line-1""#));
 }
 
 /// [`LegendProps::hide_marker`]（イシュー #2086）が `true` のとき、marker/
