@@ -176,6 +176,10 @@ fn blocks_index_page_links_to_the_registered_block() {
         "site/blocks.md should link to the registered sidebar-03 block (イシュー #2091)"
     );
     assert!(
+        content.contains("./blocks/login-04.md"),
+        "site/blocks.md should link to the registered login-04 block (イシュー #2093)"
+    );
+    assert!(
         content.contains("./blocks/signup-01.md"),
         "site/blocks.md should link to the registered signup-01 block (イシュー #2094)"
     );

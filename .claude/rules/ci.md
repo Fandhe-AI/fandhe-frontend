@@ -133,6 +133,9 @@
   `blocks/sidebar-03/index.html`（イシュー #2091、submenu 付きサイドバー。
   `size="lg"` のブランド header・`menu-sub` 入れ子ナビゲーションを持つ
   合成 block）/
+  `blocks/login-04/index.html`（イシュー #2093、フォーム + 画像の 2 カラム
+  ログインページ。`field::separator`・`image`・自作幾何アイコンの
+  `icon_button` 3 個を持つ合成 block）/
   `blocks/signup-01/index.html`（イシュー #2094、カード型のシンプルな
   サインアップフォーム。`field::helper_text` 3 件を持つ合成 block）/
   `blocks/signup-05/index.html`（イシュー #2095、ソーシャルプロバイダ付き
