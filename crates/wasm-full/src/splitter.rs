@@ -58,7 +58,7 @@
 //!   組み立てた `usize` のみで、DOM 由来の文字列を payload へ通す経路を
 //!   持たない。
 //! - `data-disabled` を持つ resize-trigger（祖先方向・Splitter root 自身を
-//!   含む）上の keydown は no-op（`crate::angle_slider::wiring::has_disabled_ancestor`
+//!   含む）上の keydown は no-op（`crate::dom::has_disabled_ancestor`
 //!   と同型の判定を本モジュール内に個別実装する）。
 //! - DOM 反映は `get_attribute`/`matches`/`query_selector_all`/
 //!   `prevent_default` のみで行い、`set_inner_html` を含む HTML 文字列を
@@ -124,48 +124,14 @@ mod wiring {
 
     /// `target` から `root`（含む）まで祖先方向へ辿り、`data-scope`/
     /// `data-part` が指定値と一致する最初の要素を返す
-    /// （`crate::angle_slider::wiring::closest_matching` と同型）。
-    fn closest_matching(
-        root: &Element,
-        start: &Element,
-        scope: &str,
-        part: &str,
-    ) -> Option<Element> {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if !root.contains(Some(&element)) {
-                break;
-            }
-            if element.get_attribute("data-scope").as_deref() == Some(scope)
-                && element.get_attribute("data-part").as_deref() == Some(part)
-            {
-                return Some(element);
-            }
-            if element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        None
-    }
+    /// （`crate::dom::closest_matching` を使う）。
+    use crate::dom::closest_matching;
 
     /// `start` から `root` まで祖先方向を辿り、`data-disabled` を持つ要素が
     /// 1 つでもあれば `true` を返す（disabled な祖先・Splitter root 自身を
     /// 含めて no-op とする fail-closed 判定。
-    /// `crate::angle_slider::wiring::has_disabled_ancestor` と同型）。
-    fn has_disabled_ancestor(root: &Element, start: &Element) -> bool {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if element.has_attribute("data-disabled") {
-                return true;
-            }
-            if !root.contains(Some(&element)) || element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        false
-    }
+    /// `crate::dom::has_disabled_ancestor` を使う）。
+    use crate::dom::has_disabled_ancestor;
 
     /// `element` が Splitter の resize-trigger パーツかどうか
     /// （[`is_resize_trigger_part`] 純粋層への薄いアダプタ）。

@@ -321,50 +321,21 @@ mod wiring {
     const JUMP_TO_LATEST_SELECTOR: &str =
         "[data-scope=\"message-scroller\"][data-part=\"jump-to-latest\"]";
 
-    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
-    /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
-    /// `.claude/rules/security.md`）。本モジュールが書き込む属性
-    /// （`data-stuck`/`data-has-new`/`data-visible`/`hidden`）はいずれも
+    /// `crate::dom::set_dom_attribute` を本モジュールの語彙で再エクスポート
+    /// する（イシュー #2122 レビュー指摘: REQ-11 gzip バンドルサイズ抑制の
+    /// ため、`sidebar`/`focus_visible`/`focus_trap`/`position` 等と重複
+    /// していた実装を `crate::dom` へ共通化した）。本モジュールが書き込む
+    /// 属性（`data-stuck`/`data-has-new`/`data-visible`/`hidden`）はいずれも
     /// `&'static str` リテラルで固定された非 URL・非イベントハンドラ属性
-    /// であり実害はないが、`fandhe_frontend_core::url` のガード関数群
-    /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
-    /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
-    /// 入力から組み立てられるよう変更された場合の防御としても機能する
-    /// （`sidebar.rs::wiring::set_dom_attribute`/`keynav.rs::wiring::
-    /// set_dom_attribute` と同じガード方針）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return;
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return;
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return;
-        }
-        let _ = element.set_attribute(name, value);
-    }
+    /// であり実害はないが、共通化後もガードは経由し続ける。
+    use crate::dom::set_dom_attribute;
 
-    /// `start` から `root`（含む）まで祖先方向へ辿り、`data-scope`/
-    /// `data-part` が指定値と一致する最初の要素を返す
-    /// （`questionnaire::wiring::closest_matching` と同型）。
+    /// `crate::dom::closest_matching` を `scope = SCOPE` 固定で呼ぶ薄い
+    /// ラッパー（呼び出し元は本モジュール内すべて `SCOPE` 固定のため、
+    /// 3 引数の従来シグネチャを維持したまま `crate::dom` の共通実装へ
+    /// 委譲する。REQ-11 gzip バンドルサイズ抑制、イシュー #2122）。
     fn closest_matching(root: &Element, start: &Element, part: &str) -> Option<Element> {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if !root.contains(Some(&element)) {
-                break;
-            }
-            if element.get_attribute("data-scope").as_deref() == Some(SCOPE)
-                && element.get_attribute("data-part").as_deref() == Some(part)
-            {
-                return Some(element);
-            }
-            if element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        None
+        crate::dom::closest_matching(root, start, SCOPE, part)
     }
 
     /// `start` から `boundary`（含む）まで祖先方向を辿り、`predicate` を

@@ -294,19 +294,8 @@ mod wiring {
     /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
     /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
     /// 入力から組み立てられるよう変更された場合の防御としても機能する
-    /// （`keynav.rs::wiring::set_dom_attribute` と同じガード方針）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) -> Result<(), JsValue> {
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return Ok(());
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return Ok(());
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return Ok(());
-        }
-        element.set_attribute(name, value)
-    }
+    /// （`crate::dom::set_dom_attribute_result` と同じガード方針）。
+    use crate::dom::set_dom_attribute_result as set_dom_attribute;
 
     /// [`apply_avatar_visibility`] の内部ヘルパ。指定パートの `data-state` と
     /// `hidden` 存在属性を反映する。
