@@ -98,6 +98,48 @@ fn every_registered_block_has_a_manuscript_file() {
     }
 }
 
+/// `site/blocks/*.md` 原稿ファイル集合と `blocks::BLOCKS`/`nav.toml` の
+/// 三方目を締める（イシュー #2088 codex-review P2 指摘）。
+/// `every_registered_block_has_a_manuscript_file` は「登録済み block に
+/// 対応する原稿ファイルが実在するか」の片方向しか検証しないため、
+/// `site/blocks/` に置かれたが `blocks::BLOCKS`/`nav.toml` のどちらにも
+/// 登録されていない孤児原稿ファイルを検知できない欠落があった。本テストは
+/// `site/blocks/` ディレクトリを実際に列挙し、その集合が
+/// `blocks::BLOCKS` の `path` から導出した想定ファイル名集合と完全一致する
+/// ことを固定する。
+#[test]
+fn site_blocks_dir_manuscripts_match_the_registry_exactly() {
+    let dir = repo_root().join("site/blocks");
+    let entries = std::fs::read_dir(&dir).expect("site/blocks directory should be readable");
+
+    let on_disk: BTreeSet<String> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("md"))
+        .filter_map(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned)
+        })
+        .collect();
+
+    let expected: BTreeSet<String> = blocks::BLOCKS
+        .iter()
+        .map(|block| {
+            let kebab = block
+                .path
+                .trim_start_matches("/blocks/")
+                .trim_end_matches('/');
+            format!("{kebab}.md")
+        })
+        .collect();
+
+    assert_eq!(
+        on_disk, expected,
+        "site/blocks/*.md の実在ファイル集合と blocks::BLOCKS から導出した期待集合が一致しない          （未登録の孤児原稿ファイル、または登録済みだがファイルが無い block のいずれか）"
+    );
+}
+
 /// `site/blocks.md` が索引ページとして登録され、掲載済み block（login-01）
 /// への相対リンクを含むこと。
 #[test]

@@ -14,6 +14,13 @@
 //! - 合成関数の出力を直接 `render()` した結果に未エスケープ `<script` が
 //!   無い（XSS 回帰）
 //! - `blocks::stylesheet()` が `.blocks-demo` の `overflow-x` 宣言を含む
+//! - `login-01` の `data-blocks-login-01-card`/`-field`/`-submit` 属性が
+//!   生成 HTML に実際に出力され、`blocks::stylesheet()` にも対応する
+//!   `[data-blocks-login-01-*]` セレクタが存在する（イシュー #2088 PR #2277
+//!   codex-review P1 / Cursor Bugbot 指摘の是正: `card::root`/`field::root`/
+//!   `button::button` は `drop_class_attr` で呼び出し側 `class` を除去する
+//!   ため、これら 3 パーツの CSS フックは `class` ではなく `data-*` 属性で
+//!   渡す契約に変更した）
 
 use std::path::{Path, PathBuf};
 
@@ -40,14 +47,28 @@ fn scratch_root() -> PathBuf {
 
 struct TempDir(PathBuf);
 
+/// プロセス内で `TempDir::new` が呼ばれるたびに単調増加する値。`Drop` が
+/// 実際にディレクトリを削除するようになった（旧 `std::mem::forget` リーク
+/// 運用の是正、イシュー #2088 PR #2277 codex-review P2 指摘）ことで、
+/// 同一テストバイナリ内の複数スレッドが `build_real_site()`（同一 tag
+/// `"real-site"`）をほぼ同時刻に呼ぶと、ナノ秒精度の時刻だけでは衝突し得る
+/// （実測: `cargo test`（既定並列）で 4 テスト中 1 件が
+/// `NotFound: blocks/login-01/index.html` で偶発 FAIL、`--test-threads=1`
+/// では常に成功。2 スレッドが同じ `(pid, nanos)` でディレクトリ名を得ると
+/// 両者が同じパスへ書き込み・先に終わった側の `Drop` がもう片方の生成物を
+/// 削除してしまうため）。pid・時刻に加えプロセス内カウンタを混ぜ、
+/// 同一プロセス内での衝突を構造的に無くす。
+static TEMP_DIR_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 impl TempDir {
     fn new(tag: &str) -> Self {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
+        let seq = TEMP_DIR_SEQ.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let path = scratch_root().join(format!(
-            "fandhe-frontend-docs-site-blocks-contract-{tag}-{}-{unique}",
+            "fandhe-frontend-docs-site-blocks-contract-{tag}-{}-{unique}-{seq}",
             std::process::id()
         ));
         std::fs::create_dir_all(&path).expect("create temp dir for blocks_contract.rs test");
@@ -61,15 +82,23 @@ impl Drop for TempDir {
     }
 }
 
-fn build_real_site() -> PathBuf {
+/// `TempDir` を `&Path` として透過的に扱えるようにする（`out.join(...)` 等の
+/// 呼び出し元を変えずに所有権だけをテスト関数の戻り値へ持ち出すため）。
+impl std::ops::Deref for TempDir {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+/// 生成物のディレクトリ「所有者」（`TempDir`）をそのまま返す。呼び出し元が
+/// 戻り値を保持している間だけ生成物が生存し、テスト関数終了時に `Drop` で
+/// 確実に削除される（以前の `std::mem::forget` によるリーク運用を是正）。
+fn build_real_site() -> TempDir {
     let out = TempDir::new("real-site");
     build_site(&repo_root(), &out.0).expect("real site/nav.toml should build cleanly");
-    // Drop で消えないよう leak する（テスト関数内で読み終えるまで生存させる
-    // 必要があるだけなので `std::mem::forget` で十分。プロセス終了で OS が
-    // 回収するため放置しても蓄積は有界。他 e2e テストと同型の割り切り）。
-    let path = out.0.clone();
-    std::mem::forget(out);
-    path
+    out
 }
 
 #[test]
@@ -90,6 +119,36 @@ fn login_01_page_wires_demo_class_and_both_stylesheets_index_page_does_not() {
         login_html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
         "login-01 page should link the Blocks-specific stylesheet"
     );
+    // codex-review P1 是正（イシュー #2088 PR #2277 指摘）: card::root/
+    // field::root/button::button は drop_class_attr で呼び出し側 class を
+    // 除去するため、blocks.css のレイアウト規則は class ではなく data-*
+    // 属性へ張り替えた（login_01.rs の実装コメント参照）。生成 HTML に
+    // その属性が実際に出力され、blocks.css 側にも対応するセレクタが
+    // 存在することの両方を固定し、「CSS フックが黙って効かない」再発を防ぐ。
+    for hook in [
+        "data-blocks-login-01-card=\"\"",
+        "data-blocks-login-01-field=\"\"",
+        "data-blocks-login-01-submit=\"\"",
+    ] {
+        assert!(
+            login_html.contains(hook),
+            "login-01 page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-login-01-card]",
+        "[data-blocks-login-01-field]",
+        "[data-blocks-login-01-submit]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
 
     let index_html = std::fs::read_to_string(out.join("blocks/index.html"))
         .expect("blocks/index.html should be generated");

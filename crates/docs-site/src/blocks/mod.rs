@@ -91,14 +91,33 @@ pub const DEMO_CLASS: &str = "blocks-demo";
 /// Demo 節の全幅ラッパ・block 固有レイアウトの中和 CSS
 /// （モジュール doc「CSS の置き場」節参照）。`login_01` 用のレイアウト規則を
 /// 含む（後続イシューが block を追加する際は本定数へ追記する）。
+///
+/// # セレクタが `class` と `[data-*]` で混在する理由（イシュー #2088 PR #2277
+/// codex-review P1 / Cursor Bugbot 指摘の是正）
+///
+/// `fandhe_frontend_pre_styled_ui::card::root` / `field::root` /
+/// `button::button` は variant クラスを自ら付与するパーツであり、
+/// `crate::class_attr::drop_class_attr`（pre-styled-ui 側）により呼び出し側
+/// `attrs` の `class` を黙って除去してから合成する契約を持つ。このため
+/// `login_01.rs` はこれら 3 パーツの Demo 固有スタイルを `class` ではなく
+/// 呼び出し側 `attrs` にそのまま残る `data-*` 属性（`data-blocks-login-01-*`）
+/// で渡し、本 CSS 側も `[data-blocks-login-01-*]` 属性セレクタで対応する
+/// （`blocks-login-01-card`/`-field`/`-submit`）。一方 `card::footer`（variant
+/// を持たず `attrs` をそのまま連結する）や素の `div` には `class` がそのまま
+/// 効くため、それらは従来どおり `.blocks-login-01-*` クラスセレクタのままで
+/// よい（`-footer`/`-password-row`/`-signup-row`）。後続 block（#2089〜#2095）
+/// が `card::root`/`field::root`/`button::button` を使う際は同じ判断（対象
+/// パーツが `drop_class_attr` を経由するか）で `class` か `data-*` かを選ぶ。
+/// 実際に生成 HTML へ属性が出力され CSS 側のセレクタと対になっていることは
+/// `crates/docs-site/tests/blocks_contract.rs` が固定する。
 const LAYOUT_CSS: &str = "\
 .blocks-demo {\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: 1.5rem;\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 .blocks-login-01 {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  min-height: 24rem;\n}\n\
-.blocks-login-01-card {\n  width: 100%;\n  max-width: 24rem;\n}\n\
-.blocks-login-01-field {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n  margin: 0 0 1rem;\n}\n\
+[data-blocks-login-01-card] {\n  width: 100%;\n  max-width: 24rem;\n}\n\
+[data-blocks-login-01-field] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n  margin: 0 0 1rem;\n}\n\
 .blocks-login-01-password-row {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: 0.5rem;\n}\n\
 .blocks-login-01-footer {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n}\n\
-.blocks-login-01-submit {\n  width: 100%;\n}\n\
+[data-blocks-login-01-submit] {\n  width: 100%;\n}\n\
 .blocks-login-01-signup-row {\n  font-size: 0.875rem;\n  text-align: center;\n  color: var(--fandhe-color-fg-muted);\n}\n";
 
 /// 使用部品一覧の 1 件（`## 使用部品` の `<li><a>`）。`path` は

@@ -59,7 +59,7 @@ pub fn demo() -> Node {
 
     card::root(
         CardProps::default(),
-        vec![("class", "blocks-login-01-card")],
+        vec![("data-blocks-login-01-card", "")],
         vec![
             card::header(
                 vec![],
@@ -77,7 +77,7 @@ pub fn demo() -> Node {
                     field::root(
                         &orientation,
                         &email_field,
-                        vec![("class", "blocks-login-01-field")],
+                        vec![("data-blocks-login-01-field", "")],
                         vec![
                             field::label(&email_field, vec![], vec![text("Email")]),
                             input::input(
@@ -95,7 +95,7 @@ pub fn demo() -> Node {
                     field::root(
                         &orientation,
                         &password_field,
-                        vec![("class", "blocks-login-01-field")],
+                        vec![("data-blocks-login-01-field", "")],
                         vec![
                             div(
                                 vec![("class", "blocks-login-01-password-row")],
@@ -127,7 +127,7 @@ pub fn demo() -> Node {
                 vec![
                     button::button(
                         &ButtonProps::default(),
-                        vec![("class", "blocks-login-01-submit")],
+                        vec![("data-blocks-login-01-submit", "")],
                         vec![text("Login")],
                     ),
                     div(
