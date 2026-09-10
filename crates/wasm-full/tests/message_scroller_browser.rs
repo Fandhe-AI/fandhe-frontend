@@ -634,3 +634,135 @@ async fn two_instances_in_same_container_are_independent() {
         Some("bottom")
     );
 }
+
+// --- ネストした message-scroller インスタンスの分離（Bugbot 指摘 #2122） ---
+
+/// `outer_id`/`outer_stuck` の外側インスタンス `content` 配下に、
+/// `inner_id`/`inner_stuck` の内側インスタンスを 1 件そのまま埋め込んだ
+/// ネスト構造を組み立てる（`build_message_scroller` の入れ子版）。
+fn build_nested_message_scroller(
+    outer_id: &str,
+    outer_stuck: HeadlessStuck,
+    inner_id: &str,
+    inner_stuck: HeadlessStuck,
+) -> Node {
+    let inner = build_message_scroller(inner_id, inner_stuck, &[60, 60, 60]);
+    root(
+        MessageScrollerRootProps {
+            stuck: outer_stuck,
+            has_new: false,
+        },
+        vec![("id", outer_id)],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:200px;overflow-y:auto")],
+                vec![content(vec![], vec![fixed_height_child(60), inner])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    )
+}
+
+#[wasm_bindgen_test]
+async fn nested_instance_append_does_not_leak_into_outer_classification() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-nested-append-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let node = build_nested_message_scroller(
+        "ms-nested-outer",
+        HeadlessStuck::Bottom,
+        "ms-nested-inner",
+        HeadlessStuck::Free,
+    );
+    container.set_inner_html(&render(&node));
+    let outer_el = container
+        .first_element_child()
+        .expect("outer message-scroller root must exist");
+
+    wire_message_scroller_events(outer_el.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    let inner_el = outer_el
+        .query_selector("#ms-nested-inner")
+        .expect("query_selector must not fail")
+        .expect("ms-nested-inner must exist");
+    let inner_content = find_content(&inner_el);
+
+    // 内側（free）の content への追記は、内側自身の data-has-new のみを
+    // 立て、外側（bottom）の分類（data-stuck・data-has-new）へ波及しない
+    // こと（Bugbot 指摘 #2122: `first_added_element_top` の
+    // `content.contains(target)` 判定のみではネストしたインスタンスの
+    // `content` への挿入が外側の分類に漏れ込んでいた）。
+    let new_child = render(&fixed_height_child(20));
+    inner_content
+        .insert_adjacent_html("beforeend", &new_child)
+        .expect("insert_adjacent_html must not fail");
+
+    wait_for(|| inner_el.has_attribute("data-has-new")).await;
+    assert!(inner_el.has_attribute("data-has-new"));
+    assert!(
+        !outer_el.has_attribute("data-has-new"),
+        "内側インスタンスへの追記が外側の data-has-new へ波及しないこと"
+    );
+    assert_eq!(
+        outer_el.get_attribute("data-stuck").as_deref(),
+        Some("bottom"),
+        "内側インスタンスへの追記で外側の data-stuck が変化しないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+async fn nested_instance_prepend_does_not_leak_into_outer_grow_classification() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-nested-prepend-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let node = build_nested_message_scroller(
+        "ms-nested-outer-2",
+        HeadlessStuck::Free,
+        "ms-nested-inner-2",
+        HeadlessStuck::Free,
+    );
+    container.set_inner_html(&render(&node));
+    let outer_el = container
+        .first_element_child()
+        .expect("outer message-scroller root must exist");
+
+    wire_message_scroller_events(outer_el.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    let inner_el = outer_el
+        .query_selector("#ms-nested-inner-2")
+        .expect("query_selector must not fail")
+        .expect("ms-nested-inner-2 must exist");
+    let inner_content = find_content(&inner_el);
+    let outer_content = find_content(&outer_el);
+
+    // 同一 MutationObserver バッチ内で、先に内側 content の先頭へ挿入
+    // （内側自身は Prepend）し、続けて外側 content 末尾へ追記（外側自身は
+    // Grow）する。内側の先頭挿入が record_list の先頭に記録されるため、
+    // ネスト除外（`closest_matching(content, target, PART_ROOT)`）を欠いた
+    // 旧実装（`content.contains(target)` のみの判定）では外側の分類
+    // ループが record_list を先頭から走査した際に内側の Prepend 判定へ
+    // 誤って引きずられ、外側自身の Grow（Free なら data-has-new 付与）が
+    // 抑止されてしまう（Bugbot 指摘 #2122 line 722）。
+    let prepend_html = render(&fixed_height_child(20));
+    inner_content
+        .insert_adjacent_html("afterbegin", &prepend_html)
+        .expect("insert_adjacent_html must not fail");
+    let append_html = render(&fixed_height_child(20));
+    outer_content
+        .insert_adjacent_html("beforeend", &append_html)
+        .expect("insert_adjacent_html must not fail");
+
+    wait_for(|| outer_el.has_attribute("data-has-new")).await;
+    assert!(
+        outer_el.has_attribute("data-has-new"),
+        "外側自身の末尾追記（Grow）が内側の先頭挿入（Prepend）に引きずられず data-has-new を立てること"
+    );
+}

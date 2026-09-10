@@ -1931,18 +1931,35 @@ fail-closed 方針）。
 持つべきという判断。shadcn/ui の ScrollToBottom ボタンが「最下部に
 いない」だけで現れる挙動に揃える）。
 
-プログラム的スクロールは常に即時（`ScrollBehavior::Instant`）とする。
-smooth だと中間 `scroll` イベントで `free` へ誤遷移し `data-has-new` の
-誤検知を招くため（smooth なジャンプ演出はスコープ外）。
+プログラム的スクロールは常に即時とする。smooth だと中間 `scroll`
+イベントで `free` へ誤遷移し `data-has-new` の誤検知を招くため（smooth な
+ジャンプ演出はスコープ外）。即時化の実現手段は配線時（`initial_sync_
+instance`）に各 viewport へインライン `scroll-behavior: auto` を固定
+設定すること（`overflow-anchor: none` と同じ箇所・同じ CSSOM 書き込み
+手段）で、アプリ側 CSS の `scroll-behavior: smooth` をインラインスタイル
+（最高詳細度）で上書きし、`Element::set_scroll_top` を常に即時にする
+（レビュー指摘 #2122 で `ScrollToOptions`/`ScrollBehavior` 型を呼び出し
+ごとに経由する構成から変更。バンドルサイズ抑制、REQ-11 gzip 上限超過の
+是正）。
 
 ### 31.5 変異の分類と `scrollHeight` 差分補正
 
-`MutationObserver` コールバックは、今回のバッチで最初に追加された要素
-ノードの `getBoundingClientRect().top` と viewport 上端の位置関係から
-`classify_change` で `Prepend`/`Grow`/`None` を判定する（`Prepend` は
-可視領域より上への挿入、`Grow` はそれ以外の高さ増加、`None` は高さ不変・
-減少）。`Prepend` は `corrected_scroll_top`（`prev_scroll_top + (new_height
-- prev_height)`、負値は 0 へクランプ）で `scrollTop` を補正する。
+`MutationObserver` コールバックは、今回のバッチで最初に見つかった要素
+追加を伴う `MutationRecord` について、追加ノード群がその親の先頭
+（`previousSibling` が無い位置）へ挿入されたかという DOM 構造情報のみで
+`classify_change` の `Prepend`/`Grow`/`None` を判定する（`Prepend` は
+先頭挿入、`Grow` はそれ以外の高さ増加、`None` は高さ不変・減少）。
+判定は viewport のジオメトリ（`getBoundingClientRect`）に依存しない
+（レビュー指摘 #2122: `content` に上部 padding があると Free 状態で
+scrollTop=0 でも先頭挿入が viewport 上端より下に位置し `Grow` へ誤分類
+される旧実装の問題を回避する）。対象レコードは、target から `content`
+（境界）までの間にネストした message-scroller の `root` が無いものに
+限る（ネストしたインスタンス自身の変異を外側の分類へ波及させない、
+`scoped_parts` と同じネスト分離パターン。レビュー指摘 #2122:
+`content.contains(target)` のみの判定ではネストしたインスタンスの
+`content` への挿入も外側の分類に漏れ込んでいた）。`Prepend` は
+`corrected_scroll_top`（`prev_scroll_top + (new_height - prev_height)`、
+負値は 0 へクランプ）で `scrollTop` を補正する。
 
 配線時の初期同期（`initial_sync_instance`）で各 viewport に CSSOM 経由
 （`CssStyleDeclaration::set_property`、`content_height.rs` と同じ書き込み
@@ -1991,9 +2008,12 @@ no-op（fail-closed、多重発火防止）。子要素に明示 `data-action` �
 ### 31.9 semver 判断・テスト
 
 新規公開モジュール `message_scroller`（純粋層 + 配線層）の追加、
-`Runtime::mount`/`Runtime::hydrate` への新規リスナー登録、web-sys の
-`ScrollBehavior`/`ScrollToOptions` feature 追加を伴うため、
+`Runtime::mount`/`Runtime::hydrate` への新規リスナー登録を伴うため、
 `fandhe-frontend-wasm-full` は minor バンプ（0.18.4 → 0.19.0）とする。
+プログラム的スクロールは `Element::set_scroll_top` + 配線時のインライン
+`scroll-behavior: auto` 固定で実現し、`ScrollBehavior`/`ScrollToOptions`
+feature は追加しない（レビュー指摘 #2122 でバンドルサイズ抑制のため
+不採用、§31.4 参照）。
 
 テストは native（`crates/wasm-full/src/message_scroller.rs` 内
 `#[cfg(test)] mod tests` の純粋関数単体テスト、

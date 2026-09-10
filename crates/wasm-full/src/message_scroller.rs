@@ -45,11 +45,19 @@
 //! あり、shadcn/ui の ScrollToBottom ボタンが「最下部にいない」だけで
 //! 現れる挙動に揃える。
 //!
-//! # プログラム的スクロールは常に即時（`ScrollBehavior::Instant`）
+//! # プログラム的スクロールは常に即時（インライン `scroll-behavior: auto`）
 //!
 //! smooth スクロールだと中間 `scroll` イベントで `free` へ誤遷移し
 //! `data-has-new` の誤検知を招くため、本モジュールが行うプログラム的
-//! スクロールは常に即時とする。smooth なジャンプ演出はスコープ外。
+//! スクロールは常に即時とする。配線時（[`wiring::initial_sync_instance`]）
+//! に `viewport` へインライン `scroll-behavior: auto` を固定設定し
+//! （`overflow-anchor: none` と同じ箇所）、アプリ側 CSS が
+//! `scroll-behavior: smooth` を指定していてもインラインスタイル
+//! （最高詳細度）で上書きすることで、[`wiring::scroll_viewport_to_top`]
+//! の `Element::set_scroll_top` を常に即時にする（`ScrollToOptions`/
+//! `ScrollBehavior` 型を呼び出しごとに経由する構成から、配線時 1 回の
+//! CSS 固定へ変更。バンドルサイズ抑制、レビュー指摘 #2122: REQ-11 gzip
+//! 上限超過の是正）。smooth なジャンプ演出はスコープ外。
 //!
 //! # 構造フォールバック（`rerender_subtree`）で viewport が丸ごと
 //! 差し替えられた場合の方針
@@ -170,31 +178,36 @@ pub enum ContentChange {
     None,
 }
 
-/// `content` の高さ変化と、最初に追加された要素の位置から
+/// `content` の高さ変化と、最初に追加されたノードの構造的な挿入位置から
 /// [`ContentChange`] を判定する。
 ///
 /// - `new_scroll_height <= prev_scroll_height` は [`ContentChange::None`]。
-/// - `first_added_top`（今回のバッチで最初に追加された要素ノードの
-///   `getBoundingClientRect().top`）が viewport 上端
-///   （`viewport_top + STICK_THRESHOLD_PX` 以下、`content` の padding
-///   により僅かに下にずれても `Grow` へ誤分類しないための許容差込み）
-///   なら [`ContentChange::Prepend`]。
-/// - `first_added_top` が `None`（`characterData` レコードのみで要素
-///   ノードの追加が無い場合を含む）を含め、それ以外は
-///   [`ContentChange::Grow`]。
+/// - `first_added_is_prepend`（今回のバッチで最初に見つかった要素追加を
+///   伴う `MutationRecord` について、追加ノード群がその親の先頭
+///   （`previousSibling` が無い位置）へ挿入されたか）が `true` なら
+///   [`ContentChange::Prepend`]。
+/// - それ以外（`characterData` レコードのみで要素ノードの追加が無い
+///   場合を含む）は [`ContentChange::Grow`]。
+///
+/// 判定は `MutationRecord.previousSibling` という DOM 構造情報のみで
+/// 行い、viewport のジオメトリ（`getBoundingClientRect`）には依存しない
+/// （レビュー指摘 #2122: `content` に上部 padding があると Free 状態で
+/// scrollTop=0 でも先頭挿入した要素が viewport 上端より下に位置し
+/// `Grow` へ誤分類され、scrollTop 未補正・新着誤通知が起きる旧実装の
+/// 問題を回避する）。
 #[must_use]
 pub fn classify_change(
-    first_added_top: Option<f64>,
-    viewport_top: f64,
+    first_added_is_prepend: bool,
     prev_scroll_height: i32,
     new_scroll_height: i32,
 ) -> ContentChange {
     if new_scroll_height <= prev_scroll_height {
         return ContentChange::None;
     }
-    match first_added_top {
-        Some(top) if top <= viewport_top + f64::from(STICK_THRESHOLD_PX) => ContentChange::Prepend,
-        _ => ContentChange::Grow,
+    if first_added_is_prepend {
+        ContentChange::Prepend
+    } else {
+        ContentChange::Grow
     }
 }
 
@@ -282,10 +295,7 @@ mod wiring {
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{
-        Element, Event, MutationObserver, MutationObserverInit, MutationRecord, ScrollBehavior,
-        ScrollToOptions,
-    };
+    use web_sys::{Element, Event, MutationObserver, MutationObserverInit, MutationRecord};
 
     /// `[data-scope="message-scroller"][data-part="<part>"]` セレクタを
     /// 組み立てる（[`SCOPE`]/引数の `part` はいずれも `&'static str`
@@ -449,24 +459,27 @@ mod wiring {
         }
     }
 
-    /// `viewport` を即時（`ScrollBehavior::Instant`）で最下部へスクロール
-    /// する（モジュール doc「プログラム的スクロールは常に即時」参照）。
+    /// `viewport` を即時で最下部へスクロールする（モジュール doc
+    /// 「プログラム的スクロールは常に即時」参照）。
     fn scroll_viewport_to_bottom(viewport: &Element) {
-        scroll_viewport_to_top(viewport, f64::from(viewport.scroll_height()));
+        scroll_viewport_to_top(viewport, viewport.scroll_height());
     }
 
-    /// `viewport` を即時（`ScrollBehavior::Instant`）で `top` へスクロール
-    /// する。`Element::set_scroll_top` は CSSOM View 仕様上 `scroll-behavior:
-    /// smooth` の影響を受け得る（アニメーション中の割り込みで補正量が
-    /// 欠落し得る）ため、Prepend 時の位置補正（[`corrected_scroll_top`]）を
-    /// 含め本モジュールのプログラム的スクロールは必ず本関数
-    /// （`ScrollToOptions` + `ScrollBehavior::Instant`）を経由する
-    /// （モジュール doc「プログラム的スクロールは常に即時」参照）。
-    fn scroll_viewport_to_top(viewport: &Element, top: f64) {
-        let options = ScrollToOptions::new();
-        options.set_top(top);
-        options.set_behavior(ScrollBehavior::Instant);
-        viewport.scroll_to_with_scroll_to_options(&options);
+    /// `viewport` を即時で `top` へスクロールする。
+    ///
+    /// `Element::set_scroll_top` は CSSOM View 仕様上、対象要素の
+    /// `scroll-behavior` が `smooth` だとアニメーション付きスクロールに
+    /// なり得る（アニメーション中の割り込みで補正量が欠落し得る）ため、
+    /// [`initial_sync_instance`] が配線時に `viewport` へインライン
+    /// `scroll-behavior: auto` を固定設定し（[`overflow-anchor`]
+    /// 設定と同じ箇所・同じ理由）、アプリ側 CSS が `scroll-behavior:
+    /// smooth` を指定していてもインラインスタイル（最高詳細度）で
+    /// 上書きして常に即時にする。`ScrollToOptions`/`ScrollBehavior`
+    /// 型を経由する構成（呼び出しごとに behavior を明示する設計）から、
+    /// 配線時 1 回の CSS 固定へ変更した（バンドルサイズ抑制、レビュー
+    /// 指摘 #2122: REQ-11 gzip 上限超過の是正）。
+    fn scroll_viewport_to_top(viewport: &Element, top: i32) {
+        viewport.set_scroll_top(top);
     }
 
     /// インスタンスごとのスクロール計測スナップショット
@@ -532,7 +545,12 @@ mod wiring {
         snapshots: &SnapshotList,
     ) {
         if let Ok(html) = viewport.clone().dyn_into::<web_sys::HtmlElement>() {
-            let _ = html.style().set_property("overflow-anchor", "none");
+            let style = html.style();
+            let _ = style.set_property("overflow-anchor", "none");
+            // `scroll_viewport_to_top` doc 参照: アプリ側 CSS の
+            // `scroll-behavior: smooth` をインラインスタイルで固定上書き
+            // し、`set_scroll_top` を常に即時にする。
+            let _ = style.set_property("scroll-behavior", "auto");
         }
 
         let stuck = stuck_from_attr(instance_root.get_attribute("data-stuck").as_deref());
@@ -702,10 +720,23 @@ mod wiring {
         Some((instance_root, viewport))
     }
 
-    /// 今回のバッチで最初に追加された要素ノード（`record.added_nodes()`
-    /// の先頭が `Element` であるもの）の `getBoundingClientRect().top` を
-    /// 返す。複数レコードにまたがる場合は最初に見つかったものを使う。
-    fn first_added_element_top(records: &[MutationRecord], content: &Element) -> Option<f64> {
+    /// 今回のバッチで最初に見つかった、要素追加を伴う `MutationRecord`
+    /// について、追加ノード群がその親の先頭（`previousSibling` が無い
+    /// 位置）へ挿入されたかを構造的に判定する（[`classify_change`] の
+    /// `first_added_is_prepend` 引数用）。viewport のジオメトリには
+    /// 依存しない（`content` の上部 padding の影響を受けない、
+    /// レビュー指摘 #2122 line 196）。
+    ///
+    /// ネストした message-scroller インスタンス（`content` 配下の別
+    /// インスタンスの `content`/`root`）への挿入は対象に含めない:
+    /// target から `content`（境界）までの間に `data-part="root"` が
+    /// 見つかれば、そのネストしたインスタンス自身の変異であり外側の
+    /// 分類（`scrollTop` 補正・`data-has-new`）へ波及させてはならない
+    /// （`scoped_parts` と同じネスト分離パターン、Bugbot 指摘 line 722:
+    /// 従来の `content.contains(target_element)` 判定のみでは
+    /// ネストしたインスタンスの `content` への挿入も外側の分類に
+    /// 漏れ込んでいた）。
+    fn first_added_is_prepend(records: &[MutationRecord], content: &Element) -> bool {
         for record in records {
             let Some(target) = record.target() else {
                 continue;
@@ -722,15 +753,19 @@ mod wiring {
             if target_element != content && !content.contains(Some(target_element)) {
                 continue;
             }
-            let added = record.added_nodes();
-            for i in 0..added.length() {
-                let Some(node) = added.get(i) else { continue };
-                if let Some(element) = node.dyn_ref::<Element>() {
-                    return Some(element.get_bounding_client_rect().top());
-                }
+            // target から content までの間にネストした message-scroller の
+            // `root` が見つかれば、それは別インスタンスの変異なのでこの
+            // レコードは対象外として次のレコードを見る。
+            if closest_matching(content, target_element, PART_ROOT).is_some() {
+                continue;
             }
+            let added = record.added_nodes();
+            if added.length() == 0 {
+                continue;
+            }
+            return record.previous_sibling().is_none();
         }
-        None
+        false
     }
 
     /// `MutationObserver` コールバック本体。レコードをインスタンスごとに
@@ -783,14 +818,8 @@ mod wiring {
             else {
                 continue;
             };
-            let first_top = first_added_element_top(&record_list, &content);
-            let viewport_top = viewport.get_bounding_client_rect().top();
-            let change = classify_change(
-                first_top,
-                viewport_top,
-                prev_scroll_height,
-                new_scroll_height,
-            );
+            let is_prepend = first_added_is_prepend(&record_list, &content);
+            let change = classify_change(is_prepend, prev_scroll_height, new_scroll_height);
 
             let stuck = stuck_from_attr(instance_root.get_attribute("data-stuck").as_deref());
             let plan = plan_after_change(stuck, change);
@@ -798,7 +827,7 @@ mod wiring {
             if plan.correct_prepend {
                 let new_top =
                     corrected_scroll_top(prev_scroll_top, prev_scroll_height, new_scroll_height);
-                scroll_viewport_to_top(&viewport, f64::from(new_top));
+                scroll_viewport_to_top(&viewport, new_top);
             }
             if plan.scroll_to_bottom {
                 scroll_viewport_to_bottom(&viewport);
@@ -949,30 +978,18 @@ mod tests {
 
     #[test]
     fn classify_change_none_when_height_not_increased() {
-        assert_eq!(classify_change(None, 0.0, 200, 200), ContentChange::None);
-        assert_eq!(classify_change(None, 0.0, 200, 150), ContentChange::None);
+        assert_eq!(classify_change(false, 200, 200), ContentChange::None);
+        assert_eq!(classify_change(true, 200, 150), ContentChange::None);
     }
 
     #[test]
-    fn classify_change_prepend_when_top_at_or_above_viewport() {
-        assert_eq!(
-            classify_change(Some(0.0), 0.0, 200, 280),
-            ContentChange::Prepend
-        );
-        // 許容差込み: viewport_top + STICK_THRESHOLD_PX 以下も Prepend。
-        assert_eq!(
-            classify_change(Some(6.0), 0.0, 200, 280),
-            ContentChange::Prepend
-        );
+    fn classify_change_prepend_when_first_added_is_prepend() {
+        assert_eq!(classify_change(true, 200, 280), ContentChange::Prepend);
     }
 
     #[test]
-    fn classify_change_grow_when_top_below_viewport_or_missing() {
-        assert_eq!(
-            classify_change(Some(50.0), 0.0, 200, 280),
-            ContentChange::Grow
-        );
-        assert_eq!(classify_change(None, 0.0, 200, 280), ContentChange::Grow);
+    fn classify_change_grow_when_not_prepend() {
+        assert_eq!(classify_change(false, 200, 280), ContentChange::Grow);
     }
 
     #[test]
