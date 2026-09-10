@@ -79,7 +79,9 @@ date_input / **dialog（イシュー #2193 で `close-trigger` の
 `[data-variant="text"]` state 規則を `FocusVisible` 規則の直後・
 `@media (hover: hover)` の直前へ純追加）** / **download_trigger（方式 b）** /
 **drawer（イシュー #2193 で dialog と同様の `close-trigger` text variant
-規則を追加）** / editable / **field（イシュー #1684 で golden 新設）** /
+規則を追加）** / editable / **field（イシュー #1684 で golden 新設。
+イシュー #2199 で `group` slot の `container-type`/`container-name` 中間
+挿入・末尾 `@container` ブロックを純追加）** /
 **fieldset（イシュー #1686 で golden 新設）** /
 file_upload / floating_panel / highlight / hover_card /
 image_cropper / **input_group（イシュー #2063 で golden 新設。`stylesheet()` 全文）** /
@@ -223,7 +225,12 @@ grep -l '\b<snake>::' crates/pre-styled-ui/tests/*.rs | xargs -n1 basename
   separator-content 分を golden 化する。末尾 6 slot はイシュー #2185 の
   純追加で、`required-indicator` base の直後・`.fd-field--orientation-
   horizontal` の前へ中間挿入される「既存ブロック verbatim + 中間挿入」
-  パターン、`title` の 2 state 規則は末尾に追加される）。
+  パターン、`title` の 2 state 規則は末尾に追加される。イシュー #2199 で
+  さらに `group` base ブロック群の直後へ `container-type`/
+  `container-name` の 2 個目ブロックが中間挿入され、`title[data-invalid]`
+  の後・`error-text > ul` の前へ `@container fd-field-group (min-width:
+  448px) { .fd-field--orientation-responsive { ... } }` ブロックが追記
+  される）。
 - `.fd-<scope>--<axis>-<value>` は variant 軸のクラス名です。
 - 属性セレクタ（`[data-*]`）や `:hover` 等の後置セレクタは
   `SlotRecipe::state`（states）由来です。

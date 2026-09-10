@@ -1,5 +1,6 @@
 //! styled Field（イシュー #1684、親 #1671。#2185 で group/content/title/
-//! separator の 6 slot を追加）の決定的 CSS 出力ゴールデンテスト。
+//! separator の 6 slot を追加。#2199 で `group` を container とする
+//! `orientation="responsive"` を追加）の決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/alert_css.rs` と同型の golden fixture
 //! テスト。`field` recipe は元々 `root`/`label`/`helper-text`/`error-text`/
@@ -10,7 +11,13 @@
 //! 節参照）。本ファイルはそれを CSS 出力側からも固定する。イシュー #2185
 //! で `group`/`content`/`title`/`separator`/`separator-line`/
 //! `separator-content` の 6 slot が純追加された（`FIELD_GOLDEN_BLOCKS_BEFORE_2185`
-//! が既存ブロック群の verbatim 維持を固定する）。
+//! が既存ブロック群の verbatim 維持を固定する）。イシュー #2199 で `group`
+//! 2 個目の base ブロック（`container-type`/`container-name`）の中間挿入と、
+//! 末尾（`title[data-invalid]` の後・`error-text > ul` の前）への
+//! `@container` ブロック追加が生じた（`FIELD_GOLDEN_BLOCKS_BEFORE_2185` の
+//! 対象外。同定数は #2185 以前のブロックのみを扱う契約のため、#2199 の
+//! 中間挿入・追記は `field_css_matches_golden_fixture` の全文一致が
+//! 単独で固定する）。
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_pre_styled_ui::field::{
@@ -62,6 +69,11 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
   flex-direction: column;
   gap: var(--fandhe-space-6);
   width: 100%;
+}
+
+[data-scope="field"][data-part="group"] {
+  container-type: inline-size;
+  container-name: fd-field-group;
 }
 
 [data-scope="field"][data-part="content"] {
@@ -149,6 +161,15 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
 
 [data-scope="field"][data-part="title"][data-invalid] {
   color: var(--fandhe-color-danger);
+}
+
+@container fd-field-group (min-width: 448px) {
+  [data-scope="field"][data-part="root"].fd-field--orientation-responsive {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--fandhe-space-2);
+  }
 }
 
 [data-scope="field"][data-part="error-text"] > ul {
@@ -246,6 +267,39 @@ fn css_declares_orientation_horizontal_selector() {
     assert!(!css.contains(".fd-field--orientation-vertical {"));
 }
 
+/// `orientation="responsive"`（イシュー #2199）のセレクタが `@container`
+/// ブロックの内側にのみ現れること、`group` slot の container-type
+/// ブロックが存在すること、`@container` ブロックが
+/// `title[data-invalid]` より後・`error-text > ul` より前（recipe 出力の
+/// 末尾）に位置することを固定する。
+#[test]
+fn css_declares_orientation_responsive_selector_inside_container_block() {
+    let css = field::css();
+    assert!(css.contains(r#"[data-scope="field"][data-part="group"] {"#));
+    assert!(css.contains("container-type: inline-size;"));
+    assert!(css.contains("container-name: fd-field-group;"));
+    assert!(css.contains("@container fd-field-group (min-width: 448px) {"));
+    // `.fd-field--orientation-responsive` はブロックの外（base セレクタ等）
+    // には現れない: `@container` プレリュードの直後にのみ出現することを、
+    // プレリュード文字列を含む行の直後で出現する位置関係として確認する。
+    let container_pos = css
+        .find("@container fd-field-group (min-width: 448px) {")
+        .expect("container block must exist");
+    let responsive_pos = css
+        .find(".fd-field--orientation-responsive {")
+        .expect("responsive selector must exist");
+    assert!(responsive_pos > container_pos);
+
+    let invalid_title_pos = css
+        .find(r#"[data-scope="field"][data-part="title"][data-invalid] {"#)
+        .expect("title[data-invalid] rule must exist");
+    let error_list_pos = css
+        .find(r#"[data-scope="field"][data-part="error-text"] > ul {"#)
+        .expect("error-text > ul rule must exist");
+    assert!(container_pos > invalid_title_pos);
+    assert!(container_pos < error_list_pos);
+}
+
 /// `[hidden]` を `display: none` に固定する規則が `error-text`/
 /// `required-indicator` の両方に存在することを固定する。headless
 /// `field::error_text`/`field::required_indicator` は非該当状態で `hidden`
@@ -314,6 +368,18 @@ fn styled_root_horizontal_orientation_applies_class() {
     };
     let html = render(&field::root(&props, &f, vec![], vec![]));
     assert!(html.contains("fd-field--orientation-horizontal"));
+}
+
+/// responsive orientation を選択したときにクラスが切り替わることを実
+/// レンダリングで確認する（イシュー #2199）。
+#[test]
+fn styled_root_responsive_orientation_applies_class() {
+    let f = default_field("f");
+    let props = FieldRootProps {
+        orientation: FieldOrientation::Responsive,
+    };
+    let html = render(&field::root(&props, &f, vec![], vec![]));
+    assert!(html.contains("fd-field--orientation-responsive"));
 }
 
 /// 選択的再エクスポート（`label`/`helper_text`/`error_text`/

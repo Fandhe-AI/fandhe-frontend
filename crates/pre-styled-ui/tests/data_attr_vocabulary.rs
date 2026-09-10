@@ -462,6 +462,50 @@ fn field_root_data_attrs_are_headless_sourced_not_self_emitted() {
     // 参照は許容、自前出力はしないという役割 B の境界を固定）。
     let css = field::css();
     assert!(css.contains("[data-disabled]"));
+
+    // `orientation="responsive"`（イシュー #2199）を選択しても、上記規約 A・
+    // 役割 B の境界は変わらない: `container-type` は CSS 側（`group` slot）
+    // のみに現れ、HTML 属性を一切増やさない。全フラグ false/true の両方で
+    // クラス `fd-field--orientation-responsive` のみが付き、独自 `data-*`
+    // （`data-orientation` 含む）は一切出力されないことを固定する。
+    let f_responsive_false = field("f");
+    let responsive_props = FieldRootProps {
+        orientation: field::FieldOrientation::Responsive,
+    };
+    let html = render(&field::root(
+        &responsive_props,
+        &f_responsive_false,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains("fd-field--orientation-responsive"));
+    assert!(!html.contains("data-orientation"));
+    assert!(!html.contains("data-disabled"));
+    assert!(!html.contains("data-invalid"));
+    assert!(!html.contains("data-required"));
+    assert!(!html.contains("data-readonly"));
+
+    let f_responsive_true = FieldProps {
+        id: "f",
+        ids: FieldIds::default(),
+        disabled: true,
+        invalid: true,
+        required: true,
+        readonly: true,
+        has_helper_text: false,
+    };
+    let html = render(&field::root(
+        &responsive_props,
+        &f_responsive_true,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains("fd-field--orientation-responsive"));
+    assert!(!html.contains("data-orientation"));
+    assert!(html.contains("data-disabled"));
+    assert!(html.contains("data-invalid"));
+    assert!(html.contains("data-required"));
+    assert!(html.contains("data-readonly"));
 }
 
 /// `field.rs` 拡張パーツ（`group`/`content`/`title`/`separator`、イシュー

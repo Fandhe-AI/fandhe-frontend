@@ -302,6 +302,68 @@ variant（0,3,0）が宣言していると、`@media` の内外に関わらず v
 state の複合条件、`max-width`/range 構文、container query）は §7 の
 再評価トリガーへ記録する。
 
+### 3.7 container query（新規グループ、4 段、イシュー #2199）
+
+PR #2147（field の shadcn/ui 突合）で、shadcn `Field` の
+`orientation="responsive"`（`FieldGroup` の `@container/field-group` を
+基準に `@md/field-group` 以上で縦積み→横並びへ切り替える）に相当する
+`@container` クエリを `SlotRecipe` が表現できず、「本リポジトリに
+`@container` の前例が皆無であり単一部品のための新規 CSS 機構導入は
+横断設計判断」として見送られていた（`field.rs` モジュール doc「見送った
+もの」に記録あり）。本イシューは `recipe.rs` に `@container` を表現する
+container query 条件を追加し、field を最初の消費者として実装する。
+
+**container slot（`container-type` を持つ要素）の決め方**: container は
+recipe が宣言する 1 slot（`SlotRecipe::container_slot(slot)`）とする。
+名前付き container を必須とし、`fd-<scope>-<slot>` を recipe が
+`scope`/`slot`（いずれも `is_valid_identifier` 検証済み）から決定的に
+導出する。無名 `@container` は不採用（将来他部品が `container-type` を
+持った時点で最近傍 container に束縛され本 recipe の `@container` 規則が
+黙って壊れるため）。1 recipe につき container slot は 1 つで、複数回
+呼んだ場合は最後の呼び出しが上書きする（builder の素直な意味論）。
+`container-type: inline-size` は要素の内在インライン寸法を 0 とみなす
+制約を持つため、`width: 100%` 等で解決できる block flow の子でのみ
+期待どおり動く（field の `group` は既に `width: 100%` を持つ）。
+
+**`@container` 条件の宣言手段**: 新 enum `ContainerBreakpoint`（`sm`=
+384px/`md`=448px/`lg`=512px/`xl`=576px、shadcn/ui Tailwind v4 既定の
+コンテナクエリスケールと一致）を `Breakpoint` と並列・独立に追加した
+（`StateCondition` へ variant を追加する形は既存の「下流の網羅 `match`
+を壊さない純追加」判断（§3.6）を踏襲し不採用）。builder は 2 種:
+`SlotRecipe::container(slot, cb, declarations)`（base セレクタ、詳細度
+(0,2,0)）と `SlotRecipe::container_variant(v, slot, cb, declarations)`
+（variant クラス付きセレクタ、詳細度 (0,3,0)）。`container_variant` が
+無いと responsive（container 幅に応じて特定 variant クラスの宣言だけを
+切り替える）が実装不能なため、breakpoint（§3.6）では「複合条件は未実装」
+としていた判断を、**container × variant に限って**採用へ改めた
+（breakpoint × variant / × state・container × state は引き続きスコープ
+外のまま、§7 参照）。`container_variant` は `variant()` と同じく事前
+登録を要求しない（識別子検証のみ）。
+
+**Theme トークンは追加しない**: breakpoint トークン
+（`--fandhe-breakpoint-<段>`）は JS の `matchMedia` 等の参照用途を持つが、
+container query には JS 側の等価 API が無く、CSS custom property は
+`@container` プレリュードでも使えない制約は breakpoint と同じ（§3.6の
+「中核制約」節参照）。参照専用トークンを追加する動機自体が無いため、
+container query 用の Theme トークンは新設しない。
+
+**出力順序**: `SlotRecipe::css()` の出力順を「… → breakpoints
+（`Breakpoint::ALL` の昇順）→ container query（`ContainerBreakpoint::ALL`
+の昇順、`container_slot` が有効な場合のみ）→ hover（常に最後尾）」へ
+拡張した。container query も breakpoint と同じ「`@media`/`@container` の
+at-rule ブロック群が末尾に集約される」既存契約・「hover は最後尾」契約を
+保つ位置。`container-type`/`container-name` の 2 個目 base ブロックは
+当該 slot の base ブロック群の直後に中間挿入する（accordion #2192 の
+`item-content` 2 個目 base ブロックと同型）。
+
+**fail-closed**: container slot 未宣言（`container_slot` を呼んでいない、
+または宣言した slot が `slots` 未宣言・不正識別子）の場合、`container()`/
+`container_variant()` に登録された規則は一切出力しない（孤児 `@container`
+を出さない）。個別規則の未宣言 slot・不正識別子・有効な宣言ゼロは
+breakpoint と同じくスキップする。純追加不変条件（`container_slot`/
+`container`/`container_variant` を呼ばない recipe の `css()` はバイト
+不変）も同様に維持する。
+
 ## 4. 対象ファイル
 
 | パス | 変更内容 |
@@ -317,6 +379,11 @@ state の複合条件、`max-width`/range 構文、container query）は §7 の
 | `crates/docs-site/tests/css_var_scope_prefix.rs` | `SHARED_VARS` から `--fandhe-z-index-toast` を削除 |
 | `docs/api/pre-styled-ui-api.md` §4l | 新 API のシグネチャ追記 |
 | `docs/design/radix-themes-survey.md` §5 | fandhe 側の段数更新・z-index 行追加。イシュー #2197 で breakpoints 行を更新 |
+| `crates/pre-styled-ui/src/recipe.rs` | イシュー #2199 で `ContainerBreakpoint` enum（`ALL`/`value`/`min_width`）・`SlotRecipe::container_slot`/`container`/`container_variant` builder・`css()` の container-type 中間挿入と `@container` ブロック出力を追加 |
+| `crates/pre-styled-ui/src/field.rs` | イシュー #2199 で `FieldOrientation::Responsive` を追加し、`group` を container slot・`root` を `container_variant` の対象として登録 |
+| `crates/pre-styled-ui/tests/recipe_css.rs` | イシュー #2199 で container query の golden・出力順序・fail-closed・純追加不変条件テストを追加 |
+| `crates/pre-styled-ui/tests/field_css.rs` | イシュー #2199 で `orientation="responsive"` の golden 差分・container ブロック位置テストを追加 |
+| `crates/pre-styled-ui/Cargo.toml` | イシュー #2199 で `0.180.4` → `0.181.0`（`FieldOrientation` へ新 variant 追加、0.x の破壊的変更） |
 
 ## 5. 部品ソースの「トークン外の生の値」棚卸し（後続 Phase の消し込み対象）
 
@@ -409,6 +476,10 @@ state の複合条件、`max-width`/range 構文、container query）は §7 の
 | ダーク時の影を弱め border へ寄せる方式 | Radix | overlay 系部品は既に border で境界を担保済み。色トークン（#1422）確定後に再評価 |
 | breakpoint `2xl`（1536px） | chakra-ui/shadcn | `Size` の「共通 enum に載せると全部品が空の段を抱える」前例と同じ判断。必要になった時点で純追加できる（§3.6） |
 | Radix Themes の名前付き段（`initial`/`xs`〜`xl`） | Radix | 値が chakra/shadcn と 1 段ずれており fandhe の他スケール（radius/shadow/spacing 等）が chakra-ui/shadcn 基準で揃っている整合性を優先（§3.6） |
+| 無名 `@container` | — | 将来他部品が `container-type` を持った時点で最近傍 container に束縛され本 recipe の `@container` 規則が黙って壊れるため、名前付き container のみを採用（§3.7） |
+| container query の `rem` 表記 | — | `Breakpoint::min_width` のリテラル形式（px）との整合を優先（§3.7） |
+| container query `3xs`〜`xs`・`2xl` 以上 | shadcn/ui（Tailwind v4） | `Size`/`Breakpoint` の「共通 enum に載せると全部品が空の段を抱える」前例と同じ判断。必要になった時点で純追加できる（§3.7） |
+| container query 用 Theme トークン | — | JS 側に等価 API が無く CSS custom property が `@container` プレリュードで使えない制約は breakpoint と同じで、参照専用トークンを追加する動機自体が無い（§3.7） |
 
 ## 7. 再評価トリガー
 
@@ -422,9 +493,18 @@ state の複合条件、`max-width`/range 構文、container query）は §7 の
   見送った。複数部品で実際の需要が生じた時点で再評価する。
   - breakpoint × variant / breakpoint × state の複合条件（`@media` 内の
     `.fd-*` クラス・`:hover` 規則）
-  - `max-width` / range 構文（`width >= 640px`）・container query
+  - `max-width` / range 構文（`width >= 640px`）
   - docs-site `crates/docs-site/src/site_theme.rs` の 768px/1200px を
     breakpoint トークンと整合させる件
   - `crates/wasm-full` sidebar の `DEFAULT_MOBILE_MEDIA_QUERY` を
     breakpoint トークンと連動させる件（`docs/design/wasm-full-architecture.md`
     既記載）
+- container query（§3.7、イシュー #2199）: 以下は本イシューのスコープ外
+  として見送った。複数部品で実際の需要が生じた時点で再評価する。
+  - container × state の複合条件（container × variant のみ本イシューで
+    採用）
+  - `max-width` / range 構文、`rem` 表記の container 段、`3xs`〜`xs`・
+    `2xl` 以上の段
+  - Theme 側 container トークン、1 recipe に複数 container slot
+  - `examples/headless-pre-styled-ui`（`fandhe-frontend-pre-styled-ui`
+    crates.io バージョン `0.119.1` 固定）の追随・crates.io 公開

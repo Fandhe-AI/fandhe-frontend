@@ -3109,7 +3109,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 適用、patch 相当）が双方とも独立に 0.180.3 へ到達していたため、同一版数への
 # 偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を統合した結果として
 # 0.180.3 をさらに +1 した 0.180.4 へ patch バンプする。
-version = "0.180.4"
+#
+# イシュー #2199（recipe への `@container` 導入・field
+# `orientation="responsive"` 追加）: `FieldOrientation` へ新 variant
+# `Responsive` を追加する破壊的変更（0.x の網羅 `match` 破壊）のため、
+# `.claude/rules/coding-rust.md` の「0.x の破壊的変更はマイナーバンプ」
+# 規約に従い 0.181.0 へマイナーバンプする。
+version = "0.181.0"
 
 
 edition = "2021"
