@@ -393,6 +393,11 @@ fn build_menu_dom_with_checkable_items(
         parent.append_child(&item_text).unwrap();
     }
 
+    // 直前に生成した radio-item-group（連続する RadioItem 指定をまとめる
+    // ため、下のループ内で使い回す。他 part を挟むと `None` へリセットし
+    // 新しい group を開始する）。
+    let mut radio_item_group: Option<Element> = None;
+
     for spec in items {
         let (part_name, role_value, value, label, disabled, checked) = match spec {
             MenuItemSpec::Item(value, label, disabled) => {
@@ -433,7 +438,32 @@ fn build_menu_dom_with_checkable_items(
             item.set_attribute("data-disabled", "").unwrap();
         }
         append_item_text(document, &item, label);
-        content.append_child(&item).unwrap();
+        // radio-item は実 headless-ui 出力（`menu::radio_item_group`）と
+        // 同じく radio-item-group でラップする（`MenuRadioItemGroup` の
+        // 専用インスタンス root は radio-item-group 自身であり、
+        // codex-review PR #2321 P1 指摘の是正により radio-item 単体を root
+        // に配線しても `action_from_parts` が fail-closed になったため）。
+        // 連続する RadioItem 指定は 1 つの group へまとめ、他 part を挟むと
+        // 新しい group を開始する。
+        if part_name == "radio-item" {
+            let group = match radio_item_group.as_ref() {
+                Some(group) => group.clone(),
+                None => {
+                    let group = document.create_element("div").unwrap();
+                    group.set_attribute("data-scope", "menu").unwrap();
+                    group
+                        .set_attribute("data-part", "radio-item-group")
+                        .unwrap();
+                    content.append_child(&group).unwrap();
+                    radio_item_group = Some(group.clone());
+                    group
+                }
+            };
+            group.append_child(&item).unwrap();
+        } else {
+            radio_item_group = None;
+            content.append_child(&item).unwrap();
+        }
     }
     root.append_child(&content).unwrap();
 
@@ -1716,20 +1746,31 @@ fn menu_open_enter_selects_highlighted_radio_item_exclusively() {
         .get_element_by_id("kn-menu-radio1-item-list")
         .unwrap();
     let items = vec![("grid", grid_item.clone()), ("list", list_item.clone())];
+    // `MenuRadioItemGroup` の専用インスタンス root は radio-item-group 自身
+    // （`build_menu_dom_with_checkable_items` が連続する RadioItem 指定を
+    // 自動でラップする。codex-review PR #2321 P1 指摘の是正により、
+    // radio-item 単体を root に配線しても `action_from_parts` が
+    // fail-closed になったため 1 回だけ group root へ配線する）。
+    let radio_item_group = root
+        .query_selector(r#"[data-part="radio-item-group"]"#)
+        .unwrap()
+        .expect("radio-item-group element must exist");
 
     let component = Rc::new(RefCell::new(MenuRadioItemGroup::default()));
-    for (_, item) in &items {
-        let items_for_update = items.clone();
-        wire_headless_component(item.clone(), component.clone(), move |state, _root| {
+    let items_for_update = items.clone();
+    wire_headless_component(
+        radio_item_group.clone(),
+        component.clone(),
+        move |state, _root| {
             for (value, el) in &items_for_update {
                 let checked = state.is_checked(value);
                 let _ = el.set_attribute("aria-checked", if checked { "true" } else { "false" });
                 let _ =
                     el.set_attribute("data-state", if checked { "checked" } else { "unchecked" });
             }
-        })
-        .expect("wire_headless_component must not fail");
-    }
+        },
+    )
+    .expect("wire_headless_component must not fail");
     wire_keynav(root.clone()).expect("wire_keynav must succeed");
 
     let trigger = document
@@ -1961,8 +2002,21 @@ fn menubar_open_enter_and_space_toggle_checkbox_item_and_select_radio_item() {
         "kn-menubar-checkable1-item-grid",
         "Grid",
     );
+    // `MenuRadioItemGroup` の専用インスタンス root は radio-item-group 自身
+    // （codex-review PR #2321 P1 指摘の是正により、radio-item 自体を root に
+    // 配線しても `action_from_parts` が fail-closed で解決しなくなったため、
+    // 実 headless-ui 出力（`menu::radio_item_group`）と同じく radio-item を
+    // radio-item-group でラップする）。
+    let radio_item_group = document.create_element("div").unwrap();
+    radio_item_group
+        .set_attribute("data-scope", "menubar")
+        .unwrap();
+    radio_item_group
+        .set_attribute("data-part", "radio-item-group")
+        .unwrap();
+    radio_item_group.append_child(&radio_item).unwrap();
     content.append_child(&checkbox_item).unwrap();
-    content.append_child(&radio_item).unwrap();
+    content.append_child(&radio_item_group).unwrap();
     menu_wrapper.append_child(&content).unwrap();
     root.append_child(&menu_wrapper).unwrap();
     document.body().unwrap().append_child(&root).unwrap();
@@ -1986,7 +2040,7 @@ fn menubar_open_enter_and_space_toggle_checkbox_item_and_select_radio_item() {
     let radio_component = Rc::new(RefCell::new(MenuRadioItemGroup::default()));
     let wired_radio_item = radio_item.clone();
     wire_headless_component(
-        radio_item.clone(),
+        radio_item_group.clone(),
         radio_component.clone(),
         move |state, _root| {
             let checked = state.is_checked("grid");

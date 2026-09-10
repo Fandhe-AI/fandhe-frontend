@@ -1899,19 +1899,48 @@ patch バンプとする。`fandhe-frontend-headless-ui` は rustdoc のみの�
 | `menubar` | `radio-item` | `"select"` | `true` | `Menubar::decode_action` は `"select"` を `None` にするため衝突しない |
 
 `checkbox-item` の `"toggle"` は `Disclosure::decode_action("toggle")` にも
-一致するため、checkbox-item の状態機械を配線せず `Menu`（Disclosure 埋め
-込み）だけを配線したアプリでは、checkbox-item クリックで Menu 自身が
-開閉してしまう（従来の `menu`/`trigger-item` 行と同じ性質であり新規の
-リスクではない）。本リポジトリの既存規約は「各コンポーネントインスタン
-スを自身の境界要素へ個別に `wire_headless_component` し、内側で解決した
-click は `stop_propagation` で外側へ伝播させない」（
+一致するため、`action_for_part` 単体（(scope, part) の 1 段判定）で見れば
+checkbox-item クリックは外側 `Menu`（Disclosure 埋め込み）の `"toggle"`
+とも解釈できてしまう。本リポジトリの既存規約は「各コンポーネントインス
+タンスを自身の境界要素へ個別に `wire_headless_component` し、内側で解決
+した click は `stop_propagation` で外側へ伝播させない」（
 `crates/wasm-full/tests/headless_wiring_browser.rs::
 submenu_trigger_item_click_toggles_child_menu_and_does_not_cross_dispatch_to_parent`
 参照）であり、`checkbox_item`/`radio_item_group` もこの契約に従って
 個別配線する（`menu_checkbox_item_click_does_not_cross_dispatch_to_outer_menu`
-がこの越境防止を固定する）。checkbox-item/radio-item の状態機械を配線
-していないアプリでは checkbox-item クリックで外側 Menu が toggle される
-点は設計上の既知トレードオフとして残す。
+がこの越境防止を固定する）。
+
+**checkbox-item/radio-item の状態機械を配線していないアプリでの誤 dispatch
+是正（codex-review PR #2321 P1 指摘、実装は
+[`crate::headless::action_from_parts_scoped`] 内
+`resolved_part_targets_wired_root`）**: 当初の実装は
+`action_from_parts`（実クリック配線が経由する多段解決）が checkbox-item
+自体をそのまま解決してしまい、外側 Menu だけを配線し checkbox-item の
+checked 状態を独自の click ハンドラで管理している既存アプリで、
+checkbox-item クリックが外側 Menu の `"toggle"` として誤って dispatch
+され Menu が意図せず閉じる回帰を招いていた（実装当初は「設計上の既知
+トレードオフ」として許容していたが、`stop_propagation` 契約が前提とする
+「内側で解決した click は必ず内側の専用インスタンスへのものである」を
+実際には満たしていなかった不整合であり、是正した）。是正後は
+`collect_part_refs` の契約（`parts` の末尾は常に配線起点 root 自身の
+`PartRef`）を利用し、「解決に使われた part（checkbox-item/radio-item）が
+wire された root 自身（checkbox-item 自身 / radio-item-group 自身）で
+なければ、その解決を採用しない」を `action_from_parts_scoped` 内で
+機械的に判定する。checkbox-item/radio-item 専用インスタンスへ
+`wire_headless_component` している場合（`menu_checkbox_item_click_toggles_in_real_dom`
+等）は従来どおり解決される。native 回帰は
+`menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`/
+`menubar_checkbox_item_click_bubbled_to_outer_menubar_root_does_not_resolve`
+等、browser 回帰は
+`menu_checkbox_item_click_without_dedicated_instance_wiring_does_not_toggle_outer_menu`
+が固定する。menubar 側は `Menubar::decode_action` が元々 "toggle"（空
+payload）/"select" のいずれも受理しないため Menubar 自身への誤
+dispatch は起きないが、ガード無しでは `action_from_parts_scoped` が
+`Some` を返し `stop_propagation` だけが呼ばれてしまう（dispatch 失敗の
+有無に関わらず解決成立時点で呼ぶ契約）ため、checkbox-item/radio-item を
+独自 click ハンドラで管理する既存アプリのクリックが無言で握りつぶされる
+同種の問題が起き得た。`resolved_part_targets_wired_root` は scope を
+区別せず `menu`/`menubar` の双方へ同じ制約を課すことでこれも予防する。
 
 Menubar は checked 状態機械を持たないため、`menubar::checkbox_item`/
 `radio_item` から生成される要素も `menu::MenuCheckboxItem`/
@@ -1947,14 +1976,25 @@ Menubar は checked 状態機械を持たないため、`menubar::checkbox_item`
 - native（`crates/wasm-full/tests/headless_wiring.rs`）: `menu`/`menubar`
   それぞれ checkbox-item/radio-item のドリフト検知（`assert_scope_part_present`）・
   dispatch 遷移（トグル/排他選択）・`data-value` 欠落や `disabled` の
-  fail-closed・`"toggle"`/`"select"` 語彙衝突（checkbox-item は外側 Menu
-  を toggle してしまう・radio-item は Menu/Menubar 双方で no-op）・XSS
-  エスケープの回帰を固定。
+  fail-closed・`"toggle"`/`"select"` 語彙衝突（`action_for_part` 単体では
+  checkbox-item が外側 Menu の toggle とも解釈できるが、実クリック配線が
+  経由する `action_from_parts` は専用インスタンス root でない解決を
+  fail-closed で拒否する。`menu_checkbox_item_toggle_action_manually_dispatched_to_menu_disclosure_opens_it`
+  が `action_for_part` 単体の語彙衝突を、
+  `menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`/
+  `menubar_checkbox_item_click_bubbled_to_outer_menubar_root_does_not_resolve`/
+  `menubar_radio_item_click_bubbled_to_outer_menubar_root_does_not_resolve`
+  が `action_from_parts` 側の拒否をそれぞれ固定する。radio-item は
+  Menu/Menubar 双方でそもそも語彙が受理されず no-op）・XSS エスケープの
+  回帰を固定。
 - browser（`crates/wasm-full/tests/headless_wiring_browser.rs`）: 実 DOM
   クリックでの checkbox-item トグル・radio-item-group 排他選択・外側
-  Menu への非越境（`stop_propagation` 契約）・menubar checkbox-item/
-  radio-item の実クリック（`Menubar::open()` が不変であることも含む）・
-  XSS 回帰を固定。
+  Menu への非越境（`stop_propagation` 契約。専用インスタンスを配線した
+  場合の `menu_checkbox_item_click_does_not_cross_dispatch_to_outer_menu`
+  に加え、専用インスタンスを一切配線していない既存アプリの再現である
+  `menu_checkbox_item_click_without_dedicated_instance_wiring_does_not_toggle_outer_menu`
+  も固定）・menubar checkbox-item/radio-item の実クリック
+  （`Menubar::open()` が不変であることも含む）・XSS 回帰を固定。
 - browser（`crates/wasm-full/tests/keynav_browser.rs`、受け入れ条件）:
   `build_menu_dom_with_checkable_items`（`MenuItemSpec::Item`/
   `CheckboxItem`/`RadioItem` を混在配置できる `build_menu_dom` の

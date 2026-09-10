@@ -29,7 +29,7 @@ use fandhe_frontend_headless_ui::{
     Tooltip,
 };
 use fandhe_frontend_interactive::dispatch;
-use fandhe_frontend_wasm_full::headless::{action_for_part, PartRef};
+use fandhe_frontend_wasm_full::headless::{action_for_part, action_from_parts, PartRef};
 
 fn part(scope: &str, part: &str, value: Option<&str>, disabled: bool) -> PartRef {
     PartRef {
@@ -295,13 +295,17 @@ fn menu_checkbox_item_and_radio_item_disabled_are_noop() {
     );
 }
 
-/// checkbox-item の `"toggle"` は `Disclosure::decode_action("toggle")` にも
-/// 一致するため、checkbox-item の状態機械を配線せず `Menu`（Disclosure 埋め込
-/// み）だけを配線したアプリでは、checkbox-item クリックが Menu 自身の開閉
-/// として解決されてしまう（`menu`/`trigger-item` 行と同じ性質、新規のリスク
-/// ではない。`docs/design/wasm-full-architecture.md` §31 参照）。
+/// [`action_for_part`] は (scope, part) の 1 段判定のみを行うため、
+/// checkbox-item 単体で見れば `"toggle"`（`Disclosure::decode_action`
+/// にも一致する語彙）を返す。**この結果を実際の Menu Disclosure へ手動で
+/// dispatch すれば当然開閉は連動する**が、これは `action_for_part` 自体の
+/// 契約確認であり、実 DOM クリック配線の挙動ではない（実クリックは常に
+/// [`action_from_parts`]/`action_from_parts_scoped` 経由で解決され、以下の
+/// [`menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`]
+/// が示すとおり外側 Menu root への誤 dispatch は起きない、codex-review
+/// PR #2321 P1 指摘の是正）。
 #[test]
-fn menu_checkbox_item_toggle_action_also_opens_menu_disclosure_when_unwired() {
+fn menu_checkbox_item_toggle_action_manually_dispatched_to_menu_disclosure_opens_it() {
     let action_ref = action_for_part(&part("menu", "checkbox-item", Some("wrap"), false)).unwrap();
 
     let mut m = Menu::default();
@@ -309,9 +313,33 @@ fn menu_checkbox_item_toggle_action_also_opens_menu_disclosure_when_unwired() {
     assert!(m.is_open());
 }
 
+/// 実クリック配線の回帰: `MenuCheckboxItem` の専用インスタンスへ
+/// `wire_headless_component` せず、外側 Menu の root だけを配線した既存
+/// アプリで checkbox-item をクリックした場合の再現（`collect_part_refs`
+/// が構築する内側優先の part 列を模す。`parts` の末尾が wire された root
+/// 自身、doc は [`fandhe_frontend_wasm_full::headless::action_from_parts`]
+/// 参照）。[`action_for_part`] 単体は `"toggle"` を返すが、
+/// [`action_from_parts`] は「解決に使われた part（checkbox-item）が wire
+/// された root（menu/root）自身ではない」ため `None` を返し、外側 Menu へ
+/// 誤って dispatch されない（codex-review PR #2321 P1 指摘の是正）。
+#[test]
+fn menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve() {
+    let parts = vec![
+        part("menu", "checkbox-item", Some("wrap"), false),
+        part("menu", "content", None, false),
+        part("menu", "positioner", None, false),
+        part("menu", "root", None, false),
+    ];
+    assert!(action_from_parts(&parts).is_none());
+}
+
 /// radio-item の `"select"` は `Menu`（Disclosure 埋め込み）の
 /// `decode_action` では `None` になる（Disclosure は "select" を受理しない）
-/// ため、checkbox-item と異なり外側 Menu へ越境 dispatch しない。
+/// ため、`action_for_part` を手動 dispatch した場合でも外側 Menu へ越境
+/// しない（`action_from_parts` 経由の実クリック配線では checkbox-item も
+/// `resolved_part_targets_wired_root` により同様に越境しない、
+/// `menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`
+/// 参照）。
 #[test]
 fn menu_radio_item_select_action_is_noop_for_menu_disclosure() {
     let action_ref = action_for_part(&part("menu", "radio-item", Some("grid"), false)).unwrap();
@@ -459,6 +487,40 @@ fn menubar_radio_item_select_is_noop_for_menubar() {
     );
     assert!(!dispatch(&mut mb, &action_ref.action, &action_ref.payload));
     assert_eq!(mb.open(), None);
+}
+
+/// 実クリック配線の回帰（menu 側の
+/// `menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`
+/// と同型）: checkbox-item/radio-item の専用インスタンスへ
+/// `wire_headless_component` せず、外側 Menubar の root だけを配線した
+/// 既存アプリで checkbox-item/radio-item をクリックした場合の再現。
+/// `Menubar::decode_action` 側は元々 fail-closed（前掲 2 テスト）だが、
+/// ガードが無いと [`action_from_parts`] が `Some` を返し、配線層が
+/// dispatch 成功の有無に関わらず `stop_propagation` を呼んでしまうため、
+/// checkbox-item/radio-item を独自の click ハンドラで管理している既存
+/// アプリのクリックが無言で握りつぶされる（codex-review PR #2321 P1
+/// 指摘・同種再発の予防的是正）。
+#[test]
+fn menubar_checkbox_item_click_bubbled_to_outer_menubar_root_does_not_resolve() {
+    let parts = vec![
+        part("menubar", "checkbox-item", Some("wrap"), false),
+        part("menubar", "content", None, false),
+        part("menubar", "positioner", None, false),
+        part("menubar", "root", None, false),
+    ];
+    assert!(action_from_parts(&parts).is_none());
+}
+
+#[test]
+fn menubar_radio_item_click_bubbled_to_outer_menubar_root_does_not_resolve() {
+    let parts = vec![
+        part("menubar", "radio-item", Some("grid"), false),
+        part("menubar", "radio-item-group", None, false),
+        part("menubar", "content", None, false),
+        part("menubar", "positioner", None, false),
+        part("menubar", "root", None, false),
+    ];
+    assert!(action_from_parts(&parts).is_none());
 }
 
 #[test]

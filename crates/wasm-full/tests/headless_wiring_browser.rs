@@ -1422,6 +1422,55 @@ fn menu_checkbox_item_click_does_not_cross_dispatch_to_outer_menu() {
     );
 }
 
+/// codex-review（PR #2321 P1 指摘）の是正回帰: checkbox-item 専用の
+/// `MenuCheckboxItem` インスタンスを一切配線せず、外側 `Menu`（Disclosure）
+/// の root だけを `wire_headless_component` した既存アプリの再現。
+/// checkbox-item の checked 状態は（本テストのように）アプリ独自の
+/// click ハンドラで管理される想定であり、checkbox-item クリックが外側
+/// Menu の `"toggle"` として誤って解決され Menu が意図せず開閉しては
+/// ならない。
+#[wasm_bindgen_test]
+fn menu_checkbox_item_click_without_dedicated_instance_wiring_does_not_toggle_outer_menu() {
+    use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-menu-checkbox-item-unwired-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let outer_root = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    outer_root.set_attribute("data-scope", "menu").unwrap();
+    outer_root.set_attribute("data-part", "root").unwrap();
+
+    let checkbox_item_html = fandhe_frontend_core::render(
+        &MenuCheckboxItem::default().checkbox_item("wrap", false, false, vec![], vec![]),
+    );
+    outer_root.set_inner_html(&checkbox_item_html);
+    container.append_child(&outer_root).unwrap();
+    let item = outer_root
+        .first_element_child()
+        .expect("checkbox-item element must exist");
+
+    // checkbox-item 専用インスタンスは配線しない（既存アプリが独自の
+    // click ハンドラで checked を管理している状況の再現）。外側 Menu の
+    // root だけを配線する。
+    let outer_menu = Rc::new(RefCell::new(Menu::default()));
+    wire_headless_component(outer_root.clone(), outer_menu.clone(), |_, _| {})
+        .expect("outer wire_headless_component must not fail");
+
+    dispatch_click(&item);
+
+    assert!(
+        !outer_menu.borrow().is_open(),
+        "checkbox-item 専用インスタンスを配線していない既存アプリで、\
+         checkbox-item クリックが外側 Menu の toggle として誤って \
+         解決されてはならない（fail-closed、codex-review PR #2321 P1 指摘の \
+         是正）"
+    );
+}
+
 #[wasm_bindgen_test]
 fn menu_checkbox_item_data_value_xss_payload_click_does_not_produce_script_element() {
     use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
@@ -1516,6 +1565,10 @@ fn menubar_checkbox_item_and_radio_item_click_in_real_dom() {
         .query_selector(r#"[data-part="checkbox-item"]"#)
         .expect("query_selector must not fail")
         .expect("checkbox-item element must exist");
+    let radio_item_group = root
+        .query_selector(r#"[data-part="radio-item-group"]"#)
+        .expect("query_selector must not fail")
+        .expect("radio-item-group element must exist");
     let radio_items = root
         .query_selector_all(r#"[data-part="radio-item"]"#)
         .expect("query_selector_all must not fail");
@@ -1539,8 +1592,13 @@ fn menubar_checkbox_item_and_radio_item_click_in_real_dom() {
         .expect("menubar wire_headless_component must not fail");
     wire_headless_component(checkbox_item.clone(), checkbox_component.clone(), |_, _| {})
         .expect("checkbox-item wire_headless_component must not fail");
-    wire_headless_component(grid_item.clone(), radio_component.clone(), |_, _| {})
-        .expect("radio-item wire_headless_component must not fail");
+    // `MenuRadioItemGroup` の専用インスタンス root は radio-item-group 自身
+    // （個々の radio-item ではない、`menu_radio_item_group_click_selects_exclusively_in_real_dom`
+    // と同じ判断。codex-review PR #2321 P1 指摘の是正により、専用インス
+    // タンス root 以外での解決は fail-closed になったため、grid_item 単体
+    // を root にすると resolve しなくなる）。
+    wire_headless_component(radio_item_group.clone(), radio_component.clone(), |_, _| {})
+        .expect("radio-item-group wire_headless_component must not fail");
 
     dispatch_click(&checkbox_item);
     assert!(
