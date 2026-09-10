@@ -60,56 +60,11 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use fandhe_frontend_docs_site::build::build_site;
 use fandhe_frontend_docs_site::script::INLINE_THEME_BOOTSTRAP;
 use fandhe_frontend_docs_site::{nav, redirect};
 
-/// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
-/// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
-/// 実行時 env による明示上書きのみ許容する。`/tmp` へは一切フォールバック
-/// しない（イシュー #637 の事実誤認の再発防止、`tests/site_build.rs` と
-/// 同一パターン）。
-fn scratch_root() -> PathBuf {
-    let root = std::env::var("CARGO_TARGET_TMPDIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
-    let _ = std::fs::create_dir_all(&root);
-    root
-}
-
-/// テスト専用の一時出力ディレクトリ。`tests/site_build.rs::TempDir` と
-/// 同方針（外部クレート `tempfile` を追加しない、REQ-3）。
-struct TempDir(PathBuf);
-
-/// 同一プロセス内で並行実行される複数テストが同一ナノ秒に
-/// `SystemTime::now()` を観測した場合の経路名衝突を防ぐカウンタ。
-/// `pid + nanos` のみでは、サイトビルドの所要時間が伸びて複数スレッドの
-/// 呼び出しタイミングが揃うと衝突し得る（片方のテストの
-/// [`TempDir::drop`] がもう片方のテストの出力ディレクトリを削除して
-/// しまい、後続の `fs::read_to_string` が ENOENT で panic する）。
-static TEMP_DIR_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-impl TempDir {
-    fn new(tag: &str) -> Self {
-        let unique = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let seq = TEMP_DIR_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let path = scratch_root().join(format!(
-            "fandhe-frontend-docs-site-no-js-{tag}-{}-{unique}-{seq}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&path).expect("create temp dir for no_js_contract.rs test");
-        Self(path)
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
+#[path = "support/shared_site.rs"]
+mod shared_site;
 
 /// 出力ディレクトリ配下の `*.html` を再帰的に列挙する。
 fn collect_html_files(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -175,26 +130,28 @@ fn expected_redirect_files(repo_root: &Path, out_dir: &Path) -> BTreeSet<PathBuf
         .collect()
 }
 
-/// 実サイトビルドを 1 回だけ実行し、生成ページを「本体ページ」と
-/// 「リダイレクトページ」（イシュー #1016）に分割して共有する。
-/// `cargo test` 内で複数アサーションが同じビルド結果を参照するための
-/// ヘルパー（毎テストで再ビルドすると `linkcheck` 込みで冗長）。
-fn build_real_site() -> (TempDir, Vec<PathBuf>, Vec<PathBuf>) {
-    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("resolve repository root");
-    let out = TempDir::new("no-js");
-    build_site(&repo_root, &out.0).expect("real site/nav.toml should build cleanly");
+/// 実サイトビルド結果を「本体ページ」と「リダイレクトページ」
+/// （イシュー #1016）に分割して共有する。`cargo test` 内で複数アサーション
+/// が同じビルド結果を参照するためのヘルパー。
+///
+/// 実サイトビルド自体はテストバイナリ内で 1 回だけ実行される
+/// （`tests/support/shared_site.rs` の共有ビルド、イシュー #2299。以前は
+/// 本関数の呼び出しごとに `build_site` を再実行していたため、本ファイル
+/// だけで 8 回の実サイトフルビルドが走っていた）。本関数はその共有ビルド
+/// 結果に対する「本体/リダイレクトへの分割」という導出処理のみを毎回
+/// 行う（ディレクトリ走査のみで軽量）。
+fn build_real_site() -> (&'static Path, Vec<PathBuf>, Vec<PathBuf>) {
+    let repo_root = shared_site::repo_root();
+    let out = shared_site::real_site().out_dir.as_path();
 
     let mut files = Vec::new();
-    collect_html_files(&out.0, &mut files);
+    collect_html_files(out, &mut files);
     assert!(
         !files.is_empty(),
         "real site build should emit at least one HTML page"
     );
 
-    let redirect_set = expected_redirect_files(&repo_root, &out.0);
+    let redirect_set = expected_redirect_files(&repo_root, out);
     assert!(
         !redirect_set.is_empty(),
         "site/redirects.toml should declare at least one redirect \
@@ -402,7 +359,7 @@ fn structural_css_declares_js_independent_toggle_and_dropdown_paths() {
     // 非公開のため、実サイトビルドが書き出す `assets/site.css`（生成物）
     // を直接読んで検証する。
     let (out, _files, _redirects) = build_real_site();
-    let css = std::fs::read_to_string(out.0.join("assets/site.css"))
+    let css = std::fs::read_to_string(out.join("assets/site.css"))
         .expect("dist/assets/site.css should be generated");
     let css = css.as_str();
     assert!(

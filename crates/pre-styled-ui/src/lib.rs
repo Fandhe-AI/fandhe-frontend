@@ -40,19 +40,25 @@
 //!
 //! # 実装済み API（イシュー #546/#547/#548/#550/#551/#606）
 //!
-//! - [`theme`]（#547/#606/#1423/#1678）: テーマトークン・ダークモード基盤。
-//!   #606 で角丸（`radii`）・影（`shadows`）トークングループを追加し、
+//! - [`theme`]（#547/#606/#1423/#1678/#2197）: テーマトークン・ダークモード
+//!   基盤。#606 で角丸（`radii`）・影（`shadows`）トークングループを追加し、
 //!   #1423 で重なり順（`z-indices`）を、#1678 で `size` variant 軸に対応する
-//!   `sizes`（`control-height`/`control-padding-x`/`control-font-size`）を
+//!   `sizes`（`control-height`/`control-padding-x`/`control-font-size`）を、
+//!   #2197 でレスポンシブブレークポイント（`breakpoints`。4 段、参照専用。
+//!   [`recipe::SlotRecipe::breakpoint`] の `@media` 閾値には影響しない）を
 //!   追加した。
 //! - [`css`]（#548）: CSS 宣言の低レベル表現・検証・シリアライズ。
-//! - [`recipe`]（#548/#606/#604/#1678）: slot recipe 本体・
+//! - [`recipe`]（#548/#606/#604/#1678/#2197）: slot recipe 本体・
 //!   [`recipe::SlotRecipe`]・[`recipe::VariantValue`]。#606 で標準
 //!   `colorPalette` 軸（[`recipe::ColorPalette`]）を追加し、#1678 で
 //!   `size` 軸（[`recipe::Size`]）を 3 段（`Sm`/`Md`/`Lg`）から 5 段
 //!   （`Xs`〜`Xl`）へ拡張、`ColorPalette` に `Neutral` を追加した
 //!   （既存部品の登録段・golden CSS はバイト不変、判断記録は
-//!   `docs/design/pre-styled-ui-size-and-color-palette-axes.md`）。
+//!   `docs/design/pre-styled-ui-size-and-color-palette-axes.md`）。#2197 で
+//!   `@media (min-width: ...)` を伴う breakpoint 条件
+//!   （[`recipe::Breakpoint`]・[`recipe::SlotRecipe::breakpoint`]）を追加
+//!   した（states の後・hover ブロックの前に出力、判断記録は
+//!   `docs/design/pre-styled-ui-scale-tokens.md` §3.6）。
 //!   compoundVariants 相当（複数 variant 軸の組み合わせ条件スタイル）は
 //!   [`recipe::SlotRecipe::compound_variant`]・[`recipe::VariantCondition`]・
 //!   [`recipe::when`]（イシュー #604）。疑似要素（`::before`/`::after`）は
