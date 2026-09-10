@@ -239,6 +239,76 @@
 //!    wasm32-unknown-unknown` と `cargo clippy --all-targets` を確認する。
 //!
 //! 呼び出し列の順序・表の順序・`default` 配列の順序を揃えること。
+//!
+//! # scope feature（イシュー #2327）
+//!
+//! 上記の配線群別 feature（`wire_*` 呼び出し単位）とは独立の第 2 軸
+//! として、[`headless::MAPPING_TABLE`]（18 scope・32 行）の各行と
+//! [`keynav::wire_keynav`] 内部の `match scope` 分岐（13 arm）を、
+//! 部品（scope）単位の feature 16 件（既定 on）で cfg ゲートしている。
+//! 配線群別 feature は「その配線を呼ぶか否か」を切り替えるのに対し、
+//! scope feature は「[`keynav::wire_keynav`] 自体は呼ぶが、特定 scope の
+//! クリック dispatch・キーボード操作だけを個別に外せる」ための粒度
+//! である。両軸は独立: 「クリックだけ使いキーボード操作は不要」=
+//! 当該 scope feature のみ、「キーボード操作も使う」= `keynav` +
+//! 当該 scope feature。
+//!
+//! 対応表（feature 名 = MAPPING_TABLE の `scope` 文字列。keynav の arm
+//! リテラルが scope 文字列と異なる場合のみ併記する）:
+//!
+//! | feature | MAPPING_TABLE 行数 | keynav の match arm |
+//! |---|---|---|
+//! | `accordion` | 1 | `"accordion"` |
+//! | `calendar` | 3 | `"calendar"` |
+//! | `collapsible` | 1 | なし |
+//! | `combobox` | 3 | `"combobox"` |
+//! | `dialog` | 2 | なし |
+//! | `listbox` | 0（keynav 専用） | `"listbox"` |
+//! | `menu` | 4 | `"menu"` |
+//! | `menubar` | 3 | `"menubar"` |
+//! | `navigation-menu` | 1 | `"navigation-menu-trigger"`・`"navigation-menu-link"` |
+//! | `popover` | 2 | なし |
+//! | `radio-group` | 1 | `"radio"`・`change` リスナー（[`keynav`] の `handle_radio_change`） |
+//! | `select` | 3 | `"select"` |
+//! | `tabs` | 1 | `"tabs"`・bubble click の `handle_trigger_click` |
+//! | `toggle-group` | 1 | `"toggle-group"` |
+//! | `tooltip` | 1 | なし |
+//! | `tree-view` | 2 | `"tree-view"`・`initialize_tree_roving_tabindex`・capture/bubble の tree 復元 |
+//!
+//! （既存の配線群別 feature である `sidebar`・`signature-pad` も、
+//! それぞれの MAPPING_TABLE 行〔2 行／1 行〕を同名 feature で追加ゲート
+//! する。新設 16 件との重複回避のため上表には含めない。）
+//!
+//! `tooltip`/`select`/`menu` 等の feature 名は MAPPING_TABLE 行・keynav
+//! 分岐のみを gate し、[`tooltip`]/[`headless_select`]/[`overlay`]/
+//! [`position`]/[`focus_trap`] モジュール（`Runtime` を経由しないアプリ
+//! 直接利用 API）は引き続き gating 対象外である（上記配線群別 feature の
+//! 節と同じ境界）。
+//!
+//! readonly RadioGroup の click capture 保護（[`keynav::wire_readonly_click_guard`]）
+//! はいずれの scope feature にも依存しない常時配線のまま（イシュー #2333
+//! で `keynav::wire_keynav` から分離済み、`radio-group` を off にしても
+//! 保護は失われない。`crates/wasm-full/tests/keynav_browser.rs` の
+//! `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`
+//! が実測で固定する）。
+//!
+//! ## 破壊的変更（BREAKING CHANGE、0.20.0 で minor バンプ）
+//!
+//! `default-features = false` を使う利用者は、上記 16 feature が gate
+//! する MAPPING_TABLE 行・keynav 分岐を失う。従来どおりの挙動を維持
+//! するには、配線群別 14 feature に加えて上表の 16 feature（＋既存の
+//! `sidebar`・`signature-pad`）をすべて明示すること。
+//!
+//! ## 新規 MAPPING_TABLE 行・keynav match arm を追加する場合の規約
+//!
+//! `Cargo.toml` の `[features]` 直前コメントの規約 (a')〜(d') と同内容:
+//! 対象 scope の feature が既存であればそれを、無ければ同名 feature を
+//! 新設して `default` へ列挙し（(a')）、`headless::MAPPING_TABLE` の行・
+//! `keynav::wire_keynav` の arm へ `#[cfg(feature = "...")]` を付け
+//! （(b')）、本節・`Cargo.toml` のコメント・
+//! `docs/design/wasm-full-architecture.md` §12/§33 を更新し（(c')）、
+//! `crates/wasm-full/tests/feature_gating_contract.rs` が新しい対応を
+//! 機械検知することを確認する（(d')）。
 
 #![deny(unsafe_code)]
 

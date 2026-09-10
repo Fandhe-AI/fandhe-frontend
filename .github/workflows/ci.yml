@@ -1969,6 +1969,29 @@ jobs:
         # wasm-client/wasm-thin の tests/ がコンパイルされずギャップが残るため。
         run: cargo clippy -p fandhe-frontend-wasm-full -p fandhe-frontend-wasm-client -p fandhe-frontend-wasm-thin --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
+      - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: tabs only, issue #2327)"
+        # イシュー #2327 レビュー是正: `keynav.rs::wiring` の個別関数・
+        # フィールドへ付与した `#[cfg_attr(not(any(feature = "...")), allow(dead_code))]`
+        # は、対象 feature の組み合わせを誤ると特定の部分選択（全 on/全 off の
+        # 両極端以外）でのみ dead_code error になる（全 on/全 off は上記
+        # `--all-targets` ステップと `default`/`--no-default-features` 系の
+        # 既存ジョブがカバーするため、ここでは「一部の scope feature だけを
+        # 有効にする」実利用パターンを狙って再現する）。`--locked` は
+        # 既存ステップと同じくワークスペース Cargo.lock を尊重する。
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,tabs --target wasm32-unknown-unknown --locked -- -D warnings
+
+      - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: menu+select, issue #2327)"
+        # 上記と同じ動機。menu/select は `ScopeSelectors`/`TypeaheadState` 等の
+        # 共有ヘルパーを介した複数 scope 共有パターンの代表例（レビューが
+        # 実際に FAIL を報告した組み合わせ）として選ぶ。
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,menu,select --target wasm32-unknown-unknown --locked -- -D warnings
+
+      - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: listbox+tree-view+calendar, issue #2327)"
+        # 3 つ目の組み合わせ。TypeaheadState を共有する listbox/tree-view と
+        # 独立系統の calendar を混在させ、単一 feature 検証だけでは拾えない
+        # 組み合わせ由来の dead_code 回帰を追加でカバーする。
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,listbox,tree-view,calendar --target wasm32-unknown-unknown --locked -- -D warnings
+
   # PR #1301（`runs-on` の ubuntu-latest 単一化）: `fw new` の非 Unix
   # （`#[cfg(not(unix))]`）分岐を実機検証していた Windows ワークフロー
   # （fw-new-windows-verify.yml）の削除に伴う代替検証。Linux ホストでは

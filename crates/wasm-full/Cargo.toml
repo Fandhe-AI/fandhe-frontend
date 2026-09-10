@@ -937,13 +937,25 @@ name = "fandhe-frontend-wasm-full"
 # （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の
 # (ii) を採用）にあたるため minor バンプとし、0.18.7 から 0.19.0 とする。
 #
+# イシュー #2327: `headless::MAPPING_TABLE`（18 scope・32 行）と
+# `keynav::wire_keynav` の scope 別分岐（13 match arm・tree-view の
+# capture/bubble 復元・tabs のバブル click・radio-group の change
+# リスナー）を、部品（scope）単位の新設 feature 16 件で cfg ゲートした
+# （既存の配線群別 feature 14 件とは独立の第 2 軸）。既定は全 feature on
+# のため既定構成の挙動・`bundle_size` 実測値は不変だが、
+# `default-features = false` を使う既存利用者は該当 scope の
+# MAPPING_TABLE 行・keynav 分岐を失う破壊的変更にあたるため minor
+# バンプとし、0.19.0 から 0.20.0 とする。readonly RadioGroup の click
+# capture 保護（`keynav::wire_readonly_click_guard`）は本変更でも
+# 常時配線のまま（イシュー #2333 で既に `keynav` feature から独立済み、
+# 本イシューでは後退させない）。
 # イシュー #2206: select/listbox の highlight 項目のスクロール追随
 # （`wiring::scroll_item_into_view_if_needed`。追随機構自体は PR #2165 で
 # 実装済み）を長いリストの browser テストで検証強化し、あわせて
 # `scroll_top_after_delta`（新設・純粋関数）で `f64 → i32` の 0 方向切り捨て
 # による 1px 未満のはみ出しを是正した。既存シグネチャ不変の加算的変更
 # （純粋関数追加 + 丸め是正）のため patch バンプ、0.19.0 から 0.19.1 とする。
-version = "0.19.1"
+version = "0.20.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1317,6 +1329,60 @@ crate-type = ["cdylib", "rlib"]
 #   (d) `--no-default-features --features wasm-bindgen-exports` /
 #       既定 / `--all-features` の 3 構成で `cargo check --target
 #       wasm32-unknown-unknown` と `cargo clippy --all-targets` を確認する
+#
+# イシュー #2327: 第 2 の feature 軸（scope feature）。上記 14 配線群別
+# feature は `Runtime::mount`/`hydrate` の `wire_*` 呼び出し単位だが、
+# `headless::MAPPING_TABLE`（18 scope・32 行）と `keynav::wire_keynav`
+# 内部の scope 別 `match scope` 分岐（13 arm）は feature を絞っても
+# 丸ごとリンクされていた。scope（部品）単位の feature 16 件を新設し、
+# MAPPING_TABLE の行・keynav の match arm をそれぞれ cfg ゲートする。
+#
+# 対応表（feature 名 -> MAPPING_TABLE の scope / keynav の arm・付随コード）:
+#   accordion        -> accordion（1 行） / "accordion" arm
+#   calendar          -> calendar（3 行） / "calendar" arm
+#   collapsible       -> collapsible（1 行） / （keynav 分岐なし）
+#   combobox          -> combobox（3 行） / "combobox" arm
+#   dialog            -> dialog（2 行） / （keynav 分岐なし）
+#   listbox           -> （MAPPING_TABLE 行なし、keynav 専用） / "listbox" arm
+#   menu              -> menu（4 行） / "menu" arm
+#   menubar           -> menubar（3 行） / "menubar" arm
+#   navigation-menu   -> navigation-menu（1 行） / "navigation-menu-trigger"・
+#                        "navigation-menu-link" の 2 arm
+#   popover           -> popover（2 行） / （keynav 分岐なし）
+#   radio-group       -> radio-group（1 行） / "radio" arm・change リスナー
+#                        （`handle_radio_change`）
+#   select            -> select（3 行） / "select" arm
+#   tabs              -> tabs（1 行） / "tabs" arm・bubble click の
+#                        `handle_trigger_click`
+#   toggle-group      -> toggle-group（1 行） / "toggle-group" arm
+#   tooltip           -> tooltip（1 行） / （keynav 分岐なし）
+#   tree-view         -> tree-view（2 行） / "tree-view" arm・
+#                        `initialize_tree_roving_tabindex`・capture/bubble の
+#                        tree 復元（`tree_click_pending`）
+#
+# `keynav` feature とは独立の軸である: 「クリックだけ使いキーボード操作は
+# 不要」= 当該 scope feature のみ、「キーボード操作も使う」= `keynav` +
+# 当該 scope feature。`tooltip`/`select`/`menu` 等の feature 名は
+# `tooltip`/`headless_select`/`overlay`/`position`/`focus_trap` モジュール
+# （`Runtime` を経由しないアプリ直接利用 API、上記 (c) 節と同じくゲート
+# 対象外）を gate **しない**（MAPPING_TABLE 行・keynav 分岐のみ）。
+#
+# readonly RadioGroup の click capture 保護（`keynav::wire_readonly_click_guard`）
+# はいずれの scope feature にも依存しない常時配線のまま（イシュー #2333 で
+# `keynav::wire_keynav` から分離済み、`radio-group` feature を off にしても
+# 保護は失われない。`crates/wasm-full/tests/keynav_browser.rs` の
+# `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`
+# が実測で固定する）。
+#
+# 新規 MAPPING_TABLE 行・keynav match arm を追加する場合の規約:
+#   (a') 対象 scope の feature が既存であればそれを、無ければ本ブロックへ
+#        同名 feature（`= []`）を追加し `default` へ列挙する
+#   (b') `headless::MAPPING_TABLE` の行・`keynav::wire_keynav` の
+#        `match scope` arm へ `#[cfg(feature = "...")]` を付ける
+#   (c') 本コメントの対応表・`lib.rs` クレートドキュメントの対応表・
+#        `docs/design/wasm-full-architecture.md` §12/§33 を更新する
+#   (d') `crates/wasm-full/tests/feature_gating_contract.rs` が新しい行・
+#        arm と feature の対応を機械検知することを確認する
 [features]
 default = [
   "wasm-bindgen-exports",
@@ -1334,6 +1400,23 @@ default = [
   "chart",
   "chart-range",
   "questionnaire",
+  # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
+  "accordion",
+  "calendar",
+  "collapsible",
+  "combobox",
+  "dialog",
+  "listbox",
+  "menu",
+  "menubar",
+  "navigation-menu",
+  "popover",
+  "radio-group",
+  "select",
+  "tabs",
+  "toggle-group",
+  "tooltip",
+  "tree-view",
 ]
 wasm-bindgen-exports = []
 perf-assert = []
@@ -1351,6 +1434,32 @@ sidebar = []
 chart = []
 chart-range = []
 questionnaire = []
+
+# イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
+# `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの
+# 対応表参照）。`keynav` feature とは独立の第 2 軸: 「クリックだけ使い
+# キーボード操作は不要」= 当該 scope feature のみ、「キーボード操作も
+# 使う」= `keynav` + 当該 scope feature。`tooltip`/`select`/`menu` 等の
+# feature は MAPPING_TABLE 行・keynav 分岐のみを gate し、`tooltip`/
+# `headless_select`/`overlay`/`position`/`focus_trap` モジュール
+# （アプリ直接利用 API）はこれらの feature では gate しない
+# （#2326 の既存方針を踏襲）。
+accordion = []
+calendar = []
+collapsible = []
+combobox = []
+dialog = []
+listbox = []
+menu = []
+menubar = []
+navigation-menu = []
+popover = []
+radio-group = []
+select = []
+tabs = []
+toggle-group = []
+tooltip = []
+tree-view = []
 
 # TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（wasm-full/tests/perf_browser.rs）の
 # 実行に必要な dev 依存。dev-dependency のため製品バイナリ・標準サーバー構成
