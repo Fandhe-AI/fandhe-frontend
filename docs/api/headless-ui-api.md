@@ -297,9 +297,18 @@ Popover/Tooltip/NavigationMenu は `false`（Menubar/NavigationMenu はイシュ
   `bottom`/`center` へ fail-closed）・`resolve_requested_placement`・
   `Measurement`・`resolve_position(kind, measurement, requested) -> RepositionResult`
   （flip/shift 常時有効・offset `0.0` 固定）。
-- 配線層（`#[cfg(target_arch = "wasm32")]`）: `reposition_all`（開いている
-  positioner を `OPEN_POSITIONER_SELECTOR` で走査）・`PositionController`
-  （scroll/resize リスナー）。
+- 配線層（`#[cfg(target_arch = "wasm32")]`）: `reposition_all`（document
+  全体の開いている positioner を `OPEN_POSITIONER_SELECTOR` で走査）・
+  `reposition_within`（`root` 自身とその子孫に走査を限定する版、イシュー
+  #2209）・`PositionController`（scroll/resize リスナー）。
+  `fandhe-frontend-wasm-full` の `headless::wire_headless_component`
+  （標準の headless 配線 API）は配線時・dispatch 成功後の 2 箇所で
+  `reposition_within` を自動的に呼び、配線時に一度だけ
+  `ensure_global_controller` で thread_local 単一の `PositionController`
+  を遅延生成する（イシュー #2209、親 #2208。詳細は
+  `docs/design/wasm-full-architecture.md` §32）。利用者が
+  `PositionController` を明示的に組み立てなくても popover/tooltip/menu
+  の `positioner` へ実座標が書き込まれる。
 - DOM 属性値（`data-side`/`data-requested-side` 等）は改ざんされうる
   クライアント入力として扱い、fail-closed でパースする。
 

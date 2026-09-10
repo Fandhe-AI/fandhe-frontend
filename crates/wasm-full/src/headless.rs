@@ -890,6 +890,17 @@ pub use wiring::{wire_headless_events, wire_headless_events_scoped};
 /// 決まる部品非依存の配線であり、`headless.rs` 側に collapsible/
 /// accordion 固有の分岐は持たない）。配線直後（初期表示）にも 1 回同じ
 /// 同期を行う。
+///
+/// 同様に `crate::position::wiring::reposition_within` も呼び、popover /
+/// tooltip / menu / select の `positioner` へ実座標（`--fandhe-x`/
+/// `--fandhe-y`/`--fandhe-arrow-x`/`--fandhe-arrow-y`）を自動的に反映する
+/// （イシュー #2209、親 #2208。`content_height` と同じ「配線時の先行同期 →
+/// dispatch 成功後は on_update → sync → position の順」を踏襲し、対象は
+/// `crate::position::PositionedKind::from_scope` が解決できる scope のみ
+/// （部品固有の分岐は持たない）。あわせて配線時に一度だけ
+/// `crate::position::wiring::ensure_global_controller` を呼び、
+/// `thread_local` 単一の `PositionController`（scroll/resize 契機の再計算）
+/// を遅延生成する）。
 #[cfg(target_arch = "wasm32")]
 pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'static>(
     root: web_sys::Element,
@@ -903,6 +914,16 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
     // 先に確定させる（イシュー #2191。in-place 再開閉時の遷移始点を
     // 用意するための先行同期であり、`on_update` を経由しない）。
     let _ = crate::content_height::sync_content_height(&root);
+    // 配線時点で SSR 初期状態が open な positioner があれば実座標を
+    // 先に確定させる（イシュー #2209、上記 doc 参照）。scroll/resize
+    // 契機の継続的な再計算は `ensure_global_controller` が生成する
+    // 単一 `PositionController` に委ねる（アプリ生存期間に高々 1 組の
+    // scroll/resize リスナーのみを登録する契約は `position.rs`
+    // `wiring::GLOBAL_CONTROLLER` doc 参照）。
+    if let Some(window) = web_sys::window() {
+        crate::position::ensure_global_controller(&window);
+    }
+    crate::position::reposition_within(&root);
 
     wire_headless_events(root, move |action_ref: ActionRef| {
         let Ok(mut state) = component.try_borrow_mut() else {
@@ -919,9 +940,11 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
         (on_update.borrow_mut())(&state, &wired_root);
         // 呼び出し側の再描画（`on_update`）で content 要素が作り直され
         // た後の要素に対して実測・書き込みを行う（イシュー #2191。
-        // 順序は「on_update → sync」で固定する、`content_height`
-        // モジュール doc「`wire_headless_component` との統合」節参照）。
+        // 順序は「on_update → sync → position」で固定する、
+        // `content_height` モジュール doc「`wire_headless_component` との
+        // 統合」節・上記 `wire_headless_component` doc 参照）。
         let _ = crate::content_height::sync_content_height(&wired_root);
+        crate::position::reposition_within(&wired_root);
     })
 }
 

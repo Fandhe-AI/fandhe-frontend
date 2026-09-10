@@ -47,9 +47,21 @@
 //!   直接属性を書き込む。SSR/CSR いずれの初期表示も
 //!   `fandhe_frontend_core::render` の既定エスケープ経由だが、本モジュールの
 //!   再計算は初期表示後の DOM 直接更新であり HTML 文字列を組み立てない
-//!   ため既定エスケープ経路の対象外である点に注意）、開閉 dispatch との
-//!   統合呼び出しはイシュー #580 統合層の責務とする（`overlay.rs` と同じ
-//!   責務分離）。
+//!   ため既定エスケープ経路の対象外である点に注意）。
+//! - **統合呼び出し（イシュー #2209、親 #2208）**: `crate::headless::
+//!   wire_headless_component` が (1) 配線時の先行同期、(2) dispatch 成功後の
+//!   再描画直後、の 2 箇所で [`wiring::reposition_within`] を自動的に呼ぶ
+//!   （`crate::content_height::sync_content_height` と同型の統合）。あわせて
+//!   配線時に [`wiring::ensure_global_controller`] が `thread_local` 単一の
+//!   [`wiring::PositionController`] を遅延生成し、scroll/resize 契機の再計算も
+//!   自動化する。当初 #590 時点では「開閉 dispatch との統合呼び出しは統合層
+//!   （#580）の責務」としてスコープ外としていたが、本イシューで
+//!   `wire_headless_component` 経由の標準配線に統合済み。`wire_headless_events`/
+//!   `wire_headless_events_scoped`（アクション通知のみの低レベル API）や
+//!   `wire_headless_component` を経由しない開閉経路（`crate::tooltip::
+//!   TooltipDelayController` 等）には統合しないため、[`wiring::reposition_all`]/
+//!   [`wiring::reposition_within`] は引き続き呼び出し側から明示的に呼べる
+//!   公開 API として残す。
 //! - [`wiring::reposition_one`] は座標反映のたびに `positioner` へ
 //!   `data-positioned=""`（値なしの存在マーカー）を書き込む。
 //!   `fandhe-frontend-pre-styled-ui` はこの属性の有無で「SSR 静的
@@ -268,6 +280,7 @@ pub fn resolve_position(
 mod wiring {
     use super::{resolve_position, resolve_requested_placement, Measurement, PositionedKind};
     use fandhe_frontend_headless_ui::{Rect, Size};
+    use std::cell::RefCell;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event, Window};
@@ -583,8 +596,11 @@ mod wiring {
     }
 
     /// `document` 内の開いている positioner を全て走査し再計算する
-    /// （公開 API。開閉 dispatch との統合呼び出しはイシュー #580 統合層の
-    /// 責務、本関数は呼び出し側から明示的に呼ばれる契約）。
+    /// （公開 API。`crate::headless::wire_headless_component` から
+    /// [`ensure_global_controller`] 経由で scroll/resize 契機に呼ばれる
+    /// ほか、`wire_headless_component` を経由しない開閉経路
+    /// （`TooltipDelayController` 等）向けに呼び出し側からも明示的に
+    /// 呼べる契約を維持する、イシュー #2209）。
     pub fn reposition_all(window: &Window) {
         let Some(document) = window.document() else {
             return;
@@ -598,6 +614,35 @@ mod wiring {
                 continue;
             };
             reposition_one(&element, window);
+        }
+    }
+
+    /// `root` 自身とその子孫のうち開いている positioner のみを再計算する
+    /// （イシュー #2209。`crate::headless::wire_headless_component` から
+    /// 配線時・dispatch 後の 2 箇所で呼ばれ、document 全体ではなく
+    /// `wire_headless_component` の対象部分木に閉じた再計算を行う。
+    /// `crate::content_height::sync_content_height` と同型の「root 自身が
+    /// 対象に一致する場合を含める」設計、`content_height.rs`
+    /// `wiring::sync_content_height` 参照）。
+    ///
+    /// `web_sys::window()` が取得できない（テスト環境等）場合は no-op と
+    /// する（fail-closed、panic しない）。
+    pub fn reposition_within(root: &Element) {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        if root.matches(OPEN_POSITIONER_SELECTOR).unwrap_or(false) {
+            reposition_one(root, &window);
+        }
+        let Ok(list) = root.query_selector_all(OPEN_POSITIONER_SELECTOR) else {
+            return;
+        };
+        for i in 0..list.length() {
+            let Some(node) = list.item(i) else { continue };
+            let Ok(element) = node.dyn_into::<Element>() else {
+                continue;
+            };
+            reposition_one(&element, &window);
         }
     }
 
@@ -699,10 +744,43 @@ mod wiring {
             );
         }
     }
+
+    thread_local! {
+        /// プロセス内（wasm はシングルスレッドのため実質アプリ生存期間）
+        /// 唯一の [`PositionController`]（イシュー #2209）。
+        ///
+        /// `crate::headless::wire_headless_component` から
+        /// [`ensure_global_controller`] 経由で配線時に 1 度だけ生成され、
+        /// `wire_headless_component` を何度呼んでも scroll/resize
+        /// リスナーが増えない（`PositionController::new` が
+        /// `Closure::forget` せずリスナーを `Self` の生存期間に結びつける
+        /// 設計のため、本セルが保持する限りリスナーは 2 個のまま）。
+        /// 利用者が独自に `PositionController::new` を呼ぶ既存コード
+        /// （`examples/interactive-view-transitions` の menubar 等）とは
+        /// 共存し、同一 positioner が二重に再計算されるだけで冪等。
+        static GLOBAL_CONTROLLER: RefCell<Option<PositionController>> = const { RefCell::new(None) };
+    }
+
+    /// [`GLOBAL_CONTROLLER`] が未生成なら `window` を対象に
+    /// [`PositionController::new`] を 1 度だけ生成して保持する
+    /// （イシュー #2209）。
+    ///
+    /// `PositionController::new` が `Err` を返した場合（リスナー登録
+    /// 失敗）でも panic せず `None` のまま静かに継続する（fail-closed。
+    /// scroll/resize 追従が失われるのみで、`reposition_within` による
+    /// 配線時・dispatch 後の即時反映は妨げない）。
+    pub fn ensure_global_controller(window: &Window) {
+        GLOBAL_CONTROLLER.with(|cell| {
+            let mut controller = cell.borrow_mut();
+            if controller.is_none() {
+                *controller = PositionController::new(window).ok();
+            }
+        });
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::PositionController;
+pub use wiring::{ensure_global_controller, reposition_all, reposition_within, PositionController};
 
 #[cfg(test)]
 mod tests {

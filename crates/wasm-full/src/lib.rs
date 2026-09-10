@@ -65,6 +65,12 @@
 //! `data-align` を反映する。`events`/`overlay` と同じ 2 層構成を踏襲し、
 //! scroll/resize イベント契機の離散的な再計算（`autoUpdate` 相当の連続監視は
 //! 非採用、`docs/design/anchor-positioning-design.md` §4.3）を提供する。
+//! [`headless::wire_headless_component`] は配線時・dispatch 成功後の 2 箇所で
+//! `position::reposition_within` を自動的に呼び、thread_local 単一の
+//! `PositionController` を遅延生成する（イシュー #2209、親 #2208。
+//! `docs/design/wasm-full-architecture.md` §32）ため、利用者が
+//! `PositionController` を明示的に組み立てなくても popover/tooltip/menu の
+//! 実座標が反映される。
 //!
 //! [`tooltip`] モジュール（イシュー #587、親 #584）は Tooltip の
 //! `openDelay`/`closeDelay`/`interactive`（表示・非表示遅延タイマーと

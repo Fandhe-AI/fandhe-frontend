@@ -929,7 +929,15 @@ name = "fandhe-frontend-wasm-full"
 # `MENUBAR_ITEM_SELECTOR`/`sync_item_text_highlighted` を拡張した。
 # 既存シグネチャ不変の加算的変更のため patch バンプ、0.18.6 から
 # 0.18.7 とする。
-version = "0.18.7"
+#
+# イシュー #2209（親 #2208）: `position` モジュールへ新規公開関数
+# `reposition_within`/`reposition_all`（再エクスポート）/
+# `ensure_global_controller` を追加し、`headless::wire_headless_component`
+# の挙動（配線時・dispatch 後に自動的に positioning を再計算するように
+# なる）を変更した。新規公開 API の追加と既存公開関数の副作用変更を含む
+# ため 0.x のマイナーバンプとし、0.18.7 から 0.19.0 とする
+# （`.claude/rules/coding-rust.md` の 0.x 破壊的変更判断）。
+version = "0.19.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
