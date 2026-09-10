@@ -93,6 +93,34 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
 - **wasm-full**: `crates/wasm-full/src/headless.rs` の `wire_headless_component` が担う dispatch 後の `on_update` 経路（`apply_dirty_if_any`/`apply_update_for_dirty`）で、content 要素の `scroll_height` を実測し CSS 変数へ書き込む配線を追加する。書き込み手段は `crates/wasm-full/src/position.rs`（`resolve_position` が返す `style: String` を `set_attribute("style", ...)` で書き込む、`crates/wasm-full/src/focus_trap.rs::set_dom_attribute` 等と同一の先例パターン）に倣う。**考慮事項**: `style` 属性への直接書き込みは CSP の `style-src` が `unsafe-inline` を許可しない配布環境では拒否され得る。本リポジトリには CSP 方針を定めた文書が現存しないため実装を阻害する要因ではないが、将来 CSP 方針が導入される場合は `CssStyleDeclaration::set_property`（CSSOM 経由）への切り替えを検討する旨を設計メモとして残す。
 - 計測値は実行時のみで SSR 出力へは含めない（決定性、評価軸 3）。CSS 変数の値は数値 + `px` の固定書式のみとし、文字列連結で任意値が CSS へ流れる経路を新設しない（§10 参照）。
 
+### 5.1 実装記録（イシュー #2191、親トラッキング #2189）
+
+- **CSS 変数名は `--fandhe-content-height` に確定**した（§5 冒頭の例示名
+  `--fandhe-collapsible-content-height` は accordion にも共通で使う
+  部品非依存の 1 変数へ統合したため読み替える。姉妹イシュー #2192 と
+  共有する唯一のリテラルは `crates/wasm-full/src/content_height.rs::
+  CONTENT_HEIGHT_VAR`）。
+- **書き込み手段は CSSOM（`CssStyleDeclaration::set_property`/
+  `remove_property`）を採用**し、§5 が示した「将来 CSP 方針導入時に
+  検討」という位置づけから前倒しで確定した。`set_attribute("style",
+  ...)` 直書きは content 要素の既存インライン宣言を破壊する副作用が
+  あり、CSSOM ならプロパティ単位の更新で済むため（`crates/wasm-full/
+  src/chart.rs::set_tooltip_position` に同一クレート内の先例あり）。
+  これにより本節が挙げていた CSP `style-src` の懸念は解消済み。
+- 統合先は `wire_headless_component`（`apply_dirty_if_any`/
+  `apply_update_for_dirty` 経路ではない。dispatch 成功時の `on_update`
+  直後・および配線時点の 2 箇所で `content_height::sync_content_height`
+  を呼ぶ）。`Runtime::apply_dirty_if_any` 経路への統合は #2191 のスコープ
+  外として整理した（詳細は `docs/design/wasm-full-architecture.md`
+  §27.8）。
+- **遷移成立条件の実測結果**: `Element::scroll_height()` はスタイル
+  再計算を同期的に強制するため、`hidden` 解除直後の最初のスタイル
+  計算時点で変数が未設定だと `@starting-style` 方式の `0 → auto` 遷移は
+  補間不能。本ヘルパー（ステートレス）は同一要素に前回値が残る
+  in-place 開閉の 2 回目以降でのみオープン方向の遷移を成立させられる。
+  詳細・実ブラウザ確認範囲は `docs/design/wasm-full-architecture.md`
+  §27.6 参照。
+
 ## 6. JS 無効時の表示方針（親 #2189 の受け入れ条件「JS 無効時に content が閲覧可能」への回答）
 
 - **(a) 原則維持**: `docs/guides/no-js-ssg.md` の原則どおり、JS ゼロ構成では `data-state` をビルド時に固定する。「JS 無効でも読ませたい content」は呼び出し側が `OpenState::Open` で SSR するか、`<details>`/`<summary>` を使う運用をガイドへ明記する（案 A・案 C はこの読み替えで受け入れ条件を満たす）。
