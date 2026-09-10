@@ -856,8 +856,8 @@ pub(crate) fn last_non_disabled(disabled: &[bool]) -> Option<usize> {
 // へ統合する（分けたまま両方が真になる native かつ scope feature off の
 // 構成で `#[allow(dead_code)]` が二重付与され `clippy::duplicated_attributes`
 // が発生するため）。個別 feature の組み合わせに対する正確性は
-// `docs/ci/`（`clippy-wasm32` ジョブの部分 feature 組み合わせ検証、
-// イシュー #2327 レビュー是正）で機械検証する。
+// `.github/workflows/ci.yml` の `clippy-wasm32` ジョブが持つ部分 feature
+// 組み合わせ clippy ステップ（イシュー #2327 レビュー是正）で機械検証する。
 #[cfg_attr(
     any(
         not(target_arch = "wasm32"),
