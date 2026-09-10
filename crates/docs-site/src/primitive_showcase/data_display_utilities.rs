@@ -346,30 +346,56 @@ pub(super) fn data_table_section() -> Node {
         hidden: true,
     };
 
+    // codex-review P1 指摘（PR #2303）の是正: `menu::root` 直下に
+    // `role="menuitemcheckbox"` の項目だけを置くと `role="menu"` を持つ
+    // `menu::content` が存在せず、支援技術から見て孤立した項目になる
+    // （`crates/headless-ui/src/menu.rs` の `content` doc 参照）。
+    // `trigger`/`positioner`/`content` を正規の anatomy で組み、Demo として
+    // 常時視認できるよう [`OpenState::Open`] で開いた状態を示す。
+    let column_toggle_state = OpenState::Open;
     let toolbar = data_table::toolbar(
         vec![],
         vec![
             field::input(&filter_field, vec![("placeholder", "Filter names...")]),
             menu::root(
-                OpenState::Closed,
+                column_toggle_state,
                 vec![],
                 vec![
-                    data_table::column_toggle_item(
-                        &ColumnProps {
-                            id: "name",
-                            hidden: false,
-                        },
+                    menu::trigger(
+                        column_toggle_state,
                         false,
-                        false,
-                        vec![],
-                        vec![text("Name")],
+                        Some("data-table-column-toggle-menu"),
+                        vec![("id", "data-table-column-toggle-trigger")],
+                        vec![text("Columns")],
                     ),
-                    data_table::column_toggle_item(
-                        &email_column,
-                        false,
-                        false,
+                    menu::positioner(
+                        column_toggle_state,
                         vec![],
-                        vec![text("Email")],
+                        vec![menu::content(
+                            column_toggle_state,
+                            Some("data-table-column-toggle-menu"),
+                            Some("data-table-column-toggle-trigger"),
+                            vec![],
+                            vec![
+                                data_table::column_toggle_item(
+                                    &ColumnProps {
+                                        id: "name",
+                                        hidden: false,
+                                    },
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![text("Name")],
+                                ),
+                                data_table::column_toggle_item(
+                                    &email_column,
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![text("Email")],
+                                ),
+                            ],
+                        )],
                     ),
                 ],
             ),
@@ -383,43 +409,73 @@ pub(super) fn data_table_section() -> Node {
         vec![t.sort_trigger("name", vec![], vec![text("Name ▲")])],
     );
     let email_header = t.column_header("email", false, vec![], vec![text("Email")]);
+    // codex-review P1 指摘（PR #2303）の是正: `checkbox::control` は
+    // `aria-hidden="true"` の視覚専用パーツであり、アクセシビリティの実体は
+    // `checkbox::hidden_input` が担う契約（`crates/headless-ui/src/
+    // checkbox.rs` の `control`/`hidden_input` doc 参照）。`forms_a.rs` の
+    // `checkbox_instance` と同じ構成（control > indicator / label /
+    // hidden_input）へ揃え、可視ラベルはデモの文脈上冗長なため
+    // `visually_hidden::root` でアクセシブルな名前のみ与える。
+    let select_all_props = CheckboxProps {
+        checked: CheckedState::Indeterminate,
+        ..Default::default()
+    };
     let select_all_header = DataTable::select_all(
         CheckedState::Indeterminate,
         vec![],
         vec![checkbox::root(
-            &CheckboxProps {
-                checked: CheckedState::Indeterminate,
-                ..Default::default()
-            },
+            &select_all_props,
             vec![],
-            vec![checkbox::control(
-                &CheckboxProps {
-                    checked: CheckedState::Indeterminate,
-                    ..Default::default()
-                },
-                vec![],
-                vec![],
-            )],
+            vec![
+                checkbox::control(
+                    &select_all_props,
+                    vec![],
+                    vec![checkbox::indicator(
+                        &select_all_props,
+                        vec![],
+                        vec![text("◐")],
+                    )],
+                ),
+                checkbox::label(
+                    &select_all_props,
+                    vec![],
+                    vec![visually_hidden::root(vec![], vec![text("Select all rows")])],
+                ),
+                checkbox::hidden_input(&select_all_props, "data-table-select-all", "on", vec![]),
+            ],
         )],
     );
 
+    let select_row_props = CheckboxProps {
+        checked: CheckedState::Checked,
+        ..Default::default()
+    };
     let select_row_cell = DataTable::select_row(
         CheckedState::Checked,
         vec![],
         vec![checkbox::root(
-            &CheckboxProps {
-                checked: CheckedState::Checked,
-                ..Default::default()
-            },
+            &select_row_props,
             vec![],
-            vec![checkbox::control(
-                &CheckboxProps {
-                    checked: CheckedState::Checked,
-                    ..Default::default()
-                },
-                vec![],
-                vec![],
-            )],
+            vec![
+                checkbox::control(
+                    &select_row_props,
+                    vec![],
+                    vec![checkbox::indicator(
+                        &select_row_props,
+                        vec![],
+                        vec![text("✓")],
+                    )],
+                ),
+                checkbox::label(
+                    &select_row_props,
+                    vec![],
+                    vec![visually_hidden::root(
+                        vec![],
+                        vec![text("Select row: Ada Lovelace")],
+                    )],
+                ),
+                checkbox::hidden_input(&select_row_props, "data-table-select-row-1", "on", vec![]),
+            ],
         )],
     );
 
