@@ -41,13 +41,19 @@
 //!   flip 後の side が新しい希望として扱われ、スペースが戻っても元の希望へ
 //!   戻せなかった）。
 //! - 実際の `"close"` dispatch・状態機械の更新は行わない。本モジュールは
-//!   `positioner`/`arrow` 要素へ `style`/`data-side`/`data-align`/
-//!   `data-positioned`（イシュー #663、以下参照）属性を直接 `set_attribute`
-//!   するのみであり（ADR 第 4.4 節の経路とは別に、wasm 層は DOM API で
-//!   直接属性を書き込む。SSR/CSR いずれの初期表示も
-//!   `fandhe_frontend_core::render` の既定エスケープ経由だが、本モジュールの
-//!   再計算は初期表示後の DOM 直接更新であり HTML 文字列を組み立てない
-//!   ため既定エスケープ経路の対象外である点に注意）。
+//!   `positioner`/`arrow` 要素へ `data-side`/`data-align`/`data-positioned`
+//!   （イシュー #663、以下参照）属性を直接 `set_attribute` する（ADR 第 4.4
+//!   節の経路とは別に、wasm 層は DOM API で直接属性を書き込む。SSR/CSR
+//!   いずれの初期表示も `fandhe_frontend_core::render` の既定エスケープ
+//!   経由だが、本モジュールの再計算は初期表示後の DOM 直接更新であり HTML
+//!   文字列を組み立てないため既定エスケープ経路の対象外である点に注意）。
+//!   `style`（`--fandhe-*` CSS 変数）のみは `set_attribute` で `style`
+//!   属性全体を上書きせず、[`wiring::apply_css_vars`] が CSSOM の
+//!   `CssStyleDeclaration::set_property` で個々の変数のみを更新する
+//!   （イシュー #2209 レビュー指摘: `set_attribute("style", ...)` は
+//!   利用者が positioner/arrow へ付与していた `position`/`width`/
+//!   `z-index` 等の既存インラインスタイルを開くたびに消去してしまう
+//!   表示回帰だった）。
 //! - **統合呼び出し（イシュー #2209、親 #2208）**: `crate::headless::
 //!   wire_headless_component` が (1) 配線時の先行同期、(2) dispatch 成功後の
 //!   再描画直後、の 2 箇所で [`wiring::reposition_within`] を自動的に呼ぶ
@@ -283,7 +289,7 @@ mod wiring {
     use std::cell::RefCell;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, Window};
+    use web_sys::{Element, Event, HtmlElement, Window};
 
     /// `[data-part="positioner"][data-state="open"]` を document 全体から
     /// 走査し、開いている positioner のみ再計算する（閉じている
@@ -484,14 +490,22 @@ mod wiring {
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
     /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
     /// `.claude/rules/security.md`）。本モジュールが書き込む属性
-    /// （`style`/`data-side`/`data-align`）はいずれも `&'static str`
-    /// リテラルで固定された非 URL・非イベントハンドラ属性であり、`style`
-    /// 値も内部生成の数値のみで実害はないが、`fandhe_frontend_core::url`
-    /// のガード関数群（`is_event_handler_attr`/`is_url_attr`/
-    /// `is_safe_url`/`is_safe_srcset`）を経由することで、将来 `name`/
-    /// `value` が動的な入力から組み立てられるよう変更された場合の防御
-    /// としても機能する（`keynav::set_dom_attribute` と同じガード方針）。
+    /// （`data-side`/`data-align`/`data-positioned`/
+    /// `data-requested-side`/`data-requested-align`）はいずれも
+    /// `&'static str` リテラルで固定された非 URL・非イベントハンドラ属性
+    /// だが、`fandhe_frontend_core::url` のガード関数群
+    /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
+    /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
+    /// 入力から組み立てられるよう変更された場合の防御としても機能する
+    /// （`keynav::set_dom_attribute` と同じガード方針）。`style` 属性は
+    /// 利用者のインラインスタイルを破壊しないよう [`apply_css_vars`]
+    /// （CSSOM `set_property` 経由）で反映するため、本関数では扱わない
+    /// （イシュー #2209 レビュー指摘、下記 doc 参照）。
     fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+        debug_assert!(
+            !name.eq_ignore_ascii_case("style"),
+            "style 属性は apply_css_vars を使うこと（利用者スタイルの上書き防止）"
+        );
         if fandhe_frontend_core::is_event_handler_attr(name) {
             return;
         }
@@ -502,6 +516,46 @@ mod wiring {
             return;
         }
         let _ = element.set_attribute(name, value);
+    }
+
+    /// [`super::css_vars_style`]（[`resolve_position`] 経由）が生成した
+    /// `"--fandhe-x: 10px; --fandhe-y: 20px;"` 形式の宣言列を、
+    /// `element.style` 属性を丸ごと上書きする `set_attribute` ではなく
+    /// `CSSOM` の `CssStyleDeclaration::set_property` で 1 宣言ずつ反映する。
+    ///
+    /// codex-review 指摘（イシュー #2209、P1）: 従来
+    /// `set_dom_attribute(positioner, "style", &result.style)` は `style`
+    /// 属性全体を `--fandhe-*` のみへ置き換えてしまい、利用者が
+    /// `wire_headless_component` 呼び出し前から positioner/arrow へ付与
+    /// していた `position:fixed;width:240px;z-index:100` 等のインライン
+    /// スタイルを、開くたびに消去してしまう表示回帰だった。本関数は
+    /// 個々の CSS カスタムプロパティのみを `set_property` で更新（存在
+    /// しなければ追加、既にあれば値のみ更新）し、他の宣言（利用者が
+    /// 書いた `position`/`width`/`z-index` 等）はそのまま保持する。
+    ///
+    /// `style` はここでは [`super::css_vars_style`] が生成した内部形式
+    /// （キー・値とも [`fandhe_frontend_headless_ui::sanitize_for_output`]
+    /// を経由した有限小数 + `px` のみ、`css_vars_style_contains_only_
+    /// internal_numeric_format` が固定）に限られるため、単純な `;`/`:`
+    /// 分割で安全にパースできる（利用者制御文字列は混入しない）。
+    /// `HtmlElement` へダウンキャストできない要素（`style` プロパティを
+    /// 持たない SVG 等）は no-op とする（`content_height::wiring::sync_one`
+    /// と同じ fail-closed 方針）。
+    fn apply_css_vars(element: &Element, style: &str) {
+        let Some(html) = element.dyn_ref::<HtmlElement>() else {
+            return;
+        };
+        let declarations = html.style();
+        for declaration in style.split(';') {
+            let declaration = declaration.trim();
+            if declaration.is_empty() {
+                continue;
+            }
+            let Some((name, value)) = declaration.split_once(':') else {
+                continue;
+            };
+            let _ = declarations.set_property(name.trim(), value.trim());
+        }
     }
 
     fn reposition_one(positioner: &Element, window: &Window) {
@@ -568,7 +622,7 @@ mod wiring {
             requested,
         );
 
-        set_dom_attribute(positioner, "style", &result.style);
+        apply_css_vars(positioner, &result.style);
         set_dom_attribute(positioner, "data-side", result.side.as_str());
         set_dom_attribute(positioner, "data-align", result.align.as_str());
         // イシュー #663: SSR 静的フォールバック（absolute + ローカル座標系）と
@@ -590,7 +644,7 @@ mod wiring {
                 // だが、arrow 要素自身の `style` にも明示反映することで
                 // pre-styled-ui 側のセレクタ設計を CSS 変数継承に限定しない
                 // 柔軟性を残す）。
-                set_dom_attribute(&arrow_element, "style", &result.style);
+                apply_css_vars(&arrow_element, &result.style);
             }
         }
     }

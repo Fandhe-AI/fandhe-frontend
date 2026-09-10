@@ -1844,6 +1844,11 @@ mod auto_wiring {
     // (t) `wire_headless_component` 経由でも script/属性インジェクション
     //     ペイロードが実行・breakout せず、位置決め配線の `style`/`data-*`
     //     書き込みが既定エスケープ保証を弱めない。
+    // (u) 自動再計算は positioner/arrow の `style` 属性のうち `--fandhe-*`
+    //     CSS 変数のみを更新し、利用者が元々書き込んでいた他の宣言
+    //     （`position:fixed`/`width`/`z-index` 等）を消去しない（codex-review
+    //     指摘、イシュー #2209 P1: 従来は `style` 属性全体を `--fandhe-*`
+    //     のみへ置き換えてしまっていた）。
 
     /// [`bubbling_click_event`] は既存 (a)〜(o) の合成 click ヘルパーが
     /// 別ファイル（`headless_wiring_browser.rs`）側にあるため、同型のものを
@@ -2071,6 +2076,129 @@ mod auto_wiring {
                 "side={side}: tooltip positioner must not output --fandhe-reference-width: {style}"
             );
         }
+    }
+
+    #[wasm_bindgen_test]
+    fn wire_headless_component_auto_reposition_preserves_preexisting_user_inline_style() {
+        // 検証観点 (u): 自動再計算前から positioner/arrow に付与されていた
+        // 利用者のインラインスタイル（`position:fixed`/`border`/`z-index`
+        // 等）が、`--fandhe-*` CSS 変数の反映後も消えずに残ること
+        // （codex-review 指摘、イシュー #2209 P1: 従来
+        // `set_attribute("style", &result.style)` は `style` 属性全体を
+        // `--fandhe-*` のみへ置き換えてしまっていた）。SSR 初期状態を open
+        // にして先行同期（[`wire_headless_component_prewires_positioner_
+        // that_is_already_open_at_wiring_time`] と同型）を使うことで、click
+        // 前の初回反映のみで検証できる（on_update による `set_inner_html`
+        // 全体再生成を経由しないため、この初回反映が「`set_attribute` で
+        // `style` 全体を上書きしない」契約を最も直接的に確認できる）。
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        let container = create_placeholder(&document, "position-browser-auto-preserve-style");
+        let _guard = RemoveOnDrop(container.clone());
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        let trigger_id = "position-browser-auto-preserve-style-trigger";
+        let positioner_id = "position-browser-auto-preserve-style-positioner";
+        let arrow_id = "position-browser-auto-preserve-style-arrow";
+        // `z-index`/`opacity` は Chrome の CSSOM シリアライズで語順・単位が
+        // 変わらない宣言を選ぶ（`outline`/`border` 等のショートハンドは
+        // `CssStyleDeclaration::setProperty` 経由の再シリアライズで構成要素の
+        // 出力順が変わりうるため、文字列の部分一致アサーションに使わない）。
+        const USER_POSITIONER_STYLE: &str = "z-index: 999; opacity: 0.5;";
+        const USER_ARROW_STYLE: &str = "z-index: 5;";
+        let html = render(&popover::root(
+            OpenState::Open,
+            vec![],
+            vec![
+                popover::trigger(
+                    OpenState::Open,
+                    false,
+                    None,
+                    vec![
+                        ("id", trigger_id),
+                        (
+                            "style",
+                            "position: fixed; left: 40px; top: 40px; width: 20px; height: 10px;",
+                        ),
+                    ],
+                    vec![],
+                ),
+                // `anchor` パーツは意図的に含めない
+                // （`render_popover_markup` のコメント参照）。
+                popover::positioner(
+                    OpenState::Open,
+                    vec![
+                        ("id", positioner_id),
+                        ("class", FIXED_FLOATING_SIZE_CLASS),
+                        ("style", USER_POSITIONER_STYLE),
+                    ],
+                    vec![
+                        popover::arrow(vec![("id", arrow_id), ("style", USER_ARROW_STYLE)], vec![]),
+                        popover::content(OpenState::Open, None, None, None, vec![], vec![]),
+                    ],
+                ),
+            ],
+        ));
+        container.set_inner_html(&html);
+        let root = container
+            .first_element_child()
+            .expect("popover root must exist");
+        let positioner = document
+            .get_element_by_id(positioner_id)
+            .expect("positioner element must exist");
+        let arrow = document
+            .get_element_by_id(arrow_id)
+            .expect("arrow element must exist");
+        assert_eq!(
+            positioner.get_attribute("style").as_deref(),
+            Some(USER_POSITIONER_STYLE),
+            "SSR 初期マークアップ時点では利用者のスタイルのみが付与されていること"
+        );
+        assert_eq!(
+            arrow.get_attribute("style").as_deref(),
+            Some(USER_ARROW_STYLE)
+        );
+
+        let component = Rc::new(RefCell::new(Popover::default()));
+        wire_headless_component(root.clone(), component.clone(), |_state, _root| {})
+            .expect("wire_headless_component must not fail");
+
+        let positioner_style = positioner
+            .get_attribute("style")
+            .expect("auto reposition must write --fandhe-* onto the positioner");
+        assert!(
+            positioner_style.contains("z-index: 999"),
+            "user-provided z-index declaration must survive auto reposition: {positioner_style}"
+        );
+        assert!(
+            positioner_style.contains("opacity: 0.5"),
+            "user-provided opacity declaration must survive auto reposition: {positioner_style}"
+        );
+        assert!(
+            positioner_style.contains("--fandhe-x:"),
+            "auto reposition must still write --fandhe-x: {positioner_style}"
+        );
+        assert!(
+            positioner_style.contains("--fandhe-y:"),
+            "auto reposition must still write --fandhe-y: {positioner_style}"
+        );
+
+        let arrow_style = arrow
+            .get_attribute("style")
+            .expect("auto reposition must write --fandhe-arrow-* onto the arrow element");
+        assert!(
+            arrow_style.contains("z-index: 5"),
+            "user-provided z-index declaration must survive auto reposition on the arrow: \
+         {arrow_style}"
+        );
+        assert!(
+            arrow_style.contains("--fandhe-arrow-x:"),
+            "auto reposition must still write --fandhe-arrow-x: {arrow_style}"
+        );
+        assert!(
+            arrow_style.contains("--fandhe-arrow-y:"),
+            "auto reposition must still write --fandhe-arrow-y: {arrow_style}"
+        );
     }
 
     #[wasm_bindgen_test]
@@ -2357,6 +2485,7 @@ mod auto_wiring {
 
     /// [`render_menu_markup`] は Menu（trigger + positioner + arrow + item）の
     /// HTML を `open` に応じて組み立てる。[`render_tooltip_markup`] と同型。
+    #[allow(clippy::too_many_arguments)]
     fn render_menu_markup(
         open: bool,
         trigger_id: &str,
@@ -2364,6 +2493,7 @@ mod auto_wiring {
         positioner_id: &str,
         arrow_id: &str,
         item_label: &str,
+        requested_side: &str,
     ) -> String {
         let state = if open {
             OpenState::Open
@@ -2383,7 +2513,11 @@ mod auto_wiring {
                 ),
                 menu::positioner(
                     state,
-                    vec![("id", positioner_id), ("class", FIXED_FLOATING_SIZE_CLASS)],
+                    vec![
+                        ("id", positioner_id),
+                        ("data-side", requested_side),
+                        ("class", FIXED_FLOATING_SIZE_CLASS),
+                    ],
                     vec![
                         menu::arrow(vec![("id", arrow_id)], vec![]),
                         menu::content(
@@ -2408,12 +2542,14 @@ mod auto_wiring {
     /// [`render_menu_markup`] を `container` へ mount し、
     /// `wire_headless_component` で配線する（[`mount_and_wire_tooltip`] の
     /// Menu 版）。返り値は `(root, trigger, component)`。
+    #[allow(clippy::too_many_arguments)]
     fn mount_and_wire_menu(
         document: &Document,
         container: &Element,
         id_prefix: &str,
         trigger_style: &str,
         item_label: &str,
+        requested_side: &str,
     ) -> (Element, Element, Rc<RefCell<Menu>>) {
         let trigger_id = format!("{id_prefix}-trigger");
         let positioner_id = format!("{id_prefix}-positioner");
@@ -2426,6 +2562,7 @@ mod auto_wiring {
             &positioner_id,
             &arrow_id,
             item_label,
+            requested_side,
         );
         container.set_inner_html(&html);
         let root = container
@@ -2438,6 +2575,7 @@ mod auto_wiring {
         let arrow_id_for_update = arrow_id.clone();
         let trigger_style_for_update = trigger_style.to_string();
         let item_label_for_update = item_label.to_string();
+        let requested_side_for_update = requested_side.to_string();
         wire_headless_component(root.clone(), component.clone(), move |state, root| {
             let html = render_menu_markup(
                 state.is_open(),
@@ -2446,6 +2584,7 @@ mod auto_wiring {
                 &positioner_id_for_update,
                 &arrow_id_for_update,
                 &item_label_for_update,
+                &requested_side_for_update,
             );
             root.set_inner_html(&html);
         })
@@ -2457,9 +2596,11 @@ mod auto_wiring {
         (root, trigger, component)
     }
 
-    /// [`render_popover_markup`] は Popover（trigger + anchor + positioner +
-    /// arrow + content）の HTML を `open` に応じて組み立てる。
-    /// [`render_tooltip_markup`] と同型。
+    /// [`render_popover_markup`] は Popover（trigger + positioner + arrow +
+    /// content）の HTML を `open` に応じて組み立てる。[`render_tooltip_markup`]
+    /// と同型。`anchor` パーツは意図的に含めない（下記 `popover::positioner`
+    /// 呼び出し直前のコメント参照）。
+    #[allow(clippy::too_many_arguments)]
     fn render_popover_markup(
         open: bool,
         trigger_id: &str,
@@ -2467,6 +2608,7 @@ mod auto_wiring {
         positioner_id: &str,
         arrow_id: &str,
         content_text: &str,
+        requested_side: &str,
     ) -> String {
         let state = if open {
             OpenState::Open
@@ -2484,10 +2626,22 @@ mod auto_wiring {
                     vec![("id", trigger_id), ("style", trigger_style)],
                     vec![],
                 ),
-                popover::anchor(vec![], vec![]),
+                // `anchor` パーツ（位置決めの代替参照要素）は意図的に含めない。
+                // `find_anchor`（`crates/wasm-full/src/position.rs`）は
+                // `[data-part="anchor"]` を `trigger` より優先して解決する
+                // ため、無スタイルの空 `anchor` を置くとドキュメントフロー
+                // 上の実測値（0 幅・trigger とは無関係な座標）が anchor
+                // として採用されてしまい、`EXPECTED_PLACEMENTS` が前提とする
+                // 「trigger の `position:fixed` 矩形が anchor」という
+                // tooltip/menu と同じ契約が崩れる（実ブラウザ回帰で発覚、
+                // Cursor Bugbot 指摘の調査中に判明）。
                 popover::positioner(
                     state,
-                    vec![("id", positioner_id), ("class", FIXED_FLOATING_SIZE_CLASS)],
+                    vec![
+                        ("id", positioner_id),
+                        ("data-side", requested_side),
+                        ("class", FIXED_FLOATING_SIZE_CLASS),
+                    ],
                     vec![
                         popover::arrow(vec![("id", arrow_id)], vec![]),
                         popover::content(state, None, None, None, vec![], vec![text(content_text)]),
@@ -2500,12 +2654,14 @@ mod auto_wiring {
     /// [`render_popover_markup`] を `container` へ mount し、
     /// `wire_headless_component` で配線する（[`mount_and_wire_tooltip`] の
     /// Popover 版）。返り値は `(root, trigger, component)`。
+    #[allow(clippy::too_many_arguments)]
     fn mount_and_wire_popover(
         document: &Document,
         container: &Element,
         id_prefix: &str,
         trigger_style: &str,
         content_text: &str,
+        requested_side: &str,
     ) -> (Element, Element, Rc<RefCell<Popover>>) {
         let trigger_id = format!("{id_prefix}-trigger");
         let positioner_id = format!("{id_prefix}-positioner");
@@ -2518,6 +2674,7 @@ mod auto_wiring {
             &positioner_id,
             &arrow_id,
             content_text,
+            requested_side,
         );
         container.set_inner_html(&html);
         let root = container
@@ -2530,6 +2687,7 @@ mod auto_wiring {
         let arrow_id_for_update = arrow_id.clone();
         let trigger_style_for_update = trigger_style.to_string();
         let content_text_for_update = content_text.to_string();
+        let requested_side_for_update = requested_side.to_string();
         wire_headless_component(root.clone(), component.clone(), move |state, root| {
             let html = render_popover_markup(
                 state.is_open(),
@@ -2538,6 +2696,7 @@ mod auto_wiring {
                 &positioner_id_for_update,
                 &arrow_id_for_update,
                 &content_text_for_update,
+                &requested_side_for_update,
             );
             root.set_inner_html(&html);
         })
@@ -2574,6 +2733,7 @@ mod auto_wiring {
                 &format!("position-browser-auto-menu-{side}"),
                 "position: fixed; left: 300px; top: 200px; width: 50px; height: 20px;",
                 "Item",
+                side,
             );
 
             dispatch_click(&trigger);
@@ -2646,7 +2806,7 @@ mod auto_wiring {
         let document = window.document().expect("document must exist");
         ensure_fixed_floating_size_stylesheet(&document);
 
-        for (side, expected_x, expected_y, _expected_arrow_x, _expected_arrow_y) in
+        for (side, expected_x, expected_y, expected_arrow_x, expected_arrow_y) in
             EXPECTED_PLACEMENTS
         {
             let container =
@@ -2659,6 +2819,7 @@ mod auto_wiring {
                 &format!("position-browser-auto-popover-{side}"),
                 "position: fixed; left: 300px; top: 200px; width: 50px; height: 20px;",
                 "Content",
+                side,
             );
 
             dispatch_click(&trigger);
@@ -2668,9 +2829,13 @@ mod auto_wiring {
             );
 
             let positioner_id = format!("position-browser-auto-popover-{side}-positioner");
+            let arrow_id = format!("position-browser-auto-popover-{side}-arrow");
             let positioner = document
                 .get_element_by_id(&positioner_id)
                 .expect("positioner element must exist after re-render");
+            let arrow = document
+                .get_element_by_id(&arrow_id)
+                .expect("arrow element must exist after re-render");
 
             let style = positioner.get_attribute("style").unwrap_or_else(|| {
                 panic!(
@@ -2690,6 +2855,26 @@ mod auto_wiring {
             assert!(
                 !style.contains("--fandhe-reference-width:"),
                 "side={side}: popover positioner must not output --fandhe-reference-width:                  {style}"
+            );
+            // Popover は has_arrow() == true のため menu と同様に arrow
+            // 座標も厳密一致で固定する（Cursor Bugbot 指摘: 従来は
+            // data-side 未設定で全 side が bottom 固定計算になり arrow
+            // チェック自体が存在しなかった。data-side 配線で side ごとの
+            // 実座標検証が機能するようになったことに合わせて追加）。
+            let arrow_style = arrow.get_attribute("style").unwrap_or_else(|| {
+                panic!(
+                    "arrow element must receive a style attribute after auto reposition                      (side={side})"
+                )
+            });
+            let arrow_x = extract_css_var_px(&arrow_style, "--fandhe-arrow-x");
+            let arrow_y = extract_css_var_px(&arrow_style, "--fandhe-arrow-y");
+            assert!(
+                (arrow_x - expected_arrow_x).abs() < 0.5,
+                "side={side}: --fandhe-arrow-x expected {expected_arrow_x}, got {arrow_x}                  (style={arrow_style})"
+            );
+            assert!(
+                (arrow_y - expected_arrow_y).abs() < 0.5,
+                "side={side}: --fandhe-arrow-y expected {expected_arrow_y}, got {arrow_y}                  (style={arrow_style})"
             );
             assert_eq!(
                 positioner.get_attribute("data-positioned").as_deref(),
@@ -2718,6 +2903,7 @@ mod auto_wiring {
             "position-browser-auto-menu-xss",
             "position: fixed; left: 5px; top: 5px; width: 10px; height: 10px;",
             script_payload,
+            "bottom",
         );
         dispatch_click(&trigger);
         assert!(component.borrow().is_open());
@@ -2761,6 +2947,7 @@ mod auto_wiring {
             "position-browser-auto-popover-xss",
             "position: fixed; left: 5px; top: 5px; width: 10px; height: 10px;",
             script_payload,
+            "bottom",
         );
         dispatch_click(&trigger);
         assert!(component.borrow().is_open());
