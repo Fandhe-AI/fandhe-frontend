@@ -3866,6 +3866,7 @@ pub(crate) const MARKER: ComponentPageSpec = ComponentPageSpec {
         "MarkerTone（Neutral/Info/Warning/Danger、ColorPalette と同名 4 値）で注記の文字色・線色を切り替える",
         "root/icon/content の 3 パーツで注記行 1 個を構造化する（icon は装飾スロットとして aria-hidden=\"true\" を固定付与する）",
         "Label 形態は呼び出し側 children を styled Separator（horizontal・Solid、aria-hidden=\"true\"）2 個で挟んでから headless へ委譲する。区切り線は疑似要素を使わず DOM 上の separator パート再利用で描画する（marker.rs モジュール doc「区切り線の描画方式」節参照）",
+        "Label 形態を使う場合は marker::stylesheet() に加えて separator::css() も併せて読み込む必要がある。marker::stylesheet() は separator 自体の border-width・border-style・margin 等の基本規則を含まない（marker.rs モジュール doc「stylesheet が separator の基本 CSS を含まない理由」節参照）",
         "ストリーミング中判定・注記の自動分類・タイムスタンプ整形は実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1）。root へ role=\"status\" 等を付けたい場合は呼び出し側が attrs で渡す",
     ],
     arguments: &[

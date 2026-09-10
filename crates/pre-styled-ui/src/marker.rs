@@ -63,6 +63,23 @@
 //!   内で子孫セレクタの raw CSS として追記する。
 //! - **`Note` 形態**（既定）: 線なし。base のみ。
 //!
+//! # `stylesheet` が separator の基本 CSS を含まない理由（`separator::css()` 併用必須）
+//!
+//! [`stylesheet`] は marker 自身の recipe と、`Label` 形態で挟み込む
+//! separator の**伸縮・折返し抑止のための子孫セレクタ規則のみ**を返す
+//! （上記「区切り線の描画方式」節）。[`crate::separator::separator`] 自体の
+//! border-width・border-style・margin 等の基本規則
+//! （[`crate::separator::css`]）は再宣言しない
+//! （[`crate::checkbox_group`] が `hidden-input` slot を持たず
+//! `crate::checkbox::stylesheet()` 併用を必須とするのと同型の判断。
+//! `crate::separator` の recipe を本モジュールへ複製すると、`separator`
+//! 側の変更とドリフトし二重管理になるため）。**`Label` 形態を利用する
+//! 呼び出し側は、本モジュールの [`stylesheet`] に加えて
+//! [`crate::separator::css`] も併せて読み込む必要がある**
+//! （`crates/docs-site/src/showcase.rs` が両方を `push_css` する実例を
+//! 参照）。`Note`/`Divider` 形態のみを使う場合はこの併用は不要（separator
+//! を DOM に挿入しないため）。
+//!
 //! # `data-tone` 別の色（直接トークン）
 //!
 //! [`crate::json_tree_view`]/[`crate::message`] の先例に倣い、
@@ -231,6 +248,9 @@ fn recipe() -> SlotRecipe {
 /// 折返し抑止は `root`/separator/`content` にまたがる子孫セレクタのため
 /// [`crate::recipe::SlotRecipe::state`]（単一 slot 前提）では表現できず、
 /// raw CSS として追記する（モジュール doc「区切り線の描画方式」節参照）。
+/// `Label` 形態を利用する場合は [`crate::separator::css`] も併せて読み込む
+/// 必要がある（本関数は separator 自体の基本規則を含まない。モジュール doc
+/// 「`stylesheet` が separator の基本 CSS を含まない理由」節参照）。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();

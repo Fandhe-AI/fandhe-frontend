@@ -185,7 +185,7 @@ use super::scale::LinearScale;
 use super::svg::{self, fmt_coord, fmt_value, svg_text, PathBuilder, ViewBox};
 use super::{tooltip, ChartError};
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, VariantValue};
+use crate::recipe::{SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 
 /// `data-scope="radar-chart"` の part 一覧（recipe と揃える）。イシュー
@@ -322,7 +322,10 @@ pub enum RadarAxisLabel {
 }
 
 /// [`root`] の描画パラメータ。
-#[derive(Debug, Clone, Copy, PartialEq)]
+///
+/// イシュー #2133 で `range`/`hidden_series`（`String`/`Vec<String>`）を
+/// 純追加したため `Copy` は外れ `Clone` のみになった（0.x の破壊的変更）。
+#[derive(Debug, Clone, PartialEq)]
 pub struct RadarChartProps {
     /// `viewBox` の一辺の長さ（正方形、px 相当。既定 300.0）。
     pub size: f64,
@@ -348,6 +351,14 @@ pub struct RadarChartProps {
     /// 自体には付与しない）。`false` の場合は本イシュー以前の出力と
     /// バイト一致する。
     pub show_tooltip: bool,
+    /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
+    /// とき root（`svg[data-part="root"]`）へ `data-range="<v>"` を出力
+    /// する（既定 `None`＝非出力）。
+    pub range: Option<String>,
+    /// 非表示系列名の一覧（イシュー #2133）。系列名と完全一致する
+    /// `series`/`point` へ値なし属性 `data-hidden` を付与する。データに
+    /// 存在しない名前を指定してもエラーにしない（fail-soft）。
+    pub hidden_series: Vec<String>,
 }
 
 impl Default for RadarChartProps {
@@ -365,6 +376,8 @@ impl Default for RadarChartProps {
             axis_label: RadarAxisLabel::default(),
             radius_axis: false,
             show_tooltip: true,
+            range: None,
+            hidden_series: Vec::new(),
         }
     }
 }
@@ -486,6 +499,18 @@ fn recipe() -> SlotRecipe {
             RadarGridFill::Series,
             "grid",
             vec![decl("fill", "currentColor"), decl("fill-opacity", "0.2")],
+        )
+        // イシュー #2133: `hidden_series` で指定した系列の描画要素を
+        // 非表示にする（末尾純追加、既存ブロックは不変）。
+        .state(
+            "series",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "point",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
         )
 }
 
@@ -759,31 +784,39 @@ pub fn root(
         } else {
             color.as_str()
         };
-        children.push(el(
-            "path",
-            vec![
-                ("data-scope", "radar-chart"),
-                ("data-part", "series"),
-                ("data-series", series.name.as_str()),
-                ("d", d.as_str()),
-                ("fill", fill_attr),
-                ("stroke", color.as_str()),
-            ],
-            vec![],
-        ));
+        let hidden = props.hidden_series.contains(&series.name);
+        let mut series_attrs: Vec<(&str, &str)> = vec![
+            ("data-scope", "radar-chart"),
+            ("data-part", "series"),
+            ("data-series", series.name.as_str()),
+            ("d", d.as_str()),
+            ("fill", fill_attr),
+            ("stroke", color.as_str()),
+        ];
+        if hidden {
+            series_attrs.push(("data-hidden", ""));
+        }
+        children.push(el("path", series_attrs, vec![]));
 
         if props.dots {
-            for &(x, y) in &points {
-                children.push(svg::circle(
-                    x,
-                    y,
-                    DOT_RADIUS,
-                    vec![
-                        ("data-scope", "radar-chart"),
-                        ("data-part", "point"),
-                        ("fill", color.as_str()),
-                    ],
-                ));
+            for (point_idx, &(x, y)) in points.iter().enumerate() {
+                let point_idx_str = point_idx.to_string();
+                let mut point_attrs: Vec<(&str, &str)> =
+                    vec![("data-scope", "radar-chart"), ("data-part", "point")];
+                if props.show_tooltip {
+                    // hit-area・`data-index` と同じゲート（scatter の
+                    // point と同型、Cursor Bugbot 指摘「Hidden satellites
+                    // lack shared identifiers」対応、イシュー #2133）。
+                    point_attrs.push(("data-index", point_idx_str.as_str()));
+                }
+                // `series`（path）の `data-series` と同じく既存語彙、
+                // `show_tooltip` に関わらず常に付与する。
+                point_attrs.push(("data-series", series.name.as_str()));
+                point_attrs.push(("fill", color.as_str()));
+                if hidden {
+                    point_attrs.push(("data-hidden", ""));
+                }
+                children.push(svg::circle(x, y, DOT_RADIUS, point_attrs));
             }
         }
     }
@@ -843,15 +876,15 @@ pub fn root(
         }
     }
 
-    let root_node = svg::svg_root(
-        &view_box,
-        vec![
-            ("data-scope", "radar-chart"),
-            ("data-part", "root"),
-            ("aria-label", aria_label),
-        ],
-        children,
-    );
+    let mut root_attrs: Vec<(&str, &str)> = vec![
+        ("data-scope", "radar-chart"),
+        ("data-part", "root"),
+        ("aria-label", aria_label),
+    ];
+    if let Some(range) = &props.range {
+        root_attrs.push(("data-range", range.as_str()));
+    }
+    let root_node = svg::svg_root(&view_box, root_attrs, children);
 
     match entries {
         Some(entries) => Ok(tooltip::frame(vec![
@@ -1191,7 +1224,7 @@ mod tests {
             ..RadarChartProps::default()
         };
         let data5 = sample_data(5);
-        let html5 = render(&root(&data5, props, "sample5").unwrap());
+        let html5 = render(&root(&data5, props.clone(), "sample5").unwrap());
         assert_eq!(html5, PRE_2085_SAMPLE5_HTML);
 
         let data2 = ChartData::new(
@@ -1351,6 +1384,42 @@ mod tests {
         assert!(html.contains(r#"r="4""#));
     }
 
+    /// Cursor Bugbot 指摘（PR #2271「Hidden satellites lack shared
+    /// identifiers」）: `point`（`dots: true`）に `data-hidden` は伝搬する
+    /// が、series（path）が既に持つ `data-series` と、hit-area と同じ
+    /// 語彙の `data-index` が欠けており、凡例トグルの共有セレクタから
+    /// point だけを一緒に非表示・復元できなかった。両属性が付与される
+    /// ことを固定する。
+    #[test]
+    fn dots_carry_data_series_and_data_index() {
+        let n = 5;
+        let categories: Vec<String> = (0..n).map(|i| format!("axis{i}")).collect();
+        let data = ChartData::new(
+            categories,
+            vec![Series::new("s1", vec![10.0, 20.0, 30.0, 40.0, 50.0])],
+        )
+        .unwrap();
+        let props = RadarChartProps {
+            dots: true,
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "label").unwrap());
+        let point_tags: Vec<_> = html.match_indices(r#"data-part="point""#).collect();
+        assert_eq!(point_tags.len(), n);
+        for (point_idx, (idx, _)) in point_tags.iter().enumerate() {
+            let tag_end = html[*idx..].find('>').unwrap();
+            let tag = &html[*idx..*idx + tag_end];
+            assert!(
+                tag.contains(&format!(r#"data-index="{point_idx}""#)),
+                "point #{point_idx} に data-index が出力されること: {tag}"
+            );
+            assert!(
+                tag.contains(r#"data-series="s1""#),
+                "point #{point_idx} に data-series が出力されること: {tag}"
+            );
+        }
+    }
+
     #[test]
     fn axis_label_value_and_category_renders_two_tspans_with_joined_values() {
         let categories: Vec<String> = (0..4).map(|i| format!("axis{i}")).collect();
@@ -1463,8 +1532,10 @@ mod tests {
             radius_axis: true,
             size: 300.0,
             show_tooltip: true,
+            range: None,
+            hidden_series: Vec::new(),
         };
-        let a = render(&root(&data, props, "label").unwrap());
+        let a = render(&root(&data, props.clone(), "label").unwrap());
         let b = render(&root(&data, props, "label").unwrap());
         assert_eq!(a, b);
     }
@@ -1475,5 +1546,57 @@ mod tests {
         assert!(css.starts_with(
             "[data-scope=\"radar-chart\"][data-part=\"root\"] {\n  display: block;\n  max-width: 100%;\n}\n\n"
         ));
+    }
+
+    // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
+
+    #[test]
+    fn range_none_omits_data_range() {
+        let html = render(&root(&sample_data(3), RadarChartProps::default(), "range").unwrap());
+        assert!(!html.contains("data-range"));
+    }
+
+    #[test]
+    fn range_some_emits_data_range_on_root() {
+        let props = RadarChartProps {
+            range: Some("90d".to_string()),
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&sample_data(3), props, "range").unwrap());
+        assert!(html.contains(r#"data-range="90d""#));
+    }
+
+    #[test]
+    fn hidden_series_adds_data_hidden_to_matching_series_only() {
+        let data = ChartData::new(
+            vec!["a".into(), "b".into(), "c".into()],
+            vec![
+                Series::new("mercury", vec![1.0, 2.0, 3.0]),
+                Series::new("venus", vec![4.0, 5.0, 6.0]),
+            ],
+        )
+        .unwrap();
+        let props = RadarChartProps {
+            hidden_series: vec!["venus".to_string()],
+            ..RadarChartProps::default()
+        };
+        let html = render(&root(&data, props, "hidden").unwrap());
+        let venus_idx = html.find(r#"data-series="venus""#).unwrap();
+        let venus_tag_end = html[venus_idx..].find('>').unwrap();
+        assert!(html[venus_idx..venus_idx + venus_tag_end].contains("data-hidden"));
+        let mercury_idx = html.find(r#"data-series="mercury""#).unwrap();
+        let mercury_tag_end = html[mercury_idx..].find('>').unwrap();
+        assert!(!html[mercury_idx..mercury_idx + mercury_tag_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_unknown_name_is_fail_soft() {
+        let props = RadarChartProps {
+            hidden_series: vec!["does-not-exist".to_string()],
+            ..RadarChartProps::default()
+        };
+        let result = root(&sample_data(3), props, "hidden");
+        assert!(result.is_ok());
+        assert!(!render(&result.unwrap()).contains("data-hidden"));
     }
 }

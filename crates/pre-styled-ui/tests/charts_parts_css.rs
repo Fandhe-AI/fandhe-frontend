@@ -98,8 +98,29 @@ fn legend_css_matches_golden_fixture_byte_for_byte() {
         "  height: var(--fandhe-space-3);\n",
         "}\n",
         "\n",
+        // イシュー #2133: 凡例 item を button + aria-pressed 化する trigger
+        // slot（marker/icon/label を包む）。既存 6 ブロック（root/title/item/
+        // marker/icon の base 5 件 + 本ブロック直前までの並び）は不変
+        // （golden 純追加原則）。
+        "[data-scope=\"chart-legend\"][data-part=\"trigger\"] {\n",
+        "  appearance: none;\n",
+        "  background: none;\n",
+        "  border: 0;\n",
+        "  padding: 0;\n",
+        "  margin: 0;\n",
+        "  font: inherit;\n",
+        "  color: inherit;\n",
+        "  cursor: pointer;\n",
+        "  display: inline-flex;\n",
+        "  align-items: center;\n",
+        "  gap: var(--fandhe-space-2);\n",
+        "  transition-property: opacity;\n",
+        "  transition-duration: var(--fandhe-motion-duration-fast);\n",
+        "  transition-timing-function: var(--fandhe-motion-easing-standard);\n",
+        "}\n",
+        "\n",
         // イシュー #2086: shadcn/ui Charts（tooltip）突合による opt-in variant
-        // 軸（align/marker）。既存 6 ブロックは不変（golden 純追加原則）。
+        // 軸（align/marker）。既存ブロックは不変（golden 純追加原則）。
         "[data-scope=\"chart-legend\"][data-part=\"root\"].fd-chart-legend--align-center {\n",
         "  justify-content: center;\n",
         "}\n",
@@ -110,6 +131,18 @@ fn legend_css_matches_golden_fixture_byte_for_byte() {
         "\n",
         "[data-scope=\"chart-legend\"][data-part=\"marker\"].fd-chart-legend--marker-square {\n",
         "  border-radius: var(--fandhe-radius-sm);\n",
+        "}\n",
+        "\n",
+        // イシュー #2133: trigger の状態規則（非表示系列の減光・
+        // キーボードフォーカスリング）。SlotRecipe::css() は state を
+        // variant の後段に出力する（呼び出し順ではなく実出力位置で固定）。
+        "[data-scope=\"chart-legend\"][data-part=\"trigger\"][aria-pressed=\"false\"] {\n",
+        "  opacity: 0.5;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"chart-legend\"][data-part=\"trigger\"]:focus-visible {\n",
+        "  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n",
+        "  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n",
         "}\n",
     );
     assert_eq!(legend::css(), expected);
@@ -191,6 +224,12 @@ fn tooltip_css_matches_golden_fixture_byte_for_byte() {
         "[data-scope=\"chart\"][data-part=\"hit-area\"]:focus-visible {\n",
         "  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n",
         "  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n",
+        "}\n",
+        "\n",
+        // イシュー #2133: 凡例トグルで隠した系列のツールチップ行を連動して
+        // 隠す（末尾純追加、既存ブロックは不変）。
+        "[data-scope=\"chart\"][data-part=\"tooltip-item\"][data-hidden] {\n",
+        "  display: none;\n",
         "}\n",
         "\n",
         "@media (hover: hover) {\n",
