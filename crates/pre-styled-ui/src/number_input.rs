@@ -170,6 +170,17 @@
 //!   `"home"`/`"end"` dispatch を含む）は本モジュールのスコープ外
 //!   （`fandhe_frontend_headless_ui::number_input` モジュール doc
 //!   「スコープ外」節参照）。
+//!
+//! # スタイル調整（イシュー #2195、Forms 家族横断の disabled 規則）
+//!
+//! 詳細な決定根拠・対応表は
+//! `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` を正とする
+//! （[`crate::date_picker`] 等同名節と同型の記録方針）。number-input は
+//! `root` が opacity を所有する「コンテナ所有型」であり、`control[data-
+//! disabled]` は `cursor: not-allowed` のみを追加する（`root` の opacity
+//! 0.5 と二重適用しない）。`label` の `data-required` 視覚化は Forms 家族
+//! 横断規則（R2）により見送りを継続する（上記「イシュー #1613 のスコープ
+//! 外」節を参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, serialize_rule};
@@ -224,6 +235,18 @@ fn recipe() -> SlotRecipe {
             "root",
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
+        )
+        // `control[data-disabled]`（イシュー #2195、Forms 家族横断の
+        // disabled 規則。詳細は
+        // `docs/design/pre-styled-ui-forms-disabled-required-matrix.md`）:
+        // headless（`control`）が `data-disabled` を出すようになった
+        // （headless-ui 0.41.0、#1627）。number-input は `root` が opacity
+        // を所有する「コンテナ所有型」のため、内側 `control` は
+        // `cursor: not-allowed` のみに留める（二重減光の回避）。
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
         )
         .base(
             "label",
@@ -632,6 +655,19 @@ mod tests {
             r#"[data-scope="number-input"][data-part="decrement-trigger"][data-disabled] {"#
         ));
         assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn control_disabled_is_cursor_only_per_forms_matrix() {
+        // イシュー #2195（Forms 家族横断の disabled 規則、R1「opacity 単一
+        // 階層」）: `root` が opacity を所有するコンテナ所有型のため、内側
+        // `control` は `cursor: not-allowed` のみで opacity を含まない。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="number-input"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}"#
+        ));
     }
 
     #[test]

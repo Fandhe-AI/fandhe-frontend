@@ -89,10 +89,15 @@
 //!   であり参照サイト（chakra-ui/ark-ui）もこの面自体への hover 表現を
 //!   持たない。`trigger`/`clear-trigger`（クリック操作を担う slot）にのみ
 //!   `hover_bg_muted()` + `StateCondition::Hover` を付ける
-//! - **disabled 視覚は `input`/`trigger` のみに付ける**: headless
-//!   （`crates/headless-ui/src/combobox.rs`）が `data-disabled` を出すのは
-//!   `input`/`trigger` のみで、`control`/`clear-trigger` へは出さないため
-//!   本 CSS 側でも対象外とする（消費できない属性へ規則を書かない）
+//! - **disabled 視覚は当初 `input`/`trigger` のみに付けていた**: 本イシュー
+//!   （#1467）着手当時、headless（`crates/headless-ui/src/combobox.rs`）が
+//!   `data-disabled` を出すのは `input`/`trigger` のみで、`control`/
+//!   `clear-trigger` へは出さなかったため対象外としていた。headless-ui
+//!   0.41.0（#1627）以降は `control`/`clear-trigger` へも出力するように
+//!   なり、Forms 家族横断規則（イシュー #2195）で `control` は
+//!   `cursor: not-allowed` のみ・`clear-trigger` は
+//!   `disabled_declarations()` を適用する是正を行った（下部「スタイル
+//!   調整（イシュー #2195）」節参照）
 //! - フォーカスリングは `control` の `:focus-within` を
 //!   `recipe::focus_ring_declarations`（`FocusRingColor::Token`、combobox は
 //!   palette 軸を持たないため）へ canonical 化した。`input` の
@@ -204,6 +209,25 @@
 //! disabled item・clear button・focus ring・hover と highlight の分離は
 //! #1467/#1468（PR #1744/#1745、上記節）で既に実装済みであり、shadcn 突合
 //! でも新規ギャップは見つからなかった。
+//!
+//! # スタイル調整（イシュー #2195、Forms 家族横断の disabled / required 規則）
+//!
+//! 詳細な決定根拠・対応表は
+//! `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` を正とする
+//! （[`crate::date_picker`] 同名節と同型の記録方針、二重管理回避のため本節
+//! では結論のみ記す）。
+//!
+//! - **`control[data-disabled]` は `cursor: not-allowed` のみ**: headless
+//!   が `control` へ `data-disabled` を出すようになった
+//!   （headless-ui 0.41.0、#1627）が、`input`/`trigger` という葉パーツが
+//!   既に `disabled_declarations()` を適用する葉所有型のため、レイアウト
+//!   のみの `control` へ opacity を重ねない
+//! - **`clear-trigger[data-disabled]` は `disabled_declarations()`**:
+//!   `clear-trigger` は `trigger` と同格の単独クリック可能な `<button>`
+//!   （葉）であるため適用する
+//! - **`label` の `data-required` 視覚化は見送る（決定として確定）**:
+//!   `field::required_indicator` による表現へ統一する Forms 家族横断規則
+//!   （R2）であり、CSS 生成コンテンツは追加しない
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -436,8 +460,7 @@ fn recipe() -> SlotRecipe {
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         // headless（`crates/headless-ui/src/combobox.rs`）が `input`/`trigger`
-        // へ出す `data-disabled` を消費する（`control`/`clear-trigger` へは
-        // 出さないため対象外、モジュール rustdoc「スタイル調整」節参照）。
+        // へ出す `data-disabled` を消費する。
         .state(
             "input",
             StateCondition::Attr("data-disabled"),
@@ -445,6 +468,25 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // `control[data-disabled]`（イシュー #2195、モジュール rustdoc
+        // 「スタイル調整（イシュー #2195）」節参照）: headless
+        // （`control`）が `data-disabled` を出すようになった
+        // （headless-ui 0.41.0、#1627）。`input`/`trigger` という葉パーツが
+        // 既に `disabled_declarations()` を適用する葉所有型のため、
+        // レイアウトのみの `control` は `cursor: not-allowed` のみに留める。
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
+        )
+        // `clear-trigger[data-disabled]`（イシュー #2195）: `clear-trigger`
+        // は `trigger` と同格の単独クリック可能な `<button>`（葉）である
+        // ため `disabled_declarations()` を適用する。
+        .state(
+            "clear-trigger",
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
         )
@@ -651,6 +693,22 @@ mod tests {
     use fandhe_frontend_core::render;
     use fandhe_frontend_headless_ui::state::OpenState;
 
+    /// `css` 中で `selector_with_brace`（例: `"...[data-disabled] {"`）から
+    /// 対応する `}` までの本文を抜き出す（イシュー #2195 の
+    /// `control_and_clear_trigger_consume_data_disabled_per_forms_matrix`
+    /// テスト専用ヘルパ。`date_picker.rs` の同名ヘルパと同型）。
+    fn extract_block<'a>(css: &'a str, selector_with_brace: &str) -> &'a str {
+        let block_start = css
+            .find(selector_with_brace)
+            .unwrap_or_else(|| panic!("selector not found: {selector_with_brace}, css={css}"));
+        let body_start = block_start + selector_with_brace.len();
+        let body_end = css[body_start..]
+            .find('}')
+            .map(|offset| body_start + offset)
+            .unwrap_or_else(|| panic!("unterminated block for {selector_with_brace}"));
+        &css[body_start..body_end]
+    }
+
     #[test]
     fn stylesheet_is_deterministic_and_targets_data_scope_selectors() {
         let a = stylesheet();
@@ -788,6 +846,31 @@ mod tests {
         assert!(css.contains(r#"[data-scope="combobox"][data-part="trigger"][data-disabled] {"#));
         assert!(css.contains("opacity: 0.5;"));
         assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn control_and_clear_trigger_consume_data_disabled_per_forms_matrix() {
+        // イシュー #2195（Forms 家族横断の disabled 規則、R1「opacity 単一
+        // 階層」）: `input`/`trigger` が opacity を所有する葉所有型のため
+        // `control` は `cursor: not-allowed` のみ、`clear-trigger` は
+        // `trigger` と同格の葉として `disabled_declarations()` を適用する。
+        let css = stylesheet();
+        let control_block = extract_block(
+            &css,
+            r#"[data-scope="combobox"][data-part="control"][data-disabled] {"#,
+        );
+        assert!(
+            !control_block.contains("opacity"),
+            "control[data-disabled] must not own opacity: {control_block}"
+        );
+        assert!(control_block.contains("cursor: not-allowed"));
+
+        let clear_trigger_block = extract_block(
+            &css,
+            r#"[data-scope="combobox"][data-part="clear-trigger"][data-disabled] {"#,
+        );
+        assert!(clear_trigger_block.contains("opacity: 0.5"));
+        assert!(clear_trigger_block.contains("cursor: not-allowed"));
     }
 
     #[test]
