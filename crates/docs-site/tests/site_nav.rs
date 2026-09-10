@@ -205,22 +205,24 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 215 → 216、イシュー #2112 で Attachment の Themes ページが加わり
     // 216 → 217、イシュー #2114 で Marker（Primitives）が加わり
     // 217 → 218、イシュー #2115 で Marker の Themes ページが加わり
-    // 218 → 219、イシュー #2117 で Questionnaire（Primitives）が加わり
-    // 219 → 220 になった。イシュー #2088 で Blocks セクション（索引 1 +
-    // login-01 1 = 2 ページ）が新設され、220 → 222 になった。イシュー
-    // #2089 で dashboard-01 が加わり、222 → 223 になった。
-    assert_eq!(pages.len(), 223, "expected 223 pages, got {pages:?}");
+    // 218 → 219 になった。イシュー #2088 で Blocks セクション（索引 1 +
+    // login-01 1 = 2 ページ）が新設され、219 → 221 になった。イシュー
+    // #2089 で dashboard-01 が加わり、221 → 222 になった。イシュー #2117
+    // で Questionnaire（Primitives）が加わり、222 → 223 になった。イシュー
+    // #2090 で sidebar-07 が加わり、223 → 224 になった。
+    assert_eq!(pages.len(), 224, "expected 224 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
+    // イシュー #2090 で sidebar-07 が加わり 4 件。
     let blocks_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/blocks/"))
         .collect();
     assert_eq!(
         blocks_pages.len(),
-        3,
-        "expected 3 /blocks/ pages (index + login-01 + dashboard-01), got {blocks_pages:?}"
+        4,
+        "expected 4 /blocks/ pages (index + login-01 + dashboard-01 + sidebar-07), got {blocks_pages:?}"
     );
     assert!(
         pages.contains(&("site/blocks.md", "/blocks/")),
@@ -233,6 +235,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     assert!(
         pages.contains(&("site/blocks/dashboard-01.md", "/blocks/dashboard-01/")),
         "nav.toml is missing the dashboard-01 block page"
+    );
+    assert!(
+        pages.contains(&("site/blocks/sidebar-07.md", "/blocks/sidebar-07/")),
+        "nav.toml is missing the sidebar-07 block page"
     );
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ

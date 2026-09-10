@@ -216,6 +216,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
 
       - name: Upload dist artifact

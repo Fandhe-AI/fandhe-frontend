@@ -167,4 +167,8 @@ fn blocks_index_page_links_to_the_registered_block() {
         content.contains("./blocks/dashboard-01.md"),
         "site/blocks.md should link to the registered dashboard-01 block (イシュー #2089)"
     );
+    assert!(
+        content.contains("./blocks/sidebar-07.md"),
+        "site/blocks.md should link to the registered sidebar-07 block (イシュー #2090)"
+    );
 }
