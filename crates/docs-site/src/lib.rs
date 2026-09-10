@@ -71,6 +71,13 @@
 //!   `parse_fence` が `<pre><code>` の子ノードを組み立てる際に呼び出し、
 //!   未対応言語・トークナイズ失敗時は従来どおりの無色プレーン表示へ
 //!   フォールバックする
+//! - [`blocks`][]: Blocks（`/blocks/`）セクションのレジストリ・専用レンダラ
+//!   （イシュー #2088）。shadcn/ui Blocks 相当の「既存部品を合成した実例」を
+//!   掲載する。[`showcase`]/[`primitive_showcase`] と並ぶ第 3 の Rust 生成
+//!   コンテンツ供給元だが、[`component_page`] の `generated_content`/`Layer`
+//!   経路には乗せず [`build`] から独立分岐で呼ばれる（詳細は
+//!   [`blocks`] モジュール doc 参照）。専用 CSS（`assets/blocks.css`）は
+//!   `crates/docs-site/tests/blocks_contract.rs` 等が固定する
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
 //! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
@@ -92,6 +99,7 @@
 #![forbid(unsafe_code)]
 
 pub mod admonition;
+pub mod blocks;
 pub mod build;
 pub mod component_page;
 pub mod component_page_specs_948;

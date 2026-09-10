@@ -1673,6 +1673,7 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         "headless-ui の `select::root` へ委譲し、`size` variant クラスを付与する。",
         "`trigger` パーツが `aria-haspopup=\"listbox\"` を固定付与し、`content`/`label` との関連付けを `aria-controls`/`aria-labelledby` で行う。",
         "`content` パーツの `aria-activedescendant` は選択中アイテムの `id` を参照する（select-only combobox パターン）。",
+        "separator / scroll-up-button / scroll-down-button の着装（イシュー #2186）: headless-ui の 3 新設パーツを再エクスポートし、`position: sticky` で content 上下端に固定するボタン・`height`/`background` の区切り線を recipe へ登録する。可視性判定・押下時の実スクロールは wasm-full 後続イシューの範囲。",
     ],
     arguments: &[
         ArgRow {

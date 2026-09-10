@@ -2722,22 +2722,33 @@ name = "fandhe-frontend-pre-styled-ui"
 # もの」への移動（headless error_text の role="alert" 採用を反映）と
 # headless-ui 依存の version 要求追随のみで、本クレート自身の出力・API は
 # 不変のため patch バンプの 0.162.2 へ到達していたが、#2109 のマイナー
-# バンプ（0.163.0）がこれを上回るため 0.163.0 を採用する（0.x の破壊的
-# 変更／機能追加はマイナーバンプ優先の規約、同一版数への偶発的衝突では
-# ないため +1 の追加バンプは不要）。
+# バンプ（0.163.0）がこれを上回るため 0.163.0 を採用していた（0.x の破壊的
+# 変更／機能追加はマイナーバンプ優先の規約）。
 #
-# 上記 0.162.2（origin/main）と本ブランチ側の 0.163.0（イシュー #2129 の
-# 実体変更に伴うマイナーバンプ）をマージした結果、双方とも独立に
-# 0.163.0 へ到達しており、同一版数への偶発的衝突（互いに異なる実体変更が
-# 同じ番号を指す状態）となるため、衝突解消の印として +1 マイナーし
-# 0.164.0 を採用する（PR #2261 の codex-review / Bugbot 指摘修正コミットに
-# 伴う origin/main 再取り込み、イシュー #2129）。
+# イシュー #2186: select へ `separator`/`scroll_up_button`/
+# `scroll_down_button` の `pub use` 再エクスポート 3 件を純追加し、
+# [`recipe`] へ base 3 ブロックを新設（golden 変更）した。既存 API・出力は
+# 不変のまま公開 API を追加する非破壊的変更のため、#2106 の先例に倣い
+# マイナーバンプ対象だったが、独立に 0.163.0 へ到達していた main（#2109）
+# との統合で版数が偶発的に一致したため、同一版数も衝突として扱い main から
+# +1 して 0.164.0 とする。
 #
-# イシュー #2111: headless-ui 0.68.8 → 0.68.9（`attachment` 新設、非破壊的
-# 追加）に伴う `dep-version-check --fix` の `version = "..."` 追随バンプ
-# （本ブランチ側では 0.163.1 patch バンプとして到達）は、origin/main 側の
-# 上記マージ解消で到達した 0.164.0 が既に上回っているため、追加バンプ
-# 不要で 0.164.0 をそのまま採用する（本クレート自身の recipe・golden・
+# その後の origin/main 側の独立した進展（#2129 の `charts` hit-area・
+# data-index/data-series・SSR ツールチップ DOM 追加、実体変更に伴うマイナー
+# バンプ・PR #2261 の codex-review / Bugbot 指摘修正コミットに伴う再取り込み）
+# でも main は独立に 0.164.0 へ到達していた。本ブランチの `select` 変更
+# （イシュー #2186）と main の `charts` 変更は互いに異なる実体変更であり
+# ながら偶発的に同じ 0.164.0 を指す状態のため、`semver-same-version-is-
+# conflict` の運用（一度この衝突を経て 0.163.0→0.164.0 とした際と同じ
+# 判断軸）に従い、再度の同一版数衝突として main の到達値 0.164.0 から
+# +1 マイナーして 0.165.0 とする。
+#
+# イシュー #2111（origin/main 再取り込み）: headless-ui 0.68.8 → 0.68.9
+# （`attachment` 新設、非破壊的追加）に伴う `dep-version-check --fix` の
+# `version = "..."` 追随（origin/main 側では 0.164.0 到達時点で反映済み）
+# は、上記マージ解消で到達した 0.165.0 が既に上回っているため、本クレート
+# 自身への追加バンプは不要で 0.165.0 をそのまま採用する（依存先の
+# version 要求文字列のみ後続で追随、本クレート自身の recipe・golden・
 # Themes ページ実装は後続イシュー #2112、出力・API は不変）。
 #
 # イシュー #2112: `attachment` モジュール（recipe・golden・8 パーツの
@@ -2765,10 +2776,24 @@ name = "fandhe-frontend-pre-styled-ui"
 # Themes ページ実装は後続イシュー #2115）。base 取り込みで headless-ui が
 # さらに 0.68.11 へ patch バンプした（同一版数への偶発的衝突をそのまま
 # 採用しない原則、`crates/headless-ui/Cargo.toml` 参照）ため、この
+# dep-version-check 追随分をさらに 0.166.2 へ patch バンプする。
+#
+# PR #2265 base 取り込み: headless-ui が本 PR（#2186）由来の同一版数衝突
+# 解消でさらに 0.68.12 へ patch バンプした（`crates/headless-ui/
+# Cargo.toml` 参照）ため、この dep-version-check 追随分も併せて反映する。
+# 本クレート自身は select へ `separator`/`scroll_up_button`/
+# `scroll_down_button` の `pub use` 再エクスポート 3 件を純追加し、
+# [`recipe`] へ base 3 ブロックを新設（golden 変更）する既存 API・出力は
+# 不変のまま公開 API を追加する非破壊的変更のため、#2106 の先例に倣い
+# マイナーバンプする。origin/main 到達値 0.166.2 を上回る必要があるため
+# 0.167.0 とする。
 # dep-version-check 追随分をさらに 0.166.2 へ patch バンプしていた。
 #
-# イシュー #2115: styled `marker`（recipe・golden テスト・Themes ページ）
-# を新設する公開 API 純追加のため 0.167.0 へマイナーバンプする。
+# 本ブランチ（イシュー #2133）側は上記 0.166.2 を起点に、本イシューの
+# 実体変更（公開 API 拡張）に伴い 0.167.0 へマイナーバンプ済み。今回の
+# base 取り込みで origin/main 側の到達値 0.166.0 を確認したが、本ブランチ
+# 側の 0.167.0 が既にこれを上回るため、追加バンプ不要で 0.167.0 を
+# そのまま採用する。
 #
 # base 取り込み: origin/main 側は並行 PR（イシュー #2133 の Legend
 # button 化等）で 0.167.0 → 0.168.0 へ到達済みだった。本ブランチの
@@ -2777,12 +2802,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.168.0 をさらに上回る 0.169.0 へマイナーバンプする（marker 追加は
 # 破壊的変更ではない純追加だが、衝突解消のため main+1 を採用する）。
 #
+# PR #2265 マージ: 双方が偶発的に同一版数 0.167.0 へ到達していたため
+# （同一版数はコンフリクトとして扱い main +1 する運用）、0.168.0 へ
+# マイナーバンプする。
+#
+# PR #2265 codex-review P1 是正の base 取り込み: origin/main 側は並行 PR
+# （イシュー #2115 の styled `marker` 新設）で 0.169.0 へ到達済みだった。
+# 本ブランチの 0.168.0 は main の 0.169.0 を下回るため（既発行済みバー
+# ジョンとの衝突を避ける運用）、main の到達値 0.169.0 をさらに上回る
+# 0.170.0 へマイナーバンプする。
+#
 # イシュー #2117 base 取り込み: 依存先 `fandhe-frontend-headless-ui`
 # 0.68.11 → 0.68.12（`questionnaire` 新設）への `dep-version-check`
-# version 要求追随のみで 0.169.1 へ patch バンプする（本クレート自身の
-# 実体変更は伴わない。styled `questionnaire` recipe・golden・Themes
-# ページ実装は後続イシュー #2119）。
-version = "0.169.1"
+# version 要求は上記 0.170.0 バンプに伴い既に `path = "../headless-ui",
+# version = "0.68.12"` へ追随済みのため、本クレート自身の追加バンプは
+# 不要（本クレートの実体変更は伴わない。styled `questionnaire` recipe・
+# golden・Themes ページ実装は後続イシュー #2119）。
+version = "0.170.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

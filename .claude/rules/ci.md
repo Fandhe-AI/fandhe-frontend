@@ -94,9 +94,10 @@
   `crates/interactive/**` は showcase 限定の例外ではなく**全ページに影響する
   paths 必須項目**である。レンダラ側（core / app / server）は従来どおり
   paths 対象外（反映が必要なときは `workflow_dispatch`）。
-- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017/#1018/#1021/#1022）**: `site/**` の
+- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017/#1018/#1021/#1022/#2088）**: `site/**` の
   glob は `site/themes/*.md`（イシュー #1017 で `site/components/*.md` から
-  移行）と `site/primitives/*.md`（イシュー #1021）を包含するため、部品ページ
+  移行）と `site/primitives/*.md`（イシュー #1021）・`site/blocks.md`/
+  `site/blocks/*.md`（イシュー #2088）を包含するため、部品ページ・block ページ
   追加時に paths への個別エントリ追加は不要（イシュー #944 で検証済み）。`site/redirects.toml`
   （イシュー #1016、旧 URL 互換のリダイレクトページ生成機構）も同じ `site/**`
   glob に包含されるため、同様に paths への個別エントリ追加は不要（同一 glob
@@ -121,7 +122,9 @@
   `assets/image-demo.svg`（イシュー #1562、`showcase::image_demo_svg` が
   生成。Image 節 demo の `src` が `data:` URI で core の `is_safe_url` に
   拒否され属性ごと欠落していた不具合を、ビルド時生成 SVG の相対パス参照へ
-  切り替えて是正した）である。
+  切り替えて是正した）/ `blocks/index.html`・`blocks/login-01/index.html`・
+  `assets/blocks.css`（イシュー #2088、Blocks セクションの索引・雛形実例・
+  専用 CSS。`crate::blocks::stylesheet` が生成）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・
@@ -135,7 +138,12 @@
   73 部品 と Themes 120 部品の層をまたぐラップ状態の 4 バケット分割検知、
   イシュー #1064〕/ `highlight.rs`〔フェンスコードブロックの軽量シンタックス
   ハイライト（`src/highlight.rs`）の XSS エスケープ・CSS トークン網羅性・
-  全域性契約、イシュー #1078〕）が担い、yml・ci.md では
+  全域性契約、イシュー #1078〕/ `blocks_nav.rs`〔nav.toml の `/blocks/*` ⇔
+  `crate::blocks::BLOCKS` ⇔ `site/blocks/*.md` の三方突合、イシュー #2088〕/
+  `blocks_code_drift.rs`〔`crate::blocks` 配下の手書き実装と Markdown 原稿の
+  `rust` フェンスとのマーカー突合、イシュー #2088〕/ `blocks_contract.rs`
+  〔Blocks ページの節順序・`<form>` 不在・CSS 配線・XSS 回帰、イシュー
+  #2088〕）が担い、yml・ci.md では
   二重管理しない（ページ件数・部品数を ci.md へ書かないのはこの二重管理回避のため）。
 - **`fw gate`（`crates/cli/src/gate.rs`）系のツール（clippy component / cargo-deny / wasm32-unknown-unknown rustup target）**: `tools/ci/ensure-gate-tools.sh` を標準ブートストラップとする（イシュー #292。wasm32 target の常設は `lint_wasm32` チェック向けにイシュー #1174 で追加）。CI（`.github/workflows/ci.yml` の test ジョブ・`gate-self-apply` ジョブ）・ローカル開発・AI 自己保守フックのいずれも `fw gate` 実行前にこのスクリプトを前置する運用を推奨する。バージョン固定・SHA256 チェックサム検証はスクリプト側に一元化し、CI ワークフロー側との二重管理でドリフトさせない。前置されなかった場合でも `fw gate` 側のプリフライト検出（`docs/design/gate-design.md` §2.3a・§2.6）が「環境エラーであること」を決定的なメッセージ（是正コマンド付き）で示し、コード起因の FAIL との区別を保つ
 - **`fw gate --project .` の自己適用常時実行（イシュー #400・#1116）**: `.github/workflows/ci.yml` の `gate-self-apply` ジョブが PR ごと・main push ごとに `fw gate --project .` 自己適用（#372/PR #382 で PASS 化）を実行し、`gate_result: "PASS"` の継続を保証する。イシュー #1116 で `gate` の終了コードに `3`（`gate_result: "ERROR"`、実行環境にツールが無いだけの不合格）が追加されたが、ジョブの判定は `version-bump-guard` と同じ「終了コードは 0/非 0 のみを見て、種別判定は JSON 出力本文の grep に任せる」設計を踏襲する: `if PIPELINE; then exit 0; fi`（`set -euo pipefail` を維持したまま条件式内で pipefail 失敗による即時中断を回避する）で非 0 終了を捕捉した後、`"gate_result":"ERROR"` の有無で環境エラーとコード起因 FAIL（`BLOCKED`）を CI アノテーションとして区別する。終了コードの値（`PIPESTATUS` 等）を読み分ける実装は複雑化を避けるため採らない（詳細は `docs/design/gate-design.md` §4・§6）
