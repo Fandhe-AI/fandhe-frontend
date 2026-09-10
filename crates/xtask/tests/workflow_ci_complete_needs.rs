@@ -174,6 +174,84 @@ fn key_at_indent4(stripped_line: &str) -> Option<(String, String)> {
     Some((key.to_string(), value))
 }
 
+/// インデント 4 の `<key>: <value>` 行から、キー部分の文字種妥当性を検証
+/// せずに生のキー文字列（コロン直前まで）だけを抽出する。`key_at_indent4`
+/// はクォート付きキー等の未対応表記を `None` として握りつぶすため、
+/// 「`if` に正規化できるが唯一の正規形と一致しない」表記（イシュー #2324
+/// の P1 是正、下記 [`classify_if_like_key`] 参照）を検知する下請けとして
+/// 別に用意する。
+fn raw_key_at_indent4(stripped_line: &str) -> Option<String> {
+    let trimmed_end = stripped_line.trim_end();
+    if !trimmed_end.starts_with("    ") {
+        return None;
+    }
+    if trimmed_end.as_bytes().get(4) == Some(&b' ') {
+        return None;
+    }
+    let rest = &trimmed_end[4..];
+    let colon_pos = rest.find(':')?;
+    Some(rest[..colon_pos].to_string())
+}
+
+/// 前後を同じ引用符（`"..."` または `'...'`）で囲まれている場合のみ、
+/// その引用符を剥がす。囲まれていなければそのまま返す。
+fn strip_matching_quotes(s: &str) -> &str {
+    let bytes = s.as_bytes();
+    if bytes.len() >= 2 {
+        let first = bytes[0];
+        let last = bytes[bytes.len() - 1];
+        if (first == b'"' && last == b'"') || (first == b'\'' && last == b'\'') {
+            return &s[1..s.len() - 1];
+        }
+    }
+    s
+}
+
+/// ジョブ本文 1 件分（`block_start..block_end`）を走査し、ジョブレベル
+/// `if:` の状態を判定する。
+///
+/// - `canonical`: 唯一の正規形 `    if: <value>`（クォート無しキー）で
+///   見つかった最初の 1 件の `(行番号, value)`。
+/// - `non_canonical`: キーを引用符除去すると `if` に一致するが、唯一の
+///   正規形とは一致しない行（クォート付きキー `"if"`/`'if'` 等）の
+///   `(行番号, 生テキスト)` 一覧。`key_at_indent4` はこれらを黙って
+///   `None` にして読み飛ばしてしまう（イシュー #2324 の P1 指摘）ため、
+///   反転判定により呼び出し側で違反として報告する材料として集める。
+struct JobIfScan {
+    canonical: Option<(usize, String)>,
+    non_canonical: Vec<(usize, String)>,
+}
+
+fn scan_job_if(stripped: &[String], block_start: usize, block_end: usize) -> JobIfScan {
+    let mut canonical = None;
+    let mut non_canonical = Vec::new();
+    for (i, line) in stripped
+        .iter()
+        .enumerate()
+        .take(block_end)
+        .skip(block_start)
+    {
+        if line.is_empty() {
+            continue;
+        }
+        if let Some((key, value)) = key_at_indent4(line) {
+            if key == "if" && canonical.is_none() {
+                canonical = Some((i, value));
+            }
+            continue;
+        }
+        if let Some(raw_key) = raw_key_at_indent4(line) {
+            if strip_matching_quotes(raw_key.trim()) == "if" {
+                non_canonical.push((i, line.trim().to_string()));
+            }
+        }
+    }
+    JobIfScan {
+        canonical,
+        non_canonical,
+    }
+}
+
 /// `needs:` 配下の block sequence 要素（インデント 6 の `- <name>`）の
 /// 分類結果。
 enum NeedsLine {
@@ -468,28 +546,53 @@ fn check_ci_complete_needs_contract(contents: &str) -> Result<(), Vec<String>> {
                 .to_string(),
         );
     }
-    let skipped_occurrences = block_text.matches("\"skipped\"").count();
-    if skipped_occurrences != SKIPPED_ALLOWLIST.len() {
-        violations.push(format!(
-            "`ci-complete` の集約ステップ中の `\"skipped\"` 出現回数（{skipped_occurrences}）が\
-             許容リスト `SKIPPED_ALLOWLIST` の件数（{}）と一致しない",
-            SKIPPED_ALLOWLIST.len()
-        ));
-    }
-    for name in SKIPPED_ALLOWLIST {
-        let expected = format!(".key == \"{name}\" and .value.result == \"skipped\"");
-        if !block_text.contains(&expected) {
-            violations.push(format!(
-                "`ci-complete` の集約ステップに許容リストのジョブ `{name}` に対する skipped 判定式\
-                 が見つからない: {expected}"
-            ));
+    // `SKIPPED_ALLOWLIST` から jq の判定式全体（`map(select((...) | not))`
+    // の `(...)` 内側）を機械的に組み立て、集約ステップのテキストと
+    // **部分文字列の存在ではなく式全体の完全一致**で照合する（イシュー
+    // #2324 の P1 是正）。部分文字列一致（旧実装）は `\"skipped\"` の
+    // 出現回数や個別の判定式の存在だけを見るため、既存の許容式へ
+    // `or true` 等の無関係な追加節を継ぎ足す改変（許容外ジョブの
+    // 失敗・skip を丸ごと PASS 扱いにする fail-open 化）があっても、
+    // 元の判定式が部分文字列として残っている限り検知できない。
+    // `map(select((` と `) | not))` という唯一の正規形の境界で予測式を
+    // 完全一致検証することで、境界内へのどんな追加節も差分として検知
+    // する。
+    let allowlist_clause = SKIPPED_ALLOWLIST
+        .iter()
+        .map(|name| format!("(.key == \"{name}\" and .value.result == \"skipped\")"))
+        .collect::<Vec<_>>()
+        .join(" or ");
+    let expected_predicate = if allowlist_clause.is_empty() {
+        ".value.result == \"success\"".to_string()
+    } else {
+        format!(".value.result == \"success\" or {allowlist_clause}")
+    };
+    const PREDICATE_PREFIX: &str = "map(select((";
+    const PREDICATE_SUFFIX: &str = ") | not))";
+    match block_text.find(PREDICATE_PREFIX) {
+        None => violations.push(format!(
+            "`ci-complete` の集約ステップに唯一の正規形 `{PREDICATE_PREFIX}...{PREDICATE_SUFFIX}` \
+             が見つからない（反転判定により違反として扱う）"
+        )),
+        Some(prefix_idx) => {
+            let after_prefix = &block_text[prefix_idx + PREDICATE_PREFIX.len()..];
+            match after_prefix.find(PREDICATE_SUFFIX) {
+                None => violations.push(format!(
+                    "`ci-complete` の集約ステップの `{PREDICATE_PREFIX}` に対応する \
+                     `{PREDICATE_SUFFIX}` が見つからない（反転判定により違反として扱う）"
+                )),
+                Some(suffix_idx) => {
+                    let actual_predicate = &after_prefix[..suffix_idx];
+                    if actual_predicate != expected_predicate {
+                        violations.push(format!(
+                            "`ci-complete` の集約ステップの skipped 許容式が `SKIPPED_ALLOWLIST` \
+                             から構成した期待式と完全一致しない（部分文字列一致ではなく式全体の\
+                             一致を要求する）。\n  期待: {expected_predicate}\n  実際: {actual_predicate}"
+                        ));
+                    }
+                }
+            }
         }
-    }
-    if !block_text.contains(".value.result == \"success\"") {
-        violations.push(
-            "`ci-complete` の集約ステップに `.value.result == \"success\"` の判定式が見つからない"
-                .to_string(),
-        );
     }
 
     // --- 許容リストの各ジョブが実在し、ジョブレベル if: を持つこと ---
@@ -500,11 +603,19 @@ fn check_ci_complete_needs_contract(contents: &str) -> Result<(), Vec<String>> {
                  許容リストの可能性）"
             )),
             Some(job) => {
-                let has_if = (job.block_start..job.block_end).any(|i| {
-                    let line = &stripped[i];
-                    !line.is_empty() && key_at_indent4(line).is_some_and(|(k, _)| k == "if")
-                });
-                if !has_if {
+                let scan = scan_job_if(&stripped, job.block_start, job.block_end);
+                // クォート付きキー等、`if` に正規化できるが唯一の正規形と
+                // 一致しない表記はそれ自体を違反として報告する（黙って
+                // 「if: が無い」と誤判定しない。イシュー #2324 の P1 是正）。
+                for (i, raw) in &scan.non_canonical {
+                    violations.push(format!(
+                        "ci.yml:{}: `SKIPPED_ALLOWLIST` のジョブ `{name}` の `if:` 相当の\
+                         キーが唯一の正規形（クォート無し `if:`）に一致しない表記になっている\
+                         （反転判定により違反として扱う）: {raw}",
+                        i + 1
+                    ));
+                }
+                if scan.canonical.is_none() && scan.non_canonical.is_empty() {
                     violations.push(format!(
                         "`SKIPPED_ALLOWLIST` のジョブ `{name}` にジョブレベル `if:` が無い（\
                          条件付きジョブでなくなったのに許容リストへ残っている stale な状態の\
@@ -520,29 +631,29 @@ fn check_ci_complete_needs_contract(contents: &str) -> Result<(), Vec<String>> {
         if job.name == "ci-complete" {
             continue;
         }
-        for (i, line) in stripped
-            .iter()
-            .enumerate()
-            .take(job.block_end)
-            .skip(job.block_start)
-        {
-            if line.is_empty() {
-                continue;
-            }
-            if let Some((key, value)) = key_at_indent4(line) {
-                if key == "if"
-                    && value != "always()"
-                    && !SKIPPED_ALLOWLIST.contains(&job.name.as_str())
-                {
-                    violations.push(format!(
-                        "ci.yml:{}: ジョブ `{}` がジョブレベル `if:`（値: {value}）を持つが、\
-                         `SKIPPED_ALLOWLIST` に含まれていない（`ci-complete` が skip を fail\
-                         として扱うため、条件付きジョブを増やす場合は本テストの \
-                         `SKIPPED_ALLOWLIST` への追加が必要）",
-                        i + 1,
-                        job.name
-                    ));
-                }
+        let scan = scan_job_if(&stripped, job.block_start, job.block_end);
+        // クォート付きキー等、認識できない `if:` 相当の表記はそれ自体を
+        // 違反として報告する（`key_at_indent4` が黙って読み飛ばし、
+        // 許容リスト外の条件付きジョブが検知漏れになる迂回を塞ぐ。
+        // イシュー #2324 の P1 是正）。
+        for (i, raw) in &scan.non_canonical {
+            violations.push(format!(
+                "ci.yml:{}: ジョブ `{}` の `if:` 相当のキーが唯一の正規形（クォート無し \
+                 `if:`）に一致しない表記になっている（反転判定により違反として扱う）: {raw}",
+                i + 1,
+                job.name
+            ));
+        }
+        if let Some((i, value)) = &scan.canonical {
+            if value != "always()" && !SKIPPED_ALLOWLIST.contains(&job.name.as_str()) {
+                violations.push(format!(
+                    "ci.yml:{}: ジョブ `{}` がジョブレベル `if:`（値: {value}）を持つが、\
+                     `SKIPPED_ALLOWLIST` に含まれていない（`ci-complete` が skip を fail\
+                     として扱うため、条件付きジョブを増やす場合は本テストの \
+                     `SKIPPED_ALLOWLIST` への追加が必要）",
+                    i + 1,
+                    job.name
+                ));
             }
         }
     }
@@ -755,6 +866,20 @@ mod fixture_tests {
         assert_violations_contain(&contents, "version-bump-guard");
     }
 
+    /// イシュー #2324 の P1 是正 1 点目: 許容式へ無関係な `or true` 節を
+    /// 継ぎ足す改変（許容外ジョブの失敗・skip を丸ごと PASS 扱いにする
+    /// fail-open 化）は、元の判定式が部分文字列として残っているため
+    /// 旧実装（`\"skipped\"` 出現回数・部分文字列存在チェック）では検知
+    /// できなかった。式全体の完全一致検証で検知できることを固定する。
+    #[test]
+    fn fail_skipped_predicate_or_true_bypass_is_violation() {
+        let contents = base_fixture().replace(
+            "(.key == \"version-bump-guard\" and .value.result == \"skipped\")) | not))",
+            "(.key == \"version-bump-guard\" and .value.result == \"skipped\") or true) | not))",
+        );
+        assert_violations_contain(&contents, "完全一致");
+    }
+
     #[test]
     fn fail_conditional_job_not_in_allowlist() {
         let contents = base_fixture().replace(
@@ -762,6 +887,32 @@ mod fixture_tests {
             "  job-b:\n    if: success()\n    runs-on: ubuntu-latest\n",
         );
         assert_violations_contain(&contents, "job-b");
+    }
+
+    /// イシュー #2324 の P1 是正 2 点目: 許容リスト外のジョブへクォート
+    /// 付きキー `"if"` を追加すると、`key_at_indent4` が `None` を返して
+    /// 黙って読み飛ばすため、旧実装では条件付きジョブとして検知されな
+    /// かった（`SKIPPED_ALLOWLIST` への追加漏れがすり抜ける）。非正規形
+    /// の `if` 相当キーそれ自体を違反として検知することを固定する。
+    #[test]
+    fn fail_conditional_job_quoted_if_key_is_violation() {
+        let contents = base_fixture().replace(
+            "  job-b:\n    runs-on: ubuntu-latest\n",
+            "  job-b:\n    \"if\": success()\n    runs-on: ubuntu-latest\n",
+        );
+        assert_violations_contain(&contents, "job-b");
+    }
+
+    /// 同じクォート付きキーの迂回が `SKIPPED_ALLOWLIST` 側ジョブ（既に
+    /// 許容リストに載っている想定）で起きた場合も、「if: が無い」との
+    /// 誤判定ではなく非正規形の違反として検知することを固定する。
+    #[test]
+    fn fail_allowlist_job_quoted_if_key_is_violation() {
+        let contents = base_fixture().replace(
+            "    if: ${{ github.event_name == 'pull_request' }}\n",
+            "    \"if\": ${{ github.event_name == 'pull_request' }}\n",
+        );
+        assert_violations_contain(&contents, "version-bump-guard");
     }
 
     #[test]
