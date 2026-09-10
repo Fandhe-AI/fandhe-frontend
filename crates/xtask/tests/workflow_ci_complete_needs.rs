@@ -12,29 +12,32 @@
 //! に頼る人手レビューのみで担保されていた。本テストはこれを
 //! `cargo test -p xtask` の時点で検知する。
 //!
-//! ## 契約の 3 点
+//! ## 契約の 2 点
 //!
 //! 1. **`needs:` の網羅性**: `jobs:` 直下の全トップレベルジョブ（自身を
 //!    除く）と `ci-complete` の `needs:` 列挙が集合として完全一致する
 //!    （追加漏れ・改名の取り残し・重複のいずれも違反）。
-//! 2. **`if: always()`**: `ci-complete` 自身がちょうど 1 個の
-//!    `if: always()`（リテラル一致。`${{ always() }}` 等の表記揺れは
-//!    意図的に非受理）を持つ。
-//! 3. **`skipped` 許容リストの整合**: 集約ステップの `RESULTS` への
-//!    `toJSON(needs)` 束縛・`echo "${RESULTS}" | jq -e '...' > /dev/null`
-//!    という入力配線からプログラム全体（`-e` フラグ・select 述語・
-//!    最終判定〔`| length == 0`〕を含む）まで、行全体の完全一致で
-//!    検証する。jq 式が許容する `skipped` 結果は、本ファイル内の定数
-//!    [`SKIPPED_ALLOWLIST`] と 1 対 1 で一致し、許容対象ジョブは実際に
-//!    ジョブレベル `if:` を持ち、逆に `ci-complete` 以外でジョブレベル
-//!    `if:`（値が `always()` でない）を持つジョブは全て許容リストに
-//!    含まれる。加えて、`RESULTS` 束縛と jq 呼び出し行が同一ステップに
-//!    属すること・そのステップの `run:` ブロックが jq 呼び出し行以外の
-//!    コマンドを含まないこと・ステップレベル `if:` が不在または
-//!    `always()` であること・`continue-on-error:` が不在であることを
-//!    検証する（イシュー #2324 の PR #2335 codex-review 再指摘 1 点目。
-//!    ブロック全体からの個別検索だけでは検知できない実行コンテキストの
-//!    迂回を塞ぐ）。
+//! 2. **`ci-complete` ジョブブロック全体の正規形完全一致**:
+//!    `ci-complete:` ジョブブロックの全行（`name:`・`if: always()`・
+//!    `permissions: {}`・`runs-on:`・`steps:`・ステップマーカー行・
+//!    `env:`・`RESULTS: ${{ toJSON(needs) }}` 束縛・`run: |`・jq 呼び出し
+//!    行）を、本ファイル内の [`ci_complete_template`] という唯一の正規形
+//!    テンプレートと行単位で完全一致検証する（[`check_ci_complete_body_exact_match`]）。
+//!    可変なのは `needs:` の要素列（実際のジョブ集合に応じて増減する）
+//!    のみで、それ以外は 1 行でも異なれば違反として扱う。個別の迂回
+//!    経路（`RESULTS` 束縛・jq 呼び出し行の存在検索、ステップの実行
+//!    条件・失敗伝播の個別チェック等）を逐次追加する方式は、ステップ
+//!    先頭行の制御キー置換（`- name:` → `- if: false` 等）・ステップ名の
+//!    本文へ偽の `RESULTS` 束縛テキストを紛れ込ませる偽装のような迂回を
+//!    構造的に閉じられなかったため、ブロック全体を丸ごと固定する方式へ
+//!    切り替えた（イシュー #2324 の PR #2335 codex-review 再指摘）。
+//!    jq 呼び出し行が許容する `skipped` 結果は、本ファイル内の定数
+//!    [`SKIPPED_ALLOWLIST`] から [`expected_jq_call_line`] が組み立てる。
+//!    許容対象ジョブは実際にジョブレベル `if:` を持ち、逆に
+//!    `ci-complete` 以外でジョブレベル `if:`（値が `always()` でない）を
+//!    持つジョブは全て許容リストに含まれることも検証する（この 2 点は
+//!    `ci-complete` 自身の外側、`jobs:` 直下の他ジョブに対する検証であり
+//!    上記の完全一致テンプレートには含まれない）。
 //!
 //! `SKIPPED_ALLOWLIST` は ci.yml から自動導出せず、本ファイル内の定数と
 //! して固定する。ci.yml 側だけで `if:` と jq 式を同時に書き換えても
@@ -157,31 +160,6 @@ fn job_name_at_indent2(stripped_line: &str) -> Option<String> {
         return None;
     }
     Some(name.to_string())
-}
-
-/// インデント 4 の `<key>: <value>` 行を `(key, value)` として抽出する。
-/// `needs:` / `if:` の判定にのみ使う（他の任意のジョブ直下キーも構文上
-/// 拾えるが、本テストは `needs`/`if` 以外のキーには関心を持たない）。
-fn key_at_indent4(stripped_line: &str) -> Option<(String, String)> {
-    let trimmed_end = stripped_line.trim_end();
-    if !trimmed_end.starts_with("    ") {
-        return None;
-    }
-    if trimmed_end.as_bytes().get(4) == Some(&b' ') {
-        return None;
-    }
-    let rest = &trimmed_end[4..];
-    let colon_pos = rest.find(':')?;
-    let key = &rest[..colon_pos];
-    if key.is_empty()
-        || !key
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-    {
-        return None;
-    }
-    let value = rest[colon_pos + 1..].trim().to_string();
-    Some((key.to_string(), value))
 }
 
 /// 前後を同じ引用符（`"..."` または `'...'`）で囲まれている場合のみ、
@@ -398,65 +376,155 @@ struct Job {
     block_end: usize,
 }
 
-/// `steps:` 配下のトップレベルステップ項目 1 件分の境界。
+/// `ci-complete` ジョブブロック内の期待テンプレート 1 行分。
 ///
-/// `start` はステップ項目マーカー行（`      - name: ...` 等）自体の
-/// 0-indexed 行番号、`end` は次のステップ項目、または `steps:` を含む
-/// 親ブロックの終端の 0-indexed 行番号（exclusive）。イシュー #2324 の
-/// PR #2335 codex-review 再指摘 1 点目（集約処理の実行コンテキスト検証）
-/// のため新設: `RESULTS` の束縛と jq 呼び出しをブロック全体から個別に
-/// 検索するだけでは、`run` の先頭に無関係なコマンドを追加する・
-/// 集約ステップへ `if:`/`continue-on-error:` を追加する迂回を検知できない
-/// （それぞれ別の場所を検索するだけで「同一ステップに属するか」「その
-/// ステップの実行条件・失敗伝播はどうか」を見ていないため）。ステップ
-/// 境界を明示的に切り出すことで、これらを 1 つのステップ本文に対する
-/// 検証としてまとめて行える。
-struct StepBlock {
-    start: usize,
-    end: usize,
+/// イシュー #2324 の PR #2335 codex-review 再指摘（`RESULTS` の束縛・
+/// jq 呼び出し行・ステップの実行条件等を個別に検索するだけでは、
+/// ステップ先頭行の制御キー置換・ステップ名の本文への偽装といった
+/// 迂回を構造的に閉じられない）を受け、`ci-complete` ジョブブロックの
+/// **全行**を唯一の正規形テンプレートとして固定し、行単位の完全一致で
+/// 照合する方式へ切り替えた。可変なのは `needs:` の要素列（実際の
+/// ジョブ集合に応じて増減する）のみで、それ以外の全行（`name:`・
+/// `if: always()`・`permissions: {}`・`runs-on:`・`steps:`・ステップ
+/// マーカー行・`env:`・`RESULTS` 束縛・`run: |`・jq 呼び出し行）は
+/// 1 行でも異なれば違反として扱う（反転判定。未知の行・キーの追加・
+/// 置換・削除・順序変更・末尾への追加行のいずれも拒否する）。
+enum TemplateLine {
+    /// 完全一致を要求するリテラル行（インデント込みの全文）。
+    Literal(String),
+    /// `needs:` の block sequence 要素列を表すマーカー。要素自体の
+    /// 妥当性検証・収集は既存の `classify_needs_line`（`NeedsLine`）を
+    /// そのまま再利用する。
+    NeedsItems,
 }
 
-/// `steps:` キーの次行（`steps_start`）から `block_end` までを走査し、
-/// `item_indent`（ステップ項目マーカー `- ` の先頭インデント）ちょうどの
-/// `- ` から始まる行をステップ境界として切り出す。
+/// `SKIPPED_ALLOWLIST` から jq 呼び出し行（`run: |` ブロックの唯一の
+/// 内容行）を組み立てる。`-e` フラグ・select 述語・最終判定
+/// （`| length == 0`）・入力配線（`echo "${RESULTS}" |`）を含む全文を
+/// 1 行のリテラルとして扱うことで、これらへの個別の迂回
+/// （フラグ除去・述語緩和・入力すり替え等）を単一の行完全一致で塞ぐ。
+fn expected_jq_call_line() -> String {
+    let allowlist_clause = SKIPPED_ALLOWLIST
+        .iter()
+        .map(|name| format!("(.key == \"{name}\" and .value.result == \"skipped\")"))
+        .collect::<Vec<_>>()
+        .join(" or ");
+    let expected_predicate = if allowlist_clause.is_empty() {
+        ".value.result == \"success\"".to_string()
+    } else {
+        format!(".value.result == \"success\" or {allowlist_clause}")
+    };
+    let expected_program =
+        format!("to_entries | map(select(({expected_predicate}) | not)) | length == 0");
+    format!("          echo \"${{RESULTS}}\" | jq -e '{expected_program}' > /dev/null")
+}
+
+/// `ci-complete` ジョブブロックの期待テンプレート本体。実 ci.yml の
+/// `ci-complete:` ジョブ（`.github/workflows/ci.yml`）の内容と 1 行も
+/// 違わないことを要求する（`permissions: {}` を含む）。ci.yml 側の
+/// 構成を変える場合は本テンプレートを追随させること（ci.yml 側の変更は
+/// 本テストのスコープ外）。
+fn ci_complete_template() -> Vec<TemplateLine> {
+    vec![
+        TemplateLine::Literal("    name: ci-complete".to_string()),
+        TemplateLine::Literal("    if: always()".to_string()),
+        TemplateLine::Literal("    permissions: {}".to_string()),
+        TemplateLine::Literal("    runs-on: ubuntu-latest".to_string()),
+        TemplateLine::Literal("    needs:".to_string()),
+        TemplateLine::NeedsItems,
+        TemplateLine::Literal("    steps:".to_string()),
+        TemplateLine::Literal("      - name: 全ジョブ結果の検証".to_string()),
+        TemplateLine::Literal("        env:".to_string()),
+        TemplateLine::Literal("          RESULTS: ${{ toJSON(needs) }}".to_string()),
+        TemplateLine::Literal("        run: |".to_string()),
+        TemplateLine::Literal(expected_jq_call_line()),
+    ]
+}
+
+/// `ci-complete` ジョブブロック（`block_start..block_end`）の内容を
+/// [`ci_complete_template`] と行単位の完全一致で検証し、違反一覧と
+/// `needs:` から収集した要素（呼び出し側の網羅性検証・重複検知へ渡す）
+/// を返す。
 ///
-/// `ci-complete` トップレベルキー（`needs:`/`if:`/`steps:`）が固定
-/// インデント 4 という本ファイルの既存前提（`key_at_indent4` 使用箇所）
-/// に合わせ、`item_indent` はステップ項目マーカー行の実インデントを
-/// 呼び出し側が確定させて渡す（本ファイルでは `steps:` のインデント
-/// 4 + 2 = 6 を渡す運用）。
-fn scan_top_level_steps(
+/// 正規化として末尾空白除去・空白のみ行の除去を行う（コメント除去は
+/// 呼び出し側の `strip_comment` が既に適用済み）。1 行でも不一致が
+/// あれば直ちに打ち切る（ずれた行が連鎖してノイズの多い違反一覧になる
+/// のを避ける。ずれの根本原因は最初の不一致行に現れるため、1 件の報告で
+/// 十分）。末尾に予期しない行が残っている場合も違反として報告する。
+fn check_ci_complete_body_exact_match(
     stripped: &[String],
-    steps_start: usize,
+    block_start: usize,
     block_end: usize,
-    item_indent: usize,
-) -> Vec<StepBlock> {
-    let mut starts: Vec<usize> = Vec::new();
-    for (i, line) in stripped
+) -> (Vec<String>, Vec<(usize, String)>) {
+    let mut violations = Vec::new();
+    let mut needs_items: Vec<(usize, String)> = Vec::new();
+
+    let actual: Vec<(usize, String)> = stripped[block_start..block_end]
         .iter()
         .enumerate()
-        .take(block_end)
-        .skip(steps_start)
-    {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let leading = line.len() - line.trim_start_matches(' ').len();
-        if leading != item_indent {
-            continue;
-        }
-        if line[item_indent..].starts_with("- ") {
-            starts.push(i);
+        .map(|(offset, line)| (block_start + offset, line.trim_end().to_string()))
+        .filter(|(_, line)| !line.trim().is_empty())
+        .collect();
+
+    let template = ci_complete_template();
+    let mut idx = 0usize;
+
+    for item in &template {
+        match item {
+            TemplateLine::Literal(expected) => {
+                let Some((line_no, actual_line)) = actual.get(idx) else {
+                    violations.push(format!(
+                        "`ci-complete` ブロックの内容が期待テンプレートより短い（末尾が\
+                         欠落している）。\n  次に期待する行: {expected}"
+                    ));
+                    return (violations, needs_items);
+                };
+                if actual_line != expected {
+                    violations.push(format!(
+                        "ci.yml:{}: `ci-complete` ブロックの行が期待テンプレートと完全一致\
+                         しない（反転判定により違反として扱う。未知の行・キーの追加・置換・\
+                         削除・順序変更のいずれも拒否する）。\n  期待: {expected}\n  \
+                         実際: {actual_line}",
+                        line_no + 1
+                    ));
+                    return (violations, needs_items);
+                }
+                idx += 1;
+            }
+            TemplateLine::NeedsItems => {
+                while idx < actual.len() {
+                    let (line_no, text) = &actual[idx];
+                    match classify_needs_line(text) {
+                        NeedsLine::Item(name) => {
+                            needs_items.push((*line_no, name));
+                            idx += 1;
+                        }
+                        NeedsLine::InvalidItem(raw) => {
+                            violations.push(format!(
+                                "ci.yml:{}: `ci-complete` の `needs:` 要素が想定外の表記\
+                                 （クォート・`${{{{ }}}}` 式・アンカー等）であり、反転判定に\
+                                 より違反として扱う: {raw}",
+                                line_no + 1
+                            ));
+                            idx += 1;
+                        }
+                        NeedsLine::Other => break,
+                    }
+                }
+            }
         }
     }
-    starts
-        .iter()
-        .enumerate()
-        .map(|(idx, &start)| {
-            let end = starts.get(idx + 1).copied().unwrap_or(block_end);
-            StepBlock { start, end }
-        })
-        .collect()
+
+    if idx != actual.len() {
+        let (line_no, extra_line) = &actual[idx];
+        violations.push(format!(
+            "ci.yml:{}: `ci-complete` ブロックに期待テンプレートを超える行がある（反転判定\
+             により違反として扱う）: {extra_line}",
+            line_no + 1
+        ));
+    }
+
+    (violations, needs_items)
 }
 
 /// ci.yml（または同型のフィクスチャ）の内容から `ci-complete` の
@@ -567,75 +635,19 @@ fn check_ci_complete_needs_contract(contents: &str) -> Result<(), Vec<String>> {
         jobs[ci_complete_idx].block_end,
     );
 
-    // --- `needs:`/`if:`/`steps:` キーの特定と要素の抽出 ---
-    let mut needs_key_lines: Vec<usize> = Vec::new();
-    let mut if_key_lines: Vec<(usize, String)> = Vec::new();
-    let mut steps_key_lines: Vec<usize> = Vec::new();
-    for (i, line) in stripped
-        .iter()
-        .enumerate()
-        .take(block_end)
-        .skip(block_start)
-    {
-        if line.is_empty() {
-            continue;
-        }
-        if let Some((key, value)) = key_at_indent4(line) {
-            match key.as_str() {
-                "needs" => needs_key_lines.push(i),
-                "if" => if_key_lines.push((i, value)),
-                "steps" => steps_key_lines.push(i),
-                _ => {}
-            }
-        }
-    }
-
-    let mut needs_items: Vec<(usize, String)> = Vec::new();
-    match needs_key_lines.len() {
-        1 => {
-            let needs_line = needs_key_lines[0];
-            let (_, value) = key_at_indent4(&stripped[needs_line])
-                .expect("needs_key_lines は key_at_indent4 が Some を返した行のみを含む");
-            if !value.is_empty() {
-                violations.push(format!(
-                    "ci.yml:{}: `ci-complete` の `needs:` の値が空でない（block sequence 形\
-                     以外は本テスト非対応であり、反転判定により違反として扱う）: {value}",
-                    needs_line + 1
-                ));
-            }
-            let mut i = needs_line + 1;
-            while i < block_end {
-                let line = &stripped[i];
-                if line.is_empty() {
-                    i += 1;
-                    continue;
-                }
-                match classify_needs_line(line) {
-                    NeedsLine::Item(name) => {
-                        needs_items.push((i, name));
-                        i += 1;
-                    }
-                    NeedsLine::InvalidItem(raw) => {
-                        violations.push(format!(
-                            "ci.yml:{}: `ci-complete` の `needs:` 要素が想定外の表記（クォート・\
-                             `${{{{ }}}}` 式・アンカー等）であり、反転判定により違反として扱う: {raw}",
-                            i + 1
-                        ));
-                        i += 1;
-                    }
-                    NeedsLine::Other => break,
-                }
-            }
-        }
-        0 => {
-            violations.push("`ci-complete` に `needs:` キーが見つからない".to_string());
-        }
-        n => {
-            violations.push(format!(
-                "`ci-complete` に `needs:` キーが {n} 回出現している（1 回のみ想定）"
-            ));
-        }
-    }
+    // --- `ci-complete` ブロックの内容を期待テンプレートと完全一致検証 ---
+    //
+    // 個別の迂回経路（`RESULTS` 束縛・jq 呼び出し行の検索、ステップの
+    // 実行条件・失敗伝播の個別チェック等）を逐次追加する方式は収束しない
+    // （イシュー #2324 の PR #2335 codex-review 再指摘: ステップ先頭行の
+    // 制御キー置換・ステップ名の本文への偽装がそれぞれ検知漏れになった）。
+    // `ci-complete` ジョブブロックの全行を [`ci_complete_template`] という
+    // 唯一の正規形と行単位で完全一致検証する方式へ切り替えた
+    // （[`check_ci_complete_body_exact_match`]）。可変なのは `needs:` の
+    // 要素列のみで、それ以外の全行は 1 行でも異なれば違反になる。
+    let (mut body_violations, needs_items) =
+        check_ci_complete_body_exact_match(&stripped, block_start, block_end);
+    violations.append(&mut body_violations);
 
     // --- needs 要素の重複検知 ---
     let mut needs_name_counts: HashMap<&str, usize> = HashMap::new();
@@ -679,327 +691,6 @@ fn check_ci_complete_needs_contract(contents: &str) -> Result<(), Vec<String>> {
     if needs_names.contains("ci-complete") {
         violations
             .push("`ci-complete` の `needs:` に `ci-complete` 自身が含まれている".to_string());
-    }
-
-    // --- `if: always()` 契約 ---
-    match if_key_lines.len() {
-        1 => {
-            let (line_no, value) = &if_key_lines[0];
-            if value != "always()" {
-                violations.push(format!(
-                    "ci.yml:{}: `ci-complete` の `if:` が `always()` と一致しない\
-                     （`${{{{ always() }}}}` 等の表記揺れは意図的に非受理）: {value}",
-                    line_no + 1
-                ));
-            }
-        }
-        0 => violations.push("`ci-complete` に `if:` キーが見つからない".to_string()),
-        n => violations.push(format!(
-            "`ci-complete` に `if:` キーが {n} 回出現している（1 回のみ想定）"
-        )),
-    }
-
-    // --- skipped 許容リストの整合（ci-complete ブロック内テキスト走査） ---
-    //
-    // `SKIPPED_ALLOWLIST` から jq プログラム全体（`jq -e '...'` の
-    // `'...'` 内側、`to_entries` から `| length == 0` までの全文）と、
-    // それを実行するシェル行全体（`RESULTS` への束縛・`echo "${RESULTS}"`
-    // による入力・jq への配線を含む）を機械的に組み立て、集約ステップの
-    // テキストと **部分文字列の存在ではなく行全体の完全一致** で照合する
-    // （イシュー #2324 の P1 是正。PR #2335 の codex-review 再指摘、および
-    // 自己レビュー追補を受け、select 述語の内側だけでなくプログラム全体・
-    // 入力配線（`env: RESULTS` と `echo "${RESULTS}" |` のパイプ）まで
-    // 検証範囲を拡張した）。
-    //
-    // 旧実装は `map(select((...) | not))` の `(...)` 内側（select 述語）
-    // だけを完全一致検証しており、その外側（`-e` フラグの有無・
-    // `| length == 0` という最終判定・そもそも `jq` へ何を流し込んでいる
-    // か）は一切検証していなかった。このため、述語自体はそのままに
-    // (a) 末尾へ `or true` を継ぎ足す、(b) `| length == 0` を
-    // `| length >= 0` へ緩める、(c) `-e` フラグを外す、(d) `env:` の
-    // `RESULTS` を `toJSON(needs)` から別式（例: `toJSON(github)`）へ
-    // すり替える、(e) `echo "${RESULTS}" |` を `echo '{}' |` 等の無関係な
-    // 固定入力へすり替える（`RESULTS` の束縛自体は残したまま jq への
-    // 入力経路だけ差し替えるため、`toJSON(needs)` の部分文字列存在
-    // チェックだけでは検知できない）といった改変を個別に検知できな
-    // かった。`env:` 配下の `RESULTS` 行・`jq` を呼ぶシェル行の双方を
-    // 行全体の完全一致で照合することで、これらすべての迂回を検知する。
-    let allowlist_clause = SKIPPED_ALLOWLIST
-        .iter()
-        .map(|name| format!("(.key == \"{name}\" and .value.result == \"skipped\")"))
-        .collect::<Vec<_>>()
-        .join(" or ");
-    let expected_predicate = if allowlist_clause.is_empty() {
-        ".value.result == \"success\"".to_string()
-    } else {
-        format!(".value.result == \"success\" or {allowlist_clause}")
-    };
-    let expected_program =
-        format!("to_entries | map(select(({expected_predicate}) | not)) | length == 0");
-
-    // `env:` 配下で `RESULTS` を `toJSON(needs)` へ束縛する行が、唯一の
-    // 正規形でちょうど 1 回だけ存在すること（環境変数名を変える・
-    // 束縛先の式を変える・複数束縛して未使用の別名を紛れ込ませる等の
-    // 迂回をすべて違反側へ倒す反転判定）。
-    const EXPECTED_RESULTS_BINDING: &str = "RESULTS: ${{ toJSON(needs) }}";
-    let results_binding_lines: Vec<usize> = stripped[block_start..block_end]
-        .iter()
-        .enumerate()
-        .filter(|(_, line)| line.trim() == EXPECTED_RESULTS_BINDING)
-        .map(|(i, _)| block_start + i)
-        .collect();
-    match results_binding_lines.len() {
-        1 => {}
-        0 => violations.push(format!(
-            "`ci-complete` の集約ステップに唯一の正規形の `env:` 束縛 \
-             `{EXPECTED_RESULTS_BINDING}` が見つからない（`needs` の結果を丸ごと束縛する\
-             契約が失われている、または表記が非正規形になっている。反転判定により違反として\
-             扱う）"
-        )),
-        n => violations.push(format!(
-            "`ci-complete` の集約ステップに `{EXPECTED_RESULTS_BINDING}` が {n} 回出現している\
-             （1 回のみ想定）"
-        )),
-    }
-
-    // `RESULTS` を jq へ渡すシェル行全体（`echo "${RESULTS}" | jq -e '...'
-    // > /dev/null`）が、唯一の正規形でちょうど 1 回だけ存在すること。
-    // 行全体一致にすることで、`RESULTS` の束縛は正規のまま入力だけ固定値
-    // へすり替える迂回（`echo '{}' | jq ...`）・`-e` フラグの有無・
-    // 出力先の変更・述語や最終判定の緩和のいずれも単一の照合で検知する。
-    let expected_jq_line =
-        format!("echo \"${{RESULTS}}\" | jq -e '{expected_program}' > /dev/null");
-    let jq_lines: Vec<(usize, String)> = stripped[block_start..block_end]
-        .iter()
-        .enumerate()
-        .filter(|(_, line)| line.trim_start().starts_with("echo \"${RESULTS}\""))
-        .map(|(i, line)| (block_start + i, line.trim().to_string()))
-        .collect();
-    match jq_lines.len() {
-        1 => {
-            let (line_no, actual) = &jq_lines[0];
-            if actual != &expected_jq_line {
-                violations.push(format!(
-                    "ci.yml:{}: `ci-complete` の集約ステップの `RESULTS` を jq へ渡すシェル行が\
-                     期待する正規形と完全一致しない（部分文字列一致ではなく `echo` の入力・\
-                     パイプ・`-e` フラグ・select 述語・最終判定〔`| length == 0`〕・出力先を\
-                     含む行全体の一致を要求する）。\n  期待: {expected_jq_line}\n  \
-                     実際: {actual}",
-                    line_no + 1
-                ));
-            }
-        }
-        0 => violations.push(format!(
-            "`ci-complete` の集約ステップに `RESULTS` を jq へ渡す唯一の正規形の行 \
-             `{expected_jq_line}` が見つからない（`echo \"${{RESULTS}}\"` で始まる行が存在\
-             しない。`needs` の結果を丸ごと検証する契約が失われている、または `RESULTS` の\
-             入力経路が固定値・別の式へすり替えられている可能性がある。反転判定により違反\
-             として扱う）"
-        )),
-        n => violations.push(format!(
-            "`ci-complete` の集約ステップに `echo \"${{RESULTS}}\"` で始まる行が {n} 回出現\
-             している（1 回のみ想定）"
-        )),
-    }
-
-    // --- 集約ステップの実行コンテキスト検証 ---
-    //
-    // 上記 2 点（`RESULTS` 束縛・jq 呼び出し行）はブロック全体から
-    // 個別に検索するだけであり、(a) 両者が同一ステップに属すること、
-    // (b) そのステップの `run:` ブロックが jq 呼び出し行以外のコマンドを
-    // 含まないこと（`RESULTS='{}'` 等を先頭に追加して入力だけをすり替え、
-    // jq 呼び出し行自体は無傷のまま集約を無力化する迂回。`{}` を
-    // `to_entries` すると `[]` になり `length == 0` が常に真になる）、
-    // (c) ステップの実行条件（`if:`）が不在または `always()` であること、
-    // (d) 失敗伝播を無効化する `continue-on-error:` が存在しないこと、の
-    // いずれも検証していなかった（イシュー #2324 の PR #2335
-    // codex-review 再指摘 1 点目）。`steps:` 配下のステップ境界を切り出し、
-    // `RESULTS` 束縛・jq 呼び出し行の双方を含む単一のステップへスコープ
-    // した検証を行う。
-    let mut steps_start: Option<usize> = None;
-    match steps_key_lines.len() {
-        1 => steps_start = Some(steps_key_lines[0] + 1),
-        0 => violations.push("`ci-complete` に `steps:` キーが見つからない".to_string()),
-        n => violations.push(format!(
-            "`ci-complete` に `steps:` キーが {n} 回出現している（1 回のみ想定）"
-        )),
-    }
-
-    if let Some(steps_start) = steps_start {
-        // `steps:` はインデント 4（`key_at_indent4` 前提）で見つかって
-        // いるため、ステップ項目マーカー `- ` はインデント 6 に固定する
-        // （`.github/workflows/ci.yml` の実際の慣例と一致）。
-        const STEP_ITEM_INDENT: usize = 6;
-        let step_blocks = scan_top_level_steps(&stripped, steps_start, block_end, STEP_ITEM_INDENT);
-
-        if let (Some(&binding_line), Some((jq_line_no, _))) =
-            (results_binding_lines.first(), jq_lines.first())
-        {
-            let binding_step = step_blocks
-                .iter()
-                .find(|s| s.start < binding_line && binding_line < s.end);
-            let jq_step = step_blocks
-                .iter()
-                .find(|s| s.start < *jq_line_no && *jq_line_no < s.end);
-
-            match (binding_step, jq_step) {
-                (Some(b), Some(j)) if b.start == j.start => {
-                    let step_body_start = b.start + 1;
-                    let step_body_end = b.end;
-                    // ステップ直下キーの基準インデントは、ステップ項目
-                    // マーカー行自体を除いた本文の最小インデントとして
-                    // 動的に決定する（P1-2 是正と同じ流儀。空白のみの
-                    // 行は `block_base_indent` 内で除外済み）。
-                    let step_key_indent =
-                        block_base_indent(&stripped, step_body_start, step_body_end)
-                            .unwrap_or(STEP_ITEM_INDENT + 2);
-
-                    // (c) 実行条件: 不在または `always()` のみ許容。
-                    let if_scan = scan_key_at_indent(
-                        &stripped,
-                        step_body_start,
-                        step_body_end,
-                        step_key_indent,
-                        "if",
-                    );
-                    for (i, raw) in &if_scan.non_canonical {
-                        violations.push(format!(
-                            "ci.yml:{}: `ci-complete` の集約ステップの `if:` 相当のキーが\
-                             唯一の正規形（クォート無し `if:`）に一致しない表記になっている\
-                             （反転判定により違反として扱う）: {raw}",
-                            i + 1
-                        ));
-                    }
-                    if let Some((i, value)) = &if_scan.canonical {
-                        if value != "always()" {
-                            violations.push(format!(
-                                "ci.yml:{}: `ci-complete` の集約ステップに `if: {value}`\
-                                 という実行条件が設定されている（依存ジョブが失敗していても\
-                                 ステップ自体が実行されず集約が成功する迂回を防ぐため、\
-                                 集約ステップは `if:` 不在または `always()` のみ許容する）",
-                                i + 1
-                            ));
-                        }
-                    }
-
-                    // (d) 失敗伝播: `continue-on-error:` は不在のみ許容
-                    //     （値に関わらず存在自体を違反とする）。
-                    let coe_scan = scan_key_at_indent(
-                        &stripped,
-                        step_body_start,
-                        step_body_end,
-                        step_key_indent,
-                        "continue-on-error",
-                    );
-                    for (i, raw) in &coe_scan.non_canonical {
-                        violations.push(format!(
-                            "ci.yml:{}: `ci-complete` の集約ステップに `continue-on-error:` \
-                             相当のキーが存在する（表記: {raw}）。失敗伝播を無効化する迂回を\
-                             防ぐため、集約ステップは `continue-on-error:` を持たないことを\
-                             要求する",
-                            i + 1
-                        ));
-                    }
-                    if let Some((i, value)) = &coe_scan.canonical {
-                        violations.push(format!(
-                            "ci.yml:{}: `ci-complete` の集約ステップに `continue-on-error: \
-                             {value}` が設定されている（値に関わらず、失敗伝播を無効化する\
-                             迂回を防ぐため集約ステップは `continue-on-error:` を持たないこと\
-                             を要求する）",
-                            i + 1
-                        ));
-                    }
-
-                    // (b) run ブロックの内容: jq 呼び出し行以外のコマンド
-                    //     を許容しない。
-                    let run_scan = scan_key_at_indent(
-                        &stripped,
-                        step_body_start,
-                        step_body_end,
-                        step_key_indent,
-                        "run",
-                    );
-                    for (i, raw) in &run_scan.non_canonical {
-                        violations.push(format!(
-                            "ci.yml:{}: `ci-complete` の集約ステップの `run:` 相当のキーが\
-                             唯一の正規形（クォート無し `run:`）に一致しない表記になっている\
-                             （反転判定により違反として扱う）: {raw}",
-                            i + 1
-                        ));
-                    }
-                    match &run_scan.canonical {
-                        None => violations.push(
-                            "`ci-complete` の集約ステップに `run: |` が見つからない（jq 呼び\
-                             出し行を実行する run ブロックの契約が失われている）"
-                                .to_string(),
-                        ),
-                        Some((run_line, run_value)) => {
-                            if run_value != "|" {
-                                violations.push(format!(
-                                    "ci.yml:{}: `ci-complete` の集約ステップの `run:` が唯一の\
-                                     正規形 `run: |`（リテラルブロックスカラー）と一致しない: \
-                                     {run_value}",
-                                    run_line + 1
-                                ));
-                            } else {
-                                let mut content_end = step_body_end;
-                                for (i, line) in stripped
-                                    .iter()
-                                    .enumerate()
-                                    .take(step_body_end)
-                                    .skip(run_line + 1)
-                                {
-                                    if line.trim().is_empty() {
-                                        continue;
-                                    }
-                                    let leading = line.len() - line.trim_start_matches(' ').len();
-                                    if leading <= step_key_indent {
-                                        content_end = i;
-                                        break;
-                                    }
-                                }
-                                let content_lines: Vec<(usize, &str)> = stripped
-                                    [run_line + 1..content_end]
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(offset, line)| (run_line + 1 + offset, line.as_str()))
-                                    .filter(|(_, line)| !line.trim().is_empty())
-                                    .collect();
-                                match content_lines.len() {
-                                    1 => {
-                                        let (i, actual) = content_lines[0];
-                                        if actual.trim() != expected_jq_line {
-                                            violations.push(format!(
-                                                "ci.yml:{}: `ci-complete` の集約ステップの \
-                                                 `run:` ブロックの唯一の行が期待する正規形と\
-                                                 完全一致しない。\n  期待: {expected_jq_line}\n  \
-                                                 実際: {}",
-                                                i + 1,
-                                                actual.trim()
-                                            ));
-                                        }
-                                    }
-                                    n => violations.push(format!(
-                                        "`ci-complete` の集約ステップの `run:` ブロックに \
-                                         {n} 行の非空行がある（依存ジョブの失敗を隠す前処理・\
-                                         後処理の追加を検知するため、run ブロックは `RESULTS` \
-                                         を jq へ渡す行のみを許容する。1 回のみ想定）"
-                                    )),
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    violations.push(
-                        "`ci-complete` の集約ステップにおいて、`RESULTS` の束縛と `RESULTS` \
-                         を jq へ渡す行が同一のステップに属していない（反転判定により違反\
-                         として扱う）"
-                            .to_string(),
-                    );
-                }
-            }
-        }
     }
 
     // --- 許容リストの各ジョブが実在し、ジョブレベル if: を持つこと ---
@@ -1116,14 +807,27 @@ fn ci_complete_scan_is_not_vacuous() {
 
 #[cfg(test)]
 mod fixture_tests {
-    use super::{check_ci_complete_needs_contract, SKIPPED_ALLOWLIST};
+    use super::{check_ci_complete_needs_contract, expected_jq_call_line, SKIPPED_ALLOWLIST};
 
     /// 契約を満たす最小の PASS フィクスチャ。実 ci.yml と同じ構造
     /// （ジョブ 3 件 + `ci-complete`、うち 1 件が `if:` 付きの許容
     /// リスト対象）を最小化したもの。以降の FAIL テストはこれを 1 箇所
     /// だけ変異させて構成する。
+    ///
+    /// `ci-complete` ブロックは [`super::ci_complete_template`] と行単位で
+    /// 完全一致することを要求される。jq 呼び出し行は
+    /// [`expected_jq_call_line`]（本体側が `SKIPPED_ALLOWLIST` から組み
+    /// 立てる関数と同一）を呼んで組み立てることで、フィクスチャが
+    /// `SKIPPED_ALLOWLIST` の変更に自動追随し、テンプレートとの不整合で
+    /// `allowlist_constant_matches_fixture` 以外の無関係なテストが
+    /// 紛らわしい失敗をしないようにする。
     fn base_fixture() -> String {
-        concat!(
+        // `PREFIX` は `run: |` までの静的部分。`{{`/`}}`（GitHub Actions
+        // の `${{ ... }}` 式）を含むため、`format!` のパターン文字列側
+        // ではなく**値側**（`{PREFIX}` として展開される runtime 値）に
+        // 置くことで、`format!` のエスケープ規則（`{{` → `{`）による
+        // 意図しない単一波括弧化を避ける（値の中身は再解釈されない）。
+        const PREFIX: &str = concat!(
             "name: CI\n",
             "on:\n",
             "  pull_request:\n",
@@ -1145,19 +849,19 @@ mod fixture_tests {
             "  ci-complete:\n",
             "    name: ci-complete\n",
             "    if: always()\n",
+            "    permissions: {}\n",
             "    runs-on: ubuntu-latest\n",
             "    needs:\n",
             "      - job-a\n",
             "      - job-b\n",
             "      - version-bump-guard\n",
             "    steps:\n",
-            "      - name: check\n",
+            "      - name: 全ジョブ結果の検証\n",
             "        env:\n",
             "          RESULTS: ${{ toJSON(needs) }}\n",
             "        run: |\n",
-            "          echo \"${RESULTS}\" | jq -e 'to_entries | map(select((.value.result == \"success\" or (.key == \"version-bump-guard\" and .value.result == \"skipped\")) | not)) | length == 0' > /dev/null\n",
-        )
-        .to_string()
+        );
+        format!("{PREFIX}{}\n", expected_jq_call_line())
     }
 
     fn assert_violations_contain(contents: &str, needle: &str) {
@@ -1363,15 +1067,15 @@ mod fixture_tests {
     /// 正規のまま残し、jq への入力だけ無関係な固定値へすり替える迂回
     /// （`echo "${RESULTS}" | jq ...` → `echo '{}' | jq ...`）は、`{}` を
     /// `to_entries` すると `[]` になり `length == 0` が常に真になるため
-    /// 集約が vacuous になる。旧実装（`toJSON(needs)` の部分文字列存在
-    /// チェックのみ）はこの迂回を検知できなかった（`RESULTS` の束縛自体は
-    /// 変更されないため）。`echo "${RESULTS}" | jq ...` という行全体の
-    /// 完全一致検証で検知できることを固定する。
+    /// 集約が vacuous になる。現行実装（`ci-complete` ブロック全体の
+    /// 完全一致テンプレート）では、この改変は `run:` ブロックの唯一の
+    /// 内容行（jq 呼び出し行）が期待するリテラルと一致しないため検知
+    /// される。
     #[test]
     fn fail_jq_input_decoy_is_violation() {
         let contents =
             base_fixture().replace("echo \"${RESULTS}\" | jq -e '", "echo '{}' | jq -e '");
-        assert_violations_contain(&contents, "見つからない");
+        assert_violations_contain(&contents, "完全一致しない");
     }
 
     /// 自己レビュー追補（P1-1 の入力配線側、その 2）: `RESULTS` を
@@ -1451,20 +1155,17 @@ mod fixture_tests {
     /// 見ていなかった。`run: |` ブロックの先頭へ `RESULTS='{}'` を追加
     /// して jq への入力を無害化する（`{}` の `to_entries` は `[]` になり
     /// `length == 0` が常に真になる）迂回は、既存の jq 呼び出し行自体は
-    /// 変更されないため検知できなかった。`run:` ブロックの非空行が
-    /// jq 呼び出し行 1 行のみであることを要求する検証で検知できることを
-    /// 固定する。
+    /// 変更されないため検知できなかった。現行実装（`ci-complete` ブロック
+    /// 全体の完全一致テンプレート）では、`run: |` の直後に本来の jq
+    /// 呼び出し行以外の行が挿入されると、その位置の期待リテラル
+    /// （jq 呼び出し行）と一致しないため検知される。
     #[test]
     fn fail_run_block_prepends_results_override_is_violation() {
         let contents = base_fixture().replace(
             "        run: |\n          echo \"${RESULTS}\"",
             "        run: |\n          RESULTS='{}'\n          echo \"${RESULTS}\"",
         );
-        // 「run:」という部分文字列は `run: |` が見つからない場合の違反
-        // メッセージ等にも登場するため、ここでは count-mismatch 分岐に
-        // 固有の文言で検知経路を確認する（弱いニードルによる誤判定を
-        // 防ぐ）。
-        assert_violations_contain(&contents, "行の非空行がある");
+        assert_violations_contain(&contents, "完全一致しない");
     }
 
     /// 自己レビュー追補（P1-1 続報、その 2）: 集約ステップ自体へ
@@ -1472,13 +1173,16 @@ mod fixture_tests {
     /// ステップが実行されず（`ci-complete` ジョブの `if: always()` は
     /// ジョブ自体の実行条件であり、ステップ側の `if:` はさらにその内側
     /// で判定される）、集約チェックが走らないまま暗黙に緑化される。
-    /// ステップの実行条件は不在または `always()` のみ許容することを
-    /// 固定する。
+    /// 現行実装（完全一致テンプレート）は期待テンプレートに存在しない
+    /// 行の追加そのものを違反として検知する（値が `always()` であっても
+    /// 同様。次の `fail_step_marker_replaced_with_if_false_is_violation`
+    /// 等と合わせ、ステップ本文は実 ci.yml の 5 行〔`- name:`/`env:`/
+    /// `RESULTS`/`run: |`/jq 呼び出し行〕以外を一切許容しない）。
     #[test]
     fn fail_step_if_success_is_violation() {
         let contents = base_fixture().replace(
-            "      - name: check\n        env:\n",
-            "      - name: check\n        if: success()\n        env:\n",
+            "      - name: 全ジョブ結果の検証\n        env:\n",
+            "      - name: 全ジョブ結果の検証\n        if: success()\n        env:\n",
         );
         assert_violations_contain(&contents, "if: success()");
     }
@@ -1486,29 +1190,76 @@ mod fixture_tests {
     /// 自己レビュー追補（P1-1 続報、その 3）: 集約ステップへ
     /// `continue-on-error: true` を追加すると、jq が非 0 終了しても
     /// ステップとしては成功扱いになり、依存ジョブの失敗が握り消される。
-    /// `continue-on-error:` は値に関わらず不在のみ許容することを固定
-    /// する。
+    /// 現行実装では期待テンプレートに存在しない行として検知される。
     #[test]
     fn fail_step_continue_on_error_true_is_violation() {
         let contents = base_fixture().replace(
-            "      - name: check\n        env:\n",
-            "      - name: check\n        continue-on-error: true\n        env:\n",
+            "      - name: 全ジョブ結果の検証\n        env:\n",
+            "      - name: 全ジョブ結果の検証\n        continue-on-error: true\n        env:\n",
         );
         assert_violations_contain(&contents, "continue-on-error");
     }
 
-    /// `if: success()` の逆側: 集約ステップに `if: always()` を明示して
-    /// も（`ci-complete` ジョブ自身の `if: always()` と同じ値を重複して
-    /// ステップへ書く場合等）過剰検知しないことを固定する（P1-1 是正の
-    /// 「不在または `always()` のみ許容」という判定条件のうち、
-    /// `always()` 側が実際に PASS することの確認）。
+    /// 前回（PR #2335 の前ラウンド）は「ステップレベル `if:` は不在または
+    /// `always()` のみ許容する」という緩和を導入していたが、`ci-complete`
+    /// ブロック全体を唯一の正規形と完全一致検証する現行方式へ切り替えた
+    /// ことでこの緩和は撤回した。実 ci.yml のステップは `if:` を一切
+    /// 持たないため、値が `always()` であっても期待テンプレートに存在
+    /// しない行の追加そのものが違反になることを固定する（前回追加した
+    /// `pass_step_if_always_is_ok` を反転させたもの）。
     #[test]
-    fn pass_step_if_always_is_ok() {
+    fn fail_step_level_if_always_also_rejected_by_exact_match() {
         let contents = base_fixture().replace(
-            "      - name: check\n        env:\n",
-            "      - name: check\n        if: always()\n        env:\n",
+            "      - name: 全ジョブ結果の検証\n        env:\n",
+            "      - name: 全ジョブ結果の検証\n        if: always()\n        env:\n",
         );
-        assert_eq!(check_ci_complete_needs_contract(&contents), Ok(()));
+        assert_violations_contain(&contents, "if: always()");
+    }
+
+    /// P1 指摘（`PRRT_kwDOTarxgc6hOhZ7`、PR #2335 line 844 付近）:
+    /// `step_body_start = b.start + 1` により、ステップ項目マーカー
+    /// （`- ` と同じ行）の最初のキーが検証対象から外れ、`- name: ...` を
+    /// `- if: false` へ置換すると集約の実行条件が無条件で偽になっても
+    /// 検知できなかった。現行実装ではステップマーカー行自体（`- name:`
+    /// で始まる全文）が期待テンプレートのリテラルであり、他のキーへの
+    /// 置換は行全体の不一致として構造的に検知される（先頭行を特別扱い
+    /// しない：他の行と同じ完全一致検証に含まれる）。
+    #[test]
+    fn fail_step_marker_replaced_with_if_false_is_violation() {
+        let contents =
+            base_fixture().replace("      - name: 全ジョブ結果の検証\n", "      - if: false\n");
+        assert_violations_contain(&contents, "if: false");
+    }
+
+    /// 同じ P1 指摘のもう 1 つの再現形（`- continue-on-error: true`）。
+    #[test]
+    fn fail_step_marker_replaced_with_continue_on_error_is_violation() {
+        let contents = base_fixture().replace(
+            "      - name: 全ジョブ結果の検証\n",
+            "      - continue-on-error: true\n",
+        );
+        assert_violations_contain(&contents, "continue-on-error: true");
+    }
+
+    /// P1 指摘（`PRRT_kwDOTarxgc6hOhaA`、PR #2335 line 748 付近）:
+    /// 旧実装は「期待する文字列 `RESULTS: ${{ toJSON(needs) }}` がブロック
+    /// 内に存在するか」だけを検索しており、それが実際に `env:` 配下の
+    /// 束縛であるかを構造的に確認していなかった。ステップを
+    /// `- name: |`（複数行スカラー）にし、その本文へ偽の
+    /// `RESULTS: ${{ toJSON(needs) }}` を紛れ込ませつつ、実際の `env:` は
+    /// `RESULTS: '{}'`（jq への入力を無害化する固定値）へ差し替えると、
+    /// 旧実装の文字列検索は「見つかった」と誤判定して PASS していた。
+    /// 現行実装ではステップマーカー行・`env:` 直下の `RESULTS` 束縛が
+    /// それぞれ固定位置のリテラルであるため、`- name: |` への変更自体が
+    /// 直ちに（ステップマーカー行の）不一致として検知され、`env:` の
+    /// 位置がずれていることを個別に確認する必要すらない。
+    #[test]
+    fn fail_step_name_disguised_with_fake_results_binding_is_violation() {
+        let contents = base_fixture().replace(
+            "      - name: 全ジョブ結果の検証\n        env:\n          RESULTS: ${{ toJSON(needs) }}\n",
+            "      - name: |\n          RESULTS: ${{ toJSON(needs) }}\n        env:\n          RESULTS: '{}'\n",
+        );
+        assert_violations_contain(&contents, "name: |");
     }
 
     #[test]
