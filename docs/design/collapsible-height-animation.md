@@ -121,6 +121,153 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
   詳細・実ブラウザ確認範囲は `docs/design/wasm-full-architecture.md`
   §28.6 参照。
 
+### 5.2 実装記録（イシュー #2192）
+
+- **閉状態のキーは `StateCondition::Attr("hidden")` に確定**した
+  （`AttrEq("data-state", "closed")` ではなく）。`hidden` は headless の
+  disclosure 系全部品で保証された契約であり、bubble 等への横展開（#2282）
+  時に部品ごとの `data-state` 出力有無を確認する必要がなくなる。
+  collapsible `content`・accordion `item-content` はいずれも `data-state`
+  と `hidden` の両方を出力するためどちらでも成立するが、契約の一般性を
+  理由に `hidden` を採用した。
+- **`@starting-style` を利用する `SlotRecipe` の公開 DSL** として
+  `starting_style`/`starting_style_state`（Hover 系条件は fail-closed に
+  除外）を追加し、`transition_declarations_allow_discrete`
+  （`transition_declarations` + `transition-behavior: allow-discrete`）と
+  組み合わせて `content_height_transition` preset へ統合した
+  （`docs/api/pre-styled-recipe-api.md` §2 参照）。base 2 個目ブロック・
+  `[hidden]` state・`@starting-style` の 3 規則を 1 呼び出しで登録する。
+- **`box-sizing: border-box` を含める**。#2191 の実測値は `scrollHeight`
+  （padding 込み）のため、content-box のまま `height: <px>` を当てると
+  開いた定常状態で padding 分だけ箱が伸びてしまう。
+- **`padding-block` も閉状態・`@starting-style`・`transition-property` に
+  含める**。`height: 0` 単独だと閉じる途中で padding 分の高さが残ったまま
+  `display: none` に落ちる見た目のジャンプが生じるため。代償として、
+  変数未設定の初回オープン（劣化経路）では `height` が `auto` へ即時
+  スナップする一方 `padding-block` は `0 → P` を補間できてしまい、200ms
+  かけて padding だけが広がる見た目になり得るが、閉じ切る直前の padding
+  ジャンプを消す利点（サポート経路の見た目）を優先した。
+- **既知の限界（定常状態のクリップ）→ `calc-size()` progressive
+  enhancement で部分解消（PR #2289 codex レビュー是正）**: 当初は開いた
+  定常状態で `height: <px>` 固定 + `overflow: hidden` のため、ウィンドウ幅
+  変化で本文が伸びた場合や内包要素の後発的な高さ変化（#2191 の同期
+  タイミング外）でクリップされる限界があった。対策として予告していた
+  `interpolate-size: allow-keywords` 系の progressive enhancement を
+  `content_height_open_declarations` へ実装した: `height: var(--fandhe-
+  content-height, auto)` の直後に `height: calc-size(auto, size)` を
+  追加登録し、未対応ブラウザではこの宣言が構文解析時点で無効となり
+  直前の var 参照がそのまま有効に残る（優雅な劣化）。対応ブラウザでは
+  非遷移時の定常状態が常に `auto` として評価されるため、内容の後発的な
+  高さ変化にも継続追従しクリップされなくなる（`calc-size()` は
+  `interpolate-size: allow-keywords` を当該宣言へ自動適用する仕様のため、
+  `0 → 定常値` のトランジションも同時に成立する）。
+- **calc-size() 未対応ブラウザでの表示回帰の解消（PR #2289 codex レビュー
+  P1 是正）**: 上記 progressive enhancement だけでは、`calc-size()` 未対応
+  ブラウザにおいて本 PR（#2192）適用前（`height: auto` を継続的に評価）
+  より表示が悪化する回帰が残っていた: 開いた後の画面幅縮小・画像の遅延
+  読み込み等で内容が固定 px 高さを超えて伸びると `overflow: hidden` に
+  よって本文・操作要素が切り取られる。これを是正するため
+  `SlotRecipe::supports_not_calc_size_height`（`content_height_transition`
+  preset へ統合）で `@supports not (height: calc-size(auto, size))` ブロック
+  を追加した。未対応ブラウザに限って開いた定常状態を `height: auto` /
+  `overflow: visible` へ強制的に戻し `transition: none` でアニメーション
+  自体も無効化する。結果として未対応ブラウザは本 PR 適用前と同じ「`auto`
+  に継続追従・開閉は即時（無アニメーション）」という安全な劣化へ戻り、
+  対応ブラウザのみアニメーション付きの高さ追従が有効になる。resize 時の
+  再同期（対応ブラウザでの計測タイミング外の高さ変化に JS が追従する
+  機能自体）は引き続き本イシューのスコープ外・別イシュー提案の対象。
+  #2191 が記録する「縮んだ場合に前回値が残る」限界（§5.1）はブラウザ
+  対応状況によらず不変。
+- **`@supports not (...)` fallback が `[hidden]` state 規則の詳細度に
+  負ける表示回帰の是正（Cursor Bugbot medium severity 指摘、PR #2289
+  マージ後の追加是正）**: 上記 fallback は当初、無条件 base セレクタ
+  （詳細度 (0,2,0)）へのみ `transition: none` を登録していた。しかし
+  `[hidden]` state 規則自身（`content_height_closed_transition_
+  declarations`）は `transition-property`/`transition-duration`/
+  `transition-timing-function`/`transition-behavior` の 4 longhand を
+  詳細度 (0,3,0) の `[hidden]` セレクタで宣言しており、これは fallback
+  の base セレクタより詳細度が高い。このため `@supports not (...)` が
+  真（未対応環境）でも `[hidden]` 側の `transition-*` がカスケード
+  詳細度で勝ってしまい、`height` は離散値として `auto`⇄`0` 間を即座に
+  スナップする一方で `padding-block`/`margin-block` だけは `[hidden]`
+  自身の `transition-duration` に従ってアニメーションする、という
+  一貫しない見た目が Safari/Firefox で観測された。是正として
+  `SlotRecipe::supports_not_calc_size_height_state`（`[hidden]` 条件付き
+  版、`content_height_transition` preset へ統合）を追加し、`[hidden]`
+  と同じ詳細度 (0,3,0) の `transition: none` 規則を `@supports not
+  (...)` 配下へ追加した。[`SlotRecipe::css`] の出力順（states →
+  `@starting-style` → `@supports not (...)`）により本規則は通常の
+  `[hidden]` state 規則より後に現れるため、詳細度が等しい 2 規則は
+  CSS カスケードの記述順で後勝ちし、fallback 環境に限って `[hidden]`
+  の `transition-*` を確実に無効化する。`height`/`padding-block`/
+  `margin-block`/`overflow` の値そのもの（`content_height_closed_
+  declarations`）は変わらず、即時（無アニメーション）の開閉になる。
+  対応ブラウザでは `@supports not (...)` 自体が不成立のため本規則は
+  一切適用されず、`[hidden]` の `step-start` タイミング関数がそのまま
+  有効になる。実装詳細は `crates/pre-styled-ui/src/recipe.rs` の
+  `SupportsNotCalcSizeRule`/`SlotRecipe::supports_not_calc_size_height_
+  state` rustdoc を正とする。
+- **calc-size() 対応ブラウザにおける開いた定常状態のクリップ解消
+  （PR #2289 追加 codex レビュー P1 是正）**: `calc-size()` 対応ブラウザで
+  開閉トランジション自体が成立するようになった結果、`overflow: hidden`
+  を base（開いた定常状態も含む）へ恒常的に残す実装では新たな回帰が
+  生じていた。content 内に `position: absolute; top: 100%` で自身の
+  境界の外へ意図的にはみ出す Popover 等（`portal` 未提供のため親の
+  クリップ領域内に留まらざるを得ない構成）を配置すると、開閉完了後の
+  定常状態でも親のクリップで切り取られてしまう。これは
+  `content_height_transition` 導入前（`overflow` 宣言自体を持たなかった
+  状態）と比べた表示回帰にあたる。是正として `overflow` を
+  `transition-property` へ追加し、`transition-timing-function` の
+  `overflow` に対応する位置だけ `step-end`（進捗が完了に達するまで開始値
+  のまま、完了の瞬間に終了値へ切り替わる離散値遷移）を指定した:
+  開く遷移は終端値 `overflow: visible` へ完了の瞬間にのみ切り替わる
+  （トランジション中は開始値 `hidden` が維持されるため、縮む方向の
+  遷移中に内容が切り取られる従来の効果は保たれる）ため、開いた定常状態
+  では常に `overflow: visible` となり Popover のクリップが解消される。
+  閉状態（`[hidden]` state・`@starting-style`）は `overflow: hidden` を
+  明示する（`content_height_closed_declarations`）。
+- **閉じる遷移の `overflow` は `step-start`（PR #2289 codex レビュー第 2
+  ラウンド是正）**: 上記 `step-end` を開閉双方へ共有すると、閉じる遷移の
+  `overflow: hidden` への切り替えが完了の瞬間（`display: none` 適用と
+  同時）まで遅延される。`calc-size()` 対応ブラウザでは `height`/
+  `padding-block` が先に縮み始める一方 `overflow` は `visible` のまま
+  据え置かれるため、縮小中の content がクリップされず後続の Accordion
+  項目や Collapsible 下のコンテンツに重なって表示され、`display: none`
+  適用の瞬間に突然消えるという表示回帰が生じる（height トランジション
+  導入前にはなかった見た目）。是正として、`[hidden]` state 規則
+  （閉じる遷移の終端スタイル）が `transition-property`/
+  `transition-duration`/`transition-timing-function`/
+  `transition-behavior` を自前で宣言し（CSS Transitions は遷移先の
+  計算値からこれらを決定するため、詳細度で base より勝る `[hidden]` が
+  独自に宣言すれば閉じる方向だけへ個別適用できる）、`overflow` の
+  timing-function を `step-start`（進捗が開始を超えた瞬間に終了値へ
+  切り替わり、以降は終了値のまま）にする。これにより
+  `overflow: hidden` が縮小開始の瞬間から有効になり、後続要素への重なり
+  が解消される。開く遷移（base 側）の `step-end` は変更しない。実装詳細
+  は `crates/pre-styled-ui/src/recipe.rs` の
+  `CONTENT_HEIGHT_TIMING_FUNCTION`/`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`/
+  `content_height_open_declarations`/
+  `content_height_closed_transition_declarations` rustdoc を正とする。
+- **`scrollHeight` は border を含まない**ため、border-box で
+  `height: <scrollHeight>px` を当てると collapsible（1px border）では
+  content 領域が上下計 2px 短くなる（`overflow: hidden` の切り取り境界は
+  padding box のため本文は切れず、下 padding が実質 14px に見えるだけ）。
+  accordion は border なしで完全一致する。修正不要の「意図した限界」と
+  して記録する。
+- **`@starting-style` ブロックの出力位置**は states の後・
+  `@media (hover: hover)` の前に 1 個だけ集約する（hover ブロックと同じ
+  「常に末尾に 1 個」契約を壊さないため）。`@starting-style` を利用しない
+  既存部品の golden は差分ゼロ（純追加）。
+- **動作確認の範囲**: docs-site は JS ハイドレーションを行わないため、
+  Themes ページ上で開閉トランジションそのものを観察することは構造的に
+  できない。`make docs` の生成 CSS に新ブロックが載ること・静的 Demo
+  （open 固定）の見た目が `box-sizing: border-box` + `auto` フォール
+  バックで従来と同寸であることの確認に留める。実ブラウザでの遷移確認は
+  `crates/wasm-full/tests/content_height_browser.rs` の in-place 再開閉
+  ケースが担う（wasm-full は pre-styled-ui に依存しないため、pre-styled-ui
+  側の CSS を実際に注入した browser テストの新規追加は本イシューのスコープ
+  外）。
+
 ## 6. JS 無効時の表示方針（親 #2189 の受け入れ条件「JS 無効時に content が閲覧可能」への回答）
 
 - **(a) 原則維持**: `docs/guides/no-js-ssg.md` の原則どおり、JS ゼロ構成では `data-state` をビルド時に固定する。「JS 無効でも読ませたい content」は呼び出し側が `OpenState::Open` で SSR するか、`<details>`/`<summary>` を使う運用をガイドへ明記する（案 A・案 C はこの読み替えで受け入れ条件を満たす）。

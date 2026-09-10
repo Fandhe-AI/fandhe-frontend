@@ -119,6 +119,15 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   は CSS の継承で `chart::tooltip::frame`〔祖先〕から各 chart 部品の
 ///   視覚要素〔子孫〕へ scope をまたいで届く必要があるため、`chart-*`
 ///   prefix へ統一せず各 scope 側で同名定義する方式を採る）。
+/// - `--fandhe-content-height`: イシュー #2192 で `crate::recipe::
+///   SlotRecipe::content_height_transition`（`recipe::CONTENT_HEIGHT_VAR`）
+///   preset が `collapsible::content`・`accordion::item-content` の両 scope
+///   から参照する。実値は `fandhe-frontend-wasm-full` が実測して CSSOM
+///   `set_property` で書き込む実行時専用の変数であり、単一の所有 scope を
+///   持たない設計（`--fandhe-hover-bg`/`--fandhe-palette` と同じ「複数部品が
+///   同じ名前を変数として共有し、実値は部品側ではなく別の主体が供給する」
+///   パターン。ドリフト検知は `crates/pre-styled-ui/tests/
+///   content_height_var_drift.rs` が別途担う）。
 /// - `--fandhe-separator-thickness`: イシュー #2185 で `field::separator`
 ///   （`field.rs` の `separator-line` slot、`hr`）が採用した区切り線描画
 ///   （`border-top-*`、chakra-ui 方式）が、所有 scope `separator`
@@ -152,6 +161,7 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-chart-inactive-opacity",
     "--fandhe-chart-active-scale",
     "--fandhe-separator-thickness",
+    "--fandhe-content-height",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。
