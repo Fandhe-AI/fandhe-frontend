@@ -779,14 +779,31 @@ name = "fandhe-frontend-wasm-full"
 # 偶発的衝突をそのまま採用しない原則により main の到達値 0.17.1 から
 # さらに +1（patch）して 0.17.2 とする。
 #
+# イシュー #2117 base 取り込み: 依存先 `fandhe-frontend-headless-ui`
+# 0.68.13 → 0.68.14（`questionnaire` 新設の base 取り込みに伴う patch
+# バンプ）への `dep-version-check` version 要求追随のみ（`"questionnaire"`
+# scope の `MAPPING_TABLE` 登録は後続イシュー #2118 のスコープであり本
+# クレート自体の配線は未着手）。origin/main の到達値 0.17.2 からさらに
+# +1（patch）して 0.17.3 とする。
+#
+# イシュー #2191（親トラッキング #2189）: 新規公開モジュール
+# `content_height`（`CONTENT_HEIGHT_VAR`/`TARGETS`/`is_target`/
+# `target_selector`/`format_content_height`/`sync_content_height`）の
+# 追加、および `headless::wire_headless_component` への非破壊的な内部統合
+# （公開シグネチャは不変）。既存公開 API は変更していないため patch
+# バンプとする（`.claude/rules/coding-rust.md` #638 条項、0.x の非破壊的
+# 追加は patch）。
+#
 # イシュー #2134: charts の期間切替コントロール・凡例系列トグルを
 # `data-range`/`aria-pressed`/`data-hidden` へ配線する新規モジュール
 # `chart_range`（`wire_chart_range_events` 等の新規公開 API）を追加した。
 # `crate::chart::wiring` の一部関数を `pub(crate)` へ引き上げて再利用した
 # のみで既存公開 API は不変（純追加）だが、`Runtime::mount`/`hydrate` の
 # 挙動が新たに増える実体変更のため、`chart` モジュール追加時（0.17.0）と
-# 同じ判断基準でマイナーバンプし 0.18.0 とする。
+# 同じ判断基準でマイナーバンプし、origin/main の到達値 0.17.4 を上回る
+# 0.18.0 とする。
 version = "0.18.0"
+
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

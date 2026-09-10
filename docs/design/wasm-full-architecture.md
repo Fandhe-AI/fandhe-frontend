@@ -1427,7 +1427,114 @@ layer 自体を差し替えた場合の要素再解決（`angle_slider::wiring` 
 bar/scatter 以外の視覚要素への `data-index` 付与と消費 CSS/Demo は
 #2131 が担う。
 
-## 27. `chart_range` モジュール（イシュー #2134、親 #2132）
+## 27. `content_height` モジュール（イシュー #2191、親トラッキング #2189）
+
+### 27.1 背景・責務境界
+
+`crates/headless-ui` の disclosure 系（collapsible / accordion）は
+closed のとき content 要素へ `hidden` 存在属性を付与する契約
+（`collapsible::content`/`accordion::item_content`）であり、`hidden` は
+`display: none` を強制するため `height: auto` への CSS トランジションが
+成立しない。設計評価 `docs/design/collapsible-height-animation.md`
+（#2190）で確定した**案 C**（headless-ui の `hidden`/`aria-expanded`/
+`data-state` 契約は一切変えず、`pre-styled-ui` 側の離散遷移〔#2192〕と
+組み合わせて wasm-full が実測高さを CSS 変数へ供給する）のうち、本
+モジュールは wasm-full 側の実測・書き込みを担う。headless-ui 側は本
+イシューで**差分ゼロ**（`docs/policy/intentional-non-adoption.md` §3.25
+規則 2 の「レイアウト計測は headless-ui へ持ち込まない」判断軸に従う）。
+
+### 27.2 2 層構成（`chart`/`sidebar` と同型）
+
+- 純粋層（`format_content_height`/`is_target`/`target_selector`/
+  `TARGETS`）は web-sys 非依存で native `cargo test` の対象。
+- 配線層（`wiring::sync_content_height`）のみ
+  `#[cfg(target_arch = "wasm32")]`。
+
+対象パーツは `TARGETS: &[(&str, &str)] = &[("collapsible", "content"),
+("accordion", "item-content")]` という静的表のみで宣言し、部品名で
+分岐するコードを持たない。対象追加（例: bubble、#2282）はこの表への
+1 行追加のみで乗る設計。
+
+### 27.3 書き込み手段: CSSOM（Issue 記載パターンとの差分）
+
+イシュー本文は `position.rs` のような `set_attribute("style", ...)`
+直書きパターンを例示するが、本モジュールは最初から CSSOM
+（`CssStyleDeclaration::set_property`/`remove_property`、`chart.rs`
+`set_tooltip_position` に同一クレート内の先例あり）を採る。
+
+1. `set_attribute("style", ...)` は content 要素に利用者が付けた他の
+   インライン宣言を丸ごと破壊するが、CSSOM は該当プロパティのみ更新。
+2. CSP `style-src` に `unsafe-inline` が無い配布環境でも CSSOM 経由の
+   プロパティ設定は拒否されない。
+3. 観測結果としては `style` 属性へ `--fandhe-content-height: 240px` が
+   シリアライズされるため、#2192 側との「content 要素自身の `style` に
+   値が現れる」取り決めは変わらず満たされる。
+
+### 27.4 `hidden`・0px の扱い
+
+- `hidden` 属性を持つ要素は測定・書き込みの対象から**スキップ**する
+  （`display: none` 下の `scroll_height()` は常に 0 であり、既存の
+  変数値を壊さないため）。
+- 実測 0 は `0px` を書き込まず**除去**する。closed な accordion item に
+  ネストした open な collapsible は祖先の `display: none` により実測 0 を
+  返すため、`0px` を焼き込むと祖先が開いた直後にネスト先が不可視のまま
+  固定されてしまう。除去すれば消費側（#2192）のフォールバック `auto` が
+  効く。
+- 測定前に既存の変数値を除去しない（`overflow: hidden` 下で
+  `scrollHeight = max(clientHeight, コンテンツ高)` のため、in-place
+  開閉で content が縮んだ場合に前回の大きい値が残り得る既知の限界。
+  再描画で要素が作り直されれば解消する）。
+
+### 27.5 `wire_headless_component` への統合
+
+`sync_content_height` は `crate::headless::wire_headless_component` の
+(1) 配線時（初期表示の SSR 状態に対する先行同期）、(2) `on_update`
+直後（呼び出し側の再描画で content 要素が作り直された後の要素への
+同期）の 2 箇所で呼ばれる。順序は「on_update → sync」で固定する。
+`wire_headless_events`/`wire_headless_events_scoped`（アクション通知
+のみの低レベル API）には統合しない（DOM 反映を伴わないため）。
+
+### 27.6 遷移成立条件についての注記（#2192 との協調点、spike 実施記録）
+
+`Element::scroll_height()` の呼び出しは同期的にスタイル再計算・
+レイアウトを強制する。`hidden` 解除（または要素挿入）直後の**最初の
+スタイル計算**時点で変数が未設定（消費側は `auto` へフォールバック）
+だと、`@starting-style` 方式の `0 → auto` 遷移は補間不能であり、後から
+変数を設定しても `auto → Npx` は補間不能で即時スナップになる。
+
+したがって本ヘルパー（ステートレス）でオープン方向の遷移が成立するのは
+同一要素に前回の測定値が残っている in-place 開閉の 2 回目以降に限られる。
+初回オープン、および `set_inner_html` による丸ごと再描画モデル
+（content 要素が開閉ごとに新しい要素になる構成。`examples/
+interactive-view-transitions/wasm` の現行方式がこれに該当）では、
+遷移なしの即時表示へ自然劣化する（既知の限界。実ブラウザでの確認は
+`crates/wasm-full/tests/content_height_browser.rs` の各ケースが「配線
+直後・再描画直後に変数が正しい値へ収束すること」までを固定しており、
+CSS 遷移そのものの成立可否〔#2192 側の CSS 実装に依存〕は本テストの
+検証範囲外）。前回値プライミング・#2192 側の keyframe `animation`
+方式採用による解消は #2191 のスコープ外（下記 27.8）。
+
+### 27.7 semver 判断
+
+新規公開モジュール `content_height`（`CONTENT_HEIGHT_VAR`/`TARGETS`/
+`is_target`/`target_selector`/`format_content_height`/
+`sync_content_height`）の追加と `wire_headless_component` への非破壊的
+な内部統合（公開シグネチャ不変）のみのため、`fandhe-frontend-wasm-full`
+は 0.17.3 → 0.17.4 の patch バンプとする。
+
+### 27.8 スコープ外（#2191 §8、Issue 化提案）
+
+- `Runtime::apply_dirty_if_any` 経路（`data-action` 駆動アプリ）への
+  `sync_content_height` 統合と `perf_browser` 影響評価。
+- 前回測定値の `id` キー・プライミング（再描画モデルでのオープン遷移
+  成立に向けた本ヘルパーの追補）、または #2192 側の keyframe
+  `animation` 方式採用との協調。
+- `overflow: hidden` 下で content が縮んだ場合に前回値が残る限界の
+  解消（測定方式の再検討）。
+- bubble（#2282）・他部品（#2283）への `TARGETS` 追加は既存イシューで
+  扱う。
+
+## 28. `chart_range` モジュール（イシュー #2134、親 #2132）
 
 `crates/pre-styled-ui/src/charts/legend.rs`（イシュー #2133）の凡例
 trigger（`aria-pressed`・`data-series`/`data-index`・opt-in
@@ -1441,7 +1548,7 @@ select の item）クリックでチャート root の `data-range` を更新し
 2 層構成・Runtime への統合・スコープ外）を正とし、本節では横断的な
 決定記録のみを残す。
 
-### 27.1 スケール再計算は本イシューでスコープ外（hide-only 判断）
+### 28.1 スケール再計算は本イシューでスコープ外（hide-only 判断）
 
 親 #2132 は「スケール再計算を追従させるか固定にするかは実装時に決める」
 としていたが、本イシューでは REQ-11 の bundle size 制約（実測: ベース
@@ -1466,7 +1573,7 @@ headroom は約 4 KB。#2130 の tooltip 配線単体で約 4.8 KB 消費した�
 の純関数を再利用する形での再計算対応を再検討する。後続 Issue の起票を
 提案する。
 
-### 27.2 tooltip/tooltip-item は `chart_root` の子孫ではなく兄弟
+### 28.2 tooltip/tooltip-item は `chart_root` の子孫ではなく兄弟
 `tooltip-layer` の子孫（実装時の是正）
 
 `chart_range::wiring::sync_chart` は当初 `query_all(chart_root, ..)`
@@ -1484,7 +1591,7 @@ tooltip-layer へ差し替えて是正した。layer 未解決（`show_tooltip: 
 で出力されたチャート・未知構造）はこの 2 種の同期のみ no-op とする
 （描画要素・hit-area の同期には影響しない）。
 
-### 27.3 テスト・スコープ外
+### 28.3 テスト・スコープ外
 
 - 純粋ロジック層（`parse_range_bound`/`resolve_range`/
   `category_hidden_by_range`/`is_indexed_element_hidden`）は native
