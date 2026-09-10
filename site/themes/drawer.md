@@ -4,7 +4,10 @@
 画面端からスライドインするパネルで、WAI-ARIA 上は Dialog パターンの変種のため
 新規状態機械を作らず `dialog` の `Disclosure` 状態機械をそのまま再利用します。
 `DrawerPlacement`（始端/終端/上端/下端、既定は終端）でどの端から出現するかを
-切り替えられます。
+切り替えられます。`close_trigger_with_variant(CloseTriggerVariant::Text, ...)`
+で `dialog` と対称の平文ボタン見た目を持たせることもできますが、
+`fandhe-frontend-wasm-full` が drawer scope の click 配線を未対応のため、
+アクション行に置いても現状クリックでは閉じません（別イシューで追跡）。
 
 > [!IMPORTANT]
 > Demo はトリガー起点のオーバーレイ部品を「開いた状態」で固定掲示しています。

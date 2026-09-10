@@ -75,6 +75,7 @@ mod dashboard_01;
 mod login_01;
 mod sidebar_03;
 mod sidebar_07;
+mod signup_01;
 mod signup_05;
 
 use fandhe_frontend_core::{a, div, h2, li, text, ul, Node};
@@ -167,6 +168,7 @@ pub const BLOCKS: &[Block] = &[
     dashboard_01::BLOCK,
     sidebar_07::BLOCK,
     sidebar_03::BLOCK,
+    signup_01::BLOCK,
     signup_05::BLOCK,
 ];
 
@@ -246,6 +248,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(dashboard_01::LAYOUT_CSS)?;
     sheet.push_css(sidebar_07::LAYOUT_CSS)?;
     sheet.push_css(sidebar_03::LAYOUT_CSS)?;
+    sheet.push_css(signup_01::LAYOUT_CSS)?;
     sheet.push_css(signup_05::LAYOUT_CSS)?;
     Ok(sheet)
 }

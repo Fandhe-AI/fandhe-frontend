@@ -1164,6 +1164,11 @@ source = "site/blocks/sidebar-03.md"
 path = "/blocks/sidebar-03/"
 
 [[section.page]]
+title = "signup-01"
+source = "site/blocks/signup-01.md"
+path = "/blocks/signup-01/"
+
+[[section.page]]
 title = "signup-05"
 source = "site/blocks/signup-05.md"
 path = "/blocks/signup-05/"
