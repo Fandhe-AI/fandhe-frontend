@@ -563,8 +563,11 @@ tabs/accordion/dialog/menu/select の実装詳細:
   `--fandhe-dialog-content-padding`/`-content-max-width`/`-title-font-size`、
   menu `--fandhe-menu-trigger-padding`/`-item-padding`/`-content-padding`、
   select `--fandhe-select-trigger-padding`/`-item-padding`/`-content-padding`。
-  menu/select の `--fandhe-reference-width`/`--fandhe-arrow-*`/`--fandhe-x`/
-  `--fandhe-y`（wasm positioning 契約）には手を触れない。
+  menu/select の `--fandhe-reference-width`/`--fandhe-x`/`--fandhe-y`
+  （wasm positioning 契約）には手を触れない。`--fandhe-arrow-*` は
+  イシュー #2210 で menu（および popover/tooltip）の `arrow`/`arrow-tip`
+  が消費するようになったため対象外（`size` variant はこれらへ影響しない
+  という本節の趣旨は不変）。
 - tabs の `color-palette` は選択中 trigger の強調色
   （`border-bottom-color: var(--fandhe-palette, var(--fandhe-color-accent))`）
   にのみ反映する。

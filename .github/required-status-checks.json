@@ -1,0 +1,146 @@
+{
+  "ruleset": "main-protection",
+  "strict_required_status_checks_policy": false,
+  "required_status_checks": [
+    {
+      "context": "Browser tests (wasm-pack --headless --chrome)",
+      "integration_id": 15368
+    },
+    {
+      "context": "Cursor Bugbot",
+      "integration_id": 1210556
+    },
+    {
+      "context": "Docker image size (REQ-9)",
+      "integration_id": 15368
+    },
+    {
+      "context": "Forbid unsafe in core crates (+ wasm-full deny boundary)",
+      "integration_id": 15368
+    },
+    {
+      "context": "NPM static asset gate (REQ-12)",
+      "integration_id": 15368
+    },
+    {
+      "context": "Perf browser harness smoke (wasm-pack --headless --chrome)",
+      "integration_id": 15368
+    },
+    {
+      "context": "REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）",
+      "integration_id": 15368
+    },
+    {
+      "context": "REQ-10 rebuild latency (5s limit)",
+      "integration_id": 15368
+    },
+    {
+      "context": "REQ-11 fandhe-frontend-wasm-full bundle gzip size (200KB limit)",
+      "integration_id": 15368
+    },
+    {
+      "context": "REQ-3 dependency graph limits (60 packages / depth 6, core zero-dep)",
+      "integration_id": 15368
+    },
+    {
+      "context": "REQ-8/REQ-11 glue JS effective LOC limit (10 lines, issues #62/#156)",
+      "integration_id": 15368
+    },
+    {
+      "context": "Rust tests: fandhe-frontend-docs-site (issue #2299)",
+      "integration_id": 15368
+    },
+    {
+      "context": "Rust workspace tests",
+      "integration_id": 15368
+    },
+    {
+      "context": "TASK-4.4 templates/default 型不正コード機械的検出の受け入れ基準検証",
+      "integration_id": 15368
+    },
+    {
+      "context": "WASM XSS escape regression (wasm-pack --headless --chrome)",
+      "integration_id": 15368
+    },
+    {
+      "context": "check-dep-versions: workspace 内 path+version 併記依存の version 追随検知（issue #657）",
+      "integration_id": 15368
+    },
+    {
+      "context": "check-version-bump: published crate source changes require a version bump (issue #638)",
+      "integration_id": 15368
+    },
+    {
+      "context": "ci-complete",
+      "integration_id": 15368
+    },
+    {
+      "context": "codex-review / codex",
+      "integration_id": 15368
+    },
+    {
+      "context": "codex-review / post_feedback",
+      "integration_id": 15368
+    },
+    {
+      "context": "codex-review / skip-gate",
+      "integration_id": 15368
+    },
+    {
+      "context": "fandhe-frontend-dist-server embedded mode (force-embed)",
+      "integration_id": 15368
+    },
+    {
+      "context": "fw gate --project . self-apply: lint_wasm32 (issue #400/#2306)",
+      "integration_id": 15368
+    },
+    {
+      "context": "fw gate --project . self-apply: test (issue #400/#2306)",
+      "integration_id": 15368
+    },
+    {
+      "context": "fw gate --project . self-apply: type/escape/url/lint/policy (issue #400/#2306)",
+      "integration_id": 15368
+    },
+    {
+      "context": "fw new --template app: wasm ビルド込み CSR 完全実体の e2e 検証（issue #411）",
+      "integration_id": 15368
+    },
+    {
+      "context": "nodejs target smoke test (fandhe-frontend-wasm-thin, issue #297)",
+      "integration_id": 15368
+    },
+    {
+      "context": "rustfmt check (cargo fmt --check, issue #1227)",
+      "integration_id": 15368
+    },
+    {
+      "context": "wasm-full feature matrix: baseline (no-default / default / all-features, issue #2328)",
+      "integration_id": 15368
+    },
+    {
+      "context": "wasm-full feature matrix: readonly RadioGroup guard without keynav (issue #2328)",
+      "integration_id": 15368
+    },
+    {
+      "context": "wasm-full feature matrix: scope features (issue #2328)",
+      "integration_id": 15368
+    },
+    {
+      "context": "wasm-full feature matrix: wiring features (issue #2328)",
+      "integration_id": 15368
+    },
+    {
+      "context": "wasm32 target clippy (-D warnings, issue #1160)",
+      "integration_id": 15368
+    },
+    {
+      "context": "windows target compile check (cfg(not(unix)) branches, PR #1301)",
+      "integration_id": 15368
+    },
+    {
+      "context": "x86_64 musl startup smoke (REQ-9)",
+      "integration_id": 15368
+    }
+  ]
+}

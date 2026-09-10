@@ -7,11 +7,15 @@
 //!
 //! `dist-server/build.rs`（TASK-10.2b・イシュー #110）が本番配布物として実行する
 //! のと同一のコマンド列
-//! （`cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown --release`
+//! （`cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown
+//! --release --no-default-features --features <[`WASM_FULL_DIST_FEATURES`]>`
 //! → `wasm-bindgen --target web --no-typescript --remove-name-section
 //! --remove-producers-section --out-dir <dir>` → 有効時は `wasm-opt -Os`、
 //! イシュー #1971）を、本テストは `wasm-full` クレート自身の native 統合
-//! テストとして再現する。`dist-server` に依存させない（`wasm-full` 単体で
+//! テストとして再現する。feature 集合は `wasm-full` の `default` から
+//! `position`（イシュー #2209）のみを除いたもの（`WASM_FULL_DIST_FEATURES`
+//! rustdoc 参照）で、クレート自身の既定 on は維持したまま配布物側のみを
+//! 縮小する。`dist-server` に依存させない（`wasm-full` 単体で
 //! TASK-11.6 の受け入れ基準を検証できる）ため、ビルド出力先は
 //! `dist-server/build.rs` とは独立した `target/bundle-size-check/` を使う
 //! （同一 `target/wasm-dist` を共有すると `dist-server` のビルドと並行実行
@@ -301,6 +305,9 @@ fn build_wasm_full_release(workspace_root: &Path) -> PathBuf {
             "wasm32-unknown-unknown",
             "--release",
             "--locked",
+            "--no-default-features",
+            "--features",
+            WASM_FULL_DIST_FEATURES,
             "--target-dir",
         ])
         .arg(&target_dir);
@@ -417,6 +424,15 @@ const WASM_BINDGEN_ARGS: &[&str] = &[
     "--remove-name-section",
     "--remove-producers-section",
 ];
+
+/// ネスト `cargo build -p fandhe-frontend-wasm-full` へ渡す feature 集合。
+/// `dist-server/build.rs::WASM_FULL_DIST_FEATURES` と同一の文字列を
+/// 独立実装として複製している（本テストは `dist-server` に依存させない
+/// 設計）。`crates/wasm-full/Cargo.toml` の `default` から `position`
+/// （イシュー #2209）のみを除いた集合であり、他の feature を追加・削除
+/// する場合は両ファイルを揃えて更新すること（詳細な経緯は
+/// `dist-server/build.rs::WASM_FULL_DIST_FEATURES` の rustdoc 参照）。
+const WASM_FULL_DIST_FEATURES: &str = "wasm-bindgen-exports,keynav,focus-visible,avatar,clipboard,timer,angle-slider,splitter,signature-pad,number-input,command,sidebar,chart,chart-range,questionnaire,accordion,calendar,collapsible,combobox,dialog,listbox,menu,menubar,navigation-menu,popover,radio-group,select,tabs,toggle-group,tooltip,tree-view";
 
 /// `wasm-bindgen` を実行し、生成された JS グルーコード・`_bg.wasm` を出力した
 /// ディレクトリの絶対パスを返す。

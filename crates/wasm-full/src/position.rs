@@ -41,15 +41,33 @@
 //!   flip 後の side が新しい希望として扱われ、スペースが戻っても元の希望へ
 //!   戻せなかった）。
 //! - 実際の `"close"` dispatch・状態機械の更新は行わない。本モジュールは
-//!   `positioner`/`arrow` 要素へ `style`/`data-side`/`data-align`/
-//!   `data-positioned`（イシュー #663、以下参照）属性を直接 `set_attribute`
-//!   するのみであり（ADR 第 4.4 節の経路とは別に、wasm 層は DOM API で
-//!   直接属性を書き込む。SSR/CSR いずれの初期表示も
-//!   `fandhe_frontend_core::render` の既定エスケープ経由だが、本モジュールの
-//!   再計算は初期表示後の DOM 直接更新であり HTML 文字列を組み立てない
-//!   ため既定エスケープ経路の対象外である点に注意）、開閉 dispatch との
-//!   統合呼び出しはイシュー #580 統合層の責務とする（`overlay.rs` と同じ
-//!   責務分離）。
+//!   `positioner`/`arrow` 要素へ `data-side`/`data-align`/`data-positioned`
+//!   （イシュー #663、以下参照）属性を直接 `set_attribute` する（ADR 第 4.4
+//!   節の経路とは別に、wasm 層は DOM API で直接属性を書き込む。SSR/CSR
+//!   いずれの初期表示も `fandhe_frontend_core::render` の既定エスケープ
+//!   経由だが、本モジュールの再計算は初期表示後の DOM 直接更新であり HTML
+//!   文字列を組み立てないため既定エスケープ経路の対象外である点に注意）。
+//!   `style`（`--fandhe-*` CSS 変数）のみは `set_attribute` で `style`
+//!   属性全体を上書きせず、[`wiring::apply_css_vars`] が CSSOM の
+//!   `CssStyleDeclaration::set_property` で個々の変数のみを更新する
+//!   （イシュー #2209 レビュー指摘: `set_attribute("style", ...)` は
+//!   利用者が positioner/arrow へ付与していた `position`/`width`/
+//!   `z-index` 等の既存インラインスタイルを開くたびに消去してしまう
+//!   表示回帰だった）。
+//! - **統合呼び出し（イシュー #2209、親 #2208）**: `crate::headless::
+//!   wire_headless_component` が (1) 配線時の先行同期、(2) dispatch 成功後の
+//!   再描画直後、の 2 箇所で [`wiring::reposition_within`] を自動的に呼ぶ
+//!   （`crate::content_height::sync_content_height` と同型の統合）。あわせて
+//!   配線時に [`wiring::ensure_global_controller`] が `thread_local` 単一の
+//!   [`wiring::PositionController`] を遅延生成し、scroll/resize 契機の再計算も
+//!   自動化する。当初 #590 時点では「開閉 dispatch との統合呼び出しは統合層
+//!   （#580）の責務」としてスコープ外としていたが、本イシューで
+//!   `wire_headless_component` 経由の標準配線に統合済み。`wire_headless_events`/
+//!   `wire_headless_events_scoped`（アクション通知のみの低レベル API）や
+//!   `wire_headless_component` を経由しない開閉経路（`crate::tooltip::
+//!   TooltipDelayController` 等）には統合しないため、[`wiring::reposition_all`]/
+//!   [`wiring::reposition_within`] は引き続き呼び出し側から明示的に呼べる
+//!   公開 API として残す。
 //! - [`wiring::reposition_one`] は座標反映のたびに `positioner` へ
 //!   `data-positioned=""`（値なしの存在マーカー）を書き込む。
 //!   `fandhe-frontend-pre-styled-ui` はこの属性の有無で「SSR 静的
@@ -147,6 +165,28 @@ impl PositionedKind {
     pub const fn same_width_default(self) -> bool {
         matches!(self, Self::Menu | Self::Select | Self::Menubar)
     }
+
+    /// 主軸方向のギャップ（px）の kind 別既定。
+    ///
+    /// codex レビュー指摘（イシュー #2210 PR #2334 P1）: [`crate::position::resolve_position`]
+    /// が `offset: 0.0` 固定だった時点では、Popover/Tooltip の
+    /// `data-positioned` 後 CSS（`fandhe_frontend_pre_styled_ui::popover`/
+    /// `tooltip`）が `top`/`left` を `--fandhe-x`/`--fandhe-y` の実座標へ
+    /// 直接束縛するため、SSR 時点で `margin-top`（`var(--fandhe-space-1)`
+    /// 相当・4px）が担っていたトリガーとの余白が確定座標切り替え後に
+    /// 失われていた（トリガーへ密着する回帰）。Popover/Tooltip はこの
+    /// 4px（pre-styled-ui 側 `--fandhe-space-1` の実値、`crates/pre-styled-ui/
+    /// src/tooltip.rs` モジュール doc 参照）を offset として要求する。
+    /// Menu/Select/Menubar/NavigationMenu は `transform: translate3d(...)`
+    /// で確定座標を消費する既存設計（イシュー #663）のままで、この余白
+    /// 消失の対象ではないため既定 `0.0` を維持する（挙動変更なし）。
+    #[must_use]
+    pub const fn offset_default(self) -> f64 {
+        match self {
+            Self::Popover | Self::Tooltip => 4.0,
+            Self::Menu | Self::Select | Self::NavigationMenu | Self::Menubar => 0.0,
+        }
+    }
 }
 
 /// `data-side` 属性値の fail-closed パース。欠落・未知値は既定
@@ -228,9 +268,9 @@ pub struct RepositionResult {
 /// `css_vars_style` の呼び出しをまとめた本クレート側のエントリポイント）。
 ///
 /// flip/shift は常に有効（ADR が定める既定挙動、opt-out API は本イシューの
-/// スコープ外）。offset は `0.0` 固定（呼び出し側がギャップを持たせたい
-/// 場合は将来イシューで `PositioningConfig` をそのまま公開する拡張余地を
-/// 残す）。
+/// スコープ外）。offset は [`PositionedKind::offset_default`] による
+/// kind 別既定値を使う（呼び出し側が個別のギャップを持たせたい場合は
+/// 将来イシューで `PositioningConfig` をそのまま公開する拡張余地を残す）。
 #[must_use]
 pub fn resolve_position(
     kind: PositionedKind,
@@ -239,7 +279,7 @@ pub fn resolve_position(
 ) -> RepositionResult {
     let config = PositioningConfig {
         placement: requested,
-        offset: 0.0,
+        offset: kind.offset_default(),
         flip: true,
         shift: true,
         same_width: kind.same_width_default(),
@@ -268,9 +308,10 @@ pub fn resolve_position(
 mod wiring {
     use super::{resolve_position, resolve_requested_placement, Measurement, PositionedKind};
     use fandhe_frontend_headless_ui::{Rect, Size};
+    use std::cell::RefCell;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, Window};
+    use web_sys::{Element, Event, HtmlElement, Window};
 
     /// `[data-part="positioner"][data-state="open"]` を document 全体から
     /// 走査し、開いている positioner のみ再計算する（閉じている
@@ -471,14 +512,22 @@ mod wiring {
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
     /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
     /// `.claude/rules/security.md`）。本モジュールが書き込む属性
-    /// （`style`/`data-side`/`data-align`）はいずれも `&'static str`
-    /// リテラルで固定された非 URL・非イベントハンドラ属性であり、`style`
-    /// 値も内部生成の数値のみで実害はないが、`fandhe_frontend_core::url`
-    /// のガード関数群（`is_event_handler_attr`/`is_url_attr`/
-    /// `is_safe_url`/`is_safe_srcset`）を経由することで、将来 `name`/
-    /// `value` が動的な入力から組み立てられるよう変更された場合の防御
-    /// としても機能する（`keynav::set_dom_attribute` と同じガード方針）。
+    /// （`data-side`/`data-align`/`data-positioned`/
+    /// `data-requested-side`/`data-requested-align`）はいずれも
+    /// `&'static str` リテラルで固定された非 URL・非イベントハンドラ属性
+    /// だが、`fandhe_frontend_core::url` のガード関数群
+    /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
+    /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
+    /// 入力から組み立てられるよう変更された場合の防御としても機能する
+    /// （`keynav::set_dom_attribute` と同じガード方針）。`style` 属性は
+    /// 利用者のインラインスタイルを破壊しないよう [`apply_css_vars`]
+    /// （CSSOM `set_property` 経由）で反映するため、本関数では扱わない
+    /// （イシュー #2209 レビュー指摘、下記 doc 参照）。
     fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+        debug_assert!(
+            !name.eq_ignore_ascii_case("style"),
+            "style 属性は apply_css_vars を使うこと（利用者スタイルの上書き防止）"
+        );
         if fandhe_frontend_core::is_event_handler_attr(name) {
             return;
         }
@@ -489,6 +538,46 @@ mod wiring {
             return;
         }
         let _ = element.set_attribute(name, value);
+    }
+
+    /// [`super::css_vars_style`]（[`resolve_position`] 経由）が生成した
+    /// `"--fandhe-x: 10px; --fandhe-y: 20px;"` 形式の宣言列を、
+    /// `element.style` 属性を丸ごと上書きする `set_attribute` ではなく
+    /// `CSSOM` の `CssStyleDeclaration::set_property` で 1 宣言ずつ反映する。
+    ///
+    /// codex-review 指摘（イシュー #2209、P1）: 従来
+    /// `set_dom_attribute(positioner, "style", &result.style)` は `style`
+    /// 属性全体を `--fandhe-*` のみへ置き換えてしまい、利用者が
+    /// `wire_headless_component` 呼び出し前から positioner/arrow へ付与
+    /// していた `position:fixed;width:240px;z-index:100` 等のインライン
+    /// スタイルを、開くたびに消去してしまう表示回帰だった。本関数は
+    /// 個々の CSS カスタムプロパティのみを `set_property` で更新（存在
+    /// しなければ追加、既にあれば値のみ更新）し、他の宣言（利用者が
+    /// 書いた `position`/`width`/`z-index` 等）はそのまま保持する。
+    ///
+    /// `style` はここでは [`super::css_vars_style`] が生成した内部形式
+    /// （キー・値とも [`fandhe_frontend_headless_ui::sanitize_for_output`]
+    /// を経由した有限小数 + `px` のみ、`css_vars_style_contains_only_
+    /// internal_numeric_format` が固定）に限られるため、単純な `;`/`:`
+    /// 分割で安全にパースできる（利用者制御文字列は混入しない）。
+    /// `HtmlElement` へダウンキャストできない要素（`style` プロパティを
+    /// 持たない SVG 等）は no-op とする（`content_height::wiring::sync_one`
+    /// と同じ fail-closed 方針）。
+    fn apply_css_vars(element: &Element, style: &str) {
+        let Some(html) = element.dyn_ref::<HtmlElement>() else {
+            return;
+        };
+        let declarations = html.style();
+        for declaration in style.split(';') {
+            let declaration = declaration.trim();
+            if declaration.is_empty() {
+                continue;
+            }
+            let Some((name, value)) = declaration.split_once(':') else {
+                continue;
+            };
+            let _ = declarations.set_property(name.trim(), value.trim());
+        }
     }
 
     fn reposition_one(positioner: &Element, window: &Window) {
@@ -555,7 +644,7 @@ mod wiring {
             requested,
         );
 
-        set_dom_attribute(positioner, "style", &result.style);
+        apply_css_vars(positioner, &result.style);
         set_dom_attribute(positioner, "data-side", result.side.as_str());
         set_dom_attribute(positioner, "data-align", result.align.as_str());
         // イシュー #663: SSR 静的フォールバック（absolute + ローカル座標系）と
@@ -577,14 +666,17 @@ mod wiring {
                 // だが、arrow 要素自身の `style` にも明示反映することで
                 // pre-styled-ui 側のセレクタ設計を CSS 変数継承に限定しない
                 // 柔軟性を残す）。
-                set_dom_attribute(&arrow_element, "style", &result.style);
+                apply_css_vars(&arrow_element, &result.style);
             }
         }
     }
 
     /// `document` 内の開いている positioner を全て走査し再計算する
-    /// （公開 API。開閉 dispatch との統合呼び出しはイシュー #580 統合層の
-    /// 責務、本関数は呼び出し側から明示的に呼ばれる契約）。
+    /// （公開 API。`crate::headless::wire_headless_component` から
+    /// [`ensure_global_controller`] 経由で scroll/resize 契機に呼ばれる
+    /// ほか、`wire_headless_component` を経由しない開閉経路
+    /// （`TooltipDelayController` 等）向けに呼び出し側からも明示的に
+    /// 呼べる契約を維持する、イシュー #2209）。
     pub fn reposition_all(window: &Window) {
         let Some(document) = window.document() else {
             return;
@@ -598,6 +690,35 @@ mod wiring {
                 continue;
             };
             reposition_one(&element, window);
+        }
+    }
+
+    /// `root` 自身とその子孫のうち開いている positioner のみを再計算する
+    /// （イシュー #2209。`crate::headless::wire_headless_component` から
+    /// 配線時・dispatch 後の 2 箇所で呼ばれ、document 全体ではなく
+    /// `wire_headless_component` の対象部分木に閉じた再計算を行う。
+    /// `crate::content_height::sync_content_height` と同型の「root 自身が
+    /// 対象に一致する場合を含める」設計、`content_height.rs`
+    /// `wiring::sync_content_height` 参照）。
+    ///
+    /// `web_sys::window()` が取得できない（テスト環境等）場合は no-op と
+    /// する（fail-closed、panic しない）。
+    pub fn reposition_within(root: &Element) {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        if root.matches(OPEN_POSITIONER_SELECTOR).unwrap_or(false) {
+            reposition_one(root, &window);
+        }
+        let Ok(list) = root.query_selector_all(OPEN_POSITIONER_SELECTOR) else {
+            return;
+        };
+        for i in 0..list.length() {
+            let Some(node) = list.item(i) else { continue };
+            let Ok(element) = node.dyn_into::<Element>() else {
+                continue;
+            };
+            reposition_one(&element, &window);
         }
     }
 
@@ -699,10 +820,43 @@ mod wiring {
             );
         }
     }
+
+    thread_local! {
+        /// プロセス内（wasm はシングルスレッドのため実質アプリ生存期間）
+        /// 唯一の [`PositionController`]（イシュー #2209）。
+        ///
+        /// `crate::headless::wire_headless_component` から
+        /// [`ensure_global_controller`] 経由で配線時に 1 度だけ生成され、
+        /// `wire_headless_component` を何度呼んでも scroll/resize
+        /// リスナーが増えない（`PositionController::new` が
+        /// `Closure::forget` せずリスナーを `Self` の生存期間に結びつける
+        /// 設計のため、本セルが保持する限りリスナーは 2 個のまま）。
+        /// 利用者が独自に `PositionController::new` を呼ぶ既存コード
+        /// （`examples/interactive-view-transitions` の menubar 等）とは
+        /// 共存し、同一 positioner が二重に再計算されるだけで冪等。
+        static GLOBAL_CONTROLLER: RefCell<Option<PositionController>> = const { RefCell::new(None) };
+    }
+
+    /// [`GLOBAL_CONTROLLER`] が未生成なら `window` を対象に
+    /// [`PositionController::new`] を 1 度だけ生成して保持する
+    /// （イシュー #2209）。
+    ///
+    /// `PositionController::new` が `Err` を返した場合（リスナー登録
+    /// 失敗）でも panic せず `None` のまま静かに継続する（fail-closed。
+    /// scroll/resize 追従が失われるのみで、`reposition_within` による
+    /// 配線時・dispatch 後の即時反映は妨げない）。
+    pub fn ensure_global_controller(window: &Window) {
+        GLOBAL_CONTROLLER.with(|cell| {
+            let mut controller = cell.borrow_mut();
+            if controller.is_none() {
+                *controller = PositionController::new(window).ok();
+            }
+        });
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::PositionController;
+pub use wiring::{ensure_global_controller, reposition_all, reposition_within, PositionController};
 
 #[cfg(test)]
 mod tests {
@@ -881,6 +1035,56 @@ mod tests {
             );
             assert!(!result.style.contains("--fandhe-arrow-x:"), "kind={kind:?}");
             assert!(!result.style.contains("--fandhe-arrow-y:"), "kind={kind:?}");
+        }
+    }
+
+    #[test]
+    fn offset_default_is_4px_for_popover_and_tooltip_only() {
+        // codex レビュー指摘（イシュー #2210 PR #2334 P1）の回帰: Popover/
+        // Tooltip の `data-positioned` 後 CSS は SSR 時点の
+        // `margin-top: var(--fandhe-space-1)`（4px 相当）を `margin: 0`/
+        // `margin-top: 0` へ差し替えるため、確定座標側で同じ 4px を
+        // 主軸オフセットとして補わない限りトリガーとの余白が失われる。
+        // Menu/Select/Menubar/NavigationMenu は `transform: translate3d`
+        // で確定座標を消費する既存設計（イシュー #663）のままのため
+        // 0.0 を維持する。
+        assert_eq!(PositionedKind::Popover.offset_default(), 4.0);
+        assert_eq!(PositionedKind::Tooltip.offset_default(), 4.0);
+        assert_eq!(PositionedKind::Menu.offset_default(), 0.0);
+        assert_eq!(PositionedKind::Select.offset_default(), 0.0);
+        assert_eq!(PositionedKind::Menubar.offset_default(), 0.0);
+        assert_eq!(PositionedKind::NavigationMenu.offset_default(), 0.0);
+    }
+
+    #[test]
+    fn resolve_position_applies_4px_gap_for_tooltip_and_popover() {
+        // `resolve_position` が `offset_default()` を実際に
+        // `PositioningConfig::offset` へ配線していることを、Bottom 配置での
+        // 主軸座標（y）が offset なし（`anchor.y + anchor.height`）より
+        // 4px 大きいことで確認する（`main_axis_coordinate` の
+        // `Side::Bottom => anchor.y + anchor.height + offset` 参照）。
+        let m = measurement();
+        let expected_y_without_offset = m.anchor.y + m.anchor.height;
+        for kind in [PositionedKind::Popover, PositionedKind::Tooltip] {
+            let result = resolve_position(kind, m, Placement::new(Side::Bottom, Align::Center));
+            let expected_y = expected_y_without_offset + 4.0;
+            assert!(
+                result
+                    .style
+                    .contains(&format!("--fandhe-y: {expected_y}px")),
+                "kind={kind:?} style={}",
+                result.style
+            );
+        }
+        for kind in [PositionedKind::Menu, PositionedKind::Select] {
+            let result = resolve_position(kind, m, Placement::new(Side::Bottom, Align::Center));
+            assert!(
+                result
+                    .style
+                    .contains(&format!("--fandhe-y: {expected_y_without_offset}px")),
+                "kind={kind:?} style={}",
+                result.style
+            );
         }
     }
 

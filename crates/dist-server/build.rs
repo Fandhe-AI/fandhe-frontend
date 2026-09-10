@@ -605,6 +605,9 @@ fn run_wasm_build(workspace_root: &Path) -> Result<PathBuf, String> {
             "--target",
             "wasm32-unknown-unknown",
             "--release",
+            "--no-default-features",
+            "--features",
+            WASM_FULL_DIST_FEATURES,
             "--target-dir",
         ])
         .arg(&wasm_target_dir);
@@ -643,6 +646,29 @@ const WASM_BINDGEN_ARGS: &[&str] = &[
     "--remove-name-section",
     "--remove-producers-section",
 ];
+
+/// ネスト `cargo build -p fandhe-frontend-wasm-full` へ渡す feature 集合
+/// （イシュー #2209、REQ-11 対応）。
+///
+/// `fandhe-frontend-wasm-full` の `default` feature（`crates/wasm-full/
+/// Cargo.toml`）から `position`（イシュー #2209 が新設した、
+/// `headless::wire_headless_component` の自動 positioning 呼び出し専用
+/// feature）のみを除いた集合を明示指定する。`position` 自体はクレートの
+/// 既定 on を維持する（`wasm-pack test crates/wasm-full --test
+/// position_browser` 等の browser テストは feature 引数なし＝クレート既定
+/// を使うため、クレート側の `default` から外すとテストごと消える
+/// テストの弱体化になる。`.claude/rules/coding-rust.md` 参照）。配布物
+/// （dist-server 経路）側のみを縮小することで REQ-11（gzip 200,000 B
+/// 上限）を満たす（`docs/design/wasm-full-architecture.md` §34.2 の
+/// 「#2329 が dist-server 側の feature 集合を最小化する際の分離点」を
+/// 本 PR の超過分（約 2.6 KB）に限定して先取りする対応。feature 集合の
+/// 更なる縮小・網羅的な決定は #2329 のスコープのまま残す）。
+///
+/// `crates/wasm-full/tests/bundle_size.rs::WASM_FULL_DIST_FEATURES` が
+/// 同一配列を独立実装として複製しており、`crates/wasm-full/Cargo.toml`
+/// の `default` へ feature を追加・削除する場合は両ファイルを揃えて
+/// 更新すること。
+const WASM_FULL_DIST_FEATURES: &str = "wasm-bindgen-exports,keynav,focus-visible,avatar,clipboard,timer,angle-slider,splitter,signature-pad,number-input,command,sidebar,chart,chart-range,questionnaire,accordion,calendar,collapsible,combobox,dialog,listbox,menu,menubar,navigation-menu,popover,radio-group,select,tabs,toggle-group,tooltip,tree-view";
 
 /// `wasm-bindgen` を実行し、生成された JS グルーコード・`_bg.wasm` を
 /// `wasm_assets_dir`（`OUT_DIR/wasm-assets/`、呼び出し元 [`run_wasm_stage`] が
