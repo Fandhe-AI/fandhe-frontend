@@ -264,9 +264,14 @@ fn tooltip_css_matches_golden_fixture_byte_for_byte() {
         "  --fandhe-chart-inactive-opacity: 0.4;\n",
         "}\n",
         "\n",
+        // イシュー #2131 codex-review P2 是正: `datum[data-index]` の
+        // `transition-property` は base（`recipe()` 冒頭）の
+        // `stroke, stroke-width` を上書きせず両立させるため
+        // `stroke, stroke-width, opacity` へ拡張済み（`tooltip.rs`
+        // 実装側コメント「イシュー #2131 codex-review P2 是正」節参照）。
         "[data-scope=\"chart\"][data-part=\"datum\"][data-index] {\n",
         "  opacity: var(--fandhe-chart-inactive-opacity, 1);\n",
-        "  transition-property: opacity;\n",
+        "  transition-property: stroke, stroke-width, opacity;\n",
         "  transition-duration: var(--fandhe-motion-duration-fast);\n",
         "  transition-timing-function: var(--fandhe-motion-easing-standard);\n",
         "}\n",
