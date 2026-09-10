@@ -51,6 +51,11 @@ wasm-bindgen --target web --out-dir <出力先> \
   target/wasm32-unknown-unknown/release/fandhe_frontend_wasm_full.wasm
 ```
 
+（現行の `dist-server/build.rs` は上記に加え `--no-default-features
+--features <WASM_DIST_FEATURES>` を渡し、配布物の feature 集合を
+「最小インタラクティブ構成」へ縮小する。正は
+`crates/dist-server/src/wasm_dist_features.rs`、イシュー #2329。）
+
 この 2 系統化は次の問題を生みます。
 
 - **DX の低下**: 開発者は 2 つのビルドコマンド系統と、それぞれの成果物の

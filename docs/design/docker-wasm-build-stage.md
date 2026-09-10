@@ -72,7 +72,10 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
      CLI の実バージョンを取得する。
   3. 両者が不一致ならビルドを `panic!` で失敗させる（フェイルクローズ）。
   4. `run_wasm_build`: ネスト `cargo build -p fandhe-frontend-wasm-full --target
-     wasm32-unknown-unknown --release --target-dir target/wasm-dist` を
+     wasm32-unknown-unknown --release --no-default-features --features
+     <WASM_DIST_FEATURES> --target-dir target/wasm-dist`（feature 集合は
+     「最小インタラクティブ構成」、正は
+     `crates/dist-server/src/wasm_dist_features.rs`、イシュー #2329）を
      `env_clear()` した最小環境（`PATH`/`HOME`/`CARGO_HOME`/`RUSTUP_HOME`/
      `RUSTUP_TOOLCHAIN` のみ引き継ぎ）で実行する。
   5. `run_wasm_bindgen`: `wasm-bindgen --target web --no-typescript` を実行し
