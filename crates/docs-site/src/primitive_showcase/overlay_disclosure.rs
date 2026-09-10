@@ -239,6 +239,16 @@ pub(super) fn dialog_section() -> Node {
                             // `crates/pre-styled-ui/src/dialog.rs` rustdoc
                             // 参照）。支援技術向けラベルは aria-label で維持する。
                             dialog::close_trigger(vec![("aria-label", "Close")], vec![text("×")]),
+                            // イシュー #2193: text variant（data-variant
+                            // 語彙）を data-* 属性表へ機械導出させるため
+                            // Demo へ 1 件追加する。footer anatomy パートは
+                            // Themes（pre-styled-ui）層のみが持つため、
+                            // ここでは content 直下に並べて掲示する。
+                            dialog::close_trigger_with_variant(
+                                dialog::CloseTriggerVariant::Text,
+                                vec![],
+                                vec![text("Cancel")],
+                            ),
                         ],
                     )],
                 ),
@@ -287,6 +297,16 @@ pub(super) fn drawer_section() -> Node {
                             // `crates/pre-styled-ui/src/drawer.rs` rustdoc
                             // 参照）。支援技術向けラベルは aria-label で維持する。
                             drawer::close_trigger(vec![("aria-label", "Close")], vec![text("×")]),
+                            // イシュー #2193: dialog と対称の text variant を
+                            // data-* 属性表へ機械導出させるため Demo へ 1 件
+                            // 追加する（fandhe-frontend-wasm-full が drawer
+                            // scope を未配線のため、実際には掲示用のみで
+                            // inert）。
+                            drawer::close_trigger_with_variant(
+                                hui::dialog::CloseTriggerVariant::Text,
+                                vec![],
+                                vec![text("Cancel")],
+                            ),
                         ],
                     )],
                 ),

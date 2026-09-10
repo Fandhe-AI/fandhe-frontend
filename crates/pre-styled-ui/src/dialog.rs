@@ -334,23 +334,40 @@
 //! raw 値のまま宣言する。[`crate::toast`]/[`crate::tour`] の viewport 単位
 //! raw 値と同型の判断）。
 //!
-//! ## close-trigger のフッター内再利用（本イシューのスコープ外）
+//! ## close-trigger のフッター内再利用（text variant、イシュー #2193）
 //!
 //! shadcn の「Custom Close Button」デモ（footer に平文 "Close" ボタンを
-//! 併設する Share リンクダイアログ）は、既存の [`footer`] +
-//! [`crate::button::button`]（`ButtonVariant::Outline`）の組み合わせで
-//! 表現でき、本イシューでは `dialog.rs` のコード変更を要しない
-//! （Demo/Examples のみで表現する）。一方、[`close_trigger`] を
-//! footer 内で再利用して機能配線済みの close ボタンとして扱う案は、
-//! (1) `close-trigger` が content 右上のアイコン専用ゴーストボタンとして
-//! 絶対配置・固定正方形・`overflow: hidden` を持つ契約に固定されている
-//! （codex-review #1795 P1 指摘対応）ことと、(2) [`crate::recipe::SlotRecipe`]
-//! が子孫セレクタ機構を持たない（イシュー #708 で不採用確定）ため
-//! `data-part="close-trigger"` に対する CSS を配置コンテキスト（content
-//! 右上 vs footer 内）で出し分けられないことの 2 点により、本イシュー
-//! 単体では解決できない。headless/recipe 層への将来的なフォローアップ
-//! 候補として記録するに留める（`.claude/rules/out-of-scope-tracking.md`
-//! 対応、Issue 化はユーザー承認後）。
+//! 併設する Share リンクダイアログ）は、当初は既存の [`footer`] +
+//! [`crate::button::button`]（`ButtonVariant::Outline`）の組み合わせ
+//! （見た目のみ、閉じる配線を持たない）でしか表現できなかった。
+//! [`close_trigger`] を footer 内で機能配線済みの close ボタンとして
+//! 再利用する案は、(1) `close-trigger` が content 右上のアイコン専用
+//! ゴーストボタンとして絶対配置・固定正方形・`overflow: hidden` を持つ
+//! 契約に固定されている（codex-review #1795 P1 指摘対応）ことと、
+//! (2) [`crate::recipe::SlotRecipe`] が子孫セレクタ機構を持たない
+//! （イシュー #708 で不採用確定）ため `data-part="close-trigger"` に
+//! 対する CSS を配置コンテキスト（content 右上 vs footer 内）で
+//! 出し分けられないことの 2 点により未解決だった。
+//!
+//! イシュー #2193 で、`headless-ui` 側に `data-variant`
+//! （[`CloseTriggerVariant`]、`icon`/`text`）を追加し、`recipe()` へ
+//! `[data-variant="text"]` 属性条件付きの `state` 規則を追加することで
+//! 解決した。子孫セレクタは依然として追加していない（属性セレクタの
+//! specificity 差（3 属性 > 2 属性）で base を上書きするのみ、#708 の
+//! 決定を維持）。呼び出し側は
+//! `close_trigger_with_variant(CloseTriggerVariant::Text, vec![], vec![text("Cancel")])`
+//! を footer に置くだけで閉じる配線を共有する（既存 [`close_trigger`]
+//! はアイコン専用契約の既定のまま不変）。`title` の
+//! `padding-inline-end` ガター（アイコン専用契約向け）は子孫セレクタ
+//! なしでは text 利用時に打ち消せないため据え置く（footer 内 text 利用
+//! 時は右上に close-trigger が無く空きガターが残るのみで実害なし）。
+//!
+//! **drawer への適用範囲**: `crate::drawer` も dialog と対称に text
+//! variant を持つが、`fandhe-frontend-wasm-full` が drawer scope の
+//! click 配線自体を持たない（`fandhe_frontend_headless_ui::drawer` モジュール
+//! doc「スコープ外」節、イシュー #1639）ため、drawer の footer 内 text
+//! close-trigger は別イシューで drawer scope の配線が整うまで inert
+//! である。
 //!
 //! ## nested dialog（比較対象なし）
 //!
@@ -372,8 +389,8 @@ use crate::recipe::{
 // variant クラス非付与の実体・状態管理が必要な呼び出し側は
 // `fandhe_frontend_headless_ui::dialog` を直接 import する。
 pub use fandhe_frontend_headless_ui::dialog::{
-    backdrop, close_trigger, content, description, positioner, title, trigger, ContentIds,
-    DialogRole,
+    backdrop, close_trigger, close_trigger_with_variant, content, description, positioner, title,
+    trigger, CloseTriggerVariant, ContentIds, DialogRole,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // `trigger`/`backdrop` 等の `state` 引数はいずれも `state` モジュール由来で
@@ -684,6 +701,41 @@ fn recipe() -> SlotRecipe {
             "close-trigger",
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // イシュー #2193: `data-variant="text"`（headless
+        // `dialog::close_trigger_with_variant` が出力する語彙）のときのみ、
+        // content 右上のアイコン専用ゴーストボタン契約を平文ボタンの見た目
+        // （`trigger` base と同じ outline トークン写像。shadcn/ui
+        // 「Custom Close Button」相当）へ上書きする。specificity
+        // (0,3,0)（属性 3 個）が base の (0,2,0)（属性 2 個）に勝つため
+        // 子孫セレクタ（#708 で不採用）なしで配置コンテキストを出し分け
+        // られる。base の絶対配置・固定正方形・`overflow: hidden` は
+        // アイコン専用契約の既定として不変（`data-variant` を出力しない
+        // 既存 `close_trigger` はこの規則の対象外）。
+        //
+        // `title` の `padding-inline-end` ガター（アイコン専用契約向け）は
+        // 子孫セレクタなしでは text 利用時に打ち消せないため据え置く
+        // （footer 内 text 利用時は右上に close-trigger が無く空きガター
+        // が残るのみで実害なし、モジュール冒頭 rustdoc 参照）。hover は
+        // 既存の `StateCondition::Hover` 規則（`hover_surface_declarations`）
+        // がそのまま効くため本規則では宣言しない。
+        .state(
+            "close-trigger",
+            StateCondition::AttrEq("data-variant", "text"),
+            vec![
+                decl("position", "static"),
+                decl("inset-block-start", "auto"),
+                decl("inset-inline-end", "auto"),
+                decl("box-sizing", "border-box"),
+                decl("width", "auto"),
+                decl("height", "auto"),
+                decl("overflow", "visible"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
+                decl("color", "var(--fandhe-color-fg)"),
+            ],
         )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
@@ -1170,6 +1222,39 @@ mod tests {
         let title_rule = &css[title_start..title_end];
         assert!(title_rule
             .contains("padding-inline-end: calc(var(--fandhe-space-8) + var(--fandhe-space-2));"));
+    }
+
+    #[test]
+    fn close_trigger_text_variant_overrides_icon_positioning() {
+        // イシュー #2193: `[data-variant="text"]` state 規則が base の
+        // 絶対配置・固定正方形・overflow 契約を上書きすることを固定する。
+        let css = stylesheet();
+        let selector = r#"[data-scope="dialog"][data-part="close-trigger"][data-variant="text"] {"#;
+        let start = css
+            .find(selector)
+            .expect("close-trigger text variant rule must be present");
+        let end = css[start..].find('}').unwrap() + start;
+        let rule = &css[start..end];
+        assert!(rule.contains("position: static;"));
+        assert!(rule.contains("inset-block-start: auto;"));
+        assert!(rule.contains("inset-inline-end: auto;"));
+        assert!(rule.contains("width: auto;"));
+        assert!(rule.contains("height: auto;"));
+        assert!(rule.contains("overflow: visible;"));
+        assert!(rule.contains("border: 1px solid var(--fandhe-color-border);"));
+    }
+
+    #[test]
+    fn close_trigger_base_icon_contract_is_unchanged_by_text_variant() {
+        // base（アイコン専用契約）は text variant 追加後もバイト単位で不変。
+        let css = stylesheet();
+        let close_trigger_start = css
+            .find(r#"[data-scope="dialog"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        let close_trigger_end = css[close_trigger_start..].find('}').unwrap() + close_trigger_start;
+        let close_trigger_rule = &css[close_trigger_start..close_trigger_end];
+        assert!(close_trigger_rule.contains("position: absolute;"));
+        assert!(close_trigger_rule.contains("overflow: hidden;"));
     }
 
     #[test]

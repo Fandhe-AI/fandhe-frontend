@@ -2874,6 +2874,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # ページ）を新設したため、公開 API の純追加として 0.174.0 へマイナー
 # バンプする。
 #
+# イシュー #2193: dialog / drawer の close-trigger をアイコン専用契約から
+# 平文ボタンでも再利用できる形へ再設計する。`recipe()` へ
+# `[data-part="close-trigger"][data-variant="text"]` state 規則を純追加
+# した（`stylesheet()` の公開 CSS 出力が増える、既存 variant のバイト列は
+# 不変）。dialog::CloseTriggerVariant/close_trigger_with_variant・
+# drawer::close_trigger_with_variant の選択的 re-export も追加。
+# 0.x の破壊的変更ではない純追加だが、公開 CSS 出力契約の拡張のため
+# 安全側でマイナーバンプする対象だったが、origin/main が並行 PR で
+# 独立に 0.173.0 へ到達済みだったため、同一版数への偶発的衝突をそのまま
+# 採用しない原則により main の到達値 0.173.0 からさらに +1（マイナー）
+# して 0.174.0 とする。
+#
 # イシュー #2134 codex-review 指摘是正（PR #2285）: donut/pie/radial の
 # 各 chart props へ `legend: bool` opt-in を追加し、radial の `bar` へ
 # 値なし属性 `data-hidden-category`/`data-hidden-series`（次元単独の
@@ -2881,12 +2893,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # golden CSS の既存ブロックは不変のため非破壊的な追加として、PR と main
 # が同一到達値 0.173.0 で衝突するため main +1 の 0.174.0 へバンプする。
 #
-# 本コンフリクト解消（PR #2291、イシュー #2119 の main 取り込み）: 本
-# ブランチ（styled questionnaire 追加）と origin/main（#2285 是正）は
+# 本コンフリクト解消（PR #2291、イシュー #2119 の main 取り込み・1 回目）:
+# 本ブランチ（styled questionnaire 追加）と origin/main（#2285 是正）は
 # それぞれ独立に 0.174.0 へ到達しており、同一版数はコンフリクトとして
 # 扱う既存方針に基づき単純採用しない。別 PR #2289 が並行して 0.175.0 へ
 # 到達済みのため、双方の変更を統合した結果として main +2 の 0.176.0 へ
 # マイナーバンプする。
+#
+# 本コンフリクト解消（PR #2293、イシュー #2193、main 側で先に解決済み）:
+# origin/main は本ブランチ（#2193 の dialog/drawer close-trigger 再設計）
+# と #2134 是正がいずれも独立に 0.174.0 へ到達した衝突を、main の到達値
+# 0.174.0 をさらに上回る 0.175.0 へのマイナーバンプで解決していた。
+#
+# 本コンフリクト解消（PR #2291、イシュー #2119 の main 取り込み・2 回目）:
+# 本ブランチの到達値 0.176.0（1 回目の解消時点）は origin/main の到達値
+# 0.175.0 を既に上回っているため、同一版数への偶発的衝突には該当せず、
+# 双方の実体変更（styled questionnaire・dialog/drawer close-trigger 再設計・
+# #2285 是正）を内包した 0.176.0 をそのまま維持する。
 version = "0.176.0"
 
 
@@ -2903,7 +2926,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.14" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.15" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

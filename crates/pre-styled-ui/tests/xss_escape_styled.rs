@@ -6600,3 +6600,91 @@ fn questionnaire_parts_are_escaped_for_all_payloads() {
         assert_eq!(html.matches("style=\"").count(), 1);
     }
 }
+
+/// (30) `dialog::close_trigger_with_variant`/`drawer::close_trigger_with_variant`
+/// 経路（イシュー #2193）: pre-styled 層はこれらを headless-ui から選択的に
+/// re-export しているのみ（`crate::dialog`/`crate::drawer` のトップに
+/// `pub use` 文がある）で自ら Node を組み立てないが、`fandhe-frontend-headless-ui`
+/// のクレート境界をまたいだ回帰として、children・呼び出し側 attrs・
+/// `data-scope`/`data-part`/`data-variant` 偽装ペイロードの全経路で既定
+/// エスケープ（REQ-1）が貫通し、偽装が除去されることを pre-styled-ui 側でも
+/// 固定する。
+#[test]
+fn dialog_and_drawer_close_trigger_with_variant_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // dialog: children 経路。
+        let html = render(&dialog::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "dialog::close_trigger_with_variant children コンテキスト",
+        );
+
+        // dialog: 呼び出し側 attrs（aria-label）経路。
+        let html = render(&dialog::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![("aria-label", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "dialog::close_trigger_with_variant 呼び出し側 attrs コンテキスト",
+        );
+
+        // dialog: data-scope/data-part/data-variant 偽装は headless 層
+        // （`Anatomy::part`/`close_trigger_with_variant` 自体の予約キー除去）
+        // が除去する。
+        let html = render(&dialog::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![
+                ("data-scope", payload),
+                ("data-part", payload),
+                ("data-variant", payload),
+            ],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "dialog::close_trigger_with_variant の data-scope/data-part/data-variant \
+             偽装ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="dialog""#));
+        assert!(html.contains(r#"data-part="close-trigger""#));
+        assert!(html.contains(r#"data-variant="text""#));
+
+        // drawer: dialog と対称の経路を固定する。
+        let html = render(&drawer::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "drawer::close_trigger_with_variant children コンテキスト",
+        );
+
+        let html = render(&drawer::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![
+                ("data-scope", payload),
+                ("data-part", payload),
+                ("data-variant", payload),
+            ],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "drawer::close_trigger_with_variant の data-scope/data-part/data-variant \
+             偽装ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="drawer""#));
+        assert!(html.contains(r#"data-part="close-trigger""#));
+        assert!(html.contains(r#"data-variant="text""#));
+    }
+}
