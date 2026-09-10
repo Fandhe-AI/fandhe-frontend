@@ -234,10 +234,42 @@
 //!   `::after` による見えないヒットエリア拡張）: 実装当時の
 //!   [`SlotRecipe`]/[`StateCondition`] は疑似要素セレクタ（`::before`/
 //!   `::after`）を表現する手段を持たなかったため実装できなかった。イシュー
-//!   #2201 で [`SlotRecipe::pseudo_element`]/[`crate::recipe::PseudoElement`]
-//!   が DSL 側へ追加されたが、splitter 自体への適用は本イシューの影響範囲
-//!   を超えるため引き続き見送り、後続の別 Issue で対応する
-//!   （`.claude/rules/out-of-scope-tracking.md` 対応）。
+//!   #2201 で [`SlotRecipe::pseudo_element`]/[`PseudoElement`] が DSL 側へ
+//!   追加されたのを受け、イシュー #2202 で採用した（下記「イシュー #2202」
+//!   節参照）。
+//!
+//! # イシュー #2202: `resize-trigger` の `::after` ヒットエリア拡張
+//!
+//! [`resize_trigger`] の**視覚上の太さ**（`--fandhe-splitter-trigger-size`）
+//! を変えずに、ポインタの当たり判定のみを外側へ拡張する
+//! （shadcn/ui `ResizableHandle` の `::after` 拡張と同じ意匠、上記
+//! #2038 節「意図的に採らなかった変更」参照）。
+//!
+//! 設計: `resize-trigger` を `position: relative` にし、
+//! `::after`（[`recipe`] 内 `.pseudo_element("resize-trigger",
+//! PseudoElement::After, ...)`）へ `position: absolute; inset:
+//! var(--fandhe-splitter-hit-inset);` を登録する。疑似要素は生成元要素
+//! から custom property を継承するため、水平/垂直の向きは
+//! `--fandhe-splitter-hit-inset` の値を `resize-trigger` の base 規則
+//! （水平既定）と `data-orientation="vertical"` state 規則（垂直）で
+//! 切り替えるだけで賄える（`SlotRecipe` が疑似要素へ状態条件付きの規則を
+//! 直接登録する手段を持たない制約〔`PseudoElement` rustdoc 参照〕を、
+//! 既存の `--fandhe-splitter-trigger-size`/`--fandhe-splitter-panel-padding`
+//! と同型の「custom property を継承で伝える」パターンで回避する）。
+//! 拡張幅は片側 `--fandhe-splitter-hit-extension`（既定 `0.25rem` =
+//! 4px、`root` 等から呼び出し側が上書き可能）とし、`size` variant には
+//! 連動させない（`resize-trigger-indicator` と同じ判断: 「つまみやすさ」
+//! の目印であり太さの伸縮はトリガー本体の責務のため）。
+//!
+//! `resize-trigger` は `display: flex` だが `::after` は
+//! `position: absolute` のため flex item にならず、indicator の中央配置
+//! に影響しない。`::after` はドラッグ判定を持つ DOM ノードではなく
+//! `resize-trigger` 要素自身がヒットターゲットのままであるため、
+//! `cursor: col-resize`/`row-resize`・`:hover`/`:focus-visible` は拡張
+//! 領域でもそのまま効く。既知のトレードオフ: `::after` は隣接 `panel`
+//! 上へ重なる（shadcn と同じ性質。positioned な `resize-trigger` は DOM
+//! 後続の非 positioned `panel` より描画順が後になるため拡張領域の当たり
+//! 判定を保つ）ため、拡張幅は小さく保つ。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -253,8 +285,8 @@ use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
     focus_ring_declarations, hover_surface_declarations, palette_scale_declarations,
-    transition_declarations, ColorPalette, FocusRingColor, FocusRingOffset, MotionDuration, Size,
-    SlotRecipe, StateCondition, VariantValue,
+    transition_declarations, ColorPalette, FocusRingColor, FocusRingOffset, MotionDuration,
+    PseudoElement, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Splitter` 状態機械・headless 自由関数 `root`/`panel`/`resize_trigger` は
@@ -464,6 +496,22 @@ fn recipe() -> SlotRecipe {
                     "--fandhe-hover-bg",
                     "var(--fandhe-splitter-root-disabled-hover-bg, var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)))",
                 ),
+                // イシュー #2202: `::after`（下記 `.pseudo_element` 参照）を
+                // `resize-trigger` 自身を基準に配置するための土台。
+                // `position: absolute` の `::after` は flex item にならない
+                // ため indicator の中央配置には影響しない
+                // （本モジュール冒頭 rustdoc「イシュー #2202」節参照）。
+                decl("position", "relative"),
+                // 水平（既定）orientation でのヒットエリア拡張量。
+                // `inset` の 2 値ショートハンド（上下 / 左右）で左右のみを
+                // 外側へ広げる。`data-orientation="vertical"` state 規則
+                // （下記）が同名 custom property を上下拡張用の値へ
+                // 上書きし、`::after` 側は疑似要素の custom property
+                // 継承で向きに追随する。
+                decl(
+                    "--fandhe-splitter-hit-inset",
+                    "0 calc(-1 * var(--fandhe-splitter-hit-extension, 0.25rem))",
+                ),
             ],
         )
         .base(
@@ -477,7 +525,15 @@ fn recipe() -> SlotRecipe {
         .state(
             "resize-trigger",
             StateCondition::AttrEq("data-orientation", "vertical"),
-            vec![decl("cursor", "row-resize")],
+            vec![
+                decl("cursor", "row-resize"),
+                // イシュー #2202: 垂直 orientation ではヒットエリアを
+                // 上下へ広げる（水平既定の base 規則を参照）。
+                decl(
+                    "--fandhe-splitter-hit-inset",
+                    "calc(-1 * var(--fandhe-splitter-hit-extension, 0.25rem)) 0",
+                ),
+            ],
         )
         .state(
             "resize-trigger",
@@ -519,6 +575,18 @@ fn recipe() -> SlotRecipe {
             // Palette` は選択中の palette へリング色を連動させる
             // （`crate::slider` の `thumb` と同型）。
             focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Inset),
+        )
+        // イシュー #2202: `::after` による見えないヒットエリア拡張
+        // （shadcn/ui `ResizableHandle` 相当、本モジュール冒頭 rustdoc
+        // 「イシュー #2202」節参照）。`content` は未指定のため
+        // `SlotRecipe::pseudo_element` が `content: "";` を自動前置する。
+        .pseudo_element(
+            "resize-trigger",
+            PseudoElement::After,
+            vec![
+                decl("position", "absolute"),
+                decl("inset", "var(--fandhe-splitter-hit-inset)"),
+            ],
         )
         .base(
             "resize-trigger-indicator",

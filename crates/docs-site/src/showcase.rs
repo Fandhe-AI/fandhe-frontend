@@ -167,6 +167,9 @@ use fandhe_frontend_pre_styled_ui::marker::{
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
 use fandhe_frontend_pre_styled_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
+use fandhe_frontend_pre_styled_ui::message_scroller::{
+    self, MessageScrollerRootProps, MessageScrollerStuck,
+};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::nav_list;
 use fandhe_frontend_pre_styled_ui::navigation_menu;
@@ -699,6 +702,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: message_section,
     },
     ComponentPage {
+        path: "/themes/message-scroller/",
+        render: message_scroller_section,
+    },
+    ComponentPage {
         path: "/themes/textarea/",
         render: textarea_section,
     },
@@ -1102,6 +1109,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::item::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::message::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::message_scroller::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::bubble::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::attachment::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::marker::stylesheet())?;
@@ -6223,6 +6231,129 @@ fn message_section() -> Node {
                 vec![("class", "showcase-stack"), ("role", "list")],
                 vec![loading_instance, error_instance, system_instance],
             ),
+        ],
+    )
+}
+
+/// Message Scroller 節（イシュー #2123、親 #2120。headless anatomy は
+/// #2121）。`data-stuck` 2 値（bottom/free）・`data-has-new`・
+/// `data-visible`（jump-to-latest）・`data-loading`/`data-disabled`
+/// （load-more）は headless の `data-*` を `AttrEq`/`Attr` で参照するのみで
+/// class 軸を持たない（`message_scroller.rs` モジュール doc「表現」節
+/// 参照）。6 anatomy パーツ全て（root/viewport/content/anchor/
+/// jump-to-latest/load-more）を必ず描画する（Anatomy 表・`data-*` 属性表の
+/// 機械導出のため）。`crates/docs-site/src/primitive_showcase/
+/// data_display_utilities.rs::message_scroller_section`（Primitives 側
+/// Demo）と同じ 2 インスタンス構成（既定状態/離脱状態）を styled
+/// [`message`]/[`message_scroller`] で組み立てる。`content` には styled
+/// [`message::group`]/[`message::root`] を入れ子にする（headless
+/// `content` の required context を満たす）。
+fn message_scroller_section() -> Node {
+    let conversation = message::group(
+        "Conversation",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::User,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("How do I center a div?")],
+                )],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("Use display: flex and align-items: center.")],
+                )],
+            ),
+        ],
+    );
+    let at_bottom = message_scroller::root(
+        MessageScrollerRootProps {
+            stuck: MessageScrollerStuck::Bottom,
+            has_new: false,
+        },
+        vec![("style", "height: 14rem;")],
+        vec![
+            message_scroller::viewport(
+                "Conversation history",
+                vec![],
+                vec![
+                    // 「古いメッセージを読み込む」トリガーは一般的な chat UI の
+                    // 慣習に合わせ、スクロール領域（viewport）内の上端に置く
+                    // （headless 側に入れ子契約はないが、常時表示される
+                    // 位置としてこちらが自然。イシュー #2123 レビュー指摘）。
+                    message_scroller::load_more(
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Load older messages")],
+                    ),
+                    message_scroller::content(vec![], vec![conversation]),
+                    message_scroller::anchor(vec![]),
+                ],
+            ),
+            message_scroller::jump_to_latest("Jump to latest", false, vec![], vec![text("↓")]),
+        ],
+    );
+
+    let scrolled_up_thread = message::group(
+        "Conversation",
+        vec![],
+        vec![message::root(
+            MessageRootProps {
+                role: MessageRole::Assistant,
+                ..Default::default()
+            },
+            vec![],
+            vec![message::content(
+                vec![],
+                vec![text("New reply while you were scrolled up.")],
+            )],
+        )],
+    );
+    let scrolled_up = message_scroller::root(
+        MessageScrollerRootProps {
+            stuck: MessageScrollerStuck::Free,
+            has_new: true,
+        },
+        vec![("style", "height: 14rem;")],
+        vec![
+            message_scroller::viewport(
+                "Conversation history",
+                vec![],
+                vec![
+                    // 上記 at_bottom と同じ配置判断（viewport 内の上端、
+                    // イシュー #2123 レビュー指摘）。
+                    message_scroller::load_more(
+                        true,
+                        true,
+                        vec![],
+                        vec![text("Loading older messages...")],
+                    ),
+                    message_scroller::content(vec![], vec![scrolled_up_thread]),
+                    message_scroller::anchor(vec![]),
+                ],
+            ),
+            message_scroller::jump_to_latest("Jump to latest", true, vec![], vec![text("↓")]),
+        ],
+    );
+
+    section(
+        "Message Scroller",
+        "会話ログを収めるスクロールコンテナ。data-stuck（bottom/free）・data-has-new・jump-to-latest の data-visible・load-more の data-loading/data-disabled は headless の data-* を参照するのみで class 軸は持ちません。1 例目は最下部に張り付いている既定状態（末尾フェード解除）、2 例目は手動スクロールで離脱し新着がある状態（jump-to-latest 強調・load-more 読み込み中）です。",
+        vec![
+            div(vec![("class", "showcase-stack")], vec![at_bottom]),
+            div(vec![("class", "showcase-stack")], vec![scrolled_up]),
         ],
     )
 }
@@ -14962,7 +15093,8 @@ mod tests {
         // イシュー #2109 で Bubble を追加し 111 → 112 件になった。
         // イシュー #2112 で Attachment を追加し 112 → 113 件になった。
         // イシュー #2119 で questionnaire が加わり 114 → 115。
-        assert_eq!(paths.len(), 115, "COMPONENT_PAGES should have 115 entries");
+        // イシュー #2123 で Message Scroller を追加し 115 → 116 件になった。
+        assert_eq!(paths.len(), 116, "COMPONENT_PAGES should have 116 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

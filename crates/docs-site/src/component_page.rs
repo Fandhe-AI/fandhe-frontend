@@ -238,6 +238,10 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
     ),
     ("/themes/item/", crate::component_specs_nav_data::ITEM),
     ("/themes/message/", crate::component_specs_nav_data::MESSAGE),
+    (
+        "/themes/message-scroller/",
+        crate::component_specs_nav_data::MESSAGE_SCROLLER,
+    ),
     ("/themes/bubble/", crate::component_specs_nav_data::BUBBLE),
     (
         "/themes/attachment/",

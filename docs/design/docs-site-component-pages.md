@@ -173,6 +173,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Item | `item` | Data Display | `/themes/item/` | `site/themes/item.md` | `item_section()`（#2066 で新設） |
 | JSON Tree View | `json_tree_view` | Data Display | `/themes/json-tree-view/` | `site/themes/json-tree-view.md` | `json_tree_view_section()` |
 | Message | `message` | Data Display | `/themes/message/` | `site/themes/message.md` | `message_section()`（#2106 で新設） |
+| Message Scroller | `message_scroller` | Data Display | `/themes/message-scroller/` | `site/themes/message-scroller.md` | `message_scroller_section()`（#2123 で新設） |
 | Kbd | `kbd` | Typography | `/themes/kbd/` | `site/themes/kbd.md` | `kbd_section()` |
 | Line Chart | `line_chart` | Charts | `/themes/line-chart/` | `site/themes/line-chart.md` | `line_chart_section()` |
 | Link | `link` | Typography | `/themes/link/` | `site/themes/link.md` | `link_section()`（イシュー #1154） |
@@ -295,9 +296,9 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `clipboard` `collapsible` `dialog` `drawer` `floating_panel` `hover_card`
   `menu` `nav_list` `pagination` `popover` `sidebar` `splitter` `steps`
   `tabs` `toast` `toggle_tip` `tooltip` `tour`
-- **Data Display (26)**: `alert` `attachment` `avatar` `badge` `bubble` `card` `color_swatch`
+- **Data Display (27)**: `alert` `attachment` `avatar` `badge` `bubble` `card` `color_swatch`
   `data_list` `empty_state` `icon` `image` `item` `json_tree_view` `marker`
-  `message` `progress` `qr_code` `skeleton` `spinner` `stat` `status` `table`
+  `message` `message_scroller` `progress` `qr_code` `skeleton` `spinner` `stat` `status` `table`
   `tag` `timeline` `timer` `tree_view`
 - **Utilities (6)**: `link_overlay` `marquee` `scroll_area` `separator`
   `skip_nav` `visually_hidden`

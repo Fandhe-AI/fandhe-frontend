@@ -3,8 +3,11 @@
 //! `crates/pre-styled-ui/tests/steps_css.rs`/`slider`（`src/slider.rs` 内
 //! インラインテスト）の golden fixture テストの前例に倣い、`stylesheet()`
 //! が返す CSS 全文をバイト単位で固定する。出力順（base → variants →
-//! states）が崩れた場合や意図しない宣言の追加・欠落があった場合に、この
-//! golden テストが即座に検知する。
+//! states → pseudo-elements → hover）が崩れた場合や意図しない宣言の
+//! 追加・欠落があった場合に、この golden テストが即座に検知する。
+//! `resize-trigger` の `::after`（イシュー #2202、`SlotRecipe::
+//! pseudo_element` 経由）は states の後・`@media (hover: hover)` の前に
+//! 出力される（`crate::recipe::SlotRecipe::css` rustdoc の出力順序節参照）。
 
 use fandhe_frontend_pre_styled_ui::splitter;
 
@@ -39,6 +42,8 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
   justify-content: center;
   border-radius: var(--fandhe-radius-full, 999px);
   --fandhe-hover-bg: var(--fandhe-splitter-root-disabled-hover-bg, var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)));
+  position: relative;
+  --fandhe-splitter-hit-inset: 0 calc(-1 * var(--fandhe-splitter-hit-extension, 0.25rem));
 }
 
 [data-scope="splitter"][data-part="resize-trigger"] {
@@ -148,6 +153,7 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 
 [data-scope="splitter"][data-part="resize-trigger"][data-orientation="vertical"] {
   cursor: row-resize;
+  --fandhe-splitter-hit-inset: calc(-1 * var(--fandhe-splitter-hit-extension, 0.25rem)) 0;
 }
 
 [data-scope="splitter"][data-part="resize-trigger"][data-disabled] {
@@ -158,6 +164,12 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 [data-scope="splitter"][data-part="resize-trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
   outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
+
+[data-scope="splitter"][data-part="resize-trigger"]::after {
+  content: "";
+  position: absolute;
+  inset: var(--fandhe-splitter-hit-inset);
 }
 
 @media (hover: hover) {
@@ -234,5 +246,84 @@ fn root_disabled_rule_defines_hover_bg_override_for_resize_trigger_inheritance()
         ),
         "resize-trigger base rule must reference the root-disabled override as its \
          highest-priority fallback: {resize_trigger_block}"
+    );
+}
+
+// イシュー #2202: `resize-trigger` の `::after` が見えないヒットエリア
+// 拡張（shadcn/ui `ResizableHandle` 相当）を提供することを固定する。
+// `::after` 規則自体は無条件 1 本（`content`/`position: absolute`/
+// `inset: var(--fandhe-splitter-hit-inset)`）だが、`--fandhe-splitter-
+// hit-inset` は base（水平既定）と `data-orientation="vertical"` state
+// のそれぞれが疑似要素へ継承される custom property として個別に定義する
+// ため、両ブロックにそれぞれ水平/垂直の値が存在することも併せて検証する
+// （疑似要素は `SlotRecipe` 上、状態条件付きの規則を直接持てないため、
+// custom property 継承で向きを切り替える設計、`crate::splitter` rustdoc
+// 「イシュー #2202」節参照）。
+#[test]
+fn resize_trigger_after_pseudo_element_expands_hit_area_via_inherited_inset() {
+    let css = splitter::stylesheet();
+
+    // `::after` 規則は CSS 全文で 1 回だけ出現する（無条件・状態条件別に
+    // 複数登録しない設計であることの固定）。
+    assert_eq!(
+        css.matches(r#"[data-scope="splitter"][data-part="resize-trigger"]::after {"#)
+            .count(),
+        1,
+        "resize-trigger ::after rule must appear exactly once: {css}"
+    );
+
+    let after_rule = css
+        .find(r#"[data-scope="splitter"][data-part="resize-trigger"]::after {"#)
+        .expect("resize-trigger ::after rule must exist");
+    let after_block_end = css[after_rule..]
+        .find('}')
+        .expect("resize-trigger ::after rule must be closed");
+    let after_block = &css[after_rule..after_rule + after_block_end];
+    assert!(
+        after_block.contains("content: \"\";"),
+        "::after must have an auto-injected empty content: {after_block}"
+    );
+    assert!(
+        after_block.contains("position: absolute;"),
+        "::after must be absolutely positioned relative to resize-trigger: {after_block}"
+    );
+    assert!(
+        after_block.contains("inset: var(--fandhe-splitter-hit-inset);"),
+        "::after must expand via the inherited hit-inset custom property: {after_block}"
+    );
+
+    let resize_trigger_base_rule = css
+        .find(r#"[data-scope="splitter"][data-part="resize-trigger"] {"#)
+        .expect("resize-trigger base rule must exist");
+    let resize_trigger_block_end = css[resize_trigger_base_rule..]
+        .find('}')
+        .expect("resize-trigger base rule must be closed");
+    let resize_trigger_block =
+        &css[resize_trigger_base_rule..resize_trigger_base_rule + resize_trigger_block_end];
+    assert!(
+        resize_trigger_block.contains("position: relative;"),
+        "resize-trigger base rule must be positioned so ::after anchors to it: {resize_trigger_block}"
+    );
+    assert!(
+        resize_trigger_block.contains(
+            "--fandhe-splitter-hit-inset: 0 calc(-1 * var(--fandhe-splitter-hit-extension, 0.25rem));"
+        ),
+        "resize-trigger base rule must define the horizontal (default) hit-inset: {resize_trigger_block}"
+    );
+
+    let vertical_rule = css
+        .find(
+            r#"[data-scope="splitter"][data-part="resize-trigger"][data-orientation="vertical"] {"#,
+        )
+        .expect("resize-trigger vertical state rule must exist");
+    let vertical_block_end = css[vertical_rule..]
+        .find('}')
+        .expect("resize-trigger vertical state rule must be closed");
+    let vertical_block = &css[vertical_rule..vertical_rule + vertical_block_end];
+    assert!(
+        vertical_block.contains(
+            "--fandhe-splitter-hit-inset: calc(-1 * var(--fandhe-splitter-hit-extension, 0.25rem)) 0;"
+        ),
+        "resize-trigger vertical state rule must override hit-inset for the vertical axis: {vertical_block}"
     );
 }
