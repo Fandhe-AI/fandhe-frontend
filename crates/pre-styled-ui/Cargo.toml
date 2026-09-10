@@ -2869,7 +2869,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更）を統合した結果として main の到達値 0.172.0 をさらに上回る
 # 0.173.0 へマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約。
 # 片方の到達値をそのまま採用しない原則）。
-version = "0.173.0"
+#
+# イシュー #2119: styled `questionnaire`（recipe・golden テスト・Themes
+# ページ）を新設したため、公開 API の純追加として 0.174.0 へマイナー
+# バンプする。
+version = "0.174.0"
 
 
 edition = "2021"
