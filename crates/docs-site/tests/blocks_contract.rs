@@ -26,79 +26,24 @@ use std::path::{Path, PathBuf};
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_docs_site::blocks;
-use fandhe_frontend_docs_site::build::build_site;
+
+#[path = "support/shared_site.rs"]
+mod shared_site;
 
 fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("repo_root should resolve from CARGO_MANIFEST_DIR")
+    shared_site::repo_root()
 }
 
-/// `tests/site_build.rs::scratch_root`/`TempDir` と同じ規約
-/// （`CARGO_TARGET_TMPDIR` 固定配置、`/tmp` へフォールバックしない）。
-fn scratch_root() -> PathBuf {
-    let root = std::env::var("CARGO_TARGET_TMPDIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
-    let _ = std::fs::create_dir_all(&root);
-    root
-}
-
-struct TempDir(PathBuf);
-
-/// プロセス内で `TempDir::new` が呼ばれるたびに単調増加する値。`Drop` が
-/// 実際にディレクトリを削除するようになった（旧 `std::mem::forget` リーク
-/// 運用の是正、イシュー #2088 PR #2277 codex-review P2 指摘）ことで、
-/// 同一テストバイナリ内の複数スレッドが `build_real_site()`（同一 tag
-/// `"real-site"`）をほぼ同時刻に呼ぶと、ナノ秒精度の時刻だけでは衝突し得る
-/// （実測: `cargo test`（既定並列）で 4 テスト中 1 件が
-/// `NotFound: blocks/login-01/index.html` で偶発 FAIL、`--test-threads=1`
-/// では常に成功。2 スレッドが同じ `(pid, nanos)` でディレクトリ名を得ると
-/// 両者が同じパスへ書き込み・先に終わった側の `Drop` がもう片方の生成物を
-/// 削除してしまうため）。pid・時刻に加えプロセス内カウンタを混ぜ、
-/// 同一プロセス内での衝突を構造的に無くす。
-static TEMP_DIR_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-impl TempDir {
-    fn new(tag: &str) -> Self {
-        let unique = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let seq = TEMP_DIR_SEQ.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let path = scratch_root().join(format!(
-            "fandhe-frontend-docs-site-blocks-contract-{tag}-{}-{unique}-{seq}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&path).expect("create temp dir for blocks_contract.rs test");
-        Self(path)
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// `TempDir` を `&Path` として透過的に扱えるようにする（`out.join(...)` 等の
-/// 呼び出し元を変えずに所有権だけをテスト関数の戻り値へ持ち出すため）。
-impl std::ops::Deref for TempDir {
-    type Target = Path;
-
-    fn deref(&self) -> &Path {
-        &self.0
-    }
-}
-
-/// 生成物のディレクトリ「所有者」（`TempDir`）をそのまま返す。呼び出し元が
-/// 戻り値を保持している間だけ生成物が生存し、テスト関数終了時に `Drop` で
-/// 確実に削除される（以前の `std::mem::forget` によるリーク運用を是正）。
-fn build_real_site() -> TempDir {
-    let out = TempDir::new("real-site");
-    build_site(&repo_root(), &out.0).expect("real site/nav.toml should build cleanly");
-    out
+/// 実サイトビルドの生成物ディレクトリを返す（読み取り専用）。
+///
+/// 従来は本ファイル内でテストごとに `build_site` を再実行していた
+/// （13 テストで 13 回の実サイトフルビルド、イシュー #2299）が、いずれの
+/// テストも生成物を読み取るだけで書き込み・削除は行わないため、
+/// `tests/support/shared_site.rs` の共有ビルド（テストバイナリ内で 1 回だけ
+/// 実行）へ切り替えた。返す `&Path` は共有ビルドの出力を指すため、呼び出し
+/// 元で書き込み・削除しないこと。
+fn build_real_site() -> &'static Path {
+    shared_site::real_site().out_dir.as_path()
 }
 
 #[test]
