@@ -176,7 +176,7 @@ fn recipe() -> SlotRecipe {
         decl("padding", "0 var(--fandhe-space-4)"),
         decl("border-radius", "var(--fandhe-radius-md)"),
         decl("border", "1px solid transparent"),
-        decl("font-weight", "medium"),
+        decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
         decl("cursor", "pointer"),
     ];
 

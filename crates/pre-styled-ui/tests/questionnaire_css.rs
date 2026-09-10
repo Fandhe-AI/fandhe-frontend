@@ -75,7 +75,7 @@ const QUESTIONNAIRE_GOLDEN_CSS: &str = "[data-scope=\"questionnaire\"][data-part
   padding: 0 var(--fandhe-space-4);
   border-radius: var(--fandhe-radius-md);
   border: 1px solid transparent;
-  font-weight: medium;
+  font-weight: var(--fandhe-font-font-weight-medium);
   cursor: pointer;
   background: transparent;
   border-color: var(--fandhe-color-border);
@@ -93,7 +93,7 @@ const QUESTIONNAIRE_GOLDEN_CSS: &str = "[data-scope=\"questionnaire\"][data-part
   padding: 0 var(--fandhe-space-4);
   border-radius: var(--fandhe-radius-md);
   border: 1px solid transparent;
-  font-weight: medium;
+  font-weight: var(--fandhe-font-font-weight-medium);
   cursor: pointer;
   background: var(--fandhe-color-accent);
   border-color: var(--fandhe-color-accent);
@@ -111,7 +111,7 @@ const QUESTIONNAIRE_GOLDEN_CSS: &str = "[data-scope=\"questionnaire\"][data-part
   padding: 0 var(--fandhe-space-4);
   border-radius: var(--fandhe-radius-md);
   border: 1px solid transparent;
-  font-weight: medium;
+  font-weight: var(--fandhe-font-font-weight-medium);
   cursor: pointer;
   background: transparent;
   border-color: transparent;
