@@ -124,6 +124,18 @@
 //! （`fandhe-frontend-headless-ui` `calendar` モジュール）の gridcell 間
 //! フォーカス移動を提供する（`keynav` モジュール doc §Calendar 参照）。
 //!
+//! [`content_height`] モジュール（イシュー #2191、親トラッキング #2189）は
+//! collapsible / accordion（`fandhe-frontend-headless-ui` の disclosure 系）
+//! の content 要素が closed のとき `hidden` を持つ契約
+//! （`height: auto` への CSS トランジションを成立させられない制約）を
+//! 変えないまま、実測高さを CSS カスタムプロパティ
+//! `--fandhe-content-height` へ書き込む部品非依存の共通ヘルパーを提供する。
+//! `chart`/`sidebar` と同じ 2 層構成を踏襲し、対象パーツは
+//! `(data-scope, data-part)` の静的表のみで宣言する。
+//! [`headless::wire_headless_component`] から dispatch 成功後の再描画に
+//! 続けて自動的に呼ばれ、headless-ui 側の変更は伴わない
+//! （`content_height` モジュール doc 参照）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -140,6 +152,7 @@
 pub mod angle_slider;
 pub mod chart;
 pub mod command;
+pub mod content_height;
 pub mod csr;
 pub mod events;
 pub mod focus_trap;

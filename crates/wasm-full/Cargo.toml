@@ -786,11 +786,18 @@ name = "fandhe-frontend-wasm-full"
 # クレート自体の配線は未着手）。origin/main の到達値 0.17.2 からさらに
 # +1（patch）して 0.17.3 とする。
 #
+# イシュー #2191（親トラッキング #2189）base 取り込み: 新規公開モジュール
+# `content_height`（`CONTENT_HEIGHT_VAR`/`TARGETS`/`is_target`/
+# `target_selector`/`format_content_height`/`sync_content_height`）の
+# 追加、および `headless::wire_headless_component` への非破壊的な内部統合
+# （公開シグネチャは不変）。既存公開 API は変更していないため patch
+# バンプ（0.17.3 → 0.17.4）。
+#
 # イシュー #2118: `questionnaire` モジュール（back/next/skip クリックから
 # `data-state` 更新への配線）を新規追加し、`Runtime::mount`/`Runtime::hydrate`
 # へ自動配線した（新規公開 API の追加＝機能追加）。0.x の非破壊的機能追加
-# のため minor バンプとし、0.17.3 → 0.18.0 とする（`chart` モジュール追加時
-# 〔#2130〕の先例と同型の判断）。
+# のため minor バンプとし、origin/main の到達値 0.17.4 から 0.18.0 とする
+# （`chart` モジュール追加時〔#2130〕の先例と同型の判断）。
 version = "0.18.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"

@@ -754,6 +754,16 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test chart_tooltip_browser
 
+      # イシュー #2191（親トラッキング #2189）: collapsible / accordion の
+      # content 高さ実測 → CSS 変数 `--fandhe-content-height` 書き込み
+      # 配線（crates/wasm-full/src/content_height.rs）の実ブラウザ統合
+      # テスト（crates/wasm-full/tests/content_height_browser.rs）。他の
+      # wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。
+      - name: Run wasm-full content height browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test content_height_browser
+
       # イシュー #2118（親 #2117）: Questionnaire（`fandhe-frontend-headless-ui`
       # `questionnaire` モジュール）の back / next / skip クリックから
       # `data-state` 更新への配線（crates/wasm-full/src/questionnaire.rs）の
