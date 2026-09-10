@@ -210,25 +210,27 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // #2089 で dashboard-01 が加わり、221 → 222 になった。イシュー #2117
     // で Questionnaire（Primitives）が加わり、222 → 223 になった。イシュー
     // #2090 で sidebar-07 が加わり、223 → 224 になった。イシュー #2091 で
-    // sidebar-03 が加わり、224 → 225 になった。イシュー #2119 で
-    // Questionnaire の Themes ページが加わり、225 → 226 になった。イシュー
-    // #2094 で signup-01 が加わり、226 → 227 になった。イシュー #2095 で
-    // signup-05 が加わり、227 → 228 になった。
-    assert_eq!(pages.len(), 228, "expected 228 pages, got {pages:?}");
+    // sidebar-03 が加わり、224 → 225 になった。イシュー #2093 で login-04
+    // が加わり、225 → 226 になった。イシュー #2119 で Questionnaire の
+    // Themes ページが加わり、226 → 227 になった。イシュー #2094 で
+    // signup-01 が加わり、227 → 228 になった。イシュー #2095 で signup-05
+    // が加わり、228 → 229 になった。
+    assert_eq!(pages.len(), 229, "expected 229 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
     // イシュー #2090 で sidebar-07 が加わり 4 件。イシュー #2091 で
-    // sidebar-03 が加わり 5 件。イシュー #2094 で signup-01 が加わり 6 件。
-    // イシュー #2095 で signup-05 が加わり 7 件。
+    // sidebar-03 が加わり 5 件。イシュー #2093 で login-04 が加わり 6 件。
+    // イシュー #2094 で signup-01 が加わり 7 件。イシュー #2095 で
+    // signup-05 が加わり 8 件。
     let blocks_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/blocks/"))
         .collect();
     assert_eq!(
         blocks_pages.len(),
-        7,
-        "expected 7 /blocks/ pages (index + login-01 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05), got {blocks_pages:?}"
+        8,
+        "expected 8 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05), got {blocks_pages:?}"
     );
     assert!(
         pages.contains(&("site/blocks.md", "/blocks/")),
@@ -237,6 +239,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     assert!(
         pages.contains(&("site/blocks/login-01.md", "/blocks/login-01/")),
         "nav.toml is missing the login-01 block page"
+    );
+    assert!(
+        pages.contains(&("site/blocks/login-04.md", "/blocks/login-04/")),
+        "nav.toml is missing the login-04 block page"
     );
     assert!(
         pages.contains(&("site/blocks/dashboard-01.md", "/blocks/dashboard-01/")),
