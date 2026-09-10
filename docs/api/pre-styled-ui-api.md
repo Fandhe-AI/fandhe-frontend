@@ -1448,7 +1448,7 @@ pie-active は存在しない）・カテゴリごとの任意色（`ChartData` 
 hit-area `data-*`（#2128）・`chart-pie-interactive`（期間切替）・凡例の
 系列トグル（#2132）は対象外。
 
-## 4l. `theme` モジュール: Theme トークン API と `upsert_*`（イシュー #547/#606/#1138/#1423/#1678）
+## 4l. `theme` モジュール: Theme トークン API と `upsert_*`（イシュー #547/#606/#1138/#1423/#1678/#2197）
 
 ### API 一覧
 
@@ -1465,6 +1465,7 @@ impl Theme {
     pub fn push_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
     pub fn push_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1423
     pub fn push_size(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1678
+    pub fn push_breakpoint(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #2197
 
     // 追加または上書き（イシュー #1138。DuplicateTokenName を返さない）
     pub fn upsert_color(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
@@ -1474,6 +1475,7 @@ impl Theme {
     pub fn upsert_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
     pub fn upsert_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1423
     pub fn upsert_size(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1678
+    pub fn upsert_breakpoint(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #2197
 
     pub fn to_css(&self) -> String;
 }
@@ -1481,11 +1483,22 @@ impl Theme {
 // var(--fandhe-...) 参照ヘルパ（自由関数、`Theme` の inherent メソッドではない）
 pub fn z_index_var(name: &str) -> Result<String, ThemeError>; // イシュー #1423
 pub fn size_var(name: &str) -> Result<String, ThemeError>; // イシュー #1678
+pub fn breakpoint_var(name: &str) -> Result<String, ThemeError>; // イシュー #2197。参照専用（下記注記参照）
 ```
 
 色（colors）・影（shadows）はライト/ダーク 2 値、余白（spaces）・
 タイポグラフィ（typography）・角丸（radii）・重なり順（z-indices、イシュー
-#1423 で新設）・size（イシュー #1678 で新設）はモード非依存の 1 値を取る。
+#1423 で新設）・size（イシュー #1678 で新設）・breakpoint（イシュー #2197
+で新設）はモード非依存の 1 値を取る。
+
+**breakpoint トークンは参照専用**（イシュー #2197）: CSS custom property
+は `@media` プレリュードで使えないため、`push_breakpoint`/
+`upsert_breakpoint` で登録した値は `crate::recipe::SlotRecipe::breakpoint`
+が生成する `@media (min-width: ...)` の閾値には一切影響しない。閾値の
+唯一の定義元は `crate::recipe::Breakpoint::min_width()`（`const fn`）で
+あり、テーマトークンはこの値と `Theme::default()` 構築時に自動的に
+同期する（2 箇所の手打ちドリフトを構造的に防ぐ）。JS の `matchMedia`・
+利用者の独自スタイルシートから読む用途を想定する。
 
 ### `Theme::default()` の既定色トークン一覧（イシュー #1422）
 
@@ -1505,8 +1518,8 @@ Themes の色スケールとの対応表・「どの部品がどの semantic 名
 
 | API | 同名トークンが既存の場合 | 用途 |
 |-----|--------------------------|------|
-| `push_color` / `push_space` / `push_typography` / `push_radius` / `push_shadow` / `push_z_index` / `push_size` | `ThemeError::DuplicateTokenName` を返して拒否（fail-closed） | 新規トークンの追加。意図しない上書きを防ぐ既定挙動 |
-| `upsert_color` / `upsert_space` / `upsert_typography` / `upsert_radius` / `upsert_shadow` / `upsert_z_index` / `upsert_size` | 挿入順（＝ `Theme::to_css` の出力順）を保ったまま値を in-place 置換。存在しなければ末尾追加 | 既存トークン（既定パレット含む）の明示的な上書き。`DuplicateTokenName` を返すことはない |
+| `push_color` / `push_space` / `push_typography` / `push_radius` / `push_shadow` / `push_z_index` / `push_size` / `push_breakpoint` | `ThemeError::DuplicateTokenName` を返して拒否（fail-closed） | 新規トークンの追加。意図しない上書きを防ぐ既定挙動 |
+| `upsert_color` / `upsert_space` / `upsert_typography` / `upsert_radius` / `upsert_shadow` / `upsert_z_index` / `upsert_size` / `upsert_breakpoint` | 挿入順（＝ `Theme::to_css` の出力順）を保ったまま値を in-place 置換。存在しなければ末尾追加 | 既存トークン（既定パレット含む）の明示的な上書き。`DuplicateTokenName` を返すことはない |
 
 ### `Theme::default()` の既定値を差し替える正規経路
 
@@ -1585,6 +1598,42 @@ styled 部品が共用する 2 つの標準 variant 軸である。イシュー 
 `palette_declarations` の 3 役割はそのまま維持）も同イシューで新設した。
 判断根拠・非採用事項・再評価トリガーの詳細は
 `docs/design/pre-styled-ui-size-and-color-palette-axes.md` を参照。
+
+### `recipe::Breakpoint` / `SlotRecipe::breakpoint`（イシュー #2197）
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Breakpoint { Sm, Md, Lg, Xl }
+
+impl Breakpoint {
+    pub const ALL: [Breakpoint; 4];
+    pub const fn value(self) -> &'static str;      // "sm" / "md" / "lg" / "xl"
+    pub const fn min_width(self) -> &'static str;   // "640px" / "768px" / "1024px" / "1280px"
+}
+
+impl SlotRecipe {
+    pub fn breakpoint(
+        self,
+        slot: &'static str,
+        bp: Breakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self; // builder、自己消費
+}
+```
+
+`StateCondition` と並ぶ条件だが、variant 軸でも状態条件でもない別
+カテゴリのため独立した enum とした。`SlotRecipe::breakpoint` が登録した
+規則は `SlotRecipe::css()` の出力で「states の後・hover ブロック
+（`@media (hover: hover)`）の前」に、`Breakpoint::ALL` の昇順
+（`sm` → `xl`、mobile-first）で `@media (min-width: <bp.min_width()>)`
+ブロックとして出力される（1 breakpoint = 1 ブロック、同一 breakpoint 内は
+登録順）。セレクタは base と同じ詳細度 `[data-scope][data-part]`
+（0,2,0）のため、同一 slot・同一プロパティを variant（0,3,0）が宣言して
+いると variant が常に勝つ。breakpoint × variant / breakpoint × state の
+複合条件（`@media` 内の `.fd-*` クラス・`:hover` 規則）は未実装
+（スコープ外、`docs/design/pre-styled-ui-scale-tokens.md` §3.6/§7 参照）。
+段の値（chakra-ui v3・shadcn/ui〔Tailwind v4〕と `sm` 以外で完全一致、
+`2xl` は見送り）の採用根拠は同文書 §3.6 を参照。
 
 ## 4m. `sidebar`（イシュー #2073、親 #2071。headless anatomy は #2072）
 
