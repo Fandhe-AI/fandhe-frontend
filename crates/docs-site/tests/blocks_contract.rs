@@ -357,6 +357,111 @@ fn sidebar_07_composes_expected_parts() {
     );
 }
 
+/// sidebar-03 の Demo が `blocks-demo`/block 固有 class・pre-styled-ui.css/
+/// blocks.css の `<link>`・`data-blocks-sidebar-03-*` CSS フックを実際に
+/// 出力し、`blocks::stylesheet()` に対応するセレクタが存在することを固定
+/// する（`sidebar_07_page_wires_demo_class_and_css_hooks` と同型）。
+#[test]
+fn sidebar_03_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/sidebar-03/index.html"))
+        .expect("blocks/sidebar-03/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-sidebar-03\""),
+        "sidebar-03 page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "sidebar-03 page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "sidebar-03 page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-sidebar-03-instance=\"\"",
+        "data-blocks-sidebar-03-brand=\"\"",
+        "data-blocks-sidebar-03-brand-icon=\"\"",
+        "data-blocks-sidebar-03-parent=\"\"",
+        "data-blocks-sidebar-03-header=\"\"",
+        "data-blocks-sidebar-03-grid=\"\"",
+        "data-blocks-sidebar-03-placeholder=\"\"",
+        "data-blocks-sidebar-03-placeholder-lg=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "sidebar-03 page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-sidebar-03-brand-icon]",
+        "[data-blocks-sidebar-03-parent]",
+        "[data-blocks-sidebar-03-header]",
+        "[data-blocks-sidebar-03-grid]",
+        "[data-blocks-sidebar-03-placeholder]",
+        "[data-blocks-sidebar-03-placeholder-lg]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+    // `data-blocks-sidebar-03-instance` は provider 要素自身に付与される
+    // ため、対応する min-height/min-width 上書き規則は子孫コンビネータ
+    // ではなく同一要素への複合セレクタでなければマッチしない（sidebar-07
+    // の codex-review/Bugbot 指摘の回帰防止と同型、イシュー #2091）。
+    assert!(
+        sheet_css.contains(
+            "[data-blocks-sidebar-03-instance][data-scope=\"sidebar\"][data-part=\"provider\"]"
+        ),
+        "blocks.css should target [data-blocks-sidebar-03-instance] as a compound selector on the provider element, not a descendant combinator"
+    );
+}
+
+/// sidebar-03 の合成部品（sidebar/breadcrumb/separator/icon）が anatomy の
+/// `data-*` として実際に出力されていること、現在項目に `data-active` が
+/// 付与されること、`collapsible`/`menu`/`avatar` scope を持ち込んでいない
+/// こと（sidebar-07 との構成上の区別）、死リンク・`<form>` が無いことを
+/// 固定する。
+#[test]
+fn sidebar_03_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/sidebar-03/index.html"))
+        .expect("blocks/sidebar-03/index.html should be generated");
+    for needle in [
+        "data-scope=\"sidebar\"",
+        "data-part=\"menu-sub\"",
+        "data-part=\"menu-sub-button\"",
+        "data-active",
+        "data-state=\"expanded\"",
+        "data-collapsible=\"offcanvas\"",
+        "data-scope=\"breadcrumb\"",
+        "aria-current=\"page\"",
+        "data-size=\"lg\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "sidebar-03 page should contain {needle}"
+        );
+    }
+    for absent in [
+        "<form",
+        "href=\"#\"",
+        "data-scope=\"collapsible\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"avatar\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "sidebar-03 should never contain {absent}"
+        );
+    }
+}
+
 /// Demo が使う `aria-controls`/`aria-labelledby`/`aria-describedby` の
 /// 参照先 `id` が同一 Demo 出力内に実在し、`id` が重複しないことを固定する
 /// （対象はページ全体ではなく `(block.demo)()` の部分木のみ。レイアウト側
