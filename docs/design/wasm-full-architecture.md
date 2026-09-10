@@ -2207,3 +2207,32 @@ MAPPING_TABLE 各行・keynav 各 arm の cfg 付与、Cargo.toml への feature
 CI feature matrix・browser テストの per-test cfg（`keynav_browser.rs`/
 `headless_wiring_browser.rs`）は #2328、dist-server 経路の feature 集合
 決定は #2329、利用者向け docs/examples 反映は #2330 へ引き継ぐ。
+
+### 34.7 MAPPING_TABLE 行削除方式の是正（codex-review PR #2339 P0 指摘）
+
+§34.3 で採用した「配列リテラル要素への `#[cfg(feature = "...")]`」（行を
+feature 無効時に配列から丸ごと除去する方式）は、
+`crate::headless::action_from_parts_scoped`（クリック位置から根方向へ
+祖先探索し、最初に解決できた part のアクションを返す）に fail-open の
+回帰を持ち込んでいた: 無効化した scope（例: `collapsible`）の行が消えると
+`action_for_part` は当該 part を単に「表に無い part」（`item-text` 等と
+区別不能）として `None` を返すため、探索は祖先方向へ継続し、無効化した
+scope の祖先に別 scope（例: `sidebar`）の行があればそちらへ誤って
+dispatch されてしまう（`crates/wasm-full/tests/feature_gating_contract.rs`
+とは独立に、Bugbot が `action_from_parts_scoped_rejects_when_innermost_match_is_a_different_scope`
+テストの feature-gate 漏れとして副作用を指摘）。
+
+是正として、`MappingRow` へ `enabled: bool`（`cfg!(feature = "...")` で
+評価）フィールドを追加し、行自体は feature の有無に関わらず常に
+`MAPPING_TABLE` に存在させる方式へ変更した。`#[cfg(feature = "...")]` は
+配列要素ではなく撤去し、各フィールドの直後に `enabled: cfg!(feature =
+"...")` を書く（`feature_gating_contract.rs` の契約 1 もこの新方式へ
+追随更新済み: `MappingRow {` の直後行から `enabled: cfg!(feature =
+"X"),` の 1 行を機械検知する形へ変更し、行数 32 の期待値は維持）。
+`action_for_part` は `row.enabled == false` のとき引き続き `None` を返し
+実際の dispatch は起きない（既定の fail-closed 契約は不変）。一方
+`action_from_parts_scoped` は新設した `is_known_mapping_target`
+（`MAPPING_TABLE` に (scope, part) の行が存在するかどうかを `enabled` を
+問わず判定する）を使い、「既知の操作対象境界だが解決できなかった」場合に
+祖先探索をその場で打ち切るようにした。「マッピング表に存在しない
+part」（`item-text` 等）は従来どおり祖先方向への探索を継続する。

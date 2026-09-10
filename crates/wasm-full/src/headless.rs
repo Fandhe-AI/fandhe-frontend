@@ -63,16 +63,23 @@
 //! 呼び出し側が経由する `fandhe_frontend_core::render`（既定エスケープ）が
 //! 担う（`crate::events` の既存契約と同一）。
 //!
-//! # scope feature による行単位 cfg ゲート（イシュー #2327）
+//! # scope feature による行単位 gating（イシュー #2327・#2339）
 //!
 //! [`MAPPING_TABLE`] の各行は、その行の `scope` 文字列と同名の feature
-//! （既定 on）で `#[cfg(feature = "...")]` ゲートされている（対応表は
-//! `crate` クレート doc §scope feature 参照）。feature を絞った構成では
-//! 該当行が配列から丸ごと消え、対応する `data-scope`/`data-part` の
-//! クリックは他の表外パーツと同じ fail-closed 経路（`None`）へ倒れる
-//! （新たな迂回経路を作らない）。新規行を追加する際は必ず同じパターン
-//! で cfg を付け、`crates/wasm-full/tests/feature_gating_contract.rs` が
-//! 対応を機械検知する。
+//! （既定 on）に対応する [`MappingRow::enabled`]（`cfg!(feature = "...")`
+//! で評価）を持つ（対応表は `crate` クレート doc §scope feature 参照）。
+//! feature を絞った構成でも行自体は配列から消えず、`enabled` が `false`
+//! になるのみである（[`action_for_part`] はこの場合 `None` を返し、実際の
+//! dispatch は起きない）。行を残すのは、[`action_from_parts_scoped`] が
+//! 「(scope, part) が既知の操作対象境界か」を feature の有無に関わらず
+//! 判定し、feature 無効時にそこで祖先探索を打ち切るためである（行ごと
+//! 消してしまうと、祖先方向にある無関係な別 scope へ誤って解決される
+//! fail-open が生じる。codex-review PR #2339 P0 指摘、詳細は
+//! [`action_from_parts_scoped`] doc 参照。新たな迂回経路を作らない）。
+//! 新規行を追加する際は必ず同じパターン（各フィールドの直後に
+//! `enabled: cfg!(feature = "...")` を追加）に従い、
+//! `crates/wasm-full/tests/feature_gating_contract.rs` が対応を機械検知
+//! する。
 
 use crate::events::ActionRef;
 
@@ -85,6 +92,21 @@ struct MappingRow {
     /// `data-value` が欠落している場合は fail-closed で `None`（マッピング
     /// 不成立）とする。`false` の行は payload を常に空文字列とする。
     requires_value: bool,
+    /// この行に対応する scope feature（既定 on）が有効かどうか
+    /// （`cfg!(feature = "...")` で評価、イシュー #2327/#2339）。行自体は
+    /// feature の有無に関わらず常に [`MAPPING_TABLE`] に存在し続ける
+    /// （旧実装は行自体を `#[cfg(feature = "...")]` で配列から丸ごと
+    /// 除去していたが、この方式では feature 無効時に
+    /// [`action_from_parts_scoped`] が「(scope, part) が既知の操作対象
+    /// 境界である」という情報自体を失い、祖先探索がその scope を
+    /// すり抜けて外側の無関係な別 scope（例: `collapsible` を無効化した
+    /// 状態で外側の `sidebar`）へ誤って dispatch してしまっていた
+    /// （codex-review PR #2339 P0 指摘）。行を残したまま `enabled` を
+    /// `false` にすることで、[`action_for_part`] は変わらず `None` を
+    /// 返しつつ（実際の dispatch はしない）、[`action_from_parts_scoped`]
+    /// は「この (scope, part) は既知の境界だが feature 無効で解決不能」
+    /// と判別でき、そこで祖先探索を打ち切れる。
+    enabled: bool,
 }
 
 /// headless-ui 全コンポーネント共通の (scope, part) → アクションマッピング表。
@@ -95,40 +117,40 @@ struct MappingRow {
 const MAPPING_TABLE: &[MappingRow] = &[
     // Disclosure 系（Collapsible/Dialog/Popover/Tooltip/Menu）の trigger は
     // すべて "toggle"（Disclosure/DisclosureAction の共通語彙）。
-    #[cfg(feature = "collapsible")]
     MappingRow {
         scope: "collapsible",
         part: "trigger",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "collapsible"),
     },
-    #[cfg(feature = "dialog")]
     MappingRow {
         scope: "dialog",
         part: "trigger",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "dialog"),
     },
-    #[cfg(feature = "popover")]
     MappingRow {
         scope: "popover",
         part: "trigger",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "popover"),
     },
-    #[cfg(feature = "tooltip")]
     MappingRow {
         scope: "tooltip",
         part: "trigger",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "tooltip"),
     },
-    #[cfg(feature = "menu")]
     MappingRow {
         scope: "menu",
         part: "trigger",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "menu"),
     },
     // trigger-item（サブメニューを開く menu item、`Menu::trigger_item`）も
     // Disclosure の "toggle" を dispatch する。サブメニューは「子 Menu
@@ -138,12 +160,12 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // マウスクリックでの開閉が no-op になる（キーボード操作 ArrowRight/
     // ArrowLeft が合成する `click()` もこの経路を辿るため、同じく no-op に
     // なっていた。イシュー #662 PR #674 Bugbot 指摘の修正）。
-    #[cfg(feature = "menu")]
     MappingRow {
         scope: "menu",
         part: "trigger-item",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "menu"),
     },
     // checkbox-item/radio-item（イシュー #2205、`crates/headless-ui/src/menu.rs`
     // の `checkbox_item`/`radio_item`）: `MENU_ITEM_SELECTOR`（`crate::keynav`）
@@ -176,82 +198,82 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // PR #2321 P1 指摘の是正。`menu`/`trigger-item` → 子 Menu の
     // `stop_propagation` による越境防止とは異なる機構だが目的は同型、
     // `docs/design/wasm-full-architecture.md` §31 参照）。
-    #[cfg(feature = "menu")]
     MappingRow {
         scope: "menu",
         part: "checkbox-item",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "menu"),
     },
-    #[cfg(feature = "menu")]
     MappingRow {
         scope: "menu",
         part: "radio-item",
         action: "select",
         requires_value: true,
+        enabled: cfg!(feature = "menu"),
     },
     // close-trigger（Dialog/Popover）は "close"。
-    #[cfg(feature = "dialog")]
     MappingRow {
         scope: "dialog",
         part: "close-trigger",
         action: "close",
         requires_value: false,
+        enabled: cfg!(feature = "dialog"),
     },
-    #[cfg(feature = "popover")]
     MappingRow {
         scope: "popover",
         part: "close-trigger",
         action: "close",
         requires_value: false,
+        enabled: cfg!(feature = "popover"),
     },
     // select 系（Tabs/RadioGroup/Select）の項目クリックは "select"（value 必須）。
-    #[cfg(feature = "tabs")]
     MappingRow {
         scope: "tabs",
         part: "trigger",
         action: "select",
         requires_value: true,
+        enabled: cfg!(feature = "tabs"),
     },
-    #[cfg(feature = "radio-group")]
     MappingRow {
         scope: "radio-group",
         part: "item",
         action: "select",
         requires_value: true,
+        enabled: cfg!(feature = "radio-group"),
     },
-    #[cfg(feature = "select")]
     MappingRow {
         scope: "select",
         part: "item",
         action: "select",
         requires_value: true,
+        enabled: cfg!(feature = "select"),
     },
     // Select 固有: trigger は listbox 開閉トグル、clear-trigger は選択解除。
-    #[cfg(feature = "select")]
     MappingRow {
         scope: "select",
         part: "trigger",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "select"),
     },
-    #[cfg(feature = "select")]
     MappingRow {
         scope: "select",
         part: "clear-trigger",
         action: "deselect",
         requires_value: false,
+        enabled: cfg!(feature = "select"),
     },
     // SignaturePad（イシュー #843）: ClearTrigger は全ストローク削除。
     // ポインタ座標収集による描画（"add-stroke"）は本汎用マッピングでは
     // 扱わず `crate::headless_signature_pad::wire_stroke_collector` が
     // 専用配線する（クリックではないため）。
-    #[cfg(feature = "signature-pad")]
     MappingRow {
         scope: "signature-pad",
         part: "clear-trigger",
         action: "clear",
         requires_value: false,
+        enabled: cfg!(feature = "signature-pad"),
     },
     // Combobox（イシュー #1071）: trigger は listbox 開閉トグル
     // （`ComboboxAction::Toggle`）。マウスクリックと `crate::keynav`
@@ -259,34 +281,34 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // 双方がこの行を経由する。#662 の `menu`/`trigger-item` 欠落是正と
     // 同型の整備であり、この行を欠くと keynav の click 合成が no-op に
     // なる。
-    #[cfg(feature = "combobox")]
     MappingRow {
         scope: "combobox",
         part: "trigger",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "combobox"),
     },
     // item クリック（マウス・keynav の Enter/highlight click 合成の両方）は
     // "select"（value 必須、`ComboboxAction::Select`。ark-ui の
     // `closeOnSelect` 既定に準拠し選択と同時に listbox を閉じる、
     // `crates/headless-ui/src/combobox.rs::Combobox::update` 参照）。
-    #[cfg(feature = "combobox")]
     MappingRow {
         scope: "combobox",
         part: "item",
         action: "select",
         requires_value: true,
+        enabled: cfg!(feature = "combobox"),
     },
     // clear-trigger は選択解除（`ComboboxAction::Clear`。`Select` と異なり
     // `combobox::clear_trigger` は SSR 出力済みだが keynav・マウスクリック
     // いずれの経路もこの行が無いと no-op のままだった、Select の
     // `clear-trigger`→`"deselect"` 整備と同種）。
-    #[cfg(feature = "combobox")]
     MappingRow {
         scope: "combobox",
         part: "clear-trigger",
         action: "clear",
         requires_value: false,
+        enabled: cfg!(feature = "combobox"),
     },
     // ToggleGroup（イシュー #1075）: item クリック（マウス・ネイティブ
     // Enter/Space の双方。`crate::keynav` はフォーカス移動のみを行い決定は
@@ -295,12 +317,12 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // 受理する。`toggle_group::item` は `data-value` を常時出力する）。
     // この行を欠くとマウス・キーボードいずれの押下も no-op のままになる
     // （#662 の `menu`/`trigger-item` 欠落是正と同型）。
-    #[cfg(feature = "toggle-group")]
     MappingRow {
         scope: "toggle-group",
         part: "item",
         action: "toggle",
         requires_value: true,
+        enabled: cfg!(feature = "toggle-group"),
     },
     // NavigationMenu（イシュー #1161、`crates/headless-ui/src/navigation_menu.rs`）:
     // クリック対象は `trigger`（`SingleSelect` へ全委譲する
@@ -310,12 +332,12 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // （イシュー #1161）で `navigation_menu::trigger` が `data-value` を出力する
     // ようになったため、この行が機能する（出力が無ければ `requires_value: true`
     // により常に fail-closed（`None`）となる）。
-    #[cfg(feature = "navigation-menu")]
     MappingRow {
         scope: "navigation-menu",
         part: "trigger",
         action: "toggle",
         requires_value: true,
+        enabled: cfg!(feature = "navigation-menu"),
     },
     // TreeView（イシュー #1072、`crates/headless-ui/src/tree_view.rs`）:
     // ブランチのクリック対象は要約行（`branch-control`、自身に `data-value`
@@ -325,42 +347,42 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // `branch-control` を優先クリック先にする設計とセット）。この結果
     // ブランチノードは「選択」できず、Enter/Space は展開トグルとして働く
     // （`crate::keynav` モジュール doc §TreeView §帰結、意図的な仕様）。
-    #[cfg(feature = "tree-view")]
     MappingRow {
         scope: "tree-view",
         part: "branch",
         action: "toggle",
         requires_value: true,
+        enabled: cfg!(feature = "tree-view"),
     },
     // 葉ノード（`item`）は展開状態を持たないため "select"（`SingleSelect`
     // 相当）。ブランチの `branch-control` クリックが上記 `branch` 行へ
     // フォールスルーするのと異なり、葉ノードは `branch-control` を持たない
     // ため `crate::keynav::wiring::synthesize_tree_click` は葉ノード自身へ
     // 直接 `click()` を合成する。
-    #[cfg(feature = "tree-view")]
     MappingRow {
         scope: "tree-view",
         part: "item",
         action: "select",
         requires_value: true,
+        enabled: cfg!(feature = "tree-view"),
     },
     // Calendar（イシュー #1074）: prev-trigger/next-trigger は月移動
     // （`CalendarAction::PrevMonth`/`NextMonth`）。`crate::keynav` の
     // PageUp/PageDown が合成する `HtmlElement::click()`（モジュール doc
     // §Calendar 参照）はこの 2 行を経由して初めて dispatch へ到達する。
-    #[cfg(feature = "calendar")]
     MappingRow {
         scope: "calendar",
         part: "prev-trigger",
         action: "prev-month",
         requires_value: false,
+        enabled: cfg!(feature = "calendar"),
     },
-    #[cfg(feature = "calendar")]
     MappingRow {
         scope: "calendar",
         part: "next-trigger",
         action: "next-month",
         requires_value: false,
+        enabled: cfg!(feature = "calendar"),
     },
     // Calendar day-trigger（イシュー #1161）: `"select"`（`Calendar::decode_action`
     // が payload を `PlainDate` としてパースし、パース不能は `None`。範囲外
@@ -369,12 +391,12 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // `data-value`（ISO 8601 表記）を出力するようになったため、この行が
     // 機能する（出力が無ければ `requires_value: true` により常に
     // fail-closed（`None`）となる）。
-    #[cfg(feature = "calendar")]
     MappingRow {
         scope: "calendar",
         part: "day-trigger",
         action: "select",
         requires_value: true,
+        enabled: cfg!(feature = "calendar"),
     },
     // Accordion（イシュー #1127、`crates/headless-ui/src/accordion.rs`）:
     // クリック対象は `item-trigger`（ネイティブ `<button>`。`crate::keynav`
@@ -391,12 +413,12 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // この出力が無ければ `requires_value: true` により常に fail-closed
     // （`None`）となる（navigation-menu/trigger・calendar/day-trigger・
     // menubar/trigger も同型、本表中の該当コメント参照）。
-    #[cfg(feature = "accordion")]
     MappingRow {
         scope: "accordion",
         part: "item-trigger",
         action: "toggle",
         requires_value: true,
+        enabled: cfg!(feature = "accordion"),
     },
     // Menubar（イシュー #1161、`crates/headless-ui/src/menubar.rs`）:
     // クリック対象は `trigger`（ネイティブ `<button>`）で "toggle"
@@ -406,12 +428,12 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // （イシュー #1161）で `menubar::trigger` が `data-value`（Menu の
     // index）を出力するようになったため、この行が機能する（出力が無ければ
     // `requires_value: true` により常に fail-closed（`None`）となる）。
-    #[cfg(feature = "menubar")]
     MappingRow {
         scope: "menubar",
         part: "trigger",
         action: "toggle",
         requires_value: true,
+        enabled: cfg!(feature = "menubar"),
     },
     // Menubar checkbox-item/radio-item（イシュー #2205）: Menubar 自身は
     // checked 状態機械を持たないため、`crates/headless-ui/src/menubar.rs`
@@ -428,22 +450,22 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // おそれがある。payload を常に空文字列にすることで
     // `"".parse::<usize>()` は必ず `Err` となり `None`（fail-closed）で
     // Menubar 側には到達しない。
-    #[cfg(feature = "menubar")]
     MappingRow {
         scope: "menubar",
         part: "checkbox-item",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "menubar"),
     },
     // radio-item は `MenuRadioItemGroup` が `"select"` のみを受理し
     // `Menubar::decode_action` は `"select"` を `None` にする（衝突しない）
     // ため、menu/radio-item 行と同じ `requires_value: true` でよい。
-    #[cfg(feature = "menubar")]
     MappingRow {
         scope: "menubar",
         part: "radio-item",
         action: "select",
         requires_value: true,
+        enabled: cfg!(feature = "menubar"),
     },
     // Sidebar（イシュー #2074、`crates/headless-ui/src/sidebar.rs`）:
     // `trigger`/`rail` はいずれもクリックで開閉を反転する
@@ -452,19 +474,19 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // click イベント自体は他ボタンと同様に発火するため本表 1 行で足りる
     // （headless-ui 側の rustdoc「呼び出し文脈」節が本イシューへ配線を
     // 申し送っている）。
-    #[cfg(feature = "sidebar")]
     MappingRow {
         scope: "sidebar",
         part: "trigger",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "sidebar"),
     },
-    #[cfg(feature = "sidebar")]
     MappingRow {
         scope: "sidebar",
         part: "rail",
         action: "toggle",
         requires_value: false,
+        enabled: cfg!(feature = "sidebar"),
     },
 ];
 
@@ -510,7 +532,8 @@ pub struct PartRef {
 }
 
 /// (scope, part) の 1 段判定。マッピング表にない組・`data-value` 欠落・
-/// `disabled`/`readonly` はいずれも `None`（fail-closed、受け入れ条件 3）。
+/// `disabled`/`readonly`・scope feature 無効（[`MappingRow::enabled`]
+/// `false`）はいずれも `None`（fail-closed、受け入れ条件 3）。
 /// `part` 自身が `readonly` の場合は無条件で `None`（scope をまたいだ
 /// 伝播判定は [`action_from_parts`] の責務、本関数は 1 part 単体の判定）。
 #[must_use]
@@ -521,6 +544,9 @@ pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
     let row = MAPPING_TABLE
         .iter()
         .find(|row| row.scope == part.scope && row.part == part.part)?;
+    if !row.enabled {
+        return None;
+    }
     let payload = if row.requires_value {
         part.value.clone()?
     } else {
@@ -530,6 +556,20 @@ pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
         action: row.action.to_string(),
         payload,
     })
+}
+
+/// `part` の (scope, part) が [`MAPPING_TABLE`] に存在するかどうか
+/// （[`MappingRow::enabled`] の値は問わない）。scope feature が無効化され
+/// ていても、この (scope, part) が headless-ui の既知の操作対象境界で
+/// あるという構造的知識は失われない。[`action_from_parts_scoped`] が
+/// 「解決できなかった part がそもそも未知（`item-text` 等、祖先へ探索を
+/// 継続してよい）」か「既知だが feature 無効・`data-value` 欠落・専用
+/// インスタンス不一致等で解決できなかった（そこで探索を打ち切るべき）」
+/// かを区別するために使う（codex-review PR #2339 P0 指摘の是正）。
+fn is_known_mapping_target(part: &PartRef) -> bool {
+    MAPPING_TABLE
+        .iter()
+        .any(|row| row.scope == part.scope && row.part == part.part)
 }
 
 /// クリック位置から根方向へ並べた part 列（内側優先）で最初に解決できた
@@ -652,6 +692,19 @@ pub fn action_from_parts_scoped(
         if !instance_is_readonly(parts, i) && resolved_part_targets_wired_root(parts, part) {
             if let Some(action) = action_for_part(part) {
                 return if predicate(part) { Some(action) } else { None };
+            }
+            // `part` は既知の (scope, part) 操作対象境界（[`MAPPING_TABLE`]
+            // に行が存在する）だが、scope feature 無効・`data-value` 欠落・
+            // 専用インスタンス不一致のいずれかで解決できなかった。この場合
+            // に祖先方向への探索を継続すると、外側にある無関係な別 scope
+            // （例: `collapsible` feature を無効化した構成で、無効化した
+            // `collapsible/trigger` の祖先に `sidebar/trigger` がある場合）
+            // へ誤って解決してしまう（codex-review PR #2339 P0 指摘）。
+            // 既知境界に到達した時点で解決不能が確定するため、ここで打ち
+            // 切って `None` を返す（`item-text` 等マッピング表に存在しない
+            // part はこの分岐に入らず、従来どおり祖先方向へ探索を続ける）。
+            if is_known_mapping_target(part) {
+                return None;
             }
         }
         if part.part == "content" {
@@ -1397,6 +1450,15 @@ mod tests {
         // 位置の最も内側でマッチする場合、外側に Sidebar 自身の trigger/rail
         // が存在しても、それへフォールバックせず None を返す（誤って
         // Sidebar 自身の dispatch へ渡さないための境界）。
+        //
+        // 本テストは意図的にどの scope feature にも `#[cfg(feature = ...)]`
+        // でゲートしない（Cursor Bugbot PR #2339 指摘）: `collapsible`
+        // feature を無効化した構成でも「(scope, part) が既知の境界に到達
+        // した時点で祖先探索を打ち切る」（`is_known_mapping_target`）
+        // 挙動が保たれることを、全 feature 構成に対して常時検証する。
+        // feature-gate してしまうと default-features 構成でしか走らなく
+        // なり、`collapsible` OFF / `sidebar` ON のような構成固有の
+        // 回帰（codex-review PR #2339 P0 指摘の核心）を検知できなくなる。
         let parts = vec![
             part("collapsible", "trigger", None, false),
             part("sidebar", "trigger", None, false),
@@ -1405,6 +1467,23 @@ mod tests {
             action_from_parts_scoped(&parts, |p| p.scope == "sidebar"),
             None
         );
+    }
+
+    /// [`is_known_mapping_target`] による祖先探索打ち切りは、部分 (c)
+    /// （`requires_value` の行が `data-value` 欠落で解決不能）でも成立する
+    /// ことを固定する（codex-review PR #2339 P0 是正の一般化）。`select`/
+    /// `item` は `requires_value: true` のため `data-value` 欠落時
+    /// `action_for_part` は `None` を返すが、`(select, item)` 自体は
+    /// [`MAPPING_TABLE`] に存在する既知の境界であるため、祖先の
+    /// `dialog`/`trigger` へフォールバックせず `None` で打ち切るべきで
+    /// ある（`item-text` のような表に存在しない part とは異なる扱い）。
+    #[test]
+    fn action_from_parts_scoped_does_not_fall_through_when_known_target_is_missing_value() {
+        let parts = vec![
+            part("select", "item", None, false),
+            part("dialog", "trigger", None, false),
+        ];
+        assert_eq!(action_from_parts(&parts), None);
     }
 
     #[test]

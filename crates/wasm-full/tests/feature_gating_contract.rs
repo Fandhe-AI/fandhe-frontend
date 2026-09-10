@@ -7,9 +7,15 @@
 //! 固定する不変条件:
 //!
 //! 1. `headless.rs` の `MAPPING_TABLE` 内で `MappingRow { scope: "X", ... }`
-//!    が現れる各要素は、直前の非コメント・非空行が
-//!    `#[cfg(feature = "X")]` であること（X はその行が持つ `scope` 値と
-//!    一致する）。
+//!    が現れる各要素は、その行の範囲内に
+//!    `enabled: cfg!(feature = "X"),` フィールドを持つこと（X はその行が
+//!    持つ `scope` 値と一致する）。旧方式（行自体を配列要素へ
+//!    `#[cfg(feature = "X")]` で丸ごと除去する方式）はイシュー #2339
+//!    （codex-review P0 是正）で撤回済み: 行を除去すると
+//!    `action_from_parts_scoped`（`headless.rs`）の祖先探索が「(scope,
+//!    part) が既知の操作対象境界か」の情報を失い、feature 無効時に
+//!    無関係な別 scope へ誤 dispatch する fail-open を生むため（詳細は
+//!    `docs/design/wasm-full-architecture.md` §34.7 参照）。
 //! 2. `keynav.rs` の `match scope { ... }` ブロック内の各 `"Y" => ...` arm
 //!    は、直前の非コメント・非空行が期待 feature（`radio` → `radio-group`、
 //!    `navigation-menu-trigger`/`navigation-menu-link` → `navigation-menu`、
@@ -80,7 +86,18 @@ fn keynav_arm_feature(arm_literal: &str) -> &'static str {
 }
 
 #[test]
-fn headless_mapping_table_rows_are_cfg_gated_by_their_scope_feature() {
+fn headless_mapping_table_rows_carry_their_scope_feature_enabled_field() {
+    // 契約はイシュー #2339（codex-review P0 是正）で変更されている:
+    // 旧方式は行自体を `#[cfg(feature = "X")]` で配列要素から丸ごと
+    // 除去していたが、これは `action_from_parts_scoped` の祖先探索から
+    // 「(scope, part) が既知の操作対象境界である」という情報を feature
+    // 無効時に失わせ、無効化した scope の祖先にある無関係な別 scope へ
+    // 誤 dispatch する fail-open を生んでいた（詳細は `src/headless.rs`
+    // モジュール doc §scope feature、`docs/design/wasm-full-architecture.md`
+    // §34.7 参照）。現行方式は行を常に残したまま `enabled: bool` フィールド
+    // （`cfg!(feature = "X")` で評価）を持たせるため、本テストは各行の
+    // `MappingRow {` 直後に `enabled: cfg!(feature = "X"),` が存在する
+    // ことを検証する（cfg 属性自体はもう存在しないため確認しない）。
     let path = crate_root().join("src/headless.rs");
     let src = fs::read_to_string(&path).expect("src/headless.rs must be readable");
     let lines = meaningful_lines(&src);
@@ -117,22 +134,27 @@ fn headless_mapping_table_rows_are_cfg_gated_by_their_scope_feature() {
         let Some(row_start) = row_start else {
             continue;
         };
-        // `MappingRow {` の直前の意味のある行が期待する cfg か確認する。
+        // この行（`MappingRow { .. },`）の範囲内に
+        // `enabled: cfg!(feature = "X"),` が存在するかを走査する。
+        let mut found_enabled = false;
+        for forward in (row_start + 1)..lines.len() {
+            let (_, candidate) = lines[forward];
+            let candidate_trim = candidate.trim();
+            let expected = format!("enabled: cfg!(feature = \"{scope}\"),");
+            if candidate_trim == expected {
+                found_enabled = true;
+                break;
+            }
+            if candidate_trim == "}," {
+                break;
+            }
+        }
         assert!(
-            row_start > 0,
-            "feature_gating_contract: MAPPING_TABLE の先頭要素に \
-             #[cfg(feature = \"...\")] が付与されていない（scope=\"{scope}\"）"
-        );
-        let (_, prev_line) = lines[row_start - 1];
-        let expected = format!("#[cfg(feature = \"{scope}\")]");
-        assert_eq!(
-            prev_line.trim(),
-            expected,
+            found_enabled,
             "feature_gating_contract: headless.rs の MappingRow \
-             (scope=\"{scope}\") の直前行が期待する cfg \
-             (\"{expected}\") と一致しない（実際: \"{}\"）。\
-             イシュー #2327 規約 (a')〜(d') に従い cfg を付与すること",
-            prev_line.trim()
+             (scope=\"{scope}\") 内に期待する \
+             \"enabled: cfg!(feature = \\\"{scope}\\\"),\" が見つからない。\
+             イシュー #2327/#2339 規約に従いフィールドを追加すること"
         );
         checked += 1;
     }
