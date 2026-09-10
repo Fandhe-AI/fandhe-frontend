@@ -105,6 +105,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 - [Avatar](./primitives/avatar.md)
 - [Bubble](./primitives/bubble.md)
 - [Carousel](./primitives/carousel.md)
+- [Data Table](./primitives/data-table.md)
 - [Item](./primitives/item.md)
 - [JSON Tree View](./primitives/json-tree-view.md)
 - [Marker](./primitives/marker.md)
