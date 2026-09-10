@@ -162,6 +162,45 @@ fn login_01_page_wires_demo_class_and_both_stylesheets_index_page_does_not() {
     );
 }
 
+/// login-01 の合成部品（card/field::group/input/button の 3 variant）が
+/// shadcn `login-01` 相当の構成で実際に出力されていること、`<form>`・死
+/// リンク（`href="#"`）・`field::error_text` の `role="alert"`（#2092 で
+/// DOM から除去）・`card::footer`（同、`card::body` 側へ移設）を持ち込んで
+/// いないことを固定する（イシュー #2092、`sidebar_03_composes_expected_parts`
+/// と同型）。
+#[test]
+fn login_01_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/login-01/index.html"))
+        .expect("blocks/login-01/index.html should be generated");
+    for needle in [
+        "data-scope=\"card\"",
+        "data-part=\"group\"",
+        "type=\"email\"",
+        "placeholder=\"m@example.com\"",
+        "type=\"password\"",
+        "fd-button--variant-outline",
+        "fd-button--variant-link",
+        "Login with SSO",
+    ] {
+        assert!(
+            html.contains(needle),
+            "login-01 page should contain {needle}"
+        );
+    }
+    for absent in [
+        "<form",
+        "href=\"#\"",
+        "role=\"alert\"",
+        "data-part=\"footer\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "login-01 should never contain {absent}"
+        );
+    }
+}
+
 #[test]
 fn block_pages_never_contain_a_form_element_or_data_uri() {
     let out = build_real_site();
