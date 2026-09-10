@@ -190,6 +190,11 @@ source = "site/primitives/pin-input.md"
 path = "/primitives/pin-input/"
 
 [[section.group.page]]
+title = "Questionnaire"
+source = "site/primitives/questionnaire.md"
+path = "/primitives/questionnaire/"
+
+[[section.group.page]]
 title = "Radio Group"
 source = "site/primitives/radio-group.md"
 path = "/primitives/radio-group/"

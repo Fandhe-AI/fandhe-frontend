@@ -47,6 +47,7 @@ Primitives ページには CSS 変数表がありません（headless-ui に CSS
 - [Number Input](./primitives/number-input.md)
 - [Password Input](./primitives/password-input.md)
 - [Pin Input](./primitives/pin-input.md)
+- [Questionnaire](./primitives/questionnaire.md)
 - [Radio Group](./primitives/radio-group.md)
 - [Rating Group](./primitives/rating-group.md)
 - [Segment Group](./primitives/segment-group.md)

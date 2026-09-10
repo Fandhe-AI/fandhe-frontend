@@ -2776,7 +2776,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # （同一版数への偶発的衝突をそのまま採用しない原則）、main の到達値
 # 0.168.0 をさらに上回る 0.169.0 へマイナーバンプする（marker 追加は
 # 破壊的変更ではない純追加だが、衝突解消のため main+1 を採用する）。
-version = "0.169.0"
+#
+# イシュー #2117 base 取り込み: 依存先 `fandhe-frontend-headless-ui`
+# 0.68.11 → 0.68.12（`questionnaire` 新設）への `dep-version-check`
+# version 要求追随のみで 0.169.1 へ patch バンプする（本クレート自身の
+# 実体変更は伴わない。styled `questionnaire` recipe・golden・Themes
+# ページ実装は後続イシュー #2119）。
+version = "0.169.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2791,7 +2797,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.11" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.12" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

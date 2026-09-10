@@ -197,6 +197,11 @@ const PRIMITIVE_PAGES: &[PrimitivePage] = &[
         path: "/primitives/pin-input/",
         render: forms_b::pin_input_section,
     },
+    // イシュー #2117: `questionnaire` を追加。
+    PrimitivePage {
+        path: "/primitives/questionnaire/",
+        render: forms_b::questionnaire_section,
+    },
     PrimitivePage {
         path: "/primitives/radio-group/",
         render: forms_b::radio_group_section,

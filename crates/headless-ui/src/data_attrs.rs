@@ -212,6 +212,27 @@ pub fn data_expanded(expanded: bool) -> Option<(&'static str, &'static str)> {
     expanded.then_some(("data-expanded", ""))
 }
 
+/// `data-answered` 存在属性（[`crate::questionnaire`] 用、イシュー #2117）。
+/// [`data_disabled`] と同じ「存在で真を表す」規約に従う。回答値そのものは
+/// アプリケーション責務（`.claude/rules/coding-rust.md` §UI 部品の責務境界）
+/// のため headless 層は保持せず、呼び出し側が渡す
+/// [`crate::questionnaire::QuestionProps::answered`] の表示状態のみを表す。
+#[must_use]
+pub fn data_answered(answered: bool) -> Option<(&'static str, &'static str)> {
+    answered.then_some(("data-answered", ""))
+}
+
+/// `data-skipped` 存在属性（[`crate::questionnaire`] 用、イシュー #2117）。
+/// [`data_disabled`] と同じ規約に従う。「どの質問をスキップしたか」は
+/// headless の状態機械（[`crate::questionnaire::Questionnaire`]）に持たせず、
+/// 呼び出し側が渡す [`crate::questionnaire::QuestionProps::skipped`] の
+/// 表示状態のみを表す（[`mod@crate::questionnaire`] モジュール doc
+/// 「`Skip` は状態遷移としては `Next` と同一」参照）。
+#[must_use]
+pub fn data_skipped(skipped: bool) -> Option<(&'static str, &'static str)> {
+    skipped.then_some(("data-skipped", ""))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,6 +272,10 @@ mod tests {
         assert_eq!(data_countdown(false), None);
         assert_eq!(data_expanded(true), Some(("data-expanded", "")));
         assert_eq!(data_expanded(false), None);
+        assert_eq!(data_answered(true), Some(("data-answered", "")));
+        assert_eq!(data_answered(false), None);
+        assert_eq!(data_skipped(true), Some(("data-skipped", "")));
+        assert_eq!(data_skipped(false), None);
     }
 
     #[test]
