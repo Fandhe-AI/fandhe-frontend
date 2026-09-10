@@ -2937,7 +2937,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # 衝突解消で 0.68.16 へ到達したため、`check-dep-versions --fix` 追随のみ。
 # 本クレート自体の実体変更はないため patch バンプ、0.177.0 から 0.177.1
 # とする。
-version = "0.177.1"
+#
+# イシュー #2197: `recipe.rs` に `@media (min-width: ...)` を表現する
+# breakpoint 条件（`recipe::Breakpoint`・`recipe::SlotRecipe::breakpoint`）と
+# `theme::Theme` へのブレークポイントトークン（`push_breakpoint`/
+# `upsert_breakpoint`/`breakpoint_var`、4 段）を追加した。既存関数
+# シグネチャ・golden CSS は変更していない（純追加）。
+#
+# 本コンフリクト解消（イシュー #2125、PR #2303 の main 取り込み）: 本ブランチ
+# （data_table 対応の dep-version-check --fix 追随のみ）は 0.177.1 へ到達
+# 済みだったが、origin/main は breakpoint 追加（#2197）により独立に 0.178.0
+# へ到達していた。本ブランチの実体変更（headless-ui 依存の version 要求
+# 追随）は main の到達値に対して純粋な部分集合であり、依存先
+# fandhe-frontend-headless-ui の version 要求は main 側の 0.68.16 が
+# 既に本ブランチの到達値と一致しているため、本クレート自体に新たな実体
+# 変更はない。したがって main の到達値 0.178.0 をそのまま採用する。
+version = "0.178.0"
 
 
 edition = "2021"

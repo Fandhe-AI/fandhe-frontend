@@ -7,8 +7,8 @@
 //! 破壊的変更時は本ファイルの更新とあわせて周知する。
 
 use fandhe_frontend_pre_styled_ui::theme::{
-    color_var, motion_var, radius_var, shadow_var, size_var, space_var, typography_var,
-    z_index_var, Theme,
+    breakpoint_var, color_var, motion_var, radius_var, shadow_var, size_var, space_var,
+    typography_var, z_index_var, Theme,
 };
 
 #[test]
@@ -487,4 +487,78 @@ fn default_theme_css_contains_issue_2073_sidebar_tokens() {
     assert!(css.contains("--fandhe-color-sidebar-muted: #242424;"));
     assert!(css.contains("--fandhe-color-sidebar-border: #3a3a3a;"));
     assert!(css.contains("--fandhe-color-sidebar-focus-ring: #63b3ed;"));
+}
+
+/// イシュー #2197: breakpoints を push しないテーマは
+/// `custom_theme_output_matches_full_snapshot`（本ファイル）の既存
+/// スナップショットとバイト同一のままであることが後方互換要件。ここでは
+/// breakpoint を追加した場合の出力構造を個別に固定する。breakpoints は
+/// モード非依存のため `:root` ブロックのみに現れ、dark ブロックには
+/// 一切出現しない。出力順は「motions の後・末尾」。
+#[test]
+fn custom_breakpoint_extends_full_snapshot_without_breaking_pre_2197_output() {
+    let mut theme = Theme::empty();
+    theme.push_color("bg", "#ffffff", "#000000").unwrap();
+    theme.push_motion("duration-fast", "150ms").unwrap();
+    theme.push_breakpoint("sm", "640px").unwrap();
+
+    let expected = "\
+:root {
+  color-scheme: light dark;
+  --fandhe-color-bg: #ffffff;
+  --fandhe-motion-duration-fast: 150ms;
+  --fandhe-breakpoint-sm: 640px;
+}
+:root[data-theme=\"light\"] { color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=\"light\"]) {
+    color-scheme: dark;
+    --fandhe-color-bg: #000000;
+  }
+}
+:root[data-theme=\"dark\"] {
+  color-scheme: dark;
+  --fandhe-color-bg: #000000;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fandhe-motion-duration-fast: 0ms;
+  }
+}
+";
+
+    assert_eq!(theme.to_css(), expected);
+    assert_eq!(breakpoint_var("sm").unwrap(), "var(--fandhe-breakpoint-sm)");
+}
+
+/// イシュー #2197: 既定テーマ（`Theme::default()`）が 4 段の breakpoint
+/// トークンをすべて含むことを固定する。
+#[test]
+fn default_theme_css_contains_issue_2197_breakpoint_tokens() {
+    let css = Theme::default().to_css();
+
+    assert!(css.contains("--fandhe-breakpoint-sm: 640px;"));
+    assert!(css.contains("--fandhe-breakpoint-md: 768px;"));
+    assert!(css.contains("--fandhe-breakpoint-lg: 1024px;"));
+    assert!(css.contains("--fandhe-breakpoint-xl: 1280px;"));
+}
+
+/// イシュー #2197: `Theme::default().to_css()` が出力するブレークポイント
+/// トークンの値が `crate::recipe::Breakpoint`（recipe が `@media
+/// (min-width: ...)` へ埋め込む唯一の定義元）と一致することを固定する
+/// （2 箇所の手打ちドリフト防止の統合確認、`src/theme.rs` の
+/// `default_breakpoints_are_synchronized_with_recipe_breakpoint_enum` の
+/// 公開 API 越しの再確認）。
+#[test]
+fn theme_breakpoint_values_are_consistent_with_recipe_breakpoint_enum() {
+    use fandhe_frontend_pre_styled_ui::recipe::Breakpoint;
+
+    let css = Theme::default().to_css();
+    for bp in Breakpoint::ALL {
+        let expected = format!("--fandhe-breakpoint-{}: {};", bp.value(), bp.min_width());
+        assert!(
+            css.contains(&expected),
+            "expected to find {expected:?} in default theme css"
+        );
+    }
 }

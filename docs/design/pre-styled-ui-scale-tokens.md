@@ -219,19 +219,104 @@ fandhe の `md` に近い）。後続 Phase で shadcn 系マークアップを�
 本書のスコープ外の将来検討事項として記録するに留め、本イシューでは
 提案しない。
 
+### 3.6 breakpoint（新規グループ、4 段、イシュー #2197）
+
+PR #2142（breadcrumb の shadcn/ui 突合）で、shadcn の `sm:gap-2.5`
+（`>= 640px` で gap を広げる）に相当する `@media (min-width: …)` を
+`crates/pre-styled-ui/src/recipe.rs` の `SlotRecipe` が表現できず、
+横断設計判断として見送られていた（`breadcrumb.rs`/`sidebar.rs` の
+モジュール doc に未実装記録あり）。本イシューは `recipe.rs` に
+`@media (min-width: ...)` を表現する breakpoint 条件を、`theme.rs` に
+対応するブレークポイントトークンを追加する。
+
+**中核制約: CSS custom property は `@media` プレリュードで使えない**。
+`@media (min-width: var(--fandhe-breakpoint-sm))` は無効な CSS である。
+したがって「テーマトークン」と「recipe が `@media` に埋め込む値」は
+必然的に別物になる:
+
+- `recipe.rs` 側: `Breakpoint` enum の `const fn min_width(self) ->
+  &'static str` がリテラル（例 `"640px"`）を返し、これが**唯一のリテラル
+  定義元**。`SlotRecipe::css` はこの `&'static str` を `@media
+  (min-width: {min_width})` へ埋め込む
+- `theme.rs` 側: `DEFAULT_BREAKPOINTS` は `Breakpoint::ALL` の
+  `value()`/`min_width()`（いずれも `const fn`）から構築し、独立した
+  リテラルの手打ちを行わない。`Theme::default()` が `push_breakpoint` で
+  `:root` へ `--fandhe-breakpoint-<段>: <px>` を出力する
+- テーマ側の値を `upsert_breakpoint` で変えても、各 recipe の `@media`
+  出力は変わらない。テーマトークンは**参照専用**（JS の
+  `matchMedia`・利用者の独自スタイルシート・
+  `getComputedStyle(document.documentElement).getPropertyValue(...)` 用途）
+  として提供する、CSS の仕様上の制約に由来する既知の限界である
+
+**API 形状**: `StateCondition` の variant ではなく、並列の enum +
+専用 builder として追加した（`Breakpoint` enum・
+`SlotRecipe::breakpoint(slot, bp, declarations)`）。既存 `StateCondition`
+へ variant を追加すると下流の網羅 `match` を壊すため、「`StateCondition`
+と並ぶ条件」という要件を並列の enum で満たす純追加とした。
+
+**スケール値の決定**:
+
+| 段 | chakra-ui v3 | Radix Themes | shadcn/ui（Tailwind v4） | **fandhe 採用** |
+|----|-------------|--------------|--------------------------|-----------------|
+| xs | — | 520px | — | 不採用 |
+| sm | 480px | 768px | 640px | **640px** |
+| md | 768px | 1024px | 768px | **768px** |
+| lg | 1024px | 1280px | 1024px | **1024px** |
+| xl | 1280px | 1640px | 1280px | **1280px** |
+| 2xl | 1536px | — | 1536px | 見送り（下記） |
+
+根拠: chakra-ui と shadcn/ui は `sm` 以外で完全一致する。最初の消費者
+（#2198 の `sm:gap-2.5`）は shadcn の 640px を前提としており、shadcn は
+#2153 で主基準の 1 つ。Radix Themes の名前付き段（`initial`/`xs`〜`xl`、
+値が 1 段ずれる）は不採用。`2xl` は `Size`（§3.1〜§3.3 と同型の t-shirt
+語彙 enum）の「共通 enum に載せると全部品が空の段を抱える」前例と同じ
+判断で見送った。傍証: `crates/wasm-full` の sidebar
+`DEFAULT_MOBILE_MEDIA_QUERY = "(max-width: 767px)"`（shadcn
+`MOBILE_BREAKPOINT = 768`）は `md − 1px` と一致する。
+
+**出力順序**: `SlotRecipe::css()` の出力順は「base → variants →
+compound variants → states → breakpoints（`Breakpoint::ALL` の昇順、
+mobile-first）→ hover（`@media (hover: hover)`、常に最後尾）」に固定
+した。breakpoint 間は登録順ではなく enum 昇順（`sm` → `xl`）で出力し、
+同一 breakpoint 内は登録順（後勝ち）。hover ブロックより前に置く（既存
+契約「hover は最後尾」を壊さない）。`@media` ブロックのインデント処理
+（2 スペース・規則間の空行保持）は hover ブロック生成処理から
+`push_media_block` として抽出し、breakpoint と共用した（hover の
+バイト列は不変）。
+
+**詳細度の注意**: breakpoint 規則のセレクタは base と同じ
+`[data-scope][data-part]`（0,2,0）のため、同一 slot・同一プロパティを
+variant（0,3,0）が宣言していると、`@media` の内外に関わらず variant が
+常に勝つ。呼び出し元は対象 slot・プロパティが variant で宣言されて
+いないことを確認する（#2198 の breadcrumb `list` は `gap` を base のみで
+宣言しており衝突なし、確認済み）。
+
+**テーマ側の値検証**: `#1423`（z-index）・`#1424`（focus-ring）と同じ
+判断軸で、`CssValue` の文字 allowlist は通るがプロパティとして無意味な
+値（色・`var()`・`calc()`・CSS-wide keyword・負値）を
+`validate_breakpoint_value` が個別に拒否する。許可するのは非負の CSS
+`<length>`（数値 + 単位、または単位なしの `0`）のみ。専用エラー
+`ThemeError::InvalidBreakpointValue` を追加した。
+
+**本イシューでは実装しないこと**（breakpoint × variant / breakpoint ×
+state の複合条件、`max-width`/range 構文、container query）は §7 の
+再評価トリガーへ記録する。
+
 ## 4. 対象ファイル
 
 | パス | 変更内容 |
 |------|----------|
-| `crates/pre-styled-ui/src/theme.rs` | `DEFAULT_RADII`/`DEFAULT_SHADOWS`/`DEFAULT_SPACES` への純追加、`DEFAULT_Z_INDICES` 新設、`Theme` へ `z_indices` フィールド、`push_z_index`/`upsert_z_index`/`z_index_var`、`to_css()` 末尾出力、ユニットテスト |
+| `crates/pre-styled-ui/src/theme.rs` | `DEFAULT_RADII`/`DEFAULT_SHADOWS`/`DEFAULT_SPACES` への純追加、`DEFAULT_Z_INDICES` 新設、`Theme` へ `z_indices` フィールド、`push_z_index`/`upsert_z_index`/`z_index_var`、`to_css()` 末尾出力、ユニットテスト。イシュー #2197 で `breakpoints` フィールド・`DEFAULT_BREAKPOINTS`・`push_breakpoint`/`upsert_breakpoint`/`breakpoint_var`・`ThemeError::InvalidBreakpointValue`・`validate_breakpoint_value` を追加 |
+| `crates/pre-styled-ui/src/recipe.rs` | イシュー #2197 で `Breakpoint` enum（`ALL`/`value`/`min_width`）・`SlotRecipe::breakpoint` builder・`css()` の breakpoint ブロック出力（`push_media_block` ヘルパへの hover ブロック共用抽出込み）を追加 |
 | `crates/pre-styled-ui/src/toast.rs` | `z-index` を正式トークン参照へ更新（fallback は後方互換のため維持） |
 | `crates/pre-styled-ui/tests/toast_css.rs` | golden CSS の z-index 行を追随 |
-| `crates/pre-styled-ui/tests/theme_css.rs` | z-index の出力構造 golden・var helper 一致・dark ブロック不在の確認 |
-| `crates/pre-styled-ui/tests/theme_injection.rs` | `push_z_index`/`upsert_z_index` のインジェクション payload・重複拒否テスト |
-| `crates/pre-styled-ui/Cargo.toml` | `0.40.6` → `0.41.0`（公開 API 追加） |
+| `crates/pre-styled-ui/tests/theme_css.rs` | z-index の出力構造 golden・var helper 一致・dark ブロック不在の確認。イシュー #2197 で breakpoint の同種テストを追加 |
+| `crates/pre-styled-ui/tests/theme_injection.rs` | `push_z_index`/`upsert_z_index` のインジェクション payload・重複拒否テスト。イシュー #2197 で `push_breakpoint`/`upsert_breakpoint` の同種テストを追加 |
+| `crates/pre-styled-ui/tests/recipe_css.rs` | イシュー #2197 で breakpoint の golden・出力順序・fail-closed テストを追加 |
+| `crates/pre-styled-ui/Cargo.toml` | `0.40.6` → `0.41.0`（公開 API 追加）。イシュー #2197 で `0.176.0` → `0.177.0`（公開 API 純追加） |
 | `crates/docs-site/tests/css_var_scope_prefix.rs` | `SHARED_VARS` から `--fandhe-z-index-toast` を削除 |
 | `docs/api/pre-styled-ui-api.md` §4l | 新 API のシグネチャ追記 |
-| `docs/design/radix-themes-survey.md` §5 | fandhe 側の段数更新・z-index 行追加 |
+| `docs/design/radix-themes-survey.md` §5 | fandhe 側の段数更新・z-index 行追加。イシュー #2197 で breakpoints 行を更新 |
 
 ## 5. 部品ソースの「トークン外の生の値」棚卸し（後続 Phase の消し込み対象）
 
@@ -322,6 +407,8 @@ fandhe の `md` に近い）。後続 Phase で shadcn 系マークアップを�
 | shadow `inner`/inset | chakra-ui/Radix | fandhe の inset 用途はすべてドット・リング・マスク描画であり「影」ではない |
 | z-index `banner` | chakra-ui | fandhe に対応する部品がない |
 | ダーク時の影を弱め border へ寄せる方式 | Radix | overlay 系部品は既に border で境界を担保済み。色トークン（#1422）確定後に再評価 |
+| breakpoint `2xl`（1536px） | chakra-ui/shadcn | `Size` の「共通 enum に載せると全部品が空の段を抱える」前例と同じ判断。必要になった時点で純追加できる（§3.6） |
+| Radix Themes の名前付き段（`initial`/`xs`〜`xl`） | Radix | 値が chakra/shadcn と 1 段ずれており fandhe の他スケール（radius/shadow/spacing 等）が chakra-ui/shadcn 基準で揃っている整合性を優先（§3.6） |
 
 ## 7. 再評価トリガー
 
@@ -331,3 +418,13 @@ fandhe の `md` に近い）。後続 Phase で shadcn 系マークアップを�
 - z-index の割り当て（§3.4 の「割り当て予定」列）は後続 Phase の各部品
   issue で実際に適用する際、想定外の重なり順衝突が見つかった場合は
   スケール自体（100 刻み）の見直しを検討する。
+- breakpoint（§3.6、イシュー #2197）: 以下は本イシューのスコープ外として
+  見送った。複数部品で実際の需要が生じた時点で再評価する。
+  - breakpoint × variant / breakpoint × state の複合条件（`@media` 内の
+    `.fd-*` クラス・`:hover` 規則）
+  - `max-width` / range 構文（`width >= 640px`）・container query
+  - docs-site `crates/docs-site/src/site_theme.rs` の 768px/1200px を
+    breakpoint トークンと整合させる件
+  - `crates/wasm-full` sidebar の `DEFAULT_MOBILE_MEDIA_QUERY` を
+    breakpoint トークンと連動させる件（`docs/design/wasm-full-architecture.md`
+    既記載）
