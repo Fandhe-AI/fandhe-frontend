@@ -1,5 +1,6 @@
 //! `fandhe_frontend_wasm_full::content_height`（イシュー #2191、親
-//! トラッキング #2189）の実ブラウザ回帰テスト。
+//! トラッキング #2189。bubble の `collapse-content` 対象追加は #2282）の
+//! 実ブラウザ回帰テスト。
 //!
 //! `crates/wasm-full/tests/content_height.rs`（native）は純粋層
 //! （[`format_content_height`]/[`target_selector`]）の書式契約と
@@ -8,10 +9,26 @@
 //! `wire_headless_component` 経由の実測・CSS 変数書き込み**という製品
 //! 経路を検証する（`headless_wiring_browser.rs` と同型の実 DOM 検証
 //! パターンを踏襲する）。
+//!
+//! # bubble 分のテストが click 駆動形を写せない理由
+//!
+//! collapsible/accordion 分（上記）はトリガークリック →
+//! `wire_headless_component` の `on_update` → `sync_content_height` という
+//! 製品経路をそのまま検証できるが、bubble は
+//! `crates/wasm-full/src/headless.rs` の `MAPPING_TABLE` に
+//! `(bubble, collapse-trigger)` の行を持たず、`wire_headless_component`
+//! 経由のクリックでは dispatch されない（`crates/headless-ui/src/bubble.rs`
+//! rustdoc「wasm-full 未配線」節、`src/content_height.rs` モジュール doc
+//! 「スコープ外」節参照）。このため bubble 分は 2 形で検証する: (a)
+//! 配線時初期同期（`wire_headless_component` 自体が呼ぶ先行同期、クリック
+//! 不要）、(b) 開閉再描画 + `sync_content_height` 直接呼び出し
+//! （`wire_headless_component` が `on_update` 直後に呼ぶのと同一経路を
+//! 呼び出し側が直接再現する）。
 
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_headless_ui::accordion::{self, Accordion, AccordionProps};
+use fandhe_frontend_headless_ui::bubble;
 use fandhe_frontend_headless_ui::collapsible::{self, Collapsible};
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_wasm_full::content_height::{sync_content_height, CONTENT_HEIGHT_VAR};
@@ -595,6 +612,181 @@ fn xss_payload_in_data_value_and_text_does_not_affect_style_value() {
         .query_selector(r#"[data-part="item-content"]"#)
         .expect("query_selector must not fail")
         .expect("item-content element must exist");
+    let value = content_height_var(&content);
+    assert_eq!(value, "240px");
+    assert!(
+        value
+            .strip_suffix("px")
+            .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())),
+        "style 値は 10 進整数 + \"px\" のみであること（payload の影響を受けない）: {value}"
+    );
+}
+
+// --- bubble: MAPPING_TABLE 未配線のため 2 形で検証（モジュール doc参照） ---
+
+/// (a) 配線時初期同期: SSR 時点で既に open な bubble
+/// （`wire_headless_component` の先行同期、クリック不要）。
+#[wasm_bindgen_test]
+fn bubble_wiring_time_initial_sync_writes_content_height_var_for_already_open_collapse_content() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "content-height-bubble-initial-sync-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = fandhe_frontend_core::render(&bubble::root(
+        bubble::BubbleRootProps::default(),
+        vec![],
+        vec![
+            bubble::collapse_trigger(
+                OpenState::Open,
+                Some("bubble-collapse-initial"),
+                vec![],
+                vec![fandhe_frontend_core::text("Toggle")],
+            ),
+            bubble::collapse_content(
+                OpenState::Open,
+                Some("bubble-collapse-initial"),
+                vec![],
+                vec![fixed_height_child(240)],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("bubble root must exist");
+    let content = root
+        .query_selector(r#"[data-part="collapse-content"]"#)
+        .expect("query_selector must not fail")
+        .expect("collapse-content element must exist");
+
+    // 配線前は当然未設定であることの確認（前提の明示）。
+    assert_eq!(content_height_var(&content), "");
+
+    // `MAPPING_TABLE` に bubble の行が無いため dispatch 対象にならない
+    // `Component` 実装だが、`wire_headless_component` 自体の先行同期は
+    // dispatch とは無関係に呼ばれる（`crate::headless::wire_headless_component`
+    // 本体・モジュール doc参照）。
+    let component = Rc::new(RefCell::new(Collapsible::default()));
+    wire_headless_component(root.clone(), component, |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+
+    assert_eq!(
+        content_height_var(&content),
+        "240px",
+        "配線直後（クリック不要）にも初期表示の高さが同期されること"
+    );
+}
+
+/// (b) 開閉再描画 + `sync_content_height` 直接呼び出し: closed → open →
+/// closed と `set_inner_html` で丸ごと再描画し、各回
+/// `wire_headless_component` が `on_update` 直後に呼ぶのと同一経路
+/// （`sync_content_height` 直接呼び出し）で同期する。
+#[wasm_bindgen_test]
+fn bubble_direct_sync_after_rerender_open_writes_and_closed_removes_content_height_var() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "content-height-bubble-rerender-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let render_at = |state: OpenState| {
+        fandhe_frontend_core::render(&bubble::root(
+            bubble::BubbleRootProps::default(),
+            vec![],
+            vec![
+                bubble::collapse_trigger(
+                    state,
+                    Some("bubble-collapse-rerender"),
+                    vec![],
+                    vec![fandhe_frontend_core::text("Toggle")],
+                ),
+                bubble::collapse_content(
+                    state,
+                    Some("bubble-collapse-rerender"),
+                    vec![],
+                    vec![fixed_height_child(240)],
+                ),
+            ],
+        ))
+    };
+
+    // closed → open → closed の順に丸ごと再描画し、都度直接同期する。
+    for (state, expect_written) in [
+        (OpenState::Closed, false),
+        (OpenState::Open, true),
+        (OpenState::Closed, false),
+    ] {
+        container.set_inner_html(&render_at(state));
+        let root = container
+            .first_element_child()
+            .expect("bubble root must exist after re-render");
+        sync_content_height(&root).expect("sync_content_height must not fail");
+
+        let content = root
+            .query_selector(r#"[data-part="collapse-content"]"#)
+            .expect("query_selector must not fail")
+            .expect("collapse-content element must exist");
+        let value = content_height_var(&content);
+        if expect_written {
+            assert_eq!(
+                value, "240px",
+                "open + 固定高さ子要素は実測値が書き込まれること"
+            );
+        } else {
+            assert_eq!(
+                value, "",
+                "closed（hidden 属性あり）は測定対象外で変数が書き込まれないこと"
+            );
+        }
+    }
+}
+
+/// (c) XSS 回帰: `id`/`controls`/テキストへ payload を注入しても style
+/// 値は 10 進整数 + `px` のみであること（`xss_payload_in_data_value_and_text_does_not_affect_style_value`
+/// と同型）。
+#[wasm_bindgen_test]
+fn bubble_xss_payload_in_id_controls_and_text_does_not_affect_style_value() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "content-height-bubble-xss-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let payload = "\"><script>window.__xss=1</script>";
+    let html = fandhe_frontend_core::render(&bubble::root(
+        bubble::BubbleRootProps::default(),
+        vec![],
+        vec![
+            bubble::collapse_trigger(
+                OpenState::Open,
+                Some(payload),
+                vec![],
+                vec![fandhe_frontend_core::text(payload)],
+            ),
+            bubble::collapse_content(
+                OpenState::Open,
+                Some(payload),
+                vec![],
+                vec![fixed_height_child(240)],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    // core の既定エスケープにより <script> はテキストとして描画され、
+    // 要素としては生成されないことを確認する（REQ-1 の回帰確認）。
+    assert!(
+        container.query_selector("script").unwrap().is_none(),
+        "payload の <script> がテキストではなく要素として解釈されていないこと"
+    );
+
+    let root = container
+        .first_element_child()
+        .expect("bubble root must exist");
+    sync_content_height(&root).expect("sync_content_height must not fail");
+
+    let content = root
+        .query_selector(r#"[data-part="collapse-content"]"#)
+        .expect("query_selector must not fail")
+        .expect("collapse-content element must exist");
     let value = content_height_var(&content);
     assert_eq!(value, "240px");
     assert!(
