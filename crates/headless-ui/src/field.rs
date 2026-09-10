@@ -89,9 +89,44 @@
 //!    通知としては許容する。
 //! 5. **`aria-atomic` は明示しない**: `alert` の暗黙値 `true` に委ね、
 //!    出力の差分を最小に保つ。
+//!
+//! # shadcn/ui 突合による拡張パーツ（イシュー #2185）
+//!
+//! PR #2147（#2014 field の shadcn/ui 突合）で「対応する headless anatomy が
+//! 存在しない」として見送られていた shadcn/ui `FieldGroup`/`FieldContent`/
+//! `FieldTitle`/テキスト付き `FieldSeparator` 相当を、ark-ui 8 パーツへの
+//! **純追加**として anatomy へ加える（一次参照軸は ark-ui のまま、`root`/
+//! `label`/`input`/`textarea`/`select`/`helper_text`/`error_text`/
+//! `required_indicator` の既存シグネチャ・出力は不変）。
+//!
+//! - [`group`]: 複数の `root`（Field 単位）を縦に束ねる外側コンテナ（shadcn
+//!   `FieldGroup` 相当）。`FieldProps` を取らず data-* フラグも出さない
+//!   （フィールド群自体は disabled 等の状態を持たない）。`role="group"` を
+//!   固定付与する。
+//! - [`content`]/[`title`]: `root` 内で見出し・補助テキストを縦に束ねる列
+//!   （shadcn `FieldContent`/`FieldTitle` 相当）。両者とも `state_data_attrs`
+//!   （4 フラグ）を伝播する。[`title`] は `<label for>` を結び付けられない
+//!   場面（複数コントロール・チェックボックスの見出し等）で [`label`] の
+//!   代替として使う想定であり、`label` と異なり `for`/`id` を自動導出
+//!   しない（[`FieldIds`] へフィールドを追加すると構造体リテラルの破壊的
+//!   変更になるため）。呼び出し側が `attrs` で `id` を渡し、対応する
+//!   コントロールへ `aria-labelledby` で結び付ける運用とする。
+//! - [`separator`]/内部パーツ `separator-line`/`separator-content`: shadcn
+//!   `FieldSeparator`（テキスト付き区切り線）相当。`role="separator"` は
+//!   `separator-line`（`hr`）にのみ付与し、テキスト（`separator-content`、
+//!   `span`）とは別要素に分離する（WAI-ARIA `separator` ロールの子孫は
+//!   presentational であるため、テキストを同じ要素に載せると読み上げ上の
+//!   意味論が壊れる。[`mod@crate::menu`] の `separator` と同型判断）。線の
+//!   実描画（罫線の CSS）は `.claude/rules/coding-rust.md` §3.25 規則 2
+//!   （レイアウト計測・装飾は headless へ持ち込まない）に従い
+//!   `fandhe-frontend-pre-styled-ui` 側の責務とする。
+//! - 新規 `data-*`（`data-orientation` 等）は追加しない。既存 4 フラグ
+//!   （disabled/invalid/required/readonly）の伝播則のみを [`content`]/
+//!   [`title`] へ適用する。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_describedby, aria_hidden, aria_invalid};
+use crate::aria::{aria_describedby, aria_hidden, aria_invalid, aria_orientation};
+use crate::data_attrs::Orientation;
 use fandhe_frontend_core::Node;
 
 /// `data-scope="field"` を固定した本コンポーネントの anatomy。
@@ -455,6 +490,65 @@ pub fn required_indicator(
     ANATOMY.part("required-indicator", "span", merged, children)
 }
 
+/// `group` パーツ（`div`）。複数の [`root`] を縦に束ねる外側コンテナ
+/// （shadcn `FieldGroup` 相当、イシュー #2185）。`FieldProps` を取らず
+/// data-* フラグも出さない（フィールド群自体は disabled 等の状態を持たない。
+/// 個々の `root` が各自のフラグを持つ）。`role="group"` を固定付与する。
+#[must_use]
+pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("role", "group")];
+    merged.extend(attrs);
+    ANATOMY.part("group", "div", merged, children)
+}
+
+/// `content` パーツ（`div`）。[`root`] 内で見出し（[`label`]/[`title`]）と
+/// [`helper_text`] を縦に束ねる列（shadcn `FieldContent` 相当、イシュー
+/// #2185）。`disabled`/`invalid`/`required`/`readonly` の data-* フラグを
+/// [`root`] と同じ規則で伝播する。
+#[must_use]
+pub fn content(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&str, &str)> = state_data_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("content", "div", merged, children)
+}
+
+/// `title` パーツ（`div`）。`<label for>` を結び付けられない場面（複数
+/// コントロール・チェックボックス群の見出し等）で [`label`] の代替として
+/// 使う（shadcn `FieldTitle` 相当、イシュー #2185）。[`label`] と異なり
+/// `for`/`id` を自動導出しない（[`FieldIds`] へのフィールド追加は既存呼び
+/// 出し側の構造体リテラルを破壊するため、本イシューでは見送る）。呼び出し
+/// 側が `attrs` で `id` を渡し、対応するコントロールへ `aria-labelledby` で
+/// 結び付ける運用とする（本モジュール doc 参照）。`disabled`/`invalid`/
+/// `required`/`readonly` の data-* フラグを [`label`] と同じ規則で伝播する。
+#[must_use]
+pub fn title(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&str, &str)> = state_data_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("title", "div", merged, children)
+}
+
+/// `separator` パーツ（`div` ラッパー）。テキスト付き区切り線（shadcn
+/// `FieldSeparator` 相当、イシュー #2185）。内部に必ず `separator-line`
+/// （`hr`、`role="separator"` + `aria-orientation="horizontal"`）を配置し、
+/// `content` が空でないときのみ続けて `separator-content`（`span`、テキスト
+/// を保持する）を配置する。`role="separator"` の子孫は presentational
+/// であるため、テキストは `separator-line` と同じ要素へ載せず別要素
+/// （`separator-content`）に分離する（本モジュール doc・[`mod@crate::menu`]
+/// の `separator` と同型判断）。`attrs` はラッパー `div` へ合成する。
+#[must_use]
+pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, content: Vec<Node>) -> Node {
+    let line_attrs = vec![
+        ("role", "separator"),
+        aria_orientation(Orientation::Horizontal),
+    ];
+    let line = ANATOMY.part("separator-line", "hr", line_attrs, vec![]);
+    let mut children = vec![line];
+    if !content.is_empty() {
+        children.push(ANATOMY.part("separator-content", "span", vec![], content));
+    }
+    ANATOMY.part("separator", "div", attrs, children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -780,5 +874,152 @@ mod tests {
         ));
         assert!(!html.contains("onmouseover=\"alert"));
         assert!(html.contains("&quot;"));
+    }
+
+    // --- 拡張パーツ（group/content/title/separator、イシュー #2185） ---
+
+    #[test]
+    fn group_renders_role_group_and_scope_part() {
+        let node = group(vec![], vec![text("children")]);
+        assert_eq!(
+            render(&node),
+            r#"<div data-scope="field" data-part="group" role="group">children</div>"#
+        );
+    }
+
+    #[test]
+    fn group_omits_all_four_data_flags() {
+        // group は FieldProps を取らないため、フィールド群自体は
+        // disabled/invalid/required/readonly のいずれの data-* も出さない
+        // （個々の root が各自のフラグを持つ設計、モジュール doc 参照）。
+        let html = render(&group(vec![], vec![]));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-required"));
+        assert!(!html.contains("data-readonly"));
+    }
+
+    #[test]
+    fn content_and_title_reflect_all_four_flags() {
+        let mut props = base_props("f");
+        props.disabled = true;
+        props.invalid = true;
+        props.required = true;
+        props.readonly = true;
+
+        let content_html = render(&content(&props, vec![], vec![]));
+        assert_eq!(
+            content_html,
+            r#"<div data-scope="field" data-part="content" data-disabled="" data-invalid="" data-required="" data-readonly=""></div>"#
+        );
+
+        let title_html = render(&title(&props, vec![], vec![]));
+        assert_eq!(
+            title_html,
+            r#"<div data-scope="field" data-part="title" data-disabled="" data-invalid="" data-required="" data-readonly=""></div>"#
+        );
+    }
+
+    #[test]
+    fn content_and_title_omit_flags_when_false() {
+        let props = base_props("f");
+        assert_eq!(
+            render(&content(&props, vec![], vec![])),
+            r#"<div data-scope="field" data-part="content"></div>"#
+        );
+        assert_eq!(
+            render(&title(&props, vec![], vec![])),
+            r#"<div data-scope="field" data-part="title"></div>"#
+        );
+    }
+
+    #[test]
+    fn separator_without_content_omits_separator_content_part() {
+        let html = render(&separator(vec![], vec![]));
+        assert_eq!(
+            html,
+            concat!(
+                r#"<div data-scope="field" data-part="separator">"#,
+                r#"<hr data-scope="field" data-part="separator-line" role="separator" aria-orientation="horizontal">"#,
+                r#"</div>"#
+            )
+        );
+    }
+
+    #[test]
+    fn separator_with_content_wraps_text_in_separator_content_span() {
+        let html = render(&separator(vec![], vec![text("Or continue with")]));
+        assert_eq!(
+            html,
+            concat!(
+                r#"<div data-scope="field" data-part="separator">"#,
+                r#"<hr data-scope="field" data-part="separator-line" role="separator" aria-orientation="horizontal">"#,
+                r#"<span data-scope="field" data-part="separator-content">Or continue with</span>"#,
+                r#"</div>"#
+            )
+        );
+    }
+
+    #[test]
+    fn separator_line_role_is_not_duplicated_onto_separator_content() {
+        // WAI-ARIA separator ロールの子孫は presentational であるため、
+        // role="separator" は separator-line のみに載り、テキストを保持する
+        // separator-content には現れないことを固定する。
+        let html = render(&separator(vec![], vec![text("Or")]));
+        assert_eq!(html.matches(r#"role="separator""#).count(), 1);
+    }
+
+    #[test]
+    fn caller_supplied_data_scope_and_part_are_dropped_on_extended_parts() {
+        let node = group(
+            vec![("Data-Scope", "attacker"), ("DATA-PART", "attacker")],
+            vec![],
+        );
+        assert_eq!(
+            render(&node),
+            r#"<div data-scope="field" data-part="group" role="group"></div>"#
+        );
+
+        let node = separator(vec![("data-scope", "attacker")], vec![]);
+        assert!(render(&node).starts_with(r#"<div data-scope="field" data-part="separator">"#));
+    }
+
+    #[test]
+    fn xss_payload_in_extended_parts_attrs_and_children_is_escaped_on_render() {
+        let props = base_props("f");
+        let payload_attr = "x\" onmouseover=\"alert(1)";
+        let payload_text = "<script>alert(1)</script>";
+
+        let group_html = render(&group(
+            vec![("data-testid", payload_attr)],
+            vec![text(payload_text)],
+        ));
+        assert!(!group_html.contains("onmouseover=\"alert"));
+        assert!(!group_html.contains("<script>alert"));
+        assert!(group_html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+
+        let content_html = render(&content(
+            &props,
+            vec![("id", payload_attr)],
+            vec![text(payload_text)],
+        ));
+        assert!(!content_html.contains("onmouseover=\"alert"));
+        assert!(content_html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+
+        let title_html = render(&title(
+            &props,
+            vec![("id", payload_attr)],
+            vec![text(payload_text)],
+        ));
+        assert!(!title_html.contains("onmouseover=\"alert"));
+        assert!(title_html.contains("&quot;"));
+
+        let separator_html = render(&separator(
+            vec![("data-testid", payload_attr)],
+            vec![text(payload_text)],
+        ));
+        assert!(!separator_html.contains("onmouseover=\"alert"));
+        assert!(!separator_html.contains("<script>alert"));
+        assert!(separator_html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     }
 }

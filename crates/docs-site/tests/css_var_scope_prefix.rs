@@ -119,6 +119,16 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   は CSS の継承で `chart::tooltip::frame`〔祖先〕から各 chart 部品の
 ///   視覚要素〔子孫〕へ scope をまたいで届く必要があるため、`chart-*`
 ///   prefix へ統一せず各 scope 側で同名定義する方式を採る）。
+/// - `--fandhe-separator-thickness`: イシュー #2185 で `field::separator`
+///   （`field.rs` の `separator-line` slot、`hr`）が採用した区切り線描画
+///   （`border-top-*`、chakra-ui 方式）が、所有 scope `separator`
+///   （`crate::separator`、#2053）の同名 custom property をそのまま参照
+///   する意図的な cross-scope 設計。理由は `field.rs` モジュール doc
+///   「採用したもの（イシュー #2185）」節参照: 区切り線の太さ制御を一貫
+///   させるため `separator` の上書き契約を共有する。所有 scope
+///   （`separator`）自身は前方一致規約を満たしているため、この免除は
+///   「他 scope（`field`）から参照される」ケースにのみ適用される
+///   （`--fandhe-calendar-day-size` と同型）。
 const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
     "--fandhe-palette-emphasized",
@@ -141,6 +151,7 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-calendar-day-size",
     "--fandhe-chart-inactive-opacity",
     "--fandhe-chart-active-scale",
+    "--fandhe-separator-thickness",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。

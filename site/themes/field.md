@@ -1,9 +1,18 @@
 # Field
 
 `fandhe-frontend-pre-styled-ui` の `field` mod が提供するスタイル済み Field 部品です。
-Root / Label / HelperText / ErrorText / RequiredIndicator の 5 パーツ構成で、ラベル・
-補助テキスト・エラーテキスト・必須マークの型階層と `root` の余白レイアウトを提供します。
-配置軸は `orientation`（既定 `vertical` の縦積み、`horizontal` の横並び）のみを持ちます。
+Root / Label / HelperText / ErrorText / RequiredIndicator の 5 パーツに加え、Group /
+Content / Title / Separator（内部パーツ SeparatorLine / SeparatorContent）の 6 パーツ
+（イシュー #2185 で純追加、shadcn/ui FieldGroup / FieldContent / FieldTitle /
+FieldSeparator 相当）の計 11 パーツ構成で、ラベル・補助テキスト・エラーテキスト・
+必須マークの型階層と `root` の余白レイアウトを提供します。配置軸は `orientation`
+（既定 `vertical` の縦積み、`horizontal` の横並び）のみを持ちます。
+
+Group は複数の Field（Root）を縦に束ねる外側コンテナ、Separator は線のみ／テキスト付き
+の区切り線です。Content / Title は `<label for>` を結び付けにくい場面（複数コントロール
+の見出し等）で Label の代替として使う見出し + 補助テキストの列で、Title は `for`/`id`
+を自動導出しないため、呼び出し側が Title の `id` を対応するコントロールの
+`aria-labelledby` へ渡して結び付けます。
 
 コントロール（input/textarea/select）は本部品が所有せず、[Input](./input.md) /
 [Textarea](./textarea.md) / [Native Select](./native-select.md) の各部品が同じ

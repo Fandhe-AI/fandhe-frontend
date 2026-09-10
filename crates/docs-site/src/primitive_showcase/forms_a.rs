@@ -927,6 +927,15 @@ pub(super) fn field_section() -> Node {
         readonly: false,
         has_helper_text: false,
     };
+    let newsletter_props = FieldProps {
+        id: "field-newsletter",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
 
     let body = vec![
         field_instance(
@@ -1006,6 +1015,48 @@ pub(super) fn field_section() -> Node {
             None,
         ),
     ];
+
+    // イシュー #2185 拡張パーツ（group/content/title/separator/
+    // separator-line/separator-content）を Demo へ追加し、
+    // `anatomy_coverage_matches_known_uncovered_exactly` の網羅対象へ含める
+    // （`KNOWN_UNCOVERED` へは登録しない）。shadcn-field-1（複数 field の
+    // 縦積み・区切り線）・shadcn-field-2（content/title レイアウト）双方の
+    // 合成を反映する。
+    let group_body = vec![
+        // 線のみの separator（shadcn の Field 群区切り相当）。
+        field::separator(vec![], vec![]),
+        // テキスト付き separator（"Or continue with" 相当）。
+        field::separator(vec![], vec![text("Or continue with")]),
+        // content + title: 複数コントロール（チェックボックス）の見出しを
+        // `<label for>` ではなく `title` で表す（aria-labelledby 配線）。
+        field::content(
+            &newsletter_props,
+            vec![],
+            vec![
+                field::title(
+                    &newsletter_props,
+                    vec![("id", "field-newsletter-title")],
+                    vec![text("Notifications")],
+                ),
+                field::input(
+                    &newsletter_props,
+                    vec![
+                        ("type", "checkbox"),
+                        ("name", "newsletter"),
+                        ("aria-labelledby", "field-newsletter-title"),
+                    ],
+                ),
+                field::helper_text(
+                    &newsletter_props,
+                    vec![],
+                    vec![text("Receive product updates by email.")],
+                ),
+            ],
+        ),
+    ];
+    let mut all = body;
+    all.extend(group_body);
+    let body = vec![field::group(vec![], all)];
     demo_page("Field", body)
 }
 

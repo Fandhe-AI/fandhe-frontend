@@ -57,7 +57,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
     AngleSlider, AngleSliderProps,
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
-use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldProps, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::image_cropper::{HandlePosition, ImageCropperProps};
@@ -777,11 +777,12 @@ const EDITABLE: ComponentPageSpec = ComponentPageSpec {
 
 const FIELD: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/label/helper-text/error-text/required-indicator の 5 slot に型階層と余白（`orientation`、既定 `Vertical`）を提供する。コントロール（`input`/`textarea`/`select`）は `input`/`textarea`/`native_select` の各 recipe が同じ `\"field\"` scope を共有して所有するため、本モジュールは宣言しない（`field.rs` モジュール doc「本モジュールが宣言する slot」節）。",
+        "root/label/helper-text/error-text/required-indicator/group/content/title/separator/separator-line/separator-content の 11 slot に型階層と余白（`orientation`、既定 `Vertical`）を提供する（イシュー #2185 で group/content/title/separator の 6 slot を純追加）。コントロール（`input`/`textarea`/`select`）は `input`/`textarea`/`native_select` の各 recipe が同じ `\"field\"` scope を共有して所有するため、本モジュールは宣言しない（`field.rs` モジュール doc「本モジュールが宣言する slot」節）。",
         "`orientation` のみを持つ variant 軸（`size`/`colorPalette` は非提供。ラベル・補助テキストの文字サイズは固定の型階層で表現する設計判断）。",
         "`data-invalid`/`data-disabled`/`data-required`/`data-readonly` はいずれも headless-ui `field::root` が出力する状態を CSS セレクタとして参照するだけで、値の妥当性判定・送信処理といったバリデーション自体は実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
         "`error-text`/`required-indicator` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",
         "hover / focus ring / transition はいずれも意図的に非採用（実フォーカスはコントロール側にあり、状態遷移に伴う視覚変化がないため）。",
+        "`group` は複数 `Field`（`root`）を縦積みする外側コンテナ、`separator` は線のみ／テキスト付きの区切り線（`separator-line`/`separator-content` の 2 内部パーツから成る）、`content`/`title` は `<label for>` を結び付けられない場面（複数コントロールの見出し等）で `label` の代替として使う見出し + 補助テキストの列（イシュー #2185、shadcn/ui `FieldGroup`/`FieldSeparator`/`FieldContent`/`FieldTitle` 相当）。",
     ],
     arguments: &[
         ArgRow {
@@ -808,8 +809,37 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "`root` 配下の子ノード（`label`/コントロール/`helper_text`/`error_text` 等）。",
         },
+        ArgRow {
+            name: "group",
+            kind: "fn(attrs, children) -> Node",
+            default: "",
+            description: "複数 `root` を縦積みする外側コンテナ（イシュー #2185）。`FieldProps` を取らず data-* を出力しない。",
+        },
+        ArgRow {
+            name: "separator",
+            kind: "fn(attrs, content: Vec<Node>) -> Node",
+            default: "",
+            description: "テキスト付き区切り線（イシュー #2185）。`content` が空なら線のみ、非空なら `separator-content` を追加描画する。",
+        },
+        ArgRow {
+            name: "content / title",
+            kind: "fn(field, attrs, children) -> Node",
+            default: "",
+            description: "見出し（`title`）+ 補助テキストの列を束ねる `content`（イシュー #2185）。`title` は `<label for>` を自動導出しないため、呼び出し側が `attrs` で `id` を渡しコントロールへ `aria-labelledby` で結び付ける。",
+        },
     ],
-    examples: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Field group + separator",
+            description: "複数の `Field` を `group` で縦積みし、線のみの `separator` とテキスト付き `separator`（\"Or continue with\"）を挟む合成例です（イシュー #2185、`docs/design/reference-screenshots/shadcn-field-1.png` の Payment Method フォーム相当）。",
+            render: ex_field_group_and_separator,
+        },
+        ExampleEntry {
+            title: "Content + title レイアウト",
+            description: "`<label for>` を結び付けにくいチェックボックス見出しを `content`/`title` で表現する合成例です（イシュー #2185、`docs/design/reference-screenshots/shadcn-field-2.png` の説明文配置に近い構成）。`title` の `id` をコントロールの `aria-labelledby` へ渡して結び付けます。",
+            render: ex_field_content_and_title,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -832,9 +862,148 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             attribute: "label[for] / control id",
             description: "`label` の `for` とコントロールの `id` は同一 `FieldProps` から決定的に対応する。",
         },
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "`group` パーツへ固定付与する（イシュー #2185）。",
+        },
+        AriaRow {
+            attribute: "role=\"separator\" / aria-orientation=\"horizontal\"",
+            description: "`separator-line`（`hr`）へ固定付与する。テキストは presentational な子孫にならないよう別要素（`separator-content`）へ分離する（イシュー #2185）。",
+        },
+        AriaRow {
+            attribute: "aria-labelledby",
+            description: "`title` は `for`/`id` を自動導出しないため、呼び出し側が `title` の `id` をコントロールの `aria-labelledby` へ渡して結び付ける運用とする（イシュー #2185）。",
+        },
     ],
     demo: None,
 };
+
+/// [`FIELD`] の Examples 節「Field group + separator」レンダラ（イシュー
+/// #2185）。`docs/design/reference-screenshots/shadcn-field-1.png`
+/// （Payment Method フォーム: 複数 field の縦積み・区切り線）の合成を
+/// 再現する。バリデーション・送信処理は実装しない（§3.25 規則 1）。
+fn ex_field_group_and_separator() -> Node {
+    let card_props = FieldProps {
+        id: "ex-field-card-number",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
+    let expiry_props = FieldProps {
+        id: "ex-field-expiry",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    field::group(
+        vec![],
+        vec![
+            field::root(
+                &FieldRootProps::default(),
+                &card_props,
+                vec![],
+                vec![
+                    field::label(&card_props, vec![], vec![text("Card number")]),
+                    fandhe_frontend_pre_styled_ui::input::input(
+                        &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                        &card_props,
+                        vec![("type", "text"), ("placeholder", "4242 4242 4242 4242")],
+                    ),
+                    field::helper_text(&card_props, vec![], vec![text("16-digit card number.")]),
+                ],
+            ),
+            field::separator(vec![], vec![]),
+            field::separator(vec![], vec![text("Or continue with")]),
+            field::root(
+                &FieldRootProps::default(),
+                &expiry_props,
+                vec![],
+                vec![
+                    field::label(&expiry_props, vec![], vec![text("Expiry date")]),
+                    fandhe_frontend_pre_styled_ui::input::input(
+                        &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                        &expiry_props,
+                        vec![("type", "text"), ("placeholder", "MM / YY")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// [`FIELD`] の Examples 節「Content + title レイアウト」レンダラ（イシュー
+/// #2185）。`docs/design/reference-screenshots/shadcn-field-2.png` の
+/// 説明文配置に近い構成として、`<label for>` を結び付けにくいチェック
+/// ボックス見出しを `content`/`title` で表現する。
+fn ex_field_content_and_title() -> Node {
+    let newsletter_props = FieldProps {
+        id: "ex-field-newsletter",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
+    field::content(
+        &newsletter_props,
+        vec![],
+        vec![
+            field::title(
+                &newsletter_props,
+                vec![("id", "ex-field-newsletter-title")],
+                vec![text("Notifications")],
+            ),
+            // `field::input`（`data-scope="field" data-part="input"`）を
+            // checkbox 用途へ転用すると Themes 側 `input::css()`
+            // （テキスト入力用の `width: 100%` 等）が意図せず適用され
+            // 表示が崩れるため（イシュー #2185 PR #2276 レビュー指摘）、
+            // テキスト入力用セレクタに一致しない `checkbox`
+            // コンポーネント（`data-scope="checkbox"`）を使う。可視ラベル
+            // テキストは外側の `field::title` のみが持ち、`checkbox::root`
+            // の `label` パーツ（可視テキスト用）は使わず
+            // `aria-labelledby`/`aria-describedby` で関連付ける
+            // （`showcase.rs` の同型修正と対をなす）。
+            checkbox::root(
+                Size::Md,
+                ColorPalette::Accent,
+                &CheckboxProps::default(),
+                vec![],
+                vec![
+                    checkbox::hidden_input(
+                        &CheckboxProps::default(),
+                        "ex-field-newsletter",
+                        "on",
+                        vec![
+                            ("aria-labelledby", "ex-field-newsletter-title"),
+                            ("aria-describedby", "ex-field-newsletter-helper-text"),
+                        ],
+                    ),
+                    checkbox::control(
+                        &CheckboxProps::default(),
+                        vec![],
+                        vec![checkbox::indicator(
+                            &CheckboxProps::default(),
+                            vec![],
+                            vec![],
+                        )],
+                    ),
+                ],
+            ),
+            field::helper_text(
+                &newsletter_props,
+                vec![],
+                vec![text("Receive product updates by email.")],
+            ),
+        ],
+    )
+}
 
 const FIELDSET: ComponentPageSpec = ComponentPageSpec {
     features: &[

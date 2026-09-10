@@ -2816,7 +2816,34 @@ name = "fandhe-frontend-pre-styled-ui"
 # main +1 する運用、`docs/ci/version-bump-publish-order-gap.md` 系の
 # 先例と同一方針）。この偶発的一致をそのまま採用せず 0.171.0 へさらに
 # マイナーバンプする。
-version = "0.171.0"
+#
+# PR #2265 codex-review P1 是正の base 取り込み: origin/main 側は並行 PR
+# （イシュー #2115 の styled `marker` 新設）で 0.169.0 へ到達済みだった。
+# 本ブランチの 0.168.0 は main の 0.169.0 を下回るため（既発行済みバー
+# ジョンとの衝突を避ける運用）、main の到達値 0.169.0 をさらに上回る
+# 0.170.0 へマイナーバンプする。
+# イシュー #2185 base 取り込み: 本ブランチ側では `field` へ headless-ui
+# 側で新設した `group`/`content`/`title`/テキスト付き `separator` の
+# 6 slot（base/state 宣言・再エクスポート）を追加着装し、既存 5 slot の
+# CSS 出力バイト・API シグネチャは不変の純追加として 0.166.3 へ patch
+# バンプしていた。origin/main 側は並行 PR（イシュー #2115 の marker 新設、
+# イシュー #2133 の Legend button 化等）を経て 0.169.0 へ到達済みであり、
+# 本ブランチ側の到達値を上回るため、同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、本ブランチの実体変更（field への 6 slot 純追加）
+# を反映した結果として main の到達値 0.169.0 をさらに上回る 0.170.0 へ
+# マイナーバンプする。
+# PR #2276（イシュー #2185）base 取り込み: 本ブランチは #2185（field への
+# headless-ui 6 slot 純追加の着装）で 0.169.0 → 0.170.0 へマイナー
+# バンプ済みだったが、origin/main も並行 PR で独立に 0.170.0 へ到達して
+# おり、同一版数への偶発的衝突をそのまま採用しない原則により main の
+# 到達値 0.170.0 からさらに +1（マイナー）して 0.171.0 とする。
+#
+# PR #2278（イシュー #2131）base 再取り込み（本コンフリクト解消）:
+# origin/main 側は別系統ブランチが独立に同じ経緯を辿り 0.171.0 へ到達
+# しており、本ブランチの到達値 0.171.0 と偶然一致していた（同一版数は
+# コンフリクトとして扱い main +1 する運用、既存の先例と同一方針）。この
+# 偶発的一致をそのまま採用せず 0.172.0 へさらにマイナーバンプする。
+version = "0.172.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -2831,7 +2858,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.12" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.13" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

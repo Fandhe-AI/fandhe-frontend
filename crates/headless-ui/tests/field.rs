@@ -9,7 +9,8 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::field::{
-    error_text, helper_text, input, label, required_indicator, root, select, textarea,
+    content, error_text, group, helper_text, input, label, required_indicator, root, select,
+    separator, textarea, title,
 };
 use fandhe_frontend_headless_ui::{FieldIds, FieldProps};
 
@@ -413,10 +414,10 @@ fn no_part_outputs_state_orientation_motion_or_pointer_attrs() {
     }
 }
 
-/// `error-text` のみが明示 `role="alert"` を出力し（イシュー #2184、
-/// shadcn/ui `FieldError` とのロール語彙パリティを意図した例外）、他 7
-/// パーツはネイティブ要素の暗黙ロールに依存し明示 `role` を持たないことを
-/// 固定する。
+/// `error-text`/`group`/`separator-line` のみが明示 `role` を出力し（`error-text`
+/// はイシュー #2184、`group`/`separator-line` は拡張パーツ導入のイシュー
+/// #2185）、他のパーツはネイティブ要素の暗黙ロールに依存し明示 `role` を
+/// 持たないことを固定する。
 #[test]
 fn only_error_text_outputs_explicit_role() {
     let mut props = base_props("f");
@@ -425,7 +426,7 @@ fn only_error_text_outputs_explicit_role() {
     props.required = true;
     props.readonly = true;
 
-    let non_role_parts: [(&str, String); 7] = [
+    let non_role_parts: [(&str, String); 9] = [
         ("root", render(&root(&props, vec![], vec![]))),
         ("label", render(&label(&props, vec![], vec![text("L")]))),
         ("input", render(&input(&props, vec![]))),
@@ -439,6 +440,8 @@ fn only_error_text_outputs_explicit_role() {
             "required-indicator",
             render(&required_indicator(&props, vec![], vec![text("*")])),
         ),
+        ("content", render(&content(&props, vec![], vec![]))),
+        ("title", render(&title(&props, vec![], vec![]))),
     ];
     for (part, html) in &non_role_parts {
         assert!(!html.contains(" role=\""), "{part}: {html}");
@@ -446,6 +449,72 @@ fn only_error_text_outputs_explicit_role() {
 
     let error_html = render(&error_text(&props, vec![], vec![text("E")]));
     assert_eq!(error_html.matches(r#"role="alert""#).count(), 1);
+
+    let group_html = render(&group(vec![], vec![]));
+    assert_eq!(group_html.matches(r#"role="group""#).count(), 1);
+
+    let separator_html = render(&separator(vec![], vec![]));
+    assert_eq!(separator_html.matches(r#"role="separator""#).count(), 1);
+}
+
+// --- 拡張パーツ（group/content/title/separator、イシュー #2185）の
+// data-scope/data-part 固定・4 フラグ非出力（group/separator）確認 ---
+
+/// `group`/`content`/`title`/`separator`/`separator-line`/`separator-content`
+/// が公開 API 経由で期待する `data-scope="field"`/`data-part` を固定する。
+#[test]
+fn extended_parts_render_expected_data_scope_and_part() {
+    let group_html = render(&group(vec![], vec![]));
+    assert!(group_html.contains(r#"data-scope="field" data-part="group""#));
+
+    let props = base_props("f");
+    let content_html = render(&content(&props, vec![], vec![]));
+    assert!(content_html.contains(r#"data-scope="field" data-part="content""#));
+
+    let title_html = render(&title(&props, vec![], vec![]));
+    assert!(title_html.contains(r#"data-scope="field" data-part="title""#));
+
+    let separator_html = render(&separator(vec![], vec![text("Or")]));
+    assert!(separator_html.contains(r#"data-scope="field" data-part="separator""#));
+    assert!(separator_html.contains(r#"data-scope="field" data-part="separator-line""#));
+    assert!(separator_html.contains(r#"data-scope="field" data-part="separator-content""#));
+}
+
+/// `group`/`separator` は `FieldProps` を取らないため、4 フラグ
+/// （disabled/invalid/required/readonly）の data-* をいずれも出力しない
+/// ことを固定する（フィールド群自体は状態を持たない設計、`field.rs`
+/// モジュール doc 参照）。
+#[test]
+fn group_and_separator_never_emit_the_four_state_data_flags() {
+    let group_html = render(&group(vec![], vec![]));
+    let separator_html = render(&separator(vec![], vec![text("Or")]));
+    for html in [&group_html, &separator_html] {
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-required"));
+        assert!(!html.contains("data-readonly"));
+    }
+}
+
+/// `content`/`title` は `root`/`label` と同じ 4 フラグ伝播規則に従うことを
+/// 公開 API 経由で固定する。
+#[test]
+fn content_and_title_propagate_all_four_state_data_flags() {
+    let mut props = base_props("f");
+    props.disabled = true;
+    props.invalid = true;
+    props.required = true;
+    props.readonly = true;
+
+    for html in [
+        render(&content(&props, vec![], vec![])),
+        render(&title(&props, vec![], vec![])),
+    ] {
+        assert!(html.contains(r#"data-disabled=""#));
+        assert!(html.contains(r#"data-invalid=""#));
+        assert!(html.contains(r#"data-required=""#));
+        assert!(html.contains(r#"data-readonly=""#));
+    }
 }
 
 /// input/textarea/select の 3 コントロールが zag.js Field のネイティブ属性則

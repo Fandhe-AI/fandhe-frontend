@@ -1,13 +1,16 @@
-//! styled Field（イシュー #1684、親 #1671）の決定的 CSS 出力ゴールデン
-//! テスト。
+//! styled Field（イシュー #1684、親 #1671。#2185 で group/content/title/
+//! separator の 6 slot を追加）の決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/alert_css.rs` と同型の golden fixture
-//! テスト。`field` recipe は `root`/`label`/`helper-text`/`error-text`/
-//! `required-indicator` の 5 slot のみを宣言し、`input`/`textarea`/`select`
-//! slot は [`crate::input`]/[`crate::textarea`]/[`crate::native_select`]
-//! （`crates/pre-styled-ui/src/input.rs` 参照）が所有するため意図的に
-//! 宣言しない（`field.rs` モジュール doc「スコープ」節参照）。本ファイルは
-//! それを CSS 出力側からも固定する。
+//! テスト。`field` recipe は元々 `root`/`label`/`helper-text`/`error-text`/
+//! `required-indicator` の 5 slot のみを宣言していた。`input`/`textarea`/
+//! `select` slot は [`crate::input`]/[`crate::textarea`]/
+//! [`crate::native_select`]（`crates/pre-styled-ui/src/input.rs` 参照）が
+//! 所有するため意図的に宣言しない（`field.rs` モジュール doc「スコープ」
+//! 節参照）。本ファイルはそれを CSS 出力側からも固定する。イシュー #2185
+//! で `group`/`content`/`title`/`separator`/`separator-line`/
+//! `separator-content` の 6 slot が純追加された（`FIELD_GOLDEN_BLOCKS_BEFORE_2185`
+//! が既存ブロック群の verbatim 維持を固定する）。
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_pre_styled_ui::field::{
@@ -54,6 +57,62 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
   line-height: var(--fandhe-font-line-height-tight);
 }
 
+[data-scope="field"][data-part="group"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fandhe-space-6);
+  width: 100%;
+}
+
+[data-scope="field"][data-part="content"] {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  gap: var(--fandhe-space-1-5, 0.375rem);
+  line-height: var(--fandhe-font-line-height-normal);
+}
+
+[data-scope="field"][data-part="title"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-1);
+  width: fit-content;
+  font-size: var(--fandhe-font-font-size-sm);
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-normal);
+  color: var(--fandhe-color-fg);
+  user-select: none;
+}
+
+[data-scope="field"][data-part="separator"] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--fandhe-space-5);
+  font-size: var(--fandhe-font-font-size-sm);
+  line-height: var(--fandhe-font-line-height-normal);
+}
+
+[data-scope="field"][data-part="separator-line"] {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  margin: 0;
+  border-width: 0;
+  border-top-width: var(--fandhe-separator-thickness, 1px);
+  border-top-style: solid;
+  border-top-color: var(--fandhe-color-border);
+}
+
+[data-scope="field"][data-part="separator-content"] {
+  position: relative;
+  padding-inline: var(--fandhe-space-2);
+  background-color: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg-muted);
+  white-space: nowrap;
+}
+
 [data-scope="field"][data-part="root"].fd-field--orientation-horizontal {
   flex-direction: row;
   align-items: center;
@@ -83,6 +142,15 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
   color: var(--fandhe-color-danger);
 }
 
+[data-scope="field"][data-part="title"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="field"][data-part="title"][data-invalid] {
+  color: var(--fandhe-color-danger);
+}
+
 [data-scope="field"][data-part="error-text"] > ul {
   margin: 0;
   padding: 0 0 0 var(--fandhe-space-4);
@@ -93,9 +161,66 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
 }
 "#;
 
+/// イシュー #2185 以前から存在するブロック群（`root`/`label`/`helper-text`/
+/// `error-text`/`required-indicator` の base・`root` の horizontal variant・
+/// 各種 state・`error-text > ul` 静的追記）を宣言順のまま連結したもの。
+/// 新 6 slot は `required-indicator` base の直後・`.fd-field--orientation-horizontal`
+/// の前へ中間挿入されるため、golden 全文一致だけでは既存ブロックの
+/// verbatim 維持（バイト単位で変更していないこと）が読み取りにくい。
+/// このため `field::css()` が本定数の全ブロックを元の順序のまま含む
+/// ことを別途固定する（pie_donut #2084 と同型の「既存ブロック verbatim +
+/// 中間挿入」検証パターン、`docs/internal/pre-styled-ui-golden-test-update-guide.md`
+/// 参照）。
+const FIELD_GOLDEN_BLOCKS_BEFORE_2185: &[&str] = &[
+    "[data-scope=\"field\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1-5, 0.375rem);\n  width: 100%;\n  position: relative;\n  box-sizing: border-box;\n}\n",
+    "[data-scope=\"field\"][data-part=\"label\"] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  line-height: var(--fandhe-font-line-height-normal);\n  color: var(--fandhe-color-fg);\n  user-select: none;\n}\n",
+    "[data-scope=\"field\"][data-part=\"helper-text\"] {\n  font-size: var(--fandhe-font-font-size-sm);\n  line-height: var(--fandhe-font-line-height-normal);\n  color: var(--fandhe-color-fg-muted);\n}\n",
+    "[data-scope=\"field\"][data-part=\"error-text\"] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n  line-height: var(--fandhe-font-line-height-normal);\n  color: var(--fandhe-color-danger);\n}\n",
+    "[data-scope=\"field\"][data-part=\"required-indicator\"] {\n  color: var(--fandhe-color-danger);\n  line-height: var(--fandhe-font-line-height-tight);\n}\n",
+    "[data-scope=\"field\"][data-part=\"root\"].fd-field--orientation-horizontal {\n  flex-direction: row;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n}\n",
+    "[data-scope=\"field\"][data-part=\"error-text\"][hidden] {\n  display: none;\n}\n",
+    "[data-scope=\"field\"][data-part=\"required-indicator\"][hidden] {\n  display: none;\n}\n",
+    "[data-scope=\"field\"][data-part=\"label\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n",
+    "[data-scope=\"field\"][data-part=\"helper-text\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n",
+    "[data-scope=\"field\"][data-part=\"label\"][data-invalid] {\n  color: var(--fandhe-color-danger);\n}\n",
+    "[data-scope=\"field\"][data-part=\"error-text\"] > ul {\n  margin: 0;\n  padding: 0 0 0 var(--fandhe-space-4);\n  list-style: disc;\n}\n[data-scope=\"field\"][data-part=\"error-text\"] > ul > li + li {\n  margin-top: var(--fandhe-space-1);\n}\n",
+];
+
 #[test]
 fn field_css_matches_golden_fixture() {
     assert_eq!(field::css(), FIELD_GOLDEN_CSS);
+}
+
+/// イシュー #2185 以前から存在する全ブロックが、内容・宣言順ともに
+/// 変更されずそのまま `field::css()` に含まれることを固定する
+/// （新 6 slot は中間挿入のみで、既存ブロックのバイトは 1 つも変えて
+/// いないことの確認）。
+#[test]
+fn existing_blocks_are_preserved_verbatim_after_2185_mid_insertion() {
+    let css = field::css();
+    let mut search_from = 0usize;
+    for block in FIELD_GOLDEN_BLOCKS_BEFORE_2185 {
+        let found = css[search_from..]
+            .find(block)
+            .unwrap_or_else(|| panic!("既存ブロックが見つからないか順序が崩れている: {block}"));
+        search_from += found + block.len();
+    }
+}
+
+/// イシュー #2185 で純追加した 6 slot（`group`/`content`/`title`/
+/// `separator`/`separator-line`/`separator-content`）のセレクタが存在する
+/// ことを固定する。
+#[test]
+fn css_declares_extended_2185_slot_selectors() {
+    let css = field::css();
+    assert!(css.contains(r#"[data-scope="field"][data-part="group"] {"#));
+    assert!(css.contains(r#"[data-scope="field"][data-part="content"] {"#));
+    assert!(css.contains(r#"[data-scope="field"][data-part="title"] {"#));
+    assert!(css.contains(r#"[data-scope="field"][data-part="separator"] {"#));
+    assert!(css.contains(r#"[data-scope="field"][data-part="separator-line"] {"#));
+    assert!(css.contains(r#"[data-scope="field"][data-part="separator-content"] {"#));
+    assert!(css.contains(r#"[data-scope="field"][data-part="title"][data-disabled] {"#));
+    assert!(css.contains(r#"[data-scope="field"][data-part="title"][data-invalid] {"#));
 }
 
 #[test]
@@ -210,4 +335,26 @@ fn reexported_parts_connect_to_headless_field_markup() {
         .contains(r#"data-scope="field" data-part="error-text""#));
     assert!(render(&required_indicator(&f, vec![], vec![text("*")]))
         .contains(r#"data-scope="field" data-part="required-indicator""#));
+}
+
+/// イシュー #2185 で追加した再エクスポート（`group`/`content`/`title`/
+/// `separator`）が headless の `data-scope="field" data-part="<slot>"` へ
+/// 正しく接続していることを確認する。
+#[test]
+fn reexported_extended_2185_parts_connect_to_headless_field_markup() {
+    use fandhe_frontend_core::text;
+    use fandhe_frontend_pre_styled_ui::field::{content, group, separator, title};
+
+    let f = default_field("f");
+    assert!(
+        render(&group(vec![], vec![text("g")])).contains(r#"data-scope="field" data-part="group""#)
+    );
+    assert!(render(&content(&f, vec![], vec![text("c")]))
+        .contains(r#"data-scope="field" data-part="content""#));
+    assert!(render(&title(&f, vec![], vec![text("t")]))
+        .contains(r#"data-scope="field" data-part="title""#));
+    let separator_html = render(&separator(vec![], vec![text("Or continue with")]));
+    assert!(separator_html.contains(r#"data-scope="field" data-part="separator""#));
+    assert!(separator_html.contains(r#"data-scope="field" data-part="separator-line""#));
+    assert!(separator_html.contains(r#"data-scope="field" data-part="separator-content""#));
 }
