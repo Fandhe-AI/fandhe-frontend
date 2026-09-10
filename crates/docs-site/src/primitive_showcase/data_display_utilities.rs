@@ -453,11 +453,18 @@ pub(super) fn data_table_section() -> Node {
         vec![
             select_row_cell,
             td(vec![], vec![text("Ada Lovelace")]),
-            td(vec![], vec![text("ada@example.com")]),
+            td(
+                data_table::column_attrs(&email_column),
+                vec![text("ada@example.com")],
+            ),
         ],
     );
+    // primitives-showcase.css は headless-ui のマークアップへスタイルを
+    // 到達させない不変条件を持つため（モジュール doc「スタイル分離が
+    // 必須である理由」参照）、`table`/`th`/`td` を装飾する class は
+    // 付与しない（codex-review P1 指摘、PR #2303 是正）。
     let data_table = table(
-        vec![("class", "primitives-demo-data-table")],
+        vec![],
         vec![
             thead(vec![], vec![header_row]),
             tbody(vec![], vec![body_row]),
