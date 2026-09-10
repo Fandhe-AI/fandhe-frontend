@@ -501,8 +501,8 @@ fn sidebar_03_composes_expected_parts() {
     }
 }
 
-/// signup-05 の Demo 固有 CSS フック（logo/title/field/submit/separator/
-/// providers/provider）が実際に生成 HTML へ出力され、`blocks::stylesheet()`
+/// signup-05 の Demo 固有 CSS フック（stack/field/submit/providers/
+/// provider）が実際に生成 HTML へ出力され、`blocks::stylesheet()`
 /// にも対応するセレクタが存在することを固定する（login-01/sidebar-03 の
 /// codex-review 是正と同型: `field::root`/`button::button`/`heading::heading`/
 /// `icon::icon` は `drop_class_attr` で呼び出し側 `class` を除去するため、
@@ -527,10 +527,8 @@ fn signup_05_page_wires_demo_class_and_css_hooks() {
     );
     for hook in [
         "data-blocks-signup-05-stack=\"\"",
-        "data-blocks-signup-05-title=\"\"",
         "data-blocks-signup-05-field=\"\"",
         "data-blocks-signup-05-submit=\"\"",
-        "data-blocks-signup-05-separator=\"\"",
         "data-blocks-signup-05-providers=\"\"",
         "data-blocks-signup-05-provider=\"\"",
     ] {

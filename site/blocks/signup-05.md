@@ -61,7 +61,7 @@ fn brand() -> Node {
             size: HeadingSize::Xl,
             weight: HeadingWeight::Bold,
         },
-        vec![("data-blocks-signup-05-title", "")],
+        vec![],
         vec![text("Welcome to Acme Inc.")],
     );
     let signin_row = div(
@@ -126,10 +126,7 @@ pub fn demo() -> Node {
                 vec![("data-blocks-signup-05-submit", "")],
                 vec![text("Create Account")],
             ),
-            field::separator(
-                vec![("data-blocks-signup-05-separator", "")],
-                vec![text("Or")],
-            ),
+            field::separator(vec![], vec![text("Or")]),
             div(
                 vec![("data-blocks-signup-05-providers", "")],
                 vec![
@@ -209,7 +206,7 @@ shadcn/ui `signup-05`（registry `new-york-v4/signup-05`）実物との突合に
   アイコンは自作の単純幾何図形（`icon`）を使っています。
 - **`link` は使わない**: 遷移先を持たないアクションはすべて
   `ButtonVariant::Link` に統一しています（`login-01` と同一方針）。
-- **レイアウトはテーマトークン準拠**: プロバイダボタンを幅 600px 未満で
+- **レイアウトはテーマトークン準拠**: プロバイダボタンを幅 640px 未満で
   1 列へ折り返す構成（shadcn 側 `sm:grid-cols-2` 相当）を含め、レイアウト
   は shadcn 側スクリーンショットと一致させ、配色・タイポグラフィは本
   リポジトリの `Theme` トークンをそのまま用いています。

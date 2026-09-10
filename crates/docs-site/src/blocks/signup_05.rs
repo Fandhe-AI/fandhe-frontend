@@ -112,7 +112,7 @@ fn brand() -> Node {
             size: HeadingSize::Xl,
             weight: HeadingWeight::Bold,
         },
-        vec![("data-blocks-signup-05-title", "")],
+        vec![],
         vec![text("Welcome to Acme Inc.")],
     );
     let signin_row = div(
@@ -177,10 +177,7 @@ pub fn demo() -> Node {
                 vec![("data-blocks-signup-05-submit", "")],
                 vec![text("Create Account")],
             ),
-            field::separator(
-                vec![("data-blocks-signup-05-separator", "")],
-                vec![text("Or")],
-            ),
+            field::separator(vec![], vec![text("Or")]),
             div(
                 vec![("data-blocks-signup-05-providers", "")],
                 vec![
