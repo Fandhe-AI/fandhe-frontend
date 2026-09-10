@@ -63,7 +63,7 @@ fn print_usage() {
     eprintln!("Usage: fw <subcommand> [--project <dir>]");
     eprintln!("Subcommands:");
     eprintln!("  structure    generate/validate the machine-readable project structure manifest");
-    eprintln!("  gate         run the AI self-maintenance verification gate (type/escape/lint/test/policy) [--verbose]");
+    eprintln!("  gate         run the AI self-maintenance verification gate (type/escape/lint/test/policy) [--verbose] [--only <check>[,<check>...]]");
     eprintln!("  impact       analyze the change impact of a symbol (breaking risk, affected crates/routes)");
     eprintln!("  new          deterministically scaffold a new project from templates/default");
 }
