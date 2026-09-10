@@ -193,6 +193,28 @@
 //! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
 //! 明示すること。
 //!
+//! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
+//!
+//! [`headless_signature_pad::wire_signature_pad_component`] は本イシュー
+//! （#2326）以前は SignaturePad のポインタ座標収集配線と ClearTrigger の
+//! クリック配線の両方を単独で組み込んでいたが、本変更で ClearTrigger
+//! クリック配線を [`Self::wire_headless`]（`headless::wire_headless_component`
+//! 経由、`default-features = false` でも feature ゲートされない常時配線）
+//! へ分離した。`Runtime::mount`/`Runtime::hydrate` を使う利用者は
+//! `Self::wire_headless` が自動的に呼ばれるため挙動は変わらないが、
+//! `Runtime` を経由せず
+//! [`headless_signature_pad::wire_signature_pad_component`] を直接呼んで
+//! いる利用者（自前のマウント処理を組み立てているアプリ）は、既定 feature
+//! 構成であっても ClearTrigger のクリック配線を失う。これは上記の
+//! `default-features = false` 節（14 配線を失う contract）とは別の変更で
+//! あり、そちらの feature 列挙を明示しても救済されない。
+//!
+//! 従来どおり ClearTrigger のクリックを配線するには、
+//! `wire_signature_pad_component` の呼び出しに加えて
+//! [`headless::wire_headless_component`] を同じ `root`/`component` へ
+//! 明示的に呼ぶこと（`Self::wire_headless` の実装と同型の呼び出しで足りる。
+//! `on_update` は SignaturePad 側と同じ束縛点更新ロジックを渡してよい）。
+//!
 //! ## `keynav` off 時の注意
 //!
 //! readonly RadioGroup の click capture 保護（イシュー #1616）は

@@ -717,6 +717,18 @@ mod wiring {
     /// 成功時のみ `on_update` を呼ぶ（[`crate::lib::Runtime::wire`] と同じ
     /// 「配線は状態更新・再描画に結合しない」方針）。
     ///
+    /// # `Runtime` を経由せず本関数を直接呼ぶ利用者への移行手順（イシュー
+    /// #2326、破壊的変更）
+    ///
+    /// 本関数はもはや ClearTrigger のクリック配線を含まない
+    /// （上記「ClearTrigger クリック配線を分離」参照）。`Runtime::mount`/
+    /// `Runtime::hydrate` を使わず本関数を直接呼ぶ利用者は、従来どおり
+    /// ClearTrigger のクリックを配線するために
+    /// `crate::headless::wire_headless_component` を同じ `root`/
+    /// `component` へ追加で呼ぶ必要がある（詳細は `crate` ルート doc の
+    /// 「`wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ
+    /// 利用者への移行手順」節を参照）。
+    ///
     /// # Errors
     ///
     /// [`wire_stroke_collector`] の失敗をそのまま伝播する。
