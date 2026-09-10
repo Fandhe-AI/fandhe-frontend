@@ -891,7 +891,7 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
         },
         ExampleEntry {
             title: "Share link (custom close button)",
-            description: "shadcn/ui（Base UI スタイル）の「Custom Close Button」デモ（イシュー #2030、親 #2025）に対応する構成です。content 右上のアイコン専用 close-trigger は使わず、footer 内の通常の button（ButtonVariant::Outline）で平文の \"Close\" ボタンを併設します。close-trigger のアイコン専用契約（codex-review #1795）と SlotRecipe の子孫セレクタ非対応（イシュー #708）により、footer 内で close-trigger を機能配線済みボタンとして再利用することはできないため、既存の footer + button の組み合わせのみで表現しています。",
+            description: "shadcn/ui（Base UI スタイル）の「Custom Close Button」デモ（イシュー #2030、親 #2025）に対応する構成です。content 右上のアイコン専用 close-trigger は使わず、footer 内の close_trigger_with_variant(CloseTriggerVariant::Text, ...)（イシュー #2193）で平文の \"Close\" ボタンを併設します。text variant は data-variant=\"text\" を出力し、既存の (dialog, close-trigger) -> \"close\" 配線を共有するため、見た目だけでなく実際にクリックでダイアログを閉じられます。",
             render: ex_share_link_custom_close_button,
         },
     ],
@@ -1009,18 +1009,20 @@ fn ex_alert_dialog() -> Node {
 
 /// [`DIALOG`] の Examples 節「Share link (custom close button)」レンダラ
 /// （イシュー #2030、親 #2025、shadcn/ui〔Base UI スタイル〕「Custom Close
-/// Button」デモとの突合）。
+/// Button」デモとの突合。close_trigger_with_variant 対応はイシュー
+/// #2193）。
 ///
 /// content 右上のアイコン専用 close-trigger（イシュー #1795 でアイコン専用
-/// 契約に固定済み）は使わず、footer 内の通常の button
-/// （`ButtonVariant::Outline`）で平文の "Close" ボタンを併設する。
-/// `close_trigger` を footer 内で機能配線済みボタンとして再利用すること
-/// は、(1) close-trigger のアイコン専用契約、(2)
-/// [`fandhe_frontend_pre_styled_ui`] の `SlotRecipe` が子孫セレクタ機構を
-/// 持たない（イシュー #708）ことの 2 点により本イシュー単体では実現でき
-/// ないため、既存 API（footer + button）のみで表現している（本イシューの
-/// スコープ外、`crates/pre-styled-ui/src/dialog.rs` モジュール冒頭 rustdoc
-/// 「close-trigger のフッター内再利用」節参照）。
+/// 契約に固定済み）は使わず、footer 内の
+/// `dialog::close_trigger_with_variant(CloseTriggerVariant::Text, ...)`
+/// で平文の "Close" ボタンを併設する。イシュー #2193 で
+/// `data-variant`（[`fandhe_frontend_pre_styled_ui::dialog::CloseTriggerVariant`]）
+/// を headless 層が語彙として出力し、`recipe()` の
+/// `[data-variant="text"]` state 規則が見た目を平文ボタンへ切り替える
+/// ようになったため、既存の `(dialog, close-trigger) -> "close"` 配線を
+/// footer 内でも共有し、見た目だけでなく機能配線済みの close ボタンとして
+/// 再利用できる（`crates/pre-styled-ui/src/dialog.rs` モジュール冒頭
+/// rustdoc「close-trigger のフッター内再利用」節参照）。
 /// Demo（[`crate::showcase::dialog_section`]）・[`ex_alert_dialog`] と
 /// 同一ページに描画されるため、id は両者と衝突しない
 /// `showcase-share-dialog-*` を使う。
@@ -1064,16 +1066,14 @@ fn ex_share_link_custom_close_button() -> Node {
                                     vec![],
                                     vec![text("このリンクを知っている人は誰でも閲覧できます。")],
                                 ),
-                                // close-trigger は併用しない（アイコン専用
-                                // 契約と footer 内再利用不可のため）。
-                                // 平文の "Close" ボタンのみを footer に置く。
+                                // アイコン専用 close-trigger は併用しない。
+                                // footer 内は text variant（イシュー #2193）
+                                // の close_trigger_with_variant のみを置き、
+                                // 機能配線済みの平文 "Close" ボタンとする。
                                 dialog::footer(
                                     vec![],
-                                    vec![button(
-                                        &ButtonProps {
-                                            variant: ButtonVariant::Outline,
-                                            ..ButtonProps::default()
-                                        },
+                                    vec![dialog::close_trigger_with_variant(
+                                        dialog::CloseTriggerVariant::Text,
                                         vec![],
                                         vec![text("Close")],
                                     )],

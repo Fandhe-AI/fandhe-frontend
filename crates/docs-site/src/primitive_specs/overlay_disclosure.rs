@@ -742,6 +742,12 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "content の describedby と対で aria-describedby 関連付けを成立させる。",
         },
+        ArgRow {
+            name: "close_trigger_with_variant: variant",
+            kind: "CloseTriggerVariant",
+            default: "Icon",
+            description: "data-variant（icon/text）へ反映する見た目バリアント（イシュー #2193）。text は可視テキストでアクセシブルネームを持つため aria-label は不要。既存 close_trigger（variant 引数なし）は data-variant を出力しない。",
+        },
     ],
     examples: &[ExampleEntry {
         title: "Alert dialog (non-modal)",
@@ -964,6 +970,12 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
             kind: "Option<&str>",
             default: "",
             description: "content の describedby と対で aria-describedby 関連付けを成立させる。",
+        },
+        ArgRow {
+            name: "close_trigger_with_variant: variant",
+            kind: "CloseTriggerVariant",
+            default: "Icon",
+            description: "data-variant（icon/text）へ反映する見た目バリアント（イシュー #2193、dialog と対称）。fandhe-frontend-wasm-full が drawer scope を未配線のため、text variant を footer 相当のアクション行に置いても現状 inert（本節冒頭の記述参照）。",
         },
     ],
     examples: &[ExampleEntry {
