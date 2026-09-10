@@ -76,6 +76,26 @@ const LINE_CHART_GOLDEN_CSS: &str = r#"[data-scope="line-chart"][data-part="root
 [data-scope="line-chart"][data-part="value-label"][data-hidden] {
   display: none;
 }
+
+[data-scope="line-chart"][data-part="root"][data-has-active] {
+  --fandhe-chart-inactive-opacity: 0.4;
+}
+
+[data-scope="line-chart"][data-part="point"][data-index] {
+  opacity: var(--fandhe-chart-inactive-opacity, 1);
+  transition-property: opacity;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="line-chart"][data-part="point"][data-active] {
+  opacity: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.5);
+  stroke: var(--fandhe-color-fg);
+  stroke-width: 2;
+}
 "#;
 
 const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root"] {
@@ -142,6 +162,26 @@ const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root
 
 [data-scope="area-chart"][data-part="point"][data-hidden] {
   display: none;
+}
+
+[data-scope="area-chart"][data-part="root"][data-has-active] {
+  --fandhe-chart-inactive-opacity: 0.4;
+}
+
+[data-scope="area-chart"][data-part="point"][data-index] {
+  opacity: var(--fandhe-chart-inactive-opacity, 1);
+  transition-property: opacity;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="area-chart"][data-part="point"][data-active] {
+  opacity: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.5);
+  stroke: var(--fandhe-color-fg);
+  stroke-width: 2;
 }
 "#;
 

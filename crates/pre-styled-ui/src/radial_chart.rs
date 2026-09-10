@@ -133,7 +133,9 @@ use crate::charts::svg::{circle, line, svg_root, svg_text, ViewBox};
 use crate::charts::{drop_range_attr, series_color_var, tooltip, ChartData};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    transition_declarations, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 use std::f64::consts::{FRAC_PI_2, PI};
@@ -452,6 +454,38 @@ fn recipe() -> SlotRecipe {
             "track",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
+        )
+        // イシュー #2131: hover 強調（減光・拡張）。`crate::pie_chart::recipe`
+        // と同型（`radial_chart` は既存の active_index 由来 presentation
+        // 属性拡張を持たないため二重拡大の懸念は無いが、実装を揃える）。
+        // `crate::charts::tooltip` モジュール doc「hover 強調」節参照。
+        // wasm-full 側の `data-has-active` 付け外し配線は未実装の
+        // フォローアップ。
+        .state(
+            "root",
+            StateCondition::Attr("data-has-active"),
+            vec![
+                decl("--fandhe-chart-inactive-opacity", "0.4"),
+                decl("--fandhe-chart-active-scale", "1.05"),
+            ],
+        )
+        .state("bar", StateCondition::Attr("data-index"), {
+            let mut decls = vec![decl("opacity", "var(--fandhe-chart-inactive-opacity, 1)")];
+            decls.extend(transition_declarations(
+                "opacity, transform",
+                MotionDuration::Fast,
+            ));
+            decls
+        })
+        .state(
+            "bar",
+            StateCondition::Attr("data-active"),
+            vec![
+                decl("opacity", "1"),
+                decl("transform-box", "view-box"),
+                decl("transform-origin", "50% 50%"),
+                decl("transform", "scale(var(--fandhe-chart-active-scale, 1))"),
+            ],
         )
 }
 

@@ -15,8 +15,24 @@ shadcn/ui の 5 段階を包含するため据え置いています。
 複数行本文 `tooltip::datum_label_lines`（見出し省略可・整形済み値・footer）
 を、それぞれ静的バリアントとして純追加しました。凡例をチャート上部に置く
 配置はノード合成順序（`legend()` を先に並べる）で表現し、専用の CSS 軸は
-持ちません。マウス追従ツールチップ・indicator・icon 合成・ツールチップ
-DOM・hit-area は #2128 系（#2129〜#2131）のスコープです。
+持ちません。マウス追従ツールチップ・icon 合成は #2128 系のスコープ外
+です。
+
+イシュー #2131 で、ツールチップの `tooltip-indicator`（色見本）に
+`TooltipIndicator`（`Dot`〔既定〕/`Line`/`Dashed`/`None`）の 4 種を追加し、
+`tooltip::layer_with`/`layer_from_entries_with` で選べるようにしました
+（既定 `Dot` は既存 `layer`/`layer_from_entries` とバイト一致）。あわせて
+hover 強調（active な点の拡張・非 active 点の減光）の CSS も追加しました。
+祖先（`tooltip::frame`/8 個の chart 部品それぞれの `root`）が
+`data-has-active` を持つときに `--fandhe-chart-inactive-opacity` を宣言し、
+`data-index` を持つ各データ点がそれを継承して減光、`data-active` を追加で
+持つ点のみフル不透明 + 拡大へ戻ります（`tooltip::frame_with` の
+`FrameProps { has_active: true }` で明示できます）。**実際のマウス操作で
+`data-has-active` を付け外しする wasm-full 側の配線は本イシューの時点では
+未実装**であり（#2130 は `data-active`/`hidden` の付け外しのみ実装）、
+現状はこの減光 CSS を静的な Demo 以外の経路で観測できません（後続イシュー
+への引き継ぎ）。ツールチップ DOM・hit-area は #2129、マウス追従の JS 配線は
+#2130 のスコープです。
 
 イシュー #2133 で、凡例の item を `<button type="button" aria-pressed>`
 （`trigger` slot）へ変更し、期間切替・凡例トグルの SSR 構造を追加しました。

@@ -99,6 +99,9 @@ use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
 };
 use fandhe_frontend_pre_styled_ui::charts::svg::{svg_root, ViewBox};
 use fandhe_frontend_pre_styled_ui::charts::tooltip as chart_tooltip;
+use fandhe_frontend_pre_styled_ui::charts::tooltip::{
+    FrameProps, TooltipIndicator, TooltipLayerProps,
+};
 use fandhe_frontend_pre_styled_ui::charts::Curve;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
@@ -12844,6 +12847,100 @@ fn bar_charts_sample_data() -> ChartData {
 }
 
 /// Charts 節（イシュー #847）: 軸（Y 軸 + X 軸カテゴリ）・CartesianGrid・
+/// [`charts_section`] の indicator デモ 1 件分（イシュー #2131）。
+/// `chart_tooltip::layer_with` の indicator 選択版を使い、単一データ点 +
+/// 開いた状態のツールチップ 1 個を静的に表示する。`caption` は
+/// `TooltipIndicator` の値名を人間可読に表した見出し。
+fn tooltip_indicator_demo(data: &ChartData, indicator: TooltipIndicator, caption: &str) -> Node {
+    let view_box = ViewBox::new(0.0, 0.0, 60.0, 60.0).expect("固定寸法は正の有限値");
+    let point_label = chart_tooltip::datum_label("Jan", "Visits", 120.0);
+    let svg = svg_root(
+        &view_box,
+        vec![("aria-label", "chart tooltip indicator demo")],
+        vec![chart_tooltip::datum(
+            30.0,
+            30.0,
+            4.0,
+            &point_label,
+            vec![("fill", "var(--fandhe-color-chart-1)")],
+        )],
+    );
+    let layer = chart_tooltip::layer_with(data, Some(0), &TooltipLayerProps { indicator });
+    div(
+        vec![],
+        vec![
+            el("p", vec![], vec![text(caption)]),
+            div(
+                vec![(
+                    "style",
+                    "--fandhe-chart-tooltip-x: 50%; --fandhe-chart-tooltip-y: 70%;",
+                )],
+                vec![chart_tooltip::frame_with(
+                    &FrameProps::default(),
+                    vec![svg, layer],
+                )],
+            ),
+        ],
+    )
+}
+
+/// [`charts_section`] の hover 強調デモ（イシュー #2131）。祖先
+/// `frame_with(&FrameProps { has_active: true }, ..)` が
+/// `--fandhe-chart-inactive-opacity` を宣言し、`data-index` を持つ各点が
+/// 減光、`data-active` を追加で持つ 1 点（`Feb`）のみフル不透明 + 拡大
+/// される様子を静的 HTML で再現する（実際のホバー操作での属性付け外しは
+/// wasm-full 側の未実装フォローアップ、`crates/pre-styled-ui/src/charts/
+/// tooltip.rs` モジュール doc「hover 強調」節参照）。
+fn tooltip_hover_emphasis_demo(data: &ChartData) -> Node {
+    let view_box = ViewBox::new(0.0, 0.0, 220.0, 60.0).expect("固定寸法は正の有限値");
+    let active_index = 1usize;
+    let values = &data.series()[0].values;
+    let svg_children: Vec<Node> = data
+        .categories()
+        .iter()
+        .enumerate()
+        .map(|(index, category)| {
+            let cx = 30.0 + index as f64 * 50.0;
+            let label = chart_tooltip::datum_label(category, "Visits", values[index]);
+            let index_str = index.to_string();
+            let mut attrs: Vec<(&str, &str)> = vec![
+                ("fill", "var(--fandhe-color-chart-1)"),
+                ("data-index", index_str.as_str()),
+            ];
+            if index == active_index {
+                attrs.push(("data-active", ""));
+            }
+            chart_tooltip::datum(cx, 30.0, 4.0, &label, attrs)
+        })
+        .collect();
+    let svg = svg_root(
+        &view_box,
+        vec![("aria-label", "chart tooltip hover emphasis demo")],
+        svg_children,
+    );
+    let layer = chart_tooltip::layer_with(data, Some(active_index), &TooltipLayerProps::default());
+    div(
+        vec![],
+        vec![
+            el(
+                "p",
+                vec![],
+                vec![text("hover emphasis（active 拡張・非 active 減光）")],
+            ),
+            div(
+                vec![(
+                    "style",
+                    "--fandhe-chart-tooltip-x: 36%; --fandhe-chart-tooltip-y: 70%;",
+                )],
+                vec![chart_tooltip::frame_with(
+                    &FrameProps { has_active: true },
+                    vec![svg, layer],
+                )],
+            ),
+        ],
+    )
+}
+
 /// データ点（`charts::tooltip::datum`、hover でネイティブ `<title>` 表示 +
 /// `:hover` 強調）・凡例を合成した最小の折れ線チャート様デモ。
 ///
@@ -13021,14 +13118,38 @@ fn charts_section() -> Node {
     )
     .expect("showcase 固定データは不変条件を満たす");
 
+    // イシュー #2131: indicator 4 種（dot 既定/line/dashed/none）の静的
+    // デモ。`chart_tooltip::layer_with`（indicator 選択版）を使い、開いた
+    // 状態（`active: Some(0)`）を並べる。`--fandhe-chart-tooltip-x/y` は
+    // tooltip.rs の `position: absolute` 配置が参照する custom property
+    // であり、ここでは docs-site 側の固定リテラル `style` で「開いた」
+    // 位置を再現する（新規 API は不要、`crates/pre-styled-ui/src/charts/
+    // tooltip.rs` モジュール doc「hover 強調」節参照）。
+    let indicator_demos = stack(vec![
+        tooltip_indicator_demo(&data, TooltipIndicator::Dot, "dot（既定）"),
+        tooltip_indicator_demo(&data, TooltipIndicator::Line, "line"),
+        tooltip_indicator_demo(&data, TooltipIndicator::Dashed, "dashed"),
+        tooltip_indicator_demo(&data, TooltipIndicator::None, "none"),
+    ]);
+
+    // イシュー #2131: hover 強調（active 拡張・非 active 減光）の静的
+    // 再現。`frame_with(&FrameProps { has_active: true }, ..)` で祖先の
+    // `data-has-active` を明示し、各データ点へ `data-index`（減光対象）・
+    // 1 点のみ `data-active`（拡張・フル不透明）を付与する（実際のマウス
+    // 操作での付け外しは wasm-full 側の未実装フォローアップ、モジュール
+    // doc「hover 強調」節参照。本 Demo は静的 HTML で見た目のみ再現する）。
+    let hover_emphasis_demo = tooltip_hover_emphasis_demo(&data);
+
     section(
         "Charts",
-        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。凡例の中央揃え・角丸四角マーカー・`hideIcon` 相当・複数行ツールチップ本文は shadcn/ui Charts（tooltip）との突合（イシュー #2086）で追加した静的バリアントです。凡例は `button` + `aria-pressed` の SSR 構造を持ち（イシュー #2133）、`hidden_series`/`controls` で非表示系列の減光・`aria-controls` opt-in を実演します（末尾の凡例デモ。click 配線・チャート側の期間切替 `data-range`/系列 `data-hidden` の実データ連動は #2134 のスコープ）。ツールチップ DOM・indicator・マウス追従は #2128 系（#2129〜#2131）のスコープです。",
+        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。凡例の中央揃え・角丸四角マーカー・`hideIcon` 相当・複数行ツールチップ本文は shadcn/ui Charts（tooltip）との突合（イシュー #2086）で追加した静的バリアントです。凡例は `button` + `aria-pressed` の SSR 構造を持ち（イシュー #2133）、`hidden_series`/`controls` で非表示系列の減光・`aria-controls` opt-in を実演します（末尾の凡例デモ。click 配線・チャート側の期間切替 `data-range`/系列 `data-hidden` の実データ連動は #2134 のスコープ）。ツールチップ indicator 4 種（dot/line/dashed/none）と hover 強調（active 拡張・非 active 減光）の CSS はイシュー #2131 で追加しました。マウス追従によるツールチップ開閉・`data-active` の付け外しは #2130 で実装済みです。祖先 `frame`/`root` への `data-has-active` の付け外しのみ未実装のため（本 Demo は静的 HTML での再現）、後続イシューへ引き継ぎます。",
         vec![
             stack(vec![chart, legend_node]),
             stack(vec![top_legend]),
             stack(vec![hidden_marker_legend]),
             stack(vec![advanced_tooltip_demo]),
+            indicator_demos,
+            stack(vec![hover_emphasis_demo]),
             stack(vec![toggle_legend, toggle_chart]),
         ],
     )

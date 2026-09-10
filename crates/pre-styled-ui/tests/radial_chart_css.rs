@@ -96,6 +96,25 @@ const RADIAL_CHART_GOLDEN_CSS: &str = r#"[data-scope="radial-chart"][data-part="
 [data-scope="radial-chart"][data-part="track"][data-hidden] {
   display: none;
 }
+
+[data-scope="radial-chart"][data-part="root"][data-has-active] {
+  --fandhe-chart-inactive-opacity: 0.4;
+  --fandhe-chart-active-scale: 1.05;
+}
+
+[data-scope="radial-chart"][data-part="bar"][data-index] {
+  opacity: var(--fandhe-chart-inactive-opacity, 1);
+  transition-property: opacity, transform;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="radial-chart"][data-part="bar"][data-active] {
+  opacity: 1;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  transform: scale(var(--fandhe-chart-active-scale, 1));
+}
 "#;
 
 #[test]

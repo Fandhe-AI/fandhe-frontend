@@ -88,6 +88,17 @@ const BAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="bar-chart"][data-part="root"]
 [data-scope="bar-chart"][data-part="inside-label"][data-hidden] {
   display: none;
 }
+
+[data-scope="bar-chart"][data-part="bar"][data-index] {
+  opacity: var(--fandhe-chart-inactive-opacity, 1);
+  transition-property: opacity;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="bar-chart"][data-part="bar"][data-active] {
+  opacity: 1;
+}
 "#;
 
 #[test]
