@@ -3471,12 +3471,21 @@ fn ex_message_scroller_basic() -> Node {
                 "Conversation history",
                 vec![],
                 vec![
+                    // 「古いメッセージを読み込む」トリガーは一般的な chat UI の
+                    // 慣習に合わせ、スクロール領域（viewport）内の上端に置く
+                    // （headless 側に入れ子契約はないが、常時表示される
+                    // 位置としてこちらが自然。イシュー #2123 レビュー指摘）。
+                    message_scroller::load_more(
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Load older messages")],
+                    ),
                     message_scroller::content(vec![], vec![conversation]),
                     message_scroller::anchor(vec![]),
                 ],
             ),
             message_scroller::jump_to_latest("Jump to latest", false, vec![], vec![text("↓")]),
-            message_scroller::load_more(false, false, vec![], vec![text("Load older messages")]),
         ],
     )
 }
@@ -3511,17 +3520,19 @@ fn ex_message_scroller_scrolled_up_with_new_messages() -> Node {
                 "Conversation history",
                 vec![],
                 vec![
+                    // 上記 ex_message_scroller_basic と同じ配置判断（viewport
+                    // 内の上端、イシュー #2123 レビュー指摘）。
+                    message_scroller::load_more(
+                        true,
+                        true,
+                        vec![],
+                        vec![text("Loading older messages...")],
+                    ),
                     message_scroller::content(vec![], vec![thread]),
                     message_scroller::anchor(vec![]),
                 ],
             ),
             message_scroller::jump_to_latest("Jump to latest", true, vec![], vec![text("↓")]),
-            message_scroller::load_more(
-                true,
-                true,
-                vec![],
-                vec![text("Loading older messages...")],
-            ),
         ],
     )
 }

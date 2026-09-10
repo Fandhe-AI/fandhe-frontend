@@ -59,7 +59,9 @@
 //! - `viewport`: `flex: 1 1 auto; min-height: 0` で `root` の残り高さを
 //!   埋め、`overflow-y: auto`（ネイティブスクロール、JS 不要）+
 //!   `overscroll-behavior: contain`（祖先ページへのスクロール伝播防止）+
-//!   `scroll-behavior: smooth`。`scrollbar-width`/`scrollbar-color` は
+//!   `scroll-behavior: smooth`（`prefers-reduced-motion: reduce` 環境での
+//!   無効化は下記「`prefers-reduced-motion` 対応」節参照）。
+//!   `scrollbar-width`/`scrollbar-color` は
 //!   [`crate::scroll_area`] と同じフォールバック連鎖を
 //!   `--fandhe-message-scroller-thumb-bg` 経由で参照する。
 //!   [`focus_ring_declarations`]（[`FocusRingColor::Token`]・
@@ -116,6 +118,20 @@
 //! scroll())` によるスクロール量連動アニメーションは本モジュールでは
 //! 採用しない（意図的非採用、下記「スコープ外」節参照）。フェードは
 //! `data-stuck` の 2 値に連動する静的な 2 段階のみで表現する。
+//!
+//! # `prefers-reduced-motion` 対応
+//!
+//! `viewport` base 宣言の `scroll-behavior: smooth` は
+//! `--fandhe-motion-duration-*` トークンを参照しないブラウザネイティブの
+//! スクロールアニメーションであり、`Theme::to_css` が担う
+//! `--fandhe-motion-duration-*` 一括 0ms 化（`docs/design/pre-styled-ui-
+//! interaction-visual-language.md` 参照）の対象外である（[`crate::scroll_area`]
+//! はそもそも `scroll-behavior: smooth` を使わないため前例がなく、本モジュール
+//! が独立に対応する）。[`crate::marquee`] の `css()` と同型のパターンで、
+//! [`stylesheet`] が `@media (prefers-reduced-motion: reduce) { viewport {
+//! scroll-behavior: auto; } }` を末尾へ追記し、前庭障害のあるユーザー
+//! （WCAG 2.3.3 Animation from Interactions）向けにスクロールアニメーション
+//! を無効化する。
 //!
 //! # load-more の spinner（[`crate::button`] と同型）
 //!
@@ -346,8 +362,10 @@ fn recipe() -> SlotRecipe {
 
 /// この styled Message Scroller が生成する静的 CSS 全量を返す（決定的。
 /// [`crate::message::stylesheet`] と同じ契約）。`root[data-has-new]`/
-/// `root[data-stuck="bottom"]` の raw CSS 追記を含む（モジュール doc
-/// 「raw CSS 追記の理由」節参照）。
+/// `root[data-stuck="bottom"]` の raw CSS 追記（モジュール doc「raw CSS
+/// 追記の理由」節参照）と `@media (prefers-reduced-motion: reduce)`
+/// ブロック（モジュール doc「`prefers-reduced-motion` 対応」節参照）を
+/// 含む。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();
@@ -384,6 +402,13 @@ pub fn stylesheet() -> String {
         }
         out.push_str(&rule);
     }
+
+    // 前庭障害のあるユーザー向けにネイティブスクロールアニメーションを
+    // 無効化する（モジュール doc「`prefers-reduced-motion` 対応」節参照、
+    // [`crate::marquee::css`] と同型の raw 追記パターン）。
+    out.push_str(&format!(
+        "\n@media (prefers-reduced-motion: reduce) {{\n  {VIEWPORT} {{\n    scroll-behavior: auto;\n  }}\n}}\n"
+    ));
 
     out
 }
@@ -501,6 +526,20 @@ mod tests {
     }
 
     #[test]
+    fn stylesheet_disables_scroll_behavior_smooth_under_reduced_motion() {
+        let out = stylesheet();
+        assert!(out.contains("@media (prefers-reduced-motion: reduce) {"));
+        let media_pos = out
+            .find("@media (prefers-reduced-motion: reduce) {")
+            .unwrap();
+        let media_block = &out[media_pos..];
+        assert!(media_block.contains(
+            r#"[data-scope="message-scroller"][data-part="viewport"] {
+    scroll-behavior: auto;"#
+        ));
+    }
+
+    #[test]
     fn stylesheet_uses_scope_prefixed_custom_properties() {
         let out = stylesheet();
         for name in [
@@ -562,7 +601,14 @@ mod tests {
             MessageScrollerRootProps::default(),
             vec![("class", "evil")],
             vec![
-                viewport("", vec![("class", "evil")], vec![]),
+                viewport(
+                    "",
+                    vec![("class", "evil")],
+                    vec![
+                        content(vec![("class", "evil")], vec![]),
+                        anchor(vec![("class", "evil")]),
+                    ],
+                ),
                 jump_to_latest("", false, vec![("class", "evil")], vec![]),
                 load_more(false, false, vec![("class", "evil")], vec![]),
             ],

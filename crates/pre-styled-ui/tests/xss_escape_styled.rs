@@ -1370,6 +1370,19 @@ fn message_scroller_parts_are_escaped_for_all_payloads() {
             "message_scroller::viewport children コンテキスト",
         );
 
+        // styled viewport の呼び出し側 class 属性経路。
+        let html = render(&message_scroller::viewport(
+            "",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "message_scroller::viewport の class 属性に渡した生ペイロードが\
+             出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
         // styled content/anchor の呼び出し側 attrs・children 経路。
         let html = render(&message_scroller::content(
             vec![("data-testid", payload)],
@@ -1386,12 +1399,30 @@ fn message_scroller_parts_are_escaped_for_all_payloads() {
             "message_scroller::content children コンテキスト",
         );
 
+        // styled content の呼び出し側 class 属性経路。
+        let html = render(&message_scroller::content(vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "message_scroller::content の class 属性に渡した生ペイロードが\
+             出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
         let html = render(&message_scroller::anchor(vec![("data-testid", payload)]));
         assert_payload_is_escaped(
             payload,
             &html,
             "message_scroller::anchor attrs コンテキスト",
         );
+
+        // styled anchor の呼び出し側 class 属性経路。
+        let html = render(&message_scroller::anchor(vec![("class", payload)]));
+        assert!(
+            !html.contains(payload),
+            "message_scroller::anchor の class 属性に渡した生ペイロードが\
+             出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
 
         // styled jump_to_latest の label（aria-label）・attrs・children 経路。
         let html = render(&message_scroller::jump_to_latest(
@@ -1416,6 +1447,20 @@ fn message_scroller_parts_are_escaped_for_all_payloads() {
             "message_scroller::jump_to_latest children コンテキスト",
         );
 
+        // styled jump_to_latest の呼び出し側 class 属性経路。
+        let html = render(&message_scroller::jump_to_latest(
+            "",
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "message_scroller::jump_to_latest の class 属性に渡した生\
+             ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
         // styled load_more の呼び出し側 attrs・children 経路。
         let html = render(&message_scroller::load_more(
             false,
@@ -1433,6 +1478,20 @@ fn message_scroller_parts_are_escaped_for_all_payloads() {
             &html,
             "message_scroller::load_more children コンテキスト",
         );
+
+        // styled load_more の呼び出し側 class 属性経路。
+        let html = render(&message_scroller::load_more(
+            false,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "message_scroller::load_more の class 属性に渡した生ペイロードが\
+             出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
     }
 }
 

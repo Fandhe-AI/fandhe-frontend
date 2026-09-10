@@ -135,6 +135,12 @@ const MESSAGE_SCROLLER_GOLDEN_CSS: &str = "[data-scope=\"message-scroller\"][dat
 [data-scope=\"message-scroller\"][data-part=\"root\"][data-stuck=\"bottom\"] > [data-scope=\"message-scroller\"][data-part=\"viewport\"] {
   --fandhe-message-scroller-fade-end: 0px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-scope=\"message-scroller\"][data-part=\"viewport\"] {
+    scroll-behavior: auto;
+  }
+}
 ";
 
 #[test]
