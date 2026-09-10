@@ -122,7 +122,7 @@ gh api "repos/shadcn-ui/ui/contents/apps/v4/content/docs/components/aria?ref=5c7
 | `drawer` | Drawer | 既存 `drawer` で充足。#2031 |
 | `dropdown-menu` | Dropdown Menu | 既存 `menu` で充足（Phase 1/2） |
 | `empty` | Empty | 既存 `empty_state` で充足。#2047 |
-| `field` | Field | 既存 `field` と対応 |
+| `field` | Field | 既存 `field` と対応。当初 PR #2147 で FieldGroup/FieldContent/FieldTitle/テキスト付き FieldSeparator を「対応する headless anatomy が存在しない」として見送っていたが、#2185 で headless-ui 拡張パーツ（group/content/title/separator）として実装し解消済み |
 | `hover-card` | Hover Card | 既存 `hover_card` と対応 |
 | `input` | Input | 既存 `input` と対応 |
 | `input-group` | Input Group | 実装対象。#2061 |

@@ -5362,6 +5362,93 @@ fn field_section() -> Node {
         ],
     );
 
+    // イシュー #2185 拡張パーツ（group/content/title/separator/
+    // separator-line/separator-content）を掲示するインスタンス。
+    // shadcn-field-1.png（複数 field の縦積み・線区切り・checkbox 行）と
+    // shadcn-field-2.png（content/title レイアウト）双方の合成を反映する
+    // （field.rs モジュール doc「参照スクショについての注記」節参照）。
+    let payment_field_a = field_with_helper("showcase-field-card-number");
+    let payment_field_b = plain_field("showcase-field-expiry");
+    let newsletter_field = field_with_helper("showcase-field-newsletter");
+    let group_instance = field::group(
+        vec![],
+        vec![
+            field_instance(
+                FieldOrientation::Vertical,
+                &payment_field_a,
+                "Card number",
+                "4242 4242 4242 4242",
+                Some("16-digit card number."),
+            ),
+            field::separator(vec![], vec![]),
+            field::separator(vec![], vec![text("Or continue with")]),
+            field_instance(
+                FieldOrientation::Vertical,
+                &payment_field_b,
+                "Expiry date",
+                "MM / YY",
+                None,
+            ),
+            field::content(
+                &newsletter_field,
+                vec![],
+                vec![
+                    field::title(
+                        &newsletter_field,
+                        vec![("id", "showcase-field-newsletter-title")],
+                        vec![text("Notifications")],
+                    ),
+                    // `content`/`title` の合成先コントロールは checkbox/
+                    // radio 群等が典型（イシュー #2185 PR #2276 レビュー
+                    // 指摘）。`field::input`（`data-scope="field"
+                    // data-part="input"`）を checkbox 用途へ転用すると
+                    // Themes 側 `input::css()`（`width: 100%` 等テキスト
+                    // 入力用スタイル）が意図せず適用され表示が崩れるため、
+                    // ここではテキスト入力用セレクタに一致しない専用
+                    // コンポーネント（`fandhe_frontend_pre_styled_ui::checkbox`、
+                    // `data-scope="checkbox"`）を使う。`checkbox::root` の
+                    // `label` パーツ（可視テキスト）は使わず、外側の
+                    // `field::title` を唯一のラベルとして `aria-labelledby`
+                    // で関連付け、helper_text も `aria-describedby` で
+                    // 関連付ける（`table.rs` 由来の `row_select_checkbox`
+                    // と同型の root+hidden_input+control+indicator 合成、
+                    // 本ファイル該当箇所参照）。
+                    checkbox::root(
+                        Size::Md,
+                        ColorPalette::Accent,
+                        &CheckboxProps::default(),
+                        vec![],
+                        vec![
+                            checkbox::hidden_input(
+                                &CheckboxProps::default(),
+                                "showcase-field-newsletter",
+                                "on",
+                                vec![
+                                    ("aria-labelledby", "showcase-field-newsletter-title"),
+                                    ("aria-describedby", "showcase-field-newsletter-helper-text"),
+                                ],
+                            ),
+                            checkbox::control(
+                                &CheckboxProps::default(),
+                                vec![],
+                                vec![checkbox::indicator(
+                                    &CheckboxProps::default(),
+                                    vec![],
+                                    vec![],
+                                )],
+                            ),
+                        ],
+                    ),
+                    field::helper_text(
+                        &newsletter_field,
+                        vec![],
+                        vec![text("Receive product updates by email.")],
+                    ),
+                ],
+            ),
+        ],
+    );
+
     section(
         "Field",
         "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。",
@@ -5373,6 +5460,7 @@ fn field_section() -> Node {
             required_instance,
             horizontal_instance,
             multi_error_instance,
+            group_instance,
         ])],
     )
 }

@@ -204,7 +204,11 @@ grep -l '\b<snake>::' crates/pre-styled-ui/tests/*.rs | xargs -n1 basename
   （イシュー #1684）が共有するなど、複数部品が同じ scope を持つ場合が
   あります（`form_controls_css.rs` が input/textarea/native_select 分、
   `field_css.rs` が field 本体の root/label/helper-text/error-text/
-  required-indicator 分を golden 化する）。
+  required-indicator/group/content/title/separator/separator-line/
+  separator-content 分を golden 化する。末尾 6 slot はイシュー #2185 の
+  純追加で、`required-indicator` base の直後・`.fd-field--orientation-
+  horizontal` の前へ中間挿入される「既存ブロック verbatim + 中間挿入」
+  パターン、`title` の 2 state 規則は末尾に追加される）。
 - `.fd-<scope>--<axis>-<value>` は variant 軸のクラス名です。
 - 属性セレクタ（`[data-*]`）や `:hover` 等の後置セレクタは
   `SlotRecipe::state`（states）由来です。

@@ -895,6 +895,69 @@ fn field_root_and_reexported_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// (7b-2) styled Field 拡張パーツ（`group`/`content`/`title`/`separator`、
+/// イシュー #2185）経路: 呼び出し側 `attrs`・children、`title` の `id`
+/// attrs 経路のいずれでも既定エスケープ（REQ-1）が貫通することを固定する
+/// （(7b) と同粒度）。
+#[test]
+fn field_extended_2185_parts_are_escaped_for_all_payloads() {
+    fn field(id: &str) -> fandhe_frontend_pre_styled_ui::field::FieldProps<'_> {
+        fandhe_frontend_pre_styled_ui::field::FieldProps {
+            id,
+            ids: fandhe_frontend_pre_styled_ui::field::FieldIds::default(),
+            disabled: false,
+            invalid: false,
+            required: false,
+            readonly: false,
+            has_helper_text: false,
+        }
+    }
+
+    for payload in payloads::all() {
+        // group: attrs コンテキスト・children コンテキスト。
+        let html = render(&field::group(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "field::group attrs/children コンテキスト");
+
+        // content/title: attrs コンテキスト・children コンテキスト。
+        let f = field("f");
+        let html = render(&field::content(
+            &f,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "field::content attrs/children コンテキスト");
+
+        // title は id 自動導出を持たないため、呼び出し側が渡す id attrs
+        // 経路（aria-labelledby 運用の前提、field.rs モジュール doc 参照）
+        // が既定エスケープを通ることを固定する。
+        let html = render(&field::title(
+            &f,
+            vec![("id", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "field::title id attrs/children コンテキスト",
+        );
+
+        // separator: ラッパー attrs コンテキスト・テキスト children
+        // コンテキスト（separator-content 経由）。
+        let html = render(&field::separator(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "field::separator attrs/content コンテキスト",
+        );
+    }
+}
+
 /// (7c) styled Fieldset `root` 経路（イシュー #1686）: 呼び出し側 `attrs`・
 /// `class`、選択的再エクスポートした `legend`/`helper_text`/`error_text` の
 /// children、`FieldsetProps::id` から派生する `id`/`aria-describedby`
