@@ -32,9 +32,8 @@
 //! # 対象パーツの宣言（[`TARGETS`]）
 //!
 //! 対象は `(data-scope, data-part)` の静的表 [`TARGETS`] のみが決める。
-//! 部品名で分岐するコードはここにも [`wiring`] にも書かない。今後
-//! 対象を増やす場合（例: bubble、#2282）はこの表への 1 行追加のみで
-//! 乗る設計とする。
+//! 部品名で分岐するコードはここにも [`wiring`] にも書かない。bubble の
+//! `collapse-content`（#2282）はこの表への 1 行追加のみで乗せた。
 //!
 //! # 書き込み手段の決定（Issue 記載パターンとの意図的な差分）
 //!
@@ -115,7 +114,23 @@
 //!   `animation` 方式採用。
 //! - `overflow: hidden` 下で content が縮んだ場合に前回値が残る限界の
 //!   解消。
-//! - bubble（#2282）等、他部品への [`TARGETS`] 追加。
+//! - bubble（#2282 で [`TARGETS`] へ適用済み）を含め、`crate::headless`
+//!   の `MAPPING_TABLE` に配線が無い部品では `wire_headless_component`
+//!   経由のクリックで本モジュールが呼ばれない（bubble は
+//!   `crates/headless-ui/src/bubble.rs` rustdoc「wasm-full 未配線」節
+//!   参照。呼び出し側が独自に `hidden` を切り替え
+//!   `sync_content_height` 相当を呼ぶ経路を用意する必要がある）。
+//!   ただし本モジュールの同期はあくまで「実測値を書き込む」役割に
+//!   留まる: `crates/pre-styled-ui` の共通 preset
+//!   （`SlotRecipe::content_height_transition`）は `calc-size()`
+//!   対応ブラウザでは `hidden` の切り替えのみで高さトランジションを
+//!   成立させ本モジュールの同期を必須としない一方、`calc-size()`
+//!   未対応ブラウザでは `@supports not (...)` が
+//!   `transition: none` 相当を適用するため本モジュールが同期して
+//!   いても遷移しない（`crates/pre-styled-ui/src/bubble.rs` モジュール
+//!   doc・`crates/pre-styled-ui/src/recipe.rs` の
+//!   `content_height_open_declarations` rustdoc 参照）。トリガー配線の
+//!   有無と CSS の遷移条件は独立した別々の前提である。
 
 /// content 高さを供給する CSS カスタムプロパティ名。
 ///
@@ -127,8 +142,13 @@ pub const CONTENT_HEIGHT_VAR: &str = "--fandhe-content-height";
 /// 実測対象の `(data-scope, data-part)` 静的表。
 ///
 /// 対象の追加・削除はこの表への行の増減のみで行う。部品名で分岐する
-/// コードを [`wiring`] 側に書かない（モジュール doc 参照）。
-pub const TARGETS: &[(&str, &str)] = &[("collapsible", "content"), ("accordion", "item-content")];
+/// コードを [`wiring`] 側に書かない（モジュール doc 参照）。bubble の
+/// `collapse-content`（イシュー #2282）を追加済み。
+pub const TARGETS: &[(&str, &str)] = &[
+    ("collapsible", "content"),
+    ("accordion", "item-content"),
+    ("bubble", "collapse-content"),
+];
 
 /// `scope`/`part` が [`TARGETS`] のいずれかに一致するかを返す。
 #[must_use]
@@ -274,15 +294,17 @@ mod tests {
     fn is_target_matches_targets_table() {
         assert!(is_target("collapsible", "content"));
         assert!(is_target("accordion", "item-content"));
+        assert!(is_target("bubble", "collapse-content"));
         assert!(!is_target("collapsible", "trigger"));
         assert!(!is_target("dialog", "content"));
+        assert!(!is_target("bubble", "collapse-trigger"));
     }
 
     #[test]
     fn target_selector_joins_targets_table() {
         assert_eq!(
             target_selector(),
-            r#"[data-scope="collapsible"][data-part="content"],[data-scope="accordion"][data-part="item-content"]"#
+            r#"[data-scope="collapsible"][data-part="content"],[data-scope="accordion"][data-part="item-content"],[data-scope="bubble"][data-part="collapse-content"]"#
         );
     }
 }

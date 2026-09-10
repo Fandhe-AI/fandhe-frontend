@@ -62,7 +62,11 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 **attachment（イシュー #2112 で golden 新設。`stylesheet()` 全文）** /
 **badge（イシュー #1555 で golden 新設）** /
 **bar_segment（イシュー #1592 で golden 新設。`charts::bar_segment`）** /
-**bubble（イシュー #2109 で golden 新設。`stylesheet()` 全文）** /
+**bubble（イシュー #2109 で golden 新設。`stylesheet()` 全文。イシュー
+#2282 で `collapse-content` の 2 個目 base ブロックを中間挿入、
+`[hidden]` state・`@starting-style`・
+`@supports not (height: calc-size(auto, size))` ブロックを末尾側へ純追加、
+`bubble_pre_2282_blocks_remain_verbatim` を追加）** /
 **button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文）** /
 callout / carousel / **collapsible（イシュー #1682 で golden 新設。イシュー
 #2192 で `content` の 2 個目 base ブロックを中間挿入、`[hidden]` state と

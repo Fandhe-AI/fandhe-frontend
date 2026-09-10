@@ -318,6 +318,8 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
 
 各案とも、headless-ui / pre-styled-ui / wasm-full のうち変更したクレートは `.claude/rules/coding-rust.md` の semver バンプ必須規則に従い、依存元の `version = "..."` 追随は `cargo run -p xtask -- check-dep-versions --fix` で行う。
 
+bubble（`collapse_content`）は #2282 で共通機構を横展開済み（headless-ui は差分ゼロ、pre-styled-ui `bubble` recipe への `content_height_transition` 適用と wasm-full `TARGETS` への 1 行追加のみ）。
+
 ## 10. セキュリティ考慮事項（OWASP Top 10 観点）
 
 - **A03 インジェクション / REQ-1**: 本 PR はコードを変更しない。§3 で提案する全案について、`hidden` / `data-state` / `inert` / CSS 変数名はいずれも `&'static str` リテラルで固定し、値は固定語彙（`data-state` の `open`/`closed` 等）または数値（高さ計測値）のみとする。`raw_html()` や HTML/CSS 文字列の直接組み立てを新設しないことを、いずれの案を採る場合も設計不変条件とする。

@@ -121,8 +121,9 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   prefix へ統一せず各 scope 側で同名定義する方式を採る）。
 /// - `--fandhe-content-height`: イシュー #2192 で `crate::recipe::
 ///   SlotRecipe::content_height_transition`（`recipe::CONTENT_HEIGHT_VAR`）
-///   preset が `collapsible::content`・`accordion::item-content` の両 scope
-///   から参照する。実値は `fandhe-frontend-wasm-full` が実測して CSSOM
+///   preset が `collapsible::content`・`accordion::item-content`・
+///   `bubble::collapse-content`（#2282 で追加）の 3 scope から参照する。
+///   実値は `fandhe-frontend-wasm-full` が実測して CSSOM
 ///   `set_property` で書き込む実行時専用の変数であり、単一の所有 scope を
 ///   持たない設計（`--fandhe-hover-bg`/`--fandhe-palette` と同じ「複数部品が
 ///   同じ名前を変数として共有し、実値は部品側ではなく別の主体が供給する」
