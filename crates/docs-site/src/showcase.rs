@@ -12978,7 +12978,7 @@ fn charts_section() -> Node {
 
     section(
         "Charts",
-        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。凡例の中央揃え・角丸四角マーカー・`hideIcon` 相当・複数行ツールチップ本文は shadcn/ui Charts（tooltip）との突合（イシュー #2086）で追加した静的バリアントです。凡例は `button` + `aria-pressed` の SSR 構造を持ち（イシュー #2133）、`hidden_series`/`controls` で非表示系列の減光・`aria-controls` opt-in を実演します（末尾の凡例デモ。click 配線・チャート側の期間切替 `data-range`/系列 `data-hidden` の実データ連動は #2134 のスコープ）。ツールチップ indicator 4 種（dot/line/dashed/none）と hover 強調（active 拡張・非 active 減光）の CSS はイシュー #2131 で追加しました。マウス追従によるツールチップ開閉・`data-has-active`/`data-active` の実際の付け外し配線は #2130 のスコープ外として残っており（本 Demo は静的 HTML での再現）、後続イシューへ引き継ぎます。",
+        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。凡例の中央揃え・角丸四角マーカー・`hideIcon` 相当・複数行ツールチップ本文は shadcn/ui Charts（tooltip）との突合（イシュー #2086）で追加した静的バリアントです。凡例は `button` + `aria-pressed` の SSR 構造を持ち（イシュー #2133）、`hidden_series`/`controls` で非表示系列の減光・`aria-controls` opt-in を実演します（末尾の凡例デモ。click 配線・チャート側の期間切替 `data-range`/系列 `data-hidden` の実データ連動は #2134 のスコープ）。ツールチップ indicator 4 種（dot/line/dashed/none）と hover 強調（active 拡張・非 active 減光）の CSS はイシュー #2131 で追加しました。マウス追従によるツールチップ開閉・`data-active` の付け外しは #2130 で実装済みです。祖先 `frame`/`root` への `data-has-active` の付け外しのみ未実装のため（本 Demo は静的 HTML での再現）、後続イシューへ引き継ぎます。",
         vec![
             stack(vec![chart, legend_node]),
             stack(vec![top_legend]),
