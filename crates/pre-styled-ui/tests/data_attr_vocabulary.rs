@@ -38,6 +38,9 @@ use fandhe_frontend_headless_ui::data_attrs::{
 };
 use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use fandhe_frontend_headless_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
+use fandhe_frontend_headless_ui::message_scroller::{
+    self, MessageScrollerRootProps, MessageScrollerStuck,
+};
 use fandhe_frontend_headless_ui::progress::Progress;
 use fandhe_frontend_headless_ui::questionnaire::QuestionProps;
 use fandhe_frontend_headless_ui::{Orientation as QuestionnaireOrientation, Questionnaire};
@@ -1405,6 +1408,95 @@ fn message_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains(r#"[data-align="end"]"#));
     assert!(css.contains("[data-loading]"));
     assert!(css.contains("[data-error]"));
+}
+
+/// [`mod@fandhe_frontend_headless_ui::message_scroller`]（イシュー #2121）
+/// の `data-stuck`（`bottom`/`free`）・`data-has-new`（存在属性）・
+/// `data-visible`（`jump_to_latest` の存在属性）・`data-loading`/
+/// `data-disabled`（`load_more` の存在属性）の語彙を固定する。本イシュー
+/// 時点では `fandhe-frontend-pre-styled-ui` 側に `message_scroller`
+/// モジュールがまだ存在しない（styled recipe・golden・Themes ページは
+/// 後続イシュー #2123）ため、headless 出力元
+/// [`fandhe_frontend_headless_ui::message_scroller`] を直接呼んで語彙を
+/// 記録する（`message_root_data_role_align_loading_error_vocabulary_is_fixed`
+/// と同型。#2123 で styled モジュールが新設された際は、本テストに加えて
+/// `*_not_self_emitted` の headless-sourced 契約テストを追加する）。
+#[test]
+fn message_scroller_root_stuck_has_new_visible_loading_disabled_vocabulary_is_fixed() {
+    // data-stuck: bottom/free の 2 値。
+    for (stuck, expected) in [
+        (MessageScrollerStuck::Bottom, "bottom"),
+        (MessageScrollerStuck::Free, "free"),
+    ] {
+        let html = render(&message_scroller::root(
+            MessageScrollerRootProps {
+                stuck,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(&format!(r#"data-stuck="{expected}""#)));
+    }
+
+    // data-has-new: 存在属性（非付与時は属性自体が出ない）。
+    let has_new = render(&message_scroller::root(
+        MessageScrollerRootProps {
+            has_new: true,
+            ..Default::default()
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(has_new.contains(r#"data-has-new="""#));
+
+    let neither = render(&message_scroller::root(
+        MessageScrollerRootProps::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(!neither.contains("data-has-new"));
+    assert!(neither.contains(r#"data-stuck="bottom""#));
+
+    // data-visible（jump_to_latest）: visible=true で存在、false で hidden
+    // 属性に切り替わり data-visible は出ない（自動連動しない 2 択）。
+    let jump_visible = render(&message_scroller::jump_to_latest("", true, vec![], vec![]));
+    assert!(jump_visible.contains(r#"data-visible="""#));
+    assert!(!jump_visible.contains("hidden"));
+
+    let jump_hidden = render(&message_scroller::jump_to_latest("", false, vec![], vec![]));
+    assert!(jump_hidden.contains(r#"hidden="""#));
+    assert!(!jump_hidden.contains("data-visible"));
+
+    // data-loading/data-disabled（load_more）: 存在属性で自動連動しない。
+    let loading_only = render(&message_scroller::load_more(true, false, vec![], vec![]));
+    assert!(loading_only.contains(r#"data-loading="""#));
+    assert!(!loading_only.contains("disabled"));
+
+    let disabled_only = render(&message_scroller::load_more(false, true, vec![], vec![]));
+    assert!(disabled_only.contains(r#"disabled="""#));
+    assert!(disabled_only.contains(r#"data-disabled="""#));
+    assert!(!disabled_only.contains("data-loading"));
+
+    // 呼び出し側 attrs による偽装除去（大文字小文字混在含む）。
+    let spoofed = render(&message_scroller::root(
+        MessageScrollerRootProps::default(),
+        vec![("DATA-STUCK", "free"), ("Data-Has-New", "spoofed")],
+        vec![],
+    ));
+    assert!(spoofed.contains(r#"data-stuck="bottom""#));
+    assert!(!spoofed.contains("spoofed"));
+
+    // XSS 最小回帰（呼び出し側 attrs の動的値コンテキスト）。
+    let payload_html = render(&message_scroller::root(
+        MessageScrollerRootProps::default(),
+        vec![("data-testid", XSS_PAYLOAD)],
+        vec![],
+    ));
+    assert_no_raw_payload(
+        &payload_html,
+        "message_scroller::root の呼び出し側 attrs コンテキスト",
+    );
 }
 
 /// [`mod@fandhe_frontend_headless_ui::bubble`]（イシュー #2108）の

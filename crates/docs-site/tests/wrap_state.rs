@@ -634,8 +634,11 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// リストから除外した。イシュー #2117 で headless-ui 層のみを実装した
 /// `questionnaire` が新設され本リストへ加わった。pre-styled-ui recipe・
 /// Themes ページは後続イシュー #2119 のスコープであり、実装され次第
-/// `WRAPPED_SAME_NAME` へ移す。
-const HEADLESS_UNWRAPPED: &[&str] = &["questionnaire"];
+/// `WRAPPED_SAME_NAME` へ移す。イシュー #2121 で同様に headless-ui 層の
+/// みを実装した `message_scroller` が新設され本リストへ加わった。
+/// pre-styled-ui recipe・Themes ページは後続イシュー #2123 のスコープで
+/// あり、実装され次第 `WRAPPED_SAME_NAME` へ移す。
+const HEADLESS_UNWRAPPED: &[&str] = &["message_scroller", "questionnaire"];
 
 /// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
 /// まだ持たない部品（イシュー #2073 で `sidebar` を一時的に載せた暫定

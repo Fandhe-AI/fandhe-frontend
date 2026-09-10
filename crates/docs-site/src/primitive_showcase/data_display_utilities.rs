@@ -1,4 +1,5 @@
-//! Primitives Demo — Data Display / Utilities（15 件、原稿は #1029。
+//! Primitives Demo — Data Display / Utilities（16 件、原稿は #1029。
+//! イシュー #2121 で `message_scroller` 追加、旧 15。
 //! イシュー #2114 で `marker` 追加、旧 14。イシュー #2111 で `attachment`
 //! 追加、旧 13。イシュー #2108 で `bubble`
 //! 追加、旧 12。イシュー #2105 で `message`
@@ -17,6 +18,7 @@ use hui::item::{self, ItemMediaVariant, ItemRootProps, ItemVariant};
 use hui::json_tree_view::{self, JsonValue};
 use hui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use hui::message::{self, MessageAlign, MessageRole, MessageRootProps};
+use hui::message_scroller::{self, MessageScrollerRootProps, MessageScrollerStuck};
 use hui::positioning::{Align, Placement, Side};
 use hui::progress::Progress;
 use hui::scroll_area;
@@ -496,6 +498,110 @@ pub(super) fn message_section() -> Node {
         vec![user_message, assistant_loading, system_error],
     );
     demo_page("Message", vec![group])
+}
+
+/// イシュー #2121: 6 anatomy パーツ全て（root/viewport/content/anchor/
+/// jump-to-latest/load-more）と `data-stuck` 2 値（bottom/free）を必ず
+/// 描画する（`anatomy_coverage_matches_known_uncovered_exactly` が
+/// `.part("…")` 集合の完全一致を、`data-*` 表が観測値のみを機械導出する
+/// ため）。`content` には [`mod@hui::message`] の `group`/`root` を入れ子に
+/// する（scope フィルタにより message-scroller 側の表を汚さない、
+/// `crates/headless-ui/src/attachment.rs` が Progress を入れ子にした先例と
+/// 同型）。1 件目は既定状態（`data-stuck="bottom"`、jump-to-latest 非表示、
+/// load-more 通常）、2 件目は離脱状態（`data-stuck="free"`・`data-has-new`
+/// あり・jump-to-latest 可視・load-more `loading`/`disabled`）の
+/// 2 インスタンスを静的に併記する（`sidebar-07` block が
+/// expanded/collapsed を並記した先例と同型の Demo 規約）。
+pub(super) fn message_scroller_section() -> Node {
+    let conversation = message::group(
+        "Conversation",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::User,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("How do I center a div?")],
+                )],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("Use display: flex and align-items: center.")],
+                )],
+            ),
+        ],
+    );
+    let at_bottom = message_scroller::root(
+        MessageScrollerRootProps {
+            stuck: MessageScrollerStuck::Bottom,
+            has_new: false,
+        },
+        vec![],
+        vec![
+            message_scroller::viewport(
+                "Conversation history",
+                vec![],
+                vec![
+                    message_scroller::content(vec![], vec![conversation]),
+                    message_scroller::anchor(vec![]),
+                ],
+            ),
+            message_scroller::jump_to_latest("Jump to latest", false, vec![], vec![text("↓")]),
+            message_scroller::load_more(false, false, vec![], vec![text("Load older messages")]),
+        ],
+    );
+
+    let scrolled_up_thread = message::group(
+        "Conversation",
+        vec![],
+        vec![message::root(
+            MessageRootProps {
+                role: MessageRole::Assistant,
+                ..Default::default()
+            },
+            vec![],
+            vec![message::content(
+                vec![],
+                vec![text("New reply while you were scrolled up.")],
+            )],
+        )],
+    );
+    let scrolled_up = message_scroller::root(
+        MessageScrollerRootProps {
+            stuck: MessageScrollerStuck::Free,
+            has_new: true,
+        },
+        vec![],
+        vec![
+            message_scroller::viewport(
+                "Conversation history",
+                vec![],
+                vec![
+                    message_scroller::content(vec![], vec![scrolled_up_thread]),
+                    message_scroller::anchor(vec![]),
+                ],
+            ),
+            message_scroller::jump_to_latest("Jump to latest", true, vec![], vec![text("↓")]),
+            message_scroller::load_more(
+                true,
+                true,
+                vec![],
+                vec![text("Loading older messages...")],
+            ),
+        ],
+    );
+
+    demo_page("Message Scroller", vec![at_bottom, scrolled_up])
 }
 
 // イシュー #1662（参考サイトとの突合）: Radix Primitives の Anatomy は

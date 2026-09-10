@@ -575,6 +575,21 @@ pre-styled-ui recipe・Themes ページは後続 #2119 のスコープのため�
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。
 
+**追記(イシュー #2121)**: shadcn/ui のみに存在する `message_scroller`
+（Message Scroller、参照軸 #2001）を Data Display / Utilities カテゴリの
+`message` の後（`scroll_area` の前）に追加する。headless-ui 層のみを
+先行実装し pre-styled-ui recipe・Themes ページは後続 #2123 のスコープの
+ため、`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）へ `message_scroller` を追加した。現在の実
+カテゴリ内訳は Data Display / Utilities 16・6 グループ**合計 73→74**で
+あり、§6 のコード導出は**部品 74 件**（headless-ui
+`crates/headless-ui/src/*.rs` 総数**84** = 部品 74 + 基盤 9 + `lib.rs`）
+との一致は
+`crates/docs-site/tests/primitives_catalog.rs::catalog_has_74_entries_in_six_categories_in_spec_order`
+/ `module_counts_are_consistent_with_the_source_tree` が機械検査する
+（本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
+正とする）。
+
 ## 8. `component-coverage-map.md` との関係
 
 `docs/design/component-coverage-map.md` は ark-ui / chakra-ui / Radix の
