@@ -300,6 +300,17 @@ pub const BLOCK: Block = Block {
 /// （詳細度 (0,3,0)）へ結合し、Card recipe を確実に上書きする。
 /// `@media (max-width: 47.99rem)` 側の再定義も同じ詳細度に揃える
 /// （揃えないと縮小時のみ Card recipe が再び優先されてしまうため）。
+///
+/// # `[data-blocks-login-04-img]` の詳細度を Image recipe 以上にする
+///
+/// `image::image` が出力する要素は `[data-scope="image"][data-part="root"]`
+/// （詳細度 (0,2,0)）で `height: auto` を持つため、block 側セレクタを単独の
+/// `[data-blocks-login-04-img]`（詳細度 (0,1,0)）のままにすると Image
+/// recipe の `height: auto` に負けて `height: 100%` が適用されず、2 カラム
+/// 表示時に画像が右列全体を覆わず下部に余白が残る（PR #2292 codex-review /
+/// Cursor Bugbot 指摘、イシュー #2093）。Card body と同様にセレクタを
+/// `[data-scope="image"][data-part="root"][data-blocks-login-04-img]`
+/// （詳細度 (0,3,0)）へ結合し、Image recipe を確実に上書きする。
 pub(super) const LAYOUT_CSS: &str = "\
 .blocks-login-04 {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  min-height: 28rem;\n}\n\
 [data-blocks-login-04-stack] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 1.5rem;\n  width: 100%;\n}\n\
@@ -313,6 +324,6 @@ pub(super) const LAYOUT_CSS: &str = "\
 [data-blocks-login-04-providers] {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: 1rem;\n}\n\
 .blocks-login-04-signup-row {\n  font-size: 0.875rem;\n  text-align: center;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-login-04-image] {\n  position: relative;\n  background: var(--fandhe-color-bg-subtle);\n  min-height: 100%;\n}\n\
-[data-blocks-login-04-img] {\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-login-04-img] {\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n}\n\
 .blocks-login-04-terms {\n  font-size: 0.75rem;\n  text-align: center;\n  color: var(--fandhe-color-fg-muted);\n  max-width: 56rem;\n}\n\
 @media (max-width: 47.99rem) {\n  [data-scope=\"card\"][data-part=\"body\"][data-blocks-login-04-body] {\n    grid-template-columns: 1fr;\n  }\n  [data-blocks-login-04-image] {\n    display: none;\n  }\n}\n";
