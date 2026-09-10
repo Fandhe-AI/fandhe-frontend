@@ -12,22 +12,36 @@
 //! 内部ストレージは `Vec` のみを使い、`HashMap`/`HashSet` は使わない
 //! （反復順序がプロセスごとに変わりうる型を持ち込まない）。[`SlotRecipe::css`]
 //! の出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound variants
-//! （登録順、イシュー #604）→ states（登録順、イシュー #643）→ breakpoints
-//! （[`Breakpoint`] の昇順、イシュー #2197）→ hover（[`StateCondition::Hover`]
-//! 等の `@media (hover: hover)` ブロック、常に最後尾）」に固定し、
-//! 同一 slot・同一 axis/value への複数回登録は「後に登録された規則が CSS 中で
-//! 後に出力される」（CSS のカスケードにおいて後勝ちになる）という素直な規約に
+//! （登録順、イシュー #604）→ states（登録順、イシュー #643）→
+//! pseudo-elements（登録順、イシュー #2201）→ breakpoints（[`Breakpoint`]
+//! の昇順、イシュー #2197）→ hover（[`StateCondition::Hover`] 等の
+//! `@media (hover: hover)` ブロック、常に最後尾）」に固定し、同一 slot・
+//! 同一 axis/value への複数回登録は「後に登録された規則が CSS 中で後に
+//! 出力される」（CSS のカスケードにおいて後勝ちになる）という素直な規約に
 //! 従う。この規約より複雑な優先順位判定は行わない。states を
-//! variants/compound variants の直後（breakpoints・hover よりは前）に
-//! 置くのは、各 styled 部品が従来 `state_css()`（`serialize_rule`
-//! 直呼び）で手書きしていた `data-state` 連動規則を [`SlotRecipe::state`] へ
-//! 移行した際に、「`stylesheet() = recipe().css() + state_css()`（状態規則が
-//! 常に最後）」という既存のカスケード上の性質をそのまま保存するため
-//! （イシュー #643）。breakpoints を states の後・hover の前に置くのは、
+//! variants/compound variants の直後（pseudo-elements・breakpoints・hover
+//! よりは前）に置くのは、各 styled 部品が従来 `state_css()`
+//! （`serialize_rule` 直呼び）で手書きしていた `data-state` 連動規則を
+//! [`SlotRecipe::state`] へ移行した際に、「`stylesheet() = recipe().css() +
+//! state_css()`（状態規則が常に最後）」という既存のカスケード上の性質を
+//! そのまま保存するため（イシュー #643）。pseudo-elements を states の
+//! 直後・breakpoints の前に置くのは、疑似要素セレクタは要素本体の規則とは
+//! カスケード上競合しない（別ボックスであり specificity 勝負にならない）
+//! ため相対位置そのものは挙動へ影響しないが、`@media` ブロック群
+//! （breakpoints・hover）が `css()` 出力全体の末尾に集約されることを固定
+//! する既存テスト（`hover_state_and_other_states_coexist_with_hover_block_emitted_once_at_end`）
+//! を壊さないよう、静的規則である pseudo-elements を media ブロックより前に
+//! 置く。breakpoints を pseudo-elements の後・hover の前に置くのは、
 //! `@media (min-width: ...)` によるレイアウト調整が通常の状態規則より
 //! 優先されるべきだが、タッチ端末の hover 貼り付き対策（イシュー #1425）で
 //! 集約している hover ブロックより手前に置くことでカスケード上の意味を
 //! 単純に保つため（[`SlotRecipe::breakpoint`] rustdoc 参照）。
+//!
+//! # 疑似要素（イシュー #2201）
+//!
+//! [`SlotRecipe::pseudo_element`] は `::before` / `::after` を付加した規則を
+//! recipe 経由で表現するための API。詳細（`content` 既定注入・fail-closed
+//! 検証・#708 との整合）は [`PseudoElement`] の rustdoc を参照。
 //!
 //! # 状態条件付き規則（イシュー #643）
 //!
@@ -1168,6 +1182,56 @@ struct StateRule {
     declarations: Vec<Declaration>,
 }
 
+/// [`SlotRecipe::pseudo_element`] が受け付ける疑似要素の種類（イシュー #2201）。
+///
+/// PR #2172（splitter の shadcn/ui `ResizableHandle` 突合）で、`::after` による
+/// 「見えないヒットエリア拡張」を実装しようとしたが当時の [`SlotRecipe`] が
+/// 疑似要素セレクタを表現する手段を持たず見送りになった（`crate::splitter`
+/// rustdoc 参照）。本 enum はその一次手段として、既存の
+/// `[data-scope="<scope>"][data-part="<slot>"]` セレクタへ `::before` /
+/// `::after` を付加した規則を [`SlotRecipe::css`] から出力できるようにする。
+///
+/// [`StateCondition`] へ `Before`/`After` variant を足す設計は採らなかった
+/// （実行時の状態条件を表す `StateCondition` と、常に静的に存在するボックスを
+/// 表す疑似要素は意味論が異なる。加えて `content` 既定注入は疑似要素固有の
+/// 挙動であり、`states` ループへ特例分岐を持ち込みたくないため）。
+///
+/// # #708（子孫セレクタ機構を追加しない判断）との整合
+///
+/// 疑似要素セレクタは結合子（子孫 ` ` / 子 `>` 等）を一切含まない、同一要素
+/// 上の複合セレクタの末尾に付与するだけの拡張である。[`SlotRecipe`] は
+/// 引き続き子孫 / 子 / 隣接結合子を生成する経路を持たない（#708 の非採用は
+/// 本イシューで変更しない）。[`crate::scroll_area`] の `stylesheet()` が固定
+/// 文字列で追記する `::-webkit-scrollbar` 系規則は本 enum が担う機構とは別物
+/// であり、本イシューでは recipe DSL 側へ移行しない。
+///
+/// 生のセレクタ文字列を受け取る API は設けない（[`StateCondition`] と同じ
+/// 方針。追加できる疑似要素はソースコード中の固定リテラルのみ）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PseudoElement {
+    /// `::before`
+    Before,
+    /// `::after`
+    After,
+}
+
+impl PseudoElement {
+    /// セレクタへ付加する固定リテラル。
+    const fn selector_suffix(self) -> &'static str {
+        match self {
+            PseudoElement::Before => "::before",
+            PseudoElement::After => "::after",
+        }
+    }
+}
+
+/// slot 1 個・疑似要素 1 個への宣言登録（内部表現、イシュー #2201）。
+struct PseudoElementRule {
+    slot: &'static str,
+    pseudo: PseudoElement,
+    declarations: Vec<Declaration>,
+}
+
 /// slot 1 個・任意の状態条件への `@starting-style` 内規則登録（内部表現、
 /// イシュー #2192）。`condition` が `None` の場合は無条件（`@starting-style
 /// { [data-scope][data-part] { ... } }`）を表し、`Some` の場合は
@@ -1291,6 +1355,7 @@ pub struct SlotRecipe {
     default_variants: Vec<DefaultVariant>,
     compound_variants: Vec<CompoundVariantRule>,
     states: Vec<StateRule>,
+    pseudo_elements: Vec<PseudoElementRule>,
     starting_style: Vec<StartingStyleRule>,
     supports_not_calc_size: Vec<SupportsNotCalcSizeRule>,
     breakpoints: Vec<BreakpointRule>,
@@ -1427,6 +1492,7 @@ impl SlotRecipe {
             default_variants: Vec::new(),
             compound_variants: Vec::new(),
             states: Vec::new(),
+            pseudo_elements: Vec::new(),
             starting_style: Vec::new(),
             supports_not_calc_size: Vec::new(),
             breakpoints: Vec::new(),
@@ -1573,6 +1639,45 @@ impl SlotRecipe {
         self.states.push(StateRule {
             slot,
             condition,
+            declarations,
+        });
+        self
+    }
+
+    /// 指定した `slot` の `pseudo`（`::before` / `::after`）への宣言を
+    /// 登録する（builder、自己消費。イシュー #2201）。
+    ///
+    /// `declarations` に `content` プロパティの宣言が 1 件も含まれない場合、
+    /// [`SlotRecipe::css`] は `content: "";` を宣言列の先頭へ自動的に前置する
+    /// （疑似要素はブラウザの既定で `content` が無いとボックスを生成しない
+    /// ため）。呼び出し側が `content` を渡した場合はその宣言列をそのままの
+    /// 順序で使い、二重化はしない。**`content` の値そのものは検証によって
+    /// 差し替えない**: 呼び出し側の `content` 値が [`crate::css::is_valid_value`]
+    /// に落ちる（`<`/`;`/`{`/`}`/制御文字を含む）場合、その宣言は
+    /// [`serialize_rule`] が除外し `content` を持たない規則が出力される
+    /// （ブラウザは `content` の無い疑似要素のボックスを生成しないため、
+    /// 既定値を「親切に」再注入せず fail-closed のまま挙動させる）。
+    ///
+    /// `declarations` が空の場合は規則ごと [`SlotRecipe::css`] の出力から
+    /// 除外される（`::after { content: ""; }` だけの無意味な規則を混入させ
+    /// ない。`compound_variant` の「無意味な規則の除外」と同じ方針）。
+    ///
+    /// 以下のいずれかに該当する規則も [`SlotRecipe::css`] の出力から除外
+    /// される（fail-closed。既存 `base`/`variant`/`state` と同じ「不正入力は
+    /// panic せず出力から除外する」方針）:
+    ///
+    /// - `slot` が `slots` に未宣言、または識別子として不正
+    /// - `declarations` が空
+    #[must_use]
+    pub fn pseudo_element(
+        mut self,
+        slot: &'static str,
+        pseudo: PseudoElement,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.pseudo_elements.push(PseudoElementRule {
+            slot,
+            pseudo,
             declarations,
         });
         self
@@ -1860,9 +1965,12 @@ impl SlotRecipe {
     ///
     /// 出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound
     /// variants（登録順、イシュー #604）→ states（登録順、イシュー #643）→
-    /// `@starting-style`（登録順、1 個のブロックへ集約、イシュー #2192）→
-    /// `@media (hover: hover)`（登録順、1 個のブロックへ集約、イシュー
-    /// #1425）」。
+    /// pseudo-elements（登録順、イシュー #2201）→ `@starting-style`（登録順、
+    /// 1 個のブロックへ集約、イシュー #2192）→ `@supports not (height:
+    /// calc-size(auto, size))`（登録順、1 個のブロックへ集約、イシュー
+    /// #2192）→ breakpoints（[`Breakpoint`] の昇順、イシュー #2197）→
+    /// `@media (hover: hover) { ... }`（`Hover` 系 states が存在する場合のみ、
+    /// 常に出力全体の末尾、イシュー #1425）」。
     /// セレクタは base が `[data-scope="<scope>"][data-part="<slot>"]`、
     /// variant が
     /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
@@ -1885,16 +1993,23 @@ impl SlotRecipe {
     /// 貼り付き対策として `@media (hover: hover) { ... }` 配下へまとめて
     /// 出力する形へ変更し、`:not([data-disabled])` を付与して disabled 規則
     /// との勝敗を記述順に依存させない契約にした。この `@media` ブロックは
-    /// 通常の state 規則がすべて出力された後、breakpoint ブロック（後述）
-    /// よりさらに後、[`SlotRecipe::css`] の出力の最後尾に 1 つだけ現れる）
-    /// のいずれか（`Hover` 以外は出力順が最後尾のため CSS カスケードの
-    /// 後勝ちで variant/compound variant を上書きする。`LastChild` は同一
-    /// slot への他の state 規則より後に登録することで詳細度が同じでも
-    /// 記述順の後勝ちで上書きする契約、`state()` の「登録順」規約参照）。
+    /// 通常の state 規則がすべて出力された後、pseudo-element 規則・
+    /// breakpoint ブロック（いずれも後述）よりさらに後、[`SlotRecipe::css`]
+    /// の出力の最後尾に 1 つだけ現れる）のいずれか（`Hover` 以外は出力順が
+    /// 最後尾のため CSS カスケードの後勝ちで variant/compound variant を
+    /// 上書きする。`LastChild` は同一 slot への他の state 規則より後に
+    /// 登録することで詳細度が同じでも記述順の後勝ちで上書きする契約、
+    /// `state()` の「登録順」規約参照）。pseudo-element（[`SlotRecipe::
+    /// pseudo_element`]、イシュー #2201）は
+    /// `[data-scope="<scope>"][data-part="<slot>"]::before` /
+    /// `[data-scope="<scope>"][data-part="<slot>"]::after`（[`PseudoElement`]
+    /// rustdoc 参照。`content` プロパティが呼び出し側の宣言列に無い場合は
+    /// `content: "";` を自動的に先頭へ前置する）であり、states の後・
+    /// breakpoint の前に出力される。
     ///
-    /// breakpoint（[`SlotRecipe::breakpoint`]、イシュー #2197）は states の
-    /// 後・hover ブロックの前に出力される。[`Breakpoint`] の昇順（`sm` →
-    /// `xl`、mobile-first）で breakpoint ごとに 1 つの
+    /// breakpoint（[`SlotRecipe::breakpoint`]、イシュー #2197）は
+    /// pseudo-element の後・hover ブロックの前に出力される。[`Breakpoint`]
+    /// の昇順（`sm` → `xl`、mobile-first）で breakpoint ごとに 1 つの
     /// `@media (min-width: <bp.min_width()>) { ... }` ブロックへ集約し
     /// （同一 breakpoint 内は登録順）、有効な規則が 1 件もない breakpoint の
     /// ブロックは出力しない。セレクタは base と同じ `[data-scope="<scope>"]
@@ -2022,6 +2137,40 @@ impl SlotRecipe {
             }
         }
 
+        for rule in &self.pseudo_elements {
+            if rule.declarations.is_empty()
+                || !self.is_declared_slot(rule.slot)
+                || !is_valid_identifier(rule.slot)
+            {
+                continue;
+            }
+            let selector = format!(
+                "[data-scope=\"{}\"][data-part=\"{}\"]{}",
+                self.scope,
+                rule.slot,
+                rule.pseudo.selector_suffix()
+            );
+            // `content` を呼び出し側が渡していない場合のみ、疑似要素が
+            // ブラウザの既定で無効化されないよう `content: "";` を先頭へ
+            // 前置する（`pseudo_element` rustdoc の「content 既定注入」節
+            // 参照。渡された場合は二重化せずそのままの順序を使う）。
+            let has_content = rule.declarations.iter().any(|d| d.property() == "content");
+            if has_content {
+                if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                    out.push_str(&css);
+                    out.push('\n');
+                }
+            } else {
+                let mut declarations = Vec::with_capacity(rule.declarations.len() + 1);
+                declarations.push(decl("content", "\"\""));
+                declarations.extend(rule.declarations.iter().copied());
+                if let Some(css) = serialize_rule(&selector, &declarations) {
+                    out.push_str(&css);
+                    out.push('\n');
+                }
+            }
+        }
+
         let mut starting_style_css = String::new();
 
         for rule in &self.starting_style {
@@ -2098,7 +2247,7 @@ impl SlotRecipe {
 
         // breakpoints は Breakpoint::ALL の昇順（mobile-first、sm → xl）で
         // 1 breakpoint = 1 @media ブロックとして出力する（イシュー #2197、
-        // 本関数 rustdoc の出力構造節参照）。states/@starting-style/
+        // 本関数 rustdoc の出力構造節参照）。pseudo-elements/@starting-style/
         // @supports の後・hover の前。
         for bp in Breakpoint::ALL {
             let mut block = String::new();

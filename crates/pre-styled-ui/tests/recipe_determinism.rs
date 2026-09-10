@@ -7,7 +7,9 @@
 //! 回帰検知でもある。
 
 use fandhe_frontend_pre_styled_ui::decl;
-use fandhe_frontend_pre_styled_ui::recipe::{when, Size, SlotRecipe, StateCondition, VariantValue};
+use fandhe_frontend_pre_styled_ui::recipe::{
+    when, PseudoElement, Size, SlotRecipe, StateCondition, VariantValue,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Tone {
@@ -66,6 +68,9 @@ fn build_recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             vec![decl("outline", "2px solid black")],
         )
+        // イシュー #2201: pseudo-element 規則も他の規則と同じ決定性保証
+        // （byte 一致・繰り返し呼び出し安定性）の対象であることを回帰検知する。
+        .pseudo_element("root", PseudoElement::After, vec![decl("display", "block")])
 }
 
 #[test]
