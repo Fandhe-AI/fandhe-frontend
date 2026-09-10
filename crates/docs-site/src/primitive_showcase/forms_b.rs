@@ -665,9 +665,11 @@ pub(super) fn segment_group_section() -> Node {
 }
 
 /// open + 選択済み インスタンス（第 1）を組み立てる内部ヘルパ（イシュー
-/// #1619 参照突合、`SelectProps` 導入に伴う 4 インスタンス化）。anatomy 15
-/// パーツすべて（`item_group`/`item_group_label`/`item_indicator`/
-/// `clear_trigger`/`hidden_select` を含む）を本インスタンスで網羅し、
+/// #1619 参照突合、`SelectProps` 導入に伴う 4 インスタンス化。イシュー
+/// #2186 で `separator`/`scroll-up-button`/`scroll-down-button` の 3 パーツ
+/// を追加）。anatomy 18 パーツすべて（`item_group`/`item_group_label`/
+/// `item_indicator`/`clear_trigger`/`hidden_select`/`separator`/
+/// `scroll_up_button`/`scroll_down_button` を含む）を本インスタンスで網羅し、
 /// `tests/primitive_showcase.rs::anatomy_coverage_matches_known_uncovered_exactly`
 /// の allowlist を増やさない。
 fn select_open_instance() -> Node {
@@ -708,43 +710,66 @@ fn select_open_instance() -> Node {
                     Some("sel-label"),
                     Some("sel-item-0"),
                     vec![],
-                    vec![select::item_group(
-                        &props,
-                        Some("sel-item-group-label"),
-                        vec![],
-                        vec![
-                            select::item_group_label(
-                                Some("sel-item-group-label"),
-                                vec![],
-                                vec![text("Common")],
-                            ),
-                            select::item(
-                                OpenState::Open,
+                    vec![
+                        select::scroll_up_button(vec![], vec![text("\u{25b4}")]),
+                        select::item_group(
+                            &props,
+                            Some("sel-item-group-label"),
+                            vec![],
+                            vec![
+                                select::item_group_label(
+                                    Some("sel-item-group-label"),
+                                    vec![],
+                                    vec![text("Common")],
+                                ),
+                                select::item(
+                                    OpenState::Open,
+                                    &props,
+                                    false,
+                                    true,
+                                    "apple",
+                                    Some("sel-item-0"),
+                                    vec![],
+                                    vec![
+                                        select::item_text(
+                                            OpenState::Open,
+                                            &props,
+                                            false,
+                                            true,
+                                            None,
+                                            vec![],
+                                            vec![text("Apple")],
+                                        ),
+                                        select::item_indicator(
+                                            OpenState::Open,
+                                            vec![],
+                                            vec![text("✓")],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        select::separator(vec![], vec![]),
+                        select::item(
+                            OpenState::Closed,
+                            &props,
+                            false,
+                            false,
+                            "banana",
+                            None,
+                            vec![],
+                            vec![select::item_text(
+                                OpenState::Closed,
                                 &props,
                                 false,
-                                true,
-                                "apple",
-                                Some("sel-item-0"),
+                                false,
+                                None,
                                 vec![],
-                                vec![
-                                    select::item_text(
-                                        OpenState::Open,
-                                        &props,
-                                        false,
-                                        true,
-                                        None,
-                                        vec![],
-                                        vec![text("Apple")],
-                                    ),
-                                    select::item_indicator(
-                                        OpenState::Open,
-                                        vec![],
-                                        vec![text("✓")],
-                                    ),
-                                ],
-                            ),
-                        ],
-                    )],
+                                vec![text("Banana")],
+                            )],
+                        ),
+                        select::scroll_down_button(vec![], vec![text("\u{25be}")]),
+                    ],
                 )],
             ),
             select::hidden_select(

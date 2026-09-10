@@ -1,6 +1,6 @@
 # Select
 
-`fandhe-frontend-headless-ui` の `select` mod が提供するリストボックス選択の unstyled 部品です。Root / Label / Control / Trigger / ValueText / ClearTrigger / Indicator / Positioner / Content / ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15 anatomy パーツを持ち、listbox の開閉と選択値（高々 1 個）を合成した状態機械を備えます。`HiddenSelect` はフォーム統合専用のネイティブ `<select>` です。
+`fandhe-frontend-headless-ui` の `select` mod が提供するリストボックス選択の unstyled 部品です。Root / Label / Control / Trigger / ValueText / ClearTrigger / Indicator / Positioner / Content / ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect / Separator / ScrollUpButton / ScrollDownButton の 18 anatomy パーツを持ち、listbox の開閉と選択値（高々 1 個）を合成した状態機械を備えます。`HiddenSelect` はフォーム統合専用のネイティブ `<select>` です。`Separator`/`ScrollUpButton`/`ScrollDownButton`（イシュー #2186 で追加）は state 引数を持たず、可視性判定・押下時の実スクロールを含みません（下記「参考サイトとの差分」節参照）。
 
 `/themes/` 側の `Select`（Chakra ライクな variant/size を持つスタイル層）と異なり、CSS を一切持ちません。
 
@@ -28,7 +28,7 @@
 ark-ui 公式 Data Attributes / Keyboard Support 表（zag `select.connect.ts`）・Radix Primitives `select` と突合し、`SelectProps` の一律付与・`data-placeholder-shown`（trigger）・root disabled 伝播・`data-selected`・item-text の 3 状態属性・`item-group-label` の `role="presentation"`・`item-indicator` の `aria-hidden`・readonly ガードを是正しました。一方、以下は意図的に合わせていません。
 
 - `data-state` の `checked`/`unchecked` 語彙: ark-ui は item に `checked`/`unchecked` を使いますが、本リポジトリでは `crate::state::OpenState` の `"open"`/`"closed"` に一元化しています（combobox/listbox とのクレート横断整合を優先）。
-- Radix 固有の `Portal`/`Viewport`/`ScrollUpButton`/`ScrollDownButton`: レイアウト計測・DOM 配置の関心のため headless へ持ち込みません（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。
+- Radix 固有の `Portal`/`Viewport`: レイアウト計測・DOM 配置の関心のため headless へ持ち込みません（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。`ScrollUpButton`/`ScrollDownButton` は anatomy 自体をイシュー #2186 で追加済みですが、可視性判定（スクロール可能かの計測）・押下時の実スクロールは同じ理由（規則 2 の配置）により headless に持ち込まず `fandhe-frontend-wasm-full` の後続イシューへ委ねています。
 - `Arrow`: Select は arrow を持たない構成として確定済みです（positioning ADR §4.2）。
 - `Icon`/`Value`（Radix）: `Indicator`/`ValueText` と同義のため個別追加しません。
 - `data-focus`（DOM ローカル focus）: SSR 静的出力に持たせません（`combobox`/`listbox` と同じ契約）。

@@ -4,9 +4,11 @@
 //! `fandhe_frontend_headless_ui::select`（イシュー #541）の Root / Label /
 //! Control / Trigger / ValueText / ClearTrigger / Indicator / Positioner /
 //! Content / ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator /
-//! HiddenSelect 15 anatomy パーツを再エクスポートし、[`stylesheet`] で既定
-//! CSS を追加提供する。薄い委譲の根拠・スコープ外事項は [`crate::dialog`] の
-//! rustdoc と同じ方針に従う。
+//! HiddenSelect / Separator / ScrollUpButton / ScrollDownButton 18 anatomy
+//! パーツ（後 3 者はイシュー #2186 で追加、下記「Separator / ScrollButton
+//! の着装」節参照）を再エクスポートし、[`stylesheet`] で既定 CSS を追加
+//! 提供する。薄い委譲の根拠・スコープ外事項は [`crate::dialog`] の rustdoc
+//! と同じ方針に従う。
 //!
 //! # 選択的 re-export（`pub use ...::*` を使わない理由、`Select` 型・headless
 //! `root` を再エクスポートしない理由、イシュー #729）
@@ -199,12 +201,53 @@
 //!   真の場合は disabled の `cursor: not-allowed` を後勝ちで優先させる
 //!   （`date_input.rs` 該当コメントと同じ理由）。
 //! - **見送り・対象外**: `Separator`/`ScrollUpButton`/`ScrollDownButton`
-//!   anatomy パーツは `fandhe-frontend-headless-ui::select` に存在せず、
-//!   新設は headless-ui 側の変更のため本イシュー（Themes 限定）のスコープ
-//!   外（`menu.rs` の `separator` が移植の参考になる）。Align Item
-//!   トグル（選択項目をトリガーへ位置合わせする挙動）は位置ジオメトリの
-//!   拡張が必要で `wasm-full` の positioning 契約（#663）に踏み込むため
-//!   対象外。
+//!   anatomy パーツは #2019 時点で `fandhe-frontend-headless-ui::select` に
+//!   存在せず、headless-ui 側の変更が必要なため本イシュー（Themes 限定）の
+//!   スコープ外だった（イシュー #2186 で追加・着装済み、下記節参照）。
+//!   Align Item トグル（選択項目をトリガーへ位置合わせする挙動）は位置
+//!   ジオメトリの拡張が必要で `wasm-full` の positioning 契約（#663）に
+//!   踏み込むため引き続き対象外。
+//!
+//! # Separator / ScrollButton の着装（イシュー #2186）
+//!
+//! `fandhe-frontend-headless-ui::select` へ新設された
+//! [`separator`]/[`scroll_up_button`]/[`scroll_down_button`]（18 anatomy
+//! パーツへ拡張）を再エクスポートし、[`recipe`] へ着装する。
+//!
+//! - **`separator`**: shadcn/ui `SelectSeparator`（`bg-border
+//!   pointer-events-none -mx-1 my-1 h-px`）を採る。参照競合の判定:
+//!   chakra-ui/Radix Themes に対応要素がないため純追加分として shadcn-ui の
+//!   値を採用する。`menu.rs::separator`（`hr` + `border-top`）とは要素種別
+//!   （`div`）が異なるため同型化せず、`height`/`background` で区切り線を
+//!   表現する。shadcn は Content の固定 `p-1` を `-mx-1` で打ち消すが、本
+//!   リポジトリの `content` padding は `size` variant で可変
+//!   （`--fandhe-select-content-padding`）のため、固定値ではなく同じ変数の
+//!   負値（`calc(-1 * var(--fandhe-select-content-padding, ...))`）で打ち
+//!   消す。
+//! - **`scroll-up-button`/`scroll-down-button`**: 同じく shadcn-ui の値
+//!   （`flex cursor-default items-center justify-center py-1`）を採る。
+//!   Radix は `Content`（flex 列）配下の `Viewport`（スクロール要素）の
+//!   **外側**にボタンを置くが、本リポジトリは Viewport パーツを持たず
+//!   `content` 自身が `overflow-y: auto`（#2019）のスクロール要素であるた
+//!   め、ボタンを `content` 内に置くと一緒にスクロールしてしまう。
+//!   `position: sticky` + 不透明背景（`var(--fandhe-color-bg)`）で
+//!   `content` の上下端に固定することで、構造を増やさず Themes 側の装飾
+//!   のみでこの差分を吸収する（`docs/policy/intentional-non-adoption.md`
+//!   §3.25 規則 2 の配置：計測・装飾は headless へ持ち込まない）。
+//! - **`size` variant への変数追加なし**: padding は固定の `space-1` とし、
+//!   既存 variant（`--fandhe-select-content-padding` 等）の出力・golden は
+//!   不変。
+//! - **sticky ボタンの highlight 隠れ補正（codex-review P1 是正）**:
+//!   `keynav::set_highlight_on_host` の `scroll_item_into_view_if_needed`
+//!   は `content` の矩形から `[data-scope="select"][data-part=
+//!   "scroll-up-button"/"scroll-down-button"]` の実測高さを差し引いた
+//!   実効領域（`wiring::effective_scroll_band`）を基準に `scrollTop` を
+//!   補正するため、矢印キーで進めた項目が sticky ボタンの下に隠れない
+//!   （`crates/wasm-full/src/keynav.rs`。ボタンを持たない Menu/Combobox/
+//!   Command 等の呼び出し元では従来どおり `content` 矩形そのものを
+//!   band とするため挙動は変わらない）。可視性判定（スクロール可能かの
+//!   計測）・押下時の実スクロールはいずれも `fandhe-frontend-wasm-full`
+//!   の後続イシューの範囲であり、本イシューでは扱わない（不変）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -221,7 +264,8 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::select::{
     clear_trigger, content, control, hidden_select, indicator, item, item_group, item_group_label,
-    item_indicator, item_text, label, positioner, trigger, value_text, SelectProps,
+    item_indicator, item_text, label, positioner, scroll_down_button, scroll_up_button, separator,
+    trigger, value_text, SelectProps,
 };
 // `control`/`trigger` 等の `state` 引数はいずれも `state` モジュール由来で
 // 上記選択的再エクスポートでは到達しない。呼び出し側が
@@ -247,6 +291,9 @@ const SLOTS: &[&str] = &[
     "item-text",
     "item-indicator",
     "hidden-select",
+    "separator",
+    "scroll-up-button",
+    "scroll-down-button",
 ];
 
 /// この styled Select の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
@@ -408,6 +455,61 @@ fn recipe() -> SlotRecipe {
                 decl("clip", "rect(0, 0, 0, 0)"),
                 decl("white-space", "nowrap"),
                 decl("border", "0"),
+            ],
+        )
+        // イシュー #2186: separator / scroll-up-button / scroll-down-button
+        // の着装。SLOTS 末尾へ追加したため既存 base ブロックの並び順（root 〜
+        // hidden-select）は不変であり、golden 上はここに 3 ブロックが
+        // 挿入される（純追加原則。モジュール冒頭「Separator / ScrollButton
+        // の着装（イシュー #2186）」節参照）。
+        .base(
+            "separator",
+            vec![
+                decl("height", "1px"),
+                decl("background", "var(--fandhe-color-border-muted)"),
+                decl(
+                    "margin",
+                    "var(--fandhe-space-1) calc(-1 * var(--fandhe-select-content-padding, var(--fandhe-space-2)))",
+                ),
+                decl("pointer-events", "none"),
+            ],
+        )
+        .base(
+            "scroll-up-button",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("cursor", "default"),
+                decl("padding", "var(--fandhe-space-1) 0"),
+                decl(
+                    "margin",
+                    "0 calc(-1 * var(--fandhe-select-content-padding, var(--fandhe-space-2)))",
+                ),
+                decl("position", "sticky"),
+                decl("top", "0"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("z-index", "1"),
+            ],
+        )
+        .base(
+            "scroll-down-button",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("cursor", "default"),
+                decl("padding", "var(--fandhe-space-1) 0"),
+                decl(
+                    "margin",
+                    "0 calc(-1 * var(--fandhe-select-content-padding, var(--fandhe-space-2)))",
+                ),
+                decl("position", "sticky"),
+                decl("bottom", "0"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("z-index", "1"),
             ],
         )
         // イシュー #551 受け入れ条件: `trigger`（開閉）・`item`（選択済み）の見た目の切り替え。

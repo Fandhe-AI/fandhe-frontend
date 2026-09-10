@@ -1912,6 +1912,31 @@ pub fn readonly_click_outcome(
     }
 }
 
+/// [`wiring::scroll_item_into_view_if_needed`] のスクロール量計算を web-sys
+/// 非依存の純粋関数として切り出したもの（codex-review P1 是正、イシュー
+/// #2186）。`band_top`/`band_bottom` は実際にスクロール追随させたい可視領域
+/// （Select の sticky `scroll-up-button`/`scroll-down-button` がある場合は
+/// その高さ分を差し引いた領域、無い場合はスクロールコンテナの矩形その
+/// もの）を表し、呼び出し元がボタンの有無を吸収してから渡す。
+///
+/// 戻り値は `container.scrollTop` へ加算すべき差分（正: 下方向・負:
+/// 上方向）。item が既に band 内に収まっていれば `0.0`（no-op）。
+#[must_use]
+pub fn scroll_delta_for_band(
+    item_top: f64,
+    item_bottom: f64,
+    band_top: f64,
+    band_bottom: f64,
+) -> f64 {
+    if item_top < band_top {
+        item_top - band_top
+    } else if item_bottom > band_bottom {
+        item_bottom - band_bottom
+    } else {
+        0.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5594,18 +5619,91 @@ pub(crate) mod wiring {
             return;
         };
         let item_rect = item.get_bounding_client_rect();
-        let container_rect = container.get_bounding_client_rect();
-        let delta = if item_rect.top() < container_rect.top() {
-            item_rect.top() - container_rect.top()
-        } else if item_rect.bottom() > container_rect.bottom() {
-            item_rect.bottom() - container_rect.bottom()
-        } else {
-            0.0
-        };
+        let (band_top, band_bottom) = effective_scroll_band(&container);
+        let delta = super::scroll_delta_for_band(
+            item_rect.top(),
+            item_rect.bottom(),
+            band_top,
+            band_bottom,
+        );
         if delta != 0.0 {
             let new_scroll_top = container.scroll_top() as f64 + delta;
             container.set_scroll_top(new_scroll_top as i32);
         }
+    }
+
+    /// `container`（スクロール可能な祖先）の可視領域から、sticky で固定
+    /// された Select の `scroll-up-button`/`scroll-down-button`（イシュー
+    /// #2186）が占める帯を差し引いた実効領域を返す（codex-review P1
+    /// 是正: `position: sticky` のボタンは `content` の矩形基準の従来
+    /// 補正では検出できず、矢印キーで進めた項目が上下端でボタンの下に
+    /// 隠れ得た）。
+    ///
+    /// `container` 配下に該当パーツが無い呼び出し元（Menu/Combobox/
+    /// Command 等、スクロールボタンを持たない anatomy）では
+    /// `container.get_bounding_client_rect()` をそのまま返し、従来の
+    /// 挙動を変えない。ボタンが描画されていても高さ 0（display:none 等）
+    /// の場合はそのボタンによる補正を行わない。
+    ///
+    /// `container.query_selector` は全子孫を探索するため、`container`
+    /// （スクロール可能な親 Menu/Select の content）の内側に別の Select が
+    /// 開いている構成では、内側 Select の scroll-up/down-button まで誤って
+    /// 掴んでしまい、親の可視領域を不要に狭めてしまう（codex-review P1
+    /// 指摘、イシュー #2186）。[`sync_item_text_highlighted`] の
+    /// 「最も近い `[data-part="item"]` 祖先が自身と一致するものだけを
+    /// 採用する」所有スコープ検証と同型に、見つかったボタンの最も近い
+    /// `[data-part="content"]` 祖先が `container` 自身と一致するものだけを
+    /// 採用する。
+    fn effective_scroll_band(container: &Element) -> (f64, f64) {
+        let container_rect = container.get_bounding_client_rect();
+        let mut top = container_rect.top();
+        let mut bottom = container_rect.bottom();
+        if let Some(up) = owned_scroll_button(
+            container,
+            "[data-scope=\"select\"][data-part=\"scroll-up-button\"]",
+        ) {
+            let rect = up.get_bounding_client_rect();
+            if rect.height() > 0.0 {
+                top = top.max(rect.bottom());
+            }
+        }
+        if let Some(down) = owned_scroll_button(
+            container,
+            "[data-scope=\"select\"][data-part=\"scroll-down-button\"]",
+        ) {
+            let rect = down.get_bounding_client_rect();
+            if rect.height() > 0.0 {
+                bottom = bottom.min(rect.top());
+            }
+        }
+        (top, bottom)
+    }
+
+    /// `container` 配下から `selector`（scroll-up-button/scroll-down-button
+    /// の data-part セレクタ）に一致する要素を探し、その最も近い
+    /// `[data-part="content"]` 祖先が `container` 自身と一致するものだけを
+    /// 返す（[`effective_scroll_band`] 専用ヘルパー、codex-review P1 是正、
+    /// イシュー #2186）。`container.query_selector` の単発呼び出しは最初に
+    /// 見つかった 1 件を無条件に採用するため、`container` 内側に別の
+    /// Select が開いている構成では内側 Select のボタンを誤って親のものと
+    /// して扱ってしまう。[`sync_item_text_highlighted`] の所有スコープ
+    /// 検証と同型に、`query_selector_all` で全候補を走査し、
+    /// `closest(candidate, "[data-part=\"content\"]")` が `container` と
+    /// 同一ノードである最初の 1 件のみを採用する。
+    fn owned_scroll_button(container: &Element, selector: &str) -> Option<Element> {
+        let node_list = container.query_selector_all(selector).ok()?;
+        for i in 0..node_list.length() {
+            let node = node_list.get(i)?;
+            let Ok(candidate) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
+                continue;
+            };
+            let owns = closest(&candidate, "[data-part=\"content\"]")
+                .is_some_and(|nearest| nearest.is_same_node(Some(container)));
+            if owns {
+                return Some(candidate);
+            }
+        }
+        None
     }
 
     /// `item` から `parent_element()` を辿り、`overflow-y` が

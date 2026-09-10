@@ -589,7 +589,18 @@ name = "fandhe-frontend-headless-ui"
 # 変更はなく非破壊的な追加のため patch バンプする。origin/main で #2111
 # （attachment）が同じく 0.68.9 → 0.68.10 の patch バンプを先行取得済み
 # だったため、同一版数の衝突を避けて 0.68.11 とする。
-version = "0.68.11"
+#
+# イシュー #2186: select に separator / scroll-up-button / scroll-down-button
+# の 3 anatomy パーツを新設（15 → 18 パーツ）。§3.25 規則 2 の読み直しに
+# 従い、可視性判定・押下スクロールは含まない静的な構造・ARIA のみを追加
+# する既存 API への非破壊的な純追加であり、本ブランチも独立に 0.68.9 へ
+# 到達していたが、origin/main（#2111）との統合で版数が偶発的に一致した
+# ため、同一版数も衝突として扱い main の到達値 0.68.9 から +1 して
+# 0.68.10 とした。その後 origin/main が #2114（marker 新設）で
+# 0.68.10 → 0.68.11 へ patch バンプしたため、再び同一版数衝突として
+# main の到達値 0.68.11 から +1 して 0.68.12 とする（PR #2265 review 対応
+# での再マージ取り込み）。
+version = "0.68.12"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
