@@ -439,6 +439,19 @@ readonly RadioGroup の click capture 保護（`keynav.rs:7678` 付近）を
    バンプを行うこと。(i) を選ぶだけで feature 追加要求を伴う構成を
    採用可能とはしない（§10 参照）。
 
+**実装結果の追記（イシュー #2326、codex-review/Bugbot 是正）**: 条件 4 は
+`wire_keynav`（`keynav.rs`）から readonly RadioGroup の click capture 保護を
+`wire_readonly_click_guard`（新設、`keynav` feature に関わらず常時登録）へ
+分離する方式で実装した。加えてレビューで、`signature-pad` feature が
+`Runtime::wire_signature_pad` をゲートし、同関数が
+`crate::headless::wire_headless_component`（`MAPPING_TABLE` 全行、
+Dialog/Collapsible/Popover/Tooltip/Menu 等 signature-pad と無関係な
+headless-ui 部品のクリック dispatch 全般）も同時に登録している未文書化の
+結合が別途発覚したため、この汎用クリック dispatch も `Runtime::wire_headless`
+（ゲートしない常時配線）へ分離した。両者とも fail-closed
+（対象パーツが `root` 配下に存在しなければ早期 return）のため、当該部品を
+使わないアプリへの副作用はない。
+
 ## 12. 再評価トリガー
 
 - `bundle-size` が #1968 の警告しきい値（190,000 B）を恒常的に超える。
@@ -451,17 +464,23 @@ readonly RadioGroup の click capture 保護（`keynav.rs:7678` 付近）を
 
 条件付き採用（§11）に基づき、採用する場合の分割案:
 
-1. `wasm-full` に配線群別 feature を追加（既定 on、`Runtime::mount`/
-   `hydrate` の `wire_*` 呼び出しを cfg ゲート）。§11 条件 5 に従い、
-   `default-features = false` 利用者との互換維持策・移行手順のいずれかを
-   本 issue で確定する。
-2. `MAPPING_TABLE`/keynav の scope 分岐の cfg 化と、
-   `headless_wiring.rs`/`keynav_native.rs` の `required-features` 追随。
-   §11 条件 4 に従い、readonly RadioGroup の click capture 保護
-   （`keynav.rs:7678` 付近）を `keynav` feature から独立した常時有効な
-   配線へ切り出し、切り出し後の構成で §5/§11 の削減量を再計測する
-   （再計測結果が判定ルールの 20%/30 KB を下回る場合は採用可否を
-   再検討する）。
+1. **実装済み（イシュー #2326）。** `wasm-full` に配線群別 feature を追加
+   （既定 on、`Runtime::mount`/`hydrate` の `wire_*` 呼び出しを cfg
+   ゲート）。§11 条件 5 は「(ii) 0.x minor の破壊的変更として移行手順を
+   明記する」方式で確定した（`default-features = false` 利用者は 14 配線を
+   失う。`Cargo.toml`・`lib.rs` クレートドキュメントに移行手順を記載、
+   0.18.7 → 0.19.0 へ minor バンプ）。対応表・詳細は
+   `docs/design/wasm-full-architecture.md` §33 を参照。項目 2〜5 は未着手
+   のまま本文書側で引き続き追跡する。
+2. **readonly RadioGroup 保護の分離は実装済み（イシュー #2326、上記
+   「実装結果の追記」参照）。** `keynav.rs:7678` 付近にあった click
+   capture 保護は `wire_readonly_click_guard`（`keynav` feature に
+   関わらず常時登録）へ分離済みであり、§11 条件 4 を満たす。**未着手
+   のまま残るのは**、(a) `MAPPING_TABLE`/keynav の scope 分岐の cfg 化
+   と `headless_wiring.rs`/`keynav_native.rs` の `required-features`
+   追随、(b) 分離後の構成での §5/§11 削減量の再計測（再計測結果が
+   判定ルールの 20%/30 KB を下回る場合は採用可否を再検討する）の 2 点
+   のみである。
 3. CI feature matrix（`--no-default-features` / 各 feature / `--all-features`）
    の追加。`clippy-wasm32` ジョブへの反映要否を含めて検討する。readonly
    RadioGroup 保護（項目 2）が `keynav` feature 無効時にも機能することを

@@ -929,7 +929,14 @@ name = "fandhe-frontend-wasm-full"
 # `MENUBAR_ITEM_SELECTOR`/`sync_item_text_highlighted` を拡張した。
 # 既存シグネチャ不変の加算的変更のため patch バンプ、0.18.6 から
 # 0.18.7 とする。
-version = "0.18.7"
+#
+# イシュー #2326: 配線群別 feature（`Runtime::mount`/`hydrate` の `wire_*`
+# 呼び出し 14 件を同名 feature で cfg ゲート）を新設した。既定は全 feature
+# on のため既定構成の挙動・`bundle_size` 実測値は不変だが、
+# `default-features = false` を使う既存利用者は配線を失う破壊的変更
+# （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の
+# (ii) を採用）にあたるため minor バンプとし、0.18.7 から 0.19.0 とする。
+version = "0.19.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1248,10 +1255,95 @@ crate-type = ["cdylib", "rlib"]
 # `wasm/Cargo.toml` 等）の挙動は変わらない。rlib 専用利用者は
 # `default-features = false` で `entry` のエクスポートを除外できる
 # （`lib.rs` の `pub mod entry` ゲート参照）。
+# イシュー #2326: `Runtime::mount`/`hydrate` が呼ぶ配線（`wire_*`）を
+# 配線 1 件 = feature 1 件（既定 on）へ分割した。目的は REQ-11 gzip 上限
+# （200,000 B）に対する余地確保（`docs/design/wasm-full-feature-gating-evaluation.md`
+# §6 (ii)）であり、既定はすべて on のため本クレート単体の既定構成・
+# `bundle_size` 実測値は本変更で変わらない（下流〔dist-server 経路の feature
+# 集合決定・CI feature matrix〕での活用は後続 issue、同文書 §13 項目 3/4）。
+#
+# 対応表（`Runtime::mount`/`hydrate` の呼び出し順 = 下記 `default` の列挙順）:
+#   events::wire_events            -> ゲートしない（`data-action` 委譲、全構成必須）
+#   keynav::wire_readonly_click_guard -> ゲートしない（readonly RadioGroup の click
+#                                          capture 保護、イシュー #2326 codex-review 是正で
+#                                          `keynav::wire_keynav` から分離済み）
+#   keynav::wire_keynav            -> "keynav"
+#   focus_visible::wire_focus_visible -> "focus-visible"
+#   Self::wire_avatar              -> "avatar"
+#   Self::wire_clipboard           -> "clipboard"
+#   Self::wire_timer               -> "timer"
+#   Self::wire_angle_slider        -> "angle-slider"
+#   Self::wire_splitter            -> "splitter"
+#   Self::wire_signature_pad       -> "signature-pad"
+#   Self::wire_number_input        -> "number-input"
+#   Self::wire_command             -> "command"
+#   Self::wire_sidebar             -> "sidebar"
+#   Self::wire_chart               -> "chart"
+#   Self::wire_chart_range         -> "chart-range"
+#   Self::wire_questionnaire       -> "questionnaire"
+#
+# `overlay`/`tooltip`/`position`/`focus_trap`/`headless_file_upload`/
+# `headless_select` は `Runtime` を経由しないアプリ側直接利用 API のため
+# gating 対象外（feature を持たない）。
+#
+# 破壊的変更の注意（BREAKING CHANGE、0.19.0 で minor バンプ）: 本バージョンから
+# `default-features = false` を使う利用者は上記 14 配線を失う。従来どおりの
+# 挙動を維持するには `features = ["wasm-bindgen-exports", "keynav",
+# "focus-visible", "avatar", "clipboard", "timer", "angle-slider", "splitter",
+# "signature-pad", "number-input", "command", "sidebar", "chart",
+# "chart-range", "questionnaire"]`（`entry` のエクスポートが不要なら
+# `wasm-bindgen-exports` は省略可）を明示すること。
+#
+# `keynav` off 時の注意（イシュー #1616 / #2326）: readonly RadioGroup の
+# click capture 保護は `keynav::wire_readonly_click_guard`（上記対応表の
+# とおりゲートしない常時配線）が担う。`keynav::wire_keynav` から分離済み
+# （イシュー #2326 codex-review P1 是正、`docs/design/wasm-full-feature-gating-evaluation.md`
+# §13 項目 2 は分離完了済みとして扱う）のため、`keynav` を off にしても
+# readonly RadioGroup の click capture 保護は失われない。
+#
+# 新規配線を `mount`/`hydrate` へ追加する場合の規約
+# （`lib.rs` クレートドキュメントにも同内容を記載）:
+#   (a) 本ブロックへ同名 feature（`= []`）を追加し `default` へ列挙する
+#   (b) `mount`/`hydrate` 双方の呼び出し文と対応する private `fn wire_*`
+#       定義（存在する場合）へ `#[cfg(feature = "...")]` を付ける
+#   (c) 本コメントの対応表と `lib.rs` クレートドキュメントの対応表を更新する
+#   (d) `--no-default-features --features wasm-bindgen-exports` /
+#       既定 / `--all-features` の 3 構成で `cargo check --target
+#       wasm32-unknown-unknown` と `cargo clippy --all-targets` を確認する
 [features]
-default = ["wasm-bindgen-exports"]
+default = [
+  "wasm-bindgen-exports",
+  "keynav",
+  "focus-visible",
+  "avatar",
+  "clipboard",
+  "timer",
+  "angle-slider",
+  "splitter",
+  "signature-pad",
+  "number-input",
+  "command",
+  "sidebar",
+  "chart",
+  "chart-range",
+  "questionnaire",
+]
 wasm-bindgen-exports = []
 perf-assert = []
+keynav = []
+focus-visible = []
+avatar = []
+clipboard = []
+timer = []
+angle-slider = []
+splitter = []
+signature-pad = []
+number-input = []
+command = []
+sidebar = []
+chart = []
+chart-range = []
+questionnaire = []
 
 # TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（wasm-full/tests/perf_browser.rs）の
 # 実行に必要な dev 依存。dev-dependency のため製品バイナリ・標準サーバー構成
