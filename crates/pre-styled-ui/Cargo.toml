@@ -2798,7 +2798,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # PR #2265 マージ: 双方が偶発的に同一版数 0.167.0 へ到達していたため
 # （同一版数はコンフリクトとして扱い main +1 する運用）、0.168.0 へ
 # マイナーバンプする。
-version = "0.168.0"
+#
+# PR #2265 codex-review P1 是正の base 取り込み: origin/main 側は並行 PR
+# （イシュー #2115 の styled `marker` 新設）で 0.169.0 へ到達済みだった。
+# 本ブランチの 0.168.0 は main の 0.169.0 を下回るため（既発行済みバー
+# ジョンとの衝突を避ける運用）、main の到達値 0.169.0 をさらに上回る
+# 0.170.0 へマイナーバンプする。
+version = "0.170.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

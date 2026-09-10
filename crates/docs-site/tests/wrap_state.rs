@@ -16,7 +16,7 @@
 //!
 //! # 4 バケット分割（Themes 116 部品）
 //!
-//! - [`WRAPPED_SAME_NAME`]（66）: 同名の Primitives 部品が存在し、かつ同名
+//! - [`WRAPPED_SAME_NAME`]（67）: 同名の Primitives 部品が存在し、かつ同名
 //!   headless モジュールへコード委譲している
 //! - [`WRAPPED_CROSS_NAME`]（5）: 同名 Primitives 部品は無いが、別名の
 //!   headless 部品へコード委譲している
@@ -427,7 +427,9 @@ fn resolve_page<'a>(scan: &'a PreStyledScan, page_kebab: &str) -> &'a FileScan {
 /// `sidebar`（`/themes/sidebar/` ページ登録、`THEMES_RECIPE_WITHOUT_PAGE`
 /// から本バケットへ移った）・イシュー #2109 で `bubble`
 /// （`/themes/bubble/` ページ登録、`HEADLESS_UNWRAPPED` から本バケットへ
-/// 移った）を追加）。
+/// 移った）・イシュー #2112 で `attachment`・イシュー #2115 で `marker`
+/// （いずれも `/themes/<kebab>/` ページ登録、`HEADLESS_UNWRAPPED` から
+/// 本バケットへ移った）を追加）。
 const WRAPPED_SAME_NAME: &[&str] = &[
     "accordion",
     "action-bar",
@@ -464,6 +466,7 @@ const WRAPPED_SAME_NAME: &[&str] = &[
     "link",
     "link-overlay",
     "listbox",
+    "marker",
     "menu",
     "menubar",
     "message",
@@ -625,10 +628,11 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// pre-styled-ui 側（`crates/pre-styled-ui/src/attachment.rs`・
 /// `/themes/attachment/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため本
 /// リストから除外した。イシュー #2114 で同様に headless-ui 層のみを実装
-/// した `marker` が加わった。後続イシュー #2115 で pre-styled-ui 側
-/// （`crates/pre-styled-ui/src/marker.rs`・`/themes/marker/`）を新設した
-/// 時点で `WRAPPED_SAME_NAME` へ移り本リストから除外する予定。
-const HEADLESS_UNWRAPPED: &[&str] = &["marker"];
+/// した `marker` が一時的に本リストへ加わっていたが、イシュー #2115 で
+/// pre-styled-ui 側（`crates/pre-styled-ui/src/marker.rs`・
+/// `/themes/marker/`）を新設し `WRAPPED_SAME_NAME` へ分類されたため本
+/// リストから除外した。
+const HEADLESS_UNWRAPPED: &[&str] = &[];
 
 /// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
 /// まだ持たない部品（イシュー #2073 で `sidebar` を一時的に載せた暫定
@@ -675,15 +679,15 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 119 件すべてが `resolve_page` で panic
-/// せず解決できること。
+/// §3.5: nav 登録済み Themes ページ 120 件（イシュー #2115 で `marker`
+/// 追加、旧 119）すべてが `resolve_page` で panic せず解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let scan = scan_pre_styled_src(&pre_styled_ui_src_dir());
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        119,
+        120,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -1033,7 +1037,7 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        119,
+        120,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
          登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
@@ -1065,7 +1069,10 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          より `bubble` も HEADLESS_UNWRAPPED から WRAPPED_SAME_NAME \
          バケットへ移った。イシュー #2112 で attachment.rs を新設し \
          118 → 119。`/themes/attachment/` ページ登録により `attachment` \
-         も HEADLESS_UNWRAPPED から WRAPPED_SAME_NAME バケットへ移った）"
+         も HEADLESS_UNWRAPPED から WRAPPED_SAME_NAME バケットへ移った。 \
+         イシュー #2115 で marker.rs を新設し 119 → 120。 \
+         `/themes/marker/` ページ登録により `marker` も \
+         HEADLESS_UNWRAPPED から WRAPPED_SAME_NAME バケットへ移った）"
     );
     assert_eq!(
         scan.charts.len(),

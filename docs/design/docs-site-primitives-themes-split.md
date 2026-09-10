@@ -555,6 +555,12 @@ pre-styled-ui recipe・Themes ページは後続 #2115 のスコープのため�
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。
 
+**追記(イシュー #2115)**: `marker` の pre-styled-ui recipe・Themes ページ
+（`crates/pre-styled-ui/src/marker.rs`・`/themes/marker/`）を新設し、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）から `marker` を除外して `WRAPPED_SAME_NAME` へ
+移した。Themes は 119→**120** 部品となる（Primitives 72 部品は不変）。
+
 ## 8. `component-coverage-map.md` との関係
 
 `docs/design/component-coverage-map.md` は ark-ui / chakra-ui / Radix の
