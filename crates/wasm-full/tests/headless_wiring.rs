@@ -15,6 +15,39 @@
 //! `wire_headless_events`/`wire_headless_component`）は wasm32 専用のため
 //! 本ファイルでは検証できない（実ブラウザ回帰は
 //! `tests/headless_wiring_browser.rs` に委ねる）。
+//!
+//! イシュー #2327: 個々のテストは対象 scope の feature（`accordion`/
+//! `calendar`/`collapsible`/`combobox`/`dialog`/`menu`/`menubar`/
+//! `navigation-menu`/`popover`/`radio-group`/`select`/`sidebar`/`tabs`/
+//! `toggle-group`/`tooltip`/`tree-view`）で `#[cfg]` ゲートする。すべて
+//! off の縮小構成（`--no-default-features --features
+//! wasm-bindgen-exports`）ではファイル冒頭の `use` が軒並み未使用になる
+//! （個々のテスト削除に追随して import を都度 cfg するのは可読性を大きく
+//! 損なうため、ここでは `unused_imports` を構成依存で許容する。テスト
+//! そのものの `#[cfg]` ゲート漏れは通常のコンパイルエラー/実行時失敗で
+//! 検知されるため、本許容は安全側の lint 緩和に留まる）。
+
+#![cfg_attr(
+    not(all(
+        feature = "accordion",
+        feature = "calendar",
+        feature = "collapsible",
+        feature = "combobox",
+        feature = "dialog",
+        feature = "menu",
+        feature = "menubar",
+        feature = "navigation-menu",
+        feature = "popover",
+        feature = "radio-group",
+        feature = "select",
+        feature = "sidebar",
+        feature = "tabs",
+        feature = "toggle-group",
+        feature = "tooltip",
+        feature = "tree-view",
+    )),
+    allow(unused_imports)
+)]
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::collapsible::Collapsible;
@@ -58,6 +91,7 @@ fn assert_scope_part_present(html: &str, scope: &str, part: &str) {
 
 // --- 受け入れ条件 1: Disclosure 系（Collapsible/Dialog/Popover/Tooltip/Menu）の open/close/toggle ---
 
+#[cfg(feature = "collapsible")]
 #[test]
 fn collapsible_trigger_click_toggles_open_closed() {
     let html = render(&collapsible::trigger(
@@ -78,6 +112,7 @@ fn collapsible_trigger_click_toggles_open_closed() {
     assert!(!c.is_open());
 }
 
+#[cfg(feature = "dialog")]
 #[test]
 fn dialog_trigger_opens_and_close_trigger_closes() {
     let trigger_html = render(&dialog::trigger(OpenState::Closed, None, vec![], vec![]));
@@ -106,6 +141,7 @@ fn dialog_trigger_opens_and_close_trigger_closes() {
 /// variant に左右されないが、`action_from_parts` の内側優先探索が
 /// footer/content/positioner/root を挟んでも close-trigger を正しく
 /// 解決することを footer 越境の実配置に近い part 列で検証する。
+#[cfg(feature = "dialog")]
 #[test]
 fn dialog_close_trigger_inside_footer_resolves_to_close() {
     use fandhe_frontend_wasm_full::headless::action_from_parts;
@@ -139,6 +175,7 @@ fn dialog_close_trigger_inside_footer_resolves_to_close() {
     assert!(!d.is_open());
 }
 
+#[cfg(feature = "popover")]
 #[test]
 fn popover_trigger_opens_and_close_trigger_closes() {
     let trigger_html = render(&popover::trigger(
@@ -166,6 +203,7 @@ fn popover_trigger_opens_and_close_trigger_closes() {
     assert!(!p.is_open());
 }
 
+#[cfg(feature = "tooltip")]
 #[test]
 fn tooltip_trigger_click_toggles_open_closed() {
     let html = render(&Tooltip::default().trigger(false, None, vec![], vec![]));
@@ -178,6 +216,7 @@ fn tooltip_trigger_click_toggles_open_closed() {
     assert!(t.is_open());
 }
 
+#[cfg(feature = "menu")]
 #[test]
 fn menu_trigger_click_toggles_open_closed() {
     let html = render(&Menu::default().trigger(false, None, vec![], vec![]));
@@ -199,6 +238,7 @@ fn menu_trigger_click_toggles_open_closed() {
 /// `menu`/`trigger-item` 行が無いと（`keynav.rs` のサブメニュー
 /// ArrowRight/ArrowLeft が合成する `click()` も含めて）no-op になっていた
 /// （イシュー #662 PR #674 Bugbot 指摘の回帰テスト）。
+#[cfg(feature = "menu")]
 #[test]
 fn menu_trigger_item_click_toggles_submenu_open_closed() {
     let sub_menu = Menu::default();
@@ -218,6 +258,7 @@ fn menu_trigger_item_click_toggles_submenu_open_closed() {
 /// `"toggle"` dispatch を経由してチェック状態をトグルすることを検証する
 /// （`requires_value: false`。`Checkable::decode_action` は payload を
 /// 無視する、`menu`/`trigger-item` 行と同型）。
+#[cfg(feature = "menu")]
 #[test]
 fn menu_checkbox_item_click_toggles_checked() {
     use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
@@ -241,6 +282,7 @@ fn menu_checkbox_item_click_toggles_checked() {
 /// radio-item クリックが `MenuRadioItemGroup`（`SingleSelect` 埋め込み）の
 /// `"select"` dispatch を経由してグループ内排他選択されることを検証する
 /// （`requires_value: true`、`data-value` を項目値として使う）。
+#[cfg(feature = "menu")]
 #[test]
 fn menu_radio_item_click_selects_exclusively() {
     use fandhe_frontend_headless_ui::menu::MenuRadioItemGroup;
@@ -264,6 +306,7 @@ fn menu_radio_item_click_selects_exclusively() {
     assert!(!g.is_checked("grid"));
 }
 
+#[cfg(feature = "menu")]
 #[test]
 fn menu_checkbox_item_without_data_value_still_resolves() {
     // checkbox-item は `requires_value: false` のため `data-value` 欠落でも
@@ -304,6 +347,7 @@ fn menu_checkbox_item_and_radio_item_disabled_are_noop() {
 /// [`menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`]
 /// が示すとおり外側 Menu root への誤 dispatch は起きない、codex-review
 /// PR #2321 P1 指摘の是正）。
+#[cfg(feature = "menu")]
 #[test]
 fn menu_checkbox_item_toggle_action_manually_dispatched_to_menu_disclosure_opens_it() {
     let action_ref = action_for_part(&part("menu", "checkbox-item", Some("wrap"), false)).unwrap();
@@ -340,6 +384,7 @@ fn menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve() {
 /// `resolved_part_targets_wired_root` により同様に越境しない、
 /// `menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`
 /// 参照）。
+#[cfg(feature = "menu")]
 #[test]
 fn menu_radio_item_select_action_is_noop_for_menu_disclosure() {
     let action_ref = action_for_part(&part("menu", "radio-item", Some("grid"), false)).unwrap();
@@ -377,6 +422,7 @@ fn menu_checkbox_item_data_value_xss_payload_is_escaped_on_render() {
 /// を招くおそれがある。payload を常に空文字列にすることで
 /// `Menubar::decode_action` 側は必ず `None` になる（下の
 /// `menubar_checkbox_item_toggle_does_not_drive_menubar_open_state` で固定）。
+#[cfg(feature = "menubar")]
 #[test]
 fn menubar_checkbox_item_click_toggles_checked() {
     use fandhe_frontend_headless_ui::menu::MenuCheckboxItem;
@@ -402,6 +448,7 @@ fn menubar_checkbox_item_click_toggles_checked() {
     assert!(item.is_checked());
 }
 
+#[cfg(feature = "menubar")]
 #[test]
 fn menubar_radio_item_click_selects_exclusively() {
     use fandhe_frontend_headless_ui::menu::MenuRadioItemGroup;
@@ -451,6 +498,7 @@ fn menubar_radio_item_without_data_value_is_noop() {
 /// `"".parse::<usize>()` が `Err` になるため `None`（fail-closed）となり、
 /// checkbox-item クリックが無関係な Menu の開閉を誤って引き起こさない
 /// （`requires_value: true` にした場合の誤 dispatch リスクの回帰テスト）。
+#[cfg(feature = "menubar")]
 #[test]
 fn menubar_checkbox_item_toggle_does_not_drive_menubar_open_state() {
     use fandhe_frontend_headless_ui::menubar::Menubar;
@@ -472,6 +520,7 @@ fn menubar_checkbox_item_toggle_does_not_drive_menubar_open_state() {
 /// menubar radio-item の `"select"` は `Menubar::decode_action` では
 /// `None` になる（Menubar は "select" を受理しない）ため、Menu 側と同様に
 /// 外側 Menubar へ越境 dispatch しない。
+#[cfg(feature = "menubar")]
 #[test]
 fn menubar_radio_item_select_is_noop_for_menubar() {
     use fandhe_frontend_headless_ui::menubar::Menubar;
@@ -541,6 +590,7 @@ fn menubar_checkbox_item_data_value_xss_payload_is_escaped_on_render() {
 
 // --- 受け入れ条件 2: Tabs/RadioGroup/Select の select dispatch ---
 
+#[cfg(feature = "radio-group")]
 #[test]
 fn radio_group_item_click_selects_value() {
     let html = render(&radio_group::item(
@@ -589,6 +639,7 @@ fn nested_submenu_item_click_does_not_leak_to_ancestor_trigger_item_toggle() {
     );
 }
 
+#[cfg(feature = "radio-group")]
 #[test]
 fn radio_group_item_text_click_resolves_via_ancestor_item() {
     use fandhe_frontend_wasm_full::headless::action_from_parts;
@@ -604,6 +655,7 @@ fn radio_group_item_text_click_resolves_via_ancestor_item() {
     assert_eq!(action_ref.payload, "blue");
 }
 
+#[cfg(feature = "select")]
 #[test]
 fn select_trigger_opens_item_click_selects_and_closes_clear_trigger_deselects() {
     let select_props = select::SelectProps::default();
@@ -667,6 +719,7 @@ fn select_trigger_opens_item_click_selects_and_closes_clear_trigger_deselects() 
 /// `aria-expanded` が input/trigger 双方へ再出力される」契約を native から
 /// 証明し、`clear-trigger` が入力値・選択の両方をクリアする
 /// （`select` の `deselect` と異なる）ことも確認する。
+#[cfg(feature = "combobox")]
 #[test]
 fn combobox_trigger_opens_item_selects_and_clear_trigger_clears_input_and_selection() {
     let props = ComboboxProps::default();
@@ -726,6 +779,7 @@ fn combobox_trigger_opens_item_selects_and_clear_trigger_clears_input_and_select
     assert_eq!(cb.input_value(), "");
 }
 
+#[cfg(feature = "tabs")]
 #[test]
 fn tabs_trigger_click_selects_value_on_single_select() {
     let node = tabs::tabs(
@@ -815,6 +869,7 @@ fn data_disabled_part_is_noop_even_for_known_mapping() {
     assert_eq!(c, before);
 }
 
+#[cfg(feature = "select")]
 #[test]
 fn ancestor_part_outside_root_scope_type_confusion_does_not_panic() {
     // (scope, part) の組み合わせが偶然マッピング表の別行と型的に近くても
@@ -833,6 +888,7 @@ fn ancestor_part_outside_root_scope_type_confusion_does_not_panic() {
 
 // --- XSS 回帰: マッピング結果の payload は既定エスケープを経由する（REQ-1） ---
 
+#[cfg(feature = "select")]
 #[test]
 fn select_item_data_value_xss_payload_is_escaped_on_render() {
     let payload = "\"><script>alert(1)</script>";
@@ -850,6 +906,7 @@ fn select_item_data_value_xss_payload_is_escaped_on_render() {
 // --- ToggleGroup（イシュー #1075）: item クリック（マウス・keynav 双方が
 // 経由するネイティブ Enter/Space）は "toggle" を dispatch する ---
 
+#[cfg(feature = "toggle-group")]
 #[test]
 fn toggle_group_item_click_toggles_pressed_value() {
     let html = render(&toggle_group::item(
@@ -900,6 +957,7 @@ fn toggle_group_item_disabled_is_noop() {
 /// `action_from_parts` の内側優先探索により祖先の `branch` 行
 /// （`"toggle"`、`data-value` あり）で解決されることを固定する
 /// （`crate::keynav` モジュール doc §TreeView §帰結参照）。
+#[cfg(feature = "tree-view")]
 #[test]
 fn tree_view_branch_control_click_resolves_to_ancestor_branch_toggle() {
     let props = tree_view::TreeItemProps {
@@ -950,6 +1008,7 @@ fn tree_view_branch_control_click_resolves_to_ancestor_branch_toggle() {
 /// `synthesize_tree_click` は item 自身へ `click()` を合成する。
 /// `tree-view`/`item` 行が `"select"`（`data-value` 必須）で解決されることを
 /// 固定する。
+#[cfg(feature = "tree-view")]
 #[test]
 fn tree_view_item_click_resolves_to_select() {
     let item_html = render(&tree_view::item(
@@ -1020,6 +1079,7 @@ fn tree_view_render_nodes_output_matches_mapping_table_scope_and_part() {
 // --- Calendar（イシュー #1074）: PageUp/PageDown が合成する click が
 // prev-month/next-month dispatch へ到達すること ---
 
+#[cfg(feature = "calendar")]
 #[test]
 fn calendar_prev_and_next_trigger_map_to_month_navigation() {
     use fandhe_frontend_headless_ui::calendar::{self, Calendar};
@@ -1058,6 +1118,7 @@ fn calendar_prev_and_next_trigger_map_to_month_navigation() {
 // --- イシュー #1161: Calendar day-trigger（select クリック）のドリフト
 // 検知 + dispatch 遷移検証 ---
 
+#[cfg(feature = "calendar")]
 #[test]
 fn calendar_day_trigger_click_selects_date() {
     use fandhe_frontend_headless_ui::calendar::{self, Calendar};
@@ -1109,6 +1170,7 @@ fn calendar_day_trigger_disabled_is_noop() {
     );
 }
 
+#[cfg(feature = "calendar")]
 #[test]
 fn calendar_day_trigger_non_iso_payload_fails_parse_and_is_noop() {
     // `Calendar::decode_action` は payload を `PlainDate` としてパースし、
@@ -1152,6 +1214,7 @@ fn calendar_day_trigger_data_value_xss_payload_is_escaped_on_render() {
 // --- イシュー #1161: NavigationMenu（trigger クリック開閉）のドリフト
 // 検知 + dispatch 遷移検証 ---
 
+#[cfg(feature = "navigation-menu")]
 #[test]
 fn navigation_menu_trigger_click_toggles_single_select() {
     use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
@@ -1213,6 +1276,7 @@ fn navigation_menu_trigger_disabled_is_noop() {
     );
 }
 
+#[cfg(feature = "navigation-menu")]
 #[test]
 fn navigation_menu_trigger_data_value_xss_payload_is_escaped_on_render() {
     use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
@@ -1243,6 +1307,7 @@ fn navigation_menu_trigger_data_value_xss_payload_is_escaped_on_render() {
 // --- イシュー #1161: Menubar（trigger クリック開閉）のドリフト検知
 // + dispatch 遷移検証 ---
 
+#[cfg(feature = "menubar")]
 #[test]
 fn menubar_trigger_click_toggles_open_menu() {
     use fandhe_frontend_headless_ui::menubar::{self, Menubar};
@@ -1298,6 +1363,7 @@ fn menubar_trigger_disabled_is_noop() {
     );
 }
 
+#[cfg(feature = "menubar")]
 #[test]
 fn menubar_trigger_non_numeric_payload_fails_parse_and_is_noop() {
     // `Menubar::decode_action` は payload を `str::parse::<usize>()` で
@@ -1318,6 +1384,7 @@ fn menubar_trigger_non_numeric_payload_fails_parse_and_is_noop() {
     assert_eq!(mb.open(), None);
 }
 
+#[cfg(feature = "menubar")]
 #[test]
 fn menubar_trigger_out_of_range_index_is_noop() {
     // 範囲外 index no-op は `Menubar::update` の既存契約
@@ -1339,6 +1406,7 @@ fn menubar_trigger_out_of_range_index_is_noop() {
 // --- イシュー #1127: Accordion（item-trigger クリック開閉）のドリフト
 // 検知 + dispatch 遷移検証 ---
 
+#[cfg(feature = "accordion")]
 #[test]
 fn accordion_item_trigger_click_toggles_single_select() {
     use fandhe_frontend_headless_ui::accordion::{self, Accordion, AccordionProps};
@@ -1376,6 +1444,7 @@ fn accordion_item_trigger_click_toggles_single_select() {
     assert!(!a.is_open("panel-2"));
 }
 
+#[cfg(feature = "accordion")]
 #[test]
 fn accordion_item_trigger_click_toggles_multi_select_independently() {
     use fandhe_frontend_headless_ui::accordion::MultiAccordion;
@@ -1431,6 +1500,7 @@ fn action_from_parts_is_none_when_ancestor_item_is_disabled_accordion() {
     assert_eq!(action_from_parts(&parts), None);
 }
 
+#[cfg(feature = "accordion")]
 #[test]
 fn accordion_item_indicator_and_inner_text_click_resolve_via_ancestor_item_trigger() {
     // item-indicator・内側テキスト相当（表にない part）のクリックは
@@ -1447,6 +1517,7 @@ fn accordion_item_indicator_and_inner_text_click_resolve_via_ancestor_item_trigg
     assert_eq!(action_ref.payload, "panel-1");
 }
 
+#[cfg(feature = "accordion")]
 #[test]
 fn accordion_item_trigger_data_value_xss_payload_is_escaped_on_render() {
     use fandhe_frontend_headless_ui::accordion::{self, Accordion, AccordionProps};
@@ -1477,6 +1548,7 @@ fn accordion_item_trigger_data_value_xss_payload_is_escaped_on_render() {
 
 // --- Sidebar（イシュー #2074）: trigger/rail → "toggle" ---
 
+#[cfg(feature = "sidebar")]
 #[test]
 fn sidebar_trigger_click_toggles_expanded_collapsed() {
     use fandhe_frontend_headless_ui::sidebar::{trigger, Sidebar, SidebarState};
@@ -1500,6 +1572,7 @@ fn sidebar_trigger_click_toggles_expanded_collapsed() {
     assert_eq!(s.state(), SidebarState::Expanded);
 }
 
+#[cfg(feature = "sidebar")]
 #[test]
 fn sidebar_rail_click_toggles_expanded_collapsed() {
     use fandhe_frontend_headless_ui::sidebar::{rail, Sidebar, SidebarState};
