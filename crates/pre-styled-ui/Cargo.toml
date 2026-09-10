@@ -3124,6 +3124,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # 採用しない原則に従い、双方の実体変更（breadcrumb breakpoint 適用 +
 # pseudo_element API 追加、いずれも patch 相当の純追加）を統合した結果
 # として 0.180.1 の patch をさらに +1 した 0.180.2 を採用する。
+# イシュー #2204（native-select の option/optgroup へ system color 適用手段
+# を評価）: `native_select::css()` へ生 CSS 純追加ブロックを追加した
+# （`field.rs`/`status.rs` と同型の recipe 外追記パターン、DSL 拡張は
+# #708/#2201 の既定判断どおり非採用）。CSS 実体の純追加のため patch を
+# +1 した 0.180.3 とする。
+#
+# 本コンフリクト解消（PR #2317、イシュー #2204、main 取り込み・同一版数への
+# 偶発的衝突）: 本ブランチ（#2204 native-select の option/optgroup システム
+# カラー適用、patch 相当）と origin/main（PR #2311 のとおり #2282 bubble
+# collapse-content 適用 + #2309 breadcrumb breakpoint 適用を統合した
+# patch 相当）が双方とも独立に 0.180.3 へ到達していたため、同一版数への
+# 偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を統合した結果
+# として 0.180.3 をさらに +1 した 0.180.4 へ patch バンプする。
 #
 # base 取り込み（PR #2303、イシュー #2125、再々マージ）: 本ブランチの
 # 実体変更は headless-ui 0.69.0 への dep-version-check 追随のみであり
@@ -3145,6 +3158,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 適用、patch 相当）が双方とも独立に 0.180.3 へ到達していたため、同一版数への
 # 偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を統合した結果として
 # 0.180.3 をさらに +1 した 0.180.4 へ patch バンプする。
+# 本コンフリクト解消（PR #2317、イシュー #2204、main 取り込み・4 回目）: 本ブランチ（#2204 native-select の option/optgroup システムカラー適用を含み、PR #2311（#2282 bubble collapse-content + #2309 breadcrumb breakpoint 統合）までの
+# origin/main を取り込み済みの 0.180.4）に対し、origin/main はさらに別経路（PR #2315、イシュー #2202、splitter resize-trigger の `::after` ヒットエリア拡張、patch 相当）で
+# 独立に同じ 0.180.4 へ到達していた。同一版数への偶発的衝突をそのまま採用しない原則に従い、双方の実体変更（native-select システムカラー適用 + splitter ヒットエリア拡張）を
+# 統合した結果として 0.180.4 をさらに +1 した 0.180.5 へ patch バンプする。
+# （旧到達値 0.180.5 は下記の統合により 0.181.1 で置き換えられた）
 #
 # イシュー #2199（recipe への `@container` 導入・field
 # `orientation="responsive"` 追加）: `FieldOrientation` へ新 variant
@@ -3177,6 +3195,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 本ブランチの変更は公開 API の純追加でありマイナーバンプ相当のため、
 # origin/main の到達値 0.180.2 を上回るよう 0.181.0 へマイナーバンプ
 # する。
+# Bugbot 指摘の是正（PR #2317、イシュー #2204）: 直前の統合判断は誤りだった。
+# origin/main の到達値 0.181.1（イシュー #2123 系）は `native_select::css()` の
+# option/optgroup system color 追記（本イシュー #2204 の実体変更）を含んでおらず、
+# 「既に統合済みだから追加バンプ不要」という直前の判断は事実誤認だった。本ブランチ
+# の 0.181.1 は origin/main と同一版数のまま実体（native_select CSS 追加）が異なる
+# ため、同一版数への偶発的衝突に該当する。原則どおり 0.181.1 をさらに +1 した
+# 0.181.2 へ patch バンプし、本ブランチの実体変更（CSS 純追加）を版数へ反映する。
 # （旧到達値 0.181.1 の宣言行は最終行 0.181.2 に一本化のため削除）
 # 本コンフリクト解消（イシュー #2123、PR #2318、base 取り込み）: 本ブランチは
 # message_scroller モジュール純追加によりマイナーバンプ 0.181.0 へ到達済みで、
@@ -3190,6 +3215,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # が霞む）を是正した。golden CSS の `load-more` ブロックを書き換える
 # 観測可能な変更のため 0.181.1 へ patch バンプする。
 # 本コンフリクト解消(PR #2303、イシュー #2125、main 取り込み・#2319 是正取り込み後の再衝突): 本ブランチの到達値 0.180.5(headless-ui 0.69.0 への dep-version-check 追随のみ)と、origin/main の到達値 0.181.1(#2123 message_scroller 追加 + #2318 レビュー指摘是正を経たマイナーバンプ到達値)を比較すると、origin/main が既に本ブランチを上回っているため、origin/main の到達値 0.181.1 を土台としつつ、本ブランチ側の dep-version-check 追随(headless-ui 0.69.0 への version 要求更新)を反映した patch バンプとして 0.181.2 とする(本クレート自体の実体変更はない)。
+# 本コンフリクト解消（PR #2317、イシュー #2204、main 取り込み・5 回目、
+# 同一版数への偶発的衝突）: 本ブランチ（#2204 native-select の
+# option/optgroup へのシステムカラー適用を統合済みの到達値 0.181.2）と
+# origin/main（イシュー #2123 message_scroller 追加 + #2318 レビュー指摘
+# 是正〔load-more センタリング〕+ headless-ui 0.69.0 dep-version-check
+# 追随を統合した到達値 0.181.2）が双方とも独立に 0.181.2 へ到達していたが、
+# 実体（native-select システムカラー適用 vs load-more 修正 + dep-version-
+# check 追随）は異なるため、同一版数への偶発的衝突に該当する。原則どおり
+# 0.181.2 をさらに +1 した 0.181.3 へ patch バンプし、双方の実体変更を
+# 版数へ反映する。
 # 本コンフリクト解消（イシュー #2199、PR feat/2199、main 取り込み）: 本ブランチは FieldOrientation へ新 variant Responsive を追加する破壊的変更
 # （0.x の網羅 match 破壊）のためマイナーバンプ 0.181.0 へ到達していたが、origin/main は別経路の統合を経て patch バンプの積み重ねで 0.181.2 へ到達しており、
 # 本ブランチの到達値を上回っている。同一版数への偶発的衝突ではなく origin/main が
@@ -3201,7 +3236,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.x 利用者の網羅 match を破る破壊的変更（前例: PR #1803
 # `HoverExceptAttrEq` 追加で 0.60.5 → 0.61.0）。origin/main の到達値
 # 0.182.0 を上回るようマイナーバンプし 0.183.0 とする。
-version = "0.183.0"
+# 本コンフリクト解消（PR #2317、イシュー #2204、main 取り込み・最終）:
+# 本ブランチの到達値 0.181.3（native-select システムカラー適用 + 偶発的衝突
+# 是正）と origin/main の到達値 0.183.0（#2199 FieldOrientation::Responsive
+# 追加 + #2203 StateCondition::AttrAll 追加によるマイナーバンプの積み重ね）を
+# 比較すると、origin/main が本ブランチを上回っている。本ブランチの実体変更
+# （native_select option/optgroup システムカラー適用）は非破壊的な追加のため、
+# origin/main の到達値 0.183.0 をさらに patch バンプし 0.183.1 とする。
+version = "0.183.1"
 
 
 edition = "2021"

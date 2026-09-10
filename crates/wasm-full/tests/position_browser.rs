@@ -96,18 +96,31 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_core::{el, render, text};
-use fandhe_frontend_headless_ui::popover::Popover;
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_headless_ui::Orientation;
-use fandhe_frontend_headless_ui::{
-    menu, menubar, navigation_menu, popover, select, tooltip, Tooltip,
-};
-use fandhe_frontend_wasm_full::headless::wire_headless_component;
+use fandhe_frontend_headless_ui::{menu, menubar, navigation_menu, popover, select, tooltip};
 use fandhe_frontend_wasm_full::position::PositionController;
-use std::cell::RefCell;
-use std::rc::Rc;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, Event, EventInit};
+use web_sys::{Document, Element};
+// イシュー #2209（親 #2208）: 以下は `auto_wiring` モジュール（feature
+// `"position"` 配下）専用の import。`position` feature を off にすると
+// `wire_headless_component` の自動呼び出しテスト自体が存在しなくなるため、
+// これらは import 自体も同 feature でゲートしないと未使用警告
+// （`-D warnings` で CI エラー）になる。
+#[cfg(feature = "position")]
+use fandhe_frontend_headless_ui::menu::Menu;
+#[cfg(feature = "position")]
+use fandhe_frontend_headless_ui::popover::Popover;
+#[cfg(feature = "position")]
+use fandhe_frontend_headless_ui::Tooltip;
+#[cfg(feature = "position")]
+use fandhe_frontend_wasm_full::headless::wire_headless_component;
+#[cfg(feature = "position")]
+use std::cell::RefCell;
+#[cfg(feature = "position")]
+use std::rc::Rc;
+#[cfg(feature = "position")]
+use web_sys::{Event, EventInit};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -1792,462 +1805,86 @@ fn reposition_now_does_not_weaken_default_escaping_for_menubar_content() {
 
     drop(controller);
 }
-// ---------------------------------------------------------------------
-// イシュー #2209（親 #2208）: `crate::headless::wire_headless_component`
-// からの positioning 自動呼び出し統合の実ブラウザ回帰。
-//
-// 上記 (a)〜(o) はすべて `PositionController::reposition_now()` の明示
-// 呼び出し経路のみを検証していた。本節は popover/tooltip/menu を
-// `wire_headless_component`（headless 配線の標準 API）のみで開いたとき、
-// 利用者が `PositionController` を組み立てなくても `--fandhe-x`/
-// `--fandhe-y`/`--fandhe-arrow-x`/`--fandhe-arrow-y` が実座標で書き込ま
-// れることを固定する。
-//
-// (p) trigger を `position: fixed; left: 300px; top: 200px; width: 50px;
-//     height: 20px;` に固定し、floating を [`FIXED_FLOATING_SIZE_CLASS`]
-//     （100x50）に固定した場合の座標は headless-ui
-//     `positioning::main_axis_coordinate`/`cross_axis_coordinate`/
-//     `arrow_position` から機械的に導ける（bottom/top/left/right の 4
-//     side で厳密一致を確認する）。
-// (q) 配線時点で SSR 初期状態が open な positioner は、click 前でも
-//     `wire_headless_component` 自体の先行同期で `style`/
-//     `data-positioned` が反映される。
-// (r) closed のまま（click しない）positioner には `style`/
-//     `data-positioned` が付与されない。
-// (s) `wire_headless_component` のみで配線（`PositionController` を
-//     テスト側で作らない）しても、trigger 位置の変更後に合成
-//     `resize`/`scroll` を `window` へ発火すると `--fandhe-x` が新しい
-//     anchor 位置へ再計算される（`ensure_global_controller` が生成する
-//     単一コントローラ経由の自動追従）。
-// (t) `wire_headless_component` 経由でも script/属性インジェクション
-//     ペイロードが実行・breakout せず、位置決め配線の `style`/`data-*`
-//     書き込みが既定エスケープ保証を弱めない。
+// イシュー #2209（親 #2208）: 以下は `crate::headless::wire_headless_component`
+// の自動 positioning 呼び出し（feature `"position"`、既定 on）専用の
+// テストモジュール。`position` feature を off にすると自動呼び出し自体が
+// 存在しなくなるため、本モジュール全体を同 feature でゲートする
+// （`docs/design/wasm-full-architecture.md` §34.2/§34.4）。
+#[cfg(feature = "position")]
+mod auto_wiring {
+    use super::*;
 
-/// [`bubbling_click_event`] は既存 (a)〜(o) の合成 click ヘルパーが
-/// 別ファイル（`headless_wiring_browser.rs`）側にあるため、同型のものを
-/// 本ファイルへ複製する（クレート内 test バイナリはファイル単位で独立
-/// コンパイルされ、`tests/` 間で共有モジュールを持たない契約のため）。
-fn bubbling_click_event() -> Event {
-    let init = EventInit::new();
-    init.set_bubbles(true);
-    Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail for click")
-}
+    // ---------------------------------------------------------------------
+    // イシュー #2209（親 #2208）: `crate::headless::wire_headless_component`
+    // からの positioning 自動呼び出し統合の実ブラウザ回帰。
+    //
+    // 上記 (a)〜(o) はすべて `PositionController::reposition_now()` の明示
+    // 呼び出し経路のみを検証していた。本節は popover/tooltip/menu を
+    // `wire_headless_component`（headless 配線の標準 API）のみで開いたとき、
+    // 利用者が `PositionController` を組み立てなくても `--fandhe-x`/
+    // `--fandhe-y`/`--fandhe-arrow-x`/`--fandhe-arrow-y` が実座標で書き込ま
+    // れることを固定する。
+    //
+    // (p) trigger を `position: fixed; left: 300px; top: 200px; width: 50px;
+    //     height: 20px;` に固定し、floating を [`FIXED_FLOATING_SIZE_CLASS`]
+    //     （100x50）に固定した場合の座標は headless-ui
+    //     `positioning::main_axis_coordinate`/`cross_axis_coordinate`/
+    //     `arrow_position` から機械的に導ける（bottom/top/left/right の 4
+    //     side で厳密一致を確認する）。
+    // (q) 配線時点で SSR 初期状態が open な positioner は、click 前でも
+    //     `wire_headless_component` 自体の先行同期で `style`/
+    //     `data-positioned` が反映される。
+    // (r) closed のまま（click しない）positioner には `style`/
+    //     `data-positioned` が付与されない。
+    // (s) `wire_headless_component` のみで配線（`PositionController` を
+    //     テスト側で作らない）しても、trigger 位置の変更後に合成
+    //     `resize`/`scroll` を `window` へ発火すると `--fandhe-x` が新しい
+    //     anchor 位置へ再計算される（`ensure_global_controller` が生成する
+    //     単一コントローラ経由の自動追従）。
+    // (t) `wire_headless_component` 経由でも script/属性インジェクション
+    //     ペイロードが実行・breakout せず、位置決め配線の `style`/`data-*`
+    //     書き込みが既定エスケープ保証を弱めない。
 
-fn dispatch_click(target: &Element) {
-    target
-        .dispatch_event(&bubbling_click_event())
-        .expect("dispatch_event must not fail");
-}
-
-/// `window` へバブリングしない合成イベント（`resize`/`scroll`）を発火する
-/// （`PositionController`/自動配線の window リスナーが捕捉できる、
-/// 上記 (i) の resize/scroll テストと同型）。
-fn dispatch_window_event(window: &web_sys::Window, kind: &str) {
-    let event = Event::new(kind).expect("Event::new must not fail");
-    window
-        .dispatch_event(&event)
-        .expect("dispatch_event must not fail");
-}
-
-/// Tooltip（trigger + positioner + arrow + content）の HTML を `open`/
-/// `requested_side` に応じて組み立てる。`wire_headless_component` の
-/// `on_update` から state に応じて丸ごと再描画する用途（
-/// `content_height_browser.rs` の `set_inner_html` 全体再生成モデル）と、
-/// 初期 SSR マークアップ（`open == false`）生成の双方に使う。
-#[allow(clippy::too_many_arguments)]
-fn render_tooltip_markup(
-    open: bool,
-    trigger_id: &str,
-    trigger_style: &str,
-    positioner_id: &str,
-    arrow_id: &str,
-    requested_side: &str,
-) -> String {
-    let state = if open {
-        OpenState::Open
-    } else {
-        OpenState::Closed
-    };
-    render(&tooltip::root(
-        state,
-        vec![],
-        vec![
-            tooltip::trigger(
-                state,
-                false,
-                None,
-                vec![("id", trigger_id), ("style", trigger_style)],
-                vec![],
-            ),
-            tooltip::positioner(
-                state,
-                vec![
-                    ("id", positioner_id),
-                    ("data-side", requested_side),
-                    ("class", FIXED_FLOATING_SIZE_CLASS),
-                ],
-                vec![
-                    tooltip::arrow(vec![("id", arrow_id)], vec![]),
-                    tooltip::content(state, None, vec![], vec![text("Tip")]),
-                ],
-            ),
-        ],
-    ))
-}
-
-/// [`render_tooltip_markup`] を `container` へ mount し、
-/// `wire_headless_component` で配線する（`on_update` は
-/// `state.is_open()` に応じて丸ごと再描画する `content_height_browser.rs`
-/// と同型のモデル）。返り値は `(root, trigger, component)`。
-fn mount_and_wire_tooltip(
-    document: &Document,
-    container: &Element,
-    id_prefix: &str,
-    trigger_style: &str,
-    requested_side: &str,
-) -> (Element, Element, Rc<RefCell<Tooltip>>) {
-    let trigger_id = format!("{id_prefix}-trigger");
-    let positioner_id = format!("{id_prefix}-positioner");
-    let arrow_id = format!("{id_prefix}-arrow");
-
-    let html = render_tooltip_markup(
-        false,
-        &trigger_id,
-        trigger_style,
-        &positioner_id,
-        &arrow_id,
-        requested_side,
-    );
-    container.set_inner_html(&html);
-    let root = container
-        .first_element_child()
-        .expect("tooltip root must exist");
-
-    let component = Rc::new(RefCell::new(Tooltip::default()));
-    let trigger_id_for_update = trigger_id.clone();
-    let positioner_id_for_update = positioner_id.clone();
-    let arrow_id_for_update = arrow_id.clone();
-    let trigger_style_for_update = trigger_style.to_string();
-    let requested_side_for_update = requested_side.to_string();
-    wire_headless_component(root.clone(), component.clone(), move |state, root| {
-        let html = render_tooltip_markup(
-            state.is_open(),
-            &trigger_id_for_update,
-            &trigger_style_for_update,
-            &positioner_id_for_update,
-            &arrow_id_for_update,
-            &requested_side_for_update,
-        );
-        root.set_inner_html(&html);
-    })
-    .expect("wire_headless_component must not fail");
-
-    let trigger = document
-        .get_element_by_id(&trigger_id)
-        .expect("trigger element must exist");
-    (root, trigger, component)
-}
-
-/// 検証観点 (p): trigger
-/// `position: fixed; left: 300px; top: 200px; width: 50px; height: 20px;`・
-/// floating を [`FIXED_FLOATING_SIZE_CLASS`]（100x50）に固定した場合の
-/// 期待値表（headless-ui `positioning.rs` の `main_axis_coordinate`/
-/// `cross_axis_coordinate`/`arrow_position` から導出、
-/// `docs/design/wasm-full-architecture.md` §31 参照）。
-/// `(side, x, y, arrow_x, arrow_y)`。
-const EXPECTED_PLACEMENTS: [(&str, f64, f64, f64, f64); 4] = [
-    ("bottom", 275.0, 220.0, 50.0, 0.0),
-    ("top", 275.0, 150.0, 50.0, 50.0),
-    ("left", 200.0, 185.0, 100.0, 25.0),
-    ("right", 350.0, 185.0, 0.0, 25.0),
-];
-
-#[wasm_bindgen_test]
-fn wire_headless_component_auto_repositions_tooltip_to_exact_real_coordinates_for_every_side() {
-    let window = web_sys::window().expect("window must exist in browser test environment");
-    let document = window.document().expect("document must exist");
-    ensure_fixed_floating_size_stylesheet(&document);
-
-    for (side, expected_x, expected_y, expected_arrow_x, expected_arrow_y) in EXPECTED_PLACEMENTS {
-        let container =
-            create_placeholder(&document, &format!("position-browser-auto-tooltip-{side}"));
-        let _guard = RemoveOnDrop(container.clone());
-
-        let (_root, trigger, component) = mount_and_wire_tooltip(
-            &document,
-            &container,
-            &format!("position-browser-auto-tooltip-{side}"),
-            "position: fixed; left: 300px; top: 200px; width: 50px; height: 20px;",
-            side,
-        );
-
-        // click 前は closed のまま（対象外、下記の別テストで固定）。
-        dispatch_click(&trigger);
-        assert!(
-            component.borrow().is_open(),
-            "trigger クリック後は Tooltip が開いていること（side={side}）"
-        );
-
-        let positioner_id = format!("position-browser-auto-tooltip-{side}-positioner");
-        let arrow_id = format!("position-browser-auto-tooltip-{side}-arrow");
-        let positioner = document
-            .get_element_by_id(&positioner_id)
-            .expect("positioner element must exist after re-render");
-        let arrow = document
-            .get_element_by_id(&arrow_id)
-            .expect("arrow element must exist after re-render");
-
-        // `wire_headless_component` のみで配線しており、テスト側で
-        // `PositionController` を明示生成していない（イシュー #2209 の
-        // 自動呼び出し経路そのものを検証する）。
-        let style = positioner.get_attribute("style").unwrap_or_else(|| {
-            panic!(
-                "wire_headless_component alone must write --fandhe-* style onto the \
-                 positioner without an explicit PositionController (side={side})"
-            )
-        });
-        let x = extract_css_var_px(&style, "--fandhe-x");
-        let y = extract_css_var_px(&style, "--fandhe-y");
-        assert!(
-            (x - expected_x).abs() < 0.5,
-            "side={side}: --fandhe-x expected {expected_x}, got {x} (style={style})"
-        );
-        assert!(
-            (y - expected_y).abs() < 0.5,
-            "side={side}: --fandhe-y expected {expected_y}, got {y} (style={style})"
-        );
-
-        let arrow_style = arrow.get_attribute("style").unwrap_or_else(|| {
-            panic!(
-                "arrow element must receive a style attribute after auto reposition (side={side})"
-            )
-        });
-        let arrow_x = extract_css_var_px(&arrow_style, "--fandhe-arrow-x");
-        let arrow_y = extract_css_var_px(&arrow_style, "--fandhe-arrow-y");
-        assert!(
-            (arrow_x - expected_arrow_x).abs() < 0.5,
-            "side={side}: --fandhe-arrow-x expected {expected_arrow_x}, got {arrow_x} \
-             (style={arrow_style})"
-        );
-        assert!(
-            (arrow_y - expected_arrow_y).abs() < 0.5,
-            "side={side}: --fandhe-arrow-y expected {expected_arrow_y}, got {arrow_y} \
-             (style={arrow_style})"
-        );
-        assert_eq!(
-            positioner.get_attribute("data-positioned").as_deref(),
-            Some(""),
-            "side={side}: data-positioned marker must be set by the auto reposition path"
-        );
-        // Tooltip は same_width_default() == false のため
-        // --fandhe-reference-width は出力されない契約
-        // （native/browser 双方の既存テストと同じ不変条件）。
-        assert!(
-            !style.contains("--fandhe-reference-width:"),
-            "side={side}: tooltip positioner must not output --fandhe-reference-width: {style}"
-        );
+    /// [`bubbling_click_event`] は既存 (a)〜(o) の合成 click ヘルパーが
+    /// 別ファイル（`headless_wiring_browser.rs`）側にあるため、同型のものを
+    /// 本ファイルへ複製する（クレート内 test バイナリはファイル単位で独立
+    /// コンパイルされ、`tests/` 間で共有モジュールを持たない契約のため）。
+    fn bubbling_click_event() -> Event {
+        let init = EventInit::new();
+        init.set_bubbles(true);
+        Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail for click")
     }
-}
 
-#[wasm_bindgen_test]
-fn wire_headless_component_prewires_positioner_that_is_already_open_at_wiring_time() {
-    // 検証観点 (q): SSR 初期状態が open な positioner は、
-    // `wire_headless_component` 自体の先行同期（click 不要）で
-    // `style`/`data-positioned` が反映される
-    // （`content_height::sync_content_height` の先行同期と同型）。
-    let window = web_sys::window().expect("window must exist in browser test environment");
-    let document = window.document().expect("document must exist");
-    let container = create_placeholder(&document, "position-browser-auto-prewired");
-    let _guard = RemoveOnDrop(container.clone());
-    ensure_fixed_floating_size_stylesheet(&document);
+    fn dispatch_click(target: &Element) {
+        target
+            .dispatch_event(&bubbling_click_event())
+            .expect("dispatch_event must not fail");
+    }
 
-    let trigger_id = "position-browser-auto-prewired-trigger";
-    let positioner_id = "position-browser-auto-prewired-positioner";
-    let html = render(&popover::root(
-        OpenState::Open,
-        vec![],
-        vec![
-            popover::trigger(
-                OpenState::Open,
-                false,
-                None,
-                vec![
-                    ("id", trigger_id),
-                    (
-                        "style",
-                        "position: fixed; left: 40px; top: 40px; width: 20px; height: 10px;",
-                    ),
-                ],
-                vec![],
-            ),
-            popover::anchor(vec![], vec![]),
-            popover::positioner(
-                OpenState::Open,
-                vec![("id", positioner_id), ("class", FIXED_FLOATING_SIZE_CLASS)],
-                vec![popover::content(
-                    OpenState::Open,
-                    None,
-                    None,
-                    None,
-                    vec![],
-                    vec![],
-                )],
-            ),
-        ],
-    ));
-    container.set_inner_html(&html);
-    let root = container
-        .first_element_child()
-        .expect("popover root must exist");
-    let positioner = document
-        .get_element_by_id(positioner_id)
-        .expect("positioner element must exist");
-    assert!(positioner.get_attribute("style").is_none());
+    /// `window` へバブリングしない合成イベント（`resize`/`scroll`）を発火する
+    /// （`PositionController`/自動配線の window リスナーが捕捉できる、
+    /// 上記 (i) の resize/scroll テストと同型）。
+    fn dispatch_window_event(window: &web_sys::Window, kind: &str) {
+        let event = Event::new(kind).expect("Event::new must not fail");
+        window
+            .dispatch_event(&event)
+            .expect("dispatch_event must not fail");
+    }
 
-    let component = Rc::new(RefCell::new(Popover::default()));
-    wire_headless_component(root.clone(), component.clone(), |_state, _root| {})
-        .expect("wire_headless_component must not fail");
-
-    // click を一切行っていない時点で反映されていること。
-    let style = positioner.get_attribute("style").expect(
-        "wire_headless_component must eagerly reposition an already-open positioner at \
-         wiring time, without requiring a click",
-    );
-    assert!(style.contains("--fandhe-x:"));
-    assert!(style.contains("--fandhe-y:"));
-    assert_eq!(
-        positioner.get_attribute("data-positioned").as_deref(),
-        Some("")
-    );
-}
-
-#[wasm_bindgen_test]
-fn wire_headless_component_leaves_closed_positioner_unrepositioned() {
-    // 検証観点 (r): click しない（closed のまま）positioner には
-    // `style`/`data-positioned` が付与されない
-    // （`reposition_now_skips_closed_positioner` と同型、自動経路版）。
-    let window = web_sys::window().expect("window must exist in browser test environment");
-    let document = window.document().expect("document must exist");
-    let container = create_placeholder(&document, "position-browser-auto-closed");
-    let _guard = RemoveOnDrop(container.clone());
-    ensure_fixed_floating_size_stylesheet(&document);
-
-    let (_root, _trigger, _component) = mount_and_wire_tooltip(
-        &document,
-        &container,
-        "position-browser-auto-closed",
-        "position: fixed; left: 10px; top: 10px; width: 20px; height: 10px;",
-        "bottom",
-    );
-
-    let positioner = document
-        .get_element_by_id("position-browser-auto-closed-positioner")
-        .expect("positioner element must exist");
-    assert!(
-        positioner.get_attribute("style").is_none(),
-        "a closed positioner must not receive a style attribute even after \
-         wire_headless_component's eager sync"
-    );
-    assert!(positioner.get_attribute("data-positioned").is_none());
-}
-
-#[wasm_bindgen_test]
-fn wire_headless_component_alone_tracks_resize_and_scroll_without_an_explicit_controller() {
-    // 検証観点 (s): テスト側で `PositionController` を一切生成せず
-    // `wire_headless_component` のみで配線した場合でも、trigger 位置の
-    // 変更後に合成 `resize`/`scroll` を発火すると座標が再計算される
-    // （`ensure_global_controller` が生成する thread_local 単一
-    // コントローラ経由の自動追従、上記 (i) の resize/scroll テストの
-    // 自動配線版）。
-    let window = web_sys::window().expect("window must exist in browser test environment");
-    let document = window.document().expect("document must exist");
-    let container = create_placeholder(&document, "position-browser-auto-resize-scroll");
-    let _guard = RemoveOnDrop(container.clone());
-    ensure_fixed_floating_size_stylesheet(&document);
-
-    let (_root, trigger, component) = mount_and_wire_tooltip(
-        &document,
-        &container,
-        "position-browser-auto-resize-scroll",
-        "position: fixed; left: 5px; top: 50px; width: 10px; height: 10px;",
-        "bottom",
-    );
-    dispatch_click(&trigger);
-    assert!(component.borrow().is_open());
-
-    let positioner = document
-        .get_element_by_id("position-browser-auto-resize-scroll-positioner")
-        .expect("positioner element must exist after re-render");
-    let style_before = positioner
-        .get_attribute("style")
-        .expect("positioner must be repositioned immediately after the toggle click");
-    let x_before = extract_css_var_px(&style_before, "--fandhe-x");
-
-    let trigger_after_render = document
-        .get_element_by_id("position-browser-auto-resize-scroll-trigger")
-        .expect("trigger element must exist after re-render");
-    trigger_after_render
-        .set_attribute(
-            "style",
-            "position: fixed; left: 400px; top: 50px; width: 10px; height: 10px;",
-        )
-        .expect("set_attribute must not fail");
-
-    dispatch_window_event(&window, "resize");
-    let positioner_after_resize = document
-        .get_element_by_id("position-browser-auto-resize-scroll-positioner")
-        .expect("positioner element must exist");
-    let style_after_resize = positioner_after_resize
-        .get_attribute("style")
-        .expect("positioner must still have a style attribute after resize");
-    let x_after_resize = extract_css_var_px(&style_after_resize, "--fandhe-x");
-    assert!(
-        (x_after_resize - x_before).abs() > 50.0,
-        "resize event via the auto-wired global controller must recompute --fandhe-x for the \
-         moved trigger (before={x_before}, after={x_after_resize})"
-    );
-
-    // 続けて scroll でも同様に検証する（trigger をさらに動かす）。
-    trigger_after_render
-        .set_attribute(
-            "style",
-            "position: fixed; left: 5px; top: 50px; width: 10px; height: 10px;",
-        )
-        .expect("set_attribute must not fail");
-    dispatch_window_event(&window, "scroll");
-    let positioner_after_scroll = document
-        .get_element_by_id("position-browser-auto-resize-scroll-positioner")
-        .expect("positioner element must exist");
-    let style_after_scroll = positioner_after_scroll
-        .get_attribute("style")
-        .expect("positioner must still have a style attribute after scroll");
-    let x_after_scroll = extract_css_var_px(&style_after_scroll, "--fandhe-x");
-    assert!(
-        (x_after_scroll - x_after_resize).abs() > 50.0,
-        "scroll event via the auto-wired global controller must recompute --fandhe-x for the \
-         moved trigger (after_resize={x_after_resize}, after_scroll={x_after_scroll})"
-    );
-}
-
-#[wasm_bindgen_test]
-fn wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_tooltip_content() {
-    // 検証観点 (t): `wire_headless_component` 経由の自動再計算でも
-    // script/属性インジェクションペイロードが実行・breakout せず、
-    // 位置決め配線の `style`/`data-*` 書き込みが既定エスケープ保証を
-    // 弱めない（既存 `reposition_now_does_not_weaken_default_escaping_...`
-    // 系の自動配線版）。
-    let window = web_sys::window().expect("window must exist in browser test environment");
-    let document = window.document().expect("document must exist");
-    let container = create_placeholder(&document, "position-browser-auto-xss");
-    let _guard = RemoveOnDrop(container.clone());
-    ensure_fixed_floating_size_stylesheet(&document);
-
-    let script_payload = "<script>window.__position_browser_auto_xss = true;</script>";
-    let attr_payload = "\" onmouseover=\"alert(1)";
-
-    let trigger_id = "position-browser-auto-xss-trigger";
-    let positioner_id = "position-browser-auto-xss-positioner";
-    let render_markup = move |open: bool| {
+    /// Tooltip（trigger + positioner + arrow + content）の HTML を `open`/
+    /// `requested_side` に応じて組み立てる。`wire_headless_component` の
+    /// `on_update` から state に応じて丸ごと再描画する用途（
+    /// `content_height_browser.rs` の `set_inner_html` 全体再生成モデル）と、
+    /// 初期 SSR マークアップ（`open == false`）生成の双方に使う。
+    #[allow(clippy::too_many_arguments)]
+    fn render_tooltip_markup(
+        open: bool,
+        trigger_id: &str,
+        trigger_style: &str,
+        positioner_id: &str,
+        arrow_id: &str,
+        requested_side: &str,
+    ) -> String {
         let state = if open {
             OpenState::Open
         } else {
@@ -2261,71 +1898,890 @@ fn wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_
                     state,
                     false,
                     None,
-                    vec![
-                        ("id", trigger_id),
-                        (
-                            "style",
-                            "position: fixed; left: 5px; top: 5px; width: 10px; height: 10px;",
-                        ),
-                        ("data-testid", attr_payload),
-                    ],
+                    vec![("id", trigger_id), ("style", trigger_style)],
                     vec![],
                 ),
                 tooltip::positioner(
                     state,
-                    vec![("id", positioner_id), ("class", FIXED_FLOATING_SIZE_CLASS)],
-                    vec![tooltip::content(
-                        state,
-                        None,
-                        vec![],
-                        vec![text(script_payload)],
-                    )],
+                    vec![
+                        ("id", positioner_id),
+                        ("data-side", requested_side),
+                        ("class", FIXED_FLOATING_SIZE_CLASS),
+                    ],
+                    vec![
+                        tooltip::arrow(vec![("id", arrow_id)], vec![]),
+                        tooltip::content(state, None, vec![], vec![text("Tip")]),
+                    ],
                 ),
             ],
         ))
-    };
+    }
 
-    container.set_inner_html(&render_markup(false));
-    let root = container
-        .first_element_child()
-        .expect("tooltip root must exist");
-    let component = Rc::new(RefCell::new(Tooltip::default()));
-    wire_headless_component(root.clone(), component.clone(), move |state, root| {
-        root.set_inner_html(&render_markup(state.is_open()));
-    })
-    .expect("wire_headless_component must not fail");
+    /// [`render_tooltip_markup`] を `container` へ mount し、
+    /// `wire_headless_component` で配線する（`on_update` は
+    /// `state.is_open()` に応じて丸ごと再描画する `content_height_browser.rs`
+    /// と同型のモデル）。返り値は `(root, trigger, component)`。
+    fn mount_and_wire_tooltip(
+        document: &Document,
+        container: &Element,
+        id_prefix: &str,
+        trigger_style: &str,
+        requested_side: &str,
+    ) -> (Element, Element, Rc<RefCell<Tooltip>>) {
+        let trigger_id = format!("{id_prefix}-trigger");
+        let positioner_id = format!("{id_prefix}-positioner");
+        let arrow_id = format!("{id_prefix}-arrow");
 
-    let trigger = document
-        .get_element_by_id(trigger_id)
-        .expect("trigger element must exist");
-    dispatch_click(&trigger);
-    assert!(component.borrow().is_open());
+        let html = render_tooltip_markup(
+            false,
+            &trigger_id,
+            trigger_style,
+            &positioner_id,
+            &arrow_id,
+            requested_side,
+        );
+        container.set_inner_html(&html);
+        let root = container
+            .first_element_child()
+            .expect("tooltip root must exist");
 
-    assert!(
-        container
-            .query_selector("script")
-            .expect("query_selector must not fail")
-            .is_none(),
-        "no real <script> element must be created from the escaped payload"
-    );
-    let text_content = container.text_content().unwrap_or_default();
-    assert!(text_content.contains(script_payload));
+        let component = Rc::new(RefCell::new(Tooltip::default()));
+        let trigger_id_for_update = trigger_id.clone();
+        let positioner_id_for_update = positioner_id.clone();
+        let arrow_id_for_update = arrow_id.clone();
+        let trigger_style_for_update = trigger_style.to_string();
+        let requested_side_for_update = requested_side.to_string();
+        wire_headless_component(root.clone(), component.clone(), move |state, root| {
+            let html = render_tooltip_markup(
+                state.is_open(),
+                &trigger_id_for_update,
+                &trigger_style_for_update,
+                &positioner_id_for_update,
+                &arrow_id_for_update,
+                &requested_side_for_update,
+            );
+            root.set_inner_html(&html);
+        })
+        .expect("wire_headless_component must not fail");
 
-    let trigger_after = document
-        .get_element_by_id(trigger_id)
-        .expect("trigger element must exist after re-render");
-    assert_eq!(
-        trigger_after.get_attribute("data-testid").as_deref(),
-        Some(attr_payload)
-    );
-    assert!(trigger_after.get_attribute("onmouseover").is_none());
+        let trigger = document
+            .get_element_by_id(&trigger_id)
+            .expect("trigger element must exist");
+        (root, trigger, component)
+    }
 
-    let positioner = document
-        .get_element_by_id(positioner_id)
-        .expect("positioner element must exist after re-render");
-    assert!(
-        positioner.get_attribute("style").is_some(),
-        "auto reposition must complete for the tooltip positioner despite the XSS-payload \
+    /// 検証観点 (p): trigger
+    /// `position: fixed; left: 300px; top: 200px; width: 50px; height: 20px;`・
+    /// floating を [`FIXED_FLOATING_SIZE_CLASS`]（100x50）に固定した場合の
+    /// 期待値表（headless-ui `positioning.rs` の `main_axis_coordinate`/
+    /// `cross_axis_coordinate`/`arrow_position` から導出、
+    /// `docs/design/wasm-full-architecture.md` §31 参照）。
+    /// `(side, x, y, arrow_x, arrow_y)`。
+    const EXPECTED_PLACEMENTS: [(&str, f64, f64, f64, f64); 4] = [
+        ("bottom", 275.0, 220.0, 50.0, 0.0),
+        ("top", 275.0, 150.0, 50.0, 50.0),
+        ("left", 200.0, 185.0, 100.0, 25.0),
+        ("right", 350.0, 185.0, 0.0, 25.0),
+    ];
+
+    #[wasm_bindgen_test]
+    fn wire_headless_component_auto_repositions_tooltip_to_exact_real_coordinates_for_every_side() {
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        for (side, expected_x, expected_y, expected_arrow_x, expected_arrow_y) in
+            EXPECTED_PLACEMENTS
+        {
+            let container =
+                create_placeholder(&document, &format!("position-browser-auto-tooltip-{side}"));
+            let _guard = RemoveOnDrop(container.clone());
+
+            let (_root, trigger, component) = mount_and_wire_tooltip(
+                &document,
+                &container,
+                &format!("position-browser-auto-tooltip-{side}"),
+                "position: fixed; left: 300px; top: 200px; width: 50px; height: 20px;",
+                side,
+            );
+
+            // click 前は closed のまま（対象外、下記の別テストで固定）。
+            dispatch_click(&trigger);
+            assert!(
+                component.borrow().is_open(),
+                "trigger クリック後は Tooltip が開いていること（side={side}）"
+            );
+
+            let positioner_id = format!("position-browser-auto-tooltip-{side}-positioner");
+            let arrow_id = format!("position-browser-auto-tooltip-{side}-arrow");
+            let positioner = document
+                .get_element_by_id(&positioner_id)
+                .expect("positioner element must exist after re-render");
+            let arrow = document
+                .get_element_by_id(&arrow_id)
+                .expect("arrow element must exist after re-render");
+
+            // `wire_headless_component` のみで配線しており、テスト側で
+            // `PositionController` を明示生成していない（イシュー #2209 の
+            // 自動呼び出し経路そのものを検証する）。
+            let style = positioner.get_attribute("style").unwrap_or_else(|| {
+                panic!(
+                    "wire_headless_component alone must write --fandhe-* style onto the \
+                 positioner without an explicit PositionController (side={side})"
+                )
+            });
+            let x = extract_css_var_px(&style, "--fandhe-x");
+            let y = extract_css_var_px(&style, "--fandhe-y");
+            assert!(
+                (x - expected_x).abs() < 0.5,
+                "side={side}: --fandhe-x expected {expected_x}, got {x} (style={style})"
+            );
+            assert!(
+                (y - expected_y).abs() < 0.5,
+                "side={side}: --fandhe-y expected {expected_y}, got {y} (style={style})"
+            );
+
+            let arrow_style = arrow.get_attribute("style").unwrap_or_else(|| {
+                panic!(
+                "arrow element must receive a style attribute after auto reposition (side={side})"
+            )
+            });
+            let arrow_x = extract_css_var_px(&arrow_style, "--fandhe-arrow-x");
+            let arrow_y = extract_css_var_px(&arrow_style, "--fandhe-arrow-y");
+            assert!(
+                (arrow_x - expected_arrow_x).abs() < 0.5,
+                "side={side}: --fandhe-arrow-x expected {expected_arrow_x}, got {arrow_x} \
+             (style={arrow_style})"
+            );
+            assert!(
+                (arrow_y - expected_arrow_y).abs() < 0.5,
+                "side={side}: --fandhe-arrow-y expected {expected_arrow_y}, got {arrow_y} \
+             (style={arrow_style})"
+            );
+            assert_eq!(
+                positioner.get_attribute("data-positioned").as_deref(),
+                Some(""),
+                "side={side}: data-positioned marker must be set by the auto reposition path"
+            );
+            // Tooltip は same_width_default() == false のため
+            // --fandhe-reference-width は出力されない契約
+            // （native/browser 双方の既存テストと同じ不変条件）。
+            assert!(
+                !style.contains("--fandhe-reference-width:"),
+                "side={side}: tooltip positioner must not output --fandhe-reference-width: {style}"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn wire_headless_component_prewires_positioner_that_is_already_open_at_wiring_time() {
+        // 検証観点 (q): SSR 初期状態が open な positioner は、
+        // `wire_headless_component` 自体の先行同期（click 不要）で
+        // `style`/`data-positioned` が反映される
+        // （`content_height::sync_content_height` の先行同期と同型）。
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        let container = create_placeholder(&document, "position-browser-auto-prewired");
+        let _guard = RemoveOnDrop(container.clone());
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        let trigger_id = "position-browser-auto-prewired-trigger";
+        let positioner_id = "position-browser-auto-prewired-positioner";
+        let html = render(&popover::root(
+            OpenState::Open,
+            vec![],
+            vec![
+                popover::trigger(
+                    OpenState::Open,
+                    false,
+                    None,
+                    vec![
+                        ("id", trigger_id),
+                        (
+                            "style",
+                            "position: fixed; left: 40px; top: 40px; width: 20px; height: 10px;",
+                        ),
+                    ],
+                    vec![],
+                ),
+                popover::anchor(vec![], vec![]),
+                popover::positioner(
+                    OpenState::Open,
+                    vec![("id", positioner_id), ("class", FIXED_FLOATING_SIZE_CLASS)],
+                    vec![popover::content(
+                        OpenState::Open,
+                        None,
+                        None,
+                        None,
+                        vec![],
+                        vec![],
+                    )],
+                ),
+            ],
+        ));
+        container.set_inner_html(&html);
+        let root = container
+            .first_element_child()
+            .expect("popover root must exist");
+        let positioner = document
+            .get_element_by_id(positioner_id)
+            .expect("positioner element must exist");
+        assert!(positioner.get_attribute("style").is_none());
+
+        let component = Rc::new(RefCell::new(Popover::default()));
+        wire_headless_component(root.clone(), component.clone(), |_state, _root| {})
+            .expect("wire_headless_component must not fail");
+
+        // click を一切行っていない時点で反映されていること。
+        let style = positioner.get_attribute("style").expect(
+            "wire_headless_component must eagerly reposition an already-open positioner at \
+         wiring time, without requiring a click",
+        );
+        assert!(style.contains("--fandhe-x:"));
+        assert!(style.contains("--fandhe-y:"));
+        assert_eq!(
+            positioner.get_attribute("data-positioned").as_deref(),
+            Some("")
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn wire_headless_component_leaves_closed_positioner_unrepositioned() {
+        // 検証観点 (r): click しない（closed のまま）positioner には
+        // `style`/`data-positioned` が付与されない
+        // （`reposition_now_skips_closed_positioner` と同型、自動経路版）。
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        let container = create_placeholder(&document, "position-browser-auto-closed");
+        let _guard = RemoveOnDrop(container.clone());
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        let (_root, _trigger, _component) = mount_and_wire_tooltip(
+            &document,
+            &container,
+            "position-browser-auto-closed",
+            "position: fixed; left: 10px; top: 10px; width: 20px; height: 10px;",
+            "bottom",
+        );
+
+        let positioner = document
+            .get_element_by_id("position-browser-auto-closed-positioner")
+            .expect("positioner element must exist");
+        assert!(
+            positioner.get_attribute("style").is_none(),
+            "a closed positioner must not receive a style attribute even after \
+         wire_headless_component's eager sync"
+        );
+        assert!(positioner.get_attribute("data-positioned").is_none());
+    }
+
+    #[wasm_bindgen_test]
+    fn wire_headless_component_alone_tracks_resize_and_scroll_without_an_explicit_controller() {
+        // 検証観点 (s): テスト側で `PositionController` を一切生成せず
+        // `wire_headless_component` のみで配線した場合でも、trigger 位置の
+        // 変更後に合成 `resize`/`scroll` を発火すると座標が再計算される
+        // （`ensure_global_controller` が生成する thread_local 単一
+        // コントローラ経由の自動追従、上記 (i) の resize/scroll テストの
+        // 自動配線版）。
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        let container = create_placeholder(&document, "position-browser-auto-resize-scroll");
+        let _guard = RemoveOnDrop(container.clone());
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        let (_root, trigger, component) = mount_and_wire_tooltip(
+            &document,
+            &container,
+            "position-browser-auto-resize-scroll",
+            "position: fixed; left: 5px; top: 50px; width: 10px; height: 10px;",
+            "bottom",
+        );
+        dispatch_click(&trigger);
+        assert!(component.borrow().is_open());
+
+        let positioner = document
+            .get_element_by_id("position-browser-auto-resize-scroll-positioner")
+            .expect("positioner element must exist after re-render");
+        let style_before = positioner
+            .get_attribute("style")
+            .expect("positioner must be repositioned immediately after the toggle click");
+        let x_before = extract_css_var_px(&style_before, "--fandhe-x");
+
+        let trigger_after_render = document
+            .get_element_by_id("position-browser-auto-resize-scroll-trigger")
+            .expect("trigger element must exist after re-render");
+        trigger_after_render
+            .set_attribute(
+                "style",
+                "position: fixed; left: 400px; top: 50px; width: 10px; height: 10px;",
+            )
+            .expect("set_attribute must not fail");
+
+        dispatch_window_event(&window, "resize");
+        let positioner_after_resize = document
+            .get_element_by_id("position-browser-auto-resize-scroll-positioner")
+            .expect("positioner element must exist");
+        let style_after_resize = positioner_after_resize
+            .get_attribute("style")
+            .expect("positioner must still have a style attribute after resize");
+        let x_after_resize = extract_css_var_px(&style_after_resize, "--fandhe-x");
+        assert!(
+            (x_after_resize - x_before).abs() > 50.0,
+            "resize event via the auto-wired global controller must recompute --fandhe-x for the \
+         moved trigger (before={x_before}, after={x_after_resize})"
+        );
+
+        // 続けて scroll でも同様に検証する（trigger をさらに動かす）。
+        trigger_after_render
+            .set_attribute(
+                "style",
+                "position: fixed; left: 5px; top: 50px; width: 10px; height: 10px;",
+            )
+            .expect("set_attribute must not fail");
+        dispatch_window_event(&window, "scroll");
+        let positioner_after_scroll = document
+            .get_element_by_id("position-browser-auto-resize-scroll-positioner")
+            .expect("positioner element must exist");
+        let style_after_scroll = positioner_after_scroll
+            .get_attribute("style")
+            .expect("positioner must still have a style attribute after scroll");
+        let x_after_scroll = extract_css_var_px(&style_after_scroll, "--fandhe-x");
+        assert!(
+            (x_after_scroll - x_after_resize).abs() > 50.0,
+            "scroll event via the auto-wired global controller must recompute --fandhe-x for the \
+         moved trigger (after_resize={x_after_resize}, after_scroll={x_after_scroll})"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_tooltip_content(
+    ) {
+        // 検証観点 (t): `wire_headless_component` 経由の自動再計算でも
+        // script/属性インジェクションペイロードが実行・breakout せず、
+        // 位置決め配線の `style`/`data-*` 書き込みが既定エスケープ保証を
+        // 弱めない（既存 `reposition_now_does_not_weaken_default_escaping_...`
+        // 系の自動配線版）。
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        let container = create_placeholder(&document, "position-browser-auto-xss");
+        let _guard = RemoveOnDrop(container.clone());
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        let script_payload = "<script>window.__position_browser_auto_xss = true;</script>";
+        let attr_payload = "\" onmouseover=\"alert(1)";
+
+        let trigger_id = "position-browser-auto-xss-trigger";
+        let positioner_id = "position-browser-auto-xss-positioner";
+        let render_markup = move |open: bool| {
+            let state = if open {
+                OpenState::Open
+            } else {
+                OpenState::Closed
+            };
+            render(&tooltip::root(
+                state,
+                vec![],
+                vec![
+                    tooltip::trigger(
+                        state,
+                        false,
+                        None,
+                        vec![
+                            ("id", trigger_id),
+                            (
+                                "style",
+                                "position: fixed; left: 5px; top: 5px; width: 10px; height: 10px;",
+                            ),
+                            ("data-testid", attr_payload),
+                        ],
+                        vec![],
+                    ),
+                    tooltip::positioner(
+                        state,
+                        vec![("id", positioner_id), ("class", FIXED_FLOATING_SIZE_CLASS)],
+                        vec![tooltip::content(
+                            state,
+                            None,
+                            vec![],
+                            vec![text(script_payload)],
+                        )],
+                    ),
+                ],
+            ))
+        };
+
+        container.set_inner_html(&render_markup(false));
+        let root = container
+            .first_element_child()
+            .expect("tooltip root must exist");
+        let component = Rc::new(RefCell::new(Tooltip::default()));
+        wire_headless_component(root.clone(), component.clone(), move |state, root| {
+            root.set_inner_html(&render_markup(state.is_open()));
+        })
+        .expect("wire_headless_component must not fail");
+
+        let trigger = document
+            .get_element_by_id(trigger_id)
+            .expect("trigger element must exist");
+        dispatch_click(&trigger);
+        assert!(component.borrow().is_open());
+
+        assert!(
+            container
+                .query_selector("script")
+                .expect("query_selector must not fail")
+                .is_none(),
+            "no real <script> element must be created from the escaped payload"
+        );
+        let text_content = container.text_content().unwrap_or_default();
+        assert!(text_content.contains(script_payload));
+
+        let trigger_after = document
+            .get_element_by_id(trigger_id)
+            .expect("trigger element must exist after re-render");
+        assert_eq!(
+            trigger_after.get_attribute("data-testid").as_deref(),
+            Some(attr_payload)
+        );
+        assert!(trigger_after.get_attribute("onmouseover").is_none());
+
+        let positioner = document
+            .get_element_by_id(positioner_id)
+            .expect("positioner element must exist after re-render");
+        assert!(
+            positioner.get_attribute("style").is_some(),
+            "auto reposition must complete for the tooltip positioner despite the XSS-payload \
          content"
-    );
+        );
+    }
+
+    /// [`render_menu_markup`] は Menu（trigger + positioner + arrow + item）の
+    /// HTML を `open` に応じて組み立てる。[`render_tooltip_markup`] と同型。
+    fn render_menu_markup(
+        open: bool,
+        trigger_id: &str,
+        trigger_style: &str,
+        positioner_id: &str,
+        arrow_id: &str,
+        item_label: &str,
+    ) -> String {
+        let state = if open {
+            OpenState::Open
+        } else {
+            OpenState::Closed
+        };
+        render(&menu::root(
+            state,
+            vec![],
+            vec![
+                menu::trigger(
+                    state,
+                    false,
+                    None,
+                    vec![("id", trigger_id), ("style", trigger_style)],
+                    vec![],
+                ),
+                menu::positioner(
+                    state,
+                    vec![("id", positioner_id), ("class", FIXED_FLOATING_SIZE_CLASS)],
+                    vec![
+                        menu::arrow(vec![("id", arrow_id)], vec![]),
+                        menu::content(
+                            state,
+                            None,
+                            None,
+                            vec![],
+                            vec![menu::item(
+                                "item-1",
+                                false,
+                                false,
+                                vec![],
+                                vec![text(item_label)],
+                            )],
+                        ),
+                    ],
+                ),
+            ],
+        ))
+    }
+
+    /// [`render_menu_markup`] を `container` へ mount し、
+    /// `wire_headless_component` で配線する（[`mount_and_wire_tooltip`] の
+    /// Menu 版）。返り値は `(root, trigger, component)`。
+    fn mount_and_wire_menu(
+        document: &Document,
+        container: &Element,
+        id_prefix: &str,
+        trigger_style: &str,
+        item_label: &str,
+    ) -> (Element, Element, Rc<RefCell<Menu>>) {
+        let trigger_id = format!("{id_prefix}-trigger");
+        let positioner_id = format!("{id_prefix}-positioner");
+        let arrow_id = format!("{id_prefix}-arrow");
+
+        let html = render_menu_markup(
+            false,
+            &trigger_id,
+            trigger_style,
+            &positioner_id,
+            &arrow_id,
+            item_label,
+        );
+        container.set_inner_html(&html);
+        let root = container
+            .first_element_child()
+            .expect("menu root must exist");
+
+        let component = Rc::new(RefCell::new(Menu::default()));
+        let trigger_id_for_update = trigger_id.clone();
+        let positioner_id_for_update = positioner_id.clone();
+        let arrow_id_for_update = arrow_id.clone();
+        let trigger_style_for_update = trigger_style.to_string();
+        let item_label_for_update = item_label.to_string();
+        wire_headless_component(root.clone(), component.clone(), move |state, root| {
+            let html = render_menu_markup(
+                state.is_open(),
+                &trigger_id_for_update,
+                &trigger_style_for_update,
+                &positioner_id_for_update,
+                &arrow_id_for_update,
+                &item_label_for_update,
+            );
+            root.set_inner_html(&html);
+        })
+        .expect("wire_headless_component must not fail");
+
+        let trigger = document
+            .get_element_by_id(&trigger_id)
+            .expect("trigger element must exist");
+        (root, trigger, component)
+    }
+
+    /// [`render_popover_markup`] は Popover（trigger + anchor + positioner +
+    /// arrow + content）の HTML を `open` に応じて組み立てる。
+    /// [`render_tooltip_markup`] と同型。
+    fn render_popover_markup(
+        open: bool,
+        trigger_id: &str,
+        trigger_style: &str,
+        positioner_id: &str,
+        arrow_id: &str,
+        content_text: &str,
+    ) -> String {
+        let state = if open {
+            OpenState::Open
+        } else {
+            OpenState::Closed
+        };
+        render(&popover::root(
+            state,
+            vec![],
+            vec![
+                popover::trigger(
+                    state,
+                    false,
+                    None,
+                    vec![("id", trigger_id), ("style", trigger_style)],
+                    vec![],
+                ),
+                popover::anchor(vec![], vec![]),
+                popover::positioner(
+                    state,
+                    vec![("id", positioner_id), ("class", FIXED_FLOATING_SIZE_CLASS)],
+                    vec![
+                        popover::arrow(vec![("id", arrow_id)], vec![]),
+                        popover::content(state, None, None, None, vec![], vec![text(content_text)]),
+                    ],
+                ),
+            ],
+        ))
+    }
+
+    /// [`render_popover_markup`] を `container` へ mount し、
+    /// `wire_headless_component` で配線する（[`mount_and_wire_tooltip`] の
+    /// Popover 版）。返り値は `(root, trigger, component)`。
+    fn mount_and_wire_popover(
+        document: &Document,
+        container: &Element,
+        id_prefix: &str,
+        trigger_style: &str,
+        content_text: &str,
+    ) -> (Element, Element, Rc<RefCell<Popover>>) {
+        let trigger_id = format!("{id_prefix}-trigger");
+        let positioner_id = format!("{id_prefix}-positioner");
+        let arrow_id = format!("{id_prefix}-arrow");
+
+        let html = render_popover_markup(
+            false,
+            &trigger_id,
+            trigger_style,
+            &positioner_id,
+            &arrow_id,
+            content_text,
+        );
+        container.set_inner_html(&html);
+        let root = container
+            .first_element_child()
+            .expect("popover root must exist");
+
+        let component = Rc::new(RefCell::new(Popover::default()));
+        let trigger_id_for_update = trigger_id.clone();
+        let positioner_id_for_update = positioner_id.clone();
+        let arrow_id_for_update = arrow_id.clone();
+        let trigger_style_for_update = trigger_style.to_string();
+        let content_text_for_update = content_text.to_string();
+        wire_headless_component(root.clone(), component.clone(), move |state, root| {
+            let html = render_popover_markup(
+                state.is_open(),
+                &trigger_id_for_update,
+                &trigger_style_for_update,
+                &positioner_id_for_update,
+                &arrow_id_for_update,
+                &content_text_for_update,
+            );
+            root.set_inner_html(&html);
+        })
+        .expect("wire_headless_component must not fail");
+
+        let trigger = document
+            .get_element_by_id(&trigger_id)
+            .expect("trigger element must exist");
+        (root, trigger, component)
+    }
+
+    /// 検証観点: menu / popover にも tooltip と同型の厳密一致検証を行い、
+    /// 受け入れ条件 1（tooltip 限定だった `wire_headless_component` 経由の
+    /// browser テスト）のギャップを menu / popover へ広げる（イシュー #2209
+    /// 実装計画 §4 ステップ 6）。座標算出式自体は `PositionedKind` に依らない
+    /// （kind は `has_arrow()`/`same_width_default()` のみへ作用する）ため、
+    /// [`EXPECTED_PLACEMENTS`] を再利用できる。
+    #[wasm_bindgen_test]
+    fn wire_headless_component_auto_repositions_menu_to_exact_real_coordinates() {
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        for (side, expected_x, expected_y, expected_arrow_x, expected_arrow_y) in
+            EXPECTED_PLACEMENTS
+        {
+            let container =
+                create_placeholder(&document, &format!("position-browser-auto-menu-{side}"));
+            let _guard = RemoveOnDrop(container.clone());
+
+            let (_root, trigger, component) = mount_and_wire_menu(
+                &document,
+                &container,
+                &format!("position-browser-auto-menu-{side}"),
+                "position: fixed; left: 300px; top: 200px; width: 50px; height: 20px;",
+                "Item",
+            );
+
+            dispatch_click(&trigger);
+            assert!(
+                component.borrow().is_open(),
+                "trigger クリック後は Menu が開いていること（side={side}）"
+            );
+
+            let positioner_id = format!("position-browser-auto-menu-{side}-positioner");
+            let arrow_id = format!("position-browser-auto-menu-{side}-arrow");
+            let positioner = document
+                .get_element_by_id(&positioner_id)
+                .expect("positioner element must exist after re-render");
+            let arrow = document
+                .get_element_by_id(&arrow_id)
+                .expect("arrow element must exist after re-render");
+
+            let style = positioner.get_attribute("style").unwrap_or_else(|| {
+                panic!(
+                    "wire_headless_component alone must write --fandhe-* style onto the                      menu positioner without an explicit PositionController (side={side})"
+                )
+            });
+            let x = extract_css_var_px(&style, "--fandhe-x");
+            let y = extract_css_var_px(&style, "--fandhe-y");
+            assert!(
+                (x - expected_x).abs() < 0.5,
+                "side={side}: --fandhe-x expected {expected_x}, got {x} (style={style})"
+            );
+            assert!(
+                (y - expected_y).abs() < 0.5,
+                "side={side}: --fandhe-y expected {expected_y}, got {y} (style={style})"
+            );
+            // Menu は same_width_default() == true のため
+            // --fandhe-reference-width を出力する契約（native/browser 双方の
+            // 既存テストと同じ不変条件）。
+            assert!(
+                style.contains("--fandhe-reference-width:"),
+                "side={side}: menu positioner must output --fandhe-reference-width: {style}"
+            );
+
+            let arrow_style = arrow.get_attribute("style").unwrap_or_else(|| {
+                panic!(
+                    "arrow element must receive a style attribute after auto reposition                      (side={side})"
+                )
+            });
+            let arrow_x = extract_css_var_px(&arrow_style, "--fandhe-arrow-x");
+            let arrow_y = extract_css_var_px(&arrow_style, "--fandhe-arrow-y");
+            assert!(
+                (arrow_x - expected_arrow_x).abs() < 0.5,
+                "side={side}: --fandhe-arrow-x expected {expected_arrow_x}, got {arrow_x}                  (style={arrow_style})"
+            );
+            assert!(
+                (arrow_y - expected_arrow_y).abs() < 0.5,
+                "side={side}: --fandhe-arrow-y expected {expected_arrow_y}, got {arrow_y}                  (style={arrow_style})"
+            );
+            assert_eq!(
+                positioner.get_attribute("data-positioned").as_deref(),
+                Some(""),
+                "side={side}: data-positioned marker must be set by the auto reposition path"
+            );
+        }
+    }
+
+    /// 検証観点: popover にも tooltip と同型の厳密一致検証を行う（menu テスト
+    /// の doc 参照）。Popover は same_width_default() == false のため
+    /// --fandhe-reference-width を出力しない契約（tooltip と同型）。
+    #[wasm_bindgen_test]
+    fn wire_headless_component_auto_repositions_popover_to_exact_real_coordinates() {
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        for (side, expected_x, expected_y, _expected_arrow_x, _expected_arrow_y) in
+            EXPECTED_PLACEMENTS
+        {
+            let container =
+                create_placeholder(&document, &format!("position-browser-auto-popover-{side}"));
+            let _guard = RemoveOnDrop(container.clone());
+
+            let (_root, trigger, component) = mount_and_wire_popover(
+                &document,
+                &container,
+                &format!("position-browser-auto-popover-{side}"),
+                "position: fixed; left: 300px; top: 200px; width: 50px; height: 20px;",
+                "Content",
+            );
+
+            dispatch_click(&trigger);
+            assert!(
+                component.borrow().is_open(),
+                "trigger クリック後は Popover が開いていること（side={side}）"
+            );
+
+            let positioner_id = format!("position-browser-auto-popover-{side}-positioner");
+            let positioner = document
+                .get_element_by_id(&positioner_id)
+                .expect("positioner element must exist after re-render");
+
+            let style = positioner.get_attribute("style").unwrap_or_else(|| {
+                panic!(
+                    "wire_headless_component alone must write --fandhe-* style onto the                      popover positioner without an explicit PositionController (side={side})"
+                )
+            });
+            let x = extract_css_var_px(&style, "--fandhe-x");
+            let y = extract_css_var_px(&style, "--fandhe-y");
+            assert!(
+                (x - expected_x).abs() < 0.5,
+                "side={side}: --fandhe-x expected {expected_x}, got {x} (style={style})"
+            );
+            assert!(
+                (y - expected_y).abs() < 0.5,
+                "side={side}: --fandhe-y expected {expected_y}, got {y} (style={style})"
+            );
+            assert!(
+                !style.contains("--fandhe-reference-width:"),
+                "side={side}: popover positioner must not output --fandhe-reference-width:                  {style}"
+            );
+            assert_eq!(
+                positioner.get_attribute("data-positioned").as_deref(),
+                Some(""),
+                "side={side}: data-positioned marker must be set by the auto reposition path"
+            );
+        }
+    }
+
+    /// 検証観点: menu の item ラベルへ script/属性インジェクションペイロード
+    /// を渡しても、`wire_headless_component` 経由の自動再計算が既定エスケープ
+    /// 保証を弱めないこと（tooltip 版と同型、REQ-1 拡張回帰）。
+    #[wasm_bindgen_test]
+    fn wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_menu_content() {
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        let container = create_placeholder(&document, "position-browser-auto-menu-xss");
+        let _guard = RemoveOnDrop(container.clone());
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        let script_payload = "<script>window.__position_browser_auto_menu_xss = true;</script>";
+
+        let (_root, trigger, component) = mount_and_wire_menu(
+            &document,
+            &container,
+            "position-browser-auto-menu-xss",
+            "position: fixed; left: 5px; top: 5px; width: 10px; height: 10px;",
+            script_payload,
+        );
+        dispatch_click(&trigger);
+        assert!(component.borrow().is_open());
+
+        assert!(
+            container
+                .query_selector("script")
+                .expect("query_selector must not fail")
+                .is_none(),
+            "no real <script> element must be created from the escaped payload"
+        );
+        let text_content = container.text_content().unwrap_or_default();
+        assert!(text_content.contains(script_payload));
+
+        let positioner_id = "position-browser-auto-menu-xss-positioner";
+        let positioner = document
+            .get_element_by_id(positioner_id)
+            .expect("positioner element must exist after re-render");
+        assert!(
+            positioner.get_attribute("style").is_some(),
+            "auto reposition must complete for the menu positioner despite the XSS-payload              content"
+        );
+    }
+
+    /// 検証観点: popover の content へ script/属性インジェクションペイロード
+    /// を渡しても既定エスケープ保証を弱めないこと（menu 版と同型）。
+    #[wasm_bindgen_test]
+    fn wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_popover_content(
+    ) {
+        let window = web_sys::window().expect("window must exist in browser test environment");
+        let document = window.document().expect("document must exist");
+        let container = create_placeholder(&document, "position-browser-auto-popover-xss");
+        let _guard = RemoveOnDrop(container.clone());
+        ensure_fixed_floating_size_stylesheet(&document);
+
+        let script_payload = "<script>window.__position_browser_auto_popover_xss = true;</script>";
+
+        let (_root, trigger, component) = mount_and_wire_popover(
+            &document,
+            &container,
+            "position-browser-auto-popover-xss",
+            "position: fixed; left: 5px; top: 5px; width: 10px; height: 10px;",
+            script_payload,
+        );
+        dispatch_click(&trigger);
+        assert!(component.borrow().is_open());
+
+        assert!(
+            container
+                .query_selector("script")
+                .expect("query_selector must not fail")
+                .is_none(),
+            "no real <script> element must be created from the escaped payload"
+        );
+        let text_content = container.text_content().unwrap_or_default();
+        assert!(text_content.contains(script_payload));
+
+        let positioner_id = "position-browser-auto-popover-xss-positioner";
+        let positioner = document
+            .get_element_by_id(positioner_id)
+            .expect("positioner element must exist after re-render");
+        assert!(
+            positioner.get_attribute("style").is_some(),
+            "auto reposition must complete for the popover positioner despite the              XSS-payload content"
+        );
+    }
 }

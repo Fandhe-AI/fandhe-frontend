@@ -300,7 +300,7 @@ positioning を一切呼び出さないままだと、利用者が `PositionCont
 自動的に呼ぶようにした。scroll/resize 契機の継続的な再計算は、配線時に
 一度だけ生成する thread_local 単一の `PositionController`
 （`position::ensure_global_controller`）に委ねる。詳細な設計判断・
-テスト・semver 判断は `docs/design/wasm-full-architecture.md` §32 を参照
+テスト・semver 判断は `docs/design/wasm-full-architecture.md` §34 を参照
 （本節では二重管理しない）。`wire_headless_component` を経由しない開閉
 経路（`tooltip::TooltipDelayController` 等）向けに、`reposition_all`/
 `reposition_within` は引き続き呼び出し側から明示的に呼べる公開 API として

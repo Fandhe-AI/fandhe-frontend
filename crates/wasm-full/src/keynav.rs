@@ -121,6 +121,12 @@
 //!   Enter/Space は highlight 中の項目へ `click()` を合成し、選択・開閉制御
 //!   （`closeOnSelect` 等）は click 経路の dispatch と再描画へ委譲する。
 //!   highlight 対象が disabled・不在なら no-op（fail-closed）。
+//! - Select の `content` は `overflow-y: auto` + `max-height`（イシュー
+//!   #2019）を持つため、上記 highlight 更新のたび
+//!   [`wiring::scroll_item_into_view_if_needed`] が可視領域への追随を
+//!   行う。ArrowDown/ArrowUp・Home/End・typeahead・open 直後の初期
+//!   highlight のいずれの経路も長いリストで highlight 項目が可視領域内に
+//!   保たれることを browser テストで固定している（イシュー #2206）。
 //! - content の解決は trigger の `aria-controls` を優先し、欠落時は
 //!   `closest("[data-part=\"root\"]")` 配下の content パーツへフォール
 //!   バックする。
@@ -352,6 +358,11 @@
 //!   ダイアログ内 Listbox が親ダイアログの Escape 閉鎖を奪わない。
 //! - 修飾キー付きは一律 no-op（`"extended"` selection mode は
 //!   `crates/headless-ui/src/listbox.rs` が out-of-scope 宣言済み）。
+//! - Listbox の `content` も Select と同じく `overflow-y: auto` +
+//!   `--fandhe-listbox-content-max-height` を持つため、highlight 更新のたび
+//!   [`wiring::scroll_item_into_view_if_needed`] が可視領域への追随を行う
+//!   （ArrowDown/ArrowUp・Home/End・typeahead 各経路とも browser テストで
+//!   固定、イシュー #2206）。
 //!
 //! # Menubar のキーボード仕様（WAI-ARIA APG Menubar パターン準拠、イシュー #1073）
 //!
@@ -1934,6 +1945,33 @@ pub fn scroll_delta_for_band(
         item_bottom - band_bottom
     } else {
         0.0
+    }
+}
+
+/// [`wiring::scroll_item_into_view_if_needed`] が [`scroll_delta_for_band`]
+/// の結果（小数を含み得る `f64` の差分）を `Element::set_scroll_top`
+/// （整数 `i32` 引数）へ適用する直前に通す丸め関数（イシュー #2206）。
+///
+/// `container.scroll_top()`（現在値、整数 `i32`）と `delta`（浮動小数）を
+/// 素朴に加算して `as i32` で変換すると、Rust の `as` キャストは 0 方向へ
+/// 切り捨てる（例: `10.4 as i32 == 10`、`-10.4 as i32 == -10`）ため、
+/// 正の delta では目標位置に届かず項目下端が、負の delta では項目上端が
+/// 1px 未満はみ出たまま残り得る（fractional DPR・rem 由来の小数高さで
+/// 発生）。本関数は delta の符号に応じて「0 から遠ざかる側」（正なら
+/// 切り上げ・負なら切り下げ）へ丸めることで、はみ出しを解消する。
+/// delta が 0（既に可視領域内）なら `current` をそのまま返す。
+///
+/// `f64 → i32` の変換は Rust の `as` 飽和変換規則に従うため、通常の
+/// スクロール量の範囲では問題にならず、極端な値でも panic しない
+/// （`get_bounding_client_rect`/`scrollTop` は NaN を返さない前提）。
+#[must_use]
+pub fn scroll_top_after_delta(current: i32, delta: f64) -> i32 {
+    if delta > 0.0 {
+        (f64::from(current) + delta).ceil() as i32
+    } else if delta < 0.0 {
+        (f64::from(current) + delta).floor() as i32
+    } else {
+        current
     }
 }
 
@@ -5583,6 +5621,12 @@ pub(crate) mod wiring {
     /// だけが動いてアンカーからずれてしまう。この手動実装は見つかった
     /// スクロール可能な祖先 1 要素だけを対象にし、それ以外の祖先
     /// （document を含む）の scroll 位置には一切触れない。
+    ///
+    /// select/listbox の長いリストで、ArrowDown/ArrowUp・Home/End・
+    /// typeahead・open 直後の初期 highlight のいずれの経路でも highlight
+    /// 項目が可視領域内に保たれることを browser テストで固定した
+    /// （イシュー #2206。追随機構自体は PR #2165 で実装済み、本イシューは
+    /// 検証強化と [`scroll_top_after_delta`] による丸め是正が主眼）。
     fn set_highlight_on_host(
         items: &[Element],
         next_index: usize,
@@ -5623,6 +5667,12 @@ pub(crate) mod wiring {
     /// をそのまま受け渡す引数（`crate::command::wiring` からの再利用に
     /// あたり `pub(crate)` 化し、Menu/Select 固有の `[data-part="content"]`
     /// 決め打ちを剥がした、codex-review P1 是正・イシュー #2069）。
+    ///
+    /// `container.scroll_top()`（整数）へ [`scroll_delta_for_band`] の
+    /// 差分（小数を含み得る）を適用する際は [`scroll_top_after_delta`]
+    /// を経由する。素朴な `as i32` は 0 方向へ切り捨てるため、fractional
+    /// DPR やレム由来の小数高さでは delta が 1px 未満不足し項目の端が
+    /// わずかにはみ出たまま残り得た（イシュー #2206 で是正）。
     pub(crate) fn scroll_item_into_view_if_needed(item: &Element, boundary_selector: &str) {
         let Some(container) = nearest_scrollable_ancestor(item, boundary_selector) else {
             return;
@@ -5636,8 +5686,8 @@ pub(crate) mod wiring {
             band_bottom,
         );
         if delta != 0.0 {
-            let new_scroll_top = container.scroll_top() as f64 + delta;
-            container.set_scroll_top(new_scroll_top as i32);
+            let new_scroll_top = super::scroll_top_after_delta(container.scroll_top(), delta);
+            container.set_scroll_top(new_scroll_top);
         }
     }
 
@@ -8039,7 +8089,82 @@ pub(crate) mod wiring {
 
         Ok(())
     }
+
+    /// readonly な RadioGroup に対する click capture 保護（イシュー #1616
+    /// 是正）だけを、`keynav` feature の有効/無効に関わらず常時登録する
+    /// 専用配線（イシュー #2326 codex-review P1 是正）。
+    ///
+    /// [`wire_keynav`] は `keynav` feature でゲートされるが、同関数内の
+    /// capture フェーズ click リスナーは TreeView roving tabindex 復元
+    /// （キーボード操作前提の keynav 固有機能）と readonly RadioGroup の
+    /// click 保護（ネイティブ `<input type="radio">` の checked 確定・
+    /// headless dispatch 双方の抑止、`data-readonly` の視覚的表示との
+    /// 整合を保つセキュリティ相当の不変条件）を同居させている。
+    /// `keynav` feature を無効化して `wire_keynav` の呼び出し自体を
+    /// 除去すると、TreeView 復元だけでなくこの保護も丸ごと消え、
+    /// readonly RadioGroup が「クリックで選択状態が変わってしまう」
+    /// 退行を招く（`docs/design/wasm-full-feature-gating-evaluation.md`
+    /// §9/§11 条件 4 参照）。
+    ///
+    /// 本関数は `Self::wire`（`lib.rs`、`events::wire_events` の bubble
+    /// リスナー登録）より先に発火する capture フェーズリスナーとして、
+    /// この保護部分のみを複製し、`Runtime::mount`/`hydrate` から
+    /// `keynav` feature に関わらず無条件に呼び出す（`wire_keynav` 有効時
+    /// は同種の判定が二重登録されるが、`stop_propagation`/
+    /// `prevent_default` は冪等であり実害はない）。TreeView 復元
+    /// （`tree_click_pending`）はキーボード操作前提の keynav 固有機能の
+    /// ため本関数には含めない。
+    ///
+    /// # Errors
+    ///
+    /// `add_event_listener_with_callback_and_bool` が失敗した場合に
+    /// `Err` を返す。
+    pub fn wire_readonly_click_guard(root: Element) -> Result<(), JsValue> {
+        let guard_root = root.clone();
+        let guard_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            let Some(target) = event.target() else {
+                return;
+            };
+            let target_element: Element = match target.dyn_ref::<Element>() {
+                Some(element) => element.clone(),
+                None => {
+                    let Some(node) = target.dyn_ref::<web_sys::Node>() else {
+                        return;
+                    };
+                    let Some(parent) = node.parent_element() else {
+                        return;
+                    };
+                    parent
+                }
+            };
+            if !guard_root.contains(Some(&target_element)) {
+                return;
+            }
+            // RadioGroup readonly（イシュー #1616 是正・イシュー #2326
+            // codex-review P1 是正で `wire_keynav` から独立登録に変更）:
+            // `radio_group_readonly_click_outcome` の判定・分岐は
+            // `wire_keynav` の capture リスナーと同一（同関数 doc 参照）。
+            match radio_group_readonly_click_outcome(&target_element) {
+                RadioGroupReadonlyClickOutcome::FullSuppression => {
+                    event.stop_propagation();
+                    event.prevent_default();
+                }
+                RadioGroupReadonlyClickOutcome::PreventDefaultOnly => {
+                    event.prevent_default();
+                }
+                RadioGroupReadonlyClickOutcome::NoSuppression => {}
+            }
+        });
+        root.add_event_listener_with_callback_and_bool(
+            "click",
+            guard_closure.as_ref().unchecked_ref(),
+            true,
+        )?;
+        guard_closure.forget();
+
+        Ok(())
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::wire_keynav;
+pub use wiring::{wire_keynav, wire_readonly_click_guard};

@@ -306,7 +306,7 @@ Popover/Tooltip/NavigationMenu は `false`（Menubar/NavigationMenu はイシュ
   `reposition_within` を自動的に呼び、配線時に一度だけ
   `ensure_global_controller` で thread_local 単一の `PositionController`
   を遅延生成する（イシュー #2209、親 #2208。詳細は
-  `docs/design/wasm-full-architecture.md` §32）。利用者が
+  `docs/design/wasm-full-architecture.md` §34）。利用者が
   `PositionController` を明示的に組み立てなくても popover/tooltip/menu
   の `positioner` へ実座標が書き込まれる。
 - DOM 属性値（`data-side`/`data-requested-side` 等）は改ざんされうる

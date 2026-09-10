@@ -2071,9 +2071,82 @@ position.rs`（配線層）の責務として設計する。評価文書 §7 の
 で付与し wasm-full 側で分岐）が推奨案であり、headless-ui
 `crates/headless-ui/src/select.rs` は不変のまま成立する。
 
-## 33. positioning の自動呼び出し統合（イシュー #2209、親 #2208）
+## 33. 配線群別 feature gating（イシュー #2326）
 
-### 33.1 背景
+### 33.1 背景・目的
+
+REQ-11 の gzip 上限（200,000 B）に対し main は余地がほぼなく、新規配線の
+追加（message-scroller・data-table 等）が上限を割れない懸念が生じた
+（`docs/design/wasm-full-feature-gating-evaluation.md` §12 の再評価トリガー
+が発火）。本イシューは同評価文書 §6 (ii)（配線群別 feature gating）の
+第 1 段（§13 項目 1）として、`Runtime::mount`/`hydrate` が呼ぶ配線
+（`wire_*`）を配線 1 件 = feature 1 件（既定 on）へ分割した。既定は
+すべて on のため、本イシュー単体では既定構成の挙動・`bundle_size` 実測値
+に変化はない（下流〔dist-server 経路の feature 集合決定・CI feature
+matrix〕での活用は同評価文書 §13 項目 3/4 として後続 issue へ引き継ぐ）。
+
+### 33.2 対応表
+
+| `Runtime::mount`/`hydrate` の呼び出し | feature |
+|---|---|
+| `events::wire_events` | ゲートしない（`data-action` 委譲、全構成必須） |
+| `keynav::wire_readonly_click_guard` | ゲートしない（readonly RadioGroup の click capture 保護、イシュー #2326 codex-review 是正で `keynav::wire_keynav` から分離済み） |
+| `keynav::wire_keynav` | `keynav` |
+| `focus_visible::wire_focus_visible` | `focus-visible` |
+| `Runtime::wire_avatar` | `avatar` |
+| `Runtime::wire_clipboard` | `clipboard` |
+| `Runtime::wire_timer` | `timer` |
+| `Runtime::wire_angle_slider` | `angle-slider` |
+| `Runtime::wire_splitter` | `splitter` |
+| `Runtime::wire_signature_pad` | `signature-pad` |
+| `Runtime::wire_number_input` | `number-input` |
+| `Runtime::wire_command` | `command` |
+| `Runtime::wire_sidebar` | `sidebar` |
+| `Runtime::wire_chart` | `chart` |
+| `Runtime::wire_chart_range` | `chart-range` |
+| `Runtime::wire_questionnaire` | `questionnaire` |
+
+`overlay`/`tooltip`/`position`/`focus_trap`/`headless_file_upload`/
+`headless_select` は `Runtime` を経由しないアプリ側直接利用 API のため
+gating 対象外（feature を持たない）。ゲートの粒度は (a) `mount`/`hydrate`
+内の呼び出し文、(b) private `fn wire_*`（12 件）の定義の両方であり、
+モジュール宣言（`pub mod keynav;` 等）自体はゲートしない（テストと
+`examples/interactive-view-transitions/wasm` が直接 import するため。
+モジュールを残しても wasm-ld が到達不能コードを GC するためサイズ効果は
+呼び出し文の除去だけで得られる）。
+
+### 33.3 semver 判断（§11 条件 5 の確定）
+
+同評価文書 §11 条件 5（`default-features = false` 利用者との互換）は
+「(ii) 0.x minor の破壊的変更として移行手順を明記する」方式で確定した。
+理由: (i) の互換維持策（entry のエクスポート面のみを切り離す構成）は
+本体側の削減効果を持たず、§8 (A) の既採用方針と両立しないため。
+`fandhe-frontend-wasm-full` を 0.18.7 → 0.19.0 へ minor バンプし、
+`default-features = false` 利用者が失う 14 配線と、従来挙動を維持する
+ための `features` 明示列挙を `Cargo.toml` コメント・`lib.rs` クレート
+ドキュメントの両方に記載した。
+
+### 33.4 `keynav` off 時の制約（分離完了、イシュー #2326 codex-review 是正）
+
+readonly RadioGroup の click capture 保護（イシュー #1616）は
+`keynav::wire_readonly_click_guard`（上記 33.2 対応表のとおりゲートしない
+常時配線）へ `keynav::wire_keynav` から分離済みである。したがって
+`keynav` を off にしてもこの保護は失われない。本節は当初「保護コードの
+分離は行わず後続 issue へ引き継ぐ」としていたが、イシュー #2326 の
+codex-review 指摘を受けて分離を実装したため、記述を更新した（分離前の
+記述は git 履歴を参照）。
+
+### 33.5 スコープ外・後続への引き継ぎ
+
+`docs/design/wasm-full-feature-gating-evaluation.md` §13 の残項目（keynav
+の scope 分岐・`MAPPING_TABLE` 行の cfg 化とテストの `required-features`
+追随・CI feature matrix・dist-server 経路の feature 集合決定と
+`bundle_size.rs` 契約更新・利用者向け docs/examples 反映）は本イシューの
+スコープ外とし、同文書側で引き続き追跡する（readonly RadioGroup 保護の
+分離は上記 33.4 のとおり完了済み）。
+## 34. positioning の自動呼び出し統合（イシュー #2209、親 #2208）
+
+### 34.1 背景
 
 `position` モジュール（イシュー #590、親 #588。§23 参照）は anchor
 positioning の座標計算・DOM 反映（`wiring::reposition_one`/`reposition_all`・
@@ -2088,7 +2161,7 @@ PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` 
 統合層の責務」として据え置いていた部分）を `wire_headless_component` へ
 実装した経緯・設計判断を記録する。
 
-### 33.2 設計判断
+### 34.2 設計判断
 
 - **`position::reposition_within(root: &Element)` を新設**（`wiring` 内に
   実装し `pub use` で再エクスポート）。root 自身が
@@ -2124,6 +2197,21 @@ PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` 
   ない）。利用者が独自に `PositionController::new` を呼ぶ既存コード
   （`examples/interactive-view-transitions` の menubar 等）とは共存し、
   同一 positioner が二重に再計算されるだけで冪等。
+- **自動呼び出しは新設 feature `position`（既定 on）でゲートする**:
+  #2326（§33）の配線群別 feature 規約は `Runtime::mount`/`hydrate` の
+  `wire_*` 呼び出しを対象としており、本統合点（`headless::
+  wire_headless_component`）はその規約の対象外だが、`position` モジュール
+  自体は同規約以前から「`Runtime` を経由しないアプリ側直接利用 API のため
+  gating 対象外」と位置づけられている（§33.2 対応表）。この位置づけは
+  維持しつつ、**自動呼び出し 3 箇所のみ**（`ensure_global_controller` の
+  呼び出し、配線時 `reposition_within`、dispatch 後 `reposition_within`）を
+  `#[cfg(feature = "position")]` でゲートする（モジュール本体・`pub use`
+  は無条件公開のまま。`examples/interactive-view-transitions` のように
+  `PositionController::new` を直接呼ぶ既存利用者を `default-features =
+  false` で二重に壊さないため）。既定 on のため既定構成の挙動は変わらない
+  一方、REQ-11 の gzip 上限に対する余地確保（#2329 が dist-server 側の
+  feature 集合を最小化する際の分離点）として `position` を off にできる
+  選択肢を用意する。
 - **`style` 属性の完全上書き契約は据え置く**: `reposition_one` は
   `set_attribute("style", ...)` で positioner/arrow の `style` を
   `--fandhe-*` のみへ完全上書きする（既存契約、§23 以前から不変）。
@@ -2137,8 +2225,13 @@ PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` 
   ボーダーボックス）ことで pre-styled-ui 側（#2210）が wasm-full の変更
   なしに実現できる。
 
-### 33.3 対象ファイル
+### 34.3 対象ファイル
 
+- `crates/wasm-full/Cargo.toml`: `[features]` へ `position = []` を新設し
+  `default` へ列挙する。対応表コメント（§33.2 相当）へ「`headless::
+  wire_headless_component` 内の自動 positioning 呼び出し → `"position"`」
+  の行を追加し、`position` モジュール自体・`pub use` はゲート対象外である
+  旨を明記する。
 - `crates/wasm-full/src/position.rs`: `wiring::reposition_within`・
   `wiring::ensure_global_controller`（+ `GLOBAL_CONTROLLER` thread_local）
   を新設し、`reposition_all`/`reposition_within`/`ensure_global_controller`/
@@ -2152,12 +2245,15 @@ PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` 
 - `crates/wasm-full/tests/position_browser.rs`: `wire_headless_component`
   経由の実座標テストを追加（§33.4）。
 
-### 33.4 テスト
+### 34.4 テスト
 
 `crates/wasm-full/tests/position_browser.rs` へ、`wire_headless_component`
-のみで配線した実座標検証（§33.2 の統合層を対象とする、既存 (a)〜(o) は
+のみで配線した実座標検証（§34.2 の統合層を対象とする、既存 (a)〜(o) は
 `PositionController::reposition_now()` の明示呼び出し経路のみを検証して
-いた）を追加した:
+いた）を追加した。tooltip に加え menu / popover も同型で検証し、
+menu / popover は `--fandhe-arrow-x`/`--fandhe-arrow-y` も期待値と厳密
+一致（許容誤差 0.5px）で固定する。いずれも `#[cfg(feature = "position")]`
+配下（既定 on）に置く:
 
 - `wire_headless_component_auto_repositions_tooltip_to_exact_real_coordinates_for_every_side`:
   trigger を `position: fixed; left: 300px; top: 200px; width: 50px;
@@ -2179,6 +2275,13 @@ PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` 
 - `wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_tooltip_content`:
   script/属性インジェクションペイロードを含む content でも、自動再計算
   経路が既定エスケープ保証を弱めないこと（REQ-1 拡張回帰）。
+- `wire_headless_component_auto_repositions_menu_to_exact_real_coordinates`・
+  `wire_headless_component_auto_repositions_popover_to_exact_real_coordinates`:
+  tooltip と同型の厳密一致検証を menu / popover に対しても行い、tooltip
+  限定だった受け入れ条件のギャップを埋める。
+- `wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_menu_content`・
+  `..._for_popover_content`: REQ-1 拡張回帰を menu / popover にも同型で
+  追加する。
 
 いずれも `wasm-pack test --headless --chrome crates/wasm-full --test
 position_browser` で実測 PASS（既存 21 テスト含め全 21 件 PASS）。
@@ -2186,15 +2289,17 @@ position_browser` で実測 PASS（既存 21 テスト含め全 21 件 PASS）�
 （10 件）・`overlay_close_browser.rs`（32 件）が回帰しないことを実測確認
 した（`wire_headless_component` の全体変更のため）。
 
-### 33.5 semver 判断
+### 34.5 semver 判断
 
 新規公開関数（`reposition_within`/`ensure_global_controller`、および
-既存 private だった `reposition_all` の公開昇格）の追加と、既存公開関数
+既存 private だった `reposition_all` の公開昇格）の追加、既存公開関数
 `wire_headless_component` の副作用変更（呼び出しごとに DOM 書き込みが
-増える）を含むため、`fandhe-frontend-wasm-full` は 0.x のマイナーバンプ
-とし、0.18.7 から 0.19.0 とする。
+増える）、および新設 feature `position` の追加を含むため、
+`fandhe-frontend-wasm-full` は 0.x のマイナーバンプとする。base 取り込み
+時点（#2326 の配線群別 feature gating・#2337 の select scrollIntoView を
+経て main は 0.19.1 へ到達済み）に対し +1 して 0.20.0 とする。
 
-### 33.6 スコープ外（Issue 化をユーザーへ提案）
+### 34.6 スコープ外（Issue 化をユーザーへ提案）
 
 - `reposition_one` の `style` 完全上書き（`set_attribute`）から CSSOM
   （`set_property`）への移行（利用者インライン `style` の保全、
@@ -2211,3 +2316,7 @@ position_browser` で実測 PASS（既存 21 テスト含め全 21 件 PASS）�
   （0.7.0 固定のため本イシューでは触れない）。
 - `crates/pre-styled-ui/` 側の `--fandhe-arrow-*` 消費・arrow/arrow-tip の
   `data-side` 連動装飾（親 #2208 の sub-issue #2210 が担当）。
+- REQ-11（gzip 200,000 B 上限）: `position` を既定 on にするため、
+  dist-server 経路の `bundle_size.rs` は #2329（dist-server 最小 feature
+  集合の決定）がマージされるまで FAIL のままである（本イシュー単独では
+  解消しない。feature gating は #2329 が分離手段として使うための布石）。

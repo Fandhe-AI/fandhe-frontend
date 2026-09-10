@@ -900,7 +900,12 @@ pub use wiring::{wire_headless_events, wire_headless_events_scoped};
 /// （部品固有の分岐は持たない）。あわせて配線時に一度だけ
 /// `crate::position::wiring::ensure_global_controller` を呼び、
 /// `thread_local` 単一の `PositionController`（scroll/resize 契機の再計算）
-/// を遅延生成する）。
+/// を遅延生成する）。この自動呼び出し 3 箇所は feature `position`
+/// （既定 on）でゲートする。`position` feature を off にすると
+/// `content_height` の同期のみ行われ、positioning の自動反映は行われない
+/// （`position` モジュール自体・公開 API はゲートしないため、利用者が
+/// 引き続き `PositionController` を明示的に組み立てて呼ぶことはできる。
+/// `docs/design/wasm-full-architecture.md` §34.2）。
 #[cfg(target_arch = "wasm32")]
 pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'static>(
     root: web_sys::Element,
@@ -920,10 +925,13 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
     // 単一 `PositionController` に委ねる（アプリ生存期間に高々 1 組の
     // scroll/resize リスナーのみを登録する契約は `position.rs`
     // `wiring::GLOBAL_CONTROLLER` doc 参照）。
-    if let Some(window) = web_sys::window() {
-        crate::position::ensure_global_controller(&window);
+    #[cfg(feature = "position")]
+    {
+        if let Some(window) = web_sys::window() {
+            crate::position::ensure_global_controller(&window);
+        }
+        crate::position::reposition_within(&root);
     }
-    crate::position::reposition_within(&root);
 
     wire_headless_events(root, move |action_ref: ActionRef| {
         let Ok(mut state) = component.try_borrow_mut() else {
@@ -944,6 +952,7 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
         // `content_height` モジュール doc「`wire_headless_component` との
         // 統合」節・上記 `wire_headless_component` doc 参照）。
         let _ = crate::content_height::sync_content_height(&wired_root);
+        #[cfg(feature = "position")]
         crate::position::reposition_within(&wired_root);
     })
 }

@@ -232,6 +232,87 @@ const NATIVE_SELECT_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="select
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
+
+[data-scope="field"][data-part="select"] > option,
+[data-scope="field"][data-part="select"] > optgroup,
+[data-scope="field"][data-part="select"] > optgroup > option {
+  background-color: var(--fandhe-color-bg, Canvas);
+}
+"#;
+
+/// #2204 直前（純追加開始点）の native_select golden。option/optgroup
+/// 背景色ブロックが `NATIVE_SELECT_GOLDEN_CSS` の末尾へ純追加であることを
+/// `starts_with` で機械固定する（`select_css.rs`
+/// `GOLDEN_PREFIX_THROUGH_HIDDEN_SELECT` と同型）。
+const NATIVE_SELECT_GOLDEN_CSS_BEFORE_2204: &str = r#"[data-scope="field"][data-part="select"] {
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+  color: var(--fandhe-color-fg);
+  background: var(--fandhe-color-bg);
+  border-radius: var(--fandhe-radius-md);
+  transition-property: border-color, background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="field"][data-part="select"].fd-field--size-xs {
+  height: var(--fandhe-size-control-height-xs, 2rem);
+  padding: 0 var(--fandhe-size-control-padding-x-xs, 0.625rem);
+  font-size: var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs));
+}
+
+[data-scope="field"][data-part="select"].fd-field--size-sm {
+  height: var(--fandhe-size-control-height-sm, 2.25rem);
+  padding: 0 var(--fandhe-size-control-padding-x-sm, 0.75rem);
+  font-size: var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm));
+}
+
+[data-scope="field"][data-part="select"].fd-field--size-md {
+  height: var(--fandhe-size-control-height-md, 2.5rem);
+  padding: 0 var(--fandhe-size-control-padding-x-md, 1rem);
+  font-size: var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md));
+}
+
+[data-scope="field"][data-part="select"].fd-field--size-lg {
+  height: var(--fandhe-size-control-height-lg, 2.75rem);
+  padding: 0 var(--fandhe-size-control-padding-x-lg, 1.25rem);
+  font-size: var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg));
+}
+
+[data-scope="field"][data-part="select"].fd-field--size-xl {
+  height: var(--fandhe-size-control-height-xl, 3rem);
+  padding: 0 var(--fandhe-size-control-padding-x-xl, 1.5rem);
+  font-size: var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl));
+}
+
+[data-scope="field"][data-part="select"].fd-field--variant-outline {
+  border: 1px solid var(--fandhe-color-border);
+}
+
+[data-scope="field"][data-part="select"].fd-field--variant-subtle {
+  background: var(--fandhe-color-bg-subtle);
+  border: 1px solid transparent;
+}
+
+[data-scope="field"][data-part="select"].fd-field--variant-plain {
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+[data-scope="field"][data-part="select"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+
+[data-scope="field"][data-part="select"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="field"][data-part="select"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
 "#;
 
 fn field(id: &str) -> FieldProps<'_> {
@@ -259,6 +340,15 @@ fn textarea_css_matches_golden_fixture() {
 #[test]
 fn native_select_css_matches_golden_fixture() {
     assert_eq!(native_select::css(), NATIVE_SELECT_GOLDEN_CSS);
+}
+
+#[test]
+fn native_select_css_purely_appends_option_optgroup_block_over_2204_baseline() {
+    // イシュー #2204: option/optgroup 背景色ブロックが #2204 直前の
+    // golden（`NATIVE_SELECT_GOLDEN_CSS_BEFORE_2204`）への純追加であり、
+    // 既存出力を書き換えていないことを固定する（`select_css.rs`
+    // `GOLDEN_PREFIX_THROUGH_HIDDEN_SELECT` と同型）。
+    assert!(native_select::css().starts_with(NATIVE_SELECT_GOLDEN_CSS_BEFORE_2204));
 }
 
 #[test]
