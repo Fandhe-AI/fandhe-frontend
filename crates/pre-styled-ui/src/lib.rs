@@ -746,6 +746,7 @@ pub mod pin_input;
 pub mod popover;
 pub mod progress;
 pub mod qr_code;
+pub mod questionnaire;
 pub mod quote;
 pub mod radial_chart;
 pub mod radio_card;

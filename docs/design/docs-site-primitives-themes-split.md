@@ -575,6 +575,13 @@ pre-styled-ui recipe・Themes ページは後続 #2119 のスコープのため�
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。
 
+**追記(イシュー #2119)**: `questionnaire` の pre-styled-ui recipe・Themes
+ページ（`crates/pre-styled-ui/src/questionnaire.rs`・
+`/themes/questionnaire/`）を新設し、`PRIMITIVES_WITHOUT_THEMES_PAGE` /
+`HEADLESS_UNWRAPPED`（`tests/wrap_state.rs`）から `questionnaire` を除外
+して `WRAPPED_SAME_NAME` へ移した。Themes は 120→**121** 部品となる
+（Primitives 73 部品は不変）。
+
 **追記(イシュー #2121)**: shadcn/ui のみに存在する `message_scroller`
 （Message Scroller、参照軸 #2001）を Data Display / Utilities カテゴリの
 `message` の後（`scroll_area` の前）に追加する。headless-ui 層のみを
@@ -588,7 +595,8 @@ pre-styled-ui recipe・Themes ページは後続 #2119 のスコープのため�
 `crates/docs-site/tests/primitives_catalog.rs::catalog_has_74_entries_in_six_categories_in_spec_order`
 / `module_counts_are_consistent_with_the_source_tree` が機械検査する
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
-正とする）。
+正とする）。Themes は questionnaire 追加分の 121 部品のまま不変である
+（`message_scroller` の Themes ページは未実装のため）。
 
 ## 8. `component-coverage-map.md` との関係
 

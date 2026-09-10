@@ -11,13 +11,13 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 119 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 120 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
 #2070、`sidebar` はイシュー #2073、`message` はイシュー #2106、`bubble`
 はイシュー #2109、`attachment` はイシュー #2112、`marker` はイシュー
-#2115 で追加）+
+#2115、`questionnaire` はイシュー #2119 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
@@ -82,6 +82,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `bubble`（§4f-7 参照。チャット吹き出し 1 個。6 パーツ構成、軸なし。data-variant/data-align/data-group-position/data-selected/data-state を AttrEq/Attr/AttrEqAll 参照するのみ） | [bubble](../../site/themes/bubble.md) |
 | headless ラッパー | `attachment`（§4f-8 参照。添付ファイル 1 件。8 パーツ構成、軸なし。data-variant/data-state/data-disabled を AttrEq/Attr 参照するのみ） | [attachment](../../site/themes/attachment.md) |
 | headless ラッパー | `marker`（§4f-9 参照。会話中の注記行。3 パーツ構成、軸なし。data-variant/data-tone を AttrEq 参照するのみ） | [marker](../../site/themes/marker.md) |
+| headless ラッパー | `questionnaire`（§4f-10 参照。多段質問 UI。11 パーツ構成、軸なし。data-state/data-answered/data-skipped/data-invalid/data-disabled/data-complete を AttrEq/Attr 参照するのみ） | [questionnaire](../../site/themes/questionnaire.md) |
 | headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
@@ -1052,6 +1053,48 @@ anatomy（`root`/`media`/`content`/`name`/`meta`/`progress`/`actions`/
   （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
 - **docs サイト**: [marker](../../site/themes/marker.md)
   （イシュー #2115 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-10. `questionnaire`（多段質問 UI、イシュー #2119、headless anatomy は #2117、wasm-full 配線は #2118）
+
+`questionnaire` モジュールは `fandhe_frontend_headless_ui::questionnaire`
+の anatomy（`root`/`progress`/`question`/`prompt`/`description`/`options`/
+`freeform`/`actions`/`back`/`next`/`skip` の 11 パーツ）へ、質問カード・
+進捗ゲージ・選択肢の choice card 風表示・completed/upcoming の視覚差を
+重ねる薄い委譲層である。
+
+- **公開 API**: 11 関数すべてが `state: &Questionnaire`（headless-ui の
+  状態機械）を第 1 引数に取り、内部で `state.<part>(...)` へ委譲する
+  （`crate::steps` と同型。headless 側に自由関数がないため）。見た目
+  クラスは付与せず、呼び出し側 `class` を `drop_class_attr` で除去して
+  から委譲する。`QuestionProps`/`QuestionnaireAction`（headless からの
+  再エクスポート）のみを選択的に公開する。`Questionnaire` 状態機械自体は
+  再エクスポートしない（呼び出し側は `fandhe_frontend_headless_ui::
+  questionnaire::Questionnaire` を直接 import する）。`stylesheet()` が
+  静的 CSS 全量を返す。
+- **軸を持たない**: `size`/`colorPalette` は持たず、headless が固定出力
+  する `data-state`（`active`/`completed`/`upcoming`）・`data-answered`/
+  `data-skipped`/`data-invalid`/`data-disabled`/`data-complete` を
+  `StateCondition::Attr`/`AttrEq` で参照するのみ。`data-state="active"`
+  は base と同値のため state 規則を持たない。
+- **`progress` の塗り**: styled `progress` を入れ子にせず、`step`/`count`
+  から百分率を計算した `--fandhe-questionnaire-percent` custom property
+  を `style` へ設定し、CSS の `linear-gradient` で塗り幅を表現する
+  （`crate::progress::range` の `percent_style`/`drop_style_attr` と同型
+  のパターン）。既知の制約: `fandhe-frontend-wasm-full`（イシュー #2118）
+  はクライアント側遷移で `aria-valuenow`/`aria-valuetext` を更新するが
+  本 custom property は更新しないため、遷移直後はアプリ側再描画まで
+  ゲージが古い値を示す。
+- **選択肢の choice card 風表示**: `options` slot 配下の
+  `[data-scope="radio-group"][data-part="item"]`/
+  `[data-scope="checkbox-group"][data-part="item"]` をカード状に整形する
+  子孫セレクタを `stylesheet()` に含む（`SlotRecipe` が子孫セレクタを
+  表現できないための raw CSS 追記、`crate::marker` と同型）。item 自体の
+  基本規則は含まないため、`crate::radio_group::stylesheet`/
+  `crate::checkbox_group::stylesheet` の併用が必要。
+- **`ColorPalette` 軸は持たない**: 本イシューのスコープに含まれない
+  （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
+- **docs サイト**: [questionnaire](../../site/themes/questionnaire.md)
+  （イシュー #2119 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

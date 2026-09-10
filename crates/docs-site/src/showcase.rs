@@ -227,9 +227,17 @@ use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, callout, card, collapsible, combobox, command, menu, popover,
-    radio_group, select, switch, toggle, toggle_tip, tooltip, AlertProps, AlertStatus,
-    AlertVariant, BadgeProps, BadgeVariant, CalloutProps, CalloutVariant, CardProps, CardVariant,
-    ColorPalette, OpenState, Orientation, Size, StyleSheet, StylesheetError, VariantValue,
+    questionnaire, radio_group, select, switch, toggle, toggle_tip, tooltip, AlertProps,
+    AlertStatus, AlertVariant, BadgeProps, BadgeVariant, CalloutProps, CalloutVariant, CardProps,
+    CardVariant, ColorPalette, OpenState, Orientation, Size, StyleSheet, StylesheetError,
+    VariantValue,
+};
+// styled `questionnaire` の状態機械（`Questionnaire`/`QuestionProps`）は
+// headless-ui 側から直接 import する（`crate::questionnaire` は状態機械を
+// 再エクスポートしない、モジュール doc 「全パーツが `state: &Questionnaire`
+// を取る理由」節参照。`crate::steps` の `Steps` 直接 import と同型）。
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::questionnaire::{
+    QuestionProps, Questionnaire,
 };
 
 /// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
@@ -779,6 +787,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: radio_card_section,
     },
     ComponentPage {
+        path: "/themes/questionnaire/",
+        render: questionnaire_section,
+    },
+    ComponentPage {
         path: "/themes/breadcrumb/",
         render: breadcrumb_section,
     },
@@ -1093,6 +1105,12 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::bubble::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::attachment::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::marker::stylesheet())?;
+    // radio_group/checkbox_group（両方とも上段で既に push 済み）の item
+    // 基本規則に、questionnaire の `options` slot 配下でカード状に整形する
+    // 子孫セレクタを重ねる契約のため、両者より後段に置く
+    // （`crates/pre-styled-ui/src/questionnaire.rs` モジュール doc「選択肢の
+    // choice card 風表示」節参照）。
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::questionnaire::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
@@ -9474,6 +9492,278 @@ fn radio_card_section() -> Node {
     )
 }
 
+/// Questionnaire 節（イシュー #2119、headless anatomy は #2117、wasm-full
+/// 配線は #2118）: 進行中/自由記述/完了の 3 インスタンスを静的掲示する。
+/// docs-site は JS ハイドレーションを行わないため、各インスタンスとも
+/// 可視の active な質問は常に 1 件のみ（`crates/pre-styled-ui/src/
+/// questionnaire.rs` モジュール doc「completed / upcoming の可視化契約」
+/// 節参照）。completed/upcoming/skipped な質問も `hidden` 付きで DOM へ
+/// 含めることで、`data-*` 属性表の機械導出（`component_page.rs`）へ
+/// `data-answered`/`data-skipped`/`data-required`/`data-invalid`/
+/// `data-disabled`/`data-complete` のすべてを載せる。
+fn questionnaire_section() -> Node {
+    // 進行中: 1 問目 completed（回答済み）・2 問目 active（choice card 風
+    // options）・3 問目 upcoming。
+    let in_progress_state = Questionnaire::new(3, 1, Orientation::Horizontal);
+    let in_progress = questionnaire::root(
+        &in_progress_state,
+        vec![],
+        vec![
+            questionnaire::progress(&in_progress_state, "回答の進み具合", vec![], vec![]),
+            questionnaire::question(
+                &in_progress_state,
+                0,
+                QuestionProps {
+                    answered: true,
+                    ..QuestionProps::default()
+                },
+                vec![],
+                vec![questionnaire::prompt(
+                    &in_progress_state,
+                    vec![],
+                    vec![text("お名前を教えてください")],
+                )],
+            ),
+            questionnaire::question(
+                &in_progress_state,
+                1,
+                QuestionProps::default(),
+                vec![],
+                vec![
+                    questionnaire::prompt(
+                        &in_progress_state,
+                        vec![],
+                        vec![text("ご利用の目的を選んでください")],
+                    ),
+                    questionnaire::description(
+                        &in_progress_state,
+                        vec![],
+                        vec![text("最も近いものを 1 つ選択してください。")],
+                    ),
+                    questionnaire::options(
+                        &in_progress_state,
+                        vec![],
+                        vec![radio_group::root(
+                            Size::Md,
+                            ColorPalette::Accent,
+                            false,
+                            Some(Orientation::Vertical),
+                            None,
+                            vec![],
+                            [
+                                ("personal", "個人利用", false),
+                                ("team", "チーム利用", false),
+                            ]
+                            .into_iter()
+                            .map(|(value, label, checked)| {
+                                let props = radio_group::RadioGroupProps::default();
+                                radio_group::item(
+                                    checked,
+                                    &props,
+                                    value,
+                                    vec![],
+                                    vec![
+                                        radio_group::item_hidden_input(
+                                            checked,
+                                            &props,
+                                            Some("showcase-questionnaire-purpose"),
+                                            value,
+                                            vec![],
+                                        ),
+                                        radio_group::item_control(checked, &props, vec![]),
+                                        radio_group::item_text(
+                                            checked,
+                                            &props,
+                                            vec![],
+                                            vec![text(label)],
+                                        ),
+                                    ],
+                                )
+                            })
+                            .collect(),
+                        )],
+                    ),
+                ],
+            ),
+            questionnaire::question(
+                &in_progress_state,
+                2,
+                QuestionProps::default(),
+                vec![],
+                vec![questionnaire::prompt(
+                    &in_progress_state,
+                    vec![],
+                    vec![text("最後に一言どうぞ")],
+                )],
+            ),
+            questionnaire::actions(
+                &in_progress_state,
+                vec![],
+                vec![
+                    questionnaire::back(&in_progress_state, false, vec![], vec![text("戻る")]),
+                    questionnaire::skip(&in_progress_state, false, vec![], vec![text("スキップ")]),
+                    questionnaire::next(&in_progress_state, false, vec![], vec![text("次へ")]),
+                ],
+            ),
+        ],
+    );
+
+    // 自由記述: 1 問目 skipped（回答をスキップ済み）・2 問目 active
+    // （required + invalid、freeform に field::label + textarea +
+    // field::error_text を入れ子）・3 問目 upcoming。next/skip は
+    // 必須未回答のため disabled。
+    let freeform_state = Questionnaire::new(3, 1, Orientation::Horizontal);
+    let freeform_field = invalid_field("showcase-questionnaire-freeform");
+    let freeform_instance = questionnaire::root(
+        &freeform_state,
+        vec![],
+        vec![
+            questionnaire::progress(&freeform_state, "回答の進み具合", vec![], vec![]),
+            questionnaire::question(
+                &freeform_state,
+                0,
+                QuestionProps {
+                    skipped: true,
+                    ..QuestionProps::default()
+                },
+                vec![],
+                vec![questionnaire::prompt(
+                    &freeform_state,
+                    vec![],
+                    vec![text("お名前を教えてください")],
+                )],
+            ),
+            questionnaire::question(
+                &freeform_state,
+                1,
+                QuestionProps {
+                    required: true,
+                    invalid: true,
+                    ..QuestionProps::default()
+                },
+                vec![],
+                vec![
+                    questionnaire::prompt(
+                        &freeform_state,
+                        vec![],
+                        vec![text("ご意見・ご要望をお聞かせください")],
+                    ),
+                    questionnaire::freeform(
+                        &freeform_state,
+                        vec![],
+                        vec![
+                            field::label(&freeform_field, vec![], vec![text("ご意見")]),
+                            textarea::textarea(
+                                &TextareaProps::default(),
+                                &freeform_field,
+                                false,
+                                vec![("placeholder", "ご自由にお書きください")],
+                                vec![],
+                            ),
+                            field::error_text(
+                                &freeform_field,
+                                vec![],
+                                vec![text("必須項目です。")],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            questionnaire::question(
+                &freeform_state,
+                2,
+                QuestionProps::default(),
+                vec![],
+                vec![questionnaire::prompt(
+                    &freeform_state,
+                    vec![],
+                    vec![text("最後に一言どうぞ")],
+                )],
+            ),
+            questionnaire::actions(
+                &freeform_state,
+                vec![],
+                vec![
+                    questionnaire::back(&freeform_state, false, vec![], vec![text("戻る")]),
+                    questionnaire::skip(&freeform_state, true, vec![], vec![text("スキップ")]),
+                    questionnaire::next(&freeform_state, true, vec![], vec![text("次へ")]),
+                ],
+            ),
+        ],
+    );
+
+    // 完了: 全質問 completed（`step == count`）。progress は
+    // `data-complete` を持つ。root 直下へ通常の div（サンクスメッセージ）を
+    // 置き、back は活性のまま・next/skip は `step == count` により自動的に
+    // disabled になる。
+    let done_state = Questionnaire::new(3, 3, Orientation::Horizontal);
+    let done_instance = questionnaire::root(
+        &done_state,
+        vec![],
+        vec![
+            questionnaire::progress(&done_state, "回答の進み具合", vec![], vec![]),
+            questionnaire::question(
+                &done_state,
+                0,
+                QuestionProps {
+                    answered: true,
+                    ..QuestionProps::default()
+                },
+                vec![],
+                vec![questionnaire::prompt(
+                    &done_state,
+                    vec![],
+                    vec![text("お名前を教えてください")],
+                )],
+            ),
+            questionnaire::question(
+                &done_state,
+                1,
+                QuestionProps {
+                    answered: true,
+                    ..QuestionProps::default()
+                },
+                vec![],
+                vec![questionnaire::prompt(
+                    &done_state,
+                    vec![],
+                    vec![text("ご利用の目的を選んでください")],
+                )],
+            ),
+            questionnaire::question(
+                &done_state,
+                2,
+                QuestionProps {
+                    answered: true,
+                    ..QuestionProps::default()
+                },
+                vec![],
+                vec![questionnaire::prompt(
+                    &done_state,
+                    vec![],
+                    vec![text("最後に一言どうぞ")],
+                )],
+            ),
+            div(vec![], vec![text("ご回答ありがとうございました。")]),
+            questionnaire::actions(
+                &done_state,
+                vec![],
+                vec![
+                    questionnaire::back(&done_state, false, vec![], vec![text("戻る")]),
+                    questionnaire::skip(&done_state, false, vec![], vec![text("スキップ")]),
+                    questionnaire::next(&done_state, false, vec![], vec![text("次へ")]),
+                ],
+            ),
+        ],
+    );
+
+    section(
+        "Questionnaire",
+        "shadcn/ui Questionnaire 相当の多段質問部品。進捗ゲージ・質問カード・choice card 風の options（RadioGroup を入れ子）・自由記述（field::textarea を入れ子）・completed/upcoming/skipped の各状態を、無 JS の docs サイト向けに静的表示で掲示します（可視の active な質問は各インスタンスとも 1 件のみ）。",
+        vec![stack(vec![in_progress, freeform_instance, done_instance])],
+    )
+}
+
 /// Breadcrumb 節: `size`/[`BreadcrumbVariant`] を既定値で掲示する（イシュー
 /// #755）。状態機械を持たない静的意味論ナビのため、開閉等の状態掲示は不要
 /// （3 階層のパンくずをそのまま組み立てる）。
@@ -14650,7 +14940,8 @@ mod tests {
         // イシュー #2075 で Sidebar を追加し 110 → 111 件になった。
         // イシュー #2109 で Bubble を追加し 111 → 112 件になった。
         // イシュー #2112 で Attachment を追加し 112 → 113 件になった。
-        assert_eq!(paths.len(), 114, "COMPONENT_PAGES should have 114 entries");
+        // イシュー #2119 で questionnaire が加わり 114 → 115。
+        assert_eq!(paths.len(), 115, "COMPONENT_PAGES should have 115 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

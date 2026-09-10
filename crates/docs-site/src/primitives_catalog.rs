@@ -265,8 +265,8 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
     },
     // イシュー #2117: `questionnaire`（11 anatomy パーツ + `Questionnaire`
     // 状態機械、shadcn/ui Questionnaire 相当）を追加。Themes ページは
-    // 後続イシュー #2119 のため `PRIMITIVES_WITHOUT_THEMES_PAGE` へ
-    // 暫定登録する（下記参照）。
+    // イシュー #2119 で実装済み（`PRIMITIVES_WITHOUT_THEMES_PAGE` からは
+    // 除外済み、下記参照）。
     PrimitiveEntry {
         module: "questionnaire",
         path: "/primitives/questionnaire/",
@@ -698,18 +698,18 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// を実装済みのため除外した。`marker` も同様にイシュー #2114 で headless-ui
 /// 層のみ先行実装され暫定的にこの台帳へ載っていたが、イシュー #2115 で
 /// Themes 層（`crates/pre-styled-ui/src/marker.rs`・
-/// `site/themes/marker.md`）を実装済みのため除外した。`questionnaire` は
-/// イシュー #2117 で headless-ui 層のみ先行実装した暫定登録であり、
-/// Themes 層（styled recipe・golden・`site/themes/questionnaire.md`）は
-/// 後続イシュー #2119 のスコープである。`message_scroller` も同様に
-/// イシュー #2121 で headless-ui 層のみ先行実装した暫定登録であり、
-/// Themes 層（styled recipe・golden・`site/themes/message-scroller.md`）は
-/// 後続イシュー #2123 のスコープである。
+/// `site/themes/marker.md`）を実装済みのため除外した。`questionnaire` も
+/// 同様にイシュー #2117 で headless-ui 層のみ先行実装され暫定的にこの台帳へ
+/// 載っていたが、イシュー #2119 で Themes 層（`crates/pre-styled-ui/src/
+/// questionnaire.rs`・`site/themes/questionnaire.md`）を実装済みのため
+/// 除外した。`message_scroller` はイシュー #2121 で headless-ui 層のみ
+/// 先行実装した暫定登録であり、Themes 層（styled recipe・golden・
+/// `site/themes/message-scroller.md`）は後続イシュー #2123 のスコープである。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["message_scroller", "questionnaire"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["message_scroller"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
