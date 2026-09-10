@@ -42,6 +42,13 @@
 //! ブロック（`StateCondition::AttrAll` 由来）を純追加した golden 更新。
 //! 他ブロックはバイト同一（`crates/pre-styled-ui/src/menu.rs` モジュール
 //! rustdoc「destructive（危険操作）項目 `data-danger`」節参照）。
+//!
+//! イシュー #2210 で `arrow-tip` の `transform` を固定 `rotate(45deg)` から
+//! `rotate(var(--fandhe-menu-arrow-rotate, 45deg))` へ変更し、
+//! `positioner[data-side="top"/"left"/"right"]` へ回転変数定義（末尾側
+//! `[data-positioned]` 規則の直前）を追加した golden 更新。他ブロックは
+//! バイト同一（`crates/pre-styled-ui/src/menu.rs` モジュール rustdoc
+//! 「arrow / arrow-tip の `data-side` 連動」節参照）。
 
 use fandhe_frontend_pre_styled_ui::menu;
 
@@ -107,7 +114,7 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   background: var(--fandhe-color-bg);
   border-left: 1px solid var(--fandhe-color-border);
   border-top: 1px solid var(--fandhe-color-border);
-  transform: rotate(45deg);
+  transform: rotate(var(--fandhe-menu-arrow-rotate, 45deg));
 }
 
 [data-scope="menu"][data-part="item"] {
@@ -277,6 +284,18 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
 [data-scope="menu"][data-part="trigger"][data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+[data-scope="menu"][data-part="positioner"][data-side="top"] {
+  --fandhe-menu-arrow-rotate: 225deg;
+}
+
+[data-scope="menu"][data-part="positioner"][data-side="left"] {
+  --fandhe-menu-arrow-rotate: 135deg;
+}
+
+[data-scope="menu"][data-part="positioner"][data-side="right"] {
+  --fandhe-menu-arrow-rotate: 315deg;
 }
 
 [data-scope="menu"][data-part="positioner"][data-positioned] {

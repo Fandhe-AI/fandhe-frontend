@@ -105,7 +105,9 @@
 //! 4. `content` の配色を chakra panel 色（非反転）へ寄せない（参照 4 サイト
 //!    とも反転色が標準であり現状維持が正）。
 //! 5. `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
-//!    [`crate::menu`]/[`crate::popover`] と同じ理由で本イシューの対象外。
+//!    #2041 時点では [`crate::menu`]/[`crate::popover`] と同じ理由で対象外
+//!    としていたが、イシュー #2210 で消費するよう実装した（下記
+//!    「arrow / arrow-tip の `data-side` 連動」節参照）。
 //!
 //! # イシュー #2041 の shadcn/ui 突合（Base UI ベース、2026-09-07 に
 //! pre-styled-ui 視覚言語の主基準の 1 つへ格上げ、
@@ -127,15 +129,18 @@
 //!   に隣接する位置になる。`root` はブロック要素の親内で幅いっぱいに
 //!   広がる一般的な文脈では left/right がトリガーから離れた位置に出る
 //!   （`root` へ `width`/`display` を追加すると既存 tooltip 全件の
-//!   レイアウトに影響するため本イシューでは行わない）。実座標追従が
-//!   実装されればこの制約は解消する。
+//!   レイアウトに影響するため本イシューでは行わない）。**イシュー #2210
+//!   での解消状況**: `fandhe-frontend-wasm-full` のハイドレーション下では
+//!   `positioner[data-positioned]` が `--fandhe-x`/`--fandhe-y` を消費して
+//!   trigger 実測座標へ追従するため解消済み（下記「arrow / arrow-tip の
+//!   `data-side` 連動」節参照）。SSR / no-JS の静的フォールバックでは
+//!   引き続き `root` 幅への依存が残る（構造上の性質であり不具合ではない）。
 //! - **arrow**: `TooltipPrimitive.Arrow` は `size-2.5 rotate-45` の
-//!   ひし形を反転色（`content` と同じ）で描画するが、実際の配置は
-//!   floating-ui（Base UI）由来の実測座標に依存する。本リポジトリは
-//!   実座標追従を意図的に対象外としており（「意図的に参考サイトへ
-//!   合わせない点」5、下記スコープ外節）、静的な三角/ひし形だけを
-//!   追加すると実際のトリガー位置とズレて誤った視覚情報になりかねない
-//!   ため、実座標追従の配線（別イシュー）が前提として先送りする。
+//!   ひし形を反転色（`content` と同じ）で描画する。#2041 時点では実座標
+//!   追従を意図的に対象外としており静的追加を先送りしていたが、イシュー
+//!   #2210 で `--fandhe-arrow-*` 消費（wasm 実測座標）と `data-side` 連動
+//!   回転（SSR 静的フォールバック）を実装した（下記「arrow / arrow-tip の
+//!   `data-side` 連動」節参照）。
 //! - **kbd 併記**: `apps/v4/examples/base/kbd-tooltip.tsx` に `content` 内で
 //!   テキストと [`crate::kbd`] を組み合わせる合成パターンの実例がある。
 //!   **確定した欠落**として docs-site の Examples 節（
@@ -156,15 +161,78 @@
 //!   ドキュメント（`crates/headless-ui/src/tooltip.rs`）で既にスコープ外と
 //!   明記済みのクライアントサイド実行時挙動であり、本モジュールもそれを
 //!   継承する（イシュー #2041 の shadcn/ui `delay` 突合でも再確認済み）。
-//! - `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
-//!   [`crate::menu`]/[`crate::popover`] と同じ理由で本イシューの対象外。
-//! - `arrow`/`arrow-tip` への装飾追加（座標ジオメトリ依存のため対象外を
-//!   継続。イシュー #2041 で shadcn/ui の arrow 実装も実座標依存である
-//!   ことを確認済み）。
 //! - `content`/`positioner` の開閉フェード演出（上記「意図的に参考サイトへ
 //!   合わせない点」3 参照）。
 //! - showcase Demo への hover / disabled 状態の追加掲示（静的掲示のため
 //!   現行方針どおり据え置き）。
+//! - `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）・
+//!   `arrow`/`arrow-tip` への装飾追加はイシュー #2210 で対応済み（下記
+//!   「arrow / arrow-tip の `data-side` 連動」節参照）。
+//!
+//! # arrow / arrow-tip の `data-side` 連動（イシュー #2210）
+//!
+//! `positioner` の `data-side`（wasm 層のみが書き込む、headless SSR 出力
+//! には現れない属性）に連動して、`arrow-tip` の回転角と `arrow` の静的
+//! 座標フォールバックを anchor に面する辺へ合わせる。CSS custom property
+//! の継承（`positioner[data-side=X]` state が `--fandhe-tooltip-arrow-*`
+//! を**定義のみ**し、`arrow`/`arrow-tip` の base 規則が `var(..., ...)` で
+//! **消費**する）で実現し、[`crate::recipe::SlotRecipe`] が持たない子孫
+//! 結合子（イシュー #708 で意図的に非採用）は使わない。
+//!
+//! tooltip は唯一 side ごとの静的 `positioner` ジオメトリを持つ部品
+//! （上記「イシュー #2041 の shadcn/ui 突合」参照）のため、`arrow` の
+//! 静的座標フォールバックも side ごとに持つ（`--fandhe-tooltip-arrow-x`/
+//! `-y`、無指定 = top 配置は下辺中央の `50%`/`100%`）。`popover`/`menu`
+//! は SSR が常に bottom 配置のため、この 2 段目のフォールバックを持たず
+//! `--fandhe-arrow-x`/`-y` への単純フォールバックのみで足りる（差異の
+//! 理由）。wasm 実測座標（`--fandhe-arrow-x`/`-y`）が最優先で消費される
+//! 点は 3 部品共通:
+//!
+//! ```css
+//! [data-scope="tooltip"][data-part="arrow"] {
+//!   left: var(--fandhe-arrow-x, var(--fandhe-tooltip-arrow-x, 50%));
+//!   top: var(--fandhe-arrow-y, var(--fandhe-tooltip-arrow-y, 100%));
+//! }
+//! ```
+//!
+//! 回転値は floating（positioner）が anchor のどちら側に出るかで決まる
+//! （`arrow`/`arrow-tip` は `translate(-50%, -50%)` で辺上に中心配置する
+//! 前提。`arrow-tip` は tooltip の反転色 `content` に合わせ `background:
+//! var(--fandhe-color-fg)`・border なしで描画する）:
+//!
+//! | `data-side` | floating の位置 | 先端の向き | rotate |
+//! |---|---|---|---|
+//! | top（既定・無指定） | anchor の上 | 下 | `225deg` |
+//! | bottom | anchor の下 | 上 | `45deg` |
+//! | left | anchor の左 | 右 | `135deg` |
+//! | right | anchor の右 | 左 | `315deg` |
+//!
+//! ## `[data-positioned]` の順序・リセット（既知の落とし穴）
+//!
+//! `positioner[data-side="left"]`（詳細度 0,3,0）と
+//! `positioner[data-positioned]`（同 0,3,0）は同詳細度で、wasm は同一
+//! `positioner` 要素へ両方を付与しうる。[`crate::recipe::SlotRecipe::
+//! state`] は states を登録順に出力するため、`data-positioned` を 3 件の
+//! `data-side` state より**後**に登録し、`data-side` state が宣言する
+//! 全プロパティ（`top`/`bottom`/`left`/`right`/`margin-*`）を明示的に
+//! リセットする（`margin` ショートハンドで 4 longhand を一括上書き）:
+//!
+//! ```css
+//! [data-scope="tooltip"][data-part="positioner"][data-positioned] {
+//!   position: fixed;
+//!   top: 0;
+//!   left: 0;
+//!   bottom: auto;
+//!   right: auto;
+//!   margin: 0;
+//!   transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
+//! }
+//! ```
+//!
+//! [`crate::menu`]/[`crate::popover`] の同名規則をそのまま複写すると
+//! `bottom: 100%`/`right: 100%` 等が data-side state から生き残ってしまう
+//! （両部品は side ごとの静的ジオメトリを持たないため発生しない、tooltip
+//! 固有の落とし穴）。
 
 use crate::css::decl;
 use crate::recipe::{
@@ -243,6 +311,11 @@ fn recipe() -> SlotRecipe {
         // `data-side` フォールバックのみを追加する。無指定時（=
         // 実質 `top`）は既存の base 宣言（`bottom: 100%; left: 0;`）を
         // そのまま使うため `data-side="top"` 用の追加規則は設けない。
+        // イシュー #2210: `data-side` state へ arrow 座標・回転の CSS
+        // カスタムプロパティ定義を追記する（既存の positioner ジオメトリ
+        // 宣言の後ろへの追記であり、既存宣言の並び替えは行わない）。値は
+        // anchor に面する辺へ arrow の先端を向ける幾何（モジュール rustdoc
+        // 「arrow / arrow-tip の data-side 連動」節参照）。
         .state(
             "positioner",
             StateCondition::AttrEq("data-side", "bottom"),
@@ -251,6 +324,9 @@ fn recipe() -> SlotRecipe {
                 decl("bottom", "auto"),
                 decl("margin-bottom", "0"),
                 decl("margin-top", "var(--fandhe-space-1)"),
+                decl("--fandhe-tooltip-arrow-rotate", "45deg"),
+                decl("--fandhe-tooltip-arrow-x", "50%"),
+                decl("--fandhe-tooltip-arrow-y", "0"),
             ],
         )
         .state(
@@ -263,6 +339,9 @@ fn recipe() -> SlotRecipe {
                 decl("right", "100%"),
                 decl("margin-bottom", "0"),
                 decl("margin-right", "var(--fandhe-space-1)"),
+                decl("--fandhe-tooltip-arrow-rotate", "135deg"),
+                decl("--fandhe-tooltip-arrow-x", "100%"),
+                decl("--fandhe-tooltip-arrow-y", "50%"),
             ],
         )
         .state(
@@ -274,6 +353,34 @@ fn recipe() -> SlotRecipe {
                 decl("left", "100%"),
                 decl("margin-bottom", "0"),
                 decl("margin-left", "var(--fandhe-space-1)"),
+                decl("--fandhe-tooltip-arrow-rotate", "315deg"),
+                decl("--fandhe-tooltip-arrow-x", "0"),
+                decl("--fandhe-tooltip-arrow-y", "50%"),
+            ],
+        )
+        // イシュー #2210: wasm 層が `data-positioned` マーカーを付与したら
+        // 確定座標（viewport 座標系の `position: fixed`）へ切り替える
+        // （[`crate::menu`]/[`crate::popover`] と同型の規則）。
+        // `data-side`/`data-positioned` は同一 positioner 要素に同時に
+        // 付与されうる同詳細度の state であり、states は登録順に出力される
+        // ため、本 state は上記 3 件の `data-side` state より**後**に登録
+        // して、それらが触るプロパティ（top/bottom/left/right/margin-*）を
+        // すべてリセットする（margin ショートハンドで margin-top/-right/
+        // -bottom/-left の 4 longhand を一括上書き）。
+        .state(
+            "positioner",
+            StateCondition::Attr("data-positioned"),
+            vec![
+                decl("position", "fixed"),
+                decl("top", "0"),
+                decl("left", "0"),
+                decl("bottom", "auto"),
+                decl("right", "auto"),
+                decl("margin", "0"),
+                decl(
+                    "transform",
+                    "translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0)",
+                ),
             ],
         )
         .base(
@@ -291,6 +398,48 @@ fn recipe() -> SlotRecipe {
                 decl("box-shadow", "var(--fandhe-shadow-sm)"),
                 decl("padding", "var(--fandhe-space-1) var(--fandhe-space-2)"),
                 decl("max-width", "20rem"),
+            ],
+        )
+        // イシュー #2210: `crates/wasm-full/src/position.rs::reposition_one`
+        // が positioner の `style` に加えて arrow 要素自身の `style` へも
+        // 同じ値を複製するため、arrow の base 規則で直接 `--fandhe-arrow-*`
+        // を参照できる。無指定時（SSR 既定の `data-side` 不在 = 実質
+        // `top` 配置）は `--fandhe-tooltip-arrow-x/-y`（下辺中央）へ
+        // フォールバックする（[`crate::menu`]/[`crate::popover`] と異なり
+        // 既定配置が bottom ではなく top のため、2 段フォールバックが
+        // 必要）。
+        .base(
+            "arrow",
+            vec![
+                decl(
+                    "left",
+                    "var(--fandhe-arrow-x, var(--fandhe-tooltip-arrow-x, 50%))",
+                ),
+                decl(
+                    "top",
+                    "var(--fandhe-arrow-y, var(--fandhe-tooltip-arrow-y, 100%))",
+                ),
+                decl("position", "absolute"),
+                decl("transform", "translate(-50%, -50%)"),
+            ],
+        )
+        .base(
+            "arrow-tip",
+            vec![
+                decl("width", "0.5rem"),
+                decl("height", "0.5rem"),
+                // `content` と同じ反転色（border なし）。shadcn/ui の
+                // `fill-foreground` と同型の意匠（モジュール rustdoc
+                // 「イシュー #2041 の shadcn/ui 突合」節参照）。
+                decl("background", "var(--fandhe-color-fg)"),
+                // `positioner[data-side=...]` state が定義する
+                // `--fandhe-tooltip-arrow-rotate` を消費する。フォール
+                // バック値 225deg は無指定（SSR 既定の top 配置）時の
+                // 先端下向きに相当する。
+                decl(
+                    "transform",
+                    "rotate(var(--fandhe-tooltip-arrow-rotate, 225deg))",
+                ),
             ],
         )
         // イシュー #664 受け入れ条件: `content` の開閉状態に応じた見た目の切り替え。
@@ -376,6 +525,98 @@ mod tests {
         assert!(css.contains(
             "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
         ));
+    }
+
+    #[test]
+    fn positioner_switches_to_fixed_geometry_when_data_positioned_marker_is_present() {
+        // イシュー #2210: wasm 層が付与する `data-positioned` マーカーが
+        // 立っているときのみ、positioner が確定座標（viewport 座標系の
+        // `position: fixed`）へ切り替わることを固定する
+        // （[`crate::menu`]/[`crate::popover`] の同名テストと同型）。
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"tooltip\"][data-part=\"positioner\"][data-positioned] {\n  \
+             position: fixed;\n  top: 0;\n  left: 0;\n  bottom: auto;\n  right: auto;\n  \
+             margin: 0;\n  transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);\n}\n"
+        ));
+    }
+
+    #[test]
+    fn data_positioned_rule_is_emitted_after_data_side_rules_and_resets_side_geometry() {
+        // イシュー #2210 §2.5: `[data-side]`（0,3,0）と `[data-positioned]`
+        // （0,3,0）は同詳細度で、wasm は同一要素に両方を付与しうる。states
+        // は登録順に出力されるため、`data-positioned` を 3 件の `data-side`
+        // state より後段に登録し、`bottom`/`right` 等を確実にリセットする
+        // ことを固定する（menu の規則をそのまま複写すると `bottom: 100%`/
+        // `right: 100%` が生き残る既知の落とし穴、モジュール rustdoc
+        // 参照）。
+        let css = stylesheet();
+        let side_pos = css
+            .find(r#"[data-scope="tooltip"][data-part="positioner"][data-side="right"]"#)
+            .expect("data-side=right rule must exist");
+        let positioned_pos = css
+            .find(r#"[data-scope="tooltip"][data-part="positioner"][data-positioned]"#)
+            .expect("data-positioned rule must exist");
+        assert!(
+            positioned_pos > side_pos,
+            "data-positioned rule must be emitted after the data-side rules"
+        );
+        assert!(css.contains("bottom: auto;"));
+        assert!(css.contains("right: auto;"));
+    }
+
+    #[test]
+    fn arrow_consumes_fandhe_arrow_geometry_css_vars_with_tooltip_specific_fallback() {
+        // イシュー #2210: arrow は `--fandhe-arrow-x`/`--fandhe-arrow-y`
+        // （wasm 実座標）を第一優先で消費しつつ、無指定時は
+        // `--fandhe-tooltip-arrow-x`/`-y`（`data-side` state が定義する
+        // 静的フォールバック）へ、さらにその無指定時は下辺中央（top 配置の
+        // 既定）へ 2 段フォールバックする。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tooltip"][data-part="arrow"]"#));
+        assert!(css.contains("left: var(--fandhe-arrow-x, var(--fandhe-tooltip-arrow-x, 50%));"));
+        assert!(css.contains("top: var(--fandhe-arrow-y, var(--fandhe-tooltip-arrow-y, 100%));"));
+        assert!(css.contains(r#"[data-scope="tooltip"][data-part="arrow-tip"]"#));
+    }
+
+    #[test]
+    fn arrow_tip_rotation_follows_positioner_data_side() {
+        // イシュー #2210 受け入れ条件: `positioner[data-side=...]` に連動して
+        // `--fandhe-tooltip-arrow-rotate` の値が切り替わることを固定する。
+        // 無指定（top 配置の既定）は base のフォールバック値 225deg。
+        let css = stylesheet();
+        assert!(css.contains("transform: rotate(var(--fandhe-tooltip-arrow-rotate, 225deg));"));
+        assert!(
+            css.contains(r#"[data-scope="tooltip"][data-part="positioner"][data-side="bottom"]"#)
+        );
+        assert!(css.contains("--fandhe-tooltip-arrow-rotate: 45deg;"));
+        assert!(css.contains(r#"[data-scope="tooltip"][data-part="positioner"][data-side="left"]"#));
+        assert!(css.contains("--fandhe-tooltip-arrow-rotate: 135deg;"));
+        assert!(
+            css.contains(r#"[data-scope="tooltip"][data-part="positioner"][data-side="right"]"#)
+        );
+        assert!(css.contains("--fandhe-tooltip-arrow-rotate: 315deg;"));
+    }
+
+    #[test]
+    fn position_geometry_var_references_never_lack_an_explicit_fallback() {
+        // イシュー #2210: 位置ジオメトリ変数（`--fandhe-x`/`--fandhe-y`/
+        // `--fandhe-arrow-*`）への `var()` 参照はネストしたものも含め、必ず
+        // 明示フォールバックを持つ（[`crate::menu`]/[`crate::popover`] の
+        // 同名テストと同型）。
+        let css = stylesheet();
+        for marker in ["var(--fandhe-x", "var(--fandhe-y", "var(--fandhe-arrow-"] {
+            for (idx, _) in css.match_indices(marker) {
+                let close = css[idx..]
+                    .find(')')
+                    .expect("every var( occurrence must be closed within the stylesheet");
+                let inside = &css[idx + "var(".len()..idx + close];
+                assert!(
+                    inside.contains(','),
+                    "var() reference without an explicit fallback found: var({inside})"
+                );
+            }
+        }
     }
 
     #[test]

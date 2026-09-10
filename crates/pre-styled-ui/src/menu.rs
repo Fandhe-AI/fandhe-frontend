@@ -77,6 +77,28 @@
 //! `var(--fandhe-arrow-y, 0)` を参照できる（フォールバック値は SSR 既定
 //! placement（bottom）で anchor 中央上端に相当する）。
 //!
+//! # arrow / arrow-tip の `data-side` 連動（イシュー #2210）
+//!
+//! `positioner` の `data-side`（wasm 層のみが書き込む、headless SSR 出力
+//! には現れない属性。上記「位置ジオメトリ」節参照）に連動して、
+//! `arrow-tip` の回転角を anchor に面する辺へ先端が向くよう切り替える。
+//! CSS custom property の継承（`positioner[data-side=X]` state が
+//! `--fandhe-menu-arrow-rotate` を**定義のみ**し、`arrow-tip` の base 規則
+//! が `var(..., 45deg)` で**消費**する）で実現し、[`crate::recipe::
+//! SlotRecipe`] が持たない子孫結合子（イシュー #708 で意図的に非採用）は
+//! 使わない。SSR は常に bottom 配置のため `positioner` 自体のジオメトリ
+//! （position/top/left 等）は `data-side` state で宣言しない（純追加に
+//! 保つ判断）。回転値は floating（positioner）が anchor のどちら側に
+//! 出るかで決まる（`arrow`/`arrow-tip` は `border-left`/`border-top` 固定
+//! + `translate(-50%, -50%)` で辺上に中心配置する前提）:
+//!
+//! | `data-side` | floating の位置 | 先端の向き | rotate |
+//! |---|---|---|---|
+//! | bottom（既定） | anchor の下 | 上 | `45deg` |
+//! | top | anchor の上 | 下 | `225deg` |
+//! | left | anchor の左 | 右 | `135deg` |
+//! | right | anchor の右 | 左 | `315deg` |
+//!
 //! # positioner のオーバーレイ配置（PR #575 Bugbot 指摘対応）
 //!
 //! `positioner` に `position: absolute` を設定し、開いた menu が通常のフローに
@@ -137,7 +159,8 @@
 //! - **`arrow`/`arrow-tip` の座標・寸法は変更しない**: 位置ジオメトリと
 //!   同じ配置契約（イシュー #663）に紐づく幾何値（`0.5rem` 等）であり、
 //!   色（`background`/`border-color`）は既にトークン参照済みのため是正
-//!   対象がない。
+//!   対象がない（`arrow-tip` の回転角のみイシュー #2210 で `data-side`
+//!   連動化した。上記「arrow / arrow-tip の `data-side` 連動」節参照）。
 //! - **`size` variant 軸**: 既存の Xs〜Xl 5 段（イシュー #729/#1681）を
 //!   変更なしで維持。
 //! - **`color-palette`/variant 軸**: menu は元々これらの軸を持たない
@@ -494,7 +517,11 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("border-left", "1px solid var(--fandhe-color-border)"),
                 decl("border-top", "1px solid var(--fandhe-color-border)"),
-                decl("transform", "rotate(45deg)"),
+                // イシュー #2210: `positioner[data-side=...]` state が
+                // 定義する `--fandhe-menu-arrow-rotate` を消費する。
+                // フォールバック値 45deg は無指定（SSR 既定の bottom
+                // 配置）時の従来値と一致する（回帰なし）。
+                decl("transform", "rotate(var(--fandhe-menu-arrow-rotate, 45deg))"),
             ],
         )
         .base(
@@ -757,6 +784,28 @@ fn recipe() -> SlotRecipe {
             "trigger",
             StateCondition::Hover,
             hover_surface_declarations(),
+        )
+        // イシュー #2210: `positioner` の `data-side`（wasm 層のみが書き込む、
+        // headless SSR 出力には現れない）に連動して arrow-tip の回転角を
+        // 切り替える。回転変数の**定義のみ**を宣言し、positioner 自体の
+        // ジオメトリ（position/top/left 等）には触れない（SSR は常に
+        // bottom 配置のため、popover と同じくジオメトリ宣言は不要）。
+        // 値は anchor に面する辺へ先端を向ける幾何（モジュール rustdoc
+        // 「arrow / arrow-tip の data-side 連動」節参照）。
+        .state(
+            "positioner",
+            StateCondition::AttrEq("data-side", "top"),
+            vec![decl("--fandhe-menu-arrow-rotate", "225deg")],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEq("data-side", "left"),
+            vec![decl("--fandhe-menu-arrow-rotate", "135deg")],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEq("data-side", "right"),
+            vec![decl("--fandhe-menu-arrow-rotate", "315deg")],
         )
         // イシュー #663: wasm 層が `data-positioned` マーカーを付与したら
         // 確定座標（viewport 座標系の `position: fixed`）へ切り替える
@@ -1263,6 +1312,21 @@ mod tests {
         assert!(css.contains("left: var(--fandhe-arrow-x, 50%);"));
         assert!(css.contains("top: var(--fandhe-arrow-y, 0);"));
         assert!(css.contains(r#"[data-scope="menu"][data-part="arrow-tip"]"#));
+    }
+
+    #[test]
+    fn arrow_tip_rotation_follows_positioner_data_side() {
+        // イシュー #2210 受け入れ条件: `positioner[data-side=...]` に連動して
+        // `--fandhe-menu-arrow-rotate` の値が切り替わることを固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="arrow-tip"]"#));
+        assert!(css.contains("transform: rotate(var(--fandhe-menu-arrow-rotate, 45deg));"));
+        assert!(css.contains(r#"[data-scope="menu"][data-part="positioner"][data-side="top"]"#));
+        assert!(css.contains("--fandhe-menu-arrow-rotate: 225deg;"));
+        assert!(css.contains(r#"[data-scope="menu"][data-part="positioner"][data-side="left"]"#));
+        assert!(css.contains("--fandhe-menu-arrow-rotate: 135deg;"));
+        assert!(css.contains(r#"[data-scope="menu"][data-part="positioner"][data-side="right"]"#));
+        assert!(css.contains("--fandhe-menu-arrow-rotate: 315deg;"));
     }
 
     #[test]

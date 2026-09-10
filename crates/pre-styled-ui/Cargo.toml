@@ -3243,7 +3243,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 比較すると、origin/main が本ブランチを上回っている。本ブランチの実体変更
 # （native_select option/optgroup システムカラー適用）は非破壊的な追加のため、
 # origin/main の到達値 0.183.0 をさらに patch バンプし 0.183.1 とする。
-version = "0.183.1"
+# イシュー #2210: tooltip / menu / popover の arrow / arrow-tip へ
+# data-side 連動の回転・座標装飾を追加した（menu の arrow-tip 回転値変更・
+# popover/tooltip への arrow/arrow-tip base 新設・3 部品への
+# positioner[data-side=...]/[data-positioned] state 追加）。公開 API
+# シグネチャの変更を伴わない CSS 出力の純追加・既存宣言の値変更のみ
+# （関数シグネチャ非破壊）のため patch バンプとし、0.183.1 を +1 した
+# 0.183.2 とする。
+version = "0.183.2"
 
 
 edition = "2021"
