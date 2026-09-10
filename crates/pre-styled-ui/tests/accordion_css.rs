@@ -183,8 +183,10 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
 [data-scope="accordion"][data-part="item-content"] {
   box-sizing: border-box;
   overflow: hidden;
+  --fandhe-content-height: initial;
   height: var(--fandhe-content-height, auto);
-  transition-property: height, padding-block, display;
+  height: calc-size(auto, size);
+  transition-property: height, padding-block, margin-block, display;
   transition-duration: var(--fandhe-motion-duration-normal);
   transition-timing-function: var(--fandhe-motion-easing-standard);
   transition-behavior: allow-discrete;
@@ -240,12 +242,14 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
 [data-scope="accordion"][data-part="item-content"][hidden] {
   height: 0;
   padding-block: 0;
+  margin-block: 0;
 }
 
 @starting-style {
   [data-scope="accordion"][data-part="item-content"] {
     height: 0;
     padding-block: 0;
+    margin-block: 0;
   }
 }
 

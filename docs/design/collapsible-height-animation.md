@@ -147,13 +147,24 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
   スナップする一方 `padding-block` は `0 → P` を補間できてしまい、200ms
   かけて padding だけが広がる見た目になり得るが、閉じ切る直前の padding
   ジャンプを消す利点（サポート経路の見た目）を優先した。
-- **既知の限界（定常状態のクリップ）**: 開いた定常状態で `height: <px>`
-  固定 + `overflow: hidden` のため、ウィンドウ幅変化で本文が伸びた場合や
-  内包要素の後発的な高さ変化（#2191 の同期タイミング外）でクリップされ
-  得る。#2191 が記録する「縮んだ場合に前回値が残る」限界（§5.1）とは
-  逆方向の限界であり、対策（`interpolate-size: allow-keywords` の
-  progressive enhancement・resize 時の再同期）は本イシューのスコープ外
-  として別イシュー提案の対象とする。
+- **既知の限界（定常状態のクリップ）→ `calc-size()` progressive
+  enhancement で部分解消（PR #2289 codex レビュー是正）**: 当初は開いた
+  定常状態で `height: <px>` 固定 + `overflow: hidden` のため、ウィンドウ幅
+  変化で本文が伸びた場合や内包要素の後発的な高さ変化（#2191 の同期
+  タイミング外）でクリップされる限界があった。対策として予告していた
+  `interpolate-size: allow-keywords` 系の progressive enhancement を
+  `content_height_open_declarations` へ実装した: `height: var(--fandhe-
+  content-height, auto)` の直後に `height: calc-size(auto, size)` を
+  追加登録し、未対応ブラウザではこの宣言が構文解析時点で無効となり
+  直前の var 参照がそのまま有効に残る（優雅な劣化）。対応ブラウザでは
+  非遷移時の定常状態が常に `auto` として評価されるため、内容の後発的な
+  高さ変化にも継続追従しクリップされなくなる（`calc-size()` は
+  `interpolate-size: allow-keywords` を当該宣言へ自動適用する仕様のため、
+  `0 → 定常値` のトランジションも同時に成立する）。**残存する限界**:
+  `calc-size()` 未対応ブラウザでは今も固定 px + JS 実測タイミングに
+  限定されたクリップの限界が残る（resize 時の再同期は引き続き本イシュー
+  のスコープ外・別イシュー提案の対象）。#2191 が記録する「縮んだ場合に
+  前回値が残る」限界（§5.1）はブラウザ対応状況によらず不変。
 - **`scrollHeight` は border を含まない**ため、border-box で
   `height: <scrollHeight>px` を当てると collapsible（1px border）では
   content 領域が上下計 2px 短くなる（`overflow: hidden` の切り取り境界は

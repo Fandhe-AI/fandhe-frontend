@@ -656,34 +656,93 @@ pub const CONTENT_HEIGHT_VAR: &str = "--fandhe-content-height";
 const CONTENT_HEIGHT_VAR_REF: &str = "var(--fandhe-content-height, auto)";
 
 /// [`SlotRecipe::content_height_transition`] が base（非 `hidden`）状態へ
-/// 登録する宣言（イシュー #2192）。`box-sizing: border-box` は wasm-full の
-/// 実測値（`scrollHeight`、padding 込み）と齟齬なく `height` を適用する
-/// ため、`overflow: hidden` は縮む方向の遷移中に内容を切り取るために
-/// それぞれ必須。`transition-property` に `display` を含めるため
+/// 登録する宣言（イシュー #2192、codex レビュー是正で追補）。
+/// `box-sizing: border-box` は wasm-full の実測値（`scrollHeight`、
+/// padding 込み）と齟齬なく `height` を適用するため、`overflow: hidden`
+/// は縮む方向の遷移中に内容を切り取るためにそれぞれ必須。
+/// `transition-property` に `display` を含めるため
 /// [`transition_declarations_allow_discrete`] を使う（`hidden` 属性による
 /// `display: none` の実適用を遷移完了まで遅延させる）。
+///
+/// # `--fandhe-content-height: initial` を各 content 要素で明示する理由
+///
+/// CSS custom property は既定で継承される。wasm-full の測定・書き込みは
+/// `[data-scope="collapsible"][data-part="content"]` 等、対象要素**自身**
+/// への CSSOM `set_property`（インライン style）であり、祖先要素へ書く
+/// ことはない。しかし本 slot の base ブロックがこの宣言を持たないと、
+/// 入れ子の disclosure（例: accordion `item-content` の中に別の
+/// collapsible が入る構成）で未測定の子要素が `var(--fandhe-content-
+/// height, auto)` を評価する際、自身に値が無ければ祖先の実測値を
+/// **継承**してしまい、祖先の高さを誤って自身の高さとして適用する
+/// （`docs/design/collapsible-height-animation.md` §5.2、PR #2289 codex
+/// レビュー指摘）。`initial` をここで明示すると、この宣言はカスケード上
+/// 常に「祖先からの継承値」より後（同一要素・同一詳細度の中で最後）に
+/// 評価されるため一旦リセットされ、その後 JS が当該要素へ書き込む
+/// インライン style（詳細度が常に上回る）だけが実効値として残る。
+/// 測定前は `initial` → `var()` のフォールバック `auto` が効き、祖先の
+/// 値を誤って継承しない。
+///
+/// # 開いた定常状態でのクリップ対策（`calc-size()` progressive
+/// enhancement）
+///
+/// `height: var(--fandhe-content-height, auto)` は wasm-full が配線時・
+/// `on_update` 直後にしか測定しないため、開いた定常状態で内容が後から
+/// 伸びる（ウィンドウ幅変化による折り返し増加・画像の遅延読み込み等）と
+/// 固定 px 高さのまま `overflow: hidden` に切り取られる限界があった
+/// （`docs/design/collapsible-height-animation.md` §5.2「既知の限界
+/// （定常状態のクリップ）」。同節が対策として挙げる
+/// `interpolate-size: allow-keywords` の progressive enhancement を
+/// 具体化する）。`height: calc-size(auto, size)`
+/// を var 参照の直後に追加で登録する: `calc-size()` 未対応ブラウザでは
+/// この宣言全体が構文解析時点で無効となり同一規則内の直前の `height`
+/// 宣言（var 参照）がそのまま有効のまま残る（CSS の標準的な優雅な
+/// 劣化。未対応ブラウザは従来どおり固定 px + JS 測定に留まり、既知の
+/// 限界も従来どおり残る）。対応ブラウザでは非遷移時の定常状態の
+/// `calc-size(auto, size)` は `height: auto` と等価に評価され（内容の
+/// 変化に継続追従し、固定値へピン留めされない）、かつ `0 → 定常値` の
+/// トランジションも同時に成立する（`calc-size()` は自動的に
+/// `interpolate-size: allow-keywords` を当該宣言へ適用する仕様）。
+/// この経路では wasm-full の測定結果を待たずに開閉トランジション自体が
+/// 成立するため、対応ブラウザでは実質的に「JS 測定なしでも動く」上位
+/// 互換となる。
 #[must_use]
 pub fn content_height_open_declarations(duration: MotionDuration) -> Vec<Declaration> {
     let mut declarations = vec![
         decl("box-sizing", "border-box"),
         decl("overflow", "hidden"),
+        decl(CONTENT_HEIGHT_VAR, "initial"),
         decl("height", CONTENT_HEIGHT_VAR_REF),
+        decl("height", "calc-size(auto, size)"),
     ];
     declarations.extend(transition_declarations_allow_discrete(
-        "height, padding-block, display",
+        "height, padding-block, margin-block, display",
         duration,
     ));
     declarations
 }
 
 /// [`SlotRecipe::content_height_transition`] が `[hidden]` state・
-/// `@starting-style` の両方へ登録する縮小状態の宣言（イシュー #2192）。
+/// `@starting-style` の両方へ登録する縮小状態の宣言（イシュー #2192、
+/// Bugbot 指摘を受け `margin-block: 0` を追補）。
 /// `padding-block: 0` も含めるのは、`height: 0` 単独だと閉じる途中で
 /// padding 分の高さが残ったまま `display: none` に落ちる見た目のジャンプ
 /// を避けるため（`docs/design/collapsible-height-animation.md` §5.2）。
+/// `margin-block: 0` も同じ理由: `crate::collapsible` の content slot は
+/// `margin-top: var(--fandhe-space-2)` を base で宣言するが、閉状態
+/// （`[hidden]`）・`@starting-style` の双方がこれを 0 へ縮めないと、
+/// `height`/`padding-block` が 0 へアニメーションし切った後も margin
+/// だけが残り、`display: none` 適用の瞬間に隙間が唐突に消える見た目の
+/// ジャンプが生じる（PR #2289 Bugbot 指摘）。`content_height_open_
+/// declarations` の `transition-property` に `margin-block` を含めて
+/// あるため、他部品（`margin-block` を宣言しない accordion
+/// `item-content` 等）では実質 no-op のまま安全に共有できる。
 #[must_use]
 pub fn content_height_closed_declarations() -> Vec<Declaration> {
-    vec![decl("height", "0"), decl("padding-block", "0")]
+    vec![
+        decl("height", "0"),
+        decl("padding-block", "0"),
+        decl("margin-block", "0"),
+    ]
 }
 
 /// slot 1 個への base 宣言登録（内部表現）。
@@ -1280,9 +1339,13 @@ impl SlotRecipe {
     /// `--fandhe-content-height` の実測・書き込みは `fandhe-frontend-
     /// wasm-full`（[`CONTENT_HEIGHT_VAR`] rustdoc 参照）が担う。本メソッドは
     /// 変数が未設定（JS 無効・wasm-full 未配線）でも `auto` フォールバックで
-    /// 安全に劣化するが、逆に変数が設定された状態からの内容の後発的な高さ
-    /// 変化には追従しない（実測は wasm-full 側の配線タイミングに限る、
-    /// 既知の限界。同設計文書 §5.2 参照）。
+    /// 安全に劣化する。`calc-size()` 対応ブラウザ（[`content_height_open_
+    /// declarations`] rustdoc 参照）では開いた定常状態が常に `auto` として
+    /// 評価されるため、内容の後発的な高さ変化（ウィンドウ幅変化・遅延
+    /// 読み込み等）にも継続追従しクリップされない。未対応ブラウザでは
+    /// 従来どおり wasm-full の実測タイミング（配線時・`on_update` 直後）
+    /// に限られたままであり、その間の後発的な高さ変化には追従しない
+    /// （既知の限界、同設計文書 §5.2 参照）。
     #[must_use]
     pub fn content_height_transition(self, slot: &'static str, duration: MotionDuration) -> Self {
         self.base(slot, content_height_open_declarations(duration))

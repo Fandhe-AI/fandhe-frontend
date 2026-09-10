@@ -978,12 +978,18 @@ fn content_height_transition_preset_registers_base_state_and_starting_style() {
         .content_height_transition("content", MotionDuration::Normal);
     let css = recipe.css();
 
-    // base: フォールバック付き `var()` 参照であり、`display` 宣言そのもの
-    // は持たない（`transition-property` の列挙に `display` を含むのみ）。
+    // base: `--fandhe-content-height` を自要素で `initial` へリセット
+    // してから、フォールバック付き `var()` 参照 → `calc-size()`
+    // progressive enhancement の順で `height` を 2 回宣言する
+    // （未対応ブラウザは構文解析時点で `calc-size()` 宣言が無効となり
+    // 直前の `var()` 参照が有効なまま残る）。`display` 宣言そのものは
+    // 持たない（`transition-property` の列挙に `display` を含むのみ）。
+    assert!(css.contains(&format!("{CONTENT_HEIGHT_VAR}: initial;")));
     assert!(css.contains(&format!("height: var({CONTENT_HEIGHT_VAR}, auto);")));
+    assert!(css.contains("height: calc-size(auto, size);"));
     assert!(css.contains("box-sizing: border-box;"));
     assert!(css.contains("overflow: hidden;"));
-    assert!(css.contains("transition-property: height, padding-block, display;"));
+    assert!(css.contains("transition-property: height, padding-block, margin-block, display;"));
     assert!(css.contains("transition-behavior: allow-discrete;"));
     assert!(!css.contains("display: none;"));
     assert!(!css.contains("display: block;"));
@@ -997,6 +1003,7 @@ fn content_height_transition_preset_registers_base_state_and_starting_style() {
         "  [data-scope=\"collapsible\"][data-part=\"content\"] {\n",
         "    height: 0;\n",
         "    padding-block: 0;\n",
+        "    margin-block: 0;\n",
         "  }\n",
         "}\n",
     );
@@ -1010,19 +1017,28 @@ fn content_height_declarations_helpers_match_preset_contract() {
     assert_eq!(open[0].value(), "border-box");
     assert_eq!(open[1].property(), "overflow");
     assert_eq!(open[1].value(), "hidden");
-    assert_eq!(open[2].property(), "height");
-    assert_eq!(open[2].value(), format!("var({CONTENT_HEIGHT_VAR}, auto)"));
-    assert_eq!(open[3].property(), "transition-property");
-    assert_eq!(open[3].value(), "height, padding-block, display");
+    assert_eq!(open[2].property(), CONTENT_HEIGHT_VAR);
+    assert_eq!(open[2].value(), "initial");
+    assert_eq!(open[3].property(), "height");
+    assert_eq!(open[3].value(), format!("var({CONTENT_HEIGHT_VAR}, auto)"));
+    assert_eq!(open[4].property(), "height");
+    assert_eq!(open[4].value(), "calc-size(auto, size)");
+    assert_eq!(open[5].property(), "transition-property");
+    assert_eq!(
+        open[5].value(),
+        "height, padding-block, margin-block, display"
+    );
     assert_eq!(open.last().unwrap().property(), "transition-behavior");
     assert_eq!(open.last().unwrap().value(), "allow-discrete");
 
     let closed = content_height_closed_declarations();
-    assert_eq!(closed.len(), 2);
+    assert_eq!(closed.len(), 3);
     assert_eq!(closed[0].property(), "height");
     assert_eq!(closed[0].value(), "0");
     assert_eq!(closed[1].property(), "padding-block");
     assert_eq!(closed[1].value(), "0");
+    assert_eq!(closed[2].property(), "margin-block");
+    assert_eq!(closed[2].value(), "0");
 }
 
 #[test]

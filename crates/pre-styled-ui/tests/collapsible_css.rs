@@ -128,8 +128,10 @@ const COLLAPSIBLE_GOLDEN_CSS: &str = r#"[data-scope="collapsible"][data-part="ro
 [data-scope="collapsible"][data-part="content"] {
   box-sizing: border-box;
   overflow: hidden;
+  --fandhe-content-height: initial;
   height: var(--fandhe-content-height, auto);
-  transition-property: height, padding-block, display;
+  height: calc-size(auto, size);
+  transition-property: height, padding-block, margin-block, display;
   transition-duration: var(--fandhe-motion-duration-normal);
   transition-timing-function: var(--fandhe-motion-easing-standard);
   transition-behavior: allow-discrete;
@@ -160,12 +162,14 @@ const COLLAPSIBLE_GOLDEN_CSS: &str = r#"[data-scope="collapsible"][data-part="ro
 [data-scope="collapsible"][data-part="content"][hidden] {
   height: 0;
   padding-block: 0;
+  margin-block: 0;
 }
 
 @starting-style {
   [data-scope="collapsible"][data-part="content"] {
     height: 0;
     padding-block: 0;
+    margin-block: 0;
   }
 }
 
