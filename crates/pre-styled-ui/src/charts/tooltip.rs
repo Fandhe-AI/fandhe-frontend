@@ -405,7 +405,20 @@ fn recipe() -> SlotRecipe {
         // のまま変化しない。
         .state("datum", StateCondition::Attr("data-index"), {
             let mut decls = vec![decl("opacity", "var(--fandhe-chart-inactive-opacity, 1)")];
-            decls.extend(transition_declarations("opacity", MotionDuration::Fast));
+            // イシュー #2131 codex-review P2 是正: この規則の
+            // `transition-property` は base（`recipe()` 冒頭）が既に
+            // 宣言した `stroke, stroke-width` を同一 slot・同一
+            // プロパティのソース順後勝ちで上書きしてしまうため、
+            // `data-has-active` を持たない通常状態でも既存の
+            // `datum:hover` による線色・線幅変化が transition なしの
+            // 即時切替になっていた。`opacity` 単独ではなく
+            // `stroke, stroke-width, opacity` をまとめて指定し、
+            // 既存の hover transition を保持したまま減光の transition
+            // を追加する。
+            decls.extend(transition_declarations(
+                "stroke, stroke-width, opacity",
+                MotionDuration::Fast,
+            ));
             decls
         })
         // イシュー #2131: active な点は `[data-index]` の減光を上書きし
