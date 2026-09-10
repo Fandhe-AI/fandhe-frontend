@@ -261,3 +261,34 @@ fn validated_theme_constructed_via_upsert_only_never_contains_angle_bracket() {
     assert!(!css.contains('>'));
     assert!(!css.contains("</style>"));
 }
+
+#[test]
+fn push_breakpoint_rejects_injection_payloads_and_duplicate_name() {
+    // イシュー #2197 で新設した breakpoints グループも、z-indices/focus-ring
+    // と同じ `CssValue`/`TokenName` allowlist（fail-closed）を経由することを
+    // 固定する。
+    let mut theme = Theme::empty();
+    assert!(theme.push_breakpoint("sm", "640px; } .evil {").is_err());
+    assert!(theme
+        .push_breakpoint("sm", "</style><script>alert(1)</script>")
+        .is_err());
+    assert!(theme.push_breakpoint("sm!", "640px").is_err());
+
+    theme.push_breakpoint("sm", "640px").unwrap();
+    assert!(theme.push_breakpoint("sm", "700px").is_err());
+}
+
+#[test]
+fn upsert_breakpoint_rejects_injection_payloads_without_mutation() {
+    // イシュー #2197: upsert_breakpoint も push_breakpoint と同じ
+    // allowlist 検証を唯一の入口とし、迂回経路にならないことを固定する。
+    let mut theme = Theme::empty();
+    assert!(theme
+        .upsert_breakpoint("sm", "expression(alert(1))")
+        .is_err());
+    assert!(theme.upsert_breakpoint("sm;evil", "640px").is_err());
+
+    // 検証失敗後も theme は空のまま（部分書き込みなし）。
+    let css = theme.to_css();
+    assert!(!css.contains("--fandhe-breakpoint-"));
+}

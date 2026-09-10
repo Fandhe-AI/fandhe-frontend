@@ -12,14 +12,22 @@
 //! 内部ストレージは `Vec` のみを使い、`HashMap`/`HashSet` は使わない
 //! （反復順序がプロセスごとに変わりうる型を持ち込まない）。[`SlotRecipe::css`]
 //! の出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound variants
-//! （登録順、イシュー #604）→ states（登録順、イシュー #643）」に固定し、
+//! （登録順、イシュー #604）→ states（登録順、イシュー #643）→ breakpoints
+//! （[`Breakpoint`] の昇順、イシュー #2197）→ hover（[`StateCondition::Hover`]
+//! 等の `@media (hover: hover)` ブロック、常に最後尾）」に固定し、
 //! 同一 slot・同一 axis/value への複数回登録は「後に登録された規則が CSS 中で
 //! 後に出力される」（CSS のカスケードにおいて後勝ちになる）という素直な規約に
-//! 従う。この規約より複雑な優先順位判定は行わない。states を最後尾に置くのは、
-//! 各 styled 部品が従来 `state_css()`（`serialize_rule` 直呼び）で手書きして
-//! いた `data-state` 連動規則を [`SlotRecipe::state`] へ移行した際に、
-//! 「`stylesheet() = recipe().css() + state_css()`（状態規則が常に最後）」
-//! という既存のカスケード上の性質をそのまま保存するため（イシュー #643）。
+//! 従う。この規約より複雑な優先順位判定は行わない。states を
+//! variants/compound variants の直後（breakpoints・hover よりは前）に
+//! 置くのは、各 styled 部品が従来 `state_css()`（`serialize_rule`
+//! 直呼び）で手書きしていた `data-state` 連動規則を [`SlotRecipe::state`] へ
+//! 移行した際に、「`stylesheet() = recipe().css() + state_css()`（状態規則が
+//! 常に最後）」という既存のカスケード上の性質をそのまま保存するため
+//! （イシュー #643）。breakpoints を states の後・hover の前に置くのは、
+//! `@media (min-width: ...)` によるレイアウト調整が通常の状態規則より
+//! 優先されるべきだが、タッチ端末の hover 貼り付き対策（イシュー #1425）で
+//! 集約している hover ブロックより手前に置くことでカスケード上の意味を
+//! 単純に保つため（[`SlotRecipe::breakpoint`] rustdoc 参照）。
 //!
 //! # 状態条件付き規則（イシュー #643）
 //!
@@ -52,6 +60,25 @@
 //! 切り替わる。styled 部品側の色宣言は `var(--fandhe-palette)` 等を参照する
 //! だけでよく、palette 軸の追加を機に既存の `var(--fandhe-color-accent)` 直書き
 //! を書き換える（Button/Badge/Spinner/Alert、`crate` rustdoc 参照）。
+//!
+//! # breakpoint 条件（イシュー #2197）
+//!
+//! [`SlotRecipe::breakpoint`] は `@media (min-width: ...)` を伴う規則を
+//! 登録する。[`Breakpoint`] enum の 4 段（`sm`=640px/`md`=768px/`lg`=1024px/
+//! `xl`=1280px）は shadcn/ui（Tailwind v4 既定）・chakra-ui v3 の値と
+//! `sm` 以外で完全一致する（比較・採用根拠は
+//! `docs/design/pre-styled-ui-scale-tokens.md` §3.6 参照）。`min_width()` が
+//! 返すリテラルが `@media` プレリュードの**唯一の**組み立て元であり、
+//! [`crate::theme::Theme`] 側の同名トークン（`--fandhe-breakpoint-<段>`）は
+//! CSS custom property が `@media` プレリュードで使えない制約により
+//! **参照専用**（JS の `matchMedia`・利用者の独自スタイルシート向け）で
+//! [`SlotRecipe::css`] の出力には一切関与しない。両者の値は `Breakpoint`
+//! を唯一の定義元として構築するため手打ちドリフトが起きない
+//! （`crate::theme::DEFAULT_BREAKPOINTS` 参照）。
+//!
+//! breakpoint × variant / breakpoint × state の複合条件（`@media` 内での
+//! `.fd-<scope>--<axis>-<value>` や `:hover` 規則）は本イシューのスコープ外
+//! （`docs/design/pre-styled-ui-scale-tokens.md` §7 の再評価トリガー参照）。
 
 use crate::css::{decl, is_valid_identifier, serialize_rule, Declaration};
 
@@ -116,6 +143,80 @@ impl VariantValue for Size {
             Size::Md => "md",
             Size::Lg => "lg",
             Size::Xl => "xl",
+        }
+    }
+}
+
+/// レスポンシブブレークポイント（`@media (min-width: ...)`）の閾値
+/// （イシュー #2197）。[`StateCondition`] と並ぶ「条件」だが、variant 軸
+/// （[`VariantValue`]）でも状態条件（[`StateCondition`]）でもない別カテゴリ
+/// のため独立した enum とする（[`SlotRecipe::breakpoint`] からのみ使う。
+/// 公開 `match` の網羅性を壊さないよう、既存の `StateCondition` へ variant
+/// を追加する形は採らない）。
+///
+/// `sm`/`md`/`lg`/`xl` の 4 段のみを持つ（`2xl` は追加しない。[`Size`] の
+/// 「共通 enum に載せると全部品が空の段を抱える」前例と同じ判断。必要になった
+/// 時点で純追加できる）。値は shadcn/ui（Tailwind v4 既定）・chakra-ui v3 と
+/// `sm` 以外で完全一致する（比較表は
+/// `docs/design/pre-styled-ui-scale-tokens.md` §3.6 参照）。既定値
+/// （`Default`）は実装しない（[`Size`]/[`ColorPalette`] と異なり呼び出し元が
+/// 明示的に段を選ぶ契約のため、安全側判断）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Breakpoint {
+    /// `>= 640px`。
+    Sm,
+    /// `>= 768px`。
+    Md,
+    /// `>= 1024px`。
+    Lg,
+    /// `>= 1280px`。
+    Xl,
+}
+
+impl Breakpoint {
+    /// 全段を昇順（`sm` → `xl`）で列挙する。[`SlotRecipe::css`] が
+    /// breakpoint ブロックを mobile-first（小さい段から）の順に出力する際、
+    /// および [`crate::theme::DEFAULT_BREAKPOINTS`] がテーマトークンを
+    /// 構築する際の唯一の反復元として使う。
+    pub const ALL: [Breakpoint; 4] = [
+        Breakpoint::Sm,
+        Breakpoint::Md,
+        Breakpoint::Lg,
+        Breakpoint::Xl,
+    ];
+
+    /// この段の名前（例: `"sm"`）。[`SlotRecipe`] のクラス名接尾辞
+    /// （`fd-<scope>--<axis>-<value>`）には使わない（本イシューでは
+    /// breakpoint × variant の複合条件を実装しないため、`Breakpoint` を
+    /// `VariantValue` として使う経路自体が存在しない）。
+    /// [`crate::theme::DEFAULT_BREAKPOINTS`] がテーマトークン名
+    /// （`--fandhe-breakpoint-<value()>`）としてはこの値をそのまま使う。
+    #[must_use]
+    pub const fn value(self) -> &'static str {
+        match self {
+            Breakpoint::Sm => "sm",
+            Breakpoint::Md => "md",
+            Breakpoint::Lg => "lg",
+            Breakpoint::Xl => "xl",
+        }
+    }
+
+    /// `@media (min-width: ...)` に埋め込む px 値（例: `"640px"`）。
+    ///
+    /// この `const fn` がリテラルを返すソース内の**唯一の定義元**であり、
+    /// [`SlotRecipe::css`] はこの戻り値のみを `@media` プレリュードへ
+    /// 埋め込む（呼び出し元由来の文字列は一切通さない。既存の
+    /// [`Declaration`] が `&'static str` のみを保持する不変条件と同型の
+    /// 安全性根拠）。[`crate::theme::DEFAULT_BREAKPOINTS`] もこの値を
+    /// テーマトークンの初期値として再利用し、2 箇所の手打ちドリフトを
+    /// 構造的に防ぐ。
+    #[must_use]
+    pub const fn min_width(self) -> &'static str {
+        match self {
+            Breakpoint::Sm => "640px",
+            Breakpoint::Md => "768px",
+            Breakpoint::Lg => "1024px",
+            Breakpoint::Xl => "1280px",
         }
     }
 }
@@ -607,6 +708,295 @@ pub fn transition_declarations(
     ]
 }
 
+/// [`transition_declarations`] の 3 宣言に `transition-behavior:
+/// allow-discrete` を加えた 4 宣言を返す（イシュー #2192。案 C
+/// 〔`docs/design/collapsible-height-animation.md`〕の中核 DSL）。
+///
+/// `properties` に `display` を含めるのが典型的な用途（`hidden` 属性による
+/// `display: none` の実適用を、遷移完了まで遅延させる。`display:
+/// none`/`block` は本来トランジションできないプロパティだが、
+/// `allow-discrete` を付けると離散値プロパティも `@starting-style` と
+/// 組み合わせて遷移させられる、[MDN `transition-behavior`]）。未対応
+/// ブラウザでは `transition-behavior` 宣言自体が無視され、`display` の
+/// 切り替えは即時になる（構造的な自然劣化、破綻はしない）。
+///
+/// [MDN `transition-behavior`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transition-behavior
+#[must_use]
+pub fn transition_declarations_allow_discrete(
+    properties: &'static str,
+    duration: MotionDuration,
+) -> Vec<Declaration> {
+    let mut declarations = transition_declarations(properties, duration);
+    declarations.push(decl("transition-behavior", "allow-discrete"));
+    declarations
+}
+
+/// `fandhe-frontend-wasm-full` が collapsible/accordion 等の content 要素の
+/// 実測高さ（px）を書き込む CSS custom property 名（イシュー #2192、案 C
+/// 〔`docs/design/collapsible-height-animation.md`〕）。
+///
+/// # 他クレートとの契約
+///
+/// 値の出典は `crates/wasm-full/src/content_height.rs::CONTENT_HEIGHT_VAR`
+/// であり、本定数はそのリテラルの写し。両者のドリフトは
+/// `crates/pre-styled-ui/tests/content_height_var_drift.rs` が実行時に
+/// wasm-full 側ソースを読んで fail-closed に検知する（`fandhe-frontend-
+/// pre-styled-ui` は `fandhe-frontend-wasm-full` に依存しないため、
+/// コンパイル時の型共有はできない）。wasm-full 側は「`hidden` 要素は
+/// スキップし、実測 0 なら変数を除去する（`0px` を書き込まない）」契約
+/// （CSSOM `set_property`/`remove_property` 経由）を持つため、本クレート
+/// 側は必ず [`CONTENT_HEIGHT_VAR_REF`] のようにフォールバック付きで参照
+/// する（変数が未設定の環境・JS 無効時でも `auto` へ安全に劣化する）。
+pub const CONTENT_HEIGHT_VAR: &str = "--fandhe-content-height";
+
+/// `var(--fandhe-content-height, auto)` 参照リテラル。フォールバックは
+/// 常に `auto`（wasm-full 未配線・JS 無効時に content の高さを `auto` へ
+/// 落として全文表示を保つ、イシュー #2192）。[`Declaration::value`] の
+/// `&'static str` 制約のため `format!(CONTENT_HEIGHT_VAR)` ではなく固定
+/// リテラルとして持つ。
+const CONTENT_HEIGHT_VAR_REF: &str = "var(--fandhe-content-height, auto)";
+
+/// [`content_height_open_declarations`] 専用の `transition-timing-function`
+/// 値（PR #2289 codex レビュー P1 是正、イシュー #2192）。開く遷移
+/// （base が終端スタイル）にのみ適用する（下記「開閉で非対称にする理由」
+/// 参照。閉じる遷移には [`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`] を使う）。
+///
+/// `transition-property: height, padding-block, margin-block, display,
+/// overflow` の 5 項目に位置対応する 5 値のカンマ列。先頭 4 項目
+/// （`height`/`padding-block`/`margin-block`/`display`）は従来どおり共通
+/// easing（[`TRANSITION_EASING_VAR`]）を使うが、末尾の `overflow` だけは
+/// `step-end` を使う。理由: `overflow`（離散値プロパティ）の値切り替え
+/// タイミングをトランジション完了の瞬間に固定するため。`step-end` は
+/// 「進捗が 1（完了）に達するまで開始値のまま、完了と同時に終了値へ切り
+/// 替わる」ため、開く遷移（base が終端スタイル）の要件を満たせる: 終端値は
+/// `overflow: visible`。`step-end` によりトランジション進行中は開始値
+/// `hidden`（`[hidden]` state/`@starting-style` 側）のまま据え置かれ、
+/// 完了の瞬間にだけ `visible` へ切り替わる。これにより開いた定常状態
+/// （トランジション完了後）では常に `overflow: visible` となり、content
+/// 内の `position: absolute` な Popover 等（`top: 100%` で自身の高さの
+/// 外へはみ出す構成）が親のクリップで切り取られる回帰（calc-size() 対応
+/// ブラウザで発生、codex レビュー指摘）を解消する。
+///
+/// # 開閉で非対称にする理由（PR #2289 codex レビュー第 2 ラウンド是正）
+///
+/// 閉じる遷移（`[hidden]` state が終端スタイル）へも同じ `step-end` を
+/// 適用すると、終端値 `overflow: hidden` への切り替えが完了の瞬間まで
+/// 遅延される。`calc-size()` 対応ブラウザでは `height`/`padding-block`
+/// が先に縮み始める一方 `overflow` は `visible` のまま据え置かれるため、
+/// 縮小中の content がクリップされず後続の Accordion 項目や Collapsible
+/// 下のコンテンツに重なって表示され、`display: none` 適用の瞬間に突然
+/// 消えるという表示回帰が生じる（height トランジション導入前にはなかった
+/// 見た目、codex レビュー指摘）。閉じる遷移では代わりに
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`]（`overflow` に `step-start`）
+/// を使い、縮小開始の瞬間から `overflow: hidden` を有効にする。
+///
+/// [MDN `transition-behavior`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transition-behavior
+const CONTENT_HEIGHT_TIMING_FUNCTION: &str = "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-end";
+
+/// [`content_height_closed_transition_declarations`] 専用の
+/// `transition-timing-function` 値（PR #2289 codex レビュー第 2 ラウンド
+/// 是正、イシュー #2192）。閉じる遷移（`[hidden]` state が終端スタイル）
+/// にのみ適用する。
+///
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] と先頭 4 値（共通 easing）は同じだが、
+/// 末尾の `overflow` だけ `step-start` にする。`step-start` は「進捗が
+/// 0（開始）を超えた瞬間に終了値へ切り替わり、以降は終了値のまま」の
+/// ため、閉じる遷移の終端値 `overflow: hidden`（[`content_height_closed_
+/// declarations`]）が縮小開始の瞬間から有効になる。CSS Transitions Level 2
+/// の `transition-behavior: allow-discrete` は「離散値プロパティの値切り
+/// 替えを timing function 適用後の進捗に従って行う」仕様であり、
+/// `step-start` を使えば `[hidden]` state 規則（開閉遷移のうち閉じる方向の
+/// 終端スタイル）自身が宣言する `overflow` を、遷移開始と同時に有効化
+/// できる。これにより `height`/`padding-block` が `calc-size()` で縮み
+/// 始めるのと同時に `overflow: hidden` も有効になり、縮小中の content が
+/// 後続要素に重なって表示されてから突然消える表示回帰
+/// （[`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc「開閉で非対称にする理由」
+/// 参照）を解消する。開く遷移（base が終端スタイル）には従来どおり
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`]（`step-end`）を使う。
+const CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING: &str = "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-start";
+
+/// [`SlotRecipe::content_height_transition`] が base（非 `hidden`）状態へ
+/// 登録する宣言（イシュー #2192、codex レビュー是正で追補）。
+/// `box-sizing: border-box` は wasm-full の実測値（`scrollHeight`、
+/// padding 込み）と齟齬なく `height` を適用するため必須。
+/// `overflow: visible` を終端値として登録し、`transition-property` に
+/// `overflow` を含めて [`CONTENT_HEIGHT_TIMING_FUNCTION`] の `step-end`
+/// でトランジション完了の瞬間にのみ切り替える（下記「開いた定常状態での
+/// クリップ対策」節参照。PR #2289 codex レビュー P1 是正）。
+/// `transition-property` に `display` を含めるため、共通ヘルパー
+/// [`transition_declarations_allow_discrete`] は使わず本関数で個別に
+/// 4 つの `transition-*` longhand を組み立てる（`overflow` だけ
+/// `transition-timing-function` を他と変えるため、[`transition_declarations`]
+/// の「単一値をカンマ列全体へ反復適用」という汎用設計に乗せられない）。
+/// `hidden` 属性による `display: none` の実適用は遷移完了まで遅延する
+/// （`transition-behavior: allow-discrete`）。
+///
+/// # `--fandhe-content-height: initial` を各 content 要素で明示する理由
+///
+/// CSS custom property は既定で継承される。wasm-full の測定・書き込みは
+/// `[data-scope="collapsible"][data-part="content"]` 等、対象要素**自身**
+/// への CSSOM `set_property`（インライン style）であり、祖先要素へ書く
+/// ことはない。しかし本 slot の base ブロックがこの宣言を持たないと、
+/// 入れ子の disclosure（例: accordion `item-content` の中に別の
+/// collapsible が入る構成）で未測定の子要素が `var(--fandhe-content-
+/// height, auto)` を評価する際、自身に値が無ければ祖先の実測値を
+/// **継承**してしまい、祖先の高さを誤って自身の高さとして適用する
+/// （`docs/design/collapsible-height-animation.md` §5.2、PR #2289 codex
+/// レビュー指摘）。`initial` をここで明示すると、この宣言はカスケード上
+/// 常に「祖先からの継承値」より後（同一要素・同一詳細度の中で最後）に
+/// 評価されるため一旦リセットされ、その後 JS が当該要素へ書き込む
+/// インライン style（詳細度が常に上回る）だけが実効値として残る。
+/// 測定前は `initial` → `var()` のフォールバック `auto` が効き、祖先の
+/// 値を誤って継承しない。
+///
+/// # 開いた定常状態でのクリップ対策（`calc-size()` progressive
+/// enhancement）
+///
+/// `height: var(--fandhe-content-height, auto)` は wasm-full が配線時・
+/// `on_update` 直後にしか測定しないため、開いた定常状態で内容が後から
+/// 伸びる（ウィンドウ幅変化による折り返し増加・画像の遅延読み込み等）と
+/// 固定 px 高さのまま `overflow: hidden` に切り取られる限界があった
+/// （`docs/design/collapsible-height-animation.md` §5.2「既知の限界
+/// （定常状態のクリップ）」。同節が対策として挙げる
+/// `interpolate-size: allow-keywords` の progressive enhancement を
+/// 具体化する）。`height: calc-size(auto, size)`
+/// を var 参照の直後に追加で登録する: `calc-size()` 未対応ブラウザでは
+/// この宣言全体が構文解析時点で無効となり同一規則内の直前の `height`
+/// 宣言（var 参照）がそのまま有効のまま残る（CSS の標準的な優雅な
+/// 劣化。未対応ブラウザは従来どおり固定 px + JS 測定に留まり、既知の
+/// 限界も従来どおり残る）。対応ブラウザでは非遷移時の定常状態の
+/// `calc-size(auto, size)` は `height: auto` と等価に評価され（内容の
+/// 変化に継続追従し、固定値へピン留めされない）、かつ `0 → 定常値` の
+/// トランジションも同時に成立する（`calc-size()` は自動的に
+/// `interpolate-size: allow-keywords` を当該宣言へ適用する仕様）。
+/// この経路では wasm-full の測定結果を待たずに開閉トランジション自体が
+/// 成立するため、対応ブラウザでは実質的に「JS 測定なしでも動く」上位
+/// 互換となる。
+///
+/// `calc-size()` 対応ブラウザで開閉トランジション自体が成立するように
+/// なった結果、`overflow: hidden` を base（開いた定常状態も含む）へ
+/// 恒常的に残すと新たな回帰が生じる: content 内に `position: absolute;
+/// top: 100%` で自身の境界の外へ意図的にはみ出す Popover 等（`portal`
+/// 未提供のため親のクリップ領域内に留まらざるを得ない構成）が、開閉
+/// 完了後の定常状態でも親のクリップで切り取られてしまう（PR #2289
+/// codex レビュー P1 指摘）。`content_height_transition` 導入前
+/// （`height: auto` を継続評価し `overflow` 宣言自体を持たなかった状態）
+/// と比べた表示回帰にあたるため、本関数は `overflow: hidden` を base の
+/// 恒常値としては持たない。代わりに [`CONTENT_HEIGHT_TIMING_FUNCTION`]
+/// （`step-end`）で `overflow` の値切り替えをトランジション完了の瞬間
+/// だけに限定し、`overflow: visible` を開いた定常状態の終端値として
+/// 登録する（このタイミング関数は開く遷移＝本関数が終端スタイルになる
+/// 方向にのみ適用する。閉じる遷移側の終端スタイル
+/// [`content_height_closed_transition_declarations`] は別の
+/// `step-start` タイミング関数を自前で宣言し、閉じる方向の overflow
+/// 切り替えタイミングを個別制御する。理由は
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc「開閉で非対称にする理由」
+/// 節参照。PR #2289 codex レビュー第 2 ラウンド是正）。トランジション
+/// 進行中は開始値（`[hidden]` state/`@starting-style` 側の
+/// `overflow: hidden`）が `step-end` により維持されるため、開く方向の
+/// 遷移中に内容が切り取られる従来の効果は変わらず保たれる。
+#[must_use]
+pub fn content_height_open_declarations(duration: MotionDuration) -> Vec<Declaration> {
+    vec![
+        decl("box-sizing", "border-box"),
+        decl("overflow", "visible"),
+        decl(CONTENT_HEIGHT_VAR, "initial"),
+        decl("height", CONTENT_HEIGHT_VAR_REF),
+        decl("height", "calc-size(auto, size)"),
+        decl(
+            "transition-property",
+            "height, padding-block, margin-block, display, overflow",
+        ),
+        decl("transition-duration", duration.var_ref()),
+        decl("transition-timing-function", CONTENT_HEIGHT_TIMING_FUNCTION),
+        decl("transition-behavior", "allow-discrete"),
+    ]
+}
+
+/// [`SlotRecipe::content_height_transition`] が `[hidden]` state・
+/// `@starting-style` の両方へ登録する縮小状態の宣言（イシュー #2192、
+/// Bugbot 指摘を受け `margin-block: 0` を追補）。
+/// `padding-block: 0` も含めるのは、`height: 0` 単独だと閉じる途中で
+/// padding 分の高さが残ったまま `display: none` に落ちる見た目のジャンプ
+/// を避けるため（`docs/design/collapsible-height-animation.md` §5.2）。
+/// `margin-block: 0` も同じ理由: `crate::collapsible` の content slot は
+/// `margin-top: var(--fandhe-space-2)` を base で宣言するが、閉状態
+/// （`[hidden]`）・`@starting-style` の双方がこれを 0 へ縮めないと、
+/// `height`/`padding-block` が 0 へアニメーションし切った後も margin
+/// だけが残り、`display: none` 適用の瞬間に隙間が唐突に消える見た目の
+/// ジャンプが生じる（PR #2289 Bugbot 指摘）。`content_height_open_
+/// declarations` の `transition-property` に `margin-block` を含めて
+/// あるため、他部品（`margin-block` を宣言しない accordion
+/// `item-content` 等）では実質 no-op のまま安全に共有できる。
+///
+/// `overflow: hidden` を追補したのは PR #2289 codex レビュー P1 是正
+/// （[`content_height_open_declarations`] rustdoc「開いた定常状態での
+/// クリップ対策」節参照）の一部: `[hidden]` state・`@starting-style` の
+/// 双方をトランジションの「開始値」として使うため、この関数が
+/// `overflow: hidden` を明示しないと縮む方向の遷移中に内容が切り取られ
+/// なくなってしまう。
+///
+/// 本関数自体は `transition-property` 等を宣言しない（`@starting-style`
+/// はトランジション対象プロパティの開始値スナップショットであり、
+/// 自前の `transition-*` 宣言を必要としないため）。`[hidden]` state は
+/// 代わりに [`content_height_closed_transition_declarations`] を使い、
+/// 閉じる遷移専用の `transition-timing-function`
+/// （[`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`]）を自前で宣言する
+/// （PR #2289 codex レビュー第 2 ラウンド是正、理由は
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc「開閉で非対称にする理由」
+/// 節参照）。
+#[must_use]
+pub fn content_height_closed_declarations() -> Vec<Declaration> {
+    vec![
+        decl("height", "0"),
+        decl("padding-block", "0"),
+        decl("margin-block", "0"),
+        decl("overflow", "hidden"),
+    ]
+}
+
+/// [`SlotRecipe::content_height_transition`] が `[hidden]` state
+/// （閉じる遷移の終端スタイル）へ登録する宣言（PR #2289 codex レビュー
+/// 第 2 ラウンド是正、イシュー #2192）。
+///
+/// [`content_height_closed_declarations`] の 4 値宣言に加えて、閉じる
+/// 遷移専用の `transition-property`/`transition-duration`/
+/// `transition-timing-function`（[`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`]、
+/// `overflow` に `step-start`）/`transition-behavior` を自前で宣言する。
+///
+/// # `[hidden]` state が独自に `transition-*` を宣言する理由
+///
+/// CSS Transitions は、値が変化した瞬間に適用される
+/// `transition-property`/`transition-duration`/`transition-timing-function`
+/// を、その時点でカスケードにより有効な（＝遷移先の）計算値から決定する。
+/// [`content_height_open_declarations`]（base）が宣言する
+/// `transition-timing-function`（[`CONTENT_HEIGHT_TIMING_FUNCTION`]、
+/// `overflow` に `step-end`）は、base が遷移先になる方向（開く遷移）に
+/// のみ実効させたい。しかし `[hidden]` セレクタは base より詳細度が高い
+/// ため、本関数が `transition-*` を明示しなければ base の宣言がそのまま
+/// カスケードを通過し、閉じる遷移（`[hidden]` が遷移先）にも同じ
+/// `step-end` が適用されてしまう（表示回帰の原因、
+/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc 参照）。`[hidden]` 自身が
+/// `transition-timing-function` を宣言することで、閉じる遷移の実効値を
+/// `step-start` へ個別に固定できる（CSS カスケードは宣言単位＝longhand
+/// 単位で決まるため、他の longhand（`height` 等の値）は
+/// [`content_height_closed_declarations`] のまま変わらない）。
+#[must_use]
+pub fn content_height_closed_transition_declarations(duration: MotionDuration) -> Vec<Declaration> {
+    let mut declarations = content_height_closed_declarations();
+    declarations.push(decl(
+        "transition-property",
+        "height, padding-block, margin-block, display, overflow",
+    ));
+    declarations.push(decl("transition-duration", duration.var_ref()));
+    declarations.push(decl(
+        "transition-timing-function",
+        CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING,
+    ));
+    declarations.push(decl("transition-behavior", "allow-discrete"));
+    declarations
+}
+
 /// slot 1 個への base 宣言登録（内部表現）。
 struct BaseRule {
     slot: &'static str,
@@ -778,6 +1168,44 @@ struct StateRule {
     declarations: Vec<Declaration>,
 }
 
+/// slot 1 個・任意の状態条件への `@starting-style` 内規則登録（内部表現、
+/// イシュー #2192）。`condition` が `None` の場合は無条件（`@starting-style
+/// { [data-scope][data-part] { ... } }`）を表し、`Some` の場合は
+/// [`SlotRecipe::state`] と同じ [`StateCondition`] 検証・セレクタ組み立て
+/// 経路（`state_condition_selector`）を通る。Hover 系条件（[`StateCondition::
+/// Hover`] 等）は `@starting-style` 内で意味を持たない（starting style は
+/// 遷移開始前のスナップショットであり `:hover` のような動的擬似クラスの
+/// 「開始状態」という概念が成立しない）ため [`SlotRecipe::css`] が規則ごと
+/// 除外する（fail-closed）。
+struct StartingStyleRule {
+    slot: &'static str,
+    condition: Option<StateCondition>,
+    declarations: Vec<Declaration>,
+}
+
+/// slot 1 個・breakpoint 1 個への宣言登録（内部表現、イシュー #2197）。
+struct BreakpointRule {
+    slot: &'static str,
+    breakpoint: Breakpoint,
+    declarations: Vec<Declaration>,
+}
+
+/// slot 1 個・任意の状態条件への `@supports not (height: calc-size(auto,
+/// size))` 内規則登録（内部表現、イシュー #2192。Cursor Bugbot medium
+/// severity 指摘「`[hidden]` 規則が `transition-*` longhand を持つように
+/// なったため fallback の `transition: none` に勝ってしまう」是正で
+/// [`StartingStyleRule`] と同型へ拡張した）。`condition` が `None` の場合は
+/// 無条件（base セレクタ）を表し、`Some` の場合は [`SlotRecipe::state`] と
+/// 同じ [`StateCondition`] 検証・セレクタ組み立て経路
+/// （`state_condition_selector`）を通る。[`SlotRecipe::
+/// supports_not_calc_size_height_state`] rustdoc「`[hidden]` 側の
+/// `transition: none` を別規則にする理由」参照。
+struct SupportsNotCalcSizeRule {
+    slot: &'static str,
+    condition: Option<StateCondition>,
+    declarations: Vec<Declaration>,
+}
+
 /// compound variant の条件 1 件（axis, value の型消去された組）。
 ///
 /// [`when()`] を通じてのみ [`VariantValue`] 実装 enum から構築できる（生の
@@ -809,6 +1237,41 @@ struct CompoundVariantRule {
     declarations: Vec<Declaration>,
 }
 
+/// `@media (...) { ... }` ブロックを組み立てて `out` へ追記する内部ヘルパ
+/// （イシュー #1425 の hover ブロック生成処理を、イシュー #2197 の
+/// breakpoint ブロックと共用するために抽出した）。
+///
+/// `inner` が空文字列なら何も出力しない（有効な規則が 1 件もない
+/// breakpoint/hover ブロックを出力しない、という [`SlotRecipe::css`] の
+/// fail-closed 方針を担う）。`inner` の各行を 2 スペースでインデントし、
+/// 規則間の区切り空行（`inner` の各規則末尾に付与済み）はインデントせずに
+/// そのまま保持する（空行への余計な末尾空白混入を避ける）。ブロックの
+/// 末尾には他の規則ブロックと同じ区切り空行を 1 つ追加する（イシュー
+/// #2197 で breakpoint ブロックを複数個連続出力するようになったため、
+/// `@media` ブロック同士の間も他の規則間と同じ書式に揃える）。この
+/// 末尾の空行は [`SlotRecipe::css`] 末尾の trim（`out.ends_with("\n\n")`
+/// なら 1 文字削る）が最終出力からは除去するため、hover のみ・
+/// breakpoint のみの既存/新規いずれの出力も `css()` の最終バイト列は
+/// `}\n`（空行なし）で終わる。
+fn push_media_block(out: &mut String, prelude: &str, inner: &str) {
+    if inner.is_empty() {
+        return;
+    }
+    out.push_str(prelude);
+    out.push_str(" {\n");
+    for line in inner.trim_end_matches('\n').lines() {
+        if line.is_empty() {
+            out.push('\n');
+        } else {
+            out.push_str("  ");
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out.push_str("}\n");
+    out.push('\n');
+}
+
 /// slot recipe: `scope`（headless anatomy と同一値）・`slots`・base・variants・
 /// defaultVariants を保持し、静的 CSS とクラス名を決定的に生成する。
 ///
@@ -828,6 +1291,127 @@ pub struct SlotRecipe {
     default_variants: Vec<DefaultVariant>,
     compound_variants: Vec<CompoundVariantRule>,
     states: Vec<StateRule>,
+    starting_style: Vec<StartingStyleRule>,
+    supports_not_calc_size: Vec<SupportsNotCalcSizeRule>,
+    breakpoints: Vec<BreakpointRule>,
+}
+
+/// [`StateCondition`] 1 個が識別子として妥当かどうかを判定する（内部
+/// ヘルパ）。[`state_condition_selector`] から呼ばれ、[`SlotRecipe::css`]
+/// の states ループ・`@starting-style` ループの双方が同じ検証経路を
+/// 通るようにする（二重実装によるドリフト防止）。
+fn state_condition_is_valid(condition: &StateCondition) -> bool {
+    match condition {
+        StateCondition::Attr(name) => is_valid_identifier(name),
+        StateCondition::AttrEq(name, value) => {
+            is_valid_identifier(name) && is_valid_identifier(value)
+        }
+        StateCondition::FocusVisible => true,
+        StateCondition::FocusWithin => true,
+        StateCondition::NthChildEven => true,
+        StateCondition::LastChild => true,
+        StateCondition::AttrEqAll(pairs) => {
+            !pairs.is_empty()
+                && pairs
+                    .iter()
+                    .all(|(name, value)| is_valid_identifier(name) && is_valid_identifier(value))
+        }
+        StateCondition::Hover => true,
+        StateCondition::HoverExcept(name, value) => {
+            is_valid_identifier(name) && is_valid_identifier(value)
+        }
+        StateCondition::HoverExceptAttr(name) => is_valid_identifier(name),
+        StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
+            is_valid_identifier(attr_name)
+                && is_valid_identifier(eq_name)
+                && is_valid_identifier(eq_value)
+        }
+    }
+}
+
+/// [`StateCondition`] 1 個からセレクタ接尾辞（例: `[hidden]`・
+/// `:focus-visible`・`:hover:not([data-disabled])`）を組み立てる（内部
+/// ヘルパ）。不正な入力（[`state_condition_is_valid`] が `false`）は
+/// `None` を返す（fail-closed）。[`SlotRecipe::css`] の states ループ・
+/// `@starting-style` ループの双方が本関数を通る（セレクタ組み立てを二重
+/// 実装しない、イシュー #2192 で `@starting-style` 追加時に切り出した）。
+fn state_condition_selector(condition: &StateCondition) -> Option<String> {
+    if !state_condition_is_valid(condition) {
+        return None;
+    }
+    let mut suffix = String::new();
+    match condition {
+        StateCondition::Attr(name) => suffix.push_str(&format!("[{name}]")),
+        StateCondition::AttrEq(name, value) => {
+            suffix.push_str(&format!("[{name}=\"{value}\"]"));
+        }
+        StateCondition::FocusVisible => suffix.push_str(":focus-visible"),
+        StateCondition::FocusWithin => suffix.push_str(":focus-within"),
+        StateCondition::NthChildEven => suffix.push_str(":nth-child(even)"),
+        StateCondition::LastChild => suffix.push_str(":last-child"),
+        StateCondition::AttrEqAll(pairs) => {
+            for (name, value) in *pairs {
+                suffix.push_str(&format!("[{name}=\"{value}\"]"));
+            }
+        }
+        StateCondition::Hover => {
+            // タッチ端末での hover 貼り付きを避けるため `@media (hover:
+            // hover)` 配下へまとめて出力する（イシュー #1425）。
+            // `:not([data-disabled])` で disabled 規則との勝敗を記述順に
+            // 依存させない。
+            suffix.push_str(":hover:not([data-disabled])");
+        }
+        StateCondition::HoverExcept(name, value) => {
+            suffix.push_str(&format!(
+                ":hover:not([data-disabled]):not([{name}=\"{value}\"])"
+            ));
+        }
+        StateCondition::HoverExceptAttr(name) => {
+            suffix.push_str(&format!(":hover:not([data-disabled]):not([{name}])"));
+        }
+        StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
+            suffix.push_str(&format!(
+                ":hover:not([data-disabled]):not([{attr_name}]):not([{eq_name}=\"{eq_value}\"])"
+            ));
+        }
+    }
+    Some(suffix)
+}
+
+/// `condition` が Hover 系（[`StateCondition::Hover`]・[`StateCondition::
+/// HoverExcept`]・[`StateCondition::HoverExceptAttr`]・[`StateCondition::
+/// HoverExceptAttrEq`]）かどうかを判定する（内部ヘルパ）。[`SlotRecipe::css`]
+/// の states ループが `@media (hover: hover)` 側バッファへ振り分けるため、
+/// `@starting-style` ループが Hover 系規則を除外するために使う（イシュー
+/// #2192。理由は [`StartingStyleRule`] rustdoc 参照）。
+fn is_hover_family(condition: &StateCondition) -> bool {
+    matches!(
+        condition,
+        StateCondition::Hover
+            | StateCondition::HoverExcept(_, _)
+            | StateCondition::HoverExceptAttr(_)
+            | StateCondition::HoverExceptAttrEq(_, _, _)
+    )
+}
+
+/// `<selector> { ... }` 規則列を 1 個の at-rule ブロック（`@media (hover:
+/// hover) { ... }`・`@starting-style { ... }` 等）へインデント付きで包む
+/// （内部ヘルパ）。[`SlotRecipe::css`] の hover ブロック・`@starting-style`
+/// ブロックの双方が同じインデント付与ロジックを共有する（イシュー #2192
+/// で `@starting-style` 追加時に切り出した。書式は変更しない）。
+fn write_at_rule_block(out: &mut String, at_rule: &str, inner_css: &str) {
+    out.push_str(at_rule);
+    out.push_str(" {\n");
+    for line in inner_css.trim_end_matches('\n').lines() {
+        if line.is_empty() {
+            out.push('\n');
+        } else {
+            out.push_str("  ");
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out.push_str("}\n");
 }
 
 impl SlotRecipe {
@@ -843,6 +1427,9 @@ impl SlotRecipe {
             default_variants: Vec::new(),
             compound_variants: Vec::new(),
             states: Vec::new(),
+            starting_style: Vec::new(),
+            supports_not_calc_size: Vec::new(),
+            breakpoints: Vec::new(),
         }
     }
 
@@ -991,6 +1578,263 @@ impl SlotRecipe {
         self
     }
 
+    /// `slot` への `@starting-style` 規則（無条件）を登録する（builder、
+    /// 自己消費。イシュー #2192）。
+    ///
+    /// [MDN `@starting-style`] は「要素がまだ存在しない/表示されていない
+    /// 状態から遷移する」ときの開始スタイルを宣言する at-rule で、
+    /// `transition-behavior: allow-discrete`（[`transition_declarations_allow_discrete`]）
+    /// と組み合わせて `display: none` からの遷移（およびその逆）を可能に
+    /// する。`slot` が `slots` に未宣言、または識別子として不正な場合は
+    /// [`SlotRecipe::css`] の出力から除外される（fail-closed。既存
+    /// `base`/`state` と同じ方針）。
+    ///
+    /// 状態条件付き（`[data-state="open"]` 等に限定した開始スタイル）が
+    /// 必要な場合は [`SlotRecipe::starting_style_state`] を使う。
+    ///
+    /// [MDN `@starting-style`]: https://developer.mozilla.org/en-US/docs/Web/CSS/@starting-style
+    #[must_use]
+    pub fn starting_style(mut self, slot: &'static str, declarations: Vec<Declaration>) -> Self {
+        self.starting_style.push(StartingStyleRule {
+            slot,
+            condition: None,
+            declarations,
+        });
+        self
+    }
+
+    /// breakpoint 条件（[`Breakpoint`]）が満たされたときの `slot` への宣言を
+    /// 登録する（builder、自己消費、イシュー #2197）。`@media (min-width:
+    /// <bp.min_width()>)` ブロック配下へ出力される。
+    ///
+    /// 以下のいずれかに該当する規則は [`SlotRecipe::css`] の出力から除外される
+    /// （fail-closed。既存 `base`/`variant`/`state` と同じ「不正入力は
+    /// panic せず出力から除外する」方針）:
+    ///
+    /// - `slot` が `slots` に未宣言、または識別子として不正
+    /// - 有効な宣言が 1 件もない（`declarations` が空、または全て
+    ///   `is_valid_property`/`is_valid_value` を満たさない）
+    ///
+    /// breakpoint 規則のセレクタは base と同じ
+    /// `[data-scope="<scope>"][data-part="<slot>"]`（詳細度 (0,2,0)）で
+    /// あり、variant（(0,3,0)）より低い。同一 slot・同一プロパティを
+    /// variant が宣言していると、`@media` の内外に関わらず variant が
+    /// 常に勝つ（詳細度優先。呼び出し元は対象プロパティが variant で
+    /// 宣言されていないことを確認する契約）。breakpoint × variant /
+    /// breakpoint × state の複合条件（`@media` 内での `.fd-*`/`:hover`
+    /// セレクタ）は本メソッドでは表現できない（本イシューのスコープ外、
+    /// `crate` モジュール doc「breakpoint 条件」節参照）。
+    #[must_use]
+    pub fn breakpoint(
+        mut self,
+        slot: &'static str,
+        bp: Breakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.breakpoints.push(BreakpointRule {
+            slot,
+            breakpoint: bp,
+            declarations,
+        });
+        self
+    }
+
+    /// `slot` への `@starting-style` 規則（状態条件付き）を登録する
+    /// （builder、自己消費。イシュー #2192）。
+    ///
+    /// [`SlotRecipe::starting_style`] の一般化で、`condition` が Hover 系
+    /// （[`StateCondition::Hover`]・[`StateCondition::HoverExcept`] 等）の
+    /// 場合は [`SlotRecipe::css`] が規則ごと除外する（fail-closed。
+    /// `@starting-style` は遷移開始前の静的スナップショットであり、
+    /// `:hover` のような動的擬似クラスの「開始状態」という概念が成立
+    /// しないため）。他の除外条件は [`SlotRecipe::state`] と同じ
+    /// （`slot` 未宣言・識別子不正）。
+    #[must_use]
+    pub fn starting_style_state(
+        mut self,
+        slot: &'static str,
+        condition: StateCondition,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.starting_style.push(StartingStyleRule {
+            slot,
+            condition: Some(condition),
+            declarations,
+        });
+        self
+    }
+
+    /// `slot` へ `@supports not (height: calc-size(auto, size))` 配下の
+    /// 上書き宣言を登録する（builder、自己消費。イシュー #2192、PR #2289
+    /// codex レビュー P1 是正）。[`SlotRecipe::css`] の出力末尾に
+    /// `@starting-style`・`@media (hover: hover)` と同様 1 個のブロックへ
+    /// 集約される。セレクタは常に無条件の base セレクタ
+    /// （`[data-scope="<scope>"][data-part="<slot>"]`）を用いる（`[hidden]`
+    /// state 規則は本 slot への通常の base より詳細度が高いため、閉状態は
+    /// 引き続き [hidden] state 規則が優先される。カスケード上「開いた
+    /// 定常状態の上書き」としてのみ効く）。
+    ///
+    /// `[hidden]` state 自体が持つ `transition-*` longhand
+    /// （[`content_height_closed_transition_declarations`]）を fallback 環境
+    /// でも無効化したい場合は
+    /// [`SlotRecipe::supports_not_calc_size_height_state`] を併用する
+    /// （本メソッド単独では `[hidden]` の詳細度に負けて効かない。Cursor
+    /// Bugbot 指摘、`supports_not_calc_size_height_state` rustdoc 参照）。
+    #[must_use]
+    pub fn supports_not_calc_size_height(
+        mut self,
+        slot: &'static str,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.supports_not_calc_size.push(SupportsNotCalcSizeRule {
+            slot,
+            condition: None,
+            declarations,
+        });
+        self
+    }
+
+    /// `slot` へ状態条件付きの `@supports not (height: calc-size(auto,
+    /// size))` 配下の上書き宣言を登録する（builder、自己消費。イシュー
+    /// #2192、Cursor Bugbot medium severity 指摘の是正で追加）。
+    ///
+    /// [`SlotRecipe::supports_not_calc_size_height`] の一般化で、
+    /// `condition` により無条件の base セレクタではなく
+    /// [`SlotRecipe::state`] と同じ [`StateCondition`] 検証・セレクタ組み
+    /// 立て経路（`state_condition_selector`）を通ったセレクタへ出力する。
+    ///
+    /// # `[hidden]` 側の `transition: none` を別規則にする理由
+    ///
+    /// [`SlotRecipe::content_height_transition`] は `[hidden]` state へ
+    /// [`content_height_closed_transition_declarations`] を登録するが、
+    /// これは `transition-property`/`transition-duration`/`transition-
+    /// timing-function`/`transition-behavior` の 4 longhand を含む。
+    /// `[hidden]` セレクタ（詳細度 (0,3,0)）は
+    /// [`SlotRecipe::supports_not_calc_size_height`] が使う無条件 base
+    /// セレクタ（詳細度 (0,2,0)）より詳細度が高いため、fallback 環境
+    /// （`@supports not (...)` が真）でも `[hidden]` 側の `transition-*`
+    /// が base 側の `transition: none` に**カスケード詳細度で**勝って
+    /// しまい、`height` は `auto`⇄`0` 間の離散変化で即座にスナップする
+    /// 一方で `padding-block`/`margin-block` だけは `[hidden]` 自身の
+    /// `transition-duration` に従ってアニメーションしてしまう（Cursor
+    /// Bugbot 指摘、Safari/Firefox で実際に観測。`content_height_
+    /// transition` 導入前にはなかった表示回帰）。本メソッドで `[hidden]`
+    /// と同じ詳細度 (0,3,0) の `transition: none` 規則を
+    /// `@supports not (...)` 配下へ追加すると、[`SlotRecipe::css`] の
+    /// 出力順（states → `@starting-style` → `@supports not (...)`）に
+    /// より本規則が `[hidden]` state 規則より**後**に現れる。詳細度が
+    /// 等しい 2 規則は CSS カスケードの記述順で後勝ちするため、fallback
+    /// 環境に限って `[hidden]` の `transition-*` 全 longhand を確実に
+    /// 無効化できる（`height`/`padding-block`/`margin-block`/`overflow`
+    /// の値そのものは [`content_height_closed_declarations`] のまま
+    /// 変わらず、即時〔無アニメーション〕の開閉になる）。対応ブラウザ
+    /// では `@supports not (...)` 自体が不成立のため本規則は一切適用
+    /// されず、`[hidden]` の `step-start` タイミング関数がそのまま有効
+    /// になる。
+    #[must_use]
+    pub fn supports_not_calc_size_height_state(
+        mut self,
+        slot: &'static str,
+        condition: StateCondition,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.supports_not_calc_size.push(SupportsNotCalcSizeRule {
+            slot,
+            condition: Some(condition),
+            declarations,
+        });
+        self
+    }
+
+    /// `slot`（headless の disclosure 系 content パート）へ
+    /// `--fandhe-content-height` 連動の高さトランジションを 1 呼び出しで
+    /// 適用する（builder、自己消費。イシュー #2192、案 C
+    /// 〔`docs/design/collapsible-height-animation.md`〕の中核 preset）。
+    ///
+    /// [`SlotRecipe::base`]・[`SlotRecipe::state`]（[`StateCondition::Attr`]
+    /// `"hidden"`）・[`SlotRecipe::starting_style`]・
+    /// [`SlotRecipe::supports_not_calc_size_height`]・
+    /// [`SlotRecipe::supports_not_calc_size_height_state`] の 5 登録を
+    /// 一括で行う:
+    ///
+    /// - base: [`content_height_open_declarations`]（`height:
+    ///   var(--fandhe-content-height, auto)` 等）
+    /// - `[hidden]` state: [`content_height_closed_transition_declarations`]
+    ///   （閉じる遷移専用の `transition-timing-function` を自前で宣言し、
+    ///   `overflow` の切り替えタイミングを開く遷移と非対称にする。理由は
+    ///   同関数 rustdoc 参照、PR #2289 codex レビュー第 2 ラウンド是正）
+    /// - `@starting-style`: [`content_height_closed_declarations`]（開く
+    ///   遷移の開始点を `height: 0` に固定する。`transition-*` は宣言
+    ///   しない）
+    /// - `@supports not (height: calc-size(auto, size))`（無条件）:
+    ///   `height: auto` / `overflow: visible` / `transition: none`
+    ///   （PR #2289 codex レビュー P1 是正、下記「calc-size() 未対応
+    ///   ブラウザでの表示回帰対策」参照）
+    /// - `@supports not (height: calc-size(auto, size))`（`[hidden]`）:
+    ///   `transition: none`（Cursor Bugbot medium severity 是正。
+    ///   `[hidden]` 自身が持つ `transition-*` longhand が上記の無条件
+    ///   `transition: none` に詳細度で勝ってしまう問題の対策、
+    ///   [`SlotRecipe::supports_not_calc_size_height_state`] rustdoc
+    ///   「`[hidden]` 側の `transition: none` を別規則にする理由」参照）
+    ///
+    /// 閉状態のキーに `[hidden]`（[`StateCondition::Attr`]）を採るのは、
+    /// `data-state="closed"` ではなく `hidden` 存在属性が headless の
+    /// disclosure 系全部品（collapsible `content`・accordion
+    /// `item-content` 等）で保証された契約だから（`crates/headless-ui`
+    /// 側の共通契約、`docs/design/collapsible-height-animation.md` §5.1）。
+    ///
+    /// # calc-size() 未対応ブラウザでの表示回帰対策
+    ///
+    /// [`content_height_open_declarations`] は `height: calc-size(auto,
+    /// size)` の progressive enhancement を持つが、これは対応ブラウザの
+    /// みで有効になる宣言であり、未対応ブラウザでは直前の `height:
+    /// var(--fandhe-content-height, auto)`（wasm-full の実測 px 固定値）が
+    /// そのまま残る。本メソッドが従来これを「既知の限界」として放置して
+    /// いたのは、本 PR（イシュー #2192）が height トランジションを導入
+    /// する**前**（`height: auto` を継続的に評価していた）と比べて表示
+    /// 回帰にあたる（PR #2289 codex レビュー P1 指摘）: 開いた後の画面幅
+    /// 縮小・画像の遅延読み込み等で内容が固定 px 高さを超えて伸びると、
+    /// `overflow: hidden` により本文・操作要素が切り取られてしまう。
+    /// [`SlotRecipe::supports_not_calc_size_height`] で登録する
+    /// `@supports not (height: calc-size(auto, size))` ブロックが、
+    /// 未対応ブラウザに限って開いた定常状態を `height: auto` /
+    /// `overflow: visible` へ強制的に戻し、`transition: none` で
+    /// トランジション自体も無効化する。加えて
+    /// [`SlotRecipe::supports_not_calc_size_height_state`] が `[hidden]`
+    /// 状態にも同じ詳細度で `transition: none` を登録するため（Cursor
+    /// Bugbot 指摘の是正、同メソッド rustdoc「`[hidden]` 側の
+    /// `transition: none` を別規則にする理由」参照）、`[hidden]` state
+    /// 規則自身が持つ `transition-*` longhand も fallback 環境では確実に
+    /// 無効化される。この結果、未対応ブラウザは本 PR 適用前と同じ
+    /// 「`auto` に継続追従し、開閉は即時（無アニメーション）」という
+    /// 安全な劣化へ戻る。対応ブラウザ（[`content_height_open_
+    /// declarations`] rustdoc 参照）では `@supports` 条件が不成立のため
+    /// これらのブロックは適用されず、`calc-size()` によるアニメーション
+    /// 付きの高さ追従がそのまま有効になる。
+    #[must_use]
+    pub fn content_height_transition(self, slot: &'static str, duration: MotionDuration) -> Self {
+        self.base(slot, content_height_open_declarations(duration))
+            .state(
+                slot,
+                StateCondition::Attr("hidden"),
+                content_height_closed_transition_declarations(duration),
+            )
+            .starting_style(slot, content_height_closed_declarations())
+            .supports_not_calc_size_height(
+                slot,
+                vec![
+                    decl("height", "auto"),
+                    decl("overflow", "visible"),
+                    decl("transition", "none"),
+                ],
+            )
+            .supports_not_calc_size_height_state(
+                slot,
+                StateCondition::Attr("hidden"),
+                vec![decl("transition", "none")],
+            )
+    }
+
     /// この slot に属するかどうかを判定する（`slots` 未宣言の slot を
     /// fail-closed で除外するための内部ヘルパ）。
     fn is_declared_slot(&self, slot: &str) -> bool {
@@ -1015,7 +1859,10 @@ impl SlotRecipe {
     /// 対する複数回の呼び出しは常にバイト単位で同一の文字列を返す）。
     ///
     /// 出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound
-    /// variants（登録順、イシュー #604）→ states（登録順、イシュー #643）」。
+    /// variants（登録順、イシュー #604）→ states（登録順、イシュー #643）→
+    /// `@starting-style`（登録順、1 個のブロックへ集約、イシュー #2192）→
+    /// `@media (hover: hover)`（登録順、1 個のブロックへ集約、イシュー
+    /// #1425）」。
     /// セレクタは base が `[data-scope="<scope>"][data-part="<slot>"]`、
     /// variant が
     /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
@@ -1038,12 +1885,22 @@ impl SlotRecipe {
     /// 貼り付き対策として `@media (hover: hover) { ... }` 配下へまとめて
     /// 出力する形へ変更し、`:not([data-disabled])` を付与して disabled 規則
     /// との勝敗を記述順に依存させない契約にした。この `@media` ブロックは
-    /// 通常の state 規則がすべて出力された後、[`SlotRecipe::css`] の
-    /// 出力の最後尾に 1 つだけ現れる）のいずれか（`Hover` 以外は出力順が
-    /// 最後尾のため CSS カスケードの後勝ちで variant/compound variant を
-    /// 上書きする。`LastChild` は同一 slot への他の state 規則より後に
-    /// 登録することで詳細度が同じでも記述順の後勝ちで上書きする契約、
-    /// `state()` の「登録順」規約参照）。
+    /// 通常の state 規則がすべて出力された後、breakpoint ブロック（後述）
+    /// よりさらに後、[`SlotRecipe::css`] の出力の最後尾に 1 つだけ現れる）
+    /// のいずれか（`Hover` 以外は出力順が最後尾のため CSS カスケードの
+    /// 後勝ちで variant/compound variant を上書きする。`LastChild` は同一
+    /// slot への他の state 規則より後に登録することで詳細度が同じでも
+    /// 記述順の後勝ちで上書きする契約、`state()` の「登録順」規約参照）。
+    ///
+    /// breakpoint（[`SlotRecipe::breakpoint`]、イシュー #2197）は states の
+    /// 後・hover ブロックの前に出力される。[`Breakpoint`] の昇順（`sm` →
+    /// `xl`、mobile-first）で breakpoint ごとに 1 つの
+    /// `@media (min-width: <bp.min_width()>) { ... }` ブロックへ集約し
+    /// （同一 breakpoint 内は登録順）、有効な規則が 1 件もない breakpoint の
+    /// ブロックは出力しない。セレクタは base と同じ `[data-scope="<scope>"]
+    /// [data-part="<slot>"]`（詳細度 (0,2,0)）であり、同一 slot・同一
+    /// プロパティを variant（(0,3,0)）が宣言していると variant が常に勝つ
+    /// （[`SlotRecipe::breakpoint`] rustdoc 参照）。
     ///
     /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
     /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
@@ -1142,99 +1999,19 @@ impl SlotRecipe {
             if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
                 continue;
             }
-            let condition_valid = match rule.condition {
-                StateCondition::Attr(name) => is_valid_identifier(name),
-                StateCondition::AttrEq(name, value) => {
-                    is_valid_identifier(name) && is_valid_identifier(value)
-                }
-                StateCondition::FocusVisible => true,
-                StateCondition::FocusWithin => true,
-                StateCondition::NthChildEven => true,
-                StateCondition::LastChild => true,
-                StateCondition::AttrEqAll(pairs) => {
-                    !pairs.is_empty()
-                        && pairs.iter().all(|(name, value)| {
-                            is_valid_identifier(name) && is_valid_identifier(value)
-                        })
-                }
-                StateCondition::Hover => true,
-                StateCondition::HoverExcept(name, value) => {
-                    is_valid_identifier(name) && is_valid_identifier(value)
-                }
-                StateCondition::HoverExceptAttr(name) => is_valid_identifier(name),
-                StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
-                    is_valid_identifier(attr_name)
-                        && is_valid_identifier(eq_name)
-                        && is_valid_identifier(eq_value)
-                }
-            };
-            if !condition_valid {
+            let Some(suffix) = state_condition_selector(&rule.condition) else {
                 continue;
-            }
+            };
             let mut selector = format!(
                 "[data-scope=\"{}\"][data-part=\"{}\"]",
                 self.scope, rule.slot
             );
-            match rule.condition {
-                StateCondition::Attr(name) => selector.push_str(&format!("[{name}]")),
-                StateCondition::AttrEq(name, value) => {
-                    selector.push_str(&format!("[{name}=\"{value}\"]"));
-                }
-                StateCondition::FocusVisible => selector.push_str(":focus-visible"),
-                StateCondition::FocusWithin => selector.push_str(":focus-within"),
-                StateCondition::NthChildEven => selector.push_str(":nth-child(even)"),
-                StateCondition::LastChild => selector.push_str(":last-child"),
-                StateCondition::AttrEqAll(pairs) => {
-                    for (name, value) in pairs {
-                        selector.push_str(&format!("[{name}=\"{value}\"]"));
-                    }
-                }
-                StateCondition::Hover => {
-                    // タッチ端末での hover 貼り付き（tap 後もホバー状態が
-                    // 残り続ける）を避けるため `@media (hover: hover)` 配下へ
-                    // まとめて出力する（イシュー #1425）。`:not([data-disabled])`
-                    // で disabled 規則との勝敗を記述順に依存させない。
-                    selector.push_str(":hover:not([data-disabled])");
-                }
-                StateCondition::HoverExcept(name, value) => {
-                    // [`Hover`] と同じく `@media (hover: hover)` 配下へ集約
-                    // 出力される（下記 `matches!` の対象に含める）。加えて
-                    // `[<name>="<value>"]` に一致する要素を hover 対象から
-                    // 除外する（`StateCondition::HoverExcept` rustdoc 参照）。
-                    selector.push_str(&format!(
-                        ":hover:not([data-disabled]):not([{name}=\"{value}\"])"
-                    ));
-                }
-                StateCondition::HoverExceptAttr(name) => {
-                    // [`HoverExcept`] の存在属性版（値等価ではなく
-                    // `[<name>]` の有無で除外する。`StateCondition::
-                    // HoverExceptAttr` rustdoc 参照）。同じく `@media
-                    // (hover: hover)` 配下へ集約出力される（下記 `matches!`
-                    // の対象に含める）。
-                    selector.push_str(&format!(":hover:not([data-disabled]):not([{name}])"));
-                }
-                StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
-                    // [`HoverExceptAttr`]（存在属性除外）と [`HoverExcept`]
-                    // （値等価除外）を 1 規則で両方適用する（`StateCondition::
-                    // HoverExceptAttrEq` rustdoc 参照）。同じく `@media
-                    // (hover: hover)` 配下へ集約出力される（下記 `matches!`
-                    // の対象に含める）。
-                    selector.push_str(&format!(
-                        ":hover:not([data-disabled]):not([{attr_name}]):not([{eq_name}=\"{eq_value}\"])"
-                    ));
-                }
-            }
+            selector.push_str(&suffix);
             // Hover/HoverExcept/HoverExceptAttr は states ループの通常出力先
             // ではなく専用バッファへ集約し、css() 末尾で `@media (hover:
             // hover)` に 1 つだけまとめて出す（イシュー #1425、本関数
             // rustdoc の出力順序節参照）。
-            let target = if matches!(
-                rule.condition,
-                StateCondition::Hover
-                    | StateCondition::HoverExcept(_, _)
-                    | StateCondition::HoverExceptAttr(_)
-                    | StateCondition::HoverExceptAttrEq(_, _, _)
-            ) {
+            let target = if is_hover_family(&rule.condition) {
                 &mut hover_css
             } else {
                 &mut out
@@ -1245,22 +2022,107 @@ impl SlotRecipe {
             }
         }
 
-        if !hover_css.is_empty() {
-            // hover_css 側の各規則末尾に付与済みの区切り空行はそのまま
-            // 空行として保持し、非空行のみへインデントを足す（空行への
-            // 余計な末尾空白混入を避ける）。
-            out.push_str("@media (hover: hover) {\n");
-            for line in hover_css.trim_end_matches('\n').lines() {
-                if line.is_empty() {
-                    out.push('\n');
-                } else {
-                    out.push_str("  ");
-                    out.push_str(line);
-                    out.push('\n');
+        let mut starting_style_css = String::new();
+
+        for rule in &self.starting_style {
+            if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
+                continue;
+            }
+            let mut selector = format!(
+                "[data-scope=\"{}\"][data-part=\"{}\"]",
+                self.scope, rule.slot
+            );
+            if let Some(condition) = &rule.condition {
+                // Hover 系条件は starting style として意味を持たないため
+                // 規則ごと除外する（fail-closed、`StartingStyleRule` rustdoc
+                // 参照）。
+                if is_hover_family(condition) {
+                    continue;
+                }
+                match state_condition_selector(condition) {
+                    Some(suffix) => selector.push_str(&suffix),
+                    None => continue,
                 }
             }
-            out.push_str("}\n");
+            if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                starting_style_css.push_str(&css);
+                starting_style_css.push('\n');
+            }
         }
+
+        if !starting_style_css.is_empty() {
+            write_at_rule_block(&mut out, "@starting-style", &starting_style_css);
+            // 他の規則ブロック間と同じ「規則間は空行 1 つ」書式
+            // （本関数末尾の最終トリムと対をなす）を @media ブロックとの
+            // 間にも適用する。
+            out.push('\n');
+        }
+
+        // `@supports not (height: calc-size(auto, size))` ブロック
+        // （イシュー #2192、PR #2289 codex レビュー P1 是正。`[hidden]`
+        // 条件付き規則は Cursor Bugbot medium severity 是正で追加、
+        // `supports_not_calc_size_height_state` rustdoc「`[hidden]` 側の
+        // `transition: none` を別規則にする理由」参照）。`condition` が
+        // `None` の場合は無条件の base セレクタ、`Some` の場合は
+        // `state`/`@starting-style` と同じ `state_condition_selector`
+        // 経路でセレクタを組み立てる。
+        let mut supports_not_calc_size_css = String::new();
+        for rule in &self.supports_not_calc_size {
+            if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
+                continue;
+            }
+            let mut selector = format!(
+                "[data-scope=\"{}\"][data-part=\"{}\"]",
+                self.scope, rule.slot
+            );
+            if let Some(condition) = &rule.condition {
+                match state_condition_selector(condition) {
+                    Some(suffix) => selector.push_str(&suffix),
+                    None => continue,
+                }
+            }
+            if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                supports_not_calc_size_css.push_str(&css);
+                supports_not_calc_size_css.push('\n');
+            }
+        }
+
+        if !supports_not_calc_size_css.is_empty() {
+            write_at_rule_block(
+                &mut out,
+                "@supports not (height: calc-size(auto, size))",
+                &supports_not_calc_size_css,
+            );
+            out.push('\n');
+        }
+
+        // breakpoints は Breakpoint::ALL の昇順（mobile-first、sm → xl）で
+        // 1 breakpoint = 1 @media ブロックとして出力する（イシュー #2197、
+        // 本関数 rustdoc の出力構造節参照）。states/@starting-style/
+        // @supports の後・hover の前。
+        for bp in Breakpoint::ALL {
+            let mut block = String::new();
+            for rule in self.breakpoints.iter().filter(|r| r.breakpoint == bp) {
+                if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
+                    continue;
+                }
+                let selector = format!(
+                    "[data-scope=\"{}\"][data-part=\"{}\"]",
+                    self.scope, rule.slot
+                );
+                if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                    block.push_str(&css);
+                    block.push('\n');
+                }
+            }
+            push_media_block(
+                &mut out,
+                &format!("@media (min-width: {})", bp.min_width()),
+                &block,
+            );
+        }
+
+        push_media_block(&mut out, "@media (hover: hover)", &hover_css);
 
         // 末尾の空行は規則ブロック間の区切りとしてのみ入れるため、
         // 最後の 1 つを削って「規則間は空行 1 つ」書式を保つ。

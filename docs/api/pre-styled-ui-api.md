@@ -114,7 +114,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `toast`（`placement`（`group` slot）/`status`（`root` slot、`ColorPalette` 6 役割束ね〔`palette_scale_declarations`〕による淡色面配色。イシュー #1544）の 2 軸 variant を持つが、各軸が別 slot へ付与されるため `variant_class`（単一軸専用 API）をスロットごとに個別に呼ぶ。`Toaster` 状態機械は再エクスポートしない。#1545: action-trigger/close-trigger の hover/focus/disabled・`root` の mount 時 enter 遷移（`@keyframes fd-toast-enter`）・`group`/`root` のスタック配置固定幅化を追加。`close-trigger` はアイコン専用契約への破壊的変更（0.64.0）。タイマー自動 dismiss・`ActionTrigger` の動作配線は wasm-full 後続のスコープ外） | [toast](../../site/themes/toast.md) |
 | headless ラッパー | `hover_card`（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） | [hover-card](../../site/themes/hover-card.md) |
 | headless ラッパー | `toggle_tip`（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） | [toggle-tip](../../site/themes/toggle-tip.md) |
-| headless ラッパー | `collapsible`（glob 再エクスポート。参照 3 サイト（chakra-ui/Ark UI/Radix Primitives）のいずれも `size`/`variant`/`color-palette` を持たないため variant 軸は非提供。開閉時の高さアニメーションは JS 計測の関心のため非採用。イシュー #1682/#1683） | [collapsible](../../site/themes/collapsible.md) |
+| headless ラッパー | `collapsible`（glob 再エクスポート。参照 3 サイト（chakra-ui/Ark UI/Radix Primitives）のいずれも `size`/`variant`/`color-palette` を持たないため variant 軸は非提供。開閉時の高さトランジションは `@starting-style`/`transition-behavior: allow-discrete` + `fandhe-frontend-wasm-full` の実測高さ CSS 変数で JS 有効時のみ適用（イシュー #2192、案 C）。イシュー #1682/#1683） | [collapsible](../../site/themes/collapsible.md) |
 | headless ラッパー | `progress`（イシュー #1564。headless の値状態機械 `Progress` が持つ Track/Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の両方へ CSS を追加提供。`Progress` 型はあえて再エクスポートせず、`ProgressProps`（`size`/`variant`/`color-palette` の 3 軸）を付与する styled `root` と、determinate 時のみ `--fandhe-progress-percent` を付与する styled `range` の 2 つを新設する。track/circle 系は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時のアニメーション（linear は横スライド・circular は回転）は `[data-part="..."][data-state="indeterminate"]` セレクタ + `@keyframes` で提供し、`prefers-reduced-motion: reduce` で停止する。イシュー #1688: circular indeterminate は circle 全体の回転に加え、circle-range へ固定長の弧〔`stroke-dasharray`〕を与えて塗り色の完全リングと `complete` 状態を視覚的に区別できるようにする。イシュー #2049: shadcn/ui と突合し `ProgressVariant::Plain`（枠線なし中立トラック）を純追加） | [progress](../../site/themes/progress.md) |
 | 単純 styled 部品（静的） | `tag` / `kbd` / `code`（`tag` は `variant`（Solid/Subtle（既定）/Outline/Surface の 4 値、イシュー #1573 で Surface を追加）/`size`/`color-palette` の 3 軸 variant を持つ root/label/close-trigger の 3 パーツ。`badge` と同型の判断。close-trigger は状態機械を持たず `data-action` 属性の出力のみを担う。`code` は variant 軸を持たない単一 slot。`kbd` は `variant`（raised（既定）/subtle/outline の 3 値、イシュー #1436）/`size`/`color-palette` の 3 軸 variant を持つ `root` slot に加え、`group`〔shadcn/ui `KbdGroup` 相当、イシュー #2048〕の pre-styled-only 2 slot 構成） | [tag](../../site/themes/tag.md) / [kbd](../../site/themes/kbd.md) / [code](../../site/themes/code.md) |
 | 状態機械を要しない静的部品 | `status` / `empty_state`（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） | [status](../../site/themes/status.md) / [empty-state](../../site/themes/empty-state.md) |
@@ -1448,7 +1448,7 @@ pie-active は存在しない）・カテゴリごとの任意色（`ChartData` 
 hit-area `data-*`（#2128）・`chart-pie-interactive`（期間切替）・凡例の
 系列トグル（#2132）は対象外。
 
-## 4l. `theme` モジュール: Theme トークン API と `upsert_*`（イシュー #547/#606/#1138/#1423/#1678）
+## 4l. `theme` モジュール: Theme トークン API と `upsert_*`（イシュー #547/#606/#1138/#1423/#1678/#2197）
 
 ### API 一覧
 
@@ -1465,6 +1465,7 @@ impl Theme {
     pub fn push_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
     pub fn push_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1423
     pub fn push_size(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1678
+    pub fn push_breakpoint(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #2197
 
     // 追加または上書き（イシュー #1138。DuplicateTokenName を返さない）
     pub fn upsert_color(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
@@ -1474,6 +1475,7 @@ impl Theme {
     pub fn upsert_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
     pub fn upsert_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1423
     pub fn upsert_size(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1678
+    pub fn upsert_breakpoint(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #2197
 
     pub fn to_css(&self) -> String;
 }
@@ -1481,11 +1483,22 @@ impl Theme {
 // var(--fandhe-...) 参照ヘルパ（自由関数、`Theme` の inherent メソッドではない）
 pub fn z_index_var(name: &str) -> Result<String, ThemeError>; // イシュー #1423
 pub fn size_var(name: &str) -> Result<String, ThemeError>; // イシュー #1678
+pub fn breakpoint_var(name: &str) -> Result<String, ThemeError>; // イシュー #2197。参照専用（下記注記参照）
 ```
 
 色（colors）・影（shadows）はライト/ダーク 2 値、余白（spaces）・
 タイポグラフィ（typography）・角丸（radii）・重なり順（z-indices、イシュー
-#1423 で新設）・size（イシュー #1678 で新設）はモード非依存の 1 値を取る。
+#1423 で新設）・size（イシュー #1678 で新設）・breakpoint（イシュー #2197
+で新設）はモード非依存の 1 値を取る。
+
+**breakpoint トークンは参照専用**（イシュー #2197）: CSS custom property
+は `@media` プレリュードで使えないため、`push_breakpoint`/
+`upsert_breakpoint` で登録した値は `crate::recipe::SlotRecipe::breakpoint`
+が生成する `@media (min-width: ...)` の閾値には一切影響しない。閾値の
+唯一の定義元は `crate::recipe::Breakpoint::min_width()`（`const fn`）で
+あり、テーマトークンはこの値と `Theme::default()` 構築時に自動的に
+同期する（2 箇所の手打ちドリフトを構造的に防ぐ）。JS の `matchMedia`・
+利用者の独自スタイルシートから読む用途を想定する。
 
 ### `Theme::default()` の既定色トークン一覧（イシュー #1422）
 
@@ -1505,8 +1518,8 @@ Themes の色スケールとの対応表・「どの部品がどの semantic 名
 
 | API | 同名トークンが既存の場合 | 用途 |
 |-----|--------------------------|------|
-| `push_color` / `push_space` / `push_typography` / `push_radius` / `push_shadow` / `push_z_index` / `push_size` | `ThemeError::DuplicateTokenName` を返して拒否（fail-closed） | 新規トークンの追加。意図しない上書きを防ぐ既定挙動 |
-| `upsert_color` / `upsert_space` / `upsert_typography` / `upsert_radius` / `upsert_shadow` / `upsert_z_index` / `upsert_size` | 挿入順（＝ `Theme::to_css` の出力順）を保ったまま値を in-place 置換。存在しなければ末尾追加 | 既存トークン（既定パレット含む）の明示的な上書き。`DuplicateTokenName` を返すことはない |
+| `push_color` / `push_space` / `push_typography` / `push_radius` / `push_shadow` / `push_z_index` / `push_size` / `push_breakpoint` | `ThemeError::DuplicateTokenName` を返して拒否（fail-closed） | 新規トークンの追加。意図しない上書きを防ぐ既定挙動 |
+| `upsert_color` / `upsert_space` / `upsert_typography` / `upsert_radius` / `upsert_shadow` / `upsert_z_index` / `upsert_size` / `upsert_breakpoint` | 挿入順（＝ `Theme::to_css` の出力順）を保ったまま値を in-place 置換。存在しなければ末尾追加 | 既存トークン（既定パレット含む）の明示的な上書き。`DuplicateTokenName` を返すことはない |
 
 ### `Theme::default()` の既定値を差し替える正規経路
 
@@ -1585,6 +1598,42 @@ styled 部品が共用する 2 つの標準 variant 軸である。イシュー 
 `palette_declarations` の 3 役割はそのまま維持）も同イシューで新設した。
 判断根拠・非採用事項・再評価トリガーの詳細は
 `docs/design/pre-styled-ui-size-and-color-palette-axes.md` を参照。
+
+### `recipe::Breakpoint` / `SlotRecipe::breakpoint`（イシュー #2197）
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Breakpoint { Sm, Md, Lg, Xl }
+
+impl Breakpoint {
+    pub const ALL: [Breakpoint; 4];
+    pub const fn value(self) -> &'static str;      // "sm" / "md" / "lg" / "xl"
+    pub const fn min_width(self) -> &'static str;   // "640px" / "768px" / "1024px" / "1280px"
+}
+
+impl SlotRecipe {
+    pub fn breakpoint(
+        self,
+        slot: &'static str,
+        bp: Breakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self; // builder、自己消費
+}
+```
+
+`StateCondition` と並ぶ条件だが、variant 軸でも状態条件でもない別
+カテゴリのため独立した enum とした。`SlotRecipe::breakpoint` が登録した
+規則は `SlotRecipe::css()` の出力で「states の後・hover ブロック
+（`@media (hover: hover)`）の前」に、`Breakpoint::ALL` の昇順
+（`sm` → `xl`、mobile-first）で `@media (min-width: <bp.min_width()>)`
+ブロックとして出力される（1 breakpoint = 1 ブロック、同一 breakpoint 内は
+登録順）。セレクタは base と同じ詳細度 `[data-scope][data-part]`
+（0,2,0）のため、同一 slot・同一プロパティを variant（0,3,0）が宣言して
+いると variant が常に勝つ。breakpoint × variant / breakpoint × state の
+複合条件（`@media` 内の `.fd-*` クラス・`:hover` 規則）は未実装
+（スコープ外、`docs/design/pre-styled-ui-scale-tokens.md` §3.6/§7 参照）。
+段の値（chakra-ui v3・shadcn/ui〔Tailwind v4〕と `sm` 以外で完全一致、
+`2xl` は見送り）の採用根拠は同文書 §3.6 を参照。
 
 ## 4m. `sidebar`（イシュー #2073、親 #2071。headless anatomy は #2072）
 

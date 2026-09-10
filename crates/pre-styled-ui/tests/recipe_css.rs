@@ -15,7 +15,7 @@ use fandhe_frontend_headless_ui::Orientation;
 use fandhe_frontend_pre_styled_ui::decl;
 use fandhe_frontend_pre_styled_ui::recipe::{
     disabled_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
-    palette_declarations, palette_scale_declarations, transition_declarations, when,
+    palette_declarations, palette_scale_declarations, transition_declarations, when, Breakpoint,
     ColorPalette as StdColorPalette, MotionDuration, Size, SlotRecipe, StateCondition,
     VariantValue,
 };
@@ -849,4 +849,437 @@ fn hover_state_and_other_states_coexist_with_hover_block_emitted_once_at_end() {
         css.ends_with("}\n"),
         "@media ブロックが css() 出力の末尾であること"
     );
+}
+
+// イシュー #2192: `@starting-style` / `transition-behavior: allow-discrete`
+// DSL・`content_height_transition` preset の統合テスト（設計は
+// `docs/design/collapsible-height-animation.md` 案 C）。
+
+use fandhe_frontend_pre_styled_ui::recipe::{
+    content_height_closed_declarations, content_height_closed_transition_declarations,
+    content_height_open_declarations, transition_declarations_allow_discrete, CONTENT_HEIGHT_VAR,
+};
+
+#[test]
+fn transition_declarations_allow_discrete_appends_behavior_longhand() {
+    // 先頭 3 宣言は `transition_declarations` と同一で、4 宣言目に
+    // `transition-behavior: allow-discrete` が追加されることを固定する。
+    let base = transition_declarations("height, display", MotionDuration::Normal);
+    let with_behavior =
+        transition_declarations_allow_discrete("height, display", MotionDuration::Normal);
+
+    assert_eq!(with_behavior.len(), 4);
+    assert_eq!(with_behavior[0].property(), base[0].property());
+    assert_eq!(with_behavior[0].value(), base[0].value());
+    assert_eq!(with_behavior[1].property(), base[1].property());
+    assert_eq!(with_behavior[1].value(), base[1].value());
+    assert_eq!(with_behavior[2].property(), base[2].property());
+    assert_eq!(with_behavior[2].value(), base[2].value());
+    assert_eq!(with_behavior[3].property(), "transition-behavior");
+    assert_eq!(with_behavior[3].value(), "allow-discrete");
+}
+
+#[test]
+fn starting_style_block_is_emitted_once_after_states_and_before_hover_media() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .starting_style("root", vec![decl("opacity", "0")])
+        .state(
+            "root",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state("root", StateCondition::Hover, hover_surface_declarations());
+
+    let css = recipe.css();
+    assert_eq!(css.matches("@starting-style").count(), 1);
+
+    let disabled_pos = css
+        .find("[data-disabled]")
+        .expect("disabled state must exist");
+    let starting_style_pos = css
+        .find("@starting-style")
+        .expect("@starting-style block must exist");
+    let media_pos = css
+        .find("@media (hover: hover)")
+        .expect("hover media block must exist");
+    assert!(
+        disabled_pos < starting_style_pos,
+        "states は @starting-style より前に出力される"
+    );
+    assert!(
+        starting_style_pos < media_pos,
+        "@starting-style は @media (hover: hover) より前に出力される"
+    );
+
+    let expected_block = concat!(
+        "@starting-style {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "    opacity: 0;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert!(css.contains(expected_block));
+}
+
+#[test]
+fn starting_style_without_rules_emits_no_block() {
+    // 未使用時は `@starting-style` が一切出ない（既存 golden の差分ゼロの
+    // 根拠。`starting_style`/`starting_style_state` を呼ばない部品の
+    // 出力はイシュー #2192 前後でバイト不変）。
+    let recipe = SlotRecipe::new("widget", &["root"]).base("root", vec![decl("display", "flex")]);
+    assert!(!recipe.css().contains("@starting-style"));
+}
+
+#[test]
+fn starting_style_state_generates_conditioned_selector() {
+    let recipe = SlotRecipe::new("widget", &["root"]).starting_style_state(
+        "root",
+        StateCondition::AttrEq("data-state", "open"),
+        vec![decl("height", "0")],
+    );
+
+    let expected = concat!(
+        "@starting-style {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"][data-state=\"open\"] {\n",
+        "    height: 0;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
+#[test]
+fn starting_style_fail_closed_cases_are_skipped_not_panicking() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        // 1. slot が slots 未宣言。
+        .starting_style("ghost-slot", vec![decl("color", "red")])
+        // 2. 状態条件の属性名が識別子として不正。
+        .starting_style_state(
+            "root",
+            StateCondition::Attr("Data-Highlighted"),
+            vec![decl("color", "green")],
+        )
+        // 3. Hover 系条件は starting style として意味を持たないため除外される。
+        .starting_style_state("root", StateCondition::Hover, vec![decl("color", "purple")])
+        // 有効な規則も混在させ、無効規則の除外が他の規則へ波及しないことを確認する。
+        .starting_style("root", vec![decl("opacity", "0")]);
+
+    let css = recipe.css();
+    assert!(!css.contains("ghost-slot"));
+    assert!(!css.contains("green"));
+    assert!(!css.contains("purple"));
+    assert!(css.contains("opacity: 0;"));
+    assert_eq!(css.matches("@starting-style").count(), 1);
+}
+
+#[test]
+fn content_height_transition_preset_registers_base_state_and_starting_style() {
+    let recipe = SlotRecipe::new("collapsible", &["content"])
+        .content_height_transition("content", MotionDuration::Normal);
+    let css = recipe.css();
+
+    // base: `--fandhe-content-height` を自要素で `initial` へリセット
+    // してから、フォールバック付き `var()` 参照 → `calc-size()`
+    // progressive enhancement の順で `height` を 2 回宣言する
+    // （未対応ブラウザは構文解析時点で `calc-size()` 宣言が無効となり
+    // 直前の `var()` 参照が有効なまま残る）。`display` 宣言そのものは
+    // 持たない（`transition-property` の列挙に `display` を含むのみ）。
+    // `overflow` は開いた定常状態の終端値として `visible` を宣言する
+    // （PR #2289 codex レビュー P1 是正）。トランジション進行中は
+    // `step-end` timing により開始値 `hidden` が維持される
+    // （`content_height_open_declarations` rustdoc「開いた定常状態での
+    // クリップ対策」節参照）。
+    assert!(css.contains(&format!("{CONTENT_HEIGHT_VAR}: initial;")));
+    assert!(css.contains(&format!("height: var({CONTENT_HEIGHT_VAR}, auto);")));
+    assert!(css.contains("height: calc-size(auto, size);"));
+    assert!(css.contains("box-sizing: border-box;"));
+    assert!(css.contains("overflow: visible;"));
+    assert!(css
+        .contains("transition-property: height, padding-block, margin-block, display, overflow;"));
+    assert!(css.contains(
+        "transition-timing-function: var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-end;"
+    ));
+    assert!(css.contains("transition-behavior: allow-discrete;"));
+    assert!(!css.contains("display: none;"));
+    assert!(!css.contains("display: block;"));
+
+    // `[hidden]` state: 縮小方向の宣言（`overflow: hidden` を含む）。
+    // 閉じる遷移専用の `transition-*` を自前で宣言し、`overflow` の
+    // timing-function は `step-start`（PR #2289 codex レビュー第 2
+    // ラウンド是正）。base（開く遷移）側は `step-end` のまま変わらない
+    // （`CONTENT_HEIGHT_TIMING_FUNCTION` rustdoc「開閉で非対称にする
+    // 理由」節参照）。
+    let expected_hidden_state = concat!(
+        "[data-scope=\"collapsible\"][data-part=\"content\"][hidden] {\n",
+        "  height: 0;\n",
+        "  padding-block: 0;\n",
+        "  margin-block: 0;\n",
+        "  overflow: hidden;\n",
+        "  transition-property: height, padding-block, margin-block, display, overflow;\n",
+        "  transition-duration: var(--fandhe-motion-duration-normal);\n",
+        "  transition-timing-function: var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-start;\n",
+        "  transition-behavior: allow-discrete;\n",
+        "}\n",
+    );
+    assert!(css.contains(expected_hidden_state));
+
+    // `@starting-style`: 開く遷移の開始点を `height: 0`/`overflow: hidden`
+    // に固定する。
+    let expected_starting_style = concat!(
+        "@starting-style {\n",
+        "  [data-scope=\"collapsible\"][data-part=\"content\"] {\n",
+        "    height: 0;\n",
+        "    padding-block: 0;\n",
+        "    margin-block: 0;\n",
+        "    overflow: hidden;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert!(css.contains(expected_starting_style));
+
+    // `@supports not (height: calc-size(auto, size))`: 未対応ブラウザでは
+    // 開いた定常状態を `height: auto`/`overflow: visible` へ戻し、
+    // `transition: none` でアニメーションを無効化する（PR #2289 codex
+    // レビュー P1 是正、`SlotRecipe::content_height_transition` rustdoc
+    // 「calc-size() 未対応ブラウザでの表示回帰対策」節参照）。加えて
+    // `[hidden]` にも同じ詳細度で `transition: none` を登録し、`[hidden]`
+    // state 規則自身の `transition-*` longhand がこの fallback に勝って
+    // しまう問題を是正する（Cursor Bugbot medium severity 指摘、
+    // `SlotRecipe::supports_not_calc_size_height_state` rustdoc「`[hidden]`
+    // 側の `transition: none` を別規則にする理由」参照）。
+    let expected_supports_fallback = concat!(
+        "@supports not (height: calc-size(auto, size)) {\n",
+        "  [data-scope=\"collapsible\"][data-part=\"content\"] {\n",
+        "    height: auto;\n",
+        "    overflow: visible;\n",
+        "    transition: none;\n",
+        "  }\n",
+        "\n",
+        "  [data-scope=\"collapsible\"][data-part=\"content\"][hidden] {\n",
+        "    transition: none;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert!(css.contains(expected_supports_fallback));
+}
+
+#[test]
+fn supports_not_calc_size_hidden_rule_outranks_hidden_state_rule_in_source_order() {
+    // Cursor Bugbot medium severity 指摘（PR #2289 レビュー）の回帰テスト:
+    // `[hidden]` state 規則（`content_height_closed_transition_declarations`）
+    // は fallback 用 `@supports not (...)` の無条件 `transition: none`
+    // （詳細度 (0,2,0)）より詳細度が高い (0,3,0) を持つため、fallback 側が
+    // `[hidden]` と同じ詳細度の `transition: none` 規則を持たない限り
+    // fallback 環境でも `[hidden]` の `transition-*` longhand が勝って
+    // しまう。同じ詳細度 (0,3,0) の `[hidden]` 規則を `@supports not
+    // (...)` 配下へ追加し、かつそれが通常の `[hidden]` state 規則より
+    // 出力順で後（CSS カスケードの記述順後勝ち）にあることを固定する。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .content_height_transition("root", MotionDuration::Normal);
+    let css = recipe.css();
+
+    let hidden_state_pos = css
+        .find("[data-scope=\"widget\"][data-part=\"root\"][hidden] {")
+        .expect("[hidden] state 規則が存在すること");
+    let supports_hidden_pos = css
+        .find("[data-scope=\"widget\"][data-part=\"root\"][hidden] {\n    transition: none;")
+        .expect("@supports not (...) 配下の [hidden] transition:none 規則が存在すること");
+
+    assert!(
+        hidden_state_pos < supports_hidden_pos,
+        "@supports not (...) 配下の [hidden] 規則は通常の [hidden] state 規則より後に出力される（詳細度が同じため記述順後勝ちで fallback を確実に効かせる）"
+    );
+
+    let supports_block_start = css
+        .find("@supports not (height: calc-size(auto, size)) {")
+        .expect("@supports not (...) ブロックが存在すること");
+    assert!(
+        supports_block_start < supports_hidden_pos,
+        "[hidden] 用の fallback 規則は @supports not (...) ブロック内に出力される"
+    );
+}
+
+#[test]
+fn content_height_declarations_helpers_match_preset_contract() {
+    let open = content_height_open_declarations(MotionDuration::Normal);
+    assert_eq!(open[0].property(), "box-sizing");
+    assert_eq!(open[0].value(), "border-box");
+    assert_eq!(open[1].property(), "overflow");
+    // 開いた定常状態の終端値は `visible`（PR #2289 codex レビュー P1
+    // 是正）。トランジション進行中は `step-end` timing により開始値
+    // `hidden`（`content_height_closed_declarations`）が維持される。
+    assert_eq!(open[1].value(), "visible");
+    assert_eq!(open[2].property(), CONTENT_HEIGHT_VAR);
+    assert_eq!(open[2].value(), "initial");
+    assert_eq!(open[3].property(), "height");
+    assert_eq!(open[3].value(), format!("var({CONTENT_HEIGHT_VAR}, auto)"));
+    assert_eq!(open[4].property(), "height");
+    assert_eq!(open[4].value(), "calc-size(auto, size)");
+    assert_eq!(open[5].property(), "transition-property");
+    assert_eq!(
+        open[5].value(),
+        "height, padding-block, margin-block, display, overflow"
+    );
+    assert_eq!(open[6].property(), "transition-duration");
+    assert_eq!(open[7].property(), "transition-timing-function");
+    assert_eq!(
+        open[7].value(),
+        "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-end"
+    );
+    assert_eq!(open.last().unwrap().property(), "transition-behavior");
+    assert_eq!(open.last().unwrap().value(), "allow-discrete");
+
+    let closed = content_height_closed_declarations();
+    assert_eq!(closed.len(), 4);
+    assert_eq!(closed[0].property(), "height");
+    assert_eq!(closed[0].value(), "0");
+    assert_eq!(closed[1].property(), "padding-block");
+    assert_eq!(closed[1].value(), "0");
+    assert_eq!(closed[2].property(), "margin-block");
+    assert_eq!(closed[2].value(), "0");
+    assert_eq!(closed[3].property(), "overflow");
+    assert_eq!(closed[3].value(), "hidden");
+}
+
+#[test]
+fn content_height_closed_transition_declarations_uses_step_start_for_overflow() {
+    // PR #2289 codex レビュー第 2 ラウンド是正: `[hidden]` state
+    // （閉じる遷移の終端スタイル）は自前で `transition-*` を宣言し、
+    // `overflow` の timing-function を `step-start` にする
+    // （`content_height_open_declarations` の `step-end` とは非対称）。
+    let closed_transition = content_height_closed_transition_declarations(MotionDuration::Normal);
+    let base_closed = content_height_closed_declarations();
+
+    // 先頭 4 値は `content_height_closed_declarations` と同一。
+    assert_eq!(closed_transition.len(), base_closed.len() + 4);
+    for (a, b) in closed_transition.iter().zip(base_closed.iter()) {
+        assert_eq!(a.property(), b.property());
+        assert_eq!(a.value(), b.value());
+    }
+
+    assert_eq!(closed_transition[4].property(), "transition-property");
+    assert_eq!(
+        closed_transition[4].value(),
+        "height, padding-block, margin-block, display, overflow"
+    );
+    assert_eq!(closed_transition[5].property(), "transition-duration");
+    assert_eq!(
+        closed_transition[6].property(),
+        "transition-timing-function"
+    );
+    assert_eq!(
+        closed_transition[6].value(),
+        "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-start"
+    );
+    assert_eq!(closed_transition[7].property(), "transition-behavior");
+    assert_eq!(closed_transition[7].value(), "allow-discrete");
+}
+
+#[test]
+fn content_height_var_matches_wasm_full_literal() {
+    assert_eq!(CONTENT_HEIGHT_VAR, "--fandhe-content-height");
+}
+
+// イシュー #2197: breakpoint 条件（`@media (min-width: ...)`）のテスト。
+
+#[test]
+fn breakpoint_values_match_reference_scale() {
+    // shadcn/ui（Tailwind v4 既定）・chakra-ui v3 と `sm` 以外で完全一致する
+    // 4 段スケール（採用根拠は `docs/design/pre-styled-ui-scale-tokens.md`
+    // §3.6 参照）。
+    let actual: Vec<(&str, &str)> = Breakpoint::ALL
+        .iter()
+        .map(|bp| (bp.value(), bp.min_width()))
+        .collect();
+    assert_eq!(
+        actual,
+        vec![
+            ("sm", "640px"),
+            ("md", "768px"),
+            ("lg", "1024px"),
+            ("xl", "1280px"),
+        ]
+    );
+}
+
+#[test]
+fn breakpoint_rules_match_golden_and_are_emitted_in_ascending_order() {
+    // `Md` を先・`Sm` を後に登録しても、出力は Breakpoint::ALL の昇順
+    // （sm → md、mobile-first）になることを固定する（登録順ではない）。
+    // ブロック内は登録順（後勝ち）。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .breakpoint("root", Breakpoint::Md, vec![decl("gap", "12px")])
+        .breakpoint("root", Breakpoint::Sm, vec![decl("gap", "8px")]);
+
+    let expected = concat!(
+        "@media (min-width: 640px) {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "    gap: 8px;\n",
+        "  }\n",
+        "}\n",
+        "\n",
+        "@media (min-width: 768px) {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "    gap: 12px;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
+#[test]
+fn breakpoint_blocks_are_emitted_after_states_and_before_hover_block() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .state(
+            "root",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state("root", StateCondition::Hover, hover_surface_declarations())
+        .breakpoint("root", Breakpoint::Sm, vec![decl("gap", "8px")]);
+
+    let css = recipe.css();
+    let disabled_pos = css
+        .find("[data-disabled]")
+        .expect("disabled rule must exist");
+    let breakpoint_pos = css
+        .find("@media (min-width: 640px)")
+        .expect("breakpoint block must exist");
+    let hover_pos = css
+        .find("@media (hover: hover)")
+        .expect("hover block must exist");
+    assert!(
+        disabled_pos < breakpoint_pos,
+        "state は breakpoint ブロックより前に出力される"
+    );
+    assert!(
+        breakpoint_pos < hover_pos,
+        "breakpoint ブロックは hover ブロックより前に出力される"
+    );
+    assert!(
+        css.ends_with("}\n"),
+        "hover ブロックが css() 出力の末尾であること"
+    );
+    assert_eq!(css.matches("@media (hover: hover)").count(), 1);
+}
+
+#[test]
+fn breakpoint_fail_closed_cases_are_skipped_not_panicking() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        // slots 未宣言の slot。
+        .breakpoint("ghost", Breakpoint::Sm, vec![decl("gap", "8px")])
+        // 不正な slot 名（構造破壊文字）。
+        .breakpoint("root\"] {} div[", Breakpoint::Sm, vec![decl("gap", "8px")])
+        // 無効な宣言のみ（プロパティ名が構造破壊文字）。
+        .breakpoint("root", Breakpoint::Sm, vec![decl("gap:hack", "8px")]);
+
+    assert!(!recipe.css().contains("@media (min-width"));
+}
+
+#[test]
+fn breakpoint_without_declarations_is_byte_identical_to_recipe_without_breakpoints() {
+    // `.breakpoint()` を一切呼ばない recipe の css() 出力に breakpoint
+    // ブロックが混入しないことを固定する（既存 golden の純追加不変条件）。
+    let recipe = SlotRecipe::new("widget", &["root"]).base("root", vec![decl("display", "flex")]);
+    assert!(!recipe.css().contains("@media (min-width"));
 }

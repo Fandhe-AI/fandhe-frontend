@@ -220,7 +220,45 @@ Phase 6（#2087・#2088〜#2095）は本決定と完全に整合しており、*
 - **nav 構成**: `[[section.group]]` を使わずフラットな `[[section.page]]`
   のみ（1 block = 1 ページで階層化する動機がないため）。
 
-## 11. `signup-01`（#2094）実装記録
+## 11. `login-04`（#2093）実装記録
+
+`login-01`（1 カラム）に続く 2 件目のログイン系 block。フォーム + 画像の
+2 カラム構成という shadcn `login-04` 固有の要件から、以下を追加で決定した。
+
+- **画像はビルド時生成アセットの再利用**: 右列画像は `data:` URI ではなく
+  `crate::showcase::image_demo_svg` が生成する `assets/image-demo.svg` を
+  相対パス（`../../assets/image-demo.svg`）参照する。`data:` URI は
+  `fandhe_frontend_core::is_safe_url` の検証で属性ごと欠落する（イシュー
+  #1562 と同型の判断）ため、既存の Themes 側 Image demo と同じアセットを
+  流用する形にした（新規アセットは追加しない）。
+- **見出しは `card::title`（`<h3>`）で表現してよい**: 当初「heading 要素は
+  TOC を汚染するため避ける」という判断を検討したが、`crate::layout::
+  with_heading_anchors` は Card の `title`（`<h3>`）を含む部品内部の見出しを
+  部分木ごと走査対象外とする既存の仕組みを持つため、`card::title` の使用は
+  TOC を汚染しない（`login_01` も同じ構成）。`login_04` のモジュール doc
+  「見出しは `card::title`（`<h3>`）+ `card::description` で表現する」節を
+  正とする。
+- **プロバイダロゴの一般化**: shadcn 側の Apple/Google/Meta ロゴ入り
+  `IconButton` 3 個は、実企業名・商標ロゴを持ち込まない方針（§8）に従い、
+  `sidebar-03` の `geo_icon` と同型の自作幾何アイコン + 一般的な
+  `aria-label`（「Login with provider A/B/C」）へ置換した。
+- **`field::separator`（#2276）の初採用**: 「Or continue with」区切りは
+  headless-ui/pre-styled-ui へ追加済みの `field::separator`（テキスト付き
+  区切り）をそのまま使う。`field::group` 内の縦積みリズムを崩さないため、
+  `separator::group`/`separator::label`（#2053）ではなくこちらを採用した。
+- **`@media` の初使用**: `blocks::LAYOUT_CSS` 系はこれまで `@media` を
+  持たなかったが、`< 768px` で右列画像を隠し 1 カラムへ切り替える shadcn
+  側の `hidden md:block` 相当の再現に `@media (max-width: 47.99rem)` を
+  初めて使った。`StyleSheet::push_css` の検証（`<`・NUL のみ拒否）は
+  `@media` ブロックを問題なく通す。
+- **カードのクリップ・2 カラム grid**: `card::root` は既定で padding・
+  `overflow: hidden` を持たない（`card.rs` doc 参照）ため、
+  `[data-blocks-login-04-card] { overflow: hidden; }` と
+  `[data-blocks-login-04-body] { padding: 0; display: grid;
+  grid-template-columns: 1fr 1fr; }` を block 側 CSS で補い、フォーム側
+  ラッパ（`[data-blocks-login-04-form]`）へ `padding: 2rem` を付与する
+  構成にした。
+## 12. `signup-01`（#2094）実装記録
 
 カード型のシンプルなサインアップフォーム。`login-01`（#2092 確定規則）を
 そのまま踏襲し、以下の対応付けで shadcn `signup-01` を合成した。
@@ -247,3 +285,37 @@ Phase 6（#2087・#2088〜#2095）は本決定と完全に整合しており、*
   の `max-width: 24rem`。フィールド数が多い（4 件）ため `min-height` は
   `login-01`（24rem）より広い `32rem` とした。
 - **使用部品**: Card / Field / Input / Button（`login-01` と同一の 4 部品）。
+
+## 13. `signup-05`（#2095）実装記録
+
+shadcn/ui Blocks `signup-05`（registry `new-york-v4/signup-05`）実物を確認
+したところ、Issue 本文の見立て（`card`/`separator`/`link`）は実物と一致
+しなかった（Card なし・入力欄は Email 1 個のみ・区切りは `FieldSeparator`・
+リンクは `<a href="#">` の死リンク）。実物へ合わせて以下のとおり構成した。
+
+- **`card` を不採用**: shadcn 実物に Card が無いため、外枠は素の `div`
+  （`data-blocks-signup-05-stack`）で構成した。
+- **ブランド見出しに `heading::heading`（H3）を採用**: shadcn 実物は
+  `<h1>` だが、Demo 内へ `h1` を置くとページ本体の H1（`crate::layout`
+  が生成）と重複するため `HeadingLevel::H3` を選んだ。`heading` は
+  `data-scope="heading"` を持つため `crate::layout::with_heading_anchors`
+  の TOC 収集対象外であり（`card::title` と同じ機構）、H1 → `## Demo` の
+  下に正しくネストする。
+- **ロゴを非リンク `div` + `role="img"` の `icon` にした理由**: 死リンク
+  不使用方針（本文書 §8 と同型）のため `<a href="#">` を出力しない。
+  `icon::IconProps.label` に `Some("Acme Inc.")` を渡すことで
+  `role="img"` + `aria-label` が付与され、shadcn 側の sr-only span 相当の
+  アクセシブルネームを代替できるため、追加のラッパー要素は不要と判断した。
+- **プロバイダ名の一般化**: 実企業名・実ブランド・商標ロゴは持ち込まない
+  方針（§8）のため、「Continue with Apple」「Continue with Google」を
+  「Continue with provider A」「Continue with provider B」へ置換し、
+  アイコンは `sidebar_03`/`sidebar_07` と同型の自作幾何図形を使った。
+- **`@media (max-width: 39.99rem)` の採用**: shadcn 側の
+  `Field.grid.gap-4.sm:grid-cols-2`（Tailwind `sm` ブレークポイント
+  640px 未満で 1 列）相当を、既存 block が使っていない `@media` クエリで
+  再現した（`field::separator` の採用は #2276 で追加されたテキスト付き
+  separator パーツを充てた）。
+
+不足部品は無かった（`field::separator`・`heading`・`icon`・アイコン付き
+`button` はいずれも実装時点で既存）。
+

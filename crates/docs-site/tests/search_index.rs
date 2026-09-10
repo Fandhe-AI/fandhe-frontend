@@ -15,6 +15,9 @@ use fandhe_frontend_docs_site::nav;
 use fandhe_frontend_docs_site::redirect;
 use fandhe_frontend_docs_site::search_index::{self, SearchIndexError};
 
+#[path = "support/shared_site.rs"]
+mod shared_site;
+
 /// 統合テストのスクラッチ基点。`tests/site_build.rs::scratch_root` と同一
 /// パターン（コンパイル時に確定する `CARGO_TARGET_TMPDIR` のみを使い、
 /// 実行時フォールバックで `/tmp` へリークしない）。
@@ -55,13 +58,6 @@ fn fixture_root(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
         .join(name)
-}
-
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("resolve repository root")
 }
 
 fn read_index(out_dir: &Path) -> String {
@@ -230,13 +226,25 @@ impl<'a> JsonParser<'a> {
                 other => {
                     // 元の UTF-8 バイト列をそのまま 1 文字分読み進める
                     // （マルチバイト文字を壊さないよう char 境界で処理する）。
+                    // 先頭バイトから当該 1 文字のバイト長を求め、その範囲だけを
+                    // `from_utf8` で検証する。残りバッファ全体を毎回検証する
+                    // 旧実装は 1 文字ごとに O(n) となり、実サイトの検索
+                    // インデックス（約 1MB）のパースに数分を要していた
+                    // （イシュー #2299 で判明した二乗時間の原因）。
                     let start = self.pos - 1;
-                    let rest = std::str::from_utf8(&self.bytes[start..])
-                        .expect("valid utf-8 from string start");
-                    let ch = rest.chars().next().expect("at least one char remains");
+                    let len = match other {
+                        0x00..=0x7F => 1,
+                        0xC0..=0xDF => 2,
+                        0xE0..=0xEF => 3,
+                        _ => 4,
+                    };
+                    let ch = std::str::from_utf8(&self.bytes[start..start + len])
+                        .expect("valid utf-8 char in string")
+                        .chars()
+                        .next()
+                        .expect("at least one char remains");
                     out.push(ch);
-                    self.pos = start + ch.len_utf8();
-                    let _ = other;
+                    self.pos = start + len;
                 }
             }
         }
@@ -299,9 +307,11 @@ fn search_index_is_byte_identical_across_two_builds_of_the_fixture_site() {
 /// `redirect::MANIFEST_REL_PATH` 起点で明示検証する）。
 #[test]
 fn real_site_search_index_does_not_contain_redirect_hrefs() {
-    let root = repo_root();
-    let out = TempDir::new("no-redirect-hrefs");
-    build_site(&root, &out.0).expect("real site/nav.toml should build cleanly");
+    // 共有ビルド（イシュー #2299）: 読み取り専用のため実サイトビルドを
+    // 使い回す。
+    let shared = shared_site::real_site();
+    let root = shared_site::repo_root();
+    let out_dir = shared.out_dir.as_path();
 
     let manifest_path = root.join(redirect::MANIFEST_REL_PATH);
     let manifest_input = std::fs::read_to_string(&manifest_path)
@@ -317,7 +327,7 @@ fn real_site_search_index_does_not_contain_redirect_hrefs() {
         std::fs::read_to_string(root.join("site/nav.toml")).expect("read real site/nav.toml");
     let real_nav = nav::parse_nav(&real_nav_input).expect("parse real site/nav.toml");
 
-    let json = read_index(&out.0);
+    let json = read_index(out_dir);
     let parsed = parse_json(&json);
     let pages = parsed.get("pages").as_array();
     let actual_hrefs: std::collections::BTreeSet<String> = pages
@@ -342,14 +352,17 @@ fn real_site_search_index_does_not_contain_redirect_hrefs() {
 
 #[test]
 fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html_ids() {
-    let root = repo_root();
-    let out_a = TempDir::new("real-site-a");
+    // 決定性検証のため、共有ビルド（イシュー #2299）を一方の入力に使い、
+    // 比較対象のもう一方は独自にビルドする（shared_site モジュール doc の
+    // 契約どおり）。
+    let shared = shared_site::real_site();
+    let root = shared_site::repo_root();
+    let out_a_dir = shared.out_dir.as_path();
     let out_b = TempDir::new("real-site-b");
 
-    build_site(&root, &out_a.0).expect("real site/nav.toml should build cleanly");
     build_site(&root, &out_b.0).expect("real site/nav.toml should build cleanly");
 
-    let json_a = read_index(&out_a.0);
+    let json_a = read_index(out_a_dir);
     let json_b = read_index(&out_b.0);
     // 2. 決定性（実サイト）。
     assert_eq!(
@@ -398,7 +411,7 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
             .strip_prefix(&real_nav.site.base_path)
             .unwrap_or(href)
             .trim_start_matches('/');
-        let html_path = out_a.0.join(relative).join("index.html");
+        let html_path = out_a_dir.join(relative).join("index.html");
         let html = std::fs::read_to_string(&html_path)
             .unwrap_or_else(|e| panic!("read generated {html_path:?}: {e}"));
 
@@ -474,11 +487,11 @@ fn real_site_search_index_still_contains_code_block_keywords_after_highlighting(
     // 文字を含む語句の分断は
     // [`real_site_search_index_keeps_words_adjacent_to_highlight_token_spans_contiguous`]
     // が別途検証する）。
-    let root = repo_root();
-    let out = TempDir::new("code-block-keywords");
-    build_site(&root, &out.0).expect("real site/nav.toml should build cleanly");
+    // 共有ビルド（イシュー #2299）: 読み取り専用のため実サイトビルドを
+    // 使い回す。
+    let shared = shared_site::real_site();
 
-    let json = read_index(&out.0);
+    let json = read_index(&shared.out_dir);
     let parsed = parse_json(&json);
     let pages = parsed.get("pages").as_array();
 

@@ -2870,6 +2870,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.173.0 へマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約。
 # 片方の到達値をそのまま採用しない原則）。
 #
+# イシュー #2192: `SlotRecipe` へ `@starting-style`/`transition-behavior:
+# allow-discrete` の公開 DSL（`starting_style`/`starting_style_state`/
+# `transition_declarations_allow_discrete`/`content_height_transition` 等）を
+# 追加する公開 API 追加のため 0.174.0 へマイナーバンプする。
+#
+# PR #2289 追加 codex レビュー P1 是正（calc-size() 対応ブラウザで開いた
+# 定常状態でも overflow: hidden が残り content 内の Popover が切り取られる
+# 回帰の解消）: `content_height_open_declarations`/
+# `content_height_closed_declarations` の出力する CSS 宣言が変わる実体
+# 変更のため 0.175.0 へマイナーバンプする。
+
 # イシュー #2119: styled `questionnaire`（recipe・golden テスト・Themes
 # ページ）を新設したため、公開 API の純追加として 0.174.0 へマイナー
 # バンプする。
@@ -2900,6 +2911,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方の実体変更を統合した結果として main の到達値 0.174.0 をさらに
 # 上回る 0.175.0 へマイナーバンプする（0.x の破壊的変更はマイナー
 # バンプの規約）。
+
+
+# 本コンフリクト解消（PR #2289、イシュー #2192）: 本ブランチ（#2192 の
+# @starting-style/transition-behavior DSL 追加、PR #2289 の calc-size()
+# 是正含む）と origin/main（#2293 の dialog/drawer close-trigger
+# 再設計）がいずれも独立に到達しており、双方の実体変更を統合した結果
+# として main の到達値 0.175.0 をさらに上回る 0.176.0 へマイナー
+# バンプする（0.x の破壊的変更はマイナーバンプの規約、同一版数への
+# 偶発的衝突をそのまま採用しない原則）。
 #
 # base 取り込み（PR #2296、イシュー #2194、1 回目）: 本クレート自身の実体
 # 変更は伴わず、依存先 `fandhe-frontend-headless-ui` の version 要求を
@@ -2938,6 +2958,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更のため、main の到達値 0.176.0 からさらに +1（patch）して 0.176.1
 # とする。
 #
+# 本コンフリクト解消（PR #2289、questionnaire〔#2291〕の main 取り込み・
+# 再衝突）: 本ブランチ（#2192 の @starting-style/transition-behavior DSL、
+# PR #2289 の calc-size() 是正含む）と origin/main（PR #2291 が確定させた
+# 0.176.0、styled questionnaire・dialog/drawer close-trigger 再設計・
+# #2285 是正を内包）がいずれも同一版数 0.176.0 に到達しており、同一版数
+# への偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を統合した
+# 結果として main の到達値 0.176.0 をさらに上回る 0.177.0 へマイナー
+# バンプする（0.x の破壊的変更はマイナーバンプの規約）。
+#
 # 本コンフリクト解消（イシュー #2195、PR #2297 の base 取り込み）: 本ブランチ
 # （#2195 Forms 家族横断の disabled/required 決定）は 0.176.0 へ到達済み
 # だったが、origin/main も別経路（#2119 questionnaire 実装の取り込み・
@@ -2955,7 +2984,47 @@ name = "fandhe-frontend-pre-styled-ui"
 # headless-ui 0.68.16 依存追随（origin/main は 0.68.15 のまま）は main の
 # 0.177.0 に含まれていない実体変更のため、main の到達値 0.177.0 からさら
 # に +1（patch）して 0.177.1 とする。
-version = "0.177.1"
+#
+# 本コンフリクト解消（PR #2289、イシュー #2192、PR #2297 の main 取り込み・
+# 再衝突）: 本ブランチと origin/main（#2297、Forms 家族横断の label
+# data-required 視覚化）がいずれも独立に 0.177.0 へ到達しており、同一
+# 版数への偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を
+# 統合した結果として main の到達値 0.177.0 をさらに上回る 0.178.0 へ
+# マイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
+# イシュー #2197: `recipe.rs` に `@media (min-width: ...)` を表現する
+# breakpoint 条件（`recipe::Breakpoint`・`recipe::SlotRecipe::breakpoint`）と
+# `theme::Theme` へのブレークポイントトークン（`push_breakpoint`/
+# `upsert_breakpoint`/`breakpoint_var`、4 段）を追加した。既存関数
+# シグネチャ・golden CSS は変更していない（純追加）。
+#
+# 本コンフリクト解消（イシュー #2197、main 取り込み）: 本ブランチは上記
+# breakpoint 追加により 0.176.0 → 0.177.0 へマイナーバンプ済みだったが、
+# origin/main も別経路（イシュー #2195 Forms 家族横断の disabled/required
+# 決定 + #2119 questionnaire 実装の取り込み・#2193/#2134 是正の統合）で
+# 独立に同じ 0.177.0 へ到達していた。同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、双方の実体変更を統合した結果として main の到達値
+# 0.177.0 をさらに上回る 0.178.0 へマイナーバンプする（0.x の破壊的変更は
+# マイナーバンプの規約）。
+# 本コンフリクト解消（PR #2289、イシュー #2192、PR #2300 の main 取り込み・
+# 再衝突）: 本ブランチ（#2192 の @starting-style/transition-behavior DSL、
+# 直前コミット 69b0d3bc の閉じる側 overflow 是正含む）と origin/main
+# （PR #2300、イシュー #2197 の recipe breakpoint 条件・トークン追加）が
+# いずれも独立に 0.178.0 へ到達しており、同一版数への偶発的衝突をその
+# まま採用しない原則に従い、双方の実体変更を統合した結果として main の
+# 到達値 0.178.0 をさらに上回る 0.179.0 へマイナーバンプする（0.x の
+# 破壊的変更はマイナーバンプの規約）。
+#
+# base 取り込み（PR #2296、イシュー #2194、4 回目）: 本ブランチの到達値
+# 0.177.1（3 回目の base 取り込み解消時点、headless-ui 0.68.16 依存追随の
+# みの patch バンプ）に対し、origin/main は独立に 0.179.0（styled
+# questionnaire・dialog/drawer close-trigger 再設計・Forms 家族横断の
+# disabled/required 決定・recipe breakpoint 条件・@starting-style/
+# transition-behavior DSL を内包）へ到達していた。同一版数への偶発的衝突
+# ではないが、本ブランチの headless-ui 0.68.16 依存追随（origin/main は
+# 0.68.15 のまま）は main の 0.179.0 に含まれていない実体変更のため、
+# main の到達値 0.179.0 からさらに +1（patch）して 0.180.0 とする。
+version = "0.180.0"
+
 
 
 edition = "2021"

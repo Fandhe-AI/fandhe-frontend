@@ -26,79 +26,24 @@ use std::path::{Path, PathBuf};
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_docs_site::blocks;
-use fandhe_frontend_docs_site::build::build_site;
+
+#[path = "support/shared_site.rs"]
+mod shared_site;
 
 fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("repo_root should resolve from CARGO_MANIFEST_DIR")
+    shared_site::repo_root()
 }
 
-/// `tests/site_build.rs::scratch_root`/`TempDir` と同じ規約
-/// （`CARGO_TARGET_TMPDIR` 固定配置、`/tmp` へフォールバックしない）。
-fn scratch_root() -> PathBuf {
-    let root = std::env::var("CARGO_TARGET_TMPDIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
-    let _ = std::fs::create_dir_all(&root);
-    root
-}
-
-struct TempDir(PathBuf);
-
-/// プロセス内で `TempDir::new` が呼ばれるたびに単調増加する値。`Drop` が
-/// 実際にディレクトリを削除するようになった（旧 `std::mem::forget` リーク
-/// 運用の是正、イシュー #2088 PR #2277 codex-review P2 指摘）ことで、
-/// 同一テストバイナリ内の複数スレッドが `build_real_site()`（同一 tag
-/// `"real-site"`）をほぼ同時刻に呼ぶと、ナノ秒精度の時刻だけでは衝突し得る
-/// （実測: `cargo test`（既定並列）で 4 テスト中 1 件が
-/// `NotFound: blocks/login-01/index.html` で偶発 FAIL、`--test-threads=1`
-/// では常に成功。2 スレッドが同じ `(pid, nanos)` でディレクトリ名を得ると
-/// 両者が同じパスへ書き込み・先に終わった側の `Drop` がもう片方の生成物を
-/// 削除してしまうため）。pid・時刻に加えプロセス内カウンタを混ぜ、
-/// 同一プロセス内での衝突を構造的に無くす。
-static TEMP_DIR_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-impl TempDir {
-    fn new(tag: &str) -> Self {
-        let unique = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let seq = TEMP_DIR_SEQ.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let path = scratch_root().join(format!(
-            "fandhe-frontend-docs-site-blocks-contract-{tag}-{}-{unique}-{seq}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&path).expect("create temp dir for blocks_contract.rs test");
-        Self(path)
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// `TempDir` を `&Path` として透過的に扱えるようにする（`out.join(...)` 等の
-/// 呼び出し元を変えずに所有権だけをテスト関数の戻り値へ持ち出すため）。
-impl std::ops::Deref for TempDir {
-    type Target = Path;
-
-    fn deref(&self) -> &Path {
-        &self.0
-    }
-}
-
-/// 生成物のディレクトリ「所有者」（`TempDir`）をそのまま返す。呼び出し元が
-/// 戻り値を保持している間だけ生成物が生存し、テスト関数終了時に `Drop` で
-/// 確実に削除される（以前の `std::mem::forget` によるリーク運用を是正）。
-fn build_real_site() -> TempDir {
-    let out = TempDir::new("real-site");
-    build_site(&repo_root(), &out.0).expect("real site/nav.toml should build cleanly");
-    out
+/// 実サイトビルドの生成物ディレクトリを返す（読み取り専用）。
+///
+/// 従来は本ファイル内でテストごとに `build_site` を再実行していた
+/// （13 テストで 13 回の実サイトフルビルド、イシュー #2299）が、いずれの
+/// テストも生成物を読み取るだけで書き込み・削除は行わないため、
+/// `tests/support/shared_site.rs` の共有ビルド（テストバイナリ内で 1 回だけ
+/// 実行）へ切り替えた。返す `&Path` は共有ビルドの出力を指すため、呼び出し
+/// 元で書き込み・削除しないこと。
+fn build_real_site() -> &'static Path {
+    shared_site::real_site().out_dir.as_path()
 }
 
 #[test]
@@ -197,6 +142,132 @@ fn login_01_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "login-01 should never contain {absent}"
+        );
+    }
+}
+
+/// login-04 の Demo 固有 CSS フック（card/body/form/field/submit/separator/
+/// providers/provider/image/img/stack）が実際に生成 HTML へ出力され、
+/// `blocks::stylesheet()` にも対応するセレクタが存在することを固定する
+/// （login-01 のイシュー #2088 codex-review 是正と同型: `card::root`/
+/// `field::root`/`button::button`/`image::image` は `drop_class_attr` で
+/// 呼び出し側 `class` を除去するため、CSS フックは `class` ではなく
+/// `data-*` 属性で渡す契約になっている、`crates/docs-site/src/blocks/
+/// login_04.rs` 参照）。
+#[test]
+fn login_04_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/login-04/index.html"))
+        .expect("blocks/login-04/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-login-04\""),
+        "login-04 page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "login-04 page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "login-04 page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-login-04-stack=\"\"",
+        "data-blocks-login-04-card=\"\"",
+        "data-blocks-login-04-body=\"\"",
+        "data-blocks-login-04-form=\"\"",
+        "data-blocks-login-04-field=\"\"",
+        "data-blocks-login-04-submit=\"\"",
+        "data-blocks-login-04-separator=\"\"",
+        "data-blocks-login-04-providers=\"\"",
+        "data-blocks-login-04-provider=\"\"",
+        "data-blocks-login-04-image=\"\"",
+        "data-blocks-login-04-img=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "login-04 page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-login-04-stack]",
+        "[data-blocks-login-04-card]",
+        "[data-blocks-login-04-body]",
+        "[data-blocks-login-04-form]",
+        "[data-blocks-login-04-field]",
+        "[data-blocks-login-04-submit]",
+        "[data-blocks-login-04-providers]",
+        "[data-blocks-login-04-image]",
+        "[data-blocks-login-04-img]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// login-04 の合成部品（card/field::group/field::separator/input/button/
+/// icon_button/image の合成）が shadcn `login-04` 相当の構成で実際に
+/// 出力されていること、実企業名・商標ロゴ（Apple/Google/Meta）・`<form>`・
+/// 死リンク（`href="#"`）・`data:` URI を持ち込んでいないことを固定する
+/// （イシュー #2093、`login_01_composes_expected_parts` と同型）。
+#[test]
+fn login_04_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/login-04/index.html"))
+        .expect("blocks/login-04/index.html should be generated");
+    let login_04_block = blocks::BLOCKS
+        .iter()
+        .find(|block| block.path == "/blocks/login-04/")
+        .expect("login-04 should be registered in blocks::BLOCKS");
+    let demo_html = render(&(login_04_block.demo)());
+    for needle in [
+        "data-scope=\"card\"",
+        "data-part=\"group\"",
+        "type=\"email\"",
+        "placeholder=\"m@example.com\"",
+        "type=\"password\"",
+        "data-part=\"separator\"",
+        "data-part=\"separator-content\"",
+        "Or continue with",
+        "fd-button--variant-outline",
+        "fd-button--icon-only",
+        "fd-button--variant-link",
+        "data-scope=\"image\"",
+        "src=\"../../assets/image-demo.svg\"",
+        "aria-label=\"Login with",
+    ] {
+        assert!(
+            html.contains(needle),
+            "login-04 page should contain {needle}"
+        );
+    }
+    for absent in [
+        "<form",
+        "href=\"#\"",
+        "role=\"alert\"",
+        "data-part=\"footer\"",
+        "src=\"data:",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "login-04 should never contain {absent}"
+        );
+    }
+    // 実ブランド名（Apple/Google/Meta）の不在は Demo 部分木（`(block.demo)()`
+    // を直接 render した出力）に対してのみ検証する。ページ全体には
+    // 「shadcn 側との差分メモ」節（原稿の説明文としてブランド名へ言及）が
+    // 存在するため、`html` 全体を対象にすると常に FAIL する（モジュール doc
+    // 「プロバイダボタン 3 個」節が守る不変条件は Demo 部分木限定）。
+    for absent in ["Apple", "Google", "Meta"] {
+        assert!(
+            !demo_html.contains(absent),
+            "login-04 Demo subtree should never contain {absent}"
         );
     }
 }
@@ -497,6 +568,123 @@ fn sidebar_03_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "sidebar-03 should never contain {absent}"
+        );
+    }
+}
+
+/// signup-05 の Demo 固有 CSS フック（stack/field/submit/providers/
+/// provider）が実際に生成 HTML へ出力され、`blocks::stylesheet()`
+/// にも対応するセレクタが存在することを固定する（login-01/sidebar-03 の
+/// codex-review 是正と同型: `field::root`/`button::button`/`heading::heading`/
+/// `icon::icon` は `drop_class_attr` で呼び出し側 `class` を除去するため、
+/// CSS フックは `class` ではなく `data-*` 属性で渡す契約になっている、
+/// `crates/docs-site/src/blocks/signup_05.rs` モジュール doc 参照）。
+#[test]
+fn signup_05_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/signup-05/index.html"))
+        .expect("blocks/signup-05/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-signup-05\""),
+        "signup-05 page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "signup-05 page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "signup-05 page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-signup-05-stack=\"\"",
+        "data-blocks-signup-05-field=\"\"",
+        "data-blocks-signup-05-submit=\"\"",
+        "data-blocks-signup-05-providers=\"\"",
+        "data-blocks-signup-05-provider=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "signup-05 page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-signup-05-stack]",
+        "[data-blocks-signup-05-field]",
+        "[data-blocks-signup-05-submit]",
+        "[data-blocks-signup-05-providers]",
+        "[data-blocks-signup-05-provider]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// signup-05 の合成部品（field::group/field::root/input/button/heading/icon/
+/// field::separator）が期待どおりの構成で実際に出力されていること、
+/// `card`/死リンク（`href="#"`）・`<form>`・実企業名（Apple/Google/Meta）を
+/// 持ち込んでいないこと、ページ内に `<h1` が 1 個のみ（Demo 内の見出しは
+/// H3 として TOC を汚染しない）ことを固定する（login-01/sidebar-03 と同型）。
+#[test]
+fn signup_05_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/signup-05/index.html"))
+        .expect("blocks/signup-05/index.html should be generated");
+    for needle in [
+        "data-part=\"group\"",
+        "type=\"email\"",
+        "placeholder=\"m@example.com\"",
+        "data-part=\"separator-content\"",
+        ">Or<",
+        "data-scope=\"heading\"",
+        "data-scope=\"icon\"",
+        "aria-label=\"Acme Inc.\"",
+        "fd-button--variant-outline",
+        "fd-button--variant-link",
+        "Create Account",
+        "Continue with provider",
+    ] {
+        assert!(
+            html.contains(needle),
+            "signup-05 page should contain {needle}"
+        );
+    }
+    for absent in [
+        "<form",
+        "href=\"#\"",
+        "role=\"alert\"",
+        "data-scope=\"card\"",
+        "src=\"data:",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "signup-05 should never contain {absent}"
+        );
+    }
+    assert_eq!(
+        html.matches("<h1").count(),
+        1,
+        "signup-05 page should contain exactly one <h1> (the page heading, not the Demo brand heading)"
+    );
+
+    // Demo 部分木のみを対象に、実ブランド名（Apple/Google/Meta）を持ち込んで
+    // いないことも固定する（ページ全体に対する上の否定チェックと二重化する
+    // ことで、レイアウト側の文言に依存しない検証にする）。
+    let block = blocks::BLOCKS
+        .iter()
+        .find(|b| b.path == "/blocks/signup-05/")
+        .expect("signup-05 block should be registered");
+    let demo_html = render(&(block.demo)());
+    for absent in ["Apple", "Google", "Meta"] {
+        assert!(
+            !demo_html.contains(absent),
+            "signup-05 demo output should never contain the real brand name {absent}"
         );
     }
 }
