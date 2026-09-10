@@ -183,18 +183,23 @@ pub enum ContentChange {
 ///
 /// - `new_scroll_height <= prev_scroll_height` は [`ContentChange::None`]。
 /// - `first_added_is_prepend`（今回のバッチで最初に見つかった要素追加を
-///   伴う `MutationRecord` について、追加ノード群がその親の先頭
-///   （`previousSibling` が無い位置）へ挿入されたか）が `true` なら
-///   [`ContentChange::Prepend`]。
+///   伴う `MutationRecord` について、追加ノード群がその親の先頭かつ
+///   既存ノードの前（`previousSibling` が無く `nextSibling` がある
+///   位置）へ挿入されたか）が `true` なら [`ContentChange::Prepend`]。
 /// - それ以外（`characterData` レコードのみで要素ノードの追加が無い
-///   場合を含む）は [`ContentChange::Grow`]。
+///   場合、および空リスト・空の `data-bind-list` への初回追加
+///   〔`previousSibling`/`nextSibling` がともに無い〕を含む）は
+///   [`ContentChange::Grow`]。
 ///
-/// 判定は `MutationRecord.previousSibling` という DOM 構造情報のみで
-/// 行い、viewport のジオメトリ（`getBoundingClientRect`）には依存しない
-/// （レビュー指摘 #2122: `content` に上部 padding があると Free 状態で
-/// scrollTop=0 でも先頭挿入した要素が viewport 上端より下に位置し
-/// `Grow` へ誤分類され、scrollTop 未補正・新着誤通知が起きる旧実装の
-/// 問題を回避する）。
+/// 判定は `MutationRecord.previousSibling`/`nextSibling` という DOM
+/// 構造情報のみで行い、viewport のジオメトリ
+/// （`getBoundingClientRect`）には依存しない（レビュー指摘 #2122:
+/// `content` に上部 padding があると Free 状態で scrollTop=0 でも
+/// 先頭挿入した要素が viewport 上端より下に位置し `Grow` へ誤分類され、
+/// scrollTop 未補正・新着誤通知が起きる旧実装の問題を回避する）。
+/// `nextSibling` の要求は、空リストへの初回追加を先頭挿入と誤判定して
+/// Free 状態で位置を動かし `data-has-new` を付与しない不具合を防ぐ
+/// （codex-review 指摘 #2122 line 789）。
 #[must_use]
 pub fn classify_change(
     first_added_is_prepend: bool,
@@ -722,10 +727,20 @@ mod wiring {
 
     /// 今回のバッチで最初に見つかった、要素追加を伴う `MutationRecord`
     /// について、追加ノード群がその親の先頭（`previousSibling` が無い
-    /// 位置）へ挿入されたかを構造的に判定する（[`classify_change`] の
-    /// `first_added_is_prepend` 引数用）。viewport のジオメトリには
-    /// 依存しない（`content` の上部 padding の影響を受けない、
-    /// レビュー指摘 #2122 line 196）。
+    /// 位置）へ**既存ノードの前に**挿入されたかを構造的に判定する
+    /// （[`classify_change`] の `first_added_is_prepend` 引数用）。
+    /// viewport のジオメトリには依存しない（`content` の上部 padding の
+    /// 影響を受けない、レビュー指摘 #2122 line 196）。
+    ///
+    /// `previousSibling` が無いことに加えて `nextSibling` が存在する
+    /// ことも要求する: 空リスト（または空の `data-bind-list`）への
+    /// 初回追加は追加ノード群の前後どちらにも既存ノードが無いため
+    /// `previousSibling`/`nextSibling` がともに `None` になり、この
+    /// 場合は先頭挿入ではなく初期成長（Grow）として扱う。Free 状態の
+    /// 空リストへ viewport より高い新着メッセージを追加した場合に
+    /// scrollTop 補正で位置を動かしてしまい `data-has-new` も
+    /// 付与されない（Free 状態は位置を維持して新着を通知する契約に
+    /// 反する）不具合を修正する（codex-review 指摘 #2122 line 789）。
     ///
     /// ネストした message-scroller インスタンス（`content` 配下の別
     /// インスタンスの `content`/`root`）への挿入は対象に含めない:
@@ -786,7 +801,9 @@ mod wiring {
             if added.length() == 0 {
                 continue;
             }
-            return record.previous_sibling().is_none();
+            // 前後どちらにも既存ノードが無い（`nextSibling` も無い）場合は
+            // 空リストへの初回追加であり、先頭挿入ではない。
+            return record.previous_sibling().is_none() && record.next_sibling().is_some();
         }
         false
     }

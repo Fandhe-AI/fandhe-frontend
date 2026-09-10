@@ -1947,14 +1947,20 @@ instance`）に各 viewport へインライン `scroll-behavior: auto` を固定
 ### 31.5 変異の分類と `scrollHeight` 差分補正
 
 `MutationObserver` コールバックは、今回のバッチで最初に見つかった要素
-追加を伴う `MutationRecord` について、追加ノード群がその親の先頭
-（`previousSibling` が無い位置）へ挿入されたかという DOM 構造情報のみで
-`classify_change` の `Prepend`/`Grow`/`None` を判定する（`Prepend` は
-先頭挿入、`Grow` はそれ以外の高さ増加、`None` は高さ不変・減少）。
-判定は viewport のジオメトリ（`getBoundingClientRect`）に依存しない
-（レビュー指摘 #2122: `content` に上部 padding があると Free 状態で
-scrollTop=0 でも先頭挿入が viewport 上端より下に位置し `Grow` へ誤分類
-される旧実装の問題を回避する）。対象レコードは、target から `content`
+追加を伴う `MutationRecord` について、追加ノード群がその親の先頭かつ
+既存ノードの前（`previousSibling` が無く、かつ `nextSibling` がある
+位置）へ挿入されたかという DOM 構造情報のみで `classify_change` の
+`Prepend`/`Grow`/`None` を判定する（`Prepend` は既存ノードの前への
+先頭挿入、`Grow` はそれ以外の高さ増加〔空リストへの初回追加を含む〕、
+`None` は高さ不変・減少）。判定は viewport のジオメトリ
+（`getBoundingClientRect`）に依存しない（レビュー指摘 #2122: `content`
+に上部 padding があると Free 状態で scrollTop=0 でも先頭挿入が viewport
+上端より下に位置し `Grow` へ誤分類される旧実装の問題を回避する）。
+`nextSibling` の要求は、空リスト（または空の `data-bind-list`）への
+初回追加が `previousSibling`/`nextSibling` ともに `None` になり
+`Prepend` と誤判定されると、Free 状態での新着追加が位置を維持したまま
+`data-has-new` を付与する契約に反してしまう不具合を防ぐ（codex-review
+P1 指摘 #2122）。対象レコードは、target から `content`
 （境界）までの間にネストした message-scroller の `root` が無いものに
 限る（ネストしたインスタンス自身の変異を外側の分類へ波及させない、
 `scoped_parts` と同じネスト分離パターン。レビュー指摘 #2122:

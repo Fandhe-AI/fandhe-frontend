@@ -360,6 +360,49 @@ async fn jump_to_latest_click_is_noop_when_disabled_ancestor() {
 
 // --- 新着検知 ---
 
+/// 空リスト（`content` 配下に既存の子ノードが無い状態）への初回追加は、
+/// 追加ノードに `previousSibling` が無いため構造的には先頭挿入と
+/// 見分けがつかないが、`nextSibling` も無い（前後どちらにも既存ノードが
+/// 無い）ことから初期成長（Grow）として扱われるべきである。Prepend と
+/// 誤判定されると、Free 状態で viewport より高い新着メッセージを追加
+/// したときに位置補正でスクロール位置が動き、かつ `data-has-new` が
+/// 付与されず新着通知の契約に反する（codex-review 指摘 #2122 line 789）。
+#[wasm_bindgen_test]
+async fn append_to_empty_list_while_free_marks_has_new_not_prepend() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-append-empty-free-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    // 初期状態は 1 件もメッセージを持たない空リスト。
+    let node = build_message_scroller("ms-empty-1", HeadlessStuck::Free, &[]);
+    let instance_root = mount(&container, &node);
+    let viewport = find_viewport(&instance_root);
+    let content_el = find_content(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    let before_top = viewport.scroll_top();
+    // viewport（height:100px）より高い新着メッセージを追加し、Prepend と
+    // 誤判定された場合の位置補正が確実に発生する条件を作る。
+    let new_child = render(&fixed_height_child(200));
+    content_el
+        .insert_adjacent_html("beforeend", &new_child)
+        .expect("insert_adjacent_html must not fail");
+
+    wait_for(|| instance_root.has_attribute("data-has-new")).await;
+    assert!(
+        instance_root.has_attribute("data-has-new"),
+        "空リストへの初回追加は Grow として data-has-new を付与すること"
+    );
+    assert_eq!(
+        viewport.scroll_top(),
+        before_top,
+        "空リストへの初回追加を Prepend と誤判定して scrollTop を動かさないこと"
+    );
+}
+
 #[wasm_bindgen_test]
 async fn append_while_free_marks_has_new_without_scrolling() {
     let window = web_sys::window().expect("window must exist");
