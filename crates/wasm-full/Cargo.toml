@@ -798,7 +798,18 @@ name = "fandhe-frontend-wasm-full"
 # へ自動配線した（新規公開 API の追加＝機能追加）。0.x の非破壊的機能追加
 # のため minor バンプとし、origin/main の到達値 0.17.4 から 0.18.0 とする
 # （`chart` モジュール追加時〔#2130〕の先例と同型の判断）。
-version = "0.18.0"
+#
+# イシュー #2193: 依存先 `fandhe-frontend-headless-ui` 0.68.14 → 0.68.15
+# （dialog/drawer の close-trigger text variant 追加）への
+# `version = "..."` 追随バンプ（`cargo run -p xtask -- check-dep-versions
+# --fix`）。本クレート自身は `src/` を変更していない
+# （`(dialog, close-trigger) -> "close"` の既存配線が footer 内でも
+# `data-variant` に関わらず解決することを新規テストで固定したのみ）ため
+# 内部変更のみの patch バンプ対象だったが、origin/main が並行 PR で
+# 独立に 0.18.0 へ到達済みだったため、同一版数への偶発的衝突をそのまま
+# 採用しない原則により main の到達値 0.18.0 からさらに +1（patch）して
+# 0.18.1 とする。
+version = "0.18.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
