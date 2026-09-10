@@ -258,3 +258,30 @@ Phase 6（#2087・#2088〜#2095）は本決定と完全に整合しており、*
   grid-template-columns: 1fr 1fr; }` を block 側 CSS で補い、フォーム側
   ラッパ（`[data-blocks-login-04-form]`）へ `padding: 2rem` を付与する
   構成にした。
+## 12. `signup-01`（#2094）実装記録
+
+カード型のシンプルなサインアップフォーム。`login-01`（#2092 確定規則）を
+そのまま踏襲し、以下の対応付けで shadcn `signup-01` を合成した。
+
+- **`FieldDescription` → `field::helper_text` + `has_helper_text`**: shadcn
+  側の `FieldDescription`（Email/Password/Confirm Password の 3 箇所）は
+  `field::helper_text` として描画し、対応する `FieldProps::has_helper_text`
+  を `true` にして `aria-describedby` を入力欄へ関連付ける。`has_helper_text`
+  が `true` のフィールドは対応する `helper_text` ノードを必ず描画しないと
+  `demo_output_has_no_dangling_aria_references_or_duplicate_ids` が
+  宙ぶらりん参照として検知する（逆に `false` のまま `helper_text` を描くと
+  関連付けが欠落する）。説明文を持たない Full Name は `has_helper_text: false`
+  のまま。
+- **SSO 一般化の踏襲**: 「Sign up with Google」→「Sign up with SSO」
+  （`ButtonVariant::Outline`、全幅）。`login-01` と同じ実企業名不使用の
+  判断（§8）。なお `site/blocks/signup-01.md` の「shadcn 側との差分メモ」
+  節は説明のため「Google」という語を含むが、これは合成 Demo（HTML 出力）
+  の一部ではなく原稿の解説文であり、§8 の「実企業名を持ち込まない」は
+  Demo が実際に描画する UI 文言（ボタンラベル等）を指す。
+- **`field::error_text` 非出力の踏襲**: `invalid: false` のため常に
+  `hidden` になり shadcn 構成にも存在しないため、`login-01` と同じく
+  DOM から省く。
+- **カード幅 24rem**: `login-01` と同じ `[data-blocks-signup-01-card]`
+  の `max-width: 24rem`。フィールド数が多い（4 件）ため `min-height` は
+  `login-01`（24rem）より広い `32rem` とした。
+- **使用部品**: Card / Field / Input / Button（`login-01` と同一の 4 部品）。

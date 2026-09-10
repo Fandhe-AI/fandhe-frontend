@@ -99,6 +99,46 @@ fn dialog_trigger_opens_and_close_trigger_closes() {
     assert!(!d.is_open());
 }
 
+/// イシュー #2193: footer 内の text variant close-trigger（headless
+/// `dialog::close_trigger_with_variant`）が既存の `(dialog, close-trigger)
+/// -> "close"` 配線をそのまま共有することを固定する。`PartRef` は
+/// `data-variant` を保持しないため [`action_for_part`] の判定自体は
+/// variant に左右されないが、`action_from_parts` の内側優先探索が
+/// footer/content/positioner/root を挟んでも close-trigger を正しく
+/// 解決することを footer 越境の実配置に近い part 列で検証する。
+#[test]
+fn dialog_close_trigger_inside_footer_resolves_to_close() {
+    use fandhe_frontend_wasm_full::headless::action_from_parts;
+
+    // headless 側が実際に data-variant="text" を出力することを確認する
+    // （SSR 突合、`fandhe_frontend_headless_ui::dialog::CloseTriggerVariant`）。
+    let close_html = render(&dialog::close_trigger_with_variant(
+        dialog::CloseTriggerVariant::Text,
+        vec![],
+        vec![],
+    ));
+    assert_scope_part_present(&close_html, "dialog", "close-trigger");
+    assert!(close_html.contains(r#"data-variant="text""#));
+
+    // footer は MAPPING_TABLE に登録がないが、click 委譲は event.target から
+    // root 方向へ内側優先で辿るため、footer の内側にある close-trigger が
+    // 最初に一致し "close" へ解決される（footer 自体は無視される）。
+    let parts = vec![
+        part("dialog", "close-trigger", None, false),
+        part("dialog", "footer", None, false),
+        part("dialog", "content", None, false),
+        part("dialog", "positioner", None, false),
+        part("dialog", "root", None, false),
+    ];
+    let action_ref =
+        action_from_parts(&parts).expect("footer 内の close-trigger は close へ解決するはず");
+    assert_eq!(action_ref.action, "close");
+
+    let mut d = Dialog::new(OpenState::Open);
+    assert!(dispatch(&mut d, &action_ref.action, &action_ref.payload));
+    assert!(!d.is_open());
+}
+
 #[test]
 fn popover_trigger_opens_and_close_trigger_closes() {
     let trigger_html = render(&popover::trigger(

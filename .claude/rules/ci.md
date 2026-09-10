@@ -135,7 +135,9 @@
   合成 block）/
   `blocks/login-04/index.html`（イシュー #2093、フォーム + 画像の 2 カラム
   ログインページ。`field::separator`・`image`・自作幾何アイコンの
-  `icon_button` 3 個を持つ合成 block）である。
+  `icon_button` 3 個を持つ合成 block）/
+  `blocks/signup-01/index.html`（イシュー #2094、カード型のシンプルな
+  サインアップフォーム。`field::helper_text` 3 件を持つ合成 block）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

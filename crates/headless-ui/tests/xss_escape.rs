@@ -32,6 +32,7 @@ use fandhe_frontend_headless_ui::calendar;
 use fandhe_frontend_headless_ui::command;
 use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
 use fandhe_frontend_headless_ui::date_picker;
+use fandhe_frontend_headless_ui::drawer;
 use fandhe_frontend_headless_ui::file_upload;
 use fandhe_frontend_headless_ui::item::{self, ItemMediaVariant, ItemRootProps};
 use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps};
@@ -119,6 +120,105 @@ fn dialog_title_children_text_is_escaped_for_all_payloads() {
         let html = render(&node);
         assert_payload_is_escaped(payload, &html, "dialog::title のテキストコンテキスト");
     }
+}
+
+/// (29) `close_trigger_with_variant`（イシュー #2193）の children・attrs・
+/// `data-scope`/`data-part`/`data-variant` 偽装ペイロード回帰。dialog / drawer
+/// 両方とも `data-variant` は固定語彙（`&'static str`）で任意文字列を受け
+/// 付けないが、children・呼び出し側 attrs は動的値のため全ペイロードで
+/// エスケープが貫通することを固定する。
+#[test]
+fn dialog_close_trigger_with_variant_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = dialog::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![],
+            vec![text(payload)],
+        );
+        let html = render(&node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "dialog::close_trigger_with_variant のテキストコンテキスト",
+        );
+
+        let attrs_node = dialog::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![("aria-label", payload)],
+            vec![],
+        );
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "dialog::close_trigger_with_variant の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+#[test]
+fn dialog_close_trigger_with_variant_scope_part_variant_spoof_is_dropped() {
+    let node = dialog::close_trigger_with_variant(
+        dialog::CloseTriggerVariant::Text,
+        vec![
+            ("data-scope", "evil"),
+            ("data-part", "evil"),
+            ("data-variant", "icon"),
+        ],
+        vec![],
+    );
+    let html = render(&node);
+    assert!(html.contains(r#"data-scope="dialog""#));
+    assert!(html.contains(r#"data-part="close-trigger""#));
+    assert!(html.contains(r#"data-variant="text""#));
+    assert!(!html.contains("evil"));
+}
+
+#[test]
+fn drawer_close_trigger_with_variant_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = drawer::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![],
+            vec![text(payload)],
+        );
+        let html = render(&node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "drawer::close_trigger_with_variant のテキストコンテキスト",
+        );
+
+        let attrs_node = drawer::close_trigger_with_variant(
+            dialog::CloseTriggerVariant::Text,
+            vec![("aria-label", payload)],
+            vec![],
+        );
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "drawer::close_trigger_with_variant の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+#[test]
+fn drawer_close_trigger_with_variant_scope_part_variant_spoof_is_dropped() {
+    let node = drawer::close_trigger_with_variant(
+        dialog::CloseTriggerVariant::Text,
+        vec![
+            ("data-scope", "evil"),
+            ("data-part", "evil"),
+            ("data-variant", "icon"),
+        ],
+        vec![],
+    );
+    let html = render(&node);
+    assert!(html.contains(r#"data-scope="drawer""#));
+    assert!(html.contains(r#"data-part="close-trigger""#));
+    assert!(html.contains(r#"data-variant="text""#));
+    assert!(!html.contains("evil"));
 }
 
 /// (2) 属性値経路: `aria_label`/`aria_controls`（WAI-ARIA ヘルパ）・
