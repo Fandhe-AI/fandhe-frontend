@@ -20,10 +20,10 @@ use fandhe_frontend_wasm_full::keynav::{
     accordion_next_index, calendar_next_index, combobox_key_action, highlight_next_index,
     is_typeahead_key, listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
     navigation_menu_link_next_index, navigation_menu_trigger_key_action, radio_next_index,
-    scroll_delta_for_band, splitter_key_action, submenu_nav, tabs_next_index,
-    toggle_group_next_index, tree_key_action, tree_visible_flags, typeahead_next_index,
-    typeahead_push, ComboboxKeyAction, Modifiers, NavigationMenuKeyAction, Orientation,
-    SplitterKeyAction, SubmenuNav, TreeItemMeta, TreeKeyAction, TYPEAHEAD_TIMEOUT_MS,
+    scroll_delta_for_band, scroll_top_after_delta, splitter_key_action, submenu_nav,
+    tabs_next_index, toggle_group_next_index, tree_key_action, tree_visible_flags,
+    typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers, NavigationMenuKeyAction,
+    Orientation, SplitterKeyAction, SubmenuNav, TreeItemMeta, TreeKeyAction, TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -1035,4 +1035,28 @@ fn scroll_delta_for_band_without_buttons_matches_container_rect_behavior() {
     assert_eq!(scroll_delta_for_band(5.0, 15.0, 0.0, 100.0), 0.0);
     assert_eq!(scroll_delta_for_band(-5.0, 15.0, 0.0, 100.0), -5.0);
     assert_eq!(scroll_delta_for_band(90.0, 110.0, 0.0, 100.0), 10.0);
+}
+
+/// 検証: 正の delta（0 から遠ざかる方向）は切り上げる（イシュー #2206）。
+/// `as i32` の素朴な切り捨てだと 10.4 は 10 になり項目下端が 1px 未満
+/// はみ出たままになるため、`ceil` で 0 から遠ざかる側へ丸める。
+#[test]
+fn scroll_top_after_delta_positive_rounds_away_from_zero() {
+    assert_eq!(scroll_top_after_delta(0, 10.4), 11);
+    assert_eq!(scroll_top_after_delta(5, 0.1), 6);
+    assert_eq!(scroll_top_after_delta(0, 10.0), 10);
+}
+
+/// 検証: 負の delta（0 から遠ざかる方向）は切り下げる（イシュー #2206）。
+#[test]
+fn scroll_top_after_delta_negative_rounds_away_from_zero() {
+    assert_eq!(scroll_top_after_delta(20, -10.4), 9);
+    assert_eq!(scroll_top_after_delta(10, -0.1), 9);
+    assert_eq!(scroll_top_after_delta(20, -10.0), 10);
+}
+
+/// 検証: delta が 0（既に可視領域内）なら `current` をそのまま返す no-op。
+#[test]
+fn scroll_top_after_delta_zero_is_noop() {
+    assert_eq!(scroll_top_after_delta(42, 0.0), 42);
 }

@@ -936,7 +936,14 @@ name = "fandhe-frontend-wasm-full"
 # `default-features = false` を使う既存利用者は配線を失う破壊的変更
 # （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の
 # (ii) を採用）にあたるため minor バンプとし、0.18.7 から 0.19.0 とする。
-version = "0.19.0"
+#
+# イシュー #2206: select/listbox の highlight 項目のスクロール追随
+# （`wiring::scroll_item_into_view_if_needed`。追随機構自体は PR #2165 で
+# 実装済み）を長いリストの browser テストで検証強化し、あわせて
+# `scroll_top_after_delta`（新設・純粋関数）で `f64 → i32` の 0 方向切り捨て
+# による 1px 未満のはみ出しを是正した。既存シグネチャ不変の加算的変更
+# （純粋関数追加 + 丸め是正）のため patch バンプ、0.19.0 から 0.19.1 とする。
+version = "0.19.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
