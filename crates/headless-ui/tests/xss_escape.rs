@@ -38,6 +38,7 @@ use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps};
 use fandhe_frontend_headless_ui::message::{self, MessageRootProps};
 use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
 use fandhe_frontend_headless_ui::qr_code;
+use fandhe_frontend_headless_ui::questionnaire::QuestionProps;
 use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::sidebar::{
     self, Sidebar, SidebarMenuButtonProps, SidebarMenuSubButtonProps, SidebarProps, SidebarState,
@@ -50,7 +51,7 @@ use fandhe_frontend_headless_ui::{
     image_cropper, input_group, listbox, number_input, password_input, pin_input, popover,
     rating_group, segment_group, signature_pad, slider, splitter, tags_input, timer, toast,
     tree_view, Calendar, DatePicker, ImageStatus, InputGroupAlign, InputGroupProps, Orientation,
-    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus, Tour,
+    PasswordAutocomplete, PasswordInputProps, Questionnaire, Steps, ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -2716,6 +2717,113 @@ fn marker_root_icon_content_are_escaped_for_all_payloads() {
             payload,
             &html,
             "marker::content の attrs/children コンテキスト",
+        );
+    }
+}
+
+#[test]
+fn questionnaire_all_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let q = Questionnaire::new(3, 1, Orientation::Horizontal);
+
+        let root_node = q.root(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&root_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::root の attrs/children コンテキスト",
+        );
+
+        let progress_node =
+            q.progress(payload, vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&progress_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::progress の label/attrs/children コンテキスト",
+        );
+
+        let all_true = QuestionProps {
+            answered: true,
+            skipped: true,
+            required: true,
+            invalid: true,
+        };
+        let question_node = q.question(
+            1,
+            all_true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&question_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::question の attrs/children コンテキスト",
+        );
+
+        let prompt_node = q.prompt(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&prompt_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::prompt の attrs/children コンテキスト",
+        );
+
+        let description_node = q.description(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&description_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::description の attrs/children コンテキスト",
+        );
+
+        let options_node = q.options(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&options_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::options の attrs/children コンテキスト",
+        );
+
+        let freeform_node = q.freeform(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&freeform_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::freeform の attrs/children コンテキスト",
+        );
+
+        let actions_node = q.actions(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&actions_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::actions の attrs/children コンテキスト",
+        );
+
+        let back_node = q.back(false, vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&back_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::back の attrs/children コンテキスト",
+        );
+
+        let next_node = q.next(false, vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&next_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::next の attrs/children コンテキスト",
+        );
+
+        let skip_node = q.skip(false, vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&skip_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "questionnaire::skip の attrs/children コンテキスト",
         );
     }
 }

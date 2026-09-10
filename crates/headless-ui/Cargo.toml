@@ -600,6 +600,7 @@ name = "fandhe-frontend-headless-ui"
 # 0.68.10 → 0.68.11 へ patch バンプしたため、再び同一版数衝突として
 # main の到達値 0.68.11 から +1 して 0.68.12 とする（PR #2265 review 対応
 # での再マージ取り込み）。
+#
 # イシュー #2185: `field` へ `group`/`content`/`title`/テキスト付き
 # `separator`（内部パーツ `separator-line`/`separator-content`）を新設した
 # （PR #2147 で「対応する headless anatomy が存在しない」として見送られた
@@ -612,7 +613,13 @@ name = "fandhe-frontend-headless-ui"
 # scroll-up-button/scroll-down-button 追加）で独立に 0.68.12 へ到達して
 # おり、同一版数への偶発的衝突をそのまま採用しない原則により main の
 # 到達値 0.68.12 からさらに +1 して 0.68.13 とする。
-version = "0.68.13"
+#
+# イシュー #2117 base 取り込み: `questionnaire`（11 anatomy パーツ +
+# `Questionnaire` 状態機械、shadcn/ui Questionnaire 相当）を新設。既存
+# API への変更はなく非破壊的な追加であり、origin/main が上記 #2185 で
+# 0.68.13 へ到達済みだったため、その到達値からさらに +1 して 0.68.14
+# とする（PR #2279 review 対応での base 取り込み）。
+version = "0.68.14"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

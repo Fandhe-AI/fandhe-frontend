@@ -3,7 +3,8 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! `/primitives/<kebab>/` 72 ページ（イシュー #2114 で `marker` を
+//! `/primitives/<kebab>/` 73 ページ（イシュー #2117 で `questionnaire`
+//! を追加、旧 72。イシュー #2114 で `marker` を
 //! 追加、旧 71。イシュー #2111 で `attachment` を
 //! 追加、旧 70。#2108 で `bubble` を追加、
 //! 旧 69。イシュー #2105 で `message` を追加、
@@ -27,7 +28,8 @@
 //! # 判別規約（設計 §6 の要旨）
 //!
 //! `crates/headless-ui/src/*.rs` のうち本文に `anatomy(` を含むもの
-//! （`anatomy.rs` 自身を除く）が部品 72 件（イシュー #2114 で `marker`
+//! （`anatomy.rs` 自身を除く）が部品 73 件（イシュー #2117 で
+//! `questionnaire` が加わり 72 → 73。イシュー #2114 で `marker`
 //! が加わり 71 → 72。イシュー #2111 で
 //! `attachment` が加わり 70 → 71。#2108 で `bubble`
 //! が加わり 69 → 70。イシュー #2105 で `message`
@@ -35,11 +37,11 @@
 //! が加わり 67 → 68。#2068 で `command`
 //! が加わり 66 → 67。#2065 で `item` が加わり 65 → 66。#2062 で
 //! `input_group`・#2059 で `button_group` が加わり 63 → 65）、基盤モジュール
-//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 82 件が
+//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 83 件が
 //! `crates/headless-ui/src/*.rs` の総数（実測:
-//! `ls crates/headless-ui/src/*.rs | wc -l` => 82、
+//! `ls crates/headless-ui/src/*.rs | wc -l` => 83、
 //! `grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l`
-//! => 72）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
+//! => 73）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
 //! 責務。
 
 use std::collections::BTreeSet;
@@ -129,7 +131,8 @@ impl PrimitiveCategory {
     }
 }
 
-/// Primitives 台帳（72 件、イシュー #2114 で `marker` 追加、旧 71。
+/// Primitives 台帳（73 件、イシュー #2117 で `questionnaire` 追加、旧 72。
+/// イシュー #2114 で `marker` 追加、旧 71。
 /// イシュー #2111 で `attachment` 追加、旧 70。
 /// イシュー #2108 で `bubble` 追加、旧 69。イシュー
 /// #2105 で `message` 追加、旧 68。#2072 で
@@ -254,6 +257,16 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         module: "pin_input",
         path: "/primitives/pin-input/",
         title: "Pin Input",
+        category: PrimitiveCategory::FormsB,
+    },
+    // イシュー #2117: `questionnaire`（11 anatomy パーツ + `Questionnaire`
+    // 状態機械、shadcn/ui Questionnaire 相当）を追加。Themes ページは
+    // 後続イシュー #2119 のため `PRIMITIVES_WITHOUT_THEMES_PAGE` へ
+    // 暫定登録する（下記参照）。
+    PrimitiveEntry {
+        module: "questionnaire",
+        path: "/primitives/questionnaire/",
+        title: "Questionnaire",
         category: PrimitiveCategory::FormsB,
     },
     PrimitiveEntry {
@@ -671,12 +684,15 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// を実装済みのため除外した。`marker` も同様にイシュー #2114 で headless-ui
 /// 層のみ先行実装され暫定的にこの台帳へ載っていたが、イシュー #2115 で
 /// Themes 層（`crates/pre-styled-ui/src/marker.rs`・
-/// `site/themes/marker.md`）を実装済みのため除外した。
+/// `site/themes/marker.md`）を実装済みのため除外した。`questionnaire` は
+/// イシュー #2117 で headless-ui 層のみ先行実装した暫定登録であり、
+/// Themes 層（styled recipe・golden・`site/themes/questionnaire.md`）は
+/// 後続イシュー #2119 のスコープである。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &[];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["questionnaire"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
@@ -863,8 +879,10 @@ mod tests {
         assert!(result.is_clean(), "{result:?}");
     }
 
-    /// 台帳が 72 件・6 カテゴリで、件数配分（13/11/10/10/13/15）と
-    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2114 で
+    /// 台帳が 73 件・6 カテゴリで、件数配分（13/12/10/10/13/15）と
+    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2117 で
+    /// `questionnaire` が Forms B へ追加され同カテゴリは 11 → 12、
+    /// イシュー #2114 で
     /// `marker` が Data Display / Utilities へ追加され同カテゴリは
     /// 14 → 15、イシュー #2111 で `attachment` が
     /// Data Display / Utilities へ追加され同カテゴリは 13 → 14、イシュー
@@ -882,11 +900,11 @@ mod tests {
     /// 追加され Forms A は 12 → 13）。
     #[test]
     fn catalog_has_72_entries_in_six_categories_in_spec_order() {
-        assert_eq!(PRIMITIVES.len(), 72);
+        assert_eq!(PRIMITIVES.len(), 73);
 
         let expected_order_and_counts: [(PrimitiveCategory, usize); 6] = [
             (PrimitiveCategory::FormsA, 13),
-            (PrimitiveCategory::FormsB, 11),
+            (PrimitiveCategory::FormsB, 12),
             (PrimitiveCategory::FormsCDateStatus, 10),
             (PrimitiveCategory::OverlayDisclosure, 10),
             (PrimitiveCategory::Navigation, 13),
