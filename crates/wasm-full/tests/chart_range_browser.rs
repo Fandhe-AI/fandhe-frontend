@@ -21,10 +21,11 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_core::{el, render};
+use fandhe_frontend_wasm_full::chart::wire_chart_events;
 use fandhe_frontend_wasm_full::chart_range::wire_chart_range_events;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, MouseEvent, MouseEventInit};
+use web_sys::{Document, Element, KeyboardEvent, KeyboardEventInit, MouseEvent, MouseEventInit};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -613,4 +614,359 @@ async fn await_next_tick() {
     wasm_bindgen_futures::JsFuture::from(promise)
         .await
         .expect("Promise::resolve must not reject");
+}
+
+/// `keydown`（`bubbles: true, cancelable: true`）を合成する
+/// （`chart_tooltip_browser.rs::keydown_event` と同型）。
+fn keydown_event(key: &str) -> KeyboardEvent {
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key(key);
+    KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .expect("KeyboardEvent::new must not fail")
+}
+
+/// line-chart 相当の `series-line`（`data-series` のみ・`data-index` を
+/// 持たない）1 本 + 凡例 trigger 1 件を `container_id` 配下へ構築する
+/// （イシュー #2134 codex-review 指摘: `[data-index]` のみを対象にして
+/// いた `sync_chart` がこれらの要素を取りこぼしていた回帰の検証用）。
+fn series_only_markup(container_id: &str) {
+    let series_line = el(
+        "path",
+        vec![
+            ("data-scope", "line-chart"),
+            ("data-part", "series-line"),
+            ("data-series", "a"),
+            ("d", "M0,0L1,1"),
+        ],
+        vec![],
+    );
+    let svg = el(
+        "svg",
+        vec![("data-part", "root"), ("id", "series-only-chart-root")],
+        vec![series_line],
+    );
+    let legend = el(
+        "button",
+        vec![
+            ("data-scope", "chart-legend"),
+            ("data-part", "trigger"),
+            ("data-series", "a"),
+            ("aria-pressed", "true"),
+            ("aria-controls", "series-only-chart-root"),
+        ],
+        vec![],
+    );
+    let html = render(&el("div", vec![], vec![svg, legend]));
+    web_sys::window()
+        .expect("window must exist")
+        .document()
+        .expect("document must exist")
+        .get_element_by_id(container_id)
+        .expect("container must exist")
+        .set_inner_html(&html);
+}
+
+#[wasm_bindgen_test]
+fn series_only_marks_without_data_index_sync_with_legend_toggle() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-range-test-series-only");
+    let _guard = RemoveOnDrop(container.clone());
+    series_only_markup("chart-range-test-series-only");
+    wire_chart_range_events(container.clone()).expect("wiring must not fail");
+
+    let series_line = query(
+        &container,
+        "[data-scope=\"line-chart\"][data-part=\"series-line\"]",
+    )
+    .expect("series-line must exist");
+    assert!(
+        !series_line.has_attribute("data-hidden"),
+        "series-line starts visible (aria-pressed=true)"
+    );
+
+    let trigger = query(
+        &container,
+        "[data-scope=\"chart-legend\"][data-part=\"trigger\"]",
+    )
+    .expect("trigger must exist");
+    click(&trigger);
+
+    assert!(
+        series_line.has_attribute("data-hidden"),
+        "series-only marks (data-series only, no data-index) must sync with legend toggle"
+    );
+
+    click(&trigger);
+    assert!(
+        !series_line.has_attribute("data-hidden"),
+        "re-click must restore visibility (idempotent sync)"
+    );
+}
+
+/// bar 1 件（`data-index="0" data-series="b"`）が SSR 時点で既に
+/// `data-hidden`（`BarChartProps::hidden_series` 相当）を持ち、`toggle-group`
+/// による期間切替コントロールのみが配線され、凡例 trigger は一切存在
+/// しない構成を `container_id` 配下へ構築する（イシュー #2134
+/// codex-review 指摘: 凡例なしで期間コントロールだけを配線すると、
+/// マウント直後の `sync_all` が SSR の非表示設定を「凡例なし＝全件表示」
+/// へ誤って解除してしまっていた回帰の検証用）。
+fn declared_hidden_without_legend_markup(container_id: &str) {
+    fn bar(series: &'static str, hidden: bool) -> fandhe_frontend_core::Node {
+        let mut attrs = vec![
+            ("data-scope", "bar-chart"),
+            ("data-part", "bar"),
+            ("data-index", "0"),
+            ("data-series", series),
+        ];
+        if hidden {
+            attrs.push(("data-hidden", ""));
+        }
+        el("rect", attrs, vec![])
+    }
+    let svg = el(
+        "svg",
+        vec![("data-part", "root"), ("id", "declared-hidden-chart-root")],
+        vec![bar("a", false), bar("b", true)],
+    );
+    let range_group = el(
+        "div",
+        vec![
+            ("data-scope", "toggle-group"),
+            ("data-part", "root"),
+            ("aria-controls", "declared-hidden-chart-root"),
+        ],
+        vec![el(
+            "button",
+            vec![
+                ("data-scope", "toggle-group"),
+                ("data-part", "item"),
+                ("data-value", "90d"),
+            ],
+            vec![],
+        )],
+    );
+    let html = render(&el("div", vec![], vec![svg, range_group]));
+    web_sys::window()
+        .expect("window must exist")
+        .document()
+        .expect("document must exist")
+        .get_element_by_id(container_id)
+        .expect("container must exist")
+        .set_inner_html(&html);
+}
+
+#[wasm_bindgen_test]
+fn mount_time_sync_preserves_ssr_declared_hidden_when_no_legend_governs_it() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-range-test-declared");
+    let _guard = RemoveOnDrop(container.clone());
+    declared_hidden_without_legend_markup("chart-range-test-declared");
+
+    // マウント直後の `sync_all`（`wire_chart_range_events` 内部）が
+    // 走った後の状態を検証する。
+    wire_chart_range_events(container.clone()).expect("wiring must not fail");
+
+    let bar_a = indexed(
+        &container,
+        "[data-scope=\"bar-chart\"][data-part=\"bar\"]",
+        0,
+        Some("a"),
+    );
+    assert!(
+        !bar_a.has_attribute("data-hidden"),
+        "series a stays visible (SSR declared it visible, no legend involved)"
+    );
+    let bar_b = indexed(
+        &container,
+        "[data-scope=\"bar-chart\"][data-part=\"bar\"]",
+        0,
+        Some("b"),
+    );
+    assert!(
+        bar_b.has_attribute("data-hidden"),
+        "series b's SSR-declared hidden_series state must survive mount-time sync \
+         even though no legend governs it (period control alone must not clear it)"
+    );
+}
+
+#[wasm_bindgen_test]
+fn disabled_range_item_click_is_rejected() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-range-test-disabled-item");
+    let _guard = RemoveOnDrop(container.clone());
+    full_chart_markup("chart-range-test-disabled-item");
+
+    // 30d item を無効化する（`toggle_group::item`/`select::item` の
+    // `data-disabled` 契約と同じ語彙）。
+    let item_30d = query(
+        &container,
+        "[data-scope=\"toggle-group\"][data-part=\"item\"][data-value=\"30d\"]",
+    )
+    .expect("30d item must exist");
+    item_30d
+        .set_attribute("data-disabled", "")
+        .expect("set_attribute must not fail");
+
+    wire_chart_range_events(container.clone()).expect("wiring must not fail");
+
+    let chart_root = document
+        .get_element_by_id("chart-root")
+        .expect("chart root must exist");
+    assert!(chart_root.get_attribute("data-range").is_none());
+
+    click(&item_30d);
+
+    assert!(
+        chart_root.get_attribute("data-range").is_none(),
+        "clicking a data-disabled range item must not write data-range \
+         (headless dispatch's data-disabled contract, イシュー #2134 codex-review 指摘)"
+    );
+}
+
+/// hit-area 3 件（`data-index` 0/1/2）+ 期間切替 toggle-group（`data-value`
+/// `"invalid"` の item が `data-range-from="not-a-number"`
+/// `data-range-to="2"` を持つ）を `container_id` 配下へ構築する（イシュー
+/// #2134 codex-review 指摘: 存在する境界属性がパース不能な場合の
+/// fail-closed 挙動の検証用。属性欠落〔既定値適用〕とは区別する）。
+fn invalid_range_bound_markup(container_id: &str) {
+    fn hit_area(index: &'static str) -> fandhe_frontend_core::Node {
+        el(
+            "rect",
+            vec![
+                ("data-scope", "chart"),
+                ("data-part", "hit-area"),
+                ("data-index", index),
+                ("fill", "none"),
+                ("pointer-events", "none"),
+                ("tabindex", "-1"),
+            ],
+            vec![],
+        )
+    }
+    let svg = el(
+        "svg",
+        vec![("data-part", "root"), ("id", "invalid-range-chart-root")],
+        vec![hit_area("0"), hit_area("1"), hit_area("2")],
+    );
+    let range_group = el(
+        "div",
+        vec![
+            ("data-scope", "toggle-group"),
+            ("data-part", "root"),
+            ("aria-controls", "invalid-range-chart-root"),
+        ],
+        vec![el(
+            "button",
+            vec![
+                ("data-scope", "toggle-group"),
+                ("data-part", "item"),
+                ("data-value", "invalid"),
+                ("data-range-from", "not-a-number"),
+                ("data-range-to", "2"),
+            ],
+            vec![],
+        )],
+    );
+    let html = render(&el("div", vec![], vec![svg, range_group]));
+    web_sys::window()
+        .expect("window must exist")
+        .document()
+        .expect("document must exist")
+        .get_element_by_id(container_id)
+        .expect("container must exist")
+        .set_inner_html(&html);
+}
+
+#[wasm_bindgen_test]
+fn unparseable_range_bound_disables_range_hiding_instead_of_falling_back_to_defaults() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-range-test-invalid-bound");
+    let _guard = RemoveOnDrop(container.clone());
+    invalid_range_bound_markup("chart-range-test-invalid-bound");
+    wire_chart_range_events(container.clone()).expect("wiring must not fail");
+
+    let item = query(
+        &container,
+        "[data-scope=\"toggle-group\"][data-part=\"item\"][data-value=\"invalid\"]",
+    )
+    .expect("item must exist");
+    click(&item);
+
+    // `data-range-from="not-a-number"` はパース不能: `data-range-to="2"`
+    // が有効でも、属性欠落時の既定値（`from=0`）へフォールバックせず
+    // 範囲全体を無効化しなければならない（fail-closed、カテゴリを一切
+    // 隠さない）。
+    for index in 0..3 {
+        let hit = indexed(
+            &container,
+            "[data-scope=\"chart\"][data-part=\"hit-area\"]",
+            index,
+            None,
+        );
+        assert!(
+            !hit.has_attribute("data-hidden"),
+            "category {index} must stay visible when a present range bound fails to parse"
+        );
+    }
+}
+
+#[wasm_bindgen_test]
+fn keyboard_home_skips_hidden_hit_areas_after_range_change() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-range-test-keyboard-nav");
+    let _guard = RemoveOnDrop(container.clone());
+    full_chart_markup("chart-range-test-keyboard-nav");
+    wire_chart_events(container.clone()).expect("wire_chart_events must succeed");
+    wire_chart_range_events(container.clone()).expect("wire_chart_range_events must succeed");
+
+    let item_30d = query(
+        &container,
+        "[data-scope=\"toggle-group\"][data-part=\"item\"][data-value=\"30d\"]",
+    )
+    .expect("30d item must exist");
+    click(&item_30d);
+
+    // カテゴリ 0 が範囲外（`display: none`/`data-hidden`）になった後、
+    // 可視集合はカテゴリ 1/2 のみ。
+    let hit0 = indexed(
+        &container,
+        "[data-scope=\"chart\"][data-part=\"hit-area\"]",
+        0,
+        None,
+    );
+    let hit1 = indexed(
+        &container,
+        "[data-scope=\"chart\"][data-part=\"hit-area\"]",
+        1,
+        None,
+    );
+    let hit2 = indexed(
+        &container,
+        "[data-scope=\"chart\"][data-part=\"hit-area\"]",
+        2,
+        None,
+    );
+    assert!(hit0.has_attribute("data-hidden"));
+
+    // カテゴリ 2（hit2）から "Home" を押す。非表示 hit-area を除外して
+    // いなければ全 hit-area 中の先頭（カテゴリ 0、非表示）へ移動して
+    // しまう（イシュー #2134 codex-review 指摘）。修正後は可視集合の
+    // 先頭（カテゴリ 1）へ移動する。
+    let event = keydown_event("Home");
+    hit2.dispatch_event(event.as_ref())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        event.default_prevented(),
+        "Home must move focus within the visible set and prevent default"
+    );
+    assert_eq!(hit1.get_attribute("tabindex").as_deref(), Some("0"));
+    assert_eq!(hit2.get_attribute("tabindex").as_deref(), Some("-1"));
+    assert_eq!(
+        hit0.get_attribute("tabindex").as_deref(),
+        Some("-1"),
+        "the hidden hit-area must never become the roving tabindex entry point"
+    );
 }

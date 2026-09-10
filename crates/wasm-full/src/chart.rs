@@ -146,6 +146,14 @@ const TOOLTIP_SELECTOR: &str = "[data-scope=\"chart\"][data-part=\"tooltip\"]";
 /// セレクタ。
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 const INDEXED_SELECTOR: &str = "[data-index]";
+/// hit-area が非表示化されたことを示す値なし属性（`crate::chart_range::
+/// wiring::HIDDEN_ATTR` と同一語彙。`chart_range` が期間切替・凡例トグル
+/// により hit-area へ `data-hidden`（+ `display: none`）を付与する、
+/// `chart_range` モジュール doc「同期」節参照）。`chart_range` が配線
+/// されていないチャートでは常に存在しないため、この定数を参照しても
+/// 従来の（`chart_range` 非依存の）挙動は変わらない。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+const HIDDEN_ATTR: &str = "data-hidden";
 
 /// hit-area 集合上でのキーボード移動先インデックスを計算する純粋関数
 /// （web-sys 非依存、native `cargo test` 可）。
@@ -249,8 +257,8 @@ pub fn should_close_session(hover_active: bool, focus_active: bool) -> bool {
 pub(crate) mod wiring {
     use super::{
         anchor_relative, hit_area_anchor, hit_area_next_index, is_sticky_pointer, matches_key,
-        should_close_session, ACTIVE_ATTR, HIT_AREA_SELECTOR, INDEXED_SELECTOR, INDEX_ATTR, SCOPE,
-        SERIES_ATTR, TOOLTIP_LAYER_PART, TOOLTIP_SELECTOR, VAR_X, VAR_Y,
+        should_close_session, ACTIVE_ATTR, HIDDEN_ATTR, HIT_AREA_SELECTOR, INDEXED_SELECTOR,
+        INDEX_ATTR, SCOPE, SERIES_ATTR, TOOLTIP_LAYER_PART, TOOLTIP_SELECTOR, VAR_X, VAR_Y,
     };
     use crate::keynav::Modifiers;
     use std::cell::RefCell;
@@ -893,18 +901,37 @@ pub(crate) mod wiring {
         }
 
         let hit_areas = query_all(&svg, HIT_AREA_SELECTOR);
-        let Some(current) = hit_areas.iter().position(|el| *el == hit_area) else {
+        // 非表示（`chart_range` 配線が `data-hidden`/`display: none` を
+        // 付与した）hit-area は移動候補・セッション開始対象のいずれからも
+        // 除外する（イシュー #2134 codex-review 指摘: 除外しないと Home/
+        // 矢印キーで範囲外カテゴリへ `tabindex="0"` が移り、`focus()` が
+        // 実際には効かない〔`display: none` は tab 順序から除外される〕
+        // まま `begin_or_update_session` が呼ばれて範囲外 tooltip が
+        // 再表示され、可視要素側の Tab 進入点〔`tabindex="0"`〕も失われる）。
+        let visible_hit_areas: Vec<Element> = hit_areas
+            .iter()
+            .filter(|element| !element.has_attribute(HIDDEN_ATTR))
+            .cloned()
+            .collect();
+        // フォーカス中の hit-area 自体が非表示なら移動しない（no-op、
+        // fail-closed）。
+        let Some(current) = visible_hit_areas.iter().position(|el| *el == hit_area) else {
             return;
         };
-        let Some(next) = hit_area_next_index(current, hit_areas.len(), &key, modifiers) else {
+        let Some(next) = hit_area_next_index(current, visible_hit_areas.len(), &key, modifiers)
+        else {
             return;
         };
         keyboard_event.prevent_default();
-        let Some(next_element) = hit_areas.get(next) else {
+        let Some(next_element) = visible_hit_areas.get(next) else {
             return;
         };
-        for (i, element) in hit_areas.iter().enumerate() {
-            set_dom_attribute(element, "tabindex", if i == next { "0" } else { "-1" });
+        for element in &hit_areas {
+            set_dom_attribute(
+                element,
+                "tabindex",
+                if element == next_element { "0" } else { "-1" },
+            );
         }
         if let Some(svg_element) = next_element.dyn_ref::<SvgElement>() {
             let _ = svg_element.focus();

@@ -75,8 +75,13 @@
 //!   の写像は item の `data-range-from`/`data-range-to`（10 進の非負
 //!   整数、既定 `from=0`/`to=<チャート内カテゴリ数>`）で**アプリが宣言
 //!   する**（予約キーではない、`toggle_group::item`/`select::item` の
-//!   `attrs` 引数で渡す）。パース失敗・`to <= from` は fail-closed で
-//!   範囲による非表示を一切行わない。
+//!   `attrs` 引数で渡す）。境界属性が欠落している場合のみ既定値
+//!   （`from=0`/`to=<チャート内カテゴリ数>`）を使い、**存在する境界属性が
+//!   パース不能な場合は既定値を適用せず**範囲全体を無効化する
+//!   （属性欠落とパース失敗を区別する、イシュー #2134 codex-review
+//!   指摘）。`to <= from` も同様に fail-closed で範囲による非表示を一切
+//!   行わない。item 自身または祖先に `data-disabled` があるクリックは
+//!   `crate::headless::PartRef::disabled` と同じ契約で拒否する。
 //! - 対象要素の列挙は常に静的セレクタ（`[data-index]`）で行い、値比較は
 //!   Rust 側で行う（`chart.rs::matches_key` と同方針）。値の書き込みは
 //!   `set_attribute`/`remove_attribute` のみ、`query_selector` へ
@@ -151,26 +156,57 @@ pub fn category_hidden_by_range(index: usize, range: Option<(usize, usize)>) -> 
 /// トグル（`hidden_categories`/`hidden_series`、`aria-pressed="false"`
 /// の trigger から合成した集合）または期間範囲（`range`）のいずれかに
 /// より非表示になるべきかを判定する純粋関数（web-sys 非依存）。
+///
+/// `category_governed`/`series_governed` は、この要素の
+/// カテゴリ（`index`）/系列（`series`）を対象とする凡例 trigger が
+/// （押下状態を問わず）1 件でも存在するかどうかを表す。**いずれの
+/// 凡例にも管理されていない**（両方 `false`、または `series` が
+/// `None` かつ `category_governed` が `false`）要素は、`hidden_series`/
+/// `hidden_categories`（凡例が無ければ常に空集合）ではなく
+/// `declared_hidden`（SSR/直近の再描画が宣言した非表示状態）を
+/// フォールバックとして使う。これは `BarChartProps::hidden_series` 等で
+/// 系列を非表示にしつつ凡例 UI を配線しない構成で、期間切替コントロール
+/// だけの同期が SSR の非表示設定を「凡例なし＝全件表示」へ誤って
+/// 上書きしないための契約（イシュー #2134 codex-review 指摘）。
+/// 期間範囲（`range`）は凡例の有無に関わらず常に優先して非表示化する
+/// （period コントロールは凡例と独立に機能する）。
+/// [`is_indexed_element_hidden`] への入力をまとめる（clippy
+/// `too_many_arguments` 回避と呼び出し側の可読性向上を兼ねる）。
+pub struct IndexedElementVisibility<'a> {
+    /// `data-index` の値。
+    pub index: usize,
+    /// `data-series` の値（無い要素は `None`）。
+    pub series: Option<&'a str>,
+    /// 凡例（category_legend）から合成した非表示カテゴリ集合。
+    pub hidden_categories: &'a [usize],
+    /// `index` を対象とする category_legend trigger が存在するか。
+    pub category_governed: bool,
+    /// 凡例（legend）から合成した非表示系列集合。
+    pub hidden_series: &'a [String],
+    /// `series` を対象とする legend trigger が存在するか。
+    pub series_governed: bool,
+    /// SSR/直近の再描画が宣言した非表示状態（[`is_indexed_element_hidden`]
+    /// rustdoc の `declared_hidden` フォールバック参照）。
+    pub declared_hidden: bool,
+    /// 期間切替コントロールが解決した表示範囲。
+    pub range: Option<(usize, usize)>,
+}
+
 #[must_use]
-pub fn is_indexed_element_hidden(
-    index: usize,
-    series: Option<&str>,
-    hidden_categories: &[usize],
-    hidden_series: &[String],
-    range: Option<(usize, usize)>,
-) -> bool {
-    if category_hidden_by_range(index, range) {
+pub fn is_indexed_element_hidden(input: IndexedElementVisibility<'_>) -> bool {
+    if category_hidden_by_range(input.index, input.range) {
         return true;
     }
-    if hidden_categories.contains(&index) {
+    if input.category_governed && input.hidden_categories.contains(&input.index) {
         return true;
     }
-    if let Some(series) = series {
-        if hidden_series.iter().any(|hidden| hidden == series) {
+    if let Some(series) = input.series {
+        if input.series_governed && input.hidden_series.iter().any(|hidden| hidden == series) {
             return true;
         }
     }
-    false
+    let governed = input.category_governed || input.series_governed;
+    !governed && input.declared_hidden
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -182,6 +218,7 @@ pub(crate) mod wiring {
 
     use super::{
         category_hidden_by_range, is_indexed_element_hidden, parse_range_bound, resolve_range,
+        IndexedElementVisibility,
     };
 
     /// 凡例 trigger を列挙する静的セレクタ（`legend`/`category_legend`
@@ -202,9 +239,26 @@ pub(crate) mod wiring {
     const TOOLTIP_SELECTOR: &str = "[data-scope=\"chart\"][data-part=\"tooltip\"]";
     /// ツールチップ内の系列単位行を列挙する静的セレクタ。
     const TOOLTIP_ITEM_SELECTOR: &str = "[data-scope=\"chart\"][data-part=\"tooltip-item\"]";
+    /// `data-series` のみを持ち `data-index` を持たない描画要素（line/area
+    /// チャートの `series-line`/`series-area` 等、系列単位で 1 本の
+    /// path/要素として出力され個々のカテゴリに紐づかない要素）を列挙する
+    /// 静的セレクタ（イシュー #2134 codex-review 指摘: `[data-index]` のみ
+    /// を対象にしていた [`sync_chart`] が、これらの要素を凡例トグル・期間
+    /// 切替の同期対象から取りこぼしていた）。
+    const SERIES_ONLY_SELECTOR: &str = "[data-series]:not([data-index])";
     /// 非表示の値なし属性（`crates/pre-styled-ui` 側の recipe が
     /// `[data-hidden] { display: none }` を持つ、モジュール doc参照）。
     const HIDDEN_ATTR: &str = "data-hidden";
+    /// SSR/直近の再描画が宣言した非表示状態を一度だけ記録する内部
+    /// bookkeeping 属性（`"true"`/`"false"` の 2 値のみ、利用者由来
+    /// 文字列は書き込まない、`security.md` A03）。凡例に管理されていない
+    /// 系列/カテゴリの非表示状態を [`sync_chart`] の複数回の同期を跨いで
+    /// 保持するために使う（[`is_indexed_element_hidden`] の
+    /// `declared_hidden` 引数 rustdoc 参照）。構造再描画で要素が丸ごと
+    /// 再生成されるたびに、その時点のフレッシュな SSR 出力から再度
+    /// 記録される（本モジュールは内部にミュータブルな状態を持たない設計
+    /// のため、DOM 上のこの属性が唯一の永続化先）。
+    const DECLARED_HIDDEN_ATTR: &str = "data-declared-hidden";
 
     /// `element` の `data-index` を `usize` として読む（無い・パース
     /// 不能な要素は `None`、fail-closed で対象から除外する）。
@@ -214,40 +268,113 @@ pub(crate) mod wiring {
             .and_then(|value| value.parse::<usize>().ok())
     }
 
+    /// [`DECLARED_HIDDEN_ATTR`] が未記録なら、現在の [`HIDDEN_ATTR`] の
+    /// 有無を一度だけ記録する（既に記録済みなら触らない、冪等）。この
+    /// 呼び出しは `sync_chart` が `element` の [`HIDDEN_ATTR`] を書き換える
+    /// **前** に行う必要がある（記録後に読む [`declared_hidden`] が
+    /// 「凡例・期間切替を通す前の宣言状態」を返す契約のため）。
+    fn ensure_declared_hidden_marker(element: &Element) {
+        if !element.has_attribute(DECLARED_HIDDEN_ATTR) {
+            let declared = element.has_attribute(HIDDEN_ATTR);
+            set_dom_attribute(
+                element,
+                DECLARED_HIDDEN_ATTR,
+                if declared { "true" } else { "false" },
+            );
+        }
+    }
+
+    /// [`ensure_declared_hidden_marker`] が記録した宣言済み非表示状態を
+    /// 読む（未記録なら `false`、fail-closed）。
+    fn declared_hidden(element: &Element) -> bool {
+        element.get_attribute(DECLARED_HIDDEN_ATTR).as_deref() == Some("true")
+    }
+
+    /// 凡例トグルから合成した非表示集合と、その系列/カテゴリが凡例に
+    /// 「管理されている」かどうかの判定材料（[`is_indexed_element_hidden`]
+    /// の `category_governed`/`series_governed` 引数 rustdoc 参照）。
+    struct LegendState {
+        hidden_series: Vec<String>,
+        hidden_categories: Vec<usize>,
+        governed_series: Vec<String>,
+        governed_categories: Vec<usize>,
+    }
+
+    impl LegendState {
+        fn category_governed(&self, index: usize) -> bool {
+            self.governed_categories.contains(&index)
+        }
+
+        fn series_governed(&self, series: &str) -> bool {
+            self.governed_series.iter().any(|s| s == series)
+        }
+    }
+
     /// `root` 配下で `chart_root` を `aria-controls` の解決先とする凡例
-    /// trigger を集め、`(hidden_series, hidden_categories)` を合成する。
-    fn legend_hidden_sets(root: &Element, chart_root: &Element) -> (Vec<String>, Vec<usize>) {
+    /// trigger を集め、[`LegendState`] を合成する。`governed_series`/
+    /// `governed_categories` は trigger の押下状態を問わず、対象の
+    /// 系列/カテゴリを指す trigger が 1 件でも存在するかどうかを表す
+    /// （押下状態からは `hidden_series`/`hidden_categories` のみを導出
+    /// する）。
+    fn legend_hidden_sets(root: &Element, chart_root: &Element) -> LegendState {
         let chart_id = chart_root.id();
-        let mut hidden_series = Vec::new();
-        let mut hidden_categories = Vec::new();
+        let mut state = LegendState {
+            hidden_series: Vec::new(),
+            hidden_categories: Vec::new(),
+            governed_series: Vec::new(),
+            governed_categories: Vec::new(),
+        };
         if chart_id.is_empty() {
-            return (hidden_series, hidden_categories);
+            return state;
         }
         for trigger in query_all(root, LEGEND_TRIGGER_SELECTOR) {
             if trigger.get_attribute("aria-controls").as_deref() != Some(chart_id.as_str()) {
                 continue;
             }
             let pressed = trigger.get_attribute("aria-pressed").as_deref() == Some("true");
-            if pressed {
-                continue;
-            }
             if let Some(series) = trigger.get_attribute("data-series") {
-                hidden_series.push(series);
+                if !state.governed_series.contains(&series) {
+                    state.governed_series.push(series.clone());
+                }
+                if !pressed {
+                    state.hidden_series.push(series);
+                }
             } else if let Some(index) = trigger
                 .get_attribute("data-index")
                 .and_then(|value| value.parse::<usize>().ok())
             {
-                hidden_categories.push(index);
+                if !state.governed_categories.contains(&index) {
+                    state.governed_categories.push(index);
+                }
+                if !pressed {
+                    state.hidden_categories.push(index);
+                }
             }
         }
-        (hidden_series, hidden_categories)
+        state
+    }
+
+    /// `data-range-from`/`data-range-to` の一方の属性値をパースする。
+    /// 属性が存在しなければ [`resolve_range`] の既定値を使うために
+    /// `Ok(None)`、**存在するがパース不能**なら `Err(())`
+    /// （呼び出し元はこれを区別し、範囲全体を無効化して `None` を
+    /// 返す。イシュー #2134 codex-review 指摘: 従来は `and_then` で
+    /// 「属性欠落」と「パース失敗」が同じ `None` に潰れ、パース失敗時
+    /// にも既定値が適用されてしまっていた）。
+    fn parse_bound_attr(item: &Element, name: &str) -> Result<Option<usize>, ()> {
+        match item.get_attribute(name) {
+            None => Ok(None),
+            Some(value) => parse_range_bound(&value).map(Some).ok_or(()),
+        }
     }
 
     /// `root` 配下で `chart_root` を対象とする期間切替コントロール item の
     /// うち、`chart_root` の現在の `data-range` 値と `data-value` が一致
     /// する item を探し、`(from, to)` を解決する（モジュール doc
     /// 「ロケータ契約」節）。`chart_root` が `data-range` を持たない、
-    /// 一致する item が無い、パース失敗のときは `None`。
+    /// 一致する item が無い、境界属性のいずれかが存在するのにパース
+    /// 不能なときは `None`（fail-closed、範囲による非表示を一切行わない。
+    /// 属性が単に欠落しているだけなら [`resolve_range`] の既定値を使う）。
     fn resolve_chart_range(
         root: &Element,
         chart_root: &Element,
@@ -264,16 +391,16 @@ pub(crate) mod wiring {
             if item.get_attribute("data-value").as_deref() != Some(range_value.as_str()) {
                 continue;
             }
-            let from = item
-                .get_attribute("data-range-from")
-                .and_then(|value| parse_range_bound(&value));
-            let to = item
-                .get_attribute("data-range-to")
-                .and_then(|value| parse_range_bound(&value));
-            if item.has_attribute("data-range-from") || item.has_attribute("data-range-to") {
-                return resolve_range(from, to, total);
+            if !item.has_attribute("data-range-from") && !item.has_attribute("data-range-to") {
+                return None;
             }
-            return None;
+            let (Ok(from), Ok(to)) = (
+                parse_bound_attr(&item, "data-range-from"),
+                parse_bound_attr(&item, "data-range-to"),
+            ) else {
+                return None;
+            };
+            return resolve_range(from, to, total);
         }
         None
     }
@@ -339,7 +466,7 @@ pub(crate) mod wiring {
     /// item を探す走査範囲（`wire_chart_range_events` に渡された
     /// マウント root）。
     pub(crate) fn sync_chart(root: &Element, chart_root: &Element) {
-        let (hidden_series, hidden_categories) = legend_hidden_sets(root, chart_root);
+        let legend = legend_hidden_sets(root, chart_root);
         let total = total_categories(chart_root);
         let range = resolve_chart_range(root, chart_root, total);
 
@@ -347,14 +474,20 @@ pub(crate) mod wiring {
             let Some(index) = indexed(&element) else {
                 continue;
             };
+            // `ensure_declared_hidden_marker` は `HIDDEN_ATTR` を書き換える
+            // 前に必ず呼ぶ（rustdoc「同期を跨いだ宣言状態の保持」契約）。
+            ensure_declared_hidden_marker(&element);
             let series = element.get_attribute("data-series");
-            let hidden = is_indexed_element_hidden(
+            let hidden = is_indexed_element_hidden(IndexedElementVisibility {
                 index,
-                series.as_deref(),
-                &hidden_categories,
-                &hidden_series,
+                series: series.as_deref(),
+                hidden_categories: &legend.hidden_categories,
+                category_governed: legend.category_governed(index),
+                hidden_series: &legend.hidden_series,
+                series_governed: series.as_deref().is_some_and(|s| legend.series_governed(s)),
+                declared_hidden: declared_hidden(&element),
                 range,
-            );
+            });
             if hidden {
                 set_dom_attribute(&element, HIDDEN_ATTR, "");
             } else {
@@ -368,6 +501,31 @@ pub(crate) mod wiring {
                 } else {
                     let _ = element.remove_attribute("display");
                 }
+            }
+        }
+
+        // `data-series` のみを持ち `data-index` を持たない描画要素
+        // （line/area チャートの `series-line`/`series-area` 等、モジュール
+        // doc「イシュー #2134 codex-review 指摘」節参照）は範囲による
+        // 非表示の対象外（1 本の path が全カテゴリに跨るため、カテゴリ
+        // 単位の hide-only は意味を持たない、モジュール doc「スケール
+        // 再計算はスコープ外」節と同じ判断軸）。凡例トグル
+        // （`hidden_series`）のみを同期する。
+        for element in query_all(chart_root, SERIES_ONLY_SELECTOR) {
+            ensure_declared_hidden_marker(&element);
+            let Some(series) = element.get_attribute("data-series") else {
+                continue;
+            };
+            let governed = legend.series_governed(&series);
+            let hidden = if governed {
+                legend.hidden_series.iter().any(|hidden| hidden == &series)
+            } else {
+                declared_hidden(&element)
+            };
+            if hidden {
+                set_dom_attribute(&element, HIDDEN_ATTR, "");
+            } else {
+                let _ = element.remove_attribute(HIDDEN_ATTR);
             }
         }
         reapply_hit_area_tabindex(&query_all(chart_root, HIT_AREA_SELECTOR));
@@ -386,7 +544,7 @@ pub(crate) mod wiring {
         if let Some(layer) = tooltip_layer_of(chart_root) {
             for tooltip in query_all(&layer, TOOLTIP_SELECTOR) {
                 if let Some(index) = indexed(&tooltip) {
-                    let hidden = hidden_categories.contains(&index)
+                    let hidden = legend.hidden_categories.contains(&index)
                         || category_hidden_by_range(index, range);
                     if hidden {
                         set_dom_attribute(&tooltip, "hidden", "");
@@ -396,7 +554,7 @@ pub(crate) mod wiring {
             for item in query_all(&layer, TOOLTIP_ITEM_SELECTOR) {
                 let hidden = item
                     .get_attribute("data-series")
-                    .is_some_and(|series| hidden_series.contains(&series));
+                    .is_some_and(|series| legend.hidden_series.contains(&series));
                 if hidden {
                     set_dom_attribute(&item, HIDDEN_ATTR, "");
                 } else {
@@ -479,6 +637,16 @@ pub(crate) mod wiring {
             return;
         };
         if !root.contains(Some(&item)) {
+            return;
+        }
+        // `item` 自身または祖先に `data-disabled` があれば拒否する
+        // （`crate::headless::PartRef::disabled` と同じ「コンポーネント
+        // 丸ごと不活性化」契約。イシュー #2134 codex-review 指摘: 既存の
+        // headless dispatch（`toggle-group`/`select` の item クリック）は
+        // `data-disabled` を確認して拒否するのに、本リスナーはこれを
+        // 確認せず無効化された item のクリックでも `data-range` を更新
+        // してしまっていた）。
+        if item.closest("[data-disabled]").ok().flatten().is_some() {
             return;
         }
         let Ok(Some(anchor)) = item.closest("[aria-controls]") else {
@@ -614,45 +782,112 @@ mod tests {
     fn is_indexed_element_hidden_combines_range_and_legend_sets() {
         let hidden_categories = vec![5_usize];
         let hidden_series = vec!["b".to_string()];
-        // カテゴリ 0: 系列 a は可視。
-        assert!(!is_indexed_element_hidden(
-            0,
-            Some("a"),
-            &hidden_categories,
-            &hidden_series,
-            None
-        ));
+        // カテゴリ 0: 系列 a は可視（category/series いずれも凡例で管理）。
+        assert!(!is_indexed_element_hidden(IndexedElementVisibility {
+            index: 0,
+            series: Some("a"),
+            hidden_categories: &hidden_categories,
+            category_governed: true,
+            hidden_series: &hidden_series,
+            series_governed: true,
+            declared_hidden: false,
+            range: None,
+        }));
         // 系列 b は凡例で非表示。
-        assert!(is_indexed_element_hidden(
-            0,
-            Some("b"),
-            &hidden_categories,
-            &hidden_series,
-            None
-        ));
+        assert!(is_indexed_element_hidden(IndexedElementVisibility {
+            index: 0,
+            series: Some("b"),
+            hidden_categories: &hidden_categories,
+            category_governed: true,
+            hidden_series: &hidden_series,
+            series_governed: true,
+            declared_hidden: false,
+            range: None,
+        }));
         // カテゴリ 5 は category_legend で非表示。
-        assert!(is_indexed_element_hidden(
-            5,
-            Some("a"),
-            &hidden_categories,
-            &hidden_series,
-            None
-        ));
+        assert!(is_indexed_element_hidden(IndexedElementVisibility {
+            index: 5,
+            series: Some("a"),
+            hidden_categories: &hidden_categories,
+            category_governed: true,
+            hidden_series: &hidden_series,
+            series_governed: true,
+            declared_hidden: false,
+            range: None,
+        }));
         // 範囲外カテゴリ。
-        assert!(is_indexed_element_hidden(
-            9,
-            Some("a"),
-            &hidden_categories,
-            &hidden_series,
-            Some((0, 3))
-        ));
+        assert!(is_indexed_element_hidden(IndexedElementVisibility {
+            index: 9,
+            series: Some("a"),
+            hidden_categories: &hidden_categories,
+            category_governed: true,
+            hidden_series: &hidden_series,
+            series_governed: true,
+            declared_hidden: false,
+            range: Some((0, 3)),
+        }));
         // hit-area は series を持たない場合がある（None）。
-        assert!(!is_indexed_element_hidden(
-            1,
-            None,
-            &hidden_categories,
-            &hidden_series,
-            Some((0, 3))
-        ));
+        assert!(!is_indexed_element_hidden(IndexedElementVisibility {
+            index: 1,
+            series: None,
+            hidden_categories: &hidden_categories,
+            category_governed: true,
+            hidden_series: &hidden_series,
+            series_governed: true,
+            declared_hidden: false,
+            range: Some((0, 3)),
+        }));
+    }
+
+    #[test]
+    fn is_indexed_element_hidden_falls_back_to_declared_state_when_ungoverned() {
+        // 凡例が一切無い（category/series いずれも `governed = false`）
+        // 構成: `hidden_categories`/`hidden_series` は常に空集合になる
+        // ため、凡例が誤って「全件表示」を宣言したものとして扱わず、
+        // SSR/直近の再描画が宣言した `declared_hidden` を維持する
+        // （イシュー #2134 codex-review 指摘）。
+        assert!(is_indexed_element_hidden(IndexedElementVisibility {
+            index: 0,
+            series: Some("a"),
+            hidden_categories: &[],
+            category_governed: false,
+            hidden_series: &[],
+            series_governed: false,
+            declared_hidden: true,
+            range: None,
+        }));
+        assert!(!is_indexed_element_hidden(IndexedElementVisibility {
+            index: 0,
+            series: Some("a"),
+            hidden_categories: &[],
+            category_governed: false,
+            hidden_series: &[],
+            series_governed: false,
+            declared_hidden: false,
+            range: None,
+        }));
+        // 期間範囲は凡例の有無に関わらず優先して非表示化する。
+        assert!(is_indexed_element_hidden(IndexedElementVisibility {
+            index: 9,
+            series: Some("a"),
+            hidden_categories: &[],
+            category_governed: false,
+            hidden_series: &[],
+            series_governed: false,
+            declared_hidden: false,
+            range: Some((0, 3)),
+        }));
+        // いずれかの次元が凡例に管理されていれば、`declared_hidden`
+        // フォールバックは使わない（凡例側の判定が優先する）。
+        assert!(!is_indexed_element_hidden(IndexedElementVisibility {
+            index: 0,
+            series: Some("a"),
+            hidden_categories: &[],
+            category_governed: true,
+            hidden_series: &[],
+            series_governed: false,
+            declared_hidden: true,
+            range: None,
+        }));
     }
 }
