@@ -1575,7 +1575,7 @@ fn container_fail_closed_cases_are_skipped_not_panicking() {
 
     let css = recipe.css();
     assert!(!css.contains("@container fd-widget-root (min-width: 384px)"));
-    assert!(!css.contains("@container fd-widget-root (min-width: 1024px)"));
+    assert!(!css.contains("@container fd-widget-root (min-width: 512px)"));
 }
 
 /// `container_variant` の axis/value が識別子として不正な値を返す
