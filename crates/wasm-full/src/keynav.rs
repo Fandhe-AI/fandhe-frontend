@@ -64,6 +64,11 @@
 //! - ハンドリングしたキーのみ `prevent_default()`（ページスクロール抑止）。
 //!   修飾キー（Ctrl/Alt/Meta）付き・未知キー・root 外要素（`contains` 検査、
 //!   [`events`] と同じ封じ込め）は安全側 no-op。
+//! - 活性化（`activate_tab`）の直後、`crate::tabs_indicator::
+//!   sync_tabs_indicator_in_list` を呼んで `indicator` パーツの位置・
+//!   寸法を実測同期する（イシュー #2211）。manual activation の keydown
+//!   （活性化を行わない分岐）では呼ばれない。詳細は
+//!   `crate::tabs_indicator` モジュール doc を参照。
 //!
 //! # Accordion のキーボード仕様（WAI-ARIA APG Accordion パターン準拠）
 //!
@@ -5230,6 +5235,10 @@ pub(crate) mod wiring {
         if !is_manual {
             if let Some(document) = target.owner_document() {
                 activate_tab(&document, &triggers, next_index);
+                // indicator は選択に追従し、フォーカスには追従しない
+                // （manual activation ではここへ到達しないため呼ばない、
+                // イシュー #2211）。
+                crate::tabs_indicator::sync_tabs_indicator_in_list(&list);
             }
         }
     }
@@ -7627,6 +7636,9 @@ pub(crate) mod wiring {
         set_roving_tabindex(&triggers, index);
         if let Some(document) = target.owner_document() {
             activate_tab(&document, &triggers, index);
+            // click は活性化を必ず伴う経路のため無条件で同期する
+            // （イシュー #2211）。
+            crate::tabs_indicator::sync_tabs_indicator_in_list(&list);
         }
     }
 
@@ -7757,6 +7769,14 @@ pub(crate) mod wiring {
         // 出力しないため、本関数が唯一の初期値供給源になる。§設計判断 3.3
         // 参照）。
         initialize_tree_roving_tabindex(&root);
+
+        // マウント時に 1 回だけ tabs indicator（イシュー #2211）の初期位置
+        // を実測して同期する（SSR は `0px` 初期値のみを出力するため）。
+        // `Runtime::mount`/`hydrate` 経由のアプリは必ず `wire_keynav` を
+        // 呼ぶため、この初期同期が確実に届く
+        // （`crate::tabs_indicator` モジュール doc「`crate::keynav`」
+        // 節参照）。
+        let _ = crate::tabs_indicator::sync_tabs_indicator(&root);
 
         let keydown_root = root.clone();
         // typeahead バッファ（イシュー #641・#1070）は DOM から導出できない

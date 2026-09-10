@@ -889,7 +889,9 @@ pub use wiring::{wire_headless_events, wire_headless_events_scoped};
 /// する（イシュー #2191。対象は `(data-scope, data-part)` の静的表のみで
 /// 決まる部品非依存の配線であり、`headless.rs` 側に collapsible/
 /// accordion 固有の分岐は持たない）。配線直後（初期表示）にも 1 回同じ
-/// 同期を行う。
+/// 同期を行う。同じ 2 箇所で `crate::tabs_indicator::sync_tabs_indicator`
+/// も呼び、tabs の `indicator` パーツの位置・寸法を CSS 変数へ同期する
+/// （イシュー #2211）。
 #[cfg(target_arch = "wasm32")]
 pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'static>(
     root: web_sys::Element,
@@ -903,6 +905,10 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
     // 先に確定させる（イシュー #2191。in-place 再開閉時の遷移始点を
     // 用意するための先行同期であり、`on_update` を経由しない）。
     let _ = crate::content_height::sync_content_height(&root);
+    // 配線時点の tabs indicator（イシュー #2211）の初期同期。再描画で
+    // indicator 要素が作り直され初期値 `0px` に戻る経路への対処
+    // （`crate::tabs_indicator` モジュール doc 参照）。
+    let _ = crate::tabs_indicator::sync_tabs_indicator(&root);
 
     wire_headless_events(root, move |action_ref: ActionRef| {
         let Ok(mut state) = component.try_borrow_mut() else {
@@ -922,6 +928,10 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
         // 順序は「on_update → sync」で固定する、`content_height`
         // モジュール doc「`wire_headless_component` との統合」節参照）。
         let _ = crate::content_height::sync_content_height(&wired_root);
+        // `on_update` で作り直された indicator 要素へ実測値を再同期する
+        // （イシュー #2211、順序は `on_update → sync_content_height →
+        // sync_tabs_indicator` で固定する）。
+        let _ = crate::tabs_indicator::sync_tabs_indicator(&wired_root);
     })
 }
 
