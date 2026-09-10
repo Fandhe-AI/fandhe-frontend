@@ -2910,7 +2910,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.175.0 を既に上回っているため、同一版数への偶発的衝突には該当せず、
 # 双方の実体変更（styled questionnaire・dialog/drawer close-trigger 再設計・
 # #2285 是正）を内包した 0.176.0 をそのまま維持する。
-version = "0.176.0"
+#
+# イシュー #2197: `recipe.rs` に `@media (min-width: ...)` を表現する
+# breakpoint 条件（`recipe::Breakpoint`・`recipe::SlotRecipe::breakpoint`）と
+# `theme::Theme` へのブレークポイントトークン（`push_breakpoint`/
+# `upsert_breakpoint`/`breakpoint_var`、4 段）を追加した。既存関数
+# シグネチャ・golden CSS は変更していない（純追加）ため 0.176.0 → 0.177.0
+# のマイナーバンプとする（#1424/#1678 の純追加時の前例に合わせる）。
+version = "0.177.0"
 
 
 edition = "2021"
