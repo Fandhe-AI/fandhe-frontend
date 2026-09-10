@@ -11,7 +11,7 @@
 - `icon` には常に `aria-hidden="true"` を固定付与します（呼び出し側の `aria-hidden="false"` 偽装は除去されます）。
 - `root` には `role` を固定付与しません。静的な注記に割り込み通知は不要という判断です。ストリーミング中の注記に `role="status"` を付与したい場合は、呼び出し側が `attrs` で明示的に渡してください。
 
-`fandhe-frontend-pre-styled-ui` 側の対応するスタイル済み部品（recipe・golden・Themes ページ）は後続イシューで追加予定です。
+`fandhe-frontend-pre-styled-ui` 側の対応するスタイル済み部品（recipe・golden・Themes ページ）は [Marker](../themes/marker.md) を参照してください。
 
 自前 CSS の最小例:
 

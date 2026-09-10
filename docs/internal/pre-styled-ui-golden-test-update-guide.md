@@ -72,7 +72,8 @@ file_upload / floating_panel / highlight / hover_card /
 image_cropper / **input_group（イシュー #2063 で golden 新設。`stylesheet()` 全文）** /
 **item（イシュー #2066 で golden 新設。`stylesheet()` 全文）** /
 **link_overlay（イシュー #1580 で golden 新設）** /
-listbox / marquee / menu / **menubar（方式 b）** /
+listbox / **marker（イシュー #2115 で golden 新設。`stylesheet()` 全文）** /
+marquee / menu / **menubar（方式 b）** /
 **message（イシュー #2106 で golden 新設。`stylesheet()` 全文）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
 pin_input / progress / qr_code / **radial_chart（イシュー #2079 で

@@ -45,7 +45,9 @@ use fandhe_frontend_pre_styled_ui::{
     button::{button, ButtonProps, ButtonVariant},
     callout, card, carousel, color_swatch, data_list, empty_state, field, icon, image,
     item::{self, ItemMediaVariant, ItemRootProps},
-    json_tree_view, marquee,
+    json_tree_view,
+    marker::{self as marker, MarkerRootProps, MarkerTone, MarkerVariant},
+    marquee,
     message::{self, MessageAlign, MessageRole, MessageRootProps},
     native_select, pagination, progress, scroll_area, separator,
     sidebar::{
@@ -3797,6 +3799,125 @@ pub(crate) const ATTACHMENT: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "disabled / data-disabled (action)",
             description: "action の disabled 引数はネイティブ disabled 属性と data-disabled の両方へ反映する。",
+        },
+    ],
+    demo: None,
+};
+
+/// `/themes/marker/` の Examples 節其の 1: `note` 形態（既定・neutral）。
+fn ex_marker_note() -> Node {
+    marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Note,
+            tone: MarkerTone::Neutral,
+        },
+        vec![],
+        vec![
+            marker::icon(vec![], vec![text("\u{25cf}")]),
+            marker::content(vec![], vec![text("System note")]),
+        ],
+    )
+}
+
+/// `/themes/marker/` の Examples 節其の 2: `divider` 形態（行下の境界線）。
+fn ex_marker_divider() -> Node {
+    marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Divider,
+            tone: MarkerTone::Info,
+        },
+        vec![],
+        vec![
+            marker::icon(vec![], vec![text("\u{25cf}")]),
+            marker::content(vec![], vec![text("New messages")]),
+        ],
+    )
+}
+
+/// `/themes/marker/` の Examples 節其の 3: `label` 形態（左右へ
+/// separator パーツを挟んだ中央ラベル）と warning/danger tone の例。
+fn ex_marker_label_tones() -> Node {
+    let warning = marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Label,
+            tone: MarkerTone::Warning,
+        },
+        vec![],
+        vec![marker::content(vec![], vec![text("Draft")])],
+    );
+    let danger = marker::root(
+        MarkerRootProps {
+            variant: MarkerVariant::Label,
+            tone: MarkerTone::Danger,
+        },
+        vec![],
+        vec![marker::content(vec![], vec![text("Failed")])],
+    );
+    div(vec![], vec![warning, danger])
+}
+
+/// `/themes/marker/`（イシュー #2115、親 #2113。headless anatomy は
+/// #2114）の原稿データ。`variant`/`tone` は headless の `data-*` を
+/// `AttrEq` で参照するのみで class 軸を持たない（`marker.rs` モジュール
+/// doc参照）。
+pub(crate) const MARKER: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "MarkerVariant（Note/Divider/Label、marker.rs recipe() の data-variant 参照）でインライン注記・行下の境界線・中央ラベル + 左右の線の 3 形態を切り替える",
+        "MarkerTone（Neutral/Info/Warning/Danger、ColorPalette と同名 4 値）で注記の文字色・線色を切り替える",
+        "root/icon/content の 3 パーツで注記行 1 個を構造化する（icon は装飾スロットとして aria-hidden=\"true\" を固定付与する）",
+        "Label 形態は呼び出し側 children を styled Separator（horizontal・Solid、aria-hidden=\"true\"）2 個で挟んでから headless へ委譲する。区切り線は疑似要素を使わず DOM 上の separator パート再利用で描画する（marker.rs モジュール doc「区切り線の描画方式」節参照）",
+        "Label 形態を使う場合は marker::stylesheet() に加えて separator::css() も併せて読み込む必要がある。marker::stylesheet() は separator 自体の border-width・border-style・margin 等の基本規則を含まない（marker.rs モジュール doc「stylesheet が separator の基本 CSS を含まない理由」節参照）",
+        "ストリーミング中判定・注記の自動分類・タイムスタンプ整形は実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1）。root へ role=\"status\" 等を付けたい場合は呼び出し側が attrs で渡す",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "MarkerVariant",
+            default: "Note",
+            description: "表示形態（Note/Divider/Label。data-variant として出力される）。",
+        },
+        ArgRow {
+            name: "tone",
+            kind: "MarkerTone",
+            default: "Neutral",
+            description: "色調（Neutral/Info/Warning/Danger。data-tone として出力され、文字色・線色を切り替える）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Note variant",
+            description: "インライン注記表示（既定・neutral）の例です。",
+            render: ex_marker_note,
+        },
+        ExampleEntry {
+            title: "Divider variant",
+            description: "行下に境界線を伴う表示（info tone）の例です。",
+            render: ex_marker_divider,
+        },
+        ExampleEntry {
+            title: "Label variant with tones",
+            description: "中央ラベル + 左右の線（warning/danger tone）の例です。",
+            render: ex_marker_label_tones,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "(N/A)",
+            description: "静的な表示専用部品でありフォーカス可能な要素を持たない（wasm-full の配線は不要）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "aria-hidden=\"true\" (icon)",
+            description: "icon は装飾スロットとして aria-hidden=\"true\" を固定付与する。呼び出し側の aria-hidden=\"false\" 偽装は予約キー除去で無効化する。",
+        },
+        AriaRow {
+            attribute: "role (root、未固定)",
+            description: "root は role を固定付与しない。ストリーミング中の注記へ role=\"status\" を付けたい場合は呼び出し側が attrs で渡す運用とする。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\" (Label 形態の separator)",
+            description: "Label 形態で挟み込む separator は装飾線として aria-hidden=\"true\" を持ち、支援技術による重複読み上げを避ける。",
         },
     ],
     demo: None,

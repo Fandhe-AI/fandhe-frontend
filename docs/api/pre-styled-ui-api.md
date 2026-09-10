@@ -11,12 +11,13 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 118 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+本クレートは 119 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
 `fieldset` はイシュー #1686、`input_group` はイシュー #2063、`item` は
 イシュー #2066、`button_group` はイシュー #2060、`command` はイシュー
 #2070、`sidebar` はイシュー #2073、`message` はイシュー #2106、`bubble`
-はイシュー #2109、`attachment` はイシュー #2112 で追加）+
+はイシュー #2109、`attachment` はイシュー #2112、`marker` はイシュー
+#2115 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
@@ -80,6 +81,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `message`（§4f-6 参照。会話 1 発言。6 パーツ構成、軸なし。data-role/data-align/data-loading/data-error を AttrEq/Attr 参照するのみ） | [message](../../site/themes/message.md) |
 | headless ラッパー | `bubble`（§4f-7 参照。チャット吹き出し 1 個。6 パーツ構成、軸なし。data-variant/data-align/data-group-position/data-selected/data-state を AttrEq/Attr/AttrEqAll 参照するのみ） | [bubble](../../site/themes/bubble.md) |
 | headless ラッパー | `attachment`（§4f-8 参照。添付ファイル 1 件。8 パーツ構成、軸なし。data-variant/data-state/data-disabled を AttrEq/Attr 参照するのみ） | [attachment](../../site/themes/attachment.md) |
+| headless ラッパー | `marker`（§4f-9 参照。会話中の注記行。3 パーツ構成、軸なし。data-variant/data-tone を AttrEq 参照するのみ） | [marker](../../site/themes/marker.md) |
 | headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
@@ -1006,6 +1008,39 @@ anatomy（`root`/`media`/`content`/`name`/`meta`/`progress`/`actions`/
   （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
 - **docs サイト**: [attachment](../../site/themes/attachment.md)
   （イシュー #2112 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-9. `marker`（会話中の注記行、イシュー #2115、headless anatomy は #2114）
+
+`marker` モジュールは `fandhe_frontend_headless_ui::marker` の anatomy
+（`root`/`icon`/`content` の 3 パーツ）へ、インライン注記表示（`note`
+形態）・行下の境界線（`divider` 形態）・中央ラベル + 左右の線（`label`
+形態）の 3 意匠と `tone` 別の文字色・線色を重ねる薄い委譲層である。
+
+- **公開 API**: 3 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::attachment` と同型のパターン）。
+  `MarkerRootProps`/`MarkerVariant`/`MarkerTone`（headless からの再
+  エクスポート）のみを選択的に公開する。`stylesheet()` が静的 CSS 全量を
+  返す。
+- **軸を持たない**: `variant`/`tone` は headless が固定出力する
+  `data-variant`/`data-tone` を `StateCondition::AttrEq` で参照するのみで、
+  class ベースの `SlotRecipe::variant`（`ColorPalette` 軸）は持たない
+  （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2「役割 B:
+  参照のみ」、`crate::attachment` と同型の判断）。
+- **区切り線は疑似要素を使わない**: `divider` 形態は DOM を増やさず
+  `root` へ `border-bottom` の state 規則を付与するのみ。`label` 形態は
+  呼び出し側 `children` を `crate::separator::separator`（horizontal・
+  `Solid`、`aria-hidden="true"`）2 個で挟んでから headless へ委譲する
+  （区切り線を疑似要素・専用 DOM ではなく separator パート再利用で描画
+  する設計、`src/marker.rs` モジュール doc「区切り線の描画方式」節参照）。
+- **`data-tone` 別の色**: `neutral`（既定・base のみ）/`info`/`warning`/
+  `danger` の 4 値それぞれに文字色（`--fandhe-color-<tone>-fg-subtle`）と
+  線色用 custom property `--fandhe-marker-line`
+  （`--fandhe-color-<tone>-muted`）を割り当てる。
+- **`ColorPalette` 軸は持たない**: 本イシューのスコープに含まれない
+  （軸追加は後続提案、`.claude/rules/coding-rust.md` §3.25 規則 2 参照）。
+- **docs サイト**: [marker](../../site/themes/marker.md)
+  （イシュー #2115 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

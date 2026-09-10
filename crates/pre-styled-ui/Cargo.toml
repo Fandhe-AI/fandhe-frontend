@@ -2767,12 +2767,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 採用しない原則、`crates/headless-ui/Cargo.toml` 参照）ため、この
 # dep-version-check 追随分をさらに 0.166.2 へ patch バンプしていた。
 #
-# 本ブランチ（イシュー #2133）側は上記 0.166.2 を起点に、本イシューの
-# 実体変更（公開 API 拡張）に伴い 0.167.0 へマイナーバンプ済み。今回の
-# base 取り込みで origin/main 側の到達値 0.166.0 を確認したが、本ブランチ
-# 側の 0.167.0 が既にこれを上回るため、追加バンプ不要で 0.167.0 を
-# そのまま採用する。
-version = "0.167.0"
+# イシュー #2115: styled `marker`（recipe・golden テスト・Themes ページ）
+# を新設する公開 API 純追加のため 0.167.0 へマイナーバンプする。
+#
+# base 取り込み: origin/main 側は並行 PR（イシュー #2133 の Legend
+# button 化等）で 0.167.0 → 0.168.0 へ到達済みだった。本ブランチの
+# 0.167.0 と main の 0.167.0 が偶発的に同一版数へ衝突したため
+# （同一版数への偶発的衝突をそのまま採用しない原則）、main の到達値
+# 0.168.0 をさらに上回る 0.169.0 へマイナーバンプする（marker 追加は
+# 破壊的変更ではない純追加だが、衝突解消のため main+1 を採用する）。
+version = "0.169.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
