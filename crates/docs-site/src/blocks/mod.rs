@@ -73,6 +73,7 @@
 
 mod dashboard_01;
 mod login_01;
+mod sidebar_03;
 mod sidebar_07;
 
 use fandhe_frontend_core::{a, div, h2, li, text, ul, Node};
@@ -164,7 +165,12 @@ pub struct Block {
 
 /// Blocks レジストリ本体。`site/nav.toml` の `/blocks/*` ページ（索引を除く）
 /// との三方突合を `crates/docs-site/tests/blocks_nav.rs` が固定する。
-pub const BLOCKS: &[Block] = &[login_01::BLOCK, dashboard_01::BLOCK, sidebar_07::BLOCK];
+pub const BLOCKS: &[Block] = &[
+    login_01::BLOCK,
+    dashboard_01::BLOCK,
+    sidebar_07::BLOCK,
+    sidebar_03::BLOCK,
+];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
 /// `crate::build::build_site` が「このページを Blocks 専用分岐に乗せるか」を
@@ -240,6 +246,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(LAYOUT_CSS)?;
     sheet.push_css(dashboard_01::LAYOUT_CSS)?;
     sheet.push_css(sidebar_07::LAYOUT_CSS)?;
+    sheet.push_css(sidebar_03::LAYOUT_CSS)?;
     Ok(sheet)
 }
 
