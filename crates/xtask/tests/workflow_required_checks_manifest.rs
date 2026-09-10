@@ -168,7 +168,31 @@ fn job_id_at_indent2(stripped_line: &str) -> Option<String> {
         return None;
     }
     let rest = &trimmed_end[2..];
-    let name = rest.strip_suffix(':')?;
+    if rest.is_empty() {
+        return None;
+    }
+    // `jobs:` 直下（インデント 2）の非空行は、YAML の構造上ジョブ id
+    // キー以外に存在し得ない（ジョブ本文はインデント 4 以深、リスト
+    // 要素は `jobs:` セクションに現れない）。`<job-id>:`（単純なブロック
+    // マッピングキー）以外の表記——flow mapping（`extra: {runs-on: ...}`）
+    // やインラインスカラー値付きキー等——は `strip_suffix(':')` が
+    // `None` を返すが、それを黙って「ジョブ id 行ではない」として
+    // 検知対象から除外すると required check 登録漏れを見逃す
+    // fail-open になる（イシュー #2325 codex-review 指摘）。CI 規約
+    // （.claude/rules/ci.md）の反転判定原則に従い、未対応表記は
+    // 明示的にパニックで拒否する。
+    let name = match rest.strip_suffix(':') {
+        Some(name) => name,
+        None => {
+            panic!(
+                "認識できないジョブ id 表記: `{trimmed_end}`。\
+`jobs:` 直下（インデント 2）の行は `<job-id>:`（単純なブロックマッピング \
+キー、クォート付き可）のみに対応している。flow mapping（`key: {{...}}`）や \
+行内スカラー値付きキー等の新しい表記が必要な場合は本関数（job_id_at_indent2）\
+を拡張すること（未知表記を黙って無視しない）。"
+            );
+        }
+    };
     if name.is_empty() {
         return None;
     }
