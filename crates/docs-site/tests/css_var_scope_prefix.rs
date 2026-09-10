@@ -107,6 +107,18 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   変数として共有し、実値は各 scope 側が定義する」設計の一種だが、
 ///   所有 scope（`calendar`）自身は前方一致規約を満たしているため、この
 ///   免除は「他 scope から上書き定義される」ケースにのみ適用される。
+/// - `--fandhe-chart-inactive-opacity` / `--fandhe-chart-active-scale`:
+///   イシュー #2131 で `crate::charts::tooltip`（scope `"chart"`）が
+///   減光・拡張 CSS の起点として導入した hover 強調トークン。所有 scope
+///   は `chart` だが、8 個の chart 部品 scope（`bar-chart`/`scatter-chart`/
+///   `radar-chart`/`line-chart`/`area-chart`/`pie-chart`/`donut-chart`/
+///   `radial-chart`）それぞれの `root`/`frame` slot が同名で宣言し、各
+///   scope の視覚要素（`bar`/`point`/`segment`）が同名で消費する
+///   （`--fandhe-hover-bg`/`--fandhe-palette` と同じ「複数部品が同じ名前を
+///   変数として共有し、実値は各 scope 側が定義する」設計。custom property
+///   は CSS の継承で `chart::tooltip::frame`〔祖先〕から各 chart 部品の
+///   視覚要素〔子孫〕へ scope をまたいで届く必要があるため、`chart-*`
+///   prefix へ統一せず各 scope 側で同名定義する方式を採る）。
 const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
     "--fandhe-palette-emphasized",
@@ -127,6 +139,8 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-hover-bg",
     "--fandhe-hover-text-decoration",
     "--fandhe-calendar-day-size",
+    "--fandhe-chart-inactive-opacity",
+    "--fandhe-chart-active-scale",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。
