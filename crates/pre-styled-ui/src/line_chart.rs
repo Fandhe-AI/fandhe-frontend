@@ -283,6 +283,21 @@ pub struct LineChartProps<'a> {
     /// （SSR は全範囲・全系列を出力する設計、モジュール doc参照）。
     /// データに存在しない名前を指定してもエラーにしない（fail-soft）。
     pub hidden_series: &'a [&'a str],
+    /// このチャートを [`crate::charts::legend`] の凡例トグルと組み合わせて
+    /// 使うか（明示的 opt-in、既定 `false`、イシュー #2134 codex-review
+    /// 指摘）。`show_tooltip`/`range.is_some()`/`hidden_series` 非空の
+    /// いずれでも判定できない「凡例は使うが初期状態は全系列表示
+    /// （`hidden_series` が空）かつ `show_tooltip: false`」という構成
+    /// では `show_series_attr` のそれまでの判定条件が偽になり識別属性
+    /// （`data-series`）が出力されないため、凡例クリックで系列を非表示に
+    /// できなかった（`wasm-full::chart_range::wiring::sync_chart` が
+    /// `data-series` を判定源にするため）。呼び出し側が凡例を併設すると
+    /// きは `true` を明示することで、初期表示から識別属性を出力させる。
+    /// 凡例を使わない構成（既定 `false`）では従来どおり #2129 以前の
+    /// 出力とバイト一致する契約を変えない
+    /// （`line_chart_show_tooltip_false_matches_pre_2129_golden_html`
+    /// 参照）。
+    pub legend: bool,
 }
 
 impl<'a> LineChartProps<'a> {
@@ -307,6 +322,7 @@ impl<'a> LineChartProps<'a> {
             show_tooltip: true,
             range: None,
             hidden_series: &[],
+            legend: false,
         }
     }
 }
@@ -520,10 +536,22 @@ struct SeriesRenderCtx<'a> {
     /// `true` のとき `series-line`/`point`/`value-label` へ `data-series`
     /// として付与する（イシュー #2133）。
     series_name: &'a str,
-    /// `true` なら `data-series` を付与する（`LineChartProps::show_tooltip`
-    /// と同じゲート。イシュー #2129 の契約「`false` の出力は #2129 以前と
-    /// バイト一致」を保つため、tooltip 用の `data-index`/`data-series`
-    /// 語彙と同じ opt-in にする、イシュー #2133）。
+    /// `true` なら識別属性（`data-series`/`point`・`value-label` の
+    /// `data-index`）を付与する。`LineChartProps::show_tooltip` 単独では
+    /// なく `show_tooltip || range.is_some() || !hidden_series.is_empty()
+    /// || legend`（凡例トグル・期間切替のいずれかが実際に使われている
+    /// か、または凡例併設の明示的 opt-in）で判定する。素の
+    /// `show_tooltip: false`・凡例/期間切替とも不使用の構成では従来
+    /// どおり #2129 以前とバイト一致する（`line_chart_show_
+    /// tooltip_false_matches_pre_2129_golden_html` 参照）一方、
+    /// `show_tooltip: false` のまま `range`/`hidden_series` を使う構成
+    /// では識別属性が出力され、`wasm-full::chart_range` の凡例同期・
+    /// 期間切替が機能する（イシュー #2134 codex-review 指摘: 識別属性の
+    /// 出力を tooltip 表示設定のみに結び付けると、tooltip を出さずに
+    /// 凡例・期間切替だけを使う構成で同期が機能しなかった）。`legend`
+    /// は「凡例は使うが初期状態は全系列表示（`hidden_series` が空）」
+    /// という構成を追加で救う opt-in（2 ラウンド目の codex-review 指摘、
+    /// [`LineChartProps::legend`] rustdoc 参照）。
     show_series_attr: bool,
     /// `true` なら `series-line`/`point`/`value-label` へ値なし属性
     /// `data-hidden` を付与する（イシュー #2133、
@@ -533,9 +561,31 @@ struct SeriesRenderCtx<'a> {
 
 /// [`SeriesRenderCtx::show_series_attr`]/[`SeriesRenderCtx::hidden`] から
 /// `data-series`/`data-hidden` の追加属性列を組み立てる（内部ヘルパ）。
+/// `series-line`（系列全体を跨ぐ 1 本の path、`chart_range.rs`
+/// `SERIES_ONLY_SELECTOR` の対象）用であり、カテゴリ単位の `data-index`
+/// は持たない。
 fn series_extra_attrs<'a>(ctx: &SeriesRenderCtx<'a>) -> Vec<(&'a str, &'a str)> {
     let mut extra: Vec<(&str, &str)> = Vec::new();
     if ctx.show_series_attr {
+        extra.push(("data-series", ctx.series_name));
+    }
+    if ctx.hidden {
+        extra.push(("data-hidden", ""));
+    }
+    extra
+}
+
+/// `point`/`value-label`（カテゴリ `index` に紐づく個々の要素）用の
+/// 追加属性列を組み立てる（内部ヘルパ、イシュー #2134 codex-review
+/// 指摘）。[`series_extra_attrs`] に `data-index` を加えたもの:
+/// `chart_range.rs` の期間切替（`INDEXED_SELECTOR`）がカテゴリ単位で
+/// 個々の点・ラベルを非表示にできるようにする契約。`index_str` は
+/// 呼び出し元が `index.to_string()` で確保し、戻り値のライフタイムより
+/// 長く生存させる（`bar_chart.rs::cat_idx_str` と同じパターン）。
+fn point_extra_attrs<'a>(ctx: &SeriesRenderCtx<'a>, index_str: &'a str) -> Vec<(&'a str, &'a str)> {
+    let mut extra: Vec<(&str, &str)> = Vec::new();
+    if ctx.show_series_attr {
+        extra.push(("data-index", index_str));
         extra.push(("data-series", ctx.series_name));
     }
     if ctx.hidden {
@@ -592,6 +642,8 @@ fn render_series(
     let extra_attrs = series_extra_attrs(ctx);
 
     if n <= 1 {
+        let index_str = "0".to_string();
+        let point_extra = point_extra_attrs(ctx, index_str.as_str());
         let v = values.first().copied().unwrap_or(0.0);
         let x = category_x(width, n, 0) + ctx.left;
         let y = y_scale.scale(v);
@@ -604,7 +656,7 @@ fn render_series(
             ("r", r.as_str()),
             ("fill", color),
         ];
-        point_attrs.extend(extra_attrs.clone());
+        point_attrs.extend(point_extra.clone());
         nodes.push(el("circle", point_attrs, vec![]));
         if ctx.label != LineLabel::None {
             let text_value = match ctx.label {
@@ -612,7 +664,7 @@ fn render_series(
                 LineLabel::Category => ctx.categories.first().cloned().unwrap_or_default(),
                 LineLabel::None => unreachable!("上の if で LineLabel::None を除外済み"),
             };
-            nodes.push(value_label(x, y, text_value, extra_attrs.clone()));
+            nodes.push(value_label(x, y, text_value, point_extra));
         }
         return Ok(nodes);
     }
@@ -636,6 +688,8 @@ fn render_series(
 
     if ctx.dots != LineDots::None {
         for (i, &(x, y)) in points.iter().enumerate() {
+            let index_str = i.to_string();
+            let point_extra = point_extra_attrs(ctx, index_str.as_str());
             let point_color = if ctx.color_by_category {
                 crate::charts::series_color_var(i)
             } else {
@@ -657,19 +711,21 @@ fn render_series(
             } else {
                 point_attrs.push(("fill", point_color.as_str()));
             }
-            point_attrs.extend(extra_attrs.clone());
+            point_attrs.extend(point_extra);
             nodes.push(el("circle", point_attrs, vec![]));
         }
     }
 
     if ctx.label != LineLabel::None {
         for (i, &(x, y)) in points.iter().enumerate() {
+            let index_str = i.to_string();
+            let point_extra = point_extra_attrs(ctx, index_str.as_str());
             let text_value = match ctx.label {
                 LineLabel::Value => fmt_coord(values[i]),
                 LineLabel::Category => ctx.categories.get(i).cloned().unwrap_or_default(),
                 LineLabel::None => unreachable!("上の if で LineLabel::None を除外済み"),
             };
-            nodes.push(value_label(x, y, text_value, extra_attrs.clone()));
+            nodes.push(value_label(x, y, text_value, point_extra));
         }
     }
 
@@ -801,7 +857,10 @@ pub fn line_chart<'a>(
             categories: props.data.categories(),
             recipe: &recipe,
             series_name: s.name.as_str(),
-            show_series_attr: props.show_tooltip,
+            show_series_attr: props.show_tooltip
+                || props.range.is_some()
+                || !props.hidden_series.is_empty()
+                || props.legend,
             hidden: props.hidden_series.contains(&s.name.as_str()),
         };
         plot_children.extend(render_series(
