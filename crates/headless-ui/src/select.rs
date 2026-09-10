@@ -135,11 +135,10 @@
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
     aria_activedescendant, aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,
-    aria_labelledby, aria_orientation, aria_selected, role, AriaPopup,
+    aria_labelledby, aria_selected, role, AriaPopup,
 };
 use crate::data_attrs::{
     data_disabled, data_highlighted, data_invalid, data_readonly, data_required, data_state,
-    Orientation,
 };
 use crate::state::{Disclosure, OpenState, SingleSelect, SingleSelectAction};
 use fandhe_frontend_core::{el, text, Node, BIND_TEXT_ATTR};
@@ -259,9 +258,12 @@ const ITEM_TEXT_RESERVED: &[&str] = &["data-state", "data-disabled", "data-highl
 /// [`item_indicator`] が固定付与するキー一覧。
 const ITEM_INDICATOR_RESERVED: &[&str] = &["aria-hidden", "data-state", "hidden"];
 
-/// [`separator`] が固定付与するキー一覧（[`crate::menu::SEPARATOR_RESERVED`]
-/// と同型、イシュー #2186）。
-const SEPARATOR_RESERVED: &[&str] = &["role", "aria-orientation"];
+/// [`separator`] が固定付与するキー一覧（イシュー #2186。`aria-orientation`
+/// は Bugbot 指摘〔`role="separator"` の `aria-required-children` 違反〕を
+/// 受けて廃止した。`role` は固定付与しなくなったが、呼び出し側が
+/// `role="separator"` を再持ち込みして違反を再導入できないよう、
+/// 引き続き reserved に残し `drop_reserved` で除去する）。
+const SEPARATOR_RESERVED: &[&str] = &["role", "aria-hidden"];
 
 /// [`scroll_up_button`]/[`scroll_down_button`] が固定付与するキー一覧
 /// （イシュー #2186）。可視性判定・寸法計測を伴わない静的な `aria-hidden`
@@ -693,17 +695,21 @@ pub fn item_indicator<'a>(
 
 /// Separator パーツ（`div`）。項目群の視覚的な区切り（イシュー #2186）。
 ///
-/// `role="separator"` + `aria-orientation="horizontal"` を固定付与する
-/// （[`crate::menu::separator`] と同型のパターン）。`hr` ではなく `div` を
-/// 採用する理由は [`content`]（`role="listbox"`）配下に置く先例
+/// `aria-hidden="true"` を固定付与し `role`/`aria-orientation` は持たない
+/// （Radix `SelectSeparator` と同型。[`content`]（`role="listbox"`）配下は
+/// `option`/`group` のみを子に持てるという ARIA
+/// `aria-required-children` 制約があり、`role="separator"` を子として
+/// 出力すると listbox 以外の要素として読み上げられる違反になる。
+/// [`scroll_up_button`]/[`scroll_down_button`] と同様に装飾要素として
+/// `aria-hidden` で支援技術から隠す方針へ統一した、Bugbot 指摘対応）。
+/// `hr` ではなく `div` を採用する理由は [`content`] 配下に置く先例
 /// [`crate::command::separator`] に揃えるため（同モジュール doc「`empty`/
 /// `separator` の配置制約」節参照。`fandhe-frontend-pre-styled-ui` の recipe
 /// が `height`/`background` で区切り線を描画する）。
 #[must_use]
 pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let attrs = drop_reserved(attrs, SEPARATOR_RESERVED);
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![role("separator"), aria_orientation(Orientation::Horizontal)];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![aria_hidden(true)];
     merged.extend(attrs);
     ANATOMY.part("separator", "div", merged, children)
 }
@@ -2159,25 +2165,26 @@ mod tests {
     // --- separator / scroll-up-button / scroll-down-button（イシュー #2186） ---
 
     #[test]
-    fn separator_has_div_tag_role_and_aria_orientation() {
+    fn separator_has_div_tag_and_aria_hidden_without_role() {
         let html = render(&separator(vec![], vec![]));
         assert!(html.contains(r#"<div"#));
         assert!(html.contains(r#"data-scope="select""#));
         assert!(html.contains(r#"data-part="separator""#));
-        assert!(html.contains(r#"role="separator""#));
-        assert!(html.contains(r#"aria-orientation="horizontal""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains(r#"role="separator""#));
+        assert!(!html.contains("aria-orientation"));
     }
 
     #[test]
-    fn separator_drops_caller_supplied_role_and_aria_orientation() {
+    fn separator_drops_caller_supplied_role_and_aria_hidden() {
         let html = render(&separator(
-            vec![("role", "menu"), ("aria-orientation", "vertical")],
+            vec![("role", "menu"), ("aria-hidden", "false")],
             vec![],
         ));
-        assert!(html.contains(r#"role="separator""#));
         assert!(!html.contains(r#"role="menu""#));
-        assert!(html.contains(r#"aria-orientation="horizontal""#));
-        assert!(!html.contains(r#"aria-orientation="vertical""#));
+        assert!(!html.contains(r#"role="separator""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains(r#"aria-hidden="false""#));
     }
 
     #[test]

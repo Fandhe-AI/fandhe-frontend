@@ -497,7 +497,7 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         "`hidden_select` はフォーム統合専用のネイティブ `<select>` であり `aria-hidden=\"true\"` + `tabindex=\"-1\"` を固定付与して視覚 UI（`trigger`/`content`）との二重露出を防ぐ。未選択時は非表示 placeholder option を自動挿入し、ブラウザの「先頭 option 自動選択」による誤送信を防ぐ。`props.required` はネイティブ `required` へ反映する（`readonly` は `<select readonly>` が無効な HTML のため非採用）。",
         "位置決め（`positioner` の `style`/`data-side`/`data-align`）は `crate::positioning`（#590）が算出した値を呼び出し側が渡す。Select は arrow を持たない。",
         "highlight 移動・typeahead・キーボードナビゲーション自体は CSR 挙動層のスコープであり、本モジュールは `item(highlighted)`/`content(activedescendant)` の SSR 静的表現のみを提供する。",
-        "`separator`（`div` + `role=\"separator\"` + `aria-orientation=\"horizontal\"`）・`scroll_up_button`/`scroll_down_button`（`div` + `aria-hidden=\"true\"`）の 3 パーツをイシュー #2186 で追加した。可視性判定（スクロール可能かの計測）・押下時の実スクロールはいずれも本モジュールの責務外で `fandhe-frontend-wasm-full` の後続イシューが担う（SSR/静的描画では `style`/`hidden`/寸法系属性を一切出力せず常時描画する）。",
+        "`separator`（`div` + `aria-hidden=\"true\"`）・`scroll_up_button`/`scroll_down_button`（`div` + `aria-hidden=\"true\"`）の 3 パーツをイシュー #2186 で追加した。`separator` は当初 `role=\"separator\"` + `aria-orientation=\"horizontal\"` を固定付与していたが、親 `content`（`role=\"listbox\"`）は `option`/`group` のみを子に持てる `aria-required-children` 制約に違反するため、Radix `SelectSeparator` と同型の `aria-hidden` のみへ改めた（Bugbot 指摘対応）。可視性判定（スクロール可能かの計測）・押下時の実スクロールはいずれも本モジュールの責務外で `fandhe-frontend-wasm-full` の後続イシューが担う（SSR/静的描画では `style`/`hidden`/寸法系属性を一切出力せず常時描画する）。",
         "意図的に非追随: `data-state` の `checked`/`unchecked` 化・Radix 固有の Portal/Viewport（レイアウト計測の関心、headless 層へ持ち込まない）・Arrow（Select は arrow を持たない）・`data-focus`（DOM ローカル focus）・`data-placement`/`data-side`（`crate::positioning` 経由で既に提供）。",
     ],
     arguments: &[
@@ -554,7 +554,7 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         AriaRow { attribute: "aria-hidden=\"true\" (item_indicator)", description: "装飾アイコンであり `item` 自身の `aria-selected` が選択状態を伝達するため、支援技術の二重読み上げを防ぐ（イシュー #1619）。" },
         AriaRow { attribute: "aria-disabled (item)", description: "`props.disabled || disabled`（root disabled 伝播）が `true` のとき付与する（イシュー #1619）。" },
         AriaRow { attribute: "aria-hidden=\"true\" / tabindex=\"-1\" (hidden_select)", description: "視覚 UI（`trigger`/`content`）との二重露出・二重フォーカスを防ぐため固定付与する。" },
-        AriaRow { attribute: "role=\"separator\" / aria-orientation=\"horizontal\" (separator)", description: "固定付与（イシュー #2186、`crate::menu::separator` と同型）。" },
+        AriaRow { attribute: "aria-hidden=\"true\" (separator)", description: "固定付与（イシュー #2186。`content` は listbox の `aria-required-children`〔`option`/`group` のみ子に持てる〕制約があるため `role`/`aria-orientation` は持たず、Radix `SelectSeparator` と同型の `aria-hidden` のみへ統一する、Bugbot 指摘対応）。" },
         AriaRow { attribute: "aria-hidden=\"true\" (scroll_up_button / scroll_down_button)", description: "固定付与（イシュー #2186）。装飾要素であり可視性判定・実スクロールを持たないため支援技術から隠す。" },
     ],
     demo: None,

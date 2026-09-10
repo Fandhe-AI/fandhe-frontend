@@ -138,8 +138,11 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     assert!(html.contains(r#"role="listbox""#));
     assert!(html.contains(r#"role="group""#));
     assert!(html.contains(r#"aria-selected="true""#));
-    assert!(html.contains(r#"role="separator""#));
-    assert!(html.contains(r#"aria-orientation="horizontal""#));
+    // separator は listbox（content）の aria-required-children（option/group
+    // のみを子に持てる）違反を避けるため role/aria-orientation を持たず、
+    // aria-hidden のみを付与する（Bugbot 指摘対応、イシュー #2186）。
+    assert!(!html.contains(r#"role="separator""#));
+    assert!(!html.contains("aria-orientation"));
 
     // イシュー #1619 参照突合: item-group-label は role="presentation"、
     // item-indicator は aria-hidden="true"、選択中の item は data-selected を

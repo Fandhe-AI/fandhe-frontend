@@ -634,18 +634,23 @@ fn item_parts_data_attrs_are_headless_sourced_not_self_emitted() {
 /// `scroll-down-button` パーツ）は独自の `data-*`/ARIA を一切出力しない
 /// （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B。
 /// `item_parts_data_attrs_are_headless_sourced_not_self_emitted` と同型）。
-/// `role="separator"`/`aria-orientation="horizontal"`/`aria-hidden="true"`
-/// はいずれも headless `fandhe_frontend_headless_ui::select` が生成する
-/// ものであり、`select::stylesheet()` はそれらの属性を CSS セレクタとして
-/// 参照しない（3 パーツとも state/variant を持たず `[data-scope=`/
-/// `[data-part=` の base セレクタのみで着装するため）。
+/// `aria-hidden="true"`（separator/scroll-up-button/scroll-down-button
+/// 共通）はいずれも headless `fandhe_frontend_headless_ui::select` が
+/// 生成するものであり、`select::stylesheet()` はそれらの属性を CSS
+/// セレクタとして参照しない（3 パーツとも state/variant を持たず
+/// `[data-scope=`/`[data-part=` の base セレクタのみで着装するため）。
+/// `separator` は当初 `role="separator"` + `aria-orientation` を持って
+/// いたが、親 `content`（`role="listbox"`）の `aria-required-children`
+/// 制約違反のため `aria-hidden` のみへ改めた（Bugbot 指摘対応、
+/// イシュー #2186）。
 #[test]
 fn select_scroll_button_and_separator_attrs_are_headless_sourced_not_self_emitted() {
     use fandhe_frontend_pre_styled_ui::select;
 
     let separator_html = render(&select::separator(vec![], vec![]));
-    assert!(separator_html.contains(r#"role="separator""#));
-    assert!(separator_html.contains(r#"aria-orientation="horizontal""#));
+    assert!(separator_html.contains(r#"aria-hidden="true""#));
+    assert!(!separator_html.contains(r#"role="separator""#));
+    assert!(!separator_html.contains("aria-orientation"));
 
     let scroll_up_html = render(&select::scroll_up_button(vec![], vec![]));
     assert!(scroll_up_html.contains(r#"aria-hidden="true""#));
