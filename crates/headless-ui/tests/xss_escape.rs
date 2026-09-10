@@ -39,6 +39,7 @@ use fandhe_frontend_headless_ui::file_upload;
 use fandhe_frontend_headless_ui::item::{self, ItemMediaVariant, ItemRootProps};
 use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps};
 use fandhe_frontend_headless_ui::message::{self, MessageRootProps};
+use fandhe_frontend_headless_ui::message_scroller::{self, MessageScrollerRootProps};
 use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::questionnaire::QuestionProps;
@@ -2549,6 +2550,97 @@ fn sidebar_menu_button_href_rejects_dangerous_url_schemes() {
 /// `header`・`content`・`footer`（各 attrs/children）・`group`
 /// （`aria-label`・呼び出し側 attrs）の各動的スロットが既定エスケープを
 /// 経由することを固定する。
+/// イシュー #2121: `message_scroller` の `root`（呼び出し側 attrs）・
+/// `viewport`（`label`・attrs/children）・`content`・`anchor`（attrs）・
+/// `jump_to_latest`（`label`・attrs/children）・`load_more`（attrs/children）
+/// の各動的スロットが既定エスケープを経由することを固定する。
+#[test]
+fn message_scroller_root_viewport_content_anchor_jump_to_latest_load_more_are_escaped_for_all_payloads(
+) {
+    for payload in payloads::all() {
+        let root_attrs_node = message_scroller::root(
+            MessageScrollerRootProps::default(),
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message_scroller::root の呼び出し側 attrs/children コンテキスト",
+        );
+
+        let viewport_label_node = message_scroller::viewport(payload, vec![], vec![]);
+        let html = render(&viewport_label_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message_scroller::viewport の aria-label コンテキスト",
+        );
+
+        let viewport_attrs_node =
+            message_scroller::viewport("", vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&viewport_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message_scroller::viewport の呼び出し側 attrs/children コンテキスト",
+        );
+
+        let content_node =
+            message_scroller::content(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message_scroller::content の attrs/children コンテキスト",
+        );
+
+        let anchor_node = message_scroller::anchor(vec![("data-testid", payload)]);
+        let html = render(&anchor_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message_scroller::anchor の呼び出し側 attrs コンテキスト",
+        );
+
+        let jump_to_latest_label_node =
+            message_scroller::jump_to_latest(payload, true, vec![], vec![]);
+        let html = render(&jump_to_latest_label_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message_scroller::jump_to_latest の aria-label コンテキスト",
+        );
+
+        let jump_to_latest_attrs_node = message_scroller::jump_to_latest(
+            "",
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&jump_to_latest_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message_scroller::jump_to_latest の呼び出し側 attrs/children コンテキスト",
+        );
+
+        let load_more_node = message_scroller::load_more(
+            false,
+            false,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&load_more_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "message_scroller::load_more の呼び出し側 attrs/children コンテキスト",
+        );
+    }
+}
+
 #[test]
 fn message_root_avatar_header_content_footer_group_are_escaped_for_all_payloads() {
     for payload in payloads::all() {

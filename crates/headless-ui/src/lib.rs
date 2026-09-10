@@ -733,6 +733,21 @@
 //!   モジュール doc「会話系 4 部品の共通語彙」参照）。`aria-live`/
 //!   `aria-busy` は付けない（ストリーミング通知・応答待ちの読み上げは
 //!   アプリ責務、[`mod@message`] モジュール doc参照）。
+//! - [`mod@message_scroller`]: Root / Viewport / Content / Anchor /
+//!   JumpToLatest / LoadMore の 6 anatomy パーツ（イシュー #2121、親
+//!   #2120、shadcn/ui `Message Scroller` 相当、参照軸 #2001）。会話ログの
+//!   スクロールコンテナを表現し、[`mod@message`] と同じく状態機械を持た
+//!   ない静的部品。最下部追従・新着検知・スクロール位置の計測・復元は
+//!   一切内包しない（`.claude/rules/coding-rust.md` §3.25 規則 2、
+//!   `fandhe-frontend-wasm-full` 側の配線は #2122）。[`message_scroller::root`]
+//!   は `data-stuck`（`bottom`/`free`）・`data-has-new`（存在属性）を、
+//!   [`message_scroller::viewport`] は [`mod@scroll_area`] と同じ
+//!   `tabindex="0"` 固定契約（`scroll_area` へは委譲せず本 scope 自身の
+//!   パーツとして再実装、[`mod@message_scroller`] モジュール doc「`viewport`
+//!   は `message-scroller` scope 自身のパーツ」参照）を出力する。
+//!   [`message_scroller::content`] は `role="log"` を固定付与しない純
+//!   スロット（[`mod@message`] と同じくストリーミング通知はアプリ責務、
+//!   [`mod@message_scroller`] モジュール doc参照）。
 //! - [`mod@bubble`]: Root / Content / Reactions / Reaction / CollapseTrigger /
 //!   CollapseContent の 6 anatomy パーツ（イシュー #2108、親 #2107、
 //!   shadcn/ui `Bubble` 相当、参照軸 #2001）。[`mod@message`] と同じく
@@ -887,6 +902,7 @@ pub mod marker;
 pub mod menu;
 pub mod menubar;
 pub mod message;
+pub mod message_scroller;
 pub mod nav_list;
 pub mod navigation_menu;
 pub mod number_input;
@@ -996,6 +1012,7 @@ pub use marker::{MarkerRootProps, MarkerTone, MarkerVariant};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use menubar::{Menubar, MenubarAction};
 pub use message::{MessageAlign, MessageRole, MessageRootProps};
+pub use message_scroller::{MessageScrollerRootProps, MessageScrollerStuck};
 pub use navigation_menu::NavigationMenu;
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
 pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
