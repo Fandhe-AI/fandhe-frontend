@@ -1074,3 +1074,317 @@ fn keyboard_home_skips_hidden_hit_areas_after_range_change() {
         "the hidden hit-area must never become the roving tabindex entry point"
     );
 }
+
+/// [`full_chart_markup`] の `svg[data-part="root"]`（hit-area 3 件）
+/// から hit-area 3 件と tooltip-layer 一式を取り除いた最小マークアップを
+/// `container_id` 配下へ構築する（`show_tooltip: false` 構成の再現、
+/// イシュー #2134 codex-review 指摘: `total_categories` が hit-area の
+/// みを数えていたため、hit-area が出力されない `show_tooltip: false`
+/// 構成では常に `0` になり `data-range-to` 省略時の既定値（カテゴリ数）
+/// が壊れていた）。bar 6 件（`data-index` 0/1/2 × `data-series` a/b）の
+/// み残し、toggle-group item は `data-range-from="1"` のみを持ち
+/// `data-range-to` を省略する（既定値 = 総カテゴリ数 = 3 を要求する
+/// テストケース）。
+fn no_tooltip_range_markup(container_id: &str) {
+    fn bar(index: &'static str, name: &'static str) -> fandhe_frontend_core::Node {
+        el(
+            "rect",
+            vec![
+                ("data-scope", "bar-chart"),
+                ("data-part", "bar"),
+                ("data-index", index),
+                ("data-series", name),
+            ],
+            vec![],
+        )
+    }
+
+    let svg = el(
+        "svg",
+        vec![
+            ("data-part", "root"),
+            ("id", "chart-root-no-tooltip"),
+            ("role", "img"),
+        ],
+        vec![
+            bar("0", "a"),
+            bar("0", "b"),
+            bar("1", "a"),
+            bar("1", "b"),
+            bar("2", "a"),
+            bar("2", "b"),
+        ],
+    );
+
+    let range_group = el(
+        "div",
+        vec![
+            ("data-scope", "toggle-group"),
+            ("data-part", "root"),
+            ("aria-controls", "chart-root-no-tooltip"),
+        ],
+        vec![el(
+            "button",
+            vec![
+                ("data-scope", "toggle-group"),
+                ("data-part", "item"),
+                ("data-value", "from-1"),
+                ("data-range-from", "1"),
+            ],
+            vec![],
+        )],
+    );
+
+    let html = render(&el("div", vec![], vec![svg, range_group]));
+    web_sys::window()
+        .expect("window must exist")
+        .document()
+        .expect("document must exist")
+        .get_element_by_id(container_id)
+        .expect("container must exist")
+        .set_inner_html(&html);
+}
+
+#[wasm_bindgen_test]
+fn total_categories_without_tooltip_uses_indexed_elements_not_hit_area() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-range-test-no-tooltip");
+    let _guard = RemoveOnDrop(container.clone());
+    no_tooltip_range_markup("chart-range-test-no-tooltip");
+    wire_chart_range_events(container.clone()).expect("wiring must not fail");
+
+    let item = query(
+        &container,
+        "[data-scope=\"toggle-group\"][data-part=\"item\"][data-value=\"from-1\"]",
+    )
+    .expect("range item must exist");
+    click(&item);
+
+    let chart_root = document
+        .get_element_by_id("chart-root-no-tooltip")
+        .expect("chart root must exist");
+    assert_eq!(
+        chart_root.get_attribute("data-range").as_deref(),
+        Some("from-1")
+    );
+
+    // `data-range-to` 省略時の既定値は総カテゴリ数（3）でなければならない。
+    // hit-area が 1 件も無いため、修正前は `total_categories` が `0` を
+    // 返し `to(0) <= from(1)` で範囲自体が無効化され、カテゴリ 0 が
+    // 非表示にならなかった（イシュー #2134 codex-review 指摘）。
+    let bar_a0 = indexed(
+        &container,
+        "[data-scope=\"bar-chart\"][data-part=\"bar\"]",
+        0,
+        Some("a"),
+    );
+    assert!(
+        bar_a0.has_attribute("data-hidden"),
+        "category 0 must be hidden by the from=1 (default to=total) range"
+    );
+    let bar_a1 = indexed(
+        &container,
+        "[data-scope=\"bar-chart\"][data-part=\"bar\"]",
+        1,
+        Some("a"),
+    );
+    assert!(
+        !bar_a1.has_attribute("data-hidden"),
+        "category 1 must stay visible (within [1, total))"
+    );
+    let bar_a2 = indexed(
+        &container,
+        "[data-scope=\"bar-chart\"][data-part=\"bar\"]",
+        2,
+        Some("a"),
+    );
+    assert!(
+        !bar_a2.has_attribute("data-hidden"),
+        "category 2 must stay visible (within [1, total))"
+    );
+}
+
+/// LineChart/AreaChart の SSR root 構造（`<div data-part="root" id=..
+/// data-range=..><svg data-part="plot">..</svg><div data-part=
+/// "tooltip-layer">..</div></div>`、`crates/pre-styled-ui/src/
+/// line_chart.rs` 参照）を再現したマークアップを `container_id` 配下へ
+/// 構築する。BarChart（`full_chart_markup`）と異なり、`chart_root` は
+/// `<svg>` 自身ではなく `<div>` であり、tooltip-layer は `<svg>` の直後の
+/// 兄弟（= div root の子）である。
+fn div_root_range_markup(container_id: &str) {
+    fn point(index: &'static str) -> fandhe_frontend_core::Node {
+        el(
+            "circle",
+            vec![
+                ("data-scope", "line-chart"),
+                ("data-part", "point"),
+                ("data-index", index),
+                ("data-series", "a"),
+            ],
+            vec![],
+        )
+    }
+    fn tooltip(index: &'static str) -> fandhe_frontend_core::Node {
+        el(
+            "div",
+            vec![
+                ("data-scope", "chart"),
+                ("data-part", "tooltip"),
+                ("data-index", index),
+                ("hidden", ""),
+            ],
+            vec![],
+        )
+    }
+
+    let svg = el(
+        "svg",
+        vec![("data-scope", "line-chart"), ("data-part", "plot")],
+        vec![point("0"), point("1"), point("2")],
+    );
+    let tooltip_layer = el(
+        "div",
+        vec![("data-scope", "chart"), ("data-part", "tooltip-layer")],
+        vec![tooltip("0"), tooltip("1"), tooltip("2")],
+    );
+    let div_root = el(
+        "div",
+        vec![
+            ("data-scope", "line-chart"),
+            ("data-part", "root"),
+            ("id", "chart-root-div"),
+        ],
+        vec![svg, tooltip_layer],
+    );
+
+    let range_group = el(
+        "div",
+        vec![
+            ("data-scope", "toggle-group"),
+            ("data-part", "root"),
+            ("aria-controls", "chart-root-div"),
+        ],
+        vec![el(
+            "button",
+            vec![
+                ("data-scope", "toggle-group"),
+                ("data-part", "item"),
+                ("data-value", "30d"),
+                ("data-range-from", "1"),
+                ("data-range-to", "3"),
+            ],
+            vec![],
+        )],
+    );
+
+    let html = render(&el("div", vec![], vec![div_root, range_group]));
+    web_sys::window()
+        .expect("window must exist")
+        .document()
+        .expect("document must exist")
+        .get_element_by_id(container_id)
+        .expect("container must exist")
+        .set_inner_html(&html);
+}
+
+#[wasm_bindgen_test]
+fn div_root_chart_tooltip_layer_is_found_as_svg_sibling_not_root_sibling() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-range-test-div-root");
+    let _guard = RemoveOnDrop(container.clone());
+    div_root_range_markup("chart-range-test-div-root");
+    wire_chart_range_events(container.clone()).expect("wiring must not fail");
+
+    let item_30d = query(
+        &container,
+        "[data-scope=\"toggle-group\"][data-part=\"item\"][data-value=\"30d\"]",
+    )
+    .expect("30d item must exist");
+    click(&item_30d);
+
+    let chart_root = document
+        .get_element_by_id("chart-root-div")
+        .expect("chart root (div) must exist");
+    assert_eq!(
+        chart_root.get_attribute("data-range").as_deref(),
+        Some("30d")
+    );
+
+    // カテゴリ 0（from=1,to=3 の範囲外）の point は非表示になる。
+    let point0 = indexed(
+        &container,
+        "[data-scope=\"line-chart\"][data-part=\"point\"]",
+        0,
+        Some("a"),
+    );
+    assert!(point0.has_attribute("data-hidden"));
+
+    // tooltip-layer は div root の子（svg の直後の兄弟）であり、
+    // `chart_root.next_element_sibling()`（旧実装）では発見できない。
+    // 修正後は `tooltip_layer_of` が svg を経由して解決し、範囲外
+    // カテゴリの tooltip 本体へ `hidden` を強制できる（イシュー #2134
+    // codex-review 指摘）。
+    let tooltip0 = indexed(
+        &container,
+        "[data-scope=\"chart\"][data-part=\"tooltip\"]",
+        0,
+        None,
+    );
+    assert!(
+        tooltip0.has_attribute("hidden"),
+        "out-of-range tooltip body must be forced hidden even for a div chart root"
+    );
+}
+
+#[wasm_bindgen_test]
+fn range_item_click_reaches_handler_despite_headless_stop_propagation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "chart-range-test-capture");
+    let _guard = RemoveOnDrop(container.clone());
+    full_chart_markup("chart-range-test-capture");
+    // capture フェーズのリスナーを外側 `container` へ登録する
+    // （イシュー #2134 codex-review 指摘の再現条件: 同一 click に対して
+    // headless の bubble リスナーが `stop_propagation()` を呼んでも、
+    // capture フェーズは必ず先に完了するため `handle_click` に届く）。
+    wire_chart_range_events(container.clone()).expect("wiring must not fail");
+
+    // toggle-group root（`aria-controls="chart-root"`、`container` の
+    // 子孫）へ headless の bubble-phase click 配線を追加する。
+    // `data-value` を持つ item クリックは `MAPPING_TABLE` の
+    // `("toggle-group", "item") -> "toggle"` 行に解決され、
+    // `wire_headless_events` はその際 `event.stop_propagation()` を呼ぶ
+    // （`headless.rs` 該当 rustdoc 参照）。
+    let toggle_group_root = query(
+        &container,
+        "[data-scope=\"toggle-group\"][data-part=\"root\"]",
+    )
+    .expect("toggle-group root must exist");
+    let resolved = std::rc::Rc::new(std::cell::RefCell::new(false));
+    let resolved_flag = resolved.clone();
+    fandhe_frontend_wasm_full::headless::wire_headless_events(toggle_group_root, move |_action| {
+        *resolved_flag.borrow_mut() = true;
+    })
+    .expect("headless wiring must not fail");
+
+    let item_30d = query(
+        &container,
+        "[data-scope=\"toggle-group\"][data-part=\"item\"][data-value=\"30d\"]",
+    )
+    .expect("30d item must exist");
+    click(&item_30d);
+
+    assert!(
+        *resolved.borrow(),
+        "headless dispatch must have resolved the click (stop_propagation exercised)"
+    );
+
+    let chart_root = document
+        .get_element_by_id("chart-root")
+        .expect("chart root must exist");
+    assert_eq!(
+        chart_root.get_attribute("data-range").as_deref(),
+        Some("30d"),
+        "chart_range's capture-phase listener must still observe the click \
+         even though the headless bubble listener stopped propagation"
+    );
+}

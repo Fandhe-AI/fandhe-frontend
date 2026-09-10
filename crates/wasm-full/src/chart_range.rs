@@ -56,9 +56,16 @@
 //! （`crate::Runtime::wire_chart_range` 参照）。`dispatch` チャネルを
 //! 持たない属性専用配線であり、`crate::headless::MAPPING_TABLE` に
 //! `chart-legend` scope の行は無いため凡例クリックは dispatch へ流れず、
-//! 本モジュールのリスナーとのみ干渉する（`preventDefault`/
-//! `stopPropagation` を一切呼ばない設計により、toggle-group/select
-//! item クリックの dispatch 配線とも並走できる）。
+//! 本モジュールのリスナー自身も `preventDefault`/`stopPropagation` を
+//! 一切呼ばない設計のため、toggle-group/select item クリックの
+//! dispatch 配線とも並走できる。ただし期間切替コントロール
+//! （toggle-group/select）の item が `crate::headless::wire_headless_
+//! events`/`wire_headless_component` でも配線される構成では、headless
+//! 側の click ハンドラが二重解決防止のため `event.stop_propagation()`
+//! を呼ぶ（`headless.rs` 該当 rustdoc 参照）。本モジュールのリスナーは
+//! それでも click を確実に受け取れるよう **capture フェーズ**で登録する
+//! （`wiring::wire_chart_range_events` rustdoc 参照、イシュー #2134
+//! codex-review 指摘）。
 //!
 //! # ロケータ契約（fail-closed、`security.md` A03）
 //!
@@ -405,17 +412,39 @@ pub(crate) mod wiring {
         None
     }
 
-    /// `chart_root`（`svg[data-part="root"]`）の tooltip-layer を返す
-    /// （`chart.rs::wiring::layer_of` と同じロケータ契約:
-    /// `chart_root.next_element_sibling()` が `[data-scope="chart"]
+    /// `chart_root` の実 `<svg>` ノードを返す（イシュー #2134
+    /// codex-review 指摘: `resolve_chart_root` が解決する `chart_root` は
+    /// BarChart では `<svg data-part="root">` 自身だが、LineChart/
+    /// AreaChart では `<div data-part="root">`（`data-range` 属性・`id`
+    /// を持つのはこの div）であり `<svg data-part="plot">` はその子孫に
+    /// なる、`crates/pre-styled-ui/src/line_chart.rs` の root 構造参照）。
+    /// `chart_root` 自身が `<svg>` ならそれを、そうでなければ子孫の
+    /// `<svg>`（静的タグセレクタのみ、利用者由来文字列は補間しない
+    /// `security.md` A03）を返す。
+    fn svg_of(chart_root: &Element) -> Option<Element> {
+        if chart_root.tag_name().eq_ignore_ascii_case("svg") {
+            Some(chart_root.clone())
+        } else {
+            chart_root.query_selector("svg").ok().flatten()
+        }
+    }
+
+    /// `chart_root` の tooltip-layer を返す（`chart.rs::wiring::layer_of`
+    /// と同じロケータ契約: [`svg_of`] が解決する `<svg>` の
+    /// `next_element_sibling()` が `[data-scope="chart"]
     /// [data-part="tooltip-layer"]` であるものだけを返す。`charts/
-    /// tooltip.rs` の SSR 出力契約により tooltip/tooltip-item は
-    /// `chart_root`（`<svg>`）の子孫ではなく、`<svg>` の直後の兄弟
-    /// `tooltip-layer` の子孫として出力されるため、`query_all(chart_root,
-    /// ..)` では到達できない。show_tooltip: false で出力されたチャート・
-    /// 未知構造は `None`（no-op、モジュール doc「ロケータ契約」節）。
+    /// tooltip.rs` の SSR 出力契約により tooltip/tooltip-item は `<svg>`
+    /// の子孫ではなく、`<svg>` の直後の兄弟 `tooltip-layer` の子孫として
+    /// 出力されるため、`query_all(chart_root, ..)` では到達できない。
+    /// BarChart の `chart_root` は `<svg>` 自身なのでその直後の兄弟、
+    /// LineChart/AreaChart の `chart_root` は `<svg>` の親（div root）
+    /// なので `<svg>` の直後の兄弟（= div root の子）を見る
+    /// （[`svg_of`] rustdoc 参照）。show_tooltip: false で出力された
+    /// チャート・未知構造は `None`（no-op、モジュール doc「ロケータ契約」
+    /// 節）。
     fn tooltip_layer_of(chart_root: &Element) -> Option<Element> {
-        let sibling = chart_root.next_element_sibling()?;
+        let svg = svg_of(chart_root)?;
+        let sibling = svg.next_element_sibling()?;
         if sibling.get_attribute("data-scope").as_deref() == Some("chart")
             && sibling.get_attribute("data-part").as_deref() == Some("tooltip-layer")
         {
@@ -425,11 +454,20 @@ pub(crate) mod wiring {
         }
     }
 
-    /// `chart_root` 配下の hit-area から総カテゴリ数（`data-index` の
-    /// 最大値 + 1）を推定する。hit-area が無ければ `0`（範囲による非表示
-    /// を行わない、[`resolve_range`] が `to <= from` で無効化する）。
+    /// `chart_root` 配下の総カテゴリ数（`data-index` の最大値 + 1）を
+    /// 推定する。[`HIT_AREA_SELECTOR`] のみを数えると `show_tooltip: false`
+    /// （hit-area 自体が出力されない）構成で常に `0` になり、
+    /// `data-range-to` 省略時の既定値（カテゴリ数）が壊れて絞り込みが
+    /// 無効化される不具合があった（イシュー #2134 codex-review 指摘、
+    /// Cursor Bugbot 同一趣旨指摘 discussion_r3976089636）。hit-area に
+    /// 限らず bar/point/value-label 等の `data-index` を持つ描画要素
+    /// （[`identify_series`]/`identify_bars` 相当のゲートで `range.is_some()`
+    /// のときは常に出力される、`series_extra_attrs`/`identify_bars`
+    /// rustdoc 参照）を対象にする [`INDEXED_SELECTOR`] へ切り替える。
+    /// 該当要素が無ければ `0`（範囲による非表示を行わない、
+    /// [`resolve_range`] が `to <= from` で無効化する）。
     fn total_categories(chart_root: &Element) -> usize {
-        query_all(chart_root, HIT_AREA_SELECTOR)
+        query_all(chart_root, INDEXED_SELECTOR)
             .into_iter()
             .filter_map(|element| indexed(&element))
             .max()
@@ -746,16 +784,38 @@ pub(crate) mod wiring {
     /// エントリポイント（`crate::Runtime::wire_chart_range` から
     /// `Self::wire_chart` の直後に呼ばれる）。
     ///
+    /// click リスナーは capture フェーズで登録する（`use_capture: true`。
+    /// `command.rs::wiring::wire_command_events` の capture-phase
+    /// フォーカス記録と同じ手段、イシュー #2134 codex-review 指摘）:
+    /// 期間切替コントロール（toggle-group/select）・凡例 trigger の
+    /// item は `crate::headless::wiring::wire_headless_events`（または
+    /// `wire_headless_component`）でも配線され得るが、その click
+    /// ハンドラは同一 root への外側リスナーの二重解決防止のため
+    /// `event.stop_propagation()` を呼ぶ（`headless.rs` 該当 rustdoc
+    /// 参照）。本リスナーを従来どおり bubble フェーズで `root`
+    /// （headless の配線対象よりも外側にあることが多い）へ登録すると、
+    /// headless 側の bubble リスナーが先に `stop_propagation()` を
+    /// 呼んだ場合、click イベントが `root` まで bubble せず
+    /// `handle_click` が一切呼ばれない。DOM のイベント capturing
+    /// フェーズは同一イベントのどの target の bubbling フェーズ
+    /// リスナーよりも必ず先に完了するという契約を利用し、
+    /// `stop_propagation()` の有無に関わらず `handle_click` を確実に
+    /// 実行する。
+    ///
     /// # Errors
     ///
-    /// `add_event_listener_with_callback`/`MutationObserver::new` の
-    /// 失敗を伝播する。
+    /// `add_event_listener_with_callback_and_bool`/`MutationObserver::new`
+    /// の失敗を伝播する。
     pub fn wire_chart_range_events(root: Element) -> Result<(), JsValue> {
         let listener_root = root.clone();
         let closure = Closure::wrap(Box::new(move |event: Event| {
             handle_click(&listener_root, &event);
         }) as Box<dyn FnMut(Event)>);
-        root.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())?;
+        root.add_event_listener_with_callback_and_bool(
+            "click",
+            closure.as_ref().unchecked_ref(),
+            true,
+        )?;
         closure.forget();
 
         // マウント直後に 1 回同期する（SSR は `data-range` の初期値を
