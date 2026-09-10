@@ -72,11 +72,12 @@ const MESSAGE_SCROLLER_GOLDEN_CSS: &str = "[data-scope=\"message-scroller\"][dat
 }
 
 [data-scope=\"message-scroller\"][data-part=\"load-more\"] {
-  align-self: center;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--fandhe-space-2);
-  margin: var(--fandhe-space-2) auto;
+  width: fit-content;
+  margin: var(--fandhe-message-scroller-fade-start, 1.5rem) auto var(--fandhe-space-2);
   padding: var(--fandhe-space-1) var(--fandhe-space-3);
   border-radius: var(--fandhe-radius-md);
   background: transparent;

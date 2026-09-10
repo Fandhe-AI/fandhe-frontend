@@ -80,7 +80,10 @@
 //!   `visible=false` のとき headless が出力する `hidden` 存在属性を確実に
 //!   非表示化するため `.state("jump-to-latest", Attr("hidden"), [display:
 //!   none])` を明示登録する（下記「`hidden` 属性の上書き」節参照）。
-//! - `load-more`: `align-self: center` の控えめな履歴読み込みトリガー。
+//! - `load-more`: `display: flex` + `width: fit-content` +
+//!   `margin-inline: auto` で水平中央寄せする控えめな履歴読み込みトリガー
+//!   （下記「load-more のセンタリング」「load-more と端フェードの重なり
+//!   回避」節参照）。
 //!   `data-disabled` で [`disabled_declarations`]、`data-loading` で
 //!   `cursor: progress`。`loading=true` のとき styled [`load_more`] が
 //!   [`crate::spinner::spinner_decorative`] を children 先頭へ埋め込む
@@ -118,6 +121,38 @@
 //! scroll())` によるスクロール量連動アニメーションは本モジュールでは
 //! 採用しない（意図的非採用、下記「スコープ外」節参照）。フェードは
 //! `data-stuck` の 2 値に連動する静的な 2 段階のみで表現する。
+//!
+//! # load-more のセンタリング
+//!
+//! `load-more` は `viewport` の直接の子（`content`・`anchor` と並ぶ通常の
+//! ブロックフロー子要素）として配置される（Themes 側の想定配置は
+//! `crates/docs-site/src/showcase.rs::message_scroller_section` 参照）。
+//! `viewport` 自体は flex/grid コンテナではないため、`align-self`
+//! （flex/grid アイテムにのみ作用）は無効であり、`display: inline-flex`
+//! の要素に対する `margin: auto` もインラインレベルボックスの水平中央
+//! 寄せには作用しない（block-level ボックスにのみ有効）。このため
+//! `load-more` base 宣言は `display: flex`（block-level flex コンテナ）＋
+//! `width: fit-content`（shrink-to-fit させないと `margin-inline: auto`
+//! が効かない）＋ 横 `margin: auto` の組み合わせで水平中央寄せする
+//! （イシュー #2123 PR #2318 レビュー指摘）。
+//!
+//! # load-more と端フェードの重なり回避
+//!
+//! 上記「端フェードの採否」の `mask-image` は `viewport` 全体（＝スクロール
+//! 可能領域の可視端）へ適用されるため、`load-more` が `viewport` の先頭
+//! 子として配置される Themes 側の想定構成（会話履歴を遡り切った直後の
+//! 先頭にトリガーを常設する一般的な chat UI の慣習）では、利用者が
+//! 最上部までスクロールしたときに `load-more` 自体が先頭フェード帯域
+//! （既定 `--fandhe-message-scroller-fade-start` = `1.5rem`）に入り込み
+//! 霞んで見えてしまう。`mask-image` はボックス全体へ適用されるアルファ
+//! マスクであり、`z-index` 等で子孫要素だけをマスクから除外する手段は
+//! ない（構造を変えず解決できる CSS はこの手段に限られる）。本部品は
+//! `load-more` base 宣言の上マージンへ同じ `--fandhe-message-scroller-
+//! fade-start` トークンを流用し、`load-more` の上端がフェードの不透明
+//! 開始点（`mask-image` が完全不透明へ遷移し終える位置）と揃うようにする
+//! ことで、この重なりを回避する（イシュー #2123 PR #2318 レビュー指摘）。
+//! 利用者が `--fandhe-message-scroller-fade-start` を上書きした場合も
+//! 上マージンは追随するため、重なり回避の不変条件は保たれる。
 //!
 //! # `prefers-reduced-motion` 対応
 //!
@@ -293,11 +328,30 @@ fn recipe() -> SlotRecipe {
     ];
 
     let load_more_base = vec![
-        decl("align-self", "center"),
-        decl("display", "inline-flex"),
+        // `display: flex`（block-level）+ `width: fit-content` +
+        // `margin-inline: auto` で水平中央寄せする（モジュール doc
+        // 「load-more のセンタリング」節参照）。`viewport` は flex/grid
+        // コンテナではない（`content`/`load-more`/`anchor` を通常の
+        // ブロックフローで積む）ため、`align-self`（flex アイテム専用）は
+        // 無効かつ `display: inline-flex` の `margin: auto` はインライン
+        // レベルボックスに対して横方向中央寄せを起こさない。両者とも
+        // 効果を持たないため置き換える。
+        decl("display", "flex"),
         decl("align-items", "center"),
+        decl("justify-content", "center"),
         decl("gap", "var(--fandhe-space-2)"),
-        decl("margin", "var(--fandhe-space-2) auto"),
+        decl("width", "fit-content"),
+        // 上マージンに `viewport` の先頭フェード距離
+        // （`--fandhe-message-scroller-fade-start`）を流用し、
+        // `load-more` の上端がフェードの不透明開始点（`mask-image` が
+        // 完全不透明へ遷移し終える位置）と揃うようにする（モジュール doc
+        // 「load-more と端フェードの重なり回避」節参照）。`viewport` の
+        // 直接の先頭子であるため、この余白はスクロール可能領域の先頭に
+        // 空白として現れ、`load-more` 自体はフェード帯域の外側に位置する。
+        decl(
+            "margin",
+            "var(--fandhe-message-scroller-fade-start, 1.5rem) auto var(--fandhe-space-2)",
+        ),
         decl("padding", "var(--fandhe-space-1) var(--fandhe-space-3)"),
         decl("border-radius", "var(--fandhe-radius-md)"),
         decl("background", "transparent"),
