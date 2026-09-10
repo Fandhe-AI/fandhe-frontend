@@ -132,7 +132,10 @@
   block）/
   `blocks/sidebar-03/index.html`（イシュー #2091、submenu 付きサイドバー。
   `size="lg"` のブランド header・`menu-sub` 入れ子ナビゲーションを持つ
-  合成 block）である。
+  合成 block）/
+  `blocks/signup-05/index.html`（イシュー #2095、ソーシャルプロバイダ付き
+  サインアップフォーム。`heading`・`field::separator`・アイコン付き
+  Outline ボタン 2 個を持つ合成 block）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

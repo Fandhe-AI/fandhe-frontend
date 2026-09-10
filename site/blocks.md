@@ -20,6 +20,7 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [dashboard-01](./blocks/dashboard-01.md)
 - [sidebar-07](./blocks/sidebar-07.md)
 - [sidebar-03](./blocks/sidebar-03.md)
+- [signup-05](./blocks/signup-05.md)
 
 ## 掲載予定
 
@@ -27,4 +28,3 @@ UI コンポーネントを追加するものではありません**。ログイ
 
 - login-04
 - signup-01
-- signup-05
