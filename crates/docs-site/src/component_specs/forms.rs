@@ -778,7 +778,8 @@ const EDITABLE: ComponentPageSpec = ComponentPageSpec {
 
 const FIELD: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/label/helper-text/error-text/required-indicator/group/content/title/separator/separator-line/separator-content の 11 slot に型階層と余白（`orientation`、既定 `Vertical`）を提供する（イシュー #2185 で group/content/title/separator の 6 slot を純追加）。コントロール（`input`/`textarea`/`select`）は `input`/`textarea`/`native_select` の各 recipe が同じ `\"field\"` scope を共有して所有するため、本モジュールは宣言しない（`field.rs` モジュール doc「本モジュールが宣言する slot」節）。",
+        "root/label/helper-text/error-text/required-indicator/group/content/title/separator/separator-line/separator-content の 11 slot に型階層と余白（`orientation`: `vertical`（既定）/`horizontal`/`responsive`）を提供する（イシュー #2185 で group/content/title/separator の 6 slot を純追加）。コントロール（`input`/`textarea`/`select`）は `input`/`textarea`/`native_select` の各 recipe が同じ `\"field\"` scope を共有して所有するため、本モジュールは宣言しない（`field.rs` モジュール doc「本モジュールが宣言する slot」節）。",
+        "`orientation=\"responsive\"`（イシュー #2199）は `group`（container slot、`@container` クエリ）の inline サイズが 448px 以上のときのみ `horizontal` と同じ配置へ切り替わる。`group` の外に置いた場合は常に縦積みのまま（mobile-first の安全な劣化）。",
         "`orientation` のみを持つ variant 軸（`size`/`colorPalette` は非提供。ラベル・補助テキストの文字サイズは固定の型階層で表現する設計判断）。",
         "`data-invalid`/`data-disabled`/`data-required`/`data-readonly` はいずれも headless-ui `field::root` が出力する状態を CSS セレクタとして参照するだけで、値の妥当性判定・送信処理といったバリデーション自体は実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
         "`error-text`/`required-indicator` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",
@@ -790,7 +791,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             name: "props",
             kind: "&FieldRootProps",
             default: "",
-            description: "`orientation`（既定 `Vertical`）を束ねる構造体。",
+            description: "`orientation`（`vertical`（既定）/`horizontal`/`responsive`）を束ねる構造体。`responsive` は `group` を container として 448px 以上で横並びに切り替わる（イシュー #2199）。",
         },
         ArgRow {
             name: "field",
@@ -839,6 +840,11 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             title: "Content + title レイアウト",
             description: "`<label for>` を結び付けにくいチェックボックス見出しを `content`/`title` で表現する合成例です（イシュー #2185、`docs/design/reference-screenshots/shadcn-field-2.png` の説明文配置に近い構成）。`title` の `id` をコントロールの `aria-labelledby` へ渡して結び付けます。",
             render: ex_field_content_and_title,
+        },
+        ExampleEntry {
+            title: "Responsive orientation（@container）",
+            description: "`orientation=\"responsive\"` の 2 つの `Field` を `group`（container）の内側に配置した合成例です（イシュー #2199、`docs/design/reference-screenshots/shadcn-field-3.png`）。`group` の inline サイズが 448px 以上のときのみラベルと入力欄が横並びに切り替わり、未満のときは縦積みのままです。",
+            render: ex_field_responsive_orientation,
         },
     ],
     keyboard: &[],
@@ -1001,6 +1007,73 @@ fn ex_field_content_and_title() -> Node {
                 &newsletter_props,
                 vec![],
                 vec![text("Receive product updates by email.")],
+            ),
+        ],
+    )
+}
+
+/// [`FIELD`] の Examples 節「Responsive orientation（@container）」レンダラ
+/// （イシュー #2199）。`docs/design/reference-screenshots/shadcn-field-3.png`
+/// を参照。`orientation="responsive"` は `group`（container slot）の内側に
+/// 置かれた場合にのみ意味を持つため（`group` の外では常に縦積みのまま、
+/// `field.rs` モジュール doc「`orientation="responsive"`」節参照）、必ず
+/// `field::group` で 2 つの `Field` を包む。
+fn ex_field_responsive_orientation() -> Node {
+    let name_props = FieldProps {
+        id: "ex-field-responsive-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
+    let username_props = FieldProps {
+        id: "ex-field-responsive-username",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    field::group(
+        vec![],
+        vec![
+            field::root(
+                &FieldRootProps {
+                    orientation: FieldOrientation::Responsive,
+                },
+                &name_props,
+                vec![],
+                vec![
+                    field::label(&name_props, vec![], vec![text("Full name")]),
+                    fandhe_frontend_pre_styled_ui::input::input(
+                        &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                        &name_props,
+                        vec![("type", "text"), ("placeholder", "Ada Lovelace")],
+                    ),
+                    field::helper_text(
+                        &name_props,
+                        vec![],
+                        vec![text("448px 以上でラベルと入力欄が横並びになります。")],
+                    ),
+                ],
+            ),
+            field::root(
+                &FieldRootProps {
+                    orientation: FieldOrientation::Responsive,
+                },
+                &username_props,
+                vec![],
+                vec![
+                    field::label(&username_props, vec![], vec![text("Username")]),
+                    fandhe_frontend_pre_styled_ui::input::input(
+                        &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                        &username_props,
+                        vec![("type", "text"), ("placeholder", "ada")],
+                    ),
+                ],
             ),
         ],
     )

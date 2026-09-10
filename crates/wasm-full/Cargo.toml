@@ -923,7 +923,13 @@ name = "fandhe-frontend-wasm-full"
 # collapse-content 追加）で独立に同じ 0.18.5 へ到達していた。同一版数
 # への偶発的衝突をそのまま採用しない原則に従い、main の到達値 0.18.5
 # からさらに +1（patch）して 0.18.6 とする。
-version = "0.18.6"
+#
+# イシュー #2205: `headless::MAPPING_TABLE` へ menu/menubar の
+# checkbox-item/radio-item の 4 行を追加し、`keynav::MENU_ITEM_SELECTOR`/
+# `MENUBAR_ITEM_SELECTOR`/`sync_item_text_highlighted` を拡張した。
+# 既存シグネチャ不変の加算的変更のため patch バンプ、0.18.6 から
+# 0.18.7 とする。
+version = "0.18.7"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

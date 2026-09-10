@@ -2024,18 +2024,40 @@ jobs:
   # structure.toml の宣言クレートを対象とする（イシュー #1174 で
   # `lint_wasm32` を追加。本リポジトリは role = "client-entrypoint" を
   # 宣言する wasm-full/wasm-client/wasm-thin を持つため実走する）。
+  #
+  # イシュー #2306: 上記 7 チェックの直列実行が単一ジョブで約 6.5〜8 分を
+  # 要し gate-self-apply が CI 最長ジョブの床になっていたため、#2305 で
+  # 追加した `fw gate --only` を用いてチェック群ごとに 3 ジョブ
+  # （gate-self-apply / gate-self-apply-lint-wasm32 / gate-self-apply-test）へ
+  # 分割する。「PASS 常時保証」の保証形は「単一ジョブの gate_result: PASS」
+  # から「3 ジョブの論理積（ci-complete が集約）」へ改訂する。この改訂が
+  # 成立する根拠: `aggregate`（crates/cli/src/gate.rs）はチェック間の結合を
+  # 持たない純関数（各チェックの passed/environment_error を畳み込んで
+  # PASS/BLOCKED/ERROR の 3 値化のみを行う）であり、「各チェックが別ジョブで
+  # PASS」であることは「フル実行（`--only` なし）で全チェックが PASS」で
+  # あることと等価である。フル実行（`--only` なし）を保険として別途常設する
+  # ことはしない（理由: (1) 上記の通り論理積で等価性が構造的に保証される、
+  # (2) `--only` なしの既定経路自体は
+  # crates/cli/tests/new_gate_e2e.rs（生成プロジェクトへのフル実行）と
+  # gate.rs の名前・順序契約ユニットテストが CI 上で常時検証している、
+  # (3) 「7 チェックのいずれかが CI から欠落する」リスクは
+  # crates/xtask/tests/workflow_shared_target_contract.rs の網羅契約テスト
+  # （`--only` 群の和集合が CHECK_NAMES と過不足なく一致することを
+  # gate.rs のソースから機械抽出して検証）が fail-closed に防ぐ、
+  # (4) main push 限定の保険ジョブは `if:` を要し ci-complete の skipped
+  # 許容リストを広げる fail-open 方向の変更になるうえ約 8 分のランナー
+  # 消費を復活させる、の 4 点。詳細は docs/design/gate-design.md §4.1・
+  # .claude/rules/ci.md 参照。
   gate-self-apply:
-    name: "fw gate --project . self-apply (issue #400)"
+    name: "fw gate --project . self-apply: type/escape/url/lint/policy (issue #400/#2306)"
     # ホステッドランナー移行（トラッキング #1220、実装 #1229）。test ジョブと同じ
     # 理由でクリーン VM 前提へ移行する。
     runs-on: ubuntu-latest
-    # gate は check + clippy + clippy(wasm32) + test + deny を直列実行する
-    # ため test ジョブより長めに確保する（イシュー #1174 で `lint_wasm32` を
-    # 追加、wasm32 target 向け再コンパイルの分だけ余裕を拡大）。ホステッド
-    # ランナー移行によるクリーンビルド化（キャッシュ消失）を見込み延長する
-    # （イシュー #1229。実測後に調整）。
-    timeout-minutes: 60
-    # forbid-unsafe / clippy ジョブと同じ理由: gate の type_check / test は
+    # #2306 でチェック群を type_check/default_escape_check/url_validation_check/
+    # lint/policy（host clippy + cargo check + cargo deny）へ絞ったため、
+    # 旧・全 7 チェック直列実行の見込みより短縮する（初回 CI 実測後に調整）。
+    timeout-minutes: 40
+    # forbid-unsafe / clippy ジョブと同じ理由: gate の type_check は
     # -p fandhe-frontend-dist-server を含み、crates/dist-server/build.rs の WASM ネストビルド
     # （wasm32 target・wasm-bindgen-cli 起動）は本ジョブの runner に常設保証が
     # ないため明示オプトアウトする。統合 WASM ビルドの実証は test ジョブが
@@ -2084,7 +2106,7 @@ jobs:
         # プリビルトバイナリで用意する（イシュー #292/#314、ci.md 規約）。
         run: tools/ci/ensure-gate-tools.sh
 
-      - name: "fw gate --project . 自己適用（PASS 常時保証, issue #400）"
+      - name: "fw gate --project . 自己適用: type/escape/url/lint/policy（PASS 常時保証, issue #400/#2306）"
         run: |
           set -euo pipefail
           # gate は JSON レポートを stdout へ出力し、gate_result に応じた
@@ -2097,19 +2119,162 @@ jobs:
           # するだけで判定できる（version-bump-guard と同じ「終了コードは
           # 0/非 0 のみを見て、種別判定は出力本文の grep に任せる」設計。
           # 終了コードから種別を読み分ける PIPESTATUS 方式は複雑化を避けて
-          # 採らない）。
+          # 採らない）。`--only` はイシュー #2306 のジョブ分割: このジョブは
+          # type_check/default_escape_check/url_validation_check/lint/policy
+          # の 5 チェックのみを実行する（残る lint_wasm32/test は下記の別
+          # ジョブが担当し、3 ジョブの論理積で従来のフル実行 PASS と等価に
+          # なる）。
           #
           # `if PIPELINE; then` の条件式内であれば、GitHub Actions 既定の
           # `bash -e`（errexit）が有効なままでも pipefail によるパイプライン
           # 失敗で即座にスクリプトが中断されることはない
           # （version-bump-guard ジョブと同型のパターン、ci.md 規約）。
-          if cargo run -p fandhe-frontend-cli --locked -- gate --project . | tee gate-report.json; then
+          if cargo run -p fandhe-frontend-cli --locked -- gate --project . --only type_check,default_escape_check,url_validation_check,lint,policy | tee gate-report.json; then
             exit 0
           fi
           if grep -q '"gate_result":"ERROR"' gate-report.json; then
-            echo "::error::fw gate ERROR: environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
+            echo "::error::fw gate ERROR (--only type_check,default_escape_check,url_validation_check,lint,policy): environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
           else
-            echo "::error::fw gate BLOCKED: code-caused check failure. See failing checks in the JSON report above."
+            echo "::error::fw gate BLOCKED (--only type_check,default_escape_check,url_validation_check,lint,policy): code-caused check failure. See failing checks in the JSON report above."
+          fi
+          exit 1
+
+  gate-self-apply-lint-wasm32:
+    name: "fw gate --project . self-apply: lint_wasm32 (issue #400/#2306)"
+    # ホステッドランナー移行（トラッキング #1220、実装 #1229）。test ジョブと同じ
+    # 理由でクリーン VM 前提へ移行する。イシュー #2306: gate-self-apply から
+    # 分離した lint_wasm32 チェック（wasm32-unknown-unknown target 向け
+    # clippy）専任ジョブ。
+    runs-on: ubuntu-latest
+    # wasm32 target 向け clippy（3 wasm クレート）のみのため短めに見積もる
+    # （初回 CI 実測後に調整）。
+    timeout-minutes: 30
+    # gate-self-apply ジョブと同じ理由でオプトアウトする（lint_wasm32 は
+    # wasm クレートのみを対象とするが、type_check 同様 dist-server の
+    # ネスト WASM ビルドを誘発しないよう統一しておく）。
+    env:
+      FANDHE_FRONTEND_WASM_BUILD: "0"
+    steps:
+      - name: Checkout
+        # gate-self-apply ジョブの同名ステップと同一。
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # gate-self-apply ジョブの同名ステップと同一。lint_wasm32 チェックも
+        # clippy を要求するため components: clippy を明示する。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
+        with:
+          components: clippy
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # gate-self-apply ジョブの同名ステップと同一（詳細は forbid-unsafe
+        # ジョブのステップコメント参照）。
+        run: |
+          set -euo pipefail
+          if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d "${CARGO_TARGET_DIR}/debug/deps" ]; then
+            rm -f \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_full.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+
+      - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
+        # gate-self-apply ジョブの同名ステップと同一。lint_wasm32 自体は
+        # clippy component のみで足りるが、pin の単一真実源を崩さないため
+        # 同じブートストラップスクリプトを前置する（ci.md 規約）。
+        run: tools/ci/ensure-gate-tools.sh
+
+      - name: "fw gate --project . 自己適用: lint_wasm32（PASS 常時保証, issue #400/#2306）"
+        run: |
+          set -euo pipefail
+          # gate-self-apply ジョブの本体ステップと同型のパイプライン
+          # （grep によるアノテーション出し分け、PIPESTATUS 方式は採らない）。
+          if cargo run -p fandhe-frontend-cli --locked -- gate --project . --only lint_wasm32 | tee gate-report.json; then
+            exit 0
+          fi
+          if grep -q '"gate_result":"ERROR"' gate-report.json; then
+            echo "::error::fw gate ERROR (--only lint_wasm32): environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
+          else
+            echo "::error::fw gate BLOCKED (--only lint_wasm32): code-caused check failure. See failing checks in the JSON report above."
+          fi
+          exit 1
+
+  gate-self-apply-test:
+    name: "fw gate --project . self-apply: test (issue #400/#2306)"
+    # ホステッドランナー移行（トラッキング #1220、実装 #1229）。test ジョブと同じ
+    # 理由でクリーン VM 前提へ移行する。イシュー #2306: gate-self-apply から
+    # 分離した test チェック（宣言クレート群の cargo test）専任ジョブ。
+    # 分割後の 3 ジョブのうち最も重い（docs-site を含む cargo test）ため、
+    # 分割後の CI 全体の床になる想定。
+    runs-on: ubuntu-latest
+    # test チェックは structure.toml 宣言クレート（docs-site 含む）の
+    # cargo test を実行するため gate-self-apply / gate-self-apply-lint-wasm32
+    # より長めに見積もる（初回 CI 実測後に調整）。
+    timeout-minutes: 60
+    # gate-self-apply ジョブと同じ理由: test チェックも
+    # -p fandhe-frontend-dist-server を含む。
+    env:
+      FANDHE_FRONTEND_WASM_BUILD: "0"
+    steps:
+      - name: Checkout
+        # gate-self-apply ジョブの同名ステップと同一。
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # gate-self-apply ジョブの同名ステップと同一。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
+        with:
+          components: clippy
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # gate-self-apply ジョブの同名ステップと同一（詳細は forbid-unsafe
+        # ジョブのステップコメント参照）。
+        run: |
+          set -euo pipefail
+          if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d "${CARGO_TARGET_DIR}/debug/deps" ]; then
+            rm -f \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_full.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+
+      - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
+        # gate-self-apply ジョブの同名ステップと同一。test チェック配下の
+        # crates/cli/tests/negative_cases.rs 等が cargo-deny の存在有無で
+        # strict 分岐を切り替えるため、導入を落とすとサイレントに弱い側へ
+        # 倒れる（ci.md 規約、イシュー #2306 計画 §2.1 参照）。
+        run: tools/ci/ensure-gate-tools.sh
+
+      - name: "fw gate --project . 自己適用: test（PASS 常時保証, issue #400/#2306）"
+        run: |
+          set -euo pipefail
+          # gate-self-apply ジョブの本体ステップと同型のパイプライン
+          # （grep によるアノテーション出し分け、PIPESTATUS 方式は採らない）。
+          if cargo run -p fandhe-frontend-cli --locked -- gate --project . --only test | tee gate-report.json; then
+            exit 0
+          fi
+          if grep -q '"gate_result":"ERROR"' gate-report.json; then
+            echo "::error::fw gate ERROR (--only test): environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
+          else
+            echo "::error::fw gate BLOCKED (--only test): code-caused check failure. See failing checks in the JSON report above."
           fi
           exit 1
 
@@ -2307,6 +2472,8 @@ jobs:
       - clippy-wasm32
       - windows-target-check
       - gate-self-apply
+      - gate-self-apply-lint-wasm32
+      - gate-self-apply-test
       - version-bump-guard
       - dep-version-check
     steps:

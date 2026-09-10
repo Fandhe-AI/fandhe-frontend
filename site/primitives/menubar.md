@@ -18,7 +18,8 @@ unstyled 部品であり、Themes 版と異なりスタイル（CSS）は一切�
 | ArrowRight / ArrowLeft（垂直配置は ArrowDown / ArrowUp） | Trigger | 隣の Trigger へフォーカスを移動します。ある Menu が開いていれば、開く Menu もフォーカス移動に追随します（open-follows-focus）。 |
 | ArrowDown / Enter / Space | Trigger（closed） | Menu を開き、先頭の非 disabled 項目を highlight します。 |
 | ArrowUp | Trigger（closed） | Menu を開き、末尾の非 disabled 項目を highlight します。 |
-| ArrowDown / ArrowUp / Home / End | Content（open） | highlight 中の項目を次/前/先頭/末尾の非 disabled 項目へ移動します。 |
+| ArrowDown / ArrowUp / Home / End | Content（open） | highlight 中の項目を次/前/先頭/末尾の非 disabled 項目へ移動します（CheckboxItem/RadioItem も対象）。 |
+| Enter / Space | Content（open、highlight 中の項目） | highlight 中の項目へ click を合成します。CheckboxItem は `"toggle"`、RadioItem は `"select"` を dispatch します（checked 状態機械は `menu` の MenuCheckboxItem/MenuRadioItemGroup を流用）。 |
 | 印字可能文字 | Content（open） | typeahead。ItemText 子があればそのテキストを優先してマッチします。 |
 | ArrowRight | SubTrigger（highlight 中、水平配置） | サブメニューを展開します。 |
 | ArrowLeft | サブメニュー内（水平配置） | 親 SubTrigger へ復帰しサブメニューを閉じます。 |
@@ -40,10 +41,6 @@ ItemIndicator/CheckboxItem/RadioItemGroup/RadioItem の 7 パーツを新設し
 - **RTL `dir`**: 未対応です。
 - **Root の `value`/`defaultValue`**: 制御値は `Menubar` 状態機械の `open: Option<usize>` が担います。
 - **Trigger の Space/Enter による実 DOM フォーカス移動**: Trigger にフォーカスを留め `data-highlighted`（+ 実行時の `aria-activedescendant`）で仮想フォーカスを表現する設計のため未採用です。
-
-**既知のギャップ**（`fandhe-frontend-wasm-full` 側の後続対応）: CheckboxItem/
-RadioItem は highlight 移動・typeahead・Enter/Space による checked トグルの
-配線が未実装です（`menu` の CheckboxItem/RadioItem と同じ既知ギャップ）。
 
 スタイル済みの表示例は [Menubar](../themes/menubar.md) を参照してください。
 

@@ -3164,6 +3164,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 統合した結果として 0.180.4 をさらに +1 した 0.180.5 へ patch バンプする。
 # （旧到達値 0.180.5 は下記の統合により 0.181.1 で置き換えられた）
 #
+# イシュー #2199（recipe への `@container` 導入・field
+# `orientation="responsive"` 追加）: `FieldOrientation` へ新 variant
+# `Responsive` を追加する破壊的変更（0.x の網羅 `match` 破壊）のため、
+# `.claude/rules/coding-rust.md` の「0.x の破壊的変更はマイナーバンプ」
+# 規約に従い 0.181.0 へマイナーバンプする。
+#
 # base 取り込み（PR #2303、イシュー #2125、再々々マージ、同一版数への
 # 偶発的衝突）: 本ブランチの到達値 0.180.3（上記の通り headless-ui
 # 0.69.0 への dep-version-check 追随のみ）に対し、origin/main も
@@ -3219,7 +3225,25 @@ name = "fandhe-frontend-pre-styled-ui"
 # check 追随）は異なるため、同一版数への偶発的衝突に該当する。原則どおり
 # 0.181.2 をさらに +1 した 0.181.3 へ patch バンプし、双方の実体変更を
 # 版数へ反映する。
-version = "0.181.3"
+# 本コンフリクト解消（イシュー #2199、PR feat/2199、main 取り込み）: 本ブランチは FieldOrientation へ新 variant Responsive を追加する破壊的変更
+# （0.x の網羅 match 破壊）のためマイナーバンプ 0.181.0 へ到達していたが、origin/main は別経路の統合を経て patch バンプの積み重ねで 0.181.2 へ到達しており、
+# 本ブランチの到達値を上回っている。同一版数への偶発的衝突ではなく origin/main が
+# 本ブランチを上回るケースだが、本ブランチの変更はマイナーバンプ相当の破壊的変更である
+# ため、origin/main の到達値 0.181.2 をさらに上回るようマイナーバンプし 0.182.0 とする。
+# イシュー #2203: `StateCondition` へ `AttrAll` variant（値なし存在属性
+# 同士の AND、例: `[data-danger][data-highlighted]`）を追加した。
+# `StateCondition` は `#[non_exhaustive]` ではないため、variant 追加は
+# 0.x 利用者の網羅 match を破る破壊的変更（前例: PR #1803
+# `HoverExceptAttrEq` 追加で 0.60.5 → 0.61.0）。origin/main の到達値
+# 0.182.0 を上回るようマイナーバンプし 0.183.0 とする。
+# 本コンフリクト解消（PR #2317、イシュー #2204、main 取り込み・最終）:
+# 本ブランチの到達値 0.181.3（native-select システムカラー適用 + 偶発的衝突
+# 是正）と origin/main の到達値 0.183.0（#2199 FieldOrientation::Responsive
+# 追加 + #2203 StateCondition::AttrAll 追加によるマイナーバンプの積み重ね）を
+# 比較すると、origin/main が本ブランチを上回っている。本ブランチの実体変更
+# （native_select option/optgroup システムカラー適用）は非破壊的な追加のため、
+# origin/main の到達値 0.183.0 をさらに patch バンプし 0.183.1 とする。
+version = "0.183.1"
 
 
 edition = "2021"

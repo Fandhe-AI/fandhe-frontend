@@ -16,8 +16,8 @@ use fandhe_frontend_pre_styled_ui::decl;
 use fandhe_frontend_pre_styled_ui::recipe::{
     disabled_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
     palette_declarations, palette_scale_declarations, transition_declarations, when, Breakpoint,
-    ColorPalette as StdColorPalette, MotionDuration, PseudoElement, Size, SlotRecipe,
-    StateCondition, VariantValue,
+    ColorPalette as StdColorPalette, ContainerBreakpoint, MotionDuration, PseudoElement, Size,
+    SlotRecipe, StateCondition, VariantValue,
 };
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 
@@ -644,6 +644,90 @@ fn state_fail_closed_cases_are_skipped_not_panicking() {
     assert!(!css.contains("orange"));
     assert!(css.contains(r#"[data-scope="widget"][data-part="root"][hidden] {"#));
     assert!(css.contains("display: none;"));
+}
+
+/// イシュー #2203 golden テスト: [`StateCondition::AttrAll`] が複数の
+/// 存在属性を AND 連結したセレクタ `[<a>][<b>]...` を生成することを
+/// 固定する（[`crate::menu`] の `item` における `data-danger` ×
+/// `data-highlighted` 背景色合成が最初の消費者。要素の連結順がスライス順
+/// のまま保持されることも固定する）。
+#[test]
+fn state_attr_all_generates_conjunction_selector() {
+    let recipe = SlotRecipe::new("widget", &["item"]).state(
+        "item",
+        StateCondition::AttrAll(&["data-danger", "data-highlighted"]),
+        vec![decl("background", "red")],
+    );
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"item\"][data-danger][data-highlighted] {\n",
+        "  background: red;\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+
+    // 逆順スライスは逆順のセレクタを生成する（連結順の固定）。
+    let reversed = SlotRecipe::new("widget", &["item"]).state(
+        "item",
+        StateCondition::AttrAll(&["b-attr", "a-attr"]),
+        vec![decl("background", "blue")],
+    );
+    assert!(reversed
+        .css()
+        .contains(r#"[data-scope="widget"][data-part="item"][b-attr][a-attr] {"#));
+}
+
+/// イシュー #2203 fail-closed テスト: [`StateCondition::AttrAll`] は
+/// 空スライス・不正識別子を含むスライスを panic せず出力から除外する
+/// （[`StateCondition::AttrEqAll`] と同じ方針）。
+#[test]
+fn state_attr_all_fail_closed_cases_are_skipped_not_panicking() {
+    let recipe = SlotRecipe::new("widget", &["item"])
+        // 1. 空スライスは無条件規則（base と同義）のため除外される。
+        .state(
+            "item",
+            StateCondition::AttrAll(&[]),
+            vec![decl("color", "red")],
+        )
+        // 2. 不正識別子（大文字始まり）を含むスライスは規則ごと除外される。
+        .state(
+            "item",
+            StateCondition::AttrAll(&["data-danger", "Data-Highlighted"]),
+            vec![decl("color", "green")],
+        )
+        // 有効な規則も混在させ、無効規則の除外が他の規則へ波及しないことを確認する。
+        .state(
+            "item",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        );
+
+    let css = recipe.css();
+    assert!(!css.contains("color: red;"));
+    assert!(!css.contains("green"));
+    assert!(css.contains(r#"[data-scope="widget"][data-part="item"][hidden] {"#));
+    assert!(css.contains("display: none;"));
+}
+
+/// イシュー #2203: [`StateCondition::AttrAll`] は非 Hover 系であり
+/// `@starting-style` へ受理されることを固定する（[`is_hover_family`] の
+/// `matches!` 網羅に `AttrAll` が漏れていないことの回帰）。
+#[test]
+fn starting_style_state_accepts_attr_all() {
+    let recipe = SlotRecipe::new("widget", &["root"]).starting_style_state(
+        "root",
+        StateCondition::AttrAll(&["data-danger", "data-highlighted"]),
+        vec![decl("height", "0")],
+    );
+
+    let expected = concat!(
+        "@starting-style {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"][data-danger][data-highlighted] {\n",
+        "    height: 0;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
 }
 
 // イシュー #1424: フォーカスリング宣言ヘルパ・size_variants の統合テスト。
@@ -1420,4 +1504,205 @@ fn breakpoint_without_declarations_is_byte_identical_to_recipe_without_breakpoin
     // ブロックが混入しないことを固定する（既存 golden の純追加不変条件）。
     let recipe = SlotRecipe::new("widget", &["root"]).base("root", vec![decl("display", "flex")]);
     assert!(!recipe.css().contains("@media (min-width"));
+}
+
+// イシュー #2199: container query 条件（`@container` クエリ、`SlotRecipe::
+// container_slot`/`container`/`container_variant`）のテスト。
+
+#[test]
+fn container_breakpoint_values_match_reference_scale() {
+    // shadcn/ui（Tailwind v4 既定コンテナクエリスケール）と一致する 4 段
+    // スケール（採用根拠は `docs/design/pre-styled-ui-scale-tokens.md`
+    // §3.7 参照）。`Breakpoint`（viewport 幅）とは別スケールである点に注意。
+    let actual: Vec<(&str, &str)> = ContainerBreakpoint::ALL
+        .iter()
+        .map(|cb| (cb.value(), cb.min_width()))
+        .collect();
+    assert_eq!(
+        actual,
+        vec![
+            ("sm", "384px"),
+            ("md", "448px"),
+            ("lg", "512px"),
+            ("xl", "576px"),
+        ]
+    );
+}
+
+#[test]
+fn container_slot_emits_container_type_block_after_base() {
+    let recipe = SlotRecipe::new("widget", &["root", "group"])
+        .base("group", vec![decl("display", "flex")])
+        .container_slot("group");
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"group\"] {\n",
+        "  display: flex;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"widget\"][data-part=\"group\"] {\n",
+        "  container-type: inline-size;\n",
+        "  container-name: fd-widget-group;\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
+#[test]
+fn container_rules_match_golden_and_are_emitted_in_ascending_order() {
+    // `Md`（base 相当の `container()`）を先・`Sm`（variant 相当の
+    // `container_variant()`）を後に登録しても、出力は
+    // `ContainerBreakpoint::ALL` の昇順（sm → md、mobile-first）になる
+    // ことを固定する（登録順ではない）。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .container_slot("root")
+        .container("root", ContainerBreakpoint::Md, vec![decl("gap", "12px")])
+        .container_variant(
+            ColorPalette::Blue,
+            "root",
+            ContainerBreakpoint::Sm,
+            vec![decl("color", "blue")],
+        );
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "  container-type: inline-size;\n",
+        "  container-name: fd-widget-root;\n",
+        "}\n",
+        "\n",
+        "@container fd-widget-root (min-width: 384px) {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"].fd-widget--colorpalette-blue {\n",
+        "    color: blue;\n",
+        "  }\n",
+        "}\n",
+        "\n",
+        "@container fd-widget-root (min-width: 448px) {\n",
+        "  [data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "    gap: 12px;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
+#[test]
+fn container_blocks_are_emitted_after_breakpoints_and_before_hover_block() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .state("root", StateCondition::Hover, hover_surface_declarations())
+        .breakpoint("root", Breakpoint::Sm, vec![decl("gap", "8px")])
+        .container_slot("root")
+        .container("root", ContainerBreakpoint::Sm, vec![decl("gap", "4px")]);
+
+    let css = recipe.css();
+    let breakpoint_pos = css
+        .find("@media (min-width: 640px)")
+        .expect("breakpoint block must exist");
+    let container_pos = css
+        .find("@container fd-widget-root (min-width: 384px)")
+        .expect("container block must exist");
+    let hover_pos = css
+        .find("@media (hover: hover)")
+        .expect("hover block must exist");
+    assert!(
+        breakpoint_pos < container_pos,
+        "breakpoint ブロックは container ブロックより前に出力される"
+    );
+    assert!(
+        container_pos < hover_pos,
+        "container ブロックは hover ブロックより前に出力される"
+    );
+    assert!(
+        css.ends_with("}\n"),
+        "hover ブロックが css() 出力の末尾であること"
+    );
+}
+
+#[test]
+fn container_rules_without_container_slot_are_skipped() {
+    // `container_slot()` を呼んでいない recipe は、`container()`/
+    // `container_variant()` を登録していても孤児 `@container` を一切
+    // 出力しない（fail-closed、`container_slot` rustdoc 参照）。
+    let recipe = SlotRecipe::new("widget", &["root"]).container(
+        "root",
+        ContainerBreakpoint::Md,
+        vec![decl("gap", "12px")],
+    );
+    assert!(!recipe.css().contains("@container"));
+    assert!(!recipe.css().contains("container-type"));
+}
+
+#[test]
+fn container_fail_closed_cases_are_skipped_not_panicking() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .container_slot("root")
+        // slots 未宣言の slot。
+        .container("ghost", ContainerBreakpoint::Sm, vec![decl("gap", "8px")])
+        // 不正な slot 名（構造破壊文字）。
+        .container(
+            "root\"] {} div[",
+            ContainerBreakpoint::Sm,
+            vec![decl("gap", "8px")],
+        )
+        // 無効な宣言のみ（プロパティ名が構造破壊文字）。
+        .container(
+            "root",
+            ContainerBreakpoint::Sm,
+            vec![decl("gap:hack", "8px")],
+        )
+        // container_variant の axis/value が不正な識別子。
+        .container_variant(
+            InvalidAxisValue,
+            "root",
+            ContainerBreakpoint::Lg,
+            vec![decl("gap", "8px")],
+        );
+
+    let css = recipe.css();
+    assert!(!css.contains("@container fd-widget-root (min-width: 384px)"));
+    assert!(!css.contains("@container fd-widget-root (min-width: 512px)"));
+}
+
+/// `container_variant` の axis/value が識別子として不正な値を返す
+/// テスト専用 `VariantValue`（`container_fail_closed_cases_are_skipped_not_panicking`
+/// 用）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct InvalidAxisValue;
+
+impl VariantValue for InvalidAxisValue {
+    fn axis(self) -> &'static str {
+        "Bad Axis"
+    }
+
+    fn value(self) -> &'static str {
+        "Bad Value"
+    }
+}
+
+#[test]
+fn recipe_without_container_api_is_byte_identical() {
+    // `container_slot()`/`container()`/`container_variant()` を一切呼ばない
+    // recipe の `css()` 出力に container ブロックが混入しないことを固定する
+    // （既存 golden の純追加不変条件）。
+    let recipe = SlotRecipe::new("widget", &["root"]).breakpoint(
+        "root",
+        Breakpoint::Sm,
+        vec![decl("gap", "8px")],
+    );
+    let css = recipe.css();
+    assert!(!css.contains("@container"));
+    assert!(!css.contains("container-type"));
+    assert!(!css.contains("container-name"));
+}
+
+#[test]
+fn container_prelude_name_matches_declared_container_name() {
+    // `container-name` の値と `@container` プレリュードの名前が一致する
+    // ことを固定する（両者の乖離はブラウザ上でクエリが一致しなくなる
+    // サイレントな不具合を生むため）。
+    let recipe = SlotRecipe::new("widget", &["group"])
+        .container_slot("group")
+        .container("group", ContainerBreakpoint::Md, vec![decl("gap", "8px")]);
+    let css = recipe.css();
+    assert!(css.contains("container-name: fd-widget-group;"));
+    assert!(css.contains("@container fd-widget-group (min-width: 448px) {"));
 }
