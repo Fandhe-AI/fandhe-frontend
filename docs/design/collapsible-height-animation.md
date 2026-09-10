@@ -179,6 +179,33 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
   機能自体）は引き続き本イシューのスコープ外・別イシュー提案の対象。
   #2191 が記録する「縮んだ場合に前回値が残る」限界（§5.1）はブラウザ
   対応状況によらず不変。
+- **calc-size() 対応ブラウザにおける開いた定常状態のクリップ解消
+  （PR #2289 追加 codex レビュー P1 是正）**: `calc-size()` 対応ブラウザで
+  開閉トランジション自体が成立するようになった結果、`overflow: hidden`
+  を base（開いた定常状態も含む）へ恒常的に残す実装では新たな回帰が
+  生じていた。content 内に `position: absolute; top: 100%` で自身の
+  境界の外へ意図的にはみ出す Popover 等（`portal` 未提供のため親の
+  クリップ領域内に留まらざるを得ない構成）を配置すると、開閉完了後の
+  定常状態でも親のクリップで切り取られてしまう。これは
+  `content_height_transition` 導入前（`overflow` 宣言自体を持たなかった
+  状態）と比べた表示回帰にあたる。是正として `overflow` を
+  `transition-property` へ追加し、`transition-timing-function` の
+  `overflow` に対応する位置だけ `step-end`（進捗が完了に達するまで開始値
+  のまま、完了の瞬間に終了値へ切り替わる離散値遷移）を指定した:
+  開く遷移は終端値 `overflow: visible` へ完了の瞬間にのみ切り替わる
+  （トランジション中は開始値 `hidden` が維持されるため、縮む方向の
+  遷移中に内容が切り取られる従来の効果は保たれる）ため、開いた定常状態
+  では常に `overflow: visible` となり Popover のクリップが解消される。
+  閉じる遷移は終端値 `overflow: hidden` へ完了の瞬間（`display: none`
+  適用と同時）にのみ切り替わるため、シュリンクアニメーション中は
+  `overflow: visible` のまま（`display` の `allow-discrete`「終端値が
+  `none` の場合は完了まで適用を遅延する」という既存の振る舞いと同じ
+  タイミングモデル）というトレードオフを受け入れる。閉状態
+  （`[hidden]` state・`@starting-style`）は `overflow: hidden` を明示する
+  （`content_height_closed_declarations`）。実装詳細は
+  `crates/pre-styled-ui/src/recipe.rs` の
+  `CONTENT_HEIGHT_TIMING_FUNCTION`/`content_height_open_declarations`
+  rustdoc を正とする。
 - **`scrollHeight` は border を含まない**ため、border-box で
   `height: <scrollHeight>px` を当てると collapsible（1px border）では
   content 領域が上下計 2px 短くなる（`overflow: hidden` の切り取り境界は

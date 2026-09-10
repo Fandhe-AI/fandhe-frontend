@@ -984,26 +984,37 @@ fn content_height_transition_preset_registers_base_state_and_starting_style() {
     // （未対応ブラウザは構文解析時点で `calc-size()` 宣言が無効となり
     // 直前の `var()` 参照が有効なまま残る）。`display` 宣言そのものは
     // 持たない（`transition-property` の列挙に `display` を含むのみ）。
+    // `overflow` は開いた定常状態の終端値として `visible` を宣言する
+    // （PR #2289 codex レビュー P1 是正）。トランジション進行中は
+    // `step-end` timing により開始値 `hidden` が維持される
+    // （`content_height_open_declarations` rustdoc「開いた定常状態での
+    // クリップ対策」節参照）。
     assert!(css.contains(&format!("{CONTENT_HEIGHT_VAR}: initial;")));
     assert!(css.contains(&format!("height: var({CONTENT_HEIGHT_VAR}, auto);")));
     assert!(css.contains("height: calc-size(auto, size);"));
     assert!(css.contains("box-sizing: border-box;"));
-    assert!(css.contains("overflow: hidden;"));
-    assert!(css.contains("transition-property: height, padding-block, margin-block, display;"));
+    assert!(css.contains("overflow: visible;"));
+    assert!(css
+        .contains("transition-property: height, padding-block, margin-block, display, overflow;"));
+    assert!(css.contains(
+        "transition-timing-function: var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-end;"
+    ));
     assert!(css.contains("transition-behavior: allow-discrete;"));
     assert!(!css.contains("display: none;"));
     assert!(!css.contains("display: block;"));
 
-    // `[hidden]` state: 縮小方向の宣言のみ。
+    // `[hidden]` state: 縮小方向の宣言（`overflow: hidden` を含む）。
     assert!(css.contains(r#"[data-scope="collapsible"][data-part="content"][hidden] {"#));
 
-    // `@starting-style`: 開く遷移の開始点を `height: 0` に固定する。
+    // `@starting-style`: 開く遷移の開始点を `height: 0`/`overflow: hidden`
+    // に固定する。
     let expected_starting_style = concat!(
         "@starting-style {\n",
         "  [data-scope=\"collapsible\"][data-part=\"content\"] {\n",
         "    height: 0;\n",
         "    padding-block: 0;\n",
         "    margin-block: 0;\n",
+        "    overflow: hidden;\n",
         "  }\n",
         "}\n",
     );
@@ -1032,7 +1043,10 @@ fn content_height_declarations_helpers_match_preset_contract() {
     assert_eq!(open[0].property(), "box-sizing");
     assert_eq!(open[0].value(), "border-box");
     assert_eq!(open[1].property(), "overflow");
-    assert_eq!(open[1].value(), "hidden");
+    // 開いた定常状態の終端値は `visible`（PR #2289 codex レビュー P1
+    // 是正）。トランジション進行中は `step-end` timing により開始値
+    // `hidden`（`content_height_closed_declarations`）が維持される。
+    assert_eq!(open[1].value(), "visible");
     assert_eq!(open[2].property(), CONTENT_HEIGHT_VAR);
     assert_eq!(open[2].value(), "initial");
     assert_eq!(open[3].property(), "height");
@@ -1042,19 +1056,27 @@ fn content_height_declarations_helpers_match_preset_contract() {
     assert_eq!(open[5].property(), "transition-property");
     assert_eq!(
         open[5].value(),
-        "height, padding-block, margin-block, display"
+        "height, padding-block, margin-block, display, overflow"
+    );
+    assert_eq!(open[6].property(), "transition-duration");
+    assert_eq!(open[7].property(), "transition-timing-function");
+    assert_eq!(
+        open[7].value(),
+        "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-end"
     );
     assert_eq!(open.last().unwrap().property(), "transition-behavior");
     assert_eq!(open.last().unwrap().value(), "allow-discrete");
 
     let closed = content_height_closed_declarations();
-    assert_eq!(closed.len(), 3);
+    assert_eq!(closed.len(), 4);
     assert_eq!(closed[0].property(), "height");
     assert_eq!(closed[0].value(), "0");
     assert_eq!(closed[1].property(), "padding-block");
     assert_eq!(closed[1].value(), "0");
     assert_eq!(closed[2].property(), "margin-block");
     assert_eq!(closed[2].value(), "0");
+    assert_eq!(closed[3].property(), "overflow");
+    assert_eq!(closed[3].value(), "hidden");
 }
 
 #[test]

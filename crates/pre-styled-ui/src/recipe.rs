@@ -655,14 +655,58 @@ pub const CONTENT_HEIGHT_VAR: &str = "--fandhe-content-height";
 /// リテラルとして持つ。
 const CONTENT_HEIGHT_VAR_REF: &str = "var(--fandhe-content-height, auto)";
 
+/// [`content_height_open_declarations`] 専用の `transition-timing-function`
+/// 値（PR #2289 codex レビュー P1 是正、イシュー #2192）。
+///
+/// `transition-property: height, padding-block, margin-block, display,
+/// overflow` の 5 項目に位置対応する 5 値のカンマ列。先頭 4 項目
+/// （`height`/`padding-block`/`margin-block`/`display`）は従来どおり共通
+/// easing（[`TRANSITION_EASING_VAR`]）を使うが、末尾の `overflow` だけは
+/// `step-end` を使う。理由: `overflow`（離散値プロパティ）の値切り替え
+/// タイミングをトランジション完了の瞬間に固定するため。`step-end` は
+/// 「進捗が 1（完了）に達するまで開始値のまま、完了と同時に終了値へ切り
+/// 替わる」ため、以下の非対称な要件を単一の共有宣言（`[hidden]` state は
+/// `transition-property` 等を再宣言しない契約、`content_height_transition`
+/// rustdoc 参照）だけで満たせる:
+///
+/// - 開く遷移（base が終端スタイル）: 終端値は `overflow: visible`。
+///   `step-end` によりトランジション進行中は開始値 `hidden`（`[hidden]`
+///   state/`@starting-style` 側）のまま据え置かれ、完了の瞬間にだけ
+///   `visible` へ切り替わる。これにより開いた定常状態（トランジション
+///   完了後）では常に `overflow: visible` となり、content 内の
+///   `position: absolute` な Popover 等（`top: 100%` で自身の高さの外へ
+///   はみ出す構成）が親のクリップで切り取られる回帰
+///   （calc-size() 対応ブラウザで発生、codex レビュー指摘）を解消する。
+/// - 閉じる遷移（`[hidden]` state が終端スタイル）: 終端値は
+///   `overflow: hidden`。`step-end` によりトランジション進行中は開始値
+///   `visible`（base 側）のまま据え置かれ、完了の瞬間（`display: none`
+///   適用と同時）にだけ `hidden` へ切り替わる。`display` も
+///   `allow-discrete` により「終端値が `none` の場合は完了まで適用を
+///   遅延する」という同じタイミングモデルで振る舞う（[MDN
+///   `transition-behavior`]）ため、`overflow` を同じ `step-end` に揃える
+///   ことは既存の `display` の振る舞いと整合する。トレードオフとして、
+///   閉じる方向のシュリンクアニメーション中は content が
+///   `overflow: visible` のまま（クリップされない）だが、`display` が
+///   遅延適用される期間と同じ区間であり新規の破綻ではない。
+///
+/// [MDN `transition-behavior`]: https://developer.mozilla.org/en-US/docs/Web/CSS/transition-behavior
+const CONTENT_HEIGHT_TIMING_FUNCTION: &str = "var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-end";
+
 /// [`SlotRecipe::content_height_transition`] が base（非 `hidden`）状態へ
 /// 登録する宣言（イシュー #2192、codex レビュー是正で追補）。
 /// `box-sizing: border-box` は wasm-full の実測値（`scrollHeight`、
-/// padding 込み）と齟齬なく `height` を適用するため、`overflow: hidden`
-/// は縮む方向の遷移中に内容を切り取るためにそれぞれ必須。
-/// `transition-property` に `display` を含めるため
-/// [`transition_declarations_allow_discrete`] を使う（`hidden` 属性による
-/// `display: none` の実適用を遷移完了まで遅延させる）。
+/// padding 込み）と齟齬なく `height` を適用するため必須。
+/// `overflow: visible` を終端値として登録し、`transition-property` に
+/// `overflow` を含めて [`CONTENT_HEIGHT_TIMING_FUNCTION`] の `step-end`
+/// でトランジション完了の瞬間にのみ切り替える（下記「開いた定常状態での
+/// クリップ対策」節参照。PR #2289 codex レビュー P1 是正）。
+/// `transition-property` に `display` を含めるため、共通ヘルパー
+/// [`transition_declarations_allow_discrete`] は使わず本関数で個別に
+/// 4 つの `transition-*` longhand を組み立てる（`overflow` だけ
+/// `transition-timing-function` を他と変えるため、[`transition_declarations`]
+/// の「単一値をカンマ列全体へ反復適用」という汎用設計に乗せられない）。
+/// `hidden` 属性による `display: none` の実適用は遷移完了まで遅延する
+/// （`transition-behavior: allow-discrete`）。
 ///
 /// # `--fandhe-content-height: initial` を各 content 要素で明示する理由
 ///
@@ -705,20 +749,39 @@ const CONTENT_HEIGHT_VAR_REF: &str = "var(--fandhe-content-height, auto)";
 /// この経路では wasm-full の測定結果を待たずに開閉トランジション自体が
 /// 成立するため、対応ブラウザでは実質的に「JS 測定なしでも動く」上位
 /// 互換となる。
+///
+/// `calc-size()` 対応ブラウザで開閉トランジション自体が成立するように
+/// なった結果、`overflow: hidden` を base（開いた定常状態も含む）へ
+/// 恒常的に残すと新たな回帰が生じる: content 内に `position: absolute;
+/// top: 100%` で自身の境界の外へ意図的にはみ出す Popover 等（`portal`
+/// 未提供のため親のクリップ領域内に留まらざるを得ない構成）が、開閉
+/// 完了後の定常状態でも親のクリップで切り取られてしまう（PR #2289
+/// codex レビュー P1 指摘）。`content_height_transition` 導入前
+/// （`height: auto` を継続評価し `overflow` 宣言自体を持たなかった状態）
+/// と比べた表示回帰にあたるため、本関数は `overflow: hidden` を base の
+/// 恒常値としては持たない。代わりに [`CONTENT_HEIGHT_TIMING_FUNCTION`]
+/// （`step-end`）で `overflow` の値切り替えをトランジション完了の瞬間
+/// だけに限定し、`overflow: visible` を開いた定常状態の終端値として
+/// 登録する。トランジション進行中は開始値（`[hidden]` state/
+/// `@starting-style` 側の `overflow: hidden`）が `step-end` により
+/// 維持されるため、縮む方向の遷移中に内容が切り取られる従来の効果は
+/// 変わらず保たれる。
 #[must_use]
 pub fn content_height_open_declarations(duration: MotionDuration) -> Vec<Declaration> {
-    let mut declarations = vec![
+    vec![
         decl("box-sizing", "border-box"),
-        decl("overflow", "hidden"),
+        decl("overflow", "visible"),
         decl(CONTENT_HEIGHT_VAR, "initial"),
         decl("height", CONTENT_HEIGHT_VAR_REF),
         decl("height", "calc-size(auto, size)"),
-    ];
-    declarations.extend(transition_declarations_allow_discrete(
-        "height, padding-block, margin-block, display",
-        duration,
-    ));
-    declarations
+        decl(
+            "transition-property",
+            "height, padding-block, margin-block, display, overflow",
+        ),
+        decl("transition-duration", duration.var_ref()),
+        decl("transition-timing-function", CONTENT_HEIGHT_TIMING_FUNCTION),
+        decl("transition-behavior", "allow-discrete"),
+    ]
 }
 
 /// [`SlotRecipe::content_height_transition`] が `[hidden]` state・
@@ -736,12 +799,21 @@ pub fn content_height_open_declarations(duration: MotionDuration) -> Vec<Declara
 /// declarations` の `transition-property` に `margin-block` を含めて
 /// あるため、他部品（`margin-block` を宣言しない accordion
 /// `item-content` 等）では実質 no-op のまま安全に共有できる。
+///
+/// `overflow: hidden` を追補したのは PR #2289 codex レビュー P1 是正
+/// （[`content_height_open_declarations`] rustdoc「開いた定常状態での
+/// クリップ対策」節参照）の一部: `[hidden]` state・`@starting-style` の
+/// 双方をトランジションの「開始値」（`step-end` により、閉じる遷移では
+/// 完了の瞬間まで、開く遷移では開始の瞬間から進行中ずっと有効になる
+/// 値）として使うため、この関数が `overflow: hidden` を明示しないと
+/// 縮む方向の遷移中に内容が切り取られなくなってしまう。
 #[must_use]
 pub fn content_height_closed_declarations() -> Vec<Declaration> {
     vec![
         decl("height", "0"),
         decl("padding-block", "0"),
         decl("margin-block", "0"),
+        decl("overflow", "hidden"),
     ]
 }
 

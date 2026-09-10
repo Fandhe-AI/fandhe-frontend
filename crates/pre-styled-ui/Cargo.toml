@@ -2874,7 +2874,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # allow-discrete` の公開 DSL（`starting_style`/`starting_style_state`/
 # `transition_declarations_allow_discrete`/`content_height_transition` 等）を
 # 追加する公開 API 追加のため 0.174.0 へマイナーバンプする。
-version = "0.174.0"
+#
+# PR #2289 追加 codex レビュー P1 是正（calc-size() 対応ブラウザで開いた
+# 定常状態でも overflow: hidden が残り content 内の Popover が切り取られる
+# 回帰の解消）: `content_height_open_declarations`/
+# `content_height_closed_declarations` の出力する CSS 宣言が変わる実体
+# 変更のため 0.175.0 へマイナーバンプする。
+version = "0.175.0"
 
 
 edition = "2021"

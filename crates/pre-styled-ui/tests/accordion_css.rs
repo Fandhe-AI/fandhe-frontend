@@ -184,13 +184,13 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
 
 [data-scope="accordion"][data-part="item-content"] {
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
   --fandhe-content-height: initial;
   height: var(--fandhe-content-height, auto);
   height: calc-size(auto, size);
-  transition-property: height, padding-block, margin-block, display;
+  transition-property: height, padding-block, margin-block, display, overflow;
   transition-duration: var(--fandhe-motion-duration-normal);
-  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-timing-function: var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-end;
   transition-behavior: allow-discrete;
 }
 
@@ -245,6 +245,7 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
   height: 0;
   padding-block: 0;
   margin-block: 0;
+  overflow: hidden;
 }
 
 @starting-style {
@@ -252,6 +253,7 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
     height: 0;
     padding-block: 0;
     margin-block: 0;
+    overflow: hidden;
   }
 }
 
