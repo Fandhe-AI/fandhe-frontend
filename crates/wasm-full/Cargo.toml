@@ -785,7 +785,13 @@ name = "fandhe-frontend-wasm-full"
 # scope の `MAPPING_TABLE` 登録は後続イシュー #2118 のスコープであり本
 # クレート自体の配線は未着手）。origin/main の到達値 0.17.2 からさらに
 # +1（patch）して 0.17.3 とする。
-version = "0.17.3"
+#
+# イシュー #2118: `questionnaire` モジュール（back/next/skip クリックから
+# `data-state` 更新への配線）を新規追加し、`Runtime::mount`/`Runtime::hydrate`
+# へ自動配線した（新規公開 API の追加＝機能追加）。0.x の非破壊的機能追加
+# のため minor バンプとし、0.17.3 → 0.18.0 とする（`chart` モジュール追加時
+# 〔#2130〕の先例と同型の判断）。
+version = "0.18.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

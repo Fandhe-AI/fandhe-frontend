@@ -335,6 +335,14 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `sidebar` | `trigger` | `"toggle"` | `""` |
 | `sidebar` | `rail` | `"toggle"` | `""` |
 
+**`questionnaire` の back/next/skip は本表に登録しない（イシュー #2118、
+§27 参照）**: `"next"`/`"prev"` は carousel / steps / pagination / tour /
+toolbar / menubar / date-input / pin-input の各 `decode_action` と共有
+される語彙であり、`(questionnaire, next) → "next"` の行を足すと本表を
+経由するアプリで同一 click が二重解決・誤 dispatch されるため、専用の
+click 委譲（`questionnaire::wire_questionnaire_events`）を別途 `root` へ
+登録する。
+
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
 
 `calendar` の 2 行（`prev-trigger`/`next-trigger`）はイシュー #1074（keynav へ Splitter/Calendar のキーボード操作配線を追加する）で追加した。`crates/wasm-full/src/keynav.rs`（§後述、モジュール doc §Calendar）が PageUp/PageDown で合成する `prev-trigger`/`next-trigger` への `HtmlElement::click()` は、この 2 行を経由して初めて `CalendarAction::PrevMonth`/`NextMonth` の dispatch へ到達する。`("calendar", "day-trigger") → "select"` 行はイシュー #1161 で追加した: headless-ui 0.28.0 で `calendar::day_trigger`（`crates/headless-ui/src/calendar.rs`）が `data-value`（ISO 8601 表記の日付）を出力するようになったため、`Calendar::decode_action` が `PlainDate` としてパースする payload を満たせるようになった（パース不能・範囲外は既存の fail-closed 契約のまま）。
@@ -1426,3 +1434,127 @@ layer 自体を差し替えた場合の要素再解決（`angle_slider::wiring` 
 `role="img"` 内にフォーカス可能な hit-area を置く a11y 問題の是正・
 bar/scatter 以外の視覚要素への `data-index` 付与と消費 CSS/Demo は
 #2131 が担う。
+
+## 27. `questionnaire` モジュール（イシュー #2118、親 #2116）
+
+`crates/headless-ui/src/questionnaire.rs`（イシュー #2117）は Root/
+Progress/Question/Prompt/Description/Options/Freeform/Actions/Back/
+Next/Skip の 11 anatomy パーツと、`count`/`step` から質問の 3 状態
+（`active`/`completed`/`upcoming`）を導出する決定的状態機械
+`Questionnaire` を提供する一方、back/next/skip の trigger click から
+dispatch への実配線は同モジュール冒頭 rustdoc「out-of-scope」節が
+明記するとおり本クレート（wasm 層）の後続スコープ（#2118）とされて
+いた。`crates/wasm-full/src/questionnaire.rs` がその配線を実装する。
+
+### 27.1 2 層構成・DOM を Questionnaire の一時的な真として扱う
+
+`headless_timer.rs`（イシュー #836）と同型の 2 層構成（純粋ロジック層
+`trigger_action`/`notification_action`/`questionnaire_from_display_attrs`/
+`question_data_state`/`is_question_hidden`/`progress_values`/
+`trigger_boundary_transition` + `#[cfg(target_arch = "wasm32")]
+mod wiring`）を採る。click 対象から祖先方向へ辿って最寄りの
+`[data-scope="questionnaire"][data-part="root"]`（インスタンス root）を
+解決し、その `data-step`/`data-orientation` と、そのインスタンスに
+属する `question` 要素数（`count`）から `Questionnaire::new` を都度
+再構築 → `fandhe_frontend_interactive::dispatch`（`"prev"`/`"next"`/
+`"skip"`）→ 変化があれば DOM へ書き戻す。
+
+`Timer` と異なり**リスナー登録先（`root`）は任意の祖先でよい**
+（インスタンスは click 位置から解決するため）。`headless_timer` が
+「`root` 自身が Timer root でなければ no-op」という制約を持つのと
+対照的であり、`Runtime::mount`（`set_inner_html` で子として流し込む
+構成）と `Runtime::hydrate` の双方で機能する。同一 `root` 配下の
+複数インスタンス・入れ子インスタンスは「click 位置から最寄りの
+questionnaire root」で分離し、`question`/`progress`/`back`/`next`/
+`skip` の集計も「その要素の最寄り questionnaire root がこのインスタンス
+root であるもの」に限定する（`closest_matching` を子から親方向へ
+適用する形で、親インスタンスの集計から子インスタンスの子要素を
+除外する）。
+
+### 27.2 `headless::MAPPING_TABLE` へ登録しない理由
+
+`"next"`/`"prev"` は carousel / steps / pagination / tour / toolbar /
+menubar / date-input / pin-input の各 `decode_action` と共有される
+語彙であり、`(questionnaire, next) → "next"` の行を足すと
+`wire_headless_component` 利用アプリで同一 click が二重解決・誤
+dispatch される（`sidebar` が `"toggle"` 共有を理由にオプトイン API へ
+倒した判断、および `headless_timer` が独自配線を持つ判断と同型）。
+代わりに本モジュール専用の click 委譲を `root` へ 1 個登録する。
+**`questionnaire` の back/next/skip は §12.3 の表に登録しない（本節
+参照）**。
+
+### 27.3 アプリ状態 `C` への通知（`questionnaire:*`）
+
+状態遷移が実際に起きた（before ≠ after）場合のみ、`on_action` 経由で
+`C` へ `"questionnaire:prev"`/`"questionnaire:next"`/`"questionnaire:skip"`
+（`headless_timer` の `"timer:*"` 先例と同型）を通知する。payload は
+**遷移前の `step`**（10 進文字列）。headless-ui は「どの質問をスキップ
+したか」を保持しない設計のため、アプリはこの通知で
+`QuestionProps::skipped`/`answered` を自身の状態へ記録できる。境界での
+no-op click（例: 完了状態で next）は DOM も書かず通知もしない（アプリが
+「起きていないスキップ」を記録しないための fail-closed）。
+
+### 27.4 書き戻し対象と規則
+
+| 対象 | 書き戻し内容 | 規則 |
+|---|---|---|
+| インスタンス root | `data-step`、`data-complete`（存在属性） | 常に after から導出 |
+| 各 `question`（`data-index` を `usize` パース） | `data-state`、`hidden`（非 active のみ） | 常に after から導出。パース不能な要素はその要素だけスキップ |
+| `progress` | `aria-valuenow`/`aria-valuetext`/`data-complete` | 現在の `aria-valuenow` が before 由来の値と一致する要素のみ更新（利用者の独自値を壊さない fail-closed、`headless_timer::wiring::sync_area_aria_label` と同型） |
+| `back` | `disabled`/`data-disabled` | 境界条件（`step == 0`）が before/after で変化したときのみ付与/除去 |
+| `next`/`skip` | `disabled`/`data-disabled` | 境界条件（`step == count`）が before/after で変化したときのみ付与/除去 |
+
+trigger の disabled をエッジ変化時にのみ触る理由: SSR は `step == 0` の
+back に `disabled` を焼き込むため、wasm-full が再活性化しないと最初の
+next 以降 back が永久に押せない。一方 `TRIGGER_RESERVED`
+（headless-ui 側）により DOM 上ではアプリ由来（必須判定）の
+`disabled` と境界由来の `disabled` を区別できない。境界エッジ以外では
+一切触らないことで、非境界位置でアプリが付けた `disabled` は保存
+される。**既知の限界**: 完了状態から back で最終質問へ戻ったとき、
+next/skip の `disabled` は除去される（完了状態では必須判定が意味を
+持たないため）。アプリの必須判定は `questionnaire:*` 通知後にアプリ
+自身の再描画で再適用する契約とする。
+
+### 27.5 分岐（どの質問へ進むか）についての立場
+
+既定の遷移は headless-ui の状態機械どおり線形（`next`/`skip` は
+`min(step+1, count)`、`prev` は `saturating_sub(1)`）。分岐が必要な
+アプリは `questionnaire:*` 通知を受けて自身の状態で遷移先を決め、
+通常の再描画（dirty field → 束縛点更新 / 構造フォールバック）で対象
+question を active にする契約とする。`"goto"`（任意 step への直接
+移動）の DOM 配線は本イシューのスコープ外（trigger パーツが無い）。
+
+### 27.6 `Runtime` への統合
+
+`Runtime::wire_questionnaire`（`wire_timer` と同型）は
+`Runtime::mount`/`Runtime::hydrate` の双方から `Self::wire_chart` の
+直後に組み込まれる。`questionnaire::wiring` が Questionnaire 自身の
+`data-*` 反映を独自に完結させるため、`C::decode_action` が
+`"questionnaire:*"` を認識しない場合でも表示更新自体は成立する。`C`
+が dispatch を認識し `dirty_fields()` が非空になった場合のみ
+`apply_dirty_if_any` へ委譲する（`wire_timer` と同じ「`dispatched` かつ
+`dirty` 非空」早期 return 手順）。
+
+### 27.7 fail-closed 契約・セキュリティ不変条件・スコープ外
+
+- click 対象（またはその祖先、インスタンス root まで）に
+  `data-disabled` または `disabled` 属性がある → no-op（ブラウザが
+  disabled ボタンの合成 click を抑止することに依存せず本モジュール側で
+  判定する）。
+- `data-step` が欠落・非数値・`count` 超過 → no-op（`Questionnaire::new`
+  のクランプは使わず拒否する）。`data-orientation` が欠落・
+  `horizontal`/`vertical` 以外 → no-op。`question` 要素が 0 個 → no-op。
+- `data-index` が非数値の question → その要素のみスキップ。
+  `try_borrow_mut` 失敗（再入）→ no-op。panic しない。
+- DOM 反映は `set_attribute`/`remove_attribute` のみで行い、HTML 文字列
+  を一切組み立てない（REQ-1）。属性名はすべて `&'static str` リテラル。
+  書き込みは `set_dom_attribute`（`fw gate` の `url_validation_check`
+  契約）を経由する。
+- 新規 `unsafe` コードは追加しない。
+
+スコープ外: `data-answered`/`data-skipped`/`data-required`/
+`data-invalid` の DOM 更新（アプリ責務、UI 部品の責務境界規則 1）、
+`"goto"` の DOM 配線と分岐の部品内実装、遷移により `back`/`next` が
+`disabled` になった際のフォーカス移動、`crates/pre-styled-ui` の
+recipe・golden・Themes ページ（兄弟イシュー #2119）、`steps` scope の
+同型配線（別イシュー対象）。
