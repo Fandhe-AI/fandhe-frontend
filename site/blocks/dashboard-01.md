@@ -337,8 +337,8 @@ fn visitors_chart_card() -> Node {
         ColorPalette::Accent,
         false,
         None,
-        Some("blocks-dashboard-01-range-label"),
-        vec![],
+        None,
+        vec![("aria-label", "Select date range")],
         vec![
             toggle_group::item(
                 &Default::default(),
@@ -708,7 +708,7 @@ pub fn demo() -> Node {
                     external: true,
                     ..LinkProps::default()
                 },
-                vec![("class", "blocks-dashboard-01-header-link")],
+                vec![("data-blocks-dashboard-01-header-link", "")],
                 vec![text("GitHub")],
             ),
         ],

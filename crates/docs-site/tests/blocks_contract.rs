@@ -216,6 +216,7 @@ fn dashboard_01_page_wires_demo_class_and_css_hooks() {
         "data-blocks-dashboard-01-header=\"\"",
         "data-blocks-dashboard-01-chart=\"\"",
         "data-blocks-dashboard-01-table=\"\"",
+        "data-blocks-dashboard-01-header-link=\"\"",
     ] {
         assert!(
             html.contains(hook),
@@ -231,6 +232,7 @@ fn dashboard_01_page_wires_demo_class_and_css_hooks() {
         "[data-blocks-dashboard-01-header]",
         "[data-blocks-dashboard-01-chart]",
         "[data-blocks-dashboard-01-table]",
+        "[data-blocks-dashboard-01-header-link]",
     ] {
         assert!(
             sheet_css.contains(selector),
@@ -253,6 +255,7 @@ fn dashboard_01_composes_expected_parts() {
         "data-scope=\"stat\"",
         "<linearGradient",
         "data-range=\"90d\"",
+        "aria-label=\"Select date range\"",
         "aria-sort=\"ascending\"",
         "data-selected",
         "data-scope=\"tabs\"",
@@ -269,6 +272,11 @@ fn dashboard_01_composes_expected_parts() {
     assert!(
         !html.contains("href=\"#\""),
         "dashboard-01 should never contain a dead href=\"#\" link"
+    );
+    assert!(
+        !html.contains("aria-labelledby=\"blocks-dashboard-01-range-label\""),
+        "dashboard-01 should not reference a range-toggle label id that has no matching element \
+         (regression: codex-review P1 / Cursor Bugbot Low on PR #2280)"
     );
 }
 

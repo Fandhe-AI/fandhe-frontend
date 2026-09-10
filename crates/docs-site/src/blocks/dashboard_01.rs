@@ -360,8 +360,8 @@ fn visitors_chart_card() -> Node {
         ColorPalette::Accent,
         false,
         None,
-        Some("blocks-dashboard-01-range-label"),
-        vec![],
+        None,
+        vec![("aria-label", "Select date range")],
         vec![
             toggle_group::item(
                 &Default::default(),
@@ -731,7 +731,7 @@ pub fn demo() -> Node {
                     external: true,
                     ..LinkProps::default()
                 },
-                vec![("class", "blocks-dashboard-01-header-link")],
+                vec![("data-blocks-dashboard-01-header-link", "")],
                 vec![text("GitHub")],
             ),
         ],
@@ -836,7 +836,7 @@ pub(super) const LAYOUT_CSS: &str = "\
 .blocks-demo.blocks-dashboard-01 {\n  padding: 0;\n  overflow-x: auto;\n}\n\
 .blocks-demo.blocks-dashboard-01 [data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 40rem;\n  height: auto;\n  min-width: 56rem;\n}\n\
 [data-blocks-dashboard-01-header] {\n  display: flex;\n  align-items: center;\n  gap: 0.75rem;\n  padding: 1rem 1.5rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-.blocks-dashboard-01-header-link {\n  margin-inline-start: auto;\n}\n\
+[data-blocks-dashboard-01-header-link] {\n  margin-inline-start: auto;\n}\n\
 .blocks-dashboard-01-main {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n  padding: 1.5rem;\n}\n\
 .blocks-dashboard-01-stats {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 1rem;\n}\n\
 [data-blocks-dashboard-01-card] {\n  height: 100%;\n}\n\
