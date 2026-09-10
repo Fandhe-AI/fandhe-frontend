@@ -129,6 +129,10 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
   cursor: not-allowed;
 }
 
+[data-scope="number-input"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}
+
 [data-scope="number-input"][data-part="input"][data-invalid] {
   border-color: var(--fandhe-color-danger);
 }

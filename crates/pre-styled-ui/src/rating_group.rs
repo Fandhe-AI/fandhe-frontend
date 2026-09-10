@@ -114,6 +114,16 @@
 //!   `fandhe-frontend-wasm-full` の後続責務。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（[`crate::number_input`] の先例と同じ判断）。
+//!
+//! # スタイル調整（イシュー #2195、Forms 家族横断の disabled 規則）
+//!
+//! 詳細な決定根拠・対応表は
+//! `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` を正とする
+//! （[`crate::date_picker`] 等同名節と同型の記録方針）。rating-group は
+//! `item`（葉）が opacity を所有する葉所有型であり、`control[data-
+//! disabled]` は `cursor: not-allowed` のみを追加する（`item` と同じ理由で
+//! `root` にも opacity を追加しない）。`label` の `data-required` 視覚化は
+//! Forms 家族横断規則（R2）により見送る。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -225,6 +235,19 @@ fn recipe() -> SlotRecipe {
             "item",
             StateCondition::Attr("data-readonly"),
             vec![decl("cursor", "default")],
+        )
+        // `control[data-disabled]`（イシュー #2195、Forms 家族横断の
+        // disabled 規則。詳細は
+        // `docs/design/pre-styled-ui-forms-disabled-required-matrix.md`）:
+        // headless（`control`）が `data-disabled` を出すようになった
+        // （headless-ui 0.41.0、#1627）。rating-group は `item`（葉）が
+        // opacity を所有する葉所有型であり、`root` へは追加していない
+        // （二重適用回避）のと同じ理由で `control` も `cursor:
+        // not-allowed` のみに留める。
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
         )
         // イシュー #1496: フォーカスリング皆無の是正。`item` は
         // `clip-path: polygon(...)` の星形（モジュール doc「星形
@@ -404,6 +427,19 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="rating-group"][data-part="item"][data-readonly]"#));
         assert!(css.contains("cursor: default;"));
+    }
+
+    #[test]
+    fn control_disabled_is_cursor_only_per_forms_matrix() {
+        // イシュー #2195（Forms 家族横断の disabled 規則、R1「opacity 単一
+        // 階層」）: `item` が opacity を所有する葉所有型のため、`control`
+        // は `cursor: not-allowed` のみで opacity を含まない。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="rating-group"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}"#
+        ));
     }
 
     /// イシュー #1496: `control` の `:focus-within` にフォーカスリングが

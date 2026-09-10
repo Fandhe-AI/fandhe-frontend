@@ -2898,8 +2898,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方の実体変更を統合した結果として main の到達値 0.174.0 をさらに
 # 上回る 0.175.0 へマイナーバンプする（0.x の破壊的変更はマイナー
 # バンプの規約）。
+#
+# イシュー #2195: Forms 家族横断の `control`/`clear-trigger` の
+# `data-disabled` 消費規則を確定・実装した（CSS 出力の純追加）ため
+# 0.176.0 へマイナーバンプする。
 
-version = "0.175.0"
+version = "0.176.0"
 
 
 edition = "2021"

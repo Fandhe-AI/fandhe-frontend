@@ -274,6 +274,15 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   cursor: not-allowed;
 }
 
+[data-scope="select"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}
+
+[data-scope="select"][data-part="clear-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 [data-scope="select"][data-part="value-text"][data-placeholder-shown] {
   color: var(--fandhe-color-fg-muted);
 }

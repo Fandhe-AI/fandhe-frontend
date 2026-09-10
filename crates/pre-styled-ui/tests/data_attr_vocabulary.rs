@@ -49,6 +49,7 @@ use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
 };
+use fandhe_frontend_pre_styled_ui::date_picker::{self as date_picker_styled, DatePickerProps};
 use fandhe_frontend_pre_styled_ui::dialog::{self, DialogRole, OpenState};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldProps, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
@@ -2119,4 +2120,41 @@ fn questionnaire_root_question_and_trigger_vocabulary_is_fixed() {
     let skip_html = render(&at_end.skip(false, vec![], vec![]));
     assert!(skip_html.contains("disabled"));
     assert!(skip_html.contains("data-disabled"));
+}
+
+/// イシュー #2195（Forms 家族横断の `label[data-required]` 規則、R2）:
+/// `date_picker::label` に現れる `data-required` は headless
+/// `fandhe_frontend_headless_ui::date_picker::label` が [`DatePickerProps`]
+/// の `required` フラグから出力するものであり（`field` 系と同型の役割 B、
+/// `field_root_data_attrs_are_headless_sourced_not_self_emitted` と同型の
+/// 固定方針）、styled `date_picker::stylesheet()` は `[data-required]` を
+/// CSS セレクタとして一切参照しない（`*` 等の視覚マーカーを追加しない決定、
+/// `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` 参照）。
+#[test]
+fn date_picker_label_data_required_is_headless_sourced_and_unconsumed_by_css() {
+    let props_required = DatePickerProps {
+        required: true,
+        ..DatePickerProps::default()
+    };
+    let html = render(&date_picker_styled::label(
+        &props_required,
+        None,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains("data-required"));
+
+    let props_not_required = DatePickerProps::default();
+    let html = render(&date_picker_styled::label(
+        &props_not_required,
+        None,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(!html.contains("data-required"));
+
+    let css = date_picker_styled::stylesheet();
+    assert!(!css.contains("data-required"));
 }

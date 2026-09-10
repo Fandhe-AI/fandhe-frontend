@@ -236,6 +236,7 @@ golden テストと異なり、以下の横断テストは通常のスタイル�
 | `recipe_css.rs` | scope / slot 名が headless-ui 側の実出力（`crates/headless-ui`）とずれていないか |
 | `theme_css.rs` | テーマトークン名（`--fandhe-<group>-<name>`）を変更していないか |
 | `recipe_determinism.rs` | `SlotRecipe` の内部実装に `HashMap`/`HashSet` 等、反復順序が不定な型を持ち込んでいないか |
+| `forms_state_matrix.rs`（イシュー #2195） | Forms 家族（date-picker/combobox/select/color-picker/number-input/rating-group/date-input）の `control`/`clear-trigger` の `data-disabled` opacity 単一階層規則（R1）・`label[data-required]` 非消費（R2）・pin-input/editable `control` の headless 非出力（R3）を崩していないか。正は `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` |
 
 ## 8. 禁止事項
 

@@ -12660,6 +12660,11 @@ fn date_picker_section() -> Node {
                             vec![],
                             vec![text("📅")],
                         ),
+                        // イシュー #2195: `control`/`clear-trigger` の
+                        // `data-disabled` 消費（Forms 家族横断規則 R1）を
+                        // disabled 行で視覚確認できるよう clear-trigger を
+                        // 常設する（disabled 以外の行では減光なしのまま）。
+                        date_picker::clear_trigger(props, vec![], vec![text("×")]),
                     ],
                 ),
                 date_picker::positioner(
@@ -12722,10 +12727,26 @@ fn date_picker_section() -> Node {
         "Delivery date (readonly)",
     );
 
+    // イシュー #2195: Forms 家族横断の disabled 規則（R1「opacity 単一
+    // 階層」、`docs/design/pre-styled-ui-forms-disabled-required-matrix.md`
+    // 参照）で新規に是正した `control`（cursor のみ）/`clear-trigger`
+    // （opacity + cursor）の disabled 視覚を確認できるデモ行。
+    let disabled_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps {
+        disabled: true,
+        ..Default::default()
+    };
+    let disabled_node = build_node(
+        &disabled_props,
+        "showcase-date-picker-disabled-label",
+        "showcase-date-picker-disabled-input",
+        "showcase-date-picker-disabled-content",
+        "Delivery date (disabled)",
+    );
+
     section(
         "DatePicker",
-        "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。invalid（枠線色、イシュー #2013）と readonly（ネイティブ `<input readonly>` のまま追加の視覚宣言なし）の 2 状態も並べて実演します。",
-        vec![default_node, invalid_node, readonly_node],
+        "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。invalid（枠線色、イシュー #2013）・readonly（ネイティブ `<input readonly>` のまま追加の視覚宣言なし）・disabled（`control` は cursor のみ、`clear-trigger` は opacity + cursor、イシュー #2195）の 3 状態も並べて実演します。",
+        vec![default_node, invalid_node, readonly_node, disabled_node],
     )
 }
 
