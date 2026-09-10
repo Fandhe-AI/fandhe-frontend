@@ -126,7 +126,10 @@
   `assets/blocks.css`（イシュー #2088、Blocks セクションの索引・雛形実例・
   専用 CSS。`crate::blocks::stylesheet` が生成）/
   `blocks/dashboard-01/index.html`（イシュー #2089、sidebar + stat cards +
-  area chart + data table + tabs の合成 block）である。
+  area chart + data table + tabs の合成 block）/
+  `blocks/sidebar-07/index.html`（イシュー #2090、icon 折りたたみ可能な
+  サイドバー。expanded/collapsed 2 インスタンスを静的に併記する合成
+  block）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

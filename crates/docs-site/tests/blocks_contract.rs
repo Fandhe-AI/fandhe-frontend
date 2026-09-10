@@ -241,6 +241,174 @@ fn dashboard_01_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// sidebar-07 の Demo 固有 CSS フック（stack/header/nav-trigger/label/
+/// chevron 等）が実際に生成 HTML へ出力され、`blocks::stylesheet()` にも
+/// 対応するセレクタが存在することを固定する（login-01/dashboard-01 の
+/// イシュー #2088 codex-review 是正と同型: `sidebar` の全パーツ・
+/// `menu::root`・`avatar::root`・`breadcrumb::root`・`separator::separator`
+/// は `drop_class_attr` で呼び出し側 `class` を除去するため、CSS フックは
+/// `class` ではなく `data-*` 属性で渡す契約になっている、
+/// `crates/docs-site/src/blocks/sidebar_07.rs` モジュール doc参照）。
+#[test]
+fn sidebar_07_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/sidebar-07/index.html"))
+        .expect("blocks/sidebar-07/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-sidebar-07\""),
+        "sidebar-07 page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "sidebar-07 page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "sidebar-07 page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-sidebar-07-stack=\"\"",
+        "data-blocks-sidebar-07-header=\"\"",
+        "data-blocks-sidebar-07-nav-trigger=\"\"",
+        "data-blocks-sidebar-07-label=\"\"",
+        "data-blocks-sidebar-07-chevron=\"\"",
+        "data-blocks-sidebar-07-grid=\"\"",
+        "data-blocks-sidebar-07-placeholder=\"\"",
+        "data-blocks-sidebar-07-placeholder-lg=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "sidebar-07 page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-sidebar-07-stack]",
+        "[data-blocks-sidebar-07-header]",
+        "[data-blocks-sidebar-07-nav-trigger]",
+        "[data-blocks-sidebar-07-label]",
+        "[data-blocks-sidebar-07-chevron]",
+        "[data-blocks-sidebar-07-grid]",
+        "[data-blocks-sidebar-07-placeholder]",
+        "[data-blocks-sidebar-07-placeholder-lg]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+    // icon 折りたたみ時にラベルを clip する規則（`display: none` ではなく
+    // アクセシブルネームを保つ手法、モジュール doc「icon 折りたたみ時に
+    // 自動で隠れないものへの補完 CSS」参照）が実在すること。
+    assert!(
+        sheet_css.contains(
+            "[data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] [data-blocks-sidebar-07-label]"
+        ),
+        "blocks.css should clip [data-blocks-sidebar-07-label] when the sidebar is icon-collapsed"
+    );
+}
+
+/// sidebar-07 の合成部品（sidebar/collapsible/menu/avatar/breadcrumb/
+/// separator）が anatomy の `data-*` として実際に出力されていること、
+/// expanded/collapsed 双方のインスタンスが存在すること、死リンク
+/// （`href="#"`）が無いことを固定する。
+#[test]
+fn sidebar_07_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/sidebar-07/index.html"))
+        .expect("blocks/sidebar-07/index.html should be generated");
+    for needle in [
+        "data-scope=\"sidebar\"",
+        "data-collapsible=\"icon\"",
+        "data-state=\"collapsed\"",
+        "data-state=\"expanded\"",
+        "data-scope=\"collapsible\"",
+        "data-scope=\"breadcrumb\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"avatar\"",
+        "data-active",
+    ] {
+        assert!(
+            html.contains(needle),
+            "sidebar-07 page should contain {needle}"
+        );
+    }
+    assert!(
+        !html.contains("<form"),
+        "sidebar-07 should never contain a <form>"
+    );
+    assert!(
+        !html.contains("href=\"#\""),
+        "sidebar-07 should never contain a dead href=\"#\" link"
+    );
+}
+
+/// Demo が使う `aria-controls`/`aria-labelledby`/`aria-describedby` の
+/// 参照先 `id` が同一 Demo 出力内に実在し、`id` が重複しないことを固定する
+/// （対象はページ全体ではなく `(block.demo)()` の部分木のみ。レイアウト側
+/// 〔インライン TOC・aside TOC・検索入力〕の id を巻き込んで偽陽性にしない
+/// ため）。sidebar-07 は expanded/collapsed 2 インスタンス分の id を
+/// suffix で分けており、suffix 漏れによる id 衝突・宙ぶらりん参照を
+/// 検知する（dashboard-01 の codex-review P1/Bugbot 指摘と同型の回帰
+/// ガード）。
+#[test]
+fn demo_output_has_no_dangling_aria_references_or_duplicate_ids() {
+    fn extract_attr_values<'a>(html: &'a str, attr: &str) -> Vec<&'a str> {
+        let needle = format!("{attr}=\"");
+        let mut values = Vec::new();
+        let mut offset = 0usize;
+        while let Some(rel_start) = html[offset..].find(&needle) {
+            let start = offset + rel_start;
+            // 直前が空白（属性境界）であることを要求する。`id="..."` を
+            // 素の部分文字列検索で探すと `data-blocks-sidebar-07-grid=""`
+            // のような無関係な属性（`grid` の末尾 `id`）を誤って `id`
+            // 属性として拾ってしまうため（実測: sidebar-07 の `-grid`
+            // フックが偽陽性を出した）、attr 名の直前が識別子文字（英数字・
+            // `-`）でないことを境界条件として課す。
+            let boundary_ok = match html[..start].chars().next_back() {
+                Some(c) => !(c.is_ascii_alphanumeric() || c == '-'),
+                None => true,
+            };
+            let after = &html[start + needle.len()..];
+            let Some(end) = after.find('"') else {
+                break;
+            };
+            if boundary_ok {
+                values.push(&after[..end]);
+            }
+            offset = start + needle.len() + end + 1;
+        }
+        values
+    }
+
+    for block in blocks::BLOCKS {
+        let html = render(&(block.demo)());
+        let ids: Vec<&str> = extract_attr_values(&html, "id");
+        let id_set: std::collections::BTreeSet<&str> = ids.iter().copied().collect();
+        assert_eq!(
+            ids.len(),
+            id_set.len(),
+            "block {} demo output should not contain duplicate id attributes: {ids:?}",
+            block.path
+        );
+
+        for attr in ["aria-controls", "aria-labelledby", "aria-describedby"] {
+            for value in extract_attr_values(&html, attr) {
+                for referenced in value.split_whitespace() {
+                    assert!(
+                        id_set.contains(referenced),
+                        "block {} demo output has {attr}=\"{value}\" referencing missing id=\"{referenced}\"",
+                        block.path
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// dashboard-01 の合成部品（sidebar/stat/gradient area-chart/toggle-group/
 /// tabs/table）が anatomy の `data-*` として実際に出力されていることを
 /// 固定する。
