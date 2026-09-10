@@ -38,9 +38,6 @@ use fandhe_frontend_headless_ui::data_attrs::{
 };
 use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use fandhe_frontend_headless_ui::message::{self, MessageAlign, MessageRole, MessageRootProps};
-use fandhe_frontend_headless_ui::message_scroller::{
-    self, MessageScrollerRootProps, MessageScrollerStuck,
-};
 use fandhe_frontend_headless_ui::progress::Progress;
 use fandhe_frontend_headless_ui::questionnaire::QuestionProps;
 use fandhe_frontend_headless_ui::{Orientation as QuestionnaireOrientation, Questionnaire};
@@ -261,6 +258,40 @@ fn bar_chart_data_active_and_data_negative_are_gated_by_props() {
     };
     let html = render(&bar_chart::root(&data, negative_props, "label").unwrap());
     assert_eq!(html.matches(r#"data-negative="""#).count(), 1);
+}
+
+/// イシュー #2134 codex-review 指摘（2 ラウンド目）: `show_tooltip:
+/// false` かつ `range: None` かつ `hidden_series` 空（凡例併設だが初期
+/// 状態は全系列表示）という構成では、`legend: true` を明示しない限り
+/// `identify_bars` の判定条件が偽になり識別属性（`data-series`）が出力
+/// されず、凡例クリックでの系列非表示が機能しない
+/// （`wasm-full::chart_range::wiring::sync_chart` が `data-series` を
+/// 判定源にするため）。`legend: true` がこの初期全表示状態を救うことを
+/// 固定する。
+#[test]
+fn bar_chart_legend_opt_in_emits_identify_attrs_with_tooltip_off_and_no_range_or_hidden() {
+    use fandhe_frontend_pre_styled_ui::charts::bar_chart::{self, BarChartProps};
+
+    let data = ChartData::new(
+        vec!["a".to_string(), "b".to_string()],
+        vec![Series::new("s", vec![5.0, 8.0])],
+    )
+    .expect("valid bar chart data");
+
+    let default_props = BarChartProps {
+        show_tooltip: false,
+        ..BarChartProps::default()
+    };
+    let html = render(&bar_chart::root(&data, default_props, "label").unwrap());
+    assert!(!html.contains("data-series"));
+
+    let legend_props = BarChartProps {
+        show_tooltip: false,
+        legend: true,
+        ..BarChartProps::default()
+    };
+    let html = render(&bar_chart::root(&data, legend_props, "label").unwrap());
+    assert!(html.contains(r#"data-series="s""#));
 }
 
 /// `data-active`（`donut_chart.rs`、イシュー #2084、shadcn
@@ -1374,95 +1405,6 @@ fn message_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains(r#"[data-align="end"]"#));
     assert!(css.contains("[data-loading]"));
     assert!(css.contains("[data-error]"));
-}
-
-/// [`mod@fandhe_frontend_headless_ui::message_scroller`]（イシュー #2121）
-/// の `data-stuck`（`bottom`/`free`）・`data-has-new`（存在属性）・
-/// `data-visible`（`jump_to_latest` の存在属性）・`data-loading`/
-/// `data-disabled`（`load_more` の存在属性）の語彙を固定する。本イシュー
-/// 時点では `fandhe-frontend-pre-styled-ui` 側に `message_scroller`
-/// モジュールがまだ存在しない（styled recipe・golden・Themes ページは
-/// 後続イシュー #2123）ため、headless 出力元
-/// [`fandhe_frontend_headless_ui::message_scroller`] を直接呼んで語彙を
-/// 記録する（`message_root_data_role_align_loading_error_vocabulary_is_fixed`
-/// と同型。#2123 で styled モジュールが新設された際は、本テストに加えて
-/// `*_not_self_emitted` の headless-sourced 契約テストを追加する）。
-#[test]
-fn message_scroller_root_stuck_has_new_visible_loading_disabled_vocabulary_is_fixed() {
-    // data-stuck: bottom/free の 2 値。
-    for (stuck, expected) in [
-        (MessageScrollerStuck::Bottom, "bottom"),
-        (MessageScrollerStuck::Free, "free"),
-    ] {
-        let html = render(&message_scroller::root(
-            MessageScrollerRootProps {
-                stuck,
-                ..Default::default()
-            },
-            vec![],
-            vec![],
-        ));
-        assert!(html.contains(&format!(r#"data-stuck="{expected}""#)));
-    }
-
-    // data-has-new: 存在属性（非付与時は属性自体が出ない）。
-    let has_new = render(&message_scroller::root(
-        MessageScrollerRootProps {
-            has_new: true,
-            ..Default::default()
-        },
-        vec![],
-        vec![],
-    ));
-    assert!(has_new.contains(r#"data-has-new="""#));
-
-    let neither = render(&message_scroller::root(
-        MessageScrollerRootProps::default(),
-        vec![],
-        vec![],
-    ));
-    assert!(!neither.contains("data-has-new"));
-    assert!(neither.contains(r#"data-stuck="bottom""#));
-
-    // data-visible（jump_to_latest）: visible=true で存在、false で hidden
-    // 属性に切り替わり data-visible は出ない（自動連動しない 2 択）。
-    let jump_visible = render(&message_scroller::jump_to_latest("", true, vec![], vec![]));
-    assert!(jump_visible.contains(r#"data-visible="""#));
-    assert!(!jump_visible.contains("hidden"));
-
-    let jump_hidden = render(&message_scroller::jump_to_latest("", false, vec![], vec![]));
-    assert!(jump_hidden.contains(r#"hidden="""#));
-    assert!(!jump_hidden.contains("data-visible"));
-
-    // data-loading/data-disabled（load_more）: 存在属性で自動連動しない。
-    let loading_only = render(&message_scroller::load_more(true, false, vec![], vec![]));
-    assert!(loading_only.contains(r#"data-loading="""#));
-    assert!(!loading_only.contains("disabled"));
-
-    let disabled_only = render(&message_scroller::load_more(false, true, vec![], vec![]));
-    assert!(disabled_only.contains(r#"disabled="""#));
-    assert!(disabled_only.contains(r#"data-disabled="""#));
-    assert!(!disabled_only.contains("data-loading"));
-
-    // 呼び出し側 attrs による偽装除去（大文字小文字混在含む）。
-    let spoofed = render(&message_scroller::root(
-        MessageScrollerRootProps::default(),
-        vec![("DATA-STUCK", "free"), ("Data-Has-New", "spoofed")],
-        vec![],
-    ));
-    assert!(spoofed.contains(r#"data-stuck="bottom""#));
-    assert!(!spoofed.contains("spoofed"));
-
-    // XSS 最小回帰（呼び出し側 attrs の動的値コンテキスト）。
-    let payload_html = render(&message_scroller::root(
-        MessageScrollerRootProps::default(),
-        vec![("data-testid", XSS_PAYLOAD)],
-        vec![],
-    ));
-    assert_no_raw_payload(
-        &payload_html,
-        "message_scroller::root の呼び出し側 attrs コンテキスト",
-    );
 }
 
 /// [`mod@fandhe_frontend_headless_ui::bubble`]（イシュー #2108）の

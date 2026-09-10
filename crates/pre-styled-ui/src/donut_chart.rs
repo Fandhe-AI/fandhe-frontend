@@ -258,6 +258,15 @@ pub struct DonutChartProps<'a> {
     /// `segment` へ値なし属性 `data-hidden` を付与する。データに存在
     /// しない index を指定してもエラーにしない（fail-soft）。
     pub hidden_categories: &'a [usize],
+    /// `category_legend`（[`crate::charts::legend::category_legend`]）を
+    /// 併設していることの明示的 opt-in（既定 `false`、イシュー #2134
+    /// codex-review 指摘）。`show_tooltip: false` かつ `range`/
+    /// `hidden_categories` がいずれも初期状態を表せない（範囲指定なし・
+    /// 非表示カテゴリなし＝凡例は使うが初期状態は全カテゴリ表示）構成を
+    /// 救うための opt-in で、`true` のとき [`identify_segments`] が
+    /// `data-index` を出力させる（`BarChartProps::legend`/
+    /// `LineChartProps::legend` と同型）。
+    pub legend: bool,
 }
 
 impl Default for DonutChartProps<'_> {
@@ -275,8 +284,28 @@ impl Default for DonutChartProps<'_> {
             show_tooltip: true,
             range: None,
             hidden_categories: &[],
+            legend: false,
         }
     }
+}
+
+/// `segment`/`label`/`label-line`/`outside-label` へ凡例トグル・期間
+/// 切替の共有識別子（`data-index`）を出力するかどうかのゲート判定
+/// （内部ヘルパ、イシュー #2134 codex-review 指摘）。`show_tooltip`
+/// 単独ではなく `show_tooltip || range.is_some() ||
+/// !hidden_categories.is_empty() || legend` で判定する:
+/// 凡例トグル・期間切替のいずれかが実際に使われているときは
+/// `show_tooltip: false`（tooltip 非表示、opt-out）でも識別属性を出す
+/// 必要がある（`wasm-full::chart_range::wiring::sync_chart` が
+/// `data-index` を判定源にするため）。素の `show_tooltip: false`・
+/// 凡例/期間切替とも不使用の構成では従来どおりバイト一致する契約は
+/// 変えない（`crates/pre-styled-ui/src/bar_chart.rs::identify_bars`・
+/// `crates/pre-styled-ui/src/line_chart.rs` の同型判定と揃える）。
+fn identify_segments(props: &DonutChartProps) -> bool {
+    props.show_tooltip
+        || props.range.is_some()
+        || !props.hidden_categories.is_empty()
+        || props.legend
 }
 
 /// この styled DonutChart の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが
@@ -594,7 +623,7 @@ pub fn donut_chart<'a>(
         let mut segment_attrs: Vec<(&str, &str)> =
             vec![("data-scope", "donut-chart"), ("data-part", "segment")];
         let cat_idx_str = i.to_string();
-        if props.show_tooltip {
+        if identify_segments(props) {
             // イシュー #2133: pie_chart::render_ring と同じゲート
             // （tooltip 語彙・#2129 と共有）。
             segment_attrs.push(("data-index", cat_idx_str.as_str()));
@@ -647,7 +676,7 @@ pub fn donut_chart<'a>(
                 ("data-part", "label-line"),
                 ("d", leader_d.as_str()),
             ];
-            if props.show_tooltip {
+            if identify_segments(props) {
                 // `segment` と同じゲート・語彙（pie_chart::render_ring 同型、
                 // Cursor Bugbot 指摘「Donut labels lack shared identifiers」
                 // 対応。凡例トグルの共有セレクタ `[data-index]` から本要素も
@@ -676,7 +705,7 @@ pub fn donut_chart<'a>(
                 ("data-part", "outside-label"),
                 ("data-align", align),
             ];
-            if props.show_tooltip {
+            if identify_segments(props) {
                 // `segment`/`label-line` と同じゲート・語彙（同上、
                 // イシュー #2133）。
                 outside_label_attrs.push(("data-index", cat_idx_str.as_str()));
@@ -699,7 +728,7 @@ pub fn donut_chart<'a>(
             let ly = CENTER_Y + label_r * mid.sin();
             let mut label_attrs: Vec<(&str, &str)> =
                 vec![("data-scope", "donut-chart"), ("data-part", "label")];
-            if props.show_tooltip {
+            if identify_segments(props) {
                 // `segment` と同じゲート・語彙（同上、イシュー #2133）。
                 label_attrs.push(("data-index", cat_idx_str.as_str()));
             }
@@ -1268,6 +1297,45 @@ mod tests {
         let idx0 = html.find(r#"data-index="0""#).unwrap();
         let idx0_end = html[idx0..].find('>').unwrap();
         assert!(!html[idx0..idx0 + idx0_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn legend_opt_in_emits_data_index_even_when_tooltip_and_range_and_hidden_categories_are_absent()
+    {
+        // イシュー #2134 codex-review 指摘: `show_tooltip: false` のまま
+        // `category_legend` を併設し、かつ初期状態は全カテゴリ表示
+        // （`hidden_categories` が空）・期間切替も使わない構成では、
+        // `legend: true` の明示的 opt-in がないと `data-index` が一切
+        // 出力されず、凡例クリックが `wasm-full::chart_range` 側で同期
+        // できない（`identify_segments` の `legend` 分岐の回帰）。
+        let props = DonutChartProps {
+            show_tooltip: false,
+            legend: true,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&props, &two_category_data(), vec![]).unwrap());
+        assert!(html.contains(r#"data-index="0""#));
+        assert!(html.contains(r#"data-index="1""#));
+    }
+
+    #[test]
+    fn show_tooltip_false_without_legend_range_or_hidden_categories_omits_data_index() {
+        // 上記テストの対照: `legend`/`range`/`hidden_categories` のいずれも
+        // 使わない素の `show_tooltip: false` は識別属性を出力しない
+        // （#2129 以前の出力とバイト一致する契約、`identify_segments` の
+        // 既定 `false` 経路）。
+        let html = render(
+            &donut_chart(
+                &DonutChartProps {
+                    show_tooltip: false,
+                    ..DonutChartProps::default()
+                },
+                &two_category_data(),
+                vec![],
+            )
+            .unwrap(),
+        );
+        assert!(!html.contains("data-index"));
     }
 
     #[test]
