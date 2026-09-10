@@ -695,14 +695,14 @@ source = "site/themes/pin-input.md"
 path = "/themes/pin-input/"
 
 [[section.group.page]]
-title = "Radio Card"
-source = "site/themes/radio-card.md"
-path = "/themes/radio-card/"
-
-[[section.group.page]]
 title = "Questionnaire"
 source = "site/themes/questionnaire.md"
 path = "/themes/questionnaire/"
+
+[[section.group.page]]
+title = "Radio Card"
+source = "site/themes/radio-card.md"
+path = "/themes/radio-card/"
 
 [[section.group.page]]
 title = "Radio Group"
