@@ -95,20 +95,34 @@
 //! イシュー #2192）を `collapse-content` slot へそのまま適用した
 //! （`recipe()` 末尾参照）。
 //!
-//! - **JS 有効 + `wasm-full` の `content_height` 同期が
-//!   `--fandhe-content-height` を書き込む場合**: `collapse-content` の
-//!   開閉が高さトランジションになる。ただし
-//!   `crates/wasm-full/src/headless.rs` の `MAPPING_TABLE` に
-//!   `(bubble, collapse-trigger)` の行が無く（headless
-//!   [`mod@fandhe_frontend_headless_ui::bubble`] rustdoc「wasm-full
-//!   未配線」節参照）、`wire_headless_component` 経由のクリックでは
-//!   dispatch されない。呼び出し側が独自に `data-state`/`hidden` を
-//!   切り替え `sync_content_height` 相当を呼ぶ経路でのみ高さトランジ
-//!   ションが働く（実運用上の限界、`.claude/rules/out-of-scope-tracking.md`
+//! `collapse-content` の高さトランジションが実際に成立するかどうかは、
+//! (1) `hidden` を切り替える**トリガーの配線**と (2) 共通 preset が
+//! 出す CSS 自体の**遷移条件**という別々の 2 点に依存する（`content_
+//! height_transition` の CSS が要求する条件は codex レビュー指摘により
+//! ここで明確化する。`crates/pre-styled-ui/src/recipe.rs` の
+//! `content_height_open_declarations`/`supports_not_calc_size_height_
+//! state` rustdoc 参照）。
+//!
+//! - **トリガー未配線（既知の限界）**: `crates/wasm-full/src/headless.rs`
+//!   の `MAPPING_TABLE` に `(bubble, collapse-trigger)` の行が無く
+//!   （headless [`mod@fandhe_frontend_headless_ui::bubble`] rustdoc
+//!   「wasm-full 未配線」節参照）、`wire_headless_component` 経由の
+//!   クリックでは `hidden` の切り替え自体が dispatch されない。呼び出し
+//!   側が独自に `data-state`/`hidden` を切り替える経路を用意する必要が
+//!   ある（実運用上の限界、`.claude/rules/out-of-scope-tracking.md`
 //!   対応候補）。
-//! - **JS 無効時（変数未設定）**: `var(--fandhe-content-height, auto)`
-//!   の `auto` フォールバックにより従来どおり `hidden` による即時切替
-//!   （閉固定）のまま動作する。
+//! - **`calc-size()` 対応ブラウザ**: `hidden` の切り替えだけで高さ
+//!   トランジションが成立する。`fandhe-frontend-wasm-full` の
+//!   `content_height` 同期（`--fandhe-content-height` への実測値
+//!   書き込み）は**不要**であり、同期しなくても `height:
+//!   calc-size(auto, size)` が定常状態を `auto` 相当として扱いつつ
+//!   `0 → 定常値` の遷移を自動で成立させる。
+//! - **`calc-size()` 未対応ブラウザ**: 共通 preset の `@supports not
+//!   (height: calc-size(auto, size))` ブロックが `transition: none`
+//!   相当を適用するため、`content_height` 同期の有無に関わらず高さ
+//!   トランジションは成立せず、`var(--fandhe-content-height, auto)`
+//!   の `auto` フォールバックによる `hidden` の即時切替（閉固定）の
+//!   ままになる。
 //!
 //! preset の base 2 個目ブロックは既存の `opacity` transition 宣言
 //! （`transition-property: opacity` 等）より後に登録されるため

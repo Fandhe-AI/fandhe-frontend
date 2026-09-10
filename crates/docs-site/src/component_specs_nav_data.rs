@@ -3635,7 +3635,7 @@ pub(crate) const BUBBLE: ComponentPageSpec = ComponentPageSpec {
         "BubbleGroupPosition（Single/First/Middle/Last）で連続発言の隣接辺の角丸を連結する（算出はアプリ側の責務）",
         "root/content/reactions/reaction/collapse-trigger/collapse-content の 6 パーツで吹き出し 1 個を構造化する",
         "reactions/reaction はリアクションチップの表示のみを担う非対話パーツで、押下・集計・トグルは実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1）",
-        "collapse-trigger/collapse-content は OpenState の open/closed を data-state・hidden へ反映し、collapse-content は共通高さトランジション機構（@starting-style + allow-discrete、collapsible/accordion と同型）を適用する（クライアントランタイムが hidden を切り替え、かつ fandhe-frontend-wasm-full の content_height 同期が --fandhe-content-height を書き込む場合に高さトランジションになる。JS 無効時は auto フォールバックで hidden による即時切替のまま動作する）",
+        "collapse-trigger/collapse-content は OpenState の open/closed を data-state・hidden へ反映し、collapse-content は共通高さトランジション機構（@starting-style + allow-discrete、collapsible/accordion と同型）を適用する（クライアントランタイムが hidden を切り替えれば、calc-size() 対応ブラウザでは実測変数なしでも高さトランジションになる。calc-size() 非対応ブラウザでは @supports により常に transition: none が適用され、content_height 同期の有無に関わらず hidden による即時切替のまま動作する）",
         "root は --fandhe-bubble-bg/--fandhe-bubble-fg/--fandhe-bubble-border の 3 custom property を公開し、ColorPalette 軸を持たない代わりに呼び出し側が色を上書きできる",
     ],
     arguments: &[

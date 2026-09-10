@@ -118,8 +118,19 @@
 //!   の `MAPPING_TABLE` に配線が無い部品では `wire_headless_component`
 //!   経由のクリックで本モジュールが呼ばれない（bubble は
 //!   `crates/headless-ui/src/bubble.rs` rustdoc「wasm-full 未配線」節
-//!   参照。呼び出し側が独自に `sync_content_height` 相当を呼ぶ経路での
-//!   み高さトランジションが働く）。
+//!   参照。呼び出し側が独自に `hidden` を切り替え
+//!   `sync_content_height` 相当を呼ぶ経路を用意する必要がある）。
+//!   ただし本モジュールの同期はあくまで「実測値を書き込む」役割に
+//!   留まる: `crates/pre-styled-ui` の共通 preset
+//!   （`SlotRecipe::content_height_transition`）は `calc-size()`
+//!   対応ブラウザでは `hidden` の切り替えのみで高さトランジションを
+//!   成立させ本モジュールの同期を必須としない一方、`calc-size()`
+//!   未対応ブラウザでは `@supports not (...)` が
+//!   `transition: none` 相当を適用するため本モジュールが同期して
+//!   いても遷移しない（`crates/pre-styled-ui/src/bubble.rs` モジュール
+//!   doc・`crates/pre-styled-ui/src/recipe.rs` の
+//!   `content_height_open_declarations` rustdoc 参照）。トリガー配線の
+//!   有無と CSS の遷移条件は独立した別々の前提である。
 
 /// content 高さを供給する CSS カスタムプロパティ名。
 ///

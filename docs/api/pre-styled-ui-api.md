@@ -966,14 +966,18 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   規則 2 参照）。
 - **高さトランジション（イシュー #2192 の共通機構を #2282 で適用）**:
   `collapse-content` の開閉は `@starting-style`/
-  `transition-behavior: allow-discrete` + `fandhe-frontend-wasm-full` の
-  実測高さ CSS 変数（`--fandhe-content-height`）による高さトランジション
-  （`collapsible`/`accordion` と同型）。ただし
+  `transition-behavior: allow-discrete` による高さトランジション
+  （`collapsible`/`accordion` と同型）。`calc-size()` 対応ブラウザでは
+  `hidden` の切り替えだけで遷移が成立し、`fandhe-frontend-wasm-full` の
+  実測高さ CSS 変数（`--fandhe-content-height`）への書き込みは不要。
+  `calc-size()` 未対応ブラウザでは共通 preset の `@supports not (...)`
+  が常に遷移を無効化するため、実測値を同期しても `hidden` による即時
+  切り替えのままになる（`auto` フォールバック）。加えて
   `fandhe-frontend-wasm-full` の `MAPPING_TABLE` に
   `(bubble, collapse-trigger)` の配線が無いため、`wire_headless_component`
-  経由のクリックでは同期されない（呼び出し側が独自に同期経路を呼ぶ場合
-  にのみ働く）。JS 無効時（変数未設定）は `auto` フォールバックにより
-  `hidden` による即時切り替えのまま動作する。
+  経由のクリックでは `hidden` の切り替え自体が発火しない（呼び出し側が
+  独自に切り替える経路を用意する必要がある）。トリガー未配線と CSS の
+  遷移条件は独立した別々の前提である。
 - **`reactions`/`reaction` は非インタラクティブ**: 押下・集計・トグルは
   実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。
 - **docs サイト**: [bubble](../../site/themes/bubble.md)
