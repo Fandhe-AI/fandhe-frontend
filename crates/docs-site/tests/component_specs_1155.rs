@@ -9,12 +9,14 @@
 //! （clipboard / skip-nav）のみを検証する。
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use fandhe_frontend_docs_site::build::build_site;
 use fandhe_frontend_docs_site::component_page::generated_content;
 use fandhe_frontend_docs_site::component_specs::interactive_utilities::SPECS;
 use fandhe_frontend_docs_site::showcase;
+
+#[path = "support/shared_site.rs"]
+mod shared_site;
 
 /// `SPECS` 内でパスが重複していないこと（`component_page_specs_948.rs` の
 /// 同名テストと同じ回帰防止意図）。
@@ -108,48 +110,6 @@ fn clipboard_and_skip_nav_render_all_six_canonical_sections() {
     }
 }
 
-/// `CARGO_MANIFEST_DIR`（`crates/docs-site`）から repo_root を解決する
-/// （`tests/site_showcase.rs` と同じ規約）。
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("repo_root should resolve from CARGO_MANIFEST_DIR")
-}
-
-/// 統合テストのスクラッチ基点（`tests/site_showcase.rs` と同一パターン、
-/// イシュー #637/#658。`/tmp` へはフォールバックしない）。
-fn scratch_root() -> PathBuf {
-    let root = std::env::var("CARGO_TARGET_TMPDIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
-    let _ = std::fs::create_dir_all(&root);
-    root
-}
-
-struct TempDir(PathBuf);
-
-impl TempDir {
-    fn new(tag: &str) -> Self {
-        let unique = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = scratch_root().join(format!(
-            "fandhe-frontend-docs-site-component-specs-1155-{tag}-{}-{unique}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&path).expect("create temp dir for component_specs_1155.rs test");
-        Self(path)
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 fn read_component_page(out: &Path, page_rel: &str) -> String {
     let page_path = out.join(page_rel).join("index.html");
     std::fs::read_to_string(&page_path)
@@ -162,13 +122,15 @@ fn read_component_page(out: &Path, page_rel: &str) -> String {
 /// `assets/pre-styled-ui.css` に実在すること（HTML → CSS の片方向網羅）。
 #[test]
 fn clipboard_page_ships_scoped_css() {
-    let out = TempDir::new("clipboard-css");
-    build_site(&repo_root(), &out.0).expect("real site should build");
+    // 共有ビルド（イシュー #2299）: 読み取り専用のため実サイトビルドを
+    // 使い回す。
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
 
-    let html = read_component_page(&out.0, "themes/clipboard");
+    let html = read_component_page(out, "themes/clipboard");
     assert!(html.contains(r#"data-scope="clipboard""#));
 
-    let css_path = out.0.join(showcase::STYLESHEET_REL_PATH);
+    let css_path = out.join(showcase::STYLESHEET_REL_PATH);
     let css = std::fs::read_to_string(&css_path).unwrap();
     assert!(
         css.contains(r#"[data-scope="clipboard"]"#),
@@ -186,13 +148,13 @@ fn clipboard_page_ships_scoped_css() {
 /// `href="#…"` 関連付け破壊を招く）。
 #[test]
 fn skip_nav_page_ships_scoped_css_and_demo_uses_a_custom_id() {
-    let out = TempDir::new("skip-nav-css");
-    build_site(&repo_root(), &out.0).expect("real site should build");
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
 
-    let html = read_component_page(&out.0, "themes/skip-nav");
+    let html = read_component_page(out, "themes/skip-nav");
     assert!(html.contains(r#"data-scope="skip-nav""#));
 
-    let skip_nav_css_path = out.0.join("assets/skip-nav.css");
+    let skip_nav_css_path = out.join("assets/skip-nav.css");
     let skip_nav_css = std::fs::read_to_string(&skip_nav_css_path).unwrap();
     assert!(
         skip_nav_css.contains(r#"[data-scope="skip-nav"][data-part="link"]"#),

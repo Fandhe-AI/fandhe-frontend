@@ -61,10 +61,16 @@ jobs:
     # ホステッドランナー移行（トラッキング #1220、実装 #1228）: public リポジトリの
     # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
     runs-on: ubuntu-latest
-    # ジョブごとに使い捨てのクリーン VM となり共有 CARGO_TARGET_DIR のキャッシュが
-    # 消失するため、フルクリーンビルド（`cargo check --workspace` + cli e2e を含む
-    # `cargo test --workspace`）の余裕を見込む（test ジョブと同値、実測後に調整）。
-    timeout-minutes: 60
+    # イシュー #2299: 本ジョブ末尾の `cargo test --workspace`（workspace 全テスト）は
+    # `gate-self-apply` ジョブ（`FANDHE_FRONTEND_WASM_BUILD: "0"` の同一 env 下で
+    # `fw gate` の `test` チェックが全宣言クレートを `cargo test` する）と完全に重複
+    # していたため削除した。テストの削除・弱体化ではなく重複排除であり、本ジョブは
+    # unsafe 境界の回帰テスト（unsafe_boundary）と `cargo check --workspace`
+    # （forbid 属性の三重防御）のみを担う軽量ジョブへ縮小した。
+    # timeout は縮小前の実測（削除した workspace テスト以外の合計が約 1 分:
+    # unsafe_boundary 0.3 分 + `cargo check --workspace` 0.3 分、run 34464590804）
+    # に対しクリーンビルドの余裕を見て 20 分とする。
+    timeout-minutes: 20
     # TASK-10.2b（#110）: crates/dist-server/build.rs は既定で WASM ビルドステージ
     # （ネスト cargo build + wasm-bindgen）を実行するが、本ジョブは
     # (a) ホステッドランナーのクリーン VM には wasm32 target・wasm-bindgen-cli を
@@ -123,15 +129,6 @@ jobs:
               "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
           fi
 
-      - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
-        # 本ジョブ末尾の `cargo test --workspace` は negative_cases.rs（fw gate
-        # の lint / policy チェック）を含むため、test ジョブと同様に clippy
-        # component / cargo-deny のブートストラップが必要（イシュー #292 の
-        # 標準ブートストラップ、ci.md 参照）。前置がないと runner の導入状態
-        # 次第で baseline_fixture_passes_core_checks が間欠的に BLOCKED → FAIL
-        # になる（PR #332 の CI で実際に発生）。
-        run: tools/ci/ensure-gate-tools.sh
-
       - name: "unsafe 境界の回帰テスト（safe 域: forbid 属性・unsafe トークン・core 依存ゼロ／wasm-full deny 域: deny 属性・unsafe トークン・allow 上書き不在、#155）"
         run: cargo test -p fandhe-frontend-core --test unsafe_boundary --locked
 
@@ -151,9 +148,6 @@ jobs:
       # UNSAFE_ALLOWED_MEMBERS / DENY_UNSAFE_FFI_MEMBERS と同期して更新すること。
       - name: ビルド時 lint による強制（属性とテストの双方が同時に外された場合の三重防御）
         run: RUSTFLAGS='-F unsafe_code' cargo check --workspace --locked
-
-      - name: workspace 全テスト（XSS 回帰・エスケープ仕様テストを含む）
-        run: cargo test --workspace --locked
 
   # TASK-1.2b（#10）: XSS 回帰テスト（REQ-1）を含む Rust テスト CI。
   # ユーザー指示（2026-07-18）により self-hosted へ移行。forbid-unsafe ジョブ
@@ -379,8 +373,44 @@ jobs:
           version: ${{ env.WASM_BINDGEN_VERSION }}
           sha256: ${{ env.WASM_BINDGEN_SHA256 }}
 
-      - name: Workspace tests
-        run: cargo test --workspace --locked
+      - name: Workspace tests (excluding fandhe-frontend-docs-site, issue #2299)
+        # fandhe-frontend-docs-site のテストは workspace テスト所要時間の大半
+        # （実測 約 13 分）を占めるため、独立ジョブ test-docs-site（本ファイル
+        # 直後）へ分離し test ジョブと並列実行することで CI 壁時計時間を
+        # 短縮した（イシュー #2299）。テストの削除・弱体化ではなく分離であり、
+        # workspace 全体のカバレッジは test ジョブ + test-docs-site ジョブの
+        # 合算で従来どおり維持される。
+        run: cargo test --workspace --exclude fandhe-frontend-docs-site --locked
+
+  # イシュー #2299: fandhe-frontend-docs-site 単独のテストを test ジョブから
+  # 分離した専用ジョブ。docs-site テストが workspace テスト実行時間の大半を
+  # 占めていたため、独立ジョブとして test ジョブと並列に走らせることで CI の
+  # 壁時計時間を短縮する（テストの削除・弱体化ではなく分離）。
+  # fandhe-frontend-docs-site は core/app/server/pre-styled-ui のみに依存し
+  # dist-server（ネスト WASM ビルド）を含まないため、wasm32 target・
+  # wasm-bindgen-cli・cargo-deny の導入は不要。共有 CARGO_TARGET_DIR・
+  # actions/cache も使わないため、イシュー #1192 のガードステップ契約
+  # （workflow_shared_target_contract.rs）の対象外である。
+  test-docs-site:
+    name: "Rust tests: fandhe-frontend-docs-site (issue #2299)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        # actions/checkout v7.0.1（test ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールはテストに不要のため取得しない。
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # 他ジョブと同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
+        # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
+
+      - name: fandhe-frontend-docs-site tests
+        run: cargo test -p fandhe-frontend-docs-site --locked
 
   # TASK-10.1a（#106）: fandhe-frontend-dist-server の開発 / 本番モード切り替え
   # （`crates/dist-server/src/assets.rs` の `AssetMode`）を CI で両モードとも検証する。
@@ -2260,6 +2290,7 @@ jobs:
     needs:
       - forbid-unsafe
       - test
+      - test-docs-site
       - dist-server-embedded-mode
       - browser-test
       - perf-harness
