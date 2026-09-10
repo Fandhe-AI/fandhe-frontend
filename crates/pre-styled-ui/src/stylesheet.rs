@@ -338,6 +338,7 @@ mod tests {
             ("skip_nav", crate::skip_nav::stylesheet()),
             ("clipboard", crate::clipboard::stylesheet()),
             ("qr_code", crate::qr_code::stylesheet()),
+            ("questionnaire", crate::questionnaire::stylesheet()),
             ("heading", crate::heading::css()),
             ("text", crate::text::css()),
             ("em", crate::em::css()),

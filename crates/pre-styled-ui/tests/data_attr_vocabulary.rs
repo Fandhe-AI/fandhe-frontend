@@ -2055,8 +2055,9 @@ fn marker_parts_data_attrs_are_headless_sourced_not_self_emitted() {
 }
 
 /// `questionnaire`（イシュー #2117、`crates/headless-ui/src/questionnaire.rs`。
-/// styled recipe は後続イシュー #2119 のため本テストは headless 出力を
-/// 直接固定する）の `data-state`（active/completed/upcoming の 3 値）・
+/// styled recipe はイシュー #2119 で追加され、
+/// `questionnaire_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// が固定する）の `data-state`（active/completed/upcoming の 3 値）・
 /// `data-step`・`data-orientation`・`data-complete`・`data-answered`/
 /// `data-skipped`/`data-required`/`data-invalid`（存在属性）・
 /// back/next/skip の `disabled`+`data-disabled` 語彙を固定する
@@ -2119,4 +2120,56 @@ fn questionnaire_root_question_and_trigger_vocabulary_is_fixed() {
     let skip_html = render(&at_end.skip(false, vec![], vec![]));
     assert!(skip_html.contains("disabled"));
     assert!(skip_html.contains("data-disabled"));
+}
+
+/// styled `questionnaire`（イシュー #2119、
+/// `crates/pre-styled-ui/src/questionnaire.rs`）が `data-*` を自前で
+/// 組み立てず、headless [`mod@fandhe_frontend_headless_ui::questionnaire`]
+/// の出力をそのまま透過するのみであることを固定する
+/// （`marker_parts_data_attrs_are_headless_sourced_not_self_emitted` と
+/// 同型）。加えて styled 11 パーツが `class=` を出力しないこと、
+/// `questionnaire::stylesheet()` が `[data-state="completed"]`/
+/// `[data-state="upcoming"]`/`[data-answered]`/`[data-skipped]`/
+/// `[data-invalid]`/`[data-disabled]`/`[data-complete]`/`[hidden]` を
+/// セレクタとして参照するのみで（`[data-state="active"]` は base と同値
+/// のため参照しない）、class ベースの `fd-questionnaire--` セレクタを
+/// 生成しないことを固定する。
+#[test]
+fn questionnaire_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::questionnaire as styled_questionnaire;
+
+    let q = Questionnaire::new(3, 1, QuestionnaireOrientation::Horizontal);
+
+    let root_html = render(&styled_questionnaire::root(&q, vec![], vec![]));
+    assert!(root_html.contains(r#"data-step="1""#));
+    assert!(root_html.contains(r#"data-orientation="horizontal""#));
+    assert!(!root_html.contains("class="));
+
+    let question_html = render(&styled_questionnaire::question(
+        &q,
+        1,
+        QuestionProps::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(question_html.contains(r#"data-state="active""#));
+    assert!(!question_html.contains("class="));
+
+    let back_html = render(&styled_questionnaire::back(&q, false, vec![], vec![]));
+    assert!(!back_html.contains("class="));
+
+    // styled `questionnaire::stylesheet()` は headless の `data-*` を CSS
+    // セレクタとして参照するだけで自前で `data-*` を組み立てない（class
+    // ベースの見た目軸も持たない）。
+    let css = styled_questionnaire::stylesheet();
+    assert!(css.contains(r#"[data-state="completed"]"#));
+    assert!(css.contains(r#"[data-state="upcoming"]"#));
+    assert!(!css.contains(r#"[data-state="active"]"#));
+    assert!(css.contains("[data-answered]"));
+    assert!(css.contains("[data-skipped]"));
+    assert!(css.contains("[data-invalid]"));
+    assert!(css.contains("[data-disabled]"));
+    assert!(css.contains("[data-complete]"));
+    assert!(css.contains("[hidden]"));
+    assert!(!css.contains("fd-questionnaire--"));
 }
