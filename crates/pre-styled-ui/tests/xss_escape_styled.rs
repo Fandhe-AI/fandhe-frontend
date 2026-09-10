@@ -874,20 +874,24 @@ fn field_root_and_reexported_parts_are_escaped_for_all_payloads() {
 
         // styled root の呼び出し側 class 属性経路（drop_class_attr により
         // 生ペイロードは出力されず、recipe 生成クラスへ完全に置き換わる）。
-        let f = field("f");
-        let html = render(&field::root(
-            &FieldRootProps::default(),
-            &f,
-            vec![("class", payload)],
-            vec![],
-        ));
-        assert!(
-            !html.contains(payload),
-            "field::root の class 属性に渡した生ペイロードが出力に残っている: \
-             payload={payload:?}, html={html}"
-        );
-        assert_eq!(html.matches("class=\"").count(), 1);
-        assert!(html.contains("fd-field--orientation-"));
+        // 3 orientation（Vertical/Horizontal/Responsive、イシュー #2199）の
+        // いずれでも同じ置換契約が成立することを固定する。
+        for orientation in [
+            field::FieldOrientation::Vertical,
+            field::FieldOrientation::Horizontal,
+            field::FieldOrientation::Responsive,
+        ] {
+            let f = field("f");
+            let props = FieldRootProps { orientation };
+            let html = render(&field::root(&props, &f, vec![("class", payload)], vec![]));
+            assert!(
+                !html.contains(payload),
+                "field::root の class 属性に渡した生ペイロードが出力に残っている: \
+                 orientation={orientation:?}, payload={payload:?}, html={html}"
+            );
+            assert_eq!(html.matches("class=\"").count(), 1);
+            assert!(html.contains("fd-field--orientation-"));
+        }
 
         // 選択的再エクスポート（label/helper_text/error_text/
         // required_indicator）の children 経路。

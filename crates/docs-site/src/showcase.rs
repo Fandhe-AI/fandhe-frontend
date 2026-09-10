@@ -5401,6 +5401,13 @@ fn field_section() -> Node {
     let payment_field_a = field_with_helper("showcase-field-card-number");
     let payment_field_b = plain_field("showcase-field-expiry");
     let newsletter_field = field_with_helper("showcase-field-newsletter");
+    // `orientation="responsive"`（イシュー #2199）は `group`（container
+    // slot）の内側でのみ 448px 以上で横並びへ切り替わる（`field.rs`
+    // モジュール doc「`orientation="responsive"`」節参照）。デモの実効性を
+    // 保つため必ず `field::group` の内側へ 2 件配置する（`group` の外に
+    // 置くと container が無いため常に縦積みのまま）。
+    let responsive_field_a = field_with_helper("showcase-field-responsive-name");
+    let responsive_field_b = plain_field("showcase-field-responsive-username");
     let group_instance = field::group(
         vec![],
         vec![
@@ -5418,6 +5425,21 @@ fn field_section() -> Node {
                 &payment_field_b,
                 "Expiry date",
                 "MM / YY",
+                None,
+            ),
+            field::separator(vec![], vec![]),
+            field_instance(
+                FieldOrientation::Responsive,
+                &responsive_field_a,
+                "Full name",
+                "Ada Lovelace",
+                Some("448px 以上でラベルと入力欄が横並びになります。"),
+            ),
+            field_instance(
+                FieldOrientation::Responsive,
+                &responsive_field_b,
+                "Username",
+                "ada",
                 None,
             ),
             field::content(
@@ -5482,7 +5504,7 @@ fn field_section() -> Node {
 
     section(
         "Field",
-        "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。",
+        "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。orientation=\"responsive\" は group（container）を 448px 以上に広げると横並びへ切り替わります。",
         vec![stack(vec![
             default_instance,
             invalid_instance,

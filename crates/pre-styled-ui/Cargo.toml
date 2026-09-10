@@ -3139,6 +3139,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方とも独立に 0.180.2 へ到達していたため、同一版数への偶発的衝突をそのまま
 # 採用しない原則に従い、双方の実体変更を統合した結果として 0.180.2 をさらに
 # +1 した 0.180.3 へ patch バンプする。
+# 本コンフリクト解消（PR #2315、イシュー #2202、main 取り込み・同一版数への
+# 偶発的衝突）: 本ブランチ（#2202 splitter resize-trigger の `::after` ヒット
+# エリア拡張、patch 相当）と origin/main（PR #2311 bubble collapse-content
+# 適用、patch 相当）が双方とも独立に 0.180.3 へ到達していたため、同一版数への
+# 偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を統合した結果として
+# 0.180.3 をさらに +1 した 0.180.4 へ patch バンプする。
+#
+# イシュー #2199（recipe への `@container` 導入・field
+# `orientation="responsive"` 追加）: `FieldOrientation` へ新 variant
+# `Responsive` を追加する破壊的変更（0.x の網羅 `match` 破壊）のため、
+# `.claude/rules/coding-rust.md` の「0.x の破壊的変更はマイナーバンプ」
+# 規約に従い 0.181.0 へマイナーバンプする。
 #
 # base 取り込み（PR #2303、イシュー #2125、再々々マージ、同一版数への
 # 偶発的衝突）: 本ブランチの到達値 0.180.3（上記の通り headless-ui
@@ -3178,7 +3190,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # が霞む）を是正した。golden CSS の `load-more` ブロックを書き換える
 # 観測可能な変更のため 0.181.1 へ patch バンプする。
 # 本コンフリクト解消(PR #2303、イシュー #2125、main 取り込み・#2319 是正取り込み後の再衝突): 本ブランチの到達値 0.180.5(headless-ui 0.69.0 への dep-version-check 追随のみ)と、origin/main の到達値 0.181.1(#2123 message_scroller 追加 + #2318 レビュー指摘是正を経たマイナーバンプ到達値)を比較すると、origin/main が既に本ブランチを上回っているため、origin/main の到達値 0.181.1 を土台としつつ、本ブランチ側の dep-version-check 追随(headless-ui 0.69.0 への version 要求更新)を反映した patch バンプとして 0.181.2 とする(本クレート自体の実体変更はない)。
-version = "0.181.2"
+# 本コンフリクト解消（イシュー #2199、PR feat/2199、main 取り込み）: 本ブランチは FieldOrientation へ新 variant Responsive を追加する破壊的変更
+# （0.x の網羅 match 破壊）のためマイナーバンプ 0.181.0 へ到達していたが、origin/main は別経路の統合を経て patch バンプの積み重ねで 0.181.2 へ到達しており、
+# 本ブランチの到達値を上回っている。同一版数への偶発的衝突ではなく origin/main が
+# 本ブランチを上回るケースだが、本ブランチの変更はマイナーバンプ相当の破壊的変更である
+# ため、origin/main の到達値 0.181.2 をさらに上回るようマイナーバンプし 0.182.0 とする。
+version = "0.182.0"
 
 
 edition = "2021"

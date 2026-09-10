@@ -706,7 +706,8 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
 
 - **公開 API**: `root(&FieldRootProps, &FieldProps<'_>, attrs, children)`
   （見た目 variant クラスを重ねて headless `field::root` へ委譲）、
-  `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`）、
+  `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`/
+  `Responsive`、イシュー #2199 で `Responsive` を追加）、
   `FieldRootProps`。`label`/`helper_text`/`error_text`/`required_indicator`/
   `group`/`content`/`title`/`separator`/`FieldIds`/`FieldProps` は headless
   からの選択的再エクスポート（見た目は属性セレクタのみで到達するため
@@ -719,6 +720,20 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   と同じ型階層（disabled 減光・invalid 配色も同一規則）を採用する
   （判断根拠は `field.rs` モジュール doc「採用したもの（イシュー #2185）」
   節参照）。
+- **`orientation="responsive"`（イシュー #2199）**: `group` を
+  `crate::recipe::SlotRecipe::container_slot` として宣言し、`root` へ
+  `crate::recipe::SlotRecipe::container_variant`（`ContainerBreakpoint::
+  Md` = 448px、`Horizontal` と同一の宣言を共有）を登録した。`group` の
+  inline サイズが 448px 以上のときのみ `Horizontal` と同じ配置へ切り替
+  わり、`group` の外に置いた場合は常に縦積みのまま（mobile-first の
+  安全な劣化）。受け入れ条件が述べる `data-orientation="responsive"` は
+  実装しない: headless `field::root` は `data-orientation` を意図的に
+  持たず、本モジュールも独自 `data-*` を出力しない契約
+  （`crates/pre-styled-ui/tests/data_attr_vocabulary.rs`）のため、既存の
+  `horizontal` と同じくクラス `fd-field--orientation-responsive` として
+  語彙化した。判断根拠は `field.rs` モジュール doc
+  「`orientation="responsive"`」節・`docs/design/pre-styled-ui-scale-tokens.md`
+  §3.7 参照。
 - **`orientation` 軸のみ**: `size`/`color-palette` 軸は持たない（子の寸法に
   従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
   入力系は palette 非提供という §4f と同じ判断）。
@@ -1706,6 +1721,61 @@ impl SlotRecipe {
 `2xl` は見送り）の採用根拠は同文書 §3.6 を参照。最初の消費者は
 `breadcrumb` の `list`（`gap` を `Breakpoint::Sm` で拡張、イシュー
 #2198）。
+
+### `recipe::ContainerBreakpoint` / `SlotRecipe::container_slot` / `container` / `container_variant`（イシュー #2199）
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContainerBreakpoint { Sm, Md, Lg, Xl }
+
+impl ContainerBreakpoint {
+    pub const ALL: [ContainerBreakpoint; 4];
+    pub const fn value(self) -> &'static str;      // "sm" / "md" / "lg" / "xl"
+    pub const fn min_width(self) -> &'static str;   // "384px" / "448px" / "512px" / "576px"
+}
+
+impl SlotRecipe {
+    pub fn container_slot(self, slot: &'static str) -> Self; // builder、自己消費
+
+    pub fn container(
+        self,
+        slot: &'static str,
+        cb: ContainerBreakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self; // builder、自己消費
+
+    pub fn container_variant<V: VariantValue>(
+        self,
+        v: V,
+        slot: &'static str,
+        cb: ContainerBreakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self; // builder、自己消費
+}
+```
+
+`Breakpoint`（viewport 幅の `@media`）と並列・独立の enum で、
+`ContainerBreakpoint` は要素自身の inline サイズを基準にする
+`@container` クエリを表現する。`container_slot(slot)` は
+`container-type: inline-size; container-name: fd-<scope>-<slot>;` を
+当該 slot の base ブロック群の直後へ出力し、`container()`/
+`container_variant()` が登録した規則は `SlotRecipe::css()` の出力で
+「breakpoints の後・hover ブロックの前」に、`ContainerBreakpoint::ALL`
+の昇順（`sm` → `xl`、mobile-first）で
+`@container fd-<scope>-<container_slot> (min-width: <cb.min_width()>)`
+ブロックとして出力される（1 段 = 1 ブロック、同一段内は登録順）。
+`container()` は base と同じ詳細度 `[data-scope][data-part]`
+（0,2,0）のセレクタ、`container_variant()` は variant と同じ
+`[data-scope][data-part].fd-<scope>--<axis>-<value>`（0,3,0）のセレクタを
+使う。`container_slot()` を呼んでいない、または宣言した slot が
+未宣言・不正識別子の場合は `container()`/`container_variant()` に
+登録された規則を一切出力しない（fail-closed、孤児 `@container` を
+出さない）。段の値（shadcn/ui〔Tailwind v4〕既定のコンテナクエリ
+スケールと一致、`3xs`〜`xs`・`2xl` 以上は見送り）・container slot の
+決め方（無名 `@container` を不採用とする理由を含む）の採用根拠は
+`docs/design/pre-styled-ui-scale-tokens.md` §3.7 を参照。最初の消費者は
+`field` の `orientation="responsive"`（`group` を container slot・`root`
+を `container_variant` の対象、イシュー #2199）。
 
 ## 4m. `sidebar`（イシュー #2073、親 #2071。headless anatomy は #2072）
 
