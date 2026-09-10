@@ -287,11 +287,24 @@ pub const BLOCK: Block = Block {
 /// 拒否するため通る。`< 768px` で右列画像を隠し 1 カラムへ切り替える
 /// shadcn 側の `hidden md:block` 相当をブレークポイントとして再現する
 /// （目視確認は実装計画 §4 手順 11 参照）。
+///
+/// # `[data-blocks-login-04-body]` の詳細度を Card recipe 以上にする
+///
+/// `card::body` が出力する要素は `[data-scope="card"][data-part="body"]`
+/// （詳細度 (0,2,0)）を併せ持つため、block 側セレクタを単独の
+/// `[data-blocks-login-04-body]`（詳細度 (0,1,0)）のままにすると Card
+/// recipe の既定 `display: flex`/`padding` に負けて `display: grid` や
+/// `grid-template-columns` が適用されず 2 カラム表示が成立しない
+/// （PR #2292 codex-review 指摘、イシュー #2093）。このためセレクタを
+/// `[data-scope="card"][data-part="body"][data-blocks-login-04-body]`
+/// （詳細度 (0,3,0)）へ結合し、Card recipe を確実に上書きする。
+/// `@media (max-width: 47.99rem)` 側の再定義も同じ詳細度に揃える
+/// （揃えないと縮小時のみ Card recipe が再び優先されてしまうため）。
 pub(super) const LAYOUT_CSS: &str = "\
 .blocks-login-04 {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  min-height: 28rem;\n}\n\
 [data-blocks-login-04-stack] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 1.5rem;\n  width: 100%;\n}\n\
 [data-blocks-login-04-card] {\n  width: 100%;\n  max-width: 56rem;\n  overflow: hidden;\n}\n\
-[data-blocks-login-04-body] {\n  padding: 0;\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n}\n\
+[data-scope=\"card\"][data-part=\"body\"][data-blocks-login-04-body] {\n  padding: 0;\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n}\n\
 [data-blocks-login-04-form] {\n  padding: 2rem;\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-blocks-login-04-field] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n}\n\
 .blocks-login-04-intro {\n  text-align: center;\n  margin: 0 0 0.5rem;\n}\n\
@@ -302,4 +315,4 @@ pub(super) const LAYOUT_CSS: &str = "\
 [data-blocks-login-04-image] {\n  position: relative;\n  background: var(--fandhe-color-bg-subtle);\n  min-height: 100%;\n}\n\
 [data-blocks-login-04-img] {\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n}\n\
 .blocks-login-04-terms {\n  font-size: 0.75rem;\n  text-align: center;\n  color: var(--fandhe-color-fg-muted);\n  max-width: 56rem;\n}\n\
-@media (max-width: 47.99rem) {\n  [data-blocks-login-04-body] {\n    grid-template-columns: 1fr;\n  }\n  [data-blocks-login-04-image] {\n    display: none;\n  }\n}\n";
+@media (max-width: 47.99rem) {\n  [data-scope=\"card\"][data-part=\"body\"][data-blocks-login-04-body] {\n    grid-template-columns: 1fr;\n  }\n  [data-blocks-login-04-image] {\n    display: none;\n  }\n}\n";
