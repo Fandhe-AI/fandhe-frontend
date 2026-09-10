@@ -2893,12 +2893,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # golden CSS の既存ブロックは不変のため非破壊的な追加として、PR と main
 # が同一到達値 0.173.0 で衝突するため main +1 の 0.174.0 へバンプする。
 #
-# 本コンフリクト解消（PR #2293、イシュー #2193、base 側）: 本ブランチ
-# （#2193 の dialog/drawer close-trigger 再設計）と origin/main（#2134
-# codex-review 指摘是正、donut/pie/radial legend 追加）がいずれも独立に
-# 0.174.0 へ到達しており、同一版数への偶発的衝突をそのまま採用しない
-# 原則に従い、双方の実体変更を統合した結果として main の到達値 0.174.0
-# をさらに上回る 0.175.0 へマイナーバンプする（0.x の破壊的変更はマイナー
+# 本コンフリクト解消（PR #2293、イシュー #2193）: 本ブランチ（#2193 の
+# dialog/drawer close-trigger 再設計）と origin/main（#2134 codex-review
+# 指摘是正、donut/pie/radial legend 追加）がいずれも独立に 0.174.0 へ
+# 到達しており、同一版数への偶発的衝突をそのまま採用しない原則に従い、
+# 双方の実体変更を統合した結果として main の到達値 0.174.0 をさらに
+# 上回る 0.175.0 へマイナーバンプする（0.x の破壊的変更はマイナー
 # バンプの規約）。
 #
 # base 取り込み（PR #2296、イシュー #2194、1 回目）: 本クレート自身の実体
@@ -2907,6 +2907,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # （`cargo run -p xtask -- check-dep-versions --fix`）。patch バンプ対象
 # のため、main 側の到達値 0.175.0 からさらに +1 して 0.175.1 とする。
 #
+# イシュー #2195: Forms 家族横断の `control`/`clear-trigger` の
+# `data-disabled` 消費規則を確定・実装した（CSS 出力の純追加）ため
+# 0.176.0 へマイナーバンプする。
+
 # 本コンフリクト解消（PR #2291、イシュー #2119 の main 取り込み・1 回目）:
 # 本ブランチ（styled questionnaire 追加）と origin/main（#2285 是正）は
 # それぞれ独立に 0.174.0 へ到達しており、同一版数はコンフリクトとして
@@ -2933,7 +2937,25 @@ name = "fandhe-frontend-pre-styled-ui"
 # headless-ui 0.68.16 依存追随は main の 0.176.0 に含まれていない実体
 # 変更のため、main の到達値 0.176.0 からさらに +1（patch）して 0.176.1
 # とする。
-version = "0.176.1"
+#
+# 本コンフリクト解消（イシュー #2195、PR #2297 の base 取り込み）: 本ブランチ
+# （#2195 Forms 家族横断の disabled/required 決定）は 0.176.0 へ到達済み
+# だったが、origin/main も別経路（#2119 questionnaire 実装の取り込み・
+# #2193/#2134 是正の統合、PR #2291/#2293）で独立に同じ 0.176.0 へ到達して
+# いた。同一版数への偶発的衝突をそのまま採用しない原則に従い、双方の実体
+# 変更（Forms 家族 disabled/required 決定 + questionnaire 完全実装統合）を
+# 統合した結果として main の到達値 0.176.0 をさらに上回る 0.177.0 へ
+# マイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
+#
+# base 取り込み（PR #2296、イシュー #2194、3 回目）: 本ブランチの到達値
+# 0.176.1（2 回目の base 取り込み解消時点、headless-ui 0.68.16 依存追随の
+# みの patch バンプ）に対し、origin/main は独立に 0.177.0（#2195 Forms
+# 家族横断の disabled/required 決定 + questionnaire 完全実装統合を内包）
+# へ到達していた。同一版数への偶発的衝突ではないが、本ブランチの
+# headless-ui 0.68.16 依存追随（origin/main は 0.68.15 のまま）は main の
+# 0.177.0 に含まれていない実体変更のため、main の到達値 0.177.0 からさら
+# に +1（patch）して 0.177.1 とする。
+version = "0.177.1"
 
 
 edition = "2021"

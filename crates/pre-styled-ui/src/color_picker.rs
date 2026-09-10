@@ -221,6 +221,15 @@
 //! - **チェッカーボードのタイルサイズ `8px 8px`**: [`crate::color_swatch`]
 //!   と同じ値を維持した。トークン化（例: `--fandhe-space-2` 系）は
 //!   `color_swatch` 側と同時に行うべき横断事項のため本 PR では行わない。
+//!
+//! # スタイル調整（イシュー #2195、Forms 家族横断の disabled 規則）
+//!
+//! 詳細な決定根拠・対応表は
+//! `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` を正とする
+//! （[`crate::date_picker`] 等同名節と同型の記録方針）。`control[data-disabled]`
+//! は `cursor: not-allowed` のみとする（`trigger`/`channel-input` という
+//! 葉パーツが既に `disabled_declarations()` を適用する葉所有型のため、
+//! レイアウトのみの `control` へ opacity を重ねない）。
 
 use crate::css::decl;
 use crate::recipe::{
@@ -665,6 +674,19 @@ fn recipe() -> SlotRecipe {
             "trigger",
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
+        )
+        // `control[data-disabled]`（イシュー #2195、Forms 家族横断の
+        // disabled 規則。詳細は
+        // `docs/design/pre-styled-ui-forms-disabled-required-matrix.md`）:
+        // headless（`control`）が `data-disabled` を出すようになった
+        // （headless-ui 0.41.0、#1627）。`trigger`/`channel-input` という
+        // 葉パーツが既に `disabled_declarations()` を適用する葉所有型の
+        // ため、レイアウトのみの `control` は `cursor: not-allowed` のみに
+        // 留める（二重減光の回避）。
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
         )
         .state(
             "trigger",
@@ -1143,6 +1165,17 @@ mod tests {
         let out = css();
         assert!(out.contains(
             "[data-scope=\"color-picker\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}"
+        ));
+    }
+
+    #[test]
+    fn control_disabled_is_cursor_only_per_forms_matrix() {
+        // イシュー #2195（Forms 家族横断の disabled 規則、R1「opacity 単一
+        // 階層」）: `trigger`/`channel-input` が opacity を所有する葉所有型
+        // のため、`control`（レイアウトのみ）は `cursor: not-allowed` のみ。
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"color-picker\"][data-part=\"control\"][data-disabled] {\n  cursor: not-allowed;\n}"
         ));
     }
 
