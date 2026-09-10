@@ -134,7 +134,21 @@ fn find_test_profile_violation(contents: &str) -> Option<String> {
         // （インラインテーブル代入）・空白始まり（`profile =` 等）のいずれかを
         // 違反として検知する（`profiled_x = 1` のような無関係な識別子は
         // 残余が英数字で始まるため誤検知しない）。
-        if let Some(rest) = trimmed.strip_prefix("profile") {
+        //
+        // クォート付きキーセグメント（`"profile".test.package.x.opt-level = 1`
+        // や `'profile'.test...`）による迂回も同様に塞ぐ: ヘッダ行側
+        // （`normalized_header_segments`）はクォートを正規化してから比較して
+        // いるが、非ヘッダ行側でこの正規化を欠くと素通りしてしまう
+        // （`workflow_runner_policy.rs` の `"runs-on"` 形と同種の見落とし）。
+        let unquoted_prefix = trimmed
+            .strip_prefix("profile")
+            .or_else(|| trimmed.strip_prefix("\"profile\""))
+            .or_else(|| {
+                trimmed
+                    .strip_prefix('\'')
+                    .and_then(|s| s.strip_prefix("profile'"))
+            });
+        if let Some(rest) = unquoted_prefix {
             let is_boundary = rest.is_empty()
                 || rest.starts_with('.')
                 || rest.starts_with('=')
@@ -228,6 +242,10 @@ fn find_test_profile_violation_detects_known_forms() {
     )
     .is_some());
     assert!(find_test_profile_violation("profile={test={package={x={opt-level=1}}}}\n").is_some());
+    // クォート付きキーセグメントによる迂回（`normalized_header_segments` の
+    // クォート正規化がヘッダ行専用で非ヘッダ行に及んでいないと素通りする形）。
+    assert!(find_test_profile_violation("\"profile\".test.package.x.opt-level = 1\n").is_some());
+    assert!(find_test_profile_violation("'profile'.test.package.x.opt-level = 1\n").is_some());
 }
 
 #[test]
