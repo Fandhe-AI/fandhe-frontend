@@ -3105,6 +3105,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を統合した結果
 # として main の到達値 0.180.1 をさらに上回る 0.180.2 へ patch バンプする。
 #
+# イシュー #2202: splitter resize-trigger の `::after` ヒットエリア拡張を
+# 追加した（CSS 出力への純追加・公開 API 形状は不変のため patch）。本
+# ブランチは独立に 0.180.2 へ到達していたが、origin/main 側も別経路
+# （PR #2309、イシュー #2198、breadcrumb breakpoint 適用 + イシュー #2201
+# pseudo_element API 追加の統合）で独立に同じ 0.180.2 へ到達していた。
+# 同一版数への偶発的衝突をそのまま採用しない原則（semver-same-version-is-
+# conflict 運用）に従い、双方の実体変更（splitter ::after ヒットエリア拡張 +
+# breadcrumb breakpoint 適用 + pseudo_element API 追加、いずれも patch 相当の
+# 純追加）を統合した結果として 0.180.2 の patch をさらに +1 した 0.180.3 を
+# 採用する。
 # 本コンフリクト解消（PR #2309、イシュー #2198、main 取り込み・再々衝突、
 # 同一版数への偶発的衝突）: 上記のとおり本ブランチ（#2198 breadcrumb
 # breakpoint 適用、patch 相当）は main 取り込み時に 0.180.0 の patch を
@@ -3138,7 +3148,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # いた。同一版数への偶発的衝突をそのまま採用しない原則に従い、main の
 # 到達値 0.180.3 からさらに +1（patch）して 0.180.4 とする（本クレート
 # 自体の実体変更はない）。
-version = "0.180.4"
+#
+# 本コンフリクト解消（PR #2303、イシュー #2125、main 取り込み・同一版数への
+# 偶発的衝突）: 本ブランチ（上記のとおり headless-ui 0.69.0 への
+# dep-version-check 追随のみで 0.180.4 へ到達）と origin/main（PR #2315、
+# イシュー #2202 splitter resize-trigger の `::after` ヒットエリア拡張と
+# bubble collapse-content 適用の統合で独立に同じ 0.180.4 へ到達）が双方とも
+# 同一版数 0.180.4 へ到達していたため、同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、0.180.4 をさらに +1 した 0.180.5 へ patch バンプ
+# する（本クレート自体の実体変更はない）。
+version = "0.180.5"
 
 
 edition = "2021"

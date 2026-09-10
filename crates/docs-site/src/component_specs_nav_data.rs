@@ -2714,6 +2714,7 @@ pub(crate) const SPLITTER: ComponentPageSpec = ComponentPageSpec {
         "resize_trigger は role=\"separator\" + aria-controls を固定付与する（splitter.rs:930-935）",
         "panel_index が範囲外の場合は style 属性自体を省略する fail-closed 動作（splitter.rs:694-697, 908-913）",
         "resize_trigger_indicator は resize_trigger の children として渡したときのみ描画される（shadcn/ui withHandle prop 相当の合成パターン、イシュー #2038）",
+        "resize_trigger は ::after で視覚上の太さを変えずに当たり判定のみを外側へ拡張する（data-orientation で拡張方向を切り替え、--fandhe-splitter-hit-extension で拡張幅を上書き可、イシュー #2202）",
     ],
     arguments: &[ArgRow {
         name: "disabled",
