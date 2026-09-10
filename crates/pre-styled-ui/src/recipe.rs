@@ -1190,6 +1190,22 @@ struct BreakpointRule {
     declarations: Vec<Declaration>,
 }
 
+/// slot 1 個・任意の状態条件への `@supports not (height: calc-size(auto,
+/// size))` 内規則登録（内部表現、イシュー #2192。Cursor Bugbot medium
+/// severity 指摘「`[hidden]` 規則が `transition-*` longhand を持つように
+/// なったため fallback の `transition: none` に勝ってしまう」是正で
+/// [`StartingStyleRule`] と同型へ拡張した）。`condition` が `None` の場合は
+/// 無条件（base セレクタ）を表し、`Some` の場合は [`SlotRecipe::state`] と
+/// 同じ [`StateCondition`] 検証・セレクタ組み立て経路
+/// （`state_condition_selector`）を通る。[`SlotRecipe::
+/// supports_not_calc_size_height_state`] rustdoc「`[hidden]` 側の
+/// `transition: none` を別規則にする理由」参照。
+struct SupportsNotCalcSizeRule {
+    slot: &'static str,
+    condition: Option<StateCondition>,
+    declarations: Vec<Declaration>,
+}
+
 /// compound variant の条件 1 件（axis, value の型消去された組）。
 ///
 /// [`when()`] を通じてのみ [`VariantValue`] 実装 enum から構築できる（生の
@@ -1276,7 +1292,7 @@ pub struct SlotRecipe {
     compound_variants: Vec<CompoundVariantRule>,
     states: Vec<StateRule>,
     starting_style: Vec<StartingStyleRule>,
-    supports_not_calc_size: Vec<BaseRule>,
+    supports_not_calc_size: Vec<SupportsNotCalcSizeRule>,
     breakpoints: Vec<BreakpointRule>,
 }
 
@@ -1657,14 +1673,76 @@ impl SlotRecipe {
     /// state 規則は本 slot への通常の base より詳細度が高いため、閉状態は
     /// 引き続き [hidden] state 規則が優先される。カスケード上「開いた
     /// 定常状態の上書き」としてのみ効く）。
+    ///
+    /// `[hidden]` state 自体が持つ `transition-*` longhand
+    /// （[`content_height_closed_transition_declarations`]）を fallback 環境
+    /// でも無効化したい場合は
+    /// [`SlotRecipe::supports_not_calc_size_height_state`] を併用する
+    /// （本メソッド単独では `[hidden]` の詳細度に負けて効かない。Cursor
+    /// Bugbot 指摘、`supports_not_calc_size_height_state` rustdoc 参照）。
     #[must_use]
     pub fn supports_not_calc_size_height(
         mut self,
         slot: &'static str,
         declarations: Vec<Declaration>,
     ) -> Self {
-        self.supports_not_calc_size
-            .push(BaseRule { slot, declarations });
+        self.supports_not_calc_size.push(SupportsNotCalcSizeRule {
+            slot,
+            condition: None,
+            declarations,
+        });
+        self
+    }
+
+    /// `slot` へ状態条件付きの `@supports not (height: calc-size(auto,
+    /// size))` 配下の上書き宣言を登録する（builder、自己消費。イシュー
+    /// #2192、Cursor Bugbot medium severity 指摘の是正で追加）。
+    ///
+    /// [`SlotRecipe::supports_not_calc_size_height`] の一般化で、
+    /// `condition` により無条件の base セレクタではなく
+    /// [`SlotRecipe::state`] と同じ [`StateCondition`] 検証・セレクタ組み
+    /// 立て経路（`state_condition_selector`）を通ったセレクタへ出力する。
+    ///
+    /// # `[hidden]` 側の `transition: none` を別規則にする理由
+    ///
+    /// [`SlotRecipe::content_height_transition`] は `[hidden]` state へ
+    /// [`content_height_closed_transition_declarations`] を登録するが、
+    /// これは `transition-property`/`transition-duration`/`transition-
+    /// timing-function`/`transition-behavior` の 4 longhand を含む。
+    /// `[hidden]` セレクタ（詳細度 (0,3,0)）は
+    /// [`SlotRecipe::supports_not_calc_size_height`] が使う無条件 base
+    /// セレクタ（詳細度 (0,2,0)）より詳細度が高いため、fallback 環境
+    /// （`@supports not (...)` が真）でも `[hidden]` 側の `transition-*`
+    /// が base 側の `transition: none` に**カスケード詳細度で**勝って
+    /// しまい、`height` は `auto`⇄`0` 間の離散変化で即座にスナップする
+    /// 一方で `padding-block`/`margin-block` だけは `[hidden]` 自身の
+    /// `transition-duration` に従ってアニメーションしてしまう（Cursor
+    /// Bugbot 指摘、Safari/Firefox で実際に観測。`content_height_
+    /// transition` 導入前にはなかった表示回帰）。本メソッドで `[hidden]`
+    /// と同じ詳細度 (0,3,0) の `transition: none` 規則を
+    /// `@supports not (...)` 配下へ追加すると、[`SlotRecipe::css`] の
+    /// 出力順（states → `@starting-style` → `@supports not (...)`）に
+    /// より本規則が `[hidden]` state 規則より**後**に現れる。詳細度が
+    /// 等しい 2 規則は CSS カスケードの記述順で後勝ちするため、fallback
+    /// 環境に限って `[hidden]` の `transition-*` 全 longhand を確実に
+    /// 無効化できる（`height`/`padding-block`/`margin-block`/`overflow`
+    /// の値そのものは [`content_height_closed_declarations`] のまま
+    /// 変わらず、即時〔無アニメーション〕の開閉になる）。対応ブラウザ
+    /// では `@supports not (...)` 自体が不成立のため本規則は一切適用
+    /// されず、`[hidden]` の `step-start` タイミング関数がそのまま有効
+    /// になる。
+    #[must_use]
+    pub fn supports_not_calc_size_height_state(
+        mut self,
+        slot: &'static str,
+        condition: StateCondition,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.supports_not_calc_size.push(SupportsNotCalcSizeRule {
+            slot,
+            condition: Some(condition),
+            declarations,
+        });
         self
     }
 
@@ -1675,8 +1753,9 @@ impl SlotRecipe {
     ///
     /// [`SlotRecipe::base`]・[`SlotRecipe::state`]（[`StateCondition::Attr`]
     /// `"hidden"`）・[`SlotRecipe::starting_style`]・
-    /// [`SlotRecipe::supports_not_calc_size_height`] の 4 登録を一括で
-    /// 行う:
+    /// [`SlotRecipe::supports_not_calc_size_height`]・
+    /// [`SlotRecipe::supports_not_calc_size_height_state`] の 5 登録を
+    /// 一括で行う:
     ///
     /// - base: [`content_height_open_declarations`]（`height:
     ///   var(--fandhe-content-height, auto)` 等）
@@ -1687,9 +1766,16 @@ impl SlotRecipe {
     /// - `@starting-style`: [`content_height_closed_declarations`]（開く
     ///   遷移の開始点を `height: 0` に固定する。`transition-*` は宣言
     ///   しない）
-    /// - `@supports not (height: calc-size(auto, size))`: `height: auto` /
-    ///   `overflow: visible` / `transition: none`（PR #2289 codex レビュー
-    ///   P1 是正、下記「calc-size() 未対応ブラウザでの表示回帰対策」参照）
+    /// - `@supports not (height: calc-size(auto, size))`（無条件）:
+    ///   `height: auto` / `overflow: visible` / `transition: none`
+    ///   （PR #2289 codex レビュー P1 是正、下記「calc-size() 未対応
+    ///   ブラウザでの表示回帰対策」参照）
+    /// - `@supports not (height: calc-size(auto, size))`（`[hidden]`）:
+    ///   `transition: none`（Cursor Bugbot medium severity 是正。
+    ///   `[hidden]` 自身が持つ `transition-*` longhand が上記の無条件
+    ///   `transition: none` に詳細度で勝ってしまう問題の対策、
+    ///   [`SlotRecipe::supports_not_calc_size_height_state`] rustdoc
+    ///   「`[hidden]` 側の `transition: none` を別規則にする理由」参照）
     ///
     /// 閉状態のキーに `[hidden]`（[`StateCondition::Attr`]）を採るのは、
     /// `data-state="closed"` ではなく `hidden` 存在属性が headless の
@@ -1713,13 +1799,18 @@ impl SlotRecipe {
     /// `@supports not (height: calc-size(auto, size))` ブロックが、
     /// 未対応ブラウザに限って開いた定常状態を `height: auto` /
     /// `overflow: visible` へ強制的に戻し、`transition: none` で
-    /// トランジション自体も無効化する（`[hidden]` state 規則は本 base
-    /// セレクタより詳細度が高いため閉状態には影響しない）。この結果、
-    /// 未対応ブラウザは本 PR 適用前と同じ「`auto` に継続追従し、開閉は
-    /// 即時（無アニメーション）」という安全な劣化へ戻る。対応ブラウザ
-    /// （[`content_height_open_declarations`] rustdoc 参照）では `@supports`
-    /// 条件が不成立のためこのブロックは適用されず、`calc-size()` による
-    /// アニメーション付きの高さ追従がそのまま有効になる。
+    /// トランジション自体も無効化する。加えて
+    /// [`SlotRecipe::supports_not_calc_size_height_state`] が `[hidden]`
+    /// 状態にも同じ詳細度で `transition: none` を登録するため（Cursor
+    /// Bugbot 指摘の是正、同メソッド rustdoc「`[hidden]` 側の
+    /// `transition: none` を別規則にする理由」参照）、`[hidden]` state
+    /// 規則自身が持つ `transition-*` longhand も fallback 環境では確実に
+    /// 無効化される。この結果、未対応ブラウザは本 PR 適用前と同じ
+    /// 「`auto` に継続追従し、開閉は即時（無アニメーション）」という
+    /// 安全な劣化へ戻る。対応ブラウザ（[`content_height_open_
+    /// declarations`] rustdoc 参照）では `@supports` 条件が不成立のため
+    /// これらのブロックは適用されず、`calc-size()` によるアニメーション
+    /// 付きの高さ追従がそのまま有効になる。
     #[must_use]
     pub fn content_height_transition(self, slot: &'static str, duration: MotionDuration) -> Self {
         self.base(slot, content_height_open_declarations(duration))
@@ -1736,6 +1827,11 @@ impl SlotRecipe {
                     decl("overflow", "visible"),
                     decl("transition", "none"),
                 ],
+            )
+            .supports_not_calc_size_height_state(
+                slot,
+                StateCondition::Attr("hidden"),
+                vec![decl("transition", "none")],
             )
     }
 
@@ -1963,20 +2059,28 @@ impl SlotRecipe {
         }
 
         // `@supports not (height: calc-size(auto, size))` ブロック
-        // （イシュー #2192、PR #2289 codex レビュー P1 是正）。
-        // `supports_not_calc_size_height` rustdoc 参照。セレクタは常に
-        // 無条件の base セレクタを使うため `state`/`@starting-style` の
-        // ような条件分岐を持たない（フィルタリングのみ base ループと同じ
-        // `is_declared_slot`/`is_valid_identifier` 検証を通す）。
+        // （イシュー #2192、PR #2289 codex レビュー P1 是正。`[hidden]`
+        // 条件付き規則は Cursor Bugbot medium severity 是正で追加、
+        // `supports_not_calc_size_height_state` rustdoc「`[hidden]` 側の
+        // `transition: none` を別規則にする理由」参照）。`condition` が
+        // `None` の場合は無条件の base セレクタ、`Some` の場合は
+        // `state`/`@starting-style` と同じ `state_condition_selector`
+        // 経路でセレクタを組み立てる。
         let mut supports_not_calc_size_css = String::new();
         for rule in &self.supports_not_calc_size {
             if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
                 continue;
             }
-            let selector = format!(
+            let mut selector = format!(
                 "[data-scope=\"{}\"][data-part=\"{}\"]",
                 self.scope, rule.slot
             );
+            if let Some(condition) = &rule.condition {
+                match state_condition_selector(condition) {
+                    Some(suffix) => selector.push_str(&suffix),
+                    None => continue,
+                }
+            }
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {
                 supports_not_calc_size_css.push_str(&css);
                 supports_not_calc_size_css.push('\n');

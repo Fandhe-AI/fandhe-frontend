@@ -1041,7 +1041,12 @@ fn content_height_transition_preset_registers_base_state_and_starting_style() {
     // 開いた定常状態を `height: auto`/`overflow: visible` へ戻し、
     // `transition: none` でアニメーションを無効化する（PR #2289 codex
     // レビュー P1 是正、`SlotRecipe::content_height_transition` rustdoc
-    // 「calc-size() 未対応ブラウザでの表示回帰対策」節参照）。
+    // 「calc-size() 未対応ブラウザでの表示回帰対策」節参照）。加えて
+    // `[hidden]` にも同じ詳細度で `transition: none` を登録し、`[hidden]`
+    // state 規則自身の `transition-*` longhand がこの fallback に勝って
+    // しまう問題を是正する（Cursor Bugbot medium severity 指摘、
+    // `SlotRecipe::supports_not_calc_size_height_state` rustdoc「`[hidden]`
+    // 側の `transition: none` を別規則にする理由」参照）。
     let expected_supports_fallback = concat!(
         "@supports not (height: calc-size(auto, size)) {\n",
         "  [data-scope=\"collapsible\"][data-part=\"content\"] {\n",
@@ -1049,9 +1054,49 @@ fn content_height_transition_preset_registers_base_state_and_starting_style() {
         "    overflow: visible;\n",
         "    transition: none;\n",
         "  }\n",
+        "\n",
+        "  [data-scope=\"collapsible\"][data-part=\"content\"][hidden] {\n",
+        "    transition: none;\n",
+        "  }\n",
         "}\n",
     );
     assert!(css.contains(expected_supports_fallback));
+}
+
+#[test]
+fn supports_not_calc_size_hidden_rule_outranks_hidden_state_rule_in_source_order() {
+    // Cursor Bugbot medium severity 指摘（PR #2289 レビュー）の回帰テスト:
+    // `[hidden]` state 規則（`content_height_closed_transition_declarations`）
+    // は fallback 用 `@supports not (...)` の無条件 `transition: none`
+    // （詳細度 (0,2,0)）より詳細度が高い (0,3,0) を持つため、fallback 側が
+    // `[hidden]` と同じ詳細度の `transition: none` 規則を持たない限り
+    // fallback 環境でも `[hidden]` の `transition-*` longhand が勝って
+    // しまう。同じ詳細度 (0,3,0) の `[hidden]` 規則を `@supports not
+    // (...)` 配下へ追加し、かつそれが通常の `[hidden]` state 規則より
+    // 出力順で後（CSS カスケードの記述順後勝ち）にあることを固定する。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .content_height_transition("root", MotionDuration::Normal);
+    let css = recipe.css();
+
+    let hidden_state_pos = css
+        .find("[data-scope=\"widget\"][data-part=\"root\"][hidden] {")
+        .expect("[hidden] state 規則が存在すること");
+    let supports_hidden_pos = css
+        .find("[data-scope=\"widget\"][data-part=\"root\"][hidden] {\n    transition: none;")
+        .expect("@supports not (...) 配下の [hidden] transition:none 規則が存在すること");
+
+    assert!(
+        hidden_state_pos < supports_hidden_pos,
+        "@supports not (...) 配下の [hidden] 規則は通常の [hidden] state 規則より後に出力される（詳細度が同じため記述順後勝ちで fallback を確実に効かせる）"
+    );
+
+    let supports_block_start = css
+        .find("@supports not (height: calc-size(auto, size)) {")
+        .expect("@supports not (...) ブロックが存在すること");
+    assert!(
+        supports_block_start < supports_hidden_pos,
+        "[hidden] 用の fallback 規則は @supports not (...) ブロック内に出力される"
+    );
 }
 
 #[test]

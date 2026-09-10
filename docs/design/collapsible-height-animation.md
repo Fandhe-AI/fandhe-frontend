@@ -171,14 +171,42 @@ headless-ui は不変（`hidden` 契約を維持）。pre-styled-ui の `content
   preset へ統合）で `@supports not (height: calc-size(auto, size))` ブロック
   を追加した。未対応ブラウザに限って開いた定常状態を `height: auto` /
   `overflow: visible` へ強制的に戻し `transition: none` でアニメーション
-  自体も無効化する（`[hidden]` state 規則は詳細度が高いため閉状態には
-  影響しない）。結果として未対応ブラウザは本 PR 適用前と同じ「`auto` に
-  継続追従・開閉は即時（無アニメーション）」という安全な劣化へ戻り、
+  自体も無効化する。結果として未対応ブラウザは本 PR 適用前と同じ「`auto`
+  に継続追従・開閉は即時（無アニメーション）」という安全な劣化へ戻り、
   対応ブラウザのみアニメーション付きの高さ追従が有効になる。resize 時の
   再同期（対応ブラウザでの計測タイミング外の高さ変化に JS が追従する
   機能自体）は引き続き本イシューのスコープ外・別イシュー提案の対象。
   #2191 が記録する「縮んだ場合に前回値が残る」限界（§5.1）はブラウザ
   対応状況によらず不変。
+- **`@supports not (...)` fallback が `[hidden]` state 規則の詳細度に
+  負ける表示回帰の是正（Cursor Bugbot medium severity 指摘、PR #2289
+  マージ後の追加是正）**: 上記 fallback は当初、無条件 base セレクタ
+  （詳細度 (0,2,0)）へのみ `transition: none` を登録していた。しかし
+  `[hidden]` state 規則自身（`content_height_closed_transition_
+  declarations`）は `transition-property`/`transition-duration`/
+  `transition-timing-function`/`transition-behavior` の 4 longhand を
+  詳細度 (0,3,0) の `[hidden]` セレクタで宣言しており、これは fallback
+  の base セレクタより詳細度が高い。このため `@supports not (...)` が
+  真（未対応環境）でも `[hidden]` 側の `transition-*` がカスケード
+  詳細度で勝ってしまい、`height` は離散値として `auto`⇄`0` 間を即座に
+  スナップする一方で `padding-block`/`margin-block` だけは `[hidden]`
+  自身の `transition-duration` に従ってアニメーションする、という
+  一貫しない見た目が Safari/Firefox で観測された。是正として
+  `SlotRecipe::supports_not_calc_size_height_state`（`[hidden]` 条件付き
+  版、`content_height_transition` preset へ統合）を追加し、`[hidden]`
+  と同じ詳細度 (0,3,0) の `transition: none` 規則を `@supports not
+  (...)` 配下へ追加した。[`SlotRecipe::css`] の出力順（states →
+  `@starting-style` → `@supports not (...)`）により本規則は通常の
+  `[hidden]` state 規則より後に現れるため、詳細度が等しい 2 規則は
+  CSS カスケードの記述順で後勝ちし、fallback 環境に限って `[hidden]`
+  の `transition-*` を確実に無効化する。`height`/`padding-block`/
+  `margin-block`/`overflow` の値そのもの（`content_height_closed_
+  declarations`）は変わらず、即時（無アニメーション）の開閉になる。
+  対応ブラウザでは `@supports not (...)` 自体が不成立のため本規則は
+  一切適用されず、`[hidden]` の `step-start` タイミング関数がそのまま
+  有効になる。実装詳細は `crates/pre-styled-ui/src/recipe.rs` の
+  `SupportsNotCalcSizeRule`/`SlotRecipe::supports_not_calc_size_height_
+  state` rustdoc を正とする。
 - **calc-size() 対応ブラウザにおける開いた定常状態のクリップ解消
   （PR #2289 追加 codex レビュー P1 是正）**: `calc-size()` 対応ブラウザで
   開閉トランジション自体が成立するようになった結果、`overflow: hidden`

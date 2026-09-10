@@ -267,6 +267,10 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
     overflow: visible;
     transition: none;
   }
+
+  [data-scope="accordion"][data-part="item-content"][hidden] {
+    transition: none;
+  }
 }
 
 @media (hover: hover) {

@@ -187,6 +187,10 @@ const COLLAPSIBLE_GOLDEN_CSS: &str = r#"[data-scope="collapsible"][data-part="ro
     overflow: visible;
     transition: none;
   }
+
+  [data-scope="collapsible"][data-part="content"][hidden] {
+    transition: none;
+  }
 }
 
 @media (hover: hover) {
