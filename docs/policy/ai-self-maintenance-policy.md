@@ -139,6 +139,16 @@ AI エージェントへ促す（`tools/ci/ensure-gate-tools.sh` の実行、ま
 `gate_result` は `"BLOCKED"` のまま（コード起因優先、`docs/design/gate-design.md`
 §4）。
 
+**`--only` による部分実行（イシュー #2305）と本ルールの関係**: `fw gate
+--only <check>[,<check>...]` は実行チェックを部分集合へ限定でき、JSON に
+`selected_checks` キーが付与される（`docs/design/gate-design.md` §4.1）。
+本ルールが前提とする「ゲート通過（`gate_result: PASS`）」は**フル実行**
+（`--only` 省略、`selected_checks` キー不在）の `PASS` を指す。
+`selected_checks` を持つレポートの `PASS` は選択したチェックのみの部分
+PASS であり、本ルール・ルール 2 の自動適用判断の前提を満たさない（AI
+エージェントが `fw gate` を自己保守フックから直接呼ぶ場合は `--only` を
+付けずフル実行すること）。
+
 ### ルール 2: ゲート通過かつ `breaking_risk: low` かつ `affected_routes` が空の変更は自動適用候補とする
 
 `fw impact <symbol>` の判定で `breaking_risk: low`（影響クレート数 0）かつ

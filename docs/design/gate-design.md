@@ -43,9 +43,9 @@
 ## 2. 判定ルール本体
 
 `fw gate` は `structure.toml`（[`crate::structure`]、TASK-13.1）を唯一の
-情報源として宣言クレート一覧を求め、以下の 7 チェックを**すべて実行**する
-（後述 §3 のとおり早期打ち切りはしない）。各チェックは `GateCheck { name,
-passed, output }` として結果を持つ。
+情報源として宣言クレート一覧を求め、既定（`--only` 省略時、§4.1 参照）では
+以下の 7 チェックを**すべて実行**する（後述 §3 のとおり早期打ち切りはしない）。
+各チェックは `GateCheck { name, passed, output }` として結果を持つ。
 
 | # | `name`（JSON） | 目的 | 実行コマンド・判定内容 | 対応 REQ |
 |---|----------------|------|------------------------|----------|
@@ -403,8 +403,9 @@ structure.toml: wasm32 lint not applicable`）で明示する。`structure.toml`
 
 ## 4. 集約規則と CLI 契約
 
-- **集約**: 7 チェックすべてを実行し、早期打ち切りはしない（AI エージェントが
-  一括修正できるよう全違反を報告する PoC-7 の方針を踏襲、[`run_all_checks`]）。
+- **集約**: 既定（`--only` 省略時、§4.1）は 7 チェックすべてを実行し、早期
+  打ち切りはしない（AI エージェントが一括修正できるよう全違反を報告する
+  PoC-7 の方針を踏襲、[`run_all_checks`]）。
   集約規則は 3 値（イシュー #1116 で 2 値から拡張、[`aggregate`]）:
   - 全チェック `passed = true` → `gate_result = "PASS"`
   - 不合格が 1 件以上あり、**不合格の全件**が `environment_error: true`
@@ -462,6 +463,66 @@ structure.toml: wasm32 lint not applicable`）で明示する。`structure.toml`
   #151、`docs/policy/ai-self-maintenance-policy.md` を参照。ERROR は「是正
   対象がランナー環境である」点のみ BLOCKED と異なる）。
 
+### 4.1 `--only` による部分実行（イシュー #2305）
+
+- **背景・目的**: CI の `gate-self-apply` ジョブ（`fw gate --project .` 本体が
+  約 8 分）が CI 壁時計時間の床になっており、チェック群を CI ジョブ単位で
+  並列実行できるよう実行チェックを選択する仕組みを追加した。本イシューの
+  成果物は CLI 側の機能追加までであり、`gate-self-apply` を実際にチェック
+  群ごとの並列ジョブへ分割するのは後続の #2306 が担う（`.claude/rules/ci.md`
+  は変更していない）。
+- **構文**: `fw gate --project <dir> [--verbose] --only <check>[,<check>...]`。
+  `<check>` は `checks[].name` と同一の 7 値（`type_check` /
+  `default_escape_check` / `url_validation_check` / `lint` / `lint_wasm32` /
+  `test` / `policy`）のいずれかで、カンマ区切りで複数指定できる。`--only` を
+  複数回指定した場合は和集合として解決する（[`parse_only_arg`]）。
+  `--only=<value>` 形式（`=` 区切り）は受理しない——構文を 1 つに絞る設計
+  判断であり、`=` を含むトークンは `--only` との完全一致にならず
+  `--project` 引数解決側の usage エラーへ落ちる。
+- **既定動作は不変**: `--only` を指定しない場合、実行チェック・実行順序・
+  JSON 出力の形状（`checks` の名前・順序、キー構成）は本書 §2〜§4 の記述から
+  一切変更していない。`--only` なしの JSON はバイト同一のまま維持される
+  （後述の `selected_checks` キー省略、[`render_report`]）。
+- **fail-closed 条件**（いずれも終了コード `2` の usage エラー。usage
+  メッセージは既知チェック名一覧を含むが、ユーザーが与えた未知の値そのもの
+  はエラーメッセージへ埋め込まない、security.md A03）:
+  - `--only` の値が欠落している（引数列の末尾、または次トークンが `--` で
+    始まるフラグ）
+  - 値の要素が空文字列（連続カンマ・先頭/末尾カンマを含む）
+  - `checks[].name` の 7 値のいずれとも完全一致しない名前が含まれる
+  - `--only` は `structure.toml` 読み込み・検証失敗の即時 `BLOCKED` 経路
+    （§3、fail-closed）をバイパスできない。選択があってもこの経路は必ず
+    先に通る
+- **正規化**: 選択結果は canonical 順（`checks[].name` の既定順序、
+  [`CHECK_NAMES`]）へ並べ替えた重複なしリストとする。ユーザーが `--only` へ
+  渡した指定順・複数回指定の順序は出力へ反映しない。
+- **実行**: 選択されなかったチェックの外部コマンドは一切起動しない
+  （[`run_check_by_name`] による名前ベース dispatch、[`run_selected_checks`]）。
+  静的専用（asset-only、§2.5）プロジェクトとの組み合わせでも既存の
+  not-applicable PASS 挙動は不変であり、cargo 系チェックが選択されていても
+  cargo は起動されない。
+- **JSON 契約の拡張**: `--only` 指定時のみ、`action` の**末尾**に
+  `"selected_checks"` キーを追加する（既存 `checks`/`gate_result`/`action`
+  の形状・順序は不変の後方互換拡張、イシュー #1116 の `environment_error`/
+  `command` 追加と同じ方式）。
+
+```json
+{
+  "checks": [
+    { "name": "test", "passed": true, "output": "...", "environment_error": false, "command": "cargo test --locked -p app" }
+  ],
+  "gate_result": "PASS",
+  "action": "all checks passed; changes may proceed",
+  "selected_checks": ["test"]
+}
+```
+
+  - **消費側契約**: 「フル実行の PASS」とは `gate_result == "PASS"` **かつ**
+    `selected_checks` キーが存在しないことを指す。`selected_checks` を持つ
+    レポートは部分実行の PASS であり、フル PASS とみなしてはならない
+    （`docs/policy/ai-self-maintenance-policy.md` ルール 1 が前提とする自動
+    適用可否の判断基準はフル PASS のみを対象とする）。
+
 ## 5. セキュリティ不変条件
 
 - **A03（インジェクション）**: 外部コマンドは [`std::process::Command`] に
@@ -505,6 +566,7 @@ structure.toml: wasm32 lint not applicable`）で明示する。`structure.toml`
 | §2.3a/§2.3b（環境エラー種別・案内実在化・コマンド可視化・test 要約、イシュー #1116） | `gate_tools_script_exists`（是正案内の実在導線化）、`finish_command_check`・`command_line`（`command`/`$ <command>` 前置行）、`summarize_test_output`・`summarize_passing_test_output`（`test` PASS 時の要約、`run_gate` から `--verbose` 未指定時のみ呼ばれる） |
 | §4（3 値集約・終了コード 3・`--verbose`、イシュー #1116） | `aggregate`（`GateCheck.environment_error` に基づく `PASS`/`ERROR`/`BLOCKED` 3 値化）、`run_gate`（`--verbose` 解析・終了コード `0/1/2/3`）、`render_report`（`environment_error`/`command` キー追加） |
 | §2.6（`lint_wasm32` チェック、イシュー #1174） | `run_cargo_clippy_wasm32`・`declared_client_entrypoint_crate_names`・`wasm32_target_environment_preflight`（`clippy_policy_check`/`clippy_environment_preflight` は `check_name` パラメータ化して `lint`/`lint_wasm32` 双方から再利用） |
+| §4.1（`--only` による部分実行、イシュー #2305） | `CHECK_NAMES`（canonical 順定数）、`extract_only_values`・`parse_only_arg`（引数抜き出し・検証・正規化）、`run_check_by_name`（名前ベース dispatch）、`run_selected_checks`（`selection: Option<&[&str]>` を受け取る本体、`run_all_checks` はこれの `None` 呼び出しへ縮退したテスト専用ラッパ）、`GateReport::selected_checks`、`render_report`（`selected_checks` キーの末尾追記）、`GATE_USAGE`（usage 文言、`main.rs::print_usage` の `gate` 行と同期） |
 
 対応するテストは `crates/cli/tests/gate_integration.rs`（CLI 経由の統合テスト、
 6 ケース）・`crates/cli/tests/negative_cases.rs`（型エラー・未エスケープ・禁止依存・
@@ -605,7 +667,12 @@ TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
   §2.4）は「REQ-1 隣接の既存不変条件（イシュー #373 の URL スキーム検証）が
   レビュー・テストのみに依存し機械検出できていない」という明確な弱体化
   リスクへの対応であり、本原則が想定する「任意のチェック追加提案」の
-  対象外として本書内で正式化した。
+  対象外として本書内で正式化した。同様にイシュー #2305（`--only` オプション
+  追加、§4.1）は CI 壁時計時間短縮（後続 #2306 のチェック群並列ジョブ分割の
+  前提）という明確な運用上の必要性への対応であり、既定動作（`--only` 省略時
+  の 7 チェック全実行・JSON 出力の形状）を一切変更せずに実行チェックを選択
+  する経路のみを追加したため、「チェック追加」ではなく「既存の実行契約を
+  不変に保ったままの CLI インターフェース拡張」として本書内で正式化した。
 - **新 API（束縛点・keyed list・Loader）に対するチェック追加は非採用
   （イシュー #353 で判断）**: いずれもノード木 API 経由で HTML を構築し、
   REQ-1 は既存 3 層（`disallowed-methods` lint の主防御 + `default_escape_check`

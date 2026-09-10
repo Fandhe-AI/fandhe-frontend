@@ -20,9 +20,15 @@
 //! 基準への調整（イシュー #1517）」節に記録する。
 //!
 //! イシュー #2027（shadcn/ui 突合）で `list` に `overflow-wrap: break-word`
-//! を追加した（shadcn `BreadcrumbList` の `break-words` 相当）。意図的に
-//! 追随しない差分（`sm:` breakpoint の `gap` 拡張等）は同ファイルの
-//! 「shadcn/ui 突合（イシュー #2027）」節に記録する。
+//! を追加した（shadcn `BreadcrumbList` の `break-words` 相当）。
+//!
+//! イシュー #2198 で `list` へ `SlotRecipe::breakpoint`（`crates/pre-styled-ui/src/recipe.rs`。
+//! #2197 で新設された breakpoint 機構の最初の消費者）を初適用した
+//! （states の後・`@media (hover: hover)` ブロックの前に `@media
+//! (min-width: 640px) { ... }` ブロックが 1 つ増える純追加）。shadcn
+//! `BreadcrumbList` の `sm:gap-2.5` 相当。詳細は
+//! `crates/pre-styled-ui/src/breadcrumb.rs` モジュール doc「breakpoint
+//! 初適用（イシュー #2198）」節を参照。
 //!
 //! PR #2142 codex-review P2 指摘是正: `item`/`link`/`current-link` は
 //! いずれも flex item（`min-width` 初期値 `auto`）であり、`overflow-wrap:
@@ -112,6 +118,12 @@ const BREADCRUMB_GOLDEN_CSS: &str = r#"[data-scope="breadcrumb"][data-part="list
 [data-scope="breadcrumb"][data-part="link"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (min-width: 640px) {
+  [data-scope="breadcrumb"][data-part="list"] {
+    gap: var(--fandhe-space-2-5, 0.625rem);
+  }
 }
 
 @media (hover: hover) {

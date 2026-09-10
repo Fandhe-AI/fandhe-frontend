@@ -343,3 +343,153 @@ fn fw_gate_blocks_blanket_allow_suppression() {
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ------------------------------------------------------------------
+// イシュー #2305: `fw gate --only <check>[,<check>...]` — 実行チェック選択。
+// ------------------------------------------------------------------
+
+/// 未知のチェック名は usage エラー（終了コード 2）として fail-closed に
+/// 拒否する。入力値そのもの（"bogus_check"）は stderr へ echo しない
+/// （security.md A03: 未知入力を出力文言へ埋め込まない）。
+#[test]
+fn fw_gate_only_rejects_unknown_check_name_with_usage_error() {
+    let tmp = tempdir_for_test("fw-gate-only-unknown-check");
+    let (code, _stdout, stderr) =
+        run_fw_gate(&["--project", tmp.to_str().unwrap(), "--only", "bogus_check"]);
+    assert_eq!(code, 2, "unknown --only check name must exit 2: {stderr}");
+    assert!(
+        stderr.contains("usage"),
+        "usage error must mention usage: {stderr}"
+    );
+    assert!(
+        !stderr.contains("bogus_check"),
+        "unknown input value must not be echoed back: {stderr}"
+    );
+    assert!(
+        stderr.contains("test"),
+        "usage error should list known check names: {stderr}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// `--only` の値が欠落している（末尾に単独で置かれている）場合は usage エラー。
+#[test]
+fn fw_gate_only_rejects_missing_value_with_usage_error() {
+    let tmp = tempdir_for_test("fw-gate-only-missing-value");
+    let (code, _stdout, stderr) = run_fw_gate(&["--project", tmp.to_str().unwrap(), "--only"]);
+    assert_eq!(code, 2, "missing --only value must exit 2: {stderr}");
+    assert!(stderr.contains("usage"), "stderr={stderr}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// `--only` を指定しても `structure.toml` 欠落の fail-closed 経路（即時
+/// BLOCKED）はバイパスできない。選択によって構造チェック自体をスキップさせ
+/// ないことの回帰固定（実装計画 §4.3）。`selected_checks` はこの早期 BLOCKED
+/// 経路でも出力される。
+#[test]
+fn fw_gate_only_does_not_bypass_missing_structure_manifest_block() {
+    let tmp = tempdir_for_test("fw-gate-only-missing-manifest");
+    let (code, stdout, stderr) =
+        run_fw_gate(&["--project", tmp.to_str().unwrap(), "--only", "test"]);
+    assert_eq!(
+        code, 1,
+        "missing structure.toml must still BLOCK even with --only: stderr={stderr}"
+    );
+    assert!(stdout.contains("\"gate_result\":\"BLOCKED\""));
+    assert!(
+        stdout.contains("\"selected_checks\":[\"test\"]"),
+        "stdout={stdout}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// `--only default_escape_check` は選択したチェックのみを `checks` に含め、
+/// 他チェック（特に `policy`。同フィクスチャは `deny.toml` を持たず、フル
+/// 実行なら `policy` も失敗する）は含まれない。
+#[test]
+fn fw_gate_only_runs_selected_check_alone_and_excludes_others() {
+    let tmp = tempdir_for_test("fw-gate-only-default-escape-check");
+    write_minimal_fixture_with_unreviewed_raw_html(&tmp);
+
+    let (code, stdout, stderr) = run_fw_gate(&[
+        "--project",
+        tmp.to_str().unwrap(),
+        "--only",
+        "default_escape_check",
+    ]);
+    assert_eq!(
+        code, 1,
+        "unreviewed raw_html() must still BLOCK under --only: stderr={stderr}"
+    );
+    assert!(stdout.contains("\"gate_result\":\"BLOCKED\""));
+    assert!(
+        stdout.contains("\"selected_checks\":[\"default_escape_check\"]"),
+        "stdout={stdout}"
+    );
+    assert!(stdout.contains("default_escape_check"), "stdout={stdout}");
+    assert!(
+        !stdout.contains("\"name\":\"policy\""),
+        "unselected checks (policy) must not appear in the report: {stdout}"
+    );
+    assert!(
+        !stdout.contains("deny.toml not found"),
+        "unselected policy check must not run, so its failure text must be absent: {stdout}"
+    );
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// `--only url_validation_check` は cargo を一切起動せずに実 PASS へ到達できる
+/// 経路（純粋関数チェックのみの選択）。フィクスチャは `structure.toml` の
+/// マニフェスト検証さえ通ればよく、cargo パッケージを持たない（cargo 系
+/// チェックが選択から外れているため起動されない）。
+#[test]
+fn fw_gate_only_pure_check_passes_without_invoking_cargo() {
+    let tmp = tempdir_for_test("fw-gate-only-url-validation-check");
+    std::fs::write(
+        tmp.join("structure.toml"),
+        r#"
+[manifest]
+version = 1
+
+[directories.app]
+role = "component"
+crate = "gate-fixture-app"
+description = "test fixture"
+"#,
+    )
+    .unwrap();
+
+    let (code, stdout, stderr) = run_fw_gate(&[
+        "--project",
+        tmp.to_str().unwrap(),
+        "--only",
+        "url_validation_check",
+    ]);
+    assert_eq!(code, 0, "pure check selection must PASS: stderr={stderr}");
+    assert!(stdout.contains("\"gate_result\":\"PASS\""));
+    assert!(
+        stdout.contains("\"selected_checks\":[\"url_validation_check\"]"),
+        "stdout={stdout}"
+    );
+    assert_eq!(
+        stdout.matches("\"name\":").count(),
+        1,
+        "only the selected check must appear: {stdout}"
+    );
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// `--only` なし（既定のフル実行）の JSON には `selected_checks` キーが
+/// 一切現れない（既存の全経路と同じフル PASS/BLOCKED 契約を維持する）。
+#[test]
+fn fw_gate_without_only_omits_selected_checks_key() {
+    let tmp = tempdir_for_test("fw-gate-no-only-omits-key");
+    let (_code, stdout, _stderr) = run_fw_gate(&["--project", tmp.to_str().unwrap()]);
+    assert!(
+        !stdout.contains("selected_checks"),
+        "default full-run JSON must not include selected_checks: {stdout}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
