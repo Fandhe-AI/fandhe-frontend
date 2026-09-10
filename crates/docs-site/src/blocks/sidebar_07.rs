@@ -605,7 +605,7 @@ pub(super) const LAYOUT_CSS: &str = "\
 .blocks-demo.blocks-sidebar-07 {\n  padding: 0;\n  overflow-x: auto;\n}\n\
 [data-blocks-sidebar-07-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n}\n\
 [data-blocks-sidebar-07-caption] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-blocks-sidebar-07-instance] [data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 32rem;\n  height: auto;\n  min-width: 56rem;\n}\n\
+[data-blocks-sidebar-07-instance][data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 32rem;\n  height: auto;\n  min-width: 56rem;\n}\n\
 [data-blocks-sidebar-07-team-trigger], [data-blocks-sidebar-07-user-trigger] {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  width: 100%;\n  text-align: start;\n}\n\
 [data-blocks-sidebar-07-nav-trigger] {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  width: 100%;\n  text-align: start;\n  background: transparent;\n  border: none;\n  cursor: pointer;\n  padding: var(--fandhe-space-2, 0.5rem) var(--fandhe-space-2, 0.5rem);\n  border-radius: var(--fandhe-radius-md);\n  color: inherit;\n  font: inherit;\n}\n\
 [data-blocks-sidebar-07-nav-trigger]:hover {\n  background: var(--fandhe-color-bg-muted);\n}\n\

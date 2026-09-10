@@ -267,6 +267,7 @@ fn sidebar_07_page_wires_demo_class_and_css_hooks() {
         "sidebar-07 page should link the Blocks-specific stylesheet"
     );
     for hook in [
+        "data-blocks-sidebar-07-instance=\"\"",
         "data-blocks-sidebar-07-stack=\"\"",
         "data-blocks-sidebar-07-header=\"\"",
         "data-blocks-sidebar-07-nav-trigger=\"\"",
@@ -308,6 +309,16 @@ fn sidebar_07_page_wires_demo_class_and_css_hooks() {
             "[data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] [data-blocks-sidebar-07-label]"
         ),
         "blocks.css should clip [data-blocks-sidebar-07-label] when the sidebar is icon-collapsed"
+    );
+    // `data-blocks-sidebar-07-instance` は provider 要素自身に付与される
+    // ため、対応する min-height/min-width 上書き規則は子孫コンビネータ
+    // （属性セレクタ間の空白）ではなく同一要素への複合セレクタでなければ
+    // マッチしない（codex-review/Bugbot 指摘の回帰防止、イシュー #2090）。
+    assert!(
+        sheet_css.contains(
+            "[data-blocks-sidebar-07-instance][data-scope=\"sidebar\"][data-part=\"provider\"]"
+        ),
+        "blocks.css should target [data-blocks-sidebar-07-instance] as a compound selector on the provider element, not a descendant combinator"
     );
 }
 
