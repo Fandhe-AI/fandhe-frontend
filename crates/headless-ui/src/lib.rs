@@ -829,6 +829,24 @@
 //!   `fandhe-frontend-pre-styled-ui` のスタイル済み recipe はそれぞれ
 //!   後続イシュー #2118/#2119 のスコープ（[`mod@questionnaire`] モジュール
 //!   doc「out-of-scope」参照）。
+//! - [`mod@data_table`]: Root / Toolbar / ColumnHeader / SortTrigger /
+//!   SelectAll / SelectRow / Footer / SelectionCount の 8 anatomy パーツ
+//!   （イシュー #2125、親 #2124、祖父 #2057、shadcn/ui `Data Table`
+//!   相当、参照軸 #2001）と、ソート方向・非表示列の**表示状態のみ**を
+//!   持つ最小の状態機械 [`data_table::DataTable`]。`<table>`/`<thead>`/
+//!   `<tbody>`/`<tr>` は本クレートで生成せず（`crates/pre-styled-ui/src/`
+//!   にのみ表組みの anatomy がある）、セル単位の表示状態は
+//!   [`data_table::column_attrs`]/[`data_table::column_header_attrs`]/
+//!   [`data_table::row_attrs`] という属性ヘルパで提供する（[`mod@data_table`]
+//!   モジュール doc「イシュータイトルとの差分」参照）。`aria-sort`/
+//!   `data-sort` の値域（none/ascending/descending/other）は
+//!   [`data_table::SortDirection`] が一元管理する。並べ替え・フィルタ・
+//!   ページング処理・行選択集合の保持はアプリケーション責務であり本
+//!   クレートへ持ち込まない（`.claude/rules/coding-rust.md` §UI 部品の
+//!   責務境界 規則 1）。`fandhe-frontend-wasm-full` への配線・
+//!   `fandhe-frontend-pre-styled-ui` の recipe/Themes ページはそれぞれ
+//!   後続イシュー #2126/#2127 のスコープ（[`mod@data_table`] モジュール
+//!   doc「out-of-scope」参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -854,6 +872,7 @@ pub mod color_picker;
 pub mod combobox;
 pub mod command;
 pub mod data_attrs;
+pub mod data_table;
 pub mod date;
 pub mod date_input;
 pub mod date_picker;
@@ -969,6 +988,9 @@ pub use data_attrs::{
     data_checked, data_complete, data_copied, data_current, data_disabled, data_highlighted,
     data_incomplete, data_invalid, data_orientation, data_pressed, data_readonly, data_required,
     data_state, Orientation,
+};
+pub use data_table::{
+    ColumnHeaderProps, ColumnProps, DataTable, DataTableAction, DataTableProps, SortDirection,
 };
 pub use date_input::{DateInput, DateInputAction, DateInputProps, DateSegment};
 pub use date_picker::{DatePicker, DatePickerAction};

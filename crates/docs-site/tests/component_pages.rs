@@ -604,8 +604,10 @@ fn scope_resolution_buckets_match_expected_counts() {
     // と一致）が加わり 108 -> 109、イシュー #2115 で Marker（path 由来の
     // kebab marker が data-scope="marker" と一致）が加わり 109 -> 110、
     // イシュー #2119 で Questionnaire（path 由来の kebab questionnaire が
-    // data-scope="questionnaire" と一致）が加わり 110 -> 111 へ増える。
-    assert_eq!(bucket1_path_match, 111);
+    // data-scope="questionnaire" と一致）が加わり 110 -> 111、イシュー
+    // #2123 で Message Scroller（path 由来の kebab message-scroller が
+    // data-scope="message-scroller" と一致）が加わり 111 -> 112 へ増える。
+    assert_eq!(bucket1_path_match, 112);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }

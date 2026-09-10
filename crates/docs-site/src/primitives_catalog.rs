@@ -3,7 +3,8 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! `/primitives/<kebab>/` 74 ページ（イシュー #2121 で `message_scroller`
+//! `/primitives/<kebab>/` 75 ページ（イシュー #2125 で `data_table`
+//! を追加、旧 74。イシュー #2121 で `message_scroller`
 //! を追加、旧 73。イシュー #2117 で `questionnaire`
 //! を追加、旧 72。イシュー #2114 で `marker` を
 //! 追加、旧 71。イシュー #2111 で `attachment` を
@@ -29,7 +30,8 @@
 //! # 判別規約（設計 §6 の要旨）
 //!
 //! `crates/headless-ui/src/*.rs` のうち本文に `anatomy(` を含むもの
-//! （`anatomy.rs` 自身を除く）が部品 74 件（イシュー #2121 で
+//! （`anatomy.rs` 自身を除く）が部品 75 件（イシュー #2125 で
+//! `data_table` が加わり 74 → 75。イシュー #2121 で
 //! `message_scroller` が加わり 73 → 74。イシュー #2117 で
 //! `questionnaire` が加わり 72 → 73。イシュー #2114 で `marker`
 //! が加わり 71 → 72。イシュー #2111 で
@@ -86,7 +88,8 @@ pub enum PrimitiveCategory {
     /// Navigation（13 件、原稿は #1028。イシュー #2072 で sidebar が追加され
     /// 12 → 13。イシュー #2059 で button_group が追加され 11 → 12）。
     Navigation,
-    /// Data Display / Utilities（16 件、原稿は #1029。イシュー #2121 で
+    /// Data Display / Utilities（17 件、原稿は #1029。イシュー #2125 で
+    /// `data_table` が追加され 16 → 17。イシュー #2121 で
     /// `message_scroller` が追加され 15 → 16。イシュー #2114 で
     /// `marker` が追加され 14 → 15。イシュー #2111 で `attachment` が
     /// 追加され 13 → 14。イシュー #2108 で
@@ -134,7 +137,8 @@ impl PrimitiveCategory {
     }
 }
 
-/// Primitives 台帳（74 件、イシュー #2121 で `message_scroller` 追加、旧 73。
+/// Primitives 台帳（75 件、イシュー #2125 で `data_table` 追加、旧 74。
+/// イシュー #2121 で `message_scroller` 追加、旧 73。
 /// イシュー #2117 で `questionnaire` 追加、旧 72。
 /// イシュー #2114 で `marker` 追加、旧 71。
 /// イシュー #2111 で `attachment` 追加、旧 70。
@@ -527,7 +531,7 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         title: "Toolbar",
         category: PrimitiveCategory::Navigation,
     },
-    // --- Data Display / Utilities（16、#1029。イシュー #2121 で message_scroller 追加、旧 15。イシュー #2114 で marker 追加、旧 14。イシュー #2111 で attachment 追加、旧 13。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
+    // --- Data Display / Utilities（17、#1029。イシュー #2125 で data_table 追加、旧 16。イシュー #2121 で message_scroller 追加、旧 15。イシュー #2114 で marker 追加、旧 14。イシュー #2111 で attachment 追加、旧 13。イシュー #2105 で message 追加、旧 11。イシュー #2065 で item 追加、旧 10） ---
     PrimitiveEntry {
         // イシュー #2111 で headless-ui 層を実装。Themes ページと title
         // 一致（イシュー #2112、`site/themes/attachment.md` / `site/nav.toml`
@@ -553,6 +557,15 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         module: "carousel",
         path: "/primitives/carousel/",
         title: "Carousel",
+        category: PrimitiveCategory::DataDisplayUtilities,
+    },
+    PrimitiveEntry {
+        // イシュー #2125 で headless-ui 層のみ先行実装（Themes 層は後続
+        // イシュー #2127 のスコープ、`PRIMITIVES_WITHOUT_THEMES_PAGE`
+        // 参照）。
+        module: "data_table",
+        path: "/primitives/data-table/",
+        title: "Data Table",
         category: PrimitiveCategory::DataDisplayUtilities,
     },
     PrimitiveEntry {
@@ -702,14 +715,19 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// 同様にイシュー #2117 で headless-ui 層のみ先行実装され暫定的にこの台帳へ
 /// 載っていたが、イシュー #2119 で Themes 層（`crates/pre-styled-ui/src/
 /// questionnaire.rs`・`site/themes/questionnaire.md`）を実装済みのため
-/// 除外した。`message_scroller` はイシュー #2121 で headless-ui 層のみ
-/// 先行実装した暫定登録であり、Themes 層（styled recipe・golden・
-/// `site/themes/message-scroller.md`）は後続イシュー #2123 のスコープである。
+/// 除外した。`message_scroller` も同様にイシュー #2121 で headless-ui 層
+/// のみ先行実装され暫定的にこの台帳へ載っていたが、イシュー #2123 で
+/// Themes 層（`crates/pre-styled-ui/src/message_scroller.rs`・
+/// `site/themes/message-scroller.md`）を実装済みのため除外した。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
-/// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["message_scroller"];
+/// 作らない」の限定用途の 1 つ）。`message_scroller` はイシュー #2123 で
+/// Themes 層を実装済みのため除外済みで、現在は `data_table` のみが
+/// 該当する。`data_table` も同型の暫定登録であり、イシュー #2125 で
+/// headless-ui 層のみ先行実装した（Themes 層・styled recipe・golden・
+/// `site/themes/data-table.md` は後続イシュー #2127 のスコープ）。
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["data_table"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
@@ -896,8 +914,10 @@ mod tests {
         assert!(result.is_clean(), "{result:?}");
     }
 
-    /// 台帳が 74 件・6 カテゴリで、件数配分（13/12/10/10/13/16）と
-    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2121 で
+    /// 台帳が 75 件・6 カテゴリで、件数配分（13/12/10/10/13/17）と
+    /// カテゴリ出現順が設計 §7 の表順であること（イシュー #2125 で
+    /// `data_table` が Data Display / Utilities へ追加され同カテゴリは
+    /// 16 → 17、イシュー #2121 で
     /// `message_scroller` が Data Display / Utilities へ追加され同カテゴリ
     /// は 15 → 16、イシュー #2117 で
     /// `questionnaire` が Forms B へ追加され同カテゴリは 11 → 12、
@@ -918,8 +938,8 @@ mod tests {
     /// Navigation は 11 → 12、イシュー #2068 で `command` が Forms A へ
     /// 追加され Forms A は 12 → 13）。
     #[test]
-    fn catalog_has_74_entries_in_six_categories_in_spec_order() {
-        assert_eq!(PRIMITIVES.len(), 74);
+    fn catalog_has_75_entries_in_six_categories_in_spec_order() {
+        assert_eq!(PRIMITIVES.len(), 75);
 
         let expected_order_and_counts: [(PrimitiveCategory, usize); 6] = [
             (PrimitiveCategory::FormsA, 13),
@@ -927,7 +947,7 @@ mod tests {
             (PrimitiveCategory::FormsCDateStatus, 10),
             (PrimitiveCategory::OverlayDisclosure, 10),
             (PrimitiveCategory::Navigation, 13),
-            (PrimitiveCategory::DataDisplayUtilities, 16),
+            (PrimitiveCategory::DataDisplayUtilities, 17),
         ];
 
         assert_eq!(

@@ -2976,6 +2976,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 統合した結果として main の到達値 0.176.0 をさらに上回る 0.177.0 へ
 # マイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
 #
+# イシュー #2125（本コンフリクト解消）: 依存先 fandhe-frontend-headless-ui
+# が #2125（data_table 新設）と #2193（close-trigger 再設計）の同一版数
+# 衝突解消で 0.68.16 へ到達したため、`check-dep-versions --fix` 追随のみ。
+# 本クレート自体の実体変更はないため patch バンプ、0.177.0 から 0.177.1
+# とする（本ブランチ側の到達値。origin/main 側は下記のとおり別経路で
+# 0.178.0 へ到達している）。
+#
 # イシュー #2201: `recipe.rs` に疑似要素（`::before`/`::after`）宣言 API
 # （`SlotRecipe::pseudo_element`/`PseudoElement`）を追加した。公開 API の
 # 純追加（既存シグネチャ・既存 CSS 出力は不変）のため patch バンプとする
@@ -2991,11 +2998,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # に +1（patch）して 0.177.1 とする。
 #
 # 本コンフリクト解消（PR #2289、イシュー #2192、PR #2297 の main 取り込み・
-# 再衝突）: 本ブランチと origin/main（#2297、Forms 家族横断の label
-# data-required 視覚化）がいずれも独立に 0.177.0 へ到達しており、同一
-# 版数への偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を
+# 再衝突）: origin/main は本ブランチと並行して #2297（Forms 家族横断の
+# label data-required 視覚化）がいずれも独立に 0.177.0 へ到達しており、
+# 同一版数への偶発的衝突をそのまま採用しない原則に従い、双方の実体変更を
 # 統合した結果として main の到達値 0.177.0 をさらに上回る 0.178.0 へ
-# マイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
+# マイナーバンプしていた。
 # イシュー #2197: `recipe.rs` に `@media (min-width: ...)` を表現する
 # breakpoint 条件（`recipe::Breakpoint`・`recipe::SlotRecipe::breakpoint`）と
 # `theme::Theme` へのブレークポイントトークン（`push_breakpoint`/
@@ -3033,6 +3040,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.177.0 をさらに上回る 0.178.0 へマイナーバンプする（0.x の破壊的変更は
 # マイナーバンプの規約）。
 #
+# 本コンフリクト解消（イシュー #2125、PR #2303 の main 取り込み・2 回目）:
+# 本ブランチ（data_table 対応の dep-version-check --fix 追随のみ、
+# codex-review P1 是正で依存先 fandhe-frontend-headless-ui が空列 id の
+# sort 正規化により 0.68.16 → 0.69.0 へマイナーバンプしたことへの追随を
+# 含む）は 0.178.1 へ到達済みだったが、origin/main は breakpoint 追加
+# （#2197）・close-trigger 再設計の overflow 是正（#2192）により独立に
+# 0.179.0 へ到達していた。本ブランチの実体変更は headless-ui への version
+# 要求追随（0.69.0）のみであり main 側の到達値に対する部分集合のため、
+# main の到達値 0.179.0 を土台としつつ、本ブランチの dep-version-check
+# 追随（headless-ui 0.69.0 への version 要求更新、下記 `[dependencies]`
+# 参照）のみを反映した patch バンプとして 0.179.0 から 0.179.1 とする
+# （本クレート自体の実体変更はない）。
+#
 # イシュー #2198: breadcrumb `list` の `gap` へ breakpoint（`Breakpoint::Sm`、
 # #2197 で新設済みの機構の初適用）を追加した。CSS 宣言の純追加・Rust 公開
 # API シグネチャ不変のため `docs/ci/style-refresh-version-bump-operation.md`
@@ -3057,6 +3077,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.68.15 のまま）は main の 0.179.0 に含まれていない実体変更のため、
 # main の到達値 0.179.0 からさらに +1（patch）して 0.180.0 とする。
 #
+# base 取り込み（PR #2303、イシュー #2125、再マージ）: 本ブランチの
+# 到達値 0.179.1（上記の通り headless-ui 0.69.0 への dep-version-check
+# 追随のみの patch バンプ）に対し、origin/main は独立に 0.180.0（上記
+# base 取り込み・4 回目を経た到達値）へ到達していた。同一版数への偶発的
+# 衝突ではないが、本ブランチの headless-ui 0.69.0 依存追随（origin/main
+# は 0.68.17 のまま）は main の 0.180.0 に含まれていない実体変更のため、
+# main の到達値 0.180.0 からさらに +1（patch）して 0.180.1 とする（本
+# クレート自体の実体変更はない）。
 # イシュー #2282: bubble の `collapse-content` slot へ #2192 の共通高さ
 # トランジション機構（`SlotRecipe::content_height_transition`）を適用。
 # CSS 出力の追加のみで公開 API シグネチャは不変のため patch バンプ
@@ -3097,6 +3125,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # pseudo_element API 追加、いずれも patch 相当の純追加）を統合した結果
 # として 0.180.1 の patch をさらに +1 した 0.180.2 を採用する。
 #
+# base 取り込み（PR #2303、イシュー #2125、再々マージ）: 本ブランチの
+# 実体変更は headless-ui 0.69.0 への dep-version-check 追随のみであり
+# main 側の到達値に対する部分集合のため、origin/main の到達値 0.180.2
+# （上記のとおり breadcrumb breakpoint 適用 + pseudo_element API 追加を
+# 統合した到達値）を土台としつつ、本ブランチの dep-version-check 追随
+# （headless-ui 0.69.0 への version 要求更新、下記 `[dependencies]` 参照）
+# のみを反映した patch バンプとして 0.180.2 から 0.180.3 とする（本
+# クレート自体の実体変更はない）。
 # 本コンフリクト解消（PR #2311、イシュー #2282、main 取り込み・同一版数への
 # 偶発的衝突）: 本ブランチ（#2282 bubble collapse-content 適用、patch
 # 相当）と origin/main（PR #2309 breadcrumb breakpoint 適用、patch 相当）が
@@ -3115,7 +3151,51 @@ name = "fandhe-frontend-pre-styled-ui"
 # `Responsive` を追加する破壊的変更（0.x の網羅 `match` 破壊）のため、
 # `.claude/rules/coding-rust.md` の「0.x の破壊的変更はマイナーバンプ」
 # 規約に従い 0.181.0 へマイナーバンプする。
-version = "0.181.0"
+#
+# base 取り込み（PR #2303、イシュー #2125、再々々マージ、同一版数への
+# 偶発的衝突）: 本ブランチの到達値 0.180.3（上記の通り headless-ui
+# 0.69.0 への dep-version-check 追随のみ）に対し、origin/main も
+# 別経路（PR #2311、イシュー #2282 bubble collapse-content 適用と
+# breadcrumb breakpoint 適用の統合）で独立に同じ 0.180.3 へ到達して
+# いた。同一版数への偶発的衝突をそのまま採用しない原則に従い、main の
+# 到達値 0.180.3 からさらに +1（patch）して 0.180.4 とする（本クレート
+# 自体の実体変更はない）。
+#
+# 本コンフリクト解消（PR #2303、イシュー #2125、main 取り込み・同一版数への
+# 偶発的衝突）: 本ブランチ（上記のとおり headless-ui 0.69.0 への
+# dep-version-check 追随のみで 0.180.4 へ到達）と origin/main（PR #2315、
+# イシュー #2202 splitter resize-trigger の `::after` ヒットエリア拡張と
+# bubble collapse-content 適用の統合で独立に同じ 0.180.4 へ到達）が双方とも
+# 同一版数 0.180.4 へ到達していたため、同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、0.180.4 をさらに +1 した 0.180.5 へ patch バンプ
+# する（本クレート自体の実体変更はない）。
+# （旧到達値 0.180.5 の宣言行は最終行 0.181.2 に一本化のため削除）
+# イシュー #2123: `message_scroller` モジュールを新規追加した（`pub mod`
+# 純追加、既存モジュールの公開 API・golden CSS は無変更）。本コンフリクト
+# 解消時点で origin/main は #2198 breadcrumb breakpoint 適用 + #2201
+# pseudo_element API 追加の統合により 0.180.2（patch）へ到達していた。
+# 本ブランチの変更は公開 API の純追加でありマイナーバンプ相当のため、
+# origin/main の到達値 0.180.2 を上回るよう 0.181.0 へマイナーバンプ
+# する。
+# （旧到達値 0.181.1 の宣言行は最終行 0.181.2 に一本化のため削除）
+# 本コンフリクト解消（イシュー #2123、PR #2318、base 取り込み）: 本ブランチは
+# message_scroller モジュール純追加によりマイナーバンプ 0.181.0 へ到達済みで、
+# origin/main（0.180.3。#2198/#2201/#2282 等の統合を経た到達値）を既に上回るため、
+# 同一版数への偶発的衝突には該当しない。本ブランチの到達値 0.181.0 をそのまま採用する。
+# 本コンフリクト解消（イシュー #2123、PR #2318、base 取り込み・2 回目）: 本ブランチの到達値 0.181.0 は origin/main の到達値 0.180.4（#2198/#2201/#2282/#2202/#2309/#2311/#2315 等の統合を経た到達値）を依然上回るため、同一版数への偶発的衝突には該当しない。本ブランチの到達値 0.181.0 をそのまま採用する。
+# イシュー #2123 PR #2318 レビュー指摘の是正: `load-more` のセンタリング
+# 手段（`align-self`/`display: inline-flex` の `margin: auto`、Themes
+# サンプルの実配置〔`viewport` の非 flex/grid ブロックフロー子〕では
+# いずれも無効）と、`viewport` 先頭フェード帯域との重なり（`load-more`
+# が霞む）を是正した。golden CSS の `load-more` ブロックを書き換える
+# 観測可能な変更のため 0.181.1 へ patch バンプする。
+# 本コンフリクト解消(PR #2303、イシュー #2125、main 取り込み・#2319 是正取り込み後の再衝突): 本ブランチの到達値 0.180.5(headless-ui 0.69.0 への dep-version-check 追随のみ)と、origin/main の到達値 0.181.1(#2123 message_scroller 追加 + #2318 レビュー指摘是正を経たマイナーバンプ到達値)を比較すると、origin/main が既に本ブランチを上回っているため、origin/main の到達値 0.181.1 を土台としつつ、本ブランチ側の dep-version-check 追随(headless-ui 0.69.0 への version 要求更新)を反映した patch バンプとして 0.181.2 とする(本クレート自体の実体変更はない)。
+# 本コンフリクト解消（イシュー #2199、PR feat/2199、main 取り込み）: 本ブランチは FieldOrientation へ新 variant Responsive を追加する破壊的変更
+# （0.x の網羅 match 破壊）のためマイナーバンプ 0.181.0 へ到達していたが、origin/main は別経路の統合を経て patch バンプの積み重ねで 0.181.2 へ到達しており、
+# 本ブランチの到達値を上回っている。同一版数への偶発的衝突ではなく origin/main が
+# 本ブランチを上回るケースだが、本ブランチの変更はマイナーバンプ相当の破壊的変更である
+# ため、origin/main の到達値 0.181.2 をさらに上回るようマイナーバンプし 0.182.0 とする。
+version = "0.182.0"
 
 
 edition = "2021"
@@ -3131,7 +3211,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.17" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.69.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

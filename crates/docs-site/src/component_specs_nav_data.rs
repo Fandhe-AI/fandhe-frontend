@@ -49,6 +49,7 @@ use fandhe_frontend_pre_styled_ui::{
     marker::{self as marker, MarkerRootProps, MarkerTone, MarkerVariant},
     marquee,
     message::{self, MessageAlign, MessageRole, MessageRootProps},
+    message_scroller::{self, MessageScrollerRootProps, MessageScrollerStuck},
     native_select, pagination, progress, scroll_area, separator,
     sidebar::{
         self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
@@ -3420,6 +3421,210 @@ pub(crate) const MESSAGE: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "(付与しない) aria-live / aria-busy",
             description: "ストリーミング通知・応答待ちの読み上げはアプリ固有の UX 判断のため、本モジュールは data-loading/data-error の見た目のみを担い aria-live/aria-busy は付与しない（headless message.rs モジュール doc「aria-live/aria-busy を付けない理由」節参照）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Message Scroller（イシュー #2123、親 #2120。headless anatomy は #2121）
+// ---------------------------------------------------------------------
+
+/// `/themes/message-scroller/` の Examples 節其の 1: 既定状態
+/// （`data-stuck="bottom"`、jump-to-latest 非表示、load-more 通常）。
+fn ex_message_scroller_basic() -> Node {
+    let conversation = message::group(
+        "Conversation",
+        vec![],
+        vec![
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::User,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("How do I center a div?")],
+                )],
+            ),
+            message::root(
+                MessageRootProps {
+                    role: MessageRole::Assistant,
+                    ..Default::default()
+                },
+                vec![],
+                vec![message::content(
+                    vec![],
+                    vec![text("Use display: flex and align-items: center.")],
+                )],
+            ),
+        ],
+    );
+    message_scroller::root(
+        MessageScrollerRootProps {
+            stuck: MessageScrollerStuck::Bottom,
+            has_new: false,
+        },
+        vec![("style", "height: 14rem;")],
+        vec![
+            message_scroller::viewport(
+                "Conversation history",
+                vec![],
+                vec![
+                    // 「古いメッセージを読み込む」トリガーは一般的な chat UI の
+                    // 慣習に合わせ、スクロール領域（viewport）内の上端に置く
+                    // （headless 側に入れ子契約はないが、常時表示される
+                    // 位置としてこちらが自然。イシュー #2123 レビュー指摘）。
+                    message_scroller::load_more(
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Load older messages")],
+                    ),
+                    message_scroller::content(vec![], vec![conversation]),
+                    message_scroller::anchor(vec![]),
+                ],
+            ),
+            message_scroller::jump_to_latest("Jump to latest", false, vec![], vec![text("↓")]),
+        ],
+    )
+}
+
+/// `/themes/message-scroller/` の Examples 節其の 2: 離脱状態
+/// （`data-stuck="free"`・`data-has-new` あり、jump-to-latest 強調表示・
+/// load-more 読み込み中）。
+fn ex_message_scroller_scrolled_up_with_new_messages() -> Node {
+    let thread = message::group(
+        "Conversation",
+        vec![],
+        vec![message::root(
+            MessageRootProps {
+                role: MessageRole::Assistant,
+                ..Default::default()
+            },
+            vec![],
+            vec![message::content(
+                vec![],
+                vec![text("New reply while you were scrolled up.")],
+            )],
+        )],
+    );
+    message_scroller::root(
+        MessageScrollerRootProps {
+            stuck: MessageScrollerStuck::Free,
+            has_new: true,
+        },
+        vec![("style", "height: 14rem;")],
+        vec![
+            message_scroller::viewport(
+                "Conversation history",
+                vec![],
+                vec![
+                    // 上記 ex_message_scroller_basic と同じ配置判断（viewport
+                    // 内の上端、イシュー #2123 レビュー指摘）。
+                    message_scroller::load_more(
+                        true,
+                        true,
+                        vec![],
+                        vec![text("Loading older messages...")],
+                    ),
+                    message_scroller::content(vec![], vec![thread]),
+                    message_scroller::anchor(vec![]),
+                ],
+            ),
+            message_scroller::jump_to_latest("Jump to latest", true, vec![], vec![text("↓")]),
+        ],
+    )
+}
+
+/// `/themes/message-scroller/`（イシュー #2123、親 #2120。headless anatomy
+/// は #2121）の原稿データ。`data-stuck`/`data-has-new`/`data-visible`/
+/// `data-loading`/`data-disabled` は headless の `data-*` を `AttrEq`/
+/// `Attr` で参照するのみで class 軸を持たない（`message_scroller.rs`
+/// モジュール doc「表現」節参照）。
+pub(crate) const MESSAGE_SCROLLER: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "root/viewport/content/anchor/jump-to-latest/load-more の 6 パーツで会話ログのスクロールコンテナを構造化する",
+        "MessageScrollerStuck（Bottom/Free）で data-stuck を切り替え、最下部に張り付いているときは viewport の末尾フェードを解除する（root[data-stuck=\"bottom\"] > viewport の raw CSS 追記、message_scroller.rs モジュール doc「端フェードの採否」節参照）",
+        "has_new: bool で data-has-new 存在属性を切り替え、root[data-has-new] > jump-to-latest をアクセント色で強調する",
+        "jump_to_latest の visible: bool で data-visible / hidden の 2 択を切り替える（自動連動しない。hidden 時は UA 既定を display: none の明示規則で上書きする）",
+        "load_more の loading: bool で spinner_decorative を children 先頭へ埋め込み、disabled: bool でネイティブ disabled + data-disabled を切り替える（自動連動しない）",
+        "viewport は既定で mask-image による両端フェードを持つ（--fandhe-message-scroller-fade-start/-end を 0px へ上書きすれば片端無効化できる）",
+        "最下部追従・新着検知・履歴読み込み時の位置維持等のスクロール計測はこの部品では実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1、message_scroller.rs モジュール doc「責務境界」節。実行時配線は fandhe-frontend-wasm-full、イシュー #2122）",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "stuck",
+            kind: "MessageScrollerStuck",
+            default: "Bottom",
+            description: "最下部追従の状態（Bottom/Free）。data-stuck として出力され、Bottom のとき viewport の末尾フェードを解除する。",
+        },
+        ArgRow {
+            name: "has_new",
+            kind: "bool",
+            default: "false",
+            description: "true の場合 data-has-new 存在属性を付与し、jump-to-latest をアクセント色で強調する（新着メッセージの表示のみ）。",
+        },
+        ArgRow {
+            name: "viewport.label",
+            kind: "&str",
+            default: "\"\"",
+            description: "非空のとき viewport へ role=\"region\" + aria-label を出力する（空文字なら付与しない）。",
+        },
+        ArgRow {
+            name: "jump_to_latest.visible",
+            kind: "bool",
+            default: "false",
+            description: "true で data-visible 存在属性、false で hidden 存在属性を出力する（2 択、自動連動しない）。",
+        },
+        ArgRow {
+            name: "load_more.loading",
+            kind: "bool",
+            default: "false",
+            description: "true の場合 data-loading 存在属性を付与し、spinner_decorative を children 先頭へ埋め込む。",
+        },
+        ArgRow {
+            name: "load_more.disabled",
+            kind: "bool",
+            default: "false",
+            description: "true の場合ネイティブ disabled + data-disabled 存在属性を付与する（loading とは自動連動しない）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Default (stuck at bottom)",
+            description: "最下部に張り付いている既定状態です。jump-to-latest は hidden、末尾フェードは解除されています。",
+            render: ex_message_scroller_basic,
+        },
+        ExampleEntry {
+            title: "Scrolled up with new messages",
+            description: "手動スクロールで離脱し新着がある状態です。jump-to-latest が強調表示され、load-more は読み込み中です。",
+            render: ex_message_scroller_scrolled_up_with_new_messages,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Arrow keys / Page Up / Page Down",
+            description: "viewport は tabindex=\"0\" を固定付与したネイティブスクロール領域であり、フォーカス時にブラウザ標準のスクロールキー操作を受け付ける（JS 不要）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "tabindex=\"0\" / role=\"region\" + aria-label (viewport)",
+            description: "viewport は tabindex=\"0\" を固定付与し、label が非空のときのみ role=\"region\" + aria-label を出力する（名前のない region を作らない）。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\" (anchor)",
+            description: "anchor は最下部センチネルであり aria-hidden=\"true\" を固定付与する（fandhe-frontend-wasm-full がスクロール計測の観測対象にする、イシュー #2122）。",
+        },
+        AriaRow {
+            attribute: "type=\"button\" (jump-to-latest / load-more)",
+            description: "両ボタンとも type=\"button\" を固定付与する（フォーム内でも誤送信しない）。",
+        },
+        AriaRow {
+            attribute: "(付与しない) aria-live / aria-busy / aria-posinset / aria-setsize",
+            description: "通知・応答待ちの読み上げ、総数の伝達はいずれもアプリ固有の判断のため付与しない（headless message_scroller.rs モジュール doc「aria-live/aria-busy を付けない理由」「aria-posinset/aria-setsize を持たない理由」節参照）。",
         },
     ],
     demo: None,

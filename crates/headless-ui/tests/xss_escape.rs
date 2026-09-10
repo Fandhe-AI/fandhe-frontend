@@ -29,7 +29,9 @@ use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::attachment::{self, AttachmentRootProps};
 use fandhe_frontend_headless_ui::bubble::{self, BubbleRootProps};
 use fandhe_frontend_headless_ui::calendar;
+use fandhe_frontend_headless_ui::checkbox::CheckedState;
 use fandhe_frontend_headless_ui::command;
+use fandhe_frontend_headless_ui::data_table::{self, ColumnHeaderProps, ColumnProps};
 use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
 use fandhe_frontend_headless_ui::date_picker;
 use fandhe_frontend_headless_ui::drawer;
@@ -52,8 +54,9 @@ use fandhe_frontend_headless_ui::{
     data_state, date_input, dialog, download_trigger, editable, floating_panel, hover_card,
     image_cropper, input_group, listbox, number_input, password_input, pin_input, popover,
     rating_group, segment_group, signature_pad, slider, splitter, tags_input, timer, toast,
-    tree_view, Calendar, DatePicker, ImageStatus, InputGroupAlign, InputGroupProps, Orientation,
-    PasswordAutocomplete, PasswordInputProps, Questionnaire, Steps, ToastStatus, Tour,
+    tree_view, Calendar, DataTable, DataTableProps, DatePicker, ImageStatus, InputGroupAlign,
+    InputGroupProps, Orientation, PasswordAutocomplete, PasswordInputProps, Questionnaire,
+    SortDirection, Steps, ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -3016,6 +3019,150 @@ fn questionnaire_all_parts_are_escaped_for_all_payloads() {
             payload,
             &html,
             "questionnaire::skip の attrs/children コンテキスト",
+        );
+    }
+}
+
+/// `data_table::*`（イシュー #2125）の 8 パーツ全件 ×
+/// [`payloads::all`] のエスケープ回帰。列 id（`data-column`/`data-value`
+/// の値として出力される動的文字列）・呼び出し側 `attrs`・children の
+/// 3 コンテキストを横断する（モジュール doc「セキュリティ不変条件」参照）。
+#[test]
+fn data_table_all_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let t = DataTable::new(
+            Some((payload.to_string(), SortDirection::Ascending)),
+            vec![],
+        );
+
+        let root_node = DataTable::root(
+            DataTableProps {
+                loading: true,
+                empty: true,
+            },
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&root_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::root の attrs/children コンテキスト",
+        );
+
+        let toolbar_node = data_table::toolbar(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&toolbar_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::toolbar の attrs/children コンテキスト",
+        );
+
+        // 列 id を payload にした column_header（`data-column`/`aria-sort` の
+        // 対象列としても通す）。
+        let column_header_node = t.column_header(
+            payload,
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&column_header_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::column_header の id/attrs/children コンテキスト",
+        );
+
+        let sort_trigger_node =
+            t.sort_trigger(payload, vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&sort_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::sort_trigger の id/attrs/children コンテキスト",
+        );
+
+        let select_all_node = DataTable::select_all(
+            CheckedState::Indeterminate,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&select_all_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::select_all の attrs/children コンテキスト",
+        );
+
+        let select_row_node = DataTable::select_row(
+            CheckedState::Checked,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&select_row_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::select_row の attrs/children コンテキスト",
+        );
+
+        let footer_node = data_table::footer(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&footer_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::footer の attrs/children コンテキスト",
+        );
+
+        let selection_count_node =
+            data_table::selection_count(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&selection_count_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::selection_count の attrs/children コンテキスト",
+        );
+
+        // 属性ヘルパ（node を作らない）は呼び出し側の el() へ渡して検証する。
+        let column = ColumnProps {
+            id: payload,
+            hidden: true,
+        };
+        let cell = fandhe_frontend_core::el("td", data_table::column_attrs(&column), vec![]);
+        let html = render(&cell);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::column_attrs の id コンテキスト",
+        );
+
+        let header_props = ColumnHeaderProps {
+            column,
+            sort: Some(SortDirection::Descending),
+        };
+        let th =
+            fandhe_frontend_core::el("th", data_table::column_header_attrs(&header_props), vec![]);
+        let html = render(&th);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::column_header_attrs の id コンテキスト",
+        );
+
+        // 列表示切替アイテム（menu::checkbox_item の薄いラッパ）の value/
+        // children コンテキスト。
+        let toggle_item = data_table::column_toggle_item(
+            &column,
+            false,
+            false,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&toggle_item);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::column_toggle_item の value/attrs/children コンテキスト",
         );
     }
 }

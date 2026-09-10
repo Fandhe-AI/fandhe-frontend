@@ -216,18 +216,18 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 コマンドをそのまま埋める。
 
 ```bash
-# 部品 69 件（イシュー #2059 で button_group・イシュー #2062 で
+# 部品 74 件（実測値。イシュー #2059 で button_group・イシュー #2062 で
 # input_group・イシュー #2065 で item・イシュー #2068 で command・
-# イシュー #2072 で sidebar・イシュー #2105 で message が
-# それぞれ追加され 63→65→66→67→68→69）
-grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 69
-# 総数 79(= 69 + 基盤 9 + lib.rs、旧 73)
-ls crates/headless-ui/src/*.rs | wc -l                                            # => 79
-# Themes 部品ページ 115 件（イシュー #1017 で site/components/ から site/themes/ へ移行済み、
+# イシュー #2072 で sidebar・イシュー #2105 で message・イシュー #2121 で
+# message_scroller が追加された、以降の実測値）
+grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 74
+# 総数 84(= 74 + 基盤 9 + lib.rs、実測値)
+ls crates/headless-ui/src/*.rs | wc -l                                            # => 84
+# Themes 部品ページ 122 件（実測値。イシュー #1017 で site/components/ から site/themes/ へ移行済み、
 # イシュー #2063 で input_group、イシュー #2066 で item、イシュー #2060 で
-# button_group、イシュー #2070 で command、イシュー #2080 で radial_chart の
-# Themes ページが加わり 110→115）
-ls site/themes/*.md | wc -l                                                       # => 119
+# button_group、イシュー #2070 で command、イシュー #2080 で radial_chart、
+# イシュー #2123 で message_scroller の Themes ページが加わった以降の実測値）
+ls site/themes/*.md | wc -l                                                       # => 122
 ```
 
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
@@ -588,15 +588,39 @@ pre-styled-ui recipe・Themes ページは後続 #2119 のスコープのため�
 先行実装し pre-styled-ui recipe・Themes ページは後続 #2123 のスコープの
 ため、`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
 （`tests/wrap_state.rs`）へ `message_scroller` を追加した。現在の実
-カテゴリ内訳は Data Display / Utilities 16・6 グループ**合計 73→74**で
-あり、§6 のコード導出は**部品 74 件**（headless-ui
+カテゴリ内訳は Data Display / Utilities 15→**16**・6 グループ**合計
+73→74**であり、§6 のコード導出は**部品 74 件**（headless-ui
 `crates/headless-ui/src/*.rs` 総数**84** = 部品 74 + 基盤 9 + `lib.rs`）
 との一致は
-`crates/docs-site/tests/primitives_catalog.rs::catalog_has_74_entries_in_six_categories_in_spec_order`
+`crates/docs-site/tests/primitives_catalog.rs::catalog_has_75_entries_in_six_categories_in_spec_order`
 / `module_counts_are_consistent_with_the_source_tree` が機械検査する
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。Themes は questionnaire 追加分の 121 部品のまま不変である
 （`message_scroller` の Themes ページは未実装のため）。
+
+**追記（イシュー #2123）**: `message_scroller` は pre-styled-ui 側実装
+（recipe・golden・`/themes/message-scroller/`）完了により
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）から除外し `WRAPPED_SAME_NAME` へ移した。この
+時点で両リストは空になった。Themes は 121→**122** 部品となる
+（Primitives 74 部品は不変）。
+
+**追記(イシュー #2125)**: shadcn/ui のみに存在する `data_table`
+（Data Table、参照軸 #2001。ark-ui に対応 component なしのため headless
+は ark-ui 系統を維持）を Data Display / Utilities カテゴリの `carousel`
+の後（`item` の前）に追加する。headless-ui は上層（`table`/`empty-state`/
+`skeleton`）へ依存できないため `<table>`/`<thead>`/`<tbody>`/`<tr>` を
+生成しない設計とし、headless-ui 層のみを先行実装した。pre-styled-ui
+recipe・Themes ページは後続 #2127 のスコープのため、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）へ `data_table` を追加した（上記 #2123 で一度
+空になった両リストへの再追加）。現在の実カテゴリ内訳は Data Display /
+Utilities 16→**17**・6 グループ**合計 74→75**であり、§6 のコード導出は
+**部品 75 件**（headless-ui `crates/headless-ui/src/*.rs` 総数**85** =
+部品 75 + 基盤 9 + `lib.rs`）との一致は同上 2 テストが機械検査する
+（本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
+正とする）。Themes は #2123 到達値の 122 部品のまま不変である
+（`data_table` の Themes ページは未実装のため）。
 
 ## 8. `component-coverage-map.md` との関係
 
