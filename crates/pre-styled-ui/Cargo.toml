@@ -2873,8 +2873,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2194: 依存先 `fandhe-frontend-headless-ui` 0.68.14 → 0.68.15
 # （dialog/tabs の shadcn a11y 突合、rustdoc のみ）への `version = "..."`
 # 追随のみ（`cargo run -p xtask -- check-dep-versions --fix`）。本クレート
-# 自身の実体変更は伴わないため patch バンプとし 0.173.1 とする。
-version = "0.173.1"
+# 自身の実体変更は伴わないため patch バンプ対象だが、review 時点で
+# origin/main の到達値が別 PR（#2285 系）により 0.174.0 まで進んでいたため、
+# その到達値をさらに上回る 0.174.1 とする（review 指摘対応、片方の到達値を
+# そのまま採用しない既存原則を踏襲）。
+version = "0.174.1"
 
 
 edition = "2021"

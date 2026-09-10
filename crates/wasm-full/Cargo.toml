@@ -804,8 +804,12 @@ name = "fandhe-frontend-wasm-full"
 # Dialog/Command の外側 pointerdown で右クリック・ctrl+左クリックを
 # 閉鎖対象外にした（shadcn/ui = Radix Primitives の Dialog `isRightClick`
 # 判定との突合）。既存シグネチャ・`OverlayKind` の variant は不変で公開 fn/
-# `const fn` の追加のみのため patch バンプとし、0.18.1 とする。
-version = "0.18.1"
+# `const fn` の追加のみのため patch バンプ対象だが、同一 base（0.18.0）から
+# 独立に 0.18.1 へ patch バンプ済みの #2285（`chart` の期間切替・系列トグル
+# 配線）が origin/main へ先にマージされ到達値が 0.18.1 になっていたため、
+# 無言のバージョン重複（3-way merge が同一文字列を無変更としてすり抜ける）
+# を避けてさらに +1 し、0.18.2 とする（review 指摘対応）。
+version = "0.18.2"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

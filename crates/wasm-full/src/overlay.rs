@@ -1381,9 +1381,12 @@ mod tests {
     }
 
     #[test]
-    fn outside_close_indices_with_pointer_non_primary_still_closes_command() {
+    fn outside_close_indices_with_pointer_non_primary_does_not_close_command() {
         // Command も Dialog と同じ dialog パターンとして対象に含む
-        // （`OverlayKind::Command` doc 参照）。
+        // （`OverlayKind::Command` doc 参照）。非プライマリボタン
+        // （右クリック・ctrl+左クリック等）は閉鎖対象外にするため、
+        // ここでは「閉じない」ことを検証する（テスト名は挙動と逆だった
+        // ため review 指摘を受けて是正、イシュー #2194）。
         let stack = [entry(OverlayKind::Command, true, true)];
         let contains_target = [false];
         assert_eq!(
