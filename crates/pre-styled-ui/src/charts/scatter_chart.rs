@@ -139,7 +139,7 @@ use super::scale::LinearScale;
 use super::svg::{self, fmt_value, ViewBox};
 use super::{series_color_var, tooltip, ChartError};
 use crate::css::decl;
-use crate::recipe::SlotRecipe;
+use crate::recipe::{SlotRecipe, StateCondition};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 /// `data-scope="scatter-chart"` の part 一覧（recipe と揃える）。
@@ -284,7 +284,10 @@ impl ScatterData {
 }
 
 /// [`root`] の描画パラメータ。
-#[derive(Debug, Clone, Copy, PartialEq)]
+///
+/// イシュー #2133 で `range`/`hidden_series`（`String`/`Vec<String>`）を
+/// 純追加したため `Copy` は外れ `Clone` のみになった（0.x の破壊的変更）。
+#[derive(Debug, Clone, PartialEq)]
 pub struct ScatterChartProps {
     /// `viewBox` の幅（px 相当。既定 480.0）。
     pub width: f64,
@@ -300,6 +303,14 @@ pub struct ScatterChartProps {
     /// 場合は本イシュー以前の出力（素の `<svg>`）とバイト一致する
     /// （progressive enhancement の opt-out 経路）。
     pub show_tooltip: bool,
+    /// 表示範囲の不透明な識別子（イシュー #2133、親 #2132）。`Some(v)` の
+    /// とき root（`svg[data-part="root"]`）へ `data-range="<v>"` を出力
+    /// する（既定 `None`＝非出力）。
+    pub range: Option<String>,
+    /// 非表示系列名の一覧（イシュー #2133）。[`ScatterSeries::name`] と
+    /// 完全一致する `point` へ値なし属性 `data-hidden` を付与する。
+    /// データに存在しない名前を指定してもエラーにしない（fail-soft）。
+    pub hidden_series: Vec<String>,
 }
 
 impl Default for ScatterChartProps {
@@ -309,6 +320,8 @@ impl Default for ScatterChartProps {
             height: 300.0,
             point_radius: 4.0,
             show_tooltip: true,
+            range: None,
+            hidden_series: Vec::new(),
         }
     }
 }
@@ -349,6 +362,13 @@ fn recipe() -> SlotRecipe {
                 // 表記へ統一（イシュー #1598、値は不変）。
                 decl("stroke-width", "1"),
             ],
+        )
+        // イシュー #2133: `hidden_series` で指定した系列の描画要素を
+        // 非表示にする（末尾純追加、既存ブロックは不変）。
+        .state(
+            "point",
+            StateCondition::Attr("data-hidden"),
+            vec![decl("display", "none")],
         )
 }
 
@@ -467,6 +487,9 @@ pub fn root(
             }
             point_attrs.push(("data-series", series.name.as_str()));
             point_attrs.push(("fill", fill.as_str()));
+            if props.hidden_series.contains(&series.name) {
+                point_attrs.push(("data-hidden", ""));
+            }
             points.push(svg::circle(cx, cy, props.point_radius, point_attrs));
 
             if props.show_tooltip {
@@ -502,15 +525,15 @@ pub fn root(
     }
     points.extend(hit_areas);
 
-    let svg_node = svg::svg_root(
-        &view_box,
-        vec![
-            ("data-scope", "scatter-chart"),
-            ("data-part", "root"),
-            ("aria-label", aria_label),
-        ],
-        points,
-    );
+    let mut root_attrs: Vec<(&str, &str)> = vec![
+        ("data-scope", "scatter-chart"),
+        ("data-part", "root"),
+        ("aria-label", aria_label),
+    ];
+    if let Some(range) = &props.range {
+        root_attrs.push(("data-range", range.as_str()));
+    }
+    let svg_node = svg::svg_root(&view_box, root_attrs, points);
 
     if props.show_tooltip {
         Ok(tooltip::frame(vec![
@@ -722,7 +745,7 @@ mod tests {
         )])
         .unwrap();
         let props = ScatterChartProps::default();
-        let html = render(&root(&data, props, "label").unwrap());
+        let html = render(&root(&data, props.clone(), "label").unwrap());
 
         let cx_values: Vec<f64> = html
             .split("cx=\"")
@@ -816,5 +839,49 @@ mod tests {
         assert!(css.contains("overflow: visible"));
         assert!(css.contains("stroke-width: 1;"));
         assert!(!css.contains("stroke-width: 1px"));
+    }
+
+    // イシュー #2133: 期間切替・凡例トグルの SSR 構造。
+
+    #[test]
+    fn range_none_omits_data_range() {
+        let html = render(&root(&sample_data(), ScatterChartProps::default(), "range").unwrap());
+        assert!(!html.contains("data-range"));
+    }
+
+    #[test]
+    fn range_some_emits_data_range_on_root() {
+        let props = ScatterChartProps {
+            range: Some("90d".to_string()),
+            ..ScatterChartProps::default()
+        };
+        let html = render(&root(&sample_data(), props, "range").unwrap());
+        assert!(html.contains(r#"data-range="90d""#));
+    }
+
+    #[test]
+    fn hidden_series_adds_data_hidden_to_matching_points_only() {
+        let props = ScatterChartProps {
+            hidden_series: vec!["b".to_string()],
+            ..ScatterChartProps::default()
+        };
+        let html = render(&root(&sample_data(), props, "hidden").unwrap());
+        let b_idx = html.find(r#"data-series="b""#).unwrap();
+        let b_tag_end = html[b_idx..].find('>').unwrap();
+        assert!(html[b_idx..b_idx + b_tag_end].contains("data-hidden"));
+        let a_idx = html.find(r#"data-series="a""#).unwrap();
+        let a_tag_end = html[a_idx..].find('>').unwrap();
+        assert!(!html[a_idx..a_idx + a_tag_end].contains("data-hidden"));
+    }
+
+    #[test]
+    fn hidden_series_unknown_name_is_fail_soft() {
+        let props = ScatterChartProps {
+            hidden_series: vec!["does-not-exist".to_string()],
+            ..ScatterChartProps::default()
+        };
+        let result = root(&sample_data(), props, "hidden");
+        assert!(result.is_ok());
+        assert!(!render(&result.unwrap()).contains("data-hidden"));
     }
 }

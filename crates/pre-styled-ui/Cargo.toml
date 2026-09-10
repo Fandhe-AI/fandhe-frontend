@@ -2754,6 +2754,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2112: `attachment` モジュール（recipe・golden・8 パーツの
 # styled ラッパー）を新設する公開 API 純追加のためマイナーバンプ（0.x の
 # 破壊的変更ではない純追加）。
+# イシュー #2133: charts の凡例を button + aria-pressed 化し、data-range/
+# data-hidden の SSR 構造を追加する。`LegendProps` へ `hidden_series`/
+# `hidden_categories`/`controls` を、各チャート Props へ `range`/
+# `hidden_series`（または `hidden_categories`）を純追加した公開 API 拡張。
+# `BarChartProps`/`RadarChartProps`/`ScatterChartProps` は `String`/
+# `Vec<String>` フィールド追加に伴い `Copy` を外した（0.x の破壊的変更）
+# ためマイナーバンプする。
 #
 # イシュー #2187 base 取り込み: 本ブランチ側では headless-ui 0.68.9 →
 # 0.68.10（navigation-menu へのルートレベル indicator パーツ新設）への
@@ -2780,7 +2787,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # 不変のまま公開 API を追加する非破壊的変更のため、#2106 の先例に倣い
 # マイナーバンプする。origin/main 到達値 0.166.2 を上回る必要があるため
 # 0.167.0 とする。
-version = "0.167.0"
+# dep-version-check 追随分をさらに 0.166.2 へ patch バンプしていた。
+#
+# 本ブランチ（イシュー #2133）側は上記 0.166.2 を起点に、本イシューの
+# 実体変更（公開 API 拡張）に伴い 0.167.0 へマイナーバンプ済み。今回の
+# base 取り込みで origin/main 側の到達値 0.166.0 を確認したが、本ブランチ
+# 側の 0.167.0 が既にこれを上回るため、追加バンプ不要で 0.167.0 を
+# そのまま採用する。
+#
+# PR #2265 マージ: 双方が偶発的に同一版数 0.167.0 へ到達していたため
+# （同一版数はコンフリクトとして扱い main +1 する運用）、0.168.0 へ
+# マイナーバンプする。
+version = "0.168.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

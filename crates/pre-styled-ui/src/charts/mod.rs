@@ -74,6 +74,20 @@
 //!    （既存のクレート依存）のみを使用し、新規クレート依存を追加しない
 //!    （REQ-3 不変）。
 
+// イシュー #2133（親 #2132）: 期間切替・凡例トグルの SSR 構造。
+//
+// 各チャート root（line/area/sparkline/bar/radar/scatter/pie/donut/radial）
+// は opt-in の `range: Option<&str>`/`Option<String>` を受け取り、
+// `Some` のときのみ root へ `data-range="<値>"` を出力する（値は不透明な
+// 文字列、期間→カテゴリ集合の写像はアプリ/wasm-full〔#2134〕の責務）。
+// 各チャートは opt-in の `hidden_series`/`hidden_categories` を受け取り、
+// 該当する系列・カテゴリに紐づく描画要素（path/circle/bar/segment/ラベル
+// text 等）すべてへ値なし属性 `data-hidden` を付与する（SSR は常に
+// 全範囲・全系列を出力し、非表示は「見えないだけ」でスケール/domain の
+// 算出には影響しない。wasm-full 側〔#2134〕が付け外しとスケール再計算を
+// 担う設計、`docs/design/pre-styled-ui-data-attr-vocabulary.md` 参照）。
+// [`legend::LegendProps`] の `trigger` slot（`data-series`/`data-index`）と
+// 同一の識別子語彙を共有する。
 pub mod axis;
 pub mod bar_chart;
 pub mod bar_list;
@@ -194,6 +208,19 @@ impl std::fmt::Display for ChartError {
 }
 
 impl std::error::Error for ChartError {}
+
+/// 呼び出し側 `attrs` から `data-range`（ASCII 大文字小文字無視）を除去する
+/// （イシュー #2133）。各チャートの `range: Some(v)` は root へ
+/// `data-range="<v>"` を確定的に出力する契約のため、呼び出し側が同名の
+/// `attrs` エントリを渡しても偽装・重複させない
+/// （[`super::tooltip::DATUM_RESERVED`] と同型の fail-closed 判断）。
+#[must_use]
+pub(crate) fn drop_range_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("data-range"))
+        .collect()
+}
 
 /// 系列インデックスから系列配色トークン（`theme.rs` の `chart-1`〜`chart-6`、
 /// イシュー #846）の `var()` 参照を返す。

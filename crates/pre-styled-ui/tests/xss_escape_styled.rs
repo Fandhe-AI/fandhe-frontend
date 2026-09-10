@@ -5208,6 +5208,62 @@ fn pie_and_donut_chart_are_escaped_for_all_payloads() {
     }
 }
 
+/// charts の期間切替・凡例トグル SSR 構造（イシュー #2133）の XSS 回帰。
+///
+/// 攻撃面: (1) `LineChartProps::range`（root `data-range` 属性値経路。
+/// `line_chart` を代表とし、他チャートも同一の `drop_range_attr` 経由の
+/// 属性合成であることをソースレビューで確認済み）。(2)
+/// `charts::legend::legend` の `trigger` の `data-series`（`Series::name`
+/// が button の属性値として流れる経路。従来のテキストノード children
+/// コンテキストとは別の属性値コンテキスト）。(3)
+/// `LegendProps::controls`（`aria-controls` 属性値経路）。
+#[test]
+fn charts_range_and_legend_trigger_attrs_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::line_chart::{line_chart, LineChartProps};
+
+    for payload in payloads::all() {
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("visits", vec![1.0, 2.0])],
+        )
+        .unwrap();
+
+        // (1) range 属性値経路。
+        let mut props = LineChartProps::new(&data, "label");
+        props.range = Some(payload);
+        let html = render(&line_chart(&props, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "line_chart data-range 属性値コンテキスト");
+
+        // (2) legend trigger の data-series 属性値経路（系列名）。
+        let series_data =
+            ChartData::new(vec!["a".to_string()], vec![Series::new(payload, vec![1.0])]).unwrap();
+        let html = render(&fandhe_frontend_pre_styled_ui::charts::legend::legend(
+            &series_data,
+            &LegendProps::default(),
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "legend trigger data-series 属性値コンテキスト",
+        );
+
+        // (3) LegendProps::controls の aria-controls 属性値経路。
+        let controls_props = LegendProps {
+            controls: Some(payload.to_string()),
+            ..LegendProps::default()
+        };
+        let html = render(&fandhe_frontend_pre_styled_ui::charts::legend::legend(
+            &data,
+            &controls_props,
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "legend trigger aria-controls 属性値コンテキスト",
+        );
+    }
+}
+
 /// styled RadialChart（イシュー #2079）の XSS 回帰。
 ///
 /// 攻撃面: (1) カテゴリ名ラベル（`show_labels: true` の children テキスト
@@ -5427,7 +5483,7 @@ fn radar_chart_shadcn_variants_are_escaped_for_all_payloads() {
             vec![Series::new(payload, vec![1.0, 2.0, 3.0])],
         )
         .unwrap();
-        let html = render(&radar_chart::root(&series_data, all_on_props, "label").unwrap());
+        let html = render(&radar_chart::root(&series_data, all_on_props.clone(), "label").unwrap());
         assert_payload_is_escaped(
             payload,
             &html,

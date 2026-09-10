@@ -12836,14 +12836,48 @@ fn charts_section() -> Node {
         vec![advanced_datum],
     );
 
+    // イシュー #2133: 凡例を button + aria-pressed 化し、`hidden_series`
+    // （非表示系列の `aria-pressed="false"` 減光）・`controls`
+    // （`aria-controls` opt-in）の SSR 構造を実演する（click 配線は
+    // #2134 のスコープ、静的 HTML では見た目の減光のみが確認できる）。
+    // `controls` が指す ID（`charts-showcase-toggle-chart`）は下記
+    // `toggle_chart`（root へ id 属性を付与した line_chart）が実際に
+    // 保持する要素であり、`aria-controls` の参照先が実在することを
+    // デモ上でも保証する（codex-review 指摘、イシュー #2133 PR #2271）。
+    let toggle_legend = legend::legend(
+        &data,
+        &LegendProps {
+            title: Some("Series (toggle)".to_string()),
+            hidden_series: vec!["Signups".to_string()],
+            controls: Some("charts-showcase-toggle-chart".to_string()),
+            ..Default::default()
+        },
+    );
+
+    // `toggle_legend` の `aria-controls="charts-showcase-toggle-chart"` が
+    // 参照する実チャート。凡例側の `hidden_series` と同じ系列（Signups）を
+    // `LineChartProps::hidden_series` へも渡し、凡例のトグル状態とチャート
+    // 側の `data-hidden` が対応する構成を静的 HTML 上で実演する（click
+    // 配線・実データ連動自体は #2134 のスコープ）。
+    let toggle_chart = line_chart::line_chart(
+        &{
+            let mut props = LineChartProps::new(&data, "Series (toggle) chart");
+            props.hidden_series = &["Signups"];
+            props
+        },
+        vec![("id", "charts-showcase-toggle-chart")],
+    )
+    .expect("showcase 固定データは不変条件を満たす");
+
     section(
         "Charts",
-        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。凡例の中央揃え・角丸四角マーカー・`hideIcon` 相当・複数行ツールチップ本文は shadcn/ui Charts（tooltip）との突合（イシュー #2086）で追加した静的バリアントです。ツールチップ DOM・indicator・マウス追従は #2128 系（#2129〜#2131）、凡例の系列トグルは #2132 のスコープです。",
+        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。凡例の中央揃え・角丸四角マーカー・`hideIcon` 相当・複数行ツールチップ本文は shadcn/ui Charts（tooltip）との突合（イシュー #2086）で追加した静的バリアントです。凡例は `button` + `aria-pressed` の SSR 構造を持ち（イシュー #2133）、`hidden_series`/`controls` で非表示系列の減光・`aria-controls` opt-in を実演します（末尾の凡例デモ。click 配線・チャート側の期間切替 `data-range`/系列 `data-hidden` の実データ連動は #2134 のスコープ）。ツールチップ DOM・indicator・マウス追従は #2128 系（#2129〜#2131）のスコープです。",
         vec![
             stack(vec![chart, legend_node]),
             stack(vec![top_legend]),
             stack(vec![hidden_marker_legend]),
             stack(vec![advanced_tooltip_demo]),
+            stack(vec![toggle_legend, toggle_chart]),
         ],
     )
 }
