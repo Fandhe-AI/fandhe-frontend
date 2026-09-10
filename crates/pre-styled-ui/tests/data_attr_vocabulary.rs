@@ -260,6 +260,40 @@ fn bar_chart_data_active_and_data_negative_are_gated_by_props() {
     assert_eq!(html.matches(r#"data-negative="""#).count(), 1);
 }
 
+/// イシュー #2134 codex-review 指摘（2 ラウンド目）: `show_tooltip:
+/// false` かつ `range: None` かつ `hidden_series` 空（凡例併設だが初期
+/// 状態は全系列表示）という構成では、`legend: true` を明示しない限り
+/// `identify_bars` の判定条件が偽になり識別属性（`data-series`）が出力
+/// されず、凡例クリックでの系列非表示が機能しない
+/// （`wasm-full::chart_range::wiring::sync_chart` が `data-series` を
+/// 判定源にするため）。`legend: true` がこの初期全表示状態を救うことを
+/// 固定する。
+#[test]
+fn bar_chart_legend_opt_in_emits_identify_attrs_with_tooltip_off_and_no_range_or_hidden() {
+    use fandhe_frontend_pre_styled_ui::charts::bar_chart::{self, BarChartProps};
+
+    let data = ChartData::new(
+        vec!["a".to_string(), "b".to_string()],
+        vec![Series::new("s", vec![5.0, 8.0])],
+    )
+    .expect("valid bar chart data");
+
+    let default_props = BarChartProps {
+        show_tooltip: false,
+        ..BarChartProps::default()
+    };
+    let html = render(&bar_chart::root(&data, default_props, "label").unwrap());
+    assert!(!html.contains("data-series"));
+
+    let legend_props = BarChartProps {
+        show_tooltip: false,
+        legend: true,
+        ..BarChartProps::default()
+    };
+    let html = render(&bar_chart::root(&data, legend_props, "label").unwrap());
+    assert!(html.contains(r#"data-series="s""#));
+}
+
 /// `data-active`（`donut_chart.rs`、イシュー #2084、shadcn
 /// `chart-pie-donut-active` 突合）: [`DonutChartProps::active_index`]
 /// が `Some` のときのみ、当該カテゴリのセグメントに存在属性として付与する
