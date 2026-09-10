@@ -126,13 +126,26 @@ fn find_test_profile_violation(contents: &str) -> Option<String> {
         }
 
         // 非ヘッダ行（key = value 形式）: トップレベルのドット付きキー
-        // `profile.test.package.x.opt-level = 1` による迂回を塞ぐ。
-        if trimmed.starts_with("profile.") {
-            return Some(format!(
-                "{}行目: profile. で始まるドット付きキーは禁止（[profile.test.*] 迂回防止）: {}",
-                line_no + 1,
-                raw_line.trim()
-            ));
+        // `profile.test.package.x.opt-level = 1`、およびインラインテーブル
+        // `profile = { test = { package = { x = { opt-level = 1 } } } }`
+        // による迂回を塞ぐ。`profile` トークンの直後が識別子の続き（英数字・
+        // `_`・`-`）でなければ迂回とみなす。`strip_prefix` の残余が空文字列
+        // （行全体が `profile` のみ）・`.` 始まり（ドット付きキー）・`=` 始まり
+        // （インラインテーブル代入）・空白始まり（`profile =` 等）のいずれかを
+        // 違反として検知する（`profiled_x = 1` のような無関係な識別子は
+        // 残余が英数字で始まるため誤検知しない）。
+        if let Some(rest) = trimmed.strip_prefix("profile") {
+            let is_boundary = rest.is_empty()
+                || rest.starts_with('.')
+                || rest.starts_with('=')
+                || rest.starts_with(char::is_whitespace);
+            if is_boundary {
+                return Some(format!(
+                    "{}行目: profile をトップレベルキー/インラインテーブルとして使う記述は禁止（[profile.test.*] 迂回防止）: {}",
+                    line_no + 1,
+                    raw_line.trim()
+                ));
+            }
         }
     }
     None
@@ -208,6 +221,13 @@ fn find_test_profile_violation_detects_known_forms() {
     );
     assert!(find_test_profile_violation("[profile]\ntest.package.x.opt-level = 1\n").is_some());
     assert!(find_test_profile_violation("profile.test.package.x.opt-level = 1\n").is_some());
+    // インラインテーブルによる迂回（ヘッダ行を経由せず `profile = { ... }`
+    // で丸ごと代入する形）。
+    assert!(find_test_profile_violation(
+        "profile = { test = { package = { x = { opt-level = 1 } } } }\n"
+    )
+    .is_some());
+    assert!(find_test_profile_violation("profile={test={package={x={opt-level=1}}}}\n").is_some());
 }
 
 #[test]
@@ -222,6 +242,10 @@ fn find_test_profile_violation_does_not_false_positive() {
         "[profile.release.package.fandhe-frontend-core]\ncodegen-units = 1\n"
     )
     .is_none());
+    // `profile` を前方一致で含むだけの無関係な識別子は誤検知しない
+    // （`profile` トークン直後が識別子の続きである限り境界とみなさない）。
+    assert!(find_test_profile_violation("profiled_x = 1\n").is_none());
+    assert!(find_test_profile_violation("profile_name = \"release\"\n").is_none());
 }
 
 #[test]

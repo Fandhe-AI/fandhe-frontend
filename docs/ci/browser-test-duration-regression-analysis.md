@@ -227,7 +227,7 @@ wasm-client / wasm-full 自身のユニットハッシュも dev/test で分岐�
   app / server / headless-ui / pre-styled-ui）を `[profile.dev.package.*]` へ
   全面移設した。test プロファイルは dev を継承する（本書 §2.6）ため、
   `test-docs-site` ジョブの短縮効果（イシュー #2299）は移設後も維持される。
-  節直前のコメントブロックも、§3.5 で「本 PR では修正しない」としていた
+  節直前のコメントブロックも、§3「意図的に触らないもの」で「本 PR では修正しない」としていた
   誤り（「wasm ターゲットへは波及しない」「build / test 交互実行の二重
   コンパイルは初回のみ」）を含めて全面書き換えた。
 - **禁止契約の新設**: `[profile.test.*]` 節（`[profile.test]` 本体・
@@ -241,14 +241,18 @@ wasm-client / wasm-full 自身のユニットハッシュも dev/test で分岐�
   `cargo build --tests --target wasm32-unknown-unknown --test hydration_browser`
   （dev）→ `cargo test --target wasm32-unknown-unknown --test hydration_browser
   --no-run`（test）の順に実行し、2 回目の呼び出しで `Compiling` 行が 0 件
-  （`Finished ... in 0.0Xs` のみ）になることを確認した。移設前の構成
-  （`[profile.test.package.*]` のみに上書きがある状態）では 2 回目でも
-  `fandhe-frontend-core` 等が再コンパイルされていたのに対し、移設後は
-  dev/test のユニットハッシュが一致しキャッシュがそのまま再利用される。
+  （`Finished ... in 0.0Xs` のみ）になることを確認した。比較のため
+  `origin/main`（移設前、`[profile.test.package.*]` のみに上書きがある
+  構成）の `Cargo.toml` を別の隔離 `CARGO_TARGET_DIR` へ一時的に適用して
+  同じ 2 段階ビルドを再現したところ、2 回目の呼び出しでも
+  `fandhe-frontend-core` / `-interactive` / `-app` / `-headless-ui` /
+  `-wasm-client` / `-wasm-full` の再コンパイルが実際に発生することを
+  確認した（本書 §2.7 の因果連鎖の実機再現）。移設後はこの再コンパイルが
+  消え、dev/test のユニットハッシュが一致しキャッシュがそのまま再利用される。
 - **`test-docs-site` 非悪化確認**: `cargo test -p fandhe-frontend-docs-site
-  --locked` を実行し、全 12 テストバイナリが PASS することを確認した
-  （ローカル実測: 合計約 114 秒。opt-level 1 の docs-site 側短縮効果が
-  dev 側の宣言のみで維持されていることの裏付け）。
+  --locked` を実行し、全 37 テストバイナリ + doctest 1 件が PASS することを
+  確認した（ローカル実測: 合計約 114 秒。opt-level 1 の docs-site 側短縮
+  効果が dev 側の宣言のみで維持されていることの裏付け）。
 - **REQ-11 非回帰確認**: `cargo test -p fandhe-frontend-wasm-full --locked
   --test bundle_size` は、CI と同じく `wasm-opt`（binaryen）が PATH に
   存在しない環境で PASS することを確認した（ローカルに homebrew 経由で
