@@ -42,6 +42,16 @@ impl SlotRecipe {
     pub fn variant<V: VariantValue>(self, v: V, slot: &'static str, declarations: Vec<Declaration>) -> Self;
     pub fn default_variant<V: VariantValue>(self, v: V) -> Self;
     pub fn compound_variant(self, conditions: Vec<VariantCondition>, slot: &'static str, declarations: Vec<Declaration>) -> Self;
+    // `@starting-style { ... }` 規則の登録（イシュー #2192）。condition なし/
+    // StateCondition 条件付きの 2 形態。Hover 系条件は css() が fail-closed に
+    // 除外する（§6 参照）。
+    pub fn starting_style(self, slot: &'static str, declarations: Vec<Declaration>) -> Self;
+    pub fn starting_style_state(self, slot: &'static str, condition: StateCondition, declarations: Vec<Declaration>) -> Self;
+    // headless の disclosure 系 content パートへ --fandhe-content-height 連動の
+    // 高さトランジションを 1 呼び出しで適用する preset（イシュー #2192）。
+    // base（content_height_open_declarations）・[hidden] state
+    // （content_height_closed_declarations）・starting_style（同左）を一括登録する。
+    pub fn content_height_transition(self, slot: &'static str, duration: MotionDuration) -> Self;
     pub fn css(&self) -> String;
     pub fn variant_class<V: VariantValue>(&self, v: V) -> String;
     pub fn variant_classes(&self, selection: &[(&str, &str)]) -> String;
@@ -50,6 +60,20 @@ impl SlotRecipe {
 // compoundVariants 相当
 pub struct VariantCondition { /* axis, value: &'static str（型消去済み） */ }
 pub fn when<V: VariantValue>(v: V) -> VariantCondition;
+
+// transition/starting-style 関連ヘルパ（イシュー #1425/#2192）
+pub fn transition_declarations(properties: &'static str, duration: MotionDuration) -> Vec<Declaration>;
+// transition_declarations の 3 宣言 + transition-behavior: allow-discrete。
+// properties に display を含めるのが典型用途（hidden 属性による display: none
+// の実適用を遷移完了まで遅延させる、MDN transition-behavior）。
+pub fn transition_declarations_allow_discrete(properties: &'static str, duration: MotionDuration) -> Vec<Declaration>;
+
+// fandhe-frontend-wasm-full が実測高さを書き込む CSS custom property 名の写し
+// （crates/wasm-full/src/content_height.rs::CONTENT_HEIGHT_VAR とのドリフトは
+// tests/content_height_var_drift.rs が fail-closed に検知する）。
+pub const CONTENT_HEIGHT_VAR: &str = "--fandhe-content-height";
+pub fn content_height_open_declarations(duration: MotionDuration) -> Vec<Declaration>;
+pub fn content_height_closed_declarations() -> Vec<Declaration>;
 ```
 
 `SlotRecipe::new`/`base`/`variant`/`default_variant` は自己消費の builder
@@ -113,7 +137,10 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
     スペース、1 宣言 1 行）
   - 規則間は空行 1 つ
   - `SlotRecipe::css()` 全体の出力順: base（`slots` 宣言順）→ variants
-    （登録順）→ compound variants（登録順）
+    （登録順）→ compound variants（登録順）→ states（登録順、`Hover` 系条件は
+    `@media (hover: hover)` へ集約）→ `@starting-style`（登録順、1 個の
+    ブロックへ集約、イシュー #2192）→ `@media (hover: hover)`（1 個の
+    ブロックへ集約）
 
 ### 4.1 compound variant の上書き保証（2 段）
 
@@ -166,6 +193,13 @@ chakra-ui の「compoundVariants は variants を上書きする」という意�
     （検証は `css()` 呼び出し時に行うため builder の呼び出し順には依存しない）
 - いずれも panic なし・スキップ動作。`crates/pre-styled-ui/tests/recipe_css.rs::invalid_identifiers_and_structural_chars_are_skipped_not_panicking`
   が固定する
+- `starting_style_state` の Hover 系 `StateCondition`（`Hover`/`HoverExcept`/
+  `HoverExceptAttr`/`HoverExceptAttrEq`）は `@starting-style` 内で意味を持たない
+  （starting style は遷移開始前の静的スナップショットであり、`:hover` の
+  ような動的擬似クラスの「開始状態」という概念が成立しないため）ため、規則
+  ごと除外する（fail-closed、イシュー #2192。
+  `crates/pre-styled-ui/tests/recipe_css.rs::starting_style_fail_closed_cases_are_skipped_not_panicking`
+  が固定する）
 
 ## 7. テーマトークンとの関係
 

@@ -64,6 +64,20 @@
 //! transition（`item-trigger`/`item-indicator`）・フォーカスリングの
 //! canonical 化（[`crate::recipe::focus_ring_declarations`]）。
 //!
+//! # 開閉時の高さトランジション（案 C で採用済み、イシュー #2192）
+//!
+//! 当初（イシュー #1515）は「content 高さの実測が JS 前提」を理由に非採用
+//! としていたが、`docs/design/collapsible-height-animation.md`（#2190、
+//! 案 C）で headless 層の `hidden` 契約を維持したまま `@starting-style` +
+//! `transition-behavior: allow-discrete`
+//! （[`crate::recipe::SlotRecipe::content_height_transition`]）と
+//! `fandhe-frontend-wasm-full` の実測高さ CSS 変数
+//! （`--fandhe-content-height`）を組み合わせる方式が承認され、
+//! `item-content` slot へ適用した（[`crate::collapsible`] の `content` と
+//! 同型の適用、`recipe()` 参照）。JS 有効時は `item-content` の開閉が
+//! 高さトランジションになり、JS 無効時（変数未設定）は `auto` フォール
+//! バックで従来どおり `hidden` による即時切り替えのまま動作する。
+//!
 //! 以下は意図的に非採用とした（`docs/policy/intentional-non-adoption.md`
 //! の評価軸を再確認せず単独判断で持ち込まない）:
 //!
@@ -72,11 +86,6 @@
 //!   満たす。軸の新設は [`root`] の公開シグネチャ変更（0.x 破壊的変更・
 //!   minor バンプ）と Demo/原稿の波及を伴うため、toggle（#1512 → PR #1785
 //!   で見送り済み）と同じ判断を踏襲する。
-//! - **開閉時の高さアニメーション**（Radix
-//!   `--radix-accordion-content-height` 相当）: content 高さの実測（JS）が
-//!   前提であり、レイアウト計測の関心を `headless-ui` へ持ち込まない方針
-//!   （`docs/policy/intentional-non-adoption.md` §3.25）と、docs サイトの
-//!   無 JS 制約に反するため非採用。
 //! - **size 軸・palette 軸の追加**: size は既に 5 段（xs〜xl）で chakra と
 //!   同数のため過不足なし。palette 軸非保有は本モジュール冒頭の既定方針の
 //!   まま維持する。
@@ -275,6 +284,10 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
+        // 高さトランジション（イシュー #2192、案 C）。base 2 個目ブロック・
+        // `[hidden]` state・`@starting-style` を一括登録する（モジュール
+        // doc「開閉時の高さトランジション」節参照）。
+        .content_height_transition("item-content", MotionDuration::Normal)
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
         // イシュー #1681: Xs/Xl は Sm→Md→Lg の `space-3`/`4`/`5` の等差進行を
@@ -419,6 +432,18 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="accordion"][data-part="item-indicator"] {"#));
         assert!(css.contains("display: inline-block;"));
+    }
+
+    #[test]
+    fn item_content_declares_height_transition_and_hidden_collapse() {
+        // イシュー #2192: `content_height_transition` preset が
+        // `item-content` slot へ適用されていることを固定する（値の詳細は
+        // recipe.rs 側の golden テストが固定する）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="accordion"][data-part="item-content"][hidden] {"#));
+        assert!(css.contains("@starting-style {"));
+        assert!(css.contains("transition-behavior: allow-discrete;"));
+        assert!(css.contains("height: var(--fandhe-content-height, auto);"));
     }
 
     #[test]

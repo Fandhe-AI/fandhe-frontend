@@ -43,6 +43,11 @@
 //! すると UA 既定 `[hidden] { display: none }` を上書きして閉じなくなる
 //! （PR #575 Bugbot 指摘・dialog で発生した不具合と同種）。
 //! [`crate::toggle_tip`] の `positioner` と同じ構造的回避を採る。
+//! [`crate::recipe::SlotRecipe::content_height_transition`]（イシュー
+//! #2192）が登録する 2 個目の base ブロックも同じ制約に従い、
+//! `transition-property` の列挙に `display` を含むのみで `display`
+//! そのものは宣言しない（`content_base_does_not_declare_display` テスト
+//! 参照）。
 //!
 //! # `indicator` の `display: inline-block`
 //!
@@ -83,25 +88,26 @@
 //! の `ex_collapsible_nested_tree`）で可視化した（本モジュールのコード
 //! 自体は不変）。
 //!
+//! # 高さアニメーション（案 C で採用済み、イシュー #2192）
+//!
+//! 当初（イシュー #1682）は上記 `hidden` 属性への UA 既定 `[hidden] {
+//! display: none }` を上書きできないため非採用としていたが、
+//! `docs/design/collapsible-height-animation.md`（#2190、案 C）で `hidden`
+//! 契約を維持したまま `@starting-style` + `transition-behavior:
+//! allow-discrete`（[`crate::recipe::SlotRecipe::content_height_transition`]）
+//! と `fandhe-frontend-wasm-full` の実測高さ CSS 変数
+//! （`--fandhe-content-height`）を組み合わせる方式が承認され、`content`
+//! slot へ本モジュールが適用した（下記 `recipe()` 参照）。JS 有効時は
+//! `content` の開閉が高さトランジションになり、JS 無効時（変数未設定）は
+//! `auto` フォールバックで従来どおり `hidden` による即時切り替えのまま
+//! 動作する（`content_base_does_not_declare_display` の不変条件は維持、
+//! `display` は `transition-property` に列挙するのみで宣言しない）。
+//! 初回オープン・`set_inner_html` 丸ごと再描画モデルでは遷移が即時表示へ
+//! 劣化する既知の限界は `crates/wasm-full/src/content_height.rs` rustdoc・
+//! `docs/design/wasm-full-architecture.md` §28.6 を参照。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - **高さアニメーション**（Radix `--radix-collapsible-content-height`・
-//!   `collapsedHeight` 部分表示相当。shadcn/ui にも JS レスの代替実装は
-//!   無く、Base UI 自身も `--collapsible-panel-height` を JS 実測で提供する
-//!   点はイシュー #2029 の突合で確認済み）: 「content 高さの実測が JS
-//!   前提」という理由付けだけでは不完全であり、実際の構造的ブロッカーは
-//!   headless 層（`crates/headless-ui/src/collapsible.rs`）が closed 時に
-//!   `content` へ `hidden` 存在属性を付与している点にある。pre-styled-ui
-//!   側で `[hidden]` の `display` を上書きする実装（`grid-template-rows:
-//!   0fr → 1fr` 等の CSS のみのアニメーション手法を含む）は、(a) 下記
-//!   `content_base_does_not_declare_display` テストの契約に反し、(b) 閉状態
-//!   でも DOM 上へ再露出させてしまう（a11y ツリー上は非表示のはずが視覚上
-//!   見えてしまう逆転）。これは headless 層が `hidden` を使わない構造
-//!   （常時レンダリング + 高さ 0 の CSS 制御）へ変更されない限り
-//!   pre-styled-ui 単独では実施できない設計変更であり、`headless-ui` へ
-//!   レイアウト計測の関心を持ち込まない方針
-//!   （`docs/policy/intentional-non-adoption.md` §3.25）とも整合するため、
-//!   本イシューでは非採用のまま維持する。
 //! - **size / variant / colorPalette 軸の追加**: 参照 4 サイト（chakra-ui/
 //!   Radix Primitives/ark-ui/shadcn-ui）いずれも持たないため提供しない。
 //! - Themes ページ（`site/themes/collapsible.md`）・`site/nav.toml` 登録・
@@ -223,6 +229,10 @@ fn recipe() -> SlotRecipe {
             StateCondition::Hover,
             hover_surface_declarations(),
         )
+        // 高さトランジション（イシュー #2192、案 C）。base 2 個目ブロック・
+        // `[hidden]` state・`@starting-style` を一括登録する（モジュール
+        // doc「高さアニメーション」節参照）。
+        .content_height_transition("content", MotionDuration::Normal)
 }
 
 /// この styled Collapsible が生成する静的 CSS 全量を返す（決定的。
@@ -306,6 +316,21 @@ mod tests {
         assert!(css.contains(r#"[data-scope="collapsible"][data-part="trigger"][data-disabled] {"#));
         assert!(css.contains("opacity: 0.5;"));
         assert!(css.contains(r#"[data-scope="collapsible"][data-part="content"][data-disabled] {"#));
+    }
+
+    #[test]
+    fn content_declares_height_transition_and_hidden_collapse() {
+        // イシュー #2192: `content_height_transition` preset が登録する
+        // `[hidden]` state・`@starting-style` ブロック・`allow-discrete`
+        // 宣言の存在を固定する（値の詳細は recipe.rs 側
+        // `content_height_transition_preset_registers_base_state_and_starting_style`
+        // が固定するため、本テストは「collapsible の content slot に
+        // 実際に適用されている」ことのみを確認する）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="collapsible"][data-part="content"][hidden] {"#));
+        assert!(css.contains("@starting-style {"));
+        assert!(css.contains("transition-behavior: allow-discrete;"));
+        assert!(css.contains("height: var(--fandhe-content-height, auto);"));
     }
 
     #[test]

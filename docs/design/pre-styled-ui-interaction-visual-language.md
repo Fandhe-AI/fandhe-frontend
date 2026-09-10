@@ -42,7 +42,7 @@
 ### 4.2 `recipe.rs`
 
 - `StateCondition::Hover` の出力先を states ループの通常出力先から分離し、css() 末尾で `@media (hover: hover) { ... }` に 1 つだけまとめて出力する。セレクタは `:hover:not([data-disabled])`
-- 共通ヘルパを追加: `disabled_declarations()` / `hover_surface_declarations()` / `hover_bg_solid()` / `hover_bg_muted()` / `MotionDuration`（`Fast`/`Normal`/`Slow`）/ `transition_declarations(properties, duration)`
+- 共通ヘルパを追加: `disabled_declarations()` / `hover_surface_declarations()` / `hover_bg_solid()` / `hover_bg_muted()` / `MotionDuration`（`Fast`/`Normal`/`Slow`）/ `transition_declarations(properties, duration)` / `transition_declarations_allow_discrete(properties, duration)`（`transition_declarations` の 3 宣言 + `transition-behavior: allow-discrete`。4 宣言目、イシュー #2192）
 - `transition_declarations` は `Declaration::value` の `&'static str` 制約により shorthand ではなく longhand 3 プロパティを返す設計とした（§3 参照）。呼び出し側は `properties` にカンマ区切りのプロパティ名リテラルを渡す
 
 ### 4.3 `button.rs`（参照実装）
