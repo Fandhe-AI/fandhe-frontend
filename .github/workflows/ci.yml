@@ -2463,13 +2463,18 @@ jobs:
   # （ci-complete）のみを必須チェックとして参照する。これによりジョブの
   # 追加・改名時に ruleset の required_status_checks を追随更新する必要が
   # なくなる。**ジョブ追加時は needs への追加が必要**（追加を忘れると当該
-  # ジョブの失敗が必須チェックに反映されないため、レビューで必ず確認する）。
+  # ジョブの失敗が必須チェックに反映されない）。この網羅性は
+  # `crates/xtask/tests/workflow_ci_complete_needs.rs` が `cargo test -p
+  # xtask` 時点で fail-closed に機械検知する（イシュー #2324。needs の
+  # 網羅性・`if: always()`・下記 skipped 許容リストの整合の 3 点を検証する）。
   # `skipped` の許容は version-bump-guard（`if: pull_request` の条件付き
   # ジョブ）のみに限定し、他ジョブは success のみ受理する（skipped を全
   # ジョブで無条件許容すると、将来 `if:` が誤って追加されたジョブの skip を
   # 検知できず fail-open になるため。team-hub #1733 の codex 指摘と同型の
-  # 是正）。deps-check.yml（別 workflow のため needs にできない）と
-  # codex-review は従来どおり単独の必須チェックとして ruleset に残す。
+  # 是正）。条件付きジョブを増やす場合は同テストの `SKIPPED_ALLOWLIST`
+  # 定数への追加も必要（ci.yml 側だけの変更では同テストが FAIL する）。
+  # deps-check.yml（別 workflow のため needs にできない）と codex-review は
+  # 従来どおり単独の必須チェックとして ruleset に残す。
   ci-complete:
     name: ci-complete
     if: always()

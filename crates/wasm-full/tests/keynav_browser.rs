@@ -924,6 +924,32 @@ fn change_event() -> Event {
     Event::new_with_event_init_dict("change", &init).expect("Event::new must not fail")
 }
 
+/// `item` の矩形（`getBoundingClientRect`）が `container` の可視領域
+/// （同矩形）の上下端 `tolerance_px` 以内に収まっていることを検証する
+/// （イシュー #2206。「`content.scroll_top` が動いた」という間接証拠
+/// だけでなく highlight 項目そのものが可視領域内にあることを直接
+/// 検証するためのヘルパー）。`keynav::wiring::scroll_top_after_delta`
+/// の丸めにより厳密な 0px 一致は保証されないため、微小な許容誤差
+/// （既定 1px）を許す。
+fn assert_item_within_scroll_band(item: &Element, container: &Element, tolerance_px: f64) {
+    let item_rect = item.get_bounding_client_rect();
+    let container_rect = container.get_bounding_client_rect();
+    assert!(
+        item_rect.top() >= container_rect.top() - tolerance_px,
+        "item top ({}) must not be above container top ({}) beyond tolerance ({})",
+        item_rect.top(),
+        container_rect.top(),
+        tolerance_px
+    );
+    assert!(
+        item_rect.bottom() <= container_rect.bottom() + tolerance_px,
+        "item bottom ({}) must not be below container bottom ({}) beyond tolerance ({})",
+        item_rect.bottom(),
+        container_rect.bottom(),
+        tolerance_px
+    );
+}
+
 /// 検証 1: horizontal で ArrowRight/ArrowLeft がフォーカス移動 + roving
 /// tabindex（`0`/`-1`）を更新する。
 #[wasm_bindgen_test]
@@ -2136,10 +2162,13 @@ fn select_open_arrow_moves_highlight_and_enter_clicks_highlighted_item() {
 /// `content` に `overflow-y: auto` + 固定 `height` を与え（Select の
 /// `max-height` スクロール導入、イシュー #2019 と同型の可視領域制約）、末尾
 /// 項目（初期スクロール位置では不可視）まで ArrowDown で highlight を移動
-/// させると、`content.scroll_top` が 0 から動く（スクロール追随が発生した
-/// ことの直接証拠）ことを検証する（codex-review P1 是正、PR #2165。
-/// `keynav::wiring::set_highlight_on_host` の
-/// `scroll_into_view_with_scroll_into_view_options` 呼び出しの回帰固定）。
+/// させると、`content.scroll_top` が 0 から動き（スクロール追随が発生した
+/// ことの直接証拠）、かつ highlight 項目そのものが `content` の可視領域内に
+/// 収まる（[`assert_item_within_scroll_band`]、イシュー #2206）ことを検証
+/// する（codex-review P1 是正、PR #2165）。追随の実体は手動 `scrollTop`
+/// 調整（[`wiring::scroll_item_into_view_if_needed`]）であり、
+/// `Element::scroll_into_view_with_scroll_into_view_options` は使わない
+/// （document パン防止、モジュール doc §Menu/Select 参照）。
 #[wasm_bindgen_test]
 fn select_open_arrow_down_scrolls_highlighted_item_into_view_when_content_overflows() {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -2195,6 +2224,7 @@ fn select_open_arrow_down_scrolls_highlighted_item_into_view_when_content_overfl
         "highlighted item scrolled outside the overflow container should pull \
          content.scroll_top away from 0"
     );
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
 }
 
 /// スクロール可能な Select `content`（`container`）の内側に、別の（入れ子の）
@@ -2745,6 +2775,266 @@ fn select_open_with_selected_item_highlights_it_first() {
         .get_element_by_id("kn-select-sel1-item-apple")
         .unwrap();
     assert!(!item_apple.has_attribute("data-highlighted"));
+}
+
+/// 検証（イシュー #2206）: ArrowDown で末尾まで highlight を進めた後、
+/// ArrowUp で先頭まで戻す往復でも、各終端で highlight 項目が可視領域内に
+/// 保たれる（[`scroll_delta_for_band`] の負 delta 分岐・
+/// [`scroll_top_after_delta`] の切り下げ丸めの browser 経路検証）。
+#[wasm_bindgen_test]
+fn select_open_arrow_up_from_end_scrolls_back_into_view() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll2", &items, true, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-scroll2-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-scroll2-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll2-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+
+    for _ in 0..20 {
+        trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+    let last_item = document
+        .get_element_by_id("kn-select-scroll2-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
+
+    for _ in 0..19 {
+        trigger.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+    }
+    let first_item = document
+        .get_element_by_id("kn-select-scroll2-item-item0")
+        .unwrap();
+    assert!(first_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&first_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: Home/End で先頭/末尾へジャンプしても、いずれも
+/// highlight 項目が可視領域内に収まる（ジャンプ幅が 1 ステップの
+/// ArrowDown/ArrowUp より大きい delta を生む経路の固定）。
+#[wasm_bindgen_test]
+fn select_open_home_end_keep_highlighted_item_within_scroll_band() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll3", &items, true, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-scroll3-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-scroll3-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll3-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    let last_item = document
+        .get_element_by_id("kn-select-scroll3-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
+
+    trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    let first_item = document
+        .get_element_by_id("kn-select-scroll3-item-item0")
+        .unwrap();
+    assert!(first_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&first_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: typeahead で可視領域外の項目へ直接ジャンプ
+/// しても、highlight 項目が可視領域内に収まる（typeahead 経路も
+/// [`wiring::set_highlight_on_host`] を経由することの browser 固定）。
+#[wasm_bindgen_test]
+fn select_open_typeahead_scrolls_deep_match_into_view() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let label: &'static str = if i == 19 {
+                "Zebra"
+            } else {
+                Box::leak(format!("item{i}").into_boxed_str())
+            };
+            let value: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (value, label, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll4", &items, true, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-scroll4-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-scroll4-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll4-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+    assert_eq!(content_html.scroll_top(), 0);
+
+    trigger.dispatch_event(&keydown_event("z")).unwrap();
+    let target_item = document
+        .get_element_by_id("kn-select-scroll4-item-item19")
+        .unwrap();
+    assert!(
+        target_item.has_attribute("data-highlighted"),
+        "typeahead \"z\" は Zebra（item19）へ移動すべき"
+    );
+    assert_item_within_scroll_band(&target_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: 選択済み項目（`aria-selected="true"`）がリスト
+/// 深部にある状態で open すると、初期 highlight（選択済み項目）が可視領域
+/// 内に置かれる（open 直後の初期 highlight 経路の固定。
+/// [`select_open_with_selected_item_highlights_it_first`] の可視領域拡張）。
+#[wasm_bindgen_test]
+fn select_open_with_selected_item_deep_in_list_scrolls_it_into_view() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll5", &items, false, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let selected_item = document
+        .get_element_by_id("kn-select-scroll5-item-item15")
+        .unwrap();
+    selected_item
+        .set_attribute("aria-selected", "true")
+        .unwrap();
+
+    let content = document
+        .get_element_by_id("kn-select-scroll5-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll5-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    // closed trigger 上の Enter は trigger へ `click()` を合成する契約
+    // （モジュール doc §Menu/Select）。実際の開閉は events::wire_events +
+    // dispatch 経路の責務であり keynav 自身は行わないため、
+    // 他の同種テストと同じく薄い模擬リスナーを事前登録する
+    // （[`select_open_with_selected_item_highlights_it_first`] 参照）。
+    let open_closure = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new({
+        let content = content.clone();
+        move |_event: Event| {
+            let _ = content.remove_attribute("hidden");
+        }
+    });
+    let trigger = document
+        .get_element_by_id("kn-select-scroll5-trigger")
+        .unwrap();
+    trigger
+        .add_event_listener_with_callback("click", open_closure.as_ref().unchecked_ref())
+        .unwrap();
+    open_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(
+        selected_item.has_attribute("data-highlighted"),
+        "選択済み項目（item15）が初期 highlight になるべき"
+    );
+    assert_item_within_scroll_band(&selected_item, &content, 1.0);
 }
 
 // ---------------------------------------------------------------------
@@ -7375,6 +7665,243 @@ fn listbox_escape_resets_typeahead_buffer_without_clearing_highlight() {
     content.dispatch_event(&keydown_event("b")).unwrap();
     assert!(item_b.has_attribute("data-highlighted"));
     assert!(!item_a.has_attribute("data-highlighted"));
+}
+
+/// 検証（イシュー #2206）: Listbox の `content` に `overflow-y: auto` +
+/// 固定 `height`（`--fandhe-listbox-content-max-height` 相当の可視領域
+/// 制約）を与え、末尾項目まで ArrowDown で highlight を進めた後、
+/// ArrowUp で先頭へ戻す往復でも各終端で highlight 項目が可視領域内に
+/// 保たれる（Select 側 [`select_open_arrow_up_from_end_scrolls_back_into_view`]
+/// の Listbox 版）。
+#[wasm_bindgen_test]
+fn listbox_arrow_down_up_keeps_highlighted_item_within_scroll_band() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_listbox_dom(&document, "kn-lb-scroll1", &items, None, None);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document.get_element_by_id("kn-lb-scroll1-content").unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-lb-scroll1-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    assert_eq!(content_html.scroll_top(), 0);
+
+    for _ in 0..20 {
+        content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+    let last_item = document
+        .get_element_by_id("kn-lb-scroll1-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert!(content_html.scroll_top() > 0);
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
+
+    for _ in 0..19 {
+        content.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+    }
+    let first_item = document
+        .get_element_by_id("kn-lb-scroll1-item-item0")
+        .unwrap();
+    assert!(first_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&first_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: Home/End で先頭/末尾へジャンプしても highlight
+/// 項目が可視領域内に収まる（Select 側
+/// [`select_open_home_end_keep_highlighted_item_within_scroll_band`] の
+/// Listbox 版）。
+#[wasm_bindgen_test]
+fn listbox_home_end_keep_highlighted_item_within_scroll_band() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_listbox_dom(&document, "kn-lb-scroll2", &items, None, None);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document.get_element_by_id("kn-lb-scroll2-content").unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-lb-scroll2-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    content.dispatch_event(&keydown_event("End")).unwrap();
+    let last_item = document
+        .get_element_by_id("kn-lb-scroll2-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
+
+    content.dispatch_event(&keydown_event("Home")).unwrap();
+    let first_item = document
+        .get_element_by_id("kn-lb-scroll2-item-item0")
+        .unwrap();
+    assert!(first_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&first_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: typeahead で可視領域外の項目へ直接ジャンプ
+/// しても highlight 項目が可視領域内に収まる（Select 側
+/// [`select_open_typeahead_scrolls_deep_match_into_view`] の Listbox 版）。
+#[wasm_bindgen_test]
+fn listbox_typeahead_scrolls_deep_match_into_view() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let label: &'static str = if i == 19 {
+                "Zebra"
+            } else {
+                Box::leak(format!("item{i}").into_boxed_str())
+            };
+            let value: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (value, label, false)
+        })
+        .collect();
+    let root = build_listbox_dom(&document, "kn-lb-scroll3", &items, None, None);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document.get_element_by_id("kn-lb-scroll3-content").unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-lb-scroll3-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    assert_eq!(content_html.scroll_top(), 0);
+
+    content.dispatch_event(&keydown_event("z")).unwrap();
+    let target_item = document
+        .get_element_by_id("kn-lb-scroll3-item-item19")
+        .unwrap();
+    assert!(
+        target_item.has_attribute("data-highlighted"),
+        "typeahead \"z\" は Zebra（item19）へ移動すべき"
+    );
+    assert_item_within_scroll_band(&target_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: `content` 直下ではなく `[data-part="item-group"]`
+/// （非スクロールの中間祖先）配下に items がある構成でも、
+/// [`nearest_scrollable_ancestor`] が中間祖先を越えて `content` 自身を
+/// スクロール対象として掴み、highlight 項目を可視領域内に保つ（item-group
+/// でグルーピングされた Listbox の browser 固定）。
+#[wasm_bindgen_test]
+fn listbox_item_group_nested_items_keep_highlighted_item_within_scroll_band() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    // build_listbox_dom で items を先に生成させ、その後 content 直下から
+    // item-group の下へ items を移し替える（build_listbox_dom 自体は
+    // 変更しない）。
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_listbox_dom(&document, "kn-lb-scroll4", &items, None, None);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document.get_element_by_id("kn-lb-scroll4-content").unwrap();
+    let item_group = document.create_element("div").unwrap();
+    item_group.set_attribute("data-scope", "listbox").unwrap();
+    item_group.set_attribute("data-part", "item-group").unwrap();
+    // content の子（items）を順に item-group へ付け替える。
+    // `append_child` は既存の親から自動的に detach するため、
+    // `children()` のライブコレクションを先頭から取り続けて処理する。
+    while let Some(child) = content.first_element_child() {
+        item_group.append_child(&child).unwrap();
+    }
+    content.append_child(&item_group).unwrap();
+
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-lb-scroll4-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    assert_eq!(content_html.scroll_top(), 0);
+
+    for _ in 0..20 {
+        content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+    let last_item = document
+        .get_element_by_id("kn-lb-scroll4-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert!(content_html.scroll_top() > 0);
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
 }
 
 /// 検証 11（XSS 回帰、REQ-1）: 攻撃者制御文字列を持つラベルに対し矢印移動・
