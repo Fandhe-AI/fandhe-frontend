@@ -1259,7 +1259,11 @@ fn ex_pin_input_custom_css() -> Node {
 /// `questionnaire::questionnaire` Example 1: options スロットへ
 /// `radio_group` を入れ子にした単一選択の質問（イシュー #2117）。回答値の
 /// 保持はアプリ責務のため、初期表示状態（`checked`/`answered`）のみを
-/// 静的に示す。
+/// 静的に示す。ネイティブ `name` 属性は同じ部品ページの Demo セクション
+/// （`primitive_showcase::forms_b::questionnaire_section`）が `"like-rust"`
+/// を使うため、同一ページ上での意図しないグループ共有（一方選択で他方が
+/// クリアされる、Cursor Bugbot 指摘 PR #2279）を避けて `"like-rust-example"`
+/// を使う。
 fn ex_questionnaire_single_choice() -> Node {
     let q = Questionnaire::new(3, 1, Orientation::Horizontal);
     let radio_props = radio_group::RadioGroupProps::default();
@@ -1275,14 +1279,17 @@ fn ex_questionnaire_single_choice() -> Node {
                 },
                 vec![],
                 vec![
-                    q.prompt(vec![], vec![text("Do you like Rust?")]),
+                    q.prompt(
+                        vec![("id", "questionnaire-single-choice-prompt")],
+                        vec![text("Do you like Rust?")],
+                    ),
                     q.description(vec![], vec![text("Pick one.")]),
                     q.options(
                         vec![],
                         vec![radio_group::root(
                             &radio_props,
                             None,
-                            None,
+                            Some("questionnaire-single-choice-prompt"),
                             vec![],
                             vec![
                                 radio_group::item(
@@ -1301,7 +1308,7 @@ fn ex_questionnaire_single_choice() -> Node {
                                         radio_group::item_hidden_input(
                                             true,
                                             &radio_props,
-                                            Some("like-rust"),
+                                            Some("like-rust-example"),
                                             "yes",
                                             vec![],
                                         ),
@@ -1323,7 +1330,7 @@ fn ex_questionnaire_single_choice() -> Node {
                                         radio_group::item_hidden_input(
                                             false,
                                             &radio_props,
-                                            Some("like-rust"),
+                                            Some("like-rust-example"),
                                             "no",
                                             vec![],
                                         ),
@@ -1377,7 +1384,10 @@ fn ex_questionnaire_freeform() -> Node {
                 q.prompt(vec![], vec![text("What could we improve?")]),
                 q.freeform(
                     vec![],
-                    vec![field::textarea(&field_props, false, vec![], vec![])],
+                    vec![
+                        field::label(&field_props, vec![], vec![text("Your answer")]),
+                        field::textarea(&field_props, false, vec![], vec![]),
+                    ],
                 ),
                 q.actions(
                     vec![],

@@ -2,7 +2,7 @@
 //! `questionnaire` を追加、旧 11）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
-use fandhe_frontend_core::{text, Node};
+use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::data_attrs::Orientation;
 use hui::field::{self, FieldIds, FieldProps};
@@ -449,14 +449,17 @@ pub(super) fn questionnaire_section() -> Node {
         },
         vec![],
         vec![
-            in_progress.prompt(vec![], vec![text("Do you like Rust?")]),
+            in_progress.prompt(
+                vec![("id", "questionnaire-showcase-single-choice-prompt")],
+                vec![text("Do you like Rust?")],
+            ),
             in_progress.description(vec![], vec![text("Pick one.")]),
             in_progress.options(
                 vec![],
                 vec![radio_group::root(
                     &radio_props,
                     None,
-                    None,
+                    Some("questionnaire-showcase-single-choice-prompt"),
                     vec![],
                     vec![
                         radio_group::item(
@@ -530,12 +533,10 @@ pub(super) fn questionnaire_section() -> Node {
             in_progress.prompt(vec![], vec![text("What could we improve?")]),
             in_progress.freeform(
                 vec![],
-                vec![field::textarea(
-                    &freeform_field_props,
-                    false,
-                    vec![],
-                    vec![],
-                )],
+                vec![
+                    field::label(&freeform_field_props, vec![], vec![text("Your answer")]),
+                    field::textarea(&freeform_field_props, false, vec![], vec![]),
+                ],
             ),
             in_progress.actions(
                 vec![],
@@ -548,24 +549,26 @@ pub(super) fn questionnaire_section() -> Node {
         ],
     );
 
+    // `step == count`（全質問完了）の状態は、モジュール doc の状態モデル
+    // （`index == step` の質問が active になるのは `step < count` のときのみ、
+    // `step == count` なら「該当する質問が存在しないため active な質問は
+    // ない」）により、どの `index` を渡しても [`Questionnaire::question`]
+    // は `hidden` を付与する。そのため完了後のサンクス表示・アクション
+    // バーは `.question()`（per-question fieldset）へ入れ子にせず、`root`
+    // 直下のアプリ側マークアップとして描画する（Cursor Bugbot 指摘、PR
+    // #2279。`data-complete`〔`root` が公開する〕を CSS セレクタにして
+    // 実アプリはこのパネルの表示切り替えを行う契約）。
     let completed = Questionnaire::new(3, 3, Orientation::Horizontal);
-    let completed_question = completed.question(
-        2,
-        QuestionProps {
-            answered: true,
-            ..Default::default()
-        },
+    let completed_thanks = div(
+        vec![("class", "primitives-demo-questionnaire-thanks")],
+        vec![text("Thanks for completing the survey!")],
+    );
+    let completed_actions = completed.actions(
         vec![],
         vec![
-            completed.prompt(vec![], vec![text("Thanks for completing the survey!")]),
-            completed.actions(
-                vec![],
-                vec![
-                    completed.back(false, vec![], vec![text("Back")]),
-                    completed.next(false, vec![], vec![text("Next")]),
-                    completed.skip(false, vec![], vec![text("Skip")]),
-                ],
-            ),
+            completed.back(false, vec![], vec![text("Back")]),
+            completed.next(false, vec![], vec![text("Next")]),
+            completed.skip(false, vec![], vec![text("Skip")]),
         ],
     );
 
@@ -582,7 +585,8 @@ pub(super) fn questionnaire_section() -> Node {
             vec![],
             vec![
                 completed.progress("Questionnaire progress", vec![], vec![]),
-                completed_question,
+                completed_thanks,
+                completed_actions,
             ],
         ),
     ];

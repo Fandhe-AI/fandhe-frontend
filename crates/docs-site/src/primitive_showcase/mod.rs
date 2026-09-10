@@ -99,7 +99,8 @@ const DEMO_NOTE: &str =
 const LAYOUT_CSS: &str = "\
 .primitives-showcase {\n  display: block;\n}\n\
 .primitives-demo-note {\n  font-size: 0.875rem;\n  color: var(--fandhe-color-fg-muted);\n  margin: 0 0 0.75rem;\n}\n\
-.primitives-demo-frame {\n  border: 1px dashed var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: 1rem;\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n  overflow-x: auto;\n}\n";
+.primitives-demo-frame {\n  border: 1px dashed var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: 1rem;\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n  overflow-x: auto;\n}\n\
+.primitives-demo-questionnaire-thanks {\n  padding: 0.5rem 0;\n}\n";
 
 /// Demo 1 件分の共通ラッパ。`title` は部品名（`h2`）、`body` はデモ本体
 /// （headless-ui のパート関数呼び出しのみで組み立てた静的マークアップ）。

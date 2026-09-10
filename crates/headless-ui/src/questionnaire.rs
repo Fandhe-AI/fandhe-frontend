@@ -56,7 +56,7 @@
 //! - `index > step` → upcoming
 //!
 //! `Skip` は状態遷移としては `Next` と同一（[`QuestionnaireAction::Skip`]も
-//! `update()` 内で `Next` と同じく `min(step + 1, count)` に進む）であり、
+//! `update()` 内で `Next` と同じく `saturating_add(1).min(count)` に進む）であり、
 //! 「どの質問をスキップしたか」は本モジュールに保持しない。dispatch 名を
 //! 分けるのは、呼び出し側（`fandhe-frontend-wasm-full` 配線・イシュー
 //! #2118 のスコープ）がスキップ操作を観測して自身の状態へ記録できるように
@@ -511,7 +511,8 @@ impl Questionnaire {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuestionnaireAction {
     /// 次の質問へ進む（`step == count` のときは no-op、`update` 内で
-    /// `min(step + 1, count)` に丸める）。
+    /// `saturating_add(1).min(count)` に丸める。`step == count == usize::MAX`
+    /// のときも `saturating_add` がオーバーフローを吸収するため panic しない）。
     Next,
     /// 前の質問へ戻る（`step == 0` のときは no-op、`update` 内で
     /// `saturating_sub(1)` に丸める）。
@@ -535,7 +536,7 @@ impl Component for Questionnaire {
     fn update(&mut self, action: QuestionnaireAction) {
         match action {
             QuestionnaireAction::Next | QuestionnaireAction::Skip => {
-                self.step = (self.step + 1).min(self.count);
+                self.step = self.step.saturating_add(1).min(self.count);
             }
             QuestionnaireAction::Prev => {
                 self.step = self.step.saturating_sub(1);
@@ -1017,6 +1018,26 @@ mod tests {
         let mut q = Questionnaire::new(3, 1, Orientation::Horizontal);
         Component::update(&mut q, QuestionnaireAction::Goto(100));
         assert_eq!(q.step(), 1);
+    }
+
+    /// codex-review PR #2279 P1 回帰: `count == step == usize::MAX`
+    /// （完了済み・最大値）の状態で `Next`/`Skip` を dispatch しても
+    /// `step + 1` のオーバーフローで panic せず、公開契約どおり no-op
+    /// （`step` は `count` のまま）であることを固定する。
+    #[test]
+    fn update_next_at_usize_max_does_not_overflow() {
+        let mut q = Questionnaire::new(usize::MAX, usize::MAX, Orientation::Horizontal);
+        Component::update(&mut q, QuestionnaireAction::Next);
+        assert_eq!(q.step(), usize::MAX);
+        assert_eq!(q.count(), usize::MAX);
+    }
+
+    #[test]
+    fn update_skip_at_usize_max_does_not_overflow() {
+        let mut q = Questionnaire::new(usize::MAX, usize::MAX, Orientation::Horizontal);
+        Component::update(&mut q, QuestionnaireAction::Skip);
+        assert_eq!(q.step(), usize::MAX);
+        assert_eq!(q.count(), usize::MAX);
     }
 
     // --- SSR 状態なし初期描画 ---
