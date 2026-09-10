@@ -620,6 +620,11 @@ name = "fandhe-frontend-headless-ui"
 # 0.68.13 へ到達済みだったため、その到達値からさらに +1 して 0.68.14
 # とする（PR #2279 review 対応での base 取り込み）。
 #
+# イシュー #2194: dialog/tabs の shadcn（Radix Primitives）a11y チェックリスト
+# 差分を rustdoc へ記録する（`crates/headless-ui/src/dialog.rs`/`tabs.rs`）。
+# コード変更なし（rustdoc のみ）だが `src/` 変更のため version-bump-guard
+# 対象であり、#1638 前例と同型で patch バンプする。
+#
 # イシュー #2121: `message_scroller`（Root/Viewport/Content/Anchor/
 # JumpToLatest/LoadMore の 6 anatomy パーツ、shadcn/ui Message Scroller
 # 相当）を新設。既存 API への変更はなく非破壊的な追加のため patch
@@ -635,12 +640,18 @@ name = "fandhe-frontend-headless-ui"
 # 採用しない原則により main の到達値 0.68.14 からさらに +1 して 0.68.15
 # とする。
 #
-# PR #2295（イシュー #2121）base 取り込み: 本ブランチは上記 #2121 で
-# 0.68.14 → 0.68.15 へ patch バンプ済みだったが、origin/main も #2193
-# （dialog/drawer close-trigger 再設計）で独立に 0.68.15 へ到達しており、
-# 同一版数への偶発的衝突をそのまま採用しない原則により main の到達値
-# 0.68.15 からさらに +1 して 0.68.16 とする。
-version = "0.68.16"
+# base 取り込み（PR #2296、イシュー #2194）: 本ブランチ（#2194 の rustdoc
+# のみの純追加）と origin/main（#2193 の close-trigger variant 再設計）が
+# いずれも独立に 0.68.15 へ到達しており、同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、main の到達値 0.68.15 からさらに +1 して 0.68.16
+# とする。
+#
+# base 取り込み（PR #2296、イシュー #2194、再マージ）: 本ブランチは上記の
+# 通り独立に 0.68.16 へ到達済みだったが、origin/main も PR #2295（イシュー
+# #2121、message_scroller 新設）で独立に 0.68.16 へ到達しており、同一版数
+# への偶発的衝突をそのまま採用しない原則により main の到達値 0.68.16 から
+# さらに +1 して 0.68.17 とする。
+version = "0.68.17"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

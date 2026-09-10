@@ -2921,6 +2921,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # バンプする（0.x の破壊的変更はマイナーバンプの規約、同一版数への
 # 偶発的衝突をそのまま採用しない原則）。
 #
+# base 取り込み（PR #2296、イシュー #2194、1 回目）: 本クレート自身の実体
+# 変更は伴わず、依存先 `fandhe-frontend-headless-ui` の version 要求を
+# 上記の base 側衝突解消でさらに 0.68.16 へバンプしたことへの追随のみ
+# （`cargo run -p xtask -- check-dep-versions --fix`）。patch バンプ対象
+# のため、main 側の到達値 0.175.0 からさらに +1 して 0.175.1 とする。
+#
 # イシュー #2195: Forms 家族横断の `control`/`clear-trigger` の
 # `data-disabled` 消費規則を確定・実装した（CSS 出力の純追加）ため
 # 0.176.0 へマイナーバンプする。
@@ -2943,6 +2949,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方の実体変更（styled questionnaire・dialog/drawer close-trigger 再設計・
 # #2285 是正）を内包した 0.176.0 をそのまま維持する。
 #
+# base 取り込み（PR #2296、イシュー #2194、2 回目）: 本ブランチの到達値
+# 0.175.1（1 回目の base 取り込み解消時点、headless-ui 0.68.16 依存追随
+# のみの patch バンプ）に対し、origin/main は独立に 0.176.0（styled
+# questionnaire 追加・dialog/drawer close-trigger 再設計・#2285 是正を
+# 内包）へ到達していた。同一版数への偶発的衝突ではないが、本ブランチの
+# headless-ui 0.68.16 依存追随は main の 0.176.0 に含まれていない実体
+# 変更のため、main の到達値 0.176.0 からさらに +1（patch）して 0.176.1
+# とする。
+#
 # 本コンフリクト解消（PR #2289、questionnaire〔#2291〕の main 取り込み・
 # 再衝突）: 本ブランチ（#2192 の @starting-style/transition-behavior DSL、
 # PR #2289 の calc-size() 是正含む）と origin/main（PR #2291 が確定させた
@@ -2960,6 +2975,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更（Forms 家族 disabled/required 決定 + questionnaire 完全実装統合）を
 # 統合した結果として main の到達値 0.176.0 をさらに上回る 0.177.0 へ
 # マイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
+#
+# base 取り込み（PR #2296、イシュー #2194、3 回目）: 本ブランチの到達値
+# 0.176.1（2 回目の base 取り込み解消時点、headless-ui 0.68.16 依存追随の
+# みの patch バンプ）に対し、origin/main は独立に 0.177.0（#2195 Forms
+# 家族横断の disabled/required 決定 + questionnaire 完全実装統合を内包）
+# へ到達していた。同一版数への偶発的衝突ではないが、本ブランチの
+# headless-ui 0.68.16 依存追随（origin/main は 0.68.15 のまま）は main の
+# 0.177.0 に含まれていない実体変更のため、main の到達値 0.177.0 からさら
+# に +1（patch）して 0.177.1 とする。
 #
 # 本コンフリクト解消（PR #2289、イシュー #2192、PR #2297 の main 取り込み・
 # 再衝突）: 本ブランチと origin/main（#2297、Forms 家族横断の label
@@ -2989,7 +3013,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # まま採用しない原則に従い、双方の実体変更を統合した結果として main の
 # 到達値 0.178.0 をさらに上回る 0.179.0 へマイナーバンプする（0.x の
 # 破壊的変更はマイナーバンプの規約）。
-version = "0.179.0"
+#
+# base 取り込み（PR #2296、イシュー #2194、4 回目）: 本ブランチの到達値
+# 0.177.1（3 回目の base 取り込み解消時点、headless-ui 0.68.16 依存追随の
+# みの patch バンプ）に対し、origin/main は独立に 0.179.0（styled
+# questionnaire・dialog/drawer close-trigger 再設計・Forms 家族横断の
+# disabled/required 決定・recipe breakpoint 条件・@starting-style/
+# transition-behavior DSL を内包）へ到達していた。同一版数への偶発的衝突
+# ではないが、本ブランチの headless-ui 0.68.16 依存追随（origin/main は
+# 0.68.15 のまま）は main の 0.179.0 に含まれていない実体変更のため、
+# main の到達値 0.179.0 からさらに +1（patch）して 0.180.0 とする。
+version = "0.180.0"
+
 
 
 edition = "2021"
@@ -3005,7 +3040,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.16" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.68.17" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
