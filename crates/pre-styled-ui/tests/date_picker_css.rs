@@ -171,6 +171,15 @@ const EXPECTED_CSS: &str = r#"[data-scope="date-picker"][data-part="root"] {
   cursor: not-allowed;
 }
 
+[data-scope="date-picker"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}
+
+[data-scope="date-picker"][data-part="clear-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (hover: hover) {
   [data-scope="date-picker"][data-part="trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);

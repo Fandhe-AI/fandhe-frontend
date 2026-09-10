@@ -202,6 +202,15 @@ const EXPECTED_CSS: &str = r#"[data-scope="combobox"][data-part="root"] {
   cursor: not-allowed;
 }
 
+[data-scope="combobox"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}
+
+[data-scope="combobox"][data-part="clear-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 [data-scope="combobox"][data-part="item"][data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
