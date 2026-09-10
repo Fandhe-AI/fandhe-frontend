@@ -119,6 +119,26 @@
 //!   `docs/ci/version-bump-publish-order-gap.md` を参照。CLI 契約の回帰
 //!   テストは `xtask/tests/cli_patch_template_smoke.rs`。
 //!
+//! - `check-ruleset-sync [--manifest <PATH>] [--repo <owner/repo>] [--branch <NAME>]
+//!   [--api-base-url <URL>]`: イシュー #2325。ruleset `main-protection`
+//!   （branch protection の `required_status_checks`）の実 GitHub API 状態と、
+//!   本ワークスペースが持つ正のマニフェスト（既定
+//!   `.github/required-status-checks.json`）が一致しているかを検知する
+//!   （`check_ruleset_sync` モジュール）。implement-issue-tree の autoMerge
+//!   G0 ゲート（PR HEAD 上の client-only チェック検出）が要求する「ruleset は
+//!   PR で報告される全 context を個別列挙する」という実態と、`.claude/rules/ci.md`
+//!   の記述が乖離していた事故が動機。GitHub API へは読み取り専用（GET）で
+//!   アクセスし、`GITHUB_TOKEN` 環境変数があれば `Authorization: Bearer`
+//!   ヘッダを付与する（値はログへ一切出力しない）。curl 不在・ネットワーク
+//!   不達・想定外 HTTP status・JSON パース不能・`required_status_checks`
+//!   rule 0 件はすべて `environment error: ` プレフィックス付きで
+//!   fail-closed に扱う。呼び出し元は `.github/workflows/ci.yml` の
+//!   `dep-version-check` ジョブ（push・PR 双方）。1 行サマリは
+//!   `check_ruleset_sync::format_entry_line`/`format_strict_line` 参照。
+//!   CLI 契約の回帰テストは `xtask/tests/cli_check_ruleset_sync.rs`。ワーク
+//!   フロー YAML との整合（マニフェスト ⇔ workflows）はオフライン契約テスト
+//!   `xtask/tests/workflow_required_checks_manifest.rs` が別途担う。
+//!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
 //! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
@@ -132,6 +152,7 @@ mod check_dep_versions;
 mod check_deps;
 mod check_image_size;
 mod check_loc;
+mod check_ruleset_sync;
 mod check_version_bump;
 mod json;
 mod list_build_scripts;
@@ -155,6 +176,7 @@ fn main() -> ExitCode {
         Some("check-version-bump") => run_check_version_bump(&args[2..]),
         Some("check-dep-versions") => run_check_dep_versions(&args[2..]),
         Some("patch-template-smoke") => run_patch_template_smoke(&args[2..]),
+        Some("check-ruleset-sync") => run_check_ruleset_sync(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -238,6 +260,13 @@ fn print_usage() {
     eprintln!("      resolvable on crates.io get a `[patch.crates-io]` fallback pointing at");
     eprintln!("      --repo-root's crates/<dir>, with the corresponding Cargo.lock removed.");
     eprintln!("      Deps already resolvable on crates.io are left untouched.");
+    eprintln!(
+        "  check-ruleset-sync [--manifest <PATH>] [--repo <owner/repo>] [--branch <NAME>] [--api-base-url <URL>]"
+    );
+    eprintln!("      Detect drift between the live GitHub ruleset `required_status_checks`");
+    eprintln!("      (GET /repos/{{repo}}/rules/branches/{{branch}}) and the workspace's");
+    eprintln!("      manifest (default .github/required-status-checks.json, issue #2325).");
+    eprintln!("      Reads GITHUB_TOKEN from the environment if present (never printed).");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -1140,4 +1169,136 @@ crates.io publish (release.yml, workflow_dispatch, mode: publish) completes"
     }
 
     ExitCode::SUCCESS
+}
+
+/// `check-ruleset-sync` サブコマンド（イシュー #2325）: `--manifest <PATH>`
+/// （既定 [`check_ruleset_sync::DEFAULT_MANIFEST_PATH`]）・`--repo <owner/repo>`
+/// （既定 [`check_ruleset_sync::DEFAULT_REPO`]）・`--branch <NAME>`（既定
+/// [`check_ruleset_sync::DEFAULT_BRANCH`]）・`--api-base-url <URL>`（既定
+/// [`check_ruleset_sync::DEFAULT_API_BASE_URL`]、テスト専用の差し替え口）を
+/// 受け取る。
+///
+/// `GITHUB_TOKEN` 環境変数があれば GitHub API 呼び出しへ
+/// `Authorization: Bearer` ヘッダとして渡す（値は一切標準出力・標準エラーへ
+/// 出力しない）。マニフェスト読み込み失敗・GitHub API 取得失敗（環境エラー）は
+/// 直ちに終了コード 1 で打ち切る。比較結果に 1 件でも PASS 以外がある、または
+/// live 側の `strict_required_status_checks_policy` が `true` の場合も終了
+/// コード 1（fail-closed）。引数不備は終了コード 2。
+fn run_check_ruleset_sync(args: &[String]) -> ExitCode {
+    let mut manifest_path = check_ruleset_sync::DEFAULT_MANIFEST_PATH.to_string();
+    let mut repo = check_ruleset_sync::DEFAULT_REPO.to_string();
+    let mut branch = check_ruleset_sync::DEFAULT_BRANCH.to_string();
+    let mut api_base_url = check_ruleset_sync::DEFAULT_API_BASE_URL.to_string();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--manifest" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-ruleset-sync: `--manifest` requires a value");
+                    return ExitCode::from(2);
+                };
+                manifest_path = value.clone();
+                i += 2;
+            }
+            "--repo" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-ruleset-sync: `--repo` requires a value");
+                    return ExitCode::from(2);
+                };
+                repo = value.clone();
+                i += 2;
+            }
+            "--branch" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-ruleset-sync: `--branch` requires a value");
+                    return ExitCode::from(2);
+                };
+                branch = value.clone();
+                i += 2;
+            }
+            "--api-base-url" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-ruleset-sync: `--api-base-url` requires a value");
+                    return ExitCode::from(2);
+                };
+                api_base_url = value.clone();
+                i += 2;
+            }
+            other => {
+                eprintln!("xtask check-ruleset-sync: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let manifest_body = match std::fs::read_to_string(&manifest_path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("xtask check-ruleset-sync: failed to read manifest `{manifest_path}`: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let manifest = match check_ruleset_sync::parse_manifest(&manifest_body) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("xtask check-ruleset-sync: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    // `GITHUB_TOKEN` はホステッドランナーの IP 共有による匿名レート制限
+    // （60 req/h）を避けるためのみに使う。値はここでローカル変数に保持する
+    // だけで、以降の出力（println!/eprintln!）へは一切渡さない。
+    let token = std::env::var("GITHUB_TOKEN").ok();
+    let rules = match check_ruleset_sync::fetch_branch_rules(
+        &api_base_url,
+        &repo,
+        &branch,
+        token.as_deref(),
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("xtask check-ruleset-sync: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let (live_checks, strict_observed) =
+        match check_ruleset_sync::live_required_status_checks(&rules) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("xtask check-ruleset-sync: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+
+    let reports = check_ruleset_sync::compare(&manifest, &live_checks);
+    let mut had_failure = false;
+    for report in &reports {
+        print!("{}", check_ruleset_sync::format_entry_line(report));
+        if !report.judgement.is_pass() {
+            had_failure = true;
+        }
+    }
+    print!(
+        "{}",
+        check_ruleset_sync::format_strict_line(strict_observed)
+    );
+    if strict_observed {
+        had_failure = true;
+    }
+
+    if had_failure {
+        eprintln!(
+            "xtask check-ruleset-sync: manifest `{manifest_path}` and live ruleset \
+`{repo}`@`{branch}` (required_status_checks) are out of sync, or \
+strict_required_status_checks_policy is true. Update procedure (issue #2325, \
+.claude/rules/ci.md): (1) fix .github/workflows/*.yml, (2) update the manifest to match \
+(cargo test -p xtask will fail until it does), (3) PUT the ruleset's \
+required_status_checks parameter from the manifest before merging, (4) re-run this check \
+on the PR."
+        );
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
 }
