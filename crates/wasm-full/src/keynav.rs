@@ -849,29 +849,19 @@ pub(crate) fn last_non_disabled(disabled: &[bool]) -> Option<usize> {
 /// 呼ばない（従来どおり [`first_non_disabled`]/[`last_non_disabled`] を
 /// 直接使う）。
 // イシュー #2327: native ビルド（`wiring` mod 自体が wasm32 限定のため
-// 常に未到達）と、wasm32 で menu/select 双方の scope feature が off の
-// 構成（`wiring::handle_menu_or_select_trigger_keydown` の select 分岐
-// からしか呼ばれないため未到達）の両方を 1 つの `cfg_attr` へ統合する
-// （分けたまま両方が真になる native かつ scope feature off の構成で
-// `#[allow(dead_code)]` が二重付与され `clippy::duplicated_attributes`
-// が発生するため）。
+// 常に未到達）と、wasm32 で menu/select/menubar いずれの scope feature も
+// off の構成（`wiring::handle_menu_or_select_trigger_keydown` の select
+// 分岐からしか呼ばれないため未到達。同関数は menu/menubar からも共有
+// されるため 3 feature の `any` で条件化する）の両方を 1 つの `cfg_attr`
+// へ統合する（分けたまま両方が真になる native かつ scope feature off の
+// 構成で `#[allow(dead_code)]` が二重付与され `clippy::duplicated_attributes`
+// が発生するため）。個別 feature の組み合わせに対する正確性は
+// `docs/ci/`（`clippy-wasm32` ジョブの部分 feature 組み合わせ検証、
+// イシュー #2327 レビュー是正）で機械検証する。
 #[cfg_attr(
     any(
         not(target_arch = "wasm32"),
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        ))
+        not(any(feature = "menu", feature = "select", feature = "menubar"))
     ),
     allow(dead_code)
 )]
@@ -4313,23 +4303,7 @@ pub(crate) mod wiring {
     /// `[data-scope="menu"][data-part="trigger"]` セレクタ。
     const MENU_TRIGGER_SELECTOR: &str = "[data-scope=\"menu\"][data-part=\"trigger\"]";
     /// `[data-scope="menu"][data-part="content"]` セレクタ。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menu")), allow(dead_code))]
     const MENU_CONTENT_SELECTOR: &str = "[data-scope=\"menu\"][data-part=\"content\"]";
     /// `[data-scope="menu"][data-part="item"]`/`[data-scope="menu"][data-part="trigger-item"]`/
     /// `[data-scope="menu"][data-part="checkbox-item"]`/
@@ -4338,23 +4312,7 @@ pub(crate) mod wiring {
     /// radio-item はイシュー #2205 で追加した（従来は highlight・
     /// typeahead・Enter/Space の click 合成いずれの対象にもならず、#1651 の
     /// 既知ギャップだった）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menu")), allow(dead_code))]
     const MENU_ITEM_SELECTOR: &str =
         "[data-scope=\"menu\"][data-part=\"item\"], [data-scope=\"menu\"][data-part=\"trigger-item\"], [data-scope=\"menu\"][data-part=\"checkbox-item\"], [data-scope=\"menu\"][data-part=\"radio-item\"]";
     /// `[data-scope="menu"][data-part="trigger-item"]` セレクタ（サブメニューを
@@ -4362,81 +4320,20 @@ pub(crate) mod wiring {
     /// SSR 出力。イシュー #662、アクティブ content チェーン解決・
     /// ArrowRight/ArrowLeft の対象判定に使う）。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "combobox")),
         allow(dead_code)
     )]
     const TRIGGER_ITEM_SELECTOR: &str = "[data-scope=\"menu\"][data-part=\"trigger-item\"]";
     /// `[data-scope="select"][data-part="trigger"]` セレクタ。
     const SELECT_TRIGGER_SELECTOR: &str = "[data-scope=\"select\"][data-part=\"trigger\"]";
     /// `[data-scope="select"][data-part="content"]` セレクタ。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "select")), allow(dead_code))]
     const SELECT_CONTENT_SELECTOR: &str = "[data-scope=\"select\"][data-part=\"content\"]";
     /// `[data-scope="select"][data-part="item"]` セレクタ。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "select")), allow(dead_code))]
     const SELECT_ITEM_SELECTOR: &str = "[data-scope=\"select\"][data-part=\"item\"]";
     /// `[data-scope="radio-group"][data-part="root"]` セレクタ。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "radio-group")), allow(dead_code))]
     const RADIO_GROUP_ROOT_SELECTOR: &str = "[data-scope=\"radio-group\"][data-part=\"root\"]";
     /// `[data-scope="radio-group"][data-part="item-hidden-input"]` セレクタ
     /// （ネイティブ `<input type="radio">`、キーボード操作・change 監視の対象）。
@@ -4445,43 +4342,11 @@ pub(crate) mod wiring {
     /// `[data-scope="radio-group"][data-part="item"]` セレクタ。
     const RADIO_GROUP_ITEM_SELECTOR: &str = "[data-scope=\"radio-group\"][data-part=\"item\"]";
     /// `[data-scope="radio-group"][data-part="item-control"]` セレクタ。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "radio-group")), allow(dead_code))]
     const RADIO_GROUP_ITEM_CONTROL_SELECTOR: &str =
         "[data-scope=\"radio-group\"][data-part=\"item-control\"]";
     /// `[data-scope="radio-group"][data-part="item-text"]` セレクタ。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "radio-group")), allow(dead_code))]
     const RADIO_GROUP_ITEM_TEXT_SELECTOR: &str =
         "[data-scope=\"radio-group\"][data-part=\"item-text\"]";
     /// `[data-scope="menubar"][data-part="trigger"]` セレクタ
@@ -4489,66 +4354,18 @@ pub(crate) mod wiring {
     const MENUBAR_TRIGGER_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"trigger\"]";
     /// `[data-scope="menubar"][data-part="root"]` セレクタ（トリガー間の
     /// 水平/垂直移動の境界）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     const MENUBAR_ROOT_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"root\"]";
     /// `[data-scope="menubar"][data-part="content"]` セレクタ（トップレベル
     /// content のみ）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     const MENUBAR_CONTENT_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"content\"]";
     /// `content`/`sub-content` の両方に一致するセレクタ（[`ScopeSelectors::content_any`]
     /// 用。`resolve_submenu_content`/`strip_nested_submenu_content` が
     /// サブメニュー content も対象にする必要があるため menu と異なり 2 種を
     /// 束ねる。menubar の `content`/`sub-content` は別パーツ名のため
     /// [`MENUBAR_CONTENT_SELECTOR`] 単独では sub-content を拾えない）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     const MENUBAR_CONTENT_ANY_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"content\"], [data-scope=\"menubar\"][data-part=\"sub-content\"]";
     /// `[data-scope="menubar"][data-part="item"]`/
     /// `[data-scope="menubar"][data-part="sub-trigger"]`/
@@ -4557,43 +4374,11 @@ pub(crate) mod wiring {
     /// （いずれも highlight 対象）。checkbox-item/radio-item はイシュー
     /// #2205 で追加した（`MENU_ITEM_SELECTOR` と同型の拡張、#1652 の
     /// 既知ギャップの解消）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     const MENUBAR_ITEM_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"item\"], [data-scope=\"menubar\"][data-part=\"sub-trigger\"], [data-scope=\"menubar\"][data-part=\"checkbox-item\"], [data-scope=\"menubar\"][data-part=\"radio-item\"]";
     /// `[data-scope="menubar"][data-part="sub-trigger"]` セレクタ
     /// （サブメニューを開く項目、`menu` の `trigger-item` に相当）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     const MENUBAR_SUB_TRIGGER_SELECTOR: &str =
         "[data-scope=\"menubar\"][data-part=\"sub-trigger\"]";
     /// `[data-scope="menubar"][data-part="menu"]` セレクタ（1 個の `Menu`
@@ -4604,89 +4389,25 @@ pub(crate) mod wiring {
     /// menubar へそのまま適用すると `aria-controls` 欠落時に document 順で
     /// 先頭の `Menu` の content を誤って掴んでしまう。詳細はモジュール doc
     /// 「# Menubar のキーボード仕様」参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     const MENUBAR_MENU_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"menu\"]";
 
     /// `[data-scope="navigation-menu"][data-part="root"]` セレクタ
     /// （`crates/headless-ui/src/navigation_menu.rs::root`、イシュー #1075）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     const NAVIGATION_MENU_ROOT_SELECTOR: &str =
         "[data-scope=\"navigation-menu\"][data-part=\"root\"]";
     /// `[data-scope="navigation-menu"][data-part="item"]` セレクタ（trigger と
     /// content を包む `li`。`aria-controls` 欠落時の content 探索範囲を
     /// この 1 項目へ限定するために使う）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     const NAVIGATION_MENU_ITEM_SELECTOR: &str =
         "[data-scope=\"navigation-menu\"][data-part=\"item\"]";
     /// `[data-scope="navigation-menu"][data-part="trigger"]` セレクタ。
     const NAVIGATION_MENU_TRIGGER_SELECTOR: &str =
         "[data-scope=\"navigation-menu\"][data-part=\"trigger\"]";
     /// `[data-scope="navigation-menu"][data-part="content"]` セレクタ。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     const NAVIGATION_MENU_CONTENT_SELECTOR: &str =
         "[data-scope=\"navigation-menu\"][data-part=\"content\"]";
     /// `[data-scope="navigation-menu"][data-part="link"]` セレクタ。
@@ -4694,23 +4415,7 @@ pub(crate) mod wiring {
         "[data-scope=\"navigation-menu\"][data-part=\"link\"]";
     /// `[data-scope="toggle-group"][data-part="root"]` セレクタ
     /// （`crates/headless-ui/src/toggle_group.rs::root`、イシュー #1075）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "toggle-group")), allow(dead_code))]
     const TOGGLE_GROUP_ROOT_SELECTOR: &str = "[data-scope=\"toggle-group\"][data-part=\"root\"]";
     /// `[data-scope="toggle-group"][data-part="item"]` セレクタ。
     const TOGGLE_GROUP_ITEM_SELECTOR: &str = "[data-scope=\"toggle-group\"][data-part=\"item\"]";
@@ -4725,62 +4430,116 @@ pub(crate) mod wiring {
     /// 条件とする）。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
             feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "listbox"
         )),
         allow(dead_code)
     )]
     struct ScopeSelectors {
         /// trigger の `aria-controls` 欠落時に解決するトップレベル content。
+        #[cfg_attr(
+            not(any(
+                feature = "tabs",
+                feature = "accordion",
+                feature = "menu",
+                feature = "select",
+                feature = "radio-group",
+                feature = "menubar",
+                feature = "combobox",
+                feature = "navigation-menu",
+                feature = "toggle-group",
+                feature = "tree-view",
+                feature = "calendar"
+            )),
+            allow(dead_code)
+        )]
         content: &'static str,
         /// content または sub-content（`closest` の基準・サブメニュー解決の
         /// 子孫/兄弟フォールバック対象・`strip_nested_submenu_content` が
         /// 除去する対象）。
         content_any: &'static str,
         /// highlight 対象の項目（item + サブメニュートリガー）。
+        #[cfg_attr(
+            not(any(
+                feature = "tabs",
+                feature = "accordion",
+                feature = "menu",
+                feature = "select",
+                feature = "radio-group",
+                feature = "menubar",
+                feature = "navigation-menu",
+                feature = "toggle-group",
+                feature = "tree-view",
+                feature = "calendar"
+            )),
+            allow(dead_code)
+        )]
         item: &'static str,
         /// サブメニューを開く項目（menu: trigger-item / menubar: sub-trigger）。
+        #[cfg_attr(
+            not(any(
+                feature = "tabs",
+                feature = "accordion",
+                feature = "menu",
+                feature = "select",
+                feature = "radio-group",
+                feature = "menubar",
+                feature = "navigation-menu",
+                feature = "toggle-group",
+                feature = "tree-view",
+                feature = "calendar"
+            )),
+            allow(dead_code)
+        )]
         trigger_item: &'static str,
         /// content を所有する 1 インスタンスの境界（`aria-controls` 欠落時の
         /// 探索範囲。menu/select: `[data-part="root"]` / menubar:
         /// [`MENUBAR_MENU_SELECTOR`]）。
+        #[cfg_attr(
+            not(any(
+                feature = "tabs",
+                feature = "accordion",
+                feature = "menu",
+                feature = "select",
+                feature = "radio-group",
+                feature = "menubar",
+                feature = "combobox",
+                feature = "navigation-menu",
+                feature = "toggle-group",
+                feature = "tree-view",
+                feature = "calendar"
+            )),
+            allow(dead_code)
+        )]
         content_owner: &'static str,
         /// 初期 highlight で選択済み項目（`aria-selected="true"`）を
         /// 非 disabled 項目に優先するか（イシュー #1619 参照突合）。
         /// Select scope のみ `true`。Menu には選択概念が無いため常に
         /// `false`（[`handle_menu_or_select_trigger_keydown`] の初期
         /// highlight 節参照）。
+        #[cfg_attr(
+            not(any(
+                feature = "tabs",
+                feature = "accordion",
+                feature = "menu",
+                feature = "select",
+                feature = "radio-group",
+                feature = "menubar",
+                feature = "navigation-menu",
+                feature = "toggle-group",
+                feature = "tree-view",
+                feature = "calendar"
+            )),
+            allow(dead_code)
+        )]
         prefer_selected_item: bool,
     }
 
     /// Menu スコープのセレクタ束（既存挙動そのまま）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menu")), allow(dead_code))]
     const MENU_SCOPE: ScopeSelectors = ScopeSelectors {
         content: MENU_CONTENT_SELECTOR,
         content_any: MENU_CONTENT_SELECTOR,
@@ -4794,23 +4553,7 @@ pub(crate) mod wiring {
     /// trigger-item が存在しないため `trigger_item` は menu のセレクタを
     /// 流用しても自然に不一致となり no-op になる、既存実装のコメント
     /// 参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "select")), allow(dead_code))]
     const SELECT_SCOPE: ScopeSelectors = ScopeSelectors {
         content: SELECT_CONTENT_SELECTOR,
         content_any: SELECT_CONTENT_SELECTOR,
@@ -4821,23 +4564,7 @@ pub(crate) mod wiring {
     };
 
     /// Menubar スコープのセレクタ束（イシュー #1073）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     const MENUBAR_SCOPE: ScopeSelectors = ScopeSelectors {
         content: MENUBAR_CONTENT_SELECTOR,
         content_any: MENUBAR_CONTENT_ANY_SELECTOR,
@@ -4856,23 +4583,7 @@ pub(crate) mod wiring {
     /// となり no-op になる。`content == content_any` はサブメニュー非対応
     /// （常に 1 階層）を表す恒等変換で、`content_owner` は
     /// `resolve_combobox_root` と同じ `[data-part="root"]` を使う。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "combobox")), allow(dead_code))]
     const COMBOBOX_SCOPE: ScopeSelectors = ScopeSelectors {
         content: COMBOBOX_CONTENT_SELECTOR,
         content_any: COMBOBOX_CONTENT_SELECTOR,
@@ -4888,20 +4599,7 @@ pub(crate) mod wiring {
     /// `UnhandledHorizontal` を見てトリガー間移動へフォールバックする。
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     enum KeyOutcome {
@@ -4915,20 +4613,7 @@ pub(crate) mod wiring {
     /// [`KeyOutcome::UnhandledHorizontal`] が示す移動方向。
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     enum HorizontalDirection {
@@ -4947,63 +4632,15 @@ pub(crate) mod wiring {
     /// #1071。`tabindex="-1"` 固定でフォーカスを受けないため
     /// [`matching_keydown_target`] には登録しない。開閉の `click()` 合成先
     /// としてのみ使う）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "combobox")), allow(dead_code))]
     const COMBOBOX_TRIGGER_SELECTOR: &str = "[data-scope=\"combobox\"][data-part=\"trigger\"]";
     /// `[data-scope="combobox"][data-part="content"]` セレクタ（イシュー
     /// #1071）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "combobox")), allow(dead_code))]
     const COMBOBOX_CONTENT_SELECTOR: &str = "[data-scope=\"combobox\"][data-part=\"content\"]";
     /// `[data-scope="combobox"][data-part="item"]` セレクタ（イシュー
     /// #1071）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "combobox")), allow(dead_code))]
     const COMBOBOX_ITEM_SELECTOR: &str = "[data-scope=\"combobox\"][data-part=\"item\"]";
     /// `[data-scope="listbox"][data-part="content"]` セレクタ（イシュー
     /// #1070。`role="listbox"` + `tabindex="0"` を持ち、Menu/Select の
@@ -5011,23 +4648,7 @@ pub(crate) mod wiring {
     /// 直接受ける）。
     const LISTBOX_CONTENT_SELECTOR: &str = "[data-scope=\"listbox\"][data-part=\"content\"]";
     /// `[data-scope="listbox"][data-part="item"]` セレクタ（イシュー #1070）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "listbox")), allow(dead_code))]
     const LISTBOX_ITEM_SELECTOR: &str = "[data-scope=\"listbox\"][data-part=\"item\"]";
 
     /// Listbox スコープのセレクタ束（イシュー #1070。[`ScopeSelectors`]
@@ -5040,23 +4661,7 @@ pub(crate) mod wiring {
     /// フォールバックする（`trigger_item` は `LISTBOX_ITEM_SELECTOR` と
     /// 同一のため、万一将来参照されても「常に item 扱い」という安全側の
     /// 意味になる）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "listbox")), allow(dead_code))]
     const LISTBOX_SCOPE: ScopeSelectors = ScopeSelectors {
         content: LISTBOX_CONTENT_SELECTOR,
         content_any: LISTBOX_CONTENT_SELECTOR,
@@ -5071,23 +4676,7 @@ pub(crate) mod wiring {
     /// （`crates/headless-ui/src/tree_view.rs::branch`/`branch_content` の
     /// 再帰は `data-part="root"` を各階層で繰り返すため木の境界にならない、
     /// モジュール doc §TreeView 参照）として使う）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     const TREE_VIEW_TREE_SELECTOR: &str = "[data-scope=\"tree-view\"][data-part=\"tree\"]";
     /// `[data-scope="tree-view"][data-part="branch"]` /
     /// `[data-scope="tree-view"][data-part="item"]` セレクタ（イシュー
@@ -5100,88 +4689,24 @@ pub(crate) mod wiring {
     /// 優先候補、`crate::headless::MAPPING_TABLE` は `branch-control` 行を
     /// 持たないため合成 click はここから祖先の `branch` 行へ解決される、
     /// モジュール doc §TreeView §帰結 参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     const TREE_VIEW_BRANCH_CONTROL_SELECTOR: &str =
         "[data-scope=\"tree-view\"][data-part=\"branch-control\"]";
     /// `[data-scope="tree-view"][data-part="branch-text"]` セレクタ
     /// （イシュー #1072。typeahead ラベル取得の優先候補、[`tree_item_label`]
     /// 参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     const TREE_VIEW_BRANCH_TEXT_SELECTOR: &str =
         "[data-scope=\"tree-view\"][data-part=\"branch-text\"]";
     /// `[data-scope="tree-view"][data-part="item-text"]` セレクタ
     /// （イシュー #1072。葉ノードの typeahead ラベル取得候補）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     const TREE_VIEW_ITEM_TEXT_SELECTOR: &str =
         "[data-scope=\"tree-view\"][data-part=\"item-text\"]";
     /// `[data-scope="tree-view"][data-part="branch-content"]` セレクタ
     /// （イシュー #1072。[`strip_nested_tree_content`] がラベル読み取り前に
     /// クローン上から除去する対象）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     const TREE_VIEW_BRANCH_CONTENT_SELECTOR: &str =
         "[data-scope=\"tree-view\"][data-part=\"branch-content\"]";
 
@@ -5190,23 +4715,7 @@ pub(crate) mod wiring {
     /// （イシュー #1072、[`filter_own_scope_items`] と同型の越境防止。
     /// 入れ子 TreeView インスタンス・別 TreeView への越境操作を防ぐ、
     /// モジュール doc §セキュリティ不変条件参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn collect_tree_items(tree: &Element) -> Vec<Element> {
         collect_parts(tree, TREE_VIEW_TREEITEM_SELECTOR)
             .into_iter()
@@ -5221,23 +4730,7 @@ pub(crate) mod wiring {
     /// `query_selector_all` で `root` の子孫のみを対象にするため、`root` 自身は
     /// 別途 `matches` で判定して先頭へ挿入する。モジュール doc §TreeView
     /// 「マウント時のロービング tabindex 初期化」参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn collect_scope_trees(root: &Element) -> Vec<Element> {
         let mut trees = collect_parts(root, TREE_VIEW_TREE_SELECTOR);
         if root.matches(TREE_VIEW_TREE_SELECTOR).unwrap_or(false) {
@@ -5251,23 +4744,7 @@ pub(crate) mod wiring {
     /// 場合は `aria-level`（1 起点）から 1 を引いた値へ、それも失敗する場合は
     /// `0` へフォールバックする（`unwrap` しない、fail-closed。改ざんされた
     /// 属性値でも panic しない）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn read_tree_item_meta(items: &[Element]) -> Vec<TreeItemMeta> {
         items
             .iter()
@@ -5301,23 +4778,7 @@ pub(crate) mod wiring {
     /// roving tabindex」参照。他要素へ明示的に `tabindex="-1"` は書き込まない
     /// —— headless-ui の SSR 出力が `tabindex` を持たないため、フォーカス
     /// 対象以外は tabindex 属性自体が無い状態のままで tab 順序から外れる）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn focus_tree_item(items: &[Element], next_index: usize) {
         for item in items {
             if item.get_attribute("tabindex").as_deref() == Some("0") {
@@ -5339,23 +4800,7 @@ pub(crate) mod wiring {
     /// （モジュール doc §TreeView §帰結: `branch-control` へのクリックは
     /// `crate::headless::action_from_parts` の内側優先探索により祖先の
     /// `branch` 行〔`"toggle"`〕で解決される）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn synthesize_tree_click(treeitem: &Element) {
         let target = treeitem
             .query_selector(TREE_VIEW_BRANCH_CONTROL_SELECTOR)
@@ -5373,23 +4818,7 @@ pub(crate) mod wiring {
     /// 専用のフォールバック、イシュー #1072）。[`crate::keynav::wiring::strip_nested_submenu_content`]
     /// と同型。クローン失敗時は `None`（fail-closed。ラベル取得失敗の方が
     /// 子孫ラベル混入より安全）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn strip_nested_tree_content(treeitem: &Element) -> Option<Element> {
         let clone: Element = treeitem.clone_node_with_deep(true).ok()?.dyn_into().ok()?;
         if let Ok(nested) = clone.query_selector_all(TREE_VIEW_BRANCH_CONTENT_SELECTOR) {
@@ -5412,23 +4841,7 @@ pub(crate) mod wiring {
     /// より DOM 順で先に現れるため、素朴な `query_selector` でも子孫の
     /// `branch-text` を誤って拾わない）、いずれも見つからない改ざん DOM への
     /// 防御として [`strip_nested_tree_content`] 経由のフォールバックを持つ。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn tree_item_label(item: &Element) -> String {
         let text = item
             .query_selector(TREE_VIEW_BRANCH_TEXT_SELECTOR)
@@ -5449,23 +4862,7 @@ pub(crate) mod wiring {
     /// 処理する（イシュー #1072、[`apply_typeahead_match`] の TreeView 版。
     /// Menu/Select と異なり `data-highlighted` ではなく実フォーカス移動
     /// （[`focus_tree_item`]）を使う、§設計判断 3.1 参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn apply_tree_typeahead_match(
         items: &[Element],
         metas: &[TreeItemMeta],
@@ -5497,23 +4894,7 @@ pub(crate) mod wiring {
     ///   ストップになる roving 契約）。
     /// - 可視かつ非 disabled な treeitem が 1 つも無い（空の木・全 disabled）
     ///   場合は no-op（fail-closed）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn initialize_tree_roving_tabindex(root: &Element) {
         for tree in &collect_scope_trees(root) {
             let items = collect_tree_items(tree);
@@ -5563,23 +4944,7 @@ pub(crate) mod wiring {
     /// 使わない（セレクタインジェクション面の新設になる）。`get_attribute`
     /// で読み取った値を Rust 側の文字列比較（`==`）でのみ照合する。重複値は
     /// document 順の先頭を採る（`Iterator::find` の性質）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn restore_tree_focus_by_value(tree: &Element, value: &str) {
         let items = collect_tree_items(tree);
         let Some(next_index) = items
@@ -5619,23 +4984,7 @@ pub(crate) mod wiring {
     ///
     /// `scope_root`（[`wire_keynav`] の `root`）の外側へ抜けた treeitem・
     /// `tree` は採用しない（`crate::events::wire_events` と同じ封じ込め）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn tree_click_restore_target(
         scope_root: &Element,
         target_element: &Element,
@@ -5669,23 +5018,7 @@ pub(crate) mod wiring {
     /// [`restore_tree_focus_by_value`] で `data-value` 文字列一致により
     /// treeitem を再解決し、フォーカス・roving tabindex を復元する
     /// （§設計判断 3.6）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tree-view")), allow(dead_code))]
     fn handle_tree_view_keydown(
         root: &Element,
         treeitem: &Element,
@@ -5764,64 +5097,16 @@ pub(crate) mod wiring {
     }
     /// `[data-scope="calendar"][data-part="root"]` セレクタ（イシュー
     /// #1074。ネストした Calendar インスタンスの誤爆防止に使う探索境界）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "calendar")), allow(dead_code))]
     const CALENDAR_ROOT_SELECTOR: &str = "[data-scope=\"calendar\"][data-part=\"root\"]";
     /// `[data-scope="calendar"][data-part="table-body"]` セレクタ
     /// （`tbody`。曜日見出し行〔`table-header`/`thead`〕を含まない日付行の
     /// みを内包する、`columns` 導出の探索起点）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "calendar")), allow(dead_code))]
     const CALENDAR_TABLE_BODY_SELECTOR: &str =
         "[data-scope=\"calendar\"][data-part=\"table-body\"]";
     /// `[data-scope="calendar"][data-part="table-row"]` セレクタ（`tr`）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "calendar")), allow(dead_code))]
     const CALENDAR_TABLE_ROW_SELECTOR: &str = "[data-scope=\"calendar\"][data-part=\"table-row\"]";
     /// `[data-scope="calendar"][data-part="day-trigger"]` セレクタ
     /// （ネイティブ `<button>`、実フォーカスを直接保持する）。
@@ -5829,44 +5114,12 @@ pub(crate) mod wiring {
         "[data-scope=\"calendar\"][data-part=\"day-trigger\"]";
     /// `[data-scope="calendar"][data-part="prev-trigger"]` セレクタ
     /// （PageUp が click 合成する対象）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "calendar")), allow(dead_code))]
     const CALENDAR_PREV_TRIGGER_SELECTOR: &str =
         "[data-scope=\"calendar\"][data-part=\"prev-trigger\"]";
     /// `[data-scope="calendar"][data-part="next-trigger"]` セレクタ
     /// （PageDown が click 合成する対象）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "calendar")), allow(dead_code))]
     const CALENDAR_NEXT_TRIGGER_SELECTOR: &str =
         "[data-scope=\"calendar\"][data-part=\"next-trigger\"]";
 
@@ -5918,7 +5171,6 @@ pub(crate) mod wiring {
             feature = "listbox",
             feature = "navigation-menu",
             feature = "toggle-group",
-            feature = "tree-view",
             feature = "calendar"
         )),
         allow(dead_code)
@@ -5936,20 +5188,7 @@ pub(crate) mod wiring {
     /// `false` の列になり、`ScopeSelectors::prefer_selected_item == false`
     /// の scope では呼ばれないことと合わせて安全側）。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn selected_flags(elements: &[Element]) -> Vec<bool> {
@@ -5964,20 +5203,7 @@ pub(crate) mod wiring {
     /// 是正〔readonly 中のキー操作抜け穴〕と同型。readonly な Select/Menu
     /// は開閉・選択のいずれの keydown も no-op にする）。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn trigger_is_readonly(trigger: &Element) -> bool {
@@ -5990,23 +5216,7 @@ pub(crate) mod wiring {
     /// `data-readonly` を持たず、祖先の `item`（[`RADIO_GROUP_ITEM_SELECTOR`]）
     /// が反映するため、`closest` で `item` まで遡って判定する（`item` が
     /// 見つからない構成は安全側 no-op で `false` とする）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "radio-group")), allow(dead_code))]
     fn item_readonly(input: &Element) -> bool {
         closest(input, RADIO_GROUP_ITEM_SELECTOR)
             .is_some_and(|item| item.has_attribute("data-readonly"))
@@ -6090,12 +5300,8 @@ pub(crate) mod wiring {
         not(any(
             feature = "tabs",
             feature = "accordion",
-            feature = "menu",
-            feature = "select",
             feature = "radio-group",
             feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
             feature = "navigation-menu",
             feature = "toggle-group",
             feature = "tree-view",
@@ -6139,20 +5345,7 @@ pub(crate) mod wiring {
     /// `active_index` に追従させる。書き込み失敗（`Err`）は個々の要素に
     /// 限定した安全側 no-op とし、他要素の更新は継続する。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "tabs", feature = "menubar", feature = "toggle-group")),
         allow(dead_code)
     )]
     fn set_roving_tabindex(triggers: &[Element], active_index: usize) {
@@ -6168,23 +5361,7 @@ pub(crate) mod wiring {
     /// （モジュール doc §Tabs 参照）。`aria-controls` から
     /// `document.get_element_by_id` で対応 content を解決できない場合、
     /// その trigger の content 更新のみ no-op とする（fail-closed）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tabs")), allow(dead_code))]
     fn activate_tab(document: &web_sys::Document, triggers: &[Element], active_index: usize) {
         for (i, trigger) in triggers.iter().enumerate() {
             let is_active = i == active_index;
@@ -6233,23 +5410,7 @@ pub(crate) mod wiring {
     /// （`root.contains`）・disabled 除外・純粋層（[`tabs_next_index`]）への
     /// 委譲・DOM 反映（roving tabindex・フォーカス移動・automatic activation）
     /// をこの 1 関数にまとめる。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tabs")), allow(dead_code))]
     fn handle_tabs_keydown(root: &Element, target: &Element, event: &KeyboardEvent) {
         let Some(list) = closest(target, "[data-part=\"list\"]") else {
             return;
@@ -6300,23 +5461,7 @@ pub(crate) mod wiring {
     /// （イシュー #1636、`crates/headless-ui/src/accordion.rs::AccordionProps`）
     /// を [`accordion_orientation_from_attr`] で読み、vertical/horizontal を
     /// 切り替える。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "accordion")), allow(dead_code))]
     fn handle_accordion_keydown(root: &Element, target: &Element, event: &KeyboardEvent) {
         let Some(accordion_root) = closest(target, "[data-part=\"root\"]") else {
             return;
@@ -6358,23 +5503,7 @@ pub(crate) mod wiring {
     /// PageUp/PageDown は月移動トリガー（prev-trigger/next-trigger）への
     /// `HtmlElement::click()` 合成へ委譲する（既存原則、モジュール doc
     /// §設計参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "calendar")), allow(dead_code))]
     fn handle_calendar_keydown(root: &Element, target: &Element, event: &KeyboardEvent) {
         let Some(calendar_root) = closest(target, CALENDAR_ROOT_SELECTOR) else {
             return;
@@ -6467,18 +5596,10 @@ pub(crate) mod wiring {
     /// 参照）。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "combobox"
         )),
         allow(dead_code)
     )]
@@ -6517,20 +5638,7 @@ pub(crate) mod wiring {
     /// 外を指す改ざん `aria-controls` は不採用として `None` を返す
     /// （fail-closed、A01 対策）。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn resolve_submenu_content(
@@ -6579,20 +5687,7 @@ pub(crate) mod wiring {
     /// 呼び出し元 [`resolve_submenu_content`] が結果を `root.contains` で
     /// 封じ込め検査するため、本関数自身は封じ込め判定を行わない。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn resolve_submenu_content_via_sibling(
@@ -6619,18 +5714,11 @@ pub(crate) mod wiring {
     /// （現在 highlight されている項目、モジュール doc §Menu/Select 参照）。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
             feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "listbox"
         )),
         allow(dead_code)
     )]
@@ -6654,18 +5742,11 @@ pub(crate) mod wiring {
     /// `closest` が失敗する（祖先に content が無い）場合も安全側で除外する。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
             feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "listbox"
         )),
         allow(dead_code)
     )]
@@ -6702,20 +5783,7 @@ pub(crate) mod wiring {
     /// 降下回数は [`MAX_SUBMENU_DEPTH`] で上限を設ける（改ざん DOM による
     /// `aria-controls` 循環参照からの無限ループ防止、A04 対策）。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn resolve_active_content(
@@ -6780,18 +5848,11 @@ pub(crate) mod wiring {
     /// （document を含む）の scroll 位置には一切触れない。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
             feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "listbox"
         )),
         allow(dead_code)
     )]
@@ -6999,18 +6060,11 @@ pub(crate) mod wiring {
     /// `data-highlighted` が同期されず、highlight 表示のみ半端に欠落する）。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
             feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "listbox"
         )),
         allow(dead_code)
     )]
@@ -7048,18 +6102,10 @@ pub(crate) mod wiring {
     /// シグネチャを変更しない、イシュー #1071 §並行実装との衝突対策）。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "listbox"
         )),
         allow(dead_code)
     )]
@@ -7079,20 +6125,7 @@ pub(crate) mod wiring {
     /// クリアすることでこれを保証する。降下回数は [`MAX_SUBMENU_DEPTH`] で
     /// 上限を設ける（`resolve_active_content` と同じ理由、A04 対策）。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn clear_active_chain_highlights(
@@ -7135,20 +6168,7 @@ pub(crate) mod wiring {
     /// open のままでも副作用として問題はない（highlight 表示が一時的に消える
     /// だけで、fail-closed な no-op と同じ安全側の状態になる）。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn clear_highlight(items: &[Element], content: &Element) {
@@ -7160,18 +6180,10 @@ pub(crate) mod wiring {
     /// は content）で分離する（イシュー #1071）。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "combobox"
         )),
         allow(dead_code)
     )]
@@ -7204,18 +6216,10 @@ pub(crate) mod wiring {
     /// ため本関数は no-op と同等に働く）。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "listbox"
         )),
         allow(dead_code)
     )]
@@ -7239,18 +6243,10 @@ pub(crate) mod wiring {
     /// ラベル取得失敗の方が安全、fail-closed）。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "listbox"
         )),
         allow(dead_code)
     )]
@@ -7279,18 +6275,11 @@ pub(crate) mod wiring {
     /// 混線しない。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
-            feature = "combobox",
             feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "tree-view"
         )),
         allow(dead_code)
     )]
@@ -7300,24 +6289,17 @@ pub(crate) mod wiring {
         content: Option<Element>,
     }
 
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
     impl TypeaheadState {
+        #[cfg_attr(
+            not(any(
+                feature = "menu",
+                feature = "select",
+                feature = "menubar",
+                feature = "listbox",
+                feature = "tree-view"
+            )),
+            allow(dead_code)
+        )]
         fn new() -> Self {
             Self {
                 buffer: String::new(),
@@ -7329,6 +6311,16 @@ pub(crate) mod wiring {
         /// `content` 上で現時点（`now`、`KeyboardEvent::time_stamp()`）に
         /// typeahead バッファが有効（非空・タイムアウト内）かどうか。
         /// 対象 content が前回と異なる場合は無条件で無効（新規バッファ扱い）。
+        #[cfg_attr(
+            not(any(
+                feature = "menu",
+                feature = "select",
+                feature = "menubar",
+                feature = "listbox",
+                feature = "tree-view"
+            )),
+            allow(dead_code)
+        )]
         fn is_active_for(&self, content: &Element, now: f64) -> bool {
             if self.buffer.is_empty() {
                 return false;
@@ -7346,6 +6338,16 @@ pub(crate) mod wiring {
         /// バッファへ 1 文字追記し、更新後のバッファ文字列を返す。`content`
         /// が前回と異なる場合はタイムアウト超過と同じ扱い（[`typeahead_push`]
         /// へ `f64::INFINITY` を渡し新規バッファとして開始する）。
+        #[cfg_attr(
+            not(any(
+                feature = "menu",
+                feature = "select",
+                feature = "menubar",
+                feature = "listbox",
+                feature = "tree-view"
+            )),
+            allow(dead_code)
+        )]
         fn push(&mut self, key: &str, now: f64, content: &Element) -> String {
             let same_content = self
                 .content
@@ -7364,6 +6366,16 @@ pub(crate) mod wiring {
 
         /// バッファ・対象 content をリセットする（Escape・非 typeahead 経路の
         /// open 等、モジュール doc §Menu/Select 参照）。
+        #[cfg_attr(
+            not(any(
+                feature = "menu",
+                feature = "select",
+                feature = "menubar",
+                feature = "listbox",
+                feature = "tree-view"
+            )),
+            allow(dead_code)
+        )]
         fn reset(&mut self) {
             self.buffer.clear();
             self.content = None;
@@ -7376,6 +6388,10 @@ pub(crate) mod wiring {
         /// バッファが無効と誤判定されて新規クエリとして扱われてしまう
         /// （Bugbot 指摘: Stale content breaks typeahead buffer）。
         /// バッファ・タイムスタンプは変更しない。
+        #[cfg_attr(
+            not(any(feature = "menu", feature = "select", feature = "menubar")),
+            allow(dead_code)
+        )]
         fn rebind_content(&mut self, content: &Element) {
             self.content = Some(content.clone());
         }
@@ -7389,20 +6405,7 @@ pub(crate) mod wiring {
     /// 従来通り highlight 中の項目へ `click()` のみを合成する。highlight
     /// 不在・disabled は no-op（fail-closed）。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn activate_or_open_submenu(root: &Element, active_content: &Element, scope: &ScopeSelectors) {
@@ -7451,20 +6454,7 @@ pub(crate) mod wiring {
     /// entry"）。`id` 再解決の失敗・依然 closed はいずれも no-op
     /// （fail-closed）。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn open_submenu_and_focus_first_item(
@@ -7551,18 +6541,10 @@ pub(crate) mod wiring {
     /// 参照）。マッチが無い場合は `items`/`content` を変更しない。
     #[cfg_attr(
         not(any(
-            feature = "tabs",
-            feature = "accordion",
             feature = "menu",
             feature = "select",
-            feature = "radio-group",
             feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
+            feature = "listbox"
         )),
         allow(dead_code)
     )]
@@ -7619,20 +6601,7 @@ pub(crate) mod wiring {
     ///   Space はバッファが有効なときのみ typeahead 対象（無効時は従来通り
     ///   決定キー）。Escape でバッファをリセットする。
     #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
+        not(any(feature = "menu", feature = "select", feature = "menubar")),
         allow(dead_code)
     )]
     fn handle_menu_or_select_trigger_keydown(
@@ -8021,23 +6990,7 @@ pub(crate) mod wiring {
     ///
     /// `nav`（[`MenubarNavConfig`]）に orientation・loop・modifiers を束ね、
     /// 引数個数を `clippy::too_many_arguments`（既定閾値 7）以内に収める。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     fn move_menubar_focus(
         menubar_root: &Element,
         triggers: &[Element],
@@ -8138,23 +7091,7 @@ pub(crate) mod wiring {
     /// `clippy::too_many_arguments`（既定閾値 7）を避けるための集約であり、
     /// 意味的には root の `data-orientation`/`data-loop-focus` とイベントの
     /// 修飾キー状態をまとめただけで新しい概念は導入しない。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     struct MenubarNavConfig {
         orientation: Orientation,
         loop_focus: bool,
@@ -8169,23 +7106,7 @@ pub(crate) mod wiring {
     /// フォールスルーする。open 時は共通実装へ委譲し、戻り値が
     /// [`KeyOutcome::UnhandledHorizontal`] のときのみトリガー間移動
     /// （[`move_menubar_focus`]、open-follows-focus）を行う。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "menubar")), allow(dead_code))]
     fn handle_menubar_trigger_keydown(
         root: &Element,
         trigger: &Element,
@@ -8282,23 +7203,7 @@ pub(crate) mod wiring {
     /// ことが保証された**要素（例: [`resolve_menu_select_content`] が
     /// `document.get_element_by_id` 経由で解決した content）を渡すこと
     /// （モジュール doc §Combobox 参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "combobox")), allow(dead_code))]
     fn resolve_combobox_root(descendant: &Element) -> Option<Element> {
         closest(descendant, "[data-part=\"root\"]")
     }
@@ -8308,23 +7213,7 @@ pub(crate) mod wiring {
     /// 検査する（A01 対策、イシュー #1071）。`trigger` は `tabindex="-1"`
     /// 固定でフォーカスを受けないため [`matching_keydown_target`] には
     /// 登録されないが、開閉の `click()` 合成先として使う。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "combobox")), allow(dead_code))]
     fn resolve_combobox_trigger(root: &Element, combobox_root: &Element) -> Option<Element> {
         let trigger = combobox_root
             .query_selector(COMBOBOX_TRIGGER_SELECTOR)
@@ -8351,23 +7240,7 @@ pub(crate) mod wiring {
     /// フォーカスが移ることがない設計のため。REQ-11 bundle size 予算の
     /// 都合で不要な祖先探索コードは持たない、zag.js の
     /// `interactive = !(disabled || readOnly)` 判定と同じ帰結）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "combobox")), allow(dead_code))]
     fn is_combobox_readonly(input: &Element) -> bool {
         input.has_attribute("data-readonly")
     }
@@ -8379,23 +7252,7 @@ pub(crate) mod wiring {
     /// を実装しない理由はモジュール doc §Combobox に記載。純粋層
     /// [`combobox_key_action`] へキー判定を委譲し、本関数は DOM 解決・
     /// 封じ込め検査・click 合成・highlight 反映のみを担う。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "combobox")), allow(dead_code))]
     fn handle_combobox_input_keydown(root: &Element, input: &Element, event: &KeyboardEvent) {
         if !root.contains(Some(input)) {
             return;
@@ -8561,23 +7418,7 @@ pub(crate) mod wiring {
     /// `DATA_STATE_CHECKED`/`DATA_STATE_UNCHECKED` 語彙と一致させる）。
     /// 祖先 `item`・子孫パーツが見つからない場合はその部分のみ no-op
     /// （fail-closed）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "radio-group")), allow(dead_code))]
     fn apply_radio_item_state(input: &Element, checked: bool) {
         let state_value = if checked { "checked" } else { "unchecked" };
         set_dom_attribute(input, "data-state", state_value);
@@ -8596,23 +7437,7 @@ pub(crate) mod wiring {
     /// `inputs` 全体のネイティブ `checked` と `data-state` 群を
     /// `checked_index` のみが選択された状態に同期する
     /// （[`apply_radio_item_state`] を各項目へ適用）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "radio-group")), allow(dead_code))]
     fn sync_radio_group_states(inputs: &[Element], checked_index: usize) {
         for (i, input) in inputs.iter().enumerate() {
             let checked = i == checked_index;
@@ -8627,23 +7452,7 @@ pub(crate) mod wiring {
     /// （モジュール doc §RadioGroup 参照）。root 封じ込め検査・disabled 除外・
     /// 純粋層（[`radio_next_index`]）への委譲・フォーカス移動 + ネイティブ
     /// `checked` 設定 + `data-state` 群の同期をこの 1 関数にまとめる。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "radio-group")), allow(dead_code))]
     fn handle_radio_keydown(root: &Element, input: &Element, event: &KeyboardEvent) {
         let Some(group_root) = closest(input, RADIO_GROUP_ROOT_SELECTOR) else {
             return;
@@ -8726,23 +7535,7 @@ pub(crate) mod wiring {
     /// が発火する）を処理する。ブラウザが既に反映したネイティブ `checked` の
     /// 実態を読み取り、グループ全体の `data-state` 群を追随させるのみで
     /// `checked` 自体は変更しない（モジュール doc §RadioGroup 参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "radio-group")), allow(dead_code))]
     fn handle_radio_change(root: &Element, changed_input: &Element) {
         let Some(group_root) = closest(changed_input, RADIO_GROUP_ROOT_SELECTOR) else {
             return;
@@ -8804,23 +7597,7 @@ pub(crate) mod wiring {
     ///   mode——Shift+Arrow・Ctrl+A 等の範囲・追加選択——は
     ///   `crates/headless-ui/src/listbox.rs` が out-of-scope 宣言済みであり
     ///   本モジュールでも受理しない）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "listbox")), allow(dead_code))]
     fn handle_listbox_keydown(
         root: &Element,
         content: &Element,
@@ -8895,23 +7672,7 @@ pub(crate) mod wiring {
     /// 広げないのは、他項目の content を誤って掴まないため（A01 対策、
     /// [`ScopeSelectors::content_owner`] と同じ判断軸）。得られた content が
     /// `nav_root` 配下であることを必ず検査する。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     fn navigation_menu_content_for_trigger(
         nav_root: &Element,
         trigger: &Element,
@@ -8939,23 +7700,7 @@ pub(crate) mod wiring {
     /// NavigationMenu の content 内リンクから、それを内包する `item`
     /// （`li`）配下の `trigger` を解決する（`Escape` での close 委譲・
     /// フォーカス復帰に使う）。`nav_root` 配下であることを検査する。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     fn navigation_menu_trigger_for_link(nav_root: &Element, link: &Element) -> Option<Element> {
         let item = closest(link, NAVIGATION_MENU_ITEM_SELECTOR)?;
         let trigger = item
@@ -8973,23 +7718,7 @@ pub(crate) mod wiring {
     /// だけを集める（`closest(link, CONTENT_SELECTOR)` が `content` 自身と
     /// 一致するもののみ残し、入れ子 NavigationMenu の content への越境を
     /// 防ぐ。[`filter_own_scope_items`] と同趣旨、A01 対策）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     fn navigation_menu_links(content: &Element) -> Vec<Element> {
         collect_parts(content, NAVIGATION_MENU_LINK_SELECTOR)
             .into_iter()
@@ -9002,23 +7731,7 @@ pub(crate) mod wiring {
 
     /// `content` が `nav_root` 配下に実在し、かつ `hidden` 属性を持たない
     /// （＝現在 open）かどうかを判定する。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     fn navigation_menu_is_open(nav_root: &Element, content: &Element) -> bool {
         nav_root.contains(Some(content)) && !content.has_attribute("hidden")
     }
@@ -9034,23 +7747,7 @@ pub(crate) mod wiring {
     /// 検査で除外する。フィルタなしで `nav_root` 配下の trigger を全収集
     /// すると、content パネル内に隠れた入れ子 trigger も矢印キー/Home/End
     /// によるトリガー間移動の対象に含まれてしまう（A01 対策）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     fn navigation_menu_own_triggers(nav_root: &Element) -> Vec<Element> {
         collect_parts(nav_root, NAVIGATION_MENU_TRIGGER_SELECTOR)
             .into_iter()
@@ -9082,23 +7779,7 @@ pub(crate) mod wiring {
     /// fail-closed）。`id` が無い・再解決に失敗した場合も同様に click 前の
     /// 参照をそのまま返す（`open_submenu_and_focus_first_item` と同型の
     /// fail-closed フォールバック）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     fn navigation_menu_reresolve_after_click(
         root: &Element,
         stale_nav_root: &Element,
@@ -9132,23 +7813,7 @@ pub(crate) mod wiring {
     /// 開閉自体は `trigger.click()` 合成で既存の click → dispatch 経路へ
     /// 委譲し、本関数は `tabindex` を書き込まない（SSR が `tabindex` を
     /// 出力しない契約、モジュール doc 参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     fn handle_navigation_menu_trigger_keydown(
         root: &Element,
         trigger: &Element,
@@ -9255,23 +7920,7 @@ pub(crate) mod wiring {
     /// NavigationMenu content 内リンク上の keydown を処理する（イシュー
     /// #1075）。`list` 直下（content 外）のリンクは対象外（no-op、モジュール
     /// doc §NavigationMenu 参照）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "navigation-menu")), allow(dead_code))]
     fn handle_navigation_menu_link_keydown(root: &Element, link: &Element, event: &KeyboardEvent) {
         let Some(content) = closest(link, NAVIGATION_MENU_CONTENT_SELECTOR) else {
             return;
@@ -9330,23 +7979,7 @@ pub(crate) mod wiring {
     /// する。押下（Enter/Space/クリック）は claim せずネイティブ `<button>`
     /// の click 発火に委ねる（`crate::headless::MAPPING_TABLE` の
     /// `toggle-group`/`item` 行が dispatch へ接続する）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "toggle-group")), allow(dead_code))]
     fn handle_toggle_group_item_keydown(root: &Element, item: &Element, event: &KeyboardEvent) {
         let Some(group_root) = closest(item, TOGGLE_GROUP_ROOT_SELECTOR) else {
             return;
@@ -9400,23 +8033,7 @@ pub(crate) mod wiring {
     /// disabled trigger のクリックは no-op（fail-closed。ネイティブ
     /// `disabled` 属性がある場合、ブラウザは通常 click 自体を発火しないが、
     /// 念のため二重に防御する）。
-    #[cfg_attr(
-        not(any(
-            feature = "tabs",
-            feature = "accordion",
-            feature = "menu",
-            feature = "select",
-            feature = "radio-group",
-            feature = "menubar",
-            feature = "combobox",
-            feature = "listbox",
-            feature = "navigation-menu",
-            feature = "toggle-group",
-            feature = "tree-view",
-            feature = "calendar"
-        )),
-        allow(dead_code)
-    )]
+    #[cfg_attr(not(any(feature = "tabs")), allow(dead_code))]
     fn handle_trigger_click(root: &Element, target: &Element) {
         let Some(list) = closest(target, "[data-part=\"list\"]") else {
             return;
