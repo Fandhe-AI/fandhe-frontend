@@ -198,7 +198,11 @@
 //!   を包含する。追加不要。
 //! - **close ボタン**: 「content 右上のゴーストアイコンボタン」（本節直前の
 //!   イシュー #1695）は shadcn `SheetClose`/`DrawerClose`（右上 × アイコン）
-//!   と同型の見た目・配置。追加不要。
+//!   と同型の見た目・配置。追加不要。イシュー #2193 で dialog と対称の
+//!   `close_trigger_with_variant(CloseTriggerVariant::Text, ...)`（平文
+//!   ボタン、shadcn の Custom Close Button 相当）も追加したが、
+//!   `fandhe-frontend-wasm-full` が drawer scope を未配線（[`crate::dialog`]
+//!   モジュール doc「drawer への適用範囲」参照）のため現状 inert。
 //! - **footer/scrollable content の合成パターン**: anatomy に専用 footer
 //!   パートがない制約（本モジュール前節「本イシューのスコープ外」参照）は
 //!   継続するが、既存の showcase デモ（`crates/docs-site/src/showcase.rs::drawer_section`）
@@ -232,9 +236,10 @@ use crate::recipe::{
 
 // headless 自由関数 `root`・状態機械 `Drawer` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。
-pub use fandhe_frontend_headless_ui::dialog::ContentIds;
+pub use fandhe_frontend_headless_ui::dialog::{CloseTriggerVariant, ContentIds};
 pub use fandhe_frontend_headless_ui::drawer::{
-    backdrop, close_trigger, content, description, positioner, title, trigger, DrawerPlacement,
+    backdrop, close_trigger, close_trigger_with_variant, content, description, positioner, title,
+    trigger, DrawerPlacement,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // `trigger`/`backdrop` 等の `state` 引数は `state` モジュール由来で上記選択的
@@ -562,6 +567,30 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
+        // イシュー #2193: dialog と対称の text variant（`crate::dialog` の
+        // 同名規則参照）。呼び出し側の見た目は dialog と揃えるが、
+        // `fandhe-frontend-wasm-full` が drawer scope を未配線のため
+        // （モジュール冒頭 rustdoc「drawer への適用範囲」相当の注記は
+        // `fandhe_frontend_headless_ui::drawer` 側にある）、footer 内の
+        // text close-trigger は現状クリックしても閉じない（inert）。
+        .state(
+            "close-trigger",
+            StateCondition::AttrEq("data-variant", "text"),
+            vec![
+                decl("position", "static"),
+                decl("inset-block-start", "auto"),
+                decl("inset-inline-end", "auto"),
+                decl("box-sizing", "border-box"),
+                decl("width", "auto"),
+                decl("height", "auto"),
+                decl("overflow", "visible"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
+                decl("color", "var(--fandhe-color-fg)"),
+            ],
+        )
         // イシュー #758: `size` variant（root スコープの CSS custom
         // property。Md はフォールバック値と同一の現行外観を維持する）。
         // イシュー #1681: Xs/Xl は Sm(16)→Md(20)→Lg(28) の非等差進行を、
@@ -858,6 +887,33 @@ mod tests {
         let title_rule = &css[title_start..title_end];
         assert!(title_rule
             .contains("padding-inline-end: calc(var(--fandhe-space-8) + var(--fandhe-space-2));"));
+    }
+
+    #[test]
+    fn close_trigger_text_variant_overrides_icon_positioning() {
+        // イシュー #2193: dialog と対称の text variant を固定する。
+        let css = stylesheet();
+        let selector = r#"[data-scope="drawer"][data-part="close-trigger"][data-variant="text"] {"#;
+        let start = css
+            .find(selector)
+            .expect("close-trigger text variant rule must be present");
+        let end = css[start..].find('}').unwrap() + start;
+        let rule = &css[start..end];
+        assert!(rule.contains("position: static;"));
+        assert!(rule.contains("overflow: visible;"));
+        assert!(rule.contains("border: 1px solid var(--fandhe-color-border);"));
+    }
+
+    #[test]
+    fn close_trigger_base_icon_contract_is_unchanged_by_text_variant() {
+        let css = stylesheet();
+        let close_trigger_start = css
+            .find(r#"[data-scope="drawer"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        let close_trigger_end = css[close_trigger_start..].find('}').unwrap() + close_trigger_start;
+        let close_trigger_rule = &css[close_trigger_start..close_trigger_end];
+        assert!(close_trigger_rule.contains("position: absolute;"));
+        assert!(close_trigger_rule.contains("overflow: hidden;"));
     }
 
     #[test]

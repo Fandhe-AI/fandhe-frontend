@@ -71,8 +71,11 @@ callout / carousel / **collapsible（イシュー #1682 で golden 新設。イ�
 checkbox / checkbox_card / checkbox_group /
 **command（イシュー #2070 で golden 新設。`stylesheet()` 全文）** /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
-date_input / dialog / **download_trigger（方式 b）** /
-drawer / editable / **field（イシュー #1684 で golden 新設）** /
+date_input / **dialog（イシュー #2193 で `close-trigger` の
+`[data-variant="text"]` state 規則を `FocusVisible` 規則の直後・
+`@media (hover: hover)` の直前へ純追加）** / **download_trigger（方式 b）** /
+**drawer（イシュー #2193 で dialog と同様の `close-trigger` text variant
+規則を追加）** / editable / **field（イシュー #1684 で golden 新設）** /
 **fieldset（イシュー #1686 で golden 新設）** /
 file_upload / floating_panel / highlight / hover_card /
 image_cropper / **input_group（イシュー #2063 で golden 新設。`stylesheet()` 全文）** /
