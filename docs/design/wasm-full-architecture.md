@@ -2212,13 +2212,21 @@ PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` 
   一方、REQ-11 の gzip 上限に対する余地確保（#2329 が dist-server 側の
   feature 集合を最小化する際の分離点）として `position` を off にできる
   選択肢を用意する。
-- **`style` 属性の完全上書き契約は据え置く**: `reposition_one` は
-  `set_attribute("style", ...)` で positioner/arrow の `style` を
-  `--fandhe-*` のみへ完全上書きする（既存契約、§23 以前から不変）。
-  自動呼び出し化により利用者が positioner へ付けたインライン `style` は
-  初回オープン時に失われるが、`position_browser.rs` の既存テスト群と
-  フィクスチャ doc がこの契約へ依存しており、本イシューでは変更しない
-  （CSSOM `set_property` への移行は将来課題として §33.6 に記録）。
+- **`style` 属性はもはや完全上書きしない（CSSOM `set_property` による
+  個別宣言更新へ移行済み）**: codex-review 指摘（イシュー #2209、P1）を
+  受け、`reposition_one` は `set_attribute("style", ...)` による `style`
+  属性全体の置き換えをやめ、`position::wiring::apply_css_vars` が
+  `HtmlElement::style()`（`CssStyleDeclaration`）の `set_property` で
+  `css_vars_style` が生成した `--fandhe-*` の各宣言のみを個別に更新する
+  （既存になければ追加、既にあれば値のみ更新）。利用者が positioner/
+  arrow へ配線前から付けていた `position`/`width`/`z-index` 等の他の
+  インライン宣言は上書きされず保持される。`data-side`/`data-align`/
+  `data-positioned`/`data-requested-side`/`data-requested-align` の各
+  属性は従来どおり `set_dom_attribute`（`set_attribute` ラッパー）で
+  書き込む（`style` 属性のみが対象外、`position.rs` の
+  `set_dom_attribute` は `debug_assert!` で `"style"` 名の呼び出しを
+  release ビルド外で検出する）。詳細は `crates/wasm-full/src/
+  position.rs` の `apply_css_vars` rustdoc を参照。
 - **`offset`（`sideOffset` 相当）は 0 固定のまま**: `resolve_position` の
   `offset: 0.0` は変更しない。shadcn の `sideOffset`（4px）相当の隙間は、
   positioner の実測寸法に padding を含める（`getBoundingClientRect` は
@@ -2301,9 +2309,6 @@ position_browser` で実測 PASS（既存 21 テスト含め全 21 件 PASS）�
 
 ### 34.6 スコープ外（Issue 化をユーザーへ提案）
 
-- `reposition_one` の `style` 完全上書き（`set_attribute`）から CSSOM
-  （`set_property`）への移行（利用者インライン `style` の保全、
-  `content_height.rs` と同型）。
 - `PositionedKind::from_scope` に未登録の scope: `combobox`/`date-picker`
   （pre-styled-ui が `data-positioned` 規則を持つが wasm-full が付与
   しない）、`hover-card`/`toggle-tip`（`overlay::OverlayKind` にも未登録）。
