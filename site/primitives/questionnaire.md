@@ -45,7 +45,7 @@
 - `back` / `next` / `skip` はネイティブ `button`（`type="button"`）です。境界（`step == 0` / `step == count`）または呼び出し側の判定結果で `disabled` + `data-disabled` を出力します。
 - キーボード操作は Tab / Shift+Tab（フォーカス移動）・Enter / Space（ボタン押下）のみで、矢印キー等の独自ハンドリングは持ちません。options / freeform のキー操作は入れ子にした部品のものを継承します。
 
-back / next / skip の click から dispatch（`"prev"` / `"next"` / `"skip"`）への実際の DOM 配線（`fandhe-frontend-wasm-full`）は本部品のスコープ外です。本部品は SSR 静的マークアップと dispatch 契約のみを提供します。
+back / next / skip の click から dispatch（`"prev"` / `"next"` / `"skip"`）への実際の DOM 配線は `fandhe-frontend-wasm-full` 0.18.0 以降、`Runtime::mount` / `Runtime::hydrate` が自動配線します。クリックで DOM 上の `data-step` ・各 question の `data-state` / `hidden` ・progress の `aria-valuenow` / `aria-valuetext` が更新され、アプリ状態へは実際に遷移した場合のみ `"questionnaire:prev"` / `"questionnaire:next"` / `"questionnaire:skip"`（payload は遷移前の step）が通知されます。回答値の保持・必須判定・分岐（次にどの質問へ進むか）はこの通知を受けたアプリ側の再描画で行う契約です。`back` / `next` / `skip` の `disabled` は境界（`step == 0` / `step == count`）が変化したときのみ wasm-full が付け外しし、非境界位置でアプリが付けた `disabled`（必須判定結果）は保存されます。詳細は [`docs/design/wasm-full-architecture.md` §27](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/wasm-full-architecture.md) を参照してください。
 
 **参考サイトとの差分**
 
