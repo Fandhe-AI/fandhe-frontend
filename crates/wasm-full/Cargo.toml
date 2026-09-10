@@ -904,6 +904,12 @@ name = "fandhe-frontend-wasm-full"
 # プログラム的スクロールを `ScrollToOptions`/`ScrollBehavior` 経由から
 # 配線時のインライン `scroll-behavior: auto` 固定 + `set_scroll_top` へ
 # 変更したため、`ScrollBehavior`/`ScrollToOptions` feature は追加しない。
+#
+# base 取り込み: origin/main が独立に 0.18.4 → 0.18.5（イシュー #2282、
+# `content_height::TARGETS` への bubble `collapse-content` 追加、patch
+# バンプ）へ到達済みだったが、本ブランチの 0.19.0（minor バンプ）が
+# 上位互換のためそのまま採用する（0.18.5 の変更内容自体は base merge で
+# 取り込み済み）。
 version = "0.19.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"

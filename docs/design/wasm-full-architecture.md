@@ -1610,9 +1610,9 @@ closed のとき content 要素へ `hidden` 存在属性を付与する契約
   `#[cfg(target_arch = "wasm32")]`。
 
 対象パーツは `TARGETS: &[(&str, &str)] = &[("collapsible", "content"),
-("accordion", "item-content")]` という静的表のみで宣言し、部品名で
-分岐するコードを持たない。対象追加（例: bubble、#2282）はこの表への
-1 行追加のみで乗る設計。
+("accordion", "item-content"), ("bubble", "collapse-content")]`
+という静的表のみで宣言し、部品名で分岐するコードを持たない。bubble の
+`collapse-content`（#2282）はこの表への 1 行追加のみで適用した。
 
 ### 28.3 書き込み手段: CSSOM（Issue 記載パターンとの差分）
 
@@ -1690,8 +1690,10 @@ CSS 遷移そのものの成立可否〔#2192 側の CSS 実装に依存〕は�
   `animation` 方式採用との協調。
 - `overflow: hidden` 下で content が縮んだ場合に前回値が残る限界の
   解消（測定方式の再検討）。
-- bubble（#2282）・他部品（#2283）への `TARGETS` 追加は既存イシューで
-  扱う。
+- bubble（#2282 で `TARGETS` 適用済み。ただし `MAPPING_TABLE` に
+  `(bubble, collapse-trigger)` の配線が無いため `wire_headless_component`
+  経由のクリックでは dispatch されない実運用上の限界が残る）・他部品
+  （#2283）への `TARGETS` 追加は既存イシューで扱う。
 
 ## 29. `chart_range` モジュール（イシュー #2134、親 #2132）
 

@@ -21,11 +21,16 @@ CSS セレクタとして参照するだけで、class ベースの軸は持ち�
 
 `reactions` / `reaction` はリアクションチップの表示のみを担う非対話パーツ
 です。押下・集計・トグルはこの部品では実装しません。`collapse-trigger` /
-`collapse-content` は折りたたみ詳細を表現しますが、closed 時に headless 層
-が出力する `hidden` 属性は `display: none` を伴うため、opacity フェード
-遷移が実際に見えるのはクライアントランタイムが `hidden` を外す前後で
-`data-state` を切り替える場合のみです。SSR 単独では即時表示・即時非表示に
-なります。
+`collapse-content` は折りたたみ詳細を表現し、開閉は headless 層が出力する
+`hidden` 属性で行います。`hidden` の切り替え自体がクライアントランタイム
+から発火すれば、`calc-size()` 対応ブラウザでは `@starting-style` +
+`transition-behavior: allow-discrete` による高さトランジションとして開閉
+が表現されます（`collapsible` / `accordion` と同じ共通機構。`hidden` 契約
+自体は維持したままの CSS ネイティブな遷移で、`fandhe-frontend-wasm-full`
+が実測した高さを CSS 変数（`--fandhe-content-height`）へ書き込む経路は
+必須ではありません）。`calc-size()` 未対応ブラウザでは共通 preset が常に
+遷移を無効化するため、実測値の同期有無に関わらず `auto` フォールバック
+による `hidden` の即時切り替えのまま動作します。
 
 「リスト中の何番目か」「前後の発言者が同じか」を突き合わせて
 `group-position` を選ぶ計算、リアクションの押下・集計・トグル、折りたたみ
