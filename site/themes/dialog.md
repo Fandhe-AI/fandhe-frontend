@@ -22,9 +22,10 @@ pre-styled-only の `body` パートを使います。見出し（`title`/`descr
 影響しません。close ボタンを content 右上のアイコンではなく `footer` 内の通常の
 ボタンとして掲示したい場合（shadcn の「Custom Close Button」相当）は、
 `close_trigger_with_variant(CloseTriggerVariant::Text, ...)` を `footer` 内に置くと、
-アイコン専用契約のまま既存の閉じる配線（`(dialog, close-trigger) -> "close"`）を
-共有した平文ボタンとして機能します（構成例は下記 Demo の Examples 節「Share link
-(custom close button)」を参照してください）。
+アイコン専用契約の絶対配置・固定正方形サイズを上書きし、既存の閉じる配線
+（`(dialog, close-trigger) -> "close"`）を共有した平文ボタンの見た目・配置として
+機能します（構成例は下記 Demo の Examples 節「Share link (custom close button)」を
+参照してください）。
 
 > [!IMPORTANT]
 > Demo はトリガー起点のオーバーレイ部品を「開いた状態」で固定掲示しています。
