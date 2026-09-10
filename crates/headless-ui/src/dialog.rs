@@ -70,6 +70,12 @@
 //! - **Radix AlertDialog の `Cancel`/`Action` パート**: `DialogRole::Alertdialog`
 //!   と [`close_trigger`] と素の `button` で構成でき、ark-ui にも該当パートは
 //!   無いため不採用（Themes 側 alert-dialog 設計イシュー #1675 へ申し送り）。
+//! - **shadcn/ui `DialogClose`**（footer 内の平文ボタンとして再利用できる
+//!   close トリガー）: イシュー #2193 で [`close_trigger_with_variant`] を
+//!   追加して対応した。`data-variant`（[`CloseTriggerVariant`]）を
+//!   headless 側が語彙として出力し、`fandhe-frontend-pre-styled-ui` の
+//!   recipe が見た目（アイコン専用 vs 平文ボタン）を選択する（既存
+//!   [`close_trigger`] はアイコン専用契約を維持する既定であり出力は不変）。
 //!
 //! # shadcn/ui（Radix Primitives）a11y チェックリストとの突合（イシュー #2194）
 //!
@@ -134,6 +140,58 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 
 /// Dialog の anatomy（`data-scope="dialog"`）。
 const ANATOMY: Anatomy = anatomy("dialog");
+
+/// [`close_trigger_with_variant`] が固定付与する予約キー
+/// （`crate::item::drop_reserved` と同型のなりすまし防止パターン）。
+const CLOSE_TRIGGER_RESERVED: &[&str] = &["data-variant"];
+
+/// 呼び出し側 `attrs` から予約キー（本関数が固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致）。`fandhe_frontend_core::el`
+/// は属性の重複除去をしないため、これを経由しない呼び出しは状態属性の
+/// なりすましを許してしまう（`crate::item::drop_reserved` と同型）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// [`close_trigger_with_variant`] の見た目バリアント（イシュー #2193）。
+///
+/// `fandhe-frontend-pre-styled-ui` の recipe が `data-variant` の値を
+/// 参照して見た目を切り替える（headless 側は語彙の出力のみを担い、
+/// 装飾自体は持ち込まない。`docs/policy/intentional-non-adoption.md`
+/// §3.25 規則 2）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloseTriggerVariant {
+    /// content 右上のアイコン専用ゴーストボタン契約（[`close_trigger`] の
+    /// 既定と同じ見た目）。
+    Icon,
+    /// footer 内などで再利用できる平文ボタンの見た目
+    /// （shadcn/ui `DialogClose` の Custom Close Button 相当）。
+    Text,
+}
+
+impl CloseTriggerVariant {
+    /// `data-variant` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Icon => "icon",
+            Self::Text => "text",
+        }
+    }
+}
+
+impl Default for CloseTriggerVariant {
+    /// 既存 [`close_trigger`] と同じアイコン専用契約を既定とする。
+    fn default() -> Self {
+        Self::Icon
+    }
+}
 
 /// 呼び出し側 `attrs` から `tabindex`（大文字小文字を無視）を除去する
 /// （[`crate::menubar::drop_tabindex_attr`] と同型のパターン。クレート API
@@ -334,10 +392,35 @@ pub fn description<'a>(
 /// CloseTrigger パーツ（`button`）。ラベル（`aria-label`/children）は
 /// 呼び出し側が `attrs`/`children` で付与する。
 ///
-/// [`trigger`] と同じく `type="button"` を固定で付与する。
+/// [`trigger`] と同じく `type="button"` を固定で付与する。`data-variant`
+/// を出力しないため、`fandhe-frontend-pre-styled-ui` 側は content 右上の
+/// アイコン専用ゴーストボタン契約（既定）を適用する。footer 内で平文
+/// ボタンとして再利用したい場合は [`close_trigger_with_variant`] を使う
+/// （本関数の出力はイシュー #2193 導入時点からバイト単位で不変）。
 #[must_use]
 pub fn close_trigger<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
+    merged.extend(attrs);
+    ANATOMY.part("close-trigger", "button", merged, children)
+}
+
+/// CloseTrigger パーツ（`button`）。[`close_trigger`] に加えて
+/// `data-variant`（[`CloseTriggerVariant`]）を固定出力し、
+/// `fandhe-frontend-pre-styled-ui` の recipe が見た目（アイコン専用 vs
+/// footer 内の平文ボタン）を選択できるようにする（イシュー #2193）。
+///
+/// 呼び出し側 `attrs` に含まれる `data-variant`（ASCII 大文字小文字
+/// 無視）はなりすまし防止のため除去し、`variant` 引数の値を必ず優先する
+/// （[`drop_reserved`] 参照）。
+#[must_use]
+pub fn close_trigger_with_variant<'a>(
+    variant: CloseTriggerVariant,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, CLOSE_TRIGGER_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![("type", "button"), ("data-variant", variant.as_str())];
     merged.extend(attrs);
     ANATOMY.part("close-trigger", "button", merged, children)
 }
@@ -721,6 +804,54 @@ mod tests {
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"data-part="close-trigger""#));
         assert!(html.contains("Close"));
+    }
+
+    #[test]
+    fn close_trigger_never_outputs_data_variant() {
+        // イシュー #2193: 既存契約はバイト単位で不変（data-variant を持たない）。
+        let html = render(&close_trigger(vec![], vec![text("Close")]));
+        assert!(!html.contains("data-variant"));
+    }
+
+    #[test]
+    fn close_trigger_with_variant_outputs_data_variant_icon() {
+        let html = render(&close_trigger_with_variant(
+            CloseTriggerVariant::Icon,
+            vec![],
+            vec![text("Close")],
+        ));
+        assert!(html.contains(r#"data-variant="icon""#));
+        assert!(html.contains(r#"type="button""#));
+        assert!(html.contains(r#"data-part="close-trigger""#));
+    }
+
+    #[test]
+    fn close_trigger_with_variant_outputs_data_variant_text() {
+        let html = render(&close_trigger_with_variant(
+            CloseTriggerVariant::Text,
+            vec![],
+            vec![text("Cancel")],
+        ));
+        assert!(html.contains(r#"data-variant="text""#));
+        assert!(html.contains("Cancel"));
+    }
+
+    #[test]
+    fn close_trigger_with_variant_drops_spoofed_data_variant() {
+        // 呼び出し側が data-variant を偽装しても variant 引数の値が必ず優先される。
+        let html = render(&close_trigger_with_variant(
+            CloseTriggerVariant::Text,
+            vec![("data-variant", "icon"), ("DATA-VARIANT", "icon")],
+            vec![],
+        ));
+        assert_eq!(html.matches("data-variant").count(), 1);
+        assert!(html.contains(r#"data-variant="text""#));
+    }
+
+    #[test]
+    fn close_trigger_variant_default_is_icon() {
+        assert_eq!(CloseTriggerVariant::default(), CloseTriggerVariant::Icon);
+        assert_eq!(CloseTriggerVariant::default().as_str(), "icon");
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---

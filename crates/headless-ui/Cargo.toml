@@ -623,8 +623,24 @@ name = "fandhe-frontend-headless-ui"
 # イシュー #2194: dialog/tabs の shadcn（Radix Primitives）a11y チェックリスト
 # 差分を rustdoc へ記録する（`crates/headless-ui/src/dialog.rs`/`tabs.rs`）。
 # コード変更なし（rustdoc のみ）だが `src/` 変更のため version-bump-guard
-# 対象であり、#1638 前例と同型で patch バンプする。0.68.15 とする。
-version = "0.68.15"
+# 対象であり、#1638 前例と同型で patch バンプする。
+#
+# イシュー #2193: dialog / drawer の close-trigger をアイコン専用契約から
+# 平文ボタンでも再利用できる形へ再設計する。`dialog::CloseTriggerVariant`・
+# `dialog::close_trigger_with_variant`・`drawer::close_trigger_with_variant`
+# を新規追加した。既存 `close_trigger`（dialog/drawer 双方）の出力は
+# バイト単位で不変（`data-variant` を出力しない）のため非破壊的な純追加、
+# patch バンプ対象だったが、origin/main が #2117（questionnaire 新設）で
+# 独立に 0.68.14 へ到達済みだったため、同一版数への偶発的衝突をそのまま
+# 採用しない原則により main の到達値 0.68.14 からさらに +1 して 0.68.15
+# とする。
+#
+# base 取り込み（PR #2296、イシュー #2194）: 本ブランチ（#2194 の rustdoc
+# のみの純追加）と origin/main（#2193 の close-trigger variant 再設計）が
+# いずれも独立に 0.68.15 へ到達しており、同一版数への偶発的衝突をそのまま
+# 採用しない原則に従い、main の到達値 0.68.15 からさらに +1 して 0.68.16
+# とする。
+version = "0.68.16"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

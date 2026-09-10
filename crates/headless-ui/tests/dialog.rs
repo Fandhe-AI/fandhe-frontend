@@ -122,3 +122,37 @@ fn dialog_xss_payload_in_children_is_escaped_on_render() {
     assert!(!html.contains("<img src=x onerror=alert(1)>"));
     assert!(html.contains("&lt;img"));
 }
+
+#[test]
+fn dialog_close_trigger_with_variant_via_public_api() {
+    // イシュー #2193: クレート公開面経由で data-variant を確認する。
+    let icon_html = render(&dialog::close_trigger_with_variant(
+        dialog::CloseTriggerVariant::Icon,
+        vec![],
+        vec![],
+    ));
+    assert!(icon_html.contains(r#"data-variant="icon""#));
+
+    let text_html = render(&dialog::close_trigger_with_variant(
+        dialog::CloseTriggerVariant::Text,
+        vec![],
+        vec![text("Cancel")],
+    ));
+    assert!(text_html.contains(r#"data-variant="text""#));
+    assert!(text_html.contains(r#"data-part="close-trigger""#));
+
+    // 既存 close_trigger は data-variant を出力しない（バイト単位で不変）。
+    let legacy_html = render(&dialog::close_trigger(vec![], vec![text("Close")]));
+    assert!(!legacy_html.contains("data-variant"));
+}
+
+#[test]
+fn dialog_close_trigger_with_variant_xss_payload_is_escaped_on_render() {
+    let html = render(&dialog::close_trigger_with_variant(
+        dialog::CloseTriggerVariant::Text,
+        vec![],
+        vec![text("<img src=x onerror=alert(1)>")],
+    ));
+    assert!(!html.contains("<img src=x onerror=alert(1)>"));
+    assert!(html.contains("&lt;img"));
+}

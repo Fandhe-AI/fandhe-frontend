@@ -6,7 +6,7 @@
 //! XSS 回帰が期待通り動作することを固定する（`tests/dialog.rs` と同型の構成）。
 
 use fandhe_frontend_core::{render, text};
-use fandhe_frontend_headless_ui::dialog::ContentIds;
+use fandhe_frontend_headless_ui::dialog::{CloseTriggerVariant, ContentIds};
 use fandhe_frontend_headless_ui::drawer::{self};
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_headless_ui::{Drawer, DrawerPlacement};
@@ -146,6 +146,33 @@ fn drawer_xss_payload_in_title_id_is_escaped_on_render() {
 fn drawer_xss_payload_in_children_is_escaped_on_render() {
     let html = render(&drawer::description(
         None,
+        vec![],
+        vec![text("<img src=x onerror=alert(1)>")],
+    ));
+    assert!(!html.contains("<img src=x onerror=alert(1)>"));
+    assert!(html.contains("&lt;img"));
+}
+
+#[test]
+fn drawer_close_trigger_with_variant_via_public_api() {
+    // イシュー #2193: dialog と対称の data-variant 契約をクレート公開面経由で確認する。
+    let text_html = render(&drawer::close_trigger_with_variant(
+        CloseTriggerVariant::Text,
+        vec![],
+        vec![text("Cancel")],
+    ));
+    assert!(text_html.contains(r#"data-variant="text""#));
+    assert!(text_html.contains(r#"data-part="close-trigger""#));
+
+    // 既存 close_trigger は data-variant を出力しない（バイト単位で不変）。
+    let legacy_html = render(&drawer::close_trigger(vec![], vec![text("Close")]));
+    assert!(!legacy_html.contains("data-variant"));
+}
+
+#[test]
+fn drawer_close_trigger_with_variant_xss_payload_is_escaped_on_render() {
+    let html = render(&drawer::close_trigger_with_variant(
+        CloseTriggerVariant::Text,
         vec![],
         vec![text("<img src=x onerror=alert(1)>")],
     ));
