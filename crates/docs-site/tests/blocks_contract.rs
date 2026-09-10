@@ -201,6 +201,132 @@ fn login_01_composes_expected_parts() {
     }
 }
 
+/// login-04 の Demo 固有 CSS フック（card/body/form/field/submit/separator/
+/// providers/provider/image/img/stack）が実際に生成 HTML へ出力され、
+/// `blocks::stylesheet()` にも対応するセレクタが存在することを固定する
+/// （login-01 のイシュー #2088 codex-review 是正と同型: `card::root`/
+/// `field::root`/`button::button`/`image::image` は `drop_class_attr` で
+/// 呼び出し側 `class` を除去するため、CSS フックは `class` ではなく
+/// `data-*` 属性で渡す契約になっている、`crates/docs-site/src/blocks/
+/// login_04.rs` 参照）。
+#[test]
+fn login_04_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/login-04/index.html"))
+        .expect("blocks/login-04/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-login-04\""),
+        "login-04 page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "login-04 page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "login-04 page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-login-04-stack=\"\"",
+        "data-blocks-login-04-card=\"\"",
+        "data-blocks-login-04-body=\"\"",
+        "data-blocks-login-04-form=\"\"",
+        "data-blocks-login-04-field=\"\"",
+        "data-blocks-login-04-submit=\"\"",
+        "data-blocks-login-04-separator=\"\"",
+        "data-blocks-login-04-providers=\"\"",
+        "data-blocks-login-04-provider=\"\"",
+        "data-blocks-login-04-image=\"\"",
+        "data-blocks-login-04-img=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "login-04 page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-login-04-stack]",
+        "[data-blocks-login-04-card]",
+        "[data-blocks-login-04-body]",
+        "[data-blocks-login-04-form]",
+        "[data-blocks-login-04-field]",
+        "[data-blocks-login-04-submit]",
+        "[data-blocks-login-04-providers]",
+        "[data-blocks-login-04-image]",
+        "[data-blocks-login-04-img]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// login-04 の合成部品（card/field::group/field::separator/input/button/
+/// icon_button/image の合成）が shadcn `login-04` 相当の構成で実際に
+/// 出力されていること、実企業名・商標ロゴ（Apple/Google/Meta）・`<form>`・
+/// 死リンク（`href="#"`）・`data:` URI を持ち込んでいないことを固定する
+/// （イシュー #2093、`login_01_composes_expected_parts` と同型）。
+#[test]
+fn login_04_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/login-04/index.html"))
+        .expect("blocks/login-04/index.html should be generated");
+    let login_04_block = blocks::BLOCKS
+        .iter()
+        .find(|block| block.path == "/blocks/login-04/")
+        .expect("login-04 should be registered in blocks::BLOCKS");
+    let demo_html = render(&(login_04_block.demo)());
+    for needle in [
+        "data-scope=\"card\"",
+        "data-part=\"group\"",
+        "type=\"email\"",
+        "placeholder=\"m@example.com\"",
+        "type=\"password\"",
+        "data-part=\"separator\"",
+        "data-part=\"separator-content\"",
+        "Or continue with",
+        "fd-button--variant-outline",
+        "fd-button--icon-only",
+        "fd-button--variant-link",
+        "data-scope=\"image\"",
+        "src=\"../../assets/image-demo.svg\"",
+        "aria-label=\"Login with",
+    ] {
+        assert!(
+            html.contains(needle),
+            "login-04 page should contain {needle}"
+        );
+    }
+    for absent in [
+        "<form",
+        "href=\"#\"",
+        "role=\"alert\"",
+        "data-part=\"footer\"",
+        "src=\"data:",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "login-04 should never contain {absent}"
+        );
+    }
+    // 実ブランド名（Apple/Google/Meta）の不在は Demo 部分木（`(block.demo)()`
+    // を直接 render した出力）に対してのみ検証する。ページ全体には
+    // 「shadcn 側との差分メモ」節（原稿の説明文としてブランド名へ言及）が
+    // 存在するため、`html` 全体を対象にすると常に FAIL する（モジュール doc
+    // 「プロバイダボタン 3 個」節が守る不変条件は Demo 部分木限定）。
+    for absent in ["Apple", "Google", "Meta"] {
+        assert!(
+            !demo_html.contains(absent),
+            "login-04 Demo subtree should never contain {absent}"
+        );
+    }
+}
+
 #[test]
 fn block_pages_never_contain_a_form_element_or_data_uri() {
     let out = build_real_site();
