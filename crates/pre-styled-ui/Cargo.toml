@@ -1,5 +1,12 @@
 [package]
 name = "fandhe-frontend-pre-styled-ui"
+# イシュー #2131: charts のツールチップに indicator バリアント（dot/line/
+# dashed/none、`charts::tooltip::TooltipIndicator`）と hover 強調 CSS
+# （`data-has-active`/`data-index`/`data-active` の減光・拡張、8 チャート
+# 部品への末尾純追加）を追加した。新規公開 API（`TooltipIndicator`/
+# `TooltipLayerProps`/`FrameProps`/`layer_with`/`layer_from_entries_with`/
+# `frame_with`）のみで既存関数シグネチャ・golden CSS の既存ブロックは不変
+# のため非破壊的な追加として minor バンプする。
 # イシュー #2187: navigation-menu にルートレベル indicator パーツの CSS 変数
 # 契約付き着装（SLOTS 純追加・root への position:relative 1 宣言・indicator
 # の base/state 宣言）を追加した。既存パーツの出力バイトは変更していない
@@ -2789,11 +2796,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.167.0 とする。
 # dep-version-check 追随分をさらに 0.166.2 へ patch バンプしていた。
 #
-# 本ブランチ（イシュー #2133）側は上記 0.166.2 を起点に、本イシューの
-# 実体変更（公開 API 拡張）に伴い 0.167.0 へマイナーバンプ済み。今回の
-# base 取り込みで origin/main 側の到達値 0.166.0 を確認したが、本ブランチ
-# 側の 0.167.0 が既にこれを上回るため、追加バンプ不要で 0.167.0 を
-# そのまま採用する。
+# イシュー #2131: 本ブランチ側は上記 0.166.2 を起点に、本イシューの
+# 実体変更（ツールチップ indicator バリアント・hover 強調 CSS の公開 API
+# 拡張）に伴い 0.168.0 へマイナーバンプ済みだった。
 #
 # base 取り込み: origin/main 側は並行 PR（イシュー #2133 の Legend
 # button 化等）で 0.167.0 → 0.168.0 へ到達済みだった。本ブランチの
@@ -2804,6 +2809,23 @@ name = "fandhe-frontend-pre-styled-ui"
 #
 # PR #2265 マージ: 双方が偶発的に同一版数 0.167.0 へ到達していたため
 # （同一版数はコンフリクトとして扱い main +1 する運用）、0.168.0 へ
+# マイナーバンプする。
+#
+# base 取り込み: origin/main 側は並行 PR（イシュー #2115 の styled
+# `marker` 新設、PR #2274）で 0.169.0 へ到達済みだった。本ブランチの
+# 到達値 0.168.0 は main の 0.169.0 を下回るため、単純採用では main 側の
+# 実体変更を無視してしまう。双方の実体変更を統合した結果として main の
+# 到達値 0.169.0 をさらに上回る 0.170.0 へマイナーバンプする（0.x の
+# 破壊的変更はマイナーバンプの規約。同一版数への偶発的衝突をそのまま
+# 採用しない原則と同様、片方の到達値をそのまま採用しない）。
+#
+# base 再取り込み（本コンフリクト解消）: origin/main 側は別系統の
+# イシュー #2133 ブランチが独立に同じ 0.166.2 を起点として 0.167.0 →
+# （PR #2265 との偶発的同一版数衝突で）0.168.0 → （イシュー #2115 の
+# marker 新設 PR #2274 取り込みで）0.170.0 へ到達しており、本ブランチの
+# 到達値 0.170.0 と偶然一致していた（同一版数はコンフリクトとして扱い
+# main +1 する運用、`docs/ci/version-bump-publish-order-gap.md` 系の
+# 先例と同一方針）。この偶発的一致をそのまま採用せず 0.171.0 へさらに
 # マイナーバンプする。
 #
 # PR #2265 codex-review P1 是正の base 取り込み: origin/main 側は並行 PR
@@ -2832,10 +2854,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.68.13 → 0.68.14（`questionnaire` 新設の base 取り込みに伴う patch
 # バンプ）への `dep-version-check` version 要求追随のみで、本クレート
 # 自身の実体変更は伴わない（styled `questionnaire` recipe・golden・
-# Themes ページ実装は後続イシュー #2119）。origin/main の到達値 0.171.0
-# を起点に、dep-version-check 追随分として +1（patch）して 0.171.1 と
-# する。
-version = "0.171.1"
+# Themes ページ実装は後続イシュー #2119）。
+#
+# PR #2278（イシュー #2131）base 再取り込み: origin/main 側は別系統
+# ブランチが独立に同じ経緯を辿り 0.171.0 へ到達しており、本ブランチの
+# 到達値 0.171.0 と偶然一致していた（同一版数はコンフリクトとして扱い
+# main +1 する運用、既存の先例と同一方針）。この偶発的一致をそのまま
+# 採用せず 0.172.0 へさらにマイナーバンプ済みだった。
+#
+# 本コンフリクト解消（PR #2279）: 本ブランチの到達値 0.171.1（上記
+# dep-version-check 追随の patch バンプ）は origin/main の到達値 0.172.0
+# を下回るため、単純採用では main 側の実体変更を無視してしまう。双方の
+# 変更（headless-ui 0.68.14 への dep-version-check 追随 + main 側の実体
+# 変更）を統合した結果として main の到達値 0.172.0 をさらに上回る
+# 0.173.0 へマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約。
+# 片方の到達値をそのまま採用しない原則）。
+version = "0.173.0"
+
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

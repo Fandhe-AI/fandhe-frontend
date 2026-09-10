@@ -86,8 +86,15 @@
 //!
 //! - 凡例・ツールチップ・積み上げは非対応のまま（軸・グリッド・曲線補間は
 //!   #2083 で本モジュールへ統合済み）。
-//! - マウス追従ツールチップ・hover 強調・`activeDot`・hit-area `data-*` は
-//!   #2128、期間切替・凡例トグルは #2132。
+//! - マウス追従ツールチップの JS 配線は #2130、hit-area・`data-*` は
+//!   #2129。hover 強調（active 拡張・非 active 減光）の CSS 語彙
+//!   （`root[data-has-active]`）は #2131 で追加済みだが、`point` slot への
+//!   `data-index` 付与は本チャートでは行っていない（`SeriesRenderCtx`
+//!   参照）ため `point[data-index]` の減光規則は現状マッチしない
+//!   （フォローアップ）。`activeDot`（hover 時の拡大）自体の CSS は
+//!   `point[data-active]` として追加済み。期間切替・凡例トグルの SSR
+//!   構造は #2133 で追加済み（本ファイル [`LineChartProps::range`]/
+//!   [`LineChartProps::hidden_series`] 参照）。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（[`crate::qr_code`] の先例と同じ判断）。
 //!
@@ -147,7 +154,9 @@ use crate::charts::svg::{fmt_coord, svg_root, svg_text, ViewBox, ViewBoxError};
 use crate::charts::{tooltip, ChartError};
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    transition_declarations, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -453,6 +462,39 @@ fn recipe() -> SlotRecipe {
             "value-label",
             StateCondition::Attr("data-hidden"),
             vec![decl("display", "none")],
+        )
+        // イシュー #2131: hover 強調（減光）の起点。`root` は
+        // `tooltip-layer`（`position: absolute`）の配置に必要な
+        // `position: relative` を既に持つ祖先であり、ここで
+        // `--fandhe-chart-inactive-opacity` を宣言して `point` へ継承
+        // させる（`crate::charts::tooltip` モジュール doc「hover 強調」節
+        // 参照。wasm-full 側の `data-has-active` 付け外し配線は未実装の
+        // フォローアップ）。
+        .state(
+            "root",
+            StateCondition::Attr("data-has-active"),
+            vec![decl("--fandhe-chart-inactive-opacity", "0.4")],
+        )
+        .state("point", StateCondition::Attr("data-index"), {
+            let mut decls = vec![decl("opacity", "var(--fandhe-chart-inactive-opacity, 1)")];
+            decls.extend(transition_declarations("opacity", MotionDuration::Fast));
+            decls
+        })
+        // イシュー #2131: active な点は上記の減光を上書きしフル不透明へ
+        // 戻し、系列色との識別性向上のため拡大する（`SlotRecipe::css` の
+        // states 出力順契約により `[data-index]` 規則より後で上書き。
+        // `chart::tooltip::datum:hover` 是正〔#1593〕と同じ色・線幅）。
+        .state(
+            "point",
+            StateCondition::Attr("data-active"),
+            vec![
+                decl("opacity", "1"),
+                decl("transform-box", "fill-box"),
+                decl("transform-origin", "center"),
+                decl("transform", "scale(1.5)"),
+                decl("stroke", "var(--fandhe-color-fg)"),
+                decl("stroke-width", "2"),
+            ],
         )
 }
 
