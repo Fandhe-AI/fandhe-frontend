@@ -191,10 +191,38 @@
 //!   `data-state="active"` に連動する独立した規則として持つ。
 //! - **Radix の内側 `span` による hover 面**: anatomy を増やすため採らず、
 //!   `trigger` 全面へ上側角丸の hover 面を当てる（`tab_nav` と同型）。
-//! - **`transition` の対象に `transform`/`box-shadow` を含めない**: イシュー
-//!   #1542 時点では変化させるプロパティがなかったため（イシュー #2039 で
-//!   Enclosed の selected trigger が `box-shadow` を持つようになったが、
-//!   トランジション対象への追加は本イシューのスコープ外とし見送る）。
+//! - **`transition` の対象に `transform` を含めない**: tabs には `transform`
+//!   を変化させる状態がなく、消費者が現れた時点で再評価する
+//!   （`docs/policy/intentional-non-adoption.md` の評価軸と同型の再評価
+//!   トリガー）。
+//! - **`box-shadow` は `transition` 対象へ含める（イシュー #2215 で採用）**:
+//!   イシュー #1542 時点は `box-shadow` を変化させる状態が無かったため
+//!   対象外だったが、イシュー #2039 で Enclosed の selected trigger へ
+//!   `box-shadow: var(--fandhe-tabs-trigger-active-shadow, none)` を追加した
+//!   ことでその前提が崩れ、選択切り替えごとに `none` ↔
+//!   `var(--fandhe-shadow-sm)` が瞬時に切り替わる不整合（色・背景は 150ms
+//!   で遷移するのに影だけ瞬時）が生じていた。イシュー #2215 で再評価し
+//!   採用へ転じた根拠: (1) 参照軸との整合 — shadcn/ui v4 の
+//!   `TabsTrigger` は `transition-all`（`data-[state=active]:shadow-sm` の
+//!   影自体が遷移対象）、chakra-ui v3 の tabs trigger は
+//!   `transitionProperty: "common"`（`box-shadow` を含む）であり、
+//!   Radix Themes は Enclosed 相当の variant を持たないため競合しない。
+//!   (2) リポジトリ内の先例 — `crate::button` root の
+//!   `"background, border-color, color, box-shadow"` を筆頭に、
+//!   `crate::calendar` / `crate::slider` / `crate::splitter` /
+//!   `crate::angle_slider` / `crate::image_cropper` /
+//!   `crate::message_scroller` / `crate::color_picker` は状態で変わる
+//!   `box-shadow` を既に transition 対象に含めており、tabs だけ除外する
+//!   理由がない。(3) [`TabsVariant::Line`]（既定）は
+//!   `--fandhe-tabs-trigger-active-shadow: none` を全状態で固定登録して
+//!   おり、transition-property へ追加しても computed style は不変
+//!   （golden のテキストバイトのみ変化する #2039 と同型の純追加）。
+//!   (4) `box-shadow: none` から実影への CSS Transitions 補間は仕様上
+//!   安全（`none` は長さ 0 のシャドウリストとして扱われ、透明・オフセット
+//!   0 のシャドウで埋めて補間するため無効な補間・ポップインは起きない）。
+//!   (5) `prefers-reduced-motion` は [`crate::theme::Theme::to_css`] の
+//!   duration 一括 0ms 化で既存の他プロパティと同様に自動的に無効化される
+//!   （個別対応不要）。
 //!
 //! # `shared_tab_*` ヘルパの廃止（イシュー #996 → #1542）
 //!
@@ -361,7 +389,10 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "trigger",
-            transition_declarations("color, background, border-color", MotionDuration::Fast),
+            transition_declarations(
+                "color, background, border-color, box-shadow",
+                MotionDuration::Fast,
+            ),
         )
         .base(
             "content",
@@ -1031,9 +1062,11 @@ mod tests {
     fn trigger_declares_transition_with_fast_duration() {
         // イシュー #1542: hover/active の色・背景・境界変化にトランジションを
         // 付ける（`prefers-reduced-motion` は `Theme::to_css` の duration 0ms
-        // 化で自動対応）。
+        // 化で自動対応）。イシュー #2215: Enclosed の selected trigger が
+        // 持つ `box-shadow`（イシュー #2039）も選択切り替えごとに変化する
+        // ため、色・背景・境界と揃えて遷移対象へ加えた。
         let css = stylesheet();
-        assert!(css.contains("transition-property: color, background, border-color;"));
+        assert!(css.contains("transition-property: color, background, border-color, box-shadow;"));
         assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
     }
 
