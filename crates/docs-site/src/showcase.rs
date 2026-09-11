@@ -5151,9 +5151,10 @@ fn checkbox_section() -> Node {
             "Disabled",
         ),
         // イシュー #2011: shadcn/ui との突合で invalid 状態の実演行が欠けて
-        // いたことを確認したため追加。`control` の枠色のみが danger 化し、
-        // ラベル文字色は変更しない（`crate::field` の既存判断を踏襲、
-        // `checkbox.rs` モジュール rustdoc「shadcn/ui との突合」節参照）。
+        // いたことを確認したため追加。`control` の枠色に加え、イシュー
+        // #2159 でラベル文字色も danger 化するよう `crate::field`（#2147）
+        // の判断と整合させた（`checkbox.rs` モジュール rustdoc
+        // 「shadcn/ui との突合」節参照）。
         (
             CheckedState::Unchecked,
             false,
