@@ -34,9 +34,14 @@ publish = false
 # イシュー #1974 で pre-styled-ui 0.119.1 / headless-ui 0.65.0 / core 0.4.3 へ
 # 追随。Props パターン化（headless パート関数への `&XxxProps` 引数追加・
 # `alert::root` / `avatar::root` の Props 構造体化）へ `src/main.rs` を追随させた。
+# イシュー #2219 で pre-styled-ui 0.185.0 / headless-ui 0.69.1 へ追随。
+# `tabs::tabs()` の第 1 引数に `TabsVariant`（#2039）が追加されたため
+# `src/main.rs` の呼び出しへ `TabsVariant::Line`（従来の見た目＝下線スタイル）
+# を追加した。`slider::marker` の orientation 引数（#2020）は本サンプルが
+# slider を未使用のため呼び出し追随は発生しない。
 [dependencies]
 fandhe-frontend-core = "0.4.3"
-fandhe-frontend-pre-styled-ui = "0.119.1"
+fandhe-frontend-pre-styled-ui = "0.185.0"
 
 [dev-dependencies]
 

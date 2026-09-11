@@ -41,6 +41,14 @@ UI 部品実演追加の要否精査）で本サンプルへ Navigation Menu / M
 パターン化）と `alert::root` / `avatar::root` の Props 構造体化という
 2 系統の破壊的変更へ `src/main.rs` の該当呼び出しを追随させました。
 
+イシュー #2219 で `fandhe-frontend-pre-styled-ui` を v0.185.0
+（`fandhe-frontend-headless-ui` v0.69.1）へ追随しました。`tabs::tabs()` の
+第 1 引数に `TabsVariant`（Line/Enclosed、イシュー #2039）が追加されたため
+`src/main.rs` の呼び出しへ `TabsVariant::Line`（従来の見た目＝下線スタイル
+を維持）を追加しました。`slider::marker` の orientation 引数（イシュー
+#2020）は本サンプルが slider 部品を未使用のため呼び出し追随は発生して
+いません。
+
 ## pre-styled-ui 統合について
 
 サンプル作成時点（イシュー #552、2026-07-22）では pre-styled-ui がクレート
