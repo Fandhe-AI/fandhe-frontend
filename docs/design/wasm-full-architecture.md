@@ -2522,11 +2522,15 @@ wasm_dist_features` という公開項目追加も伴うため minor バンプ�
 ### 36.6 スコープ外（Issue 化候補）
 
 feature 一覧・移行手順の利用者向けドキュメント化と examples への反映は
-`docs/design/wasm-full-feature-gating-evaluation.md` §13 項目 5（#2330）
-のスコープのまま残す。`build.rs`/`bundle_size.rs` のネストビルドへの
+イシュー #2330 で `docs/guides/wasm-full-features.md`
+（サイト `/guides/wasm-full-features/`）へ反映済み。
+`docs/design/wasm-full-feature-gating-evaluation.md` §16 に採用決定・
+実装結果の記録がある。`build.rs`/`bundle_size.rs` のネストビルドへの
 `--locked` 付与の是非、`crates/wasm-full/src/lib.rs` の feature 対応表
-への「dist-server 最小構成」相互参照追記も本イシューでは行わない
-（wasm-full のバンプを伴うため）。
+への「dist-server 最小構成」相互参照追記は #2330 でも行わない
+（wasm-full のバンプを伴うため。§16 の残件として引き続き Issue 化候補
+のまま残す）。
+
 ## 37. `tabs_indicator` モジュール（イシュー #2211）
 
 ### 37.1 背景・責務境界

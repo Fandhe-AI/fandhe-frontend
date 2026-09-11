@@ -26,6 +26,21 @@ members = ["."]
 # fandhe-frontend-wasm-full は独自の semver 系列（0.7.0、イシュー #1141 公開）を
 # 持つ。イシュー #1159 で 0.1.0 から追随、イシュー #1191 で 0.5.0 から追随。
 #
+# feature 選択について（イシュー #2330）: 0.19.0 以降の
+# fandhe-frontend-wasm-full は配線群別 feature 15 件・scope feature 16 件
+# （いずれも既定 on）を持つ（詳細は
+# ../../../docs/guides/wasm-full-features.md）。本サンプルが実際に使う
+# 配線（keynav・navigation-menu・menubar・position + entry 用
+# wasm-bindgen-exports）に絞る場合は次の指定になる（下記はコメントの
+# ままにしている: 現在の pin 0.7.0 は feature 導入前の版であり、有効化
+# するには crates.io へ 0.20.1 以降が公開された後に pin を更新する必要が
+# あるため）。
+#
+# [dependencies.fandhe-frontend-wasm-full]
+# version = "0.20.1"
+# default-features = false
+# features = ["wasm-bindgen-exports", "keynav", "navigation-menu", "menubar", "position"]
+#
 # 以下 4 クレート（headless-ui/core/interactive/wasm-bindgen/web-sys）は
 # イシュー #1199 で追加。navigation-menu/menubar は `Runtime<C>`
 # （`DirtyTracked + BindingSource` を要求、`docs/design/wasm-full-architecture.md`

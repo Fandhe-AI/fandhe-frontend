@@ -218,8 +218,9 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // （Primitives）が加わり、229 → 230 になった。イシュー #2125 で
     // Data Table（Primitives）が加わり、230 → 231 になった。イシュー
     // #2123 で Message Scroller の Themes ページが加わり、231 → 232
-    // になった。
-    assert_eq!(pages.len(), 232, "expected 232 pages, got {pages:?}");
+    // になった。イシュー #2330 で wasm-full feature 選択ガイド
+    // （Guides セクション）が加わり、232 → 233 になった。
+    assert_eq!(pages.len(), 233, "expected 233 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
