@@ -93,7 +93,10 @@
 //! # shadcn/ui 突合（イシュー #2027）
 //!
 //! `#1420`（chakra-ui / Radix Themes 基準の視覚調整、#1517 で反映済み）の
-//! 補完参照として shadcn/ui Breadcrumb
+//! 補完参照〔イシュー #2027 時点の位置づけ。2026-09-07 のユーザー判断
+//! 〔イシュー #2153、`docs/design/shadcn-reference-adoption-policy.md`
+//! §8〕で shadcn/ui は chakra-ui / Radix Themes と並ぶ主基準の 1 つへ
+//! 改訂されたが、本節の判断内容は改訂後も不変〕として shadcn/ui Breadcrumb
 //! （<https://ui.shadcn.com/docs/components/base/breadcrumb>）と突合した
 //! （ルート #2001 Phase 0 確定の適用原則: shadcn/ui は既存の視覚言語を
 //! 置き換えず欠落分のみ補う）。詳細な所見はイシュー #2027 のコメントに
