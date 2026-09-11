@@ -17,7 +17,8 @@ enhancement（`@supports` 段階適用）のフォールバック設計案・非
 は #843 で、いずれも §4 の再導入手続きに基づき再導入済み（chakra `Theme`
 コンポーネント、および §3.22 の RichTextEditor は非採用のまま変更しない）。
 §7 は、イシュー #735 で非採用ではなく保留のまま維持すると判断した項目群の
-再評価トリガーの記録である。
+再評価トリガーの記録である。イシュー #2156 で Phase 4〜6（#2001 ツリー）の
+機能単位の保留を追記した。
 
 **節番号の採番規則**（イシュー #398、§3.6〜§3.8 の重複発覚を受けて明記）:
 
@@ -1347,10 +1348,35 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     アクセシビリティ要件（スクリーンリーダー向けの遷移通知等）が具体的に
     特定された場合。
 
-- **本節の適用範囲**: 規則 1 で非採用が確定しているのは `Form` のみである。
-  `docs/design/component-coverage-map.md` §9 の他の保留項目
-  （Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）は
-  本節とは別軸の保留であり、各項目の再評価トリガーに従う（§7 参照）。
+- **本節の適用範囲**: **部品全体**として規則 1 の非採用が確定しているのは
+  `Form` のみである。`docs/design/component-coverage-map.md` §9 の他の保留
+  項目（Direction Provider / Accessible Icon / Slot / Inset / Radio /
+  Reset）は本節とは別軸の保留であり、各項目の再評価トリガーに従う（§7
+  参照）。
+
+  これとは別に、規則 1・規則 2 は**部品全体ではなく機能単位**でも適用
+  される。shadcn/ui 突合（イシュー #2001 系、Phase 4〜6）の実装 PR は、
+  部品採用そのものはユーザー判断（2026-09-07）で確定した上で、部品内の
+  特定機能のみへ規則 1・規則 2 を適用し、当該機能を「実装しない」または
+  「pre-styled-ui/wasm-full 側の責務へ配置する」と各モジュールの rustdoc
+  へ記録している。これらは規則の新規適用ではなく既承認規則の機械的な
+  適用記録であり、一覧は以下のとおり（イシュー #2156 で整理・転記）。
+
+  | 部品 | 対象機能 | 規則 | 記録元 | 確定 PR |
+  |---|---|---|---|---|
+  | data-table | 並べ替え・フィルタ・ページング処理そのもの、選択結果の保持/送信/永続化、列定義/列順の永続化 | 規則 1 | `crates/headless-ui/src/data_table.rs`「out-of-scope（イシュー #2125）」/ `crates/pre-styled-ui/src/data_table.rs`「out-of-scope（イシュー #2127）」/ `crates/wasm-full/src/data_table.rs`「既知の限界」 | #2303 / #2353 / #2352 |
+  | questionnaire | 回答値の保持・検証・分岐・送信、必須判定、`data-answered`/`data-skipped`/`data-required`/`data-invalid` の DOM 更新 | 規則 1 | `crates/headless-ui/src/questionnaire.rs`「out-of-scope（イシュー #2117）」/ `crates/wasm-full/src/questionnaire.rs`「out-of-scope（イシュー #2118）」 | #2279 / #2286 |
+  | command | Enter でコマンドを実行する「実行フック」の処理本体（部品は `"execute"` dispatch までを担う） | 規則 1 | `crates/headless-ui/src/command.rs`「out-of-scope（本イシュー #2068 のスコープ外）」 | #2234 / #2237 |
+  | sidebar | 開閉状態の cookie / localStorage 永続化 | 規則 1 | `crates/wasm-full/src/sidebar.rs`「スコープ外」 | #2248 |
+  | charts（期間切替） | 期間切替に伴うデータ再取得・カテゴリ集合の再構成 | 規則 1 | `crates/wasm-full/src/chart_range.rs`「スコープ外（イシュー #2134 §8）」 | #2285 |
+  | attachment | shadcn `size` / `orientation`（装飾・レイアウト計測の関心）を headless へ持ち込まず pre-styled 側の責務とする | 規則 2（配置） | `crates/headless-ui/src/attachment.rs`「shadcn/ui 実 API との意図的差分」 | #2266 |
+  | message-scroller | 最下部追従・新着検知・履歴読み込み時の位置維持（§3.25 上記「適用例」参照。本表では相互参照のみ） | 規則 2 | `crates/headless-ui/src/message_scroller.rs` / `crates/wasm-full/src/message_scroller.rs` | #2295 / #2312 |
+
+  上記はいずれも実装 PR のマージで確定記録済みの規則適用であり、本表は
+  ポリシーの変更ではない。command 実行フック・sidebar 永続化・charts
+  データ再取得は部品採用のユーザー判断（2026-09-07）に規則 1 を機械的に
+  適用した結果であり、項目単位の明示的なユーザー確認は #2156 の PR で
+  求めている。
 
 - **層責務分離の系（イシュー #1063）**: `data-*` 属性の**定義元**（＝出力する層）
   についても本節の 2 層責務分離と同じ考え方が適用される。headless-ui に対応
@@ -1557,6 +1583,15 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）を
 | slider の複数 thumb（range slider、イシュー #2188） | `slider`（headless-ui / pre-styled-ui 両層） | 評価完了・採否ユーザー判断待ち。推奨は条件付き採用（既存 `Slider` を変更しない純追加案 `RangeSlider`、詳細は `docs/design/slider-range-thumbs-evaluation.md` §「採否判定」参照）。#741 は範囲表現を初期スコープから外しただけで非採用確定ではないため本節の保留として新規記録する | 評価文書 `docs/design/slider-range-thumbs-evaluation.md` の「再評価トリガー」節を参照（利用要望 issue の起票 / 参照 3 者のいずれかが range を既定 UI から外す / wasm-full の REQ-11 予算が配線追加を許容する水準へ回復、のいずれか） |
 | Dialog の shadcn/Radix 突合で見送った実行時補助（イシュー #2194） | `dialog`（headless-ui `crates/headless-ui/src/dialog.rs` + wasm-full `crates/wasm-full/src/overlay.rs`/`focus_trap.rs`） | D9 focusin 引き戻し（FocusScope の focusout 監視）/ D10 背景 `aria-hidden`・`inert` 化 / D11 body スクロールロック・`pointer-events: none` / D14 `wire_headless_component` での `push_trap`/`push_overlay` 自動統合、の 4 点を保留として記録する。D9: `aria-modal="true"` を出力済みで現行 AT は外側を無視するため実害は限定的、かつ外側クリックは D5（`outside_close_indices`）で既に閉鎖する。D10: 装飾・実行時計測に近く §3.25 規則 2 の関心。D11: 同じく §3.25 規則 2（レイアウト・スクロール制御はアプリ/styled 層）。D14: `open`/`close` 遷移時に呼び出し側が `push_trap`/`push_overlay`/`pop_trap`/`remove_overlay` を明示的に呼ぶ現行契約を変えるには、`wire_headless_component` の `on_update` 契約自体の再設計を要する大物であり、本イシュー単体のスコープには含めない | (a) `docs/ci/a11y-automation-evaluation.md` の再評価で横断 a11y 自動検証が導入され D9/D10 が検知対象になった場合。(b) 利用要望 issue の起票。(c) D14 は `wire_headless_component` の `on_update` 契約を変えずに open/close 遷移を検出できる設計が示された場合。(d) D11 は pre-styled-ui 側で `body` 状態トークン（例: `data-scroll-locked`）の設計が確定した場合 |
 | select の Align Item（item-aligned 位置決め、イシュー #2207） | `select`（wasm-full `crates/wasm-full/src/position.rs` + pre-styled-ui `crates/pre-styled-ui/src/select.rs`） | 評価完了・採否ユーザー判断待ち。推奨は見送り（保留）。参照 3 者のうち shadcn/ui・Radix Themes は item-aligned を既定とするが、chakra-ui（ark-ui/zag.js）は非対応であり、かつ現行 wasm-full には on-open 再計算フックが無く `resolve_position` の入力に選択 item・value-text・content scroll container の矩形が存在しないため、単純な契約拡張では実現できない（`intentional-non-adoption.md` §3.20 で非採用確定した `size` middleware と同種の領域）。詳細は評価文書 `docs/design/select-item-aligned-positioning-evaluation.md` §5〜§8 参照 | 評価文書 `docs/design/select-item-aligned-positioning-evaluation.md` §8 を参照（利用要望 issue の起票 / `Runtime` への on-open 再計算フック導入 / wasm-full の REQ-11 予算の回復実測 / chakra-ui が同等モードを既定へ加える、のいずれか） |
+| sidebar の実行時補助・レスポンシブ（#2071 系: #2072/#2073/#2074） | `crates/headless-ui/src/sidebar.rs` / `crates/pre-styled-ui/src/sidebar.rs` / `crates/wasm-full/src/sidebar.rs` | 採否ユーザー判断待ち。(a) `mobile` を headless 状態機械のフィールド/アクションへ昇格する案（単一 `data-state` + `data-mobile` 書き込み方式の限界）。(b) モバイル breakpoint の可変化（現状 `DEFAULT_MOBILE_MEDIA_QUERY` 固定）と pre-styled 側の `@media (min-width)` 対応（#2073 時点で breakpoint 機構未実装のため見送り）。(c) SSR 初期表示のモバイル時フラッシュ。(d) hover tooltip の `PositionController` 統合（#2209 の `wire_headless_component` 統合の対象外）。(e) `backdrop` パーツ新設（headless anatomy 変更を伴う）。(f) `menu-button` テキストの headless 側 span 化（pre-styled のラッパー方式で暫定） | (b) は **#2197（breakpoint トークン + `SlotRecipe::breakpoint`）マージ済みのためトリガー充足済み・再評価待ち**（feature issue の起票はユーザー承認事項）。(a)(c) は利用要望 issue または `data-mobile` 二重書き込みに起因する不具合報告。(d) は wasm-full の positioning 統合を hover tooltip へ広げる設計判断が別途示された場合。(e)(f) は headless anatomy 変更を伴うため利用要望 issue の起票時 |
+| command の実行時補助（#2067 系: #2068/#2069/#2070） | `crates/headless-ui/src/command.rs` / `crates/pre-styled-ui/src/command.rs` / `crates/wasm-full/src/command.rs` | 採否ユーザー判断待ち。(a) `empty` パーツの live region（`aria-live`）通知。(b) 同一 root 内の複数 command インスタンス識別・Cmd/Ctrl+K の単一インスタンス前提。(c) cmdk の Alt+Arrow / Meta+Arrow 等の修飾キー付き操作（no-op）。(d) `dialog` backdrop の新設（headless anatomy 変更） | (a) は `docs/ci/a11y-automation-evaluation.md` の再評価で横断 a11y 検証が導入された場合、または利用要望。(b)(c) は利用要望 issue。(d) は dialog 側の backdrop 設計が確定した場合（#2194 行 (d) と同期） |
+| bubble の折りたたみ配線（#2107 系: #2108/#2109） | `crates/headless-ui/src/bubble.rs`「wasm-full 未配線」/ `crates/pre-styled-ui/src/bubble.rs` | 採否ユーザー判断待ち。wasm-full `MAPPING_TABLE` に `(bubble, collapse-trigger) → "toggle"` 行が無く、ハイドレーション後の折りたたみクリックは inert（呼び出し側が `Collapsible`/`Disclosure` の state を注入する契約）。高さトランジション（#2282、`content_height.rs`）は適用済みで、dispatch 配線のみ未着手。`ColorPalette` 軸の追加も見送り | Phase 9（#2331）の feature gating で REQ-11 の余裕が回復（配布物最小構成 約 120 KB）したため **REQ-11 起因の制約は解消済み・再評価待ち**（feature issue の起票はユーザー承認事項）。配線は既定 on の feature としてゲートする（`crates/wasm-full/Cargo.toml` `[features]`）前提とする |
+| attachment の shadcn 実 API 差分（#2110 系: #2111/#2112） | `crates/headless-ui/src/attachment.rs`「shadcn/ui 実 API との意図的差分」「スコープ外」 | 採否ユーザー判断待ち。`AttachmentTrigger`（カード全面クリックオーバーレイ）/ `AttachmentGroup`（横スクロールコンテナ）/ `processing`・`done` 状態（`data-state` は 3 値に限定）/ `ColorPalette` 軸。`size`・`orientation` は規則 2 で pre-styled 側の責務（§3.25 の機能単位表参照）であり本行の対象外 | 利用要望 issue の起票、または会話系 4 部品の共通語彙（`data-role`/`data-align`）を拡張する設計検討が別途行われた場合 |
+| input-group の addon フォーカス移譲（#2061 系: #2062/#2063） | `crates/headless-ui/src/input_group.rs`「参考サイトとの意図的な差分」 | 採否ユーザー判断待ち。shadcn の addon クリックで input へフォーカスを移す JS 挙動は wasm-full 配線の領域だが、親 #2061 に wasm-full sub-issue が無く見送り | 利用要望 issue の起票。配線を追加する場合は既定 on の feature でゲートし REQ-11 を維持する |
+| questionnaire の実行時補助・軸追加（#2116 系: #2117/#2118/#2119） | `crates/wasm-full/src/questionnaire.rs`「out-of-scope（イシュー #2118）」/ `crates/pre-styled-ui/src/questionnaire.rs`「スコープ外」 | 採否ユーザー判断待ち。(a) `"goto"`（任意 step への直接移動）の DOM 配線。(b) 遷移で `back`/`next` が disabled になった際のフォーカス移動。(c) `steps` scope の同型配線。(d) `root` の `data-orientation` を参照した横/縦レイアウト差（recipe は常に縦積み）。(e) `size`/`colorPalette` 軸。(f) `--fandhe-questionnaire-percent` の wasm-full 側更新 | (a)(c)(f) は利用要望 issue、(b) は a11y 自動検証導入または不具合報告、(d) は #2199 の container query 機構で `orientation="responsive"` と同型に実装する要件が特定された場合、(e) は `docs/design/pre-styled-ui-size-and-color-palette-axes.md` の保有判定基準を満たす利用要望 |
+| message-scroller の計測方式・付随機能（#2120 系: #2121/#2122/#2123） | `crates/wasm-full/src/message_scroller.rs` / `crates/pre-styled-ui/src/message_scroller.rs`「スコープ外」 | 採否ユーザー判断待ち。(a) `IntersectionObserver` ベースの最下部検知への移行（現状はしきい値付き `scrollTop` 算術、`docs/design/wasm-full-architecture.md` §38）。(b) smooth なジャンプ演出（誤検知防止のため常に即時）。(c) `content` への `role="log"`・`aria-live`/`aria-busy` 固定付与。(d) `scroll_area` の `@supports (animation-timeline: scroll())` によるスクロール量連動フェード。(e) `rerender_subtree` で viewport が差し替えられた場合の `scrollTop` 復元 | (d) は **#2122 マージ済みのためトリガー充足済み・再評価待ち**（feature issue の起票はユーザー承認事項）。(a) は web-sys の `IntersectionObserver` feature 追加と REQ-11 実測が両立すると示された場合。(b)(e) は不具合報告または利用要望。(c) はスクリーンリーダー向け遷移通知の要件が特定された場合（§3.25 規則 2 の再評価トリガーと同型） |
+| data-table の配線残項目・軸追加（#2124 系: #2125/#2126/#2127） | `crates/wasm-full/src/data_table.rs`「既知の限界」/ `crates/pre-styled-ui/src/data_table.rs`「out-of-scope」 | 採否ユーザー判断待ち。(a) `"clear-sort"`/`"show-column"`/`"hide-column"` の専用トリガー不在による未配線。(b) ページング省略記号（ellipsis）の再配置。(c) 配線後の再描画で初出する data-table への遅延配線。(d) `ColorPalette`/`Size` 軸の追加と `column-header` slot の `table::column-header` 統合（同一要素 2 scope 禁止のため現設計維持）。(e) `col`/`colgroup` の `visibility: collapse` 不採用（セル単位 `hidden` で代替） | (a)(b)(c) は利用要望 issue または不具合報告、(d) は軸保有判定基準を満たす利用要望、(e) はブラウザ差が解消したと確認できた場合 |
+| charts の実行時インタラクションで見送った項目（#2128/#2132 系: #2129〜#2131/#2133/#2134） | `crates/wasm-full/src/chart.rs`「スコープ外（イシュー #2130 §9）」/ `crates/wasm-full/src/chart_range.rs`「スケール再計算はスコープ外」「スコープ外（イシュー #2134 §8）」/ `crates/pre-styled-ui/src/area_chart.rs`・`line_chart.rs`「本イシューのスコープ外」/ `crates/pre-styled-ui/src/charts/tooltip.rs` | 採否ユーザー判断待ち。(a) 系列/期間の非表示に伴う軸スケール・domain の再計算（全チャート種別で hide-only に統一。判断根拠は REQ-11 実測 195,964/200,000 B）。(b) area/line の `point` slot への `data-index` 付与（減光規則が現状マッチしない）。(c) `role="img"` の `svg_root` 内にフォーカス可能な hit-area を置く a11y 問題（#2261 申し送り）。(d) `chart-tooltip-icons`（ツールチップ DOM への icon 合成）。(e) Shift+矢印の複数ステップ移動・pointer capture ドラッグ追従。(f) 範囲外（`display="none"`）hit-area への矢印移動到達。(g) `rerender_subtree` 後の新 `<svg>` への引き継ぎ。既存「charts 全般」行（ark/chakra 由来のチャート部品追加）とは別枠 | (a) は **Phase 9（#2331）で REQ-11 の余裕が回復したためトリガー充足済み・再評価待ち**（`docs/design/wasm-full-architecture.md` §29 の後続 Issue 起票提案を参照。feature issue の起票はユーザー承認事項）。(b)(d)(f) は利用要望 issue。(c) は a11y 自動検証導入または SR 実機検証で問題が再現した場合。(e)(g) は不具合報告 |
 
 再評価トリガー充足時の手続き: 上記表の該当行に基づき、通常の feature issue
 （`create-issue` 等）を起票し、本節・`docs/design/component-coverage-map.md`
@@ -1596,4 +1631,20 @@ variant（複数 thumb）であり新規部品ではないため、§12.2 の「
 「+1 行（#2194、既存部品の実行時補助）」として同じ別枠で数える。#2207
 （select の Align Item）も既存部品 `select` の位置決め variant であり
 新規部品ではないため、「+1 行（#2207、既存部品の位置決め variant）」
-として同じ別枠で数える。
+として同じ別枠で数える。Phase 4〜6（#2001 ツリー）で実装した部品の
+**機能単位**の保留（sidebar / command / bubble / attachment / input-group /
+questionnaire / message-scroller / data-table / charts の 9 群）を、
+#2188 / #2194 / #2207 と同じ別枠（既存部品の variant / 実行時補助）として
+イシュー #2156 で追加した。延べ記録対象の別枠は +3 行 → +12 行となる
+（部品全体としての新規保留がない、という §12.2 の判定は不変。9 群はいずれも
+既に実装・採用された部品の**残余機能**の保留であり、新規部品ではない）。
+
+再評価トリガー充足時の手続き（トリガー充足済み・再評価待ちの行の扱い）:
+上記 9 行のうち「トリガー充足済み・再評価待ち」と記した小項目（sidebar
+(b)・bubble・message-scroller (d)・charts (a) の 4 件）は、feature issue の
+起票自体がユーザー承認事項であるため、本節はトリガー充足の事実のみを記録し
+起票は行わない。承認後に起票する場合は slider の複数 thumb 行・select の
+Align Item 行と同じ 2 段階更新（「採用済み・実装待ち」→「実装済み」）を
+行う。非採用と判断された場合は当該小項目のみを行から削除し、§3.25 の
+機能単位一覧（上記「本節の適用範囲」節）へ移す（新規の `### 3.N` 節は
+作らない）。
