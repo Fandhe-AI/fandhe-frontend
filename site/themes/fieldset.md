@@ -11,4 +11,9 @@ padding をリセットしたうえで、`size`（`sm` / `md` / `lg`、既定 `m
 いずれも headless 層が出力する状態を CSS セレクタとして参照して見た目を切り替えるだけで、
 値の妥当性判定・送信処理といったバリデーション自体はこの部品では実装しません。
 
+Legend は `legend_with_variant` で `legend`（既定・大見出し）/ `label`（`size` 軸の
+1 段下、小見出し）の 2 段見出しサイズを選べます（shadcn/ui `FieldLegend` の `variant`
+prop と突合、イシュー #2214）。既存の `legend` は `data-variant` を出力しない契約のまま
+不変です。
+
 関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

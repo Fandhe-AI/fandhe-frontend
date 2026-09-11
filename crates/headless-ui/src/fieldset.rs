@@ -33,6 +33,17 @@
 //!   `data-scope="fieldset"`/`data-part="..."` セレクタを前提にスタイルを
 //!   当てる想定（#603 系、本イシューのスコープ外）。
 //!
+//! # legend variant（イシュー #2214）
+//!
+//! shadcn/ui `field.tsx` の `FieldLegend` は `variant`（`legend` = 大 /
+//! `label` = 小）の 2 段見出しを持つ。本クレートは [`crate::dialog::close_trigger_with_variant`]
+//! （イシュー #2193）と同型のパターンで [`legend_with_variant`] を追加し、
+//! `data-variant`（[`LegendVariant`]）という**語彙のみ**を出力する。実際の
+//! フォントサイズ切り替え（装飾）は `fandhe-frontend-pre-styled-ui` の
+//! recipe 側の責務とし、本モジュールへは持ち込まない
+//! （`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。既存
+//! [`legend`] は `data-variant` を出力しない契約のままバイト単位で不変。
+//!
 //! # セキュリティ不変条件
 //!
 //! - `id`/子ノード等の動的値はすべて [`fandhe_frontend_core::el`] の属性値・
@@ -50,6 +61,58 @@ use fandhe_frontend_core::Node;
 
 /// `data-scope="fieldset"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("fieldset");
+
+/// [`legend_with_variant`] が固定付与する予約キー
+/// （`crate::dialog::CLOSE_TRIGGER_RESERVED` と同型のなりすまし防止パターン）。
+const LEGEND_RESERVED: &[&str] = &["data-variant"];
+
+/// 呼び出し側 `attrs` から予約キー（本関数が固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致）。`fandhe_frontend_core::el`
+/// は属性の重複除去をしないため、これを経由しない呼び出しは状態属性の
+/// なりすましを許してしまう（`crate::dialog::drop_reserved` と同型）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// [`legend_with_variant`] の見出しサイズバリアント（イシュー #2214、
+/// shadcn/ui `FieldLegend` の `variant` prop 突合）。
+///
+/// `fandhe-frontend-pre-styled-ui` の recipe が `data-variant` の値を
+/// 参照して見た目（フォントサイズ）を切り替える（headless 側は語彙の
+/// 出力のみを担い、装飾自体は持ち込まない。
+/// `docs/policy/intentional-non-adoption.md` §3.25 規則 2）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LegendVariant {
+    /// 既定の大見出し（shadcn `variant="legend"` 相当）。
+    Legend,
+    /// 1 段小さい見出し（shadcn `variant="label"` 相当。フィールド内の
+    /// 補助的な legend に使う）。
+    Label,
+}
+
+impl LegendVariant {
+    /// `data-variant` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Legend => "legend",
+            Self::Label => "label",
+        }
+    }
+}
+
+impl Default for LegendVariant {
+    /// 既存 [`legend`] と同じ大見出し契約を既定とする。
+    fn default() -> Self {
+        Self::Legend
+    }
+}
 
 /// `fieldset` モジュールの各パーツ関数（[`root`]/[`legend`]/[`helper_text`]/
 /// [`error_text`]）へ共通で渡す props。
@@ -171,6 +234,30 @@ pub fn legend(props: &FieldsetProps<'_>, attrs: Vec<(&str, &str)>, children: Vec
     let legend_id = props.legend_id();
     let mut merged: Vec<(&str, &str)> = vec![("id", legend_id.as_str())];
     merged.extend(state_data_attrs(props));
+    merged.extend(attrs);
+    ANATOMY.part("legend", "legend", merged, children)
+}
+
+/// `legend` パーツ（`legend`）。[`legend`] に加えて `data-variant`
+/// （[`LegendVariant`]）を固定出力し、`fandhe-frontend-pre-styled-ui` の
+/// recipe が見出しサイズ（大 / 1 段小さい）を選択できるようにする
+/// （イシュー #2214）。
+///
+/// 呼び出し側 `attrs` に含まれる `data-variant`（ASCII 大文字小文字
+/// 無視）はなりすまし防止のため除去し、`variant` 引数の値を必ず優先する
+/// （[`drop_reserved`] 参照）。
+#[must_use]
+pub fn legend_with_variant(
+    variant: LegendVariant,
+    props: &FieldsetProps<'_>,
+    attrs: Vec<(&str, &str)>,
+    children: Vec<Node>,
+) -> Node {
+    let legend_id = props.legend_id();
+    let attrs = drop_reserved(attrs, LEGEND_RESERVED);
+    let mut merged: Vec<(&str, &str)> = vec![("id", legend_id.as_str())];
+    merged.extend(state_data_attrs(props));
+    merged.push(("data-variant", variant.as_str()));
     merged.extend(attrs);
     ANATOMY.part("legend", "legend", merged, children)
 }
@@ -397,5 +484,91 @@ mod tests {
             html,
             r#"<fieldset data-scope="fieldset" data-part="root"></fieldset>"#
         );
+    }
+
+    // --- legend_with_variant（イシュー #2214） ---
+
+    #[test]
+    fn legend_never_outputs_data_variant() {
+        // イシュー #2214: 既存契約はバイト単位で不変（data-variant を持たない）。
+        let props = base_props("f");
+        let html = render(&legend(&props, vec![], vec![text("Address")]));
+        assert!(!html.contains("data-variant"));
+    }
+
+    #[test]
+    fn legend_with_variant_outputs_data_variant_legend() {
+        let props = base_props("f");
+        let html = render(&legend_with_variant(
+            LegendVariant::Legend,
+            &props,
+            vec![],
+            vec![text("Address")],
+        ));
+        assert!(html.contains(r#"data-variant="legend""#));
+        assert!(html.contains(r#"data-part="legend""#));
+        assert!(html.contains(r#"id="f-legend""#));
+    }
+
+    #[test]
+    fn legend_with_variant_outputs_data_variant_label() {
+        let props = base_props("f");
+        let html = render(&legend_with_variant(
+            LegendVariant::Label,
+            &props,
+            vec![],
+            vec![text("Shipping address")],
+        ));
+        assert!(html.contains(r#"data-variant="label""#));
+        assert!(html.contains("Shipping address"));
+    }
+
+    #[test]
+    fn legend_with_variant_drops_spoofed_data_variant() {
+        // 呼び出し側が data-variant を偽装しても variant 引数の値が必ず優先される。
+        let props = base_props("f");
+        let html = render(&legend_with_variant(
+            LegendVariant::Label,
+            &props,
+            vec![("data-variant", "legend"), ("DATA-VARIANT", "legend")],
+            vec![],
+        ));
+        assert_eq!(html.matches("data-variant").count(), 1);
+        assert!(html.contains(r#"data-variant="label""#));
+    }
+
+    #[test]
+    fn legend_with_variant_default_is_legend() {
+        assert_eq!(LegendVariant::default(), LegendVariant::Legend);
+        assert_eq!(LegendVariant::default().as_str(), "legend");
+    }
+
+    #[test]
+    fn legend_with_variant_preserves_disabled_and_invalid_data_attrs() {
+        let mut props = base_props("f");
+        props.disabled = true;
+        props.invalid = true;
+        let html = render(&legend_with_variant(
+            LegendVariant::Label,
+            &props,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled=""#));
+        assert!(html.contains(r#"data-invalid=""#));
+        assert!(html.contains(r#"id="f-legend""#));
+    }
+
+    #[test]
+    fn legend_with_variant_escapes_xss_payload_in_children() {
+        let props = base_props("f");
+        let html = render(&legend_with_variant(
+            LegendVariant::Label,
+            &props,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>alert"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     }
 }

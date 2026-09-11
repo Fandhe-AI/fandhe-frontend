@@ -53,18 +53,21 @@ const FIELDSET_GOLDEN_CSS: &str = r#"[data-scope="fieldset"][data-part="root"] {
   gap: var(--fandhe-space-2);
   --fandhe-fieldset-legend-font-size: var(--fandhe-font-font-size-sm);
   --fandhe-fieldset-legend-gap: var(--fandhe-space-2);
+  --fandhe-fieldset-legend-label-font-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="fieldset"][data-part="root"].fd-fieldset--size-md {
   gap: var(--fandhe-space-4);
   --fandhe-fieldset-legend-font-size: var(--fandhe-font-font-size-md);
   --fandhe-fieldset-legend-gap: var(--fandhe-space-4);
+  --fandhe-fieldset-legend-label-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="fieldset"][data-part="root"].fd-fieldset--size-lg {
   gap: var(--fandhe-space-6);
   --fandhe-fieldset-legend-font-size: var(--fandhe-font-font-size-lg);
   --fandhe-fieldset-legend-gap: var(--fandhe-space-6);
+  --fandhe-fieldset-legend-label-font-size: var(--fandhe-font-font-size-md);
 }
 
 [data-scope="fieldset"][data-part="error-text"][hidden] {
@@ -79,6 +82,10 @@ const FIELDSET_GOLDEN_CSS: &str = r#"[data-scope="fieldset"][data-part="root"] {
 [data-scope="fieldset"][data-part="helper-text"][data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+[data-scope="fieldset"][data-part="legend"][data-variant="label"] {
+  font-size: var(--fandhe-fieldset-legend-label-font-size, var(--fandhe-font-font-size-sm));
 }
 "#;
 
@@ -242,4 +249,65 @@ fn reexported_parts_connect_to_headless_fieldset_markup() {
     invalid.invalid = true;
     assert!(render(&error_text(&invalid, vec![], vec![text("error")]))
         .contains(r#"data-scope="fieldset" data-part="error-text""#));
+}
+
+// --- legend variant（イシュー #2214、shadcn/ui FieldLegend 突合） ---
+
+/// 各 size の root ブロック内で、既定 legend の font-size トークンと
+/// label variant の font-size トークンが 1 段ずれた対になっていることを
+/// 固定する（sm/xs・md/sm・lg/md）。
+#[test]
+fn legend_label_variant_font_size_is_one_step_below_size_axis() {
+    let css = fieldset::css();
+    for (size_class, legend_token, label_token) in
+        [("sm", "sm", "xs"), ("md", "md", "sm"), ("lg", "lg", "md")]
+    {
+        let root_rule_start = css
+            .find(&format!(
+                r#"[data-scope="fieldset"][data-part="root"].fd-fieldset--size-{size_class} {{"#
+            ))
+            .unwrap_or_else(|| panic!("root rule for size {size_class} not found"));
+        let root_rule_end = css[root_rule_start..]
+            .find('}')
+            .map(|i| root_rule_start + i)
+            .unwrap();
+        let root_rule = &css[root_rule_start..root_rule_end];
+        assert!(root_rule.contains(&format!(
+            "--fandhe-fieldset-legend-font-size: var(--fandhe-font-font-size-{legend_token});"
+        )));
+        assert!(root_rule.contains(&format!(
+            "--fandhe-fieldset-legend-label-font-size: var(--fandhe-font-font-size-{label_token});"
+        )));
+    }
+}
+
+/// 既定の大見出し（`legend` variant）は base の legend ブロックがそのまま
+/// 担うため、`[data-variant="legend"]` の dead セレクタを作らないことを
+/// 固定する。
+#[test]
+fn css_does_not_declare_dead_legend_variant_selector() {
+    let css = fieldset::css();
+    assert!(!css.contains(r#"[data-variant="legend"]"#));
+}
+
+/// `fieldset::legend_with_variant(LegendVariant::Label, ...)` の実レンダ
+/// リングが `data-variant="label"` を出力し、CSS 側の
+/// `[data-variant="label"]` 規則と接続することを固定する。
+#[test]
+fn styled_legend_with_variant_label_emits_data_variant() {
+    use fandhe_frontend_core::text;
+    use fandhe_frontend_pre_styled_ui::fieldset::{legend_with_variant, LegendVariant};
+
+    let f = default_fieldset("f");
+    let html = render(&legend_with_variant(
+        LegendVariant::Label,
+        &f,
+        vec![],
+        vec![text("Username")],
+    ));
+    assert!(html.contains(r#"data-scope="fieldset" data-part="legend""#));
+    assert!(html.contains(r#"data-variant="label""#));
+
+    let css = fieldset::css();
+    assert!(css.contains(r#"[data-scope="fieldset"][data-part="legend"][data-variant="label"]"#));
 }

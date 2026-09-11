@@ -138,7 +138,9 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{Panel
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::tour::{Tour, TourStep};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProps};
-use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
+use fandhe_frontend_pre_styled_ui::fieldset::{
+    self, FieldsetProps, FieldsetRootProps, LegendVariant,
+};
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{
@@ -5624,17 +5626,29 @@ fn disabled_fieldset(id: &'static str) -> FieldsetProps<'static> {
 /// `helper` に `Some` を渡したときのみ `helper_text` を追加描画する
 /// （`helper` の有無と `fs.has_helper_text` を食い違わせないことが呼び出し
 /// 側の契約、[`field_with_helper`] と同型の設計）。
+///
+/// `legend_variant` に `Some` を渡すと `fieldset::legend_with_variant` を
+/// 使い `data-variant`（イシュー #2214、shadcn/ui FieldLegend の 2 段見出し
+/// サイズ突合）を出力する。`None` は既存契約どおり `fieldset::legend`
+/// （`data-variant` を出力しない）を使う。
 fn fieldset_instance(
     size: Size,
     fs: &FieldsetProps<'_>,
     legend_text: &'static str,
+    legend_variant: Option<LegendVariant>,
     field_ids: [&'static str; 2],
     helper: Option<&'static str>,
 ) -> Node {
     let name_field = fs.merge_field_props(plain_field(field_ids[0]));
     let email_field = fs.merge_field_props(plain_field(field_ids[1]));
 
-    let mut children = vec![fieldset::legend(fs, vec![], vec![text(legend_text)])];
+    let legend_node = match legend_variant {
+        Some(variant) => {
+            fieldset::legend_with_variant(variant, fs, vec![], vec![text(legend_text)])
+        }
+        None => fieldset::legend(fs, vec![], vec![text(legend_text)]),
+    };
+    let mut children = vec![legend_node];
     children.push(field_instance(
         FieldOrientation::Vertical,
         &name_field,
@@ -5678,6 +5692,7 @@ fn fieldset_section() -> Node {
         Size::Md,
         &fieldset_with_helper("showcase-fieldset-default"),
         "Contact details",
+        None,
         [
             "showcase-fieldset-default-name",
             "showcase-fieldset-default-email",
@@ -5689,6 +5704,7 @@ fn fieldset_section() -> Node {
         Size::Md,
         &invalid_fieldset_with_helper("showcase-fieldset-invalid"),
         "Contact details",
+        None,
         [
             "showcase-fieldset-invalid-name",
             "showcase-fieldset-invalid-email",
@@ -5700,6 +5716,7 @@ fn fieldset_section() -> Node {
         Size::Md,
         &disabled_fieldset("showcase-fieldset-disabled"),
         "Contact details",
+        None,
         [
             "showcase-fieldset-disabled-name",
             "showcase-fieldset-disabled-email",
@@ -5711,6 +5728,7 @@ fn fieldset_section() -> Node {
         Size::Sm,
         &plain_fieldset("showcase-fieldset-sm"),
         "Contact details",
+        None,
         ["showcase-fieldset-sm-name", "showcase-fieldset-sm-email"],
         None,
     );
@@ -5719,7 +5737,36 @@ fn fieldset_section() -> Node {
         Size::Lg,
         &plain_fieldset("showcase-fieldset-lg"),
         "Contact details",
+        None,
         ["showcase-fieldset-lg-name", "showcase-fieldset-lg-email"],
+        None,
+    );
+
+    // legend variant（イシュー #2214、shadcn/ui FieldLegend の 2 段見出し
+    // サイズ突合）: 既定の大見出し（Legend）を明示指定した Demo と、1 段
+    // 小さい見出し（Label）の Demo を並べ、data-* 表に `data-variant`
+    // （legend/label）が両方載るようにする。
+    let legend_variant_instance = fieldset_instance(
+        Size::Md,
+        &plain_fieldset("showcase-fieldset-legend-variant"),
+        "Contact details",
+        Some(LegendVariant::Legend),
+        [
+            "showcase-fieldset-legend-variant-name",
+            "showcase-fieldset-legend-variant-email",
+        ],
+        None,
+    );
+
+    let label_variant_instance = fieldset_instance(
+        Size::Md,
+        &plain_fieldset("showcase-fieldset-label-variant"),
+        "Contact details",
+        Some(LegendVariant::Label),
+        [
+            "showcase-fieldset-label-variant-name",
+            "showcase-fieldset-label-variant-email",
+        ],
         None,
     );
 
@@ -5732,6 +5779,8 @@ fn fieldset_section() -> Node {
             disabled_instance,
             sm_instance,
             lg_instance,
+            legend_variant_instance,
+            label_variant_instance,
         ])],
     )
 }

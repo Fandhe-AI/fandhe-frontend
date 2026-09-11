@@ -115,8 +115,9 @@
 //!   headless-ui 拡張または独立 anatomy 新設のいずれかが必要で、本イシュー
 //!   の粒度（既存 5 slot の recipe 補修）を超えるため不採用。
 //! - **`FieldLegend` の `legend`/`label` 2 段見出しサイズ**: `fieldset.rs`
-//!   は本イシューの対象ファイル外（#2014 の対象は `field.rs` のみ）。
-//!   `fieldset` 専用の shadcn 突合が必要かは別途確認を要する。
+//!   は本イシューの対象ファイル外（#2014 の対象は `field.rs` のみ）だった。
+//!   イシュー #2214 で `fieldset.rs` 側（`legend_with_variant`/
+//!   `LegendVariant`）に実装済み。
 //! - **choice card（label が checkbox/radio を包む形）**: [`crate::checkbox_card`]/
 //!   [`crate::radio_card`] が既に独立 anatomy として提供済みであり
 //!   `field.rs` 側の対応は不要（gap なし）。

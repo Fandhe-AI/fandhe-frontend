@@ -20,7 +20,7 @@ use hui::editable::{
     EditableSubmitMode,
 };
 use hui::field::{self, FieldProps};
-use hui::fieldset::{self, FieldsetProps};
+use hui::fieldset::{self, FieldsetProps, LegendVariant};
 use hui::file_upload;
 use hui::image_cropper::{self, GridAxis, HandlePosition, ImageCropper, ImageCropperProps};
 use hui::input_group::{self, InputGroupAlign, InputGroupProps};
@@ -1210,7 +1210,14 @@ pub(super) fn fieldset_section() -> Node {
             &invalid_props,
             vec![],
             vec![
-                fieldset::legend(&invalid_props, vec![], vec![text("Shipping details")]),
+                // イシュー #2214: legend_with_variant(Label) を使う唯一の
+                // インスタンス（`data-variant` を data-* 表へ載せるため）。
+                fieldset::legend_with_variant(
+                    LegendVariant::Label,
+                    &invalid_props,
+                    vec![],
+                    vec![text("Shipping details")],
+                ),
                 field_instance(
                     &invalid_name_field,
                     field::input(

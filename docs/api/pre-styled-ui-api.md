@@ -768,10 +768,19 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
 - **公開 API**: `root(&FieldsetRootProps, &FieldsetProps<'_>, attrs,
   children)`（見た目 variant クラスを重ねて headless `fieldset::root` へ
   委譲）、`FieldsetRootProps`。`legend`/`helper_text`/`error_text`/
-  `FieldsetProps` は headless からの選択的再エクスポート。
+  `legend_with_variant`/`LegendVariant`/`FieldsetProps` は headless からの
+  選択的再エクスポート。
 - **`size` 軸のみ**: `Sm`/`Md`/`Lg` の 3 段のみ登録（chakra-ui v3
   `Fieldset.Root` の `size` prop に対応、既定 `Md`）。`Xs`/`Xl` は未登録。
   `orientation`/`color-palette` 軸は持たない。
+- **legend variant（イシュー #2214）**: shadcn/ui `FieldLegend` の
+  `variant`（`legend`=大 / `label`=小）と突合し、`legend_with_variant` が
+  出力する `[data-variant="label"]` を CSS セレクタとして参照して
+  `size` 軸の 1 段下（sm→xs/md→sm/lg→md）のフォントサイズへ切り替える。
+  `--fandhe-fieldset-legend-label-font-size`（`root` の `size` variant が
+  設定する CSS カスタムプロパティ）を継承して値を受け取る。既存 `legend`
+  （`data-variant` を出力しない）はバイト単位で不変で、`[data-variant="legend"]`
+  の dead セレクタは持たない。
 - **意図的非採用**: chakra-ui v3 の `Content` サブパートは headless
   anatomy に存在しないため実装しない（headless anatomy 変更はスコープ外）。
   `root` へのネイティブ `disabled` 二重表現防止のため
