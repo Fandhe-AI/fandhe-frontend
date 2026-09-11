@@ -161,9 +161,11 @@
 //! - **root の `align-items: center` は維持**: 単一行ラベルの既定外観を
 //!   崩さないため。説明文を伴う複数行レイアウトは呼び出し側が
 //!   `align-items: flex-start` を明示的に上書きする前提とする。
-//! - **label へ hover/transition/`data-*` は追加しない**: 非インタラクティブな
+//! - **label へ hover/transition は追加しない**: 非インタラクティブな
 //!   テキストであり、disabled 時の見た目は `root` の
-//!   `data-disabled` 規則（opacity）が波及済みで足りる。
+//!   `data-disabled` 規則（opacity）が波及済みで足りる。`data-invalid` の
+//!   文字色 state のみ #2159 で追加した（下記「shadcn/ui との突合
+//!   （イシュー #2011）」節参照）。
 //! - **variant 軸（solid/subtle/outline 等）は追加しない**: 1/2 と同じ判断
 //!   （`root()` シグネチャ変更は破壊的、Forms 家族横断の判断が必要。
 //!   横断判断はイシュー #1741 で
@@ -177,7 +179,11 @@
 //! [shadcn/ui Checkbox](https://ui.shadcn.com/docs/components/base/checkbox)
 //! を補完参照（#2135 で確定した適用原則。既存の視覚言語を shadcn 風へ
 //! 置き換えることは目的としない）として突合した結果、`recipe()`/CSS 出力に
-//! 実体変更は不要と判断した。以下、確認した 4 項目を記録する。
+//! 実体変更は不要と判断した（当時の記録として残す）。以下、確認した
+//! 4 項目を記録する。**追補（イシュー #2159）**: 4 項目のうち
+//! `aria-invalid`（`data-invalid`）時の視覚のみ、[`crate::field`] の判断
+//! 変更（#2147）を受けて後日 `recipe()` へ 1 state 規則を追加した。詳細は
+//! 当該項目を参照。
 //!
 //! - **indeterminate の視覚表現**: shadcn の Examples に indeterminate 単独の
 //!   デモはないが、本モジュールは `control`/`indicator` の双方に
@@ -189,13 +195,20 @@
 //!   いる（責務境界: 単体の checkbox は本モジュール、カード合成は
 //!   `checkbox_card` が担当する既存分業）。本モジュールへ card 相当の機能
 //!   を持ち込まない。
-//! - **`aria-invalid`（`data-invalid`）時の視覚**: shadcn はラベル文字色も
-//!   赤くするが、本モジュールは `control` の `border-color` のみを
-//!   danger 化し、ラベル文字色は変更しない。これは [`crate::field`]
-//!   rustdoc の「`data-invalid`/`data-readonly` によるラベル色変更は
-//!   chakra-ui v3 も持たない。invalid はコントロールの枠線色と
-//!   `error-text` の表示切替で伝える」判断を踏襲したものであり、本
-//!   クレート全体の視覚言語一貫性を優先して意図的に合わせない。
+//! - **`aria-invalid`（`data-invalid`）時の視覚**: 当初（#2011 時点）は
+//!   `control` の `border-color` のみを danger 化し、[`crate::field`]
+//!   rustdoc の当時の判断（「`data-invalid`/`data-readonly` によるラベル色
+//!   変更は chakra-ui v3 も持たない」）を踏襲してラベル文字色は変更しない
+//!   としていた。その後 [`crate::field`] は #2147 で shadcn の
+//!   `data-[invalid=true]:text-destructive` 準拠へ判断を改め
+//!   `label[data-invalid]` の文字色を danger 化した。本モジュールの唯一の
+//!   根拠が「field の判断を踏襲」だったため、#2159 で field と同一根拠へ
+//!   揃え直し `label[data-invalid]`（上記 `recipe()` 参照）の文字色を
+//!   `--fandhe-color-danger` へ切り替える。`control` の border-color danger
+//!   化と併存する追加的な冗長伝達であり、色のみに依存しない（WCAG
+//!   1.4.1）。単体の checkbox は `error-text` パートを持たないため、
+//!   テキストによる伝達は外側の `field`/`fieldset`/`checkbox_group` 合成側
+//!   が担う前提とする。
 //! - **label + description の縦組み合成**: 上記「意図的に合わせない点」節
 //!   （#1455）で決定済みのとおり `description` 専用パートは追加しない。
 //!   shadcn の Examples も同様に呼び出し側合成（`label` の後ろへ通常の
@@ -414,6 +427,18 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("user-select", "none"),
             ],
+        )
+        // イシュー #2159: `crate::field` の `label[data-invalid]`（#2147、
+        // shadcn の `data-[invalid=true]:text-destructive` 相当）と同一根拠で
+        // ラベル文字色を danger 化する。`control` の `border-color` danger 化
+        // （上記 state 規則）と併存する追加的な冗長伝達であり、テキストに
+        // よる伝達は外側の `field`/`fieldset`/`checkbox_group` 合成側の
+        // `error-text` が担う（本モジュールは単体の checkbox のため
+        // `error-text` パートを持たない）。
+        .state(
+            "label",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("color", "var(--fandhe-color-danger)")],
         )
         // hidden-input の視覚的非表示化（[`crate::switch`]/[`crate::select`] と
         // 同じ visually-hidden パターン。モジュール doc 参照）。
@@ -645,6 +670,28 @@ mod tests {
   border-color: var(--fandhe-color-danger);
 }"#
         ));
+    }
+
+    #[test]
+    fn stylesheet_links_label_to_data_invalid_state() {
+        // イシュー #2159: `crate::field` の `label[data-invalid]`（#2147）と
+        // 同一根拠でラベル文字色を danger 化する。base の
+        // `color: var(--fandhe-color-fg)` を上書きしつつ、base 自体は残る
+        // （詳細度・後勝ちで invalid 時のみ上書きされる）。
+        let css = stylesheet();
+        let base_selector = r#"[data-scope="checkbox"][data-part="label"] {"#;
+        let invalid_block = r#"[data-scope="checkbox"][data-part="label"][data-invalid] {
+  color: var(--fandhe-color-danger);
+}"#;
+        assert!(css.contains(base_selector));
+        assert!(css.contains("color: var(--fandhe-color-fg);"));
+        assert!(css.contains(invalid_block));
+        let base_pos = css.find(base_selector).unwrap();
+        let invalid_pos = css.find(invalid_block).unwrap();
+        assert!(
+            invalid_pos > base_pos,
+            "label[data-invalid] state must be registered after the label base block"
+        );
     }
 
     #[test]
