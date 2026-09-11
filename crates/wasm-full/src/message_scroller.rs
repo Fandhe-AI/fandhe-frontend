@@ -951,6 +951,25 @@ mod wiring {
         }
     }
 
+    /// `instance_root` を含まず、そこから `root` 方向へ辿れる祖先
+    /// message-scroller インスタンスの `root` を、直近の祖先から順に
+    /// すべて列挙する（多重ネスト対応）。[`handle_mutations`] の末尾で、
+    /// 内側インスタンスの変異により外側インスタンスの計測スナップショット
+    /// が古いまま残る不具合（コーディネータ指摘 PR #2312 再指摘、round 8）
+    /// を是正するための祖先探索専用ヘルパー。
+    fn ancestor_instance_roots(root: &Element, instance_root: &Element) -> Vec<Element> {
+        let mut result = Vec::new();
+        let mut current = instance_root.parent_element();
+        while let Some(start) = current {
+            let Some(ancestor) = closest_matching(root, &start, PART_ROOT) else {
+                break;
+            };
+            current = ancestor.parent_element();
+            result.push(ancestor);
+        }
+        result
+    }
+
     /// `MutationObserver` コールバック本体。レコードをインスタンスごとに
     /// グループ化し、viewport ごとに 1 回だけ計測・補正・状態書き戻しを
     /// 行う（モジュール doc「既知の限界」参照）。
@@ -976,6 +995,10 @@ mod wiring {
         initial_sync(root, snapshots, true);
 
         let mut seen_viewports: Vec<Element> = Vec::new();
+        // 今回のバッチで変異を観測した（最も内側の）インスタンス集合。
+        // バッチ末尾で祖先方向へスナップショット同期するための起点集合
+        // として使う（コーディネータ指摘 PR #2312 再指摘、round 8）。
+        let mut mutated_instance_roots: Vec<Element> = Vec::new();
         for record in &record_list {
             let Some((instance_root, viewport)) = resolve_instance_from_record(root, record) else {
                 continue;
@@ -984,6 +1007,9 @@ mod wiring {
                 continue;
             }
             seen_viewports.push(viewport.clone());
+            if !mutated_instance_roots.contains(&instance_root) {
+                mutated_instance_roots.push(instance_root.clone());
+            }
 
             let Some(index) = find_snapshot_index(snapshots, &viewport) else {
                 continue;
@@ -1030,6 +1056,35 @@ mod wiring {
             }
 
             upsert_snapshot(snapshots, &viewport);
+        }
+
+        // 内側インスタンスへの変異が、まだ overflow による内部クリップが
+        // 始まっていない外側インスタンスの `scrollHeight` も押し上げる
+        // ケース（ネストした scroller への追加で内側 viewport が
+        // max-height に達する前など）に対応する: 分類（Prepend/Grow の
+        // 判定・`scrollTop` 補正・`data-has-new` 付与）は内側→外側へ
+        // 一切波及させない方針（`classify_target` のネスト除外）を維持
+        // したまま、変異があった各インスタンスの祖先方向すべてについて
+        // 計測スナップショットのみを最新値へ再同期する。これを怠ると、
+        // 外側インスタンスの `last_scroll_height` が本バッチの内側成長分
+        // だけ古いまま残り、後続バッチで外側自身に Free 状態の履歴先頭
+        // 挿入があった際 `corrected_scroll_top` がその古い差分まで
+        // 加算してしまい、閲覧位置が過補正でずれる（コーディネータ指摘
+        // PR #2312 再指摘、round 8）。
+        let mut resynced_ancestors: Vec<Element> = Vec::new();
+        for instance_root in &mutated_instance_roots {
+            for ancestor in ancestor_instance_roots(root, instance_root) {
+                if resynced_ancestors.contains(&ancestor) {
+                    continue;
+                }
+                resynced_ancestors.push(ancestor.clone());
+                let viewport_selector = VIEWPORT_SELECTOR;
+                if let Some(ancestor_viewport) =
+                    ancestor.query_selector(viewport_selector).ok().flatten()
+                {
+                    upsert_snapshot(snapshots, &ancestor_viewport);
+                }
+            }
         }
 
         prune_snapshots(snapshots, root);

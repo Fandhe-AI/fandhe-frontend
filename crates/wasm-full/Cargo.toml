@@ -1038,7 +1038,26 @@ name = "fandhe-frontend-wasm-full"
 # 不具合の是正。公開 API のシグネチャ変更は伴わない内部実装の修正のみ
 # のため patch バンプとし、origin/main の到達値 0.20.5 から +1 して
 # 0.20.6 とする。
-version = "0.20.6"
+#
+# イシュー #2122（コーディネータ指摘、PR #2312 再指摘、round 8）:
+# `resolve_instance_from_record` が常に最も内側の message-scroller
+# インスタンスへ解決するため、`handle_mutations` がそのバッチで計測
+# スナップショットを更新するのも最も内側の viewport のみだった。ネスト
+# した内側 scroller への追加で、内側 viewport が `max-height` に達する
+# 前など外側の `scrollHeight` も押し上げるケースでは、外側インスタンス
+# の `last_scroll_height` が古いまま残り、後続バッチで外側自身に Free
+# 状態の履歴先頭挿入があると `corrected_scroll_top` が過去の内側増分
+# まで加算して閲覧位置を過補正していた。内側の変異を外側の
+# Prepend/Grow として分類しない方針（`classify_target` のネスト除外）は
+# 維持したまま、`handle_mutations` の末尾で変異があったインスタンス
+# 集合から `root` 方向へ祖先の message-scroller インスタンスをすべて
+# 辿り、分類・`scrollTop` 補正・`data-has-new` 付与を伴わずに計測
+# スナップショットのみを再同期する処理を追加した。公開 API のシグネ
+# チャ変更は伴わない内部実装の修正のみのため patch バンプとし、
+# 本ブランチの到達値 0.20.6 から +1 して 0.20.7 とする（origin/main は
+# 本 PR 起票時点で 0.20.5 のまま wasm-full 未変更のため、本ブランチの
+# 到達値がそのまま基準になる）。
+version = "0.20.7"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

@@ -2119,3 +2119,156 @@ async fn nested_instance_prepend_does_not_leak_into_outer_grow_classification() 
         "外側自身の末尾追記（Grow）が内側の先頭挿入（Prepend）に引きずられず data-has-new を立てること"
     );
 }
+
+// --- 祖先インスタンスのスナップショット再同期（コーディネータ指摘 PR #2312 再指摘、round 8） ---
+
+/// 外側 content 直下に「`data-bind-list` を持つ会話リスト本体
+/// （messages）」と「`max-height` で高さが伸縮する内側 scroller」を兄弟
+/// として持つネスト構造を組み立てる。内側 viewport は
+/// `build_message_scroller`/`build_nested_message_scroller` の固定
+/// `height` ではなく `max-height` を使う: `max-height` に達するまでは
+/// 内側 viewport 自身の自然高さが content の伸長に追従して増え、外側の
+/// `scrollHeight` も押し上げる（コーディネータ指摘の「内側 viewport が
+/// max-height に達する前など」の状況を再現するための意図的な選択）。
+fn build_nested_message_scroller_with_growable_inner_viewport(
+    outer_id: &str,
+    outer_stuck: HeadlessStuck,
+    inner_id: &str,
+) -> Node {
+    // 外側 viewport（height:100px）に対し十分な高さを持たせ、
+    // simulate_user_scroll で確実に「free」（最下部でない）状態を作れる
+    // ようにする（total content height > viewport clientHeight が前提）。
+    let messages = keyed_list(
+        "div",
+        vec![],
+        "messages",
+        vec![("m-1".to_string(), fixed_height_child(150))],
+    )
+    .expect("keyed_list must not fail for well-formed items");
+
+    let inner = root(
+        MessageScrollerRootProps {
+            stuck: HeadlessStuck::Free,
+            has_new: false,
+        },
+        vec![("id", inner_id)],
+        vec![
+            viewport(
+                "",
+                vec![("style", "max-height:400px;overflow-y:auto")],
+                vec![content(vec![], vec![fixed_height_child(20)])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    );
+
+    root(
+        MessageScrollerRootProps {
+            stuck: outer_stuck,
+            has_new: false,
+        },
+        vec![("id", outer_id)],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:100px;overflow-y:auto")],
+                vec![content(vec![], vec![messages, inner])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    )
+}
+
+/// 指摘の再現手順そのもの: (1) 外側 Free 状態で内側 scroller へ追加して
+/// 外側の `scrollHeight` が増える、(2) 別バッチで外側自身の会話リスト
+/// 本体へ履歴を先頭挿入する。`resolve_instance_from_record` は常に最も
+/// 内側のインスタンスへ解決するため、`handle_mutations` が (1) のバッチで
+/// 外側インスタンスの計測スナップショットを再同期しない旧実装では、
+/// 外側の `last_scroll_height` が (1) の増分だけ古いまま残り、(2) の
+/// `corrected_scroll_top` がその古い差分まで加算して過補正する
+/// （修正前コードで本テストが FAIL することを確認済み）。
+#[wasm_bindgen_test]
+async fn ancestor_snapshot_resync_prevents_overcorrection_after_inner_growth() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-ancestor-resync-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let node = build_nested_message_scroller_with_growable_inner_viewport(
+        "ms-ancestor-resync-outer",
+        HeadlessStuck::Free,
+        "ms-ancestor-resync-inner",
+    );
+    let outer_el = mount(&container, &node);
+    let outer_viewport = find_viewport(&outer_el);
+    let outer_content = find_content(&outer_el);
+
+    wire_message_scroller_events(outer_el.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    let inner_el = outer_el
+        .query_selector("#ms-ancestor-resync-inner")
+        .expect("query_selector must not fail")
+        .expect("inner scroller must exist");
+    let inner_content = find_content(&inner_el);
+
+    // free のまま、利用者が少し下へスクロールした状態を作る。
+    simulate_user_scroll(&outer_viewport, 10);
+    wait_for(|| outer_el.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    assert_eq!(
+        outer_el.get_attribute("data-stuck").as_deref(),
+        Some("free")
+    );
+
+    let before_height = outer_viewport.scroll_height();
+    let before_top = outer_viewport.scroll_top();
+
+    // (1) 内側 scroller の content へ追加する。内側 viewport はまだ
+    // max-height に達していないため、内側自身の自然高さが伸び、外側の
+    // scrollHeight も押し上げられる。分類上は内側インスタンスの変異に
+    // 分類されるため、外側の data-has-new・scrollTop へは波及しない
+    // （既存の nested_instance_* テストと同じネスト分離の方針）。
+    let inner_growth_html = render(&fixed_height_child(30));
+    inner_content
+        .insert_adjacent_html("beforeend", &inner_growth_html)
+        .expect("insert_adjacent_html must not fail");
+
+    wait_for(|| outer_viewport.scroll_height() == before_height + 30).await;
+    assert_eq!(
+        outer_viewport.scroll_height(),
+        before_height + 30,
+        "内側の追加で外側の scrollHeight も増えること（前提条件）"
+    );
+    assert_eq!(
+        outer_viewport.scroll_top(),
+        before_top,
+        "内側インスタンスへの変異だけでは外側の scrollTop が動かないこと"
+    );
+    assert!(!outer_el.has_attribute("data-has-new"));
+
+    // 次の MutationObserver バッチへ確実に分離してから (2) を行う。
+    microtask_tick().await;
+
+    // (2) 別バッチで、外側自身の会話リスト本体（messages）へ先頭挿入する
+    // （履歴読み込み相当）。
+    let messages_wrapper = outer_content
+        .query_selector("[data-bind-list]")
+        .expect("query_selector must not fail")
+        .expect("messages data-bind-list wrapper must exist");
+    let outer_prepend_html = render(&fixed_height_child(50));
+    messages_wrapper
+        .insert_adjacent_html("afterbegin", &outer_prepend_html)
+        .expect("insert_adjacent_html must not fail");
+
+    let expected_delta = 50;
+    wait_for(|| outer_viewport.scroll_top() == before_top + expected_delta).await;
+    assert_eq!(
+        outer_viewport.scroll_top(),
+        before_top + expected_delta,
+        "外側自身の先頭挿入（+50px）分だけ補正され、(1) の内側成長分（+30px）が \
+         祖先スナップショットの再同期漏れにより二重加算されて過補正されないこと \
+         （コーディネータ指摘 PR #2312 再指摘、round 8）"
+    );
+}
