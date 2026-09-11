@@ -248,33 +248,11 @@ mod wiring {
 
     /// `target` から `root`（含む）まで祖先方向へ辿り、`data-scope`/
     /// `data-part` が指定値と一致する最初の要素を返す
-    /// （`crate::headless_clipboard::wiring::closest_matching` と同型）。
-    fn closest_matching(
-        root: &Element,
-        start: &Element,
-        scope: &str,
-        part: &str,
-    ) -> Option<Element> {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if !root.contains(Some(&element)) {
-                break;
-            }
-            if element.get_attribute("data-scope").as_deref() == Some(scope)
-                && element.get_attribute("data-part").as_deref() == Some(part)
-            {
-                return Some(element);
-            }
-            if element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        None
-    }
+    /// （`crate::dom::closest_matching` を使う）。
+    use crate::dom::closest_matching;
 
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
-    /// （`crate::headless_clipboard::wiring::set_dom_attribute` と同型、
+    /// （`crate::dom::set_dom_attribute_result` を使う、
     /// イシュー #401 の `fw gate` `url_validation_check` 契約に準拠）。
     /// 本モジュールが書き込む属性（`data-state`/`data-elapsed`）はいずれも
     /// `&'static str`/数値整形済み文字列で固定された非 URL・非イベント
@@ -282,18 +260,7 @@ mod wiring {
     /// `fandhe_frontend_core::url` のガード関数群を経由することで、将来
     /// `name`/`value` が動的な入力から組み立てられるよう変更された場合の
     /// 防御としても機能する（`headless_clipboard.rs` と同じ判断）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) -> Result<(), JsValue> {
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return Ok(());
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return Ok(());
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return Ok(());
-        }
-        element.set_attribute(name, value)
-    }
+    use crate::dom::set_dom_attribute_result as set_dom_attribute;
 
     /// `root` の `data-*` 表示属性を読み取り [`Timer`] を再構築する
     /// （[`super::timer_from_display_attrs`] への薄い DOM 読み取り委譲）。

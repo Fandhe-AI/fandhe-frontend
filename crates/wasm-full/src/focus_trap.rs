@@ -206,28 +206,10 @@ mod wiring {
         result
     }
 
-    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
-    /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
-    /// `.claude/rules/security.md`）。本モジュールが書き込む属性
-    /// （`tabindex`）は `&'static str` リテラルで固定された非 URL・
-    /// 非イベントハンドラ属性であり実害はないが、
-    /// `fandhe_frontend_core::url` のガード関数群
-    /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
-    /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
-    /// 入力から組み立てられるよう変更された場合の防御としても機能する
-    /// （`keynav.rs::wiring::set_dom_attribute` と同じガード方針）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return;
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return;
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return;
-        }
-        let _ = element.set_attribute(name, value);
-    }
+    /// `crate::dom::set_dom_attribute` を本モジュールの語彙で再エクスポート
+    /// する（イシュー #2122 レビュー指摘: REQ-11 gzip バンドルサイズ抑制の
+    /// ため、複数モジュールに重複していた実装を `crate::dom` へ共通化した）。
+    use crate::dom::set_dom_attribute;
 
     /// `content` 自身をプログラム的フォーカスのみ可能にする（Tab 到達順は
     /// 汚さず、WAI-ARIA dialog パターンの「tabbable な子が無い場合は content

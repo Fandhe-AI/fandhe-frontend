@@ -2105,6 +2105,7 @@ matrix〕での活用は同評価文書 §13 項目 3/4 として後続 issue �
 | `Runtime::wire_chart` | `chart` |
 | `Runtime::wire_chart_range` | `chart-range` |
 | `Runtime::wire_questionnaire` | `questionnaire` |
+| `Runtime::wire_message_scroller` | `message-scroller` |
 
 `overlay`/`tooltip`/`position`/`focus_trap`/`headless_file_upload`/
 `headless_select` は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -2124,7 +2125,9 @@ gating 対象外（feature を持たない）。ゲートの粒度は (a) `mount
 `fandhe-frontend-wasm-full` を 0.18.7 → 0.19.0 へ minor バンプし、
 `default-features = false` 利用者が失う 14 配線と、従来挙動を維持する
 ための `features` 明示列挙を `Cargo.toml` コメント・`lib.rs` クレート
-ドキュメントの両方に記載した。
+ドキュメントの両方に記載した（PR #2312 の base 取り込みで
+`message-scroller`（イシュー #2122、§38 参照）を同型の配線群別 feature
+として追加し、対象は 15 配線へ増えている。§38.5 参照）。
 
 ### 33.4 `keynav` off 時の制約（分離完了、イシュー #2326 codex-review 是正）
 
@@ -2679,3 +2682,260 @@ activation でパネルを表示しても、`activate_tab` が呼ぶのは活性
 の実ブラウザ回帰）を追加し、`crates/pre-styled-ui/tests/tabs_css.rs`
 の golden CSS を `box-sizing: border-box` 追加後の値へ更新した
 （指摘 1 は CSS 宣言追加のみで wasm-full 側のテストは不要）。
+## 38. `message_scroller` モジュール（イシュー #2122、親 #2120）
+
+### 38.1 背景・責務境界
+
+`crates/headless-ui/src/message_scroller.rs`（イシュー #2121、親 #2120）は
+Message Scroller（shadcn/ui `Message Scroller` 相当）の anatomy（`root`/
+`viewport`/`content`/`anchor`/`jump-to-latest`/`load-more`）と表示状態
+`data-*`（`data-stuck`/`data-has-new`/`jump-to-latest` の `data-visible`/
+`load-more` の `data-loading`）のみを提供し、実行時のスクロール計測・
+自動追従・新着検知・履歴読み込み時の位置補正は本クレートへ申し送られて
+いた（同モジュール冒頭 rustdoc「呼び出し文脈」節）。`.claude/rules/
+coding-rust.md` §3.25 規則 2（参照元が primitives 層へ持ち込んでいる
+レイアウト計測の関心は headless-ui へ持ち込まず wasm-full/pre-styled-ui
+の責務とする）に従い、本イシューがその配線（`crates/wasm-full/src/
+message_scroller.rs`）を実装する。
+
+責務境界（§3.25 規則 1）: ストリーミングの購読・履歴取得（`load-more`
+押下後の実データ取得）はアプリケーション責務であり、本モジュールは
+持たない。`load-more` クリックは `ACTION_LOAD_MORE`
+（`"message-scroller:load-more"`）としてアプリへ通知するのみで、
+`data-loading`/`data-disabled` の付け外し・要素の挿入は一切行わない。
+
+### 38.2 2 層構成
+
+`questionnaire.rs`/`sidebar.rs`/`content_height.rs` と同型の 2 層構成を
+踏襲する。
+
+- 純粋層（web-sys 非依存）: `is_at_bottom`/`stuck_from_attr`/
+  `jump_visible`/`classify_change`/`corrected_scroll_top`/
+  `plan_after_change`/`encode_notification_payload` を native の
+  `cargo test` で検証する。
+- 配線層（`#[cfg(target_arch = "wasm32")] mod wiring`）:
+  `wire_message_scroller_events` のみ wasm32 限定でコンパイルする。
+
+### 38.3 リスナー構成と搭載判定ゲート・`Closure::forget` 3 個契約
+
+`root` 配下（`root` 自身を含む）に `[data-scope="message-scroller"]
+[data-part="root"]` が 1 件も無ければリスナーを 1 つも登録せず `Ok(())`
+を返す（非搭載アプリへの副作用なし契約、`sidebar`/`splitter` と同型。
+マウント後に動的挿入された message-scroller は配線対象外というトレード
+オフも同じ）。
+
+`Closure::forget` は配線 1 回につき定数 3 個に限定する:
+
+1. `scroll`（capture フェーズ、`root` へ 1 個）: `scroll` はバブルしない
+   ため capture 委譲で viewport 差し替え後も生存させる。
+2. `click`（バブル、`root` へ 1 個）: `jump-to-latest`/`load-more` を
+   バブル委譲で解決する。
+3. `MutationObserver` コールバック（`root` へ 1 個）: `childList`/
+   `subtree`/`characterData` を監視し、`attributes` は監視しない（自身が
+   書く `data-*` で自己発火ループを構造的に回避する）。
+
+### 38.4 最下部判定と `data-*` 書き戻し規則
+
+最下部判定は `IntersectionObserver` ベースの `anchor` 観測ではなく、
+しきい値付き `scrollTop`/`scrollHeight`/`clientHeight` 算術
+（`is_at_bottom`、`STICK_THRESHOLD_PX = 8`）で行う。`IntersectionObserver`
+は web-sys feature 未追加であり、算術経路は追加のレイアウト読み取りを
+要しないための判断（本イテレーションでは `anchor` パーツを観測しない。
+DOM 上の `anchor` はそのまま残し、除去も要求もしない。`IntersectionObserver`
+ベースの検知への移行は将来のスコープ外事項とする）。
+
+`root` の `data-stuck` 属性値から `MessageScrollerStuck` を導出する
+`stuck_from_attr` は、`"bottom"`/`"free"` 以外（欠落・改ざん）を
+`Free` として扱う（不明な状態で利用者のスクロールを勝手に奪わない
+fail-closed 方針）。
+
+`jump-to-latest` の可視判定（`jump_visible`）は `stuck == Free` のときの
+み可視とする。`data-has-new` は独立したスタイルフックであり可視条件に
+含めない（新着が無くても上へスクロールした利用者が最下部へ戻る手段を
+持つべきという判断。shadcn/ui の ScrollToBottom ボタンが「最下部に
+いない」だけで現れる挙動に揃える）。
+
+プログラム的スクロールは常に即時とする。smooth だと中間 `scroll`
+イベントで `free` へ誤遷移し `data-has-new` の誤検知を招くため（smooth な
+ジャンプ演出はスコープ外）。即時化の実現手段は配線時（`initial_sync_
+instance`）に各 viewport へインライン `scroll-behavior: auto` を固定
+設定すること（`overflow-anchor: none` と同じ箇所・同じ CSSOM 書き込み
+手段）で、アプリ側 CSS の `scroll-behavior: smooth` をインラインスタイル
+（最高詳細度）で上書きし、`Element::set_scroll_top` を常に即時にする
+（レビュー指摘 #2122 で `ScrollToOptions`/`ScrollBehavior` 型を呼び出し
+ごとに経由する構成から変更。バンドルサイズ抑制、REQ-11 gzip 上限超過の
+是正）。
+
+### 38.5 変異の分類と `scrollHeight` 差分補正
+
+`MutationObserver` コールバックは、今回のバッチで最初に見つかった要素
+追加を伴う `MutationRecord` について、追加ノード群がその親の先頭かつ
+既存ノードの前（`previousSibling` が無く、かつ `nextSibling` がある
+位置）へ挿入されたかという DOM 構造情報のみで `classify_change` の
+`Prepend`/`Grow`/`None` を判定する（`Prepend` は既存ノードの前への
+先頭挿入、`Grow` はそれ以外の高さ増加〔空リストへの初回追加を含む〕、
+`None` は高さ不変・減少）。判定は viewport のジオメトリ
+（`getBoundingClientRect`）に依存しない（レビュー指摘 #2122: `content`
+に上部 padding があると Free 状態で scrollTop=0 でも先頭挿入が viewport
+上端より下に位置し `Grow` へ誤分類される旧実装の問題を回避する）。
+`nextSibling` の要求は、空リスト（または空の `data-bind-list`）への
+初回追加が `previousSibling`/`nextSibling` ともに `None` になり
+`Prepend` と誤判定されると、Free 状態での新着追加が位置を維持したまま
+`data-has-new` を付与する契約に反してしまう不具合を防ぐ（codex-review
+P1 指摘 #2122）。対象レコードは、target から `content`
+（境界）までの間にネストした message-scroller の `root` が無いものに
+限る（ネストしたインスタンス自身の変異を外側の分類へ波及させない、
+`scoped_parts` と同じネスト分離パターン。レビュー指摘 #2122:
+`content.contains(target)` のみの判定ではネストしたインスタンスの
+`content` への挿入も外側の分類に漏れ込んでいた）。さらに target 自身が
+`content` そのもの、または `fandhe_frontend_core::keyed::keyed_list` が
+出力するリストの親要素（`BIND_LIST_ATTR` = `data-bind-list` を持つ要素。
+§38.8 がサポート経路とする「`content` 配下を keyed list で差分更新」
+構成における実際の挿入先はこの要素であり、`content` 自身とは限らない）
+のいずれかであることも要求する（レビュー指摘 #2122: `bind_text`
+〔`fandhe-frontend-wasm-client::binding_dom::apply_one` の
+`set_text_content`〕によるストリーミング本文のテキスト置換は、既存の
+子ノードを丸ごと入れ替える `childList` レコードを `content`/
+`data-bind-list` 要素ではない本文の子孫要素へ生み、置き換え後の唯一の
+子ノードが `previousSibling` を持たないため、この target 種別の判定を
+欠くと先頭挿入〔Prepend〕と誤判定していた。codex-review P1・
+Cursor Bugbot 双方の指摘）。`Prepend` は
+`corrected_scroll_top`（`prev_scroll_top + (new_height - prev_height)`、
+負値は 0 へクランプ）で `scrollTop` を補正する。
+
+配線時の初期同期（`initial_sync_instance`）で各 viewport に CSSOM 経由
+（`CssStyleDeclaration::set_property`、`content_height.rs` と同じ書き込み
+手段）で `overflow-anchor: none` を設定する。ブラウザのネイティブ scroll
+anchoring が上方向挿入時に独自補正を行うと `corrected_scroll_top` と
+二重補正になるため。
+
+### 38.6 `load-more` 通知契約
+
+`load-more` クリックは、クリック対象からインスタンス root までの祖先に
+`data-disabled`/ネイティブ `disabled`/`data-loading` のいずれかがあれば
+no-op（fail-closed、多重発火防止）。子要素に明示 `data-action` があれば
+自動通知を抑止する（`questionnaire::wiring::resolve_trigger` の
+`has_explicit_action` 累積判定と同じ意図、`crate::events::wire_events` と
+の二重 dispatch 回避）。通知 payload はインスタンス root の `id` 属性値
+（未設定時は空文字列。questionnaire の `"{step}|{id}"` と異なり step を
+持たないため `id` のみで区切り文字は使わない）。`data-loading` の付け
+外し・履歴取得・要素挿入は一切行わない（§38.1 責務境界）。
+
+### 38.7 `Runtime` への統合
+
+`Runtime::wire_message_scroller`（`questionnaire::wire_questionnaire_events`
+の橋渡しと同型）を `Runtime::mount`/`Runtime::hydrate` の双方から
+`Self::wire_questionnaire` の直後で呼ぶ。`message_scroller::wiring` が
+`data-stuck`/`data-has-new`/`jump-to-latest` の可視状態の DOM 反映を独自に
+完結させるため、`Runtime` 側の dispatch は `C` が
+`"message-scroller:load-more"` を認識する場合の追随を目的とし、認識しない
+場合でも他配線（最下部追従・新着検知）は独立して成立する。
+
+### 38.8 構造フォールバックの扱い・既知の限界
+
+構造フォールバック（`rerender_subtree`）で viewport が丸ごと差し替え
+られた場合、旧 viewport の `scrollTop` は復元しない。新 viewport は
+`scrollTop = 0` で現れ、アプリの `view()` が出力した `data-stuck`
+（既定 `Bottom`）に従って初期同期される。サポートされる経路は「`content`
+配下を keyed list（`data-keyed-list`）で差分更新し、ストリーミング本文を
+`bind_text` 束縛点で更新する構成」である。会話リスト本体として
+サポートするレイアウトの境界（`content` 自身、または `content` の
+直接の子 1 段のみ）は §38.11 参照。
+
+既知の限界: (1) 同一 `MutationObserver` コールバック内で上方向挿入と
+下方向追記が同時に起きた場合、`scrollHeight` 差分での補正は追記分だけ
+過補正になる。(2) 画像ロード等、DOM 変異を伴わない高さ変化
+（`ResizeObserver` 相当）は検知しない。(3) 配線後の再描画で初めて出現
+する message-scroller への遅延配線は行わない（§38.3 搭載判定ゲートの
+トレードオフ）。
+
+### 38.9 semver 判断・テスト
+
+新規公開モジュール `message_scroller`（純粋層 + 配線層）の追加、
+`Runtime::mount`/`Runtime::hydrate` への新規リスナー登録を伴うため、
+`fandhe-frontend-wasm-full` は minor バンプ（0.18.4 → 0.19.0）とする。
+プログラム的スクロールは `Element::set_scroll_top` + 配線時のインライン
+`scroll-behavior: auto` 固定で実現し、`ScrollBehavior`/`ScrollToOptions`
+feature は追加しない（レビュー指摘 #2122 でバンドルサイズ抑制のため
+不採用、§38.4 参照）。
+
+PR #2312（本イシューの再開、Phase 9〔#2326/#2327〕の配線群別 feature
+gating 規約への追随）で、`Runtime::wire_message_scroller` 呼び出しを
+他の配線群と同型の `message-scroller` feature（既定 on、`Cargo.toml`
+§33.2 対応表参照）でゲートした。`message_scroller` モジュール自体が
+crates.io 公開済みのどの版にも存在せず、本 PR で初めてゲート付き
+（既定 on）として main へ導入されるため、既存利用者が失う配線は無い
+（追加のみの非破壊的変更、`position`〔0.20.1〕と同型の判断）。よって
+minor ではなく patch とし、main の到達値 0.20.4 から +1 して 0.20.5 と
+する。
+
+コーディネータ指摘（PR #2312 再指摘、§38.11 参照）: 会話リスト本体の
+解決（`wiring::conversation_list`）を幅優先探索から明示的な境界
+（`content` 自身、または `content` の直接の子 1 段のみ）へ変更した。
+公開 API のシグネチャ変更は伴わない内部実装の修正のみのため patch
+バンプとし、origin/main の到達値 0.20.5 から +1 して 0.20.6 とする。
+
+テストは native（`crates/wasm-full/src/message_scroller.rs` 内
+`#[cfg(test)] mod tests` の純粋関数単体テスト、
+`crates/wasm-full/tests/message_scroller_native.rs` の headless-ui 出力
+ドリフト検知）と browser（`crates/wasm-full/tests/
+message_scroller_browser.rs`、`wasm-pack test --headless --chrome`）の
+双方を追加し、`.github/workflows/ci.yml` の `browser-test` ジョブへ
+実行ステップを追加した。
+
+### 38.10 スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
+
+- 構造フォールバック再描画で viewport が差し替えられた際の `id` キーに
+  よる `scrollTop`/`data-stuck` スナップショット復元。
+- `jump-to-latest` の smooth スクロール（`prefers-reduced-motion` 連動を
+  含む）。現状は即時固定。
+- DOM 変異を伴わない高さ変化（画像ロード・フォント読み込み）の追従
+  （`ResizeObserver` は web-sys feature 未追加・意図的に未採用）。
+- 同一バッチ内で先頭挿入と末尾追記が同時に起きた場合の過補正の解消
+  （幾何ベースの精密補正）。
+- `anchor` パーツを `IntersectionObserver` ベースの最下部検知へ使う移行
+  （本イテレーションは `scrollTop` 算術のみ、§38.4 参照）。
+- しきい値（`STICK_THRESHOLD_PX`）の利用者側カスタマイズ（`data-*` に
+  よる上書き等）。
+- 配線後の再描画で初めて出現する message-scroller への遅延配線
+  （搭載判定ゲートのトレードオフ、`sidebar` と同じ）。
+- `docs/design/component-coverage-map.md` の「実装済み」化・
+  pre-styled-ui recipe・Themes ページ（#2123）。
+
+### 38.11 会話リスト本体の解決契約（コーディネータ指摘、PR #2312 再指摘）
+
+`wiring::conversation_list`（会話リスト本体、`scrollTop` 補正・
+`data-has-new` 付与の判定基準点）が**サポートするレイアウトは `content`
+自身、または `content` の直接の子（1 段のみ）に限る**。具体的には次の
+2 パターンのいずれかである:
+
+1. `content` 自身が `data-bind-list` を持つ（フラットな keyed list
+   構成）。
+2. `content` の直接の子要素（1 段）が `data-bind-list` を持つ（`content`
+   → keyed list というラップされた構成）。
+
+`content` から**2 階層以上深い** `data-bind-list`（メッセージ要素の
+内部にある添付・リアクション等の二次的なリスト）は、上記のどちらの
+パターンでも会話リスト本体の候補にならず、常にネストした二次的な
+リストとして扱われる。`content` 直下に `data-bind-list` を持たない
+素のメッセージ要素を置き、その内部だけで添付リストの keyed list を
+使う構成（会話リスト自体は `data-bind-list` を持たない）でも境界は
+変わらない: 会話リスト本体は `content` 自身（フォールバック）になり、
+メッセージ内部の添付リストは常にネスト扱いになる。
+
+旧実装（`content` 配下で「最も浅い `data-bind-list`」を幅優先探索で
+機械的に選ぶ）は、この構成で `content` の孫要素（添付リスト）まで
+潜ってそれを会話リスト本体と誤認していた（`content` への履歴先頭挿入が
+Grow に誤分類され、Free の位置維持が効かず `data-has-new` も誤って
+付与される）。探索ヒューリスティックを廃止し、上記の境界を明示する
+実装へ変更することで構造的に解消した。`classify_target` の祖先歩行
+（会話リスト以外の `data-bind-list` を跨げば `None`）自体は変更していない
+（§38 冒頭参照）。
+
+回帰テスト（`crates/wasm-full/tests/message_scroller_browser.rs`）:
+`no_list_content_with_nested_attachments_prepend_preserves_position_when_stuck_free`
+（`content` 直下に素のメッセージ要素を置きその内部だけで添付の keyed
+list を使う構成で、`content` への先頭挿入が Prepend として位置維持
+されること）・`no_list_content_with_nested_attachments_update_is_ignored`
+（同レイアウトで、メッセージ内部にネストした添付リストへの childList
+先頭挿入・characterData 更新のいずれも除外されること）を追加した。

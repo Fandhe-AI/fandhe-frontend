@@ -440,19 +440,7 @@ mod wiring {
     /// ため `readonly`（[`has_readonly_ancestor`]）とは異なり `root` まで
     /// 全域を走査する（PR #1982 codex-review P1 是正: readonly のみ判定
     /// スコープを分離、下記 doc 参照）。
-    fn has_disabled_ancestor(root: &Element, start: &Element) -> bool {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if element.has_attribute("data-disabled") {
-                return true;
-            }
-            if !root.contains(Some(&element)) || element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        false
-    }
+    use crate::dom::has_disabled_ancestor;
 
     /// `start` から祖先方向を辿り、`data-readonly` を持つ要素が 1 つでも
     /// あれば `true` を返す。探索は最寄りの NumberInput Root

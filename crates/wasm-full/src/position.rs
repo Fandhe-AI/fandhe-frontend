@@ -509,36 +509,13 @@ mod wiring {
     ///
     /// anchor が見つからない・`data-scope` が未知の場合は no-op とする
     /// （fail-closed。マークアップが不完全でも panic しない）。
-    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
-    /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
-    /// `.claude/rules/security.md`）。本モジュールが書き込む属性
-    /// （`data-side`/`data-align`/`data-positioned`/
-    /// `data-requested-side`/`data-requested-align`）はいずれも
-    /// `&'static str` リテラルで固定された非 URL・非イベントハンドラ属性
-    /// だが、`fandhe_frontend_core::url` のガード関数群
-    /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
-    /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
-    /// 入力から組み立てられるよう変更された場合の防御としても機能する
-    /// （`keynav::set_dom_attribute` と同じガード方針）。`style` 属性は
-    /// 利用者のインラインスタイルを破壊しないよう [`apply_css_vars`]
-    /// （CSSOM `set_property` 経由）で反映するため、本関数では扱わない
-    /// （イシュー #2209 レビュー指摘、下記 doc 参照）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
-        debug_assert!(
-            !name.eq_ignore_ascii_case("style"),
-            "style 属性は apply_css_vars を使うこと（利用者スタイルの上書き防止）"
-        );
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return;
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return;
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return;
-        }
-        let _ = element.set_attribute(name, value);
-    }
+    /// `crate::dom::set_dom_attribute` を本モジュールの語彙で再エクスポート
+    /// する（イシュー #2122 レビュー指摘: REQ-11 gzip バンドルサイズ抑制の
+    /// ため、複数モジュールに重複していた実装を `crate::dom` へ共通化した）。
+    /// `style` 属性は利用者のインラインスタイルを破壊しないよう
+    /// [`apply_css_vars`]（CSSOM `set_property` 経由）で反映するため、
+    /// 本関数では扱わない（イシュー #2209 レビュー指摘、下記 doc 参照）。
+    use crate::dom::set_dom_attribute;
 
     /// [`super::css_vars_style`]（[`resolve_position`] 経由）が生成した
     /// `"--fandhe-x: 10px; --fandhe-y: 20px;"` 形式の宣言列を、
