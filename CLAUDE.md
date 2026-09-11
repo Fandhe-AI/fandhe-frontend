@@ -56,7 +56,7 @@ fandhe-frontend/
 ├── examples/
 │   ├── ssr-routing/          # SSR + ルーティング正本サンプル・examples 規約の初例（crates.io バージョン依存、イシュー #499）
 │   ├── ssg-blog/             # SSG（generate_pages）による静的ブログ正本サンプル（crates.io バージョン依存、イシュー #501）
-│   ├── dist-server-docker/  # 単一バイナリ配布 + Docker 正本サンプル（crates.io バージョン依存、イシュー #502。配布 WASM は最小インタラクティブ構成、#2329/#2330）
+│   ├── dist-server-docker/  # 単一バイナリ配布 + Docker 正本サンプル（crates.io バージョン依存、イシュー #502。外部依存のため build.rs の WASM ビルドステージは自動スキップされ WASM は出荷されない。dist-server のワークスペース内ビルド〔ルート Dockerfile 等〕限定の最小インタラクティブ構成は #2329/#2330）
 │   ├── interactive-view-transitions/  # 状態管理（fandhe-frontend-interactive）+ View Transitions 正本サンプル（イシュー #503。wasm-full feature 指定例、#2330）
 │   └── headless-pre-styled-ui/  # headless-ui / pre-styled-ui コンポーネントショーケース（crates.io バージョン依存、`fw new --example` 対応、イシュー #609）
 ├── docker/                     # コンテナ定義（製品配布用 `Dockerfile` とは別。開発ループ専用）

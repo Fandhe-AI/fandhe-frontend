@@ -27,14 +27,17 @@
   「ワークスペースルートでのビルドではない」と判定するため。実測で確認済み）
 - 単一バイナリ + `FROM scratch` の Docker イメージ最小化（ルート
   `Dockerfile`、REQ-9 の縮小版）
-- 配布 WASM は `fandhe-frontend-wasm-full` の「最小インタラクティブ
-  コンポーネント」6 feature（`wasm-bindgen-exports`/`collapsible`/`dialog`/
-  `popover`/`tooltip`/`position`）のみを含む縮小構成で出荷される点
-  （イシュー #2329、単一定義は `crates/dist-server/src/wasm_dist_features.rs`）。
-  最小構成に含まれない部品（accordion/menu/select 等）が必要な場合は、
-  `fandhe-frontend-wasm-full` を直接依存して feature を選ぶ
-  （`examples/interactive-view-transitions` 参照）か、
-  `wasm_dist_features.rs` の集合を変更する。詳細は
+- `fandhe-frontend-dist-server` の 6 feature「最小インタラクティブ
+  コンポーネント」構成（`wasm-bindgen-exports`/`collapsible`/`dialog`/
+  `popover`/`tooltip`/`position`、イシュー #2329、単一定義は
+  `crates/dist-server/src/wasm_dist_features.rs`）が実際に WASM として
+  出荷されるのは `fandhe-frontend-dist-server` を**ワークスペース内で
+  ビルドする経路**（例: ルート `Dockerfile`）に限られます。**本サンプルは
+  crates.io からの外部依存として使うため、上記の `build.rs` 自動スキップに
+  より WASM 自体が一切出荷されません**（実測結果を参照）。本サンプルで
+  クライアント側の対話部品を使いたい場合は、`fandhe-frontend-wasm-full` を
+  自アプリの直接依存として追加し feature を選ぶ
+  （`examples/interactive-view-transitions` 参照）必要があります。詳細は
   [wasm-full feature 選択ガイド](../../docs/guides/wasm-full-features.md)
   を参照
 

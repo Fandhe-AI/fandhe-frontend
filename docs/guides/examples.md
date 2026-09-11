@@ -113,9 +113,13 @@ HTML 活性文字だけを `\uXXXX` 中立化する専用 API です。渡す文
 ### 3.3 dist-server-docker
 
 単一バイナリ配布・`FROM scratch` の Docker イメージ最小化・外部依存利用時の
-静的アセット配信の制約と対処を学べます。配布 WASM は
-`fandhe-frontend-wasm-full` の「最小インタラクティブコンポーネント」6
-feature 構成で出荷される点に注意してください。関連:
+静的アセット配信の制約と対処を学べます。本サンプルは
+`fandhe-frontend-dist-server` を crates.io からの外部依存として使うため
+`build.rs` の WASM ビルドステージが自動スキップされ、WASM は一切出荷され
+ません。`fandhe-frontend-wasm-full` の「最小インタラクティブコンポーネント」
+6 feature 構成が実際に適用されるのは、`fandhe-frontend-dist-server` を
+ワークスペース内でビルドする経路（例: ルート `Dockerfile`）に限られる点に
+注意してください。関連:
 [wasm-full feature 選択ガイド](./wasm-full-features.md)。
 
 ### 3.4 interactive-view-transitions
