@@ -33,6 +33,10 @@ commit `5c7072d` pin・取得日 2026-09-07）であり、区分判定（実装�
 会話系 4 部品（message/bubble/attachment/marker）・questionnaire・
 message-scroller・data-table の判定根拠の詳細は #2006 が §12 へ転記する
 （本書 §7 参照）。
+イシュー #2097（親 #2096、Phase 7）で Phase 1〜3（#2008/#2025/#2042、
+46 部品）・Phase 5（#2076、Charts 10 issue）の shadcn/ui 突合判定を
+§12.4/§12.5 へ転記し、Phase 4〜8 完了を受けて §12.1〜§12.3 の陳腐化記述
+（配線・詳細突合の「別途」「予定」表記）を実装済みへ更新した。
 
 ## 1. 背景
 
@@ -52,7 +56,7 @@ message-scroller・data-table の判定根拠の詳細は #2006 が §12 へ転�
 |------|------|
 | 実装済み | `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui` に mod として実装済み |
 | 実装対象 | Phase 3〜6（#736/#748/#757/#766 配下）または Phase 8（#932/#959 配下、イシュー #937 で新規判定した Radix 差分）のいずれかの issue で実装予定。根拠・対応 issue 列に issue 番号を記載 |
-| 保留 | 実装するか否かを本書時点では確定しない。既存（ark-ui/chakra-ui 由来）の保留は `docs/policy/intentional-non-adoption.md` §7（イシュー #735）に評価軸・再評価トリガーが記録済み。イシュー #937 で新規に判定した Radix 由来の保留は本書 §9 に再評価トリガーを記す（`intentional-non-adoption.md` §7 への転記は #959 の判断に委ねる）。Phase 13（#1669/#1676）で新規判定した保留は本書 §11 と `intentional-non-adoption.md` §7 の該当行を参照 |
+| 保留 | 実装するか否かを本書時点では確定しない。既存（ark-ui/chakra-ui 由来）の保留は `docs/policy/intentional-non-adoption.md` §7（イシュー #735）に評価軸・再評価トリガーが記録済み。イシュー #937 で新規に判定した Radix 由来の保留は本書 §9 に再評価トリガーを記す（`intentional-non-adoption.md` §7 への転記は #959 の判断に委ねる）。Phase 13（#1669/#1676）で新規判定した保留は本書 §11 と `intentional-non-adoption.md` §7 の該当行を参照。shadcn/ui 突合（#2001 系）で新規判定した保留は本書 §12.2 と `intentional-non-adoption.md` §7 の該当行を参照（文言の正は §12.2） |
 | 意図的非採用 | 既に非採用と確定済み（layout プリミティブ = #716/#724、高度入力系・JS ランタイム固有 utilities・装飾系の一部・chakra `Theme` = #735（同書 §3.22〜§3.24）で確定済み、**アプリケーションロジックを内包する UI 部品（Radix `Form`）= 2026-07-25 のユーザー判断（同書 §3.25 規則 1）で確定済み**等）。再導入提案には `docs/policy/intentional-non-adoption.md` の評価軸充足確認が必須 |
 | 参照対象外 | イシュー #937 で新設。Radix 側に存在するが本リポジトリの参照軸に含めない部品。対象は Radix Themes の layout プリミティブ（Box/Flex/Grid/Container/Section）と Theme provider コンポーネントの計 6 件のみ。根拠: #716/#724/#735、`docs/policy/intentional-non-adoption.md` §3.24、`docs/design/radix-themes-survey.md` §6。既存の意図的非採用決定（同 issue）を Radix 軸の文脈で再掲するものであり、新規の非採用判定ではない |
 | 対象外 | README・guides・overview・get-started・concepts 等、UI コンポーネントを指さない非コンポーネント文書。加えてイシュー #735 で商用テンプレート集（chakra-ui Pro blocks）・styling / theming 概念文書を本区分へ追加確定した。shadcn/ui Blocks（dashboard / sidebar / login / signup）も同じ「既存部品の合成例／商用テンプレート集」の扱いで本区分に含み、coverage-map へ新規行として追加しない（詳細・掲載可否の決定は `docs/design/docs-site-blocks-section.md`、イシュー #2007） |
@@ -375,12 +379,12 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 |---|---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/collections/menu.md` | Menu | Menu | Dropdown Menu (`dropdown-menu`) | Dropdown Menu (`dropdown-menu`) | Dropdown Menu (`dropdown-menu`) | `menu` | `menu` | 実装済み | headless+styled 実装済み。#1651 で参考サイト（ark-ui Menu / Radix Primitives Dropdown Menu / chakra-ui Menu）と突合済み。是正: `item-text`/`item-indicator` の 2 パーツ追加（16 → 18）・呼び出し側 `attrs` の予約キー除去。意図的差分: Portal / `data-placement` / `data-orientation` / ItemCommand / asChild 非採用、キーボードは trigger 常駐の仮想フォーカス設計（#583）。#2033 で shadcn/ui（dropdown-menu / context-menu）と突合し pre-styled 側の欠落を補完: `item-text`/`item-indicator`（#1651 で headless anatomy へ追加済みだったが pre-styled 側の再エクスポート・CSS 着装が漏れていた）を是正、`item` へ `data-danger`（destructive 項目）・`data-inset` の 2 状態属性を追加（いずれも headless 非変更、`item()` の自由 `attrs` 経由）、ショートカット表示は新規 anatomy パートを追加せず既存 `kbd` 部品との合成パターンで対応。#2203 で `data-danger` × `data-highlighted` の背景色合成を実装: `StateCondition::AttrAll`（値なし存在属性同士の AND）を `recipe.rs` へ追加し、`item` へ `[data-danger][data-highlighted]` 専用規則（danger-subtle 背景 + danger-fg-subtle 文字色、検証済みコントラストペアを流用）を純追加。意図的非対応: `data-danger` の素のポインタ hover（`data-highlighted` なし）時の背景色変更（既存 hover 規則の書き換えが golden の純追加原則に反するため見送り継続） |
 | `.agents/skills/ark-ui/references/components/collections/select.md` | Select | Select | Select (`select`) | Select (`select`) | Select (`select`) | `select` | `select` | 実装済み | headless+styled 実装済み。#1619 で参照突合（`SelectProps` 共有 disabled/readonly/invalid/required の一律付与、trigger の data-placeholder-shown、item の root disabled 伝播と data-selected、item-text 3 状態属性、item-group-label の role="presentation"、item-indicator の aria-hidden。data-state="checked"/"unchecked" 語彙は combobox/listbox とのクレート横断整合を優先し非追随）。#2019 で shadcn/ui と突合済み: `content` の max-height/overflow-y（既定 16rem、`size` variant 別スケール、listbox #1502 と同型）のスクロール対応、`trigger` の data-invalid/data-readonly 消費（chakra-ui/Radix Themes 基準の既存視覚言語 `input.rs`/`date_input.rs` を踏襲、native-select #2017 と同型の 3 者競合判断）を追加。size sm/default・グループ見出し（item-group-label）・disabled item・リーディングアイコン付き項目は既存対応（構造的に対応可能）で差分なし。Separator/ScrollUpButton/ScrollDownButton は #2186 で 3 パーツを追加（15 → 18 anatomy、Themes 側も着装済み。可視性判定・押下スクロールの配線は wasm-full 別イシュー）。Align Item（item-aligned）は #2207 で評価済み・保留（推奨見送り、`docs/design/select-item-aligned-positioning-evaluation.md`）。#2206 で highlight 項目のスクロール追随（wasm-full keynav）を長いリストの browser テストで固定した |
-| `.agents/skills/ark-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | Combobox (`combobox`) | `combobox` | `combobox` | 実装済み | headless+styled 実装済み（#749、PR #793）。#1605 で参照突合（`ComboboxProps` 共有 disabled/readonly/invalid/required の一律付与、item の data-state="checked"/"unchecked" 語彙は select/listbox とのクレート横断整合を優先し非追随） |
+| `.agents/skills/ark-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | Combobox (`combobox`) | `combobox` | `combobox` | 実装済み | headless+styled 実装済み（#749、PR #793）。#1605 で参照突合（`ComboboxProps` 共有 disabled/readonly/invalid/required の一律付与、item の data-state="checked"/"unchecked" 語彙は select/listbox とのクレート横断整合を優先し非追随）。#2012 で shadcn/ui と突合済み（判定は §12.4） |
 | `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | — | `listbox` | `listbox` | 実装済み | headless+styled 実装済み（#750。#1611 で参照突合: ListboxProps 共有・data-selected/data-orientation・item-text 状態属性を是正。Input/Empty パーツ・extended mode・select-all・data-empty/data-layout は見送り）。#2206 で highlight 項目のスクロール追随（wasm-full keynav）を長いリストの browser テストで固定した |
 | `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | Pagination (`pagination`) | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除。#1655 で first/last trigger・data-index を追加し ark-ui と突合済み）。#2036 で shadcn/ui と突合済み: prev/next のアイコン+テキスト表示は既存 children API（単一テキストノード）で合成可能・active ページの solid fill は #1532/#1420 基準を優先し意図的に非追随・ellipsis/size 段階は既存対応で差分なし・rows-per-page+Select 合成パターンは docs サイト Examples を新設して実演した（recipe/CSS 出力に変更なし） |
 | `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | — | — | — | `steps` | `steps` | 実装済み | headless+styled 実装済み（#752、#716 保留の解除。#1665 で参照突合済み） |
 | `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | — | — | — | `tree_view` | `tree_view` | 実装済み | headless+styled 実装済み（#753、#748/#520）。#1667 で ark-ui docs / zag.js `tree-view.connect.ts` と参照突合済み（`data-branch`/`data-value`/`data-depth`/`data-selected`/`data-disabled`/`data-state` 等の追加。checkbox モード・複数選択・lazy loading・rename は非採用。矢印キー等の DOM 配線は `fandhe-frontend-wasm-full` `keynav.rs` #1072） |
-| `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | — | — | Carousel (`carousel`) | `carousel` | `carousel` | 実装済み | headless+styled 実装済み（#754）。zag.js との参照突合済み（#1660、data-orientation 全パーツ拡張・data-index/data-inview 追加・First/Last dispatch 追加）。autoplay（play/pause/aria-live 切替/delay）・progress-text/autoplay-trigger パーツ・aria-hidden/aria-controls は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
+| `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | — | — | Carousel (`carousel`) | `carousel` | `carousel` | 実装済み | headless+styled 実装済み（#754）。zag.js との参照突合済み（#1660、data-orientation 全パーツ拡張・data-index/data-inview 追加・First/Last dispatch 追加）。autoplay（play/pause/aria-live 切替/delay）・progress-text/autoplay-trigger パーツ・aria-hidden/aria-controls は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照）。#2028 で shadcn/ui と突合済み（判定は §12.4） |
 | `.agents/skills/ark-ui/references/components/collections/README.md` | README | — | — | — | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
 #### `.agents/skills/ark-ui/references/components/date-time/`
@@ -396,13 +400,13 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | Accordion (`accordion`) | — | Accordion (`accordion`) | `accordion` | `accordion` | 実装済み | headless+styled 実装済み。#1636 で参照突合済み（`data-orientation` 全パーツ・item-trigger の `aria-disabled`・item-indicator の `aria-hidden`・item-indicator/item-content の `data-disabled` を追加。Radix `Header` パーツ・`data-focus`・`--height`/`--width` は意図的に非採用） |
-| `.agents/skills/ark-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | Collapsible (`collapsible`) | — | Collapsible (`collapsible`) | `collapsible` | `collapsible` | 実装済み | headless+styled 実装済み（#1682 recipe / #1683 Themes ページ）。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
+| `.agents/skills/ark-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | Accordion (`accordion`) | — | Accordion (`accordion`) | `accordion` | `accordion` | 実装済み | headless+styled 実装済み。#1636 で参照突合済み（`data-orientation` 全パーツ・item-trigger の `aria-disabled`・item-indicator の `aria-hidden`・item-indicator/item-content の `data-disabled` を追加。Radix `Header` パーツ・`data-focus`・`--height`/`--width` は意図的に非採用）。#2026 で shadcn/ui と突合済み（判定は §12.4） |
+| `.agents/skills/ark-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | Collapsible (`collapsible`) | — | Collapsible (`collapsible`) | `collapsible` | `collapsible` | 実装済み | headless+styled 実装済み（#1682 recipe / #1683 Themes ページ）。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用）。#2029 で shadcn/ui（Base UI）と突合済み（判定は §12.4） |
 | `.agents/skills/ark-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | Tabs (`tabs`) | Tabs (`tabs`) | Tabs (`tabs`) | `tabs` | `tabs` | 実装済み | headless+styled 実装済み。#1656 で参照突合済み（是正なし。Demo を 3 タブ + disabled へ拡張）。#2039 で shadcn/ui 突合を再実施し、欠落していた Enclosed（セグメント/ピル型）variant を `TabsVariant::Enclosed` として補完。#2194 で headless-ui + wasm-full の a11y 挙動を Radix と突合（dialog は右クリック外側 pointerdown の非閉鎖を実装、tabs は是正なし） |
 | `.agents/skills/ark-ui/references/components/disclosure/toggle.md` | Toggle | — | Toggle (`toggle`) | — | Toggle (`toggle`) | `toggle` | `toggle` | 実装済み | headless+styled 実装済み（#746、PR #791）。#2023 で shadcn/ui と突合し `ToggleVariant`（Outline/Ghost、shadcn の `variant: "default"/"outline"` に対応）を新設。size 5 段・palette 軸・影の非採用は #1512 の判断を維持 |
 | `.agents/skills/ark-ui/references/components/disclosure/toggle-group.md` | ToggleGroup | — | Toggle Group (`toggle-group`) | — | Toggle Group (`toggle-group`) | `toggle_group` | `toggle_group` | 実装済み | headless+styled 実装済み（#746、PR #791）。#1630 で参照突合: item に data-orientation・root disabled 伝播・roving tabindex opt-in・attrs 偽装除去を追加、data-focus / orientation 既定値常時出力 / deselectable=false は意図的差分。#2024 で shadcn/ui と突合済み: `ToggleGroupVariant`（Outline/Ghost、`crate::toggle::ToggleVariant` に命名を揃える）を新設。shadcn の `spacing`（連結/分離セグメント）軸は既存の常時連結セグメント表現と対応するため追加しない（両軸直交・1 軸に絞る判断） |
 | `.agents/skills/ark-ui/references/components/disclosure/scroll-area.md` | ScrollArea | ScrollArea | Scroll Area (`scroll-area`) | Scroll Area (`scroll-area`) | Scroll Area (`scroll-area`) | `scroll_area` | `scroll_area` | 実装済み | headless+styled 実装済み（#825、保留解除。JS によるスクロール位置追従・thumb drag は本イシューのスコープ外。#1584 でスタイルを参考サイト基準へ調整（thumb 色トークン化・hover 強調・フォーカスリング canonical 化・custom property 公開）。#1662 で headless 側を参考サイトと突合（anatomy/data-* 増減なし、予約キー除去追加）。#2054 で shadcn/ui と突合済み（横スクロール `data-orientation="horizontal"`・端フェード `data-fade` を opt-in で補完、`scroll-fade` utility を吸収）） |
-| `.agents/skills/ark-ui/references/components/disclosure/splitter.md` | Splitter | Splitter | — | — | Resizable (`resizable`) | `splitter` | `splitter` | 実装済み | headless+styled 実装済み（#826、#735 保留の解除。#1664 で ark-ui docs/zag.js/WAI-ARIA APG と参照突合済み: panel の data-index/data-id、resize-trigger の隣接 2 パネル aria-controls/data-id、SplitterAction::IncrementLarge/DecrementLarge、drop_reserved を追加。data-focus/data-dragging・Enter collapse/expand・F6・非反転 aria-orientation は意図的非追随） |
+| `.agents/skills/ark-ui/references/components/disclosure/splitter.md` | Splitter | Splitter | — | — | Resizable (`resizable`) | `splitter` | `splitter` | 実装済み | headless+styled 実装済み（#826、#735 保留の解除。#1664 で ark-ui docs/zag.js/WAI-ARIA APG と参照突合済み: panel の data-index/data-id、resize-trigger の隣接 2 パネル aria-controls/data-id、SplitterAction::IncrementLarge/DecrementLarge、drop_reserved を追加。data-focus/data-dragging・Enter collapse/expand・F6・非反転 aria-orientation は意図的非追随）。#2038 で shadcn/ui `resizable` と突合済み（`withHandle`/nested 合成は既存 API で再現可、判定は §12.4） |
 | `.agents/skills/ark-ui/references/components/disclosure/README.md` | README | — | — | — | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
 #### `.agents/skills/ark-ui/references/components/display/`
@@ -422,12 +426,12 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/form/checkbox.md` | Checkbox | Checkbox | Checkbox (`checkbox`) | Checkbox (`checkbox`) | Checkbox (`checkbox`) | `checkbox` | `checkbox` | 実装済み | headless+styled 実装済み（#730）。#2011 で shadcn/ui と突合済み: indeterminate（既存の対応で差分なし）・aria-invalid 時のラベル色非変更（`field` の既存判断を踏襲し意図的に非追随）・card 相当（`checkbox_card` が既存で充足、責務は分離のまま）を確認し、label+description 合成は docs サイト Examples を新設して実演した（recipe/CSS 出力に変更なし） |
-| `.agents/skills/ark-ui/references/components/form/field.md` | Field | Field | Label (`label`) | — | Label (`label`) | `field` | `field` | 実装済み | headless+styled 実装済み（#1684 recipe / #1685 Themes ページ）。root/label/helper-text/error-text/required-indicator の 5 slot + `orientation` 軸。#2184 で error_text へ shadcn/ui `FieldError` の `role="alert"` を純追加（`aria-live="polite"` は維持）。#2185 で group/content/title/separator（内部 separator-line/separator-content）の 6 slot を純追加（shadcn/ui FieldGroup/FieldContent/FieldTitle/FieldSeparator 相当） |
+| `.agents/skills/ark-ui/references/components/form/field.md` | Field | Field | Label (`label`) | — | Label (`label`) | `field` | `field` | 実装済み | headless+styled 実装済み（#1684 recipe / #1685 Themes ページ）。root/label/helper-text/error-text/required-indicator の 5 slot + `orientation` 軸。#2184 で error_text へ shadcn/ui `FieldError` の `role="alert"` を純追加（`aria-live="polite"` は維持）。#2185 で group/content/title/separator（内部 separator-line/separator-content）の 6 slot を純追加（shadcn/ui FieldGroup/FieldContent/FieldTitle/FieldSeparator 相当）。#2014 で shadcn/ui と突合済み（判定は §12.4） |
 | `.agents/skills/ark-ui/references/components/form/fieldset.md` | Fieldset | Fieldset | — | — | — | `fieldset` | `fieldset` | 実装済み | headless+styled 実装済み（#1686 recipe / #1687 Themes ページ）。root/legend/helper-text/error-text の 4 slot + `size` 軸。legend の `legend`/`label` 2 段見出しサイズは shadcn/ui `FieldLegend` と突合済み（#2214） |
 | `.agents/skills/ark-ui/references/components/form/radio-group.md` | RadioGroup | Radio | Radio Group (`radio-group`) | Radio Group (`radio-group`) | Radio Group (`radio-group`) | `radio_group` | `radio_group` | 実装済み | headless+styled 実装済み。イシュー #1616 で ark-ui / Radix Primitives と突合し、`RadioGroupProps`（disabled/readonly/invalid/required）・`aria-hidden`（item-control）・`aria-invalid`/`required`（item-hidden-input）を是正。#2018 で shadcn/ui と突合済み: size/palette/orientation/disabled/invalid はいずれも既存対応で差分なし（invalid は docs Demo が未実演だったため追加）、card 相当（`radio_card` が既存で充足、責務は分離のまま）・label+description 合成（呼び出し側合成、docs サイト Examples を新設して実演）を確認し、`data-invalid` 時のラベル色非変更は `field`/`checkbox` の既存判断を踏襲し意図的に非追随（recipe/CSS 出力に変更なし） |
 | `.agents/skills/ark-ui/references/components/form/switch.md` | Switch | Switch | Switch (`switch`) | Switch (`switch`) | Switch (`switch`) | `switch` | `switch` | 実装済み | headless+styled 実装済み。イシュー #1622 で ark-ui / Radix Primitives と突合し、`SwitchProps`（disabled/readonly/invalid/required）・全パーツ `data-disabled`/`data-invalid`/`data-required`/`data-readonly`・`aria-invalid`（hidden-input）を是正。#2021 で shadcn/ui と突合済み: size（xs〜xl 5 段は既存対応で据え置き）・`data-readonly`/`data-required`（視覚差なしの既存判断を踏襲し意図的に非追随）は既存対応で差分なし、`data-invalid` 時に `control` slot が未消費だった非対称を `outline` 外側リングで是正し（`border` 新設は寸法相互不変条件への影響を避けて回避。当初 `box-shadow` で実装したが PR #2169 Bugbot 指摘〔`forced-colors: active` で消える〕を受け `outline` へ是正）、label+description 合成は docs サイト Examples を新設して実演した（専用複合コンポーネント新設はスコープ外） |
 | `.agents/skills/ark-ui/references/components/form/number-input.md` | NumberInput | NumberInput | — | — | — | `number_input` | `number_input` | 実装済み | headless+styled 実装済み（#738、PR #785。#1613 参照突合済み: ValueText 追加、Scrubber 非採用） |
-| `.agents/skills/ark-ui/references/components/form/pin-input.md` | PinInput | PinInput | One-Time Password Field (`one-time-password-field`) | — | Input OTP (`input-otp`) | `pin_input` | `pin_input` | 実装済み | headless+styled 実装済み（#739、PR #784。#1615 で ark-ui/Radix と突合し是正） |
+| `.agents/skills/ark-ui/references/components/form/pin-input.md` | PinInput | PinInput | One-Time Password Field (`one-time-password-field`) | — | Input OTP (`input-otp`) | `pin_input` | `pin_input` | 実装済み | headless+styled 実装済み（#739、PR #784。#1615 で ark-ui/Radix と突合し是正）。#2016 で shadcn/ui `Input OTP` と突合済み（`separator` パート純追加、判定は §12.4） |
 | `.agents/skills/ark-ui/references/components/form/password-input.md` | PasswordInput | PasswordInput | Password Toggle Field (`password-toggle-field`) | — | — | `password_input` | `password_input` | 実装済み | headless+styled 実装済み（#740。#1614 で参照突合: readonly・パーツ別 data-*・autocapitalize/spellcheck 追加、aria-pressed/tab 順序は意図的差分） |
 | `.agents/skills/ark-ui/references/components/form/slider.md` | Slider | Slider | Slider (`slider`) | Slider (`slider`) | Slider (`slider`) | `slider` | `slider` | 実装済み | headless+styled 実装済み（#741）。#2020 で shadcn/ui と突合: 参照スクショはいずれも複数 thumb（range slider）のバリエーションだが、#2188 で複数 thumb 対応を評価済み（`docs/design/slider-range-thumbs-evaluation.md`）。#741 の見送りはスコープ先送りであり `intentional-non-adoption.md` の非採用項目ではない。採否はユーザー判断待ち（同 policy §7 保留行参照）。突合作業中に判明した Themes 側追随ギャップ（headless anatomy は #1904 で追加済みだった marker-group/marker が未スタイルのまま）を解消し、styled `marker`/`marker_group` を新設 |
 | `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | — | — | — | `rating_group` | `rating_group` | 実装済み | headless+styled 実装済み（#742）。イシュー #1617 で `RatingGroupProps` 新設・control/label `data-*` 追加。当初案の roving tabindex 先行公開は DOM 配線未実装のため撤回し、`item` は tabindex 非出力（codex-review 指摘対応） |
@@ -445,11 +449,11 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/components/overlays/dialog.md` | Dialog | Dialog | Dialog (`dialog`) | Dialog (`dialog`) | Dialog (`dialog`) | `dialog` | `dialog` | 実装済み | headless+styled 実装済み。#1638 で ark-ui（zag `dialog.connect.ts`）/Radix Primitives と突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化）。Alert Dialog は #1690 で pre-styled-only `footer` パートを追加し `DialogRole::Alertdialog` との組み合わせで表現（独立部品化しない）。#1691 で `/themes/dialog/` の Demo（footer）と Examples（alert dialog）に掲示。#2194 で headless-ui + wasm-full の a11y 挙動を Radix と突合（dialog は右クリック外側 pointerdown の非閉鎖を実装、tabs は是正なし） |
-| `.agents/skills/ark-ui/references/components/overlays/popover.md` | Popover | Popover | Popover (`popover`) | Popover (`popover`) | Popover (`popover`) | `popover` | `popover` | 実装済み | headless+styled 実装済み。#1642 で突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化。パート・data-* 増減なし） |
-| `.agents/skills/ark-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | Tooltip (`tooltip`) | Tooltip (`tooltip`) | Tooltip (`tooltip`) | `tooltip` | `tooltip` | 実装済み | headless+styled 実装済み。#1645 で突合済み、是正なし。data-expanded/data-placement は意図的差分、パート・data-* 増減なし |
+| `.agents/skills/ark-ui/references/components/overlays/dialog.md` | Dialog | Dialog | Dialog (`dialog`) | Dialog (`dialog`) | Dialog (`dialog`) | `dialog` | `dialog` | 実装済み | headless+styled 実装済み。#1638 で ark-ui（zag `dialog.connect.ts`）/Radix Primitives と突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化）。Alert Dialog は #1690 で pre-styled-only `footer` パートを追加し `DialogRole::Alertdialog` との組み合わせで表現（独立部品化しない）。#1691 で `/themes/dialog/` の Demo（footer）と Examples（alert dialog）に掲示。#2194 で headless-ui + wasm-full の a11y 挙動を Radix と突合（dialog は右クリック外側 pointerdown の非閉鎖を実装、tabs は是正なし）。#2030 で shadcn/ui（Base UI）と突合し `body`（スクロール可能コンテンツ）パートを純追加（判定は §12.4） |
+| `.agents/skills/ark-ui/references/components/overlays/popover.md` | Popover | Popover | Popover (`popover`) | Popover (`popover`) | Popover (`popover`) | `popover` | `popover` | 実装済み | headless+styled 実装済み。#1642 で突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化。パート・data-* 増減なし）。#2037 で shadcn/ui と突合済み（Basic/Align は既存 API で再現可、判定は §12.4） |
+| `.agents/skills/ark-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | Tooltip (`tooltip`) | Tooltip (`tooltip`) | Tooltip (`tooltip`) | `tooltip` | `tooltip` | 実装済み | headless+styled 実装済み。#1645 で突合済み、是正なし。data-expanded/data-placement は意図的差分、パート・data-* 増減なし。#2041 で shadcn/ui と突合し `side` 4 方向の静的 `data-side` フォールバックを追加（判定は §12.4） |
 | `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | Sheet (`sheet`) | `drawer` | `drawer` | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用。#1639 で参照突合済み、tabindex="-1" 追加、パート・data-* 増減なし。#2031 で shadcn/ui `Sheet`/`Drawer`（vaul）と突合完了: placement/size/close ボタンは既存実装で充足、grabber（drag handle）は headless-ui #1639 の既存判断 + `SlotRecipe` の疑似要素 API 不在により非採用継続（#2201 で API 追加済み、drawer への適用は未着手）、footer 相当の合成パターンは Examples 節に追加） |
-| `.agents/skills/ark-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | Hover Card (`hover-card`) | Hover Card (`hover-card`) | Hover Card (`hover-card`) | `hover_card` | `hover_card` | 実装済み | headless+styled 実装済み（#1641 で Zag.js/ark-ui/Radix Primitives と突合済み、是正なし。data-side/data-align は positioner へ透過〔意図的差分〕、パート・data-* 増減なし） |
+| `.agents/skills/ark-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | Hover Card (`hover-card`) | Hover Card (`hover-card`) | Hover Card (`hover-card`) | `hover_card` | `hover_card` | 実装済み | headless+styled 実装済み（#1641 で Zag.js/ark-ui/Radix Primitives と突合済み、是正なし。data-side/data-align は positioner へ透過〔意図的差分〕、パート・data-* 増減なし）。#2032 で shadcn/ui と突合済み（合成パターンは既存 API で再現可・コード変更なし、判定は §12.4） |
 | `.agents/skills/ark-ui/references/components/overlays/toast.md` | Toast | Toast | Toast (`toast`) | — | Toast (`toast`) | `toast` | `toast` | 実装済み | headless+styled 実装済み（#760、キュー状態機械は `Disclosure`/`SingleSelect` に収まらないため `Component`/`Hydrate` 直接実装。#1643 で Zag.js/ark-ui/Radix Primitives と突合済み、是正 4 点（root `data-state`/`tabindex`、group `tabindex`、group ラベル既定値）、パート増減なし・`data-*` 1 件増（`data-state`）） |
 | `.agents/skills/ark-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | — | `floating_panel` | `floating_panel` | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除。#1640 で ark-ui（zag）と突合し、header/control への data-stage 付与・body への Stage::Minimized 時 hidden 付与を是正） |
 | `.agents/skills/ark-ui/references/components/overlays/tour.md` | Tour | Tour | — | — | — | `tour` | `tour` | 実装済み | headless+styled 実装済み（#841、#735 保留の解除）。決定的な状態機械・SSR 出力のみが対象で、対象要素の実座標追従・スクロール/リサイズ再計算・target セレクタの実解決は `fandhe-frontend-wasm-full` の後続イシューのスコープ。イシュー #1666 で ark-ui/zag.js と突合し `control` パーツ・`content` の `tabindex`/`data-step`・`action_trigger` の `data-type`/`disabled` を追加（13 anatomy パーツへ） |
@@ -638,7 +642,7 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | — | `date_picker` | `date_picker` | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除）。#1627 で参照突合（`DatePickerProps` 一律付与・`for_`・`aria-invalid`。View 系パーツ・`data-view` は意図的非追随） |
-| `.agents/skills/chakra-ui/references/components/date-time/calendar.md` | — | Calendar | — | — | Calendar (`calendar`) | `calendar` | `calendar` | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除） |
+| `.agents/skills/chakra-ui/references/components/date-time/calendar.md` | — | Calendar | — | — | Calendar (`calendar`) | `calendar` | `calendar` | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除）。#2010 で shadcn/ui と突合済み（判定は §12.4） |
 
 #### `.agents/skills/chakra-ui/references/components/disclosure/`
 
@@ -650,20 +654,20 @@ diff <(awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
 | `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | — | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除。#1655 で first/last trigger・data-index を追加し ark-ui と突合済み） |
 | `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | — | — | — | `steps` | `steps` | 実装済み | headless+styled 実装済み（#752、#716 保留の解除。#1665 で参照突合済み） |
 | `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | — | — | — | `carousel` | `carousel` | 実装済み | headless+styled 実装済み（#754）。zag.js との参照突合済み（#1660、data-orientation 全パーツ拡張・data-index/data-inview 追加・First/Last dispatch 追加）。autoplay（play/pause/aria-live 切替/delay）・progress-text/autoplay-trigger パーツ・aria-hidden/aria-controls は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
-| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | — | — | Breadcrumb (`breadcrumb`) | `breadcrumb` | `breadcrumb` | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み。#1648 参照突合（差分なし、予約キー除去追加）。#2182: shadcn `BreadcrumbPage` の role/aria-disabled は不採用 |
+| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | — | — | Breadcrumb (`breadcrumb`) | `breadcrumb` | `breadcrumb` | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み。#1648 参照突合（差分なし、予約キー除去追加）。#2182: shadcn `BreadcrumbPage` の role/aria-disabled は不採用。#2027 で shadcn/ui と突合済み（`list` の `overflow-wrap` 追随、判定は §12.4） |
 
 #### `.agents/skills/chakra-ui/references/components/feedback/`
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/feedback/progress.md` | Progress (linear) | Progress | — | — | — | `progress` | `progress` | 実装済み | headless+styled（root/range）実装済み。#1564 で linear（Track/Range）styled CSS・`ProgressVariant`/`ColorPalette` 軸を新設し pre-styled ラッパー未実装状態を解消。#2049 で shadcn/ui と突合し `ProgressVariant::Plain`（枠線なし中立トラック）を純追加。track 高さ・RTL・value 自動整形は意図的非採用 |
-| `.agents/skills/chakra-ui/references/components/feedback/alert.md` | — | Alert | — | — | Alert (`alert`) | — | `alert` | 実装済み | pre-styled 静的部品 実装済み |
+| `.agents/skills/chakra-ui/references/components/feedback/alert.md` | — | Alert | — | — | Alert (`alert`) | — | `alert` | 実装済み | pre-styled 静的部品 実装済み。#2043 で shadcn/ui と突合し `action` パートを純追加（判定は §12.4） |
 | `.agents/skills/chakra-ui/references/components/feedback/spinner.md` | — | Spinner | — | Spinner (`spinner`) | Spinner (`spinner`) | — | `spinner` | 実装済み | pre-styled 静的部品 実装済み。#1567 でスタイルを参考サイト基準へ調整（半円弧・トラック透明既定・size 5 段を chakra 一致・reduced-motion 停止）。#2051 で shadcn/ui と突合（欠落 variant/state なし。`spinner_decorative` を公開 API 化、Button/Badge/Empty state 合成例を Examples へ追加） |
 | `.agents/skills/chakra-ui/references/components/feedback/toast.md` | Toast | Toast | — | — | — | `toast` | `toast` | 実装済み | headless+styled 実装済み（#760。#1643 で chakra-ui v3 Toast とも突合済み、`Indicator` パート・`loading` type は見送り） |
 | `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | — | — | — | `progress` | `progress` | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加）。#1688 で唯一の circular 参照元として突合し、indeterminate の弧表現を追加是正（size の px 換算値・value-text 中央配置・`circular-progress` keyframes は意図的に不採用）。#1689 で Themes ページ（`/themes/progress/`、単一ページのまま）の Demo・原稿を circular indeterminate 弧表現へ追随 |
 | `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | Skeleton (`skeleton`) | Skeleton (`skeleton`) | — | `skeleton` | 実装済み | #764。pre-styled 静的部品 実装済み。#1566 でスタイルを参考サイト基準へ調整（`bg-emphasized` 背景・`animation` 軸追加）。#2050 で shadcn/ui と突合（欠落 variant/state なし。shimmer は text 向け utility のため不採用、Card/Text/Form/Table 合成例を Examples へ追加） |
 | `.agents/skills/chakra-ui/references/components/feedback/status.md` | — | Status | — | — | — | — | `status` | 実装済み | pre-styled 静的部品 実装済み（#765） |
-| `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | — | Empty (`empty`) | — | `empty_state` | 実装済み | pre-styled 静的部品 実装済み（#765） |
+| `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | — | Empty (`empty`) | — | `empty_state` | 実装済み | pre-styled 静的部品 実装済み（#765）。#2047 で shadcn/ui `Empty` と突合済み（Outline/Subtle/Boxed の 3 バリアントを純追加、判定は §12.4） |
 
 #### `.agents/skills/chakra-ui/references/components/forms/`
 
@@ -933,7 +937,7 @@ diff が非空になって §4 が壊れる）。「実装対象」区分の根�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | shadcn/ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|---|
 | —（対応 md なし） | — | — | Form (`form`) | — | — | `field`/`fieldset`（構造部分は充足） | — | 意図的非採用 | **2026-07-25 のユーザー判断により保留を解除し意図的非採用へ確定**。根拠: `docs/policy/intentional-non-adoption.md` §3.25 規則 1（アプリケーションロジックを内包する UI 部品は採用しない）。Radix Form の本体はブラウザ Constraint Validation API を用いたバリデーション実行・カスタム検証・エラーメッセージ対応付け・送信ハンドリングであり、UI 層の責務（anatomy・アクセシビリティ・表示状態）を超える。UI 構造に相当する部分（フィールドとラベル・説明・エラー表示の結び付け、`data-invalid` による無効状態の表現）は `crates/headless-ui/src/field.rs` / `fieldset.rs` が既に担っており、利用者はバリデーションを通常の Rust コードで書いてその結果を `field` の状態として渡す。再評価トリガーは §3.25 規則 1 を参照。`intentional-non-adoption.md` §7 へ転記済み（#959） |
-| —（対応 md なし） | — | — | Menubar (`menubar`) | — | Menubar (`menubar`) | `menubar` | `menubar` | 実装済み | 複数 Menu を水平（または垂直）に並べる専用 anatomy（Root/Menu/Trigger/Positioner/Content/Arrow/ArrowTip/Item/ItemText/ItemIndicator/ItemGroup/ItemGroupLabel/Separator/SubTrigger/SubContent/CheckboxItem/RadioItemGroup/RadioItem、18 パーツ）と、roving tabindex + 開いている Menu を跨いだ左右移動の状態機械 `Menubar` を実装。`menu` の anatomy はそのまま再利用せず、状態機械・値語彙（`OpenState`/`aria`/`data_attrs`/`checked_data_state`）のみを再利用する。#959 で確定、仮 ID 8-2、実装は #992。イシュー #1652 で Radix Primitives Menubar と参照突合し 11 → 18 パーツへ拡充 |
+| —（対応 md なし） | — | — | Menubar (`menubar`) | — | Menubar (`menubar`) | `menubar` | `menubar` | 実装済み | 複数 Menu を水平（または垂直）に並べる専用 anatomy（Root/Menu/Trigger/Positioner/Content/Arrow/ArrowTip/Item/ItemText/ItemIndicator/ItemGroup/ItemGroupLabel/Separator/SubTrigger/SubContent/CheckboxItem/RadioItemGroup/RadioItem、18 パーツ）と、roving tabindex + 開いている Menu を跨いだ左右移動の状態機械 `Menubar` を実装。`menu` の anatomy はそのまま再利用せず、状態機械・値語彙（`OpenState`/`aria`/`data_attrs`/`checked_data_state`）のみを再利用する。#959 で確定、仮 ID 8-2、実装は #992。イシュー #1652 で Radix Primitives Menubar と参照突合し 11 → 18 パーツへ拡充。#2034 で shadcn/ui と突合し `item-text`/`item-indicator`/`checkbox-item`/`radio-item-group`/`radio-item` の CSS 未着装を是正（判定は §12.4） |
 | —（対応 md なし） | — | — | Navigation Menu (`navigation-menu`) | — | Navigation Menu (`navigation-menu`) | `navigation_menu` | `navigation_menu` | 実装済み | **2026-07-25 のユーザー判断により `docs/policy/intentional-non-adoption.md` §3.25 規則 2 を適用**: viewport 測定・`data-motion` は装飾・アニメーション関心のため headless-ui へ持ち込まず、必要なら pre-styled-ui 側の責務として設計する（本イシュー #993 では pre-styled-ui 側にも未実装だったが、shadcn/ui 突合〔イシュー #2035〕で `item-indicator`〔開閉シェブロン〕への SLOTS/CSS 付与を完了した）。**イシュー #2187 のユーザー判断で規則 2 の適用範囲を再確認**: ルートレベルの `NavigationMenuIndicator`（viewport スライドポインタ）は恒久除外ではなく、構造 + `data-state` を headless-ui、着装を pre-styled-ui、実座標の計測を wasm-full へ配置する 3 層分離で解消した（Viewport/ViewportPositioner/Arrow/Sub は引き続き非採用）。headless-ui は Root/List/Item/Trigger/ItemIndicator/Content/Link/Indicator の anatomy とアクティブリンクの `aria-current` までを実装した（[`crate::state::SingleSelect`] を埋め込んだ「高々 1 個の Trigger だけが開く」状態機械 `NavigationMenu`）。イシュー #1654 で `NavigationMenuProps::orientation`（`data-orientation`）・`data-value`（item/content）・`item_indicator` パートを、イシュー #2187 でルートレベル `indicator` パートを追加した（viewport 寸法測定・`data-motion` は引き続き非採用）。`role` は一切付与しない（`root` は素の `nav` の暗黙 role に依拠）。`nav_list`（イシュー #756）は role を持たない文書ナビ専用部品であり、Navigation Menu のディスクロージャ（Trigger/Content の開閉）・アクティブリンク追跡・`data-motion` とは意味論・機能ともに別物（`crates/headless-ui/src/nav_list.rs` module doc 参照）。#959 で確定、仮 ID 8-3、実装は #993 |
 | —（対応 md なし） | — | — | Toolbar (`toolbar`) | — | — | `toolbar` | `toolbar` | 実装済み | ボタン・セパレータ・ToggleGroup を横方向グループ化する専用 anatomy（Root/Button/Link/Separator/ToggleGroup/ToggleItem）と roving tabindex 状態機械 `Toolbar` を実装。#959 で確定、仮 ID 8-1、実装は #991。#1657 で参照突合済み（`button`/`link`/`separator`/`toggle-group`/`toggle-item` へ `data-orientation` を追加、呼び出し側予約キーなりすまし除去を `drop_reserved` へ統一。矢印キー実 DOM 配線は wasm-full 未実装のまま） |
 | —（対応 md なし） | — | — | Direction Provider (`direction-provider`) | — | Direction (`direction`) | — | — | 保留 | RTL/LTR を動的注入する provider 機構は `docs/policy/intentional-non-adoption.md` §3.23 の JS ランタイム固有 utilities に類するが、同節に個別記録がない。再評価トリガー: provider 機構全般の非採用可否が §3.23/§3.24 へ確定記録された場合、または `dir` 属性の明示的引数渡しで代替可能と判断された場合。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
@@ -985,7 +989,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 | —（対応 md なし） | — | — | — | — | Button Group (`button-group`) | `button_group` | `button_group` | 実装済み | headless+styled 実装済み（#2059 anatomy / #2060 recipe・Themes ページ）。root/separator/text の 3 slot + `data-orientation`、軸なし |
 | —（対応 md なし） | — | — | — | — | Input Group (`input-group`) | `input_group` | `input_group` | 実装済み | headless+styled 実装済み（#2062 anatomy / #2063 recipe・Themes ページ）。root/addon/text/button の 4 slot + `data-align` 4 値、軸なし |
 | —（対応 md なし） | — | — | — | — | Item (`item`) | `item` | `item` | 実装済み | headless+styled 実装済み（#2065 anatomy / #2066 recipe・Themes ページ）。root/media/content/title/description/actions/header/footer/group/separator の 10 slot、`data-variant`/`data-size` を AttrEq 参照 |
-| —（対応 md なし） | — | — | — | — | Command (`command`) | `command` | `command` | 実装済み | headless+styled 実装済み（#2068 anatomy / #2070 recipe・Themes ページ）。root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の 10 slot、`data-selected`/`data-empty`/`hidden` を参照 |
+| —（対応 md なし） | — | — | — | — | Command (`command`) | `command` | `command` | 実装済み | headless+styled 実装済み（#2068 anatomy / #2070 recipe・Themes ページ）。root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の 10 slot、`data-selected`/`data-empty`/`hidden` を参照。wasm-full の入力絞り込み・矢印キー選択・Enter 実行・dialog 開閉配線 #2069（PR #2237）も実装済み |
 | —（対応 md なし） | — | — | — | — | Sidebar (`sidebar`) | `sidebar` | `sidebar` | 実装済み | headless+styled 実装済み（#2072 anatomy / #2073 recipe / #2074 wasm-full 配線 / #2075 Themes ページ）。22 slot、`data-state`/`data-collapsible`/`data-variant`/`data-side`/`data-mobile` を属性セレクタ参照 |
 | —（対応 md なし） | — | — | — | — | Message (`message`) | `message` | `message` | 実装済み | headless+styled 実装済み（#2105 anatomy / #2106 recipe・Themes ページ）。root/avatar/header/content/footer/group の 6 slot、`data-role`/`data-align`/`data-loading`/`data-error` を AttrEq/Attr 参照 |
 | —（対応 md なし） | — | — | — | — | Bubble (`bubble`) | `bubble` | `bubble` | 実装済み | headless+styled 実装済み（#2108 anatomy / #2109 recipe・Themes ページ）。root/content/reactions/reaction/collapse-trigger/collapse-content の 6 slot、`data-variant`/`data-align`/`data-group-position`/`data-selected`/`data-state` を AttrEq/Attr/AttrEqAll 参照 |
@@ -994,7 +998,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 | —（対応 md なし） | — | — | — | — | Questionnaire (`questionnaire`) | `questionnaire` | `questionnaire` | 実装済み | headless+styled 実装済み（#2117 anatomy / #2118 wasm-full 配線 / #2119 recipe・Themes ページ）。root/progress/question/prompt/description/options/freeform/actions/back/next/skip の 11 slot、`data-state`/`data-answered`/`data-skipped`/`data-invalid`/`data-disabled`/`data-complete` を AttrEq/Attr 参照。回答の保持・検証・分岐はアプリ責務（§3.25 規則 1） |
 | —（対応 md なし） | — | — | — | — | Message Scroller (`message-scroller`) | `message_scroller` | `message_scroller` | 実装済み | headless+styled 実装済み（#2121 anatomy / #2123 recipe・Themes ページ）。root/viewport/content/anchor/jump-to-latest/load-more の 6 slot、`data-stuck`/`data-has-new`/`data-visible`/`data-loading`/`data-disabled`/`hidden` を AttrEq/Attr 参照。計測配線は #2122 |
 | —（対応 md なし） | — | — | — | — | Data Table (`data-table`) | `data_table` | `data_table` | 実装済み | headless+styled 実装済み（#2125 anatomy / #2127 recipe・Themes ページ）。root/toolbar/column-header/sort-trigger/select-all/select-row/footer/selection-count の 8 slot、`data-loading`/`data-empty`/`data-sort`/`data-state`/`data-hidden` を Attr/AttrEq 参照。並べ替え・絞り込み・ページ取得のロジックは §3.25 規則 1 により非採用。wasm-full の DOM 配線は #2126 |
-| —（対応 md なし） | — | — | — | — | Sonner (`sonner`) | — | `toast`（スタック表示・Toaster 相当） | 実装済み | shadcn/ui v4 は旧来の `toast`（トースト単発表示）と新しい `sonner`（スタック表示ライブラリ）の両ページを別コンポーネントとして掲載する。fandhe の既存 `toast`（ark-ui `overlays/toast.md` 行。同行の shadcn 列は Toast の slug を記入済み）がスタック表示までを含めて対応する。#2040 でスタック表示の突合詳細を確認予定 |
+| —（対応 md なし） | — | — | — | — | Sonner (`sonner`) | — | `toast`（スタック表示・Toaster 相当） | 実装済み | shadcn/ui v4 は旧来の `toast`（トースト単発表示）と新しい `sonner`（スタック表示ライブラリ）の両ページを別コンポーネントとして掲載する。fandhe の既存 `toast`（ark-ui `overlays/toast.md` 行。同行の shadcn 列は Toast の slug を記入済み）がスタック表示までを含めて対応する。#2040（PR #2176）で突合済み: 純追加できるバリアント・状態なし（判定は §12.3） |
 | —（対応 md なし） | — | — | — | — | Radial Chart (`charts/radial`) | — | `radial_chart` | 実装済み | styled 層のみ（headless anatomy なし、pie/donut と同判断）。#2078（#2079 SVG ジオメトリ・recipe / #2080 Themes ページ）。shadcn/ui Charts Library の simple/label/grid/text/shape/stacked 相当 |
 
 `aspect-ratio`（Part B `layout/aspect-ratio.md` 行、意図的非採用）・`direction`
@@ -1069,6 +1073,10 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
   等の複合ページテンプレート）は `component-coverage-map.md` の行モデル
   （部品 1 件 = mod 1 件）の対象外であり、置き場所の判断は #2007 のスコープ
   （イシュー #2004）
+- **§12.4/§12.5 の転記**: 完了（イシュー #2097）。保留の `intentional-non-
+  adoption.md` §7 への転記・§8 再評価トリガー集計・#2077 タイトル訂正・
+  ルート本文最終化は #2158、`shadcn-inventory.md` §4「区分ヒント」列の更新
+  は本イシューの範囲外、rustdoc の「補完参照」表記更新は #2161 のスコープ
 
 ## 8. JS ランタイム固有 utilities の Rust 等価概念対応表（イシュー #855）
 
@@ -1323,6 +1331,13 @@ grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l  
 data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転記・拡充した
 （12.1 表直後の解説段落を参照。§7 参照）。
 
+イシュー #2097 で §12.4（Phase 1〜3、既存部品 46 件の shadcn/ui 突合判定）・
+§12.5（Phase 5、Charts 10 issue の突合判定）を新設した。本節と
+`docs/policy/intentional-non-adoption.md` §7 の二重管理回避: 保留の再評価
+トリガーの文言の正は本節 §12.2 とし、同書 §7 は §12.2 の文言を転記する
+（既存部品の保留は §12.2 が正、新規部品の保留は同書 §7 が正という従来の
+役割分担は変わらない）。
+
 ### 12.1 追加推奨（実装確定済み）
 
 | shadcn/ui 名 (slug) | §5 該当行 | 実装 issue | 現状 |
@@ -1330,15 +1345,15 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 | Button Group (`button-group`) | Part F | #2058 | 実装済み（#2059 / #2060） |
 | Input Group (`input-group`) | Part F | #2061 | 実装済み（#2062 / #2063） |
 | Item (`item`) | Part F | #2064 | 実装済み（#2065 / #2066） |
-| Command (`command`) | Part F | #2067 | 実装済み（#2068 / #2070） |
+| Command (`command`) | Part F | #2067 | 実装済み（#2068 / #2070。wasm-full 配線 #2069〔PR #2237〕も実装済み） |
 | Sidebar (`sidebar`) | Part F | #2071 | 実装済み（#2072 / #2073 / #2074 / #2075） |
 | Message (`message`) | Part F | #2104 | 実装済み（#2105 / #2106） |
 | Bubble (`bubble`) | Part F | #2107 | 実装済み（#2108 / #2109） |
 | Attachment (`attachment`) | Part F | #2110 | 実装済み（#2111 / #2112） |
 | Marker (`marker`) | Part F | #2113 | 実装済み（#2114 / #2115） |
 | Questionnaire (`questionnaire`) | Part F | #2116 | 実装済み（#2117 / #2118 / #2119） |
-| Message Scroller (`message-scroller`) | Part F | #2120 | 実装済み（#2121 / #2123。配線 #2122 は別途） |
-| Data Table (`data-table`) | Part F | #2124 | 実装済み（#2125 / #2127。データ整形・並べ替えロジックは §3.25 規則 1 により非対象、ユーザー判断 2026-09-07。wasm-full の DOM 配線は #2126 は別途） |
+| Message Scroller (`message-scroller`) | Part F | #2120 | 実装済み（#2121 / #2123。配線 #2122（PR #2312）も実装済み） |
+| Data Table (`data-table`) | Part F | #2124 | 実装済み（#2125 / #2127。データ整形・並べ替えロジックは §3.25 規則 1 により非対象、ユーザー判断 2026-09-07。wasm-full の DOM 配線 #2126（PR #2352）も実装済み） |
 | Radial Chart (`radial-chart`) | Part F | #2078 | 実装済み（#2079 / #2080） |
 
 **7 部品の判定根拠（イシュー #2006、`intentional-non-adoption.md` §3.25
@@ -1424,6 +1439,17 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）との
 
 既存部品 `slider` の variant（複数 thumb）は部品単位の判定対象外であり、#2188 で `intentional-non-adoption.md` §7 へ保留行として個別記録した。
 
+**既存部品の variant / 実行時補助として新規記録した保留**: 新規部品の判定
+対象外だが、shadcn/ui との突合過程で見送った既存部品の拡張点を以下に記録
+する。文言の正は本節であり、`intentional-non-adoption.md` §7 は本節の
+文言をそのまま転記する（§12 冒頭の二重管理回避の関係）。
+
+| 対象・保留理由 | 対象部品 | 再評価トリガー | §7 該当行 |
+|---|---|---|---|
+| slider 複数 thumb（range slider、#2188）。評価完了・採否ユーザー判断待ち。推奨は条件付き採用（既存 `Slider` を変更しない純追加案 `RangeSlider`） | `slider`（headless-ui / pre-styled-ui 両層） | `docs/design/slider-range-thumbs-evaluation.md` の「再評価トリガー」節（利用要望 issue の起票 / 参照 3 者のいずれかが range を既定 UI から外す / wasm-full の REQ-11 予算が配線追加を許容する水準へ回復、のいずれか） | 「slider の複数 thumb（range slider、イシュー #2188）」行 |
+| Dialog の shadcn/Radix 突合で見送った実行時補助（#2194）。D9 focusin 引き戻し / D10 背景 `aria-hidden`・`inert` 化 / D11 body スクロールロック・`pointer-events: none` / D14 `wire_headless_component` での `push_trap`/`push_overlay` 自動統合、の 4 点を保留 | `dialog`（headless-ui + wasm-full `overlay.rs`/`focus_trap.rs`） | (a) 横断 a11y 自動検証導入時。(b) 利用要望 issue の起票。(c) D14 は `on_update` 契約を変えずに open/close 遷移を検出できる設計が示された場合。(d) D11 は pre-styled-ui 側で `body` 状態トークンの設計が確定した場合 | 「Dialog の shadcn/Radix 突合で見送った実行時補助（イシュー #2194）」行 |
+| select の Align Item（item-aligned 位置決め、#2207）。評価完了・採否ユーザー判断待ち。推奨は見送り（保留）。chakra-ui（ark-ui/zag.js）が非対応で、現行 wasm-full には on-open 再計算フックが無く単純な契約拡張では実現できない | `select`（wasm-full `position.rs` + pre-styled-ui `select.rs`） | `docs/design/select-item-aligned-positioning-evaluation.md` §8（利用要望 issue の起票 / `Runtime` への on-open 再計算フック導入 / wasm-full の REQ-11 予算の回復実測 / chakra-ui が同等モードを既定へ加える、のいずれか） | 「select の Align Item（item-aligned 位置決め、イシュー #2207）」行 |
+
 ### 12.3 追加不要（既存記録で充足済み・意図的非採用・対象外）
 
 | shadcn/ui 名（区分） | §5・関連節の該当箇所 |
@@ -1435,13 +1461,102 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）との
 | Context Menu・Dropdown Menu | 既存 `menu`（Part A `collections/menu.md`・Part B `overlays/menu.md`）で充足済み。§5 の shadcn 列に値を追記済み |
 | Sheet (`sheet`) | 既存 `drawer`（Part A `overlays/drawer.md`）で充足。#2031 で詳細突合完了（grabber は非採用継続、Examples 節に footer 相当パターンを追加）。§5 の shadcn 列に値を追記済み |
 | Resizable (`resizable`) | 既存 `splitter`（Part A `disclosure/splitter.md`）で充足。#2038 で shadcn/ui `resizable` と詳細突合済み: `withHandle`/nested 合成パターンは既存 API（`resize_trigger_indicator`/`panel` の children 合成）のみで再現可能なため Demo/Examples へ追加、resize-trigger-indicator の見た目は chakra-ui/Radix Themes 側（既存 pill）を維持（参照競合判定）。§5 の shadcn 列に値を追記済み。`ResizableHandle` の `::after` ヒットエリア拡張は #2038 時点で `SlotRecipe` の制約により見送ったが、#2201 の `SlotRecipe::pseudo_element` 追加を受けて #2202 で採用した |
-| Input OTP (`input-otp`) | 既存 `pin_input`（Part A `form/pin-input.md`）で充足。#2016 で詳細突合予定。§5 の shadcn 列に値を追記済み |
+| Input OTP (`input-otp`) | 既存 `pin_input`（Part A `form/pin-input.md`）で充足。#2016（PR #2151）で突合済み: `separator` パートを純追加。§5 の shadcn 列に値を追記済み |
 | Empty (`empty`) | 既存 `empty_state`（Part B `feedback/empty-state.md`）で充足。#2047 で shadcn/ui `empty` と詳細突合済み: root の variant 軸に Outline（破線枠）・Subtle（淡色単色背景）、indicator の variant 軸に Boxed（bg-muted の角丸タイル）を純追加。EmptyHeader 相当の slot 新設・description 内 `<a>` の下線・max-w-sm/text-balance は既存判断（#1560/#708）を維持し合わせず。§5 の shadcn 列に値を追記済み |
-| Label (`label`) | 既存 `field`（Part A `form/field.md`）で充足（Radix Themes 名も Label）。#2014 で詳細突合予定 |
-| Sonner (`sonner`) | 既存 `toast`（Part A `overlays/toast.md`）で充足。#2040 でスタック表示の詳細突合予定。§5 Part F に注記行あり |
+| Label (`label`) | 既存 `field`（Part A `form/field.md`）で充足（Radix Themes 名も Label）。#2014（PR #2147）で突合済み。見送り分の FieldGroup/FieldContent/FieldTitle・テキスト付き separator・`role="alert"` は Phase 8 #2183（#2184/#2185）で実装済み、`orientation="responsive"` は #2199 で実装済み |
+| Sonner (`sonner`) | 既存 `toast`（Part A `overlays/toast.md`）で充足。#2040（PR #2176）で突合済み: 純追加できるバリアント・状態なし（`recipe()`/`css()` 無変更、判定は rustdoc に記録）。§5 Part F に注記行あり |
 | Typography (`typography`) | 既存 `heading`/`text`/`blockquote`/`list`/`code` 等の複数 mod に分散対応（Part B typography 節）。個別バリアント（Lead/Large/Small/Muted）は #2055 で `text` の `TextVariant`（plain/muted）追加により、既存軸（size/weight/variant）の合成として対応済み |
 | Blocks（dashboard/sidebar/login/signup 等） | `component-coverage-map.md` の行モデル（部品 1 件 = mod 1 件）の対象外。置き場所は #2007 が別途判断する |
 | Utils（`scroll-fade` / `shimmer`） | 独立部品としての新規判定は行わない。`scroll-fade` は Phase 3（#2054 `scroll-area` の突合）、`shimmer` は Phase 3（#2050 `skeleton` の突合）へ既に吸収されており、本イシュー（#2006）の範囲では新規判定なしと確定する（イシュー #2001 の Phase 0 見立て表の記述をそのまま確定区分として転記）。**#2054 で採否確定**: `scroll-fade` は `crate::scroll_area` の `viewport[data-fade]` opt-in として吸収済み（`@property` 非採用のため custom property 補間は離散、`docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2 参照）。 |
 
+### 12.4 Phase 1〜3（既存 46 部品）の shadcn/ui 突合判定
+
+Phase 1（#2008、Forms 16 部品）・Phase 2（#2025、Overlays/Disclosure/
+Navigation 16 部品）・Phase 3（#2042、Feedback/Typography/Data Display
+14 部品）の全 46 issue はいずれも実装 PR がマージ済みで完了している。
+各行の要約は実装 PR・当該 `crates/pre-styled-ui/src/*.rs` rustdoc（「shadcn/ui
+突合」節）を正として転記した（両者が食い違う場合は実装側を正とする、
+§12 冒頭参照）。Phase 3 の Typography 4 部品（heading/blockquote/code/
+list）は同一スクリーンショット・同一イシュー（#2056）で横断突合された
+ため、issue 番号が重複する（下表末尾 4 行）。
+
+| 部品（mod） | 突合 issue（PR） | 純追加・合わせた | 合わせなかった（意図的差分） | 保留・再検討・後続 issue | 参照競合の判定 |
+|---|---|---|---|---|---|
+| button (`crate::button`) | #2009（PR #2141） | `ButtonVariant::Link`（shadcn `link` variant 相当、下線 hover のみのボタン風リンク）を 7 値目として新設 | `crate::link`（`<a>` 用ナビゲーション部品）とは統合しない（意味論が異なる） | — | 競合なし（純追加） |
+| calendar (`crate::calendar`) | #2010（PR #2140） | `selected` と `outside-month` が両方成立する日の CSS 優先順位バグを是正（`selected` 規則を `outside-month` より後に登録） | — | — | 競合なし（不具合是正） |
+| checkbox (`crate::checkbox`) | #2011（PR #2143） | なし（`recipe()`/CSS 出力の変更不要と確認） | card 風合成（既に `checkbox_card` が充足）・`data-invalid` 時のラベル文字色変更（`crate::field` の判断を踏襲し枠線色のみ danger 化） | 再検討中（#2159、ユーザー判断待ち。`field`〔#2147〕の判断との整合を再評価） | chakra-ui / Radix Themes の値を採る（invalid はコントロール枠線色 + `error-text` で伝える） |
+| combobox (`crate::combobox`) | #2012（PR #2145） | #1467/#1468（PR #1744/#1745）で先行実装済みの分を shadcn 突合として再確認 | — | — | 競合なし |
+| date-picker (`crate::date_picker`) | #2013（PR #2177） | `input`/`trigger` の `data-invalid` 枠線色 CSS 未消費ギャップを是正 | `data-readonly` の `cursor: default`（ネイティブ I-beam カーソルを隠すため PR レビュー指摘で削除）。range 選択・presets・自然言語入力・date+time 合成は状態機械拡張または §3.25 規則 1 該当のためスコープ外 | #2195 で `control`/`clear-trigger` の `data-disabled` 消費を実装済み | — |
+| field (`crate::field`) | #2014（PR #2147） | error_text へ `role="alert"`（`aria-live="polite"` は維持） | — | group/content/title/separator の 6 slot（shadcn `FieldGroup`/`FieldContent`/`FieldTitle`/`FieldSeparator` 相当）は Phase 8 #2183（#2184/#2185）で実装済み。`orientation="responsive"` は #2199 で実装済み。helper-text の `text-wrap: balance`（horizontal 時）は再検討中（#2160、ユーザー判断待ち） | — |
+| input (`crate::input`) | #2015（PR #2149） | なし | file input のボタン装飾（`::file-selector-button` 疑似要素は `StateCondition` の対象外）・`aria-invalid` の box-shadow リング（フォーカスリング規約 #1424 により `outline` 統一を維持） | — | 意図的非採用（recipe 基盤の擬似要素対応・box-shadow リングいずれも規約により不採用） |
+| pin-input (`crate::pin_input`) | #2016（PR #2151） | `separator`（pre-styled-only パート）を純追加 | セル間枠線共有の merge 表現・`InputOTPGroup` 相当の専用グループパートは非採用（既存個別ボックスデザインを維持） | — | chakra-ui 基準の個別ボックス + `gap` を維持 |
+| native-select (`crate::native_select`) | #2017（PR #2154） | なし（`recipe()`/CSS 出力の変更不要と確認） | `aria-invalid` の box-shadow リング（フォーカスリング規約 #1424 により不採用） | — | 意図的非採用 |
+| radio-group (`crate::radio_group`) | #2018（PR #2163） | なし（`recipe()`/CSS 出力の変更不要と確認、docs Demo に invalid 実演行を追加） | `data-invalid` 時のラベル/`item-text` 文字色（`item-control` の枠線色のみ danger 化、`crate::checkbox`/`crate::field` と同判断） | — | chakra-ui / Radix Themes の値を採る |
+| select (`crate::select`) | #2019（PR #2165） | `content` へ `max-height` + `overflow-y: auto`（`--fandhe-select-content-max-height` の size variant、`crate::listbox` と同スケール） | ビューポート由来の可変高さ（Radix `--radix-select-content-available-height` 相当）は wasm-full positioning 契約側の責務のため固定 rem スケールを採用 | Align Item（item-aligned 位置決め）は #2207 で評価完了・見送り（保留、§12.2 参照） | 実装方針の記録（3 者競合ではない） |
+| slider (`crate::slider`) | #2020（PR #2167） | styled `marker_group`/`marker`（headless anatomy #1904 に Themes 層が未追随だったギャップを解消） | 複数 thumb（range slider）は headless-ui #741 以来の構造的制約により非採用のまま据え置き | 複数 thumb は #2188 で保留行として個別記録（§12.2 参照） | — |
+| switch (`crate::switch`) | #2021（PR #2169） | chakra-ui / Radix Themes 基準の既存調整（#1508/#1509）では拾えなかった欠落を補完（checkbox #2011 と同型の判断軸） | — | — | — |
+| textarea (`crate::textarea`) | #2022（PR #2171） | なし | 自動高さ調整は #1511 の `[data-autoresize]` で対応済み。disabled の背景色変化・`aria-invalid` の box-shadow リングは規約により非採用 | — | 既存 disabled 視覚言語（opacity ベース）・フォーカスリング規約（#1424）を維持 |
+| toggle (`crate::toggle`) | #2023（PR #2174） | `ToggleVariant::Ghost`（shadcn `"default"` 相当の背景・輪郭なし）を新設、`Outline`（既定）は変更なし | shadcn の variant 名（`"default"`/`"outline"`）は持ち込まず既存語彙（`ButtonVariant::Ghost`）に統一 | — | 名称は既存語彙を優先（shadcn 固有語彙の非直輸入） |
+| toggle-group (`crate::toggle_group`) | #2024（PR #2175） | `ToggleGroupVariant`（`crate::toggle::ToggleVariant` と同一語彙）を新設 | `spacing`（連結/分離セグメント）軸は追加しない（API 破壊的変更の最小化、`crate::listbox` #1483 と同判断） | — | — |
+| accordion (`crate::accordion`) | #2026（PR #2179） | なし（`multiple`/項目単位 `disabled`/トリガーへの icon・description 合成は既存 API で再現可、docs Demo/Examples を拡充） | コンテナ枠なし（shadcn は border-bottom 区切りのみ）・open 時のトリガー文字色不変は非採用（#1515/#1425 の既存判断を維持） | — | chakra `enclosed` 相当の既定・interaction visual language（#1425）を維持 |
+| breadcrumb (`crate::breadcrumb`) | #2027（PR #2142） | `list`/`item`/`link`/`current-link` へ `overflow-wrap: break-word` + `min-width: 0`（長いラベルの折り返し是正） | responsive drawer への折り畳み退避は非採用（§3.25 規則 2、JS ビューポート計測を要するため）。省略記号+dropdown 合成・custom separator は既存 API で再現可（コード変更不要） | `current-link` の `role="link"`/`aria-disabled="true"` は headless-ui 側 #2182 で不採用確定 | — |
+| carousel (`crate::carousel`) | #2028（PR #2144） | `--fandhe-carousel-item-basis`（複数スライド同時表示、shadcn Sizes 例相当）を新設 | Spacing（スライド間余白）・Plugins（autoplay）・Options/API/RTL は既存判断（#1518）を維持しスコープ外 | — | — |
+| collapsible (`crate::collapsible`) | #2029（PR #2146） | — | — | — | headless+styled 実装済み（#1682/#1683）の追加確認、是正なし |
+| dialog (`crate::dialog`) | #2030（PR #2148） | `body`（レイアウト専用の pre-styled-only パート、スクロール可能コンテンツ用の 10 番目の part）を新設 | `content`/`positioner` 自体への `overflow: auto`/`max-height` 追加は非採用（挙動変更のため、#1692 の既存判断を維持） | — | — |
+| drawer (`crate::drawer`) | #2031（PR #2150） | `close_trigger_with_variant(CloseTriggerVariant::Text, ...)`（平文ボタン、shadcn Custom Close Button 相当）を #2193 で追加 | placement（4 方向）・size（5 段階）・close ボタンはいずれも既存の superset のため追加不要 | — | 既存 `DrawerPlacement`/`Size` が shadcn 側を包含（追加不要） |
+| hover-card (`crate::hover_card`) | #2032（PR #2152） | なし（Basic/Sides の合成パターンは既存 API・`data-side`/`data-align` で再現可、docs Examples を拡充） | — | — | #1641 の既存判断（実座標追従は wasm-full 側）を維持 |
+| menu (`crate::menu`) | #2033（PR #2180） | `item-text`/`item-indicator` の CSS 未着装（#1651 で headless anatomy に追加済みだったが Themes 側が未反映だった構造的見落とし）を是正、`data-danger`/`data-inset` 状態を追加 | — | — | 既存 variant の CSS 出力を変えない純追加として正当化（主基準化後も §2 の golden 影響方針に適合） |
+| menubar (`crate::menubar`) | #2034（PR #2164） | `item-text`/`item-indicator`/`checkbox-item`/`radio-item-group`/`radio-item` の 5 パーツへ CSS を追いつかせる（#1924/#1528 の未回収債務の解消） | `radio-item-group` は `crate::menu` と同じ「規則なし」を維持 | — | `crate::menu`/`crate::select` を precedent とした意匠統一 |
+| navigation-menu (`crate::navigation_menu`) | #2035（PR #2166） | `item-indicator`（トリガー横シェブロン、#1654 の未回収債務を解消）・`trigger`/`link` への `gap` を追加 | `crate::select`/`crate::menubar` の `margin-left: auto` パターンは採らない（意味論が異なるため） | ルートレベル `indicator`（トリガー追従の小さなポインタ）は #2187 で追加実装済み | `crate::accordion::item_indicator` を precedent とする |
+| pagination (`crate::pagination`) | #2036（PR #2168） | なし（prev/next のアイコン+テキスト表示は children 自由設計で既存 API のまま再現可、docs Examples を拡充） | — | — | 純追加原則により `recipe` 変更は不要と判断 |
+| popover (`crate::popover`) | #2037（PR #2170） | なし（Basic/Align/With Form は既存 anatomy の組み合わせで再現済みと確認） | — | — | `data-side`/`data-align` は dropdown 型オーバーレイ共通の既存方針を維持 |
+| splitter (`crate::splitter`) | #2038（PR #2172） | `ResizableHandle` の `::after` ヒットエリア拡張を #2202 で採用（`SlotRecipe::pseudo_element` 導入後） | `withHandle`/nested 合成パターンは既存 API（`resize_trigger_indicator`/`panel` children）で再現可、CSS 変更なし | resize-trigger-indicator の見た目は chakra-ui/Radix Themes 側（既存 pill）を維持 | 参照競合: 見た目は chakra-ui/Radix Themes を採る |
+| tabs (`crate::tabs`) | #2039（PR #2173） | `TabsVariant::Enclosed`（セグメント/ピル型スタイル、shadcn 既定 variant 相当）を新設、CSS は `var()` 化しつつ `Line`（既定）の computed style は不変に保つ | 命名は chakra-ui の recipe variant 値（`line`/`enclosed`）を採用（shadcn 固有語彙は非直輸入） | — | ルートレベル `indicator` パーツの装飾は #2211 で解消済み |
+| toast (`crate::toast`) | #2040（PR #2176） | なし（純追加できる正当なバリアント・状態は見つからず、`tests/toast_css.rs` golden は無変更） | `status` の `loading` 値は headless-ui 側の enum 拡張を要するため対象外。状態配色は無彩色方式を採らず chakra-ui/Radix Themes 側（#1544 確定値）を維持 | — | chakra-ui/Radix Themes の淡色面 tint を維持 |
+| tooltip (`crate::tooltip`) | #2041（PR #2178） | `data-side="bottom"/"left"/"right"` の静的フォールバック（`crate::tour` と同型）を `recipe` へ追加 | `root` への `width`/`display` 追加は非採用（既存 tooltip 全件のレイアウトに影響するため） | left/right の実測位置追従は #2210 で wasm-full ハイドレーション下に解消 | — |
+| alert (`crate::alert`) | #2043（PR #2221） | `action` パート（shadcn `AlertAction` 相当、header 右上のアクションスロット）を純追加 | description の弱め文字色（`text-muted-foreground`）・title `line-clamp-1` は非採用（既存 golden 維持・`role="alert"` の本文欠落回避） | — | 既存 4 variant は `default`/`destructive` を包含済みと判定 |
+| avatar (`crate::avatar`) | #2044（PR #2222） | pre-styled-only `group`（重なり表示 + `+N`）・`badge`（右下状態ドット）の 2 パートを純追加 | root 既定の `overflow: hidden` は `with_badge` が `false` のとき不変（純追加原則） | — | `crate::dialog::footer`/`crate::dialog::body` と同型のパート追加パターン |
+| badge (`crate::badge`) | #2045（PR #2225） | `BadgeVariant::Plain`（shadcn `ghost` 相当）を新設、`link`（`<a>` 用専用コンストラクタ）を追加 | 角丸 pill 形状は非採用（chakra-ui/Radix Themes の値を維持、純追加原則）。`<a>` 時の hover 変化・`data-icon`・size 軸は対象外 | 複合状態機構（variant×hover の複合条件）は #2203 が追跡中 | pill 形状は chakra-ui/Radix Themes の値（角丸 sm）を採る |
+| card (`crate::card`) | #2046（PR #2227） | `action`（header 右上スロット）・`cover`（cover image 枠）・`data-bordered` opt-in 状態の 3 点を純追加 | root の `overflow: hidden`・edge-to-edge content・footer の `bg-muted/50` は非採用（既存 golden・Card 内オーバーレイの切り取り回帰を避けるため） | — | header/footer 区切り線は既定で chakra-ui/Radix Themes の値（区切りなし）、`data-bordered` opt-in 時のみ shadcn の値を採る |
+| empty-state (`crate::empty_state`) | #2047（PR #2229） | root の Outline（破線枠）・Subtle（淡色単色背景）、indicator の Boxed（bg-muted 角丸タイル）の 3 variant を純追加 | EmptyHeader 相当の slot 新設・description 内 `<a>` の下線・`max-w-sm`/`text-balance` は既存判断（#1560/#708）を維持し非追随 | — | — |
+| kbd (`crate::kbd`) | #2048（PR #2230） | `group`（shadcn `KbdGroup` 相当の pre-styled-only パート）を純追加 | `pointer-events-none select-none` の root base 追加は非採用（純追加原則により既存 golden をバイト同一に保つため） | — | — |
+| progress (`crate::progress`) | #2049（PR #2231） | `ProgressVariant::Plain`（中立 `bg-muted`・枠線なしの平坦トラック）を純追加 | track の高さ（size 段階）は chakra-ui/Radix Themes の値（#1678/#1564/#1681 の既存等差進行）を維持 | — | 見た目は shadcn-ui、寸法は chakra-ui/Radix Themes という部位ごとの参照競合判定 |
+| skeleton (`crate::skeleton`) | #2050（PR #2233） | なし（既存 `SkeletonVariant`×`SkeletonAnimation` が shadcn の単一 `div` 表現を包含する上位集合と確認、docs Examples 4 例を追加） | — | — | 競合なし |
+| spinner (`crate::spinner`) | #2051（PR #2235） | なし（既存 5 段 size が shadcn の 4 段を包含。`currentColor` 追随は既存 `ColorPalette`/`style` 属性で再現可、docs に案内追記） | — | — | 競合なし |
+| table (`crate::table`) | #2052（PR #2238） | `footer` の `bg-muted/50` 背景・`border-top`、caption サイズ（`text-sm`）・`mt-4`、`whitespace-nowrap`、select 列余白調整を補完 | 無条件 hover（shadcn の全行 hover）・選択行の shadcn 配色（`muted`）・セル整列の `text-right` ユーティリティクラス方式は非採用（既存視覚言語・`data-*` 属性方式を維持） | — | 無条件 hover は既存 golden の視覚変更になるため chakra-ui/Radix Themes 側を維持 |
+| separator (`crate::separator`) | #2053（PR #2239） | なし | 罫線の実装方式（`bg-border`+`h-px` の背景方式）は非採用、既存 `border-*-width` 方式（chakra-ui）を維持 | — | `dashed`/`dotted` variant が `border-style` 前提のため背景方式は非追随 |
+| scroll-area (`crate::scroll_area`) | #2054（PR #2240） | 横スクロール（`viewport[data-orientation="horizontal"]`）・端フェード（`viewport[data-fade]`、shadcn `utils/scroll-fade` 相当）の 2 点を `data-*` opt-in として純追加 | — | — | `crate::table::row`/`crate::card` の `data-*` opt-in（役割 B 亜種）と同型 |
+| text (`crate::text`) | #2055（PR #2242） | `TextVariant::Muted`（前景色の muted 化）を純追加 | `p` の行間・段落間余白は既存値（chakra-ui/Radix Themes 基準）を維持。`lead`/`large`/`small`/`muted` のプリセット名は持ち込まない | — | 行間・余白は既存 golden を維持、muted 前景色のみ shadcn-ui の構成を採用 |
+| heading (`crate::heading`) | #2056（PR #2244） | `HeadingWeight::Bold`（700、shadcn extrabold=800 を切り下げて opt-in）・`data-bordered`（h2 下罫線、`crate::card` と同型）の 2 点を純追加 | h1 既定ウェイトは chakra-ui/Radix Themes の値（`semibold`）を維持 | 700 超のウェイト要求は複数部品で出た時点で再評価（トークン新設） | — |
+| blockquote (`crate::blockquote`) | #2056（PR #2244） | なし（CSS 出力変更なし） | italic 装飾（shadcn 単独の値）は非採用（位置引数 API への bool 追加が破壊的変更になるため） | 複数部品で `font-style` 軸の要求が出た時点で再評価 | 罫線幅・余白は chakra-ui の値（#1431 の既存 golden）を維持 |
+| code (`crate::code`) | #2056（PR #2244） | なし（CSS 出力変更なし） | フォントウェイト（`font-semibold`）は非採用 | — | chakra-ui の値（本文継承・通常ウェイト）を維持 |
+| list (`crate::list`) | #2056（PR #2244） | なし（CSS 出力変更なし。チェックリスト表現は既存 API の合成で再現可、docs Demo を追加） | item 間隔は既存値（chakra-ui、#1438）を維持 | — | chakra-ui の値を維持 |
+
+### 12.5 Phase 5（Charts）の shadcn/ui 突合判定
+
+Phase 5（#2076、10 issue）は shadcn/ui Charts（`https://ui.shadcn.com/charts/`）
+との突合と、マウス追従ツールチップ・hover 強調・期間切替・凡例トグルの
+wasm-full 配線を扱う。#2078（Radial Chart 追加）は §12.1 に既載のため
+本節では参照のみとする。
+
+| 部品（mod） | 突合 issue（PR） | 純追加・合わせた | 合わせなかった（意図的差分） | 保留・再検討・後続 issue | 参照競合の判定 |
+|---|---|---|---|---|---|
+| charts の系列設定（`crate::charts::data::Series`） | #2077（PR #2246） | `Series::with_icon`（`ChartConfig.icon` 相当）を純追加。`--fandhe-color-chart-*` の段階数・意味論色は変更不要と確定 | — | — | 既存トークン段階数で充足済みと判定 |
+| radial-chart (`crate::radial_chart`) | #2078（#2079/#2080、既載） | — | — | — | §12.1 参照（本節では重複記載しない） |
+| area-chart (`crate::area_chart`) | #2081（PR #2254） | `AreaCurve`（Natural/Linear/Step）・`AreaStack`（Normal/Expand）・`AreaFill::Gradient`・`show_grid`/`show_x_axis`/`show_y_axis` を純追加 | マウス追従ツールチップ・hover 強調・期間切替・凡例トグル（`chart-area-interactive`）は対象外 | 実行時インタラクションは #2128/#2132 系（wasm-full 配線）へ引き継ぎ | — |
+| bar-chart (`crate::charts::bar_chart`) | #2082（PR #2255） | `corner_radius`・`BarLabel`（Outside/Inside）・`color_by_category`・`BarStack`・`active_index`（`data-active`）・`highlight_negative` を純追加 | `chart-bar-interactive` は対象外 | 同上（#2128/#2132） | — |
+| line-chart (`crate::line_chart`) | #2083（PR #2256） | `Curve`（Natural/Linear/Step）・`LineDots`（Filled/Hollow）・`color_by_category`・`LineLabel`（Value/Category）を純追加 | `chart-line-interactive`（期間切替・凡例トグル）は対象外 | #2132（期間切替・凡例トグル）へ引き継ぎ | — |
+| pie-chart (`crate::pie_chart`) | #2084（PR #2257） | 静的バリアント（内訳ラベル・donut 化等）を純追加 | 実行時インタラクションは対象外 | #2128/#2132 系へ引き継ぎ | — |
+| radar-chart (`crate::charts::radar_chart`) | #2085（PR #2258） | `dots`・`RadarFill::None`・`RadarAxisLabel::ValueAndCategory`・`RadarGridRings::Outer`・`RadarGridFill::Series`・`RadarGrid`（None/Circle）・`radius_axis`（新 part `radius-label`）の 7 軸相当を純追加（既定値は本イシュー以前とバイト同一） | — | — | — |
+| charts/tooltip・legend (`crate::charts::tooltip`/`crate::charts::legend`) | #2086（PR #2259） | tooltip: `datum_label_lines`・`heading`/`footer` の明示化・`TooltipIndicator`（Line/None、#2131）を純追加。legend: `hide_marker`・`LegendAlign::Center`・`LegendMarker::Square` を opt-in で純追加 | legend の中央揃え既定化・`verticalAlign` は非採用（既存 `flex-start` 既定・ノード合成順序に委ねる方針を維持）。tooltip の icon 合成は対象外（#2129 のスコープ） | 凡例の系列トグル SSR 構造（`[data-hidden]`）は #2133 で追加、`tooltip-item` 自体の `data-hidden` 出力は #2134（wasm-full）へ引き継ぎ | 水平揃え・マーカー形状は chakra-ui の値を既定に据え置く（golden 純追加原則） |
+| charts のマウス追従ツールチップ・hover 強調（wasm-full 配線） | #2128（sub #2129/#2130/#2131） | マウス追従ツールチップ・hover 強調を `fandhe-frontend-wasm-full` へ配線（静的 SSR 構造は #2081〜#2086 側で準備済み） | — | — | — |
+| charts の期間切替・凡例系列トグル（wasm-full 配線） | #2132（sub #2133〜#2134） | 期間切替（range selector）・凡例の系列トグルを `fandhe-frontend-wasm-full` へ配線 | — | — | — |
+
 再評価トリガー充足時の手続きは §9・§11 と同様、通常の feature issue を
-起票して本節・§5 の該当行を実装確定後に更新する。
+起票して本節・§5 の該当行を実装確定後に更新する。**Phase 6 Blocks**
+（#2087〜#2095）は §2「対象外」区分（`docs/design/docs-site-blocks-section.md`）
+のため本節へ行を持たない。**`shadcn-inventory.md` §4「区分ヒント」列**は
+非確定の手掛かりであり、本イシュー（#2097）では更新しない。**#2159**
+（checkbox invalid ラベル色の再検討）・**#2160**（field helper-text の
+`text-wrap: balance` 再検討）は open の再検討項目であり、本節では確定
+区分を与えない（§12.4 該当行に「再検討中（ユーザー判断待ち）」と記す）。
