@@ -72,9 +72,11 @@
 
 ## 7. ゼロコスト方針（判断記録8の具体化）
 
-- `crates/pre-styled-ui/` は Cargo feature `motion`（既定 off）で Motion 相当の拡張出力をコンパイル除外する。
+本節が対象とするのは §3 の **C 群（フレームループ必須）相当の拡張出力のみ**である。A 群（CSS のみ）・B 群（小さな DOM 配線）は §3 の既定方針どおり常時実装対象（既定出力に含む）であり、`motion` feature のゲート対象ではない。presence（§4 の該当行）は A 群（transition ベース）に分類されるため、本節の feature ゲート・4 指標比較の対象外であり、既定出力に無条件で含む（§4 判断記録2 と整合）。
+
+- `crates/pre-styled-ui/` は Cargo feature `motion`（既定 off）で **C 群相当**の拡張出力（`fandhe-frontend-animation` 経由の spring・layout FLIP・SVG path drawing 等）をコンパイル除外する。A/B 群の出力（presence を含む）はこの feature の有無に関わらず常に出力される。
 - `fandhe-animation` は `crates/wasm-full/` から見て optional 依存とし、`motion` 相当 feature が無効なら依存グラフに現れない。
-- 無効時（既定構成）に以下 4 指標が増加しないことを契約テストで保証する（テスト実装自体は本イシューのスコープ外。#2416 等の別 issue で行う）:
+- 無効時（既定構成、= C 群拡張出力を含まない構成）に以下 4 指標が、C 群拡張出力を除いた基準値（A/B 群のみを含む構成の実測値）と比べて増加しないことを契約テストで保証する（テスト実装自体は本イシューのスコープ外。#2416 等の別 issue で行う）:
   1. crate サイズ（バイナリ・wasm バンドルサイズ）
   2. ビルド時間
   3. `Theme::to_css` の処理量（トークン走査・文字列生成のステップ数）
