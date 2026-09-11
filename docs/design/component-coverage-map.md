@@ -34,7 +34,7 @@ commit `5c7072d` pin・取得日 2026-09-07）であり、区分判定（実装�
 message-scroller・data-table の判定根拠の詳細は #2006 が §12 へ転記する
 （本書 §7 参照）。
 イシュー #2097（親 #2096、Phase 7）で Phase 1〜3（#2008/#2025/#2042、
-46 部品）・Phase 5（#2076、Charts 10 issue）の shadcn/ui 突合判定を
+46 issue、49 部品）・Phase 5（#2076、Charts 10 issue）の shadcn/ui 突合判定を
 §12.4/§12.5 へ転記し、Phase 4〜8 完了を受けて §12.1〜§12.3 の陳腐化記述
 （配線・詳細突合の「別途」「予定」表記）を実装済みへ更新した。
 
@@ -1331,7 +1331,7 @@ grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l  
 data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転記・拡充した
 （12.1 表直後の解説段落を参照。§7 参照）。
 
-イシュー #2097 で §12.4（Phase 1〜3、既存部品 46 件の shadcn/ui 突合判定）・
+イシュー #2097 で §12.4（Phase 1〜3、既存 46 issue・49 部品の shadcn/ui 突合判定）・
 §12.5（Phase 5、Charts 10 issue の突合判定）を新設した。本節と
 `docs/policy/intentional-non-adoption.md` §7 の二重管理回避: 保留の再評価
 トリガーの文言の正は本節 §12.2 とし、同書 §7 は §12.2 の文言を転記する
@@ -1469,11 +1469,11 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）との
 | Blocks（dashboard/sidebar/login/signup 等） | `component-coverage-map.md` の行モデル（部品 1 件 = mod 1 件）の対象外。置き場所は #2007 が別途判断する |
 | Utils（`scroll-fade` / `shimmer`） | 独立部品としての新規判定は行わない。`scroll-fade` は Phase 3（#2054 `scroll-area` の突合）、`shimmer` は Phase 3（#2050 `skeleton` の突合）へ既に吸収されており、本イシュー（#2006）の範囲では新規判定なしと確定する（イシュー #2001 の Phase 0 見立て表の記述をそのまま確定区分として転記）。**#2054 で採否確定**: `scroll-fade` は `crate::scroll_area` の `viewport[data-fade]` opt-in として吸収済み（`@property` 非採用のため custom property 補間は離散、`docs/design/pre-styled-ui-data-attr-vocabulary.md` §2.2 参照）。 |
 
-### 12.4 Phase 1〜3（既存 46 部品）の shadcn/ui 突合判定
+### 12.4 Phase 1〜3（既存 46 issue・49 部品）の shadcn/ui 突合判定
 
 Phase 1（#2008、Forms 16 部品）・Phase 2（#2025、Overlays/Disclosure/
 Navigation 16 部品）・Phase 3（#2042、Feedback/Typography/Data Display
-14 部品）の全 46 issue はいずれも実装 PR がマージ済みで完了している。
+14 issue・17 部品）の全 46 issue はいずれも実装 PR がマージ済みで完了している。
 各行の要約は実装 PR・当該 `crates/pre-styled-ui/src/*.rs` rustdoc（「shadcn/ui
 突合」節）を正として転記した（両者が食い違う場合は実装側を正とする、
 §12 冒頭参照）。Phase 3 の Typography 4 部品（heading/blockquote/code/
