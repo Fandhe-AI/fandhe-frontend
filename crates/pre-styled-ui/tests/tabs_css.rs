@@ -100,6 +100,20 @@
 //! へはみ出す位置ずれが生じていた（codex-review P1 / Cursor Bugbot 双方の
 //! 指摘）。`box-sizing: border-box` を追加し、実測値と表示寸法を一致
 //! させた。
+//!
+//! # イシュー #2215（Enclosed selected trigger の box-shadow を transition
+//! 対象へ追加）による golden 更新
+//!
+//! `trigger` base の `transition-property` に `box-shadow` を追加した
+//! （`color, background, border-color` → `color, background, border-color,
+//! box-shadow`）。イシュー #2039 で Enclosed の selected trigger が持つ
+//! `box-shadow: var(--fandhe-tabs-trigger-active-shadow, none)` は選択切り
+//! 替えごとに値が変わるが、これまで遷移対象に含まれておらず色・背景・
+//! 境界だけが 150ms で遷移するのに影だけ瞬時に切り替わる不整合があった。
+//! `TabsVariant::Line`（既定）は `--fandhe-tabs-trigger-active-shadow: none`
+//! を全状態で固定登録するため、この変更で computed style・アニメーションは
+//! 一切変化しない（golden のテキストバイトのみ変わる、#2039 と同型の純
+//! 追加）。変更箇所はこの 1 行のみ（`trigger` base の transition ブロック）。
 
 use fandhe_frontend_pre_styled_ui::tabs;
 
@@ -133,7 +147,7 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
 }
 
 [data-scope="tabs"][data-part="trigger"] {
-  transition-property: color, background, border-color;
+  transition-property: color, background, border-color, box-shadow;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
