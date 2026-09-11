@@ -64,6 +64,11 @@
 //! - ハンドリングしたキーのみ `prevent_default()`（ページスクロール抑止）。
 //!   修飾キー（Ctrl/Alt/Meta）付き・未知キー・root 外要素（`contains` 検査、
 //!   [`events`] と同じ封じ込め）は安全側 no-op。
+//! - 活性化（`activate_tab`）の直後、`crate::tabs_indicator::
+//!   sync_tabs_indicator_in_list` を呼んで `indicator` パーツの位置・
+//!   寸法を実測同期する（イシュー #2211）。manual activation の keydown
+//!   （活性化を行わない分岐）では呼ばれない。詳細は
+//!   `crate::tabs_indicator` モジュール doc を参照。
 //!
 //! # Accordion のキーボード仕様（WAI-ARIA APG Accordion パターン準拠）
 //!
@@ -5426,6 +5431,20 @@ pub(crate) mod wiring {
             );
             if is_active {
                 let _ = content.remove_attribute("hidden");
+                // レビュー指摘是正（イシュー #2211、codex-review P1）:
+                // 表示対象の `content` 配下にネストした tabs がある場合、
+                // マウント時点ではその内部 trigger が `hidden` な祖先の下に
+                // あり矩形が 0 のため `sync_tabs_indicator`/
+                // `sync_tabs_indicator_in_list` の実測が
+                // スキップされている（`crate::tabs_indicator` モジュール doc
+                // 「書き込み順序」節の 3. 参照、0 以下は書き込まない）。
+                // ここで `hidden` を外した直後に `content` を根として
+                // 再同期することで、外側 `list` の indicator（直後の
+                // `sync_tabs_indicator_in_list(&list)` 呼び出し）だけでなく
+                // 内側にネストした tabs の indicator も遅延なく反映する
+                // （`sync_tabs_indicator` は `root` 配下の `indicator` を
+                // 全件走査するため、ネストの深さによらず 1 回で足りる）。
+                let _ = crate::tabs_indicator::sync_tabs_indicator(&content);
             } else {
                 set_dom_attribute(&content, "hidden", "");
             }
@@ -5488,6 +5507,10 @@ pub(crate) mod wiring {
         if !is_manual {
             if let Some(document) = target.owner_document() {
                 activate_tab(&document, &triggers, next_index);
+                // indicator は選択に追従し、フォーカスには追従しない
+                // （manual activation ではここへ到達しないため呼ばない、
+                // イシュー #2211）。
+                crate::tabs_indicator::sync_tabs_indicator_in_list(&list);
             }
         }
     }
@@ -8101,6 +8124,9 @@ pub(crate) mod wiring {
         set_roving_tabindex(&triggers, index);
         if let Some(document) = target.owner_document() {
             activate_tab(&document, &triggers, index);
+            // click は活性化を必ず伴う経路のため無条件で同期する
+            // （イシュー #2211）。
+            crate::tabs_indicator::sync_tabs_indicator_in_list(&list);
         }
     }
 
@@ -8233,6 +8259,14 @@ pub(crate) mod wiring {
         // する（イシュー #2327）。
         #[cfg(feature = "tree-view")]
         initialize_tree_roving_tabindex(&root);
+
+        // マウント時に 1 回だけ tabs indicator（イシュー #2211）の初期位置
+        // を実測して同期する（SSR は `0px` 初期値のみを出力するため）。
+        // `Runtime::mount`/`hydrate` 経由のアプリは必ず `wire_keynav` を
+        // 呼ぶため、この初期同期が確実に届く
+        // （`crate::tabs_indicator` モジュール doc「`crate::keynav`」
+        // 節参照）。
+        let _ = crate::tabs_indicator::sync_tabs_indicator(&root);
 
         let keydown_root = root.clone();
         // typeahead バッファ（イシュー #641・#1070）は DOM から導出できない

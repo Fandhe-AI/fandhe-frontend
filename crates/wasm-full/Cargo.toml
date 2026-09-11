@@ -980,7 +980,26 @@ name = "fandhe-frontend-wasm-full"
 # 相当）を主軸オフセットへ適用するようにした。新規 API の追加のみで既存
 # 公開関数のシグネチャ変更を伴わない非破壊的変更のため patch バンプとし、
 # 0.20.1 を +1 した 0.20.2 とする。
-version = "0.20.2"
+#
+# イシュー #2211: tabs の `indicator` パーツの位置を実測して CSS 変数へ
+# 書き込む新規モジュール `tabs_indicator`（新規公開関数
+# `sync_tabs_indicator`/`sync_tabs_indicator_in_list`）を追加し、
+# `headless::wire_headless_component`（配線時・`on_update` 後）と
+# `keynav`（マウント時・activate_tab 直後）から呼ぶ配線を追加した。
+# 新規公開 API の追加と既存公開関数（`wire_headless_component`）への
+# 副作用追加のみで、既存公開関数のシグネチャ変更は伴わないため非破壊的
+# 変更として patch バンプとし、0.20.2 を +1 した 0.20.3 とする。
+#
+# イシュー #2211 PR #2342 レビュー指摘是正（codex-review P1）: ネストした
+# tabs を含む content が非表示（`hidden`）のままマウントされた場合、内部
+# trigger の矩形が 0 で実測がスキップされ、その後親タブをクリック/
+# automatic activation で表示しても内部 indicator が 0px のまま欠落する
+# 不具合を修正した。`keynav::activate_tab` の `content` を可視化する分岐
+# （`hidden` 属性除去の直後）へ `tabs_indicator::sync_tabs_indicator(&content)`
+# 呼び出しを追加し、新たに表示された content 配下の indicator（ネストの
+# 深さによらず全件）を再同期する。既存公開関数のシグネチャ変更を伴わない
+# 非破壊的変更のため patch バンプとし、0.20.3 を +1 した 0.20.4 とする。
+version = "0.20.4"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

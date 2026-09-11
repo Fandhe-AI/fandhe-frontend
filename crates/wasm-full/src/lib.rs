@@ -356,6 +356,7 @@ pub mod position;
 pub mod questionnaire;
 pub mod sidebar;
 pub mod splitter;
+pub mod tabs_indicator;
 pub mod tooltip;
 
 // イシュー #1120: `wasm-bindgen-exports` feature（既定 on）でエクスポート面を
