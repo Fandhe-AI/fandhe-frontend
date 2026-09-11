@@ -3261,13 +3261,18 @@ name = "fandhe-frontend-pre-styled-ui"
 #
 # イシュー #2211: tabs に `indicator` パーツ（選択中 trigger の下で
 # スライドする下線）の絶対配置・下線・トランジション CSS を追加した
-# （`recipe()` の `indicator` base/state 純追加、`list` へ `position:
-# relative` の 1 宣言追加）。書き込み先の CSS 変数（`--left`/`--top`/
+# （`recipe()` の `indicator` base/state 純追加。既存 `list` パーツへは
+# `position: relative` の 1 宣言追加のみで、それ以外の既存パーツの出力
+# バイトは変更していない）。書き込み先の CSS 変数（`--left`/`--top`/
 # `--width`/`--height`）は `fandhe-frontend-wasm-full`
 # （`crates/wasm-full/src/tabs_indicator.rs`）が実測して配線するが、
 # 未配線時は `var(..., 0px)` フォールバックで不可視のまま安全に留まる。
-# 既存パーツの出力バイトは変更していないため非破壊的な追加として
-# patch バンプとし、0.183.3 を +1 した 0.183.4 とする。
+# レビュー指摘是正: `indicator` へ `data-orientation="vertical"` state
+# （`border-bottom` → `border-inline-end` 切り替え）を追加したが、
+# `indicator` パーツ自体が本バージョンでの新規追加のため「既存パーツの
+# 出力バイト不変」の対象外であり非破壊性の評価に影響しない。
+# 純追加（既存パーツは `list` の 1 宣言のみ）のため patch バンプとし、
+# 0.183.3 を +1 した 0.183.4 とする。
 version = "0.183.4"
 
 

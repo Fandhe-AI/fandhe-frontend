@@ -80,6 +80,16 @@
 //! selected trigger（`.fd-tabs--variant-enclosed[data-state="active"]`）へ
 //! `border: 1px solid CanvasText` を足す。方向（`data-orientation`）に
 //! 依存しない単一セレクタで水平・垂直双方をカバーする。
+//!
+//! # イシュー #2211 レビュー指摘是正による golden 更新
+//!
+//! `indicator` パーツ（本イシューで新設）は `base` の `border-bottom` 固定
+//! のみで、vertical tabs（`trigger`/`list`/`content` は `border-inline-end`
+//! へ切り替え済み）で下線の向きが矛盾する指摘を受け、
+//! `[data-part="indicator"][data-orientation="vertical"]` state
+//! （`border-bottom: 0`/`border-inline-end` 追加）を新設した。座標
+//! （`left`/`top`/`width`/`height`）は軸に関わらず実測値へ追従するため、
+//! この state が切り替えるのは装飾の向きのみ。
 
 use fandhe_frontend_pre_styled_ui::tabs;
 
@@ -268,6 +278,11 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
 
 [data-scope="tabs"][data-part="indicator"][data-state="inactive"] {
   opacity: 0;
+}
+
+[data-scope="tabs"][data-part="indicator"][data-orientation="vertical"] {
+  border-bottom: 0;
+  border-inline-end: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
 [data-scope="tabs"][data-part="trigger"][data-state="active"] {

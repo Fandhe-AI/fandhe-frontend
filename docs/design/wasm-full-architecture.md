@@ -2563,6 +2563,18 @@ tabs は #601 で Zag 同名の契約が headless 側に既に存在するため
 をそのまま再利用する（`crates/pre-styled-ui/src/tabs.rs`・
 `navigation_menu.rs` のモジュール doc にも同旨を記録する）。
 
+**レビュー指摘是正: vertical tabs での装飾の向き**。本モジュールが
+書き込むのは座標（`left`/`top`/`width`/`height`）の 4 変数のみで、
+`data-orientation="vertical"` でも実測値どおりに追従するため座標自体は
+正しく動く。一方 `crates/pre-styled-ui/src/tabs.rs` の `indicator` base
+装飾は当初 `border-bottom` 固定のみだったため、vertical tabs（`trigger`/
+`list`/`content` は `border-inline-end` へ切り替え済み）で「縦に並んだ
+trigger の中段に水平の下線が引かれる」矛盾した見た目になっていた。
+是正として `indicator[data-orientation="vertical"]` state
+（`border-bottom: 0`/`border-inline-end` 追加）を `tabs.rs` へ追加した
+（`crates/pre-styled-ui/tests/tabs_css.rs` golden 更新済み）。本モジュール
+（wasm-full 側）の変更は不要（座標書き込みは軸に依存しないため）。
+
 ### 37.3 実測の数式・書き込み手段（CSSOM）
 
 `indicator` は `list` の padding box を包含ブロックとする絶対配置
@@ -2604,14 +2616,23 @@ CSSOM（`HtmlElement::style().set_property`/`remove_property`）を用い、
 `keynav` への非破壊的な内部統合（公開シグネチャ不変）のみのため、
 `fandhe-frontend-wasm-full` は 0.20.2 → 0.20.3 の patch バンプとする。
 `fandhe-frontend-pre-styled-ui` も `tabs` recipe への `indicator`
-base/state 純追加（既存パーツの出力バイト不変）のみのため 0.183.3 →
-0.183.4 の patch バンプとする。
+base/state 純追加（新設パーツであり既存 `list` パーツへの `position:
+relative` 1 宣言追加を除き既存パーツの出力バイトは不変）のみのため
+0.183.3 → 0.183.4 の patch バンプとする。レビュー指摘是正（vertical
+tabs での indicator 下線の向き是正、37.2 節参照）で追加した
+`indicator[data-orientation="vertical"]` state も同じ新設パーツへの
+追加のため、バンプ判断・バージョン値は変わらない。
 
 ### 37.7 契約テスト
 
 `crates/wasm-full/tests/tabs_indicator_browser.rs`（wasm32 ブラウザ実測、
 マウント時同期・click/automatic/manual 活性化・`indicator: false` の
-no-op を検証）・`crates/pre-styled-ui/tests/tabs_indicator_var_drift.rs`
+no-op を検証。レビュー指摘是正で「選択中 trigger が見つからない」・
+「`width`/`height` が 0 以下でレイアウト未確定」の 2 分岐と、
+`wire_headless_component` が実際に呼ぶ入口 [`sync_tabs_indicator`]
+（`wire_keynav` 経由の [`sync_tabs_indicator_in_list`] とは異なる
+`root` 走査経路）の直接契約テストを追加した）・
+`crates/pre-styled-ui/tests/tabs_indicator_var_drift.rs`
 （headless-ui の SSR 出力・wasm-full の定数と CSS 変数名が一致すること
-の native 突合）・`crates/pre-styled-ui/tests/tabs_css.rs`（golden CSS）
-が担う。
+の native 突合）・`crates/pre-styled-ui/tests/tabs_css.rs`（golden CSS。
+`indicator[data-orientation="vertical"]` state を追加）が担う。

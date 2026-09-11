@@ -150,7 +150,11 @@
 //!   `fandhe-frontend-wasm-full`（`crates/wasm-full/src/tabs_indicator.rs`）
 //!   が実測配線を実装したため、本モジュールも `[data-part="indicator"]`
 //!   の絶対配置 + `border-bottom`（下線）を追加した（[`recipe`] の
-//!   `indicator` base/state 参照）。**選択中 trigger の下線
+//!   `indicator` base/state 参照）。`data-orientation="vertical"` 時は
+//!   `trigger`/`list`/`content` と同じく `border-bottom` を `border-inline-end`
+//!   （縦の右側線）へ切り替える `state` を追加済み（レビュー指摘是正）。
+//!   座標（`left`/`top`/`width`/`height`）は軸に関わらず実測値へ追従する
+//!   ため、この状態が切り替えるのは装飾の向きのみ。**選択中 trigger の下線
 //!   （`trigger` state の `border-bottom-color`）と二重にならない理由**:
 //!   両者は同一の `color-palette` 強調色（`var(--fandhe-palette, ...)`）を
 //!   使うが、trigger 側は `margin-bottom: -1px` で `list` の 1px 罫線に
@@ -409,6 +413,26 @@ fn recipe() -> SlotRecipe {
             "indicator",
             StateCondition::AttrEq("data-state", "inactive"),
             vec![decl("opacity", "0")],
+        )
+        // レビュー指摘是正（イシュー #2211）: `trigger`/`list`/`content` は
+        // vertical 時に下線装飾を `border-bottom` から `border-inline-end`
+        // （縦の右側線）へ切り替える（本ファイル `vertical` 状態群参照）が、
+        // `indicator` の `base` は `border-bottom` 固定のままだったため、
+        // vertical tabs で「縦に並んだ trigger の中段に水平の下線が引かれる」
+        // 矛盾した見た目になっていた。trigger 側と同じ論理プロパティへ
+        // 切り替える（座標自体は `sync_tabs_indicator`
+        // が `left`/`top`/`width`/`height` として書き込むため軸に関わらず
+        // 正しく追従する。ここで是正するのは装飾の向きのみ）。
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-orientation", "vertical"),
+            vec![
+                decl("border-bottom", "0"),
+                decl(
+                    "border-inline-end",
+                    "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+            ],
         )
         // イシュー #551 受け入れ条件: 選択中の `trigger` を強調する。
         // イシュー #729: 強調色は `color-palette` variant（root へ登録される
@@ -1037,6 +1061,29 @@ mod tests {
         ));
         assert!(css.contains(
             "border-inline-end-color: var(--fandhe-palette, var(--fandhe-color-accent));"
+        ));
+    }
+
+    #[test]
+    fn indicator_switches_border_side_for_vertical_orientation() {
+        // レビュー指摘是正（イシュー #2211）: vertical tabs で indicator の
+        // 下線が trigger 側の border-inline-end（縦の右側線）と矛盾した
+        // 向き（水平の下線）のまま残らないことを固定する。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="tabs"][data-part="indicator"][data-orientation="vertical"] {"#
+        ));
+        let block_start = css
+            .find(r#"[data-scope="tabs"][data-part="indicator"][data-orientation="vertical"] {"#)
+            .expect("vertical indicator rule must exist");
+        let block_end = css[block_start..]
+            .find('}')
+            .map(|offset| block_start + offset)
+            .expect("vertical indicator rule must be closed");
+        let block = &css[block_start..block_end];
+        assert!(block.contains("border-bottom: 0;"));
+        assert!(block.contains(
+            "border-inline-end: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));"
         ));
     }
 

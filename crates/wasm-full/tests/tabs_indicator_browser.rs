@@ -23,8 +23,8 @@
 
 use fandhe_frontend_wasm_full::keynav::wire_keynav;
 use fandhe_frontend_wasm_full::tabs_indicator::{
-    sync_tabs_indicator_in_list, INDICATOR_HEIGHT_VAR, INDICATOR_LEFT_VAR, INDICATOR_TOP_VAR,
-    INDICATOR_WIDTH_VAR,
+    sync_tabs_indicator, sync_tabs_indicator_in_list, INDICATOR_HEIGHT_VAR, INDICATOR_LEFT_VAR,
+    INDICATOR_TOP_VAR, INDICATOR_WIDTH_VAR,
 };
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -450,4 +450,142 @@ fn direct_sync_call_matches_wire_keynav_result() {
     );
     assert!(!indicator.has_attribute("hidden"));
     assert_ne!(style_var(&indicator, INDICATOR_WIDTH_VAR), "0px");
+}
+
+/// レビュー指摘是正: 選択中（`data-state="active"`）の trigger が `list`
+/// 内に見つからない分岐（モジュール doc「書き込み順序」節 2.）を検証する。
+/// `data-state="inactive"`・`hidden` は設定されるが、4 変数は SSR 初期値
+/// のまま一切書き込まれない（この分岐が「触らない」ことを、初期値ではなく
+/// 事前に別値を設定した状態から検証し、コードが実際に無変更のままである
+/// ことを固定する）。
+#[wasm_bindgen_test]
+fn missing_active_trigger_leaves_four_vars_untouched() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    // `selected: None` のため、いずれの trigger にも `data-state="active"`
+    // が付かない（`build_tabs_dom_with_indicator` 参照）。
+    let root = build_tabs_dom_with_indicator(
+        &document,
+        "ti-noactive1",
+        &[("a", "A", false), ("b", "B", false)],
+        None,
+        "automatic",
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let list = document
+        .query_selector(r#"[data-scope="tabs"][data-part="list"]"#)
+        .unwrap()
+        .unwrap();
+    let indicator = indicator_of(&list);
+
+    // 「触らない」ことをこの呼び出し前後の差分で確認するため、SSR 初期値
+    // （0px）とは異なる値を事前に設定しておく。
+    indicator
+        .dyn_ref::<HtmlElement>()
+        .unwrap()
+        .style()
+        .set_property(INDICATOR_LEFT_VAR, "42px")
+        .unwrap();
+
+    sync_tabs_indicator_in_list(&list);
+
+    assert_eq!(
+        indicator.get_attribute("data-state").as_deref(),
+        Some("inactive")
+    );
+    assert!(indicator.has_attribute("hidden"));
+    assert_eq!(
+        style_var(&indicator, INDICATOR_LEFT_VAR),
+        "42px",
+        "選択中 trigger が無いとき --left は一切書き換わらないこと"
+    );
+}
+
+/// レビュー指摘是正: 実測 `width`/`height` が 0 以下（`display: none` 下等
+/// でレイアウト未確定）の分岐（モジュール doc「書き込み順序」節 3.）を
+/// 検証する。選択中 trigger 自体は見つかる（`data-state="active"`）が
+/// 矩形が 0 のため、4 変数への書き込み・`data-state`/`hidden` の更新の
+/// いずれも行われない。
+#[wasm_bindgen_test]
+fn zero_size_active_trigger_skips_write() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_tabs_dom_with_indicator(
+        &document,
+        "ti-zero1",
+        &[("a", "A", false), ("b", "B", false)],
+        Some("a"),
+        "automatic",
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger_a = document.get_element_by_id("ti-zero1-trigger-a").unwrap();
+    // `display: none` でレイアウトを未確定にする
+    // （`getBoundingClientRect()` が 0 矩形を返す）。
+    trigger_a
+        .set_attribute("style", "width: 40px; height: 20px; display: none;")
+        .unwrap();
+
+    let list = document
+        .query_selector(r#"[data-scope="tabs"][data-part="list"]"#)
+        .unwrap()
+        .unwrap();
+    let indicator = indicator_of(&list);
+
+    // SSR 初期状態: `selected` と一致するため `data-state="active"`・
+    // `hidden` なし・4 変数は `0px`（`build_tabs_dom_with_indicator` 参照）。
+    assert_eq!(
+        indicator.get_attribute("data-state").as_deref(),
+        Some("active")
+    );
+    assert!(!indicator.has_attribute("hidden"));
+
+    sync_tabs_indicator_in_list(&list);
+
+    // 0 矩形のため書き込みは一切発生せず、SSR 初期状態のまま。
+    assert_eq!(style_var(&indicator, INDICATOR_WIDTH_VAR), "0px");
+    assert_eq!(style_var(&indicator, INDICATOR_HEIGHT_VAR), "0px");
+    assert_eq!(
+        indicator.get_attribute("data-state").as_deref(),
+        Some("active")
+    );
+    assert!(!indicator.has_attribute("hidden"));
+}
+
+/// レビュー指摘是正: `crate::headless::wire_headless_component`
+/// が実際に呼ぶ入口 [`sync_tabs_indicator`]（`list` を直接受け取る
+/// [`sync_tabs_indicator_in_list`] とは異なり、`root` 配下を
+/// `query_selector_all` で走査して所属 `list` を都度解決する経路）を
+/// `wire_keynav` を経由せず直接契約テストする。
+#[wasm_bindgen_test]
+fn sync_tabs_indicator_root_entry_point_updates_descendant_indicator() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_tabs_dom_with_indicator(
+        &document,
+        "ti-rootentry1",
+        &[("a", "A", false), ("b", "B", false)],
+        Some("a"),
+        "automatic",
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let list = document
+        .query_selector(r#"[data-scope="tabs"][data-part="list"]"#)
+        .unwrap()
+        .unwrap();
+    let indicator = indicator_of(&list);
+
+    assert_eq!(style_var(&indicator, INDICATOR_WIDTH_VAR), "0px");
+
+    sync_tabs_indicator(&root).expect("sync_tabs_indicator must succeed");
+
+    assert_eq!(
+        indicator.get_attribute("data-state").as_deref(),
+        Some("active")
+    );
+    assert!(!indicator.has_attribute("hidden"));
+    assert_ne!(style_var(&indicator, INDICATOR_WIDTH_VAR), "0px");
+    assert_ne!(style_var(&indicator, INDICATOR_HEIGHT_VAR), "0px");
 }
