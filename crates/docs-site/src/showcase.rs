@@ -7592,12 +7592,21 @@ fn rating_group_section() -> Node {
     )
 }
 
-/// Slider 節: 中間値・境界値（max 到達）・disabled の 3 態。
+/// Slider 節: horizontal 5 態（中間値・境界値〔max 到達〕・disabled・
+/// readonly・invalid）+ vertical（marker 付き）1 態。
 ///
 /// `range`/`thumb` の塗りつぶし・位置は headless 中立な
 /// [`Slider::percent`] から導出する `--fandhe-slider-percent` CSS custom
 /// property の 1 点のみで伝搬する
 /// （`fandhe_frontend_pre_styled_ui::slider` のモジュール doc 参照）。
+///
+/// イシュー #2216: vertical インスタンスは marker（0/50/100）の見た目を
+/// 目視確認できるページが従来存在しなかったため追加した。vertical では
+/// `marker` の位置も `--fandhe-slider-marker-percent` を `bottom` から
+/// 参照する状態規則（`crates/pre-styled-ui/src/slider.rs` の vertical 状態
+/// 規則）へ切り替わり、塗りつぶし・つまみ・marker のいずれも下端起点で
+/// 伝搬する。horizontal 5 態と高さが揃わないため、align-items: center の
+/// `.showcase-row` を分けて 2 行構成にする。
 fn slider_section() -> Node {
     let mid_props = slider::SliderProps::default();
     let mid_state = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
@@ -7777,11 +7786,55 @@ fn slider_section() -> Node {
         ],
     );
 
+    // イシュー #2216: vertical + marker（0/50/100）。horizontal mid と
+    // 同じ marker 値にして横縦の比較を可能にする。
+    let vertical_props = slider::SliderProps::default();
+    let vertical_state = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Vertical);
+    let vertical = slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &vertical_state,
+        &vertical_props,
+        vec![],
+        vec![
+            slider::label(&vertical_props, vec![], vec![text("Vertical")]),
+            slider::control(
+                Orientation::Vertical,
+                &vertical_props,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Vertical,
+                        &vertical_props,
+                        vec![],
+                        vec![slider::range(&vertical_state, &vertical_props, vec![])],
+                    ),
+                    slider::thumb_styled(
+                        &vertical_state,
+                        Some("40 percent"),
+                        &vertical_props,
+                        vec![],
+                    ),
+                    slider::marker_group(
+                        vec![],
+                        vec![
+                            slider::marker(&vertical_state, 0.0, false, vec![], vec![]),
+                            slider::marker(&vertical_state, 50.0, false, vec![], vec![]),
+                            slider::marker(&vertical_state, 100.0, false, vec![], vec![]),
+                        ],
+                    ),
+                ],
+            ),
+            slider::hidden_input("volume-vertical", "40", false, vec![]),
+        ],
+    );
+
     let demo_row = row(vec![mid, at_max, disabled, readonly, invalid]);
+    let vertical_row = row(vec![vertical]);
     section(
         "Slider",
-        "min/max/step でクランプされる連続値スライダー。塗りつぶし・つまみの位置は --fandhe-slider-percent の 1 点で伝搬します。",
-        vec![demo_row],
+        "min/max/step でクランプされる連続値スライダー。塗りつぶし・つまみの位置は --fandhe-slider-percent の 1 点で伝搬します。vertical では塗りつぶし・つまみ・marker がいずれも下端起点で伝搬します。",
+        vec![demo_row, vertical_row],
     )
 }
 
