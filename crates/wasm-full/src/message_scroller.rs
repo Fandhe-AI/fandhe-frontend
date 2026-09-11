@@ -704,65 +704,124 @@ mod wiring {
         Some((instance_root, viewport))
     }
 
-    /// `start`（自身を含む）が、会話リスト本体（`content` 配下の最も
-    /// 浅い `data-bind-list`。`content` 自身が直接リストの親になる
-    /// 「フラットな keyed list」構成も含む）より深いネストした
-    /// `data-bind-list`（添付・リアクション・ツールステップ等）の内部に
-    /// あるかを判定する（[`first_relevant_change`] が会話リスト本体への
-    /// 変更のみを Prepend/Grow 判定対象にするための補助。childList 経路
-    /// （target がリスト要素自身）と characterData 経路（target が
-    /// `Text` ノードの親要素、リストの子孫要素であることが多い）の
-    /// **両方から同じ判定関数を使う**）。
+    /// 会話リスト本体を解決する: `content` 自身が `data-bind-list` を
+    /// 持てば `content` 自身（フラットな keyed list 構成）、そうでなければ
+    /// `content` 配下で最も浅い `data-bind-list`（幅優先探索で求める。
+    /// メッセージ内部にネストした `data-bind-list`〔添付・リアクション等〕
+    /// より必ず浅い階層で見つかる）。`content` 配下のどこにも
+    /// `data-bind-list` が無ければ `content` 自身を会話リストとみなす
+    /// （keyed list を使わない素の追記構成、`build_message_scroller` の
+    /// テストフィクスチャ等）。
     ///
-    /// 判定は 2 段階: (1) `start` から `content` 方向へ祖先歩行し、
-    /// `start` 自身を含めて最初に見つかった `data-bind-list` 要素
-    /// （`nearest_list`）を求める。見つからなければ `start` はどの
-    /// リストにも属さない（`false`）。(2) `nearest_list` からさらに
-    /// `content` 方向へ祖先歩行し、`nearest_list` より浅い（＝より
-    /// `content` に近い）別の `data-bind-list` が無いか確認する。無ければ
-    /// `nearest_list` は会話リスト本体そのもの（`start` が `nearest_list`
-    /// 自身であっても、その子孫〔メッセージ要素・本文 `span` 等〕で
-    /// あっても）であり除外しない（`false`）。見つかれば `nearest_list`
-    /// は会話リストより深いネストしたリストであり除外する（`true`）。
-    ///
-    /// 正規のレイアウト（`content` → `data-bind-list="messages"` →
-    /// メッセージ要素 → `span` → `Text`）で、characterData 経路が本文
-    /// `span` から祖先歩行して `messages` に到達した場合、`messages` は
-    /// `content` の直下（`messages` からさらに祖先を辿っても `content`
-    /// までの間に別の `data-bind-list` は無い）ため `false`（除外しない）
-    /// と正しく判定される。旧実装（`has_nested_bind_list_ancestor`、
-    /// codex-review P1 / Cursor Bugbot 指摘 PR #2312）は `start` の祖先に
-    /// `data-bind-list` を持つ要素が 1 つでもあれば無条件に `true` を
-    /// 返していたため、会話リスト本体自身（`messages`）を「ネストした
-    /// bind-list」と誤検出し、通常の本文ストリーミング更新
-    /// （`appendData`/`nodeValue`）まで除外してしまっていた。
-    fn is_within_nested_bind_list(content: &Element, start: &Element) -> bool {
-        let mut current = Some(start.clone());
-        let mut nearest_list: Option<Element> = None;
-        while let Some(element) = current {
+    /// [`classify_target`] が「会話リスト本体そのものへの変更」と
+    /// 「会話リストより深いネストした二次的な bind-list への変更」を
+    /// 区別するための基準点として使う（コーディネータ指摘、PR #2312:
+    /// 旧実装は 2 段階の祖先歩行ヒューリスティックで代用しており、
+    /// フラット構成〔`content` 自身が `data-bind-list`〕で `content` 自身の
+    /// 属性を見ずに探索を打ち切っていたため、メッセージ内の `attachments`
+    /// を会話リスト本体と誤認していた）。
+    fn conversation_list(content: &Element) -> Element {
+        if content.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR) {
+            return content.clone();
+        }
+        let mut queue: std::collections::VecDeque<Element> = std::collections::VecDeque::new();
+        let mut sibling = content.first_element_child();
+        while let Some(element) = sibling {
+            sibling = element.next_element_sibling();
+            queue.push_back(element);
+        }
+        while let Some(element) = queue.pop_front() {
             if element.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR) {
-                nearest_list = Some(element);
-                break;
+                return element;
             }
-            if !content.contains(Some(&element)) || element == *content {
+            let mut child = element.first_element_child();
+            while let Some(c) = child {
+                child = c.next_element_sibling();
+                queue.push_back(c);
+            }
+        }
+        content.clone()
+    }
+
+    /// [`first_relevant_change`] が `Prepend`/`Grow` 判定の対象にしてよい
+    /// 変更かどうかを分類した結果。
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum TargetRelevance {
+        /// `target_element` が会話リスト本体（[`conversation_list`]）
+        /// そのもの。先頭挿入かどうかで `Prepend`/`Grow` を判定できる。
+        ConversationList,
+        /// 会話リスト本体の内側（またはリストを使わない `content` 直下）
+        /// だが、リスト本体自身ではない要素への変更。`Prepend` 候補には
+        /// せず `Grow` の根拠としてのみ扱う。
+        Other,
+    }
+
+    /// `record.target()`（`childList`）または `Text` ノードの親要素
+    /// （`characterData`）から `content` まで祖先歩行し（**両端を含む**:
+    /// `target_element` 自身・`content` 自身の属性も確認する）、この変更が
+    /// scroller レベルの `Prepend`/`Grow` 判定対象かを分類する。
+    ///
+    /// 判定は 1 回の祖先歩行で完結する: `target_element` から `content`
+    /// （含む）まで歩きながら、(a) ネストした message-scroller インスタンス
+    /// の `root`（`data-scope="message-scroller"`/`data-part="root"`）を
+    /// 跨げば `None`（別インスタンスの変異、`scoped_parts` と同じネスト
+    /// 分離パターン）、(b) [`conversation_list`] **以外**の `data-bind-list`
+    /// を跨げば `None`（会話リストより深いネストした二次的なリスト
+    /// 〔添付・リアクション・ツールステップ等〕への変更、閲覧中の会話とは
+    /// 無関係な二次的コンテンツのため `scrollTop` 補正・`data-has-new` の
+    /// 根拠にしない）。どちらにも該当しなければ対象とし、`target_element`
+    /// が会話リスト本体そのものなら
+    /// [`TargetRelevance::ConversationList`]、そうでなければ
+    /// [`TargetRelevance::Other`] を返す。
+    ///
+    /// **`childList`（target がリスト要素自身、または `data-bind-list` を
+    /// 持たない任意の子孫要素）と `characterData`（target が `Text` ノード
+    /// の親要素）の両方から、record の種類・target の種類を問わず
+    /// この 1 つの関数を呼ぶ**（コーディネータ指摘、PR #2312 再指摘 3 件の
+    /// 根本原因: 経路ごとに別のヒューリスティックを持っていたため、
+    /// (1) childList で `data-bind-list` を持たない target〔ネストした
+    /// `attachments` 内の `span` を `set_text_content` で更新する等〕は
+    /// ネスト除外を経由せず Grow 扱いになり、同じ要素を `characterData`
+    /// 〔`appendData`〕で更新した場合と挙動が食い違っていた。(2)(3)
+    /// フラット構成〔`content` 自身が `data-bind-list`〕で、祖先歩行が
+    /// `content` に到達した時点で `content` 自身の属性を確認せず打ち切る
+    /// 2 段階ヒューリスティックが、メッセージ内の `attachments` を会話
+    /// リスト本体と誤認していた。単一の祖先歩行で `content` 自身の属性も
+    /// 含めて判定する本関数はこの 3 件すべてを構造的に解消する）。
+    fn classify_target(content: &Element, target_element: &Element) -> Option<TargetRelevance> {
+        if target_element != content && !content.contains(Some(target_element)) {
+            return None;
+        }
+        let conversation = conversation_list(content);
+        let mut current = Some(target_element.clone());
+        loop {
+            let Some(element) = current else {
+                break;
+            };
+            // (a) ネストした別インスタンスの root を跨ぐ場合は除外。
+            if element.get_attribute("data-scope").as_deref() == Some(SCOPE)
+                && element.get_attribute("data-part").as_deref() == Some(PART_ROOT)
+            {
+                return None;
+            }
+            // (b) 会話リスト本体以外の data-bind-list を跨ぐ場合は除外
+            // （会話リスト本体自身は跨いでもよい・むしろ跨ぐことが
+            // ConversationList 判定の前提）。
+            if element.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR)
+                && element != conversation
+            {
+                return None;
+            }
+            if element == *content {
                 break;
             }
             current = element.parent_element();
         }
-        let Some(nearest_list) = nearest_list else {
-            return false;
-        };
-        let mut current = nearest_list.parent_element();
-        while let Some(element) = current {
-            if !content.contains(Some(&element)) || element == *content {
-                break;
-            }
-            if element.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR) {
-                return true;
-            }
-            current = element.parent_element();
+        if *target_element == conversation {
+            Some(TargetRelevance::ConversationList)
+        } else {
+            Some(TargetRelevance::Other)
         }
-        false
     }
 
     /// 今回のバッチが scroller レベルの `Prepend`/`Grow` 分類（`scrollTop`
@@ -770,22 +829,22 @@ mod wiring {
     /// （[`classify_change`] の `first_added_is_prepend` 引数用）。
     ///
     /// 戻り値は 3 通り:
-    /// - `Some(true)`: 会話リスト本体（`content` 自身、または `content`
-    ///   配下の最も浅い `data-bind-list`）へ、追加ノード群がその親の先頭
-    ///   （`previousSibling` が無い位置）へ**既存ノードの前に**挿入された
-    ///   （先頭挿入 = Prepend）。viewport のジオメトリには依存しない
-    ///   （`content` の上部 padding の影響を受けない、レビュー指摘 #2122
-    ///   line 196）。
+    /// - `Some(true)`: 会話リスト本体（[`conversation_list`]）へ、
+    ///   追加ノード群がその親の先頭（`previousSibling` が無い位置）へ
+    ///   **既存ノードの前に**挿入された（先頭挿入 = Prepend）。viewport の
+    ///   ジオメトリには依存しない（`content` の上部 padding の影響を
+    ///   受けない、レビュー指摘 #2122 line 196）。
     /// - `Some(false)`: 会話リスト本体への追加だが先頭挿入ではない
-    ///   （末尾追記等）、または会話リスト以外の `content` 配下の記述子
-    ///   （`bind_text` によるストリーミング本文のテキスト置換等）への
-    ///   変更があり、身元は特定できないが高さ増分は正当な成長
+    ///   （末尾追記等）、または [`TargetRelevance::Other`]（会話リストの
+    ///   内側の子孫・`bind_text` によるストリーミング本文のテキスト置換・
+    ///   `characterData` によるテキスト更新等）で、高さ増分は正当な成長
     ///   （`Grow`）として扱ってよい。
     /// - `None`: 今回のバッチに、scroller レベルの分類対象となる変更が
-    ///   一切無い（ネストした message-scroller インスタンス・ネストした
-    ///   keyed list のみへの変更だった等）。呼び出し側は `scrollTop`
-    ///   補正・`data-has-new` 付与のいずれも行わないこと
-    ///   （`ContentChange::None` 相当）。
+    ///   一切無い（ネストした message-scroller インスタンス・会話リストより
+    ///   深いネストした `data-bind-list` のみへの変更だった等、
+    ///   [`classify_target`] がすべての record で `None` を返した場合）。
+    ///   呼び出し側は `scrollTop` 補正・`data-has-new` 付与のいずれも
+    ///   行わないこと（`ContentChange::None` 相当）。
     ///
     /// `previousSibling` が無いことに加えて `nextSibling` が存在する
     /// ことも要求する: 空リスト（または空の `data-bind-list`）への
@@ -797,42 +856,15 @@ mod wiring {
     /// 付与されない（Free 状態は位置を維持して新着を通知する契約に
     /// 反する）不具合を修正する（codex-review 指摘 #2122 line 789）。
     ///
-    /// ネストした message-scroller インスタンス（`content` 配下の別
-    /// インスタンスの `content`/`root`）への挿入は対象に含めない:
-    /// target から `content`（境界）までの間に `data-part="root"` が
-    /// 見つかれば、そのネストしたインスタンス自身の変異であり外側の
-    /// 分類（`scrollTop` 補正・`data-has-new`）へ波及させてはならない
-    /// （`scoped_parts` と同じネスト分離パターン、Bugbot 指摘 line 722:
-    /// 従来の `content.contains(target_element)` 判定のみでは
-    /// ネストしたインスタンスの `content` への挿入も外側の分類に
-    /// 漏れ込んでいた）。
-    ///
-    /// メッセージ 1 件の内部にネストした keyed list（添付・リアクション・
-    /// ツールステップ等、それ自身も `data-bind-list` を持つ）への変更は
-    /// `Some(false)`（ストリーミング本文と同じ「身元不明だが成長として
-    /// 許容」扱い）にせず、明示的に判定対象から除外する（会話リスト本体
-    /// への変更が同一バッチに 1 件も無ければ `None` を返す）。ネストした
-    /// リストの成長は、閲覧中の会話とは無関係な二次的コンテンツ（添付・
-    /// リアクション数等）であり、履歴読み込みのような `scrollTop` 補正や
-    /// 「新着メッセージが来た」ことを示す `data-has-new` の根拠にすべき
-    /// ではないため（Bugbot 指摘 PR #2312、`message_scroller.rs:772-784`）。
-    ///
-    /// `characterData` レコード（既存 Text ノードの `nodeValue`/
+    /// `characterData` レコード（既存 `Text` ノードの `nodeValue`/
     /// `appendData` によるストリーミング本文更新）の `target` は `Text`
     /// ノードであり `Element` へダウンキャストできないため、
     /// [`resolve_instance_from_record`] と同じパターンで `parent_element()`
-    /// により要素へ解決してから境界判定（`content` 配下か・ネスト除外）を
-    /// 行う。`characterData` レコードは `added_nodes()` が常に空
-    /// （`childList` レコードのみが要素追加を持つ）であるため、`bind_text`
-    /// の `set_text_content` 経由（`childList` レコードとして観測される）
-    /// とは別に、`added_nodes().length() == 0` による除外の対象外として
-    /// 明示的に「身元不明だが成長として許容」扱い（`Some(false)`）へ
-    /// 合流させる（codex-review 指摘 PR #2312: `Element` 判定で
-    /// `characterData` レコードが必ず除外され、`Bottom` の最下部追従・
-    /// `Free` の `data-has-new` 付与のいずれも機能しなかった不具合の
-    /// 是正）。ネストした `data-bind-list` 内で発生した `characterData`
-    /// 更新（例: 添付の説明テキストのストリーミング）は、前回修正の
-    /// ネスト除外方針との整合を保つため同じく除外する。
+    /// により要素へ解決してから [`classify_target`] へ渡す。`characterData`
+    /// レコードは `added_nodes()` が常に空（`childList` レコードのみが
+    /// 要素追加を持つ）であるため、`added.length() == 0` による除外より
+    /// 前に判定を完結させ、[`classify_target`] が対象と判定した場合は
+    /// 常に成長根拠（`has_growth_evidence`）へ合流させる。
     fn first_relevant_change(records: &[MutationRecord], content: &Element) -> Option<bool> {
         // 会話リスト本体以外（例: ストリーミング本文のテキスト置換）で、
         // 高さ増分を正当な成長として扱ってよい変更を確認したかどうか。
@@ -843,8 +875,7 @@ mod wiring {
             };
             // `characterData` レコードの `target` は `Text` ノードのため
             // `Element` へダウンキャストできない。`resolve_instance_from_record`
-            // と同じパターンで `parent_element()` により要素へ解決する
-            // （codex-review 指摘 PR #2312、上記 doc 参照）。
+            // と同じパターンで `parent_element()` により要素へ解決する。
             let target_element: Element = if let Some(element) = target.dyn_ref::<Element>() {
                 element.clone()
             } else {
@@ -856,31 +887,10 @@ mod wiring {
                 };
                 parent
             };
-            // `content` 自身への挿入（フラットな keyed list）に加え、
-            // `content` 配下にネストした keyed list（入れ子のリスト要素が
-            // target になるレコード）への挿入も対象に含める。`target_element
-            // != content` の完全一致判定のみだと、target が `content` の
-            // 子孫要素であるレコードを取りこぼし、Prepend が誤って Grow
-            // 扱いになる（レビュー指摘 #2122）。
-            if target_element != *content && !content.contains(Some(&target_element)) {
+            let Some(relevance) = classify_target(content, &target_element) else {
                 continue;
-            }
-            // target から content までの間にネストした message-scroller の
-            // `root` が見つかれば、それは別インスタンスの変異なのでこの
-            // レコードは対象外として次のレコードを見る。
-            if closest_matching(content, &target_element, PART_ROOT).is_some() {
-                continue;
-            }
+            };
             if record.type_() == "characterData" {
-                // Bugbot 指摘（PR #2312、`first_relevant_change`）:
-                // `characterData` レコードは `added_nodes()` を持たない
-                // ため、下記の `added.length() == 0` 除外の対象になる前に
-                // ここで判定を完結させる。会話リストより深いネストした
-                // `data-bind-list` 内でのテキスト更新は、上記ネスト除外の
-                // 方針と整合させ、成長根拠に含めない。
-                if is_within_nested_bind_list(content, &target_element) {
-                    continue;
-                }
                 has_growth_evidence = true;
                 continue;
             }
@@ -888,26 +898,7 @@ mod wiring {
             if added.length() == 0 {
                 continue;
             }
-            // target 自身が `content` そのもの、または `keyed_list()`
-            // （`fandhe-frontend-core::keyed`）が出力するリストの親要素
-            // （`BIND_LIST_ATTR` = `data-bind-list` を持つ要素。§31.8 が
-            // サポート経路とする「`content` 配下を keyed list で差分更新」
-            // 構成における実際の挿入先はこの要素であり、`content` 自身とは
-            // 限らない）であれば、会話リスト本体への変更の候補となる。
-            let is_bind_list_target = target_element == *content
-                || target_element.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR);
-            if is_bind_list_target {
-                // Bugbot 指摘（PR #2312、line 772-784）: メッセージ 1 件の
-                // 内部にネストした keyed list（会話リストより深い、それ
-                // 自身も `data-bind-list` を持つ）への変更を、会話リスト
-                // 本体への挿入と取り違えていた。ネストしたリストはこの
-                // 判定から完全に除外し（`has_growth_evidence` にも寄与
-                // させない）、次のレコードを見る。
-                if target_element != *content
-                    && is_within_nested_bind_list(content, &target_element)
-                {
-                    continue;
-                }
+            if relevance == TargetRelevance::ConversationList {
                 // 前後どちらにも既存ノードが無い（`nextSibling` も無い）
                 // 場合は空リストへの初回追加であり、先頭挿入ではない。
                 return Some(
@@ -923,11 +914,9 @@ mod wiring {
             // 持たない）。本文内で子要素だけを追加するケース（テキスト
             // ではなく Element を追記する段階的レンダリング）の target も
             // 同様に `data-bind-list` を持たない子孫要素である。これらは
-            // `content`/`data-bind-list` 要素そのものへの挿入ではないが、
-            // 会話の一部として表示される本文の成長であるため、Prepend
-            // には分類せず（先頭挿入と誤判定しない、レビュー指摘 #2122:
-            // codex-review P1 / Cursor Bugbot 双方）、Grow の根拠としては
-            // 許容する。
+            // 会話リスト本体そのものへの挿入ではないが、会話の一部として
+            // 表示される本文の成長であるため、Prepend には分類せず
+            // （先頭挿入と誤判定しない）、Grow の根拠としては許容する。
             has_growth_evidence = true;
         }
         if has_growth_evidence {
