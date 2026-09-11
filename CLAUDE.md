@@ -4,10 +4,10 @@
 
 Rust 製フロントエンドフレームワーク。AI 時代のセキュリティリスク低減を目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ SSR / SPA / SSG / トランジションなどモダン機能を網羅する。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とする。
 
-- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み。リポジトリ名は #439 で `Fandhe-AI/fandhe-frontend` へ改名済み。全 9 クレート（fandhe-frontend-core / -interactive / -app / -server / -wasm-client / -wasm-full / -wasm-thin / -dist-server / -cli）は v0.1.0 で 2026-07-20 に crates.io へ公開済み。加えて `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui`（ark-ui / chakra-ui 参考の 2 層 UI コンポーネント構成、親トラッキング #520 で新設）も v0.1.0 で crates.io へ公開済み（イシュー #608）
+- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み。リポジトリ名は #439 で `Fandhe-AI/fandhe-frontend` へ改名済み。全 9 クレート（fandhe-frontend-core / -interactive / -app / -server / -wasm-client / -wasm-full / -wasm-thin / -dist-server / -cli）は v0.1.0 で 2026-07-20 に crates.io へ公開済み。加えて `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui`（ark-ui / chakra-ui 参考の 2 層 UI コンポーネント構成、親トラッキング #520 で新設）も v0.1.0 で crates.io へ公開済み（イシュー #608）。さらに `fandhe-animation` / `fandhe-frontend-animation`（Motion 参照方針に基づくアニメーション演算コア・Web アダプタの 3 層構成、親トラッキング #2365 配下 #2371 / #2417 で雛形作成予定、未公開）
 - 仕様書は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) を `docs/spec/` サブモジュールとして取り込み管理
 - 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `fandhe-frontend-core` 既定エスケープの製品化）
-- 計画クレート: `fandhe-frontend-core`（描画コア・外部依存ゼロ）/ `fandhe-frontend-app` / `fandhe-frontend-server`（SSR/SSG）/ `fandhe-frontend-wasm-client`・`fandhe-frontend-wasm-full`（WASM/CSR）/ `fandhe-frontend-interactive`（状態管理）/ `fandhe-frontend-headless-ui`（headless UI コンポーネント層、#520）/ `fandhe-frontend-pre-styled-ui`（pre-styled UI コンポーネント層、#520）/ `xtask`（CI 計測）/ `fandhe-frontend-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
+- 計画クレート: `fandhe-frontend-core`（描画コア・外部依存ゼロ）/ `fandhe-frontend-app` / `fandhe-frontend-server`（SSR/SSG）/ `fandhe-frontend-wasm-client`・`fandhe-frontend-wasm-full`（WASM/CSR）/ `fandhe-frontend-interactive`（状態管理）/ `fandhe-frontend-headless-ui`（headless UI コンポーネント層、#520）/ `fandhe-frontend-pre-styled-ui`（pre-styled UI コンポーネント層、#520）/ `fandhe-animation`（プラットフォーム非依存のアニメーション演算基幹。外部依存ゼロ・`forbid(unsafe_code)`、将来別リポジトリへ切り出し前提、#2365/#2371）/ `fandhe-frontend-animation`（Web アダプタ。`fandhe-animation` + wasm-bindgen / web-sys / js-sys のみに依存し `fandhe-frontend-wasm-full` には依存しない、#2365/#2417）/ `xtask`（CI 計測）/ `fandhe-frontend-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
 
 ## Repository Structure
 
@@ -101,11 +101,13 @@ fandhe-frontend/
 crates/
 ├── core/          # fandhe-frontend-core: 描画コア・外部依存ゼロ
 ├── interactive/   # fandhe-frontend-interactive: 状態管理コア
+├── animation/     # fandhe-animation: アニメーション演算基幹（外部依存ゼロ・`forbid(unsafe_code)`。プラットフォーム非依存の値・イージング・タイムライン計算のみを担い、将来別リポジトリへの切り出しを前提とした設計。`fandhe-frontend-animation` が唯一の依存元、`docs/design/animation-core-architecture.md` 参照。雛形は #2371 で追加）
 ├── app/           # fandhe-frontend-app: モード非依存の共通コンポーネント
 ├── server/        # fandhe-frontend-server: SSR/SSG エントリ
 ├── wasm-client/   # fandhe-frontend-wasm-client: クライアントランタイム基盤
 ├── wasm-full/     # fandhe-frontend-wasm-full: CSR/ハイドレーション フルセット（配線群別 feature 15 件 + scope feature 16 件、既定 on、#2326/#2327。`default-features = false` 利用者の移行手順は `docs/guides/wasm-full-features.md`）
 ├── wasm-thin/     # fandhe-frontend-wasm-thin: CSR/ハイドレーション 最小構成
+├── frontend-animation/  # fandhe-frontend-animation: Web アニメーションアダプタ（`fandhe-animation` の演算結果を wasm-bindgen / web-sys / js-sys で DOM/Web Animations API へ適用する層。`fandhe-frontend-wasm-full` には依存しない独立クレートで、`crates/wasm-full/` が optional 依存として取り込む配線層を担う。依存方向は `fandhe-animation ← fandhe-frontend-animation ← wasm-full(optional)`、`docs/design/animation-core-architecture.md` 参照。雛形は #2417 で追加）
 ├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー（配布 WASM は `src/wasm_dist_features.rs` の最小インタラクティブ構成 6 feature、#2329。`build.rs` と `wasm-full/tests/bundle_size.rs` が `#[path]` 共有）
 ├── headless-ui/   # fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-*・WAI-ARIA、イシュー #520/#522）
 ├── pre-styled-ui/ # fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）
@@ -121,7 +123,10 @@ crates/
 宣言し、依存宣言の論理名（`<name>`）とは独立して実配置を表す
 （`docs/design/structure-manifest.md` §2.2.0a 参照）。`fw new` が生成する
 ユーザープロジェクト（`templates/`）は `path` を使わないフラット配置のまま
-不変。
+不変。`animation` / `frontend-animation` の `[directories.*]` 宣言は crate 実体
+（`Cargo.toml`・`src/`）が揃うまでコメント化しておき、雛形作成と同一 PR で
+有効化する（`fw structure` の実在確認・`fw gate` の `-p` 契約が宣言を先行
+有効化した時点で fail するため、#2371 / #2417 側の対応）。
 
 ## 委譲方針（必読）
 
@@ -133,8 +138,10 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 |---------|-------------|
 | `crates/core/` `crates/interactive/` | core-builder |
 | `crates/headless-ui/` `crates/pre-styled-ui/` | core-builder |
+| `crates/animation/` | core-builder |
 | `crates/app/` `crates/server/` | server-builder |
 | `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` `static/` | wasm-builder |
+| `crates/frontend-animation/` | wasm-builder |
 | `crates/xtask/` `crates/cli/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
 | `docs/`（spec 以外）・CLAUDE.md | docs-writer |
 | `docs/spec/`（読み取り調査） | explorer |
@@ -157,9 +164,9 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 |---------|---------------|-------|------|
 | research | explorer | sonnet | コードベース・`docs/spec/` 横断調査（読み取り専用） |
 | research | reference-researcher | sonnet | 外部仕様（Rust / WASM / Web 標準 / 依存クレート）調査 |
-| implement | core-builder | sonnet | `crates/core/` `crates/interactive/` — 描画・状態管理コア（`forbid(unsafe_code)` 域） |
+| implement | core-builder | sonnet | `crates/core/` `crates/interactive/` `crates/animation/` — 描画・状態管理・アニメーション演算コア（`forbid(unsafe_code)` 域） |
 | implement | server-builder | sonnet | `crates/app/` `crates/server/` — SSR / SSG / ルーティング |
-| implement | wasm-builder | sonnet | `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` `static/` — CSR / ハイドレーション / WASM |
+| implement | wasm-builder | sonnet | `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` `crates/frontend-animation/` `static/` — CSR / ハイドレーション / WASM / Web アニメーションアダプタ |
 | implement | tooling-builder | sonnet | `crates/xtask/` / CI / Dockerfile / cargo-deny / 単一バイナリ配布 / AI 自己保守フック |
 | testing | test-runner | sonnet | `cargo test` / XSS 回帰 / wasm テストの実行と失敗分析 |
 | quality | reviewer | sonnet | 仕様準拠・アーキテクチャ整合・Rust イディオムのレビュー |

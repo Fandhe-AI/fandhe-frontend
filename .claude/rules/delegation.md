@@ -21,6 +21,9 @@ main セッションのコンテキスト消費を抑え、指揮・統合・ユ
 | Rust / wasm-bindgen / web-sys / axum / cargo-deny 等の外部仕様 | reference-researcher（sonnet） |
 | アーキテクチャ設計・クレート境界の横断判断 | opus / fable（Plan Agent または main で慎重に） |
 
+`crates/animation/`・`crates/frontend-animation/` の実装委譲先は
+`delegation-impl.md` に従う（core-builder / wasm-builder）。
+
 ## 設計フェーズ
 
 - 実装方針の設計は create-plan スキル（`_/local-plans/`）または implement-issue の計画立案を使用する

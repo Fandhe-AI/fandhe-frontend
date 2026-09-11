@@ -27,6 +27,12 @@
 # cargo check/clippy/test を実行するため、lib ターゲットも自動的に検証
 # 対象へ含まれて PASS する。本ファイルの更新が必要になるのは、`crates/`
 # 配下へ新規**パッケージ**（新クレート）を追加する場合のみである。
+#
+# 新規クレートの宣言は crate 実体（Cargo.toml・src/）と同一 PR で有効化する
+# （`fw structure` のディレクトリ実在確認・`fw gate` の `-p` 実行契約により、
+# 宣言だけを先行有効化すると fail するため）。実体が未着手の段階で宣言の
+# 内容だけを確定させておきたい場合はコメント化して残す（`animation` /
+# `frontend-animation` 節を参照）。
 
 [manifest]
 version = 1
@@ -45,6 +51,20 @@ description = "状態管理コア（forbid(unsafe_code) 域）"
 depends_on = ["core"]
 allowed_dependents = ["wasm-full", "wasm-thin", "wasm-client", "headless-ui", "xtask"]
 path = "crates/interactive"
+
+# fandhe-animation（アニメーション演算基幹）の宣言草案（イシュー #2368）。
+# crate 実体（Cargo.toml・src/）が揃うまではコメントのまま残す。`fw
+# structure` のディレクトリ実在確認・`fw gate` の `-p <crate>` 実行契約が、
+# 宣言だけを先行有効化すると即座に fail するため（`crates/cli/src/main.rs`
+# のディレクトリ実在確認・workspace member 突合、`crates/cli/src/gate.rs`
+# の declared_crate_names 経由の cargo check/clippy/test 実行）。有効化は
+# イシュー #2371（crate 雛形の追加）と同一 PR で行う。
+# [directories.animation]
+# role = "core"
+# crate = "fandhe-animation"
+# description = "プラットフォーム非依存のアニメーション演算基幹（外部依存ゼロ・forbid(unsafe_code)。将来別リポジトリへの切り出しを前提とした設計）"
+# allowed_dependents = ["frontend-animation"]
+# path = "crates/animation"
 
 [directories.app]
 role = "component"
@@ -83,6 +103,19 @@ crate = "fandhe-frontend-wasm-thin"
 description = "CSR/ハイドレーション 最小構成（wasm32 ターゲット）"
 depends_on = ["core", "interactive"]
 path = "crates/wasm-thin"
+
+# fandhe-frontend-animation（Web アニメーションアダプタ）の宣言草案（イシュー
+# #2368）。上記 animation 節と同じ理由で crate 実体が揃うまではコメントの
+# まま残し、イシュー #2417（crate 雛形の追加）と同一 PR で有効化する。
+# 有効化時は `wasm-full.depends_on` への `frontend-animation` 追加もあわせて
+# 行う（`cargo metadata` 上の実依存と宣言の完全一致契約、#2417 側で対応）。
+# [directories.frontend-animation]
+# role = "client-entrypoint"
+# crate = "fandhe-frontend-animation"
+# description = "Web アニメーションアダプタ（`fandhe-animation` の演算結果を wasm-bindgen / web-sys / js-sys で DOM/Web Animations API へ適用する。fandhe-frontend-wasm-full には依存しない）"
+# depends_on = ["animation"]
+# allowed_dependents = ["wasm-full"]
+# path = "crates/frontend-animation"
 
 [directories.dist-server]
 role = "distribution"
