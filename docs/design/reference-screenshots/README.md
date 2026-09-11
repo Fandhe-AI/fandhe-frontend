@@ -1,6 +1,6 @@
 # reference-screenshots
 
-UI 部品スタイル調整（参考サイト基準への調整、ルート issue #1420）および shadcn/ui 突合（後続ツリー）の Issue ツリーで参照するスクリーンショット。
+UI 部品スタイル調整（参考サイト基準への調整、ルート issue #1420）および shadcn/ui 突合（ルート issue #2001）の Issue ツリーで参照するスクリーンショット。
 
 ## 内容
 
@@ -15,7 +15,7 @@ UI 部品スタイル調整（参考サイト基準への調整、ルート issu
 本ディレクトリはフラット配置（サブディレクトリを持たない）とし、ファイル名は以下の 2 パターンのいずれかに正規化する。
 
 - 参照サイト側: `<site>-<slug>-<n>.png`（正規表現: `^(chakra|ark|radixp|radixt|shadcn)-[a-z0-9-]+-[0-9]+\.png$`）。`site` は `chakra`（chakra-ui、241 枚）/ `ark`（Ark UI、150 枚）/ `radixt`（Radix Themes、116 枚）/ `radixp`（Radix Primitives、26 枚）/ `shadcn`（shadcn/ui、215 枚。部品 186 + charts 21 + blocks 8）の 5 種。`slug` は部品名の kebab-case、`n` は同一部品内での連番（デモのバリエーション違いに対応）
-- ローカル側: `<layer>-<kebab>.png`（正規表現: `^(themes|primitives|blocks)-[a-z0-9-]+\.png$`）。`themes-<kebab>.png` は Themes 層（`fandhe-frontend-pre-styled-ui` 相当、107 部品と一致）、`primitives-<kebab>.png` は Primitives 層（`fandhe-frontend-headless-ui` 相当、63 部品と一致）、`blocks-<kebab>.png` は Blocks セクション（`crate::blocks::BLOCKS` の登録 block と一致、イシュー #2089）
+- ローカル側: `<layer>-<kebab>.png`（正規表現: `^(themes|primitives|blocks)-[a-z0-9-]+\.png$`）。`themes-<kebab>.png` は Themes 層（`fandhe-frontend-pre-styled-ui` 相当、`site/nav.toml` 現在登録は 123 部品）、`primitives-<kebab>.png` は Primitives 層（`fandhe-frontend-headless-ui` 相当、`site/nav.toml` 現在登録は 75 部品）、`blocks-<kebab>.png` は Blocks セクション（kebab は `crate::blocks::BLOCKS` の登録 block 名に対応、`site/nav.toml` 現在登録は 7 block、イシュー #2089）。トップレベルのローカルスクショは 2026-08-30 取得セットの `themes-` 107 枚・`primitives-` 63 枚と、その後追加した `blocks-` 5 枚（登録 7 block 中 sidebar-07 / login-04 が未取得）に留まり、#2001 ツリー（shadcn/ui 突合）で増えた部品・block（Themes 16 件・Primitives 12 件・Blocks 2 件）のトップレベルスクショ再取得は本 README では未着手として扱う（`after/` 配下の再取得は #2098 が担う。本 README は命名規約・自己検証コマンドの正であり、枚数の目標値自体は `site/nav.toml` を正とする）
 
 **イシュー当初案（`local/<layer>-<kebab>.png` のようなサブディレクトリ分離）は不採用と確定する。** 根拠は次の 3 点である。
 
@@ -36,7 +36,7 @@ find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename 
   | grep -vE '^(chakra|ark|radixp|radixt|shadcn)-[a-z0-9-]+-[0-9]+\.png$' \
   | grep -vE '^(themes|primitives|blocks)-[a-z0-9-]+\.png$' \
   | grep -vE '^(README|SOURCES|THIRD_PARTY_NOTICES)\.md$'
-# 空出力なら PASS（2026-08-30 時点の 703 枚全件、2026-09-07 の shadcn 215 枚追加後の全件で確認済み）
+# 空出力なら PASS（2026-08-30 時点の 703 枚全件、2026-09-07 の shadcn 215 枚追加後の全件、2026-09-11 時点のトップレベル 923 枚〔blocks 5 枚含む〕で確認済み）
 ```
 
 `find` でディレクトリツリー全体を列挙するため、`ls '*.png'` 限定と異なり
@@ -51,12 +51,12 @@ Themes 基準を維持し、shadcn/ui は欠落バリアント・合成パター
 
 ## ローカルスクショ再取得手順
 
-本リポジトリ docs サイトの部品ページ（Themes / Primitives）を撮り直す場合の手順。
+本リポジトリ docs サイトの部品ページ（Themes / Primitives / Blocks）を撮り直す場合の手順。
 
 1. `make docs` で docs サイトを `dist/` へ SSG ビルドする
 2. 任意の静的サーバでローカル配信する（docs-site 自体に serve サブコマンドはないため、汎用ツールを使う。例: `python3 -m http.server 8000 --directory dist`）
-3. ブラウザで viewport `1280x900`・ライトテーマに設定し、`http://localhost:8000/themes/<kebab>/` または `http://localhost:8000/primitives/<kebab>/` を開いて Demo 領域のみをスクリーンショットする
-4. 同名ファイル（`themes-<kebab>.png` / `primitives-<kebab>.png`）へ上書きする
+3. ブラウザで viewport `1280x900`・ライトテーマに設定し、`http://localhost:8000/themes/<kebab>/` または `http://localhost:8000/primitives/<kebab>/` を開いて Demo 領域のみをスクリーンショットする（`/blocks/<kebab>/` はフルページで `blocks-<kebab>.png` として撮影する）
+4. 同名ファイル（`themes-<kebab>.png` / `primitives-<kebab>.png` / `blocks-<kebab>.png`）へ上書きする
 
 撮影時はブラウザの他タブ・ブックマークバー・拡張機能の通知等、個人情報やローカル環境情報（トークン・内部 URL 等）が画面に写り込まないよう注意する。
 
@@ -88,6 +88,8 @@ checkbox-group のスタイル調整、PR #1730・#1731・#1734・#1735・#1738�
 条件参照）専用の意図的な例外ディレクトリであり、上記の自己検証コマンド
 （サブディレクトリ非存在チェック）は `after/` を対象外とする。
 
+`after/` 配下は現状 Phase 2（イシュー #1420 系）の 3 枚のみであり、#2001 ツリー（shadcn/ui 突合）で新設・変更された部品の実装後スクショは含まない。`after/` 配下への追加取得は #2098 が担う。
+
 ## issue への貼り付け手順（raw URL）
 
 Issue コメント・PR 本文へ画像を貼る際は、**コミット SHA 固定**の raw URL を使う。
@@ -105,7 +107,8 @@ Issue コメント・PR 本文へ画像を貼る際は、**コミット SHA 固�
 
 ## サイズ方針
 
-- 現状実測（2026-08-30 時点）: 703 枚・ディレクトリ計約 13 MB・1 枚あたり平均約 18 KB・最大約 220 KB
+- 現状実測（2026-09-11 時点、`after/` 3 枚含む）: 926 枚・ディレクトリ計約 18.2 MB・1 枚あたり平均約 19.7 KB・最大約 746 KB（`blocks-signup-01.png`）
+- **上限超過の既知事項**: `blocks-signup-01.png`（約 746 KB）・`blocks-login-01.png`（約 560 KB）が下記「1 枚あたり 500 KB 以下」を超過している。Blocks はフルページ撮影のため他プレフィックスより大きくなりやすく、是正（低解像度・圧縮での再出力、または block フルページ向けの上限見直し）は #2098 の再取得作業と合わせて検討する
 - 上限方針: 1 枚あたり 500 KB 以下・ディレクトリ総量 30 MB 目安（現状比で余裕を持たせた目安値）
 - 形式は PNG のみとする（GIF・動画等は不可）
 - **Git LFS は不採用。** 根拠は (1) GitHub の raw URL 経由で LFS ポインタファイル（実体でなくポインタテキスト）が返るため、上記の issue 埋め込み手順がそのままでは機能しなくなる、(2) 追加ツール依存が増える（本フレームワークの依存最小化・自己完結志向〔REQ-3〕と同じ考え方）
