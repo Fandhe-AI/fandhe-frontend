@@ -690,7 +690,7 @@ const SLIDER: ComponentPageSpec = ComponentPageSpec {
     examples: &[
         ExampleEntry {
             title: "Vertical, disabled",
-            description: "`Orientation::Vertical` + `disabled: true` の例。`thumb` は `tabindex=\"-1\"` + `aria-disabled=\"true\"` を持つ。",
+            description: "`Orientation::Vertical` + `disabled: true` の例。`thumb` は `tabindex=\"-1\"` + `aria-disabled=\"true\"` を持つ。`marker`（0/50/100）も同じ `orientation` を受けて `data-orientation=\"vertical\"` を出力する（イシュー #2216）。",
             render: ex_slider_vertical_disabled,
         },
         ExampleEntry {
@@ -2035,6 +2035,10 @@ fn ex_slider_vertical_disabled() -> Node {
         disabled: true,
         ..Default::default()
     };
+    // イシュー #2216: vertical + disabled の例に marker（0/50/100）を追加し、
+    // `marker` も `orientation` を受けて `data-orientation="vertical"` を
+    // 出力することを可視化する（styled 層の位置決めは
+    // `crates/pre-styled-ui/src/slider.rs` の vertical 状態規則）。
     let body = vec![slider::root(
         orientation,
         &props,
@@ -2061,6 +2065,41 @@ fn ex_slider_vertical_disabled() -> Node {
                         &props,
                         vec![],
                         vec![],
+                    ),
+                    slider::marker_group(
+                        vec![],
+                        vec![
+                            slider::marker(
+                                orientation,
+                                0.0,
+                                70.0,
+                                0.0,
+                                100.0,
+                                true,
+                                vec![],
+                                vec![],
+                            ),
+                            slider::marker(
+                                orientation,
+                                50.0,
+                                70.0,
+                                0.0,
+                                100.0,
+                                true,
+                                vec![],
+                                vec![],
+                            ),
+                            slider::marker(
+                                orientation,
+                                100.0,
+                                70.0,
+                                0.0,
+                                100.0,
+                                true,
+                                vec![],
+                                vec![],
+                            ),
+                        ],
                     ),
                 ],
             ),

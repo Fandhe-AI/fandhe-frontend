@@ -114,7 +114,7 @@ use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
 use fandhe_frontend_pre_styled_ui::timer::{self, TimerControl, TimerPhase, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds, TourStep};
-use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
+use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, menubar, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -6960,5 +6960,145 @@ fn dialog_and_drawer_close_trigger_with_variant_children_and_attrs_are_escaped_f
         assert!(html.contains(r#"data-scope="drawer""#));
         assert!(html.contains(r#"data-part="close-trigger""#));
         assert!(html.contains(r#"data-variant="text""#));
+    }
+}
+
+/// (追加) イシュー #2217: `menu`/`menubar` の `item`/`checkbox_item`/
+/// `radio_item` の `value` 引数（固定付与される `data-value` 属性へ透過
+/// する経路）に対する XSS 回帰。
+///
+/// PR #2164（`menubar` へ `checkbox-item`/`radio-item` 等 5 パーツを装着）の
+/// 対象外節が「value ペイロードの XSS 回帰テスト追加は時間の都合で見送っ
+/// た」と明記しており、本テストはその積み残しの解消である。`menu::item`
+/// については #2203 で `data-danger` attrs 経路が既に固定済みだが、`value`
+/// 引数自体の経路は `menu`/`menubar` のいずれの部品でも未収録だった。
+///
+/// `menubar` は `pub use fandhe_frontend_headless_ui::menubar::*;`（glob
+/// 再エクスポート）のため、本ファイルが Themes（pre-styled-ui）経路で
+/// `menubar` の既定エスケープを固定する唯一の場所になる。
+///
+/// `value`/呼び出し側 `attrs`/`children` の 3 経路を同時に注入したうえで、
+/// `data-value="<escaped>"` の出現を明示確認することで、他経路の出力に
+/// よって共通アサーションが偶然 pass する空虚な通過を防ぐ。
+#[test]
+fn menu_and_menubar_item_checkbox_item_radio_item_value_attrs_and_children_are_escaped_for_all_payloads(
+) {
+    for payload in payloads::all() {
+        let expected_value_attr = format!("data-value=\"{}\"", escape_html(payload));
+
+        // menu::item / menu::checkbox_item / menu::radio_item
+        let html = render(&menu::item(
+            payload,
+            false,
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "menu::item value/attrs/children コンテキスト",
+        );
+        assert!(
+            html.contains(&expected_value_attr),
+            "menu::item の data-value にエスケープ済み value が見当たらない: html={html}"
+        );
+        assert!(html.contains(r#"role="menuitem""#));
+
+        let html = render(&menu::checkbox_item(
+            true,
+            payload,
+            false,
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "menu::checkbox_item value/attrs/children コンテキスト",
+        );
+        assert!(
+            html.contains(&expected_value_attr),
+            "menu::checkbox_item の data-value にエスケープ済み value が見当たらない: html={html}"
+        );
+        assert!(html.contains(r#"role="menuitemcheckbox""#));
+
+        let html = render(&menu::radio_item(
+            true,
+            payload,
+            false,
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "menu::radio_item value/attrs/children コンテキスト",
+        );
+        assert!(
+            html.contains(&expected_value_attr),
+            "menu::radio_item の data-value にエスケープ済み value が見当たらない: html={html}"
+        );
+        assert!(html.contains(r#"role="menuitemradio""#));
+
+        // menubar::item / menubar::checkbox_item / menubar::radio_item
+        // （glob 再エクスポートを通しても既定エスケープが貫通することの固定）
+        let html = render(&menubar::item(
+            payload,
+            false,
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "menubar::item value/attrs/children コンテキスト",
+        );
+        assert!(
+            html.contains(&expected_value_attr),
+            "menubar::item の data-value にエスケープ済み value が見当たらない: html={html}"
+        );
+        assert!(html.contains(r#"role="menuitem""#));
+
+        let html = render(&menubar::checkbox_item(
+            true,
+            payload,
+            false,
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "menubar::checkbox_item value/attrs/children コンテキスト",
+        );
+        assert!(
+            html.contains(&expected_value_attr),
+            "menubar::checkbox_item の data-value にエスケープ済み value が見当たらない: html={html}"
+        );
+        assert!(html.contains(r#"role="menuitemcheckbox""#));
+
+        let html = render(&menubar::radio_item(
+            true,
+            payload,
+            false,
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "menubar::radio_item value/attrs/children コンテキスト",
+        );
+        assert!(
+            html.contains(&expected_value_attr),
+            "menubar::radio_item の data-value にエスケープ済み value が見当たらない: html={html}"
+        );
+        assert!(html.contains(r#"role="menuitemradio""#));
     }
 }
