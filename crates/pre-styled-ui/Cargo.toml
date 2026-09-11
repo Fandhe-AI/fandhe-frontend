@@ -3282,7 +3282,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 描画され、trigger の外側へはみ出す位置ずれが生じていたため是正した。
 # 既存宣言 1 件（`box-sizing`）を純追加するのみで既存パーツの出力バイトは
 # 変更しないため patch バンプとし、0.183.4 を +1 した 0.183.5 とする。
-version = "0.183.5"
+#
+# イシュー #2213: radio-card の `item` checked ブロックへ `background`/
+# `--fandhe-hover-bg` の 2 宣言を純追加した（選択時カード背景塗り）。
+# 既存宣言・既存パーツの出力バイトは変更しないため patch バンプとし、
+# 0.183.5 を +1 した 0.183.6 とする。
+version = "0.183.6"
 
 
 edition = "2021"

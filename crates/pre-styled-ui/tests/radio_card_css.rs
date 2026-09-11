@@ -5,6 +5,13 @@
 //! （受け入れ条件 2）。出力順（base → variants → states）が崩れた場合や
 //! 意図しない宣言の追加・欠落があった場合に、この golden テストが即座に
 //! 検知する。
+//!
+//! イシュー #2213 の差分（選択時カード背景塗り）はブロック**内**への 2 行
+//! 純追加であり、`radio_group_css.rs` 等の他 golden テストが使う
+//! `starts_with`/「既存ブロックはブロック末尾までバイト一致」パターンは
+//! 適用できない（ブロック自体の内容が変わるため）。差分検証はブロック内
+//! 挿入であることを目視確認したうえで固定した golden 文字列全体一致に
+//! 委ねる。
 
 use fandhe_frontend_pre_styled_ui::radio_card;
 
@@ -209,6 +216,8 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
 [data-scope="radio-card"][data-part="item"][data-state="checked"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   box-shadow: 0 0 0 1px var(--fandhe-palette, var(--fandhe-color-accent));
+  background: var(--fandhe-palette-subtle, var(--fandhe-color-accent-subtle));
+  --fandhe-hover-bg: var(--fandhe-palette-muted, var(--fandhe-color-accent-muted));
 }
 
 [data-scope="radio-card"][data-part="item"][data-invalid] {
