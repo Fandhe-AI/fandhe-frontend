@@ -43,7 +43,7 @@
 //!
 //! # legend（`showPercent` 相当）
 //!
-//! [`legend`] は各セグメントの色マーカー・ラベル・比率テキストを静的出力する
+//! `legend` は各セグメントの色マーカー・ラベル・比率テキストを静的出力する
 //! 最小実装であり、#847 の汎用 Legend（軸/凡例横断部品）とは独立している
 //! （境界を明示する。将来的な統合は #847 側の設計判断に委ねる）。
 //!
@@ -86,7 +86,7 @@
 //!   （いずれも `bg-muted` 背景）と整合させる。
 //! - **セグメント間の区切り線**: 隣接カテゴリの色境界を明確にするため、
 //!   `segment` の子要素として `position: absolute` の
-//!   [`segment-divider`]（`inset-block: 0`・`inset-inline-end: 0`・
+//!   `segment-divider`（`inset-block: 0`・`inset-inline-end: 0`・
 //!   `width: 1px`・`background: var(--fandhe-color-bg)`）を条件付きで
 //!   描画する（`segment()` 参照。区切り線を要素の境界線ではなく通常
 //!   フローに参加しない絶対配置要素で表現するため、`segment` 自身の
@@ -327,7 +327,7 @@ pub fn css() -> String {
     recipe().css()
 }
 
-/// BarSegment 本体（`bar` + [`legend`]）を組み立てる。
+/// BarSegment 本体（`bar` + `legend`）を組み立てる。
 ///
 /// `data` から `series_name` の系列を取り出し、[`ChartData::categories`] の
 /// 順にセグメントを描画する。

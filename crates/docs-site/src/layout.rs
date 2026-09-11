@@ -86,9 +86,9 @@ const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 /// （`TOC_MAX_LEVEL - 1`）、`h3` を第 2 段（`TOC_MAX_LEVEL`）とし、
 /// [`toc_nav`] はこれを超える `level` の [`TocEntry`] を出力しない。
 ///
-/// 実測（`docs/api/headless-ui-api.md`）では [`heading_level`] が `h2`/`h3`
+/// 実測（`docs/api/headless-ui-api.md`）では `heading_level` が `h2`/`h3`
 /// しか返さないため階層は最初から 2 段であり、本定数は将来
-/// [`heading_level`] の収集対象が `h4` 以降へ拡張された場合でも右目次を
+/// `heading_level` の収集対象が `h4` 以降へ拡張された場合でも右目次を
 /// 2 段に固定し続けるための fail-closed なガードである（意図的な深さ制限
 /// であって、収集ロジック自体の拡張ではない）。
 pub const TOC_MAX_LEVEL: u8 = 3;
@@ -418,7 +418,7 @@ fn toc_items(entries: &[TocEntry]) -> Option<Vec<Node>> {
 
 /// 狭幅帯域（`< 1200px`）で右目次カラム（`aside.docs-toc-aside`）が
 /// `display: none` になる代替として、本文冒頭に置く折りたたみ目次
-/// （イシュー #1080）。`>= 1200px` は [`crate::site_theme::STRUCTURAL_CSS`]
+/// （イシュー #1080）。`>= 1200px` は `crate::site_theme::STRUCTURAL_CSS`
 /// 側で `display: none` に切り替わり、右目次カラムとの重複表示を避ける
 /// （CSS 側の責務。本関数は markup のみを担う）。
 ///
@@ -434,7 +434,7 @@ fn toc_items(entries: &[TocEntry]) -> Option<Vec<Node>> {
 /// - **[`TOC_HEADING_ID`] を再利用しない**: 右目次の `h2#docs-toc-heading`
 ///   と同じ `id` を本文冒頭にも付けると同一ページ内で `id` が重複する
 ///   （HTML 仕様違反・フラグメントリンクの解決先が不定になる）。折りたたみ
-///   目次側は `aria-label` でランドマーク名を与える（値は [`TOC_HEADING_TEXT`]
+///   目次側は `aria-label` でランドマーク名を与える（値は `TOC_HEADING_TEXT`
 ///   を [`toc_nav`] と共有し文言のドリフトを防ぐ）。
 /// - **既定で閉（`open` 属性なし）**: 本文の初期表示位置を押し下げない。
 ///   開閉はネイティブ `<details>` の挙動であり JS を要さない

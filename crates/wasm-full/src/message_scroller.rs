@@ -24,14 +24,14 @@
 //!   [`is_at_bottom`]・[`stuck_from_attr`]・[`jump_visible`]・
 //!   [`classify_change`]・[`corrected_scroll_top`]・[`plan_after_change`]・
 //!   [`encode_notification_payload`]。
-//! - 配線層（[`wiring::wire_message_scroller_events`]）のみ
+//! - 配線層（`wiring::wire_message_scroller_events`）のみ
 //!   `#[cfg(target_arch = "wasm32")]` でゲートする。
 //!
 //! # サポートするレイアウト（会話リスト本体の境界、コーディネータ指摘
 //! PR #2312 再指摘）
 //!
 //! 会話リスト本体（`content` 配下でメッセージの追加・先頭挿入を検知する
-//! 基準点、[`wiring::conversation_list`] が解決する）として**サポートする
+//! 基準点、`wiring::conversation_list` が解決する）として**サポートする
 //! のは `content` 自身、または `content` の直接の子（1 段のみ）に限る**。
 //! 具体的には次の 2 パターンのいずれかである:
 //!
@@ -47,7 +47,7 @@
 //! 外）。`content` 直下に `data-bind-list` を持たない素のメッセージ要素
 //! を置き、その**内部だけ**で添付リストの keyed list を使う構成
 //! （会話リスト自体は `data-bind-list` を持たない）でも、この境界は
-//! 変わらない: 会話リスト本体は `content` 自身（[`wiring::conversation_list`]
+//! 変わらない: 会話リスト本体は `content` 自身（`wiring::conversation_list`
 //! のフォールバック）になり、メッセージ内部の添付リストは常にネスト
 //! 扱いになる。旧実装は「`content` 配下で最も浅い `data-bind-list`」を
 //! 幅優先探索で機械的に選んでいたため、この構成で `content` の孫要素
@@ -55,7 +55,7 @@
 //!
 //! # 最下部判定（しきい値付き `scrollTop` 算術）
 //!
-//! [`IntersectionObserver`] ベースの `anchor` 監視は web-sys feature
+//! `IntersectionObserver` ベースの `anchor` 監視は web-sys feature
 //! 未追加であり、しきい値付きの `scrollTop`/`scrollHeight`/`clientHeight`
 //! 算術（[`is_at_bottom`]）は追加のレイアウト読み取りを要しないため、
 //! 本イテレーションでは `anchor` パーツを観測しない（DOM 上の `anchor`
@@ -75,11 +75,11 @@
 //!
 //! smooth スクロールだと中間 `scroll` イベントで `free` へ誤遷移し
 //! `data-has-new` の誤検知を招くため、本モジュールが行うプログラム的
-//! スクロールは常に即時とする。配線時（[`wiring::initial_sync_instance`]）
+//! スクロールは常に即時とする。配線時（`wiring::initial_sync_instance`）
 //! に `viewport` へインライン `scroll-behavior: auto` を固定設定し
 //! （`overflow-anchor: none` と同じ箇所）、アプリ側 CSS が
 //! `scroll-behavior: smooth` を指定していてもインラインスタイル
-//! （最高詳細度）で上書きすることで、[`wiring::scroll_viewport_to_top`]
+//! （最高詳細度）で上書きすることで、`wiring::scroll_viewport_to_top`
 //! の `Element::set_scroll_top` を常に即時にする（`ScrollToOptions`/
 //! `ScrollBehavior` 型を呼び出しごとに経由する構成から、配線時 1 回の
 //! CSS 固定へ変更。バンドルサイズ抑制、レビュー指摘 #2122: REQ-11 gzip
@@ -102,7 +102,7 @@
 //! - 画像ロード等、DOM 変異を伴わない高さ変化（`ResizeObserver` 相当）は
 //!   検知しない。
 //! - 配線後の再描画で初めて出現する message-scroller への遅延配線は
-//!   行わない（[`wiring::wire_message_scroller_events`] の搭載判定ゲート、
+//!   行わない（`wiring::wire_message_scroller_events` の搭載判定ゲート、
 //!   `sidebar`/`splitter` と同じトレードオフ）。
 //!
 //! # セキュリティ不変条件（REQ-1・`security.md` A03）

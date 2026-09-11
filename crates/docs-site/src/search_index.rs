@@ -17,7 +17,7 @@
 //!
 //! - インデックスは常に**独立ファイルとして fetch される**。HTML への埋め込み
 //!   （インライン `<script>`・`data-*` 属性への本文格納）は禁止する。
-//! - JSON シリアライズは手書き（[`escape_json_string`]）で行い、外部クレートを
+//! - JSON シリアライズは手書き（`escape_json_string`）で行い、外部クレートを
 //!   追加しない（`crates/docs-site` は内部 path 依存のみ、REQ-3）。
 //! - `"` `\` に加え制御文字（`U+0000`〜`U+001F`）・`<` `>` `&` `U+2028`/`U+2029`
 //!   をエスケープする多層防御（この JSON が将来 `<script>` へインライン化される
@@ -298,7 +298,7 @@ fn escape_json_string(s: &str, out: &mut String) {
 /// キー順を固定する: `version` → `base_path` → `pages`、`pages` 内は
 /// `href` → `title` → `sections` → `text`、`sections` 内は
 /// `id` → `level` → `title`。`HashMap` を一切使わない（`Vec` のみ）ため
-/// キー順は常に決定的である。`base_path` も [`escape_json_string`] を通す
+/// キー順は常に決定的である。`base_path` も `escape_json_string` を通す
 /// （`nav.toml` 由来の著者入力であり、素の補間で埋め込まない）。
 pub fn render_json(base_path: &str, entries: &[PageEntry]) -> String {
     let mut out = String::new();

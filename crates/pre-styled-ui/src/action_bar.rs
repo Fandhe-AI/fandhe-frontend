@@ -19,7 +19,7 @@
 //! # data-state とスタイルの連動
 //!
 //! `content` の開閉 `data-state`（open/closed）に応じた見た目の切り替えを
-//! [`recipe`] へ登録する（[`crate::recipe::SlotRecipe::state`]、
+//! `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]、
 //! [`crate::dialog`]/[`crate::tooltip`] と同じ判断）。
 //!
 //! # キーボード操作系属性の反映
@@ -34,10 +34,10 @@
 //! headless 層（`crates/headless-ui/src/action_bar.rs`）は ActionBar が
 //! closed のとき `positioner` に `hidden` 存在属性を付与し、UA 既定スタイル
 //! `[hidden] { display: none }` によって非表示化させる契約になっている。
-//! [`recipe`] の base 規則は `positioner` に `display: flex` を宣言しており、
+//! `recipe` の base 規則は `positioner` に `display: flex` を宣言しており、
 //! この author スタイルが UA スタイルより詳細度で優先されるため `[hidden]`
 //! 単体では非表示化できない（[`crate::dialog`] の PR #575 Bugbot 指摘（High）
-//! と同型の不具合）。[`recipe`] に `[data-scope="action-bar"]
+//! と同型の不具合）。`recipe` に `[data-scope="action-bar"]
 //! [data-part="positioner"][hidden]` に対する `display: none` の明示的な
 //! 上書き規則を追加し、`display: flex` より詳細度・出現順の両方で優先させる
 //! ことでこれを固定する。
@@ -59,7 +59,7 @@
 //!   ActionBar は selection-trigger を破線ボーダーの小型ボタン、
 //!   close-trigger を ghost の小型 close ボタンとして描く。headless 層は
 //!   これらへ `<button>` 相当の役割のみ与え面（padding/border/radius/
-//!   背景）を持たないため、[`recipe`] 側で面を追加した上で
+//!   背景）を持たないため、`recipe` 側で面を追加した上で
 //!   [`crate::recipe::hover_bg_muted`]/[`crate::recipe::
 //!   hover_surface_declarations`]（イシュー #1425 共通ビジュアル言語）を
 //!   `.state(_, StateCondition::Hover, ...)` として登録し、初めて hover
@@ -101,7 +101,7 @@
 //!
 //! headless `action-bar`（`crates/headless-ui/src/action_bar.rs`）は
 //! `data-disabled` を一切発行しない。selection-trigger/close-trigger の
-//! 無効化表現は、利用者が中に配置する `Button` 部品（[`crate::button`]）側
+//! 無効化表現は、利用者が中に配置する `Button` 部品（[`crate::button`](mod@crate::button)）側
 //! が `data-disabled`/`disabled_declarations()` で担う責務であり、
 //! action-bar 自体のトリガー slot へ disabled 視覚を持ち込まない。
 //!

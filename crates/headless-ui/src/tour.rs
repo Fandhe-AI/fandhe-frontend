@@ -35,7 +35,7 @@
 //!   最終 step の `"next"` が `Completed` へ遷移する有効な操作であり、zag の
 //!   `!hasNextStep` 判定とは意図的に非同値）。
 //! - 各パーツが呼び出し側 `attrs` から予約キー（自身が固定出力する属性名）
-//!   のなりすまし・重複出力を [`drop_reserved`] で除去するようにした
+//!   のなりすまし・重複出力を `drop_reserved` で除去するようにした
 //!   （`crate::toast`/`crate::splitter` と同型のパターン、イシュー #1643/
 //!   #1664 の Review 指摘を踏襲した先取り是正）。
 //!
@@ -139,14 +139,14 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`）はすべて `&'static str` リテラルで
 //!   固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::data_attrs`]/[`crate::aria`] の既存不変条件を
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`]/[`crate::aria`] の既存不変条件を
 //!   そのまま継承する）。
 //! - 動的値（`id`/`target`/`title`/`description`/呼び出し側 `attrs`/children
 //!   テキスト）は [`fandhe_frontend_core::render`] の既定エスケープを必ず
 //!   経由する。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - `data-state` 値語彙（`"open"`/`"closed"`）・`data-status` 値語彙
 //!   （`"idle"`/`"active"`/`"skipped"`/`"completed"`）は本モジュール内で
-//!   一元管理し（[`Tour::data_state`]/[`TourStatus::as_data_status`]）、
+//!   一元管理し（`Tour::data_state`/`TourStatus::as_data_status`）、
 //!   パーツ関数間で分裂させない。
 //! - `placement` は [`crate::positioning::Placement`] 列挙経由のみで受け取り、
 //!   任意文字列を受け付けない。SSR は座標計算を行わず
@@ -448,7 +448,7 @@ impl Tour {
     /// `target` が `None`（[`TourStep`] は target なしのステップをサポート
     /// しており、showcase の最終ステップ等で実際に使われる）のステップでは
     /// くり抜き対象が存在せず意味のないデフォルト矩形が描画されてしまうため、
-    /// `Active` であっても `hidden` を付与する（[`Tour::hidden_attr`] の
+    /// `Active` であっても `hidden` を付与する（`Tour::hidden_attr` の
     /// 「非 `Active` 時のみ `hidden`」という既定を spotlight に限り上書き）。
     #[must_use]
     pub fn spotlight<'a>(&'a self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
@@ -610,7 +610,7 @@ impl Tour {
     /// 保持する（境界判定との OR。`crate::pre_styled_ui` 側の tour
     /// ラッパ・docs `site/themes/tour.md` が明記する「呼び出し側の
     /// `disabled` 指定がそのまま実効する」契約に対し、
-    /// [`drop_reserved`] が `disabled`/`data-disabled` を無条件除去して
+    /// `drop_reserved` が `disabled`/`data-disabled` を無条件除去して
     /// 反故にしていたレビュー指摘の是正、イシュー #1666）。
     #[must_use]
     pub fn action_trigger<'a>(

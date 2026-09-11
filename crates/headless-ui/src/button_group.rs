@@ -9,18 +9,18 @@
 //!
 //! # `role="group"` の静的グループであり `toolbar` と異なる
 //!
-//! [`mod@crate::toolbar`] は `role="toolbar"` + roving tabindex（矢印キーで
+//! [`crate::toolbar`](mod@crate::toolbar) は `role="toolbar"` + roving tabindex（矢印キーで
 //! フォーカスが移動する複合ウィジェット）の状態機械を持つが、本モジュール
 //! は shadcn/ui の Button Group 同様、子 `button` 要素のフォーカス順序は
 //! ネイティブの Tab 順序に委ねる**静的なグループ**である。したがって
-//! [`root`] は状態機械を持たず、[`mod@crate::fieldset`] と同じ理由
+//! [`root`] は状態機械を持たず、[`crate::fieldset`](mod@crate::fieldset) と同じ理由
 //! （SSR 時点で決まる静的な props のみで完結する）で自由関数のみで構成
 //! する。
 //!
 //! # `role="group"` に `aria-orientation` を付与しない
 //!
 //! WAI-ARIA は `group` ロールへの `aria-orientation` を許可していない
-//! （[`mod@crate::toolbar::toggle_group`] の PR #791 Bugbot 指摘と同じ
+//! （`mod@crate::toolbar::toggle_group` の PR #791 Bugbot 指摘と同じ
 //! 判断）。向きの状態は `data-orientation` のみで表現し、CSS 側
 //! （`fandhe-frontend-pre-styled-ui`、後続 #2060）が `flex-direction` 等を
 //! 切り替える。
@@ -37,7 +37,7 @@
 //!
 //! [`root`] はネスト（グループの中にグループ）を許容する。内側の
 //! `root` は自身の `data-orientation` のみを持ち、外側の値へは影響しない
-//! （[`mod@crate::nav_list`] のような入れ子コンテナと同様、`Anatomy::part`
+//! （[`crate::nav_list`](mod@crate::nav_list) のような入れ子コンテナと同様、`Anatomy::part`
 //! が呼び出しごとに独立した属性列を組み立てるため自然に成立する）。
 //!
 //! # `separator` は `toolbar`/`action_bar` と同型の直交規則
@@ -66,16 +66,16 @@
 //!
 //! - 属性名（`role`/`aria-*`/`data-orientation`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`mod@crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の
 //!   既存不変条件をそのまま継承する）。
 //! - 動的値（`label`/呼び出し側 `attrs`/`children`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する
 //!   （REQ-1）。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
-//! - **呼び出し側による予約キーのなりすまし除去**: [`drop_reserved`] が
+//! - **呼び出し側による予約キーのなりすまし除去**: `drop_reserved` が
 //!   パート別の `*_RESERVED` 定数（ASCII 大文字小文字無視の完全一致）を
 //!   使い、呼び出し側 `attrs` から `role`/`aria-*`/`data-orientation` 等、
 //!   本モジュールが固定付与する属性名を除去してから固定値を合成する
-//!   （[`crate::toolbar::drop_reserved`]/[`crate::nav_list::drop_reserved`]
+//!   （`crate::toolbar::drop_reserved`/`crate::nav_list::drop_reserved`
 //!   と同型のパターン）。`data-scope`/`data-part` の偽装は
 //!   [`crate::anatomy::Anatomy::part`] が別途除去する。
 //!

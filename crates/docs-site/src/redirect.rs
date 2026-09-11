@@ -24,7 +24,7 @@
 //!    なり、`search_index` の収集経路・`linkcheck` の解決先集合・
 //!    `tests/site_nav.rs` のページ数期待値のいずれにも「redirect を除く」
 //!    という除外述語を新たに持ち込む必要が生じる。別ファイルならこれらの
-//!    契約は**除外述語ゼロのまま**成立する（[`Nav`](crate::nav::Nav) は
+//!    契約は**除外述語ゼロのまま**成立する（[`Nav`] は
 //!    1 行も変わらない）。
 //! 2. `nav.toml` は #943 以降ページ部分が機械生成対象であり、#1017 が
 //!    107 件（部品ページ移行分）を追記済み。別ファイルなら nav 生成ロジック
@@ -94,7 +94,7 @@ pub struct Redirects {
 /// [`crate::nav::NavError`] と同方針）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RedirectError {
-    /// 入力サイズが [`MAX_INPUT_BYTES`] を超えた。
+    /// 入力サイズが `MAX_INPUT_BYTES` を超えた。
     TooLarge,
     /// 構文エラー（未知のテーブル・未知のキー・非対応の値型・重複キー等）。
     Parse {
@@ -510,7 +510,7 @@ fn redirect_document(site_title: &str, to_href: &str) -> Node {
 }
 
 /// [`crate::build::build_site`] から呼ぶ公開エントリ。`to`（サイト内絶対
-/// パス）を `base_path` 込みの href へ変換した上で [`redirect_document`]
+/// パス）を `base_path` 込みの href へ変換した上で `redirect_document`
 /// を組み立てる。href 変換を呼び出し元へ委ねない（`base_path` 反映漏れの
 /// 事故を単一実装点で防ぐ）。
 pub fn redirect_page(site_title: &str, base_path: &str, to: &str) -> Node {

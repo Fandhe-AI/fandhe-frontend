@@ -48,7 +48,7 @@
 //!
 //! [`fandhe_frontend_headless_ui::state::Disclosure`] が出力する
 //! `data-state="open"`/`"closed"`（headless 側の既存保証）に応じて
-//! backdrop/content の見た目を切り替える CSS を [`recipe`] へ登録する。
+//! backdrop/content の見た目を切り替える CSS を `recipe` へ登録する。
 //! [`crate::recipe::SlotRecipe::state`]（イシュー #643）を通じて登録し、
 //! `data-state` を含むセレクタも `SlotRecipe` の識別子検証・fail-closed
 //! 除外を経由させる（`serialize_rule` を直接呼ぶ手書きセレクタ機構は
@@ -58,11 +58,11 @@
 //!
 //! `trigger`/`close-trigger` はフォーカス可能なボタン要素であり、
 //! キーボード操作時のみフォーカスリングを表示する `:focus-visible`
-//! （[`crate::recipe::StateCondition::FocusVisible`]）を [`recipe`] へ登録する。
+//! （[`crate::recipe::StateCondition::FocusVisible`]）を `recipe` へ登録する。
 //!
 //! # `size` variant（イシュー #729）
 //!
-//! `size`（[`Size`]）は [`root`] へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は [`root`] へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-dialog-content-padding`/`-content-max-width`/`-title-font-size`
 //! の root スコープ CSS custom property（通常の CSS 継承により `content`/
 //! `title` へ伝わる。`root` は両パーツを内包する祖先要素であるため、
@@ -84,7 +84,7 @@
 //! `backdrop`/`positioner` は `position: fixed; inset: 0` のビューポート全体
 //! オーバーレイだが、`z-index` を宣言しないとページ内の他の position 指定 UI
 //! （ヘッダー・スティッキーバー・[`crate::menu`]/[`crate::select`] の
-//! `positioner` 等）の下に隠れて操作不能になり得る。[`recipe`] の base 規則で
+//! `positioner` 等）の下に隠れて操作不能になり得る。`recipe` の base 規則で
 //! 両パーツに `z-index` を設定し、常に最前面に来るようにする（menu/select の
 //! dropdown positioner（z-index: 10）より高い値にする）。
 //!
@@ -182,13 +182,13 @@
 //! headless 層（`crates/headless-ui/src/dialog.rs`）は dialog が closed の
 //! とき `positioner`（`backdrop`/`content` も同様）に `hidden` 存在属性を
 //! 付与し、UA 既定スタイル `[hidden] { display: none }` によって非表示化
-//! させる契約になっている。ところが [`recipe`] の base 規則は `positioner`
+//! させる契約になっている。ところが `recipe` の base 規則は `positioner`
 //! に `display: flex` を宣言しており、この author スタイルが UA スタイルより
 //! 詳細度で優先されるため `[hidden]` 単体では非表示化できず、closed でも
 //! `position: fixed; inset: 0; z-index: 1001` のフルビューポート層が残存して
 //! 背後のページのクリックを遮断してしまう（`backdrop`/`content` は
 //! base 規則が `display` を宣言しないため UA 既定で問題ない）。
-//! [`state_css`] に `[data-scope="dialog"][data-part="positioner"][hidden]`
+//! `state_css` に `[data-scope="dialog"][data-part="positioner"][hidden]`
 //! に対する `display: none` の明示的な上書き規則を追加し、`display: flex`
 //! より詳細度・出現順の両方で優先させることでこれを固定する。
 //!
@@ -824,7 +824,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::dialog::root`] へ
 /// 委譲する。
 ///

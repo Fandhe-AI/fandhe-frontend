@@ -1,5 +1,5 @@
 //! keyed list の「現在の子要素」ハンドルキャッシュ本体（イシュー #1374 で
-//! [`crate::keyed_dom::WebSysKeyedDom`] へ導入した `Vec<(String, Element)>`
+//! `crate::keyed_dom::WebSysKeyedDom` へ導入した `Vec<(String, Element)>`
 //! キャッシュを、PR #1392 codex-review P1 指摘を受けて汎用データ構造として
 //! 切り出したもの）。
 //!
@@ -19,12 +19,12 @@
 //! にする。
 //!
 //! `Handle`（wasm32 実行時は `web_sys::Element`）を型パラメータ化し、本体を
-//! wasm32 非依存にしてある。[`crate::keyed_dom::WebSysKeyedDom`] は
+//! wasm32 非依存にしてある。`crate::keyed_dom::WebSysKeyedDom` は
 //! `#[cfg(target_arch = "wasm32")]` ゲート配下のため、キャッシュの実装自体を
 //! そちらに置くと native `cargo test` から要素移動量を検証できない
-//! （[`crate::keyed_apply`] モジュール冒頭 doc が同じ理由で走査アルゴリズム
+//! （`crate::keyed_apply` モジュール冒頭 doc が同じ理由で走査アルゴリズム
 //! 本体を wasm32 非依存に切り出した設計をここでも踏襲する）。本番経路では
-//! [`crate::keyed_dom::WebSysKeyedDom`] のみが `KeyedChildrenCache<Element>`
+//! `crate::keyed_dom::WebSysKeyedDom` のみが `KeyedChildrenCache<Element>`
 //! を消費する。
 //!
 //! # 計算量保証（amortized O(N)）
@@ -98,7 +98,7 @@ impl<H: Clone> KeyedChildrenCache<H> {
         }
     }
 
-    /// 全エントリを取り除く（[`crate::keyed_dom::WebSysKeyedDom::clear_children`]
+    /// 全エントリを取り除く（`crate::keyed_dom::WebSysKeyedDom::clear_children`
     /// 用）。
     pub(crate) fn clear(&mut self) {
         self.slots.clear();
@@ -180,7 +180,7 @@ impl<H: Clone> KeyedChildrenCache<H> {
     }
 
     /// `key` に一致するエントリを tombstone 化する（実 DOM 側の削除成功後に
-    /// 呼ぶ契約。呼び出し元 [`crate::keyed_dom::WebSysKeyedDom::remove_child`]
+    /// 呼ぶ契約。呼び出し元 `crate::keyed_dom::WebSysKeyedDom::remove_child`
     /// doc 参照）。見つからなければ何もせず `false` を返す。
     pub(crate) fn remove(&mut self, key: &str) -> bool {
         // フェーズ 1（本来の経路、モジュール doc「計算量保証」参照）:

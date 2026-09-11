@@ -33,13 +33,13 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`）はすべて `&'static str` リテラルで
 //!   固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::data_attrs`] の既存不変条件をそのまま継承する）。
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（数値属性・`aria-valuetext`・呼び出し側 `attrs`・children テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - 数値属性値（`data-value`/`data-max`/`aria-valuemin`/`aria-valuemax`/
 //!   `aria-valuenow`）はサーバー側で有限性検証・`[min, max]` へ clamp 済みの
-//!   `f64` の文字列表現（[`fmt_num`]）のみを出力する。任意の呼び出し側文字列を
+//!   `f64` の文字列表現（`fmt_num`）のみを出力する。任意の呼び出し側文字列を
 //!   これらの数値スロットへ直接通す経路は持たない（fail-closed 正規化は
 //!   [`Progress::new`] が一元的に担う）。
 //! - `data-state` 値語彙（`"indeterminate"`/`"loading"`/`"complete"`）は本
@@ -274,7 +274,7 @@ impl Progress {
     /// `data-hydrate-orientation` 属性名のフィールド部分。
     pub const FIELD_ORIENTATION: &'static str = "orientation";
 
-    /// 指定した値で [`Progress`] を生成する（[`normalize`] で fail-closed
+    /// 指定した値で [`Progress`] を生成する（`normalize` で fail-closed
     /// 正規化する。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(min: f64, max: f64, value: Option<f64>, orientation: Orientation) -> Self {
@@ -370,7 +370,7 @@ impl Progress {
     /// `data-orientation` は ark-ui/Zag.js の `getLabelProps` に合わせて
     /// 付与する（イシュー #1633 是正。Track/Range と同じ語彙・値を使う）。
     /// 呼び出し側 `attrs` が同名キーを渡してもフレームワーク側の値を優先
-    /// する（[`drop_reserved`] による dedup、`crate::timer::AREA_RESERVED`
+    /// する（`drop_reserved` による dedup、`crate::timer::AREA_RESERVED`
     /// と同型のなりすまし防止）。
     #[must_use]
     pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
@@ -389,7 +389,7 @@ impl Progress {
     /// `aria-live="polite"` を無条件付与する（ark-ui/Zag.js の
     /// `getValueTextProps` に合わせる、イシュー #1633 是正）。数値の更新を
     /// 支援技術へ非割り込みで通知する契約であり、呼び出し側は上書きできない
-    /// （[`drop_reserved`] による dedup）。
+    /// （`drop_reserved` による dedup）。
     #[must_use]
     pub fn value_text<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let attrs = drop_reserved(attrs, VALUE_TEXT_RESERVED);
@@ -425,7 +425,7 @@ impl Progress {
 
     /// Circle パーツ（`svg`）。Circular 表示のコンテナ。
     ///
-    /// `--size`/`--thickness` を参照する固定 `style`（[`CIRCLE_STYLE`]）を
+    /// `--size`/`--thickness` を参照する固定 `style`（`CIRCLE_STYLE`）を
     /// 出力し、実際の値は styled 層/呼び出し側が CSS で定義する（headless
     /// 中立）。`data-orientation` は circular に意味を持たないため付与
     /// しない（モジュール doc の circular 節を参照）。
@@ -460,8 +460,8 @@ impl Progress {
     ///
     /// determinate（[`Progress::percent`] が `Some`）のときのみ
     /// `--percent`/`stroke-dasharray`/`stroke-dashoffset` を含む
-    /// `style` を出力する（[`circle_range_determinate_style`]）。
-    /// indeterminate のときはジオメトリのみの [`CIRCLE_TRACK_STYLE`] と
+    /// `style` を出力する（`circle_range_determinate_style`）。
+    /// indeterminate のときはジオメトリのみの `CIRCLE_TRACK_STYLE` と
     /// 同型の固定 `style` に留め、進捗系の値を捏造しない（モジュール doc
     /// の circular 節を参照）。`style` の dedup 方針は [`Progress::circle`]
     /// のドキュメントを参照。
@@ -529,7 +529,7 @@ impl Component for Progress {
     type Action = ProgressAction;
 
     /// `ProgressAction::SetValue` は非有限（`NaN`/`inf`）を fail-closed に
-    /// 無視する（no-op）。[`normalize`]/[`Progress::decode_action`] が課す
+    /// 無視する（no-op）。`normalize`/[`Progress::decode_action`] が課す
     /// 「`value` は有限値または `None`」という本モジュールの不変条件を
     /// `update()` 単体でも維持するため（`decode_action` を経由しない直接
     /// `ProgressAction::SetValue` 構築・呼び出しからも同じ不変条件を守る）。

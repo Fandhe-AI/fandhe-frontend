@@ -360,7 +360,7 @@
 //! - variant クラス名は [`crate::recipe::SlotRecipe::variant_classes`] が
 //!   `&'static str` enum 値から決定的に生成し、動的文字列合成を行わない。
 //! - 呼び出し側 `attrs` に含まれる `class` は
-//!   [`crate::class_attr::drop_class_attr`] で除去してから recipe 生成
+//!   `crate::class_attr::drop_class_attr` で除去してから recipe 生成
 //!   クラスと合成するため、`class` 属性は常に単一（呼び出し側からのクラス
 //!   偽装・重複混入を防ぐ）。
 //! - [`column_header`] の `scope="col"` は関数側で固定するため、呼び出し側
@@ -1020,7 +1020,7 @@ pub fn css() -> String {
 }
 
 /// root パーツ（`<table>`）を組み立てる。`variant`/`size`/`striped` に応じた
-/// クラスを付与する唯一のパーツ（[`drop_class_attr`] により呼び出し側の
+/// クラスを付与する唯一のパーツ（`drop_class_attr` により呼び出し側の
 /// `class` は除去してから合成する）。
 ///
 /// # Examples
@@ -1077,7 +1077,7 @@ pub fn row<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 
 /// column-header パーツ（`<th scope="col">`）を組み立てる。列見出しの
 /// WAI-ARIA/HTML 意味論（`scope="col"`）を既定で担保する。呼び出し側 `attrs`
-/// に `scope` を含めても [`drop_reserved`] により除去される（本モジュール
+/// に `scope` を含めても `drop_reserved` により除去される（本モジュール
 /// doc「セキュリティ不変条件」節参照）。
 #[must_use]
 pub fn column_header<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {

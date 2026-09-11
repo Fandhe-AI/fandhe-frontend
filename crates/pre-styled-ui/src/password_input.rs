@@ -31,7 +31,7 @@
 //! # `data-state` 語彙について
 //!
 //! headless 層は表示切替を `"visible"`/`"hidden"` 語彙で表現する
-//! （`crates/headless-ui/src/password_input.rs` 参照）。[`recipe`] の
+//! （`crates/headless-ui/src/password_input.rs` 参照）。`recipe` の
 //! `control`/`visibility-trigger` への状態連動規則もこの語彙に合わせて
 //! `data-state="visible"` を条件とする。
 //!
@@ -46,7 +46,7 @@
 //!
 //! # `size`/`palette` variant
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-password-input-height`/`-font-size`/`-padding-x` の root
 //! スコープ custom property（CSS の通常のプロパティ継承により `control`/
 //! `input` へ伝わる）経由で寸法を切り替える。`palette`（[`ColorPalette`]）は
@@ -488,7 +488,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与する
-/// 唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去して
+/// 唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去して
 /// から合成する）。実体は
 /// [`fandhe_frontend_headless_ui::password_input::root`] へ委譲する。
 ///

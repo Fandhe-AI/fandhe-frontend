@@ -34,14 +34,14 @@
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`disabled`/`id`/
 //!   `value`/`name`/`for`/`tabindex`/`autocomplete`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`mod@crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存
 //!   不変条件をそのまま継承する）。
 //! - 動的値（入力値/選択値/候補ラベル・値/`id`/`controls`/`labelledby`/
 //!   `activedescendant`/`for`/`name`/呼び出し側 `attrs`/`children`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - `data-state` 値語彙（`"open"`/`"closed"`）は [`crate::state::OpenState`]
-//!   に一元化し、[`select`]（[`crate::select`]）と同じく選択有無の表現にも
+//!   に一元化し、`select`（[`crate::select`]）と同じく選択有無の表現にも
 //!   再利用する（`item`/`item_indicator` の `data-state`。
 //!   [`crate::state::SingleSelect::item_data_state`] と同じ契約）。
 //! - hydration 属性（`data-hydrate-state`/`data-hydrate-selected`/

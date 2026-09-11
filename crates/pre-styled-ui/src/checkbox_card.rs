@@ -14,7 +14,7 @@
 //! そのまま拡張できない。[`crate::card`] が pre-styled 層で独自 anatomy
 //! （`data-scope="card"`）を持つ先例（同モジュール rustdoc 参照）に倣い、
 //! 本モジュールは新規 anatomy `data-scope="checkbox-card"` を
-//! [`fandhe_frontend_headless_ui::anatomy`] で定義する。既存 `checkbox` scope
+//! [`fandhe_frontend_headless_ui::anatomy`](mod@fandhe_frontend_headless_ui::anatomy) で定義する。既存 `checkbox` scope
 //! とは完全に独立するため、[`crate::checkbox`] の CSS/属性契約と衝突しない。
 //!
 //! # 状態機械の再利用（受け入れ条件 1: 新規状態機械を作らない）
@@ -114,7 +114,7 @@
 //! # `size`/`palette` variant
 //!
 //! [`crate::checkbox`] rustdoc「複合部品の variant 統一方針」節（#708）と
-//! 同型。`size`（[`Size`]）は [`root`] へのみクラスを付与し、[`recipe`] が
+//! 同型。`size`（[`Size`]）は [`root`] へのみクラスを付与し、`recipe` が
 //! 登録する `--fandhe-checkbox-card-*` の root スコープ custom property 経由で
 //! `control`/`indicator`/`indicator-check`/`label` の寸法を切り替える。
 //! `palette`（[`ColorPalette`]）は [`crate::recipe::palette_scale_declarations`] を
@@ -179,7 +179,7 @@
 //! （`name`/`value`/attrs/children）は
 //! [`fandhe_frontend_headless_ui::fandhe_frontend_core::render`] の既定
 //! エスケープを必ず経由する（REQ-1）。呼び出し側 `attrs` の `class` は
-//! [`drop_class_attr`] で除去してから合成し、`class` 属性は常に単一
+//! `drop_class_attr` で除去してから合成し、`class` 属性は常に単一
 //! （[`crate::checkbox::root`] と同型）。`data-state`/`data-disabled`/
 //! `data-invalid`/`data-required`/`data-readonly` の状態キーと、
 //! `hidden_input` が固定する `type`/`checked`/`aria-checked`/`aria-invalid`/
@@ -647,7 +647,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与する
-/// 唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去して
+/// 唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去して
 /// から合成する）。
 ///
 /// # Examples

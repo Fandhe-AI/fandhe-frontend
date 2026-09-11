@@ -18,7 +18,7 @@
 //!
 //! # 状態機械を持たない理由
 //!
-//! headless [`mod@fandhe_frontend_headless_ui::attachment`] 自身が状態機械を
+//! headless [`fandhe_frontend_headless_ui::attachment`](mod@fandhe_frontend_headless_ui::attachment) 自身が状態機械を
 //! 持たない静的な自由関数群であるため、本モジュールもその設計をそのまま
 //! 継承する（[`crate::bubble`] モジュール doc と同型の判断）。
 //!
@@ -101,7 +101,7 @@
 //! # `progress` スロット
 //!
 //! headless `attachment::progress` は attachment scope の単純なスロット
-//! であり、[`crate::progress::Progress`] を委譲しない（headless モジュール
+//! であり、`crate::progress::Progress` を委譲しない（headless モジュール
 //! doc「`progress` は attachment scope のスロット」参照）。呼び出し側が
 //! 中身へ [`crate::progress`] の styled パーツ群を入れ子にする契約を
 //! そのまま継承する。`root`（`media`/`content`/`progress`/`actions` の
@@ -186,10 +186,10 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 全出力は headless [`mod@fandhe_frontend_headless_ui::attachment`] →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//! - 全出力は headless [`fandhe_frontend_headless_ui::attachment`](mod@fandhe_frontend_headless_ui::attachment) →
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する（8 パーツすべて）。
 //! - [`stylesheet`] が組み立てる CSS 宣言はすべてコンパイル時静的
 //!   リテラルであり、[`crate::css::decl`]/[`crate::css::serialize_rule`]
@@ -221,7 +221,7 @@ pub use fandhe_frontend_headless_ui::attachment::{
     AttachmentRootProps, AttachmentState, AttachmentVariant,
 };
 
-/// slot 一覧（headless [`mod@fandhe_frontend_headless_ui::attachment`] の
+/// slot 一覧（headless [`fandhe_frontend_headless_ui::attachment`](mod@fandhe_frontend_headless_ui::attachment) の
 /// anatomy と 1:1、8 パーツ）。
 const SLOTS: &[&str] = &[
     "root", "media", "content", "name", "meta", "progress", "actions", "action",
@@ -503,7 +503,7 @@ pub fn stylesheet() -> String {
 
 /// styled `root` パーツを組み立てる。見た目クラスは付与せず（モジュール
 /// doc「headless の `data-*` を参照する」節参照）、呼び出し側 `class` を
-/// [`drop_class_attr`] で除去してから
+/// `drop_class_attr` で除去してから
 /// [`fandhe_frontend_headless_ui::attachment::root`] へそのまま委譲する。
 #[must_use]
 pub fn root<'a>(

@@ -7,8 +7,8 @@
 //! title/description + actions からなる 1 行のレイアウトコンテナを表現する
 //! [`root`] / [`media`] / [`content`] / [`title`] / [`description`] /
 //! [`actions`] / [`header`] / [`footer`] / [`group`] / [`separator`] の
-//! 10 anatomy パーツを提供する。[`mod@crate::button_group`]/
-//! [`mod@crate::input_group`] と同型で状態機械（[`crate::state`]）を持たない
+//! 10 anatomy パーツを提供する。[`crate::button_group`](mod@crate::button_group)/
+//! [`crate::input_group`](mod@crate::input_group) と同型で状態機械（[`crate::state`]）を持たない
 //! （すべて SSR 時点で決まる静的な props のみで完結する自由関数）。
 //!
 //! # `group` は `role="group"`（shadcn の `role="list"` からの意図的差分）
@@ -19,7 +19,7 @@
 //! [`root`] を `a` として描画できる（下記「`root` を `a` として描画する経路」
 //! 参照）ため、`list`/`listitem` 対を成立させられない。よって [`group`] は
 //! [`crate::button_group::root`] と同じ `role="group"` + 任意 `aria-label` と
-//! し、リスト意味論が必要な利用者は `ul`/`li` の合成や [`mod@crate::nav_list`]
+//! し、リスト意味論が必要な利用者は `ul`/`li` の合成や [`crate::nav_list`](mod@crate::nav_list)
 //! を使う想定とする。
 //!
 //! # `separator` は `group` 内専用の水平固定パーツ
@@ -36,17 +36,17 @@
 //! # `root` を `a` として描画する経路（link / link-overlay 方針の適用）
 //!
 //! [`ItemRootProps::href`] が `Some` のとき [`root`] は `div` ではなく `a` を
-//! 描画する（[`mod@crate::link`]/[`mod@crate::link_overlay`] と同型）。
+//! 描画する（[`crate::link`](mod@crate::link)/[`crate::link_overlay`](mod@crate::link_overlay) と同型）。
 //!
 //! - `href` は出力属性列の先頭へ固定付与し、`drop_reserved` で呼び出し側
 //!   `attrs` からの同名なりすまし（大文字小文字混在を含む）を除去する
 //!   （[`crate::link_overlay::overlay`] と同型、イシュー #1650）。
 //! - URL スキーム検証は独自実装しない。`javascript:`/`data:`/`vbscript:` 等は
 //!   [`fandhe_frontend_core::render`] の許可スキーム deny-by-default が属性
-//!   ごと拒否する（[`mod@crate::link`] と同じ整理）。
+//!   ごと拒否する（[`crate::link`](mod@crate::link) と同じ整理）。
 //! - [`ItemRootProps::external`] が `true` のとき `target="_blank"` +
 //!   `rel="noopener noreferrer"` を**不可分に**付与する（reverse tabnabbing
-//!   対策、[`mod@crate::link`] と同じ判断。片方のみを付与できる API は公開
+//!   対策、[`crate::link`](mod@crate::link) と同じ判断。片方のみを付与できる API は公開
 //!   しない）。`href` が `None` のときは `external` を無視する（`div` に
 //!   `target`/`rel` を出さない）。
 //! - `role` は付与しない（`a` の暗黙 `link` ロールに委ねる。`div` のときも

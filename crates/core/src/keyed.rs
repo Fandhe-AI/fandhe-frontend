@@ -88,13 +88,13 @@ pub const KEY_ATTR: &str = "data-key";
 /// はるかに超えて劣化し得る（概算 10 億 byte 相当）。
 ///
 /// この指摘を受け、`keyed.rs` の文字列キー `HashMap`/`HashSet` はすべて
-/// [`crate::fx_hash::FxStrMap`]/[`crate::fx_hash::FxStrSet`]
+/// `crate::fx_hash::FxStrMap`/`crate::fx_hash::FxStrSet`
 /// （64bit 一次ハッシュ経由の間接テーブル、衝突時は
 /// [`KeyedListError::KeyHashCollision`] で fail-closed 拒否）へ置き換えた。
 /// これにより **比較バイト総量は `O(総キーバイト数)` の線形**で拘束され、
 /// 「件数の 2 乗 × 共通接頭辞長」という項は構造的に消滅する（詳細・
 /// 内側マップの衝突が安全な理由・意図的な衝突キーに対する挙動は
-/// [`crate::fx_hash::FxStrMap`] の型 doc 参照）。
+/// `crate::fx_hash::FxStrMap` の型 doc 参照）。
 ///
 /// 本定数（[`MAX_KEYED_LIST_ITEMS`]）は、この線形拘束のもとでも残る
 /// **操作回数**（`HashMap`/`HashSet` への `get`/`insert` 呼び出し回数、
@@ -151,7 +151,7 @@ pub enum KeyedListError {
     /// 防御、イシュー #1375 codex-review P1 是正）。[`keyed_list`]・
     /// [`diff_keys`]・[`diff_keyed_items`] のいずれからも返り得る
     /// （PR #1390 レビュー是正で `diff_keys`/`diff_keyed_items` にも同じ
-    /// ゲート [`enforce_key_limits`] を適用したため）。
+    /// ゲート `enforce_key_limits` を適用したため）。
     TooManyItems {
         /// 実際の項目数。
         count: usize,
@@ -190,14 +190,14 @@ pub enum KeyedListError {
         /// 衝突した予約属性名。
         attr: &'static str,
     },
-    /// 内部で使うキー用ハッシュテーブル（[`crate::fx_hash::FxStrMap`]/
-    /// [`crate::fx_hash::FxStrSet`]）が、64bit 一次ハッシュ値の衝突する
+    /// 内部で使うキー用ハッシュテーブル（`crate::fx_hash::FxStrMap`/
+    /// `crate::fx_hash::FxStrSet`）が、64bit 一次ハッシュ値の衝突する
     /// 異なる文字列キーを検出した（HashDoS 対策の追加防御その 2、PR #1390
     /// codex-review 第 2 巡 P1 是正、イシュー #1375）。[`keyed_list`]・
     /// [`diff_keys`]・[`diff_keyed_items`] のいずれからも返り得る。
     ///
     /// 偶発的な衝突確率の見積もり（`n = 4096` で約 `4.5 * 10^-13`）・
-    /// fail-closed で拒否する設計根拠は [`crate::fx_hash::FxStrMap`] の型
+    /// fail-closed で拒否する設計根拠は `crate::fx_hash::FxStrMap` の型
     /// doc を参照。**wasm32-unknown-unknown 上では、攻撃者が意図的に同一
     /// 一次ハッシュ値を持つ 2 文字列を構成することは依然として可能**
     /// （固定初期状態・非暗号学的ハッシャのため）であり、本 variant は
@@ -550,7 +550,7 @@ pub enum KeyedOp {
 /// 場合の防御）は、新旧両側とも「最初の 1 件のみを対象とし、無限ループ・
 /// panic を起こさない」fail-closed を保証する。ただし新旧で「最初の 1 件」
 /// が指す実体は非対称である（イシュー #1336 codex レビュー P1 是正、
-/// 詳細は [`remove_pass`] 参照）: **旧側は最後の出現を保持し、それより前の
+/// 詳細は `remove_pass` 参照）: **旧側は最後の出現を保持し、それより前の
 /// 出現をすべて [`KeyedOp::Remove`] として発行する**。[`KeyedOp::Remove`]
 /// は `key` のみを運び、DOM 適用側は `querySelector` 相当の「現時点で最初
 /// に一致するノード」を除去する契約であるため、除去対象を古い出現順に
@@ -562,7 +562,7 @@ pub enum KeyedOp {
 /// （op を一切発行しない）。新側の重複は挿入によって新規ノードを作る
 /// だけで既存ノードの物理的な同一性が問題にならないため、位置（`index`）
 /// さえ正規化されていれば最初の出現のみを処理すれば十分である。
-/// [`insert_or_move_pass`] はこの正規化（重複でスキップした要素だけ
+/// `insert_or_move_pass` はこの正規化（重複でスキップした要素だけ
 /// `index` のカウントアップをスキップする）も担う。
 ///
 /// `fandhe-frontend-wasm-client`（イシュー #345）が導入した実装をそのまま
@@ -574,16 +574,16 @@ pub enum KeyedOp {
 /// # 前段スキップ（共通接頭辞・接尾辞トリム、イシュー #1376）
 ///
 /// vue `patchKeyedChildren` / lit `repeat` / solid `mapArray` が共通で採る
-/// 前処理として、[`trimmed_bounds`] で新旧キー列の共通接頭辞・接尾辞を
-/// 先に求め、不一致の中間区間に対してのみ [`remove_pass`]/
-/// [`insert_or_move_pass`] を適用する（`base_index` で中間区間の
+/// 前処理として、`trimmed_bounds` で新旧キー列の共通接頭辞・接尾辞を
+/// 先に求め、不一致の中間区間に対してのみ `remove_pass`/
+/// `insert_or_move_pass` を適用する（`base_index` で中間区間の
 /// オフセットを補正する）。キー列が完全一致する場合（CSR update
 /// ワークロードの典型）は中間区間が空になり、`HashMap`/`HashSet` を
 /// 一切構築せずキー列の `==` 比較のみで空の `ops` を返す。
 ///
 /// この前段スキップを安全に適用できるのは、**`old_keys`/`new_keys` の
 /// それぞれの内部にキー重複が一切ない**場合に限る
-/// （[`has_duplicate_keys`] でゲートする）。理由: 重複がなければ、ある
+/// （`has_duplicate_keys` でゲートする）。理由: 重複がなければ、ある
 /// キーは配列内に高々 1 回しか出現しないため、接頭辞・接尾辞領域の
 /// キーが中間区間に再出現することは構造的にあり得ず、中間区間だけの
 /// diff 結果は全域スローパスの対応部分と完全に一致する
@@ -594,7 +594,7 @@ pub enum KeyedOp {
 /// 行わず全域スローパスへフォールバックする。これは
 /// `old=["a","a","c"], new=["a","a","d"]` のような「重複キーが
 /// 接頭辞・接尾辞領域に完全に閉じている」ケースで、中間区間のみの
-/// 素朴な diff が [`remove_pass`] の自己修復（最後の出現のみ保持）を
+/// 素朴な diff が `remove_pass` の自己修復（最後の出現のみ保持）を
 /// 取りこぼし、適用結果が dedup(new) と一致しなくなる不具合を防ぐ
 /// ために必須（接頭辞・接尾辞と中間区間の対応関係だけを見る素朴な
 /// ゲートでは検出できない。全域重複検査が唯一の健全な条件）。
@@ -605,8 +605,8 @@ pub enum KeyedOp {
 /// 公開 API のため、`keyed_list` 側の項目数・キー総バイト数の上限
 /// （[`MAX_KEYED_LIST_ITEMS`]/[`MAX_KEYED_LIST_KEY_BYTES`]）を経由せずに
 /// 攻撃者が選んだキー列を直接投入できてしまう。内部で `HashMap`/
-/// `HashSet` を構築する [`remove_pass`]/[`insert_or_move_pass`] を呼ぶ前に、
-/// `old_keys`/`new_keys` それぞれへ同じ上限ゲート（[`enforce_key_limits`]）
+/// `HashSet` を構築する `remove_pass`/`insert_or_move_pass` を呼ぶ前に、
+/// `old_keys`/`new_keys` それぞれへ同じ上限ゲート（`enforce_key_limits`）
 /// を適用し、超過時は `HashMap`/`HashSet` を一切構築せずに `Err` を返す。
 ///
 /// # Errors
@@ -1039,8 +1039,8 @@ fn insert_or_move_pass(
 /// `old_items`/`new_items` は `(キー, Node)` のペア列（[`keyed_list`] が
 /// 消費する形と同じ）。動作は次の 3 パス:
 ///
-/// 1. [`diff_keys`] と完全同一の Remove 発行（[`remove_pass`] を共有）。
-/// 2. [`diff_keys`] と完全同一の Insert/Move 発行（[`insert_or_move_pass`]
+/// 1. [`diff_keys`] と完全同一の Remove 発行（`remove_pass` を共有）。
+/// 2. [`diff_keys`] と完全同一の Insert/Move 発行（`insert_or_move_pass`
 ///    を共有）。
 /// 3. 新旧両方に存在する保持キー**すべて**（Move の有無に関わらず）につい
 ///    て、新旧 `Node` を [`PartialEq`] で比較し、不一致のときのみ
@@ -1079,7 +1079,7 @@ fn insert_or_move_pass(
 /// # 前段スキップ（共通接頭辞・接尾辞トリム、イシュー #1376）
 ///
 /// [`diff_keys`] doc「前段スキップ」節と同じ前処理・安全性検証ゲート
-/// （[`trimmed_bounds_items`]/[`has_duplicate_keys`]、old/new それぞれの
+/// （`trimmed_bounds_items`/`has_duplicate_keys`、old/new それぞれの
 /// 内部に重複キーがないことが適用条件）を用いる。異なるのは第 3 パス
 /// （Update 判定）の扱いのみ: **スキップ区間（接頭辞・接尾辞）にも
 /// Update 判定は必須**（キー一致は内容一致を意味しないため。イシュー
@@ -1095,13 +1095,13 @@ fn insert_or_move_pass(
 ///
 /// 接頭辞・接尾辞の Update 判定は位置ベースの直接比較（`old_items[i].1
 /// != new_items[i].1`）のみで完結し、`HashMap`/`HashSet` を構築しない
-/// （old/new で同じ位置に同じキーが並んでいることは [`trimmed_bounds_items`]
+/// （old/new で同じ位置に同じキーが並んでいることは `trimmed_bounds_items`
 /// の構築条件そのもの）。
 ///
 /// # HashDoS 対策の追加防御（PR #1390 レビュー是正、イシュー #1375）
 ///
 /// [`diff_keys`] と同じ理由（doc 参照）で、`old_items`/`new_items` それぞれ
-/// へ [`enforce_key_limits`] を適用してから `HashMap`/`HashSet` を構築する。
+/// へ `enforce_key_limits` を適用してから `HashMap`/`HashSet` を構築する。
 ///
 /// # Errors
 ///

@@ -76,7 +76,7 @@ impl ItemTemplate {
 ///    行固有値のため）。ルート以外の `KEY_ATTR` は値も一致必須。子は
 ///    同数で対ごとに再帰。
 /// 2. [`Node::Text`] 同士: 常に同型（値は自由 = 束縛点）。
-/// 3. [`Node::RawHtml`][Node::RawHtml]: どちらか一方でも出現したら即不成立。
+/// 3. [`Node::RawHtml`][]: どちらか一方でも出現したら即不成立。
 /// 4. variant 不一致・ルートが非 [`Node::Element`]: 不成立。
 pub fn derive_item_template(items: &[&Node]) -> Option<ItemTemplate> {
     let (first, rest) = items.split_first()?;

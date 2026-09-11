@@ -21,18 +21,18 @@
 //! # `Runtime<C>::mount`/`Runtime::hydrate` へ自動配線しない理由（意図的な
 //! スコープ限定、`out-of-scope-tracking.md` に従い Issue 化を提案する）
 //!
-//! [`headless_avatar::wire_avatar_events`] 等の既存配線は「文字列 dispatch
+//! `headless_avatar::wire_avatar_events` 等の既存配線は「文字列 dispatch
 //! （`Component::decode_action` が受理する `&str` アクション名）のみで完結する」
 //! ため、`Runtime<C>` が `C: Component` という総称境界のまま自動配線できた。
 //! 一方 FileUpload の [`fandhe_frontend_headless_ui::file_upload::FileUploadAction::AddFiles`]
 //! は型付き API 限定（`crates/headless-ui/src/file_upload.rs` 冒頭 rustdoc
 //! 「dispatch 契約」節）であり、`Component` トレイトの総称境界だけでは
 //! 「`C` が `FileUpload` を含む」ことを表現できない。したがって本モジュールの
-//! [`wire_file_upload_component`] は具象型 `FileUpload` に特化した API として
+//! `wire_file_upload_component` は具象型 `FileUpload` に特化した API として
 //! 提供し、`Runtime<C>::mount`/`Runtime::hydrate` への総称的な自動配線は行わない
 //! （`headless_avatar::wire_avatar_events` が #711 で汎化される前の #591 時点と
 //! 同型の段階的スコープ）。FileUpload を使うアプリは
-//! [`wire_file_upload_component`] を `Runtime::mount`/`Runtime::hydrate` 呼び出し
+//! `wire_file_upload_component` を `Runtime::mount`/`Runtime::hydrate` 呼び出し
 //! 後に明示的に呼び出す。`Component` トレイトを拡張して型付きアクションを
 //! 一般化する設計（総称自動配線の実現）は本イシューのスコープ外として
 //! Issue 化を提案する。
@@ -98,8 +98,8 @@ const ACTION_CLEAR: &str = "clear";
 /// `data-*` を持つ無関係要素上のイベントを dispatch へ流さない）。
 /// `ClearTrigger` は `("clear", "")` を返す。`ItemDeleteTrigger` は
 /// `item_index` が `Some` の場合に限り、`item_type` が
-/// [`ACCEPTED_ITEM_TYPE`] なら `("remove", "<index>")`、
-/// [`REJECTED_ITEM_TYPE`] なら `("remove-rejected", "<index>")` を返す
+/// `ACCEPTED_ITEM_TYPE` なら `("remove", "<index>")`、
+/// `REJECTED_ITEM_TYPE` なら `("remove-rejected", "<index>")` を返す
 /// （`item_index` が `None`、または `item_type` がどちらの既知語彙とも
 /// 一致しない場合はインデックス・削除先の一覧を特定できなかったことを
 /// 意味し、誤った一覧・インデックスで削除しないよう no-op とする、
@@ -137,7 +137,7 @@ pub fn click_action_for_target(
 
 /// クリックターゲットが Trigger パーツかどうかを判定する（DOM 非依存の
 /// 純粋関数）。Trigger クリックは dispatch を経由せず、配線層が
-/// [`hidden_input`]（`HIDDEN_INPUT_PART`）へ `click()` を転送するピッカー
+/// `hidden_input`（`HIDDEN_INPUT_PART`）へ `click()` を転送するピッカー
 /// 起動専用の合図であるため、[`click_action_for_target`] とは別関数にする。
 #[must_use]
 pub fn is_trigger_click(scope: Option<&str>, part: Option<&str>) -> bool {

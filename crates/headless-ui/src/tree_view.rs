@@ -51,7 +51,7 @@
 //!   を追加、[`branch_indent_guide`] へ `data-depth` を追加、[`item_text`]
 //!   へ `data-selected`/`data-disabled` を追加、[`item_indicator`] へ
 //!   `data-disabled`/`aria-hidden="true"`/非選択時 `hidden` を追加。加えて
-//!   [`drop_reserved`] による呼び出し側 `attrs` の予約キーなりすまし除去を
+//!   `drop_reserved` による呼び出し側 `attrs` の予約キーなりすまし除去を
 //!   全パーツへ導入した（[`crate::splitter`] と同型のパターン）。
 //! - **非追随**: `data-focus`/`data-renaming`/`data-checked`/
 //!   `data-indeterminate`/`data-loading`/`aria-busy`（focus・rename・
@@ -81,7 +81,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`hidden`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`mod@crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存
 //!   不変条件をそのまま継承する）。
 //! - 動的値（ノード値/ラベル/`aria-level`・`aria-posinset`・`aria-setsize`・
 //!   `data-depth` の数値文字列/呼び出し側 `attrs`/`children`）は
@@ -89,7 +89,7 @@
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - `data-state` 値語彙（`"open"`/`"closed"`）は [`crate::state::OpenState`]
 //!   に一元化し、本モジュールで独自の値を作らない。
-//! - [`drop_reserved`] により呼び出し側 `attrs` はフレームワークが付与する
+//! - `drop_reserved` により呼び出し側 `attrs` はフレームワークが付与する
 //!   `role`/`aria-*`/`data-state`/`data-value`/`data-branch`/`data-depth`/
 //!   `data-selected`/`data-disabled`/`hidden` を偽装・重複出力できない
 //!   （イシュー #1667 で全パーツへ導入）。

@@ -11,7 +11,7 @@
 //! # data-state とスタイルの連動（イシュー #664 受け入れ条件）
 //!
 //! `trigger`/`content` の開閉 `data-state`（open/closed）に応じた見た目の
-//! 切り替えを [`recipe`] へ登録する（[`crate::recipe::SlotRecipe::state`]）。
+//! 切り替えを `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]）。
 //!
 //! # キーボード操作系属性の反映
 //!
@@ -98,7 +98,7 @@
 //!   popover.rs`）の `trigger` は `disabled`/`data-disabled` を出力する
 //!   （[`crate::hover_card`] の「disabled 概念なし」判断はここでは
 //!   当てはまらない）。[`crate::recipe::disabled_declarations`] を `trigger`
-//!   の `data-disabled` 状態へ新設した（[`crate::button`] と同じ判断）。
+//!   の `data-disabled` 状態へ新設した（[`crate::button`](mod@crate::button) と同じ判断）。
 //!   `trigger[data-state=open]`/`content[data-state=closed]` の既存連動は
 //!   維持する。
 //! - **ダーク**: `content` の影が生リテラルでダーク非追従だった点を、
@@ -188,13 +188,13 @@
 //!   intentional-non-adoption.md` §3.25 規則 1（UI コンポーネント層へ
 //!   アプリケーションロジックを内包する部品は実装しない）にも抵触しない。
 //!   本リポジトリには既に [`crate::field`]（イシュー #2014 で shadcn/ui
-//!   突合済み）と [`crate::input`] が存在し、これらを [`content`] の自由な
+//!   突合済み）と [`crate::input`](mod@crate::input) が存在し、これらを [`content`] の自由な
 //!   `children: Vec<Node>` へ組み合わせるだけで再現可能であり、新規
 //!   anatomy パート・新規 CSS は不要と確認した。docs サイトの Examples 節
 //!   新設（`crates/docs-site/src/component_specs_overlay.rs` の
 //!   `ex_popover_dimensions_form`）で可視化した（本モジュールの
 //!   `recipe()`/公開シグネチャ/CSS 出力は一切変更しない）。
-//! - **RTL**: 本リポジトリに RTL 対応の前例は乏しく（[`crate::marquee`]
+//! - **RTL**: 本リポジトリに RTL 対応の前例は乏しく（[`crate::marquee`](mod@crate::marquee)
 //!   が唯一 `dir="rtl"` 環境での崩れをスコープ外と明記する例）、本モジュール
 //!   でも RTL 対応は実装せず本イシューのスコープ外とする（下記スコープ外
 //!   節参照）。

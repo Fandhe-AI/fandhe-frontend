@@ -18,8 +18,8 @@
 //! - 外部入力（信頼できない Markdown）を将来受け取る可能性を見越し、本モジュール
 //!   の入力は常に「信頼できない入力」として扱う（`docs/` 配下はリポジトリ管理下だが
 //!   脅威モデル上の扱いは緩めない）
-//! - インライン構文の閉じマーカー探索（[`find_closing_run`] / [`find_char`]）
-//!   は 1 回の探索でスキャンする文字数を [`MAX_INLINE_SCAN_WINDOW`] に
+//! - インライン構文の閉じマーカー探索（`find_closing_run` / `find_char`）
+//!   は 1 回の探索でスキャンする文字数を `MAX_INLINE_SCAN_WINDOW` に
 //!   制限する。無制限に末尾まで走査すると、閉じマーカーが見つからない
 //!   `*` / `` ` `` / `[` の連続に対し開始位置ごとの走査が最悪 O(n^2) の
 //!   アルゴリズム的計算量 DoS（OWASP A04）を招くため、上限超過分は
@@ -35,12 +35,12 @@
 //!   独立に適用）の多層で検証する。不合格の URL は `<a>` を生成せずリンクテキストのみを
 //!   出力する（fail-closed）。属性値自体も core が出力時にエスケープするため
 //!   `"` によるリンクテキスト/URL からの属性 breakout は core 側でも遮断される
-//! - インライン構文の閉じマーカー探索（[`find_closing_run`] / [`find_char`]）
-//!   はインラインコードスパン（`` `...` ``）の中身を [`skip_backtick_span`]
+//! - インライン構文の閉じマーカー探索（`find_closing_run` / `find_char`）
+//!   はインラインコードスパン（`` `...` ``）の中身を `skip_backtick_span`
 //!   で読み飛ばす。読み飛ばさない場合、コードスパン内の `*`/`]` が外側の
 //!   強調・リンクの閉じマーカーと誤って一致し、ネストしたコードスパンを
 //!   含む強調・リンクが壊れたリテラルになる（レビュー指摘イシュー #467）
-//! - 引用（[`parse_quote`]）の 1 行目が [`admonition_kind`] の判定する固定
+//! - 引用（`parse_quote`）の 1 行目が `admonition_kind` の判定する固定
 //!   マーカー（`[!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` /
 //!   `[!CAUTION]`、GFM alerts 準拠）と前後空白を除き完全一致する場合のみ、
 //!   通常の `blockquote` の代わりに `fandhe_frontend_pre_styled_ui::alert`
@@ -52,14 +52,14 @@
 //!   `status`・`class` 属性へ流し込むことはない（`AlertStatus` は enum
 //!   固定値、`crates/pre-styled-ui/src/alert.rs` 参照）
 //! - `alert::indicator`（イシュー #732）へ渡す種別ごとのインライン SVG は
-//!   [`admonition_indicator`] が固定文字列定数（`viewBox`・`d`・`cx` 等の
-//!   属性値も含め [`AdmonitionKind`] の 5 種を key とする決め打ちテーブル）
+//!   `admonition_indicator` が固定文字列定数（`viewBox`・`d`・`cx` 等の
+//!   属性値も含め `AdmonitionKind` の 5 種を key とする決め打ちテーブル）
 //!   のみを [`fandhe_frontend_core::el`] へ渡して組み立てる。Markdown 本文・
 //!   マーカー文字列由来の値がタグ名・属性名・属性値に流れ込む経路は存在
 //!   しない。`href`/`src`/`xlink:href`/外部フォント等、外部リソースを
 //!   参照する属性は一切使わない（自前の基本図形のみで描画し、外部アイコン
 //!   セットのパスデータを複製しない）
-//! - フェンスコードブロック（[`parse_fence`]）の本文は [`crate::highlight`]
+//! - フェンスコードブロック（`parse_fence`）の本文は [`crate::highlight`]
 //!   経由で Rust/TOML/HTML の場合のみ `<span class="token-*">` へ分解される
 //!   （イシュー #1078）。分解後もすべてのトークンは [`fandhe_frontend_core::text`]
 //!   を通るため既定エスケープ契約は不変。未対応言語・トークナイズ失敗時は
@@ -523,7 +523,7 @@ fn extract_scheme(s: &str) -> Option<&str> {
 ///
 /// 見出し（ATX）/ 段落 / 箇条書き・番号リスト（1 段ネスト対応）/ フェンス
 /// コードブロック / 引用（複数行・入れ子ブロック対応）/ テーブルに対応する。
-/// 全テキストは [`inline_nodes`] 経由で [`text`] を通り既定エスケープされる
+/// 全テキストは `inline_nodes` 経由で [`text`] を通り既定エスケープされる
 /// （`raw_html()` は使わない、REQ-1）。パニックしない全域関数。
 pub fn render_markdown(input: &str) -> Vec<Node> {
     render_markdown_at_depth(input, 0)

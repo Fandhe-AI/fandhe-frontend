@@ -54,7 +54,7 @@
 //! `docs/api/component-api.md`（TASK-5.1a 設計確定書）が定義する最小セット
 //! （`div`/`p`/`ul`/`li`/`a`/`h1`/`main_tag`）に加え、Issue #164 でノード木
 //! 記述の可読性向上のため `span`/`table`/`form` 等の網羅的なタグヘルパー群を
-//! `tags` モジュール（[`tags`]）に実装する。いずれも [`el`] への薄い委譲のみ
+//! `tags` モジュール（`tags`）に実装する。いずれも [`el`] への薄い委譲のみ
 //! であり、独自の出力経路・独自のエスケープ処理を持たない（不変条件 1・2 が
 //! そのまま適用される）。定義規則・選定基準・スコープ外の判断は
 //! `tags` モジュールの rustdoc を参照。
@@ -72,7 +72,7 @@
 //! ## 束縛点マーキング（イシュー #342）
 //!
 //! [`bind_text`] / [`bind_attr_token`] / [`bind_attr_tokens`] /
-//! [`bind_class_token`] / [`bind_class_tokens`]（[`bind`] モジュール）は、
+//! [`bind_class_token`] / [`bind_class_tokens`]（`bind` モジュール）は、
 //! `fandhe-frontend-interactive` の state フィールドと DOM ノードを対応付ける
 //! `data-bind-text` / `data-bind-attr` / `data-bind-class` マーカー属性を
 //! SSR 出力へ付加するヘルパー群。出力形式は

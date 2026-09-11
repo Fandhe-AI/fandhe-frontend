@@ -6,7 +6,7 @@
 //! ValueText の 6 anatomy パーツをそのまま再エクスポートし、[`stylesheet`]
 //! で既定 CSS を追加提供する。薄い委譲の根拠は [`crate::switch`]/
 //! [`crate::radio_group`] の rustdoc と同じ方針に従う。**[`value_text`] は
-//! CSS を持たない**（[`SLOTS`]/[`recipe`] に含めていない。下記「イシュー
+//! CSS を持たない**（`SLOTS`/`recipe` に含めていない。下記「イシュー
 //! #1613 のスコープ外」節参照）。
 //!
 //! # 選択的 re-export（`pub use ...::*` を使わない理由、`NumberInput` 型・
@@ -37,13 +37,13 @@
 //! # `data-state` を持たない理由
 //!
 //! headless 層（`crates/headless-ui/src/number_input.rs`）は連続量の値を
-//! 扱うため `data-state` を持たない（モジュール doc 参照）。[`recipe`] の
+//! 扱うため `data-state` を持たない（モジュール doc 参照）。`recipe` の
 //! 境界到達時のスタイルは `increment-trigger`/`decrement-trigger` の
 //! `data-disabled` 存在属性のみを条件にする。
 //!
 //! # `size` variant（イシュー #708 方針の踏襲）
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-number-input-control-height`/`-font-size`/`-trigger-size`
 //! （root スコープの CSS custom property。通常の CSS 継承により
 //! `control`/`input`/`increment-trigger`/`decrement-trigger` へ伝わる）
@@ -71,8 +71,8 @@
 //! [`crate::recipe::disabled_declarations`]・
 //! [`crate::recipe::transition_declarations`]・#1678 の
 //! `--fandhe-size-control-height/padding-x/font-size-*` トークン）へ
-//! 移行した。input #1482（[`crate::input`]）・native-select #1484
-//! （[`crate::native_select`]）・date-input #1469（[`crate::date_input`]）
+//! 移行した。input #1482（[`crate::input`](mod@crate::input)）・native-select #1484
+//! （[`crate::native_select`](mod@crate::native_select)）・date-input #1469（[`crate::date_input`]）
 //! と同型の是正である。
 //!
 //! - **`input` パート**: `font: inherit`/`color: var(--fandhe-color-fg)`
@@ -84,7 +84,7 @@
 //!   掛け算で約 25% まで減光してしまう。[`crate::pin_input`]/
 //!   [`crate::date_input`] の segment と同型、Cursor Bugbot 指摘、
 //!   イシュー #1485 PR #1764）。`data-readonly` への視覚宣言は追加しない
-//!   （[`crate::input`] の「readonly（意図的非採用）」節と同型の判断。
+//!   （[`crate::input`](mod@crate::input) の「readonly（意図的非採用）」節と同型の判断。
 //!   ネイティブ `<input type="text">` は選択・キャレット操作が可能な
 //!   ため既定の `cursor: text` のままが適切で、date-input `segment`
 //!   〔`<span role="spinbutton">` の非ネイティブ要素〕から流用した
@@ -105,7 +105,7 @@
 //!   `position: absolute` で密着配置されており、Outside（+2px）リングは
 //!   `input` の枠線・隣接トリガーへ重なって視認性を損なうため、
 //!   splitter/listbox 等と同じ符号反転 inset を採る）。境界到達時の
-//!   `data-disabled` は `cursor: not-allowed` のみを [`recipe`] へ登録し
+//!   `data-disabled` は `cursor: not-allowed` のみを `recipe` へ登録し
 //!   （従来の `opacity: 0.4` 直書きから変更、共通 disabled ビジュアル
 //!   言語の `opacity: 0.5` への統一という意図は維持）、`opacity: 0.5`
 //!   自体は [`stylesheet`] が `root:not([data-disabled])` を祖先に持つ
@@ -155,7 +155,7 @@
 //! # イシュー #1613 のスコープ外（参考サイト突合）
 //!
 //! - [`value_text`]（headless 層イシュー #1613 で新設）は本モジュールの
-//!   [`SLOTS`]/[`recipe`] に含めない。styled `root` を経由しない headless
+//!   `SLOTS`/`recipe` に含めない。styled `root` を経由しない headless
 //!   直接利用と同じ未スタイル実体のまま再エクスポートする（呼び出し側が
 //!   表示テキストの体裁を自由に選べるよう、装飾を強制しない判断。golden
 //!   テスト・CSS 変数表は変更なし）。
@@ -165,7 +165,7 @@
 //!   出力自体は headless 層の再エクスポート経由でそのまま伝播する）。
 //! - `control` の `role="group"`/`aria-disabled`/`aria-invalid`（headless
 //!   層イシュー #1613 で新設）は意味論のみで見た目に影響しないため
-//!   [`recipe`] の変更は不要。
+//!   `recipe` の変更は不要。
 //! - wasm-full の keydown 配線（headless 層イシュー #1613 が追加した
 //!   `"home"`/`"end"` dispatch を含む）は本モジュールのスコープ外
 //!   （`fandhe_frontend_headless_ui::number_input` モジュール doc
@@ -527,7 +527,7 @@ fn recipe() -> SlotRecipe {
 /// `disabled` と境界到達（`can_increment`/`can_decrement` が偽）を
 /// `||` で合成した最終値を各トリガーの `data-disabled` へ渡す。このため
 /// NumberInput 全体を disabled にする通常の構成では `root` と両トリガーが
-/// 同時に `data-disabled` を持つ。[`recipe`] の `increment-trigger`/
+/// 同時に `data-disabled` を持つ。`recipe` の `increment-trigger`/
 /// `decrement-trigger` の `data-disabled` 規則は `cursor: not-allowed` の
 /// みを持ち `opacity` を含めない（[`input`] パートの `opacity` を `root`
 /// のみに一元化した方針と同型、`recipe` 内コメント参照）ため、`root` の
@@ -579,7 +579,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::number_input::root`]
 /// へ委譲する。
 ///

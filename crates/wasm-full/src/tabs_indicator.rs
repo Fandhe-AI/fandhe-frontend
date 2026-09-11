@@ -19,8 +19,8 @@
 //!
 //! - 純粋層（[`format_px`]/[`indicator_rect`]/[`Rect`]）は web-sys に
 //!   依存せず、native の `cargo test` で検証できる。
-//! - 配線層（[`wiring::sync_tabs_indicator`]/
-//!   [`wiring::sync_tabs_indicator_in_list`]）のみ
+//! - 配線層（`wiring::sync_tabs_indicator`/
+//!   `wiring::sync_tabs_indicator_in_list`）のみ
 //!   `#[cfg(target_arch = "wasm32")]` でゲートする。
 //!
 //! # 書き込む CSS 変数は headless 契約の 4 変数のみ
@@ -47,7 +47,7 @@
 //!
 //! # 書き込み順序・`hidden`/`data-state` の扱い
 //!
-//! [`wiring::sync_tabs_indicator_in_list`] は以下の順で処理する:
+//! `wiring::sync_tabs_indicator_in_list` は以下の順で処理する:
 //!
 //! 1. `list` 内に `indicator` パーツが無ければ何もせず return する
 //!    （`indicator: false` の tabs では完全な no-op。既存の
@@ -72,14 +72,14 @@
 //!
 //! # `crate::keynav`/`crate::headless::wire_headless_component` との統合
 //!
-//! - [`wiring::sync_tabs_indicator`] は `crate::keynav::wire_keynav` の
+//! - `wiring::sync_tabs_indicator` は `crate::keynav::wire_keynav` の
 //!   マウント時（初期同期）から呼ばれる。
-//! - [`wiring::sync_tabs_indicator_in_list`] は `crate::keynav` の
+//! - `wiring::sync_tabs_indicator_in_list` は `crate::keynav` の
 //!   `activate_tab`（click 委譲・automatic activation の keydown の
 //!   双方から呼ばれる）呼び出し直後に呼ばれる。manual activation の
 //!   keydown（フォーカス移動のみで `activate_tab` を呼ばない）では
 //!   呼ばれない（indicator は選択に追従し、フォーカスには追従しない）。
-//! - [`wiring::sync_tabs_indicator`] は
+//! - `wiring::sync_tabs_indicator` は
 //!   `crate::headless::wire_headless_component` の配線時先行同期・
 //!   `on_update` 直後同期の 2 箇所からも呼ばれる（再描画で indicator
 //!   要素が作り直され初期値 `0px` に戻る経路への対処、

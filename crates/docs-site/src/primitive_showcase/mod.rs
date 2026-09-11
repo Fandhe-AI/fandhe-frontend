@@ -35,11 +35,11 @@
 //!
 //! [`stylesheet`] が返す CSS は **`[data-scope=` / `[data-part=` を
 //! 1 個も含まない**（`tests/site_css_contract.rs` が機械検査で固定する）。
-//! デモ枠（[`demo_page`] が付与する `.primitives-demo-frame`）の枠線・
+//! デモ枠（`demo_page` が付与する `.primitives-demo-frame`）の枠線・
 //! 余白のみを中和し、headless-ui のマークアップ自体へは一切スタイルを
 //! 到達させない。各デモ節の冒頭には「この枠線・余白は docs サイト側の
 //! デモ枠であり、fandhe-frontend-headless-ui 自体はスタイルを持たない」
-//! 旨の注記段落（[`DEMO_NOTE`]）を出し、pre-styled-ui との混同を防ぐ。
+//! 旨の注記段落（`DEMO_NOTE`）を出し、pre-styled-ui との混同を防ぐ。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
@@ -459,11 +459,11 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
         .map(|entry| (entry.render)())
 }
 
-/// Primitives 専用 CSS を組み立てる（テーマトークン + [`LAYOUT_CSS`]）。
+/// Primitives 専用 CSS を組み立てる（テーマトークン + `LAYOUT_CSS`）。
 ///
 /// # Errors
 ///
-/// [`LAYOUT_CSS`] が [`StyleSheet::push_css`] の検証（`<`・制御文字の拒否）
+/// `LAYOUT_CSS` が [`StyleSheet::push_css`] の検証（`<`・制御文字の拒否）
 /// に落ちた場合 [`StylesheetError`] を返す。本モジュールの CSS は静的
 /// リテラルであり通常は到達しないが、黙って欠けた CSS を公開しない
 /// fail-closed 方針で伝播させる（`crate::showcase`/`crate::admonition`

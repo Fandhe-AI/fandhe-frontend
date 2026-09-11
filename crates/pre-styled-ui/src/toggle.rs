@@ -31,7 +31,7 @@
 //!
 //! headless 層は Toggle を `"on"`/`"off"` 語彙（Switch の
 //! `"checked"`/`"unchecked"` とは異なる）で表現する
-//! （`crates/headless-ui/src/toggle.rs` の意味論差節参照）。[`recipe`] の
+//! （`crates/headless-ui/src/toggle.rs` の意味論差節参照）。`recipe` の
 //! 状態規則もこの語彙に合わせて `data-state="on"` を条件とする。
 //!
 //! # 実フォーカスは `root` 自身が受ける（hidden-input パターン非該当）
@@ -46,7 +46,7 @@
 //!
 //! # `size`/`palette` variant
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-toggle-padding-x`/`-padding-y`/`-font-size` の root スコープ
 //! custom property（CSS の通常のプロパティ継承・`root` 自身への直接適用で
 //! 寸法を切り替える）。`palette`（[`ColorPalette`]）は既存の
@@ -113,7 +113,7 @@
 //!
 //! 親ツリー #2001（Phase 1、chakra-ui / Radix Themes / shadcn-ui の 3 者
 //! 共同主基準、イシュー #2153）の一環で shadcn/ui の Toggle
-//! （https://ui.shadcn.com/docs/components/base/toggle）と突合した。
+//! （<https://ui.shadcn.com/docs/components/base/toggle>）と突合した。
 //!
 //! - **`variant` 軸を新設**: shadcn/ui は `variant: "default" | "outline"`
 //!   の 2 値を持つ（`"default"` は背景・輪郭なしの最小装飾、`"outline"` は
@@ -148,7 +148,7 @@
 //! `raw_html()` を使用しない。CSS 宣言値はすべてコンパイル時静的リテラルで
 //! あり、動的値（属性/children）へ CSS 値として流し込む経路を持たない
 //! （動的値は headless 層経由で `fandhe_frontend_core::render` の既定
-//! エスケープを必ず通る、REQ-1）。styled `root` は [`drop_class_attr`]
+//! エスケープを必ず通る、REQ-1）。styled `root` は `drop_class_attr`
 //! により呼び出し側の `class` を除去してから合成するため、`class` 属性は
 //! 常に単一（[`crate::switch::root`] と同型）。
 
@@ -392,7 +392,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去
 /// してから合成する）。実体は [`fandhe_frontend_headless_ui::toggle::root`]
 /// へ委譲する。
 ///

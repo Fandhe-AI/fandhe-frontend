@@ -8,7 +8,7 @@
 //! `path -> ComponentPageSpec` テーブル（[`SPECS`]）を保持する専用モジュール。
 //! 本モジュール自体は生成物へ直接寄与せず、
 //! `crate::component_page::render_component_page` が `spec_for` 経由で
-//! 読み取り、Demo（[`crate::primitive_showcase::navigation`]、イシュー
+//! 読み取り、Demo（`crate::primitive_showcase::navigation`、イシュー
 //! #1022）・Anatomy・`data-*` 属性表（いずれも Demo から機械導出）と合成して
 //! 6 節ページ（Demo → Features → Anatomy → API Reference → Examples →
 //! Accessibility）を組み立てる。CSS 変数表は Primitives 層では恒常的に省略

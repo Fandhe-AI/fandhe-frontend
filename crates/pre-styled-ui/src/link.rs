@@ -64,7 +64,7 @@
 //! # `current` 状態の装飾
 //!
 //! [`crate::recipe::StateCondition::AttrEq`] で `aria-current="page"` を
-//! 条件にした装飾（フォント太字化）を [`recipe`] に登録する。
+//! 条件にした装飾（フォント太字化）を `recipe` に登録する。
 //! `fandhe_frontend_headless_ui::link::root` は `current` 引数が `true` の
 //! ときのみ `aria-current="page"` を出力する契約（headless 層 rustdoc
 //! 参照）であるため、本 styled 層は追加の bool 引数を持たず CSS 側の状態
@@ -73,13 +73,13 @@
 //! # セキュリティ不変条件
 //!
 //! - HTML 文字列の直接組み立てを行わず、すべての出力は headless 層 →
-//!   [`fandhe_frontend_core::render`] の既定エスケープを経由する
+//!   `fandhe_frontend_core::render` の既定エスケープを経由する
 //!   （`raw_html()` の新規使用なし）。`href` の URL スキーム検証は headless
 //!   層（`crates/headless-ui/src/link.rs` rustdoc 参照）が担う。
-//! - variant / palette クラス名は [`recipe::SlotRecipe::variant_classes`] が
+//! - variant / palette クラス名は [`recipe::SlotRecipe::variant_classes`](crate::recipe::SlotRecipe::variant_classes) が
 //!   `&'static str` enum 値から決定的に生成し、動的文字列合成を行わない。
 //! - 呼び出し側 `attrs` に含まれる `class` は
-//!   [`crate::class_attr::drop_class_attr`] で除去してから recipe 生成
+//!   `crate::class_attr::drop_class_attr` で除去してから recipe 生成
 //!   クラスと合成するため、`class` 属性は常に単一（呼び出し側からのクラス
 //!   偽装・重複混入を防ぐ）。
 //!
@@ -222,7 +222,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled `root` パーツを組み立てる。`variant`/`palette` に応じたクラスを
-/// 付与する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は
+/// 付与する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は
 /// 除去してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::link::root`] へ委譲する。
 ///

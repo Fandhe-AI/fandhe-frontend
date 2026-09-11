@@ -52,7 +52,7 @@
 //!
 //! # x/y 軸の写像規則
 //!
-//! - x 軸: カテゴリ index `i`（`0..n`）を [`category_x`] で等間隔配置する。
+//! - x 軸: カテゴリ index `i`（`0..n`）を `category_x` で等間隔配置する。
 //!   `n == 1`（単一カテゴリ）は `i * width / (n - 1)` が 0 除算になるため
 //!   特別扱いし、`width / 2.0` の中央 1 点のみへ配置する。
 //! - y 軸: [`ChartData::domain`](crate::charts::data::ChartData::domain)
@@ -67,14 +67,14 @@
 //!
 //! | 入力 | 挙動 |
 //! |------|------|
-//! | 単一カテゴリ（`n == 1`） | `path` を生成せず、中央に [`point`] マーカーのみ描く |
+//! | 単一カテゴリ（`n == 1`） | `path` を生成せず、中央に `point` マーカーのみ描く |
 //! | 負値・負のみの系列 | domain がそのまま負域を含み、`fmt_coord` の `-` 付き座標で決定的出力 |
 //! | フラット（全値同値） | `ChartData::domain` のパディングにより中央水平線 |
 //!
 //! # セキュリティ不変条件
 //!
 //! マークアップはすべて [`fandhe_frontend_headless_ui::fandhe_frontend_core::el`]/
-//! [`ANATOMY`] 経由のノード木 API のみで組み立て、`raw_html()`・SVG/HTML
+//! `ANATOMY` 経由のノード木 API のみで組み立て、`raw_html()`・SVG/HTML
 //! 文字列の直接組み立ては一切行わない（REQ-1）。`aria_label`・呼び出し側
 //! `attrs`（`data-testid` 等）は `fandhe_frontend_core::render` の既定
 //! エスケープを必ず経由する。`path`/`circle` の座標・寸法は [`fmt_coord`]
@@ -275,9 +275,9 @@ pub struct LineChartProps<'a> {
     /// 期間→カテゴリ集合の写像は定義しない（アプリ/wasm-full〔#2134〕の
     /// 責務、`crate::charts` モジュール doc「期間切替・凡例トグルの SSR
     /// 構造」節参照）。呼び出し側 `attrs` に同名キーがあっても
-    /// [`crate::charts::drop_range_attr`] で除去してから合成する。
+    /// `crate::charts::drop_range_attr` で除去してから合成する。
     pub range: Option<&'a str>,
-    /// 非表示系列名の一覧（イシュー #2133）。[`super::data::Series::name`]
+    /// 非表示系列名の一覧（イシュー #2133）。`super::data::Series::name`
     /// と完全一致する系列の `series-line`/`point`/`value-label` へ値なし
     /// 属性 `data-hidden` を付与する。スケール/domain の算出には影響しない
     /// （SSR は全範囲・全系列を出力する設計、モジュール doc参照）。
@@ -737,9 +737,9 @@ fn render_series(
 /// # Errors
 ///
 /// - `props.width`/`props.height` が非有限の場合 [`ChartError::NonFiniteValue`]、
-///   0 以下の場合 [`ChartError::DegenerateDomain`]（[`view_box_from_dims`] 参照）
+///   0 以下の場合 [`ChartError::DegenerateDomain`]（`view_box_from_dims` 参照）
 /// - `props.curve` が [`Curve::Natural`] で自然スプラインの中間計算が桁あふれ
-///   した場合 [`ChartError::NonFiniteValue`]（[`curve::line_path_d`] 参照）
+///   した場合 [`ChartError::NonFiniteValue`]（`curve::line_path_d` 参照）
 /// - `props.show_x_axis`/`props.show_y_axis`/`props.show_grid`/`props.label`
 ///   のいずれかが有効で、余白差し引き後のプロット領域が 0 以下になる場合
 ///   [`ChartError::PlotAreaTooSmall`]

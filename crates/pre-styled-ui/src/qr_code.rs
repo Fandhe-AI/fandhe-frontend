@@ -17,7 +17,7 @@
 //!
 //! # `size` variant（寸法のみ、前景/背景色は固定トークン）
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-qr-code-size` の root スコープ custom property（通常の CSS
 //! 継承により `frame` へ伝わる。`root` はこれを内包する祖先要素であるため、
 //! [`crate::recipe::SlotRecipe`] へ子孫セレクタ機構を追加せずに実現できる、
@@ -88,7 +88,7 @@
 //! `raw_html()` を使用しない。CSS 宣言値はすべてコンパイル時静的リテラルで
 //! あり、動的値（`value`/`aria_label`/属性/children）へ CSS 値として流し込む
 //! 経路を持たない（動的値は headless 層経由で `fandhe_frontend_core::render`
-//! の既定エスケープを必ず通る、REQ-1）。styled `root` は [`drop_class_attr`]
+//! の既定エスケープを必ず通る、REQ-1）。styled `root` は `drop_class_attr`
 //! により呼び出し側の `class` を除去してから合成するため、`class` 属性は
 //! 常に単一（[`crate::rating_group::root`] と同型）。
 //!
@@ -206,7 +206,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::qr_code::root`] へ
 /// 委譲する。
 ///

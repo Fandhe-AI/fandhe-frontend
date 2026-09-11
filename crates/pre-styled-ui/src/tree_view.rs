@@ -59,7 +59,7 @@
 //! # 参考サイト基準への調整（イシュー #1578）
 //!
 //! 参照 2 サイト（chakra-ui Tree View / ark-ui Tree View。Radix には対応
-//! 部品が存在しない）と比較し、以下を [`recipe`] へ追加した:
+//! 部品が存在しない）と比較し、以下を `recipe` へ追加した:
 //!
 //! - **選択行の配色**: `background: accent-subtle` はそのまま維持しつつ、
 //!   文字色を `--fandhe-color-accent`（3:1 ペアにしか登録されていない）から
@@ -70,17 +70,17 @@
 //!   設定する `color` を子の明示色（旧 `var(--fandhe-color-fg)`）が打ち消し、
 //!   選択時も本文色のまま変わって見えない不具合があった（`item-text` は
 //!   元々 base 色を持たず、この非対称を解消する是正）。
-//! - **hover**: [`recipe::hover_bg_muted`] + `.state(slot,
+//! - **hover**: [`recipe::hover_bg_muted`](crate::recipe::hover_bg_muted) + `.state(slot,
 //!   StateCondition::HoverExceptAttr("data-selected"),
 //!   hover_surface_declarations())` を `branch-control`/`item` に追加した。
 //!   選択行の背景（`[data-selected]` (0,3,0)）を素の `Hover` (0,4,0) が
 //!   洗い流すのを避けるため、`[`crate::combobox`] と同型の除外条件を使う。
-//! - **disabled**: [`recipe::disabled_declarations`] へ統一し、旧実装が
+//! - **disabled**: [`recipe::disabled_declarations`](crate::recipe::disabled_declarations) へ統一し、旧実装が
 //!   個別に持っていた `pointer-events: none` を撤去した（wasm-full 側の
 //!   クリック解決が `data-disabled` を part/祖先で gate しているため
 //!   〔`crates/wasm-full/src/headless.rs`〕、挙動は変わらない）。
 //! - **フォーカスリング**: 直書き 2 宣言を
-//!   [`recipe::focus_ring_declarations`]（[`FocusRingColor::Token`]・
+//!   [`recipe::focus_ring_declarations`](crate::recipe::focus_ring_declarations)（[`FocusRingColor::Token`]・
 //!   [`FocusRingOffset::Outside`]）へ canonical 化した。
 //! - **transition**: `branch-control`/`item` に
 //!   `transition_declarations("background, color", MotionDuration::Fast)`、
@@ -121,10 +121,10 @@
 //! # 選択・開閉状態の CSS 反映
 //!
 //! - 展開状態: `branch`/`branch-control`/`branch-indicator`/`branch-content`
-//!   の `data-state`（`"open"`/`"closed"`）へ [`recipe::StateCondition::AttrEq`]
+//!   の `data-state`（`"open"`/`"closed"`）へ [`recipe::StateCondition::AttrEq`](crate::recipe::StateCondition::AttrEq)
 //!   で反応する。
 //! - 選択状態: `branch-control`/`item` の `data-selected` 存在属性へ
-//!   [`recipe::StateCondition::Attr`] で反応する（headless
+//!   [`recipe::StateCondition::Attr`](crate::recipe::StateCondition::Attr) で反応する（headless
 //!   [`fandhe_frontend_headless_ui::tree_view::branch_control`] が `branch`
 //!   と同じ選択値を要約行自身にも反映する。`branch` は治具パーツ
 //!   （`role="treeitem"` を担うのみで CSS 上のクリック対象ではない）ため
@@ -138,7 +138,7 @@
 //! `branch-control`/`item` はクリック対象（`item` は `tabindex` 経由の
 //! フォーカス対象になりうる。実 DOM 配線は headless モジュール doc
 //! §out-of-scope 参照）であり、キーボード操作時のみのフォーカスリング
-//! （`:focus-visible`）を [`recipe::StateCondition::FocusVisible`] 経由で
+//! （`:focus-visible`）を [`recipe::StateCondition::FocusVisible`](crate::recipe::StateCondition::FocusVisible) 経由で
 //! 登録する（[`crate::dialog`]/[`crate::popover`]/[`crate::tooltip`] と同じ判断）。
 
 use crate::class_attr::drop_class_attr;
@@ -504,7 +504,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::tree_view::root`] へ
 /// 委譲する（[`crate::accordion::root`] と同型、イシュー #1578）。
 ///

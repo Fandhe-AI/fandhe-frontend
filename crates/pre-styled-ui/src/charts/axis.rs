@@ -31,7 +31,7 @@ const SLOTS: &[&str] = &["x-axis", "y-axis", "axis-line", "tick-line", "tick-lab
 
 /// 目盛ラベルの書式（chakra-ui `tickFormatter` クロージャを固定接頭辞・
 /// 接尾辞・倍率のみへ縮約する。ロケール依存の日付フォーマット等は
-/// スコープ外、[`crate::charts::mod`] rustdoc 参照）。
+/// スコープ外、`crate::charts::mod` rustdoc 参照）。
 ///
 /// 値本体の文字列化は常に [`super::svg::fmt_coord`] を経由する
 /// （`.claude/rules/coding-rust.md` の数値決定的文字列化の一元化）。
@@ -178,7 +178,7 @@ pub fn css() -> String {
 
 /// Y 軸（縦軸）を組み立てる。`x` は軸が描画される垂直線の x 座標
 /// （通常はプロット領域の左端）。目盛の y 座標は `scale.scale(tick)` で
-/// 求め、目盛線はそこから左へ [`TICK_LENGTH`] だけ突き出す。
+/// 求め、目盛線はそこから左へ `TICK_LENGTH` だけ突き出す。
 ///
 /// # Errors
 ///

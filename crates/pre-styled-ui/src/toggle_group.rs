@@ -22,7 +22,7 @@
 //!
 //! `size`（[`Size`]）/`variant`（[`ToggleGroupVariant`]、イシュー #2024）/
 //! `palette`（[`ColorPalette`]）はいずれも [`root`] へのみクラスを付与
-//! する。[`recipe`] が root スコープへ登録する custom property
+//! する。`recipe` が root スコープへ登録する custom property
 //! （`--fandhe-toggle-group-item-padding-y`/`-item-padding-x`/
 //! `-item-font-size`/`-item-border-color`/`-item-background`）は CSS の
 //! 通常のプロパティ継承により `item` へ伝わるため、`item` 自身へ variant
@@ -33,8 +33,8 @@
 //! # `data-state`/`aria-pressed` 語彙について
 //!
 //! headless 層の `item` は [`crate::toggle::root`] と同じ `"on"`/`"off"`
-//! 語彙（[`crate::state::pressed_data_state`]）を使う
-//! （`crates/headless-ui/src/toggle_group.rs` 参照）。[`recipe`] の状態規則
+//! 語彙（`crate::state::pressed_data_state`）を使う
+//! （`crates/headless-ui/src/toggle_group.rs` 参照）。`recipe` の状態規則
 //! もこの語彙に合わせて `data-state="on"` を条件とする。
 //!
 //! # フォーカスリング（hidden-input パターン非該当）
@@ -51,7 +51,7 @@
 //! あり、動的値（`value`/`labelled_by`/属性/children）へ CSS 値として流し
 //! 込む経路を持たない（動的値は headless 層経由で
 //! `fandhe_frontend_core::render` の既定エスケープを必ず通る、REQ-1）。
-//! styled `root` は [`drop_class_attr`] により呼び出し側の `class` を除去
+//! styled `root` は `drop_class_attr` により呼び出し側の `class` を除去
 //! してから合成するため、`class` 属性は常に単一。
 //!
 //! # 参考サイト基準のスタイル調整（イシュー #1513）
@@ -393,7 +393,7 @@ fn recipe() -> SlotRecipe {
 ///    `[data-disabled]` 不在を hover 条件に含めることで、呼び出し側の
 ///    `props` 渡し方に依らず一貫した抑止になる）。
 ///
-/// いずれも [`marquee::css`](crate::marquee) / [`crate::listbox::stylesheet`]
+/// いずれも [`marquee::css`](mod@crate::marquee) / [`crate::listbox::stylesheet`]
 /// と同型の raw CSS 追記パターンで、[`recipe().css()`](SlotRecipe::css) の
 /// 出力へ後段追加する。
 ///
@@ -527,14 +527,14 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去
 /// してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::toggle_group::root`] へ委譲する。
 ///
 /// 公開シグネチャは互換性のため `disabled: bool`/`orientation` のみを
 /// 引数に取る形を維持し、内部で `roving_focus: false`（既定値）とした
 /// [`ToggleGroupProps`] を組み立てて [`root_with_props`] へ委譲する
-/// （[`crate::radio_group::root`]/[`RadioGroupProps`] と同型のパターン、
+/// （[`crate::radio_group::root`]/`RadioGroupProps` と同型のパターン、
 /// イシュー #1630）。`roving_focus` を有効にしたい場合は
 /// [`root_with_props`] を使うこと。
 ///

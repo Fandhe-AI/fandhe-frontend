@@ -44,7 +44,7 @@ use fandhe_frontend_interactive::Component;
 /// XSS 回帰・dispatch 後の再描画内容を検証できる
 /// （`wasm-full/tests/dom_update.rs` 参照）。
 ///
-/// [`mount_initial`]（`web-sys::Element::set_inner_html` を呼ぶ薄い層）は、
+/// `mount_initial`（`web-sys::Element::set_inner_html` を呼ぶ薄い層）は、
 /// この関数の戻り値をそのまま渡す想定であり、`mount_initial` 自体は独自に
 /// エスケープや文字列組み立てを行わない。
 pub fn render_component_html<C: Component>(component: &C) -> String {

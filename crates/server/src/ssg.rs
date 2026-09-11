@@ -35,9 +35,9 @@
 //!   `Node` 木を経由せず文字列コンテンツをそのまま書き出すため、HTML の
 //!   組み立てには使わないこと（詳細は [`generate_assets`] rustdoc）。
 //!   イシュー #1137 で中間ディレクトリセグメントにもファイル名と同じ
-//!   ドット許可述語（[`is_safe_asset_file_name`]）を適用し、
+//!   ドット許可述語（`is_safe_asset_file_name`）を適用し、
 //!   `/.well-known/security.txt` のような RFC 8615 well-known URI 配下への
-//!   出力を許可した（詳細は [`normalize_asset_path`] rustdoc）。
+//!   出力を許可した（詳細は `normalize_asset_path` rustdoc）。
 //!
 //! # セキュリティ不変条件（OWASP A01 パストラバーサル対策・fail-closed）
 //!
@@ -58,13 +58,13 @@
 //!   [`SsgError::LoaderError`] としてビルドを即座に失敗させ、それまでに
 //!   書き出したファイルの有無に関わらずエラーを返す（部分成功で握り
 //!   つぶさない = fail-closed、設計書 §5）。`Loader::Error` の値自体は
-//!   [`SsgError::Display`] にも一切含めない（[`crate::ssr::loader_error_response`]
+//!   `SsgError::Display` にも一切含めない（`crate::ssr::loader_error_response`
 //!   と同様の非露出契約。`security.md`「機微情報の露出」）。
 //! - `unwrap`/`panic!` は使わず、書き込み・検証の失敗はすべて
 //!   [`SsgError`]（`Result`）として呼び出し元へ伝える
 //!   （`coding-rust.md` のエラー処理規約）。
 //! - [`generate_assets`] の中間ディレクトリセグメントは
-//!   [`is_safe_asset_dir_segment`]（イシュー #1137）で検証する。ドット始まり
+//!   `is_safe_asset_dir_segment`（イシュー #1137）で検証する。ドット始まり
 //!   の名前（`.well-known` 等）を許可しつつ、`.`/`..`/`...` のようなドット
 //!   のみの名前は位置を問わず構造的に拒否し（トラバーサル不可の不変条件を
 //!   維持）、加えて `.git`（ASCII 大文字小文字非区別）を defense-in-depth
@@ -359,7 +359,7 @@ fn normalize_page_path(path: &str) -> Result<String, SsgError> {
 ///   エスケープを通る（REQ-1）。`<!DOCTYPE html>` はユーザー入力を含まない
 ///   固定リテラルの前置のみであり、[`fandhe_frontend_app::page_shell`] と
 ///   同一の許容済みパターン（新たなエスケープ迂回経路ではない）。
-/// - `pages` 全件のパスを先に [`normalize_page_path`] で検証し、正規化後の
+/// - `pages` 全件のパスを先に `normalize_page_path` で検証し、正規化後の
 ///   出力先の重複も検出する。1 件でも不正・重複があれば
 ///   **ファイルを 1 つも書き出さずに** エラーを返す（fail-closed。
 ///   `generate_with` のルート単位の逐次書き出しより強い保証）。
@@ -480,7 +480,7 @@ fn normalize_asset_path(path: &str) -> Result<String, SsgError> {
 /// 対し、本関数は `sitemap.xml` / `robots.txt` / `404.html` / `healthz` の
 /// ような**任意のファイル名**を持つ非 HTML 生成物（あるいは呼び出し側が
 /// 既に文字列化済みの HTML）を、`generate_pages` と同じ fail-closed の
-/// パス検証系（[`normalize_asset_path`]）を通してから書き出す。
+/// パス検証系（`normalize_asset_path`）を通してから書き出す。
 ///
 /// # 契約
 ///
@@ -494,7 +494,7 @@ fn normalize_asset_path(path: &str) -> Result<String, SsgError> {
 ///   （`coding-rust.md`「HTML 文字列の直接組み立て禁止」に抵触しないよう、
 ///   本 API 自身は HTML を組み立てない）。`sitemap.xml` 内の URL 等、
 ///   コンテンツ内部のエスケープ（XML エスケープ等）は呼び出し側の責務。
-/// - `assets` 全件のパスを先に [`normalize_asset_path`] で検証し、正規化後
+/// - `assets` 全件のパスを先に `normalize_asset_path` で検証し、正規化後
 ///   の出力先の重複も検出する。1 件でも不正・重複があれば**ファイルを 1
 ///   つも書き出さずに**エラーを返す（fail-closed。[`generate_pages`] と
 ///   同型の全件事前検証）。

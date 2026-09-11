@@ -735,8 +735,8 @@ fn relative_time_unit_separator(locale: Locale, style: UnitDisplay) -> &'static 
 /// # 単位選択・オーバーフロー耐性
 ///
 /// 秒→分→時→日→週→月→年の順に閾値テーブル（[`FormatRelativeTimeOptions::locale`]
-/// に応じて [`RELATIVE_UNITS_EN`]・[`RELATIVE_YEAR_UNIT_EN`] または
-/// [`RELATIVE_UNITS_JA`]・[`RELATIVE_YEAR_UNIT_JA`]）を線形走査し、最小の
+/// に応じて `RELATIVE_UNITS_EN`・`RELATIVE_YEAR_UNIT_EN` または
+/// `RELATIVE_UNITS_JA`・`RELATIVE_YEAR_UNIT_JA`）を線形走査し、最小の
 /// 単位から順に閾値未満となる単位を採用する。差分の絶対値は `i64` の
 /// `checked_sub`/`unsigned_abs`
 /// を用い、`i64::MIN`/`i64::MAX` の組み合わせでも panic しない
@@ -749,7 +749,7 @@ fn relative_time_unit_separator(locale: Locale, style: UnitDisplay) -> &'static 
 /// en は `"in {count} {label}"`（未来）/`"{count} {label} ago"`（過去）。
 /// ja は `"{count}{sep}{label}後"`（未来）/`"{count}{sep}{label}前"`
 /// （過去）で、`sep` は long/short 形式で半角スペース 1 個、narrow 形式は
-/// 空文字（CLDR ja の実挙動に整合、[`relative_time_unit_separator`] 参照）。
+/// 空文字（CLDR ja の実挙動に整合、`relative_time_unit_separator` 参照）。
 pub fn format_relative_time(target: i64, base: i64, options: &FormatRelativeTimeOptions) -> String {
     let (abs_diff, is_future): (u64, bool) = match target.checked_sub(base) {
         Some(diff) => (diff.unsigned_abs(), diff > 0),

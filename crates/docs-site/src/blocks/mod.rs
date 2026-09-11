@@ -36,7 +36,7 @@
 //!
 //! # マーカー規約（`.rs` 側 ⇔ `.md` 側の一致検証、イシュー #2088 §2.5）
 //!
-//! 各 block 実装モジュール（例: [`login_01`]）は `// blocks-code:begin` /
+//! 各 block 実装モジュール（例: `login_01`）は `// blocks-code:begin` /
 //! `// blocks-code:end` の行マーカーで `use` 宣言 + `pub fn demo() -> Node`
 //! を囲む。対応する `site/blocks/<kebab>.md` の最初の ```rust フェンス本文が
 //! マーカー内の行（両端マーカー行を除く、末尾空白のみ trim 許容）と完全一致
@@ -153,7 +153,7 @@ pub struct Block {
     /// マーカー内容と手書き Markdown のフェンスを突合する際に使う）。
     pub rust_source: &'static str,
     /// Demo ラッパへ [`DEMO_CLASS`] に加えて付与する block 固有 class
-    /// （[`LAYOUT_CSS`] のセレクタと一致させる）。
+    /// （`LAYOUT_CSS` のセレクタと一致させる）。
     pub demo_class: &'static str,
     /// Demo が使用する Themes/Primitives 部品一覧（`## 使用部品`）。
     pub parts: &'static [Part],
@@ -239,7 +239,7 @@ fn splice_before_first_h2(mut blocks: Vec<Node>, generated: Vec<Node>) -> Vec<No
 ///
 /// # Errors
 ///
-/// [`LAYOUT_CSS`] は静的な検証済み文字列であり実質的に失敗しないが、型
+/// `LAYOUT_CSS` は静的な検証済み文字列であり実質的に失敗しないが、型
 /// レベルでの契約（`StyleSheet::push_css` の検証、`<`・制御文字の拒否）を
 /// 呼び出し元（`crate::build::build_site`）へ伝播する。
 pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {

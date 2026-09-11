@@ -38,19 +38,19 @@
 //!
 //! # 動的な値は `--fandhe-slider-percent` の 1 点のみ（chakra-ui/Zag.js 方式）
 //!
-//! [`range`]/[`thumb`] の位置は、headless 中立な `[`Slider::percent`]
-//! （0.0..=100.0 の正規化済み有限 `f64`）から [`percent_style`] が組み立てる
+//! [`range`]/[`thumb`] の位置は、headless 中立な [`Slider::percent`]
+//! （0.0..=100.0 の正規化済み有限 `f64`）から `percent_style` が組み立てる
 //! `style="--fandhe-slider-percent: <percent>%"` の 1 属性のみで伝搬する。
 //! [`crate::number_input`]/[`crate::switch`] とは異なり、本コンポーネントは
-//! [`crate::css::drop_style_attr`] 相当のヘルパを本モジュール内に個別実装
-//! し（[`drop_style_attr`]、`crates/headless-ui/src/progress.rs` の同名
+//! `crate::css::drop_style_attr` 相当のヘルパを本モジュール内に個別実装
+//! し（`drop_style_attr`、`crates/headless-ui/src/progress.rs` の同名
 //! ヘルパと同型の判断）、呼び出し側 `attrs` に含まれる `style`（大文字小文字
 //! を無視）を除去してからフレームワーク側の `style` を優先する（重複属性
 //! による無効な HTML 出力・後勝ちの非決定的な描画を防ぐ、fail-closed）。
 //!
 //! # `size`/`palette` variant
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-slider-track-height`/`-thumb-size` の root スコープ custom
 //! property（CSS の通常のプロパティ継承により `control`/`track`/`range`/
 //! `thumb` へ伝わる）経由で寸法を切り替える（[`crate::switch`] と同型）。
@@ -61,7 +61,7 @@
 //! # 縦方向（`data-orientation="vertical"`）レイアウト
 //!
 //! `track`/`range`/`thumb` は `data-orientation="vertical"` のとき `width`/
-//! `left` 系ではなく `height`/`bottom` 系プロパティを使う（[`recipe`] の
+//! `left` 系ではなく `height`/`bottom` 系プロパティを使う（`recipe` の
 //! `StateCondition::AttrEq("data-orientation", "vertical")` 状態規則）。
 //! `range`/`thumb` の動的位置（`--fandhe-slider-percent`）は軸に関わらず
 //! 同一の custom property を使い回し、CSS 側の `width`/`height` どちらを
@@ -72,7 +72,7 @@
 //!
 //! [`thumb`] はネイティブにフォーカス可能な要素（`tabindex`）であるため、
 //! [`crate::switch`] のような hidden-input 特有の `data-focus-visible`
-//! 対応は不要で、通常の `:focus-visible` 疑似クラスを [`recipe`] へ直接
+//! 対応は不要で、通常の `:focus-visible` 疑似クラスを `recipe` へ直接
 //! 登録する（[`StateCondition::FocusVisible`]）。
 //!
 //! # イシュー #1505: トラック・レンジ・サムのスタイル調整（親 #1504 の 1/2）
@@ -90,7 +90,7 @@
 //! [`crate::recipe::transition_declarations`]）を追加した。`thumb` は常時
 //! 「白面 + palette ボーダー」の outline 表現（checked/unchecked のような
 //! 二値状態を持たない）であるため、solid 面向けの `hover_bg_solid` ではなく
-//! `hover_bg_muted` を選んだ（[`recipe`] 内コメント参照）。
+//! `hover_bg_muted` を選んだ（`recipe` 内コメント参照）。
 //! `--fandhe-slider-percent` 由来の位置プロパティ（`transform`/`left`/`top`）
 //! には transition を掛けない（ドラッグ追従の即時性維持、angle-slider
 //! （イシュー #1445/PR #1728）と同型の判断）。
@@ -668,7 +668,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は
 /// 除去してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::slider::Slider::root`] へ委譲する。
 ///
@@ -703,7 +703,7 @@ pub fn root<'a>(
 }
 
 /// styled range パーツを組み立てる。`--fandhe-slider-percent` を含む
-/// `style` を付与する唯一のパーツ（[`drop_style_attr`] により呼び出し側の
+/// `style` を付与する唯一のパーツ（`drop_style_attr` により呼び出し側の
 /// `style` は除去してから合成する。動的値はこの 1 箇所のみ、モジュール
 /// doc「動的な値は 1 点のみ」参照）。実体は
 /// [`fandhe_frontend_headless_ui::slider::Slider::range`] へ委譲する。
@@ -716,7 +716,7 @@ pub fn range<'a>(state: &Slider, props: &SliderProps, attrs: Vec<(&'a str, &'a s
 }
 
 /// styled thumb パーツを組み立てる。[`range`] と同じ `--fandhe-slider-percent`
-/// 位置指定を付与する（[`drop_style_attr`] で呼び出し側 `style` を dedup）。
+/// 位置指定を付与する（`drop_style_attr` で呼び出し側 `style` を dedup）。
 #[must_use]
 pub fn thumb_styled<'a>(
     state: &Slider,
@@ -742,7 +742,7 @@ pub fn marker_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> 
 /// styled marker パーツを組み立てる（イシュー #2020）。[`range`]/[`thumb_styled`]
 /// と同じ「動的値は 1 属性の `style` のみ」方針を踏襲し、`marker` 自身の
 /// 目盛り値（`value`）と `state`（`Slider`）の `min`/`max` から
-/// `--fandhe-slider-marker-percent` を算出して付与する（[`drop_style_attr`]
+/// `--fandhe-slider-marker-percent` を算出して付与する（`drop_style_attr`
 /// で呼び出し側 `style` を dedup）。`data-value`/`data-state`/`data-disabled`
 /// の算出は [`Slider::marker`] へ委譲する（現在値との大小関係の正規化は
 /// headless 層の責務、モジュール doc 参照）。

@@ -64,7 +64,7 @@
 //! | T4 | automatic activation（focus イベントで活性化、マウス起因除外） | あり | Arrow/Home/End と click 経路でのみ活性化 | 意図的差分（DOM 属性を単一情報源とする決定的配線。選択なし/選択タブ disabled で Tab キー入場した場合のみ差が出る） |
 //! | T5 | manual activation（Enter/Space） | あり | ネイティブ button の click → `handle_trigger_click` | 一致 |
 //! | T6 | disabled trigger のスキップ・非活性 | あり | あり | 一致 |
-//! | T7 | content `tabindex="0"` | `tabIndex=0` | 固定出力（[`content`] 参照） | 一致 |
+//! | T7 | content `tabindex="0"` | `tabIndex=0` | 固定出力（`content` 参照） | 一致 |
 //! | T8 | trigger の活性化イベント（`onMouseDown`、左・非 ctrl のみ） | あり | click（マウス・キーボード共通経路） | 意図的差分（click 経路統一原則） |
 //! | T9 | `dir="rtl"` での Left/Right 反転 | あり | なし | 見送り（`docs/policy/intentional-non-adoption.md` §7 の Direction Provider 保留行に従属） |
 //! | T10 | ARIA（`role`/`aria-selected`/`aria-controls`/`aria-labelledby`/`data-state`/`data-disabled`/`data-orientation`） | あり | あり | 一致 |

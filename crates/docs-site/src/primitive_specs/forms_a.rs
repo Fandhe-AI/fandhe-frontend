@@ -3,13 +3,13 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! [`crate::component_page::spec_for`] が `Layer::Primitives` のときに探索
+//! `crate::component_page::spec_for` が `Layer::Primitives` のときに探索
 //! する [`crate::primitive_specs::SPEC_TABLES`] の 1 要素として本モジュールの
 //! [`SPECS`] を返す。対象 12 部品（angle-slider / checkbox / checkbox-group /
 //! color-picker / combobox / editable / field / fieldset / file-upload /
 //! image-cropper / input-group / listbox。イシュー #2062 で input-group を
 //! 追加、旧 11 部品）の Demo（Anatomy・`data-*` 属性表の機械導出元）
-//! はすでに [`crate::primitive_showcase::forms_a`]（イシュー #1022）が供給
+//! はすでに `crate::primitive_showcase::forms_a`（イシュー #1022）が供給
 //! 済みであり、本モジュールは Features / API Reference 引数表 / Examples /
 //! Accessibility の 4 節のみを埋める（[`crate::component_page::ComponentPageSpec`]
 //! 参照）。CSS 変数表は Primitives 層で恒常的に省略される
@@ -58,7 +58,7 @@
 //!   経由でのみ headless-ui のパート関数を呼ぶ（`fandhe_frontend_pre_styled_ui::`
 //!   を直接 import しない。イシュー #693 方針、`crates/docs-site` は
 //!   headless-ui へ直接依存を追加しない）。Examples レンダラは `h2`/`h3` を
-//!   出さず（[`crate::component_page::examples_section`] が `h3` を供給
+//!   出さず（`crate::component_page::examples_section` が `h3` を供給
 //!   済み、右カラム目次汚染の過去事故 #980 と同型の回避）、`docs-` 接頭辞の
 //!   class も持ち込まない。可読性のための枠は
 //!   `primitives-demo-frame`/`primitives-demo-note`（[`crate::primitive_showcase`]

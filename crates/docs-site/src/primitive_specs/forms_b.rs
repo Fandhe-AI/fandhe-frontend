@@ -9,7 +9,7 @@
 //! `Layer::Primitives` のときにこのテーブルを線形探索し、Features / API
 //! Reference の Arguments 表 / Examples / Accessibility の 4 節を合成する
 //! （Demo・Anatomy・`data-*` 属性表は
-//! [`crate::primitive_showcase::forms_b`] とその機械導出経路が別途供給する。
+//! `crate::primitive_showcase::forms_b` とその機械導出経路が別途供給する。
 //! 本ファイルの `demo` フィールドは 11 件すべて `None` であり、
 //! `component_page::generated_content` は `primitive_showcase` 側の Demo を
 //! 常に優先照会するため、`Some(...)` を置いても到達しないデッドコードに

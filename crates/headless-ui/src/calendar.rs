@@ -29,14 +29,14 @@
 //!   不正な選択操作は状態を変更しない（`panic!`/`unwrap()` を使わない、
 //!   `.claude/rules/coding-rust.md`）。年 `0000`/`9999` 境界で月グリッドの
 //!   前後月展開が [`DateError::OutOfRange`] を返す極端な境界では、
-//!   [`Calendar::weeks`] が `Err` を返し、呼び出し側（[`table_body_from_grid`]
+//!   [`Calendar::weeks`] が `Err` を返し、呼び出し側（`table_body_from_grid`
 //!   経由）は空の `tbody` を描画するに留める（panic しない）。
 //!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`disabled`/`id`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入する
-//!   経路はない（[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の
+//!   経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の
 //!   既存不変条件をそのまま継承する）。
 //! - 動的値（曜日ラベル・`aria-label`・呼び出し側 `attrs`/`children`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
@@ -469,7 +469,7 @@ impl Calendar {
         next_trigger(!self.can_go_next(), attrs, children)
     }
 
-    /// 現在の月グリッドから `tbody` を組み立てる。[`weeks`] が `Err` の
+    /// 現在の月グリッドから `tbody` を組み立てる。`weeks` が `Err` の
     /// （年 `0000`/`9999` 境界の極端な場合）は panic せず空の `tbody` を
     /// 返す（モジュール doc §決定性の不変条件参照）。
     #[must_use]
@@ -531,7 +531,7 @@ impl Component for Calendar {
     }
 
     /// 共通契約（root のみ）を表す最小正準ビュー。実際の UI 構築は
-    /// パーツ関数群・[`table_body_from_grid`] を呼び出し側が組み合わせる
+    /// パーツ関数群・`table_body_from_grid` を呼び出し側が組み合わせる
     /// （[`crate::select::Select`] と同じ位置付け）。
     fn view(&self) -> Node {
         self.root(Vec::new(), Vec::new())

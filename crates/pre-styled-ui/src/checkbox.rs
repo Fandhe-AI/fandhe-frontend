@@ -1,6 +1,6 @@
 //! styled Checkbox（headless ラッパー第 5 弾、イシュー #730、親 #520/#545、
 //! `size`/`palette` variant・`data-focus-visible` フォーカスリングは
-//! [`mod@switch`](crate::switch)/[`mod@radio_group`](crate::radio_group)
+//! [`switch`](crate::switch)/[`radio_group`](crate::radio_group)
 //! （#708/#709）と同型で最初から実装する）。
 //!
 //! `fandhe_frontend_headless_ui::checkbox`（イシュー #535/#595）の root /
@@ -65,7 +65,7 @@
 //! # `size`/`palette` variant
 //!
 //! [`crate::switch`] rustdoc「複合部品の variant 統一方針」節（#708）に従い、
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-checkbox-control-size`/`-check-width`/`-check-height`/
 //! `-label-font-size`/`-gap` の root スコープ custom property（通常の CSS
 //! 継承）経由で `control`/`indicator`/`label`/`root` 自身の寸法・余白を
@@ -538,7 +538,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与する
-/// 唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去して
+/// 唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去して
 /// から合成する）。実体は [`fandhe_frontend_headless_ui::checkbox::root`] へ
 /// 委譲する。
 ///

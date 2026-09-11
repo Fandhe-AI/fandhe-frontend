@@ -14,7 +14,7 @@
 //!
 //! `crates/wasm-full/Cargo.toml` は `fandhe-frontend-headless-ui` を通常の
 //! `[dependencies]`（製品依存）として持つ（イシュー #590 で `position`
-//! モジュールが追加した経緯）。そのため [`headless_clipboard`]（イシュー
+//! モジュールが追加した経緯）。そのため `headless_clipboard`（イシュー
 //! #773）が「クレートの製品依存にないため文字列で複製する」と判断した
 //! 制約は本モジュールには当てはまらず、`Timer::from_hydration_attrs`/
 //! `Timer::update`（`fandhe_frontend_interactive::dispatch` 経由）を直接
@@ -27,8 +27,8 @@
 //! `data-start-ms`/`data-target-ms`/`data-interval` 属性
 //! （`crates/headless-ui/src/timer.rs::root` が出力する契約）を
 //! `Timer::from_hydration_attrs` が読む `data-hydrate-*` 形式へその場で
-//! 変換し、`Timer` を都度再構築する（[`read_timer`]）。tick/click 処理後は
-//! `Timer::phase`/`Timer::elapsed_ms` を同じ属性へ書き戻す（[`write_timer`]）。
+//! 変換し、`Timer` を都度再構築する（`read_timer`）。tick/click 処理後は
+//! `Timer::phase`/`Timer::elapsed_ms` を同じ属性へ書き戻す（`write_timer`）。
 //! アプリのルート状態機械 `C`（`crate::lib::Runtime<C>`）が `Timer` 自身か
 //! どうかに関わらず本モジュールが DOM 上の表示更新を完結できる設計であり、
 //! [`crate::headless_avatar`]/[`crate::headless_clipboard`] より一段疎結合
@@ -43,7 +43,7 @@
 //!
 //! # `Runtime` への統合
 //!
-//! [`wire_timer_events`] は `crate::lib::Runtime::mount`/`Runtime::hydrate`
+//! `wire_timer_events` は `crate::lib::Runtime::mount`/`Runtime::hydrate`
 //! の双方から `headless_clipboard::wire_clipboard_events` の直後に組み込まれる
 //! （`crate::lib::Runtime::wire_timer` 参照）。`events`/`keynav`/
 //! `headless_avatar`/`headless_clipboard` と同じ「マウント時 1 回」契約を

@@ -5,18 +5,18 @@
 //! `docs/design/shadcn-inventory.md`・`docs/design/component-coverage-map.md`
 //! のとおり、shadcn/ui 固有部品かつ Blocks（#2007、dashboard-01 /
 //! sidebar-07 / sidebar-03）の前提部品であり、他 3 参照軸（ark-ui /
-//! chakra-ui / Radix）には対応物がない（[`mod@crate::command`]/
-//! [`mod@crate::item`] と同型の位置付け）。アプリシェル用サイドバーの
+//! chakra-ui / Radix）には対応物がない（[`crate::command`](mod@crate::command)/
+//! [`crate::item`](mod@crate::item) と同型の位置付け）。アプリシェル用サイドバーの
 //! `provider` / `root` / `header` / `content` / `footer` / `separator` /
 //! `input` / `group` / `group-label` / `group-content` / `group-action` /
 //! `menu` / `menu-item` / `menu-button` / `menu-action` / `menu-badge` /
 //! `menu-sub` / `menu-sub-item` / `menu-sub-button` / `rail` / `trigger` /
 //! `inset` の 22 anatomy パーツを提供する。
 //!
-//! 新規の意味論は持ち込まず、[`mod@crate::nav_list`]（`menu`/`menu-item`/
-//! `menu-button` の構造・`aria-current` 語彙）・[`mod@crate::collapsible`]
+//! 新規の意味論は持ち込まず、[`crate::nav_list`](mod@crate::nav_list)（`menu`/`menu-item`/
+//! `menu-button` の構造・`aria-current` 語彙）・[`crate::collapsible`](mod@crate::collapsible)
 //! （`menu-sub` の開閉は呼び出し側が `collapsible::root`/`trigger`/`content`
-//! で合成する）・[`mod@crate::tooltip`]（`menu-button` の `describedby` が
+//! で合成する）・[`crate::tooltip`](mod@crate::tooltip)（`menu-button` の `describedby` が
 //! `aria-describedby` のみで tooltip 関連付けを表現する）の語彙・パターンを
 //! 再利用する。**いずれも他 scope のパーツを内包しない**（下記「他 scope を
 //! 内包しない」節参照）。
@@ -67,7 +67,7 @@
 //! # `root` を `nav` にする理由
 //!
 //! `div` への `aria-label` は ARIA 仕様上 `generic` ロールへは意味を持たず
-//! 支援技術へ露出しない。ランドマークが必要なため [`mod@crate::nav_list`]
+//! 支援技術へ露出しない。ランドマークが必要なため [`crate::nav_list`](mod@crate::nav_list)
 //! と同じく `label` を必須引数にして型でアクセシブルネームを強制する。
 //!
 //! # 呼び出し文脈
@@ -87,8 +87,8 @@
 //!   既定エスケープを必ず経由する（REQ-1）。`raw_html()` は使用せず、HTML
 //!   文字列を直接組み立てない。
 //! - 呼び出し側 `attrs` による予約キーなりすましは各パート別 `*_RESERVED`
-//!   定数 + [`drop_reserved`]（ASCII 大文字小文字無視の完全一致）が除去する
-//!   （[`mod@crate::nav_list`]/[`mod@crate::item`] と同型）。`data-scope`/
+//!   定数 + `drop_reserved`（ASCII 大文字小文字無視の完全一致）が除去する
+//!   （[`crate::nav_list`](mod@crate::nav_list)/[`crate::item`](mod@crate::item) と同型）。`data-scope`/
 //!   `data-part` の偽装は [`crate::anatomy::Anatomy::part`] が別途除去する。
 //! - `data-hydrate-state` はクライアント改ざん可能な入力として扱い、
 //!   [`SidebarState::from_data_state`] が未知値を `None` にし
@@ -494,7 +494,7 @@ pub struct SidebarMenuSubButtonProps<'a> {
 }
 
 /// `data-active` 存在属性（[`crate::data_attrs`] を拡張せず本モジュール内
-/// 私有ヘルパとする、[`mod@crate::drawer`] の `data_placement` と同型の
+/// 私有ヘルパとする、[`crate::drawer`](mod@crate::drawer) の `data_placement` と同型の
 /// 判断）。
 fn data_active(active: bool) -> Option<(&'static str, &'static str)> {
     active.then_some(("data-active", ""))
@@ -638,7 +638,7 @@ pub fn footer<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 }
 
 /// `separator` パーツ（`hr`）。`hr` の暗黙 `separator` ロールに委ね、`role`
-/// を明示付与しない（[`mod@crate::menu`] の `separator` と同型の判断）。
+/// を明示付与しない（[`crate::menu`](mod@crate::menu) の `separator` と同型の判断）。
 #[must_use]
 pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let attrs = drop_reserved(attrs, SEPARATOR_RESERVED);
@@ -655,7 +655,7 @@ pub fn input<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
 }
 
 /// `group` パーツ（`div`）。`role="group"` を固定出力し、`labelledby` が
-/// `Some` のときのみ `aria-labelledby` を併記する（[`mod@crate::item`] の
+/// `Some` のときのみ `aria-labelledby` を併記する（[`crate::item`](mod@crate::item) の
 /// `group` と同型の判断、[`group_label`] の `id` を参照する想定）。
 #[must_use]
 pub fn group<'a>(
@@ -698,7 +698,7 @@ pub fn group_content<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) ->
 }
 
 /// `group-action` パーツ（`button`）。`label` はアイコンのみの操作を想定した
-/// 必須の `aria-label`（[`mod@crate::menu_action`] と同型）。
+/// 必須の `aria-label`（`mod@crate::menu_action` と同型）。
 #[must_use]
 pub fn group_action<'a>(
     label: &'a str,
@@ -712,7 +712,7 @@ pub fn group_action<'a>(
 }
 
 /// `menu` パーツ（`ul`）。暗黙の `list` ロールに委ね `role` を付与しない
-/// （[`mod@crate::nav_list::list`] と同型）。
+/// （`mod@crate::nav_list::list` と同型）。
 #[must_use]
 pub fn menu<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let attrs = drop_reserved(attrs, NO_RESERVED);
@@ -729,7 +729,7 @@ pub fn menu_item<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
 /// `menu-button` パーツ（`href` が `Some` なら `a`、`None` なら
 /// `button type="button"`）。`active` が `true` のとき `data-active` を、
 /// `a` かつ `active` のときのみ `aria-current="page"` を付与する
-/// （[`mod@crate::nav_list::link`] の `current` 語彙を踏襲）。
+/// （`mod@crate::nav_list::link` の `current` 語彙を踏襲）。
 #[must_use]
 pub fn menu_button<'a>(
     props: &SidebarMenuButtonProps<'a>,
@@ -781,7 +781,7 @@ pub fn menu_badge<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> No
 
 /// `menu-sub` パーツ（`ul`）。開閉状態を持たない静的なサブメニュー（
 /// モジュール doc「他 scope を内包しない」参照。開閉が必要な場合は呼び出し
-/// 側で [`mod@crate::collapsible`] を合成する）。
+/// 側で [`crate::collapsible`](mod@crate::collapsible) を合成する）。
 #[must_use]
 pub fn menu_sub<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let attrs = drop_reserved(attrs, NO_RESERVED);

@@ -16,13 +16,13 @@
 //! `up-indicator`/`down-indicator` は `<span>`。increase/decrease
 //! indicator 2 種は装飾用途のため `aria-hidden="true"`
 //! （[`fandhe_frontend_headless_ui::aria_hidden`]）を固定で付与する
-//! （[`crate::button`] の loading spinner・[`crate::spinner`] と同型の
+//! （[`crate::button`](mod@crate::button) の loading spinner・[`crate::spinner`](mod@crate::spinner) と同型の
 //! 判断、`.claude/rules/code-comment-style.md` 参照）。
 //!
 //! # コンビニ関数を提供しない構成（[`crate::card`]/[`crate::alert`] と同型）
 //!
 //! 各パーツを個別に呼び出して組み立てる契約とする。呼び出し側 `attrs` の
-//! `class` は [`crate::class_attr::drop_class_attr`] で除去してから合成する
+//! `class` は `crate::class_attr::drop_class_attr` で除去してから合成する
 //! （root のみが `class` を付与する唯一のパーツ）。
 //!
 //! # variant: `size` のみ
@@ -76,7 +76,7 @@
 //!   `letterSpacing: initial` 相当、親 `value-text` の semibold/tight を
 //!   打ち消す）を追加。
 //! - **余白**: `root` に `margin: 0`（`<dl>` の UA 既定 `margin-block: 1em`
-//!   を打ち消す、[`crate::heading`] の marginless 方針と同型）、`label` を
+//!   を打ち消す、[`crate::heading`](mod@crate::heading) の marginless 方針と同型）、`label` を
 //!   `display: flex; gap: var(--fandhe-space-1)`、`help-text` を
 //!   `display: inline-flex; align-items: center; gap: var(--fandhe-space-1)`
 //!   （indicator の垂直中央揃えと後続テキストとの間隔）、`up-indicator`/
@@ -86,9 +86,9 @@
 //!   二重適用され過剰余白になるため、イシュー #1568 codex-review 指摘を
 //!   受けて是正した）。
 //!
-//! # letter-spacing リテラルと [`crate::heading`] との整合トレードオフ
+//! # letter-spacing リテラルと [`crate::heading`](mod@crate::heading) との整合トレードオフ
 //!
-//! [`crate::heading`] は `letter-spacing` 用トークンが未提供のため実測不能
+//! [`crate::heading`](mod@crate::heading) は `letter-spacing` 用トークンが未提供のため実測不能
 //! を理由に `-0.01em` 据え置きだが、本件は chakra recipe ソースで
 //! `letterSpacing: tight`（`-0.025em`）の値が直接確認できたため、その値を
 //! 採用する（両部品で異なる値になる非一貫性を許容する。トークン化は
@@ -129,7 +129,7 @@
 //!   children は呼び出し側が組み立て済みの文字列を渡す契約）。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（[`crate::checkbox_card`] の先例と同じ判断）。
-//! - `letter-spacing` トークンの新設は横断課題（[`crate::heading`]/
+//! - `letter-spacing` トークンの新設は横断課題（[`crate::heading`](mod@crate::heading)/
 //!   [`crate::angle_slider`] を含む）であり、3 部品目以降の要求が揃った
 //!   時点で別イシューとして提案する。
 
@@ -308,7 +308,7 @@ pub fn css() -> String {
 }
 
 /// root パーツ（`<dl>`）を組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。
 ///
 /// # Examples

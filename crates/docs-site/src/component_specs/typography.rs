@@ -11,7 +11,7 @@
 //! [`crate::component_page::generated_content`] が `page_path` から
 //! [`SPECS`] を線形探索し、Features / API Reference の引数表 / Examples /
 //! Accessibility の各節を合成する（[`crate::component_page::ComponentPageSpec`]
-//! 参照）。Demo 節は [`crate::showcase::COMPONENT_PAGES`]（正）の
+//! 参照）。Demo 節は `crate::showcase::COMPONENT_PAGES`（正）の
 //! `quote_section`/`strong_section` から供給されるため、本モジュールの
 //! `demo` フィールドは両方とも `None`。
 //!
@@ -103,6 +103,6 @@ const STRONG: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// Quote / Strong 2 ページ（イシュー #995）の `path -> ComponentPageSpec`
-/// テーブル。[`crate::component_page::SPEC_TABLES`] が集約する。
+/// テーブル。`crate::component_page::SPEC_TABLES` が集約する。
 pub const SPECS: &[(&str, ComponentPageSpec)] =
     &[("/themes/quote/", QUOTE), ("/themes/strong/", STRONG)];

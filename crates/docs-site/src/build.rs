@@ -2,7 +2,7 @@
 //!
 //! # 呼び出し文脈
 //!
-//! [`crate::main`]（バイナリ本体、引数パース・終了コード変換のみを担う薄い
+//! `crate::main`（バイナリ本体、引数パース・終了コード変換のみを担う薄い
 //! ラッパー）と `tests/site_build.rs`（E2E テスト）の双方から [`build_site`]
 //! を直接呼ぶ。bin/lib 両方から同一のビルドロジックを共有するために本モジュール
 //! を `lib.rs` 側に置く（`crates/docs-site/CLAUDE.md` の crate 構成注記どおり）。
@@ -10,7 +10,7 @@
 //! # 処理順（fail-closed）
 //!
 //! 1. `<repo_root>/site/nav.toml` を [`nav::parse_nav`] → [`nav::validate_sources`]
-//! 2. 各ページの Markdown を [`markdown::render_markdown`] → [`linkcheck::rewrite_md_links`]
+//! 2. 各ページの Markdown を [`markdown::render_markdown`](crate::markdown::render_markdown) → [`linkcheck::rewrite_md_links`]
 //!    （`.md` リンクをサイト内パスへ書き換え）→ [`layout::docs_page`] で文書化
 //! 3. [`linkcheck::check_links`] で全ページの内部リンクを突合検証し、1 件でも
 //!    壊れていれば **書き出しより前に** [`BuildError::LinkCheck`] で失敗させる
@@ -32,7 +32,7 @@
 //! と同じ「全ビルド無条件」区分）。生成することが確定しているため、
 //! `site/assets/` 配下に同名ファイルが実在する場合は静的ファイルの黙った
 //! 上書き・生成物のすり替わりを防ぐため [`BuildError::ReservedAssetName`] で
-//! 書き出し前にエラーにする（[`RESERVED_ASSET_NAMES`] 参照）。
+//! 書き出し前にエラーにする（`RESERVED_ASSET_NAMES` 参照）。
 //!
 //! # Rust 生成コンテンツページ（[`crate::showcase`] / [`crate::component_page`]）
 //!
@@ -64,7 +64,7 @@
 //!
 //! # admonition 構文（[`crate::markdown`]）が使う CSS（イシュー #715）
 //!
-//! `> [!NOTE]` 等の admonition マーカーは [`markdown::render_markdown`] が
+//! `> [!NOTE]` 等の admonition マーカーは [`markdown::render_markdown`](crate::markdown::render_markdown) が
 //! `alert` 部品へ描画するが、その専用 CSS（[`admonition::STYLESHEET_REL_PATH`]）
 //! は showcase と同型に「使われているページだけ」へ配線する。ステップ 2 の
 //! `rewritten_body` を [`admonition::contains_admonition`] で走査し、1 つでも
@@ -100,7 +100,7 @@
 //! 上記の CSS 5 種（showcase / primitive_showcase / admonition / skip_nav /
 //! site_theme）・JS 1 種（`site.js`）・検索インデックス JSON 1 種・
 //! showcase ページが実在するときのみ書き出す SVG 1 種
-//! （[`showcase::image_demo_svg`]、イシュー #1562。Image 節 demo の
+//! （`showcase::image_demo_svg`、イシュー #1562。Image 節 demo の
 //! `data:` URI が core の `is_safe_url` で拒否され `src` 属性ごと欠落する
 //! 不具合の是正）は、いずれも [`ssg::generate_assets`] へまとめて渡し
 //! 単一呼び出しで書き出す（かつては `StyleSheet::write_css_file` / 素の
@@ -110,8 +110,8 @@
 //! 経ずに `out_dir` 配下へ書き込む経路」を作らない。渡すのは無加工の
 //! CSS/JS/JSON/SVG 文字列のみで HTML ページは含めない（HTML は従来どおり
 //! `ssg::generate_pages` ＝ `render()` の既定エスケープ経由であり、この経路は
-//! REQ-1 の迂回経路ではない）。コピー静的アセット（[`copy_assets`]）との名前
-//! 衝突防止は引き続き [`RESERVED_ASSET_NAMES`]（[`list_regular_files`]）が
+//! REQ-1 の迂回経路ではない）。コピー静的アセット（`copy_assets`）との名前
+//! 衝突防止は引き続き `RESERVED_ASSET_NAMES`（`list_regular_files`）が
 //! 唯一の防壁である（`generate_assets` の重複検出は 1 回の呼び出し内でしか
 //! 効かない）。
 
@@ -209,10 +209,10 @@ pub enum BuildError {
     /// fail-closed）。
     Stylesheet(StylesheetError),
     /// サイト骨格 CSS（[`site_theme::stylesheet`]）の組み立てが失敗した
-    /// （docs 固有トークンの allowlist 検証、または [`StyleSheet::push_css`]
+    /// （docs 固有トークンの allowlist 検証、または `StyleSheet::push_css`
     /// の検証に落ちた。イシュー #905。通常は到達しない fail-closed）。
     SiteTheme(SiteThemeError),
-    /// `site/assets/` 配下にビルド時生成 CSS と同名のファイル（[`RESERVED_ASSET_NAMES`]）
+    /// `site/assets/` 配下にビルド時生成 CSS と同名のファイル（`RESERVED_ASSET_NAMES`）
     /// が存在する（静的ファイルの黙った上書き・生成物のすり替わりを防ぐ
     /// fail-closed 検証、イシュー #905）。
     ReservedAssetName(PathBuf),

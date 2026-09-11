@@ -1,12 +1,12 @@
 //! Code（イシュー #768、#1432 で参照サイト基準へ調整）: 単一 recipe styled
 //! 部品。インラインコード片表示のための `<code>` を `variant`/`size`/
-//! `colorPalette` の 3 軸で組み立てる（[`crate::mark`] と同型の単一 recipe
+//! `colorPalette` の 3 軸で組み立てる（[`crate::mark`](mod@crate::mark) と同型の単一 recipe
 //! パターン）。
 //!
 //! chakra-ui v3 の `typography/code-block.md`（CodeBlock）は
 //! `docs/design/component-coverage-map.md` で対象外確定済みであり、本
 //! モジュールはインライン `<code>` のみを扱う。`class` は
-//! [`crate::class_attr::drop_class_attr`] で呼び出し側の指定を破棄してから
+//! `crate::class_attr::drop_class_attr` で呼び出し側の指定を破棄してから
 //! recipe 由来のクラスへ差し替える（badge/tag/mark と同一契約）。
 //!
 //! # イシュー #1432 の参照サイト比較（7 軸チェック）
@@ -235,7 +235,7 @@ pub fn css() -> String {
 
 /// Code 片 1 個（`<code>`）を組み立てる。`variant`/`size`/`palette` に
 /// 応じたクラスを付与する（呼び出し側 `attrs` の `class` は
-/// [`crate::class_attr::drop_class_attr`] により破棄してから合成する、
+/// `crate::class_attr::drop_class_attr` により破棄してから合成する、
 /// [`crate::mark::mark`] と同型の契約）。
 ///
 /// # Examples

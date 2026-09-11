@@ -3,14 +3,14 @@
 //!
 //! # 背景・呼び出し文脈
 //!
-//! `crates/headless-ui/src/select.rs` の [`select::value_text`]（trigger 内の
+//! `crates/headless-ui/src/select.rs` の `select::value_text`（trigger 内の
 //! 選択中ラベル表示パーツ）は SSR 静的出力のみを提供し、`select`/`deselect`
 //! dispatch 後にクライアント側でラベルを再描画する配線は同モジュール自身は
 //! 持たない（`data-bind-text` マーカーを付与するのみ）。[`crate::headless`]
 //! （イシュー #580）が (`data-scope`, `data-part`) → dispatch アクションの
 //! クリック配線を提供する一方、dispatch 成功後の DOM 再反映は「呼び出し側の
 //! 責務」と明記していた（同モジュール doc）。本モジュールはその残課題を
-//! 埋め、[`crate::headless::wire_headless_component`] の `on_update`
+//! 埋め、`crate::headless::wire_headless_component` の `on_update`
 //! コールバックから呼び出せる value-text 同期関数を提供する。
 //!
 //! # 設計（2 層構成、[`crate::headless`]/[`crate::keynav`] と同型）
@@ -18,7 +18,7 @@
 //! - 純粋ロジック層（[`resolve_selected_label`]/[`value_text_view`]/
 //!   [`ValueTextView`]）は web-sys に依存せず、native の `cargo test` で
 //!   検証できる。
-//! - 配線層（[`sync_select_value_text`]/[`wire_select_value_text`]）のみ
+//! - 配線層（`sync_select_value_text`/`wire_select_value_text`）のみ
 //!   `#[cfg(target_arch = "wasm32")]` でゲートする。
 //!
 //! # 他クレートとの契約
@@ -33,7 +33,7 @@
 //!   （`value_text_field_matches_headless_ui_constant`）で固定する。
 //! - テキスト書き込みは `fandhe_frontend_wasm_client::BindingTable`
 //!   の束縛点経路（`set_text_content` のみ、`innerHTML`/`raw_html` は一切
-//!   使わない、REQ-1）を経由する。`ValueTextSource`（[`BindingSource`] 実装）
+//!   使わない、REQ-1）を経由する。`ValueTextSource`（`BindingSource` 実装）
 //!   は `field == VALUE_TEXT_FIELD` のときのみ値を返す薄いアダプタであり、
 //!   DOM 書き込み自体は行わない。
 //! - `data-placeholder-shown` 存在属性のトグルは束縛点 API の対象外

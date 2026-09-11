@@ -37,7 +37,7 @@
 //! 他 keynav 対象と異なり、Splitter は dispatch チャネル（`on_action`
 //! コールバック）を要する点で `crate::angle_slider` と同型であり、
 //! `crate::keynav` の next-index 系関数へは統合せず、本モジュール内で完結
-//! させる（純粋判定は [`fandhe_frontend_wasm_full::keynav::splitter_key_action`]
+//! させる（純粋判定は `fandhe_frontend_wasm_full::keynav::splitter_key_action`
 //! を呼ぶだけで独自ロジックを持たない）。
 //!
 //! # trigger index の導出
@@ -97,7 +97,7 @@ pub const ACTION_END: &str = "end";
 /// クリック/キーボードターゲットが Splitter の resize-trigger パーツかどうか
 /// を判定する純粋関数（DOM 非依存、native `cargo test` で検証可能。
 /// `crate::angle_slider::is_angle_slider_control_or_thumb` と同型の 2 層
-/// 構成）。配線層（[`wiring::is_resize_trigger`]）はこの純粋判定へ
+/// 構成）。配線層（`wiring::is_resize_trigger`）はこの純粋判定へ
 /// `Element::get_attribute` の読み取り結果を渡すだけで、独自の scope/part
 /// 比較ロジックを持たない。
 #[must_use]

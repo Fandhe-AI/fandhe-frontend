@@ -13,7 +13,7 @@
 //! に依存しない純粋ロジック層（[`should_trap`]・[`is_tabbable`]・
 //! [`initial_focus_index`]・[`next_trap_index`]、native の `cargo test` で
 //! 検証可能）と、`#[cfg(target_arch = "wasm32")]` でゲートした配線層
-//! （[`wiring::FocusTrapController`]）に分離する。
+//! （`wiring::FocusTrapController`）に分離する。
 //!
 //! # 他モジュール・他クレートとの契約
 //!
@@ -27,7 +27,7 @@
 //!   前提とし（[`crate::overlay`] の opt-out 属性と同じ配線方針）、専用 API は
 //!   追加しない。
 //! - 本モジュールは `"close"` dispatch・再描画・DOM の open/close 属性更新を
-//!   一切行わない。[`wiring::FocusTrapController::push_trap`]/[`wiring::FocusTrapController::pop_trap`]
+//!   一切行わない。`wiring::FocusTrapController::push_trap`/`wiring::FocusTrapController::pop_trap`
 //!   を Dialog の open/close タイミングで呼ぶのはイシュー #580（DOM イベント
 //!   配線統合層）の責務とする（[`crate::overlay`] と同じ責務分離方針）。
 //! - スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応済み、兄弟
@@ -98,7 +98,7 @@ pub fn is_tabbable<T: AttrSource>(el: &T) -> bool {
 /// 選定順序: `data-autofocus` 属性を持つ最初の tabbable 要素 → 先頭の
 /// tabbable 要素 → 候補が 1 件も tabbable でなければ `None`
 /// （呼び出し側は `None` の場合 content 自身へフォールバックする、
-/// [`wiring::FocusTrapController::push_trap`] 参照）。
+/// `wiring::FocusTrapController::push_trap` 参照）。
 #[must_use]
 pub fn initial_focus_index<T: AttrSource>(candidates: &[T]) -> Option<usize> {
     let tabbable_indices: Vec<usize> = candidates
@@ -120,7 +120,7 @@ pub fn initial_focus_index<T: AttrSource>(candidates: &[T]) -> Option<usize> {
 
 /// Tab キー押下時の次のフォーカス先 index を計算する（トラップ活性時のみ
 /// 呼ばれる想定。Tab キーは常に `prevent_default()` してこの関数の結果へ
-/// 手動でフォーカスを移す、[`wiring::FocusTrapController`] doc 参照）。
+/// 手動でフォーカスを移す、`wiring::FocusTrapController` doc 参照）。
 ///
 /// - `len == 0`: `None`（フォーカス対象なし）
 /// - `current == None`（トラップ外・不明な現在位置からの入場）: 通常 Tab は

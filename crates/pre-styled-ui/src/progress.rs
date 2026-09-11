@@ -43,7 +43,7 @@
 //! 「SVG ジオメトリ（CSS 変数方式、headless 中立）」節参照）を出力するのみで、
 //! 実際の値は styled 層が CSS で定義する headless 中立設計になっている。
 //! 本モジュールは [`ProgressProps`] を [`root`] へのみクラスとして付与し、
-//! [`recipe`] が `--fandhe-progress-size`/`--fandhe-progress-thickness`/
+//! `recipe` が `--fandhe-progress-size`/`--fandhe-progress-thickness`/
 //! `--fandhe-progress-track-height`（root スコープの CSS custom property。
 //! 通常の CSS 継承で子孫の track/circle へ伝わる）を登録する。circle/track
 //! 自身の base 規則には Md 相当のフォールバック値を書き、styled [`root`] を
@@ -193,15 +193,15 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - [`recipe`] が生成する CSS は固定リテラル（[`crate::css::decl`]）のみで
+//! - `recipe` が生成する CSS は固定リテラル（[`crate::css::decl`]）のみで
 //!   構成し、任意文字列が CSS 生成経路へ混入する経路はない（`crate::spinner`
 //!   と同じ根拠）。
-//! - [`root`] は呼び出し側 `attrs` の `class` を [`crate::class_attr::drop_class_attr`]
+//! - [`root`] は呼び出し側 `attrs` の `class` を `crate::class_attr::drop_class_attr`
 //!   で除去してから recipe 生成クラスと合成する（重複 `class` 属性による
 //!   無効な HTML 出力・後勝ちの非決定的なスタイル適用の防止）。
 //! - [`range`] は headless [`Progress::percent`] が返す `[min, max]` へ
 //!   clamp 済みの有限 `f64` のみから `style` を組み立て、呼び出し側 `attrs`
-//!   の `style`（大文字小文字を無視）を [`drop_style_attr`] で除去してから
+//!   の `style`（大文字小文字を無視）を `drop_style_attr` で除去してから
 //!   合成する（`crate::slider::range` と同型の dedup。文字列入力を一切
 //!   含まない）。
 //! - `aria_valuetext`・呼び出し側 `attrs`・children は headless
@@ -669,8 +669,8 @@ fn recipe() -> SlotRecipe {
 /// [`css`](crate::spinner::css) と同じ契約）。
 ///
 /// recipe が生成する規則群に続けて、`animation` 宣言が参照する `@keyframes`
-/// ブロック（[`SPIN_KEYFRAMES_NAME`]/[`RANGE_SLIDE_KEYFRAMES_NAME`]/
-/// [`RANGE_SLIDE_VERTICAL_KEYFRAMES_NAME`]）と、`prefers-reduced-motion: reduce`
+/// ブロック（`SPIN_KEYFRAMES_NAME`/`RANGE_SLIDE_KEYFRAMES_NAME`/
+/// `RANGE_SLIDE_VERTICAL_KEYFRAMES_NAME`）と、`prefers-reduced-motion: reduce`
 /// 環境で無限 `animation` を停止する `@media` ブロック（`crate::skeleton` と
 /// 同型）を固定文字列として追記する。値はソースコード中のリテラルのみで
 /// 構成され、外部入力は一切混入しない（`.claude/rules/coding-rust.md` の
@@ -699,7 +699,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`variant`/`color-palette` に応じた
-/// クラスを付与する唯一のパーツ（[`drop_class_attr`] により呼び出し側の
+/// クラスを付与する唯一のパーツ（`drop_class_attr` により呼び出し側の
 /// `class` は除去してから合成する）。実体は [`Progress::root`] へ委譲する。
 ///
 /// `progress` は状態（`min`/`max`/`value`/`orientation`）の単一情報源であり、
@@ -740,7 +740,7 @@ pub fn root<'a>(
 
 /// styled range パーツを組み立てる。determinate（[`Progress::percent`] が
 /// `Some`）のときのみ `--fandhe-progress-percent` を含む `style` を付与する
-/// 唯一のパーツ（[`drop_style_attr`] により呼び出し側の `style` は除去して
+/// 唯一のパーツ（`drop_style_attr` により呼び出し側の `style` は除去して
 /// から合成する）。indeterminate では `style` を一切出力しない（進捗値を
 /// 捏造しない headless 側の契約と整合、モジュール冒頭 rustdoc参照）。
 /// 実体は [`Progress::range`] へ委譲する。

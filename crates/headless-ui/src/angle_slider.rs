@@ -61,7 +61,7 @@
 //!     従い Up = 増加を維持。zag main も `getEventKey` は左右のみ RTL 反転
 //!     し上下は反転しないため実質的な差はない）。
 //!   - `"end"` の着地値は zag のようにスナップなしで `359` を設定するの
-//!     ではなく、step グリッド整列契約（[`snap_angle_to_step`] と同じ
+//!     ではなく、step グリッド整列契約（`snap_angle_to_step` と同じ
 //!     「必ずグリッドへ整列する」不変条件）を優先し「`359` 以下で最大の
 //!     step 倍数」を採用する（`step=1` なら zag と同じく `359`）。
 //!   - Shift+Arrow の ×10 step は本イシューでは未実装（PR 本文でスコープ外
@@ -87,13 +87,13 @@
 //! # 決定的な角度正規化・step 丸め（受け入れ条件）
 //!
 //! - 角度値は常に `0..=359` の整数（`u16`）。`360` 度は `0` 度と同一視し、
-//!   受理時に `value % 360` で正規化する（[`normalize_angle`]）。
+//!   受理時に `value % 360` で正規化する（`normalize_angle`）。
 //! - `step` は `1..=359` へ clamp する（`0` は無限ループを招くため許容
 //!   しない、[`crate::slider::Slider`] の `step <= 0` フォールバックと
 //!   同型の判断）。
 //! - `"set"`（[`AngleSliderAction::Set`]）は受理値をそのまま採用せず、
 //!   `0` 起点の `step` グリッドへ最近傍スナップしてから正規化する
-//!   （[`snap_angle_to_step`]、[`crate::slider::Slider::update`] の
+//!   （`snap_angle_to_step`、[`crate::slider::Slider::update`] の
 //!   `SetValue` が常にスナップするのと同型の契約、ark-ui の
 //!   `snapAngleToStep` 相当）。これにより後続の `increment`/`decrement`
 //!   が意図した step の倍数へ確実に戻る。
@@ -113,14 +113,14 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`tabindex`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入
-//!   する経路はない（[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`]
+//!   する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`]
 //!   の既存不変条件をそのまま継承する）。
 //! - 動的値（整形済み角度文字列/呼び出し側 `attrs`/children）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - 数値属性値（`aria-valuemin`/`aria-valuemax`/`aria-valuenow`/
 //!   `aria-valuetext`/hidden-input `value`/marker `data-value`）はサーバー側
-//!   で正規化済みの `u16` の文字列表現（[`fmt_angle`]）のみを出力する。
+//!   で正規化済みの `u16` の文字列表現（`fmt_angle`）のみを出力する。
 //!   任意の呼び出し側文字列をこれらの数値スロットへ直接通す経路は持たない
 //!   （fail-closed 正規化は [`AngleSlider::new`] が一元的に担う）。
 //! - marker の `data-state` は `"under-value"`/`"over-value"`/`"at-value"` の
@@ -128,7 +128,7 @@
 //! - dispatch `"set"` の payload はクライアント由来の信頼できない入力として
 //!   扱い、厳密な `u16` パース + `0..=360` 範囲検証で fail-closed（不正値・
 //!   非整数・負数・361 以上・空文字は no-op）。受理後は `360` を `0` へ
-//!   丸めたうえで [`normalize_angle`] を経由する。`"home"`/`"end"` は payload
+//!   丸めたうえで `normalize_angle` を経由する。`"home"`/`"end"` は payload
 //!   を使用しない（状態機械内で固定計算するため注入経路がない）。
 //! - hydration 属性（`data-hydrate-value`/`-step`）はクライアント側で
 //!   改ざんされうる入力として扱う。[`AngleSlider`] の
@@ -137,7 +137,7 @@
 //!   `1..=359` 範囲外の step をすべて拒否する、[`crate::progress::Progress`]
 //!   と同型の fail-closed 契約）。
 //! - 呼び出し側 `attrs` による `data-scope`/`data-part`/状態系 `data-*`
-//!   属性の上書きは [`Anatomy::part`] と [`drop_reserved`] が fail-closed に
+//!   属性の上書きは [`Anatomy::part`] と `drop_reserved` が fail-closed に
 //!   破棄する（フレームワークが付与する状態表現が常に優先される）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
@@ -490,7 +490,7 @@ impl AngleSlider {
     /// `data-hydrate-step` 属性名のフィールド部分。
     pub const FIELD_STEP: &'static str = "step";
 
-    /// 指定した値で [`AngleSlider`] を生成する（[`normalize`] で fail-closed
+    /// 指定した値で [`AngleSlider`] を生成する（`normalize` で fail-closed
     /// 正規化する。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(value: u16, step: u16) -> Self {
@@ -671,7 +671,7 @@ impl Hydrate for AngleSlider {
     /// クライアント改ざん入力として扱う。欠落は
     /// [`HydrateError::MissingAttr`]、パース不能・範囲外（value は
     /// `0..=359`、step は `1..=359`）は [`HydrateError::InvalidValue`]
-    /// （panic しない）。受理した値はさらに [`normalize`] へ通してから
+    /// （panic しない）。受理した値はさらに `normalize` へ通してから
     /// 復元する（多層防御、[`crate::slider::Slider`] と同型の契約）。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         let find = |field: &str| -> Result<&str, HydrateError> {

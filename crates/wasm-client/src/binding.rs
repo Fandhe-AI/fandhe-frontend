@@ -39,7 +39,7 @@ pub enum BindingKind {
 /// 走査済み束縛点 1 件（`field` は DOM 属性値から読んだ実行時 `String`）。
 ///
 /// 実 DOM ノードへの参照は持たない（wasm32 非依存を保つため）。
-/// [`crate::binding_dom::BindingTable`] がこの型と `web_sys::Element` の
+/// `crate::binding_dom::BindingTable` がこの型と `web_sys::Element` の
 /// 組で対応表を構築する。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingSpec {
@@ -53,7 +53,7 @@ pub struct BindingSpec {
 ///
 /// `Text` はテキスト束縛・属性束縛の両方に使う。`Flag` は class 束縛にのみ
 /// 使い、属性束縛へ渡された場合は `"true"`/`"false"` 文字列として出力する
-/// （[`crate::binding_dom::BindingTable::apply_dirty`] の責務）。
+/// （`crate::binding_dom::BindingTable::apply_dirty` の責務）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundValue {
     /// テキスト・属性値として出力する文字列。
@@ -66,7 +66,7 @@ pub enum BoundValue {
 ///
 /// `#343` の消費側（本クレートのテスト、および `#345` の `wasm-full` 適用層）
 /// が状態コンポーネント側にこの trait を実装し、
-/// [`crate::binding_dom::BindingTable::apply_dirty`] / `apply_update` から
+/// `crate::binding_dom::BindingTable::apply_dirty` / `apply_update` から
 /// 呼ばれる。field に対応する値がない場合（未知 field・型不一致等）は
 /// `None` を返し、呼び出し側は当該束縛を no-op として扱う（fail-closed、
 /// panic しない）。
@@ -166,7 +166,7 @@ fn parse_tokens_with(raw: &str, is_valid_name: impl Fn(&str) -> bool) -> Vec<(St
 /// `"<name>:<field>"` 空白区切りトークン列をパースする（`data-bind-attr`
 /// 属性値専用、設計書 §3.1）。
 ///
-/// name（属性名）は [`is_valid_attr_binding_name`] で検証する（`on*`
+/// name（属性名）は `is_valid_attr_binding_name` で検証する（`on*`
 /// 接頭辞拒否あり）。`data-bind-class` の解析には
 /// [`parse_class_binding_tokens`] を使う（イシュー #1300 で検証を分離）。
 pub fn parse_binding_tokens(raw: &str) -> Vec<(String, String)> {
@@ -176,7 +176,7 @@ pub fn parse_binding_tokens(raw: &str) -> Vec<(String, String)> {
 /// `"<name>:<field>"` 空白区切りトークン列をパースする（`data-bind-class`
 /// 属性値専用、設計書 §3.1）。
 ///
-/// name（class 名）は [`is_valid_class_binding_name`] で検証する（`on*`
+/// name（class 名）は `is_valid_class_binding_name` で検証する（`on*`
 /// 接頭辞拒否なし — class 名は `setAttribute` を経由せず
 /// `classList.toggle_with_force` にしか到達しないため、イシュー #1300）。
 /// `data-bind-attr` の解析には [`parse_binding_tokens`] を使う。
@@ -246,7 +246,7 @@ pub fn element_binding_specs(
 ///
 /// # 実装方針（実挙動とのドリフト防止）
 ///
-/// トークンパーサを新設せず、実 DOM 走査（[`crate::binding_dom`]）と同じ
+/// トークンパーサを新設せず、実 DOM 走査（`crate::binding_dom`）と同じ
 /// [`element_binding_specs`] へ委譲する。検証ロジックと実行時ロジックが
 /// 同一関数を通ることで、両者が非同期に変更されて乖離する余地を構造的に
 /// 排除する。
@@ -325,8 +325,8 @@ pub fn unresolved_binding_specs<S: BindingSource>(
 /// #345 実装確定節）。
 ///
 /// `counter`/`draft` の 2 フィールドのみを扱う。`items`（keyed list）は
-/// [`BindingSource`] の対象外（[`crate::binding_dom::BindingTable`] の
-/// text/attr/class 更新経路ではなく、[`crate::keyed_diff`]/[`crate::keyed_dom`]
+/// [`BindingSource`] の対象外（`crate::binding_dom::BindingTable` の
+/// text/attr/class 更新経路ではなく、[`crate::keyed_diff`]/`crate::keyed_dom`
 /// の構造変化専用経路が扱う。設計書 §5 が定める「構造変化を表現できる唯一の
 /// 経路」の原則をクライアント側の型でも保つ）。未知 field は `None`
 /// （fail-closed、`BindingSource` のドキュメント参照）。

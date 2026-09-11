@@ -4,7 +4,7 @@
 //! AI チャット UI の会話ログを収めるスクロールコンテナの anatomy（[`root`] /
 //! [`viewport`] / [`content`] / [`anchor`] / [`jump_to_latest`] /
 //! [`load_more`]）と表示状態 `data-*` のみを提供する。
-//! [`mod@crate::message`] と同じく状態機械（[`crate::state`]）を持たない
+//! [`crate::message`](mod@crate::message) と同じく状態機械（[`crate::state`]）を持たない
 //! 静的部品であり、最下部追従・新着検知・スクロール位置の計測・復元は
 //! 一切内包しない（`.claude/rules/coding-rust.md` §3.25 規則 2
 //! 「参照元が primitives 層へ持ち込んでいる装飾・アニメーション・レイアウト
@@ -32,7 +32,7 @@
 //! イシュータイトルの「scroll-area のパートを再利用」は**属性契約の再利用**
 //! （[`crate::scroll_area::viewport`] と同じ `tabindex="0"` 固定 + 予約）と
 //! 解釈し、[`crate::scroll_area::viewport`] を内部で呼び出すことはしない
-//! （[`mod@crate::message`] が [`mod@crate::avatar`] を内包しない規則と同型）。
+//! （[`crate::message`](mod@crate::message) が [`crate::avatar`](mod@crate::avatar) を内包しない規則と同型）。
 //! 理由は (1) イシュータイトルの 6 パーツに `viewport` が含まれ
 //! `crates/docs-site/tests/primitive_showcase.rs` が本モジュールの
 //! `.part("viewport", …)` を走査して Demo と突合する fail-closed 契約が
@@ -45,7 +45,7 @@
 //!
 //! shadcn は `role="log"`（暗黙 `aria-live="polite"` を伴う）+
 //! `aria-relevant="additions"` を付けるが、これは
-//! [`mod@crate::message`] が「ストリーミング通知はアプリ固有の UX 判断で
+//! [`crate::message`](mod@crate::message) が「ストリーミング通知はアプリ固有の UX 判断で
 //! あり内包しない」と確定した方針そのものに当たる（本モジュール doc
 //! 「`aria-live`/`aria-busy` を付けない理由」参照）。[`content`] は純スロット
 //! とし `role` を予約しないため、必要な利用者は `attrs` 経由で
@@ -53,7 +53,7 @@
 //!
 //! # `aria-live`/`aria-busy` を付けない理由
 //!
-//! [`mod@crate::message`] と同じ判断軸: 通知の頻度・タイミングはアプリ
+//! [`crate::message`](mod@crate::message) と同じ判断軸: 通知の頻度・タイミングはアプリ
 //! 固有の UX 判断であり、本モジュールは anatomy・アクセシビリティ・表示
 //! 状態（`data-*`）までを責務とする（`.claude/rules/coding-rust.md`
 //! §3.25）。`data-stuck`/`data-has-new`/[`jump_to_latest`] の
@@ -108,7 +108,7 @@
 //!   履歴読み込み時の位置維持・`data-stuck`/`data-has-new`/`data-visible`
 //!   の実行時更新）は #2122。
 //! - [`crate::data_attrs`] への `data-stuck` 共有ヘルパ追加は行わない
-//!   （本部品固有語彙であり、存在属性は [`mod@crate::message`] と同様に
+//!   （本部品固有語彙であり、存在属性は [`crate::message`](mod@crate::message) と同様に
 //!   モジュール内でインライン生成する）。
 
 use crate::anatomy::{anatomy, Anatomy};
@@ -126,7 +126,7 @@ const ROOT_RESERVED: &[&str] = &["data-stuck", "data-has-new"];
 /// ため常に予約する）。
 const VIEWPORT_RESERVED: &[&str] = &["tabindex", "role", "aria-label"];
 
-/// [`content`] は固定属性を持たない純スロット（[`mod@crate::message`]
+/// [`content`] は固定属性を持たない純スロット（[`crate::message`](mod@crate::message)
 /// `NO_RESERVED` と同型）。
 const NO_RESERVED: &[&str] = &[];
 

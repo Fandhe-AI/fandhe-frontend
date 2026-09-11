@@ -66,7 +66,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`hidden`/`disabled`/`id`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入する
-//!   経路はない（[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の
+//!   経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の
 //!   既存不変条件をそのまま継承する）。
 //! - 動的値（`controls`/`id`/呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。

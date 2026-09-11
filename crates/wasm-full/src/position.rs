@@ -8,7 +8,7 @@
 //! - 純粋ロジック層（本モジュールの `PositionedKind` / DOM 属性の
 //!   fail-closed パース / [`resolve_position`]）は native の `cargo test` で
 //!   検証できる（`web-sys` 型を引数に取らない）。
-//! - `#[cfg(target_arch = "wasm32")]` の [`wiring::PositionController`] が
+//! - `#[cfg(target_arch = "wasm32")]` の `wiring::PositionController` が
 //!   実 DOM 計測（`getBoundingClientRect`）・スクロール/リサイズ契機の
 //!   離散的な再計算呼び出しを担う。
 //!
@@ -23,7 +23,7 @@
 //!   `fandhe-frontend-headless-ui` 側が `positioner` パーツを一切出力しない
 //!   （イシュー #993、`docs/policy/intentional-non-adoption.md` §3.25
 //!   規則 2 のユーザー判断）ため、scope 登録自体は成立するものの、現状の
-//!   headless-ui マークアップでは [`wiring::reposition_one`] が発火する
+//!   headless-ui マークアップでは `wiring::reposition_one` が発火する
 //!   契機（`[data-part="positioner"][data-state="open"]`）が存在せず前方
 //!   互換の受け入れに留まる。将来 headless-ui 側へ positioner パーツが
 //!   追加されれば同じ配線がそのまま有効化される。
@@ -34,7 +34,7 @@
 //! - `data-side`/`data-align` は flip 適用後の**確定** side/align（CSS
 //!   セレクタ用に毎回上書きされる出力）であり、「希望 placement」の入力
 //!   としては使わない。希望 placement は独立の `data-requested-side`/
-//!   `data-requested-align` 属性（[`wiring::reposition_one`] が初回のみ
+//!   `data-requested-align` 属性（`wiring::reposition_one` が初回のみ
 //!   書き込み、以後は上書きしない永続化領域）で保持する
 //!   （[`resolve_requested_placement`] 参照。イシュー #622 レビュー指摘:
 //!   従来 `data-side`/`data-align` 自体を希望として読み戻していたため、
@@ -48,7 +48,7 @@
 //!   経由だが、本モジュールの再計算は初期表示後の DOM 直接更新であり HTML
 //!   文字列を組み立てないため既定エスケープ経路の対象外である点に注意）。
 //!   `style`（`--fandhe-*` CSS 変数）のみは `set_attribute` で `style`
-//!   属性全体を上書きせず、[`wiring::apply_css_vars`] が CSSOM の
+//!   属性全体を上書きせず、`wiring::apply_css_vars` が CSSOM の
 //!   `CssStyleDeclaration::set_property` で個々の変数のみを更新する
 //!   （イシュー #2209 レビュー指摘: `set_attribute("style", ...)` は
 //!   利用者が positioner/arrow へ付与していた `position`/`width`/
@@ -56,19 +56,19 @@
 //!   表示回帰だった）。
 //! - **統合呼び出し（イシュー #2209、親 #2208）**: `crate::headless::
 //!   wire_headless_component` が (1) 配線時の先行同期、(2) dispatch 成功後の
-//!   再描画直後、の 2 箇所で [`wiring::reposition_within`] を自動的に呼ぶ
+//!   再描画直後、の 2 箇所で `wiring::reposition_within` を自動的に呼ぶ
 //!   （`crate::content_height::sync_content_height` と同型の統合）。あわせて
-//!   配線時に [`wiring::ensure_global_controller`] が `thread_local` 単一の
-//!   [`wiring::PositionController`] を遅延生成し、scroll/resize 契機の再計算も
+//!   配線時に `wiring::ensure_global_controller` が `thread_local` 単一の
+//!   `wiring::PositionController` を遅延生成し、scroll/resize 契機の再計算も
 //!   自動化する。当初 #590 時点では「開閉 dispatch との統合呼び出しは統合層
 //!   （#580）の責務」としてスコープ外としていたが、本イシューで
 //!   `wire_headless_component` 経由の標準配線に統合済み。`wire_headless_events`/
 //!   `wire_headless_events_scoped`（アクション通知のみの低レベル API）や
 //!   `wire_headless_component` を経由しない開閉経路（`crate::tooltip::
-//!   TooltipDelayController` 等）には統合しないため、[`wiring::reposition_all`]/
-//!   [`wiring::reposition_within`] は引き続き呼び出し側から明示的に呼べる
+//!   TooltipDelayController` 等）には統合しないため、`wiring::reposition_all`/
+//!   `wiring::reposition_within` は引き続き呼び出し側から明示的に呼べる
 //!   公開 API として残す。
-//! - [`wiring::reposition_one`] は座標反映のたびに `positioner` へ
+//! - `wiring::reposition_one` は座標反映のたびに `positioner` へ
 //!   `data-positioned=""`（値なしの存在マーカー）を書き込む。
 //!   `fandhe-frontend-pre-styled-ui` はこの属性の有無で「SSR 静的
 //!   フォールバック（`position: absolute` + ローカル座標系）」と「wasm
@@ -158,7 +158,7 @@ impl PositionedKind {
     /// #1182。`--fandhe-reference-width` は出力のみで消費は pre-styled-ui/
     /// 利用者 CSS のオプトインのため外観への強制はない）。Popover/Tooltip
     /// は任意サイズのコンテンツを想定するため既定 `false`（呼び出し側が
-    /// [`PositioningRequest::same_width`] で上書き可能）。NavigationMenu
+    /// `PositioningRequest::same_width` で上書き可能）。NavigationMenu
     /// も content が任意サイズのパネルを想定するため `false`（Popover と
     /// 同型の判断）。
     #[must_use]
@@ -206,10 +206,10 @@ pub fn parse_align_attr(value: Option<&str>) -> Align {
 
 /// 「希望 placement」（flip 適用前の入力、[`resolve_position`] の
 /// `requested` 引数）を解決する純粋関数（native `cargo test` で検証可能。
-/// [`wiring::reposition_one`] が実 DOM 属性から抽出した値を渡す）。
+/// `wiring::reposition_one` が実 DOM 属性から抽出した値を渡す）。
 ///
 /// `persisted_side`/`persisted_align` は `data-requested-side`/
-/// `data-requested-align`（[`wiring`] が一度だけ書き込み、以後は flip
+/// `data-requested-align`（`wiring` が一度だけ書き込み、以後は flip
 /// 結果で上書きしない永続化領域）の現在値。存在すればそれを希望
 /// placement として最優先で採用する。存在しない場合（初回の再計算・SSR
 /// マークアップに元々なかった場合）は `fallback_side`/`fallback_align`
@@ -238,7 +238,7 @@ pub fn resolve_requested_placement(
     )
 }
 
-/// 実 DOM 計測値（[`wiring`] が `getBoundingClientRect`/`window` から
+/// 実 DOM 計測値（`wiring` が `getBoundingClientRect`/`window` から
 /// 組み立てる、native テストではテストダブルから組み立てる）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Measurement {
@@ -250,7 +250,7 @@ pub struct Measurement {
     pub viewport: Size,
 }
 
-/// [`resolve_position`] の結果。呼び出し側（[`wiring`]）はこの `style` を
+/// [`resolve_position`] の結果。呼び出し側（`wiring`）はこの `style` を
 /// positioner 要素の `style` 属性へ、`side`/`data_align` を
 /// `data-side`/`data-align` 属性へ、それぞれ `set_attribute` で反映する。
 #[derive(Debug, Clone, PartialEq)]

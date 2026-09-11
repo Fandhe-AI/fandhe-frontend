@@ -40,7 +40,7 @@
 //!   `Accent` を維持する（Radix Themes の accent 既定と一致し、badge は
 //!   ステータス表示部品のため中立色既定〔avatar/kbd/code〕は採らない）。
 //! - **状態（`data-*`）**: 増減なし。headless を持たない静的部品で
-//!   `data-scope`/`data-part` のみ（[`ANATOMY`]）。
+//!   `data-scope`/`data-part` のみ（`ANATOMY`）。
 //! - **ダーク**: 追加宣言はすべてトークン参照のため
 //!   `write_dark_declarations` へ自動追従する。コントラストは `theme.rs`
 //!   の既存テストが固定済みでありトークン追加はない。
@@ -354,7 +354,7 @@ pub fn badge<'a>(props: &BadgeProps, attrs: Vec<(&'a str, &'a str)>, children: V
 /// # 予約属性（`href`/`target`/`rel`、イシュー #2045 codex-review P1 是正）
 ///
 /// `href`/`target`/`rel`（大文字小文字を無視）は呼び出し側 `attrs` からの
-/// 上書きを許さない予約属性として扱う（[`drop_class_attr`] が `class` を
+/// 上書きを許さない予約属性として扱う（`drop_class_attr` が `class` を
 /// 除去するのと同型の判断）。`href`/`target` は本関数の引数・`external`
 /// フラグのみが権威であり、`attrs` に同名キーが含まれていても無視して
 /// 除去する。`rel` は `external` の reverse tabnabbing 対策

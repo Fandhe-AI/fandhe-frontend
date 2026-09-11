@@ -229,7 +229,7 @@ pub enum Breakpoint {
 impl Breakpoint {
     /// 全段を昇順（`sm` → `xl`）で列挙する。[`SlotRecipe::css`] が
     /// breakpoint ブロックを mobile-first（小さい段から）の順に出力する際、
-    /// および [`crate::theme::DEFAULT_BREAKPOINTS`] がテーマトークンを
+    /// および `crate::theme::DEFAULT_BREAKPOINTS` がテーマトークンを
     /// 構築する際の唯一の反復元として使う。
     pub const ALL: [Breakpoint; 4] = [
         Breakpoint::Sm,
@@ -242,7 +242,7 @@ impl Breakpoint {
     /// （`fd-<scope>--<axis>-<value>`）には使わない（本イシューでは
     /// breakpoint × variant の複合条件を実装しないため、`Breakpoint` を
     /// `VariantValue` として使う経路自体が存在しない）。
-    /// [`crate::theme::DEFAULT_BREAKPOINTS`] がテーマトークン名
+    /// `crate::theme::DEFAULT_BREAKPOINTS` がテーマトークン名
     /// （`--fandhe-breakpoint-<value()>`）としてはこの値をそのまま使う。
     #[must_use]
     pub const fn value(self) -> &'static str {
@@ -260,7 +260,7 @@ impl Breakpoint {
     /// [`SlotRecipe::css`] はこの戻り値のみを `@media` プレリュードへ
     /// 埋め込む（呼び出し元由来の文字列は一切通さない。既存の
     /// [`Declaration`] が `&'static str` のみを保持する不変条件と同型の
-    /// 安全性根拠）。[`crate::theme::DEFAULT_BREAKPOINTS`] もこの値を
+    /// 安全性根拠）。`crate::theme::DEFAULT_BREAKPOINTS` もこの値を
     /// テーマトークンの初期値として再利用し、2 箇所の手打ちドリフトを
     /// 構造的に防ぐ。
     #[must_use]
@@ -868,7 +868,7 @@ pub fn transition_declarations_allow_discrete(
 /// コンパイル時の型共有はできない）。wasm-full 側は「`hidden` 要素は
 /// スキップし、実測 0 なら変数を除去する（`0px` を書き込まない）」契約
 /// （CSSOM `set_property`/`remove_property` 経由）を持つため、本クレート
-/// 側は必ず [`CONTENT_HEIGHT_VAR_REF`] のようにフォールバック付きで参照
+/// 側は必ず `CONTENT_HEIGHT_VAR_REF` のようにフォールバック付きで参照
 /// する（変数が未設定の環境・JS 無効時でも `auto` へ安全に劣化する）。
 pub const CONTENT_HEIGHT_VAR: &str = "--fandhe-content-height";
 
@@ -943,7 +943,7 @@ const CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING: &str = "var(--fandhe-motion-easing
 /// `box-sizing: border-box` は wasm-full の実測値（`scrollHeight`、
 /// padding 込み）と齟齬なく `height` を適用するため必須。
 /// `overflow: visible` を終端値として登録し、`transition-property` に
-/// `overflow` を含めて [`CONTENT_HEIGHT_TIMING_FUNCTION`] の `step-end`
+/// `overflow` を含めて `CONTENT_HEIGHT_TIMING_FUNCTION` の `step-end`
 /// でトランジション完了の瞬間にのみ切り替える（下記「開いた定常状態での
 /// クリップ対策」節参照。PR #2289 codex レビュー P1 是正）。
 /// `transition-property` に `display` を含めるため、共通ヘルパー
@@ -1005,7 +1005,7 @@ const CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING: &str = "var(--fandhe-motion-easing
 /// codex レビュー P1 指摘）。`content_height_transition` 導入前
 /// （`height: auto` を継続評価し `overflow` 宣言自体を持たなかった状態）
 /// と比べた表示回帰にあたるため、本関数は `overflow: hidden` を base の
-/// 恒常値としては持たない。代わりに [`CONTENT_HEIGHT_TIMING_FUNCTION`]
+/// 恒常値としては持たない。代わりに `CONTENT_HEIGHT_TIMING_FUNCTION`
 /// （`step-end`）で `overflow` の値切り替えをトランジション完了の瞬間
 /// だけに限定し、`overflow: visible` を開いた定常状態の終端値として
 /// 登録する（このタイミング関数は開く遷移＝本関数が終端スタイルになる
@@ -1013,7 +1013,7 @@ const CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING: &str = "var(--fandhe-motion-easing
 /// [`content_height_closed_transition_declarations`] は別の
 /// `step-start` タイミング関数を自前で宣言し、閉じる方向の overflow
 /// 切り替えタイミングを個別制御する。理由は
-/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc「開閉で非対称にする理由」
+/// `CONTENT_HEIGHT_TIMING_FUNCTION` rustdoc「開閉で非対称にする理由」
 /// 節参照。PR #2289 codex レビュー第 2 ラウンド是正）。トランジション
 /// 進行中は開始値（`[hidden]` state/`@starting-style` 側の
 /// `overflow: hidden`）が `step-end` により維持されるため、開く方向の
@@ -1064,9 +1064,9 @@ pub fn content_height_open_declarations(duration: MotionDuration) -> Vec<Declara
 /// 自前の `transition-*` 宣言を必要としないため）。`[hidden]` state は
 /// 代わりに [`content_height_closed_transition_declarations`] を使い、
 /// 閉じる遷移専用の `transition-timing-function`
-/// （[`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`]）を自前で宣言する
+/// （`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`）を自前で宣言する
 /// （PR #2289 codex レビュー第 2 ラウンド是正、理由は
-/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc「開閉で非対称にする理由」
+/// `CONTENT_HEIGHT_TIMING_FUNCTION` rustdoc「開閉で非対称にする理由」
 /// 節参照）。
 #[must_use]
 pub fn content_height_closed_declarations() -> Vec<Declaration> {
@@ -1084,7 +1084,7 @@ pub fn content_height_closed_declarations() -> Vec<Declaration> {
 ///
 /// [`content_height_closed_declarations`] の 4 値宣言に加えて、閉じる
 /// 遷移専用の `transition-property`/`transition-duration`/
-/// `transition-timing-function`（[`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`]、
+/// `transition-timing-function`（`CONTENT_HEIGHT_TIMING_FUNCTION_CLOSING`、
 /// `overflow` に `step-start`）/`transition-behavior` を自前で宣言する。
 ///
 /// # `[hidden]` state が独自に `transition-*` を宣言する理由
@@ -1093,13 +1093,13 @@ pub fn content_height_closed_declarations() -> Vec<Declaration> {
 /// `transition-property`/`transition-duration`/`transition-timing-function`
 /// を、その時点でカスケードにより有効な（＝遷移先の）計算値から決定する。
 /// [`content_height_open_declarations`]（base）が宣言する
-/// `transition-timing-function`（[`CONTENT_HEIGHT_TIMING_FUNCTION`]、
+/// `transition-timing-function`（`CONTENT_HEIGHT_TIMING_FUNCTION`、
 /// `overflow` に `step-end`）は、base が遷移先になる方向（開く遷移）に
 /// のみ実効させたい。しかし `[hidden]` セレクタは base より詳細度が高い
 /// ため、本関数が `transition-*` を明示しなければ base の宣言がそのまま
 /// カスケードを通過し、閉じる遷移（`[hidden]` が遷移先）にも同じ
 /// `step-end` が適用されてしまう（表示回帰の原因、
-/// [`CONTENT_HEIGHT_TIMING_FUNCTION`] rustdoc 参照）。`[hidden]` 自身が
+/// `CONTENT_HEIGHT_TIMING_FUNCTION` rustdoc 参照）。`[hidden]` 自身が
 /// `transition-timing-function` を宣言することで、閉じる遷移の実効値を
 /// `step-start` へ個別に固定できる（CSS カスケードは宣言単位＝longhand
 /// 単位で決まるため、他の longhand（`height` 等の値）は
@@ -1238,14 +1238,14 @@ pub enum StateCondition {
     /// `FocusVisible`/`NthChildEven` 等と同じく「消費者が現れた時点で
     /// 追加する」前例に従う（本モジュール冒頭 doc 参照）。
     Hover,
-    /// `:hover:not([data-disabled]):not([<name>="<value>"])`（[`Hover`]
+    /// `:hover:not([data-disabled]):not([<name>="<value>"])`（`Hover`
     /// の disabled 除外に加え、値付き属性 1 件も除外する。イシュー #1463
     /// PR #1740 Bugbot レビュー Medium severity 指摘「Hover overrides open
     /// border」対応）。
     ///
     /// [`crate::color_picker`] の `trigger` は `open` 状態でアクセント色の
     /// 枠線（[`StateCondition::AttrEq`]）を表示するが、同じ slot へ素の
-    /// [`Hover`] を併用すると `:hover:not([data-disabled])`
+    /// `Hover` を併用すると `:hover:not([data-disabled])`
     /// （specificity (0,4,0)）が `[data-state="open"]`（specificity
     /// (0,3,0)）より高く、かつ [`SlotRecipe::css`] が hover 規則を
     /// `@media (hover: hover)` として常に末尾へ集約出力するため、open な
@@ -1253,16 +1253,16 @@ pub enum StateCondition {
     /// 上書きされてしまう（specificity・ソース順の両方で hover が勝つ）。
     /// 本 variant は hover 条件の対象から `[<name>="<value>"]` に一致する
     /// 要素そのものを除外する（`:not()` によるマッチ除外であり、
-    /// [`Hover`] 自体の specificity や `AttrEq`/`AttrEqAll` 側の
+    /// `Hover` 自体の specificity や `AttrEq`/`AttrEqAll` 側の
     /// specificity を変更しない）ため、open かつ hover な trigger では
     /// この規則が一切マッチせず、open 側の規則がそのまま残る。
     HoverExcept(&'static str, &'static str),
-    /// `:hover:not([data-disabled]):not([<name>])`（[`HoverExcept`] の値付き
+    /// `:hover:not([data-disabled]):not([<name>])`（`HoverExcept` の値付き
     /// 属性版に対する、存在属性（boolean 属性）版。イシュー #1468 PR #1745
     /// codex-review P1 / Bugbot Medium severity 指摘「Hover washes out
     /// highlighted item contrast」対応）。
     ///
-    /// [`HoverExcept`] は `[<name>="<value>"]` の値等価で除外対象を絞るが、
+    /// `HoverExcept` は `[<name>="<value>"]` の値等価で除外対象を絞るが、
     /// headless 層が存在属性としてのみ出す状態（例:
     /// `crates/headless-ui/src/combobox.rs::item` の `data-highlighted`。
     /// 値は常に空文字列 `""` の `data-highlighted=""` で出力される）は
@@ -1277,18 +1277,18 @@ pub enum StateCondition {
     /// `background` shorthand のみのため文字色 accent-fg だけが取り残され
     /// コントラストが崩れる）が最初の消費者。`:not()` 自体は specificity を
     /// 加算しないが、その引数（属性セレクタ）の specificity はそのまま
-    /// 寄与するため、[`HoverExcept`] と同じく `:not([<name>])` の追加分
+    /// 寄与するため、`HoverExcept` と同じく `:not([<name>])` の追加分
     /// （属性セレクタ 1 個分 = (0,1,0)）だけ規則全体の specificity が
-    /// [`Hover`] 単体より高くなる。
+    /// `Hover` 単体より高くなる。
     HoverExceptAttr(&'static str),
     /// `:hover:not([data-disabled]):not([<attr_name>]):not([<eq_name>="<eq_value>"])`
-    /// （[`HoverExceptAttr`] の存在属性除外と [`HoverExcept`] の値等価除外を
+    /// （`HoverExceptAttr` の存在属性除外と `HoverExcept` の値等価除外を
     /// 1 つの hover 規則で両方適用する複合版。イシュー #1702 PR #1803
     /// Bugbot Medium severity 指摘「Hover washes out open trigger」対応）。
     ///
     /// [`crate::menubar`] の `trigger` は highlight（`data-highlighted`、
     /// specificity (0,3,0)）と open（`[data-state="open"]`、同じく
-    /// (0,3,0)）という specificity が等しい 2 状態を持つ。[`HoverExceptAttr`]
+    /// (0,3,0)）という specificity が等しい 2 状態を持つ。`HoverExceptAttr`
     /// は highlighted のみを hover 対象から除外するため、open だが
     /// highlighted ではない trigger（ポインタが乗っているだけで virtual
     /// focus は別の trigger にある状態）に hover すると
@@ -1298,9 +1298,9 @@ pub enum StateCondition {
     /// variant は両方を `:not()` で除外し、open な trigger・highlighted な
     /// trigger のいずれも hover で洗い流されないようにする。`:not()` 自体は
     /// specificity を加算しないが、その引数（属性セレクタ）の specificity は
-    /// そのまま寄与するため、[`HoverExcept`]・[`HoverExceptAttr`] の
+    /// そのまま寄与するため、`HoverExcept`・`HoverExceptAttr` の
     /// `:not()` 節に加えてさらに 1 個分（属性セレクタ 1 個分 = (0,1,0)）
-    /// specificity が高くなり、素の [`Hover`] より高い specificity を持つ。
+    /// specificity が高くなり、素の `Hover` より高い specificity を持つ。
     HoverExceptAttrEq(&'static str, &'static str, &'static str),
 }
 
@@ -2028,7 +2028,7 @@ impl SlotRecipe {
     /// 集約される。セレクタは常に無条件の base セレクタ
     /// （`[data-scope="<scope>"][data-part="<slot>"]`）を用いる（`[hidden]`
     /// state 規則は本 slot への通常の base より詳細度が高いため、閉状態は
-    /// 引き続き [hidden] state 規則が優先される。カスケード上「開いた
+    /// 引き続き `[hidden]` state 規則が優先される。カスケード上「開いた
     /// 定常状態の上書き」としてのみ効く）。
     ///
     /// `[hidden]` state 自体が持つ `transition-*` longhand

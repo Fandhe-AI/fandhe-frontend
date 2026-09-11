@@ -84,7 +84,7 @@
 //! - variant クラス名は [`crate::recipe::SlotRecipe::variant_classes`] が
 //!   `&'static str` enum 値から決定的に生成し、動的文字列合成を行わない。
 //! - 呼び出し側 `attrs` に含まれる `class` は
-//!   [`crate::class_attr::drop_class_attr`] で除去してから recipe 生成
+//!   `crate::class_attr::drop_class_attr` で除去してから recipe 生成
 //!   クラスと合成するため、`class` 属性は常に単一（呼び出し側からのクラス
 //!   偽装・重複混入を防ぐ）。
 
@@ -373,7 +373,7 @@ pub fn css() -> String {
 }
 
 /// root パーツ（`<dl>`）を組み立てる。`orientation`/`variant`/`size` に
-/// 応じたクラスを付与する唯一のパーツ（[`drop_class_attr`] により呼び出し
+/// 応じたクラスを付与する唯一のパーツ（`drop_class_attr` により呼び出し
 /// 側の `class` は除去してから合成する）。
 ///
 /// # Examples

@@ -50,7 +50,7 @@
 //!   `height` を `width` から決定的な整数丸め
 //!   `(width * ah + aw / 2) / aw`（四捨五入相当の整数演算、浮動小数点を
 //!   一切使わない）で導出する。導出結果が `image_height` の範囲へ収まらない
-//!   場合は `width` 側を [`ImageCropper::max_width_for_aspect`] まで縮小して
+//!   場合は `width` 側を `ImageCropper::max_width_for_aspect` まで縮小して
 //!   から再導出する（fail-closed な再クランプ、`width` が主導で `height` が
 //!   従属という規則を固定する）。
 //! - 中間演算はすべて `i64` で行い、`u32::MAX` 近傍の入力でも overflow を
@@ -73,7 +73,7 @@
 //! - 角（`Ne`/`Nw`/`Se`/`Sw`）: 対応する 2 軸（東西 + 南北）を合成する。
 //! - アスペクト比固定時の従属軸規則: 角・`E`/`W` は `width` が主軸で
 //!   `height` を導出する。`N`/`S` は `height` が主軸で `width` を
-//!   [`ImageCropper::width_from_height_for_aspect`] から導出する（本 rustdoc
+//!   `ImageCropper::width_from_height_for_aspect` から導出する（本 rustdoc
 //!   「決定的な整数演算」と対称の丸め規則）。`Ne`/`Nw`（上辺の角）は
 //!   height が従属軸のため、dy から素朴に求めた高さと実際に導出される
 //!   height が一致するとは限らない。そのため導出後の height を用いて
@@ -180,7 +180,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`tabindex`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存
 //!   不変条件をそのまま継承する）。
 //! - 動的値（整形済み数値文字列/呼び出し側 `attrs`/`children`/`alt`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
@@ -849,7 +849,7 @@ impl ImageCropper {
     /// `data-hydrate-initial-height` 属性名のフィールド部分。
     pub const FIELD_INITIAL_HEIGHT: &'static str = "initial-height";
 
-    /// 指定した値で [`ImageCropper`] を生成する（[`normalize`] で
+    /// 指定した値で [`ImageCropper`] を生成する（`normalize` で
     /// fail-closed 正規化する。呼び出し側の不正な入力で panic しない）。
     /// 正規化後の矩形が `"reset"` dispatch・hydration ラウンドトリップの
     /// 復元先（`initial`）としても保存される。
@@ -1321,7 +1321,7 @@ impl Hydrate for ImageCropper {
     /// クライアント改ざん入力として扱う。欠落は
     /// [`HydrateError::MissingAttr`]、パース不能・寸法 0・矩形はみ出し・
     /// アスペクト比不整合は [`HydrateError::InvalidValue`]（panic しない）。
-    /// 受理した値はさらに [`normalize`] へ通してから復元する（多層防御。
+    /// 受理した値はさらに `normalize` へ通してから復元する（多層防御。
     /// [`crate::slider::Slider`] と同型の fail-closed 契約）。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         let find = |field: &str| -> Result<&str, HydrateError> {

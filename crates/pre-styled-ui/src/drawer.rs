@@ -29,7 +29,7 @@
 //!
 //! headless 層が `root`/`positioner`/`content` へ出力する `data-placement`
 //! （`start`/`end`/`top`/`bottom`、[`fandhe_frontend_headless_ui::drawer::DrawerPlacement`]）
-//! を [`StateCondition::AttrEq`] で捕捉し、[`recipe`] の `positioner`（flex 方向・
+//! を [`StateCondition::AttrEq`] で捕捉し、`recipe` の `positioner`（flex 方向・
 //! 主軸整列）・`content`（占有する寸法軸）を切り替える。`start`/`end` は
 //! CSS の `flex-start`/`flex-end`（row 方向）が `dir` 属性に応じて論理的に
 //! 解決される仕様を利用しており、明示的な `margin-inline-*` を追加しなくても
@@ -37,7 +37,7 @@
 //!
 //! # `size` variant（drawer 固有の寸法軸、イシュー #758）
 //!
-//! `size`（[`Size`]）は [`root`] へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は [`root`] へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-drawer-size`（root スコープの CSS custom property。通常の CSS
 //! 継承により `content` へ伝わる）経由で drawer パネルの占有幅（start/end）・
 //! 占有高さ（top/bottom）を切り替える。`base` 規則の `var()` には Md 相当の
@@ -686,7 +686,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::drawer::root`] へ
 /// 委譲する。
 ///

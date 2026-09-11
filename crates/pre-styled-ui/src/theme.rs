@@ -164,7 +164,7 @@ impl CssValue {
     ///   拒否する。英数字と `(` `)` のみの許可文字集合では区別できないため、
     ///   allowlist に加えて明示的な denylist として扱う）
     /// - 空文字列
-    /// - [`CSS_VALUE_MAX_LEN`] を超える長さ
+    /// - `CSS_VALUE_MAX_LEN` を超える長さ
     ///
     /// # Errors
     ///
@@ -219,7 +219,7 @@ impl TokenName {
     /// - 以降は `[a-z0-9-]` のみ
     /// - 末尾がハイフンでない
     /// - 空文字列でない
-    /// - [`TOKEN_NAME_MAX_LEN`] を超えない
+    /// - `TOKEN_NAME_MAX_LEN` を超えない
     ///
     /// # Errors
     ///
@@ -809,7 +809,7 @@ impl Theme {
     /// ライト/ダーク値を持つ影（`box-shadow`）トークンを追加する（イシュー #606）。
     ///
     /// ダークモードで光量の異なる影が必要になるため、[`Theme::push_color`] と
-    /// 同じ light/dark 2 値構造を取る（内部表現は [`DualModeToken`] を共用）。
+    /// 同じ light/dark 2 値構造を取る（内部表現は `DualModeToken` を共用）。
     ///
     /// # Errors
     ///
@@ -834,7 +834,7 @@ impl Theme {
     ///
     /// `fandhe-frontend-pre-styled-ui` の overlay 系 styled 部品（Menu/Popover/
     /// Dialog/Drawer/Toast/Tooltip 等）が `z-index: var(--fandhe-z-index-<name>)`
-    /// として参照する想定のトークン。既定スケール（[`DEFAULT_Z_INDICES`]）は
+    /// として参照する想定のトークン。既定スケール（`DEFAULT_Z_INDICES`）は
     /// dropdown < sticky < popover < overlay < modal < skip-nav < toast <
     /// tooltip の重なり順を満たす。
     ///
@@ -893,7 +893,7 @@ impl Theme {
     /// `fandhe-frontend-pre-styled-ui` の styled 部品が [`crate::recipe::Size`]
     /// の各段に対応させて `height`/`padding`/`font-size` 等を
     /// `var(--fandhe-size-<name>)` として参照する想定のトークン。既定スケール
-    /// （[`DEFAULT_SIZES`]）は `control-height`/`control-padding-x`/
+    /// （`DEFAULT_SIZES`）は `control-height`/`control-padding-x`/
     /// `control-font-size` の 3 系統 × `xs`/`sm`/`md`/`lg`/`xl` の 5 段。
     ///
     /// # Errors
@@ -905,7 +905,7 @@ impl Theme {
 
     /// モード非依存の transition（duration / easing）トークンを追加する
     /// （イシュー #1425）。`fandhe-frontend-pre-styled-ui` の styled 部品が
-    /// [`crate::recipe::transition_declaration`] 経由で
+    /// `crate::recipe::transition_declaration` 経由で
     /// `var(--fandhe-motion-<name>)` として参照する想定のトークン。
     ///
     /// # Errors
@@ -1063,7 +1063,7 @@ impl Theme {
     /// `size` トークンを追加、または既存トークンを上書きする（イシュー #1678）。
     ///
     /// [`Theme::push_size`] と同様（`name`/`value` の検証）を経てから、
-    /// 既存位置があれば in-place 置換・なければ末尾追加する（[`upsert_scale`]
+    /// 既存位置があれば in-place 置換・なければ末尾追加する（`upsert_scale`
     /// を再利用、挿入順＝出力順の決定性を保つ）。
     ///
     /// # Errors
@@ -1135,7 +1135,7 @@ impl Theme {
     ///    ロジックを壊さないため。easing トークンはそれ単体では動きを
     ///    生まないため対象外）
     ///
-    /// 3 と 4 の dark トークン列は同一の内部ヘルパ（[`Theme::write_dark_declarations`]）
+    /// 3 と 4 の dark トークン列は同一の内部ヘルパ（`Theme::write_dark_declarations`）
     /// から生成し、二重管理による乖離を構造的に防ぐ。
     ///
     /// 呼び出し元は返り値を静的 `.css` ファイルとして配信する、または
@@ -1729,7 +1729,7 @@ pub fn size_var(name: &str) -> Result<String, ThemeError> {
 
 /// transition（duration / easing）トークン名から `var(--fandhe-motion-<name>)`
 /// 参照を組み立てる（イシュー #1425）。styled 部品は通常
-/// [`crate::recipe::transition_declaration`] 経由で間接的にこの参照を得るが、
+/// `crate::recipe::transition_declaration` 経由で間接的にこの参照を得るが、
 /// 個別に `var()` を組み立てたい呼び出し元向けに公開する。
 ///
 /// # Errors

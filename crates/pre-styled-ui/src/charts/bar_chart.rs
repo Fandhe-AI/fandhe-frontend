@@ -40,12 +40,12 @@
 //!
 //! マークアップはすべて [`super::svg`] 経由（`el`/`text` を最終的に呼ぶ）で
 //! 組み立て、`raw_html()` は使用しない（REQ-1）。系列名・カテゴリ名・
-//! `aria_label` はすべて [`fandhe_frontend_core::text`] のテキストノードとして
+//! `aria_label` はすべて `fandhe_frontend_core::text` のテキストノードとして
 //! 渡すため `render()` の既定エスケープを必ず通る。座標・寸法は
 //! [`ChartData::new`](super::data::ChartData::new)/
 //! [`LinearScale::new`](super::scale::LinearScale::new) が有限性検証済みの
 //! `f64` のみを [`super::svg::fmt_coord`] へ渡すため、文字列注入経路を持たない。
-//! 角丸 path（[`bar_shape`]）の `d` 属性も [`super::svg::PathBuilder`] のみを
+//! 角丸 path（`bar_shape`）の `d` 属性も [`super::svg::PathBuilder`] のみを
 //! 経由して組み立て、文字集合は `M L A Z` + `[0-9.,- ]` に閉じる。`color`/
 //! `fill` presentation 属性は [`super::series_color_var`]/
 //! [`super::data::ChartData::series_color_var`] が返す固定形
@@ -336,7 +336,7 @@ pub struct BarChartProps {
     /// とき root（`svg[data-part="root"]`）へ `data-range="<v>"` を出力
     /// する（既定 `None`＝非出力）。`root` は呼び出し側 `attrs` を受け
     /// 付けない部品のため属性偽装のおそれがなく、
-    /// [`crate::charts::drop_range_attr`] の適用対象外
+    /// `crate::charts::drop_range_attr` の適用対象外
     /// （`crate::charts` モジュール doc参照）。
     pub range: Option<String>,
     /// 非表示系列名の一覧（イシュー #2133）。系列名と完全一致する
@@ -348,7 +348,7 @@ pub struct BarChartProps {
     /// （明示的 opt-in、既定 `false`、イシュー #2134 codex-review 指摘）。
     /// `show_tooltip`/`range.is_some()`/`hidden_series` 非空のいずれでも
     /// 判定できない「凡例は使うが初期状態は全系列表示（`hidden_series`
-    /// が空）かつ `show_tooltip: false`」という構成では、[`identify_bars`]
+    /// が空）かつ `show_tooltip: false`」という構成では、`identify_bars`
     /// のそれまでの判定条件が偽になり識別属性（`data-series`）が出力
     /// されないため、凡例クリックで系列を非表示にできなかった
     /// （`wasm-full::chart_range::wiring::sync_chart` が `data-series` を

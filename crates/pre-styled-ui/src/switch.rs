@@ -34,7 +34,7 @@
 //!
 //! headless 層は Switch を `"checked"`/`"unchecked"` 語彙（open/closed では
 //! ない）で表現する（`crates/headless-ui/src/switch.rs` の
-//! [`crate::state::Checkable`] 埋め込み参照）。[`recipe`] の `control`/`thumb`
+//! `crate::state::Checkable` 埋め込み参照）。`recipe` の `control`/`thumb`
 //! への状態連動規則もこの語彙に合わせて `data-state="checked"` を条件とする。
 //!
 //! # `hidden-input` は `display: none` にしない（視覚的非表示化の判断）
@@ -74,7 +74,7 @@
 //!
 //! # `size`/`palette` variant（イシュー #708）
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-switch-track-width`/`-track-height`/`-thumb-size`/
 //! `-thumb-travel`/`-label-font-size` の root スコープ custom property
 //! （CSS の通常のプロパティ継承により `control`/`thumb`/`label` へ伝わる。
@@ -166,7 +166,7 @@
 //!   維持する。
 //! - **root の `gap` を size 連動に**: `--fandhe-switch-gap` の root
 //!   base custom property（フォールバック `var(--fandhe-space-2)`、既定
-//!   md の見た目を維持）を新設し、[`recipe`] の `size_variants` で xs〜xl
+//!   md の見た目を維持）を新設し、`recipe` の `size_variants` で xs〜xl
 //!   の spacing トークン（`--fandhe-space-1`/`-1-5`/`-2`/`-2-5`/`-3`）を
 //!   単調増加で割り当てる（checkbox #1455 と同一の spacing トークン列）。
 //! - **label に型階層を追加**: 従来 `font-size` 1 宣言のみだった `label`
@@ -211,7 +211,7 @@
 //!   switch.rs`、#1622）が全パーツへ出す `data-invalid` を `control` slot
 //!   が未消費だった非対称を解消し、`outline` の外側リングで視覚差を
 //!   追加した（`forced-colors: active` でも消えない理由・当初 `box-shadow`
-//!   実装からの是正経緯は下記 [`recipe`] 内コメント参照）。
+//!   実装からの是正経緯は下記 `recipe` 内コメント参照）。
 //!
 //! ## Examples 節の合成パターン補完（コード変更なし）
 //!
@@ -579,7 +579,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与する
-/// 唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去して
+/// 唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去して
 /// から合成する）。実体は [`fandhe_frontend_headless_ui::switch::root`] へ
 /// 委譲する。
 ///

@@ -80,7 +80,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`id`/`tabindex`）は
 //!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`mod@crate::anatomy`]/[`crate::aria`]/
+//!   混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`id`/`labelledby`/`describedby`/`controls`/呼び出し側 `attrs`/
 //!   `children` テキスト）は [`fandhe_frontend_core::render`] の既定エスケープを
@@ -271,7 +271,7 @@ pub fn positioner<'a>(
 /// dialog のような「wasm-full 側の動的付与と SSR 出力の一致」根拠は
 /// 成立しない。本関数の付与は SSR/静的属性としての正当性のみに基づく
 /// （イシュー #1639）。呼び出し側 `attrs` に `tabindex` が含まれる場合は
-/// [`drop_tabindex_attr`] で事前に除去してから固定値を合成するため、
+/// `drop_tabindex_attr` で事前に除去してから固定値を合成するため、
 /// 出力に重複した `tabindex` 属性は生じない（[`crate::dialog::content`]
 /// と同一の対策）。
 #[must_use]

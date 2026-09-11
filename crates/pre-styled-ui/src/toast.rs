@@ -68,7 +68,7 @@
 //! [`ToastPlacement`] の `*-start`/`*-end`（[`fandhe_frontend_headless_ui::toast::ToastPlacement`]
 //! rustdoc・`docs/api/headless-ui-api.md` が示すとおり論理方向名。ドキュメントは
 //! LTR を前提に left/right と説明するが、名前自体は書字方向に中立）に対応する
-//! [`recipe`] の CSS は、物理方向の `left`/`right` ではなく論理プロパティ
+//! `recipe` の CSS は、物理方向の `left`/`right` ではなく論理プロパティ
 //! `inset-inline-start`/`inset-inline-end` を使う（`.pre-styled-showcase` 領域
 //! での RTL 検証は本イシューのスコープ外だが、CSS 自体は `dir="rtl"` 文書で
 //! `start`/`end` が意味論どおり反転するよう記述する）。`align-items` の
@@ -660,7 +660,7 @@ fn recipe() -> SlotRecipe {
 /// [`crate::switch::stylesheet`]/[`crate::avatar`] と同じ契約）。
 ///
 /// recipe が生成する規則群に続けて、`root` base の `animation` 宣言が参照
-/// する `@keyframes`（[`ENTER_KEYFRAMES_NAME`]）を固定文字列として追記する
+/// する `@keyframes`（`ENTER_KEYFRAMES_NAME`）を固定文字列として追記する
 /// （`crate::progress::stylesheet` と同型のパターン）。値はソースコード中の
 /// リテラルのみで構成され、外部入力は一切混入しない（静的リテラルのみを
 /// 連結する経路は `.claude/rules/coding-rust.md` の HTML/CSS 文字列直接
@@ -678,7 +678,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled group パーツを組み立てる。`placement` に応じたクラスを付与する
-/// 唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去して
+/// 唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去して
 /// から合成する）。実体は
 /// [`fandhe_frontend_headless_ui::toast::group`] へ委譲する。
 ///

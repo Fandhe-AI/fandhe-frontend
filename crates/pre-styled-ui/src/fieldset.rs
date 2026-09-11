@@ -90,10 +90,10 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 全出力は [`fandhe_frontend_core::el`]/[`fandhe_frontend_core::text`]
-//!   （headless 層経由）を通り、[`fandhe_frontend_core::render`] の既定
+//! - 全出力は `fandhe_frontend_core::el`/`fandhe_frontend_core::text`
+//!   （headless 層経由）を通り、`fandhe_frontend_core::render` の既定
 //!   エスケープ（REQ-1）を必ず経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから recipe が
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから recipe が
 //!   生成したクラスへ完全に置き換える（生文字列をクラス名合成へ混入させない）。
 //! - CSS 宣言はすべてコンパイル時静的リテラルであり、[`crate::css::decl`] の
 //!   `is_valid_value` 検証を通過する値のみを使う。
@@ -310,7 +310,7 @@ pub fn css() -> String {
 }
 
 /// styled `root` パーツを組み立てる。`size` に応じたクラスを付与し
-/// （[`drop_class_attr`] により呼び出し側の `class` は除去してから合成する）、
+/// （`drop_class_attr` により呼び出し側の `class` は除去してから合成する）、
 /// `disabled`/`invalid`/`aria-describedby` の配線は
 /// [`fandhe_frontend_headless_ui::fieldset::root`] へそのまま委譲する。
 ///

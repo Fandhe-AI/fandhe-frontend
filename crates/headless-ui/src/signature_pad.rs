@@ -48,7 +48,7 @@
 //!   pad"`・非 `disabled` 時 `tabindex="0"`・`disabled` 時
 //!   `aria-disabled="true"` を追加した（zag.js `control` の `getControlProps`
 //!   と一致）。呼び出し側 `attrs` からのこれら固定属性・`data-disabled` の
-//!   偽装は [`CONTROL_RESERVED`]（[`crate::radio_group::drop_reserved`] 再
+//!   偽装は `CONTROL_RESERVED`（`crate::radio_group::drop_reserved` 再
 //!   利用）で fail-closed に除去する。
 //!
 //! 以下は**意図的に参照へ合わせない**（差分は許容し、理由を記録する）:
@@ -91,7 +91,7 @@
 //! # セキュリティ不変条件
 //!
 //! - [`stroke_path_d`] の出力文字集合は `M`/`L`/半角数字/`.`/`,`/`-`/空白に
-//!   閉じる（[`format_fixed2`] が生成する固定小数点表記のみを連結する）。
+//!   閉じる（`format_fixed2` が生成する固定小数点表記のみを連結する）。
 //!   呼び出し側入力（座標値）が任意の文字列として `d` 属性値へ混入する
 //!   経路はない。
 //! - dispatch payload（`"add-stroke"` の座標列文字列）・hydration 属性
@@ -236,12 +236,12 @@ fn format_fixed2(scaled: i64) -> String {
 ///
 /// 単純折れ線 `M x,y L x,y L ...` を生成する。丸め規則は
 /// **小数第 2 位への固定小数点丸め（round half away from zero）、常に 2 桁
-/// 固定表記（例: `12.00`）、指数表記なし**に固定する（[`round_fixed2`]/
-/// [`format_fixed2`] 参照）。同一座標列からは常に同一の文字列を返す
+/// 固定表記（例: `12.00`）、指数表記なし**に固定する（`round_fixed2`/
+/// `format_fixed2` 参照）。同一座標列からは常に同一の文字列を返す
 /// （デバイス・環境・乱数非依存）。
 ///
 /// 出力文字列の文字集合は `M`/`L`/半角数字/`.`/`,`/`-`/空白に閉じ、座標値
-/// 由来の任意バイトが混入する経路はない（[`format_fixed2`] のみが数値を
+/// 由来の任意バイトが混入する経路はない（`format_fixed2` のみが数値を
 /// 文字列化する）。
 ///
 /// # Examples
@@ -269,7 +269,7 @@ pub fn stroke_path_d(stroke: &Stroke) -> String {
 
 /// dispatch payload / hydration 属性が運ぶ座標列の直列化フォーマット
 /// （`fandhe-frontend-wasm-full` との契約）: `"x1,y1 x2,y2 ..."`（各値は
-/// [`format_fixed2`] と同じ固定小数点表記）。[`stroke_to_payload`] の逆変換。
+/// `format_fixed2` と同じ固定小数点表記）。[`stroke_to_payload`] の逆変換。
 #[must_use]
 pub fn stroke_to_payload(stroke: &Stroke) -> String {
     let mut out = String::new();
@@ -365,7 +365,7 @@ pub fn label<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<N
 /// アクセシブルネーム（`aria-label`/`aria-labelledby`）は偽の説明文を
 /// 捏造しないため呼び出し側 `attrs` に委ねる（[`segment`] と同型の
 /// fail-closed 方針）。呼び出し側 `attrs` からのこれら固定属性・
-/// `data-disabled` の偽装は [`CONTROL_RESERVED`] で fail-closed に除去する
+/// `data-disabled` の偽装は `CONTROL_RESERVED` で fail-closed に除去する
 /// （`data-readonly` は [`SignaturePad::control`] が `attrs` 経由で注入する
 /// ため予約リストに含めない）。
 #[must_use]
@@ -622,7 +622,7 @@ impl SignaturePad {
     /// 本メソッドが返すのは keyed list マーカー（`data-bind-list`/`data-key`）
     /// を持たない素の子ノード列であり、呼び出し側が独自に `view()` を組み立てる
     /// 場合の利便メソッドとして残す。[`Component::view`]（正準ビュー）は
-    /// [`Self::segment_path_items`] 経由で keyed list として描画する
+    /// `Self::segment_path_items` 経由で keyed list として描画する
     /// （イシュー #843、Bugbot 指摘「Runtime skips stroke DOM updates」の
     /// 是正。`Runtime` の keyed list 差分適用（`fandhe-frontend-wasm-full` の
     /// `Self::wire_signature_pad`）が `"strokes"` の追加・削除を検知するには
@@ -711,7 +711,7 @@ impl Component for SignaturePad {
     /// しての利用は想定しない（[`crate::tags_input::TagsInput::view`] と
     /// 同じ位置付け）。
     ///
-    /// segment（`svg`）の children は [`Self::segment_path_items`] を
+    /// segment（`svg`）の children は `Self::segment_path_items` を
     /// [`keyed_list`] へ渡した keyed list として描画する（イシュー #843、
     /// Bugbot 指摘「Runtime skips stroke DOM updates」の是正）。
     /// `fandhe-frontend-wasm-full` の `Runtime::wire_signature_pad` は

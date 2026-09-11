@@ -10,7 +10,7 @@
 //!
 //! anatomy は `root`（`nav`）/ `list`（`ol`）/ `item`（`li`）/ `link`（`a`）/
 //! `current-link`（`span`）/ `separator`（`li`）/ `ellipsis`（`li`）の 7 パーツ
-//! 構成。[`mod@crate::field`]/[`mod@crate::tabs`] と同型で、開閉のような時間
+//! 構成。[`crate::field`](mod@crate::field)/[`crate::tabs`](mod@crate::tabs) と同型で、開閉のような時間
 //! 変化する内部状態を持たないため [`crate::state`] の状態機械は適用しない
 //! （自由関数のみ、§4b.4 不変条件準拠）。
 //!
@@ -80,7 +80,7 @@
 //!   カス対象外。
 //! - **是正**: 呼び出し側 `attrs` による予約キー（`aria-label`/`href`/
 //!   `aria-current`/`data-current`/`role`/`aria-hidden`）のなりすましを
-//!   [`drop_reserved`] で除去するようにした（従来は
+//!   `drop_reserved` で除去するようにした（従来は
 //!   [`fandhe_frontend_core::el`] が属性の重複除去をしないため、同名属性
 //!   が重複出力される経路があった）。
 //!
@@ -167,7 +167,7 @@ fn drop_reserved<'a>(
 }
 
 /// Root パーツ（`nav`）。`aria_label_value` が `None` のとき既定値
-/// [`DEFAULT_ARIA_LABEL`] を使う。
+/// `DEFAULT_ARIA_LABEL` を使う。
 #[must_use]
 pub fn root<'a>(
     aria_label_value: Option<&'a str>,

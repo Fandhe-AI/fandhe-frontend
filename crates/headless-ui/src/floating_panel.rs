@@ -42,7 +42,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`id`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入する
-//!   経路はない（[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の
+//!   経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の
 //!   既存不変条件をそのまま継承する）。
 //! - 動的値（`controls`/`id`/`labelledby`/呼び出し側 `attrs`/`children`
 //!   テキスト/[`FloatingPanel::position_style`] の出力）は
@@ -436,7 +436,7 @@ pub enum FloatingPanelAction {
 /// （本型を経由しない構成）も引き続き可能。
 ///
 /// `Default` は closed・[`Stage::Default`]・決定的な既定初期座標
-/// （[`DEFAULT_X`]/[`DEFAULT_Y`]、SSR の状態なし初期描画に対応する既定値）。
+/// （`DEFAULT_X`/`DEFAULT_Y`、SSR の状態なし初期描画に対応する既定値）。
 /// close しても stage・座標は保持する（決定的往復。ark-ui の FloatingPanel
 /// も閉じた状態からの再オープンでレイアウトが失われない挙動に合わせる）。
 #[derive(Debug, Clone, Copy, PartialEq)]

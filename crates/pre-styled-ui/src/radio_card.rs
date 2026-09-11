@@ -19,7 +19,7 @@
 //! `fandhe_frontend_headless_ui::radio_group`（イシュー #536/#595）の 6
 //! anatomy パーツは `data-scope="radio-group"` に固定されており、カード型の
 //! 10 パーツ構成へそのまま拡張できない。本モジュールは新規 anatomy
-//! `data-scope="radio-card"` を [`fandhe_frontend_headless_ui::anatomy`] で
+//! `data-scope="radio-card"` を [`fandhe_frontend_headless_ui::anatomy`](mod@fandhe_frontend_headless_ui::anatomy) で
 //! 定義する。既存 `radio-group` scope とは完全に独立するため、
 //! [`crate::radio_group`] の CSS/属性契約と衝突しない。
 //!
@@ -104,7 +104,7 @@
 //!   invalid を表現する方針は [`crate::checkbox_card`] の `root` と同型）。
 //!   headless `radio_group` は現状 `data-invalid` を出力しないため
 //!   （Field #538 連携は headless 側の将来イシュー）、呼び出し側 `attrs`
-//!   パススルー（[`ITEM_RESERVED`] は非予約）で付与する契約とする。
+//!   パススルー（`ITEM_RESERVED` は非予約）で付与する契約とする。
 //!   `data-invalid` は境界線の視覚表現に留まる CSS フックであり、
 //!   支援技術への状態通知は別途 [`item_hidden_input`] の `attrs` へ
 //!   `aria-invalid="true"` を渡して併用することを呼び出し側の責務とする
@@ -129,7 +129,7 @@
 //! 親 #1490 の 2/2 分割で、担当範囲は上記 #1491（`item` slot の状態表現）
 //! を除く内部レイアウト slot（[`label`]/[`item_control`]/[`item_content`]/
 //! [`item_text`]/[`item_description`]/[`item_addon`]/[`item_indicator`]）と
-//! size バリアント（[`recipe`] が `root` へ登録する `--fandhe-radio-card-*`
+//! size バリアント（`recipe` が `root` へ登録する `--fandhe-radio-card-*`
 //! custom property 群）。同型の先例 checkbox-card 2/2（イシュー #1458）の
 //! 変更パターンをそのまま写像する。
 //!
@@ -191,7 +191,7 @@
 //! # `size`/`palette` variant
 //!
 //! [`crate::radio_group`] rustdoc「複合部品の variant 統一方針」節（#708）と
-//! 同型。`size`（[`Size`]）は [`root`] へのみクラスを付与し、[`recipe`] が
+//! 同型。`size`（[`Size`]）は [`root`] へのみクラスを付与し、`recipe` が
 //! 登録する `--fandhe-radio-card-*` の root スコープ custom property 経由で
 //! `item`/`item_indicator`/`item_text` の寸法を切り替える。`palette`
 //! （[`ColorPalette`]）は [`crate::recipe::palette_scale_declarations`] を `root`
@@ -204,12 +204,12 @@
 //! （`value`/`name`/attrs/children）は
 //! [`fandhe_frontend_headless_ui::fandhe_frontend_core::render`] の既定
 //! エスケープを必ず経由する（REQ-1）。呼び出し側 `attrs` の `class` は
-//! [`drop_class_attr`] で除去してから合成し、`class` 属性は常に単一
-//! （[`crate::radio_group::root`] と同型）。[`ROOT_RESERVED`]（`role`/
+//! `drop_class_attr` で除去してから合成し、`class` 属性は常に単一
+//! （[`crate::radio_group::root`] と同型）。`ROOT_RESERVED`（`role`/
 //! `data-orientation`/`aria-orientation`/`aria-labelledby`/`data-disabled`）・
-//! [`STATE_RESERVED`]（`data-state`/`data-value`/`data-disabled`）・
-//! [`HIDDEN_INPUT_RESERVED`]（`type`/`value`/`data-state`/`name`/`checked`/
-//! `disabled`）の各予約キーは、パーツごとに [`drop_reserved`] で呼び出し側
+//! `STATE_RESERVED`（`data-state`/`data-value`/`data-disabled`）・
+//! `HIDDEN_INPUT_RESERVED`（`type`/`value`/`data-state`/`name`/`checked`/
+//! `disabled`）の各予約キーは、パーツごとに `drop_reserved` で呼び出し側
 //! `attrs` から fail-closed に除去してから合成する
 //! （[`crate::checkbox_card`] の `STATE_RESERVED`/`HIDDEN_INPUT_RESERVED`/
 //! `drop_reserved` と同型の判断を本モジュールで独立に実装する —
@@ -716,7 +716,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去
 /// してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::radio_group::root`] と同じ属性契約
 /// （`role="radiogroup"`/`orientation`/`labelled_by`）を独自 anatomy 上で

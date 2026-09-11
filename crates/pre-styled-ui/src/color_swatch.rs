@@ -1,12 +1,12 @@
 //! ColorSwatch（イシュー #838、親 #837）: 色見本の静的表示 slot recipe styled
 //! 部品。chakra-ui `forms/color-swatch.md` 相当の単一 root パーツで構成する。
 //!
-//! [`crate::tag`]/[`crate::kbd`]（#768）と同型の「pre-styled 層で anatomy を
+//! [`crate::tag`]/[`crate::kbd`](mod@crate::kbd)（#768）と同型の「pre-styled 層で anatomy を
 //! 直接宣言する単純 styled 部品」として実装する。headless 層には対応する
 //! anatomy を新設しない（`docs/design/component-coverage-map.md` の
 //! ColorSwatch 行は headless 列が「—」のまま実装済みへ更新する）。canvas は
 //! 使わず、CSS `background-image`（色レイヤー + 透過色の視認用チェッカー
-//! ボード模様の 2 レイヤー、詳細は [`recipe`] 参照）のみで見た目を組み立てる。
+//! ボード模様の 2 レイヤー、詳細は `recipe` 参照）のみで見た目を組み立てる。
 //!
 //! # 色値は検証済み型経由のみ（セキュリティ不変条件）
 //!
@@ -52,7 +52,7 @@
 //!   `--fandhe-color-bg` と常にコントラストが取れる固定トークン」の根拠を
 //!   優先し変更しない）。生の色リテラルは持ち込まない。
 //! - **状態（`data-*`）**: 増減なし。`data-scope`/`data-part` のみ
-//!   （[`ANATOMY`]）。
+//!   （`ANATOMY`）。
 //! - **ダーク**: 追加宣言（`--fandhe-color-border-muted` 参照の
 //!   `box-shadow`）はトークン参照のため `write_dark_declarations` へ
 //!   自動追従する。
@@ -277,7 +277,7 @@ pub fn css() -> String {
 /// root パーツ（`<span>`）を組み立てる。`size`/`shape` に応じたクラスを
 /// 付与し、`value` から導出した `style`（`--fd-swatch-color` custom
 /// property）を出力する唯一のパーツ。呼び出し側 `attrs` の `class`/`style`
-/// は [`drop_class_and_style_attr`] により除去してから合成する
+/// は `drop_class_and_style_attr` により除去してから合成する
 /// （モジュール冒頭「色値は検証済み型経由のみ」参照）。
 ///
 /// # Examples

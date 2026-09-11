@@ -72,17 +72,17 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`inputmode`/`autocomplete`/`placeholder`/
 //!   `maxlength`/`name`）はすべて `&'static str` リテラルで固定しており、
-//!   動的値が属性名スロットへ混入する経路はない（[`crate::anatomy`]/
+//!   動的値が属性名スロットへ混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/
 //!   [`crate::aria`]/[`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（各桁 `value`/`name`/呼び出し側 `attrs`/children テキスト/
 //!   `format!` で組み立てる `aria-label`/`data-index`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - `data-complete`/`data-filled` は本モジュールが一元管理する存在属性で
-//!   あり、パーツ間で語彙を分裂させない（[`data_complete`]/[`data_filled`]
+//!   あり、パーツ間で語彙を分裂させない（`data_complete`/`data_filled`
 //!   のみが値を決める）。
 //! - **呼び出し側 `attrs` によるフレームワーク固定キーの偽装は
-//!   [`drop_reserved`] が fail-closed に除外する**（`data-invalid`/
+//!   `drop_reserved` が fail-closed に除外する**（`data-invalid`/
 //!   `aria-invalid`/`data-index` 等をなりすまし付与できない）。
 //! - **未知 dispatch・種別不適合文字・部分適合しかしない paste は no-op**
 //!   （fail-closed。状態機械の不変条件「各桁は空文字列または `kind` に

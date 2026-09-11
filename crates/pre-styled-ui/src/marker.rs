@@ -17,7 +17,7 @@
 //!
 //! # 状態機械を持たない理由
 //!
-//! headless [`mod@fandhe_frontend_headless_ui::marker`] 自身が状態機械を
+//! headless [`fandhe_frontend_headless_ui::marker`](mod@fandhe_frontend_headless_ui::marker) 自身が状態機械を
 //! 持たない静的な自由関数群であるため、本モジュールもその設計をそのまま
 //! 継承する（[`crate::attachment`] モジュール doc と同型の判断）。
 //!
@@ -99,7 +99,7 @@
 //! `--fandhe-marker-line` は `root` が公開する scope 接頭辞付き custom
 //! property であり、`Divider`/`Label` 形態の線色（境界線・separator の
 //! `border-color`）が tone の色調と連動するために参照する
-//! （[`crate::separator`] の `--fandhe-separator-height` と同型のパターン）。
+//! （[`crate::separator`](mod@crate::separator) の `--fandhe-separator-height` と同型のパターン）。
 //!
 //! # `ColorPalette` 軸を持たない理由
 //!
@@ -112,8 +112,8 @@
 //! - `Label` 形態で挟み込む [`crate::separator::separator`] へ
 //!   `aria-hidden="true"` を渡す。理由: `hr role="separator"` が短い
 //!   ラベルの前後で 2 回読み上げられるのを避ける装飾線であるため
-//!   （headless [`mod@fandhe_frontend_headless_ui::marker`] モジュール doc
-//!   「アクセシビリティ」節と対をなす判断）。[`crate::separator`] の予約
+//!   （headless [`fandhe_frontend_headless_ui::marker`](mod@fandhe_frontend_headless_ui::marker) モジュール doc
+//!   「アクセシビリティ」節と対をなす判断）。[`crate::separator`](mod@crate::separator) の予約
 //!   キー（`role`/`aria-orientation`/`data-orientation`/`class`）に
 //!   `aria-hidden` は含まれず透過する。
 //! - [`icon`]/[`content`] は headless 側の a11y 契約（`icon` の
@@ -129,10 +129,10 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 全出力は headless [`mod@fandhe_frontend_headless_ui::marker`] →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//! - 全出力は headless [`fandhe_frontend_headless_ui::marker`](mod@fandhe_frontend_headless_ui::marker) →
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する（3 パーツすべて）。`Label` 形態で挟み込む
 //!   [`crate::separator::separator`] は固定 props（horizontal・`Solid`）
 //!   と固定 `aria-hidden` 属性のみを渡し、呼び出し側の動的値を経由しない。
@@ -161,7 +161,7 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // 関数 3 件は呼び出し側 `class` の除去を担うため同名再定義する。
 pub use fandhe_frontend_headless_ui::marker::{MarkerRootProps, MarkerTone, MarkerVariant};
 
-/// slot 一覧（headless [`mod@fandhe_frontend_headless_ui::marker`] の
+/// slot 一覧（headless [`fandhe_frontend_headless_ui::marker`](mod@fandhe_frontend_headless_ui::marker) の
 /// anatomy と 1:1、3 パーツ）。
 const SLOTS: &[&str] = &["root", "icon", "content"];
 
@@ -303,7 +303,7 @@ pub fn stylesheet() -> String {
 
 /// styled `root` パーツを組み立てる。見た目クラスは付与せず（モジュール
 /// doc「headless の `data-*` を参照する」節参照）、呼び出し側 `class` を
-/// [`drop_class_attr`] で除去してから
+/// `drop_class_attr` で除去してから
 /// [`fandhe_frontend_headless_ui::marker::root`] へ委譲する。`Label`
 /// 形態のときのみ `children` を [`crate::separator::separator`] 2 個
 /// （`aria-hidden="true"`）で挟む（モジュール doc「区切り線の描画方式」

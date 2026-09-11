@@ -80,7 +80,7 @@
 //!   専用の base 宣言のみ（状態規則を持たない）。
 //! - `group`: 複数 `root` の縦並びコンテナ（gap なし。区切りは
 //!   `separator` が担う）。
-//! - `separator`: [`crate::separator`] と同型の水平固定線。
+//! - `separator`: [`crate::separator`](mod@crate::separator) と同型の水平固定線。
 //!
 //! # raw CSS 追記の理由（[`SlotRecipe`] が子結合子を表現できないため）
 //!
@@ -95,11 +95,11 @@
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless [`fandhe_frontend_headless_ui::item`] →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。`href` のスキーム検証・
 //!   `external` の `target`/`rel` 不可分付与は headless 層に委ねる
 //!   （本モジュールは `href` を再合成・再マージしない）。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する（10 パーツすべて）。
 //! - [`stylesheet`] が組み立てる CSS 宣言・selector 断片はすべて
 //!   コンパイル時静的リテラルであり、[`crate::css::decl`]/
@@ -333,7 +333,7 @@ pub fn stylesheet() -> String {
 
 /// styled `root` パーツを組み立てる。見た目クラスは付与せず（モジュール doc
 /// 「variant / size の表現」節参照）、呼び出し側 `class` を
-/// [`drop_class_attr`] で除去してから
+/// `drop_class_attr` で除去してから
 /// [`fandhe_frontend_headless_ui::item::root`] へそのまま委譲する。
 #[must_use]
 pub fn root<'a>(

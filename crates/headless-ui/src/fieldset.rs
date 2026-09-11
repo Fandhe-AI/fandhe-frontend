@@ -245,7 +245,7 @@ pub fn legend(props: &FieldsetProps<'_>, attrs: Vec<(&str, &str)>, children: Vec
 ///
 /// 呼び出し側 `attrs` に含まれる `data-variant`（ASCII 大文字小文字
 /// 無視）はなりすまし防止のため除去し、`variant` 引数の値を必ず優先する
-/// （[`drop_reserved`] 参照）。
+/// （`drop_reserved` 参照）。
 #[must_use]
 pub fn legend_with_variant(
     variant: LegendVariant,

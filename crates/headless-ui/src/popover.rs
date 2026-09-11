@@ -21,7 +21,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`disabled`/`id`/
 //!   `tabindex`）はすべて `&'static str` リテラルで固定しており、動的値が
-//!   属性名スロットへ混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
+//!   属性名スロットへ混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`controls`/`id`/`labelledby`/`describedby`/呼び出し側 `attrs`/
 //!   `children` テキスト）は [`fandhe_frontend_core::render`] の既定エスケープを
@@ -226,7 +226,7 @@ pub fn arrow_tip<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
 /// プログラム的フォーカスのみを許可する前提。[`crate::dialog::content`]・
 /// [`crate::drawer::content`] と同型の判断、イシュー #1642 で是正し
 /// 出力が一致する）。呼び出し側 `attrs` に `tabindex`（大文字小文字を
-/// 無視）が含まれる場合は [`drop_tabindex_attr`] で除去してから固定値へ
+/// 無視）が含まれる場合は `drop_tabindex_attr` で除去してから固定値へ
 /// 統一する（SSR は両方出力して先勝ち、wasm-client の `set_attribute` は
 /// 後勝ちになる描画経路間の不一致を防ぐ）。
 #[must_use]

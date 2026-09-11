@@ -5,13 +5,13 @@
 //! ことが目的である。本モジュールはその「イベント処理」区画を担当し、
 //! DOM 更新（TASK-11.2c、#76）とは責務を分離する。`mount()`/`hydrate()` の
 //! 既定実装化（TASK-11.2d、#77）は `wasm-full/src/lib.rs` の `Runtime` が
-//! [`wire_events`] を呼び出す形で統合する（本モジュール自体は `Runtime` に
+//! `wire_events` を呼び出す形で統合する（本モジュール自体は `Runtime` に
 //! 依存しない）。
 //!
 //! # 設計（PoC-5 `wasm-runtime-split/wasm-full/src/lib.rs` の一般化）
 //!
 //! - ルート要素へ `click` / `input` / `change` リスナーを **マウント時に 1 回だけ**
-//!   委譲登録する（[`wire_events`]）。再描画で子要素が入れ替わってもルートの
+//!   委譲登録する（`wire_events`）。再描画で子要素が入れ替わってもルートの
 //!   リスナーは保持されるため、再描画のたびにリスナーを張り直す必要がない。
 //! - リスナー登録は [`wasm_bindgen::closure::Closure::forget`] を click / input /
 //!   change の 3 回に限定する（イシュー #1120 で change リスナーを追加、旧 2 回
@@ -28,7 +28,7 @@
 //! - [`ActionRef`] の `action` / `payload` は `fandhe_frontend_interactive::dispatch` の
 //!   `name` / `payload` 引数仕様と一致する（`data-action` / `data-payload` 属性、
 //!   `interactive/src/lib.rs` の `render_with_root_attrs` が出力する DOM 契約）。
-//! - [`wire_events`] は状態更新（`dispatch`）・再描画（DOM 更新、#76 のスコープ）を
+//! - `wire_events` は状態更新（`dispatch`）・再描画（DOM 更新、#76 のスコープ）を
 //!   直接呼ばず、すべて `on_action` コールバックへ委譲する。これにより本モジュールは
 //!   `fandhe-frontend-interactive` の具象状態にも DOM 更新実装にも結合しない。
 //! - 再描画出力は呼び出し側（#76/#77）が `fandhe_frontend_core::render()`（既定エスケープ）を
@@ -64,7 +64,7 @@ pub trait AttrSource {
 /// とする（`fandhe_frontend_interactive::Component::decode_action` 側が未知/不正な
 /// payload を no-op として扱う契約に委ねる、不変条件 4）。
 ///
-/// 配線層（[`wire_events`]）は `target.closest("[data-action]")`
+/// 配線層（`wire_events`）は `target.closest("[data-action]")`
 /// （`web_sys::Element::closest`）で得た祖先要素を `target` として渡す想定
 /// であり、本関数自体は「渡された 1 要素の属性を読む」責務のみを持つ
 /// （祖先探索は DOM API 依存のため配線層の責務とし、ここでは扱わない）。
@@ -99,7 +99,7 @@ pub fn action_from_click<T: AttrSource>(target: &T) -> Option<ActionRef> {
 /// 属性契約）を使う [`action_from_form_control`] を使用すべきであり、本関数は
 /// 既存の `interactive::AppState` デモ・ブラウザテスト・
 /// `docs/api/interactive-api.md` の id 契約との後方互換のためにのみ残す
-/// （[`wiring::wire_events`] が `data-action-input` 属性がない場合のみ本関数へ
+/// （`wiring::wire_events` が `data-action-input` 属性がない場合のみ本関数へ
 /// フォールバックする）。
 pub fn action_from_input(id: &str, value: &str) -> Option<ActionRef> {
     if id != "draft-input" {
@@ -137,7 +137,7 @@ pub const ACTION_CHANGE_ATTR: &str = "data-action-change";
 /// 属性が付いていない要素（フレームワーク管轄外の input/change）は `None`
 /// を返す（安全側 no-op、[`action_from_click`] と同じ方針）。`value` の
 /// 抽出（`checked`/`value` のどちらを使うか）は配線層
-/// （[`wiring::extract_form_value`]）の責務であり、本関数は文字列化済みの
+/// （`wiring::extract_form_value`）の責務であり、本関数は文字列化済みの
 /// `value` を受け取るだけの薄いロジックに留める。
 pub fn action_from_form_control<T: AttrSource>(
     target: &T,
@@ -153,7 +153,7 @@ pub fn action_from_form_control<T: AttrSource>(
 
 /// クリック伝播境界における要素の分類（イシュー #1616 Bugbot/codex-review
 /// 再指摘の是正で汎用化。`crates/wasm-full/src/keynav.rs` の RadioGroup
-/// readonly クリック抑止・本モジュールの [`wiring::wire_events`] `data-action`
+/// readonly クリック抑止・本モジュールの `wiring::wire_events` `data-action`
 /// 解決の双方から共有する純粋ロジック。web-sys 非依存のため native
 /// `cargo test` で検証できる（配線層のみが `web_sys::Element` からこの型を
 /// 組み立てる））。
@@ -183,7 +183,7 @@ pub enum InteractiveBoundaryClass {
     /// スキップして一律に抑止すると、`<a href>` のようなネイティブ要素の
     /// クリックまで祖先パーツの選択操作として抑止してしまう）。
     Html,
-    /// (B) ARIA ロール（[`ARIA_INTERACTIVE_ROLES`]）・`tabindex`・
+    /// (B) ARIA ロール（`ARIA_INTERACTIVE_ROLES`）・`tabindex`・
     /// `[contenteditable]`（`"false"` を除く）を持つ要素とその子孫
     /// （別コンポーネントの独自ウィジェット境界）。HTML 上は非
     /// interactive content のため label の activation behavior 自体は
@@ -376,7 +376,7 @@ pub struct BoundaryProbe<'a> {
     /// interactive content ではない。
     pub input_type: Option<&'a str>,
     /// `role` 属性値（無ければ `None`）。空白区切りの複数トークンを
-    /// 許容し、[`resolve_role_interactive`] で解決する。
+    /// 許容し、`resolve_role_interactive` で解決する。
     pub role: Option<&'a str>,
     /// `tabindex` 属性の有無（値は問わない。値の妥当性検証は呼び出し側の
     /// 関心事ではない）。
@@ -522,7 +522,7 @@ pub fn classify_interactive_boundary(probe: &BoundaryProbe<'_>) -> InteractiveBo
 /// （`(data-scope, data-part)` の組、イシュー #1616 codex-review P1 再指摘
 /// の是正、PR #1886）。
 ///
-/// [`wiring::holder_instance_is_readonly`] は `data-readonly` を持つ祖先の
+/// `wiring::holder_instance_is_readonly` は `data-readonly` を持つ祖先の
 /// 有無だけで dispatch 抑止を決めると、readonly を「値変更操作の抑止」
 /// ではなく「そのインスタンス配下の全 `data-action` クリックの抑止」へ
 /// 拡大解釈してしまう。これは `crates/headless-ui/src/password_input.rs`

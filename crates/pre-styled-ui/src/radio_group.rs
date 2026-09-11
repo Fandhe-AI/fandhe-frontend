@@ -38,7 +38,7 @@
 //! # data-state とスタイルの連動
 //!
 //! `item`/`item-control`（選択状態、`data-state="checked"`/`"unchecked"`）の
-//! 見た目の切り替えを [`recipe`] へ登録する（[`crate::recipe::SlotRecipe::state`]）。
+//! 見た目の切り替えを `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]）。
 //! `root` の `data-orientation="horizontal"` でも配置切り替えを行う。
 //!
 //! # `:focus-within` によるフォーカスリング（イシュー #683）
@@ -167,7 +167,7 @@
 //!
 //! # `size`/`palette` variant（イシュー #708）
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-radio-group-control-size`/`-dot-inset`/`-font-size` の root
 //! スコープ custom property（CSS の通常のプロパティ継承により `item`/
 //! `item-control`/`item-text` へ伝わる。`root` はこれらのパーツを内包する
@@ -188,7 +188,7 @@
 //! `raw_html()` を使用しない。CSS 宣言値はすべてコンパイル時静的リテラルで
 //! あり、動的値（`value`/`name`/属性/children）へ CSS 値として流し込む経路
 //! を持たない（動的値は headless 層経由で `fandhe_frontend_core::render` の
-//! 既定エスケープを必ず通る、REQ-1）。styled `root` は [`drop_class_attr`]
+//! 既定エスケープを必ず通る、REQ-1）。styled `root` は `drop_class_attr`
 //! により呼び出し側の `class` を除去してから合成するため、`class` 属性は
 //! 常に単一（[`crate::avatar::root`] と同型）。
 //!
@@ -642,7 +642,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去
 /// してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::radio_group::root`] へ委譲する。
 ///

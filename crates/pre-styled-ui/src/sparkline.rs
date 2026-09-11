@@ -7,7 +7,7 @@
 //! 採用する。座標写像・path 生成・数値文字列化・x/y 軸の写像規則・エッジ
 //! ケース（`n == 1`・負値・フラット）は [`crate::line_chart`]/
 //! [`crate::area_chart`] モジュール doc と同一の方針に従う
-//! （[`crate::line_chart::category_x`]/[`crate::line_chart::view_box_from_dims`]
+//! （`crate::line_chart::category_x`/`crate::line_chart::view_box_from_dims`
 //! を共有ヘルパとして再利用する）。
 //!
 //! # `ChartData` への内部変換
@@ -359,7 +359,7 @@ fn render_series(width: f64, y_scale: &LinearScale, baseline_y: f64, values: &[f
 /// - 非有限値を含む場合 [`ChartError::NonFiniteValue`]
 /// - `props.width`/`props.height` が非有限の場合 [`ChartError::NonFiniteValue`]、
 ///   0 以下の場合 [`ChartError::DegenerateDomain`]
-///   （[`crate::line_chart::view_box_from_dims`] 参照）
+///   （`crate::line_chart::view_box_from_dims` 参照）
 ///
 /// # Examples
 ///

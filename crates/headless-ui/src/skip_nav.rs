@@ -3,7 +3,7 @@
 //!
 //! chakra-ui/ark-ui の SkipNav ユーティリティに倣い、キーボード操作時のみ
 //! 視覚的に現れる「本文へスキップ」リンクを提供する（WCAG 2.1 SC 2.4.1
-//! Bypass Blocks）。[`mod@crate::link`]/[`mod@crate::field`] と同型の、
+//! Bypass Blocks）。[`crate::link`](mod@crate::link)/[`crate::field`](mod@crate::field) と同型の、
 //! 時間変化する内部状態を持たない純粋関数のみで構成する（[`crate::state`]
 //! の状態機械は適用しない）。
 //!
@@ -25,9 +25,9 @@
 //!
 //! [`link`] の `href` と [`content`] の `id`/`tabindex` はいずれも本モジュールが
 //! 決定する契約属性であり、呼び出し側 `attrs` に同名のキー（大文字小文字を
-//! 無視）が含まれていても除去してから合成する（[`crate::separator::separator`]
+//! 無視）が含まれていても除去してから合成する（`crate::separator::separator`
 //! 相当の `fandhe-frontend-pre-styled-ui` 側前例、および
-//! [`crate::skeleton`]（`fandhe-frontend-pre-styled-ui`）の `aria-hidden` 除去と
+//! `crate::skeleton`（`fandhe-frontend-pre-styled-ui`）の `aria-hidden` 除去と
 //! 同型の fail-closed 判断）。呼び出し側が偽装した値を混入させると、支援技術
 //! ・フォーカス移動先の双方が誤った状態を読み取ってしまうため。
 //!
@@ -36,7 +36,7 @@
 //! - 上層の [`crate::anatomy::Anatomy`] へ薄く委譲するのみで、独自の出力経路・
 //!   独自のエスケープ処理は持たない。
 //! - styled 層（`fandhe-frontend-pre-styled-ui::skip_nav`）は本モジュールが
-//!   出力する `data-scope="skip-nav"` セレクタを前提に、[`crate::recipe::StateCondition::FocusVisible`]
+//!   出力する `data-scope="skip-nav"` セレクタを前提に、`crate::recipe::StateCondition::FocusVisible`
 //!   （`fandhe-frontend-pre-styled-ui` 側 API）で focus 時のみ表示する CSS を
 //!   当てる（docs-site は hydration を持たないため `data-focus-visible` 配線
 //!   ではなく純 CSS の `:focus-visible` に依拠する）。
@@ -54,7 +54,7 @@
 //!   スロットへ混入する経路はない。
 //! - `format!("#{id}")` は属性値という**データ**の組み立てであり、
 //!   `.claude/rules/coding-rust.md` が禁止する「HTML 文字列の直接組み立て」
-//!   ではない（[`mod@crate::field`] の `format!("{id}-control")` と同型の整理）。
+//!   ではない（[`crate::field`](mod@crate::field) の `format!("{id}-control")` と同型の整理）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!

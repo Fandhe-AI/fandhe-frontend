@@ -8,7 +8,7 @@
 //! 伝えるため、入れ子のライブリージョンを重ねない）。単体利用向けの
 //! [`spinner`] は引き続き `role="status"` + `aria-label` を持つ。回転
 //! アニメーションは recipe の `animation-*` longhand 宣言（
-//! [`SPIN_KEYFRAMES_NAME`] を参照する値のみ）と、[`css`] が追記する
+//! `SPIN_KEYFRAMES_NAME` を参照する値のみ）と、[`css`] が追記する
 //! `@keyframes`/`@media (prefers-reduced-motion: reduce)` ブロックの組み
 //! 合わせで表現する（`recipe::SlotRecipe` の宣言 API は `{`/`}`/`;` を
 //! 含む値を拒否するため、キーフレーム本体は宣言として表現できず、
@@ -40,7 +40,7 @@
 //!   （0.75rem + 2px×2 = 16px 外寸）と sm（1rem = 16px）が同寸になり
 //!   2 段が視覚的に区別できないため明示した。
 //! - **`flex-shrink: 0`**: ボタン内などの flex コンテナで潰れないよう
-//!   明示した（[`crate::skeleton`] の前例と同型）。
+//!   明示した（[`crate::skeleton`](mod@crate::skeleton) の前例と同型）。
 //! - **線幅・回転速度のカスタマイズ**: `border` shorthand を `border-width`
 //!   （既定 `var(--fandhe-spinner-thickness, 2px)`）/`border-style`/
 //!   `border-color` の 3 longhand へ分解し、`animation` shorthand も
@@ -48,7 +48,7 @@
 //!   等の longhand へ分解した（chakra-ui `borderWidth`/`animationDuration`
 //!   プロップ相当のカスタマイズ手段を custom property で提供する）。
 //!   既定 0.6s は chakra-ui 500ms・Radix Themes 800ms の帯内のため据え置く。
-//! - **`prefers-reduced-motion: reduce` での停止**: [`crate::skeleton`]
+//! - **`prefers-reduced-motion: reduce` での停止**: [`crate::skeleton`](mod@crate::skeleton)
 //!   （イシュー #1566）と同じ理由で新設した（両参照サイトともこの対応は
 //!   持たないが、`docs/design/pre-styled-ui-interaction-visual-language.md`
 //!   §6 が個別対応を認めている）。「停止ではなく減速」という代替案も
@@ -66,7 +66,7 @@
 //!   variant 軸を新設しない（chakra-ui も持たない、最小サブセット方針）。
 //! - **Radix Themes の `loading` ラッパー prop**: 子コンテンツの表示切替は
 //!   アプリ側の合成責務（`docs/policy/intentional-non-adoption.md` §3.25、
-//!   [`crate::skeleton`] イシュー #1566 と同じ判断）。
+//!   [`crate::skeleton`](mod@crate::skeleton) イシュー #1566 と同じ判断）。
 //! - **hover/focus/disabled/transition**: 非インタラクティブな表示専用
 //!   部品のため N/A（`docs/design/pre-styled-ui-interaction-visual-language.md`
 //!   §3「表示専用には付けない」）。`data-*` 状態属性を持たないため
@@ -108,9 +108,9 @@
 //!   showcase.rs`）の Demo へも合成行を 1 行追加した。Button 末尾配置は
 //!   従来 `pub(crate)` 限定だった [`spinner_decorative`] を公開 API 化する
 //!   ことで再現できた（下記詳細）。Item 合成は本クレートに `item` 部品が
-//!   存在しないため対象外とし、Issue 化はしない（[`crate::skeleton`]
+//!   存在しないため対象外とし、Issue 化はしない（[`crate::skeleton`](mod@crate::skeleton)
 //!   イシュー #2050 の shimmer 判断と同型）。Input Group 合成は
-//!   [`crate::input_group`] + [`crate::input`] で再現可能だが、Examples
+//!   [`crate::input_group`] + [`crate::input`](mod@crate::input) で再現可能だが、Examples
 //!   へは追加していない。
 //!
 //! 参照競合の判定（既存 golden・視覚言語を優先し、shadcn の値へは寄せない）:
@@ -243,7 +243,7 @@ fn recipe() -> SlotRecipe {
 /// 配信する想定、`crate` 冒頭の不変条件 2 を参照）。
 ///
 /// recipe が生成する規則群に続けて、`animation-name` 宣言が参照する
-/// `@keyframes` ブロック（[`SPIN_KEYFRAMES_NAME`]）と、
+/// `@keyframes` ブロック（`SPIN_KEYFRAMES_NAME`）と、
 /// `prefers-reduced-motion: reduce` 環境でアニメーションを停止する
 /// `@media` ブロック（イシュー #1567、[`crate::skeleton::css`] と同型）を
 /// 固定文字列として追記する。`animation` は base 宣言（variant 側では

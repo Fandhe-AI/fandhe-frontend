@@ -29,7 +29,7 @@
 //!   [`crate::charts::ChartData::series_color_var`]（系列ごとの
 //!   `Series::color` 上書きを尊重）。
 //! - `bar` パーツへ `data-series="<系列名>"` を付与する（既存語彙、
-//!   [`fandhe_frontend_core::render`] の既定エスケープ経由）。hover /
+//!   `fandhe_frontend_core::render` の既定エスケープ経由）。hover /
 //!   hit-area 用の `data-*` は本イシューでは付けない（#2128/#2132 の担当）。
 //!
 //! # 角度規約
@@ -47,12 +47,12 @@
 //! # レイアウト（viewBox `0 0 100 100` 固定、[`crate::pie_chart`]/
 //! [`crate::donut_chart`] と同一）
 //!
-//! 中心 `(50, 50)`・外径 [`OUTER_RADIUS`]（`45.0`）・内径
+//! 中心 `(50, 50)`・外径 `OUTER_RADIUS`（`45.0`）・内径
 //! `r_inner = 45 × inner_ratio`（[`RadialChartProps::inner_ratio`]、既定
 //! `0.3`。`0.0 < ratio < 1.0` かつ有限でなければ
 //! [`RadialChartError::InvalidInnerRatio`]）。リング帯
 //! `band = (45 - r_inner) / n`、リング厚 `thickness = band × (1 - RING_GAP)`
-//! （[`RING_GAP`] = `0.2` の定数、内側から外側へ配置）。各セグメントは
+//! （`RING_GAP` = `0.2` の定数、内側から外側へ配置）。各セグメントは
 //! [`crate::charts::pie::annulus_sector_path`]（角丸なし）または
 //! [`crate::charts::pie::annulus_sector_rounded_path`]（角丸あり）で描画する。
 //! 値 `0` のセグメントは描画しない（pie/donut と同じ契約）。
@@ -108,7 +108,7 @@
 //! 不変条件」節と同一（`raw_html()` 不使用・数値文字列化は
 //! [`crate::charts::svg::fmt_coord`] に一元化・カテゴリ名/系列名/
 //! `aria_label`/中央テキスト/呼び出し側 `attrs` は既定エスケープ経由・
-//! `class` は [`crate::class_attr::drop_class_attr`] で単一化）。`fill` は
+//! `class` は `crate::class_attr::drop_class_attr` で単一化）。`fill` は
 //! [`crate::charts::series_color_var`]/[`crate::charts::SeriesColor::var`]
 //! の固定形のみで、`transform` 等の自由文字列属性は導入しない。
 //!
@@ -264,7 +264,7 @@ pub struct RadialChartProps<'a> {
     /// 寸法（既定 `Md`）。
     pub size: Size,
     /// `chart`（svg）へ付与する `aria-label`。`None` なら
-    /// [`DEFAULT_ARIA_LABEL`]（`"radial chart"`）を使う。
+    /// `DEFAULT_ARIA_LABEL`（`"radial chart"`）を使う。
     pub aria_label: Option<&'a str>,
     /// 開始角（度数法・12 時方向 0°・時計回り正、既定 `0.0`）。
     pub start_angle_deg: f64,
@@ -334,7 +334,7 @@ pub struct RadialChartProps<'a> {
     /// codex-review 指摘）。`show_tooltip: false` かつ `range`/
     /// `hidden_categories`/`hidden_series` がいずれも初期状態を表せない
     /// （凡例は使うが初期状態は全件表示）構成を救うための opt-in で、
-    /// `true` のとき [`identify_bars`] が `data-index` を出力させる
+    /// `true` のとき `identify_bars` が `data-index` を出力させる
     /// （`pie_chart.rs::identify_segments`/`donut_chart.rs::identify_segments`
     /// と同型）。
     pub legend: bool,
@@ -599,7 +599,7 @@ fn deg_to_rad(deg: f64) -> f64 {
 }
 
 /// RadialChart 1 個を組み立てる（`root` > `chart`(svg) >
-/// [`grid-circle`/`grid-spoke`] > (`track`, `bar`(系列順), [`label`])×リング
+/// `grid-circle`/`grid-spoke` > (`track`, `bar`(系列順), `label`)×リング
 /// > [`center-value`, `center-label`]）。
 ///
 /// # Errors

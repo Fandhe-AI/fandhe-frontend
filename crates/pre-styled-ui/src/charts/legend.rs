@@ -57,7 +57,7 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - タイトル・系列名/表示ラベルはすべて [`fandhe_frontend_core::text`]
+//! - タイトル・系列名/表示ラベルはすべて `fandhe_frontend_core::text`
 //!   経由のテキストノードとして受け取り、`render()` の既定エスケープ
 //!   （REQ-1）を必ず通る。
 //! - マーカー・icon slot の色は [`ChartData::series_color_var`]（系列の
