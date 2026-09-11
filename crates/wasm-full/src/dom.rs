@@ -70,3 +70,111 @@ pub fn render_component_html<C: Component>(component: &C) -> String {
 pub(crate) fn mount_initial<C: Component>(root: &web_sys::Element, component: &C) {
     root.set_inner_html(&render_component_html(component));
 }
+
+/// `element.set_attribute(name, value)` の薄いガード付きラッパー
+/// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
+/// `.claude/rules/security.md`）。各配線モジュール（`sidebar`/
+/// `focus_visible`/`focus_trap`/`position`/`message_scroller` 等）が
+/// それぞれ同一実装を独自に持っていたため、本モジュールへ共通化した
+/// （REQ-11 gzip バンドルサイズ抑制、イシュー #2122 レビュー指摘）。
+/// 呼び出し側は多くの場合 `&'static str` リテラルの属性名・値のみを
+/// 渡すが、将来 DOM/アプリ由来の動的な `name`/`value` が渡されても
+/// `fandhe_frontend_core::url` のガード関数群
+/// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
+/// `is_safe_srcset`）を経由する防御を保つ。`style` 属性は利用者の
+/// インラインスタイルを破壊しないよう CSSOM の `set_property`
+/// （`content_height`/`position` の `apply_css_vars` 等）で反映すべきで
+/// あり、本関数では扱わない（イシュー #2209 レビュー指摘、base 取り込み
+/// 〔PR #2312〕で `position.rs` 側の重複実装が本関数へ統合された際に
+/// 落とさないよう再掲する）。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn set_dom_attribute(element: &web_sys::Element, name: &str, value: &str) {
+    debug_assert!(
+        !name.eq_ignore_ascii_case("style"),
+        "style 属性は apply_css_vars を使うこと（利用者スタイルの上書き防止）"
+    );
+    if fandhe_frontend_core::is_event_handler_attr(name) {
+        return;
+    }
+    if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
+        return;
+    }
+    if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
+        return;
+    }
+    let _ = element.set_attribute(name, value);
+}
+
+/// `start` から `root`（含む）まで祖先方向へ辿り、`data-scope`/`data-part`
+/// が指定値と一致する最初の要素を返す。多数の配線モジュール
+/// （`questionnaire`/`headless_timer`/`splitter`/`angle_slider`/`sidebar`/
+/// `headless_clipboard`/`message_scroller` 等）がそれぞれ同一実装を独自に
+/// 持っていたため、本モジュールへ共通化した（REQ-11 gzip バンドルサイズ
+/// 抑制、イシュー #2122 レビュー指摘）。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn closest_matching(
+    root: &web_sys::Element,
+    start: &web_sys::Element,
+    scope: &str,
+    part: &str,
+) -> Option<web_sys::Element> {
+    let mut current = Some(start.clone());
+    while let Some(element) = current {
+        if !root.contains(Some(&element)) {
+            break;
+        }
+        if element.get_attribute("data-scope").as_deref() == Some(scope)
+            && element.get_attribute("data-part").as_deref() == Some(part)
+        {
+            return Some(element);
+        }
+        if element == *root {
+            break;
+        }
+        current = element.parent_element();
+    }
+    None
+}
+
+/// [`set_dom_attribute`] の `Result` 版（`element.set_attribute` の失敗を
+/// 呼び出し元へ伝播したい配線層向け）。`headless_select`/`questionnaire`/
+/// `headless_timer`/`headless_file_upload`/`headless_clipboard`/
+/// `headless_avatar` が独自に持っていた同一実装を共通化した（REQ-11 gzip
+/// バンドルサイズ抑制、イシュー #2122 レビュー指摘）。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn set_dom_attribute_result(
+    element: &web_sys::Element,
+    name: &str,
+    value: &str,
+) -> Result<(), wasm_bindgen::JsValue> {
+    if fandhe_frontend_core::is_event_handler_attr(name) {
+        return Ok(());
+    }
+    if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
+        return Ok(());
+    }
+    if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
+        return Ok(());
+    }
+    element.set_attribute(name, value)
+}
+
+/// `start` から `root`（含む）まで祖先方向を辿り、`data-disabled` を持つ
+/// 要素が 1 つでもあれば `true`（disabled な祖先・`root` 自身を境界とする
+/// fail-closed 判定）。`sidebar`/`splitter`/`number_input` が独自に持って
+/// いた同一実装を共通化した（REQ-11 gzip バンドルサイズ抑制、イシュー
+/// #2122 レビュー指摘）。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn has_disabled_ancestor(root: &web_sys::Element, start: &web_sys::Element) -> bool {
+    let mut current = Some(start.clone());
+    while let Some(element) = current {
+        if element.has_attribute("data-disabled") {
+            return true;
+        }
+        if !root.contains(Some(&element)) || element == *root {
+            break;
+        }
+        current = element.parent_element();
+    }
+    false
+}

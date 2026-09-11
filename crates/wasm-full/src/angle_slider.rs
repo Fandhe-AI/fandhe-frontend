@@ -204,30 +204,8 @@ mod wiring {
 
     /// `target` から `root`（含む）まで祖先方向へ辿り、`data-scope`/
     /// `data-part` が指定値と一致する最初の要素を返す
-    /// （`crate::headless_clipboard::wiring::closest_matching` と同型）。
-    fn closest_matching(
-        root: &Element,
-        start: &Element,
-        scope: &str,
-        part: &str,
-    ) -> Option<Element> {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if !root.contains(Some(&element)) {
-                break;
-            }
-            if element.get_attribute("data-scope").as_deref() == Some(scope)
-                && element.get_attribute("data-part").as_deref() == Some(part)
-            {
-                return Some(element);
-            }
-            if element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        None
-    }
+    /// （`crate::dom::closest_matching` を使う）。
+    use crate::dom::closest_matching;
 
     /// `start` から `root` まで祖先方向を辿り、`data-disabled` **または**
     /// `data-readonly` を持つ要素が 1 つでもあれば `true` を返す（disabled/

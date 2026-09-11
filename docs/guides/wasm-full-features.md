@@ -59,6 +59,7 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_chart` | `chart` |
 | `Runtime::wire_chart_range` | `chart-range` |
 | `Runtime::wire_questionnaire` | `questionnaire` |
+| `Runtime::wire_message_scroller` | `message-scroller` |
 
 `position` feature（0.20.1 で追加）はこの表とは別枠です。
 `headless::wire_headless_component` 内の自動 positioning 呼び出し
@@ -126,16 +127,17 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.19.0 | 配線群別 feature 14 件（イシュー #2326） |
 | 0.20.0 | scope feature 16 件（イシュー #2327） |
 | 0.20.1 | `position` feature（イシュー #2209/#2332） |
+| 0.20.5 | `message-scroller` feature（イシュー #2122） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 32 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 33 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.20.1"
+version = "0.20.5"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -153,6 +155,7 @@ features = [
   "chart",
   "chart-range",
   "questionnaire",
+  "message-scroller",
   "position",
   "accordion",
   "calendar",
@@ -212,7 +215,7 @@ wasm-bindgen-exports, collapsible, dialog, popover, tooltip, position
 - `position` は popover / tooltip の表示位置決めに必要なため含めます。
 - 配線群別 feature（avatar / clipboard / timer / angle-slider / splitter /
   signature-pad / number-input / command / sidebar / chart / chart-range /
-  questionnaire）は対象外です。
+  questionnaire / message-scroller）は対象外です。
 
 実測（ローカル、wasm-opt 適用済み）: `bundle-size: total_gzip_bytes=120618/200000
 files=2 result=PASS`（上限余裕 79,382 B）。CI は wasm-opt 未導入のため

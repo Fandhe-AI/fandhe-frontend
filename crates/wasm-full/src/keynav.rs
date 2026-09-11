@@ -5356,33 +5356,11 @@ pub(crate) mod wiring {
         elements.iter().position(|el| el.is_same_node(Some(target)))
     }
 
-    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
-    /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
-    /// `.claude/rules/security.md`）。本モジュールが書き込む属性
-    /// （`tabindex`/`aria-selected`/`data-state`/`hidden`）はいずれも
-    /// `&'static str` リテラルで固定された非 URL・非イベントハンドラ属性
-    /// であり実害はないが、`fandhe_frontend_core::url` のガード関数群
-    /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
-    /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が
-    /// 動的な入力から組み立てられるよう変更された場合の防御としても
-    /// 機能する（`wasm-client::binding_dom` の `set_attribute` 呼び出しと
-    /// 同じガード方針）。
-    ///
-    /// `pub(crate)`: [`crate::command::wiring`]（イシュー #2069）が
-    /// `data-selected`/`aria-selected`/`aria-activedescendant` の同期へ
-    /// 再利用するため公開する。挙動変更なし。
-    pub(crate) fn set_dom_attribute(element: &Element, name: &str, value: &str) {
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return;
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return;
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return;
-        }
-        let _ = element.set_attribute(name, value);
-    }
+    /// `crate::dom::set_dom_attribute` を本モジュールの語彙で再エクスポート
+    /// する（イシュー #2122 レビュー指摘: REQ-11 gzip バンドルサイズ抑制の
+    /// ため、複数モジュールに重複していた実装を `crate::dom` へ共通化した。
+    /// `pub(crate) use` により既存の呼び出し元パスは変更不要）。
+    pub(crate) use crate::dom::set_dom_attribute;
 
     /// roving tabindex（`tabindex="0"`/`"-1"`）をフォーカス対象
     /// `active_index` に追従させる。書き込み失敗（`Err`）は個々の要素に

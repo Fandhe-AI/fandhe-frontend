@@ -912,6 +912,15 @@ name = "fandhe-frontend-wasm-full"
 # 0.18.5 とする。加えて依存先 `fandhe-frontend-headless-ui` の version
 # 要求を 0.69.0 へ追随させる（`cargo run -p xtask -- check-dep-versions
 # --fix`）。
+# イシュー #2122（親 #2120）: Message Scroller（`fandhe-frontend-headless-ui`
+# `message_scroller` モジュール）の最下部追従・新着検知・履歴読み込み時の
+# スクロール位置維持を配線する新規公開モジュール `message_scroller` を
+# 追加（`Runtime::mount`/`Runtime::hydrate` からの配線含む）。新規外部
+# クレート追加はゼロ。公開 API の新規追加のため minor バンプ
+# （0.18.4 → 0.19.0）。レビュー指摘 #2122（REQ-11 gzip 上限超過の是正）で
+# プログラム的スクロールを `ScrollToOptions`/`ScrollBehavior` 経由から
+# 配線時のインライン `scroll-behavior: auto` 固定 + `set_scroll_top` へ
+# 変更したため、`ScrollBehavior`/`ScrollToOptions` feature は追加しない。
 #
 # イシュー #2282: `content_height::TARGETS` へ bubble の
 # `collapse-content` を 1 行追加（公開シグネチャ不変・テスト追加のみ）。
@@ -1000,11 +1009,55 @@ name = "fandhe-frontend-wasm-full"
 # 深さによらず全件）を再同期する。既存公開関数のシグネチャ変更を伴わない
 # 非破壊的変更のため patch バンプとし、0.20.3 を +1 した 0.20.4 とする。
 #
-# イシュー #2214: `check-dep-versions --fix` により headless-ui への
-# version 要求を `^0.69.0` → `^0.69.1` へ追随（fieldset の legend variant
-# 追加、fieldset は静的部品で wasm-full 側のコード変更なし）。Cargo.toml
-# 変更に伴い patch バンプとし、0.20.4 を +1 した 0.20.5 とする。
-version = "0.20.5"
+# base 取り込み（PR #2312、イシュー #2122、Phase 9 feature gating 反映の
+# 再マージ）: 本ブランチ（message-scroller 配線、独立に 0.19.0 へ到達済み）
+# を origin/main（#2326/#2327/#2333/#2209 等の配線群別 feature gating・
+# scope feature 導入を経て 0.20.4 へ到達済み）へ追随させる。既存の
+# message-scroller 配線を新設の feature `message-scroller`（既定 on）で
+# ゲートし、他の配線群 feature と同じパターンへ合わせた。`message_scroller`
+# は crates.io 公開済みのどの版にも存在せず、本 PR で初めてゲート付き
+# （既定 on）として main へ導入されるため、既存利用者が失う配線は無い
+# （追加のみの非破壊的変更。`position`〔0.20.1〕と同型の判断）。よって
+# minor ではなく patch とし、main の到達値 0.20.4 から +1 して 0.20.5 と
+# する。
+#
+# base 取り込み（PR #2312、再マージ）: origin/main が独立に イシュー
+# #2214（`check-dep-versions --fix` による headless-ui への version 要求
+# `^0.69.0` → `^0.69.1` 追随、fieldset は静的部品で wasm-full 側のコード
+# 変更なし）を経て 0.20.5 へ到達済みだった。本ブランチも独立に 0.20.5 へ
+# 到達していたため（上記）、同一版数への偶発的衝突として扱う必要は
+# 無かったが、続く下記コミットで 0.20.6 へさらに進めていたため、
+# origin/main の到達値 0.20.5 を上回る本ブランチの 0.20.6 をそのまま
+# 維持する。
+#
+# イシュー #2122（コーディネータ指摘、PR #2312 再指摘）: 会話リスト本体
+# の解決（`wiring::conversation_list`）を幅優先探索から「`content` 自身、
+# または `content` の直接の子（1 段のみ）」という明示的な境界へ変更した。
+# `content` 直下に素のメッセージ要素を置きその内部だけで添付の keyed
+# list を使う構成で、旧実装が添付リストを会話リスト本体と誤認していた
+# 不具合の是正。公開 API のシグネチャ変更は伴わない内部実装の修正のみ
+# のため patch バンプとし、origin/main の到達値 0.20.5 から +1 して
+# 0.20.6 とする。
+#
+# イシュー #2122（コーディネータ指摘、PR #2312 再指摘、round 8）:
+# `resolve_instance_from_record` が常に最も内側の message-scroller
+# インスタンスへ解決するため、`handle_mutations` がそのバッチで計測
+# スナップショットを更新するのも最も内側の viewport のみだった。ネスト
+# した内側 scroller への追加で、内側 viewport が `max-height` に達する
+# 前など外側の `scrollHeight` も押し上げるケースでは、外側インスタンス
+# の `last_scroll_height` が古いまま残り、後続バッチで外側自身に Free
+# 状態の履歴先頭挿入があると `corrected_scroll_top` が過去の内側増分
+# まで加算して閲覧位置を過補正していた。内側の変異を外側の
+# Prepend/Grow として分類しない方針（`classify_target` のネスト除外）は
+# 維持したまま、`handle_mutations` の末尾で変異があったインスタンス
+# 集合から `root` 方向へ祖先の message-scroller インスタンスをすべて
+# 辿り、分類・`scrollTop` 補正・`data-has-new` 付与を伴わずに計測
+# スナップショットのみを再同期する処理を追加した。公開 API のシグネ
+# チャ変更は伴わない内部実装の修正のみのため patch バンプとし、
+# 本ブランチの到達値 0.20.6 から +1 して 0.20.7 とする（origin/main は
+# 本 PR 起票時点で 0.20.5 のまま wasm-full 未変更のため、本ブランチの
+# 到達値がそのまま基準になる）。
+version = "0.20.7"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1349,6 +1402,7 @@ crate-type = ["cdylib", "rlib"]
 #   Self::wire_chart               -> "chart"
 #   Self::wire_chart_range         -> "chart-range"
 #   Self::wire_questionnaire       -> "questionnaire"
+#   Self::wire_message_scroller    -> "message-scroller"
 #
 # `overlay`/`tooltip`/`position`/`focus_trap`/`headless_file_upload`/
 # `headless_select` は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -1357,18 +1411,20 @@ crate-type = ["cdylib", "rlib"]
 # （`ensure_global_controller`・`reposition_within` 2 箇所）は feature
 # `"position"`（既定 on）でゲートする（イシュー #2209、親 #2208。
 # `docs/design/wasm-full-architecture.md` §34.2）。`position` モジュール
-# 自体・`pub use` はゲートしない。上記対応表の 14 件（`Runtime::mount`/
+# 自体・`pub use` はゲートしない。上記対応表の 15 件（`Runtime::mount`/
 # `hydrate` が呼ぶ配線）とは別枠の feature のため対応表には含めない。
 #
 # 破壊的変更の注意（BREAKING CHANGE、0.19.0 で minor バンプ）: 本バージョンから
-# `default-features = false` を使う利用者は上記 14 配線を失う。従来どおりの
-# 挙動を維持するには `features = ["wasm-bindgen-exports", "keynav",
+# `default-features = false` を使う利用者は上記 15 配線を失う（イシュー
+# #2122 で `message-scroller` を追加）。従来どおりの挙動を維持するには
+# `features = ["wasm-bindgen-exports", "keynav",
 # "focus-visible", "avatar", "clipboard", "timer", "angle-slider", "splitter",
 # "signature-pad", "number-input", "command", "sidebar", "chart",
-# "chart-range", "questionnaire"]`（`entry` のエクスポートが不要なら
-# `wasm-bindgen-exports` は省略可）を明示すること。上記 14 件に加え、
+# "chart-range", "questionnaire", "message-scroller"]`（`entry` のエクス
+# ポートが不要なら `wasm-bindgen-exports` は省略可）を明示すること。上記
+# 15 件に加え、
 # `wire_headless_component` の自動 positioning 呼び出しを維持するには
-# `"position"` も列挙に含めること（別枠の feature、既定 15 件目として
+# `"position"` も列挙に含めること（別枠の feature、既定 16 件目として
 # `default` 配列に列挙されている）。
 #
 # `keynav` off 時の注意（イシュー #1616 / #2326）: readonly RadioGroup の
@@ -1458,6 +1514,7 @@ default = [
   "chart",
   "chart-range",
   "questionnaire",
+  "message-scroller",
   "position",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
@@ -1493,6 +1550,11 @@ sidebar = []
 chart = []
 chart-range = []
 questionnaire = []
+# イシュー #2122: message-scroller 配線（`Runtime::mount`/`hydrate` の
+# `Self::wire_message_scroller` 呼び出し）専用の feature（既定 on）。
+# `message_scroller` モジュール自体はゲートしない（上記 (c) 注記と同じ
+# 方針）。
+message-scroller = []
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・
@@ -1627,6 +1689,15 @@ wasm-bindgen-futures = "0.4"
 # feature 拡張。`PointerEvent`/`FocusEvent`/`KeyboardEvent` 自体は製品面の
 # `[dependencies.web-sys]` に追加済みのため、ここでは Init 型のみを追加
 # すれば足りる）。
+# イシュー #2122（codex-review 指摘 PR #2312、`first_relevant_change` の
+# `characterData` レコード未対応の回帰テスト）: `wasm-full/tests/
+# message_scroller_browser.rs` が既存 `Text` ノードの `appendData`
+# （`CharacterData::append_data`）で `characterData` レコードを直接発火
+# させ、`bind_text` の `set_text_content`（`childList` レコード）とは別の
+# ストリーミング更新経路を明示的に検証するために `Text`/`CharacterData`
+# を追加する（テスト専用の feature 拡張。新規クレート追加ではなく既存
+# web-sys の feature 追加のみで、`cargo metadata` 実測に変化がないことを
+# 確認済み、既存 `EventInit` 追加時〔PR #92〕と同じ承認整理）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [
@@ -1647,4 +1718,6 @@ features = [
   "DataTransferItem",
   "DataTransferItemList",
   "CssStyleDeclaration",
+  "Text",
+  "CharacterData",
 ]

@@ -117,7 +117,7 @@
 //! - click 対象（またはその祖先、インスタンス root まで）に
 //!   `data-disabled` または `disabled` 属性がある → no-op（ブラウザが
 //!   disabled ボタンの合成 click を抑止することに依存せず本モジュール側で
-//!   判定する、`sidebar::wiring::has_disabled_ancestor` と同型）。
+//!   判定する、`crate::dom::has_disabled_ancestor` を使う）。
 //! - `data-step` が欠落・非数値 → no-op。`data-step > count` → no-op
 //!   （[`Questionnaire::from_hydration_attrs`] の拒否と同じ判断。
 //!   [`Questionnaire::new`] のクランプは使わず拒否する）。
@@ -408,31 +408,8 @@ mod wiring {
 
     /// `target` から `root`（含む）まで祖先方向へ辿り、`data-scope`/
     /// `data-part` が指定値と一致する最初の要素を返す
-    /// （`crate::sidebar::wiring::closest_matching`/
-    /// `crate::headless_timer::wiring::closest_matching` と同型）。
-    fn closest_matching(
-        root: &Element,
-        start: &Element,
-        scope: &str,
-        part: &str,
-    ) -> Option<Element> {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if !root.contains(Some(&element)) {
-                break;
-            }
-            if element.get_attribute("data-scope").as_deref() == Some(scope)
-                && element.get_attribute("data-part").as_deref() == Some(part)
-            {
-                return Some(element);
-            }
-            if element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        None
-    }
+    /// （`crate::dom::closest_matching` を使う）。
+    use crate::dom::closest_matching;
 
     /// `start` から `root`（含む）まで祖先方向へ辿り、back/next/skip の
     /// いずれかに一致する最初の要素と、対応する dispatch アクション名を
@@ -480,7 +457,7 @@ mod wiring {
 
     /// `start` から `boundary`（含む）まで祖先方向を辿り、`data-disabled`
     /// またはネイティブ `disabled` 属性を持つ要素が 1 つでもあれば `true`
-    /// （`crate::sidebar::wiring::has_disabled_ancestor` と同型。ブラウザが
+    /// （`crate::dom::has_disabled_ancestor` を使う。ブラウザが
     /// disabled ボタンの合成 click を抑止することに依存せず本モジュール側で
     /// 判定する、モジュール冒頭「fail-closed 契約」節参照）。
     fn has_disabled_ancestor(boundary: &Element, start: &Element) -> bool {
@@ -533,20 +510,9 @@ mod wiring {
     }
 
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
-    /// （`crate::headless_timer::wiring::set_dom_attribute` と同型、
+    /// （`crate::dom::set_dom_attribute_result` を使う、
     /// イシュー #401 の `fw gate` `url_validation_check` 契約に準拠）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) -> Result<(), JsValue> {
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return Ok(());
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return Ok(());
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return Ok(());
-        }
-        element.set_attribute(name, value)
-    }
+    use crate::dom::set_dom_attribute_result as set_dom_attribute;
 
     /// 存在属性（値は常に空文字）を `enabled` に応じて付与/除去する。
     fn set_existence_attr(element: &Element, name: &str, enabled: bool) -> Result<(), JsValue> {

@@ -105,7 +105,7 @@
 //!   であることを確認してから作用する。`aria-describedby` が指す id が
 //!   `root` 外・非 tooltip 要素を指す場合は no-op（fail-closed）。
 //! - `data-disabled` を持つ trigger/rail（祖先を含む）上のショートカット・
-//!   外側クリックは no-op（[`wiring::has_disabled_ancestor`]、
+//!   外側クリックは no-op（`crate::dom::has_disabled_ancestor`、
 //!   `splitter.rs`/`angle_slider.rs` と同型の判定）。
 //! - `Closure::forget` は provider（`[data-scope="sidebar"]
 //!   [data-part="provider"]`）が存在する場合のみマウント時 1 回・
@@ -447,48 +447,14 @@ mod wiring {
     }
 
     /// `root`（含む）まで祖先方向へ辿り、`data-scope`/`data-part` が指定値
-    /// と一致する最初の要素を返す（`crate::splitter::wiring::closest_matching`
+    /// と一致する最初の要素を返す（`crate::dom::closest_matching`
     /// と同型）。
-    fn closest_matching(
-        root: &Element,
-        start: &Element,
-        scope: &str,
-        part: &str,
-    ) -> Option<Element> {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if !root.contains(Some(&element)) {
-                break;
-            }
-            if element.get_attribute("data-scope").as_deref() == Some(scope)
-                && element.get_attribute("data-part").as_deref() == Some(part)
-            {
-                return Some(element);
-            }
-            if element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        None
-    }
+    use crate::dom::closest_matching;
 
     /// `start` から `root` まで祖先方向を辿り、`data-disabled` を持つ要素が
-    /// 1 つでもあれば `true`（`crate::splitter::wiring::has_disabled_ancestor`
+    /// 1 つでもあれば `true`（`crate::dom::has_disabled_ancestor`
     /// と同型）。
-    fn has_disabled_ancestor(root: &Element, start: &Element) -> bool {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if element.has_attribute("data-disabled") {
-                return true;
-            }
-            if !root.contains(Some(&element)) || element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        false
-    }
+    use crate::dom::has_disabled_ancestor;
 
     /// `root` 配下から `selector` に一致する要素を document 順に収集する。
     fn query_all(root: &Element, selector: &str) -> Vec<Element> {
@@ -694,29 +660,10 @@ mod wiring {
         query_all(root, PROVIDER_SELECTOR)
     }
 
-    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
-    /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
-    /// `.claude/rules/security.md`）。本モジュールが書き込む属性
-    /// （`data-mobile`/`hidden`/`data-state`）はいずれも `&'static str`
-    /// リテラルで固定された非 URL・非イベントハンドラ属性であり実害は
-    /// ないが、`fandhe_frontend_core::url` のガード関数群
-    /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
-    /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
-    /// 入力から組み立てられるよう変更された場合の防御としても機能する
-    /// （`keynav.rs::wiring::set_dom_attribute`/
-    /// `headless_avatar.rs::wiring::set_dom_attribute` と同じガード方針）。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return;
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return;
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return;
-        }
-        let _ = element.set_attribute(name, value);
-    }
+    /// `crate::dom::set_dom_attribute` を本モジュールの語彙で再エクスポート
+    /// する（イシュー #2122 レビュー指摘: REQ-11 gzip バンドルサイズ抑制の
+    /// ため、複数モジュールに重複していた実装を `crate::dom` へ共通化した）。
+    use crate::dom::set_dom_attribute;
 
     /// `root` 配下から `selector` に一致し、かつ `data-disabled` な祖先を
     /// 持たない最初の要素を返す（fail-closed: disabled な候補は飛ばす）。

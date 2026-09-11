@@ -230,29 +230,7 @@ mod wiring {
     /// `target` から `root`（含む）まで祖先方向へ辿り、`data-scope`/
     /// `data-part` が指定値と一致する最初の要素を返す
     /// （`crate::headless::wiring::collect_part_refs` の単一ターゲット版）。
-    fn closest_matching(
-        root: &Element,
-        start: &Element,
-        scope: &str,
-        part: &str,
-    ) -> Option<Element> {
-        let mut current = Some(start.clone());
-        while let Some(element) = current {
-            if !root.contains(Some(&element)) {
-                break;
-            }
-            if element.get_attribute("data-scope").as_deref() == Some(scope)
-                && element.get_attribute("data-part").as_deref() == Some(part)
-            {
-                return Some(element);
-            }
-            if element == *root {
-                break;
-            }
-            current = element.parent_element();
-        }
-        None
-    }
+    use crate::dom::closest_matching;
 
     /// `navigator.clipboard.writeText(value)` を [`js_sys::Reflect`] 経由で
     /// 動的に呼び出す。`navigator.clipboard` が存在しない・`writeText` が
@@ -293,25 +271,14 @@ mod wiring {
 
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
     /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
-    /// `.claude/rules/security.md`。`headless_avatar.rs::wiring::set_dom_attribute`
+    /// `.claude/rules/security.md`。`crate::dom::set_dom_attribute_result`
     /// と同じガード方針）。本モジュールが書き込む属性（`data-copied`/
     /// `data-state`/`hidden`）はいずれも `&'static str` リテラルで固定
     /// された非 URL・非イベントハンドラ属性であり実害はないが、
     /// `fandhe_frontend_core::url` のガード関数群を経由することで、将来
     /// `name`/`value` が動的な入力から組み立てられるよう変更された場合の
     /// 防御としても機能する。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) -> Result<(), JsValue> {
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return Ok(());
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return Ok(());
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return Ok(());
-        }
-        element.set_attribute(name, value)
-    }
+    use crate::dom::set_dom_attribute_result as set_dom_attribute;
 
     fn apply_data_copied_to_part(root: &Element, part: &str, copied: bool) -> Result<(), JsValue> {
         let selector = format!("[data-scope=\"{CLIPBOARD_SCOPE}\"][data-part=\"{part}\"]");

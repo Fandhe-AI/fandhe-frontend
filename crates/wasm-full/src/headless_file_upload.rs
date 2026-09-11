@@ -290,18 +290,7 @@ mod wiring {
     /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
     /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
     /// 入力から組み立てられるよう変更された場合の防御としても機能する。
-    fn set_dom_attribute(element: &Element, name: &str, value: &str) -> Result<(), JsValue> {
-        if fandhe_frontend_core::is_event_handler_attr(name) {
-            return Ok(());
-        }
-        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
-            return Ok(());
-        }
-        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
-            return Ok(());
-        }
-        element.set_attribute(name, value)
-    }
+    use crate::dom::set_dom_attribute_result as set_dom_attribute;
 
     /// `data-dragging` 存在属性を反映する（`fandhe_frontend_core::render` を
     /// 経由した再描画は行わず、既存 DOM の属性のみを書き換える。
