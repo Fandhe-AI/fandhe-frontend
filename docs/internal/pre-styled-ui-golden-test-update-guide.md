@@ -102,7 +102,10 @@ pin_input / progress / qr_code / **questionnaire（イシュー #2119 で
 golden 新設。`stylesheet()` 全文〔raw CSS 子孫規則を含む〕）** /
 **radial_chart（イシュー #2079 で
 golden 新設。`charts::pie` の環状セクタジオメトリを再利用する同心リング
-型グラフ、`stylesheet()` 全文）** / radio_card / radio_group / rating_group /
+型グラフ、`stylesheet()` 全文）** / **radio_card（イシュー #2213 で
+`item[data-state="checked"]` ブロックへ `background`/`--fandhe-hover-bg`
+の 2 宣言を末尾側（ブロック内）へ純追加、選択時カード背景塗り）** /
+radio_group / rating_group /
 **scroll_area（イシュー #1584 で golden 新設。#2054 で横スクロール・端フェード規則を末尾へ純追加、`starts_with` による純追加固定アサーションも追加）** /
 **select（イシュー #2186 で separator / scroll-up-button /
 scroll-down-button の base 3 ブロックを `hidden-select` ブロック直後へ
