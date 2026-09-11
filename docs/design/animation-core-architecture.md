@@ -53,7 +53,7 @@ pub trait Driver {
 native 参照実装（`ManualDriver`）は `#[cfg(test)]` または `test-utils` feature 配下に置き、`fandhe-animation` 本体の
 公開 API 表面には持ち込まない（外部依存ゼロ方針・API 最小化の両立）。
 
-### 2.2 Target<T>: 値の書き込み先
+### 2.2 `Target<T>`: 値の書き込み先
 
 `Target<T>` は「補間結果をどこへ書き込むか」を抽象化する。`fandhe-animation` は `Target` の DOM 向け実装（CSSOM プロパティ
 書き込み等）を一切持たず、trait 定義のみを提供する。これにより `fandhe-animation` は DOM 非依存を維持したまま、Web アダプタ
