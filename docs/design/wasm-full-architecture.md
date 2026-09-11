@@ -2106,6 +2106,7 @@ matrix〕での活用は同評価文書 §13 項目 3/4 として後続 issue �
 | `Runtime::wire_chart_range` | `chart-range` |
 | `Runtime::wire_questionnaire` | `questionnaire` |
 | `Runtime::wire_message_scroller` | `message-scroller` |
+| `Runtime::wire_data_table` | `data-table` |
 
 `overlay`/`tooltip`/`position`/`focus_trap`/`headless_file_upload`/
 `headless_select` は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -2939,3 +2940,127 @@ list を使う構成で、`content` への先頭挿入が Prepend として位�
 されること）・`no_list_content_with_nested_attachments_update_is_ignored`
 （同レイアウトで、メッセージ内部にネストした添付リストへの childList
 先頭挿入・characterData 更新のいずれも除外されること）を追加した。
+
+## 39. `data_table` モジュール（イシュー #2126、親 #2124）
+
+`crates/headless-ui/src/data_table.rs`（イシュー #2125、親 #2124）は
+Root / Toolbar / ColumnHeader / SortTrigger / SelectAll / SelectRow /
+Footer / SelectionCount の anatomy と、`sort`（高々 1 列）+
+`hidden_columns` のみを持つ最小状態機械 `DataTable`（`Component`/
+`Hydrate` 実装）を提供する一方、trigger click → dispatch → DOM 反映の
+実配線は本イシューへ申し送っていた（同モジュール冒頭 rustdoc
+「イシュータイトルとの差分」節）。本節はその配線を実装した
+`crates/wasm-full/src/data_table.rs` の設計を記録する。
+
+### 39.1 責務境界
+
+行の実際の並べ替え（比較関数・安定ソート・多列優先順位）・選択結果の
+保持/送信/永続化・列定義/列順の永続化・ページサイズに応じたデータ
+取得/総件数算出はアプリケーション責務であり、本モジュールは持たない
+（`.claude/rules/coding-rust.md` §UI 部品の責務境界 規則 1）。ソート・
+列表示切替・ページングのクリックはそれぞれ `data-table:sort`/
+`data-table:toggle-column`/`data-table:page` としてアプリへ通知するのみ。
+
+### 39.2 2 層構成
+
+`message_scroller.rs`/`questionnaire.rs` と同型: 純粋層（`trigger_kind`・
+`sort_direction_from_attr`・`resolve_sort_state`・`page_transition`・
+payload の `encode_*`/`decode_*`）は native の `cargo test` で検証でき、
+配線層（`wiring::wire_data_table_events`）のみ
+`#[cfg(target_arch = "wasm32")]` でゲートする。
+
+### 39.3 `headless::MAPPING_TABLE` へ登録しない理由
+
+1. 要件（押下で `aria-sort`/`data-sort` 等を wasm-full 側で書き戻す）は
+   MAPPING_TABLE の dispatch（`C` への文字列 dispatch のみ）では
+   DOM 書き戻しができない（`questionnaire`/`sidebar`/`headless_timer` と
+   同じ判断）。
+2. 列表示切替トリガー（`column_toggle_item`）は `menu`/`checkbox-item`
+   であり、MAPPING_TABLE には既に `"toggle"` 行が存在する。本モジュールの
+   配線はこれと並走し、同一クリックをそれぞれ独立に処理する（二重通知は
+   menu checkbox-item の既存契約であり本イシューでは変更しない）。
+3. `crates/wasm-full/tests/feature_gating_contract.rs` の MAPPING_TABLE
+   行数（32）・scope feature 数（18）の期待値を動かさずに済む。
+
+### 39.4 4 配線の書き戻し規則
+
+- **ソート**: sort-trigger の `data-value`（列 id）で
+  `closest_matching(root, trigger, "data-table", "root")` によりインスタンス
+  root を解決し、配下の sortable な column-header（`aria-sort` 属性を持つ
+  もの）から `(data-column, aria-sort)` を収集して `resolve_sort_state` で
+  現在のソート状態を再構築する（未知の `aria-sort` 値・2 列以上が同時に
+  非 `none` は改ざん検知として no-op）。`DataTable::new` + `dispatch(...,
+  "sort", column_id)` で次状態を求め、sortable な column-header 全件の
+  `aria-sort`/`data-sort` と sort-trigger 全件の `data-sort` を書き戻す。
+- **列表示切替**: menu `checkbox-item` の `data-value`（列 id）で
+  `DataTable::new(None, hidden_columns) + dispatch(..., "toggle-column",
+  column_id)` を呼び、`data-column == id` を持つ全要素（column-header と
+  `column_attrs` 経由で付与されたセル）の `hidden`/`data-hidden` を
+  トグルし、checkbox-item 自身の `data-state`/`aria-checked` を同期する。
+  `query_selector` へ動的な列 id を埋め込まず、`[data-column]` を走査して
+  `get_attribute` で比較する（セレクタインジェクション防止）。
+- **select-all `indeterminate`**: `select-all` 配下の
+  `checkbox::hidden_input` の `indeterminate` DOM プロパティを、その要素
+  自身の `data-state` 属性（`"indeterminate"` かどうか）に同期する。配線時
+  に 1 回実行し、以後は `MutationObserver`（`attributes: true`,
+  `attribute_filter: ["data-state"]`, `child_list: true`, `subtree: true`）
+  で再同期する。SSR は `aria-checked="mixed"` までしか表現できないため、
+  実行時 DOM プロパティの設定は本配線が担う。
+- **ページング**: `button` タグの pagination トリガー/`item` のみを対象と
+  し（`<a href>` link モードは一切触らない）、`item` 群の `data-index`
+  最大値を総ページ数、`data-selected` を持つ 1 件を現在ページとして
+  `Pagination::new(total, 1, 1, 1, current)` を再構築し `page_transition`
+  で遷移先を求める。`item` の `data-selected` を新ページへ移し、
+  `prev`/`first`/`next`/`last` トリガーの `disabled`/`aria-disabled`/
+  `data-disabled` 3 点セットを `can_prev`/`can_next` に同期する。
+
+### 39.5 fail-closed 契約
+
+click 対象からインスタンス root までの祖先に `data-disabled` がある
+（`crate::dom::has_disabled_ancestor`）、トリガー自身がネイティブ
+`disabled`/`aria-disabled="true"`、明示 `data-action` を持つ経路（祖先
+探索での累積判定、`questionnaire::wiring::resolve_trigger` と同型）、
+必須の `data-value`/`data-index` が欠落、`try_borrow_mut` の再入は
+いずれも no-op（panic しない）。
+
+### 39.6 `Runtime` 統合
+
+`Runtime::wire_data_table`（`#[cfg(feature = "data-table")]`、
+`Self::wire_message_scroller` の直後で `mount`/`hydrate` 双方から呼ぶ）は
+`data_table::wire_data_table_events(root, |action_ref| { try_borrow_mut →
+dispatch(C, action, payload) → dispatched なら apply_dirty_if_any })` の
+橋渡しのみを行う（`Self::wire_message_scroller` と同じ方針）。`C` が
+`data-table:*` を認識しない場合でも DOM 書き戻し（39.4 節）は独立して
+成立する。
+
+### 39.7 既知の限界・スコープ外
+
+- `"clear-sort"`/`"show-column"`/`"hide-column"` はヘッドレス層に専用
+  トリガーが無いため配線しない。
+- 行選択（`select-row`）の `data-selected`/`data-state` 書き戻しと
+  `data-table:select-*` 通知は持たない。選択集合はアプリ責務であり、
+  `checkbox::hidden_input` はネイティブ `<input type="checkbox">` のため
+  `events::wire_events` の `change` 委譲（`data-action`）で足りる。
+- ページングの総ページ数は `item` の `data-index` 最大値から導出するため、
+  `boundary_count == 0` 構成（末尾ページが常に描画されない）では不正確に
+  なり得る。省略記号（ellipsis）の再配置は行わない。
+- 配線後の再描画で初めて出現する data-table インスタンスへの遅延配線は
+  行わない（`message_scroller`/`sidebar` と同じ搭載判定ゲートのトレード
+  オフ）。
+- `crates/headless-ui/src/data_table.rs` rustdoc「イシュータイトルとの
+  差分」節は「MAPPING_TABLE への登録」と表現しているが、実装は §39.3 の
+  理由で MAPPING_TABLE を使わない DOM 直接書き戻し方式を採る。headless-ui
+  側の rustdoc は本イシューでは修正しない（バンプ連鎖回避のため）。
+
+### 39.8 semver・テスト
+
+新規モジュール `data_table` + 既定 on feature `data-table` の純追加は
+既存利用者の挙動を変えないため、patch バンプ（0.20.7 → 0.20.8）とした。
+テストは native（`crates/wasm-full/src/data_table.rs` 内 `#[cfg(test)]
+mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の一部）・
+`crates/wasm-full/tests/data_table_native.rs`（headless-ui `data_table`/
+`menu`/`pagination` 出力とのドリフト検知）・
+`crates/wasm-full/tests/data_table_browser.rs`（`wasm-pack test
+--headless --chrome`、ソート巡回・改ざん検知・列表示切替・
+`indeterminate` 同期・ページング境界・link モード無視・複数インスタンス
+独立性・`Runtime::hydrate` 統合）の 3 層で検証する。

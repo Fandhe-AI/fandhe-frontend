@@ -672,7 +672,15 @@ name = "fandhe-frontend-headless-ui"
 # イシュー #2214: fieldset::legend_with_variant / LegendVariant を追加する
 # 追加的 API 変更のため patch バンプ（#2193 の close_trigger_with_variant
 # 追加時と同粒度）。
-version = "0.69.1"
+#
+# イシュー #2126（PR #2352 codex-review P1 是正）: `column_toggle_item` へ
+# 新規公開定数 `COLUMN_TOGGLE_ITEM_MARKER`（固定マーカー属性）を追加し、
+# 同関数の出力へ常時付与するようにした。列表示切替専用の menu
+# checkbox-item を、同じ data-table 内の無関係な checkbox-item（`data-value`
+# が偶然列 id と一致するもの）から wasm-full 配線層が明示的に識別できる
+# ようにするための追加的変更（既存シグネチャ不変、出力属性の純追加）の
+# ため patch バンプする。
+version = "0.69.2"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
