@@ -209,12 +209,14 @@
 //! - **`data-invalid` 時のラベル/`item-text` 文字色**: shadcn はラベル文字色
 //!   も赤くするが、本モジュールは `item-control` の `border-color` のみを
 //!   danger 化し、ラベル/`item-text` の文字色は変更しない（**3 者参照競合**:
-//!   chakra-ui / Radix Themes の値を採用し shadcn には追随しない）。これは
-//!   [`crate::field`] rustdoc の「invalid はコントロールの枠線色と
-//!   `error-text` の表示切替で伝える」判断、および [`crate::checkbox`] の
-//!   「shadcn/ui との突合（イシュー #2011）」節が同一観点で下した判断を
-//!   踏襲したものであり、本クレート全体の視覚言語一貫性を優先して意図的に
-//!   合わせない。
+//!   chakra-ui / Radix Themes の値を採用し shadcn には追随しない）。
+//!   [`crate::field`]（#2147）・[`crate::checkbox`]（#2159）はいずれも後日
+//!   shadcn-ui の値を採って `label[data-invalid]` の文字色を danger 化した
+//!   が、本モジュールは上記の 3 者参照競合判定を引き続き据え置く（field/
+//!   checkbox の判断はいずれも「唯一の根拠が旧 field 判断の踏襲だった」
+//!   ことを理由とする揺り戻しであり、本モジュールは独自の 3 者参照競合
+//!   判定を根拠に持つため対象外）。radio_group をも整合させる再検討は
+//!   別イシューとする。
 //! - **card 風（枠付きカード + 選択時のアクセントボーダー）**: shadcn の
 //!   Examples に見られる合成パターンだが、本クレートでは [`crate::radio_card`]
 //!   が独自の `data-scope="radio-card"` anatomy（`item_text`/

@@ -3310,7 +3310,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追随。本クレート自身のソース変更は伴わないが、`Cargo.toml` の変更のため
 # `version-bump-exempt` は使わず patch バンプし、0.185.0 を +1 した
 # 0.185.1 とする。
-version = "0.185.1"
+#
+# イシュー #2159: `checkbox` の `label` slot へ `data-invalid` state を
+# 純追加した（`crate::field` の #2147 と同一根拠、shadcn-ui の
+# `data-[invalid=true]:text-destructive` 相当）。CSS 出力の変更のため
+# `version-bump-exempt` は使えない。Rust API シグネチャは不変の意匠調整の
+# ため patch バンプし、0.185.1 を +1 した 0.185.2 とする。
+version = "0.185.2"
 
 
 edition = "2021"
