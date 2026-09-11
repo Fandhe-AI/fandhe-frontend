@@ -234,6 +234,50 @@
 //!   是正で非対称になった。out-of-scope-tracking に従い別イシューとして
 //!   起票・追跡する）。
 //!
+//! # 選択時カード背景塗り（イシュー #2213）
+//!
+//! 背景・経緯: PR #2163（radio-group の shadcn 突合）の対象外節と #2018
+//! コメント（イシュー本文の「#2016 コメント」表記は誤記と判断した。#2016
+//! 唯一のコメントは pin-input の責務境界メモで本イシューと無関係）に、
+//! 「shadcn/ui のカード選択パターンは選択時にカード面も塗るが、本
+//! モジュールは枠線 + `box-shadow` のみで面は未選択時と同じ」という
+//! 改善候補が記録されていた。本イシューはこれを解消する。
+//!
+//! **参照競合の判定**: radio-card の `item` の checked 背景は shadcn-ui の
+//! 値（選択時にカード面を塗る）を採る。理由は、選択状態を 1px 枠線 +
+//! `box-shadow` のみに依存させず面でも伝えるため。ただし塗り色は shadcn の
+//! 中立グレーではなく palette 軸に整合する `--fandhe-palette-subtle`
+//! （[`crate::steps`]/[`crate::timeline`] と同じトークン）を用い、
+//! chakra-ui（既定 variant は枠線のみ）/ Radix Themes（枠線のみ）には
+//! 追随しない。
+//!
+//! **checked × hover の相互作用**: `item` の hover 規則
+//! （`:hover:not([data-disabled])`、specificity (0,4,0)）は checked 規則
+//! （(0,3,0)）より詳細度が高いため、checked ブロックへ `background` を
+//! 足すだけでは、選択中カードに hover した瞬間に palette 淡色が
+//! `hover_bg_muted()` の中立グレーへ洗い流されてしまう（`recipe.rs` の
+//! [`crate::recipe::StateCondition::HoverExceptAttr`] rustdoc に記録された
+//! 「Hover washes out state」と同型の回帰）。本モジュールは
+//! [`crate::checkbox`]/[`crate::checkbox_group`] の checked 規則が
+//! [`crate::recipe::hover_bg_solid_with_fallback`] で `--fandhe-hover-bg`
+//! を再定義するのと同型のパターンを踏襲し、checked ブロック内で
+//! `--fandhe-hover-bg` を `var(--fandhe-palette-muted, var(--fandhe-color-
+//! accent-muted))` へ再定義する（hover セレクタ自体・
+//! `hover_surface_declarations()` の登録は変更しない、間接参照 1 段の
+//! 上書きのみ）。単一消費者のため `recipe.rs` へ新規 `pub fn` は追加せず
+//! `decl` 直書きに留める（2 例目が出た時点で共通化を検討する）。結果:
+//! 選択中カードは通常時 subtle、hover 時 muted（同一 palette 内で 1 段
+//! 濃くなる）、未選択カードは従来どおり bg → bg-muted のまま。
+//!
+//! **副作用として許容し修正しない点**:
+//! - [`item`] へ `data-invalid` と `data-state="checked"` が同時に付いた
+//!   場合、`data-invalid` 規則が checked 規則より後に登録されているため
+//!   danger 枠線 + palette-subtle 背景の組み合わせになる。
+//! - [`item_text`]/[`item_description`] は自身に `color` トークンを持つため
+//!   文字色は変わらない（[`item`] へ `color` は追加しない）。
+//! - [`item_indicator`] 内側ドットの `inset ... var(--fandhe-color-bg)` は
+//!   palette-subtle 面上でも白（bg 色）のまま（chakra と同型、許容）。
+//!
 //! # `data-value` 語彙（イシュー #1063）
 //!
 //! `data-value`（[`item`] が出力、値は選択肢の値）は
@@ -380,6 +424,24 @@ fn recipe() -> SlotRecipe {
                 decl(
                     "box-shadow",
                     "0 0 0 1px var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                // イシュー #2213: 選択状態を枠線・box-shadow だけに頼らず
+                // カード面でも伝える（shadcn-ui のカード選択パターン準拠、
+                // モジュール冒頭 rustdoc「選択時カード背景塗り」節参照）。
+                decl(
+                    "background",
+                    "var(--fandhe-palette-subtle, var(--fandhe-color-accent-subtle))",
+                ),
+                // hover 時に checked カードが中立色（`hover_bg_muted()` の
+                // `--fandhe-color-bg-muted`）へ洗い流されないよう、checked
+                // ブロック内で `--fandhe-hover-bg` を palette-muted 系へ
+                // 再定義する（`checkbox.rs`/`checkbox_group.rs` の checked
+                // 規則が `hover_bg_solid_with_fallback()` で同じカスタム
+                // プロパティを上書きするのと同型のパターン。hover セレクタ
+                // 自体は `hover_surface_declarations()` 1 本のまま変更しない）。
+                decl(
+                    "--fandhe-hover-bg",
+                    "var(--fandhe-palette-muted, var(--fandhe-color-accent-muted))",
                 ),
             ],
         )
@@ -869,6 +931,35 @@ mod tests {
             css.contains(r#"[data-scope="radio-card"][data-part="item"][data-state="checked"]"#)
         );
         assert!(css.contains("border-color: var(--fandhe-palette, var(--fandhe-color-accent));"));
+    }
+
+    #[test]
+    fn stylesheet_checked_item_fills_card_background_and_overrides_hover() {
+        // イシュー #2213: checked ブロック内で `background` と
+        // `--fandhe-hover-bg` の 2 宣言が既存の border-color/box-shadow に
+        // 続けて登録されていることを固定する（純追加・出力順の証跡）。
+        let css = stylesheet();
+        let start = css
+            .find(r#"[data-scope="radio-card"][data-part="item"][data-state="checked"] {"#)
+            .expect("checked item block must exist");
+        let end = css[start..]
+            .find('}')
+            .expect("checked item block must close");
+        let block = &css[start..start + end];
+        assert!(block.contains(
+            "background: var(--fandhe-palette-subtle, var(--fandhe-color-accent-subtle));"
+        ));
+        assert!(block.contains(
+            "--fandhe-hover-bg: var(--fandhe-palette-muted, var(--fandhe-color-accent-muted));"
+        ));
+        // 宣言順: border-color → box-shadow → background → --fandhe-hover-bg
+        let border_pos = block.find("border-color:").expect("border-color present");
+        let shadow_pos = block.find("box-shadow:").expect("box-shadow present");
+        let bg_pos = block.find("background:").expect("background present");
+        let hover_pos = block
+            .find("--fandhe-hover-bg:")
+            .expect("--fandhe-hover-bg present");
+        assert!(border_pos < shadow_pos && shadow_pos < bg_pos && bg_pos < hover_pos);
     }
 
     #[test]

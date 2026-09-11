@@ -1627,6 +1627,7 @@ const RADIO_CARD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size`/`colorPalette` variant クラスを `root` へ付与し、`role=\"radiogroup\"` を固定付与する。",
         "`item`/`item_control`/`item_content`/`item_text`/`item_description`/`item_addon`/`item_indicator`/`item_hidden_input` の各パーツでカード形状の選択肢を構成する。",
+        "選択中の `item` は palette-subtle 背景（`--fandhe-palette-subtle`）+ palette 枠線で強調される（イシュー #2213）。",
     ],
     arguments: &[
         ArgRow {
