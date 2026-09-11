@@ -187,6 +187,20 @@ async fn wait_for(mut condition: impl FnMut() -> bool) {
     }
 }
 
+/// Promise マイクロタスクを 1 回消化するまで待つ（`headless_avatar_browser.rs::
+/// microtask_tick` と同型）。`insert_adjacent_html` 等の同期的な DOM 変異は
+/// `MutationRecord` を同期的にマイクロタスクキューへ積むため、本関数が作る
+/// `Promise::resolve` の `then` コールバックはそれより後のマイクロタスクと
+/// して実行される。よって本関数から復帰した時点で `handle_mutations`
+/// コールバックの実行は完了していることが保証される（「何も起きない」
+/// ことを確認する回帰テストで、固定 `sleep` に頼らず決定的に待機する）。
+async fn microtask_tick() {
+    let promise = js_sys::Promise::resolve(&wasm_bindgen::JsValue::NULL);
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .expect("microtask promise must resolve");
+}
+
 // --- 初期同期 ---
 
 #[wasm_bindgen_test]
@@ -731,6 +745,109 @@ async fn prepend_into_keyed_list_wrapper_inside_content_is_detected() {
         before_top + expected_delta,
         "keyed_list の data-bind-list 要素への先頭挿入が Prepend として \
          検知され、scrollTop が高さ増分だけ補正されること"
+    );
+}
+
+/// Bugbot 指摘（PR #2312、`message_scroller.rs:772-784`）の回帰テスト:
+/// メッセージ 1 件の内部にネストした keyed list（添付・リアクション・
+/// ツールステップ等、それ自身も `data-bind-list` を持つ）への挿入は、
+/// たとえその挿入が先頭位置（`previousSibling` 無し）であっても、会話
+/// リスト本体（`content` 直下の最も浅い `data-bind-list`）への履歴先頭
+/// 挿入とは扱わず、`scrollTop` 補正・`data-has-new` 付与のいずれも
+/// 行わないこと（旧実装は任意の `data-bind-list` 子孫を会話リストと
+/// みなし、この操作を Prepend と誤判定して `scrollTop` をずらしていた）。
+#[wasm_bindgen_test]
+async fn prepend_into_nested_bind_list_inside_message_is_ignored() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-nested-bind-list-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    // 会話リスト本体（`messages`）1 件のメッセージが、それ自身の内部に
+    // ネストした keyed list（`attachments`）を 1 件持つ構成を再現する。
+    let attachments = keyed_list(
+        "div",
+        vec![],
+        "attachments",
+        vec![("att-1".to_string(), fixed_height_child(20))],
+    )
+    .expect("keyed_list must not fail for well-formed items");
+    // viewport（100px）を既存の固定高さ項目（90px）でほぼ埋めておき、
+    // 添付リストへの追加分（30px）で `scrollHeight` が `clientHeight`
+    // （100px）を超えて実際に増加するようにする（`scrollHeight` は
+    // `clientHeight` を下回らないため、埋めずに増分だけでは高さ変化が
+    // 観測できない。`streaming_text_replacement_is_classified_as_grow_not_prepend`
+    // と同じ配慮）。
+    let message_item = el_owned("div", vec![], vec![fixed_height_child(90), attachments]);
+    let messages = keyed_list(
+        "div",
+        vec![],
+        "messages",
+        vec![("m-1".to_string(), message_item)],
+    )
+    .expect("keyed_list must not fail for well-formed items");
+    let node = root(
+        MessageScrollerRootProps {
+            stuck: HeadlessStuck::Free,
+            has_new: false,
+        },
+        vec![("id", "ms-nested-bind-list")],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:100px;overflow-y:auto")],
+                vec![content(vec![], vec![messages])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    );
+    let instance_root = mount(&container, &node);
+    let viewport = find_viewport(&instance_root);
+    let content_el = find_content(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    // free のまま、利用者が少し下へスクロールした状態を作る（古い
+    // メッセージを閲覧中を模す。`prepend_into_keyed_list_wrapper_inside_
+    // content_is_detected` と同じ検証形）。
+    simulate_user_scroll(&viewport, 10);
+    wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    let before_top = viewport.scroll_top();
+    let before_height = viewport.scroll_height();
+
+    // 会話リスト（`messages`）ではなく、メッセージ内部にネストした
+    // `attachments` リストへ、先頭位置（`previousSibling` 無し）で
+    // 追加する。旧実装はこの `data-bind-list` を会話リストと誤認し、
+    // Prepend として `scrollTop` を補正していた。
+    let attachments_wrapper = content_el
+        .query_selector("[data-bind-list=\"attachments\"]")
+        .expect("query_selector must not fail")
+        .expect("nested attachments data-bind-list wrapper must exist");
+    let new_attachment = render(&fixed_height_child(30));
+    attachments_wrapper
+        .insert_adjacent_html("afterbegin", &new_attachment)
+        .expect("insert_adjacent_html must not fail");
+
+    // `insert_adjacent_html` による高さ変化は同期的に反映されるため、
+    // `wait_for`（「真になるまで待つ」用途）ではなく `microtask_tick`
+    // （`handle_mutations` コールバックの実行完了を保証する）を使って
+    // 「何も起きない」ことを検証する。
+    let expected_height = before_height + 30;
+    assert_eq!(viewport.scroll_height(), expected_height);
+    microtask_tick().await;
+
+    assert_eq!(
+        viewport.scroll_top(),
+        before_top,
+        "ネストした data-bind-list（会話リストより深い）への先頭挿入で \
+         scrollTop が変化しないこと"
+    );
+    assert!(
+        !instance_root.has_attribute("data-has-new"),
+        "ネストした data-bind-list への追加が data-has-new を \
+         立てないこと"
     );
 }
 
