@@ -81,7 +81,7 @@ Phase 1〜3（#2008〜#2056）は本記録の判定基準を「合わせる／�
 
 **判定対象・母数**: Phase 1〜3（#2008〜#2056）の closing PR 46 件のうち、§8 改訂（2026-09-07、PR #2155）以前にマージ済みの 11 件（#2009/#2010/#2011/#2012/#2014/#2015/#2027/#2028/#2029/#2030/#2032、イシュー本文に定型行テンプレートがなく記録義務の対象外）を除いた **35 件** を母数とする。
 
-**情報源**: 「参照競合の判定」の定型行は PR 本文に限らず 4 経路に分散して記録されている。(1) closing PR 本文（#2177 date-picker、#2238 table の 2 件）、(2) closing PR のコミット本文（#2231 progress の 1 件）、(3) issue コメント（#2018 radio-group / #2024 toggle-group / #2026 accordion / #2035 navigation-menu / #2038 splitter / #2041 tooltip / #2045 badge / #2046 card / #2050 skeleton / #2055 text / #2056 heading・blockquote・list・code の 11 issue）、(4) rustdoc（`crates/pre-styled-ui/src/` 19 ファイル + `crates/headless-ui/src/data_table.rs`、計 37 箇所）。
+**情報源**: 「参照競合の判定」の定型行は PR 本文に限らず 4 経路に分散して記録されている。(1) closing PR 本文（#2177 date-picker、#2238 table の 2 件）、(2) closing PR のコミット本文（#2231 progress の 1 件）、(3) issue コメント（#2018 radio-group / #2024 toggle-group / #2026 accordion / #2035 navigation-menu / #2038 splitter / #2041 tooltip / #2045 badge / #2046 card / #2050 skeleton / #2055 text / #2056 heading・blockquote・list・code の 11 issue）、(4) rustdoc（`crates/pre-styled-ui/src/` 20 ファイル + `crates/headless-ui/src/data_table.rs` の計 21 ファイル、計 34 箇所）。
 
 **集計結果**: 4 経路すべてを対象に `参照競合の判定` を含む記述を横断的に収集し、「判定不能」（競合を挙げながら採用軸を確定していない記述）・「矛盾」（同一部品・同一要素で異なる参照軸を採った記録、または理由の説明なく判断が割れた記録）に該当する記述を検索した結果、**該当 0 件**だった（`crates/pre-styled-ui/src` / `crates/headless-ui/src` / 本ポリシー文書 / `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` に対する `判定不能` / `矛盾` の全文検索でも、参照競合の判定と無関係な箇所〔設計上の非矛盾を確認する記述・条件式のコメント等〕以外に一致なし）。抽出できた判定はいずれも「理由付きで単一の参照軸（多くは chakra-ui / Radix Themes、一部 shadcn-ui）を採る」形か、「競合なし（純追加のみ）」の明示（#2041 tooltip、#2038 splitter 等）のいずれかであり、35 件中で判定不能・矛盾は **0 件**（目安の 5 件を大きく下回る）。
 
@@ -89,4 +89,4 @@ Phase 1〜3（#2008〜#2056）は本記録の判定基準を「合わせる／�
 
 **運用上の所見**: 定型行の記録先が PR 本文だけでなく issue コメント・コミット本文・rustdoc の 4 経路へ分散していることが判明した。矛盾ではなく記録先の分散であり、今後 §8 の運用を監査する際は PR 本文のみでなく 4 経路を横断して確認する必要がある。
 
-**本判定のスコープ外**: `crates/pre-styled-ui/src/{collapsible,hover_card,accordion,input,drawer}.rs` の rustdoc に旧「補完参照」表記が残存している（#2161 後の残存、5 ファイル）。表記の是正は `crates/` の `src/` 変更を伴い version-bump-guard の対象となるため、本イシュー（#2158、docs のみ）のスコープ外として別 Issue 化を提案する。
+**付随確認（旧「補完参照」表記の残存確認）**: `crates/pre-styled-ui/src/*.rs` を「補完参照」で全文検索すると 14 ファイル（`accordion` / `breadcrumb` / `carousel` / `checkbox` / `collapsible` / `date_picker` / `drawer` / `field` / `hover_card` / `input` / `menu` / `native_select` / `pin_input` / `radio_group`）に語自体は残るが、いずれも「2026-09-07 のユーザー判断〔イシュー #2153〕で shadcn/ui は主基準の 1 つへ改訂されたが、本節の判断内容は改訂後も不変」の趣旨の注記を伴う履歴記述であり、現在の位置づけと矛盾する未修正表記ではない。是正が必要な残存はなかった。
