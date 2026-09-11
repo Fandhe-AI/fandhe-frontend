@@ -101,7 +101,7 @@ use fandhe_frontend_pre_styled_ui::select;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::stylesheet::StyleSheet;
 use fandhe_frontend_pre_styled_ui::switch;
-use fandhe_frontend_pre_styled_ui::tabs::{self, ActivationMode, TabItem, TabsProps};
+use fandhe_frontend_pre_styled_ui::tabs::{self, ActivationMode, TabItem, TabsProps, TabsVariant};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::tooltip;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Orientation, Size};
@@ -170,8 +170,12 @@ fn showcase_row(children: Vec<Node>) -> Node {
 /// pre-styled-ui の headless ラッパー（`fandhe_frontend_pre_styled_ui::tabs` は
 /// headless 層の `tabs`/`TabsProps`/`TabItem` を再エクスポートし、既定 CSS を
 /// `stylesheet()` で追加提供する）を使う。
+/// 0.185.0（イシュー #2039）以降 `tabs::tabs` は `TabsVariant`（Line/Enclosed）
+/// を第 1 引数に取る styled ラッパーへ変わった。本サンプルは従来の見た目
+/// （下線スタイル）を維持するため [`TabsVariant::Line`] を渡す。
 fn tabs_section() -> Node {
     let node = tabs::tabs(
+        TabsVariant::Line,
         Size::Md,
         ColorPalette::Accent,
         &TabsProps {
@@ -1526,15 +1530,19 @@ mod tests {
         // （`DEFAULT_COLORS`）も同じライト値 `#3182ce` を持つため、CSS 全体
         // からの単純な文字列不在ではなく `--fandhe-color-accent:` 宣言行
         // そのものが上書き後の値を指すことのみを断定する（`info` 側は
-        // upsert 対象外のため変更されないのが正しい挙動）。`#4299e1`
-        // （既定 `accent` のダーク値）は `DEFAULT_COLORS` 中で他トークンと
-        // 衝突しない一意な値のため、単純な文字列不在で断定できる。
+        // upsert 対象外のため変更されないのが正しい挙動）。イシュー #2219
+        // で pre-styled-ui 0.185.0 へ追随した際、新設された `sidebar-accent`
+        // トークン（`DEFAULT_COLORS`）が `accent` と同じダーク値 `#4299e1`
+        // を持つようになったため、`#4299e1` も CSS 全体からの単純な文字列
+        // 不在では断定できなくなった（`sidebar-accent` は upsert 対象外の
+        // ため変更されないのが正しい挙動）。よって `--fandhe-color-accent:`
+        // 宣言行そのものが上書き後の値を指すことのみを断定する。
         assert!(
             !css.contains("--fandhe-color-accent: #3182ce;"),
             "default accent light value should be overridden"
         );
         assert!(
-            !css.contains("#4299e1"),
+            !css.contains("--fandhe-color-accent: #4299e1;"),
             "default accent dark value should be overridden"
         );
     }
