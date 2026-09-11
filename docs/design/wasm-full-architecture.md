@@ -2444,9 +2444,92 @@ dispatch されてしまう（`crates/wasm-full/tests/feature_gating_contract.rs
 祖先探索をその場で打ち切るようにした。「マッピング表に存在しない
 part」（`item-text` 等）は従来どおり祖先方向への探索を継続する。
 
-## 36. `tabs_indicator` モジュール（イシュー #2211）
+## 36. dist-server 配布物の feature 集合を最小インタラクティブ構成へ縮小（イシュー #2329）
 
-### 36.1 背景・責務境界
+### 36.1 背景・目的
+
+`docs/design/wasm-full-feature-gating-evaluation.md` §8 で提示された 2
+選択肢のうち (A)（dist-server 配布物の feature 集合を「最小インタラク
+ティブコンポーネント」の定義に合わせて縮小し、`bundle_size.rs` の計測
+構成も同一に保つ）がユーザー判断（2026-09-11）で採用された。#2209/#2332
+是正時点の暫定構成（`default` から `position` のみを除いた集合、
+`WASM_FULL_DIST_FEATURES`）は REQ-11 上限に対する余裕が乏しく
+（199,167 B、余裕 833 B）、feature 集合の網羅的な最小化という §13 項目 4
+の宿題は本イシューまで残っていた。
+
+### 36.2 「最小インタラクティブコンポーネント」の採用集合
+
+```
+["wasm-bindgen-exports", "collapsible", "dialog", "popover", "tooltip", "position"]
+```
+
+判断根拠（詳細は `crates/dist-server/src/wasm_dist_features.rs` 冒頭
+コメント参照）:
+
+- REQ-11 本文の受け入れ基準（カウンター・フォーム入力・動的リスト更新
+  相当）は常時配線の `events::wire_events` と束縛点更新のみで成立し、
+  scope feature を要求しない（理論下限 = `wasm-bindgen-exports` のみ）。
+- 「button / input / dialog 系」に加え、クリック操作のみで完結する
+  disclosure / overlay 部品（collapsible / dialog / popover / tooltip）
+  を採用する。`crates/wasm-full/src/keynav.rs` にこれら 4 scope の cfg
+  分岐が存在しないこと（= keynav off でもキーボード操作が欠けないこと）
+  を確認済み。
+- `keynav`/`focus-visible`/他の scope feature（keynav の match arm を
+  持つもの）は除外する。`position` は popover/tooltip の表示位置決めに
+  必要なため含める。
+
+### 36.3 単一定義の共有方式
+
+`crates/dist-server/src/wasm_dist_features.rs` を新設し、
+`WASM_DIST_FEATURES` const・`nested_cargo_feature_args()` を定義した。
+`crates/dist-server/build.rs`・`crates/dist-server/src/lib.rs`
+（`#[doc(hidden)] pub mod`）・`crates/wasm-full/tests/bundle_size.rs`
+の 3 箇所が `#[path]` によるソースレベル共有でこのファイルを取り込み、
+配布物のネストビルドと REQ-11 計測が構造的に同一の feature 集合を
+参照する（`wasm_stage_cache`/`wasm_build_gate`/`workspace_detect` と
+同型のパターン）。手書きで `--no-default-features`/`--features`
+リテラルを複製する経路は
+`crates/xtask/tests/wasm_dist_features_contract.rs` が fail-closed に
+禁止する（「計測だけ縮小」「配布物だけ縮小」の両方を構造的に防ぐ）。
+
+### 36.4 実測
+
+`cargo test -p fandhe-frontend-wasm-full --test bundle_size --locked`:
+
+```
+bundle-size: total_gzip_bytes=120618/200000 files=2 result=PASS
+```
+
+上限余裕 79,382 B（≥ 30,000 B 基準を満たす）。ローカル環境に `wasm-opt`
+（binaryen）が存在したため soft-skip 適用結果（`wasm-opt -Os` 実行済み）を
+含む実測値である。CI（binaryen 未導入、`.claude/rules/ci.md` 参照）では
+`wasm-opt` が soft-skip され未適用のまま計測される点で構成が異なるが、
+`docs/ci/wasm-opt-adoption-evaluation.md`「#1972 の結論」節の実測（`wasm-opt`
+併用は `--remove-name-section --remove-producers-section` 単独より gzip 後
++2.7〜3.1 KB 悪化）を踏まえると、CI 側の値はむしろ本測定より小さくなる
+方向であり、判定基準に対する余裕（79 KB）を侵食する懸念はない。
+
+### 36.5 semver 判断
+
+`fandhe-frontend-dist-server`: 0.2.8 → 0.3.0。配布物に含まれる配線が
+大きく変わる実体変更（keynav・focus-visible・大半の scope・配線群別
+feature が配信 WASM から外れる）であり、`#[doc(hidden)] pub mod
+wasm_dist_features` という公開項目追加も伴うため minor バンプとした。
+`fandhe-frontend-wasm-full` の `src/`/`Cargo.toml` は本イシューで変更
+していない（`tests/bundle_size.rs` のみの変更は `version-bump-guard` の
+対象外）。
+
+### 36.6 スコープ外（Issue 化候補）
+
+feature 一覧・移行手順の利用者向けドキュメント化と examples への反映は
+`docs/design/wasm-full-feature-gating-evaluation.md` §13 項目 5（#2330）
+のスコープのまま残す。`build.rs`/`bundle_size.rs` のネストビルドへの
+`--locked` 付与の是非、`crates/wasm-full/src/lib.rs` の feature 対応表
+への「dist-server 最小構成」相互参照追記も本イシューでは行わない
+（wasm-full のバンプを伴うため）。
+## 37. `tabs_indicator` モジュール（イシュー #2211）
+
+### 37.1 背景・責務境界
 
 `fandhe-frontend-headless-ui` の `tabs`（#601）は `indicator` パーツを
 `TabsProps::indicator` で opt-in 出力できるが、SSR 時点では
@@ -2468,7 +2551,7 @@ pre-styled-ui の責務とする判断軸
   `wiring::sync_tabs_indicator_in_list`）のみ
   `#[cfg(target_arch = "wasm32")]` でゲートする。
 
-### 36.2 書き込む CSS 変数は headless 契約の 4 変数のみ
+### 37.2 書き込む CSS 変数は headless 契約の 4 変数のみ
 
 `--left`/`--top`/`--width`/`--height`（`INDICATOR_LEFT_VAR`/
 `INDICATOR_TOP_VAR`/`INDICATOR_WIDTH_VAR`/`INDICATOR_HEIGHT_VAR`）は
@@ -2480,7 +2563,7 @@ tabs は #601 で Zag 同名の契約が headless 側に既に存在するため
 をそのまま再利用する（`crates/pre-styled-ui/src/tabs.rs`・
 `navigation_menu.rs` のモジュール doc にも同旨を記録する）。
 
-### 36.3 実測の数式・書き込み手段（CSSOM）
+### 37.3 実測の数式・書き込み手段（CSSOM）
 
 `indicator` は `list` の padding box を包含ブロックとする絶対配置
 （`crates/pre-styled-ui/src/tabs.rs` の `list` base へ `position:
@@ -2491,7 +2574,7 @@ list.scroll_left`、`y` も同型、`width`/`height` は trigger のそれを
 CSSOM（`HtmlElement::style().set_property`/`remove_property`）を用い、
 `set_attribute("style", ...)` 直書きは採らない。
 
-### 36.4 `hidden`・0px・未選択時の扱い
+### 37.4 `hidden`・0px・未選択時の扱い
 
 `content_height` の「0 は焼き込まない」（§28.4）と同型の判断を採る:
 `width`/`height` が 0 以下（`display: none` 下等でレイアウト未確定）
@@ -2499,7 +2582,7 @@ CSSOM（`HtmlElement::style().set_property`/`remove_property`）を用い、
 `list` 内に見つからない場合は `data-state="inactive"`・`hidden` を設定
 し、4 変数は SSR 初期値のまま触らない。
 
-### 36.5 `crate::keynav`/`crate::headless::wire_headless_component` との統合
+### 37.5 `crate::keynav`/`crate::headless::wire_headless_component` との統合
 
 - `sync_tabs_indicator` は `crate::keynav::wire_keynav` のマウント時
   （初期同期）から呼ばれる。
@@ -2514,7 +2597,7 @@ CSSOM（`HtmlElement::style().set_property`/`remove_property`）を用い、
   対処、`content_height` §28.5 と同じ統合パターン。順序は
   `on_update → sync_content_height → sync_tabs_indicator` で固定する）。
 
-### 36.6 semver 判断
+### 37.6 semver 判断
 
 新規公開モジュール `tabs_indicator`（`sync_tabs_indicator`/
 `sync_tabs_indicator_in_list` 他）の追加と `wire_headless_component`/
@@ -2524,7 +2607,7 @@ CSSOM（`HtmlElement::style().set_property`/`remove_property`）を用い、
 base/state 純追加（既存パーツの出力バイト不変）のみのため 0.183.3 →
 0.183.4 の patch バンプとする。
 
-### 36.7 契約テスト
+### 37.7 契約テスト
 
 `crates/wasm-full/tests/tabs_indicator_browser.rs`（wasm32 ブラウザ実測、
 マウント時同期・click/automatic/manual 活性化・`indicator: false` の
