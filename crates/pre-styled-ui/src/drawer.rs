@@ -225,6 +225,56 @@
 //!   本モジュールが既に確立した方針（「効果のない transition を謳うのは
 //!   契約不整合」として開閉トランジションを見送った上記「開閉トランジション
 //!   を追加しない理由」節と同じ判断軸）に反するため見送る。
+//!
+//! ## スクロール可能コンテンツのギャップ（dialog `body` パートのミラー注記、
+//! イシュー #2220）
+//!
+//! 上記「header/body 分離による固定ヘッダー化」（本イシューのスコープ外
+//! 節）・「`content` の `position: relative`」注記は、「anatomy に header/
+//! body パートがないため実現不可」と記していたが、これは
+//! [`crate::dialog`] がイシュー #2030 で示した解決経路（headless anatomy
+//! を変更せず pre-styled 層だけでオプトインのレイアウト専用パートを追加
+//! する手段）を考慮する前の判断であり、**この経路を踏まえれば headless
+//! 変更なしで解消できる余地がある**。既存の記述自体は削除せず、本節を
+//! その上書き解釈として追記する。
+//!
+//! [`crate::dialog`] は [`crate::dialog::body`]（`data-scope="dialog"` の
+//! 10 番目の part、headless anatomy 変更なし・オプトイン・`content`/
+//! `positioner` 自体は無変更のまま維持）を新設し、`body` にのみ
+//! `overflow-y: auto; max-height: 50vh; overscroll-behavior: contain` を
+//! 宣言することで、`title`/[`description`]/[`crate::dialog::footer`] を
+//! `body` の外側の兄弟として固定したまま本文だけを縦スクロールさせる
+//! shadcn の Scrollable Content / Sticky Footer 相当を実現した（詳細は
+//! [`crate::dialog`] の「pre-styled-only `body` パート」節参照）。drawer は
+//! shadcn `Sheet`/`Drawer` の同種デモ（scrollable content + footer、上記
+//! 「shadcn/ui との突合」節の「footer/scrollable content の合成パターン」
+//! 観点）に対して同じ手段をまだ持たない。
+//!
+//! drawer 固有の考慮点（dialog の解法をそのまま移植できない・footer と
+//! 並行して検討すべき理由）:
+//!
+//! - drawer は [`DrawerPlacement`] で占有軸が変わり、`start`/`end` では
+//!   `content` の高さがビューポート全高相当になるため、dialog の固定値
+//!   `max-height: 50vh` をそのまま流用できない。`content` 自体を
+//!   `display: flex; flex-direction: column` にした上で `body` に
+//!   `flex: 1 1 auto; min-height: 0; overflow-y: auto` を与える設計（`content`
+//!   の残り高さを `body` が埋める）が候補になる。
+//! - footer 相当は本モジュールが既に記録済みのとおり anatomy に存在せず、
+//!   dialog の [`crate::dialog::footer`] と同じく pre-styled-only パートと
+//!   して並行して追加する案が対になる（`body` 単独では見出し固定は
+//!   できても、アクション列固定にはならない）。
+//! - `fandhe-frontend-wasm-full` が drawer scope を未配線（本モジュール
+//!   「shadcn/ui との突合」節「close ボタン」参照）である点は `body` の
+//!   追加自体には影響しない（レイアウト専用パートであり JS 配線を要しない、
+//!   dialog `body` と同じ性質）。
+//!
+//! 本イシュー #2220 では記録のみに留め、`body`（および `footer`）パート
+//! そのものの新設は行わない。実装は headless-ui の anatomy 変更を伴わない
+//! ため `.claude/rules/out-of-scope-tracking.md` に従いユーザー承認後の
+//! 別イシュー候補とし、着手時は [`crate::dialog`] のイシュー #2030 実装
+//! （`SLOTS` への純追加・`tests/drawer_css.rs` 相当の golden 更新・
+//! `data_attr_vocabulary.rs`/`xss_escape_styled.rs` の拡張・showcase
+//! 反映・minor/patch バンプ判断）を雛形にする。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
