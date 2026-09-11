@@ -114,6 +114,7 @@ use fandhe_frontend_pre_styled_ui::color_swatch::{
 use fandhe_frontend_pre_styled_ui::data_list::{
     self, DataListOrientation, DataListProps, DataListVariant,
 };
+use fandhe_frontend_pre_styled_ui::data_table::{self, DataTable, DataTableProps, SortDirection};
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
 use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
@@ -884,6 +885,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: data_list_section,
     },
     ComponentPage {
+        path: "/themes/data-table/",
+        render: data_table_section,
+    },
+    ComponentPage {
         path: "/themes/stat/",
         render: stat_section,
     },
@@ -1161,6 +1166,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::quote::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::strong::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::table::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::data_table::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::data_list::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timeline::css())?;
@@ -12676,6 +12682,283 @@ fn table_section() -> Node {
     )
 }
 
+/// DataTable 節（イシュー #2127）: 表本体は `table` mod をそのまま使い、
+/// `data_table::column_header_attrs`/`row_attrs` を `table::column_header`/
+/// `table::row` の `attrs` へパススルーする Themes 推奨経路を実演する
+/// （`src/data_table.rs` モジュール doc「Themes 推奨の組み立て」節参照）。
+/// 無 JS の docs-site のため、ソート済み・行選択済み・列非表示済みの
+/// 静的表示のみを示す（`fandhe-frontend-wasm-full` への配線は #2126）。
+fn data_table_section() -> Node {
+    fn row_select_checkbox(name: &str, state: CheckedState, label: &str) -> Node {
+        let props = CheckboxProps {
+            checked: state,
+            ..CheckboxProps::default()
+        };
+        checkbox::root(
+            Size::Sm,
+            ColorPalette::Accent,
+            &props,
+            vec![],
+            vec![
+                checkbox::hidden_input(&props, name, "on", vec![("aria-label", label)]),
+                checkbox::control(
+                    &props,
+                    vec![],
+                    vec![checkbox::indicator(&props, vec![], vec![])],
+                ),
+            ],
+        )
+    }
+
+    let table_state = DataTable::new(
+        Some(("name".to_string(), SortDirection::Ascending)),
+        vec!["email".to_string()],
+    );
+    let name_column = data_table::ColumnProps {
+        id: "name",
+        hidden: false,
+    };
+    let email_column = data_table::ColumnProps {
+        id: "email",
+        hidden: true,
+    };
+    let role_column = data_table::ColumnProps {
+        id: "role",
+        hidden: false,
+    };
+
+    let default_demo = data_table::root(
+        DataTableProps::default(),
+        vec![],
+        vec![
+            data_table::toolbar(
+                vec![],
+                vec![
+                    text("Filter by name..."),
+                    data_table::column_toggle_item(
+                        &email_column,
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Email")],
+                    ),
+                ],
+            ),
+            table::root(
+                TableProps {
+                    interactive: true,
+                    ..TableProps::default()
+                },
+                vec![],
+                vec![
+                    table::header(
+                        vec![],
+                        vec![table::row(
+                            vec![],
+                            vec![
+                                table::column_header(
+                                    vec![("scope", "col")],
+                                    vec![row_select_checkbox(
+                                        "select-all",
+                                        CheckedState::Indeterminate,
+                                        "Select all rows",
+                                    )],
+                                ),
+                                table::column_header(
+                                    data_table::column_header_attrs(
+                                        &data_table::ColumnHeaderProps {
+                                            column: name_column,
+                                            sort: Some(
+                                                table_state.sort_direction_of("name").unwrap(),
+                                            ),
+                                        },
+                                    ),
+                                    vec![data_table::sort_trigger(
+                                        &table_state,
+                                        "name",
+                                        vec![],
+                                        vec![text("Name")],
+                                    )],
+                                ),
+                                table::column_header(
+                                    data_table::column_header_attrs(
+                                        &data_table::ColumnHeaderProps {
+                                            column: email_column,
+                                            sort: None,
+                                        },
+                                    ),
+                                    vec![text("Email")],
+                                ),
+                                table::column_header(
+                                    data_table::column_header_attrs(
+                                        &data_table::ColumnHeaderProps {
+                                            column: role_column,
+                                            sort: None,
+                                        },
+                                    ),
+                                    vec![text("Role")],
+                                ),
+                            ],
+                        )],
+                    ),
+                    table::body(
+                        vec![],
+                        vec![
+                            table::row(
+                                data_table::row_attrs(true),
+                                vec![
+                                    table::cell(
+                                        vec![],
+                                        vec![row_select_checkbox(
+                                            "select-alice",
+                                            CheckedState::Checked,
+                                            "Select row",
+                                        )],
+                                    ),
+                                    table::cell(
+                                        data_table::column_attrs(&name_column),
+                                        vec![text("Alice")],
+                                    ),
+                                    table::cell(
+                                        data_table::column_attrs(&email_column),
+                                        vec![text("alice@example.com")],
+                                    ),
+                                    table::cell(
+                                        data_table::column_attrs(&role_column),
+                                        vec![text("Admin")],
+                                    ),
+                                ],
+                            ),
+                            table::row(
+                                data_table::row_attrs(false),
+                                vec![
+                                    table::cell(
+                                        vec![],
+                                        vec![row_select_checkbox(
+                                            "select-bob",
+                                            CheckedState::Unchecked,
+                                            "Select row",
+                                        )],
+                                    ),
+                                    table::cell(
+                                        data_table::column_attrs(&name_column),
+                                        vec![text("Bob")],
+                                    ),
+                                    table::cell(
+                                        data_table::column_attrs(&email_column),
+                                        vec![text("bob@example.com")],
+                                    ),
+                                    table::cell(
+                                        data_table::column_attrs(&role_column),
+                                        vec![text("Member")],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            data_table::footer(
+                vec![],
+                vec![data_table::selection_count(
+                    vec![],
+                    vec![text("1 of 2 row(s) selected.")],
+                )],
+            ),
+        ],
+    );
+
+    let loading_demo = data_table::root(
+        DataTableProps {
+            loading: true,
+            empty: false,
+        },
+        vec![],
+        vec![table::root(
+            TableProps::default(),
+            vec![],
+            vec![table::body(
+                vec![],
+                (0..3)
+                    .map(|_| {
+                        table::row(
+                            vec![],
+                            vec![
+                                table::cell(
+                                    vec![],
+                                    vec![skeleton(
+                                        &SkeletonProps {
+                                            variant: SkeletonVariant::Text,
+                                            animation: SkeletonAnimation::Pulse,
+                                        },
+                                        vec![],
+                                    )],
+                                ),
+                                table::cell(
+                                    vec![],
+                                    vec![skeleton(
+                                        &SkeletonProps {
+                                            variant: SkeletonVariant::Text,
+                                            animation: SkeletonAnimation::Pulse,
+                                        },
+                                        vec![],
+                                    )],
+                                ),
+                            ],
+                        )
+                    })
+                    .collect(),
+            )],
+        )],
+    );
+
+    let empty_demo = data_table::root(
+        DataTableProps {
+            loading: false,
+            empty: true,
+        },
+        vec![],
+        vec![table::root(
+            TableProps::default(),
+            vec![],
+            vec![table::body(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![table::cell(
+                        vec![],
+                        vec![empty_state::root(
+                            &EmptyStateProps::default(),
+                            vec![],
+                            vec![empty_state::content(
+                                vec![],
+                                vec![
+                                    empty_state::indicator(vec![], vec![text("∅")]),
+                                    empty_state::title(vec![], vec![text("No results")]),
+                                    empty_state::description(
+                                        vec![],
+                                        vec![text("No rows match the current filter.")],
+                                    ),
+                                ],
+                            )],
+                        )],
+                    )],
+                )],
+            )],
+        )],
+    );
+
+    section(
+        "Data Table",
+        "root/toolbar/column-header/sort-trigger/select-all/select-row/footer/selection-count の 8 パーツ構成。ColorPalette/Size 等の軸は持たず、data-loading/data-empty/data-sort/data-state/data-hidden は headless の data-* を参照するのみです。表本体は table mod をそのまま使い、column_header_attrs/row_attrs を table::column_header/table::row の attrs へパススルーします（Themes 推奨経路）。",
+        vec![
+            stack(vec![default_demo]),
+            stack(vec![loading_demo]),
+            stack(vec![empty_demo]),
+        ],
+    )
+}
+
 /// DataList 節: orientation（vertical/horizontal）・variant（subtle/bold）・
 /// size（xs〜xl）の 3 軸（イシュー #1559 で variant/size を追加）。
 fn data_list_section() -> Node {
@@ -15270,7 +15553,8 @@ mod tests {
         // イシュー #2112 で Attachment を追加し 112 → 113 件になった。
         // イシュー #2119 で questionnaire が加わり 114 → 115。
         // イシュー #2123 で Message Scroller を追加し 115 → 116 件になった。
-        assert_eq!(paths.len(), 116, "COMPONENT_PAGES should have 116 entries");
+        // イシュー #2127 で Data Table を追加し 116 → 117 件になった。
+        assert_eq!(paths.len(), 117, "COMPONENT_PAGES should have 117 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

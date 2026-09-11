@@ -43,7 +43,7 @@ use fandhe_frontend_pre_styled_ui::{
     avatar, badge, breadcrumb,
     bubble::{self, BubbleGroupPosition, BubbleRootProps, BubbleVariant},
     button::{button, ButtonProps, ButtonVariant},
-    callout, card, carousel, color_swatch, data_list, empty_state, field, icon, image,
+    callout, card, carousel, color_swatch, data_list, data_table, empty_state, field, icon, image,
     item::{self, ItemMediaVariant, ItemRootProps},
     json_tree_view,
     marker::{self as marker, MarkerRootProps, MarkerTone, MarkerVariant},
@@ -55,8 +55,9 @@ use fandhe_frontend_pre_styled_ui::{
         self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
         SidebarVariant,
     },
-    skeleton, spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline, tree_view,
-    AlertProps, ColorPalette, OpenState, Orientation, Size,
+    skeleton, spinner, splitter, stat, status, steps, tab_nav,
+    table::{self, TableProps},
+    tag, timeline, tree_view, AlertProps, ColorPalette, OpenState, Orientation, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -819,6 +820,164 @@ pub(crate) const DATA_LIST: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "dl/dt/dd のネイティブ意味論のみで固有の role/aria-* は出力しない（data_list.rs 全文で role/aria-* を grep しても 0 件）。",
     }],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Data Table（イシュー #2127、親 #2124。headless anatomy は #2125）
+// ---------------------------------------------------------------------
+
+/// `/themes/data-table/` の Examples 節其の 1: `sort_trigger` を降順
+/// （`data-sort="descending"`）で表示する例。
+fn ex_data_table_sorted_descending() -> Node {
+    let table_state = data_table::DataTable::new(
+        Some(("name".to_string(), data_table::SortDirection::Descending)),
+        Vec::new(),
+    );
+    let name_column = data_table::ColumnProps {
+        id: "name",
+        hidden: false,
+    };
+    table::root(
+        TableProps::default(),
+        vec![],
+        vec![
+            table::header(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![table::column_header(
+                        data_table::column_header_attrs(&data_table::ColumnHeaderProps {
+                            column: name_column,
+                            sort: Some(table_state.sort_direction_of("name").unwrap()),
+                        }),
+                        vec![data_table::sort_trigger(
+                            &table_state,
+                            "name",
+                            vec![],
+                            vec![text("Name")],
+                        )],
+                    )],
+                )],
+            ),
+            table::body(
+                vec![],
+                vec![table::row(
+                    vec![],
+                    vec![table::cell(vec![], vec![text("Carol")])],
+                )],
+            ),
+        ],
+    )
+}
+
+/// `/themes/data-table/` の Examples 節其の 2: `column_toggle_item` で
+/// 列表示切替の項目（`data-state="checked"`）を実演する例。
+fn ex_data_table_column_toggle() -> Node {
+    let email_column = data_table::ColumnProps {
+        id: "email",
+        hidden: false,
+    };
+    div(
+        vec![],
+        vec![data_table::column_toggle_item(
+            &email_column,
+            false,
+            false,
+            vec![],
+            vec![text("Email")],
+        )],
+    )
+}
+
+pub(crate) const DATA_TABLE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "root/toolbar/column-header/sort-trigger/select-all/select-row/footer/selection-count の 8 パーツで表操作 UI を構造化する（crates/pre-styled-ui/src/data_table.rs）",
+        "ColorPalette/Size 等の見た目 variant を持たない（data_table.rs モジュール doc「軸を持たない理由」節）",
+        "column_attrs/column_header_attrs/row_attrs（node を作らない属性ヘルパ）を table::column_header/table::cell/table::row の attrs へパススルーする Themes 推奨経路を持つ（表本体は table mod をそのまま使い、新規に <table> を作らない）",
+        "sort_trigger は data-sort（none/ascending/descending）に応じて ▲/▼/↕ を ::after で表示する（raw CSS 追記、data_table.rs モジュール doc「ソート方向アイコンを raw CSS ::after で表現する理由」節）",
+        "選択行の背景は table の row パーツが持つ data-selected 規則（イシュー #2052）をそのまま利用し、本部品は独自の行背景規則を持たない",
+        "data-loading/data-empty/data-sort/data-state/data-hidden は headless の data-* を参照するのみで class ベースの軸を持たない",
+        "行の並べ替え・フィルタ・ページング処理そのもの、選択結果の保持・送信・永続化、列定義・列順の永続化は実装しない（docs/policy/intentional-non-adoption.md §3.25 規則 1。fandhe-frontend-wasm-full 側の DOM 配線は別イシュー #2126）",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root.props.loading",
+            kind: "bool",
+            default: "false",
+            description: "true の場合 data-loading + aria-busy=\"true\" を付与する。",
+        },
+        ArgRow {
+            name: "root.props.empty",
+            kind: "bool",
+            default: "false",
+            description: "true の場合 data-empty を付与する。",
+        },
+        ArgRow {
+            name: "column_header.sortable",
+            kind: "bool",
+            default: "false",
+            description: "true の場合のみ aria-sort/data-sort を出力する（false の列は非ソート列として扱う）。",
+        },
+        ArgRow {
+            name: "sort_trigger.id",
+            kind: "&str",
+            default: "-",
+            description: "対象列 id。data-value として出力され、fandhe-frontend-wasm-full の MAPPING_TABLE が読む契約。",
+        },
+        ArgRow {
+            name: "select_all.state / select_row.state",
+            kind: "CheckedState",
+            default: "Unchecked",
+            description: "全選択/行選択チェックボックスの表示状態（data-state として出力）。選択集合の保持は行わない。",
+        },
+        ArgRow {
+            name: "column_toggle_item.column",
+            kind: "&ColumnProps",
+            default: "-",
+            description: "列表示切替 1 項目の対象列。checked = !column.hidden として表示する。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Sorted (descending)",
+            description: "sort_trigger を降順で表示する例です。",
+            render: ex_data_table_sorted_descending,
+        },
+        ExampleEntry {
+            title: "Column toggle item",
+            description: "列表示切替メニューの 1 項目（Menu の checkbox item の薄いラッパ）の例です。",
+            render: ex_data_table_column_toggle,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Enter / Space",
+            description: "sort_trigger はネイティブ button（Tab で移動、Enter/Space で押下）。column_toggle_item・select_all/select_row に入れ子にする checkbox/menu のキー操作はそれぞれの部品のものを継承する。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "scope=\"col\" (column_header / select_all)",
+            description: "列見出しの WAI-ARIA/HTML 意味論を固定付与する。",
+        },
+        AriaRow {
+            attribute: "aria-sort (column_header)",
+            description: "none/ascending/descending/other の 4 値。sortable=false の列には付与しない。",
+        },
+        AriaRow {
+            attribute: "aria-busy=\"true\" (root、loading 時)",
+            description: "データ読み込み中であることを示す。",
+        },
+        AriaRow {
+            attribute: "(付与しない) role=\"toolbar\"",
+            description: "矢印キー roving focus の配線義務が生じるため意図的に不採用（data_table.rs headless 側モジュール doc「参照競合の判定」節、shadcn/ui も素の flex div を使う）。",
+        },
+        AriaRow {
+            attribute: "(付与しない) aria-live",
+            description: "選択件数（selection_count）は頻繁に変わり得るため自動読み上げを冗長にしないよう付与しない（必要ならアプリ側で付与する）。",
+        },
+    ],
     demo: None,
 };
 

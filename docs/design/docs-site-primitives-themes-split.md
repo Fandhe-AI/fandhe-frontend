@@ -223,11 +223,12 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 74
 # 総数 84(= 74 + 基盤 9 + lib.rs、実測値)
 ls crates/headless-ui/src/*.rs | wc -l                                            # => 84
-# Themes 部品ページ 122 件（実測値。イシュー #1017 で site/components/ から site/themes/ へ移行済み、
+# Themes 部品ページ 123 件（実測値。イシュー #1017 で site/components/ から site/themes/ へ移行済み、
 # イシュー #2063 で input_group、イシュー #2066 で item、イシュー #2060 で
 # button_group、イシュー #2070 で command、イシュー #2080 で radial_chart、
-# イシュー #2123 で message_scroller の Themes ページが加わった以降の実測値）
-ls site/themes/*.md | wc -l                                                       # => 122
+# イシュー #2123 で message_scroller、イシュー #2127 で data_table の
+# Themes ページが加わった以降の実測値）
+ls site/themes/*.md | wc -l                                                       # => 123
 ```
 
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
@@ -621,6 +622,18 @@ Utilities 16→**17**・6 グループ**合計 74→75**であり、§6 のコ�
 （本節末尾の表・部品名一覧・上記各追記は据え置き、本追記のみを合算値の
 正とする）。Themes は #2123 到達値の 122 部品のまま不変である
 （`data_table` の Themes ページは未実装のため）。
+
+**追記（イシュー #2127）**: `data_table` は pre-styled-ui 側実装
+（recipe・golden・`/themes/data-table/`）完了により
+`PRIMITIVES_WITHOUT_THEMES_PAGE` / `HEADLESS_UNWRAPPED`
+（`tests/wrap_state.rs`）から除外し `WRAPPED_SAME_NAME` へ移した。両
+リストは再び空になった。Themes は 122→**123** 部品となる（Primitives
+75 部品は不変）。表本体（`<table>`/`<thead>`/`<tbody>`/`<tr>`）は新規に
+作らず既存の `table` mod をそのまま使い、`column_attrs`/
+`column_header_attrs`/`row_attrs`（node を作らない属性ヘルパ）を
+`table::column_header`/`table::cell`/`table::row` の `attrs` へ渡す
+Themes 推奨経路を採る（headless doc「イシュータイトルとの差分」節の
+契約どおり）。
 
 ## 8. `component-coverage-map.md` との関係
 
