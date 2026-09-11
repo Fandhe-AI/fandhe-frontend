@@ -198,6 +198,7 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
 [data-scope="slider"][data-part="control"][data-orientation="vertical"] {
   width: auto;
   height: var(--fandhe-slider-track-length, 12rem);
+  justify-content: center;
 }
 
 [data-scope="slider"][data-part="track"][data-orientation="vertical"] {
