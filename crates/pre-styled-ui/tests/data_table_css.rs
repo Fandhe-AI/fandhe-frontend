@@ -91,6 +91,7 @@ const DATA_TABLE_GOLDEN_CSS: &str = "[data-scope=\"data-table\"][data-part=\"roo
 
 [data-scope=\"data-table\"][data-part=\"root\"][data-empty] {
   --fandhe-data-table-empty-min-height: 12rem;
+  min-height: var(--fandhe-data-table-empty-min-height);
 }
 
 [data-scope=\"data-table\"][data-part=\"sort-trigger\"]:focus-visible {

@@ -241,7 +241,10 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-empty"),
-            vec![decl("--fandhe-data-table-empty-min-height", "12rem")],
+            vec![
+                decl("--fandhe-data-table-empty-min-height", "12rem"),
+                decl("min-height", "var(--fandhe-data-table-empty-min-height)"),
+            ],
         )
         .state(
             "sort-trigger",

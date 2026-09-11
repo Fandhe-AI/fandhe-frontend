@@ -12689,7 +12689,7 @@ fn table_section() -> Node {
 /// 無 JS の docs-site のため、ソート済み・行選択済み・列非表示済みの
 /// 静的表示のみを示す（`fandhe-frontend-wasm-full` への配線は #2126）。
 fn data_table_section() -> Node {
-    fn row_select_checkbox(name: &str, state: CheckedState) -> Node {
+    fn row_select_checkbox(name: &str, state: CheckedState, label: &str) -> Node {
         let props = CheckboxProps {
             checked: state,
             ..CheckboxProps::default()
@@ -12700,7 +12700,7 @@ fn data_table_section() -> Node {
             &props,
             vec![],
             vec![
-                checkbox::hidden_input(&props, name, "on", vec![("aria-label", "Select row")]),
+                checkbox::hidden_input(&props, name, "on", vec![("aria-label", label)]),
                 checkbox::control(
                     &props,
                     vec![],
@@ -12761,6 +12761,7 @@ fn data_table_section() -> Node {
                                     vec![row_select_checkbox(
                                         "select-all",
                                         CheckedState::Indeterminate,
+                                        "Select all rows",
                                     )],
                                 ),
                                 table::column_header(
@@ -12811,6 +12812,7 @@ fn data_table_section() -> Node {
                                         vec![row_select_checkbox(
                                             "select-alice",
                                             CheckedState::Checked,
+                                            "Select row",
                                         )],
                                     ),
                                     table::cell(
@@ -12835,6 +12837,7 @@ fn data_table_section() -> Node {
                                         vec![row_select_checkbox(
                                             "select-bob",
                                             CheckedState::Unchecked,
+                                            "Select row",
                                         )],
                                     ),
                                     table::cell(
