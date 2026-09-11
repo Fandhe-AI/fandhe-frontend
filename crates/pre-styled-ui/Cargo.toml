@@ -3316,7 +3316,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # `data-[invalid=true]:text-destructive` 相当）。CSS 出力の変更のため
 # `version-bump-exempt` は使えない。Rust API シグネチャは不変の意匠調整の
 # ため patch バンプし、0.185.1 を +1 した 0.185.2 とする。
-version = "0.185.2"
+#
+# イシュー #2160: field の `helper-text` へ horizontal/responsive 時の
+# `text-wrap: balance`（shadcn/ui `FieldDescription` の
+# `group-has-[[data-orientation=horizontal]]/field` 相当、クラス条件へ
+# 読み替え）を `css()` 末尾へ純追加した。CSS 出力変更・観測可能な振る舞い
+# 変更のため `version-bump-exempt` は使えない。Rust API シグネチャは不変で
+# あり既存 variant の出力もバイト同一のままの純追加のため patch バンプと
+# し、origin/main が既に 0.185.2 を使用済みのため 0.185.2 を +1 した
+# 0.185.3 とする。
+version = "0.185.3"
 
 
 edition = "2021"
