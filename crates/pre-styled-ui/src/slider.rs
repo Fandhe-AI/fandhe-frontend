@@ -361,6 +361,21 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("width", "auto"),
                 decl("height", "var(--fandhe-slider-track-length, 12rem)"),
+                // イシュー #2216 codex-review 指摘 P1: `root` は
+                // `flex-direction: column`（`align-items` 既定値 `normal`
+                // は auto 幅の子を stretch する）であり、この `control` の
+                // `width: auto` は `label`（テキスト幅）まで幅を広げられる。
+                // `control` は `flex-direction: row`（既定）のままのため、
+                // 幅 6px 前後の固定幅 `track` は既定の
+                // `justify-content: flex-start` で左寄せされ、`control` の
+                // 中心（`thumb`/`marker` が `left: 50%` で基準にする点）から
+                // 外れて表示される。`justify-content: center` で `track` を
+                // `control` の水平中央へ寄せ、`thumb`/`marker` の `left: 50%`
+                // 基準点と一致させる（`marker-group` は `inset: 0` で
+                // `control` 全域を覆うため `marker` の `left: 50%` は
+                // 既に `control` 中心を指しており、ズレていたのは `track`
+                // のみ）。
+                decl("justify-content", "center"),
             ],
         )
         .base(
