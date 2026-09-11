@@ -1,6 +1,11 @@
 [package]
 name = "fandhe-frontend-cli"
-version = "0.4.0"
+# イシュー #2330: `embedded-examples/interactive-view-transitions`
+# （README.md・wasm/Cargo.toml.embed）・`embedded-examples/dist-server-docker`
+# （README.md）を正本 `examples/` の更新に追随してバイト単位で同期した。
+# `include_str!`（`new_template.rs`）で埋め込まれる `fw` バイナリの内容が
+# 変わるため、公開 API 不変（内部データの更新のみ）だが patch バンプする。
+version = "0.4.1"
 edition = "2021"
 description = "fandhe-frontend-cli: AI 自己保守フック向け `fw` コマンド（TASK-13.1、structure.toml のスキーマ・パース・生成）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"

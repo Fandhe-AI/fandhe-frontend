@@ -297,9 +297,18 @@ Popover/Tooltip/NavigationMenu は `false`（Menubar/NavigationMenu はイシュ
   `bottom`/`center` へ fail-closed）・`resolve_requested_placement`・
   `Measurement`・`resolve_position(kind, measurement, requested) -> RepositionResult`
   （flip/shift 常時有効・offset `0.0` 固定）。
-- 配線層（`#[cfg(target_arch = "wasm32")]`）: `reposition_all`（開いている
-  positioner を `OPEN_POSITIONER_SELECTOR` で走査）・`PositionController`
-  （scroll/resize リスナー）。
+- 配線層（`#[cfg(target_arch = "wasm32")]`）: `reposition_all`（document
+  全体の開いている positioner を `OPEN_POSITIONER_SELECTOR` で走査）・
+  `reposition_within`（`root` 自身とその子孫に走査を限定する版、イシュー
+  #2209）・`PositionController`（scroll/resize リスナー）。
+  `fandhe-frontend-wasm-full` の `headless::wire_headless_component`
+  （標準の headless 配線 API）は配線時・dispatch 成功後の 2 箇所で
+  `reposition_within` を自動的に呼び、配線時に一度だけ
+  `ensure_global_controller` で thread_local 単一の `PositionController`
+  を遅延生成する（イシュー #2209、親 #2208。詳細は
+  `docs/design/wasm-full-architecture.md` §34）。利用者が
+  `PositionController` を明示的に組み立てなくても popover/tooltip/menu
+  の `positioner` へ実座標が書き込まれる。
 - DOM 属性値（`data-side`/`data-requested-side` 等）は改ざんされうる
   クライアント入力として扱い、fail-closed でパースする。
 
@@ -310,14 +319,18 @@ Popover/Tooltip/NavigationMenu は `false`（Menubar/NavigationMenu はイシュ
 を書き込む。`headless-ui` 層（本モジュール）は SSR/SSG のいずれの出力
 経路でもこの属性を一切出力しない（[`placement_attrs`] は `data-side`/
 `data-align` の 2 属性のみを返す）。`fandhe-frontend-pre-styled-ui`
-（`crates/pre-styled-ui/src/menu.rs`/`select.rs` の `recipe()`）はこの
-非対称性を利用し、マーカーの有無で「SSR 静的フォールバック（`position:
-absolute` + ローカル座標系）」と「wasm 確定座標（`position: fixed` +
-viewport 座標系、`--fandhe-x`/`--fandhe-y` を `transform: translate3d`
-で消費）」を切り替える。マーカー不在（wasm 未稼働）では常に静的表示へ
-fail-closed に留まる。arrow（Menu のみ、`has_arrow()` が Select を対象外
-とする、§4a.2）は `--fandhe-arrow-x`/`--fandhe-arrow-y` を変数フォール
-バックのみで消費し、マーカー切り替えを必要としない。
+（`crates/pre-styled-ui/src/menu.rs`/`select.rs` の `recipe()`。イシュー
+#2210 で `popover.rs`/`tooltip.rs` の `positioner` にも同型の state 規則を
+追加した）はこの非対称性を利用し、マーカーの有無で「SSR 静的フォール
+バック（`position: absolute` + ローカル座標系）」と「wasm 確定座標
+（`position: fixed` + viewport 座標系、`--fandhe-x`/`--fandhe-y` を
+`transform: translate3d` で消費）」を切り替える。マーカー不在（wasm
+未稼働）では常に静的表示へ fail-closed に留まる。arrow（Popover/Tooltip/
+Menu のみ、`has_arrow()` が Select を対象外とする、§4a.2）は
+`--fandhe-arrow-x`/`--fandhe-arrow-y` を変数フォールバックのみで消費し、
+マーカー切り替えを必要としない（イシュー #2210 で `popover.rs`/
+`tooltip.rs` も arrow/arrow-tip を消費するようになったため、この一文は
+3 部品共通の契約として読み替える）。
 
 ## 4c. 暦計算コア（`date` モジュール）
 

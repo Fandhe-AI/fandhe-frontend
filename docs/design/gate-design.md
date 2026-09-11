@@ -469,8 +469,9 @@ structure.toml: wasm32 lint not applicable`）で明示する。`structure.toml`
   約 8 分）が CI 壁時計時間の床になっており、チェック群を CI ジョブ単位で
   並列実行できるよう実行チェックを選択する仕組みを追加した。本イシューの
   成果物は CLI 側の機能追加までであり、`gate-self-apply` を実際にチェック
-  群ごとの並列ジョブへ分割するのは後続の #2306 が担う（`.claude/rules/ci.md`
-  は変更していない）。
+  群ごとの並列ジョブへ分割するのは後続の #2306 が担う（本イシュー #2305
+  時点では `.claude/rules/ci.md` は変更していない。#2306 での CI 分割実装
+  結果は §4.1a 参照）。
 - **構文**: `fw gate --project <dir> [--verbose] --only <check>[,<check>...]`。
   `<check>` は `checks[].name` と同一の 7 値（`type_check` /
   `default_escape_check` / `url_validation_check` / `lint` / `lint_wasm32` /
@@ -522,6 +523,54 @@ structure.toml: wasm32 lint not applicable`）で明示する。`structure.toml`
     レポートは部分実行の PASS であり、フル PASS とみなしてはならない
     （`docs/policy/ai-self-maintenance-policy.md` ルール 1 が前提とする自動
     適用可否の判断基準はフル PASS のみを対象とする）。
+
+### 4.1a CI 側のジョブ分割と保証形の改訂（イシュー #2306）
+
+- **CI 構成**: `.github/workflows/ci.yml` は `gate-self-apply` 単一ジョブを
+  3 ジョブへ分割した。
+  - `gate-self-apply`: `--only type_check,default_escape_check,url_validation_check,lint,policy`
+  - `gate-self-apply-lint-wasm32`: `--only lint_wasm32`
+  - `gate-self-apply-test`: `--only test`（分割後の CI 最長ジョブ想定。
+    `test` チェックは structure.toml 宣言クレート群の `cargo test` を含み
+    クレート単位にはさらに分割していない）
+  3 ジョブとも Checkout・`Fandhe-AI/actions/rust-toolchain-setup`・
+  `#1192` ガードステップ・`tools/ci/ensure-gate-tools.sh` 前置・
+  `"gate_result":"ERROR"` grep によるアノテーション出し分けパイプラインを
+  複製し、既存の単一ジョブ実装が満たしていた契約（fail-closed・ツール
+  pin の単一真実源・共有 `CARGO_TARGET_DIR` 汚染対策）を個別に満たす。
+- **保証形の改訂**: 「`fw gate --project .` の自己適用 PASS 常時保証」
+  （イシュー #400・#1116）の主語は「単一ジョブの `gate_result: PASS`」から
+  「3 ジョブの `gate_result: PASS` の論理積（`ci-complete` ジョブが `needs:`
+  で集約し、いずれか 1 ジョブでも `success` 以外なら FAIL）」へ改訂した。
+  この改訂は既存保証を弱めない。根拠: `aggregate`（§2〜§4 の集約ロジック）
+  はチェック間の結合を持たない純関数であり、`checks` 配列に含まれる各
+  チェックの `passed`/`environment_error` のみを畳み込んで `PASS`/
+  `BLOCKED`/`ERROR` を決定する。したがって「7 チェックそれぞれが、それを
+  実行したジョブで PASS している」ことは「7 チェックを 1 ジョブで直列
+  実行して PASS する」ことと構造的に等価であり、3 ジョブの論理積は分割前
+  のフル実行 PASS と同じ保証を与える。
+- **フル実行（`--only` なし）の保険ジョブは設けない**: 判断根拠は 4 点。
+  (1) 上記の等価性が構造的に保証されるため保険を要しない、(2) `--only`
+  なしの既定経路自体は `crates/cli/tests/new_gate_e2e.rs`（生成プロジェクト
+  へのフル実行）と gate.rs のチェック名・順序契約ユニットテストが CI 上で
+  常時検証している、(3) 「7 チェックのいずれかが CI 分割から漏れる」リスク
+  は下記の網羅契約テストが fail-closed に検知する、(4) main push 限定の
+  保険ジョブは `if:` を要し `ci-complete` の skipped 許容リスト（現状
+  `version-bump-guard` のみ）を広げる fail-open 方向の変更になるうえ、
+  分割前の約 8 分のランナー消費を復活させる。
+- **網羅契約テスト**: `crates/xtask/tests/workflow_shared_target_contract.rs`
+  が、(a) `crates/cli/src/gate.rs` の `CHECK_NAMES` 配列リテラルをソース
+  テキストから行ベースで抽出し（外部 Rust パーサは追加しない、REQ-3）、
+  (b) `.github/workflows/ci.yml` の `gate --project .` を含む `run:` 行を
+  収集し、`--only` を持たない呼び出しが存在しないこと・`--only` の値の
+  カンマ分割多重集合の和が `CHECK_NAMES` と過不足なく一致することを検証
+  する。gate.rs にチェックを追加したのに CI 分割へ反映し忘れた場合、この
+  契約テストが fail-closed に検知する（`ci_workflow_gate_self_apply_jobs_cover_all_checks_exactly_once`）。
+  新設 3 ジョブいずれも `-p fandhe-frontend-dist-server` を含むチェック
+  依存や cdylib+rlib クレートのビルドを行うため、既存 3 ジョブと同じ
+  `#1192` ガードステップ完全性契約（`ci_workflow_gate_self_apply_lint_wasm32_job_has_shared_target_guard`
+  / `ci_workflow_gate_self_apply_test_job_has_shared_target_guard`）も適用
+  する。
 
 ## 5. セキュリティ不変条件
 

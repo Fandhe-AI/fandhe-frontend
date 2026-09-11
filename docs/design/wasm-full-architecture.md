@@ -314,6 +314,10 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 |---|---|---|---|
 | `collapsible`/`dialog`/`popover`/`tooltip`/`menu` | `trigger` | `"toggle"` | `""` |
 | `menu` | `trigger-item` | `"toggle"` | `""` |
+| `menu` | `checkbox-item` | `"toggle"` | `""` |
+| `menu` | `radio-item` | `"select"` | `data-value` |
+| `menubar` | `checkbox-item` | `"toggle"` | `""` |
+| `menubar` | `radio-item` | `"select"` | `data-value` |
 | `dialog`/`popover` | `close-trigger` | `"close"` | `""` |
 | `tabs` | `trigger` | `"select"` | `data-value` |
 | `radio-group` | `item` | `"select"` | `data-value` |
@@ -342,6 +346,8 @@ toolbar / menubar / date-input / pin-input の各 `decode_action` と共有
 経由するアプリで同一 click が二重解決・誤 dispatch されるため、専用の
 click 委譲（`questionnaire::wire_questionnaire_events`）を別途 `root` へ
 登録する。
+
+`menu`/`menubar` の `checkbox-item`/`radio-item` の 4 行はイシュー #2205 で追加した（詳細・keynav 側の対応拡張は §31 参照）。
 
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
 
@@ -1860,9 +1866,825 @@ patch バンプとする。`fandhe-frontend-headless-ui` は rustdoc のみの�
 だが `src/` 変更のため version-bump-guard 対象であり、同じく patch
 バンプとする（#1638 前例と同型）。
 
-## 31. `message_scroller` モジュール（イシュー #2122、親 #2120）
+## 31. keynav / headless への menu・menubar checkbox-item / radio-item 配線（イシュー #2205）
 
-### 31.1 背景・責務境界
+### 31.1 背景
+
+`crates/headless-ui/src/menu.rs`/`menubar.rs` は `checkbox_item`（
+`role="menuitemcheckbox"`・`aria-checked`・`data-state`・`data-value`）/
+`radio_item_group`/`radio_item`（`role="menuitemradio"`）を anatomy として
+出力し、状態機械 `menu::MenuCheckboxItem`（`state::Checkable` 埋め込み、
+`decode_action` は `"check"`/`"uncheck"`/`"toggle"`）/`menu::MenuRadioItemGroup`
+（`state::SingleSelect` 埋め込み、`decode_action` は `"select"` のみ）を
+提供済みだった（イシュー #597）。Menubar 側は開閉状態機械（`Menubar`）
+のみで checked 状態機械を持たず、`menubar::checkbox_item`/`radio_item`
+（イシュー #1652）も `menu::MenuCheckboxItem`/`MenuRadioItemGroup` を流用
+する前提で anatomy のみ供給していた。
+
+一方 wasm-full 側では (1) `crate::headless::MAPPING_TABLE` に
+`checkbox-item`/`radio-item` の行が無く、マウスクリックでも checked
+トグルが dispatch されない、(2) `crate::keynav` の
+`MENU_ITEM_SELECTOR`/`MENUBAR_ITEM_SELECTOR` が highlight・typeahead の
+対象に含めないため Enter/Space の click 合成の対象外、の 2 点が既知の
+ギャップとして残っていた（#1651（menu）/#1652（menubar、PR #2164 対象外
+節・#1924）参照）。本イシューはこの 2 点を解消する。
+
+### 31.2 `MAPPING_TABLE` への 4 行追加
+
+| data-scope | data-part | action | requires_value | 根拠 |
+|---|---|---|---|---|
+| `menu` | `checkbox-item` | `"toggle"` | `false` | `Checkable::decode_action` は payload を無視する。`menu`/`trigger-item` 行と同型 |
+| `menu` | `radio-item` | `"select"` | `true` | `MenuRadioItemGroup::decode_action` は `"select"` のみ受理し payload を項目値として使う |
+| `menubar` | `checkbox-item` | `"toggle"` | `false`（menu 側と異なり必須） | `Menubar::decode_action("toggle", payload)` は `payload.parse::<usize>()` する。`requires_value: true` にすると `data-value`（checkbox-item の値、Menu index ではない）がそのまま流れ、checkbox-item のみ配線し Menubar を配線していないアプリで無関係な index への誤 dispatch を招くおそれがある。payload を常に空文字列にすることで `"".parse::<usize>()` は必ず `Err` になり fail-closed で Menubar 側へは到達しない |
+| `menubar` | `radio-item` | `"select"` | `true` | `Menubar::decode_action` は `"select"` を `None` にするため衝突しない |
+
+`checkbox-item` の `"toggle"` は `Disclosure::decode_action("toggle")` にも
+一致するため、`action_for_part` 単体（(scope, part) の 1 段判定）で見れば
+checkbox-item クリックは外側 `Menu`（Disclosure 埋め込み）の `"toggle"`
+とも解釈できてしまう。本リポジトリの既存規約は「各コンポーネントインス
+タンスを自身の境界要素へ個別に `wire_headless_component` し、内側で解決
+した click は `stop_propagation` で外側へ伝播させない」（
+`crates/wasm-full/tests/headless_wiring_browser.rs::
+submenu_trigger_item_click_toggles_child_menu_and_does_not_cross_dispatch_to_parent`
+参照）であり、`checkbox_item`/`radio_item_group` もこの契約に従って
+個別配線する（`menu_checkbox_item_click_does_not_cross_dispatch_to_outer_menu`
+がこの越境防止を固定する）。
+
+**checkbox-item/radio-item の状態機械を配線していないアプリでの誤 dispatch
+是正（codex-review PR #2321 P1 指摘、実装は
+[`crate::headless::action_from_parts_scoped`] 内
+`resolved_part_targets_wired_root`）**: 当初の実装は
+`action_from_parts`（実クリック配線が経由する多段解決）が checkbox-item
+自体をそのまま解決してしまい、外側 Menu だけを配線し checkbox-item の
+checked 状態を独自の click ハンドラで管理している既存アプリで、
+checkbox-item クリックが外側 Menu の `"toggle"` として誤って dispatch
+され Menu が意図せず閉じる回帰を招いていた（実装当初は「設計上の既知
+トレードオフ」として許容していたが、`stop_propagation` 契約が前提とする
+「内側で解決した click は必ず内側の専用インスタンスへのものである」を
+実際には満たしていなかった不整合であり、是正した）。是正後は
+`collect_part_refs` の契約（`parts` の末尾は常に配線起点 root 自身の
+`PartRef`）を利用し、「解決に使われた part（checkbox-item/radio-item）が
+wire された root 自身（checkbox-item 自身 / radio-item-group 自身）で
+なければ、その解決を採用しない」を `action_from_parts_scoped` 内で
+機械的に判定する。checkbox-item/radio-item 専用インスタンスへ
+`wire_headless_component` している場合（`menu_checkbox_item_click_toggles_in_real_dom`
+等）は従来どおり解決される。native 回帰は
+`menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`/
+`menubar_checkbox_item_click_bubbled_to_outer_menubar_root_does_not_resolve`
+等、browser 回帰は
+`menu_checkbox_item_click_without_dedicated_instance_wiring_does_not_toggle_outer_menu`
+が固定する。menubar 側は `Menubar::decode_action` が元々 "toggle"（空
+payload）/"select" のいずれも受理しないため Menubar 自身への誤
+dispatch は起きないが、ガード無しでは `action_from_parts_scoped` が
+`Some` を返し `stop_propagation` だけが呼ばれてしまう（dispatch 失敗の
+有無に関わらず解決成立時点で呼ぶ契約）ため、checkbox-item/radio-item を
+独自 click ハンドラで管理する既存アプリのクリックが無言で握りつぶされる
+同種の問題が起き得た。`resolved_part_targets_wired_root` は scope を
+区別せず `menu`/`menubar` の双方へ同じ制約を課すことでこれも予防する。
+
+Menubar は checked 状態機械を持たないため、`menubar::checkbox_item`/
+`radio_item` から生成される要素も `menu::MenuCheckboxItem`/
+`MenuRadioItemGroup` を流用する（native/browser 双方のテストでこの流用
+パターンを固定する）。
+
+### 31.3 `keynav.rs` 側の拡張
+
+- `MENU_ITEM_SELECTOR` へ `[data-scope="menu"][data-part="checkbox-item"]`/
+  `[data-scope="menu"][data-part="radio-item"]` を追加。
+- `MENUBAR_ITEM_SELECTOR` へ `[data-scope="menubar"][data-part="checkbox-item"]`/
+  `[data-scope="menubar"][data-part="radio-item"]` を追加。
+- `sync_item_text_highlighted`（highlight 状態を `item-text` 子へ同期する
+  内部関数）の所有判定セレクタ `[data-part="item"]` を
+  `[data-part="item"], [data-part="checkbox-item"], [data-part="radio-item"]`
+  へ拡張。拡張しないと checkbox-item/radio-item 配下の `item-text` へ
+  `data-highlighted` が同期されず、highlight 表示が半端に欠落する。
+- `collect_parts`/`filter_own_scope_items`/`find_highlighted_index`/
+  `set_highlight`/`activate_or_open_submenu`/`item_label` はいずれも
+  part 名非依存（セレクタ・要素列のみを扱う）のため無変更で新パーツに
+  働く。Enter/Space は `activate_or_open_submenu` が highlight 中要素へ
+  `HtmlElement::click()` を合成し、`wire_headless_component` →
+  `action_from_parts` → `MAPPING_TABLE` 新行 → dispatch へ到達する
+  （keynav は `aria-checked`/`data-state` を直接書かない既存原則を維持）。
+- `item_label`（typeahead のラベル解決）は `item-text` 子を優先し、無け
+  れば要素自身の `text_content()` へフォールバックする既存の挙動を継承
+  する。`item-indicator` のみを子に持つ構成では indicator テキストが
+  ラベルへ混入しうるため、テストフィクスチャは `item-text` を持たせる
+  （是正はスコープ外、§31.6 参照）。
+
+### 31.4 テスト構成
+
+- native（`crates/wasm-full/tests/headless_wiring.rs`）: `menu`/`menubar`
+  それぞれ checkbox-item/radio-item のドリフト検知（`assert_scope_part_present`）・
+  dispatch 遷移（トグル/排他選択）・`data-value` 欠落や `disabled` の
+  fail-closed・`"toggle"`/`"select"` 語彙衝突（`action_for_part` 単体では
+  checkbox-item が外側 Menu の toggle とも解釈できるが、実クリック配線が
+  経由する `action_from_parts` は専用インスタンス root でない解決を
+  fail-closed で拒否する。`menu_checkbox_item_toggle_action_manually_dispatched_to_menu_disclosure_opens_it`
+  が `action_for_part` 単体の語彙衝突を、
+  `menu_checkbox_item_click_bubbled_to_outer_menu_root_does_not_resolve`/
+  `menubar_checkbox_item_click_bubbled_to_outer_menubar_root_does_not_resolve`/
+  `menubar_radio_item_click_bubbled_to_outer_menubar_root_does_not_resolve`
+  が `action_from_parts` 側の拒否をそれぞれ固定する。radio-item は
+  Menu/Menubar 双方でそもそも語彙が受理されず no-op）・XSS エスケープの
+  回帰を固定。
+- browser（`crates/wasm-full/tests/headless_wiring_browser.rs`）: 実 DOM
+  クリックでの checkbox-item トグル・radio-item-group 排他選択・外側
+  Menu への非越境（`stop_propagation` 契約。専用インスタンスを配線した
+  場合の `menu_checkbox_item_click_does_not_cross_dispatch_to_outer_menu`
+  に加え、専用インスタンスを一切配線していない既存アプリの再現である
+  `menu_checkbox_item_click_without_dedicated_instance_wiring_does_not_toggle_outer_menu`
+  も固定）・menubar checkbox-item/radio-item の実クリック
+  （`Menubar::open()` が不変であることも含む）・XSS 回帰を固定。
+- browser（`crates/wasm-full/tests/keynav_browser.rs`、受け入れ条件）:
+  `build_menu_dom_with_checkable_items`（`MenuItemSpec::Item`/
+  `CheckboxItem`/`RadioItem` を混在配置できる `build_menu_dom` の
+  checkable 版）を新設し、(a) Enter/Space での checkbox-item トグル・
+  DOM 反映（`on_update` 経由）、(b) Enter でのグループ内排他選択・DOM
+  反映、(c) Arrow キーでの disabled checkbox-item スキップと
+  `item-text` への `data-highlighted` 同期、(d) 攻撃者制御ラベルでの
+  XSS 回帰、(e) menubar 版（checkbox-item トグル + radio-item 選択、
+  `Menubar` 自体の open 状態は変えない）を固定する。
+
+### 31.5 semver 判断
+
+`crate::headless::MAPPING_TABLE` への行追加・`crate::keynav` のセレクタ
+拡張はいずれも加算的変更（既存シグネチャ不変）のため、
+`fandhe-frontend-wasm-full` は patch バンプとする。`fandhe-frontend-headless-ui`
+は rustdoc（既知ギャップ記述の更新）のみの変更であり、公開 API・SSR
+出力は不変のため `version-bump-exempt` を PR 本文で宣言する。
+
+### 31.6 スコープ外（Issue 化をユーザーへ提案）
+
+- `aria-checked`/`data-state` をクライアント側で自動反映する補助モジュール
+  （`headless_select::wire_select_value_text` 相当の `headless_menu`）の
+  新設。現状は `wire_headless_component` の `on_update` で呼び出し側が
+  DOM 反映を行う契約のまま（§12.2 と同じ既存原則）。
+- checkbox-item/radio-item 決定時に Menu 自体を閉じる（`closeOnSelect`
+  相当）挙動。
+- `pre-styled-ui` 側 menubar 新パーツの `SLOTS`/CSS（#1528 からの申し送り
+  継続）。
+- docs サイトの menu/menubar keyboard 節（`KeyRow`）への行追加の要否精査。
+- `item_label` が `item-text` 非保持・`item-indicator` 保持の構成で
+  indicator テキストを typeahead ラベルへ含めてしまう点の是正（本イシュー
+  はテストフィクスチャ側で `item-text` を保持させる回避のみ）。
+
+## 32. select の item-aligned 位置決め（Align Item）の評価（イシュー #2207）
+
+### 32.1 結論
+
+shadcn/ui・Radix Themes は Select の `position="item-aligned"`（選択中の
+item をトリガーへ位置合わせして開く挙動）を既定とするが、本イシューでの
+評価結果は**見送り（保留、ユーザー判断待ち）**である。詳細な一次ソース
+突合・設計案・4 軸評価は
+`docs/design/select-item-aligned-positioning-evaluation.md` を参照し、
+本節では現行 `position.rs` 契約との不整合点と、採用する場合の配置のみを
+要約する（二重管理を避けるため評価の本文は評価文書側に置く）。
+
+### 32.2 現行 `position.rs` 契約との不整合点
+
+- `PositionedKind`/`resolve_position` は anchor 矩形・floating 寸法・
+  viewport 寸法のみを入力とする kind 横断の純粋関数であり、item-aligned
+  が要求する「選択中の item・value-text・content の scroll container」の
+  矩形を扱う経路がない。
+- `PositionController` に on-open の再計算フックが存在せず（scroll/resize
+  イベント駆動か `reposition_now()` の明示呼び出しのみ）、「開いた瞬間に
+  1 回だけ位置決めする」item-aligned のライフサイクルと噛み合わない。
+- `content` は #2019 以降スクロール要素であり、#2165 の keynav
+  `scroll_item_into_view_if_needed` が highlight 変更時に `scrollTop` を
+  操作する。item-aligned の位置計算を素朴に scroll 再計算経路へ乗せると、
+  この `scrollTop` の書き込みと取り合う。#2186 の sticky scroll button
+  （`scroll-up-button`/`scroll-down-button`）は現時点では anatomy・装飾
+  （`crates/headless-ui/src/select.rs`）と keynav 側のボタン高さ差引き
+  （可視領域計算、`crates/wasm-full/src/keynav.rs`）までが実装範囲であり、
+  押下時の実スクロール自体は同モジュールの契約・
+  `docs/design/component-coverage-map.md` に後続配線として記録された未実装
+  の関心である（現時点で `scrollTop` を書き込むのは keynav の highlight
+  追従のみ）。押下スクロールが将来配線された場合は、item-aligned の位置
+  計算・keynav・ボタン押下の 3 者が `scrollTop` を取り合う競合が新たに
+  生じる点も、現状の競合とは区別して記録しておく。
+
+### 32.3 採用時の配置（§3.25 規則 2 に基づき wasm-full）
+
+計測・位置計算は headless-ui へは持ち込まず、`crates/wasm-full/src/
+position.rs`（配線層）の責務として設計する。評価文書 §7 の案 B（Select
+限定 opt-in の簡略版、`data-position="item-aligned"` を利用者が `attrs`
+で付与し wasm-full 側で分岐）が推奨案であり、headless-ui
+`crates/headless-ui/src/select.rs` は不変のまま成立する。
+
+## 33. 配線群別 feature gating（イシュー #2326）
+
+### 33.1 背景・目的
+
+REQ-11 の gzip 上限（200,000 B）に対し main は余地がほぼなく、新規配線の
+追加（message-scroller・data-table 等）が上限を割れない懸念が生じた
+（`docs/design/wasm-full-feature-gating-evaluation.md` §12 の再評価トリガー
+が発火）。本イシューは同評価文書 §6 (ii)（配線群別 feature gating）の
+第 1 段（§13 項目 1）として、`Runtime::mount`/`hydrate` が呼ぶ配線
+（`wire_*`）を配線 1 件 = feature 1 件（既定 on）へ分割した。既定は
+すべて on のため、本イシュー単体では既定構成の挙動・`bundle_size` 実測値
+に変化はない（下流〔dist-server 経路の feature 集合決定・CI feature
+matrix〕での活用は同評価文書 §13 項目 3/4 として後続 issue へ引き継ぐ）。
+
+### 33.2 対応表
+
+| `Runtime::mount`/`hydrate` の呼び出し | feature |
+|---|---|
+| `events::wire_events` | ゲートしない（`data-action` 委譲、全構成必須） |
+| `keynav::wire_readonly_click_guard` | ゲートしない（readonly RadioGroup の click capture 保護、イシュー #2326 codex-review 是正で `keynav::wire_keynav` から分離済み） |
+| `keynav::wire_keynav` | `keynav` |
+| `focus_visible::wire_focus_visible` | `focus-visible` |
+| `Runtime::wire_avatar` | `avatar` |
+| `Runtime::wire_clipboard` | `clipboard` |
+| `Runtime::wire_timer` | `timer` |
+| `Runtime::wire_angle_slider` | `angle-slider` |
+| `Runtime::wire_splitter` | `splitter` |
+| `Runtime::wire_signature_pad` | `signature-pad` |
+| `Runtime::wire_number_input` | `number-input` |
+| `Runtime::wire_command` | `command` |
+| `Runtime::wire_sidebar` | `sidebar` |
+| `Runtime::wire_chart` | `chart` |
+| `Runtime::wire_chart_range` | `chart-range` |
+| `Runtime::wire_questionnaire` | `questionnaire` |
+| `Runtime::wire_message_scroller` | `message-scroller` |
+
+`overlay`/`tooltip`/`position`/`focus_trap`/`headless_file_upload`/
+`headless_select` は `Runtime` を経由しないアプリ側直接利用 API のため
+gating 対象外（feature を持たない）。ゲートの粒度は (a) `mount`/`hydrate`
+内の呼び出し文、(b) private `fn wire_*`（12 件）の定義の両方であり、
+モジュール宣言（`pub mod keynav;` 等）自体はゲートしない（テストと
+`examples/interactive-view-transitions/wasm` が直接 import するため。
+モジュールを残しても wasm-ld が到達不能コードを GC するためサイズ効果は
+呼び出し文の除去だけで得られる）。
+
+### 33.3 semver 判断（§11 条件 5 の確定）
+
+同評価文書 §11 条件 5（`default-features = false` 利用者との互換）は
+「(ii) 0.x minor の破壊的変更として移行手順を明記する」方式で確定した。
+理由: (i) の互換維持策（entry のエクスポート面のみを切り離す構成）は
+本体側の削減効果を持たず、§8 (A) の既採用方針と両立しないため。
+`fandhe-frontend-wasm-full` を 0.18.7 → 0.19.0 へ minor バンプし、
+`default-features = false` 利用者が失う 14 配線と、従来挙動を維持する
+ための `features` 明示列挙を `Cargo.toml` コメント・`lib.rs` クレート
+ドキュメントの両方に記載した（PR #2312 の base 取り込みで
+`message-scroller`（イシュー #2122、§38 参照）を同型の配線群別 feature
+として追加し、対象は 15 配線へ増えている。§38.5 参照）。
+
+### 33.4 `keynav` off 時の制約（分離完了、イシュー #2326 codex-review 是正）
+
+readonly RadioGroup の click capture 保護（イシュー #1616）は
+`keynav::wire_readonly_click_guard`（上記 33.2 対応表のとおりゲートしない
+常時配線）へ `keynav::wire_keynav` から分離済みである。したがって
+`keynav` を off にしてもこの保護は失われない。本節は当初「保護コードの
+分離は行わず後続 issue へ引き継ぐ」としていたが、イシュー #2326 の
+codex-review 指摘を受けて分離を実装したため、記述を更新した（分離前の
+記述は git 履歴を参照）。
+
+### 33.5 スコープ外・後続への引き継ぎ
+
+`docs/design/wasm-full-feature-gating-evaluation.md` §13 の残項目のうち
+「keynav の scope 分岐・`MAPPING_TABLE` 行の cfg 化」はイシュー #2327
+（§34 参照）で実装済み。残る「CI feature matrix・dist-server 経路の
+feature 集合決定と `bundle_size.rs` 契約更新・利用者向け docs/examples
+反映」は引き続き #2328/#2329/#2330 へ引き継ぐ（readonly RadioGroup 保護の
+分離は上記 33.4 のとおり完了済み）。
+## 34. positioning の自動呼び出し統合（イシュー #2209、親 #2208）
+
+### 34.1 背景
+
+`position` モジュール（イシュー #590、親 #588。§23 参照）は anchor
+positioning の座標計算・DOM 反映（`wiring::reposition_one`/`reposition_all`・
+`PositionController`）自体はすでに実装済みだったが、`crate::headless::
+wire_headless_component`（標準の headless 配線 API）は positioning を一切
+呼び出さず、利用者が `PositionController::new(&window)?.reposition_now()` を
+明示的に組み立てて呼ぶ必要があった。このため pre-styled-ui の
+popover/tooltip/menu を `wire_headless_component` のみで開くと
+`--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-x`/`--fandhe-arrow-y` が書き込まれず、
+PR #2178（tooltip の shadcn 突合）が記録した「`data-side=left/right` で
+トリガー隣接がずれる」制約が残っていた。本節はこの統合層（§12 が「#580
+統合層の責務」として据え置いていた部分）を `wire_headless_component` へ
+実装した経緯・設計判断を記録する。
+
+### 34.2 設計判断
+
+- **`position::reposition_within(root: &Element)` を新設**（`wiring` 内に
+  実装し `pub use` で再エクスポート）。root 自身が
+  `[data-part="positioner"][data-state="open"]` に一致する場合を含め
+  （`content_height::sync_content_height` と同じ「root 自身を含める」
+  設計）、`root` 配下の開いている positioner のみを再計算する。
+  `web_sys::window()` が取得できない場合は no-op（fail-closed）。
+  `reposition_all`（document 全体走査、既存の `PositionController` が
+  scroll/resize 契機に使う）も `pub use` で公開のままとし、
+  `wire_headless_component` を経由しない開閉経路（`tooltip::
+  TooltipDelayController` 等）向けに呼び出し側が明示的に呼べる API として
+  残す。
+- **`headless::wire_headless_component` から自動呼び出し**（`content_height`
+  と同型の統合）: (1) 配線時に `sync_content_height` の直後で
+  `reposition_within(&root)`（SSR 初期状態が open な positioner の先行
+  同期）、(2) dispatch 成功後は `on_update → sync_content_height →
+  reposition_within` の順で呼ぶ（再描画で positioner 要素が作り直された
+  後の要素に対して計測・書き込みする）。`wire_headless_events`/
+  `wire_headless_events_scoped`（アクション通知のみの低レベル API）には
+  統合しない（`content_height` と同じ判断）。部品名での分岐は持たず、
+  対象判定は既存の `PositionedKind::from_scope`（未知 scope は no-op）に
+  委ねる。
+- **scroll/resize 追従は thread_local 単一 `PositionController` に委ねる**:
+  `position::wiring::GLOBAL_CONTROLLER`（`thread_local! { RefCell<Option<
+  PositionController>> }`）を `ensure_global_controller(&Window)` が配線
+  時に 1 度だけ生成する（`sidebar.rs`/`nav.rs` の既存 thread_local 単一
+  コントローラパターンと同型）。`wire_headless_component` を何度呼んでも
+  scroll/resize リスナーは増えない（`PositionController::new` が生成時に
+  1 組のみ登録し `Closure::forget` せず `Self` の生存期間に結びつける
+  既存設計のまま）。`PositionController::new` が `Err` を返した場合（リス
+  ナー登録失敗）も panic せず `None` のまま継続する（fail-closed。
+  scroll/resize 追従のみが失われ、配線時・dispatch 後の即時反映は妨げ
+  ない）。利用者が独自に `PositionController::new` を呼ぶ既存コード
+  （`examples/interactive-view-transitions` の menubar 等）とは共存し、
+  同一 positioner が二重に再計算されるだけで冪等。
+- **自動呼び出しは新設 feature `position`（既定 on）でゲートする**:
+  #2326（§33）の配線群別 feature 規約は `Runtime::mount`/`hydrate` の
+  `wire_*` 呼び出しを対象としており、本統合点（`headless::
+  wire_headless_component`）はその規約の対象外だが、`position` モジュール
+  自体は同規約以前から「`Runtime` を経由しないアプリ側直接利用 API のため
+  gating 対象外」と位置づけられている（§33.2 対応表）。この位置づけは
+  維持しつつ、**自動呼び出し 3 箇所のみ**（`ensure_global_controller` の
+  呼び出し、配線時 `reposition_within`、dispatch 後 `reposition_within`）を
+  `#[cfg(feature = "position")]` でゲートする（モジュール本体・`pub use`
+  は無条件公開のまま。`examples/interactive-view-transitions` のように
+  `PositionController::new` を直接呼ぶ既存利用者を `default-features =
+  false` で二重に壊さないため）。既定 on のため既定構成（クレート単体の
+  `cargo build`/`wasm-pack test`）の挙動は変わらない一方、REQ-11 の gzip
+  上限に対する余地確保として `position` を off にできる選択肢を用意する。
+  **配布物（`dist-server` 経路）側はこの選択肢を本イシュー内で実際に使う**:
+  `position` 追加分（gzip 後 約 2.6 KB）だけで REQ-11 の 200,000 B 上限を
+  超過することが判明したため、`dist-server/build.rs::run_wasm_build`
+  （および契約テスト `crates/wasm-full/tests/bundle_size.rs`）のネスト
+  `cargo build -p fandhe-frontend-wasm-full` へ `--no-default-features
+  --features <WASM_FULL_DIST_FEATURES>`（`default` から `position` のみを
+  除いた集合）を追加した。クレート自身の `default` は変更しない（`position`
+  は既定 on のまま、§34.4 の browser テストが feature 引数なし＝クレート
+  既定で実行されるため）。feature 集合の網羅的な最小化（#2329 が担う
+  「最小インタラクティブ構成」全体の決定）はスコープ外のまま残し、本対応は
+  本イシューが追加した超過分のみを打ち消す最小限の措置とする。
+- **`style` 属性はもはや完全上書きしない（CSSOM `set_property` による
+  個別宣言更新へ移行済み）**: codex-review 指摘（イシュー #2209、P1）を
+  受け、`reposition_one` は `set_attribute("style", ...)` による `style`
+  属性全体の置き換えをやめ、`position::wiring::apply_css_vars` が
+  `HtmlElement::style()`（`CssStyleDeclaration`）の `set_property` で
+  `css_vars_style` が生成した `--fandhe-*` の各宣言のみを個別に更新する
+  （既存になければ追加、既にあれば値のみ更新）。利用者が positioner/
+  arrow へ配線前から付けていた `position`/`width`/`z-index` 等の他の
+  インライン宣言は上書きされず保持される。`data-side`/`data-align`/
+  `data-positioned`/`data-requested-side`/`data-requested-align` の各
+  属性は従来どおり `set_dom_attribute`（`set_attribute` ラッパー）で
+  書き込む（`style` 属性のみが対象外、`position.rs` の
+  `set_dom_attribute` は `debug_assert!` で `"style"` 名の呼び出しを
+  release ビルド外で検出する）。詳細は `crates/wasm-full/src/
+  position.rs` の `apply_css_vars` rustdoc を参照。
+- **`offset`（`sideOffset` 相当）は 0 固定のまま**: `resolve_position` の
+  `offset: 0.0` は変更しない。shadcn の `sideOffset`（4px）相当の隙間は、
+  positioner の実測寸法に padding を含める（`getBoundingClientRect` は
+  ボーダーボックス）ことで pre-styled-ui 側（#2210）が wasm-full の変更
+  なしに実現できる。
+
+### 34.3 対象ファイル
+
+- `crates/wasm-full/Cargo.toml`: `[features]` へ `position = []` を新設し
+  `default` へ列挙する。対応表コメント（§33.2 相当）へ「`headless::
+  wire_headless_component` 内の自動 positioning 呼び出し → `"position"`」
+  の行を追加し、`position` モジュール自体・`pub use` はゲート対象外である
+  旨を明記する。
+- `crates/wasm-full/src/position.rs`: `wiring::reposition_within`・
+  `wiring::ensure_global_controller`（+ `GLOBAL_CONTROLLER` thread_local）
+  を新設し、`reposition_all`/`reposition_within`/`ensure_global_controller`/
+  `PositionController` を `pub use` で再エクスポート。モジュール doc を
+  更新（「統合呼び出しは #580 統合層の責務」から「`wire_headless_component`
+  が自動的に統合する」へ）。
+- `crates/wasm-full/src/headless.rs`: `wire_headless_component` へ
+  (1) 配線時の `ensure_global_controller` + `reposition_within(&root)`、
+  (2) dispatch 成功後の `reposition_within(&wired_root)`（`on_update →
+  sync_content_height → reposition_within` の順）を追加。
+- `crates/wasm-full/tests/position_browser.rs`: `wire_headless_component`
+  経由の実座標テストを追加（§33.4）。
+- `crates/dist-server/build.rs`: `run_wasm_build` のネスト `cargo build`
+  へ `--no-default-features --features <WASM_FULL_DIST_FEATURES>` を追加
+  （REQ-11 是正、§34.2 参照）。`fandhe-frontend-dist-server` は patch
+  バンプ（0.2.7 → 0.2.8）。
+- `crates/wasm-full/tests/bundle_size.rs`: 同一 feature 集合
+  （`WASM_FULL_DIST_FEATURES`、`build.rs` と同期を維持する独立実装複製）
+  をネストビルドへ追加。
+
+### 34.4 テスト
+
+`crates/wasm-full/tests/position_browser.rs` へ、`wire_headless_component`
+のみで配線した実座標検証（§34.2 の統合層を対象とする、既存 (a)〜(o) は
+`PositionController::reposition_now()` の明示呼び出し経路のみを検証して
+いた）を追加した。tooltip に加え menu / popover も同型で検証し、
+menu / popover は `--fandhe-arrow-x`/`--fandhe-arrow-y` も期待値と厳密
+一致（許容誤差 0.5px）で固定する。いずれも `#[cfg(feature = "position")]`
+配下（既定 on）に置く:
+
+- `wire_headless_component_auto_repositions_tooltip_to_exact_real_coordinates_for_every_side`:
+  trigger を `position: fixed; left: 300px; top: 200px; width: 50px;
+  height: 20px;`・floating を 100x50 に固定した場合の
+  `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-x`/`--fandhe-arrow-y` を、
+  headless-ui `positioning.rs` の `main_axis_coordinate`/
+  `cross_axis_coordinate`/`arrow_position` から機械的に導ける期待値との
+  厳密一致（許容誤差 0.5px）で bottom/top/left/right の 4 side について
+  固定する。
+- `wire_headless_component_prewires_positioner_that_is_already_open_at_wiring_time`:
+  SSR 初期状態が open な positioner が click 前に反映されること。
+- `wire_headless_component_leaves_closed_positioner_unrepositioned`:
+  closed のままの positioner に `style`/`data-positioned` が付与されない
+  こと。
+- `wire_headless_component_alone_tracks_resize_and_scroll_without_an_explicit_controller`:
+  テスト側で `PositionController` を一切生成せず、`wire_headless_component`
+  のみで配線した状態から合成 `resize`/`scroll` を発火すると座標が再計算
+  されること（`ensure_global_controller` の自動追従）。
+- `wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_tooltip_content`:
+  script/属性インジェクションペイロードを含む content でも、自動再計算
+  経路が既定エスケープ保証を弱めないこと（REQ-1 拡張回帰）。
+- `wire_headless_component_auto_repositions_menu_to_exact_real_coordinates`・
+  `wire_headless_component_auto_repositions_popover_to_exact_real_coordinates`:
+  tooltip と同型の厳密一致検証を menu / popover に対しても行い、tooltip
+  限定だった受け入れ条件のギャップを埋める。
+- `wire_headless_component_auto_reposition_does_not_weaken_default_escaping_for_menu_content`・
+  `..._for_popover_content`: REQ-1 拡張回帰を menu / popover にも同型で
+  追加する。
+
+いずれも `wasm-pack test --headless --chrome crates/wasm-full --test
+position_browser` で実測 PASS（既存 21 テスト含め全 21 件 PASS）。
+あわせて `headless_wiring_browser.rs`（26 件）・`content_height_browser.rs`
+（10 件）・`overlay_close_browser.rs`（32 件）が回帰しないことを実測確認
+した（`wire_headless_component` の全体変更のため）。
+
+### 34.5 semver 判断
+
+新規公開関数（`reposition_within`/`ensure_global_controller`、および
+既存 private だった `reposition_all` の公開昇格）の追加、既存公開関数
+`wire_headless_component` の副作用変更（呼び出しごとに DOM 書き込みが
+増える）、および新設 feature `position` の追加を含むため、
+`fandhe-frontend-wasm-full` は 0.x のマイナーバンプとする。base 取り込み
+時点（#2326 の配線群別 feature gating・#2337 の select scrollIntoView を
+経て main は 0.19.1 へ到達済み）に対し +1 して 0.20.0 とする。
+
+### 34.6 スコープ外（Issue 化をユーザーへ提案）
+
+- `PositionedKind::from_scope` に未登録の scope: `combobox`/`date-picker`
+  （pre-styled-ui が `data-positioned` 規則を持つが wasm-full が付与
+  しない）、`hover-card`/`toggle-tip`（`overlay::OverlayKind` にも未登録）。
+- `offset`（`sideOffset` 相当）の `data-*` オプトイン化。#2210 では
+  positioner の padding で代替可能。
+- `Runtime`（`lib.rs`）および `tooltip::TooltipDelayController` コール
+  バック経路への自動再計算統合（本イシューでは `reposition_all`/
+  `reposition_within` の公開で利用者が呼べる状態にするまで）。
+- `examples/interactive-view-transitions` の crates.io 版追随
+  （0.7.0 固定のため本イシューでは触れない）。
+- `crates/pre-styled-ui/` 側の `--fandhe-arrow-*` 消費・arrow/arrow-tip の
+  `data-side` 連動装飾（親 #2208 の sub-issue #2210 が担当）。
+- REQ-11（gzip 200,000 B 上限）: `dist-server` 経路の `bundle_size.rs` は
+  `position` 追加分の超過（約 2.6 KB）を §34.2 の `--no-default-features
+  --features <WASM_FULL_DIST_FEATURES>` 対応で打ち消し、本イシュー内で
+  PASS（実測 199,307 B、95% 警告閾値超過の warn 付き）へ回復済み。
+  `default` 全体（`position` 以外を含む）の網羅的な最小化・CI feature
+  matrix・`bundle_size.rs` の測定構成そのものの見直しは引き続き #2329 へ
+  引き継ぐ（本対応は #2329 が分離手段として使う布石を、本イシューが
+  追加した超過分にのみ先取り適用したもの）。
+
+## 35. MAPPING_TABLE / keynav の scope feature gating（イシュー #2327）
+
+### 35.1 背景・目的
+
+§33 の配線群別 feature（`wire_*` 呼び出し単位）は
+`headless::MAPPING_TABLE`（18 scope・32 行）と `keynav::wire_keynav`
+内部の scope 別 `match scope` 分岐（13 arm）までは gate しておらず、
+`keynav` feature を絞っても丸ごとリンクされていた
+（`docs/design/wasm-full-feature-gating-evaluation.md` §13 項目 2）。
+本イシューは scope（部品）単位の feature 16 件（既定 on）を新設し、
+MAPPING_TABLE の行・keynav の match arm をそれぞれ cfg ゲートする。
+目的は §33.1 と同じく REQ-11 gzip 上限に対する余地確保であり、既定は
+すべて on のため既定構成の挙動・`bundle_size` 実測値は変わらない。
+
+### 35.2 対応表
+
+`crates/wasm-full/src/lib.rs` クレート doc §scope feature・
+`crates/wasm-full/Cargo.toml` `[features]` 直前コメントの対応表と同一。
+二重管理を避けるためここでは転記せず参照する。
+
+### 35.3 設計判断
+
+- 配線群別 feature（§33）とは独立の第 2 軸とする。`keynav` は
+  `wire_keynav` 呼び出し自体の有無を、scope feature は `wire_keynav` 内部
+  の個々の scope 分岐の有無を制御する。
+- MAPPING_TABLE 行は配列リテラル要素への `#[cfg(feature = "...")]` で
+  cfg 化する（Rust の cfg 属性は配列要素にも安定して適用できる）。
+- keynav の match arm は各 `"..." =>` へ `#[cfg(feature = "...")]` を付与
+  する。全 arm が off の構成でも `matched`/`keyboard_event` が未使用に
+  ならないよう、フォールスルー `_` arm で明示的に参照する。
+- cfg 化で到達不能になる private helper 関数・定数は
+  `#[cfg_attr(not(...), allow(dead_code))]` で lint のみ許容し、コード
+  自体は削除しない（wasm-ld の dead code elimination がリンク時に除去
+  するため、この許容は lint 衛生のみの目的）。許容条件は「新設 16
+  feature がすべて off」という単一の広い述語（scope feature 16 件の
+  `any` の否定）へ統一し、個々の関数ごとに narrow な述語を作り込まない
+  （§4-5 で検証する 4 構成〔最小・既定・all-features・keynav 単体無効〕
+  はいずれも「新設 16 feature が全 on」または「全 off」のいずれかで
+  あり、この単純化で当該構成群のカバレッジは失われない）。
+- readonly RadioGroup の click capture 保護（`keynav::wire_readonly_click_guard`）
+  はいずれの scope feature にも依存しない常時配線のまま
+  （`crates/wasm-full/tests/keynav_browser.rs` の
+  `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`
+  が `wire_keynav` を一切呼ばずに保護が機能することを実測で固定する）。
+
+### 35.4 semver 判断
+
+`fandhe-frontend-wasm-full` を 0.19.0 → 0.20.0 へ minor バンプした。
+`default-features = false` を使う既存利用者が MAPPING_TABLE 行・keynav
+分岐を失う破壊的変更にあたるため（§33.3 と同型の判断）。
+
+### 35.5 契約テスト
+
+`crates/wasm-full/tests/feature_gating_contract.rs`（native）が、
+MAPPING_TABLE 各行・keynav 各 arm の cfg 付与、Cargo.toml への feature
+宣言・`default` 列挙、readonly click guard の常時配線を機械検知する。
+
+### 35.6 スコープ外
+
+CI feature matrix は #2328 で実装済み（`.github/workflows/ci.yml` の
+`wasm-full-feature-matrix-baseline`/`-wiring`/`-scope`/`-readonly-guard`
+ジョブ、詳細は `docs/design/wasm-full-feature-gating-evaluation.md` §13
+項目 3 参照）。browser テストの per-test cfg（`keynav_browser.rs`/
+`headless_wiring_browser.rs` を縮小構成でも全件常設実行する方式）は
+#2328 の受入基準を matrix + フィルタ実行で満たせたため実施せず、必要に
+なれば別途後続 issue で検討する。dist-server 経路の feature 集合決定は
+#2329、利用者向け docs/examples 反映は #2330 へ引き継ぐ。
+
+### 35.7 MAPPING_TABLE 行削除方式の是正（codex-review PR #2339 P0 指摘）
+
+§35.3 で採用した「配列リテラル要素への `#[cfg(feature = "...")]`」（行を
+feature 無効時に配列から丸ごと除去する方式）は、
+`crate::headless::action_from_parts_scoped`（クリック位置から根方向へ
+祖先探索し、最初に解決できた part のアクションを返す）に fail-open の
+回帰を持ち込んでいた: 無効化した scope（例: `collapsible`）の行が消えると
+`action_for_part` は当該 part を単に「表に無い part」（`item-text` 等と
+区別不能）として `None` を返すため、探索は祖先方向へ継続し、無効化した
+scope の祖先に別 scope（例: `sidebar`）の行があればそちらへ誤って
+dispatch されてしまう（`crates/wasm-full/tests/feature_gating_contract.rs`
+とは独立に、Bugbot が `action_from_parts_scoped_rejects_when_innermost_match_is_a_different_scope`
+テストの feature-gate 漏れとして副作用を指摘）。
+
+是正として、`MappingRow` へ `enabled: bool`（`cfg!(feature = "...")` で
+評価）フィールドを追加し、行自体は feature の有無に関わらず常に
+`MAPPING_TABLE` に存在させる方式へ変更した。`#[cfg(feature = "...")]` は
+配列要素ではなく撤去し、各フィールドの直後に `enabled: cfg!(feature =
+"...")` を書く（`feature_gating_contract.rs` の契約 1 もこの新方式へ
+追随更新済み: `MappingRow {` の直後行から `enabled: cfg!(feature =
+"X"),` の 1 行を機械検知する形へ変更し、行数 32 の期待値は維持）。
+`action_for_part` は `row.enabled == false` のとき引き続き `None` を返し
+実際の dispatch は起きない（既定の fail-closed 契約は不変）。一方
+`action_from_parts_scoped` は新設した `is_known_mapping_target`
+（`MAPPING_TABLE` に (scope, part) の行が存在するかどうかを `enabled` を
+問わず判定する）を使い、「既知の操作対象境界だが解決できなかった」場合に
+祖先探索をその場で打ち切るようにした。「マッピング表に存在しない
+part」（`item-text` 等）は従来どおり祖先方向への探索を継続する。
+
+## 36. dist-server 配布物の feature 集合を最小インタラクティブ構成へ縮小（イシュー #2329）
+
+### 36.1 背景・目的
+
+`docs/design/wasm-full-feature-gating-evaluation.md` §8 で提示された 2
+選択肢のうち (A)（dist-server 配布物の feature 集合を「最小インタラク
+ティブコンポーネント」の定義に合わせて縮小し、`bundle_size.rs` の計測
+構成も同一に保つ）がユーザー判断（2026-09-11）で採用された。#2209/#2332
+是正時点の暫定構成（`default` から `position` のみを除いた集合、
+`WASM_FULL_DIST_FEATURES`）は REQ-11 上限に対する余裕が乏しく
+（199,167 B、余裕 833 B）、feature 集合の網羅的な最小化という §13 項目 4
+の宿題は本イシューまで残っていた。
+
+### 36.2 「最小インタラクティブコンポーネント」の採用集合
+
+```
+["wasm-bindgen-exports", "collapsible", "dialog", "popover", "tooltip", "position"]
+```
+
+判断根拠（詳細は `crates/dist-server/src/wasm_dist_features.rs` 冒頭
+コメント参照）:
+
+- REQ-11 本文の受け入れ基準（カウンター・フォーム入力・動的リスト更新
+  相当）は常時配線の `events::wire_events` と束縛点更新のみで成立し、
+  scope feature を要求しない（理論下限 = `wasm-bindgen-exports` のみ）。
+- 「button / input / dialog 系」に加え、クリック操作のみで完結する
+  disclosure / overlay 部品（collapsible / dialog / popover / tooltip）
+  を採用する。`crates/wasm-full/src/keynav.rs` にこれら 4 scope の cfg
+  分岐が存在しないこと（= keynav off でもキーボード操作が欠けないこと）
+  を確認済み。
+- `keynav`/`focus-visible`/他の scope feature（keynav の match arm を
+  持つもの）は除外する。`position` は popover/tooltip の表示位置決めに
+  必要なため含める。
+
+### 36.3 単一定義の共有方式
+
+`crates/dist-server/src/wasm_dist_features.rs` を新設し、
+`WASM_DIST_FEATURES` const・`nested_cargo_feature_args()` を定義した。
+`crates/dist-server/build.rs`・`crates/dist-server/src/lib.rs`
+（`#[doc(hidden)] pub mod`）・`crates/wasm-full/tests/bundle_size.rs`
+の 3 箇所が `#[path]` によるソースレベル共有でこのファイルを取り込み、
+配布物のネストビルドと REQ-11 計測が構造的に同一の feature 集合を
+参照する（`wasm_stage_cache`/`wasm_build_gate`/`workspace_detect` と
+同型のパターン）。手書きで `--no-default-features`/`--features`
+リテラルを複製する経路は
+`crates/xtask/tests/wasm_dist_features_contract.rs` が fail-closed に
+禁止する（「計測だけ縮小」「配布物だけ縮小」の両方を構造的に防ぐ）。
+
+### 36.4 実測
+
+`cargo test -p fandhe-frontend-wasm-full --test bundle_size --locked`:
+
+```
+bundle-size: total_gzip_bytes=120618/200000 files=2 result=PASS
+```
+
+上限余裕 79,382 B（≥ 30,000 B 基準を満たす）。ローカル環境に `wasm-opt`
+（binaryen）が存在したため soft-skip 適用結果（`wasm-opt -Os` 実行済み）を
+含む実測値である。CI（binaryen 未導入、`.claude/rules/ci.md` 参照）では
+`wasm-opt` が soft-skip され未適用のまま計測される点で構成が異なるが、
+`docs/ci/wasm-opt-adoption-evaluation.md`「#1972 の結論」節の実測（`wasm-opt`
+併用は `--remove-name-section --remove-producers-section` 単独より gzip 後
++2.7〜3.1 KB 悪化）を踏まえると、CI 側の値はむしろ本測定より小さくなる
+方向であり、判定基準に対する余裕（79 KB）を侵食する懸念はない。
+
+### 36.5 semver 判断
+
+`fandhe-frontend-dist-server`: 0.2.8 → 0.3.0。配布物に含まれる配線が
+大きく変わる実体変更（keynav・focus-visible・大半の scope・配線群別
+feature が配信 WASM から外れる）であり、`#[doc(hidden)] pub mod
+wasm_dist_features` という公開項目追加も伴うため minor バンプとした。
+`fandhe-frontend-wasm-full` の `src/`/`Cargo.toml` は本イシューで変更
+していない（`tests/bundle_size.rs` のみの変更は `version-bump-guard` の
+対象外）。
+
+### 36.6 スコープ外（Issue 化候補）
+
+feature 一覧・移行手順の利用者向けドキュメント化と examples への反映は
+イシュー #2330 で `docs/guides/wasm-full-features.md`
+（サイト `/guides/wasm-full-features/`）へ反映済み。
+`docs/design/wasm-full-feature-gating-evaluation.md` §16 に採用決定・
+実装結果の記録がある。`build.rs`/`bundle_size.rs` のネストビルドへの
+`--locked` 付与の是非、`crates/wasm-full/src/lib.rs` の feature 対応表
+への「dist-server 最小構成」相互参照追記は #2330 でも行わない
+（wasm-full のバンプを伴うため。§16 の残件として引き続き Issue 化候補
+のまま残す）。
+
+## 37. `tabs_indicator` モジュール（イシュー #2211）
+
+### 37.1 背景・責務境界
+
+`fandhe-frontend-headless-ui` の `tabs`（#601）は `indicator` パーツを
+`TabsProps::indicator` で opt-in 出力できるが、SSR 時点では
+`style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"` という
+決定的な初期値のみを出力し、選択タブの実位置・実寸法の反映（Zag.js の
+`setIndicatorRect` 相当）は「wasm/CSR 層の後続責務」と明記している
+（`crates/headless-ui/src/tabs.rs` の `INDICATOR_STYLE_INITIAL` doc
+参照）。レイアウト計測は headless-ui へ持ち込まず wasm-full /
+pre-styled-ui の責務とする判断軸
+（`.claude/rules/coding-rust.md`・`docs/policy/intentional-non-adoption.md`
+§3.25 規則 2）に従い、本モジュールが wasm-full 側の実測・書き込みを
+担う。headless-ui 側の変更は一切伴わない（差分ゼロ）。
+
+`crate::content_height`（#2191、§28）と同じ 2 層構成を踏襲する:
+
+- 純粋層（`format_px`/`indicator_rect`/`Rect`）は web-sys に依存せず、
+  native の `cargo test` で検証できる。
+- 配線層（`wiring::sync_tabs_indicator`/
+  `wiring::sync_tabs_indicator_in_list`）のみ
+  `#[cfg(target_arch = "wasm32")]` でゲートする。
+
+### 37.2 書き込む CSS 変数は headless 契約の 4 変数のみ
+
+`--left`/`--top`/`--width`/`--height`（`INDICATOR_LEFT_VAR`/
+`INDICATOR_TOP_VAR`/`INDICATOR_WIDTH_VAR`/`INDICATOR_HEIGHT_VAR`）は
+headless-ui の `INDICATOR_STYLE_INITIAL` が既に公開済みの契約であり、
+`site/primitives/tabs.md` も利用者 CSS 例として掲載済みである。
+navigation-menu（#2187）が採った名前空間付き座標変数
+（`--fandhe-navigation-menu-indicator-x` 等）とは意図的に異なる判断で、
+tabs は #601 で Zag 同名の契約が headless 側に既に存在するため既存契約
+をそのまま再利用する（`crates/pre-styled-ui/src/tabs.rs`・
+`navigation_menu.rs` のモジュール doc にも同旨を記録する）。
+
+**レビュー指摘是正: vertical tabs での装飾の向き**。本モジュールが
+書き込むのは座標（`left`/`top`/`width`/`height`）の 4 変数のみで、
+`data-orientation="vertical"` でも実測値どおりに追従するため座標自体は
+正しく動く。一方 `crates/pre-styled-ui/src/tabs.rs` の `indicator` base
+装飾は当初 `border-bottom` 固定のみだったため、vertical tabs（`trigger`/
+`list`/`content` は `border-inline-end` へ切り替え済み）で「縦に並んだ
+trigger の中段に水平の下線が引かれる」矛盾した見た目になっていた。
+是正として `indicator[data-orientation="vertical"]` state
+（`border-bottom: 0`/`border-inline-end` 追加）を `tabs.rs` へ追加した
+（`crates/pre-styled-ui/tests/tabs_css.rs` golden 更新済み）。本モジュール
+（wasm-full 側）の変更は不要（座標書き込みは軸に依存しないため）。
+
+### 37.3 実測の数式・書き込み手段（CSSOM）
+
+`indicator` は `list` の padding box を包含ブロックとする絶対配置
+（`crates/pre-styled-ui/src/tabs.rs` の `list` base へ `position:
+relative` を追加）。`x = trigger.left − list.left − list.client_left +
+list.scroll_left`、`y` も同型、`width`/`height` は trigger のそれを
+そのまま使う。書き込み手段は `content_height`（§28.3）と同じ理由
+（利用者インライン宣言の破壊回避・CSP `style-src` 制約下での動作）で
+CSSOM（`HtmlElement::style().set_property`/`remove_property`）を用い、
+`set_attribute("style", ...)` 直書きは採らない。
+
+### 37.4 `hidden`・0px・未選択時の扱い
+
+`content_height` の「0 は焼き込まない」（§28.4）と同型の判断を採る:
+`width`/`height` が 0 以下（`display: none` 下等でレイアウト未確定）
+なら 4 変数への書き込みを一切行わず既存値を壊さない。選択中 trigger が
+`list` 内に見つからない場合は `data-state="inactive"`・`hidden` を設定
+し、4 変数は SSR 初期値のまま触らない。
+
+### 37.5 `crate::keynav`/`crate::headless::wire_headless_component` との統合
+
+- `sync_tabs_indicator` は `crate::keynav::wire_keynav` のマウント時
+  （初期同期）から呼ばれる。
+- `sync_tabs_indicator_in_list` は `crate::keynav` の `activate_tab`
+  （click 委譲・automatic activation の keydown の双方）呼び出し直後に
+  呼ばれる。manual activation の keydown（フォーカス移動のみで
+  `activate_tab` を呼ばない分岐）では呼ばれない（indicator は選択に
+  追従し、フォーカスには追従しないため）。
+- `sync_tabs_indicator` は `crate::headless::wire_headless_component`
+  の配線時先行同期・`on_update` 直後同期の 2 箇所からも呼ばれる
+  （再描画で indicator 要素が作り直され初期値 `0px` に戻る経路への
+  対処、`content_height` §28.5 と同じ統合パターン。順序は
+  `on_update → sync_content_height → sync_tabs_indicator` で固定する）。
+
+### 37.6 semver 判断
+
+新規公開モジュール `tabs_indicator`（`sync_tabs_indicator`/
+`sync_tabs_indicator_in_list` 他）の追加と `wire_headless_component`/
+`keynav` への非破壊的な内部統合（公開シグネチャ不変）のみのため、
+`fandhe-frontend-wasm-full` は 0.20.2 → 0.20.3 の patch バンプとする。
+`fandhe-frontend-pre-styled-ui` も `tabs` recipe への `indicator`
+base/state 純追加（新設パーツであり既存 `list` パーツへの `position:
+relative` 1 宣言追加を除き既存パーツの出力バイトは不変）のみのため
+0.183.3 → 0.183.4 の patch バンプとする。レビュー指摘是正（vertical
+tabs での indicator 下線の向き是正、37.2 節参照）で追加した
+`indicator[data-orientation="vertical"]` state も同じ新設パーツへの
+追加のため、バンプ判断・バージョン値は変わらない。
+
+### 37.7 契約テスト
+
+`crates/wasm-full/tests/tabs_indicator_browser.rs`（wasm32 ブラウザ実測、
+マウント時同期・click/automatic/manual 活性化・`indicator: false` の
+no-op を検証。レビュー指摘是正で「選択中 trigger が見つからない」・
+「`width`/`height` が 0 以下でレイアウト未確定」の 2 分岐と、
+`wire_headless_component` が実際に呼ぶ入口 [`sync_tabs_indicator`]
+（`wire_keynav` 経由の [`sync_tabs_indicator_in_list`] とは異なる
+`root` 走査経路）の直接契約テストを追加した）・
+`crates/pre-styled-ui/tests/tabs_indicator_var_drift.rs`
+（headless-ui の SSR 出力・wasm-full の定数と CSS 変数名が一致すること
+の native 突合）・`crates/pre-styled-ui/tests/tabs_css.rs`（golden CSS。
+`indicator[data-orientation="vertical"]` state を追加）が担う。
+
+### 37.8 PR #2342 レビュー指摘是正（codex-review P1 ×2・Cursor Bugbot）
+
+**指摘 1（表示位置ずれ、`crates/pre-styled-ui/src/tabs.rs`）**:
+`--width`/`--height` は wasm-full 側が `getBoundingClientRect()` で実測
+するボーダーボックス寸法だが、`indicator` の `base` は既定の
+`content-box` のままだったため、自身の `border-bottom`（垂直時は
+`border-inline-end`）2px が実測寸法へ加算描画され、trigger の外側へ
+はみ出す位置ずれが生じていた（水平で下端が最大 4px、垂直も右端が
+2px はみ出す計算）。`box-sizing: border-box` を追加し、実測値と表示
+寸法を一致させた。
+
+**指摘 2（ネストした tabs での indicator 欠落、`crates/wasm-full/
+src/keynav.rs::activate_tab`）**: 初期非表示のタブパネル内にネストした
+tabs がある場合、マウント時は内部 trigger の矩形が 0（`hidden` な祖先
+の下）で `sync_tabs_indicator` の実測がスキップされる（37.4 節の
+「0 は焼き込まない」仕様どおり）。その後、親タブをクリック/automatic
+activation でパネルを表示しても、`activate_tab` が呼ぶのは活性化した
+外側 `list` 自身の `sync_tabs_indicator_in_list` のみで、`content` 配下
+にネストした tabs までは再同期されず、内部 indicator が 0px のまま
+欠落したままになっていた。`activate_tab` の `content` を可視化する
+分岐（`hidden` 属性除去の直後）へ `sync_tabs_indicator(&content)`
+呼び出しを追加し、新たに表示された `content` 配下の indicator（ネスト
+の深さによらず全件、`sync_tabs_indicator` が `root` 配下を
+`query_selector_all` で全走査するため 1 回で足りる）を再同期するよう
+是正した。click（8115 行付近）・automatic activation の keydown
+（5499 行付近）は共通してこの `activate_tab` を呼ぶため、1 箇所の修正
+で両経路をカバーする。
+
+**semver**: 両クレートとも新規公開 API・シグネチャ変更を伴わない
+非破壊的変更のため patch バンプとし、`fandhe-frontend-wasm-full` は
+0.20.3 → 0.20.4、`fandhe-frontend-pre-styled-ui` は 0.183.4 → 0.183.5
+とした。
+
+**契約テスト**: `crates/wasm-full/tests/tabs_indicator_browser.rs` へ
+`nested_tabs_indicator_syncs_when_parent_panel_becomes_visible`（指摘 2
+の実ブラウザ回帰）を追加し、`crates/pre-styled-ui/tests/tabs_css.rs`
+の golden CSS を `box-sizing: border-box` 追加後の値へ更新した
+（指摘 1 は CSS 宣言追加のみで wasm-full 側のテストは不要）。
+## 38. `message_scroller` モジュール（イシュー #2122、親 #2120）
+
+### 38.1 背景・責務境界
 
 `crates/headless-ui/src/message_scroller.rs`（イシュー #2121、親 #2120）は
 Message Scroller（shadcn/ui `Message Scroller` 相当）の anatomy（`root`/
@@ -1882,7 +2704,7 @@ message_scroller.rs`）を実装する。
 （`"message-scroller:load-more"`）としてアプリへ通知するのみで、
 `data-loading`/`data-disabled` の付け外し・要素の挿入は一切行わない。
 
-### 31.2 2 層構成
+### 38.2 2 層構成
 
 `questionnaire.rs`/`sidebar.rs`/`content_height.rs` と同型の 2 層構成を
 踏襲する。
@@ -1894,7 +2716,7 @@ message_scroller.rs`）を実装する。
 - 配線層（`#[cfg(target_arch = "wasm32")] mod wiring`）:
   `wire_message_scroller_events` のみ wasm32 限定でコンパイルする。
 
-### 31.3 リスナー構成と搭載判定ゲート・`Closure::forget` 3 個契約
+### 38.3 リスナー構成と搭載判定ゲート・`Closure::forget` 3 個契約
 
 `root` 配下（`root` 自身を含む）に `[data-scope="message-scroller"]
 [data-part="root"]` が 1 件も無ければリスナーを 1 つも登録せず `Ok(())`
@@ -1912,7 +2734,7 @@ message_scroller.rs`）を実装する。
    `subtree`/`characterData` を監視し、`attributes` は監視しない（自身が
    書く `data-*` で自己発火ループを構造的に回避する）。
 
-### 31.4 最下部判定と `data-*` 書き戻し規則
+### 38.4 最下部判定と `data-*` 書き戻し規則
 
 最下部判定は `IntersectionObserver` ベースの `anchor` 観測ではなく、
 しきい値付き `scrollTop`/`scrollHeight`/`clientHeight` 算術
@@ -1944,7 +2766,7 @@ instance`）に各 viewport へインライン `scroll-behavior: auto` を固定
 ごとに経由する構成から変更。バンドルサイズ抑制、REQ-11 gzip 上限超過の
 是正）。
 
-### 31.5 変異の分類と `scrollHeight` 差分補正
+### 38.5 変異の分類と `scrollHeight` 差分補正
 
 `MutationObserver` コールバックは、今回のバッチで最初に見つかった要素
 追加を伴う `MutationRecord` について、追加ノード群がその親の先頭かつ
@@ -1968,7 +2790,7 @@ P1 指摘 #2122）。対象レコードは、target から `content`
 `content` への挿入も外側の分類に漏れ込んでいた）。さらに target 自身が
 `content` そのもの、または `fandhe_frontend_core::keyed::keyed_list` が
 出力するリストの親要素（`BIND_LIST_ATTR` = `data-bind-list` を持つ要素。
-§31.8 がサポート経路とする「`content` 配下を keyed list で差分更新」
+§38.8 がサポート経路とする「`content` 配下を keyed list で差分更新」
 構成における実際の挿入先はこの要素であり、`content` 自身とは限らない）
 のいずれかであることも要求する（レビュー指摘 #2122: `bind_text`
 〔`fandhe-frontend-wasm-client::binding_dom::apply_one` の
@@ -1987,7 +2809,7 @@ Cursor Bugbot 双方の指摘）。`Prepend` は
 anchoring が上方向挿入時に独自補正を行うと `corrected_scroll_top` と
 二重補正になるため。
 
-### 31.6 `load-more` 通知契約
+### 38.6 `load-more` 通知契約
 
 `load-more` クリックは、クリック対象からインスタンス root までの祖先に
 `data-disabled`/ネイティブ `disabled`/`data-loading` のいずれかがあれば
@@ -1997,9 +2819,9 @@ no-op（fail-closed、多重発火防止）。子要素に明示 `data-action` �
 の二重 dispatch 回避）。通知 payload はインスタンス root の `id` 属性値
 （未設定時は空文字列。questionnaire の `"{step}|{id}"` と異なり step を
 持たないため `id` のみで区切り文字は使わない）。`data-loading` の付け
-外し・履歴取得・要素挿入は一切行わない（§31.1 責務境界）。
+外し・履歴取得・要素挿入は一切行わない（§38.1 責務境界）。
 
-### 31.7 `Runtime` への統合
+### 38.7 `Runtime` への統合
 
 `Runtime::wire_message_scroller`（`questionnaire::wire_questionnaire_events`
 の橋渡しと同型）を `Runtime::mount`/`Runtime::hydrate` の双方から
@@ -2009,7 +2831,7 @@ no-op（fail-closed、多重発火防止）。子要素に明示 `data-action` �
 `"message-scroller:load-more"` を認識する場合の追随を目的とし、認識しない
 場合でも他配線（最下部追従・新着検知）は独立して成立する。
 
-### 31.8 構造フォールバックの扱い・既知の限界
+### 38.8 構造フォールバックの扱い・既知の限界
 
 構造フォールバック（`rerender_subtree`）で viewport が丸ごと差し替え
 られた場合、旧 viewport の `scrollTop` は復元しない。新 viewport は
@@ -2022,10 +2844,10 @@ no-op（fail-closed、多重発火防止）。子要素に明示 `data-action` �
 下方向追記が同時に起きた場合、`scrollHeight` 差分での補正は追記分だけ
 過補正になる。(2) 画像ロード等、DOM 変異を伴わない高さ変化
 （`ResizeObserver` 相当）は検知しない。(3) 配線後の再描画で初めて出現
-する message-scroller への遅延配線は行わない（§31.3 搭載判定ゲートの
+する message-scroller への遅延配線は行わない（§38.3 搭載判定ゲートの
 トレードオフ）。
 
-### 31.9 semver 判断・テスト
+### 38.9 semver 判断・テスト
 
 新規公開モジュール `message_scroller`（純粋層 + 配線層）の追加、
 `Runtime::mount`/`Runtime::hydrate` への新規リスナー登録を伴うため、
@@ -2033,7 +2855,15 @@ no-op（fail-closed、多重発火防止）。子要素に明示 `data-action` �
 プログラム的スクロールは `Element::set_scroll_top` + 配線時のインライン
 `scroll-behavior: auto` 固定で実現し、`ScrollBehavior`/`ScrollToOptions`
 feature は追加しない（レビュー指摘 #2122 でバンドルサイズ抑制のため
-不採用、§31.4 参照）。
+不採用、§38.4 参照）。
+
+PR #2312（本イシューの再開、Phase 9〔#2326/#2327〕の配線群別 feature
+gating 規約への追随）で、`Runtime::wire_message_scroller` 呼び出しを
+他の配線群と同型の `message-scroller` feature（既定 on、`Cargo.toml`
+§33.2 対応表参照）でゲートした。既定はすべて on のため既定構成の
+挙動は変わらないが、`default-features = false` 利用者が失う配線が
+14 → 15 件へ増える破壊的変更（§33.3 参照）にあたるため、main の
+到達値 0.20.4 から +1 して 0.20.5 とする。
 
 テストは native（`crates/wasm-full/src/message_scroller.rs` 内
 `#[cfg(test)] mod tests` の純粋関数単体テスト、
@@ -2043,7 +2873,7 @@ message_scroller_browser.rs`、`wasm-pack test --headless --chrome`）の
 双方を追加し、`.github/workflows/ci.yml` の `browser-test` ジョブへ
 実行ステップを追加した。
 
-### 31.10 スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
+### 38.10 スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 
 - 構造フォールバック再描画で viewport が差し替えられた際の `id` キーに
   よる `scrollTop`/`data-stuck` スナップショット復元。
@@ -2054,7 +2884,7 @@ message_scroller_browser.rs`、`wasm-pack test --headless --chrome`）の
 - 同一バッチ内で先頭挿入と末尾追記が同時に起きた場合の過補正の解消
   （幾何ベースの精密補正）。
 - `anchor` パーツを `IntersectionObserver` ベースの最下部検知へ使う移行
-  （本イテレーションは `scrollTop` 算術のみ、§31.4 参照）。
+  （本イテレーションは `scrollTop` 算術のみ、§38.4 参照）。
 - しきい値（`STICK_THRESHOLD_PX`）の利用者側カスタマイズ（`data-*` に
   よる上書き等）。
 - 配線後の再描画で初めて出現する message-scroller への遅延配線

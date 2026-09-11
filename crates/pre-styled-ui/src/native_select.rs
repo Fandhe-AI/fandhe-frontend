@@ -89,23 +89,62 @@
 //!   Demo・Examples への可視化のみであり、`crates/docs-site/src/
 //!   showcase.rs` の Native Select 節へ optgroup を含むインスタンスを
 //!   追加した。
-//! - **`<option>`/`<optgroup>` の `background-color: Canvas; color:
-//!   CanvasText;`（forced-colors 非依存の system color 指定、暫定
-//!   非採用）**: shadcn は `<option>`/`<optgroup>` へ system color
+//! - **`<option>`/`<optgroup>` への system color 適用（採用、イシュー
+//!   #2204。旧「暫定非採用」の記録は本節末尾の「#2017 時点の判断との
+//!   差分」に残す）**: shadcn は `<option>`/`<optgroup>` へ system color
 //!   キーワード（`Canvas`/`CanvasText`）を宣言し、OS 側で描画される
-//!   ネイティブポップアップの配色を明示している。[`crate::recipe::
-//!   StateCondition`] は擬似クラス条件のみを表現でき、`select option`
-//!   のような子孫セレクタを組み立てる手段を持たないため、`SlotRecipe`
-//!   経由での実現はできない（[`crate::status`] が採る「`recipe()` の
-//!   外側で生 CSS 文字列を追記する」パターンを踏襲すれば技術的には可能
-//!   だが、CSS 実体変更・golden テスト更新・semver バンプを要する別
-//!   スコープの変更になる）。加えて、この懸念（ダークモード時に
-//!   `Plain`/`Subtle` variant の透明背景へポップアップ側の文字色が
-//!   同化する不具合）はネイティブ `<select>` のポップアップが OS 描画と
-//!   なる Windows/Linux Chrome/Firefox でのみ再現し、本イシュー実装時の
-//!   実行環境（macOS）では実機検証できない。したがって本イシューでは
-//!   非採用とし、Windows/Linux での不具合報告があれば再評価する
-//!   （再評価トリガー）。
+//!   ネイティブポップアップの配色を明示している。chakra-ui v3 も
+//!   `nativeSelectSlotRecipe` で `& > option, & > optgroup` へ
+//!   セマンティック `bg` トークンを宣言する（`color` は宣言せず field の
+//!   `fg` 継承に委ねる）。主基準 3 者のうち chakra-ui / shadcn-ui の 2 者が
+//!   着色し、Radix Themes は native select 相当の部品自体を持たないため
+//!   （`docs/design/component-coverage-map.md`）、着色そのものは採用と
+//!   判断した。
+//!
+//!   **手段の評価（DSL 拡張 vs 生 CSS 追記）**: [`crate::recipe::
+//!   StateCondition`] は擬似クラス条件のみを表現でき、`select > option`
+//!   のような子孫/子結合子セレクタを組み立てる手段を持たない。この
+//!   子孫セレクタ機構自体を `SlotRecipe` へ追加する案（イシュー #708 で
+//!   「追加しない」と確定、イシュー #2201 の `PseudoElement` rustdoc でも
+//!   再確認済みの判断）は非採用とし、[`crate::status`]・[`crate::field`]
+//!   が既に採る「`recipe().css()` の外側で固定 CSS 文字列を追記する」
+//!   パターンを踏襲した（`css()` 内で `recipe().css()` の戻り値へ
+//!   `push_str` する。セレクタはソース中の固定リテラルのみで、生セレクタ
+//!   を受け取る公開 API は増えない）。
+//!
+//!   **値の競合判定（`docs/design/shadcn-reference-adoption-policy.md`
+//!   §8 の部品ごと判断）**: 背景色は chakra-ui の値（`--fandhe-color-bg`
+//!   トークン）を採る。`select` 本体の base が既に同トークンで着色されて
+//!   おり、option 側も揃えることでテーマ配色と完全一致するため。shadcn の
+//!   `Canvas` は `var(--fandhe-color-bg, Canvas)` の第 2 引数（フォール
+//!   バック値）として取り込み、トークン未定義環境でも `color-scheme`
+//!   追従の system color で可読性を確保する。文字色（`color`）は
+//!   chakra-ui に倣い明示しない（`select` の `color` を継承させる）。
+//!   `CanvasText` を明示すると UA の `option:disabled` 減色（`GrayText`
+//!   相当）とテーマ `fg` トークンの双方を上書きしてしまうため。
+//!   `optgroup > option` も対象に含める理由は `background` が継承
+//!   されない CSS プロパティであり、optgroup 配下の option がポップアップ
+//!   既定色に戻るのを防ぐため（shadcn も option 単位で付与しており同じ
+//!   被覆範囲）。
+//!
+//!   **確認できたこと・できなかったこと（実機確認環境、誇張しない）**:
+//!   Playwright（chromium）で docs サイトの `/themes/native-select/` を
+//!   開き、light / `data-theme="dark"` の双方で `getComputedStyle(option)
+//!   .backgroundColor` がトークン解決値と一致すること、`--fandhe-color-bg`
+//!   未定義時に `Canvas` フォールバックへ解決すること、無効 option の
+//!   `color`（UA 既定の減色）が変更前後で変化しないことを確認した。これは
+//!   「CSS が要素へ適用されること」の確認であり、OS/ブラウザが描画する
+//!   ネイティブポップアップの外観そのものの確認ではない。本イシュー実装
+//!   時の実行環境は macOS（Chrome/Safari は OS 描画のポップアップのため
+//!   ポップアップ外観は本 CSS を反映しない）で、Windows/Linux の
+//!   Chrome/Firefox における実際のポップアップ描画は未検証のまま残る。
+//!   **再評価トリガー**: Windows/Linux でポップアップ配色の不具合報告が
+//!   あれば、本節の判定値（トークン優先・`color` 非明示）を再評価する。
+//!
+//!   **#2017 時点の判断との差分（歴史記録）**: PR #2154（イシュー
+//!   #2017）は上記制約を理由に本項目を「暫定非採用」としてイシュー
+//!   #2204 へ切り出していた。#2204 で DSL 拡張ではなく生 CSS 追記の
+//!   precedent を採用することで技術的制約を解消し、採用へ転換した。
 //! - **合成パターン（label/description との組み合わせ、是正）**:
 //!   `native_select` はラベル・補助テキストの型階層を持たず、`field`
 //!   （`/themes/field/`）が担う（[`crate::input`] の同型判断）。
@@ -307,10 +346,29 @@ fn recipe() -> SlotRecipe {
         .default_variant(NativeSelectVariant::Outline)
 }
 
-/// この styled NativeSelect が生成する静的 CSS 全量を返す（決定的）。
+/// この styled NativeSelect が生成する静的 CSS 全量を返す（決定的。
+/// [`crate::field::css`]/[`crate::status::css`] と同じ契約）。
+///
+/// [`SlotRecipe`] の `state()` は同一 slot 内の属性条件のみを表現でき、
+/// `select` の子孫である `<option>`/`<optgroup>` へのネストセレクタは
+/// 表現できないため、`field.rs`/`status.rs` と同型の直接追記（recipe
+/// 出力の末尾に静的 CSS 文字列を連結）で表す（system color 適用手段の
+/// 評価、イシュー #2204。モジュール doc「shadcn/ui 突合」節参照）。
 #[must_use]
 pub fn css() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    out.push('\n');
+    out.push_str(
+        // `color` は明示しない（`select` の `color` 継承に委ね、UA の
+        // `option:disabled` 減色を上書きしない。モジュール doc「値の
+        // 競合判定」節参照）。`optgroup > option` を含めるのは
+        // `background-color` が継承されないため。
+        "[data-scope=\"field\"][data-part=\"select\"] > option,\n\
+         [data-scope=\"field\"][data-part=\"select\"] > optgroup,\n\
+         [data-scope=\"field\"][data-part=\"select\"] > optgroup > option {\n  \
+         background-color: var(--fandhe-color-bg, Canvas);\n}\n",
+    );
+    out
 }
 
 /// styled `select` パーツを組み立てる。`variant`/`size` に応じたクラスを
@@ -620,5 +678,36 @@ mod tests {
         assert!(html.contains(r#"data-scope="field""#));
         assert!(html.contains(r#"data-part="select""#));
         assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn stylesheet_styles_option_and_optgroup_children() {
+        // イシュー #2204: option/optgroup の背景色を select と同じ
+        // `--fandhe-color-bg` トークン（`Canvas` フォールバック）で着色する
+        // 生 CSS 追記の回帰。
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"field\"][data-part=\"select\"] > option,\n\
+             [data-scope=\"field\"][data-part=\"select\"] > optgroup,\n\
+             [data-scope=\"field\"][data-part=\"select\"] > optgroup > option {\n  \
+             background-color: var(--fandhe-color-bg, Canvas);\n}"
+        ));
+    }
+
+    #[test]
+    fn stylesheet_never_sets_option_color() {
+        // イシュー #2204: option/optgroup ブロックへ `color:` 宣言
+        // （`CanvasText` 等）を追加しない回帰。`select` の `color` 継承に
+        // 委ね、UA の `option:disabled` 減色を上書きしないための判断
+        // （モジュール rustdoc「値の競合判定」節参照）。
+        let out = css();
+        assert!(!out.contains("CanvasText"));
+        let option_block_start = out
+            .find("[data-part=\"select\"] > option,")
+            .expect("option block should exist");
+        // `background-color:` は含むため単純な "color:" 部分一致では誤検知
+        // する。`color:` 単独の宣言（改行/インデント直後の "color:"）が
+        // 存在しないことを確認する。
+        assert!(!out[option_block_start..].contains("\n  color:"));
     }
 }

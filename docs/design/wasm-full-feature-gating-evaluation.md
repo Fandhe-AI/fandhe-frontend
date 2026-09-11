@@ -245,6 +245,21 @@ gating を採用しても、`crates/dist-server/build.rs` のネストビルド�
 あり本リポジトリでは変更しない（親 #1953 の既定方針）。自動運転のため
 本評価では (A)/(B) いずれかへの決定は行わず、推奨（§11）のみ記す。
 
+**採用結果（ユーザー判断 2026-09-11、イシュー #2329）**: (A) を採用した。
+`crates/dist-server/src/wasm_dist_features.rs` を新設し、
+`WASM_DIST_FEATURES`（`wasm-bindgen-exports`/`collapsible`/`dialog`/
+`popover`/`tooltip`/`position` の 6 件、「最小インタラクティブ
+コンポーネント」の定義）を `crates/dist-server/build.rs`
+（配布物のネストビルド）と `crates/wasm-full/tests/bundle_size.rs`
+（REQ-11 計測）が `#[path]` によるソースレベル共有で唯一の正として
+参照する構成にした。判断根拠（`keynav.rs` に cfg 分岐を持たない scope
+= click 操作のみで完結する 4 部品を採用し、keynav・focus-visible・
+他の scope feature・配線群別 feature は除外）は同ファイル冒頭コメント
+参照。一致は `crates/xtask/tests/wasm_dist_features_contract.rs` が
+fail-closed に固定する。実測（PR #2329 実装コミット時点）:
+`bundle-size: total_gzip_bytes=120618/200000 files=2 result=PASS`
+（上限余裕 79,382 B ≥ 30,000 B、190,000 B 未満の判定基準も満たす）。
+
 ## 9. `intentional-non-adoption.md` §2 の 4 軸評価
 
 （`docs/policy/intentional-non-adoption.md` の評価軸に基づく。対象は
@@ -439,6 +454,42 @@ readonly RadioGroup の click capture 保護（`keynav.rs:7678` 付近）を
    バンプを行うこと。(i) を選ぶだけで feature 追加要求を伴う構成を
    採用可能とはしない（§10 参照）。
 
+**実測値の留保の解消（イシュー #2327、分離後の再計測）**: 上記「実測値の
+留保」が求めていた「readonly RadioGroup 保護分離後の再計測」を、
+scope feature 実装（イシュー #2327）と同時に完了した。計測手順は §3 と
+同一（`cargo build --release --target wasm32-unknown-unknown` →
+`wasm-bindgen --target web --no-typescript --remove-name-section
+--remove-producers-section` → `gzip -9` の wasm+js 合計、ローカル
+cargo 1.96.0 / wasm-bindgen 0.2.128、wasm-opt は未適用）。絶対値は
+ローカル環境依存のため相対比較として記録する。
+
+| 変種 | feature 指定 | 合計 gzip バイト | (a) 比削減率 | 200,000 − 実測 |
+|---|---|---|---|---|
+| (a) ベースライン（既定） | 既定 | 199,167 B | — | 833 B |
+| (b) keynav 単体除去 | 全 scope feature + 他 wire_\* on、`keynav` off | 180,203 B | 9.5% | 19,797 B |
+| (d') button/input/dialog 相当 | `wasm-bindgen-exports` + MAPPING_TABLE 全行を持つ 18 scope feature（`keynav`・他 wire_\* 群は off） | 129,558 B | 34.9% | 70,442 B |
+| (e') 理論下限 | `wasm-bindgen-exports` のみ | 114,317 B | 42.6% | 85,683 B |
+
+**判定（§11 事前登録ルール適用）**: (d') は (a) 比 34.9%（20% 基準を
+充足）、200,000 − (d') = 70,442 B（30 KB 基準を充足）。分離後も判定
+ルールを満たすことを確認した。条件 4（keynav gating 時の readonly
+RadioGroup 保護維持）は §14/`docs/design/wasm-full-architecture.md`
+§33.4/§34.3 のとおり満たされている。§13 項目 2 は実装済みへ更新する
+（下記）。
+
+**実装結果の追記（イシュー #2326、codex-review/Bugbot 是正）**: 条件 4 は
+`wire_keynav`（`keynav.rs`）から readonly RadioGroup の click capture 保護を
+`wire_readonly_click_guard`（新設、`keynav` feature に関わらず常時登録）へ
+分離する方式で実装した。加えてレビューで、`signature-pad` feature が
+`Runtime::wire_signature_pad` をゲートし、同関数が
+`crate::headless::wire_headless_component`（`MAPPING_TABLE` 全行、
+Dialog/Collapsible/Popover/Tooltip/Menu 等 signature-pad と無関係な
+headless-ui 部品のクリック dispatch 全般）も同時に登録している未文書化の
+結合が別途発覚したため、この汎用クリック dispatch も `Runtime::wire_headless`
+（ゲートしない常時配線）へ分離した。両者とも fail-closed
+（対象パーツが `root` 配下に存在しなければ早期 return）のため、当該部品を
+使わないアプリへの副作用はない。
+
 ## 12. 再評価トリガー
 
 - `bundle-size` が #1968 の警告しきい値（190,000 B）を恒常的に超える。
@@ -451,27 +502,110 @@ readonly RadioGroup の click capture 保護（`keynav.rs:7678` 付近）を
 
 条件付き採用（§11）に基づき、採用する場合の分割案:
 
-1. `wasm-full` に配線群別 feature を追加（既定 on、`Runtime::mount`/
-   `hydrate` の `wire_*` 呼び出しを cfg ゲート）。§11 条件 5 に従い、
-   `default-features = false` 利用者との互換維持策・移行手順のいずれかを
-   本 issue で確定する。
-2. `MAPPING_TABLE`/keynav の scope 分岐の cfg 化と、
-   `headless_wiring.rs`/`keynav_native.rs` の `required-features` 追随。
-   §11 条件 4 に従い、readonly RadioGroup の click capture 保護
-   （`keynav.rs:7678` 付近）を `keynav` feature から独立した常時有効な
-   配線へ切り出し、切り出し後の構成で §5/§11 の削減量を再計測する
-   （再計測結果が判定ルールの 20%/30 KB を下回る場合は採用可否を
-   再検討する）。
-3. CI feature matrix（`--no-default-features` / 各 feature / `--all-features`）
-   の追加。`clippy-wasm32` ジョブへの反映要否を含めて検討する。readonly
-   RadioGroup 保護（項目 2）が `keynav` feature 無効時にも機能することを
-   検証するテストケースを追加する。
+1. **実装済み（イシュー #2326）。** `wasm-full` に配線群別 feature を追加
+   （既定 on、`Runtime::mount`/`hydrate` の `wire_*` 呼び出しを cfg
+   ゲート）。§11 条件 5 は「(ii) 0.x minor の破壊的変更として移行手順を
+   明記する」方式で確定した（`default-features = false` 利用者は 14 配線を
+   失う。`Cargo.toml`・`lib.rs` クレートドキュメントに移行手順を記載、
+   0.18.7 → 0.19.0 へ minor バンプ）。対応表・詳細は
+   `docs/design/wasm-full-architecture.md` §33 を参照。項目 2〜5 は未着手
+   のまま本文書側で引き続き追跡する。
+2. **実装済み（イシュー #2326 の readonly RadioGroup 保護分離 + イシュー
+   #2327 の scope feature gating）。** `keynav.rs:7678` 付近にあった
+   click capture 保護は `wire_readonly_click_guard`（`keynav` feature に
+   関わらず常時登録）へ分離済み（イシュー #2326、§11 条件 4 を満たす）。
+   `MAPPING_TABLE`（18 scope・32 行）・keynav の scope 別 `match scope`
+   分岐（13 arm）の cfg 化と `headless_wiring.rs`/`headless.rs` の
+   `mod tests`/`keynav_browser.rs` 新規テストの `#[cfg(feature = "...")]`
+   追随はイシュー #2327 で実装済み（対応表・設計判断は
+   `docs/design/wasm-full-architecture.md` §35）。分離後の構成での
+   §5/§11 削減量の再計測は上記「実測値の留保の解消」で完了し、判定
+   ルール（20%/30 KB）を満たすことを確認した。
+3. **実装済み（イシュー #2328）。** CI feature matrix
+   （`--no-default-features` / 各 feature / `--all-features`）を
+   `.github/workflows/ci.yml` へ追加した。既存 `clippy-wasm32` ジョブ
+   （`--all-targets` 全構成・部分組合せ 3 件、イシュー #2327）は変更せず、
+   独立トップレベルジョブ 4 件（`wasm-full-feature-matrix-baseline` /
+   `-wiring` / `-scope` / `-readonly-guard`）を新設した（`strategy.matrix`
+   は不採用。ruleset `main-protection` の `required_status_checks` が
+   context を個別静的列挙する契約〔`workflow_required_checks_manifest.rs`〕
+   と matrix 展開が両立しないため）。`-baseline` は
+   `--no-default-features` / 同 + `wasm-bindgen-exports` / 既定 /
+   `--all-features` の 4 構成を `cargo check` + `cargo clippy` で検証し、
+   `-wiring`/`-scope` は `perf-assert` + `default` 掲載の 15 配線群 feature・
+   scope feature 16 件（計 31 件、`crates/wasm-full/Cargo.toml`
+   `[features]` から `wasm-bindgen-exports` を除いた全集合）を
+   `wasm-bindgen-exports` のみとの単体構成で 1 feature 1 ステップずつ
+   clippy する（`crates/xtask/tests/workflow_wasm_full_feature_matrix.rs`
+   が feature 集合との過不足なき一致を fail-closed に検証）。readonly
+   RadioGroup 保護（項目 2）が `keynav` feature 無効時にも機能することの
+   検証は `-readonly-guard` ジョブが native テスト 2 種
+   （`readonly_click_outcome`・`feature_gating_contract`）+ browser テスト
+   （`keynav_browser.rs` の
+   `radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav`、
+   イシュー #2327 で追加済み）を `--no-default-features --features
+   wasm-bindgen-exports` 構成で実行して担う。per-test cfg 化（縮小構成で
+   `keynav_browser.rs`/`headless_wiring_browser.rs` の browser テスト全件を
+   常設実行する方式、`docs/design/wasm-full-architecture.md` §34.6 が
+   #2328 へ引き継いでいた案）は、上記 matrix + フィルタ実行で受入基準を
+   満たせたため本イシューでは実施せず、必要になれば後続 issue として
+   別途検討する（スコープ外の明示）。
 4. dist-server 経路の feature 集合決定（§8 (A)/(B) のユーザー判断）と
-   `bundle_size.rs` 契約の更新。
-5. docs（feature 一覧の利用者向けドキュメント化、§11 条件 5 の移行手順を
-   含む）・examples への反映。
+   `bundle_size.rs` 契約の更新。**実装済み（イシュー #2329）**: §8 追記
+   参照。
+5. **実装済み（イシュー #2330）。** feature 一覧・移行手順の利用者向け
+   ドキュメント化・examples への反映は
+   [`docs/guides/wasm-full-features.md`](../guides/wasm-full-features.md)
+   （サイト `/guides/wasm-full-features/`）へ集約した。
+   `examples/interactive-view-transitions`（feature 指定例）・
+   `examples/dist-server-docker`（最小構成の言及）2 件の README/`wasm/Cargo.toml`
+   へも反映済み。詳細は §16 を参照。
 
 見送りとなった場合はこれらの issue は起票しない。
+
+## 16. 採用決定と実装結果の記録（2026-09-11、#2326〜#2330）
+
+**採用決定**: §12 の再評価トリガーのうち次の 3 件が発火した（「利用者から
+具体的な feature 選択要望が寄せられる」は発火していない）ことを受け、
+ユーザー判断で §8 (A)・§11 条件 5 (ii) を採用した。
+
+- `bundle-size` の実測（(a) ベースライン 199,167 B）が #1968 の警告
+  しきい値（190,000 B）を恒常的に超えていた。
+- wasm-opt 導入は #1972 で見送りが確定しており、この状態でも REQ-11
+  上限に対する余裕は 833 B しかなかった（10 KB 未満）。
+- headless-ui への部品追加ペースが継続しており（本文書 §11 が引用する
+  message-scroller / data-table 追加の懸念）、wasm-full が新規にリンク
+  するモジュールが増える傾向にあった。
+
+**実装結果**:
+
+- 配線群別 feature 14 件（イシュー #2326、`fandhe-frontend-wasm-full`
+  0.19.0）・scope feature 16 件（イシュー #2327、同 0.20.0）・
+  `position` feature（イシュー #2209/#2332、同 0.20.1）の対応表・移行
+  手順は `crates/wasm-full/src/lib.rs` クレート doc と
+  [`docs/guides/wasm-full-features.md`](../guides/wasm-full-features.md)
+  に集約した（一次情報は前者、利用者向け再構成が後者）。
+- readonly RadioGroup の click capture 保護分離後の再計測（本文書「実測値
+  の留保の解消」節）: (a) 199,167 B → (d') 129,558 B（34.9% 削減）。
+- `fandhe-frontend-dist-server`（0.2.8 → 0.3.0、イシュー #2329）の最小
+  インタラクティブコンポーネント構成（6 feature）: 最終 gzip
+  120,618 B（wasm-opt 適用済みローカル実測、CI は wasm-opt 未導入）。
+- CI feature matrix 4 ジョブ（イシュー #2328）が既定/縮小/全構成の
+  clippy を常設検証する。
+
+**成果物一覧**: PR #2333（#2326）・PR #2339（#2327）・PR #2340（#2328）・
+PR #2341（#2329）・本イシュー #2330（利用者向けドキュメント反映）。
+
+**残件（Issue 化候補、起票はしていない）**:
+
+1. `crates/wasm-full/src/lib.rs` の feature 対応表への「dist-server 最小
+   構成」相互参照追記（wasm-full のバンプを伴うため #2330 では実施せず）。
+2. `build.rs`/`crates/wasm-full/tests/bundle_size.rs` のネストビルドへの
+   `--locked` 付与の是非。
+3. `examples/interactive-view-transitions/wasm` の `fandhe-frontend-wasm-full`
+   pin（0.7.0）を feature 導入後の版（0.20.1 以降）へ更新し、feature
+   指定例をコメントから実際の依存指定へ昇格させること（crates.io へ
+   0.20.1 以降が公開された後に対応）。
 
 ## 14. セキュリティ考慮事項（OWASP Top 10 観点）
 

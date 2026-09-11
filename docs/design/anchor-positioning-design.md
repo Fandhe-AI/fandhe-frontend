@@ -242,16 +242,24 @@ anchor positioning の CSS 変数は、既存の `positioner`/`arrow`/`arrow_tip
    （`transform` 消費は再レイアウトを避ける定石。base 規則より属性 1 個ぶん
    詳細度が高く、`SlotRecipe::css` の出力順も base→states 固定のため確実に
    上書きされる。）
-4. **arrow（Menu のみ、§4.2 で Select は arrow 非対象）はマーカー不要で変数
-   フォールバックのみで両立する。** `reposition_one` は positioner の
+4. **arrow（当初 Menu のみ、§4.2 で Select は arrow 非対象）はマーカー不要で
+   変数フォールバックのみで両立する。** `reposition_one` は positioner の
    `style`（CSS カスタムプロパティは子孫へ継承される）に加えて arrow 要素
    自身にも `style` を複製済みのため、arrow の base 規則で直接消費できる:
    - `arrow`: `position: absolute; left: var(--fandhe-arrow-x, 50%); top:
      var(--fandhe-arrow-y, 0); transform: translate(-50%, -50%);`（フォール
      バック `50%`/`0` は SSR 既定 placement（bottom）で anchor 中央上端に
      相当する）
-   - `arrow-tip`: 座標変数を持たない装飾要素（`width`/`height`/`background`/
-     `border-left`/`border-top`/`transform: rotate(45deg)` の固定値）。
+   - `arrow-tip`: `width`/`height`/`background`/`border-left`/`border-top`
+     は固定値。回転（`transform: rotate(...)`）はイシュー #663 時点では
+     固定 `45deg` だったが、イシュー #2210 で `positioner[data-side=...]`
+     に連動して切り替わる CSS custom property（`--fandhe-menu-arrow-
+     rotate` 等）を消費するよう拡張した（座標変数は不変）。
+   - **イシュー #2210 での拡張**: Popover/Tooltip にも同型の arrow/
+     arrow-tip 消費と `positioner[data-positioned]` state を追加した
+     （Menu と同じ設計、詳細は `crates/pre-styled-ui/src/popover.rs`/
+     `tooltip.rs` モジュール rustdoc「arrow / arrow-tip の `data-side`
+     連動」節参照）。
 5. **fail-closed 原則**: 本節で追加する `var(--fandhe-*)` 参照はすべて明示
    フォールバック値を持つ（裸の `var()` 禁止）。変数未定義（SSR・wasm 失敗時）
    でも表示が壊れない（`crates/pre-styled-ui/src/menu.rs`/`select.rs` の
@@ -281,6 +289,30 @@ anchor positioning の CSS 変数は、既存の `positioner`/`arrow`/`arrow_tip
 | Menu positioner/arrow の消費 | `crates/pre-styled-ui/src/menu.rs::recipe` |
 | Select positioner の消費（arrow 非対象） | `crates/pre-styled-ui/src/select.rs::recipe` |
 | マーカー契約の API 記述 | `docs/api/headless-ui-api.md` §4a |
+
+### 4.4c 自動呼び出し（イシュー #2209、親 #2208）
+
+本 ADR §4.1 は当初「再計算契機は呼び出し側からの明示呼び出し
+（`PositionController::reposition_now()`/scroll・resize リスナー）」を
+前提としていたが、標準の headless 配線 API
+（`fandhe-frontend-wasm-full::headless::wire_headless_component`）が
+positioning を一切呼び出さないままだと、利用者が `PositionController` を
+自前で組み立てない限り `data-positioned` マーカー・`--fandhe-*` CSS 変数
+が一切書き込まれず、pre-styled-ui 側の SSR 静的フォールバックから常に
+遷移しない（§4.4b の想定する「wasm 稼働時は fixed 座標系へ切り替わる」が
+成立しない）という実運用上のギャップがあった。
+
+イシュー #2209 でこの契機を統合層（`wire_headless_component`）へ組み込み、
+(1) 配線時（SSR 初期状態が open な positioner の先行同期）・(2) dispatch
+成功後の再描画直後、の 2 箇所で `position::reposition_within(&root)` を
+自動的に呼ぶようにした。scroll/resize 契機の継続的な再計算は、配線時に
+一度だけ生成する thread_local 単一の `PositionController`
+（`position::ensure_global_controller`）に委ねる。詳細な設計判断・
+テスト・semver 判断は `docs/design/wasm-full-architecture.md` §34 を参照
+（本節では二重管理しない）。`wire_headless_component` を経由しない開閉
+経路（`tooltip::TooltipDelayController` 等）向けに、`reposition_all`/
+`reposition_within` は引き続き呼び出し側から明示的に呼べる公開 API として
+残る。
 
 ### 4.5 CSS Anchor Positioning（Web 標準）採用可否の評価
 

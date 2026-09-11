@@ -27,6 +27,19 @@
   「ワークスペースルートでのビルドではない」と判定するため。実測で確認済み）
 - 単一バイナリ + `FROM scratch` の Docker イメージ最小化（ルート
   `Dockerfile`、REQ-9 の縮小版）
+- `fandhe-frontend-dist-server` の 6 feature「最小インタラクティブ
+  コンポーネント」構成（`wasm-bindgen-exports`/`collapsible`/`dialog`/
+  `popover`/`tooltip`/`position`、イシュー #2329、単一定義は
+  `crates/dist-server/src/wasm_dist_features.rs`）が実際に WASM として
+  出荷されるのは `fandhe-frontend-dist-server` を**ワークスペース内で
+  ビルドする経路**（例: ルート `Dockerfile`）に限られます。**本サンプルは
+  crates.io からの外部依存として使うため、上記の `build.rs` 自動スキップに
+  より WASM 自体が一切出荷されません**（実測結果を参照）。本サンプルで
+  クライアント側の対話部品を使いたい場合は、`fandhe-frontend-wasm-full` を
+  自アプリの直接依存として追加し feature を選ぶ
+  （`examples/interactive-view-transitions` 参照）必要があります。詳細は
+  [wasm-full feature 選択ガイド](../../docs/guides/wasm-full-features.md)
+  を参照
 
 ## 実測結果（イシュー #502 実装時、scratchpad の使い捨てプロジェクトで確認）
 
@@ -100,5 +113,6 @@ curl -sS http://127.0.0.1:3100/
 ## 関連ガイド
 
 - [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
+- [`docs/guides/wasm-full-features.md`](../../docs/guides/wasm-full-features.md)
 - [`docs/design/dist-server-design.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/dist-server-design.md)
 - [`examples/ssr-routing/README.md`](../ssr-routing/README.md)（examples 規約の初例）

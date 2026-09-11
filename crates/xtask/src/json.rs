@@ -54,6 +54,24 @@ impl Json {
             _ => None,
         }
     }
+
+    /// `check_ruleset_sync`（イシュー #2325）が GitHub REST API の
+    /// `rules/branches/{branch}` レスポンス（`parameters.required_status_checks[].integration_id`）を
+    /// 読むために追加した数値アクセサ。数値以外は `None`。
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Json::Number(n) => Some(*n),
+            _ => None,
+        }
+    }
+
+    /// 同上。`parameters.strict_required_status_checks_policy` の読み取りに使う。
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Json::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
 }
 
 /// パース失敗時のエラー。位置（バイトオフセット）と理由のみを保持する。

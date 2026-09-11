@@ -51,6 +51,10 @@ navigation-menu / menubar を追加し、`fandhe-frontend-wasm-full`
   `Runtime<C>`（`DirtyTracked + BindingSource` 要求）に載らない headless
   コンポーネントに対し、アプリ側が `wasm-full::entry` と同型の薄い
   ラッパー（`wasm/src/lib.rs::nav_overlays`）を自作する参照実装です
+- `wasm/src/lib.rs`（`nav_overlays`）が使う `overlay`/`position` は
+  `fandhe-frontend-wasm-full` の gating 対象外 API（`Runtime` を経由せず
+  直接呼び出す公開 API）である点。本サンプルが実際に使う配線に絞った
+  feature 指定のコメント例も `wasm/Cargo.toml` に掲載しています（[wasm-full feature 選択ガイド](../../docs/guides/wasm-full-features.md)参照）
 
 ## 前提
 
@@ -102,6 +106,7 @@ python3 -m http.server --directory static 8000
 ## 関連ガイド
 
 - [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
+- [`docs/guides/wasm-full-features.md`](../../docs/guides/wasm-full-features.md)
 - [`docs/api/interactive-api.md`](../../docs/api/interactive-api.md)
 - [`docs/api/hydration-api.md`](../../docs/api/hydration-api.md)
 - [`docs/design/wasm-full-architecture.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/wasm-full-architecture.md)

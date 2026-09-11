@@ -110,9 +110,6 @@
 //!
 //! ## 見送ったもの（記録のみ、Issue 化はユーザー承認前提のため未実施）
 //!
-//! - **`orientation="responsive"`（`@container` クエリ）**: 本リポジトリに
-//!   `@container` の前例が皆無であり、単一部品のための新規 CSS 機構導入は
-//!   横断設計判断のため不採用（breadcrumb `sm:` 判断と同型、#2027/PR #2142）。
 //! - **`FieldGroup`/`FieldContent`/`FieldTitle`/テキスト付き
 //!   `FieldSeparator`**: 対応する headless anatomy が存在せず、新設するには
 //!   headless-ui 拡張または独立 anatomy 新設のいずれかが必要で、本イシュー
@@ -160,6 +157,30 @@
 //! `shadcn-field-2.png`（Username/Password の content レイアウト）の両方を
 //! 参照する。
 //!
+//! ## `orientation="responsive"`（`@container` クエリ、イシュー #2199、
+//! 上記「見送ったもの」からの是正）
+//!
+//! [`crate::recipe`] に `@container` 条件の宣言手段（[`crate::recipe::
+//! SlotRecipe::container_slot`]/[`crate::recipe::SlotRecipe::container`]/
+//! [`crate::recipe::SlotRecipe::container_variant`]）が新設されたことを
+//! 受け、`group`（イシュー #2185 で追加した slot）を
+//! [`crate::recipe::SlotRecipe::container_slot`] として宣言し、`root` へ
+//! [`FieldOrientation::Responsive`] を追加した。`group` の inline サイズが
+//! [`crate::recipe::ContainerBreakpoint::Md`]（448px、shadcn/ui
+//! `@md/field-group` 相当）以上のときのみ `Horizontal` と同じ宣言
+//! （[`horizontal_root_declarations`]）を `root` へ適用する。`group` の
+//! **外**に `Responsive` な `root` を置いた場合、container が存在しないため
+//! 常に縦積みのまま（`@container` は無条件で不一致になる。mobile-first の
+//! 安全な劣化）。
+//!
+//! 受け入れ条件が述べる `data-orientation="responsive"` は実装していない:
+//! headless `field::root`（`fandhe_frontend_headless_ui::field`）は
+//! `data-orientation` を意図的に持たず、本モジュールも独自 `data-*` を出力
+//! しない契約（`crates/pre-styled-ui/tests/data_attr_vocabulary.rs`）のため、
+//! 既存の `Vertical`/`Horizontal` と同じくクラス
+//! `fd-field--orientation-responsive` として語彙化した（PR 本文にこの読み
+//! 替えを明記する）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 全出力は [`fandhe_frontend_core::el`]/[`fandhe_frontend_core::text`]
@@ -172,7 +193,10 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{disabled_declarations, SlotRecipe, StateCondition, VariantValue};
+use crate::css::Declaration;
+use crate::recipe::{
+    disabled_declarations, ContainerBreakpoint, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 // headless `field` の型のうち、見た目を重ねる必要がなくそのまま透過できる
@@ -215,6 +239,11 @@ pub enum FieldOrientation {
     Vertical,
     /// ラベルとコントロールを横並びにする配置。
     Horizontal,
+    /// `group`（祖先の [`group`] slot）の inline サイズが 448px 以上のとき
+    /// のみ `Horizontal` と同じ配置へ切り替わる配置（イシュー #2199、
+    /// モジュール doc「`orientation="responsive"`」節参照）。`group` の外に
+    /// 置いた場合は常に縦積みのまま。
+    Responsive,
 }
 
 impl VariantValue for FieldOrientation {
@@ -226,8 +255,24 @@ impl VariantValue for FieldOrientation {
         match self {
             Self::Vertical => "vertical",
             Self::Horizontal => "horizontal",
+            Self::Responsive => "responsive",
         }
     }
+}
+
+/// `Horizontal`/`Responsive` の双方が共有する `root` 宣言（イシュー #2199）。
+///
+/// `Horizontal` は無条件で、`Responsive` は `group` container の
+/// [`ContainerBreakpoint::Md`] 以上でのみ、この同一の宣言列を `root` へ
+/// 適用する。両呼び出し元で手書きを重複させるとドリフトし得るため、この
+/// 関数を唯一の定義元とする（`recipe()` 内の 2 箇所が呼ぶ）。
+fn horizontal_root_declarations() -> Vec<Declaration> {
+    vec![
+        decl("flex-direction", "row"),
+        decl("align-items", "center"),
+        decl("justify-content", "space-between"),
+        decl("gap", "var(--fandhe-space-2)"),
+    ]
 }
 
 /// [`root`] の見た目設定。
@@ -367,14 +412,20 @@ fn recipe() -> SlotRecipe {
         .variant(
             FieldOrientation::Horizontal,
             "root",
-            vec![
-                decl("flex-direction", "row"),
-                decl("align-items", "center"),
-                decl("justify-content", "space-between"),
-                decl("gap", "var(--fandhe-space-2)"),
-            ],
+            horizontal_root_declarations(),
         )
         .default_variant(FieldOrientation::Vertical)
+        // container query（イシュー #2199、モジュール doc
+        // 「`orientation="responsive"`」節参照）: `group` を container・
+        // `root` を container_variant の対象 slot として、`Horizontal` と
+        // 同一の宣言を 448px 以上でのみ適用する。
+        .container_slot("group")
+        .container_variant(
+            FieldOrientation::Responsive,
+            "root",
+            ContainerBreakpoint::Md,
+            horizontal_root_declarations(),
+        )
         // headless `error_text`/`required_indicator` は非該当状態で
         // `hidden` 存在属性を出す fail-closed 描画（`field.rs` rustdoc
         // 参照）。base の `display: inline-flex` が UA の
@@ -546,6 +597,31 @@ mod tests {
         let html = render(&node);
         assert!(html.contains("fd-field--orientation-horizontal"));
         assert!(!html.contains("fd-field--orientation-vertical"));
+    }
+
+    #[test]
+    fn responsive_orientation_switches_class() {
+        let f = default_field("f");
+        let props = FieldRootProps {
+            orientation: FieldOrientation::Responsive,
+        };
+        let node = root(&props, &f, vec![], vec![]);
+        let html = render(&node);
+        assert!(html.contains("fd-field--orientation-responsive"));
+        assert!(!html.contains("fd-field--orientation-vertical"));
+        assert!(!html.contains("fd-field--orientation-horizontal"));
+    }
+
+    #[test]
+    fn css_contains_container_block() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="field"][data-part="group"] {"#));
+        assert!(out.contains("container-type: inline-size;"));
+        assert!(out.contains("container-name: fd-field-group;"));
+        assert!(out.contains("@container fd-field-group (min-width: 448px) {"));
+        assert!(out.contains(
+            r#"[data-scope="field"][data-part="root"].fd-field--orientation-responsive {"#
+        ));
     }
 
     #[test]

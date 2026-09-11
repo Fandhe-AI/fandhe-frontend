@@ -1556,6 +1556,7 @@ Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）を
 | Themes 追加候補の再突合で保留（イシュー #1669/#1676） | code-block（chakra `typography/code-block.md`）/ prose（chakra `typography/prose.md`）/ toc（ark-ui、pin 以降追加・対応 md なし、`docs/design/component-coverage-map.md` §5 Part E）/ checkbox-cards（Radix Themes、group 版。`docs/design/component-coverage-map.md` `forms/checkbox-card.md` 行。radio-cards は `radio_card::root` が既に `role="radiogroup"` のグループコンテナとして group 版仕様を満たすため §11.1 実装済みへ訂正済み、対応表参照） | code-block: Shiki/Highlight.js アダプタ前提のシンタックスハイライト部品で、ハイライト処理はアプリロジック寄り（§3.25 規則 1 に触れる可能性）。docs サイト側には外部依存ゼロの `crates/docs-site/src/highlight.rs` が既にある。prose: 生 HTML 断片へ型階層をカスケード適用する部品であり、REQ-1（既定エスケープ、迂回は `raw_html()` 明示オプトインのみ）との関係整理が先行課題。役割分担（要素単位オプトインの `heading`/`text`/… vs `site.css` の `.docs-content` カスケード）は #771 の `crates/pre-styled-ui/src/text.rs` rustdoc のとおり不変。toc: Ark UI が参照一覧 pin（`ab53c6b`）以降に追加した部品（スクロール位置に応じて可視見出しを追跡・強調）。docs サイト側には `layout.rs::toc_inline()` の静的目次と `script.rs` の IntersectionObserver スクロールスパイが既に存在し、スクロール追跡は実行時関心（§3.25 規則 2 の系）のため headless 層には置かない。checkbox-cards: 本行の `checkbox_card` は単体版、Radix Themes 版は複数選択の**カード群**（radio-cards は group 版実装済みのため本行の対象外、対応表参照） | code-block: (a) `highlight.rs` を `pre-styled-ui` へ一般化する要否が設計検討で明示的に評価された場合、または (b) ハイライト処理を含まない構造のみ（Root/Header/Content/Code/CopyTrigger の anatomy + 既存 `code`/`clipboard` の合成）で成立する要件が特定された場合。prose: 信頼済みノード木（`raw_html()` を経由しない Markdown → ノード木変換等）に対する型階層カスケードとして REQ-1 を弱めずに設計できることが示された場合、かつ `site.css` との重複適用・詳細度衝突の扱いが設計文書化された場合。toc: (a) docs サイト外の利用要望が出た場合、または (b) 静的 anatomy（Root/Nav/List/Item/Link/Indicator + `aria-current`/`data-active`）のみで成立する設計が示され、追跡配線を `wasm-full` 側へ隔離できると確認された場合。checkbox-cards: 既存 `checkbox_group`（両層）+ `checkbox_card` の合成で表現できない要件が特定されるか、利用要望が出た時点で再評価 |
 | slider の複数 thumb（range slider、イシュー #2188） | `slider`（headless-ui / pre-styled-ui 両層） | 評価完了・採否ユーザー判断待ち。推奨は条件付き採用（既存 `Slider` を変更しない純追加案 `RangeSlider`、詳細は `docs/design/slider-range-thumbs-evaluation.md` §「採否判定」参照）。#741 は範囲表現を初期スコープから外しただけで非採用確定ではないため本節の保留として新規記録する | 評価文書 `docs/design/slider-range-thumbs-evaluation.md` の「再評価トリガー」節を参照（利用要望 issue の起票 / 参照 3 者のいずれかが range を既定 UI から外す / wasm-full の REQ-11 予算が配線追加を許容する水準へ回復、のいずれか） |
 | Dialog の shadcn/Radix 突合で見送った実行時補助（イシュー #2194） | `dialog`（headless-ui `crates/headless-ui/src/dialog.rs` + wasm-full `crates/wasm-full/src/overlay.rs`/`focus_trap.rs`） | D9 focusin 引き戻し（FocusScope の focusout 監視）/ D10 背景 `aria-hidden`・`inert` 化 / D11 body スクロールロック・`pointer-events: none` / D14 `wire_headless_component` での `push_trap`/`push_overlay` 自動統合、の 4 点を保留として記録する。D9: `aria-modal="true"` を出力済みで現行 AT は外側を無視するため実害は限定的、かつ外側クリックは D5（`outside_close_indices`）で既に閉鎖する。D10: 装飾・実行時計測に近く §3.25 規則 2 の関心。D11: 同じく §3.25 規則 2（レイアウト・スクロール制御はアプリ/styled 層）。D14: `open`/`close` 遷移時に呼び出し側が `push_trap`/`push_overlay`/`pop_trap`/`remove_overlay` を明示的に呼ぶ現行契約を変えるには、`wire_headless_component` の `on_update` 契約自体の再設計を要する大物であり、本イシュー単体のスコープには含めない | (a) `docs/ci/a11y-automation-evaluation.md` の再評価で横断 a11y 自動検証が導入され D9/D10 が検知対象になった場合。(b) 利用要望 issue の起票。(c) D14 は `wire_headless_component` の `on_update` 契約を変えずに open/close 遷移を検出できる設計が示された場合。(d) D11 は pre-styled-ui 側で `body` 状態トークン（例: `data-scroll-locked`）の設計が確定した場合 |
+| select の Align Item（item-aligned 位置決め、イシュー #2207） | `select`（wasm-full `crates/wasm-full/src/position.rs` + pre-styled-ui `crates/pre-styled-ui/src/select.rs`） | 評価完了・採否ユーザー判断待ち。推奨は見送り（保留）。参照 3 者のうち shadcn/ui・Radix Themes は item-aligned を既定とするが、chakra-ui（ark-ui/zag.js）は非対応であり、かつ現行 wasm-full には on-open 再計算フックが無く `resolve_position` の入力に選択 item・value-text・content scroll container の矩形が存在しないため、単純な契約拡張では実現できない（`intentional-non-adoption.md` §3.20 で非採用確定した `size` middleware と同種の領域）。詳細は評価文書 `docs/design/select-item-aligned-positioning-evaluation.md` §5〜§8 参照 | 評価文書 `docs/design/select-item-aligned-positioning-evaluation.md` §8 を参照（利用要望 issue の起票 / `Runtime` への on-open 再計算フック導入 / wasm-full の REQ-11 予算の回復実測 / chakra-ui が同等モードを既定へ加える、のいずれか） |
 
 再評価トリガー充足時の手続き: 上記表の該当行に基づき、通常の feature issue
 （`create-issue` 等）を起票し、本節・`docs/design/component-coverage-map.md`
@@ -1570,6 +1571,16 @@ sub-issue 番号を付記）へ更新する。実装が完了した時点で改�
 判断された場合、本行を削除し `docs/policy/intentional-non-adoption.md` §3.27 として
 移行する（評価文書 §4.5 の評価・再評価トリガーを転記）。
 
+select の Align Item（イシュー #2207）行は、ユーザー判断確定時に以下のいずれかを
+実行する: (a) 採用と判断された場合、評価文書
+`docs/design/select-item-aligned-positioning-evaluation.md` §7 の分割案どおり
+sub-issue を起票し、本行を「採用済み・実装待ち」（追跡先の sub-issue 番号を
+付記）へ更新する。実装が完了した時点で改めて本行を「実装済み」へ更新する
+（slider の複数 thumb 行と同じ 2 段階更新を必須とする）。(b) 非採用と判断された
+場合、本行を削除し `docs/policy/intentional-non-adoption.md` §3.27（slider の
+複数 thumb 行が非採用となり先に §3.27 を使う場合は §3.28）として移行する
+（評価文書 §5〜§8 の評価・再評価トリガーを転記）。
+
 **shadcn/ui 固有部品の責務境界判定（イシュー #2006）に伴う新規保留行の要否**:
 `docs/design/component-coverage-map.md` §12.2 のとおり、shadcn/ui 側の
 一次ソース突合では新規の「保留」判定が必要な部品は見つからなかった（該当
@@ -1582,4 +1593,7 @@ variant（複数 thumb）であり新規部品ではないため、§12.2 の「
 （#2188、既存部品の variant）」として別枠で数える（新規部品の延べ記録対象数には
 含めない）。#2194（Dialog の shadcn/Radix a11y 突合で見送った実行時補助）も
 同様に既存部品 `dialog` の実行時挙動差分であり新規部品ではないため、
-「+1 行（#2194、既存部品の実行時補助）」として同じ別枠で数える。
+「+1 行（#2194、既存部品の実行時補助）」として同じ別枠で数える。#2207
+（select の Align Item）も既存部品 `select` の位置決め variant であり
+新規部品ではないため、「+1 行（#2207、既存部品の位置決め variant）」
+として同じ別枠で数える。

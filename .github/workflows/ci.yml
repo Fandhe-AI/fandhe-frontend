@@ -1979,6 +1979,421 @@ jobs:
         # wasm-client/wasm-thin の tests/ がコンパイルされずギャップが残るため。
         run: cargo clippy -p fandhe-frontend-wasm-full -p fandhe-frontend-wasm-client -p fandhe-frontend-wasm-thin --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
+      - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: tabs only, issue #2327)"
+        # イシュー #2327 レビュー是正: `keynav.rs::wiring` の個別関数・
+        # フィールドへ付与した `#[cfg_attr(not(any(feature = "...")), allow(dead_code))]`
+        # は、対象 feature の組み合わせを誤ると特定の部分選択（全 on/全 off の
+        # 両極端以外）でのみ dead_code error になる（全 on/全 off は上記
+        # `--all-targets` ステップと `default`/`--no-default-features` 系の
+        # 既存ジョブがカバーするため、ここでは「一部の scope feature だけを
+        # 有効にする」実利用パターンを狙って再現する）。`--locked` は
+        # 既存ステップと同じくワークスペース Cargo.lock を尊重する。
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,tabs --target wasm32-unknown-unknown --locked -- -D warnings
+
+      - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: menu+select, issue #2327)"
+        # 上記と同じ動機。menu/select は `ScopeSelectors`/`TypeaheadState` 等の
+        # 共有ヘルパーを介した複数 scope 共有パターンの代表例（レビューが
+        # 実際に FAIL を報告した組み合わせ）として選ぶ。
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,menu,select --target wasm32-unknown-unknown --locked -- -D warnings
+
+      - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: listbox+tree-view+calendar, issue #2327)"
+        # 3 つ目の組み合わせ。TypeaheadState を共有する listbox/tree-view と
+        # 独立系統の calendar を混在させ、単一 feature 検証だけでは拾えない
+        # 組み合わせ由来の dead_code 回帰を追加でカバーする。
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,listbox,tree-view,calendar --target wasm32-unknown-unknown --locked -- -D warnings
+
+  # イシュー #2328: `crates/wasm-full/` の feature unification 問題（既存
+  # `--workspace` 系ジョブは default-features が全 on のため縮小構成を
+  # 一切検証しない、`docs/design/wasm-full-feature-gating-evaluation.md`
+  # §13 項目 3）に対応する feature matrix。`strategy.matrix` は使わず独立
+  # トップレベルジョブへ分割する（理由: ruleset `main-protection` は
+  # `workflow_required_checks_manifest.rs` が indent-4 の静的 `name:`
+  # リテラルから context を導出する契約で matrix 展開に対応しないため、
+  # `${{ matrix.* }}` を name に含めると個別 leg の context が導出できず
+  # autoMerge G0 で恒久停止し、逆に静的 name にすると全 leg が同一 context
+  # に潰れて後続 leg の success が先行 leg の failure を隠す fail-open に
+  # なる。壁時計優先方針〔ユーザー指示 2026-09-10〕は独立ジョブへの分割でも
+  # 同等の並列度を得られるため両立する）。既存 `clippy-wasm32` の
+  # `--all-targets` 全構成ステップ・部分組合せ 3 件（イシュー #2327）は
+  # 変更しない。
+  wasm-full-feature-matrix-baseline:
+    name: "wasm-full feature matrix: baseline (no-default / default / all-features, issue #2328)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        # actions/checkout v7.0.1（clippy-wasm32 ジョブと同一 SHA 固定）。
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
+        with:
+          components: clippy
+
+      - name: Compute toolchain cache key
+        id: toolchain
+        run: |
+          set -euo pipefail
+          cachekey="$(rustc -vV | sed -n 's/^commit-hash: \(.\{12\}\).*/\1/p')"
+          if [ -z "${cachekey}" ]; then
+            echo "::error::rustc commit-hash を取得できませんでした"
+            exit 1
+          fi
+          echo "cachekey=${cachekey}" >> "${GITHUB_OUTPUT}"
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: "cache: cargo registry + target（イシュー #2328、clippy-wasm32 と同型）"
+        # job family prefix を wasm-full-feature-matrix-baseline- とし、
+        # 他ジョブのキャッシュ名前空間と衝突しない（イシュー #1192 型汚染の
+        # 経路を作らない設計を踏襲）。miss 時はフルビルドへ自然にフォール
+        # バックする fail-open 設計であり、正当性の前提にしない。
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: wasm-full-feature-matrix-baseline-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            wasm-full-feature-matrix-baseline-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+
+      - name: Show toolchain
+        run: rustup show && cargo --version
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # clippy-wasm32 ジョブの同名ステップと同一内容（削除対象・rm -f 固定、
+        # glob・広域再帰削除は不使用）。上記 actions/cache ステップより後段に置く。
+        run: |
+          set -euo pipefail
+          if [ -d "target/debug/deps" ]; then
+            rm -f \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "target/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "target/debug/deps/fandhe_frontend_wasm_full.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "target/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+
+      - name: "cargo check (wasm32-unknown-unknown, --no-default-features, issue #2328)"
+        run: cargo check -p fandhe-frontend-wasm-full --no-default-features --target wasm32-unknown-unknown --all-targets --locked
+      - name: "cargo clippy (wasm32-unknown-unknown, --no-default-features, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+
+      - name: "cargo check (wasm32-unknown-unknown, --no-default-features --features wasm-bindgen-exports, issue #2328)"
+        run: cargo check -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports --target wasm32-unknown-unknown --all-targets --locked
+      - name: "cargo clippy (wasm32-unknown-unknown, --no-default-features --features wasm-bindgen-exports, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+
+      - name: "cargo check (wasm32-unknown-unknown, default features, issue #2328)"
+        run: cargo check -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown --all-targets --locked
+      - name: "cargo clippy (wasm32-unknown-unknown, default features, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+
+      - name: "cargo check (wasm32-unknown-unknown, --all-features, issue #2328)"
+        run: cargo check -p fandhe-frontend-wasm-full --all-features --target wasm32-unknown-unknown --all-targets --locked
+      - name: "cargo clippy (wasm32-unknown-unknown, --all-features, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --all-features --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+
+  # イシュー #2328: 配線群 feature（`perf-assert` + `default` 掲載の 15 件、
+  # `wasm-full-feature-gating-evaluation.md` §Cargo.toml 冒頭コメント対応表
+  # 参照）を `wasm-bindgen-exports` のみと組み合わせた単体構成で clippy する。
+  # `perf-assert` は `default` に非掲載のため本ジョブが唯一の検証経路。
+  # 1 feature 1 ステップ 1 リテラル行（for ループ不使用）: (a) 失敗 feature を
+  # ステップ名で即特定できる、(b) `workflow_wasm_full_feature_matrix.rs` が
+  # 文字列走査で feature 集合を機械抽出し `Cargo.toml` の `[features]` との
+  # 過不足なき一致を fail-closed に検証できる。
+  wasm-full-feature-matrix-wiring:
+    name: "wasm-full feature matrix: wiring features (issue #2328)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
+        with:
+          components: clippy
+
+      - name: Compute toolchain cache key
+        id: toolchain
+        run: |
+          set -euo pipefail
+          cachekey="$(rustc -vV | sed -n 's/^commit-hash: \(.\{12\}\).*/\1/p')"
+          if [ -z "${cachekey}" ]; then
+            echo "::error::rustc commit-hash を取得できませんでした"
+            exit 1
+          fi
+          echo "cachekey=${cachekey}" >> "${GITHUB_OUTPUT}"
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: "cache: cargo registry + target（イシュー #2328、clippy-wasm32 と同型）"
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: wasm-full-feature-matrix-wiring-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            wasm-full-feature-matrix-wiring-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+
+      - name: Show toolchain
+        run: rustup show && cargo --version
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        run: |
+          set -euo pipefail
+          if [ -d "target/debug/deps" ]; then
+            rm -f \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "target/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "target/debug/deps/fandhe_frontend_wasm_full.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "target/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: perf-assert, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,perf-assert --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: keynav, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: focus-visible, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,focus-visible --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: avatar, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,avatar --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: clipboard, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,clipboard --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: timer, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,timer --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: angle-slider, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,angle-slider --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: splitter, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,splitter --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: signature-pad, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,signature-pad --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: number-input, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,number-input --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: command, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,command --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: sidebar, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,sidebar --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: chart, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,chart --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: chart-range, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,chart-range --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: questionnaire, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,questionnaire --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: position, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,position --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+
+  # イシュー #2328: scope feature（イシュー #2327 で新設した MAPPING_TABLE
+  # 行・keynav match arm 単位の 16 件）を `wasm-bindgen-exports` のみと
+  # 組み合わせた単体構成で clippy する。上記 wiring ジョブと同じ
+  # 1 feature 1 ステップの理由・機械抽出契約を適用する。
+  wasm-full-feature-matrix-scope:
+    name: "wasm-full feature matrix: scope features (issue #2328)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
+        with:
+          components: clippy
+
+      - name: Compute toolchain cache key
+        id: toolchain
+        run: |
+          set -euo pipefail
+          cachekey="$(rustc -vV | sed -n 's/^commit-hash: \(.\{12\}\).*/\1/p')"
+          if [ -z "${cachekey}" ]; then
+            echo "::error::rustc commit-hash を取得できませんでした"
+            exit 1
+          fi
+          echo "cachekey=${cachekey}" >> "${GITHUB_OUTPUT}"
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: "cache: cargo registry + target（イシュー #2328、clippy-wasm32 と同型）"
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: wasm-full-feature-matrix-scope-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            wasm-full-feature-matrix-scope-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+
+      - name: Show toolchain
+        run: rustup show && cargo --version
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        run: |
+          set -euo pipefail
+          if [ -d "target/debug/deps" ]; then
+            rm -f \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "target/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "target/debug/deps/fandhe_frontend_wasm_full.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "target/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: accordion, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,accordion --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: calendar, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,calendar --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: collapsible, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,collapsible --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: combobox, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,combobox --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: dialog, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,dialog --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: listbox, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,listbox --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: menu, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,menu --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: menubar, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,menubar --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: navigation-menu, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,navigation-menu --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: popover, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,popover --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: radio-group, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,radio-group --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: select, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,select --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: tabs, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,tabs --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: toggle-group, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,toggle-group --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: tooltip, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,tooltip --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: tree-view, issue #2328)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,tree-view --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+
+  # イシュー #2328: readonly RadioGroup の click capture 保護（イシュー #1616、
+  # PR #2339 で `wire_readonly_click_guard` として `keynav` から分離）が
+  # `keynav` feature を無効化した縮小構成でも機能することを実行テストで
+  # 固定する。browser-test ジョブと同型の Chrome/chromedriver 検証・
+  # wasm-pack/wasm-bindgen 導入手順を踏襲し、キャッシュは使わない
+  # （browser-test ジョブに倣う）。wasm-bindgen-test はフィルタ不一致
+  # （0 件）でも `ok` を返すため、出力を tee してテスト件数を grep で
+  # fail-closed に確認する（version-bump-guard と同型の判定パイプライン）。
+  wasm-full-feature-matrix-readonly-guard:
+    name: "wasm-full feature matrix: readonly RadioGroup guard without keynav (issue #2328)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
+
+      - name: Verify preinstalled Chrome / chromedriver (version alignment, fail-closed)
+        # browser-test ジョブの同名ステップと同一内容（ubuntu-latest が
+        # プリインストールする Google Chrome (Stable) / chromedriver の
+        # メジャーバージョン整合を fail-closed に検証する）。
+        run: |
+          set -euo pipefail
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            echo "::error::google-chrome not found on runner image. ubuntu-latest is expected to preinstall Google Chrome (Stable)." >&2
+            exit 1
+          fi
+          if [ -z "${CHROMEWEBDRIVER:-}" ] || [ ! -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
+            echo "::error::chromedriver not found at \${CHROMEWEBDRIVER}/chromedriver. ubuntu-latest is expected to preinstall chromedriver and expose CHROMEWEBDRIVER." >&2
+            exit 1
+          fi
+
+          chrome_version="$(google-chrome --version)"
+          chromedriver_version="$("${CHROMEWEBDRIVER}/chromedriver" --version)"
+          chrome_major="$(echo "${chrome_version}" | grep -oE '[0-9]+' | head -1)"
+          chromedriver_major="$(echo "${chromedriver_version}" | grep -oE '[0-9]+' | head -1)"
+          if [ -z "${chrome_major}" ] || [ -z "${chromedriver_major}" ] || [ "${chrome_major}" != "${chromedriver_major}" ]; then
+            echo "::error::Chrome/chromedriver major version mismatch (chrome=${chrome_major:-unknown}, chromedriver=${chromedriver_major:-unknown})." >&2
+            exit 1
+          fi
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack (pinned + checksum-verified)
+        uses: Fandhe-AI/actions/wasm-tool-install@latest
+        with:
+          tool: wasm-pack
+          version: ${{ env.WASM_PACK_VERSION }}
+          sha256: ${{ env.WASM_PACK_SHA256 }}
+
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified, provides wasm-bindgen-test-runner)
+        uses: Fandhe-AI/actions/wasm-tool-install@latest
+        with:
+          tool: wasm-bindgen
+          version: ${{ env.WASM_BINDGEN_VERSION }}
+          sha256: ${{ env.WASM_BINDGEN_SHA256 }}
+
+      - name: "native tests (--no-default-features --features wasm-bindgen-exports): readonly_click_outcome"
+        run: |
+          set -euo pipefail
+          cargo test -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports --locked --lib -- readonly_click_outcome 2>&1 | tee /tmp/readonly-click-outcome.log
+          if ! grep -qE '^test result: ok\. 4 passed; 0 failed' /tmp/readonly-click-outcome.log; then
+            echo "::error::readonly_click_outcome native tests did not report '4 passed; 0 failed' (filter typo/rename would silently pass 0 tests)." >&2
+            exit 1
+          fi
+
+      - name: "native tests (--no-default-features --features wasm-bindgen-exports): feature_gating_contract"
+        run: |
+          set -euo pipefail
+          cargo test -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports --locked --test feature_gating_contract 2>&1 | tee /tmp/feature-gating-contract.log
+          if ! grep -qE '^test result: ok\. 4 passed; 0 failed' /tmp/feature-gating-contract.log; then
+            echo "::error::feature_gating_contract tests did not report '4 passed; 0 failed'." >&2
+            exit 1
+          fi
+
+      - name: "browser test (headless Chrome, --no-default-features --features wasm-bindgen-exports): keynav_browser readonly guard"
+        run: |
+          set -euo pipefail
+          CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test keynav_browser --no-default-features --features wasm-bindgen-exports -- radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav 2>&1 | tee /tmp/keynav-readonly-guard.log
+          if ! grep -qE 'test result: ok\. 1 passed; 0 failed' /tmp/keynav-readonly-guard.log; then
+            echo "::error::keynav_browser readonly guard test did not report '1 passed; 0 failed' (filter typo/rename would silently pass 0 tests)." >&2
+            exit 1
+          fi
+
   # PR #1301（`runs-on` の ubuntu-latest 単一化）: `fw new` の非 Unix
   # （`#[cfg(not(unix))]`）分岐を実機検証していた Windows ワークフロー
   # （fw-new-windows-verify.yml）の削除に伴う代替検証。Linux ホストでは
@@ -2034,18 +2449,40 @@ jobs:
   # structure.toml の宣言クレートを対象とする（イシュー #1174 で
   # `lint_wasm32` を追加。本リポジトリは role = "client-entrypoint" を
   # 宣言する wasm-full/wasm-client/wasm-thin を持つため実走する）。
+  #
+  # イシュー #2306: 上記 7 チェックの直列実行が単一ジョブで約 6.5〜8 分を
+  # 要し gate-self-apply が CI 最長ジョブの床になっていたため、#2305 で
+  # 追加した `fw gate --only` を用いてチェック群ごとに 3 ジョブ
+  # （gate-self-apply / gate-self-apply-lint-wasm32 / gate-self-apply-test）へ
+  # 分割する。「PASS 常時保証」の保証形は「単一ジョブの gate_result: PASS」
+  # から「3 ジョブの論理積（ci-complete が集約）」へ改訂する。この改訂が
+  # 成立する根拠: `aggregate`（crates/cli/src/gate.rs）はチェック間の結合を
+  # 持たない純関数（各チェックの passed/environment_error を畳み込んで
+  # PASS/BLOCKED/ERROR の 3 値化のみを行う）であり、「各チェックが別ジョブで
+  # PASS」であることは「フル実行（`--only` なし）で全チェックが PASS」で
+  # あることと等価である。フル実行（`--only` なし）を保険として別途常設する
+  # ことはしない（理由: (1) 上記の通り論理積で等価性が構造的に保証される、
+  # (2) `--only` なしの既定経路自体は
+  # crates/cli/tests/new_gate_e2e.rs（生成プロジェクトへのフル実行）と
+  # gate.rs の名前・順序契約ユニットテストが CI 上で常時検証している、
+  # (3) 「7 チェックのいずれかが CI から欠落する」リスクは
+  # crates/xtask/tests/workflow_shared_target_contract.rs の網羅契約テスト
+  # （`--only` 群の和集合が CHECK_NAMES と過不足なく一致することを
+  # gate.rs のソースから機械抽出して検証）が fail-closed に防ぐ、
+  # (4) main push 限定の保険ジョブは `if:` を要し ci-complete の skipped
+  # 許容リストを広げる fail-open 方向の変更になるうえ約 8 分のランナー
+  # 消費を復活させる、の 4 点。詳細は docs/design/gate-design.md §4.1・
+  # .claude/rules/ci.md 参照。
   gate-self-apply:
-    name: "fw gate --project . self-apply (issue #400)"
+    name: "fw gate --project . self-apply: type/escape/url/lint/policy (issue #400/#2306)"
     # ホステッドランナー移行（トラッキング #1220、実装 #1229）。test ジョブと同じ
     # 理由でクリーン VM 前提へ移行する。
     runs-on: ubuntu-latest
-    # gate は check + clippy + clippy(wasm32) + test + deny を直列実行する
-    # ため test ジョブより長めに確保する（イシュー #1174 で `lint_wasm32` を
-    # 追加、wasm32 target 向け再コンパイルの分だけ余裕を拡大）。ホステッド
-    # ランナー移行によるクリーンビルド化（キャッシュ消失）を見込み延長する
-    # （イシュー #1229。実測後に調整）。
-    timeout-minutes: 60
-    # forbid-unsafe / clippy ジョブと同じ理由: gate の type_check / test は
+    # #2306 でチェック群を type_check/default_escape_check/url_validation_check/
+    # lint/policy（host clippy + cargo check + cargo deny）へ絞ったため、
+    # 旧・全 7 チェック直列実行の見込みより短縮する（初回 CI 実測後に調整）。
+    timeout-minutes: 40
+    # forbid-unsafe / clippy ジョブと同じ理由: gate の type_check は
     # -p fandhe-frontend-dist-server を含み、crates/dist-server/build.rs の WASM ネストビルド
     # （wasm32 target・wasm-bindgen-cli 起動）は本ジョブの runner に常設保証が
     # ないため明示オプトアウトする。統合 WASM ビルドの実証は test ジョブが
@@ -2094,7 +2531,7 @@ jobs:
         # プリビルトバイナリで用意する（イシュー #292/#314、ci.md 規約）。
         run: tools/ci/ensure-gate-tools.sh
 
-      - name: "fw gate --project . 自己適用（PASS 常時保証, issue #400）"
+      - name: "fw gate --project . 自己適用: type/escape/url/lint/policy（PASS 常時保証, issue #400/#2306）"
         run: |
           set -euo pipefail
           # gate は JSON レポートを stdout へ出力し、gate_result に応じた
@@ -2107,19 +2544,162 @@ jobs:
           # するだけで判定できる（version-bump-guard と同じ「終了コードは
           # 0/非 0 のみを見て、種別判定は出力本文の grep に任せる」設計。
           # 終了コードから種別を読み分ける PIPESTATUS 方式は複雑化を避けて
-          # 採らない）。
+          # 採らない）。`--only` はイシュー #2306 のジョブ分割: このジョブは
+          # type_check/default_escape_check/url_validation_check/lint/policy
+          # の 5 チェックのみを実行する（残る lint_wasm32/test は下記の別
+          # ジョブが担当し、3 ジョブの論理積で従来のフル実行 PASS と等価に
+          # なる）。
           #
           # `if PIPELINE; then` の条件式内であれば、GitHub Actions 既定の
           # `bash -e`（errexit）が有効なままでも pipefail によるパイプライン
           # 失敗で即座にスクリプトが中断されることはない
           # （version-bump-guard ジョブと同型のパターン、ci.md 規約）。
-          if cargo run -p fandhe-frontend-cli --locked -- gate --project . | tee gate-report.json; then
+          if cargo run -p fandhe-frontend-cli --locked -- gate --project . --only type_check,default_escape_check,url_validation_check,lint,policy | tee gate-report.json; then
             exit 0
           fi
           if grep -q '"gate_result":"ERROR"' gate-report.json; then
-            echo "::error::fw gate ERROR: environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
+            echo "::error::fw gate ERROR (--only type_check,default_escape_check,url_validation_check,lint,policy): environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
           else
-            echo "::error::fw gate BLOCKED: code-caused check failure. See failing checks in the JSON report above."
+            echo "::error::fw gate BLOCKED (--only type_check,default_escape_check,url_validation_check,lint,policy): code-caused check failure. See failing checks in the JSON report above."
+          fi
+          exit 1
+
+  gate-self-apply-lint-wasm32:
+    name: "fw gate --project . self-apply: lint_wasm32 (issue #400/#2306)"
+    # ホステッドランナー移行（トラッキング #1220、実装 #1229）。test ジョブと同じ
+    # 理由でクリーン VM 前提へ移行する。イシュー #2306: gate-self-apply から
+    # 分離した lint_wasm32 チェック（wasm32-unknown-unknown target 向け
+    # clippy）専任ジョブ。
+    runs-on: ubuntu-latest
+    # wasm32 target 向け clippy（3 wasm クレート）のみのため短めに見積もる
+    # （初回 CI 実測後に調整）。
+    timeout-minutes: 30
+    # gate-self-apply ジョブと同じ理由でオプトアウトする（lint_wasm32 は
+    # wasm クレートのみを対象とするが、type_check 同様 dist-server の
+    # ネスト WASM ビルドを誘発しないよう統一しておく）。
+    env:
+      FANDHE_FRONTEND_WASM_BUILD: "0"
+    steps:
+      - name: Checkout
+        # gate-self-apply ジョブの同名ステップと同一。
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # gate-self-apply ジョブの同名ステップと同一。lint_wasm32 チェックも
+        # clippy を要求するため components: clippy を明示する。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
+        with:
+          components: clippy
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # gate-self-apply ジョブの同名ステップと同一（詳細は forbid-unsafe
+        # ジョブのステップコメント参照）。
+        run: |
+          set -euo pipefail
+          if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d "${CARGO_TARGET_DIR}/debug/deps" ]; then
+            rm -f \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_full.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+
+      - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
+        # gate-self-apply ジョブの同名ステップと同一。lint_wasm32 自体は
+        # clippy component のみで足りるが、pin の単一真実源を崩さないため
+        # 同じブートストラップスクリプトを前置する（ci.md 規約）。
+        run: tools/ci/ensure-gate-tools.sh
+
+      - name: "fw gate --project . 自己適用: lint_wasm32（PASS 常時保証, issue #400/#2306）"
+        run: |
+          set -euo pipefail
+          # gate-self-apply ジョブの本体ステップと同型のパイプライン
+          # （grep によるアノテーション出し分け、PIPESTATUS 方式は採らない）。
+          if cargo run -p fandhe-frontend-cli --locked -- gate --project . --only lint_wasm32 | tee gate-report.json; then
+            exit 0
+          fi
+          if grep -q '"gate_result":"ERROR"' gate-report.json; then
+            echo "::error::fw gate ERROR (--only lint_wasm32): environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
+          else
+            echo "::error::fw gate BLOCKED (--only lint_wasm32): code-caused check failure. See failing checks in the JSON report above."
+          fi
+          exit 1
+
+  gate-self-apply-test:
+    name: "fw gate --project . self-apply: test (issue #400/#2306)"
+    # ホステッドランナー移行（トラッキング #1220、実装 #1229）。test ジョブと同じ
+    # 理由でクリーン VM 前提へ移行する。イシュー #2306: gate-self-apply から
+    # 分離した test チェック（宣言クレート群の cargo test）専任ジョブ。
+    # 分割後の 3 ジョブのうち最も重い（docs-site を含む cargo test）ため、
+    # 分割後の CI 全体の床になる想定。
+    runs-on: ubuntu-latest
+    # test チェックは structure.toml 宣言クレート（docs-site 含む）の
+    # cargo test を実行するため gate-self-apply / gate-self-apply-lint-wasm32
+    # より長めに見積もる（初回 CI 実測後に調整）。
+    timeout-minutes: 60
+    # gate-self-apply ジョブと同じ理由: test チェックも
+    # -p fandhe-frontend-dist-server を含む。
+    env:
+      FANDHE_FRONTEND_WASM_BUILD: "0"
+    steps:
+      - name: Checkout
+        # gate-self-apply ジョブの同名ステップと同一。
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # gate-self-apply ジョブの同名ステップと同一。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
+        with:
+          components: clippy
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # gate-self-apply ジョブの同名ステップと同一（詳細は forbid-unsafe
+        # ジョブのステップコメント参照）。
+        run: |
+          set -euo pipefail
+          if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d "${CARGO_TARGET_DIR}/debug/deps" ]; then
+            rm -f \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_full.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+
+      - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
+        # gate-self-apply ジョブの同名ステップと同一。test チェック配下の
+        # crates/cli/tests/negative_cases.rs 等が cargo-deny の存在有無で
+        # strict 分岐を切り替えるため、導入を落とすとサイレントに弱い側へ
+        # 倒れる（ci.md 規約、イシュー #2306 計画 §2.1 参照）。
+        run: tools/ci/ensure-gate-tools.sh
+
+      - name: "fw gate --project . 自己適用: test（PASS 常時保証, issue #400/#2306）"
+        run: |
+          set -euo pipefail
+          # gate-self-apply ジョブの本体ステップと同型のパイプライン
+          # （grep によるアノテーション出し分け、PIPESTATUS 方式は採らない）。
+          if cargo run -p fandhe-frontend-cli --locked -- gate --project . --only test | tee gate-report.json; then
+            exit 0
+          fi
+          if grep -q '"gate_result":"ERROR"' gate-report.json; then
+            echo "::error::fw gate ERROR (--only test): environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
+          else
+            echo "::error::fw gate BLOCKED (--only test): code-caused check failure. See failing checks in the JSON report above."
           fi
           exit 1
 
@@ -2238,8 +2818,16 @@ jobs:
     # ホステッドランナー移行（トラッキング #1220、実装 #1229）。
     runs-on: ubuntu-latest
     # ホステッドランナーではジョブごとに xtask を毎回コールドビルドする分の
-    # 余裕を見込み延長する（イシュー #1229。ネットワーク照会なしの設計は不変）。
+    # 余裕を見込み延長する（イシュー #1229）。`check-dep-versions` 自体は
+    # ネットワーク照会なしの設計のまま不変だが、本ジョブはイシュー #2325 で
+    # `check-ruleset-sync`（GitHub API への読み取り専用照会）も担うように
+    # なったため、その分の余裕も含める。
     timeout-minutes: 15
+    # `check-ruleset-sync` が GitHub API のレート制限（匿名 60 req/h、
+    # ホステッドランナーは IP 共有のため到達しやすい）を避けるために読む。
+    # 値はステップの env にのみ注入し、ログへは一切出力しない
+    # （security.md 秘密情報の露出防止）。`permissions: contents: read` の
+    # 既定 GITHUB_TOKEN で足り、権限追加は不要（読み取り専用 API のため）。
     steps:
       - name: Checkout
         # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。docs/spec サブ
@@ -2280,18 +2868,84 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ruleset `main-protection` の必須チェック集約先（イシューなし・運用変更）。
-  # 本ワークフローの全ジョブを needs に列挙し、ruleset 側は本ジョブ
-  # （ci-complete）のみを必須チェックとして参照する。これによりジョブの
-  # 追加・改名時に ruleset の required_status_checks を追随更新する必要が
-  # なくなる。**ジョブ追加時は needs への追加が必要**（追加を忘れると当該
-  # ジョブの失敗が必須チェックに反映されないため、レビューで必ず確認する）。
+      - name: Run xtask check-ruleset-sync
+        # イシュー #2325: ruleset `main-protection` の live
+        # required_status_checks と .github/required-status-checks.json
+        # （正のマニフェスト）が一致しているかを検知する。GITHUB_TOKEN は
+        # このステップの env にのみ注入し、`xtask check-ruleset-sync` の
+        # curl 呼び出しへ Authorization ヘッダとしてのみ渡す（stdout・
+        # ログには一切出力されない、check_ruleset_sync::fetch_branch_rules
+        # 参照）。既定の GITHUB_TOKEN（contents: read）で十分（読み取り専用
+        # の rules/branches エンドポイントに書き込み権限は不要）。
+        #
+        # `check-version-bump`/`version-bump-guard` ジョブと同型の判定
+        # パイプライン（`if PIPELINE; then exit 0; fi` の形。`set -euo
+        # pipefail` を維持したまま条件式内で pipefail 失敗による即時中断を
+        # 回避する）で、"environment error: "（runner/GitHub API 起因）と
+        # ドリフト検知（コード起因の FAIL）を CI アノテーションとして区別する。
+        #
+        # `if: always()`: 本ステップは同一ジョブ内の先行ステップ
+        # `check-dep-versions`（バージョン追随検知）とは独立したゲートで
+        # あり、先行ステップが失敗しても ruleset drift 検知を止めては
+        # ならない（Cursor Bugbot 指摘、PR #2338）。既定の `if:` 省略は
+        # 先行ステップ失敗時に自動的にスキップされるため、`always()` で
+        # 明示的に無条件実行へ切り替える。
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if cargo run --locked -p xtask -- check-ruleset-sync 2>&1 | tee ruleset-sync.log; then
+            exit 0
+          fi
+          if grep -q 'environment error: ' ruleset-sync.log; then
+            echo "::error::check-ruleset-sync failed: environment error (runner/GitHub API issue, not code). See 'environment error:' lines above; verify this runner can reach https://api.github.com."
+          else
+            echo "::error::check-ruleset-sync failed: the live ruleset main-protection required_status_checks and .github/required-status-checks.json are out of sync (see 'ruleset-sync:'/'result=FAIL:...' lines above, or strict=true). See .claude/rules/ci.md ('ci-complete 集約ジョブと ruleset 必須チェック') for the update procedure (issue #2325)."
+          fi
+          exit 1
+
+      - name: Publish ruleset-sync summary
+        if: always()
+        # format_entry_line/format_strict_line
+        # （crates/xtask/src/check_ruleset_sync.rs）の 1 行サマリ契約
+        # 「ruleset-sync: context=<context> integration_id=<n>
+        # result=<PASS|FAIL:...>」と末尾「ruleset-sync: strict=<bool>
+        # result=<PASS|FAIL>」を Step Summary に転記する。この契約はテストで
+        # 固定される（crates/xtask/tests/cli_check_ruleset_sync.rs）。
+        run: |
+          {
+            echo '## ruleset-sync (issue #2325)'
+            echo '```'
+            grep '^ruleset-sync:' ruleset-sync.log || echo 'ruleset-sync: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ruleset `main-protection` の必須チェックは PR HEAD へ報告される全
+  # context を個別列挙する（`.github/required-status-checks.json` が正、
+  # イシュー #2325。implement-issue-tree の autoMerge G0 ゲートが要求する
+  # 「ruleset に含まれない context（client-only チェック）が 1 件でもあれば
+  # 辞退」という実際の挙動に合わせるためであり、本ジョブ（ci-complete）
+  # だけへ集約すると他ジョブは client-only になり G0 が常に辞退する。詳細・
+  # 決定記録・運用手順は `.claude/rules/ci.md` §「ci-complete 集約ジョブと
+  # ruleset 必須チェック」参照）。
+  #
+  # 本ワークフローの全ジョブを needs に列挙し全結果を集約する点は変わらず、
+  # `ci-complete` は ruleset 個別列挙の**第 2 の防御層**として機能する
+  # （ruleset へのジョブ登録漏れがあっても、本ジョブの失敗経由で検知できる）。
+  # **ジョブ追加時は needs への追加が必要**（追加を忘れると当該
+  # ジョブの失敗が必須チェックに反映されない）。この網羅性は
+  # `crates/xtask/tests/workflow_ci_complete_needs.rs` が `cargo test -p
+  # xtask` 時点で fail-closed に機械検知する（イシュー #2324。needs の
+  # 網羅性・`if: always()`・下記 skipped 許容リストの整合の 3 点を検証する）。
   # `skipped` の許容は version-bump-guard（`if: pull_request` の条件付き
   # ジョブ）のみに限定し、他ジョブは success のみ受理する（skipped を全
   # ジョブで無条件許容すると、将来 `if:` が誤って追加されたジョブの skip を
   # 検知できず fail-open になるため。team-hub #1733 の codex 指摘と同型の
-  # 是正）。deps-check.yml（別 workflow のため needs にできない）と
-  # codex-review は従来どおり単独の必須チェックとして ruleset に残す。
+  # 是正）。条件付きジョブを増やす場合は同テストの `SKIPPED_ALLOWLIST`
+  # 定数への追加も必要（ci.yml 側だけの変更では同テストが FAIL する）。
+  # deps-check.yml（別 workflow のため needs にできない）と codex-review は
+  # 従来どおり単独の必須チェックとして ruleset に残す。
   ci-complete:
     name: ci-complete
     if: always()
@@ -2315,8 +2969,14 @@ jobs:
       - fmt
       - clippy
       - clippy-wasm32
+      - wasm-full-feature-matrix-baseline
+      - wasm-full-feature-matrix-wiring
+      - wasm-full-feature-matrix-scope
+      - wasm-full-feature-matrix-readonly-guard
       - windows-target-check
       - gate-self-apply
+      - gate-self-apply-lint-wasm32
+      - gate-self-apply-test
       - version-bump-guard
       - dep-version-check
     steps:

@@ -145,19 +145,18 @@
 //!   の記述は本イシューで是正した）。Radix にない Home/End・印字可能文字
 //!   typeahead は WAI-ARIA APG 準拠で追加実装済み。`Tab` は無配線
 //!   （ブラウザ既定に委ねる）。
-//! - **既知ギャップ（本イシューでは是正しない、`fandhe-frontend-wasm-full`
-//!   側の後続対応）**: `keynav::MENUBAR_ITEM_SELECTOR`/
-//!   `MENU_ITEM_SELECTOR` が `item`/`sub-trigger` のみを対象とし、本
-//!   イシューで新設した `checkbox-item`/`radio-item` は highlight 移動・
-//!   typeahead・Enter/Space の対象外である。`headless::MAPPING_TABLE` にも
-//!   checked トグルの dispatch 行がない（[`crate::menu`] が #1651 で
-//!   記録した既知ギャップと同一）。
+//! - **checkbox-item/radio-item の配線（イシュー #2205 で解消済み）**:
+//!   `keynav::MENUBAR_ITEM_SELECTOR`/`MENU_ITEM_SELECTOR` は
+//!   `checkbox-item`/`radio-item` も highlight 移動・typeahead・Enter/Space
+//!   の対象に含み、`headless::MAPPING_TABLE` の `("menubar",
+//!   "checkbox-item") → "toggle"`/`("menubar", "radio-item") → "select"`
+//!   行を経由して checked トグル/排他選択が dispatch される（Menubar 自身は
+//!   checked 状態機械を持たないため [`crate::menu::MenuCheckboxItem`]/
+//!   [`crate::menu::MenuRadioItemGroup`] を流用する）。旧「既知ギャップ」
+//!   の記述（[`crate::menu`] #1651 と同一のギャップ）は本イシューで是正
+//!   した。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
-//!
-//! - 上記「既知ギャップ」節記載の `fandhe-frontend-wasm-full` 側の
-//!   checkbox-item/radio-item 配線（highlight 移動・typeahead・checked
-//!   トグル dispatch）。
 //! - `fandhe-frontend-pre-styled-ui` 側の `SLOTS`/CSS 同期（新設 7 パーツ
 //!   分、後続イシュー #1528 へ申し送り）。
 //! - Portal の実 DOM 移送（本実装の [`positioner`] は Radix Portal

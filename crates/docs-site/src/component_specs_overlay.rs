@@ -1402,6 +1402,7 @@ pub const MENU: ComponentPageSpec = ComponentPageSpec {
         "CheckboxItem / RadioItemGroup は開閉状態とは独立した checked 状態機械（MenuCheckboxItem / MenuRadioItemGroup）を持つ。",
         "size variant で root/content の padding を切り替える。",
         "ItemText / ItemIndicator は headless anatomy には #1651 時点で存在していたが、pre-styled-ui 側の再エクスポート・CSS 着装漏れをイシュー #2033（shadcn/ui 突合）で補完した。ショートカット表示は新規 anatomy パートを追加せず、独立部品 kbd との合成パターンで実現する。",
+        "destructive 項目（data-danger）が highlighted（キーボードフォーカス位置）と同時に立つ場合の背景色合成を StateCondition::AttrAll（値なし存在属性同士の AND、イシュー #2203）で実装している。",
     ],
     arguments: &[
         ArgRow {
@@ -1430,7 +1431,7 @@ pub const MENU: ComponentPageSpec = ComponentPageSpec {
         },
         ExampleEntry {
             title: "inset 項目・destructive 項目",
-            description: "アイコンを持たない項目のテキスト位置を揃える data-inset と、危険操作を示す data-danger（pre-styled-only の存在属性、item() の attrs 経由で付与）を組み合わせた例です。",
+            description: "アイコンを持たない項目のテキスト位置を揃える data-inset と、危険操作を示す data-danger（pre-styled-only の存在属性、item() の attrs 経由で付与）を組み合わせた例です。destructive 項目は highlighted 状態で掲示しており、data-danger × data-highlighted の背景色合成（イシュー #2203）を確認できます。",
             render: ex_menu_inset_and_danger,
         },
     ],
@@ -1670,10 +1671,13 @@ fn ex_menu_inset_and_danger() -> Node {
                             vec![text("Settings")],
                         ),
                         menu::separator(vec![], vec![]),
+                        // highlighted=true: data-danger × data-highlighted
+                        // の背景色合成（`StateCondition::AttrAll`、イシュー
+                        // #2203）を掲示する。
                         menu::item(
                             "delete-account",
                             false,
-                            false,
+                            true,
                             vec![("data-danger", "")],
                             vec![text("Delete account")],
                         ),
@@ -2003,7 +2007,7 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
         "WAI-ARIA tooltip パターンに従い、trigger は aria-describedby で content と関連付ける（aria-expanded / aria-controls は使わない）。content 側が role=\"tooltip\" を持つ。",
         "openDelay / closeDelay（表示・非表示までの遅延タイマー）は wasm-full 側の後続スコープ。",
         "開閉は Disclosure を埋め込んだ状態機械 Tooltip が管理する。",
-        "positioner は data-side 属性（top（既定）/ bottom / left / right）で表示位置を切り替えられる（イシュー #2041、shadcn/ui の side prop 相当。実座標追従ではなく静的フォールバックのみ）。",
+        "positioner は data-side 属性（top（既定）/ bottom / left / right）で表示位置を切り替えられる（イシュー #2041、shadcn/ui の side prop 相当。fandhe-frontend-wasm-full のハイドレーション下では実座標追従、SSR / no-JS では静的フォールバック、イシュー #2210）。",
         "content の children へテキストと fandhe-frontend-pre-styled-ui::kbd を組み合わせるキーボードショートカット併記パターンが可能（イシュー #2041、shadcn/ui の With Keyboard Shortcut Example 相当。下記 Examples 節参照）。",
     ],
     arguments: &[
@@ -2017,7 +2021,7 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
             name: "positioner の attrs",
             kind: "Vec<(&str, &str)>",
             default: "",
-            description: "positioner へ透過する属性。data-side=\"bottom\"/\"left\"/\"right\" を渡すと表示位置の静的フォールバックが切り替わる（未指定は top 相当）。left/right は root 幅が trigger 幅に一致する文脈（flex アイテム等で shrink-wrap される場合）でのみ trigger に隣接する位置になる。",
+            description: "positioner へ透過する属性。data-side=\"bottom\"/\"left\"/\"right\" を渡すと表示位置の静的フォールバックが切り替わる（未指定は top 相当）。fandhe-frontend-wasm-full のハイドレーション下では実測座標へ追従するため、この制約は解消する（イシュー #2210）。SSR / no-JS の静的フォールバックでは、left/right は root 幅が trigger 幅に一致する文脈（flex アイテム等で shrink-wrap される場合）でのみ trigger に隣接する位置になる。",
         },
     ],
     examples: &[ExampleEntry {

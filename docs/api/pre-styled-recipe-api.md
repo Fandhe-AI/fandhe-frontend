@@ -232,6 +232,13 @@ chakra-ui の「compoundVariants は variants を上書きする」という意�
     のみを除外する。他の宣言が有効であれば規則自体は出力される。**既定値の
     再注入は行わない**（不正な値を親切に空文字列へ差し替えると、fail-closed の
     意味が薄れるため）
+- `StateCondition::AttrEqAll`（値付き属性の AND）・`StateCondition::AttrAll`
+  （値なし存在属性の AND、イシュー #2203）固有の検証:
+  - スライスが空の規則は base と同義になる無意味な規則として除外する
+  - スライス要素（`AttrEqAll` は属性名・属性値、`AttrAll` は属性名）が識別子
+    として不正な規則は除外する
+  - `crates/pre-styled-ui/tests/recipe_css.rs::state_attr_all_fail_closed_cases_are_skipped_not_panicking`
+    が固定する
 - `starting_style_state` の Hover 系 `StateCondition`（`Hover`/`HoverExcept`/
   `HoverExceptAttr`/`HoverExceptAttrEq`）は `@starting-style` 内で意味を持たない
   （starting style は遷移開始前の静的スナップショットであり、`:hover` の

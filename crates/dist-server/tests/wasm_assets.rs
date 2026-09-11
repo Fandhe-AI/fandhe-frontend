@@ -28,6 +28,22 @@ fn wasm_bindgen_js_glue_is_served_with_javascript_content_type() {
 }
 
 #[test]
+fn wasm_bindgen_js_glue_still_exports_hydrate_under_the_minimal_feature_set() {
+    // イシュー #2329: 配布物の feature 集合を最小インタラクティブ構成へ
+    // 縮小しても、`static/wasm-full-init.js` が import する entry
+    // エクスポート（`wasm-bindgen-exports` feature が生成する `hydrate`）が
+    // glue JS から消えていないことを固定する回帰テスト
+    // （feature 縮小が entry point 自体を巻き込んでしまう事故の検知）。
+    let response = route_request("/static/wasm/fandhe_frontend_wasm_full.js");
+    assert_eq!(response.status, 200);
+    let body = std::str::from_utf8(&response.body).expect("glue JS is valid UTF-8");
+    assert!(
+        body.contains("export function hydrate"),
+        "glue JS is missing the `hydrate` entry export"
+    );
+}
+
+#[test]
 fn wasm_binary_is_served_with_wasm_content_type() {
     let response = route_request("/static/wasm/fandhe_frontend_wasm_full_bg.wasm");
     assert_eq!(response.status, 200);

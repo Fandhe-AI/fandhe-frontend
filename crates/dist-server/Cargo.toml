@@ -2,7 +2,26 @@
 name = "fandhe-frontend-dist-server"
 # イシュー #1971: build.rs のネスト WASM ビルドへ wasm-opt 後処理（+ wasm-bindgen
 # name/producers section 除去フラグ）を統合したことに伴う patch バンプ。
-version = "0.2.7"
+# イシュー #2209（PR #2332 CI 是正）: `build.rs::run_wasm_build` のネスト
+# `cargo build -p fandhe-frontend-wasm-full` へ `--no-default-features
+# --features <WASM_FULL_DIST_FEATURES>` を追加し、`position`（同イシュー
+# が新設した既定 on feature）のみを配布物のビルドから除外した。REQ-11
+# （gzip 200,000 B 上限）超過（`position` 追加分、約 2.6 KB）を解消する
+# ための対応であり、公開 API・実行時挙動（`fw new`/`fandhe-frontend-dist-server`
+# バイナリの振る舞い）は不変（配信 WASM から自動 positioning のみが
+# 外れる）ため patch バンプ、0.2.7 から 0.2.8 とする
+# （`.claude/rules/coding-rust.md` #638 条項、`build.rs` の実体変更）。
+# イシュー #2329: 配布物（ネスト `cargo build -p fandhe-frontend-wasm-full`）
+# の feature 集合を「最小インタラクティブ構成」（`wasm-bindgen-exports`/
+# `collapsible`/`dialog`/`popover`/`tooltip`/`position` の 6 件）へ縮小した。
+# 配信 WASM から keynav・focus-visible・大半の scope（accordion/menu/
+# select 等）・配線群別 feature（avatar/chart 等）が外れ、実配布物の挙動
+# （どの部品が動くか）が変わる実体変更のため minor バンプとし、
+# `src/lib.rs` へ `#[doc(hidden)] pub mod wasm_dist_features` を新設
+# （公開項目追加）したことも踏まえ 0.2.8 から 0.3.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項、0.x の破壊的変更相当は
+# マイナーバンプ）。
+version = "0.3.0"
 edition = "2021"
 description = "fandhe-frontend-dist-server: TASK-9.1b。fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと fandhe-frontend-app の SSR ページを配信する配布用サーバー。"
 license = "MIT OR Apache-2.0"

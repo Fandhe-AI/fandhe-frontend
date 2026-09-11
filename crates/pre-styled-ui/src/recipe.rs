@@ -14,7 +14,8 @@
 //! の出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound variants
 //! （登録順、イシュー #604）→ states（登録順、イシュー #643）→
 //! pseudo-elements（登録順、イシュー #2201）→ breakpoints（[`Breakpoint`]
-//! の昇順、イシュー #2197）→ hover（[`StateCondition::Hover`] 等の
+//! の昇順、イシュー #2197）→ container query（[`ContainerBreakpoint`] の
+//! 昇順、イシュー #2199）→ hover（[`StateCondition::Hover`] 等の
 //! `@media (hover: hover)` ブロック、常に最後尾）」に固定し、同一 slot・
 //! 同一 axis/value への複数回登録は「後に登録された規則が CSS 中で後に
 //! 出力される」（CSS のカスケードにおいて後勝ちになる）という素直な規約に
@@ -35,7 +36,11 @@
 //! `@media (min-width: ...)` によるレイアウト調整が通常の状態規則より
 //! 優先されるべきだが、タッチ端末の hover 貼り付き対策（イシュー #1425）で
 //! 集約している hover ブロックより手前に置くことでカスケード上の意味を
-//! 単純に保つため（[`SlotRecipe::breakpoint`] rustdoc 参照）。
+//! 単純に保つため（[`SlotRecipe::breakpoint`] rustdoc 参照）。container
+//! query を breakpoints の後・hover の前に置くのも同じ理由（`@container`
+//! も viewport ではなく要素サイズに基づくレイアウト調整であり、hover の
+//! タッチ端末対策より手前に置く方がカスケード上の意味が単純、
+//! [`SlotRecipe::container_slot`] rustdoc 参照）。
 //!
 //! # 疑似要素（イシュー #2201）
 //!
@@ -54,6 +59,13 @@
 //! 同じ [`is_valid_identifier`] 検証を経由し、不正な入力は規則ごと出力から
 //! 除外する fail-closed 方針。既存 `state_css()` 群が個別に手書きしていた
 //! セレクタ組み立てをここへ一本化し、fail-closed 検証の迂回経路を増やさない）。
+//!
+//! 存在属性同士の AND 条件は [`StateCondition::AttrAll`]（イシュー #2203）が
+//! 担う。[`StateCondition::AttrEqAll`] は値付き属性専用のため、値なし存在
+//! 属性（例: `data-highlighted`）同士の組み合わせを表現しようとして値に
+//! 空文字列を渡すと [`is_valid_identifier`] に拒否され規則ごと無音で脱落
+//! する（[`crate::menu`] の `item` における `data-danger` × `data-highlighted`
+//! 背景色合成が最初の消費者）。
 //!
 //! compound variant（[`SlotRecipe::compound_variant`]）は複数軸の条件を
 //! `.fd-<scope>--<a1>-<v1>.fd-<scope>--<a2>-<v2>...` のように連結したセレクタ
@@ -93,6 +105,33 @@
 //! breakpoint × variant / breakpoint × state の複合条件（`@media` 内での
 //! `.fd-<scope>--<axis>-<value>` や `:hover` 規則）は本イシューのスコープ外
 //! （`docs/design/pre-styled-ui-scale-tokens.md` §7 の再評価トリガー参照）。
+//!
+//! # container query 条件（イシュー #2199）
+//!
+//! [`SlotRecipe::container_slot`] は recipe が持つ 1 slot を「`container-type:
+//! inline-size` を持つ container」として宣言する（無名 `@container` は
+//! 採らず、`fd-<scope>-<slot>` という決定的な名前付き container のみを
+//! 生成する。理由は [`SlotRecipe::container_slot`] rustdoc 参照）。
+//! [`SlotRecipe::container`]/[`SlotRecipe::container_variant`] はこの
+//! container slot の inline サイズが [`ContainerBreakpoint`] の閾値を
+//! 満たしたときの宣言を登録する。`container` は base と同じ無条件セレクタ
+//! （詳細度 (0,2,0)）、`container_variant` は variant と同じクラス付き
+//! セレクタ（詳細度 (0,3,0)）を `@container` 内に出力する。**field の
+//! `orientation="responsive"`（[`crate::field`]）が両者を組み合わせた最初の
+//! 消費者**であり、`group` を container・`root` を `container_variant` の
+//! 対象 slot として使う。
+//!
+//! [`ContainerBreakpoint`] は Theme トークンを持たない（[`crate::theme::
+//! Theme`] の `--fandhe-breakpoint-<段>` のような参照専用トークンの対応物を
+//! 設けない）: breakpoint トークンは `matchMedia` 等 JS からの参照用途を
+//! 持つが、container query には JS 側の等価 API（`ResizeObserver` は別物）
+//! が無く、CSS custom property は `@container` プレリュードでも使えない
+//! 制約は breakpoint と同じ。詳細な判断記録・再評価トリガーは
+//! `docs/design/pre-styled-ui-scale-tokens.md` §3.7/§7 参照。
+//!
+//! container × variant の複合条件は [`SlotRecipe::container_variant`] で
+//! 採用したが、container × state・`max-width`/range 構文・1 recipe に
+//! 複数 container slot は本イシューのスコープ外（同文書 §7 参照）。
 
 use crate::css::{decl, is_valid_identifier, serialize_rule, Declaration};
 
@@ -231,6 +270,76 @@ impl Breakpoint {
             Breakpoint::Md => "768px",
             Breakpoint::Lg => "1024px",
             Breakpoint::Xl => "1280px",
+        }
+    }
+}
+
+/// `@container` クエリ（コンテナクエリ）の閾値（イシュー #2199）。
+/// [`Breakpoint`] と並ぶ「条件」だが、viewport 幅ではなく
+/// [`SlotRecipe::container_slot`] で宣言した container 要素自身の
+/// inline サイズを基準に切り替わる点が異なるため、独立した enum とする
+/// （[`SlotRecipe::container`]/[`SlotRecipe::container_variant`] からのみ
+/// 使う）。
+///
+/// `sm`/`md`/`lg`/`xl` の 4 段のみを持つ（[`Breakpoint`] と同じ「共通 enum
+/// に載せると全部品が空の段を抱える」判断により `3xs`〜`xs`・`2xl` 以上は
+/// 見送る。必要になった時点で純追加できる）。値は shadcn/ui（Tailwind v4
+/// 既定コンテナクエリスケール）と一致する（比較・採用根拠は
+/// `docs/design/pre-styled-ui-scale-tokens.md` §3.7 参照）。`Breakpoint` の
+/// 値（`sm`=640px 等）とは異なる px 値を持つ別スケールである点に注意
+/// （viewport 幅とコンテナ幅は別軸のため、たまたま同名でも値を揃える
+/// 理由がない）。既定値（`Default`）は実装しない（[`Breakpoint`] と同じ
+/// 安全側判断）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContainerBreakpoint {
+    /// `>= 384px`。
+    Sm,
+    /// `>= 448px`（shadcn/ui `FieldGroup` の `@md/field-group` 相当。
+    /// [`crate::field`] の `orientation="responsive"` が使う最初の消費者）。
+    Md,
+    /// `>= 512px`。
+    Lg,
+    /// `>= 576px`。
+    Xl,
+}
+
+impl ContainerBreakpoint {
+    /// 全段を昇順（`sm` → `xl`）で列挙する。[`SlotRecipe::css`] が
+    /// container ブロックを mobile-first（小さい段から）の順に出力する際の
+    /// 唯一の反復元として使う。
+    pub const ALL: [ContainerBreakpoint; 4] = [
+        ContainerBreakpoint::Sm,
+        ContainerBreakpoint::Md,
+        ContainerBreakpoint::Lg,
+        ContainerBreakpoint::Xl,
+    ];
+
+    /// この段の名前（例: `"md"`）。[`SlotRecipe`] のクラス名接尾辞には
+    /// 使わない（`ContainerBreakpoint` は `VariantValue` を実装しないため、
+    /// この値を variant クラス生成に使う経路自体が存在しない）。
+    #[must_use]
+    pub const fn value(self) -> &'static str {
+        match self {
+            ContainerBreakpoint::Sm => "sm",
+            ContainerBreakpoint::Md => "md",
+            ContainerBreakpoint::Lg => "lg",
+            ContainerBreakpoint::Xl => "xl",
+        }
+    }
+
+    /// `@container ... (min-width: ...)` に埋め込む px 値（例: `"448px"`）。
+    ///
+    /// この `const fn` がリテラルを返すソース内の**唯一の定義元**であり、
+    /// [`SlotRecipe::css`] はこの戻り値のみを `@container` プレリュードへ
+    /// 埋め込む（呼び出し元由来の文字列は一切通さない。[`Breakpoint::
+    /// min_width`] と同じ安全性根拠）。
+    #[must_use]
+    pub const fn min_width(self) -> &'static str {
+        match self {
+            ContainerBreakpoint::Sm => "384px",
+            ContainerBreakpoint::Md => "448px",
+            ContainerBreakpoint::Lg => "512px",
+            ContainerBreakpoint::Xl => "576px",
         }
     }
 }
@@ -1098,6 +1207,26 @@ pub enum StateCondition {
     /// 要素は `(name, value)` の組。空スライスは無条件規則（`base` と同義）
     /// になる意味のない規則のため [`SlotRecipe::css`] が除外する。
     AttrEqAll(&'static [(&'static str, &'static str)]),
+    /// 複数の存在属性（boolean 属性）の AND 条件
+    /// `[<name1>][<name2>]...`（イシュー #2203）。
+    ///
+    /// [`StateCondition::AttrEqAll`] は値付き属性専用であり、値なし
+    /// 存在属性（例: `data-highlighted=""`）を渡そうとすると値に空文字列
+    /// `""` を渡すことになるが [`is_valid_identifier`] が空文字列を拒否
+    /// するため規則ごと無音に脱落してしまう（[`StateCondition::
+    /// HoverExceptAttr`] rustdoc に記載の罠と同型）。本 variant は値なし
+    /// 存在属性同士の AND を表現する唯一の経路として追加した。
+    ///
+    /// 要素はスライス順に連結される。空スライスは無条件規則（`base` と
+    /// 同義）になる意味のない規則のため [`SlotRecipe::css`] が除外する
+    /// （[`AttrEqAll`](StateCondition::AttrEqAll) と同じ扱い）。要素 1 個は
+    /// [`StateCondition::Attr`] と等価だが `AttrEqAll` の前例に合わせて
+    /// 許容する。
+    ///
+    /// specificity は属性セレクタ数分（N 個で 通常規則の base (0,2,0) +
+    /// N を加算した (0,2+N,0)）。最初の消費者は [`crate::menu`] の
+    /// `item`（`data-danger` × `data-highlighted` の背景色合成）。
+    AttrAll(&'static [&'static str]),
     /// `:hover` 擬似クラス（イシュー #847）。
     ///
     /// [`crate::charts::tooltip`] のデータ点（`datum` slot）専用の追加。
@@ -1254,6 +1383,18 @@ struct BreakpointRule {
     declarations: Vec<Declaration>,
 }
 
+/// slot 1 個・[`ContainerBreakpoint`] 1 個への宣言登録（内部表現、イシュー
+/// #2199）。`variant` が `Some((axis, value))` の場合はセレクタへ
+/// `.fd-<scope>--<axis>-<value>` を連結する（[`SlotRecipe::container_variant`]
+/// 経由）。`None` の場合は base と同じ無条件セレクタ（[`SlotRecipe::
+/// container`] 経由）。
+struct ContainerRule {
+    slot: &'static str,
+    variant: Option<(&'static str, &'static str)>,
+    breakpoint: ContainerBreakpoint,
+    declarations: Vec<Declaration>,
+}
+
 /// slot 1 個・任意の状態条件への `@supports not (height: calc-size(auto,
 /// size))` 内規則登録（内部表現、イシュー #2192。Cursor Bugbot medium
 /// severity 指摘「`[hidden]` 規則が `transition-*` longhand を持つように
@@ -1359,6 +1500,13 @@ pub struct SlotRecipe {
     starting_style: Vec<StartingStyleRule>,
     supports_not_calc_size: Vec<SupportsNotCalcSizeRule>,
     breakpoints: Vec<BreakpointRule>,
+    /// `container-type`/`container-name` を持たせる slot（イシュー #2199）。
+    /// [`SlotRecipe::container_slot`] で宣言する。`None` のままなら
+    /// [`SlotRecipe::css`] は `containers` に登録された規則を一切出力しない
+    /// （fail-closed。孤児 `@container` を出さない、`container_slot`
+    /// rustdoc 参照）。
+    container_slot: Option<&'static str>,
+    containers: Vec<ContainerRule>,
 }
 
 /// [`StateCondition`] 1 個が識別子として妥当かどうかを判定する（内部
@@ -1380,6 +1528,9 @@ fn state_condition_is_valid(condition: &StateCondition) -> bool {
                 && pairs
                     .iter()
                     .all(|(name, value)| is_valid_identifier(name) && is_valid_identifier(value))
+        }
+        StateCondition::AttrAll(names) => {
+            !names.is_empty() && names.iter().all(|name| is_valid_identifier(name))
         }
         StateCondition::Hover => true,
         StateCondition::HoverExcept(name, value) => {
@@ -1417,6 +1568,11 @@ fn state_condition_selector(condition: &StateCondition) -> Option<String> {
         StateCondition::AttrEqAll(pairs) => {
             for (name, value) in *pairs {
                 suffix.push_str(&format!("[{name}=\"{value}\"]"));
+            }
+        }
+        StateCondition::AttrAll(names) => {
+            for name in *names {
+                suffix.push_str(&format!("[{name}]"));
             }
         }
         StateCondition::Hover => {
@@ -1496,6 +1652,8 @@ impl SlotRecipe {
             starting_style: Vec::new(),
             supports_not_calc_size: Vec::new(),
             breakpoints: Vec::new(),
+            container_slot: None,
+            containers: Vec::new(),
         }
     }
 
@@ -1744,6 +1902,100 @@ impl SlotRecipe {
         self
     }
 
+    /// この recipe の `container-type`/`container-name` を持つ slot を宣言
+    /// する（builder、自己消費、イシュー #2199）。`slot` を`container` に
+    /// 束ねると、[`SlotRecipe::css`] は当該 slot の base ブロック群の直後に
+    ///
+    /// ```css
+    /// [data-scope="<scope>"][data-part="<slot>"] {
+    ///   container-type: inline-size;
+    ///   container-name: fd-<scope>-<slot>;
+    /// }
+    /// ```
+    ///
+    /// を出力する（無名 `@container` は採らない。将来他部品が
+    /// `container-type` を持った時点で最近傍 container に束縛され本
+    /// recipe の `@container` 規則が黙って壊れるのを防ぐため。
+    /// `docs/design/pre-styled-ui-scale-tokens.md` §3.7 参照）。
+    ///
+    /// 1 recipe につき container slot は 1 つ。複数回呼んだ場合は最後の
+    /// 呼び出しが上書きする（`builder` の素直な意味論。他 API に fail-closed
+    /// な「重複登録の拒否」は無い）。
+    ///
+    /// `slot` が `slots` に未宣言、または識別子として不正な場合、
+    /// [`SlotRecipe::css`] は container-type ブロックと [`SlotRecipe::
+    /// container`]/[`SlotRecipe::container_variant`] で登録した規則を
+    /// すべて出力しない（fail-closed。孤児 `@container` を出さない）。
+    #[must_use]
+    pub fn container_slot(mut self, slot: &'static str) -> Self {
+        self.container_slot = Some(slot);
+        self
+    }
+
+    /// [`ContainerBreakpoint`] 条件が満たされたときの `slot` への宣言を
+    /// 登録する（builder、自己消費、イシュー #2199）。`@container
+    /// fd-<scope>-<container_slot> (min-width: <cb.min_width()>)` ブロック
+    /// 配下へ、base と同じ無条件セレクタ
+    /// `[data-scope="<scope>"][data-part="<slot>"]`（詳細度 (0,2,0)）で
+    /// 出力される。
+    ///
+    /// [`SlotRecipe::container_slot`] が未宣言・不正、または `slot` が
+    /// `slots` に未宣言・不正、または有効な宣言が 1 件もない場合は
+    /// [`SlotRecipe::css`] の出力から除外される（fail-closed、
+    /// [`SlotRecipe::breakpoint`] と同じ方針）。variant クラス付きの条件
+    /// 分岐が必要な場合は [`SlotRecipe::container_variant`] を使う（base
+    /// セレクタのまま宣言すると `container_slot` を持つ祖先を共有する
+    /// 全インスタンスへ一律に適用されるため、variant ごとに分岐したい
+    /// 場合はこちらでは表現できない）。
+    #[must_use]
+    pub fn container(
+        mut self,
+        slot: &'static str,
+        cb: ContainerBreakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.containers.push(ContainerRule {
+            slot,
+            variant: None,
+            breakpoint: cb,
+            declarations,
+        });
+        self
+    }
+
+    /// [`ContainerBreakpoint`] 条件が満たされ、かつ variant 値 `v` が
+    /// 選択されているときの `slot` への宣言を登録する（builder、自己消費、
+    /// イシュー #2199）。`@container fd-<scope>-<container_slot> (min-width:
+    /// <cb.min_width()>)` ブロック配下へ、variant と同じ
+    /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
+    /// （詳細度 (0,3,0)）で出力される。
+    ///
+    /// `v` は [`SlotRecipe::variant`]/[`SlotRecipe::default_variant`] への
+    /// 事前登録を要求しない（[`SlotRecipe::variant`] と同じく `axis()`/
+    /// `value()` の識別子検証のみを行う。`variant_classes` が未登録値の
+    /// クラスも emit する既存意味論と整合させるため）。
+    ///
+    /// [`SlotRecipe::container_slot`] が未宣言・不正、または `slot` が
+    /// `slots` に未宣言・不正、または `v` の `axis()`/`value()` が識別子
+    /// として不正、または有効な宣言が 1 件もない場合は [`SlotRecipe::css`]
+    /// の出力から除外される（fail-closed）。
+    #[must_use]
+    pub fn container_variant<V: VariantValue>(
+        mut self,
+        v: V,
+        slot: &'static str,
+        cb: ContainerBreakpoint,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.containers.push(ContainerRule {
+            slot,
+            variant: Some((v.axis(), v.value())),
+            breakpoint: cb,
+            declarations,
+        });
+        self
+    }
+
     /// `slot` への `@starting-style` 規則（状態条件付き）を登録する
     /// （builder、自己消費。イシュー #2192）。
     ///
@@ -1969,8 +2221,10 @@ impl SlotRecipe {
     /// 1 個のブロックへ集約、イシュー #2192）→ `@supports not (height:
     /// calc-size(auto, size))`（登録順、1 個のブロックへ集約、イシュー
     /// #2192）→ breakpoints（[`Breakpoint`] の昇順、イシュー #2197）→
-    /// `@media (hover: hover) { ... }`（`Hover` 系 states が存在する場合のみ、
-    /// 常に出力全体の末尾、イシュー #1425）」。
+    /// container query（[`ContainerBreakpoint`] の昇順、`container_slot` が
+    /// 有効な場合のみ、イシュー #2199）→ `@media (hover: hover) { ... }`
+    /// （`Hover` 系 states が存在する場合のみ、常に出力全体の末尾、イシュー
+    /// #1425）」。
     /// セレクタは base が `[data-scope="<scope>"][data-part="<slot>"]`、
     /// variant が
     /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
@@ -2017,6 +2271,22 @@ impl SlotRecipe {
     /// プロパティを variant（(0,3,0)）が宣言していると variant が常に勝つ
     /// （[`SlotRecipe::breakpoint`] rustdoc 参照）。
     ///
+    /// container query（[`SlotRecipe::container`]/[`SlotRecipe::
+    /// container_variant`]、イシュー #2199）は breakpoint の後・hover
+    /// ブロックの前に出力される。`container_slot`（[`SlotRecipe::
+    /// container_slot`]）が未宣言・不正な場合は `containers` に登録された
+    /// 規則を一切出力しない（fail-closed、孤児 `@container` を出さない）。
+    /// 有効な場合、`container_slot` の base ブロック群の直後（本メソッドの
+    /// base ループ内）に `container-type: inline-size; container-name:
+    /// fd-<scope>-<slot>;` を出力したうえで、[`ContainerBreakpoint`] の昇順
+    /// （`sm` → `xl`、mobile-first）で `@container fd-<scope>-<container_slot>
+    /// (min-width: <cb.min_width()>) { ... }` ブロックへ集約する（同一段内は
+    /// 登録順、有効な規則が 1 件もない段のブロックは出力しない）。セレクタは
+    /// `container()` が base と同じ `[data-scope="<scope>"][data-part="<slot>"]`
+    /// （詳細度 (0,2,0)）、`container_variant()` が variant と同じ
+    /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
+    /// （詳細度 (0,3,0)）。
+    ///
     /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
     /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
     /// セレクタ・クラス名へそのまま埋め込まれるため、ここで検証しないと
@@ -2042,6 +2312,27 @@ impl SlotRecipe {
                     out.push_str(&css);
                     out.push('\n');
                 }
+            }
+
+            // container slot（イシュー #2199）: 当該 slot の base ブロック群の
+            // 直後に `container-type`/`container-name` の 2 個目ブロックを
+            // 中間挿入する（accordion #2192 の `item-content` 2 個目 base
+            // ブロックと同型）。`container-name` の値はこの recipe の
+            // `scope`/`slot`（いずれも `is_valid_identifier` 検証済み）から
+            // 決定的に導出し、呼び出し側から自由文字列を受け取らない
+            // （`container_slot` rustdoc「無名 `@container` は採らない」
+            // 参照）。
+            if self.container_slot == Some(*slot) && is_valid_identifier(slot) {
+                let selector = format!("[data-scope=\"{}\"][data-part=\"{}\"]", self.scope, slot);
+                out.push_str(&selector);
+                out.push_str(" {\n  container-type: inline-size;\n  container-name: ");
+                out.push_str(CLASS_PREFIX);
+                out.push('-');
+                out.push_str(self.scope);
+                out.push('-');
+                out.push_str(slot);
+                out.push_str(";\n}\n");
+                out.push('\n');
             }
         }
 
@@ -2269,6 +2560,52 @@ impl SlotRecipe {
                 &format!("@media (min-width: {})", bp.min_width()),
                 &block,
             );
+        }
+
+        // container query（イシュー #2199）: `container_slot` が有効に
+        // 宣言されている場合のみ、`ContainerBreakpoint::ALL` の昇順で
+        // `@container fd-<scope>-<container_slot> (min-width: ...) { ... }`
+        // ブロックを breakpoints の後・hover の前に出力する。未宣言・
+        // 不正な `container_slot` の場合は `containers` に登録された規則を
+        // 一切出力しない（fail-closed。孤児 `@container` を出さない、
+        // `container_slot` rustdoc 参照）。
+        if let Some(cslot) = self.container_slot {
+            if self.is_declared_slot(cslot) && is_valid_identifier(cslot) {
+                let container_name = format!("{CLASS_PREFIX}-{}-{}", self.scope, cslot);
+                for cb in ContainerBreakpoint::ALL {
+                    let mut block = String::new();
+                    for rule in self.containers.iter().filter(|r| r.breakpoint == cb) {
+                        if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
+                            continue;
+                        }
+                        let mut selector = format!(
+                            "[data-scope=\"{}\"][data-part=\"{}\"]",
+                            self.scope, rule.slot
+                        );
+                        if let Some((axis, value)) = rule.variant {
+                            if !is_valid_identifier(axis) || !is_valid_identifier(value) {
+                                continue;
+                            }
+                            selector.push_str(&format!(
+                                ".{CLASS_PREFIX}-{}--{}-{}",
+                                self.scope, axis, value
+                            ));
+                        }
+                        if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                            block.push_str(&css);
+                            block.push('\n');
+                        }
+                    }
+                    push_media_block(
+                        &mut out,
+                        &format!(
+                            "@container {container_name} (min-width: {})",
+                            cb.min_width()
+                        ),
+                        &block,
+                    );
+                }
+            }
         }
 
         push_media_block(&mut out, "@media (hover: hover)", &hover_css);

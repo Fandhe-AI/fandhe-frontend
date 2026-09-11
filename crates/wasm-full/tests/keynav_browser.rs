@@ -97,10 +97,13 @@
 
 #![cfg(target_arch = "wasm32")]
 
+use fandhe_frontend_headless_ui::menu::{MenuCheckboxItem, MenuRadioItemGroup};
 use fandhe_frontend_headless_ui::tree_view::{TreeNode, TreeView};
 use fandhe_frontend_wasm_full::events::{wire_events, ActionRef};
 use fandhe_frontend_wasm_full::headless::wire_headless_component;
-use fandhe_frontend_wasm_full::keynav::{wire_keynav, TYPEAHEAD_TIMEOUT_MS};
+use fandhe_frontend_wasm_full::keynav::{
+    wire_keynav, wire_readonly_click_guard, TYPEAHEAD_TIMEOUT_MS,
+};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
@@ -319,6 +322,150 @@ fn build_menu_dom(
         }
         item.set_text_content(Some(label));
         content.append_child(&item).unwrap();
+    }
+    root.append_child(&content).unwrap();
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+    root
+}
+
+/// [`build_menu_dom_with_checkable_items`] の項目仕様（イシュー #2205）。
+/// `Item`/`CheckboxItem`/`RadioItem` を混在配置できる（`MENU_ITEM_SELECTOR`
+/// が highlight 対象に含める `item`/`checkbox-item`/`radio-item` の checkable
+/// 3 種、`trigger-item` を除く）。`CheckboxItem`/`RadioItem`
+/// の `bool` 末尾は初期 checked 状態。
+enum MenuItemSpec<'a> {
+    Item(&'a str, &'a str, bool),
+    CheckboxItem(&'a str, &'a str, bool, bool),
+    RadioItem(&'a str, &'a str, bool, bool),
+}
+
+/// `crates/headless-ui/src/menu.rs::checkbox_item`/`radio_item` の SSR 出力
+/// 契約（`role`/`aria-checked`/`data-state`/`data-value`、`item-text` 子）を
+/// 手組みで再現し、通常 `item`・`checkbox-item`・`radio-item` を混在配置
+/// した menu DOM を組み立てる（イシュー #2205、[`build_menu_dom`] の
+/// checkable 版）。各要素は `item_label`/typeahead が優先参照する
+/// `[data-part="item-text"]` 子を持つ（`item_label` doc 参照。indicator
+/// のみを子に持つ構成では indicator テキストがラベルへ混入しうるため
+/// テストフィクスチャは必ず `item-text` を持たせる）。`id` は
+/// `{root_id}-item-{value}`（`build_menu_dom` と同一命名）。
+fn build_menu_dom_with_checkable_items(
+    document: &Document,
+    root_id: &str,
+    items: &[MenuItemSpec],
+    open: bool,
+) -> Element {
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "menu").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+
+    let trigger = document.create_element("button").unwrap();
+    trigger.set_attribute("data-scope", "menu").unwrap();
+    trigger.set_attribute("data-part", "trigger").unwrap();
+    trigger.set_attribute("type", "button").unwrap();
+    let trigger_id = format!("{root_id}-trigger");
+    let content_id = format!("{root_id}-content");
+    trigger.set_attribute("id", &trigger_id).unwrap();
+    trigger.set_attribute("aria-haspopup", "menu").unwrap();
+    trigger
+        .set_attribute("aria-expanded", if open { "true" } else { "false" })
+        .unwrap();
+    trigger.set_attribute("aria-controls", &content_id).unwrap();
+    trigger.set_text_content(Some("Menu"));
+    root.append_child(&trigger).unwrap();
+
+    let content = document.create_element("div").unwrap();
+    content.set_attribute("data-scope", "menu").unwrap();
+    content.set_attribute("data-part", "content").unwrap();
+    content.set_attribute("id", &content_id).unwrap();
+    content.set_attribute("role", "menu").unwrap();
+    if !open {
+        content.set_attribute("hidden", "").unwrap();
+    }
+
+    fn append_item_text(document: &Document, parent: &Element, label: &str) {
+        let item_text = document.create_element("span").unwrap();
+        item_text.set_attribute("data-part", "item-text").unwrap();
+        item_text.set_text_content(Some(label));
+        parent.append_child(&item_text).unwrap();
+    }
+
+    // 直前に生成した radio-item-group（連続する RadioItem 指定をまとめる
+    // ため、下のループ内で使い回す。他 part を挟むと `None` へリセットし
+    // 新しい group を開始する）。
+    let mut radio_item_group: Option<Element> = None;
+
+    for spec in items {
+        let (part_name, role_value, value, label, disabled, checked) = match spec {
+            MenuItemSpec::Item(value, label, disabled) => {
+                ("item", "menuitem", *value, *label, *disabled, None)
+            }
+            MenuItemSpec::CheckboxItem(value, label, disabled, checked) => (
+                "checkbox-item",
+                "menuitemcheckbox",
+                *value,
+                *label,
+                *disabled,
+                Some(*checked),
+            ),
+            MenuItemSpec::RadioItem(value, label, disabled, checked) => (
+                "radio-item",
+                "menuitemradio",
+                *value,
+                *label,
+                *disabled,
+                Some(*checked),
+            ),
+        };
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "menu").unwrap();
+        item.set_attribute("data-part", part_name).unwrap();
+        item.set_attribute("role", role_value).unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        item.set_attribute("id", &format!("{root_id}-item-{value}"))
+            .unwrap();
+        if let Some(checked) = checked {
+            item.set_attribute("aria-checked", if checked { "true" } else { "false" })
+                .unwrap();
+            item.set_attribute("data-state", if checked { "checked" } else { "unchecked" })
+                .unwrap();
+        }
+        if disabled {
+            item.set_attribute("aria-disabled", "true").unwrap();
+            item.set_attribute("data-disabled", "").unwrap();
+        }
+        append_item_text(document, &item, label);
+        // radio-item は実 headless-ui 出力（`menu::radio_item_group`）と
+        // 同じく radio-item-group でラップする（`MenuRadioItemGroup` の
+        // 専用インスタンス root は radio-item-group 自身であり、
+        // codex-review PR #2321 P1 指摘の是正により radio-item 単体を root
+        // に配線しても `action_from_parts` が fail-closed になったため）。
+        // 連続する RadioItem 指定は 1 つの group へまとめ、他 part を挟むと
+        // 新しい group を開始する。
+        if part_name == "radio-item" {
+            let group = match radio_item_group.as_ref() {
+                Some(group) => group.clone(),
+                None => {
+                    let group = document.create_element("div").unwrap();
+                    group.set_attribute("data-scope", "menu").unwrap();
+                    group
+                        .set_attribute("data-part", "radio-item-group")
+                        .unwrap();
+                    content.append_child(&group).unwrap();
+                    radio_item_group = Some(group.clone());
+                    group
+                }
+            };
+            group.append_child(&item).unwrap();
+        } else {
+            radio_item_group = None;
+            content.append_child(&item).unwrap();
+        }
     }
     root.append_child(&content).unwrap();
 
@@ -775,6 +922,32 @@ fn change_event() -> Event {
     let init = EventInit::new();
     init.set_bubbles(true);
     Event::new_with_event_init_dict("change", &init).expect("Event::new must not fail")
+}
+
+/// `item` の矩形（`getBoundingClientRect`）が `container` の可視領域
+/// （同矩形）の上下端 `tolerance_px` 以内に収まっていることを検証する
+/// （イシュー #2206。「`content.scroll_top` が動いた」という間接証拠
+/// だけでなく highlight 項目そのものが可視領域内にあることを直接
+/// 検証するためのヘルパー）。`keynav::wiring::scroll_top_after_delta`
+/// の丸めにより厳密な 0px 一致は保証されないため、微小な許容誤差
+/// （既定 1px）を許す。
+fn assert_item_within_scroll_band(item: &Element, container: &Element, tolerance_px: f64) {
+    let item_rect = item.get_bounding_client_rect();
+    let container_rect = container.get_bounding_client_rect();
+    assert!(
+        item_rect.top() >= container_rect.top() - tolerance_px,
+        "item top ({}) must not be above container top ({}) beyond tolerance ({})",
+        item_rect.top(),
+        container_rect.top(),
+        tolerance_px
+    );
+    assert!(
+        item_rect.bottom() <= container_rect.bottom() + tolerance_px,
+        "item bottom ({}) must not be below container bottom ({}) beyond tolerance ({})",
+        item_rect.bottom(),
+        container_rect.bottom(),
+        tolerance_px
+    );
 }
 
 /// 検証 1: horizontal で ArrowRight/ArrowLeft がフォーカス移動 + roving
@@ -1515,6 +1688,430 @@ fn menu_open_enter_and_space_click_highlighted_item_and_skip_disabled() {
     assert!(item_a.has_attribute("data-clicked"));
 }
 
+// --- イシュー #2205: Menu checkbox-item/radio-item の highlight・Enter/Space ---
+
+/// checkbox-item を highlight した状態で Enter/Space を押すと
+/// `MenuCheckboxItem` へ `"toggle"` が dispatch され、`on_update` を経由して
+/// DOM の `aria-checked`/`data-state` が反映されることを検証する（受け入れ
+/// 条件 A）。DOM への反映自体は headless.rs モジュール doc §out-of-scope
+/// のとおり呼び出し側の責務であり、本テストの `on_update` がその役割を
+/// 代行する。
+#[wasm_bindgen_test]
+fn menu_open_enter_and_space_toggle_highlighted_checkbox_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom_with_checkable_items(
+        &document,
+        "kn-menu-checkbox1",
+        &[MenuItemSpec::CheckboxItem(
+            "wrap",
+            "Word wrap",
+            false,
+            false,
+        )],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let item = document
+        .get_element_by_id("kn-menu-checkbox1-item-wrap")
+        .unwrap();
+
+    let component = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    let wired_item = item.clone();
+    wire_headless_component(item.clone(), component.clone(), move |state, _root| {
+        let _ = wired_item.set_attribute(
+            "aria-checked",
+            if state.is_checked() { "true" } else { "false" },
+        );
+        let _ = wired_item.set_attribute("data-state", state.data_state());
+    })
+    .expect("wire_headless_component must not fail");
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-menu-checkbox1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // highlight を checkbox-item へ移動してから Enter でトグル。
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(component.borrow().is_checked());
+    assert_eq!(item.get_attribute("aria-checked").as_deref(), Some("true"));
+    assert_eq!(item.get_attribute("data-state").as_deref(), Some("checked"));
+
+    // Space で再度トグル（unchecked へ戻る）。
+    trigger.dispatch_event(&keydown_event(" ")).unwrap();
+    assert!(!component.borrow().is_checked());
+    assert_eq!(item.get_attribute("aria-checked").as_deref(), Some("false"));
+    assert_eq!(
+        item.get_attribute("data-state").as_deref(),
+        Some("unchecked")
+    );
+}
+
+/// radio-item を highlight した状態で Enter を押すとグループ内排他選択され、
+/// `on_update` 経由で全項目の `aria-checked`/`data-state` が同期されることを
+/// 検証する（受け入れ条件 A）。
+#[wasm_bindgen_test]
+fn menu_open_enter_selects_highlighted_radio_item_exclusively() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom_with_checkable_items(
+        &document,
+        "kn-menu-radio1",
+        &[
+            MenuItemSpec::RadioItem("grid", "Grid", false, false),
+            MenuItemSpec::RadioItem("list", "List", false, false),
+        ],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let grid_item = document
+        .get_element_by_id("kn-menu-radio1-item-grid")
+        .unwrap();
+    let list_item = document
+        .get_element_by_id("kn-menu-radio1-item-list")
+        .unwrap();
+    let items = vec![("grid", grid_item.clone()), ("list", list_item.clone())];
+    // `MenuRadioItemGroup` の専用インスタンス root は radio-item-group 自身
+    // （`build_menu_dom_with_checkable_items` が連続する RadioItem 指定を
+    // 自動でラップする。codex-review PR #2321 P1 指摘の是正により、
+    // radio-item 単体を root に配線しても `action_from_parts` が
+    // fail-closed になったため 1 回だけ group root へ配線する）。
+    let radio_item_group = root
+        .query_selector(r#"[data-part="radio-item-group"]"#)
+        .unwrap()
+        .expect("radio-item-group element must exist");
+
+    let component = Rc::new(RefCell::new(MenuRadioItemGroup::default()));
+    let items_for_update = items.clone();
+    wire_headless_component(
+        radio_item_group.clone(),
+        component.clone(),
+        move |state, _root| {
+            for (value, el) in &items_for_update {
+                let checked = state.is_checked(value);
+                let _ = el.set_attribute("aria-checked", if checked { "true" } else { "false" });
+                let _ =
+                    el.set_attribute("data-state", if checked { "checked" } else { "unchecked" });
+            }
+        },
+    )
+    .expect("wire_headless_component must not fail");
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-menu-radio1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(component.borrow().is_checked("grid"));
+    assert_eq!(
+        grid_item.get_attribute("aria-checked").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        list_item.get_attribute("aria-checked").as_deref(),
+        Some("false")
+    );
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(component.borrow().is_checked("list"));
+    assert!(!component.borrow().is_checked("grid"));
+    assert_eq!(
+        list_item.get_attribute("aria-checked").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        grid_item.get_attribute("aria-checked").as_deref(),
+        Some("false")
+    );
+}
+
+/// Arrow キーが item/checkbox-item/radio-item 混在の並びを通過して
+/// `aria-activedescendant` を追随させ、disabled checkbox-item をスキップ
+/// すること（`MENU_ITEM_SELECTOR` 拡張・`filter_own_scope_items` 既存契約）
+/// を検証する。あわせて checkbox-item 配下の `item-text` へ
+/// `data-highlighted` が同期されること（`sync_item_text_highlighted` の
+/// part 拡張、イシュー #2205）も確認する。
+#[wasm_bindgen_test]
+fn menu_open_arrow_keys_reach_checkbox_and_radio_items_and_skip_disabled() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom_with_checkable_items(
+        &document,
+        "kn-menu-mixed1",
+        &[
+            MenuItemSpec::Item("a", "A", false),
+            MenuItemSpec::CheckboxItem("wrap", "Word wrap", true, false),
+            MenuItemSpec::RadioItem("grid", "Grid", false, false),
+        ],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let item_a = document.get_element_by_id("kn-menu-mixed1-item-a").unwrap();
+    let checkbox_item = document
+        .get_element_by_id("kn-menu-mixed1-item-wrap")
+        .unwrap();
+    let radio_item = document
+        .get_element_by_id("kn-menu-mixed1-item-grid")
+        .unwrap();
+    let radio_item_text = radio_item
+        .query_selector(r#"[data-part="item-text"]"#)
+        .unwrap()
+        .unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let trigger = document
+        .get_element_by_id("kn-menu-mixed1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    let content = document
+        .get_element_by_id("kn-menu-mixed1-content")
+        .unwrap();
+
+    // a → checkbox-item（disabled）をスキップ → radio-item。
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some(item_a.id().as_str())
+    );
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some(radio_item.id().as_str()),
+        "disabled checkbox-item はスキップされ radio-item へ直接移動すること"
+    );
+    assert!(radio_item.has_attribute("data-highlighted"));
+    assert!(
+        radio_item_text.has_attribute("data-highlighted"),
+        "radio-item 配下の item-text へも data-highlighted が同期されること \
+         （sync_item_text_highlighted の part 拡張、イシュー #2205）"
+    );
+    assert!(!checkbox_item.has_attribute("data-highlighted"));
+}
+
+/// checkbox-item のラベル（`item-text` の text content）が攻撃者制御文字列
+/// でも、keynav 経由の Enter 活性化で `script` 要素が生成されないことを
+/// 固定する（REQ-1、`menu_typeahead_with_attacker_controlled_label_...` と
+/// 同型の回帰）。
+#[wasm_bindgen_test]
+fn menu_checkbox_item_keyboard_activation_with_attacker_controlled_label_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom_with_checkable_items(
+        &document,
+        "kn-menu-checkbox-xss1",
+        &[MenuItemSpec::CheckboxItem(
+            "wrap",
+            "<img src=x onerror=alert(1)>",
+            false,
+            false,
+        )],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let item = document
+        .get_element_by_id("kn-menu-checkbox-xss1-item-wrap")
+        .unwrap();
+    assert!(item.query_selector("img").unwrap().is_none());
+
+    let component = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    wire_headless_component(item.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-menu-checkbox-xss1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+
+    assert!(component.borrow().is_checked());
+    assert!(
+        item.query_selector("img").unwrap().is_none(),
+        "攻撃者制御ラベルでの Enter 活性化後も img/script 等の要素が \
+         生成されてはならない"
+    );
+}
+
+// --- イシュー #2205: Menubar checkbox-item/radio-item の highlight・Enter/Space ---
+
+/// Menubar 自身は checked 状態機械を持たないため `menu::MenuCheckboxItem`/
+/// `MenuRadioItemGroup` を流用する（`crates/headless-ui/src/menubar.rs`
+/// モジュール doc・native テスト `headless_wiring.rs` と同じ判断）。
+/// content を最初から open（`hidden` 属性なし）にして配置し、
+/// `MENUBAR_ITEM_SELECTOR` 拡張が checkbox-item/radio-item を highlight・
+/// 決定操作の対象に含めることを Enter/Space 双方で検証する。
+#[wasm_bindgen_test]
+fn menubar_open_enter_and_space_toggle_checkbox_item_and_select_radio_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    let root = document.create_element("div").unwrap();
+    root.set_id("kn-menubar-checkable1");
+    root.set_attribute("data-scope", "menubar").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+
+    let menu_wrapper = document.create_element("div").unwrap();
+    menu_wrapper.set_attribute("data-scope", "menubar").unwrap();
+    menu_wrapper.set_attribute("data-part", "menu").unwrap();
+    menu_wrapper.set_attribute("data-state", "open").unwrap();
+
+    let trigger = document.create_element("button").unwrap();
+    trigger.set_attribute("data-scope", "menubar").unwrap();
+    trigger.set_attribute("data-part", "trigger").unwrap();
+    trigger.set_attribute("type", "button").unwrap();
+    trigger.set_attribute("role", "menuitem").unwrap();
+    trigger.set_attribute("aria-haspopup", "menu").unwrap();
+    trigger.set_attribute("aria-expanded", "true").unwrap();
+    trigger.set_attribute("tabindex", "0").unwrap();
+    trigger.set_attribute("data-value", "0").unwrap();
+    trigger
+        .set_attribute("id", "kn-menubar-checkable1-trigger")
+        .unwrap();
+    trigger
+        .set_attribute("aria-controls", "kn-menubar-checkable1-content")
+        .unwrap();
+    trigger.set_text_content(Some("View"));
+    menu_wrapper.append_child(&trigger).unwrap();
+
+    let content = document.create_element("div").unwrap();
+    content.set_attribute("data-scope", "menubar").unwrap();
+    content.set_attribute("data-part", "content").unwrap();
+    content
+        .set_attribute("id", "kn-menubar-checkable1-content")
+        .unwrap();
+    content.set_attribute("role", "menu").unwrap();
+    content.set_attribute("data-state", "open").unwrap();
+
+    fn checkable_item(
+        document: &Document,
+        part_name: &str,
+        role_value: &str,
+        value: &str,
+        id: &str,
+        label: &str,
+    ) -> Element {
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "menubar").unwrap();
+        item.set_attribute("data-part", part_name).unwrap();
+        item.set_attribute("role", role_value).unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        item.set_attribute("id", id).unwrap();
+        item.set_attribute("aria-checked", "false").unwrap();
+        item.set_attribute("data-state", "unchecked").unwrap();
+        let item_text = document.create_element("span").unwrap();
+        item_text.set_attribute("data-part", "item-text").unwrap();
+        item_text.set_text_content(Some(label));
+        item.append_child(&item_text).unwrap();
+        item
+    }
+
+    let checkbox_item = checkable_item(
+        &document,
+        "checkbox-item",
+        "menuitemcheckbox",
+        "wrap",
+        "kn-menubar-checkable1-item-wrap",
+        "Word wrap",
+    );
+    let radio_item = checkable_item(
+        &document,
+        "radio-item",
+        "menuitemradio",
+        "grid",
+        "kn-menubar-checkable1-item-grid",
+        "Grid",
+    );
+    // `MenuRadioItemGroup` の専用インスタンス root は radio-item-group 自身
+    // （codex-review PR #2321 P1 指摘の是正により、radio-item 自体を root に
+    // 配線しても `action_from_parts` が fail-closed で解決しなくなったため、
+    // 実 headless-ui 出力（`menu::radio_item_group`）と同じく radio-item を
+    // radio-item-group でラップする）。
+    let radio_item_group = document.create_element("div").unwrap();
+    radio_item_group
+        .set_attribute("data-scope", "menubar")
+        .unwrap();
+    radio_item_group
+        .set_attribute("data-part", "radio-item-group")
+        .unwrap();
+    radio_item_group.append_child(&radio_item).unwrap();
+    content.append_child(&checkbox_item).unwrap();
+    content.append_child(&radio_item_group).unwrap();
+    menu_wrapper.append_child(&content).unwrap();
+    root.append_child(&menu_wrapper).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let checkbox_component = Rc::new(RefCell::new(MenuCheckboxItem::default()));
+    let wired_checkbox_item = checkbox_item.clone();
+    wire_headless_component(
+        checkbox_item.clone(),
+        checkbox_component.clone(),
+        move |state, _root| {
+            let _ = wired_checkbox_item.set_attribute(
+                "aria-checked",
+                if state.is_checked() { "true" } else { "false" },
+            );
+            let _ = wired_checkbox_item.set_attribute("data-state", state.data_state());
+        },
+    )
+    .expect("checkbox-item wire_headless_component must not fail");
+
+    let radio_component = Rc::new(RefCell::new(MenuRadioItemGroup::default()));
+    let wired_radio_item = radio_item.clone();
+    wire_headless_component(
+        radio_item_group.clone(),
+        radio_component.clone(),
+        move |state, _root| {
+            let checked = state.is_checked("grid");
+            let _ = wired_radio_item
+                .set_attribute("aria-checked", if checked { "true" } else { "false" });
+            let _ = wired_radio_item
+                .set_attribute("data-state", if checked { "checked" } else { "unchecked" });
+        },
+    )
+    .expect("radio-item wire_headless_component must not fail");
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(
+        checkbox_component.borrow().is_checked(),
+        "menubar checkbox-item は Enter でトグルすること"
+    );
+    assert_eq!(
+        checkbox_item.get_attribute("aria-checked").as_deref(),
+        Some("true")
+    );
+
+    trigger.dispatch_event(&keydown_event(" ")).unwrap();
+    assert!(
+        !checkbox_component.borrow().is_checked(),
+        "Space で再トグルし unchecked へ戻ること"
+    );
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(
+        radio_component.borrow().is_checked("grid"),
+        "menubar radio-item は Enter で選択されること"
+    );
+    assert_eq!(
+        radio_item.get_attribute("aria-checked").as_deref(),
+        Some("true")
+    );
+}
+
 /// Select も Menu と同じ highlight/決定契約を共有する（`role="listbox"`/
 /// `[data-part="item"]`、PR #617 の SSR 契約と一致確認）。
 #[wasm_bindgen_test]
@@ -1565,10 +2162,13 @@ fn select_open_arrow_moves_highlight_and_enter_clicks_highlighted_item() {
 /// `content` に `overflow-y: auto` + 固定 `height` を与え（Select の
 /// `max-height` スクロール導入、イシュー #2019 と同型の可視領域制約）、末尾
 /// 項目（初期スクロール位置では不可視）まで ArrowDown で highlight を移動
-/// させると、`content.scroll_top` が 0 から動く（スクロール追随が発生した
-/// ことの直接証拠）ことを検証する（codex-review P1 是正、PR #2165。
-/// `keynav::wiring::set_highlight_on_host` の
-/// `scroll_into_view_with_scroll_into_view_options` 呼び出しの回帰固定）。
+/// させると、`content.scroll_top` が 0 から動き（スクロール追随が発生した
+/// ことの直接証拠）、かつ highlight 項目そのものが `content` の可視領域内に
+/// 収まる（[`assert_item_within_scroll_band`]、イシュー #2206）ことを検証
+/// する（codex-review P1 是正、PR #2165）。追随の実体は手動 `scrollTop`
+/// 調整（[`wiring::scroll_item_into_view_if_needed`]）であり、
+/// `Element::scroll_into_view_with_scroll_into_view_options` は使わない
+/// （document パン防止、モジュール doc §Menu/Select 参照）。
 #[wasm_bindgen_test]
 fn select_open_arrow_down_scrolls_highlighted_item_into_view_when_content_overflows() {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -1624,6 +2224,7 @@ fn select_open_arrow_down_scrolls_highlighted_item_into_view_when_content_overfl
         "highlighted item scrolled outside the overflow container should pull \
          content.scroll_top away from 0"
     );
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
 }
 
 /// スクロール可能な Select `content`（`container`）の内側に、別の（入れ子の）
@@ -2174,6 +2775,266 @@ fn select_open_with_selected_item_highlights_it_first() {
         .get_element_by_id("kn-select-sel1-item-apple")
         .unwrap();
     assert!(!item_apple.has_attribute("data-highlighted"));
+}
+
+/// 検証（イシュー #2206）: ArrowDown で末尾まで highlight を進めた後、
+/// ArrowUp で先頭まで戻す往復でも、各終端で highlight 項目が可視領域内に
+/// 保たれる（[`scroll_delta_for_band`] の負 delta 分岐・
+/// [`scroll_top_after_delta`] の切り下げ丸めの browser 経路検証）。
+#[wasm_bindgen_test]
+fn select_open_arrow_up_from_end_scrolls_back_into_view() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll2", &items, true, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-scroll2-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-scroll2-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll2-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+
+    for _ in 0..20 {
+        trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+    let last_item = document
+        .get_element_by_id("kn-select-scroll2-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
+
+    for _ in 0..19 {
+        trigger.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+    }
+    let first_item = document
+        .get_element_by_id("kn-select-scroll2-item-item0")
+        .unwrap();
+    assert!(first_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&first_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: Home/End で先頭/末尾へジャンプしても、いずれも
+/// highlight 項目が可視領域内に収まる（ジャンプ幅が 1 ステップの
+/// ArrowDown/ArrowUp より大きい delta を生む経路の固定）。
+#[wasm_bindgen_test]
+fn select_open_home_end_keep_highlighted_item_within_scroll_band() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll3", &items, true, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-scroll3-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-scroll3-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll3-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    let last_item = document
+        .get_element_by_id("kn-select-scroll3-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
+
+    trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    let first_item = document
+        .get_element_by_id("kn-select-scroll3-item-item0")
+        .unwrap();
+    assert!(first_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&first_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: typeahead で可視領域外の項目へ直接ジャンプ
+/// しても、highlight 項目が可視領域内に収まる（typeahead 経路も
+/// [`wiring::set_highlight_on_host`] を経由することの browser 固定）。
+#[wasm_bindgen_test]
+fn select_open_typeahead_scrolls_deep_match_into_view() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let label: &'static str = if i == 19 {
+                "Zebra"
+            } else {
+                Box::leak(format!("item{i}").into_boxed_str())
+            };
+            let value: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (value, label, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll4", &items, true, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-scroll4-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-scroll4-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll4-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+    assert_eq!(content_html.scroll_top(), 0);
+
+    trigger.dispatch_event(&keydown_event("z")).unwrap();
+    let target_item = document
+        .get_element_by_id("kn-select-scroll4-item-item19")
+        .unwrap();
+    assert!(
+        target_item.has_attribute("data-highlighted"),
+        "typeahead \"z\" は Zebra（item19）へ移動すべき"
+    );
+    assert_item_within_scroll_band(&target_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: 選択済み項目（`aria-selected="true"`）がリスト
+/// 深部にある状態で open すると、初期 highlight（選択済み項目）が可視領域
+/// 内に置かれる（open 直後の初期 highlight 経路の固定。
+/// [`select_open_with_selected_item_highlights_it_first`] の可視領域拡張）。
+#[wasm_bindgen_test]
+fn select_open_with_selected_item_deep_in_list_scrolls_it_into_view() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_select_dom(&document, "kn-select-scroll5", &items, false, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let selected_item = document
+        .get_element_by_id("kn-select-scroll5-item-item15")
+        .unwrap();
+    selected_item
+        .set_attribute("aria-selected", "true")
+        .unwrap();
+
+    let content = document
+        .get_element_by_id("kn-select-scroll5-content")
+        .unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-select-scroll5-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    // closed trigger 上の Enter は trigger へ `click()` を合成する契約
+    // （モジュール doc §Menu/Select）。実際の開閉は events::wire_events +
+    // dispatch 経路の責務であり keynav 自身は行わないため、
+    // 他の同種テストと同じく薄い模擬リスナーを事前登録する
+    // （[`select_open_with_selected_item_highlights_it_first`] 参照）。
+    let open_closure = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new({
+        let content = content.clone();
+        move |_event: Event| {
+            let _ = content.remove_attribute("hidden");
+        }
+    });
+    let trigger = document
+        .get_element_by_id("kn-select-scroll5-trigger")
+        .unwrap();
+    trigger
+        .add_event_listener_with_callback("click", open_closure.as_ref().unchecked_ref())
+        .unwrap();
+    open_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(
+        selected_item.has_attribute("data-highlighted"),
+        "選択済み項目（item15）が初期 highlight になるべき"
+    );
+    assert_item_within_scroll_band(&selected_item, &content, 1.0);
 }
 
 // ---------------------------------------------------------------------
@@ -2936,6 +3797,86 @@ fn radio_group_readonly_click_on_item_control_blocks_wire_events_action() {
         input_b.get_attribute("data-state").as_deref(),
         Some("unchecked"),
         "readonly 項目への click 後も data-state は unchecked のまま"
+    );
+}
+
+/// イシュー #2327（`keynav` の scope 別分岐を scope feature で cfg
+/// ゲートする分離）の受け入れ確認: readonly RadioGroup の click capture
+/// 保護は [`wire_readonly_click_guard`] のみが単独で担保できることを
+/// 実測で固定する。上記
+/// `radio_group_readonly_click_on_item_control_blocks_wire_events_action`
+/// と異なり [`wire_keynav`] を一切呼ばない（`keynav` feature が off の
+/// 構成、または `radio-group` scope feature が off で
+/// `keynav::wiring::wire_keynav` 内の `"radio"` match arm・`change`
+/// リスナーが cfg で失われた構成を模す）。`wire_readonly_click_guard` は
+/// これらの feature いずれにも依存せず常時配線される
+/// （`crates/wasm-full/src/lib.rs::Runtime::mount`/`hydrate` 参照）ため、
+/// 保護は失われない。
+#[wasm_bindgen_test]
+fn radio_group_readonly_click_is_suppressed_by_readonly_click_guard_without_wire_keynav() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-guard-only",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-guard-only-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+    item_b.set_attribute("data-action", "select").unwrap();
+    item_b.set_attribute("data-payload", "b").unwrap();
+
+    let item_control_b = item_b
+        .query_selector("[data-part=\"item-control\"]")
+        .unwrap()
+        .expect("item-control must exist");
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+    // `wire_keynav` は呼ばない（本テストの主眼）。実プロダクトと同じく
+    // `wire_events` の直後に `wire_readonly_click_guard` を配線する
+    // （`Runtime::mount`/`hydrate` の呼び出し順、`lib.rs` 参照）。
+    wire_readonly_click_guard(root.clone()).expect("wire_readonly_click_guard must succeed");
+
+    let prevented = !item_control_b
+        .dispatch_event(&cancelable_click_event())
+        .unwrap();
+    assert!(
+        prevented,
+        "wire_keynav なしでも wire_readonly_click_guard 単独で \
+         readonly item への click（item-control ターゲット）は \
+         preventDefault で打ち消されるべき"
+    );
+    assert!(
+        actions.borrow().is_empty(),
+        "wire_keynav なしでも wire_readonly_click_guard 単独で \
+         readonly item への click は wire_events の data-action 委譲へ \
+         到達してはならない"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "wire_keynav なしでも readonly 項目は click しても checked にならない"
+    );
+    assert_eq!(
+        input_b.get_attribute("data-state").as_deref(),
+        Some("unchecked"),
+        "wire_keynav なしでも readonly 項目への click 後は data-state が \
+         unchecked のまま"
     );
 }
 
@@ -6724,6 +7665,243 @@ fn listbox_escape_resets_typeahead_buffer_without_clearing_highlight() {
     content.dispatch_event(&keydown_event("b")).unwrap();
     assert!(item_b.has_attribute("data-highlighted"));
     assert!(!item_a.has_attribute("data-highlighted"));
+}
+
+/// 検証（イシュー #2206）: Listbox の `content` に `overflow-y: auto` +
+/// 固定 `height`（`--fandhe-listbox-content-max-height` 相当の可視領域
+/// 制約）を与え、末尾項目まで ArrowDown で highlight を進めた後、
+/// ArrowUp で先頭へ戻す往復でも各終端で highlight 項目が可視領域内に
+/// 保たれる（Select 側 [`select_open_arrow_up_from_end_scrolls_back_into_view`]
+/// の Listbox 版）。
+#[wasm_bindgen_test]
+fn listbox_arrow_down_up_keeps_highlighted_item_within_scroll_band() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_listbox_dom(&document, "kn-lb-scroll1", &items, None, None);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document.get_element_by_id("kn-lb-scroll1-content").unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-lb-scroll1-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    assert_eq!(content_html.scroll_top(), 0);
+
+    for _ in 0..20 {
+        content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+    let last_item = document
+        .get_element_by_id("kn-lb-scroll1-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert!(content_html.scroll_top() > 0);
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
+
+    for _ in 0..19 {
+        content.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+    }
+    let first_item = document
+        .get_element_by_id("kn-lb-scroll1-item-item0")
+        .unwrap();
+    assert!(first_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&first_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: Home/End で先頭/末尾へジャンプしても highlight
+/// 項目が可視領域内に収まる（Select 側
+/// [`select_open_home_end_keep_highlighted_item_within_scroll_band`] の
+/// Listbox 版）。
+#[wasm_bindgen_test]
+fn listbox_home_end_keep_highlighted_item_within_scroll_band() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_listbox_dom(&document, "kn-lb-scroll2", &items, None, None);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document.get_element_by_id("kn-lb-scroll2-content").unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-lb-scroll2-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    content.dispatch_event(&keydown_event("End")).unwrap();
+    let last_item = document
+        .get_element_by_id("kn-lb-scroll2-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
+
+    content.dispatch_event(&keydown_event("Home")).unwrap();
+    let first_item = document
+        .get_element_by_id("kn-lb-scroll2-item-item0")
+        .unwrap();
+    assert!(first_item.has_attribute("data-highlighted"));
+    assert_item_within_scroll_band(&first_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: typeahead で可視領域外の項目へ直接ジャンプ
+/// しても highlight 項目が可視領域内に収まる（Select 側
+/// [`select_open_typeahead_scrolls_deep_match_into_view`] の Listbox 版）。
+#[wasm_bindgen_test]
+fn listbox_typeahead_scrolls_deep_match_into_view() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let label: &'static str = if i == 19 {
+                "Zebra"
+            } else {
+                Box::leak(format!("item{i}").into_boxed_str())
+            };
+            let value: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (value, label, false)
+        })
+        .collect();
+    let root = build_listbox_dom(&document, "kn-lb-scroll3", &items, None, None);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document.get_element_by_id("kn-lb-scroll3-content").unwrap();
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-lb-scroll3-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    assert_eq!(content_html.scroll_top(), 0);
+
+    content.dispatch_event(&keydown_event("z")).unwrap();
+    let target_item = document
+        .get_element_by_id("kn-lb-scroll3-item-item19")
+        .unwrap();
+    assert!(
+        target_item.has_attribute("data-highlighted"),
+        "typeahead \"z\" は Zebra（item19）へ移動すべき"
+    );
+    assert_item_within_scroll_band(&target_item, &content, 1.0);
+}
+
+/// 検証（イシュー #2206）: `content` 直下ではなく `[data-part="item-group"]`
+/// （非スクロールの中間祖先）配下に items がある構成でも、
+/// [`nearest_scrollable_ancestor`] が中間祖先を越えて `content` 自身を
+/// スクロール対象として掴み、highlight 項目を可視領域内に保つ（item-group
+/// でグルーピングされた Listbox の browser 固定）。
+#[wasm_bindgen_test]
+fn listbox_item_group_nested_items_keep_highlighted_item_within_scroll_band() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    // build_listbox_dom で items を先に生成させ、その後 content 直下から
+    // item-group の下へ items を移し替える（build_listbox_dom 自体は
+    // 変更しない）。
+    let items: Vec<(&str, &str, bool)> = (0..20)
+        .map(|i| {
+            let leaked: &'static str = Box::leak(format!("item{i}").into_boxed_str());
+            (leaked, leaked, false)
+        })
+        .collect();
+    let root = build_listbox_dom(&document, "kn-lb-scroll4", &items, None, None);
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document.get_element_by_id("kn-lb-scroll4-content").unwrap();
+    let item_group = document.create_element("div").unwrap();
+    item_group.set_attribute("data-scope", "listbox").unwrap();
+    item_group.set_attribute("data-part", "item-group").unwrap();
+    // content の子（items）を順に item-group へ付け替える。
+    // `append_child` は既存の親から自動的に detach するため、
+    // `children()` のライブコレクションを先頭から取り続けて処理する。
+    while let Some(child) = content.first_element_child() {
+        item_group.append_child(&child).unwrap();
+    }
+    content.append_child(&item_group).unwrap();
+
+    let content_html = html_element(&content);
+    content_html
+        .style()
+        .set_property("overflow-y", "auto")
+        .unwrap();
+    content_html.style().set_property("height", "80px").unwrap();
+    content_html
+        .style()
+        .set_property("display", "block")
+        .unwrap();
+    for i in 0..20 {
+        let item = document
+            .get_element_by_id(&format!("kn-lb-scroll4-item-item{i}"))
+            .unwrap();
+        html_element(&item)
+            .style()
+            .set_property("height", "30px")
+            .unwrap();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    assert_eq!(content_html.scroll_top(), 0);
+
+    for _ in 0..20 {
+        content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    }
+    let last_item = document
+        .get_element_by_id("kn-lb-scroll4-item-item19")
+        .unwrap();
+    assert!(last_item.has_attribute("data-highlighted"));
+    assert!(content_html.scroll_top() > 0);
+    assert_item_within_scroll_band(&last_item, &content, 1.0);
 }
 
 /// 検証 11（XSS 回帰、REQ-1）: 攻撃者制御文字列を持つラベルに対し矢印移動・

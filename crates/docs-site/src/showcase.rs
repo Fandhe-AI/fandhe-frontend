@@ -3633,10 +3633,58 @@ fn menu_section() -> Node {
             ),
         ],
     );
+    // イシュー #2203: destructive 項目が highlighted（キーボードフォーカス
+    // 位置）のときの背景色合成（`StateCondition::AttrAll` 由来の
+    // `[data-danger][data-highlighted]` 規則）を掲示する 2 つ目のコンパクト
+    // な Menu インスタンス。virtual focus 位置は 1 インスタンスにつき 1 つ
+    // のため（上の `node` は既に "edit" 項目が highlighted）、同一節内に
+    // 2 つ目の独立インスタンスとして並べる（menubar showcase が複数静的
+    // インスタンスを並べる前例と同型）。content id はメイン掲示の
+    // `showcase-menu-content`/`showcase-menu-submenu-content` と重複
+    // しない `showcase-menu-danger-content` を使う。
+    let danger_node = menu::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                Some("showcase-menu-danger-content"),
+                vec![],
+                vec![text("Account")],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![],
+                vec![menu::content(
+                    OpenState::Open,
+                    Some("showcase-menu-danger-content"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::item("profile", false, false, vec![], vec![text("Profile")]),
+                        menu::separator(vec![], vec![]),
+                        // destructive（危険操作）項目が highlighted のとき、
+                        // `[data-danger][data-highlighted]` 合成規則により
+                        // 背景色（danger-subtle）+ 文字色（danger-fg-subtle）
+                        // が同時に反映される。
+                        menu::item(
+                            "delete-account",
+                            false,
+                            true,
+                            vec![("data-danger", "")],
+                            vec![text("Delete account")],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    );
     section(
         "Menu",
-        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・グループ+ラベル・checkbox/radio 項目・サブメニュー・ショートカット（kbd 合成）・inset・destructive・separator・disabled の各状態を含みます。positioner はフロー内配置へ中和しています。",
-        vec![node],
+        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・グループ+ラベル・checkbox/radio 項目・サブメニュー・ショートカット（kbd 合成）・inset・destructive・separator・disabled の各状態を含みます。2 つ目のインスタンスは destructive 項目が highlighted のときの背景色合成（イシュー #2203）を示します。positioner はフロー内配置へ中和しています。",
+        vec![node, danger_node],
     )
 }
 
@@ -5401,6 +5449,13 @@ fn field_section() -> Node {
     let payment_field_a = field_with_helper("showcase-field-card-number");
     let payment_field_b = plain_field("showcase-field-expiry");
     let newsletter_field = field_with_helper("showcase-field-newsletter");
+    // `orientation="responsive"`（イシュー #2199）は `group`（container
+    // slot）の内側でのみ 448px 以上で横並びへ切り替わる（`field.rs`
+    // モジュール doc「`orientation="responsive"`」節参照）。デモの実効性を
+    // 保つため必ず `field::group` の内側へ 2 件配置する（`group` の外に
+    // 置くと container が無いため常に縦積みのまま）。
+    let responsive_field_a = field_with_helper("showcase-field-responsive-name");
+    let responsive_field_b = plain_field("showcase-field-responsive-username");
     let group_instance = field::group(
         vec![],
         vec![
@@ -5418,6 +5473,21 @@ fn field_section() -> Node {
                 &payment_field_b,
                 "Expiry date",
                 "MM / YY",
+                None,
+            ),
+            field::separator(vec![], vec![]),
+            field_instance(
+                FieldOrientation::Responsive,
+                &responsive_field_a,
+                "Full name",
+                "Ada Lovelace",
+                Some("448px 以上でラベルと入力欄が横並びになります。"),
+            ),
+            field_instance(
+                FieldOrientation::Responsive,
+                &responsive_field_b,
+                "Username",
+                "ada",
                 None,
             ),
             field::content(
@@ -5482,7 +5552,7 @@ fn field_section() -> Node {
 
     section(
         "Field",
-        "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。",
+        "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。orientation=\"responsive\" は group（container）を 448px 以上に広げると横並びへ切り替わります。",
         vec![stack(vec![
             default_instance,
             invalid_instance,

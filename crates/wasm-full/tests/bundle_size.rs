@@ -7,11 +7,19 @@
 //!
 //! `dist-server/build.rs`（TASK-10.2b・イシュー #110）が本番配布物として実行する
 //! のと同一のコマンド列
-//! （`cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown --release`
+//! （`cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown
+//! --release --no-default-features --features <[`wasm_dist_features::WASM_DIST_FEATURES`]>`
 //! → `wasm-bindgen --target web --no-typescript --remove-name-section
 //! --remove-producers-section --out-dir <dir>` → 有効時は `wasm-opt -Os`、
 //! イシュー #1971）を、本テストは `wasm-full` クレート自身の native 統合
-//! テストとして再現する。`dist-server` に依存させない（`wasm-full` 単体で
+//! テストとして再現する。feature 集合は `dist-server` が配布する
+//! 「最小インタラクティブ構成」（イシュー #2329、
+//! `wasm_dist_features` モジュール冒頭コメント参照）と単一定義を共有する
+//! （`#[path]` によるソースレベル共有。手書き複製によるドリフトは
+//! `crates/xtask/tests/wasm_dist_features_contract.rs` が fail-closed に
+//! 禁止する）。クレート自身の `default` feature（`crates/wasm-full/
+//! Cargo.toml`）は変更せず、配布物・計測側のみを縮小する。`dist-server`
+//! に Cargo 依存として依存させない（`wasm-full` 単体で
 //! TASK-11.6 の受け入れ基準を検証できる）ため、ビルド出力先は
 //! `dist-server/build.rs` とは独立した `target/bundle-size-check/` を使う
 //! （同一 `target/wasm-dist` を共有すると `dist-server` のビルドと並行実行
@@ -71,6 +79,17 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+// dist-server が配布する feature 集合（最小インタラクティブ構成、
+// イシュー #2329）の単一定義を `#[path]` でソースレベル共有する。
+// Cargo 依存としては `dist-server` に依存しない設計を保ったまま
+// （本ファイルはテストバイナリでのみコンパイルされ、
+// `cargo publish --dry-run` の tarball 検証は lib/bin のみを
+// 対象とするため wasm-full 側のパッケージ検証にも影響しない）、
+// 配布物と計測が同一集合を参照する契約を構造的に固定する
+// （`crates/dist-server/src/wasm_dist_features.rs` 冒頭コメント参照）。
+#[path = "../../dist-server/src/wasm_dist_features.rs"]
+mod wasm_dist_features;
 
 /// REQ-11 受け入れ基準が定めるバンドルサイズの上限（gzip 後バイト数）。
 ///
@@ -301,8 +320,9 @@ fn build_wasm_full_release(workspace_root: &Path) -> PathBuf {
             "wasm32-unknown-unknown",
             "--release",
             "--locked",
-            "--target-dir",
         ])
+        .args(wasm_dist_features::nested_cargo_feature_args())
+        .arg("--target-dir")
         .arg(&target_dir);
 
     let status = command

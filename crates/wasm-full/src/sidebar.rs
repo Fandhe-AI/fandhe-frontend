@@ -138,6 +138,15 @@
 //!   無し）。
 //! - tooltip の `openDelay`/`closeDelay`・interactive 維持・位置計算の
 //!   自動呼び出し（`crate::position::PositionController` との統合）。
+//!   イシュー #2209（親 #2208）で `crate::headless::
+//!   wire_headless_component` 配線一般には positioning の自動呼び出しが
+//!   統合された（`docs/design/wasm-full-architecture.md` §34）が、本
+//!   モジュールの hover tooltip（[`TooltipDelayController`]）は
+//!   `wire_headless_component` を経由しない独自の可視状態切り替え
+//!   （`set_hidden`/`set_tooltip_data_state`）であり、この統合の対象外
+//!   のまま残る（座標計算自体を一切呼んでいない）。統合する場合は
+//!   `crate::position::reposition_within`/`ensure_global_controller` を
+//!   本モジュールから明示的に呼ぶ設計判断が別途必要。
 //! - マウント後に動的挿入された sidebar の配線、複数 provider が存在する
 //!   場合の個別ショートカット割り当て（最初の 1 件のみ対象）。
 

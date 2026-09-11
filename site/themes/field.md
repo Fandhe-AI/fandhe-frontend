@@ -6,7 +6,10 @@ Content / Title / Separator（内部パーツ SeparatorLine / SeparatorContent�
 （イシュー #2185 で純追加、shadcn/ui FieldGroup / FieldContent / FieldTitle /
 FieldSeparator 相当）の計 11 パーツ構成で、ラベル・補助テキスト・エラーテキスト・
 必須マークの型階層と `root` の余白レイアウトを提供します。配置軸は `orientation`
-（既定 `vertical` の縦積み、`horizontal` の横並び）のみを持ちます。
+（既定 `vertical` の縦積み、`horizontal` の横並び、`responsive` の 3 値）のみを
+持ちます。`responsive`（イシュー #2199）は Group（container）の内側に置いた場合
+にのみ意味を持ち、Group の inline サイズが 448px 以上のときだけ `horizontal` と
+同じ横並びへ切り替わります。Group の外に置いた場合は常に縦積みのままです。
 
 Group は複数の Field（Root）を縦に束ねる外側コンテナ、Separator は線のみ／テキスト付き
 の区切り線です。Content / Title は `<label for>` を結び付けにくい場面（複数コントロール
