@@ -704,25 +704,55 @@ mod wiring {
         Some((instance_root, viewport))
     }
 
-    /// `target_element` から `content`（境界・含まない）までの間に、
-    /// `target_element` 自身を除いて `data-bind-list` を持つ祖先が
-    /// 1 つでもあれば `true` を返す（[`first_relevant_change`] が会話
-    /// リスト本体〔`content` 配下の最も浅い `data-bind-list`〕への挿入
-    /// のみを Prepend/Grow 判定対象にするための補助）。
+    /// `start`（自身を含む）が、会話リスト本体（`content` 配下の最も
+    /// 浅い `data-bind-list`。`content` 自身が直接リストの親になる
+    /// 「フラットな keyed list」構成も含む）より深いネストした
+    /// `data-bind-list`（添付・リアクション・ツールステップ等）の内部に
+    /// あるかを判定する（[`first_relevant_change`] が会話リスト本体への
+    /// 変更のみを Prepend/Grow 判定対象にするための補助。childList 経路
+    /// （target がリスト要素自身）と characterData 経路（target が
+    /// `Text` ノードの親要素、リストの子孫要素であることが多い）の
+    /// **両方から同じ判定関数を使う**）。
     ///
-    /// メッセージ 1 件の内部にネストした keyed list（添付・リアクション・
-    /// ツールステップ等）は、それ自身が `data-bind-list` を持つため
-    /// `target_element` が会話リストではなくこのネストしたリストである
-    /// 場合、その祖先を辿ると会話リスト自身の `data-bind-list` に到達する
-    /// （メッセージ要素は `data-bind-list` を持たない中間ノードのため
-    /// スキップされ、次に到達する `data-bind-list` は必ず会話リスト本体
-    /// である。会話リスト本体からさらに深いネストは想定しないため、
-    /// 単純な祖先歩行で十分）。会話リスト本体自身が target のときは、
-    /// `content` までの間にこの属性を持つ祖先が無い（会話リストの親は
-    /// 通常 `content` 自身）ため `false` を返し、除外されない
-    /// （Bugbot 指摘 PR #2312、`message_scroller.rs:772-784`）。
-    fn has_nested_bind_list_ancestor(content: &Element, target_element: &Element) -> bool {
-        let mut current = target_element.parent_element();
+    /// 判定は 2 段階: (1) `start` から `content` 方向へ祖先歩行し、
+    /// `start` 自身を含めて最初に見つかった `data-bind-list` 要素
+    /// （`nearest_list`）を求める。見つからなければ `start` はどの
+    /// リストにも属さない（`false`）。(2) `nearest_list` からさらに
+    /// `content` 方向へ祖先歩行し、`nearest_list` より浅い（＝より
+    /// `content` に近い）別の `data-bind-list` が無いか確認する。無ければ
+    /// `nearest_list` は会話リスト本体そのもの（`start` が `nearest_list`
+    /// 自身であっても、その子孫〔メッセージ要素・本文 `span` 等〕で
+    /// あっても）であり除外しない（`false`）。見つかれば `nearest_list`
+    /// は会話リストより深いネストしたリストであり除外する（`true`）。
+    ///
+    /// 正規のレイアウト（`content` → `data-bind-list="messages"` →
+    /// メッセージ要素 → `span` → `Text`）で、characterData 経路が本文
+    /// `span` から祖先歩行して `messages` に到達した場合、`messages` は
+    /// `content` の直下（`messages` からさらに祖先を辿っても `content`
+    /// までの間に別の `data-bind-list` は無い）ため `false`（除外しない）
+    /// と正しく判定される。旧実装（`has_nested_bind_list_ancestor`、
+    /// codex-review P1 / Cursor Bugbot 指摘 PR #2312）は `start` の祖先に
+    /// `data-bind-list` を持つ要素が 1 つでもあれば無条件に `true` を
+    /// 返していたため、会話リスト本体自身（`messages`）を「ネストした
+    /// bind-list」と誤検出し、通常の本文ストリーミング更新
+    /// （`appendData`/`nodeValue`）まで除外してしまっていた。
+    fn is_within_nested_bind_list(content: &Element, start: &Element) -> bool {
+        let mut current = Some(start.clone());
+        let mut nearest_list: Option<Element> = None;
+        while let Some(element) = current {
+            if element.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR) {
+                nearest_list = Some(element);
+                break;
+            }
+            if !content.contains(Some(&element)) || element == *content {
+                break;
+            }
+            current = element.parent_element();
+        }
+        let Some(nearest_list) = nearest_list else {
+            return false;
+        };
+        let mut current = nearest_list.parent_element();
         while let Some(element) = current {
             if !content.contains(Some(&element)) || element == *content {
                 break;
@@ -848,7 +878,7 @@ mod wiring {
                 // ここで判定を完結させる。会話リストより深いネストした
                 // `data-bind-list` 内でのテキスト更新は、上記ネスト除外の
                 // 方針と整合させ、成長根拠に含めない。
-                if has_nested_bind_list_ancestor(content, &target_element) {
+                if is_within_nested_bind_list(content, &target_element) {
                     continue;
                 }
                 has_growth_evidence = true;
@@ -874,7 +904,7 @@ mod wiring {
                 // 判定から完全に除外し（`has_growth_evidence` にも寄与
                 // させない）、次のレコードを見る。
                 if target_element != *content
-                    && has_nested_bind_list_ancestor(content, &target_element)
+                    && is_within_nested_bind_list(content, &target_element)
                 {
                     continue;
                 }

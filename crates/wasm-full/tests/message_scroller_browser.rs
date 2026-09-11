@@ -674,6 +674,14 @@ async fn streaming_text_replacement_is_classified_as_grow_not_prepend() {
 /// `Bottom` 状態でこの経路の高さ増加が最下部追従を発火させることを
 /// 固定する（`characterData` レコードが `Element` 判定で除外されたままだと
 /// 何も起こらない）。
+///
+/// §31.8 がサポート経路とする正規のレイアウト（`content` →
+/// `data-bind-list="messages"` → メッセージ要素 → `span` → `Text`）を
+/// 使う: 会話リスト本体（`messages`）を経由した本文ストリーミングが、
+/// 会話リスト自身を「ネストした bind-list」と誤検出して除外されない
+/// ことを固定する（`data-bind-list` ラッパーを持たないレイアウトでは
+/// この不具合を検出できなかった、codex P1 / Cursor Bugbot 再指摘
+/// PR #2312）。
 #[wasm_bindgen_test]
 async fn character_data_streaming_update_follows_to_bottom_when_stuck_bottom() {
     let window = web_sys::window().expect("window must exist");
@@ -692,12 +700,17 @@ async fn character_data_streaming_update_follows_to_bottom_when_stuck_bottom() {
         )],
         vec![text("Hello")],
     );
-    let message_item = el_owned("div", vec![], vec![body_span]);
-    // viewport（100px）を既存の固定高さ項目（90px）でほぼ埋めておき、
-    // ストリーミング本文の増分（+20px）で `scrollHeight` が
-    // `clientHeight`（100px）を超えて実際に増加するようにする
-    // （`streaming_text_replacement_is_classified_as_grow_not_prepend`
-    // と同じ配慮）。
+    let message_item = el_owned("div", vec![], vec![fixed_height_child(90), body_span]);
+    // `content` → `data-bind-list="messages"` → メッセージ要素の正規の
+    // keyed_list レイアウト（`prepend_into_keyed_list_wrapper_inside_content_is_detected`
+    // と同じ構成）。
+    let messages = keyed_list(
+        "div",
+        vec![],
+        "messages",
+        vec![("m-1".to_string(), message_item)],
+    )
+    .expect("keyed_list must not fail for well-formed items");
     let node = root(
         MessageScrollerRootProps {
             stuck: HeadlessStuck::Bottom,
@@ -708,7 +721,7 @@ async fn character_data_streaming_update_follows_to_bottom_when_stuck_bottom() {
             viewport(
                 "",
                 vec![("style", "height:100px;overflow-y:auto")],
-                vec![content(vec![], vec![fixed_height_child(90), message_item])],
+                vec![content(vec![], vec![messages])],
             ),
             jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
             load_more(false, false, vec![], vec![text("Load more")]),
@@ -744,14 +757,17 @@ async fn character_data_streaming_update_follows_to_bottom_when_stuck_bottom() {
     assert_eq!(
         viewport.scroll_top(),
         expected,
-        "characterData によるストリーミング更新で最下部へ追従すること"
+        "会話リスト（data-bind-list=\"messages\"）配下の characterData に \
+         よるストリーミング更新で最下部へ追従すること"
     );
     assert!(!instance_root.has_attribute("data-has-new"));
 }
 
 /// 上記の `Free` 版: `characterData` レコード経由のストリーミング更新が
 /// `data-has-new` を付与し、`scrollTop` は変化しないこと
-/// （codex-review 指摘 PR #2312、`first_relevant_change`）。
+/// （codex-review 指摘 PR #2312、`first_relevant_change`）。正規の
+/// keyed_list レイアウト（`content` → `data-bind-list="messages"` →
+/// メッセージ要素 → `span` → `Text`）を使う（上記 Bottom 版と同じ理由）。
 #[wasm_bindgen_test]
 async fn character_data_streaming_update_marks_has_new_when_stuck_free() {
     let window = web_sys::window().expect("window must exist");
@@ -767,7 +783,19 @@ async fn character_data_streaming_update_marks_has_new_when_stuck_free() {
         )],
         vec![text("Hello")],
     );
-    let message_item = el_owned("div", vec![], vec![body_span]);
+    // viewport（100px）を既存の固定高さ項目（90px）でほぼ埋めておき、
+    // ストリーミング本文の増分（+20px）で `scrollHeight` が
+    // `clientHeight`（100px）を超えて実際に増加するようにする
+    // （Bottom 版・`streaming_text_replacement_is_classified_as_grow_not_prepend`
+    // と同じ配慮）。
+    let message_item = el_owned("div", vec![], vec![fixed_height_child(90), body_span]);
+    let messages = keyed_list(
+        "div",
+        vec![],
+        "messages",
+        vec![("m-1".to_string(), message_item)],
+    )
+    .expect("keyed_list must not fail for well-formed items");
     let node = root(
         MessageScrollerRootProps {
             stuck: HeadlessStuck::Free,
@@ -778,7 +806,7 @@ async fn character_data_streaming_update_marks_has_new_when_stuck_free() {
             viewport(
                 "",
                 vec![("style", "height:100px;overflow-y:auto")],
-                vec![content(vec![], vec![fixed_height_child(90), message_item])],
+                vec![content(vec![], vec![messages])],
             ),
             jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
             load_more(false, false, vec![], vec![text("Load more")]),
@@ -1003,6 +1031,111 @@ async fn prepend_into_nested_bind_list_inside_message_is_ignored() {
         !instance_root.has_attribute("data-has-new"),
         "ネストした data-bind-list への追加が data-has-new を \
          立てないこと"
+    );
+}
+
+/// `prepend_into_nested_bind_list_inside_message_is_ignored`（childList
+/// 経路）の characterData 版: メッセージ内部にネストした `attachments`
+/// リスト内のテキスト（`Text` ノード）を `appendData` で更新しても、
+/// 会話リスト（`messages`）レベルの `scrollTop` 補正・`data-has-new` 付与
+/// のいずれも起きないこと。`is_within_nested_bind_list` は
+/// childList 経路・characterData 経路の両方から同じ判定関数を使うため、
+/// 本テストは両経路の整合を固定する（コーディネータ指摘、PR #2312）。
+#[wasm_bindgen_test]
+async fn character_data_update_inside_nested_bind_list_is_ignored() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-character-data-nested-bind-list-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    // 添付 1 件のテキストラベル（`white-space: pre` + 明示的な改行文字で
+    // `appendData` 前後の高さ変化を決定的にする）。
+    let attachment_label = el_owned(
+        "span",
+        vec![(
+            "style".to_string(),
+            "display:block;line-height:20px;white-space:pre".to_string(),
+        )],
+        vec![text("attachment.pdf")],
+    );
+    let attachments = keyed_list(
+        "div",
+        vec![],
+        "attachments",
+        vec![("att-1".to_string(), attachment_label)],
+    )
+    .expect("keyed_list must not fail for well-formed items");
+    // viewport（100px）を既存の固定高さ項目（90px）でほぼ埋めておき、
+    // `appendData` の増分（+20px）で `scrollHeight` が `clientHeight`
+    // （100px）を超えて実際に増加するようにする（他の characterData
+    // テストと同じ配慮）。
+    let message_item = el_owned("div", vec![], vec![fixed_height_child(90), attachments]);
+    let messages = keyed_list(
+        "div",
+        vec![],
+        "messages",
+        vec![("m-1".to_string(), message_item)],
+    )
+    .expect("keyed_list must not fail for well-formed items");
+    let node = root(
+        MessageScrollerRootProps {
+            stuck: HeadlessStuck::Free,
+            has_new: false,
+        },
+        vec![("id", "ms-character-data-nested-bind-list")],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:100px;overflow-y:auto")],
+                vec![content(vec![], vec![messages])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    );
+    let instance_root = mount(&container, &node);
+    let viewport = find_viewport(&instance_root);
+    let content_el = find_content(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    // free のまま、利用者が少し下へスクロールした状態を作る（古い
+    // メッセージを閲覧中を模す）。
+    simulate_user_scroll(&viewport, 10);
+    wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    let before_top = viewport.scroll_top();
+    let before_height = viewport.scroll_height();
+
+    // 会話リスト（`messages`）ではなく、メッセージ内部にネストした
+    // `attachments` リスト内のテキストを `appendData` で更新する。
+    let label_el = content_el
+        .query_selector("[data-bind-list=\"attachments\"] span")
+        .expect("query_selector must not fail")
+        .expect("attachment label span must exist");
+    let text_node = label_el
+        .first_child()
+        .expect("attachment label must already have a Text child")
+        .dyn_into::<web_sys::Text>()
+        .expect("attachment label's first child must be a Text node");
+    text_node
+        .append_data("\n(uploaded)")
+        .expect("append_data must not fail");
+
+    let expected_height = before_height + 20;
+    assert_eq!(viewport.scroll_height(), expected_height);
+    microtask_tick().await;
+
+    assert_eq!(
+        viewport.scroll_top(),
+        before_top,
+        "ネストした data-bind-list 内の characterData 更新で scrollTop が \
+         変化しないこと"
+    );
+    assert!(
+        !instance_root.has_attribute("data-has-new"),
+        "ネストした data-bind-list 内の characterData 更新が data-has-new \
+         を立てないこと"
     );
 }
 
