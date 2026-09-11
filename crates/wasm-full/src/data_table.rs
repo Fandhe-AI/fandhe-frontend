@@ -110,6 +110,17 @@ pub const PART_SELECT_ALL: &str = "select-all";
 pub const MENU_SCOPE: &str = "menu";
 pub const MENU_CHECKBOX_ITEM_PART: &str = "checkbox-item";
 
+/// [`fandhe_frontend_headless_ui::data_table::COLUMN_TOGGLE_ITEM_MARKER`]
+/// と同一のリテラル（往復ドリフト検知は `tests` 節参照）。同じ
+/// data-table インスタンス内に列表示切替と無関係な `menu`/
+/// `checkbox-item`（例: 通知方法選択メニュー）が同居し、その
+/// `data-value` が偶然列 id と一致する場合でも、本マーカーの有無で
+/// 列表示切替トリガーであることを明示的に判別する（codex-review P1
+/// 指摘。列の実在確認〔[`wiring::column_header_exists`]〕だけでは
+/// 無関係な `checkbox-item` を誤って列表示切替として処理してしまう
+/// ため、両者を併用する）。
+pub const COLUMN_TOGGLE_MARKER: &str = "data-column-toggle";
+
 /// select-all/select-row 配下のネイティブ `<input type="checkbox">`
 /// （[`fandhe_frontend_headless_ui::checkbox::hidden_input`]）の scope/part。
 pub const CHECKBOX_SCOPE: &str = "checkbox";
@@ -334,7 +345,7 @@ mod wiring {
     use super::{
         encode_column_payload, encode_page_payload, encode_sort_payload, page_transition,
         resolve_sort_state, trigger_kind, Trigger, ACTION_PAGE, ACTION_SORT, ACTION_TOGGLE_COLUMN,
-        DATA_STATE_INDETERMINATE, PAGINATION_SCOPE, PART_ROOT, SCOPE,
+        COLUMN_TOGGLE_MARKER, DATA_STATE_INDETERMINATE, PAGINATION_SCOPE, PART_ROOT, SCOPE,
     };
     use crate::dom::{closest_matching, has_disabled_ancestor, set_dom_attribute};
     use crate::events::ActionRef;
@@ -484,13 +495,14 @@ mod wiring {
     }
 
     /// `instance_root` 配下に `data-column == column_id` を持つ
-    /// column-header が実在するか（列表示切替トリガーの対象を通常の
-    /// メニュー項目から区別する。codex-review P1 指摘、モジュール冒頭
-    /// 「`headless::MAPPING_TABLE` へ登録しない理由」節 2 参照: data-table
-    /// 内の全 `menu`/`checkbox-item` が [`Trigger::ToggleColumn`] に
-    /// 一致してしまうため、行操作・フィルター用など無関係な
-    /// `checkbox-item` の `data-value` が偶然列 id と一致しても、実在する
-    /// 列でなければ no-op とする）。
+    /// column-header が実在するか。[`COLUMN_TOGGLE_MARKER`] による対象
+    /// 識別（`handle_toggle_column` 冒頭）を主たる防御としつつ、列削除後
+    /// の陳腐化したマーカー付き要素・マーカー偽装があっても実在しない
+    /// 列 id を fail-closed に弾く多層防御として併用する（codex-review
+    /// P1 指摘。当初はこの列実在確認のみで対象を識別していたが、
+    /// マーカー無しの無関係な `checkbox-item`（例: 通知方法選択メニュー）
+    /// の `data-value` が偶然列 id と一致する場合を排除できていなかった
+    /// ため、`COLUMN_TOGGLE_MARKER` による識別を主防御として追加した）。
     fn column_header_exists(instance_root: &Element, column_id: &str) -> bool {
         scoped_parts(instance_root, COLUMN_HEADER_SELECTOR)
             .into_iter()
@@ -663,6 +675,16 @@ mod wiring {
         if trigger.get_attribute("aria-disabled").as_deref() == Some("true") {
             return;
         }
+        if !trigger.has_attribute(COLUMN_TOGGLE_MARKER) {
+            // [`fandhe_frontend_headless_ui::data_table::column_toggle_item`]
+            // 由来ではない `checkbox-item`（例: 同じ data-table 内の
+            // 通知方法選択メニュー等、無関係な menu）を列表示切替として
+            // 誤処理しない（no-op、codex-review P1 指摘）。列の実在確認
+            // （後述）だけでは、無関係な `checkbox-item` の `data-value`
+            // が偶然列 id と一致する場合に誤って通過してしまうため、
+            // 対象を明示的に識別するマーカーで先に弾く。
+            return;
+        }
         let Some(column_id) = trigger.get_attribute("data-value") else {
             return;
         };
@@ -678,9 +700,9 @@ mod wiring {
             return;
         }
         if !column_header_exists(&instance_root, &column_id) {
-            // 同じ data-table 内の行操作・フィルター用など無関係な
-            // `checkbox-item`（`data-value` が列 id と偶然一致する場合を
-            // 含む）を列表示切替として誤処理しない（no-op）。
+            // マーカーを偽装されていても（あるいは列削除後の陳腐化した
+            // マーカー付き要素が残っていても）、実在しない列 id は
+            // fail-closed に no-op とする多層防御。
             return;
         }
 
@@ -783,20 +805,30 @@ mod wiring {
         if count == 0 {
             return None;
         }
-        // `pagination_root` 自身に前回の `handle_page` が書き戻した
-        // `CURRENT_PAGE_ATTR` があれば、それを現在ページの正とする
-        // （省略記号で遷移先 `item` が DOM 上に存在せず `data-selected`
-        // がどの item にも付かない場合でも現在ページを見失わないため。
-        // 初回描画（ハイドレーション直後、本属性が未設定）は SSR が
-        // 出力した `item` の `data-selected` から復元する）。
-        if let Some(current_str) = pagination_root.get_attribute(CURRENT_PAGE_ATTR) {
-            let current: u64 = current_str.parse().ok()?;
-            return Some((current, max_index));
-        }
-        if selected.len() != 1 {
+        // DOM 上の `item` の `data-selected` を常に優先する（アプリが
+        // フィルター変更等で `item` 群を再描画し `pagination_root` 自身は
+        // 使い回す構成のとき、`CURRENT_PAGE_ATTR` を常に優先すると
+        // 再描画後の DOM 状態より古い内部属性の値が勝ってしまい、実際は
+        // ページ 1 に戻っているのに旧ページ番号を通知してしまう。
+        // codex-review P1 指摘）。
+        // - 選択 `item` が一意に存在する（`selected.len() == 1`）場合は
+        //   DOM 上の値を正とする（アプリの再描画結果を常に反映する）。
+        // - 選択 `item` が 2 件以上（改ざん・不整合）は fail-closed に
+        //   `None`。
+        // - 選択 `item` が 0 件（省略記号で遷移先 `item` が DOM 上に
+        //   存在しない場合）のみ `CURRENT_PAGE_ATTR`（前回の `handle_page`
+        //   が書き戻した現在ページ）へフォールバックする。初回描画
+        //   （ハイドレーション直後、本属性が未設定）は SSR が出力した
+        //   `item` の `data-selected` から復元済みのためこの分岐に来ない。
+        if selected.len() > 1 {
             return None;
         }
-        Some((selected[0], max_index))
+        if let Some(&current) = selected.first() {
+            return Some((current, max_index));
+        }
+        let current_str = pagination_root.get_attribute(CURRENT_PAGE_ATTR)?;
+        let current: u64 = current_str.parse().ok()?;
+        Some((current, max_index))
     }
 
     /// pagination のトリガー/`item` クリックを処理する。`trigger` が

@@ -15,12 +15,15 @@ use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::checkbox::CheckedState;
 use fandhe_frontend_headless_ui::data_table::{
     column_attrs, column_toggle_item, ColumnProps, DataTable, DataTableProps, SortDirection,
+    COLUMN_TOGGLE_ITEM_MARKER,
 };
+use fandhe_frontend_headless_ui::menu;
 use fandhe_frontend_headless_ui::pagination::{item, prev_trigger, ItemMode, Pagination};
 use fandhe_frontend_wasm_full::data_table::{
     page_transition, sort_direction_from_attr, ACTION_PAGE, ACTION_SORT, ACTION_TOGGLE_COLUMN,
-    MENU_CHECKBOX_ITEM_PART, MENU_SCOPE, PAGINATION_ITEM_PART, PAGINATION_PREV_TRIGGER_PART,
-    PAGINATION_SCOPE, PART_COLUMN_HEADER, PART_ROOT, PART_SORT_TRIGGER, SCOPE,
+    COLUMN_TOGGLE_MARKER, MENU_CHECKBOX_ITEM_PART, MENU_SCOPE, PAGINATION_ITEM_PART,
+    PAGINATION_PREV_TRIGGER_PART, PAGINATION_SCOPE, PART_COLUMN_HEADER, PART_ROOT,
+    PART_SORT_TRIGGER, SCOPE,
 };
 
 #[test]
@@ -53,6 +56,10 @@ fn column_toggle_item_uses_menu_scope_and_data_value() {
     assert!(html.contains(r#"data-value="email""#));
     // 表示中の列は checked（`checked = !column.hidden`）。
     assert!(html.contains(r#"data-state="checked""#));
+    // 列表示切替専用マーカー（codex-review P1 指摘: 列 id が偶然一致する
+    // だけの無関係な menu checkbox-item と区別するために wasm-full が
+    // 見る属性）が headless-ui 側の出力に実在することを固定する。
+    assert!(html.contains(&format!(r#"{COLUMN_TOGGLE_ITEM_MARKER}="""#)));
     assert!(html.contains(r#"aria-checked="true""#));
 }
 
@@ -136,6 +143,57 @@ fn action_names_are_namespaced_like_other_wasm_full_notifications() {
     assert_eq!(ACTION_SORT, "data-table:sort");
     assert_eq!(ACTION_TOGGLE_COLUMN, "data-table:toggle-column");
     assert_eq!(ACTION_PAGE, "data-table:page");
+}
+
+#[test]
+fn column_toggle_marker_literal_matches_headless_ui_constant() {
+    // wasm-full の `COLUMN_TOGGLE_MARKER`（属性名リテラル）は headless-ui
+    // 側の `COLUMN_TOGGLE_ITEM_MARKER` と同一でなければならない（往復
+    // ドリフト検知。codex-review P1 指摘の主防御であるため、他の
+    // `PART_*`/`MENU_*` 定数と同じ厳密さで固定する）。
+    assert_eq!(COLUMN_TOGGLE_MARKER, COLUMN_TOGGLE_ITEM_MARKER);
+}
+
+#[test]
+fn unrelated_checkbox_item_does_not_carry_column_toggle_marker() {
+    // `column_toggle_item` を経由しない、同じ `menu`/`checkbox-item`
+    // scope/part を持つだけの無関係な checkbox-item（例: 通知方法選択
+    // メニュー）は `COLUMN_TOGGLE_MARKER` を持たない。wasm-full の
+    // `handle_toggle_column` がこの差でのみ対象を識別できることを固定
+    // する（codex-review P1 指摘の再発防止）。
+    let html = render(&menu::checkbox_item(
+        false,
+        "email",
+        false,
+        false,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains(&format!(r#"data-scope="{MENU_SCOPE}""#)));
+    assert!(html.contains(&format!(r#"data-part="{MENU_CHECKBOX_ITEM_PART}""#)));
+    assert!(html.contains(r#"data-value="email""#));
+    assert!(!html.contains(COLUMN_TOGGLE_MARKER));
+}
+
+#[test]
+fn column_toggle_item_drops_caller_supplied_marker_spoofing_attempt() {
+    // 呼び出し側が `attrs` で `COLUMN_TOGGLE_ITEM_MARKER` を偽装しても
+    // （通常フローでは起き得ないが、この属性がマーカーとして機能する
+    // ためには単一の付与元しか持ち得ないことを保証する）、二重出力に
+    // ならず高々 1 回しか現れない。
+    let column = ColumnProps {
+        id: "email",
+        hidden: false,
+    };
+    let html = render(&column_toggle_item(
+        &column,
+        false,
+        false,
+        vec![(COLUMN_TOGGLE_ITEM_MARKER, "spoofed")],
+        vec![],
+    ));
+    assert_eq!(html.matches(COLUMN_TOGGLE_ITEM_MARKER).count(), 1);
+    assert!(html.contains(&format!(r#"{COLUMN_TOGGLE_ITEM_MARKER}="""#)));
 }
 
 #[test]

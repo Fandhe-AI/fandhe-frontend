@@ -363,12 +363,30 @@ pub fn selection_count<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) 
     ANATOMY.part("selection-count", "div", attrs, children)
 }
 
+/// [`column_toggle_item`] が付与する固定マーカー属性名（存在属性、値は
+/// 常に空文字）。同じ data-table インスタンス内に列表示切替と無関係な
+/// `menu`/`checkbox-item`（例: 通知方法選択メニュー）が同居し、その
+/// `data-value` が偶然列 id と一致する場合でも、wasm-full 配線層が
+/// 「列表示切替トリガーである」ことを `data-scope`/`data-part`/列の実在
+/// 確認だけでなく本マーカーの有無で明示的に判別できるようにする
+/// （codex-review P1 指摘、`crates/wasm-full/src/data_table.rs`
+/// `handle_toggle_column` 参照）。呼び出し側の `attrs` に同名キーを渡しても
+/// [`column_toggle_item`] 内で除去し、偽装（本来 column-toggle ではない
+/// `checkbox_item` へこのマーカーを紛れ込ませること）はできない。
+pub const COLUMN_TOGGLE_ITEM_MARKER: &str = "data-column-toggle";
+
+/// [`column_toggle_item`] が呼び出し側 `attrs` から除去する予約キー
+/// （[`COLUMN_TOGGLE_ITEM_MARKER`] の偽装防止）。
+const COLUMN_TOGGLE_ITEM_RESERVED: &[&str] = &[COLUMN_TOGGLE_ITEM_MARKER];
+
 /// [`crate::menu::checkbox_item`] の薄いラッパ（列表示切替 1 項目）。
 /// `checked = !column.hidden`（表示中の列がチェック済み表示になる）・
 /// `value = column.id`（#2126 が `data-value` から列 id を読み取って
 /// `"toggle-column"`/`"show-column"`/`"hide-column"` を結び付ける契約）。
 /// `data-scope` は `menu` のまま（本モジュールの `data-scope="data-table"`
-/// を上書きしない、入れ子スロットとしての独立性を保つ）。
+/// を上書きしない、入れ子スロットとしての独立性を保つ）。あわせて
+/// [`COLUMN_TOGGLE_ITEM_MARKER`] を固定付与し、無関係な `checkbox-item`
+/// との区別を可能にする（codex-review P1 指摘）。
 #[must_use]
 pub fn column_toggle_item<'a>(
     column: &ColumnProps<'a>,
@@ -377,12 +395,15 @@ pub fn column_toggle_item<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = crate::radio_group::drop_reserved(attrs, COLUMN_TOGGLE_ITEM_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![(COLUMN_TOGGLE_ITEM_MARKER, "")];
+    merged.extend(attrs);
     crate::menu::checkbox_item(
         !column.hidden,
         column.id,
         disabled,
         highlighted,
-        attrs,
+        merged,
         children,
     )
 }

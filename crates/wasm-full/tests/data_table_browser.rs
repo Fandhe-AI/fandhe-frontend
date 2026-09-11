@@ -41,7 +41,7 @@ use fandhe_frontend_headless_ui::data_table::{
 };
 use fandhe_frontend_headless_ui::pagination::{ItemMode, Pagination};
 use fandhe_frontend_wasm_full::data_table::{
-    wire_data_table_events, ACTION_PAGE, ACTION_SORT, ACTION_TOGGLE_COLUMN,
+    wire_data_table_events, ACTION_PAGE, ACTION_SORT, ACTION_TOGGLE_COLUMN, COLUMN_TOGGLE_MARKER,
 };
 use fandhe_frontend_wasm_full::events::ActionRef;
 use std::cell::RefCell;
@@ -501,6 +501,66 @@ async fn column_toggle_item_ignores_checkbox_item_with_unmatched_column() {
     assert!(actions.borrow().is_empty());
 }
 
+#[wasm_bindgen_test]
+async fn column_toggle_item_ignores_unmarked_checkbox_item_with_coincidentally_matching_value() {
+    // codex-review P1 指摘の再現: 同じ data-table 内に列表示切替と無関係
+    // な menu checkbox-item（例: 通知方法選択メニュー）があり、その
+    // `data-value` が偶然実在する列 id（"email"）と一致する場合でも、
+    // `column_toggle_item`（headless-ui）由来ではない（＝
+    // `COLUMN_TOGGLE_MARKER` を持たない）要素は no-op でなければならない。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let root = mount_fixture(
+        &document,
+        "dt-toggle-unmarked-container",
+        "dt-toggle-unmarked",
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let actions = wire(&root);
+
+    let email_header = root
+        .query_selector(
+            r#"[data-scope="data-table"][data-part="column-header"][data-column="email"]"#,
+        )
+        .expect("query_selector must not fail")
+        .expect("email column-header must exist");
+
+    // マーカーなしの無関係な checkbox-item（例: 通知方法「email」選択）。
+    let unrelated = document
+        .create_element("button")
+        .expect("create_element must not fail");
+    unrelated
+        .set_attribute("data-scope", "menu")
+        .expect("set_attribute must not fail");
+    unrelated
+        .set_attribute("data-part", "checkbox-item")
+        .expect("set_attribute must not fail");
+    unrelated
+        .set_attribute("data-value", "email")
+        .expect("set_attribute must not fail");
+    unrelated
+        .set_attribute("data-state", "unchecked")
+        .expect("set_attribute must not fail");
+    assert!(!unrelated.has_attribute(COLUMN_TOGGLE_MARKER));
+    root.append_child(&unrelated)
+        .expect("append_child must not fail");
+
+    unrelated
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    settle().await;
+
+    assert!(!email_header.has_attribute("hidden"));
+    assert!(!email_header.has_attribute("data-hidden"));
+    // no-op のため無関係な checkbox-item 自身の `data-state` も
+    // 書き換えられていないこと（列表示切替として誤処理されていない）。
+    assert_eq!(
+        unrelated.get_attribute("data-state").as_deref(),
+        Some("unchecked")
+    );
+    assert!(actions.borrow().is_empty());
+}
+
 // --- select-all indeterminate ---
 
 #[wasm_bindgen_test]
@@ -715,6 +775,81 @@ async fn pagination_next_click_survives_missing_item_for_omitted_page() {
         item4.has_attribute("data-selected")
     })
     .await;
+}
+
+#[wasm_bindgen_test]
+async fn pagination_next_click_prefers_dom_selected_item_over_stale_internal_attribute() {
+    // codex-review P1 指摘の再現: `pagination_root` を使い回したままアプリが
+    // `item` 群を再描画する構成（例: フィルター変更でページ 1 へ戻す）で、
+    // 前回の `handle_page` が書き戻した内部属性（`data-current-page`）が
+    // 再描画後の DOM 状態より古いまま残っていても、DOM 上に一意に存在する
+    // `data-selected` item を現在ページの正として優先しなければならない。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let root = mount_fixture(&document, "dt-page-stale-container", "dt-page-stale");
+    let _cleanup = RemoveOnDrop(root.clone());
+    let _actions = wire(&root);
+
+    let next_trigger = part(&root, "pagination", "next-trigger");
+    let item1 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="1"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 1 must exist");
+    let item2 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="2"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 2 must exist");
+    let item3 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="3"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 3 must exist");
+    let item4 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="4"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 4 must exist");
+
+    // ページ 3 まで進め、`data-current-page="3"` を書き戻させる。
+    next_trigger
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    wait_for("item 2 becomes selected after first next click", || {
+        item2.has_attribute("data-selected")
+    })
+    .await;
+    next_trigger
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    wait_for("item 3 becomes selected after second next click", || {
+        item3.has_attribute("data-selected")
+    })
+    .await;
+
+    // アプリがフィルター変更等で `item` 群を再描画し、ページ 1 へ戻した
+    // ことを模擬する（`pagination_root` 自身は使い回すため
+    // `data-current-page="3"` は書き換えられずそのまま残る）。
+    item3.remove_attribute("data-selected").ok();
+    item3.remove_attribute("aria-current").ok();
+    item1
+        .set_attribute("data-selected", "")
+        .expect("set_attribute must not fail");
+    item1
+        .set_attribute("aria-current", "page")
+        .expect("set_attribute must not fail");
+
+    // 内部属性が優先されるバグがあれば、ここでのクリックは
+    // 「ページ 3」を正として扱いページ 4 へ進んでしまう
+    // （`item4` が選択される）。修正後は DOM 上のページ 1 を正として
+    // ページ 2 へ進む（`item2` が選択される）。
+    next_trigger
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    wait_for(
+        "item 2 becomes selected again after re-render resets to page 1",
+        || item2.has_attribute("data-selected"),
+    )
+    .await;
+    assert!(!item4.has_attribute("data-selected"));
+    assert_eq!(item2.get_attribute("aria-current").as_deref(), Some("page"));
 }
 
 #[wasm_bindgen_test]
