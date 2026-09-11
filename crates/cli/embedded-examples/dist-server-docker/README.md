@@ -27,6 +27,16 @@
   「ワークスペースルートでのビルドではない」と判定するため。実測で確認済み）
 - 単一バイナリ + `FROM scratch` の Docker イメージ最小化（ルート
   `Dockerfile`、REQ-9 の縮小版）
+- 配布 WASM は `fandhe-frontend-wasm-full` の「最小インタラクティブ
+  コンポーネント」6 feature（`wasm-bindgen-exports`/`collapsible`/`dialog`/
+  `popover`/`tooltip`/`position`）のみを含む縮小構成で出荷される点
+  （イシュー #2329、単一定義は `crates/dist-server/src/wasm_dist_features.rs`）。
+  最小構成に含まれない部品（accordion/menu/select 等）が必要な場合は、
+  `fandhe-frontend-wasm-full` を直接依存して feature を選ぶ
+  （`examples/interactive-view-transitions` 参照）か、
+  `wasm_dist_features.rs` の集合を変更する。詳細は
+  [wasm-full feature 選択ガイド](../../docs/guides/wasm-full-features.md)
+  を参照
 
 ## 実測結果（イシュー #502 実装時、scratchpad の使い捨てプロジェクトで確認）
 
@@ -100,5 +110,6 @@ curl -sS http://127.0.0.1:3100/
 ## 関連ガイド
 
 - [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
+- [`docs/guides/wasm-full-features.md`](../../docs/guides/wasm-full-features.md)
 - [`docs/design/dist-server-design.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/dist-server-design.md)
 - [`examples/ssr-routing/README.md`](../ssr-routing/README.md)（examples 規約の初例）

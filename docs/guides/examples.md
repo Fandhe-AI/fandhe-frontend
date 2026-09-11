@@ -113,13 +113,18 @@ HTML 活性文字だけを `\uXXXX` 中立化する専用 API です。渡す文
 ### 3.3 dist-server-docker
 
 単一バイナリ配布・`FROM scratch` の Docker イメージ最小化・外部依存利用時の
-静的アセット配信の制約と対処を学べます。
+静的アセット配信の制約と対処を学べます。配布 WASM は
+`fandhe-frontend-wasm-full` の「最小インタラクティブコンポーネント」6
+feature 構成で出荷される点に注意してください。関連:
+[wasm-full feature 選択ガイド](./wasm-full-features.md)。
 
 ### 3.4 interactive-view-transitions
 
 `Component` trait による状態機械・`dispatch`/`hydrate`・`start_router` に
-よる SPA 内 View Transitions の自動有効化を学べます。関連:
-[Interactive API](../api/interactive-api.md)。
+よる SPA 内 View Transitions の自動有効化を学べます。`wasm/Cargo.toml` に
+`fandhe-frontend-wasm-full` の feature 指定例（コメント）も掲載しています。
+関連: [Interactive API](../api/interactive-api.md)、
+[wasm-full feature 選択ガイド](./wasm-full-features.md)。
 
 ### 3.5 headless-pre-styled-ui
 

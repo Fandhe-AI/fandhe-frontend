@@ -43,3 +43,12 @@ Guides セクションは、目的別の実践ガイドをまとめています�
 読み込まない静的サイト構成で、`fandhe-frontend-headless-ui` /
 `fandhe-frontend-pre-styled-ui` の部品がどう振る舞うか、開閉 UI の代替
 パターンを解説します。
+
+## wasm-full feature 選択ガイド
+
+[wasm-full feature 選択ガイドを見る](../docs/guides/wasm-full-features.md)
+
+`fandhe-frontend-wasm-full` が持つ配線群別・scope 別 2 軸の Cargo feature
+一覧と、`default-features = false` 利用者の移行手順、
+`fandhe-frontend-dist-server` が配布する最小インタラクティブ構成の定義を
+解説します。
