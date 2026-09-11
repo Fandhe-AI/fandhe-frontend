@@ -370,6 +370,13 @@ mod wiring {
         "[data-scope=\"pagination\"][data-part=\"next-trigger\"]";
     const PAGINATION_LAST_TRIGGER_SELECTOR: &str =
         "[data-scope=\"pagination\"][data-part=\"last-trigger\"]";
+    /// `pagination_root` 自身へ書き戻す現在ページ番号の属性名（wasm-full
+    /// 独自の内部ブックキーピング。headless-ui の予約キー一覧
+    /// （`crates/headless-ui/src/pagination.rs` の `ROOT_RESERVED`）には
+    /// 含まれない）。省略記号（ellipsis）により遷移先ページの `item` が
+    /// DOM 上に存在しない場合でも現在ページを見失わないための対策
+    /// （codex-review P1 指摘、モジュール冒頭「既知の限界」節）。
+    const CURRENT_PAGE_ATTR: &str = "data-current-page";
 
     /// `element` がインスタンス root 自身、または `data-part="root"`
     /// （`data-scope="data-table"`）を持つか。
@@ -474,6 +481,20 @@ mod wiring {
             .filter(|header| header.has_attribute("data-hidden"))
             .filter_map(|header| header.get_attribute("data-column"))
             .collect()
+    }
+
+    /// `instance_root` 配下に `data-column == column_id` を持つ
+    /// column-header が実在するか（列表示切替トリガーの対象を通常の
+    /// メニュー項目から区別する。codex-review P1 指摘、モジュール冒頭
+    /// 「`headless::MAPPING_TABLE` へ登録しない理由」節 2 参照: data-table
+    /// 内の全 `menu`/`checkbox-item` が [`Trigger::ToggleColumn`] に
+    /// 一致してしまうため、行操作・フィルター用など無関係な
+    /// `checkbox-item` の `data-value` が偶然列 id と一致しても、実在する
+    /// 列でなければ no-op とする）。
+    fn column_header_exists(instance_root: &Element, column_id: &str) -> bool {
+        scoped_parts(instance_root, COLUMN_HEADER_SELECTOR)
+            .into_iter()
+            .any(|header| header.get_attribute("data-column").as_deref() == Some(column_id))
     }
 
     /// トリガー自身がネイティブ `disabled`、または `aria-disabled="true"`
@@ -656,6 +677,12 @@ mod wiring {
         if has_disabled_ancestor(&instance_root, target_element) {
             return;
         }
+        if !column_header_exists(&instance_root, &column_id) {
+            // 同じ data-table 内の行操作・フィルター用など無関係な
+            // `checkbox-item`（`data-value` が列 id と偶然一致する場合を
+            // 含む）を列表示切替として誤処理しない（no-op）。
+            return;
+        }
 
         // `sort` は列表示切替に関与しないためダミー。
         let hidden_columns = collect_hidden_columns(&instance_root);
@@ -753,7 +780,20 @@ mod wiring {
                 selected.push(idx);
             }
         }
-        if count == 0 || selected.len() != 1 {
+        if count == 0 {
+            return None;
+        }
+        // `pagination_root` 自身に前回の `handle_page` が書き戻した
+        // `CURRENT_PAGE_ATTR` があれば、それを現在ページの正とする
+        // （省略記号で遷移先 `item` が DOM 上に存在せず `data-selected`
+        // がどの item にも付かない場合でも現在ページを見失わないため。
+        // 初回描画（ハイドレーション直後、本属性が未設定）は SSR が
+        // 出力した `item` の `data-selected` から復元する）。
+        if let Some(current_str) = pagination_root.get_attribute(CURRENT_PAGE_ATTR) {
+            let current: u64 = current_str.parse().ok()?;
+            return Some((current, max_index));
+        }
+        if selected.len() != 1 {
             return None;
         }
         Some((selected[0], max_index))
@@ -801,6 +841,10 @@ mod wiring {
         };
 
         let new_page_str = new_page.to_string();
+        // 省略記号（ellipsis）で遷移先 `item` が DOM 上に存在しない場合
+        // でも現在ページを見失わないよう、`pagination_root` 自身へ現在
+        // ページを常に書き戻す（`read_pagination_state` 参照）。
+        set_dom_attribute(&pagination_root, CURRENT_PAGE_ATTR, &new_page_str);
         if let Ok(nodes) = pagination_root.query_selector_all(PAGINATION_ITEM_SELECTOR) {
             for i in 0..nodes.length() {
                 let Some(node) = nodes.get(i) else { continue };
@@ -809,8 +853,10 @@ mod wiring {
                 };
                 if element.get_attribute("data-index").as_deref() == Some(new_page_str.as_str()) {
                     set_dom_attribute(&element, "data-selected", "");
+                    set_dom_attribute(&element, "aria-current", "page");
                 } else {
                     let _ = element.remove_attribute("data-selected");
+                    let _ = element.remove_attribute("aria-current");
                 }
             }
         }

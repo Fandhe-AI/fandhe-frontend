@@ -34,7 +34,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use fandhe_frontend_core::{el, render, Node};
+use fandhe_frontend_core::{el, render, table as table_el, tbody, thead, tr, Node};
 use fandhe_frontend_headless_ui::checkbox::{hidden_input, CheckboxProps, CheckedState};
 use fandhe_frontend_headless_ui::data_table::{
     column_attrs, column_toggle_item, ColumnProps, DataTable, DataTableProps,
@@ -165,25 +165,52 @@ fn build_fixture(id: &str) -> Node {
         hidden: false,
     };
 
+    // `column_header`/`select_all` は `th`、`select_row`（本フィクスチャ
+    // では `column_attrs` を付けた素の `td`）は `td` を生成するため、
+    // `table`/`thead`/`tbody`/`tr`（core のノード API）で正規の table
+    // 構造を組んでからその中へ配置する。`div`（`DataTable::root`）直下に
+    // 直接置くと、ブラウザの HTML フラグメント解析（コンテキストが
+    // `div` のため insertion mode が「in body」になる）で `th`/`td`
+    // start tag がパースエラーとして無視され、`data-part="column-header"`
+    // 等が DOM 上に一切現れない（`crates/docs-site/src/primitive_showcase/data_display_utilities.rs`
+    // の codex-review P1 是正、PR #2303 と同じ原因）。
+    // `select_all`（`th`）も同じ理由で table 構造内へ置く必要がある
+    // （配下の `checkbox::hidden_input` ごと HTML フラグメント解析で
+    // 落とされないようにする）。
+    let select_all_header = DataTable::select_all(
+        CheckedState::Unchecked,
+        vec![],
+        vec![hidden_input(
+            &CheckboxProps::default(),
+            "select-all",
+            "on",
+            vec![],
+        )],
+    );
+    let header_row = tr(
+        vec![],
+        vec![
+            select_all_header,
+            table.column_header("name", true, vec![], vec![]),
+            table.column_header("email", false, vec![], vec![]),
+        ],
+    );
+    let body_row = tr(vec![], vec![el("td", column_attrs(&email_column), vec![])]);
+    let data_table_markup = table_el(
+        vec![],
+        vec![
+            thead(vec![], vec![header_row]),
+            tbody(vec![], vec![body_row]),
+        ],
+    );
+
     DataTable::root(
         DataTableProps::default(),
         vec![("id", id)],
         vec![
-            table.column_header("name", true, vec![], vec![]),
-            table.column_header("email", false, vec![], vec![]),
-            el("td", column_attrs(&email_column), vec![]),
+            data_table_markup,
             table.sort_trigger("name", vec![], vec![]),
             column_toggle_item(&email_column, false, false, vec![], vec![]),
-            DataTable::select_all(
-                CheckedState::Unchecked,
-                vec![],
-                vec![hidden_input(
-                    &CheckboxProps::default(),
-                    "select-all",
-                    "on",
-                    vec![],
-                )],
-            ),
             pagination.root(
                 "pagination",
                 vec![],
@@ -416,6 +443,64 @@ async fn aria_disabled_checkbox_item_click_is_a_no_op() {
     assert!(actions.borrow().is_empty());
 }
 
+/// codex-review P1 指摘の回帰: data-table 内の全 `menu`/`checkbox-item` を
+/// 列表示切替として無条件処理すると、対応する列の存在しない
+/// `checkbox-item`（行操作・フィルター用など）のクリックでも誤って
+/// 何らかの列を隠してしまう。`data-value` が実在しない列 id（`bogus`）の
+/// `checkbox-item` を動的追加し、クリックしても既存列（`email`）が一切
+/// 変化せず通知も飛ばないことを固定する。
+#[wasm_bindgen_test]
+async fn column_toggle_item_ignores_checkbox_item_with_unmatched_column() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let root = mount_fixture(
+        &document,
+        "dt-toggle-unmatched-container",
+        "dt-toggle-unmatched",
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let actions = wire(&root);
+
+    let email_header = root
+        .query_selector(
+            r#"[data-scope="data-table"][data-part="column-header"][data-column="email"]"#,
+        )
+        .expect("query_selector must not fail")
+        .expect("email column-header must exist");
+
+    let unmatched = document
+        .create_element("button")
+        .expect("create_element must not fail");
+    unmatched
+        .set_attribute("data-scope", "menu")
+        .expect("set_attribute must not fail");
+    unmatched
+        .set_attribute("data-part", "checkbox-item")
+        .expect("set_attribute must not fail");
+    unmatched
+        .set_attribute("data-value", "bogus")
+        .expect("set_attribute must not fail");
+    unmatched
+        .set_attribute("data-state", "checked")
+        .expect("set_attribute must not fail");
+    root.append_child(&unmatched)
+        .expect("append_child must not fail");
+
+    unmatched
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    settle().await;
+
+    assert!(!email_header.has_attribute("hidden"));
+    assert!(!email_header.has_attribute("data-hidden"));
+    // no-op のため `data-state` も書き換えられていないこと。
+    assert_eq!(
+        unmatched.get_attribute("data-state").as_deref(),
+        Some("checked")
+    );
+    assert!(actions.borrow().is_empty());
+}
+
 // --- select-all indeterminate ---
 
 #[wasm_bindgen_test]
@@ -531,6 +616,107 @@ async fn pagination_last_click_disables_next_and_last_triggers() {
     assert!(item5.has_attribute("data-selected"));
 }
 
+/// codex-review P1 指摘の回帰: `item` クリックで `data-selected` だけでなく
+/// `aria-current="page"` も同期すること（旧ページに `aria-current` が
+/// 残らないこと）。
+#[wasm_bindgen_test]
+async fn pagination_next_click_syncs_aria_current() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let root = mount_fixture(
+        &document,
+        "dt-page-aria-current-container",
+        "dt-page-aria-current",
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let _actions = wire(&root);
+
+    let next_trigger = part(&root, "pagination", "next-trigger");
+    let item1 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="1"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 1 must exist");
+    let item2 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="2"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 2 must exist");
+
+    assert_eq!(item1.get_attribute("aria-current").as_deref(), Some("page"));
+
+    next_trigger
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    wait_for("item 2 gains aria-current after next click", || {
+        item2.get_attribute("aria-current").as_deref() == Some("page")
+    })
+    .await;
+    assert_eq!(item1.get_attribute("aria-current"), None);
+}
+
+/// codex-review P1 指摘の回帰: 省略記号（ellipsis）で遷移先ページの
+/// `item` が DOM 上に存在しない場合でも、その後の `prev`/`last` 操作が
+/// 機能し続けること（現在ページを見失わない）。フィクスチャの `item 2`
+/// を DOM から取り除いて「省略された」状態を模擬してから `next` を 2 回
+/// クリックし、`item 4`（遷移先が存在する）へ正しく戻れることを確認する。
+#[wasm_bindgen_test]
+async fn pagination_next_click_survives_missing_item_for_omitted_page() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let root = mount_fixture(&document, "dt-page-omitted-container", "dt-page-omitted");
+    let _cleanup = RemoveOnDrop(root.clone());
+    let _actions = wire(&root);
+
+    let next_trigger = part(&root, "pagination", "next-trigger");
+    let prev_trigger = part(&root, "pagination", "prev-trigger");
+    let item2 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="2"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 2 must exist");
+    // 省略記号を模擬: ページ 2 の item を DOM から取り除く。
+    item2.remove();
+    let item3 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="3"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 3 must exist");
+    let item4 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="4"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 4 must exist");
+
+    // 1 回目の next: 遷移先（ページ 2）の item が存在しないため、DOM 上は
+    // どの item も選択されない（既知の限界）が、現在ページの内部状態は
+    // 失われないこと。
+    next_trigger
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    settle().await;
+    assert!(!item3.has_attribute("data-selected"));
+    assert!(!prev_trigger.has_attribute("disabled"));
+
+    // 2 回目の next: 現在ページ（2）を見失っていなければページ 3 へ進む。
+    // 見失って `read_pagination_state` が `None` を返すようになっていた
+    // 場合はここで no-op になり `item3` が選択されないため回帰を検知する。
+    next_trigger
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    wait_for("item 3 becomes selected after second next click", || {
+        item3.has_attribute("data-selected")
+    })
+    .await;
+    assert_eq!(item3.get_attribute("aria-current").as_deref(), Some("page"));
+
+    // prev で正しくページ 2 相当（item は存在しないため選択反映はされない）
+    // へ戻れ、その後さらに next でページ 3 → 4 へ進めること（内部状態が
+    // 一貫して追跡され続けることの確認）。
+    next_trigger
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    wait_for("item 4 becomes selected after third next click", || {
+        item4.has_attribute("data-selected")
+    })
+    .await;
+}
+
 #[wasm_bindgen_test]
 async fn pagination_link_mode_item_click_is_untouched() {
     let window = web_sys::window().expect("window must exist");
@@ -617,7 +803,7 @@ async fn two_instances_in_the_same_container_are_independent() {
 
 mod runtime_dirty_rerender {
     use super::{synthetic_click, wait_for, RemoveOnDrop};
-    use fandhe_frontend_core::{bind_text, render, Node};
+    use fandhe_frontend_core::{bind_text, render, table as table_el, tbody, thead, tr, Node};
     use fandhe_frontend_headless_ui::data_table::{DataTable, DataTableProps};
     use fandhe_frontend_interactive::{Component, DirtyTracked, Hydrate, HydrateError};
     use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
@@ -680,11 +866,28 @@ mod runtime_dirty_rerender {
         }
 
         fn view(&self) -> Node {
+            // `column_header` は `th` を生成するため、`table`/`thead`/`tbody`/
+            // `tr`（core のノード API）で正規の table 構造を組んでからその
+            // 中へ配置する。`div`（`DataTable::root`）直下に直接置くと、
+            // ブラウザの HTML フラグメント解析で `th` start tag がパース
+            // エラーとして無視され `column-header` が DOM 上に一切現れず、
+            // `handle_sort` の改ざん検知（sortable header 収集）が常に
+            // 空集合を見て no-op になる（本ファイル冒頭 `build_fixture`
+            // と同じ原因、`crates/docs-site/src/primitive_showcase/data_display_utilities.rs`
+            // の codex-review P1 是正、PR #2303 参照）。
+            let header_row = tr(
+                vec![],
+                vec![self.table.column_header("name", true, vec![], vec![])],
+            );
+            let data_table_markup = table_el(
+                vec![],
+                vec![thead(vec![], vec![header_row]), tbody(vec![], vec![])],
+            );
             DataTable::root(
                 DataTableProps::default(),
                 vec![("id", self.root_id.as_str())],
                 vec![
-                    self.table.column_header("name", true, vec![], vec![]),
+                    data_table_markup,
                     self.table.sort_trigger("name", vec![], vec![]),
                     bind_text(
                         "span",
