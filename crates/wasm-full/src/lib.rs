@@ -152,6 +152,14 @@
 //! `Self::wire_questionnaire` の直後で配線する（`message_scroller`
 //! モジュール doc 参照）。
 //!
+//! [`data_table`] モジュール（イシュー #2126、親 #2124）は DataTable
+//! （`fandhe-frontend-headless-ui` `data_table` モジュール）のソート
+//! トリガー・列表示切替・select-all `indeterminate`・ページング操作の
+//! DOM 配線を担う。`message_scroller`/`questionnaire` と同じ 2 層構成を
+//! 踏襲し、`Runtime::mount`/`Runtime::hydrate` の双方から
+//! `Self::wire_message_scroller` の直後で配線する（`data_table` モジュール
+//! doc 参照）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -193,6 +201,8 @@
 //! | `Runtime::wire_chart` | `chart` |
 //! | `Runtime::wire_chart_range` | `chart-range` |
 //! | `Runtime::wire_questionnaire` | `questionnaire` |
+//! | `Runtime::wire_message_scroller` | `message-scroller` |
+//! | `Runtime::wire_data_table` | `data-table` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -208,16 +218,18 @@
 //!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
-//! `default-features = false` を使う利用者は上記 14 配線を失う
+//! `default-features = false` を使う利用者は上記 16 配線を失う
 //! （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の (ii)
-//! を採用）。従来どおりの挙動を維持するには `features = [
+//! を採用。イシュー #2122 で `message-scroller`、イシュー #2126 で
+//! `data-table` を追加）。従来どおりの挙動を維持するには `features = [
 //! "wasm-bindgen-exports", "keynav", "focus-visible", "avatar", "clipboard",
 //! "timer", "angle-slider", "splitter", "signature-pad", "number-input",
-//! "command", "sidebar", "chart", "chart-range", "questionnaire"]`
+//! "command", "sidebar", "chart", "chart-range", "questionnaire",
+//! "message-scroller", "data-table"]`
 //! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
-//! 明示すること。上記 14 件に加え、[`headless::wire_headless_component`] の
+//! 明示すること。上記 16 件に加え、[`headless::wire_headless_component`] の
 //! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
-//! こと（`position` はこの 14 配線とは別枠の feature であり、既定 15 件目
+//! こと（`position` はこの 16 配線とは別枠の feature であり、既定 17 件目
 //! として `Cargo.toml` の `default` 配列に列挙されている）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
@@ -345,6 +357,7 @@ pub mod chart_range;
 pub mod command;
 pub mod content_height;
 pub mod csr;
+pub mod data_table;
 pub mod events;
 pub mod focus_trap;
 pub mod focus_visible;
@@ -1306,6 +1319,13 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "data-table")]
+        Self::wire_data_table(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
@@ -1472,6 +1492,13 @@ where
         )?;
         #[cfg(feature = "message-scroller")]
         Self::wire_message_scroller(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
+        #[cfg(feature = "data-table")]
+        Self::wire_data_table(
             component.clone(),
             root.clone(),
             binding_table.clone(),
@@ -2343,6 +2370,58 @@ where
                 );
             },
         )
+    }
+
+    /// DataTable（`fandhe-frontend-headless-ui` `data_table` モジュール）の
+    /// ソートトリガー・列表示切替・select-all `indeterminate`・ページング
+    /// 操作の DOM 配線を [`data_table::wire_data_table_events`] 経由で
+    /// `root` へ登録する（イシュー #2126、親 #2124）。
+    ///
+    /// [`data_table::wiring`] は `aria-sort`/`data-sort`/`hidden`/
+    /// `data-hidden`/`data-state`/`aria-checked`/pagination の
+    /// `disabled`/`aria-disabled`/`data-disabled`/`data-selected`・
+    /// select-all の `indeterminate` DOM プロパティの反映を独自に完結させる
+    /// （`Runtime::apply_dirty_if_any` を経由しない）。本メソッドが橋渡し
+    /// するのはソート・列表示切替・ページングの `C` への通知
+    /// （[`data_table::ACTION_SORT`]/[`data_table::ACTION_TOGGLE_COLUMN`]/
+    /// [`data_table::ACTION_PAGE`]）のみで、`C` が同名のアクションを
+    /// 認識しない場合でも他配線（DOM 書き戻し）は独立して成立する
+    /// （`Self::wire_message_scroller` と同じ橋渡し方針）。行の実際の
+    /// 並べ替え・絞り込み・ページ取得・選択集合の保持はアプリ責務であり
+    /// 本メソッドは持たない（`.claude/rules/coding-rust.md` §UI 部品の
+    /// 責務境界 規則 1）。
+    ///
+    /// # Errors
+    ///
+    /// [`data_table::wire_data_table_events`]
+    /// （`add_event_listener_with_callback`/
+    /// `MutationObserver::observe_with_options` 等）の失敗を伝播する。
+    #[cfg(feature = "data-table")]
+    fn wire_data_table(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        let data_table_root = root.clone();
+        data_table::wire_data_table_events(root, move |action_ref: events::ActionRef| {
+            let Ok(mut state) = component.try_borrow_mut() else {
+                return;
+            };
+            let dispatched = fandhe_frontend_interactive::dispatch(
+                &mut *state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+            if !dispatched {
+                return;
+            }
+            Self::apply_dirty_if_any(&state, &data_table_root, &binding_table, &keyed_list_cache);
+        })
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
