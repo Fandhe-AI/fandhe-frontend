@@ -230,10 +230,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Data Table（Primitives）が加わり、230 → 231 になった。イシュー
     // #2123 で Message Scroller（Themes）が加わり、231 → 232 になった。
     // イシュー #2330 で wasm-full feature 選択ガイド（Guides セクション）が
-    // 加わり、232 → 233 になった。
+    // 加わり、232 → 233 になった。イシュー #2127 で Data Table
+    // （Themes）が加わり、233 → 234 になった。
     assert_eq!(
         report.written.len(),
-        233,
+        234,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -267,8 +268,9 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Bubble が加わり 117 → 118、イシュー #2112 で Attachment が加わり
     // 118 → 119、イシュー #2115 で Marker が加わり 119 → 120、イシュー
     // #2119 で Questionnaire が加わり 120 → 121、イシュー #2123 で
-    // Message Scroller が加わり 121 → 122）+
-    // 索引 1 件 = 123 件が生成される。
+    // Message Scroller が加わり 121 → 122、イシュー #2127 で
+    // Data Table が加わり 122 → 123）+
+    // 索引 1 件 = 124 件が生成される。
     // Phase 4 以降で部品が増減したら両方の値の更新が必要になる
     // （fail-closed。黙って減っても気付けるようにする意図）。
     let components_dir = out.join("components");
@@ -289,8 +291,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&themes_dir))
         .count();
     assert_eq!(
-        theme_pages, 123,
-        "/themes/ 配下の生成ページ数（部品 122 件 + 索引 1 件）"
+        theme_pages, 124,
+        "/themes/ 配下の生成ページ数（部品 123 件 + 索引 1 件）"
     );
 
     // イシュー #1021: `/primitives/` 配下は部品 63 件 + 索引 1 件 = 64 件。

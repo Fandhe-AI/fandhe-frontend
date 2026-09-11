@@ -3298,7 +3298,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # `box-shadow` を追加した（CSS 出力変更・観測可能な振る舞い変更のため
 # `version-bump-exempt` は使えない）。Rust API シグネチャは不変で意匠調整
 # に留まるため patch バンプとし、0.184.0 を +1 した 0.184.1 とする。
-version = "0.184.1"
+#
+# イシュー #2127: `data_table` モジュール（recipe・golden テスト、8 パーツ
+# `root`/`toolbar`/`column-header`/`sort-trigger`/`select-all`/
+# `select-row`/`footer`/`selection-count`）を新設した。新規公開モジュール
+# の純追加であり既存モジュールの出力は不変のため、非破壊的な追加として
+# minor バンプし、0.184.1 を +1 した 0.185.0 とする。
+version = "0.185.0"
 
 
 edition = "2021"

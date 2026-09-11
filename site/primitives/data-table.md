@@ -45,7 +45,7 @@ shadcn/ui の `Data Table`（`@tanstack/react-table` ベース）は `ColumnDef`
 
 列非表示の実現手段として `col` / `colgroup` 要素（`visibility: collapse`）はブラウザ差があるため不採用とし、セル単位の `hidden` 属性で代替します。
 
-スタイル済みの表示例（recipe・golden テスト・Themes ページ）は現時点では未実装です（後続イシュー #2127）。
+`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。Themes 版は [Data Table](../themes/data-table.md) を参照してください。
 
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)
 

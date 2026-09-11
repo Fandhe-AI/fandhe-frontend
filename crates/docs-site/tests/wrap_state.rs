@@ -14,7 +14,7 @@
 //! をすり抜けるのを防ぐ。判別規約は
 //! `docs/design/docs-site-primitives-themes-split.md` §6a を参照。
 //!
-//! # 4 バケット分割（Themes 122 部品）
+//! # 4 バケット分割（Themes 123 部品）
 //!
 //! - [`WRAPPED_SAME_NAME`]（69）: 同名の Primitives 部品が存在し、かつ同名
 //!   headless モジュールへコード委譲している
@@ -449,6 +449,7 @@ const WRAPPED_SAME_NAME: &[&str] = &[
     "color-picker",
     "combobox",
     "command",
+    "data-table",
     "date-input",
     "date-picker",
     "dialog",
@@ -643,10 +644,12 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// イシュー #2123 で pre-styled-ui 側（`crates/pre-styled-ui/src/
 /// message_scroller.rs`・`/themes/message-scroller/`）を新設し
 /// `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。イシュー
-/// #2125 で同様に headless-ui 層のみを実装した `data_table` が新設され
-/// 本リストへ加わった。pre-styled-ui recipe・Themes ページは後続イシュー
-/// #2127 のスコープであり、実装され次第 `WRAPPED_SAME_NAME` へ移す。
-const HEADLESS_UNWRAPPED: &[&str] = &["data_table"];
+/// #2125 で同様に headless-ui 層のみを実装した `data_table` が一時的に
+/// 本リストへ加わっていたが、イシュー #2127 で pre-styled-ui 側
+/// （`crates/pre-styled-ui/src/data_table.rs`・`/themes/data-table/`）を
+/// 新設し `WRAPPED_SAME_NAME` へ分類されたため本リストから除外した。
+/// 現在は空である。
+const HEADLESS_UNWRAPPED: &[&str] = &[];
 
 /// §3.4: pre-styled-ui recipe を実装済みだが `/themes/<kebab>/` ページを
 /// まだ持たない部品（イシュー #2073 で `sidebar` を一時的に載せた暫定
@@ -693,8 +696,8 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 122 件（イシュー #2123 で
-/// `message-scroller` 追加、旧 121）すべてが `resolve_page` で panic せず
+/// §3.5: nav 登録済み Themes ページ 123 件（イシュー #2127 で
+/// `data-table` 追加、旧 122）すべてが `resolve_page` で panic せず
 /// 解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
@@ -702,7 +705,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        122,
+        123,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -1052,7 +1055,7 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        122,
+        123,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
          登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
@@ -1094,6 +1097,9 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
          イシュー #2123 で message_scroller.rs を新設し 121 → 122。 \
          `/themes/message-scroller/` ページ登録により \
          `message_scroller` も HEADLESS_UNWRAPPED から \
+         WRAPPED_SAME_NAME バケットへ移った。イシュー #2127 で \
+         data_table.rs を新設し 122 → 123。`/themes/data-table/` \
+         ページ登録により `data_table` も HEADLESS_UNWRAPPED から \
          WRAPPED_SAME_NAME バケットへ移った）"
     );
     assert_eq!(

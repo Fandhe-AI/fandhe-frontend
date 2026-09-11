@@ -85,6 +85,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `marker`（§4f-9 参照。会話中の注記行。3 パーツ構成、軸なし。data-variant/data-tone を AttrEq 参照するのみ） | [marker](../../site/themes/marker.md) |
 | headless ラッパー | `questionnaire`（§4f-10 参照。多段質問 UI。11 パーツ構成、軸なし。data-state/data-answered/data-skipped/data-invalid/data-disabled/data-complete を AttrEq/Attr 参照するのみ） | [questionnaire](../../site/themes/questionnaire.md) |
 | headless ラッパー | `message_scroller`（§4f-11 参照。会話ログのスクロールコンテナ。6 パーツ構成、軸なし。data-stuck/data-has-new/data-visible/hidden/data-loading/data-disabled を AttrEq/Attr 参照するのみ） | [message-scroller](../../site/themes/message-scroller.md) |
+| headless ラッパー | `data_table`（§4f-12 参照。表の操作 UI。8 パーツ構成、軸なし。data-loading/data-empty/data-sort/data-state/data-hidden を Attr/AttrEq 参照するのみ） | [data-table](../../site/themes/data-table.md) |
 | headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
@@ -1199,6 +1200,63 @@ anatomy（`root`/`media`/`content`/`name`/`meta`/`progress`/`actions`/
   （イシュー #2123 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 - **スコープ外**: wasm-full 配線（最下部追従・新着検知・履歴読み込み時の
   位置維持・`data-*` の実行時更新）は #2122。
+
+### 4f-12. `data_table`（表の操作 UI、イシュー #2127、親 #2124、headless anatomy は #2125、wasm-full 配線は #2126）
+
+`data_table` モジュールは `fandhe_frontend_headless_ui::data_table` の
+anatomy（`root`/`toolbar`/`column-header`/`sort-trigger`/`select-all`/
+`select-row`/`footer`/`selection-count` の 8 パーツ）へ、shadcn/ui
+`Data Table` 相当（toolbar・ソート可能列ヘッダー・行選択・非表示列・
+footer のページング/件数表示）の意匠を重ねる薄い委譲層である。
+
+- **公開 API**: 8 関数はいずれも見た目クラスを付与せず、呼び出し側
+  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
+  委譲する（同名再定義、`crate::message_scroller` と同型のパターン）。
+  `DataTable`/`DataTableAction`/`DataTableProps`/`ColumnProps`/
+  `ColumnHeaderProps`/`SortDirection`/`column_attrs`/`column_header_attrs`/
+  `row_attrs`（headless からの再エクスポート）を選択的に公開する。
+  `stylesheet()` が静的 CSS 全量を返す。
+- **軸を持たない**: `ColorPalette`/`Size` 等の見た目 variant を公開しない
+  （本イシューのスコープ外）。`data-loading`/`data-empty`/`data-sort`/
+  `data-state`/`data-hidden` はいずれも headless が固定出力するものを
+  `StateCondition::Attr`/`AttrEq` で参照するのみで、class ベースの
+  `SlotRecipe::variant` は持たない（`docs/design/
+  pre-styled-ui-data-attr-vocabulary.md` §2.2「役割 B: 参照のみ」）。
+- **表本体は `table` mod をそのまま使う**: headless doc「イシュータイトル
+  との差分」節の契約どおり、`<table>`/`<thead>`/`<tbody>`/`<tr>` は本
+  モジュールでは新規に作らず `crate::table` を使う。列ヘッダー/セル/行の
+  表示状態（ソート・列非表示・行選択）は `column_attrs`/
+  `column_header_attrs`/`row_attrs`（node を作らない属性ヘルパ）を
+  `table::column_header`/`table::cell`/`table::row` の `attrs` へ渡すこと
+  で同一要素に 2 つの `data-scope` を載せずに合成する。本モジュール自身が
+  持つ `column_header`/`sort_trigger`（`th`/`button` ノードを実際に生成
+  するパーツ）は Primitives 経路（自前 CSS を書く利用者・headless 単独
+  利用）向けであり、Themes 経路（`table::column_header` へ委譲する側）の
+  Demo には現れない。`select_all`/`select_row` は `<table>` セル階層に
+  直接載る `th`/`td` であるため、Themes 経路でもそのまま使う。
+- **ソート方向アイコンは raw CSS `::after` で表現**: `SlotRecipe::state`
+  は状態条件付きの疑似要素を DSL で表現できない（§4f-11 節と同型の制約）
+  ため、`sort-trigger` の `[data-sort="ascending"|"descending"|"none"]
+  ::after` を `serialize_rule` による raw CSS 追記で `stylesheet()` へ
+  連結する。`content` 値はすべて `&'static str` リテラル。
+- **選択行背景は自前で持たない**: `row_attrs` が付与する `data-selected`
+  は `crate::table` の `row` slot が既に持つ state 規則（イシュー #2052）
+  がそのまま適用される。本モジュールは `row` slot を持たない。
+- **`select-all`/`select-row` は `--fandhe-table-*` を参照しない**:
+  `data-scope="data-table"` の要素であり `table` scope ではないため、
+  独自の `--fandhe-data-table-*` 変数のみを参照する
+  （`crates/docs-site/tests/css_var_scope_prefix.rs` 契約）。
+- **`empty`/`skeleton` の本体を持たない**: `empty-state`/`skeleton` の
+  本体は `crate::empty_state`/`crate::skeleton` が担う。本モジュールは
+  `root` の `data-empty`/`data-loading`（+ `aria-busy="true"`）という
+  表示状態のみを持つ。
+- **docs サイト**: [data-table](../../site/themes/data-table.md)
+  （イシュー #2127 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+- **スコープ外**: `fandhe-frontend-wasm-full` の DOM 配線（sort-trigger
+  click → dispatch、indeterminate、`data-hidden` 反映、ページング
+  `data-disabled`）は #2126。`ColorPalette`/`Size` 軸の追加、
+  `column-header` slot と `table::column-header` の統合（同一要素 2 scope
+  禁止のため現設計を維持）は必要になれば別イシュー。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

@@ -560,9 +560,9 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         category: PrimitiveCategory::DataDisplayUtilities,
     },
     PrimitiveEntry {
-        // イシュー #2125 で headless-ui 層のみ先行実装（Themes 層は後続
-        // イシュー #2127 のスコープ、`PRIMITIVES_WITHOUT_THEMES_PAGE`
-        // 参照）。
+        // イシュー #2125 で headless-ui 層を先行実装し、イシュー #2127 で
+        // Themes 層（`/themes/data-table/`）を実装済み（Themes ページと
+        // title 一致、`PRIMITIVES_WITHOUT_THEMES_PAGE` からは除外済み）。
         module: "data_table",
         path: "/primitives/data-table/",
         title: "Data Table",
@@ -722,12 +722,10 @@ pub const CRATE_ROOT_MODULE: &str = "lib";
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
-/// 作らない」の限定用途の 1 つ）。`message_scroller` はイシュー #2123 で
-/// Themes 層を実装済みのため除外済みで、現在は `data_table` のみが
-/// 該当する。`data_table` も同型の暫定登録であり、イシュー #2125 で
-/// headless-ui 層のみ先行実装した（Themes 層・styled recipe・golden・
-/// `site/themes/data-table.md` は後続イシュー #2127 のスコープ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["data_table"];
+/// 作らない」の限定用途の 1 つ）。`message_scroller` はイシュー #2123 で、
+/// `data_table` はイシュー #2127 で、それぞれ Themes 層を実装済みのため
+/// 除外済みであり、現在は空である。
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &[];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {
