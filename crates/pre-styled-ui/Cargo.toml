@@ -3287,7 +3287,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # `--fandhe-hover-bg` の 2 宣言を純追加した（選択時カード背景塗り）。
 # 既存宣言・既存パーツの出力バイトは変更しないため patch バンプとし、
 # 0.183.5 を +1 した 0.183.6 とする。
-version = "0.183.6"
+#
+# イシュー #2214: fieldset の legend へ headless
+# `legend_with_variant`/`LegendVariant` の再エクスポートと
+# `[data-variant="label"]` state 規則を追加し、shadcn/ui FieldLegend の
+# 2 段見出しサイズと突合した（公開 API 追加 + CSS 出力変更）。マイナー
+# バンプとし、0.183.6 を +1 した 0.184.0 とする。
+version = "0.184.0"
 
 
 edition = "2021"
@@ -3303,7 +3309,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.69.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.69.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

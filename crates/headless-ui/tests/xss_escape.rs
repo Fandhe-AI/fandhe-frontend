@@ -51,12 +51,12 @@ use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, button_group, carousel, clipboard, color_picker,
-    data_state, date_input, dialog, download_trigger, editable, floating_panel, hover_card,
-    image_cropper, input_group, listbox, number_input, password_input, pin_input, popover,
-    rating_group, segment_group, signature_pad, slider, splitter, tags_input, timer, toast,
-    tree_view, Calendar, DataTable, DataTableProps, DatePicker, ImageStatus, InputGroupAlign,
-    InputGroupProps, Orientation, PasswordAutocomplete, PasswordInputProps, Questionnaire,
-    SortDirection, Steps, ToastStatus, Tour,
+    data_state, date_input, dialog, download_trigger, editable, fieldset, floating_panel,
+    hover_card, image_cropper, input_group, listbox, number_input, password_input, pin_input,
+    popover, rating_group, segment_group, signature_pad, slider, splitter, tags_input, timer,
+    toast, tree_view, Calendar, DataTable, DataTableProps, DatePicker, ImageStatus,
+    InputGroupAlign, InputGroupProps, Orientation, PasswordAutocomplete, PasswordInputProps,
+    Questionnaire, SortDirection, Steps, ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -222,6 +222,73 @@ fn drawer_close_trigger_with_variant_scope_part_variant_spoof_is_dropped() {
     assert!(html.contains(r#"data-scope="drawer""#));
     assert!(html.contains(r#"data-part="close-trigger""#));
     assert!(html.contains(r#"data-variant="text""#));
+    assert!(!html.contains("evil"));
+}
+
+/// (30) `fieldset::legend_with_variant`（イシュー #2214）の children・attrs・
+/// `data-scope`/`data-part`/`data-variant` 偽装ペイロード回帰。`data-variant`
+/// は固定語彙（`&'static str`）で任意文字列を受け付けないが、children・
+/// 呼び出し側 attrs は動的値のため全ペイロードでエスケープが貫通することを
+/// 固定する（(29) `dialog::close_trigger_with_variant` 回帰と同型）。
+#[test]
+fn fieldset_legend_with_variant_children_and_attrs_are_escaped_for_all_payloads() {
+    let props = fieldset::FieldsetProps {
+        id: "f",
+        disabled: false,
+        invalid: false,
+        has_helper_text: false,
+    };
+    for payload in payloads::all() {
+        let node = fieldset::legend_with_variant(
+            fieldset::LegendVariant::Label,
+            &props,
+            vec![],
+            vec![text(payload)],
+        );
+        let html = render(&node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset::legend_with_variant のテキストコンテキスト",
+        );
+
+        let attrs_node = fieldset::legend_with_variant(
+            fieldset::LegendVariant::Label,
+            &props,
+            vec![("aria-label", payload)],
+            vec![],
+        );
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset::legend_with_variant の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+#[test]
+fn fieldset_legend_with_variant_scope_part_variant_spoof_is_dropped() {
+    let props = fieldset::FieldsetProps {
+        id: "f",
+        disabled: false,
+        invalid: false,
+        has_helper_text: false,
+    };
+    let node = fieldset::legend_with_variant(
+        fieldset::LegendVariant::Label,
+        &props,
+        vec![
+            ("data-scope", "evil"),
+            ("data-part", "evil"),
+            ("data-variant", "legend"),
+        ],
+        vec![],
+    );
+    let html = render(&node);
+    assert!(html.contains(r#"data-scope="fieldset""#));
+    assert!(html.contains(r#"data-part="legend""#));
+    assert!(html.contains(r#"data-variant="label""#));
     assert!(!html.contains("evil"));
 }
 

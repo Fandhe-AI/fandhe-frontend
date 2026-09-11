@@ -168,6 +168,10 @@
 //!   #602、親 #578）。[`fieldset::FieldsetProps::merge_field_props`] で
 //!   `disabled` を内包する [`field::FieldProps`] へ OR 伝播する（`invalid` は
 //!   伝播しない）。[`mod@field`] と同じく状態機械を適用しない。
+//!   [`fieldset::legend_with_variant`] で `data-variant`
+//!   （[`fieldset::LegendVariant`]、`legend`/`label`）を出力し、
+//!   shadcn/ui `FieldLegend` の 2 段見出しサイズと突合する（#2214、
+//!   既存 [`fieldset::legend`] は不変）。
 //! - [`mod@input_group`]: Root / Addon / Text / Button の 4 anatomy パーツ
 //!   関数群（[`input_group::InputGroupProps`] から決定的に描画する純粋関数、
 //!   #2062、親 #2061）。shadcn/ui の Input Group 相当で、実際の

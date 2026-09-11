@@ -1860,6 +1860,7 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
         "aria-describedby は invalid のとき error id、has_helper_text のとき helper id を空白区切りで合成する（field.rs と同型の合成則、fieldset.rs:123-146）。",
         "invalid はグループ全体のみに反映され、個別 Field の aria-invalid へは伝播しない（誤ったコントロール単位のエラー通知を避けるための意図的な判断、fieldset.rs:69-72）。",
         "ark-ui の Root id 自動付与（fieldset::<id>）は採らず、呼び出し側が attrs で任意付与できる。has_helper_text は ark-ui の MutationObserver による動的検知を静的フラグへ写像したものであり、呼び出し側は実際に helper_text パーツを描画するかどうかと整合させる契約を持つ（field.rs と同型）。バリデーションの実行自体は利用者側の通常の Rust コードが担う（`docs/policy/intentional-non-adoption.md` §3.25 規則 1、Radix Form は不採用）。",
+        "legend_with_variant(variant, ...) で legend パーツへ data-variant（LegendVariant、legend/label）を語彙として出力する（イシュー #2214、shadcn/ui FieldLegend の variant prop 突合）。既存 legend は data-variant を出力しない契約のまま不変。見た目（フォントサイズ）は pre-styled-ui 層の責務で headless 層は語彙のみを持つ（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。",
     ],
     arguments: &[
         ArgRow {
@@ -1891,6 +1892,12 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
             kind: "FieldProps -> FieldProps",
             default: "",
             description: "Fieldset の disabled を内包する FieldProps へ OR 伝播する（invalid は伝播しない、fieldset.rs:106-121）。",
+        },
+        ArgRow {
+            name: "legend_with_variant(variant, ...)",
+            kind: "LegendVariant",
+            default: "Legend",
+            description: "legend の代わりに使う。data-variant（legend/label）を出力する（イシュー #2214）。",
         },
     ],
     examples: &[

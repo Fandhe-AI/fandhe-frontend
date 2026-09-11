@@ -668,7 +668,11 @@ name = "fandhe-frontend-headless-ui"
 # 到達していたが、本ブランチは上記の通り 0.69.0 へマイナーバンプ済みで
 # あり、main の到達値 0.68.17 より高いため追加のバンプは不要（0.69.0 を
 # 維持する）。
-version = "0.69.0"
+#
+# イシュー #2214: fieldset::legend_with_variant / LegendVariant を追加する
+# 追加的 API 変更のため patch バンプ（#2193 の close_trigger_with_variant
+# 追加時と同粒度）。
+version = "0.69.1"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

@@ -44,7 +44,28 @@
 //! `orientation` 軸は持たない（Fieldset は常に縦積みのグループコンテナで
 //! あり、ラベル/コントロールの横並びを扱う [`crate::field`] とは異なる）。
 //! `color-palette` 軸も持たない（フォーム系は非提供、[`crate::field`] と
-//! 同じ判断）。
+//! 同じ判断）。`data-variant`（[`LegendVariant`]、下記節）はこの `size`
+//! 軸とは別物で、class ベースの variant 軸ではなく headless 語彙への
+//! `AttrEq` 参照である。
+//!
+//! # shadcn/ui 突合（イシュー #2214）: legend variant
+//!
+//! shadcn/ui `field.tsx` `FieldLegend` は `variant`（`legend` = 大 /
+//! `label` = 小）の 2 段見出しを持つ。headless
+//! [`fandhe_frontend_headless_ui::fieldset::legend_with_variant`] が
+//! `data-variant`（[`LegendVariant`]）を語彙として出力し（役割 B、出力元は
+//! headless）、本モジュールは `[data-variant="label"]` の `AttrEq` 規則で
+//! フォントサイズを 1 段下へ切り替えるのみで、装飾自体は持ち込まない
+//! （`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。
+//!
+//! 「1 段下」は `size` 軸ごとに固定する: `root` の size variant（下記
+//! `recipe()`）が `--fandhe-fieldset-legend-label-font-size` を
+//! sm→xs / md→sm / lg→md として設定し、`legend` slot の
+//! `[data-variant="label"]` 規則がそれを参照する。既存 3 ブロックへの
+//! 追記（純追加原則の例外）は、size 軸ごとに 2 段の対比を保証するために
+//! 必要と判断した（PR 本文に理由を明記）。`[data-variant="legend"]` の
+//! 規則は持たない（base の legend 宣言がそのまま既定の大見出しであり、
+//! `[data-invalid]` の dead セレクタ不在テストと同じ規律で不在を固定する）。
 //!
 //! # 意図的非採用（参考サイト比較、chakra-ui v3 Fieldset / ark-ui Fieldset）
 //!
@@ -87,7 +108,9 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // する（規約 A、`crate::lib` 「headless 再エクスポートの形式規約
 // （イシュー #1062）」節）。`root` は本モジュールが variant クラスを重ねる
 // ため同名再定義する。
-pub use fandhe_frontend_headless_ui::fieldset::{error_text, helper_text, legend, FieldsetProps};
+pub use fandhe_frontend_headless_ui::fieldset::{
+    error_text, helper_text, legend, legend_with_variant, FieldsetProps, LegendVariant,
+};
 
 /// slot 一覧（headless [`fandhe_frontend_headless_ui::fieldset`] の anatomy
 /// と 1:1、4 パーツ）。
@@ -201,6 +224,12 @@ fn recipe() -> SlotRecipe {
                             "var(--fandhe-font-font-size-sm)",
                         ),
                         decl("--fandhe-fieldset-legend-gap", "var(--fandhe-space-2)"),
+                        // shadcn/ui FieldLegend の `variant="label"` 相当
+                        // （size 軸の 1 段下、イシュー #2214）。
+                        decl(
+                            "--fandhe-fieldset-legend-label-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
                     ],
                 ),
                 (
@@ -212,6 +241,10 @@ fn recipe() -> SlotRecipe {
                             "var(--fandhe-font-font-size-md)",
                         ),
                         decl("--fandhe-fieldset-legend-gap", "var(--fandhe-space-4)"),
+                        decl(
+                            "--fandhe-fieldset-legend-label-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
                     ],
                 ),
                 (
@@ -223,6 +256,10 @@ fn recipe() -> SlotRecipe {
                             "var(--fandhe-font-font-size-lg)",
                         ),
                         decl("--fandhe-fieldset-legend-gap", "var(--fandhe-space-6)"),
+                        decl(
+                            "--fandhe-fieldset-legend-label-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
                     ],
                 ),
             ],
@@ -247,6 +284,21 @@ fn recipe() -> SlotRecipe {
             "helper-text",
             StateCondition::Attr("data-disabled"),
             crate::recipe::disabled_declarations(),
+        )
+        // shadcn/ui FieldLegend の 2 段見出しサイズ突合（イシュー #2214）。
+        // `data-variant` は headless `fieldset::legend_with_variant`
+        // （[`LegendVariant`]）が出力する語彙であり、本モジュールは
+        // `AttrEq` で参照するのみ（規約 A・役割 B、モジュール doc「legend
+        // variant」節参照）。`[data-variant="legend"]` の規則は持たない
+        // （base の legend 宣言がそのまま既定の大見出しの見た目であるため、
+        // dead セレクタを作らない）。
+        .state(
+            "legend",
+            StateCondition::AttrEq("data-variant", "label"),
+            vec![decl(
+                "font-size",
+                "var(--fandhe-fieldset-legend-label-font-size, var(--fandhe-font-font-size-sm))",
+            )],
         )
 }
 
@@ -401,5 +453,81 @@ mod tests {
         let mut invalid = default_fieldset("f");
         invalid.invalid = true;
         let _ = render(&error_text(&invalid, vec![], vec![text("error")]));
+    }
+
+    // --- legend variant（イシュー #2214、shadcn/ui FieldLegend 突合） ---
+
+    #[test]
+    fn css_declares_data_variant_label_state_rule_on_legend() {
+        let out = css();
+        assert!(
+            out.contains(r#"[data-scope="fieldset"][data-part="legend"][data-variant="label"]"#)
+        );
+    }
+
+    #[test]
+    fn css_does_not_declare_dead_legend_variant_selector() {
+        // 既定の大見出し（`legend` variant）は base 宣言がそのまま担うため、
+        // `[data-variant="legend"]` の dead セレクタを作らない。
+        let out = css();
+        assert!(!out.contains(r#"[data-variant="legend"]"#));
+    }
+
+    #[test]
+    fn base_legend_block_is_unchanged_by_variant_addition() {
+        // base の legend ブロック自体（font-size のフォールバック式）は
+        // 純追加の影響を受けず不変。
+        let out = css();
+        assert!(out.contains(
+            r#"font-size: var(--fandhe-fieldset-legend-font-size, var(--fandhe-font-font-size-md));"#
+        ));
+    }
+
+    #[test]
+    fn styled_legend_with_variant_label_emits_data_variant() {
+        let f = default_fieldset("f");
+        let html = render(&legend_with_variant(
+            LegendVariant::Label,
+            &f,
+            vec![],
+            vec![text("Username")],
+        ));
+        assert!(html.contains(r#"data-variant="label""#));
+        assert!(html.contains(r#"data-scope="fieldset" data-part="legend""#));
+    }
+
+    #[test]
+    fn legend_label_variant_font_size_is_one_step_below_size_axis() {
+        // 各 size の root ブロック内で、既定 legend の font-size トークンと
+        // label variant の font-size トークンが 1 段ずれた対になっている
+        // ことを固定する（sm/xs・md/sm・lg/md）。
+        let out = css();
+        let pairs: [(&str, &str, &str); 3] = [
+            ("size-sm", "font-size-sm", "font-size-xs"),
+            ("size-md", "font-size-md", "font-size-sm"),
+            ("size-lg", "font-size-lg", "font-size-md"),
+        ];
+        for (size_class, legend_token, label_token) in pairs {
+            let block_start = out
+                .find(&format!(".fd-fieldset--{size_class}"))
+                .unwrap_or_else(|| panic!("size block for {size_class} not found"));
+            let block_end = out[block_start..]
+                .find('}')
+                .map(|i| block_start + i)
+                .unwrap_or_else(|| panic!("size block for {size_class} not terminated"));
+            let block = &out[block_start..block_end];
+            assert!(
+                block.contains(&format!(
+                    "--fandhe-fieldset-legend-font-size: var(--fandhe-font-{legend_token})"
+                )),
+                "{size_class} ブロックに legend トークン {legend_token} が無い: {block}"
+            );
+            assert!(
+                block.contains(&format!(
+                    "--fandhe-fieldset-legend-label-font-size: var(--fandhe-font-{label_token})"
+                )),
+                "{size_class} ブロックに label トークン {label_token} が無い: {block}"
+            );
+        }
     }
 }

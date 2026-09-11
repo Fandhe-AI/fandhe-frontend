@@ -58,9 +58,13 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
 use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldProps, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::fieldset::{
+    self, FieldsetProps, FieldsetRootProps, LegendVariant,
+};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::image_cropper::{HandlePosition, ImageCropperProps};
+use fandhe_frontend_pre_styled_ui::input::{self, InputProps};
 use fandhe_frontend_pre_styled_ui::kbd;
 use fandhe_frontend_pre_styled_ui::native_select;
 use fandhe_frontend_pre_styled_ui::pin_input;
@@ -1087,6 +1091,7 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
         "`error-text` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",
         "`root` へは `disabled_declarations()` を付与しない（ネイティブ `<fieldset disabled>` が子コントロールを HTML 仕様で無効化し、内側の styled コントロールが自前で減光するため、二重に薄くなることを避ける設計判断）。",
         "hover / focus ring / transition はいずれも意図的に非採用（実フォーカスは内側のコントロール側にあり、状態遷移に伴う視覚変化がないため）。",
+        "`legend_with_variant` + `LegendVariant`（`legend`/`label`）で shadcn/ui `FieldLegend` の 2 段見出しサイズを突合する（イシュー #2214）。`data-variant` は headless `fieldset::legend_with_variant` が出力する語彙であり、本モジュールは `[data-variant=\"label\"]` を CSS セレクタとして参照して `size` 軸の 1 段下（sm→xs/md→sm/lg→md）のフォントサイズへ切り替えるのみ。既存 `legend`（`data-variant` を出力しない）はバイト単位で不変。",
     ],
     arguments: &[
         ArgRow {
@@ -1113,8 +1118,18 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "`root` 配下の子ノード（`legend`/内側 Field 群/`helper_text`/`error_text` 等）。",
         },
+        ArgRow {
+            name: "legend_with_variant(variant, ...)",
+            kind: "LegendVariant",
+            default: "Legend",
+            description: "`legend` の代わりに使う。`data-variant`（`legend`/`label`）を headless 層が出力し、`label` は `size` 軸の 1 段下のフォントサイズに切り替わる（イシュー #2214）。",
+        },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Label-sized legend",
+        description: "shadcn/ui `FieldLegend` の `variant=\"label\"` 相当。`legend_with_variant(LegendVariant::Label, ...)` を使うと、既定の大見出し（`Legend`）より 1 段小さいフォントサイズで legend を描画できます。",
+        render: ex_fieldset_label_legend,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -1140,6 +1155,54 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`FIELDSET`] の Examples 節「Label-sized legend」レンダラ（イシュー
+/// #2214、shadcn/ui `FieldLegend` の `variant="label"` 相当）。
+/// `legend_with_variant(LegendVariant::Label, ...)` で 1 段小さい見出しを
+/// 描画する。
+fn ex_fieldset_label_legend() -> Node {
+    let fs = FieldsetProps {
+        id: "example-fieldset-label-legend",
+        disabled: false,
+        invalid: false,
+        has_helper_text: false,
+    };
+    let name_field = fs.merge_field_props(FieldProps {
+        id: "example-fieldset-label-legend-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    });
+    fieldset::root(
+        &FieldsetRootProps::default(),
+        &fs,
+        vec![],
+        vec![
+            fieldset::legend_with_variant(
+                LegendVariant::Label,
+                &fs,
+                vec![],
+                vec![text("Shipping address")],
+            ),
+            field::root(
+                &FieldRootProps::default(),
+                &name_field,
+                vec![],
+                vec![
+                    field::label(&name_field, vec![], vec![text("Name")]),
+                    input::input(
+                        &InputProps::default(),
+                        &name_field,
+                        vec![("placeholder", "Ada Lovelace")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
 
 const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
     features: &[

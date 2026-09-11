@@ -7,7 +7,9 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::field::{self, input, label};
-use fandhe_frontend_headless_ui::fieldset::{error_text, helper_text, legend, root};
+use fandhe_frontend_headless_ui::fieldset::{
+    error_text, helper_text, legend, legend_with_variant, root, LegendVariant,
+};
 use fandhe_frontend_headless_ui::{FieldIds, FieldProps, FieldsetProps};
 
 fn base_fieldset_props(id: &str) -> FieldsetProps<'_> {
@@ -349,4 +351,88 @@ fn merge_field_props_keeps_nested_field_data_disabled_consistent() {
 
     let html = render(&field::root(&field_props, vec![], vec![]));
     assert!(html.contains(r#"data-disabled=""#));
+}
+
+// --- legend_with_variant（イシュー #2214、shadcn/ui FieldLegend 突合） ---
+
+#[test]
+fn legend_with_variant_is_usable_from_crate_root_and_outputs_data_variant() {
+    let props = base_fieldset_props("address");
+    let legend_html = render(&legend_with_variant(
+        LegendVariant::Label,
+        &props,
+        vec![],
+        vec![text("Address")],
+    ));
+    assert!(legend_html.contains(r#"data-scope="fieldset" data-part="legend""#));
+    assert!(legend_html.contains(r#"data-variant="label""#));
+    assert!(legend_html.contains(r#"id="address-legend""#));
+}
+
+#[test]
+fn existing_legend_remains_free_of_data_variant() {
+    let props = base_fieldset_props("f");
+    let html = render(&legend(&props, vec![], vec![text("L")]));
+    assert!(!html.contains("data-variant"));
+}
+
+#[test]
+fn legend_with_variant_composes_with_root_like_legend() {
+    let mut fs_props = base_fieldset_props("address");
+    fs_props.has_helper_text = true;
+
+    let node = root(
+        &fs_props,
+        vec![],
+        vec![
+            legend_with_variant(
+                LegendVariant::Label,
+                &fs_props,
+                vec![],
+                vec![text("Address")],
+            ),
+            helper_text(&fs_props, vec![], vec![text("Shipping address only.")]),
+        ],
+    );
+    let html = render(&node);
+    assert!(html.contains(r#"data-scope="fieldset" data-part="root""#));
+    assert!(html.contains(r#"data-part="legend""#));
+    assert!(html.contains(r#"data-variant="label""#));
+    assert!(html.contains(r#"aria-describedby="address-helper-text""#));
+}
+
+#[test]
+fn legend_with_variant_xss_payload_in_id_children_and_attrs_is_escaped() {
+    let payload_id = "x\" onmouseover=\"alert(1)";
+    let props = base_fieldset_props(payload_id);
+    let html = render(&legend_with_variant(
+        LegendVariant::Label,
+        &props,
+        vec![("aria-label", "<script>alert(3)</script>")],
+        vec![text("<script>alert(1)</script>")],
+    ));
+    assert!(!html.contains("<script>alert"));
+    assert!(!html.contains("onmouseover=\"alert"));
+    assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    assert!(html.contains("&lt;script&gt;alert(3)&lt;/script&gt;"));
+    assert!(html.contains("&quot;"));
+}
+
+#[test]
+fn legend_with_variant_drops_caller_supplied_data_scope_part_and_variant_forgery() {
+    let props = base_fieldset_props("f");
+    let html = render(&legend_with_variant(
+        LegendVariant::Label,
+        &props,
+        vec![
+            ("Data-Scope", "attacker"),
+            ("DATA-PART", "attacker"),
+            ("data-variant", "legend"),
+        ],
+        vec![],
+    ));
+    assert_eq!(
+        html,
+        r#"<legend data-scope="fieldset" data-part="legend" id="f-legend" data-variant="label"></legend>"#
+    );
 }
