@@ -665,6 +665,161 @@ async fn streaming_text_replacement_is_classified_as_grow_not_prepend() {
     assert_eq!(viewport.scroll_top(), 0);
 }
 
+/// `streaming_text_replacement_is_classified_as_grow_not_prepend` は
+/// `set_text_content`（子ノードを丸ごと入れ替える `childList` レコード）
+/// 経由のストリーミング更新を検証するが、既存 `Text` ノードへの
+/// `nodeValue`/`appendData` による更新は `characterData` レコードとして
+/// 観測され、`target` が `Text` ノードになる別経路である
+/// （codex-review 指摘 PR #2312、`first_relevant_change`）。
+/// `Bottom` 状態でこの経路の高さ増加が最下部追従を発火させることを
+/// 固定する（`characterData` レコードが `Element` 判定で除外されたままだと
+/// 何も起こらない）。
+#[wasm_bindgen_test]
+async fn character_data_streaming_update_follows_to_bottom_when_stuck_bottom() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-character-data-bottom-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    // `white-space: pre` + 明示的な改行文字で、フォントメトリクスに依存
+    // せず `appendData` 前後の高さ変化（+20px）を決定的にする
+    // （`fixed_height_child` と同じ「CSS で決定的にする」方針）。
+    let body_span = el_owned(
+        "span",
+        vec![(
+            "style".to_string(),
+            "display:block;line-height:20px;white-space:pre".to_string(),
+        )],
+        vec![text("Hello")],
+    );
+    let message_item = el_owned("div", vec![], vec![body_span]);
+    // viewport（100px）を既存の固定高さ項目（90px）でほぼ埋めておき、
+    // ストリーミング本文の増分（+20px）で `scrollHeight` が
+    // `clientHeight`（100px）を超えて実際に増加するようにする
+    // （`streaming_text_replacement_is_classified_as_grow_not_prepend`
+    // と同じ配慮）。
+    let node = root(
+        MessageScrollerRootProps {
+            stuck: HeadlessStuck::Bottom,
+            has_new: false,
+        },
+        vec![("id", "ms-character-data-bottom")],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:100px;overflow-y:auto")],
+                vec![content(vec![], vec![fixed_height_child(90), message_item])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    );
+    let instance_root = mount(&container, &node);
+    let content_el = find_content(&instance_root);
+    let viewport = find_viewport(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    let body_span_el = content_el
+        .query_selector("span")
+        .expect("query_selector must not fail")
+        .expect("body span must exist");
+    let text_node = body_span_el
+        .first_child()
+        .expect("body span must already have a Text child")
+        .dyn_into::<web_sys::Text>()
+        .expect("body span's first child must be a Text node");
+
+    // `set_text_content`（`childList`）ではなく、既存 `Text` ノードの
+    // `CharacterData::append_data` で更新する（`characterData` レコードを
+    // 直接発火させる、`bind_text` の `set_text_content` 経路とは別の
+    // ストリーミング更新経路）。
+    text_node
+        .append_data("\nWorld")
+        .expect("append_data must not fail");
+
+    let expected = viewport.scroll_height() - viewport.client_height();
+    wait_for(|| viewport.scroll_top() == expected).await;
+    assert_eq!(
+        viewport.scroll_top(),
+        expected,
+        "characterData によるストリーミング更新で最下部へ追従すること"
+    );
+    assert!(!instance_root.has_attribute("data-has-new"));
+}
+
+/// 上記の `Free` 版: `characterData` レコード経由のストリーミング更新が
+/// `data-has-new` を付与し、`scrollTop` は変化しないこと
+/// （codex-review 指摘 PR #2312、`first_relevant_change`）。
+#[wasm_bindgen_test]
+async fn character_data_streaming_update_marks_has_new_when_stuck_free() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-character-data-free-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let body_span = el_owned(
+        "span",
+        vec![(
+            "style".to_string(),
+            "display:block;line-height:20px;white-space:pre".to_string(),
+        )],
+        vec![text("Hello")],
+    );
+    let message_item = el_owned("div", vec![], vec![body_span]);
+    let node = root(
+        MessageScrollerRootProps {
+            stuck: HeadlessStuck::Free,
+            has_new: false,
+        },
+        vec![("id", "ms-character-data-free")],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:100px;overflow-y:auto")],
+                vec![content(vec![], vec![fixed_height_child(90), message_item])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    );
+    let instance_root = mount(&container, &node);
+    let content_el = find_content(&instance_root);
+    let viewport = find_viewport(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    let body_span_el = content_el
+        .query_selector("span")
+        .expect("query_selector must not fail")
+        .expect("body span must exist");
+    let text_node = body_span_el
+        .first_child()
+        .expect("body span must already have a Text child")
+        .dyn_into::<web_sys::Text>()
+        .expect("body span's first child must be a Text node");
+
+    let before_top = viewport.scroll_top();
+    text_node
+        .append_data("\nWorld")
+        .expect("append_data must not fail");
+
+    wait_for(|| instance_root.has_attribute("data-has-new")).await;
+    assert!(
+        instance_root.has_attribute("data-has-new"),
+        "characterData によるストリーミング更新は free で data-has-new を \
+         立てること"
+    );
+    assert_eq!(
+        viewport.scroll_top(),
+        before_top,
+        "characterData によるストリーミング更新で free の scrollTop が \
+         変化しないこと"
+    );
+}
+
 #[wasm_bindgen_test]
 async fn prepend_into_keyed_list_wrapper_inside_content_is_detected() {
     let window = web_sys::window().expect("window must exist");

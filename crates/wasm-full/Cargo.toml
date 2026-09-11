@@ -1652,6 +1652,15 @@ wasm-bindgen-futures = "0.4"
 # feature 拡張。`PointerEvent`/`FocusEvent`/`KeyboardEvent` 自体は製品面の
 # `[dependencies.web-sys]` に追加済みのため、ここでは Init 型のみを追加
 # すれば足りる）。
+# イシュー #2122（codex-review 指摘 PR #2312、`first_relevant_change` の
+# `characterData` レコード未対応の回帰テスト）: `wasm-full/tests/
+# message_scroller_browser.rs` が既存 `Text` ノードの `appendData`
+# （`CharacterData::append_data`）で `characterData` レコードを直接発火
+# させ、`bind_text` の `set_text_content`（`childList` レコード）とは別の
+# ストリーミング更新経路を明示的に検証するために `Text`/`CharacterData`
+# を追加する（テスト専用の feature 拡張。新規クレート追加ではなく既存
+# web-sys の feature 追加のみで、`cargo metadata` 実測に変化がないことを
+# 確認済み、既存 `EventInit` 追加時〔PR #92〕と同じ承認整理）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [
@@ -1672,4 +1681,6 @@ features = [
   "DataTransferItem",
   "DataTransferItemList",
   "CssStyleDeclaration",
+  "Text",
+  "CharacterData",
 ]

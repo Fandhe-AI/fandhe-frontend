@@ -786,6 +786,23 @@ mod wiring {
     /// リアクション数等）であり、履歴読み込みのような `scrollTop` 補正や
     /// 「新着メッセージが来た」ことを示す `data-has-new` の根拠にすべき
     /// ではないため（Bugbot 指摘 PR #2312、`message_scroller.rs:772-784`）。
+    ///
+    /// `characterData` レコード（既存 Text ノードの `nodeValue`/
+    /// `appendData` によるストリーミング本文更新）の `target` は `Text`
+    /// ノードであり `Element` へダウンキャストできないため、
+    /// [`resolve_instance_from_record`] と同じパターンで `parent_element()`
+    /// により要素へ解決してから境界判定（`content` 配下か・ネスト除外）を
+    /// 行う。`characterData` レコードは `added_nodes()` が常に空
+    /// （`childList` レコードのみが要素追加を持つ）であるため、`bind_text`
+    /// の `set_text_content` 経由（`childList` レコードとして観測される）
+    /// とは別に、`added_nodes().length() == 0` による除外の対象外として
+    /// 明示的に「身元不明だが成長として許容」扱い（`Some(false)`）へ
+    /// 合流させる（codex-review 指摘 PR #2312: `Element` 判定で
+    /// `characterData` レコードが必ず除外され、`Bottom` の最下部追従・
+    /// `Free` の `data-has-new` 付与のいずれも機能しなかった不具合の
+    /// 是正）。ネストした `data-bind-list` 内で発生した `characterData`
+    /// 更新（例: 添付の説明テキストのストリーミング）は、前回修正の
+    /// ネスト除外方針との整合を保つため同じく除外する。
     fn first_relevant_change(records: &[MutationRecord], content: &Element) -> Option<bool> {
         // 会話リスト本体以外（例: ストリーミング本文のテキスト置換）で、
         // 高さ増分を正当な成長として扱ってよい変更を確認したかどうか。
@@ -794,8 +811,20 @@ mod wiring {
             let Some(target) = record.target() else {
                 continue;
             };
-            let Some(target_element) = target.dyn_ref::<Element>() else {
-                continue;
+            // `characterData` レコードの `target` は `Text` ノードのため
+            // `Element` へダウンキャストできない。`resolve_instance_from_record`
+            // と同じパターンで `parent_element()` により要素へ解決する
+            // （codex-review 指摘 PR #2312、上記 doc 参照）。
+            let target_element: Element = if let Some(element) = target.dyn_ref::<Element>() {
+                element.clone()
+            } else {
+                let Some(node) = target.dyn_ref::<web_sys::Node>() else {
+                    continue;
+                };
+                let Some(parent) = node.parent_element() else {
+                    continue;
+                };
+                parent
             };
             // `content` 自身への挿入（フラットな keyed list）に加え、
             // `content` 配下にネストした keyed list（入れ子のリスト要素が
@@ -803,13 +832,26 @@ mod wiring {
             // != content` の完全一致判定のみだと、target が `content` の
             // 子孫要素であるレコードを取りこぼし、Prepend が誤って Grow
             // 扱いになる（レビュー指摘 #2122）。
-            if target_element != content && !content.contains(Some(target_element)) {
+            if target_element != *content && !content.contains(Some(&target_element)) {
                 continue;
             }
             // target から content までの間にネストした message-scroller の
             // `root` が見つかれば、それは別インスタンスの変異なのでこの
             // レコードは対象外として次のレコードを見る。
-            if closest_matching(content, target_element, PART_ROOT).is_some() {
+            if closest_matching(content, &target_element, PART_ROOT).is_some() {
+                continue;
+            }
+            if record.type_() == "characterData" {
+                // Bugbot 指摘（PR #2312、`first_relevant_change`）:
+                // `characterData` レコードは `added_nodes()` を持たない
+                // ため、下記の `added.length() == 0` 除外の対象になる前に
+                // ここで判定を完結させる。会話リストより深いネストした
+                // `data-bind-list` 内でのテキスト更新は、上記ネスト除外の
+                // 方針と整合させ、成長根拠に含めない。
+                if has_nested_bind_list_ancestor(content, &target_element) {
+                    continue;
+                }
+                has_growth_evidence = true;
                 continue;
             }
             let added = record.added_nodes();
@@ -822,7 +864,7 @@ mod wiring {
             // サポート経路とする「`content` 配下を keyed list で差分更新」
             // 構成における実際の挿入先はこの要素であり、`content` 自身とは
             // 限らない）であれば、会話リスト本体への変更の候補となる。
-            let is_bind_list_target = target_element == content
+            let is_bind_list_target = target_element == *content
                 || target_element.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR);
             if is_bind_list_target {
                 // Bugbot 指摘（PR #2312、line 772-784）: メッセージ 1 件の
@@ -831,8 +873,8 @@ mod wiring {
                 // 本体への挿入と取り違えていた。ネストしたリストはこの
                 // 判定から完全に除外し（`has_growth_evidence` にも寄与
                 // させない）、次のレコードを見る。
-                if target_element != content
-                    && has_nested_bind_list_ancestor(content, target_element)
+                if target_element != *content
+                    && has_nested_bind_list_ancestor(content, &target_element)
                 {
                     continue;
                 }
