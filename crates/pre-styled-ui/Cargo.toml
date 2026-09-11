@@ -3273,7 +3273,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 出力バイト不変」の対象外であり非破壊性の評価に影響しない。
 # 純追加（既存パーツは `list` の 1 宣言のみ）のため patch バンプとし、
 # 0.183.3 を +1 した 0.183.4 とする。
-version = "0.183.4"
+#
+# イシュー #2211 PR #2342 レビュー指摘是正（codex-review P1 / Cursor
+# Bugbot）: `indicator` の `base` に `box-sizing: border-box` を追加した。
+# wasm-full 側が `getBoundingClientRect()` で実測するのはボーダーボックス
+# 寸法だが、`indicator` は既定の `content-box` のままで自身の
+# `border-bottom`（垂直時は `border-inline-end`）2px が実測寸法へ加算
+# 描画され、trigger の外側へはみ出す位置ずれが生じていたため是正した。
+# 既存宣言 1 件（`box-sizing`）を純追加するのみで既存パーツの出力バイトは
+# 変更しないため patch バンプとし、0.183.4 を +1 した 0.183.5 とする。
+version = "0.183.5"
 
 
 edition = "2021"

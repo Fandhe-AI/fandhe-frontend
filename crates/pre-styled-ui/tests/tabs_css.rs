@@ -90,6 +90,16 @@
 //! （`border-bottom: 0`/`border-inline-end` 追加）を新設した。座標
 //! （`left`/`top`/`width`/`height`）は軸に関わらず実測値へ追従するため、
 //! この state が切り替えるのは装飾の向きのみ。
+//!
+//! # イシュー #2211 PR #2342 レビュー指摘是正（`box-sizing: border-box`）
+//!
+//! `--width`/`--height` は wasm-full 側が `getBoundingClientRect()` で
+//! 実測するボーダーボックス寸法だが、`indicator` の `base` は既定の
+//! `content-box` のままで、自身の `border-bottom`（垂直時は
+//! `border-inline-end`）の 2px が実測寸法へ加算描画され、trigger の外側
+//! へはみ出す位置ずれが生じていた（codex-review P1 / Cursor Bugbot 双方の
+//! 指摘）。`box-sizing: border-box` を追加し、実測値と表示寸法を一致
+//! させた。
 
 use fandhe_frontend_pre_styled_ui::tabs;
 
@@ -139,6 +149,7 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   top: var(--top, 0px);
   width: var(--width, 0px);
   height: var(--height, 0px);
+  box-sizing: border-box;
   border-bottom: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
   pointer-events: none;
 }

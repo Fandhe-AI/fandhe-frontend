@@ -2636,3 +2636,42 @@ no-op を検証。レビュー指摘是正で「選択中 trigger が見つか�
 （headless-ui の SSR 出力・wasm-full の定数と CSS 変数名が一致すること
 の native 突合）・`crates/pre-styled-ui/tests/tabs_css.rs`（golden CSS。
 `indicator[data-orientation="vertical"]` state を追加）が担う。
+
+### 37.8 PR #2342 レビュー指摘是正（codex-review P1 ×2・Cursor Bugbot）
+
+**指摘 1（表示位置ずれ、`crates/pre-styled-ui/src/tabs.rs`）**:
+`--width`/`--height` は wasm-full 側が `getBoundingClientRect()` で実測
+するボーダーボックス寸法だが、`indicator` の `base` は既定の
+`content-box` のままだったため、自身の `border-bottom`（垂直時は
+`border-inline-end`）2px が実測寸法へ加算描画され、trigger の外側へ
+はみ出す位置ずれが生じていた（水平で下端が最大 4px、垂直も右端が
+2px はみ出す計算）。`box-sizing: border-box` を追加し、実測値と表示
+寸法を一致させた。
+
+**指摘 2（ネストした tabs での indicator 欠落、`crates/wasm-full/
+src/keynav.rs::activate_tab`）**: 初期非表示のタブパネル内にネストした
+tabs がある場合、マウント時は内部 trigger の矩形が 0（`hidden` な祖先
+の下）で `sync_tabs_indicator` の実測がスキップされる（37.4 節の
+「0 は焼き込まない」仕様どおり）。その後、親タブをクリック/automatic
+activation でパネルを表示しても、`activate_tab` が呼ぶのは活性化した
+外側 `list` 自身の `sync_tabs_indicator_in_list` のみで、`content` 配下
+にネストした tabs までは再同期されず、内部 indicator が 0px のまま
+欠落したままになっていた。`activate_tab` の `content` を可視化する
+分岐（`hidden` 属性除去の直後）へ `sync_tabs_indicator(&content)`
+呼び出しを追加し、新たに表示された `content` 配下の indicator（ネスト
+の深さによらず全件、`sync_tabs_indicator` が `root` 配下を
+`query_selector_all` で全走査するため 1 回で足りる）を再同期するよう
+是正した。click（8115 行付近）・automatic activation の keydown
+（5499 行付近）は共通してこの `activate_tab` を呼ぶため、1 箇所の修正
+で両経路をカバーする。
+
+**semver**: 両クレートとも新規公開 API・シグネチャ変更を伴わない
+非破壊的変更のため patch バンプとし、`fandhe-frontend-wasm-full` は
+0.20.3 → 0.20.4、`fandhe-frontend-pre-styled-ui` は 0.183.4 → 0.183.5
+とした。
+
+**契約テスト**: `crates/wasm-full/tests/tabs_indicator_browser.rs` へ
+`nested_tabs_indicator_syncs_when_parent_panel_becomes_visible`（指摘 2
+の実ブラウザ回帰）を追加し、`crates/pre-styled-ui/tests/tabs_css.rs`
+の golden CSS を `box-sizing: border-box` 追加後の値へ更新した
+（指摘 1 は CSS 宣言追加のみで wasm-full 側のテストは不要）。

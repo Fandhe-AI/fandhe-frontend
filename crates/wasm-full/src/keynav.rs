@@ -5431,6 +5431,20 @@ pub(crate) mod wiring {
             );
             if is_active {
                 let _ = content.remove_attribute("hidden");
+                // レビュー指摘是正（イシュー #2211、codex-review P1）:
+                // 表示対象の `content` 配下にネストした tabs がある場合、
+                // マウント時点ではその内部 trigger が `hidden` な祖先の下に
+                // あり矩形が 0 のため `sync_tabs_indicator`/
+                // `sync_tabs_indicator_in_list` の実測が
+                // スキップされている（`crate::tabs_indicator` モジュール doc
+                // 「書き込み順序」節の 3. 参照、0 以下は書き込まない）。
+                // ここで `hidden` を外した直後に `content` を根として
+                // 再同期することで、外側 `list` の indicator（直後の
+                // `sync_tabs_indicator_in_list(&list)` 呼び出し）だけでなく
+                // 内側にネストした tabs の indicator も遅延なく反映する
+                // （`sync_tabs_indicator` は `root` 配下の `indicator` を
+                // 全件走査するため、ネストの深さによらず 1 回で足りる）。
+                let _ = crate::tabs_indicator::sync_tabs_indicator(&content);
             } else {
                 set_dom_attribute(&content, "hidden", "");
             }

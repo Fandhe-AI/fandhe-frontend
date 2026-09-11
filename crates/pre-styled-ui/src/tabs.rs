@@ -394,6 +394,16 @@ fn recipe() -> SlotRecipe {
                 decl("top", "var(--top, 0px)"),
                 decl("width", "var(--width, 0px)"),
                 decl("height", "var(--height, 0px)"),
+                // レビュー指摘是正（イシュー #2211、codex-review P1 / Bugbot）:
+                // `--width`/`--height` は wasm-full 側
+                // （`crates/wasm-full/src/tabs_indicator.rs`）が
+                // `getBoundingClientRect()` で実測するボーダーボックス寸法。
+                // 既定の `content-box` のままだと、この要素自身が持つ
+                // `border-bottom`（垂直時は `border-inline-end`）の 2px 分が
+                // 実測寸法に加算されて描画され、trigger の外側へはみ出す
+                // ずれが生じる。`border-box` にして実測値と表示寸法を一致
+                // させる。
+                decl("box-sizing", "border-box"),
                 decl(
                     "border-bottom",
                     "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",

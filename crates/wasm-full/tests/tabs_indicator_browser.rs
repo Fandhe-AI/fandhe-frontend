@@ -589,3 +589,72 @@ fn sync_tabs_indicator_root_entry_point_updates_descendant_indicator() {
     assert_ne!(style_var(&indicator, INDICATOR_WIDTH_VAR), "0px");
     assert_ne!(style_var(&indicator, INDICATOR_HEIGHT_VAR), "0px");
 }
+
+/// レビュー指摘是正（イシュー #2211 PR #2342 codex-review P1）: 初期非表示
+/// のタブパネル内にネストした tabs がある場合、マウント時は内部 trigger の
+/// 矩形が 0 で indicator 実測がスキップされる
+/// （`crate::tabs_indicator` モジュール doc「書き込み順序」節の 3.
+/// 「`width`/`height` が 0 以下なら何も書き込まない」参照）。その後、
+/// 親タブをクリックしてパネルを表示したときに `keynav::activate_tab` が
+/// 表示対象の `content` 配下も再同期し、内部 indicator が 0px のまま
+/// 欠落しないことを検証する。
+#[wasm_bindgen_test]
+fn nested_tabs_indicator_syncs_when_parent_panel_becomes_visible() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_tabs_dom_with_indicator(
+        &document,
+        "ti-nested1",
+        &[("a", "A", false), ("b", "B", false)],
+        Some("a"),
+        "automatic",
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // 初期非表示（`data-state="inactive"` + `hidden`）の content "b" の中に
+    // ネストした tabs（indicator 付き）を組み込む。
+    let content_b = document.get_element_by_id("ti-nested1-content-b").unwrap();
+    let nested_root = build_tabs_dom_with_indicator(
+        &document,
+        "ti-nested1-inner",
+        &[("x", "X", false), ("y", "Y", false)],
+        Some("x"),
+        "automatic",
+        true,
+    );
+    // `build_tabs_dom_with_indicator` は `document.body()` 直下へ append する
+    // ため、外側 content 配下へ付け替える（ネスト構造の再現）。
+    nested_root.remove();
+    content_b.append_child(&nested_root).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let nested_list = nested_root
+        .query_selector(r#"[data-scope="tabs"][data-part="list"]"#)
+        .unwrap()
+        .unwrap();
+    let nested_indicator = indicator_of(&nested_list);
+
+    // マウント時点では外側 content "b" が `hidden` のため、内側 trigger の
+    // 矩形は 0 であり実測がスキップされている（既存挙動）。
+    assert_eq!(style_var(&nested_indicator, INDICATOR_WIDTH_VAR), "0px");
+
+    let trigger_b = document.get_element_by_id("ti-nested1-trigger-b").unwrap();
+    trigger_b.dispatch_event(&click_event()).unwrap();
+
+    assert!(
+        !content_b.has_attribute("hidden"),
+        "親タブ b のクリック後は content が可視化されていること"
+    );
+    assert_ne!(
+        style_var(&nested_indicator, INDICATOR_WIDTH_VAR),
+        "0px",
+        "親パネル表示後はネストした tabs の indicator も実測値へ同期される \
+         こと（欠落したままにならないこと）"
+    );
+    assert_eq!(
+        nested_indicator.get_attribute("data-state").as_deref(),
+        Some("active")
+    );
+    assert!(!nested_indicator.has_attribute("hidden"));
+}
