@@ -27,6 +27,32 @@
 //! - 配線層（[`wiring::wire_message_scroller_events`]）のみ
 //!   `#[cfg(target_arch = "wasm32")]` でゲートする。
 //!
+//! # サポートするレイアウト（会話リスト本体の境界、コーディネータ指摘
+//! PR #2312 再指摘）
+//!
+//! 会話リスト本体（`content` 配下でメッセージの追加・先頭挿入を検知する
+//! 基準点、[`wiring::conversation_list`] が解決する）として**サポートする
+//! のは `content` 自身、または `content` の直接の子（1 段のみ）に限る**。
+//! 具体的には次の 2 パターンのいずれかである:
+//!
+//! 1. `content` 自身が `fandhe_frontend_core::keyed::keyed_list()` の
+//!    出力する `data-bind-list` を持つ（フラットな keyed list 構成）。
+//! 2. `content` の直接の子要素（1 段）が `data-bind-list` を持つ
+//!    （`content` → keyed list というラップされた構成）。
+//!
+//! `content` から**2 階層以上深い** `data-bind-list`（メッセージ要素の
+//! 内部にある添付・リアクション等の二次的なリスト）は、上記のどちらの
+//! パターンでも会話リスト本体の候補にならず、常にネストした二次的な
+//! リストとして扱われる（`scrollTop` 補正・`data-has-new` 付与の対象
+//! 外）。`content` 直下に `data-bind-list` を持たない素のメッセージ要素
+//! を置き、その**内部だけ**で添付リストの keyed list を使う構成
+//! （会話リスト自体は `data-bind-list` を持たない）でも、この境界は
+//! 変わらない: 会話リスト本体は `content` 自身（[`wiring::conversation_list`]
+//! のフォールバック）になり、メッセージ内部の添付リストは常にネスト
+//! 扱いになる。旧実装は「`content` 配下で最も浅い `data-bind-list`」を
+//! 幅優先探索で機械的に選んでいたため、この構成で `content` の孫要素
+//! （添付リスト）まで潜ってそれを会話リスト本体と誤認していた。
+//!
 //! # 最下部判定（しきい値付き `scrollTop` 算術）
 //!
 //! [`IntersectionObserver`] ベースの `anchor` 監視は web-sys feature
@@ -704,41 +730,40 @@ mod wiring {
         Some((instance_root, viewport))
     }
 
-    /// 会話リスト本体を解決する: `content` 自身が `data-bind-list` を
-    /// 持てば `content` 自身（フラットな keyed list 構成）、そうでなければ
-    /// `content` 配下で最も浅い `data-bind-list`（幅優先探索で求める。
-    /// メッセージ内部にネストした `data-bind-list`〔添付・リアクション等〕
-    /// より必ず浅い階層で見つかる）。`content` 配下のどこにも
-    /// `data-bind-list` が無ければ `content` 自身を会話リストとみなす
-    /// （keyed list を使わない素の追記構成、`build_message_scroller` の
-    /// テストフィクスチャ等）。
+    /// 会話リスト本体を解決する。**サポートするレイアウトは `content`
+    /// 自身、または `content` の直接の子（1 段のみ）に限る**（コーディ
+    /// ネータ指摘、PR #2312 再指摘: 探索ヒューリスティックを廃止し境界を
+    /// 明示する）:
     ///
-    /// [`classify_target`] が「会話リスト本体そのものへの変更」と
-    /// 「会話リストより深いネストした二次的な bind-list への変更」を
-    /// 区別するための基準点として使う（コーディネータ指摘、PR #2312:
-    /// 旧実装は 2 段階の祖先歩行ヒューリスティックで代用しており、
-    /// フラット構成〔`content` 自身が `data-bind-list`〕で `content` 自身の
-    /// 属性を見ずに探索を打ち切っていたため、メッセージ内の `attachments`
-    /// を会話リスト本体と誤認していた）。
+    /// 1. `content` 自身が `data-bind-list` を持てば `content` 自身
+    ///    （フラットな keyed list 構成）。
+    /// 2. そうでなければ `content` の直接の子要素のうち `data-bind-list`
+    ///    を持つ最初の 1 件（ラップされた keyed list 構成）。
+    /// 3. どちらも無ければ `content` 自身を会話リストとみなす（keyed
+    ///    list を使わない素の追記構成、`build_message_scroller` の
+    ///    テストフィクスチャ等）。
+    ///
+    /// `content` から 2 階層以上深い `data-bind-list`（メッセージ要素の
+    /// **内部**にある `attachments`・`reactions` 等）は、上記のいずれの
+    /// 段階でも会話リストの候補にならず、常に [`classify_target`] の
+    /// ネスト除外対象になる。旧実装（幅優先探索で「最も浅い
+    /// `data-bind-list`」を機械的に選ぶ）は、`content` 直下に素の
+    /// メッセージ要素を置きその**内部だけ**で `attachments` の keyed
+    /// list を使う構成（会話リスト自体は `data-bind-list` を持たない）
+    /// で、探索が `content` の孫要素（`attachments`）まで潜ってそれを
+    /// 会話リストと誤認していた。本関数は探索を `content` の直接の子
+    /// までに固定し、これより深い階層を一切候補にしないことでこの
+    /// 誤認を構造的に排除する。
     fn conversation_list(content: &Element) -> Element {
         if content.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR) {
             return content.clone();
         }
-        let mut queue: std::collections::VecDeque<Element> = std::collections::VecDeque::new();
-        let mut sibling = content.first_element_child();
-        while let Some(element) = sibling {
-            sibling = element.next_element_sibling();
-            queue.push_back(element);
-        }
-        while let Some(element) = queue.pop_front() {
+        let mut child = content.first_element_child();
+        while let Some(element) = child {
             if element.has_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR) {
                 return element;
             }
-            let mut child = element.first_element_child();
-            while let Some(c) = child {
-                child = c.next_element_sibling();
-                queue.push_back(c);
-            }
+            child = element.next_element_sibling();
         }
         content.clone()
     }

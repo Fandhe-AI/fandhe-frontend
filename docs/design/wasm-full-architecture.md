@@ -2838,7 +2838,9 @@ no-op（fail-closed、多重発火防止）。子要素に明示 `data-action` �
 `scrollTop = 0` で現れ、アプリの `view()` が出力した `data-stuck`
 （既定 `Bottom`）に従って初期同期される。サポートされる経路は「`content`
 配下を keyed list（`data-keyed-list`）で差分更新し、ストリーミング本文を
-`bind_text` 束縛点で更新する構成」である。
+`bind_text` 束縛点で更新する構成」である。会話リスト本体として
+サポートするレイアウトの境界（`content` 自身、または `content` の
+直接の子 1 段のみ）は §38.11 参照。
 
 既知の限界: (1) 同一 `MutationObserver` コールバック内で上方向挿入と
 下方向追記が同時に起きた場合、`scrollHeight` 差分での補正は追記分だけ
@@ -2867,6 +2869,12 @@ crates.io 公開済みのどの版にも存在せず、本 PR で初めてゲー
 minor ではなく patch とし、main の到達値 0.20.4 から +1 して 0.20.5 と
 する。
 
+コーディネータ指摘（PR #2312 再指摘、§38.11 参照）: 会話リスト本体の
+解決（`wiring::conversation_list`）を幅優先探索から明示的な境界
+（`content` 自身、または `content` の直接の子 1 段のみ）へ変更した。
+公開 API のシグネチャ変更は伴わない内部実装の修正のみのため patch
+バンプとし、origin/main の到達値 0.20.5 から +1 して 0.20.6 とする。
+
 テストは native（`crates/wasm-full/src/message_scroller.rs` 内
 `#[cfg(test)] mod tests` の純粋関数単体テスト、
 `crates/wasm-full/tests/message_scroller_native.rs` の headless-ui 出力
@@ -2893,3 +2901,41 @@ message_scroller_browser.rs`、`wasm-pack test --headless --chrome`）の
   （搭載判定ゲートのトレードオフ、`sidebar` と同じ）。
 - `docs/design/component-coverage-map.md` の「実装済み」化・
   pre-styled-ui recipe・Themes ページ（#2123）。
+
+### 38.11 会話リスト本体の解決契約（コーディネータ指摘、PR #2312 再指摘）
+
+`wiring::conversation_list`（会話リスト本体、`scrollTop` 補正・
+`data-has-new` 付与の判定基準点）が**サポートするレイアウトは `content`
+自身、または `content` の直接の子（1 段のみ）に限る**。具体的には次の
+2 パターンのいずれかである:
+
+1. `content` 自身が `data-bind-list` を持つ（フラットな keyed list
+   構成）。
+2. `content` の直接の子要素（1 段）が `data-bind-list` を持つ（`content`
+   → keyed list というラップされた構成）。
+
+`content` から**2 階層以上深い** `data-bind-list`（メッセージ要素の
+内部にある添付・リアクション等の二次的なリスト）は、上記のどちらの
+パターンでも会話リスト本体の候補にならず、常にネストした二次的な
+リストとして扱われる。`content` 直下に `data-bind-list` を持たない
+素のメッセージ要素を置き、その内部だけで添付リストの keyed list を
+使う構成（会話リスト自体は `data-bind-list` を持たない）でも境界は
+変わらない: 会話リスト本体は `content` 自身（フォールバック）になり、
+メッセージ内部の添付リストは常にネスト扱いになる。
+
+旧実装（`content` 配下で「最も浅い `data-bind-list`」を幅優先探索で
+機械的に選ぶ）は、この構成で `content` の孫要素（添付リスト）まで
+潜ってそれを会話リスト本体と誤認していた（`content` への履歴先頭挿入が
+Grow に誤分類され、Free の位置維持が効かず `data-has-new` も誤って
+付与される）。探索ヒューリスティックを廃止し、上記の境界を明示する
+実装へ変更することで構造的に解消した。`classify_target` の祖先歩行
+（会話リスト以外の `data-bind-list` を跨げば `None`）自体は変更していない
+（§38 冒頭参照）。
+
+回帰テスト（`crates/wasm-full/tests/message_scroller_browser.rs`）:
+`no_list_content_with_nested_attachments_prepend_preserves_position_when_stuck_free`
+（`content` 直下に素のメッセージ要素を置きその内部だけで添付の keyed
+list を使う構成で、`content` への先頭挿入が Prepend として位置維持
+されること）・`no_list_content_with_nested_attachments_update_is_ignored`
+（同レイアウトで、メッセージ内部にネストした添付リストへの childList
+先頭挿入・characterData 更新のいずれも除外されること）を追加した。

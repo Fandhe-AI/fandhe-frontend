@@ -1677,6 +1677,172 @@ async fn flat_layout_nested_bind_list_character_data_update_is_ignored() {
     );
 }
 
+/// コーディネータ指摘（PR #2312 再指摘）の直接の再現: `content` 直下に
+/// 素のメッセージ要素（`data-bind-list` を一切持たない）を置き、その
+/// **内部だけ**で `attachments` の keyed list を使う構成（会話リスト
+/// 自体は `data-bind-list` を持たない、`content` から見て `attachments`
+/// は 2 階層深い）。旧実装（幅優先探索で「最も浅い `data-bind-list`」を
+/// 機械的に選ぶ）は `content` の孫要素である `attachments` まで潜って
+/// それを会話リスト本体と誤認していた。`conversation_list` は `content`
+/// 自身・その直接の子（1 段のみ）にしか会話リストの候補を探さないため、
+/// この構成では会話リスト本体は `content` 自身になる。
+#[wasm_bindgen_test]
+async fn no_list_content_with_nested_attachments_prepend_preserves_position_when_stuck_free() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-no-list-nested-prepend-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let node = root(
+        MessageScrollerRootProps {
+            stuck: HeadlessStuck::Free,
+            has_new: false,
+        },
+        vec![("id", "ms-no-list-nested-prepend")],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:100px;overflow-y:auto")],
+                vec![content(
+                    vec![],
+                    vec![
+                        message_item_with_attachment(),
+                        fixed_height_child(60),
+                        fixed_height_child(60),
+                    ],
+                )],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    );
+    let instance_root = mount(&container, &node);
+    let content_el = find_content(&instance_root);
+    let viewport = find_viewport(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    simulate_user_scroll(&viewport, 40);
+    wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    let before_top = viewport.scroll_top();
+    let before_height = viewport.scroll_height();
+
+    // `content` 自身（`data-bind-list` を持たないため会話リスト本体と
+    // みなされる）への先頭挿入。
+    let prepend_html = render(&fixed_height_child(40));
+    content_el
+        .insert_adjacent_html("afterbegin", &prepend_html)
+        .expect("insert_adjacent_html must not fail");
+
+    let expected_delta = 40;
+    wait_for(|| viewport.scroll_height() == before_height + expected_delta).await;
+    wait_for(|| viewport.scroll_top() == before_top + expected_delta).await;
+    assert_eq!(
+        viewport.scroll_top(),
+        before_top + expected_delta,
+        "content 直下に素のメッセージ要素を置きその内部だけで attachments \
+         keyed list を使う構成でも、content への先頭挿入が Prepend として \
+         位置維持されること"
+    );
+}
+
+/// 上記と同一レイアウトで、メッセージ内部にネストした `attachments`
+/// （`content` から 2 階層深い）への childList 先頭挿入・characterData
+/// 更新のいずれもが、会話リスト本体（`content` 自身）レベルの
+/// `scrollTop` 補正・`data-has-new` 付与の対象にならないことを固定する。
+#[wasm_bindgen_test]
+async fn no_list_content_with_nested_attachments_update_is_ignored() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-no-list-nested-ignored-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let node = root(
+        MessageScrollerRootProps {
+            stuck: HeadlessStuck::Free,
+            has_new: false,
+        },
+        vec![("id", "ms-no-list-nested-ignored")],
+        vec![
+            viewport(
+                "",
+                vec![("style", "height:100px;overflow-y:auto")],
+                vec![content(vec![], vec![message_item_with_attachment()])],
+            ),
+            jump_to_latest("Jump to latest", false, vec![], vec![text("Jump")]),
+            load_more(false, false, vec![], vec![text("Load more")]),
+        ],
+    );
+    let instance_root = mount(&container, &node);
+    let content_el = find_content(&instance_root);
+    let viewport = find_viewport(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    simulate_user_scroll(&viewport, 10);
+    wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    let before_top = viewport.scroll_top();
+    let before_height = viewport.scroll_height();
+
+    // 会話リスト本体は `content` 自身（`data-bind-list` を持たない）だが、
+    // メッセージ内部にネストした `attachments`（`content` から 2 階層
+    // 深い）への先頭挿入は、旧実装の幅優先探索がこれを会話リスト本体と
+    // 誤認していた対象。
+    let attachments_wrapper = content_el
+        .query_selector("[data-bind-list=\"attachments\"]")
+        .expect("query_selector must not fail")
+        .expect("nested attachments data-bind-list wrapper must exist");
+    let new_attachment = render(&fixed_height_child(30));
+    attachments_wrapper
+        .insert_adjacent_html("afterbegin", &new_attachment)
+        .expect("insert_adjacent_html must not fail");
+
+    let expected_height = before_height + 30;
+    assert_eq!(viewport.scroll_height(), expected_height);
+    microtask_tick().await;
+
+    assert_eq!(
+        viewport.scroll_top(),
+        before_top,
+        "content 直下の素のメッセージ要素内部にネストした attachments \
+         への先頭挿入で scrollTop が変化しないこと"
+    );
+    assert!(
+        !instance_root.has_attribute("data-has-new"),
+        "content 直下の素のメッセージ要素内部にネストした attachments \
+         への追加が data-has-new を立てないこと"
+    );
+
+    // characterData 経路（`appendData`）でも同じくネスト除外されることを
+    // 併せて確認する。
+    let attachment_span = content_el
+        .query_selector("[data-bind-list=\"attachments\"] span")
+        .expect("query_selector must not fail")
+        .expect("attachment label span must exist");
+    let text_node = attachment_span
+        .first_child()
+        .expect("attachment label must already have a Text child")
+        .dyn_into::<web_sys::Text>()
+        .expect("attachment label's first child must be a Text node");
+    text_node
+        .append_data(" (renamed)")
+        .expect("append_data must not fail");
+
+    microtask_tick().await;
+
+    assert_eq!(
+        viewport.scroll_top(),
+        before_top,
+        "characterData 経路でも同様に scrollTop が変化しないこと"
+    );
+    assert!(
+        !instance_root.has_attribute("data-has-new"),
+        "characterData 経路でも同様に data-has-new を立てないこと"
+    );
+}
+
 // --- load-more 通知 ---
 
 #[wasm_bindgen_test]

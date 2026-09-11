@@ -1020,7 +1020,16 @@ name = "fandhe-frontend-wasm-full"
 # （追加のみの非破壊的変更。`position`〔0.20.1〕と同型の判断）。よって
 # minor ではなく patch とし、main の到達値 0.20.4 から +1 して 0.20.5 と
 # する。
-version = "0.20.5"
+#
+# イシュー #2122（コーディネータ指摘、PR #2312 再指摘）: 会話リスト本体
+# の解決（`wiring::conversation_list`）を幅優先探索から「`content` 自身、
+# または `content` の直接の子（1 段のみ）」という明示的な境界へ変更した。
+# `content` 直下に素のメッセージ要素を置きその内部だけで添付の keyed
+# list を使う構成で、旧実装が添付リストを会話リスト本体と誤認していた
+# 不具合の是正。公開 API のシグネチャ変更は伴わない内部実装の修正のみ
+# のため patch バンプとし、origin/main の到達値 0.20.5 から +1 して
+# 0.20.6 とする。
+version = "0.20.6"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
