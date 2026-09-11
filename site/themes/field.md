@@ -10,6 +10,10 @@ FieldSeparator 相当）の計 11 パーツ構成で、ラベル・補助テキ�
 持ちます。`responsive`（イシュー #2199）は Group（container）の内側に置いた場合
 にのみ意味を持ち、Group の inline サイズが 448px 以上のときだけ `horizontal` と
 同じ横並びへ切り替わります。Group の外に置いた場合は常に縦積みのままです。
+`horizontal`（および 448px 以上の `responsive`）のとき、HelperText は
+`text-wrap: balance` で行長を均して横並びレイアウトでの読みやすさを高めます
+（イシュー #2160、shadcn/ui `FieldDescription` 突合。未対応ブラウザでは通常の
+折り返しのまま変化しません）。
 
 Group は複数の Field（Root）を縦に束ねる外側コンテナ、Separator は線のみ／テキスト付き
 の区切り線です。Content / Title は `<label for>` を結び付けにくい場面（複数コントロール

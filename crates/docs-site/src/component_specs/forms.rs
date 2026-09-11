@@ -786,6 +786,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root/label/helper-text/error-text/required-indicator/group/content/title/separator/separator-line/separator-content の 11 slot に型階層と余白（`orientation`: `vertical`（既定）/`horizontal`/`responsive`）を提供する（イシュー #2185 で group/content/title/separator の 6 slot を純追加）。コントロール（`input`/`textarea`/`select`）は `input`/`textarea`/`native_select` の各 recipe が同じ `\"field\"` scope を共有して所有するため、本モジュールは宣言しない（`field.rs` モジュール doc「本モジュールが宣言する slot」節）。",
         "`orientation=\"responsive\"`（イシュー #2199）は `group`（container slot、`@container` クエリ）の inline サイズが 448px 以上のときのみ `horizontal` と同じ配置へ切り替わる。`group` の外に置いた場合は常に縦積みのまま（mobile-first の安全な劣化）。",
+        "`orientation=\"horizontal\"`（および 448px 以上の `responsive`）のとき、`helper-text` は `text-wrap: balance` で行長を均す（イシュー #2160、shadcn/ui `FieldDescription` の `group-has-[[data-orientation=horizontal]]/field` 相当。未対応ブラウザでは宣言が無効値として破棄されるだけで劣化しない）。",
         "`orientation` のみを持つ variant 軸（`size`/`colorPalette` は非提供。ラベル・補助テキストの文字サイズは固定の型階層で表現する設計判断）。",
         "`data-invalid`/`data-disabled`/`data-required`/`data-readonly` はいずれも headless-ui `field::root` が出力する状態を CSS セレクタとして参照するだけで、値の妥当性判定・送信処理といったバリデーション自体は実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
         "`error-text`/`required-indicator` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",

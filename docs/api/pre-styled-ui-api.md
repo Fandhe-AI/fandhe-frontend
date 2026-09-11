@@ -745,6 +745,14 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   語彙化した。判断根拠は `field.rs` モジュール doc
   「`orientation="responsive"`」節・`docs/design/pre-styled-ui-scale-tokens.md`
   §3.7 参照。
+- **`helper-text` の `text-wrap: balance`（イシュー #2160）**: `css()` は
+  `error-text > ul` と同型の静的追記を 2 種持つ。1 つは既存の
+  `error-text > ul`（イシュー #2014）、もう 1 つは本イシューで追加した
+  `helper-text` の horizontal/responsive 時 `text-wrap: balance`
+  （shadcn/ui `FieldDescription` の `group-has-[[data-orientation=
+  horizontal]]/field` 相当をクラス条件へ読み替え）。既存 variant の出力は
+  バイト同一のまま末尾への純追加。判断根拠は `field.rs` モジュール doc
+  「`helper-text` の `text-wrap: balance`」節参照。
 - **`orientation` 軸のみ**: `size`/`color-palette` 軸は持たない（子の寸法に
   従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
   入力系は palette 非提供という §4f と同じ判断）。

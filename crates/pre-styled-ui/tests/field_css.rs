@@ -17,7 +17,13 @@
 //! `@container` ブロック追加が生じた（`FIELD_GOLDEN_BLOCKS_BEFORE_2185` の
 //! 対象外。同定数は #2185 以前のブロックのみを扱う契約のため、#2199 の
 //! 中間挿入・追記は `field_css_matches_golden_fixture` の全文一致が
-//! 単独で固定する）。
+//! 単独で固定する）。イシュー #2160 で `error-text > ul`（の直後、CSS 出力
+//! 末尾）へ `helper-text` の horizontal/responsive 時
+//! `text-wrap: balance` 静的ブロックが 2 個（horizontal 用・
+//! `@container` 内 responsive 用）純追加された（同じく
+//! `FIELD_GOLDEN_BLOCKS_BEFORE_2185` の対象外。全文一致に加え、末尾追加で
+//! あることと base `helper-text` ブロックが変化していないことを個別の
+//! 回帰テストで固定する）。
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_pre_styled_ui::field::{
@@ -180,6 +186,14 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
 [data-scope="field"][data-part="error-text"] > ul > li + li {
   margin-top: var(--fandhe-space-1);
 }
+[data-scope="field"][data-part="root"].fd-field--orientation-horizontal [data-scope="field"][data-part="helper-text"] {
+  text-wrap: balance;
+}
+@container fd-field-group (min-width: 448px) {
+  [data-scope="field"][data-part="root"].fd-field--orientation-responsive [data-scope="field"][data-part="helper-text"] {
+    text-wrap: balance;
+  }
+}
 "#;
 
 /// イシュー #2185 以前から存在するブロック群（`root`/`label`/`helper-text`/
@@ -333,6 +347,56 @@ fn css_declares_invalid_label_color_and_error_list_layout() {
     assert!(css.contains(r#"[data-scope="field"][data-part="label"][data-invalid] {"#));
     assert!(css.contains(r#"[data-scope="field"][data-part="error-text"] > ul {"#));
     assert!(css.contains("list-style: disc;"));
+}
+
+/// `helper-text` の `text-wrap: balance`（イシュー #2160、shadcn/ui
+/// `FieldDescription` の `group-has-[[data-orientation=horizontal]]/field`
+/// 相当をクラス条件へ読み替え。`field.rs` モジュール doc「`helper-text` の
+/// `text-wrap: balance`」節参照）が horizontal・`@container` 内
+/// responsive の両方に子孫結合子で存在することを固定する。
+#[test]
+fn css_declares_helper_text_balance_for_horizontal_and_responsive() {
+    let css = field::css();
+    assert!(css.contains(
+        r#"[data-scope="field"][data-part="root"].fd-field--orientation-horizontal [data-scope="field"][data-part="helper-text"] {"#
+    ));
+    assert!(css.contains(
+        r#"[data-scope="field"][data-part="root"].fd-field--orientation-responsive [data-scope="field"][data-part="helper-text"] {"#
+    ));
+    assert_eq!(css.matches("text-wrap: balance;").count(), 2);
+}
+
+/// base の `helper-text` ブロック（vertical/既定時に適用される唯一の
+/// ブロック）自体には `text-wrap` を持ち込まないことを固定する（vertical
+/// 出力が本イシューで変化していないことの証明）。
+#[test]
+fn css_base_helper_text_block_has_no_text_wrap() {
+    let css = field::css();
+    let base_start = css
+        .find(r#"[data-scope="field"][data-part="helper-text"] {"#)
+        .expect("base helper-text block must exist");
+    let base_end = css[base_start..]
+        .find('}')
+        .map(|i| base_start + i)
+        .expect("base helper-text block must close");
+    assert!(!css[base_start..base_end].contains("text-wrap"));
+}
+
+/// `helper-text` の `text-wrap: balance` 静的追記が `error-text > ul >
+/// li + li`（recipe 出力末尾への既存追記）より後、つまり `css()` 全体の
+/// 末尾にあることを固定する（純追加の位置関係の確認）。
+#[test]
+fn css_helper_text_balance_appears_after_error_text_list_block() {
+    let css = field::css();
+    let error_list_pos = css
+        .find(r#"[data-scope="field"][data-part="error-text"] > ul > li + li {"#)
+        .expect("error-text > ul > li + li rule must exist");
+    let horizontal_balance_pos = css
+        .find(
+            r#"[data-scope="field"][data-part="root"].fd-field--orientation-horizontal [data-scope="field"][data-part="helper-text"] {"#,
+        )
+        .expect("horizontal helper-text balance rule must exist");
+    assert!(horizontal_balance_pos > error_list_pos);
 }
 
 fn default_field(id: &str) -> FieldProps<'_> {

@@ -3310,7 +3310,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追随。本クレート自身のソース変更は伴わないが、`Cargo.toml` の変更のため
 # `version-bump-exempt` は使わず patch バンプし、0.185.0 を +1 した
 # 0.185.1 とする。
-version = "0.185.1"
+#
+# イシュー #2160: field の `helper-text` へ horizontal/responsive 時の
+# `text-wrap: balance`（shadcn/ui `FieldDescription` の
+# `group-has-[[data-orientation=horizontal]]/field` 相当、クラス条件へ
+# 読み替え）を `css()` 末尾へ純追加した。CSS 出力変更・観測可能な振る舞い
+# 変更のため `version-bump-exempt` は使えない。Rust API シグネチャは不変で
+# あり既存 variant の出力もバイト同一のままの純追加のため patch バンプと
+# し、0.185.1 を +1 した 0.185.2 とする。
+version = "0.185.2"
 
 
 edition = "2021"
