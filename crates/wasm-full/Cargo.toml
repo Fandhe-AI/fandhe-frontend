@@ -1077,7 +1077,16 @@ name = "fandhe-frontend-wasm-full"
 # 誤ったページ番号を通知する不具合を修正）。いずれも公開 API のシグネ
 # チャ変更を伴わない追加・内部実装の修正のため patch バンプとし、
 # 到達値 0.20.8 から +1 して 0.20.9 とする。
-version = "0.20.9"
+#
+# PR #2352 codex-review P1（`boundary_count == 0` 構成で表示中 `item` の
+# `data-index` 最大値を総ページ数として誤扱いし last/next が誤動作する
+# 不具合、`pagination_root` へ明示供給できる新規公開定数
+# `data_table::PAGINATION_TOTAL_PAGES_ATTR` を追加して是正）・
+# Cursor Bugbot 指摘（列表示切替の `click` リスナーを bubble フェーズから
+# capture フェーズへ変更し、headless 側の `stop_propagation()` の有無に
+# 関わらず処理されるよう是正）を反映。新規公開定数の追加を伴うため
+# 0.20.9 から +1 して 0.20.10 とする。
+version = "0.20.10"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

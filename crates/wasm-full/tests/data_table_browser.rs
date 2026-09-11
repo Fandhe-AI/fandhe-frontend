@@ -42,6 +42,7 @@ use fandhe_frontend_headless_ui::data_table::{
 use fandhe_frontend_headless_ui::pagination::{ItemMode, Pagination};
 use fandhe_frontend_wasm_full::data_table::{
     wire_data_table_events, ACTION_PAGE, ACTION_SORT, ACTION_TOGGLE_COLUMN, COLUMN_TOGGLE_MARKER,
+    PAGINATION_TOTAL_PAGES_ATTR,
 };
 use fandhe_frontend_wasm_full::events::ActionRef;
 use std::cell::RefCell;
@@ -49,7 +50,7 @@ use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, HtmlInputElement, MouseEvent, MouseEventInit};
+use web_sys::{Document, Element, Event, HtmlInputElement, MouseEvent, MouseEventInit};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -241,6 +242,56 @@ fn mount_fixture(document: &Document, container_id: &str, table_id: &str) -> Ele
         .expect("rendered data-table root must have the expected id")
 }
 
+/// codex-review P1 是正の回帰用フィクスチャ: `boundary_count == 0` かつ
+/// `count = 100`（`page_size = 1` のため `total_pages = 100`）の
+/// pagination のみを持つ最小構成（列・行は不要）。`total_attr` を
+/// `Some` にすると [`PAGINATION_TOTAL_PAGES_ATTR`] を `pagination_root`
+/// へ付与する。`page_entries()`（`page=1, sibling_count=1, boundary_count=0`）
+/// は `[Page(1), Page(2)]` のみを返すため、表示中 `item` の `data-index`
+/// 最大値は常に `2` であり、`total_attr: None` では
+/// `read_pagination_state` が誤って総ページ数を `2` と解決してしまう
+/// （PR #2352 codex-review P1 指摘の再現条件）。
+fn build_boundary_zero_fixture(id: &str, total_attr: Option<&str>) -> Node {
+    let pagination = Pagination::new(100, 1, 1, 0, 1);
+    let mut root_attrs: Vec<(&str, &str)> = Vec::new();
+    if let Some(total) = total_attr {
+        root_attrs.push((PAGINATION_TOTAL_PAGES_ATTR, total));
+    }
+
+    DataTable::root(
+        DataTableProps::default(),
+        vec![("id", id)],
+        vec![pagination.root(
+            "pagination",
+            root_attrs,
+            vec![
+                pagination.first_trigger(ItemMode::Button, vec![], vec![]),
+                pagination.prev_trigger(ItemMode::Button, vec![], vec![]),
+                pagination.item(ItemMode::Button, 1, false, vec![], vec![]),
+                pagination.item(ItemMode::Button, 2, false, vec![], vec![]),
+                pagination.next_trigger(ItemMode::Button, vec![], vec![]),
+                pagination.last_trigger(ItemMode::Button, vec![], vec![]),
+            ],
+        )],
+    )
+}
+
+fn mount_boundary_zero_fixture(
+    document: &Document,
+    container_id: &str,
+    table_id: &str,
+    total_attr: Option<&str>,
+) -> Element {
+    let container = create_container(document, container_id);
+    let html = render(&build_boundary_zero_fixture(table_id, total_attr));
+    container
+        .insert_adjacent_html("beforeend", &html)
+        .expect("insert_adjacent_html must not fail");
+    document
+        .get_element_by_id(table_id)
+        .expect("rendered data-table root must have the expected id")
+}
+
 fn wire(root: &Element) -> Rc<RefCell<Vec<ActionRef>>> {
     let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
     let actions_clone = actions.clone();
@@ -412,6 +463,68 @@ async fn column_toggle_item_click_hides_and_shows_matching_cells() {
     );
 
     assert_eq!(actions.borrow().len(), 2);
+    assert_eq!(actions.borrow()[0].action, ACTION_TOGGLE_COLUMN);
+}
+
+/// Cursor Bugbot 指摘（PR #2352）の回帰: 列表示切替トリガー
+/// （`menu`/`checkbox-item`）は `crate::headless` の bubble フェーズ
+/// リスナーでも並行して解決され得り、そのリスナーが
+/// `event.stop_propagation()` を呼ぶ実装（headless の menu item クリック
+/// 処理と同型）だと、本モジュールの click リスナーが従来どおり bubble
+/// フェーズで `root` に登録されている場合はイベントが `root` まで
+/// bubble せず [`handle_toggle_column`] 相当の処理が一切呼ばれず無音で
+/// no-op になる。`wire_data_table_events` は capture フェーズで登録する
+/// ため、`stop_propagation()` の有無に関わらず列表示切替の書き戻しと
+/// 通知が実行されることを検証する。
+#[wasm_bindgen_test]
+async fn column_toggle_item_click_is_processed_even_when_a_bubble_listener_stops_propagation() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let root = mount_fixture(
+        &document,
+        "dt-toggle-stop-propagation-container",
+        "dt-toggle-stop-propagation",
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let toggle_item = part_by_value(&root, "menu", "checkbox-item", "email");
+
+    // headless 側の bubble フェーズリスナー（本モジュールとは無関係に
+    // menu checkbox-item を解決し得る、モジュール冒頭「`headless::
+    // MAPPING_TABLE` へ登録しない理由」節）を模擬する。
+    let stop_propagation_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+        event.stop_propagation();
+    });
+    toggle_item
+        .add_event_listener_with_callback(
+            "click",
+            stop_propagation_closure.as_ref().unchecked_ref(),
+        )
+        .expect("add_event_listener_with_callback must not fail");
+    stop_propagation_closure.forget();
+
+    let actions = wire(&root);
+
+    let email_header = root
+        .query_selector(
+            r#"[data-scope="data-table"][data-part="column-header"][data-column="email"]"#,
+        )
+        .expect("query_selector must not fail")
+        .expect("email column-header must exist");
+
+    toggle_item
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    wait_for(
+        "email column-header gains hidden despite a bubble-phase stop_propagation",
+        || email_header.has_attribute("hidden"),
+    )
+    .await;
+    assert_eq!(
+        toggle_item.get_attribute("data-state").as_deref(),
+        Some("unchecked")
+    );
+    assert_eq!(actions.borrow().len(), 1);
     assert_eq!(actions.borrow()[0].action, ACTION_TOGGLE_COLUMN);
 }
 
@@ -850,6 +963,91 @@ async fn pagination_next_click_prefers_dom_selected_item_over_stale_internal_att
     .await;
     assert!(!item4.has_attribute("data-selected"));
     assert_eq!(item2.get_attribute("aria-current").as_deref(), Some("page"));
+}
+
+/// PR #2352 codex-review P1 指摘の回帰: `boundary_count == 0` 構成
+/// （末尾ページの `item` が常に描画されるとは限らない）では、表示中
+/// `item` の `data-index` 最大値（本フィクスチャでは常に `2`）を総ページ数
+/// として扱うと `last` クリックが本来の総ページ数（`100`）ではなく `2`
+/// へ遷移してしまう。`PAGINATION_TOTAL_PAGES_ATTR="100"` を明示供給すると
+/// 表示範囲から独立して正しい総ページ数を解決し、`last` クリックで
+/// ページ 100 まで進んで `next`/`last` トリガーが無効化されることを検証
+/// する。
+#[wasm_bindgen_test]
+async fn pagination_last_click_honors_explicit_total_pages_attr_when_boundary_zero() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let root = mount_boundary_zero_fixture(
+        &document,
+        "dt-page-total-attr-container",
+        "dt-page-total-attr",
+        Some("100"),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let actions = wire(&root);
+
+    let pagination_root = part(&root, "pagination", "root");
+    let last_trigger = part(&root, "pagination", "last-trigger");
+    let next_trigger = part(&root, "pagination", "next-trigger");
+
+    last_trigger
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    wait_for(
+        "pagination_root reflects page 100 (the real total_pages, not the rendered item max)",
+        || {
+            pagination_root
+                .get_attribute("data-current-page")
+                .as_deref()
+                == Some("100")
+        },
+    )
+    .await;
+
+    // ページ 100（`count=100, page_size=1` の真の末尾）に到達したので
+    // next/last は無効化される。修正前の挙動（誤って総ページ数を `2` と
+    // 判定）ではページ 2 で無効化されてしまい本アサーションは無意味に
+    // 通ってしまわない（`data-current-page="100"` を上の `wait_for` が
+    // 先に固定しているため誤検知しない）。
+    assert!(next_trigger.has_attribute("disabled"));
+    assert!(last_trigger.has_attribute("disabled"));
+    assert_eq!(actions.borrow().len(), 1);
+    assert_eq!(actions.borrow()[0].action, ACTION_PAGE);
+}
+
+/// [`PAGINATION_TOTAL_PAGES_ATTR`] の fail-closed 契約の回帰: 供給値が
+/// 表示中 `item` の `data-index` 最大値未満（改ざん・陳腐化で実際より
+/// 少ない総ページ数を騙る不整合）の場合は `read_pagination_state` が
+/// `None` を返し、クリックは no-op となる（`page_transition` へ渡る前に
+/// 弾かれる）。
+#[wasm_bindgen_test]
+async fn pagination_click_is_no_op_when_total_pages_attr_is_less_than_rendered_max_index() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    // フィクスチャは item 1・2 を描画するため、`data-total-pages="1"`
+    // （表示中最大値 `2` 未満）は改ざん・不整合とみなされる。
+    let root = mount_boundary_zero_fixture(
+        &document,
+        "dt-page-total-attr-invalid-container",
+        "dt-page-total-attr-invalid",
+        Some("1"),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let actions = wire(&root);
+
+    let next_trigger = part(&root, "pagination", "next-trigger");
+    let item1 = root
+        .query_selector(r#"[data-scope="pagination"][data-part="item"][data-index="1"]"#)
+        .expect("query_selector must not fail")
+        .expect("item 1 must exist");
+
+    next_trigger
+        .dispatch_event(&synthetic_click())
+        .expect("dispatch_event must not fail");
+    settle().await;
+
+    assert!(item1.has_attribute("data-selected"));
+    assert!(actions.borrow().is_empty());
 }
 
 #[wasm_bindgen_test]

@@ -86,9 +86,12 @@
 //!   （[`fandhe_frontend_headless_ui::checkbox::hidden_input`]）は
 //!   `crate::events::wire_events` の `change` 委譲（`data-action`）で
 //!   足りる。
-//! - ページングの総ページ数は `item` の `data-index` 最大値から導出する
-//!   ため、`boundary_count == 0` 構成（末尾ページが常に描画されない）
-//!   では不正確になり得る。省略記号（ellipsis）の再配置は行わない。
+//! - ページングの総ページ数は既定では `item` の `data-index` 最大値から
+//!   導出するため、`boundary_count == 0` 構成（末尾ページが常に描画され
+//!   ない）では不正確になり得る。[`PAGINATION_TOTAL_PAGES_ATTR`]
+//!   （`pagination_root` の属性）をアプリが明示的に供給すると、表示範囲
+//!   から独立して正確な総ページ数を解決できる（codex-review P1 是正）。
+//!   省略記号（ellipsis）の再配置は行わない。
 //! - 配線後の再描画で初めて出現する data-table への遅延配線は行わない
 //!   （上記「搭載判定ゲート」節参照）。
 
@@ -150,6 +153,24 @@ pub const ACTION_TOGGLE_COLUMN: &str = "data-table:toggle-column";
 /// `C` への通知アクション名（ページ遷移）。
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub const ACTION_PAGE: &str = "data-table:page";
+
+/// アプリが `pagination_root`（[`fandhe_frontend_headless_ui::pagination::Pagination::root`]
+/// の `attrs` 経由）へ総ページ数を明示的に伝えるための属性名
+/// （`ROOT_RESERVED`（`crates/headless-ui/src/pagination.rs`）には
+/// 含まれない予約外キーのため、そのまま透過して DOM へ出力される）。
+///
+/// `[`PAGINATION_ITEM_SELECTOR`]` で走査できる `item` の `data-index`
+/// 最大値は、`boundary_count == 0` 構成では末尾ページの `item` が
+/// 常に描画されるとは限らないため総ページ数と一致しない
+/// （`Pagination::new(100, 1, 1, 0, 1)` の `page_range` は先頭付近の
+/// `item` のみを返し、総ページ数 100 を表示中の `item` から復元できない。
+/// codex-review P1 指摘）。本属性を供給すると、表示範囲（sibling/boundary
+/// count 構成）から独立して総ページ数を解決できる。省略時は従来どおり
+/// 表示中 `item` の `data-index` 最大値へフォールバックする
+/// （`boundary_count >= 1` かつ全ページが表示範囲に収まる小規模構成でのみ
+/// 正確という限界は変わらない、モジュール冒頭「既知の限界」節）。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub const PAGINATION_TOTAL_PAGES_ATTR: &str = "data-total-pages";
 
 // ---------------------------------------------------------------------
 // 純粋ロジック層: web-sys 非依存。native の `cargo test --workspace` で
@@ -345,7 +366,8 @@ mod wiring {
     use super::{
         encode_column_payload, encode_page_payload, encode_sort_payload, page_transition,
         resolve_sort_state, trigger_kind, Trigger, ACTION_PAGE, ACTION_SORT, ACTION_TOGGLE_COLUMN,
-        COLUMN_TOGGLE_MARKER, DATA_STATE_INDETERMINATE, PAGINATION_SCOPE, PART_ROOT, SCOPE,
+        COLUMN_TOGGLE_MARKER, DATA_STATE_INDETERMINATE, PAGINATION_SCOPE,
+        PAGINATION_TOTAL_PAGES_ATTR, PART_ROOT, SCOPE,
     };
     use crate::dom::{closest_matching, has_disabled_ancestor, set_dom_attribute};
     use crate::events::ActionRef;
@@ -776,10 +798,16 @@ mod wiring {
     }
 
     /// `pagination_root` 配下の `item` 群から現在ページ（`data-selected`
-    /// を持つ 1 件の `data-index`）と総ページ数（全 `item` の `data-index`
-    /// 最大値）を読み取る。`data-index` が非数値、`item` が 0 件、
-    /// `data-selected` が 0 件/複数件のいずれも改ざん・不整合とみなし
-    /// `None`（fail-closed）。
+    /// を持つ 1 件の `data-index`）と総ページ数を読み取る。総ページ数は
+    /// [`PAGINATION_TOTAL_PAGES_ATTR`] が `pagination_root` に供給されて
+    /// いればそれを正とし（表示中の `item` に依存しない、
+    /// `PAGINATION_TOTAL_PAGES_ATTR` の doc 参照）、無ければ従来どおり
+    /// 全 `item` の `data-index` 最大値へフォールバックする。
+    /// `data-index` が非数値、`item` が 0 件、`data-selected` が 0 件/
+    /// 複数件、[`PAGINATION_TOTAL_PAGES_ATTR`] が非数値・`0`・表示中
+    /// `item` の `data-index` 最大値未満（供給値が改ざん・陳腐化して
+    /// 実際より少ない総ページ数を騙る不整合）のいずれも改ざん・不整合
+    /// とみなし `None`（fail-closed）。
     fn read_pagination_state(pagination_root: &Element) -> Option<(u64, u64)> {
         let nodes = pagination_root
             .query_selector_all(PAGINATION_ITEM_SELECTOR)
@@ -823,12 +851,31 @@ mod wiring {
         if selected.len() > 1 {
             return None;
         }
+
+        // 総ページ数: `PAGINATION_TOTAL_PAGES_ATTR` をアプリが供給していれば
+        // それを正とする（`boundary_count == 0` 構成では表示中 `item` の
+        // `data-index` 最大値が総ページ数と一致しない、`PAGINATION_TOTAL_PAGES_ATTR`
+        // の doc・codex-review P1 指摘参照）。供給値は表示中 `item` の
+        // `data-index` 最大値以上でなければならず（それ未満は改ざん・
+        // 陳腐化とみなす）、非数値・`0` も含めすべて fail-closed に
+        // `None` とする。未供給時は従来どおり `max_index` を使う。
+        let total = match pagination_root.get_attribute(PAGINATION_TOTAL_PAGES_ATTR) {
+            Some(total_str) => {
+                let total: u64 = total_str.parse().ok()?;
+                if total == 0 || total < max_index {
+                    return None;
+                }
+                total
+            }
+            None => max_index,
+        };
+
         if let Some(&current) = selected.first() {
-            return Some((current, max_index));
+            return Some((current, total));
         }
         let current_str = pagination_root.get_attribute(CURRENT_PAGE_ATTR)?;
         let current: u64 = current_str.parse().ok()?;
-        Some((current, max_index))
+        Some((current, total))
     }
 
     /// pagination のトリガー/`item` クリックを処理する。`trigger` が
@@ -992,9 +1039,31 @@ mod wiring {
     /// `Closure::forget` は定数 2 個（`click` リスナー 1・
     /// `MutationObserver` コールバック 1）に限定する。
     ///
+    /// `click` リスナーは **capture フェーズ**で登録する
+    /// （`use_capture: true`。`chart_range.rs::wiring::wire_chart_range_events`
+    /// と同じ手段）。列表示切替トリガー
+    /// （[`fandhe_frontend_headless_ui::data_table::column_toggle_item`]）は
+    /// `menu`/`checkbox-item` であり、同一クリックは `crate::headless`
+    /// の bubble フェーズリスナーでも並行して解決され得る（モジュール
+    /// 冒頭「`headless::MAPPING_TABLE` へ登録しない理由」節）。その
+    /// bubble リスナーが `event.stop_propagation()` を呼ぶと、本モジュールの
+    /// リスナーを従来どおり bubble フェーズで `root` へ登録した場合は
+    /// クリックが `root` まで bubble せず [`handle_click`] が一切呼ばれず
+    /// 列表示切替の書き戻しと `data-table:toggle-column` 通知が無音で
+    /// no-op になる（Cursor Bugbot 指摘）。DOM のイベント capturing
+    /// フェーズは同一イベントのどの target の bubbling フェーズ
+    /// リスナーよりも必ず先に完了するという契約を利用し、
+    /// `stop_propagation()` の有無に関わらず [`handle_click`] を確実に
+    /// 実行する。[`handle_toggle_column`] 等の各ハンドラは DOM 上の現在
+    /// 状態（`hidden`/`data-hidden`・`aria-sort`・`item` の
+    /// `data-selected` 等）から自己完結に新状態を導出し `data-state`/
+    /// `aria-checked` 等を自ら書き戻すため、headless 側のクリック処理が
+    /// まだ実行されていない時点（capture フェーズ）で呼ばれても正しく
+    /// 動作する。
+    ///
     /// # Errors
     ///
-    /// `add_event_listener_with_callback`/
+    /// `add_event_listener_with_callback_and_bool`/
     /// `MutationObserver::observe_with_options` の失敗を伝播する。
     pub fn wire_data_table_events(
         root: Element,
@@ -1013,7 +1082,11 @@ mod wiring {
         let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_click(&click_root, &event, &click_on_action);
         });
-        root.add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())?;
+        root.add_event_listener_with_callback_and_bool(
+            "click",
+            click_closure.as_ref().unchecked_ref(),
+            true,
+        )?;
         click_closure.forget();
 
         let observer_root = root.clone();
