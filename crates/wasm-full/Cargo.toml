@@ -1014,10 +1014,12 @@ name = "fandhe-frontend-wasm-full"
 # を origin/main（#2326/#2327/#2333/#2209 等の配線群別 feature gating・
 # scope feature 導入を経て 0.20.4 へ到達済み）へ追随させる。既存の
 # message-scroller 配線を新設の feature `message-scroller`（既定 on）で
-# ゲートし、他の配線群 feature と同じパターンへ合わせる新規公開 API
-# 追加（feature 自体は Cargo.toml のみの変更だが、`default-features = false`
-# 利用者への配線提供有無を変える意味論的な追加）のため、main の到達値
-# 0.20.4 から +1 して 0.20.5 とする。
+# ゲートし、他の配線群 feature と同じパターンへ合わせた。`message_scroller`
+# は crates.io 公開済みのどの版にも存在せず、本 PR で初めてゲート付き
+# （既定 on）として main へ導入されるため、既存利用者が失う配線は無い
+# （追加のみの非破壊的変更。`position`〔0.20.1〕と同型の判断）。よって
+# minor ではなく patch とし、main の到達値 0.20.4 から +1 して 0.20.5 と
+# する。
 version = "0.20.5"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"

@@ -2860,10 +2860,12 @@ feature は追加しない（レビュー指摘 #2122 でバンドルサイズ�
 PR #2312（本イシューの再開、Phase 9〔#2326/#2327〕の配線群別 feature
 gating 規約への追随）で、`Runtime::wire_message_scroller` 呼び出しを
 他の配線群と同型の `message-scroller` feature（既定 on、`Cargo.toml`
-§33.2 対応表参照）でゲートした。既定はすべて on のため既定構成の
-挙動は変わらないが、`default-features = false` 利用者が失う配線が
-14 → 15 件へ増える破壊的変更（§33.3 参照）にあたるため、main の
-到達値 0.20.4 から +1 して 0.20.5 とする。
+§33.2 対応表参照）でゲートした。`message_scroller` モジュール自体が
+crates.io 公開済みのどの版にも存在せず、本 PR で初めてゲート付き
+（既定 on）として main へ導入されるため、既存利用者が失う配線は無い
+（追加のみの非破壊的変更、`position`〔0.20.1〕と同型の判断）。よって
+minor ではなく patch とし、main の到達値 0.20.4 から +1 して 0.20.5 と
+する。
 
 テストは native（`crates/wasm-full/src/message_scroller.rs` 内
 `#[cfg(test)] mod tests` の純粋関数単体テスト、

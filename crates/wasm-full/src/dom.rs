@@ -81,9 +81,18 @@ pub(crate) fn mount_initial<C: Component>(root: &web_sys::Element, component: &C
 /// 渡すが、将来 DOM/アプリ由来の動的な `name`/`value` が渡されても
 /// `fandhe_frontend_core::url` のガード関数群
 /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
-/// `is_safe_srcset`）を経由する防御を保つ。
+/// `is_safe_srcset`）を経由する防御を保つ。`style` 属性は利用者の
+/// インラインスタイルを破壊しないよう CSSOM の `set_property`
+/// （`content_height`/`position` の `apply_css_vars` 等）で反映すべきで
+/// あり、本関数では扱わない（イシュー #2209 レビュー指摘、base 取り込み
+/// 〔PR #2312〕で `position.rs` 側の重複実装が本関数へ統合された際に
+/// 落とさないよう再掲する）。
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn set_dom_attribute(element: &web_sys::Element, name: &str, value: &str) {
+    debug_assert!(
+        !name.eq_ignore_ascii_case("style"),
+        "style 属性は apply_css_vars を使うこと（利用者スタイルの上書き防止）"
+    );
     if fandhe_frontend_core::is_event_handler_attr(name) {
         return;
     }
