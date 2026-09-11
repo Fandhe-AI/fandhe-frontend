@@ -53,6 +53,11 @@ title = "JS ゼロ SSG での利用ガイド"
 source = "docs/guides/no-js-ssg.md"
 path = "/guides/no-js-ssg/"
 
+[[section.page]]
+title = "wasm-full feature 選択ガイド"
+source = "docs/guides/wasm-full-features.md"
+path = "/guides/wasm-full-features/"
+
 [[section]]
 title = "Examples"
 index_path = "/examples/"

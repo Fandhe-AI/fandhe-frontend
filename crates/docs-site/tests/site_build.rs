@@ -229,9 +229,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // （Primitives）が加わり、229 → 230 になった。イシュー #2125 で
     // Data Table（Primitives）が加わり、230 → 231 になった。イシュー
     // #2123 で Message Scroller（Themes）が加わり、231 → 232 になった。
+    // イシュー #2330 で wasm-full feature 選択ガイド（Guides セクション）が
+    // 加わり、232 → 233 になった。
     assert_eq!(
         report.written.len(),
-        232,
+        233,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

@@ -553,10 +553,59 @@ headless-ui 部品のクリック dispatch 全般）も同時に登録してい�
 4. dist-server 経路の feature 集合決定（§8 (A)/(B) のユーザー判断）と
    `bundle_size.rs` 契約の更新。**実装済み（イシュー #2329）**: §8 追記
    参照。
-5. docs（feature 一覧の利用者向けドキュメント化、§11 条件 5 の移行手順を
-   含む）・examples への反映。
+5. **実装済み（イシュー #2330）。** feature 一覧・移行手順の利用者向け
+   ドキュメント化・examples への反映は
+   [`docs/guides/wasm-full-features.md`](../guides/wasm-full-features.md)
+   （サイト `/guides/wasm-full-features/`）へ集約した。
+   `examples/interactive-view-transitions`（feature 指定例）・
+   `examples/dist-server-docker`（最小構成の言及）2 件の README/`wasm/Cargo.toml`
+   へも反映済み。詳細は §16 を参照。
 
 見送りとなった場合はこれらの issue は起票しない。
+
+## 16. 採用決定と実装結果の記録（2026-09-11、#2326〜#2330）
+
+**採用決定**: §12 の再評価トリガーのうち次の 3 件が発火した（「利用者から
+具体的な feature 選択要望が寄せられる」は発火していない）ことを受け、
+ユーザー判断で §8 (A)・§11 条件 5 (ii) を採用した。
+
+- `bundle-size` の実測（(a) ベースライン 199,167 B）が #1968 の警告
+  しきい値（190,000 B）を恒常的に超えていた。
+- wasm-opt 導入は #1972 で見送りが確定しており、この状態でも REQ-11
+  上限に対する余裕は 833 B しかなかった（10 KB 未満）。
+- headless-ui への部品追加ペースが継続しており（本文書 §11 が引用する
+  message-scroller / data-table 追加の懸念）、wasm-full が新規にリンク
+  するモジュールが増える傾向にあった。
+
+**実装結果**:
+
+- 配線群別 feature 14 件（イシュー #2326、`fandhe-frontend-wasm-full`
+  0.19.0）・scope feature 16 件（イシュー #2327、同 0.20.0）・
+  `position` feature（イシュー #2209/#2332、同 0.20.1）の対応表・移行
+  手順は `crates/wasm-full/src/lib.rs` クレート doc と
+  [`docs/guides/wasm-full-features.md`](../guides/wasm-full-features.md)
+  に集約した（一次情報は前者、利用者向け再構成が後者）。
+- readonly RadioGroup の click capture 保護分離後の再計測（本文書「実測値
+  の留保の解消」節）: (a) 199,167 B → (d') 129,558 B（34.9% 削減）。
+- `fandhe-frontend-dist-server`（0.2.8 → 0.3.0、イシュー #2329）の最小
+  インタラクティブコンポーネント構成（6 feature）: 最終 gzip
+  120,618 B（wasm-opt 適用済みローカル実測、CI は wasm-opt 未導入）。
+- CI feature matrix 4 ジョブ（イシュー #2328）が既定/縮小/全構成の
+  clippy を常設検証する。
+
+**成果物一覧**: PR #2333（#2326）・PR #2339（#2327）・PR #2340（#2328）・
+PR #2341（#2329）・本イシュー #2330（利用者向けドキュメント反映）。
+
+**残件（Issue 化候補、起票はしていない）**:
+
+1. `crates/wasm-full/src/lib.rs` の feature 対応表への「dist-server 最小
+   構成」相互参照追記（wasm-full のバンプを伴うため #2330 では実施せず）。
+2. `build.rs`/`crates/wasm-full/tests/bundle_size.rs` のネストビルドへの
+   `--locked` 付与の是非。
+3. `examples/interactive-view-transitions/wasm` の `fandhe-frontend-wasm-full`
+   pin（0.7.0）を feature 導入後の版（0.20.1 以降）へ更新し、feature
+   指定例をコメントから実際の依存指定へ昇格させること（crates.io へ
+   0.20.1 以降が公開された後に対応）。
 
 ## 14. セキュリティ考慮事項（OWASP Top 10 観点）
 
