@@ -993,7 +993,7 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 | —（対応 md なし） | — | — | — | — | Marker (`marker`) | `marker` | `marker` | 実装済み | headless+styled 実装済み（#2114 anatomy / #2115 recipe・Themes ページ）。root/icon/content の 3 slot、`data-variant`/`data-tone` を AttrEq 参照 |
 | —（対応 md なし） | — | — | — | — | Questionnaire (`questionnaire`) | `questionnaire` | `questionnaire` | 実装済み | headless+styled 実装済み（#2117 anatomy / #2118 wasm-full 配線 / #2119 recipe・Themes ページ）。root/progress/question/prompt/description/options/freeform/actions/back/next/skip の 11 slot、`data-state`/`data-answered`/`data-skipped`/`data-invalid`/`data-disabled`/`data-complete` を AttrEq/Attr 参照。回答の保持・検証・分岐はアプリ責務（§3.25 規則 1） |
 | —（対応 md なし） | — | — | — | — | Message Scroller (`message-scroller`) | `message_scroller` | `message_scroller` | 実装済み | headless+styled 実装済み（#2121 anatomy / #2123 recipe・Themes ページ）。root/viewport/content/anchor/jump-to-latest/load-more の 6 slot、`data-stuck`/`data-has-new`/`data-visible`/`data-loading`/`data-disabled`/`hidden` を AttrEq/Attr 参照。計測配線は #2122 |
-| —（対応 md なし） | — | — | — | — | Data Table (`data-table`) | — | — | 実装対象 | 構造・DOM 配線のみ追加（ユーザー判断 2026-09-07、#2006）。並べ替え・絞り込み・ページ取得のロジックは §3.25 規則 1 により非採用。Phase 4、#2124。判定根拠の詳細は #2006 が §12 へ転記 |
+| —（対応 md なし） | — | — | — | — | Data Table (`data-table`) | `data_table` | `data_table` | 実装済み | headless+styled 実装済み（#2125 anatomy / #2127 recipe・Themes ページ）。root/toolbar/column-header/sort-trigger/select-all/select-row/footer/selection-count の 8 slot、`data-loading`/`data-empty`/`data-sort`/`data-state`/`data-hidden` を Attr/AttrEq 参照。並べ替え・絞り込み・ページ取得のロジックは §3.25 規則 1 により非採用。wasm-full の DOM 配線は #2126 |
 | —（対応 md なし） | — | — | — | — | Sonner (`sonner`) | — | `toast`（スタック表示・Toaster 相当） | 実装済み | shadcn/ui v4 は旧来の `toast`（トースト単発表示）と新しい `sonner`（スタック表示ライブラリ）の両ページを別コンポーネントとして掲載する。fandhe の既存 `toast`（ark-ui `overlays/toast.md` 行。同行の shadcn 列は Toast の slug を記入済み）がスタック表示までを含めて対応する。#2040 でスタック表示の突合詳細を確認予定 |
 | —（対応 md なし） | — | — | — | — | Radial Chart (`charts/radial`) | — | `radial_chart` | 実装済み | styled 層のみ（headless anatomy なし、pie/donut と同判断）。#2078（#2079 SVG ジオメトリ・recipe / #2080 Themes ページ）。shadcn/ui Charts Library の simple/label/grid/text/shape/stacked 相当 |
 
@@ -1338,7 +1338,7 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
 | Marker (`marker`) | Part F | #2113 | 実装済み（#2114 / #2115） |
 | Questionnaire (`questionnaire`) | Part F | #2116 | 実装済み（#2117 / #2118 / #2119） |
 | Message Scroller (`message-scroller`) | Part F | #2120 | 実装済み（#2121 / #2123。配線 #2122 は別途） |
-| Data Table (`data-table`) | Part F | #2124 | 実装対象確定（構造・DOM 配線のみ。データ整形・並べ替えロジックは §3.25 規則 1 により非対象、ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
+| Data Table (`data-table`) | Part F | #2124 | 実装済み（#2125 / #2127。データ整形・並べ替えロジックは §3.25 規則 1 により非対象、ユーザー判断 2026-09-07。wasm-full の DOM 配線は #2126 は別途） |
 | Radial Chart (`radial-chart`) | Part F | #2078 | 実装済み（#2079 / #2080） |
 
 **7 部品の判定根拠（イシュー #2006、`intentional-non-adoption.md` §3.25
@@ -1359,8 +1359,8 @@ data-table）の判定根拠の詳細記述はイシュー #2006 が本節へ転
   headless-ui 層は #2125 で実装済み（`<table>`/`<thead>`/`<tbody>`/`<tr>`
   は生成せず、`column_attrs`/`column_header_attrs`/`row_attrs` の属性
   ヘルパで pre-styled `table::*` へパススルーする設計）。pre-styled-ui
-  recipe・golden・Themes ページ・本表の「実装対象」→「実装済み」区分
-  変更は後続イシュー #2127 のスコープ。
+  recipe・golden・Themes ページは #2127 で実装済み（本表の区分も
+  「実装済み」へ更新済み）。
 - **Message / Bubble / Attachment / Marker（会話系 4 部品、#2104 / #2107 /
   #2110 / #2113、規則 1 適用）**: 4 部品は AI チャット UI の**表示**部品群
   であり、ストリーミング表示・送信・履歴取得・必須回答判定等のアプリ

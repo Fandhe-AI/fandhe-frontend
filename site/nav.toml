@@ -961,6 +961,11 @@ source = "site/themes/data-list.md"
 path = "/themes/data-list/"
 
 [[section.group.page]]
+title = "Data Table"
+source = "site/themes/data-table.md"
+path = "/themes/data-table/"
+
+[[section.group.page]]
 title = "Empty State"
 source = "site/themes/empty-state.md"
 path = "/themes/empty-state/"

@@ -260,7 +260,9 @@ fn build_succeeds_with_zero_redirects_when_manifest_is_absent() {
 /// #2119 で Questionnaire の Themes ページ新設に伴い
 /// `/components/questionnaire/` を追加し、123 件になった。イシュー #2123
 /// で Message Scroller の Themes ページ新設に伴い
-/// `/components/message-scroller/` を追加し、現在は 124 件。本値の更新が
+/// `/components/message-scroller/` を追加し、124 件になった。イシュー
+/// #2127 で Data Table の Themes ページ新設に伴い
+/// `/components/data-table/` を追加し、現在は 125 件。本値の更新が
 /// 要る変更は fail-closed に検知する（黙って増減しても気付けるように
 /// する意図。`tests/site_build.rs` のページ数固定と同型）。
 #[test]
@@ -277,7 +279,7 @@ fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
         redirect::parse_redirects(&input).expect("site/redirects.toml should parse cleanly");
     assert_eq!(
         redirects.entries.len(),
-        124,
+        125,
         "site/redirects.toml の宣言件数が期待値と異なる: {:?}",
         redirects.entries
     );
@@ -337,8 +339,8 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         .collect();
     assert_eq!(
         themes_pages.len(),
-        122,
-        "expected 122 site/themes/ pages, got {}: {themes_pages:?}",
+        123,
+        "expected 123 site/themes/ pages, got {}: {themes_pages:?}",
         themes_pages.len()
     );
 

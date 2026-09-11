@@ -351,6 +351,11 @@ mod tests {
             ("strong", crate::strong::css()),
             ("highlight", crate::highlight::css()),
             ("table", crate::table::css()),
+            // data_table（イシュー #2127）の select-all/select-row は
+            // `table` と同じセル階層（`<th>`/`<td>`）に載るため、`table`
+            // の登録直後に置く（message_scroller と同じ「関連 scope の
+            // 後段固定」判断）。
+            ("data_table", crate::data_table::stylesheet()),
             ("data_list", crate::data_list::css()),
             ("stat", crate::stat::css()),
             ("timeline", crate::timeline::css()),

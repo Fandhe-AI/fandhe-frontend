@@ -138,6 +138,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [Card](./themes/card.md)
 - [Color Swatch](./themes/color-swatch.md)
 - [Data List](./themes/data-list.md)
+- [Data Table](./themes/data-table.md)
 - [Empty State](./themes/empty-state.md)
 - [Icon](./themes/icon.md)
 - [Image](./themes/image.md)

@@ -219,8 +219,9 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // Data Table（Primitives）が加わり、230 → 231 になった。イシュー
     // #2123 で Message Scroller の Themes ページが加わり、231 → 232
     // になった。イシュー #2330 で wasm-full feature 選択ガイド
-    // （Guides セクション）が加わり、232 → 233 になった。
-    assert_eq!(pages.len(), 233, "expected 233 pages, got {pages:?}");
+    // （Guides セクション）が加わり、232 → 233 になった。イシュー #2127
+    // で Data Table の Themes ページが加わり、233 → 234 になった。
+    assert_eq!(pages.len(), 234, "expected 234 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
@@ -338,15 +339,16 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // Bubble が加わり 117 → 118、イシュー #2112 で Attachment が加わり
     // 118 → 119、イシュー #2115 で Marker が加わり 119 → 120、イシュー
     // #2119 で Questionnaire が加わり 120 → 121、イシュー #2123 で
-    // Message Scroller が加わり 121 → 122）。
+    // Message Scroller が加わり 121 → 122、イシュー #2127 で
+    // Data Table が加わり 122 → 123）。
     let themes_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/themes/"))
         .collect();
     assert_eq!(
         themes_pages.len(),
-        123,
-        "expected 123 /themes/ pages (122 部品 + 1 索引), got {themes_pages:?}"
+        124,
+        "expected 124 /themes/ pages (123 部品 + 1 索引), got {themes_pages:?}"
     );
 
     let source_based_component_pages = pages
@@ -354,8 +356,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .filter(|(source, _)| source.starts_with("site/themes/"))
         .count();
     assert_eq!(
-        source_based_component_pages, 122,
-        "expected 122 pages sourced from site/themes/"
+        source_based_component_pages, 123,
+        "expected 123 pages sourced from site/themes/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ

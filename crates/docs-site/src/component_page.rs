@@ -229,6 +229,10 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
         crate::component_specs_nav_data::DATA_LIST,
     ),
     (
+        "/themes/data-table/",
+        crate::component_specs_nav_data::DATA_TABLE,
+    ),
+    (
         "/themes/empty-state/",
         crate::component_specs_nav_data::EMPTY_STATE,
     ),

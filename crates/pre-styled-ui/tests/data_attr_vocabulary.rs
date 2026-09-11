@@ -2598,3 +2598,100 @@ fn questionnaire_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains("[hidden]"));
     assert!(!css.contains("fd-questionnaire--"));
 }
+
+/// `crate::data_table`（イシュー #2127）の 8 パーツは `data-loading`/
+/// `data-empty`/`aria-busy`/`data-sort`/`aria-sort`/`data-column`/
+/// `hidden`/`data-hidden`/`data-state`/`data-selected`/`data-value`/
+/// `scope`/`type` を一切自前で生成せず、headless
+/// [`fandhe_frontend_headless_ui::data_table`]（#2125）が出力したものを
+/// そのまま通すのみであることを固定する
+/// （`message_scroller_parts_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。
+#[test]
+fn data_table_styled_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    use fandhe_frontend_pre_styled_ui::data_table as styled_data_table;
+
+    let root_html = render(&styled_data_table::root(
+        styled_data_table::DataTableProps {
+            loading: true,
+            empty: false,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(root_html.contains("data-loading"));
+    assert!(root_html.contains(r#"aria-busy="true""#));
+    assert!(!root_html.contains("data-empty"));
+
+    let table = styled_data_table::DataTable::new(
+        Some(("name".to_string(), SortDirection::Ascending)),
+        Vec::new(),
+    );
+    let sort_trigger_html = render(&styled_data_table::sort_trigger(
+        &table,
+        "name",
+        vec![],
+        vec![],
+    ));
+    assert!(sort_trigger_html.contains(r#"data-value="name""#));
+    assert!(sort_trigger_html.contains(r#"data-sort="ascending""#));
+    assert!(sort_trigger_html.contains(r#"type="button""#));
+
+    let column_header_html = render(&styled_data_table::column_header(
+        &table,
+        "name",
+        true,
+        vec![],
+        vec![],
+    ));
+    assert!(column_header_html.contains(r#"scope="col""#));
+    assert!(column_header_html.contains(r#"aria-sort="ascending""#));
+    assert!(column_header_html.contains(r#"data-column="name""#));
+
+    for (state, expected) in [
+        (CheckedState::Unchecked, "unchecked"),
+        (CheckedState::Checked, "checked"),
+        (CheckedState::Indeterminate, "indeterminate"),
+    ] {
+        let select_row_html = render(&styled_data_table::select_row(state, vec![], vec![]));
+        assert!(select_row_html.contains(&format!(r#"data-state="{expected}""#)));
+    }
+
+    // 呼び出し側 `class` は除去され、見た目クラスのなりすましを許さない
+    // （A05 対策）。
+    let spoofed = render(&styled_data_table::root(
+        styled_data_table::DataTableProps::default(),
+        vec![("class", "evil")],
+        vec![],
+    ));
+    assert!(!spoofed.contains("class="));
+}
+
+/// [`fandhe_frontend_pre_styled_ui::data_table::column_header_attrs`]
+/// を経由して [`fandhe_frontend_pre_styled_ui::table::column_header`]
+/// （表本体、`crate::table`）へパススルーしても `aria-sort`/`data-sort`/
+/// `hidden`/`data-hidden` が失われないことを固定する（Themes 推奨経路、
+/// `src/data_table.rs` モジュール doc「Themes 推奨の組み立て」節参照）。
+#[test]
+fn data_table_styled_column_header_passthrough_keeps_aria_sort() {
+    use fandhe_frontend_pre_styled_ui::data_table::{
+        column_header_attrs, ColumnHeaderProps as StyledColumnHeaderProps,
+        ColumnProps as StyledColumnProps, SortDirection as StyledSortDirection,
+    };
+    use fandhe_frontend_pre_styled_ui::table;
+
+    let props = StyledColumnHeaderProps {
+        column: StyledColumnProps {
+            id: "email",
+            hidden: true,
+        },
+        sort: Some(StyledSortDirection::Descending),
+    };
+    let html = render(&table::column_header(column_header_attrs(&props), vec![]));
+    assert!(html.contains(r#"scope="col""#));
+    assert!(html.contains(r#"aria-sort="descending""#));
+    assert!(html.contains(r#"data-sort="descending""#));
+    assert!(html.contains(r#"data-column="email""#));
+    assert!(html.contains("hidden"));
+    assert!(html.contains("data-hidden"));
+}

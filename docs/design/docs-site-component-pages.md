@@ -149,6 +149,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Combobox | `combobox` | Forms | `/themes/combobox/` | `site/themes/combobox.md` | `combobox_section()` |
 | Command | `command` | Forms | `/themes/command/` | `site/themes/command.md` | `command_section()`（#2070 で新設） |
 | Data List | `data_list` | Data Display | `/themes/data-list/` | `site/themes/data-list.md` | `data_list_section()` |
+| Data Table | `data_table` | Data Display | `/themes/data-table/` | `site/themes/data-table.md` | `data_table_section()`（#2127 で新設） |
 | Date Input | `date_input` | Forms | `/themes/date-input/` | `site/themes/date-input.md` | `date_input_section()` |
 | Date Picker | `date_picker` | Forms | `/themes/date-picker/` | `site/themes/date-picker.md` | `date_picker_section()` |
 | Dialog | `dialog` | Interactive | `/themes/dialog/` | `site/themes/dialog.md` | `dialog_section()` |
@@ -296,8 +297,8 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `clipboard` `collapsible` `dialog` `drawer` `floating_panel` `hover_card`
   `menu` `nav_list` `pagination` `popover` `sidebar` `splitter` `steps`
   `tabs` `toast` `toggle_tip` `tooltip` `tour`
-- **Data Display (27)**: `alert` `attachment` `avatar` `badge` `bubble` `card` `color_swatch`
-  `data_list` `empty_state` `icon` `image` `item` `json_tree_view` `marker`
+- **Data Display (28)**: `alert` `attachment` `avatar` `badge` `bubble` `card` `color_swatch`
+  `data_list` `data_table` `empty_state` `icon` `image` `item` `json_tree_view` `marker`
   `message` `message_scroller` `progress` `qr_code` `skeleton` `spinner` `stat` `status` `table`
   `tag` `timeline` `timer` `tree_view`
 - **Utilities (6)**: `link_overlay` `marquee` `scroll_area` `separator`

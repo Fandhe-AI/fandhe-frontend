@@ -100,6 +100,8 @@ rotate` 消費へ変更〔値変更〕、`positioner[data-side="top"/"left"/"rig
 **message（イシュー #2106 で golden 新設。`stylesheet()` 全文）** /
 **message_scroller（イシュー #2123 で golden 新設。`stylesheet()` 全文
 〔raw CSS 子結合子規則を含む〕）** /
+**data_table（イシュー #2127 で golden 新設。`stylesheet()` 全文
+〔raw CSS `::after` 規則を含む〕）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
 pin_input / progress / qr_code / **questionnaire（イシュー #2119 で
 golden 新設。`stylesheet()` 全文〔raw CSS 子孫規則を含む〕）** /

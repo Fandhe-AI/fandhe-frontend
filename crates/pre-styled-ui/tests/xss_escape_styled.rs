@@ -7102,3 +7102,128 @@ fn menu_and_menubar_item_checkbox_item_radio_item_value_attrs_and_children_are_e
         assert!(html.contains(r#"role="menuitemradio""#));
     }
 }
+
+/// `crate::data_table`（イシュー #2127）の 9 ラッパ（`root`/`toolbar`/
+/// `column_header`/`sort_trigger`/`select_all`/`select_row`/`footer`/
+/// `selection_count`/`column_toggle_item`）の attrs/class/children/列 id
+/// 経路すべてを `payloads::all()` で固定する。
+#[test]
+fn data_table_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::checkbox::CheckedState;
+    use fandhe_frontend_pre_styled_ui::data_table::{
+        self as styled_data_table, ColumnProps, DataTable, DataTableProps,
+    };
+
+    for payload in payloads::all() {
+        // root: attrs / class 経路。
+        let html = render(&styled_data_table::root(
+            DataTableProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "data_table::root attrs コンテキスト");
+
+        let html = render(&styled_data_table::root(
+            DataTableProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "data_table::root の class 属性に渡した生ペイロードが出力に残って\
+             いる: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 0);
+
+        // toolbar/footer/selection_count: attrs・children 経路（純スロット）。
+        let html = render(&styled_data_table::toolbar(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "data_table::toolbar attrs コンテキスト");
+        assert_payload_is_escaped(payload, &html, "data_table::toolbar children コンテキスト");
+
+        let html = render(&styled_data_table::footer(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "data_table::footer attrs コンテキスト");
+
+        let html = render(&styled_data_table::selection_count(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::selection_count children コンテキスト",
+        );
+
+        // column_header/sort_trigger: 列 id（data-column/data-value）経路。
+        let table = DataTable::default();
+        let html = render(&styled_data_table::column_header(
+            &table,
+            payload,
+            true,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::column_header 列 id/attrs/children コンテキスト",
+        );
+
+        let html = render(&styled_data_table::sort_trigger(
+            &table,
+            payload,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::sort_trigger 列 id/attrs/children コンテキスト",
+        );
+
+        // select_all/select_row: attrs・children 経路。
+        let html = render(&styled_data_table::select_all(
+            CheckedState::Unchecked,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "data_table::select_all attrs コンテキスト");
+
+        let html = render(&styled_data_table::select_row(
+            CheckedState::Unchecked,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "data_table::select_row attrs コンテキスト");
+
+        // column_toggle_item: 列 id（data-value）・attrs・children 経路。
+        let column = ColumnProps {
+            id: payload,
+            hidden: false,
+        };
+        let html = render(&styled_data_table::column_toggle_item(
+            &column,
+            false,
+            false,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_table::column_toggle_item 列 id/attrs/children コンテキスト",
+        );
+    }
+
+    // stylesheet() は raw CSS 追記（sort-trigger ::after）を含むが動的値を
+    // 一切受け取らない。決定的かつ breakout シーケンスを含まないことを
+    // 併せて固定する。
+    let css = styled_data_table::stylesheet();
+    assert!(!css.contains("</style"));
+    assert!(!css.contains("<script"));
+}
