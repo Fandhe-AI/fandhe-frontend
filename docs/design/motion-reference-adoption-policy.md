@@ -72,9 +72,9 @@
 
 ## 7. ゼロコスト方針（判断記録8の具体化）
 
-本節が対象とするのは §3 の **C 群（フレームループ必須）相当の拡張出力のみ**である。A 群（CSS のみ）・B 群（小さな DOM 配線）は §3 の既定方針どおり常時実装対象（既定出力に含む）であり、`motion` feature のゲート対象ではない。presence（§4 の該当行）は A 群（transition ベース）に分類されるため、本節の feature ゲート・4 指標比較の対象外であり、既定出力に無条件で含む（§4 判断記録2 と整合）。
+本節が対象とするのは §4 の分類表で **C 群のみに分類され、かつ「実装対象」と定められた機能**（spring・timeline/stagger・layout（FLIP）・animate や SVG path drawing の C 範囲等）である。分類群（A/B/C）は「どこで実装するか」の軸にすぎず、「既定出力に含むか opt-in か」「実装対象か evaluation-only か」は分類群と独立に §4 の各行の採用方針が個別に定める。したがって A 群・B 群に分類された機能を一律に既定出力対象とみなしてはならない。実例: keyframes の A 範囲は Phase 2 で opt-in 提供（§4 判断記録2）、hover/press の A 範囲は既存実装済みの範囲のみで新規配線を追加しない、Motion+ の Carousel/Typewriter/ScrambleText（B/C）は evaluation-only であり実装対象外（§4）。presence（§4 該当行）は A 群（transition ベース）に分類され、かつ §4 の採用方針が「既定出力に含める opt-in ではない実装対象」と明示しているため、本節の feature ゲート・4 指標比較の対象外であり既定出力に無条件で含む（§4 判断記録2 と整合）。
 
-- `crates/pre-styled-ui/` は Cargo feature `motion`（既定 off）で **C 群相当**の拡張出力（`fandhe-frontend-animation` 経由の spring・layout FLIP・SVG path drawing 等）をコンパイル除外する。A/B 群の出力（presence を含む）はこの feature の有無に関わらず常に出力される。
+- `crates/pre-styled-ui/` は Cargo feature `motion`（既定 off）で、§4 の分類表で C 群のみに分類され「実装対象」と定められた拡張出力（`fandhe-frontend-animation` 経由の spring・layout FLIP・SVG path drawing の C 範囲等）をコンパイル除外する。presence 等、§4 が既定出力に含める実装対象と明示した機能はこの feature の有無に関わらず常に出力される。それ以外の A/B 群機能（keyframes の opt-in 提供、evaluation-only の Motion+ 機能等）の出力可否は本節の feature ゲートとは別に、§4 の各行の採用方針に従う。
 - `fandhe-animation` は `crates/wasm-full/` から見て optional 依存とし、`motion` 相当 feature が無効なら依存グラフに現れない。
 - 無効時（既定構成、= C 群拡張出力を含まない構成）に以下 4 指標が、C 群拡張出力を除いた基準値（A/B 群のみを含む構成の実測値）と比べて増加しないことを契約テストで保証する（テスト実装自体は本イシューのスコープ外。#2416 等の別 issue で行う）:
   1. crate サイズ（バイナリ・wasm バンドルサイズ）
