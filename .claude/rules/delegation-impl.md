@@ -10,11 +10,13 @@
 |---------|-------------|-------|
 | `crates/core/`（fandhe-frontend-core: 描画コア） | core-builder | sonnet |
 | `crates/interactive/`（fandhe-frontend-interactive: 状態管理コア） | core-builder | sonnet |
+| `crates/animation/`（fandhe-animation: アニメーション演算基幹） | core-builder | sonnet |
 | `crates/headless-ui/`（fandhe-frontend-headless-ui: headless UI コンポーネント層） | core-builder | sonnet |
 | `crates/pre-styled-ui/`（fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層） | core-builder | sonnet |
 | `crates/app/`（fandhe-frontend-app: アプリ構築層） | server-builder | sonnet |
 | `crates/server/`（fandhe-frontend-server: SSR/SSG/ルーティング） | server-builder | sonnet |
 | `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` | wasm-builder | sonnet |
+| `crates/frontend-animation/`（fandhe-frontend-animation: Web アニメーションアダプタ） | wasm-builder | sonnet |
 | `static/`（埋め込み HTML） | wasm-builder | sonnet |
 | `crates/xtask/` `crates/cli/` `.github/` `Dockerfile` `deny.toml` `Cargo.toml`（workspace） | tooling-builder | sonnet |
 | `docs/`（`docs/spec/` を除く）・README.md・CLAUDE.md | docs-writer | haiku |
