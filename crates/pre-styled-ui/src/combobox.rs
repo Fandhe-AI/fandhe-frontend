@@ -28,7 +28,7 @@
 //! # data-state とスタイルの連動
 //!
 //! `input`/`trigger`（listbox 開閉）・`item`（選択有無、`data-state` を
-//! 再利用）の `data-state` に応じた見た目の切り替えを [`recipe`] へ登録する
+//! 再利用）の `data-state` に応じた見た目の切り替えを `recipe` へ登録する
 //! （[`crate::select`] と同じ機構、[`crate::recipe::SlotRecipe::state`]）。
 //!
 //! # キーボード操作系属性の反映
@@ -648,7 +648,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::combobox::root`] へ
 /// 委譲する。
 ///

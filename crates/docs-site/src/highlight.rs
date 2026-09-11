@@ -143,7 +143,7 @@ pub struct Token<'a> {
 /// `src` を `lang` の規則でトークン化する。
 ///
 /// 全域性不変条件（モジュール doc 参照）を満たさない場合・上限
-/// （[`MAX_SOURCE_BYTES`] / [`MAX_TOKENS`]）を超える場合は `None` を返し、
+/// （`MAX_SOURCE_BYTES` / `MAX_TOKENS`）を超える場合は `None` を返し、
 /// 呼び出し元はプレーン表示へ倒す（設計上、`None` はエラーではなく
 /// 「色分け適用対象外」の意図的な結果）。
 pub fn tokenize(src: &str, lang: Language) -> Option<Vec<Token<'_>>> {

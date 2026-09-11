@@ -16,7 +16,7 @@
 //! [`crate::component_page::generated_content`] が `page_path` から
 //! [`SPECS`] を線形探索し、Features / API Reference の引数表 / Examples /
 //! Accessibility の各節を合成する（[`crate::component_page::ComponentPageSpec`]
-//! 参照）。Demo 節は [`crate::showcase::COMPONENT_PAGES`]（正）の
+//! 参照）。Demo 節は `crate::showcase::COMPONENT_PAGES`（正）の
 //! `link_section`/`link_overlay_section`/`nav_list_section` から供給される
 //! ため、本モジュールの `demo` フィールドはすべて `None`（イシュー #996
 //! Tab Nav・#980 Toggle と同じ正経路移設パターン）。
@@ -276,7 +276,7 @@ const NAV_LIST: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// Link / Link Overlay / Nav List 3 ページ（イシュー #1154）の
-/// `path -> ComponentPageSpec` テーブル。[`crate::component_page::SPEC_TABLES`]
+/// `path -> ComponentPageSpec` テーブル。`crate::component_page::SPEC_TABLES`
 /// が集約する。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/link/", LINK),

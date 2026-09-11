@@ -7,7 +7,7 @@
 //! # 一致判定は決定的な文字列検索のみ（ReDoS 対策・REQ-1 隣接）
 //!
 //! `query` はユーザー入力由来の**素朴な部分文字列**としてのみ扱い、正規表現
-//! としては解釈しない（本文中への埋め込みはすべて [`fandhe_frontend_core::text`]
+//! としては解釈しない（本文中への埋め込みはすべて `fandhe_frontend_core::text`
 //! 経由で既定エスケープを通し、`query` 自体も一致箇所以外は決して HTML へ
 //! 混入しない）。走査は最悪計算量 O(text バイト長 × query 数 × query バイト長)
 //! の線形探索であり、入力依存で指数的に悪化する経路を持たない
@@ -34,7 +34,7 @@
 //! 採用されることはない）。
 //!
 //! `mark` 内のテキストは走査で見つかった**原文**（大文字小文字を保持した
-//! まま）をそのまま [`fandhe_frontend_core::text`] へ渡す。`ignore_case` は
+//! まま）をそのまま `fandhe_frontend_core::text` へ渡す。`ignore_case` は
 //! 一致判定のみに影響し、出力される文字列を変形しない。
 //!
 //! # イシュー #1435 の参照サイト比較（7 軸チェック）
@@ -43,7 +43,7 @@
 //! 記録する（Radix Themes に Highlight 相当なし、ark-ui は headless
 //! utility のみで独自スタイルを持たない）。chakra Highlight 自体は
 //! `styles` prop による自由な CSS-in-JS 指定でプリセット variant 体系を
-//! 持たないため、任意 CSS 注入面を持ち込まず既存語彙（[`crate::mark`]、
+//! 持たないため、任意 CSS 注入面を持ち込まず既存語彙（[`crate::mark`](mod@crate::mark)、
 //! イシュー #1711 で 6 役割 palette 化済み）のプリセットへ写像する。
 //!
 //! - **サイズ**: 軸を新設しない（現状維持）。
@@ -66,8 +66,8 @@
 //!   （hover はインタラクティブ slot のみ）・
 //!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
 //!   （フォーカスリングはフォーカス対象部品のみ）のいずれの適用対象にも
-//!   当たらない（[`crate::code`] #1432 と同一判断）。
-//! - **余白・角丸**: `padding-inline` を [`crate::mark`] と同じ `0.25em`
+//!   当たらない（[`crate::code`](mod@crate::code) #1432 と同一判断）。
+//! - **余白・角丸**: `padding-inline` を [`crate::mark`](mod@crate::mark) と同じ `0.25em`
 //!   （chakra `px: 0.5` 相当の視覚量）へ統一した。角丸は
 //!   `--fandhe-radius-sm` を維持する。
 
@@ -306,7 +306,7 @@ fn find_matches(text: &str, props: &HighlightProps<'_>) -> Vec<Match> {
 
 /// Highlight 1 個を組み立てる。
 ///
-/// `text` を非一致区間の [`fandhe_frontend_core::text`] ノードと、一致区間の
+/// `text` を非一致区間の `fandhe_frontend_core::text` ノードと、一致区間の
 /// `<mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">` ノード（子は同じく
 /// `text()`）へ交互に分割する。両方とも既定エスケープ経由でのみ HTML へ
 /// 出力するため、`text`/`query` のどちらにペイロードを含めても

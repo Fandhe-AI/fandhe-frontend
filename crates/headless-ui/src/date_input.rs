@@ -43,7 +43,7 @@
 //! # fail-closed な日付検証（受け入れ条件）
 //!
 //! 年・月・日の各セグメントは個別に `[0, 9999]`/`[1, 12]`/`[1, 31]` へ
-//! クランプされた `Option` として保持される（[`normalize_segments`]）。3
+//! クランプされた `Option` として保持される（`normalize_segments`）。3
 //! セグメントすべてが充足したときのみ [`crate::date::PlainDate::new`] で
 //! 実在する日付か検証し、`2/30` のような存在しない日付は
 //! [`DateInput::value`] が `None` を返す（[`DateInput::is_invalid`] が
@@ -85,7 +85,7 @@
 //! - **未入力セグメントでの ArrowUp/Down 初期値**: zag は今日の日付
 //!   （`placeholderValue`）を基点にするが、本クレートは決定性優先で時計を
 //!   持たない。未入力 + Increment はその segment の最小値、未入力 +
-//!   Decrement は最大値（day は [`DateInput::day_max`]）から開始する
+//!   Decrement は最大値（day は `DateInput::day_max`）から開始する
 //!   固定規則とする。
 //! - **数字キーの桁蓄積・自動前進**（zag `SEGMENT.INPUT`）: `"set-segment"`
 //!   を「1 セグメント分の値確定」primitive として維持し、配線側
@@ -100,20 +100,20 @@
 //!   （`.claude/rules/coding-rust.md` §UI 部品の責務境界）。
 //! - **PAGE_STEP の値**: zag ソースから grep で確認できなかったため、
 //!   react-aria `useDateSegment` の値（year=5/month=2/day=7）を暫定値として
-//!   採用する（[`PAGE_STEP_YEAR`]/[`PAGE_STEP_MONTH`]/[`PAGE_STEP_DAY`] の
+//!   採用する（`PAGE_STEP_YEAR`/`PAGE_STEP_MONTH`/`PAGE_STEP_DAY` の
 //!   doc コメント参照。未検証の暫定値である旨を明記する）。
 //!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`inputmode`/`tabindex`/`type`）は
 //!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
+//!   混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`name`/`id`/整形済みセグメント文字列/呼び出し側 `attrs`/
 //!   children）は [`fandhe_frontend_core::render`] の既定エスケープを
 //!   必ず経由する。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - 呼び出し側 `attrs` によるフレームワーク固定キー（`data-type`/
-//!   `data-value`/`data-focus` 等）のなりすましは [`drop_reserved`] で
+//!   `data-value`/`data-focus` 等）のなりすましは `drop_reserved` で
 //!   除外する（状態機械の真値のみが出力される）。
 //! - dispatch payload はクライアント由来の信頼できない入力として厳密パース
 //!   および範囲検証する（[`DateInput::decode_action`]）。パース失敗・
@@ -428,7 +428,7 @@ fn drop_reserved<'a>(
 /// WAI-ARIA `spinbutton` パターンに従い `aria-valuemin`/`aria-valuemax` を
 /// 常に出力し、`aria-valuenow` は `value` が `Some` のときのみ出力する
 /// （[`crate::number_input::input`] と同じ方針）。未入力時は
-/// [`DateSegment::placeholder`] をテキストとして表示し `data-placeholder-shown`
+/// `DateSegment::placeholder` をテキストとして表示し `data-placeholder-shown`
 /// を付与する。
 #[must_use]
 pub fn segment<'a>(
@@ -521,7 +521,7 @@ pub enum DateInputAction {
     /// [`Self::Increment`] の逆方向（境界では wrap-around、未入力なら
     /// 最大値から開始）。
     Decrement,
-    /// [`Self::Increment`] を `PAGE_STEP`（[`PAGE_STEP_YEAR`] 等）分まとめて
+    /// [`Self::Increment`] を `PAGE_STEP`（`PAGE_STEP_YEAR` 等）分まとめて
     /// 行う。境界では wrap せず clamp する。
     PageIncrement,
     /// [`Self::PageIncrement`] の逆方向。
@@ -617,8 +617,8 @@ impl DateInput {
     /// 未入力（`None`）を表す hydration 属性の予約値。
     pub const HYDRATE_NONE: &'static str = "none";
 
-    /// 指定した年月日・範囲で [`DateInput`] を生成する（[`clamp_year`]/
-    /// [`clamp_month`]/[`clamp_day`]/[`normalize_min_max`] で fail-closed
+    /// 指定した年月日・範囲で [`DateInput`] を生成する（`clamp_year`/
+    /// `clamp_month`/`clamp_day`/`normalize_min_max` で fail-closed
     /// 正規化する。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(

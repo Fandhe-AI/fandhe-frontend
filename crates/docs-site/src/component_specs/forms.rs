@@ -5,7 +5,7 @@
 //! `date-input` の 5 ページは当初本ファイルへ Examples 空欄のスタブとして
 //! 登録していたが、後続のイシュー #948 が同じ 5 path へ Examples 込みの
 //! より充実した spec を `crate::component_page_specs_948::SPECS` へ登録した
-//! ことで [`crate::component_page::SPEC_TABLES`]（`spec_for` の
+//! ことで `crate::component_page::SPEC_TABLES`（`spec_for` の
 //! first-wins 解決）上で二重登録となり、本ファイル側のスタブが常に優先され
 //! #948 側の Examples が到達不能なデッドコード化していた（PR #982
 //! レビュー指摘で発覚）。#948 側の登録が正のため、本ファイルからは当該 5
@@ -16,7 +16,7 @@
 //! [`crate::component_page::generated_content`] が `page_path` から
 //! [`SPECS`] を線形探索し、Features / API Reference の引数表 / Examples /
 //! Accessibility の各節を合成する（[`crate::component_page::ComponentPageSpec`]
-//! 参照）。Demo 節は原則 [`crate::showcase::COMPONENT_PAGES`]（正）から供給
+//! 参照）。Demo 節は原則 `crate::showcase::COMPONENT_PAGES`（正）から供給
 //! されるが、`showcase.rs` に節を持たない 4 部品（Angle Slider / Image
 //! Cropper / Pin Input / Signature Pad）に限り、本ファイル末尾の `demo_*`
 //! 関数が [`ComponentPageSpec::demo`] 経由で Demo 節を供給する
@@ -81,7 +81,7 @@ use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, Ke
 /// Forms 30 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
 /// 削除・#997 で Checkbox Group・#1685 で Field・#1687 で Fieldset・#2063 で
 /// Input Group を追加済み）の `path -> ComponentPageSpec` テーブル。
-/// [`crate::component_page::SPEC_TABLES`] が集約する。
+/// `crate::component_page::SPEC_TABLES` が集約する。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/angle-slider/", ANGLE_SLIDER),
     ("/themes/button/", BUTTON),

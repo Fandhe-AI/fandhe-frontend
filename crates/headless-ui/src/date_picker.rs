@@ -28,7 +28,7 @@
 //!   `disabled`/`readonly`/`required` 存在属性へ反映し、`props.invalid` の
 //!   ときのみ `aria-invalid="true"` を追加する（[`crate::combobox::input`]
 //!   と同型）。呼び出し側 `attrs` からの状態系 `data-*` 上書きは
-//!   [`drop_reserved`] が fail-closed に除去する。
+//!   `drop_reserved` が fail-closed に除去する。
 //! - **意図的に追随しない**（理由付き）:
 //!   - ark-ui の View/ViewControl/PrevTrigger/NextTrigger/ViewTrigger/
 //!     RangeText/Table 系/TableCellTrigger/MonthSelect/YearSelect/
@@ -68,7 +68,7 @@
 //! - 文字列からの日付取り込みは [`crate::date::PlainDate::parse_iso`] の
 //!   fail-closed（`Err` で状態不変）に限定する。
 //! - 呼び出し側 `attrs` による `data-scope`/`data-part`/状態系 `data-*`
-//!   属性の上書きは [`Anatomy::part`] と [`drop_reserved`] が fail-closed に
+//!   属性の上書きは [`Anatomy::part`] と `drop_reserved` が fail-closed に
 //!   破棄する（[`crate::combobox`] と同型のパターン）。
 //!
 //! # out-of-scope（本イシュー #835 のスコープ外）

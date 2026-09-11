@@ -1,11 +1,11 @@
 //! Text（イシュー #771）: 単一 recipe styled 部品。段落テキスト（`<p>`）を
-//! `size`/`weight`/`variant` の 3 軸で組み立てる。[`crate::heading`] と対に
+//! `size`/`weight`/`variant` の 3 軸で組み立てる。[`crate::heading`](mod@crate::heading) と対に
 //! なる本文向け静的部品（headless 状態機械を要しない、badge/skeleton と
 //! 同型）。`variant`（plain/muted）はイシュー #2055 で追加した。
 //!
 //! # 呼び出し側の名前衝突に関する注意
 //!
-//! この関数名 [`text`] は [`fandhe_frontend_core::text`]（テキストノード
+//! この関数名 [`text`] は `fandhe_frontend_core::text`（テキストノード
 //! 生成関数）と同名である。両方を同一スコープへ `use` する場合は呼び出し側
 //! でモジュールパスを使う（`text::text(...)`）か `use ... as` でどちらかを
 //! 別名にする必要がある。本クレートの他モジュール（例:
@@ -15,14 +15,14 @@
 //!
 //! # colorPalette 軸を持たない理由
 //!
-//! [`crate::heading`] と同じ（中立部品、前景色トークンを継承する）。
+//! [`crate::heading`](mod@crate::heading) と同じ（中立部品、前景色トークンを継承する）。
 //!
 //! # prose（記事全体カスケード）とこの部品群の役割分担（イシュー #771）
 //!
 //! chakra-ui の `Prose`（記事全体へ一括カスケード適用するコンポーネント）
 //! に相当する機構は、本クレート（`fandhe-frontend-pre-styled-ui`）へは
-//! 導入しない。[`mod@heading`]/[`mod@text`]/[`mod@em`]/[`mod@mark`]/
-//! [`mod@blockquote`]/[`mod@list`] はいずれも「要素単位のオプトイン適用」
+//! 導入しない。`mod@heading`/`mod@text`/`mod@em`/`mod@mark`/
+//! `mod@blockquote`/`mod@list` はいずれも「要素単位のオプトイン適用」
 //! （呼び出し側が明示的に呼んだ要素にのみ既定スタイルが付く）であり、
 //! Markdown 由来の記事本文へ無選別にカスケード適用する仕組みは持たない。
 //!
@@ -51,13 +51,13 @@
 //!
 //! - **サイズ軸**: chakra の Text サイズ一覧スクショ（`chakra-text-2.png`）は
 //!   `xs` 相当の極小から大型見出し級までの広い段階を持つ。旧実装は
-//!   `xs`〜`xl` の 5 段階までしかなく、[`crate::heading`] が既に持つ
+//!   `xs`〜`xl` の 5 段階までしかなく、[`crate::heading`](mod@crate::heading) が既に持つ
 //!   `xl2`/`xl3`/`xl4`（[`crate::theme`] のテーマトークン `font-size-2xl`〜
 //!   `font-size-4xl` に対応）に相当する段が Text 側には欠落していた。本
 //!   イシューで [`TextSize::Xl2`]/[`TextSize::Xl3`]/[`TextSize::Xl4`] を
-//!   追加し、[`crate::heading`] と同じくテーマトークン全 8 段
+//!   追加し、[`crate::heading`](mod@crate::heading) と同じくテーマトークン全 8 段
 //!   （`xs`〜`4xl`）を網羅する形にした（上端の非採用範囲・再評価トリガーは
-//!   [`crate::heading`] のモジュール rustdoc「サイズトークンの縮約」節と
+//!   [`crate::heading`](mod@crate::heading) のモジュール rustdoc「サイズトークンの縮約」節と
 //!   同じ）。
 //! - **weight 軸**: chakra の Text はフォントウェイトのバリエーション
 //!   （`chakra-text-3.png` で通常〜太字までの複数段を確認）を持ち、
@@ -94,7 +94,7 @@
 //! - **align / trim / truncate / wrap / `as` prop 相当（Radix 固有のレイ
 //!   アウトユーティリティ prop）**: `radixt-text-3.png` が示す `as` prop
 //!   （`p`/`label`/`div`/`span` の切り替え）を含め非採用とする。本部品は
-//!   要素単位の styled 部品という設計であり、[`crate::heading`] の
+//!   要素単位の styled 部品という設計であり、[`crate::heading`](mod@crate::heading) の
 //!   `HeadingLevel` のように意味論選択が構造上必然な軸ではないため、
 //!   タグは `<p>` 固定のまま変更しない。
 //!
@@ -139,7 +139,7 @@ use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 /// `data-scope="text"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("text");
 
-/// Text の視覚サイズ variant（`font-size`/`line-height`。[`crate::heading`]
+/// Text の視覚サイズ variant（`font-size`/`line-height`。[`crate::heading`](mod@crate::heading)
 /// と同じくテーマトークンの範囲に合わせ `xs`〜`4xl` の 8 段階を持つ）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextSize {

@@ -19,7 +19,7 @@
 //!
 //! `angle-slider` / `clipboard` / `image-cropper` / `signature-pad` /
 //! `skip-nav` の 5 ページ（モード B）は
-//! [`crate::showcase::COMPONENT_PAGES`] に未登録で
+//! `crate::showcase::COMPONENT_PAGES` に未登録で
 //! [`crate::showcase::generated_content`] が `None` を返すため、**本モジュール
 //! へは** spec を登録してはならない（登録してもデッドコードになる）。ただし
 //! これは「原稿執筆を諦める」の意味ではない: #979 が導入した
@@ -50,7 +50,7 @@
 //! `showcase::stylesheet()` の `SHOWCASE_LAYOUT_CSS` に実在する
 //! `showcase-row`/`showcase-stack` のみ（`crates/docs-site/tests/site_css_contract.rs`
 //! の `component_page_render_introduces_no_class_outside_the_contract` が
-//! 固定する）。本モジュールの [`row`]/[`stack`] ヘルパはこの 2 class のみを
+//! 固定する）。本モジュールの `row`/`stack` ヘルパはこの 2 class のみを
 //! 出力する（`showcase.rs` 内の同名 private ヘルパと同型、`pub(crate)` では
 //! なく本モジュール内 `fn` として複製し、`showcase.rs` の変更範囲をゼロに
 //! 保つ）。
@@ -2937,7 +2937,7 @@ const DATE_INPUT_SPEC: ComponentPageSpec = ComponentPageSpec {
 // ---------------------------------------------------------------------
 
 /// イシュー #948 が供給する `path -> ComponentPageSpec` の登録テーブル。
-/// [`crate::component_page::SPEC_SOURCES`] から集約される（並列 4 PR の
+/// `crate::component_page::SPEC_SOURCES` から集約される（並列 4 PR の
 /// コンフリクトを避けるためフラットな別ファイルとして分離、モジュール doc
 /// 参照）。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[

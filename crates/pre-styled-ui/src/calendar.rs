@@ -18,7 +18,7 @@
 //! # data-state とスタイルの連動
 //!
 //! `day-trigger` の `data-selected`/`data-today`/`data-outside-month`/
-//! `data-disabled` に応じた見た目の切り替えを [`recipe`] へ登録する
+//! `data-disabled` に応じた見た目の切り替えを `recipe` へ登録する
 //! （[`crate::recipe::SlotRecipe::state`]）。
 //!
 //! # 月グリッドと日セルの状態表現の是正（イシュー #1451、親 #1450）
@@ -473,7 +473,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::calendar::root`] へ委譲する。
 #[must_use]
 pub fn root<'a>(size: Size, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {

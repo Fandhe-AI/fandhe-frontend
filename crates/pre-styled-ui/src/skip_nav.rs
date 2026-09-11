@@ -3,7 +3,7 @@
 //! `fandhe_frontend_headless_ui::skip_nav`（イシュー #776）の `link`/`content`
 //! 2 anatomy パーツを薄く再利用し、[`stylesheet`] で「キーボードフォーカス時
 //! のみ視覚的に現れる」既定 CSS を追加提供する。薄い委譲の根拠・スコープ外
-//! 事項は [`crate::separator`]/[`crate::skeleton`] の rustdoc と同じ方針に
+//! 事項は [`crate::separator`](mod@crate::separator)/[`crate::skeleton`](mod@crate::skeleton) の rustdoc と同じ方針に
 //! 従う（headless 状態機械を要しない静的部品）。
 //!
 //! # focus 時表示の表現（純 CSS、hydration 配線なし）
@@ -17,7 +17,7 @@
 //! `link`（`<a>`）自身が実フォーカスを受け取る通常のフォーカス可能要素で
 //! あるため必要ない（hidden-input パターンには該当しない）。
 //!
-//! `link` の base 宣言は [`crate::visually_hidden::clip_declarations`]
+//! `link` の base 宣言は `crate::visually_hidden::clip_declarations`
 //! （clip 手法）をそのまま再利用し（[`crate::visually_hidden`] モジュール
 //! doc 参照）、`StateCondition::FocusVisible` の宣言で `position: fixed` +
 //! 座標 + 背景 + `z-index` + 文字スタイルを上書きして視覚的に復元し、
@@ -74,12 +74,12 @@
 //! # セキュリティ不変条件
 //!
 //! - HTML 文字列の直接組み立てを行わず、すべての出力は headless 層 →
-//!   [`fandhe_frontend_core::render`] の既定エスケープを経由する
+//!   `fandhe_frontend_core::render` の既定エスケープを経由する
 //!   （`raw_html()` の新規使用なし）。`href` の構成（`#<id>` 固定・スキーム
 //!   注入経路なし）は headless 層（`crates/headless-ui/src/skip_nav.rs`
 //!   rustdoc）が担う。
 //! - 呼び出し側 `attrs` に含まれる `class` は
-//!   [`crate::class_attr::drop_class_attr`] で除去してから合成する
+//!   `crate::class_attr::drop_class_attr` で除去してから合成する
 //!   （`class` 属性は常に単一）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
@@ -160,7 +160,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled `link` パーツを組み立てる。呼び出し側 `attrs` の `class` は
-/// [`drop_class_attr`] で除去する。実体は
+/// `drop_class_attr` で除去する。実体は
 /// [`fandhe_frontend_headless_ui::skip_nav::link`] へ委譲する。
 ///
 /// # Examples
@@ -179,7 +179,7 @@ pub fn link<'a>(id: &str, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -
 }
 
 /// styled `content` パーツを組み立てる。呼び出し側 `attrs` の `class` は
-/// [`drop_class_attr`] で除去する。実体は
+/// `drop_class_attr` で除去する。実体は
 /// [`fandhe_frontend_headless_ui::skip_nav::content`] へ委譲する。
 #[must_use]
 pub fn content<'a>(id: &'a str, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {

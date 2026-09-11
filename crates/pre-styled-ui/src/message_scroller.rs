@@ -162,13 +162,13 @@
 //! `--fandhe-motion-duration-*` 一括 0ms 化（`docs/design/pre-styled-ui-
 //! interaction-visual-language.md` 参照）の対象外である（[`crate::scroll_area`]
 //! はそもそも `scroll-behavior: smooth` を使わないため前例がなく、本モジュール
-//! が独立に対応する）。[`crate::marquee`] の `css()` と同型のパターンで、
+//! が独立に対応する）。[`crate::marquee`](mod@crate::marquee) の `css()` と同型のパターンで、
 //! [`stylesheet`] が `@media (prefers-reduced-motion: reduce) { viewport {
 //! scroll-behavior: auto; } }` を末尾へ追記し、前庭障害のあるユーザー
 //! （WCAG 2.3.3 Animation from Interactions）向けにスクロールアニメーション
 //! を無効化する。
 //!
-//! # load-more の spinner（[`crate::button`] と同型）
+//! # load-more の spinner（[`crate::button`](mod@crate::button) と同型）
 //!
 //! [`SlotRecipe::pseudo_element`]（イシュー #2201）は状態条件と合成できない
 //! （`docs/api/pre-styled-ui-api.md` 該当節参照）ため `[data-loading]::before`
@@ -204,9 +204,9 @@
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless [`fandhe_frontend_headless_ui::message_scroller`]
-//!   → [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//!   → `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する（6 パーツすべて）。
 //! - [`stylesheet`] が組み立てる CSS 宣言・selector 断片はすべて
 //!   コンパイル時静的リテラルであり、[`crate::css::decl`]/
@@ -470,7 +470,7 @@ pub fn stylesheet() -> String {
 /// styled `root` パーツを組み立てる。見た目クラスは付与せず（モジュール
 /// doc「`data-stuck`/`data-has-new`/`data-visible`/`data-loading`/
 /// `data-disabled` の表現」節参照）、呼び出し側 `class` を
-/// [`drop_class_attr`] で除去してから
+/// `drop_class_attr` で除去してから
 /// [`fandhe_frontend_headless_ui::message_scroller::root`] へそのまま
 /// 委譲する。
 #[must_use]

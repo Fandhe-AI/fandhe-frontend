@@ -407,7 +407,7 @@ impl RatingGroup {
     /// （[`crate::number_input::NumberInput::HYDRATE_VALUE_NONE`] と同型）。
     pub const HYDRATE_VALUE_NONE: &str = "none";
 
-    /// 指定した状態で [`RatingGroup`] を生成する（[`normalize`] で
+    /// 指定した状態で [`RatingGroup`] を生成する（`normalize` で
     /// fail-closed 正規化する。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(count: u32, value: Option<u32>, readonly: bool) -> Self {

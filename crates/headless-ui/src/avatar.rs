@@ -46,7 +46,7 @@
 //!
 //! - 属性名（`data-*`/`src`/`alt`/`hidden`）はすべて `&'static str` リテラル
 //!   または固定スロットであり、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::data_attrs`] の既存不変条件をそのまま
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`] の既存不変条件をそのまま
 //!   継承する）。
 //! - 動的値（`src`/`alt`/呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。

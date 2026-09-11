@@ -16,7 +16,7 @@
 
 use fandhe_frontend_core::Node;
 
-/// [`crate::keyed_dom::apply_keyed_list_with_previous`] の適用結果（イシュー #1324）。
+/// `crate::keyed_dom::apply_keyed_list_with_previous` の適用結果（イシュー #1324）。
 ///
 /// 呼び出し元（`fandhe-frontend-wasm-full` の `Runtime`）が「直前に DOM へ
 /// 反映した内容」のキャッシュを次回呼び出しの `previous_list_node` として
@@ -55,7 +55,7 @@ pub enum KeyedListApplyResult {
     /// 「達成 Node」へ正しく表現でき、本 variant の対象にはならない
     /// （`Achieved` が返る）。一方、`Insert` の構築失敗・`Move`/`Update` の
     /// 対象キーがライブ DOM 上に見つからない等「op が計画どおりに適用され
-    /// なかった」ケース（[`crate::keyed_apply::ApplyOutcome::resync_required`]
+    /// なかった」ケース（`crate::keyed_apply::ApplyOutcome::resync_required`
     /// doc 参照、イシュー #1340 codex-review P1 対応）では本 variant が返る:
     /// `diff_keyed_items` が計画した `index` は「全 op が成功した前提の
     /// 最終並び」上の位置であり、一部が未達成のまま「達成 Node」を確定させ
@@ -63,7 +63,7 @@ pub enum KeyedListApplyResult {
     /// の内容と乖離したまま固定され、以降いくら同じ view を再適用しても
     /// 乖離が解消されない（本 variant 導入前の実際の不具合、PR #1340
     /// codex-review 指摘）。呼び出し元はこの `field` の保持 Node を破棄し、
-    /// 次回は [`crate::keyed_dom::apply_keyed_list`] のフォールバック経路
+    /// 次回は `crate::keyed_dom::apply_keyed_list` のフォールバック経路
     /// （ライブ DOM を直接読み出す構造変化のみの適用、`Update` を発行しない
     /// ため diff 基準が常に実際の DOM と一致する）へ委ねること。
     ResyncRequired {
@@ -89,10 +89,10 @@ pub enum KeyedListApplyResult {
         /// 呼び出し元（`fandhe-frontend-wasm-full` の
         /// `commit_keyed_list_result`）は、この `ResyncRequired` を受けた
         /// 同一更新サイクル内で即時再同期
-        /// （[`crate::keyed_dom::apply_keyed_list`]）を実行し、
+        /// （`crate::keyed_dom::apply_keyed_list`）を実行し、
         /// それも失敗した場合、最初の適用試行の本フィールドと即時再同期
         /// 試行自身の `dom_mutated`（同様に実測）の論理和が `true` なら
-        /// [`crate::keyed_apply::KeyedListDom::clear_children`] による
+        /// `crate::keyed_apply::KeyedListDom::clear_children` による
         /// 一括クリアでリストを「空」という確定状態へ倒す（OR が `false`
         /// ならクリアせず旧 view を温存する）。DOM に一切触れていない・
         /// ロールバックで DOM 未変更相当に戻した早期 `ResyncRequired`は

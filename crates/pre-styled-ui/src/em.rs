@@ -2,7 +2,7 @@
 //! （`<em>`）を既定スタイルで組み立てる。[`crate::link_overlay`] と同型の
 //! 「variant 軸を持たない slot recipe」パターンに従う。
 //!
-//! 重要性の強調（`<strong>`）は [`crate::strong`] が担う（イシュー #995）。
+//! 重要性の強調（`<strong>`）は [`crate::strong`](mod@crate::strong) が担う（イシュー #995）。
 //! `em` は文法的な強勢（`font-style: italic`）、`strong` は重要性
 //! （`font-weight: bold`）と役割・見た目を区別する。
 //!
@@ -68,7 +68,7 @@ pub fn css() -> String {
 
 /// Em 1 個（`<em>`）を組み立てる。variant 軸を持たないため `class` 属性は
 /// 付与しない（呼び出し側 `attrs` の `class` は他 styled 部品との一貫性の
-/// ため [`drop_class_attr`] で除去する。[`crate::link_overlay::root`] と
+/// ため `drop_class_attr` で除去する。[`crate::link_overlay::root`] と
 /// 同型の判断）。
 ///
 /// # Examples

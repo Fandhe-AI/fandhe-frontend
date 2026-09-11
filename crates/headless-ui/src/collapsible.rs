@@ -43,7 +43,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`hidden`/`disabled`/`id`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入する
-//!   経路はない（[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の
+//!   経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の
 //!   既存不変条件をそのまま継承する）。
 //! - 動的値（`controls`/`id`/呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
@@ -52,7 +52,7 @@
 //!   に一元化し、本モジュールで独自の値を作らない。
 //! - 呼び出し側 `attrs` は各パーツの固定属性（`data-state`/`data-disabled`/
 //!   `aria-expanded`/`aria-controls`/`type`/`disabled`/`hidden`/`id`）を
-//!   [`drop_reserved`] で除外してから merge する。表示状態と実際の DOM 属性の
+//!   `drop_reserved` で除外してから merge する。表示状態と実際の DOM 属性の
 //!   なりすまし（A05）を防ぐ（`crate::progress`/`crate::switch`/
 //!   `crate::toggle_group` と同型の防御、イシュー #1637）。
 //! - hydration 属性（`data-hydrate-state`）はクライアント側で改ざんされうる

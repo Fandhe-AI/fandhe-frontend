@@ -24,12 +24,12 @@
 //! 出力し、[`stylesheet`] が `fandhe_frontend_pre_styled_ui::nav_list::stylesheet()`
 //! を基底 CSS として取り込む（イシュー #910）。markup（`data-scope`/
 //! `data-part`・`aria-current`）は変更せず、docs 固有の視覚差分のみ
-//! [`STRUCTURAL_CSS`] 側の `.docs-sidebar nav.sidebar ...` セレクタで上乗せ
+//! `STRUCTURAL_CSS` 側の `.docs-sidebar nav.sidebar ...` セレクタで上乗せ
 //! する。前後ページャ（`nav.prev-next`、headless `link_overlay`）は
 //! `link_overlay::stylesheet()` を採用しない（`overlay` が唯一の子要素の
 //! カードに `position: absolute` を適用すると高さが 0 に潰れるため。
 //! `crate::nav::prev_next_nav` rustdoc 参照）。トークンベースのカード風
-//! CSS を [`STRUCTURAL_CSS`] 側で手書きのまま維持する。
+//! CSS を `STRUCTURAL_CSS` 側で手書きのまま維持する。
 //!
 //! # クラス名契約（`crates/docs-site/src/layout.rs` / `nav.rs` / `markdown.rs` の
 //! 実出力が正。ここに書かれたセレクタはすべて実際に生成される class 値であり、
@@ -94,9 +94,9 @@
 //! # 不変条件
 //!
 //! - `@import` / `@font-face` / リモート `url()` を追加しない（外部参照ゼロを
-//!   維持する。[`stylesheet_never_references_external_resources`] が機械検証する）
+//!   維持する。`stylesheet_never_references_external_resources` が機械検証する）
 //! - フォントはシステムフォントスタックのみを使う
-//! - `--docs-*` トークンは 1 箇所も残さない（[`stylesheet_contains_no_docs_prefixed_tokens`]
+//! - `--docs-*` トークンは 1 箇所も残さない（`stylesheet_contains_no_docs_prefixed_tokens`
 //!   が機械検証する）
 //!
 //! # セキュリティ不変条件（REQ-1）
@@ -119,11 +119,11 @@ pub const STYLESHEET_REL_PATH: &str = "assets/site.css";
 /// [`stylesheet`] の失敗理由。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SiteThemeError {
-    /// docs 固有トークン（[`docs_theme`]）の追加が [`Theme`] の allowlist
+    /// docs 固有トークン（`docs_theme`）の追加が [`Theme`] の allowlist
     /// 検証に落ちた（既定値は allowlist を満たすよう手動検証済みの定数の
     /// ため通常は到達しない。fail-closed で伝播させる）。
     Theme(ThemeError),
-    /// 構造 CSS（[`STRUCTURAL_CSS`]）の取り込みが [`StyleSheet::push_css`] の
+    /// 構造 CSS（`STRUCTURAL_CSS`）の取り込みが [`StyleSheet::push_css`] の
     /// 検証に落ちた（`<`・制御文字を含み得ない定数のため通常は到達しない）。
     Stylesheet(StylesheetError),
 }
@@ -1773,22 +1773,22 @@ fn highlight_css() -> Result<String, SiteThemeError> {
 
 /// サイト骨格が参照する CSS 全量を組み立てる。
 ///
-/// 内訳: テーマトークン（[`docs_theme`]、`Theme::default` + docs 固有拡張）
+/// 内訳: テーマトークン（`docs_theme`、`Theme::default` + docs 固有拡張）
 /// → [`fandhe_frontend_pre_styled_ui::nav_list::stylesheet`]（styled NavList
 /// のコンポーネント CSS。`nav::sidebar()` の実出力である headless `nav_list`
 /// markup — `data-scope="nav-list" data-part="heading|list|item|link"` —
-/// へそのまま適用される。イシュー #910）→ [`STRUCTURAL_CSS`]（構造 CSS）
-/// → [`typography_css`]（本文タイポグラフィ、イシュー #911）の順で決定的に
+/// へそのまま適用される。イシュー #910）→ `STRUCTURAL_CSS`（構造 CSS）
+/// → `typography_css`（本文タイポグラフィ、イシュー #911）の順で決定的に
 /// 連結する（[`crate::skip_nav::stylesheet`] と同型の組み立て順）。この順序
 /// により、`nav_list` コンポーネント基底（セレクタ詳細度 0,2,0）が先に出力
 /// され、docs 固有の `.docs-sidebar nav.sidebar ...` セレクタ（詳細度 0,2,1
 /// 以上）が後方かつ高詳細度で常に上書きする（CSS カスケード衝突なし。詳細
-/// は [`STRUCTURAL_CSS`] のサイドバー節コメント参照）。
+/// は `STRUCTURAL_CSS` のサイドバー節コメント参照）。
 ///
 /// # Errors
 ///
-/// [`docs_theme`] のトークン追加、[`StyleSheet::push_css`] の検証
-/// （`<`・制御文字の拒否）、または [`typography_css`] の組み立てに落ちた場合
+/// `docs_theme` のトークン追加、[`StyleSheet::push_css`] の検証
+/// （`<`・制御文字の拒否）、または `typography_css` の組み立てに落ちた場合
 /// [`SiteThemeError`] を返す。本関数内の値はすべて allowlist を満たす定数の
 /// ため通常は到達しないが、黙って欠けた CSS を公開しない fail-closed 方針で
 /// 伝播させる。

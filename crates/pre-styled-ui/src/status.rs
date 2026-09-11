@@ -1,11 +1,11 @@
 //! Status（イシュー #765）: slot recipe styled 部品。ドット（indicator）+
 //! ラベルで状態を示す静的マークアップ部品。
 //!
-//! [`crate::badge`] と同じく単一 axis の `size` に加え `color-palette` 軸
+//! [`crate::badge`](mod@crate::badge) と同じく単一 axis の `size` に加え `color-palette` 軸
 //! （chakra-ui の `feedback/status.md` の `colorPalette` prop に対応、
 //! [`crate::recipe::palette_declarations`] 経由で Alert/Badge/Spinner と
 //! 同一のセマンティック色トークンへ束ねる）を持つ。ラベルテキスト自体が
-//! 状態を伝えるため、[`crate::spinner`] の単体 `spinner()` のような
+//! 状態を伝えるため、[`crate::spinner`](mod@crate::spinner) の単体 `spinner()` のような
 //! `role="status"`（WAI-ARIA live region）は付与しない（本部品は非同期の
 //! 状態更新をライブ告知する用途ではなく、レンダリング時点の静的な状態表示
 //! であるため。ライブ告知が必要な呼び出し文脈では、呼び出し側が `attrs` へ
@@ -70,7 +70,7 @@ const ANATOMY: Anatomy = anatomy("status");
 /// この配列を共有し、slot 名の乖離を防ぐ）。
 const SLOTS: &[&str] = &["root", "indicator"];
 
-/// [`status_root`] の設定。
+/// `status_root` の設定。
 #[derive(Debug, Clone, Copy)]
 pub struct StatusProps {
     /// サイズ variant（既定 `Md`）。
@@ -215,7 +215,7 @@ pub fn css() -> String {
 }
 
 /// root パーツ（`<span>`）を組み立てる。`size`/`palette` に応じたクラスを
-/// 付与する唯一のパーツ（[`crate::class_attr::drop_class_attr`] により
+/// 付与する唯一のパーツ（`crate::class_attr::drop_class_attr` により
 /// 呼び出し側の `class` は除去してから合成する）。ラベルテキストは
 /// children としてそのまま並べる（chakra-ui の `Status.Root` 直下にラベル
 /// を置く構成に対応）。

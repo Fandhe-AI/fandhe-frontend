@@ -9,13 +9,13 @@
 //! # 選択的 re-export（`root` のみ再定義する理由）
 //!
 //! [`crate::breadcrumb`] と同型で、styled `root`（呼び出し側 `class` を
-//! [`drop_class_attr`] で除去する唯一のパーツ）と headless の自由関数
+//! `drop_class_attr` で除去する唯一のパーツ）と headless の自由関数
 //! `root` が名前衝突するため、それ以外のパーツ（[`heading`]/[`list`]/
 //! [`item`]/[`link`]）のみを選択的に再エクスポートする。
 //!
 //! # セキュリティ不変条件
 //!
-//! [`crate::link`] と同じ（headless 層 → [`fandhe_frontend_core::render`]
+//! [`crate::link`] と同じ（headless 層 → `fandhe_frontend_core::render`
 //! の既定エスケープを必ず経由し、`raw_html()` の新規使用なし、`href` の URL
 //! スキーム検証は headless 層が担う）。
 //!
@@ -206,7 +206,7 @@ pub fn stylesheet() -> String {
     recipe().css()
 }
 
-/// styled `root` パーツを組み立てる（[`drop_class_attr`] により呼び出し側の
+/// styled `root` パーツを組み立てる（`drop_class_attr` により呼び出し側の
 /// `class` は除去する）。実体は
 /// [`fandhe_frontend_headless_ui::nav_list::root`] へ委譲する。
 ///

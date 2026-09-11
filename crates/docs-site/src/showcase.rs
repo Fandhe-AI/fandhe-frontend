@@ -42,7 +42,7 @@
 //! Dialog/Menu/Select/Popover/Tooltip/Tour は開いた（Active）状態を固定して掲示するため、
 //! recipe CSS のオーバーレイ配置（`position: fixed`/`absolute` + `z-index`）
 //! をそのまま反映するとページ全体を覆う・後続セクションに重なってしまう。
-//! [`SHOWCASE_LAYOUT_CSS`] がショーケース内に限定してこれを中和する
+//! `SHOWCASE_LAYOUT_CSS` がショーケース内に限定してこれを中和する
 //! （recipe CSS・サイト骨格 CSS（[`crate::site_theme`] によるビルド時
 //! 生成、出力先 `assets/site.css`）はいずれも変更しない）。
 //!
@@ -997,7 +997,7 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
     },
 ];
 
-/// [`COMPONENT_PAGES`] に登録済みの部品ページパスを登録順に返す。
+/// `COMPONENT_PAGES` に登録済みの部品ページパスを登録順に返す。
 ///
 /// #943（nav.toml への一括登録）・#944（CI 契約テストでの充足率計測）が
 /// 「レジストリの path がすべて nav へ登録されているか」を機械検証する
@@ -1019,7 +1019,7 @@ fn showcase_wrapper(sections: Vec<Node>) -> Node {
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
 ///
-/// [`COMPONENT_PAGES`] レジストリ（部品単位のページ、`/components/<kebab>/`）
+/// `COMPONENT_PAGES` レジストリ（部品単位のページ、`/components/<kebab>/`）
 /// のみを照会する。[`PAGE_PATH`]（索引ページ）はレジストリに含まれないため
 /// 常に `None` を返す（イシュー #943 で索引ページへ改組済み。索引の本文は
 /// `site/themes.md` 側の Markdown のみで完結する）。
@@ -1048,10 +1048,10 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// # 部品ごとの CSS 分離を行わない理由（イシュー #941）
 ///
-/// ページ単位分解（[`COMPONENT_PAGES`]）後も本関数は単一の CSS 束を返し、
+/// ページ単位分解（`COMPONENT_PAGES`）後も本関数は単一の CSS 束を返し、
 /// 部品ごとのファイル分割は行わない。理由:
 ///
-/// 1. [`SHOWCASE_LAYOUT_CSS`] の中和ルールはすべて `.pre-styled-showcase`
+/// 1. `SHOWCASE_LAYOUT_CSS` の中和ルールはすべて `.pre-styled-showcase`
 ///    スコープで閉じており、ページ数が増えても他ページのカスケードへ
 ///    漏れない
 /// 2. `build::build_site` は生成コンテンツを持つページへ一律に
@@ -4253,7 +4253,7 @@ fn command_section() -> Node {
 ///
 /// "src" ブランチのみ展開済み（`data-state="open"`）、"src/lib.rs" を選択中
 /// （`data-selected`）で固定掲示する。positioner を持たないため
-/// [`SHOWCASE_LAYOUT_CSS`] の中和ルール追加は不要（[`mod@tree_view`]
+/// [`SHOWCASE_LAYOUT_CSS`] の中和ルール追加は不要（[`tree_view`](mod@tree_view)
 /// module doc「`size`/`color-palette` variant を提供しない」節参照）。
 fn tree_view_section() -> Node {
     // SSR は本来 dispatch 履歴なしの初期状態から始まるが、ショーケースは

@@ -3,7 +3,7 @@
 //! [`pie_chart`](crate::pie_chart)/[`donut_chart`](crate::donut_chart)
 //! （styled 層、`src/pie_chart.rs`/`src/donut_chart.rs`）の描画対象となる
 //! 円弧・扇形・環状セクタの `d` 属性を組み立てる決定的純関数群を提供する。
-//! 本モジュール自体はマークアップ（[`fandhe_frontend_core::Node`]）を
+//! 本モジュール自体はマークアップ（`fandhe_frontend_core::Node`）を
 //! 生成せず、`String`（`d` 属性値）と角度（`f64`、ラジアン）のみを返す
 //! （[`super::data`] の「関心の分離」方針を継承）。
 //!

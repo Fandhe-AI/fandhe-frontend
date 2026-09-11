@@ -34,9 +34,9 @@
 //! `size`/`variant`/`color-palette` いずれの軸も提供しない
 //! （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d)
 //! 「子の寸法に従属するレイアウト部品」に該当。高さ・文字サイズは内側の
-//! [`crate::input`]/[`crate::textarea`] の `size` に従属する）。このため
+//! [`crate::input`](mod@crate::input)/[`crate::textarea`](mod@crate::textarea) の `size` に従属する）。このため
 //! [`crate::visually_hidden`] と同型に、4 パーツとも見た目クラスを一切
-//! 付与しない（呼び出し側 `class` は [`drop_class_attr`] で除去のみ行う）。
+//! 付与しない（呼び出し側 `class` は `drop_class_attr` で除去のみ行う）。
 //!
 //! # レイアウト設計（`flex-wrap` + `order` + `flex: 1 1 0%`）
 //!
@@ -46,8 +46,8 @@
 //! `block-end` は `flex-basis: 100%` で改行させ textarea の上下へ配置する）。
 //! 内側コントロール（headless `field::input`/`field::textarea`。下記
 //! 「raw CSS 追記の理由」節）は `flex: 1 1 0%` とし、`flex-basis` を
-//! **必ず `0%`**（`auto` にしない）にする: [`crate::input`]/
-//! [`crate::textarea`] の base は `width: 100%` を持つため、`flex-grow`
+//! **必ず `0%`**（`auto` にしない）にする: [`crate::input`](mod@crate::input)/
+//! [`crate::textarea`](mod@crate::textarea) の base は `width: 100%` を持つため、`flex-grow`
 //! の basis が `auto`（＝`width` を尊重）に解決されると input だけで
 //! 1 行を占有し、inline addon が別行へ折り返されてしまう。
 //!
@@ -64,7 +64,7 @@
 //!
 //! # `root` に `disabled_declarations()` を付与しない理由
 //!
-//! 内側の [`crate::input`]/[`crate::textarea`] が `data-disabled` で自前の
+//! 内側の [`crate::input`](mod@crate::input)/[`crate::textarea`](mod@crate::textarea) が `data-disabled` で自前の
 //! `opacity: 0.5` を持つため、`root` にも同じ宣言を重ねると二重に薄くなる
 //! （[`crate::fieldset`] の `root` と同じ判断）。`root` の `[data-disabled]`
 //! は `cursor: not-allowed` のみ。
@@ -86,7 +86,7 @@
 //! 表現できないため）
 //!
 //! [`SlotRecipe`] はコンポーネント自身の slot にしか宣言を登録できず、
-//! 子孫（内側の [`crate::input`]/[`crate::textarea`]）を対象にした宣言を
+//! 子孫（内側の [`crate::input`](mod@crate::input)/[`crate::textarea`](mod@crate::textarea)）を対象にした宣言を
 //! 組めない。このため [`stylesheet`] は [`crate::toggle_group::stylesheet`]/
 //! [`crate::number_input::stylesheet`] と同型のパターンで、`recipe().css()`
 //! の出力へ [`crate::css::serialize_rule`] を使った素の子結合子（`>`）
@@ -96,16 +96,16 @@
 //! `outline` も無効化する（リングは `root` の `:focus-within` が担う）。
 //!
 //! 追記した `border: 0` は `[data-scope="field"][data-part="input"]`
-//! （[`crate::input`] の `variant` クラス経由の宣言、特異度
+//! （[`crate::input`](mod@crate::input) の `variant` クラス経由の宣言、特異度
 //! クラス 1 + 属性 2 = (0,3,0)）より高い特異度（`root`/`input` 双方の
 //! `data-scope`/`data-part` 属性 4 個 = (0,4,0)）で確実に上書きする。
-//! `:focus-visible` の `outline: none` も同様に、[`crate::input`] 自身の
+//! `:focus-visible` の `outline: none` も同様に、[`crate::input`](mod@crate::input) 自身の
 //! `:focus-visible` 規則（属性 2 + 擬似 1 = (0,3,0)）より高い特異度
 //! （属性 4 + 擬似 1 = (0,5,0)）で上書きする。
 //!
 //! 内側 input/textarea の `[data-invalid]` に対する `border-color` 上書き
-//! は追記しない: 上記 `border: 0`（特異度 (0,4,0)）が [`crate::input`]/
-//! [`crate::textarea`] の `[data-invalid] { border-color: ... }`
+//! は追記しない: 上記 `border: 0`（特異度 (0,4,0)）が [`crate::input`](mod@crate::input)/
+//! [`crate::textarea`](mod@crate::textarea) の `[data-invalid] { border-color: ... }`
 //! （特異度 (0,3,0)）に常に勝つため、内側コントロールの枠線は幅 0 のまま
 //! であり `border-color` の上書きは dead CSS になる（本リポジトリは dead
 //! な `[data-invalid]` セレクタを golden で否定する先例を持つ、
@@ -115,9 +115,9 @@
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless [`fandhe_frontend_headless_ui::input_group`] →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する（本モジュールが見た目クラスを付与しないため呼び出し側
 //!   の生ペイロードがクラス名合成へ混入する経路自体がないが、`class`
 //!   属性の偽装混入は一貫して防ぐ）。
@@ -287,8 +287,8 @@ fn recipe() -> SlotRecipe {
 }
 
 /// この styled Input Group が生成する静的 CSS 全量を返す（決定的。
-/// [`crate::fieldset::css`] と同じ契約）。子孫（[`crate::input`]/
-/// [`crate::textarea`]）を対象にした raw CSS 追記を含む（モジュール doc
+/// [`crate::fieldset::css`] と同じ契約）。子孫（[`crate::input`](mod@crate::input)/
+/// [`crate::textarea`](mod@crate::textarea)）を対象にした raw CSS 追記を含む（モジュール doc
 /// 「raw CSS 追記の理由」節参照）。
 #[must_use]
 pub fn stylesheet() -> String {
@@ -330,7 +330,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled `root` パーツを組み立てる。見た目クラスは付与せず（モジュール doc
-/// 「variant 軸: 持たない」節参照）、呼び出し側 `class` を [`drop_class_attr`]
+/// 「variant 軸: 持たない」節参照）、呼び出し側 `class` を `drop_class_attr`
 /// で除去してから [`fandhe_frontend_headless_ui::input_group::root`] へ
 /// そのまま委譲する。
 #[must_use]

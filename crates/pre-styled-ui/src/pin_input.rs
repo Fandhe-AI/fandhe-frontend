@@ -38,13 +38,13 @@
 //! `<input type="hidden">` であり、ブラウザの UA 既定挙動として
 //! 常にレンダリングされない（`display`/`visibility` を問わず描画対象に
 //! ならない）。したがって visually-hidden パターンを適用する必要がなく、
-//! [`recipe`] は `hidden-input` slot へ一切の CSS を登録しない
+//! `recipe` は `hidden-input` slot へ一切の CSS を登録しない
 //! （`hidden_input_slot_has_no_css_rules` テストで固定）。
 //!
 //! # `size` variant
 //!
 //! [`crate::switch`] rustdoc「複合部品の variant 統一方針」節（#708）に従い、
-//! `size`（[`Size`]）は styled `root` へのみクラスを付与し、[`recipe`] が
+//! `size`（[`Size`]）は styled `root` へのみクラスを付与し、`recipe` が
 //! 登録する `--fandhe-pin-input-size`/`-font-size` の root スコープ CSS
 //! custom property（通常の CSS 継承）経由で `input` の寸法・書体を
 //! 切り替える。`base`/`variant` 規則の `var()` にはいずれも Md サイズ
@@ -66,7 +66,7 @@
 //! リテラル直書きから移行、下記「スタイル調整」節参照）。`palette` 軸を
 //! 持たない部品のため [`crate::recipe::FocusRingColor::Token`] を使う。
 //! オフセットは密に並ぶセル間の視覚干渉がない独立セルのため `Outside`
-//! （既定）を選ぶ（[`crate::input`] と同じ判断）。
+//! （既定）を選ぶ（[`crate::input`](mod@crate::input) と同じ判断）。
 //!
 //! # スタイル調整（イシュー #1489、親 UI 部品スタイル調整ツリー #1420）
 //!
@@ -414,7 +414,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::pin_input::root`] へ
 /// 委譲する。
 ///
@@ -461,7 +461,7 @@ pub fn root<'a>(
 /// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
 /// （[`crate::dialog::footer`] と同型）ため、呼び出し側 `attrs` に含まれる
 /// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
-/// `role`/`aria-hidden` のなりすましは [`drop_reserved`] が同様に除去する。
+/// `role`/`aria-hidden` のなりすましは `drop_reserved` が同様に除去する。
 ///
 /// **レイアウト注意**: [`root`] は `flex-direction: column` を既定に持つ
 /// ため、`control()`/`separator`/`control()` を [`root`] へそのまま並べる

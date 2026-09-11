@@ -2,7 +2,7 @@
 //! スタイル調整済み）: slot recipe styled 部品。ラベル・分類・除去可能な
 //! チップ表示のための root/label/close-trigger の 3 パーツで構成する。
 //!
-//! [`crate::badge`]（#550/#606/#1555）と同型の「pre-styled 層で anatomy を
+//! [`crate::badge`](mod@crate::badge)（#550/#606/#1555）と同型の「pre-styled 層で anatomy を
 //! 直接宣言する単純 styled 部品」として実装する。chakra-ui v3 の Tag
 //! anatomy（Root/Label/StartElement/EndElement/CloseTrigger）のうち
 //! StartElement/EndElement は専用パーツを設けない。children に任意
@@ -376,7 +376,7 @@ pub fn root<'a>(props: &TagProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<
 
 /// label パーツ（`<span>`。テキストは `children` 経由で既定エスケープを
 /// 貫通する）を組み立てる。呼び出し側 `attrs` の `class` は
-/// [`crate::class_attr::drop_class_attr`] で破棄する（[`crate::kbd::kbd`]・
+/// `crate::class_attr::drop_class_attr` で破棄する（[`crate::kbd::kbd`]・
 /// [`crate::code::code`] と同様、variant クラスを自ら付与しない非 root
 /// パーツでも他部品との `class` 破棄契約を一貫させ、呼び出し側が誤って
 /// 動的クラスを合成する余地を残さないため）。
@@ -393,7 +393,7 @@ pub fn label<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 /// [`crate::dialog::close_trigger`] 前例に従い呼び出し側が `attrs`/
 /// `children` で付与すること（本関数は固定しない）。`data-payload` が
 /// 必要な呼び出し側は `attrs` 経由で渡せる。呼び出し側 `attrs` の `class`
-/// は [`crate::class_attr::drop_class_attr`] で破棄する（[`label`] と同様の
+/// は `crate::class_attr::drop_class_attr` で破棄する（[`label`] と同様の
 /// 一貫性理由）。
 #[must_use]
 pub fn close_trigger<'a>(

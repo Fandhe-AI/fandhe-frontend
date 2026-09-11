@@ -10,14 +10,14 @@
 //!
 //! `::before` 疑似要素を使わず `overlay` 自身を展開する方式を採る理由は
 //! headless 層（`crates/headless-ui/src/link_overlay.rs`）の rustdoc
-//! 「全面拡張の実装方針」を参照。[`recipe`] は `root` に `position: relative`、
+//! 「全面拡張の実装方針」を参照。`recipe` は `root` に `position: relative`、
 //! `overlay` に `position: absolute; inset: 0;` を登録する。呼び出し側は
 //! `overlay` 以外の子ノード（見出し・画像等）で `root` の高さを確立する
 //! 契約を維持する。
 //!
 //! # セキュリティ不変条件
 //!
-//! [`crate::link`] と同じ（headless 層 → [`fandhe_frontend_core::render`]
+//! [`crate::link`] と同じ（headless 層 → `fandhe_frontend_core::render`
 //! の既定エスケープを必ず経由し、`raw_html()` の新規使用なし、`href` の URL
 //! スキーム検証は headless 層が担う）。
 //!
@@ -142,7 +142,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled `root` パーツ（位置決めコンテキスト）を組み立てる。呼び出し側
-/// `attrs` の `class` は [`drop_class_attr`] で除去する（本部品は `root` に
+/// `attrs` の `class` は `drop_class_attr` で除去する（本部品は `root` に
 /// variant クラスを持たないが、他 styled 部品との一貫性のため同様に扱う）。
 /// 実体は [`fandhe_frontend_headless_ui::link_overlay::root`] へ委譲する。
 ///

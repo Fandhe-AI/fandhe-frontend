@@ -11,7 +11,7 @@
 //!
 //! headless 層の rustdoc（`crates/headless-ui/src/toggle_tip.rs`）が示す
 //! 「見た目は Tooltip・挙動は Popover」の要件のうち、見た目の部分は本
-//! モジュールの [`recipe`] が担う。`content` の視覚系（背景色・文字色・
+//! モジュールの `recipe` が担う。`content` の視覚系（背景色・文字色・
 //! フォントサイズ・角丸・パディング・最大幅）は [`crate::tooltip`] の
 //! `content` と同一の値を使う（イシュー #1548 が同時進行中のため、両者の
 //! 乖離を作らないよう `font-size` を含め値を揃え続ける）。
@@ -19,7 +19,7 @@
 //! # data-state とスタイルの連動
 //!
 //! `content` の開閉 `data-state`（open/closed）に応じた見た目の切り替えを
-//! [`recipe`] へ登録する（[`crate::recipe::SlotRecipe::state`]、
+//! `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]、
 //! [`crate::tooltip`] と同型）。イシュー #1546 で `trigger` 側の
 //! `data-state="open"` にも見た目の切り替えを追加した（下記「イシュー
 //! #1546 の参照サイト比較」節参照）。

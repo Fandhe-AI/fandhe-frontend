@@ -15,14 +15,14 @@
 //! [`BubbleRootProps`]/[`BubbleVariant`]/[`BubbleGroupPosition`]/
 //! [`MessageAlign`]/[`OpenState`] の 5 型のみを選択的に再エクスポートする。
 //! `MessageAlign` は会話系部品が共有する語彙であり第 2 の align 列挙型を
-//! 作らない（headless [`mod@fandhe_frontend_headless_ui::bubble`] の
+//! 作らない（headless [`fandhe_frontend_headless_ui::bubble`](mod@fandhe_frontend_headless_ui::bubble) の
 //! モジュール doc「会話系 4 部品の共通語彙への追随」参照）。`OpenState` は
 //! [`crate::collapsible`] と同じ再エクスポート方式で、呼び出し側が
 //! headless-ui を直接依存せずに済むようにする。
 //!
 //! # 状態機械を持たない理由
 //!
-//! headless [`mod@fandhe_frontend_headless_ui::bubble`] 自身が状態機械を
+//! headless [`fandhe_frontend_headless_ui::bubble`](mod@fandhe_frontend_headless_ui::bubble) 自身が状態機械を
 //! 持たない静的な自由関数群であるため、本モジュールもその設計をそのまま
 //! 継承する（[`crate::message`] モジュール doc と同型の判断）。
 //!
@@ -105,7 +105,7 @@
 //!
 //! - **トリガー未配線（既知の限界）**: `crates/wasm-full/src/headless.rs`
 //!   の `MAPPING_TABLE` に `(bubble, collapse-trigger)` の行が無く
-//!   （headless [`mod@fandhe_frontend_headless_ui::bubble`] rustdoc
+//!   （headless [`fandhe_frontend_headless_ui::bubble`](mod@fandhe_frontend_headless_ui::bubble) rustdoc
 //!   「wasm-full 未配線」節参照）、`wire_headless_component` 経由の
 //!   クリックでは `hidden` の切り替え自体が dispatch されない。呼び出し
 //!   側が独自に `data-state`/`hidden` を切り替える経路を用意する必要が
@@ -146,10 +146,10 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 全出力は headless [`mod@fandhe_frontend_headless_ui::bubble`] →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//! - 全出力は headless [`fandhe_frontend_headless_ui::bubble`](mod@fandhe_frontend_headless_ui::bubble) →
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する（6 パーツすべて）。
 //! - [`stylesheet`] が組み立てる CSS 宣言はすべてコンパイル時静的
 //!   リテラルであり、[`crate::css::decl`] の検証を通る値のみを使う。
@@ -185,7 +185,7 @@ pub use fandhe_frontend_headless_ui::bubble::{
 pub use fandhe_frontend_headless_ui::message::MessageAlign;
 pub use fandhe_frontend_headless_ui::state::OpenState;
 
-/// slot 一覧（headless [`mod@fandhe_frontend_headless_ui::bubble`] の
+/// slot 一覧（headless [`fandhe_frontend_headless_ui::bubble`](mod@fandhe_frontend_headless_ui::bubble) の
 /// anatomy と 1:1、6 パーツ）。
 const SLOTS: &[&str] = &[
     "root",
@@ -427,7 +427,7 @@ pub fn stylesheet() -> String {
 
 /// styled `root` パーツを組み立てる。見た目クラスは付与せず（モジュール
 /// doc「headless の `data-*` を参照する」節参照）、呼び出し側 `class` を
-/// [`drop_class_attr`] で除去してから
+/// `drop_class_attr` で除去してから
 /// [`fandhe_frontend_headless_ui::bubble::root`] へそのまま委譲する。
 #[must_use]
 pub fn root<'a>(

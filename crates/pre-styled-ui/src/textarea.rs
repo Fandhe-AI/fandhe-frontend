@@ -1,10 +1,10 @@
 //! styled Textarea（イシュー #737、親 #736、祖父トラッキング #726）。
 //!
-//! [`crate::input`] と同型の薄い委譲層。
+//! [`crate::input`](mod@crate::input) と同型の薄い委譲層。
 //! `fandhe_frontend_headless_ui::field::textarea`（#538/#602）が出力する
 //! `data-scope="field"` `data-part="textarea"` へ `variant`/`size` variant
 //! クラスと既定 CSS を重ねる。設計方針・状態機械を持たない理由・`field`
-//! scope を共有する理由は [`crate::input`] rustdoc を参照（本モジュールは
+//! scope を共有する理由は [`crate::input`](mod@crate::input) rustdoc を参照（本モジュールは
 //! 重複を避けるため差分のみ記す）。
 //!
 //! # `autoresize` フック（headless 宣言的属性への styled 側の応答）
@@ -24,10 +24,10 @@
 //! [`crate::recipe::disabled_declarations`]・
 //! [`crate::recipe::transition_declarations`]・#1678 の
 //! `--fandhe-size-control-padding-x/font-size-*` トークン）へ移行した。
-//! [`crate::input`]（イシュー #1482）の差分を踏襲するが、以下の点で
+//! [`crate::input`](mod@crate::input)（イシュー #1482）の差分を踏襲するが、以下の点で
 //! textarea 固有の事情により差分がある。
 //!
-//! - **固定 `height` を採らない（意図的差分）**: [`crate::input`] は
+//! - **固定 `height` を採らない（意図的差分）**: [`crate::input`](mod@crate::input) は
 //!   chakra v3 Input の固定高（h-8〜h-12）に合わせ `height` +
 //!   水平 padding のみで表現するが、`textarea` は複数行部品であり
 //!   `rows` 属性・内容量に応じて高さが伸縮するのが自然な挙動である。
@@ -37,7 +37,7 @@
 //!   既存の縦 padding（rem 固定値、参照サイト比較で概ね妥当と判断し
 //!   維持）+ `--fandhe-size-control-padding-x-*`（水平のみ）+
 //!   `--fandhe-size-control-font-size-*` で表現する。
-//! - **フォーカス・トランジション・disabled・角丸**: [`crate::input`] と
+//! - **フォーカス・トランジション・disabled・角丸**: [`crate::input`](mod@crate::input) と
 //!   同型（canonical ヘルパへの移行）。
 //! - **hover（意図的非採用）**: hover 背景は付与しない。
 //!   `docs/design/pre-styled-ui-interaction-visual-language.md` の判定基準
@@ -46,7 +46,7 @@
 //!   Textarea・Radix Themes text-area も hover 背景変化を持たない。
 //! - **readonly（意図的非採用）**: `data-readonly` への視覚宣言は追加しない。
 //!   ネイティブ `<textarea readonly>` は選択・キャレット操作可能なため
-//!   [`crate::input`] と同じ判断（参照サイトも readonly の独自装飾を
+//!   [`crate::input`](mod@crate::input) と同じ判断（参照サイトも readonly の独自装飾を
 //!   持たない）。
 //! - **size / variant の網羅性**: 既存の xs〜xl 5 段・outline/subtle/
 //!   flushed 3 variant を維持し、参照サイト名（chakra の solid/surface/
@@ -74,9 +74,9 @@
 //!   確定した disabled 視覚言語（`opacity` ベース、
 //!   `docs/design/pre-styled-ui-interaction-visual-language.md`）を優先し、
 //!   [`crate::recipe::disabled_declarations`] による既存表現（`opacity:
-//!   0.5` + `cursor: not-allowed`）を維持する。[`crate::input`] の同型判断
+//!   0.5` + `cursor: not-allowed`）を維持する。[`crate::input`](mod@crate::input) の同型判断
 //!   を踏襲する。
-//! - **`aria-invalid` の box-shadow リング（意図的非採用）**: [`crate::input`]
+//! - **`aria-invalid` の box-shadow リング（意図的非採用）**: [`crate::input`](mod@crate::input)
 //!   の同節（フォーカスリング規約 #1424、
 //!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3、
 //!   実装手段を `outline` へ統一し新規に `box-shadow` リングを追加しない
@@ -87,7 +87,7 @@
 //!   を包含済み。
 //! - **label + helper text の合成（docs サイトへ追加）**: shadcn は
 //!   ラベル + 説明文 + textarea の合成パターンを提示するが、本モジュールは
-//!   [`crate::input`] と同じくラベル・補助テキストの型階層を持たず
+//!   [`crate::input`](mod@crate::input) と同じくラベル・補助テキストの型階層を持たず
 //!   `field`（`/themes/field/`）が担う。この組み合わせ例を
 //!   docs サイトの部品ページ（`/themes/textarea/`）の Examples 節へ追加
 //!   した（コード側 API は変更なし）。
@@ -301,7 +301,7 @@ pub fn css() -> String {
 }
 
 /// styled `textarea` パーツを組み立てる。`variant`/`size` に応じたクラスを
-/// 付与し（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// 付与し（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）、アクセシビリティ配線・`autoresize` フックは
 /// [`fandhe_frontend_headless_ui::field::textarea`] へそのまま委譲する。
 ///

@@ -30,7 +30,7 @@
 //!
 //! # セキュリティ不変条件（REQ-1、`.claude/rules/coding-rust.md`）
 //!
-//! [`Node::Text`]（`fandhe_frontend_core`）は `<script>` の中身であっても
+//! `Node::Text`（`fandhe_frontend_core`）は `<script>` の中身であっても
 //! 必ず [`fandhe_frontend_core::escape_html_into`] を経由する。`<script>` の
 //! 中身は HTML パーサが実体参照を復号しない raw text であるため、
 //! エスケープ対象文字（`< > & " '`）を 1 文字でも含む JS ソースを

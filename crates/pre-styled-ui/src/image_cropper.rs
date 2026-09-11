@@ -31,10 +31,10 @@
 //!
 //! [`selection`] の位置・寸法は、headless 中立な `x_percent`/`y_percent`/
 //! `width_percent`/`height_percent`（いずれも `0.0..=100.0` の正規化済み
-//! 有限 `f64`）から [`percent_style`] が組み立てる
+//! 有限 `f64`）から `percent_style` が組み立てる
 //! `style="--fandhe-image-cropper-x: <x>%; --fandhe-image-cropper-y: <y>%; \
 //! --fandhe-image-cropper-w: <w>%; --fandhe-image-cropper-h: <h>%"` の 1 属性のみで
-//! 伝搬する。[`crate::slider`] と同じく [`drop_style_attr`]（本モジュール内
+//! 伝搬する。[`crate::slider`] と同じく `drop_style_attr`（本モジュール内
 //! 個別実装、`crates/headless-ui/src/progress.rs` の同名ヘルパと同型の
 //! 判断）で呼び出し側 `attrs` に含まれる `style`（大文字小文字を無視）を
 //! 除去してからフレームワーク側の `style` を優先する（重複属性による
@@ -42,7 +42,7 @@
 //!
 //! # `size` variant のみ（`palette` は持たない）
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-image-cropper-handle-size` の root スコープ custom property
 //! （CSS の通常のプロパティ継承により `handle` へ伝わる）経由で寸法を切り
 //! 替える（[`crate::slider`] と同型）。`ColorPalette` は持たない
@@ -477,7 +477,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は
 /// [`fandhe_frontend_headless_ui::image_cropper::ImageCropper::root`] へ
 /// 委譲する。
@@ -511,7 +511,7 @@ pub fn root<'a>(
 }
 
 /// styled selection パーツを組み立てる。4 個の `--fandhe-image-cropper-*` custom
-/// property を含む `style` を付与する唯一のパーツ（[`drop_style_attr`] に
+/// property を含む `style` を付与する唯一のパーツ（`drop_style_attr` に
 /// より呼び出し側の `style` は除去してから合成する。動的値はこの 1 箇所
 /// のみ、モジュール doc「動的な値は 4 個の custom property のみ」参照）。
 /// 実体は

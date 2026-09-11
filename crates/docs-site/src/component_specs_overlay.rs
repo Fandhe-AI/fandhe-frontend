@@ -3,7 +3,7 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! [`crate::component_page::COMPONENT_SPECS`] レジストリから参照される
+//! `crate::component_page::COMPONENT_SPECS` レジストリから参照される
 //! `ComponentPageSpec` 定数群を保持する専用モジュール。本モジュール自体は
 //! 生成物へ直接寄与しない（`component_page::render_component_page` が
 //! `spec_for` 経由で読み取り、Demo〔[`crate::showcase`]〕・Anatomy・
@@ -751,7 +751,7 @@ fn ex_menubar_shortcut_suffix() -> Node {
 /// `crates/pre-styled-ui/src/navigation_menu.rs`（モジュール doc）。
 ///
 /// `keyboard: &[]` とする理由: `decode_action` に方向系 variant を持たず
-/// （[`crate::state::SingleSelect`] の `"select"`/`"toggle"`/`"deselect"`
+/// （`crate::state::SingleSelect` の `"select"`/`"toggle"`/`"deselect"`
 /// のみ）、確定したキー割り当てを本クレートのソースから裏付けられない
 /// ため（本モジュール冒頭の rustdoc「menubar のみ [`KeyRow`] を空にして
 /// いない」の記述はそのまま不変。navigation-menu も他 14 部品と同じく

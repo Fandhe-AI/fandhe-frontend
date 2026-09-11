@@ -43,7 +43,7 @@
 //!
 //! # Runtime への統合
 //!
-//! [`wire_angle_slider_events`] は `crate::lib::Runtime::mount`/
+//! `wire_angle_slider_events` は `crate::lib::Runtime::mount`/
 //! `Runtime::hydrate` の双方から `Self::wire_timer` の直後に組み込まれる
 //! （`crate::lib::Runtime::wire_angle_slider` 参照）。`events`/`keynav`/
 //! `headless_clipboard` と同じ「マウント時 1 回」契約を維持する。
@@ -80,13 +80,13 @@
 //! # セキュリティ不変条件
 //!
 //! - dispatch payload（`"set"` の角度整数文字列）は
-//!   [`fandhe_frontend_headless_ui::angle_slider::AngleSlider::decode_action`]
+//!   `fandhe_frontend_headless_ui::angle_slider::AngleSlider::decode_action`
 //!   が改めて `u16`・`0..=360` 範囲で厳密検証する（本モジュールはあくまで
 //!   payload 文字列を組み立てるのみで、検証は headless 層の既存契約に
 //!   委ねる、多層防御）。`"home"`/`"end"` は payload を持たない。
 //! - `data-disabled` **または** `data-readonly` を持つ Control/Thumb（祖先
 //!   方向を含む）上の pointerdown/keydown は no-op
-//!   （[`has_noninteractive_ancestor`]、`crate::headless.rs` の fail-closed
+//!   （`has_noninteractive_ancestor`、`crate::headless.rs` の fail-closed
 //!   契約と同型。イシュー #1601 で `data-readonly`
 //!   〔[`fandhe_frontend_headless_ui::angle_slider::AngleSliderProps::readonly`]〕
 //!   出力を追加したのに合わせ、readonly でも操作を抑止しないと

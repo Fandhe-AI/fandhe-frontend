@@ -3,7 +3,7 @@
 //!
 //! # 役割・呼び出し文脈
 //!
-//! [`crate::component_page::spec_for`] が `Layer::Primitives` のときに探索する
+//! `crate::component_page::spec_for` が `Layer::Primitives` のときに探索する
 //! テーブル集合。`/themes/` 側（[`crate::component_specs`] 系）と同じ
 //! [`crate::component_page::ComponentPageSpec`] 型を再利用する（節構成は層で
 //! 変わらない。差は「CSS 変数表を出すか」だけであり、原稿データ構造を分ける

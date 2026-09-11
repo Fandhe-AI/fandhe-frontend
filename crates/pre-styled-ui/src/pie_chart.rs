@@ -5,7 +5,7 @@
 //! 生成のみで実装する（`docs/policy/intentional-non-adoption.md` §7 の
 //! 保留解除、[`crate::charts`] モジュール doc「保留解除トリガー」参照）。
 //!
-//! ark-ui には対応する headless anatomy が存在しないため、[`crate::marquee`]/
+//! ark-ui には対応する headless anatomy が存在しないため、[`crate::marquee`](mod@crate::marquee)/
 //! [`crate::stat`] と同型の判断で headless-ui は変更せず、本クレートのみで
 //! 新規 anatomy `data-scope="pie-chart"` を定義する。
 //!
@@ -28,7 +28,7 @@
 //! 境界角の算出・丸め規則・境界規則（値 `0` セグメントのスキップ・単一
 //! 全周セグメントの特別扱い）は [`crate::charts::pie`] モジュール doc を
 //! 参照。固定寸法として中心 `(50, 50)`・外径 `r = 45`（viewBox
-//! `"0 0 100 100"` に対する定数、[`root`]/[`chart`] doc 参照）を用いる。
+//! `"0 0 100 100"` に対する定数、`root`/`chart` doc 参照）を用いる。
 //!
 //! # 単一系列専用（多系列は fail-closed で拒否）
 //!
@@ -54,7 +54,7 @@
 //! でのみ組み立て、任意文字列を SVG 属性値へ直接結合する経路を持たない。
 //! カテゴリ名ラベル・`aria_label`・呼び出し側 `attrs` はすべて
 //! `fandhe_frontend_core::render` の既定エスケープを経由する（REQ-1）。
-//! `class` 属性は [`crate::class_attr::drop_class_attr`] により常に単一化
+//! `class` 属性は `crate::class_attr::drop_class_attr` により常に単一化
 //! する。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
@@ -270,9 +270,9 @@ pub enum PieLabelPosition {
     #[default]
     Inside,
     /// 扇形外側・引き出し線付き（shadcn `chart-pie-label`）。外径を
-    /// [`OUTSIDE_LABEL_OUTER_RADIUS`] へ縮小する（モジュール doc「幾何上の
+    /// `OUTSIDE_LABEL_OUTER_RADIUS` へ縮小する（モジュール doc「幾何上の
     /// 制約」節）。[`PieChartProps::stacked`] と併用した場合、引き出し
-    /// ラベルは最外周リングにのみ付く（他リングは [`Inside`] 相当の位置に
+    /// ラベルは最外周リングにのみ付く（他リングは `Inside` 相当の位置に
     /// 描画する。モジュール doc参照）。
     Outside,
 }
@@ -283,7 +283,7 @@ pub struct PieChartProps<'a> {
     /// 寸法（既定 `Md`）。
     pub size: Size,
     /// `chart`（svg）へ付与する `aria-label`。`None` なら
-    /// [`DEFAULT_ARIA_LABEL`]（`"pie chart"`）を使う。
+    /// `DEFAULT_ARIA_LABEL`（`"pie chart"`）を使う。
     pub aria_label: Option<&'a str>,
     /// `true` ならカテゴリ名ラベルをセグメント上に描画する（既定 `false`）。
     pub show_labels: bool,
@@ -326,7 +326,7 @@ pub struct PieChartProps<'a> {
     /// codex-review 指摘）。`show_tooltip: false` かつ `range`/
     /// `hidden_categories`/`hidden_series` がいずれも初期状態を表せない
     /// （凡例は使うが初期状態は全件表示）構成を救うための opt-in で、
-    /// `true` のとき [`identify_segments`] が `data-index` を出力させる
+    /// `true` のとき `identify_segments` が `data-index` を出力させる
     /// （`BarChartProps::legend`/`LineChartProps::legend` と同型）。
     pub legend: bool,
 }
@@ -755,7 +755,7 @@ fn render_ring<'a>(
 /// `false`（既定）の場合系列数は必ず 1（モジュール doc「単一系列専用」節
 /// 参照）、`true` の場合は系列 index がリング（0 が最内周）に対応する
 /// （モジュール doc「stacked」節）。呼び出し側 `attrs` は `root` へ合成する
-/// （`class` は [`drop_class_attr`] で除去してから recipe クラスへ一本化）。
+/// （`class` は `drop_class_attr` で除去してから recipe クラスへ一本化）。
 ///
 /// # Errors
 ///

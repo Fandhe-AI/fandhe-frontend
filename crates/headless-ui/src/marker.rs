@@ -5,8 +5,8 @@
 //!
 //! 会話スレッド内のインライン注記行（システム注記・日付等の区切り・
 //! ラベル付きセパレータ）を表す表示専用の静的部品。[`root`] / [`icon`] /
-//! [`content`] の 3 anatomy パーツを提供する。[`mod@crate::message`]/
-//! [`mod@crate::bubble`]/[`mod@crate::attachment`] と同型で状態機械
+//! [`content`] の 3 anatomy パーツを提供する。[`crate::message`](mod@crate::message)/
+//! [`crate::bubble`](mod@crate::bubble)/[`crate::attachment`](mod@crate::attachment) と同型で状態機械
 //! （[`crate::state`]）を持たず、`fandhe-frontend-wasm-full` の配線は
 //! 不要である。
 //!
@@ -45,20 +45,20 @@
 //! # 会話系 4 部品の共通語彙への不追随（意図的）
 //!
 //! 会話系 4 部品（message（#2105）/ bubble（#2108）/ attachment（#2111）/
-//! marker（本モジュール））の共通語彙の正は [`mod@crate::message`]
+//! marker（本モジュール））の共通語彙の正は [`crate::message`](mod@crate::message)
 //! モジュール doc「会話系 4 部品の共通語彙」である。本モジュールは
 //! `data-role`/`data-align` のいずれも持たない: 親イシュー（#2113）が
 //! 列挙する表示状態は `data-variant`/`data-tone` のみであり、注記行は
 //! ブロックの整列を持たない設計とするため、新語彙を割らない
-//! （[`mod@crate::attachment`] モジュール doc「会話系 4 部品の共通語彙
+//! （[`crate::attachment`](mod@crate::attachment) モジュール doc「会話系 4 部品の共通語彙
 //! への不追随」と同型の判断）。
 //!
 //! # アクセシビリティ
 //!
 //! - [`icon`] は装飾スロットとして `aria-hidden="true"` を固定付与する
 //!   （shadcn `MarkerIcon` と同じ。headless 内の先例:
-//!   [`mod@crate::breadcrumb`] の separator/ellipsis、
-//!   [`mod@crate::accordion`] の item-indicator）。呼び出し側の
+//!   [`crate::breadcrumb`](mod@crate::breadcrumb) の separator/ellipsis、
+//!   [`crate::accordion`](mod@crate::accordion) の item-indicator）。呼び出し側の
 //!   `aria-hidden="false"` 偽装は予約キー除去で無効化する。
 //! - [`root`] に `role` を固定付与しない（`fandhe-frontend-pre-styled-ui`
 //!   の `callout` が `alert` ロールを持たないのと同じ判断: 静的注記に

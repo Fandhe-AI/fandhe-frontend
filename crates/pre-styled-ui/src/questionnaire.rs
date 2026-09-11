@@ -42,7 +42,7 @@
 //! `data-skipped`/`data-required`/`data-invalid`/`data-disabled`/
 //! `data-complete`）を [`StateCondition::Attr`]/[`StateCondition::AttrEq`]
 //! で参照するのみで見た目を切り替える。各パーツは呼び出し側 `class` を
-//! [`drop_class_attr`] で除去してから委譲する（class 属性を自前で付与
+//! `drop_class_attr` で除去してから委譲する（class 属性を自前で付与
 //! しない）。
 //!
 //! # `question` slot の `hidden` 属性と base `display` の関係
@@ -77,7 +77,7 @@
 //! headless `progress` と同じ u128 拡張計算で百分率を求め、
 //! `style="--fandhe-questionnaire-percent: N%"` を呼び出し側 `style` を
 //! 除去したうえで合成する（[`crate::progress::range`] の `percent_style`/
-//! `drop_style_attr` と同型のパターン）。CSS 側は [`recipe`] の
+//! `drop_style_attr` と同型のパターン）。CSS 側は `recipe` の
 //! `linear-gradient` で塗り幅を表現する。
 //!
 //! **既知の制約**: `fandhe-frontend-wasm-full`（イシュー #2118）はクライ
@@ -112,9 +112,9 @@
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless `Questionnaire::<part>` →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
-//! - 呼び出し側 `class` は全 11 パーツで [`drop_class_attr`] により除去
+//! - 呼び出し側 `class` は全 11 パーツで `drop_class_attr` により除去
 //!   する。[`progress`] は加えて呼び出し側 `style` を除去し、自前の
 //!   `style` 値は正規化済み `usize`（`0..=100`）の百分率のみから組み立て
 //!   る（呼び出し側の動的値を `style` へ流さない）。

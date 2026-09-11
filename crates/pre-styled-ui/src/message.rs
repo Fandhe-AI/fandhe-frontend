@@ -91,7 +91,7 @@
 //!   （既定は 1 列目）。
 //! - `root[data-align="end"] > header`/`> content`/`> footer`:
 //!   `grid-column: 1` へ切り替える（既定は 2 列目）。`root` 自身の
-//!   `grid-template-columns` 反転（[`recipe`] の `data-align="end"` state）
+//!   `grid-template-columns` 反転（`recipe` の `data-align="end"` state）
 //!   と対にして、右寄せ時に列の意味を丸ごと入れ替える。
 //! - `root:not(:has(> avatar))`: `grid-template-columns` を単一カラム
 //!   （`minmax(0, 1fr)`）へ縮退させる。2 カラム grid のまま `avatar` を
@@ -116,7 +116,7 @@
 //! - `root:has(> header):not(:has(> footer)) > avatar` /
 //!   `root:not(:has(> header)):has(> footer) > avatar`:
 //!   `grid-row: 1 / span 2`（`header`/`footer` のどちらか一方のみ存在）。
-//!   `header`/`footer` の双方が存在する既定ケースは [`recipe`] の
+//!   `header`/`footer` の双方が存在する既定ケースは `recipe` の
 //!   `avatar_base`（`grid-row: 1 / span 3`）のまま据え置く（3 パーツ全て
 //!   存在するときのみ意味を持つ既定値のため、raw CSS での上書きが不要）。
 //!   これら 3 ルールがないと、`header`/`footer` が省略されても `avatar`
@@ -136,9 +136,9 @@
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless [`fandhe_frontend_headless_ui::message`] →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する（6 パーツすべて）。
 //! - [`stylesheet`] が組み立てる CSS 宣言・selector 断片はすべて
 //!   コンパイル時静的リテラルであり、[`crate::css::decl`]/
@@ -433,7 +433,7 @@ pub fn stylesheet() -> String {
 
 /// styled `root` パーツを組み立てる。見た目クラスは付与せず（モジュール
 /// doc「role / align / loading / error の表現」節参照）、呼び出し側
-/// `class` を [`drop_class_attr`] で除去してから
+/// `class` を `drop_class_attr` で除去してから
 /// [`fandhe_frontend_headless_ui::message::root`] へそのまま委譲する。
 #[must_use]
 pub fn root<'a>(

@@ -28,13 +28,13 @@
 //!
 //! [`crate::tags_input`] の `hidden-input` と同じ理由（`<input type="file">`
 //! は視覚的に非表示にする構成を前提とする、モジュール doc の headless
-//! 側 rustdoc 参照）で、[`recipe`] は `hidden-input` slot へ一切の CSS を
+//! 側 rustdoc 参照）で、`recipe` は `hidden-input` slot へ一切の CSS を
 //! 登録しない（`hidden_input_slot_has_no_css_rules` テストで固定）。
 //!
 //! # `size` variant
 //!
 //! [`crate::switch`] rustdoc「複合部品の variant 統一方針」節（#708）に従い、
-//! `size`（[`Size`]）は styled `root` へのみクラスを付与し、[`recipe`] が
+//! `size`（[`Size`]）は styled `root` へのみクラスを付与し、`recipe` が
 //! 登録する `--fandhe-file-upload-*` の root スコープ CSS custom property
 //! （通常の CSS 継承）経由で `item`/`trigger` の寸法・書体を切り替える。
 //! `base`/`variant` 規則の `var()` にはいずれも Md サイズ相当のフォールバック
@@ -472,7 +472,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::file_upload::root`] へ
 /// 委譲する。`props`/`dragging` は headless 側の署名変更（イシュー #1609、
 /// `FileUploadProps`/`data-dragging` 導入）にそのまま追随する。

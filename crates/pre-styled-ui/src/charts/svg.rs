@@ -34,7 +34,7 @@
 //! [`fmt_coord`] と**バイト同一**の出力を返し（既存 golden・showcase の
 //! 通常データ域は無変更）、それより絶対値が小さい場合のみ値の桁数に応じて
 //! 精度を動的に引き上げる（有効数字が丸めで消えない最小精度）。両者は
-//! 共通のヘルパー [`fmt_fixed`] を共有し、丸め規則自体（末尾ゼロ除去・
+//! 共通のヘルパー `fmt_fixed` を共有し、丸め規則自体（末尾ゼロ除去・
 //! `-0` 正規化）は 1 箇所にのみ実装する。
 
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
@@ -176,11 +176,11 @@ impl ViewBox {
 /// `crates/headless-ui/src/qr_code.rs` の `frame` と同型）。
 ///
 /// `attrs` に `viewBox`/`role`（大文字小文字を無視）が含まれていても
-/// 黙って除去してから既定値を付与する。[`fandhe_frontend_core::render`]
+/// 黙って除去してから既定値を付与する。`fandhe_frontend_core::render`
 /// は同名属性の重複除去を行わない契約（`crates/core/src/lib.rs`
 /// `find_attr_values` doc 参照）であるため、除去せずに連結すると
 /// `viewBox`/`role` が 2 回出力される無効な HTML を生みかねない
-/// （[`crate::class_attr::drop_class_attr`] と同型の判断）。
+/// （`crate::class_attr::drop_class_attr` と同型の判断）。
 #[must_use]
 pub fn svg_root(view_box: &ViewBox, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     let view_box_value = view_box.attr_value();
@@ -302,7 +302,7 @@ impl PathBuilder {
     }
 
     /// `C x1,y1,x2,y2,x,y`（cubic Bézier）セグメントを追加する（イシュー
-    /// #2081、[`super::curve::natural_control_points`] が返す制御点対を
+    /// #2081、`super::curve::natural_control_points` が返す制御点対を
     /// natural spline 補間の 1 区間として描くための呼び出し元、
     /// [`crate::area_chart`]/[`crate::line_chart`] 参照）。
     #[must_use]

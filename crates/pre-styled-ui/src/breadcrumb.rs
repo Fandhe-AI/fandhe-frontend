@@ -27,19 +27,19 @@
 //! `crates/pre-styled-ui/src/lib.rs` §「複合部品の variant 統一方針」参照）。
 //! `link`/`current-link` への伝搬は `root` の variant 宣言が登録する
 //! root スコープの CSS custom property（`--fandhe-breadcrumb-link-text-decoration`
-//! 等）の通常の CSS 継承で行い、[`recipe::SlotRecipe`] へ子孫セレクタ機構は
+//! 等）の通常の CSS 継承で行い、[`recipe::SlotRecipe`](crate::recipe::SlotRecipe) へ子孫セレクタ機構は
 //! 追加しない（[`crate::switch`] と同型のパターン）。
 //!
 //! # セキュリティ不変条件
 //!
 //! - HTML 文字列の直接組み立てを行わず、すべての出力は headless 層 →
-//!   [`fandhe_frontend_core::render`] の既定エスケープを経由する
+//!   `fandhe_frontend_core::render` の既定エスケープを経由する
 //!   （`raw_html()` の新規使用なし）。`href` の URL スキーム検証は headless
 //!   層（`crates/headless-ui/src/breadcrumb.rs` rustdoc 参照）が担う。
-//! - variant クラス名は [`recipe::SlotRecipe::variant_classes`] が
+//! - variant クラス名は [`recipe::SlotRecipe::variant_classes`](crate::recipe::SlotRecipe::variant_classes) が
 //!   `&'static str` enum 値から決定的に生成し、動的文字列合成を行わない。
 //! - 呼び出し側 `attrs` に含まれる `class` は
-//!   [`crate::class_attr::drop_class_attr`] で除去してから recipe 生成
+//!   `crate::class_attr::drop_class_attr` で除去してから recipe 生成
 //!   クラスと合成するため、`class` 属性は常に単一（呼び出し側からのクラス
 //!   偽装・重複混入を防ぐ）。
 //! - styled [`root`] は headless
@@ -421,7 +421,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`variant` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去
 /// してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::breadcrumb::root`] へ委譲する。
 ///

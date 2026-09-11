@@ -12,7 +12,7 @@
 //!
 //! # Runtime への統合
 //!
-//! [`wire_clipboard_events`] は `crate::lib::Runtime::mount`/`Runtime::hydrate`
+//! `wire_clipboard_events` は `crate::lib::Runtime::mount`/`Runtime::hydrate`
 //! の双方から `headless_avatar::wire_avatar` の直後に組み込まれる
 //! （`crate::lib::Runtime::wire_clipboard` 参照）。`events`/`keynav`/
 //! `headless_avatar` と同じ「マウント時 1 回」契約を維持する。
@@ -42,7 +42,7 @@
 //!
 //! # 1 root : 1 状態機械契約（[`crate::headless_avatar`] と同じ簡略化）
 //!
-//! [`apply_clipboard_copied`] は `root` 配下の**すべての** Clipboard
+//! `apply_clipboard_copied` は `root` 配下の**すべての** Clipboard
 //! パーツへ同一の `copied` 状態を反映する（複数の Clipboard が同一ページに
 //! 存在する場合、全て同じ表示状態へ揃う）。これは
 //! `crate::headless_avatar` モジュール doc の同名節が明記する簡略化を
@@ -62,7 +62,7 @@
 //!
 //! `crate::lib::Runtime::mount`/`Runtime::hydrate`（`crate::lib` 参照）は
 //! マウントされたページのルート状態機械 `C` の型に関わらず、本モジュールの
-//! [`wire_clipboard_events`] を無条件に配線する。裸の `"reset"` を dispatch
+//! `wire_clipboard_events` を無条件に配線する。裸の `"reset"` を dispatch
 //! すると、`C` が `Clipboard` 以外（独自 `AppState` のカウンタリセット・
 //! [`crate::headless_avatar`] の Avatar リセット等）であっても
 //! `C::decode_action` がそれを自身のアクションとして誤って受理し得る

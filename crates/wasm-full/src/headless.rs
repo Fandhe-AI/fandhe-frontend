@@ -12,7 +12,7 @@
 //! 操作の実挙動は wasm 層の責務」と明記している設計上の分離）。本モジュールは
 //! その配線を提供する。
 //!
-//! 既存の [`crate::events::wire_events`] は `data-action`/`data-payload`
+//! 既存の `crate::events::wire_events` は `data-action`/`data-payload`
 //! 属性ベースの委譲であり、headless-ui のマークアップは `data-action` を
 //! 出力しない（`data-scope`/`data-part` の anatomy セレクタが正）。そのため
 //! 本モジュールは (`data-scope`, `data-part`) から文字列アクションへの
@@ -23,7 +23,7 @@
 //!
 //! - 純粋ロジック層（[`PartRef`]/[`action_for_part`]/[`action_from_parts`]）は
 //!   web-sys に依存せず、native の `cargo test` で検証できる。
-//! - 配線層（[`wire_headless_events`]/[`wire_headless_component`]）のみ
+//! - 配線層（`wire_headless_events`/`wire_headless_component`）のみ
 //!   `#[cfg(target_arch = "wasm32")]` でゲートし、native ビルドへ web-sys
 //!   依存を混入させない。
 //!
@@ -65,8 +65,8 @@
 //!
 //! # scope feature による行単位 gating（イシュー #2327・#2339）
 //!
-//! [`MAPPING_TABLE`] の各行は、その行の `scope` 文字列と同名の feature
-//! （既定 on）に対応する [`MappingRow::enabled`]（`cfg!(feature = "...")`
+//! `MAPPING_TABLE` の各行は、その行の `scope` 文字列と同名の feature
+//! （既定 on）に対応する `MappingRow::enabled`（`cfg!(feature = "...")`
 //! で評価）を持つ（対応表は `crate` クレート doc §scope feature 参照）。
 //! feature を絞った構成でも行自体は配列から消えず、`enabled` が `false`
 //! になるのみである（[`action_for_part`] はこの場合 `None` を返し、実際の
@@ -532,7 +532,7 @@ pub struct PartRef {
 }
 
 /// (scope, part) の 1 段判定。マッピング表にない組・`data-value` 欠落・
-/// `disabled`/`readonly`・scope feature 無効（[`MappingRow::enabled`]
+/// `disabled`/`readonly`・scope feature 無効（`MappingRow::enabled`
 /// `false`）はいずれも `None`（fail-closed、受け入れ条件 3）。
 /// `part` 自身が `readonly` の場合は無条件で `None`（scope をまたいだ
 /// 伝播判定は [`action_from_parts`] の責務、本関数は 1 part 単体の判定）。
@@ -577,7 +577,7 @@ fn is_known_mapping_target(part: &PartRef) -> bool {
 ///
 /// `item-text`（Menu/Select の item 内側テキスト）等「マッピング表にない
 /// 内側 part」をクリックしても、祖先の `item`/`trigger` で解決できるように
-/// するための抽象。配線層（[`wire_headless_events`]）は event.target から
+/// するための抽象。配線層（`wire_headless_events`）は event.target から
 /// root 方向へ祖先を辿りながら `data-scope`/`data-part` を持つ要素ごとに
 /// [`PartRef`] を構築し、本関数へ内側優先の順で渡す。
 ///
@@ -606,10 +606,10 @@ fn is_known_mapping_target(part: &PartRef) -> bool {
 /// 探索の境界として扱い列挙を打ち切る。これにより、直接 `trigger-item`
 /// 自身をクリックした場合（`content` に達する前の最初の要素で即座に
 /// マッチする）の挙動は変えず、`content` 配下の子孫クリックが親
-/// `trigger-item` の `toggle` を奪う（かつ [`crate::headless::wiring`]
+/// `trigger-item` の `toggle` を奪う（かつ `crate::headless::wiring`
 /// 側で `stop_propagation` されアイテム自身のクリック処理が握り潰される）
 /// 事態のみを防ぐ（`stop_propagation` の呼び出し箇所は
-/// [`wire_headless_events`] 参照）。
+/// `wire_headless_events` 参照）。
 ///
 /// `readonly` は `disabled` と異なり **同一インスタンス限定** で伝播する
 /// （PR #1879 codex-review P1 指摘の是正）: readonly はそのコンポーネント
@@ -627,7 +627,7 @@ fn is_known_mapping_target(part: &PartRef) -> bool {
 /// ネストすると、内側の `trigger`/`item`/`clear-trigger`
 /// まで誤って `None` にしてしまっていた（外側の readonly が scope 名の
 /// 一致だけを根拠に内側インスタンスへ越境して伝播する fail-closed の
-/// 過剰適用）。[`instance_is_readonly`] は探索範囲を「クリックされた part
+/// 過剰適用）。`instance_is_readonly` は探索範囲を「クリックされた part
 /// 自身から祖先方向（`parts[i..]`）」に限定し、かつ同じ `scope` の
 /// `part == "root"` に到達した時点で探索を打ち切る（root 自身の readonly
 /// はそこで判定に含めてから打ち切る）。これにより、同一インスタンス
@@ -635,13 +635,13 @@ fn is_known_mapping_target(part: &PartRef) -> bool {
 /// 内側インスタンスの判定へ影響しない。
 ///
 /// 列全体を見て `None` に倒すのは `disabled` のみとし、`readonly` は
-/// part ごとに [`instance_is_readonly`] で同一インスタンス内判定を行い、
+/// part ごとに `instance_is_readonly` で同一インスタンス内判定を行い、
 /// 該当すればその part の解決だけをスキップして列挙を継続する（`content`
 /// 境界による打ち切りは従来どおり）。
 ///
 /// **専用インスタンス root への限定（`menu`/`menubar` の checkbox-item/
 /// radio-item、codex-review PR #2321 P1 指摘の是正）**: `readonly`/`disabled`
-/// と並ぶ第 4 の判定規則として、[`resolved_part_targets_wired_root`] が
+/// と並ぶ第 4 の判定規則として、`resolved_part_targets_wired_root` が
 /// 「解決に使われた part が checkbox-item/radio-item のとき、wire された
 /// root 自身（`parts` の末尾、`collect_part_refs` の契約）がその専用
 /// インスタンス root（checkbox-item 自身 / radio-item-group 自身）で

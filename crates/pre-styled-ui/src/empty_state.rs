@@ -67,7 +67,7 @@
 //!    破壊的変更であり見送る）。
 //! 3. **indicator Lg/Xl の font-size**: chakra `6xl`（3.75rem）は
 //!    タイポグラフィトークン上限 `4xl`（2.25rem）を超えるため、
-//!    [`crate::heading`] と同型の判断でトークンは追加せず Lg/Xl のみ
+//!    [`crate::heading`](mod@crate::heading) と同型の判断でトークンは追加せず Lg/Xl のみ
 //!    rem リテラルを使う。
 //! 4. **`actions` slot の維持**: 参照元は操作要素を content に直接
 //!    置くが、既存 API・anatomy を壊さないため `actions` slot は維持し
@@ -494,7 +494,7 @@ pub fn css() -> String {
 }
 
 /// root パーツ（`<div>`）を組み立てる。`size`/`variant` に応じたクラスを
-/// 付与する唯一のパーツ（[`crate::class_attr::drop_class_attr`] により
+/// 付与する唯一のパーツ（`crate::class_attr::drop_class_attr` により
 /// 呼び出し側の `class` は除去してから合成する）。
 ///
 /// イシュー #2047: `props.variant` が既定 `Plain` のときは `selection` へ
@@ -551,7 +551,7 @@ pub fn indicator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
 /// 呼び、`indicator` slot が持つ唯一の軸（`indicator`）のクラスのみを
 /// 付与する（[`SlotRecipe::variant_classes`] は使わない。`size`/`variant`
 /// 等 root 専用軸の既定値補完が indicator slot へ誤って波及しないため）。
-/// [`crate::class_attr::drop_class_attr`] により呼び出し側の `class` は
+/// `crate::class_attr::drop_class_attr` により呼び出し側の `class` は
 /// 除去してから合成する。
 ///
 /// # Examples

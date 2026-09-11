@@ -29,7 +29,7 @@
 //! - 純粋ロジック層（[`hit_area_next_index`]/[`is_sticky_pointer`]/
 //!   [`anchor_relative`]/[`hit_area_anchor`]/[`matches_key`]）は web-sys に
 //!   依存せず、native の `cargo test` で検証できる。
-//! - 配線層（[`wiring`]）のみ `#[cfg(target_arch = "wasm32")]` でゲート
+//! - 配線層（`wiring`）のみ `#[cfg(target_arch = "wasm32")]` でゲート
 //!   する。`sidebar`/`angle_slider` と同じく `pointerdown`/`pointermove`
 //!   のような click/input 以外のイベント種別を扱うため
 //!   `crate::headless::MAPPING_TABLE`（同期的な (scope, part) → action の
@@ -37,7 +37,7 @@
 //!
 //! # Runtime への統合
 //!
-//! [`wiring::wire_chart_events`] は `crate::Runtime::mount`/
+//! `wiring::wire_chart_events` は `crate::Runtime::mount`/
 //! `Runtime::hydrate` の双方から `Self::wire_sidebar` の直後に組み込まれる
 //! （`crate::Runtime::wire_chart` 参照）。`dispatch` チャネル（`on_action`）
 //! を一切持たない属性専用配線であり（`sidebar::wire_sidebar_events` と
@@ -87,7 +87,7 @@
 //! （`crates/pre-styled-ui/src/charts/bar_chart.rs` 参照）。セッション
 //! 開始時に `data-active` を持つ既存要素と、既定表示中の tooltip を
 //! スナップショットし、セッション終了時にその状態へ復元する
-//! （[`wiring::close_session`]）。
+//! （`wiring::close_session`）。
 //!
 //! # スコープ外（イシュー #2130 §9）
 //!
@@ -95,7 +95,7 @@
 //!   問題（#2261 の申し送り、是正は pre-styled-ui 側の別 Issue）。
 //! - bar/scatter 以外の視覚要素への `data-index` 付与・消費 CSS・Demo
 //!   （#2131）。
-//! - 構造再描画（[`crate::Runtime::rerender_subtree`]）がセッション中の
+//! - 構造再描画（`crate::Runtime::rerender_subtree`）がセッション中の
 //!   `<svg>`/layer を差し替えた場合の要素再解決（`angle_slider::wiring`
 //!   の `PartKey`/`DragState` のような安定識別子ベースの追跡は行わない）。
 //!   セッションの `svg` が `root` 配下から失われたことは
@@ -201,7 +201,7 @@ pub fn is_sticky_pointer(pointer_type: &str) -> bool {
 /// クライアント座標 `(x, y)` を、`layer` の `getBoundingClientRect()`
 /// 左上 `(rect_left, rect_top)` を基準にした相対座標へ変換する（`layer`
 /// は `position: absolute; inset: 0` のため、この相対座標がそのまま
-/// [`VAR_X`]/[`VAR_Y`] へ書ける値になる）。
+/// `VAR_X`/`VAR_Y` へ書ける値になる）。
 #[must_use]
 pub fn anchor_relative(rect_left: f64, rect_top: f64, x: f64, y: f64) -> (f64, f64) {
     (x - rect_left, y - rect_top)

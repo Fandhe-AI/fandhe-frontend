@@ -9,7 +9,7 @@
 //! # 選択的 re-export（`root` のみ再定義する理由）
 //!
 //! [`crate::nav_list`]/[`crate::breadcrumb`] と同型で、styled `root`
-//! （呼び出し側 `class` を [`drop_class_attr`] で除去する唯一のパーツ）と
+//! （呼び出し側 `class` を `drop_class_attr` で除去する唯一のパーツ）と
 //! headless の自由関数 `root` が名前衝突するため、それ以外のパーツ
 //! （[`label`]/[`control`]/[`input`]/[`trigger`]/[`indicator`]/
 //! [`value_text`]）のみを選択的に再エクスポートする。
@@ -20,7 +20,7 @@
 //!
 //! # variant を提供しない判断
 //!
-//! [`crate::lib`] rustdoc「複合部品の variant 統一方針」節が挙げる
+//! `crate::lib` rustdoc「複合部品の variant 統一方針」節が挙げる
 //! `size`/`color-palette` は本イシューでは提供しない
 //! （[`crate::hover_card`]/[`crate::toggle_tip`] と同じ判断。variant 展開は
 //! 別イシューで一括検討する）。
@@ -30,7 +30,7 @@
 //! headless 層（[`fandhe_frontend_headless_ui::clipboard::indicator`]）は
 //! 非表示側の変種に `hidden` 存在属性を付与し、UA 既定
 //! `[hidden] { display: none }` に依存して JS なし SSR の表示制御を成立
-//! させる。[`recipe`] の `indicator` base 規則で `display` を宣言すると
+//! させる。`recipe` の `indicator` base 規則で `display` を宣言すると
 //! `[data-scope][data-part]`（詳細度 (0,2,0)）が `[hidden]`（詳細度
 //! (0,1,0)）に勝ってしまい表示制御が壊れるため、`display` は base では
 //! 宣言せず、`data-state="hidden"` 一致時の `display: none`
@@ -41,9 +41,9 @@
 //! # セキュリティ不変条件
 //!
 //! - HTML 文字列の直接組み立てを行わず、すべての出力は headless 層 →
-//!   [`fandhe_frontend_core::render`] の既定エスケープを経由する
+//!   `fandhe_frontend_core::render` の既定エスケープを経由する
 //!   （`raw_html()` の新規使用なし）。
-//! - 呼び出し側 `attrs` に含まれる `class` は [`drop_class_attr`] で
+//! - 呼び出し側 `attrs` に含まれる `class` は `drop_class_attr` で
 //!   [`root`] から除去する（呼び出し側からのクラス偽装混入を防ぐ、
 //!   [`crate::nav_list::root`] と同じ判断）。
 //! - styled [`root`] は headless
@@ -278,7 +278,7 @@ pub fn stylesheet() -> String {
     recipe().css()
 }
 
-/// styled `root` パーツを組み立てる（[`drop_class_attr`] により呼び出し側の
+/// styled `root` パーツを組み立てる（`drop_class_attr` により呼び出し側の
 /// `class` は除去する）。実体は
 /// [`fandhe_frontend_headless_ui::clipboard::root`] へ委譲する。
 ///

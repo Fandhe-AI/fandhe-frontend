@@ -10,7 +10,7 @@
 //! 1. **頂点角度**: 軸数 `n`・軸 index `i`（0 始まり）に対し
 //!    `θ_i = -π/2 + i · 2π / n`（12 時方向開始・時計回り、chakra-ui/recharts
 //!    既定と同じ見え方）。頂点座標は `(cx + r·cos θ_i, cy + r·sin θ_i)`。
-//!    角度→座標変換は private ヘルパ [`vertex`] に一元化し、純 f64 算術
+//!    角度→座標変換は private ヘルパ `vertex` に一元化し、純 f64 算術
 //!    （`f64::sin`/`f64::cos`）のみで入力から一意に決まる。文字列化は
 //!    [`super::svg::fmt_coord`] のみを経由する（[`crate::charts`] モジュール
 //!    doc 不変条件 2）。
@@ -22,7 +22,7 @@
 //!    `(0.0, plot_radius)` の [`LinearScale`]（`.nice()` 適用）。全値 0 の
 //!    退化は domain を `(0.0, 1.0)` へ拡張して回避する。
 //! 5. **プロット領域**: `viewBox` は `size × size` の正方形。軸ラベル用に
-//!    [`AXIS_LABEL_MARGIN`] を差し引いた半径を `plot_radius` とする。
+//!    `AXIS_LABEL_MARGIN` を差し引いた半径を `plot_radius` とする。
 //!    `plot_radius` が 0 以下になる場合 [`ChartError::PlotAreaTooSmall`]
 //!    （[`super::bar_chart`] の `PlotAreaTooSmall` と同型の fail-closed 判断、
 //!    `ViewBox::new` は寸法の正値のみを検証し、ラベル余白差し引き後までは
@@ -36,10 +36,10 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! マークアップはすべて [`super::svg`]/[`fandhe_frontend_core::el`] 経由で
+//! マークアップはすべて [`super::svg`]/`fandhe_frontend_core::el` 経由で
 //! 組み立て、`raw_html()` は使用しない（REQ-1）。カテゴリ名（軸ラベル）・
 //! 系列名・`aria_label` はテキストノード/属性値として
-//! [`fandhe_frontend_core::render`] の既定エスケープを必ず通る。座標・半径・
+//! `fandhe_frontend_core::render` の既定エスケープを必ず通る。座標・半径・
 //! `d` 属性はすべて [`ChartData::new`](super::data::ChartData::new)/
 //! [`LinearScale::new`] が有限性検証済みの `f64` のみを
 //! [`super::svg::fmt_coord`]/[`super::svg::PathBuilder`] へ渡すため、
@@ -97,7 +97,7 @@
 //!   追加した。兄弟部品 [`crate::line_chart`]（#1595）/
 //!   [`crate::area_chart`]（#1589）の `series-line` は `stroke-width: 2` +
 //!   `stroke-linejoin: round` を持つが、radar の `series`
-//!   （[`polygon_d`] が生成する閉多角形）は UA 既定の `stroke-width: 1` /
+//!   （`polygon_d` が生成する閉多角形）は UA 既定の `stroke-width: 1` /
 //!   `stroke-linejoin: miter` のままで、`fill-opacity: 0.2` の薄い塗りに
 //!   対し輪郭が系列識別の主要素であるにもかかわらず兄弟部品より細く、
 //!   鋭角頂点（値の谷）で miter が尖って突出していた。輪郭幅・結合方式を
@@ -157,7 +157,7 @@
 //! ## 意図的に合わせなかった点
 //!
 //! - `fill-opacity` は shadcn の `0.6` ではなく既存の `0.2` を維持した
-//!   （既存 golden の色味変更禁止・[`super::area_chart`] との統一）。
+//!   （既存 golden の色味変更禁止・`super::area_chart` との統一）。
 //! - `tickFormatter`・数値の書式（3 桁区切り等）はアプリ側整形の責務
 //!   （`docs/policy/intentional-non-adoption.md` §3.23/§3.25）。
 //! - グリッド外周 1 本（shadcn `polarRadius={[90]}`）の px 指定は非対応。
@@ -173,9 +173,9 @@
 //!   合成で表現する（chakra 方式、イシュー #2077）。凡例の系列トグルは
 //!   #2132 の担当。
 //! - shadcn の `margin` 調整（legend/icons 用の負マージン）は非対応。
-//!   [`AXIS_LABEL_MARGIN`] は固定のまま。
+//!   `AXIS_LABEL_MARGIN` は固定のまま。
 //! - dots の半径は shadcn `dot.r`（4.0）を採用する（新規追加分のため
-//!   参照値をそのまま使える。兄弟 [`crate::line_chart::POINT_RADIUS`]
+//!   参照値をそのまま使える。兄弟 `crate::line_chart::POINT_RADIUS`
 //!   （2.5）は既存 golden 固定値であり揃えない）。一方 `point` の背景色
 //!   ハロー（`stroke: var(--fandhe-color-bg)`）は line-chart `point` の
 //!   先例（dark 時の隣接系列との識別性）を維持する。

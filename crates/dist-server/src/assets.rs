@@ -7,7 +7,7 @@
 //!
 //! | ビルド条件 | モード | 実装 |
 //! |-----------|--------|------|
-//! | `debug_assertions` かつ `not(feature = "force-embed")` | [`AssetMode::DevFilesystem`] | [`dev_fs`]（実行時に `static/` から読む） |
+//! | `debug_assertions` かつ `not(feature = "force-embed")` | [`AssetMode::DevFilesystem`] | `dev_fs`（実行時に `static/` から読む） |
 //! | 上記以外（release、または `force-embed` 有効） | [`AssetMode::Embedded`] | [`embedded_lookup`]（`build.rs` 生成テーブルの完全一致検索） |
 //!
 //! [`lookup`] 自体が `cfg` で 2 実装に分岐しており、release ビルドには
@@ -15,7 +15,7 @@
 //! （`force-embed` フィーチャーで debug ビルドのまま本番相当の埋め込み経路を
 //! CI 検証できる、`dist-server/Cargo.toml` 参照）。
 //!
-//! `DevFilesystem` モードの [`lookup`] は、URL パスが [`WASM_PATH_PREFIX`]
+//! `DevFilesystem` モードの [`lookup`] は、URL パスが `WASM_PATH_PREFIX`
 //! （`/static/wasm/`）で始まる場合に限り、`dev_fs::lookup` が `None`
 //! （未検出）を返したときに [`embedded_lookup`] へフォールバックする。WASM
 //! ビルド成果物（TASK-10.2b、イシュー #110。`dist-server/build.rs` 参照）は
@@ -29,7 +29,7 @@
 //!
 //! # 即時反映の保証（REQ-10、TASK-10.1b、イシュー #107）
 //!
-//! [`dev_fs::lookup`] はリクエストのたびに `fs::read` でディスクから読み直し、
+//! `dev_fs::lookup` はリクエストのたびに `fs::read` でディスクから読み直し、
 //! 内容をキャッシュ・メモ化しない。これにより起動後の追加・更新・削除が
 //! リビルド・プロセス再起動なしで次リクエストから反映される（
 //! `dev_fs::tests` の `updated_file_content_is_reflected_on_next_lookup` /
@@ -47,7 +47,7 @@
 //!   のみを行い、実行時にファイルシステムへアクセスしない。`../` を含むパスや
 //!   URL エンコードされたパストラバーサル試行はテーブル中のいずれのキーとも
 //!   完全一致しないため常に `None`（404 相当）となる。
-//! - [`dev_fs::lookup`] は「`static/` ルート配下のみ読める」ことを
+//! - `dev_fs::lookup` は「`static/` ルート配下のみ読める」ことを
 //!   事前拒否（`..`・絶対パス成分・NUL 混入の検査）と事後検証
 //!   （`fs::canonicalize` 後の `starts_with` によるルート内包含確認）の
 //!   二重防御で保証する。パーセントデコードは行わない（`dev_fs` モジュール
@@ -90,7 +90,7 @@ pub const fn active_mode() -> AssetMode {
 /// 引く。一致しなければ `None`（呼び出し元が 404 を返す）。
 ///
 /// モード非依存で常にコンパイルされる（[`AssetMode::DevFilesystem`] でも
-/// [`dev_fs`] 単体テストの比較対象・CI の `force-embed` 検証対象として使う）。
+/// `dev_fs` 単体テストの比較対象・CI の `force-embed` 検証対象として使う）。
 pub fn embedded_lookup(url_path: &str) -> Option<&'static [u8]> {
     EMBEDDED_ASSETS
         .iter()
@@ -113,7 +113,7 @@ const WASM_PATH_PREFIX: &str = "/static/wasm/";
 /// `/static/` プレフィックス分岐から呼ばれる公開入口）。
 ///
 /// [`AssetMode::Embedded`] では [`embedded_lookup`] の借用をそのまま返し
-/// （`Cow::Borrowed`）、[`AssetMode::DevFilesystem`] では [`dev_fs::lookup`]
+/// （`Cow::Borrowed`）、[`AssetMode::DevFilesystem`] では `dev_fs::lookup`
 /// が読み込んだ所有バイト列を返す（`Cow::Owned`）。呼び出し元はいずれの
 /// モードでも同一シグネチャで扱える。
 #[cfg(all(debug_assertions, not(feature = "force-embed")))]

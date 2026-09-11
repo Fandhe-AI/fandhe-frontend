@@ -7,14 +7,14 @@
 //! でノード木として構築したものを [`icon`] の `children` 引数へ渡す。この
 //! 子ノードの属性（`d`・`fill` 個別上書き等）にも
 //! `fandhe_frontend_core::render` の既定エスケープと URL 属性検証
-//! （`xlink:href` は [`fandhe_frontend_core::URL_ATTRS`] に収載済み）が
+//! （`xlink:href` は `fandhe_frontend_core::URL_ATTRS` に収載済み）が
 //! そのまま適用される。本モジュール自身は外部リソースを一切参照しない
 //! （`href`/`xlink:href` を自ら出力しない）。
 //!
 //! `size`（[`crate::recipe::Size`]、寸法スケール）のみを variant として持ち、
 //! `color-palette` 軸は提供しない（アイコンの配色は `color: currentColor`
 //! 継承により祖先要素の文字色にそのまま追従させる設計判断であり、
-//! [`crate::spinner`]・[`crate::badge`] のようにアイコン自身が状態/意味を
+//! [`crate::spinner`](mod@crate::spinner)・[`crate::badge`](mod@crate::badge) のようにアイコン自身が状態/意味を
 //! 持つ palette 軸を必要としない。将来個別のアクセント色が必要になれば
 //! 非破壊的に追加できる）。
 //!
@@ -59,7 +59,7 @@
 //!
 //! ## スコープ外（変更しない点）
 //!
-//! [`crate::spinner`] の size 実寸（現在 icon と同じ旧等差外挿）は #1567
+//! [`crate::spinner`](mod@crate::spinner) の size 実寸（現在 icon と同じ旧等差外挿）は #1567
 //! が担当し、本イシューでは触らない。chakra `2xl`/`inherit` 段の追加は
 //! 共通語彙 `recipe::Size` の拡張論点であり本イシュー外（親 #1420 配下で
 //! 別途提案）。

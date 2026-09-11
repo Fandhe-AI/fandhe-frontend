@@ -43,7 +43,7 @@
 //!   `0..=Channel::max()` へ clamp・ラップしない）を追加した。
 //! - **意図的に追随しない**（理由付き）:
 //!   - `hue-slider`/`saturation-slider`/`value-slider`/`alpha-slider` という
-//!     [`Channel::parts`] のパート名体系は、ark-ui の `channel-slider` +
+//!     `Channel::parts` のパート名体系は、ark-ui の `channel-slider` +
 //!     `data-channel` 構成とは異なるが、本イシューでは改名しない
 //!     （`fandhe-frontend-pre-styled-ui` の `SLOTS`・golden CSS
 //!     テスト・`crates/docs-site` の `DYNAMIC_PART_NAMES` を破壊し、closed
@@ -100,10 +100,10 @@
 //!   が no-op として扱う）。
 //! - `"set_channel"`: payload 形式 `"<channel>:<value>"`（`channel` は
 //!   [`Channel`] の固定語彙 `hue`/`saturation`/`value`/`alpha` のみ、`value`
-//!   は厳密な `u16` パース + [`Channel::max`] の範囲検証）。不正値はすべて
+//!   は厳密な `u16` パース + `Channel::max` の範囲検証）。不正値はすべて
 //!   fail-closed に no-op。
 //! - `"increment"`/`"decrement"`: payload は [`Channel`] の固定語彙のみ
-//!   （[`Channel::from_str`]）。未知語彙・空文字は fail-closed に no-op。
+//!   （`Channel::from_str`）。未知語彙・空文字は fail-closed に no-op。
 //!   受理後は該当チャンネルの現在値を ±1 し、`0..=Channel::max()` へ
 //!   clamp する（境界ではラップせず no-op と同じ結果になる）。
 //!
@@ -127,7 +127,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`tabindex`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入
-//!   する経路はない（[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`]
+//!   する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`]
 //!   の既存不変条件をそのまま継承する）。
 //! - 動的値（HEX 文字列/整形済み数値文字列/呼び出し側 `attrs`/children）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
@@ -153,7 +153,7 @@
 //!   拒否する）。復元値も [`crate::color::Hsv::new`] の fail-closed
 //!   コンストラクタを経由する（多層防御）。
 //! - 呼び出し側 `attrs` による `data-scope`/`data-part`/状態系 `data-*`
-//!   属性の上書きは [`Anatomy::part`] と [`drop_reserved`] が fail-closed に
+//!   属性の上書きは [`Anatomy::part`] と `drop_reserved` が fail-closed に
 //!   破棄する（フレームワークが付与する状態表現が常に優先される、
 //!   [`crate::angle_slider`] と同型のパターン）。
 
@@ -542,7 +542,7 @@ pub fn area_thumb<'a>(
 }
 
 /// ChannelSlider コンテナパーツ（`div`）。`channel` に応じた
-/// `data-part`（例: `"hue-slider"`）を出力する（[`Channel::parts`] 参照）。
+/// `data-part`（例: `"hue-slider"`）を出力する（`Channel::parts` 参照）。
 /// [`Channel::as_str`] 固定語彙による `data-channel` と、`orientation` に
 /// よる `data-orientation` を付与する。
 #[must_use]
@@ -700,9 +700,9 @@ pub enum ColorPickerAction {
     Toggle,
     /// HEX 文字列から色を設定する（[`Color::parse_hex`] で検証済み）。
     SetHex(Color),
-    /// 単一チャンネルの値を設定する（[`Channel::max`] の範囲検証済み）。
+    /// 単一チャンネルの値を設定する（`Channel::max` の範囲検証済み）。
     SetChannel(Channel, u16),
-    /// 単一チャンネルの値を 1 だけ増加する（[`Channel::max`] へ clamp、
+    /// 単一チャンネルの値を 1 だけ増加する（`Channel::max` へ clamp、
     /// ラップしない）。
     IncrementChannel(Channel),
     /// 単一チャンネルの値を 1 だけ減少する（`0` へ clamp、ラップしない）。
@@ -817,7 +817,7 @@ impl ColorPicker {
         percent_of(u32::from(self.alpha), u32::from(Channel::Alpha.max()))
     }
 
-    /// 指定チャンネルの現在値（[`Channel::max`] の範囲内）。
+    /// 指定チャンネルの現在値（`Channel::max` の範囲内）。
     #[must_use]
     pub fn channel_value(&self, channel: Channel) -> u16 {
         match channel {
@@ -1039,7 +1039,7 @@ impl ColorPicker {
 impl Component for ColorPicker {
     type Action = ColorPickerAction;
 
-    /// `ColorPickerAction::SetChannel` は [`Channel::max`] を超える値を
+    /// `ColorPickerAction::SetChannel` は `Channel::max` を超える値を
     /// fail-closed に無視する（no-op）。[`ColorPicker::decode_action`] が
     /// 既に検証済みだが、`update()` を直接呼ぶ経路（`decode_action` を
     /// 経由しない）でも同じ不変条件を維持する多層防御
@@ -1098,9 +1098,9 @@ impl Component for ColorPicker {
     /// `"open"`/`"close"`/`"toggle"`: payload 不使用。`"set_hex"`: payload を
     /// [`Color::parse_hex`] で検証し、`Err` は `None`（no-op）。
     /// `"set_channel"`: payload `"<channel>:<value>"` を固定語彙 + 厳密
-    /// `u16` パース + [`Channel::max`] 範囲検証し、いずれかに失敗すれば
+    /// `u16` パース + `Channel::max` 範囲検証し、いずれかに失敗すれば
     /// `None`（no-op）。`"increment"`/`"decrement"`: payload を
-    /// [`Channel::from_str`] の固定語彙のみで解釈し、未知語彙・空文字は
+    /// `Channel::from_str` の固定語彙のみで解釈し、未知語彙・空文字は
     /// `None`（no-op）。
     fn decode_action(name: &str, payload: &str) -> Option<ColorPickerAction> {
         match name {

@@ -8,12 +8,12 @@
 //!
 //! 本モジュールが宣言する slot は `root`/`label`/`helper-text`/`error-text`/
 //! `required-indicator` の 5 つのみで、**`input`/`textarea`/`select` は
-//! 宣言しない**。これらのコントロールパーツは既に [`crate::input`]/
-//! [`crate::textarea`]/[`crate::native_select`] が recipe scope `"field"` を
-//! 共有しつつ独占的に所有している（[`crate::input`] モジュール doc
+//! 宣言しない**。これらのコントロールパーツは既に [`crate::input`](mod@crate::input)/
+//! [`crate::textarea`](mod@crate::textarea)/[`crate::native_select`](mod@crate::native_select) が recipe scope `"field"` を
+//! 共有しつつ独占的に所有している（[`crate::input`](mod@crate::input) モジュール doc
 //! 「`field` scope を共有する理由」節参照）。本モジュールが `input`/
 //! `textarea`/`select` slot へ base 宣言を追加登録すると、集約 stylesheet
-//! （[`crate::stylesheet::all_styled_component_css`]）中に同一セレクタの
+//! （`crate::stylesheet::all_styled_component_css`）中に同一セレクタの
 //! base ブロックが二重出現しカスケードを汚すため、意図的に宣言しない。
 //!
 //! docs サイトへの `/themes/field/` ページ登録（showcase Demo・
@@ -32,7 +32,7 @@
 //!
 //! headless [`fandhe_frontend_headless_ui::field`] 自身が「props から決定的
 //! にマークアップを組み立てる純粋関数群」（状態機械なし）として実装されて
-//! いるため、本モジュールもその設計をそのまま継承する（[`crate::input`]
+//! いるため、本モジュールもその設計をそのまま継承する（[`crate::input`](mod@crate::input)
 //! モジュール doc と同型の判断）。
 //!
 //! # variant 軸: `orientation` のみ
@@ -41,7 +41,7 @@
 //! （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` の保有
 //! 判定基準: 子の寸法に従属するレイアウト部品の root は size 軸を持たない。
 //! ラベル・補助テキスト・エラーテキストの文字サイズは固定の型階層で表現する）。
-//! `color-palette` 軸も持たない（フォーム入力系は非提供、[`crate::input`]
+//! `color-palette` 軸も持たない（フォーム入力系は非提供、[`crate::input`](mod@crate::input)
 //! と同じ判断）。
 //!
 //! # 意図的非採用（参考サイト比較、chakra-ui v3 Field / ark-ui Field）
@@ -49,7 +49,7 @@
 //! - **hover**: `root`/`label` はインタラクティブ slot（`cursor: pointer`）
 //!   ではないため付与しない。
 //! - **focus ring**: 実フォーカスはコントロール（input 等）側にあり、
-//!   [`crate::input`] 等が既に focus ring を所有する。
+//!   [`crate::input`](mod@crate::input) 等が既に focus ring を所有する。
 //! - **transition**: 状態遷移に伴う視覚変化がないため付与しない。
 //! - **`data-readonly` によるラベル色変更**: chakra-ui v3 も持たない。
 //!   readonly はコントロール側の見た目のみで伝える。
@@ -142,7 +142,7 @@
 //!   段）を採る。理由: トークン外の生 `rem` 値は #1423 のスケール決定に
 //!   反する。
 //! - **`separator` の線描画**: `border-*`（chakra-ui 方式）を採る。理由:
-//!   [`crate::separator`]（#2053）が既に持つ `--fandhe-separator-thickness`
+//!   [`crate::separator`](mod@crate::separator)（#2053）が既に持つ `--fandhe-separator-thickness`
 //!   の上書き契約を共有し、区切り線の太さ制御を一貫させるため。線は実要素
 //!   `separator-line`（`hr`）の `border-top` で描き、擬似要素は使わない
 //!   （[`StateCondition`] が擬似要素セレクタを表現できないため）。
@@ -169,7 +169,7 @@
 //! [`FieldOrientation::Responsive`] を追加した。`group` の inline サイズが
 //! [`crate::recipe::ContainerBreakpoint::Md`]（448px、shadcn/ui
 //! `@md/field-group` 相当）以上のときのみ `Horizontal` と同じ宣言
-//! （[`horizontal_root_declarations`]）を `root` へ適用する。`group` の
+//! （`horizontal_root_declarations`）を `root` へ適用する。`group` の
 //! **外**に `Responsive` な `root` を置いた場合、container が存在しないため
 //! 常に縦積みのまま（`@container` は無条件で不一致になる。mobile-first の
 //! 安全な劣化）。
@@ -184,10 +184,10 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 全出力は [`fandhe_frontend_core::el`]/[`fandhe_frontend_core::text`]
-//!   （headless 層経由）を通り、[`fandhe_frontend_core::render`] の既定
+//! - 全出力は `fandhe_frontend_core::el`/`fandhe_frontend_core::text`
+//!   （headless 層経由）を通り、`fandhe_frontend_core::render` の既定
 //!   エスケープ（REQ-1）を必ず経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから recipe が
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから recipe が
 //!   生成したクラスへ完全に置き換える（生文字列をクラス名合成へ混入させない）。
 //! - CSS 宣言はすべてコンパイル時静的リテラルであり、[`crate::css::decl`] の
 //!   `is_valid_value` 検証を通過する値のみを使う。
@@ -510,7 +510,7 @@ pub fn css() -> String {
 }
 
 /// styled `root` パーツを組み立てる。`orientation` に応じたクラスを付与し
-/// （[`drop_class_attr`] により呼び出し側の `class` は除去してから合成する）、
+/// （`drop_class_attr` により呼び出し側の `class` は除去してから合成する）、
 /// `disabled`/`invalid`/`required`/`readonly` の data-* フラグ・
 /// アクセシビリティ配線は [`fandhe_frontend_headless_ui::field::root`] へ
 /// そのまま委譲する。

@@ -18,7 +18,7 @@
 //!
 //! - 純粋ロジック層（本モジュール上部）は web-sys に依存せず、native の
 //!   `cargo test` で決定的に検証できる。
-//! - 配線層（[`mod@wiring`]）のみ `#[cfg(target_arch = "wasm32")]` でゲート
+//! - 配線層（`mod@wiring`）のみ `#[cfg(target_arch = "wasm32")]` でゲート
 //!   する。
 //!
 //! # アクション対応表
@@ -82,12 +82,12 @@
 //! - **List パーツの `id` を再解決キーにする**: List パーツの `id`
 //!   （[`fandhe_frontend_headless_ui::command::list`] の必須引数）は
 //!   `view()` が再現する安定値であり、`crate::angle_slider::wiring::
-//!   PartKey` と同じ役割を果たす。`handle_input`/[`reflect_filter`] は
+//!   PartKey` と同じ役割を果たす。`handle_input`/`reflect_filter` は
 //!   dispatch 前に読み取った要素参照を dispatch 後まで使い回さず、
 //!   `list_id` から `document.get_element_by_id` で生きた DOM を
-//!   再解決してから使う（[`resolve_command_parts_by_list_id`]）。
+//!   再解決してから使う（`resolve_command_parts_by_list_id`）。
 //! - **DOM への書き込みは、すべての dispatch が完了した後に 1 回だけ**:
-//!   [`reflect_filter`] は「絞り込み結果 + 選択整合の判定（dispatch
+//!   `reflect_filter` は「絞り込み結果 + 選択整合の判定（dispatch
 //!   なし）→ 高々 1 回の dispatch → 再解決 → 書き込み」の順で進める。
 //!   dispatch が挟まる中間段階では `hidden`/`data-selected` 等を一切
 //!   書かない（先に書いた属性が後続の再描画で失われるのを防ぐ、
@@ -102,7 +102,7 @@
 //! `handle_input` 冒頭の `event.target()` は既に detach 済みだが、
 //! `data-scope`/`data-part`/`aria-controls` の属性読み取りは detach
 //! 済み要素でも成立するため、本モジュールは `target_element` 自体の
-//! `root.contains` を要求せず、[`resolve_list`] が解決した List パーツ
+//! `root.contains` を要求せず、`resolve_list` が解決した List パーツ
 //! への `root.contains` のみをセキュリティ境界として使う（詳細は
 //! `handle_input` 内コメント）。
 //!

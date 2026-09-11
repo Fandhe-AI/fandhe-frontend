@@ -26,19 +26,19 @@
 //! Tabs は `data-state` に `"open"`/`"closed"` ではなく `"active"`/`"inactive"`
 //! 語彙を使う（`crates/headless-ui/src/tabs.rs` の `DATA_STATE_ACTIVE`/
 //! `DATA_STATE_INACTIVE`）。選択中の `trigger` を強調する CSS を
-//! [`crate::recipe::SlotRecipe::state`]（イシュー #643）経由で [`recipe`] へ
+//! [`crate::recipe::SlotRecipe::state`]（イシュー #643）経由で `recipe` へ
 //! 登録する（`serialize_rule` を直接呼ぶ手書きセレクタ機構は廃止した）。
 //!
 //! # キーボード操作系スタイル（イシュー #643）
 //!
 //! `trigger` は roving tabindex（`.claude/rules` 外部だが headless 層 tabs の
 //! キーボードナビゲーション実装）でフォーカス移動するボタン要素であり、
-//! キーボード操作時のみのフォーカスリング（`:focus-visible`）を [`recipe`]
+//! キーボード操作時のみのフォーカスリング（`:focus-visible`）を `recipe`
 //! へ登録する。
 //!
 //! # `size`/`color-palette` variant（イシュー #729）
 //!
-//! `size`（[`Size`]）は root へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は root へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-tabs-trigger-padding`/`-content-padding` の root スコープ CSS
 //! custom property（通常の CSS 継承により `trigger`/`content` へ伝わる。
 //! `root` は両パーツを内包する祖先要素であるため、
@@ -58,7 +58,7 @@
 //! 視覚比較（issue #1542 コメントに転記した 7 軸チェック）を踏まえ、以下を
 //! 是正した:
 //!
-//! - **サイズ**: [`recipe`] の `trigger` base へ `font-size:
+//! - **サイズ**: `recipe` の `trigger` base へ `font-size:
 //!   var(--fandhe-tabs-font-size, var(--fandhe-font-font-size-sm))` を新設
 //!   し、`size` variant（Xs〜Xl）が `--fandhe-tabs-font-size` を段対応で
 //!   定義するようにした（`crate::pagination`/`crate::tab_nav` と同一の段
@@ -119,7 +119,7 @@
 //! `crate::accordion` でも `enclosed` は既に「外枠 + 角丸」を指す語として
 //! 使われており語彙の一貫性がある。
 //!
-//! 実装は [`recipe`] の `list`/`trigger` base・state 宣言のうち Enclosed で
+//! 実装は `recipe` の `list`/`trigger` base・state 宣言のうち Enclosed で
 //! 値が変わるものを `var(--fandhe-tabs-<name>, <既存リテラル>)` へ変換し
 //! （`size` variant が `--fandhe-tabs-trigger-padding` 等で確立済みの手法と
 //! 同型）、`TabsVariant::Line`（既定）ではフォールバック値と同一の custom
@@ -149,7 +149,7 @@
 //!   dead CSS になる」として装飾追加を見送っていた。イシュー #2211 で
 //!   `fandhe-frontend-wasm-full`（`crates/wasm-full/src/tabs_indicator.rs`）
 //!   が実測配線を実装したため、本モジュールも `[data-part="indicator"]`
-//!   の絶対配置 + `border-bottom`（下線）を追加した（[`recipe`] の
+//!   の絶対配置 + `border-bottom`（下線）を追加した（`recipe` の
 //!   `indicator` base/state 参照）。`data-orientation="vertical"` 時は
 //!   `trigger`/`list`/`content` と同じく `border-bottom` を `border-inline-end`
 //!   （縦の右側線）へ切り替える `state` を追加済み（レビュー指摘是正）。
@@ -234,7 +234,7 @@
 //! イシュー時点で `shared_tab_*` を参照するモジュールは本モジュール自身
 //! のみだった（`git grep shared_tab` で確認済み）。本イシューで上記
 //! ビジュアル是正に伴い宣言列自体が `tabs` 固有の内容へ発展したため、
-//! 3 関数を [`recipe`] へインライン化して削除した。
+//! 3 関数を `recipe` へインライン化して削除した。
 
 use crate::css::decl;
 use crate::recipe::{
@@ -848,7 +848,7 @@ fn recipe() -> SlotRecipe {
 ///
 /// イシュー #2039 codex-review 再指摘（PR #2173）: `.fd-tabs--variant-enclosed`
 /// は [`tabs`] が root（`data-part="root"`）にのみ付与するクラスであり、
-/// trigger 自身には付かない（[`fandhe_frontend_headless_ui::tabs`] が出力する
+/// trigger 自身には付かない（[`fandhe_frontend_headless_ui::tabs`](mod@fandhe_frontend_headless_ui::tabs) が出力する
 /// パーツ属性を参照）。そのためセレクタを trigger 側に `.fd-tabs--variant-enclosed`
 /// を直接連結する形（`[data-part="trigger"].fd-tabs--variant-enclosed[data-state="active"]`）
 /// で書くと常に不一致になり、forced-colors 下で選択中 trigger が識別できない
@@ -872,7 +872,7 @@ pub fn stylesheet() -> String {
 /// 付与する唯一のパーツ。`tabs` は headless 層に呼び出し側 attrs を受け取る
 /// 引数を持たない（[`TabsProps`]/`items` のみ、モジュール冒頭 rustdoc「root
 /// への attrs 注入点」節参照）ため、他の styled 部品の `root`
-/// （[`crate::class_attr::drop_class_attr`] で呼び出し側 `class` を除去して
+/// （`crate::class_attr::drop_class_attr` で呼び出し側 `class` を除去して
 /// から合成）とは異なり、生成した variant クラスをそのまま root の `class`
 /// として渡す（`drop_class_attr` は不要）。実体は
 /// [`fandhe_frontend_headless_ui::tabs::tabs_with_root_attrs`] へ委譲する

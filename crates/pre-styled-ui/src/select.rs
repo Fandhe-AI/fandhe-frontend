@@ -27,7 +27,7 @@
 //! # data-state とスタイルの連動（イシュー #551 受け入れ条件）
 //!
 //! `trigger`（listbox 開閉）・`item`（選択有無、`data-state` を再利用）の
-//! `data-state` に応じた見た目の切り替えを [`recipe`] へ登録する
+//! `data-state` に応じた見た目の切り替えを `recipe` へ登録する
 //! （[`crate::recipe::SlotRecipe::state`]、イシュー #643。`serialize_rule` を
 //! 直接呼ぶ手書きセレクタ機構は廃止した）。
 //!
@@ -66,7 +66,7 @@
 //! headless 層（`crates/headless-ui/src/select.rs`）は `aria-hidden`/`tabindex`
 //! のみを設定し視覚的な非表示化は行わない契約になっている。styled 層である
 //! 本モジュールが visually-hidden パターン（`position: absolute` + 1px クリップ）
-//! で覆い隠す責務を負う（[`recipe`] の `hidden-select` 規則）。また `positioner`
+//! で覆い隠す責務を負う（`recipe` の `hidden-select` 規則）。また `positioner`
 //! は `position: absolute` で配置し、開いた listbox が通常のフローに残らず
 //! オーバーレイ表示になるようにする（[`crate::dialog`] の `positioner` と同じ
 //! 配置責務）。`control`/`positioner` は headless 側 `root`（同ファイル）の子と
@@ -175,7 +175,7 @@
 //!   `--fandhe-y`（wasm positioning 契約、#663）とは独立したプロパティの
 //!   ため安全に追加できると判断した。同じ変数命名規則
 //!   （`--fandhe-select-content-max-height`）・同じスケール（Xs=8rem /
-//!   Sm=12rem / Md=16rem / Lg=20rem / Xl=24rem）を [`recipe`] の `size`
+//!   Sm=12rem / Md=16rem / Lg=20rem / Xl=24rem）を `recipe` の `size`
 //!   variant へ流用する。shadcn/ui はビューポート由来の可変高さ（Radix
 //!   `--radix-select-content-available-height` 相当）を採るが、ビューポート
 //!   実測は `fandhe-frontend-wasm-full` の positioning 契約（#663）側の
@@ -190,7 +190,7 @@
 //! - **`trigger` の `data-invalid`/`data-readonly` を消費**: headless
 //!   （`crates/headless-ui/src/select.rs::state_attrs`）は `SelectProps`
 //!   の `invalid`/`readonly` から `data-invalid`/`data-readonly` を出力
-//!   するが、[`recipe`] は #1502 時点でこれを一切消費していなかった。
+//!   するが、`recipe` は #1502 時点でこれを一切消費していなかった。
 //!   **参照競合の判定**: shadcn/ui の `aria-invalid` 表現（box-shadow
 //!   リング）ではなく、chakra-ui/Radix Themes 基準の本リポジトリ既存視覚
 //!   言語（`input.rs`）に揃え `border-color: var(--fandhe-color-danger)`
@@ -212,7 +212,7 @@
 //!
 //! `fandhe-frontend-headless-ui::select` へ新設された
 //! [`separator`]/[`scroll_up_button`]/[`scroll_down_button`]（18 anatomy
-//! パーツへ拡張）を再エクスポートし、[`recipe`] へ着装する。
+//! パーツへ拡張）を再エクスポートし、`recipe` へ着装する。
 //!
 //! - **`separator`**: shadcn/ui `SelectSeparator`（`bg-border
 //!   pointer-events-none -mx-1 my-1 h-px`）を採る。参照競合の判定:
@@ -759,7 +759,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::select::root`] へ委譲する。
 /// `props`（[`SelectProps`]）は headless 層の `disabled`/`readonly`/
 /// `invalid`/`required` 状態束をそのまま透過する（combobox styled `root`

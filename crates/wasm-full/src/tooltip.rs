@@ -11,7 +11,7 @@
 //! 踏襲する: web-sys に依存しない純粋ロジック層（[`TooltipDelayConfig`]・
 //! [`DelayState`]・[`transition`]、native の `cargo test` で検証可能）と、
 //! `#[cfg(target_arch = "wasm32")]` でゲートした配線層
-//! （[`wiring::TooltipDelayController`]）に分離する。
+//! （`wiring::TooltipDelayController`）に分離する。
 //!
 //! # 他モジュール・他クレートとの契約
 //!
@@ -30,8 +30,8 @@
 //! - 本モジュールは実際の `"open"`/`"close"` dispatch
 //!   （`fandhe_frontend_interactive::dispatch`、
 //!   `fandhe_frontend_headless_ui::tooltip::Tooltip::decode_action` の語彙）・
-//!   再描画・DOM 更新を一切行わない。[`wiring::TooltipDelayController`] は
-//!   要求発生時にコールバック（[`TooltipDelayRequest`]）へ通知するのみで
+//!   再描画・DOM 更新を一切行わない。`wiring::TooltipDelayController` は
+//!   要求発生時にコールバック（`TooltipDelayRequest`）へ通知するのみで
 //!   あり、`dispatch` の実呼び出しは呼び出し側（イシュー #580 の DOM
 //!   イベント配線統合層）の責務とする（[`crate::overlay`] と同じ責務分離
 //!   方針）。
@@ -194,7 +194,7 @@ impl DelayState {
 }
 
 /// [`transition`] への入力イベント（web-sys 非依存の抽象化。実 DOM イベント
-/// との対応は [`wiring`] が担う）。
+/// との対応は `wiring` が担う）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DelayEvent {
     /// トリガーへポインタが進入した（`pointerenter` 相当）。
@@ -215,13 +215,13 @@ pub enum DelayEvent {
     CloseTimerFired,
 }
 
-/// [`transition`] が返す、呼び出し側（[`wiring::TooltipDelayController`]）が
+/// [`transition`] が返す、呼び出し側（`wiring::TooltipDelayController`）が
 /// 実行すべき副作用。
 ///
 /// 呼び出し側は `effect` が [`DelayEffect::None`] 以外のとき、新しい効果を
 /// 適用する前に当該 tooltip エントリの保留中タイマー（あれば）を必ず先に
 /// キャンセルしてから本効果を処理する契約とする
-/// （[`wiring::TooltipDelayController`] doc 参照）。これにより「タイマー
+/// （`wiring::TooltipDelayController` doc 参照）。これにより「タイマー
 /// 満了前の即時遷移（フォーカス等）がタイマーの停止と表示/非表示要求の
 /// 両方を意味する」ケースを、本 enum に複合バリアントを持たせずに表現
 /// できる。**`DelayEffect::None` のときは保留中タイマーへ一切干渉しない**

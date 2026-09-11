@@ -207,7 +207,7 @@ pub struct Page {
 /// の `TomlError` と同方針）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NavError {
-    /// 入力サイズが [`MAX_INPUT_BYTES`] を超えた。
+    /// 入力サイズが `MAX_INPUT_BYTES` を超えた。
     TooLarge,
     /// 構文エラー（未知のテーブル・未知のキー・非対応の値型・重複キー等）。
     Parse {
@@ -879,7 +879,7 @@ fn href(nav: &Nav, path: &str) -> String {
 ///   実害のある UX 退行を避けるための安全側の既定）。加えて、
 ///   `current_path` は `crate::build::build_site` のページ生成ループが
 ///   [`Nav::all_pages`] から渡す値のみであり、`parse_nav` の形式検証
-///   （§ [`href`]）を通過済みの nav 由来データに限られる。攻撃者制御の
+///   （§ `href`）を通過済みの nav 由来データに限られる。攻撃者制御の
 ///   入力でこの分岐へ到達する経路は存在しない。
 /// - 他セクションへの到達性は本関数のスコープ外で担保される:
 ///   [`header_nav`]（全セクションのトリガー + 直下ページのドロップ
@@ -1058,7 +1058,7 @@ fn group_node(nav: &Nav, group: &Group, current_path: &str) -> Node {
 /// （CSS の `:hover`/`:focus-within` のみで開閉する）。ARIA の動的状態
 /// 属性を静的な固定値のまま出力すると支援技術に虚偽の状態を伝えること
 /// になるため、`role`/`aria-expanded`/`aria-haspopup` のいずれも付与
-/// しない（[`fandhe_frontend_headless_ui::nav_list`] が「素の要素の暗黙
+/// しない（`fandhe_frontend_headless_ui::nav_list` が「素の要素の暗黙
 /// ARIA ロールのみを使う」とした判断をそのまま踏襲する）。トリガーが
 /// `<button>` から `<a href>` に変わった後も、`<a>` はリンクとしての
 /// 暗黙ロールを持つのみでありこの判断は変わらない。

@@ -5,14 +5,14 @@
 //!（`.claude/skills/ark-ui/references/components/collections/listbox.md`）/
 //! chakra-ui の Listbox 相当を参考に、Root / Label / Content / ItemGroup /
 //! ItemGroupLabel / Item / ItemText / ItemIndicator / ValueText の 9 anatomy
-//! パーツと、single モード [`state::SingleSelect`] を埋め込んだ [`Listbox`]、
-//! multiple モード [`state::MultiSelect`] を埋め込んだ [`MultiListbox`] の
+//! パーツと、single モード [`state::SingleSelect`](crate::state::SingleSelect) を埋め込んだ [`Listbox`]、
+//! multiple モード [`state::MultiSelect`](crate::state::MultiSelect) を埋め込んだ [`MultiListbox`] の
 //! 2 状態機械を提供する。
 //!
 //! # [`crate::select::Select`] との責務境界（イシュー #750 明示要件）
 //!
 //! [`crate::select::Select`] は**ポップアップ型**の選択コンポーネントであり、
-//! [`state::Disclosure`]（listbox の開閉）+ [`state::SingleSelect`]（選択値）
+//! [`state::Disclosure`](crate::state::Disclosure)（listbox の開閉）+ [`state::SingleSelect`](crate::state::SingleSelect)（選択値）
 //! の合成、trigger/positioner/hidden-select（フォーム送信対応）を持つ。
 //! 対して本モジュールの Listbox/MultiListbox は**常時展開**（開閉状態を
 //! 一切持たない）であり、trigger/positioner を持たない。ポップアップ選択
@@ -36,7 +36,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`id`/`tabindex`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`mod@crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存
 //!   不変条件をそのまま継承する）。
 //! - 動的値（項目値 `value`/`id`/`labelledby`/`activedescendant`/呼び出し側
 //!   `attrs`/`children`）は [`fandhe_frontend_core::render`] の既定エスケープを
@@ -47,12 +47,12 @@
 //! - hydration 属性（`data-hydrate-selected`）はクライアント側で改ざんされ
 //!   うる入力として扱う。[`Listbox`]/[`MultiListbox`] の
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は
-//!   [`state::SingleSelect`]/[`state::MultiSelect`] へ全委譲することで、
+//!   [`state::SingleSelect`](crate::state::SingleSelect)/[`state::MultiSelect`](crate::state::MultiSelect) へ全委譲することで、
 //!   panic せず `HydrateError` を返す既存保証をそのまま継承する（single は
 //!   2 件以上、multiple は重複値を fail-closed 拒否）。
 //! - dispatch payload（選択値）は改ざんされうるクライアント入力として扱い、
-//!   HTML として解釈せず値として保持する（[`state::SingleSelect`]/
-//!   [`state::MultiSelect`] の既存契約を継承）。
+//!   HTML として解釈せず値として保持する（[`state::SingleSelect`](crate::state::SingleSelect)/
+//!   [`state::MultiSelect`](crate::state::MultiSelect) の既存契約を継承）。
 //! - [`ListboxProps`] が全パーツへ一律付与する固定キー（`data-orientation`/
 //!   `data-disabled`）は呼び出し側 `attrs` から `drop_reserved` により
 //!   fail-closed に除外してから合成する（[`crate::checkbox`]/
@@ -278,7 +278,7 @@ pub fn label<'a>(
 /// （`fandhe-frontend-wasm-full` の keynav が ArrowLeft/ArrowRight を受理
 /// するかどうかの判定に使う呼び出し側オプトインだった属性を、イシュー
 /// #1611 で常時出力へ変更した）。[`ListboxProps::disabled`] を
-/// `data-disabled` へ反映する（[`root_state_attrs`] 経由。root/label/
+/// `data-disabled` へ反映する（`root_state_attrs` 経由。root/label/
 /// content/item-group/item/value-text へ一律付与する契約、モジュール
 /// doc §セキュリティ不変条件参照）。
 #[must_use]
@@ -507,7 +507,7 @@ pub fn value_text<'a>(
     ANATOMY.part("value-text", "span", merged, children)
 }
 
-/// [`state::SingleSelect`]（高々 1 個選択）を埋め込んだ single モード
+/// [`state::SingleSelect`](crate::state::SingleSelect)（高々 1 個選択）を埋め込んだ single モード
 /// Listbox の状態機械。
 ///
 /// 状態を取る各パーツ関数（[`root`]/[`item`]/[`item_text`]/
@@ -653,7 +653,7 @@ impl Component for Listbox {
     }
 
     /// 共通契約（`data-state` 整合・hydration ルート）のみを表す最小正準
-    /// ビュー（root、children 空）。[`state::SingleSelect::view`] と同じ
+    /// ビュー（root、children 空）。[`state::SingleSelect::view`](crate::state::SingleSelect::view) と同じ
     /// 位置付けであり、公開 UI としての利用は想定しない。
     fn view(&self) -> Node {
         self.root(&ListboxProps::default(), Vec::new(), Vec::new())
@@ -676,7 +676,7 @@ impl Hydrate for Listbox {
     }
 }
 
-/// [`state::MultiSelect`]（0 個以上の同時選択）を埋め込んだ multiple モード
+/// [`state::MultiSelect`](crate::state::MultiSelect)（0 個以上の同時選択）を埋め込んだ multiple モード
 /// Listbox の状態機械。
 ///
 /// [`Listbox`]（single モード）と対称の API を提供する。「複数項目が
@@ -818,7 +818,7 @@ impl Component for MultiListbox {
     }
 
     /// 共通契約（`data-state` 整合・hydration ルート）のみを表す最小正準
-    /// ビュー（root、children 空）。[`state::MultiSelect::view`] と同じ
+    /// ビュー（root、children 空）。[`state::MultiSelect::view`](crate::state::MultiSelect::view) と同じ
     /// 位置付け。
     fn view(&self) -> Node {
         self.root(&ListboxProps::default(), Vec::new(), Vec::new())

@@ -3,14 +3,14 @@
 //! [`crate::area_chart`]（`AreaCurve`）と [`crate::line_chart`]（[`Curve`]）が
 //! 共有する曲線補間ジオメトリ。line-chart 側の同種補間ニーズ
 //! （イシュー #2083、shadcn/ui Charts（line）突合）が area-chart 側
-//! （#2081）の実装へ合流し、[`line_path_d`] として一本化した
+//! （#2081）の実装へ合流し、`line_path_d` として一本化した
 //! （area-chart 側の内部ヘルパ `build_line_d` が本来持っていた `match`
 //! 分岐を本関数へ移動し、area 側は `impl From<AreaCurve> for Curve` 経由で
 //! 呼び出す）。本モジュール自体は SVG ノード木を組み立てず、`(x, y)`
 //! 座標列を受け取って [`super::svg::PathBuilder`] の `d` 属性文字列、または
 //! 別の `(x, y)` 座標列・制御点列を返すだけの決定的なジオメトリ計算に閉じる。
 //!
-//! # natural spline（[`natural_control_points`]）
+//! # natural spline（`natural_control_points`）
 //!
 //! d3-shape `curveNatural` と同じ「自然三次スプライン」アルゴリズム
 //! （3 重対角行列を Thomas 法で解き、各区間の 3 次 Bézier 制御点を求める）
@@ -19,7 +19,7 @@
 //! 呼び出し元が `points.len() >= 3` を保証する契約とする
 //! （[`crate::area_chart`] は `n == 2` を直線へ退化させ本関数を呼ばない）。
 //!
-//! # step（[`step_points`]）
+//! # step（`step_points`）
 //!
 //! d3-shape `curveStep`（区間中点で段差になる版）相当。各区間 `k` の中点
 //! `m_k = (x_k + x_{k+1}) / 2` を経由し、`(m_k, y_k) → (m_k, y_{k+1})` の
@@ -33,17 +33,17 @@ use super::ChartError;
 /// （イシュー #2081/#2083）。
 ///
 /// 既定 [`Curve::Linear`] は曲線補間導入前と完全に同一の `d` 属性を
-/// 生成する（golden 純追加原則、[`line_path_d`] doc 参照）。
+/// 生成する（golden 純追加原則、`line_path_d` doc 参照）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Curve {
     /// 直線区間（既定）。
     #[default]
     Linear,
     /// 自然三次スプライン補間（d3-shape `curveNatural` 相当、
-    /// [`natural_control_points`]）。
+    /// `natural_control_points`）。
     Natural,
     /// 区間中点で段差になる補間（d3-shape `curveStep` 相当、
-    /// [`step_points`]）。
+    /// `step_points`）。
     Step,
 }
 

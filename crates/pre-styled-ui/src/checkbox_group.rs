@@ -43,7 +43,7 @@
 //! `item-hidden-input` パーツを新設せず、ネイティブ `<input type="checkbox">`
 //! を [`fandhe_frontend_headless_ui::checkbox::hidden_input`] の入れ子
 //! 再利用で賄う（headless 側モジュール doc「anatomy」節参照）。この設計を
-//! 継承し、**本モジュールの [`recipe`] は `hidden-input` slot の
+//! 継承し、**本モジュールの `recipe` は `hidden-input` slot の
 //! visually-hidden 規則を一切再宣言しない**
 //! （`[data-scope="checkbox"][data-part="hidden-input"]` として
 //! `crate::checkbox` の recipe に既存であり、本モジュールで重複実装すると
@@ -56,7 +56,7 @@
 //! # data-state とスタイルの連動
 //!
 //! `item`/`item-control`/`item-indicator`（選択状態、
-//! `data-state="checked"`/`"unchecked"`）の見た目の切り替えを [`recipe`] へ
+//! `data-state="checked"`/`"unchecked"`）の見た目の切り替えを `recipe` へ
 //! 登録する（[`crate::recipe::SlotRecipe::state`]）。`root` の
 //! `data-orientation="horizontal"` でも配置切り替えを行う（[`crate::radio_group`]
 //! と同型）。
@@ -153,7 +153,7 @@
 //! `raw_html()` を使用しない。CSS 宣言値はすべてコンパイル時静的リテラルで
 //! あり、動的値（`value`/属性/children）へ CSS 値として流し込む経路を持たない
 //! （動的値は headless 層経由で `fandhe_frontend_core::render` の既定
-//! エスケープを必ず通る、REQ-1）。styled `root` は [`drop_class_attr`] に
+//! エスケープを必ず通る、REQ-1）。styled `root` は `drop_class_attr` に
 //! より呼び出し側の `class` を除去してから合成するため、`class` 属性は常に
 //! 単一（[`crate::radio_group::root`] と同型）。
 //!
@@ -668,7 +668,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去
 /// してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::checkbox_group::root`] へ委譲する。
 ///
@@ -748,7 +748,7 @@ fn styled_root_with_props<'a>(
 /// [`CheckboxGroup`] 状態機械経由で styled root パーツを組み立てるための
 /// 拡張トレイト（モジュール doc「選択的 re-export」節参照）。`self.props()`
 /// （disabled/readonly/invalid 全体、イシュー #1603 で `self.is_disabled()`
-/// 単体から拡張）を自動注入し、[`styled_root_with_props`] へ委譲する状態
+/// 単体から拡張）を自動注入し、`styled_root_with_props` へ委譲する状態
 /// 機械経由の入口を提供する。
 pub trait CheckboxGroupStyledRoot {
     /// styled root パーツを組み立てる（[`root`] 関数と同じ実体だが、

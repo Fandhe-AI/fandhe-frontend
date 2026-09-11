@@ -61,7 +61,7 @@
 //! - **枠線・高さの統一**: `toggle-item` の `border: 1px solid transparent`
 //!   を `button`/`link` と同じ `border: none` に統一し、3 項目へ
 //!   `box-sizing: border-box` を付与した（枠線有無の違いによる 2px の
-//!   高さずれの解消、[`crate::button`] #1787 と同型の問題）。on 状態は
+//!   高さずれの解消、[`crate::button`](mod@crate::button) #1787 と同型の問題）。on 状態は
 //!   `border-color: accent` の代わりに `background: accent-subtle` +
 //!   `color: accent-fg-subtle` で表現する（Radix の violet-5 / violet-11
 //!   相当。イシュー #1967 で 1px 内側リングを追加、下記「pressed 状態の
@@ -92,7 +92,7 @@
 //!
 //! - **root の box-shadow は追加しない**: [`crate::menubar`]（#1702）で確定
 //!   した「アプリケーションバー位置付け」の判断と整合させる意図的差分。
-//! - **solid の Share ボタン相当は提供しない**: 利用者が [`crate::button`]
+//! - **solid の Share ボタン相当は提供しない**: 利用者が [`crate::button`](mod@crate::button)
 //!   を持ち込む構成（[`crate::action_bar`] と同じ責務分担）。
 //! - **pressed の 1px accent リング**（イシュー #1967）: 参照サイト
 //!   （Radix Primitives Toolbar デモ、`docs/design/reference-screenshots/

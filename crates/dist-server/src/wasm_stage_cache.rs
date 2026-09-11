@@ -95,8 +95,8 @@ const WASM_OPT_FLAGS_TAG: &str = "Os,strip-producers";
 ///
 /// 構成要素は「ネストビルドが生成した `.wasm` の内容ハッシュ（FNV-1a）」
 /// 「インストール済み `wasm-bindgen-cli` の実バージョン」「`wasm-bindgen`
-/// 追加フラグ構成（[`WASM_BINDGEN_FLAGS_TAG`]、固定）」「`wasm-opt` の
-/// バージョン文字列 + 追加フラグ構成（[`WASM_OPT_FLAGS_TAG`]、未導入なら
+/// 追加フラグ構成（`WASM_BINDGEN_FLAGS_TAG`、固定）」「`wasm-opt` の
+/// バージョン文字列 + 追加フラグ構成（`WASM_OPT_FLAGS_TAG`、未導入なら
 /// `none`）」の 4 つ。1 番目は wasm-full のソース変更を、2 番目は CLI
 /// 入れ替え（stale なグルーコード再利用の防止、PR #217 review 4719879204 と
 /// 同種の懸念）を、4 番目は `wasm-opt` の導入・バージョン変更・削除・

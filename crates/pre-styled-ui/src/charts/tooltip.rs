@@ -104,7 +104,7 @@
 //! [`TooltipIndicator`] は `tooltip-item`/`tooltip-indicator` の見た目を
 //! 切り替える variant 軸（shadcn/ui `indicator` prop 相当）。既定
 //! [`TooltipIndicator::Dot`] は本イシュー以前の出力と完全に同一（登録
-//! 済み `variant`/`default_variant` を持たず、[`tooltip_node`] も class
+//! 済み `variant`/`default_variant` を持たず、`tooltip_node` も class
 //! を付与しない）。[`TooltipIndicator::Line`]/[`TooltipIndicator::Dashed`]
 //! は寸法・形状を variant class（`fd-chart--indicator-line`/`-dashed`）で
 //! 上書きする。[`TooltipIndicator::None`] は `tooltip-indicator` の
@@ -200,7 +200,7 @@ pub enum TooltipIndicator {
     /// 静的近似。参照サイトに直接の registry 例は無いため内部整合のみ）。
     Dashed,
     /// マーカーを描画しない（shadcn `chart-tooltip-indicator-none`）。
-    /// [`tooltip_node`] は `tooltip-indicator` の `<span>` 自体を出力
+    /// `tooltip_node` は `tooltip-indicator` の `<span>` 自体を出力
     /// しない（`super::legend` の `hide_marker` と同じ「要素省略」意味論）。
     None,
 }
@@ -484,7 +484,7 @@ pub fn datum_label(category: &str, series: &str, value: f64) -> String {
 /// 空の系列集合を渡す状況を事前に弾く責務は [`super::data::ChartData`] 側
 /// が担う）。
 ///
-/// 出力先（`<title>`/`aria-label`）はともに [`fandhe_frontend_core::render`]
+/// 出力先（`<title>`/`aria-label`）はともに `fandhe_frontend_core::render`
 /// の既定エスケープ（REQ-1）を経由するため改行はそのまま実体化されず通る
 /// （`&`/`<`/`>`/`"`/`'` のみ実体参照化される）。
 #[must_use]
@@ -510,7 +510,7 @@ pub fn datum_label_lines(
 /// 属性の両方に `label` を埋め込む（モジュール doc「SSR ツールチップ方式」
 /// 参照）。
 ///
-/// `attrs` に本関数が固定するキー（[`DATUM_RESERVED`]）が含まれていても
+/// `attrs` に本関数が固定するキー（`DATUM_RESERVED`）が含まれていても
 /// 除去してから連結する（fail-closed。呼び出し側は `fill` 等の見た目属性
 /// のみを追加する想定、後続チャート部品 #848〜#851 の消費経路）。
 ///

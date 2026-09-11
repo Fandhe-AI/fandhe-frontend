@@ -1,12 +1,12 @@
 //! styled DownloadTrigger（headless ラッパー、イシュー #828）。
 //!
 //! `fandhe_frontend_headless_ui::download_trigger`（イシュー #828）の唯一の
-//! anatomy パーツ `root` を薄く再利用し、[`recipe`] で既定 CSS を追加提供
+//! anatomy パーツ `root` を薄く再利用し、`recipe` で既定 CSS を追加提供
 //! する。
 //!
 //! # recipe は Button recipe の「流用」（宣言差分ゼロ）
 //!
-//! [`recipe`] は独自の CSS 宣言を持たず、[`crate::button::recipe_with_scope`]
+//! `recipe` は独自の CSS 宣言を持たず、`crate::button::recipe_with_scope`
 //! に `"download-trigger"` scope を渡すだけの薄い委譲である。Button と
 //! DownloadTrigger は「見た目は完全に同一・意味論のみ異なる」（ボタン
 //! 風の外観をした `a[download]` リンク）という要件に基づく判断であり、
@@ -26,13 +26,13 @@
 //! # セキュリティ不変条件
 //!
 //! - HTML 文字列の直接組み立てを行わず、すべての出力は headless 層 →
-//!   [`fandhe_frontend_core::render`] の既定エスケープを経由する
+//!   `fandhe_frontend_core::render` の既定エスケープを経由する
 //!   （`raw_html()` の新規使用なし）。`href` の URL スキーム検証は headless
 //!   層（`crates/headless-ui/src/download_trigger.rs` rustdoc 参照）が担う。
 //! - variant クラス名は [`crate::recipe::SlotRecipe::variant_classes`] が
 //!   `&'static str` enum 値から決定的に生成し、動的文字列合成を行わない。
 //! - 呼び出し側 `attrs` に含まれる `class` は
-//!   [`crate::class_attr::drop_class_attr`] で除去してから recipe 生成
+//!   `crate::class_attr::drop_class_attr` で除去してから recipe 生成
 //!   クラスと合成するため、`class` 属性は常に単一（呼び出し側からのクラス
 //!   偽装・重複混入を防ぐ）。
 //!
@@ -127,7 +127,7 @@ pub fn css() -> String {
 }
 
 /// styled `root` パーツ（`a[download]`）を組み立てる。`variant`/`size`/
-/// `palette` に応じたクラスを付与する唯一のパーツ（[`drop_class_attr`]
+/// `palette` に応じたクラスを付与する唯一のパーツ（`drop_class_attr`
 /// により呼び出し側の `class` は除去してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::download_trigger::root`] へ委譲する。
 ///

@@ -7,7 +7,7 @@
 //! 認識する）をそのまま保つ（本イシュー冒頭「素の HTML 意味論をそのまま
 //! styled 化する」方針）。
 //!
-//! 文中に埋め込む短いインライン引用（`<q>`）は [`crate::quote`] が担う
+//! 文中に埋め込む短いインライン引用（`<q>`）は [`crate::quote`](mod@crate::quote) が担う
 //! （イシュー #995）。`blockquote` はブロックレベルの構造・出典表示
 //! （`caption` パーツ）を持つ点で `quote` と役割が異なる。
 //!
@@ -45,9 +45,9 @@ const SLOTS: &[&str] = &["root", "content", "caption"];
 /// 背景なし・muted 調の左罫線のみであり、本リポジトリが従来持っていた
 /// `bg-subtle` 背景 + 角丸は参照 2 サイトのいずれにも無い装飾だったため
 /// 廃し、罫線色も `--fandhe-palette`（強い accent 色）から
-/// `--fandhe-palette-muted`（淡色ロール）へ差し替えた（詳細は [`recipe`]
+/// `--fandhe-palette-muted`（淡色ロール）へ差し替えた（詳細は `recipe`
 /// rustdoc）。`Solid`（塗りつぶし）・`Plain`（罫線のみ・強色）は意図的に
-/// 変更しない（[`recipe`] rustdoc 参照）。
+/// 変更しない（`recipe` rustdoc 参照）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BlockquoteVariant {
     /// muted 調の左罫線のみ・背景なし（既定。chakra-ui 既定に一致）。

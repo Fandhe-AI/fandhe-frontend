@@ -35,21 +35,21 @@
 //! `size`/`variant`/`color-palette` いずれの軸も提供しない
 //! （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d)
 //! 「子の寸法に従属するレイアウト部品」に該当。高さ・文字サイズは内側の
-//! [`crate::button`]/[`crate::input`] 等の `size` に従属する）。3 パーツ
+//! [`crate::button`](mod@crate::button)/[`crate::input`](mod@crate::input) 等の `size` に従属する）。3 パーツ
 //! とも見た目クラスを一切付与しない（呼び出し側 `class` は
-//! [`drop_class_attr`] で除去のみ行う）。
+//! `drop_class_attr` で除去のみ行う）。
 //!
 //! # raw CSS 追記の理由（[`SlotRecipe`] が子結合子を表現できないため）
 //!
 //! [`SlotRecipe`] はコンポーネント自身の slot にしか宣言を登録できず、
-//! 子孫（内側の [`crate::button`]/[`crate::input`]/[`crate::menu`]/
+//! 子孫（内側の [`crate::button`](mod@crate::button)/[`crate::input`](mod@crate::input)/[`crate::menu`]/
 //! [`crate::select`]）を対象にした宣言を組めない。このため [`stylesheet`]
 //! は [`crate::input_group::stylesheet`]/[`crate::toggle_group::stylesheet`]
 //! と同型のパターンで、`recipe().css()` の出力へ [`crate::css::serialize_rule`]
 //! を使った素の子結合子（`>`）セレクタを追記する。
 //!
 //! 対象となる「直接の子」は汎用セレクタ（`> *:not(:first-child)`）ではなく
-//! **明示列挙**する: 汎用セレクタは特異度 (0,3,0) となり、[`crate::button`]
+//! **明示列挙**する: 汎用セレクタは特異度 (0,3,0) となり、[`crate::button`](mod@crate::button)
 //! の `.fd-button--variant-*`/`.fd-button--size-*` クラス規則（同じく
 //! (0,3,0)）と同順位になり、呼び出し側の `push_css` 順序に勝敗が依存して
 //! しまう（decision unstable）。明示列挙した子セレクタは属性 5 個 +
@@ -57,8 +57,8 @@
 //! の variant・base 規則を確実に上書きする。
 //!
 //! 列挙する子は 4 種:
-//! - `[data-scope="button"][data-part="root"]`（[`crate::button`]）
-//! - `[data-scope="field"][data-part="input"]`（[`crate::input`]。`width:
+//! - `[data-scope="button"][data-part="root"]`（[`crate::button`](mod@crate::button)）
+//! - `[data-scope="field"][data-part="input"]`（[`crate::input`](mod@crate::input)。`width:
 //!   100%` を持つため `flex: 1 1 auto; min-width: 0` も併せて付与する。
 //!   [`crate::input_group`] は root が `width: 100%`（定幅）のため
 //!   `flex: 1 1 0%` で伸長・縮小の双方が成立するが、本部品の root は
@@ -115,9 +115,9 @@
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless [`fandhe_frontend_headless_ui::button_group`] →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する。
 //! - [`stylesheet`] が組み立てる CSS 宣言・selector 断片はすべて
 //!   コンパイル時静的リテラルであり、[`crate::css::decl`]/
@@ -445,7 +445,7 @@ pub fn stylesheet() -> String {
 
 /// styled `root` パーツを組み立てる。見た目クラスは付与せず（モジュール doc
 /// 「variant 軸: 持たない」節参照）、呼び出し側 `class` を
-/// [`drop_class_attr`] で除去してから
+/// `drop_class_attr` で除去してから
 /// [`fandhe_frontend_headless_ui::button_group::root`] へそのまま委譲する。
 #[must_use]
 pub fn root<'a>(

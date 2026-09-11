@@ -13,7 +13,7 @@
 //!   受け取るのみで、実際の `PointerEvent`/DOM からは独立している
 //!   （計画書「座標アサーション（合成座標列 + 合成 PointerEvent）による
 //!   決定的検証」に対応する設計）。
-//! - 配線層（[`wiring::wire_signature_pad_component`]）のみ
+//! - 配線層（`wiring::wire_signature_pad_component`）のみ
 //!   `#[cfg(target_arch = "wasm32")]` でゲートし、native ビルドへ web-sys
 //!   依存を混入させない。
 //!
@@ -22,7 +22,7 @@
 //!
 //! `crates/wasm-full/Cargo.toml` は `fandhe-frontend-headless-ui` を通常の
 //! `[dependencies]`（製品依存）として持つ（イシュー #590 以降）。そのため
-//! [`StrokeCollector::finish`] は `fandhe_frontend_headless_ui::signature_pad::Stroke`/
+//! `StrokeCollector::finish` は `fandhe_frontend_headless_ui::signature_pad::Stroke`/
 //! `stroke_to_payload` を直接呼び、座標列の直列化フォーマット（丸め規則を
 //! 含む）を一切複製しない（ドリフトの心配が構造的に生じない設計）。
 //!
@@ -37,19 +37,19 @@
 //! で `Runtime::wire_headless` へ分離）
 //!
 //! ClearTrigger のクリックは `data-scope`/`data-part` から文字列アクションへの
-//! 静的マッピング（[`crate::headless::MAPPING_TABLE`] へ
+//! 静的マッピング（`crate::headless::MAPPING_TABLE` へ
 //! `("signature-pad", "clear-trigger") -> "clear"` 行を追加）と
-//! [`crate::headless::wire_headless_component`]（イシュー #580）を再利用する。
+//! `crate::headless::wire_headless_component`（イシュー #580）を再利用する。
 //! ただし `wire_headless_component` は `MAPPING_TABLE` 全行（Dialog/
 //! Collapsible/Popover/Tooltip/Menu 等、signature-pad と無関係な全
 //! headless-ui 部品のクリック dispatch）を一括で担う汎用配線であり、
 //! signature-pad 固有の関心ではない。そのため本モジュールの
-//! [`wiring::wire_signature_pad_component`] からは呼ばず、`lib.rs` の
+//! `wiring::wire_signature_pad_component` からは呼ばず、`lib.rs` の
 //! `Runtime::wire_headless`（`events::wire_events` と同じくどの feature にも
 //! ゲートされない常時配線）が 1 回だけ登録する（イシュー #2326
 //! codex-review/Bugbot 是正: `signature-pad` feature を無効化すると他の
 //! headless-ui 部品のクリック配線まで失われる不具合の是正）。
-//! [`wiring::wire_signature_pad_component`] はポインタ座標収集配線のみを
+//! `wiring::wire_signature_pad_component` はポインタ座標収集配線のみを
 //! 組み込む。
 //!
 //! # セキュリティ不変条件
@@ -62,7 +62,7 @@
 //!   [`fandhe_frontend_headless_ui::signature_pad::MAX_POINTS_PER_STROKE`] で
 //!   打ち切る（改ざんされた大量の合成イベントによる無制限メモリ確保 DoS を
 //!   防止、A04）。
-//! - dispatch payload の生成（[`StrokeCollector::finish`]）は
+//! - dispatch payload の生成（`StrokeCollector::finish`）は
 //!   `fandhe_frontend_headless_ui::signature_pad::Stroke::new`/
 //!   `stroke_to_payload` を経由するため、非有限値・空ストロークは
 //!   headless 層の既存 fail-closed 検証がそのまま適用される。
@@ -74,7 +74,7 @@
 //! `pointermove` では dispatch しない（`pointerup` でのみ `add-stroke` を
 //! dispatch する）ため、ストローク中の再描画は本モジュール自身の配線では
 //! なく外部要因（同じ `root` 配下の別配線の `on_update`・`Runtime::rerender`
-//! の明示呼び出し等）で起きる。[`crate::lib::Runtime::rerender_subtree`]
+//! の明示呼び出し等）で起きる。`crate::lib::Runtime::rerender_subtree`
 //! による構造フォールバックは `root` 配下の全子ノードを作り直すため、
 //! capture を持っていた要素が detach され、ブラウザ側の capture は暗黙に
 //! 失われる。capture 喪失後は `pointermove` の `event.target()` が新しい

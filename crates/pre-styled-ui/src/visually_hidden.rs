@@ -3,10 +3,10 @@
 //! `fandhe_frontend_headless_ui::visually_hidden`（イシュー #776）の唯一の
 //! anatomy パーツ `root` を薄く再利用し、[`css`] で clip 手法（chakra-ui の
 //! VisuallyHidden 相当）の既定 CSS を追加提供する。薄い委譲の根拠・スコープ外
-//! 事項は [`crate::separator`]/[`crate::skeleton`] の rustdoc と同じ方針に
+//! 事項は [`crate::separator`](mod@crate::separator)/[`crate::skeleton`](mod@crate::skeleton) の rustdoc と同じ方針に
 //! 従う（headless 状態機械を要しない静的部品）。
 //!
-//! # clip 手法（[`clip_declarations`] を skip_nav と共有）
+//! # clip 手法（`clip_declarations` を skip_nav と共有）
 //!
 //! `position: absolute` + `width`/`height: 1px` + `clip: rect(0 0 0 0)` +
 //! `overflow: hidden` の組み合わせで、要素を視覚的には 1px 四方へ縮小しつつ
@@ -14,7 +14,7 @@
 //! `display: none`/`visibility: hidden` を使わない理由はまさにこの一点で、
 //! それらは支援技術からも要素を除外してしまう。
 //!
-//! [`clip_declarations`] は `pub(crate)` として公開し、
+//! `clip_declarations` は `pub(crate)` として公開し、
 //! [`crate::skip_nav::link`] の「focus していないときは視覚的に隠す」base
 //! 宣言としても再利用する（同じ clip 手法の単一情報源、モジュール冒頭
 //! rustdoc 参照）。
@@ -45,16 +45,16 @@
 //!
 //! VisuallyHidden は見た目のバリエーションを持たない単一の振る舞い
 //! （常に clip される）であり、`size`/`color-palette` いずれの標準軸も
-//! 意味を持たない（[`crate::separator`] が `color-palette` を持たないと
+//! 意味を持たない（[`crate::separator`](mod@crate::separator) が `color-palette` を持たないと
 //! した判断と同型の整理）。
 //!
 //! # セキュリティ不変条件
 //!
 //! - HTML 文字列の直接組み立てを行わず、すべての出力は headless 層 →
-//!   [`fandhe_frontend_core::render`] の既定エスケープを経由する
+//!   `fandhe_frontend_core::render` の既定エスケープを経由する
 //!   （`raw_html()` の新規使用なし）。
 //! - 呼び出し側 `attrs` に含まれる `class` は
-//!   [`crate::class_attr::drop_class_attr`] で除去してから recipe 生成
+//!   `crate::class_attr::drop_class_attr` で除去してから recipe 生成
 //!   クラスと合成するため、`class` 属性は常に単一（呼び出し側からのクラス
 //!   偽装・重複混入を防ぐ）。
 //!
@@ -104,7 +104,7 @@ pub fn css() -> String {
 
 /// styled `root` パーツを組み立てる。実体は
 /// [`fandhe_frontend_headless_ui::visually_hidden::root`] へ委譲する。
-/// 呼び出し側の `class` は [`drop_class_attr`] で除去してから合成する。
+/// 呼び出し側の `class` は `drop_class_attr` で除去してから合成する。
 ///
 /// # Examples
 ///

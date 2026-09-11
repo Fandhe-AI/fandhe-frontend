@@ -168,7 +168,7 @@
 //!   持つため採用しない。結果として custom property の値は `@property` 登録
 //!   なしの既定（discrete）補間になり、`animation-range` の到達点でフェード
 //!   幅が離散的に切り替わる（連続的な滑らかさは持たない）。
-//! - **`-webkit-mask-image` の非付与**: [`crate::marquee`] の両端フェード
+//! - **`-webkit-mask-image` の非付与**: [`crate::marquee`](mod@crate::marquee) の両端フェード
 //!   （イシュー #1582）と同じ判断で、unprefixed `mask-image` が現行ブラウザで
 //!   baseline サポート済みのため `-webkit-` 接頭辞は追加しない（未対応環境は
 //!   フェードなしへ graceful degradation する）。

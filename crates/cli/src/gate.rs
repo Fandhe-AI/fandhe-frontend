@@ -481,7 +481,7 @@ fn run_check_by_name(
 
 /// 選択されたチェックのみを実行して [`GateReport`] を組み立てる（実プロセス
 /// 起動を伴う本番経路）。`selection` が `None` の場合は [`CHECK_NAMES`] の
-/// 全件を実行する既定動作（フル実行）であり、[`run_all_checks`] はこの薄い
+/// 全件を実行する既定動作（フル実行）であり、`run_all_checks` はこの薄い
 /// ラッパとして定義する。`Some` の場合は指定されたチェックのみ実行し、
 /// `GateReport::selected_checks` へ選択リスト（canonical 順）を設定して
 /// 部分実行であることを JSON 出力上で明示する（イシュー #2305）。
@@ -1788,7 +1788,7 @@ const URL_SINK_NEEDLES: &[&[u8]] = &[b"set_attribute", b"set_attribute_ns", b"se
 
 /// URL 検証ガード関数 4 種の呼び出し needle（U1: 同一ファイル内の共起判定 /
 /// U3: core ディレクトリ内の実在判定）。`core/src/url.rs` が公開する契約
-/// （[`core::url`] doc コメント参照）と同一の 4 種で固定する。
+/// （`core::url` doc コメント参照）と同一の 4 種で固定する。
 const URL_GUARD_NEEDLES: &[&[u8]] = &[
     b"is_url_attr",
     b"is_safe_url",

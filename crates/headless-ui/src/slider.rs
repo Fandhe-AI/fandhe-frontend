@@ -67,17 +67,17 @@
 //! # 決定的な数値整形・step 丸め（受け入れ条件）
 //!
 //! - 整形は [`crate::progress`]/[`crate::number_input`] と同じ方針
-//!   （`format!("{value}")`）を [`fmt_num`] として本モジュール内に個別定義
+//!   （`format!("{value}")`）を `fmt_num` として本モジュール内に個別定義
 //!   する（モジュール間の相互依存を避けるための意図的な重複）。
 //! - `value` は常に `min` を起点とした `step` 単位へスナップしてから
-//!   `[min, max]` へ clamp する（[`snap_to_step_and_clamp`]）。スナップ後の
-//!   値は [`crate::number_input`] の `round_to_step_precision`（[`step`] の
+//!   `[min, max]` へ clamp する（`snap_to_step_and_clamp`）。スナップ後の
+//!   値は [`crate::number_input`] の `round_to_step_precision`（`step` の
 //!   小数桁数へ丸め直す）と同じ手法で浮動小数点ドリフトを除去し、
 //!   `snap_to_step(snap_to_step(v)) == snap_to_step(v)`（冪等性）を保つ。
 //! - 「max/min へは常に到達可能」（`value >= max`/`value <= min` はどの
 //!   `step` に対しても許容する）ことを保証する。step 単位に厳密に整列しない
 //!   `max`/`min` であっても、`value` が境界以上/以下のときはスナップを
-//!   経由せず境界値そのものを返す（[`snap_to_step_and_clamp`]。単純な
+//!   経由せず境界値そのものを返す（`snap_to_step_and_clamp`。単純な
 //!   スナップ + clamp では最も近いグリッド点が境界未満/超過へ丸まり
 //!   契約が破れることがあった、イシュー #741 PR #787 レビュー指摘）。
 //!   `Increment`/`Decrement` も同じ関数を経由するため、off-grid な境界に
@@ -87,14 +87,14 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`tabindex`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入
-//!   する経路はない（[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`]
+//!   する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`]
 //!   の既存不変条件をそのまま継承する）。
 //! - 動的値（整形済み数値文字列/呼び出し側 `attrs`/children/`aria-valuetext`）
 //!   は [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - 数値属性値（`aria-valuemin`/`aria-valuemax`/`aria-valuenow`/hidden-input
 //!   `value`）はサーバー側で有限性検証・step 丸め・`[min, max]` へ clamp
-//!   済みの `f64` の文字列表現（[`fmt_num`]）のみを出力する。任意の呼び出し
+//!   済みの `f64` の文字列表現（`fmt_num`）のみを出力する。任意の呼び出し
 //!   側文字列をこれらの数値スロットへ直接通す経路は持たない（fail-closed
 //!   正規化は [`Slider::new`] が一元的に担う）。
 //! - dispatch `"set"` の payload はクライアント由来の信頼できない入力として
@@ -106,7 +106,7 @@
 //!   せず `HydrateError` を返す（パース不能・非有限・`min >= max`・
 //!   `step <= 0`・範囲外 value・未知 orientation をすべて拒否する。
 //!   [`crate::progress::Progress`] と同型の fail-closed 契約）。受理した
-//!   値はさらに [`snap_to_step_and_clamp`] へ通してから復元する（多層防御。値状態
+//!   値はさらに `snap_to_step_and_clamp` へ通してから復元する（多層防御。値状態
 //!   機械が常に step 整列済みであるという不変条件を hydration 経路でも
 //!   維持する）。
 //!
@@ -426,7 +426,7 @@ const MARKER_RESERVED: &[&str] = &[
 ];
 
 /// Marker パーツ（`div`）。目盛り 1 点を表す。`min`/`max`/`value`/`current`
-/// は [`normalize`] と同じ方針で fail-closed に正規化してから使う
+/// は `normalize` と同じ方針で fail-closed に正規化してから使う
 /// （`min`/`max` が非有限または `min >= max` なら既定 `(0.0, 100.0)` へ、
 /// `value`/`current` が非有限なら `min` へフォールバックする。呼び出し側の
 /// 不正な入力で `f64::clamp` が panic するのを防ぐ、イシュー #1621 PR #1904
@@ -488,17 +488,17 @@ pub fn marker<'a>(
 /// [`Slider::decode_action`] で接続する）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SliderAction {
-    /// 値を設定する（[`snap_to_step_and_clamp`] でスナップ後 `[min, max]` へ
+    /// 値を設定する（`snap_to_step_and_clamp` でスナップ後 `[min, max]` へ
     /// clamp。`max`/`min` ちょうどの値は常に到達可能）。
     SetValue(f64),
     /// `step` 分だけ増加する（丸めた後 `[min, max]` へ clamp）。
     Increment,
     /// `step` 分だけ減少する（[`Increment`](Self::Increment) と対称）。
     Decrement,
-    /// `step * `[`LARGE_STEP_MULTIPLIER`] 分だけ増加する（PageUp/
+    /// `step * ``LARGE_STEP_MULTIPLIER` 分だけ増加する（PageUp/
     /// Shift+ArrowUp 相当、zag の広域ステップと同型）。
     IncrementLarge,
-    /// `step * `[`LARGE_STEP_MULTIPLIER`] 分だけ減少する
+    /// `step * ``LARGE_STEP_MULTIPLIER` 分だけ減少する
     /// （[`IncrementLarge`](Self::IncrementLarge) と対称）。
     DecrementLarge,
     /// 値を `min` に設定する（Home キー相当）。
@@ -543,7 +543,7 @@ impl Slider {
     /// `data-hydrate-orientation` 属性名のフィールド部分。
     pub const FIELD_ORIENTATION: &'static str = "orientation";
 
-    /// 指定した値で [`Slider`] を生成する（[`normalize`] で fail-closed
+    /// 指定した値で [`Slider`] を生成する（`normalize` で fail-closed
     /// 正規化する。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(min: f64, max: f64, step: f64, value: f64, orientation: Orientation) -> Self {
@@ -589,7 +589,7 @@ impl Slider {
     }
 
     /// `[min, max]` 内の現在位置を百分率（`0.0..=100.0`）で返す
-    /// （`min < max` は [`normalize`] が保証する不変条件のため常に有限）。
+    /// （`min < max` は `normalize` が保証する不変条件のため常に有限）。
     #[must_use]
     pub fn percent(&self) -> f64 {
         (self.value - self.min) / (self.max - self.min) * 100.0
@@ -726,7 +726,7 @@ impl Component for Slider {
     type Action = SliderAction;
 
     /// `SliderAction::SetValue` は非有限（`NaN`/`inf`）を fail-closed に
-    /// 無視する（no-op）。[`normalize`]/[`Slider::decode_action`] が課す
+    /// 無視する（no-op）。`normalize`/[`Slider::decode_action`] が課す
     /// 「`value` は有限値」という不変条件を `update()` 単体でも維持する
     /// （[`crate::progress::Progress`]/[`crate::number_input::NumberInput`]
     /// と同型の判断）。
@@ -849,7 +849,7 @@ impl Hydrate for Slider {
     /// [`HydrateError::MissingAttr`]、パース不能・非有限・`min >= max`・
     /// `step <= 0`・範囲外 value・未知 orientation は
     /// [`HydrateError::InvalidValue`]（panic しない）。基本検証を通過した
-    /// 値はさらに [`snap_to_step_and_clamp`] へ通してから復元する（モジュール
+    /// 値はさらに `snap_to_step_and_clamp` へ通してから復元する（モジュール
     /// doc「セキュリティ不変条件」参照。多層防御。`max`/`min` ちょうどの値は
     /// スナップで失われず境界そのものとして復元される、イシュー #741
     /// PR #787 レビュー指摘）。

@@ -10,7 +10,7 @@
 //! # data-state とスタイルの連動（イシュー #664 受け入れ条件）
 //!
 //! `content` の開閉 `data-state`（open/closed）に応じた見た目の切り替えを
-//! [`recipe`] へ登録する（[`crate::recipe::SlotRecipe::state`]）。
+//! `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]）。
 //!
 //! # キーボード操作系属性の反映
 //!
@@ -119,7 +119,7 @@
 //! - **`side` 4 方向**: `TooltipContent` が `side`（既定 `top`）・`align`・
 //!   `sideOffset`（既定 4px）を受け取る。**確定した欠落**として
 //!   [`crate::tour`] と同型の静的 `data-side` フォールバック（`bottom`/
-//!   `left`/`right`。`top`/無指定は既存 base のまま）を [`recipe`] へ
+//!   `left`/`right`。`top`/無指定は既存 base のまま）を `recipe` へ
 //!   追加した。`sideOffset` 既定値（4px）は本リポジトリの
 //!   `var(--fandhe-space-1)`（4px 相当）と一致するため新規トークンは
 //!   起こさず既存の間隔トークンを流用する。**既知の制約**:
@@ -142,7 +142,7 @@
 //!   回転（SSR 静的フォールバック）を実装した（下記「arrow / arrow-tip の
 //!   `data-side` 連動」節参照）。
 //! - **kbd 併記**: `apps/v4/examples/base/kbd-tooltip.tsx` に `content` 内で
-//!   テキストと [`crate::kbd`] を組み合わせる合成パターンの実例がある。
+//!   テキストと [`crate::kbd`](mod@crate::kbd) を組み合わせる合成パターンの実例がある。
 //!   **確定した欠落**として docs-site の Examples 節（
 //!   `crates/docs-site/src/component_specs_overlay.rs`）へ再現デモを
 //!   追加した（新しい variant/data-* の追加は伴わない、既存 API のみで

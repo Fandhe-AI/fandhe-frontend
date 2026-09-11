@@ -23,7 +23,7 @@
 //! # colorPalette 軸を持たない理由
 //!
 //! テキストは前景色トークンを継承する中立部品であり、ステータス色を持たない
-//! （[`crate::card`]・[`crate::skeleton`] が同じ判断をした根拠と同型）。
+//! （[`crate::card`]・[`crate::skeleton`](mod@crate::skeleton) が同じ判断をした根拠と同型）。
 //!
 //! ## 参考サイト基準との 7 軸比較（イシュー #1434）
 //!
@@ -74,7 +74,7 @@
 //!
 //! - **フォントウェイト軸の欠落**: shadcn の h1（`font-extrabold`
 //!   相当・800）に対応する軸が旧実装になかった（base は `semibold` 固定）。
-//!   [`crate::text`] の [`crate::text::TextWeight`] と同じ語彙
+//!   [`crate::text`](mod@crate::text) の [`crate::text::TextWeight`] と同じ語彙
 //!   （`normal`/`medium`/`semibold`/`bold`）で [`HeadingWeight`] 軸を追加
 //!   した。参照競合の判定: heading の h1 ウェイトは既定では chakra-ui /
 //!   Radix Themes の値（`semibold` 既定）を採る。理由: 既定を変えると
@@ -101,7 +101,7 @@
 //!   の判定: heading の letter-spacing は chakra-ui / Radix Themes の値を
 //!   採る。理由: 実機フォント計測なしの意匠変更を避けるため。
 //! - **`text-center`/`text-balance`/`scroll-m-20`**: レイアウトユーティリティ
-//!   は利用者責務（[`crate::text`] の align/trim/wrap 非採用と同じ判断）。
+//!   は利用者責務（[`crate::text`](mod@crate::text) の align/trim/wrap 非採用と同じ判断）。
 //! - **`first:mt-0` 等の文書フロー余白**: `margin: 0` 方針を維持（余白は
 //!   利用者責務）。
 //! - **shadcn のプリセット名（h1〜h4 という名前の variant）**: 持ち込まず、

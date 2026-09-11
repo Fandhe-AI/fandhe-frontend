@@ -29,7 +29,7 @@
 //!
 //! # `size` variant（イシュー #708 方針の踏襲）
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-editable-font-size`（root スコープの CSS custom property。
 //! 通常の CSS 継承により `input`/`preview` へ伝わる）経由で寸法を切り替える。
 //! `color-palette` 軸は本コンポーネントでは提供しない（`crate` rustdoc
@@ -542,7 +542,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::editable::root`] へ
 /// 委譲する。
 ///

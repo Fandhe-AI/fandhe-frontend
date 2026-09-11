@@ -35,7 +35,7 @@
 //! 共通化昇格した 2 値チェック状態機械）を埋め込み、dispatch 語彙
 //! （`"check"`/`"uncheck"`/`"toggle"`）・fail-closed hydration を
 //! [`crate::switch::Switch`] と揃える。indeterminate（3 値目）は
-//! [`Checkable`](crate::state::Checkable) のスコープ外のため、[`Checkbox`]
+//! [`Checkable`] のスコープ外のため、[`Checkbox`]
 //! の dispatch/hydration 経路では表現できない — インタラクティブな
 //! tri-state 対応（プログラム的な indeterminate 設定の dispatch/hydration
 //! 化）は #595 の out-of-scope（PR 本文参照）。SSR 静的 props
@@ -154,7 +154,7 @@ pub struct CheckboxProps {
 }
 
 /// [`Checkbox`] の利便メソッドが受け取る disabled/invalid/required/readonly
-/// フラグ束（`checked` は含まない — [`Checkbox::props`] が
+/// フラグ束（`checked` は含まない — `Checkbox::props` が
 /// `self.checkable.is_checked()` から自動算出するため呼び出し側が渡す
 /// 必要はない）。4 個の独立した `bool` 引数のままだと各利便メソッドの
 /// 引数数が clippy `too_many_arguments`（既定閾値 7）を超えるため、

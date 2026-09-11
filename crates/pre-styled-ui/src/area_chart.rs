@@ -3,8 +3,8 @@
 //! domain 下端へ閉じた塗りつぶし面（`series-area`）を重ねて描く自己完結部品。
 //!
 //! 座標写像・path 生成・数値文字列化の一元化方針、x/y 軸の写像規則は
-//! [`crate::line_chart`] モジュール doc を参照（[`crate::line_chart::category_x`]/
-//! [`crate::line_chart::view_box_from_dims`] を共有ヘルパとして再利用する）。
+//! [`crate::line_chart`] モジュール doc を参照（`crate::line_chart::category_x`/
+//! `crate::line_chart::view_box_from_dims` を共有ヘルパとして再利用する）。
 //!
 //! # 面 path の閉じ方（baseline、`stack: AreaStack::None`）
 //!
@@ -19,18 +19,18 @@
 //!
 //! # 積み上げ（`AreaStack`）
 //!
-//! [`AreaStack::Normal`]/[`AreaStack::Expand`] は [`cumulative_series`]
-//! （内部ヘルパ）で系列ごとのカテゴリ累積上限値を求め、[`render_stacked`]
+//! [`AreaStack::Normal`]/[`AreaStack::Expand`] は `cumulative_series`
+//! （内部ヘルパ）で系列ごとのカテゴリ累積上限値を求め、`render_stacked`
 //! （内部ヘルパ）が系列 `i` を上側境界 `cum[i]`・下側境界 `cum[i-1]`
 //! （`i == 0` は 0）の帯として描く。下側境界は上側と同じ `curve` で
 //! 辿った点列を逆順に計算し直して `Z` で閉じる（baseline 節と異なり
 //! domain 下端ではなく下側系列の境界へ閉じる）。`Expand` は
-//! [`cumulative_series`] がカテゴリ合計で正規化するため domain
+//! `cumulative_series` がカテゴリ合計で正規化するため domain
 //! `(0.0, 1.0)` に固定され、`show_y_axis` 時の目盛ラベルは
 //! [`crate::charts::axis::TickLabelFormat::label_scale`] `= 100.0` +
 //! `suffix: "%"` で比率を百分率表示する（座標計算は生の比率のまま）。
 //! `show_x_axis`/`show_y_axis`/`show_grid` は `stack: AreaStack::None` と
-//! 同じ余白規則（[`AXIS_LEFT_MARGIN`]/[`AXIS_BOTTOM_MARGIN`]）を適用する
+//! 同じ余白規則（`AXIS_LEFT_MARGIN`/`AXIS_BOTTOM_MARGIN`）を適用する
 //! （イシュー #2081 Review 追補: 当初積み上げ時にこれらが無視される
 //! 欠陥があった）。
 //!
@@ -49,7 +49,7 @@
 //!
 //! # gradient の不変条件
 //!
-//! [`gradient_defs`]（内部ヘルパ）が組み立てる `<linearGradient>`/`<stop>`
+//! `gradient_defs`（内部ヘルパ）が組み立てる `<linearGradient>`/`<stop>`
 //! は、`stop-color` に [`ChartData::series_color_var`] の固定形
 //! （`var(--fandhe-color-<name>)`、`<name>` は `chart-1`〜`chart-6` 等の
 //! 固定トークン名でユーザー入力を含まない）のみを埋め込み、`offset`/
@@ -212,10 +212,10 @@ pub enum AreaCurve {
     #[default]
     Linear,
     /// 自然三次スプライン補間（d3-shape `curveNatural` 相当、
-    /// [`crate::charts::curve::natural_control_points`]）。
+    /// `crate::charts::curve::natural_control_points`）。
     Natural,
     /// 区間中点で段差になる補間（d3-shape `curveStep` 相当、
-    /// [`crate::charts::curve::step_points`]）。
+    /// `crate::charts::curve::step_points`）。
     Step,
 }
 
@@ -326,7 +326,7 @@ pub struct AreaChartProps<'a> {
     /// 指摘）。`show_tooltip`/`range.is_some()`/`hidden_series` 非空の
     /// いずれでも判定できない「凡例は使うが初期状態は全系列表示
     /// （`hidden_series` が空）かつ `show_tooltip: false`」という構成では
-    /// [`identify_series`] のそれまでの判定条件が偽になり識別属性
+    /// `identify_series` のそれまでの判定条件が偽になり識別属性
     /// （`data-series`）が出力されないため、凡例クリックで系列を非表示に
     /// できなかった（`wasm-full::chart_range::wiring::sync_chart` が
     /// `data-series` を判定源にするため）。呼び出し側が凡例を併設すると
@@ -935,7 +935,7 @@ fn identify_series(props: &AreaChartProps<'_>) -> bool {
 /// # Errors
 ///
 /// - `width`/`height`/`aria_label` に関する契約は
-///   [`crate::line_chart::line_chart`] と同じ（[`crate::line_chart::view_box_from_dims`] 参照）
+///   [`crate::line_chart::line_chart`] と同じ（`crate::line_chart::view_box_from_dims` 参照）
 /// - `stack` が [`AreaStack::Normal`]/[`AreaStack::Expand`] で系列に負値が
 ///   含まれる場合 [`ChartError::NegativeValue`]
 /// - `fill` が [`AreaFill::Gradient`] で `gradient_id` が

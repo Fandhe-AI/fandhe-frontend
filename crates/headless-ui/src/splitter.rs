@@ -38,7 +38,7 @@
 //! # 決定的な正規化・数値整形（受け入れ条件）
 //!
 //! - 整形は [`crate::slider`]/[`crate::progress`] と同じ方針
-//!   （`format!("{value}")`）を [`fmt_num`] として本モジュール内に個別定義する
+//!   （`format!("{value}")`）を `fmt_num` として本モジュール内に個別定義する
 //!   （モジュール間の相互依存を避けるための意図的な重複）。
 //! - [`Splitter::new`] は fail-closed な決定的正規化を一元的に担う: パネル数が
 //!   2 未満、非有限値、`min > max`、`min < 0.0`、`max > 100.0`、mins 合計が
@@ -46,20 +46,20 @@
 //!   （2 パネル 50/50、制約 `[0.0, 100.0]`）へフォールバックする（呼び出し側
 //!   の不正な入力で panic させない）。
 //! - 各 size は `[min_i, max_i]` へ clamp した後、合計が厳密に 100 になるよう
-//!   左から順に決定的に再配分する（[`normalize_sizes`]）。正規化は冪等
+//!   左から順に決定的に再配分する（`normalize_sizes`）。正規化は冪等
 //!   （`normalize(normalize(x)) == normalize(x)`）である。
 //!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`tabindex`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存不変条件
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存不変条件
 //!   をそのまま継承する）。
 //! - 動的値（整形済み数値文字列・呼び出し側 `attrs`/children・panel `id`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - 数値属性値（`aria-valuemin`/`aria-valuemax`/`aria-valuenow`）はサーバー側
-//!   で有限性検証・クランプ済みの `f64` の文字列表現（[`fmt_num`]）のみを
+//!   で有限性検証・クランプ済みの `f64` の文字列表現（`fmt_num`）のみを
 //!   出力する。任意の呼び出し側文字列をこれらの数値スロットへ直接通す経路は
 //!   持たない（fail-closed 正規化は [`Splitter::new`] が一元的に担う）。
 //! - dispatch の payload はクライアント由来の信頼できない入力として扱い、
@@ -69,7 +69,7 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は panic せず `HydrateError`
 //!   を返す（欠落・パース不能・非有限・長さ不一致・パネル数不足・制約違反を
 //!   すべて拒否する。[`crate::slider::Slider`] と同型の fail-closed 契約）。
-//!   受理した値はさらに [`normalize_sizes`] へ通してから復元する（多層防御）。
+//!   受理した値はさらに `normalize_sizes` へ通してから復元する（多層防御）。
 //!
 //! # 参照突合（イシュー #1664）
 //!
@@ -99,7 +99,7 @@
 //!   予算の観点から本イシューでは対象外、別 Issue 起票を提案する）。
 //! - **予約キーなりすまし除去の欠落**: 呼び出し側 `attrs` が `role`/
 //!   `aria-*`/`tabindex`/`data-*`/`id` を偽装・重複出力できてしまう構造的
-//!   欠陥を [`drop_reserved`] で塞いだ（`crate::slider`/`crate::angle_slider`
+//!   欠陥を `drop_reserved` で塞いだ（`crate::slider`/`crate::angle_slider`
 //!   と同型のパターン）。`aria-label`/`aria-labelledby` は zag.js が
 //!   `getRootProps` 等で固定付与しない拡張点のため予約対象に含めない。
 //!
@@ -431,7 +431,7 @@ pub enum SplitterAction {
     SetToMin(usize),
     /// `trigger` パネルのサイズをその `max` に設定する（End キー相当）。
     SetToMax(usize),
-    /// `trigger` パネルのサイズを [`STEP`] の [`LARGE_STEP_MULTIPLIER`] 倍
+    /// `trigger` パネルのサイズを `STEP` の `LARGE_STEP_MULTIPLIER` 倍
     /// （既定 10.0%）分だけ増加する（zag.js `keyboardResizeBy` 既定値相当、
     /// Shift+Arrow キー相当。イシュー #1664 参照突合で追加。DOM keydown
     /// 配線は `fandhe-frontend-wasm-full` 側で未実装、モジュール doc
@@ -482,7 +482,7 @@ impl Splitter {
     /// `data-hydrate-maxs` 属性名のフィールド部分。
     pub const FIELD_MAXS: &'static str = "maxs";
 
-    /// 指定したパネル構成で [`Splitter`] を生成する（[`normalize`] で
+    /// 指定したパネル構成で [`Splitter`] を生成する（`normalize` で
     /// fail-closed 正規化する。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(panels: &[PanelSpec], orientation: Orientation) -> Self {
@@ -775,7 +775,7 @@ impl Hydrate for Splitter {
     /// クライアント改ざん入力として扱う。欠落は [`HydrateError::MissingAttr`]、
     /// パース不能・非有限・長さ不一致・パネル数不足・制約違反・未知
     /// orientation は [`HydrateError::InvalidValue`]（panic しない）。基本検証
-    /// を通過した値はさらに [`normalize_sizes`] へ通してから復元する
+    /// を通過した値はさらに `normalize_sizes` へ通してから復元する
     /// （モジュール doc「セキュリティ不変条件」参照。多層防御）。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         let find = |field: &str| -> Result<&str, HydrateError> {

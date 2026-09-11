@@ -32,7 +32,7 @@
 //! # data-state とスタイルの連動
 //!
 //! `item`（選択有無、`data-state` を再利用）・`root`（disabled）の
-//! `data-*` に応じた見た目の切り替えを [`recipe`] へ登録する
+//! `data-*` に応じた見た目の切り替えを `recipe` へ登録する
 //! （[`crate::recipe::SlotRecipe::state`]、[`crate::select`] と同じ機構）。
 //!
 //! # ハイライト表示（SSR 静的表現）
@@ -352,8 +352,8 @@ fn recipe() -> SlotRecipe {
 /// `item`/`item-control` への CSS 伝播は行わない」節と対称の問題）。
 ///
 /// 本関数は [`SlotRecipe::css`] の出力へ、祖先 `root` の `[data-disabled]`
-/// 不在を前提に含む item hover 規則を [`marquee::css`] と同型の raw CSS
-/// 追記パターンで追加する（[`crate::marquee`] の `content` pause 規則
+/// 不在を前提に含む item hover 規則を [`marquee::css`](crate::marquee::css) と同型の raw CSS
+/// 追記パターンで追加する（[`crate::marquee`](mod@crate::marquee) の `content` pause 規則
 /// 参照）。`checkbox_group` のケース（`pointer-events`/`cursor` 等で
 /// キーボード操作の実効性まで偽装しようとして撤回）と異なり、本追記は
 /// 装飾専用の hover 背景色 1 プロパティのみを対象とし、tabbability・
@@ -380,7 +380,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::listbox::root`] へ委譲する。
 ///
 /// `props`（[`ListboxProps`]）は headless 側へそのまま転送し、`root` 自身

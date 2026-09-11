@@ -283,7 +283,7 @@ pub fn css() -> String {
 
 /// root パーツを組み立てる。`role`/`aria-*` は一切付与しない（module doc
 /// 参照。`alert::root` と異なり live region ではないため）。呼び出し側の
-/// `class` は [`drop_class_attr`] で除去してから recipe クラスを合成する。
+/// `class` は `drop_class_attr` で除去してから recipe クラスを合成する。
 ///
 /// # Examples
 ///

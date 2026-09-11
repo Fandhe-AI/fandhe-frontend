@@ -18,7 +18,7 @@
 //! # コンビニ関数を提供しない構成（[`crate::card`]/[`crate::stat`] と同型）
 //!
 //! 各パーツを個別に呼び出して組み立てる契約とする。呼び出し側 `attrs` の
-//! `class` は [`crate::class_attr::drop_class_attr`] で除去してから合成する
+//! `class` は `crate::class_attr::drop_class_attr` で除去してから合成する
 //! （root のみが `class` を付与する唯一のパーツ）。
 //!
 //! # variant 3 軸（root のみへクラス付与、複合部品の variant 統一方針）
@@ -668,7 +668,7 @@ pub fn css() -> String {
 }
 
 /// root パーツ（`<ol>`）を組み立てる。`variant`/`size`/`color-palette` に
-/// 応じたクラスを付与する唯一のパーツ（[`drop_class_attr`] により呼び出し
+/// 応じたクラスを付与する唯一のパーツ（`drop_class_attr` により呼び出し
 /// 側の `class` は除去してから合成する）。
 ///
 /// # Examples

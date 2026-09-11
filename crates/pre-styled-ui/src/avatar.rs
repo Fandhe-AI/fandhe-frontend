@@ -3,7 +3,7 @@
 //! 調整済み）。
 //!
 //! `fandhe_frontend_headless_ui::avatar`（イシュー #543/#569）の Root /
-//! Image / Fallback 3 anatomy パーツと [`Avatar`] 状態機械を薄く再利用し、
+//! Image / Fallback 3 anatomy パーツと `Avatar` 状態機械を薄く再利用し、
 //! [`stylesheet`] で既定 CSS を追加提供する。薄い委譲の根拠・スコープ外事項は
 //! [`crate::dialog`]/[`crate::tooltip`] の rustdoc と同じ方針に従う。
 //!
@@ -88,7 +88,7 @@
 //! headless 層（[`fandhe_frontend_headless_ui::avatar::image`]/
 //! [`fandhe_frontend_headless_ui::avatar::fallback`]）は非表示側に `hidden`
 //! 存在属性を付与し、UA 既定 `[hidden] { display: none }` に依存して JS
-//! なし SSR の表示制御を成立させる。[`recipe`] の `image`/`fallback` base
+//! なし SSR の表示制御を成立させる。`recipe` の `image`/`fallback` base
 //! 規則で `display` を宣言すると、`[data-scope][data-part]`（詳細度
 //! (0,2,0)）が `[hidden]`（詳細度 (0,1,0)）に勝ってしまい表示制御が壊れる
 //! （[`crate::tooltip`] の positioner 節・PR #575 Bugbot 指摘と同じ構造的な
@@ -100,12 +100,12 @@
 //! # セキュリティ不変条件
 //!
 //! - HTML 文字列の直接組み立てを行わず、すべての出力は headless 層 →
-//!   [`fandhe_frontend_core::render`] の既定エスケープを経由する
+//!   `fandhe_frontend_core::render` の既定エスケープを経由する
 //!   （`raw_html()` の新規使用なし）。
-//! - variant クラス名は [`recipe::SlotRecipe::variant_classes`] が
+//! - variant クラス名は [`recipe::SlotRecipe::variant_classes`](crate::recipe::SlotRecipe::variant_classes) が
 //!   `&'static str` enum 値から決定的に生成し、動的文字列合成を行わない。
 //! - 呼び出し側 `attrs` に含まれる `class` は
-//!   [`crate::class_attr::drop_class_attr`] で除去してから recipe 生成
+//!   `crate::class_attr::drop_class_attr` で除去してから recipe 生成
 //!   クラスと合成するため、`class` 属性は常に単一（呼び出し側からの
 //!   クラス偽装・重複混入を防ぐ）。
 //! - styled `root` は headless [`fandhe_frontend_headless_ui::avatar::root`]
@@ -641,7 +641,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`shape`/`variant`/`palette` に
-/// 応じたクラスを付与する唯一のパーツ（[`drop_class_attr`] により呼び出し側
+/// 応じたクラスを付与する唯一のパーツ（`drop_class_attr` により呼び出し側
 /// の `class` は除去してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::avatar::root`] へ委譲する。
 ///
@@ -714,7 +714,7 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 /// pre-styled-only `badge` パート（`<span>`、イシュー #2044）を組み立てる。
 /// [`root`]（`with_badge: true`）の右下に絶対配置される状態ドット
 /// （shadcn `AvatarBadge` 相当）で、headless-ui の anatomy には存在しない。
-/// `size`/`palette` に応じたクラスを付与する（[`drop_class_attr`] により
+/// `size`/`palette` に応じたクラスを付与する（`drop_class_attr` により
 /// 呼び出し側の `class` は除去してから合成する）。
 ///
 /// クラス組み立てには [`SlotRecipe::variant_classes`] を使わない

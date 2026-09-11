@@ -28,14 +28,14 @@
 //! # `hidden-input` に CSS を付与しない理由
 //!
 //! [`crate::pin_input`] の `hidden-input` と同じ理由（`<input type="hidden">`
-//! は UA 既定挙動として常にレンダリングされない）で、[`recipe`] は
+//! は UA 既定挙動として常にレンダリングされない）で、`recipe` は
 //! `hidden-input` slot へ一切の CSS を登録しない
 //! （`hidden_input_slot_has_no_css_rules` テストで固定）。
 //!
 //! # `size` variant
 //!
 //! [`crate::switch`] rustdoc「複合部品の variant 統一方針」節（#708）に従い、
-//! `size`（[`Size`]）は styled `root` へのみクラスを付与し、[`recipe`] が
+//! `size`（[`Size`]）は styled `root` へのみクラスを付与し、`recipe` が
 //! 登録する `--fandhe-tags-input-*` の root スコープ CSS custom property
 //! （通常の CSS 継承）経由で `item-preview`/`input` の寸法・書体を切り替える。
 //! `base`/`variant` 規則の `var()` にはいずれも Md サイズ相当のフォールバック
@@ -73,7 +73,7 @@
 //!   （宣言順 `opacity` → `cursor`）へ置換した（Phase 0 統一形、イシュー
 //!   #1425）。視覚は不変（宣言順のみ変わる golden 更新を伴う）。
 //! - **`control` の角丸を Forms 家族標準へ**: `var(--fandhe-radius-sm)` →
-//!   `var(--fandhe-radius-md)`（イシュー #1482、[`crate::input`]/
+//!   `var(--fandhe-radius-md)`（イシュー #1482、[`crate::input`](mod@crate::input)/
 //!   [`crate::date_input`] と同じ角丸）。
 //! - **`control` に transition を追加**: 上記フォーカスリング節の
 //!   `:focus-within` 遷移・`data-invalid` の枠色変化を滑らかにするため
@@ -84,7 +84,7 @@
 //! - **`control` `[data-invalid]`**: 既存の
 //!   `border-color: var(--fandhe-color-danger)` はトークン準拠済みのため
 //!   変更なし（点検結果として記録）。
-//! - **hover は意図的に非採用のまま維持**: [`crate::input`] rustdoc が
+//! - **hover は意図的に非採用のまま維持**: [`crate::input`](mod@crate::input) rustdoc が
 //!   明文化する方針（テキストフィールドは hover 背景変化を持たないのが
 //!   chakra / Radix Themes 標準。hover はインタラクティブ slot =
 //!   `cursor: pointer` を持つ slot のみ、イシュー #1425）に従い、`control`
@@ -485,7 +485,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::tags_input::root`] へ
 /// 委譲する。
 ///

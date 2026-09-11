@@ -68,15 +68,15 @@
 //!
 //! - 整形は [`crate::progress`] の `fmt_num` と同じ方針（`format!("{value}")`、
 //!   Rust の `f64` `Display` はロケール非依存の shortest round-trip 表現）を
-//!   [`fmt_num`] として本モジュール内に個別定義する（モジュール間の相互依存を
+//!   `fmt_num` として本モジュール内に個別定義する（モジュール間の相互依存を
 //!   避けるための意図的な重複、[`crate::progress`] も同型の重複を持つ）。
 //! - パースは `str::parse::<f64>()`（小数点 `.` のみ・桁区切りなし・
 //!   ロケール非依存）+ 有限性検証のみを用いる。
 //!
 //! # step 演算の決定性（浮動小数点ドリフト対策）
 //!
-//! `increment`/`decrement` は `value ± step` の結果を [`step`] の小数桁数
-//! （[`fmt_num`] のシンプル表現から算出、[`decimal_places`]）へ丸めてから
+//! `increment`/`decrement` は `value ± step` の結果を `step` の小数桁数
+//! （`fmt_num` のシンプル表現から算出、`decimal_places`）へ丸めてから
 //! `[min, max]` へ clamp する。丸めずに `f64` の加減算を繰り返すと
 //! `0.1 + 0.2 != 0.3` のような蓄積誤差が生じるため（例: `min=0, max=1,
 //! step=0.1` で 10 回 increment した際に `1.0` へ正確に到達しない）、本
@@ -87,14 +87,14 @@
 //! - 属性名（`data-*`/`aria-*`/`type`/`role`/`inputmode`/`tabindex`/
 //!   `autocomplete`/`autocorrect`/`spellcheck`）は
 //!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
+//!   混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`name`/`id`/整形済み数値文字列/呼び出し側 `attrs`/children）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - 数値属性値（`aria-valuemin`/`aria-valuemax`/`aria-valuenow`/`value`）は
 //!   サーバー側で有限性検証・`[min, max]` へ clamp 済みの `f64` の文字列表現
-//!   （[`fmt_num`]）のみを出力する。任意の呼び出し側文字列をこれらの数値
+//!   （`fmt_num`）のみを出力する。任意の呼び出し側文字列をこれらの数値
 //!   スロットへ直接通す経路は持たない（fail-closed 正規化は
 //!   [`NumberInput::new`] が一元的に担う）。
 //! - dispatch `"set"` の payload はクライアント由来の信頼できない入力として
@@ -118,7 +118,7 @@
 //!   であるため）。
 //! - **PageUp/PageDown・修飾キー（Shift/Alt/Ctrl+Arrow）による step 倍率の
 //!   DOM 配線**: 状態機械（本モジュール）が倍率 API を持たないため
-//!   （`"increment"`/`"decrement"` は常に固定 [`Self::step`] 分のみ）、
+//!   （`"increment"`/`"decrement"` は常に固定 `Self::step` 分のみ）、
 //!   `fandhe-frontend-wasm-full` 側も対応しない。
 //!
 //! ArrowUp/ArrowDown・Home/End・Enter の DOM 配線（keydown → dispatch）は
@@ -295,8 +295,8 @@ fn drop_control_reserved_attrs<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a s
 /// 属性は WAI-ARIA のグローバル状態・プロパティであり `group` ロールで
 /// 明示的に禁止されていない。zag.js の number-input machine が control
 /// 相当のコンテナへ同様に出力する慣行にも倣う）。呼び出し側 `attrs` に
-/// 同名キーが含まれていても [`drop_control_reserved_attrs`] で常に除去し、
-/// 状態由来の値のみが出力される（[`CONTROL_RESERVED`] の doc 参照）。
+/// 同名キーが含まれていても `drop_control_reserved_attrs` で常に除去し、
+/// 状態由来の値のみが出力される（`CONTROL_RESERVED` の doc 参照）。
 #[must_use]
 pub fn control<'a>(
     flags: NumberInputFlags,
@@ -322,13 +322,13 @@ pub fn control<'a>(
 ///
 /// WAI-ARIA `spinbutton` パターンに従い `aria-valuemin`/`aria-valuemax` を
 /// 常に出力し、`aria-valuenow`/`value` は現在値（`value` 引数、[`NumberInput`]
-/// が [`fmt_num`] で整形済みの文字列を渡す想定）が `Some` のときのみ出力する。
+/// が `fmt_num` で整形済みの文字列を渡す想定）が `Some` のときのみ出力する。
 /// `inputmode="decimal"` はモバイル IME に数値キーパッドを示唆するヒントで
 /// あり、実際の入力検証はクライアント側（wasm-full 層）の責務。
 ///
 /// `autocomplete="off"`・`autocorrect="off"`・`spellcheck="false"`・
 /// `aria-roledescription="numberfield"`（いずれも呼び出し側 `attrs` に同名
-/// キーがあれば [`has_caller_attr`] で dedup し省略）はイシュー #1613 で
+/// キーがあれば `has_caller_attr` で dedup し省略）はイシュー #1613 で
 /// ark-ui/zag.js の number-input machine と突合して追加した（ブラウザ・IME
 /// 由来の自動補完・自動修正・スペルチェック候補が数値入力へ誤って介入する
 /// のを防ぐ）。
@@ -479,7 +479,7 @@ pub fn decrement_trigger<'a>(
 /// [`NumberInput::decode_action`] で接続する）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum NumberInputAction {
-    /// `step` 分だけ増加する（[`round_to_step_precision`] で丸めた後
+    /// `step` 分だけ増加する（`round_to_step_precision` で丸めた後
     /// `[min, max]` へ clamp）。
     Increment,
     /// `step` 分だけ減少する（[`Increment`](Self::Increment) と対称）。
@@ -527,7 +527,7 @@ impl NumberInput {
     /// 未入力（`value = None`）を表す `data-hydrate-value` の予約値。
     pub const HYDRATE_VALUE_NONE: &str = "none";
 
-    /// 指定した値で [`NumberInput`] を生成する（[`normalize`] で fail-closed
+    /// 指定した値で [`NumberInput`] を生成する（`normalize` で fail-closed
     /// 正規化する。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(value: Option<f64>, min: f64, max: f64, step: f64) -> Self {
@@ -699,7 +699,7 @@ impl Component for NumberInput {
     type Action = NumberInputAction;
 
     /// `NumberInputAction::Set` は非有限（`NaN`/`inf`）を fail-closed に
-    /// 無視する（no-op）。[`normalize`]/[`NumberInput::decode_action`] が課す
+    /// 無視する（no-op）。`normalize`/[`NumberInput::decode_action`] が課す
     /// 「`value` は有限値または `None`」という不変条件を `update()` 単体でも
     /// 維持するため（[`crate::progress::Progress`] と同型の判断）。
     fn update(&mut self, action: NumberInputAction) {

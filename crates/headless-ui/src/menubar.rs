@@ -73,7 +73,7 @@
 //! [`Menubar`] は `focused`（roving tabindex 対象トリガーの index）・
 //! `trigger_count`・`open`（開いている Menu の index、menubar は同時に高々
 //! 1 個）・`loop_focus`・`orientation` の複合フィールドを持ち、
-//! [`crate::toolbar::normalize_focus`] と同型の fail-closed 正規化を行う。
+//! `crate::toolbar::normalize_focus` と同型の fail-closed 正規化を行う。
 //! `Next`/`Prev`/`First`/`Last`/`Focus` は `open.is_some()` のとき
 //! `open` を新しい `focused` へ追随させる（本イシューの主題）。`open` が
 //! `None` のときは移動しても `None` のままである。
@@ -82,18 +82,18 @@
 //!
 //! - 属性名（`role`/`aria-*`/`data-*`/`type`/`tabindex`/`hidden`/`id`）は
 //!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロット
-//!   へ混入する経路はない（[`mod@crate::anatomy`]/[`crate::aria`]/
+//!   へ混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`label`/`value`/`id`/`labelledby`/`controls`/呼び出し側
 //!   `attrs`/`children`）は [`fandhe_frontend_core::render`] の既定
 //!   エスケープを必ず経由する（REQ-1）。`raw_html()` は使用せず、HTML
 //!   文字列を直接組み立てない。
 //! - **呼び出し側 `attrs` による固定属性偽装の除去**:
-//!   [`crate::radio_group::drop_reserved`]（[`crate::menu`] が #1651 で
+//!   `crate::radio_group::drop_reserved`（[`crate::menu`] が #1651 で
 //!   採用したものと同じヘルパ）を全パーツへ適用し、各パーツが固定出力する
 //!   `role`/`aria-*`/`data-*`/`tabindex` 等のキーを呼び出し側 `attrs` から
 //!   除去してから固定値を合成する。[`trigger`] の `tabindex` 除去（旧
-//!   `drop_tabindex_attr`、[`crate::toolbar::drop_tabindex_attr`]/
+//!   `drop_tabindex_attr`、`crate::toolbar::drop_tabindex_attr`/
 //!   [`crate::skip_nav::content`] と同型のパターンだった）は
 //!   `TRIGGER_RESERVED` に `"tabindex"` を含めることで `drop_reserved` へ
 //!   統合し、専用関数は削除した（イシュー #1652）。
@@ -125,7 +125,7 @@
 //!   新設した（11 → 18 パーツ）。いずれも [`crate::menu`] の同名パーツと
 //!   同一シグネチャ・同一属性出力で揃える（`data-scope="menubar"` のみ
 //!   異なる）。呼び出し側 `attrs` からの固定属性偽装を防ぐため、全パーツへ
-//!   [`crate::radio_group::drop_reserved`] を適用するようにした（旧
+//!   `crate::radio_group::drop_reserved` を適用するようにした（旧
 //!   `drop_tabindex_attr` は [`trigger`] の `TRIGGER_RESERVED` へ
 //!   `"tabindex"` を含めることで統合し削除した）。
 //! - **意図的に非採用**: Radix `Portal`（DOM 配置、クライアント関心。
@@ -782,8 +782,8 @@ impl Menubar {
     /// 独自語彙を増やさない）。
     pub const HYDRATE_OPEN_NONE: &'static str = "closed";
 
-    /// 指定した状態で [`Menubar`] を生成する（[`normalize_focus`]/
-    /// [`normalize_open`] で fail-closed 正規化する。呼び出し側の不正な
+    /// 指定した状態で [`Menubar`] を生成する（`normalize_focus`/
+    /// `normalize_open` で fail-closed 正規化する。呼び出し側の不正な
     /// `focused`/`open` で panic しない）。
     #[must_use]
     pub fn new(

@@ -9,10 +9,10 @@
 //! その欠落を埋め、オーバーレイ横断の閉鎖判定（登録・解除の対称性、複数
 //! オーバーレイの入れ子）を提供する。
 //!
-//! [`events`] と同じ 2 層構成を踏襲する: web-sys に依存しない純粋ロジック層
+//! `events` と同じ 2 層構成を踏襲する: web-sys に依存しない純粋ロジック層
 //! （[`OverlayKind`]・opt-out 判定・スタック閉鎖判定、native の `cargo test`
 //! で検証可能）と、`#[cfg(target_arch = "wasm32")]` でゲートした配線層
-//! （[`wiring::OverlayCloseController`]）に分離する。
+//! （`wiring::OverlayCloseController`）に分離する。
 //!
 //! # 他モジュール・他クレートとの契約
 //!
@@ -28,11 +28,11 @@
 //!   経由でオプトインする前提とする（本イシューでは headless-ui クレートを
 //!   変更しない）。
 //! - 本モジュールは実際の `"close"` dispatch・再描画・DOM 更新を一切行わない。
-//!   [`wiring::OverlayCloseController`] は閉鎖要求をコールバック
+//!   `wiring::OverlayCloseController` は閉鎖要求をコールバック
 //!   （[`OverlayCloseRequest`]）へ通知するのみであり、`dispatch`
 //!   （`fandhe_frontend_interactive::dispatch`）の呼び出しは呼び出し側
 //!   （イシュー #580 の DOM イベント配線統合層）の責務とする
-//!   （[`events::wire_events`] と同じ責務分離方針）。
+//!   （`events::wire_events` と同じ責務分離方針）。
 //! - フォーカストラップ・トリガーへのフォーカス復帰はイシュー #586、
 //!   Tooltip の `openDelay`/`closeDelay`/interactive 継続はイシュー #587の
 //!   スコープであり、いずれも本モジュールでは扱わない
@@ -177,7 +177,7 @@ impl OverlayKind {
     /// 意味するか。
     ///
     /// Tooltip のみ `false` とする —Tooltip が閉じない既定値は
-    /// [`close_on_interact_outside`] の doc の通り「オーバーレイスタックへの
+    /// `close_on_interact_outside` の doc の通り「オーバーレイスタックへの
     /// 非参加」であり、永続化を選んだわけではない。そのため Tooltip が
     /// 開いている間も、その下にある Dialog/Popover/Menu は外側クリックで
     /// 閉じられるべきであり、Tooltip の存在で伝播を止めてはならない。
@@ -318,7 +318,7 @@ pub fn outside_dismiss_blocks_propagation_for<T: AttrSource>(
     }
 }
 
-/// オーバーレイスタック上の 1 エントリ（[`wiring::OverlayCloseController`] が
+/// オーバーレイスタック上の 1 エントリ（`wiring::OverlayCloseController` が
 /// push/remove で管理する）。
 ///
 /// `close_on_escape`/`close_on_interact_outside` は各エントリの push 時点で
@@ -449,7 +449,7 @@ pub fn outside_close_indices_with_pointer(
     outside_close_indices(stack, &adjusted)
 }
 
-/// 閉鎖制御の配線層（[`wiring::OverlayCloseController`]）が発する、閉鎖を
+/// 閉鎖制御の配線層（`wiring::OverlayCloseController`）が発する、閉鎖を
 /// 要求されたオーバーレイの通知。
 ///
 /// `dispatch`（`"close"` アクション）の実呼び出し・DOM 再描画・
@@ -460,15 +460,15 @@ pub struct OverlayCloseRequest {
     /// 閉鎖対象のオーバーレイ種別。
     pub kind: OverlayKind,
     /// スタック上の index（呼び出し側が対応する content 要素・状態を
-    /// 特定するために使う。[`wiring::OverlayCloseController::push_overlay`]
+    /// 特定するために使う。`wiring::OverlayCloseController::push_overlay`
     /// が返す index と対応する）。
     ///
     /// # 不変条件: index は非最上位の remove でシフトする
     ///
-    /// この index は [`wiring::OverlayCloseController`] が内部で保持する
+    /// この index は `wiring::OverlayCloseController` が内部で保持する
     /// `Vec` 上の**現在位置**であり、要素へのモノトニックなハンドルでは
     /// ない。最上位でないエントリを
-    /// [`wiring::OverlayCloseController::remove_overlay`] で取り除くと、
+    /// `wiring::OverlayCloseController::remove_overlay` で取り除くと、
     /// それより上位（大きい index）の全エントリの index が 1 ずつ
     /// シフトする（`Vec::remove` の仕様）。
     ///
@@ -489,7 +489,7 @@ pub struct OverlayCloseRequest {
     ///   大きい index を全て 1 減算して同期する
     /// - index を対応表のキーに使わず、push 時に呼び出し側が発行する
     ///   シフトに強いモノトニックなハンドル（オーバーレイ ID 等）を別途
-    ///   管理し、[`wiring::OverlayCloseController::push_overlay`] が返す
+    ///   管理し、`wiring::OverlayCloseController::push_overlay` が返す
     ///   index はコントローラへの操作（`remove_overlay` の引数）専用の
     ///   一時的な値として扱う
     pub index: usize,

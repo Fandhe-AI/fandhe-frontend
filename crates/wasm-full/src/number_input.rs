@@ -26,7 +26,7 @@
 //!
 //! - 純粋ロジック層（[`action_for_key`]）は web-sys に依存せず、native の
 //!   `cargo test` で決定的に検証できる。
-//! - 配線層（[`wire_number_input_events`]/[`wire_number_input_component`]）
+//! - 配線層（`wire_number_input_events`/`wire_number_input_component`）
 //!   のみ `#[cfg(target_arch = "wasm32")]` でゲートする。
 //!
 //! IncrementTrigger/DecrementTrigger の click（イシュー #1962）も、
@@ -100,7 +100,7 @@
 //! `data-action-input` を付けない・`name` を区別しない単一インスタンス
 //! アプリ（[`fandhe_frontend_headless_ui::number_input::NumberInput`] 自身を
 //! `Component` として使う経路。`crates/wasm-full/tests/number_input_browser.rs`
-//! 参照）では、[`fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`]
+//! 参照）では、`fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`
 //! がこれらの payload をすべて無視するため挙動は変わらない（後方互換）。
 //!
 //! `ArrowUp`/`ArrowDown` は、キャレット確定前にタイプ中の `input.value` が
@@ -110,7 +110,7 @@
 //! 増減アクションの **直前** に `input.value` を `"set"` として同期
 //! dispatch してから増減する（1 回のキー操作で 2 アクションを dispatch
 //! する）。`input.value` が数値としてパース不能・非有限な場合、`"set"` は
-//! [`fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`]
+//! `fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`
 //! が no-op（`None`）として fail-closed に無視するため、増減は編集前の
 //! 状態値のまま行われる（「不正な入力は破棄し状態値基準で増減する」契約）。
 //! `Home`/`End` は同期を行わない（`min`/`max` への絶対設定であり、タイプ中
@@ -122,7 +122,7 @@
 //! 不具合の是正）。
 //!
 //! `"set"` の payload はキャレット確定前のテキストそのものであり、
-//! [`fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`]
+//! `fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`
 //! が改めて `str::parse::<f64>()` + 有限性検証で fail-closed に扱う
 //! （不正な文字列は no-op、多層防御）。
 //!
@@ -133,7 +133,7 @@
 //!   自体が倍率 API を持たない（`crates/headless-ui/src/number_input.rs`
 //!   モジュール doc「非追随」節）ため、本モジュールも対応しない。
 //! - **IncrementTrigger/DecrementTrigger ボタンのクリック配線**:
-//!   イシュー #1962（親 #1961）で回収済み（[`wiring::wire_number_input_events`]
+//!   イシュー #1962（親 #1961）で回収済み（`wiring::wire_number_input_events`
 //!   が keydown と同一 root へ click リスナーも登録する）。
 //! - **クリック後の Input へのフォーカス復帰**: 参考実装（ark-ui）はトリガー
 //!   の `pointerdown` を `preventDefault` して Input のフォーカスを維持する
@@ -142,24 +142,24 @@
 //! # セキュリティ不変条件
 //!
 //! - dispatch payload（`"set"` の文字列）は
-//!   [`fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`]
+//!   `fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`
 //!   が改めて厳密パース・有限性検証する（本モジュールは payload 文字列を
 //!   組み立てるのみ、多層防御）。
 //! - `data-disabled` **または** `data-readonly` を持つ input/祖先パーツ上の
-//!   keydown は no-op（[`has_noninteractive_ancestor`]、`crate::angle_slider`
+//!   keydown は no-op（`has_noninteractive_ancestor`、`crate::angle_slider`
 //!   の `has_noninteractive_ancestor` と同型の fail-closed 判定）。IncrementTrigger/
-//!   DecrementTrigger の click も同じ判定を再利用する（[`wiring::handle_click`]）。
+//!   DecrementTrigger の click も同じ判定を再利用する（`wiring::handle_click`）。
 //!   ネイティブ `disabled` を持つ `<button>` はブラウザ自体が click を発火
 //!   させないため、この判定は多層防御の位置づけである。`disabled` は
-//!   配線登録時の `root` まで祖先を全域走査する（[`has_disabled_ancestor`]、
+//!   配線登録時の `root` まで祖先を全域走査する（`has_disabled_ancestor`、
 //!   フィールドセット等外側からの伝播を意図的に許容）のに対し、`readonly`
 //!   は最寄りの NumberInput Root までに判定スコープを限定する
-//!   （[`has_readonly_ancestor`]、headless-ui の「readonly は同一インス
+//!   （`has_readonly_ancestor`、headless-ui の「readonly は同一インス
 //!   タンス限定」契約。readonly な外側 NumberInput に編集可能な内側
 //!   NumberInput をネストしても内側の操作を誤って無効化しない、PR #1982
 //!   codex-review P1 是正）。
 //! - click 経路は Trigger 要素・Input パーツがいずれも解決できた場合のみ
-//!   dispatch する（[`wiring::handle_click`]）。トリガー要素が見つからない・
+//!   dispatch する（`wiring::handle_click`）。トリガー要素が見つからない・
 //!   Input パーツが見つからない・`data-part` が未知の値であるケースは
 //!   すべて早期 return（fail-closed、no-op）とし、独自の境界（min/max）
 //!   計算は一切行わない（clamp はヘッドレス側の状態機械・トリガー
@@ -171,7 +171,7 @@
 //!   使用）。
 //! - IME 変換中（`KeyboardEvent::is_composing()` が `true`、または互換
 //!   シグナル `key_code() == 229`）の keydown は
-//!   [`wiring::handle_keydown`] が早期 return で除外し、`prevent_default()`
+//!   `wiring::handle_keydown` が早期 return で除外し、`prevent_default()`
 //!   も `on_action` dispatch も一切行わない（PR #1881 codex-review P1
 //!   是正その 3。変換中の候補選択キーで数値が意図せず上書きされることを
 //!   防ぐ）。
@@ -257,7 +257,7 @@ pub const DECREMENT_TRIGGER_PART: &str = "decrement-trigger";
 /// 決定する純粋関数（DOM 非依存、native `cargo test` で検証可能）。
 ///
 /// keydown 用 [`action_for_key`] と同型の役割で、click 配線層
-/// （[`wiring::handle_click`]）から呼ばれる。[`INCREMENT_TRIGGER_PART`]/
+/// （`wiring::handle_click`）から呼ばれる。[`INCREMENT_TRIGGER_PART`]/
 /// [`DECREMENT_TRIGGER_PART`] 以外（`"input"`/`"root"`/`"control"`/未知の
 /// 文字列）は `None`（no-op）。決定した [`KeyAction`] は keydown と同じ
 /// [`resolve_dispatches`] へそのまま渡され、Increment/Decrement は

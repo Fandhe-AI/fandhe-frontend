@@ -3,9 +3,9 @@
 //! ark-ui の QrCode（`.claude/skills/ark-ui/references/components/display/qr-code.md`）
 //! を参考に、Root / Frame / Pattern / Overlay の 4 anatomy パーツと、
 //! QR Model 2（ISO/IEC 18004）byte モードの外部依存ゼロエンコーダ
-//! （[`crate::qr_encode`]、非公開実装）を提供する。
+//! （`crate::qr_encode`、非公開実装）を提供する。
 //!
-//! # 状態機械を持たない理由（[`crate::tabs`]/[`crate::field`] と同じ区分）
+//! # 状態機械を持たない理由（[`crate::tabs`](mod@crate::tabs)/[`crate::field`] と同じ区分）
 //!
 //! QrCode の描画は `value`（符号化対象文字列）と `ecc`（誤り訂正レベル）から
 //! 一意に導出される純粋な変換であり、開閉・選択のような遷移可能な状態を
@@ -33,11 +33,11 @@
 //! # セキュリティ不変条件
 //!
 //! - `value`（符号化対象文字列）はマークアップへ一切出力されない。
-//!   [`qr_encode::encode`] はバイト列からモジュール行列（暗/明の bool 配列）
+//!   `qr_encode::encode` はバイト列からモジュール行列（暗/明の bool 配列）
 //!   へのみ変換し、文字列としての `value` を保持・再出力しない。
 //! - [`pattern`] の `d` 属性値は暗モジュールの座標から本モジュールが内部生成
 //!   する文字列であり、文字集合は `M`/`h`/`v`/`z`/半角数字/`,` に閉じる
-//!   （[`build_path_d`]）。呼び出し側入力が `d` 属性値へ混入する経路はない。
+//!   （`build_path_d`）。呼び出し側入力が `d` 属性値へ混入する経路はない。
 //! - SVG は全て [`fandhe_frontend_core::el`] のノード木 API で構築し、
 //!   `raw_html()` は使用しない・HTML/SVG 文字列を直接組み立てない（REQ-1）。
 //! - `attrs`/`children` は既存 anatomy 契約どおり
@@ -50,7 +50,7 @@
 //!   Issue 化を提案する。
 //! - `value` の動的更新（`onValueChange` 相当）・wasm 配線。
 //! - numeric/alphanumeric/kanji モードによる容量最適化・ECI・構造的連接
-//!   （[`crate::qr_encode`] のモジュール doc 参照）。
+//!   （`crate::qr_encode` のモジュール doc 参照）。
 //! - `examples/headless-pre-styled-ui` への追随（crates.io 公開後、既存
 //!   運用どおり別 Issue）。
 //!
@@ -262,10 +262,10 @@ pub fn frame<'a>(
 
 /// Pattern パーツ（`path`）。`d` 属性値は暗モジュールごとの
 /// `M{x},{y}h1v1h-1z`（1x1 の正方形）を行優先で連結した内部生成文字列
-/// （[`build_path_d`]）。`fill` は付与しない（styled 層/呼び出し側 CSS の
+/// （`build_path_d`）。`fill` は付与しない（styled 層/呼び出し側 CSS の
 /// 責務、headless 中立、`crates/headless-ui/src/progress.rs` と同じ方針）。
 /// 呼び出し側 `attrs` が `d` を渡してもフレームワーク側の値を優先する
-/// （[`drop_reserved`] による dedup、イシュー #1634 是正）。
+/// （`drop_reserved` による dedup、イシュー #1634 是正）。
 #[must_use]
 pub fn pattern<'a>(matrix: &QrMatrix, quiet_zone: u32, attrs: Vec<(&'a str, &'a str)>) -> Node {
     let d = build_path_d(matrix, quiet_zone);

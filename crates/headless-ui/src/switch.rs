@@ -33,7 +33,7 @@
 //! だけで伝播できない（[`root`] > [`control`] の兄弟配置であり
 //! `:focus-within` も成立しない）。この静的表現として
 //! [`crate::data_attrs::data_focus_visible`] を出力できる（契約は同関数の
-//! doc を参照）。`fandhe-frontend-pre-styled-ui` の recipe（[`SlotRecipe::state`]
+//! doc を参照）。`fandhe-frontend-pre-styled-ui` の recipe（`SlotRecipe::state`
 //! 相当）は同一要素上の属性有無でセレクタを組み立てるため
 //! （`[data-scope="switch"][data-part="control"][data-focus-visible]`、
 //! `crates/pre-styled-ui/src/switch.rs` 参照）、クライアントランタイム
@@ -88,7 +88,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`role`/`name`/`checked`/`disabled`/
 //!   `required`）はすべて `&'static str` リテラルで固定しており、動的値が
-//!   属性名スロットへ混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
+//!   属性名スロットへ混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`name`/`value`/呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。

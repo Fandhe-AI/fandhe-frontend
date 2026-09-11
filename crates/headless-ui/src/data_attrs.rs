@@ -226,7 +226,7 @@ pub fn data_answered(answered: bool) -> Option<(&'static str, &'static str)> {
 /// [`data_disabled`] と同じ規約に従う。「どの質問をスキップしたか」は
 /// headless の状態機械（[`crate::questionnaire::Questionnaire`]）に持たせず、
 /// 呼び出し側が渡す [`crate::questionnaire::QuestionProps::skipped`] の
-/// 表示状態のみを表す（[`mod@crate::questionnaire`] モジュール doc
+/// 表示状態のみを表す（[`crate::questionnaire`](mod@crate::questionnaire) モジュール doc
 /// 「`Skip` は状態遷移としては `Next` と同一」参照）。
 #[must_use]
 pub fn data_skipped(skipped: bool) -> Option<(&'static str, &'static str)> {

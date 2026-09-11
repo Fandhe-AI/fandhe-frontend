@@ -4,11 +4,11 @@
 //! # 役割・呼び出し文脈
 //!
 //! [`crate::primitive_specs::SPEC_TABLES`] へ集約される 1 テーブル。
-//! [`crate::component_page::spec_for`] が `Layer::Primitives` のとき本
+//! `crate::component_page::spec_for` が `Layer::Primitives` のとき本
 //! テーブルを線形探索し、path が一致すれば [`ComponentPageSpec`] を返す
 //! （[`crate::component_page::generated_content`] 経由）。Demo 節・Anatomy
 //! 表・`data-*` 属性表は本ファイルの責務外であり、
-//! [`crate::primitive_showcase::forms_c_date_status`]（イシュー #1022）の
+//! `crate::primitive_showcase::forms_c_date_status`（イシュー #1022）の
 //! Demo ノード木から機械導出される。本ファイルは Features / API Reference
 //! 引数表 / Examples / Accessibility の 4 節のみを供給する。
 //!
@@ -924,7 +924,7 @@ const PROGRESS_CUSTOM_CSS_SNIPPET: &str = "\
 /// `data-orientation` 属性セレクタで自前 CSS を当てる最小例（イシュー
 /// #1633、`toggle_custom_css_example` と同型）。range の幅は headless が
 /// 付与しない契約のため、`Progress::percent()` から呼び出し側が
-/// `style="width: ..%"` を組み立てて渡す（[`mod@progress`] モジュール doc
+/// `style="width: ..%"` を組み立てて渡す（[`progress`](mod@progress) モジュール doc
 /// の「意図的に合わせなかった点」参照）。
 fn ex_progress_custom_css() -> Node {
     let progress = Progress::new(0.0, 100.0, Some(65.0), Orientation::Horizontal);
@@ -1187,7 +1187,7 @@ const QR_CODE: ComponentPageSpec = ComponentPageSpec {
 ///
 /// イシュー #1632 是正: `Completed` は zag.js の `running`/`paused` 述語が
 /// いずれも偽になるため `Idle` と同じ可視性（Start/Restart のみ表示、
-/// Pause/Resume/Reset は `hidden`）になる（意図的拡張、[`mod@timer`]
+/// Pause/Resume/Reset は `hidden`）になる（意図的拡張、[`timer`](mod@timer)
 /// モジュール doc 参照）。旧版は「Reset のみを表示する構成」と誤って
 /// 記述していたため是正した。
 fn timer_completed_example() -> Node {

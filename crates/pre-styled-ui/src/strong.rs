@@ -1,9 +1,9 @@
 //! Strong（イシュー #995）: variant を持たない最小静的部品。重要性の強調
-//! テキスト（`<strong>`）を既定スタイルで組み立てる。[`crate::em`] /
+//! テキスト（`<strong>`）を既定スタイルで組み立てる。[`crate::em`](mod@crate::em) /
 //! [`crate::link_overlay`] と同型の「variant 軸を持たない slot recipe」
 //! パターンに従う。
 //!
-//! [`crate::em`]（`<em>`、文法的な強勢の強調）との役割差: `strong` は
+//! [`crate::em`](mod@crate::em)（`<em>`、文法的な強勢の強調）との役割差: `strong` は
 //! 重要性・緊急性を表す強調（HTML 意味論上 `<strong>` と `<em>` は別概念）
 //! であり、見た目上も `strong` は `font-weight: bold`、`em` は
 //! `font-style: italic`（font-weight は本文から継承し `bold` への上書きは
@@ -12,7 +12,7 @@
 //! `font-weight: medium` への上書きは参照サイトのいずれにも無い装飾
 //! だったため廃止し、継承へ是正済みである。両部品の役割差は「太字（weight
 //! 上書き）か斜体（style 上書き・weight は継承）か」という様式の違いで
-//! 成立する（[`crate::em`] モジュール rustdoc 参照）。
+//! 成立する（[`crate::em`](mod@crate::em) モジュール rustdoc 参照）。
 //!
 //! ## 参考サイト基準との 7 軸比較（イシュー #1441）
 //!
@@ -84,7 +84,7 @@ pub fn css() -> String {
 
 /// Strong 1 個（`<strong>`）を組み立てる。variant 軸を持たないため `class`
 /// 属性は付与しない（呼び出し側 `attrs` の `class` は他 styled 部品との
-/// 一貫性のため [`drop_class_attr`] で除去する。[`crate::em::em`] と同型の
+/// 一貫性のため `drop_class_attr` で除去する。[`crate::em::em`] と同型の
 /// 判断）。
 ///
 /// # Examples

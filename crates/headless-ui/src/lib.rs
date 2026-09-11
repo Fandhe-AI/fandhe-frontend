@@ -32,13 +32,13 @@
 //!   までとする。バリデーション・送信処理・データ整形・永続化といった
 //!   アプリケーションロジックを内包する部品は、参照軸（ark-ui /
 //!   chakra-ui / Radix）に存在しても実装しない（Radix `Form` が確定
-//!   対象。構造部分は [`mod@field`]/[`mod@fieldset`] が担う）。
+//!   対象。構造部分は [`field`](mod@field)/[`fieldset`](mod@fieldset) が担う）。
 //! - **規則 2（層の割り当て）**: 装飾・アニメーション・レイアウト計測の
 //!   関心（Radix の `data-motion`、viewport 測定等）は本クレートへ
 //!   持ち込まず、上層の `fandhe-frontend-pre-styled-ui`（実 DOM 計測は
 //!   `fandhe-frontend-wasm-full`）の責務とする。適用例は
-//!   [`mod@navigation_menu`]。
-//! - **境界事例**: [`mod@positioning`] は viewport 寸法を引数で受け取るが
+//!   [`navigation_menu`](mod@navigation_menu)。
+//! - **境界事例**: [`positioning`](mod@positioning) は viewport 寸法を引数で受け取るが
 //!   計測主体（実 DOM 接触・再計算トリガーの所有）ではないため規則 2 の
 //!   対象外である。判別根拠は同モジュールのモジュールレベル rustdoc を
 //!   参照。
@@ -58,7 +58,7 @@
 //!
 //! # 実装済み API（イシュー #523/#524）
 //!
-//! - [`mod@anatomy`]: `data-scope` / `data-part` を付与してパーツノードを組み立てる
+//! - [`anatomy`](mod@anatomy): `data-scope` / `data-part` を付与してパーツノードを組み立てる
 //!   [`anatomy::Anatomy`]（全コンポーネント共通の anatomy 基盤）。
 //! - [`data_attrs`]: `data-state` / `data-disabled` 等の状態属性ヘルパ（#523）。
 //! - [`aria`]: `role` / `aria-*` の WAI-ARIA 属性ヘルパ（#523）。
@@ -74,10 +74,10 @@
 //!   [`state::MultiSelect`]（#594）は 0 個以上の同時選択
 //!   （[`accordion::MultiAccordion`] の multiple モード）向けに
 //!   [`state::SingleSelect`]（高々 1 個選択）を補完する。[`state::Checkable`]
-//!   はイシュー #595 で [`mod@switch`] から共通化昇格した。[`state::TextInput`]
-//!   （#749）は自由入力文字列 1 個を持つ状態機械であり、[`mod@combobox`] が
+//!   はイシュー #595 で [`switch`](mod@switch) から共通化昇格した。[`state::TextInput`]
+//!   （#749）は自由入力文字列 1 個を持つ状態機械であり、[`combobox`](mod@combobox) が
 //!   埋め込む。
-//! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
+//! - [`tabs`](mod@tabs): WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
 //!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック操作・
 //!   状態機械連携は `fandhe-frontend-wasm-full` の `headless::MAPPING_TABLE`
 //!   （クリック→`select` dispatch、イシュー #580）・`keynav`（キーボード操作、
@@ -90,10 +90,10 @@
 //!   は選択タブの位置を示す `indicator` パーツを追加し、SSR では
 //!   `data-*` フックと CSS 変数（`--left`/`--top`/`--width`/`--height`）の
 //!   初期値のみを出力する（動的計測は wasm/CSR 層の後続責務）。
-//! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
+//! - [`collapsible`](mod@collapsible): Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
 //!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
 //!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
-//! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
+//! - [`accordion`](mod@accordion): Root / Item / ItemTrigger / ItemIndicator / ItemContent の
 //!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
 //!   Accordion（[`accordion::Accordion`]、#527）、および
 //!   [`state::MultiSelect`] を埋め込んだ multiple モード Accordion
@@ -102,17 +102,17 @@
 //!   新設し、全パーツへ `data-orientation` を、item-trigger へ
 //!   `aria-disabled`、item-indicator へ常時 `aria-hidden="true"`、
 //!   item-indicator/item-content へ `data-disabled` を追加した。
-//! - [`mod@tooltip`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の anatomy
+//! - [`tooltip`](mod@tooltip): Root/Trigger/Positioner/Content/Arrow/ArrowTip の anatomy
 //!   パーツ関数群と、[`state::Disclosure`] を埋め込んだ [`tooltip::Tooltip`]
 //!   状態機械（#533、親 #530）。WAI-ARIA tooltip パターンに従い `aria-describedby`
-//!   を使う点が [`mod@collapsible`] との違い。
-//! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
+//!   を使う点が [`collapsible`](mod@collapsible) との違い。
+//! - [`dialog`](mod@dialog): [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
 //!   CloseTrigger は [`dialog::close_trigger_with_variant`] で
 //!   `data-variant`（[`dialog::CloseTriggerVariant`]、`icon`/`text`）を
 //!   選択でき、footer 内の平文ボタンとしても再利用できる（イシュー #2193）。
-//! - [`mod@drawer`]: Dialog パターンの変種（画面端からスライドインするパネル）
+//! - [`drawer`](mod@drawer): Dialog パターンの変種（画面端からスライドインするパネル）
 //!   である [`drawer::Drawer`]。dialog と同じ 8 anatomy パーツ（`data-scope="drawer"`）
 //!   を持つが、開閉状態機械は新設せず [`dialog::Dialog`] へ全委譲する
 //!   （[`segment_group::SegmentGroup`] が [`radio_group::RadioGroup`] へ
@@ -122,12 +122,12 @@
 //!   は dialog と対称に [`drawer::close_trigger_with_variant`] を持つが、
 //!   `fandhe-frontend-wasm-full` が drawer scope 自体を未配線のため
 //!   text variant を置いても現状 inert（イシュー #2193、#1639）。
-//! - [`mod@download_trigger`]: `root`（`a[download]`）1 anatomy パーツ
+//! - [`download_trigger`](mod@download_trigger): `root`（`a[download]`）1 anatomy パーツ
 //!   （イシュー #828）。ark-ui/chakra-ui の DownloadTrigger（JS の `Blob`
 //!   生成前提）を `a[download]` 属性による宣言的トリガーとして静的部品化
-//!   したもので、[`mod@link`]/[`mod@breadcrumb`] と同型の状態機械なし純粋
+//!   したもので、[`link`](mod@link)/[`breadcrumb`](mod@breadcrumb) と同型の状態機械なし純粋
 //!   関数のみで構成する。
-//! - [`mod@radio_group`]: Root / Label / Item / ItemControl / ItemText /
+//! - [`radio_group`](mod@radio_group): Root / Label / Item / ItemControl / ItemText /
 //!   ItemHiddenInput の 6 anatomy パーツと [`state::SingleSelect`] を埋め込んだ
 //!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
 //!   dispatch は `"select"` のみを受理する（WAI-ARIA radio パターンに選択解除
@@ -135,7 +135,7 @@
 //!   選択解除を許す）。[`radio_group::RadioGroupProps`]（`disabled`/
 //!   `readonly`/`invalid`/`required`）が各パーツの `data-*`/ARIA 属性を
 //!   決定する（イシュー #1616 の ark-ui / Radix Primitives 参照突合で新設）。
-//! - [`mod@segment_group`]: Root / Indicator / Item / ItemText / ItemControl /
+//! - [`segment_group`](mod@segment_group): Root / Indicator / Item / ItemText / ItemControl /
 //!   ItemHiddenInput の 6 anatomy パーツと、状態機械・dispatch・hydration の
 //!   すべてを [`radio_group::RadioGroup`] へ全委譲する
 //!   [`segment_group::SegmentGroup`]（#743、親トラッキング #520）。segmented
@@ -143,7 +143,7 @@
 //!   新設しない。固有に持つのは segment 用 anatomy と、選択項目の
 //!   `(index, count)` から CSS カスタムプロパティ 2 種を導出する
 //!   [`segment_group::indicator`] の SSR 決定的な位置表現のみ（詳細は
-//!   [`mod@segment_group`] module doc 参照）。[`segment_group::SegmentGroupProps`]
+//!   [`segment_group`](mod@segment_group) module doc 参照）。[`segment_group::SegmentGroupProps`]
 //!   （`disabled`/`readonly`/`invalid`/`required`）が各パーツの `data-*`/
 //!   ARIA 属性を決定する（イシュー #1618 の ark-ui 参照突合で新設、
 //!   [`radio_group::RadioGroupProps`] と同じパート別反映契約）。
@@ -153,43 +153,43 @@
 //!   headless Popover コンポーネント（#532）。イシュー #1642 で ark-ui /
 //!   Radix Primitives / chakra-ui と参照突合し、`content` に
 //!   `tabindex="-1"` を固定付与した。
-//! - [`mod@field`]: Root / Label / Input / Textarea / Select / HelperText /
+//! - [`field`](mod@field): Root / Label / Input / Textarea / Select / HelperText /
 //!   ErrorText / RequiredIndicator の 8 anatomy パーツ関数群
 //!   （[`field::FieldProps`] から決定的に描画する純粋関数、#538）。
 //!   `invalid`/`disabled`/`required`/`readonly` は SSR 静的な props であり、
-//!   開閉のような時間変化する内部状態を持たないため [`mod@state`] の状態機械を
-//!   適用しない（[`mod@tabs`] と同型の判断）。[`field::FieldProps::ids`]
+//!   開閉のような時間変化する内部状態を持たないため [`state`](mod@state) の状態機械を
+//!   適用しない（[`tabs`](mod@tabs) と同型の判断）。[`field::FieldProps::ids`]
 //!   （[`field::FieldIds`]）による派生 id の個別上書き、[`field::textarea`]
 //!   の `autoresize` 引数（`data-autoresize` フックのみ）、[`field::select`]
 //!   の readonly 解消（`<select readonly>` は無効な HTML のためネイティブ
 //!   属性を出力しない）はイシュー #602 で追加。
-//! - [`mod@fieldset`]: Root / Legend / HelperText / ErrorText の 4 anatomy
+//! - [`fieldset`](mod@fieldset): Root / Legend / HelperText / ErrorText の 4 anatomy
 //!   パーツ関数群（[`fieldset::FieldsetProps`] から決定的に描画する純粋関数、
 //!   #602、親 #578）。[`fieldset::FieldsetProps::merge_field_props`] で
 //!   `disabled` を内包する [`field::FieldProps`] へ OR 伝播する（`invalid` は
-//!   伝播しない）。[`mod@field`] と同じく状態機械を適用しない。
+//!   伝播しない）。[`field`](mod@field) と同じく状態機械を適用しない。
 //!   [`fieldset::legend_with_variant`] で `data-variant`
 //!   （[`fieldset::LegendVariant`]、`legend`/`label`）を出力し、
 //!   shadcn/ui `FieldLegend` の 2 段見出しサイズと突合する（#2214、
 //!   既存 [`fieldset::legend`] は不変）。
-//! - [`mod@input_group`]: Root / Addon / Text / Button の 4 anatomy パーツ
+//! - [`input_group`](mod@input_group): Root / Addon / Text / Button の 4 anatomy パーツ
 //!   関数群（[`input_group::InputGroupProps`] から決定的に描画する純粋関数、
 //!   #2062、親 #2061）。shadcn/ui の Input Group 相当で、実際の
-//!   `<input>`/`<textarea>` は本モジュールが出力せず [`mod@field`] の
+//!   `<input>`/`<textarea>` は本モジュールが出力せず [`field`](mod@field) の
 //!   [`field::input`]/[`field::textarea`] を呼び出し側が合成する契約。
 //!   [`input_group::InputGroupProps::merge_field_props`] は `disabled`・
-//!   `invalid` の双方を OR 伝播する（[`mod@fieldset`] と異なり `invalid` も
-//!   伝播する理由は [`mod@input_group`] module doc 参照）。[`mod@field`] と
+//!   `invalid` の双方を OR 伝播する（[`fieldset`](mod@fieldset) と異なり `invalid` も
+//!   伝播する理由は [`input_group`](mod@input_group) module doc 参照）。[`field`](mod@field) と
 //!   同じく状態機械を適用しない。
-//! - [`mod@listbox`]: Root / Label / Content / ItemGroup / ItemGroupLabel /
+//! - [`listbox`](mod@listbox): Root / Label / Content / ItemGroup / ItemGroupLabel /
 //!   Item / ItemText / ItemIndicator / ValueText の 9 anatomy パーツと、
 //!   single モード [`state::SingleSelect`] を埋め込んだ
 //!   [`listbox::Listbox`]、multiple モード [`state::MultiSelect`] を
 //!   埋め込んだ [`listbox::MultiListbox`]（#750、親 #748）。
-//!   [`mod@select`]（ポップアップ型、`Disclosure` + trigger/positioner/
+//!   [`select`](mod@select)（ポップアップ型、`Disclosure` + trigger/positioner/
 //!   hidden-select を持つ）とは異なり、Listbox は常時展開で開閉状態を
-//!   持たない（責務境界の詳細は [`mod@listbox`] module doc 参照）。
-//! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
+//!   持たない（責務境界の詳細は [`listbox`](mod@listbox) module doc 参照）。
+//! - [`menu`](mod@menu): Root / Trigger / Indicator / Positioner / Content / Arrow /
 //!   ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel /
 //!   Separator / TriggerItem / ContextTrigger / CheckboxItem /
 //!   RadioItemGroup / RadioItem の 18 anatomy パーツ（ItemText/ItemIndicator
@@ -201,7 +201,7 @@
 //!   RadioItemGroup/RadioItem（#597）は checked 状態を [`state::Checkable`]/
 //!   [`state::SingleSelect`] を埋め込んだ [`menu::MenuCheckboxItem`]/
 //!   [`menu::MenuRadioItemGroup`] で表現し、`Menu` の開閉状態とは独立させる。
-//! - [`mod@select`]: Root / Label / Control / Trigger / ValueText /
+//! - [`select`](mod@select): Root / Label / Control / Trigger / ValueText /
 //!   ClearTrigger / Indicator / Positioner / Content / ItemGroup /
 //!   ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15
 //!   anatomy パーツと、[`state::Disclosure`]（listbox 開閉）+
@@ -214,25 +214,25 @@
 //!   ark-ui/Radix との参照突合（イシュー #1619）を反映し、trigger の
 //!   `data-placeholder-shown`・item の root disabled 伝播と `data-selected`・
 //!   item-text の 3 状態属性を追加する。
-//! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
+//! - [`switch`](mod@switch): Root / Control / Thumb / Label / HiddenInput の 5 anatomy
 //!   パーツと、[`state::Checkable`] を埋め込んだ [`switch::Switch`] 状態機械
 //!   （#537、親 #534）。ark-ui 準拠の `"checked"`/`"unchecked"` 値語彙が
 //!   [`state::Disclosure`] の `"open"`/`"closed"` と異なるため
 //!   [`state::Checkable`]（[`state::Disclosure`] とは別の共通機械）を
-//!   埋め込む点が [`mod@collapsible`] との違い（#595 で共通化昇格するまでは
+//!   埋め込む点が [`collapsible`](mod@collapsible) との違い（#595 で共通化昇格するまでは
 //!   本モジュール内に個別実装していた）。
-//! - [`mod@avatar`]: Root / Image / Fallback の 3 anatomy パーツと、画像読み込み
+//! - [`avatar`](mod@avatar): Root / Image / Fallback の 3 anatomy パーツと、画像読み込み
 //!   ステータス（`"loading"`/`"loaded"`/`"error"`）の [`avatar::Avatar`] 状態
-//!   機械（#543、親 #542）。[`mod@switch`] と同様、[`state`] を埋め込まず
+//!   機械（#543、親 #542）。[`switch`](mod@switch) と同様、[`state`] を埋め込まず
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する（3 値ステータス
 //!   が [`state::Disclosure`]/[`state::SingleSelect`] のいずれにも写像
 //!   できないため）。`data-state`（`"visible"`/`"hidden"`）は Image/Fallback
 //!   のみに付与し、ark-ui 準拠で Root には付与しない。
-//! - [`mod@progress`]: Root / Label / ValueText / Track / Range の 5 anatomy
+//! - [`progress`](mod@progress): Root / Label / ValueText / Track / Range の 5 anatomy
 //!   パーツと、数値 `value`（`min`..=`max`、または indeterminate を表す
 //!   `None`）を持つ [`progress::Progress`] 状態機械（#544、親 #542）。
-//!   [`mod@switch`] と同じく `data-state` 値語彙（`"indeterminate"`/
+//!   [`switch`](mod@switch) と同じく `data-state` 値語彙（`"indeterminate"`/
 //!   `"loading"`/`"complete"`）が [`state::Disclosure`] と異なるため、
 //!   [`state`] を埋め込まず [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。加えて
@@ -240,35 +240,35 @@
 //!   （#600、親 #542）を持つ。CSS 変数（`--size`/`--thickness`）参照の
 //!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
 //!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
-//! - [`mod@number_input`]: Root / Label / Control / Input / IncrementTrigger /
+//! - [`number_input`](mod@number_input): Root / Label / Control / Input / IncrementTrigger /
 //!   DecrementTrigger / ValueText の 7 anatomy パーツ（#738、親 #736。
 //!   ValueText はイシュー #1613 の参考サイト突合で追加）と、数値 `value`
 //!   （`min`..=`max`、または未入力を表す `None`）を持つ
-//!   [`number_input::NumberInput`] 値状態機械。[`mod@progress`] と同じく
+//!   [`number_input::NumberInput`] 値状態機械。[`progress`](mod@progress) と同じく
 //!   `data-state` を持たず、[`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。ark-ui の
 //!   Scrubber パーツ・キーボード操作の DOM 配線は引き続きスコープ外
 //!   （[`number_input`] モジュール doc 参照）。
-//! - [`mod@rating_group`]: Root / Label / Control / Item / HiddenInput の 5
+//! - [`rating_group`](mod@rating_group): Root / Label / Control / Item / HiddenInput の 5
 //!   anatomy パーツと、`1..=count` の数値評価値（未評価は `None`）+ hover
 //!   プレビューを持つ [`rating_group::RatingGroup`] 状態機械（#742、親
 //!   #736）。`hover` は SSR 非活性・hydration 非直列化（[`rating_group`]
 //!   モジュール doc 参照）。`allow_half`（0.5 刻み）・hover/クリック/
 //!   キーボードナビの DOM 配線は本イシューのスコープ外。
-//! - [`mod@pin_input`]: Root / Label / Control / Input / HiddenInput の 5
+//! - [`pin_input`](mod@pin_input): Root / Label / Control / Input / HiddenInput の 5
 //!   anatomy パーツと、固定桁数の文字配列 + フォーカス位置を持つ
-//!   [`pin_input::PinInput`] 状態機械（#739、親 #736/#726）。[`mod@switch`]/
-//!   [`mod@progress`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`pin_input::PinInput`] 状態機械（#739、親 #736/#726）。[`switch`](mod@switch)/
+//!   [`progress`](mod@progress) と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
 //!   [`pin_input::PinInputProps`]（disabled/readonly/invalid/required）・
 //!   `data-index`/`data-filled`・dispatch `"delete"`/`"prev"`/`"next"`の
 //!   追加、`"backspace"` 挙動の是正は ark-ui/Radix 参照突合（イシュー
 //!   #1615）による。
-//! - [`mod@editable`]: Root / Label / Area / Input / Preview / Control /
+//! - [`editable`](mod@editable): Root / Label / Area / Input / Preview / Control /
 //!   EditTrigger / SubmitTrigger / CancelTrigger の 9 anatomy パーツと、
 //!   `preview`/`edit` の 2 モードを持つ [`editable::Editable`] 状態機械
-//!   （#745、親 #736）。[`mod@switch`]/[`mod@progress`]/[`mod@pin_input`]
+//!   （#745、親 #736）。[`switch`](mod@switch)/[`progress`](mod@progress)/[`pin_input`](mod@pin_input)
 //!   と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。activationMode/
@@ -278,62 +278,62 @@
 //!   [`editable::EditableInputFlags::invalid`]/`required` 由来の
 //!   `data-invalid`/`data-required` を、`preview` へ `tabindex`/`aria-*` を
 //!   追加した（詳細は [`editable`] モジュール doc「参照突合」節参照）。
-//! - [`mod@combobox`]: Root / Label / Control / Input / Trigger /
+//! - [`combobox`](mod@combobox): Root / Label / Control / Input / Trigger /
 //!   ClearTrigger / Positioner / Content / ItemGroup / ItemGroupLabel /
 //!   Item / ItemText / ItemIndicator / LiveRegion の 14 anatomy パーツと、
 //!   [`state::Disclosure`]（listbox 開閉）と [`state::SingleSelect`]（選択値）
 //!   と [`state::TextInput`]（入力値、本イシューで新設）を合成した
 //!   [`combobox::Combobox`] 状態機械（#749、親トラッキング #520）。候補列は
-//!   [`mod@select`] と同じ `(value, label)` タプル列で表現し、
+//!   [`select`](mod@select) と同じ `(value, label)` タプル列で表現し、
 //!   [`combobox::filter_options`] が大文字小文字非区別の部分一致フィルタを
 //!   提供する。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant`
-//!   は `content`（[`mod@select`]）ではなく `input` 側に配線する
+//!   は `content`（[`select`](mod@select)）ではなく `input` 側に配線する
 //!   （[`combobox`] モジュール doc 参照）。フィルタの実 DOM 配線・
 //!   キーボードナビゲーションは wasm 層の後続イシューのスコープ。
 //!   `live_region` は候補件数の変化を通知する live region（`role="status"`
 //!   + `aria-live="polite"` + `aria-atomic="true"` 固定、イシュー #1069）。
-//! - [`mod@tags_input`]: Root / Label / Control / Input / Item / ItemPreview /
+//! - [`tags_input`](mod@tags_input): Root / Label / Control / Input / Item / ItemPreview /
 //!   ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput /
 //!   LiveRegion の 12 anatomy パーツと、可変長タグ文字列リスト + 編集中/
 //!   強調中インデックスを持つ [`tags_input::TagsInput`] 状態機械（#744、親
-//!   #736/#726。参照突合はイシュー #1623）。[`mod@pin_input`]/
-//!   [`mod@number_input`] と同じく [`state`] の既存語彙に収まらないため、
+//!   #736/#726。参照突合はイシュー #1623）。[`pin_input`](mod@pin_input)/
+//!   [`number_input`](mod@number_input) と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control`/
 //!   `item_preview` は `role` を持たない（#1623 で zag/ark 準拠へ是正、
 //!   旧実装の `role="listbox"`/`role="option"` は撤去）。`live_region` は
-//!   タグ数の変化を通知する live region（[`mod@combobox`] の
+//!   タグ数の変化を通知する live region（[`combobox`](mod@combobox) の
 //!   `live_region` と同型、イシュー #1069）。
-//! - [`mod@file_upload`]: Root / Label / Dropzone / Trigger / ItemGroup /
+//! - [`file_upload`](mod@file_upload): Root / Label / Dropzone / Trigger / ItemGroup /
 //!   Item / ItemName / ItemSizeText / ItemDeleteTrigger / ClearTrigger /
 //!   HiddenInput の 11 anatomy パーツと、ファイルメタデータ（[`file_upload::FileUploadItem`]:
 //!   name / size_bytes / mime_type、`File` オブジェクト自体は非保持）の
 //!   受理済み一覧 + 直近拒否履歴を持つ [`file_upload::FileUpload`] 状態機械
 //!   （#840、`docs/policy/intentional-non-adoption.md` §7 の保留解除）。
-//!   [`mod@tags_input`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`tags_input`](mod@tags_input) と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。実 `File` API
-//!   接触は `fandhe-frontend-wasm-full` 側に隔離する（[`mod@file_upload`]
+//!   接触は `fandhe-frontend-wasm-full` 側に隔離する（[`file_upload`](mod@file_upload)
 //!   モジュール doc 参照）。disabled/readonly/invalid/required の状態束は
 //!   [`file_upload::FileUploadProps`] が担い、item 系パーツの受理/拒否種別は
 //!   [`file_upload::ItemType`] 固定語彙が `data-type` として表す
 //!   （参照突合、イシュー #1609）。
-//! - [`mod@steps`]: Root / List / Item / Trigger / Indicator / Separator /
+//! - [`steps`](mod@steps): Root / List / Item / Trigger / Indicator / Separator /
 //!   Content / CompletedContent / PrevTrigger / NextTrigger / Progress の
 //!   11 anatomy パーツ（Progress はイシュー #1665 の参照突合で新設）と、
 //!   `count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
 //!   [`steps::Steps`] 状態機械（#752、`docs/api/headless-ui-api.md` §4b.3
-//!   の保留解除）。[`mod@progress`]/[`mod@pin_input`] と同じく [`state`] の
+//!   の保留解除）。[`progress`](mod@progress)/[`pin_input`](mod@pin_input) と同じく [`state`] の
 //!   既存語彙に収まらないため、[`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。item は
 //!   complete/current/incomplete の 3 状態を持ち、current な item の
 //!   trigger のみ `aria-current="step"` を付与する。`linear`（順序強制）・
 //!   `isStepValid`/`isStepSkippable`・キーボード操作/roving focus は本
 //!   イシューのスコープ外（[`steps`] モジュール doc §out-of-scope 参照）。
-//! - [`mod@carousel`]: Root / Control / PrevTrigger / NextTrigger /
+//! - [`carousel`](mod@carousel): Root / Control / PrevTrigger / NextTrigger /
 //!   ItemGroup / Item / IndicatorGroup / Indicator の 8 anatomy パーツと、
 //!   `0..slide_count` を循環し得る index 値を持つ [`carousel::Carousel`]
-//!   状態機械（#754、親 #748/#520）。[`mod@slider`]/[`mod@number_input`] と
+//!   状態機械（#754、親 #748/#520）。[`slider`](mod@slider)/[`number_input`](mod@number_input) と
 //!   同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`item` は
@@ -345,7 +345,7 @@
 //!   Home/End 相当の `"first"`/`"last"` を追加した。autoplay（play/pause/
 //!   `aria-live` 切替）・pointer ドラッグ/キーボード操作の DOM 配線は
 //!   スコープ外（[`carousel`] モジュール doc 参照）。
-//! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger /
+//! - [`pagination`](mod@pagination): Root / Item / Ellipsis / PrevTrigger / NextTrigger /
 //!   FirstTrigger / LastTrigger の 7 anatomy パーツと、
 //!   [`pagination::page_range`]（総件数・ページサイズ・現在ページ・
 //!   sibling/boundary 件数から省略記号を含むページ列を導出する決定的な
@@ -355,7 +355,7 @@
 //!   `docs/api/headless-ui-api.md` §4b.3 の保留を解除、先行判断は #716。
 //!   FirstTrigger/LastTrigger と [`pagination::item`] の `data-index` は
 //!   ark-ui との参照突合〔#1655〕で追加）。
-//!   [`mod@number_input`]/[`mod@progress`] と同じく `data-state` を持たず、
+//!   [`number_input`](mod@number_input)/[`progress`](mod@progress) と同じく `data-state` を持たず、
 //!   現在ページは `aria-current="page"`/`data-selected` で、端到達は
 //!   `disabled`/`data-disabled` で表現する。ページ列生成は
 //!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
@@ -363,7 +363,7 @@
 //!   本イシューのスコープ外（キーボードナビゲーションは ark-ui もネイティブ
 //!   `<button>`/`<a>` の既定操作に委ねる契約のため未実装、#1655 で参照突合
 //!   済み）。
-//! - [`mod@action_bar`]: Root / Positioner / Content / SelectionTrigger /
+//! - [`action_bar`](mod@action_bar): Root / Positioner / Content / SelectionTrigger /
 //!   Separator / CloseTrigger の 6 anatomy パーツと [`state::Disclosure`] を
 //!   埋め込んだ [`action_bar::ActionBar`] 状態機械（複数選択時に画面下部へ
 //!   表示される操作バー、#762、親トラッキング #520）。構造上最も近い先行例は
@@ -379,20 +379,20 @@
 //!   糖衣 API は持たず、開閉は呼び出し側が dispatch（`"open"`/`"close"`/
 //!   `"toggle"`）で制御する（[`action_bar`] モジュール doc §選択件数から
 //!   open を導出する糖衣 API は持たない 参照）。
-//! - [`mod@hover_card`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の
+//! - [`hover_card`](mod@hover_card): Root/Trigger/Positioner/Content/Arrow/ArrowTip の
 //!   6 anatomy パーツ関数群と、[`state::Disclosure`] を埋め込んだ
 //!   [`hover_card::HoverCard`] 状態機械（#759、親トラッキング #726）。
-//!   [`mod@tooltip`] に最も近い構造だが、trigger がリンク先プレビュー用途の
+//!   [`tooltip`](mod@tooltip) に最も近い構造だが、trigger がリンク先プレビュー用途の
 //!   `a` 要素である点が異なる。`openDelay`/`closeDelay`
 //!   （[`hover_card::HoverCardDelays`]、ark-ui 既定 600ms/300ms）は
 //!   決定的な SSR 設定値として `root` の `data-open-delay`/
 //!   `data-close-delay` へ出力するのみで、実タイマー駆動・DOM 読み取り
 //!   配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ
 //!   （[`hover_card`] モジュール doc §スコープ外参照）。
-//! - [`mod@toast`]: group（live region）/ root / title / description /
+//! - [`toast`](mod@toast): group（live region）/ root / title / description /
 //!   action-trigger / close-trigger の 6 anatomy パーツと、有界なキュー
 //!   （`max` 超過時に最古を押し出す）を管理する [`toast::Toaster`] 状態機械
-//!   （#760、親トラッキング #520）。[`mod@avatar`]/[`mod@progress`] と同じく
+//!   （#760、親トラッキング #520）。[`avatar`](mod@avatar)/[`progress`](mod@progress) と同じく
 //!   [`state`] の既存語彙に収まらないため
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`aria-live` は
@@ -401,31 +401,31 @@
 //!   `fandhe-frontend-wasm-full` の後続イシューのスコープ。参照突合（#1643）
 //!   で root へ `data-state="open"`（固定値のみ）/`tabindex="0"`、group へ
 //!   `tabindex="-1"` を追加し、`Toaster::view` の group ラベル既定値
-//!   [`toast::DEFAULT_GROUP_LABEL`] を新設した（詳細は [`mod@toast`] モジュール
+//!   [`toast::DEFAULT_GROUP_LABEL`] を新設した（詳細は [`toast`](mod@toast) モジュール
 //!   doc「参照突合」節参照）。
-//! - [`mod@toggle_tip`]: Root / Trigger / Positioner / Content / Arrow /
+//! - [`toggle_tip`](mod@toggle_tip): Root / Trigger / Positioner / Content / Arrow /
 //!   ArrowTip の 6 anatomy パーツと、[`state::Disclosure`] を埋め込んだ
 //!   [`toggle_tip::ToggleTip`] 状態機械（#761、親トラッキング #520）。
 //!   chakra-ui の ToggleTip（「見た目は Tooltip・挙動は Popover」の変種）に
 //!   倣い、[`toggle_tip::trigger`] は `aria-expanded`/`aria-controls` を持つが
 //!   `aria-haspopup` は付与せず、[`toggle_tip::content`] は `role="tooltip"`
-//!   を持たない（[`mod@tooltip`]・[`mod@popover`] との 3 者境界は
-//!   [`mod@toggle_tip`] モジュール doc §3 者境界参照）。click-outside
+//!   を持たない（[`tooltip`](mod@tooltip)・[`popover`](mod@popover) との 3 者境界は
+//!   [`toggle_tip`](mod@toggle_tip) モジュール doc §3 者境界参照）。click-outside
 //!   dismiss・Escape 閉鎖の DOM 配線は本イシューのスコープ外。
-//! - [`mod@visually_hidden`]: `root`（`span`）1 anatomy パーツ（イシュー #776、
+//! - [`visually_hidden`](mod@visually_hidden): `root`（`span`）1 anatomy パーツ（イシュー #776、
 //!   親 #766）。視覚的には隠すが支援技術には読ませ続けるテキストコンテナで、
-//!   [`mod@field`]/[`mod@link`] と同型の状態機械なし純粋関数。`aria-hidden` を
+//!   [`field`](mod@field)/[`link`](mod@link) と同型の状態機械なし純粋関数。`aria-hidden` を
 //!   一切出力しない不変条件がある（[`visually_hidden`] モジュール doc §`aria-hidden`
 //!   を付けない不変条件 参照）。
-//! - [`mod@skip_nav`]: `link`（`a`）/ `content`（`div`）の 2 anatomy パーツ
+//! - [`skip_nav`](mod@skip_nav): `link`（`a`）/ `content`（`div`）の 2 anatomy パーツ
 //!   （イシュー #776、親 #766）。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の
 //!   「本文へスキップ」リンク。[`skip_nav::link`] は呼び出し側から任意の
 //!   URL を受け取らず常に `#<id>` のみを組み立てるため、スキーム注入経路を
-//!   構造的に持たない（[`mod@skip_nav`] モジュール doc §href の構成 参照）。
-//! - [`mod@clipboard`]: Root / Label / Control / Input / Trigger / Indicator /
+//!   構造的に持たない（[`skip_nav`](mod@skip_nav) モジュール doc §href の構成 参照）。
+//! - [`clipboard`](mod@clipboard): Root / Label / Control / Input / Trigger / Indicator /
 //!   ValueText の 7 anatomy パーツと、コピー済みかどうかの 2 値状態機械
-//!   [`clipboard::Clipboard`]（#773、親トラッキング #520）。[`mod@avatar`]/
-//!   [`mod@switch`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`clipboard::Clipboard`]（#773、親トラッキング #520）。[`avatar`](mod@avatar)/
+//!   [`switch`](mod@switch) と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。コピー済み
 //!   表示は `data-state` 値語彙ではなく `data-copied`
@@ -439,11 +439,11 @@
 //!   （`input_id` 引数）と `data-copied`、[`clipboard::input`] に
 //!   `data-readonly`、[`clipboard::trigger`] に既定 `aria-label`
 //!   （呼び出し側 `attrs` で上書き可）を追加した。
-//! - [`mod@splitter`]: Root / Panel / ResizeTrigger / ResizeTriggerIndicator の
+//! - [`splitter`](mod@splitter): Root / Panel / ResizeTrigger / ResizeTriggerIndicator の
 //!   4 anatomy パーツと、パネルサイズ状態機械 [`splitter::Splitter`]
 //!   （#826、`docs/policy/intentional-non-adoption.md` §7・
 //!   `docs/design/component-coverage-map.md` の「保留」を解除）。
-//!   [`mod@slider`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`slider`](mod@slider) と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
 //!   `resize-trigger` は `role="separator"` + `aria-valuemin`/`aria-valuemax`/
@@ -463,16 +463,16 @@
 //!   F6（フォーカス循環）は意図的に非採用のまま（`splitter` モジュール doc
 //!   「参照突合」節参照）。Arrow/Home/End キーの DOM 配線はイシュー #1074 で
 //!   `fandhe-frontend-wasm-full` が実装済み、Shift+Arrow・F6 は未配線
-//!   （[`mod@splitter`] モジュール doc §スコープ外参照）。
-//! - [`mod@floating_panel`]: Root / Trigger / Positioner / Content / Header /
+//!   （[`splitter`](mod@splitter) モジュール doc §スコープ外参照）。
+//! - [`floating_panel`](mod@floating_panel): Root / Trigger / Positioner / Content / Header /
 //!   Title / Control / StageTrigger / CloseTrigger / Body の 10 anatomy
 //!   パーツと、[`state::Disclosure`]（開閉）+ 独自 [`floating_panel::Stage`]
 //!   （default/minimized/maximized）+ 座標（x, y）を持つ
 //!   [`floating_panel::FloatingPanel`] 状態機械（#827、`docs/policy/intentional-non-adoption.md`
-//!   §7 の保留解除）。[`mod@popover`] と同じく [`state::Disclosure`] を
+//!   §7 の保留解除）。[`popover`](mod@popover) と同じく [`state::Disclosure`] を
 //!   埋め込みつつ、`stage` は既存語彙に収まらないため独自 enum とする
-//!   （[`mod@steps`] と同型の判断）。座標出力（[`floating_panel::FloatingPanel::position_style`]）は
-//!   [`mod@positioning`] の `--fandhe-x`/`--fandhe-y` 変数名を再利用するが、
+//!   （[`steps`](mod@steps) と同型の判断）。座標出力（[`floating_panel::FloatingPanel::position_style`]）は
+//!   [`positioning`](mod@positioning) の `--fandhe-x`/`--fandhe-y` 変数名を再利用するが、
 //!   anchor 相対の placement 計算自体は行わない（ドラッグ操作によるビュー
 //!   ポート絶対座標のため）。ドラッグ移動・リサイズの実 DOM 配線は
 //!   `fandhe-frontend-wasm-full` の将来イシューのスコープ（詳細は
@@ -497,15 +497,15 @@
 //! 避ける）。各コンポーネントの anatomy 定義（Accordion / Dialog 等の parts
 //! 一覧）は Phase 2（#526〜#544）のスコープ。
 //!
-//! - [`mod@checkbox`]: ark-ui Checkbox 相当の anatomy（イシュー #535）と、
+//! - [`checkbox`](mod@checkbox): ark-ui Checkbox 相当の anatomy（イシュー #535）と、
 //!   [`state::Checkable`] を埋め込んだ [`checkbox::Checkbox`] 状態機械
 //!   （dispatch 統合、#595）。indeterminate（3 値目）は
 //!   [`state::Checkable`] のスコープ外のため SSR 静的 props
 //!   （[`checkbox::CheckedState`]）としてのみ表現する。
-//! - [`mod@checkbox_group`]: Root / Label / Item / ItemControl /
+//! - [`checkbox_group`](mod@checkbox_group): Root / Label / Item / ItemControl /
 //!   ItemIndicator / ItemText の 6 anatomy パーツと [`state::MultiSelect`]
 //!   を埋め込んだ [`checkbox_group::CheckboxGroup`]（複数選択グループ、
-//!   #997、親 #534）。[`mod@radio_group`] と対称の構造だが、ネイティブ
+//!   #997、親 #534）。[`radio_group`](mod@radio_group) と対称の構造だが、ネイティブ
 //!   `<input type="checkbox">` は自前パーツを持たず [`checkbox::hidden_input`]
 //!   の再利用で賄う。クライアント由来の文字列 dispatch は `"select"`/
 //!   `"deselect"`/`"toggle"` の 3 語彙を受理する（WAI-ARIA checkbox パターン
@@ -514,7 +514,7 @@
 //!   disabled/readonly/invalid 状態束は [`checkbox_group::CheckboxGroupProps`]
 //!   が担う（イシュー #1603、参照突合で ark-ui `Checkbox.Group` props 相当を
 //!   追加）。
-//! - [`mod@positioning`]: anchor positioning の位置計算純粋関数モジュール
+//! - [`positioning`](mod@positioning): anchor positioning の位置計算純粋関数モジュール
 //!   （[`positioning::compute_position`]、イシュー #590、親 #588、正の規範
 //!   文書は `docs/design/anchor-positioning-design.md`）。12 placement 語彙
 //!   （[`positioning::Placement`]）・flip/shift/sameWidth・CSS 変数出力
@@ -522,20 +522,20 @@
 //!   の `positioner`/`arrow`/`arrow_tip` が「CSS フックのみ」だったスコープ
 //!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
 //!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
-//! - [`mod@password_input`]: Root / Label / Control / Input /
+//! - [`password_input`](mod@password_input): Root / Label / Control / Input /
 //!   VisibilityTrigger / Indicator の 6 anatomy パーツと、表示切替
 //!   （`"visible"`/`"hidden"`）の [`password_input::PasswordInput`] 状態機械
-//!   （#740、親 #736）。[`mod@switch`]/[`mod@avatar`] と同じく、既存の
+//!   （#740、親 #736）。[`switch`](mod@switch)/[`avatar`](mod@avatar) と同じく、既存の
 //!   [`state::Checkable`]/[`state::Disclosure`] のいずれとも値語彙が一致
 //!   しないため [`state`] を埋め込まず個別実装する。**パスワード値そのもの
 //!   は一切扱わない**（`value` を出力する API を持たない。セキュリティ
 //!   不変条件はモジュール doc 参照）。
-//! - [`mod@toggle`]: ark-ui Toggle 相当の Root/Indicator anatomy と、
+//! - [`toggle`](mod@toggle): ark-ui Toggle 相当の Root/Indicator anatomy と、
 //!   [`state::Checkable`] を埋め込んだ [`toggle::Toggle`] 状態機械
 //!   （イシュー #746）。Switch と同じ [`state::Checkable`] を再利用しつつ
 //!   `data-state` 語彙は `"on"`/`"off"`（[`state::pressed_data_state`]）で
 //!   分離する（意味論差はモジュール doc 参照）。
-//! - [`mod@toggle_group`]: Root/Item anatomy と、[`state::SingleSelect`] を
+//! - [`toggle_group`](mod@toggle_group): Root/Item anatomy と、[`state::SingleSelect`] を
 //!   埋め込んだ single モード [`toggle_group::ToggleGroup`]、
 //!   [`state::MultiSelect`] を埋め込んだ multiple モード
 //!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。
@@ -543,7 +543,7 @@
 //!   SSR 側の roving tabindex を opt-in 出力できる（イシュー #1630）が、
 //!   矢印キーの実 DOM 配線は引き続き wasm keynav 層のスコープ
 //!   （モジュール doc §out-of-scope 参照）。
-//! - [`mod@tree_view`]: Root / Label / Tree / Branch / BranchControl /
+//! - [`tree_view`](mod@tree_view): Root / Label / Tree / Branch / BranchControl /
 //!   BranchIndicator / BranchText / BranchContent / BranchIndentGuide / Item /
 //!   ItemText / ItemIndicator の 12 anatomy パーツと、[`state::MultiSelect`]
 //!   （展開中のブランチ値の集合）+ [`state::SingleSelect`]（選択中のノード値）
@@ -553,7 +553,7 @@
 //!   `aria-posinset`/`aria-setsize` を再帰的に計算しながら描画する。両埋め込み
 //!   状態機械がともに `"selected"` フィールド名を使うため、hydration 属性名の
 //!   衝突回避（展開集合側のみ `"expanded"` へ書き換え）を行う点が
-//!   [`mod@combobox`] 以前の合成例と異なる（[`tree_view`] モジュール doc
+//!   [`combobox`](mod@combobox) 以前の合成例と異なる（[`tree_view`] モジュール doc
 //!   §hydration フィールド名 参照）。checkbox モード・複数選択・
 //!   lazy loading は本イシューのスコープ外だが、キーボードナビゲーション
 //!   （矢印キー・Home/End・Enter/Space・typeahead）の DOM 配線は
@@ -562,33 +562,33 @@
 //!   [`tree_view::TreeItemProps`] を新設し、`data-branch`/`branch-control`
 //!   の `data-value`/`data-depth`/インジケータ・テキスト系の
 //!   `data-selected`/`data-disabled`/`data-state` を追加した（詳細は
-//!   [`mod@tree_view`] モジュール doc「参照突合（イシュー #1667）」節）。
-//! - [`mod@breadcrumb`]: `root`（`nav`）/ `list`（`ol`）/ `item`（`li`）/
+//!   [`tree_view`](mod@tree_view) モジュール doc「参照突合（イシュー #1667）」節）。
+//! - [`breadcrumb`](mod@breadcrumb): `root`（`nav`）/ `list`（`ol`）/ `item`（`li`）/
 //!   `link`（`a`）/ `current-link`（`span`）/ `separator`（`li`）/
 //!   `ellipsis`（`li`）の 7 anatomy パーツと利便ビルダー
 //!   [`breadcrumb::breadcrumb`]（イシュー #755、`docs/api/headless-ui-api.md`
-//!   §4b の追加候補消化）。[`mod@field`]/[`mod@tabs`] と同じく SSR 静的な
+//!   §4b の追加候補消化）。[`field`](mod@field)/[`tabs`](mod@tabs) と同じく SSR 静的な
 //!   意味論ナビであり状態機械を持たない。現在位置は `aria-current="page"`
 //!   （[`aria::AriaCurrent`]）+ `data-current`（[`data_attrs::data_current`]）
 //!   の併用で表現する。
-//! - [`mod@link`]: `root`（`a`）1 anatomy パーツ（イシュー #756、
+//! - [`link`](mod@link): `root`（`a`）1 anatomy パーツ（イシュー #756、
 //!   `docs/api/headless-ui-api.md` §4b の追加候補消化）。`external`
 //!   オプトインは `target="_blank"` + `rel="noopener noreferrer"` を不可分に
-//!   付与する（reverse tabnabbing 対策）。`current` は [`mod@breadcrumb`] と
+//!   付与する（reverse tabnabbing 対策）。`current` は [`breadcrumb`](mod@breadcrumb) と
 //!   同じ `aria-current`/`data-current` 語彙を共有する。
-//! - [`mod@link_overlay`]: `root`（`div`）/ `overlay`（`a`）の 2 anatomy
+//! - [`link_overlay`](mod@link_overlay): `root`（`div`）/ `overlay`（`a`）の 2 anatomy
 //!   パーツ（イシュー #756）。chakra-ui の LinkBox/LinkOverlay パターンに
 //!   倣い、カード全面クリック化を提供する。`::before` 疑似要素の代わりに
 //!   `overlay` 自身を `position: absolute; inset: 0;` で展開する方式を採る
 //!   （styled 層の CSS 責務、モジュール doc「全面拡張の実装方針」参照）。
-//! - [`mod@nav_list`]: `root`（`nav`）/ `heading`（`h2`）/ `list`（`ul`）/
+//! - [`nav_list`](mod@nav_list): `root`（`nav`）/ `heading`（`h2`）/ `list`（`ul`）/
 //!   `item`（`li`）/ `link`（`a`）の 5 anatomy パーツ（イシュー #756、#716
 //!   最優先候補）。`docs/design/docs-site-styled-ui-adoption.md` §3.1 が
 //!   指摘した「`menu` ロールの文書ナビへの誤転用」を解消するため、**`role`
 //!   を一切付与しない**（モジュール doc 参照）。
-//! - [`mod@json_tree_view`]: JSON 風データ構造 [`json_tree_view::JsonValue`]
-//!   （外部依存ゼロの自前 enum）をツリー表示する（イシュー #829、[`mod@tree_view`]
-//!   （#753）の派生）。構造部は [`mod@tree_view`] の既存パーツ関数・
+//! - [`json_tree_view`](mod@json_tree_view): JSON 風データ構造 [`json_tree_view::JsonValue`]
+//!   （外部依存ゼロの自前 enum）をツリー表示する（イシュー #829、[`tree_view`](mod@tree_view)
+//!   （#753）の派生）。構造部は [`tree_view`](mod@tree_view) の既存パーツ関数・
 //!   [`tree_view::TreeView`] 状態機械をそのまま再利用し、JSON 固有の `key`/
 //!   `colon`/`value`（`data-scope="json-tree-view"`）の 3 パーツを
 //!   `branch-text`/`item-text` の内側へ入れ子にして追加する（`colon` は
@@ -596,50 +596,50 @@
 //!   `"null"`/`"boolean"`/`"number"`/`"string"`/`"array"`/`"object"` の
 //!   6 値）。ノード識別子は RFC 6901 JSON Pointer で決定的に導出する
 //!   （[`json_tree_view::render_json`] モジュール doc 参照）。
-//! - [`mod@scroll_area`]: Root / Viewport / Content / Scrollbar / Thumb /
+//! - [`scroll_area`](mod@scroll_area): Root / Viewport / Content / Scrollbar / Thumb /
 //!   Corner の 6 anatomy パーツ（イシュー #825、`docs/design/component-coverage-map.md`
-//!   保留解除）。[`mod@breadcrumb`]/[`mod@nav_list`] と同じく状態機械を持たない
+//!   保留解除）。[`breadcrumb`](mod@breadcrumb)/[`nav_list`](mod@nav_list) と同じく状態機械を持たない
 //!   自由関数のみで構成する。`viewport` は WAI 慣行に従い `tabindex="0"` を
 //!   固定付与し、`scrollbar`/`corner` はネイティブスクロールバーと意味が
 //!   重複する装飾要素のため `aria-hidden="true"` を固定付与する。JS による
 //!   スクロール位置追従・thumb drag は本イシューのスコープ外（モジュール doc
 //!   参照）。
-//! - [`mod@color`]: RGB / HSL / HSV / HEX の相互変換を提供する外部依存ゼロ・
+//! - [`color`](mod@color): RGB / HSL / HSV / HEX の相互変換を提供する外部依存ゼロ・
 //!   整数演算のみの純粋関数モジュール（イシュー #838、`docs/design/
-//!   component-coverage-map.md` の ColorSwatch 保留解除）。[`qr_encode`]
+//!   component-coverage-map.md` の ColorSwatch 保留解除）。`qr_encode`
 //!   （#774）と同型の「標準ライブラリのみで完結する決定的アルゴリズム
 //!   モジュール」であり、ブラウザ API 依存がなく wasm 境界隔離の対象外
 //!   （純粋計算のみ）。`fandhe-frontend-pre-styled-ui::color_swatch`
 //!   （ColorSwatch、#838）と後続の ColorPicker（#837 配下）が本モジュールの
 //!   型・変換関数を土台にする。anatomy を持たない（headless 列は
 //!   coverage-map 上も「—」）。
-//! - [`mod@date`]: 決定的な暦計算コア（proleptic Gregorian・date-only、
+//! - [`date`](mod@date): 決定的な暦計算コア（proleptic Gregorian・date-only、
 //!   イシュー #833、親トラッキング #832）。[`date::PlainDate`]（年月日）・
 //!   [`date::Weekday`]・[`date::month_grid`] を提供し、現在時刻を一切取得
 //!   しない（「今日」は常に呼び出し側が明示的に渡す）。date-time 系 4 部品
 //!   （Calendar / DatePicker / DateInput / Timer、#834 以降）が描画前の
 //!   暦計算に共通で使う先行前提であり、本モジュール自体は非描画の純計算
 //!   モジュールで anatomy・状態機械を持たない。
-//! - [`mod@color_picker`]: HSV + アルファ + [`state::Disclosure`] を埋め込んだ
+//! - [`color_picker`](mod@color_picker): HSV + アルファ + [`state::Disclosure`] を埋め込んだ
 //!   ColorPicker（イシュー #839、親 #837、`docs/design/component-coverage-map.md`
 //!   保留解除）。Root / Label / Control / Trigger / Positioner / Content /
 //!   Area / AreaBackground / AreaThumb / ChannelSlider(+Track/+Thumb) /
 //!   ChannelInput / ValueText / HiddenInput の各 anatomy パーツを提供する。
-//!   [`mod@color`] の型・変換関数（外部依存ゼロ・整数演算のみ）のみを土台に
+//!   [`color`](mod@color) の型・変換関数（外部依存ゼロ・整数演算のみ）のみを土台に
 //!   し、色領域・色相/アルファスライダーの見た目は CSS グラデーション +
 //!   thumb 位置（本モジュールの導出 getter が算出する割合）で表現する
 //!   canvas 非依存の設計（`docs/policy/intentional-non-adoption.md` §7
 //!   再評価トリガー充足）。
-//! - [`mod@date_input`]: Root / Label / Control / SegmentGroup / Segment /
+//! - [`date_input`](mod@date_input): Root / Label / Control / SegmentGroup / Segment /
 //!   HiddenInput の 6 anatomy パーツと、年/月/日セグメント + フォーカス位置を
 //!   持つ [`date_input::DateInput`] 状態機械（イシュー #834、
 //!   `docs/policy/intentional-non-adoption.md` §7・
 //!   `docs/design/component-coverage-map.md` の「保留」を DateInput 分のみ
-//!   解除）。[`mod@date`] の [`date::PlainDate::new`]/[`date::PlainDate::parse_iso`]/
+//!   解除）。[`date`](mod@date) の [`date::PlainDate::new`]/[`date::PlainDate::parse_iso`]/
 //!   [`date::days_in_month`] を利用し、3 セグメント充足時のみ実在日付として
 //!   検証する fail-closed 契約（[`date_input::DateInput::value`]）を持つ。
-//!   `date_input::segment_group` は [`mod@segment_group`]（segmented control）
-//!   とは無関係の別 anatomy スコープ（[`mod@date_input`] モジュール doc
+//!   `date_input::segment_group` は [`segment_group`](mod@segment_group)（segmented control）
+//!   とは無関係の別 anatomy スコープ（[`date_input`](mod@date_input) モジュール doc
 //!   参照）。granularity（時分秒）・range 選択・locale 依存整形は本イシューの
 //!   スコープ外（[`date_input`] モジュール doc §スコープ外参照）。イシュー
 //!   #1626 で ark-ui（zag.js `date-input` machine）の Data Attributes 表・
@@ -651,19 +651,19 @@
 //!   PageUp/PageDown・Home/End・矢印キーによるセグメント間フォーカス移動・
 //!   Backspace を是正・追加した（キーボード操作の実 DOM 配線は引き続き
 //!   `fandhe-frontend-wasm-full` 側のスコープ外）。
-//! - [`mod@timer`]: Root / Area / Item / ItemValue / ItemLabel / Separator /
+//! - [`timer`](mod@timer): Root / Area / Item / ItemValue / ItemLabel / Separator /
 //!   Control / ActionTrigger の 8 anatomy パーツと、idle/running/paused/
 //!   completed の 4 値状態機械 [`timer::Timer`]（イシュー #836、
 //!   `docs/design/component-coverage-map.md` 保留解除）。tick（経過ミリ秒）を
 //!   外部から明示的に注入する決定的状態機械であり、`std::time`/`Instant`
-//!   等の時計 API に一切依存しない（[`mod@timer`] モジュール doc 参照）。
+//!   等の時計 API に一切依存しない（[`timer`](mod@timer) モジュール doc 参照）。
 //!   実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full` の
 //!   `headless_timer` モジュールの責務。イシュー #1632 で zag.js
 //!   `timer.connect.ts` と突合し、`area` の `role="timer"`/`aria-atomic`/
 //!   `aria-label`・`separator` の `aria-hidden`・`action_trigger` の
 //!   `phase` 引数による `hidden` 導出（`TimerControl` は 5 値、`Restart`
 //!   を意図的に追加）を是正した。
-//! - [`mod@format`]: byte / number / time / relative-time の Format 系
+//! - [`format`](mod@format): byte / number / time / relative-time の Format 系
 //!   ユーティリティ（イシュー #853、親 Phase 5 #852）。ark-ui `format-byte`/
 //!   `format-number`/`format-time`/`format-relative-time` 相当を、JS の
 //!   `Intl` API に依存せず外部依存ゼロの決定的純関数として実装する
@@ -671,39 +671,39 @@
 //!   「headless-ui 内モジュール化」で解消）。ノードを返さない `String` 純
 //!   関数であり anatomy を持たない（coverage-map 上も「—」）。現在時刻 API
 //!   を一切呼ばず、[`format::format_relative_time`] の基準時刻は呼び出し側
-//!   が明示的に注入する（[`mod@timer`]/[`mod@date`] と同型の「時刻を渡さ
+//!   が明示的に注入する（[`timer`](mod@timer)/[`date`](mod@date) と同型の「時刻を渡さ
 //!   れる」設計）。ロケールは [`format::Locale`]（en/ja、イシュー #854）を
 //!   各 `Format*Options::locale` フィールド経由で呼び出し側が明示的に渡す
 //!   値型として実装し、`LocaleProvider` の Context/Provider 機構・グローバ
 //!   ル既定ロケールは持たない。
-//! - [`mod@toolbar`]: Root / Button / Link / Separator / ToggleGroup /
+//! - [`toolbar`](mod@toolbar): Root / Button / Link / Separator / ToggleGroup /
 //!   ToggleItem の 6 anatomy パーツと、roving tabindex（`focused`/
 //!   `item_count`/`loop_focus`/`orientation`）の状態機械 [`toolbar::Toolbar`]
 //!   （イシュー #991、`docs/design/component-coverage-map.md` 保留解除、
 //!   Radix Primitives Toolbar 相当）。押下状態の管理は独自実装せず
 //!   [`toggle_group::ToggleGroup`]/[`toggle_group::MultiToggleGroup`] を
-//!   [`mod@toolbar`] から再エクスポートして再利用する（[`mod@toolbar`]
+//!   [`toolbar`](mod@toolbar) から再エクスポートして再利用する（[`toolbar`](mod@toolbar)
 //!   モジュール doc 参照）。矢印キーの実 DOM 配線は
 //!   `fandhe-frontend-wasm-full` の後続責務。
-//! - [`mod@button_group`]: Root / Separator / Text の 3 anatomy パーツ
+//! - [`button_group`](mod@button_group): Root / Separator / Text の 3 anatomy パーツ
 //!   （イシュー #2059、shadcn/ui Button Group 相当、参照軸 #2001）。
-//!   `role="group"` の**静的な**グループ化であり、[`mod@toolbar`] の
+//!   `role="group"` の**静的な**グループ化であり、[`toolbar`](mod@toolbar) の
 //!   roving tabindex 状態機械とは異なりネイティブ Tab 順序に委ねる
-//!   （[`mod@fieldset`] と同じく状態機械を持たない）。`role="group"` へ
+//!   （[`fieldset`](mod@fieldset) と同じく状態機械を持たない）。`role="group"` へ
 //!   `aria-orientation` は付与せず `data-orientation` のみで向きを表現し、
 //!   先頭/末尾ボタンの角丸連結は CSS（`:first-child`/`:last-child`）に
 //!   委ねる（`.claude/rules/coding-rust.md` §3.25 の責務境界）。ネスト
 //!   （グループ内グループ）を許容する。
-//! - [`mod@item`]: Root / Media / Content / Title / Description / Actions /
+//! - [`item`](mod@item): Root / Media / Content / Title / Description / Actions /
 //!   Header / Footer / Group / Separator の 10 anatomy パーツ（イシュー
 //!   #2065、shadcn/ui `Item` 相当、参照軸 #2001）。media（アイコン・画像）
 //!   と title/description と actions からなる汎用リスト行を表現する。
-//!   [`mod@button_group`] と同じく状態機械を持たない静的部品。
-//!   [`item::root`] は `href` 指定時に `a` として描画し（[`mod@link`] と
+//!   [`button_group`](mod@button_group) と同じく状態機械を持たない静的部品。
+//!   [`item::root`] は `href` 指定時に `a` として描画し（[`link`](mod@link) と
 //!   同じ `external` 不可分付与）、[`item::group`] は `role="group"`
 //!   （`a[href]` が `listitem` ロールを持てないため shadcn の
-//!   `role="list"` から意図的に差分化、[`mod@item`] モジュール doc参照）。
-//! - [`mod@menubar`]: Root / Menu / Trigger / Positioner / Content / Arrow /
+//!   `role="list"` から意図的に差分化、[`item`](mod@item) モジュール doc参照）。
+//! - [`menubar`](mod@menubar): Root / Menu / Trigger / Positioner / Content / Arrow /
 //!   ArrowTip / Item / ItemText / ItemIndicator / ItemGroup /
 //!   ItemGroupLabel / Separator / SubTrigger / SubContent / CheckboxItem /
 //!   RadioItemGroup / RadioItem の 18 anatomy パーツ（Arrow/ArrowTip/
@@ -712,94 +712,94 @@
 //!   roving tabindex + 単一開閉（`focused`/`trigger_count`/`open`/
 //!   `loop_focus`/`orientation`）の状態機械 [`menubar::Menubar`]
 //!   （イシュー #992、`docs/design/component-coverage-map.md` 保留解除、
-//!   Radix Primitives Menubar 相当）。複数 [`mod@menu`] を水平（または
+//!   Radix Primitives Menubar 相当）。複数 [`menu`](mod@menu) を水平（または
 //!   垂直）に並べ、開いている Menu を跨いだ左右移動を提供する
-//!   （[`mod@menubar`] モジュール doc「開いている Menu を跨いだ左右移動」
-//!   参照）。[`mod@menu`] の anatomy はそのまま再利用せず、状態機械・値
-//!   語彙のみを再利用する（[`mod@menubar`] モジュール doc「`menu` mod
+//!   （[`menubar`](mod@menubar) モジュール doc「開いている Menu を跨いだ左右移動」
+//!   参照）。[`menu`](mod@menu) の anatomy はそのまま再利用せず、状態機械・値
+//!   語彙のみを再利用する（[`menubar`](mod@menubar) モジュール doc「`menu` mod
 //!   再利用の内訳」参照）。矢印キーの実 DOM 配線は
-//!   `fandhe-frontend-wasm-full` に実装済み（[`mod@menubar`] モジュール doc
+//!   `fandhe-frontend-wasm-full` に実装済み（[`menubar`](mod@menubar) モジュール doc
 //!   「参考サイトとの意図的な差分（イシュー #1652 で Radix Primitives
 //!   Menubar と参照突合）」参照）。
-//! - [`mod@message`]: Root / Avatar / Header / Content / Footer / Group の
+//! - [`message`](mod@message): Root / Avatar / Header / Content / Footer / Group の
 //!   6 anatomy パーツ（イシュー #2105、親 #2104、shadcn/ui `Message` 相当、
 //!   参照軸 #2001）。AI チャット UI の「会話 1 発言」を表現し、
-//!   [`mod@item`]/[`mod@button_group`] と同じく状態機械を持たない静的
+//!   [`item`](mod@item)/[`button_group`](mod@button_group) と同じく状態機械を持たない静的
 //!   部品。[`message::root`] は `role="listitem"` を固定付与し、
 //!   [`message::group`] は required context を満たす `role="list"` +
 //!   任意 `aria-label` を固定付与する（`a[href]` を持たない点で
-//!   [`mod@item`] の `role="group"` 差分化とは異なる、[`mod@message`]
+//!   [`item`](mod@item) の `role="group"` 差分化とは異なる、[`message`](mod@message)
 //!   モジュール doc「`role="listitem"`/`role="list"`」参照）。`data-role`
 //!   （`user`/`assistant`/`system`）・`data-align`（`start`/`end`。
 //!   `data-role` から独立した軸）・`data-loading`/`data-error`
 //!   （存在属性）は会話系 4 部品（message/bubble/attachment/marker）が
-//!   共有する語彙として本モジュールが最初に確定する（[`mod@message`]
+//!   共有する語彙として本モジュールが最初に確定する（[`message`](mod@message)
 //!   モジュール doc「会話系 4 部品の共通語彙」参照）。`aria-live`/
 //!   `aria-busy` は付けない（ストリーミング通知・応答待ちの読み上げは
-//!   アプリ責務、[`mod@message`] モジュール doc参照）。
-//! - [`mod@message_scroller`]: Root / Viewport / Content / Anchor /
+//!   アプリ責務、[`message`](mod@message) モジュール doc参照）。
+//! - [`message_scroller`](mod@message_scroller): Root / Viewport / Content / Anchor /
 //!   JumpToLatest / LoadMore の 6 anatomy パーツ（イシュー #2121、親
 //!   #2120、shadcn/ui `Message Scroller` 相当、参照軸 #2001）。会話ログの
-//!   スクロールコンテナを表現し、[`mod@message`] と同じく状態機械を持た
+//!   スクロールコンテナを表現し、[`message`](mod@message) と同じく状態機械を持た
 //!   ない静的部品。最下部追従・新着検知・スクロール位置の計測・復元は
 //!   一切内包しない（`.claude/rules/coding-rust.md` §3.25 規則 2、
 //!   `fandhe-frontend-wasm-full` 側の配線は #2122）。[`message_scroller::root`]
 //!   は `data-stuck`（`bottom`/`free`）・`data-has-new`（存在属性）を、
-//!   [`message_scroller::viewport`] は [`mod@scroll_area`] と同じ
+//!   [`message_scroller::viewport`] は [`scroll_area`](mod@scroll_area) と同じ
 //!   `tabindex="0"` 固定契約（`scroll_area` へは委譲せず本 scope 自身の
-//!   パーツとして再実装、[`mod@message_scroller`] モジュール doc「`viewport`
+//!   パーツとして再実装、[`message_scroller`](mod@message_scroller) モジュール doc「`viewport`
 //!   は `message-scroller` scope 自身のパーツ」参照）を出力する。
 //!   [`message_scroller::content`] は `role="log"` を固定付与しない純
-//!   スロット（[`mod@message`] と同じくストリーミング通知はアプリ責務、
-//!   [`mod@message_scroller`] モジュール doc参照）。
-//! - [`mod@bubble`]: Root / Content / Reactions / Reaction / CollapseTrigger /
+//!   スロット（[`message`](mod@message) と同じくストリーミング通知はアプリ責務、
+//!   [`message_scroller`](mod@message_scroller) モジュール doc参照）。
+//! - [`bubble`](mod@bubble): Root / Content / Reactions / Reaction / CollapseTrigger /
 //!   CollapseContent の 6 anatomy パーツ（イシュー #2108、親 #2107、
-//!   shadcn/ui `Bubble` 相当、参照軸 #2001）。[`mod@message`] と同じく
+//!   shadcn/ui `Bubble` 相当、参照軸 #2001）。[`message`](mod@message) と同じく
 //!   状態機械を持たない静的部品。`data-align` は
-//!   [`crate::message::MessageAlign`] を再利用し（[`mod@message`]
+//!   [`crate::message::MessageAlign`] を再利用し（[`message`](mod@message)
 //!   モジュール doc「会話系 4 部品の共通語彙」の正を継承）、
 //!   `data-variant`（`solid`/`outline`/`plain`）は shadcn の 7 色調を
 //!   「塗り・枠線・無装飾」の 3 形態へ縮約する（色調軸は
 //!   `fandhe-frontend-pre-styled-ui` の `ColorPalette` へ委ねる）。
 //!   `data-group-position`（`single`/`first`/`middle`/`last`）は連続発言の
-//!   角丸連結用の表示状態のみを持ち、算出は利用者責務（[`mod@bubble`]
+//!   角丸連結用の表示状態のみを持ち、算出は利用者責務（[`bubble`](mod@bubble)
 //!   モジュール doc参照）。[`bubble::collapse_trigger`]/
-//!   [`bubble::collapse_content`] は [`mod@collapsible`] の属性契約
+//!   [`bubble::collapse_content`] は [`collapsible`](mod@collapsible) の属性契約
 //!   （`OpenState`・`aria-expanded`・`aria-controls`）を bubble scope の
 //!   まま再利用する。`fandhe-frontend-wasm-full` の折りたたみクリック配線は
-//!   未整備（[`mod@bubble`] モジュール doc「wasm-full 未配線」参照）。
-//! - [`mod@attachment`]: Root / Media / Content / Name / Meta / Progress /
+//!   未整備（[`bubble`](mod@bubble) モジュール doc「wasm-full 未配線」参照）。
+//! - [`attachment`](mod@attachment): Root / Media / Content / Name / Meta / Progress /
 //!   Actions / Action の 8 anatomy パーツ（イシュー #2111、親 #2110、
 //!   shadcn/ui `Attachment` 相当、参照軸 #2001）。「添付ファイル 1 件の
-//!   表示」を表現し、[`mod@message`]/[`mod@bubble`] と同じく状態機械を
+//!   表示」を表現し、[`message`](mod@message)/[`bubble`](mod@bubble) と同じく状態機械を
 //!   持たない静的部品。イシュータイトルの 7 パーツに加え、削除等の個別
 //!   操作を担う [`attachment::action`]（`button` + 任意 `aria-label`）を
-//!   8 番目のパーツとして追加する（[`mod@attachment`] モジュール doc
+//!   8 番目のパーツとして追加する（[`attachment`](mod@attachment) モジュール doc
 //!   「イシュータイトルとの差分」参照）。`data-variant`（`file`/`image`）・
 //!   `data-state`（`idle`/`uploading`/`error`）・`data-disabled` を
 //!   [`attachment::root`] に付与するが、`data-role`/`data-align`
-//!   （会話系共通語彙、[`mod@message`] モジュール doc参照）は意図的に
-//!   持たない（[`mod@attachment`] モジュール doc「会話系 4 部品の共通
+//!   （会話系共通語彙、[`message`](mod@message) モジュール doc参照）は意図的に
+//!   持たない（[`attachment`](mod@attachment) モジュール doc「会話系 4 部品の共通
 //!   語彙への不追随」参照）。[`attachment::progress`] は
 //!   [`crate::progress::Progress`] のパーツを attachment scope のまま
 //!   入れ子にするスロットであり、`data-scope="progress"` を内包しない
-//!   （[`mod@attachment`] モジュール doc「`progress` は attachment scope
+//!   （[`attachment`](mod@attachment) モジュール doc「`progress` は attachment scope
 //!   のスロット」参照）。
-//! - [`mod@marker`]: Root / Icon / Content の 3 anatomy パーツ（イシュー
+//! - [`marker`](mod@marker): Root / Icon / Content の 3 anatomy パーツ（イシュー
 //!   #2114、親 #2113、shadcn/ui `Marker` 相当、参照軸 #2001）。会話
-//!   スレッド内のインライン注記行を表現し、[`mod@message`]/[`mod@bubble`]/
-//!   [`mod@attachment`] と同じく状態機械を持たない静的部品。
+//!   スレッド内のインライン注記行を表現し、[`message`](mod@message)/[`bubble`](mod@bubble)/
+//!   [`attachment`](mod@attachment) と同じく状態機械を持たない静的部品。
 //!   `data-variant`（`note`/`divider`/`label`）・`data-tone`
 //!   （`neutral`/`info`/`warning`/`danger`、`fandhe-frontend-pre-styled-ui`
 //!   `recipe::ColorPalette` の同名語彙の部分集合）を [`marker::root`] に
 //!   付与するが、`data-role`/`data-align`（会話系共通語彙、
-//!   [`mod@message`] モジュール doc参照）は意図的に持たない
-//!   （[`mod@marker`] モジュール doc「会話系 4 部品の共通語彙への
+//!   [`message`](mod@message) モジュール doc参照）は意図的に持たない
+//!   （[`marker`](mod@marker) モジュール doc「会話系 4 部品の共通語彙への
 //!   不追随」参照）。`divider`/`label` variant の区切り線は本モジュールが
 //!   出力せず、上位層（`fandhe-frontend-pre-styled-ui`）が `separator`
-//!   パーツを再利用して描く契約とする（[`mod@marker`] モジュール doc
+//!   パーツを再利用して描く契約とする（[`marker`](mod@marker) モジュール doc
 //!   「区切り線は headless で描かない」参照）。
-//! - [`mod@navigation_menu`]: Root / List / Item / Trigger / ItemIndicator /
+//! - [`navigation_menu`](mod@navigation_menu): Root / List / Item / Trigger / ItemIndicator /
 //!   Content / Link / Indicator の 8 anatomy パーツと、
 //!   [`crate::state::SingleSelect`] を埋め込んだ「高々 1 個の Trigger だけが
 //!   開く」状態機械 [`navigation_menu::NavigationMenu`]（イシュー #993、
@@ -809,31 +809,31 @@
 //!   #2187 で追加）。Radix が primitives 層に持ち込んでいる viewport 寸法
 //!   測定・`data-motion`（アニメーション方向の露出）は
 //!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2（層の割り当て）
-//!   により本クレートへは持ち込まない（[`mod@navigation_menu`] モジュール
-//!   doc参照）。[`mod@nav_list`]（状態機械を持たない静的リンク集）とは
-//!   ディスクロージャの有無で使い分ける（[`mod@navigation_menu`] モジュール
+//!   により本クレートへは持ち込まない（[`navigation_menu`](mod@navigation_menu) モジュール
+//!   doc参照）。[`nav_list`](mod@nav_list)（状態機械を持たない静的リンク集）とは
+//!   ディスクロージャの有無で使い分ける（[`navigation_menu`](mod@navigation_menu) モジュール
 //!   doc「`nav_list` との使い分け」参照）。
-//! - [`mod@questionnaire`]: Root / Progress / Question / Prompt /
+//! - [`questionnaire`](mod@questionnaire): Root / Progress / Question / Prompt /
 //!   Description / Options / Freeform / Actions / Back / Next / Skip の
 //!   11 anatomy パーツ（イシュー #2117、親 #2116、祖父 #2057、shadcn/ui
-//!   `Questionnaire` 相当、参照軸 #2001）と、[`mod@steps`] と同型に
+//!   `Questionnaire` 相当、参照軸 #2001）と、[`steps`](mod@steps) と同型に
 //!   `count`/`step` から 3 状態を導出する状態機械
 //!   [`questionnaire::Questionnaire`]。イシュータイトルの 6 パーツ
 //!   （root/progress/question/options/freeform/actions）に、親 #2116 が
 //!   列挙する prompt/description/back/next/skip を加えた 11 パーツを持つ
-//!   （[`mod@questionnaire`] モジュール doc「イシュータイトルとの差分」
-//!   参照）。`data-state` は [`mod@steps`] とは異なる値語彙
-//!   （`active`/`completed`/`upcoming`）を持つ（[`mod@questionnaire`]
+//!   （[`questionnaire`](mod@questionnaire) モジュール doc「イシュータイトルとの差分」
+//!   参照）。`data-state` は [`steps`](mod@steps) とは異なる値語彙
+//!   （`active`/`completed`/`upcoming`）を持つ（[`questionnaire`](mod@questionnaire)
 //!   モジュール doc参照）。回答値の保持・検証・分岐・送信は
 //!   アプリケーション責務であり本クレートへ持ち込まない
 //!   （`.claude/rules/coding-rust.md` §UI 部品の責務境界 規則 1）。
-//!   選択肢は [`mod@radio_group`]/[`mod@checkbox_group`]、自由記述は
+//!   選択肢は [`radio_group`](mod@radio_group)/[`checkbox_group`](mod@checkbox_group)、自由記述は
 //!   [`crate::field::textarea`] を options/freeform スロットへ入れ子に
 //!   する契約とする。`fandhe-frontend-wasm-full` への配線・
 //!   `fandhe-frontend-pre-styled-ui` のスタイル済み recipe はそれぞれ
-//!   後続イシュー #2118/#2119 のスコープ（[`mod@questionnaire`] モジュール
+//!   後続イシュー #2118/#2119 のスコープ（[`questionnaire`](mod@questionnaire) モジュール
 //!   doc「out-of-scope」参照）。
-//! - [`mod@data_table`]: Root / Toolbar / ColumnHeader / SortTrigger /
+//! - [`data_table`](mod@data_table): Root / Toolbar / ColumnHeader / SortTrigger /
 //!   SelectAll / SelectRow / Footer / SelectionCount の 8 anatomy パーツ
 //!   （イシュー #2125、親 #2124、祖父 #2057、shadcn/ui `Data Table`
 //!   相当、参照軸 #2001）と、ソート方向・非表示列の**表示状態のみ**を
@@ -841,7 +841,7 @@
 //!   `<tbody>`/`<tr>` は本クレートで生成せず（`crates/pre-styled-ui/src/`
 //!   にのみ表組みの anatomy がある）、セル単位の表示状態は
 //!   [`data_table::column_attrs`]/[`data_table::column_header_attrs`]/
-//!   [`data_table::row_attrs`] という属性ヘルパで提供する（[`mod@data_table`]
+//!   [`data_table::row_attrs`] という属性ヘルパで提供する（[`data_table`](mod@data_table)
 //!   モジュール doc「イシュータイトルとの差分」参照）。`aria-sort`/
 //!   `data-sort` の値域（none/ascending/descending/other）は
 //!   [`data_table::SortDirection`] が一元管理する。並べ替え・フィルタ・
@@ -849,7 +849,7 @@
 //!   クレートへ持ち込まない（`.claude/rules/coding-rust.md` §UI 部品の
 //!   責務境界 規則 1）。`fandhe-frontend-wasm-full` への配線・
 //!   `fandhe-frontend-pre-styled-ui` の recipe/Themes ページはそれぞれ
-//!   後続イシュー #2126/#2127 のスコープ（[`mod@data_table`] モジュール
+//!   後続イシュー #2126/#2127 のスコープ（[`data_table`](mod@data_table) モジュール
 //!   doc「out-of-scope」参照）。
 
 #![forbid(unsafe_code)]

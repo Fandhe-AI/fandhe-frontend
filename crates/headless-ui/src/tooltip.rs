@@ -47,7 +47,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`disabled`/`id`）は
 //!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
+//!   混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`describedby`/`id`/呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
@@ -114,15 +114,15 @@ pub fn trigger<'a>(
 /// `style`（`--fandhe-*` CSS 変数）・`data-side`/`data-align` をそのまま
 /// 透過させる薄いラッパーである（モジュール doc §スコープ外参照）。
 ///
-/// `state` から `data-state` を出力する（[`popover::positioner`]/
-/// [`menu::positioner`]/[`select::positioner`] と同型。イシュー #622 レビュー
+/// `state` から `data-state` を出力する（[`popover::positioner`](crate::popover::positioner)/
+/// [`menu::positioner`](crate::menu::positioner)/[`select::positioner`](crate::select::positioner) と同型。イシュー #622 レビュー
 /// 指摘: 従来 `data-state` を出力していなかったため、`fandhe-frontend-wasm-full`
 /// の `reposition_all` が使う `[data-part="positioner"][data-state="open"]`
 /// セレクタに tooltip の positioner がマッチせず、開いている tooltip が
 /// 再計算対象から漏れていた）。closed のとき `hidden` 存在属性を付与し、
 /// arrow/arrow_tip が positioner 内にネストされる anatomy 構造上、
 /// closed 時にポインタ層を SSR/no-JS マークアップへ表示させない
-/// （[`popover::positioner`] と同じ判断、イシュー #532 レビュー指摘参照）。
+/// （[`popover::positioner`](crate::popover::positioner) と同じ判断、イシュー #532 レビュー指摘参照）。
 #[must_use]
 pub fn positioner<'a>(
     state: OpenState,

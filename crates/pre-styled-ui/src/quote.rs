@@ -1,5 +1,5 @@
 //! Quote（イシュー #995）: variant を持たない最小静的部品。短いインライン
-//! 引用（`<q>`）を既定スタイルで組み立てる。[`crate::em`] / [`crate::link_overlay`]
+//! 引用（`<q>`）を既定スタイルで組み立てる。[`crate::em`](mod@crate::em) / [`crate::link_overlay`]
 //! と同型の「variant 軸を持たない slot recipe」パターンに従う。
 //!
 //! [`crate::blockquote`]（`<figure>`/`<blockquote>`/`<figcaption>` の
@@ -29,7 +29,7 @@
 //!   宣言のみで一致しており、変更不要。
 //! - **font-family（serif 差し替え）**: Radix Themes は Quote に serif 系
 //!   font-family（他の Typography 部品と同じ意匠）を当てるが、**意図的に
-//!   非採用**とする。理由は [`crate::em`] モジュール rustdoc の 7 軸比較
+//!   非採用**とする。理由は [`crate::em`](mod@crate::em) モジュール rustdoc の 7 軸比較
 //!   （イシュー #1433）で確定した判断をそのまま踏襲する: (i) 参照可能な
 //!   もう一方の軸（chakra-ui）が Quote 相当部品を持たず比較不能であり
 //!   Radix 固有の意匠に追随する根拠が弱いこと、(ii) `theme.rs` の
@@ -95,7 +95,7 @@ pub fn css() -> String {
 
 /// Quote 1 個（`<q>`）を組み立てる。variant 軸を持たないため `class` 属性は
 /// 付与しない（呼び出し側 `attrs` の `class` は他 styled 部品との一貫性の
-/// ため [`drop_class_attr`] で除去する。[`crate::em::em`] と同型の判断）。
+/// ため `drop_class_attr` で除去する。[`crate::em::em`] と同型の判断）。
 ///
 /// # Examples
 ///

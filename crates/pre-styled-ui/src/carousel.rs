@@ -52,7 +52,7 @@
 //! # data-current とスタイルの連動
 //!
 //! `item`（現在表示中のスライド）・`indicator`（現在位置を示すドット）の
-//! `data-current` 存在属性に応じた見た目の切り替えを [`recipe`] へ登録する
+//! `data-current` 存在属性に応じた見た目の切り替えを `recipe` へ登録する
 //! （[`crate::recipe::StateCondition::Attr`]）。
 //!
 //! # 複合部品の variant 統一方針（イシュー #708）適用
@@ -499,7 +499,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::carousel::root`] へ
 /// 委譲する。
 ///

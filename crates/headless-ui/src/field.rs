@@ -18,7 +18,7 @@
 //! Accordion/Dialog/Popover/Tooltip 等）向けの共通状態機械である。Field の
 //! `invalid`/`disabled`/`required`/`readonly` はフォームバリデーション・
 //! 呼び出し側アプリケーションが決める SSR 静的な props であり、Field 自身が
-//! 開閉のような内部状態遷移を持たない。そのため [`mod@crate::tabs`] と同じく
+//! 開閉のような内部状態遷移を持たない。そのため [`crate::tabs`](mod@crate::tabs) と同じく
 //! 「props から決定的にマークアップを組み立てる純粋関数群」として実装する
 //! （状態機械の適用対象外という判断は PR 本文にも明記する）。
 //!
@@ -41,7 +41,7 @@
 //!   スロットへ混入する経路はない。
 //! - 派生 id（`"{id}-control"` 等）は `format!` で組み立てるが、これは属性値
 //!   という**データ**の組み立てであり、`.claude/rules/coding-rust.md` が禁止
-//!   する「HTML 文字列の直接組み立て」ではない（[`mod@crate::tabs`] の注記と同型）。
+//!   する「HTML 文字列の直接組み立て」ではない（[`crate::tabs`](mod@crate::tabs) の注記と同型）。
 //! - `error_text`/`required_indicator` は非該当状態で `hidden` 存在属性を
 //!   付与する fail-closed 描画とし、JS 不在の SSR でも誤表示しない。
 //!
@@ -116,7 +116,7 @@
 //!   `separator-line`（`hr`）にのみ付与し、テキスト（`separator-content`、
 //!   `span`）とは別要素に分離する（WAI-ARIA `separator` ロールの子孫は
 //!   presentational であるため、テキストを同じ要素に載せると読み上げ上の
-//!   意味論が壊れる。[`mod@crate::menu`] の `separator` と同型判断）。線の
+//!   意味論が壊れる。[`crate::menu`](mod@crate::menu) の `separator` と同型判断）。線の
 //!   実描画（罫線の CSS）は `.claude/rules/coding-rust.md` §3.25 規則 2
 //!   （レイアウト計測・装飾は headless へ持ち込まない）に従い
 //!   `fandhe-frontend-pre-styled-ui` 側の責務とする。
@@ -533,7 +533,7 @@ pub fn title(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Vec<Nod
 /// `content` が空でないときのみ続けて `separator-content`（`span`、テキスト
 /// を保持する）を配置する。`role="separator"` の子孫は presentational
 /// であるため、テキストは `separator-line` と同じ要素へ載せず別要素
-/// （`separator-content`）に分離する（本モジュール doc・[`mod@crate::menu`]
+/// （`separator-content`）に分離する（本モジュール doc・[`crate::menu`](mod@crate::menu)
 /// の `separator` と同型判断）。`attrs` はラッパー `div` へ合成する。
 #[must_use]
 pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, content: Vec<Node>) -> Node {

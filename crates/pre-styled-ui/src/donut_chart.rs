@@ -43,9 +43,9 @@
 //!
 //! [`crate::pie_chart`] モジュール doc「本イシューのスコープ外」節と同一
 //! （Legend/Tooltip・アニメーション・中央テキスト等）。中央テキスト
-//! （chakra の "With Centered Text" 例）は呼び出し側が [`root`] の子ノード
+//! （chakra の "With Centered Text" 例）は呼び出し側が `root` の子ノード
 //! として `chart` と並べて配置することで代替可能であり、本 API は
-//! `root` の子ノードを [`chart`] 単体に固定しない設計とする（下記
+//! `root` の子ノードを `chart` 単体に固定しない設計とする（下記
 //! [`donut_chart`] 実装参照）。
 //!
 //! # 参考サイト基準への調整（イシュー #1594）
@@ -223,7 +223,7 @@ pub struct DonutChartProps<'a> {
     /// 寸法（既定 `Md`）。
     pub size: Size,
     /// `chart`（svg）へ付与する `aria-label`。`None` なら
-    /// [`DEFAULT_ARIA_LABEL`]（`"donut chart"`）を使う。
+    /// `DEFAULT_ARIA_LABEL`（`"donut chart"`）を使う。
     pub aria_label: Option<&'a str>,
     /// `true` ならカテゴリ名ラベルをセグメント上に描画する（既定 `false`）。
     pub show_labels: bool,
@@ -263,7 +263,7 @@ pub struct DonutChartProps<'a> {
     /// codex-review 指摘）。`show_tooltip: false` かつ `range`/
     /// `hidden_categories` がいずれも初期状態を表せない（範囲指定なし・
     /// 非表示カテゴリなし＝凡例は使うが初期状態は全カテゴリ表示）構成を
-    /// 救うための opt-in で、`true` のとき [`identify_segments`] が
+    /// 救うための opt-in で、`true` のとき `identify_segments` が
     /// `data-index` を出力させる（`BarChartProps::legend`/
     /// `LineChartProps::legend` と同型）。
     pub legend: bool,
@@ -520,7 +520,7 @@ pub fn css() -> String {
 /// - `inner_ratio` が非有限、または `0.0 < ratio < 1.0` の範囲外の場合
 ///   [`PieChartError::InvalidInnerRatio`]
 /// - `active_index` が `Some` かつ `inner_ratio` が大きすぎ、非活性
-///   セグメントの縮小外径（[`ACTIVE_INSET`]）以上になる場合も
+///   セグメントの縮小外径（`ACTIVE_INSET`）以上になる場合も
 ///   [`PieChartError::InvalidInnerRatio`]（環が反転する退化構成を防ぐ）
 /// - `active_index` がカテゴリ数以上の場合
 ///   [`PieChartError::InvalidActiveIndex`]

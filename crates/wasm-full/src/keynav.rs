@@ -15,7 +15,7 @@
 //! いた（各モジュール冒頭 doc の out-of-scope 節）。Select の highlight SSR
 //! 表現（`data-highlighted`/`aria-activedescendant`/item `id`）は PR #617 で
 //! 整備済みであり、本イシュー（#583）はその前提の上で Menu/Select/RadioGroup の
-//! キーボード操作配線を実装する。本モジュールはその実装であり、[`events`] と
+//! キーボード操作配線を実装する。本モジュールはその実装であり、`events` と
 //! 同じ「純粋ロジック層（native `cargo test` 可）+
 //! `#[cfg(target_arch = "wasm32")]` 配線層」の 2 層構成を踏襲する。
 //!
@@ -32,13 +32,13 @@
 //! - Menu/Select の「決定」（Enter/Space/クリックによる項目選択）は、DOM を
 //!   直接書き換えるのではなく highlight 中の項目要素へ `HtmlElement::click()`
 //!   を合成することで、既存の click → `data-action` → dispatch 経路
-//!   （[`events::wire_events`]）へ委譲する。マウスクリックとキーボード決定の
+//!   （`events::wire_events`）へ委譲する。マウスクリックとキーボード決定の
 //!   経路を完全に一致させ、アプリ状態（開閉・選択値）へ波及する分岐処理を
 //!   二重実装しない。
 //! - `Closure::forget` はマウント時に keydown/click/change の 3 回のみ
-//!   （[`wire_keynav`]。RadioGroup のネイティブ `<input type="radio">` の
+//!   （`wire_keynav`。RadioGroup のネイティブ `<input type="radio">` の
 //!   `change` 委譲を追加したため Tabs/Accordion 時代の 2 回から 1 回増える）。
-//!   [`events::wire_events`] と合わせても定数個であり、無制限リークを構造的に
+//!   `events::wire_events` と合わせても定数個であり、無制限リークを構造的に
 //!   回避する（A04 対策、events.rs と同方針）。
 //! - 純粋層（[`tabs_next_index`]/[`accordion_next_index`]/
 //!   [`highlight_next_index`]/[`radio_next_index`]）は web-sys に依存しない
@@ -59,11 +59,11 @@
 //!   `"automatic"`（既定、欠落時も含む）はフォーカス移動と同時に活性化する。
 //! - 活性化処理は `[data-part="trigger"]` への click 委譲（マウスクリック・
 //!   ネイティブ `<button>` の Enter/Space が発火する click イベントの双方を
-//!   カバーする）と共通の [`activate_tab`] を使う。disabled trigger の
+//!   カバーする）と共通の `activate_tab` を使う。disabled trigger の
 //!   活性化要求は no-op（fail-closed）。
 //! - ハンドリングしたキーのみ `prevent_default()`（ページスクロール抑止）。
 //!   修飾キー（Ctrl/Alt/Meta）付き・未知キー・root 外要素（`contains` 検査、
-//!   [`events`] と同じ封じ込め）は安全側 no-op。
+//!   `events` と同じ封じ込め）は安全側 no-op。
 //! - 活性化（`activate_tab`）の直後、`crate::tabs_indicator::
 //!   sync_tabs_indicator_in_list` を呼んで `indicator` パーツの位置・
 //!   寸法を実測同期する（イシュー #2211）。manual activation の keydown
@@ -128,21 +128,21 @@
 //!   highlight 対象が disabled・不在なら no-op（fail-closed）。
 //! - Select の `content` は `overflow-y: auto` + `max-height`（イシュー
 //!   #2019）を持つため、上記 highlight 更新のたび
-//!   [`wiring::scroll_item_into_view_if_needed`] が可視領域への追随を
+//!   `wiring::scroll_item_into_view_if_needed` が可視領域への追随を
 //!   行う。ArrowDown/ArrowUp・Home/End・typeahead・open 直後の初期
 //!   highlight のいずれの経路も長いリストで highlight 項目が可視領域内に
 //!   保たれることを browser テストで固定している（イシュー #2206）。
 //! - content の解決は trigger の `aria-controls` を優先し、欠落時は
 //!   `closest("[data-part=\"root\"]")` 配下の content パーツへフォール
 //!   バックする。
-//! - Escape による**閉鎖**（`hidden`/`data-state` の更新）は [`overlay`]
+//! - Escape による**閉鎖**（`hidden`/`data-state` の更新）は `overlay`
 //!   モジュール（イシュー #585/#610、#580 統合層）の既存責務のため本
 //!   モジュールでは扱わない。ただし highlight（`data-highlighted`/
 //!   `aria-activedescendant`）は本モジュール自身が書き込む状態であり
 //!   overlay 側は関知しないため、open のまま Escape を受けた時点で
-//!   [`set_highlight`] の逆操作（highlight のクリア）のみを行う
-//!   （実装は [`handle_menu_or_select_trigger_keydown`] の `"Escape"` 腕・
-//!   [`clear_highlight`]）。これにより、閉鎖経路（クリックによる再オープン・
+//!   `set_highlight` の逆操作（highlight のクリア）のみを行う
+//!   （実装は `handle_menu_or_select_trigger_keydown` の `"Escape"` 腕・
+//!   `clear_highlight`）。これにより、閉鎖経路（クリックによる再オープン・
 //!   将来の #580 統合層による Escape/outside click 閉鎖のいずれも）を問わず
 //!   reopen 後の最初の Arrow キーが古い highlight から続くのを防ぐ
 //!   （Bugbot 指摘、イシュー #583）。**outside click（overlay の
@@ -160,9 +160,9 @@
 //! 初期実装）・#641（typeahead）ではいずれもスコープ外として申し送られていた
 //! 残要素（モジュール doc 旧版・`crates/wasm-full` 変更履歴参照）。
 //!
-//! - **アクティブ content の解決**（[`wiring::resolve_active_content`]）:
+//! - **アクティブ content の解決**（`wiring::resolve_active_content`）:
 //!   「highlight 中の項目が `trigger-item` ∧ そのサブメニュー content が
-//!   解決でき（[`wiring::resolve_submenu_content`]、`aria-controls` →
+//!   解決でき（`wiring::resolve_submenu_content`、`aria-controls` →
 //!   `trigger-item` 子孫方向 `[data-part="content"]` → `trigger-item` 兄弟
 //!   方向 `[data-part="content"]` の 3 段フォールバック。`headless-ui` の
 //!   「子 `positioner`/`content` は `trigger-item` の兄弟として親 content
@@ -186,7 +186,7 @@
 //!   経由である点に注意）。展開後、サブメニュー content を再解決して先頭の
 //!   非 disabled 項目へ highlight を設定する（click 経由の再描画で content
 //!   が差し替わりうるため再解決するパターンは closed→open 時の既存実装
-//!   （[`wiring::handle_menu_or_select_trigger_keydown`]）と同型）。
+//!   （`wiring::handle_menu_or_select_trigger_keydown`）と同型）。
 //!   ArrowLeft は親 trigger-item へ `click()` を合成して閉鎖し、アクティブ
 //!   content の highlight をクリアした上で親 trigger-item へ highlight を
 //!   復帰させる（親 content の `aria-activedescendant` も追随）。
@@ -196,7 +196,7 @@
 //!   せず no-op とし、ページの既定キー動作を奪わない（受け入れ条件 2）。
 //!   Select（`data-scope="select"`）は `trigger-item` が存在せずセレクタ
 //!   不一致となるため、これらの腕は自然に no-op のまま働かない。
-//! - typeahead バッファ（[`wiring::TypeaheadState`]）はアクティブ content
+//! - typeahead バッファ（`wiring::TypeaheadState`）はアクティブ content
 //!   基準で有効性判定し、ArrowRight/ArrowLeft はいずれもバッファをリセット
 //!   する（展開/閉鎖後の再入力は新規バッファから始まる）。
 //!
@@ -205,7 +205,7 @@
 //! WAI-ARIA APG Menu Button / Listbox / Select-Only Combobox パターン準拠の
 //! typeahead を Menu/Select 共通で実装する（純粋層 [`is_typeahead_key`]/
 //! [`typeahead_push`]/[`typeahead_next_index`]、配線層
-//! [`wiring::TypeaheadState`]）。
+//! `wiring::TypeaheadState`）。
 //!
 //! - **対象キー**: 修飾キー（Ctrl/Alt/Meta）なしの単一 printable 文字
 //!   （制御文字を除く）。Space はバッファが**タイムアウト内・非空のときのみ**
@@ -215,12 +215,12 @@
 //!   既定に整合）以内なら追記し、超過なら新規バッファとして開始する。
 //!   最大 [`TYPEAHEAD_MAX_BUFFER_LEN`] 文字でそれ以上追記しない（キー長押し
 //!   連打による無制限成長防止、A04 対策）。バッファは DOM から導出できない
-//!   一時入力状態のため [`wire_keynav`] の keydown [`Closure`] が
-//!   [`wiring::TypeaheadState`] として所有し、対象 content が変わったときの
+//!   一時入力状態のため `wire_keynav` の keydown `Closure` が
+//!   `wiring::TypeaheadState` として所有し、対象 content が変わったときの
 //!   混線・タイムアウト超過は同状態が自動でリセットする（`data-*` 属性へは
 //!   一切書き出さない。ユーザー打鍵文字列を DOM へ露出させる新規面を作らない
 //!   ため）。
-//! - **マッチング**: 各項目のラベル（[`wiring::item_label`]、Select は
+//! - **マッチング**: 各項目のラベル（`wiring::item_label`、Select は
 //!   `[data-part="item-text"]` 子を優先し item-indicator の混入を避ける）
 //!   先頭一致・大文字小文字非区別。disabled 項目はスキップし、探索は常に
 //!   wrap する。バッファが同一文字の繰り返しのときは現在 highlight の
@@ -266,15 +266,15 @@
 //! のみを提供し、キーボードナビゲーションの実挙動を本モジュールへ申し送って
 //! いた。Combobox は Menu/Select と異なり `input`（`role="combobox"`）が実
 //! DOM フォーカスを保持し続けるテキストフィールドであるため、
-//! [`handle_menu_or_select_trigger_keydown`](wiring::handle_menu_or_select_trigger_keydown)
+//! `handle_menu_or_select_trigger_keydown`
 //! を流用せず専用ハンドラ
-//! （[`handle_combobox_input_keydown`](wiring::handle_combobox_input_keydown)）
+//! （`handle_combobox_input_keydown`）
 //! を新設する。
 //!
 //! - **typeahead を実装しない**: input 自身がテキスト入力欄であり、
 //!   printable 文字キーはフィルタ入力としてブラウザの既定動作（キャレット
 //!   位置への文字挿入）へそのまま委ねる。Menu/Select 用の
-//!   [`is_typeahead_key`]/[`TypeaheadState`](wiring::TypeaheadState) は
+//!   [`is_typeahead_key`]/`TypeaheadState` は
 //!   Combobox の keydown ハンドラから一切呼ばない。
 //! - **ArrowLeft/ArrowRight/Tab を claim しない**: テキストフィールドでは
 //!   キャレット移動・フォーカス移動の既定動作であり、[`submenu_nav`] も
@@ -292,7 +292,7 @@
 //!   codex-review P1 是正）: `ComboboxProps::readonly`
 //!   （`crates/headless-ui/src/combobox.rs`）が root/control/input/trigger/
 //!   clear-trigger の全パーツへ一律付与する `data-readonly` を
-//!   [`wiring::is_combobox_readonly`] が `input` 自身から確認し、readonly
+//!   `wiring::is_combobox_readonly` が `input` 自身から確認し、readonly
 //!   のときは `handle_combobox_input_keydown` の Arrow/Enter/Escape/Home/
 //!   End をすべて claim せず既定動作もキャンセルしない（`crate::angle_slider`
 //!   の `data-disabled`/`data-readonly` 判定と同型。readonly でも
@@ -303,8 +303,8 @@
 //!   別途塞いでいる）。
 //! - **`aria-activedescendant` は input 側へ書く**（`crates/headless-ui/src/combobox.rs`
 //!   の「input 側に配線する」契約、Menu/Select の content 側配線とは逆）。
-//!   [`wiring::set_highlight_on_host`]/[`wiring::clear_highlight_on_host`]
-//!   （[`wiring::set_highlight`]/[`wiring::clear_highlight`] の薄いラッパー化
+//!   `wiring::set_highlight_on_host`/`wiring::clear_highlight_on_host`
+//!   （`wiring::set_highlight`/`wiring::clear_highlight` の薄いラッパー化
 //!   後の実体）が `activedescendant_host` 引数でホスト要素を選べるようにし、
 //!   Combobox は input を、Menu/Select は引き続き content を渡す。
 //! - **`aria-expanded`/`hidden`/`data-state` は一切書かない**（本モジュールの
@@ -334,7 +334,7 @@
 //! `tabindex` を持たない）。このため本モジュールは roving tabindex を
 //! 使わず、Menu/Select と同じ「`data-highlighted`（item）+
 //! `aria-activedescendant`（content）」方式のみで highlight を表現する
-//! （[`handle_listbox_keydown`]、`listbox::content()`/`listbox::item()`
+//! （`handle_listbox_keydown`、`listbox::content()`/`listbox::item()`
 //! の静的出力と 1:1 で一致）。
 //!
 //! - `data-orientation`/`data-loop-focus` は `listbox::content()`/
@@ -347,8 +347,8 @@
 //!   ArrowRight/ArrowLeft を受理する。
 //! - Home/End で先頭/末尾の非 disabled 項目へ移動する（orientation に
 //!   関わらず）。
-//! - typeahead（[`is_typeahead_key`]/[`apply_typeahead_match`]）は Menu/Select
-//!   と同じ実装（[`TypeaheadState`]）を再利用する。
+//! - typeahead（[`is_typeahead_key`]/`apply_typeahead_match`）は Menu/Select
+//!   と同じ実装（`TypeaheadState`）を再利用する。
 //! - Enter/Space（typeahead バッファ非活性時）は highlight 中の非 disabled
 //!   項目へ `click()` を合成し、既存の click → dispatch 経路へ委譲する
 //!   （Menu/Select と同じ設計）。ただし `crate::headless::MAPPING_TABLE`
@@ -365,7 +365,7 @@
 //!   `crates/headless-ui/src/listbox.rs` が out-of-scope 宣言済み）。
 //! - Listbox の `content` も Select と同じく `overflow-y: auto` +
 //!   `--fandhe-listbox-content-max-height` を持つため、highlight 更新のたび
-//!   [`wiring::scroll_item_into_view_if_needed`] が可視領域への追随を行う
+//!   `wiring::scroll_item_into_view_if_needed` が可視領域への追随を行う
 //!   （ArrowDown/ArrowUp・Home/End・typeahead 各経路とも browser テストで
 //!   固定、イシュー #2206）。
 //!
@@ -375,7 +375,7 @@
 //! 状態機械（`Menubar`/`MenubarAction`）までを提供し、矢印キー・Home/End・
 //! typeahead の実 DOM 配線とフォーカス移動を本クレートの責務として明示的に
 //! スコープ外へ送っていた（同モジュール doc「スコープ外」節）。本節はその
-//! 実装（[`wiring::handle_menubar_trigger_keydown`]）の設計を記す。
+//! 実装（`wiring::handle_menubar_trigger_keydown`）の設計を記す。
 //!
 //! ## 既存 Menu 配線との再利用判断
 //!
@@ -384,16 +384,16 @@
 //! フォーカスは常に `trigger`（`button`）に留まる（`item`/`sub-trigger` は
 //! `div` で `tabindex` を持たない）ため、keydown ターゲット解決・highlight
 //! 移動・typeahead・サブメニューのチェーン解決は menu と同型でよい。本実装は
-//! これらを**共通化**し、[`wiring::handle_menu_or_select_trigger_keydown`]
+//! これらを**共通化**し、`wiring::handle_menu_or_select_trigger_keydown`
 //! を `(content_selector, item_selector)` の 2 引数ではなく 5 フィールドの
-//! セレクタ束（[`wiring::ScopeSelectors`]）でパラメータ化して menu/select/
+//! セレクタ束（`wiring::ScopeSelectors`）でパラメータ化して menu/select/
 //! menubar の 3 スコープを切り替える。menu/select にとってこの導入は
 //! `content == content_any` かつ `content_owner == "[data-part=\"root\"]"`
 //! の恒等変換であり、既存挙動を変えない（`tests/keynav_native.rs`/
 //! `tests/keynav_browser.rs` の既存テストは無編集のまま全通過する）。
 //! 一方、トリガー間の水平/垂直移動（roving tabindex + 「開いている Menu が
 //! 追随する」open-follows-focus）は menu に存在しない層のため
-//! [`wiring::handle_menubar_trigger_keydown`]/[`wiring::move_menubar_focus`]
+//! `wiring::handle_menubar_trigger_keydown`/`wiring::move_menubar_focus`
 //! として個別実装するが、インデックス計算自体は Tabs の
 //! [`tabs_next_index`]（orientation 分岐・loop・Home/End・disabled スキップ
 //! の仕様が完全一致）を再利用する。
@@ -404,7 +404,7 @@
 //! 複数の `Menu` インスタンスを内包する**。そのため `aria-controls` 欠落時の
 //! フォールバック探索を menu/select と同じ `[data-part="root"]` のまま
 //! menubar へ適用すると、`aria-controls` を持たないトリガーが document 順で
-//! 先頭の `Menu` の content を誤って掴んでしまう。[`wiring::ScopeSelectors::content_owner`]
+//! 先頭の `Menu` の content を誤って掴んでしまう。`wiring::ScopeSelectors::content_owner`
 //! を導入し、menubar では探索範囲を「そのトリガーが属する 1 `Menu`
 //! インスタンス」（`[data-scope="menubar"][data-part="menu"]`）へ限定する
 //! ことでこれを防ぐ（A01 対策）。
@@ -417,34 +417,34 @@
 //! フォールスルーする**、という 1 本の順序規則で closed 時の分岐を吸収する
 //! （orientation 別のキー表を作らない）。ただし WAI-ARIA APG Menubar
 //! パターンは垂直方向のみ Right Arrow をサブメニュー展開キーに含めるため、
-//! [`wiring::handle_menubar_trigger_keydown`] は orientation が vertical の
+//! `wiring::handle_menubar_trigger_keydown` は orientation が vertical の
 //! ときに限り `extra_open_key = Some("ArrowRight")` を
-//! [`wiring::handle_menu_or_select_trigger_keydown`] へ渡し、open 系キー
+//! `wiring::handle_menu_or_select_trigger_keydown` へ渡し、open 系キー
 //! 集合へ 1 キーだけ追加する（Bugbot 指摘 "Vertical menubar arrow open
 //! broken"、イシュー #1073。垂直では ArrowRight はトリガー間移動
 //! （[`tabs_next_index`]）の対象外のため、closed 時は常に open 系キー側へ
 //! フォールスルーする）。Menu/Select 呼び出し側は `None` を渡し既存挙動を
 //! 変えない。open 時は
-//! [`wiring::handle_menu_or_select_trigger_keydown`] へ委譲し、その戻り値
-//! （[`wiring::KeyOutcome`]）が `UnhandledHorizontal`（highlight が
+//! `wiring::handle_menu_or_select_trigger_keydown` へ委譲し、その戻り値
+//! （`wiring::KeyOutcome`）が `UnhandledHorizontal`（highlight が
 //! `sub-trigger` でない・disabled・サブメニュー未解決 等でサブメニュー
 //! 展開/復帰の条件に当てはまらなかった ArrowRight/ArrowLeft）のときのみ
-//! トリガー間移動（[`wiring::move_menubar_focus`]、open-follows-focus）を
+//! トリガー間移動（`wiring::move_menubar_focus`、open-follows-focus）を
 //! 行う。Menu/Select の既存呼び出し側は戻り値を無視するため挙動は不変。
 //!
 //! ## readonly ガード・Select の初期 highlight 是正（イシュー #1619 参照突合）
 //!
-//! [`wiring::handle_menu_or_select_trigger_keydown`] の入口で trigger の
+//! `wiring::handle_menu_or_select_trigger_keydown` の入口で trigger の
 //! `data-readonly` を確認し、readonly なら開閉・選択いずれの keydown も
 //! no-op にする（combobox #1605 の codex-review P1 是正〔readonly 中の
 //! キー操作抜け穴〕と同型。click 経路は `headless.rs::action_for_part` の
 //! `PartRef::readonly` が既に scope 汎用で fail-closed 化している）。加えて
-//! [`wiring::ScopeSelectors::prefer_selected_item`]（Select scope のみ
+//! `wiring::ScopeSelectors::prefer_selected_item`（Select scope のみ
 //! `true`）が立っているとき、open 直後の初期 highlight は
-//! [`initial_highlight_index`] を使い、選択済み項目（非 disabled）を
+//! `initial_highlight_index` を使い、選択済み項目（非 disabled）を
 //! 先頭/末尾より優先する（ark-ui/Radix の `getInitialFocusItem` 相当）。
 //! 選択済み項目が disabled・そもそも未選択の場合は従来どおり
-//! [`first_non_disabled`]/[`last_non_disabled`] へフォールバックする。Menu
+//! `first_non_disabled`/`last_non_disabled` へフォールバックする。Menu
 //! scope は選択概念が無いため本節の対象外（従来どおり先頭/末尾開始）。
 //!
 //! ## loop 既定値
@@ -492,7 +492,7 @@
 //!   `trigger.click()` を合成し、既存の click → dispatch 経路へ open を
 //!   委譲した後、content を**再解決**して先頭/末尾リンクへフォーカスする
 //!   （click 由来の再描画で要素が差し替わりうるため、Menu の
-//!   [`wiring::open_submenu_and_focus_first_item`] と同じ理由で再解決する）。
+//!   `wiring::open_submenu_and_focus_first_item` と同じ理由で再解決する）。
 //! - open 時は同じキーで content 内リンクへ直接フォーカスする（`click()`
 //!   合成なし）。content 内リンク上では矢印/Home/End で同一 content 内の
 //!   非 disabled リンク間を**非循環**（APG のリンク集としての決定的挙動、
@@ -521,7 +521,7 @@
 //!   アニメーション・レイアウト計測の関心を headless 層へ持ち込まない）と
 //!   同じ判断軸で非採用。
 //! - **typeahead**: APG が要求しないため実装しない
-//!   （[`TypeaheadState`] を触らず Menu/Select/Listbox/Menubar の既存挙動へ
+//!   （`TypeaheadState` を触らず Menu/Select/Listbox/Menubar の既存挙動へ
 //!   影響を与えない）。
 //!
 //! ## 既知のギャップ（本イシューでは対応しない、スコープ外）
@@ -558,12 +558,12 @@
 //!   スタイルに従い、公開 API 名は分けたままインデックス計算のみ共有する）。
 //!   将来 ToggleGroup 側だけ仕様が動いた場合は [`toggle_group_next_index`]
 //!   の内部実装をここで分岐させる。
-//! - **配線層（[`wiring::handle_toggle_group_item_keydown`]）は
+//! - **配線層（`wiring::handle_toggle_group_item_keydown`）は
 //!   共通化しない**: RadioGroup はネイティブ `<input type="radio">` に
 //!   対する `focus()` + `set_checked` + `data-state` 同期 + `change`
 //!   委譲を伴うのに対し、ToggleGroup は `<button>` へのフォーカス移動 +
 //!   roving tabindex のみで押下状態は click → dispatch → 再描画が担う
-//!   （[`wiring::handle_radio_keydown`] への合流は分岐が支配的になり
+//!   （`wiring::handle_radio_keydown` への合流は分岐が支配的になり
 //!   fail-closed 条件も異なるため別ハンドラとする）。
 //! - 押下（Enter/Space/クリック）は claim せずネイティブ `<button>` の
 //!   click 発火に委ね、`MAPPING_TABLE` の `toggle-group`/`item` →
@@ -591,7 +591,7 @@
 //! `fandhe-frontend-wasm-full` の責務」と明記しており、本節がその実装である。
 //! Menu/Select/Listbox（trigger/content が仮想フォーカス・実フォーカスを
 //! 保持する設計）と異なり、TreeView は treeitem（`branch`/`item`）自身が
-//! 実 DOM フォーカスを持ち、[`wiring::focus_tree_item`] が roving tabindex
+//! 実 DOM フォーカスを持ち、`wiring::focus_tree_item` が roving tabindex
 //! （`tabindex="0"`/`"-1"` 相当。SSR が `tabindex` を一切出力しないため、
 //! 非フォーカス項目は属性自体が無いままタブ順序から外れる）を付け替える
 //! （実 DOM フォーカス + roving tabindex 案。仮想フォーカス
@@ -609,7 +609,7 @@
 //! | `Escape` | Listbox と同じ非対称扱い: typeahead バッファのリセットのみ、`prevent_default` しない（reopen 契約が存在しないため） |
 //! | 修飾キー付き・未知キー | 一律 no-op |
 //!
-//! 展開・折りたたみ・確定は [`wiring::synthesize_tree_click`] が
+//! 展開・折りたたみ・確定は `wiring::synthesize_tree_click` が
 //! `branch-control`（無ければ treeitem 自身）へ `click()` を合成し、既存の
 //! click → `crate::headless::MAPPING_TABLE`（`tree-view`/`branch` →
 //! `"toggle"`、`tree-view`/`item` → `"select"`。本イシューで新設）→
@@ -631,7 +631,7 @@
 //! click 合成 → アプリの `on_update`（`TreeView::render_nodes` 再描画）に
 //! より対象 treeitem を含む subtree が丸ごと差し替わりうる。click 直後に
 //! 古い `Element` 参照を触らないよう、展開/折りたたみ/確定の後は
-//! [`wiring::restore_tree_focus_by_value`] が `root` から treeitem 列を
+//! `wiring::restore_tree_focus_by_value` が `root` から treeitem 列を
 //! 再収集し、`data-value` の **Rust 側文字列比較**（セレクタ文字列組み立て
 //! ではない、A03 対策）でフォーカスを復元する。
 //!
@@ -652,7 +652,7 @@
 //! までを提供する一方、矢印キーによる gridcell 間のフォーカス移動を本
 //! クレートの責務として明示的にスコープ外へ送っていた（同モジュール doc
 //! 「スコープ外」節）。本節は [`calendar_next_index`]/
-//! [`wiring::handle_calendar_keydown`] の設計を記す。
+//! `wiring::handle_calendar_keydown` の設計を記す。
 //!
 //! - ArrowRight/ArrowLeft/ArrowDown/ArrowUp はそれぞれ `+1`/`-1`/
 //!   `+columns`/`-columns` の**フラット**な日付インデックス移動（月表示の
@@ -709,12 +709,12 @@
 //!   loop true / 両軸許容）へ決定的にフォールバックし、panic しない。
 //! - highlight・radio 決定はいずれも disabled 項目に対して no-op
 //!   （fail-closed）。
-//! - TreeView の再描画後フォーカス復元（[`wiring::restore_tree_focus_by_value`]）
+//! - TreeView の再描画後フォーカス復元（`wiring::restore_tree_focus_by_value`）
 //!   は `data-value` から組み立てたセレクタ文字列を使わず、Rust 側の文字列
 //!   比較（`==`）でのみ照合する（イシュー #1072、セレクタインジェクション
 //!   面を新設しない）。
-//! - サブメニューチェーン探索（[`wiring::resolve_active_content`]）は深さ上限
-//!   （[`MAX_SUBMENU_DEPTH`]）+ root 封じ込め検査（[`wiring::resolve_submenu_content`]
+//! - サブメニューチェーン探索（`wiring::resolve_active_content`）は深さ上限
+//!   （[`MAX_SUBMENU_DEPTH`]）+ root 封じ込め検査（`wiring::resolve_submenu_content`
 //!   の `root.contains`）で、改ざん DOM の `aria-controls` 循環参照・
 //!   root 外要素への越境をいずれも fail-closed に遮断する（イシュー #662、
 //!   A01/A04 対策）。DOM 書き込み面（属性名リテラル固定・値語彙固定）は
@@ -727,11 +727,11 @@
 //!
 //! # scope feature による match arm 単位の cfg ゲート（イシュー #2327）
 //!
-//! [`wiring::wire_keynav`] 内部の `match scope { ... }`（13 arm）・
+//! `wiring::wire_keynav` 内部の `match scope { ... }`（13 arm）・
 //! TreeView の capture/bubble 復元・Tabs のバブル click・RadioGroup の
 //! `change` リスナーは、対応する scope の feature（既定 on、対応表は
 //! `crate` クレート doc §scope feature 参照）で個別に `#[cfg]` ゲート
-//! されている。[`wiring::wire_readonly_click_guard`]（readonly RadioGroup
+//! されている。`wiring::wire_readonly_click_guard`（readonly RadioGroup
 //! の click capture 保護）はこれらいずれの feature にも依存しない常時
 //! 配線のまま（イシュー #2333 で本関数から分離済み）であり、後退させて
 //! はならない。新規 arm を追加する際は
@@ -1092,7 +1092,7 @@ pub fn highlight_next_index(
 
 /// RadioGroup の keydown に対する「次にチェック・移動すべきインデックス」を
 /// 計算する純粋関数。APG Radio Group パターンに従い**常に循環する**
-/// （固定 `loop_focus = true`、[`step_non_disabled`] へ委譲）。`orientation`
+/// （固定 `loop_focus = true`、`step_non_disabled` へ委譲）。`orientation`
 /// が `Some` のとき、その軸のキーのみを受理する（`Horizontal` なら
 /// ArrowLeft/ArrowRight のみ、`Vertical` なら ArrowUp/ArrowDown のみ）。
 /// `None`（`data-orientation` 欠落）のときは両軸のキーを受理する
@@ -1326,7 +1326,7 @@ pub fn typeahead_next_index(
 
 /// サブメニュー（`trigger-item`）チェーン探索の深さ上限（イシュー #662）。
 ///
-/// アクティブ content の解決（[`wiring::resolve_active_content`]）は
+/// アクティブ content の解決（`wiring::resolve_active_content`）は
 /// `aria-controls` を辿って子孫方向へ降下するが、改ざんされた DOM が
 /// `aria-controls` を自身または祖先へ循環参照させた場合、封じ込め検査
 /// （`root.contains`）だけでは無限ループを止められない
@@ -1351,7 +1351,7 @@ pub enum SubmenuNav {
 /// ArrowLeft 以外のキーは `None`（no-op）。実際に展開・閉鎖できるか
 /// （trigger-item か・disabled か・サブメニューが解決できるか・チェーン
 /// 深さ 0 で ArrowLeft を受けていないか等）は配線層
-/// （[`wiring::handle_menu_or_select_trigger_keydown`]）が DOM 状態を見て
+/// （`wiring::handle_menu_or_select_trigger_keydown`）が DOM 状態を見て
 /// 判断する。本関数は「そもそもこのキーがサブメニュー操作の候補か」だけを
 /// 決定的に返す（モジュール doc §Menu/Select §サブメニュー参照）。
 #[must_use]
@@ -1439,7 +1439,7 @@ pub fn combobox_key_action(
 /// §NavigationMenu 参照）。
 ///
 /// trigger 間移動（[`tabs_next_index`] へ委譲）は含まない。配線層
-/// （[`wiring::handle_navigation_menu_trigger_keydown`]）が
+/// （`wiring::handle_navigation_menu_trigger_keydown`）が
 /// [`tabs_next_index`] を先に評価し、`None`（対象外のキー）のときのみ
 /// 本関数へフォールスルーする 2 段構成（Menubar の「トリガー間移動を先に
 /// 評価」順序規則と同型、モジュール doc 参照）。
@@ -1542,7 +1542,7 @@ pub fn navigation_menu_link_next_index(
 /// （`branch`/`item`）を表す純粋層メタデータ（web-sys 非依存、native
 /// `cargo test` 可。イシュー #1072、モジュール doc §TreeView 参照）。
 ///
-/// 配線層（[`wiring::read_tree_item_meta`]）が DOM 属性
+/// 配線層（`wiring::read_tree_item_meta`）が DOM 属性
 /// （`data-part`/`aria-expanded`/`disabled`・`data-disabled`/`data-depth`）
 /// から都度変換して構築し、[`tree_visible_flags`]/[`tree_key_action`] へ
 /// 渡す。`TreeView` 自身（`fandhe_frontend_interactive::Component`）は複製
@@ -1551,7 +1551,7 @@ pub fn navigation_menu_link_next_index(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TreeItemMeta {
     /// `data-depth`（0 起点）。パース失敗時のフォールバックは
-    /// [`wiring::read_tree_item_meta`] 参照。
+    /// `wiring::read_tree_item_meta` 参照。
     pub depth: usize,
     /// `data-part == "branch"` なら `true`（`"item"` なら `false`）。
     pub is_branch: bool,
@@ -1871,7 +1871,7 @@ pub fn splitter_key_action(
     }
 }
 
-/// [`radio_group_readonly_click_outcome`]（`wiring` モジュール、DOM 依存）が
+/// `radio_group_readonly_click_outcome`（`wiring` モジュール、DOM 依存）が
 /// 返す、readonly クリックに対して呼び出し側（capture/bubble リスナー）が
 /// 行うべき処理。
 ///
@@ -1957,7 +1957,7 @@ pub fn readonly_click_outcome(
     }
 }
 
-/// [`wiring::scroll_item_into_view_if_needed`] のスクロール量計算を web-sys
+/// `wiring::scroll_item_into_view_if_needed` のスクロール量計算を web-sys
 /// 非依存の純粋関数として切り出したもの（codex-review P1 是正、イシュー
 /// #2186）。`band_top`/`band_bottom` は実際にスクロール追随させたい可視領域
 /// （Select の sticky `scroll-up-button`/`scroll-down-button` がある場合は
@@ -1982,7 +1982,7 @@ pub fn scroll_delta_for_band(
     }
 }
 
-/// [`wiring::scroll_item_into_view_if_needed`] が [`scroll_delta_for_band`]
+/// `wiring::scroll_item_into_view_if_needed` が [`scroll_delta_for_band`]
 /// の結果（小数を含み得る `f64` の差分）を `Element::set_scroll_top`
 /// （整数 `i32` 引数）へ適用する直前に通す丸め関数（イシュー #2206）。
 ///

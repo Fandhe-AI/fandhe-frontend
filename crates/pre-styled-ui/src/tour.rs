@@ -101,7 +101,7 @@
 //! であり、動的値（`attrs`/children/`target`）へ CSS 値として流し込む経路
 //! を持たない（動的値は headless 層経由で `fandhe_frontend_core::render`
 //! の既定エスケープを必ず通る、REQ-1）。styled `root` は
-//! [`drop_class_attr`] により呼び出し側の `class` を除去してから合成する
+//! `drop_class_attr` により呼び出し側の `class` を除去してから合成する
 //! ため、`class` 属性は常に単一（[`crate::steps::root`] と同型）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
@@ -256,7 +256,7 @@
 //! - **`control` コンテナパートの styled ラッパ・専用 CSS**: ark-ui の
 //!   `Tour.Actions`（実 DOM は `data-part="control"`）に相当する anatomy が
 //!   イシュー #1666 で headless 層（[`Tour::control`]）へ追加されたが、
-//!   本クレートの styled ラッパ関数・[`SLOTS`]/[`recipe`] への追加は
+//!   本クレートの styled ラッパ関数・`SLOTS`/`recipe` への追加は
 //!   まだ行っていない（後続 Issue の領域、`.claude/rules/
 //!   out-of-scope-tracking.md` 対応）。`action-trigger` 自身の
 //!   `margin-inline-end` で並置時の間隔のみ確保し、右寄せ等のコンテナ配置は
@@ -769,7 +769,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`palette` に応じたクラスを付与する唯一
-/// のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// のパーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::tour::Tour::root`] へ
 /// 委譲する。
 #[must_use]

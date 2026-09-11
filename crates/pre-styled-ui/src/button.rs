@@ -39,7 +39,7 @@
 //! 付与する。`fandhe-frontend-headless-ui` に `button` に対応する部品は
 //! 存在しないため、本モジュール（pre-styled-only 部品）固有の語彙として
 //! 定義する（`docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 B）。
-//! 現在の recipe（[`recipe`]）はこの属性を `StateCondition` として参照
+//! 現在の recipe（`recipe`）はこの属性を `StateCondition` として参照
 //! しない（CSS 消費者なし）。AT 向けの読み上げ意味論は併記する
 //! `aria-busy="true"` が担い、`data-loading` は利用者側 CSS/JS が任意で
 //! フックするための存在表示に留まる。イシュー #1449 でこの判断を再確認
@@ -48,7 +48,7 @@
 //!
 //! # size スケール・icon-only・loading（イシュー #1449）
 //!
-//! [`recipe_with_scope`] の `size` variant（xs〜xl の 5 段）は
+//! `recipe_with_scope` の `size` variant（xs〜xl の 5 段）は
 //! [`crate::theme`] の `--fandhe-size-control-{height,padding-x,font-size}-*`
 //! トークン（イシュー #1678 で新設、3 系統 × 5 段）を参照する。button が
 //! このトークン系統の最初の消費者であり、縦方向は `height` トークンを
@@ -61,26 +61,26 @@
 //! 内容が固定高さを超えるとラベルがボタン外へあふれる不具合があった
 //! ため、ラベル付きボタン（[`button`]）は `min-height` へ変更し、内容が
 //! 下限を超える場合はボックス自体が自然に伸長するようにした。
-//! [`ButtonIcon::Only`] は子ノードが常にアイコン 1 個（固定サイズ・
+//! `ButtonIcon::Only` は子ノードが常にアイコン 1 個（固定サイズ・
 //! 折り返し要因なし、モジュール冒頭 rustdoc 参照）であり `min-height` の
 //! ままでは `aspect-ratio: 1 / 1` が確定サイズを得られず正方形を保証
-//! できないため、[`recipe`] が `icon`×`size` の compound variant として
+//! できないため、`recipe` が `icon`×`size` の compound variant として
 //! 5 段ぶんの確定 `height` を追加登録し、icon-only の場合のみ正方形を
 //! 復元する（正方形の成立条件は「icon-only 時の確定 `height` +
 //! `aspect-ratio: 1 / 1`」であり、padding では担わない。詳細は
-//! [`recipe`] rustdoc 参照）。[`ButtonIcon::Only`] の通常 variant は
+//! `recipe` rustdoc 参照）。`ButtonIcon::Only` の通常 variant は
 //! 5 段の均等 padding リテラルをやめて `padding: 0`
 //! （`aspect-ratio: 1 / 1` は不変）へ簡約したまま変更していない。
 //! `recipe_with_scope` を共有する [`crate::download_trigger`] にも同じ
 //! size 宣言（min-height/padding-x/font-size のトークン化）が波及する
 //! （意図的、golden テスト参照。icon×size の compound variant は
-//! [`recipe`]（button 専用の公開 API）にのみ追加するため download_trigger
+//! `recipe`（button 専用の公開 API）にのみ追加するため download_trigger
 //! へは波及しない）。
-//! [`assemble`] が埋め込む loading 中の Spinner サイズはボタンの `size`
+//! `assemble` が埋め込む loading 中の Spinner サイズはボタンの `size`
 //! から決定的に写像する（`xs`/`sm`/`md` → `Size::Sm`、`lg`/`xl` →
 //! `Size::Md`。ボタンの `font-size` に近い視覚サイズへ追随させるための
 //! 単純な 2 分割であり、Spinner 自体は 5 段の `size` 軸を持たないため
-//! 全段を写像先に持たない）。フォーカスリングは [`recipe_with_scope`] が
+//! 全段を写像先に持たない）。フォーカスリングは `recipe_with_scope` が
 //! `palette` 軸を公開する部品向けの canonical 形
 //! （[`focus_ring_declarations`]`(`[`FocusRingColor::Palette`]`,`
 //! [`FocusRingOffset::Outside`]`)`、`docs/design/
@@ -98,7 +98,7 @@
 //! 下限に収まり、ボックスの実高さが `min-height` の値そのものに固定される
 //! 場合（この場合のみ border-box が border/padding を内側へ収め、
 //! Outline/Solid の外寸が一致する）、または (2) 確定 `height` を持つ
-//! [`ButtonIcon::Only`]（icon-only）の場合に限られる。**この一致が保証
+//! `ButtonIcon::Only`（icon-only）の場合に限られる。**この一致が保証
 //! されない範囲（codex-review #1756 P2 指摘の是正）**: ラベルの内容が
 //! `min-height` の下限を超えると、ボックスは `min-height` に縛られず
 //! 内容 + padding + border の合計まで自然に伸長するため、border の有無
@@ -795,7 +795,7 @@ fn spinner_size_for(size: Size) -> Size {
 /// 参照サイト一次情報（実装時点で確認済み）:
 /// - chakra-ui の button recipe（`packages/react/src/theme/recipes/button.ts`）
 ///   の `_icon` 段は `xs`/`sm` → `4`（1rem）、`md`/`lg`/`xl` → `5`
-///   （1.25rem）。本リポジトリの [`crate::icon`] は `Size::Sm` = 1rem、
+///   （1.25rem）。本リポジトリの [`crate::icon`](mod@crate::icon) は `Size::Sm` = 1rem、
 ///   `Size::Md` = 1.25rem のトークンを持ち、この 2 値に完全一致する
 ///   （`2xs`/`2xl` は本リポジトリの 5 段語彙に無いため対応しない）。
 /// - Radix Themes `IconButton` はサイズ 1/2/3 に対しアイコンを
@@ -803,9 +803,9 @@ fn spinner_size_for(size: Size) -> Size {
 ///   `Size::Sm` に丸め、`Md`/`Lg`/`Xl` を `Size::Md` へまとめる非線形な
 ///   段階になっており、同じ「ボタンより控えめに拡大する」傾向を持つ。
 ///
-/// [`spinner_size_for`] と写像先が異なる（本関数は `Xs`/`Sm` のみを
+/// `spinner_size_for` と写像先が異なる（本関数は `Xs`/`Sm` のみを
 /// `Size::Sm` にまとめるが、`spinner_size_for` は `Xs`/`Sm`/`Md` を
-/// `Size::Sm` にまとめる）のは意図的: [`crate::spinner`] は `icon` と
+/// `Size::Sm` にまとめる）のは意図的: [`crate::spinner`](mod@crate::spinner) は `icon` と
 /// トークン尺度が異なる別部品であり（#1449 の等差外挿）、実寸が一致しない
 /// ため統合しない（イシュー #1674 スコープ外、将来 #1567 で再検討）。
 ///
