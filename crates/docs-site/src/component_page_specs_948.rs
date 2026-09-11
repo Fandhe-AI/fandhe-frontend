@@ -2484,11 +2484,112 @@ fn calendar_example() -> Node {
     )])
 }
 
+/// shadcn/ui の Calendar 例にある Today / Clear プリセット操作行を、
+/// 既存の `calendar` / `button`（pre-styled-ui）パーツの合成だけで再現する
+/// デモ（イシュー #2212、#2010/PR #2140 の積み残し対応）。
+///
+/// `calendar::root` の recipe は `display: inline-grid;
+/// grid-template-columns: auto 1fr auto` の 3 列固定で、`table` パーツは
+/// `grid-column: 1 / -1` を明示して越境させている（`crates/pre-styled-ui/
+/// src/calendar.rs` 参照）。本行も root の子として置く以上、同じ
+/// `grid-column: 1 / -1` を付けないと列 1（`auto` 幅）へ落ちて幅が
+/// 圧縮されヘッダー行とずれるため必須の宣言である。
+///
+/// ボタンは静的掲示のみで、`onclick` 等のハンドラ・状態を持たない
+/// （UI コンポーネント層の責務境界、`docs/policy/intentional-non-adoption.md`
+/// §3.25）。「今日へ移動」「選択解除」の実挙動はアプリケーション側
+/// （wasm 層）の配線であり、本ページはボタン行の見た目のみを示す。
+///
+/// 参照画像 `docs/design/reference-screenshots/shadcn-calendar-3.png` には
+/// プリセット行が写っていない（プレーンな月グリッドのみ）ため、構成は
+/// イシュー #2212 本文と shadcn/ui の一般的な Calendar 例に基づく。
+fn calendar_presets_example() -> Node {
+    use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
+
+    let today = PlainDate::new(2026, 7, 22).unwrap();
+    let selected = PlainDate::new(2026, 7, 15).unwrap();
+    let weekday_labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+    let header_row = calendar::table_row(
+        vec![],
+        weekday_labels
+            .iter()
+            .map(|l| calendar::table_head_cell(vec![], vec![text(*l)]))
+            .collect(),
+    );
+    let first_of_month = PlainDate::new(2026, 7, 1).unwrap();
+    let grid_start = first_of_month.add_days(-2).unwrap();
+    let body_rows: Vec<Node> = (0..5)
+        .map(|week| {
+            let cells: Vec<Node> = (0..7)
+                .map(|day| {
+                    let date = grid_start.add_days(week * 7 + day).unwrap();
+                    let is_selected = date == selected;
+                    let is_today = date == today;
+                    let is_outside = date.month() != 7 || date.year() != 2026;
+                    calendar::table_cell(
+                        is_selected,
+                        vec![],
+                        vec![calendar::day_trigger(
+                            date,
+                            is_selected,
+                            is_today,
+                            is_outside,
+                            false,
+                            None,
+                            vec![],
+                            vec![text(date.day().to_string())],
+                        )],
+                    )
+                })
+                .collect();
+            calendar::table_row(vec![], cells)
+        })
+        .collect();
+    let preset_button_props = ButtonProps {
+        variant: ButtonVariant::Outline,
+        size: Size::Sm,
+        ..Default::default()
+    };
+    let presets_row = div(
+        vec![(
+            "style",
+            "grid-column: 1 / -1; display: flex; gap: var(--fandhe-space-2); justify-content: flex-end;",
+        )],
+        vec![
+            button(&preset_button_props, vec![], vec![text("Today")]),
+            button(&preset_button_props, vec![], vec![text("Clear")]),
+        ],
+    );
+    row(vec![calendar::root(
+        Size::Md,
+        vec![],
+        vec![
+            calendar::heading(
+                Some("spec-2212-calendar-presets-heading"),
+                vec![],
+                vec![text("July 2026")],
+            ),
+            calendar::prev_trigger(false, vec![], vec![text("‹")]),
+            calendar::next_trigger(false, vec![], vec![text("›")]),
+            calendar::table(
+                Some("spec-2212-calendar-presets-heading"),
+                vec![],
+                vec![
+                    calendar::table_header(vec![], vec![header_row]),
+                    calendar::table_body(vec![], body_rows),
+                ],
+            ),
+            presets_row,
+        ],
+    )])
+}
+
 const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "role=\"grid\" の月グリッド静的掲示（headless-ui の Calendar に recipe CSS を適用）",
         "今日・選択日・表示月外セルの見た目を data-* 属性連動で区別する",
         "キーボードナビゲーション・クリック挙動は wasm 層のスコープ（本ページは SSR 静的表示）",
+        "Today / Clear のようなプリセット操作行は button 部品との合成で再現する（静的掲示、実挙動はアプリ側）",
     ],
     arguments: &[
         ArgRow {
@@ -2510,11 +2611,18 @@ const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
             description: "root 配下の子ノード（通常 Heading/Table を含む）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "2026-07 の月グリッド",
-        description: "週開始 Monday で、今日（07-22）・選択日（07-15）を固定表示します。",
-        render: calendar_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "2026-07 の月グリッド",
+            description: "週開始 Monday で、今日（07-22）・選択日（07-15）を固定表示します。",
+            render: calendar_example,
+        },
+        ExampleEntry {
+            title: "Today / Clear プリセットボタン行",
+            description: "月グリッドの下に button 部品（Outline・Sm）で Today / Clear のプリセット操作行を並べます。既存の calendar / button パーツの合成のみで再現でき、実際の「今日へ移動」「選択解除」の挙動はアプリケーション側（wasm 層）で配線します（本ページは静的表示）。",
+            render: calendar_presets_example,
+        },
+    ],
     keyboard: &[
         KeyRow {
             key: "ArrowLeft / ArrowRight / ArrowUp / ArrowDown",
