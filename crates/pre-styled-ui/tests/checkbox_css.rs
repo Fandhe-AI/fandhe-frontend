@@ -202,6 +202,10 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
   margin-bottom: 0;
 }
 
+[data-scope="checkbox"][data-part="label"][data-invalid] {
+  color: var(--fandhe-color-danger);
+}
+
 @media (hover: hover) {
   [data-scope="checkbox"][data-part="control"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
@@ -217,4 +221,14 @@ fn checkbox_stylesheet_matches_golden_fixture() {
 #[test]
 fn stylesheet_is_byte_identical_across_calls() {
     assert_eq!(checkbox::stylesheet(), checkbox::stylesheet());
+}
+
+/// イシュー #2159: `crate::field`（#2147）と同一根拠でラベル文字色を
+/// danger 化したことを golden とは独立に意図固定する（`field_css.rs::
+/// css_declares_invalid_label_color_and_error_list_layout` と同型）。
+#[test]
+fn checkbox_css_declares_invalid_label_color() {
+    let css = checkbox::stylesheet();
+    assert!(css.contains(r#"[data-scope="checkbox"][data-part="label"][data-invalid] {"#));
+    assert!(css.contains("color: var(--fandhe-color-danger);"));
 }
