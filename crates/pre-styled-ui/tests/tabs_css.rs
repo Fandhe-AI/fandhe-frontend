@@ -80,12 +80,33 @@
 //! selected trigger（`.fd-tabs--variant-enclosed[data-state="active"]`）へ
 //! `border: 1px solid CanvasText` を足す。方向（`data-orientation`）に
 //! 依存しない単一セレクタで水平・垂直双方をカバーする。
+//!
+//! # イシュー #2211 レビュー指摘是正による golden 更新
+//!
+//! `indicator` パーツ（本イシューで新設）は `base` の `border-bottom` 固定
+//! のみで、vertical tabs（`trigger`/`list`/`content` は `border-inline-end`
+//! へ切り替え済み）で下線の向きが矛盾する指摘を受け、
+//! `[data-part="indicator"][data-orientation="vertical"]` state
+//! （`border-bottom: 0`/`border-inline-end` 追加）を新設した。座標
+//! （`left`/`top`/`width`/`height`）は軸に関わらず実測値へ追従するため、
+//! この state が切り替えるのは装飾の向きのみ。
+//!
+//! # イシュー #2211 PR #2342 レビュー指摘是正（`box-sizing: border-box`）
+//!
+//! `--width`/`--height` は wasm-full 側が `getBoundingClientRect()` で
+//! 実測するボーダーボックス寸法だが、`indicator` の `base` は既定の
+//! `content-box` のままで、自身の `border-bottom`（垂直時は
+//! `border-inline-end`）の 2px が実測寸法へ加算描画され、trigger の外側
+//! へはみ出す位置ずれが生じていた（codex-review P1 / Cursor Bugbot 双方の
+//! 指摘）。`box-sizing: border-box` を追加し、実測値と表示寸法を一致
+//! させた。
 
 use fandhe_frontend_pre_styled_ui::tabs;
 
 const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   display: flex;
   gap: var(--fandhe-space-2);
+  position: relative;
   border-bottom: var(--fandhe-tabs-list-border-bottom, 1px solid var(--fandhe-color-border));
   background: var(--fandhe-tabs-list-background, transparent);
   border-radius: var(--fandhe-tabs-list-radius, 0);
@@ -120,6 +141,23 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
 [data-scope="tabs"][data-part="content"] {
   padding: var(--fandhe-tabs-content-padding, var(--fandhe-space-4) 0);
   color: var(--fandhe-color-fg);
+}
+
+[data-scope="tabs"][data-part="indicator"] {
+  position: absolute;
+  left: var(--left, 0px);
+  top: var(--top, 0px);
+  width: var(--width, 0px);
+  height: var(--height, 0px);
+  box-sizing: border-box;
+  border-bottom: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
+  pointer-events: none;
+}
+
+[data-scope="tabs"][data-part="indicator"] {
+  transition-property: left, top, width, height;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="tabs"][data-part="root"].fd-tabs--size-xs {
@@ -247,6 +285,15 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
   --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
+}
+
+[data-scope="tabs"][data-part="indicator"][data-state="inactive"] {
+  opacity: 0;
+}
+
+[data-scope="tabs"][data-part="indicator"][data-orientation="vertical"] {
+  border-bottom: 0;
+  border-inline-end: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
 [data-scope="tabs"][data-part="trigger"][data-state="active"] {

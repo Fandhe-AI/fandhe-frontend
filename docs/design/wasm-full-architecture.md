@@ -2530,3 +2530,152 @@ feature 一覧・移行手順の利用者向けドキュメント化と examples
 への「dist-server 最小構成」相互参照追記は #2330 でも行わない
 （wasm-full のバンプを伴うため。§16 の残件として引き続き Issue 化候補
 のまま残す）。
+
+## 37. `tabs_indicator` モジュール（イシュー #2211）
+
+### 37.1 背景・責務境界
+
+`fandhe-frontend-headless-ui` の `tabs`（#601）は `indicator` パーツを
+`TabsProps::indicator` で opt-in 出力できるが、SSR 時点では
+`style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"` という
+決定的な初期値のみを出力し、選択タブの実位置・実寸法の反映（Zag.js の
+`setIndicatorRect` 相当）は「wasm/CSR 層の後続責務」と明記している
+（`crates/headless-ui/src/tabs.rs` の `INDICATOR_STYLE_INITIAL` doc
+参照）。レイアウト計測は headless-ui へ持ち込まず wasm-full /
+pre-styled-ui の責務とする判断軸
+（`.claude/rules/coding-rust.md`・`docs/policy/intentional-non-adoption.md`
+§3.25 規則 2）に従い、本モジュールが wasm-full 側の実測・書き込みを
+担う。headless-ui 側の変更は一切伴わない（差分ゼロ）。
+
+`crate::content_height`（#2191、§28）と同じ 2 層構成を踏襲する:
+
+- 純粋層（`format_px`/`indicator_rect`/`Rect`）は web-sys に依存せず、
+  native の `cargo test` で検証できる。
+- 配線層（`wiring::sync_tabs_indicator`/
+  `wiring::sync_tabs_indicator_in_list`）のみ
+  `#[cfg(target_arch = "wasm32")]` でゲートする。
+
+### 37.2 書き込む CSS 変数は headless 契約の 4 変数のみ
+
+`--left`/`--top`/`--width`/`--height`（`INDICATOR_LEFT_VAR`/
+`INDICATOR_TOP_VAR`/`INDICATOR_WIDTH_VAR`/`INDICATOR_HEIGHT_VAR`）は
+headless-ui の `INDICATOR_STYLE_INITIAL` が既に公開済みの契約であり、
+`site/primitives/tabs.md` も利用者 CSS 例として掲載済みである。
+navigation-menu（#2187）が採った名前空間付き座標変数
+（`--fandhe-navigation-menu-indicator-x` 等）とは意図的に異なる判断で、
+tabs は #601 で Zag 同名の契約が headless 側に既に存在するため既存契約
+をそのまま再利用する（`crates/pre-styled-ui/src/tabs.rs`・
+`navigation_menu.rs` のモジュール doc にも同旨を記録する）。
+
+**レビュー指摘是正: vertical tabs での装飾の向き**。本モジュールが
+書き込むのは座標（`left`/`top`/`width`/`height`）の 4 変数のみで、
+`data-orientation="vertical"` でも実測値どおりに追従するため座標自体は
+正しく動く。一方 `crates/pre-styled-ui/src/tabs.rs` の `indicator` base
+装飾は当初 `border-bottom` 固定のみだったため、vertical tabs（`trigger`/
+`list`/`content` は `border-inline-end` へ切り替え済み）で「縦に並んだ
+trigger の中段に水平の下線が引かれる」矛盾した見た目になっていた。
+是正として `indicator[data-orientation="vertical"]` state
+（`border-bottom: 0`/`border-inline-end` 追加）を `tabs.rs` へ追加した
+（`crates/pre-styled-ui/tests/tabs_css.rs` golden 更新済み）。本モジュール
+（wasm-full 側）の変更は不要（座標書き込みは軸に依存しないため）。
+
+### 37.3 実測の数式・書き込み手段（CSSOM）
+
+`indicator` は `list` の padding box を包含ブロックとする絶対配置
+（`crates/pre-styled-ui/src/tabs.rs` の `list` base へ `position:
+relative` を追加）。`x = trigger.left − list.left − list.client_left +
+list.scroll_left`、`y` も同型、`width`/`height` は trigger のそれを
+そのまま使う。書き込み手段は `content_height`（§28.3）と同じ理由
+（利用者インライン宣言の破壊回避・CSP `style-src` 制約下での動作）で
+CSSOM（`HtmlElement::style().set_property`/`remove_property`）を用い、
+`set_attribute("style", ...)` 直書きは採らない。
+
+### 37.4 `hidden`・0px・未選択時の扱い
+
+`content_height` の「0 は焼き込まない」（§28.4）と同型の判断を採る:
+`width`/`height` が 0 以下（`display: none` 下等でレイアウト未確定）
+なら 4 変数への書き込みを一切行わず既存値を壊さない。選択中 trigger が
+`list` 内に見つからない場合は `data-state="inactive"`・`hidden` を設定
+し、4 変数は SSR 初期値のまま触らない。
+
+### 37.5 `crate::keynav`/`crate::headless::wire_headless_component` との統合
+
+- `sync_tabs_indicator` は `crate::keynav::wire_keynav` のマウント時
+  （初期同期）から呼ばれる。
+- `sync_tabs_indicator_in_list` は `crate::keynav` の `activate_tab`
+  （click 委譲・automatic activation の keydown の双方）呼び出し直後に
+  呼ばれる。manual activation の keydown（フォーカス移動のみで
+  `activate_tab` を呼ばない分岐）では呼ばれない（indicator は選択に
+  追従し、フォーカスには追従しないため）。
+- `sync_tabs_indicator` は `crate::headless::wire_headless_component`
+  の配線時先行同期・`on_update` 直後同期の 2 箇所からも呼ばれる
+  （再描画で indicator 要素が作り直され初期値 `0px` に戻る経路への
+  対処、`content_height` §28.5 と同じ統合パターン。順序は
+  `on_update → sync_content_height → sync_tabs_indicator` で固定する）。
+
+### 37.6 semver 判断
+
+新規公開モジュール `tabs_indicator`（`sync_tabs_indicator`/
+`sync_tabs_indicator_in_list` 他）の追加と `wire_headless_component`/
+`keynav` への非破壊的な内部統合（公開シグネチャ不変）のみのため、
+`fandhe-frontend-wasm-full` は 0.20.2 → 0.20.3 の patch バンプとする。
+`fandhe-frontend-pre-styled-ui` も `tabs` recipe への `indicator`
+base/state 純追加（新設パーツであり既存 `list` パーツへの `position:
+relative` 1 宣言追加を除き既存パーツの出力バイトは不変）のみのため
+0.183.3 → 0.183.4 の patch バンプとする。レビュー指摘是正（vertical
+tabs での indicator 下線の向き是正、37.2 節参照）で追加した
+`indicator[data-orientation="vertical"]` state も同じ新設パーツへの
+追加のため、バンプ判断・バージョン値は変わらない。
+
+### 37.7 契約テスト
+
+`crates/wasm-full/tests/tabs_indicator_browser.rs`（wasm32 ブラウザ実測、
+マウント時同期・click/automatic/manual 活性化・`indicator: false` の
+no-op を検証。レビュー指摘是正で「選択中 trigger が見つからない」・
+「`width`/`height` が 0 以下でレイアウト未確定」の 2 分岐と、
+`wire_headless_component` が実際に呼ぶ入口 [`sync_tabs_indicator`]
+（`wire_keynav` 経由の [`sync_tabs_indicator_in_list`] とは異なる
+`root` 走査経路）の直接契約テストを追加した）・
+`crates/pre-styled-ui/tests/tabs_indicator_var_drift.rs`
+（headless-ui の SSR 出力・wasm-full の定数と CSS 変数名が一致すること
+の native 突合）・`crates/pre-styled-ui/tests/tabs_css.rs`（golden CSS。
+`indicator[data-orientation="vertical"]` state を追加）が担う。
+
+### 37.8 PR #2342 レビュー指摘是正（codex-review P1 ×2・Cursor Bugbot）
+
+**指摘 1（表示位置ずれ、`crates/pre-styled-ui/src/tabs.rs`）**:
+`--width`/`--height` は wasm-full 側が `getBoundingClientRect()` で実測
+するボーダーボックス寸法だが、`indicator` の `base` は既定の
+`content-box` のままだったため、自身の `border-bottom`（垂直時は
+`border-inline-end`）2px が実測寸法へ加算描画され、trigger の外側へ
+はみ出す位置ずれが生じていた（水平で下端が最大 4px、垂直も右端が
+2px はみ出す計算）。`box-sizing: border-box` を追加し、実測値と表示
+寸法を一致させた。
+
+**指摘 2（ネストした tabs での indicator 欠落、`crates/wasm-full/
+src/keynav.rs::activate_tab`）**: 初期非表示のタブパネル内にネストした
+tabs がある場合、マウント時は内部 trigger の矩形が 0（`hidden` な祖先
+の下）で `sync_tabs_indicator` の実測がスキップされる（37.4 節の
+「0 は焼き込まない」仕様どおり）。その後、親タブをクリック/automatic
+activation でパネルを表示しても、`activate_tab` が呼ぶのは活性化した
+外側 `list` 自身の `sync_tabs_indicator_in_list` のみで、`content` 配下
+にネストした tabs までは再同期されず、内部 indicator が 0px のまま
+欠落したままになっていた。`activate_tab` の `content` を可視化する
+分岐（`hidden` 属性除去の直後）へ `sync_tabs_indicator(&content)`
+呼び出しを追加し、新たに表示された `content` 配下の indicator（ネスト
+の深さによらず全件、`sync_tabs_indicator` が `root` 配下を
+`query_selector_all` で全走査するため 1 回で足りる）を再同期するよう
+是正した。click（8115 行付近）・automatic activation の keydown
+（5499 行付近）は共通してこの `activate_tab` を呼ぶため、1 箇所の修正
+で両経路をカバーする。
+
+**semver**: 両クレートとも新規公開 API・シグネチャ変更を伴わない
+非破壊的変更のため patch バンプとし、`fandhe-frontend-wasm-full` は
+0.20.3 → 0.20.4、`fandhe-frontend-pre-styled-ui` は 0.183.4 → 0.183.5
+とした。
+
+**契約テスト**: `crates/wasm-full/tests/tabs_indicator_browser.rs` へ
+`nested_tabs_indicator_syncs_when_parent_panel_becomes_visible`（指摘 2
+の実ブラウザ回帰）を追加し、`crates/pre-styled-ui/tests/tabs_css.rs`
+の golden CSS を `box-sizing: border-box` 追加後の値へ更新した
+（指摘 1 は CSS 宣言追加のみで wasm-full 側のテストは不要）。

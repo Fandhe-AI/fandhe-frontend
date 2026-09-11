@@ -985,7 +985,9 @@ pub use wiring::{wire_headless_events, wire_headless_events_scoped};
 /// する（イシュー #2191。対象は `(data-scope, data-part)` の静的表のみで
 /// 決まる部品非依存の配線であり、`headless.rs` 側に collapsible/
 /// accordion 固有の分岐は持たない）。配線直後（初期表示）にも 1 回同じ
-/// 同期を行う。
+/// 同期を行う。同じ 2 箇所で `crate::tabs_indicator::sync_tabs_indicator`
+/// も呼び、tabs の `indicator` パーツの位置・寸法を CSS 変数へ同期する
+/// （イシュー #2211）。
 ///
 /// 同様に `crate::position::wiring::reposition_within` も呼び、popover /
 /// tooltip / menu / select の `positioner` へ実座標（`--fandhe-x`/
@@ -998,10 +1000,10 @@ pub use wiring::{wire_headless_events, wire_headless_events_scoped};
 /// `thread_local` 単一の `PositionController`（scroll/resize 契機の再計算）
 /// を遅延生成する）。この自動呼び出し 3 箇所は feature `position`
 /// （既定 on）でゲートする。`position` feature を off にすると
-/// `content_height` の同期のみ行われ、positioning の自動反映は行われない
-/// （`position` モジュール自体・公開 API はゲートしないため、利用者が
-/// 引き続き `PositionController` を明示的に組み立てて呼ぶことはできる。
-/// `docs/design/wasm-full-architecture.md` §34.2）。
+/// `content_height` / `tabs_indicator` の同期のみ行われ、positioning の
+/// 自動反映は行われない（`position` モジュール自体・公開 API はゲート
+/// しないため、利用者が引き続き `PositionController` を明示的に組み立てて
+/// 呼ぶことはできる。`docs/design/wasm-full-architecture.md` §34.2）。
 #[cfg(target_arch = "wasm32")]
 pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'static>(
     root: web_sys::Element,
@@ -1015,6 +1017,10 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
     // 先に確定させる（イシュー #2191。in-place 再開閉時の遷移始点を
     // 用意するための先行同期であり、`on_update` を経由しない）。
     let _ = crate::content_height::sync_content_height(&root);
+    // 配線時点の tabs indicator（イシュー #2211）の初期同期。再描画で
+    // indicator 要素が作り直され初期値 `0px` に戻る経路への対処
+    // （`crate::tabs_indicator` モジュール doc 参照）。
+    let _ = crate::tabs_indicator::sync_tabs_indicator(&root);
     // 配線時点で SSR 初期状態が open な positioner があれば実座標を
     // 先に確定させる（イシュー #2209、上記 doc 参照）。scroll/resize
     // 契機の継続的な再計算は `ensure_global_controller` が生成する
@@ -1048,6 +1054,10 @@ pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'stat
         // `content_height` モジュール doc「`wire_headless_component` との
         // 統合」節・上記 `wire_headless_component` doc 参照）。
         let _ = crate::content_height::sync_content_height(&wired_root);
+        // `on_update` で作り直された indicator 要素へ実測値を再同期する
+        // （イシュー #2211、順序は `on_update → sync_content_height →
+        // sync_tabs_indicator` で固定する）。
+        let _ = crate::tabs_indicator::sync_tabs_indicator(&wired_root);
         #[cfg(feature = "position")]
         crate::position::reposition_within(&wired_root);
     })
