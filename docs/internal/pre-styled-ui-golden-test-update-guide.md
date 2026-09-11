@@ -82,7 +82,10 @@ date_input / **dialog（イシュー #2193 で `close-trigger` の
 規則を追加）** / editable / **field（イシュー #1684 で golden 新設。
 イシュー #2199 で `group` slot の `container-type`/`container-name` 中間
 挿入・末尾 `@container` ブロックを純追加）** /
-**fieldset（イシュー #1686 で golden 新設）** /
+**fieldset（イシュー #1686 で golden 新設。イシュー #2214 で `root` の
+size variant 3 ブロックへ `--fandhe-fieldset-legend-label-font-size` を
+各 1 行中間挿入し、末尾へ `legend[data-variant="label"]` state ブロックを
+純追加）** /
 file_upload / floating_panel / highlight / hover_card /
 image_cropper / **input_group（イシュー #2063 で golden 新設。`stylesheet()` 全文）** /
 **item（イシュー #2066 で golden 新設。`stylesheet()` 全文）** /

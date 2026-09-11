@@ -589,7 +589,10 @@ fn field_extended_2185_parts_data_attrs_are_headless_sourced_not_self_emitted() 
 /// [`FieldsetProps`] の 2 フラグから生成するものであり、`fieldset::css()`
 /// はその属性を CSS セレクタとして**参照する**だけで自前出力はしない、
 /// という事実を固定する（`field_root_data_attrs_are_headless_sourced_not_self_emitted`
-/// と同型）。
+/// と同型）。`legend` の `data-variant`（[`fieldset::LegendVariant`]、
+/// イシュー #2214）も同じく headless
+/// `fandhe_frontend_headless_ui::fieldset::legend_with_variant` 出力であり
+/// 本テストの対象に含む。
 #[test]
 fn fieldset_root_data_attrs_are_headless_sourced_not_self_emitted() {
     fn fieldset_props(id: &str) -> FieldsetProps<'_> {
@@ -637,6 +640,63 @@ fn fieldset_root_data_attrs_are_headless_sourced_not_self_emitted() {
     let css = fieldset::css();
     assert!(css.contains("[data-disabled]"));
     assert!(!css.contains("[data-invalid]"));
+}
+
+/// `fieldset::legend` の `data-variant`（[`fieldset::LegendVariant`]、
+/// イシュー #2214）は headless
+/// `fandhe_frontend_headless_ui::fieldset::legend_with_variant` が出力する
+/// 語彙であり、styled `fieldset.rs` は `[data-variant="label"]` を CSS
+/// セレクタとして参照するのみで自前出力はしないことを固定する
+/// （`dialog_and_drawer_close_trigger_data_variant_is_headless_sourced`
+/// と同型）。
+#[test]
+fn fieldset_legend_data_variant_is_headless_sourced() {
+    fn fieldset_props(id: &str) -> FieldsetProps<'_> {
+        FieldsetProps {
+            id,
+            disabled: false,
+            invalid: false,
+            has_helper_text: false,
+        }
+    }
+    let f = fieldset_props("f");
+
+    // Legend/Label の双方を data-variant として出力する。
+    let legend_html = render(&fieldset::legend_with_variant(
+        fieldset::LegendVariant::Legend,
+        &f,
+        vec![],
+        vec![],
+    ));
+    assert!(legend_html.contains(r#"data-variant="legend""#));
+
+    let label_html = render(&fieldset::legend_with_variant(
+        fieldset::LegendVariant::Label,
+        &f,
+        vec![],
+        vec![],
+    ));
+    assert!(label_html.contains(r#"data-variant="label""#));
+
+    // 呼び出し側の data-variant 偽装は除去され、variant 引数の値のみが残る。
+    let spoofed_html = render(&fieldset::legend_with_variant(
+        fieldset::LegendVariant::Label,
+        &f,
+        vec![("data-variant", "legend")],
+        vec![],
+    ));
+    assert_eq!(spoofed_html.matches("data-variant").count(), 1);
+    assert!(spoofed_html.contains(r#"data-variant="label""#));
+
+    // 既存 legend（variant 引数なし）は data-variant を出力しない。
+    let legacy_html = render(&fieldset::legend(&f, vec![], vec![]));
+    assert!(!legacy_html.contains("data-variant"));
+
+    // `fieldset::css()` は `[data-variant="label"]` を参照するが
+    // `[data-variant="legend"]`（dead セレクタ）は参照しない。
+    let css = fieldset::css();
+    assert!(css.contains(r#"[data-variant="label"]"#));
+    assert!(!css.contains(r#"[data-variant="legend"]"#));
 }
 
 /// `input_group.rs`（イシュー #2063、親 #2061）は独自の `data-*` を一切

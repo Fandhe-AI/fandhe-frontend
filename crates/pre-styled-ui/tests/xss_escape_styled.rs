@@ -1058,6 +1058,49 @@ fn fieldset_root_and_reexported_parts_are_escaped_for_all_payloads() {
         let html = render(&fieldset::legend(&f, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "fieldset::legend children コンテキスト");
 
+        // legend_with_variant（イシュー #2214）: children・呼び出し側 attrs・
+        // data-variant 偽装（固定値のみが残ることも併せて確認）の各経路。
+        let f = fieldset_props("f");
+        let html = render(&fieldset::legend_with_variant(
+            fieldset::LegendVariant::Label,
+            &f,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset::legend_with_variant children コンテキスト",
+        );
+
+        let f = fieldset_props("f");
+        let html = render(&fieldset::legend_with_variant(
+            fieldset::LegendVariant::Label,
+            &f,
+            vec![("aria-label", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset::legend_with_variant attrs コンテキスト",
+        );
+
+        let f = fieldset_props("f");
+        let html = render(&fieldset::legend_with_variant(
+            fieldset::LegendVariant::Label,
+            &f,
+            vec![("data-variant", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "fieldset::legend_with_variant の data-variant 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("data-variant").count(), 1);
+        assert!(html.contains(r#"data-variant="label""#));
+
         let f = fieldset_props("f");
         let html = render(&fieldset::helper_text(&f, vec![], vec![text(payload)]));
         assert_payload_is_escaped(
