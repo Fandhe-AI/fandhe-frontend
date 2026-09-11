@@ -81,7 +81,9 @@ date_input / **dialog（イシュー #2193 で `close-trigger` の
 **drawer（イシュー #2193 で dialog と同様の `close-trigger` text variant
 規則を追加）** / editable / **field（イシュー #1684 で golden 新設。
 イシュー #2199 で `group` slot の `container-type`/`container-name` 中間
-挿入・末尾 `@container` ブロックを純追加）** /
+挿入・末尾 `@container` ブロックを純追加。イシュー #2160 で `helper-text`
+の horizontal/responsive 時 `text-wrap: balance` ブロック 2 個
+〔horizontal 用・`@container` 内 responsive 用〕を末尾へさらに純追加）** /
 **fieldset（イシュー #1686 で golden 新設。イシュー #2214 で `root` の
 size variant 3 ブロックへ `--fandhe-fieldset-legend-label-font-size` を
 各 1 行中間挿入し、末尾へ `legend[data-variant="label"]` state ブロックを

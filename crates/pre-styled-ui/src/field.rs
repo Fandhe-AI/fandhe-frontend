@@ -123,11 +123,6 @@
 //! - **choice card（label が checkbox/radio を包む形）**: [`crate::checkbox_card`]/
 //!   [`crate::radio_card`] が既に独立 anatomy として提供済みであり
 //!   `field.rs` 側の対応は不要（gap なし）。
-//! - **`helper-text` の `text-wrap: balance`（horizontal 時のみ）**: shadcn
-//!   は祖先の `orientation` を Tailwind `group-has` で参照するが、
-//!   [`SlotRecipe`] は同一 slot 内条件のみ表現可能なため、実現には
-//!   `list.rs` 型の手書き descendant セレクタ追記が必要。効果が視覚微調整
-//!   に留まる割に新規複雑化を伴うため不採用。
 //!
 //! ## 採用したもの（イシュー #2185、上記「見送ったもの」からの是正）
 //!
@@ -183,6 +178,49 @@
 //! 既存の `Vertical`/`Horizontal` と同じくクラス
 //! `fd-field--orientation-responsive` として語彙化した（PR 本文にこの読み
 //! 替えを明記する）。
+//!
+//! ## `helper-text` の `text-wrap: balance`（イシュー #2160、上記
+//! 「見送ったもの」からの是正）
+//!
+//! 上記「見送ったもの」節はかつて「実現には `list.rs` 型の手書き
+//! descendant セレクタ追記が必要」を理由に不採用としていたが、その追記
+//! 手段自体は shadcn/ui 突合（イシュー #2014）で `error-text > ul` の
+//! リスト整形として既に実装済みであり、技術的障壁は解消していた。加えて
+//! 2026-09-07 のユーザー判断で shadcn/ui が pre-styled-ui の主基準の 1 つへ
+//! 格上げされ（`docs/design/shadcn-reference-adoption-policy.md` §8）、
+//! 「新規追加分は shadcn の値を採ってよい」が確定したため、本イシューで
+//! 採用へ転じた。
+//!
+//! 参照競合の判定: field の helper-text（horizontal 時の折り返し）は
+//! shadcn-ui の値（`text-wrap: balance`）を採る。理由: chakra-ui v3
+//! `field` recipe の `helperText` slot（`color: fg.muted`/`textStyle: sm`
+//! 程度）には `text-wrap` 指定がなく、Radix Themes は Field 相当の部品を
+//! 持たないため、いずれとも競合しない。既存 variant の CSS 出力は
+//! バイト同一のまま末尾への純追加で実現でき、未対応ブラウザでは宣言が
+//! 無効値として破棄されるだけで劣化しない（`text-wrap: balance` は
+//! Baseline 2024 相当、Chromium 114+/Firefox 121+/Safari 17.5+）。
+//!
+//! 実装は shadcn の `group-has-[[data-orientation=horizontal]]/field`
+//! （祖先条件）を、本モジュールの語彙へ 2 点読み替えて表す:
+//!
+//! - **`data-orientation` は使わない**: headless `field::root` は
+//!   `data-orientation` を意図的に持たず、本モジュールも独自 `data-*`
+//!   を出力しない契約のため、上記「`orientation="responsive"`」節と同じ
+//!   クラス `fd-field--orientation-horizontal`/
+//!   `fd-field--orientation-responsive` を条件に使う。
+//! - **結合子は子孫（空白）**: `helper-text` は `content` の内側に置かれ
+//!   得る（上記「採用したもの（イシュー #2185）」節）ため `root` の直下
+//!   とは限らない。shadcn の祖先条件も子結合子ではないため、この点は
+//!   読み替えではなく shadcn 自身の構造と一致する。
+//!
+//! [`SlotRecipe`] の `state()`/`container_variant()` は同一 slot 内条件
+//! のみ表現できるため、`error-text > ul` と同型の直接追記（[`css`] 末尾へ
+//! 静的 CSS 文字列を連結）で表す。`responsive`（[`FieldOrientation::
+//! Responsive`]）も対象に含める: rustdoc・docs-site 原稿はいずれも
+//! `responsive` を「`group` container が 448px 以上で `horizontal` と同じ」
+//! と定義しており、horizontal のみへ追加すると記述が事実と食い違うため
+//! （`@container fd-field-group (min-width: 448px)` の内側に同一宣言の
+//! `.fd-field--orientation-responsive` 版を静的追記する）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -484,11 +522,13 @@ fn recipe() -> SlotRecipe {
 /// この styled Field が生成する静的 CSS 全量を返す（決定的。
 /// [`crate::input::css`] と同じ契約）。
 ///
-/// [`SlotRecipe`] の `state()` は同一 slot 内の属性条件のみを表現でき、
-/// `error-text` の子 `<ul>` へのネストセレクタは表現できないため、
-/// `list.rs` と同型の直接追記（recipe 出力の末尾に静的 CSS 文字列を
-/// 連結）で表す（shadcn/ui 突合、イシュー #2014。モジュール doc
-/// 「shadcn/ui 突合」節参照）。
+/// [`SlotRecipe`] の `state()`/`container_variant()` は同一 slot 内条件
+/// しか表現できず、`helper-text`（子孫）や `error-text` の子 `<ul>` への
+/// ネストセレクタは表現できないため、`list.rs` と同型の直接追記（recipe
+/// 出力の末尾に静的 CSS 文字列を連結）で表す静的追記が 2 種ある
+/// （shadcn/ui 突合、イシュー #2014/#2160。モジュール doc「shadcn/ui
+/// 突合」節参照）: (1) `error-text > ul` のリスト整形、(2) `helper-text`
+/// の horizontal/responsive 時 `text-wrap: balance`。
 #[must_use]
 pub fn css() -> String {
     let mut out = recipe().css();
@@ -507,6 +547,24 @@ pub fn css() -> String {
          list-style: disc;\n}\n\
          [data-scope=\"field\"][data-part=\"error-text\"] > ul > li + li {\n  \
          margin-top: var(--fandhe-space-1);\n}\n",
+    );
+    out.push_str(
+        // shadcn `FieldDescription` の `group-has-[[data-orientation=horizontal]]/field`
+        // 相当（イシュー #2160）。`data-orientation` は本モジュールの語彙に
+        // 存在しないためクラス条件（`fd-field--orientation-horizontal`/
+        // `-responsive`）へ読み替える。`helper-text` は `content` の内側
+        // （イシュー #2185）に置かれ得るため子結合子ではなく子孫結合子を
+        // 使う。未対応ブラウザでは `text-wrap: balance` が無効値として
+        // 破棄されるだけで無害（Baseline 2024 相当）。`responsive` も
+        // 対象に含める（モジュール doc「`helper-text` の `text-wrap:
+        // balance`」節参照）。
+        "[data-scope=\"field\"][data-part=\"root\"].fd-field--orientation-horizontal \
+         [data-scope=\"field\"][data-part=\"helper-text\"] {\n  \
+         text-wrap: balance;\n}\n\
+         @container fd-field-group (min-width: 448px) {\n  \
+         [data-scope=\"field\"][data-part=\"root\"].fd-field--orientation-responsive \
+         [data-scope=\"field\"][data-part=\"helper-text\"] {\n    \
+         text-wrap: balance;\n  }\n}\n",
     );
     out
 }
