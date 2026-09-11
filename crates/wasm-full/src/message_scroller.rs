@@ -630,12 +630,18 @@ mod wiring {
         };
 
         if let Some(jump) = closest_matching(root, &target_element, PART_JUMP_TO_LATEST) {
-            if has_disabled_ancestor(&jump, &target_element, false) {
-                return;
-            }
             let Some(instance_root) = closest_matching(root, &jump, PART_ROOT) else {
                 return;
             };
+            // codex-review 指摘（PR #2312）: 境界に `jump` 自身を渡すと、
+            // インスタンス root や root と jump の間にあるラッパーへ
+            // `data-disabled` が付いていても無効化を見逃す（load-more と
+            // 挙動が不一致になる）。load-more 側（下記）と同じく、まず
+            // instance root を解決してからそれを境界にクリック対象からの
+            // 無効化祖先を判定する。
+            if has_disabled_ancestor(&instance_root, &target_element, false) {
+                return;
+            }
             for viewport in scoped_parts(&instance_root, VIEWPORT_SELECTOR) {
                 scroll_viewport_to_bottom(&viewport);
                 upsert_snapshot(snapshots, &viewport);

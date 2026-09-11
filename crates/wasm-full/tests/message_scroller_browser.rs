@@ -358,6 +358,48 @@ async fn jump_to_latest_click_is_noop_when_disabled_ancestor() {
     );
 }
 
+/// codex-review 指摘（PR #2312、`message_scroller.rs:633`）の回帰テスト:
+/// `data-disabled` が `jump` 自身ではなくインスタンス root（または root と
+/// `jump` の間のラッパー）に付いている場合でも、load-more と同じく
+/// クリックは no-op であるべき（`handle_click` の境界解決を `jump` から
+/// `instance_root` へ変更した修正の検証）。
+#[wasm_bindgen_test]
+async fn jump_to_latest_click_is_noop_when_instance_root_disabled() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "ms-jump-root-disabled-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let node = build_message_scroller("ms-5-root-disabled", HeadlessStuck::Bottom, &[60, 60, 60]);
+    let instance_root = mount(&container, &node);
+    let viewport = find_viewport(&instance_root);
+
+    wire_message_scroller_events(instance_root.clone(), |_action_ref: ActionRef| {})
+        .expect("wire_message_scroller_events must not fail");
+
+    simulate_user_scroll(&viewport, 0);
+    wait_for(|| instance_root.get_attribute("data-stuck").as_deref() == Some("free")).await;
+    assert_eq!(
+        instance_root.get_attribute("data-stuck").as_deref(),
+        Some("free")
+    );
+
+    // `jump` 自身ではなく instance root へ `data-disabled` を付与する
+    // （旧実装は境界に `jump` を渡していたため、この位置の祖先を見逃す）。
+    instance_root
+        .set_attribute("data-disabled", "")
+        .expect("set_attribute must not fail");
+
+    let jump = find_jump_to_latest(&instance_root);
+    dispatch_click(&jump);
+
+    assert_eq!(
+        instance_root.get_attribute("data-stuck").as_deref(),
+        Some("free"),
+        "instance root に data-disabled がある場合の jump-to-latest クリックは no-op であること"
+    );
+}
+
 // --- 新着検知 ---
 
 /// 空リスト（`content` 配下に既存の子ノードが無い状態）への初回追加は、
