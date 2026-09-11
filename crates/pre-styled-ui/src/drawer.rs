@@ -182,6 +182,10 @@
 //! # shadcn/ui との突合（イシュー #2031、親 #2025。4 本目の参照軸として
 //! `shadcn-reference-adoption-policy.md` §2 が定める「補完参照」原則の適用）
 //!
+//! 2026-09-07 のユーザー判断〔イシュー #2153、同文書 §8〕で shadcn/ui は
+//! chakra-ui / Radix Themes と並ぶ主基準の 1 つへ改訂されたが、本節の
+//! 判断内容は改訂後も不変。
+//!
 //! shadcn/ui の `Sheet`（4 方向パネル）・`Drawer`（vaul ベースの bottom
 //! sheet）と本モジュールの既存実装を突合した結果は以下のとおり。参照
 //! スクリーンショット（`docs/design/reference-screenshots/shadcn-sheet-*.png`

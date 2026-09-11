@@ -90,7 +90,11 @@
 //!
 //! ルート #2001 の Phase 0 適用原則に従い、shadcn/ui の Carousel
 //! （<https://ui.shadcn.com/docs/components/base/carousel>、Embla Carousel
-//! ベース）を補完参照として突合した。#1518（chakra-ui/ark-ui 基準）の
+//! ベース）を補完参照〔イシュー #2028 時点の位置づけ。2026-09-07 のユーザー
+//! 判断〔イシュー #2153、`docs/design/shadcn-reference-adoption-policy.md`
+//! §8〕で shadcn/ui は chakra-ui / Radix Themes と並ぶ主基準の 1 つへ
+//! 改訂されたが、本節の判断内容は改訂後も不変〕として突合した。#1518
+//! （chakra-ui/ark-ui 基準）の
 //! 判断を置き換えるものではなく、そこで拾えなかった欠落のみを補う。
 //!
 //! - **補完した点（唯一の実コード変更）**: shadcn の Sizes 例

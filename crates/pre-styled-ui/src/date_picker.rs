@@ -168,7 +168,10 @@
 //! 1 部品として、shadcn/ui date-picker
 //! (<https://ui.shadcn.com/docs/components/base/date-picker>) と突合した。
 //! shadcn/ui は補完参照であり主基準（chakra-ui / Radix Themes）の視覚言語を
-//! 置き換えない（#2002 で確定済みの適用原則）。
+//! 置き換えない（#2002 で確定済みの適用原則。2026-09-07 のユーザー判断
+//! 〔イシュー #2153、`docs/design/shadcn-reference-adoption-policy.md`
+//! §8〕で shadcn/ui は主基準の 1 つへ改訂されたが、この判断は改訂後も
+//! 不変）。
 //!
 //! - **是正した項目**: 上記イシュー #1471 の記述のとおり、headless-ui
 //!   0.41.0（#1627）以降が全 6 パーツへ出す `data-invalid`/`data-readonly`

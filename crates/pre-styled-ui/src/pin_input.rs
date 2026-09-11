@@ -130,7 +130,10 @@
 //! shadcn/ui の Input OTP（`InputOTPGroup`/`InputOTPSeparator`）を
 //! **補完参照**（親トラッキング #2001 Phase 0 で確定した適用原則: 主基準は
 //! chakra-ui / Radix Themes のまま、shadcn は欠落バリアント・状態・合成
-//! パターンの補完のみに用いる）として突合し、以下を補完した。
+//! パターンの補完のみに用いる。2026-09-07 のユーザー判断〔イシュー #2153、
+//! `docs/design/shadcn-reference-adoption-policy.md` §8〕で shadcn/ui は
+//! 主基準の 1 つへ改訂されたが、この判断は改訂後も不変）として突合し、
+//! 以下を補完した。
 //!
 //! - **追加**: [`separator`]（pre-styled-only パート、下記「`separator`
 //!   パート」節参照）。桁グループ（例: 3-3 の 6 桁）の間に視覚区切りを

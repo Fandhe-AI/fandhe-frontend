@@ -37,6 +37,14 @@ find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename 
   | grep -vE '^(themes|primitives|blocks)-[a-z0-9-]+\.png$' \
   | grep -vE '^(README|SOURCES|THIRD_PARTY_NOTICES)\.md$'
 # 空出力なら PASS（2026-08-30 時点の 703 枚全件、2026-09-07 の shadcn 215 枚追加後の全件、2026-09-11 時点のトップレベル 923 枚〔blocks 5 枚含む〕で確認済み）
+
+# (3) `after/` 配下がローカル側の命名規約（トップレベルと同一の正規表現。二重定義を避けるため
+#     (2) の `(themes|primitives|blocks)` パターンをそのまま再利用する）に一致し、
+#     さらに入れ子のサブディレクトリを持たないこと
+find docs/design/reference-screenshots/after -mindepth 1 -type d
+find docs/design/reference-screenshots/after -maxdepth 1 -type f -exec basename {} \; \
+  | grep -vE '^(themes|primitives|blocks)-[a-z0-9-]+\.png$'
+# 2 コマンドとも空出力なら PASS
 ```
 
 `find` でディレクトリツリー全体を列挙するため、`ls '*.png'` 限定と異なり
@@ -44,6 +52,8 @@ find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename 
 ファイルの混入も検出できる。正規表現は single quote 内でバックスラッシュ
 1 個（`\.png$`）を使い、ERE の「バックスラッシュ＋任意文字」誤解釈を避ける
 （ドットをリテラルとしてエスケープする正しい記法）。
+(3) は (1)(2) が対象外とする `after/` 配下の命名規約適合・入れ子ディレクトリ
+非存在を担う（正規表現をトップレベルと共有し、二重定義しない）。
 
 `shadcn-*.png` の適用方針（補完参照。既存部品の視覚言語は chakra-ui / Radix
 Themes 基準を維持し、shadcn/ui は欠落バリアント・合成パターンの補完にのみ
@@ -70,25 +80,44 @@ Themes 基準を維持し、shadcn/ui は欠落バリアント・合成パター
 - 各サイトの MIT ライセンス帰属表示（本 README の帰属表・`THIRD_PARTY_NOTICES.md`）を維持する
 - 用途は本リポジトリの UI 部品との視覚比較（設計資料）に限る。それ以外の目的（宣伝・独立した二次配布等）での利用は想定しない
 
-## `after/` ディレクトリ（Phase 2 実装後スクショ、イシュー #1420 系）
+## `after/` ディレクトリ（実装後スクショ。Phase 2 #1420 系・#2001 ツリー #2098）
 
-`after/themes-<kebab>.png` は、ルート issue #1420 の Phase 2（button / checkbox /
-checkbox-group のスタイル調整、PR #1730・#1731・#1734・#1735・#1738・#1739）
-マージ後に `make docs` で再ビルドした docs サイトを、base path `/fandhe-frontend/`
-を含む静的サーバ（`site/nav.toml` が絶対パスでアセットを参照するため、dist を
-直接ルート配信すると CSS 404 でスタイル未適用になる。`python3 -m http.server` で
-`dist` を `fandhe-frontend` という名前のディレクトリ配下に見せる、またはリバース
-プロキシで `/fandhe-frontend/` プレフィックスを付与して配信する）から撮影した
-実装後のローカルスクショである（撮影日 2026-09-01、撮影コミット
+`after/` は、実装後の docs サイトを撮影したスクリーンショットを置く意図的な
+例外ディレクトリである（本ディレクトリはフラット配置が原則、上記「命名・配置
+規約」）。ファイル名は **`after/<layer>-<kebab>.png`**（`layer` は `themes` /
+`primitives` / `blocks`。命名規約・正規表現はトップレベルのローカル側と同一で、
+`after/` 用に別定義は持たない）とする。
+
+トップレベルと `after/` とで撮影対象（Demo 領域限定かフルページか）が層ごとに
+反転しており混同しやすいため、以下に明示する。
+
+| プレフィックス | トップレベル（`docs/design/reference-screenshots/<file>.png`） | `after/<file>.png` |
+|---|---|---|
+| `themes-` / `primitives-` | 各部品ページの Demo 領域のみのクロップ | 各部品ページの**フルページ** |
+| `blocks-` | `/blocks/<kebab>/` の**フルページ**（合成部品ページのため） | `## Demo` 節のラッパ `div.blocks-demo`（`crate::blocks::DEMO_CLASS = "blocks-demo"`、`crates/docs-site/src/blocks/mod.rs`）の要素スクリーンショット（全幅 Demo 領域のみ）。合成部品の比較には Demo 領域で足り、フルページ撮影は上記「サイズ方針」の 1 枚あたり 500 KB 上限を超えやすいためトップレベルと逆に領域限定とする |
+
+いずれの層も、撮影条件（base path `/fandhe-frontend/` 付き静的サーバ配信・
+viewport 1280 幅・ライトテーマ・写り込み注意）は下記の Phase 2 実績と同一とする。
+
+**Phase 2（イシュー #1420 系）の既存 3 枚の経緯**: `after/themes-<kebab>.png` 3 枚
+は、ルート issue #1420 の Phase 2（button / checkbox / checkbox-group のスタイル
+調整、PR #1730・#1731・#1734・#1735・#1738・#1739）マージ後に `make docs` で
+再ビルドした docs サイトを、base path `/fandhe-frontend/` を含む静的サーバ
+（`site/nav.toml` が絶対パスでアセットを参照するため、dist を直接ルート配信する
+と CSS 404 でスタイル未適用になる。`python3 -m http.server` で `dist` を
+`fandhe-frontend` という名前のディレクトリ配下に見せる、またはリバースプロキシ
+で `/fandhe-frontend/` プレフィックスを付与して配信する）から撮影した実装後の
+ローカルスクショである（撮影日 2026-09-01、撮影コミット
 `chore/phase2-after-screenshots` ブランチのマージコミット、viewport 1280 幅・
-ライトテーマ）。トップレベルの `themes-<kebab>.png`（実装前・Demo 領域のみの
-クロップ）と異なり、`after/` 配下は各部品ページの**フルページ**スクショである。
-本ディレクトリはフラット配置が原則（上記「命名・配置規約」）だが、`after/` は
-スタイル調整前後の比較を issue コメントに残す受け入れ条件（各子 issue の受け入れ
-条件参照）専用の意図的な例外ディレクトリであり、上記の自己検証コマンド
-（サブディレクトリ非存在チェック）は `after/` を対象外とする。
+ライトテーマ）。
 
-`after/` 配下は現状 Phase 2（イシュー #1420 系）の 3 枚のみであり、#2001 ツリー（shadcn/ui 突合）で新設・変更された部品の実装後スクショは含まない。`after/` 配下への追加取得は #2098 が担う。
+(1) は `after/` を除外するが、`after/` 配下の命名規約適合・入れ子ディレクトリ
+非存在は上記自己検証コマンドの (3) が検証する。
+
+`after/` 配下は現状 Phase 2（イシュー #1420 系）の 3 枚のみであり、#2001 ツリー
+（shadcn/ui 突合）で新設・変更された部品・block の実装後スクショは含まない。
+`after/` 配下への追加取得は #2098 が担い、追加後も (3) が空出力を返すことで
+命名規約への適合を確認できる。
 
 ## issue への貼り付け手順（raw URL）
 
