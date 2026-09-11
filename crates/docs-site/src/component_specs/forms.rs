@@ -2292,7 +2292,11 @@ fn slider_vertical_markers_example() -> Node {
         &props,
         vec![],
         vec![
-            slider::label(&props, vec![], vec![text("Brightness")]),
+            slider::label(
+                &props,
+                vec![("id", "slider-vertical-markers-demo-label")],
+                vec![text("Brightness")],
+            ),
             slider::control(
                 Orientation::Vertical,
                 &props,
@@ -2304,7 +2308,12 @@ fn slider_vertical_markers_example() -> Node {
                         vec![],
                         vec![slider::range(&state, &props, vec![])],
                     ),
-                    slider::thumb_styled(&state, Some("25 percent"), &props, vec![]),
+                    slider::thumb_styled(
+                        &state,
+                        Some("25 percent"),
+                        &props,
+                        vec![("aria-labelledby", "slider-vertical-markers-demo-label")],
+                    ),
                     slider::marker_group(
                         vec![],
                         vec![

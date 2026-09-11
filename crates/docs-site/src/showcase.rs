@@ -7797,7 +7797,11 @@ fn slider_section() -> Node {
         &vertical_props,
         vec![],
         vec![
-            slider::label(&vertical_props, vec![], vec![text("Vertical")]),
+            slider::label(
+                &vertical_props,
+                vec![("id", "showcase-slider-vertical-label")],
+                vec![text("Vertical")],
+            ),
             slider::control(
                 Orientation::Vertical,
                 &vertical_props,
@@ -7813,7 +7817,7 @@ fn slider_section() -> Node {
                         &vertical_state,
                         Some("40 percent"),
                         &vertical_props,
-                        vec![],
+                        vec![("aria-labelledby", "showcase-slider-vertical-label")],
                     ),
                     slider::marker_group(
                         vec![],
