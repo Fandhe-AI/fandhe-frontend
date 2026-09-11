@@ -176,7 +176,10 @@
 //!
 //! [shadcn/ui Checkbox](https://ui.shadcn.com/docs/components/base/checkbox)
 //! を補完参照（#2135 で確定した適用原則。既存の視覚言語を shadcn 風へ
-//! 置き換えることは目的としない）として突合した結果、`recipe()`/CSS 出力に
+//! 置き換えることは目的としない。2026-09-07 のユーザー判断〔イシュー #2153、
+//! `docs/design/shadcn-reference-adoption-policy.md` §8〕で shadcn/ui は
+//! chakra-ui / Radix Themes と並ぶ主基準の 1 つへ改訂されたが、本節の
+//! 判断内容は改訂後も不変）として突合した結果、`recipe()`/CSS 出力に
 //! 実体変更は不要と判断した。以下、確認した 4 項目を記録する。
 //!
 //! - **indeterminate の視覚表現**: shadcn の Examples に indeterminate 単独の

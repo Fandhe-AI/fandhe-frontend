@@ -60,7 +60,10 @@
 //!
 //! # shadcn/ui（Base UI）突合（イシュー #2029）
 //!
-//! shadcn/ui（補完参照、`docs/design/shadcn-reference-adoption-policy.md`）の
+//! shadcn/ui（補完参照〔イシュー #2029 時点の位置づけ。2026-09-07 のユーザー
+//! 判断〔イシュー #2153、`docs/design/shadcn-reference-adoption-policy.md`
+//! §8〕で shadcn/ui は chakra-ui / Radix Themes と並ぶ主基準の 1 つへ
+//! 改訂されたが、本節の判断内容は改訂後も不変〕）の
 //! Collapsible（<https://ui.shadcn.com/docs/components/base/collapsible>、
 //! Base UI ベース）と突合した。掲載 Example は Basic（chevron 付きトリガーと
 //! カード）・Settings Panel（複数フォームフィールドの開閉）・File Tree

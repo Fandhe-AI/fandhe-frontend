@@ -56,7 +56,10 @@
 //!
 //! # shadcn/ui 突合（イシュー #2015）
 //!
-//! shadcn/ui（補完参照、`docs/design/shadcn-reference-adoption-policy.md`）と
+//! shadcn/ui（補完参照〔イシュー #2015 時点の位置づけ。2026-09-07 のユーザー
+//! 判断〔イシュー #2153、`docs/design/shadcn-reference-adoption-policy.md`
+//! §8〕で shadcn/ui は chakra-ui / Radix Themes と並ぶ主基準の 1 つへ
+//! 改訂されたが、本節の判断内容は改訂後も不変〕）と
 //! 突合し、以下はいずれも意図的に非採用と判定した。
 //!
 //! - **file input のボタン装飾（意図的非採用）**: shadcn は

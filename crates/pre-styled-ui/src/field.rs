@@ -67,7 +67,9 @@
 //! `FieldContent`/`FieldLabel`/`FieldTitle`/`FieldDescription`/
 //! `FieldSeparator`/`FieldError` の 10 サブコンポーネント）を**補完参照**
 //! として突合した（#2001 Phase 0 の適用原則: shadcn/ui の視覚言語へ置き換
-//! えることは目的としない）。
+//! えることは目的としない。2026-09-07 のユーザー判断〔イシュー #2153、
+//! `docs/design/shadcn-reference-adoption-policy.md` §8〕で shadcn/ui は
+//! 主基準の 1 つへ改訂されたが、この判断は改訂後も不変）。
 //!
 //! ## 採用したもの
 //!

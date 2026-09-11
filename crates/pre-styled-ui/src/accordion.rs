@@ -92,7 +92,11 @@
 //!
 //! # shadcn/ui 突合（イシュー #2026）
 //!
-//! shadcn/ui（補完参照、`docs/design/shadcn-reference-adoption-policy.md`）の
+//! shadcn/ui（補完参照〔イシュー #2026 時点の位置づけ。2026-09-07 のユーザー
+//! 判断〔イシュー #2153、`docs/design/shadcn-reference-adoption-policy.md`
+//! §8〕で shadcn/ui は chakra-ui / Radix Themes と並ぶ主基準の 1 つへ
+//! 改訂されたが、本節の判断内容は改訂後も不変〔既存 variant の CSS 出力を
+//! 変えない純追加原則、§8 第 3 項も同じ〕〕）の
 //! Accordion（<https://ui.shadcn.com/docs/components/base/accordion>）と
 //! 突合した。以下は意図的に合わせない:
 //!

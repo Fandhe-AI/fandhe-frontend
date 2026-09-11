@@ -57,7 +57,10 @@
 //!
 //! [shadcn/ui Native Select](https://ui.shadcn.com/docs/components/base/native-select)
 //! を補完参照（ルート #2001 Phase 0 で確定の適用原則。既存の視覚言語を
-//! shadcn 風へ置き換えることは目的としない）として突合した結果、
+//! shadcn 風へ置き換えることは目的としない。2026-09-07 のユーザー判断
+//! 〔イシュー #2153、`docs/design/shadcn-reference-adoption-policy.md`
+//! §8〕で shadcn/ui は主基準の 1 つへ改訂されたが、この判断は改訂後も
+//! 不変）として突合した結果、
 //! `recipe()`/CSS 出力に実体変更は不要と判断した。以下、確認した項目を
 //! 記録する。
 //!
@@ -79,7 +82,8 @@
 //! - **chevron アイコンのラッパー表現（意図的非採用の再確認）**: 本
 //!   モジュール冒頭「ネイティブ矢印を維持する」設計判断（`appearance:
 //!   none` 不使用）を変更しない。shadcn は補完参照であり、確定済みの
-//!   視覚言語を上書きしない（Phase 0 原則）。
+//!   視覚言語を上書きしない（Phase 0 原則。#2153 改訂後も上書きしない判断は
+//!   不変）。
 //! - **`optgroup`（是正、コード変更なし）**: headless
 //!   `field::select`（[`fandhe_frontend_headless_ui::field::select`]）は
 //!   `children: Vec<Node>` をそのまま透過するため、呼び出し側が
