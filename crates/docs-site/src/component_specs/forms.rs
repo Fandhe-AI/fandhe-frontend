@@ -57,6 +57,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
     AngleSlider, AngleSliderProps,
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldProps, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::fieldset::{
     self, FieldsetProps, FieldsetRootProps, LegendVariant,
@@ -71,10 +72,11 @@ use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::radio_group;
 use fandhe_frontend_pre_styled_ui::radio_group::RadioGroupProps;
 use fandhe_frontend_pre_styled_ui::signature_pad;
+use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::switch;
 use fandhe_frontend_pre_styled_ui::switch::SwitchProps;
 use fandhe_frontend_pre_styled_ui::{BadgeProps, KbdProps};
-use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
+use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Orientation, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
@@ -2148,6 +2150,7 @@ const SLIDER: ComponentPageSpec = ComponentPageSpec {
         "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `Slider` 状態機械へ委譲する。",
         "`range` パーツが `--fandhe-slider-percent` を含む `style` を動的値の唯一の出力点として持つ。",
         "イシュー #2020（shadcn/ui 突合）: `marker`/`marker_group` パーツを styled 化した。`marker` は `--fandhe-slider-marker-percent` を唯一の動的値出力点として持ち、`marker-group` は `pointer-events: none` のオーバーレイコンテナとして `track`/`thumb` のクリック・ドラッグ判定を奪わない。複数 thumb（range slider）は headless-ui の構造的制約により本コンポーネント層では対応しない（意図的非採用）。",
+        "vertical（`data-orientation=\"vertical\"`）では `marker` も `bottom` アンカーで位置決めされる（イシュー #2216 で Demo / Examples に可視化）。",
     ],
     arguments: &[
         ArgRow {
@@ -2187,7 +2190,11 @@ const SLIDER: ComponentPageSpec = ComponentPageSpec {
             description: "root 配下の子ノード（通常 range/thumb_styled を含む）。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Vertical + marker",
+        description: "`Orientation::Vertical` の `Slider` を渡すと `control`/`track`/`range`/`thumb`/`marker` が `data-orientation=\"vertical\"` を出力し、recipe の vertical 状態規則で `bottom` アンカー配置へ切り替わる例です。`marker` の位置も `--fandhe-slider-marker-percent` を `bottom` から参照します（shadcn/ui に vertical 参照例は無く、本リポジトリ固有の可視化）。",
+        render: slider_vertical_markers_example,
+    }],
     keyboard: &[],
     aria: &[],
     demo: None,
@@ -2271,6 +2278,59 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
 // label/説明文とスイッチ本体を両端揃えで合成する呼び出し側の一例を示す
 // （HTML 文字列直接組み立てを行わない、`.claude/rules/security.md` A03。
 // `checkbox_with_description_example` と同型パターン）。
+/// イシュー #2216: `/themes/slider/` の Examples 節に載る vertical + marker
+/// 合成例。Demo 節（`crate::showcase::slider_section`）の vertical 態と
+/// 異なる値（25）・marker 5 本にして `under-value`/`at-value`/`over-value`
+/// の 3 状態が同時に見える構成にする。
+fn slider_vertical_markers_example() -> Node {
+    let props = slider::SliderProps::default();
+    let state = Slider::new(0.0, 100.0, 1.0, 25.0, Orientation::Vertical);
+    slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &state,
+        &props,
+        vec![],
+        vec![
+            slider::label(
+                &props,
+                vec![("id", "slider-vertical-markers-demo-label")],
+                vec![text("Brightness")],
+            ),
+            slider::control(
+                Orientation::Vertical,
+                &props,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Vertical,
+                        &props,
+                        vec![],
+                        vec![slider::range(&state, &props, vec![])],
+                    ),
+                    slider::thumb_styled(
+                        &state,
+                        Some("25 percent"),
+                        &props,
+                        vec![("aria-labelledby", "slider-vertical-markers-demo-label")],
+                    ),
+                    slider::marker_group(
+                        vec![],
+                        vec![
+                            slider::marker(&state, 0.0, false, vec![], vec![]),
+                            slider::marker(&state, 25.0, false, vec![], vec![]),
+                            slider::marker(&state, 50.0, false, vec![], vec![]),
+                            slider::marker(&state, 75.0, false, vec![], vec![]),
+                            slider::marker(&state, 100.0, false, vec![], vec![]),
+                        ],
+                    ),
+                ],
+            ),
+            slider::hidden_input("brightness-vertical", "25", false, vec![]),
+        ],
+    )
+}
+
 fn switch_with_description_example() -> Node {
     let checked = false;
     let props = SwitchProps::default();
