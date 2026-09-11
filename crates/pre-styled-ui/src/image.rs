@@ -17,12 +17,12 @@
 //! ロジックを複製せず、この render 経由の一元的な検証にのみ依拠する
 //! （`.claude/rules/security.md` A05: 単一情報源の維持）。`javascript:` 等の
 //! 不許可スキームを渡しても `<img>` 自体は出力されるが `src` 属性のみが
-//! 欠落する（回帰テストで固定、[`tests`] モジュール参照）。
+//! 欠落する（回帰テストで固定、`tests` モジュール参照）。
 //!
 //! 装飾用途ではない写真等のコンテンツを想定するため、[`ImageProps::alt`] を
 //! 必須引数とする（[`fandhe_frontend_headless_ui::avatar::image`] と同じ
 //! アクセシビリティ既定の判断）。中立的なコンテンツ表示部品のため
-//! colorPalette 軸は付与しない（[`crate::card`]・[`crate::skeleton`] と
+//! colorPalette 軸は付与しない（[`crate::card`]・[`crate::skeleton`](mod@crate::skeleton) と
 //! 同型の判断）。
 //!
 //! # イシュー #1562 の参照サイト比較
@@ -60,7 +60,7 @@
 //! - **色 / 状態 `data-*` / ダーク / フォーカス / hover・disabled・
 //!   transition**: `<img>` は色宣言・状態変化・フォーカスを持たない
 //!   静的コンテンツ表示のため、参照サイト側にも対応する挙動がない
-//!   （[`crate::card`]・[`crate::skeleton`] と同型の判断）。
+//!   （[`crate::card`]・[`crate::skeleton`](mod@crate::skeleton) と同型の判断）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

@@ -39,13 +39,13 @@
 //!
 //! [`panel`] は headless 中立な
 //! [`Splitter::size`](fandhe_frontend_headless_ui::splitter::Splitter::size)
-//! （0.0..=100.0 の正規化済み有限 `f64`）から [`percent_style`] が組み立てる
+//! （0.0..=100.0 の正規化済み有限 `f64`）から `percent_style` が組み立てる
 //! `style="--fandhe-splitter-size: <pct>%"` の 1 属性のみで伸縮を伝搬する。
-//! [`recipe`] は `[data-scope="splitter"][data-part="panel"]` に
+//! `recipe` は `[data-scope="splitter"][data-part="panel"]` に
 //! `flex-basis: var(--fandhe-splitter-size, auto); flex-grow: 0;
 //! flex-shrink: 1; overflow: hidden;` を登録し、root の `display: flex` と
 //! 組み合わせてパネル幅（高さ）を決定する。[`crate::slider`]/
-//! [`crate::progress`] と同様に [`drop_style_attr`]（[`crate::progress`]
+//! [`crate::progress`] と同様に `drop_style_attr`（[`crate::progress`]
 //! の同名ヘルパと同型の判断）で呼び出し側 `attrs` に含まれる `style`
 //! （大文字小文字を無視）を除去してからフレームワーク側の `style` を優先
 //! する（重複属性による無効な HTML 出力・後勝ちの非決定的な描画を防ぐ、
@@ -53,7 +53,7 @@
 //!
 //! # `size`/`palette` variant
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-splitter-trigger-size`/`--fandhe-splitter-panel-padding`
 //! （イシュー #1537）の root スコープ custom property（CSS の通常の
 //! プロパティ継承により、それぞれ `resize-trigger`/`panel` へ伝わる）
@@ -74,7 +74,7 @@
 //! [`resize_trigger`] はネイティブにフォーカス可能な要素（`tabindex`）で
 //! あるため、[`crate::switch`] のような hidden-input 特有の
 //! `data-focus-visible` 対応は不要で、通常の `:focus-visible` 疑似クラスを
-//! [`recipe`] へ直接登録する（[`StateCondition::FocusVisible`]）。
+//! `recipe` へ直接登録する（[`StateCondition::FocusVisible`]）。
 //!
 //! # イシュー #1536: リサイズハンドルのスタイル調整（親 #1535 の 1/2）
 //!
@@ -138,7 +138,7 @@
 //!   自身は受け取らない。[`SlotRecipe::state`] は対象 slot 自身の
 //!   セレクタへ属性条件を直接連結するのみで子孫結合子を持たないため、
 //!   縦横で寸法を入れ替える表現は本ヘルパの契約では組めない
-//!   （[`recipe`] 内 `resize-trigger-indicator` 規則のコメント参照）。
+//!   （`recipe` 内 `resize-trigger-indicator` 規則のコメント参照）。
 //!   正方形（等方）のグリップに統一することで代替する。
 //!
 //! # イシュー #1537: root/panel のレイアウト・余白（親 #1535 の 2/2）
@@ -162,7 +162,7 @@
 //!   property を継承で伝えるパターン）から取り、`var(--fandhe-space-3)`
 //!   （Md 既定）へフォールバックする。呼び出し側が `root` の `attrs` に
 //!   `("style", "--fandhe-splitter-panel-padding: 0")` を渡せば
-//!   全 panel の余白を無効化できる（`root` は [`drop_class_attr`] で
+//!   全 panel の余白を無効化できる（`root` は `drop_class_attr` で
 //!   `class` のみ除去し `style` は通す）。
 //!
 //! 意図的に採らなかった変更（`.claude/rules/out-of-scope-tracking.md`
@@ -246,7 +246,7 @@
 //! #2038 節「意図的に採らなかった変更」参照）。
 //!
 //! 設計: `resize-trigger` を `position: relative` にし、
-//! `::after`（[`recipe`] 内 `.pseudo_element("resize-trigger",
+//! `::after`（`recipe` 内 `.pseudo_element("resize-trigger",
 //! PseudoElement::After, ...)`）へ `position: absolute; inset:
 //! var(--fandhe-splitter-hit-inset);` を登録する。疑似要素は生成元要素
 //! から custom property を継承するため、水平/垂直の向きは
@@ -709,7 +709,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は
 /// 除去してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::splitter::Splitter::root`] へ委譲する。
 ///
@@ -750,7 +750,7 @@ pub fn root<'a>(
 }
 
 /// styled panel パーツを組み立てる。`--fandhe-splitter-size` を含む `style`
-/// を付与する唯一のパーツ（[`drop_style_attr`] により呼び出し側の `style`
+/// を付与する唯一のパーツ（`drop_style_attr` により呼び出し側の `style`
 /// は除去してから合成する。動的値はこの 1 箇所のみ、モジュール doc「動的な
 /// 値は 1 点のみ」参照）。実体は
 /// [`fandhe_frontend_headless_ui::splitter::Splitter::panel`] へ委譲する。
@@ -758,7 +758,7 @@ pub fn root<'a>(
 /// `panel_index` は [`fandhe_frontend_headless_ui::splitter::Splitter::size`]
 /// の添字（`0..panel_count()`）。範囲外の場合は `flex-basis` を出力せず
 /// `auto` へフォールバックする（fail-closed。[`Splitter::size`] が `None` を
-/// 返すため、[`percent_style`] を呼ばず `style` 属性自体を省略する）。
+/// 返すため、`percent_style` を呼ばず `style` 属性自体を省略する）。
 #[must_use]
 pub fn panel<'a>(
     state: &Splitter,

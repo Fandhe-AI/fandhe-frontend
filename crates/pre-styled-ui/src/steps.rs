@@ -28,7 +28,7 @@
 //!
 //! # `size`/`palette` variant
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-steps-indicator-size` の root スコープ custom property
 //! （通常の CSS 継承により `indicator` へ伝わる）経由で寸法を切り替える
 //! （[`crate::rating_group`] と同型）。`palette`（[`ColorPalette`]）は
@@ -94,7 +94,7 @@
 //!
 //! `separator`（`flex: 1` でステップ間の接続線を描画）が実際に伸長するには
 //! 親 `item`（`li`）自身も `list` の主軸方向へ伸長する必要があるため、
-//! `item` にも `flex: 1` を付与する。垂直（[`fandhe_frontend_headless_ui::steps::Orientation::Vertical`]）
+//! `item` にも `flex: 1` を付与する。垂直（`fandhe_frontend_headless_ui::steps::Orientation::Vertical`）
 //! では `item` を `flex-direction: column` に切り替え、trigger の下に
 //! separator（縦の接続線）が来る配置にする。この判定は `item` 自身の
 //! `data-orientation` 属性（`crates/headless-ui/src/steps.rs::Steps::item`
@@ -115,7 +115,7 @@
 //! `trigger`/`prev-trigger`/`next-trigger` はネイティブな `<button>`
 //! （実フォーカスを受ける）であるため、[`crate::switch`] のような
 //! hidden-input 特有の `data-focus-visible` 対応は不要で、通常の
-//! `:focus-visible` 疑似クラスを [`recipe`] へ直接登録する
+//! `:focus-visible` 疑似クラスを `recipe` へ直接登録する
 //! （[`StateCondition::FocusVisible`]、[`crate::slider`] の `thumb` と同型）。
 //!
 //! # セキュリティ不変条件
@@ -124,7 +124,7 @@
 //! `raw_html()` を使用しない。CSS 宣言値はすべてコンパイル時静的リテラルで
 //! あり、動的値（`attrs`/children）へ CSS 値として流し込む経路を持たない
 //! （動的値は headless 層経由で `fandhe_frontend_core::render` の既定
-//! エスケープを必ず通る、REQ-1）。styled `root` は [`drop_class_attr`] に
+//! エスケープを必ず通る、REQ-1）。styled `root` は `drop_class_attr` に
 //! より呼び出し側の `class` を除去してから合成するため、`class` 属性は
 //! 常に単一（[`crate::rating_group::root`] と同型）。
 //!
@@ -907,7 +907,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は
 /// 除去してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::steps::Steps::root`] へ委譲する。
 ///

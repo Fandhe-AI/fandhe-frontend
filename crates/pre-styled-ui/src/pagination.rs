@@ -18,7 +18,7 @@
 //!
 //! [`Pagination`] は inherent `root()` を持つが（`crates/headless-ui/src/pagination.rs`
 //! 参照）、`crate::lib` rustdoc「複合部品の variant 統一方針」節 4 の
-//! 判断（[`crate::avatar::Avatar`]・[`crate::switch::Switch`] と同じ理由）
+//! 判断（`crate::avatar::Avatar`・`crate::switch::Switch` と同じ理由）
 //! により、[`Pagination`] 型自体は再エクスポートしつつ headless 自由関数
 //! `root` は再エクスポートしない（未スタイル root の静かな適用漏れを防ぐ
 //! fail-closed）。
@@ -26,7 +26,7 @@
 //! # 複合部品の variant 統一方針（root のみへクラス付与）
 //!
 //! `size`（[`Size`]）/`palette`（[`ColorPalette`]）はいずれも [`root`] へ
-//! のみクラスを付与する。[`recipe`] が root スコープへ登録する custom
+//! のみクラスを付与する。`recipe` が root スコープへ登録する custom
 //! property（`--fandhe-pagination-item-size`/`-item-font-size`）は CSS の
 //! 通常のプロパティ継承により `item`/`prev-trigger`/`next-trigger` へ伝わる
 //! ため、これらの slot へ個別に variant クラスを付ける必要がない
@@ -36,7 +36,7 @@
 //!
 //! headless 層の `item` は `data-state` ではなく `data-selected`（存在
 //! マーカー）+ `aria-current="page"` で現在ページを表す
-//! （`crates/headless-ui/src/pagination.rs` 参照）。[`recipe`] の状態規則も
+//! （`crates/headless-ui/src/pagination.rs` 参照）。`recipe` の状態規則も
 //! この語彙（`StateCondition::Attr("data-selected")`）に合わせる。
 //!
 //! # フォーカスリング（hidden-input パターン非該当）
@@ -53,7 +53,7 @@
 //! あり、動的値（`href`/`aria_label`/属性/children）へ CSS 値として流し
 //! 込む経路を持たない（動的値は headless 層経由で
 //! `fandhe_frontend_core::render` の既定エスケープを必ず通る、REQ-1）。
-//! styled `root` は [`drop_class_attr`] により呼び出し側の `class` を除去
+//! styled `root` は `drop_class_attr` により呼び出し側の `class` を除去
 //! してから合成するため、`class` 属性は常に単一。
 //!
 //! # `item`/`ellipsis` のスタイル是正（イシュー #1532、親 #1531 の 1/2 分割）
@@ -138,7 +138,7 @@
 //! ローカル `themes-pagination.png` を突合し、#1420（chakra-ui / Radix
 //! Themes 基準）の調整では拾えなかった欠落バリアント・状態・合成パターンの
 //! 有無を確認した。純追加原則（既存 variant の CSS 出力はバイト同一を
-//! 維持）に従い、[`recipe`] の変更は不要と判断した。
+//! 維持）に従い、`recipe` の変更は不要と判断した。
 //!
 //! - **prev/next のアイコン+テキスト表示**: shadcn は「‹ Previous」
 //!   「Next ›」の表示を持つ。[`prev_trigger`]/[`next_trigger`] は
@@ -161,7 +161,7 @@
 //!   対象であるため、意図的に非追随とする。
 //! - **合成パターン（データテーブル用フッター）**: shadcn の 3 枚目は
 //!   「Rows per page」ラベル + Select + Prev/Next のみ（ページ項目なし）
-//!   という構成。[`crate::native_select`] が既に存在するため、既存部品の
+//!   という構成。[`crate::native_select`](mod@crate::native_select) が既に存在するため、既存部品の
 //!   組み合わせで再現可能（コード変更不要、docs サイト Examples
 //!   「Rows per page + Select」で実演）。
 //!
@@ -498,7 +498,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去
 /// してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::pagination::root`] へ委譲する。
 ///

@@ -4,11 +4,11 @@
 //! `docs/api/headless-ui-api.md` §4b（イシュー #716）の検討で「分類 (b):
 //! SSR 静的な意味論ナビ（状態機械不要）」の追加候補と判断されたコンポーネント。
 //! chakra-ui の Link に倣い、素の `a` 要素 1 パーツ（anatomy `root`）のみを
-//! 提供する最小構成。[`mod@crate::breadcrumb`]/[`mod@crate::field`] と同型で、
+//! 提供する最小構成。[`crate::breadcrumb`](mod@crate::breadcrumb)/[`crate::field`](mod@crate::field) と同型で、
 //! 開閉のような時間変化する内部状態を持たないため自由関数のみで構成する
 //! （[`crate::state`] の状態機械は適用しない）。
 //!
-//! [`mod@crate::link_overlay`]（カード全面クリック化）・[`mod@crate::nav_list`]
+//! [`crate::link_overlay`](mod@crate::link_overlay)（カード全面クリック化）・[`crate::nav_list`](mod@crate::nav_list)
 //! （文書ナビの `nav > ul > li > a` 構造）は本モジュールに依存せず並立する
 //! 別モジュールとして提供する（3 者とも独立した anatomy スコープを持つ）。
 //!
@@ -24,8 +24,8 @@
 //!
 //! `current` 引数を `true` にすると `aria-current="page"`
 //! （[`crate::aria::aria_current`]）+ `data-current`
-//! （[`crate::data_attrs::data_current`]）を付与する。[`mod@crate::breadcrumb`]
-//! の `current_link`・[`mod@crate::nav_list`] の `link` と同じ語彙を共有する。
+//! （[`crate::data_attrs::data_current`]）を付与する。[`crate::breadcrumb`](mod@crate::breadcrumb)
+//! の `current_link`・[`crate::nav_list`](mod@crate::nav_list) の `link` と同じ語彙を共有する。
 //!
 //! # 呼び出し文脈
 //!

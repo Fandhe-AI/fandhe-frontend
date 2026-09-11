@@ -106,7 +106,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存不変条件
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存不変条件
 //!   をそのまま継承する）。
 //! - 動的値（[`item`]/[`indicator`] が生成する `aria-label` 文字列・呼び出し側
 //!   `aria_label`/`attrs`/children）は [`fandhe_frontend_core::render`] の
@@ -115,10 +115,10 @@
 //!   `"Go to slide {n}"` 文字列、および `data-index` の整形値は `usize` の
 //!   Display 整形のみから合成し、任意の呼び出し側文字列がこれらへ混入する
 //!   経路はない。
-//! - 呼び出し側 `attrs` の [`RESERVED`] に列挙したフレームワーク固定キー
+//! - 呼び出し側 `attrs` の `RESERVED` に列挙したフレームワーク固定キー
 //!   （`data-orientation`/`data-index`/`data-inview`/`data-current`/
 //!   `data-disabled`/`aria-current`、ASCII 大文字小文字無視）は
-//!   [`drop_reserved`] が fail-closed に除外する（[`crate::pin_input`] の
+//!   `drop_reserved` が fail-closed に除外する（[`crate::pin_input`] の
 //!   `drop_reserved` と同型のなりすまし防止。偽の位置・状態を注入できない）。
 //! - dispatch `"goto"` の payload はクライアント由来の信頼できない入力として
 //!   扱い、厳密な `usize` パースで fail-closed（パース不能は `None`、範囲外は
@@ -413,7 +413,7 @@ impl Carousel {
     /// `data-hydrate-orientation` 属性名のフィールド部分。
     pub const FIELD_ORIENTATION: &'static str = "orientation";
 
-    /// 指定した状態で [`Carousel`] を生成する（[`normalize_index`] で
+    /// 指定した状態で [`Carousel`] を生成する（`normalize_index` で
     /// fail-closed 正規化する。呼び出し側の不正な `index` で panic しない）。
     #[must_use]
     pub fn new(index: usize, slide_count: usize, loop_: bool, orientation: Orientation) -> Self {

@@ -85,7 +85,7 @@
 //! あり、動的値へ CSS 値として流し込む経路を持たない（動的値は headless 層
 //! 経由で `fandhe_frontend_core::render` の既定エスケープを必ず通る、
 //! REQ-1）。styled `root`/`control`/`segment`/`clear_trigger` は
-//! [`drop_class_attr`] により呼び出し側の `class` を除去してから合成する
+//! `drop_class_attr` により呼び出し側の `class` を除去してから合成する
 //! ため、`class` 属性は常に単一（[`crate::qr_code::root`] と同型）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
@@ -293,7 +293,7 @@ pub fn stylesheet() -> String {
     recipe().css()
 }
 
-/// styled root パーツを組み立てる。[`drop_class_attr`] により呼び出し側の
+/// styled root パーツを組み立てる。`drop_class_attr` により呼び出し側の
 /// `class` は除去してから合成する。実体は
 /// [`fandhe_frontend_headless_ui::signature_pad::root`] へ委譲する。
 #[must_use]
@@ -312,7 +312,7 @@ pub fn root<'a>(
 }
 
 /// styled control パーツ。呼び出し側 `attrs` の `class` は
-/// [`drop_class_attr`] で除去する。実体は
+/// `drop_class_attr` で除去する。実体は
 /// [`fandhe_frontend_headless_ui::signature_pad::control`] へ委譲する。
 #[must_use]
 pub fn control<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
@@ -320,7 +320,7 @@ pub fn control<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec
 }
 
 /// styled segment パーツ。呼び出し側 `attrs` の `class` は
-/// [`drop_class_attr`] で除去する。実体は
+/// `drop_class_attr` で除去する。実体は
 /// [`fandhe_frontend_headless_ui::signature_pad::segment`] へ委譲する。
 #[must_use]
 pub fn segment<'a>(
@@ -340,7 +340,7 @@ pub fn segment<'a>(
 }
 
 /// styled clear-trigger パーツ。呼び出し側 `attrs` の `class` は
-/// [`drop_class_attr`] で除去する。実体は
+/// `drop_class_attr` で除去する。実体は
 /// [`fandhe_frontend_headless_ui::signature_pad::clear_trigger`] へ委譲する。
 #[must_use]
 pub fn clear_trigger<'a>(

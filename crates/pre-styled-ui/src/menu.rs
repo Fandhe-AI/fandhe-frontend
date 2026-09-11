@@ -23,7 +23,7 @@
 //! # data-state とスタイルの連動（イシュー #551 受け入れ条件）
 //!
 //! `trigger`/`content` の開閉 `data-state`（open/closed）に応じた見た目の
-//! 切り替えを [`recipe`] へ登録する（[`crate::recipe::SlotRecipe::state`]、
+//! 切り替えを `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]、
 //! イシュー #643。`serialize_rule` を直接呼ぶ手書きセレクタ機構は廃止した）。
 //!
 //! # キーボード操作系属性の反映（イシュー #643）
@@ -323,7 +323,7 @@
 //! - **`item-text`/`item-indicator` の CSS 未着装（構造的な見落とし、
 //!   shadcn 突合以前から存在）**: `crates/headless-ui/src/menu.rs` は
 //!   #1651 で当該 2 パートを anatomy へ追加済みだったが、本モジュールの
-//!   `pub use` 再エクスポート一覧・[`SLOTS`]・[`recipe`] のいずれにも
+//!   `pub use` 再エクスポート一覧・`SLOTS`・`recipe` のいずれにも
 //!   反映されておらず、`fandhe-frontend-pre-styled-ui` のみに依存する
 //!   呼び出し側から到達不能だった（2/3 #1526 の rustdoc「スコープ解釈の
 //!   注記」は #1651 以前の時点の誤認であり、現在は訂正が必要）。本イシュー
@@ -1071,7 +1071,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::menu::root`] へ委譲する。
 ///
 /// # Examples

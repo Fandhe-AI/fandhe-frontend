@@ -46,7 +46,7 @@
 //!
 //! [`Questionnaire`] は `count`（全質問数、`>= 1`）と `step`（現在位置、
 //! `0..=count`）を持つ（[`crate::steps::Steps`] と同じ正規化規則、
-//! [`normalize`]）。`step == count` は「全質問完了」を表す
+//! `normalize`）。`step == count` は「全質問完了」を表す
 //! （[`Questionnaire::is_completed`]）。質問のインデックス `index`
 //! （`0..count`）に対する 3 状態は:
 //!
@@ -111,15 +111,15 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`）はすべて `&'static str` リテラルで
 //!   固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::data_attrs`]/[`crate::aria`] の既存
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`]/[`crate::aria`] の既存
 //!   不変条件をそのまま継承する）。
 //! - 動的値（数値属性・呼び出し側 `attrs`・children テキスト・`label`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - `data-state` 値語彙（`"active"`/`"completed"`/`"upcoming"`）は本
-//!   モジュール内で一元管理し（[`Questionnaire::question_state`]）、
+//!   モジュール内で一元管理し（`Questionnaire::question_state`）、
 //!   パーツ関数間で分裂させない。
-//! - 各パーツへ [`drop_reserved`]（[`crate::steps::drop_reserved`] と同型）
+//! - 各パーツへ `drop_reserved`（`crate::steps::drop_reserved` と同型）
 //!   を導入し、呼び出し側 `attrs` が固定付与属性へなりすませないように
 //!   する（A05 対策）。
 //! - hydration 属性（`data-hydrate-count`/`data-hydrate-step`/
@@ -272,7 +272,7 @@ impl Questionnaire {
     /// `data-hydrate-orientation` 属性名のフィールド部分。
     pub const FIELD_ORIENTATION: &'static str = "orientation";
 
-    /// 指定した値で [`Questionnaire`] を生成する（[`normalize`] で
+    /// 指定した値で [`Questionnaire`] を生成する（`normalize` で
     /// fail-closed 正規化する。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(count: usize, step: usize, orientation: Orientation) -> Self {
@@ -338,7 +338,7 @@ impl Questionnaire {
 
     /// Progress パーツ（`div`、`role="progressbar"`）。`percent`
     /// （`step * 100 / count` の整数、`0..=100`）を `aria-valuenow`/
-    /// `aria-valuetext` へ出力する。`count >= 1` は [`normalize`] が保証
+    /// `aria-valuetext` へ出力する。`count >= 1` は `normalize` が保証
     /// するためゼロ除算は起きない。`data-complete` は `percent == 100`
     /// のときのみ付与する。`label` が空文字でないときのみ `aria-label`
     /// を付与する（shadcn「named progressbar」）。
@@ -529,7 +529,7 @@ impl Component for Questionnaire {
     type Action = QuestionnaireAction;
 
     /// `QuestionnaireAction::Goto` は範囲外（`> count`）を fail-closed に
-    /// 無視する（no-op）。[`normalize`]/[`Questionnaire::decode_action`] が
+    /// 無視する（no-op）。`normalize`/[`Questionnaire::decode_action`] が
     /// 課す「`step` は `0..=count`」という本モジュールの不変条件を
     /// `update()` 単体でも維持する（[`crate::steps::Steps::update`] と
     /// 同型の契約）。

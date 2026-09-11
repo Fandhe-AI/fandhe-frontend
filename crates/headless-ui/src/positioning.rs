@@ -52,7 +52,7 @@
 //!   `structure.toml` の `depends_on = ["core", "interactive"]` の
 //!   完全一致を `fw gate` が検証する。したがって `web-sys` を追加して
 //!   計測主体化する経路は構造的に塞がれている。
-//! - 先例として [`mod@crate::navigation_menu`] が同じ §3.25 規則 2 の
+//! - 先例として [`crate::navigation_menu`](mod@crate::navigation_menu) が同じ §3.25 規則 2 の
 //!   適用記録を持つ（viewport 測定・`data-motion` を規則 2 の対象と判定し
 //!   headless 層から除外した事例）。本節はその対照事例（規則 2 の対象外と
 //!   判定する事例）にあたる。

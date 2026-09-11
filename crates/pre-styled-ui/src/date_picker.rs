@@ -186,7 +186,7 @@
 //!   ネイティブ `<input type="text" readonly>` であり、選択・キャレット
 //!   操作が可能なテキストフィールドに `cursor: default` を適用すると
 //!   I-beam カーソルが隠れ操作可能な値を操作不能に見せてしまう。
-//!   [`crate::input`]・[`crate::number_input`] の「readonly（意図的
+//!   [`crate::input`](mod@crate::input)・[`crate::number_input`] の「readonly（意図的
 //!   非採用）」節と同型の判断軸（ネイティブ `<input>` には
 //!   `data-readonly` の視覚宣言を追加せず既定の `cursor: text` のまま
 //!   とする）へ揃え、追加した宣言を削除した

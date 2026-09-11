@@ -5,7 +5,7 @@
 //!
 //! AI チャット UI の「会話 1 発言」を表現する [`root`] / [`avatar`] /
 //! [`header`] / [`content`] / [`footer`] / [`group`] の 6 anatomy パーツを
-//! 提供する。[`mod@crate::item`]/[`mod@crate::button_group`] と同型で状態
+//! 提供する。[`crate::item`](mod@crate::item)/[`crate::button_group`](mod@crate::button_group) と同型で状態
 //! 機械（[`crate::state`]）を持たない静的部品であり、`fandhe-frontend-
 //! wasm-full` の配線は不要（応答待ち・送信失敗・ストリーミング更新はすべて
 //! 呼び出し側が `bool`/子ノードとして渡す）。
@@ -33,7 +33,7 @@
 //! - **`data-loading`**/**`data-error`**: [`crate::data_attrs::data_disabled`]
 //!   と同じ「存在で真を表す」存在属性（`bool` から `then_some` で生成）。
 //!   応答待ち・送信失敗の**表示のみ**を担い、判定・再送はアプリ責務
-//!   （`.claude/rules/coding-rust.md` §3.25）。[`mod@crate::tree_view`] の
+//!   （`.claude/rules/coding-rust.md` §3.25）。[`crate::tree_view`](mod@crate::tree_view) の
 //!   `data-loading` + `aria-busy` 対とは意図的に異なり、**`aria-busy` は
 //!   付けない**（下記「`aria-live`/`aria-busy` を付けない理由」参照）。
 //!
@@ -64,10 +64,10 @@
 //! `data-loading`/`data-error` は見た目・スタイルフックとしてのみ機能し、
 //! 通知が必要な利用者は自前で `aria-live` リージョンを合成する。
 //!
-//! # `avatar` はスロット（既存 [`mod@crate::avatar`] を内包しない）
+//! # `avatar` はスロット（既存 [`crate::avatar`](mod@crate::avatar) を内包しない）
 //!
-//! [`avatar`] パーツは `div` のスロットであり、[`mod@crate::avatar`] の
-//! `Avatar` 状態機械や anatomy を内部で呼び出さない（[`mod@crate::sidebar`]
+//! [`avatar`] パーツは `div` のスロットであり、[`crate::avatar`](mod@crate::avatar) の
+//! `Avatar` 状態機械や anatomy を内部で呼び出さない（[`crate::sidebar`](mod@crate::sidebar)
 //! が他 scope を内包しない規則の踏襲）。呼び出し側が中身へ
 //! `avatar::root`/`avatar::image`/`avatar::fallback` 等を自由に組み込む。
 //!
@@ -256,7 +256,7 @@ pub fn root<'a>(
     ANATOMY.part("root", "div", merged, children)
 }
 
-/// `avatar` パーツ（`div`）。既存 [`mod@crate::avatar`] を内包しないスロット
+/// `avatar` パーツ（`div`）。既存 [`crate::avatar`](mod@crate::avatar) を内包しないスロット
 /// （モジュール doc「`avatar` はスロット」参照）。
 #[must_use]
 pub fn avatar<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {

@@ -18,7 +18,7 @@
 //! [`crate::csr`]（イシュー #349）の `resolve_list_node`/`resolve_detail_node`
 //! を loader ジェネリックなまま呼び出し、遷移時のデータ解決を行う
 //! （初期表示・ハイドレーションでは呼ばない、という #349/#345 由来の凍結事項は
-//! 本モジュールでは「初期ロード時に [`crate::entry::start_router`] が描画を
+//! 本モジュールでは「初期ロード時に `crate::entry::start_router` が描画を
 //! 行わない」という形で維持する）。
 //!
 //! # 2 層構成（`events.rs`/`csr.rs` と同じ方針）
@@ -31,7 +31,7 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 遷移描画は [`fandhe_frontend_wasm_client::build_dom_node`]（`createElement`/
+//! - 遷移描画は `fandhe_frontend_wasm_client::build_dom_node`（`createElement`/
 //!   `createTextNode`/`set_attribute` のみ）で行い、`set_inner_html` を
 //!   一切呼ばない（受け入れ条件 2、#345 の不変条件の継承）。
 //! - インターセプト対象は「`/` 始まりかつ `//` 非始まり・ルート表に一致する」
@@ -53,8 +53,8 @@
 //! - リスナー登録は起動時の定数回（click 1 + popstate 1 + pagehide 1、
 //!   最後者はイシュー #406 のリロード時スクロール消失修正で追加）の
 //!   `Closure::forget` に限定する（`events.rs` と同方針、無制限リークの
-//!   構造的回避）。[`wiring::start_router`] は同一 `root_id` で複数回呼ばれても
-//!   [`wiring::REGISTERED_ROOT_IDS`] により 2 回目以降を no-op とするため、
+//!   構造的回避）。`wiring::start_router` は同一 `root_id` で複数回呼ばれても
+//!   `wiring::REGISTERED_ROOT_IDS` により 2 回目以降を no-op とするため、
 //!   呼び出し側が誤って複数回呼んでも「`root_id` あたり定数回（1 組）」の
 //!   不変条件が壊れない（多重マウント・再初期化・複数の統合テストが同一
 //!   `document` を共有するテスト環境でのリスナー積み上がり対策、イシュー
@@ -66,7 +66,7 @@
 //!   ため、無制限リークにはならない（`docs/design/wasm-full-architecture.md`
 //!   第 4 節・判断 10）。
 //! - 遷移後の `data-hydrate` 要素へのイベント再配線（イシュー #403）は
-//!   [`fandhe_frontend_wasm_client::wire_hydrate_targets`] の呼び出しに限定する。同関数は
+//!   `fandhe_frontend_wasm_client::wire_hydrate_targets` の呼び出しに限定する。同関数は
 //!   `add_event_listener_with_callback` の後付けのみを行い `set_inner_html`
 //!   等の再構築系 API を呼ばない（`fandhe-frontend-wasm-client` 側の不変条件を継承）。
 //!   クロージャの寿命は `fandhe-frontend-wasm-client::registry` が root 要素の `id` 単位
@@ -74,20 +74,20 @@
 //!   「`forget` は起動時定数回」の不変条件（`click`/`popstate` の 2 回）とは
 //!   独立に、遷移ごとの再配線が無制限リークを生まない（`registry::replace_handles`
 //!   による寿命管理、`forget()` を使わない）。この再配線呼び出しは
-//!   [`wiring::apply_render_with_post`] の `startViewTransition` update
+//!   `wiring::apply_render_with_post` の `startViewTransition` update
 //!   コールバック内、DOM 差し替え + タイトル更新の直後に実行する（イシュー
 //!   #404 との統合）。
 //!
 //! # View Transitions 連携（イシュー #404）
 //!
-//! [`wiring::render_route_with_post`] は「loader 解決 + 新 DOM 構築（`prepare` 段、
+//! `wiring::render_route_with_post` は「loader 解決 + 新 DOM 構築（`prepare` 段、
 //! 遷移の外）」と「`root` への差し替え + タイトル更新（`apply` 段、
 //! `document.startViewTransition()` の update コールバック内）」の 2 段に
 //! 分割されている。loader 解決を遷移の外に置くことで、データ取得の遅延が
 //! 遷移アニメーションの開始を妨げない（旧ビューは新ビューの準備が整うまで
 //! 表示され続ける、View Transitions の推奨パターン）。`document` が
 //! `startViewTransition` を持たない（非対応ブラウザ）場合は
-//! [`wiring::with_view_transition`] が機能検出で判定し、apply 段を同期
+//! `wiring::with_view_transition` が機能検出で判定し、apply 段を同期
 //! 実行する（graceful degradation、失敗時も描画は必ず完了する）。
 
 use crate::csr::{resolve_detail_node, resolve_list_node};

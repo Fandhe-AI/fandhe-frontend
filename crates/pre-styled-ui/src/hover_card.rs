@@ -10,7 +10,7 @@
 //! # data-state とスタイルの連動
 //!
 //! `content` の開閉 `data-state`（open/closed）に応じた見た目の切り替えを
-//! [`recipe`] へ登録する（[`crate::recipe::SlotRecipe::state`]、
+//! `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]、
 //! [`crate::tooltip`] と同じ判断）。
 //!
 //! # キーボード操作系属性の反映

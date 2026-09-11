@@ -139,7 +139,7 @@
 //!   `readonly`/`tabindex`/`hidden`/`autocomplete`/`autocorrect`/
 //!   `autocapitalize`/`enterkeyhint`）はすべて `&'static str` リテラルで
 //!   固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存
 //!   不変条件をそのまま継承する）。
 //! - 動的値（各タグ文字列/`format!` で組み立てる `aria-label`/呼び出し側
 //!   `attrs`/children テキスト/hidden-input の連結値/`data-value`）は
@@ -149,9 +149,9 @@
 //!   `item_text` のテキストノード・`item`/`item_preview` の `data-value`
 //!   属性値・`aria-label` 属性値・`hidden_input` の value のいずれも
 //!   `render()` の既定エスケープを経由する経路以外を持たない
-//!   （[`crate::xss_escape`] 相当の回帰テストで固定する）。
+//!   （`crate::xss_escape` 相当の回帰テストで固定する）。
 //! - **呼び出し側 `attrs` によるフレームワーク固定キーの偽装は
-//!   [`drop_reserved`] が fail-closed に除外する**（`data-disabled` 等を
+//!   `drop_reserved` が fail-closed に除外する**（`data-disabled` 等を
 //!   なりすまし付与できない）。
 //! - **不変条件「重複タグなし・`len() <= max`・カンマを含まない・空文字列を
 //!   含まない」を破る入力は一切適用しない**（fail-closed。

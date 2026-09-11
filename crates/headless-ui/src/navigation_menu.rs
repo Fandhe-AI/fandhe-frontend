@@ -12,27 +12,27 @@
 //!
 //! # `nav_list` との使い分け
 //!
-//! [`mod@crate::nav_list`] は状態機械を一切持たない静的な文書ナビ
+//! [`crate::nav_list`](mod@crate::nav_list) は状態機械を一切持たない静的な文書ナビ
 //! リンク集（見出し + リンクリストのみ、ディスクロージャなし）である。
 //! 本モジュールは Trigger/Content によるディスクロージャ（クリックで
 //! パネルが開閉する）と「高々 1 個の Trigger だけが開く」状態機械、
 //! および `aria-expanded`/`aria-controls` によるトリガー・パネルの
 //! 関連付けを持つ点で異なる。両者に共通するのは「`role` を明示付与しない」
 //! 判断（下記参照）であり、使い分けの軸は role の有無ではなく
-//! **ディスクロージャの有無**である。単なるリンク集は [`mod@crate::nav_list`]
+//! **ディスクロージャの有無**である。単なるリンク集は [`crate::nav_list`](mod@crate::nav_list)
 //! を、開閉するナビゲーションパネルが必要な場合は本モジュールを使う。
 //!
 //! # `role` を明示付与しない
 //!
 //! - [`root`] は `<nav>` の暗黙 ARIA role（`navigation`）に依拠し、
 //!   `role="navigation"` を明示付与しない（冗長 role のアンチパターン。
-//!   [`mod@crate::nav_list`] が確立したハウススタイルを踏襲する）。
+//!   [`crate::nav_list`](mod@crate::nav_list) が確立したハウススタイルを踏襲する）。
 //! - **`role="menu"`/`role="menuitem"` を一切付与しない**。Radix
 //!   NavigationMenu も意図的に menu role を避けている。文書ナビを
 //!   操作メニューと誤伝達するとスクリーンリーダー利用者のアクセシビリティを
 //!   毀損する（`docs/design/docs-site-styled-ui-adoption.md` §3.1 が
-//!   [`mod@crate::nav_list`] 新設の理由として指摘した問題と同型であり、
-//!   [`mod@crate::menubar`] の `role="menubar"`/`role="menuitem"` からの
+//!   [`crate::nav_list`](mod@crate::nav_list) 新設の理由として指摘した問題と同型であり、
+//!   [`crate::menubar`](mod@crate::menubar) の `role="menubar"`/`role="menuitem"` からの
 //!   類推は誤り）。
 //!
 //! # `data-motion`・viewport 測定を実装しない
@@ -49,7 +49,7 @@
 //!
 //! Radix NavigationMenu の `value`（開いている項目の値。高々 1 個）は
 //! [`crate::state::SingleSelect`] にそのまま写像できるため、
-//! [`mod@crate::accordion`] の [`crate::accordion::Accordion`] と同型に
+//! [`crate::accordion`](mod@crate::accordion) の [`crate::accordion::Accordion`] と同型に
 //! [`crate::state::SingleSelect`] を埋め込んで委譲する（独自の
 //! `Component`/`Hydrate` 直接実装は行わない）。dispatch 文字列は
 //! [`crate::state::SingleSelect`] の既存契約（`"select"`/`"toggle"`/
@@ -71,7 +71,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`hidden`/`disabled`/`id`/`href`）は
 //!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`mod@crate::anatomy`]/[`crate::aria`]/
+//!   混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`label`/`id`/`controls`/`labelled_by`/`href`/呼び出し側
 //!   `attrs`/`children` テキスト）は [`fandhe_frontend_core::render`] の
@@ -79,7 +79,7 @@
 //!   直接組み立てない。
 //! - [`link`] の `href` は [`fandhe_frontend_core`] の許可リスト方式に
 //!   委ねる（危険 URL スキームは属性ごと拒否される。
-//!   [`mod@crate::nav_list`] の `link` と同じ不変条件）。
+//!   [`crate::nav_list`](mod@crate::nav_list) の `link` と同じ不変条件）。
 //! - hydration 属性（`data-hydrate-selected`）はクライアント側で改ざんされ
 //!   うる入力として扱う。[`NavigationMenu`] の
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は
@@ -111,7 +111,7 @@
 //!   起点の開閉のみをサポートし、ホバーでの自動展開は実装しない。
 //! - **`data-trigger-proxy-id`（ark-ui）**: 実行時 proxy 要素向けの内部属性。
 //! - **Radix の `data-active`（[`link`]）**: ark-ui 語彙の `data-current`
-//!   （[`mod@crate::nav_list`] の `link` と同じ）へ統一する。
+//!   （[`crate::nav_list`](mod@crate::nav_list) の `link` と同じ）へ統一する。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -124,12 +124,12 @@
 //!   リサイズ再計算）: `fandhe-frontend-wasm-full` の責務（イシュー
 //!   #2208/#2209 系と同じ機構の後続、本イシューの範囲外）。
 //! - **キーボード操作の実 DOM 配線**（矢印キー・Escape・フォーカス移動）:
-//!   `fandhe-frontend-wasm-full` の責務（[`mod@crate::menubar`]/
-//!   [`mod@crate::toolbar`] と同じ扱い）。`crates/wasm-full/src/keynav.rs`
+//!   `fandhe-frontend-wasm-full` の責務（[`crate::menubar`](mod@crate::menubar)/
+//!   [`crate::toolbar`](mod@crate::toolbar) と同じ扱い）。`crates/wasm-full/src/keynav.rs`
 //!   （イシュー #1075）で実装済み。[`NavigationMenuProps::orientation`] が
 //!   出力する `data-orientation`（SSR 静的属性）は同モジュールの
 //!   `handle_navigation_menu_trigger_keydown` が矢印キーの向き判定に読む
-//!   （[`mod@crate::accordion`] の同種記述と同型）。
+//!   （[`crate::accordion`](mod@crate::accordion) の同種記述と同型）。
 //!
 //! # キーボード操作（`crates/wasm-full/src/keynav.rs` 実装、APG Disclosure
 //! Navigation Menu 準拠、イシュー #1075/#1654）
@@ -171,7 +171,7 @@ const ANATOMY: Anatomy = anatomy("navigation-menu");
 ///
 /// `orientation` は SSR 静的マークアップ（`data-orientation` 属性）にのみ
 /// 寄与し、実際のキーボード操作は `fandhe-frontend-wasm-full` の `keynav.rs`
-/// が本属性を読んで解釈する（[`mod@crate::accordion`] の
+/// が本属性を読んで解釈する（[`crate::accordion`](mod@crate::accordion) の
 /// [`crate::accordion::AccordionProps`] と同型の設計、本モジュールはキー
 /// 入力を処理しない）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -248,7 +248,7 @@ fn drop_reserved<'a>(
 }
 
 /// `root` パーツ（`nav`）。`label` は `aria-label` として付与し必須引数
-/// （複数 `nav` ランドマークの区別のため、[`mod@crate::nav_list`] の
+/// （複数 `nav` ランドマークの区別のため、[`crate::nav_list`](mod@crate::nav_list) の
 /// `root` と同じ判断）。状態非依存（各項目の開閉状態は [`item`] 側が持つ）。
 /// `props.orientation` を `data-orientation` として出力する（イシュー #1654）。
 #[must_use]
@@ -427,13 +427,13 @@ pub fn content<'a>(
 /// 開閉状態が既に伝わるため常時 `aria-hidden="true"` を固定付与する
 /// （[`item_indicator`] と同じ判断）。`state` が [`OpenState::Closed`]
 /// （どの項目も開いていない）のとき `hidden` 存在属性を付与する（指す対象が
-/// 無い状態で位置不定の要素を表示しない fail-safe、[`mod@crate::tabs`] の
+/// 無い状態で位置不定の要素を表示しない fail-safe、[`crate::tabs`](mod@crate::tabs) の
 /// ルートレベル `indicator` と同じ判断）。`value` は `Some` のときのみ
 /// `data-value` として出力し、開いている項目値を構造情報として伝える
 /// （実座標の計測値ではない。将来の wasm 配線が追従先 Trigger を
 /// `[data-part="trigger"][data-value=…]` で特定するための入力）。
 ///
-/// **`style` 属性は出力しない**（[`mod@crate::tabs`] のルートレベル
+/// **`style` 属性は出力しない**（[`crate::tabs`](mod@crate::tabs) のルートレベル
 /// `indicator` とは意図的に異なる）。`--fandhe-` プレフィックスの CSS
 /// 変数命名契約は `fandhe-frontend-pre-styled-ui` 層の関心であり本層へ
 /// 持ち込まない。座標追従（`--fandhe-navigation-menu-indicator-*` への
@@ -465,7 +465,7 @@ pub fn indicator<'a>(
 }
 
 /// `link` パーツ（`a`）。`current` が `true` のとき `aria-current="page"`
-/// と `data-current` を付与する（[`mod@crate::nav_list`] の `link` と同じ
+/// と `data-current` を付与する（[`crate::nav_list`](mod@crate::nav_list) の `link` と同じ
 /// 語彙。Radix の `data-active` 語彙は採らず ark-ui 語彙で統一する、
 /// モジュール冒頭「参考サイトとの意図的な差分」参照）。`role` は一切
 /// 付与しない。

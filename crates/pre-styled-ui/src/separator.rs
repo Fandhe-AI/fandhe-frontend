@@ -17,7 +17,7 @@
 //! `role`/`aria-orientation`/`data-orientation`/`class` はいずれも
 //! コンポーネント側が決定する契約属性であり、呼び出し側 `attrs` に同名の
 //! キー（大文字小文字を無視）が含まれていても除去してから合成する
-//! （[`crate::skeleton`] が `aria-hidden` を除去する判断と同型の fail-closed
+//! （[`crate::skeleton`](mod@crate::skeleton) が `aria-hidden` を除去する判断と同型の fail-closed
 //! 方針。契約属性の偽装を許すと、支援技術・CSS セレクタの双方が誤った
 //! 状態を読み取ってしまう）。
 //!
@@ -25,7 +25,7 @@
 //!
 //! chakra-ui Separator の `size`（罫線太さ）・`colorPalette` 軸は提供しない。
 //! 区切り線は中立的な罫線でありステータス色を持たない
-//! （[`crate::card`]/[`crate::skeleton`] が「中立コンテナ／装飾的占位要素の
+//! （[`crate::card`]/[`crate::skeleton`](mod@crate::skeleton) が「中立コンテナ／装飾的占位要素の
 //! ため colorPalette 軸を付与しない」とした判断と同じ整理）。太さは
 //! `variant`（`solid`/`dashed`/`dotted`）と `orientation`
 //! （`horizontal`/`vertical`）の直交する 2 軸のみを受け入れ条件どおりに
@@ -90,7 +90,7 @@
 //! - **状態（`data-*`）**: shadcn に状態はなく差分なし。
 //! - **合成パターン**: shadcn Examples 4 件（Horizontal / Vertical /
 //!   Vertical Menu / In List）は本側の既存 API
-//!   （[`separator`] + [`crate::heading`]/[`crate::text`] + core
+//!   （[`separator`] + [`crate::heading`](mod@crate::heading)/[`crate::text`](mod@crate::text) + core
 //!   `div`/`span`/`dl`）のみで再現可能であり、パート追加は不要。
 //! - **ラベル付き合成（[`group`]/[`label`]、shadcn の Separator ページには
 //!   無い）**: shadcn 固有ではなく chakra-ui の「HStack + Text で labeled
@@ -113,7 +113,7 @@
 //! のと同じ判断）。ただし `Orientation` へ直接 [`VariantValue`] を実装すると
 //! 他の複合部品の recipe（tabs/accordion 等、いずれ `orientation` 軸を
 //! 持ちうる）に本モジュール固有の axis 名解釈が意図せず波及する懸念がある
-//! ため、本モジュール内限定のニュータイプ [`OrientationAxis`] を介して
+//! ため、本モジュール内限定のニュータイプ `OrientationAxis` を介して
 //! `VariantValue` を実装する。
 //!
 //! # 縦方向の高さについて
@@ -121,7 +121,7 @@
 //! chakra-ui と同じく、縦方向の区切り線は自身では高さを決定できない
 //! （親コンテナのレイアウトに依存する）。`--fandhe-separator-height` を
 //! フォールバック付き custom property として公開し、呼び出し側が必要に
-//! 応じて上書きする前提とする（[`crate::skeleton`] の
+//! 応じて上書きする前提とする（[`crate::skeleton`](mod@crate::skeleton) の
 //! `--fandhe-skeleton-size` と同型のパターン）。
 //!
 //! # Examples

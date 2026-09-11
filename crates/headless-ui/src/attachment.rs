@@ -6,9 +6,9 @@
 //! AI チャット UI の「添付ファイル 1 件の表示」を表現する [`root`] /
 //! [`media`] / [`content`] / [`name`] / [`meta`] / [`progress`] /
 //! [`actions`] / [`action`] の 8 anatomy パーツを提供する。既存
-//! [`mod@crate::file_upload`] が「選択・ドロップ」の入力側部品であるのに
-//! 対し、本モジュールは「表示側」の別部品である。[`mod@crate::message`]/
-//! [`mod@crate::bubble`] と同型で状態機械（[`crate::state`]）を持たない
+//! [`crate::file_upload`](mod@crate::file_upload) が「選択・ドロップ」の入力側部品であるのに
+//! 対し、本モジュールは「表示側」の別部品である。[`crate::message`](mod@crate::message)/
+//! [`crate::bubble`](mod@crate::bubble) と同型で状態機械（[`crate::state`]）を持たない
 //! 静的部品であり、`fandhe-frontend-wasm-full` の配線は不要（削除等の操作は
 //! すべて呼び出し側が [`action`] の click ハンドラとして配線する）。
 //!
@@ -18,7 +18,7 @@
 //! progress / actions` の 7 パーツを挙げるが、イシュー本文は「削除
 //! アクションは `button` + `aria-label` を出力する」ことを要求している。
 //! [`actions`]（アクション群のコンテナ）だけではこの要求を満たせないため、
-//! 8 番目のパーツとして [`action`] を追加する（[`crate::docs_site::nav`]
+//! 8 番目のパーツとして [`action`] を追加する（`crate::docs_site::nav`
 //! の `header_nav` が差分記録を rustdoc に残す流儀を踏襲、根拠は
 //! `crates/docs-site/src/nav.rs` の `header_nav` rustdoc「イシュータイトルと
 //! の差分」節を参照）。
@@ -26,12 +26,12 @@
 //! # 会話系 4 部品の共通語彙への不追随（意図的）
 //!
 //! 会話系 4 部品（message（#2105）/ bubble（#2108）/ attachment（本
-//! モジュール）/ marker（#2114））の共通語彙の正は [`mod@crate::message`]
+//! モジュール）/ marker（#2114））の共通語彙の正は [`crate::message`](mod@crate::message)
 //! モジュール doc「会話系 4 部品の共通語彙」である。本モジュールは
 //! `data-role`/`data-align` のいずれも持たない: 親イシュー（#2110）が
 //! 列挙する表示状態は `data-variant`/`data-state`/`data-disabled` のみで
-//! あり、添付ファイルは常に外側の [`mod@crate::message`]/
-//! [`mod@crate::bubble`] の [`crate::message::content`]/[`crate::bubble::content`]
+//! あり、添付ファイルは常に外側の [`crate::message`](mod@crate::message)/
+//! [`crate::bubble`](mod@crate::bubble) の [`crate::message::content`]/[`crate::bubble::content`]
 //! スロット内に置かれ、整列（`data-align`）はその親から継承する設計と
 //! するため、新語彙を割らない。
 //!
@@ -42,12 +42,12 @@
 //! [`media`] パーツ自体は独自の `data-variant` を持たない（
 //! `fandhe-frontend-pre-styled-ui`/利用者側 CSS は
 //! `[data-variant="image"] [data-part="media"]` の子孫セレクタで分岐する
-//! 設計とする）。この点は [`mod@crate::item`] の media パーツが独自
+//! 設計とする）。この点は [`crate::item`](mod@crate::item) の media パーツが独自
 //! variant を持つ設計とは意図的に異なる（親イシュー #2110 が root 側の
 //! `file`/`image` を要求しているため）。[`media`] は画像プレビュー
 //! （`img`）または種別アイコンを children として受けるだけのスロットで
 //! あり、画像読み込み失敗時のフォールバック等は行わない
-//! （[`mod@crate::avatar`] の `Avatar` 状態機械は内包しない）。
+//! （[`crate::avatar`](mod@crate::avatar) の `Avatar` 状態機械は内包しない）。
 //!
 //! # `data-state`（`idle` | `uploading` | `error`）
 //!
@@ -72,7 +72,7 @@
 //! [`crate::progress::Progress`] のパーツメソッドへ直接委譲すると
 //! `data-scope` が `"progress"` へ切り替わり、docs-site の Anatomy/
 //! `data-*` 表（`data-scope="attachment"` からの機械導出）から `progress`
-//! パートが消えてしまう（[`mod@crate::bubble`] が折りたたみパーツで
+//! パートが消えてしまう（[`crate::bubble`](mod@crate::bubble) が折りたたみパーツで
 //! 直面したのと同じ罠）。そのため [`progress`] は attachment scope の
 //! 単純な `div` スロットとし、呼び出し側が中身へ
 //! [`crate::progress::Progress`] のパーツ群（`root`/`track`/`range` 等、

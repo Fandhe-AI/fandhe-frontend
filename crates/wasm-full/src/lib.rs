@@ -9,7 +9,7 @@
 //! TASK-11.2d・#77 マージ済み）では [`events`]（イベント委譲配線）・
 //! [`dom::render_component_html`]（DOM 非依存の描画純粋関数）・[`hydration`]
 //! （`data-hydrate-*` 属性からの状態復元、`docs/api/hydration-state-format.md`
-//! 第 5 節）に加え、[`Runtime`]（`mount`/`hydrate` の公開 API・`set_inner_html`
+//! 第 5 節）に加え、`Runtime`（`mount`/`hydrate` の公開 API・`set_inner_html`
 //! を伴う `dom::mount_initial`（旧 paint）本体・イベント配線・ハイドレーション関数群の統合、
 //! `docs/design/wasm-full-architecture.md` 第 3.2 節の公開 API 凍結表）と
 //! [`dispatch_and_render_headless`]（DOM 非依存のヘッドレス補助 API）を提供する。
@@ -22,13 +22,13 @@
 //!
 //! 具象 `Component` 実装（例: `fandhe_frontend_interactive::AppState`）に対して
 //! `#[wasm_bindgen]` エクスポートを薄く書き出すアプリ側エントリポイントの
-//! 参照実装は [`entry`] モジュールが提供する
+//! 参照実装は `entry` モジュールが提供する
 //! （`docs/design/wasm-full-architecture.md` 第 3.3 節、`#[wasm_bindgen]` はジェネリクスを
 //! エクスポートできないため `Runtime<C>` はここで具象化しない）。
 //!
 //! [`csr`] モジュール（TASK-CSR-loader・#349）は `fandhe_frontend_app::Loader` 経由の
 //! CSR データ解決（`fandhe_frontend_app::Item` 系ページ）を担う別系統の 2 層構成
-//! （DOM 非依存の純粋層）であり、[`Runtime`]/[`entry`]/[`hydration`]
+//! （DOM 非依存の純粋層）であり、`Runtime`/`entry`/[`hydration`]
 //! （`fandhe_frontend_interactive::Component`/`AppState` 系の初期表示・イベント処理）
 //! とは独立に、クライアント側で新規データ解決が必要になった場合の入口を
 //! 提供する。初期表示（ハイドレーション）では呼ばない
@@ -38,15 +38,15 @@
 //! `data-scope`/`data-part`（anatomy セレクタ）クリックを
 //! `fandhe_frontend_interactive::dispatch` の文字列アクションへ写像する、
 //! [`events`] とは独立した配線基盤を提供する。headless-ui のマークアップは
-//! `data-action` を持たないため [`events::wire_events`] の対象外であり、
+//! `data-action` を持たないため `events::wire_events` の対象外であり、
 //! 本モジュールが (`data-scope`, `data-part`) の静的マッピング表を持つ別系統
 //! の配線層として補う。
 //!
 //! [`nav`] モジュール（イシュー #374）はクライアント側ルーティング
 //! （history API 連携・URL 同期・遷移時 loader 配線）を担う。[`csr`] の
 //! loader 解決層を再利用しつつ、`data-nav` クリック委譲・`popstate` 連携・
-//! DOM サブツリー差し替え（[`fandhe_frontend_wasm_client::build_dom_node`] 経由、
-//! `set_inner_html` 不使用）という独自の配線層を持つ。[`Runtime`]/[`entry`]
+//! DOM サブツリー差し替え（`fandhe_frontend_wasm_client::build_dom_node` 経由、
+//! `set_inner_html` 不使用）という独自の配線層を持つ。`Runtime`/`entry`
 //! の状態管理（`fandhe_frontend_interactive::Component`）とは独立した別系統であり、
 //! 遷移後のインタラクティブ要素再配線は本クレートのスコープ外（#374 計画
 //! §8 参照）。
@@ -65,7 +65,7 @@
 //! `data-align` を反映する。`events`/`overlay` と同じ 2 層構成を踏襲し、
 //! scroll/resize イベント契機の離散的な再計算（`autoUpdate` 相当の連続監視は
 //! 非採用、`docs/design/anchor-positioning-design.md` §4.3）を提供する。
-//! [`headless::wire_headless_component`] は配線時・dispatch 成功後の 2 箇所で
+//! `headless::wire_headless_component` は配線時・dispatch 成功後の 2 箇所で
 //! `position::reposition_within` を自動的に呼び、thread_local 単一の
 //! `PositionController` を遅延生成する（イシュー #2209、親 #2208。
 //! `docs/design/wasm-full-architecture.md` §34）ため、利用者が
@@ -140,7 +140,7 @@
 //! `--fandhe-content-height` へ書き込む部品非依存の共通ヘルパーを提供する。
 //! `chart`/`sidebar` と同じ 2 層構成を踏襲し、対象パーツは
 //! `(data-scope, data-part)` の静的表のみで宣言する。
-//! [`headless::wire_headless_component`] から dispatch 成功後の再描画に
+//! `headless::wire_headless_component` から dispatch 成功後の再描画に
 //! 続けて自動的に呼ばれ、headless-ui 側の変更は伴わない
 //! （`content_height` モジュール doc 参照）。
 //!
@@ -173,7 +173,7 @@
 //!
 //! # 配線群別 feature（イシュー #2326）
 //!
-//! [`Runtime::mount`]/[`Runtime::hydrate`] が呼ぶ配線（`wire_*`）は、配線
+//! `Runtime::mount`/`Runtime::hydrate` が呼ぶ配線（`wire_*`）は、配線
 //! 1 件 = feature 1 件（既定 on）へ分割されている。目的は REQ-11 gzip 上限
 //! （200,000 B）に対する余地確保
 //! （`docs/design/wasm-full-feature-gating-evaluation.md` §6 (ii)）であり、
@@ -184,11 +184,11 @@
 //!
 //! | 配線 | feature |
 //! |---|---|
-//! | [`events::wire_events`] | ゲートしない（`data-action` 委譲、全構成必須） |
-//! | [`keynav::wire_readonly_click_guard`] | ゲートしない（readonly RadioGroup の click capture 保護、イシュー #2326 codex-review 是正） |
+//! | `events::wire_events` | ゲートしない（`data-action` 委譲、全構成必須） |
+//! | `keynav::wire_readonly_click_guard` | ゲートしない（readonly RadioGroup の click capture 保護、イシュー #2326 codex-review 是正） |
 //! | `Runtime::wire_headless` | ゲートしない（`headless::MAPPING_TABLE` 全行のクリック dispatch、イシュー #2326 Bugbot 是正） |
-//! | [`keynav::wire_keynav`] | `keynav` |
-//! | [`focus_visible::wire_focus_visible`] | `focus-visible` |
+//! | `keynav::wire_keynav` | `keynav` |
+//! | `focus_visible::wire_focus_visible` | `focus-visible` |
 //! | `Runtime::wire_avatar` | `avatar` |
 //! | `Runtime::wire_clipboard` | `clipboard` |
 //! | `Runtime::wire_timer` | `timer` |
@@ -207,7 +207,7 @@
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
 //! gating 対象外（feature を持たない）。ただし [`position`] のみ例外があり、
-//! [`headless::wire_headless_component`] 内の自動 positioning 呼び出し
+//! `headless::wire_headless_component` 内の自動 positioning 呼び出し
 //! （`ensure_global_controller`・`reposition_within` 2 箇所）は feature
 //! `"position"`（既定 on）でゲートする（イシュー #2209、親 #2208。
 //! `docs/design/wasm-full-architecture.md` §34.2）。`Runtime::mount`/
@@ -234,15 +234,15 @@
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
-//! [`headless_signature_pad::wire_signature_pad_component`] は本イシュー
+//! `headless_signature_pad::wire_signature_pad_component` は本イシュー
 //! （#2326）以前は SignaturePad のポインタ座標収集配線と ClearTrigger の
 //! クリック配線の両方を単独で組み込んでいたが、本変更で ClearTrigger
-//! クリック配線を [`Self::wire_headless`]（`headless::wire_headless_component`
+//! クリック配線を `Self::wire_headless`（`headless::wire_headless_component`
 //! 経由、`default-features = false` でも feature ゲートされない常時配線）
 //! へ分離した。`Runtime::mount`/`Runtime::hydrate` を使う利用者は
 //! `Self::wire_headless` が自動的に呼ばれるため挙動は変わらないが、
 //! `Runtime` を経由せず
-//! [`headless_signature_pad::wire_signature_pad_component`] を直接呼んで
+//! `headless_signature_pad::wire_signature_pad_component` を直接呼んで
 //! いる利用者（自前のマウント処理を組み立てているアプリ）は、既定 feature
 //! 構成であっても ClearTrigger のクリック配線を失う。これは上記の
 //! `default-features = false` 節（14 配線を失う contract）とは別の変更で
@@ -250,14 +250,14 @@
 //!
 //! 従来どおり ClearTrigger のクリックを配線するには、
 //! `wire_signature_pad_component` の呼び出しに加えて
-//! [`headless::wire_headless_component`] を同じ `root`/`component` へ
+//! `headless::wire_headless_component` を同じ `root`/`component` へ
 //! 明示的に呼ぶこと（`Self::wire_headless` の実装と同型の呼び出しで足りる。
 //! `on_update` は SignaturePad 側と同じ束縛点更新ロジックを渡してよい）。
 //!
 //! ## `keynav` off 時の注意
 //!
 //! readonly RadioGroup の click capture 保護（イシュー #1616）は
-//! [`keynav::wire_readonly_click_guard`] へ分離済みで、`keynav` の
+//! `keynav::wire_readonly_click_guard` へ分離済みで、`keynav` の
 //! 有効/無効に関わらず常時登録される（イシュー #2326 codex-review P1
 //! 是正、`docs/design/wasm-full-feature-gating-evaluation.md` §11
 //! 条件 4）。`keynav` を off にした場合に失われるのはキーボード操作
@@ -282,11 +282,11 @@
 //! # scope feature（イシュー #2327）
 //!
 //! 上記の配線群別 feature（`wire_*` 呼び出し単位）とは独立の第 2 軸
-//! として、[`headless::MAPPING_TABLE`]（18 scope・32 行）の各行と
-//! [`keynav::wire_keynav`] 内部の `match scope` 分岐（13 arm）を、
+//! として、`headless::MAPPING_TABLE`（18 scope・32 行）の各行と
+//! `keynav::wire_keynav` 内部の `match scope` 分岐（13 arm）を、
 //! 部品（scope）単位の feature 16 件（既定 on）で cfg ゲートしている。
 //! 配線群別 feature は「その配線を呼ぶか否か」を切り替えるのに対し、
-//! scope feature は「[`keynav::wire_keynav`] 自体は呼ぶが、特定 scope の
+//! scope feature は「`keynav::wire_keynav` 自体は呼ぶが、特定 scope の
 //! クリック dispatch・キーボード操作だけを個別に外せる」ための粒度
 //! である。両軸は独立: 「クリックだけ使いキーボード操作は不要」=
 //! 当該 scope feature のみ、「キーボード操作も使う」= `keynav` +
@@ -324,7 +324,7 @@
 //! 直接利用 API）は引き続き gating 対象外である（上記配線群別 feature の
 //! 節と同じ境界）。
 //!
-//! readonly RadioGroup の click capture 保護（[`keynav::wire_readonly_click_guard`]）
+//! readonly RadioGroup の click capture 保護（`keynav::wire_readonly_click_guard`）
 //! はいずれの scope feature にも依存しない常時配線のまま（イシュー #2333
 //! で `keynav::wire_keynav` から分離済み、`radio-group` を off にしても
 //! 保護は失われない。`crates/wasm-full/tests/keynav_browser.rs` の
@@ -409,7 +409,7 @@ use fandhe_frontend_interactive::Component;
 /// `fandhe_frontend_core::Node` 木）を返すのみで、`fandhe_frontend_core::render()`・DOM のいずれも
 /// 経由しない。native の単体テスト・Node 計測（TASK-11.5/11.6）が
 /// wasm32 ターゲット・実 DOM を介さずに「dispatch 後の状態」を検証できるように
-/// するためのヘルパーであり、[`Runtime::mount`]/[`Runtime::hydrate`] の
+/// するためのヘルパーであり、`Runtime::mount`/`Runtime::hydrate` の
 /// 内部実装（`dom::mount_initial` 経由で `fandhe_frontend_core::render()` の既定エスケープ済み
 /// 出力のみを DOM へ渡す）とは別経路である。
 ///

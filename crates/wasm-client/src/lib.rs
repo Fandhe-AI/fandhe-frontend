@@ -25,7 +25,7 @@
 //!    `#[wasm_bindgen]` エクスポート `hydrate` / `mount_csr`。実 DOM
 //!    （`web-sys`）を操作するのはこの層のみに限定する。配線本体は
 //!    `wasm-bindgen-exports` feature 非依存の共有 Rust API
-//!    [`wire_hydrate_targets`] として公開しており、`hydrate` はこれを
+//!    `wire_hydrate_targets` として公開しており、`hydrate` はこれを
 //!    `#[wasm_bindgen]` でラップするだけの薄い層になっている（イシュー
 //!    #403: `fandhe-frontend-wasm-full`（`wasm-full/src/nav.rs`）の遷移後再配線が
 //!    同じ本体を呼ぶ）。
@@ -38,11 +38,11 @@
 //! 2. `hydrate()` は対象 DOM に対し `set_inner_html` 等の再構築系 API を
 //!    **一切呼ばない**。イベントリスナーの後付け（`add_event_listener_with_callback`）
 //!    のみを行う。
-//! 3. ハンドラ内 DOM 更新・束縛点ベースの最小更新（[`binding`]/[`binding_dom`]、
+//! 3. ハンドラ内 DOM 更新・束縛点ベースの最小更新（`binding`/`binding_dom`、
 //!    イシュー #343）は `set_text_content` / `set_attribute` / `class_list`
 //!    （`DomTokenList`）のテキスト・属性・class API に限定する。`data-bind-*`
 //!    束縛点（`fandhe_frontend_core::bind`、#342）と `DirtyTracked::dirty_fields()`
-//!    （`fandhe_frontend_interactive`、#341）から駆動する汎用経路（[`binding_dom::BindingTable`]）
+//!    （`fandhe_frontend_interactive`、#341）から駆動する汎用経路（`binding_dom::BindingTable`）
 //!    もこの限定に従い、DOM 再構築なし・イベントリスナー保持を維持する
 //!    （`docs/design/dom-binding-update-design.md` §4.1・§9 不変条件 1〜4）。
 //! 4. `fandhe_frontend_core::raw_html()` は本クレートから呼ばない。
@@ -51,15 +51,15 @@
 //!    `unsafe` 追加はビルド時に検出される）。
 //! 6. `JsValue` エラー・`web_sys::console` ログは英語・固定文言とし、内部
 //!    パス・状態値・属性値の内容を含めない。
-//! 7. [`replace_subtree`]（イシュー #1121）は [`build_dom_node`] のみを
+//! 7. `replace_subtree`（イシュー #1121）は `build_dom_node` のみを
 //!    経由してサブツリーを構築する（`set_inner_html` は使わない。`RawHtml`
 //!    混入時は fail-closed で `Err` を返し DOM を変更しない、上記
 //!    不変条件 1 を継承）。
-//! 8. [`set_timeout_once`]/[`clear_timeout_once`]（イシュー #1121）の
+//! 8. `set_timeout_once`/`clear_timeout_once`（イシュー #1121）の
 //!    `Closure` は `registry`（本ファイル `mod registry`）と同じく
 //!    `forget()` を使わず、`thread_local!` レジストリで key 単位に有界
 //!    保持する。
-//! 9. [`apply_keyed_list_with_previous`]（イシュー #1324、`KeyedOp::Update`
+//! 9. `apply_keyed_list_with_previous`（イシュー #1324、`KeyedOp::Update`
 //!    の DOM 適用）も `set_inner_html`/`insert_adjacent_html` を一切呼ばず、
 //!    `create_element`/`set_text_content`/`setAttribute`/`removeAttribute`
 //!    のみで完結する。`Node::RawHtml` を含む部分木は detached（ライブ DOM
@@ -169,7 +169,7 @@ mod registry;
 /// `docs/api/hydration-api.md` 第 3.1 節の契約）。
 ///
 /// 純粋ロジック層（[`find_hydrate_target_kinds`]）・wasm32 配線層
-/// （[`wire_hydrate_targets`]）の双方が同じ属性名を参照することで、
+/// （`wire_hydrate_targets`）の双方が同じ属性名を参照することで、
 /// 「どの属性を見て対象を判定するか」の契約を一箇所に固定する。
 pub const HYDRATE_ATTR: &str = "data-hydrate";
 
@@ -292,7 +292,7 @@ pub fn render_detail_page_html(id: &str) -> String {
 ///
 /// DOM 非依存の純粋関数のため wasm ビルドを介さずネイティブテスト可能
 /// （`wasm-client/tests/hydration_targets.rs`）。実 DOM 上でのハイドレーション
-/// 配線（[`wire_hydrate_targets`]、wasm32 配線層）は、本関数と同じ属性名契約
+/// 配線（`wire_hydrate_targets`、wasm32 配線層）は、本関数と同じ属性名契約
 /// （[`HYDRATE_ATTR`]）を使って `web_sys::Element::query_selector_all` で
 /// 実要素を検索する。両者は同じ属性名定数を共有することで、対象特定ロジックの
 /// 契約が単一箇所に保たれる。

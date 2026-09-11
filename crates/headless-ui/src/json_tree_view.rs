@@ -4,9 +4,9 @@
 //!
 //! ark-ui の `utilities/json-tree-view`
 //!（`.claude/skills/ark-ui/references/components/utilities/json-tree-view.md`）
-//! 相当の部品は「実装済み [`mod@crate::tree_view`]（イシュー #753）の派生
+//! 相当の部品は「実装済み [`crate::tree_view`](mod@crate::tree_view)（イシュー #753）の派生
 //! として実装できる見込み」として保留されていた。本モジュールはその保留を
-//! 解除し、[`mod@crate::tree_view`] の 12 anatomy パーツ・[`TreeView`] 状態
+//! 解除し、[`crate::tree_view`](mod@crate::tree_view) の 12 anatomy パーツ・[`TreeView`] 状態
 //! 機械（展開集合 + 選択値）を**そのまま再利用**しつつ、決定的な JSON 風
 //! データ構造 [`JsonValue`] をツリー表示するための最小限の追加（`key`/
 //! `colon`/`value` の 3 anatomy パーツと変換ロジック [`render_json`]）
@@ -28,7 +28,7 @@
 //!   表示）・`colon`（`span`、`key` と `value` の区切り。キーを持つノードに
 //!   のみ出力する）・`value`（`span[data-kind]`、値テキストの型別表示）の
 //!   3 個のみで、これらは新設の `data-scope="json-tree-view"`
-//!   （[`ANATOMY`]）に属する（`tree-view` スコープの構造部とは別スコープ。
+//!   （`ANATOMY`）に属する（`tree-view` スコープの構造部とは別スコープ。
 //!   既存 styled TreeView recipe を壊さないため）。`key`/`colon`/`value` は
 //!   [`crate::tree_view::branch_text`]/[`crate::tree_view::item_text`] の
 //!   内側へ入れ子にして描画する（ark-ui の `BranchText`/`ItemText` が
@@ -48,7 +48,7 @@
 //! [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901) の JSON Pointer 記法
 //! （`~0`→`~`・`~1`→`/` の逆写像を適用したエスケープ済みセグメントを `/` で
 //! 連結）を使う。ルートは空文字列 `""`。キーに `/` や `~` を含むデータでも
-//! ポインタの一意性が壊れない（[`escape_pointer_segment`] 参照）。配列要素は
+//! ポインタの一意性が壊れない（`escape_pointer_segment` 参照）。配列要素は
 //! 10 進の index 文字列をセグメントとして使う。
 //!
 //! # 値の表示テキスト
@@ -69,7 +69,7 @@
 //!   `&'static str` リテラルで固定しており、[`JsonValue::kind`] が返す語彙
 //!   （`"null"`/`"boolean"`/`"number"`/`"string"`/`"array"`/`"object"`）も
 //!   `&'static str` のみを返すため、動的値が属性名・`data-kind` 属性値の
-//!   スロットへ混入する経路はない（[`mod@crate::anatomy`]/[`crate::data_attrs`]
+//!   スロットへ混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`]
 //!   の既存不変条件をそのまま継承する）。`colon` の子要素はリテラル `": "`
 //!   固定でユーザーデータを含まない。
 //! - 動的値（キー文字列・値の表示テキスト・JSON Pointer・呼び出し側
@@ -83,7 +83,7 @@
 //! # DoS（深い再帰）に関する注記
 //!
 //! [`render_json`]/[`expanded_to_depth`] はいずれも入力 [`JsonValue`] の
-//! 深さに比例する再帰呼び出しを行う（[`crate::tree_view::TreeView::render_level`]
+//! 深さに比例する再帰呼び出しを行う（`crate::tree_view::TreeView::render_level`
 //! と同型の特性）。表示対象は開発者が管理する静的データを想定しており、
 //! 極端に深いネストを持つ入力を与えるとスタック消費が増大する点に注意する
 //! （新規の脅威面ではなく、既存 `tree_view` の再帰特性の延長）。
@@ -270,7 +270,7 @@ pub fn key<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 }
 
 /// Colon パーツ（`span`）。`key` と `value` の区切り記号（ark-ui
-/// `data-kind="colon"` 相当、イシュー #1661）。[`render_node`] が
+/// `data-kind="colon"` 相当、イシュー #1661）。`render_node` が
 /// キーを持つノードにのみ生成し、子要素は常にリテラル `": "`
 /// （固定テキストでユーザーデータを含まないため既定エスケープ上の懸念なし）。
 #[must_use]

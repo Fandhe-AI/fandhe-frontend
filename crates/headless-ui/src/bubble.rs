@@ -5,15 +5,15 @@
 //!
 //! チャット吹き出し 1 個を表現する [`root`] / [`content`] / [`reactions`] /
 //! [`reaction`] / [`collapse_trigger`] / [`collapse_content`] の 6 anatomy
-//! パーツを提供する。[`mod@crate::message`] と同型で状態機械
+//! パーツを提供する。[`crate::message`](mod@crate::message) と同型で状態機械
 //! （[`crate::state`]）を持たない静的部品であり、`fandhe-frontend-wasm-full`
 //! の配線は現時点で未整備（下記「wasm-full 未配線」参照）。
 //!
-//! # 会話系 4 部品の共通語彙への追随（正は [`mod@crate::message`]）
+//! # 会話系 4 部品の共通語彙への追随（正は [`crate::message`](mod@crate::message)）
 //!
 //! `data-align`（[`crate::message::MessageAlign`] を再利用）は会話系 4 部品
 //! （message（#2105）/ bubble（本モジュール）/ attachment（#2111）/
-//! marker（#2114））が共有する語彙であり、正は [`mod@crate::message`]
+//! marker（#2114））が共有する語彙であり、正は [`crate::message`](mod@crate::message)
 //! モジュール doc「会話系 4 部品の共通語彙」である。本モジュールは第 2 の
 //! align 列挙型を作らず [`crate::message::MessageAlign`] をそのまま
 //! [`BubbleRootProps::align`] に採用する。

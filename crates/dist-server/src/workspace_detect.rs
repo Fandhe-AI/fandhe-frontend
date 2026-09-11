@@ -26,7 +26,7 @@
 /// tarball 検証・crates.io からの利用者ビルドでは、パッケージは
 /// `target/package/<name>-<version>/` のようなワークスペース外の一時
 /// ディレクトリに単体展開されてビルドされる。呼び出し元
-/// （[`crate::build`] 相当、実体は `build.rs`）が `CARGO_MANIFEST_DIR` から
+/// （`crate::build` 相当、実体は `build.rs`）が `CARGO_MANIFEST_DIR` から
 /// 機械的に 2 段上がった先には、通常 `Cargo.toml` が存在しないか、存在しても
 /// 上記いずれかの条件を満たさない。このいずれの場合も `false` を返し、
 /// 呼び出し元は WASM ビルドステージ（Cargo.lock 読み取り・ネスト

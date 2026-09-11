@@ -6,8 +6,8 @@
 //! （`docs/design/docs-site-styled-ui-adoption.md` §3.2 が「pre-styled-ui の
 //! `card` はアンカー全面クリック化に非対応」と評価した課題を解消する部品）に
 //! 倣う。anatomy は `root`（`div`、位置決めコンテキスト）/ `overlay`（`a`、
-//! カード全面へ拡張されるリンク）の 2 パーツ構成。[`mod@crate::breadcrumb`]/
-//! [`mod@crate::link`] と同型で状態機械（[`crate::state`]）は持たない。
+//! カード全面へ拡張されるリンク）の 2 パーツ構成。[`crate::breadcrumb`](mod@crate::breadcrumb)/
+//! [`crate::link`](mod@crate::link) と同型で状態機械（[`crate::state`]）は持たない。
 //!
 //! # 全面拡張の実装方針（`::before` 疑似要素を使わない理由）
 //!
@@ -64,7 +64,7 @@
 //! 危険 URL スキームは core の許可リスト方式が属性ごと拒否する）。
 //! [`overlay`] が固定付与する `href` は呼び出し側 `attrs` からの同名
 //! なりすまし（`fandhe_frontend_core::el` は同名属性を重複除去しないため
-//! 単に連結すると `href` が二重出力されうる）を [`drop_reserved`] で
+//! 単に連結すると `href` が二重出力されうる）を `drop_reserved` で
 //! 除去する（`crate::breadcrumb::link` と同型、イシュー #1650）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）

@@ -115,7 +115,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`id`/`tabindex`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入する
-//!   経路はない（[`mod@crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の
+//!   経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の
 //!   既存不変条件をそのまま継承する）。
 //! - 動的値（`id`/`labelledby`/`describedby`/`controls`/呼び出し側 `attrs`/
 //!   `children` テキスト）は [`fandhe_frontend_core::render`] の既定エスケープを
@@ -325,7 +325,7 @@ pub struct ContentIds<'a> {
 /// 子孫が無い場合の代替フォーカス先として同属性を動的にも付与しており、
 /// 本関数が SSR 時点から固定付与することで SSR 出力とハイドレーション後の
 /// 出力が一致する（イシュー #1638）。呼び出し側 `attrs` に `tabindex`
-/// （大文字小文字を無視）が含まれる場合は [`drop_tabindex_attr`] で除去
+/// （大文字小文字を無視）が含まれる場合は `drop_tabindex_attr` で除去
 /// してから合成する。除去しないと SSR は同名属性を重複出力して先頭の
 /// `-1` が有効になる一方、wasm-client の `keyed_dom` は `set_attribute`
 /// の後勝ちで呼び出し側の値が有効になり、描画経路間で結果が食い違う
@@ -411,7 +411,7 @@ pub fn close_trigger<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) ->
 ///
 /// 呼び出し側 `attrs` に含まれる `data-variant`（ASCII 大文字小文字
 /// 無視）はなりすまし防止のため除去し、`variant` 引数の値を必ず優先する
-/// （[`drop_reserved`] 参照）。
+/// （`drop_reserved` 参照）。
 #[must_use]
 pub fn close_trigger_with_variant<'a>(
     variant: CloseTriggerVariant,

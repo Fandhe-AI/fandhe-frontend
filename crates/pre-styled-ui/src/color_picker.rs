@@ -12,7 +12,7 @@
 //! トリガー充足）
 //!
 //! 色領域（[`area`]）・色相/アルファスライダーの見た目は本モジュールの
-//! [`recipe`] が定義する CSS グラデーション + thumb 位置（`state` の
+//! `recipe` が定義する CSS グラデーション + thumb 位置（`state` の
 //! 導出 getter が算出する整数割合を注入する custom property）のみで
 //! 組み立てる。`canvas`/`web-sys` には一切依存しない。
 //!
@@ -34,7 +34,7 @@
 //! これらはすべて [`Color::to_hex_string`]（`crates/headless-ui/src/color.rs`
 //! 冒頭の不変条件で常に `#` + 小文字 16 進数字に閉じる）と検証済み整数の
 //! 文字列表現のみであり、CSS インジェクション・属性破りの経路を構造的に
-//! 持たない（[`drop_style_attr`] により呼び出し側 `attrs` の `style` は
+//! 持たない（`drop_style_attr` により呼び出し側 `attrs` の `style` は
 //! 除去してから合成する。`crates/headless-ui/src/progress.rs::drop_style_attr`
 //! と同型の判断）。
 //!
@@ -172,7 +172,7 @@
 //! - `size`/`palette` variant は本イシューのスコープ外（`trigger()`/`root()`
 //!   のシグネチャ変更を伴う破壊的変更のため、3 分割イシュー全体を横断して
 //!   親 #1462 で判断すべき事項。イシュー #1463 でも見送りを継続する。
-//!   固定サイズ・単色の最小実装、最小サブセット方針は [`crate::color_swatch`]
+//!   固定サイズ・単色の最小実装、最小サブセット方針は [`crate::color_swatch`](mod@crate::color_swatch)
 //!   と同型）。
 //! - `examples/headless-pre-styled-ui` への追加は crates.io 未公開の新
 //!   バージョンを参照できないためスコープ外（[`crate::slider`] 冒頭
@@ -218,7 +218,7 @@
 //!   プレビューが消えてしまう。[`StateCondition::Hover`]（条件式の出力形は
 //!   共通）はそのまま使い、宣言のみ `border-color:
 //!   var(--fandhe-color-border-emphasized)` に差し替えている。
-//! - **チェッカーボードのタイルサイズ `8px 8px`**: [`crate::color_swatch`]
+//! - **チェッカーボードのタイルサイズ `8px 8px`**: [`crate::color_swatch`](mod@crate::color_swatch)
 //!   と同じ値を維持した。トークン化（例: `--fandhe-space-2` 系）は
 //!   `color_swatch` 側と同時に行うべき横断事項のため本 PR では行わない。
 //!
@@ -749,7 +749,7 @@ pub fn root<'a>(
 
 /// styled trigger パーツを組み立てる。`--fandhe-color-picker-preview`
 /// （現在色の HEX、アルファ込み）を含む `style` を付与する唯一のパーツ
-/// （[`drop_style_attr`] により呼び出し側の `style` は除去してから合成
+/// （`drop_style_attr` により呼び出し側の `style` は除去してから合成
 /// する）。
 ///
 /// `props` を呼び出し側から受け取り [`ColorPicker::trigger`] へそのまま
@@ -785,7 +785,7 @@ pub fn area<'a>(
 
 /// styled area-background パーツを組み立てる。
 /// `--fandhe-color-picker-hue-color` を含む `style` を付与する唯一の
-/// パーツ（[`drop_style_attr`] で dedup、[`hue_swatch_hex`] 参照）。
+/// パーツ（`drop_style_attr` で dedup、`hue_swatch_hex` 参照）。
 ///
 /// `props` を呼び出し側から受け取り [`ColorPicker::area_background`] へ
 /// そのまま渡す（[`root`] の rustdoc「イシュー #1604 是正」参照）。
@@ -804,7 +804,7 @@ pub fn area_background<'a>(
 }
 
 /// styled area-thumb パーツを組み立てる。`--fandhe-color-picker-x`/`-y`
-/// を含む `style` を付与する唯一のパーツ（[`drop_style_attr`] で dedup）。
+/// を含む `style` を付与する唯一のパーツ（`drop_style_attr` で dedup）。
 ///
 /// `props` を呼び出し側から受け取り [`ColorPicker::area_thumb`] へそのまま
 /// 渡す（[`root`] の rustdoc「イシュー #1604 是正」参照。従来の
@@ -840,9 +840,9 @@ pub fn channel_slider<'a>(
 
 /// styled channel-slider-track パーツを組み立てる。`channel ==
 /// Channel::Alpha` のときのみ `--fandhe-color-picker-alpha-color` を含む
-/// `style` を付与する（[`opaque_hex`] 参照。色相スライダーの track は
+/// `style` を付与する（`opaque_hex` 参照。色相スライダーの track は
 /// 現在色に依存しない静的グラデーションのため `style` を付与しない、
-/// [`recipe`] の doc「色相スライダーの静的 7 ストップグラデーション」
+/// `recipe` の doc「色相スライダーの静的 7 ストップグラデーション」
 /// 参照）。
 #[must_use]
 pub fn channel_slider_track<'a>(
@@ -865,7 +865,7 @@ pub fn channel_slider_track<'a>(
 
 /// styled channel-slider-thumb パーツを組み立てる。
 /// `--fandhe-color-picker-thumb-percent` を含む `style` を付与する唯一の
-/// パーツ（[`drop_style_attr`] で dedup）。位置は `channel` に応じて
+/// パーツ（`drop_style_attr` で dedup）。位置は `channel` に応じて
 /// [`ColorPicker::hue_percent`]/[`ColorPicker::alpha_percent`]/
 /// [`ColorPicker::area_x_percent`]/`100 - area_y_percent` のいずれかを
 /// 使う（[`Channel::Saturation`]/[`Channel::Value`] は 2 次元 [`area`] が

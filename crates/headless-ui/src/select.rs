@@ -27,7 +27,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`disabled`/`id`/`value`/
 //!   `selected`/`tabindex`/`name`）はすべて `&'static str` リテラルで固定して
-//!   おり、動的値が属性名スロットへ混入する経路はない（[`mod@crate::anatomy`]/
+//!   おり、動的値が属性名スロットへ混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/
 //!   [`crate::aria`]/[`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（選択値 `value`/`id`/`controls`/`labelledby`/`name`/option の
 //!   ラベルテキスト/[`item`] の `id`/[`content`] の `activedescendant`/
@@ -87,7 +87,7 @@
 //!   の状態束を root/label/control/trigger/value-text/clear-trigger/
 //!   indicator/item-group へ一律付与する（[`crate::combobox::ComboboxProps`]
 //!   と同型）。呼び出し側 `attrs` に同名キーが混入していても
-//!   [`drop_reserved`] で fail-closed に除去する。
+//!   `drop_reserved` で fail-closed に除去する。
 //! - **[`trigger`] の `data-placeholder-shown`**: ark-ui/Radix 双方が trigger
 //!   に持つ属性で、未選択時のスタイル分岐を [`value_text`] だけでなく
 //!   trigger 自体でも可能にする。
@@ -427,7 +427,7 @@ pub fn value_text<'a>(
 /// kebab-case）。[`trigger`] と同じくフォーム内配置時の意図しない submit を
 /// 防ぐため `type="button"` を固定で付与する。アクセシブルネーム
 /// （`aria-label` 等）は本関数の `attrs` を通じて呼び出し側が付与する責務と
-/// する（[`crate::popover::close_trigger`] と同じ判断）。[`state_attrs`]
+/// する（[`crate::popover::close_trigger`] と同じ判断）。`state_attrs`
 /// （disabled/invalid/readonly の 3 状態束、`state_attrs` rustdoc・root/
 /// trigger 等と同一の一覧）を反映し、`props.disabled` のときのみネイティブ
 /// `disabled` 存在属性も追加する（無効な select はクリアもできない安全側の

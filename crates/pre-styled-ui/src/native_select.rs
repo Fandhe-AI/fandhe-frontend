@@ -1,10 +1,10 @@
 //! styled NativeSelect（イシュー #737、親 #736、祖父トラッキング #726）。
 //!
-//! [`crate::input`] と同型の薄い委譲層。
+//! [`crate::input`](mod@crate::input) と同型の薄い委譲層。
 //! `fandhe_frontend_headless_ui::field::select`（#538/#602）が出力する
 //! `data-scope="field"` `data-part="select"` へ `variant`/`size` variant
 //! クラスと既定 CSS を重ねる。設計方針・状態機械を持たない理由・`field`
-//! scope を共有する理由は [`crate::input`] rustdoc を参照（本モジュールは
+//! scope を共有する理由は [`crate::input`](mod@crate::input) rustdoc を参照（本モジュールは
 //! 重複を避けるため差分のみ記す）。
 //!
 //! # ネイティブ矢印を維持する（`appearance: none` を使わない）設計判断
@@ -37,7 +37,7 @@
 //! [`crate::recipe::disabled_declarations`]・
 //! [`crate::recipe::transition_declarations`]・#1678 の
 //! `--fandhe-size-control-height/padding-x/font-size-*` トークン）へ移行
-//! した。[`crate::input`]（イシュー #1482）の差分をそのまま `select` slot へ
+//! した。[`crate::input`](mod@crate::input)（イシュー #1482）の差分をそのまま `select` slot へ
 //! 写像したもので、実装差分は無い（両モジュールとも `field` scope 下の 1
 //! slot・variant 3 種 × size 5 段の同型構造のため）。
 //!
@@ -48,7 +48,7 @@
 //!   v3 NativeSelect recipe（`mcp__chakra-ui__get_component_example` で確認）
 //!   もコンポーネント合成のみで hover 背景変化を宣言していない。
 //! - **readonly（意図的非採用）**: `data-readonly` への視覚宣言は追加しない。
-//!   [`crate::input`] と同判断（参照サイトも readonly の独自装飾を持たない）。
+//!   [`crate::input`](mod@crate::input) と同判断（参照サイトも readonly の独自装飾を持たない）。
 //! - **ネイティブ矢印維持**: 本モジュール冒頭の既存設計判断（`appearance:
 //!   none` 不使用）を変更しない。chakra のカスタム `Indicator` への追随は
 //!   引き続き意図的非採用。
@@ -62,7 +62,7 @@
 //! 記録する。
 //!
 //! - **`size` 段階（差分なし）**: shadcn の `sm`/`default` の 2 段は、
-//!   既存 xs〜xl の 5 段（#1678）に包含される（[`crate::input`] 判定と
+//!   既存 xs〜xl の 5 段（#1678）に包含される（[`crate::input`](mod@crate::input) 判定と
 //!   同型）。
 //! - **disabled（差分なし）**: shadcn は `disabled:pointer-events-none
 //!   disabled:cursor-not-allowed` + ラッパー側 `opacity-50` を宣言するが、
@@ -74,7 +74,7 @@
 //!   非採用）**: 本フレームワークのフォーカスリング規約（#1424、
 //!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3）は
 //!   実装手段を `outline` へ統一し、新規に `box-shadow` によるリングを
-//!   追加しない方針を確定済み（[`crate::input`] 判定と同型）。既存の
+//!   追加しない方針を確定済み（[`crate::input`](mod@crate::input) 判定と同型）。既存の
 //!   `data-invalid` → `border-color` のみを維持する。
 //! - **chevron アイコンのラッパー表現（意図的非採用の再確認）**: 本
 //!   モジュール冒頭「ネイティブ矢印を維持する」設計判断（`appearance:
@@ -147,7 +147,7 @@
 //!   precedent を採用することで技術的制約を解消し、採用へ転換した。
 //! - **合成パターン（label/description との組み合わせ、是正）**:
 //!   `native_select` はラベル・補助テキストの型階層を持たず、`field`
-//!   （`/themes/field/`）が担う（[`crate::input`] の同型判断）。
+//!   （`/themes/field/`）が担う（[`crate::input`](mod@crate::input) の同型判断）。
 //!   `field::label`/`field::helper_text`/`field::root` と組み合わせる
 //!   Example を docs サイト（`crates/docs-site/src/component_specs/
 //!   forms.rs` の `NATIVE_SELECT` spec）へ追加した。
@@ -372,7 +372,7 @@ pub fn css() -> String {
 }
 
 /// styled `select` パーツを組み立てる。`variant`/`size` に応じたクラスを
-/// 付与し（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// 付与し（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）、アクセシビリティ配線は
 /// [`fandhe_frontend_headless_ui::field::select`] へそのまま委譲する。
 ///

@@ -103,7 +103,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`scope`/`type`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`mod@crate::anatomy`]/[`crate::data_attrs`]/
+//!   混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`]/
 //!   [`crate::aria`] の既存不変条件をそのまま継承する）。
 //! - 動的値（列 id・attrs・children テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
@@ -111,7 +111,7 @@
 //! - `aria-sort`/`data-sort` の値語彙（`"none"`/`"ascending"`/
 //!   `"descending"`/`"other"`）は [`SortDirection`] で一元管理し、
 //!   パーツ関数間で分裂させない。
-//! - 各パーツへ [`drop_reserved`] を導入し、呼び出し側 `attrs` が
+//! - 各パーツへ `drop_reserved` を導入し、呼び出し側 `attrs` が
 //!   固定付与属性へなりすませないようにする（A05 対策）。
 //! - hydration 属性（`data-hydrate-sort-column`/`data-hydrate-sort-direction`/
 //!   `data-hydrate-hidden-columns`）はクライアント側で改ざんされうる
@@ -411,7 +411,7 @@ impl DataTable {
     pub const FIELD_HIDDEN_COLUMNS: &'static str = "hidden-columns";
 
     /// 指定した値で [`DataTable`] を生成する（`hidden_columns` は
-    /// [`normalize_hidden_columns`] で fail-closed に重複除去する。
+    /// `normalize_hidden_columns` で fail-closed に重複除去する。
     /// `sort` の列 id が空文字列の場合は未ソート（`None`）へ正規化する
     /// （[`DataTable::hydration_attrs`]/[`DataTable::from_hydration_attrs`]
     /// ラウンドトリップ・[`DataTableAction::Sort`] の空文字列 no-op 扱いと

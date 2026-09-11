@@ -18,7 +18,7 @@
 //! `aria-pressed` を反転させ、(2) 期間切替コントロール（toggle-group/
 //! select の item）クリックでチャート root の `data-range` を更新し、
 //! (3) 上記 2 つと連動して描画要素・hit-area・tooltip-item の
-//! `data-hidden` を DOM から導出して同期する（[`wiring::sync_chart`]）。
+//! `data-hidden` を DOM から導出して同期する（`wiring::sync_chart`）。
 //!
 //! # スケール再計算はスコープ外（本イシューでの判断）
 //!
@@ -32,7 +32,7 @@
 //! 参照、後続 Issue の起票提案あり）。これにより:
 //!
 //! - `fandhe-frontend-pre-styled-ui` への新規依存を追加しない（`chart.rs`
-//!   の [`crate::chart_range::wiring`] 実装方針を踏襲し、テストのみ
+//!   の `crate::chart_range::wiring` 実装方針を踏襲し、テストのみ
 //!   `fandhe_frontend_core::el` で SSR 出力契約を手組みする。
 //!   `chart_tooltip_browser.rs` と同型）。
 //! - `crates/pre-styled-ui` 側の新規 `data-scale-*`/`data-values`/
@@ -46,12 +46,12 @@
 //! - 純粋ロジック層（[`parse_range_bound`]/[`resolve_range`]/
 //!   [`category_hidden_by_range`]/[`is_indexed_element_hidden`]）は
 //!   web-sys に依存せず、native の `cargo test` で検証できる。
-//! - 配線層（[`wiring`]）のみ `#[cfg(target_arch = "wasm32")]` で
+//! - 配線層（`wiring`）のみ `#[cfg(target_arch = "wasm32")]` で
 //!   ゲートする。
 //!
 //! # Runtime への統合
 //!
-//! [`wiring::wire_chart_range_events`] は `crate::Runtime::mount`/
+//! `wiring::wire_chart_range_events` は `crate::Runtime::mount`/
 //! `Runtime::hydrate` の双方から `Self::wire_chart` の直後に組み込まれる
 //! （`crate::Runtime::wire_chart_range` 参照）。`dispatch` チャネルを
 //! 持たない属性専用配線であり、`crate::headless::MAPPING_TABLE` に
@@ -94,7 +94,7 @@
 //!   `set_attribute`/`remove_attribute` のみ、`query_selector` へ
 //!   利用者由来文字列を補間しない。
 //!
-//! # 同期（[`wiring::sync_chart`]）
+//! # 同期（`wiring::sync_chart`）
 //!
 //! 状態は DOM から導出して冪等に同期する。判定源は凡例 trigger の
 //! `aria-pressed`・チャート root の `data-range`（+ 対応する range
@@ -106,7 +106,7 @@
 //!   （`wiring::wire_rerender_observer` が `MutationObserver`
 //!   （`childList`/`subtree` のみ、`attributes` は監視しない＝自己発火
 //!   ループを構造的に回避、`chart.rs::wiring::wire_rerender_observer`
-//!   と同型）で再描画後に [`wiring::sync_all`] を再適用する）。
+//!   と同型）で再描画後に `wiring::sync_all` を再適用する）。
 //! - 同じ状態への複数回の同期は結果が変化しない（冪等）。
 //!
 //! # スコープ外（イシュー #2134 §8）

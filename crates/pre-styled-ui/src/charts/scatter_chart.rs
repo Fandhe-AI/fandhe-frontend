@@ -15,10 +15,10 @@
 //!    を経由して `viewBox` の描画領域へ写像する（x: `(0, width)`、
 //!    y: `(height, 0)` で SVG の下向き正の y 軸を反転する）。
 //! 2. **退化 domain（`min == max`）**: [`super::data::ChartData::domain`] と
-//!    同じ [`super::data::flat_domain_pad`]（下限 1.0 と値の大きさに比例した
+//!    同じ `super::data::flat_domain_pad`（下限 1.0 と値の大きさに比例した
 //!    パディングのうち大きい方を採用し、`v` が `f64` 精度限界付近でも
 //!    パディングが丸め誤差で no-op 化しない）を再利用した
-//!    [`flat_domain_bounds`] で `v` を中心とした対称区間へ拡張してから
+//!    `flat_domain_bounds` で `v` を中心とした対称区間へ拡張してから
 //!    `LinearScale::new` へ渡す（1 点のみ・全点同一座標のデータでも
 //!    `ChartError::DegenerateDomain`/`NonFiniteValue` を誘発しない。固定
 //!    `±1.0` のみだと `f64::MAX` 付近で退化・非有限化が再発する不具合が
@@ -42,7 +42,7 @@
 //!
 //! マークアップはすべて [`super::svg`] 経由（`el`/`text` を最終的に呼ぶ）で
 //! 組み立て、`raw_html()` は使用しない（REQ-1）。系列名・`aria_label` は
-//! テキストノード/属性値として [`fandhe_frontend_core::render`] の既定
+//! テキストノード/属性値として `fandhe_frontend_core::render` の既定
 //! エスケープを必ず通る。座標・半径は [`ScatterData::new`]/
 //! [`super::scale::LinearScale::new`] が有限性検証済みの `f64` のみを
 //! [`super::svg::fmt_coord`] へ渡すため、文字列注入経路を持たない。
@@ -421,7 +421,7 @@ pub fn css() -> String {
 ///   `inf` になり得り、`svg::fmt_coord` の有限値契約に違反するため）
 ///   [`ChartError::NonFiniteValue`]
 /// - x/y いずれかの domain 算出後の [`LinearScale::new`] が失敗した場合、
-///   その失敗をそのまま返す（[`ChartData::domain`] 同型の退化パディングに
+///   その失敗をそのまま返す（`ChartData::domain` 同型の退化パディングに
 ///   より通常は発生しない）
 ///
 /// # Examples

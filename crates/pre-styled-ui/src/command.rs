@@ -46,7 +46,7 @@
 //! 「子の寸法に従属するレイアウト部品」に該当。headless にも shadcn/ui にも
 //! 軸が無く、[`crate::input_group`] と同じ判断を踏襲する）。このため 10
 //! パーツとも見た目クラスを一切付与しない（呼び出し側 `class` は
-//! [`drop_class_attr`] で除去のみ行う）。
+//! `drop_class_attr` で除去のみ行う）。
 //!
 //! # `empty` の表示切替 CSS（headless の SSR 決定性契約との対応）
 //!
@@ -54,7 +54,7 @@
 //! `true` のときのみ `data-empty` 存在属性を出力し、`hidden` を一切付与し
 //! ない（表示/非表示の切り替えは呼び出し側/本クレートの CSS の責務、
 //! headless 側モジュール doc「`data-empty` の付与先と SSR 決定性」節
-//! 参照）。本 [`recipe`] は `empty` slot を既定で `display: none` にし、
+//! 参照）。本 `recipe` は `empty` slot を既定で `display: none` にし、
 //! `[data-empty]` が付いているときのみ `display: block` へ切り替える
 //! （逆方向〔既定可視 + `list[data-empty]` で非表示〕にしない理由:
 //! [`empty`] は [`list`] の外・[`root`] の直接の子に置く配置制約
@@ -71,7 +71,7 @@
 //! hover が後になるため、選択行にポインタが乗ると選択色が hover の淡色
 //! （muted）で上書きされコントラストが崩れる（[`crate::combobox`] の
 //! `item` hover と同型の問題、[`StateCondition::HoverExceptAttr`] rustdoc
-//! 参照）。本 [`recipe`] は
+//! 参照）。本 `recipe` は
 //! `.state("item", StateCondition::HoverExceptAttr("data-selected"), ...)`
 //! を使い、選択行を hover 対象から除外する（`:not([data-disabled])` も
 //! 併せて除外されるため disabled 行への対策は不要）。
@@ -106,7 +106,7 @@
 //! 消える（フォーカスリング共通規約
 //! `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3 の
 //! 「祖先に canonical リングがある場合のみ許容」に対応する必要がある）。
-//! 本 [`recipe`] は祖先 [`root`] の `:focus-within`（[`StateCondition::FocusWithin`]）
+//! 本 `recipe` は祖先 [`root`] の `:focus-within`（[`StateCondition::FocusWithin`]）
 //! へ [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Token`、
 //! `palette` 軸を持たないため。[`FocusRingOffset::Outside`]）を登録する
 //! （[`crate::combobox`] が `control` の `:focus-within` へ付ける対策と
@@ -122,7 +122,7 @@
 //! 節参照）を持つため、この祖先のクリッピングコンテキストにより `root`
 //! のリングは `dialog` の境界で見えなくなる（`outline` は自分自身の
 //! `overflow` では切れないが、祖先の `overflow: hidden`/`auto` では
-//! クリップされる CSS の性質）。このため本 [`recipe`] は [`dialog`]
+//! クリップされる CSS の性質）。このため本 `recipe` は [`dialog`]
 //! 自身にも `:focus-within` の canonical リングを登録する（`dialog` 自体
 //! の `overflow` はその要素自身の `outline` を切らないため、`dialog` の
 //! 外枠として確実に可視化される）。`dialog` を使わない単独 `root` の
@@ -134,7 +134,7 @@
 //! [`shortcut`] は固定属性を持たない `span`（headless モジュール doc
 //! 「`shortcut` のタグ」節参照）であり、本モジュールは API を増やさず
 //! `shortcut` の `children` へ [`crate::kbd::kbd`] を渡す使い方で `kbd` を
-//! 合成する（Demo・Examples・本 rustdoc の [`shortcut`] 参照）。[`recipe`]
+//! 合成する（Demo・Examples・本 rustdoc の [`shortcut`] 参照）。`recipe`
 //! は `shortcut` slot 自身に `margin-inline-start: auto` を与えて右寄せする
 //! のみで、`kbd` 側の見た目には関与しない。
 //!
@@ -151,9 +151,9 @@
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless [`fandhe_frontend_headless_ui::command`] →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する（10 パーツすべて）。
 //! - [`stylesheet`] が組み立てる CSS 宣言・selector 断片はすべて
 //!   コンパイル時静的リテラルであり、[`crate::css::decl`]/
@@ -409,7 +409,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled `root` パーツを組み立てる。見た目クラスは付与せず（モジュール doc
-/// 「軸を持たない理由」節参照）、呼び出し側 `class` を [`drop_class_attr`]
+/// 「軸を持たない理由」節参照）、呼び出し側 `class` を `drop_class_attr`
 /// で除去してから [`fandhe_frontend_headless_ui::command::root`] へそのまま
 /// 委譲する。
 #[must_use]

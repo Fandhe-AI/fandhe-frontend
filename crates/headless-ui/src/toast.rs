@@ -101,7 +101,7 @@
 //!
 //! - 属性名（`data-*`/`role`/`aria-*`）はすべて `&'static str` リテラルまたは
 //!   固定スロットであり、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::data_attrs`]/[`crate::aria`] の既存不変条件を
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`]/[`crate::aria`] の既存不変条件を
 //!   継承する）。
 //! - 動的値（`id`/`title`/`description`/呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
@@ -303,9 +303,9 @@ pub struct ToastEntry {
 /// させる経路はないが、属性自体は将来の配線を妨げない静的な既定値として付与する
 /// （Tab 順には入らないため、キーボード操作フローに影響しない）。
 ///
-/// 呼び出し側 `attrs` に本関数が固定付与する属性（[`GROUP_RESERVED`]:
+/// 呼び出し側 `attrs` に本関数が固定付与する属性（`GROUP_RESERVED`:
 /// `role`/`aria-label`/`data-placement`/`tabindex`、大文字小文字を無視）が
-/// 含まれる場合は [`drop_reserved`] で除去してから合成する（Review 指摘、
+/// 含まれる場合は `drop_reserved` で除去してから合成する（Review 指摘、
 /// イシュー #1643。`crate::dialog::content` の `tabindex` ガード先例と
 /// 同じく、除去しないと SSR は同名属性を重複出力して無効な HTML になる）。
 #[must_use]
@@ -342,9 +342,9 @@ pub fn group<'a>(
 /// 属性で、dialog（#1910）の content が `tabindex="-1"` を固定付与した先例と
 /// 同型（クリック/キー処理の配線を伴わない属性のみの付与）。
 ///
-/// 呼び出し側 `attrs` に本関数が固定付与する属性（[`ROOT_RESERVED`]:
+/// 呼び出し側 `attrs` に本関数が固定付与する属性（`ROOT_RESERVED`:
 /// `role`/`aria-atomic`/`aria-live`/`data-type`/`data-state`/`tabindex`、
-/// 大文字小文字を無視）が含まれる場合は [`drop_reserved`] で除去してから
+/// 大文字小文字を無視）が含まれる場合は `drop_reserved` で除去してから
 /// 合成する（Review 指摘、イシュー #1643。[`group`] と同じガード）。
 #[must_use]
 pub fn root<'a>(status: ToastStatus, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {

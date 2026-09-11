@@ -33,21 +33,21 @@
 //!
 //! [`thumb_styled`] の回転は、headless 中立な
 //! [`AngleSlider::angle_deg`](fandhe_frontend_headless_ui::angle_slider::AngleSlider::angle_deg)
-//! （`0..=359` の整数）から [`angle_style`] が組み立てる
+//! （`0..=359` の整数）から `angle_style` が組み立てる
 //! `style="--fandhe-angle: <value>deg"` の 1 属性のみで伝搬し、CSS 側は
 //! `transform: rotate(var(--fandhe-angle))` で描画する。canvas の描画命令
 //! 列・変換行列のような内部状態は一切持たない（非採用理由への回答、
 //! `fandhe_frontend_headless_ui::angle_slider` モジュール doc「非採用の
 //! 再導入であること」節参照）。[`crate::slider`]/[`crate::progress`]
-//! と同型の [`crate::css::drop_style_attr`] 相当のヘルパを本モジュール内に
-//! 個別実装し（[`drop_style_attr`]）、呼び出し側 `attrs` に含まれる
+//! と同型の `crate::css::drop_style_attr` 相当のヘルパを本モジュール内に
+//! 個別実装し（`drop_style_attr`）、呼び出し側 `attrs` に含まれる
 //! `style`（大文字小文字を無視）を除去してからフレームワーク側の `style`
 //! を優先する（重複属性による無効な HTML 出力・後勝ちの非決定的な描画を
 //! 防ぐ、fail-closed）。
 //!
 //! # `size`/`palette` variant
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-angle-slider-track-size`/`-thumb-size` の root スコープ custom
 //! property（CSS の通常のプロパティ継承により `control`/`thumb` へ伝わる）
 //! 経由で寸法を切り替える（[`crate::slider`] と同型）。`palette`
@@ -58,7 +58,7 @@
 //! # `focus-visible`（キーボードフォーカスリング）
 //!
 //! [`thumb_styled`] はネイティブにフォーカス可能な要素（`tabindex`）である
-//! ため、通常の `:focus-visible` 疑似クラスを [`recipe`] へ直接登録する
+//! ため、通常の `:focus-visible` 疑似クラスを `recipe` へ直接登録する
 //! （[`StateCondition::FocusVisible`]、[`crate::slider`] と同型）。
 //!
 //! # 値テキストとラベルの型階層（イシュー #1446、親トラッキング #1444 の
@@ -67,12 +67,12 @@
 //! 参考サイト（ark-ui Angle Slider）のスクリーンショットでは、`label` が
 //! 「小さめ・大文字・letter-spacing 広め・muted 色」、`value-text` が
 //! 「大きめ・太字・前景色」の明確な 2 段の型階層を成す。是正前の
-//! `label` は `font-size` 1 宣言のみ、`value-text` は [`SLOTS`] に登録
+//! `label` は `font-size` 1 宣言のみ、`value-text` は `SLOTS` に登録
 //! されているのに base 宣言が皆無（型階層が存在しない）状態だった。
 //!
 //! - `label`: [`crate::timer`] の `item-label`（`text-transform: uppercase`）
-//!   と [`crate::heading`] の `letter-spacing` 強化（トークン非提供のため
-//!   ローカルリテラル、[`crate::heading`] 冒頭 rustdoc「余白・
+//!   と [`crate::heading`](mod@crate::heading) の `letter-spacing` 強化（トークン非提供のため
+//!   ローカルリテラル、[`crate::heading`](mod@crate::heading) 冒頭 rustdoc「余白・
 //!   letter-spacing」節と同型の判断）を踏襲する。サイズ非連動（`Xs` 固定）
 //!   とする。参考サイトでもラベルはダイヤルの `size` variant に関わらず
 //!   一定の見た目のため、`size` 軸には連動させない。
@@ -103,15 +103,15 @@
 //! ark-ui の Angle Slider は外周の目盛りリングと中心点を持つ。headless
 //! `angle-slider` anatomy（`crates/headless-ui/src/angle_slider.rs`）は
 //! イシュー #1601（参照突合）で `marker_group`/`marker` パーツを追加した
-//! が、本モジュール（Themes 層）は [`SLOTS`] に加えず、[`stylesheet`] も
+//! が、本モジュール（Themes 層）は `SLOTS` に加えず、[`stylesheet`] も
 //! `[data-part="marker-group"]`/`[data-part="marker"]` セレクタを持たない
 //! （目盛りは下記の `control` `background` 多層グラデーションで既に
 //! 再現済みのため、二重表現を避ける）。目盛り・中心点は新しい DOM 要素を
-//! 追加せず [`recipe`] の `control` `background` に多層グラデーション
+//! 追加せず `recipe` の `control` `background` に多層グラデーション
 //! （`radial-gradient` の中心点 + 内側を面色で覆う `radial-gradient` +
 //! `repeating-conic-gradient` の目盛りリング + 面色）を静的リテラルとして
 //! 重ねることで再現する（先例: [`crate::color_picker`]/
-//! [`crate::color_swatch`] の複数背景レイヤー手法）。`decl()` の
+//! [`crate::color_swatch`](mod@crate::color_swatch) の複数背景レイヤー手法）。`decl()` の
 //! `&'static str` 制約によりすべてソースコード内リテラルで完結し、実行時
 //! 文字列連結は行わない（本モジュールの XSS 不変条件を保つ）。
 //!
@@ -447,7 +447,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は
 /// 除去してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::angle_slider::AngleSlider::root`] へ委譲する。
 ///
@@ -485,7 +485,7 @@ pub fn root<'a>(
 }
 
 /// styled thumb パーツを組み立てる。`--fandhe-angle` を含む `style` を
-/// 付与する唯一のパーツ（[`drop_style_attr`] により呼び出し側の `style`
+/// 付与する唯一のパーツ（`drop_style_attr` により呼び出し側の `style`
 /// は除去してから合成する。動的値はこの 1 箇所のみ、モジュール doc
 /// 「動的な値は 1 点のみ」参照）。実体は
 /// [`fandhe_frontend_headless_ui::angle_slider::AngleSlider::thumb`] へ委譲する。

@@ -23,7 +23,7 @@
 //!   （`"true"`/`"false"`）と `data-pressed`（存在属性）を併記する。
 //!
 //! 内部の状態機械は両者とも同型（checked/unchecked の 2 値）であるため、
-//! [`state::Checkable`] を再利用し状態機械の分裂を防ぐ（イシュー #595 の
+//! [`state::Checkable`](crate::state::Checkable) を再利用し状態機械の分裂を防ぐ（イシュー #595 の
 //! 共通化方針を踏襲）。ただし公開 HTML の `data-state` 語彙は分離するため、
 //! [`Toggle`] は [`crate::state::checked_data_state`] を直接使わず
 //! [`crate::state::pressed_data_state`] へ変換して出力する。
@@ -62,7 +62,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`）はすべて `&'static str` リテラルで
 //!   固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存不変
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存不変
 //!   条件をそのまま継承する）。
 //! - 動的値（呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。

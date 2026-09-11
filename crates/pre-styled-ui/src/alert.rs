@@ -15,7 +15,7 @@
 //! - **色**: 生の中立色（`--fandhe-color-bg-subtle`）1 色だった背景を、
 //!   [`crate::recipe::palette_scale_declarations`] 経由の 6 役割トークン
 //!   （`--fandhe-palette-subtle`/`-fg-subtle`/`-muted` 等）へ移行した。
-//!   [`AlertStatus`] → [`ColorPalette`] の対応は [`status_palette`] に固定する
+//!   [`AlertStatus`] → [`ColorPalette`] の対応は `status_palette` に固定する
 //!   （公開 API は `ColorPalette` を露出しない、イシュー #606 の境界を維持）。
 //! - **バリアント**: `variant` 軸（[`AlertVariant`]、既定 `Subtle`）を新設した。
 //!   badge の `Solid`/`Subtle`/`Outline` + callout の `Surface` を踏襲する。

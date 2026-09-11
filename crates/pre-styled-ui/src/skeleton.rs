@@ -349,7 +349,7 @@ fn recipe() -> SlotRecipe {
 /// Skeleton の静的 CSS 全文。
 ///
 /// recipe が生成する規則群に続けて、`animation` 宣言が参照する
-/// `@keyframes` ブロック（[`PULSE_KEYFRAMES_NAME`]・[`SHINE_KEYFRAMES_NAME`]、
+/// `@keyframes` ブロック（`PULSE_KEYFRAMES_NAME`・`SHINE_KEYFRAMES_NAME`、
 /// イシュー #1566 でシャイン用を追加）と、`prefers-reduced-motion: reduce`
 /// 環境でアニメーションを停止する `@media` ブロック（受け入れ条件 2）を
 /// 固定文字列として追記する。値はソースコード中のリテラルのみで構成され、
@@ -388,7 +388,7 @@ pub fn css() -> String {
 ///
 /// 子ノードを取らない（占位要素は実コンテンツを持たない）。呼び出し側は
 /// `attrs` の `style` 属性で幅・高さを上書きできる。`class` 属性は
-/// [`crate::class_attr::drop_class_attr`] により常に単一化される（呼び出し側
+/// `crate::class_attr::drop_class_attr` により常に単一化される（呼び出し側
 /// 由来のクラスは recipe 生成クラスへ合成されず破棄する、badge と同じ方針）。
 ///
 /// # Examples

@@ -25,23 +25,23 @@
 //! # data-state とスタイルの連動（イシュー #551 受け入れ条件）
 //!
 //! 項目の開閉 `data-state`（open/closed）に応じて `item-trigger`/
-//! `item-indicator` の見た目を切り替える CSS を [`recipe`] へ登録する
+//! `item-indicator` の見た目を切り替える CSS を `recipe` へ登録する
 //! ([`crate::recipe::SlotRecipe::state`]、イシュー #643。`serialize_rule` を
 //! 直接呼ぶ手書きセレクタ機構は廃止した)。`item-indicator` は headless 層
 //! （`crates/headless-ui/src/accordion.rs`）でデフォルト `span`（非置換インライン
-//! 要素）としてレンダリングされ `transform` が効かないため、[`recipe`] の
+//! 要素）としてレンダリングされ `transform` が効かないため、`recipe` の
 //! base 規則で `display: inline-block` を設定し `rotate(180deg)` が実際に
 //! 適用されるようにする（PR #575 Bugbot 指摘対応）。
 //!
 //! # キーボード操作系スタイル（イシュー #643）
 //!
 //! `item-trigger` は roving tabindex でフォーカス移動するボタン要素であり、
-//! キーボード操作時のみのフォーカスリング（`:focus-visible`）を [`recipe`]
+//! キーボード操作時のみのフォーカスリング（`:focus-visible`）を `recipe`
 //! へ登録する。
 //!
 //! # `size` variant（イシュー #729）
 //!
-//! `size`（[`Size`]）は [`root`] へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は [`root`] へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-accordion-trigger-padding`/`-content-padding` の root スコープ
 //! CSS custom property（通常の CSS 継承により `item-trigger`/`item-content`
 //! へ伝わる。`root` は両パーツを内包する祖先要素であるため、
@@ -55,7 +55,7 @@
 //! # 参考サイト基準への調整（イシュー #1515）
 //!
 //! 参照 3 サイト（chakra-ui / Radix Primitives / ark-ui）と比較し、
-//! 以下を [`recipe`] へ追加した: `root` の角丸トークン化
+//! 以下を `recipe` へ追加した: `root` の角丸トークン化
 //! （`--fandhe-radius-lg`）・最終 item の二重罫線解消
 //! （[`crate::recipe::StateCondition::LastChild`]）・`item-trigger` の
 //! ラベル左/シェブロン右レイアウトと見出し級タイポ・hover
@@ -114,7 +114,7 @@
 //! - **multiple 開閉**: [`MultiAccordion`] 状態機械が複数項目の同時展開を
 //!   管理する。
 //! - **項目単位の disabled**: [`item`]/[`item_trigger`] の `disabled`
-//!   引数が既に CSS（[`recipe`] の `data-disabled` 消費）と連動している。
+//!   引数が既に CSS（`recipe` の `data-disabled` 消費）と連動している。
 //! - **トリガーへの icon/description 合成**: [`item_trigger`] の
 //!   `children: Vec<Node>` は自由合成のため、追加引数なしで表現できる。
 //!
@@ -373,7 +373,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::accordion::root`] へ
 /// 委譲する。`props`（[`AccordionProps`]、イシュー #1636）は
 /// `data-orientation`/実効 disabled として全パーツへ伝わる（本 styled

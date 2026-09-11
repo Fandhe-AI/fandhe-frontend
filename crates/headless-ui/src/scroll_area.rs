@@ -5,9 +5,9 @@
 //! ark-ui の `disclosure/scroll-area.md`・chakra-ui の `layout/scroll-area.md`
 //! を参考に、CSS `overflow` を主体とするスクロール領域として Root /
 //! Viewport / Content / Scrollbar / Thumb / Corner の 6 anatomy パーツを
-//! 提供する。[`mod@crate::breadcrumb`]/[`mod@crate::nav_list`]/[`mod@crate::link`]
+//! 提供する。[`crate::breadcrumb`](mod@crate::breadcrumb)/[`crate::nav_list`](mod@crate::nav_list)/[`crate::link`](mod@crate::link)
 //! と同型で、開閉のような時間変化する内部状態を持たないため
-//! [`mod@crate::state`] の状態機械は適用しない（自由関数のみ）。
+//! [`crate::state`](mod@crate::state) の状態機械は適用しない（自由関数のみ）。
 //!
 //! # 呼び出し文脈
 //!
@@ -35,7 +35,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`tabindex`）はすべて `&'static str` リテラル
 //!   で固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`mod@crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存
 //!   不変条件をそのまま継承する）。
 //! - 呼び出し側 `attrs`/`children` の動的値はすべて
 //!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず経由
@@ -85,7 +85,7 @@
 //! - **是正した実装上の欠陥**: 呼び出し側 `attrs` による固定属性
 //!   （viewport の `tabindex`、scrollbar の `aria-hidden`/`data-orientation`、
 //!   thumb の `data-orientation`、corner の `aria-hidden`）のなりすまし・
-//!   重複出力を防ぐため [`drop_reserved`] を導入した（`crate::breadcrumb`
+//!   重複出力を防ぐため `drop_reserved` を導入した（`crate::breadcrumb`
 //!   と同型）。
 
 use crate::anatomy::{anatomy, Anatomy};

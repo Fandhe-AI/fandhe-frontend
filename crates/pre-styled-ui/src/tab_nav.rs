@@ -32,12 +32,12 @@
 //!
 //! `href`/`aria-label`/`attrs`/children はすべて
 //! [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] →
-//! [`fandhe_frontend_core::el`] → [`fandhe_frontend_core::render`] の既定
+//! `fandhe_frontend_core::el` → `fandhe_frontend_core::render` の既定
 //! エスケープ（REQ-1）を必ず経由する。`raw_html()` の新規使用なし、HTML
 //! 文字列の直接組み立ても行わない。`href` の危険 URL スキーム（`javascript:`
 //! 等）は core の許可リスト方式（deny-by-default）が属性ごと拒否する
 //! （[`crate::link`]/`crates/headless-ui/src/link.rs` と同じ経路）。
-//! [`ROOT_RESERVED`]/[`LINK_RESERVED`] は呼び出し側 `attrs` によるフレーム
+//! `ROOT_RESERVED`/`LINK_RESERVED` は呼び出し側 `attrs` によるフレーム
 //! ワーク固定キーのなりすましを fail-closed で除去する
 //! （[`Anatomy::part`](fandhe_frontend_headless_ui::Anatomy::part) は
 //! `data-scope`/`data-part` のみを守るため、それ以外の予約キー保護は本
@@ -50,7 +50,7 @@
 //! 対象）との視覚比較（issue #1541 コメントに転記した 7 軸チェック）を
 //! 踏まえ、以下を是正した:
 //!
-//! - **`tabs.rs` 共有ヘルパからの独立**: 従来 [`recipe`] は
+//! - **`tabs.rs` 共有ヘルパからの独立**: 従来 `recipe` は
 //!   `crate::tabs::shared_tab_{list,item,item_active}_declarations` を
 //!   呼んでいたが、並列実行中の兄弟イシュー #1542（`tabs` のスタイル調整）
 //!   が同ヘルパを変更する見込みのため、golden CSS の相互破壊を避ける目的で
@@ -327,8 +327,8 @@ pub fn stylesheet() -> String {
 /// 唯一のパーツ（イシュー #1541、[`crate::pagination::root`] と同型）。
 /// `label` は `aria-label` として必須付与する（landmark のアクセシブル
 /// ネーム欠落を型で防ぐ、[`crate::nav_list::root`] と同型の判断）。呼び出し
-/// 側 `attrs` の `class` は [`drop_class_attr`] で除去し、[`ROOT_RESERVED`]
-/// の偽装は [`drop_reserved`] で除去してから合成する。
+/// 側 `attrs` の `class` は `drop_class_attr` で除去し、`ROOT_RESERVED`
+/// の偽装は `drop_reserved` で除去してから合成する。
 ///
 /// # Examples
 ///
@@ -360,8 +360,8 @@ pub fn root<'a>(
 /// 付与する（イシュー #1063、生タプルでの再定義をしない。
 /// `docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 B-1）。`role` は
 /// 一切出力しない（モジュール冒頭 rustdoc「`tabs` との差」節参照）。呼び出し側
-/// `attrs` の `class` は [`drop_class_attr`] で除去し、[`LINK_RESERVED`]
-/// の偽装は [`drop_reserved`] で除去してから合成する。`href` の危険 URL
+/// `attrs` の `class` は `drop_class_attr` で除去し、`LINK_RESERVED`
+/// の偽装は `drop_reserved` で除去してから合成する。`href` の危険 URL
 /// スキームは core の既定経路が拒否する（モジュール冒頭 rustdoc「セキュリ
 /// ティ不変条件」節参照）。
 ///

@@ -70,7 +70,7 @@
 //! - [`item_hidden_input`] へ `required`（`props.required`）/
 //!   `aria-invalid="true"`（`props.invalid`）を追加。
 //! - 呼び出し側 `attrs` による `data-state`/`type`/`checked`/`aria-hidden`
-//!   等の偽装・重複を [`drop_reserved`] で fail-closed に除去する防御を
+//!   等の偽装・重複を `drop_reserved` で fail-closed に除去する防御を
 //!   追加（[`crate::checkbox`] の `drop_reserved` と同型）。
 //!
 //! 意図的に合わせなかった点（差分メモ、Issue コメントへ転記）:
@@ -130,7 +130,7 @@
 //! `name` / `id` / `labelled_by` / 呼び出し側 `attrs` / `children` テキスト /
 //! dispatch payload / hydration 属性）は [`fandhe_frontend_core::render`] の
 //! 既定エスケープを必ず経由する（REQ-1）。本モジュールは `raw_html()` を
-//! 使用しない。[`drop_reserved`] は呼び出し側 `attrs` が `data-state` /
+//! 使用しない。`drop_reserved` は呼び出し側 `attrs` が `data-state` /
 //! `type` / `checked` / `aria-hidden` 等のフレームワーク固定キーを偽装する
 //! ことを ASCII 大文字小文字無視で fail-closed に防ぐ（[`crate::anatomy::Anatomy::part`]
 //! の `data-scope`/`data-part` 除去と同型の防御。イシュー #1616 で追加）。

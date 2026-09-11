@@ -188,7 +188,7 @@ const ANATOMY: Anatomy = anatomy("checkbox-group");
 /// 同型の 3 フィールド構成）。
 ///
 /// ark-ui `Checkbox.Group` の `disabled`/`readOnly`/`invalid` props に対応
-/// する。各フラグは [`state_attrs`] 経由で `data-disabled`/`data-readonly`/
+/// する。各フラグは `state_attrs` 経由で `data-disabled`/`data-readonly`/
 /// `data-invalid` の存在属性へ写像される（値は持たない、[`crate::data_attrs`]
 /// の boolean 属性規約）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -670,7 +670,7 @@ impl Hydrate for CheckboxGroup {
     /// これは 0.x とはいえ patch バンプのまま公開する既存 hydration 入力の
     /// 破壊的変更に当たると指摘された）。値が明示されているのに
     /// `"true"`/`"false"` 以外の不正値であるときのみ
-    /// [`HydrateError::InvalidValue`] を返す（panic しない、[`parse_hydrate_bool`]
+    /// [`HydrateError::InvalidValue`] を返す（panic しない、`parse_hydrate_bool`
     /// 参照）。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         // select の復元を先に行う（既存の MissingAttr/InvalidValue 優先順位

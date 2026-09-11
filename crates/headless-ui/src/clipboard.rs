@@ -88,7 +88,7 @@
 //!
 //! - 属性名（`data-*`/`type`/`readonly`）はすべて `&'static str` リテラル
 //!   または固定スロットであり、動的値が属性名スロットへ混入する経路は
-//!   ない（[`crate::anatomy`]/[`crate::data_attrs`] の既存不変条件をそのまま
+//!   ない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`] の既存不変条件をそのまま
 //!   継承する）。[`trigger`] の既定 `aria-label` 値
 //!   （[`TRIGGER_ARIA_LABEL_IDLE`]/[`TRIGGER_ARIA_LABEL_COPIED`]）も
 //!   `&'static str` リテラル固定であり、動的値は混入しない。

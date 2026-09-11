@@ -74,7 +74,7 @@
 //!
 //! # `size` variant（`color-palette` 軸は非提供）
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! root スコープ custom property（`--fandhe-segment-group-font-size`/
 //! `-padding-block`/`-padding-inline`）経由でセグメントの寸法・文字サイズを
 //! 切り替える。`color-palette` 軸は提供しない（chakra-ui SegmentedControl の
@@ -134,7 +134,7 @@
 //! `raw_html()` を使用しない。CSS 宣言値はすべてコンパイル時静的リテラルで
 //! あり、動的値（`value`/`name`/属性/children）へ CSS 値として流し込む経路
 //! を持たない（動的値は headless 層経由で `fandhe_frontend_core::render` の
-//! 既定エスケープを必ず通る、REQ-1）。styled `root` は [`drop_class_attr`]
+//! 既定エスケープを必ず通る、REQ-1）。styled `root` は `drop_class_attr`
 //! により呼び出し側の `class` を除去してから合成するため、`class` 属性は
 //! 常に単一（[`crate::radio_group::root`] と同型）。
 //!
@@ -436,7 +436,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
-/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は
 /// [`fandhe_frontend_headless_ui::segment_group::root`] へ委譲する。
 ///

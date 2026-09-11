@@ -5,7 +5,7 @@
 //! # 背景・呼び出し文脈
 //!
 //! `/themes/clipboard/` と `/themes/skip-nav/` は
-//! [`crate::showcase::COMPONENT_PAGES`] に未登録（Demo 節を
+//! `crate::showcase::COMPONENT_PAGES` に未登録（Demo 節を
 //! `showcase.rs` から供給されない）2 部品である。[`crate::component_page_specs_948`]
 //! モジュール doc はかつて「この 2 ページへ `ComponentPageSpec` を登録して
 //! もデッドコードになる」と記していたが、これは #979 が
@@ -300,7 +300,7 @@ const SKIP_NAV: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// `path -> ComponentPageSpec` テーブル
-/// （[`crate::component_page::SPEC_TABLES`] へ 1 行追記される）。
+/// （`crate::component_page::SPEC_TABLES` へ 1 行追記される）。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/clipboard/", CLIPBOARD),
     ("/themes/skip-nav/", SKIP_NAV),

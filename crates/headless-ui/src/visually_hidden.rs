@@ -4,7 +4,7 @@
 //! chakra-ui/ark-ui の VisuallyHidden ユーティリティに倣い、視覚的には隠す
 //! （clip 手法、styled 層 `fandhe-frontend-pre-styled-ui::visually_hidden` が
 //! CSS 責務を持つ）が支援技術（スクリーンリーダー）には読ませ続けるテキスト
-//! コンテナを提供する。[`mod@crate::field`]/[`mod@crate::link`] と同型の、
+//! コンテナを提供する。[`crate::field`](mod@crate::field)/[`crate::link`](mod@crate::link) と同型の、
 //! 時間変化する内部状態を持たない純粋関数のみで構成する（[`crate::state`]
 //! の状態機械は適用しない）。
 //!

@@ -32,7 +32,7 @@
 //!   できるようにした（ark の `goToFirstPage`/`goToLastPage` 相当）。
 //! - 呼び出し側 `attrs` によるフレームワーク固定キー（`data-selected`/
 //!   `data-index`/`aria-current`/`href`/`type`/`disabled`/`aria-disabled`/
-//!   `data-disabled`）の偽装を [`drop_reserved`](crate::radio_group::drop_reserved)
+//!   `data-disabled`）の偽装を `drop_reserved`
 //!   で fail-closed に除去する防御を追加（`crate::menu` 等と同型）。
 //!
 //! 意図的に合わせなかった点:
@@ -65,7 +65,7 @@
 //! # 呼び出し文脈
 //!
 //! SSR は [`Pagination::new`] で値を正規化してから
-//! [`Pagination::page_range`] が返す [`PageEntry`] 列を走査し、各パーツ関数
+//! `Pagination::page_range` が返す [`PageEntry`] 列を走査し、各パーツ関数
 //! （[`root`]/[`item`]/[`ellipsis`]/[`prev_trigger`]/[`next_trigger`]/
 //! [`first_trigger`]/[`last_trigger`]）を呼んで組み立てる。CSR/hydration は
 //! [`Pagination`] を経由し、dispatch（`"goto"`/`"next"`/`"prev"`/`"first"`/
@@ -108,7 +108,7 @@
 //! - 呼び出し側 `attrs` からの固定キー偽装（`data-scope`/`data-part`/
 //!   `data-selected`/`data-index`/`aria-current`/`href`/`type`/`disabled`/
 //!   `aria-disabled`/`data-disabled`/`aria-hidden`）は各パーツが
-//!   [`drop_reserved`](crate::radio_group::drop_reserved) で ASCII 大文字小文字
+//!   `drop_reserved` で ASCII 大文字小文字
 //!   無視の完全一致により fail-closed に除去する（イシュー #1655）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）

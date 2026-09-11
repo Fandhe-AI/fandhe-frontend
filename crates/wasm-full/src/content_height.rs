@@ -26,13 +26,13 @@
 //!
 //! - 純粋層（[`format_content_height`]/[`is_target`]/[`target_selector`]）
 //!   は web-sys に依存せず、native の `cargo test` で検証できる。
-//! - 配線層（[`wiring::sync_content_height`]）のみ
+//! - 配線層（`wiring::sync_content_height`）のみ
 //!   `#[cfg(target_arch = "wasm32")]` でゲートする。
 //!
 //! # 対象パーツの宣言（[`TARGETS`]）
 //!
 //! 対象は `(data-scope, data-part)` の静的表 [`TARGETS`] のみが決める。
-//! 部品名で分岐するコードはここにも [`wiring`] にも書かない。bubble の
+//! 部品名で分岐するコードはここにも `wiring` にも書かない。bubble の
 //! `collapse-content`（#2282）はこの表への 1 行追加のみで乗せた。
 //!
 //! # 書き込み手段の決定（Issue 記載パターンとの意図的な差分）
@@ -60,7 +60,7 @@
 //!   （`display: none` 下の `scroll_height()` は常に 0 であり、既存の
 //!   変数値を壊さないため）。
 //! - 実測が 0 の場合は `0px` を書き込まず、変数を
-//!   **除去**する（[`wiring::sync_content_height`] 参照）。closed な
+//!   **除去**する（`wiring::sync_content_height` 参照）。closed な
 //!   accordion item にネストした open な collapsible は祖先の
 //!   `display: none` により実測 0 を返すため、`0px` を焼き込むと祖先が
 //!   開いた直後にネスト先が不可視のまま固定されてしまう。除去すれば
@@ -99,7 +99,7 @@
 //!
 //! # `crate::headless::wire_headless_component` との統合
 //!
-//! [`wiring::sync_content_height`] は `wire_headless_component` から
+//! `wiring::sync_content_height` は `wire_headless_component` から
 //! (1) 配線時（初期表示の SSR 状態に対する先行同期）、(2)
 //! `on_update` 直後（呼び出し側の再描画で content 要素が作り直された
 //! 後の要素への同期）の 2 箇所で呼ばれる（`crate::headless` 参照）。
@@ -135,14 +135,14 @@
 /// content 高さを供給する CSS カスタムプロパティ名。
 ///
 /// `crates/pre-styled-ui`（#2192）が消費側として同じリテラルを参照する
-/// 契約であり、本クレート内では [`wiring::sync_content_height`] のみが
+/// 契約であり、本クレート内では `wiring::sync_content_height` のみが
 /// 書き込む（唯一の書き込み経路）。
 pub const CONTENT_HEIGHT_VAR: &str = "--fandhe-content-height";
 
 /// 実測対象の `(data-scope, data-part)` 静的表。
 ///
 /// 対象の追加・削除はこの表への行の増減のみで行う。部品名で分岐する
-/// コードを [`wiring`] 側に書かない（モジュール doc 参照）。bubble の
+/// コードを `wiring` 側に書かない（モジュール doc 参照）。bubble の
 /// `collapse-content`（イシュー #2282）を追加済み。
 pub const TARGETS: &[(&str, &str)] = &[
     ("collapsible", "content"),
@@ -174,7 +174,7 @@ pub fn target_selector() -> String {
 /// 受け取れる signature）から CSS へ書き込む文字列を組み立てる。
 ///
 /// - 負値: `None`（呼び出し側は変数へ触れない）。
-/// - `0`: `Some("0px".to_string())`。**呼び出し側（[`wiring`]）はこの
+/// - `0`: `Some("0px".to_string())`。**呼び出し側（`wiring`）はこの
 ///   場合に変数を書き込まず除去する**契約であり、本関数自体は
 ///   `"0px"` を返すのみで除去判断は行わない（判断の分離）。
 /// - 正値: `Some(format!("{n}px"))`。

@@ -2,7 +2,7 @@
 //!
 //! フォーマット規約は `docs/api/hydration-state-format.md`（TASK-11.4a・#82、正の
 //! 規範文書）が確定済みであり、本モジュールはその第 5 節が凍結した API 表面
-//! （[`read_hydration_attrs`]・[`restore_state`]）を実装するのみで、フォーマット
+//! （`read_hydration_attrs`・[`restore_state`]）を実装するのみで、フォーマット
 //! 自体（属性命名・codec）を再定義・再実装しない。属性名プレフィックスは
 //! [`fandhe_frontend_interactive::HYDRATE_ATTR_PREFIX`] を単一の真実として扱う。
 //!
@@ -15,16 +15,16 @@
 //! のみ」に凍結した対象型を、ネスト構造・オブジェクト・マップ等の複雑な状態
 //! へ一般化する設計・実装はイシュー #163・`docs/design/hydration-nested-state.md`
 //! （正の規範文書）が担う。`fandhe_frontend_interactive::codec::Value`（型タグ付き再帰
-//! codec）を追加しただけであり、[`read_hydration_attrs`]・[`restore_state`]
+//! codec）を追加しただけであり、`read_hydration_attrs`・[`restore_state`]
 //! の API 表面・実装は本イシューでは変更していない（`C::from_hydration_attrs`
 //! への薄い委譲という契約はそのまま）。アプリの `Hydrate` 実装が
 //! `codec::Value`/`encode_value`/`decode_value` を使ってネスト構造を 1 属性値
 //! へ表現することを選択した場合でも、本モジュールを経由する復元経路
 //! （`restore_state` → `C::from_hydration_attrs`）は変わらず機能する。
 //!
-//! - **純粋ロジック層**（[`restore_state`]・[`filter_hydration_attrs`]）: DOM・
+//! - **純粋ロジック層**（[`restore_state`]・`filter_hydration_attrs`）: DOM・
 //!   `web-sys` に依存せず、native の `cargo test` で検証できる。
-//! - **wasm32 配線層**（[`read_hydration_attrs`]）: `#[cfg(target_arch = "wasm32")]`
+//! - **wasm32 配線層**（`read_hydration_attrs`）: `#[cfg(target_arch = "wasm32")]`
 //!   でゲートし、native ビルドへ `web-sys::Element` 依存を混入させない。
 //!
 //! # 他クレート・他モジュールとの契約
@@ -60,7 +60,7 @@ use fandhe_frontend_interactive::{Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 /// 選定した（`docs/api/hydration-state-format.md` が対象とする「単純な値」制約
 /// との整合。将来より精密な上限が必要になった場合は Issue 化して見直す）。
 ///
-/// 上限超過の属性は [`filter_hydration_attrs`] が列挙対象から除外する。
+/// 上限超過の属性は `filter_hydration_attrs` が列挙対象から除外する。
 /// 除外された属性は復元側（[`restore_state`] → `Hydrate::from_hydration_attrs`）
 /// から見ると「欠落した属性」と区別がつかず、結果として
 /// [`HydrateError::MissingAttr`] を経由し安全側フォールバック（初期状態での

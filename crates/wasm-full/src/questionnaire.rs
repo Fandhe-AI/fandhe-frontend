@@ -29,7 +29,7 @@
 //! [`fandhe_frontend_headless_ui::questionnaire::Questionnaire::new`] を
 //! 都度再構築 →
 //! [`fandhe_frontend_interactive::dispatch`]（`"prev"`/`"next"`/`"skip"`）→
-//! 変化があれば DOM へ書き戻す（[`write_questionnaire`]）。`Timer` と異なり
+//! 変化があれば DOM へ書き戻す（`write_questionnaire`）。`Timer` と異なり
 //! **リスナー登録先（`root`）は任意の祖先でよい**（インスタンスは click
 //! 位置から解決するため）。[`crate::headless_timer`] が「`root` 自身が
 //! Timer root でなければ no-op」という制約を持つのと対照的であり、
@@ -37,10 +37,10 @@
 //! `Runtime::hydrate` の双方で機能する。
 //!
 //! 同一 `root` 配下の複数インスタンス・入れ子インスタンスは「click 位置
-//! から最寄りの questionnaire root」で分離する（[`closest_matching`]）。
+//! から最寄りの questionnaire root」で分離する（`closest_matching`）。
 //! `question`/`progress`/`back`/`next`/`skip` の集計も「その要素の最寄り
 //! questionnaire root がこのインスタンス root であるもの」に限定する
-//! （[`belongs_to_instance`]）。
+//! （`belongs_to_instance`）。
 //!
 //! # `headless::MAPPING_TABLE` へ登録しない理由
 //!
@@ -78,7 +78,7 @@
 //!   `hidden`（非 active のみ）。常に after から導出する。パース不能な
 //!   要素はその要素だけスキップする。
 //! - `progress`: `aria-valuenow`/`aria-valuetext`/`data-complete`。
-//!   [`crate::headless_timer::wiring::sync_area_aria_label`] と同型の
+//!   `crate::headless_timer::wiring::sync_area_aria_label` と同型の
 //!   before/after 比較を行い、現在の `aria-valuenow` が before 由来の値と
 //!   一致する要素のみ更新する（利用者の独自値を壊さない fail-closed）。
 //! - `back`: `disabled`/`data-disabled`。**境界条件（`step == 0`）が
@@ -108,7 +108,7 @@
 //!
 //! # `Runtime` への統合
 //!
-//! [`wire_questionnaire_events`] は `crate::Runtime::mount`/
+//! `wire_questionnaire_events` は `crate::Runtime::mount`/
 //! `Runtime::hydrate` の双方から `Self::wire_chart` の直後に組み込まれる
 //! （`crate::Runtime::wire_questionnaire` 参照）。
 //!
@@ -119,7 +119,7 @@
 //!   disabled ボタンの合成 click を抑止することに依存せず本モジュール側で
 //!   判定する、`crate::dom::has_disabled_ancestor` を使う）。
 //! - `data-step` が欠落・非数値 → no-op。`data-step > count` → no-op
-//!   （[`Questionnaire::from_hydration_attrs`] の拒否と同じ判断。
+//!   （`Questionnaire::from_hydration_attrs` の拒否と同じ判断。
 //!   [`Questionnaire::new`] のクランプは使わず拒否する）。
 //! - `data-orientation` が欠落・`horizontal`/`vertical` 以外 → no-op。
 //! - `question` 要素が 0 個 → no-op。

@@ -43,7 +43,7 @@
 //!   表現される契約。設計書 §3.3）。内部パス・スタックトレース等は含めない
 //!   （`security.md`「機微情報の露出」）。
 //! - loader が [`fandhe_frontend_app::Loader::Error`] を返した場合は
-//!   [`loader_error_response`] が組み立てる 500 固定文言応答を返す
+//!   `loader_error_response` が組み立てる 500 固定文言応答を返す
 //!   （fail-closed、設計書 §5）。**`L::Error` / `D::Error` の値自体は一切
 //!   参照しない**（`Display`/`Debug` を呼ばない）ため、loader 実装が内部
 //!   パス・接続情報等を `Error` に含めていても応答へ混入する経路が構造的に
@@ -90,7 +90,7 @@ pub fn respond(path: &str) -> Option<SsrResponse> {
 /// ルートごとに異なる:
 ///
 /// - 一覧（`/`）: `list_loader.load(&())` を解決し `list_page(&items)` を
-///   呼ぶ。`Err(_)` は [`loader_error_response`] の 500 固定文言応答に変換
+///   呼ぶ。`Err(_)` は `loader_error_response` の 500 固定文言応答に変換
 ///   する（`Ok`/`Err` の 2 値のみで `Vec<Item>` の中身自体はステータス判定に
 ///   関与しない）。`assemble_list_page` ではなく `list_page` を直接呼ぶのは、
 ///   `core/tests/no_branching_across_modes.rs` の REQ-7 静的検証

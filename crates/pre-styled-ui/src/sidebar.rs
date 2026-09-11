@@ -43,7 +43,7 @@
 //! `--fandhe-color-sidebar-*`（[`crate::theme::Theme::default`] が追加する
 //! `sidebar-bg`/`sidebar-fg`/`sidebar-accent`/`sidebar-accent-fg`/
 //! `sidebar-muted`/`sidebar-border`/`sidebar-focus-ring` の 7 ロール）を
-//! 意味する。幅など非色トークンは本 [`recipe`] が宣言する scope 接頭辞
+//! 意味する。幅など非色トークンは本 `recipe` が宣言する scope 接頭辞
 //! custom property（`--fandhe-sidebar-width`/`--fandhe-sidebar-width-icon`/
 //! `--fandhe-sidebar-width-mobile`、[`crate::drawer`] の
 //! `--fandhe-drawer-size` と同型のフォールバック付き）である。
@@ -83,7 +83,7 @@
 //! `<span data-fandhe-sidebar-menu-button-label>` へ集約し、icon 折りたたみ
 //! 時は [`stylesheet`] の raw CSS がこの内側ラッパーを個別に視覚的
 //! 非表示化する。`display: none` ではなく
-//! [`crate::visually_hidden::clip_declarations`] の clip 手法を用いる
+//! `crate::visually_hidden::clip_declarations` の clip 手法を用いる
 //! （PR #2245 codex-review P1 再指摘）: `menu-button` 本体（`a`/`button`）の
 //! アクセシブルネームはこの内側ラッパーのテキストに由来するため、
 //! `display: none` で支援技術からも除外すると icon 折りたたみ後にリンク・
@@ -124,9 +124,9 @@
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless [`fandhe_frontend_headless_ui::sidebar`] →
-//!   [`fandhe_frontend_core::render`] の既定エスケープ（REQ-1）を必ず
+//!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
-//! - 呼び出し側 `class` は [`drop_class_attr`] で除去してから headless
+//! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
 //!   関数へ委譲する（22 パーツすべて）。
 //! - [`stylesheet`] が組み立てる CSS 宣言・selector 断片はすべて
 //!   コンパイル時静的リテラルであり、[`crate::css::decl`]/
@@ -1602,7 +1602,7 @@ pub fn inset<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 ///
 /// [`crate::skeleton::skeleton`] の `root` は既定 `display: block` の
 /// `div` であり、`menu-item`（`<li>`）が並べる 2 個（アイコン + テキスト）
-/// はそのままだと縦積みになる。[`recipe`] の `menu-item` slot を
+/// はそのままだと縦積みになる。`recipe` の `menu-item` slot を
 /// `display: flex` へ変えて解決する案は不採用: モジュール doc・
 /// `menu_action_base`/`menu_badge_base` のコメントが明記するとおり
 /// `menu-item` は一般の利用パターンで `menu-sub`（複数行の子メニュー）を
@@ -1610,7 +1610,7 @@ pub fn inset<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 /// その用途が壊れる（`crate::button_group`/`crate::card` と同型に
 /// `:has()`/兄弟結合子を持たない [`SlotRecipe`] の制約）。本関数が返す
 /// `menu-item` は常にこの 2 個の skeleton のみを子に持つ自己完結した
-/// 構造のため、[`recipe`] を変更せず戻り値自身にだけ `style` 属性で
+/// 構造のため、`recipe` を変更せず戻り値自身にだけ `style` 属性で
 /// `display: flex` を付与し、他の実 `menu-item`（`menu-sub` 併用を含む）
 /// へは一切影響させない。
 #[must_use]

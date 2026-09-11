@@ -23,7 +23,7 @@
 //!    （`tests/xss_escape_styled.rs`）・`stylesheet.rs` の全部品網羅ドリフト
 //!    検知テストで機械検証する。
 //! 4. **コンテキスト消費**: 新規モジュール 1 個（公開関数 2 個 + Props +
-//!    enum 1 個）。[`crate::skeleton`]/[`crate::spinner`] と同型パターンの
+//!    enum 1 個）。[`crate::skeleton`](mod@crate::skeleton)/[`crate::spinner`](mod@crate::spinner) と同型パターンの
 //!    再利用で追加学習コストを最小化する。
 //! 5. **不変条件を弱めない**: 新規依存クレートゼロ・既定エスケープ（REQ-1）
 //!    迂回なし・`unsafe` なし・HTML/CSS への実行時入力の文字列結合なし。
@@ -39,11 +39,11 @@
 //!
 //! [`marquee`] は `content` パーツ（`data-part="content"`）を **2 回複製**
 //! して並べる（自動流動テキストの標準的なシームレスループ手法。`children`
-//! は [`fandhe_frontend_core::Node`] が `Clone` を実装しているため
+//! は `fandhe_frontend_core::Node` が `Clone` を実装しているため
 //! `children.clone()` で複製する）。**2 個目の `content` には常に
 //! `aria-hidden="true"`** に加え **`inert`** を付与し、スクリーンリーダーの
 //! 二重読み上げとキーボードフォーカスの二重発生を防ぐ（呼び出し側が
-//! これを外すオプションは設けない、[`crate::skeleton`] と同型の
+//! これを外すオプションは設けない、[`crate::skeleton`](mod@crate::skeleton) と同型の
 //! fail-closed 判断）。`aria-hidden` のみでは支援技術向けの意味論しか
 //! 遮断せず複製内のリンク等フォーカス可能な子孫がタブ順序に残ってしまう
 //! ため、キーボードフォーカスも遮断する `inert`（HTML 標準のグローバル
@@ -62,7 +62,7 @@
 //! 死んだ CSS を生んだ教訓、PR #812 修正コミット 54126cb を踏まえ、本
 //! モジュールは最初から custom property 経由で設計する）。
 //!
-//! `color-palette`/`size` 軸は提供しない（[`crate::skeleton`]/[`crate::card`]
+//! `color-palette`/`size` 軸は提供しない（[`crate::skeleton`](mod@crate::skeleton)/[`crate::card`]
 //! と同型の「中立・装飾部品」判断）。速度・間隔は CSS custom property の
 //! フォールバック（`--fandhe-marquee-duration, 20s` / `--fandhe-marquee-gap,
 //! 1rem`）として与え、呼び出し側が `style` 属性で上書きする契約とする。
@@ -72,7 +72,7 @@
 //! # a11y 契約: `decorative`/`label`
 //!
 //! [`MarqueeProps::decorative`]（既定 `false`）が `true` の場合、`root` へ
-//! `aria-hidden="true"` を付与し純装飾として扱う（[`crate::skeleton`] と
+//! `aria-hidden="true"` を付与し純装飾として扱う（[`crate::skeleton`](mod@crate::skeleton) と
 //! 同型）。この際 `root` 自身ではなく可視の主コピー（1 個目の `content`）へ
 //! `inert` を付与し、`aria-hidden` だけでは遮断できないキーボードフォーカス
 //! も遮断する（複製 2 個目の `content` 側の `inert` 付与（上記「シームレス
@@ -84,7 +84,7 @@
 //! `root:hover`/`root:focus-within` の一時停止 CSS（下記「常時一時停止」
 //! 節）が decorative モードで機能しなくなるため（Cursor Bugbot 指摘・
 //! PR #864、追補）。`false`（既定）の場合、[`MarqueeProps::label`] が `Some` なら
-//! `root` へ `aria-label` を付与する（[`crate::icon`] の `label: Option<&str>`
+//! `root` へ `aria-label` を付与する（[`crate::icon`](mod@crate::icon) の `label: Option<&str>`
 //! と同型の判断）。呼び出し側 `attrs` の `aria-hidden`/`aria-label` は
 //! 大文字小文字を無視して除去し props 由来の値へ一本化する
 //! （[`crate::skeleton::skeleton`] の fail-closed 判断と同型）。
@@ -245,7 +245,7 @@
 //!   ブロック要素の既定幅で同等）。
 //! - `root` の `border`/`background`/`border-radius`/`color`:
 //!   chakra-ui `root` recipe にも既定値がなく、参考スクリーンショットの
-//!   枠はデモ側の装飾（`Card` コンポーネント等）。[`crate::skeleton`] と
+//!   枠はデモ側の装飾（`Card` コンポーネント等）。[`crate::skeleton`](mod@crate::skeleton) と
 //!   同型の「中立・装飾部品」判断で色軸を持ち込まない。必要なら利用者が
 //!   `attrs` の `style` または外側のラッパで付与する（`root` に枠・背景を
 //!   付けた場合、`mask-image` はその端もフェードする点は #1582 の
@@ -411,7 +411,7 @@ fn recipe() -> SlotRecipe {
 /// （[`crate::skeleton::css`] と同型。値はソースコード中のリテラルのみで
 /// 構成され、外部入力は一切混入しない）:
 ///
-/// 1. `animation` 宣言が参照する `@keyframes`（[`SCROLL_KEYFRAMES_NAME`]）。
+/// 1. `animation` 宣言が参照する `@keyframes`（`SCROLL_KEYFRAMES_NAME`）。
 /// 2. `root` への `:hover`/`:focus-within` で `content` のアニメーションを
 ///    一時停止する規則（子孫コンビネータのため recipe では表現できない、
 ///    モジュール doc「常時一時停止」節参照）。
@@ -455,7 +455,7 @@ pub fn css() -> String {
 /// シームレスループを実現する、モジュール doc「シームレスループの実現方法」
 /// 節参照）。
 ///
-/// `class` は [`crate::class_attr::drop_class_attr`] により常に単一化される
+/// `class` は `crate::class_attr::drop_class_attr` により常に単一化される
 /// （呼び出し側由来のクラスは recipe 生成クラスへ合成されず破棄する、
 /// [`crate::skeleton::skeleton`] と同じ方針）。`aria-hidden`/`aria-label` も
 /// 同様に呼び出し側の値（大文字小文字を無視）を除去し、`props` 由来の値へ

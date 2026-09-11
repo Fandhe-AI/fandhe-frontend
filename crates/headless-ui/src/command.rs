@@ -3,7 +3,7 @@
 //!
 //! `docs/design/component-coverage-map.md` の shadcn/ui 参照軸（イシュー
 //! #2004）にのみ存在し他 3 参照軸（ark-ui / chakra-ui / Radix）に対応が
-//! ない部品を埋める（[`mod@crate::button_group`]/[`mod@crate::input_group`]
+//! ない部品を埋める（[`crate::button_group`](mod@crate::button_group)/[`crate::input_group`](mod@crate::input_group)
 //! と同型の位置付け）。検索入力 + 絞り込み済みリスト + グループ +
 //! ショートカット表示 + dialog 内表示を組み合わせたコマンドパレット向けに、
 //! `root` / `input` / `list` / `empty` / `group` / `group-heading` / `item`
@@ -11,8 +11,8 @@
 //! `group-heading` はイシュー本文の 9 パーツから 1 パーツ増えている（下記
 //! 「`group` の見出し」節参照）。
 //!
-//! 既存の [`mod@crate::combobox`]（ARIA 1.2 combobox パターン）・
-//! [`mod@crate::listbox`]（`role="listbox"`/`role="option"`）の ARIA 実装を
+//! 既存の [`crate::combobox`](mod@crate::combobox)（ARIA 1.2 combobox パターン）・
+//! [`crate::listbox`](mod@crate::listbox)（`role="listbox"`/`role="option"`）の ARIA 実装を
 //! 再利用し、新規の意味論を持ち込まない。
 //!
 //! # 呼び出し文脈
@@ -27,7 +27,7 @@
 //! `fandhe-frontend-pre-styled-ui`（後続イシュー #2070）が本モジュールを
 //! 呼んでスタイル済み Command を組み立てる想定である。
 //!
-//! # 状態機械の構成（[`mod@crate::combobox`] とは異なる意味論）
+//! # 状態機械の構成（[`crate::combobox`](mod@crate::combobox) とは異なる意味論）
 //!
 //! [`Command`] は [`crate::state::Disclosure`]（dialog 開閉）+
 //! [`crate::state::TextInput`]（検索クエリ）+ [`crate::state::SingleSelect`]
@@ -72,20 +72,20 @@
 //! [`empty`] は [`list`]（`role="listbox"`）の外、[`root`] の直接の子
 //! として置く（`role="listbox"` の owned element は `option`/`group` の
 //! みであり、`listbox` 内に無関係な要素を置くと ARIA として不正になる。
-//! [`mod@crate::combobox`] の `live_region` 配置制約と同型の判断）。
+//! [`crate::combobox`](mod@crate::combobox) の `live_region` 配置制約と同型の判断）。
 //! [`separator`] は [`list`] 内に置くことを想定するが、`role="separator"`
-//! は `hr`（[`mod@crate::menu::separator`]）ではなく `div` を採用する
+//! は `hr`（`mod@crate::menu::separator`）ではなく `div` を採用する
 //! （shadcn/ui cmdk の `CommandSeparator` が `div` であることに合わせた
 //! 意図的な差分。`menu`/`toolbar`/`action_bar`/`button_group` の
 //! `separator` はいずれも `hr` だが、本モジュールは shadcn/ui 参照軸を
 //! 優先する）。
 //!
-//! # `item` の選択表現（[`mod@crate::combobox`]/[`mod@crate::listbox`] との差分）
+//! # `item` の選択表現（[`crate::combobox`](mod@crate::combobox)/[`crate::listbox`](mod@crate::listbox) との差分）
 //!
 //! [`item`] は `aria-selected` / `data-selected`（presence）/ `data-value`
 //! / `id` を出力するが、`data-highlighted` と `data-state` は
 //! **出力しない**
-//! （[`mod@crate::combobox::item`]/[`mod@crate::listbox::item`] は
+//! （`mod@crate::combobox::item`/`mod@crate::listbox::item` は
 //! `data-state`（[`crate::state::OpenState`] 語彙）で選択有無を表すが、
 //! 本モジュールは cmdk の `data-selected` 語彙をそのまま採る）。理由は
 //! 次の 2 点である。
@@ -101,7 +101,7 @@
 //!   R3 の対象外になり、combobox 由来の「ハイライト行」意味論と衝突
 //!   しない。
 //!
-//! # `input` の ARIA（[`mod@crate::combobox::input`] を再利用）
+//! # `input` の ARIA（`mod@crate::combobox::input` を再利用）
 //!
 //! [`input`] は `role="combobox"` + `aria-expanded` + `aria-controls`
 //! （必須引数、`Option` opt-in にしない）+ `aria-autocomplete="list"` +
@@ -110,18 +110,18 @@
 //! 引数にすることで、`docs-site` の `tests/combobox_aria_association.rs`
 //! （R1〜R4、`role="combobox"`/`role="listbox"`/`role="option"` 全ページ
 //! 走査）を型で構造的に満たす（イシュー #1067 が `Option` opt-in を弱点と
-//! 記録した反省を踏まえ、[`mod@crate::combobox`] の一部引数と異なり
+//! 記録した反省を踏まえ、[`crate::combobox`](mod@crate::combobox) の一部引数と異なり
 //! ここでは必須にする）。[`list`] も同様に `id`/`aria-label`
 //! （`Option` ではなく必須引数）でアクセシブルネームを型で強制する。
 //!
-//! # `dialog` パーツを [`mod@crate::dialog`] へ委譲しない理由
+//! # `dialog` パーツを [`crate::dialog`](mod@crate::dialog) へ委譲しない理由
 //!
 //! [`crate::dialog::content`] へ委譲すると `data-scope="dialog"` の部分木が
 //! 混入し、docs-site の scope 一致契約
 //! （`resolved_scope_matches_the_page_kebab_for_every_entry`）に反する
-//! （[`mod@crate::combobox`] の `live_region` が `visually_hidden` を
+//! （[`crate::combobox`](mod@crate::combobox) の `live_region` が `visually_hidden` を
 //! 使わない理由と同型）。[`dialog`] は独立パーツとして `role="dialog"` +
-//! `aria-modal="true"` + `tabindex="-1"`（[`mod@crate::dialog::content`]
+//! `aria-modal="true"` + `tabindex="-1"`（`mod@crate::dialog::content`
 //! と同じくプログラム的フォーカスのみを許可する WAI-ARIA dialog パターン
 //! の前提）+ closed 時 `hidden` を出力する。`fandhe-frontend-wasm-full`
 //! の `focus_trap::should_trap`/`OverlayKind::from_scope` は現状 `"dialog"`
@@ -131,7 +131,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`id`/`tabindex`/`autocomplete`/
 //!   `hidden`）はすべて `&'static str` リテラルで固定しており、動的値が
-//!   属性名スロットへ混入する経路はない（[`mod@crate::anatomy`]/
+//!   属性名スロットへ混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/
 //!   [`crate::aria`]の既存不変条件をそのまま継承する）。
 //! - 動的値（クエリ/選択値/`value`/`list_id`/`aria-label`/item の
 //!   `value`・`id`/呼び出し側 `attrs`/`children`）は
@@ -263,7 +263,7 @@ pub fn root<'a>(
 ///
 /// `role="dialog"` + `aria-modal="true"` + `tabindex="-1"` を固定付与する。
 /// `label` が空文字列でないときのみ `aria-label` を付与する（dialog の
-/// アクセシブルネーム、[`mod@crate::dialog`] の `title`/`aria-labelledby`
+/// アクセシブルネーム、[`crate::dialog`](mod@crate::dialog) の `title`/`aria-labelledby`
 /// 経由の関連付けとは異なり、本パーツは単体で完結するため直接
 /// `aria-label` を渡す設計にする）。closed のとき `hidden` 存在属性を
 /// 付与する。

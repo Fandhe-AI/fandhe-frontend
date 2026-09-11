@@ -61,8 +61,8 @@
 //! - [`Steps::progress`] パーツを新設（Zag.js anatomy 10 パーツ中、本実装
 //!   に唯一欠けていたパート。`role="progressbar"` は a11y 意味論であり
 //!   §3.25 規則 2 の装飾・レイアウト計測には該当しない）。
-//! - 全パーツへ [`drop_reserved`]（[`crate::toolbar::drop_reserved`]・
-//!   [`crate::nav_list::drop_reserved`] と同型）を導入し、呼び出し側
+//! - 全パーツへ `drop_reserved`（`crate::toolbar::drop_reserved`・
+//!   `crate::nav_list::drop_reserved` と同型）を導入し、呼び出し側
 //!   `attrs` が固定付与属性へなりすませないようにした（A05 対策）。
 //!
 //! **意図的に合わせなかった差分（回帰ガードは `tests/steps_reference_parity.rs`）**:
@@ -95,13 +95,13 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`）はすべて `&'static str` リテラルで
 //!   固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::data_attrs`]/[`crate::aria`] の既存不変条件を
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`]/[`crate::aria`] の既存不変条件を
 //!   そのまま継承する）。
 //! - 動的値（数値属性・呼び出し側 `attrs`・children テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - `data-state` 値語彙（`"complete"`/`"current"`/`"incomplete"`）は本
-//!   モジュール内で一元管理し（[`Steps::item_state`]）、パーツ関数間で
+//!   モジュール内で一元管理し（`Steps::item_state`）、パーツ関数間で
 //!   分裂させない。
 //! - `aria-current="step"` は current な item の trigger のみに付与し、
 //!   任意文字列を受け付けない列挙値（[`crate::aria::AriaCurrent::Step`]、
@@ -299,7 +299,7 @@ impl Steps {
     /// `data-hydrate-orientation` 属性名のフィールド部分。
     pub const FIELD_ORIENTATION: &'static str = "orientation";
 
-    /// 指定した値で [`Steps`] を生成する（[`normalize`] で fail-closed
+    /// 指定した値で [`Steps`] を生成する（`normalize` で fail-closed
     /// 正規化する。呼び出し側の不正な入力で panic しない）。
     #[must_use]
     pub fn new(count: usize, step: usize, orientation: Orientation) -> Self {
@@ -468,7 +468,7 @@ impl Steps {
 
     /// Content パーツ（`div`、`index` は `0..count`）。現在 step のみ
     /// `data-state="open"` で表示し、非現在 step は `data-state="closed"` +
-    /// `hidden` 属性で隠す（[`crate::tabs`] の content と同型の契約）。
+    /// `hidden` 属性で隠す（[`crate::tabs`](mod@crate::tabs) の content と同型の契約）。
     /// `data-orientation` を併せて付与する（イシュー #1665 参照突合、
     /// [`Steps::trigger`] と同じ理由）。
     #[must_use]
@@ -531,7 +531,7 @@ impl Steps {
     /// `[data-disabled]` セレクタを登録済みで、本変更により活性化する）。
     /// `disabled`/`data-disabled` は予約キーに含めない（呼び出し側が
     /// バリデーション結果に応じて Next を強制無効化する経路を残す。
-    /// [`PREV_NEXT_RESERVED`] の doc コメント参照）。
+    /// `PREV_NEXT_RESERVED` の doc コメント参照）。
     #[must_use]
     pub fn prev_trigger<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let attrs = drop_reserved(attrs, PREV_NEXT_RESERVED);
@@ -565,7 +565,7 @@ impl Steps {
     /// anatomy に存在し本実装が欠いていた唯一のパート（イシュー #1665
     /// 参照突合で新設）。`percent`（`step * 100 / count` の整数、`0..=100`）
     /// を `aria-valuenow`/`aria-valuetext` へ出力する。`count >= 1` は
-    /// [`normalize`] が保証するためゼロ除算は起きない。`data-complete` は
+    /// `normalize` が保証するためゼロ除算は起きない。`data-complete` は
     /// `percent == 100`（`step == count`）のときのみ付与し、
     /// `data-orientation` は本実装の superset（Zag/ark-ui の progress は
     /// `data-complete` のみを持つ）として付与する。
@@ -612,7 +612,7 @@ impl Component for Steps {
     type Action = StepsAction;
 
     /// `StepsAction::Goto` は範囲外（`> count`）を fail-closed に無視する
-    /// （no-op）。[`normalize`]/[`Steps::decode_action`] が課す
+    /// （no-op）。`normalize`/[`Steps::decode_action`] が課す
     /// 「`step` は `0..=count`」という本モジュールの不変条件を `update()`
     /// 単体でも維持するため（`decode_action` を経由しない直接
     /// `StepsAction::Goto` 構築・呼び出しからも同じ不変条件を守る）。

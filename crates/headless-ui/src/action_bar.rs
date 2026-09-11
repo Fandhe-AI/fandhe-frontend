@@ -70,7 +70,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`mod@crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存
 //!   不変条件をそのまま継承する）。
 //! - 動的値（`label`・呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
@@ -124,7 +124,7 @@ pub fn positioner<'a>(
 /// 付与する。開状態のときのみ `data-expanded` 存在属性を付与し（参照基準
 /// である zag.js popover の content と同じ語彙、モジュール doc「参照基準」
 /// 節参照）、`tabindex="-1"` を固定で付与する（呼び出し側 `attrs` に
-/// `tabindex` が既にあれば出力しない、[`has_caller_attr`] 参照）。closed の
+/// `tabindex` が既にあれば出力しない、`has_caller_attr` 参照）。closed の
 /// とき `hidden` 存在属性を付与する。
 #[must_use]
 pub fn content<'a>(
@@ -179,7 +179,7 @@ pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
 /// `translations.closeTrigger` 既定値 `"close"` に合わせた固定英語リテラル、
 /// `.claude/rules/japanese-style.md` のユーザー向け文字列は英語規約）。
 /// 呼び出し側 `attrs` に独自の `aria-label` があれば出力しない
-/// （[`has_caller_attr`] 参照）。
+/// （`has_caller_attr` 参照）。
 pub const CLOSE_TRIGGER_ARIA_LABEL: &str = "close";
 
 /// 呼び出し側 `attrs` に指定の属性キーが既に含まれるかを判定する

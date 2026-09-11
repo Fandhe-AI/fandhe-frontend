@@ -57,7 +57,7 @@
 //!   従来どおり `fandhe-frontend-wasm-full` の `keynav` モジュール
 //!   （イシュー #1075）が担い、`roving_focus` はその配線が book-keeping
 //!   する `tabindex` の SSR 初期値を与えるのみである。
-//! - [`drop_reserved`]（[`crate::radio_group`] の同名ヘルパと同型）を追加
+//! - `drop_reserved`（[`crate::radio_group`] の同名ヘルパと同型）を追加
 //!   し、呼び出し側 `attrs` からの `tabindex`/`data-value`/`aria-pressed`/
 //!   `data-orientation` 等の偽装を fail-closed に除去する。
 //!
@@ -81,7 +81,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`role`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存不変
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存不変
 //!   条件をそのまま継承する）。
 //! - 動的値（`value`/`labelled_by`/呼び出し側 `attrs`/`children` テキスト/
 //!   dispatch payload/hydration 属性）は [`fandhe_frontend_core::render`] の
@@ -90,7 +90,7 @@
 //! - `data-state` 値語彙（`"on"`/`"off"`）は [`crate::state`]
 //!   （[`crate::state::pressed_data_state`]）が一元管理し、本モジュールで
 //!   独自の値を作らない。
-//! - [`drop_reserved`] は呼び出し側 `attrs` が `role`/`data-orientation`/
+//! - `drop_reserved` は呼び出し側 `attrs` が `role`/`data-orientation`/
 //!   `aria-labelledby`/`data-disabled`（root）、`type`/`aria-pressed`/
 //!   `data-state`/`data-pressed`/`data-disabled`/`data-value`/
 //!   `data-orientation`/`disabled`/`tabindex`（item）を偽装することを

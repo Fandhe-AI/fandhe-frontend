@@ -62,7 +62,7 @@
 //! を再確認した結果、[`area`] に `role="timer"`・`aria-atomic="true"`・
 //! `aria-label`（既定書式、[`Timer::area_label`]）が、[`separator`] に
 //! `aria-hidden="true"` がそれぞれ付与されることが判明したため是正した
-//! （[`mod@clipboard`] の判断は他パーツについて変わらず有効）。
+//! （`mod@clipboard` の判断は他パーツについて変わらず有効）。
 //!
 //! # is_hidden_in / action_trigger の可視性（イシュー #1632）
 //!
@@ -79,7 +79,7 @@
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`）はすべて `&'static str` リテラルまたは固定スロットで
-//!   あり、動的値が属性名スロットへ混入する経路はない（[`crate::anatomy`]/
+//!   あり、動的値が属性名スロットへ混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 数値設定（`elapsed_ms`/`start_ms`/`target_ms`/`interval_ms`）はすべて
 //!   `u64` 型から整形するため、属性値スロットへ任意文字列が混入する経路は
@@ -701,7 +701,7 @@ impl Component for Timer {
     }
 
     /// 共通契約（`data-state`/`data-elapsed` 整合・hydration ルート）のみを
-    /// 表す最小正準ビュー（root > control > action-trigger[start]、
+    /// 表す最小正準ビュー（`root > control > action-trigger[start]`、
     /// [`crate::clipboard::Clipboard::view`] と同じ位置付けであり、公開 UI
     /// としての利用は想定しない）。
     fn view(&self) -> Node {

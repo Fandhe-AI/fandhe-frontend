@@ -1,6 +1,6 @@
 //! Mark（イシュー #771）: 単一 recipe styled 部品。テキストハイライト
 //! （`<mark>`）を `variant`/`colorPalette` の 2 軸で組み立てる
-//! （[`crate::badge`] と同型の単一 recipe パターン）。
+//! （[`crate::badge`](mod@crate::badge) と同型の単一 recipe パターン）。
 //!
 //! # イシュー #1439 の参照サイト比較（7 軸チェック）
 //!
@@ -20,7 +20,7 @@
 //!   `bg: colorPalette.subtle`（palette 連動の淡色背景）+
 //!   `color: inherit`（文字色は本文を継承）と定義している。本 issue で
 //!   `background: var(--fandhe-palette-subtle)` + `color: inherit` へ
-//!   是正した。[`crate::code`]（#1432）の subtle は
+//!   是正した。[`crate::code`](mod@crate::code)（#1432）の subtle は
 //!   `--fandhe-palette-fg-subtle`（色付き文字）を採るが、これは chakra
 //!   側で Code と Mark の subtle 定義そのものが異なる（Code は色付き fg・
 //!   Mark は inherit）ことの反映であり、両部品間の不整合ではない。
@@ -32,7 +32,7 @@
 //! - **solid/plain**: chakra と一致しており変更なし。
 //! - **既定 palette の是正**: 旧既定 [`ColorPalette::Accent`] は chakra の
 //!   既定 colorPalette（`gray`）と乖離していたため、[`ColorPalette::Neutral`]
-//!   へ是正した（[`crate::code`] #1432・kbd #1721 と同一判断。#1711 が
+//!   へ是正した（[`crate::code`](mod@crate::code) #1432・kbd #1721 と同一判断。#1711 が
 //!   Phase 1 部品側の宿題として残した「subtle 系配色の 6 役割移行」を
 //!   本 issue で消化する）。
 //! - **`data-*` 状態**: `data-scope`/`data-part` のみを持つ静的部品であり
@@ -45,7 +45,7 @@
 //!   （hover はインタラクティブ slot のみ）・
 //!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
 //!   （フォーカスリングはフォーカス対象部品のみ）のいずれの適用対象にも
-//!   当たらない（[`crate::code`]・[`crate::highlight`] と同一判断）。
+//!   当たらない（[`crate::code`](mod@crate::code)・[`crate::highlight`](mod@crate::highlight) と同一判断）。
 //! - **`white-space: nowrap`**: chakra base はこれを持つが、意図的に
 //!   非採用とする。日本語文中の複数語・長句ハイライトで折り返し不能に
 //!   なり本文レイアウトを壊すため（フレームワークの国際化前提を優先）。

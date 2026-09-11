@@ -733,7 +733,7 @@ pub(super) fn message_section() -> Node {
 /// jump-to-latest/load-more）と `data-stuck` 2 値（bottom/free）を必ず
 /// 描画する（`anatomy_coverage_matches_known_uncovered_exactly` が
 /// `.part("…")` 集合の完全一致を、`data-*` 表が観測値のみを機械導出する
-/// ため）。`content` には [`mod@hui::message`] の `group`/`root` を入れ子に
+/// ため）。`content` には [`hui::message`](mod@hui::message) の `group`/`root` を入れ子に
 /// する（scope フィルタにより message-scroller 側の表を汚さない、
 /// `crates/headless-ui/src/attachment.rs` が Progress を入れ子にした先例と
 /// 同型）。1 件目は既定状態（`data-stuck="bottom"`、jump-to-latest 非表示、

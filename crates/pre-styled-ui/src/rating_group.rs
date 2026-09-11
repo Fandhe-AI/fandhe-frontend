@@ -37,7 +37,7 @@
 //!
 //! # `size`/`palette` variant
 //!
-//! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
+//! `size`（[`Size`]）は `root` へのみクラスを付与し、`recipe` が登録する
 //! `--fandhe-rating-group-item-size` の root スコープ custom property
 //! （通常の CSS 継承により `item` へ伝わる。`root` はこれを内包する祖先
 //! 要素であるため、[`crate::recipe::SlotRecipe`] へ子孫セレクタ機構を追加
@@ -101,7 +101,7 @@
 //! あり、動的値（`aria_label`/`name`/`value_text`/属性/children）へ CSS 値
 //! として流し込む経路を持たない（動的値は headless 層経由で
 //! `fandhe_frontend_core::render` の既定エスケープを必ず通る、REQ-1）。
-//! styled `root` は [`drop_class_attr`] により呼び出し側の `class` を除去
+//! styled `root` は `drop_class_attr` により呼び出し側の `class` を除去
 //! してから合成するため、`class` 属性は常に単一（[`crate::radio_group::root`]
 //! と同型）。
 //!
@@ -344,7 +344,7 @@ pub fn stylesheet() -> String {
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
-/// する唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去
+/// する唯一のパーツ（`drop_class_attr` により呼び出し側の `class` は除去
 /// してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::rating_group::root`] へ委譲する。
 ///

@@ -15,7 +15,7 @@
 //!   イシュー #943 で索引（凡例 + カテゴリ別リンク集）へ改組済みであり、
 //!   Rust 生成コンテンツを持たない（[`showcase::generated_content`] が
 //!   `None` を返すため、本モジュールも同ページに対しては `None` を返す）。
-//! - [`showcase::COMPONENT_PAGES`] レジストリの部品ページ（`/themes/<kebab>/`。
+//! - `showcase::COMPONENT_PAGES` レジストリの部品ページ（`/themes/<kebab>/`。
 //!   イシュー #1017 で `/components/<kebab>/` から移行）
 //!   のみ、本モジュールの 6 節合成を適用する。
 //!
@@ -60,7 +60,7 @@
 //! | CSS 変数表（`API Reference` 節） | 抽出する | **恒常的に省略**（headless-ui に CSS の概念が無い） |
 //! | Demo ラッパ class | [`THEMES_SHOWCASE_CLASS`] | [`PRIMITIVES_SHOWCASE_CLASS`] |
 //! | Demo 供給元 | [`showcase::generated_content`]（`/themes/` 専用の `COMPONENT_PAGES`） | [`crate::primitive_showcase::generated_content`]（headless-ui 専用、イシュー #1022） |
-//! | 原稿レジストリ | [`component_specs`] 系 [`SPEC_TABLES`] | [`crate::primitive_specs::SPEC_TABLES`] |
+//! | 原稿レジストリ | [`component_specs`] 系 `SPEC_TABLES` | [`crate::primitive_specs::SPEC_TABLES`] |
 //!
 //! イシュー #1022 により [`crate::primitive_showcase`] が Primitives 64 部品の
 //! Demo を供給するようになったため、`/primitives/<kebab>/` は Rust 生成
@@ -129,7 +129,7 @@ impl Layer {
 }
 
 /// 引数表（`API Reference` 節）1 行。Phase 4（#945〜#948）が原稿データを
-/// 供給するまでは [`SPEC_SOURCES`] に該当エントリが無いため空。
+/// 供給するまでは `SPEC_SOURCES` に該当エントリが無いため空。
 #[derive(Debug, Clone, Copy)]
 pub struct ArgRow {
     /// 引数名（例: `variant`）。
@@ -175,7 +175,7 @@ pub struct ExampleEntry {
 ///
 /// Demo（[`showcase`] 由来）・Anatomy（機械導出）・`data-*` 属性表・CSS
 /// 変数表（いずれも機械導出）を**除く**、原稿側供給が必要な項目のみを持つ。
-/// 未登録パス（[`SPEC_SOURCES`] に該当エントリなし）は [`ComponentPageSpec::EMPTY`]
+/// 未登録パス（`SPEC_SOURCES` に該当エントリなし）は [`ComponentPageSpec::EMPTY`]
 /// として扱われ、Features/API 引数表/Examples/Accessibility の 4 節が
 /// すべて省略される（Phase 3 の段階でビルドを赤くしないための既定動作）。
 #[derive(Debug, Clone, Copy)]
@@ -190,7 +190,7 @@ pub struct ComponentPageSpec {
     pub keyboard: &'static [KeyRow],
     /// `Accessibility` 節の WAI-ARIA 対応表。
     pub aria: &'static [AriaRow],
-    /// Demo フォールバック供給口（イシュー #945）。[`showcase::COMPONENT_PAGES`]
+    /// Demo フォールバック供給口（イシュー #945）。`showcase::COMPONENT_PAGES`
     /// に該当エントリを持たない部品（`showcase.rs` を Phase 4 で編集しない
     /// ための機構）のために、`Demo` 節を組み立てる `fn` ポインタを保持する。
     /// [`showcase::generated_content`] が `None` を返した場合のみ本フィールド
@@ -399,13 +399,13 @@ const MAX_WALK_DEPTH: usize = 64;
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
 ///
-/// - [`showcase::COMPONENT_PAGES`] レジストリの部品ページは 6 節（Demo /
+/// - `showcase::COMPONENT_PAGES` レジストリの部品ページは 6 節（Demo /
 ///   Features / Anatomy / API Reference / Examples / Accessibility）を
 ///   合成して返す。
 /// - [`showcase::PAGE_PATH`]（索引ページ）を含め、レジストリに未登録の
 ///   パスは `None`（Markdown のみの通常ページ。索引ページの本文は
 ///   `site/themes.md` 側で完結する、イシュー #943）。
-/// - [`showcase::COMPONENT_PAGES`] に無いパスでも、[`ComponentPageSpec::demo`]
+/// - `showcase::COMPONENT_PAGES` に無いパスでも、[`ComponentPageSpec::demo`]
 ///   が `Some` を返せば Demo 節を供給できる（イシュー #945、`showcase.rs` を
 ///   Phase 4 で編集しないための機構。デモを持たない部品向け）。
 #[must_use]

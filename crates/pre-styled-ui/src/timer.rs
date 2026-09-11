@@ -96,7 +96,7 @@
 //! 4. **`action-trigger[data-disabled]` は呼び出し側付与時のみ有効**:
 //!    headless `timer::action_trigger` は `data-disabled` を出力しない
 //!    （現状 grep 0 件）。CSS 規則自体は
-//!    （[`crate::button`] の `recipe_with_scope` の先例に倣い）用意するが、
+//!    （[`crate::button`](mod@crate::button) の `recipe_with_scope` の先例に倣い）用意するが、
 //!    実際に見た目へ反映されるのは呼び出し側が `attrs` で
 //!    `("data-disabled", "")` を渡した場合のみ。headless 側への出力追加は
 //!    別イシュー相当としてスコープ外（下記節参照）。

@@ -5,7 +5,7 @@
 //! （`.claude/skills/ark-ui/references/components/overlays/hover-card.md`）を
 //! 参考に、Root / Trigger / Positioner / Content / Arrow / ArrowTip の
 //! 6 anatomy パーツと、[`crate::state::Disclosure`] を埋め込んだ開閉状態機械
-//! [`HoverCard`] を提供する。[`mod@tooltip`]（#533）と最も近い構造だが、
+//! [`HoverCard`] を提供する。`mod@tooltip`（#533）と最も近い構造だが、
 //! trigger がリンク先プレビュー用途の `a` 要素である点が異なる。
 //!
 //! # 呼び出し文脈
@@ -23,7 +23,7 @@
 //! WAI-ARIA APG に hover card 専用パターンは存在しない。trigger は
 //! リンク先プレビューを目的とした通常の `a` 要素であり、それ自体が
 //! 展開可能なウィジェットとして振る舞うわけではないため
-//! （[`mod@tooltip`] の `aria-describedby` と同じく、Disclosure 系
+//! （`mod@tooltip` の `aria-describedby` と同じく、Disclosure 系
 //! （[`crate::collapsible`] 等）が使う `aria-expanded`/`aria-controls` は
 //! 使用しない）、`content` にも固定 role を付与しない。
 //!
@@ -47,7 +47,7 @@
 //!
 //! フローティング位置計算（Floating UI 相当の placement / CSS 変数出力）は
 //! [`crate::positioning`]（イシュー #590）をそのまま再利用する。[`positioner`]/
-//! [`arrow`]/[`arrow_tip`] は [`mod@tooltip`]/[`mod@popover`] と同型の
+//! [`arrow`]/[`arrow_tip`] は `mod@tooltip`/`mod@popover` と同型の
 //! 「`attrs` 経由で `style`/`data-side`/`data-align` を受け取る薄いラッパー」
 //! であり、計算自体は `fandhe-frontend-wasm-full`（`position` モジュール）が
 //! [`crate::positioning::compute_position`] を呼び出して行う（本モジュール
@@ -68,7 +68,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`hidden`/`href`/`id`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
-//!   （[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存不変
+//!   （[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/[`crate::data_attrs`] の既存不変
 //!   条件をそのまま継承する）。
 //! - 動的値（`href`/`id`/呼び出し側 `attrs`/`children` テキスト/遅延値の
 //!   文字列化）は [`fandhe_frontend_core::render`] の既定エスケープを必ず
@@ -165,14 +165,14 @@ pub fn trigger<'a>(
 /// [`crate::positioning::compute_position`]（#590）が担う。本関数は
 /// `data-scope`/`data-part` に加え、呼び出し側が `attrs` 経由で渡す
 /// `style`（`--fandhe-*` CSS 変数）・`data-side`/`data-align` をそのまま
-/// 透過させる薄いラッパーである（[`mod@tooltip::positioner`] と同型）。
+/// 透過させる薄いラッパーである（`mod@tooltip::positioner` と同型）。
 ///
 /// `state` から `data-state` を出力する（`fandhe-frontend-wasm-full` の
 /// `reposition_all` が使う `[data-part="positioner"][data-state="open"]`
 /// セレクタにマッチさせるため、イシュー #622 の教訓を踏襲）。closed の
 /// とき `hidden` 存在属性を付与し、arrow/arrow_tip が positioner 内に
 /// ネストされる anatomy 構造上、closed 時にポインタ層を SSR/no-JS
-/// マークアップへ表示させない（[`mod@popover::positioner`] と同じ判断）。
+/// マークアップへ表示させない（`mod@popover::positioner` と同じ判断）。
 #[must_use]
 pub fn positioner<'a>(
     state: OpenState,

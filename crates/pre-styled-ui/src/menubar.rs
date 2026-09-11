@@ -254,7 +254,7 @@
 //!   子孫セレクタを持たない（イシュー #708 で不採用確定）ため、`item`
 //!   直下の最終子だけを右寄せする CSS 表現は成立しない。shortcut は
 //!   呼び出し側が `item`/`checkbox-item`/`radio-item` の子として
-//!   [`crate::kbd`] を並べ、呼び出し側の `attrs` で調整する合成パターン
+//!   [`crate::kbd`](mod@crate::kbd) を並べ、呼び出し側の `attrs` で調整する合成パターン
 //!   として Demo・Examples でのみ示す（`item` 自身の CSS は変更しない）。
 //!
 //! # 本イシューのスコープ外

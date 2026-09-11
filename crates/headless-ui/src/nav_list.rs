@@ -10,7 +10,7 @@
 //!
 //! anatomy は `root`（`nav`）/ `heading`（`h2`、セクション見出し）/
 //! `list`（`ul`）/ `item`（`li`）/ `link`（`a`）の 5 パーツ構成。
-//! [`mod@crate::breadcrumb`]/[`mod@crate::link`] と同型で状態機械
+//! [`crate::breadcrumb`](mod@crate::breadcrumb)/[`crate::link`](mod@crate::link) と同型で状態機械
 //! （[`crate::state`]）は持たない。
 //!
 //! # `role` を一切付与しない（本部品の存在理由）
@@ -19,21 +19,21 @@
 //! 一切付与しない。素の `nav`/`h2`/`ul`/`li`/`a` の暗黙 ARIA ロール
 //! （`navigation`/`heading`/`list`/`listitem`/`link`）をそのまま使うことが
 //! 「操作可能なメニュー」との誤読を避ける本部品の存在理由そのものである
-//! （[`mod@crate::menu`] の `role="menu"`/`role="menuitem"` とは意味論上
+//! （[`crate::menu`](mod@crate::menu) の `role="menu"`/`role="menuitem"` とは意味論上
 //! 明確に区別する）。
 //!
 //! # `current` について
 //!
 //! [`link`] の `current` 引数を `true` にすると `aria-current="page"`
 //! （[`crate::aria::aria_current`]）+ `data-current`
-//! （[`crate::data_attrs::data_current`]）を付与する。[`mod@crate::breadcrumb`]/
-//! [`mod@crate::link`] と同じ語彙を共有する。
+//! （[`crate::data_attrs::data_current`]）を付与する。[`crate::breadcrumb`](mod@crate::breadcrumb)/
+//! [`crate::link`](mod@crate::link) と同じ語彙を共有する。
 //!
 //! # `root` の `aria-label` を必須引数にする理由
 //!
 //! 文書に複数の `nav` ランドマークが存在する場合、アクセシブルネームが
 //! ないとスクリーンリーダー利用者がランドマーク間を区別できない。
-//! [`avatar::image`] の `alt` 必須化と同型の判断として、`label` を必須
+//! [`avatar::image`](crate::avatar::image) の `alt` 必須化と同型の判断として、`label` を必須
 //! 引数にすることでアクセシビリティ担保を型で強制する。
 //!
 //! # 呼び出し文脈
@@ -55,16 +55,16 @@
 //! - キーボードナビゲーション（矢印キーでの項目間移動）は WAI-ARIA の
 //!   文書ナビパターンに存在しない（通常の Tab 移動のみ）ため提供しない。
 //!
-//! # [`mod@crate::navigation_menu`] との使い分け（イシュー #993）
+//! # [`crate::navigation_menu`](mod@crate::navigation_menu) との使い分け（イシュー #993）
 //!
 //! 本モジュールは状態機械を一切持たない静的なリンク集（見出し + リンク
-//! リストのみ、ディスクロージャなし）である。[`mod@crate::navigation_menu`]
+//! リストのみ、ディスクロージャなし）である。[`crate::navigation_menu`](mod@crate::navigation_menu)
 //! は Trigger/Content によるディスクロージャ（クリックでパネルが開閉する）
 //! と「高々 1 個の Trigger だけが開く」状態機械を持つ点で異なる。両者とも
 //! `role` を明示付与しない判断は共通であり、使い分けの軸は role の有無では
 //! なく**ディスクロージャの有無**である。単なるリンク集は本モジュールを、
 //! 開閉するナビゲーションパネルが必要な場合は
-//! [`mod@crate::navigation_menu`] を使う。
+//! [`crate::navigation_menu`](mod@crate::navigation_menu) を使う。
 //!
 //! # 参考サイト突合（イシュー #1653）
 //!
@@ -84,7 +84,7 @@
 //!   （`nav`）/[`heading`]（`h2`）/[`link`]（`a`、`aria-current`/`data-current`
 //!   語彙）は文書ナビ固有の superset。**増減なし**。
 //! - **`data-*`**: 参照側は状態 `data-*` を持たない。`data-current` は
-//!   [`mod@crate::link`]/[`mod@crate::breadcrumb`] と共有する本リポジトリ
+//!   [`crate::link`](mod@crate::link)/[`crate::breadcrumb`](mod@crate::breadcrumb) と共有する本リポジトリ
 //!   独自語彙であり、削除は `fandhe-frontend-pre-styled-ui` の golden CSS
 //!   セレクタへ波及する破壊的変更のため意図的に維持する。**増減なし**。
 //! - **WAI-ARIA**: 上記「`role` を一切付与しない」節・`aria-label` 必須化の
@@ -93,8 +93,8 @@
 //!   Shift+Tab によるフォーカス移動と Enter による起動のみ（Space は `<a>`
 //!   を起動しない）。矢印キーでの roving は上記「スコープ外」節のとおり
 //!   文書ナビパターン外であり意図的に非提供のまま。
-//! - **是正**: [`crate::breadcrumb`]/[`crate::link_overlay`] と同型の予約
-//!   キーなりすまし除去（[`drop_reserved`]）を追加した（従来
+//! - **是正**: [`crate::breadcrumb`](mod@crate::breadcrumb)/[`crate::link_overlay`] と同型の予約
+//!   キーなりすまし除去（`drop_reserved`）を追加した（従来
 //!   [`fandhe_frontend_core::el`] が属性の重複除去をしないため、呼び出し側
 //!   `attrs` 経由で `aria-label`/`href`/`aria-current`/`data-current` を
 //!   重複出力・なりすまし可能だった）。

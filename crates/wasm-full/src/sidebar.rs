@@ -14,18 +14,18 @@
 //! # trigger/rail クリック開閉（headless.rs への統合、要オプトイン）
 //!
 //! trigger/rail のクリック開閉自体は `data-scope`/`data-part` から
-//! 文字列アクションへの静的マッピング表（[`crate::headless::MAPPING_TABLE`]）
+//! 文字列アクションへの静的マッピング表（`crate::headless::MAPPING_TABLE`）
 //! へ `(sidebar, trigger)`/`(sidebar, rail)` → `"toggle"` の 2 行を追加
 //! することで解決可能になる。**ただし** `Runtime::mount`/`Runtime::hydrate`
 //! はこのマッピングを自動では配線しない
-//! （[`crate::headless::wire_headless_events`] を呼ぶのはアプリ自身の
+//! （`crate::headless::wire_headless_events` を呼ぶのはアプリ自身の
 //! 責務であり、`Self::wire`/`events::wire_events`〔`data-action` 属性
 //! ベース、headless-ui のマークアップとは無関係〕はこの経路を持たない、
 //! イシュー #2074 codex-review P1 是正）。実際に dispatch へ到達させる
-//! には、アプリが [`wiring::wire_sidebar_dispatch`] を自身の
+//! には、アプリが `wiring::wire_sidebar_dispatch` を自身の
 //! `Rc<RefCell<Sidebar>>` インスタンスとともに呼ぶ必要がある
 //! （`crate::headless_select::wire_select_value_text` と同型のオプトイン
-//! API、[`wiring::wire_sidebar_dispatch`] doc「なぜ `Runtime<C>` へ自動
+//! API、`wiring::wire_sidebar_dispatch` doc「なぜ `Runtime<C>` へ自動
 //! 配線しないか」参照）。本モジュール自身が配線するのはそれ以外
 //! （キーボードショートカット・モバイル判定・tooltip）である。
 //!
@@ -35,7 +35,7 @@
 //!   [`should_collapse_on_enter_mobile`]/[`should_dismiss_mobile_drawer`]/
 //!   [`split_describedby`]）は web-sys に依存せず、native の `cargo test`
 //!   で検証できる。
-//! - 配線層（[`wiring`]）のみ `#[cfg(target_arch = "wasm32")]` でゲート
+//! - 配線層（`wiring`）のみ `#[cfg(target_arch = "wasm32")]` でゲート
 //!   する。
 //!
 //! # `data-mobile` の書き込み主体（wasm が正）
@@ -59,7 +59,7 @@
 //! 知らないため常に `Expanded` で出力されるが、これをそのままモバイルの
 //! drawer 表示へ持ち込むと、ページ読み込み直後に drawer が開いた状態で
 //! 始まってしまう。本モジュールはモバイルへ**新規に進入した瞬間**（デスク
-//! トップ→モバイルの遷移エッジ、[`wiring::apply_mobile_state`] 参照）に
+//! トップ→モバイルの遷移エッジ、`wiring::apply_mobile_state` 参照）に
 //! 限り、expanded なら trigger/rail への `HtmlElement::click()` 合成で
 //! collapsed へ寄せる（[`should_collapse_on_enter_mobile`]）。デスクトップへ
 //! 戻る際は状態を変更しない。すでにモバイルの状態でユーザーが意図的に
@@ -70,12 +70,12 @@
 //! [`crate::keynav`] モジュール doc の原則（状態を複製せず DOM 属性を単一
 //! 情報源にし、「決定」は対象要素へ `HtmlElement::click()` を合成して
 //! 既存の click → dispatch 経路へ委譲する）を踏襲する。
-//! [`wiring::wire_sidebar_events`]（本番経路、`Runtime::wire_sidebar` が
+//! `wiring::wire_sidebar_events`（本番経路、`Runtime::wire_sidebar` が
 //! 呼ぶ）自体は `dispatch` チャネル（`on_action` コールバック）を一切
 //! 持たず、Cmd/Ctrl+B・Escape（モバイル drawer 閉鎖）・外側クリック（同）
 //! はいずれも trigger（無ければ rail）へ click を合成するのみである。
 //! この合成 click が実際に dispatch へ到達するかどうかは、アプリが
-//! [`wiring::wire_sidebar_dispatch`] を配線しているか次第（上記「trigger/
+//! `wiring::wire_sidebar_dispatch` を配線しているか次第（上記「trigger/
 //! rail クリック開閉」節参照）であり、`wire_sidebar_events` 単体では
 //! trigger/rail が DOM 上でクリック可能な状態になるだけで状態遷移は
 //! 起こらない。
@@ -141,7 +141,7 @@
 //!   イシュー #2209（親 #2208）で `crate::headless::
 //!   wire_headless_component` 配線一般には positioning の自動呼び出しが
 //!   統合された（`docs/design/wasm-full-architecture.md` §34）が、本
-//!   モジュールの hover tooltip（[`TooltipDelayController`]）は
+//!   モジュールの hover tooltip（`TooltipDelayController`）は
 //!   `wire_headless_component` を経由しない独自の可視状態切り替え
 //!   （`set_hidden`/`set_tooltip_data_state`）であり、この統合の対象外
 //!   のまま残る（座標計算自体を一切呼んでいない）。統合する場合は
@@ -194,7 +194,7 @@ pub fn tooltip_should_show(state: Option<&str>, collapsible: Option<&str>, mobil
 /// デスクトップ→モバイルへの遷移エッジで、expanded なら collapsed へ寄せる
 /// べきかどうか（純粋関数、モジュール doc「モバイル進入時に expanded を
 /// collapsed へ寄せる意図的差分」参照）。「遷移エッジであること」自体の
-/// 判定は呼び出し側（[`wiring::apply_mobile_state`]）が行い、本関数は
+/// 判定は呼び出し側（`wiring::apply_mobile_state`）が行い、本関数は
 /// 「モバイルであり、かつ expanded であること」のみを判定する。
 #[must_use]
 pub fn should_collapse_on_enter_mobile(matches: bool, state: Option<&str>) -> bool {

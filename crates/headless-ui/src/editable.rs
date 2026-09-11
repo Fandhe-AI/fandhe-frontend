@@ -56,7 +56,7 @@
 //!
 //! # `data-activation-mode`/`data-submit-mode`（SSR 静的ヒント）
 //!
-//! [`EditableActivationMode`]/[`EditableSubmitMode`] は [`crate::tabs`] の
+//! [`EditableActivationMode`]/[`EditableSubmitMode`] は [`crate::tabs`](mod@crate::tabs) の
 //! `data-activation-mode` と同型の、クライアントランタイム向け SSR 静的
 //! ヒントである。状態機械（[`Editable`]）のフィールドには含めず、
 //! [`root`]/[`Editable::root`] の呼び出しごとの引数として渡す（値は
@@ -68,7 +68,7 @@
 //!
 //! - 属性名（`data-*`/`type`/`name`/`for`/`hidden` 等）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`crate::anatomy`]/[`crate::data_attrs`] の
+//!   混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::data_attrs`] の
 //!   既存不変条件をそのまま継承する）。
 //! - 動的値（`value`/`draft`/`placeholder`/`name`/呼び出し側 `attrs`/
 //!   children）は [`fandhe_frontend_core::render`] の既定エスケープを

@@ -10,7 +10,7 @@
 //!
 //! # Runtime への統合（イシュー #711）
 //!
-//! [`wire_avatar_events`] 単体は `crate::lib::Runtime::mount`/`Runtime::hydrate`
+//! `wire_avatar_events` 単体は `crate::lib::Runtime::mount`/`Runtime::hydrate`
 //! から自動配線されない独立配線 API として先行実装された（#591）。イシュー
 //! #711 で `Runtime::mount`/`Runtime::hydrate` 双方（`crate::lib` 参照）が
 //! `keynav::wire_keynav` の直後に本モジュールの配線を標準経路へ組み込み、
@@ -60,7 +60,7 @@
 //!   （`[dependencies]` ではなく `[dev-dependencies]` のみ）ため、規則の複製を
 //!   native テスト側のドリフト検知（`wasm-full/tests/headless_avatar.rs`）で
 //!   固定する。
-//! - [`wire_avatar_events`]/[`apply_avatar_visibility`] は状態更新・DOM 反映の
+//! - `wire_avatar_events`/`apply_avatar_visibility` は状態更新・DOM 反映の
 //!   いずれも HTML 文字列を組み立てない（REQ-1）。DOM 反映は
 //!   `set_attribute`/`remove_attribute` のみで、属性名・属性値はすべて
 //!   `&'static str` リテラル（不変条件、`.claude/rules/coding-rust.md`）。

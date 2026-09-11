@@ -14,7 +14,7 @@
 //! Radix Primitives `Toolbar`（一次情報: `docs/components/toolbar.mdx`、
 //! `packages/react/toolbar/src/toolbar.tsx`）と突合し、以下を是正した。
 //!
-//! - **`data-orientation` の欠落**: [`button`]/[`link`]/
+//! - **`data-orientation` の欠落**: [`button`]/[`link()`]/
 //!   [`toggle_group`]/[`toggle_item`] に `data-orientation` を追加し
 //!   （[`separator`] は既存の直交 `aria-orientation` と同値の
 //!   `data-orientation` を追加）、Radix の `data-*` 表と一致させた
@@ -22,7 +22,7 @@
 //!   変更）。`link` への追加は Radix の `data-*` 表には載らないが、実 DOM
 //!   （RovingFocusGroup.Item 経由）では出力される値であり、`button`/
 //!   `toggle_item` との対称性を優先した superset とする。
-//! - **予約キーなりすまし除去の追加**: [`drop_reserved`] を新設し、旧
+//! - **予約キーなりすまし除去の追加**: `drop_reserved` を新設し、旧
 //!   `drop_tabindex_attr`（`tabindex` のみ除去）が担っていた役割を
 //!   吸収した上で `role`/`aria-*`/`data-*`/`type` も対象に拡張した
 //!   （「セキュリティ不変条件」節参照）。
@@ -42,7 +42,7 @@
 //!
 //! # 呼び出し文脈
 //!
-//! SSR は本モジュールの自由関数（[`root`]/[`button`]/[`link`]/[`separator`]/
+//! SSR は本モジュールの自由関数（[`root`]/[`button`]/[`link()`]/[`separator`]/
 //! [`toggle_group`]/[`toggle_item`]、いずれも純粋関数で完結）を直接呼んで
 //! 組み立てる。CSR/hydration は [`Toolbar`]（
 //! [`fandhe_frontend_interactive::Component`]/
@@ -70,7 +70,7 @@
 //! [`Toolbar`] は `focused`（現在フォーカス対象の index）・`item_count`・
 //! `loop_focus`・`orientation` の複合フィールドを持ち、
 //! [`crate::carousel::Carousel`] の `normalize_index` と同型の fail-closed
-//! 正規化を行う（[`normalize_focus`]）。disabled 項目もフォーカス順序から
+//! 正規化を行う（`normalize_focus`）。disabled 項目もフォーカス順序から
 //! 除外しない（WAI-ARIA APG の toolbar パターン推奨に従う意図的な設計
 //! 判断。skip-disabled モードは本イシューのスコープ外、後述「スコープ外」
 //! 節）。
@@ -79,24 +79,24 @@
 //!
 //! - 属性名（`role`/`aria-*`/`data-*`/`type`/`tabindex`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入
-//!   する経路はない（[`mod@crate::anatomy`]/[`crate::aria`]/
+//!   する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`label`/`value`/`href`/呼び出し側 `attrs`/`children`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する
 //!   （REQ-1）。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - **呼び出し側による予約キーのなりすまし除去（イシュー #1657）**:
-//!   [`drop_reserved`] がパート別の `*_RESERVED` 定数（ASCII 大文字小文字
+//!   `drop_reserved` がパート別の `*_RESERVED` 定数（ASCII 大文字小文字
 //!   無視の完全一致）を使い、呼び出し側 `attrs` から `role`/`aria-*`/
 //!   `data-*`/`type`/`tabindex` 等、本モジュールが固定付与する属性名を
-//!   除去してから固定値を合成する（[`crate::nav_list::drop_reserved`] と
-//!   同型のパターン）。[`button`]/[`link`]/[`toggle_item`] の roving
+//!   除去してから固定値を合成する（`crate::nav_list::drop_reserved` と
+//!   同型のパターン）。[`button`]/[`link()`]/[`toggle_item`] の roving
 //!   tabindex が呼び出し側の偽装によって非決定にならないこと、
 //!   `data-orientation`/`data-state`/`aria-pressed` 等の状態語彙が
 //!   なりすませないことの双方を保証する。
 //! - **`type="button"` の固定**: [`button`]/[`toggle_item`] はフォーム内
 //!   配置時の意図しない submit を防ぐため `type="button"` を固定付与する
 //!   （[`crate::action_bar::selection_trigger`] と同じ判断）。
-//! - **reverse tabnabbing 対策**: [`link`] は [`crate::link::root`] の
+//! - **reverse tabnabbing 対策**: [`link()`] は [`crate::link::root`] の
 //!   「`external` 時に `target="_blank"` と `rel="noopener noreferrer"` を
 //!   不可分に付与する」実装へ完全委譲する（独自の付与ロジックを再導出
 //!   しない）。
@@ -268,7 +268,7 @@ pub fn button<'a>(
 ///
 /// [`crate::link::root`] が組み立てた要素（`data-scope="link"`/
 /// `data-part="root"` 付き）から属性・子ノードのみを引き継ぎ、
-/// [`ANATOMY`] 側の `toolbar`/`link` セレクタへ再構成する（`href` の URL
+/// `ANATOMY` 側の `toolbar`/`link` セレクタへ再構成する（`href` の URL
 /// スキーム検証・エスケープはすべて委譲先の既存経路がそのまま担う）。
 #[must_use]
 pub fn link<'a>(
@@ -445,7 +445,7 @@ impl Toolbar {
     /// `data-hydrate-orientation` 属性名のフィールド部分。
     pub const FIELD_ORIENTATION: &'static str = "orientation";
 
-    /// 指定した状態で [`Toolbar`] を生成する（[`normalize_focus`] で
+    /// 指定した状態で [`Toolbar`] を生成する（`normalize_focus` で
     /// fail-closed 正規化する。呼び出し側の不正な `focused` で panic
     /// しない）。
     #[must_use]
@@ -523,7 +523,7 @@ impl Toolbar {
         )
     }
 
-    /// [`link`] へ [`Self::is_focused`] の判定と現在の向きを注入する
+    /// [`link()`] へ [`Self::is_focused`] の判定と現在の向きを注入する
     /// 利便メソッド。
     #[must_use]
     pub fn link<'a>(

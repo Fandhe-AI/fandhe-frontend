@@ -30,7 +30,7 @@
 //!
 //! CSS は [`StyleSheet`]（検証済み CSS のみを保持し `<`・不正な制御文字を
 //! 拒否する型、`crates/pre-styled-ui/src/stylesheet.rs`）経由でのみ組み立てる。
-//! 配置用の追加 CSS（[`LAYOUT_CSS`]）も同じ検証を通す。
+//! 配置用の追加 CSS（`LAYOUT_CSS`）も同じ検証を通す。
 
 use fandhe_frontend_core::Node;
 use fandhe_frontend_pre_styled_ui::theme::Theme;
@@ -53,13 +53,13 @@ const LAYOUT_CSS: &str = "\
 /// admonition が参照する CSS 全量を組み立てる。
 ///
 /// 内訳: テーマトークン（`Theme::default`）→ alert recipe CSS（[`alert::css`]）
-/// → [`LAYOUT_CSS`]、の順で決定的に連結する。
+/// → `LAYOUT_CSS`、の順で決定的に連結する。
 ///
 /// # Errors
 ///
 /// いずれかの CSS 断片が [`StyleSheet::push_css`] の検証（`<`・制御文字の
 /// 拒否）に落ちた場合 [`StylesheetError`] を返す。pre-styled-ui 側の生成 CSS・
-/// [`LAYOUT_CSS`] は構造上 `<` を含み得ないため通常は到達しないが、
+/// `LAYOUT_CSS` は構造上 `<` を含み得ないため通常は到達しないが、
 /// 黙って欠けた CSS を公開しない fail-closed 方針で伝播させる（`crate::showcase`
 /// と同じ扱い）。
 pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {

@@ -35,7 +35,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`role`/`hidden`/`disabled`/`id`）は
 //!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`mod@crate::anatomy`]/[`crate::aria`]/
+//!   混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`value`/`id`/`controls`/`labelled_by`/呼び出し側 `attrs`/
 //!   `children` テキスト）は [`fandhe_frontend_core::render`] の既定
@@ -54,7 +54,7 @@
 //!   （`orientation.as_data_state()` 相当の固定文字列 or bool）、属性名
 //!   スロットへは一切混入しない。呼び出し側 `attrs` に固定付与キー
 //!   （`data-orientation`/`aria-disabled`/`aria-hidden`）を混入させる
-//!   なりすましは [`drop_reserved`] で除去する（#1903 と同型の対策）。
+//!   なりすましは `drop_reserved` で除去する（#1903 と同型の対策）。
 //!
 //! # 参考サイト突合（イシュー #1636）
 //!

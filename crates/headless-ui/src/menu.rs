@@ -49,7 +49,7 @@
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`disabled`/`id`）は
 //!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
+//!   混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`value`/`controls`/`id`/`labelledby`/呼び出し側 `attrs`/
 //!   `children` テキスト）は [`fandhe_frontend_core::render`] の既定エスケープを
@@ -98,7 +98,7 @@
 //!   （3 参照サイトすべて、または一部に存在する ItemText/ItemIndicator 相当。
 //!   16 → 18 パーツ）。呼び出し側 `attrs` からの固定属性の偽装を防ぐため、
 //!   各パーツ関数の呼び出し側 `attrs` に含まれる予約キー（[`root`]の
-//!   `data-state` 等）を [`crate::radio_group::drop_reserved`] で除去する
+//!   `data-state` 等）を `crate::radio_group::drop_reserved` で除去する
 //!   ようにした（`id`/`aria-labelledby`/`aria-controls` 等 `Option` 引数
 //!   経由の正規キーは除去対象に含まない）。
 //! - **意図的に非採用**: Radix `Portal`（DOM 配置、クライアント関心）;

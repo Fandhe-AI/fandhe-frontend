@@ -30,7 +30,7 @@
 //!   `showcase::PAGE_PATH` はイシュー #943 で改組済みのため Rust 生成
 //!   コンテンツを持たず `None` を返す）
 //! - [`component_page_specs_948`]: イシュー #948（親 #928 Phase 4）が供給する
-//!   Typography / Utilities / Charts 系ほか 28 ページ分の [`ComponentPageSpec`]
+//!   Typography / Utilities / Charts 系ほか 28 ページ分の `ComponentPageSpec`
 //!   原稿データ。[`component_page`] の `SPEC_TABLES` から他カテゴリ
 //!   （[`component_specs`] / `component_specs_nav_data` / `component_specs_overlay`）
 //!   と並列に集約される（並列実装 4 PR のコンフリクト最小化のため、イシュー

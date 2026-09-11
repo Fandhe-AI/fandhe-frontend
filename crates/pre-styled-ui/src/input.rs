@@ -19,8 +19,8 @@
 //! `[data-scope="<scope>"][data-part="<slot>"]` 固定であり、headless
 //! `field::input` が実際にレンダリングする `data-scope="field"` と一致させる
 //! 必要がある。そのため本モジュールの recipe scope は独自の `"input"` では
-//! なく `"field"` とし、slot を `"input"` のみ宣言する（[`crate::textarea`]/
-//! [`crate::native_select`] も同じ scope を共有するが、slot が相互排他
+//! なく `"field"` とし、slot を `"input"` のみ宣言する（[`crate::textarea`](mod@crate::textarea)/
+//! [`crate::native_select`](mod@crate::native_select) も同じ scope を共有するが、slot が相互排他
 //! （`"input"`/`"textarea"`/`"select"`）なのでセレクタ・宣言は衝突しない）。
 //!
 //! アクセシビリティ配線（`id`・ネイティブ `disabled`/`required`/`readonly`・
@@ -28,7 +28,7 @@
 //! `field::input` へすべて委譲し、本モジュールは見た目（variant クラス・
 //! 既定 CSS）の登録のみを担う。二重実装によるドリフトを作らない。
 //!
-//! `color-palette` 軸は提供しない（[`crate::lib`] 「複合部品の variant
+//! `color-palette` 軸は提供しない（`crate::lib` 「複合部品の variant
 //! 統一方針」§3 参照: palette は選択・チェック状態を示す部品向けで、フォーム
 //! 入力はアクセントを focus ring のトークン参照でのみ使う）。
 //!
@@ -40,7 +40,7 @@
 //! [`crate::recipe::transition_declarations`]・#1678 の
 //! `--fandhe-size-control-height/padding-x/font-size-*` トークン）へ
 //! 移行した。date-input #1469（[`crate::date_input`]）・button #1447
-//! （[`crate::button`]）と同型。
+//! （[`crate::button`](mod@crate::button)）と同型。
 //!
 //! - **hover（意図的非採用）**: hover 背景は付与しない。
 //!   `docs/design/pre-styled-ui-interaction-visual-language.md` の判定基準
@@ -62,7 +62,7 @@
 //! - **file input のボタン装飾（意図的非採用）**: shadcn は
 //!   `::file-selector-button` 疑似要素へ Tailwind の `file:*` バリアントで
 //!   装飾するが、[`crate::recipe::StateCondition`] は擬似クラス（`:hover`/
-//!   `:focus-visible` 等）のみを表現でき擬似要素は対象外（[`crate::textarea`]
+//!   `:focus-visible` 等）のみを表現でき擬似要素は対象外（[`crate::textarea`](mod@crate::textarea)
 //!   の `::placeholder` 非採用と同型の理由。recipe 基盤の擬似要素対応は
 //!   本イシュー単体のスコープ外）。コンテナ側（`input` 要素自体の
 //!   border/height/padding）は既存の base/variant/size 規則がそのまま
@@ -298,7 +298,7 @@ pub fn css() -> String {
 }
 
 /// styled `input` パーツを組み立てる。`variant`/`size` に応じたクラスを
-/// 付与し（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// 付与し（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）、アクセシビリティ配線は
 /// [`fandhe_frontend_headless_ui::field::input`] へそのまま委譲する。
 ///
