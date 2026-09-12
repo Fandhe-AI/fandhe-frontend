@@ -210,22 +210,34 @@ const MAX_ABS_VALUE: f64 = 1e15;
 ///
 /// 境界値の選定根拠: 不足減衰領域での減衰係数 `ζω0 = damping / (2·mass)`
 /// は `damping >= MIN_PARAM`・`mass <= MAX_PARAM` のとき
-/// `>= MIN_PARAM / (2·MAX_PARAM) = 5e-13` 以上を保つ。`decay = e^{-ζω0·t}`
+/// `>= MIN_PARAM / (2·MAX_PARAM) = 5e-16` 以上を保つ。`decay = e^{-ζω0·t}`
 /// は指数部が `-745` を下回ると f64 で厳密に `0.0` へ丸まるため、
-/// `t <= 745 / 5e-13 ≈ 1.5e15` の時点までに `at()` は decay=0 の早期
+/// `t <= 745 / 5e-16 ≈ 1.5e18` の時点までに `at()` は decay=0 の早期
 /// 打ち切り経路（本ファイル内の既存分岐）へ到達する。この上限内では
-/// `omega_d <= sqrt(MAX_PARAM / MIN_PARAM) = MAX_PARAM = 1e6` のため
-/// `omega_d * t <= 1e6 * 1.5e15 = 1.5e21` に収まり、`sin_cos` へ非有限値が
+/// `omega_d <= sqrt(MAX_PARAM / MIN_PARAM) ≈ 3.2e7` のため
+/// `omega_d * t <= 3.2e7 * 1.5e18 ≈ 4.7e25` に収まり、`sin_cos` へ非有限値が
 /// 渡ることはない。振幅項（`x0`・不足減衰の `b` 係数）も
 /// `MAX_ABS_VALUE`・`MIN_PARAM`/`MAX_PARAM` の組み合わせで最大でも
-/// 概算 `1e32` 程度に収まり（`b = (v0 + ζω0·x0) / ωd` は `ωd` が臨界減衰
+/// 概算 `2e34` 程度に収まり（`b = (v0 + ζω0·x0) / ωd` は `ωd` が臨界減衰
 /// 境界近傍〔`|ζ-1|` が `1e-9` 未満は `Region::Critical` へ分岐するため
-/// 到達しない〕でも下限 `4e-11` 程度を保つ）、`f64::MAX`（`1.8e308`）に
+/// 到達しない〕でも下限 `1.4e-12` 程度を保つ）、`f64::MAX`（`1.8e308`）に
 /// 対し十分な余裕を残す。
+///
+/// `MAX_PARAM` は `1e6` ではなく `1e9` とする（イシュー #2426 レビュー
+/// 指摘 2 件目: `SpringConfig::from_duration_bounce` は文書化された
+/// `duration ∈ [0.01, 10.0]`・`bounce ∈ [0, 1]` の全域で `velocity=0`・
+/// `mass=1.0` の典型入力においても `stiffness` が最大 `1.91e8` 程度に
+/// 達する〔`duration=0.01`〔下限〕・`bounce≈0.95` 付近で最大化〕ため、
+/// 旧上限 `1e6` では変換結果を `Spring::new` へそのまま渡せない入力域が
+/// 生じていた。`mass` は本関数のドキュメントに明示的な数値域を持たず
+/// `stiffness` に線形寄与するため任意の上限を選んでも際限なく超過させ
+/// うるが、典型的な物理質量（`mass ∈ [0.01, 2.0]` 程度、`Default` の
+/// `mass: 1.0` を中心とする範囲）まで含めても最悪値は `3.82e8` 程度に
+/// 収まる。`1e9` はこの実測最大値に 2 倍強の余裕を持つ値である）。
 const MIN_PARAM: f64 = 1e-6;
 
 /// `stiffness`/`damping`/`mass` の上限（[`MIN_PARAM`] 参照）。
-const MAX_PARAM: f64 = 1e6;
+const MAX_PARAM: f64 = 1e9;
 
 /// 減衰領域（判別式 `ζ` の符号）ごとの事前計算済み係数。
 ///
@@ -829,6 +841,61 @@ mod tests {
 
         let bad_mass = SpringConfig::from_duration_bounce(0.5, 0.3, 0.0, -1.0);
         assert_eq!(bad_mass.mass, 1.0);
+    }
+
+    #[test]
+    fn from_duration_bounce_domain_configs_are_usable_by_spring_new() {
+        // イシュー #2426 レビュー指摘（P1/Medium 再指摘）の回帰確認:
+        // `from_duration_bounce` の文書化された入力域（duration の
+        // clamp 範囲 [0.01, 10.0]・bounce の clamp 範囲 [0, 1]）の端点・
+        // 代表点を格子状に走査し、`velocity=0`・`mass=1.0` という典型
+        // 入力で生成した config が必ず `Spring::new` を通り、
+        // `settle_duration` 全域で `at()` が有限値を返すことを固定する。
+        // 変換側（本関数）と構築側（`Spring::new`）の許容範囲が乖離すると
+        // 「公開 API が許容する入力なのに構築できない」状態に戻るため、
+        // この網羅チェックで再発を防ぐ。
+        // `mass` は duration/bounce と異なりドキュメントに明示的な数値域が
+        // ないパラメータであり（不正値のみ 1.0 へフォールバック）、
+        // `stiffness = ω0²·mass` に線形寄与するため理論上どこまでも
+        // `stiffness` を押し上げられる（例: mass=100 は本走査の
+        // duration/bounce 最悪点で `stiffness` が `MAX_PARAM` を超える）。
+        // これは「文書化された duration/bounce 範囲」を全域走査する対象
+        // ではなく、典型的な物理質量（motion.dev 既定 `mass: 1` 周辺）の
+        // 代表点として 0.01〜2.0 を選ぶ。
+        let durations = [0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0];
+        let bounces = [0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 0.95, 0.99, 1.0];
+        let masses = [0.01, 0.1, 1.0, 2.0];
+        for &duration in &durations {
+            for &bounce in &bounces {
+                for &mass in &masses {
+                    let config = SpringConfig::from_duration_bounce(duration, bounce, 0.0, mass);
+                    assert!(
+                        (MIN_PARAM..=MAX_PARAM).contains(&config.stiffness),
+                        "stiffness out of range: duration={duration} bounce={bounce} mass={mass} stiffness={}",
+                        config.stiffness
+                    );
+                    assert!(
+                        (MIN_PARAM..=MAX_PARAM).contains(&config.damping),
+                        "damping out of range: duration={duration} bounce={bounce} mass={mass} damping={}",
+                        config.damping
+                    );
+                    let spring = Spring::new(config, 0.0, 1.0, 0.0).unwrap_or_else(|| {
+                        panic!(
+                            "Spring::new rejected from_duration_bounce output: duration={duration} bounce={bounce} mass={mass} config={config:?}"
+                        )
+                    });
+                    let settle = spring.settle_duration();
+                    assert!(settle.is_finite() && settle > 0.0);
+                    let mut t = 0.0;
+                    while t <= settle {
+                        let state = spring.at(t);
+                        assert!(state.value.is_finite());
+                        assert!(state.velocity.is_finite());
+                        t += settle / 8.0;
+                    }
+                }
+            }
+        }
     }
 
     #[test]
