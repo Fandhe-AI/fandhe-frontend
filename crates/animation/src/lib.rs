@@ -30,6 +30,8 @@
 //!
 //! # 現状
 //!
-//! 雛形（イシュー #2371）。公開 API はまだ無い。モジュール骨格
-//! （`easing` / `interpolate` / `spring` / `keyframes` / `timeline` /
-//! `driver` / `target`）はイシュー #2373〜#2378 で追加予定。
+//! `easing` モジュール（イシュー #2373）を提供。残るモジュール骨格
+//! （`interpolate` / `spring` / `keyframes` / `timeline` / `driver` /
+//! `target`）はイシュー #2374〜#2378 で追加予定。
+
+pub mod easing;
