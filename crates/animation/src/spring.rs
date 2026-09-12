@@ -225,7 +225,6 @@ enum Region {
 pub struct Spring {
     to: f64,
     x0: f64,
-    v0: f64,
     region: Region,
     rest_delta: f64,
     rest_speed: f64,
@@ -364,7 +363,6 @@ impl Spring {
         Some(Self {
             to,
             x0,
-            v0,
             region,
             rest_delta,
             rest_speed,
@@ -446,7 +444,18 @@ impl Spring {
             (0.0, 0.0)
         };
 
+        // `self.to + x` 自体も、両者が極端な値（例: to=1.7e308,
+        // x≈-5.98e307 ではなく、to=1e308 側に x が加算されて桁あふれする
+        // 組み合わせ）でオーバーフローしうる（イシュー #2426 レビュー
+        // 指摘: x/v 単体の有限性だけでは検出できない）。ここでも非有限値を
+        // 呼び出し元へ伝播させず、表現不能な変位は「目標へ到達済み」
+        // （x=0 相当）へ丸める。
         let value = self.to + x;
+        let (value, v) = if value.is_finite() {
+            (value, v)
+        } else {
+            (self.to, 0.0)
+        };
         let done = (self.to - value).abs() <= self.rest_delta && v.abs() <= self.rest_speed;
         if done {
             SpringState {
@@ -968,6 +977,24 @@ mod tests {
         };
         let spring = Spring::new(config, 1e308, 0.0, 0.0).unwrap();
         let state = spring.at(2.0);
+        assert!(state.value.is_finite(), "value={}", state.value);
+        assert!(state.velocity.is_finite(), "velocity={}", state.velocity);
+    }
+
+    #[test]
+    fn at_avoids_overflow_in_final_value_addition() {
+        // PR #2426 codex レビュー P1 再指摘の回帰確認: x/v 単体は有限でも
+        // `self.to + x`（最終 value の加算）自体がオーバーフローしうる
+        // 組み合わせ（stiffness=1, damping=0.1, mass=1, from=1e308,
+        // to=1.7e308）。x0=from-to≈-7e307 は表現可能で `at()` 内部の x/v も
+        // 有限に収まるが、to（1.7e308）へ加算すると Inf に丸まっていた。
+        let config = SpringConfig {
+            stiffness: 1.0,
+            damping: 0.1,
+            mass: 1.0,
+        };
+        let spring = Spring::new(config, 1e308, 1.7e308, 0.0).unwrap();
+        let state = spring.at(3.1455270228880017);
         assert!(state.value.is_finite(), "value={}", state.value);
         assert!(state.velocity.is_finite(), "velocity={}", state.velocity);
     }
