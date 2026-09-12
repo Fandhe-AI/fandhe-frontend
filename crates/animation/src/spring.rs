@@ -191,6 +191,42 @@ const MAX_SETTLE_DURATION: f64 = 10.0;
 /// サンプリング精度を確保する。
 const SETTLE_STEP: f64 = 0.001;
 
+/// `from`/`to`/`initial_velocity` の絶対値上限。
+///
+/// この上限と [`MIN_PARAM`]/[`MAX_PARAM`] の組み合わせにより、`at()` の
+/// 全中間演算（`decay*x0*cos` 等の振幅計算・`self.to + x` の最終加算）が
+/// 構成的にオーバーフローしないことを保証する（f64 上限 `1.8e308` に対し
+/// 十分な余裕を残す値。詳細は [`MIN_PARAM`] のコメント参照）。
+const MAX_ABS_VALUE: f64 = 1e15;
+
+/// `stiffness`/`damping`/`mass` の下限。
+///
+/// `damping < MIN_PARAM`（`damping == 0.0` を含む）は無減衰・過小減衰の
+/// ばねとなり、`at()` が理論上永遠に振動し続け収束判定が成立しない
+/// （イシュー #2426 レビュー指摘の根本原因: 無減衰の入力は「静止しない」
+/// ため settle 契約と矛盾し、`omega_d * t` が `t` の増大に伴い無制限に
+/// 大きくなる唯一の経路でもある）ため、`Spring::new` はこの下限で
+/// 一括して拒否する。
+///
+/// 境界値の選定根拠: 不足減衰領域での減衰係数 `ζω0 = damping / (2·mass)`
+/// は `damping >= MIN_PARAM`・`mass <= MAX_PARAM` のとき
+/// `>= MIN_PARAM / (2·MAX_PARAM) = 5e-13` 以上を保つ。`decay = e^{-ζω0·t}`
+/// は指数部が `-745` を下回ると f64 で厳密に `0.0` へ丸まるため、
+/// `t <= 745 / 5e-13 ≈ 1.5e15` の時点までに `at()` は decay=0 の早期
+/// 打ち切り経路（本ファイル内の既存分岐）へ到達する。この上限内では
+/// `omega_d <= sqrt(MAX_PARAM / MIN_PARAM) = MAX_PARAM = 1e6` のため
+/// `omega_d * t <= 1e6 * 1.5e15 = 1.5e21` に収まり、`sin_cos` へ非有限値が
+/// 渡ることはない。振幅項（`x0`・不足減衰の `b` 係数）も
+/// `MAX_ABS_VALUE`・`MIN_PARAM`/`MAX_PARAM` の組み合わせで最大でも
+/// 概算 `1e32` 程度に収まり（`b = (v0 + ζω0·x0) / ωd` は `ωd` が臨界減衰
+/// 境界近傍〔`|ζ-1|` が `1e-9` 未満は `Region::Critical` へ分岐するため
+/// 到達しない〕でも下限 `4e-11` 程度を保つ）、`f64::MAX`（`1.8e308`）に
+/// 対し十分な余裕を残す。
+const MIN_PARAM: f64 = 1e-6;
+
+/// `stiffness`/`damping`/`mass` の上限（[`MIN_PARAM`] 参照）。
+const MAX_PARAM: f64 = 1e6;
+
 /// 減衰領域（判別式 `ζ` の符号）ごとの事前計算済み係数。
 ///
 /// 振幅係数（`b`/`c`/`overdamped` の `a`,`b`）は `x0`/`v0` から一度だけ
@@ -231,8 +267,14 @@ pub struct Spring {
 }
 
 impl Spring {
-    /// `stiffness`/`mass` が正でない・`damping` が負・非有限値のいずれかを
-    /// 満たす場合は `None` を返す（ライブラリコードで panic しない）。
+    /// `stiffness`/`damping`/`mass` が [`MIN_PARAM`]..=[`MAX_PARAM`]
+    /// の範囲外（`damping == 0.0` の無減衰も含む）・`from`/`to`/
+    /// `initial_velocity` の絶対値が [`MAX_ABS_VALUE`] を超える・
+    /// いずれかが非有限値のいずれかを満たす場合は `None` を返す
+    /// （ライブラリコードで panic しない）。この入力ドメインの境界化に
+    /// より、`at()` 内部の全中間演算が構成的にオーバーフローしないことを
+    /// 保証する（イシュー #2426 レビュー指摘: `at()` 側の非有限フォール
+    /// バックで収束扱いにするのではなく、構築時に拒否すべき）。
     pub fn new(config: SpringConfig, from: f64, to: f64, initial_velocity: f64) -> Option<Self> {
         let SpringConfig {
             stiffness,
@@ -248,7 +290,16 @@ impl Spring {
         {
             return None;
         }
-        if stiffness <= 0.0 || mass <= 0.0 || damping < 0.0 {
+        if !(MIN_PARAM..=MAX_PARAM).contains(&stiffness)
+            || !(MIN_PARAM..=MAX_PARAM).contains(&damping)
+            || !(MIN_PARAM..=MAX_PARAM).contains(&mass)
+        {
+            return None;
+        }
+        if from.abs() > MAX_ABS_VALUE
+            || to.abs() > MAX_ABS_VALUE
+            || initial_velocity.abs() > MAX_ABS_VALUE
+        {
             return None;
         }
 
@@ -432,32 +483,21 @@ impl Spring {
                 (x, v)
             }
         };
-        // 上記の安定化後もなお中間演算が f64 の表現範囲を超えうる極端な入力
-        // （decay が 0 まで下振れしていない段階で `t` 依存項が桁あふれする
-        // 組み合わせ）に対する最終防御。`Spring::new` は t=0 時点の係数の
-        // 有限性しか検証できないため、`at()` 呼び出し時に非有限値を検出
-        // したら呼び出し元へ伝播させず収束済み相当（x=v=0）へ丸める
-        // （イシュー #2426 レビュー指摘）。
-        let (x, v) = if x.is_finite() && v.is_finite() {
-            (x, v)
-        } else {
-            (0.0, 0.0)
-        };
-
-        // `self.to + x` 自体も、両者が極端な値（例: to=1.7e308,
-        // x≈-5.98e307 ではなく、to=1e308 側に x が加算されて桁あふれする
-        // 組み合わせ）でオーバーフローしうる（イシュー #2426 レビュー
-        // 指摘: x/v 単体の有限性だけでは検出できない）。ここでも非有限値を
-        // 呼び出し元へ伝播させず、表現不能な変位は「目標へ到達済み」
-        // （x=0 相当）へ丸める。ただし速度まで 0 に潰すと、この丸めが
-        // オーバーシュートのピーク付近で発生した場合に `done` 判定
-        // （`(to - value).abs() <= rest_delta && v.abs() <= rest_speed`）
-        // を誤って満たしてしまい、後続サンプルで再び `done: false` に
-        // 戻る「settle_duration が実際の静止時刻ではなくこのピークを
-        // 返す」不具合を招く（イシュー #2426 Bugbot 指摘）。速度はここで
-        // ゼロ化せず実測値のまま残し、done 判定の速度側で自然に弾く。
+        // `Spring::new` の入力ドメイン境界化（[`MIN_PARAM`]/[`MAX_PARAM`]/
+        // [`MAX_ABS_VALUE`]）により、ここに到達する時点で `x`/`v`/
+        // `self.to + x` はいずれも構成的に有限であることが保証されている
+        // （証明の要旨は [`MIN_PARAM`] のコメント参照）。以前はここで
+        // 非有限値を収束済み（x=v=0）や `value = self.to` へ丸めていたが、
+        // その丸めは「計算失敗」と「真の収束」を区別できず、収束判定
+        // （`done`）を誤って成立させてしまう副作用があった（イシュー #2426
+        // レビュー指摘）。デバッグビルドでのみ不変条件を検証し、リリース
+        // ビルドでは値をそのまま用いる。
+        debug_assert!(
+            x.is_finite() && v.is_finite(),
+            "at() produced non-finite x/v: x={x} v={v}"
+        );
         let value = self.to + x;
-        let value = if value.is_finite() { value } else { self.to };
+        debug_assert!(value.is_finite(), "at() produced non-finite value: {value}");
         let done = (self.to - value).abs() <= self.rest_delta && v.abs() <= self.rest_speed;
         if done {
             SpringState {
@@ -808,25 +848,28 @@ mod tests {
         // 揃って極端な値のとき、`stiffness * mass` を直接計算すると
         // オーバーフローして Inf に丸まり、本来 ζ=1（臨界減衰）となる
         // べき入力が ζ=0（無減衰振動、Region::Underdamped）と誤判定
-        // されていた。安定化後は `Region::Critical` と判定され、
-        // at() は有限値を返す。
+        // されていた。入力ドメインの境界化（[`MIN_PARAM`]/[`MAX_PARAM`]）
+        // 導入後は当時の値（1e200 等）自体が構築時に拒否されるため、
+        // 許容範囲の上限付近で同じ ζ=1 の組み合わせを使い、安定化した
+        // 除算・乗算の順序が引き続き正しい region 判定を返すことを確認
+        // する。
         let huge = SpringConfig {
-            stiffness: 1e200,
-            damping: 2e200,
-            mass: 1e200,
+            stiffness: MAX_PARAM / 2.0,
+            damping: MAX_PARAM,
+            mass: MAX_PARAM / 2.0,
         };
         assert!(approx(huge.damping_ratio(), 1.0, 1e-6));
         let spring = Spring::new(huge, 0.0, 1.0, 0.0).unwrap();
         assert!(matches!(spring.region, Region::Critical { .. }));
-        let s = spring.at(1e-100);
+        let s = spring.at(1e-6);
         assert!(s.value.is_finite() && s.velocity.is_finite());
 
-        // stiffness * mass がアンダーフローしてゼロに丸まる側（tiny 同士）
-        // でも ζ が 0 除算で NaN/Inf にならず、有効な Spring を構築できる。
+        // 許容範囲の下限付近（tiny 同士）でも ζ が 0 除算で NaN/Inf に
+        // ならず、有効な Spring を構築できる。
         let tiny = SpringConfig {
-            stiffness: 1e-200,
-            damping: 1e-200,
-            mass: 1e-200,
+            stiffness: MIN_PARAM,
+            damping: MIN_PARAM,
+            mass: MIN_PARAM,
         };
         let spring = Spring::new(tiny, 0.0, 1.0, 0.0).unwrap();
         let s = spring.at(0.0);
@@ -839,29 +882,43 @@ mod tests {
         // 揃って極端な値（1e308）のとき、分母をまとめて計算すると
         // `2.0 * sqrt(stiffness) * sqrt(mass)` 自体が Inf に丸まり、
         // 本来 ζ=0.5 のばねを ζ=0（無減衰振動）と誤判定していた。
-        let config = SpringConfig {
+        // `damping_ratio()` は `Spring::new` の入力ドメイン境界化とは
+        // 独立した純粋な算術メソッドのため、この安定化の回帰確認は
+        // 従来どおり極端な値（1e308）で行う。
+        let extreme = SpringConfig {
             stiffness: 1e308,
             damping: 1e308,
             mass: 1e308,
         };
+        assert!(approx(extreme.damping_ratio(), 0.5, 1e-6));
+
+        // `Spring::new` は入力ドメインの境界化により 1e308 のような値を
+        // 構築時に拒否するため、region 判定・at() の有限性確認は許容
+        // 範囲内の値（ζ=0.5 を保った組み合わせ）で行う。
+        let config = SpringConfig {
+            stiffness: MAX_PARAM,
+            damping: MAX_PARAM,
+            mass: MAX_PARAM,
+        };
         assert!(approx(config.damping_ratio(), 0.5, 1e-6));
         let spring = Spring::new(config, 0.0, 1.0, 0.0).unwrap();
         assert!(matches!(spring.region, Region::Underdamped { .. }));
-        let s = spring.at(1e-150);
+        let s = spring.at(1e-6);
         assert!(s.value.is_finite() && s.velocity.is_finite());
     }
 
     #[test]
     fn overdamped_roots_avoid_cancellation_and_overflow() {
-        // イシュー #2426 レビュー指摘の回帰確認その1: stiffness=damping=1e18,
-        // mass=1 は zeta=5e8 と大きく、桁落ちする素朴な計算
-        // (`-omega0*(zeta-disc)`) では r1 が -0 に丸まり、減衰が
-        // exp(-t) から消えていた。有理化した計算では r1 が有限の
-        // 負値になる。
+        // イシュー #2426 レビュー指摘の回帰確認その1: 大きな zeta
+        // （桁落ちする素朴な計算 `-omega0*(zeta-disc)` では r1 が -0 に
+        // 丸まり、減衰が exp(-t) から消える）を、入力ドメインの境界化
+        // 後も許容範囲内の組み合わせ（stiffness=damping=MAX_PARAM,
+        // mass=MIN_PARAM、ζ=5e5）で再現する。有理化した計算では r1 が
+        // 有限の負値になる。
         let config = SpringConfig {
-            stiffness: 1e18,
-            damping: 1e18,
-            mass: 1.0,
+            stiffness: MAX_PARAM,
+            damping: MAX_PARAM,
+            mass: MIN_PARAM,
         };
         let spring = Spring::new(config, 0.0, 1.0, 0.0).unwrap();
         let Region::Overdamped { r1, r2, .. } = spring.region else {
@@ -870,7 +927,7 @@ mod tests {
         assert!(r1.is_finite() && r1 < 0.0, "r1={r1}");
         assert!(r2.is_finite() && r2 < 0.0, "r2={r2}");
         let s0 = spring.at(0.0);
-        let s1 = spring.at(1.0);
+        let s1 = spring.at(1e-6);
         // from=0 → to=1 なので、時間経過とともに value は to=1 へ単調に
         // 近づく（オーバーシュートしない）。
         assert!(
@@ -880,27 +937,29 @@ mod tests {
             s1.value
         );
 
-        // イシュー #2426 レビュー指摘の回帰確認その2: stiffness=mass=1,
-        // damping=1e200 は zeta=5e199 と巨大で、`(zeta*zeta - 1.0).sqrt()`
-        // が zeta*zeta のオーバーフローで Inf になり at() が NaN を
-        // 返していた。
+        // イシュー #2426 レビュー指摘の回帰確認その2: damping が
+        // stiffness/mass に対し極端に大きい（許容範囲の上限
+        // `MAX_PARAM`）組み合わせでも `(zeta*zeta - 1.0).sqrt()` が
+        // オーバーフローせず at() が有限値を返す。
         let huge_damping = SpringConfig {
             stiffness: 1.0,
-            damping: 1e200,
+            damping: MAX_PARAM,
             mass: 1.0,
         };
         let spring = Spring::new(huge_damping, 0.0, 1.0, 0.0).unwrap();
-        let s = spring.at(1e-100);
+        let s = spring.at(1e-6);
         assert!(s.value.is_finite() && s.velocity.is_finite());
     }
 
     #[test]
-    fn new_rejects_non_representable_displacement() {
-        // イシュー #2426 レビュー指摘の回帰確認: from/to が個別には有限
-        // でも from-to が Inf へオーバーフローする組み合わせ（極端な
-        // 例: 1e308 と -1e308）は、以前は個別の有限値チェックを素通り
-        // して Spring::new が Some を返し、at(0) が NaN になっていた。
-        assert!(Spring::new(SpringConfig::default(), 1e308, -1e308, 0.0).is_none());
+    fn new_rejects_out_of_range_displacement() {
+        // イシュー #2426 レビュー指摘の回帰確認: 変位・初速度の絶対値が
+        // [`MAX_ABS_VALUE`] を超える入力は、個別には有限であっても
+        // 入力ドメインの境界化により構築時に一括で拒否される（`at()`
+        // 側で非有限値を丸めて誤魔化す経路を持たない）。
+        assert!(Spring::new(SpringConfig::default(), MAX_ABS_VALUE * 2.0, 0.0, 0.0).is_none());
+        assert!(Spring::new(SpringConfig::default(), 0.0, MAX_ABS_VALUE * 2.0, 0.0).is_none());
+        assert!(Spring::new(SpringConfig::default(), 0.0, 0.0, MAX_ABS_VALUE * 2.0).is_none());
     }
 
     #[test]
@@ -926,13 +985,12 @@ mod tests {
 
     #[test]
     fn new_rejects_overdamped_root_overflow() {
-        // PR #2426 codex レビュー指摘の回帰確認（1件目）:
-        // stiffness=1, damping=1e200, mass=1e-200 は omega0=1e100・
-        // zeta+disc≈1e300 となり、r1=-omega0/(zeta+disc) は有限だが
-        // r2=-omega0*(zeta+disc) は積 1e400 が -Inf へオーバーフローする。
-        // 以前は r1/r2 の有限性を検証しないまま Region::Overdamped を
-        // 構築し、at(0) が NaN を返していた。表現不能な組み合わせは
-        // Spring::new が構築時に None として拒否しなければならない。
+        // PR #2426 codex レビュー指摘の回帰確認: stiffness=1,
+        // damping=1e200, mass=1e-200 のような r1/r2 のオーバーフロー
+        // 組み合わせは、入力ドメインの境界化（[`MIN_PARAM`]/
+        // [`MAX_PARAM`]）により、damping・mass が個別に範囲外である
+        // 時点で構築時に None として拒否される（表現不能な組み合わせを
+        // Region 構築後に検出する必要がなくなった）。
         let config = SpringConfig {
             stiffness: 1.0,
             damping: 1e200,
@@ -943,15 +1001,16 @@ mod tests {
 
     #[test]
     fn overdamped_b_matches_initial_velocity_without_cancellation() {
-        // PR #2426 codex レビュー指摘の回帰確認（2件目）:
-        // b を `x0 - a`（差し引き）で求めると、stiffness=damping=1e18,
-        // mass=1 のように a が -1 へ丸まる入力で b が 0 に桁落ちし、
-        // at(0).velocity が指定した初速度 0 を再現できない
-        // （実際には 1 を返していた）。b を初期条件から直接
+        // PR #2426 codex レビュー指摘の回帰確認: b を `x0 - a`
+        // （差し引き）で求めると、a が -1 へ丸まる入力で b が 0 に
+        // 桁落ちし、at(0).velocity が指定した初速度を再現できない
+        // （実際には 1 を返していた）。入力ドメインの境界化後も許容
+        // 範囲内の値（stiffness=damping=MAX_PARAM, mass=1.0、ζ=500）で
+        // 同じ桁落ちが再現することを確認する。b を初期条件から直接
         // `(r1*x0 - v0) / (r1-r2)` で解くことで、この桁落ちを避ける。
         let config = SpringConfig {
-            stiffness: 1e18,
-            damping: 1e18,
+            stiffness: MAX_PARAM,
+            damping: MAX_PARAM,
             mass: 1.0,
         };
         let spring = Spring::new(config, 0.0, 1.0, 0.0).unwrap();
@@ -967,17 +1026,18 @@ mod tests {
     #[test]
     fn at_avoids_overflow_in_critical_region_with_extreme_displacement() {
         // PR #2426 codex レビュー P1 指摘の回帰確認: stiffness=1, damping=2,
-        // mass=1（ζ=1、Region::Critical）で from=1e308, to=0 のとき、
-        // 構築時の係数 `c` 自体は有限でも `at()` 内部で `c * t` を先に
-        // 評価すると表現範囲を超えて Inf になり、decay を掛けても
-        // NaN/Inf が伝播していた。decay を先に適用する安定化後は
-        // value/velocity が共に有限であること。
+        // mass=1（ζ=1、Region::Critical）で `from` が入力ドメインの上限
+        // （[`MAX_ABS_VALUE`]）に達するとき、構築時の係数 `c` 自体は
+        // 有限でも `at()` 内部で `c * t` を先に評価すると表現範囲を
+        // 超えて Inf になり、decay を掛けても NaN/Inf が伝播していた。
+        // decay を先に適用する安定化後は value/velocity が共に有限で
+        // あること。
         let config = SpringConfig {
             stiffness: 1.0,
             damping: 2.0,
             mass: 1.0,
         };
-        let spring = Spring::new(config, 1e308, 0.0, 0.0).unwrap();
+        let spring = Spring::new(config, MAX_ABS_VALUE, 0.0, 0.0).unwrap();
         let state = spring.at(2.0);
         assert!(state.value.is_finite(), "value={}", state.value);
         assert!(state.velocity.is_finite(), "velocity={}", state.velocity);
@@ -987,24 +1047,81 @@ mod tests {
     fn at_avoids_overflow_in_final_value_addition() {
         // PR #2426 codex レビュー P1 再指摘の回帰確認: x/v 単体は有限でも
         // `self.to + x`（最終 value の加算）自体がオーバーフローしうる
-        // 組み合わせ（stiffness=1, damping=0.1, mass=1, from=1e308,
-        // to=1.7e308）。x0=from-to≈-7e307 は表現可能で `at()` 内部の x/v も
-        // 有限に収まるが、to（1.7e308）へ加算すると Inf に丸まっていた。
+        // 組み合わせ（from/to が入力ドメインの上限付近で符号が異なる）。
+        // 入力ドメインの境界化後は from/to の差が高々 2*MAX_ABS_VALUE に
+        // 収まるため、settle_duration の探索範囲全体で value/velocity が
+        // 有限であることを確認する。
         let config = SpringConfig {
             stiffness: 1.0,
             damping: 0.1,
             mass: 1.0,
         };
-        let spring = Spring::new(config, 1e308, 1.7e308, 0.0).unwrap();
-        let state = spring.at(3.1455270228880017);
-        assert!(state.value.is_finite(), "value={}", state.value);
-        assert!(state.velocity.is_finite(), "velocity={}", state.velocity);
-        // イシュー #2426 Bugbot 指摘の回帰確認: `to + x` のオーバーフロー
-        // 丸めで速度まで 0 化すると、実際は速度が rest_speed を大幅に
-        // 超えるオーバーシュートのピークなのに `done: true` を誤って返して
-        // しまう。速度は丸めずに残すべきで、この極端な入力では依然として
-        // 巨大（rest_speed 超）なので done は false のままであること。
-        assert!(!state.done, "state={:?}", state);
+        let spring = Spring::new(config, MAX_ABS_VALUE, -MAX_ABS_VALUE, 0.0).unwrap();
+        let mut t = 0.0;
+        while t <= MAX_SETTLE_DURATION {
+            let state = spring.at(t);
+            assert!(state.value.is_finite(), "t={t} value={}", state.value);
+            assert!(
+                state.velocity.is_finite(),
+                "t={t} velocity={}",
+                state.velocity
+            );
+            t += 0.5;
+        }
+    }
+
+    #[test]
+    fn new_rejects_reported_zero_damping_overflow_example() {
+        // PR #2426 codex レビュー P1 再指摘
+        // （discussion_r3996960841）の回帰確認: stiffness=0.01,
+        // damping=0, mass=1, from=1.7e308, initial_velocity=1.7e307 は
+        // 無減衰（damping=0）ゆえ本来「静止しない」入力であり、
+        // t=3π/(4·0.1) 付近で速度計算の中間和が数学的にも f64 表現
+        // 範囲を超える。以前は非有限値を (0,0) へ丸めるフォールバックが
+        // 誤って done:true を返していたが、入力ドメインの境界化により
+        // damping=0（[`MIN_PARAM`] 未満）・from が [`MAX_ABS_VALUE`] を
+        // 超えることの双方で構築時に拒否される。
+        let config = SpringConfig {
+            stiffness: 0.01,
+            damping: 0.0,
+            mass: 1.0,
+        };
+        assert!(Spring::new(config, 1.7e308, 0.0, 1.7e307).is_none());
+
+        // damping=0（無減衰）は、他のパラメータが入力ドメイン内でも
+        // 単独で拒否される（静止しない入力は settle 契約と矛盾する
+        // ため、値の大小に関わらず一律で無効）。
+        let undamped = SpringConfig {
+            stiffness: 100.0,
+            damping: 0.0,
+            mass: 1.0,
+        };
+        assert!(Spring::new(undamped, 0.0, 1.0, 0.0).is_none());
+    }
+
+    #[test]
+    fn at_stays_finite_across_settle_duration_at_domain_boundary() {
+        // 入力ドメインの境界値（MAX_ABS_VALUE・MIN_PARAM・MAX_PARAM）を
+        // 同時に使う極端な構成でも、`at()` が settle_duration の探索
+        // 範囲全体で有限値を返すことを確認する（イシュー #2426 レビュー
+        // 指摘: 境界化そのものの正しさを直接検証する）。
+        let config = SpringConfig {
+            stiffness: MAX_PARAM,
+            damping: MIN_PARAM,
+            mass: MIN_PARAM,
+        };
+        let spring = Spring::new(config, MAX_ABS_VALUE, 0.0, 0.0).unwrap();
+        let mut t = 0.0;
+        while t <= MAX_SETTLE_DURATION {
+            let state = spring.at(t);
+            assert!(state.value.is_finite(), "t={t} value={}", state.value);
+            assert!(
+                state.velocity.is_finite(),
+                "t={t} velocity={}",
+                state.velocity
+            );
+            t += 0.25;
+        }
     }
 
     #[test]
