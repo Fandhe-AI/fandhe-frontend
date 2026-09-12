@@ -31,8 +31,8 @@
 # 新規クレートの宣言は crate 実体（Cargo.toml・src/）と同一 PR で有効化する
 # （`fw structure` のディレクトリ実在確認・`fw gate` の `-p` 実行契約により、
 # 宣言だけを先行有効化すると fail するため）。実体が未着手の段階で宣言の
-# 内容だけを確定させておきたい場合はコメント化して残す（`animation` /
-# `frontend-animation` 節を参照）。
+# 内容だけを確定させておきたい場合はコメント化して残す（`frontend-animation`
+# 節を参照）。
 
 [manifest]
 version = 1
@@ -52,19 +52,15 @@ depends_on = ["core"]
 allowed_dependents = ["wasm-full", "wasm-thin", "wasm-client", "headless-ui", "xtask"]
 path = "crates/interactive"
 
-# fandhe-animation（アニメーション演算基幹）の宣言草案（イシュー #2368）。
-# crate 実体（Cargo.toml・src/）が揃うまではコメントのまま残す。`fw
-# structure` のディレクトリ実在確認・`fw gate` の `-p <crate>` 実行契約が、
-# 宣言だけを先行有効化すると即座に fail するため（`crates/cli/src/main.rs`
-# のディレクトリ実在確認・workspace member 突合、`crates/cli/src/gate.rs`
-# の declared_crate_names 経由の cargo check/clippy/test 実行）。有効化は
-# イシュー #2371（crate 雛形の追加）と同一 PR で行う。
-# [directories.animation]
-# role = "core"
-# crate = "fandhe-animation"
-# description = "プラットフォーム非依存のアニメーション演算基幹（外部依存ゼロ・forbid(unsafe_code)。将来別リポジトリへの切り出しを前提とした設計）"
-# allowed_dependents = ["frontend-animation"]
-# path = "crates/animation"
+# fandhe-animation（アニメーション演算基幹、イシュー #2368 で草案・#2371 で有効化）。
+# `allowed_dependents = ["frontend-animation"]` は `[directories.frontend-animation]`
+# が有効化される #2417 と同一 PR で追加する（未宣言キーの参照は
+# `crates/cli/src/structure.rs` の UnknownReference で fail するため）。
+[directories.animation]
+role = "core"
+crate = "fandhe-animation"
+description = "プラットフォーム非依存のアニメーション演算基幹（外部依存ゼロ・forbid(unsafe_code)。将来別リポジトリへの切り出しを前提とした設計）"
+path = "crates/animation"
 
 [directories.app]
 role = "component"

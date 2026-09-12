@@ -4,7 +4,7 @@
 
 Rust 製フロントエンドフレームワーク。AI 時代のセキュリティリスク低減を目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ SSR / SPA / SSG / トランジションなどモダン機能を網羅する。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とする。
 
-- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み。リポジトリ名は #439 で `Fandhe-AI/fandhe-frontend` へ改名済み。全 9 クレート（fandhe-frontend-core / -interactive / -app / -server / -wasm-client / -wasm-full / -wasm-thin / -dist-server / -cli）は v0.1.0 で 2026-07-20 に crates.io へ公開済み。加えて `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui`（ark-ui / chakra-ui 参考の 2 層 UI コンポーネント構成、親トラッキング #520 で新設）も v0.1.0 で crates.io へ公開済み（イシュー #608）。さらに `fandhe-animation` / `fandhe-frontend-animation`（Motion 参照方針に基づくアニメーション演算コア・Web アダプタの 3 層構成、親トラッキング #2365 配下 #2371 / #2417 で雛形作成予定、未公開）
+- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み。リポジトリ名は #439 で `Fandhe-AI/fandhe-frontend` へ改名済み。全 9 クレート（fandhe-frontend-core / -interactive / -app / -server / -wasm-client / -wasm-full / -wasm-thin / -dist-server / -cli）は v0.1.0 で 2026-07-20 に crates.io へ公開済み。加えて `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui`（ark-ui / chakra-ui 参考の 2 層 UI コンポーネント構成、親トラッキング #520 で新設）も v0.1.0 で crates.io へ公開済み（イシュー #608）。さらに `fandhe-animation` / `fandhe-frontend-animation`（Motion 参照方針に基づくアニメーション演算コア・Web アダプタの 3 層構成、親トラッキング #2365 配下。`fandhe-animation` は #2371 で雛形追加済み・`fandhe-frontend-animation` は #2417 で雛形作成予定、いずれも未公開）
 - 仕様書は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) を `docs/spec/` サブモジュールとして取り込み管理
 - 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `fandhe-frontend-core` 既定エスケープの製品化）
 - 計画クレート: `fandhe-frontend-core`（描画コア・外部依存ゼロ）/ `fandhe-frontend-app` / `fandhe-frontend-server`（SSR/SSG）/ `fandhe-frontend-wasm-client`・`fandhe-frontend-wasm-full`（WASM/CSR）/ `fandhe-frontend-interactive`（状態管理）/ `fandhe-frontend-headless-ui`（headless UI コンポーネント層、#520）/ `fandhe-frontend-pre-styled-ui`（pre-styled UI コンポーネント層、#520）/ `fandhe-animation`（プラットフォーム非依存のアニメーション演算基幹。外部依存ゼロ・`forbid(unsafe_code)`、将来別リポジトリへ切り出し前提、#2365/#2371）/ `fandhe-frontend-animation`（Web アダプタ。`fandhe-animation` + wasm-bindgen / web-sys / js-sys のみに依存し `fandhe-frontend-wasm-full` には依存しない、#2365/#2417）/ `xtask`（CI 計測）/ `fandhe-frontend-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
@@ -123,10 +123,11 @@ crates/
 宣言し、依存宣言の論理名（`<name>`）とは独立して実配置を表す
 （`docs/design/structure-manifest.md` §2.2.0a 参照）。`fw new` が生成する
 ユーザープロジェクト（`templates/`）は `path` を使わないフラット配置のまま
-不変。`animation` / `frontend-animation` の `[directories.*]` 宣言は crate 実体
-（`Cargo.toml`・`src/`）が揃うまでコメント化しておき、雛形作成と同一 PR で
-有効化する（`fw structure` の実在確認・`fw gate` の `-p` 契約が宣言を先行
-有効化した時点で fail するため、#2371 / #2417 側の対応）。
+不変。`animation` の `[directories.*]` 宣言は #2371 で crate 雛形と同一 PR で
+有効化済み。`frontend-animation` は crate 実体（`Cargo.toml`・`src/`）が
+揃うまでコメント化しておき、雛形作成と同一 PR（#2417）で有効化する
+（`fw structure` の実在確認・`fw gate` の `-p` 契約が宣言を先行有効化した
+時点で fail するため）。
 
 ## 委譲方針（必読）
 

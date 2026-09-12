@@ -1,0 +1,18 @@
+[package]
+name = "fandhe-animation"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-animation: プラットフォーム非依存のアニメーション演算基幹（イージング・補間・タイムライン計算）。外部依存ゼロ。"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Fandhe-AI/fandhe-frontend"
+readme = "../../README.md"
+keywords = ["animation", "easing", "interpolation", "frontend"]
+categories = ["graphics", "web-programming"]
+
+# REQ-3 / coding-rust.md: 外部依存ゼロを厳守する（fandhe-frontend-core と同方針）。
+# 将来別リポジトリへ切り出す前提のため、fandhe-frontend-* への依存も持たない
+# （docs/design/animation-core-architecture.md §5）。
+# 新規クレートを追加する場合は事前にユーザー承認を得ること。
+[dependencies]
+
+[dev-dependencies]
