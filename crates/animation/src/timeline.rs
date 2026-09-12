@@ -63,6 +63,9 @@ impl Stagger {
     /// `total == 0` は `start_delay` を返す。`index >= total` でもパニック
     /// せず距離計算のみ行う（呼び出し側の範囲検証には依存しない）。
     pub fn delay(&self, index: usize, total: usize) -> f64 {
+        if total == 0 {
+            return self.start_delay;
+        }
         let from_index = match self.from {
             StaggerFrom::First => 0.0,
             StaggerFrom::Last => total.saturating_sub(1) as f64,
@@ -245,12 +248,16 @@ impl<T> Timeline<T> {
                 .label_time(name)
                 .ok_or_else(|| TimelineError::UnknownLabel(name.to_string()))?,
         };
+        let end = start + duration;
+        if !start.is_finite() || !end.is_finite() {
+            return Err(TimelineError::NonFiniteTime);
+        }
         self.segments.push(Segment {
             start,
             duration,
             value,
         });
-        self.cursor = start + duration;
+        self.cursor = end;
         Ok(self)
     }
 
@@ -448,6 +455,20 @@ mod tests {
             tl.add_at("a", 1.0, At::Absolute(f64::INFINITY)),
             Err(TimelineError::NonFiniteTime)
         );
+    }
+
+    #[test]
+    fn non_finite_end_from_finite_inputs_is_rejected() {
+        // start・duration 個々は有限でも加算結果（end = start + duration）が
+        // 無限大になり得る。状態変更前に検証しないと cursor/duration() へ
+        // 無限大が伝播する（PR #2427 codex レビュー指摘）。
+        let mut tl: Timeline<&str> = Timeline::new();
+        assert_eq!(
+            tl.add_at("a", f64::MAX, At::Absolute(f64::MAX)),
+            Err(TimelineError::NonFiniteTime)
+        );
+        assert!(tl.segments().is_empty());
+        assert_eq!(tl.duration(), 0.0);
     }
 
     #[test]
