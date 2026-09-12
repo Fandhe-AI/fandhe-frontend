@@ -31,10 +31,11 @@
 //! # 現状
 //!
 //! `easing`（イシュー #2373）・`interpolate`（イシュー #2374）・`spring`
-//! （イシュー #2375）・`timeline`（イシュー #2377）を提供。残る `keyframes` /
-//! `driver` / `target` はイシュー #2376・#2378 で追加予定。
+//! （イシュー #2375）・`keyframes`（イシュー #2376）・`timeline`（イシュー #2377）
+//! を提供。残る `driver` / `target` はイシュー #2378 で追加予定。
 
 pub mod easing;
 pub mod interpolate;
+pub mod keyframes;
 pub mod spring;
 pub mod timeline;
