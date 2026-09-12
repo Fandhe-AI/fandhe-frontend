@@ -33,10 +33,10 @@ TASK-3.3 は 2 段階に分割されていました。
 | 削減率（PoC-2 → PoC-3） | 約 74% 減 | 約 64% 減 | `docs/spec/04-requirements.md` REQ-3 詳細（PoC-2/PoC-3 実測差の記述） |
 | **採用上限**（`MAX_PACKAGES` / `MAX_DEPTH`） | **60** | **6** | PoC-3 実測（52 件/深さ 5）に実装拡張分の余裕を加算。`crates/xtask/src/check_deps.rs` |
 
-コアクレート（`fandhe-frontend-core` / `fandhe-frontend-interactive`）は外部依存パッケージ数 0 件であることを別途受け入れ基準としています
+コアクレート（`fandhe-frontend-core` / `fandhe-frontend-interactive` / `fandhe-animation`）は外部依存パッケージ数 0 件であることを別途受け入れ基準としています
 （REQ-3 受け入れ基準 1 点目）。`crates/core/Cargo.toml` への外部クレート追加は `.claude/rules/coding-rust.md` により禁止されています。
 この「0 件であること」自体は `check-deps`（60/6 判定）とは別に、`check-core-deps` ゲート（Issue #154）が
-`check_deps::ZERO_DEP_CRATES`（`fandhe-frontend-core` / `fandhe-frontend-interactive`）を対象に Normal/Dev/Build すべての辺で強制します。
+`check_deps::ZERO_DEP_CRATES`（`fandhe-frontend-core` / `fandhe-frontend-interactive` / `fandhe-animation`。イシュー #2372 で `fandhe-animation` を追加）を対象に Normal/Dev/Build すべての辺で強制します。
 
 ### 現行実測値（TASK-3.3b 確定時点、origin/main 相当）
 
@@ -76,7 +76,8 @@ cargo run --locked -p xtask -- check-deps --package <NAME> [--package <NAME> ...
   cfg 条件付き依存（target-specific な normal edge）を計測から除外する
 
 しきい値の唯一の正は `crates/xtask/src/check_deps.rs` の `MAX_PACKAGES`（60）・`MAX_DEPTH`（6）・`ZERO_DEP_CRATES`
-（`fandhe-frontend-core` / `fandhe-frontend-interactive`。`check-core-deps` が参照）定数です。`--locked` 実行を必須とし、CLI 引数・
+（`fandhe-frontend-core` / `fandhe-frontend-interactive` / `fandhe-animation`。イシュー #2372 で `fandhe-animation` を追加。
+`check-core-deps` が参照）定数です。`--locked` 実行を必須とし、CLI 引数・
 環境変数・`continue-on-error` 等による緩和経路は意図的に設けません（迂回経路を作らない設計）。
 
 CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（PASS/FAIL をそのまま CI の成否に伝播）で
@@ -87,7 +88,7 @@ CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（
 
 ## 4. 計測対象パッケージ
 
-現時点の計測対象は次の 7 パッケージです（`.github/workflows/deps-check.yml` と一致）。
+現時点の計測対象は次の 8 パッケージです（`.github/workflows/deps-check.yml` と一致）。
 
 - `fandhe-frontend-core`（ディレクトリは `crates/core/`。外部依存ゼロ契約）
 - `xtask`（外部依存ゼロ契約）
@@ -99,6 +100,8 @@ CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（
   `fandhe-frontend-core`/`fandhe-frontend-interactive` への path 依存のみ、実測 2 packages/depth 2）
 - `fandhe-frontend-pre-styled-ui`（ディレクトリは `crates/pre-styled-ui/`。イシュー #553 で追加。
   `fandhe-frontend-headless-ui` への path 依存のみ、実測 3 packages/depth 3）
+- `fandhe-animation`（ディレクトリは `crates/animation/`。イシュー #2372 で追加。`[dependencies]` を持たない
+  アニメーション演算基幹クレートで、実測 0 packages/depth 0。`ZERO_DEP_CRATES` にも登録済み）
 
 `fandhe-frontend-headless-ui`/`fandhe-frontend-pre-styled-ui` は UI コンポーネント層であり、サーバー構成へ
 組み込まれ得るライブラリクレートとして REQ-3 の対象に含めます（外部依存はいずれも workspace 内 path 依存のみで、
@@ -296,3 +299,18 @@ FAIL します。この構成を将来採用するには、fandhe-frontend-spec 
 確認に留まり、上限値自体の変更判断は行いません（第 7 節「対応外」参照）。
 
 **判定日**: 2026-07-18（イシュー #298 再検証確定時点）。
+
+## 10. fandhe-animation の組み込み（イシュー #2372）
+
+`fandhe-animation`（`crates/animation/`、#2371 で雛形追加）を第 4 節の計測対象・`ZERO_DEP_CRATES`
+（第 2/3 節）へ追加した。実測（xtask バイナリ直接実行、`--locked`）は次のとおり。
+
+```
+deps-check: packages=0/60 depth=0/6 result=PASS
+core-deps-check: package=fandhe-animation external=0 result=PASS
+```
+
+`docs/design/animation-core-architecture.md` §7 の試算（`[dependencies]` 空のため 0/0）と一致する。
+`fandhe-frontend-animation`（#2417、`crates/frontend-animation/`。wasm-bindgen / web-sys / js-sys
+依存を持つ Web アダプタ層）を計測対象へ追加する際は、外部依存を持つため `ZERO_DEP_CRATES` には
+登録せず第 4 節（60/6 判定のみ）への追加を検討し、実測値を本節へ追記する。

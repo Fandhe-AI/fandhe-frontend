@@ -19,6 +19,7 @@ PoC-2 の脅威モデルの結論は次のとおりです。コア（`fandhe-fro
 |---------|------|------|
 | `core`（fandhe-frontend-core） | `unsafe` を全面禁止 | `#![forbid(unsafe_code)]` を `crates/core/src/lib.rs` に設定済み。REQ-2 受け入れ基準の中核 |
 | `interactive`（fandhe-frontend-interactive） | `unsafe` を全面禁止 | `#![forbid(unsafe_code)]` を `crates/interactive/src/lib.rs` に設定済み（TASK-11.1a 設計・TASK-11.1b で実装）。REQ-2 受け入れ基準を `core` と同様に満たす |
+| `animation`（fandhe-animation） | `unsafe` を全面禁止 | `#![forbid(unsafe_code)]` を `crates/animation/src/lib.rs` に設定済み（イシュー #2371）。外部依存ゼロのため FFI 境界を持たず、`crates/core/tests/unsafe_boundary.rs` の safe 域（`UNSAFE_ALLOWED_MEMBERS`/`DENY_UNSAFE_FFI_MEMBERS` いずれにも非該当）として `forbid-unsafe` ジョブが自動検証する（イシュー #2372）。`frontend-animation`（#2417、wasm-bindgen 境界＝deny 域候補）は同イシューで本表へ追記予定 |
 | `app` / `server`（fandhe-frontend-app / fandhe-frontend-server） | 原則 `unsafe` 禁止（safe Rust で実装） | 未作成クレート。SSR/SSG/ルーティングはアプリケーション層であり、FFI 境界を持たない前提。作成時に `forbid(unsafe_code)` の要否を判断し本表へ追記する |
 | `wasm-client`（fandhe-frontend-wasm-client。TASK-6.2b/#48 で作成済み） | フレームワーク自作コードは safe Rust（`crates/wasm-client/src/` に自作 `unsafe` ブロック 0 件）。`#![deny(unsafe_code)]` を `crates/wasm-client/src/lib.rs` に設定済み（`#[wasm_bindgen]` 展開コードが内部で `unsafe` を含むため `forbid` は不採用）。`unsafe` は `wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | `hydrate()`（`wiring` モジュール）はクロージャの寿命管理に `closure.forget()` ではなく `thread_local!` レジストリ（`crates/wasm-client/src/registry.rs`）を用いる方式を採り、`unsafe` ブロックを要しない。`docs/api/hydration-api.md` 第 4 節・判断 6 の設計どおり |
 | `wasm-full`（fandhe-frontend-wasm-full。TASK-11.2b/#75 で作成済み、`Runtime`/`mount()`/`hydrate()` は TASK-11.2d/#77 で実装済み） | フレームワーク自作コードは safe Rust（`crates/wasm-full/src/` に自作 `unsafe` ブロック 0 件）。`#![deny(unsafe_code)]` を `crates/wasm-full/src/lib.rs` に設定済み（`#[wasm_bindgen]` 展開コードが内部で `unsafe` を含むため `forbid` は不採用、`wasm-client` と同方針）。`unsafe` は `wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成グルーコードに限定して許容。**CI 強制済み（#155、REQ-11 受け入れ基準 2）**: `crates/core/tests/unsafe_boundary.rs` の `DENY_UNSAFE_FFI_MEMBERS` に登録され、`.github/workflows/ci.yml` の `forbid-unsafe` ジョブが PR・main への push のたびに (a) `#![deny(unsafe_code)]` 属性の実在、(b) `crates/wasm-full/src/` 配下の自作 `unsafe` トークン 0 件、(c) `allow(unsafe_code)` による deny 上書きが 0 件、の 3 点を機械検証する（forbid(unsafe_code) 相当の強制） | イベント委譲配線（`crates/wasm-full/src/events.rs`）は `wasm_bindgen::closure::Closure::forget`（safe API）でリスナーを保持する方式を採り、`unsafe` ブロックを要しない。`Runtime::mount`/`Runtime::hydrate`（`crates/wasm-full/src/lib.rs`）・アプリ側エントリポイント参照実装（`crates/wasm-full/src/entry.rs`、`thread_local!` + `RefCell` で状態保持）も同様に自作 `unsafe` ブロックを要しない |
@@ -68,7 +69,7 @@ forbid(unsafe_code) 相当の制約下で、なお解消されず許容される
 
 **現時点（2026-07-17 時点）: ワークスペース内の自作 `unsafe` 使用箇所は 0 件。**
 
-`core` / `interactive` に `#![forbid(unsafe_code)]` が設定されているため、両クレート内での `unsafe` 使用は
+`core` / `interactive` / `animation` に `#![forbid(unsafe_code)]` が設定されているため、これらのクレート内での `unsafe` 使用は
 コンパイルエラーとして機械的に禁止されています。`app` / `server` は本ドキュメント更新時点で
 未作成のため、インベントリは空です。`wasm-full`（fandhe-frontend-wasm-full）は TASK-11.2b（#75）で作成済みですが、
 `grep -rnE '\bunsafe\s*(fn|impl|trait|\{)' crates/wasm-full/src/` の結果は 0 件であり、自作コード側の `unsafe`
@@ -142,7 +143,7 @@ wasm-full 用コマンドと同等の検証を PR・main への push のたび�
 `unsafe` を新規に書く必要が生じた場合は、以下のフローに従います。
 
 1. **境界の限定**: `unsafe` は WASM バインディング層・FFI 境界に該当するクレート（`wasm-client` / `wasm-full` 等）
-   に限定する。`core` / `interactive` への追加は `#![forbid(unsafe_code)]` によりビルド自体が失敗するため、
+   に限定する。`core` / `interactive` / `animation` への追加は `#![forbid(unsafe_code)]` によりビルド自体が失敗するため、
    構造的に不可能である。
 2. **SAFETY コメント必須**: `.claude/rules/code-comment-style.md` に従い、`unsafe` ブロックには安全性の根拠を
    `// SAFETY:` コメントとして必ず記載する。
