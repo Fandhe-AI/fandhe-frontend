@@ -92,11 +92,14 @@ impl SpringConfig {
 
     /// 減衰比 `ζ = damping / (2·sqrt(stiffness·mass))`。
     ///
-    /// `sqrt(stiffness·mass)` ではなく `sqrt(stiffness)·sqrt(mass)` の順で
-    /// 計算する（極端な値での積のオーバーフロー/アンダーフローを避ける、
-    /// [`Spring::new`] の同種コメント参照）。
+    /// `2.0 * self.stiffness.sqrt() * self.mass.sqrt()` を先に計算して
+    /// から割ると、両 sqrt が揃って巨大（例: stiffness=mass=1e308）な
+    /// ケースでその積自体が Inf に丸まり、本来有限の ζ を 0 だと偽って
+    /// 返しうる（イシュー #2426 レビュー指摘）。掛け算をまとめず逐次
+    /// 除算にすることで、割るたびに値を小さくしてから次の除算へ進み、
+    /// 中間結果が Inf になる経路を作らない。
     pub fn damping_ratio(&self) -> f64 {
-        self.damping / (2.0 * self.stiffness.sqrt() * self.mass.sqrt())
+        self.damping / 2.0 / self.stiffness.sqrt() / self.mass.sqrt()
     }
 }
 
@@ -107,6 +110,11 @@ impl SpringConfig {
 /// 上限が 1.0 のため到達しない。
 fn solve_omega0(duration: f64, zeta: f64, velocity: f64) -> Option<f64> {
     let mut omega = 5.0 / duration;
+    // 直近反復の残差 |f(omega)|。固定回数（`NEWTON_ITERATIONS`）で
+    // 打ち切った時点で収束していない場合に検出するため、ループ末尾で
+    // 参照できるよう外側に保持する（初期値は「未収束」とみなされる
+    // 大きな値にしておく）。
+    let mut last_residual = f64::INFINITY;
     for _ in 0..NEWTON_ITERATIONS {
         if !omega.is_finite() || omega <= 0.0 {
             return None;
@@ -149,9 +157,18 @@ fn solve_omega0(duration: f64, zeta: f64, velocity: f64) -> Option<f64> {
         if !f.is_finite() || !df.is_finite() || df == 0.0 {
             return None;
         }
+        last_residual = f;
         omega -= f / df;
     }
-    if omega.is_finite() && omega > 0.0 {
+    // 固定回数のみを保証する Newton 法は、収束が遅い入力（例:
+    // `from_duration_bounce(0.5, 0.9, 1e6, 1.0)` のような極端な
+    // velocity）で `NEWTON_ITERATIONS` 回に達しても収束しないまま
+    // omega を返しうる（イシュー #2426 レビュー指摘）。omega の有限性・
+    // 正値だけでは未収束を検知できないため、最終反復の残差を成功条件へ
+    // 加える。`f`（envelope 関数値）は SAFE_MIN=0.001 前後のスケールで
+    // 評価されるため、その 1/10 を許容残差とする。
+    const RESIDUAL_TOLERANCE: f64 = SAFE_MIN / 10.0;
+    if omega.is_finite() && omega > 0.0 && last_residual.abs() <= RESIDUAL_TOLERANCE {
         Some(omega)
     } else {
         None
@@ -228,8 +245,13 @@ impl Spring {
         // stiffness*mass=1e400 が Inf に丸まり ζ=0 の無減衰振動と誤判定
         // される。イシュー #2426 レビュー指摘）。各項を先に sqrt してから
         // 掛ける／割ることで積・商を直接作らず中間結果の範囲を抑える。
+        // ζ の分母も `2.0 * stiffness.sqrt() * mass.sqrt()` をまとめて
+        // 計算すると、両 sqrt が揃って巨大（stiffness=damping=mass=1e308
+        // 等）なとき積自体が Inf に丸まり ζ=0（無減衰振動）を誤って
+        // 返す（`damping_ratio` と同じ不具合、イシュー #2426 レビュー
+        // 指摘）。逐次除算にして中間結果を Inf にしない。
         let omega0 = stiffness.sqrt() / mass.sqrt();
-        let zeta = damping / (2.0 * stiffness.sqrt() * mass.sqrt());
+        let zeta = damping / 2.0 / stiffness.sqrt() / mass.sqrt();
         // 上記の安定化後もなお非有限・非正な結果が出た場合（両方の入力が
         // sqrt 後もなお表現範囲を超える極端な値等）は、region 選択以降へ
         // 不正な値を伝播させずここで弾く。
@@ -237,6 +259,13 @@ impl Spring {
             return None;
         }
         let x0 = from - to;
+        // `from`/`to` は個別には有限でも、両者が離れた極端な値（例:
+        // from=1e308, to=-1e308）だと差が f64 の表現範囲を超えて Inf に
+        // なりうる（イシュー #2426 レビュー指摘）。表現不能な変位を後段
+        // （`at()` の decay*x0 等）へ伝播させず、ここで弾く。
+        if !x0.is_finite() {
+            return None;
+        }
         let v0 = initial_velocity;
 
         let region = if (zeta - 1.0).abs() < 1e-9 {
@@ -247,9 +276,24 @@ impl Spring {
                 zeta_omega0: zeta * omega0,
             }
         } else {
-            let disc = (zeta * zeta - 1.0).sqrt();
+            // `(zeta * zeta - 1.0).sqrt()` は zeta が巨大（例:
+            // stiffness=mass=1, damping=1e200 → zeta=5e199）だと
+            // zeta*zeta 自体が Inf へオーバーフローし disc=Inf・r1/r2 が
+            // NaN になる（イシュー #2426 レビュー指摘）。
+            // disc = zeta·sqrt(1 - 1/zeta²) と変形すると、zeta² が
+            // オーバーフローしても 1/Inf = 0 で sqrt(1) = 1 に丸まり
+            // disc ≈ zeta（zeta 自体は有限）という正しい近似へフォール
+            // バックする。
+            let disc = zeta * (1.0 - 1.0 / (zeta * zeta)).sqrt();
+            // r1 = -omega0·(zeta - disc) は zeta が大きいほど
+            // zeta - disc が真の値（≈ 1/(2·zeta)）に対し桁落ちする
+            // （例: stiffness=damping=1e18, mass=1 で r1 が -0 に丸まり
+            // 減衰が exp(-t) から消える、イシュー #2426 レビュー指摘）。
+            // zeta² - disc² = 1（定義上）を使い
+            // zeta - disc = 1 / (zeta + disc) へ有理化することで、
+            // 差の桁落ちを経由せず r1 を直接計算する。
             Region::Overdamped {
-                r1: -omega0 * (zeta - disc),
+                r1: -omega0 / (zeta + disc),
                 r2: -omega0 * (zeta + disc),
             }
         };
@@ -696,6 +740,87 @@ mod tests {
         let spring = Spring::new(tiny, 0.0, 1.0, 0.0).unwrap();
         let s = spring.at(0.0);
         assert!(s.value.is_finite() && s.velocity.is_finite());
+    }
+
+    #[test]
+    fn damping_ratio_avoids_overflow_with_extreme_uniform_inputs() {
+        // イシュー #2426 レビュー指摘の回帰確認: stiffness=damping=mass が
+        // 揃って極端な値（1e308）のとき、分母をまとめて計算すると
+        // `2.0 * sqrt(stiffness) * sqrt(mass)` 自体が Inf に丸まり、
+        // 本来 ζ=0.5 のばねを ζ=0（無減衰振動）と誤判定していた。
+        let config = SpringConfig {
+            stiffness: 1e308,
+            damping: 1e308,
+            mass: 1e308,
+        };
+        assert!(approx(config.damping_ratio(), 0.5, 1e-6));
+        let spring = Spring::new(config, 0.0, 1.0, 0.0).unwrap();
+        assert!(matches!(spring.region, Region::Underdamped { .. }));
+        let s = spring.at(1e-150);
+        assert!(s.value.is_finite() && s.velocity.is_finite());
+    }
+
+    #[test]
+    fn overdamped_roots_avoid_cancellation_and_overflow() {
+        // イシュー #2426 レビュー指摘の回帰確認その1: stiffness=damping=1e18,
+        // mass=1 は zeta=5e8 と大きく、桁落ちする素朴な計算
+        // (`-omega0*(zeta-disc)`) では r1 が -0 に丸まり、減衰が
+        // exp(-t) から消えていた。有理化した計算では r1 が有限の
+        // 負値になる。
+        let config = SpringConfig {
+            stiffness: 1e18,
+            damping: 1e18,
+            mass: 1.0,
+        };
+        let spring = Spring::new(config, 0.0, 1.0, 0.0).unwrap();
+        let Region::Overdamped { r1, r2 } = spring.region else {
+            panic!("expected Overdamped region");
+        };
+        assert!(r1.is_finite() && r1 < 0.0, "r1={r1}");
+        assert!(r2.is_finite() && r2 < 0.0, "r2={r2}");
+        let s0 = spring.at(0.0);
+        let s1 = spring.at(1.0);
+        // from=0 → to=1 なので、時間経過とともに value は to=1 へ単調に
+        // 近づく（オーバーシュートしない）。
+        assert!(
+            s1.value > s0.value && s1.value <= 1.0 + 1e-9,
+            "s0={} s1={}",
+            s0.value,
+            s1.value
+        );
+
+        // イシュー #2426 レビュー指摘の回帰確認その2: stiffness=mass=1,
+        // damping=1e200 は zeta=5e199 と巨大で、`(zeta*zeta - 1.0).sqrt()`
+        // が zeta*zeta のオーバーフローで Inf になり at() が NaN を
+        // 返していた。
+        let huge_damping = SpringConfig {
+            stiffness: 1.0,
+            damping: 1e200,
+            mass: 1.0,
+        };
+        let spring = Spring::new(huge_damping, 0.0, 1.0, 0.0).unwrap();
+        let s = spring.at(1e-100);
+        assert!(s.value.is_finite() && s.velocity.is_finite());
+    }
+
+    #[test]
+    fn new_rejects_non_representable_displacement() {
+        // イシュー #2426 レビュー指摘の回帰確認: from/to が個別には有限
+        // でも from-to が Inf へオーバーフローする組み合わせ（極端な
+        // 例: 1e308 と -1e308）は、以前は個別の有限値チェックを素通り
+        // して Spring::new が Some を返し、at(0) が NaN になっていた。
+        assert!(Spring::new(SpringConfig::default(), 1e308, -1e308, 0.0).is_none());
+    }
+
+    #[test]
+    fn from_duration_bounce_newton_non_convergence_falls_back_to_default() {
+        // イシュー #2426 レビュー指摘の回帰確認: Newton 法が
+        // `NEWTON_ITERATIONS` 回で収束しない極端な velocity
+        // （例: 1e6）を残差確認なしに成功として返すと、誤った
+        // stiffness/damping が生成される。未収束は既定値へ
+        // フォールバックする。
+        let config = SpringConfig::from_duration_bounce(0.5, 0.9, 1e6, 1.0);
+        assert_eq!(config, SpringConfig::default());
     }
 
     #[test]
