@@ -192,14 +192,29 @@ const MAX_SETTLE_DURATION: f64 = 10.0;
 const SETTLE_STEP: f64 = 0.001;
 
 /// 減衰領域（判別式 `ζ` の符号）ごとの事前計算済み係数。
+///
+/// 振幅係数（`b`/`c`/`overdamped` の `a`,`b`）は `x0`/`v0` から一度だけ
+/// 定まる（`t` に依存しない）ため、`at()` を呼ぶたびに再計算せず
+/// `Spring::new()` 時点で確定させる。これにより (1) 呼び出しごとの
+/// 再計算コストを避けつつ、(2) 極端な `x0`（例: `from`/`to` の差が
+/// 1e308 級）でオーバーフローする組み合わせを構築時に検出できる
+/// （イシュー #2426 レビュー指摘: `at()` 側で NaN/Inf を返すのではなく
+/// `Spring::new()` が `None` を返すべき）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Region {
-    /// 不足減衰（ζ < 1）: 振動しながら収束する。
-    Underdamped { omega_d: f64, zeta_omega0: f64 },
-    /// 臨界減衰（ζ == 1、許容誤差 1e-9）: 振動せず最速に収束する。
-    Critical { omega0: f64 },
-    /// 過減衰（ζ > 1）: 2 つの実数指数の和で振動せず収束する。
-    Overdamped { r1: f64, r2: f64 },
+    /// 不足減衰（ζ < 1）: 振動しながら収束する。`b` は sin 成分の振幅係数
+    /// （`(v0 + zeta_omega0*x0) / omega_d`）。
+    Underdamped {
+        omega_d: f64,
+        zeta_omega0: f64,
+        b: f64,
+    },
+    /// 臨界減衰（ζ == 1、許容誤差 1e-9）: 振動せず最速に収束する。`c` は
+    /// `v0 + omega0*x0`。
+    Critical { omega0: f64, c: f64 },
+    /// 過減衰（ζ > 1）: 2 つの実数指数の和で振動せず収束する。`a`/`b` は
+    /// 初期条件 `x(0)=x0, x'(0)=v0` を解いた振幅係数。
+    Overdamped { r1: f64, r2: f64, a: f64, b: f64 },
 }
 
 /// from → to へ向かうばね 1 本の解析解ソルバ。
@@ -269,11 +284,22 @@ impl Spring {
         let v0 = initial_velocity;
 
         let region = if (zeta - 1.0).abs() < 1e-9 {
-            Region::Critical { omega0 }
+            let c = v0 + omega0 * x0;
+            if !c.is_finite() {
+                return None;
+            }
+            Region::Critical { omega0, c }
         } else if zeta < 1.0 {
+            let omega_d = omega0 * (1.0 - zeta * zeta).sqrt();
+            let zeta_omega0 = zeta * omega0;
+            let b = (v0 + zeta_omega0 * x0) / omega_d;
+            if !b.is_finite() {
+                return None;
+            }
             Region::Underdamped {
-                omega_d: omega0 * (1.0 - zeta * zeta).sqrt(),
-                zeta_omega0: zeta * omega0,
+                omega_d,
+                zeta_omega0,
+                b,
             }
         } else {
             // `(zeta * zeta - 1.0).sqrt()` は zeta が巨大（例:
@@ -292,10 +318,32 @@ impl Spring {
             // zeta² - disc² = 1（定義上）を使い
             // zeta - disc = 1 / (zeta + disc) へ有理化することで、
             // 差の桁落ちを経由せず r1 を直接計算する。
-            Region::Overdamped {
-                r1: -omega0 / (zeta + disc),
-                r2: -omega0 * (zeta + disc),
+            let r1 = -omega0 / (zeta + disc);
+            // r2 = -omega0·(zeta + disc) は、r1・disc 単体は有限でも
+            // omega0 と (zeta+disc) が共に巨大（例: stiffness=1,
+            // damping=1e200, mass=1e-200 → omega0=1e100, zeta+disc=1e300）
+            // だと積 1e400 が -Inf へオーバーフローする（イシュー #2426
+            // レビュー指摘）。この場合の真の r2 はそもそも f64 の表現
+            // 範囲を超えており安定化のしようがないため、非有限値を
+            // 後段（`at()` の decay 計算）へ伝播させず構築時に拒否する。
+            let r2 = -omega0 * (zeta + disc);
+            if !r1.is_finite() || !r2.is_finite() {
+                return None;
             }
+            // 振幅係数 a は `(v0 - r2*x0) / (r1-r2)` の定義どおり。
+            let a = (v0 - r2 * x0) / (r1 - r2);
+            // b は `x0 - a`（差し引き）で求めると、a が x0 に近い値へ
+            // 丸まる入力（例: stiffness=damping=1e18, mass=1 で a が -1
+            // に丸まり b=0 になる）で桁落ちし、`at(0).velocity` が本来の
+            // 初速度 v0 を再現しない（イシュー #2426 レビュー指摘）。
+            // 初期条件 a+b=x0, a*r1+b*r2=v0 を b について直接解いた
+            // `b = (r1*x0 - v0) / (r1-r2)` を使うことで、差し引きによる
+            // 精度損失を経由せず b を求める。
+            let b = (r1 * x0 - v0) / (r1 - r2);
+            if !a.is_finite() || !b.is_finite() {
+                return None;
+            }
+            Region::Overdamped { r1, r2, a, b }
         };
 
         // rest 閾値の 2 段選択（motion.dev のヒューリスティック）:
@@ -338,26 +386,23 @@ impl Spring {
             Region::Underdamped {
                 omega_d,
                 zeta_omega0,
+                b,
             } => {
                 let decay = (-zeta_omega0 * t).exp();
                 let (sin, cos) = (omega_d * t).sin_cos();
-                let b = (self.v0 + zeta_omega0 * self.x0) / omega_d;
                 let x = decay * (self.x0 * cos + b * sin);
                 // 解析微分: x' = -ζω0·x + decay·(-x0·ωd·sin + b·ωd·cos)
                 let v = -zeta_omega0 * x + decay * omega_d * (-self.x0 * sin + b * cos);
                 (x, v)
             }
-            Region::Critical { omega0 } => {
+            Region::Critical { omega0, c } => {
                 let decay = (-omega0 * t).exp();
-                let c = self.v0 + omega0 * self.x0;
                 let x = decay * (self.x0 + c * t);
                 // 解析微分: x' = -ω0·decay·(x0 + c·t) + decay·c = -ω0·x + decay·c
                 let v = -omega0 * x + decay * c;
                 (x, v)
             }
-            Region::Overdamped { r1, r2 } => {
-                let a = (self.v0 - r2 * self.x0) / (r1 - r2);
-                let b = self.x0 - a;
+            Region::Overdamped { r1, r2, a, b } => {
                 let e1 = (r1 * t).exp();
                 let e2 = (r2 * t).exp();
                 let x = a * e1 + b * e2;
@@ -773,7 +818,7 @@ mod tests {
             mass: 1.0,
         };
         let spring = Spring::new(config, 0.0, 1.0, 0.0).unwrap();
-        let Region::Overdamped { r1, r2 } = spring.region else {
+        let Region::Overdamped { r1, r2, .. } = spring.region else {
             panic!("expected Overdamped region");
         };
         assert!(r1.is_finite() && r1 < 0.0, "r1={r1}");
@@ -831,5 +876,45 @@ mod tests {
         let config = SpringConfig::from_duration_bounce(0.5, 0.3, 0.0, 1e-200);
         assert!(config.damping.is_finite() && config.damping > 0.0);
         assert!(approx(config.damping_ratio(), 0.7, 1e-6));
+    }
+
+    #[test]
+    fn new_rejects_overdamped_root_overflow() {
+        // PR #2426 codex レビュー指摘の回帰確認（1件目）:
+        // stiffness=1, damping=1e200, mass=1e-200 は omega0=1e100・
+        // zeta+disc≈1e300 となり、r1=-omega0/(zeta+disc) は有限だが
+        // r2=-omega0*(zeta+disc) は積 1e400 が -Inf へオーバーフローする。
+        // 以前は r1/r2 の有限性を検証しないまま Region::Overdamped を
+        // 構築し、at(0) が NaN を返していた。表現不能な組み合わせは
+        // Spring::new が構築時に None として拒否しなければならない。
+        let config = SpringConfig {
+            stiffness: 1.0,
+            damping: 1e200,
+            mass: 1e-200,
+        };
+        assert!(Spring::new(config, 0.0, 1.0, 0.0).is_none());
+    }
+
+    #[test]
+    fn overdamped_b_matches_initial_velocity_without_cancellation() {
+        // PR #2426 codex レビュー指摘の回帰確認（2件目）:
+        // b を `x0 - a`（差し引き）で求めると、stiffness=damping=1e18,
+        // mass=1 のように a が -1 へ丸まる入力で b が 0 に桁落ちし、
+        // at(0).velocity が指定した初速度 0 を再現できない
+        // （実際には 1 を返していた）。b を初期条件から直接
+        // `(r1*x0 - v0) / (r1-r2)` で解くことで、この桁落ちを避ける。
+        let config = SpringConfig {
+            stiffness: 1e18,
+            damping: 1e18,
+            mass: 1.0,
+        };
+        let spring = Spring::new(config, 0.0, 1.0, 0.0).unwrap();
+        let s0 = spring.at(0.0);
+        assert!(
+            approx(s0.velocity, 0.0, 1e-6),
+            "at(0).velocity should reproduce the initial velocity 0, got {}",
+            s0.velocity
+        );
+        assert!(approx(s0.value, 0.0, 1e-9), "at(0).value={}", s0.value);
     }
 }
