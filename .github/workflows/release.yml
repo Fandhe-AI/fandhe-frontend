@@ -71,6 +71,7 @@ on:
           - fandhe-frontend-cli
           - fandhe-frontend-headless-ui
           - fandhe-frontend-pre-styled-ui
+          - fandhe-animation
       version:
         description: "公開しようとするバージョン（例: 0.1.1）。crate の Cargo.toml の version と完全一致する必要がある"
         type: string

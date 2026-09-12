@@ -62,6 +62,16 @@ fn check_core_deps_passes_for_real_workspace_and_reports_fandhe_frontend_core() 
         }),
         "fandhe-frontend-core の 1 行サマリ（result=PASS）が stdout に見つからない: {stdout}"
     );
+    // イシュー #2372: fandhe-animation を ZERO_DEP_CRATES へ追加した際の
+    // 定数陳腐化を fail-closed に検知する（`crates/xtask/src/check_deps.rs` 参照）。
+    assert!(
+        stdout.lines().any(|line| {
+            line.starts_with("core-deps-check: ")
+                && line.contains("package=fandhe-animation")
+                && line.contains("result=PASS")
+        }),
+        "fandhe-animation の 1 行サマリ（result=PASS）が stdout に見つからない: {stdout}"
+    );
 }
 
 #[test]

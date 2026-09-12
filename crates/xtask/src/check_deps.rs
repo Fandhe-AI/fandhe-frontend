@@ -81,7 +81,16 @@ pub const MAX_DEPTH: usize = 6;
 /// `fandhe-frontend-interactive`（TASK-11.1b、`interactive/`）は workspace に参加済み。
 /// [`fetch_zero_dep_targets`] が `cargo metadata` の `workspace_members` との
 /// 積集合を取るため、追加後は CI 変更なしで自動的に検証対象へ入っている。
-pub const ZERO_DEP_CRATES: &[&str] = &["fandhe-frontend-core", "fandhe-frontend-interactive"];
+///
+/// `fandhe-animation`（イシュー #2371/#2372、`crates/animation/`）はアニメーション
+/// 演算基幹クレートで `[dependencies]` を持たず（`#![forbid(unsafe_code)]` も設定済み）、
+/// `docs/design/animation-core-architecture.md` §5 が外部依存ゼロ・`fandhe-frontend-*`
+/// 非依存を設計契約として定めているため本リストへ追加する。
+pub const ZERO_DEP_CRATES: &[&str] = &[
+    "fandhe-frontend-core",
+    "fandhe-frontend-interactive",
+    "fandhe-animation",
+];
 
 /// `cargo metadata` の `resolve.nodes[].deps[].dep_kinds[].kind` に対応する依存種別。
 ///

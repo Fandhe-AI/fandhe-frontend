@@ -11,7 +11,8 @@ name: deps-check
 # さらにイシュー #154（REQ-3 受け入れ基準 1）で、`check-deps`（60/6 判定）とは独立に
 # `check-core-deps` ゲートを追加する。`check-deps --package fandhe-frontend-core` は「60 件以内」を
 # 見るのみで「ゼロであること」自体は強制しない。`check-core-deps` は
-# `check_deps::ZERO_DEP_CRATES`（fandhe-frontend-core / fandhe-frontend-interactive）について
+# `check_deps::ZERO_DEP_CRATES`（fandhe-frontend-core / fandhe-frontend-interactive /
+# fandhe-animation。fandhe-animation はイシュー #2372 で追加）について
 # Normal/Dev/Build すべての辺を対象に外部依存 0 件を専用ゲートとして強制する。
 #
 # しきい値運用の原則:
@@ -48,6 +49,8 @@ name: deps-check
 #   あり REQ-3 の対象と判断する。実測: headless-ui packages=2/60 depth=2/6（PASS）、
 #   pre-styled-ui packages=3/60 depth=3/6（PASS）。計測対象は 5 → 7 パッケージへ拡張
 #   （詳細は docs/policy/dependency-graph-policy.md 第 4 節参照）。
+#   イシュー #2372 で fandhe-animation（crates/animation/、外部依存ゼロ）を計測対象に
+#   追加した。実測: packages=0/60 depth=0/6（PASS）。計測対象は 7 → 8 パッケージへ拡張。
 # - `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace
 #   メンバーの積集合を xtask 内部で自動解決する（`fandhe-frontend-interactive` 追加時も
 #   ワークフロー変更は不要）。
@@ -105,7 +108,7 @@ jobs:
         # 一致しなくなる（fail-closed の前提が崩れる）ため必須。
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- check-deps --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui | tee deps-check.log
+          cargo run --locked -p xtask -- check-deps --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui --package fandhe-animation | tee deps-check.log
 
       - name: Publish deps-check summary
         if: always()
@@ -169,7 +172,7 @@ jobs:
         if: always()
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- list-build-scripts --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui | tee build-scripts.log
+          cargo run --locked -p xtask -- list-build-scripts --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui --package fandhe-animation | tee build-scripts.log
 
       - name: Publish build-scripts summary
         if: always()
