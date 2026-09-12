@@ -389,18 +389,42 @@ impl Spring {
                 b,
             } => {
                 let decay = (-zeta_omega0 * t).exp();
-                let (sin, cos) = (omega_d * t).sin_cos();
-                let x = decay * (self.x0 * cos + b * sin);
-                // 解析微分: x' = -ζω0·x + decay·(-x0·ωd·sin + b·ωd·cos)
-                let v = -zeta_omega0 * x + decay * omega_d * (-self.x0 * sin + b * cos);
-                (x, v)
+                // decay が 0 まで下振れした時点で以後は収束済み（x=v=0）として
+                // 扱い、sin_cos への以後の計算を行わない。`t` が極端に大きい
+                // 場合（例: t=1e308）は `omega_d * t` 自体が Inf へオーバー
+                // フローし sin_cos(Inf) が NaN を返すため、`decay` が先に
+                // 0 へ下振れするこの時点で打ち切ることで NaN の伝播を防ぐ
+                // （イシュー #2426 レビュー指摘）。
+                if decay == 0.0 {
+                    (0.0, 0.0)
+                } else {
+                    let (sin, cos) = (omega_d * t).sin_cos();
+                    // decay を先に係数へ掛けてから t 依存の三角関数と合成する
+                    // （`decay * (self.x0 * cos + b * sin)` の順だと桁は変わら
+                    // ないが、下記 Critical と同型の安定化のため統一する）。
+                    let x = decay * self.x0 * cos + decay * b * sin;
+                    // 解析微分: x' = -ζω0·x + decay·(-x0·ωd·sin + b·ωd·cos)
+                    let v = -zeta_omega0 * x + decay * omega_d * (-self.x0 * sin + b * cos);
+                    (x, v)
+                }
             }
             Region::Critical { omega0, c } => {
                 let decay = (-omega0 * t).exp();
-                let x = decay * (self.x0 + c * t);
-                // 解析微分: x' = -ω0·decay·(x0 + c·t) + decay·c = -ω0·x + decay·c
-                let v = -omega0 * x + decay * c;
-                (x, v)
+                if decay == 0.0 {
+                    (0.0, 0.0)
+                } else {
+                    // `self.x0 + c * t` を先に評価すると、`x0`/`c` が極端に
+                    // 大きい値（例: 1e308）のとき decay 適用前に和が f64 の
+                    // 表現範囲を超えて Inf になり、`decay * Inf` が Inf/NaN
+                    // を返してしまう（イシュー #2426 レビュー指摘）。
+                    // decay を先に `c` へ掛けてから `t` を掛けることで、
+                    // 各中間項を decay 分だけ縮小してから合成し、最終的に
+                    // 表現可能な値であれば途中でオーバーフローしない。
+                    let x = decay * self.x0 + (decay * c) * t;
+                    // 解析微分: x' = -ω0·decay·(x0 + c·t) + decay·c = -ω0·x + decay·c
+                    let v = -omega0 * x + decay * c;
+                    (x, v)
+                }
             }
             Region::Overdamped { r1, r2, a, b } => {
                 let e1 = (r1 * t).exp();
@@ -409,6 +433,17 @@ impl Spring {
                 let v = a * r1 * e1 + b * r2 * e2;
                 (x, v)
             }
+        };
+        // 上記の安定化後もなお中間演算が f64 の表現範囲を超えうる極端な入力
+        // （decay が 0 まで下振れしていない段階で `t` 依存項が桁あふれする
+        // 組み合わせ）に対する最終防御。`Spring::new` は t=0 時点の係数の
+        // 有限性しか検証できないため、`at()` 呼び出し時に非有限値を検出
+        // したら呼び出し元へ伝播させず収束済み相当（x=v=0）へ丸める
+        // （イシュー #2426 レビュー指摘）。
+        let (x, v) = if x.is_finite() && v.is_finite() {
+            (x, v)
+        } else {
+            (0.0, 0.0)
         };
 
         let value = self.to + x;
@@ -916,5 +951,39 @@ mod tests {
             s0.velocity
         );
         assert!(approx(s0.value, 0.0, 1e-9), "at(0).value={}", s0.value);
+    }
+
+    #[test]
+    fn at_avoids_overflow_in_critical_region_with_extreme_displacement() {
+        // PR #2426 codex レビュー P1 指摘の回帰確認: stiffness=1, damping=2,
+        // mass=1（ζ=1、Region::Critical）で from=1e308, to=0 のとき、
+        // 構築時の係数 `c` 自体は有限でも `at()` 内部で `c * t` を先に
+        // 評価すると表現範囲を超えて Inf になり、decay を掛けても
+        // NaN/Inf が伝播していた。decay を先に適用する安定化後は
+        // value/velocity が共に有限であること。
+        let config = SpringConfig {
+            stiffness: 1.0,
+            damping: 2.0,
+            mass: 1.0,
+        };
+        let spring = Spring::new(config, 1e308, 0.0, 0.0).unwrap();
+        let state = spring.at(2.0);
+        assert!(state.value.is_finite(), "value={}", state.value);
+        assert!(state.velocity.is_finite(), "velocity={}", state.velocity);
+    }
+
+    #[test]
+    fn at_avoids_nan_in_underdamped_region_at_extreme_time() {
+        // PR #2426 codex レビュー P1 指摘の回帰確認: 既定パラメータ
+        // （Region::Underdamped）でも `at(1e308)` は `omega_d * t` が Inf へ
+        // オーバーフローし sin_cos(Inf) が NaN を返すため、以前は
+        // value/velocity が NaN になっていた。decay が 0 まで下振れした
+        // 時点で sin_cos の計算自体を打ち切る安定化後は、収束済み
+        // （done かつ value == to）を返すこと。
+        let spring = Spring::new(SpringConfig::default(), 1.0, 0.0, 0.0).unwrap();
+        let state = spring.at(1e308);
+        assert!(state.value.is_finite(), "value={}", state.value);
+        assert!(state.velocity.is_finite(), "velocity={}", state.velocity);
+        assert!(state.done);
     }
 }
