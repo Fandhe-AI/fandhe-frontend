@@ -434,7 +434,8 @@ impl Spring {
 
     /// 時刻 `t`（秒）における値・速度・収束済みかを返す。
     ///
-    /// `t` が負・NaN の場合は `t = 0.0` として扱う。収束判定は
+    /// `t` が負・NaN の場合は `t = 0.0` として扱い、`+∞` は収束済み状態
+    /// （`at(1e308)` と同じ）を返す。収束判定は
     /// `|to - value| <= rest_delta && |velocity| <= rest_speed` の
     /// AND 条件（motion.dev と同一）。片方のみでは「目標を高速通過中」や
     /// 「遠方で静止中」を誤って完了扱いにしてしまうため両方を要求する。
@@ -442,7 +443,10 @@ impl Spring {
     /// `0.0` にスナップする（残差を後続フレームへ漏らさず、#2381 の
     /// `linear()` 末尾値が正確に 1 になる契約を満たすため）。
     pub fn at(&self, t: f64) -> SpringState {
-        let t = if t.is_finite() && t > 0.0 { t } else { 0.0 };
+        // 負・NaN は t=0 へ丸める。`+∞` はそのまま通す: `Spring::new` が
+        // `damping >= MIN_PARAM` を保証するため全 region で decay が 0 に
+        // なり、`at(1e308)` と同じく収束済み状態を返す（PR #2426 Bugbot 指摘）。
+        let t = if t.is_nan() || t <= 0.0 { 0.0 } else { t };
         let (x, v) = match self.region {
             Region::Underdamped {
                 omega_d,
@@ -551,6 +555,22 @@ mod tests {
     }
 
     // --- 物理パラメータ系 ---
+
+    #[test]
+    fn at_positive_infinity_returns_rest_state_in_all_regions() {
+        for damping in [5.0, 20.0, 40.0] {
+            let config = SpringConfig {
+                stiffness: 100.0,
+                damping,
+                mass: 1.0,
+            };
+            let spring = Spring::new(config, 0.0, 100.0, 3.0).unwrap();
+            let s = spring.at(f64::INFINITY);
+            assert!(s.done, "damping={damping}");
+            assert_eq!(s.value, 100.0);
+            assert_eq!(s.velocity, 0.0);
+        }
+    }
 
     #[test]
     fn at_zero_returns_initial_state_in_all_regions() {
