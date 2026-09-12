@@ -196,6 +196,34 @@ pub fn linear(t: f64) -> f64 {
     t
 }
 
+/// 種類の異なる easing を同じ列へ格納するための値型。
+///
+/// `keyframes`（#2376）が区間ごとに異なる easing を保持する際に使う。
+/// `Box<dyn Fn>` は `Clone`/`Debug`/`PartialEq` を失うため採らず、既存の
+/// 具象型（[`CubicBezier`]/[`Steps`]）を列挙する enum とする。
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum Easing {
+    /// 恒等イージング（[`linear`] 相当）。
+    #[default]
+    Linear,
+    /// [`CubicBezier`] へ委譲する。
+    CubicBezier(CubicBezier),
+    /// [`Steps`] へ委譲する。
+    Steps(Steps),
+}
+
+impl Easing {
+    /// `t` を対応する easing で評価する。clamp・NaN 処理は委譲先に従う
+    /// （`Linear` は [`linear`] と同じく clamp しない）。
+    pub fn evaluate(&self, t: f64) -> f64 {
+        match self {
+            Self::Linear => linear(t),
+            Self::CubicBezier(bezier) => bezier.evaluate(t),
+            Self::Steps(steps) => steps.evaluate(t),
+        }
+    }
+}
+
 /// `easing` を `t = i / (n - 1)`（`i = 0..n`）で等間隔に `n` 点サンプリングする。
 ///
 /// `n < 2` は両端を含む区間分割が定義できないため空の `Vec` を返す。
@@ -329,5 +357,24 @@ mod tests {
         assert_eq!(bezier.evaluate(0.37), bezier.evaluate(0.37));
         let steps = Steps::new(6, StepPosition::JumpBoth).unwrap();
         assert_eq!(steps.evaluate(0.42), steps.evaluate(0.42));
+    }
+
+    #[test]
+    fn easing_enum_delegates_to_variants() {
+        assert_eq!(Easing::Linear.evaluate(0.3), linear(0.3));
+
+        let bezier = CubicBezier::EASE_IN_OUT;
+        assert_eq!(
+            Easing::CubicBezier(bezier).evaluate(0.5),
+            bezier.evaluate(0.5)
+        );
+
+        let steps = Steps::new(4, StepPosition::JumpEnd).unwrap();
+        assert_eq!(Easing::Steps(steps).evaluate(0.3), steps.evaluate(0.3));
+    }
+
+    #[test]
+    fn easing_default_is_linear() {
+        assert_eq!(Easing::default(), Easing::Linear);
     }
 }
