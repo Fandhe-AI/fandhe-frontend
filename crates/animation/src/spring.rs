@@ -449,13 +449,15 @@ impl Spring {
         // 組み合わせ）でオーバーフローしうる（イシュー #2426 レビュー
         // 指摘: x/v 単体の有限性だけでは検出できない）。ここでも非有限値を
         // 呼び出し元へ伝播させず、表現不能な変位は「目標へ到達済み」
-        // （x=0 相当）へ丸める。
+        // （x=0 相当）へ丸める。ただし速度まで 0 に潰すと、この丸めが
+        // オーバーシュートのピーク付近で発生した場合に `done` 判定
+        // （`(to - value).abs() <= rest_delta && v.abs() <= rest_speed`）
+        // を誤って満たしてしまい、後続サンプルで再び `done: false` に
+        // 戻る「settle_duration が実際の静止時刻ではなくこのピークを
+        // 返す」不具合を招く（イシュー #2426 Bugbot 指摘）。速度はここで
+        // ゼロ化せず実測値のまま残し、done 判定の速度側で自然に弾く。
         let value = self.to + x;
-        let (value, v) = if value.is_finite() {
-            (value, v)
-        } else {
-            (self.to, 0.0)
-        };
+        let value = if value.is_finite() { value } else { self.to };
         let done = (self.to - value).abs() <= self.rest_delta && v.abs() <= self.rest_speed;
         if done {
             SpringState {
@@ -997,6 +999,12 @@ mod tests {
         let state = spring.at(3.1455270228880017);
         assert!(state.value.is_finite(), "value={}", state.value);
         assert!(state.velocity.is_finite(), "velocity={}", state.velocity);
+        // イシュー #2426 Bugbot 指摘の回帰確認: `to + x` のオーバーフロー
+        // 丸めで速度まで 0 化すると、実際は速度が rest_speed を大幅に
+        // 超えるオーバーシュートのピークなのに `done: true` を誤って返して
+        // しまう。速度は丸めずに残すべきで、この極端な入力では依然として
+        // 巨大（rest_speed 超）なので done は false のままであること。
+        assert!(!state.done, "state={:?}", state);
     }
 
     #[test]
