@@ -603,3 +603,56 @@ codex-review 導入前は「バンプ PR 内では lock を更新せず、公開
 stale lock を P1 として検知するようになったため、**同時公開フローを既定の
 選択肢とする**。後続 PR への先送りは、codex-review の P1 判定が何らかの理由で
 効かない場合（例: 一時的な codex-review 停止時）に限る例外的経路として残す。
+
+## 11. 新規クレートの CI 組み込み・初回公開チェックリスト（イシュー #2372）
+
+`fandhe-animation`（#2371/#2372）を初例として、新規クレート `<crate>`（ディレクトリ
+`crates/<dir>/`）を CI・依存グラフ運用へ組み込み、crates.io へ初回公開するまでの
+再利用可能な手順を記す。`fandhe-frontend-animation`（#2417）は本節をそのまま流用する。
+
+### A. CI 組み込み（組み込み PR で行う）
+
+1. **依存グラフ計測**: `<crate>` が REQ-3 対象（サーバー構成へ組み込まれ得るライブラリ
+   crate）であれば `.github/workflows/deps-check.yml` の `check-deps`/`list-build-scripts`
+   の `run:` へ `--package <crate>` を追加する。wasm クライアント crate は
+   `docs/policy/dependency-graph-policy.md` §4「WASM クライアントクレートのスコープ」の
+   対象外判断に従う。
+2. **外部依存ゼロ契約**（該当する場合のみ）: `crates/xtask/src/check_deps.rs` の
+   `ZERO_DEP_CRATES` へ `<crate>` を追加し、`crates/xtask/tests/cli_check_core_deps.rs` に
+   `package=<crate>` かつ `result=PASS` の 1 行サマリ存在 assert を追加する（定数陳腐化の
+   fail-closed 固定）。
+3. **release.yml**: `crate` input の `options` へ `<crate>` を追加する。依存先を持つ場合は
+   依存順の注意コメントを追記する（`fandhe-frontend-pre-styled-ui` の先例参照）。
+4. **unsafe 境界**: `docs/policy/unsafe-boundary.md` §2 の表へ 1 行追加する。
+   `#![forbid(unsafe_code)]`（外部依存ゼロ・FFI 境界なし）なら「`forbid-unsafe` ジョブが
+   自動検証」と書けば足りる。wasm-bindgen 境界を持つ crate（deny 域候補）は
+   `crates/core/tests/unsafe_boundary.rs` の `DENY_UNSAFE_FFI_MEMBERS` への登録が必要。
+5. **依存グラフポリシー**: `docs/policy/dependency-graph-policy.md` §4 へ実測値付きで
+   追加する。
+6. **CLAUDE.md**: 公開状況（未公開／公開済み）を記載する。
+
+### B. 自動的に対象へ入るため作業不要（確認のみ）
+
+- `forbid-unsafe` ジョブ（`crates/core/tests/unsafe_boundary.rs` の `workspace_members()` が
+  `crates/*` glob を展開するため、safe 域クレートは追加時点で自動検証対象）
+- `cargo check`/`cargo test --workspace`・`fw gate`（`structure.toml` の `[directories.<name>]`
+  有効化が前提）
+- `version-bump-guard`・`dep-version-check`（いずれも `cargo metadata` からの動的導出）
+- `deny.toml`（workspace 全体適用）
+- `ci-complete`/ruleset（新規 CI ジョブを追加しない限り更新不要）
+
+### C. 初回公開手順
+
+1. 組み込み PR（A の変更）を main へマージする。
+2. `release.yml` を `crate=<crate>` / `version=<Cargo.toml と一致>` / `mode=dry-run-only`
+   で実行し green を確認する。
+3. 依存順（`<crate>` の依存先がすべて sparse index に反映済みであること）を確認する。
+4. `mode=publish` を明示選択して実行する（承認境界不変・自動化しない）。
+5. `https://index.crates.io/<index-path>` で反映を確認する。
+6. 以後 `version-bump-guard` が実効化するため、次回以降の実体変更 PR は
+   `.claude/rules/coding-rust.md` の通常運用（+1 バンプ、必要なら
+   `cargo run -p xtask -- check-dep-versions --fix`）へ移行する。
+7. `CLAUDE.md` の公開状況を後続 PR で更新する。
+
+**`fandhe-animation` の実施状況（#2372 時点）**: A は本 PR で完了。B は確認済み
+（追加のジョブ・テスト変更は不要と確認した）。C は未実施（実公開は本 PR のスコープ外）。

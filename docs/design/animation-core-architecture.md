@@ -206,6 +206,9 @@ JS/React・wgpu 等のアダプタは `fandhe-frontend-animation` と同列の�
 含まれていない。計測対象への追加要否・実測値の反映は本文書のスコープ外とし、#2372（`fandhe-animation` を CI・依存グラフ
 運用へ組み込む）が担う。
 
+実測（#2372、`xtask check-deps --package fandhe-animation`）: `fandhe-animation` packages=0/60 depth=0/6 PASS。
+上表の試算と一致した（`docs/policy/dependency-graph-policy.md` §10 参照）。
+
 ## 8. Phase 1 実装 issue 分解案（起票済み）
 
 `docs/design/wasm-full-feature-gating-evaluation.md` §13 の表形式を踏襲し、本文書の各設計節と既存の起票済み issue を
