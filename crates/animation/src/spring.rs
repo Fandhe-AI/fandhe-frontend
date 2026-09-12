@@ -434,20 +434,45 @@ impl Spring {
 
     /// 時刻 `t`（秒）における値・速度・収束済みかを返す。
     ///
-    /// `t` が負・NaN の場合は `t = 0.0` として扱い、`+∞` は収束済み状態
-    /// （`at(1e308)` と同じ）を返す。収束判定は
-    /// `|to - value| <= rest_delta && |velocity| <= rest_speed` の
-    /// AND 条件（motion.dev と同一）。片方のみでは「目標を高速通過中」や
-    /// 「遠方で静止中」を誤って完了扱いにしてしまうため両方を要求する。
+    /// `t` が負・NaN の場合は `t = 0.0` として扱う。`t >= MAX_SETTLE_DURATION`
+    /// （上限到達）は強制収束として扱い、`+∞` も含めて収束済み状態を返す
+    /// （motion.dev の `maxGeneratorDuration` 到達時と同じ「目標へ終端する」
+    /// 挙動。PR #2426 Bugbot 指摘: 実用上 10 秒経っても収束しない設定
+    /// （例: stiffness=1, damping=1, mass=1, 移動量 1000）は
+    /// `settle_duration()` が `MAX_SETTLE_DURATION` を返すにもかかわらず
+    /// `at(MAX_SETTLE_DURATION).done` が false のままだと、
+    /// `settle_duration()` の返す時刻で必ず `done` になるという契約が
+    /// 崩れる）。
+    ///
+    /// 収束判定は瞬時値ではなく**包絡線**（以後どの時刻でも `|x|` を上から
+    /// 抑える振幅の上限）で行う: `envelope(t) <= rest_delta &&
+    /// |velocity| <= rest_speed`。motion.dev は瞬時値 `|x(t)| <= rest_delta`
+    /// の AND 判定だが、ωd が `rest_speed`/`rest_delta` 比に対し小さい
+    /// 柔らかいばねでは、ゼロ交差の瞬間に瞬時値・速度の両方がたまたま
+    /// 閾値内へ収まり、その直後のピークが `rest_delta` を再び超えるにも
+    /// かかわらず `done=true` を返してしまう（PR #2426 Bugbot 指摘）。
+    /// `envelope(t) <= rest_delta` はこの時刻以降どの `t'` でも
+    /// `|x(t')| <= envelope(t) <= rest_delta` を構造的に保証するため、
+    /// 振動途中でのこの早期終了が起こらない。
     /// `done == true` のとき `value` は `to` に完全一致し `velocity` は
     /// `0.0` にスナップする（残差を後続フレームへ漏らさず、#2381 の
     /// `linear()` 末尾値が正確に 1 になる契約を満たすため）。
     pub fn at(&self, t: f64) -> SpringState {
-        // 負・NaN は t=0 へ丸める。`+∞` はそのまま通す: `Spring::new` が
-        // `damping >= MIN_PARAM` を保証するため全 region で decay が 0 に
-        // なり、`at(1e308)` と同じく収束済み状態を返す（PR #2426 Bugbot 指摘）。
+        // 負・NaN は t=0 へ丸める。
         let t = if t.is_nan() || t <= 0.0 { 0.0 } else { t };
-        let (x, v) = match self.region {
+        // 上限到達（`+∞` を含む）は強制収束として扱う（PR #2426 Bugbot
+        // 指摘）。`Spring::new` が `damping >= MIN_PARAM` を保証するため
+        // 数学的には decay が 0 に近づく時刻だが、値そのものは意図的に
+        // 参照せず一律 `to`/`0.0` へスナップする（「上限到達」と「真の
+        // 収束」を同じ終端状態として扱う設計）。
+        if t >= MAX_SETTLE_DURATION {
+            return SpringState {
+                value: self.to,
+                velocity: 0.0,
+                done: true,
+            };
+        }
+        let (x, v, envelope) = match self.region {
             Region::Underdamped {
                 omega_d,
                 zeta_omega0,
@@ -455,13 +480,10 @@ impl Spring {
             } => {
                 let decay = (-zeta_omega0 * t).exp();
                 // decay が 0 まで下振れした時点で以後は収束済み（x=v=0）として
-                // 扱い、sin_cos への以後の計算を行わない。`t` が極端に大きい
-                // 場合（例: t=1e308）は `omega_d * t` 自体が Inf へオーバー
-                // フローし sin_cos(Inf) が NaN を返すため、`decay` が先に
-                // 0 へ下振れするこの時点で打ち切ることで NaN の伝播を防ぐ
-                // （イシュー #2426 レビュー指摘）。
+                // 扱い、sin_cos への以後の計算を行わない（イシュー #2426
+                // レビュー指摘）。
                 if decay == 0.0 {
-                    (0.0, 0.0)
+                    (0.0, 0.0, 0.0)
                 } else {
                     let (sin, cos) = (omega_d * t).sin_cos();
                     // decay を先に係数へ掛けてから t 依存の三角関数と合成する
@@ -470,13 +492,16 @@ impl Spring {
                     let x = decay * self.x0 * cos + decay * b * sin;
                     // 解析微分: x' = -ζω0·x + decay·(-x0·ωd·sin + b·ωd·cos)
                     let v = -zeta_omega0 * x + decay * omega_d * (-self.x0 * sin + b * cos);
-                    (x, v)
+                    // 包絡線: |x(t)| = decay·|x0·cos + b·sin|
+                    //   <= decay·sqrt(x0² + b²)（コーシー・シュワルツ）。
+                    let envelope = decay * (self.x0 * self.x0 + b * b).sqrt();
+                    (x, v, envelope)
                 }
             }
             Region::Critical { omega0, c } => {
                 let decay = (-omega0 * t).exp();
                 if decay == 0.0 {
-                    (0.0, 0.0)
+                    (0.0, 0.0, 0.0)
                 } else {
                     // `self.x0 + c * t` を先に評価すると、`x0`/`c` が極端に
                     // 大きい値（例: 1e308）のとき decay 適用前に和が f64 の
@@ -488,7 +513,10 @@ impl Spring {
                     let x = decay * self.x0 + (decay * c) * t;
                     // 解析微分: x' = -ω0·decay·(x0 + c·t) + decay·c = -ω0·x + decay·c
                     let v = -omega0 * x + decay * c;
-                    (x, v)
+                    // 包絡線: |x(t)| = decay·|x0 + c·t| <= decay·(|x0| + |c|·t)
+                    // （t >= 0 のため三角不等式がそのまま上限になる）。
+                    let envelope = decay * (self.x0.abs() + c.abs() * t);
+                    (x, v, envelope)
                 }
             }
             Region::Overdamped { r1, r2, a, b } => {
@@ -496,7 +524,10 @@ impl Spring {
                 let e2 = (r2 * t).exp();
                 let x = a * e1 + b * e2;
                 let v = a * r1 * e1 + b * r2 * e2;
-                (x, v)
+                // 包絡線: |x(t)| = |a·e1 + b·e2| <= |a|·e1 + |b|·e2
+                // （e1/e2 > 0 のため三角不等式がそのまま上限になる）。
+                let envelope = a.abs() * e1 + b.abs() * e2;
+                (x, v, envelope)
             }
         };
         // `Spring::new` の入力ドメイン境界化（[`MIN_PARAM`]/[`MAX_PARAM`]/
@@ -509,12 +540,12 @@ impl Spring {
         // レビュー指摘）。デバッグビルドでのみ不変条件を検証し、リリース
         // ビルドでは値をそのまま用いる。
         debug_assert!(
-            x.is_finite() && v.is_finite(),
-            "at() produced non-finite x/v: x={x} v={v}"
+            x.is_finite() && v.is_finite() && envelope.is_finite(),
+            "at() produced non-finite x/v/envelope: x={x} v={v} envelope={envelope}"
         );
         let value = self.to + x;
         debug_assert!(value.is_finite(), "at() produced non-finite value: {value}");
-        let done = (self.to - value).abs() <= self.rest_delta && v.abs() <= self.rest_speed;
+        let done = envelope <= self.rest_delta && v.abs() <= self.rest_speed;
         if done {
             SpringState {
                 value: self.to,
@@ -1209,6 +1240,70 @@ mod tests {
             );
             t += 0.25;
         }
+    }
+
+    #[test]
+    fn settle_duration_does_not_terminate_mid_oscillation() {
+        // PR #2426 Bugbot 指摘の回帰確認（指摘 1）: 瞬時値のみでの収束判定
+        // `|x(t)| <= rest_delta && |v(t)| <= rest_speed` は、ωd が
+        // rest_speed/rest_delta 比に対し小さい柔らかいばねでは、ゼロ交差
+        // の瞬間に両条件がたまたま同時成立し、その直後のピークが
+        // rest_delta を再び超えるにもかかわらず done=true を返してしまう
+        // （早期終了）。包絡線判定はこれを構造的に防ぎ、
+        // settle_duration() 以降のどの時刻でも残差が rest_delta を
+        // 超えないことを保証する。
+        let config = SpringConfig {
+            stiffness: 1.0,
+            damping: 0.2,
+            mass: 1.0,
+        };
+        let spring = Spring::new(config, 0.0, 100.0, 0.0).unwrap();
+        let settle = spring.settle_duration();
+        assert!(spring.at(settle).done);
+
+        let mut t = settle;
+        while t <= MAX_SETTLE_DURATION {
+            let state = spring.at(t);
+            assert!(
+                (spring.to - state.value).abs() <= spring.rest_delta,
+                "t={t} value={} to={} rest_delta={}",
+                state.value,
+                spring.to,
+                spring.rest_delta
+            );
+            t += SETTLE_STEP;
+        }
+    }
+
+    #[test]
+    fn settle_duration_forces_convergence_at_max_settle_duration_cap() {
+        // PR #2426 Bugbot 指摘の回帰確認（指摘 2）: stiffness=1, damping=1,
+        // mass=1・移動量 1000 のような「10 秒経ってもまだ動いている」
+        // ばねは、`settle_duration()` が探索上限 `MAX_SETTLE_DURATION`
+        // （収束できず打ち切った旨のフォールバック値）を返すにも
+        // かかわらず、以前は `at(MAX_SETTLE_DURATION).done` が false の
+        // ままだった（スナップ経路が走らず #2381 のサンプル範囲末尾が
+        // 目標からずれる）。`at()` は上限到達を強制収束として扱うため、
+        // `settle_duration()` が返す時刻で必ず `done` になる。
+        let config = SpringConfig {
+            stiffness: 1.0,
+            damping: 1.0,
+            mass: 1.0,
+        };
+        let spring = Spring::new(config, 0.0, 1000.0, 0.0).unwrap();
+        let settle = spring.settle_duration();
+        assert_eq!(settle, MAX_SETTLE_DURATION);
+
+        let after = spring.at(settle);
+        assert!(after.done);
+        assert_eq!(after.value, 1000.0);
+        assert_eq!(after.velocity, 0.0);
+
+        let before = spring.at(settle - SETTLE_STEP);
+        assert!(
+            !before.done,
+            "spring should still be moving just before the cap"
+        );
     }
 
     #[test]
