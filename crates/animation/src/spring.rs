@@ -70,8 +70,14 @@ impl SpringConfig {
         match omega0 {
             Some(omega0) if omega0.is_finite() && omega0 > 0.0 => {
                 let stiffness = omega0 * omega0 * mass;
-                let damping = zeta * 2.0 * (mass * stiffness).sqrt();
-                if stiffness.is_finite() && damping.is_finite() {
+                // `(mass * stiffness).sqrt()` は極端な mass（例: 1e-200）で
+                // 積が浮動小数点の下限を割ってゼロへ丸まり、damping=0 を
+                // 誤って返しうる（イシュー #2426 レビュー指摘）。
+                // sqrt(a·b) = sqrt(a)·sqrt(b) に分解し、それぞれを先に
+                // sqrt してから掛けることで積を直接作らず中間アンダー
+                // フロー（過大な mass では逆にオーバーフロー）を避ける。
+                let damping = zeta * 2.0 * mass.sqrt() * stiffness.sqrt();
+                if stiffness.is_finite() && damping.is_finite() && damping >= 0.0 {
                     return Self {
                         stiffness,
                         damping,
@@ -85,8 +91,12 @@ impl SpringConfig {
     }
 
     /// 減衰比 `ζ = damping / (2·sqrt(stiffness·mass))`。
+    ///
+    /// `sqrt(stiffness·mass)` ではなく `sqrt(stiffness)·sqrt(mass)` の順で
+    /// 計算する（極端な値での積のオーバーフロー/アンダーフローを避ける、
+    /// [`Spring::new`] の同種コメント参照）。
     pub fn damping_ratio(&self) -> f64 {
-        self.damping / (2.0 * (self.stiffness * self.mass).sqrt())
+        self.damping / (2.0 * self.stiffness.sqrt() * self.mass.sqrt())
     }
 }
 
@@ -110,18 +120,28 @@ fn solve_omega0(duration: f64, zeta: f64, velocity: f64) -> Option<f64> {
             (f, df)
         } else {
             // ζ < 1（不足減衰）:
-            // envelope(ω) = SAFE_MIN - ((ζω - v) / (ω·sqrt(1-ζ²)))·e^{-ζωT}
+            // 単位変位（x0=1）の解に対する振幅包絡線は
+            // |x(t)| <= sqrt(x0² + b²)·e^{-ζωt}（b は sin 成分の係数）で
+            // 上から抑えられる。b だけを包絡線として使うと x0² 分（余弦
+            // 成分の寄与）を欠落し偽の根を選びうる（速度がちょうど
+            // ζω に近い入力で b ≈ 0 になり、実際は全く減衰していない
+            // t を「収束済み」と誤認する。イシュー #2426 レビュー指摘）ため
+            // sqrt(1 + b²) を包絡線として使う。
+            // envelope(ω) = SAFE_MIN - sqrt(1 + b²)·e^{-ζωT}
+            //   where b = (ζω - v) / (ω·sqrt(1-ζ²))
             let omega_d_ratio = (1.0 - zeta * zeta).sqrt();
             let e = (-zeta * omega * duration).exp();
-            let a = (zeta * omega - velocity) / (omega * omega_d_ratio);
-            let f = SAFE_MIN - a * e;
+            let b = (zeta * omega - velocity) / (omega * omega_d_ratio);
+            let r = (1.0 + b * b).sqrt();
+            let f = SAFE_MIN - r * e;
             // 数値微分（解析導関数は式が煩雑になるため、固定小刻みの中心差分で
             // 代替する。Newton 法は導関数の厳密性を必要としないため十分）。
             let h = omega * 1e-6 + 1e-9;
             let eval = |w: f64| -> f64 {
                 let e = (-zeta * w * duration).exp();
-                let a = (zeta * w - velocity) / (w * omega_d_ratio);
-                SAFE_MIN - a * e
+                let b = (zeta * w - velocity) / (w * omega_d_ratio);
+                let r = (1.0 + b * b).sqrt();
+                SAFE_MIN - r * e
             };
             let df = (eval(omega + h) - eval(omega - h)) / (2.0 * h);
             (f, df)
@@ -201,8 +221,21 @@ impl Spring {
             return None;
         }
 
-        let omega0 = (stiffness / mass).sqrt();
-        let zeta = damping / (2.0 * (stiffness * mass).sqrt());
+        // `stiffness / mass` や `stiffness * mass` を直接計算すると、両者が
+        // 極端な値（例: 1e200 同士）のとき中間結果がオーバーフローして
+        // Inf・アンダーフローして 0 になり、ζ を偽って算出しうる
+        // （例: stiffness=damping=mass=1e200 は本来 ζ=1 の臨界減衰だが、
+        // stiffness*mass=1e400 が Inf に丸まり ζ=0 の無減衰振動と誤判定
+        // される。イシュー #2426 レビュー指摘）。各項を先に sqrt してから
+        // 掛ける／割ることで積・商を直接作らず中間結果の範囲を抑える。
+        let omega0 = stiffness.sqrt() / mass.sqrt();
+        let zeta = damping / (2.0 * stiffness.sqrt() * mass.sqrt());
+        // 上記の安定化後もなお非有限・非正な結果が出た場合（両方の入力が
+        // sqrt 後もなお表現範囲を超える極端な値等）は、region 選択以降へ
+        // 不正な値を伝播させずここで弾く。
+        if !omega0.is_finite() || omega0 <= 0.0 || !zeta.is_finite() || zeta < 0.0 {
+            return None;
+        }
         let x0 = from - to;
         let v0 = initial_velocity;
 
@@ -584,6 +617,22 @@ mod tests {
     }
 
     #[test]
+    fn from_duration_bounce_settle_duration_respects_nonzero_velocity() {
+        // イシュー #2426 レビュー指摘の回帰確認: 包絡線に変位成分
+        // （sqrt(1+b²)）を含めない実装は、初速がある入力で偽の根
+        // （実際にはほぼ減衰していない ω0）を選び、duration=0.5 秒の
+        // 要求に対し settle_duration が約 5.2 秒（10 倍超）になっていた。
+        let config = SpringConfig::from_duration_bounce(0.5, 0.9, 1.0, 1.0);
+        let spring = Spring::new(config, 0.0, 1.0, 1.0).unwrap();
+        let settle = spring.settle_duration();
+        let ratio = settle / 0.5;
+        assert!(
+            (0.5..=2.0).contains(&ratio),
+            "settle={settle} ratio={ratio} (修正前は ratio≈10.5 だった)"
+        );
+    }
+
+    #[test]
     fn from_duration_bounce_zeta_bounds() {
         let critical = SpringConfig::from_duration_bounce(0.5, 0.0, 0.0, 1.0);
         assert!(approx(critical.damping_ratio(), 1.0, 1e-6));
@@ -616,5 +665,46 @@ mod tests {
         // NaN 入力はフォールバックで既定値を返す。
         let fallback = SpringConfig::from_duration_bounce(f64::NAN, f64::NAN, 0.0, 1.0);
         assert_eq!(fallback, SpringConfig::default());
+    }
+
+    #[test]
+    fn new_avoids_overflow_and_underflow_in_derived_coefficients() {
+        // イシュー #2426 レビュー指摘の回帰確認: stiffness・damping・mass が
+        // 揃って極端な値のとき、`stiffness * mass` を直接計算すると
+        // オーバーフローして Inf に丸まり、本来 ζ=1（臨界減衰）となる
+        // べき入力が ζ=0（無減衰振動、Region::Underdamped）と誤判定
+        // されていた。安定化後は `Region::Critical` と判定され、
+        // at() は有限値を返す。
+        let huge = SpringConfig {
+            stiffness: 1e200,
+            damping: 2e200,
+            mass: 1e200,
+        };
+        assert!(approx(huge.damping_ratio(), 1.0, 1e-6));
+        let spring = Spring::new(huge, 0.0, 1.0, 0.0).unwrap();
+        assert!(matches!(spring.region, Region::Critical { .. }));
+        let s = spring.at(1e-100);
+        assert!(s.value.is_finite() && s.velocity.is_finite());
+
+        // stiffness * mass がアンダーフローしてゼロに丸まる側（tiny 同士）
+        // でも ζ が 0 除算で NaN/Inf にならず、有効な Spring を構築できる。
+        let tiny = SpringConfig {
+            stiffness: 1e-200,
+            damping: 1e-200,
+            mass: 1e-200,
+        };
+        let spring = Spring::new(tiny, 0.0, 1.0, 0.0).unwrap();
+        let s = spring.at(0.0);
+        assert!(s.value.is_finite() && s.velocity.is_finite());
+    }
+
+    #[test]
+    fn from_duration_bounce_avoids_underflow_with_tiny_mass() {
+        // イシュー #2426 レビュー指摘の回帰確認: `(mass * stiffness).sqrt()`
+        // を直接計算すると mass=1e-200 のとき積がアンダーフローしてゼロに
+        // 丸まり、damping=0（無減衰）を誤って返していた。
+        let config = SpringConfig::from_duration_bounce(0.5, 0.3, 0.0, 1e-200);
+        assert!(config.damping.is_finite() && config.damping > 0.0);
+        assert!(approx(config.damping_ratio(), 0.7, 1e-6));
     }
 }
