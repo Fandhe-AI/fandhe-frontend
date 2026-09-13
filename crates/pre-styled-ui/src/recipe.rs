@@ -875,6 +875,22 @@ pub fn transition_declarations_allow_discrete(
 /// [`MotionDuration`] 引数（150/200/300ms の 3 段のみ、より細かい段は
 /// トークン追加を伴うため別 issue）。`start_delay` は CSS 側では表現しない
 /// （YAGNI、必要になれば別 var を追加）。
+///
+/// # 継承と入れ子スコープの注意（未登録カスタムプロパティ）
+///
+/// 本 var は `@property`（`inherits: false`）で登録していない（本クレートは
+/// CSS リテラルの `<` 使用を禁止する不変条件 [`crate::css::is_valid_value`]
+/// を持ち、`syntax: "<integer>"` の登録がこれに抵触するため。加えて
+/// [`crate::theme::Theme::to_css`] は `motion` feature 有無で出力バイトを
+/// 変えないゼロコスト契約〔`tests/motion_zero_cost.rs`〕を持ち、`:root` への
+/// 登録追加はこの契約にも抵触する）。未登録カスタムプロパティは既定で
+/// 継承するため、[`stagger_delay_declaration`] の `var(..., 0)`
+/// フォールバックは「祖先も含めどこにも本 var が設定されていない」場合
+/// にのみ効く。ある stagger コンテナ（`index` を書いた要素）の DOM 部分木に、
+/// 本 var を設定しない別の stagger 消費要素（例: 入れ子の別リスト）を置くと、
+/// 祖先の `index` を意図せず継承する。入れ子コンテキストでは、継承を
+/// 切りたい境界の要素へ [`stagger_index_style`]`(0)` を明示的に書いて
+/// リセットすること（呼び出し側の責務、本モジュール冒頭の設計方針と同じ）。
 #[cfg(feature = "motion")]
 pub const STAGGER_INDEX_VAR: &str = "--fandhe-motion-stagger-index";
 
