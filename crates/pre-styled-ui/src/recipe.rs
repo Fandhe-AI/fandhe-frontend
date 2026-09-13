@@ -2810,7 +2810,17 @@ impl SlotRecipe {
 /// CSS カスタムプロパティで外側から上書き可能にし、`to` では
 /// `translate: none` に戻す（`transform`/`translate` を残したままにすると
 /// `position: fixed` な子孫の包含ブロックを作ってしまうため、
-/// `presence_transition` と同型の判断で終端値をリセットする）。
+/// `presence_transition` と同型の判断で終端値をリセットする）。この
+/// リセットは `animation-fill-mode: backwards`（`both` ではない）と
+/// 組み合わせて初めて成立する: `both` は `to` の値をアニメーション終了後も
+/// animation priority のまま保持し続けるため、`translate: none` へ
+/// 「戻した」つもりの宣言がむしろ恒久的な包含ブロックを固定してしまい、
+/// 後続の hover/state/variant の `opacity` 宣言にも永久に勝ってしまう
+/// （イシュー #2385 PR #2436 のレビュー指摘）。`backwards` は entry
+/// range 到達前（scroll 前）にのみ `from`（不可視）を適用し、range 終了後は
+/// 通常のカスケード値（宣言側で `opacity`/`translate` を指定しなければ
+/// 既定の可視・無変形）へ戻すため、終端リセットと「後続宣言に負ける」
+/// 両方の性質を同時に満たす。
 ///
 /// この recipe 1 個だけの消費のため `@keyframes` を自己完結で持つ。
 /// 2 部品目の消費者が現れた時点で `motion::KEYFRAMES_CSS`（イシュー
@@ -2877,7 +2887,7 @@ impl SlotRecipe {
                 &[
                     decl("animation-name", "fandhe-motion-scroll-reveal"),
                     decl("animation-timing-function", "linear"),
-                    decl("animation-fill-mode", "both"),
+                    decl("animation-fill-mode", "backwards"),
                     decl("animation-timeline", "view()"),
                     decl("animation-range", "entry 0% entry 100%"),
                 ],

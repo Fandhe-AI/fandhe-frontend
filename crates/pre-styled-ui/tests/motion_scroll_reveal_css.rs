@@ -19,7 +19,7 @@ fn scroll_reveal_golden_css() {
     let recipe = SlotRecipe::new("card", &["root"]).scroll_reveal("root");
     assert_eq!(
         recipe.css(),
-        "@supports (animation-timeline: view()) {\n  @keyframes fandhe-motion-scroll-reveal {\n    from {\n      opacity: 0;\n      translate: 0 var(--fandhe-motion-scroll-reveal-distance, 1rem);\n    }\n    to {\n      opacity: 1;\n      translate: none;\n    }\n  }\n\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation-name: fandhe-motion-scroll-reveal;\n    animation-timing-function: linear;\n    animation-fill-mode: both;\n    animation-timeline: view();\n    animation-range: entry 0% entry 100%;\n  }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation: none;\n  }\n}\n"
+        "@supports (animation-timeline: view()) {\n  @keyframes fandhe-motion-scroll-reveal {\n    from {\n      opacity: 0;\n      translate: 0 var(--fandhe-motion-scroll-reveal-distance, 1rem);\n    }\n    to {\n      opacity: 1;\n      translate: none;\n    }\n  }\n\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation-name: fandhe-motion-scroll-reveal;\n    animation-timing-function: linear;\n    animation-fill-mode: backwards;\n    animation-timeline: view();\n    animation-range: entry 0% entry 100%;\n  }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation: none;\n  }\n}\n"
     );
 }
 
