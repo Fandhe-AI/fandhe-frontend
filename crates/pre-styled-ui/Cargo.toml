@@ -3348,8 +3348,9 @@ name = "fandhe-frontend-pre-styled-ui"
 #
 # イシュー #2383: `SlotRecipe::presence_transition`（presence（enter/exit）
 # recipe ヘルパ）を追加した。公開 API 追加のため minor バンプとし、
-# 0.187.0 を +1 した 0.188.0 相当だが、本ブランチ側で 0.188.0 を独立に
-# 予約済みだったため main は 0.189.0 とした。
+# 0.187.0 を +1 した 0.188.0 相当だが、open PR #2433（0.188.0）で既に
+# 予約済みのため 0.189.0 とする（本ブランチ側で独立に 0.188.0 を予約済み
+# だったため、main も同じ理由で 0.189.0 とした）。
 #
 # イシュー #2384: stagger CSS ユーティリティ（`STAGGER_INDEX_VAR`・
 # `stagger_delay_declaration`・`stagger_index_style`・
@@ -3358,8 +3359,8 @@ name = "fandhe-frontend-pre-styled-ui"
 # 無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs` 不変・
 # `tests/motion_stagger_css.rs` は `motion` feature 配下のみコンパイル）。
 # minor バンプ予定だったが、main 側で 0.189.0 が既に使用されたため
-# 0.190.0 とする。本 PR の base 取り込みで双方の実体変更（#2382・#2383・
-# #2384）を統合し、0.190.0 として確定する（0.x の破壊的変更はマイナー
+# 0.190.0 とする。main 側の base 取り込みで双方の実体変更（#2382・#2383・
+# #2384）を統合し、0.190.0 として確定していた（0.x の破壊的変更はマイナー
 # バンプの規約。同一版数への偶発的衝突をそのまま採用しない）。
 #
 # イシュー #2381: spring 近似 `linear()` easing プリセット
@@ -3368,8 +3369,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追加した。`#[cfg(feature = "motion")]` の新規公開 API 純追加であり、
 # 無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs` 不変・
 # `tests/motion_spring_css.rs` は `motion` feature 配下のみコンパイル）。
-# minor バンプとし、0.190.0 を +1 した 0.191.0 とする。
-version = "0.191.0"
+# minor バンプとし、0.190.0 を +1 した 0.191.0 を予定していたが、main 側で
+# イシュー #2385（scroll-driven reveal ユーティリティ、`SlotRecipe::
+# scroll_reveal`）が同じく 0.190.0 を +1 した 0.191.0 を独立に使用済み
+# だったため、双方の実体変更を統合した結果として 0.192.0 へさらにマイナー
+# バンプする（0.x の破壊的変更はマイナーバンプの規約。同一版数への偶発的
+# 衝突をそのまま採用しない）。
+version = "0.192.0"
 
 
 edition = "2021"
@@ -3406,8 +3412,11 @@ optional = true
 # が依存グラフに加わり、spring 近似 `linear()` プリセット等の motion 拡張
 # opt-in API（`impl Theme` の別ブロック。`theme::Theme::push_spring_easing`、
 # イシュー #2381 で実装済み）と共通 `@keyframes` ライブラリ
-# （`motion::KEYFRAMES_CSS`・`Theme::to_css_with_keyframes`、#2382）が
-# 使えるようになる。無効時のゼロコスト契約は `tests/motion_zero_cost.rs` および
+# （`motion::KEYFRAMES_CSS`・`Theme::to_css_with_keyframes`、#2382）、
+# `SlotRecipe::scroll_reveal`（イシュー #2385）等の motion 拡張 opt-in API
+# が使えるようになる。無効時のゼロコスト契約は `tests/motion_zero_cost.rs`・
+# `tests/motion_scroll_reveal_css.rs`（`#![cfg(feature = "motion")]`。
+# 無効時は 0 件実行）および
 # `docs/guides/pre-styled-ui-motion-feature.md` を参照（イシュー #2416）。
 motion = ["dep:fandhe-animation"]
 

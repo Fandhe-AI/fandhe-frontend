@@ -277,6 +277,7 @@ golden テストと異なり、以下の横断テストは通常のスタイル�
 | `motion_spring_css.rs`（イシュー #2381） | `#![cfg(feature = "motion")]` を持つため `--features motion` 指定なしでは 0 件実行（それ自体は正常）。`theme::SPRING_EASING_LINEAR`/`SPRING_DURATION_MS`（`SPRING_SAMPLE_COUNT` 点サンプリング）を変更すると `fandhe-animation` 再計算とのパリティテストが fail する。再生成手順: 失敗メッセージに出力される `linear(...)`/`<n>ms` をそのまま両定数へ転記して再実行（手打ちしない） |
 | `recipe_determinism.rs` | `SlotRecipe` の内部実装に `HashMap`/`HashSet` 等、反復順序が不定な型を持ち込んでいないか |
 | `forms_state_matrix.rs`（イシュー #2195） | Forms 家族（date-picker/combobox/select/color-picker/number-input/rating-group/date-input）の `control`/`clear-trigger` の `data-disabled` opacity 単一階層規則（R1）・`label[data-required]` 非消費（R2）・pin-input/editable `control` の headless 非出力（R3）を崩していないか。正は `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` |
+| `motion_scroll_reveal_css.rs`（イシュー #2385） | `#![cfg(feature = "motion")]` のため `cargo test`（既定 feature）では 0 件実行のまま素通りするのが正常。`cargo test --features motion --test motion_scroll_reveal_css` で実行し、golden 不一致・`@supports` 外への `opacity: 0` 露出・reduced-motion ブロック順序を確認する |
 
 ## 8. 禁止事項
 

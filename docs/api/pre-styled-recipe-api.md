@@ -53,6 +53,11 @@ impl SlotRecipe {
     // base（content_height_open_declarations）・[hidden] state
     // （content_height_closed_declarations）・starting_style（同左）を一括登録する。
     pub fn content_height_transition(self, slot: &'static str, duration: MotionDuration) -> Self;
+    // scroll-driven reveal（`animation-timeline: view()`）。`motion` feature
+    // 配下（既定 off、イシュー #2385/#2416）。非対応ブラウザでは要素が
+    // 常に可視（`@supports (animation-timeline: view())` 内のみに出力）。
+    #[cfg(feature = "motion")]
+    pub fn scroll_reveal(self, slot: &'static str) -> Self;
     pub fn css(&self) -> String;
     pub fn variant_class<V: VariantValue>(&self, v: V) -> String;
     pub fn variant_classes(&self, selection: &[(&str, &str)]) -> String;
@@ -167,9 +172,12 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
     `@media (hover: hover)` へ集約され末尾に回る）→ pseudo-elements
     （登録順、イシュー #2201）→ `@starting-style`（登録順、1 個の
     ブロックへ集約、イシュー #2192）→ `@supports not (height: calc-size(auto,
-    size))`（登録順、1 個のブロックへ集約、イシュー #2192）→ breakpoints
-    （[`Breakpoint`] の昇順、イシュー #2197）→ `@media (hover: hover) { ... }`
-    （`Hover` 系 state が存在する場合のみ、常に出力全体の末尾）
+    size))`（登録順、1 個のブロックへ集約、イシュー #2192）→ `@supports
+    (animation-timeline: view())` + `@media (prefers-reduced-motion: reduce)`
+    （`motion` feature 有効時のみ、`scroll_reveal()` 登録順を 1 個の
+    ブロックへ集約、イシュー #2385）→ breakpoints（[`Breakpoint`] の昇順、
+    イシュー #2197）→ `@media (hover: hover) { ... }`（`Hover` 系 state が
+    存在する場合のみ、常に出力全体の末尾）
 
 ### 4.1 compound variant の上書き保証（2 段）
 
