@@ -34,7 +34,7 @@
 | spring（物理ベースの補間） | C | 実装対象（`fandhe-animation` の演算コア） |
 | keyframes（複数値の時間割） | A（CSS `@keyframes` で表現可能な範囲）/ C（動的生成・spring 混在時） | Phase 2 で共通 `@keyframes` を opt-in 提供（判断記録 2） |
 | timeline / stagger（順序制御・遅延分散） | C | 実装対象（`fandhe-frontend-animation` の調整層） |
-| scroll（スクロール連動） | B（`IntersectionObserver`/scroll イベント購読）/ C（scroll-timeline 相当の連続値が要る場合） | B は wasm-full 配線として実装対象、C は evaluation-only（CSS `animation-timeline: scroll()` を優先検討） |
+| scroll（スクロール連動） | B（`IntersectionObserver`/scroll イベント購読）/ C（scroll-timeline 相当の連続値が要る場合） | B は wasm-full 配線として実装対象、C は evaluation-only（CSS `animation-timeline: scroll()` を優先検討）。CSS 側（`SlotRecipe::scroll_reveal`、#2385、`motion` 配下）実装済み。非対応ブラウザ向け rAF フォールバックは #2407 |
 | inView（ビューポート進入検出） | B | wasm-full の `data-*` 配線として実装対象 |
 | hover（ホバー状態検出） | A（CSS `:hover` で足りる大半のケース） | 既存の pre-styled-ui interaction 言語（#1425）で実装済みの範囲を優先し、追加配線は行わない |
 | press（押下状態検出） | A（CSS `:active` で足りる大半のケース） | 同上 |

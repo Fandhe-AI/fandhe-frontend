@@ -128,8 +128,9 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-pre-styled-ui"
-version = "0.186.0"
+version = "0.190.0"
 dependencies = [
+ "fandhe-animation",
  "fandhe-frontend-core",
  "fandhe-frontend-headless-ui",
  "fandhe-frontend-interactive",

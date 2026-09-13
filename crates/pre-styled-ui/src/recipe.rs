@@ -1507,6 +1507,13 @@ pub struct SlotRecipe {
     /// rustdoc 参照）。
     container_slot: Option<&'static str>,
     containers: Vec<ContainerRule>,
+    /// scroll-driven reveal（`animation-timeline: view()`）を適用する slot
+    /// 群（イシュー #2385）。[`SlotRecipe::scroll_reveal`] で登録する。
+    /// `motion` feature 既定 off ではフィールド自体が存在せず
+    /// `Theme::to_css`/`css()` の処理量・出力に一切影響しない（`tests/
+    /// motion_zero_cost.rs` のゼロコスト契約と同型）。
+    #[cfg(feature = "motion")]
+    scroll_reveal_slots: Vec<&'static str>,
 }
 
 /// [`StateCondition`] 1 個が識別子として妥当かどうかを判定する（内部
@@ -1654,6 +1661,8 @@ impl SlotRecipe {
             breakpoints: Vec::new(),
             container_slot: None,
             containers: Vec::new(),
+            #[cfg(feature = "motion")]
+            scroll_reveal_slots: Vec::new(),
         }
     }
 
@@ -2220,7 +2229,10 @@ impl SlotRecipe {
     /// pseudo-elements（登録順、イシュー #2201）→ `@starting-style`（登録順、
     /// 1 個のブロックへ集約、イシュー #2192）→ `@supports not (height:
     /// calc-size(auto, size))`（登録順、1 個のブロックへ集約、イシュー
-    /// #2192）→ breakpoints（[`Breakpoint`] の昇順、イシュー #2197）→
+    /// #2192）→ `@supports (animation-timeline: view())` + `@media
+    /// (prefers-reduced-motion: reduce)`（`motion` feature 有効時のみ、
+    /// `scroll_reveal()` 登録順を 1 個のブロックへ集約、イシュー #2385）→
+    /// breakpoints（[`Breakpoint`] の昇順、イシュー #2197）→
     /// container query（[`ContainerBreakpoint`] の昇順、`container_slot` が
     /// 有効な場合のみ、イシュー #2199）→ `@media (hover: hover) { ... }`
     /// （`Hover` 系 states が存在する場合のみ、常に出力全体の末尾、イシュー
@@ -2536,6 +2548,11 @@ impl SlotRecipe {
             out.push('\n');
         }
 
+        // scroll-driven reveal（イシュー #2385、`motion` feature 配下）。
+        // `@supports not (height: calc-size(...))` の後・breakpoints の前。
+        #[cfg(feature = "motion")]
+        self.write_scroll_reveal_blocks(&mut out);
+
         // breakpoints は Breakpoint::ALL の昇順（mobile-first、sm → xl）で
         // 1 breakpoint = 1 @media ブロックとして出力する（イシュー #2197、
         // 本関数 rustdoc の出力構造節参照）。pseudo-elements/@starting-style/
@@ -2683,5 +2700,113 @@ impl SlotRecipe {
             }
         }
         classes.join(" ")
+    }
+}
+
+/// scroll-driven reveal（イシュー #2385）専用 `@keyframes` の本文。
+///
+/// [`SlotRecipe::write_scroll_reveal_blocks`] が `@supports
+/// (animation-timeline: view())` ブロック内へインデント付きでそのまま
+/// 埋め込む（呼び出し側から値を差し替える経路は持たない `const` リテラル
+/// のみ、`Declaration::value` の `&'static str` 制約と同じ設計）。
+///
+/// 距離は `--fandhe-motion-scroll-reveal-distance`（既定 `1rem`）という
+/// CSS カスタムプロパティで外側から上書き可能にし、`to` では
+/// `translate: none` に戻す（`transform`/`translate` を残したままにすると
+/// `position: fixed` な子孫の包含ブロックを作ってしまうため、
+/// `presence_transition` と同型の判断で終端値をリセットする）。
+///
+/// この recipe 1 個だけの消費のため `@keyframes` を自己完結で持つ。
+/// 2 部品目の消費者が現れた時点で `motion::KEYFRAMES_CSS`（イシュー
+/// #2382、未マージ）への集約を検討する。
+#[cfg(feature = "motion")]
+const SCROLL_REVEAL_KEYFRAMES_CSS: &str = "@keyframes fandhe-motion-scroll-reveal {\n  from {\n    opacity: 0;\n    translate: 0 var(--fandhe-motion-scroll-reveal-distance, 1rem);\n  }\n  to {\n    opacity: 1;\n    translate: none;\n  }\n}\n";
+
+#[cfg(feature = "motion")]
+impl SlotRecipe {
+    /// `slot` へ scroll-driven reveal（`animation-timeline: view()`）を
+    /// 適用する（builder、自己消費、イシュー #2385）。
+    ///
+    /// `slot` が [`SlotRecipe::new`] で宣言した `slots` に含まれない場合、
+    /// この登録は [`SlotRecipe::css`] の出力から除外される（他の builder
+    /// メソッドと同じ fail-closed 契約、[`SlotRecipe::base`] 参照）。
+    ///
+    /// # プログレッシブエンハンスメント契約
+    ///
+    /// 生成する宣言は必ず `@supports (animation-timeline: view())` の
+    /// 内側にのみ出力される（[`SlotRecipe::write_scroll_reveal_blocks`]
+    /// 参照）。非対応ブラウザは本 `@supports` ブロックごと無視するため、
+    /// 対象要素はレンダリング既定（可視）のまま追加の分岐なしに
+    /// 安全側へ劣化する（受入基準: 非対応ブラウザで常に可視）。
+    ///
+    /// `duration`・`easing`・距離を引数化しないのは YAGNI: scroll timeline
+    /// はスクロール位置に連動するため `duration` は無意味、`easing` は
+    /// `linear` 固定で十分（消費者が現れれば別引数を追加する）、距離は
+    /// CSS カスタムプロパティ（[`SCROLL_REVEAL_KEYFRAMES_CSS`] 参照）で
+    /// 呼び出し側から上書きできる。
+    #[must_use]
+    pub fn scroll_reveal(mut self, slot: &'static str) -> Self {
+        self.scroll_reveal_slots.push(slot);
+        self
+    }
+
+    /// [`SlotRecipe::scroll_reveal`] で登録された slot 群を `@supports
+    /// (animation-timeline: view())` ブロックと `@media
+    /// (prefers-reduced-motion: reduce)` ブロックへ書き出す（内部ヘルパ、
+    /// [`SlotRecipe::css`] から `@supports not (height: calc-size(...))`
+    /// ブロックの直後・breakpoints の直前で呼ばれる）。
+    ///
+    /// # reduced-motion を個別 `@media` にする理由
+    ///
+    /// scroll-driven なアニメーション（`animation-timeline`/`animation-
+    /// range`）は [`crate::theme::Theme::to_css`] の既定 reduced-motion
+    /// 対応（`duration-*` トークンの 0ms 化）では止められない
+    /// （`duration` を参照しないため）。そのため本ブロックは同じセレクタ
+    /// （詳細度 (0,2,0)、`@supports` ブロックと同一）へ `animation: none`
+    /// を個別に登録し、`@supports` ブロックより**後**に出力することで
+    /// CSS カスケードの記述順後勝ちで確実に無効化する（`animation`
+    /// shorthand は `animation-timeline`/`animation-range` を含む全
+    /// longhand を初期値へ戻す）。
+    fn write_scroll_reveal_blocks(&self, out: &mut String) {
+        let mut supports_inner = String::new();
+        let mut reduced_motion_inner = String::new();
+
+        for slot in &self.scroll_reveal_slots {
+            if !self.is_declared_slot(slot) || !is_valid_identifier(slot) {
+                continue;
+            }
+            let selector = format!("[data-scope=\"{}\"][data-part=\"{}\"]", self.scope, slot);
+            if let Some(css) = serialize_rule(
+                &selector,
+                &[
+                    decl("animation-name", "fandhe-motion-scroll-reveal"),
+                    decl("animation-timing-function", "linear"),
+                    decl("animation-fill-mode", "both"),
+                    decl("animation-timeline", "view()"),
+                    decl("animation-range", "entry 0% entry 100%"),
+                ],
+            ) {
+                supports_inner.push_str(&css);
+                supports_inner.push('\n');
+            }
+            if let Some(css) = serialize_rule(&selector, &[decl("animation", "none")]) {
+                reduced_motion_inner.push_str(&css);
+                reduced_motion_inner.push('\n');
+            }
+        }
+
+        if !supports_inner.is_empty() {
+            let mut inner = String::from(SCROLL_REVEAL_KEYFRAMES_CSS);
+            inner.push('\n');
+            inner.push_str(&supports_inner);
+            write_at_rule_block(out, "@supports (animation-timeline: view())", &inner);
+            out.push('\n');
+        }
+
+        push_media_block(
+            out,
+            "@media (prefers-reduced-motion: reduce)",
+            &reduced_motion_inner,
+        );
     }
 }

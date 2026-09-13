@@ -3331,11 +3331,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既に `push_motion(...)` していた場合、今後 `ThemeError::DuplicateTokenName`
 # を返すようになる観測可能な変更のため（#1422 の先例と同型）minor バンプと
 # し、0.185.3 を +1 した 0.186.0 とする。
-version = "0.186.0"
+#
+# イシュー #2416（Cargo feature `motion` 化、PR #2432 open・未マージ時点で
+# 本 PR が土台を先取り導入）: `motion` feature（既定 off）と optional 依存
+# `fandhe-animation` を追加した。既定 feature では依存グラフに現れず
+# （REQ-3 計測値不変）、`Theme::to_css()` の出力・処理量も無条件で不変。
+# イシュー #2385（scroll-driven reveal ユーティリティ、`SlotRecipe::
+# scroll_reveal`）は `motion` feature 配下の新規公開 API のため minor
+# バンプする。open 状態の兄弟 PR（#2432/#2433/#2434/#2435）が同時に
+# 0.187.0〜0.189.0 へ到達済みのため、衝突を避けて 0.189.0 を +1 した
+# 0.190.0 とする。
+version = "0.190.0"
 
 
 edition = "2021"
-description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
+description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Fandhe-AI/fandhe-frontend"
 readme = "../../README.md"
@@ -3348,6 +3358,28 @@ categories = ["web-programming", "gui"]
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
 fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.69.2" }
+
+# イシュー #2416: motion 拡張（spring 近似・共通 keyframes 等、親 #2379）の
+# 受け入れ土台。`optional = true` のため既定 feature では依存グラフに現れず
+# （`cargo metadata` の既定解決 `resolve.nodes[].deps` に載らない）、
+# `fw structure` の depends_on 完全一致検証の対象外（`structure.toml` の
+# `directories.animation` 節コメント・`crates/wasm-full/Cargo.toml` の
+# `fandhe-frontend-animation` 節と同型の非対称宣言）。`fandhe-animation` は
+# crates.io 未公開（`docs/ci/version-bump-publish-order-gap.md` §11）のため、
+# 本クレートの次回 crates.io 公開は `fandhe-animation` の初回公開が前提となる
+# （`.github/workflows/release.yml` の該当コメント参照）。
+[dependencies.fandhe-animation]
+path = "../animation"
+version = "0.1.0"
+optional = true
+
+[features]
+# 既定 off。有効化すると `fandhe-animation`（外部依存ゼロ・forbid(unsafe_code)）
+# が依存グラフに加わり、`SlotRecipe::scroll_reveal`（イシュー #2385）等の
+# motion 拡張 opt-in API が使えるようになる。無効時のゼロコスト契約は
+# `tests/motion_scroll_reveal_css.rs`（`#![cfg(feature = "motion")]`）が
+# 「無効時は 0 件実行」という形で担う。
+motion = ["dep:fandhe-animation"]
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
