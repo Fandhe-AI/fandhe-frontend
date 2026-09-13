@@ -3331,11 +3331,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既に `push_motion(...)` していた場合、今後 `ThemeError::DuplicateTokenName`
 # を返すようになる観測可能な変更のため（#1422 の先例と同型）minor バンプと
 # し、0.185.3 を +1 した 0.186.0 とする。
-version = "0.186.0"
+#
+# イシュー #2416: motion 拡張（spring 近似 `linear()` プリセット等、親 #2379
+# 配下の Phase 2）を受け入れる土台として、Cargo feature `motion`（既定 off）
+# と optional 依存 `fandhe-animation` を追加した。既定 feature では依存
+# グラフに現れず（REQ-3 計測値不変）、`Theme::to_css()` の出力・処理量も
+# 無条件で不変（`tests/motion_zero_cost.rs` が契約テストとして固定）。
+# 新規公開 API 表面（`[features]` 節）の純追加のため minor バンプし、
+# 0.186.0 を +1 した 0.187.0 とする。
+version = "0.187.0"
 
 
 edition = "2021"
-description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
+description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Fandhe-AI/fandhe-frontend"
 readme = "../../README.md"
@@ -3348,6 +3356,28 @@ categories = ["web-programming", "gui"]
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
 fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.69.2" }
+
+# イシュー #2416: motion 拡張（spring 近似・共通 keyframes 等、親 #2379）の
+# 受け入れ土台。`optional = true` のため既定 feature では依存グラフに現れず
+# （`cargo metadata` の既定解決 `resolve.nodes[].deps` に載らない）、
+# `fw structure` の depends_on 完全一致検証の対象外（`structure.toml` の
+# `directories.animation` 節コメント・`crates/wasm-full/Cargo.toml` の
+# `fandhe-frontend-animation` 節と同型の非対称宣言）。`fandhe-animation` は
+# crates.io 未公開（`docs/ci/version-bump-publish-order-gap.md` §11）のため、
+# 本クレートの次回 crates.io 公開は `fandhe-animation` の初回公開が前提となる
+# （`.github/workflows/release.yml` の該当コメント参照）。
+[dependencies.fandhe-animation]
+path = "../animation"
+version = "0.1.0"
+optional = true
+
+[features]
+# 既定 off。有効化すると `fandhe-animation`（外部依存ゼロ・forbid(unsafe_code)）
+# が依存グラフに加わり、spring 近似 `linear()` プリセット等の motion 拡張
+# opt-in API（`impl Theme` の別ブロック、#2381 以降が実体を追加）が使える
+# ようになる。無効時のゼロコスト契約は `tests/motion_zero_cost.rs` および
+# `docs/guides/pre-styled-ui-motion-feature.md` を参照（イシュー #2416）。
+motion = ["dep:fandhe-animation"]
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

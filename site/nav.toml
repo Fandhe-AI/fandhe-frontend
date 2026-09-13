@@ -58,6 +58,11 @@ title = "wasm-full feature 選択ガイド"
 source = "docs/guides/wasm-full-features.md"
 path = "/guides/wasm-full-features/"
 
+[[section.page]]
+title = "pre-styled-ui motion feature ガイド"
+source = "docs/guides/pre-styled-ui-motion-feature.md"
+path = "/guides/pre-styled-ui-motion-feature/"
+
 [[section]]
 title = "Examples"
 index_path = "/examples/"
