@@ -21,7 +21,7 @@ feature `motion`」節であり、本書はそれを読みやすく再構成し�
 
 ```toml
 [dependencies]
-fandhe-frontend-pre-styled-ui = { version = "0.187", features = ["motion"] }
+fandhe-frontend-pre-styled-ui = { version = "0.188", features = ["motion"] }
 ```
 
 有効化すると `fandhe-animation`（外部依存ゼロ・`forbid(unsafe_code)`、
@@ -92,7 +92,7 @@ CI では `.github/workflows/ci.yml` の `clippy` ジョブが
 `fandhe-animation` は本 issue（#2416）時点で crates.io 未公開です
 （`docs/ci/version-bump-publish-order-gap.md` §11）。`cargo publish` は
 optional 依存であっても registry 上の解決を要求するため、
-`fandhe-frontend-pre-styled-ui` 0.187.0 以降を公開する場合は
+`fandhe-frontend-pre-styled-ui` 0.188.0 以降を公開する場合は
 `fandhe-animation` の初回公開（同文書 §11 C 手順）を先に完了し、
 sparse index への反映を確認してから実行してください
 （`.github/workflows/release.yml` の該当コメント参照）。
