@@ -854,6 +854,94 @@ pub fn transition_declarations_allow_discrete(
     declarations
 }
 
+/// wasm-full（#2397）/ アプリコードが各要素へ書き込む「起点からの距離」
+/// custom property 名（イシュー #2384、`motion` feature 配下）。
+///
+/// # 他クレートとの契約
+///
+/// 値の書き出し手段は 2 通り: (a) SSR/アプリコード側は
+/// [`stagger_index_style`] を `(\"style\", ...)` として core のノード属性へ
+/// 渡す、(b) 動的更新は wasm-full 側（#2397、未実装）が CSSOM で同名の
+/// custom property を書く（[`CONTENT_HEIGHT_VAR`] と同型のドリフト検知契約
+/// 点）。headless の固定 `style` を持つパート（progress circle 系・
+/// positioner）は呼び出し側 `style` を丸ごと上書きするため対象外。
+///
+/// # `fandhe-animation` の `Stagger` との対応
+///
+/// `fandhe_animation::timeline::Stagger::new(each).delay(index, total)`
+/// （`from: First`・`start_delay: 0`）は `each × index` 秒を返す。本 var の
+/// 「距離」は `from: First` の `index` そのもの（`Center`/`Last` は距離を
+/// 呼び出し側が計算して書く）。`each` は [`stagger_delay_declaration`] の
+/// [`MotionDuration`] 引数（150/200/300ms の 3 段のみ、より細かい段は
+/// トークン追加を伴うため別 issue）。`start_delay` は CSS 側では表現しない
+/// （YAGNI、必要になれば別 var を追加）。
+///
+/// # 継承と入れ子スコープの注意（未登録カスタムプロパティ）
+///
+/// 本 var は `@property`（`inherits: false`）で登録していない（本クレートは
+/// CSS リテラルの `<` 使用を禁止する不変条件 [`crate::css::is_valid_value`]
+/// を持ち、`syntax: "<integer>"` の登録がこれに抵触するため。加えて
+/// [`crate::theme::Theme::to_css`] は `motion` feature 有無で出力バイトを
+/// 変えないゼロコスト契約〔`tests/motion_zero_cost.rs`〕を持ち、`:root` への
+/// 登録追加はこの契約にも抵触する）。未登録カスタムプロパティは既定で
+/// 継承するため、[`stagger_delay_declaration`] の `var(..., 0)`
+/// フォールバックは「祖先も含めどこにも本 var が設定されていない」場合
+/// にのみ効く。ある stagger コンテナ（`index` を書いた要素）の DOM 部分木に、
+/// 本 var を設定しない別の stagger 消費要素（例: 入れ子の別リスト）を置くと、
+/// 祖先の `index` を意図せず継承する。入れ子コンテキストでは、継承を
+/// 切りたい境界の要素へ [`stagger_index_style`]`(0)` を明示的に書いて
+/// リセットすること（呼び出し側の責務、本モジュール冒頭の設計方針と同じ）。
+#[cfg(feature = "motion")]
+pub const STAGGER_INDEX_VAR: &str = "--fandhe-motion-stagger-index";
+
+/// `animation-delay: calc(var(--fandhe-motion-stagger-index, 0) * <step>)`
+/// を組み立てる（イシュー #2384）。`step` は [`MotionDuration`] トークン
+/// 参照であり、`prefers-reduced-motion: reduce` 下では
+/// [`crate::theme::Theme::to_css`] の既定出力がトークン自体を 0ms 化する
+/// ため、本宣言は追加の `@media` なしに遅延も消える。
+#[cfg(feature = "motion")]
+#[must_use]
+pub const fn stagger_delay_declaration(step: MotionDuration) -> Declaration {
+    match step {
+        MotionDuration::Fast => decl(
+            "animation-delay",
+            "calc(var(--fandhe-motion-stagger-index, 0) * var(--fandhe-motion-duration-fast))",
+        ),
+        MotionDuration::Normal => decl(
+            "animation-delay",
+            "calc(var(--fandhe-motion-stagger-index, 0) * var(--fandhe-motion-duration-normal))",
+        ),
+        MotionDuration::Slow => decl(
+            "animation-delay",
+            "calc(var(--fandhe-motion-stagger-index, 0) * var(--fandhe-motion-duration-slow))",
+        ),
+    }
+}
+
+/// [`STAGGER_INDEX_VAR`] の `style` 属性値を組み立てる（イシュー #2384）。
+///
+/// 動的値は `index`（`usize`、起点からの距離）の 10 進表記のみであり、
+/// 呼び出し側の任意文字列は混入しない（`circle_range_determinate_style`
+/// と同型の設計）。呼び出し側は `(\"style\", &s)` を core のノード属性
+/// （`el` / part 関数の `attrs`）へ渡す。属性値のエスケープは core の
+/// `render` が既定で行う。
+#[cfg(feature = "motion")]
+#[must_use]
+pub fn stagger_index_style(index: usize) -> String {
+    format!("{STAGGER_INDEX_VAR}: {index}")
+}
+
+impl SlotRecipe {
+    /// `self.base(slot, vec![stagger_delay_declaration(step)])` の 1 行
+    /// builder（イシュー #2384）。`slot` が未宣言の場合は
+    /// [`SlotRecipe::base`] と同じく fail-closed に出力から除外される。
+    #[cfg(feature = "motion")]
+    #[must_use]
+    pub fn stagger_delay(self, slot: &'static str, step: MotionDuration) -> Self {
+        self.base(slot, vec![stagger_delay_declaration(step)])
+    }
+}
+
 /// `fandhe-frontend-wasm-full` が collapsible/accordion 等の content 要素の
 /// 実測高さ（px）を書き込む CSS custom property 名（イシュー #2192、案 C
 /// 〔`docs/design/collapsible-height-animation.md`〕）。
@@ -2779,5 +2867,44 @@ impl SlotRecipe {
             }
         }
         classes.join(" ")
+    }
+}
+
+/// [`stagger_delay_declaration`] の CSS 側意味論が `fandhe_animation::
+/// timeline::Stagger`（`from: First`・`start_delay: 0`）の計算結果と一致
+/// することを固定する（イシュー #2384）。`fandhe-animation` は `motion`
+/// feature 有効時のみ依存グラフに現れる optional 依存のため、本 mod も
+/// 同条件でのみコンパイルする。
+#[cfg(all(test, feature = "motion"))]
+mod stagger_parity_tests {
+    use super::{
+        stagger_delay_declaration, stagger_index_style, MotionDuration, STAGGER_INDEX_VAR,
+    };
+    use fandhe_animation::timeline::Stagger;
+
+    #[test]
+    fn stagger_delay_matches_css_step_semantics() {
+        let each = 0.15; // MotionDuration::Fast の 150ms と同オーダー
+        let stagger = Stagger::new(each);
+        for index in 0..5 {
+            let expected = index as f64 * each;
+            assert!((stagger.delay(index, 5) - expected).abs() < 1e-9);
+        }
+        assert!(stagger_delay_declaration(MotionDuration::Fast)
+            .value()
+            .contains("duration-fast"));
+        assert!(stagger_delay_declaration(MotionDuration::Normal)
+            .value()
+            .contains("duration-normal"));
+        assert!(stagger_delay_declaration(MotionDuration::Slow)
+            .value()
+            .contains("duration-slow"));
+    }
+
+    #[test]
+    fn stagger_index_style_is_plain_decimal() {
+        let s = stagger_index_style(2);
+        assert_eq!(s, "--fandhe-motion-stagger-index: 2");
+        assert!(s.starts_with(STAGGER_INDEX_VAR));
     }
 }
