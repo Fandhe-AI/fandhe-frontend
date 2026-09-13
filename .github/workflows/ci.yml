@@ -382,6 +382,14 @@ jobs:
         # 合算で従来どおり維持される。
         run: cargo test --workspace --exclude fandhe-frontend-docs-site --locked
 
+      - name: "test: pre-styled-ui motion feature (issue #2385)"
+        # 既定 off の `motion` feature（イシュー #2385/#2416）配下にある
+        # `SlotRecipe::scroll_reveal` 等の契約テストは、上記の既定 feature
+        # ワークスペーステストでは 0 件実行のまま素通りしてしまう
+        # （`#![cfg(feature = "motion")]` によりコンパイル自体されない）ため、
+        # `--features motion` を明示した専用ステップで実行を強制する。
+        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_scroll_reveal_css --locked
+
       - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_zero_cost（issue #2416）"
         # 上記 `cargo test --workspace`（既定 feature、motion off）は
         # motion_zero_cost.rs の off 側 3 テストを既に実行済み。本ステップは
