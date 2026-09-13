@@ -3361,7 +3361,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.190.0 とする。本 PR の base 取り込みで双方の実体変更（#2382・#2383・
 # #2384）を統合し、0.190.0 として確定する（0.x の破壊的変更はマイナー
 # バンプの規約。同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.190.0"
+#
+# イシュー #2381: spring 近似 `linear()` easing プリセット
+# （`theme::Theme::push_spring_easing`・`SPRING_EASING_LINEAR`/
+# `SPRING_DURATION_MS`/`SPRING_SAMPLE_COUNT`）を `motion` feature 配下へ
+# 追加した。`#[cfg(feature = "motion")]` の新規公開 API 純追加であり、
+# 無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs` 不変・
+# `tests/motion_spring_css.rs` は `motion` feature 配下のみコンパイル）。
+# minor バンプとし、0.190.0 を +1 した 0.191.0 とする。
+version = "0.191.0"
 
 
 edition = "2021"
@@ -3396,10 +3404,10 @@ optional = true
 [features]
 # 既定 off。有効化すると `fandhe-animation`（外部依存ゼロ・forbid(unsafe_code)）
 # が依存グラフに加わり、spring 近似 `linear()` プリセット等の motion 拡張
-# opt-in API（`impl Theme` の別ブロック、#2381 以降が実体を追加）と共通
-# `@keyframes` ライブラリ（`motion::KEYFRAMES_CSS`・`Theme::to_css_with_keyframes`、
-# #2382）が使えるようになる。無効時のゼロコスト契約は
-# `tests/motion_zero_cost.rs` および
+# opt-in API（`impl Theme` の別ブロック。`theme::Theme::push_spring_easing`、
+# イシュー #2381 で実装済み）と共通 `@keyframes` ライブラリ
+# （`motion::KEYFRAMES_CSS`・`Theme::to_css_with_keyframes`、#2382）が
+# 使えるようになる。無効時のゼロコスト契約は `tests/motion_zero_cost.rs` および
 # `docs/guides/pre-styled-ui-motion-feature.md` を参照（イシュー #2416）。
 motion = ["dep:fandhe-animation"]
 

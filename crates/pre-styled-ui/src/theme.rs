@@ -728,6 +728,42 @@ const DEFAULT_MOTIONS: &[(&str, &str)] = &[
     ),
 ];
 
+/// spring 近似 `linear()` イージングプリセットのサンプル点数（イシュー
+/// #2381）。[`SPRING_EASING_LINEAR`] の再計算に使う唯一の N 定義であり、
+/// `tests/motion_spring_css.rs` のパリティテストもこの定数を参照する。
+///
+/// 32 は [`CssValue`] の 256 文字上限（`CSS_VALUE_MAX_LEN`）に収まる
+/// 8 の倍数の最大値（`{:.3}` 3 桁固定 + `", "` 区切りで 32 点は 230 文字、
+/// 40 点は 286 文字で超過する）。`linear()` の区分線形補間は既定 spring
+/// の減衰振動（角振動数 ωd≈8.66 rad/s、約 1.6 周期）を表すのに 1 周期
+/// あたり約 16 点あれば十分なため、この解像度で視覚的な spring らしさを
+/// 損なわない。
+#[cfg(feature = "motion")]
+pub const SPRING_SAMPLE_COUNT: usize = 32;
+
+/// motion.dev `spring()` 既定値（本 crate は `motion` モジュールを持たない。
+/// `fandhe_animation::spring::SpringConfig::default()` と同一の
+/// stiffness=100/damping=10/mass=1）を `from=0.0`/`to=1.0`/
+/// `initial_velocity=0.0` で解いた軌道を、`d = settle_duration()` の間隔で
+/// `SPRING_SAMPLE_COUNT` 点等間隔サンプリングし、各値を `{:.3}` で
+/// 3 桁固定・`", "` 区切りで埋め込んだ CSS `linear()` タイミング関数
+/// （イシュー #2381）。
+///
+/// JS フレームループを使わず spring の見え方を近似する opt-in プリセット。
+/// [`Theme::push_spring_easing`] が `motion-easing-spring` トークンとして
+/// 登録する。値は手打ちではなく `fandhe-animation` の同一パラメータで
+/// 再計算した結果と `tests/motion_spring_css.rs` がパリティ検証する
+/// （数値の改変・再生成手順は同ファイル参照）。
+#[cfg(feature = "motion")]
+pub const SPRING_EASING_LINEAR: &str = "linear(0.000, 0.095, 0.314, 0.571, 0.806, 0.987, 1.102, 1.155, 1.161, 1.136, 1.097, 1.055, 1.020, 0.994, 0.979, 0.974, 0.975, 0.980, 0.987, 0.993, 0.999, 1.002, 1.004, 1.004, 1.004, 1.003, 1.002, 1.001, 1.000, 1.000, 0.999, 1.000)";
+
+/// [`SPRING_EASING_LINEAR`] と同一パラメータの `settle_duration()` を
+/// ミリ秒へ四捨五入した値（イシュー #2381）。`duration-` 接頭辞のため
+/// [`Theme::to_css`] が `prefers-reduced-motion: reduce` 下で自動的に
+/// `0ms` へ上書きする（内部の reduced-motion 書き出し処理経由）。
+#[cfg(feature = "motion")]
+pub const SPRING_DURATION_MS: &str = "1473ms";
+
 /// 既定のブレークポイントトークン（name, value、イシュー #2197）。
 ///
 /// [`crate::recipe::Breakpoint`] の `const fn value()`/`min_width()` を
@@ -1316,6 +1352,58 @@ impl Theme {
                 token.dark.as_str()
             ));
         }
+    }
+}
+
+/// `motion` feature 配下の opt-in API（イシュー #2381）。既存の
+/// [`impl Theme`]（`to_css`/`write_reduced_motion_block` 含む）とは別
+/// ブロックにすることで、feature off 時はこの `impl` 自体がコンパイル
+/// 対象から外れる（`docs/design/motion-reference-adoption-policy.md` §7
+/// のゼロコスト方針・`tests/motion_zero_cost.rs` の
+/// `to_css_body_has_no_feature_cfg_or_motion_branch` が固定する不変条件）。
+#[cfg(feature = "motion")]
+impl Theme {
+    /// spring 近似 `linear()` イージングプリセット（[`SPRING_EASING_LINEAR`]/
+    /// [`SPRING_DURATION_MS`]）を `motion-easing-spring`/`motion-duration-spring`
+    /// トークンとして追加する（イシュー #2381）。
+    ///
+    /// 内部で [`Theme::push_motion`] を 2 回呼ぶだけの薄いラッパーであり、
+    /// `to_css`/`write_reduced_motion_block` の走査ループは変更しない
+    /// （出力への反映は既存の motions スケール経由）。`duration-` 接頭辞の
+    /// ため `prefers-reduced-motion: reduce` 下では自動的に `0ms` へ
+    /// 上書きされる。共通 `@keyframes` プリセット（イシュー #2382）と
+    /// 組み合わせる場合は `theme.push_spring_easing()?;
+    /// theme.to_css_with_keyframes()` のように呼び出す（合成用の専用
+    /// メソッドは設けない）。
+    ///
+    /// # Errors
+    ///
+    /// `easing-spring`/`duration-spring` のいずれかが既に登録済みの場合
+    /// [`ThemeError::DuplicateTokenName`] を返す。両名の不在を先に確認して
+    /// から追加するため、片方だけが追加される部分更新は起きない。
+    pub fn push_spring_easing(&mut self) -> Result<(), ThemeError> {
+        let easing_taken = self
+            .motions
+            .iter()
+            .any(|t| t.name.as_str() == "easing-spring");
+        let duration_taken = self
+            .motions
+            .iter()
+            .any(|t| t.name.as_str() == "duration-spring");
+        if easing_taken || duration_taken {
+            let name = if easing_taken {
+                "easing-spring"
+            } else {
+                "duration-spring"
+            };
+            return Err(ThemeError::DuplicateTokenName {
+                name: name.to_string(),
+            });
+        }
+
+        self.push_motion("easing-spring", SPRING_EASING_LINEAR)?;
+        self.push_motion("duration-spring", SPRING_DURATION_MS)?;
+        Ok(())
     }
 }
 
