@@ -72,15 +72,13 @@
 //!   [`tests/motion_zero_cost.rs`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/crates/pre-styled-ui/tests/motion_zero_cost.rs)
 //!   が固定する**（既定出力の golden 一致・`cargo tree` による依存グラフ
 //!   非出現/出現の双方向確認・`to_css` ソース走査による分岐不在確認）。
-//! - **本 issue 時点では `src/motion.rs` を持たない**（空モジュールの
-//!   scaffolding はしない）。後続イシューが最初の実体と同時に追加する
-//!   際は次の制約に従うこと: (a) 新規モジュールは単一ファイル
-//!   `src/motion.rs`（`src/motion/` ディレクトリは
+//! - [`motion`]（イシュー #2382）: 共通 `@keyframes` ライブラリ（opt-in、
+//!   単一ファイル `src/motion.rs`。`src/motion/` ディレクトリは
 //!   `crates/docs-site/tests/wrap_state.rs` の `NESTED_MODULE_DIRS` 制約に
-//!   反する）とし、追加時に同ファイルの `NON_PAGE_TOP_LEVEL` へ
-//!   `"motion"` を追記する。(b) `docs-site` が `motion` feature を有効化
-//!   する場合、`structure.toml` の `directories.pre-styled-ui.depends_on`
-//!   へ `"animation"` を、`directories.animation.allowed_dependents` へ
+//!   反するため採らない）。追加に伴い同テストの `NON_PAGE_TOP_LEVEL` へ
+//!   `"motion"` を追記済み。`docs-site` が `motion` feature を有効化する
+//!   場合、`structure.toml` の `directories.pre-styled-ui.depends_on` へ
+//!   `"animation"` を、`directories.animation.allowed_dependents` へ
 //!   `"pre-styled-ui"` を同時に追加する必要がある（現時点では docs-site は
 //!   `motion` を有効化しておらず、辺は未宣言のまま）。
 //! - 利用者向けの有効化手順・消費者別方針は
@@ -793,6 +791,8 @@ pub mod menu;
 pub mod menubar;
 pub mod message;
 pub mod message_scroller;
+#[cfg(feature = "motion")]
+pub mod motion;
 pub mod native_select;
 pub mod nav_list;
 pub mod navigation_menu;

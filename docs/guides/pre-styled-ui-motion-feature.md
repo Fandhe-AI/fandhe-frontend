@@ -27,13 +27,26 @@ fandhe-frontend-pre-styled-ui = { version = "0.190", features = ["motion"] }
 有効化すると `fandhe-animation`（外部依存ゼロ・`forbid(unsafe_code)`、
 プラットフォーム非依存のアニメーション演算基幹）が依存グラフに加わります。
 
-有効化で使えるようになる公開 API（`crates/pre-styled-ui/src/recipe.rs`）:
+有効化で使えるようになる公開 API:
 
-- **stagger CSS ユーティリティ（イシュー #2384）**: `recipe::STAGGER_INDEX_VAR`・
-  `recipe::stagger_delay_declaration(step)`・`recipe::stagger_index_style(index)`・
+- **共通 `@keyframes` ライブラリ（イシュー #2382、`crates/pre-styled-ui/src/motion.rs`）**:
+  - `fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS`: 共通
+    `@keyframes` ライブラリの CSS 全文（フェード・ズーム・4 方向スライド・
+    バウンス・シェイクの 10 種 + `prefers-reduced-motion: reduce` 再定義
+    ブロック）。`StyleSheet` へ取り込む場合は
+    `sheet.push_css(motion::KEYFRAMES_CSS)` を使う。
+  - `fandhe_frontend_pre_styled_ui::motion::FADE_IN_KEYFRAMES_NAME` 等
+    （10 個）: 各 `@keyframes` の名前定数。`decl("animation-name",
+    motion::FADE_IN_KEYFRAMES_NAME)` のように参照する。
+  - `Theme::to_css_with_keyframes()`: `Theme::to_css()` の出力へ
+    `KEYFRAMES_CSS` を追記して返す opt-in メソッド（`Theme::to_css` 本体は
+    無変更のまま）。
+- **stagger CSS ユーティリティ（イシュー #2384、`crates/pre-styled-ui/src/recipe.rs`）**:
+  `recipe::STAGGER_INDEX_VAR`・`recipe::stagger_delay_declaration(step)`・
+  `recipe::stagger_index_style(index)`・
   `recipe::SlotRecipe::stagger_delay(slot, step)`。要素ごとの「起点からの
   距離」を `--fandhe-motion-stagger-index` custom property として
-  SSR/アプリコード側が `(\"style\", &stagger_index_style(i))` で書き出し、
+  SSR/アプリコード側が `("style", &stagger_index_style(i))` で書き出し、
   recipe 側は `stagger_delay(slot, MotionDuration::Fast)` の 1 行で
   `animation-delay: calc(var(--fandhe-motion-stagger-index, 0) *
   var(--fandhe-motion-duration-fast))` を登録できます。`fandhe_animation::
@@ -68,9 +81,9 @@ CI では `.github/workflows/ci.yml` の `clippy` ジョブが
 
 - **presence（#2383）は feature 配下に置きません**: 同文書 §7 が「既定
   出力に無条件で含む」と明示しています。
-- 共通 `@keyframes`（#2382）・scroll-driven（#2385）は同文書 §4 各行の
-  採用方針に従い、追加時に判断します。stagger（#2384）は feature 配下に
-  実装済みです（§2 参照）。
+- 共通 `@keyframes`（#2382）は feature 配下に実装済みです（`motion::KEYFRAMES_CSS`、
+  §2 参照）。stagger（#2384）も feature 配下に実装済みです（§2 参照）。
+  scroll-driven（#2385）は同文書 §4 各行の採用方針に従い、追加時に判断します。
 
 ## 5. 消費者別の指定方針
 
@@ -94,7 +107,7 @@ CI では `.github/workflows/ci.yml` の `clippy` ジョブが
 `fandhe-animation` は本 issue（#2416）時点で crates.io 未公開です
 （`docs/ci/version-bump-publish-order-gap.md` §11）。`cargo publish` は
 optional 依存であっても registry 上の解決を要求するため、
-`fandhe-frontend-pre-styled-ui` 0.187.0 以降を公開する場合は
+`fandhe-frontend-pre-styled-ui` 0.188.0 以降を公開する場合は
 `fandhe-animation` の初回公開（同文書 §11 C 手順）を先に完了し、
 sparse index への反映を確認してから実行してください
 （`.github/workflows/release.yml` の該当コメント参照）。
