@@ -398,6 +398,12 @@ jobs:
         # ことの確認を含む）。
         run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_zero_cost --locked
 
+      - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_stagger_css（issue #2384）"
+        # stagger CSS ユーティリティ（recipe::stagger_delay_declaration 等、
+        # motion feature 配下）の golden CSS・fail-closed スキップ・
+        # core render エスケープ経路を固定する契約テスト。
+        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_stagger_css --locked
+
   # イシュー #2299: fandhe-frontend-docs-site 単独のテストを test ジョブから
   # 分離した専用ジョブ。docs-site テストが workspace テスト実行時間の大半を
   # 占めていたため、独立ジョブとして test ジョブと並列に走らせることで CI の
