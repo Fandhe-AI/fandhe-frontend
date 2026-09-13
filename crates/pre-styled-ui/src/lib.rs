@@ -58,7 +58,11 @@
 //!   **stagger（イシュー #2384）は実装済み**（[`recipe::STAGGER_INDEX_VAR`]・
 //!   [`recipe::stagger_delay_declaration`]・[`recipe::stagger_index_style`]・
 //!   [`recipe::SlotRecipe::stagger_delay`]、`crates/pre-styled-ui/tests/
-//!   motion_stagger_css.rs`）。
+//!   motion_stagger_css.rs`）。**spring 近似 easing プリセット
+//!   （イシュー #2381）も実装済み**（[`theme::Theme::push_spring_easing`]・
+//!   [`theme::SPRING_EASING_LINEAR`]/[`theme::SPRING_DURATION_MS`]/
+//!   [`theme::SPRING_SAMPLE_COUNT`]、`crates/pre-styled-ui/tests/
+//!   motion_spring_css.rs`）。
 //! - **[`theme::Theme::to_css`] 本体・`write_reduced_motion_block` の不変
 //!   条件**: 走査ループへ `cfg!(feature = "motion")` 等の実行時分岐を
 //!   追加しない。opt-in API（spring イージング等）は `#[cfg(feature =

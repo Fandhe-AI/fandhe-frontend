@@ -407,6 +407,12 @@ jobs:
         # core render エスケープ経路を固定する契約テスト。
         run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_stagger_css --locked
 
+      - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_spring_css（issue #2381）"
+        # spring 近似 linear() easing プリセット（theme::Theme::push_spring_easing、
+        # motion feature 配下）の fandhe-animation とのパリティ・CssValue
+        # allowlist 通過・golden 純追加・重複拒否を固定する契約テスト。
+        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_spring_css --locked
+
   # イシュー #2299: fandhe-frontend-docs-site 単独のテストを test ジョブから
   # 分離した専用ジョブ。docs-site テストが workspace テスト実行時間の大半を
   # 占めていたため、独立ジョブとして test ジョブと並列に走らせることで CI の

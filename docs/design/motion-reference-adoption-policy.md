@@ -91,6 +91,16 @@
 スコープ外で、Phase 2 の各後続イシューが `#[cfg(feature = "motion")]`
 配下へ実体を追加する。
 
+**実装済み注記（イシュー #2381）**: C 群 spring 拡張の CSS 側出力（motion.dev
+`spring()` 既定値を `linear()` タイミング関数へ事前サンプリングしたプリセット）を
+`motion` feature 配下へ実装した（`theme::Theme::push_spring_easing`・
+`theme::SPRING_EASING_LINEAR`/`SPRING_DURATION_MS`/`SPRING_SAMPLE_COUNT`、
+`crates/pre-styled-ui/tests/motion_spring_css.rs`）。実行時サンプリングは
+行わず `fandhe-animation` の同一パラメータでの再計算と数値パリティ検証する
+`&'static str` 固定値として実装しており、§7 のゼロコスト契約（4 指標）を
+崩さない。利用者向けガイドは `docs/guides/pre-styled-ui-motion-feature.md`
+§2 参照。
+
 ## 8. 各群の REQ-11/REQ-12/§3.25 整合
 
 | 観点 | 整合内容 |

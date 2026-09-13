@@ -21,7 +21,7 @@ feature `motion`」節であり、本書はそれを読みやすく再構成し�
 
 ```toml
 [dependencies]
-fandhe-frontend-pre-styled-ui = { version = "0.190", features = ["motion"] }
+fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
 ```
 
 有効化すると `fandhe-animation`（外部依存ゼロ・`forbid(unsafe_code)`、
@@ -53,8 +53,34 @@ fandhe-frontend-pre-styled-ui = { version = "0.190", features = ["motion"] }
   timeline::Stagger::new(each).delay(index, total)`（`from: First`）と
   意味論が一致することを `recipe::stagger_parity_tests` が固定しています。
 
-その他の拡張（spring 近似 `linear()` プリセット等）は後続イシュー
-（#2381 以降）が実体を追加した時点で本節に追記します。
+- **spring 近似 easing プリセット（イシュー #2381）**: `theme::Theme::
+  push_spring_easing()` を呼ぶと、`motion.dev spring()` 既定値
+  （stiffness=100/damping=10/mass=1）を `from=0.0`/`to=1.0`/
+  `initial_velocity=0.0` で解いた軌道を CSS `linear()` タイミング関数へ
+  事前サンプリングした `motion-easing-spring`/`motion-duration-spring`
+  トークンを追加します。JS フレームループなしで spring の減衰振動
+  （オーバーシュート付き）を近似できます。
+
+  ```rust
+  use fandhe_frontend_pre_styled_ui::theme::Theme;
+
+  let mut theme = Theme::default();
+  theme.push_spring_easing()?; // easing-spring / duration-spring を追加
+  let css = theme.to_css();
+  // :root に `--fandhe-motion-easing-spring: linear(...)`・
+  // `--fandhe-motion-duration-spring: 1473ms` が並ぶ。
+  # Ok::<(), fandhe_frontend_pre_styled_ui::theme::ThemeError>(())
+  ```
+
+  `duration-` 接頭辞のため `prefers-reduced-motion: reduce` 下では
+  自動的に `0ms` へ上書きされます（既存の motions スケール経由、
+  追加の分岐は不要）。共通 `@keyframes` プリセット（イシュー #2382）と
+  組み合わせる場合は、`push_spring_easing()` を呼んでから
+  `to_css_with_keyframes()`（#2382 側 API）を呼び出してください
+  （合成専用のメソッドは設けていません。両者は独立した opt-in の
+  組み合わせです）。値は `fandhe-animation` の同一パラメータでの
+  再計算結果と `crates/pre-styled-ui/tests/motion_spring_css.rs` が
+  パリティ検証しています。
 
 ## 3. 無効時ゼロコスト保証の内容
 
@@ -122,5 +148,6 @@ cargo clippy -p fandhe-frontend-pre-styled-ui --features motion --all-targets --
 cargo test   -p fandhe-frontend-pre-styled-ui --test motion_zero_cost --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_zero_cost --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_stagger_css --locked
+cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_spring_css --locked
 cargo tree   -p fandhe-frontend-pre-styled-ui -e normal --prefix none --locked | grep -c fandhe-animation   # 0
 ```
