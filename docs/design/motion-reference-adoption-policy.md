@@ -52,7 +52,7 @@
 
 | 機能 | 現状実装箇所（file:line） | Motion 相当機能 | 分類群 |
 |---|---|---|---|
-| motion トークン（duration/easing プリセット） | `crates/pre-styled-ui/src/theme.rs`（`DEFAULT_MOTIONS` 定数） | duration/easing プリセット | A |
+| motion トークン（duration/easing プリセット） | `crates/pre-styled-ui/src/theme.rs`（`DEFAULT_MOTIONS` 定数） | duration/easing プリセット（#2380 で duration 5 段・easing 7 種へ拡張） | A |
 | `prefers-reduced-motion: reduce` 下での `duration-*` 一括無効化 | `crates/pre-styled-ui/src/theme.rs`（`Theme::to_css` の reduced-motion 書き込み処理） | Motion 側 `reducedMotion` 設定相当 | A |
 | hover/disabled/transition の共通ビジュアル言語 | `docs/design/pre-styled-ui-interaction-visual-language.md`（#1425） | hover/press の transition プリセット | A |
 | collapsible/accordion 高さ遷移（実測高さを CSS 変数へ供給） | `crates/wasm-full/src/content_height.rs`（#2191、設計評価は `docs/design/collapsible-height-animation.md` 案 C） | layout（高さの FLIP 相当）・presence | B（現状の実装は実測値供給のみ）/ 真の layout FLIP（要素間の位置補間）は C 相当で未実装 |

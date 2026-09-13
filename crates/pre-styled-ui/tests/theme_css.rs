@@ -373,6 +373,70 @@ fn default_theme_includes_new_1425_motion_tokens() {
 }
 
 #[test]
+fn default_theme_includes_new_2380_motion_tokens() {
+    // イシュー #2380: duration 追加段（faster/slower）・easing 追加 5 種が
+    // `:root` へ出力されることを固定する（`DEFAULT_MOTIONS` の値と一致）。
+    let css = Theme::default().to_css();
+
+    assert!(css.contains("--fandhe-motion-duration-faster: 100ms;"));
+    assert!(css.contains("--fandhe-motion-duration-slower: 400ms;"));
+    assert!(css.contains("--fandhe-motion-easing-in: cubic-bezier(0.42, 0, 1, 1);"));
+    assert!(css.contains("--fandhe-motion-easing-out: cubic-bezier(0, 0, 0.58, 1);"));
+    assert!(css.contains("--fandhe-motion-easing-in-out: cubic-bezier(0.42, 0, 0.58, 1);"));
+    assert!(css.contains(
+        "--fandhe-motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);"
+    ));
+    assert!(css.contains(
+        "--fandhe-motion-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);"
+    ));
+}
+
+#[test]
+fn default_theme_reduced_motion_block_includes_2380_durations_and_excludes_easings() {
+    // イシュー #2380: 新規 duration 2 段も `duration-` prefix により
+    // reduced-motion ブロックへ自動包含され、新規 easing 5 種は対象外の
+    // ままであることを固定する。
+    let css = Theme::default().to_css();
+
+    let block_start = css
+        .find("@media (prefers-reduced-motion: reduce)")
+        .expect("reduced-motion block must exist");
+    let block = &css[block_start..];
+
+    assert!(block.contains("--fandhe-motion-duration-faster: 0ms;"));
+    assert!(block.contains("--fandhe-motion-duration-slower: 0ms;"));
+    assert!(
+        !block.contains("easing"),
+        "easing トークンは reduced-motion の上書き対象に含めない"
+    );
+    assert_eq!(
+        css.matches("@media (prefers-reduced-motion: reduce)")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn default_theme_pre_2380_motion_tokens_remain_verbatim_and_ordered() {
+    // イシュー #2380: 既存 5 トークン（#1425）が変更されず連続した一塊として
+    // 現れ、その直後に新規 7 トークンが続くことを固定する（golden 更新ガイド
+    // の純追加パターン。既存出力バイトが 1 バイトも変わっていないことを
+    // 保証する）。
+    let css = Theme::default().to_css();
+
+    assert!(css.contains(concat!(
+        "--fandhe-motion-duration-fast: 150ms;\n",
+        "  --fandhe-motion-duration-normal: 200ms;\n",
+        "  --fandhe-motion-duration-slow: 300ms;\n",
+        "  --fandhe-motion-easing-standard: cubic-bezier(0.4, 0, 0.2, 1);\n",
+        "  --fandhe-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);\n",
+        "  --fandhe-motion-duration-faster: 100ms;\n",
+        "  --fandhe-motion-duration-slower: 400ms;\n",
+        "  --fandhe-motion-easing-in: cubic-bezier(0.42, 0, 1, 1);\n",
+    )));
+}
+
+#[test]
 fn default_theme_reduced_motion_block_overrides_durations_only() {
     // イシュー #1425: `prefers-reduced-motion: reduce` 下で duration 3 段の
     // みが `0ms` へ一括上書きされ、easing はブロックに含まれないことを
