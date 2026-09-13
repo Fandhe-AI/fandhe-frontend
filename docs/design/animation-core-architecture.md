@@ -212,6 +212,14 @@ JS/React・wgpu 等のアダプタは `fandhe-frontend-animation` と同列の�
 実測（#2372、`xtask check-deps --package fandhe-animation`）: `fandhe-animation` packages=0/60 depth=0/6 PASS。
 上表の試算と一致した（`docs/policy/dependency-graph-policy.md` §10 参照）。
 
+実測（#2417、`xtask check-deps --package fandhe-frontend-animation`）: `fandhe-frontend-animation`
+packages=19/60 depth=9/6 result=FAIL（参考値。`wasm-full`/`wasm-thin` と同型のスコープ外判断のため
+`deps-check.yml` の計測対象には追加しない、`docs/policy/dependency-graph-policy.md` §11 参照）。新規外部
+パッケージの増分は 0 件（既存 `wasm-full`/`wasm-client` が依存する `wasm-bindgen 0.2.128`/`js-sys 0.3.105`/
+`web-sys 0.3.105` を再利用、`cargo metadata` のパッケージ総数に変化なし）であり、上表の試算と一致した。
+`wasm-full → fandhe-frontend-animation → fandhe-animation` の深さ 2 段増分も、optional 依存として
+`crates/wasm-full/Cargo.toml` へ追加した時点（既定 off）で構造上確定した。
+
 ## 8. Phase 1 実装 issue 分解案（起票済み）
 
 `docs/design/wasm-full-feature-gating-evaluation.md` §13 の表形式を踏襲し、本文書の各設計節と既存の起票済み issue を

@@ -51,6 +51,12 @@ name: deps-check
 #   （詳細は docs/policy/dependency-graph-policy.md 第 4 節参照）。
 #   イシュー #2372 で fandhe-animation（crates/animation/、外部依存ゼロ）を計測対象に
 #   追加した。実測: packages=0/60 depth=0/6（PASS）。計測対象は 7 → 8 パッケージへ拡張。
+#   イシュー #2417 で追加した fandhe-frontend-animation（crates/frontend-animation/、
+#   wasm-bindgen/web-sys/js-sys 依存の Web アニメーションアダプタ）は本ゲートへ
+#   追加しない。fandhe-frontend-wasm-full・fandhe-frontend-wasm-thin と同型の深さ超過
+#   （参考実測: packages=19/60 depth=9/6、result=FAIL）であり、スコープ外の理由も
+#   同一（上記「WASM クライアントクレートのスコープ」を参照。詳細は
+#   docs/policy/dependency-graph-policy.md 第 11 節）。
 # - `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace
 #   メンバーの積集合を xtask 内部で自動解決する（`fandhe-frontend-interactive` 追加時も
 #   ワークフロー変更は不要）。
