@@ -16,3 +16,9 @@ categories = ["graphics", "web-programming"]
 [dependencies]
 
 [dev-dependencies]
+
+[features]
+# native 参照実装 ManualDriver/RecordingTarget（src/driver.rs・src/target.rs）を
+# crate 外（fandhe-frontend-animation 等）のテストコードから使えるようにする。
+# 依存は追加しない（REQ-3 に影響しない、既定 off で公開 API 表面を汚さない）。
+test-utils = []
