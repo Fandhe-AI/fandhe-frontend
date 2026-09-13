@@ -278,6 +278,24 @@ pub struct Spring {
     rest_speed: f64,
 }
 
+/// `sup_{s >= t} e^{-ω·s}·(A + B·s)`（`A, B >= 0`、`ω > 0`）を返す。
+///
+/// 臨界減衰の変位・速度の包絡線はこの形をとり、`s* = 1/ω − A/B` に極大を
+/// 持つため単調減少ではない。`Spring::at` の収束判定は「以後どの時刻でも
+/// 閾値以下」を保証する必要があるので、`t < s*` のときは極大値
+/// `e^{-ω·s*}·B/ω` を、それ以外は現在値を返す（PR #2426 codex 指摘）。
+fn future_sup_linear_decay(omega: f64, a: f64, b: f64, t: f64) -> f64 {
+    if b == 0.0 {
+        return (-omega * t).exp() * a;
+    }
+    let peak_t = 1.0 / omega - a / b;
+    if peak_t > t {
+        (-omega * peak_t).exp() * b / omega
+    } else {
+        (-omega * t).exp() * (a + b * t)
+    }
+}
+
 impl Spring {
     /// `stiffness`/`damping`/`mass` が [`MIN_PARAM`]..=[`MAX_PARAM`]
     /// の範囲外（`damping == 0.0` の無減衰も含む）・`from`/`to`/
@@ -444,16 +462,20 @@ impl Spring {
     /// `settle_duration()` の返す時刻で必ず `done` になるという契約が
     /// 崩れる）。
     ///
-    /// 収束判定は瞬時値ではなく**包絡線**（以後どの時刻でも `|x|` を上から
-    /// 抑える振幅の上限）で行う: `envelope(t) <= rest_delta &&
-    /// |velocity| <= rest_speed`。motion.dev は瞬時値 `|x(t)| <= rest_delta`
+    /// 収束判定は瞬時値ではなく**包絡線**（以後どの時刻でも `|x|`・`|v|` を
+    /// 上から抑える上限）で行う: `envelope(t) <= rest_delta &&
+    /// v_envelope(t) <= rest_speed`。motion.dev は瞬時値 `|x(t)| <= rest_delta`
     /// の AND 判定だが、ωd が `rest_speed`/`rest_delta` 比に対し小さい
     /// 柔らかいばねでは、ゼロ交差の瞬間に瞬時値・速度の両方がたまたま
     /// 閾値内へ収まり、その直後のピークが `rest_delta` を再び超えるにも
     /// かかわらず `done=true` を返してしまう（PR #2426 Bugbot 指摘）。
     /// `envelope(t) <= rest_delta` はこの時刻以降どの `t'` でも
     /// `|x(t')| <= envelope(t) <= rest_delta` を構造的に保証するため、
-    /// 振動途中でのこの早期終了が起こらない。
+    /// 振動途中でのこの早期終了が起こらない。速度側も同様に以後の `|v|`
+    /// の上限で判定する（瞬時値だと `done` が単調にならず、収束後の
+    /// サンプルで再び `done=false` へ戻る。PR #2426 codex 指摘）。両包絡線
+    /// は時刻について単調非増加のため、`done` は一度 true になれば以後の
+    /// 全時刻で true に保たれる。
     /// `done == true` のとき `value` は `to` に完全一致し `velocity` は
     /// `0.0` にスナップする（残差を後続フレームへ漏らさず、#2381 の
     /// `linear()` 末尾値が正確に 1 になる契約を満たすため）。
@@ -472,7 +494,7 @@ impl Spring {
                 done: true,
             };
         }
-        let (x, v, envelope) = match self.region {
+        let (x, v, envelope, v_envelope) = match self.region {
             Region::Underdamped {
                 omega_d,
                 zeta_omega0,
@@ -483,7 +505,7 @@ impl Spring {
                 // 扱い、sin_cos への以後の計算を行わない（イシュー #2426
                 // レビュー指摘）。
                 if decay == 0.0 {
-                    (0.0, 0.0, 0.0)
+                    (0.0, 0.0, 0.0, 0.0)
                 } else {
                     let (sin, cos) = (omega_d * t).sin_cos();
                     // decay を先に係数へ掛けてから t 依存の三角関数と合成する
@@ -495,13 +517,16 @@ impl Spring {
                     // 包絡線: |x(t)| = decay·|x0·cos + b·sin|
                     //   <= decay·sqrt(x0² + b²)（コーシー・シュワルツ）。
                     let envelope = decay * (self.x0 * self.x0 + b * b).sqrt();
-                    (x, v, envelope)
+                    // 速度包絡線: |v| <= ζω0·|x| + decay·ωd·|−x0·sin + b·cos|
+                    //   <= envelope·(ζω0 + ωd)（同じくコーシー・シュワルツ）。
+                    let v_envelope = envelope * (zeta_omega0 + omega_d);
+                    (x, v, envelope, v_envelope)
                 }
             }
             Region::Critical { omega0, c } => {
                 let decay = (-omega0 * t).exp();
                 if decay == 0.0 {
-                    (0.0, 0.0, 0.0)
+                    (0.0, 0.0, 0.0, 0.0)
                 } else {
                     // `self.x0 + c * t` を先に評価すると、`x0`/`c` が極端に
                     // 大きい値（例: 1e308）のとき decay 適用前に和が f64 の
@@ -513,24 +538,21 @@ impl Spring {
                     let x = decay * self.x0 + (decay * c) * t;
                     // 解析微分: x' = -ω0·decay·(x0 + c·t) + decay·c = -ω0·x + decay·c
                     let v = -omega0 * x + decay * c;
-                    // 包絡線: |x(s)| <= g(s) = e^{-ω0·s}·(|x0| + |c|·s)（三角不等式）。
-                    // g は単調減少ではなく s* = 1/ω0 - |x0|/|c| に極大を持つため、
-                    // 現在値 g(t) だけでは「以後どの時刻でも rest_delta 以下」を
-                    // 保証できない（PR #2426 codex 指摘: from=to、初速のみの
-                    // 入力で at(0) が done になる）。以後の上限 sup_{s>=t} g(s)
-                    // = g(max(t, s*)) を包絡線に使う。
-                    let envelope = if c == 0.0 {
-                        decay * self.x0.abs()
-                    } else {
-                        let peak_t = 1.0 / omega0 - self.x0.abs() / c.abs();
-                        if peak_t > t {
-                            // g(s*) = e^{-ω0·s*}·|c|/ω0
-                            (-omega0 * peak_t).exp() * c.abs() / omega0
-                        } else {
-                            decay * (self.x0.abs() + c.abs() * t)
-                        }
-                    };
-                    (x, v, envelope)
+                    // 包絡線: |x(s)| <= e^{-ω0·s}·(|x0| + |c|·s)（三角不等式）。
+                    // この形は単調減少ではなく極大を持つため、現在値だけでは
+                    // 「以後どの時刻でも rest_delta 以下」を保証できない
+                    // （PR #2426 codex 指摘: from=to、初速のみの入力で at(0) が
+                    // done になる）。`future_sup_linear_decay` で以後の上限を取る。
+                    let envelope = future_sup_linear_decay(omega0, self.x0.abs(), c.abs(), t);
+                    // 速度包絡線: v = e^{-ω0·s}·((c − ω0·x0) − ω0·c·s) なので
+                    //   |v(s)| <= e^{-ω0·s}·(|c − ω0·x0| + ω0·|c|·s)。同型で上限を取る。
+                    let v_envelope = future_sup_linear_decay(
+                        omega0,
+                        (c - omega0 * self.x0).abs(),
+                        omega0 * c.abs(),
+                        t,
+                    );
+                    (x, v, envelope, v_envelope)
                 }
             }
             Region::Overdamped { r1, r2, a, b } => {
@@ -541,7 +563,9 @@ impl Spring {
                 // 包絡線: |x(t)| = |a·e1 + b·e2| <= |a|·e1 + |b|·e2
                 // （e1/e2 > 0 のため三角不等式がそのまま上限になる）。
                 let envelope = a.abs() * e1 + b.abs() * e2;
-                (x, v, envelope)
+                // 速度包絡線: |v(t)| <= |a·r1|·e1 + |b·r2|·e2（r1, r2 < 0 で単調減少）。
+                let v_envelope = (a * r1).abs() * e1 + (b * r2).abs() * e2;
+                (x, v, envelope, v_envelope)
             }
         };
         // `Spring::new` の入力ドメイン境界化（[`MIN_PARAM`]/[`MAX_PARAM`]/
@@ -554,12 +578,12 @@ impl Spring {
         // レビュー指摘）。デバッグビルドでのみ不変条件を検証し、リリース
         // ビルドでは値をそのまま用いる。
         debug_assert!(
-            x.is_finite() && v.is_finite() && envelope.is_finite(),
-            "at() produced non-finite x/v/envelope: x={x} v={v} envelope={envelope}"
+            x.is_finite() && v.is_finite() && envelope.is_finite() && v_envelope.is_finite(),
+            "at() produced non-finite x/v/envelope: x={x} v={v} envelope={envelope} v_envelope={v_envelope}"
         );
         let value = self.to + x;
         debug_assert!(value.is_finite(), "at() produced non-finite value: {value}");
-        let done = envelope <= self.rest_delta && v.abs() <= self.rest_speed;
+        let done = envelope <= self.rest_delta && v_envelope <= self.rest_speed;
         if done {
             SpringState {
                 value: self.to,
@@ -600,6 +624,47 @@ mod tests {
     }
 
     // --- 物理パラメータ系 ---
+
+    #[test]
+    fn done_is_monotone_after_settle_duration() {
+        // PR #2426 codex 指摘: 速度を瞬時値で判定すると default 設定でも
+        // at(1.1) が done、at(1.15) が done=false へ戻る。
+        let cases = [
+            (SpringConfig::default(), 0.0, 1.0, 0.0),
+            (
+                SpringConfig {
+                    stiffness: 0.01,
+                    damping: 0.2,
+                    mass: 1.0,
+                },
+                0.0,
+                0.0,
+                0.009,
+            ),
+            (
+                SpringConfig {
+                    stiffness: 100.0,
+                    damping: 40.0,
+                    mass: 1.0,
+                },
+                0.0,
+                100.0,
+                50.0,
+            ),
+        ];
+        for (config, from, to, v0) in cases {
+            let spring = Spring::new(config, from, to, v0).unwrap();
+            let settle = spring.settle_duration();
+            let mut t = settle;
+            while t <= MAX_SETTLE_DURATION {
+                let s = spring.at(t);
+                assert!(s.done, "config={config:?} t={t}");
+                assert_eq!(s.value, to);
+                assert_eq!(s.velocity, 0.0);
+                t += SETTLE_STEP;
+            }
+        }
+    }
 
     #[test]
     fn critical_damping_does_not_finish_before_initial_velocity_peak() {
@@ -777,7 +842,7 @@ mod tests {
         // 0→1（距離 1 < 5）は granular 閾値（rest_delta=0.005）が使われる。
         // 不足減衰の振幅包絡線は |x(t)| = decay·R（R = sqrt(x0² + b²)、
         // decay = e^{-ζω0·t}）で上から抑えられるため、
-        // decay·R = rest_delta となる時刻を理論値とする
+        // decay·R = rest_delta となる時刻を位置側の理論値とする
         // （ζω0=5、b=(v0+ζω0·x0)/ωd=5/ωd、ωd=ω0·sqrt(1-ζ²)）。
         let omega0 = (SpringConfig::default().stiffness / SpringConfig::default().mass).sqrt();
         let zeta = 0.5_f64;
@@ -785,7 +850,11 @@ mod tests {
         let omega_d = omega0 * (1.0 - zeta * zeta).sqrt();
         let b = zeta_omega0 / omega_d;
         let r = (1.0_f64 + b * b).sqrt();
-        let theoretical = -(0.005_f64 / r).ln() / zeta_omega0;
+        let theoretical_x = -(0.005_f64 / r).ln() / zeta_omega0;
+        // 速度包絡線 decay·R·(ζω0 + ωd) <= rest_speed も同時に要求される
+        // ため、両者の遅い方が理論上の settle 時刻になる。
+        let theoretical_v = -(spring.rest_speed / (r * (zeta_omega0 + omega_d))).ln() / zeta_omega0;
+        let theoretical = theoretical_x.max(theoretical_v);
         assert!(
             approx(settle, theoretical, 0.05),
             "settle={settle} theoretical={theoretical}"
