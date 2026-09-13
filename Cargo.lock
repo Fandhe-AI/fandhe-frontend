@@ -64,6 +64,16 @@ name = "fandhe-animation"
 version = "0.1.0"
 
 [[package]]
+name = "fandhe-frontend-animation"
+version = "0.1.0"
+dependencies = [
+ "fandhe-animation",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "fandhe-frontend-app"
 version = "0.2.6"
 dependencies = [
@@ -150,8 +160,9 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-full"
-version = "0.20.10"
+version = "0.20.11"
 dependencies = [
+ "fandhe-frontend-animation",
  "fandhe-frontend-app",
  "fandhe-frontend-core",
  "fandhe-frontend-headless-ui",

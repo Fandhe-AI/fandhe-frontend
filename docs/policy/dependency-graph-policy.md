@@ -311,6 +311,25 @@ core-deps-check: package=fandhe-animation external=0 result=PASS
 ```
 
 `docs/design/animation-core-architecture.md` §7 の試算（`[dependencies]` 空のため 0/0）と一致する。
-`fandhe-frontend-animation`（#2417、`crates/frontend-animation/`。wasm-bindgen / web-sys / js-sys
-依存を持つ Web アダプタ層）を計測対象へ追加する際は、外部依存を持つため `ZERO_DEP_CRATES` には
-登録せず第 4 節（60/6 判定のみ）への追加を検討し、実測値を本節へ追記する。
+
+## 11. fandhe-frontend-animation のスコープ判断（イシュー #2417）
+
+`fandhe-frontend-animation`（`crates/frontend-animation/`、#2417 で雛形追加）は wasm-bindgen /
+web-sys / js-sys へ依存する Web アダプタ層であり、実測は次のとおり。
+
+```
+deps-check: packages=19/60 depth=9/6 result=FAIL  (参考値、計測対象外)
+```
+
+第 4 節「WASM クライアントクレートのスコープ」の `fandhe-frontend-wasm-full`（20 packages/depth 9）・
+`fandhe-frontend-wasm-thin`（13 packages/depth 7）と同型の深さ超過であり、根拠も同一である
+（wasm-bindgen/web-sys 由来の依存グラフの深さは領域固有の構造的特性であり、REQ-3 が対象と
+明記する「標準サーバー構成」に該当しない。`unsafe` 境界としての監査は
+`docs/policy/unsafe-boundary.md` のスコープ）。よって `fandhe-frontend-animation` は
+第 4 節の計測対象（`deps-check.yml` の `check-deps`/`list-build-scripts`）に**追加しない**。
+外部依存を持つため `ZERO_DEP_CRATES`（第 2/3 節）にも登録しない。
+
+`fandhe-frontend-wasm-full` が本クレートを optional 依存として取り込んでも（既定 off）、
+標準サーバー構成の実体である `fandhe-frontend-dist-server` の実測（`packages=21/60 depth=5/6
+result=PASS`）は本 PR で不変であることを確認済み（`fandhe-frontend-dist-server` は
+`fandhe-frontend-wasm-full` に依存しないため、そもそも影響を受けない）。

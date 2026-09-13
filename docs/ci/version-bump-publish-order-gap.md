@@ -656,3 +656,13 @@ stale lock を P1 として検知するようになったため、**同時公開
 
 **`fandhe-animation` の実施状況（#2372 時点）**: A は本 PR で完了。B は確認済み
 （追加のジョブ・テスト変更は不要と確認した）。C は未実施（実公開は本 PR のスコープ外）。
+
+**`fandhe-frontend-animation` の実施状況（#2417 時点）**: A のうち、1（依存グラフ計測）は
+wasm クライアント crate と同型のスコープ外判断のため追加せず
+（`docs/policy/dependency-graph-policy.md` §11）、2（外部依存ゼロ契約）は本クレートが
+wasm-bindgen/web-sys へ依存するため非該当、3（release.yml）・4（unsafe 境界。deny 域として
+`DENY_UNSAFE_FFI_MEMBERS` へ登録）・5（依存グラフポリシーへの実測値記録）・6（CLAUDE.md）は
+本 PR で完了。B は確認済み（追加のジョブ・テスト変更は不要）。C は未実施（実公開は本 PR の
+スコープ外）。加えて `crates/wasm-full/Cargo.toml` へ optional 依存として追加したため、
+`fandhe-frontend-wasm-full` の公開（0.20.11 以降）は `fandhe-animation`→
+`fandhe-frontend-animation` の初回公開完了が前提となる（`release.yml` の依存順コメント参照）。

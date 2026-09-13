@@ -8,8 +8,8 @@
 //!    (1) クレートルート（`lib.rs` / `main.rs`）に `#![forbid(unsafe_code)]` が
 //!    存在すること、(2) ソース中にコメントを除いた `unsafe` トークンが
 //!    出現しないこと、の 2 点を検証する（`safe_domain_crates_*` テスト）。
-//! 2. **deny 域**（`DENY_UNSAFE_FFI_MEMBERS`。`wasm-full` — REQ-11 の
-//!    wasm-bindgen/web-sys FFI 境界のため `forbid` ではなく `deny` を採用するが、
+//! 2. **deny 域**（`DENY_UNSAFE_FFI_MEMBERS`。`wasm-full`・`frontend-animation` —
+//!    REQ-11 の wasm-bindgen/web-sys FFI 境界のため `forbid` ではなく `deny` を採用するが、
 //!    自作コード側の `unsafe` は 0 件を CI で強制する、#155）:
 //!    (a) クレートルートに `#![deny(unsafe_code)]` が存在すること、
 //!    (b) `src/` 配下の全 `.rs` にコメント除去後の `unsafe` トークンが出現しない
@@ -46,13 +46,14 @@ use std::path::{Path, PathBuf};
 const UNSAFE_ALLOWED_MEMBERS: &[&str] = &["wasm-client", "wasm-thin"];
 
 /// `#![deny(unsafe_code)]` を採用しつつ、自作コード側の `unsafe` を CI で
-/// forbid 相当に強制する WASM/FFI 境界クレート名のリスト（#155）。
+/// forbid 相当に強制する WASM/FFI 境界クレート名のリスト（#155。
+/// `frontend-animation` はイシュー #2417 で追加）。
 ///
 /// `wasm-bindgen` 展開コードの内部 `unsafe` と衝突するため `forbid` は
 /// 採用しないが、`src/` 配下の自作コードには `unsafe` トークン・
 /// `allow(unsafe_code)` による deny の上書きのいずれも許可しない。
 /// クレート追加時は本リストと `docs/policy/unsafe-boundary.md` を同時に更新する。
-const DENY_UNSAFE_FFI_MEMBERS: &[&str] = &["wasm-full"];
+const DENY_UNSAFE_FFI_MEMBERS: &[&str] = &["wasm-full", "frontend-animation"];
 
 /// workspace ルート（`crates/core/` から 2 段上）の絶対パスを返す。
 ///

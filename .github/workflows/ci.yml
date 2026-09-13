@@ -1888,7 +1888,7 @@ jobs:
     # ホステッドランナー移行（トラッキング #1220、実装 #1228）: public リポジトリの
     # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
     runs-on: ubuntu-latest
-    # クリーンな使い捨て VM でのフルコールドビルド（3 wasm クレートの
+    # クリーンな使い捨て VM でのフルコールドビルド（4 wasm クレートの
     # wasm32-unknown-unknown ターゲット clippy --all-targets）の上振れ余地を
     # 見込み、self-hosted 時代の 20 分から引き上げる（clippy ジョブと同値、
     # 実測は docs/ci/hosted-runner-migration.md §5.7 参照）。
@@ -1985,10 +1985,13 @@ jobs:
 
       - name: cargo clippy (wasm32-unknown-unknown) -- -D warnings
         # --all-targets によりテストターゲット（browser テスト含む）も
-        # コンパイル・lint 対象に含む。3 クレートを明示するのは、host target の
+        # コンパイル・lint 対象に含む。4 クレートを明示するのは、host target の
         # ワークスペース全体 clippy と異なり `-p` を絞らないと
         # wasm-client/wasm-thin の tests/ がコンパイルされずギャップが残るため。
-        run: cargo clippy -p fandhe-frontend-wasm-full -p fandhe-frontend-wasm-client -p fandhe-frontend-wasm-thin --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+        # `fandhe-frontend-animation`（イシュー #2417）は wasm-full の optional
+        # 依存（既定 off）のため `--workspace` 系ジョブ・本コマンドの他 3 クレート
+        # feature unification のいずれからも自動網羅されず、明示指定が必要。
+        run: cargo clippy -p fandhe-frontend-wasm-full -p fandhe-frontend-wasm-client -p fandhe-frontend-wasm-thin -p fandhe-frontend-animation --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
       - name: "cargo clippy (wasm32-unknown-unknown, partial scope feature: tabs only, issue #2327)"
         # イシュー #2327 レビュー是正: `keynav.rs::wiring` の個別関数・
@@ -2586,7 +2589,8 @@ jobs:
     # 分離した lint_wasm32 チェック（wasm32-unknown-unknown target 向け
     # clippy）専任ジョブ。
     runs-on: ubuntu-latest
-    # wasm32 target 向け clippy（3 wasm クレート）のみのため短めに見積もる
+    # wasm32 target 向け clippy（role = "client-entrypoint" の 4 wasm クレート、
+    # イシュー #2417 で frontend-animation 追加）のみのため短めに見積もる
     # （初回 CI 実測後に調整）。
     timeout-minutes: 30
     # gate-self-apply ジョブと同じ理由でオプトアウトする（lint_wasm32 は
