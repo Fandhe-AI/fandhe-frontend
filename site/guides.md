@@ -52,3 +52,11 @@ Guides セクションは、目的別の実践ガイドをまとめています�
 一覧と、`default-features = false` 利用者の移行手順、
 `fandhe-frontend-dist-server` が配布する最小インタラクティブ構成の定義を
 解説します。
+
+## pre-styled-ui motion feature ガイド
+
+[pre-styled-ui motion feature ガイドを見る](../docs/guides/pre-styled-ui-motion-feature.md)
+
+`fandhe-frontend-pre-styled-ui` の Cargo feature `motion`（既定 off）の
+有効化手順と、無効時に crate サイズ・ビルド時間・CSS 出力が一切変わらない
+ゼロコスト保証の内容を解説します。

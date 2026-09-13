@@ -3332,10 +3332,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # を返すようになる観測可能な変更のため（#1422 の先例と同型）minor バンプと
 # し、0.185.3 を +1 した 0.186.0 とする。
 #
-# イシュー #2416（Cargo feature `motion` 化、PR #2432 open・未マージ時点で
-# 本 PR が土台を先取り導入）: `motion` feature（既定 off）と optional 依存
-# `fandhe-animation` を追加した。既定 feature では依存グラフに現れず
-# （REQ-3 計測値不変）、`Theme::to_css()` の出力・処理量も無条件で不変。
+# イシュー #2416: motion 拡張（spring 近似 `linear()` プリセット等、親 #2379
+# 配下の Phase 2）を受け入れる土台として、Cargo feature `motion`（既定 off）
+# と optional 依存 `fandhe-animation` を追加した。既定 feature では依存
+# グラフに現れず（REQ-3 計測値不変）、`Theme::to_css()` の出力・処理量も
+# 無条件で不変（`tests/motion_zero_cost.rs` が契約テストとして固定）。
+# 新規公開 API 表面（`[features]` 節）の純追加のため minor バンプし、
+# 0.186.0 を +1 した 0.187.0 とする。
+#
+# イシュー #2383: `SlotRecipe::presence_transition`（presence（enter/exit）
+# recipe ヘルパ）を追加した。公開 API 追加のため minor バンプとし、
+# 0.187.0 を +1 した 0.188.0 相当だが、open PR #2433（0.188.0）で既に
+# 予約済みのため 0.189.0 とする。
+#
 # イシュー #2385（scroll-driven reveal ユーティリティ、`SlotRecipe::
 # scroll_reveal`）は `motion` feature 配下の新規公開 API のため minor
 # バンプする。open 状態の兄弟 PR（#2432/#2433/#2434/#2435）が同時に
@@ -3375,10 +3384,13 @@ optional = true
 
 [features]
 # 既定 off。有効化すると `fandhe-animation`（外部依存ゼロ・forbid(unsafe_code)）
-# が依存グラフに加わり、`SlotRecipe::scroll_reveal`（イシュー #2385）等の
-# motion 拡張 opt-in API が使えるようになる。無効時のゼロコスト契約は
-# `tests/motion_scroll_reveal_css.rs`（`#![cfg(feature = "motion")]`）が
-# 「無効時は 0 件実行」という形で担う。
+# が依存グラフに加わり、spring 近似 `linear()` プリセット等の motion 拡張
+# opt-in API（`impl Theme` の別ブロック、#2381 以降が実体を追加）や
+# `SlotRecipe::scroll_reveal`（イシュー #2385）等の motion 拡張 opt-in API が
+# 使えるようになる。無効時のゼロコスト契約は `tests/motion_zero_cost.rs`・
+# `tests/motion_scroll_reveal_css.rs`（`#![cfg(feature = "motion")]`。無効時は
+# 0 件実行）および `docs/guides/pre-styled-ui-motion-feature.md` を参照
+# （イシュー #2416）。
 motion = ["dep:fandhe-animation"]
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。

@@ -1120,6 +1120,19 @@ pub fn content_height_closed_transition_declarations(duration: MotionDuration) -
     declarations
 }
 
+/// [`SlotRecipe::presence_transition`] が `[hidden]` state・`@starting-style`
+/// の両方へ登録する閉状態の宣言（イシュー #2383）。
+///
+/// `opacity: 0` に加えて `transform: scale(0.95)` を開始値として与える
+/// （参照軸 Radix/shadcn の `zoom-95`・chakra `scale 0.95` に揃えた共通値）。
+/// 開いた定常状態（[`SlotRecipe::presence_transition`] の base）には
+/// `transform` を宣言しない設計とペアであり、詳細は同メソッドの rustdoc
+/// 「base に `transform` を宣言しない理由」節を参照。
+#[must_use]
+fn presence_closed_declarations() -> Vec<Declaration> {
+    vec![decl("opacity", "0"), decl("transform", "scale(0.95)")]
+}
+
 /// slot 1 個への base 宣言登録（内部表現）。
 struct BaseRule {
     slot: &'static str,
@@ -2199,6 +2212,89 @@ impl SlotRecipe {
                 StateCondition::Attr("hidden"),
                 vec![decl("transition", "none")],
             )
+    }
+
+    /// `slot`（headless の content パート）へ presence（enter/exit）の
+    /// opacity/transform トランジションを 1 呼び出しで適用する（builder、
+    /// 自己消費。イシュー #2383。判断記録は
+    /// `docs/design/motion-reference-adoption-policy.md` §4・§5:
+    /// presence は A 群〔transition ベース〕であり、opt-in 機構（イシュー
+    /// #2416 の `motion` Cargo feature・#2381/#2382 の `Theme` opt-in API）
+    /// を経由しない既定出力）。
+    ///
+    /// [`SlotRecipe::base`]・[`SlotRecipe::state`]（[`StateCondition::Attr`]
+    /// `"hidden"`）・[`SlotRecipe::starting_style`] の 3 登録を一括で行う:
+    ///
+    /// - base: `opacity: 1` + [`transition_declarations_allow_discrete`]
+    ///   （`opacity, transform, display`）
+    /// - `[hidden]` state・`@starting-style`: [`presence_closed_declarations`]
+    ///   （`opacity: 0` + `transform: scale(0.95)`）
+    ///
+    /// [`SlotRecipe::content_height_transition`] と異なり `@supports not
+    /// (...)` フォールバックブロックは登録しない。opacity/transform は
+    /// 全ブラウザで遷移可能なプロパティであり、`@starting-style`/
+    /// `allow-discrete` 未対応環境では単に本メソッドの宣言が無視され開閉が
+    /// 即時になる自然な劣化に留まるため（[`transition_declarations_
+    /// allow_discrete`] rustdoc と同じ理由）。
+    ///
+    /// # 閉状態のキーに `[hidden]` を採る理由
+    ///
+    /// [`SlotRecipe::content_height_transition`]（rustdoc 参照）と同じ判断:
+    /// headless の content パートは closed 時に `hidden` 属性を必ず持つ
+    /// 契約であり、`data-state="closed"` を持たない部品（例:
+    /// navigation-menu `content`）にも一律に乗せられる。`hidden` 属性の
+    /// UA 既定 `display: none` は base 側の `transition-behavior:
+    /// allow-discrete` により遷移完了まで適用が遅延される。
+    ///
+    /// # base に `transform` を宣言しない理由
+    ///
+    /// 開いた定常状態で content に `transform` が残ると、`position: fixed`
+    /// な子孫（ネストした Popover/Menu/Tooltip 等）の包含ブロックを作り
+    /// 直してしまう（[`crate::popover`] 冒頭 rustdoc に記載の既知の
+    /// 落とし穴）。`transform` は閉状態・`@starting-style` の開始値として
+    /// のみ与え、遷移完了時には base 側で `transform` 自体を宣言しない
+    /// （カスケード上 UA 既定 `none` が有効になる。`scale(0.95) → none`
+    /// は補間可能な値の組であり遷移も成立する）。
+    ///
+    /// # `[hidden]` state に `transition-*` を再宣言しない理由
+    ///
+    /// [`SlotRecipe::content_height_transition`] は開閉で easing/timing-
+    /// function を非対称にするため `[hidden]` 側にも `transition-*` を
+    /// 個別宣言するが、presence は開閉で対称（同一 duration/easing）の
+    /// ため、base の `transition-*` longhand がカスケードでそのまま
+    /// `[hidden]` 規則にも届く（`[hidden]` 規則は `opacity`/`transform`
+    /// のみ上書きし `transition-*` を上書きしないため無効化されない）。
+    /// 重複宣言を持たない最小形にする。
+    ///
+    /// # 適用範囲（content パート限定、positioner へは触れない）
+    ///
+    /// 本メソッドは content パート専用であり、positioner・backdrop への
+    /// 適用は行わない。popover / tooltip / hover-card / menu / menubar /
+    /// select / combobox / dialog / drawer 等、positioner にも `hidden` が
+    /// 付く部品構成では、祖先 `positioner[hidden]` の `display: none` に
+    /// より content 自身の opacity/transform 遷移は描画されない
+    /// （`docs/design/collapsible-height-animation.md` §12.2/§12.3
+    /// 参照）。positioner レベルの allow-discrete 対応は同文書 §12.3 の
+    /// 再評価トリガーに委ねる。navigation-menu `content`（positioner を
+    /// 持たない）はそのまま本メソッドの効果を受けられる。
+    ///
+    /// 本メソッド自体は各部品への適用（Phase 3、イシュー #2386 配下）を
+    /// 行わない共通 preset の追加のみであり、既存 `Theme::to_css` の
+    /// 出力はバイト不変。
+    #[must_use]
+    pub fn presence_transition(self, slot: &'static str, duration: MotionDuration) -> Self {
+        let mut open = vec![decl("opacity", "1")];
+        open.extend(transition_declarations_allow_discrete(
+            "opacity, transform, display",
+            duration,
+        ));
+        self.base(slot, open)
+            .state(
+                slot,
+                StateCondition::Attr("hidden"),
+                presence_closed_declarations(),
+            )
+            .starting_style(slot, presence_closed_declarations())
     }
 
     /// この slot に属するかどうかを判定する（`slots` 未宣言の slot を

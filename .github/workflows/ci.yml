@@ -390,6 +390,14 @@ jobs:
         # `--features motion` を明示した専用ステップで実行を強制する。
         run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_scroll_reveal_css --locked
 
+      - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_zero_cost（issue #2416）"
+        # 上記 `cargo test --workspace`（既定 feature、motion off）は
+        # motion_zero_cost.rs の off 側 3 テストを既に実行済み。本ステップは
+        # `--features motion` 構成でも同一契約テストが PASS することを固定
+        # する（feature on でも opt-in 未指定なら golden 出力が不変である
+        # ことの確認を含む）。
+        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_zero_cost --locked
+
   # イシュー #2299: fandhe-frontend-docs-site 単独のテストを test ジョブから
   # 分離した専用ジョブ。docs-site テストが workspace テスト実行時間の大半を
   # 占めていたため、独立ジョブとして test ジョブと並列に走らせることで CI の
@@ -1876,6 +1884,23 @@ jobs:
         # --all-targets によりテストターゲット（#[cfg(test)] / tests/ 配下）
         # もコンパイル・lint 対象に含む（イシュー #299）。
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      # イシュー #2416: pre-styled-ui の `motion` feature（既定 off、optional
+      # 依存 fandhe-animation）は上記 `--workspace` 実行では既定 feature の
+      # まま検証されるため、`--no-default-features`/`--features motion` の
+      # 2 構成は個別ステップで検証する（wasm-full-feature-matrix ジョブ群の
+      # 縮小 feature 検証と同型の欠落埋め）。
+      - name: "cargo check -p fandhe-frontend-pre-styled-ui --no-default-features（motion feature off、issue #2416）"
+        run: cargo check -p fandhe-frontend-pre-styled-ui --no-default-features --all-targets --locked
+
+      - name: "cargo clippy -p fandhe-frontend-pre-styled-ui --no-default-features -- -D warnings（issue #2416）"
+        run: cargo clippy -p fandhe-frontend-pre-styled-ui --no-default-features --all-targets --locked -- -D warnings
+
+      - name: "cargo check -p fandhe-frontend-pre-styled-ui --features motion（issue #2416）"
+        run: cargo check -p fandhe-frontend-pre-styled-ui --features motion --all-targets --locked
+
+      - name: "cargo clippy -p fandhe-frontend-pre-styled-ui --features motion -- -D warnings（issue #2416）"
+        run: cargo clippy -p fandhe-frontend-pre-styled-ui --features motion --all-targets --locked -- -D warnings
 
   # イシュー #1160（出典: PR #1147 out-of-scope）: 上記 clippy ジョブは host
   # target のみを対象とするため、`#[cfg(target_arch = "wasm32")]` ゲート配下

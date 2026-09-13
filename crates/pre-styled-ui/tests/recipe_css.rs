@@ -1237,6 +1237,54 @@ fn content_height_transition_preset_registers_base_state_and_starting_style() {
 }
 
 #[test]
+fn presence_transition_preset_registers_base_state_and_starting_style() {
+    // イシュー #2383: presence（enter/exit）recipe ヘルパの golden テスト。
+    // `content_height_transition` と異なり `@supports not (...)`
+    // フォールバックは持たない（opacity/transform は全ブラウザで遷移
+    // 可能なため、`SlotRecipe::presence_transition` rustdoc 参照）。
+    let recipe = SlotRecipe::new("popover", &["content"])
+        .presence_transition("content", MotionDuration::Normal);
+    let css = recipe.css();
+
+    let expected = concat!(
+        "[data-scope=\"popover\"][data-part=\"content\"] {\n",
+        "  opacity: 1;\n",
+        "  transition-property: opacity, transform, display;\n",
+        "  transition-duration: var(--fandhe-motion-duration-normal);\n",
+        "  transition-timing-function: var(--fandhe-motion-easing-standard);\n",
+        "  transition-behavior: allow-discrete;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"popover\"][data-part=\"content\"][hidden] {\n",
+        "  opacity: 0;\n",
+        "  transform: scale(0.95);\n",
+        "}\n",
+        "\n",
+        "@starting-style {\n",
+        "  [data-scope=\"popover\"][data-part=\"content\"] {\n",
+        "    opacity: 0;\n",
+        "    transform: scale(0.95);\n",
+        "  }\n",
+        "}\n",
+    );
+    assert_eq!(css, expected);
+}
+
+#[test]
+fn presence_transition_undeclared_slot_is_skipped_not_panicking() {
+    // fail-closed 確認: `slots` に宣言されていない slot への
+    // `presence_transition` 呼び出しは panic せず、当該 slot の規則が
+    // 出力から一律に除外されることを固定する（`SlotRecipe::is_declared_slot`
+    // 経由の既存 fail-closed 契約、`content_height_transition` 等と同型）。
+    let recipe = SlotRecipe::new("popover", &["content"])
+        .presence_transition("not-declared", MotionDuration::Normal);
+    let css = recipe.css();
+
+    assert!(!css.contains("not-declared"));
+    assert!(css.is_empty());
+}
+
+#[test]
 fn supports_not_calc_size_hidden_rule_outranks_hidden_state_rule_in_source_order() {
     // Cursor Bugbot medium severity 指摘（PR #2289 レビュー）の回帰テスト:
     // `[hidden]` state 規則（`content_height_closed_transition_declarations`）

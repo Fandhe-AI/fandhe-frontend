@@ -82,6 +82,15 @@
   3. `Theme::to_css` の処理量（トークン走査・文字列生成のステップ数）
   4. CSS 出力サイズ（gzip 後、REQ-11 の計測対象）
 
+**実装済み注記（イシュー #2416）**: `crates/pre-styled-ui/` の Cargo feature
+`motion`（既定 off）・optional 依存 `fandhe-animation` の器と、上記 4 指標の
+契約テスト（`crates/pre-styled-ui/tests/motion_zero_cost.rs`）は #2416 で
+実装済み。テスト対象は指標 1（依存グラフ非出現、指標 2 はその帰結として
+扱う）・3（`to_css` ソース走査による分岐不在確認）・4（既定テーマの golden
+バイト一致）。C 群拡張出力そのもの（spring・layout FLIP 等）は #2416 の
+スコープ外で、Phase 2 の各後続イシューが `#[cfg(feature = "motion")]`
+配下へ実体を追加する。
+
 ## 8. 各群の REQ-11/REQ-12/§3.25 整合
 
 | 観点 | 整合内容 |

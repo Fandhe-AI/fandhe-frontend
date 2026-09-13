@@ -40,6 +40,14 @@ name: release
 # 現れること）を経てから pre-styled-ui を実行する（本ワークフロー自身は
 # クレート横断の順序保証を持たないため、実行者が手順として担保する）。
 #
+# fandhe-frontend-pre-styled-ui 0.187.0 以降を公開する場合の追加の注意
+# （イシュー #2416）: `motion` feature（既定 off）の optional 依存として
+# fandhe-animation（version = "0.1.0"）を追加した。`cargo publish` は
+# optional 依存であっても registry 上の解決を要求するため、下記
+# fandhe-animation の初回公開（`docs/ci/version-bump-publish-order-gap.md`
+# §11 C 手順）を完了し sparse index への反映を確認してから
+# pre-styled-ui 0.187.0 以降を実行する（headless-ui の依存順注意と同型）。
+#
 # fandhe-frontend-animation を公開する場合の依存順の注意（イシュー #2417）:
 # 依存順は fandhe-animation → fandhe-frontend-animation → fandhe-frontend-wasm-full
 # （0.20.11 以降、optional 依存）。fandhe-animation は本 PR 時点で未公開のため、
