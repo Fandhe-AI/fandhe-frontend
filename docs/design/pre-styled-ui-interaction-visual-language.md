@@ -25,7 +25,7 @@
 | disabled の統一形 | `opacity: 0.5` + `cursor: not-allowed`。彩度低下・`pointer-events: none` は採らない | 既存 40 箇所超の実装と同一。`cursor` 表示と tooltip 到達性を保つ |
 | `:disabled` vs `[data-disabled]` | `[data-disabled]` を正とする | `<li>`/`<a>`/`<div>` ベースの item/trigger にも同じ 1 経路で適用できる。`:disabled` はネイティブフォーム要素にしか効かない |
 | button の `data-disabled` 非消費 | 改める（`recipe_with_scope` の `root` に `[data-disabled]` 規則を追加）。`download_trigger` にも同時に波及するが disabled を持たない設計のため dead CSS のみ | 参照サイト標準に合わせる |
-| transition 既定 | duration: `fast=150ms` / `normal=200ms` / `slow=300ms`、easing: `standard=cubic-bezier(0.4, 0, 0.2, 1)` / `emphasized=cubic-bezier(0.2, 0, 0, 1)`。既存リテラル `0.15s` は `fast`、`0.2s ease` は `normal` へ写像する | chakra-ui / Radix の既定値帯 |
+| transition 既定 | duration: `fast=150ms` / `normal=200ms` / `slow=300ms`、easing: `standard=cubic-bezier(0.4, 0, 0.2, 1)` / `emphasized=cubic-bezier(0.2, 0, 0, 1)`。既存リテラル `0.15s` は `fast`、`0.2s ease` は `normal` へ写像する（イシュー #2380 で `faster=100ms` / `slower=400ms` と `in=cubic-bezier(0.42, 0, 1, 1)` / `out=cubic-bezier(0, 0, 0.58, 1)` / `in-out=cubic-bezier(0.42, 0, 0.58, 1)` / `emphasized-decelerate=cubic-bezier(0.05, 0.7, 0.1, 1)` / `emphasized-accelerate=cubic-bezier(0.3, 0, 0.8, 0.15)` を拡張） | chakra-ui / Radix の既定値帯（#2380 追加分は CSS キーワード `ease-in`/`ease-out`/`ease-in-out` 同値・Material Design 3 の非対称強調イージング） |
 | transition の宣言分解 | shorthand `transition:` ではなく longhand 3 プロパティ（`transition-property`/`transition-duration`/`transition-timing-function`）へ分解する | `Declaration::value` が `&'static str` のみを受け付ける制約下では、複数プロパティへ同一 duration を shorthand で割り当てるための実行時文字列連結を回避できない（`crate::css` モジュール冒頭の「`decl()` はソースコード中のリテラルからのみ構築される」不変条件を保つため） |
 | reduced-motion の共通化 | `Theme::to_css` が motion トークンのうち `duration-*` のみを `@media (prefers-reduced-motion: reduce) { :root { --fandhe-motion-duration-*: 0ms; } }` で一括上書きする。部品側は `var(--fandhe-motion-duration-*)` を参照するだけで自動的に無効化される | 各 recipe への `@media` 追加を不要にする唯一の共通経路 |
 | タッチ端末での hover 貼り付き | `StateCondition::Hover` を `@media (hover: hover)` で囲んで出力し、セレクタも `:hover:not([data-disabled])` とする | 消費者は `charts::tooltip` の 1 件のみで golden 更新が容易。「消費者が現れた時点で契約を固める」前例（#847）に従う |
@@ -34,7 +34,7 @@
 
 ### 4.1 `theme.rs`
 
-- `Theme` に `motions: Vec<ScaleToken>` を追加。`DEFAULT_MOTIONS`（duration 3 段 + easing 2 種）を `Default` で登録する
+- `Theme` に `motions: Vec<ScaleToken>` を追加。`DEFAULT_MOTIONS`（#1425 時点 duration 3 段 + easing 2 種、#2380 で duration 5 段 + easing 7 種へ拡張）を `Default` で登録する
 - `push_motion` / `upsert_motion`（既存 `push_scale`/`upsert_scale` を再利用）、`motion_var(name) -> var(--fandhe-motion-<name>)` を追加
 - `to_css` は `:root` ブロック末尾（z-indices の後）に `--fandhe-motion-<name>` を出力し、`:root[data-theme="dark"]` ブロックの後に `write_reduced_motion_block` が `@media (prefers-reduced-motion: reduce)` ブロックを追記する（`duration-` で始まる motion が 1 件以上あるときのみ）
 - motion を一切 push しないテーマの `to_css()` 出力は本イシュー導入前とバイト同一（既存 radii/shadows/z-indices の純追加パターンを踏襲）
@@ -88,6 +88,8 @@
 
 - transition の複合プロパティ（例: `transform`）を扱う部品が増え、longhand 分解では表現しきれないケースが出てきた場合、`Declaration` の型（`&'static str` 制約）自体の見直しを再検討する
 - easing の種類（`emphasized` 等）を実際に使う消費者が現れた場合、`transition_declarations` の easing 引数化を検討する（現状は `easing-standard` に固定する単純化）
+- `duration-fastest`（50ms）/ `duration-slowest`（500ms）は消費者が現れた時点で純追加する（イシュー #2380 では現行部品の消費者がいないため見送り）
+- `recipe::MotionDuration` への `Faster`/`Slower` 追加、`transition_declarations` の easing 引数化（#2380 で追加した `in`/`out`/`in-out`/`emphasized-decelerate`/`emphasized-accelerate` トークンを使う）は、新 easing を実際に使う部品が現れた時点で行う（#2380 ではトークン定義のみ）
 
 ## 9. pressed / selected 状態の非テキストコントラスト規約（イシュー #1967）
 

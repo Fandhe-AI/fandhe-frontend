@@ -689,18 +689,43 @@ const DEFAULT_SIZES: &[(&str, &str)] = &[
 /// （イシュー #1425）。既存 recipe が個別に手書きしていた `0.15s` / `0.2s
 /// ease` 等のリテラルを吸収する対応表（`docs/design/
 /// pre-styled-ui-interaction-visual-language.md` 参照）: `0.15s` →
-/// `duration-fast`、`0.2s ease` → `duration-normal`。duration 3 段
-/// （chakra-ui / Radix の既定値帯に合わせた `fast`/`normal`/`slow`）と easing
-/// 2 種（`standard`: 汎用の enter/exit、`emphasized`: モーダル等の強調遷移）
-/// を持つ。`duration-` で始まる名前のみ [`Theme::to_css`] が
-/// `prefers-reduced-motion: reduce` 下で `0ms` へ一括上書きする対象になる
-/// （easing はそれ単体では動きを生まないため対象外）。
+/// `duration-fast`、`0.2s ease` → `duration-normal`。duration 5 段
+/// （#1425 の `fast`/`normal`/`slow` + イシュー #2380 の `faster`/`slower`。
+/// chakra-ui の段階名を参照しつつ現行部品の消費者に合わせて絞った）と
+/// easing 7 種（#1425 の `standard`: 汎用の enter/exit、`emphasized`:
+/// モーダル等の強調遷移 + イシュー #2380 の `in`/`out`/`in-out`〔CSS
+/// キーワード `ease-in`/`ease-out`/`ease-in-out` と同値の cubic-bezier〕・
+/// `emphasized-decelerate`/`emphasized-accelerate`〔Material Design 3 の
+/// 非対称強調イージング、enter/exit 向け〕）を持つ。`duration-` で始まる
+/// 名前のみ [`Theme::to_css`] が `prefers-reduced-motion: reduce` 下で
+/// `0ms` へ一括上書きする対象になる（easing はそれ単体では動きを生まないため
+/// 対象外）。`fastest`/`slowest`・easing の引数化・
+/// [`crate::recipe::MotionDuration`] への段追加は消費者が現れた時点で行う
+/// （`docs/design/pre-styled-ui-interaction-visual-language.md` §8 参照）。
 const DEFAULT_MOTIONS: &[(&str, &str)] = &[
     ("duration-fast", "150ms"),
     ("duration-normal", "200ms"),
     ("duration-slow", "300ms"),
     ("easing-standard", "cubic-bezier(0.4, 0, 0.2, 1)"),
     ("easing-emphasized", "cubic-bezier(0.2, 0, 0, 1)"),
+    // イシュー #2380: duration 追加段（chakra-ui の faster/slower 相当）。
+    ("duration-faster", "100ms"),
+    ("duration-slower", "400ms"),
+    // イシュー #2380: easing 追加。in/out/in-out は CSS キーワード
+    // ease-in/ease-out/ease-in-out と同値の cubic-bezier（既存トークンとの
+    // 表記統一のため）。emphasized-decelerate/accelerate は Material
+    // Design 3 の非対称強調イージング。
+    ("easing-in", "cubic-bezier(0.42, 0, 1, 1)"),
+    ("easing-out", "cubic-bezier(0, 0, 0.58, 1)"),
+    ("easing-in-out", "cubic-bezier(0.42, 0, 0.58, 1)"),
+    (
+        "easing-emphasized-decelerate",
+        "cubic-bezier(0.05, 0.7, 0.1, 1)",
+    ),
+    (
+        "easing-emphasized-accelerate",
+        "cubic-bezier(0.3, 0, 0.8, 0.15)",
+    ),
 ];
 
 /// 既定のブレークポイントトークン（name, value、イシュー #2197）。
@@ -1129,7 +1154,9 @@ impl Theme {
     ///    3 と同特異度のため、末尾に置く出力順序でメディアクエリより優先させる）
     /// 5. `@media (prefers-reduced-motion: reduce) { :root { --fandhe-motion-duration-...: 0ms; } }`
     ///    （イシュー #1425。motions のうち名前が `duration-` で始まるものが
-    ///    1 件以上あるときのみ出力する。`transition: none` ではなく `0ms` を
+    ///    1 件以上あるときのみ出力する。イシュー #2380 で追加した
+    ///    `duration-faster`/`duration-slower` も同 prefix により自動で
+    ///    このブロックへ包含される。`transition: none` ではなく `0ms` を
     ///    選ぶのは、`transition-property` の宣言自体は維持しつつ遷移時間だけ
     ///    ゼロ化することで、`transitionend` イベントに依存する JS 側の
     ///    ロジックを壊さないため。easing トークンはそれ単体では動きを

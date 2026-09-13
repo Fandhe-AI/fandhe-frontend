@@ -3325,7 +3325,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # あり既存 variant の出力もバイト同一のままの純追加のため patch バンプと
 # し、origin/main が既に 0.185.2 を使用済みのため 0.185.2 を +1 した
 # 0.185.3 とする。
-version = "0.185.3"
+# イシュー #2380: `DEFAULT_MOTIONS` へ duration 2 段（faster/slower）・
+# easing 5 種（in/out/in-out/emphasized-decelerate/emphasized-accelerate）を
+# 追加し、`Theme::default().to_css()` の既定出力を拡張した。利用者が同名で
+# 既に `push_motion(...)` していた場合、今後 `ThemeError::DuplicateTokenName`
+# を返すようになる観測可能な変更のため（#1422 の先例と同型）minor バンプと
+# し、0.185.3 を +1 した 0.186.0 とする。
+version = "0.186.0"
 
 
 edition = "2021"
