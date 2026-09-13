@@ -75,7 +75,7 @@
 - **`-hover` 色トークンの新設**: `--fandhe-hover-bg` 間接参照で足りるため、テーマ層への新規段追加は行わない（#1422 の色トークン改称と疎結合を保つ）
 - **`:disabled` ネイティブ擬似クラスへの統一**: `<li>`/`<a>`/`<div>` ベースの item/trigger に適用できないため不採用
 - **`pointer-events: none` による disabled 表現**: `cursor` 表示・tooltip 到達性を損なうため不採用
-- **per-recipe `@media (prefers-reduced-motion)` の個別手書き**: `Theme::to_css` の一括処理に統一する。ただし skeleton/marquee の既存個別 `@media`（`animation: none` 等、duration では表現できない副作用を持つ）は本イシューでは変更せず維持する
+- **per-recipe `@media (prefers-reduced-motion)` の個別手書き**: `Theme::to_css` の一括処理に統一する。ただし skeleton/marquee の既存個別 `@media`（`animation: none` 等、duration では表現できない副作用を持つ）は本イシューでは変更せず維持する。`motion` feature 配下の opt-in `@keyframes` ライブラリ（イシュー #2382、`crates/pre-styled-ui/src/motion.rs`）もリテラル duration（`--fandhe-motion-duration-*` トークンを参照しない）での利用を想定するため、`Theme::to_css` の一括処理では止められず、同じ理由で個別 `@media` を持つ例外である
 - **transition の shorthand 1 プロパティ化**: `Declaration::value` の `&'static str` 制約（`crate::css` の「`decl()` はソースコード中のリテラルからのみ構築される」不変条件）を保つため、longhand 3 プロパティに分解した
 
 ## 7. 兄弟イシューとの境界

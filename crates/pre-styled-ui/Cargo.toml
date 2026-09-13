@@ -3339,7 +3339,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 無条件で不変（`tests/motion_zero_cost.rs` が契約テストとして固定）。
 # 新規公開 API 表面（`[features]` 節）の純追加のため minor バンプし、
 # 0.186.0 を +1 した 0.187.0 とする。
-version = "0.187.0"
+#
+# イシュー #2382: `motion` feature 配下に共通 `@keyframes` ライブラリ
+# （`src/motion.rs`、opt-in の `Theme::to_css_with_keyframes`）を追加した。
+# 既定 feature では非コンパイルのままで crate サイズ・`to_css()` 出力は
+# 無条件で不変。新規公開 API 表面の純追加のため minor バンプし、0.187.0 を
+# +1 した 0.188.0 とする。
+version = "0.188.0"
 
 
 edition = "2021"
@@ -3374,8 +3380,10 @@ optional = true
 [features]
 # 既定 off。有効化すると `fandhe-animation`（外部依存ゼロ・forbid(unsafe_code)）
 # が依存グラフに加わり、spring 近似 `linear()` プリセット等の motion 拡張
-# opt-in API（`impl Theme` の別ブロック、#2381 以降が実体を追加）が使える
-# ようになる。無効時のゼロコスト契約は `tests/motion_zero_cost.rs` および
+# opt-in API（`impl Theme` の別ブロック、#2381 以降が実体を追加）と共通
+# `@keyframes` ライブラリ（`motion::KEYFRAMES_CSS`・`Theme::to_css_with_keyframes`、
+# #2382）が使えるようになる。無効時のゼロコスト契約は
+# `tests/motion_zero_cost.rs` および
 # `docs/guides/pre-styled-ui-motion-feature.md` を参照（イシュー #2416）。
 motion = ["dep:fandhe-animation"]
 

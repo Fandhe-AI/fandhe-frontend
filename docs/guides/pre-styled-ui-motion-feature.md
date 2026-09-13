@@ -27,9 +27,19 @@ fandhe-frontend-pre-styled-ui = { version = "0.187", features = ["motion"] }
 有効化すると `fandhe-animation`（外部依存ゼロ・`forbid(unsafe_code)`、
 プラットフォーム非依存のアニメーション演算基幹）が依存グラフに加わります。
 
-本 issue（#2416）時点では、feature を有効化しても新しく使える公開 API は
-ありません（土台のみの導入）。後続イシュー（#2381 以降）が実体を追加した
-時点で、本節に有効化で得られる項目を追記します。
+有効化で使えるようになる公開 API（イシュー #2382 時点）:
+
+- `fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS`: 共通
+  `@keyframes` ライブラリの CSS 全文（フェード・ズーム・4 方向スライド・
+  バウンス・シェイクの 10 種 + `prefers-reduced-motion: reduce` 再定義
+  ブロック）。`StyleSheet` へ取り込む場合は
+  `sheet.push_css(motion::KEYFRAMES_CSS)` を使う。
+- `fandhe_frontend_pre_styled_ui::motion::FADE_IN_KEYFRAMES_NAME` 等
+  （10 個）: 各 `@keyframes` の名前定数。`decl("animation-name",
+  motion::FADE_IN_KEYFRAMES_NAME)` のように参照する。
+- `Theme::to_css_with_keyframes()`: `Theme::to_css()` の出力へ
+  `KEYFRAMES_CSS` を追記して返す opt-in メソッド（`Theme::to_css` 本体は
+  無変更のまま）。
 
 ## 3. 無効時ゼロコスト保証の内容
 
@@ -56,8 +66,9 @@ CI では `.github/workflows/ci.yml` の `clippy` ジョブが
 
 - **presence（#2383）は feature 配下に置きません**: 同文書 §7 が「既定
   出力に無条件で含む」と明示しています。
-- 共通 `@keyframes`（#2382）・stagger（#2384）・scroll-driven（#2385）は
-  同文書 §4 各行の採用方針に従い、追加時に判断します。
+- 共通 `@keyframes`（#2382、実装済み。`motion::KEYFRAMES_CSS`）・
+  stagger（#2384）・scroll-driven（#2385）は同文書 §4 各行の採用方針に
+  従い、追加時に判断します。
 
 ## 5. 消費者別の指定方針
 
