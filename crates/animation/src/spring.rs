@@ -513,9 +513,23 @@ impl Spring {
                     let x = decay * self.x0 + (decay * c) * t;
                     // 解析微分: x' = -ω0·decay·(x0 + c·t) + decay·c = -ω0·x + decay·c
                     let v = -omega0 * x + decay * c;
-                    // 包絡線: |x(t)| = decay·|x0 + c·t| <= decay·(|x0| + |c|·t)
-                    // （t >= 0 のため三角不等式がそのまま上限になる）。
-                    let envelope = decay * (self.x0.abs() + c.abs() * t);
+                    // 包絡線: |x(s)| <= g(s) = e^{-ω0·s}·(|x0| + |c|·s)（三角不等式）。
+                    // g は単調減少ではなく s* = 1/ω0 - |x0|/|c| に極大を持つため、
+                    // 現在値 g(t) だけでは「以後どの時刻でも rest_delta 以下」を
+                    // 保証できない（PR #2426 codex 指摘: from=to、初速のみの
+                    // 入力で at(0) が done になる）。以後の上限 sup_{s>=t} g(s)
+                    // = g(max(t, s*)) を包絡線に使う。
+                    let envelope = if c == 0.0 {
+                        decay * self.x0.abs()
+                    } else {
+                        let peak_t = 1.0 / omega0 - self.x0.abs() / c.abs();
+                        if peak_t > t {
+                            // g(s*) = e^{-ω0·s*}·|c|/ω0
+                            (-omega0 * peak_t).exp() * c.abs() / omega0
+                        } else {
+                            decay * (self.x0.abs() + c.abs() * t)
+                        }
+                    };
                     (x, v, envelope)
                 }
             }
@@ -586,6 +600,31 @@ mod tests {
     }
 
     // --- 物理パラメータ系 ---
+
+    #[test]
+    fn critical_damping_does_not_finish_before_initial_velocity_peak() {
+        // PR #2426 codex 指摘: from=to で初速のみの臨界減衰は x(0)=0 のため
+        // 瞬時包絡線が 0 になり、後続の極大（≈0.033）を残したまま done になる。
+        let config = SpringConfig {
+            stiffness: 0.01,
+            damping: 0.2,
+            mass: 1.0,
+        };
+        let spring = Spring::new(config, 0.0, 0.0, 0.009).unwrap();
+        assert!(!spring.at(0.0).done);
+        let settle = spring.settle_duration();
+        assert!(settle > 1.0, "settle={settle}");
+        let mut t = settle;
+        while t <= MAX_SETTLE_DURATION {
+            let s = spring.at(t);
+            assert!(
+                s.value.abs() <= spring.rest_delta,
+                "t={t} value={}",
+                s.value
+            );
+            t += SETTLE_STEP;
+        }
+    }
 
     #[test]
     fn at_positive_infinity_returns_rest_state_in_all_regions() {
