@@ -21,7 +21,7 @@ feature `motion`」節であり、本書はそれを読みやすく再構成し�
 
 ```toml
 [dependencies]
-fandhe-frontend-pre-styled-ui = { version = "0.191", features = ["motion"] }
+fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
 ```
 
 有効化すると `fandhe-animation`（外部依存ゼロ・`forbid(unsafe_code)`、
