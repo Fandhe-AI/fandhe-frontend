@@ -33,7 +33,7 @@
 | animate（単発トランジション） | A/C（単純な値遷移は A、spring・複雑な keyframes は C） | A は pre-styled-ui の transition プリセットとして実装対象、C は `fandhe-animation`/`fandhe-frontend-animation` で実装対象 |
 | spring（物理ベースの補間） | C | 実装対象（`fandhe-animation` の演算コア） |
 | keyframes（複数値の時間割） | A（CSS `@keyframes` で表現可能な範囲）/ C（動的生成・spring 混在時） | Phase 2 で共通 `@keyframes` を opt-in 提供（判断記録 2。**実装済み（イシュー #2382）**: `motion` feature 配下の `crates/pre-styled-ui/src/motion.rs`。フェード・ズーム・4 方向スライド・バウンス・シェイクの 10 種 + `@media (prefers-reduced-motion: reduce)` 内での同名 `@keyframes` 再定義） |
-| timeline / stagger（順序制御・遅延分散） | C | 実装対象（`fandhe-frontend-animation` の調整層） |
+| timeline / stagger（順序制御・遅延分散） | C | 実装対象（`fandhe-frontend-animation` の調整層）。CSS 側ユーティリティ（`recipe::stagger_delay_declaration` 等、イシュー #2384）は pre-styled-ui `motion` feature 配下に実装済み。動的な index 書き戻し配線（wasm-full 側 CSSOM 更新）は #2397 |
 | scroll（スクロール連動） | B（`IntersectionObserver`/scroll イベント購読）/ C（scroll-timeline 相当の連続値が要る場合） | B は wasm-full 配線として実装対象、C は evaluation-only（CSS `animation-timeline: scroll()` を優先検討） |
 | inView（ビューポート進入検出） | B | wasm-full の `data-*` 配線として実装対象 |
 | hover（ホバー状態検出） | A（CSS `:hover` で足りる大半のケース） | 既存の pre-styled-ui interaction 言語（#1425）で実装済みの範囲を優先し、追加配線は行わない |

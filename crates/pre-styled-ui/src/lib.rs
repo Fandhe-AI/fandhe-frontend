@@ -54,8 +54,11 @@
 //!   「C 群のみに分類され実装対象と定められた拡張出力」（spring
 //!   `linear()` プリセット等）。**presence（#2383）は §7 が「既定出力に
 //!   無条件で含む」と明示しており feature 配下には置かない**。
-//!   `@keyframes`/stagger/scroll-driven は同文書 §4 各行の採用方針に従い
-//!   追加する。
+//!   `@keyframes`/scroll-driven は同文書 §4 各行の採用方針に従い追加する。
+//!   **stagger（イシュー #2384）は実装済み**（[`recipe::STAGGER_INDEX_VAR`]・
+//!   [`recipe::stagger_delay_declaration`]・[`recipe::stagger_index_style`]・
+//!   [`recipe::SlotRecipe::stagger_delay`]、`crates/pre-styled-ui/tests/
+//!   motion_stagger_css.rs`）。
 //! - **[`theme::Theme::to_css`] 本体・`write_reduced_motion_block` の不変
 //!   条件**: 走査ループへ `cfg!(feature = "motion")` 等の実行時分岐を
 //!   追加しない。opt-in API（spring イージング等）は `#[cfg(feature =

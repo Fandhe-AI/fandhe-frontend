@@ -3349,10 +3349,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2383: `SlotRecipe::presence_transition`（presence（enter/exit）
 # recipe ヘルパ）を追加した。公開 API 追加のため minor バンプとし、
 # 0.187.0 を +1 した 0.188.0 相当だが、本ブランチ側で 0.188.0 を独立に
-# 予約済みだったため main は 0.189.0 とした。本 PR の base 取り込みで
-# 双方の実体変更（#2382・#2383）を統合するため 0.189.0 を +1 した
-# 0.190.0 へさらにマイナーバンプする（0.x の破壊的変更はマイナーバンプの
-# 規約。同一版数への偶発的衝突をそのまま採用しない）。
+# 予約済みだったため main は 0.189.0 とした。
+#
+# イシュー #2384: stagger CSS ユーティリティ（`STAGGER_INDEX_VAR`・
+# `stagger_delay_declaration`・`stagger_index_style`・
+# `SlotRecipe::stagger_delay`）を `motion` feature 配下へ追加した。
+# いずれも `#[cfg(feature = "motion")]` の新規公開 API 純追加であり、
+# 無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs` 不変・
+# `tests/motion_stagger_css.rs` は `motion` feature 配下のみコンパイル）。
+# minor バンプ予定だったが、main 側で 0.189.0 が既に使用されたため
+# 0.190.0 とする。本 PR の base 取り込みで双方の実体変更（#2382・#2383・
+# #2384）を統合し、0.190.0 として確定する（0.x の破壊的変更はマイナー
+# バンプの規約。同一版数への偶発的衝突をそのまま採用しない）。
 version = "0.190.0"
 
 
