@@ -677,7 +677,15 @@ const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "text
 /// 一時的に本台帳へ加えていたが、イシュー #2080 で `/themes/radial-chart/`
 /// を登録したため除外した（headless 側に対応 anatomy が無いため
 /// [`WRAPPED_SAME_NAME`] ではなく [`PRE_STYLED_ONLY`] へ分類する）。
-const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
+const NON_PAGE_TOP_LEVEL: &[&str] = &[
+    "class_attr",
+    "css",
+    "lib",
+    "motion",
+    "recipe",
+    "stylesheet",
+    "theme",
+];
 
 /// §3.6: `charts/` のうち Themes ページに対応しないモジュール（9 件。
 /// `mod` は charts 索引ページとして別枠で扱うため含まない。`tooltip` は
@@ -1055,8 +1063,12 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        123,
-        "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
+        124,
+        "src/*.rs の総数が想定と異なります（イシュー #2382 で motion.rs \
+         を新設し 123 → 124。`#[cfg(feature = \"motion\")]` 配下の共通 \
+         `@keyframes` ライブラリで、Themes ページを持たない \
+         NON_PAGE_TOP_LEVEL 分類のため WRAPPED_SAME_NAME 等へは移らない。 \
+         イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
          登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
          #1686 で fieldset.rs を新設し 109 → 110。イシュー #1687 で \

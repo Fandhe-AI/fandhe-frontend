@@ -387,8 +387,11 @@ jobs:
         # motion_zero_cost.rs の off 側 3 テストを既に実行済み。本ステップは
         # `--features motion` 構成でも同一契約テストが PASS することを固定
         # する（feature on でも opt-in 未指定なら golden 出力が不変である
-        # ことの確認を含む）。
-        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_zero_cost --locked
+        # ことの確認を含む）。あわせて motion_keyframes_css.rs（イシュー
+        # #2382、共通 `@keyframes` ライブラリの golden・契約テスト。
+        # `#![cfg(feature = "motion")]` のため既定 feature の
+        # `cargo test --workspace` では実行されない）も同一構成で実行する。
+        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_zero_cost --test motion_keyframes_css --locked
 
       - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_stagger_css（issue #2384）"
         # stagger CSS ユーティリティ（recipe::stagger_delay_declaration 等、
