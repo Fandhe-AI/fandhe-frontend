@@ -27,6 +27,9 @@
 //!    間接的に得る（dev-dependency としてのみ利用、後述）。styled 部品の
 //!    `Node` 型参照は `fandhe_frontend_headless_ui::fandhe_frontend_core::Node`
 //!    （headless-ui が再エクスポートする core、イシュー #550）経由で得る。
+//!    **唯一の例外は Cargo feature `motion`（既定 off、イシュー #2416）**:
+//!    有効化時のみ `fandhe-animation`（optional 依存）が依存グラフに加わる。
+//!    詳細は下記「Cargo feature `motion`」節を参照。
 //! 5. **フォーカスリングは [`recipe::focus_ring_declarations`] 経由**
 //!    （イシュー #1424）: 各 styled 部品がキーボードフォーカスリング
 //!    （`:focus-visible`/`:focus-within`/hidden-input パターン）を独自の
@@ -37,6 +40,48 @@
 //!    `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` を参照
 //!    （107 部品への段階的移行は Phase 1 以降のイシューへ委ねる。本イシュー
 //!    時点では [`radio_group`] のみが移行済みのパイロット実装）。
+//!
+//! # Cargo feature `motion`（イシュー #2416、既定 off）
+//!
+//! アニメーション拡張（spring 近似 `linear()` プリセット・共通
+//! `@keyframes`・stagger・scroll-driven、親トラッキング #2379 配下の
+//! Phase 2 各イシュー）を、**無効時は crate サイズ・ビルド時間・
+//! [`theme::Theme::to_css`] の処理量・CSS 出力サイズのいずれも増やさない**
+//! 形で受け入れるための Cargo feature（`docs/design/motion-reference-adoption-policy.md`
+//! §7「ゼロコスト方針」の実装）。
+//!
+//! - **gating の範囲は同文書 §7 を正とする**: `motion` が除外するのは
+//!   「C 群のみに分類され実装対象と定められた拡張出力」（spring
+//!   `linear()` プリセット等）。**presence（#2383）は §7 が「既定出力に
+//!   無条件で含む」と明示しており feature 配下には置かない**。
+//!   `@keyframes`/stagger/scroll-driven は同文書 §4 各行の採用方針に従い
+//!   追加する。
+//! - **[`theme::Theme::to_css`] 本体・`write_reduced_motion_block` の不変
+//!   条件**: 走査ループへ `cfg!(feature = "motion")` 等の実行時分岐を
+//!   追加しない。opt-in API（spring イージング等）は `#[cfg(feature =
+//!   "motion")] impl Theme { ... }` の**別 impl ブロック**として追加し、
+//!   feature off ではメソッド自体が存在しない形にする。
+//! - **spring プリセットは実行時サンプリングしない**: `fandhe-animation`
+//!   でテスト時に一致検証する `&'static str` 手書き固定値として実装する
+//!   （`build.rs` は本クレートに導入しない、`docs/policy/dependency-graph-policy.md`
+//!   §6 参照）。
+//! - **無効時ゼロコストの契約テストは
+//!   [`tests/motion_zero_cost.rs`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/crates/pre-styled-ui/tests/motion_zero_cost.rs)
+//!   が固定する**（既定出力の golden 一致・`cargo tree` による依存グラフ
+//!   非出現/出現の双方向確認・`to_css` ソース走査による分岐不在確認）。
+//! - **本 issue 時点では `src/motion.rs` を持たない**（空モジュールの
+//!   scaffolding はしない）。後続イシューが最初の実体と同時に追加する
+//!   際は次の制約に従うこと: (a) 新規モジュールは単一ファイル
+//!   `src/motion.rs`（`src/motion/` ディレクトリは
+//!   `crates/docs-site/tests/wrap_state.rs` の `NESTED_MODULE_DIRS` 制約に
+//!   反する）とし、追加時に同ファイルの `NON_PAGE_TOP_LEVEL` へ
+//!   `"motion"` を追記する。(b) `docs-site` が `motion` feature を有効化
+//!   する場合、`structure.toml` の `directories.pre-styled-ui.depends_on`
+//!   へ `"animation"` を、`directories.animation.allowed_dependents` へ
+//!   `"pre-styled-ui"` を同時に追加する必要がある（現時点では docs-site は
+//!   `motion` を有効化しておらず、辺は未宣言のまま）。
+//! - 利用者向けの有効化手順・消費者別方針は
+//!   `docs/guides/pre-styled-ui-motion-feature.md` を参照。
 //!
 //! # 実装済み API（イシュー #546/#547/#548/#550/#551/#606）
 //!

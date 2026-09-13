@@ -271,6 +271,7 @@ golden テストと異なり、以下の横断テストは通常のスタイル�
 | `xss_escape_styled.rs` / `xss_escape.rs` | 新しい動的値の出力経路を `text()` / 属性エスケープ経路以外の方法で追加していないか（REQ-1 回帰） |
 | `recipe_css.rs` | scope / slot 名が headless-ui 側の実出力（`crates/headless-ui`）とずれていないか |
 | `theme_css.rs` | テーマトークン名（`--fandhe-<group>-<name>`）を変更していないか |
+| `motion_zero_cost.rs`（イシュー #2416） | `Theme::default().to_css()` 全文の golden（`EXPECTED_DEFAULT_THEME_CSS`）を持つ。`theme.rs` のトークン追加・変更（`DEFAULT_MOTIONS` 等）は本ファイルの golden にも波及する。加えて `to_css`/`write_reduced_motion_block` の走査ループへ `cfg!(feature`/`#[cfg(feature` を追加すると `to_css_body_has_no_feature_cfg_or_motion_branch` が fail する（motion feature 由来の実行時分岐は禁止、ゼロコスト方針 §7 参照） |
 | `recipe_determinism.rs` | `SlotRecipe` の内部実装に `HashMap`/`HashSet` 等、反復順序が不定な型を持ち込んでいないか |
 | `forms_state_matrix.rs`（イシュー #2195） | Forms 家族（date-picker/combobox/select/color-picker/number-input/rating-group/date-input）の `control`/`clear-trigger` の `data-disabled` opacity 単一階層規則（R1）・`label[data-required]` 非消費（R2）・pin-input/editable `control` の headless 非出力（R3）を崩していないか。正は `docs/design/pre-styled-ui-forms-disabled-required-matrix.md` |
 

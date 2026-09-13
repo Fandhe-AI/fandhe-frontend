@@ -666,3 +666,12 @@ wasm-bindgen/web-sys へ依存するため非該当、3（release.yml）・4（u
 スコープ外）。加えて `crates/wasm-full/Cargo.toml` へ optional 依存として追加したため、
 `fandhe-frontend-wasm-full` の公開（0.20.11 以降）は `fandhe-animation`→
 `fandhe-frontend-animation` の初回公開完了が前提となる（`release.yml` の依存順コメント参照）。
+
+**`fandhe-frontend-pre-styled-ui` 0.187.0 以降の公開前提（イシュー #2416）**:
+`crates/pre-styled-ui/Cargo.toml` へ `fandhe-animation` を Cargo feature
+`motion`（既定 off）の optional 依存として追加した。`cargo publish` は
+optional 依存であっても registry 上の解決を要求するため、
+`fandhe-frontend-pre-styled-ui` 0.187.0 以降の公開は `fandhe-animation` の
+初回公開（本節 C 手順）完了・sparse index への反映確認が前提となる
+（`release.yml` の該当コメント参照。`fandhe-frontend-wasm-full` と同型の
+制約だが、pre-styled-ui は publish 頻度が高いため個別に明記する）。

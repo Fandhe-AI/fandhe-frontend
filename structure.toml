@@ -54,6 +54,13 @@ allowed_dependents = ["wasm-full", "wasm-thin", "wasm-client", "headless-ui", "x
 path = "crates/interactive"
 
 # fandhe-animation（アニメーション演算基幹、イシュー #2368 で草案・#2371 で有効化）。
+# `fandhe-frontend-pre-styled-ui`（motion feature、イシュー #2416）も本クレートを
+# optional 依存として取り込むが、既定 feature では無効（`optional = true` の
+# implicit feature）のため `cargo metadata` の既定解決には現れず、`fw structure`
+# の depends_on 完全一致検証の対象外である。したがって `allowed_dependents` へ
+# `"pre-styled-ui"` は宣言しない（`frontend-animation` 節と同型の非対称宣言。
+# docs-site が `motion` feature を有効化する時点で、`pre-styled-ui.depends_on`
+# 側への対称な辺追加とあわせて宣言する）。
 [directories.animation]
 role = "core"
 crate = "fandhe-animation"
