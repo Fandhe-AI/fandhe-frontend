@@ -670,14 +670,19 @@ const THEMES_RECIPE_WITHOUT_PAGE: &[&str] = &[];
 /// 集合として引き続き 4 件のまま維持する）。
 const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "textarea"];
 
-/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（6 件。
+/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（7 件。
 /// イシュー #1685 で `field`、イシュー #1687 で `fieldset` がそれぞれ
 /// Themes ページ登録済みとなり本台帳から除外された。イシュー #2079 で
 /// `radial_chart` を新設した時点では `/themes/radial-chart/` 未登録のため
 /// 一時的に本台帳へ加えていたが、イシュー #2080 で `/themes/radial-chart/`
 /// を登録したため除外した（headless 側に対応 anatomy が無いため
-/// [`WRAPPED_SAME_NAME`] ではなく [`PRE_STYLED_ONLY`] へ分類する）。
+/// [`WRAPPED_SAME_NAME`] ではなく [`PRE_STYLED_ONLY`] へ分類する）。イシュー
+/// #2531 で `border_beam`（`motion` feature 配下の opt-in 装飾、単体部品
+/// ではなく card 等へ任意付与するため `/themes/border-beam/` のような
+/// 専用ページを持たない。`crate::border_beam` モジュール doc 参照）を
+/// `motion` と同じ理由で追加した。
 const NON_PAGE_TOP_LEVEL: &[&str] = &[
+    "border_beam",
     "class_attr",
     "css",
     "lib",
@@ -1063,8 +1068,11 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        124,
-        "src/*.rs の総数が想定と異なります（イシュー #2382 で motion.rs \
+        125,
+        "src/*.rs の総数が想定と異なります（イシュー #2531 で \
+         border_beam.rs を新設し 124 → 125。`motion` feature 配下の \
+         opt-in 装飾で単体の Themes ページを持たないため \
+         NON_PAGE_TOP_LEVEL 分類（`motion` と同型）。イシュー #2382 で motion.rs \
          を新設し 123 → 124。`#[cfg(feature = \"motion\")]` 配下の共通 \
          `@keyframes` ライブラリで、Themes ページを持たない \
          NON_PAGE_TOP_LEVEL 分類のため WRAPPED_SAME_NAME 等へは移らない。 \
