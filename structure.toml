@@ -56,16 +56,17 @@ path = "crates/interactive"
 # fandhe-animation（アニメーション演算基幹、イシュー #2368 で草案・#2371 で有効化）。
 # `fandhe-frontend-pre-styled-ui`（motion feature、イシュー #2416）も本クレートを
 # optional 依存として取り込むが、既定 feature では無効（`optional = true` の
-# implicit feature）のため `cargo metadata` の既定解決には現れず、`fw structure`
-# の depends_on 完全一致検証の対象外である。したがって `allowed_dependents` へ
-# `"pre-styled-ui"` は宣言しない（`frontend-animation` 節と同型の非対称宣言。
-# docs-site が `motion` feature を有効化する時点で、`pre-styled-ui.depends_on`
-# 側への対称な辺追加とあわせて宣言する）。
+# implicit feature）のため通常は `cargo metadata` の既定解決に現れない。
+# ただしイシュー #2524 で `fandhe-frontend-docs-site`（`crates/docs-site/`）が
+# `fandhe-frontend-pre-styled-ui` を `features = ["motion"]` で依存するように
+# なり、feature unification により `pre-styled-ui.depends_on` へ本クレートの
+# 辺が現れるようになったため、対称な `allowed_dependents` へ `"pre-styled-ui"`
+# を追加する（`frontend-animation` 節と同型の対称宣言）。
 [directories.animation]
 role = "core"
 crate = "fandhe-animation"
 description = "プラットフォーム非依存のアニメーション演算基幹（外部依存ゼロ・forbid(unsafe_code)。将来別リポジトリへの切り出しを前提とした設計）"
-allowed_dependents = ["frontend-animation"]
+allowed_dependents = ["frontend-animation", "pre-styled-ui"]
 path = "crates/animation"
 
 [directories.app]
@@ -153,11 +154,18 @@ depends_on = ["core", "interactive"]
 allowed_dependents = ["pre-styled-ui", "wasm-full", "xtask"]
 path = "crates/headless-ui"
 
+# `depends_on` の `"animation"` はイシュー #2524 で追加した辺: docs-site が
+# `motion` feature を有効化する（`crates/docs-site/Cargo.toml`）ことで、
+# `fandhe-animation`（optional 依存・`motion` feature が `dep:fandhe-animation`
+# を有効化）が `cargo metadata` の既定解決に現れるようになった。`motion`
+# feature 自体は既定 off のままであり、`crates/pre-styled-ui/tests/motion_zero_cost.rs`
+# が `cargo tree -p fandhe-frontend-pre-styled-ui`（`-p` 単体解決）で
+# ゼロコスト契約を別途検証する。
 [directories.pre-styled-ui]
 role = "component"
 crate = "fandhe-frontend-pre-styled-ui"
 description = "pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。テーマトークン・ダークモード基盤（イシュー #547）・variant API（SlotRecipe/VariantValue）と静的 CSS 生成（イシュー #548）・headless 5 コンポーネント（Dialog/Tabs/Accordion/Menu/Select）ラッパー第 1 弾（イシュー #551）を実装済み。styled 部品（Button 等）実装はイシュー #550 で追加する"
-depends_on = ["headless-ui"]
+depends_on = ["headless-ui", "animation"]
 allowed_dependents = ["docs-site"]
 path = "crates/pre-styled-ui"
 

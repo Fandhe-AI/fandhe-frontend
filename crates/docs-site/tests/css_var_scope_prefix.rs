@@ -163,6 +163,13 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-chart-active-scale",
     "--fandhe-separator-thickness",
     "--fandhe-content-height",
+    // --fandhe-motion-stagger-index / --fandhe-motion-scroll-reveal-distance:
+    // イシュー #2524 で docs-site 自身が SlotRecipe::stagger_delay /
+    // SlotRecipe::scroll_reveal を初めて消費した際に導入された実行時専用
+    // custom property（`--fandhe-content-height` と同型: 単一の所有 scope を
+    // 持たず、Theme::default() のトークンでもない）。
+    "--fandhe-motion-stagger-index",
+    "--fandhe-motion-scroll-reveal-distance",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。

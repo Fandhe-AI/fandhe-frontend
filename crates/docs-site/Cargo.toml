@@ -30,7 +30,7 @@ publish = false
 fandhe-frontend-core = { path = "../core" }
 fandhe-frontend-app = { path = "../app" }
 fandhe-frontend-server = { path = "../server" }
-fandhe-frontend-pre-styled-ui = { path = "../pre-styled-ui" }
+fandhe-frontend-pre-styled-ui = { path = "../pre-styled-ui", features = ["motion"] }
 
 [dev-dependencies]
 

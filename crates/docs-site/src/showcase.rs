@@ -235,9 +235,20 @@ use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, callout, card, collapsible, combobox, command, menu, popover,
     questionnaire, radio_group, select, switch, toggle, toggle_tip, tooltip, AlertProps,
     AlertStatus, AlertVariant, BadgeProps, BadgeVariant, CalloutProps, CalloutVariant, CardProps,
-    CardVariant, ColorPalette, OpenState, Orientation, Size, StyleSheet, StylesheetError,
-    VariantValue,
+    CardVariant, ColorPalette, OpenState, Orientation, Size, SlotRecipe, StyleSheet,
+    StylesheetError, VariantValue,
 };
+// イシュー #2524: scroll-driven reveal / stagger デモ（[`list_section`]
+// 内）が `motion` feature 配下の SlotRecipe builder を直接消費する。
+// `decl`/`Declaration` はクレートルート再エクスポート、
+// `MotionDuration`/`stagger_index_style` は `recipe` モジュールが公開する
+// （crate root へは再エクスポートされていない）。docs-site 自身が `motion`
+// feature の最初の消費者であるため（`crates/docs-site/Cargo.toml`）、本
+// import は常に有効（`#[cfg(feature = "motion")]` 不要）。
+// `fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS` は使わない
+// （[`DOCS_MOTION_DEMO_KEYFRAMES_CSS`] doc コメント参照）。
+use fandhe_frontend_pre_styled_ui::decl;
+use fandhe_frontend_pre_styled_ui::recipe::{stagger_index_style, MotionDuration};
 // styled `questionnaire` の状態機械（`Questionnaire`/`QuestionProps`）は
 // headless-ui 側から直接 import する（`crate::questionnaire` は状態機械を
 // 再エクスポートしない、モジュール doc 「全パーツが `state: &Questionnaire`
@@ -504,7 +515,11 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"link\"][data-part=\"root\"]:hover {\n  text-decoration: var(--fandhe-link-text-decoration, none);\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  text-decoration: none;\n}\n\
 .pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 20rem;\n  height: auto;\n}\n\
-.pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"root\"][data-variant=\"floating\"] {\n  height: auto;\n}\n";
+.pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"root\"][data-variant=\"floating\"] {\n  height: auto;\n}\n\
+.showcase-scroll-reveal-list {\n  display: flex;\n  flex-direction: column;\n  gap: 8rem;\n  margin: 1.5rem 0;\n  max-width: 24rem;\n}\n\
+.showcase-scroll-reveal-item {\n  padding: 0.75rem 1rem;\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
+.showcase-stagger-list {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n  margin: 1.5rem 0;\n  max-width: 24rem;\n}\n\
+.showcase-stagger-item {\n  padding: 0.5rem 1rem;\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-bg-subtle);\n}\n";
 
 /// 部品ページ 1 件分のレジストリエントリ（イシュー #941）。
 ///
@@ -1234,6 +1249,17 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     // 無条件で既に出荷しているため、ここへは追加しない（二重出荷回避）。
     sheet.push_css(&fandhe_frontend_pre_styled_ui::clipboard::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::sidebar::stylesheet())?;
+    // イシュー #2524: docs-site 自前の `motion` feature デモ
+    // （[`list_section`] の scroll-driven reveal / stagger 実演）専用
+    // CSS。`DOCS_MOTION_DEMO_KEYFRAMES_CSS` は stagger デモの fade-in
+    // keyframes（変数を持たない自己完結の 1 種のみ、定数 doc 参照）、
+    // `docs_motion_demo_recipe().css()` は `SlotRecipe::scroll_reveal`/
+    // `stagger_delay` が生成する `[data-scope="docs-motion-demo"]`
+    // 規則群（scroll_reveal 分は `@supports (animation-timeline:
+    // view())` 内に自己完結の `@keyframes` を含む、`recipe.rs`
+    // `SCROLL_REVEAL_KEYFRAMES_CSS` 参照）。
+    sheet.push_css(DOCS_MOTION_DEMO_KEYFRAMES_CSS)?;
+    sheet.push_css(&docs_motion_demo_recipe().css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2280,12 +2306,147 @@ fn list_section() -> Node {
     section(
         "List",
         "素の ul/ol/li 意味論をそのまま styled 化したリスト部品。順序なし（marker variant）・順序あり・plain + indicator（カスタムマーカー）・ネストリスト（イシュー #2056）の 4 種。",
-        vec![stack(vec![
-            marker_list,
-            ordered_list,
-            plain_list_with_indicator,
-            nested_list,
-        ])],
+        vec![
+            stack(vec![
+                marker_list,
+                ordered_list,
+                plain_list_with_indicator,
+                nested_list,
+            ]),
+            scroll_reveal_demo(),
+            stagger_demo(),
+        ],
+    )
+}
+
+/// [`docs_motion_demo_recipe`] の stagger デモが参照する `@keyframes`
+/// （イシュー #2524）。
+///
+/// `fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS`（共通ライブラリ、
+/// イシュー #2382）は再利用しない: 同定数は 10 種の `@keyframes` を
+/// 1 つの `&'static str` として不可分に持ち、`zoom-*`/`slide-from-*`/
+/// `bounce`/`shake` が参照する `--fandhe-motion-slide-offset`/
+/// `--fandhe-motion-bounce-height`/`--fandhe-motion-shake-distance`
+/// （いずれもどの `data-scope` にも属さない）を道連れに出荷してしまい、
+/// `crates/docs-site/tests/css_var_scope_prefix.rs` の scope 前方一致
+/// 契約（イシュー #1061）を、本デモが実際には使わない 3 変数分まで
+/// 余計に免除する必要が生じる。本デモが必要とするのは fade-in 1 種のみ
+/// のため、変数を一切持たない自己完結の `@keyframes` をここで直接持つ
+/// （`fandhe-animation`/`motion.rs` 側の共有ライブラリを汚染しない）。
+const DOCS_MOTION_DEMO_KEYFRAMES_CSS: &str =
+    "@keyframes fd-docs-motion-demo-fade-in {\n  from {\n    opacity: 0;\n  }\n  to {\n    opacity: 1;\n  }\n}\n";
+
+/// docs-site 自前の `motion` feature デモ専用 `SlotRecipe`（イシュー
+/// #2524）。`fandhe-frontend-pre-styled-ui` の公開部品ではなく
+/// docs-site だけが消費する scope（`"docs-motion-demo"`）のため、
+/// pre-styled-ui 側の各部品 `stylesheet()` 関数群とは別に
+/// [`stylesheet`] が直接 `push_css` する。
+///
+/// `reveal-item` slot に [`SlotRecipe::scroll_reveal`]（イシュー
+/// #2385）、`stagger-item` slot に [`DOCS_MOTION_DEMO_KEYFRAMES_CSS`] の
+/// fade-in keyframes + [`SlotRecipe::stagger_delay`]（イシュー #2384）を
+/// 適用する。両 slot は同一 scope を共有するがセレクタは `[data-part]`
+/// で分離されるため相互に干渉しない。
+fn docs_motion_demo_recipe() -> SlotRecipe {
+    SlotRecipe::new("docs-motion-demo", &["reveal-item", "stagger-item"])
+        .scroll_reveal("reveal-item")
+        .base(
+            "stagger-item",
+            vec![
+                decl("animation-name", "fd-docs-motion-demo-fade-in"),
+                decl("animation-duration", "var(--fandhe-motion-duration-normal)"),
+                decl("animation-fill-mode", "backwards"),
+            ],
+        )
+        .stagger_delay("stagger-item", MotionDuration::Fast)
+}
+
+/// scroll-driven reveal（イシュー #2385/#2499）の JS 不要な実演
+/// （イシュー #2524）。
+///
+/// `@supports (animation-timeline: view())` に対応するブラウザでは、
+/// 各行がビューポートへスクロールインするタイミングでフェード＋わずかな
+/// 上方向スライドが発火する（[`SlotRecipe::scroll_reveal`] 参照）。
+/// 非対応ブラウザでは `@supports` ブロックごと無視されるため、
+/// プログレッシブエンハンスメントとして常に通常表示のまま安全に
+/// 劣化する（受入基準どおり）。
+fn scroll_reveal_demo() -> Node {
+    let items: Vec<Node> = (1..=6)
+        .map(|i| {
+            div(
+                vec![
+                    ("data-scope", "docs-motion-demo"),
+                    ("data-part", "reveal-item"),
+                    ("class", "showcase-scroll-reveal-item"),
+                ],
+                vec![text(format!("Row {i}"))],
+            )
+        })
+        .collect();
+    div(
+        vec![],
+        vec![
+            el(
+                "h3",
+                vec![],
+                vec![text("Demo: scroll-driven reveal（JS 不要）")],
+            ),
+            p(
+                vec![],
+                vec![text(
+                    "対応ブラウザ（`animation-timeline: view()` サポート）ではスクロールに応じて各行がフェードインします。\
+                     非対応ブラウザでは `@supports` ブロックごと無視されるため、常に通常表示のまま安全に劣化します（JS 不要）。",
+                )],
+            ),
+            div(
+                vec![("class", "showcase-scroll-reveal-list")],
+                items,
+            ),
+        ],
+    )
+}
+
+/// stagger（順送り遅延フェードイン、イシュー #2384）の JS 不要な実演
+/// （イシュー #2524）。
+///
+/// [`stagger_index_style`] が書き出す `--fandhe-motion-stagger-index`
+/// custom property（SSR 側で行ごとに 0 始まりの連番を埋め込む）と
+/// `SlotRecipe::stagger_delay` の `animation-delay: calc(...)` により、
+/// ページ読み込み時に上から順番に遅延フェードインする。動的値は
+/// `usize` の 10 進表記のみで、core の既定エスケープ経由で出力される
+/// （`stagger_index_style` rustdoc 参照、任意文字列混入経路なし）。
+/// `prefers-reduced-motion: reduce` では `--fandhe-motion-duration-*`
+/// トークンが 0ms 化されるため（[`crate::showcase`] が参照する
+/// `Theme::to_css` 既定出力）、遅延・アニメーションとも追加の分岐なしに
+/// 消える。
+fn stagger_demo() -> Node {
+    let items: Vec<Node> = (0..6)
+        .map(|i| {
+            let style = stagger_index_style(i);
+            div(
+                vec![
+                    ("data-scope", "docs-motion-demo"),
+                    ("data-part", "stagger-item"),
+                    ("class", "showcase-stagger-item"),
+                    ("style", &style),
+                ],
+                vec![text(format!("Item {}", i + 1))],
+            )
+        })
+        .collect();
+    div(
+        vec![],
+        vec![
+            el("h3", vec![], vec![text("Demo: stagger（JS 不要）")]),
+            p(
+                vec![],
+                vec![text(
+                    "ページ読み込み時に上から順番に遅延フェードインします（JS 不要、CSS `animation-delay` の\
+                     順送り計算のみ）。`prefers-reduced-motion: reduce` では遅延・アニメーションとも消えます。",
+                )],
+            ),
+            div(vec![("class", "showcase-stagger-list")], items),
+        ],
     )
 }
 
@@ -3358,10 +3519,66 @@ fn dialog_section() -> Node {
             ),
         ],
     );
+    // イシュー #2524: closed インスタンス（presence_transition の
+    // `[hidden]` state を静的に掲示する）。id 参照系属性はすべて
+    // `-closed` サフィックスで open インスタンスと分離する
+    // （`collapsible_section`/`crate::blocks::sidebar_07` と同型の規約）。
+    // JS で開閉できない静的ページのため `hidden`/`data-state="closed"`
+    // により本文上は不可視になる（下記 description 参照）。
+    let closed_node = div(
+        vec![],
+        vec![
+            dialog::trigger(
+                OpenState::Closed,
+                Some("showcase-dialog-content-closed"),
+                vec![],
+                vec![text("Open dialog (closed)")],
+            ),
+            dialog::root(
+                Size::Md,
+                OpenState::Closed,
+                vec![],
+                vec![
+                    dialog::backdrop(OpenState::Closed, vec![], vec![]),
+                    dialog::positioner(
+                        OpenState::Closed,
+                        vec![],
+                        vec![dialog::content(
+                            OpenState::Closed,
+                            DialogRole::Dialog,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-dialog-content-closed"),
+                                labelledby: Some("showcase-dialog-title-closed"),
+                                describedby: Some("showcase-dialog-desc-closed"),
+                            },
+                            vec![],
+                            vec![
+                                dialog::title(
+                                    Some("showcase-dialog-title-closed"),
+                                    vec![],
+                                    vec![text("Confirm action")],
+                                ),
+                                dialog::description(
+                                    Some("showcase-dialog-desc-closed"),
+                                    vec![],
+                                    vec![text("この操作は取り消せません。")],
+                                ),
+                                dialog::close_trigger(
+                                    vec![("aria-label", "Close")],
+                                    vec![text("×")],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
     section(
         "Dialog",
-        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下に `body` パート（イシュー #2030、pre-styled-only のスクロール可能コンテンツパート）で複数段落の本文を、その下に `footer` パート（イシュー #1690、pre-styled-only のレイアウト専用パート）でアクション列を配置しています。alert-dialog（確認ダイアログ）構成の例は Examples 節を参照してください。",
-        vec![node],
+        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下に `body` パート（イシュー #2030、pre-styled-only のスクロール可能コンテンツパート）で複数段落の本文を、その下に `footer` パート（イシュー #1690、pre-styled-only のレイアウト専用パート）でアクション列を配置しています。alert-dialog（確認ダイアログ）構成の例は Examples 節を参照してください。2 つ目のインスタンス（closed）は `hidden` 属性・`data-state=\"closed\"` により本文上は非表示です（JS で開閉できない静的ページのため）。1 つ目のインスタンス（open）は presence transition（`@starting-style` + `allow-discrete`）が適用されており、対応ブラウザではページ読み込み時にフェード＋スケールインが実際に発火します。",
+        vec![node, closed_node],
     )
 }
 
@@ -3451,10 +3668,64 @@ fn drawer_section() -> Node {
             ),
         ],
     );
+    // イシュー #2524: closed インスタンス（[`dialog_section`] と同型の
+    // id サフィックス規約）。
+    let closed_node = div(
+        vec![],
+        vec![
+            drawer::trigger(
+                OpenState::Closed,
+                Some("showcase-drawer-content-closed"),
+                vec![],
+                vec![text("Open drawer (closed)")],
+            ),
+            drawer::root(
+                Size::Md,
+                OpenState::Closed,
+                DrawerPlacement::End,
+                vec![],
+                vec![
+                    drawer::backdrop(OpenState::Closed, vec![], vec![]),
+                    drawer::positioner(
+                        OpenState::Closed,
+                        DrawerPlacement::End,
+                        vec![],
+                        vec![drawer::content(
+                            OpenState::Closed,
+                            DrawerPlacement::End,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-drawer-content-closed"),
+                                labelledby: Some("showcase-drawer-title-closed"),
+                                describedby: Some("showcase-drawer-desc-closed"),
+                            },
+                            vec![],
+                            vec![
+                                drawer::title(
+                                    Some("showcase-drawer-title-closed"),
+                                    vec![],
+                                    vec![text("Navigation")],
+                                ),
+                                drawer::description(
+                                    Some("showcase-drawer-desc-closed"),
+                                    vec![],
+                                    vec![text("画面端からスライドインする補助パネルです。")],
+                                ),
+                                drawer::close_trigger(
+                                    vec![("aria-label", "Close")],
+                                    vec![text("×")],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
     section(
         "Drawer",
-        "headless-ui の Drawer（WAI-ARIA dialog パターンの変種、dialog の状態機械を再利用）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。placement=\"end\" を掲示しています。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下にアクション行（footer 相当、掲示用レイアウトのみ）を配置しています。",
-        vec![node],
+        "headless-ui の Drawer（WAI-ARIA dialog パターンの変種、dialog の状態機械を再利用）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。placement=\"end\" を掲示しています。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下にアクション行（footer 相当、掲示用レイアウトのみ）を配置しています。2 つ目のインスタンス（closed）は `hidden` 属性・`data-state=\"closed\"` により本文上は非表示です。1 つ目のインスタンス（open）は presence transition が適用されており、対応ブラウザではページ読み込み時にフェード＋スケールインが実際に発火します。",
+        vec![node, closed_node],
     )
 }
 
@@ -3689,10 +3960,43 @@ fn menu_section() -> Node {
             ),
         ],
     );
+    // イシュー #2524: closed インスタンス（[`dialog_section`] と同型の
+    // id サフィックス規約）。サブメニュー等の入れ子構成は複製せず、
+    // 単純な 2 項目のみで closed 掲示の目的（presence の `[hidden]`
+    // state・data-state="closed" の掲示）を満たす最小構成にする。
+    let closed_node = menu::root(
+        Size::Md,
+        OpenState::Closed,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Closed,
+                false,
+                Some("showcase-menu-content-closed"),
+                vec![],
+                vec![text("Actions (closed)")],
+            ),
+            menu::positioner(
+                OpenState::Closed,
+                vec![],
+                vec![menu::content(
+                    OpenState::Closed,
+                    Some("showcase-menu-content-closed"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::item("duplicate", false, false, vec![], vec![text("Duplicate")]),
+                        menu::separator(vec![], vec![]),
+                        menu::item("settings", false, false, vec![], vec![text("Settings")]),
+                    ],
+                )],
+            ),
+        ],
+    );
     section(
         "Menu",
-        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・グループ+ラベル・checkbox/radio 項目・サブメニュー・ショートカット（kbd 合成）・inset・destructive・separator・disabled の各状態を含みます。2 つ目のインスタンスは destructive 項目が highlighted のときの背景色合成（イシュー #2203）を示します。positioner はフロー内配置へ中和しています。",
-        vec![node, danger_node],
+        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・グループ+ラベル・checkbox/radio 項目・サブメニュー・ショートカット（kbd 合成）・inset・destructive・separator・disabled の各状態を含みます。2 つ目のインスタンスは destructive 項目が highlighted のときの背景色合成（イシュー #2203）を示します。3 つ目のインスタンス（closed）は `hidden` 属性・`data-state=\"closed\"` により本文上は非表示です。1 つ目のインスタンス（open）は presence transition が適用されており、対応ブラウザではページ読み込み時にフェードインが実際に発火します。positioner はフロー内配置へ中和しています。",
+        vec![node, danger_node, closed_node],
     )
 }
 
@@ -4397,10 +4701,49 @@ fn popover_section() -> Node {
             ),
         ],
     );
+    // イシュー #2524: closed インスタンス（[`dialog_section`] と同型の
+    // id サフィックス規約）。
+    let closed_node = popover::root(
+        OpenState::Closed,
+        vec![],
+        vec![
+            popover::trigger(
+                OpenState::Closed,
+                false,
+                Some("showcase-popover-content-closed"),
+                vec![],
+                vec![text("More info (closed)")],
+            ),
+            popover::positioner(
+                OpenState::Closed,
+                vec![],
+                vec![popover::content(
+                    OpenState::Closed,
+                    Some("showcase-popover-content-closed"),
+                    Some("showcase-popover-title-closed"),
+                    Some("showcase-popover-desc-closed"),
+                    vec![],
+                    vec![
+                        popover::title(
+                            Some("showcase-popover-title-closed"),
+                            vec![],
+                            vec![text("About this feature")],
+                        ),
+                        popover::description(
+                            Some("showcase-popover-desc-closed"),
+                            vec![],
+                            vec![text("必要なときだけ表示される補足情報です。")],
+                        ),
+                        popover::close_trigger(vec![], vec![text("Close")]),
+                    ],
+                )],
+            ),
+        ],
+    );
     section(
         "Popover",
-        "headless-ui の Popover（role=\"dialog\"、非モーダル）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。",
-        vec![node],
+        "headless-ui の Popover（role=\"dialog\"、非モーダル）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。2 つ目のインスタンス（closed）は `hidden` 属性・`data-state=\"closed\"` により本文上は非表示です。1 つ目のインスタンス（open）は presence transition が適用されており、対応ブラウザではページ読み込み時にフェード＋スケールインが実際に発火します。",
+        vec![node, closed_node],
     )
 }
 
@@ -4501,10 +4844,35 @@ fn tooltip_section() -> Node {
             ),
         ],
     );
+    // イシュー #2524: closed インスタンス（[`dialog_section`] と同型の
+    // id サフィックス規約）。
+    let closed_node = tooltip::root(
+        OpenState::Closed,
+        vec![],
+        vec![
+            tooltip::trigger(
+                OpenState::Closed,
+                false,
+                Some("showcase-tooltip-content-closed"),
+                vec![],
+                vec![text("Hover target (closed)")],
+            ),
+            tooltip::positioner(
+                OpenState::Closed,
+                vec![],
+                vec![tooltip::content(
+                    OpenState::Closed,
+                    Some("showcase-tooltip-content-closed"),
+                    vec![],
+                    vec![text("補足のヒントテキストです。")],
+                )],
+            ),
+        ],
+    );
     section(
         "Tooltip",
-        "headless-ui の Tooltip（role=\"tooltip\"、WAI-ARIA tooltip パターン）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
-        vec![node],
+        "headless-ui の Tooltip（role=\"tooltip\"、WAI-ARIA tooltip パターン）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。2 つ目のインスタンス（closed）は `hidden` 属性・`data-state=\"closed\"` により本文上は非表示です。1 つ目のインスタンス（open）は presence transition が適用されており、対応ブラウザではページ読み込み時にフェードインが実際に発火します。",
+        vec![node, closed_node],
     )
 }
 
@@ -4540,10 +4908,35 @@ fn hover_card_section() -> Node {
             ),
         ],
     );
+    // イシュー #2524: closed インスタンス（[`dialog_section`] と同型の
+    // id サフィックス規約。trigger の href 制約は本節冒頭 doc と同じ）。
+    let closed_node = hover_card::root(
+        OpenState::Closed,
+        HoverCardDelays::default(),
+        vec![],
+        vec![
+            hover_card::trigger(
+                OpenState::Closed,
+                None,
+                vec![],
+                vec![text("Hover to preview (closed)")],
+            ),
+            hover_card::positioner(
+                OpenState::Closed,
+                vec![],
+                vec![hover_card::content(
+                    OpenState::Closed,
+                    None,
+                    vec![],
+                    vec![text("リンク先のプレビュー内容です。")],
+                )],
+            ),
+        ],
+    );
     section(
         "HoverCard",
-        "headless-ui の HoverCard（リンク先プレビュー等 hover/focus で開閉するオーバーレイ）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
-        vec![node],
+        "headless-ui の HoverCard（リンク先プレビュー等 hover/focus で開閉するオーバーレイ）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。2 つ目のインスタンス（closed）は `hidden` 属性・`data-state=\"closed\"` により本文上は非表示です。1 つ目のインスタンス（open）は presence transition が適用されており、対応ブラウザではページ読み込み時にフェードインが実際に発火します。",
+        vec![node, closed_node],
     )
 }
 
