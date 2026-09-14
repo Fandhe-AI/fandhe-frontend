@@ -96,7 +96,11 @@ path = "crates/wasm-client"
 role = "client-entrypoint"
 crate = "fandhe-frontend-wasm-full"
 description = "CSR/ハイドレーション フルセット構成（wasm32 ターゲット）"
-depends_on = ["core", "interactive", "app", "wasm-client", "headless-ui"]
+# `frontend-animation` はイシュー #2398 で `animate` feature（既定 on）が
+# `dep:fandhe-frontend-animation` として有効化するようになったため、
+# `cargo metadata` の既定解決に現れるようになった（#2417 時点は optional
+# 依存が既定 off で現れず宣言していなかった）。
+depends_on = ["core", "interactive", "app", "wasm-client", "headless-ui", "frontend-animation"]
 path = "crates/wasm-full"
 
 [directories.wasm-thin]
@@ -107,20 +111,19 @@ depends_on = ["core", "interactive"]
 path = "crates/wasm-thin"
 
 # fandhe-frontend-animation（Web アニメーションアダプタ、イシュー #2368 で草案・
-# #2417 で有効化）。`wasm-full` は本クレートを optional 依存として取り込むが
-# （既定 feature では無効）、`fw structure`（`crates/cli/src/main.rs
-# ::check_crate_and_dependency_consistency`）の実依存突き合わせは
-# `cargo metadata` の `resolve.nodes[].deps`（既定 feature で解決）のみを見るため
-# optional 依存はここに現れない。したがって `allowed_dependents = ["wasm-full"]`
-# は宣言しない（宣言すると `wasm-full.depends_on` 側に対称な `frontend-animation`
-# が無い非対称違反になる）。この辺の宣言は、`wasm-full` の既定 feature が本
-# クレートを有効化する時（#2395 以降）または `fw structure` が optional 依存を
-# 扱えるようになった時に追加する。
+# #2417 で crate 雛形有効化）。イシュー #2398 で `wasm-full` の `animate`
+# feature（既定 on）が `dep:fandhe-frontend-animation` として本クレートを
+# 有効化するようになったため、`cargo metadata` の `resolve.nodes[].deps`
+# （既定 feature で解決）に本クレートへの辺が現れるようになった。#2417 時点は
+# optional 依存が既定 off でここに現れず `allowed_dependents = ["wasm-full"]`
+# を意図的に宣言していなかった（非対称違反を避けるため）が、#2398 で前提が
+# 反転したため本節で宣言済みである。
 [directories.frontend-animation]
 role = "client-entrypoint"
 crate = "fandhe-frontend-animation"
 description = "Web アニメーションアダプタ（`fandhe-animation` の演算結果を wasm-bindgen / web-sys / js-sys で DOM/Web Animations API へ適用する。fandhe-frontend-wasm-full には依存しない）"
 depends_on = ["animation"]
+allowed_dependents = ["wasm-full"]
 path = "crates/frontend-animation"
 
 [directories.dist-server]

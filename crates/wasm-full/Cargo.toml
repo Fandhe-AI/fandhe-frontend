@@ -1103,7 +1103,12 @@ name = "fandhe-frontend-wasm-full"
 # apply_update_for_dirty` の keyed list 構造反映直後に
 # `stagger_index::sync_stagger_index` を呼ぶ配線を追加（feature
 # `stagger`、既定 on）。新規公開 API 追加を伴うため minor バンプする。
-version = "0.21.0"
+#
+# イシュー #2398: `animate` feature を新設し、`fandhe-frontend-animation`
+# （optional 依存、#2417）を既定 on で有効化するだけの配線を追加した
+# （`wire_*` 呼び出しは一切ゲートしない特殊枠。`Runtime`/`mount`/`hydrate` の
+# 既存コードは無変更）。新規公開 feature 追加を伴うため minor バンプする。
+version = "0.22.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1346,14 +1351,14 @@ wasm-bindgen = "0.2"
 js-sys = "0.3"
 
 # イシュー #2417: Web アニメーションアダプタ（3 層構成の中段、`fandhe-animation`
-# を wasm-bindgen/web-sys で実装する層）を optional 依存として追加。既定 off
-# （`optional = true`）のため implicit feature `fandhe-frontend-animation` が
-# 生成されるのみで、`default`/`WASM_DIST_FEATURES` には含めない。Phase 4 の
-# 各配線 feature が `dep:fandhe-frontend-animation` で有効化する予定（#2395）。
-# optional 依存は `cargo metadata` の既定解決（resolve.nodes[].deps）に現れない
-# ため `fw structure`（structure.toml）の `depends_on` 辺は宣言していない
-# （structure.toml の frontend-animation 節コメント参照）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.1.0", optional = true }
+# を wasm-bindgen/web-sys で実装する層）を optional 依存として追加。
+#
+# イシュー #2398: `animate` feature（既定 on）が本依存を有効化するようになった
+# （`dep:fandhe-frontend-animation`）。これにより本依存は初めて既定 feature の
+# 依存グラフに現れる。`structure.toml`（`directories.frontend-animation`）・
+# `crates/xtask/tests/wasm_full_animation_optional_dep.rs` もあわせて更新済み
+# （#2417 時点の「既定 feature では無効」前提から反転）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.2.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1576,6 +1581,7 @@ default = [
   "data-table",
   "position",
   "stagger",
+  "animate",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -1631,6 +1637,15 @@ position = []
 # 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
 # 別枠の feature。
 stagger = []
+# イシュー #2398: `fandhe-frontend-animation`（optional 依存、#2417）を
+# 有効化するだけの feature（既定 on）。`Runtime::mount`/`hydrate` の `wire_*`
+# 呼び出しを一切ゲートしない（対応する自動配線が未実装のため。`data-*`
+# 属性からの呼び出し配線は後続 Phase 4 issue の責務であり、本 issue は
+# `fandhe_frontend_animation::animate` を本クレートの依存先として呼べる
+# ようにするところまでを担う）。配線群別 feature 表にも scope feature にも
+# 属さない別枠（`stagger`/`position` と似るが、対応する呼び出し自体が
+# 存在しない点が異なる）。
+animate = ["dep:fandhe-frontend-animation"]
 
 # イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
 # `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの

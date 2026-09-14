@@ -225,6 +225,14 @@
 //! も `Runtime::mount`/`hydrate` の配線群呼び出しではない（`dirty` 更新
 //! 経路から呼ばれる）ため上記対応表には含めない。
 //!
+//! feature `"animate"`（既定 on、イシュー #2398）は上記いずれとも異なる
+//! 特殊枠である: optional 依存 `fandhe-frontend-animation`
+//! （`element.animate()` WAAPI 薄いラッパ、イシュー #2417/#2398）を
+//! 有効化するだけで、対応する `wire_*` 呼び出し自体が本クレートに存在
+//! しない（`data-*` 属性からの自動トリガー配線は後続 Phase 4 issue の
+//! 責務）。したがって上記対応表・配線群 16 件の一覧のいずれにも含めず、
+//! `position`/`stagger` と同じ「別枠 feature」の 3 例目として扱う。
+//!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
 //! `default-features = false` を使う利用者は上記 16 配線を失う
@@ -243,7 +251,10 @@
 //! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
 //! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
 //! 同型の別枠 feature、既定 18 件目として `default` 配列に列挙されて
-//! いる）。
+//! いる）。`fandhe_frontend_animation::animate` を呼べるようにするには
+//! `"animate"` も列挙に含めること（対応する `wire_*` 呼び出しは存在せず
+//! 依存の有効化のみを行う別枠 feature、既定 19 件目として `default` 配列に
+//! 列挙されている）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
