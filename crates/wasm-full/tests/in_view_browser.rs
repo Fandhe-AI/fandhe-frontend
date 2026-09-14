@@ -317,6 +317,25 @@ async fn dynamically_added_element_is_observed_after_wiring() {
         .append_child(&new_target)
         .expect("append_child must not fail");
 
+    // bottom spacer(300px) を追加し、スクロール可能範囲を
+    // [0, 520]（scrollHeight 620 - clientHeight 100）へ広げる。
+    // spacer なしでは scrollHeight が 320 に留まり、`scroll_top(300)`
+    // が最大値 220 へクランプされて可視域の下端 (220+100=320) が target
+    // の下端 (300+20=320) とちょうど一致する境界ケースになり、
+    // ブラウザの端数計算次第で交差判定（ratio>0）が成立しない実測の
+    // flake があった（イシュー #2401 PR #2556 CI 実測）。
+    // `create_scroll_fixture` と同じ構成へ揃え、可視域内に target を
+    // 余裕を持って収める。
+    let bottom_spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    bottom_spacer
+        .set_attribute("style", "height:300px")
+        .expect("set_attribute must not fail");
+    container
+        .append_child(&bottom_spacer)
+        .expect("append_child must not fail");
+
     // 追加直後は非交差のため `data-in-view` が外れる（observe されて
     // いなければこの遷移自体が起きず、属性がタイムアウトまで残り続ける）。
     assert!(
