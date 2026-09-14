@@ -656,6 +656,13 @@ stale lock を P1 として検知するようになったため、**同時公開
 
 **`fandhe-animation` の実施状況（#2372 時点）**: A は本 PR で完了。B は確認済み
 （追加のジョブ・テスト変更は不要と確認した）。C は未実施（実公開は本 PR のスコープ外）。
+**C の実施（2026-09-14）**: `release.yml` を `crate=fandhe-animation` /
+`version=0.1.0` で dry-run（run 34797291618、green）→ publish（run 34797486805、
+green）の順に実行し、
+`https://index.crates.io/fa/nd/fandhe-animation` に 0.1.0 の反映を確認した。これにより
+`fandhe-frontend-pre-styled-ui` 0.187.0 以降の公開ブロッカー（本節末尾）が解消し、同日
+0.193.0 を公開した（0.186.0〜0.192.0 は未公開のまま欠番となる）。以後 `version-bump-guard`
+が `fandhe-animation` に対して実効化する。
 
 **`fandhe-frontend-animation` の実施状況（#2417 時点）**: A のうち、1（依存グラフ計測）は
 wasm クライアント crate と同型のスコープ外判断のため追加せず
