@@ -597,6 +597,14 @@ const DEFAULT_SPACES: &[(&str, &str)] = &[
 ];
 
 /// 既定のタイポグラフィトークン（name, value）。モード非依存。
+///
+/// イシュー #2438 で `font-size-5xl`（3rem）/ `font-size-6xl`（3.75rem）を
+/// 純追加し font-size を 8 段 → 10 段へ拡充した（chakra-ui の `5xl`/`6xl` と
+/// 同値。shadcn Pro 等の hero 見出し素材が要求する段で、`heading.rs` が
+/// 非採用の再評価トリガーとしていた「複数部品で 4xl 超の要求」を充足した）。
+/// 既存 8 段の名前・値は不変。`heading`/`text` の size variant は `4xl` まで
+/// のままであり、variant 拡張は別イシュー（`docs/design/pre-styled-ui-scale-tokens.md`
+/// 参照）。
 const DEFAULT_TYPOGRAPHY: &[(&str, &str)] = &[
     ("font-body", "system-ui, -apple-system, sans-serif"),
     ("font-mono", "ui-monospace, monospace"),
@@ -608,6 +616,8 @@ const DEFAULT_TYPOGRAPHY: &[(&str, &str)] = &[
     ("font-size-2xl", "1.5rem"),
     ("font-size-3xl", "1.875rem"),
     ("font-size-4xl", "2.25rem"),
+    ("font-size-5xl", "3rem"),
+    ("font-size-6xl", "3.75rem"),
     ("font-weight-normal", "400"),
     ("font-weight-medium", "500"),
     ("font-weight-semibold", "600"),

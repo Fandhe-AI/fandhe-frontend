@@ -481,7 +481,42 @@ breakpoint と同じくスキップする。純追加不変条件（`container_s
 | container query `3xs`〜`xs`・`2xl` 以上 | shadcn/ui（Tailwind v4） | `Size`/`Breakpoint` の「共通 enum に載せると全部品が空の段を抱える」前例と同じ判断。必要になった時点で純追加できる（§3.7） |
 | container query 用 Theme トークン | — | JS 側に等価 API が無く CSS custom property が `@container` プレリュードで使えない制約は breakpoint と同じで、参照専用トークンを追加する動機自体が無い（§3.7） |
 
-## 7. 再評価トリガー
+## 8. typography font-size スケール（イシュー #2438）
+
+`DEFAULT_TYPOGRAPHY` へ `font-size-5xl` / `font-size-6xl` を純追加し、
+font-size スケールを 8 段 → 10 段へ拡張した。既存 8 段の名前・値は不変。
+
+**スケール値**（chakra-ui v3 との対応表）:
+
+| 段名 | value | chakra-ui 対応 | 用途例 |
+| --- | --- | --- | --- |
+| `xs` | `0.75rem` | `xs` | 補足・タグ |
+| `sm` | `0.875rem` | `sm` | 小見出し・説明文 |
+| `md` | `1rem` | `md` | 本文 |
+| `lg` | `1.125rem` | `lg` | 少し大きめ本文 |
+| `xl` | `1.25rem` | `xl` | 中見出し |
+| `2xl` | `1.5rem` | `2xl` | 見出し |
+| `3xl` | `1.875rem` | `3xl` | 大見出し |
+| `4xl` | `2.25rem` | `4xl` | 特大見出し |
+| **`5xl`**（新規） | **`3rem`** | **`5xl`** | 極大見出し |
+| **`6xl`**（新規） | **`3.75rem`** | **`6xl`** | 超極大見出し |
+
+CSS 変数出力: `--fandhe-font-font-size-5xl` / `--fandhe-font-font-size-6xl`。
+
+**既存 heading/text 部品への影響**: `heading.rs` / `text.rs` の size variant
+（`xs`〜`4xl`、名前 `xl4` に対応）は変更なし。font-size トークンの拡張は
+静的な Theme 側のみであり、部品の size 列挙型の追加（`xl5`/`xl6`）は
+別イシューへ申し送った（heading.rs の再評価トリガー「複数部品で 4xl 超の
+要求が出た時点」を本イシューで充足）。
+
+**実装対象外（別イシュー）**: `empty_state.rs` の indicator size リテラル
+`3rem` / `3.75rem` の新トークン参照置換。
+
+**再評価トリガー**: shadcn/ui の `7xl`（`4.5rem`）に相当するトークンが
+素材側から要求された時点で、chakra-ui `7xl` との対応を前提に純追加を
+検討する。
+
+## 9. 再評価トリガー
 
 - 色トークン（#1422）確定後、ダーク時の shadow を「不透明度を上げる」
   から「弱めて border 依存へ寄せる」方式へ切り替えるかどうかを再評価する
@@ -508,3 +543,5 @@ breakpoint と同じくスキップする。純追加不変条件（`container_s
   - Theme 側 container トークン、1 recipe に複数 container slot
   - `examples/headless-pre-styled-ui`（`fandhe-frontend-pre-styled-ui`
     crates.io バージョン `0.119.1` 固定）の追随・crates.io 公開
+- typography font-size（§8、イシュー #2438）: 上記の chakra-ui `7xl`
+  再評価トリガーを参照。
