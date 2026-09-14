@@ -162,7 +162,14 @@
 //! `backdrop`（フェードのみ、手書き 3 登録）へ同型に適用した）。
 //! `positioner` は対象外のまま不変（[`crate::dialog`] と同じ理由、
 //! `docs/design/collapsible-height-animation.md` §12.3 の再評価トリガー
-//! 待ち）。イシュー #1425 の `prefers-reduced-motion` 対応は、
+//! 待ち）。**閉じる演出（exit）は本イシューのスコープでは成立しない**
+//! （[`crate::dialog`]・[`crate::popover`] と同型の制約、codex レビュー
+//! 指摘・PR #2443/#2444）: headless 層は閉じる際に `content`/`backdrop`
+//! と祖先 `positioner` の両方へ `hidden` を付与するが、`positioner` 自身は
+//! 対象外のため UA 既定 `display: none` が即座に適用され、子孫の
+//! opacity/transform 遷移は描画される前に祖先ごと非表示になる。本イシュー
+//! が実際に実現するのは**開く演出（enter）のみ**である。イシュー #1425 の
+//! `prefers-reduced-motion` 対応は、
 //! `MotionDuration` が motion duration トークン経由（`Theme::to_css` が
 //! reduce 時に 0ms へ一括上書き）で自動充足される（presence
 //! トランジションも close-trigger の hover 背景遷移と同じ仕組みで
@@ -193,8 +200,9 @@
 //!   ことは本イシューの範囲では実現できない（上記「`content` の
 //!   `position: relative`」注記参照）。
 //! - 開閉トランジション自体は上記「開閉トランジションを追加しない理由」に
-//!   記載のとおり content/backdrop に限り #2387 で解消済み（positioner・
-//!   方向別スライドは対象外のまま不変）。
+//!   記載のとおり content/backdrop の開く演出（enter）に限り #2387 で
+//!   解消済み（閉じる演出（exit）・positioner・方向別スライドは対象外の
+//!   まま不変）。
 //!
 //! # shadcn/ui との突合（イシュー #2031、親 #2025。4 本目の参照軸として
 //! `shadcn-reference-adoption-policy.md` §2 が定める「補完参照」原則の適用）
@@ -579,12 +587,16 @@ fn recipe() -> SlotRecipe {
                 decl("width", "100%"),
             ],
         )
-        // イシュー #2387（依存 #2383）: content の presence（enter/exit）。
-        // dialog（[`crate::dialog`]）と同型の判断（`@starting-style` +
-        // `allow-discrete` は headless 層の `hidden` 同一フレーム即時付け
-        // 外し契約と両立する。方向別スライドは表現できない API 制約のため
-        // 依然スコープ外、モジュール冒頭 rustdoc「本イシューのスコープ外」
-        // 節参照）。
+        // イシュー #2387（依存 #2383）: content の presence（`SlotRecipe::
+        // presence_transition` 機構の適用）。dialog（[`crate::dialog`]）と
+        // 同型の判断（`@starting-style` + `allow-discrete` は headless 層の
+        // `hidden` 同一フレーム即時付け外し契約と両立する。方向別スライドは
+        // 表現できない API 制約のため依然スコープ外、モジュール冒頭
+        // rustdoc「本イシューのスコープ外」節参照）。ただし実際に視覚効果
+        // として成立するのは開く演出（enter）のみで、閉じる演出（exit）は
+        // 祖先 positioner の即時 `display: none` により描画されない
+        // （モジュール冒頭 rustdoc「閉じる演出（exit）は本イシューの
+        // スコープでは成立しない」節参照）。
         .presence_transition("content", MotionDuration::Slow)
         // backdrop はフェードのみ（`presence_transition` は `transform:
         // scale(0.95)` を固定で含むため、フルビューポートの暗幕には

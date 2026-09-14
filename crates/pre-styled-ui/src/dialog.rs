@@ -197,6 +197,16 @@
 //! §12.3 の再評価トリガー待ち。祖先 `positioner[hidden]` の `display: none`
 //! により、仮に content/backdrop 同様の機構を適用しても描画されないため）。
 //!
+//! **閉じる演出（exit）は本イシューのスコープでは成立しない**（[`crate::popover`]
+//! と同型の制約、codex レビュー指摘・PR #2443/#2444）: headless 層は閉じる際に
+//! `content`/`backdrop` と祖先 `positioner` の両方へ `hidden` を付与するが、
+//! `positioner` 自身は上記のとおり対象外のため UA 既定 `display: none` が
+//! 即座に適用され、子孫である `content`/`backdrop` の opacity/transform 遷移は
+//! 描画される前に祖先ごと非表示になる。本イシューが実際に実現するのは**開く
+//! 演出（enter）のみ**であり、上記コード内コメントの「presence（enter/exit）」
+//! という表現は `SlotRecipe::presence_transition` という機構名の言及であって
+//! 視覚効果の両方向成立を意味しない。
+//!
 //! `backdrop` を `presence_transition` ではなく手書きの opacity 限定 3 登録
 //! にする理由: [`crate::recipe::SlotRecipe::presence_transition`] は
 //! `transform: scale(0.95)` を固定で含む scale + fade 専用プリセットであり、
@@ -678,11 +688,16 @@ fn recipe() -> SlotRecipe {
             StateCondition::Hover,
             hover_surface_declarations(),
         )
-        // イシュー #2387（依存 #2383）: content の presence（enter/exit）。
-        // `@starting-style` + `allow-discrete` は headless 層の `hidden`
-        // 同一フレーム即時付け外し契約と両立する（下記「開閉トランジション
-        // の実現」節参照。#1795 時点の `transition-property` のみでは
-        // 不成立という却下理由は content に限り解消済み）。
+        // イシュー #2387（依存 #2383）: content の presence（`SlotRecipe::
+        // presence_transition` 機構の適用）。`@starting-style` +
+        // `allow-discrete` は headless 層の `hidden` 同一フレーム即時付け
+        // 外し契約と両立する（下記「開閉トランジション の実現」節参照。
+        // #1795 時点の `transition-property` のみでは不成立という却下理由
+        // は content に限り解消済み）。ただし実際に視覚効果として成立する
+        // のは開く演出（enter）のみで、閉じる演出（exit）は祖先 positioner
+        // の即時 `display: none` により描画されない（モジュール冒頭
+        // rustdoc「閉じる演出（exit）は本イシューのスコープでは成立しない」
+        // 節参照）。
         .presence_transition("content", MotionDuration::Slow)
         // backdrop はフェードのみ（`presence_transition` は `transform:
         // scale(0.95)` を固定で含むため、フルビューポートの暗幕には

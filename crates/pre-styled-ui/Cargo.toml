@@ -3389,8 +3389,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 破壊的変更（0.x のため minor バンプ）であり、0.193.0 を +1 した
 # 0.194.0 とする。
 #
-# イシュー #2387: dialog / drawer の content へ presence（enter/exit、
-# `SlotRecipe::presence_transition`）を適用した。`#2383` で確立済みの
+# イシュー #2387: dialog / drawer の content へ presence（`SlotRecipe::
+# presence_transition`、開く演出のみ視覚的に成立。閉じる演出は祖先
+# positioner の即時 display: none により未成立、`crates/pre-styled-ui/
+# src/dialog.rs`・`drawer.rs` rustdoc 参照）を適用した。`#2383` で確立済みの
 # `transition_declarations_allow_discrete`・`StateCondition::Attr("hidden")`
 # を用いた既存機構の適用であり新規公開 API は無い。CSS 出力（トランジション
 # 宣言）が変わるため 0.x の破壊的変更としてマイナーバンプし、main 側で
