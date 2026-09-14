@@ -100,13 +100,20 @@
 //!   （codex-review/Bugbot 指摘、PR #1799）。イシュー #2388 で
 //!   [`crate::recipe::SlotRecipe::presence_transition`]（`transition-
 //!   behavior: allow-discrete` を `display` にも付与する構造的解決）を
-//!   `content` へ適用し、このフェード演出を実装した。旧 `visibility`
-//!   切替 state（PR #1799 で見送り後に採った代替）は
+//!   `content` へ適用し、開く演出（enter）のフェードを実装した。旧
+//!   `visibility` 切替 state（PR #1799 で見送り後に採った代替）は
 //!   `presence_transition` の `[hidden]` state と冗長かつ衝突するため
 //!   削除した。`prefers-reduced-motion` は
 //!   [`crate::theme::Theme::to_css`] の duration 一括 0ms 化で `trigger`
 //!   の `color` transition・`content` の presence transition の両方に
-//!   ついて自動的に尊重される。
+//!   ついて自動的に尊重される。**閉じる演出（exit）は視覚的に成立し
+//!   ない**: headless 層は閉じる際に `content` と祖先 `positioner` の
+//!   両方へ `hidden` を付与するが、`positioner` は本 preset の対象外
+//!   のため UA 既定 `display: none` が即座に適用され、子孫 `content` の
+//!   opacity/transform 遷移が描画される前に祖先ごと非表示になる
+//!   （`presence_transition` rustdoc「適用範囲」節・
+//!   `docs/design/collapsible-height-animation.md` §12.3 参照。codex
+//!   レビュー指摘、PR #2443）。
 //!
 //! # shadcn/ui 突合（イシュー #2032）
 //!
@@ -152,11 +159,12 @@
 //!   クライアントサイド実行時挙動であり、本モジュールもそれを継承する
 //!   （shadcn/ui の `delay`/`closeDelay`〔Trigger Delays 節〕も同種の実行時
 //!   プロパティであり、イシュー #2032 の突合でも追随しないことを確認した）。
-//! - `positioner` の開閉フェード演出は本イシューのスコープ外とする
-//!   （`content` は上記「トランジション」節のとおりイシュー #2388 で
-//!   `presence_transition` により実装済み。positioner レベルの対応は
-//!   positioner に `hidden` が付く部品構成の共通課題であり、
-//!   `docs/design/collapsible-height-animation.md` §12.3 の再評価
+//! - `positioner` の開閉フェード演出・および `positioner` の即時
+//!   非表示化に起因する `content` の閉じる演出（exit）は本イシューの
+//!   スコープ外とする（`content` の開く演出〔enter〕は上記
+//!   「トランジション」節のとおりイシュー #2388 で `presence_transition`
+//!   により実装済み。positioner に `hidden` が付く部品構成の共通課題で
+//!   あり、`docs/design/collapsible-height-animation.md` §12.3 の再評価
 //!   トリガーに委ねる）。
 //! - `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
 //!   [`crate::tooltip`]/[`crate::popover`] と同じ理由で本イシューの対象外
@@ -277,12 +285,21 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
-        // イシュー #2388: `content` へ presence（enter/exit）のフェード +
+        // イシュー #2388: `content` へ presence（enter）のフェード +
         // scale トランジションを適用する。旧 `content[data-state="closed"]
         // { visibility: hidden }` state（上記で削除）は、この
         // `presence_transition` が新設する `[hidden]` state と冗長かつ
         // 新演出と衝突するため置き換えた（モジュール doc「トランジション」
         // 節参照）。
+        //
+        // 閉じる方向（exit）は視覚的に成立しない: 祖先 `positioner` も
+        // 同時に `hidden` を受け取り、`positioner` 自身は allow-discrete
+        // を持たないため UA 既定 `display: none` が即座に適用され、子孫
+        // `content` の opacity/transform 遷移が描画される前に祖先ごと
+        // 非表示になる（positioner 側の対応は
+        // `docs/design/collapsible-height-animation.md` §12.3 の再評価
+        // トリガーに委ねる、モジュール doc「本イシューのスコープ外」節
+        // 参照）。
         .presence_transition("content", MotionDuration::Normal)
 }
 

@@ -141,7 +141,7 @@
 //!   対象に含む）、`close-trigger` へ同ヘルパ（`"background"`、
 //!   `MotionDuration::Fast`）を新設した。`prefers-reduced-motion` は
 //!   [`crate::theme::Theme::to_css`] の duration 一括 0ms 化で自動的に
-//!   尊重される。**`content` の開閉フェード演出**（イシュー #2388）は
+//!   尊重される。**`content` の開く演出（enter）**（イシュー #2388）は
 //!   [`crate::recipe::SlotRecipe::presence_transition`] で実装済み。
 //!   旧来（PR #1799）は headless 層が closed 時に即座に `hidden` 存在
 //!   属性を付与し UA 既定 `[hidden] { display: none }` が同時に適用
@@ -150,7 +150,15 @@
 //!   `presence_transition` は `transition-behavior: allow-discrete`
 //!   を `display` にも付与することでこれを構造的に解決しており、
 //!   `content[data-state="closed"] { visibility: hidden }` の旧 state
-//!   （冗長かつ新演出と衝突するため）は削除した。
+//!   （冗長かつ新演出と衝突するため）は削除した。**閉じる演出（exit）
+//!   は本イシューのスコープでは成立しない**: headless 層は閉じる際に
+//!   `content` と祖先 `positioner` の両方へ `hidden` を付与するが、
+//!   `positioner` 自身は本 preset の対象外（下記「本イシューのスコープ
+//!   外」節参照）のため UA 既定 `display: none` が即座に適用され、
+//!   その子孫である `content` の opacity/transform 遷移は描画される前に
+//!   祖先ごと非表示になる（`presence_transition` rustdoc「適用範囲」節・
+//!   `docs/design/collapsible-height-animation.md` §12.3 参照。codex
+//!   レビュー指摘、PR #2443）。
 //!
 //! ## `close-trigger` のスタイル調整（ゴーストボタン絶対配置は見送り）
 //!
@@ -218,9 +226,15 @@
 //!   ドキュメント（`crates/headless-ui/src/popover.rs`）で既にスコープ外と
 //!   明記済みであり、本モジュールもそれを継承する。
 //! - `close-trigger` の絶対配置ゴーストボタン化（上記節参照）はイシュー
-//!   #1534 のスコープ外とする。`content` の開閉フェード演出は当初
+//!   #1534 のスコープ外とする。`content` の開く演出（enter）は当初
 //!   イシュー #1534 のスコープ外としていたが、イシュー #2388 で
 //!   `presence_transition`（上記「トランジション」節参照）により実装済み。
+//! - `positioner` の開閉フェード演出・および `positioner` の即時
+//!   非表示化に起因する `content` の閉じる演出（exit）は本イシューの
+//!   スコープ外とする（上記「トランジション」節参照。positioner に
+//!   `hidden` が付く部品構成の共通課題であり、
+//!   `docs/design/collapsible-height-animation.md` §12.3 の再評価
+//!   トリガーに委ねる）。
 //! - `docs/design/component-coverage-map.md` の shadcn 列更新は姉妹イシュー
 //!   #2004（Phase 0）の担当範囲であり、本イシューでは触らない。
 //! - RTL（方向性）対応はイシュー #2037 のスコープ外とする。
@@ -503,12 +517,20 @@ fn recipe() -> SlotRecipe {
                 decl("margin-top", "0"),
             ],
         )
-        // イシュー #2388: `content` へ presence（enter/exit）のフェード +
+        // イシュー #2388: `content` へ presence（enter）のフェード +
         // scale トランジションを適用する。旧 `content[data-state="closed"]
         // { visibility: hidden }` state（上記で削除）は、この
         // `presence_transition` が新設する `[hidden]` state と冗長かつ
         // 新演出と衝突するため置き換えた（`SlotRecipe::presence_transition`
         // rustdoc 参照）。
+        //
+        // 閉じる方向（exit）は視覚的に成立しない: 祖先 `positioner` も
+        // 同時に `hidden` を受け取り、`positioner` 自身は allow-discrete
+        // を持たないため UA 既定 `display: none` が即座に適用され、子孫
+        // `content` の opacity/transform 遷移が描画される前に祖先ごと
+        // 非表示になる（positioner 側の対応は
+        // `docs/design/collapsible-height-animation.md` §12.3 の再評価
+        // トリガーに委ねる、本モジュール冒頭「トランジション」節参照）。
         .presence_transition("content", MotionDuration::Normal)
 }
 
