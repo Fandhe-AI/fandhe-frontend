@@ -256,6 +256,22 @@
 //! 自動書き戻しは持たない（値が呼び出し側の業務キー由来で DOM 順位置と
 //! 無関係なため）。
 //!
+//! feature `"animate"`（既定 on、イシュー #2398）は上記いずれとも異なる
+//! 特殊枠である: optional 依存 `fandhe-frontend-animation`
+//! （`element.animate()` WAAPI 薄いラッパ、イシュー #2417/#2398）を
+//! 有効化するだけで、対応する `wire_*` 呼び出し自体が本クレートに存在
+//! しない（`data-*` 属性からの自動トリガー配線は後続 Phase 4 issue の
+//! 責務）。したがって上記対応表・配線群 16 件の一覧のいずれにも含めず、
+//! `position`/`stagger`/`view-transitions`/`view-transition-name` と
+//! 同じ「別枠 feature」の 5 例目として扱う。optional 依存を有効化するだけ
+//! では推移的依存はアプリ側の名前解決に公開されないため、本クレートは
+//! `"animate"` feature
+//! 有効時のみ `pub use fandhe_frontend_animation;` で crate 自体を
+//! 再エクスポートする。アプリは自前で `fandhe-frontend-animation` に
+//! 依存を追加しなくても
+//! `fandhe_frontend_wasm_full::fandhe_frontend_animation::animate::{animate, ...}`
+//! で呼び出せる。
+//!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
 //! `default-features = false` を使う利用者は上記 17 配線を失う
@@ -281,6 +297,10 @@
 //! [`view_transition_name::set_view_transition_name`] を維持するには
 //! `"view-transition-name"` も列挙に含めること（`position`/`stagger`
 //! とは異なりゲート対象が公開関数自体である点は上記モジュール doc 参照）。
+//! `fandhe_frontend_wasm_full::fandhe_frontend_animation::animate`
+//! を呼べるようにするには `"animate"` も列挙に含めること（対応する
+//! `wire_*` 呼び出しは存在せず依存の有効化と再エクスポートのみを行う
+//! 別枠 feature として `default` 配列に列挙されている）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
@@ -445,6 +465,15 @@ pub mod view_transition_name;
 // 参照）。
 #[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
 pub mod entry;
+
+// イシュー #2398 codex-review 指摘: `fandhe-frontend-animation` は本クレートの
+// optional 依存にすぎず、`animate` feature を有効化しただけではアプリ側の
+// 名前解決に公開されない（アプリが `fandhe-frontend-animation` を自前で
+// 直接依存させない限り `fandhe_frontend_animation::...` を書けない）。本クレート
+// 経由の利用パス（docs/lib.rs 上部の対応表コメントが前提とする経路）を実際に
+// 機能させるため、`animate` feature 有効時のみ crate 自体を再エクスポートする。
+#[cfg(feature = "animate")]
+pub use fandhe_frontend_animation;
 
 mod dom;
 

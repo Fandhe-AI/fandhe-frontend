@@ -4,6 +4,8 @@
 //! `linear()` 用の数値列生成は #2381（spring 近似 easing プリセット）が
 //! [`sample`] を呼び出す。本モジュールは CSS 文字列を一切生成しない
 //! （数値計算のみ。`Declaration::value` の `&'static str` 契約は変更しない）。
+//! 値の読み出し手段（getter）はアダプタ層（`fandhe-frontend-animation`）が
+//! WAAPI の CSS easing 文字列へ変換するために提供する（イシュー #2398）。
 
 /// CSS `cubic-bezier(x1, y1, x2, y2)` タイミング関数。
 ///
@@ -56,6 +58,26 @@ impl CubicBezier {
             return None;
         }
         Some(Self { x1, y1, x2, y2 })
+    }
+
+    /// 制御点 x1（アダプタ層の CSS `cubic-bezier()` 文字列化用、イシュー #2398）。
+    pub fn x1(&self) -> f64 {
+        self.x1
+    }
+
+    /// 制御点 y1（アダプタ層の CSS `cubic-bezier()` 文字列化用、イシュー #2398）。
+    pub fn y1(&self) -> f64 {
+        self.y1
+    }
+
+    /// 制御点 x2（アダプタ層の CSS `cubic-bezier()` 文字列化用、イシュー #2398）。
+    pub fn x2(&self) -> f64 {
+        self.x2
+    }
+
+    /// 制御点 y2（アダプタ層の CSS `cubic-bezier()` 文字列化用、イシュー #2398）。
+    pub fn y2(&self) -> f64 {
+        self.y2
     }
 
     fn bezier(a0: f64, a1: f64, a2: f64, s: f64) -> f64 {
@@ -155,6 +177,16 @@ impl Steps {
             return None;
         }
         Some(Self { count, position })
+    }
+
+    /// ステップ数（アダプタ層の CSS `steps()` 文字列化用、イシュー #2398）。
+    pub fn count(&self) -> u32 {
+        self.count
+    }
+
+    /// jump 位置（アダプタ層の CSS `steps()` 文字列化用、イシュー #2398）。
+    pub fn position(&self) -> StepPosition {
+        self.position
     }
 
     /// CSS Easing Level 1 の step easing function アルゴリズムに従う評価。

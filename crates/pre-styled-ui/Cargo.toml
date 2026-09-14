@@ -3426,7 +3426,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 配下）を追加した。`#[cfg(feature = "motion")]` の新規公開 API 純追加
 # であり、無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs`
 # 不変）。#2384/#2381 と同型のため minor バンプする。
-version = "0.199.0"
+#
+# イシュー #2398: optional 依存 `fandhe-animation` の `version` 要求を
+# 0.1.0 → 0.1.1 へ追随（`cargo run -p xtask -- check-dep-versions --fix`）。
+# 依存元の実装・公開 API に変更はないが、`.claude/rules/coding-rust.md`
+# #638 条項（公開済みクレートの `Cargo.toml` 変更は semver バンプ必須）に
+# 従い patch バンプする。上記 #2515 の minor バンプ到達値（0.199.0）が
+# origin/main と同一版数のため、同じ版数のまま据え置かず +1 した
+# 0.199.1 とする（`.claude/rules/coding-rust.md` の「同じ版数は衝突として
+# 扱う」運用）。
+version = "0.199.1"
 
 
 edition = "2021"
@@ -3455,7 +3464,7 @@ fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.69.2" }
 # （`.github/workflows/release.yml` の該当コメント参照）。
 [dependencies.fandhe-animation]
 path = "../animation"
-version = "0.1.0"
+version = "0.1.1"
 optional = true
 
 [features]

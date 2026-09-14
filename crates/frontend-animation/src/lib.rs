@@ -38,6 +38,17 @@
 //!
 //! # 現状
 //!
-//! crate 雛形のみ（イシュー #2417）。rAF Driver / DOM Target / WAAPI / FLIP /
-//! SVG path / scroll 等の実装は Phase 4 の各後続 issue で追加する
-//! （`docs/design/animation-core-architecture.md` §6.2 参照）。
+//! `animate`（`element.animate()` WAAPI 薄いラッパ、イシュー #2398）を実装済み。
+//! rAF Driver / DOM Target / FLIP / SVG path / scroll 等は Phase 4 の各後続 issue
+//! で追加する（`docs/design/animation-core-architecture.md` §6.2 参照）。
+
+pub mod animate;
+
+// `fandhe-animation`（演算基幹）の型（`Keyframes`/`Keyframe` 等）は、本クレートの
+// `[dependencies]` にのみ存在し推移依存としてアプリの名前解決に公開されない。
+// `crates/wasm-full/src/lib.rs` の `pub use fandhe_frontend_animation;`（`animate`
+// feature 有効時）と同じ理由（構造グラフ〔`structure.toml`〕へ新規の直接依存
+// エッジを追加せず、既存の縦の依存方向 `fandhe-animation ← fandhe-frontend-
+// animation` を経由して型へアクセスできるようにする）で crate 自体を
+// 再エクスポートする。
+pub use fandhe_animation;

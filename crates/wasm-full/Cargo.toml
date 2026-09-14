@@ -1107,8 +1107,7 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #2396: 新規デフォルト on の配線群別 feature `in-view` を追加
 # （`Runtime::mount`/`hydrate` へ新規呼び出し `Self::wire_in_view` が増える
 # 破壊的変更、イシュー #2122 の 0.18.4→0.19.0 と同型）ため minor バンプ
-# する（origin/main の #2397 minor バンプと到達値が一致するため
-# バージョン番号自体は変更なし）。
+# する。
 #
 # イシュー #2400: `nav.rs`（イシュー #404）専用だった
 # `document.startViewTransition()` ラップを `crate::view_transition` へ
@@ -1122,14 +1121,27 @@ name = "fandhe-frontend-wasm-full"
 # `set_view_transition_name`/`is_valid_view_transition_name` を追加。
 # 既定 on の別枠 feature `view-transition-name` を新設するため
 # `default-features = false` 利用者への影響（新規 API を失う）を伴う
-# 破壊的変更、`position`/`stagger` と同型のため minor バンプする。
+# 破壊的変更、`position`/`stagger` と同型のため minor バンプする（到達値
+# 0.22.0）。
 #
-# イシュー #2400（本 PR、main マージ後の再バンプ）: origin/main が
-# #2515（0.21.x → 0.22.0）を先にマージしたため、本 PR 側の 0.22.0 と
-# 衝突した。両変更を統合したうえで 0.22.0 → 0.23.0 へ再度 minor バンプ
-# する（`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として
-# +1」運用）。
-version = "0.23.0"
+# イシュー #2398: `animate` feature を新設し、`fandhe-frontend-animation`
+# （optional 依存、#2417）を既定 on で有効化するだけの配線を追加した
+# （`wire_*` 呼び出しは一切ゲートしない特殊枠。`Runtime`/`mount`/`hydrate` の
+# 既存コードは無変更）。新規公開 feature 追加を伴うため minor バンプする。
+# main 取り込み時点で #2515 が既に 0.22.0 へ到達済みのため、本変更は
+# さらに +1 した 0.23.0 とする（`.claude/rules/coding-rust.md` の
+# 「同じ版数は衝突として扱う」運用）。
+#
+# イシュー #2400（origin/main #2553、2 回目の main マージ後の再バンプ）:
+# origin/main が `nav.rs` 専用だった `document.startViewTransition()`
+# ラップを `crate::view_transition` へ切り出し、任意の状態更新から呼べる
+# 新規公開 API `Runtime::apply_with_view_transition`（feature
+# `view-transitions`、既定 on）として開放した。この変更も独立に
+# 0.22.0 → 0.23.0 のマイナーバンプへ到達しており、本 PR 側の 0.23.0 と
+# 同一版数へ衝突したため、両変更を統合したうえで 0.23.0 → 0.24.0 へ
+# さらに +1 する（`.claude/rules/coding-rust.md` #638 条項の「同一版数も
+# 衝突として +1」運用）。
+version = "0.24.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1372,14 +1384,14 @@ wasm-bindgen = "0.2"
 js-sys = "0.3"
 
 # イシュー #2417: Web アニメーションアダプタ（3 層構成の中段、`fandhe-animation`
-# を wasm-bindgen/web-sys で実装する層）を optional 依存として追加。既定 off
-# （`optional = true`）のため implicit feature `fandhe-frontend-animation` が
-# 生成されるのみで、`default`/`WASM_DIST_FEATURES` には含めない。Phase 4 の
-# 各配線 feature が `dep:fandhe-frontend-animation` で有効化する予定（#2395）。
-# optional 依存は `cargo metadata` の既定解決（resolve.nodes[].deps）に現れない
-# ため `fw structure`（structure.toml）の `depends_on` 辺は宣言していない
-# （structure.toml の frontend-animation 節コメント参照）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.1.0", optional = true }
+# を wasm-bindgen/web-sys で実装する層）を optional 依存として追加。
+#
+# イシュー #2398: `animate` feature（既定 on）が本依存を有効化するようになった
+# （`dep:fandhe-frontend-animation`）。これにより本依存は初めて既定 feature の
+# 依存グラフに現れる。`structure.toml`（`directories.frontend-animation`）・
+# `crates/xtask/tests/wasm_full_animation_optional_dep.rs` もあわせて更新済み
+# （#2417 時点の「既定 feature では無効」前提から反転）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.2.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1611,6 +1623,7 @@ default = [
   "stagger",
   "view-transitions",
   "view-transition-name",
+  "animate",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -1689,6 +1702,15 @@ view-transitions = []
 # 同型のパターン）。`view_transition_name` モジュール自体・
 # `is_valid_view_transition_name` 純粋関数はゲートしない。
 view-transition-name = []
+# イシュー #2398: `fandhe-frontend-animation`（optional 依存、#2417）を
+# 有効化するだけの feature（既定 on）。`Runtime::mount`/`hydrate` の `wire_*`
+# 呼び出しを一切ゲートしない（対応する自動配線が未実装のため。`data-*`
+# 属性からの呼び出し配線は後続 Phase 4 issue の責務であり、本 issue は
+# `fandhe_frontend_animation::animate` を本クレートの依存先として呼べる
+# ようにするところまでを担う）。配線群別 feature 表にも scope feature にも
+# 属さない別枠（`stagger`/`position` と似るが、対応する呼び出し自体が
+# 存在しない点が異なる）。
+animate = ["dep:fandhe-frontend-animation"]
 
 # イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
 # `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの
