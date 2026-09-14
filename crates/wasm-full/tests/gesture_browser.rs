@@ -140,6 +140,28 @@ fn pointerover_ignores_touch_pointer() {
     );
 }
 
+/// codex-review 指摘の回帰固定（gesture.rs:203 付近）: `pointerout` の
+/// hover 解除に非タッチ判定がなかったため、マウスで hover 中の要素へ
+/// タッチが重なる（`pointerType: "touch"` の `pointerout` が発火する）と
+/// マウス由来の hover 状態まで誤って消えていた。`handle_pointerover` と
+/// 対称に `handle_pointerout` も非タッチ限定にする。
+#[wasm_bindgen_test]
+fn pointerout_from_touch_does_not_clear_mouse_hover() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-touch-pointerout-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer(&child, "pointerover", "mouse", None);
+    assert!(child.has_attribute(HOVER_STATE_ATTR));
+
+    dispatch_pointer(&child, "pointerout", "touch", None);
+    assert!(
+        child.has_attribute(HOVER_STATE_ATTR),
+        "タッチ由来の pointerout はマウス由来の hover 状態を解除しないこと"
+    );
+}
+
 #[wasm_bindgen_test]
 fn pointerover_within_same_target_does_not_reenter() {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -378,14 +400,15 @@ fn pointerup_on_nested_child_clears_the_actually_pressed_parent() {
     );
 }
 
-/// cursor(Bugbot) 指摘の回帰固定（`handle_focusout` が `closest_opted_in`
-/// ではなく [`opted_in_ancestors`] を辿るようになったことの確認）: 親子
-/// とも press opt-in で親を pointerdown した状態から、子（opt-in）で
-/// focusout（`relatedTarget` なし、真の離脱）すると、`closest_opted_in`
-/// （focusout の target=子 から最も近い 1 件）では子自身が対象になり
-/// 親の press が見逃されていた。祖先を辿ることで親も解除されること。
+/// Bugbot 指摘の回帰固定（「Nested focusout clears live pointer press」）:
+/// `handle_focusout` は pointer 由来（[`PRESS_POINTER_ACTIVE_ATTR`]）の
+/// press を一切解除しない。親を pointerdown した状態から、無関係な子
+/// （opt-in）が focusout（`relatedTarget` なし。window blur 等、フォーカスが
+/// 完全に離れる場合を模す）しても、親の press は物理的なポインタが
+/// まだ押されたままである以上、生き続ける（真の解除は
+/// `pointerup`/`pointercancel`/`pointerout` にのみ委ねる）。
 #[wasm_bindgen_test]
-fn focusout_on_nested_child_clears_the_actually_pressed_parent() {
+fn focusout_on_nested_child_does_not_clear_live_pointer_press_on_ancestor() {
     let document = web_sys::window().unwrap().document().unwrap();
     let (root, parent, child) = build_dom(&document, "gesture-nested-focusout-test");
     child.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
@@ -397,9 +420,13 @@ fn focusout_on_nested_child_clears_the_actually_pressed_parent() {
 
     dispatch_focusout(&child);
     assert!(
-        !parent.has_attribute(PRESS_STATE_ATTR),
-        "子の focusout でも実際に押下された親の press が祖先探索で解除されること"
+        parent.has_attribute(PRESS_STATE_ATTR),
+        "無関係な子孫のフォーカス喪失で、押下中の祖先の pointer press が誤って解除されないこと"
     );
+
+    // 真の解除は pointerup が担う。
+    dispatch_pointer(&parent, "pointerup", "mouse", None);
+    assert!(!parent.has_attribute(PRESS_STATE_ATTR));
 }
 
 /// codex-review 指摘の回帰固定: フォーカス移動を伴わずに複数ポインタ
@@ -473,13 +500,16 @@ fn independent_pointers_press_and_release_without_clobbering_each_other() {
     );
 }
 
-/// Cursor Bugbot 指摘の回帰固定（`handle_focusout`）: press opt-in の
-/// 複合ウィジェット自体（`root` 直下の `container`）でポインタを押下した
-/// まま、内部の子要素間でフォーカスが移動しただけ（`relatedTarget` が
-/// 依然 `container` 配下）では press を解除しないこと。真に `container`
-/// の外へフォーカスが抜けたときのみ解除する。
+/// Bugbot 指摘の回帰固定（`handle_focusout`、「Nested focusout clears
+/// live pointer press」）: press opt-in の複合ウィジェット自体（`root`
+/// 直下の `container`）でポインタを押下したままなら、内部の子要素間の
+/// フォーカス移動はもちろん、`container` の外へフォーカスが完全に抜けても
+/// （`relatedTarget` なし。window blur 等）、pointer 由来の press は
+/// `focusout` では解除しない（真の解除は `pointerup`/`pointercancel`/
+/// `pointerout` にのみ委ねる。フォーカス変化は物理的なポインタの押下状態を
+/// 表さないため）。
 #[wasm_bindgen_test]
-fn focusout_within_pressed_composite_widget_does_not_clear_press() {
+fn focusout_never_clears_pointer_originated_press() {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     root.set_id("gesture-composite-focusout-test");
@@ -505,10 +535,134 @@ fn focusout_within_pressed_composite_widget_does_not_clear_press() {
         "ポインタ押下中に複合ウィジェット内でフォーカスが移動しただけでは press を解除しないこと"
     );
 
-    // item_b から container の外（relatedTarget なし）へ真に離脱する。
+    // item_b から container の外（relatedTarget なし）へ真に離脱しても、
+    // pointer 由来の press は focusout では解除されない。
     dispatch_focusout_with_related(&item_b, None);
     assert!(
-        !container.has_attribute(PRESS_STATE_ATTR),
-        "フォーカスが複合ウィジェットの外へ真に抜けたら press を解除すること"
+        container.has_attribute(PRESS_STATE_ATTR),
+        "pointer 由来の press はフォーカス喪失では解除されないこと（pointerup のみが解除する）"
+    );
+
+    dispatch_pointer(&container, "pointerup", "mouse", None);
+    assert!(!container.has_attribute(PRESS_STATE_ATTR));
+}
+
+/// `pointer_id` を指定した `pointerdown`/`pointerup` の発火（2 本指等の
+/// 複数ポインタ同時押下を模す）。
+fn dispatch_pointer_with_id(target: &Element, kind: &str, pointer_id: i32) {
+    let init = PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_pointer_type("touch");
+    init.set_pointer_id(pointer_id);
+    target
+        .dispatch_event(
+            PointerEvent::new_with_event_init_dict(kind, &init)
+                .expect("PointerEvent::new")
+                .as_ref(),
+        )
+        .expect("dispatch_event must not fail");
+}
+
+/// codex-review 指摘の回帰固定（gesture.rs:266 付近、同型: :216/:309）:
+/// 同一要素を 2 本指（別 `pointer_id`）で押下した状態から片方だけ離しても、
+/// もう片方の `pointer_id` がまだ押下中なら press 状態を維持すること。
+/// 押下源を要素単位で集約し、全ポインタが解放されたときのみ解除する。
+#[wasm_bindgen_test]
+fn two_pointers_on_same_element_require_both_to_release_before_clearing_press() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-two-finger-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer_with_id(&child, "pointerdown", 1);
+    dispatch_pointer_with_id(&child, "pointerdown", 2);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    dispatch_pointer_with_id(&child, "pointerup", 1);
+    assert!(
+        child.has_attribute(PRESS_STATE_ATTR),
+        "同一要素への 2 本目の指がまだ押下中なら press 状態を維持すること"
+    );
+
+    dispatch_pointer_with_id(&child, "pointerup", 2);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "全ポインタが解放されたら press 状態を解除すること"
+    );
+}
+
+/// codex-review 指摘の回帰固定（gesture.rs:341 付近）: 親自身が press
+/// opt-in で Space（keydown）を受けて press を持った状態から、フォーカスが
+/// 入れ子の子（同じく press opt-in）へ移動すると、`relatedTarget` が
+/// 依然親配下にあるという理由だけで親自身の press が残留していた。
+/// `press_target` が focusout の対象そのもの（親自身）である場合は
+/// `relatedTarget` の位置に関わらず必ず解除する。
+#[wasm_bindgen_test]
+fn focusout_clears_own_keyboard_press_even_when_related_target_stays_inside() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, parent, child) = build_dom(&document, "gesture-parent-space-to-child-test");
+    child.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_key(&parent, "keydown", " ", false);
+    assert!(parent.has_attribute(PRESS_STATE_ATTR));
+
+    // 親自身が focusout の対象（フォーカスが子へ移動）。relatedTarget
+    // （子）は親配下だが、親自身が直接フォーカスを失った以上、対応する
+    // keyup は二度と親へ届かないため必ず解除する。
+    dispatch_focusout_with_related(&parent, Some(&child));
+    assert!(
+        !parent.has_attribute(PRESS_STATE_ATTR),
+        "press_target 自身が focusout の対象なら relatedTarget の位置に関わらず解除すること"
+    );
+}
+
+/// codex-review 指摘の回帰固定（gesture.rs:292 付近）: opt-in 要素の
+/// keydown ハンドラ（アプリケーションコード）が同期的に別要素へ
+/// `focus()` すると、bubble フェーズ登録では target 自身のハンドラが
+/// 先に走って focusout が完了した後に press が設定され、二度と解除
+/// されず残留していた。`wire_gesture` は `keydown` を capture フェーズで
+/// 登録するため、root のリスナーが target 自身のあらゆる bubble
+/// リスナーより先に実行され、press 設定時点でまだ真にフォーカスを
+/// 保持している。その後の `focus()` 呼び出しに伴う `focusout` が
+/// 通常どおり即座に解除する。
+#[wasm_bindgen_test]
+fn keydown_handler_calling_focus_synchronously_does_not_leave_stale_press() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-keydown-sync-focus-test");
+    let elsewhere = document.create_element("button").unwrap();
+    root.append_child(&elsewhere).unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    // アプリケーションコードが child 自身へ登録した keydown ハンドラ
+    // （bubble フェーズ、既定）。root の capture リスナーより後に実行
+    // される想定で、同期的に別要素へフォーカスを移す。
+    let elsewhere_for_closure = elsewhere.clone();
+    let app_keydown = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(move |_event| {
+        elsewhere_for_closure
+            .clone()
+            .unchecked_into::<web_sys::HtmlElement>()
+            .focus()
+            .expect("focus must not fail");
+    });
+    child
+        .add_event_listener_with_callback("keydown", app_keydown.as_ref().unchecked_ref())
+        .expect("add_event_listener_with_callback must not fail");
+    app_keydown.forget();
+
+    // `elsewhere.focus()` が実際に `focusout(child)` を発火するには、
+    // `child` が実際にフォーカスを保持している必要がある（実際の
+    // ユーザー操作を模す）。
+    child
+        .unchecked_ref::<web_sys::HtmlElement>()
+        .focus()
+        .expect("focus must not fail");
+
+    dispatch_key(&child, "keydown", " ", false);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "keydown ハンドラが同期的にフォーカスを移しても press が残留しないこと"
     );
 }
