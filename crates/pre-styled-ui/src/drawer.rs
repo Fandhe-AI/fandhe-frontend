@@ -141,7 +141,7 @@
 //!   縦リズムを確保する。
 //!
 //! ## 開閉トランジションを追加しない理由（dialog #1795 の codex-review P1
-//! 確定判断の継承）
+//! 確定判断の継承。イシュー #2387 で content/backdrop に限り解消）
 //!
 //! headless 層（`crates/headless-ui/src/drawer.rs`）も dialog と同じく
 //! open/closed の切り替え時に `positioner`/`backdrop`/`content` へ `hidden`
@@ -149,17 +149,33 @@
 //! ため `opacity`/`transform` の遷移前フレームが一切描画されず、開く方向・
 //! 閉じる方向のいずれも視覚上トランジションは発火しない。効果のない
 //! `transition-property` を「開閉トランジション」として謳うのは契約不整合
-//! になるため、`backdrop`/`content` への [`transition_declarations`]
-//! 追加は行わず、既存の `data-state` 連動 `opacity` 切り替え（イシュー #758
-//! 由来）を維持する。真に機能させる手段（headless 側のタイミング制御 /
-//! `@starting-style` + `transition-behavior: allow-discrete` の
-//! [`crate::recipe::SlotRecipe`] サポート）は [`crate::dialog`] と同じく
-//! 別イシュー・ユーザー承認が必要な対象外事項として記録する
-//! （`.claude/rules/out-of-scope-tracking.md` 対応）。イシュー #1425 の
-//! `prefers-reduced-motion` 対応は、実際に機能する transition
-//! （close-trigger の hover 背景遷移）が motion duration トークン経由
-//! （`Theme::to_css` が reduce 時に 0ms へ一括上書き）で
-//! 自動充足される。
+//! になる。
+//!
+//! **イシュー #2387 で解消**: [`crate::recipe::SlotRecipe::presence_transition`]
+//! （イシュー #2383）が実装する `@starting-style` +
+//! `transition-behavior: allow-discrete` は、`display` を離散遷移対象に
+//! 含めて遷移完了まで `[hidden]` の UA 既定 `display: none` 適用を遅延
+//! させる CSS ネイティブ機構であり、`hidden` の同一フレーム即時付け外し
+//! 契約自体は変えないまま上記の制約を解消する（詳細は [`crate::dialog`]
+//! の「開閉トランジションの実現」節参照。本モジュールも `content`
+//! （scale + fade、[`crate::recipe::SlotRecipe::presence_transition`]）・
+//! `backdrop`（フェードのみ、手書き 3 登録）へ同型に適用した）。
+//! `positioner` は対象外のまま不変（[`crate::dialog`] と同じ理由、
+//! `docs/design/collapsible-height-animation.md` §12.3 の再評価トリガー
+//! 待ち）。イシュー #1425 の `prefers-reduced-motion` 対応は、
+//! `MotionDuration` が motion duration トークン経由（`Theme::to_css` が
+//! reduce 時に 0ms へ一括上書き）で自動充足される（presence
+//! トランジションも close-trigger の hover 背景遷移と同じ仕組みで
+//! reduce される）。
+//!
+//! **方向別スライド（`slide-from-*`）は presence 適用後も対象外のまま
+//! 不変**: [`SlotRecipe::state`] は単一条件のみを受け付け、「`data-placement="start"`
+//! かつ `data-state="closed"`/`hidden`」のような複合条件を表現する API が
+//! [`crate::recipe::SlotRecipe`] に存在しないため（下記「本イシューの
+//! スコープ外」節・#2382 の opt-in `@keyframes` も参照）、実現するには
+//! `motion` feature 依存（#2382）の feature-gated 経路を別途設計する必要
+//! があり、既定出力のゼロコスト契約（#2416）との整合を含め別イシューと
+//! する。
 //!
 //! ## 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -177,7 +193,8 @@
 //!   ことは本イシューの範囲では実現できない（上記「`content` の
 //!   `position: relative`」注記参照）。
 //! - 開閉トランジション自体は上記「開閉トランジションを追加しない理由」に
-//!   記載のとおり対象外。
+//!   記載のとおり content/backdrop に限り #2387 で解消済み（positioner・
+//!   方向別スライドは対象外のまま不変）。
 //!
 //! # shadcn/ui との突合（イシュー #2031、親 #2025。4 本目の参照軸として
 //! `shadcn-reference-adoption-policy.md` §2 が定める「補完参照」原則の適用）
@@ -284,8 +301,8 @@ use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
     focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
-    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
-    VariantValue,
+    transition_declarations_allow_discrete, FocusRingColor, FocusRingOffset, MotionDuration, Size,
+    SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root`・状態機械 `Drawer` はあえて再エクスポートしない
@@ -562,29 +579,32 @@ fn recipe() -> SlotRecipe {
                 decl("width", "100%"),
             ],
         )
-        // dialog と同型の開閉状態連動（[`crate::dialog`] 同様、方向別
-        // スライドは表現できない API 制約のためスコープ外、モジュール冒頭
-        // rustdoc 参照）。
+        // イシュー #2387（依存 #2383）: content の presence（enter/exit）。
+        // dialog（[`crate::dialog`]）と同型の判断（`@starting-style` +
+        // `allow-discrete` は headless 層の `hidden` 同一フレーム即時付け
+        // 外し契約と両立する。方向別スライドは表現できない API 制約のため
+        // 依然スコープ外、モジュール冒頭 rustdoc「本イシューのスコープ外」
+        // 節参照）。
+        .presence_transition("content", MotionDuration::Slow)
+        // backdrop はフェードのみ（`presence_transition` は `transform:
+        // scale(0.95)` を固定で含むため、フルビューポートの暗幕には
+        // 不適。dialog と同型の判断で opacity 限定 3 登録を手書きする）。
+        .base(
+            "backdrop",
+            vec![decl("opacity", "1")]
+                .into_iter()
+                .chain(transition_declarations_allow_discrete(
+                    "opacity, display",
+                    MotionDuration::Slow,
+                ))
+                .collect(),
+        )
         .state(
             "backdrop",
-            StateCondition::AttrEq("data-state", "open"),
-            vec![decl("opacity", "1")],
-        )
-        .state(
-            "backdrop",
-            StateCondition::AttrEq("data-state", "closed"),
+            StateCondition::Attr("hidden"),
             vec![decl("opacity", "0")],
         )
-        .state(
-            "content",
-            StateCondition::AttrEq("data-state", "open"),
-            vec![decl("opacity", "1")],
-        )
-        .state(
-            "content",
-            StateCondition::AttrEq("data-state", "closed"),
-            vec![decl("opacity", "0")],
-        )
+        .starting_style("backdrop", vec![decl("opacity", "0")])
         // PR #575 Bugbot 指摘対応（dialog 由来、High）: positioner の base
         // 規則が `display: flex` を宣言しており、UA 既定の
         // `[hidden] { display: none }` を詳細度で上書きしてしまう。closed
@@ -971,11 +991,52 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_links_data_state_to_style_open_and_closed() {
+    fn stylesheet_links_hidden_attr_to_presence_style() {
+        // イシュー #2387: dialog と同型に、開閉状態に応じた見た目の切り替え
+        // 契機を旧 `data-state` 連動の静的切替から `hidden` 属性ベースの
+        // presence 機構（`@starting-style` + `allow-discrete`）へ置き換えた
+        // ことを固定する。
         let css = stylesheet();
-        assert!(css.contains(r#"[data-scope="drawer"][data-part="backdrop"][data-state="open"]"#));
-        assert!(css.contains(r#"[data-scope="drawer"][data-part="backdrop"][data-state="closed"]"#));
-        assert!(css.contains(r#"[data-scope="drawer"][data-part="content"][data-state="open"]"#));
+        assert!(css.contains(r#"[data-scope="drawer"][data-part="backdrop"][hidden]"#));
+        assert!(css.contains(r#"[data-scope="drawer"][data-part="content"][hidden]"#));
+        assert!(css.contains("@starting-style"));
+    }
+
+    #[test]
+    fn content_and_backdrop_presence_declares_allow_discrete_transition() {
+        // イシュー #2387: content/backdrop 双方が allow-discrete を宣言し、
+        // backdrop はフェードのみ（`transform` を持たない）ことを固定する。
+        let css = stylesheet();
+        // presence_transition が content の 2 個目 base ブロック（同一
+        // セレクタ）を追加するため、1 個目（外枠調整、イシュー #1694）を
+        // 読み飛ばしてから探す。
+        let content_base_first = css
+            .find(r#"[data-scope="drawer"][data-part="content"] {"#)
+            .expect("content base rule must be present");
+        let content_base_start = css[content_base_first + 1..]
+            .find(r#"[data-scope="drawer"][data-part="content"] {"#)
+            .map(|offset| content_base_first + 1 + offset)
+            .expect("content presence base rule must be present");
+        let content_base_end = css[content_base_start..].find('}').unwrap() + content_base_start;
+        let content_base_rule = &css[content_base_start..content_base_end];
+        assert!(content_base_rule.contains("transition-behavior: allow-discrete;"));
+
+        let content_hidden_start = css
+            .find(r#"[data-scope="drawer"][data-part="content"][hidden] {"#)
+            .expect("content [hidden] rule must be present");
+        let content_hidden_end =
+            css[content_hidden_start..].find('}').unwrap() + content_hidden_start;
+        let content_hidden_rule = &css[content_hidden_start..content_hidden_end];
+        assert!(content_hidden_rule.contains("transform: scale(0.95);"));
+
+        let backdrop_hidden_start = css
+            .find(r#"[data-scope="drawer"][data-part="backdrop"][hidden] {"#)
+            .expect("backdrop [hidden] rule must be present");
+        let backdrop_hidden_end =
+            css[backdrop_hidden_start..].find('}').unwrap() + backdrop_hidden_start;
+        let backdrop_hidden_rule = &css[backdrop_hidden_start..backdrop_hidden_end];
+        assert!(backdrop_hidden_rule.contains("opacity: 0;"));
+        assert!(!backdrop_hidden_rule.contains("transform"));
     }
 
     #[test]

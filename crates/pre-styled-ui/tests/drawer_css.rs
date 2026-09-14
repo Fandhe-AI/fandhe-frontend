@@ -1,6 +1,8 @@
 //! styled Drawer（イシュー #758）の決定的 CSS 出力ゴールデンテスト。
 //! イシュー #2193 で `close-trigger` の text variant
-//! （`[data-variant="text"]`）state 規則を追加した。
+//! （`[data-variant="text"]`）state 規則を追加した。イシュー #2387 で
+//! content/backdrop へ presence（enter/exit）を適用し、旧 `data-state`
+//! 連動の静的切替（4 ブロック）を削除した。
 //!
 //! `crates/pre-styled-ui/tests/dialog_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
@@ -30,6 +32,14 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   background: var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4));
 }
 
+[data-scope="drawer"][data-part="backdrop"] {
+  opacity: 1;
+  transition-property: opacity, display;
+  transition-duration: var(--fandhe-motion-duration-slow);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
+}
+
 [data-scope="drawer"][data-part="positioner"] {
   position: fixed;
   inset: 0;
@@ -45,6 +55,14 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   padding: var(--fandhe-drawer-content-padding, var(--fandhe-space-6));
   box-sizing: border-box;
   overflow-y: auto;
+}
+
+[data-scope="drawer"][data-part="content"] {
+  opacity: 1;
+  transition-property: opacity, transform, display;
+  transition-duration: var(--fandhe-motion-duration-slow);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
 }
 
 [data-scope="drawer"][data-part="title"] {
@@ -144,19 +162,12 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   width: 100%;
 }
 
-[data-scope="drawer"][data-part="backdrop"][data-state="open"] {
-  opacity: 1;
-}
-
-[data-scope="drawer"][data-part="backdrop"][data-state="closed"] {
+[data-scope="drawer"][data-part="content"][hidden] {
   opacity: 0;
+  transform: scale(0.95);
 }
 
-[data-scope="drawer"][data-part="content"][data-state="open"] {
-  opacity: 1;
-}
-
-[data-scope="drawer"][data-part="content"][data-state="closed"] {
+[data-scope="drawer"][data-part="backdrop"][hidden] {
   opacity: 0;
 }
 
@@ -187,6 +198,17 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   border-radius: var(--fandhe-radius-md);
   padding: var(--fandhe-space-2) var(--fandhe-space-3);
   color: var(--fandhe-color-fg);
+}
+
+@starting-style {
+  [data-scope="drawer"][data-part="content"] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  [data-scope="drawer"][data-part="backdrop"] {
+    opacity: 0;
+  }
 }
 
 @media (hover: hover) {

@@ -407,7 +407,7 @@ bubble（`collapse_content`）は #2282 で共通機構を横展開済み（head
 - オーバーレイ家族向けフェード/スケール preset（新 DSL 機能、#2189 の受け入れ条件外）
 - `Runtime::apply_dirty_if_any` 経路への `sync_content_height` 統合
 - bubble / floating-panel の `MAPPING_TABLE` 行追加（headless-ui バンプを伴う）
-- `crates/pre-styled-ui/src/dialog.rs` rustdoc の #2283 参照更新（`src/` 差分のため後続 PR で扱う）
+- ~~`crates/pre-styled-ui/src/dialog.rs` rustdoc の #2283 参照更新（`src/` 差分のため後続 PR で扱う）~~ 対応済み（#2387。`content`/`backdrop` へ presence を適用し「開閉トランジションの実現」節を追記した）
 - `position.rs` の positioner `style` 書き込みの CSSOM 化
 
 ### 12.6 セキュリティ考慮（§10 と同型、docs のみ）
