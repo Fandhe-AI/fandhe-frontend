@@ -1755,6 +1755,16 @@ tree-view = []
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 wasm-bindgen-futures = "0.4"
+# イシュー #2398（codex-review P1 是正の回帰テスト、PR #2475）:
+# `wasm-full/tests/animate_browser.rs` が `fandhe_frontend_animation::
+# animate::keyframes_to_waapi`（`Keyframes<T>` → WAAPI keyframes 変換）の
+# 端点補完（offset 0/1 が欠けた入力を端点値で保持する契約、W3C Web
+# Animations §5.3.4 の underlying value 補完を避けるための対策）を実
+# ブラウザで検証するため、`Keyframes`/`Keyframe` 型を組み立てられるよう
+# `fandhe-animation`（既に `fandhe-frontend-animation` の依存先として
+# ワークスペース内に存在、テスト専用の path 依存追加であり新規外部
+# パッケージの追加はゼロ）を追加する。
+fandhe-animation = { path = "../animation", version = "0.1.1" }
 
 # Performance API（性能計測ハーネス専用）。製品面の [dependencies.web-sys] の
 # features には触れず、テスト専用の feature 拡張に閉じる。

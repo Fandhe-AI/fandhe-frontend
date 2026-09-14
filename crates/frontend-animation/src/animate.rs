@@ -88,6 +88,19 @@ pub fn easing_to_css(easing: Easing) -> String {
 /// 複数プロパティを同一 keyframe に束ねたい場合は呼び出し側が
 /// `WaapiKeyframe.properties` を直接組み立てる（本関数は単一プロパティの糖衣の
 /// み、複数 `Keyframes<T>` のマージはスコープ外、YAGNI）。
+///
+/// # 端点補完（offset 0/1）
+///
+/// [`Keyframes::at`] は区間外（先頭 offset 未満・末尾 offset 超過）を端点の値で
+/// 保持する契約を持つ（`keyframes.rs` モジュール冒頭コメント参照）。一方 WAAPI は
+/// offset 0/1 の keyframe が欠けた入力を要素の「underlying value」（アニメーション
+/// 開始前の実際の CSS 値）で補完する（W3C Web Animations §5.3.4）ため、先頭が
+/// offset 0 でない・末尾が offset 1 でない入力をそのまま渡すと `Keyframes::at` の
+/// 端点保持契約と異なる挙動（要素の元の値へ変化する）になる。本関数はこの契約差を
+/// 埋めるため、先頭 offset が `0.0` でなければ先頭値を保持したまま offset `0.0` の
+/// keyframe を、末尾 offset が `1.0` でなければ末尾値を保持したまま offset `1.0` の
+/// keyframe をそれぞれ補って返す（単一 keyframe の入力も、offset が `0.0`/`1.0`
+/// いずれでもなければこの補完により 2 keyframe になる）。
 pub fn keyframes_to_waapi<T>(
     keyframes: &Keyframes<T>,
     property: &str,
@@ -98,7 +111,7 @@ where
 {
     let frames = keyframes.frames();
     let easings = keyframes.easings();
-    frames
+    let mut waapi: Vec<WaapiKeyframe> = frames
         .iter()
         .enumerate()
         .map(|(i, frame)| WaapiKeyframe {
@@ -106,7 +119,34 @@ where
             easing: easings.get(i).map(|e| easing_to_css(*e)),
             properties: vec![(property.to_string(), to_css_value(&frame.value))],
         })
-        .collect()
+        .collect();
+
+    // 先頭 offset が 0.0 未満になることはない（`Keyframes` の不変条件）ため、
+    // 「0.0 でない」= 「0.0 より大きい」の判定で足りる。
+    if let Some(first) = frames.first() {
+        if first.offset > 0.0 {
+            waapi.insert(
+                0,
+                WaapiKeyframe {
+                    offset: 0.0,
+                    easing: None,
+                    properties: vec![(property.to_string(), to_css_value(&first.value))],
+                },
+            );
+        }
+    }
+    // 同様に末尾 offset は 1.0 を超えない（`Keyframes` の不変条件）。
+    if let Some(last) = frames.last() {
+        if last.offset < 1.0 {
+            waapi.push(WaapiKeyframe {
+                offset: 1.0,
+                easing: None,
+                properties: vec![(property.to_string(), to_css_value(&last.value))],
+            });
+        }
+    }
+
+    waapi
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -335,7 +375,10 @@ mod tests {
     }
 
     #[test]
-    fn keyframes_to_waapi_single_frame_has_no_easing() {
+    fn keyframes_to_waapi_single_frame_at_offset_zero_holds_constant_value() {
+        // offset 0.0 の単一フレームは末尾 (1.0) 側のみ補完され、2 keyframe に
+        // なる（全期間 opacity: 0 を保持する。W3C Web Animations §5.3.4 の
+        // underlying value 補完を避けるための端点補完、codex-review 指摘）。
         let keyframes = Keyframes::new(
             vec![Keyframe {
                 offset: 0.0,
@@ -346,8 +389,105 @@ mod tests {
         .unwrap();
 
         let waapi = keyframes_to_waapi(&keyframes, "opacity", |v| v.to_string());
-        assert_eq!(waapi.len(), 1);
+        assert_eq!(waapi.len(), 2);
+        assert_eq!(waapi[0].offset, 0.0);
         assert_eq!(waapi[0].easing, None);
+        assert_eq!(
+            waapi[0].properties,
+            vec![("opacity".to_string(), "0".to_string())]
+        );
+        assert_eq!(waapi[1].offset, 1.0);
+        assert_eq!(waapi[1].easing, None);
+        assert_eq!(
+            waapi[1].properties,
+            vec![("opacity".to_string(), "0".to_string())]
+        );
+    }
+
+    #[test]
+    fn keyframes_to_waapi_single_frame_at_non_endpoint_offset_pads_both_ends() {
+        // offset 0.0/1.0 いずれでもない単一フレームは前後どちらも補完され、
+        // 3 keyframe（0.0 / 元の offset / 1.0）がすべて同じ値を持つ。
+        let keyframes = Keyframes::new(
+            vec![Keyframe {
+                offset: 0.5,
+                value: 1.0_f64,
+            }],
+            vec![],
+        )
+        .unwrap();
+
+        let waapi = keyframes_to_waapi(&keyframes, "opacity", |v| v.to_string());
+        assert_eq!(waapi.len(), 3);
+        assert_eq!(waapi[0].offset, 0.0);
+        assert_eq!(waapi[1].offset, 0.5);
+        assert_eq!(waapi[2].offset, 1.0);
+        for frame in &waapi {
+            assert_eq!(
+                frame.properties,
+                vec![("opacity".to_string(), "1".to_string())]
+            );
+        }
+    }
+
+    #[test]
+    fn keyframes_to_waapi_missing_leading_offset_is_padded_with_first_value() {
+        // 先頭 offset が 0.0 でない入力は、先頭値を保持したまま offset 0.0 の
+        // keyframe が補完される（WAAPI の underlying value 補完を避ける）。
+        let keyframes = Keyframes::new(
+            vec![
+                Keyframe {
+                    offset: 0.3,
+                    value: 0.2_f64,
+                },
+                Keyframe {
+                    offset: 1.0,
+                    value: 1.0_f64,
+                },
+            ],
+            vec![Easing::Linear],
+        )
+        .unwrap();
+
+        let waapi = keyframes_to_waapi(&keyframes, "opacity", |v| v.to_string());
+        assert_eq!(waapi.len(), 3);
+        assert_eq!(waapi[0].offset, 0.0);
+        assert_eq!(
+            waapi[0].properties,
+            vec![("opacity".to_string(), "0.2".to_string())]
+        );
+        assert_eq!(waapi[1].offset, 0.3);
+        assert_eq!(waapi[2].offset, 1.0);
+    }
+
+    #[test]
+    fn keyframes_to_waapi_missing_trailing_offset_is_padded_with_last_value() {
+        // 末尾 offset が 1.0 でない入力は、末尾値を保持したまま offset 1.0 の
+        // keyframe が補完される。
+        let keyframes = Keyframes::new(
+            vec![
+                Keyframe {
+                    offset: 0.0,
+                    value: 0.0_f64,
+                },
+                Keyframe {
+                    offset: 0.7,
+                    value: 1.0_f64,
+                },
+            ],
+            vec![Easing::Linear],
+        )
+        .unwrap();
+
+        let waapi = keyframes_to_waapi(&keyframes, "opacity", |v| v.to_string());
+        assert_eq!(waapi.len(), 3);
+        assert_eq!(waapi[0].offset, 0.0);
+        assert_eq!(waapi[1].offset, 0.7);
+        assert_eq!(waapi[2].offset, 1.0);
+        assert_eq!(
+            waapi[2].properties,
+            vec![("opacity".to_string(), "1".to_string())]
+        );
     }
 
     #[test]

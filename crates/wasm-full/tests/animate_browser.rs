@@ -20,7 +20,11 @@
 // 異なり、本ファイルは `animate` 専用のため全体ゲートで足りる）。
 #![cfg(feature = "animate")]
 
-use fandhe_frontend_animation::animate::{animate, AnimateOptions, WaapiKeyframe};
+use fandhe_animation::keyframes::{Keyframe, Keyframes};
+use fandhe_frontend_animation::animate::{
+    animate, keyframes_to_waapi, AnimateOptions, WaapiKeyframe,
+};
+use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::Document;
 
@@ -102,5 +106,121 @@ async fn animate_finished_resolves_and_applies_forwards_fill() {
     assert_eq!(
         opacity, "0",
         "fill: \"forwards\" の効果で終了状態（opacity: 0）が維持されているはず（要素の既定 opacity は 1 のため、0 ならフィル適用の証拠になる）"
+    );
+}
+
+/// `duration_ms` ミリ秒待つ小さなヘルパ（`headless_avatar_browser.rs::wait_for`
+/// と同じ `setTimeout` ベースの待機パターン）。
+async fn sleep_ms(duration_ms: i32) {
+    use wasm_bindgen::closure::Closure;
+
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        let window = web_sys::window().expect("window must exist");
+        let closure = Closure::once(move || {
+            resolve.call0(&wasm_bindgen::JsValue::NULL).ok();
+        });
+        window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                duration_ms,
+            )
+            .expect("setTimeout must not fail");
+        closure.forget();
+    });
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .expect("setTimeout Promise must resolve");
+}
+
+/// codex-review 指摘（PR #2475）の回帰テスト: `keyframes_to_waapi` は
+/// `Keyframes::at` の端点保持契約（区間外は端点値を保持する）を維持する
+/// ため、先頭・末尾 offset が 0.0/1.0 でない入力を offset 0.0/1.0 の
+/// keyframe で補完する。本テストはその補完済み出力を実際の
+/// `element.animate()` へ渡し、要素の元のスタイル（underlying value）へ
+/// 値がにじみ出さず、アニメーション開始直後から一貫して指定値が保持される
+/// ことをブラウザで確認する（補完がなければ WAAPI は欠けた端点を
+/// underlying value で補うため、開始直後の値は `sentinel_opacity` に近い
+/// 値になってしまう。W3C Web Animations §5.3.4）。
+#[wasm_bindgen_test]
+async fn keyframes_to_waapi_padded_endpoints_hold_constant_value_from_the_start() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window
+        .document()
+        .expect("document must exist in browser test environment");
+    let element = create_placeholder(&document, "animate-browser-padding-target");
+    let _guard = RemoveOnDrop(element.clone());
+
+    // 要素の「元のスタイル」（underlying value）を補完先の値（0.0）とは
+    // はっきり異なる値にしておく。補完が効いていなければ、開始直後の
+    // 実効値はこの値に近くなるはず。
+    let html_element: web_sys::HtmlElement = element
+        .clone()
+        .dyn_into()
+        .expect("placeholder div must be an HtmlElement");
+    html_element
+        .style()
+        .set_property("opacity", "0.9")
+        .expect("set_property must not fail for a known CSS property");
+
+    // 単一 keyframe（offset 0.5、値 0.0）は先頭・末尾どちらも欠けているため、
+    // `keyframes_to_waapi` により offset 0.0/0.5/1.0 の 3 keyframe（すべて
+    // 値 0.0）へ補完される（`keyframes_to_waapi_single_frame_at_non_endpoint_offset_pads_both_ends`
+    // の native テストと同じ入力形状）。
+    let keyframes = Keyframes::<f64>::new(
+        vec![Keyframe {
+            offset: 0.5,
+            value: 0.0,
+        }],
+        vec![],
+    )
+    .expect("single in-range offset must be a valid Keyframes construction");
+    let frames: Vec<WaapiKeyframe> = keyframes_to_waapi(&keyframes, "opacity", |v| v.to_string());
+    assert_eq!(
+        frames.len(),
+        3,
+        "leading と trailing の両方が補完され 3 keyframe になるはず"
+    );
+
+    let options = AnimateOptions {
+        // CI 実行時間を抑えつつ、開始直後のサンプリングに十分な余裕を持たせる。
+        duration_ms: 300.0,
+        easing: Some("linear".to_string()),
+        fill: Some("both".to_string()),
+        iterations: None,
+    };
+
+    let handle = animate(&element, &frames, &options)
+        .expect("element.animate() must not throw for a padded keyframes/options pair");
+
+    // duration の 1 割未満の時点でサンプリングする（補完なしなら underlying
+    // value からの変化途中でまだ 0 に到達していないはずの早いタイミング）。
+    sleep_ms(20).await;
+    let computed = window
+        .get_computed_style(&element)
+        .expect("getComputedStyle must not throw")
+        .expect("getComputedStyle must return a value for an attached element");
+    let opacity_early = computed
+        .get_property_value("opacity")
+        .expect("get_property_value must not throw for a known CSS property");
+    assert_eq!(
+        opacity_early, "0",
+        "先頭 offset 0.0 が補完されているため、開始直後から一貫して opacity: 0 が保持されるはず（underlying value の 0.9 へにじみ出ていないことの確認）"
+    );
+
+    handle
+        .finished()
+        .await
+        .expect("finished Promise must resolve for a normal (non-cancelled) animation");
+
+    let computed = window
+        .get_computed_style(&element)
+        .expect("getComputedStyle must not throw")
+        .expect("getComputedStyle must return a value for an attached element");
+    let opacity_final = computed
+        .get_property_value("opacity")
+        .expect("get_property_value must not throw for a known CSS property");
+    assert_eq!(
+        opacity_final, "0",
+        "末尾 offset 1.0 も補完されているため、終了後も opacity: 0 が維持されるはず"
     );
 }

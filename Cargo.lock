@@ -164,6 +164,7 @@ dependencies = [
 name = "fandhe-frontend-wasm-full"
 version = "0.23.0"
 dependencies = [
+ "fandhe-animation",
  "fandhe-frontend-animation",
  "fandhe-frontend-app",
  "fandhe-frontend-core",
