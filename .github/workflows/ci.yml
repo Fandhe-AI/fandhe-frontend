@@ -880,6 +880,16 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test gesture_browser
 
+      # イシュー #2521（親 `#2499`）: scroll ドライバ配線（`animation-timeline`
+      # 委譲の機能検出 + 非対応時の scroll/resize + rAF フォールバック、
+      # crates/wasm-full/src/scroll_driver.rs）の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/scroll_driver_browser.rs）。他の wasm-full
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。
+      - name: Run wasm-full scroll driver browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test scroll_driver_browser
+
       # イシュー #2403/#2517: rAF Driver（fandhe-frontend-animation::raf_driver）+
       # DOM Target（dom_target）で spring を実ブラウザ上で駆動し収束することを
       # 確認する統合デモ。対象クレートは crates/wasm-full/ とは別（crates/
@@ -2331,6 +2341,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,in-view --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: gesture, issue #2520)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,gesture --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: scroll-driver, issue #2521)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,scroll-driver --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: animation-driver, issue #2403)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,animation-driver --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transitions, issue #2400)"
