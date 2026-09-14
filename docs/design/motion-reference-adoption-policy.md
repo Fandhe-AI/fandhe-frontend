@@ -47,6 +47,26 @@
 | AnimateNumber（Motion+） | C（spring ベースのカウントアップ） | evaluation-only（Phase 6） |
 | Typewriter（Motion+） | B（タイマーベースの文字送りのみなら B、spring 併用なら C） | evaluation-only（Phase 6） |
 | ScrambleText（Motion+） | B/C | evaluation-only（Phase 6） |
+| confetti（Motion+） | C | **実装対象**（Motion+ 由来だが evaluation-only の既定方針の例外、イシュー #2533。判断根拠は本表直後の注記参照） |
+
+**confetti が Motion+ 由来にもかかわらず実装対象である理由（イシュー #2533）**:
+Motion+ 機能は本表で原則 evaluation-only（Phase 6）とする既定方針を敷いて
+いるが、confetti は 3 点の理由でこの既定を離れて実装対象とする。
+(1) `docs/policy/intentional-non-adoption.md` §3.22 が canvas 系 API を
+見送った headless-ui 入力系部品（ImageCropper/SignaturePad/AngleSlider）は
+「ポインタ座標ストリームの非決定性・canvas ピクセル出力の機械検証困難性」
+が理由だったが、confetti は `headless-ui` 部品ではなく本文書が扱う
+`fandhe-animation`/`fandhe-frontend-animation` の装飾エフェクトであり
+§3.22 の対象範囲外（本文書 §1「UI 部品の構造 vs. アニメーション実装
+パターン」の区分と整合）。(2) アプリが消費する永続状態・出力データを
+持たない純粋な視覚効果であり、ImageCropper の crop 矩形・SignaturePad の
+署名ストロークのような業務データの機械検証困難性が生じない。
+(3) 物理演算（重力・減衰・回転・シード付き決定的乱数、
+`fandhe_animation::confetti::ConfettiSim`）は固定シード・固定 `dt` 列に
+対して常に同一のパーティクル軌跡を返す設計であり、§3.22 のトリガー1
+（決定的検証基盤の確立）と同種の担保が最初から成立する。実装はゼロからの
+Rust/CSS 再実装（§9 のライセンス制約の遵守、`motiondivision/plus` の
+TypeScript コード転写は行わない）。
 
 ## 5. 既存実装の棚卸し表
 
@@ -57,6 +77,7 @@
 | hover/disabled/transition の共通ビジュアル言語 | `docs/design/pre-styled-ui-interaction-visual-language.md`（#1425） | hover/press の transition プリセット | A |
 | collapsible/accordion 高さ遷移（実測高さを CSS 変数へ供給） | `crates/wasm-full/src/content_height.rs`（#2191、設計評価は `docs/design/collapsible-height-animation.md` 案 C） | layout（高さの FLIP 相当）・presence | B（現状の実装は実測値供給のみ）/ 真の layout FLIP（要素間の位置補間）は C 相当で未実装 |
 | nav の View Transitions ラッパ | `crates/wasm-full/src/nav.rs`（`document.startViewTransition` の機能検出・呼び出し、#404） | View Transitions API（Motion の `layout` とは別系統のブラウザ機能） | B |
+| confetti パーティクル物理・canvas 発火 | `crates/animation/src/confetti.rs`（決定的物理演算）・`crates/frontend-animation/src/{canvas_target,confetti}.rs`（canvas 2D 描画・rAF 駆動）・`crates/wasm-full/src/confetti.rs`（クリック委譲配線、#2533） | Motion+ `components/confetti` | C |
 
 ## 6. 3層構成（判断記録5/9の具体化）
 

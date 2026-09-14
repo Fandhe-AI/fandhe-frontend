@@ -215,6 +215,7 @@
 //! | `Runtime::wire_in_view` | `in-view` |
 //! | `Runtime::wire_gesture` | `gesture` |
 //! | `Runtime::wire_scroll_driver` | `scroll-driver` |
+//! | `Runtime::wire_confetti` | `confetti` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -444,6 +445,8 @@ pub mod animation_driver;
 pub mod chart;
 pub mod chart_range;
 pub mod command;
+#[cfg(feature = "confetti")]
+pub mod confetti;
 pub mod content_height;
 pub mod csr;
 pub mod data_table;
@@ -1487,6 +1490,8 @@ where
         Self::wire_gesture(root.clone())?;
         #[cfg(feature = "scroll-driver")]
         Self::wire_scroll_driver(root.clone())?;
+        #[cfg(feature = "confetti")]
+        Self::wire_confetti(root.clone())?;
 
         Ok(Self {
             component,
@@ -1671,6 +1676,8 @@ where
         Self::wire_gesture(root.clone())?;
         #[cfg(feature = "scroll-driver")]
         Self::wire_scroll_driver(root.clone())?;
+        #[cfg(feature = "confetti")]
+        Self::wire_confetti(root.clone())?;
 
         Ok(Self {
             component,
@@ -2633,6 +2640,20 @@ where
     #[cfg(feature = "scroll-driver")]
     fn wire_scroll_driver(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         scroll_driver::wire_scroll_driver(&root)
+    }
+
+    /// confetti トリガーのクリック委譲配線（[`confetti::wire_confetti`]、
+    /// イシュー #2533）を登録する。`dispatch` チャネルを持たない属性専用
+    /// 配線のため（`Self::wire_gesture`/`Self::wire_scroll_driver` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`confetti::wire_confetti`]（`add_event_listener_with_callback` の
+    /// 失敗）を伝播する。
+    #[cfg(feature = "confetti")]
+    fn wire_confetti(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        confetti::wire_confetti(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
