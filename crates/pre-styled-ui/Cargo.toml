@@ -3441,7 +3441,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # `Theme::to_css_with_border_beam`）の新規公開 API 純追加であり、無効時の
 # 出力・依存グラフは不変（`tests/motion_zero_cost.rs` 不変）。#2515/#2384/
 # #2381 と同型のため minor バンプする。
-version = "0.200.0"
+#
+# イシュー #2538: `button_motion`（`motion` feature 配下）を追加した。
+# button の Motion+ 由来 variant（rolling-text/rolling-text-stagger/
+# hold-to-confirm/add-to-basket）のマークアップ関数・
+# `Theme::to_css_with_button_motion`・`BUTTON_MOTION_CSS` の新規公開 API
+# 純追加であり、既存 `button::button`/`button::assemble`/`Theme::to_css`
+# 本体は変更していない（無効時の出力・依存グラフは不変、
+# `tests/motion_zero_cost.rs` 不変）。#2531/#2515/#2384/#2381 と同型のため
+# minor バンプする。
+version = "0.201.0"
 
 
 edition = "2021"

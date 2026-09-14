@@ -65,6 +65,16 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_gesture` | `gesture` |
 | `Runtime::wire_scroll_driver` | `scroll-driver` |
 | `Runtime::wire_confetti` | `confetti` |
+| `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
+| `Runtime::wire_add_to_basket` | `add-to-basket` |
+
+`hold-to-confirm` feature（0.29.0 で追加、イシュー #2538）は `scroll-driver`/
+`confetti` と同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）で、
+`fandhe-frontend-animation` の `AnimationLoop`/`RafDriver`/`DomTarget`
+（#2403/#2517）を消費して長押し確定ボタンの進行度を毎フレーム DOM へ
+書き込みます。`add-to-basket` feature（同 0.29.0、同イシュー）は
+`data-state` 状態機械 + タイマーのみで完結し（`headless_clipboard.rs` と
+同型のパターン）、`fandhe-frontend-animation` への依存追加は伴いません。
 
 `scroll-driver` feature（0.27.0 で追加、イシュー #2521）は配線群別
 feature でありながら `fandhe-frontend-animation` を optional 依存として
@@ -195,16 +205,17 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.26.0 | `gesture` feature（イシュー #2520。main の #2515/#2400/#2398/#2403/#2517 取り込みに伴う版数衝突の再バンプ、PR #2555） |
 | 0.27.0 | `scroll-driver` feature（イシュー #2521） |
 | 0.28.0 | `confetti` feature（イシュー #2533） |
+| 0.29.0 | `hold-to-confirm`/`add-to-basket` feature（イシュー #2538） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 43 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 45 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.28.0"
+version = "0.29.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -228,6 +239,8 @@ features = [
   "gesture",
   "scroll-driver",
   "confetti",
+  "hold-to-confirm",
+  "add-to-basket",
   "position",
   "stagger",
   "animation-driver",

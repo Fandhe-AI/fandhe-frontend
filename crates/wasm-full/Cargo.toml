@@ -1173,7 +1173,13 @@ name = "fandhe-frontend-wasm-full"
 # 配線（`confetti` モジュール新設、`Self::wire_confetti`・feature
 # `confetti` 既定 on）を追加。新規公開 feature 追加を伴うため minor バンプ
 # する。
-version = "0.28.0"
+#
+# イシュー #2538（button の Motion+ 由来 variant）: hold-to-confirm/
+# add-to-basket 配線（`hold_to_confirm`/`add_to_basket` モジュール新設、
+# `Self::wire_hold_to_confirm`/`Self::wire_add_to_basket`・feature
+# `hold-to-confirm`/`add-to-basket` 既定 on）を追加。新規公開 feature 追加
+# を伴うため minor バンプする。
+version = "0.29.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1677,6 +1683,8 @@ default = [
   "gesture",
   "scroll-driver",
   "confetti",
+  "hold-to-confirm",
+  "add-to-basket",
   "position",
   "stagger",
   "animation-driver",
@@ -1762,6 +1770,24 @@ scroll-driver = ["dep:fandhe-frontend-animation"]
 # 設計、SignaturePad 由来コメント「canvas 系 API は一切追加しない」方針を
 # 維持）。
 confetti = ["dep:fandhe-frontend-animation"]
+# イシュー #2538（親 button の Motion+ 由来 variant）: hold-to-confirm 配線
+# （`Runtime::mount`/`hydrate` の `Self::wire_hold_to_confirm` 呼び出し）
+# 専用の feature（既定 on）。`scroll-driver`/`confetti` と同型——配線群
+# かつ `dep:fandhe-frontend-animation` を有効化する feature。進行度の
+# 毎フレーム計算・DOM 反映は `fandhe-frontend-animation` の
+# `AnimationLoop`/`RafDriver`/`DomTarget`（#2403/#2517）をそのまま消費し、
+# `hold_to_confirm` モジュール自体は本 feature でのみコンパイルする
+# （`fandhe-frontend-animation` の型を直接使うため、`gesture` 等の
+# 純粋層非ゲート方針とは異なり、上記 (c) 注記の対象外。`scroll-driver`/
+# `confetti` と同じ理由）。
+hold-to-confirm = ["dep:fandhe-frontend-animation"]
+# イシュー #2538（親 button の Motion+ 由来 variant）: add-to-basket 配線
+# （`Runtime::mount`/`hydrate` の `Self::wire_add_to_basket` 呼び出し）
+# 専用の feature（既定 on）。`data-state` 状態機械 + タイマーのみで完結し
+# （`headless_clipboard.rs` の `PendingTimer` パターンと同型）、rAF ループ・
+# `fandhe-frontend-animation` への依存追加は伴わない（群 B: 小さな DOM
+# 配線のみで完結、`docs/design/motion-reference-adoption-policy.md` §4）。
+add-to-basket = []
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

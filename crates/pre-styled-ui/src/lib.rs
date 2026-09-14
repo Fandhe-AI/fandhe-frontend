@@ -742,6 +742,8 @@ pub mod breadcrumb;
 pub mod bubble;
 pub mod button;
 pub mod button_group;
+#[cfg(feature = "motion")]
+pub mod button_motion;
 pub mod calendar;
 pub mod callout;
 pub mod card;

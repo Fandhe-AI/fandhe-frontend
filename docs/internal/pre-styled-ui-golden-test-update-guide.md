@@ -137,6 +137,7 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 | テストファイル | 対象部品 |
 |----------------|----------|
 | `button_css.rs` | button（`download_trigger_css.rs` も button を参照する） |
+| `button_motion_css.rs`（`motion` feature 配下） | button の Motion+ 由来 variant（rolling-text/rolling-text-stagger/hold-to-confirm/add-to-basket、`button_motion.rs`、イシュー #2538。`BUTTON_MOTION_CSS` は既存 `button_css.rs` の golden とは別バイト列で独立管理する opt-in 追加装飾 CSS） |
 | `typography_css.rs` | heading / text / em / mark / blockquote / list / quote / strong |
 | `form_controls_css.rs` | input / textarea / native_select（`field` scope を共有。recipe scope `field` 自体の 5 slot（root/label/helper-text/error-text/required-indicator）は `field_css.rs` が別ファイルで golden 化する、イシュー #1684。イシュー #2204 で native_select の `> option`/`> optgroup`/`> optgroup > option` 背景色規則を `NATIVE_SELECT_GOLDEN_CSS` 末尾へ純追加、`NATIVE_SELECT_GOLDEN_CSS_BEFORE_2204` + `starts_with` アサーション（`select_css.rs` と同型）で純追加を機械固定） |
 | `image_icon_css.rs` | image / icon |
