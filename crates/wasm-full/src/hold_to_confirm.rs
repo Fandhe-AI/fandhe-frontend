@@ -273,9 +273,18 @@ mod wiring {
             // 0 リセット」タイマーがまだ生きていると、新しい保持の途中で
             // 突然進行度が 0 へ巻き戻る（`schedule_confirmed_reset` rustdoc
             // 参照）。ここで明示的に解除してから新しいループを始める。
+            //
+            // `data-state="confirmed"` も同時に即座へ除去する必要がある
+            // （codex-review P1 指摘・Cursor Bugbot 同根指摘）: この
+            // タイマーだけが `data-state` を消す唯一の予約であり、単に
+            // `clear_timeout_with_handle` で止めるとタイマー自体が発火し
+            // なくなるため `data-state="confirmed"` が誰にも消されず
+            // 無期限に残留する（この後 `cancel()` で早期離脱しても
+            // `cancel()` は進行度のみを戻し `data-state` には触れない）。
             if let Some(window) = web_sys::window() {
                 if let Some(timer) = self.reset_timer.borrow_mut().take() {
                     window.clear_timeout_with_handle(timer.handle);
+                    let _ = self.element.remove_attribute("data-state");
                 }
             }
 
@@ -360,7 +369,16 @@ mod wiring {
         )?;
         pointerdown.forget();
 
-        for event_name in ["pointerup", "pointercancel", "pointerleave"] {
+        // "blur" を早期離脱イベントへ加える理由（codex-review P1 指摘）:
+        // 保持中に Tab で別要素へフォーカス移動すると、ポインタは離されず
+        // keyup も届かないため上記 3 イベントだけでは中断できず、進行度が
+        // 100% に達して合成 click が発火してしまう（「一定時間押し続けた
+        // ときのみ確定」契約違反）。`blur` は要素がフォーカスを失う経路
+        // （Tab 移動・他要素へのクリック・ウィンドウのフォーカス喪失で
+        // アクティブ要素から間接的に）を broad にカバーするため、
+        // pointerdown/keydown で開始したセッションを問わず共通の中断
+        // トリガーとして扱う。
+        for event_name in ["pointerup", "pointercancel", "pointerleave", "blur"] {
             let cancel_session = Rc::clone(&session);
             let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
                 cancel_session.cancel();

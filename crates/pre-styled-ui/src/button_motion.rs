@@ -124,14 +124,29 @@ pub const BUTTON_MOTION_CSS: &str = concat!(
     "[data-scope=\"button\"][data-part=\"",
     "rolling-text-duplicate",
     "\"] {\n",
-    "  display: block;\n",
     "  transition: transform 0.3s ease;\n",
     "}\n",
+    "[data-scope=\"button\"][data-part=\"",
+    "rolling-text-current",
+    "\"] {\n",
+    "  display: block;\n",
+    "}\n",
+    // duplicate は `root`（position: relative）の inset: 0 いっぱいに
+    // 絶対配置される（root の padding box が containing block になる）
+    // ため、`current`（root の flex 中央寄せに従う通常フローの子要素）と
+    // 同じ見た目の中央位置に揃えるには、この絶対配置ボックス自身も
+    // flex 中央寄せにする必要がある（codex-review P1 指摘: この
+    // `display: flex` を欠くと `display: block` の既定の上詰めのまま
+    // レンダリングされ、hover 後の文字が上端へ移動する／ボタン高さに
+    // よっては文字が上部に残る）。
     "[data-scope=\"button\"][data-part=\"",
     "rolling-text-duplicate",
     "\"] {\n",
     "  position: absolute;\n",
     "  inset: 0;\n",
+    "  display: flex;\n",
+    "  align-items: center;\n",
+    "  justify-content: center;\n",
     "  transform: translateY(100%);\n",
     "}\n",
     "@media (hover: hover) {\n",
