@@ -93,15 +93,24 @@ fn create_scroll_fixture(document: &Document, id_prefix: &str, once: bool) -> (E
     (container, target)
 }
 
-/// `condition` が成立するまで最大 5 秒（10ms x 500 回）ポーリングする
+/// `condition` が成立するまで最大 600 フレーム（`requestAnimationFrame`
+/// 単位）ポーリングする。
+///
+/// 旧実装は `setTimeout(..., 10)` でポーリングしていたが、
+/// `IntersectionObserver` の通知は仕様上「レンダリングを更新する」手順
+/// （`requestAnimationFrame` と同じレンダリングパイプライン更新のタイミング）
+/// に同期して配送される。`setTimeout` はこのレンダリング更新手順の実行を
+/// 要求しないため、CI のようにページがアイドル状態（他に `rAF` 要求も
+/// アニメーションもない）だと、ブラウザ実装によってはレンダリング更新
+/// 自体が疎に間引かれ、`IntersectionObserver` の初回通知が
+/// `setTimeout` ベースの待機上限（イシュー #2403/#2517 で 2 秒 → 5 秒へ
+/// 引き上げ済みだったがなお CI で決定的にタイムアウト）に収まらないことが
+/// あった。`requestAnimationFrame` でポーリングすることで、待機の各周回が
+/// 必ず 1 回のレンダリング更新を経てから条件を再評価するようになり、
+/// `IntersectionObserver` 通知のタイミングと構造的に同期する
 /// （`data_table_browser.rs`/`questionnaire_browser.rs`/
-/// `headless_timer_browser.rs::wait_for` と同型の上限。イシュー #2403/#2517
-/// で `wasm-full` の既定 feature に `animation-driver` が加わり本ファイルの
-/// テストバイナリ自体が肥大化した結果、旧上限（2 秒 = 200 回）では CI 上の
-/// `IntersectionObserver` 通知遅延を吸収しきれず
-/// `dynamically_added_element_is_observed_after_wiring` が決定的にタイム
-/// アウトするようになったため引き上げた。他 3 テストは 2 秒未満で完走して
-/// おり、この引き上げはアサーション自体を弱めるものではない）。
+/// `headless_timer_browser.rs::wait_for` は `setTimeout` ベースのままで良い
+/// ——`IntersectionObserver` を待つ本ファイルだけがこの同期を必要とする）。
 ///
 /// 条件不成立のままタイムアウトした場合は `false` を返す（呼び出し側は
 /// 必ず戻り値を `assert!` で確認すること。戻り値を無視すると配線欠落を
@@ -111,26 +120,23 @@ async fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
 
-    for _ in 0..500 {
+    for _ in 0..600 {
         if condition() {
             return true;
         }
         let promise = js_sys::Promise::new(&mut |resolve, _reject| {
             let window = web_sys::window().expect("window must exist");
-            let closure = Closure::once(move || {
+            let closure = Closure::once(move |_timestamp: f64| {
                 resolve.call0(&wasm_bindgen::JsValue::NULL).ok();
             });
             window
-                .set_timeout_with_callback_and_timeout_and_arguments_0(
-                    closure.as_ref().unchecked_ref(),
-                    10,
-                )
-                .expect("setTimeout must not fail");
+                .request_animation_frame(closure.as_ref().unchecked_ref())
+                .expect("requestAnimationFrame must not fail");
             closure.forget();
         });
         wasm_bindgen_futures::JsFuture::from(promise)
             .await
-            .expect("timeout promise must resolve");
+            .expect("animation frame promise must resolve");
     }
     condition()
 }
