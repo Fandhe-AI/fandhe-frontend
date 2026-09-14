@@ -931,6 +931,40 @@ pub fn stagger_index_style(index: usize) -> String {
     format!("{STAGGER_INDEX_VAR}: {index}")
 }
 
+/// `view-transition-name` を固定値で割り当てる宣言を組み立てる
+/// （イシュー #2515）。
+///
+/// 共有要素遷移（motion.dev `AnimateView` 相当）の典型例、共通の CSS
+/// クラスへ固定した `view-transition-name` を割り当てたい静的なケース向け。
+/// `Declaration::value` は `&'static str` のみを保持できるため、`name` は
+/// 呼び出し側がコンパイル時に確定する文字列定数として与える必要がある
+/// （実行時に組み立てた文字列は渡せない）。行ごとに異なる動的な名前が
+/// 必要な場合は `fandhe-frontend-wasm-full::view_transition_name::
+/// set_view_transition_name` を使う
+/// （`docs/guides/pre-styled-ui-motion-feature.md` 参照）。
+///
+/// 値検証は行わない: 静的名は開発者が書く Rust ソースの `&'static str`
+/// であり実行時の攻撃者制御文字列が混ざらない（`Declaration::value` 制約
+/// と同じ設計哲学）。予約語（`none`/CSS-wide keywords 等）を渡した場合の
+/// 挙動は呼び出し側の責任とする。
+#[cfg(feature = "motion")]
+#[must_use]
+pub const fn view_transition_name_declaration(name: &'static str) -> Declaration {
+    decl("view-transition-name", name)
+}
+
+#[cfg(all(test, feature = "motion"))]
+mod view_transition_name_tests {
+    use super::view_transition_name_declaration;
+
+    #[test]
+    fn declaration_carries_property_and_value() {
+        let d = view_transition_name_declaration("logo");
+        assert_eq!(d.property(), "view-transition-name");
+        assert_eq!(d.value(), "logo");
+    }
+}
+
 impl SlotRecipe {
     /// `self.base(slot, vec![stagger_delay_declaration(step)])` の 1 行
     /// builder（イシュー #2384）。`slot` が未宣言の場合は
