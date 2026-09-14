@@ -92,6 +92,18 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 （`is_valid_view_transition_name`）はゲート対象外です。off にすると
 `set_view_transition_name` が使えなくなります。
 
+`animate` feature（0.24.0 で追加、イシュー #2398）も同じく別枠です。
+ただし `position`/`stagger`/`view-transition-name` とは異なり、ゲート
+対象の `wire_*` 呼び出し自体が存在しません。optional 依存
+`fandhe-frontend-animation`（`element.animate()` WAAPI 薄いラッパ）を
+有効化し、`pub use fandhe_frontend_animation;` で本クレート経由に
+再エクスポートするだけの feature です。`data-*` 属性からの自動トリガー
+配線は本 issue のスコープ外（後続 Phase 4 issue の責務）です。有効なら
+自前で `fandhe-frontend-animation` に依存を追加しなくても
+`fandhe_frontend_wasm_full::fandhe_frontend_animation::animate::{animate,
+AnimateOptions, WaapiKeyframe}` を呼び出せます。off にするとこの再
+エクスポートが消え、アプリ側で直接呼び出せなくなります。
+
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
 feature 名は `headless::MAPPING_TABLE` の `scope` 文字列と一致します
@@ -155,18 +167,20 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.20.5 | `message-scroller` feature（イシュー #2122） |
 | 0.20.8 | `data-table` feature（イシュー #2126） |
 | 0.21.0 | `stagger` feature（イシュー #2397）・`in-view` feature（イシュー #2396） |
-| 0.22.0 | `gesture` feature（イシュー #2520）・`view-transition-name` feature（イシュー #2515） |
+| 0.22.0 | `view-transition-name` feature（イシュー #2515） |
 | 0.23.0 | `view-transitions` feature（イシュー #2400。main の #2515 取り込みに伴う版数衝突の再バンプ、PR #2553） |
+| 0.24.0 | `animate` feature（イシュー #2398。main の #2400 取り込みに伴う 0.23.0 同士の版数衝突の再バンプ、PR #2475） |
+| 0.25.0 | `gesture` feature（イシュー #2520、PR #2555）。PR ブランチ側では当初 0.22.0 到達を見込んでいたが、main への複数回のマージで `view-transition-name`/`view-transitions`/`animate` と繰り返し版数衝突したため、実際に main へ着地する版数は 0.25.0 になる（上表の他行と異なり、PR 作業ブランチ内で一度も 0.22.0〜0.24.0 として公開されていない） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 39 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 40 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.24.0"
+version = "0.25.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -192,6 +206,7 @@ features = [
   "stagger",
   "view-transitions",
   "view-transition-name",
+  "animate",
   "accordion",
   "calendar",
   "collapsible",

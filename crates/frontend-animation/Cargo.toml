@@ -1,6 +1,8 @@
 [package]
 name = "fandhe-frontend-animation"
-version = "0.1.0"
+# イシュー #2398: `animate` モジュール（WAAPI 薄いラッパ）を新設し、初の
+# 実質的な公開 API 拡張を行った。minor バンプする。
+version = "0.2.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -18,14 +20,21 @@ categories = ["graphics", "web-programming", "wasm"]
 #
 # wasm-bindgen / js-sys / web-sys は既存 wasm-full/wasm-client が既に依存する
 # パッケージ群であり、新規外部パッケージの追加はない見込み（イシュー #2417 実測で
-# 確認）。`web-sys` の feature は Phase 4 の各実装 issue が必要に応じて追加する
-# （現時点では未使用のため空、REQ-3 依存追加は事前ユーザー承認が必要）。
+# 確認）。`web-sys` の feature はイシュー #2398 で `animate` モジュールが
+# `Element`（duck-typing extern バインディングの unchecked_into キャスト元
+# 型）を要求するため追加した。
+#
+# `wasm-bindgen-futures` はイシュー #2398 の `animate::AnimationHandle::finished`
+# （WAAPI `Animation.finished` Promise の待機）に必要。新規外部パッケージでは
+# なく、ワークスペース内で既に `wasm-client`（通常依存）・`wasm-full`（dev 依存）
+# が同一バージョン制約（"0.4"）で使用済み。
 #
 # 新規クレートを追加する場合は事前にユーザー承認を得ること。
 [dependencies]
-fandhe-animation = { path = "../animation", version = "0.1.0" }
+fandhe-animation = { path = "../animation", version = "0.1.1" }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = [] }
+web-sys = { version = "0.3", features = ["Element"] }
+wasm-bindgen-futures = "0.4"
 
 [dev-dependencies]
