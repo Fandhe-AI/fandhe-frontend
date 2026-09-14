@@ -20,10 +20,17 @@
 // 異なり、本ファイルは `animate` 専用のため全体ゲートで足りる）。
 #![cfg(feature = "animate")]
 
-use fandhe_animation::keyframes::{Keyframe, Keyframes};
+// `fandhe-animation`（`Keyframes`/`Keyframe`）は本クレートの直接依存には
+// 置かず、`fandhe_frontend_animation::fandhe_animation`（イシュー #2398、
+// `crates/frontend-animation/src/lib.rs` の再エクスポート）経由で参照する。
+// `structure.toml` の `[directories.animation].allowed_dependents` は
+// `["frontend-animation"]` のみを宣言しており、wasm-full からの直接依存
+// エッジは新設しない（`Runtime` 経由で `fandhe_frontend_animation` crate
+// 自体を再エクスポートする既存パターン、lib.rs 参照）。
 use fandhe_frontend_animation::animate::{
     animate, keyframes_to_waapi, AnimateOptions, WaapiKeyframe,
 };
+use fandhe_frontend_animation::fandhe_animation::keyframes::{Keyframe, Keyframes};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::Document;
@@ -139,8 +146,9 @@ async fn sleep_ms(duration_ms: i32) {
 /// `element.animate()` へ渡し、要素の元のスタイル（underlying value）へ
 /// 値がにじみ出さず、アニメーション開始直後から一貫して指定値が保持される
 /// ことをブラウザで確認する（補完がなければ WAAPI は欠けた端点を
-/// underlying value で補うため、開始直後の値は `sentinel_opacity` に近い
-/// 値になってしまう。W3C Web Animations §5.3.4）。
+/// underlying value で補うため、開始直後の値は要素に設定したインライン
+/// `opacity: 0.9`（この後で設定する）に近い値になってしまう。W3C Web
+/// Animations §5.3.4）。
 #[wasm_bindgen_test]
 async fn keyframes_to_waapi_padded_endpoints_hold_constant_value_from_the_start() {
     let window = web_sys::window().expect("window must exist in browser test environment");

@@ -43,3 +43,12 @@
 //! で追加する（`docs/design/animation-core-architecture.md` §6.2 参照）。
 
 pub mod animate;
+
+// `fandhe-animation`（演算基幹）の型（`Keyframes`/`Keyframe` 等）は、本クレートの
+// `[dependencies]` にのみ存在し推移依存としてアプリの名前解決に公開されない。
+// `crates/wasm-full/src/lib.rs` の `pub use fandhe_frontend_animation;`（`animate`
+// feature 有効時）と同じ理由（構造グラフ〔`structure.toml`〕へ新規の直接依存
+// エッジを追加せず、既存の縦の依存方向 `fandhe-animation ← fandhe-frontend-
+// animation` を経由して型へアクセスできるようにする）で crate 自体を
+// 再エクスポートする。
+pub use fandhe_animation;
