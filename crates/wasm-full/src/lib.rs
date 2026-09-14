@@ -1315,6 +1315,15 @@ where
         // （DOM 読み出しベースのフォールバック）から再開させることで実際の
         // DOM 内容との不整合を防ぐ（`Runtime::keyed_list_cache` doc 参照）。
         keyed_list_cache.borrow_mut().clear();
+
+        // イシュー #2535 codex-review P1 是正（PR #2565）: 差し替え後の
+        // `root` 配下に新規生成された opt-in ドラッグ要素があれば、最初の
+        // `pointerdown` より前に `touch-action: none` を再同期する
+        // （[`Self::resync_drag_gesture_attachments`] doc 参照）。本メソッドは
+        // `Self::rerender_subtree`・`Self::apply_with_view_transition` の
+        // 唯一の DOM 差し替え実装であるため、ここ 1 箇所で両経路を covers する。
+        #[cfg(feature = "drag-gesture")]
+        Self::resync_drag_gesture_attachments(root);
     }
 
     /// CSR 経路（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
@@ -2664,6 +2673,20 @@ where
     #[cfg(feature = "drag-gesture")]
     fn wire_drag_gesture(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         drag_gesture::wire_drag_gesture(root)
+    }
+
+    /// [`drag_gesture::resync_drag_gesture_attachments`] を呼び、`root`
+    /// 配下の opt-in ドラッグ要素へ `touch-action: none` を再同期する
+    /// （codex-review P1 是正・イシュー #2535・PR #2565）。
+    /// [`Self::apply_subtree_swap`] が構造フォールバック再描画・
+    /// View Transitions 更新のいずれで `root` の子ノードを差し替えた
+    /// 場合にも、新規生成された opt-in 要素は最初の `pointerdown` より
+    /// 前に `touch-action: none` を得る必要がある（イベント委譲用の
+    /// 5 リスナー自体は `root` が差し替えられないため再登録不要、
+    /// [`Self::apply_subtree_swap`] 冒頭のコメント参照）。
+    #[cfg(feature = "drag-gesture")]
+    fn resync_drag_gesture_attachments(root: &web_sys::Element) {
+        drag_gesture::resync_drag_gesture_attachments(root);
     }
 
     /// confetti トリガーのクリック委譲配線（[`confetti::wire_confetti`]、

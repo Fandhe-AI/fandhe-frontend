@@ -237,6 +237,21 @@ mod wiring {
     /// （残っているはずのもう一本の追跡が孤立する）。すでに `active` に
     /// 同じ要素を追跡するエントリがあれば、この `pointerdown` は無視する
     /// （最初に押した 1 本だけがその要素のドラッグを所有する）。
+    ///
+    /// # 同一 `pointer_id` の stale エントリを自己解除する（Cursor Bugbot
+    /// 是正「Stale drag can lock element」、PR #2565）
+    ///
+    /// UA は `pointerup`/`pointercancel` を送るまで同じ `pointer_id` を
+    /// 再利用しない（ある `pointer_id` の `pointerdown` は、その ID が
+    /// 既に離されている場合にのみ発生する）。したがって `active` に同じ
+    /// `pointer_id` のエントリが残っていれば、それは前回セッションの
+    /// 解放漏れ（[`handle_pointermove`] の `buttons() == 0` 自己修復・
+    /// 下記 [`wire_drag_gesture`] の `window` 側 release リスナーの
+    /// いずれも取りこぼした場合）による stale な残留であると確定できる。
+    /// 新規ポインタ操作を拒否する前に、まずこの pointer_id を
+    /// [`release_drag`] で解放してから通常の判定へ進む。これにより、
+    /// 何らかの理由で解放を取りこぼしたドラッグが同じ `pointer_id` を
+    /// 永久にロックし続けることはない。
     fn handle_pointerdown(root: &Element, event: &Event, active: &ActiveDrags) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
@@ -247,6 +262,10 @@ mod wiring {
         let Some(drag_element) = closest_opted_in(root, &target, DRAG_ATTR) else {
             return;
         };
+        let pointer_id = pointer_event.pointer_id();
+        if active.borrow().contains_key(&pointer_id) {
+            release_drag(pointer_id, active);
+        }
         let already_tracked = active
             .borrow()
             .values()
@@ -257,7 +276,6 @@ mod wiring {
         let Some(controller) = controller_for(&drag_element) else {
             return;
         };
-        let pointer_id = pointer_event.pointer_id();
         let _ = drag_element.set_pointer_capture(pointer_id);
         measure_and_apply_constraint(root, &drag_element, &controller);
         controller.borrow_mut().on_pointer_down(
@@ -298,6 +316,21 @@ mod wiring {
     /// `pointermove` は capture 中でなくとも要素外の移動で発火しうるため、
     /// `buttons() == 0`（どのボタンも押されていない）を都度確認し、
     /// 該当すれば `release_drag` で追跡を自己修復する（Bugbot 指摘の是正）。
+    ///
+    /// # このガードだけでは不十分（Cursor Bugbot 再指摘「Stale drag can
+    /// lock element」是正、PR #2565）
+    ///
+    /// 本ガードは `root` へ配線したリスナー上で動くため、`root` に発火
+    /// する後続の `pointermove` が無ければ実行されない。ポインタが
+    /// `root` の外へ完全に離脱したまま二度と `root` 内へ戻らずに離される
+    /// （capture 失敗時に典型的なケース）と、`pointermove` 自体が
+    /// `root` へ到達しないため本ガードも発火せず、`active` エントリが
+    /// 永久に残留し得る（同じ `pointer_id` を使う次のドラッグ開始が
+    /// [`handle_pointerdown`] の stale 自己解除で救済されるが、
+    /// `DRAGGING_STATE_ATTR` は救済されるまで残置される）。これを塞ぐ
+    /// 第 2 の防御として [`wire_drag_gesture`] は `pointerup`/
+    /// `pointercancel` を `root` に加えて `window` へも capture フェーズで
+    /// 登録し、要素の位置に関わらず解放を捕捉する。
     fn handle_pointermove(event: &Event, active: &ActiveDrags) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
@@ -379,7 +412,25 @@ mod wiring {
     /// された opt-in 要素はマウント/ハイドレート時点で DOM に存在する
     /// ため、配線直後にここで先行 attach しておけば実際の接触より確実に
     /// 早く `touch-action: none` が反映される。
-    fn preattach_existing_drag_elements(root: &Element) {
+    ///
+    /// # 再描画後にも再実行が必要（codex-review P1 是正、PR #2565）
+    ///
+    /// [`crate::lib::Runtime::mount`]/[`Runtime::hydrate`] からの初回配線
+    /// 直後だけでなく、[`crate::lib::Runtime::apply_subtree_swap`]（構造
+    /// フォールバック再描画・View Transitions 更新の両方が経由する唯一の
+    /// DOM 差し替え実装）が `root` の子ノードを丸ごと新規ノードへ置き換え
+    /// た**直後にも**呼び直す必要がある。イベント委譲用の 5 リスナーは
+    /// `root` 自身が差し替えられないため再登録不要（`apply_subtree_swap`
+    /// の doc コメント参照）だが、`touch-action: none` は要素ごとの
+    /// インラインスタイル（[`DragController::attach`]）であり、新規
+    /// ノードは属性・スタイルを引き継がない。呼び直しを欠くと、再描画後に
+    /// 新規生成された opt-in 要素は最初の `pointerdown` ハンドラ内で初めて
+    /// `touch-action: none` が設定されることになり、タッチデバイスでは
+    /// その設定が UA のスクロール判定より後になるため初回タッチドラッグが
+    /// `pointercancel` で中断する（本節冒頭の理由と同型）。[`controller_for`]
+    /// が `retain(is_connected)` で切断済みエントリを間引き `is_same_node`
+    /// で重複登録を避けるため、本関数は何度呼んでも安全（冪等）。
+    pub(crate) fn resync_drag_gesture_attachments(root: &Element) {
         if root.has_attribute(DRAG_ATTR) {
             let _ = controller_for(root);
         }
@@ -404,12 +455,30 @@ mod wiring {
     /// から呼ばれる）。`gesture.rs::wire_gesture` と同じく登録回数を
     /// 定数個に抑える方針（A04 対策）で全リスナーを capture フェーズで
     /// 登録する（子孫の `stopPropagation()` に対する頑健性、同モジュール
-    /// と同じ理由）。登録後に [`preattach_existing_drag_elements`] で
+    /// と同じ理由）。登録後に [`resync_drag_gesture_attachments`] で
     /// 既存の opt-in 要素へ `touch-action: none` を先行反映する。
+    ///
+    /// # `pointerup`/`pointercancel` は `window` にも登録する（Cursor
+    /// Bugbot 是正「Stale drag can lock element」、PR #2565）
+    ///
+    /// `root` 単独では、ポインタが `root` の外へ出たまま離される
+    /// ケース（[`handle_pointermove`] doc 参照）を取りこぼす。`pointerup`/
+    /// `pointercancel` の解放ハンドラを `window` の capture フェーズへも
+    /// 追加登録することで、ターゲット要素の位置に関わらず解放を確実に
+    /// 捕捉する。`window` は `root` の祖先であるため、`root` 内で発生した
+    /// イベントは両リスナーから 2 回呼ばれるが、[`release_drag`] は
+    /// `active` から見つからない `pointer_id` を no-op とするため冪等
+    /// （2 回目は何もしない）。`Runtime::mount`/`Runtime::hydrate` は
+    /// `root` ごとに 1 回だけ本関数を呼ぶため、`window` への登録回数も
+    /// 有界（A04 方針に反しない）。`window()` が取得できない非ブラウザ
+    /// 環境（native テスト等）では `root` 側のみで動作し続ける
+    /// fail-safe（`let _ =` で結果を握り潰し、致命的エラーにしない）。
     ///
     /// # Errors
     ///
-    /// `add_event_listener_with_callback_and_bool` の失敗を伝播する。
+    /// `add_event_listener_with_callback_and_bool` の失敗を伝播する
+    /// （`root` への登録のみ。`window` への追加登録の失敗は fail-safe
+    /// に握り潰す、上記節参照）。
     pub fn wire_drag_gesture(root: Element) -> Result<(), JsValue> {
         let active: ActiveDrags = Rc::new(RefCell::new(HashMap::new()));
 
@@ -450,6 +519,21 @@ mod wiring {
             pointerup_or_cancel_closure.as_ref().unchecked_ref(),
             true,
         )?;
+        // `root` 外での release を捕捉するための追加登録（本関数 doc
+        // 「`pointerup`/`pointercancel` は `window` にも登録する」節）。
+        // 失敗は fail-safe に握り潰す（`window()` 不在の非ブラウザ環境等）。
+        if let Some(window) = web_sys::window() {
+            let _ = window.add_event_listener_with_callback_and_bool(
+                "pointerup",
+                pointerup_or_cancel_closure.as_ref().unchecked_ref(),
+                true,
+            );
+            let _ = window.add_event_listener_with_callback_and_bool(
+                "pointercancel",
+                pointerup_or_cancel_closure.as_ref().unchecked_ref(),
+                true,
+            );
+        }
         pointerup_or_cancel_closure.forget();
 
         let keydown_root = root.clone();
@@ -463,7 +547,7 @@ mod wiring {
         )?;
         keydown_closure.forget();
 
-        preattach_existing_drag_elements(&root);
+        resync_drag_gesture_attachments(&root);
 
         Ok(())
     }
@@ -471,6 +555,14 @@ mod wiring {
 
 #[cfg(target_arch = "wasm32")]
 pub use wiring::wire_drag_gesture;
+
+/// [`wiring::resync_drag_gesture_attachments`] を `crate::lib::Runtime` から
+/// 呼べるよう再エクスポートする（[`crate::lib::Runtime::apply_subtree_swap`]
+/// が構造フォールバック再描画・View Transitions 更新後に呼び直す唯一の
+/// 経路、codex-review P1 是正・PR #2565）。`wiring` モジュール自体は非公開
+/// のため、`wire_drag_gesture` と同型の再エクスポートで crate 内へ公開する。
+#[cfg(target_arch = "wasm32")]
+pub(crate) use wiring::resync_drag_gesture_attachments;
 
 #[cfg(test)]
 mod tests {

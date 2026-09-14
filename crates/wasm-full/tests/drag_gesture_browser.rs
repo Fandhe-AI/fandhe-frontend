@@ -313,3 +313,79 @@ fn pointermove_with_no_buttons_pressed_self_heals_stale_tracking() {
         "buttons() == 0 の pointermove で dragging 状態が自己解除されるべき"
     );
 }
+
+/// Cursor Bugbot 指摘「Stale drag can lock element」是正の回帰
+/// （PR #2565）: `root` の外（`document` 自身）で発生した `pointerup` は
+/// `root` の capture リスナーには到達しないが、`wire_drag_gesture` が
+/// `window` にも追加登録した capture リスナーが解放する。解放後は同じ
+/// `pointer_id` で新規ドラッグを開始できる。
+#[wasm_bindgen_test]
+fn pointerup_outside_root_is_caught_by_window_listener() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, draggable) = build_dom(&document, "drag-outside-release-root");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_drag_gesture(root.clone()).expect("wire_drag_gesture must not fail");
+
+    draggable
+        .dispatch_event(&pointer_event("pointerdown", 11, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    assert!(draggable.has_attribute(DRAGGING_STATE_ATTR));
+
+    // `root.dispatch_event` ではなく `document.dispatch_event` を使い、
+    // root のサブツリー外で発生した release を模す。
+    document
+        .dispatch_event(&pointer_event("pointerup", 11, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    assert!(
+        !draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "root 外で発生した pointerup も window リスナーで解放されるべき"
+    );
+
+    // 解放済みのため、同じ pointer_id で新規ドラッグを開始できる
+    // （幽霊ドラッグとして要素をロックし続けない）。
+    draggable
+        .dispatch_event(&pointer_event("pointerdown", 11, 20.0, 20.0))
+        .expect("dispatch_event must not fail");
+    assert!(
+        draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "解放済みの pointer_id は新規ドラッグを開始できるべき"
+    );
+}
+
+/// Cursor Bugbot 指摘の是正回帰（第 2 の防御層）: `root`・`window` の
+/// いずれにも release イベントが一切到達しなかった極端なケース（capture
+/// 完全失陥等）でも、同一 `pointer_id` の再 `pointerdown`（UA は release
+/// 済みの `pointer_id` しか再利用しないため、これ自体が stale の証拠）で
+/// [`handle_pointerdown`] が自己解除し、新規ドラッグの起点を再設定する。
+#[wasm_bindgen_test]
+fn pointerdown_with_stale_same_pointer_id_self_heals() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, draggable) = build_dom(&document, "drag-stale-pointerdown-root");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_drag_gesture(root.clone()).expect("wire_drag_gesture must not fail");
+
+    draggable
+        .dispatch_event(&pointer_event("pointerdown", 21, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    assert!(draggable.has_attribute(DRAGGING_STATE_ATTR));
+
+    // release イベントが一切届かなかった状況を模し、同じ pointer_id で
+    // 再度 pointerdown する。
+    draggable
+        .dispatch_event(&pointer_event("pointerdown", 21, 5.0, 5.0))
+        .expect("dispatch_event must not fail");
+    assert!(
+        draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "同一 pointer_id の再 pointerdown は stale を解除し新規ドラッグを開始するべき"
+    );
+
+    root.dispatch_event(&pointer_event("pointermove", 21, 15.0, 5.0))
+        .expect("dispatch_event must not fail");
+    let x = custom_property_px(&draggable, DRAG_X_PROPERTY).unwrap_or(0.0);
+    assert!(
+        (x - 10.0).abs() < 0.01,
+        "起点は再 pointerdown 時の座標 (5, 5) で更新されているべき: x={x}"
+    );
+}
