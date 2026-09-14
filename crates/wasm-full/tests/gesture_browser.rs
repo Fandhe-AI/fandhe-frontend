@@ -87,8 +87,18 @@ fn dispatch_key(target: &Element, kind: &str, key: &str, repeat: bool) {
 }
 
 fn dispatch_focusout(target: &Element) {
+    dispatch_focusout_with_related(target, None);
+}
+
+/// `relatedTarget`（新しくフォーカスを得た要素）を指定できる版。
+/// 複合ウィジェット内でのフォーカス移動（`related` がまだ press_target
+/// 配下）を模すのに使う。
+fn dispatch_focusout_with_related(target: &Element, related: Option<&Element>) {
     let init = FocusEventInit::new();
     init.set_bubbles(true);
+    if let Some(related) = related {
+        init.set_related_target(Some(related.unchecked_ref::<EventTarget>()));
+    }
     let event =
         FocusEvent::new_with_focus_event_init_dict("focusout", &init).expect("FocusEvent::new");
     target
@@ -306,5 +316,106 @@ fn focusout_clears_press_state_left_by_keyboard_activation() {
     assert!(
         !child.has_attribute(PRESS_STATE_ATTR),
         "keyup を待たずフォーカス離脱時点で press 状態が解除されること"
+    );
+}
+
+/// codex-review 指摘の回帰固定（gesture.rs:235 付近）: Enter/Space の
+/// `keydown` が別ハンドラより後に実行され、その間にフォーカスが別要素へ
+/// 同期的に移動していた場合（ダイアログを開く等）、移動先ではなく元要素
+/// （`event.target`）へ press を設定してしまうと `keyup`/`focusout` が
+/// 届かず残留する。`is_still_focused` による確認で press の新規設定
+/// 自体を抑止する。
+#[wasm_bindgen_test]
+fn keydown_does_not_set_press_when_focus_already_moved_away() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-keydown-focus-race-test");
+    let elsewhere = document.create_element("button").unwrap();
+    root.append_child(&elsewhere).unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    // keydown の同期処理中に既にフォーカスが別要素へ移動済みの状況を
+    // 模す（`event.target()` は依然として `child` を指すが、実際の
+    // フォーカスは `elsewhere` にある）。
+    elsewhere
+        .unchecked_ref::<web_sys::HtmlElement>()
+        .focus()
+        .expect("focus must not fail");
+    dispatch_key(&child, "keydown", "Enter", false);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "keydown 処理時点でフォーカスが移動済みなら press を設定しないこと"
+    );
+}
+
+/// codex-review 指摘の回帰固定（gesture.rs:211 付近）: 親子とも press
+/// opt-in の場合に親の余白で `pointerdown` してから子上へドラッグして
+/// `pointerup` すると、`pointerup` の `event.target()`（子）から祖先を
+/// 再計算すると子だけが解除され、実際に press された親が残留する。
+/// `active_pointer_press` で pointerdown 時の実要素を保持して解除する。
+#[wasm_bindgen_test]
+fn pointerup_on_nested_child_clears_the_actually_pressed_parent() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, parent, child) = build_dom(&document, "gesture-nested-press-test");
+    child.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    // 親の余白（parent 自身が target）で押下する。
+    dispatch_pointer(&parent, "pointerdown", "mouse", None);
+    assert!(
+        parent.has_attribute(PRESS_STATE_ATTR),
+        "親の余白での pointerdown は親へ press を設定する"
+    );
+
+    // 子上（target = child）で pointerup する。
+    dispatch_pointer(&child, "pointerup", "mouse", None);
+    assert!(
+        !parent.has_attribute(PRESS_STATE_ATTR),
+        "子上での pointerup でも実際に押下された親の press が解除されること"
+    );
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "子は元々 press されていないため press 状態を持たないこと"
+    );
+}
+
+/// Cursor Bugbot 指摘の回帰固定（`handle_focusout`）: press opt-in の
+/// 複合ウィジェット自体（`root` 直下の `container`）でポインタを押下した
+/// まま、内部の子要素間でフォーカスが移動しただけ（`relatedTarget` が
+/// 依然 `container` 配下）では press を解除しないこと。真に `container`
+/// の外へフォーカスが抜けたときのみ解除する。
+#[wasm_bindgen_test]
+fn focusout_within_pressed_composite_widget_does_not_clear_press() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("gesture-composite-focusout-test");
+    let container = document.create_element("div").unwrap();
+    container.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    let item_a = document.create_element("button").unwrap();
+    let item_b = document.create_element("button").unwrap();
+    container.append_child(&item_a).unwrap();
+    container.append_child(&item_b).unwrap();
+    root.append_child(&container).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    // container 自身（余白相当）で pointerdown する。
+    dispatch_pointer(&container, "pointerdown", "mouse", None);
+    assert!(container.has_attribute(PRESS_STATE_ATTR));
+
+    // item_a から item_b への内部フォーカス移動（両方とも container 配下）。
+    dispatch_focusout_with_related(&item_a, Some(&item_b));
+    assert!(
+        container.has_attribute(PRESS_STATE_ATTR),
+        "ポインタ押下中に複合ウィジェット内でフォーカスが移動しただけでは press を解除しないこと"
+    );
+
+    // item_b から container の外（relatedTarget なし）へ真に離脱する。
+    dispatch_focusout_with_related(&item_b, None);
+    assert!(
+        !container.has_attribute(PRESS_STATE_ATTR),
+        "フォーカスが複合ウィジェットの外へ真に抜けたら press を解除すること"
     );
 }

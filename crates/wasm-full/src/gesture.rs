@@ -80,6 +80,8 @@ mod wiring {
         HOVER_STATE_ATTR, PRESS_STATE_ATTR,
     };
     use crate::dom::set_dom_attribute_result as set_dom_attribute;
+    use std::cell::RefCell;
+    use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent};
@@ -91,22 +93,54 @@ mod wiring {
     /// 不変条件を保つ。
     const PRESS_POINTER_ACTIVE_ATTR: &str = "data-fandhe-press-pointer-active";
 
+    /// `pointerdown` で実際に press された要素の共有状態。`pointerup`/
+    /// `pointercancel`/`pointerout` は `event.target()` から祖先を
+    /// 再計算せずこの共有状態を参照する（親子とも opt-in の場合に
+    /// pointerdown 時と異なる要素を解除してしまう不具合の是正、
+    /// codex-review 指摘）。
+    type ActivePress = Rc<RefCell<Option<Element>>>;
+
     /// `event.target()` を `Element` として取得する（`Text` ノード等は
     /// `None`）。
     fn event_target_element(event: &Event) -> Option<Element> {
         event.target()?.dyn_into::<Element>().ok()
     }
 
-    /// `related`（`pointerover`/`pointerout` の `relatedTarget`）が
-    /// `boundary`（含む）配下に留まっているか。子要素間の内部移動を
-    /// 「離脱」と誤判定しないための境界判定（`sidebar::wiring` の
-    /// `pointerover`/`pointerout` 判定と同型）。
-    fn related_within(event: &Event, boundary: &Element) -> bool {
+    /// `event` の `relatedTarget` を `Element` として取得する。
+    /// `pointerover`/`pointerout`（`MouseEvent`/`PointerEvent`）と
+    /// `focusout`（`FocusEvent`）の両方に対応する（Bugbot 指摘の是正:
+    /// `handle_focusout` が新フォーカス先の内外を判定できるようにする）。
+    fn related_target_element(event: &Event) -> Option<Element> {
+        if let Some(mouse) = event.dyn_ref::<MouseEvent>() {
+            return mouse.related_target()?.dyn_into::<Element>().ok();
+        }
         event
-            .dyn_ref::<MouseEvent>()
-            .and_then(web_sys::MouseEvent::related_target)
-            .and_then(|target| target.dyn_into::<Element>().ok())
-            .is_some_and(|related| boundary.contains(Some(&related)))
+            .dyn_ref::<FocusEvent>()?
+            .related_target()?
+            .dyn_into::<Element>()
+            .ok()
+    }
+
+    /// `related`（`relatedTarget`）が `boundary`（含む）配下に留まって
+    /// いるか。子要素間の内部移動を「離脱」と誤判定しないための境界判定
+    /// （`sidebar::wiring` の `pointerover`/`pointerout` 判定と同型）。
+    fn related_within(event: &Event, boundary: &Element) -> bool {
+        related_target_element(event).is_some_and(|related| boundary.contains(Some(&related)))
+    }
+
+    /// keydown 処理時点で `target` がまだフォーカスを保持しているか
+    /// （`target` 自身、または `target` 配下にフォーカスがあるか）。
+    /// Enter/Space キーダウンがダイアログを開く等でフォーカスを同期的に
+    /// 移動させるハンドラより後に本モジュールの `keydown` リスナーが
+    /// 実行されると、移動後の要素は press を受け取れないまま
+    /// 元要素（`target`）へ press を設定してしまい、`keyup`/`focusout` が
+    /// 移動先へ届くため元要素の press 状態が残留する
+    /// （codex-review 指摘の是正）。press を新規設定する前に必ず確認する。
+    fn is_still_focused(target: &Element) -> bool {
+        target
+            .owner_document()
+            .and_then(|doc| doc.active_element())
+            .is_some_and(|active| target.contains(Some(&active)))
     }
 
     /// `root` 配下・`opt_in_attr` を持つ最も近い祖先（自身含む）を返す。
@@ -162,10 +196,12 @@ mod wiring {
 
     /// `pointerout`: 真の離脱（`related_target` が対象外）の祖先ごとに
     /// [`HOVER_STATE_ATTR`] を外す（入れ子の opt-in 祖先すべてが対象、
-    /// codex-review 指摘の是正）。press 側は keyboard 由来の press まで
-    /// 誤って解除しないよう、pointer 起因の press にのみ設定される
-    /// [`PRESS_POINTER_ACTIVE_ATTR`] マーカーが立つ祖先のみを対象にする。
-    fn handle_pointerout(root: &Element, event: &Event) {
+    /// codex-review 指摘の是正）。press 側は `active_pointer_press`
+    /// （実際に pointerdown で押下された要素）のみを対象にする
+    /// （`opted_in_ancestors(root, &target, ...)` で祖先を再計算すると、
+    /// 親子とも opt-in の場合に pointerdown 時と異なる要素を解除して
+    /// しまうため。codex-review 指摘の是正）。
+    fn handle_pointerout(root: &Element, event: &Event, active_pointer_press: &ActivePress) {
         let Some(target) = event_target_element(event) else {
             return;
         };
@@ -174,13 +210,12 @@ mod wiring {
                 let _ = hover_target.remove_attribute(HOVER_STATE_ATTR);
             }
         }
-        for press_target in opted_in_ancestors(root, &target, GESTURE_PRESS_ATTR) {
-            if related_within(event, &press_target) {
-                continue;
-            }
-            if press_target.has_attribute(PRESS_POINTER_ACTIVE_ATTR) {
+        let mut active = active_pointer_press.borrow_mut();
+        if let Some(press_target) = active.as_ref() {
+            if !related_within(event, press_target) {
                 let _ = press_target.remove_attribute(PRESS_STATE_ATTR);
                 let _ = press_target.remove_attribute(PRESS_POINTER_ACTIVE_ATTR);
+                *active = None;
             }
         }
     }
@@ -188,9 +223,12 @@ mod wiring {
     /// `pointerdown`: opt-in 要素へ [`PRESS_STATE_ATTR`] を付与する
     /// （pointer/touch 両方対象、タッチ除外は行わない）。あわせて
     /// [`PRESS_POINTER_ACTIVE_ATTR`] を立て、この press が pointer 由来
-    /// であることを記録する（`pointerout` が keyboard 由来の press を
-    /// 誤って解除しないための区別、codex-review 指摘の是正）。
-    fn handle_pointerdown(root: &Element, event: &Event) {
+    /// であることを記録し、`active_pointer_press` に押下要素そのものを
+    /// 保持する（`pointerup`/`pointerout` が pointerdown 時と同じ要素を
+    /// 確実に解除できるようにするため。codex-review 指摘の是正: 親子とも
+    /// opt-in の場合、離脱・解放イベントの `target` から祖先を再計算する
+    /// と pointerdown 時に決めた要素と食い違いうる）。
+    fn handle_pointerdown(root: &Element, event: &Event, active_pointer_press: &ActivePress) {
         let Some(target) = event_target_element(event) else {
             return;
         };
@@ -199,16 +237,22 @@ mod wiring {
         };
         let _ = set_dom_attribute(&press_target, PRESS_STATE_ATTR, "");
         let _ = set_dom_attribute(&press_target, PRESS_POINTER_ACTIVE_ATTR, "");
+        *active_pointer_press.borrow_mut() = Some(press_target);
     }
 
-    /// `pointerup`/`pointercancel`: opt-in 要素から [`PRESS_STATE_ATTR`]・
+    /// `pointerup`/`pointercancel`: `active_pointer_press`（pointerdown で
+    /// 実際に押下された要素）から [`PRESS_STATE_ATTR`]・
     /// [`PRESS_POINTER_ACTIVE_ATTR`] を外す（同一 [`Closure`] を両イベント名
-    /// で登録しリスナー数を節約）。
-    fn handle_pointerup_or_cancel(root: &Element, event: &Event) {
-        let Some(target) = event_target_element(event) else {
-            return;
-        };
-        let Some(press_target) = closest_opted_in(root, &target, GESTURE_PRESS_ATTR) else {
+    /// で登録しリスナー数を節約）。`event` の `target` から祖先を再計算
+    /// しないのは `handle_pointerdown` と同じ理由（親子とも opt-in で
+    /// 子上へドラッグして pointerup すると親の press が残留する不具合の
+    /// 是正、codex-review 指摘）。
+    fn handle_pointerup_or_cancel(
+        _root: &Element,
+        _event: &Event,
+        active_pointer_press: &ActivePress,
+    ) {
+        let Some(press_target) = active_pointer_press.borrow_mut().take() else {
             return;
         };
         let _ = press_target.remove_attribute(PRESS_STATE_ATTR);
@@ -218,7 +262,11 @@ mod wiring {
     /// `keydown`: 活性化キー（Enter/Space）・非リピート・opt-in 要素の
     /// ときのみ [`PRESS_STATE_ATTR`] を付与する。`prevent_default()` は
     /// 呼ばない（ネイティブ要素への意図しない誤爆を避け、純粋な視覚状態
-    /// シグナルに留める）。
+    /// シグナルに留める）。設定直前に [`is_still_focused`] でフォーカスが
+    /// まだ `target` にあることを確認する（codex-review 指摘の是正:
+    /// Enter/Space がダイアログ等を開いてフォーカスを同期的に移動させる
+    /// 別ハンドラより後に本リスナーが実行されると、移動先ではなく元要素
+    /// へ press を設定してしまい `keyup`/`focusout` が届かず残留する）。
     fn handle_keydown(root: &Element, event: &Event) {
         let Some(keyboard_event) = event.dyn_ref::<KeyboardEvent>() else {
             return;
@@ -229,6 +277,9 @@ mod wiring {
         let Some(target) = event_target_element(event) else {
             return;
         };
+        if !is_still_focused(&target) {
+            return;
+        }
         let Some(press_target) = closest_opted_in(root, &target, GESTURE_PRESS_ATTR) else {
             return;
         };
@@ -258,7 +309,16 @@ mod wiring {
     /// 届かないため（codex-review 指摘）、`keyup` を待たずフォーカス離脱
     /// 時点で確実に解除する。`focusout` はバブルするため root 委譲で
     /// 拾える。
-    fn handle_focusout(root: &Element, event: &Event) {
+    ///
+    /// press_target が [`PRESS_POINTER_ACTIVE_ATTR`]（pointer 由来）を
+    /// 持つ場合は、新フォーカス先（`relatedTarget`）がまだ press_target
+    /// 配下にあるなら解除しない（Bugbot 指摘の是正: 複合ウィジェット自体が
+    /// opt-in で、ポインタ押下中に子要素間でフォーカスが移動しただけの
+    /// ケースを離脱と誤判定して press 表示が消えるのを防ぐ。真の解除は
+    /// `pointerup`/`pointerout` が担う）。keyboard 由来（マーカーなし）は
+    /// 元の挙動どおり、フォーカスが `press_target` から外れた時点で
+    /// 無条件に解除する。
+    fn handle_focusout(root: &Element, event: &Event, active_pointer_press: &ActivePress) {
         if event.dyn_ref::<FocusEvent>().is_none() {
             return;
         }
@@ -268,8 +328,16 @@ mod wiring {
         let Some(press_target) = closest_opted_in(root, &target, GESTURE_PRESS_ATTR) else {
             return;
         };
+        if press_target.has_attribute(PRESS_POINTER_ACTIVE_ATTR) {
+            if related_within(event, &press_target) {
+                return;
+            }
+            let _ = press_target.remove_attribute(PRESS_STATE_ATTR);
+            let _ = press_target.remove_attribute(PRESS_POINTER_ACTIVE_ATTR);
+            *active_pointer_press.borrow_mut() = None;
+            return;
+        }
         let _ = press_target.remove_attribute(PRESS_STATE_ATTR);
-        let _ = press_target.remove_attribute(PRESS_POINTER_ACTIVE_ATTR);
     }
 
     /// `root` へ hover/press 検知の 8 リスナー（pointerover/pointerout/
@@ -284,6 +352,12 @@ mod wiring {
     ///
     /// `add_event_listener_with_callback` の失敗を伝播する。
     pub fn wire_gesture(root: Element) -> Result<(), JsValue> {
+        // pointerdown/pointerup/pointercancel/pointerout/focusout が共有する
+        // 「実際に press された要素」。単一 `root` 配下では同時に 1 press
+        // までしか成立しない前提（マルチタッチ同時押下は本モジュールの
+        // スコープ外）。
+        let active_pointer_press: ActivePress = Rc::new(RefCell::new(None));
+
         let pointerover_root = root.clone();
         let pointerover_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_pointerover(&pointerover_root, &event);
@@ -295,8 +369,9 @@ mod wiring {
         pointerover_closure.forget();
 
         let pointerout_root = root.clone();
+        let pointerout_active = Rc::clone(&active_pointer_press);
         let pointerout_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointerout(&pointerout_root, &event);
+            handle_pointerout(&pointerout_root, &event, &pointerout_active);
         });
         root.add_event_listener_with_callback(
             "pointerout",
@@ -305,8 +380,9 @@ mod wiring {
         pointerout_closure.forget();
 
         let pointerdown_root = root.clone();
+        let pointerdown_active = Rc::clone(&active_pointer_press);
         let pointerdown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointerdown(&pointerdown_root, &event);
+            handle_pointerdown(&pointerdown_root, &event, &pointerdown_active);
         });
         root.add_event_listener_with_callback(
             "pointerdown",
@@ -315,8 +391,9 @@ mod wiring {
         pointerdown_closure.forget();
 
         let pointerup_root = root.clone();
+        let pointerup_active = Rc::clone(&active_pointer_press);
         let pointerup_or_cancel_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointerup_or_cancel(&pointerup_root, &event);
+            handle_pointerup_or_cancel(&pointerup_root, &event, &pointerup_active);
         });
         root.add_event_listener_with_callback(
             "pointerup",
@@ -343,8 +420,9 @@ mod wiring {
         keyup_closure.forget();
 
         let focusout_root = root.clone();
+        let focusout_active = Rc::clone(&active_pointer_press);
         let focusout_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_focusout(&focusout_root, &event);
+            handle_focusout(&focusout_root, &event, &focusout_active);
         });
         root.add_event_listener_with_callback(
             "focusout",
