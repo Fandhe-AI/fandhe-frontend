@@ -201,8 +201,8 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.25.0 | `animation-driver` feature（イシュー #2403/#2517。main の #2515/#2400/#2398 取り込みに伴う版数衝突の再バンプ、PR #2554） |
 | 0.26.0 | `gesture` feature（イシュー #2520。main の #2515/#2400/#2398/#2403/#2517 取り込みに伴う版数衝突の再バンプ、PR #2555） |
 | 0.27.0 | `scroll-driver` feature（イシュー #2521） |
-| 0.28.0 | `drag-gesture` feature（イシュー #2535）と `confetti` feature（イシュー #2533）がそれぞれ独立に到達した版数（マージ前）。同一版数のため衝突 |
-| 0.29.0 | `drag-gesture`（#2535）・`confetti`（#2533）合流に伴う版数衝突の再バンプ（`.claude/rules/coding-rust.md` #638 条項） |
+| 0.28.0 | `confetti` feature（イシュー #2533） |
+| 0.29.0 | `drag-gesture` feature（イシュー #2535。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ、`.claude/rules/coding-rust.md` #638 条項） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
