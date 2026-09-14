@@ -93,8 +93,15 @@ fn create_scroll_fixture(document: &Document, id_prefix: &str, once: bool) -> (E
     (container, target)
 }
 
-/// `condition` が成立するまで最大 2 秒（10ms x 200 回）ポーリングする
-/// （`headless_avatar_browser.rs::wait_for` と同型）。
+/// `condition` が成立するまで最大 5 秒（10ms x 500 回）ポーリングする
+/// （`data_table_browser.rs`/`questionnaire_browser.rs`/
+/// `headless_timer_browser.rs::wait_for` と同型の上限。イシュー #2403/#2517
+/// で `wasm-full` の既定 feature に `animation-driver` が加わり本ファイルの
+/// テストバイナリ自体が肥大化した結果、旧上限（2 秒 = 200 回）では CI 上の
+/// `IntersectionObserver` 通知遅延を吸収しきれず
+/// `dynamically_added_element_is_observed_after_wiring` が決定的にタイム
+/// アウトするようになったため引き上げた。他 3 テストは 2 秒未満で完走して
+/// おり、この引き上げはアサーション自体を弱めるものではない）。
 ///
 /// 条件不成立のままタイムアウトした場合は `false` を返す（呼び出し側は
 /// 必ず戻り値を `assert!` で確認すること。戻り値を無視すると配線欠落を
@@ -104,7 +111,7 @@ async fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
 
-    for _ in 0..200 {
+    for _ in 0..500 {
         if condition() {
             return true;
         }
