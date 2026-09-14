@@ -95,13 +95,18 @@ fn create_scroll_fixture(document: &Document, id_prefix: &str, once: bool) -> (E
 
 /// `condition` が成立するまで最大 2 秒（10ms x 200 回）ポーリングする
 /// （`headless_avatar_browser.rs::wait_for` と同型）。
-async fn wait_for(mut condition: impl FnMut() -> bool) {
+///
+/// 条件不成立のままタイムアウトした場合は `false` を返す（呼び出し側は
+/// 必ず戻り値を `assert!` で確認すること。戻り値を無視すると配線欠落を
+/// 検出できないまま正常終了してしまう、codex-review/Bugbot 指摘の是正）。
+#[must_use]
+async fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
 
     for _ in 0..200 {
         if condition() {
-            return;
+            return true;
         }
         let promise = js_sys::Promise::new(&mut |resolve, _reject| {
             let window = web_sys::window().expect("window must exist");
@@ -120,6 +125,7 @@ async fn wait_for(mut condition: impl FnMut() -> bool) {
             .await
             .expect("timeout promise must resolve");
     }
+    condition()
 }
 
 #[wasm_bindgen_test]
@@ -131,15 +137,24 @@ async fn scroll_into_and_out_of_view_toggles_attribute() {
     wire_in_view(&container).expect("wire_in_view must not fail");
 
     // ケース 1: 初期非交差では `data-in-view` が付かない。
-    wait_for(|| !target.has_attribute("data-in-view")).await;
+    assert!(
+        wait_for(|| !target.has_attribute("data-in-view")).await,
+        "初期非交差の要素から data-in-view が外れること（IntersectionObserver の初回通知）"
+    );
 
     // ケース 2: スクロールで可視域へ入ると付く。
     container.set_scroll_top(300);
-    wait_for(|| target.has_attribute("data-in-view")).await;
+    assert!(
+        wait_for(|| target.has_attribute("data-in-view")).await,
+        "スクロールで可視域へ入った要素に data-in-view が付くこと"
+    );
 
     // ケース 3: スクロールを戻すと（once なし要素は）再び外れる。
     container.set_scroll_top(0);
-    wait_for(|| !target.has_attribute("data-in-view")).await;
+    assert!(
+        wait_for(|| !target.has_attribute("data-in-view")).await,
+        "スクロールを戻した要素から data-in-view が外れること"
+    );
 }
 
 #[wasm_bindgen_test]
@@ -150,8 +165,21 @@ async fn once_attribute_keeps_state_after_scrolling_back() {
 
     wire_in_view(&container).expect("wire_in_view must not fail");
 
+    // フィクスチャは opt-in マーカーとして最初から `data-in-view=""` を
+    // 持つ（in_view.rs の仕様）ため、初回の `IntersectionObserver` 通知で
+    // 一度外れる（非交差）のを確認してからでないと、後続の
+    // `has_attribute` チェックが「実際に進入した」ことを検証できず
+    // 初期状態のまま素通りしてしまう（codex-review/Bugbot 指摘の是正）。
+    assert!(
+        wait_for(|| !target.has_attribute("data-in-view")).await,
+        "初期非交差の要素から data-in-view が外れること（IntersectionObserver の初回通知）"
+    );
+
     container.set_scroll_top(300);
-    wait_for(|| target.has_attribute("data-in-view")).await;
+    assert!(
+        wait_for(|| target.has_attribute("data-in-view")).await,
+        "スクロールで可視域へ入った要素に data-in-view が付くこと"
+    );
 
     // ケース 4: once 指定の要素はスクロールを戻しても `data-in-view` が
     // 残る（unobserve 済みで再評価されない回帰固定）。
@@ -160,7 +188,8 @@ async fn once_attribute_keeps_state_after_scrolling_back() {
     // 付いたままであることを確認する。
     container.set_scroll_top(0);
     let mut ticks = 0;
-    wait_for(|| {
+    // 単なる時間稼ぎ（条件は必ず成立する）であり、戻り値は意味を持たない。
+    let _ = wait_for(|| {
         ticks += 1;
         ticks >= 20
     })
@@ -195,7 +224,10 @@ mod runtime_integration {
         fn view(&self) -> Node {
             el(
                 "div",
-                vec![("style", "height:100px;overflow-y:auto")],
+                vec![
+                    ("id", "mount-in-view-scroll-container"),
+                    ("style", "height:100px;overflow-y:auto"),
+                ],
                 vec![
                     el("div", vec![("style", "height:300px")], vec![]),
                     el(
@@ -252,14 +284,26 @@ mod runtime_integration {
             .append_child(&root)
             .expect("append_child must not fail for a detached div");
 
-        let runtime = Runtime::mount(root_id, EmptyHost).expect("mount must succeed");
+        let _runtime = Runtime::mount(root_id, EmptyHost).expect("mount must succeed");
         let target = document
             .get_element_by_id("mount-in-view-target")
             .expect("target element must exist after mount");
+        // `Runtime::mount` は `root` の子要素へ `EmptyHost::view()` を挿入する
+        // ため、実際にスクロール可能なのは `root` 自身ではなく
+        // `overflow-y:auto` を持つこの子要素（codex-review 指摘の是正）。
+        let scroll_container = document
+            .get_element_by_id("mount-in-view-scroll-container")
+            .expect("scroll container element must exist after mount");
 
-        wait_for(|| !target.has_attribute("data-in-view")).await;
+        assert!(
+            wait_for(|| !target.has_attribute("data-in-view")).await,
+            "初期非交差の要素から data-in-view が外れること（IntersectionObserver の初回通知）"
+        );
 
-        runtime.root().set_scroll_top(300);
-        wait_for(|| target.has_attribute("data-in-view")).await;
+        scroll_container.set_scroll_top(300);
+        assert!(
+            wait_for(|| target.has_attribute("data-in-view")).await,
+            "スクロールで可視域へ入った要素に data-in-view が付くこと"
+        );
     }
 }
