@@ -187,3 +187,97 @@ async fn update_element_progress_writes_monotone_progress_as_scroll_advances() {
     spacer.remove();
     target_el.remove();
 }
+
+#[wasm_bindgen_test]
+async fn update_element_progress_uses_body_as_container_when_html_overflow_does_not_propagate() {
+    // overflow-propagation（CSS Overflow Module Level 3
+    // <https://www.w3.org/TR/css-overflow-3/#overflow-propagation>）:
+    // `<html>` 自身が `overflow: hidden` を明示していると `<body>` の
+    // overflow は viewport へ伝播せず、`<body>` 自身が独立したスクロール
+    // コンテナになり得る（例: `html { overflow: hidden } body { height:
+    // 300px; overflow-y: auto }`）。`find_scroll_container` はこの構成で
+    // `<body>` を無条件除外せず通常のスクロールコンテナ候補として扱う
+    // 必要があり、本テストはそれを実ブラウザで確認する
+    // （codex-review P1 是正、PR #2557）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let document_element = document
+        .document_element()
+        .expect("document element must exist")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("document element must be an HtmlElement");
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+
+    let previous_html_style = document_element.get_attribute("style").unwrap_or_default();
+    let previous_body_style = body.get_attribute("style").unwrap_or_default();
+
+    document_element
+        .set_attribute("style", "overflow: hidden")
+        .expect("set_attribute must not fail");
+    body.set_attribute(
+        "style",
+        "margin: 0; height: 300px; overflow-y: auto; position: relative",
+    )
+    .expect("set_attribute must not fail");
+
+    let spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer
+        .set_attribute("style", "height:1000px")
+        .expect("set_attribute must not fail");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .set_attribute("style", "height:100px")
+        .expect("set_attribute must not fail");
+
+    body.append_child(&spacer)
+        .expect("append_child must not fail for a detached spacer");
+    body.append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    body.set_scroll_top(0);
+    wait_one_frame().await;
+    let progress_at_0 = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    body.set_scroll_top(1000);
+    wait_one_frame().await;
+    let progress_at_full = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    // 後片付け（アサーション前に行い、失敗時も後続テストを汚染しない）。
+    body.set_scroll_top(0);
+    spacer.remove();
+    target_el.remove();
+    document_element
+        .set_attribute("style", &previous_html_style)
+        .expect("set_attribute must not fail");
+    body.set_attribute("style", &previous_body_style)
+        .expect("set_attribute must not fail");
+
+    assert!(
+        (0.0..=1.0).contains(&progress_at_0),
+        "progress_at_0 は 0.0..=1.0 の範囲であるはず: {progress_at_0}"
+    );
+    assert!(
+        (0.0..=1.0).contains(&progress_at_full),
+        "progress_at_full は 0.0..=1.0 の範囲であるはず: {progress_at_full}"
+    );
+    assert!(
+        progress_at_full > progress_at_0,
+        "body 自身のスクロールに追従して progress が増加しているはず（body \
+         を独立したスクロールコンテナとして基準に解決できている証拠）: \
+         {progress_at_0} -> {progress_at_full}"
+    );
+}

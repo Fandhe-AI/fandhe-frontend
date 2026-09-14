@@ -158,27 +158,50 @@ impl Env {
 /// `documentElement.getBoundingClientRect()`〔文書全体の高さ〕を基準に
 /// 使うと進捗が常に 1.0 付近へ張り付く誤計算になる）。
 ///
-/// `getComputedStyle`/`window`/`document` の取得に失敗した場合も
-/// fail-closed に `None`（= window 基準へフォールバック）を返す。
+/// `<body>` は CSS Overflow Module Level 3 の overflow-propagation
+/// （<https://www.w3.org/TR/css-overflow-3/#overflow-propagation>）に従い
+/// **条件付きで**除外する（codex-review P1 是正、PR #2557）。`<html>` 自身
+/// の `overflow-y` 計算値が `visible`（既定、明示指定なし）のときに限り
+/// `<body>` の overflow は viewport（document のスクロール）へ伝播し、
+/// `body.getBoundingClientRect()` はページスクロールに追従して動く固定
+/// されない領域になるため除外が正しい。一方 `html { overflow: hidden }`
+/// 等で `<html>` 自身に `visible` 以外の `overflow-y` が明示されている
+/// 構成では伝播が起こらず（同仕様: 伝播は root の**指定値**が `visible`
+/// の場合のみ）、`<body>` 自身が独立したスクロールコンテナになり得る
+/// （例: `html { overflow: hidden } body { margin: 0; height: 300px;
+/// overflow-y: auto }`）。この場合 `<body>` を無条件除外すると実際の
+/// スクロール領域を見逃し `window.innerHeight` 基準の誤った進捗を書いて
+/// しまうため、`<body>` も通常のスクロールコンテナ候補として
+/// [`is_scroll_container`] の判定に乗せる。
+///
+/// `getComputedStyle`/`window`/`document` の取得に失敗した場合は
+/// fail-closed に「伝播している」とみなし（安全側 = 従来どおり `<body>`
+/// を除外し、誤ってネストコンテナと誤認しない）。
 #[cfg(target_arch = "wasm32")]
 fn find_scroll_container(element: &web_sys::Element) -> Option<web_sys::Element> {
     let window = web_sys::window()?;
     let document = window.document()?;
     let root = document.document_element();
-    // `<body>` も `<html>` と同様にページ全体スクロールの一部とみなし
-    // 早期終了させる（Bugbot 指摘、PR #2557）。`html` の `overflow` が
-    // `visible` で `body` 自身が高さ制約付きで `overflow` している構成
-    // （quirks mode 的レイアウト）では `is_scroll_container(body)` が
-    // `true` を返し得るが、この場合ブラウザは `body` の overflow を
-    // 実際にはビューポート（document のスクロール）へ伝播させるため、
-    // `body.getBoundingClientRect()` はページスクロールに追従して動く
-    // （固定された「ネストしたスクロールポート」ではない）。これを
-    // ネストコンテナと誤認すると進捗がページスクロール中に張り付く。
     let body: Option<web_sys::Element> = document.body().map(JsCast::unchecked_into);
+
+    // overflow-propagation: `<html>` の `overflow-y` 計算値が `visible`
+    // （既定）でなければ、`<body>` から viewport への伝播は起こらない。
+    let root_overflow_propagates = root
+        .as_ref()
+        .and_then(|root_el| window.get_computed_style(root_el).ok().flatten())
+        .map(|style| {
+            let overflow_y = style.get_property_value("overflow-y").unwrap_or_default();
+            matches!(overflow_y.as_str(), "visible" | "")
+        })
+        .unwrap_or(true);
 
     let mut current = element.parent_element();
     while let Some(candidate) = current {
-        if root.as_ref() == Some(&candidate) || body.as_ref() == Some(&candidate) {
+        if root.as_ref() == Some(&candidate) {
+            return None;
+        }
+        let is_body = body.as_ref() == Some(&candidate);
+        if is_body && root_overflow_propagates {
             return None;
         }
         if is_scroll_container(&window, &candidate) {
