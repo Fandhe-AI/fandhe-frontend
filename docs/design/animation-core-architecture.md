@@ -192,7 +192,9 @@ issue（#2395）に委ねる（本文書は推奨に留め断定しない）。
 
 JS/React・wgpu 等のアダプタは `fandhe-frontend-animation` と同列の兄弟 crate（例: 将来の `fandhe-frontend-animation-wgpu`
 等、命名は仮）として位置づける。これらの実アダプタ自体は評価文書止まりであり実装対象外（`docs/design/motion-reference-adoption-policy.md`
-判断記録 6、Phase 6 #2413〜#2415）。
+判断記録 6、Phase 6 #2527〜#2529。旧番号 #2413〜#2415 は private リポジトリへの一時 transfer を経て
+public 側へ再作成されたため現行番号へ読み替える）。評価文書の実体は
+`docs/design/animation-js-react-wgpu-adapter-evaluation.md`（採否判定は両対象とも見送り・保留、#2529）を参照。
 
 ## 7. REQ-3 依存グラフ試算
 
@@ -258,6 +260,9 @@ packages=19/60 depth=9/6 result=FAIL（参考値。`wasm-full`/`wasm-thin` と�
 - 実コード実装（`crates/animation/`・`crates/frontend-animation/`）→ #2371・#2417 以降の各 Phase issue
 - `structure.toml`/CLAUDE.md リポジトリ構成ツリーの本格更新 → #2368
 - `docs/policy/dependency-graph-policy.md` の実測値反映 → #2372
+- JS/React バインディング・wgpu アダプタの実装 → §6.4 のとおり評価文書止まり（**完了**:
+  `docs/design/animation-js-react-wgpu-adapter-evaluation.md`、#2529）。両対象とも見送り（保留）判定であり、
+  実コード実装は行わない
 
 ## 再評価トリガー
 
