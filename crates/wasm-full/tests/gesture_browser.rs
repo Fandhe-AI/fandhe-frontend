@@ -401,8 +401,10 @@ fn pointerup_on_nested_child_clears_the_actually_pressed_parent() {
 }
 
 /// Bugbot 指摘の回帰固定（「Nested focusout clears live pointer press」）:
-/// `handle_focusout` は pointer 由来（[`PRESS_POINTER_ACTIVE_ATTR`]）の
-/// press を一切解除しない。親を pointerdown した状態から、無関係な子
+/// `handle_focusout` は keyboard 押下源（`active_keyboard_press` の
+/// `origin`）との一致のみを見て解除するため、そもそも `keydown` が
+/// 一度も発火していない（keyboard 押下源が存在しない）この状況では
+/// 一切属性へ触れない。親を pointerdown した状態から、無関係な子
 /// （opt-in）が focusout（`relatedTarget` なし。window blur 等、フォーカスが
 /// 完全に離れる場合を模す）しても、親の press は物理的なポインタが
 /// まだ押されたままである以上、生き続ける（真の解除は
@@ -664,5 +666,138 @@ fn keydown_handler_calling_focus_synchronously_does_not_leave_stale_press() {
     assert!(
         !child.has_attribute(PRESS_STATE_ATTR),
         "keydown ハンドラが同期的にフォーカスを移しても press が残留しないこと"
+    );
+}
+
+/// 状態モデル再設計（PR #2555 レビュー指摘の是正）の回帰固定: 同一要素を
+/// pointer と keyboard の両方で押下した状態から、pointer 側だけ解放しても
+/// keyboard 側がまだ活性化中なら press 状態を維持し、keyboard 側の解放で
+/// 初めて解除すること（「押下状態をポインタとキーボードの両入力源から
+/// 集約する」の是正）。
+#[wasm_bindgen_test]
+fn pointer_release_does_not_clear_press_while_keyboard_still_active() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) =
+        build_dom(&document, "gesture-mixed-source-pointer-first-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer(&child, "pointerdown", "mouse", None);
+    dispatch_key(&child, "keydown", " ", false);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    dispatch_pointer(&child, "pointerup", "mouse", None);
+    assert!(
+        child.has_attribute(PRESS_STATE_ATTR),
+        "keyboard 側がまだ活性化中なら pointerup だけで press を解除しないこと"
+    );
+
+    dispatch_key(&child, "keyup", " ", false);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "両方の押下源が解放されたら press 状態を解除すること"
+    );
+}
+
+/// 上記と逆順（keyboard を先に押し、pointer を後から押す）でも同じ契約が
+/// 成り立つこと。keyup で pointer 側の press が誤って解除されないことを
+/// 確認する（従来実装は `handle_keyup` が pointer 側の状態を確認せず
+/// 無条件に解除していた）。
+#[wasm_bindgen_test]
+fn keyboard_release_does_not_clear_press_while_pointer_still_active() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) =
+        build_dom(&document, "gesture-mixed-source-keyboard-first-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_key(&child, "keydown", " ", false);
+    dispatch_pointer(&child, "pointerdown", "mouse", None);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    dispatch_key(&child, "keyup", " ", false);
+    assert!(
+        child.has_attribute(PRESS_STATE_ATTR),
+        "pointer 側がまだ活性化中なら keyup だけで press を解除しないこと"
+    );
+
+    dispatch_pointer(&child, "pointerup", "mouse", None);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "両方の押下源が解放されたら press 状態を解除すること"
+    );
+}
+
+/// codex-review 指摘の回帰固定（「子孫間のフォーカス移動でも元の
+/// キーボード押下を解除する」）: press opt-in の親 `container` 配下に、
+/// opt-in なしの `item_a` と opt-in ありの `item_b` がある場合、`item_a`
+/// で Space を押すと `container` に press が設定される。そのまま
+/// `item_b` へフォーカスが移動しても、`item_a` 自身が focusout の対象
+/// （`origin`）である以上、`container` の press を確実に解除すること
+/// （旧実装は `relatedTarget`（`item_b`）が `container` 配下に留まる
+/// という理由だけで解除を省略していた）。
+#[wasm_bindgen_test]
+fn focusout_on_non_opted_in_descendant_clears_ancestor_press_even_when_focus_moves_to_opted_in_sibling(
+) {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("gesture-descendant-focus-move-test");
+    let container = document.create_element("div").unwrap();
+    container.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    let item_a = document.create_element("button").unwrap();
+    let item_b = document.create_element("button").unwrap();
+    item_b.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    container.append_child(&item_a).unwrap();
+    container.append_child(&item_b).unwrap();
+    root.append_child(&container).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    // item_a（opt-in なし）で Space を押すと、closest opt-in 祖先である
+    // container へ press が設定される。
+    dispatch_key(&item_a, "keydown", " ", false);
+    assert!(container.has_attribute(PRESS_STATE_ATTR));
+
+    // item_a から item_b（container 配下の別要素）へフォーカスが移動する。
+    dispatch_focusout_with_related(&item_a, Some(&item_b));
+    assert!(
+        !container.has_attribute(PRESS_STATE_ATTR),
+        "keydown の発生元（item_a）自身が focusout した以上、relatedTarget の位置に\
+         関わらず対応する container の press を解除すること"
+    );
+}
+
+/// Bugbot 指摘の回帰固定（「Keydown capture leaves stale press」）:
+/// `keyup` も `keydown` と同じく capture フェーズで登録するため、子孫
+/// （grandchild）が自前の `keyup` ハンドラで `stopPropagation()` を
+/// 呼んでバブルを止めても、root の capture リスナーは既に実行済みで
+/// あり press 状態が正しく解除されること。
+#[wasm_bindgen_test]
+fn keyup_capture_registration_still_clears_press_even_if_descendant_stops_propagation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, grandchild) = build_dom(&document, "gesture-keyup-stop-propagation-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_key(&child, "keydown", " ", false);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    // 子孫（grandchild）自身の keyup ハンドラが stopPropagation する状況を
+    // 模す（bubble フェーズ・既定登録）。
+    let stop_propagation =
+        wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            event.stop_propagation();
+        });
+    grandchild
+        .add_event_listener_with_callback("keyup", stop_propagation.as_ref().unchecked_ref())
+        .expect("add_event_listener_with_callback must not fail");
+    stop_propagation.forget();
+
+    dispatch_key(&grandchild, "keyup", " ", false);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "keyup が capture 登録のため子孫の stopPropagation の影響を受けず press が\
+         解除されること"
     );
 }
