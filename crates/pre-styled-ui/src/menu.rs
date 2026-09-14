@@ -22,9 +22,13 @@
 //!
 //! # data-state とスタイルの連動（イシュー #551 受け入れ条件）
 //!
-//! `trigger`/`content` の開閉 `data-state`（open/closed）に応じた見た目の
-//! 切り替えを `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]、
-//! イシュー #643。`serialize_rule` を直接呼ぶ手書きセレクタ機構は廃止した）。
+//! `trigger` の開閉 `data-state`（open/closed）に応じた見た目の切り替えを
+//! `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]、イシュー
+//! #643。`serialize_rule` を直接呼ぶ手書きセレクタ機構は廃止した）。`content`
+//! の開閉は、イシュー #2390 で `data-state` state から
+//! [`crate::recipe::SlotRecipe::presence_transition`]（`[hidden]` 属性
+//! state + `@starting-style`）へ移行した（下記「content の開閉トランジ
+//! ション（イシュー #2390）」節参照）。
 //!
 //! # キーボード操作系属性の反映（イシュー #643）
 //!
@@ -155,15 +159,26 @@
 //!   `0 4px 6px rgba(0, 0, 0, 0.15)` → `var(--fandhe-shadow-md)`）を
 //!   トークン化した（select 2/2 #1775 と同型）。ダーク側の見た目差は
 //!   `Theme` 側のトークン再定義経由で自動成立するため個別対応は不要。
-//!   `data-state="closed"` の `visibility: hidden` 切り替えは実装済みの
-//!   ため維持した。
-//! - **content の開閉トランジションは追加しない（意図的な非対応）**:
-//!   headless 層（`crates/headless-ui/src/menu.rs`）は `positioner`/
-//!   `content` の closed 時に `hidden` 存在属性を同一フレームで即時
-//!   付与・除去する契約であり、遷移前フレームが描画されないため CSS
-//!   トランジションが発火しない。dialog（イシュー #1693/PR #1795
-//!   codex-review P1 指摘）で同じ理由により追加を取り下げた判断を継承
-//!   する。
+//!   `data-state="closed"` の `visibility: hidden` 切り替えは、イシュー
+//!   #2390 で `presence_transition`（下記「content の開閉トランジション
+//!   （イシュー #2390）」節参照）へ移行したため削除した。
+//! - **content の開閉トランジション（イシュー #2390）**: 当初（本イシュー
+//!   #1525 時点）は headless 層（`crates/headless-ui/src/menu.rs`）が
+//!   `positioner`/`content` の closed 時に `hidden` 存在属性を同一フレーム
+//!   で即時付与・除去する契約のため遷移前フレームが描画されずトランジ
+//!   ションが発火しない、として追加を見送っていた（dialog イシュー
+//!   #1693/PR #1795 codex-review P1 指摘と同じ理由）。イシュー #2390 で
+//!   [`crate::recipe::SlotRecipe::presence_transition`]（`transition-
+//!   behavior: allow-discrete` を `display` にも付与する構造的解決、
+//!   popover/hover-card がイシュー #2388 で先行適用済み）を `content` へ
+//!   適用し、enter（開く演出）を実装した。**閉じる演出（exit）は本
+//!   リポジトリの menu 構成では成立しない**: `positioner` 自身は
+//!   `presence_transition` の対象外（下記「`positioner` の位置ジオメトリ
+//!   は変更しない」節参照）のため UA 既定 `display: none` が即座に
+//!   適用され、その子孫である `content` の opacity/transform 遷移は
+//!   描画される前に祖先ごと非表示になる（`presence_transition` rustdoc
+//!   「適用範囲」節・`docs/design/collapsible-height-animation.md` §12.3
+//!   参照。popover/hover-card と同じ既知の限界）。
 //! - **`positioner` の位置ジオメトリは変更しない**: `position`/`top`/
 //!   `left`/`margin-top`/`data-positioned` 切り替えと
 //!   `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`/
@@ -693,11 +708,6 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-state", "open"),
             vec![decl("border-color", "var(--fandhe-color-accent)")],
         )
-        .state(
-            "content",
-            StateCondition::AttrEq("data-state", "closed"),
-            vec![decl("visibility", "hidden")],
-        )
         // イシュー #2033: `data-danger`（危険操作項目、`item()` の自由
         // `attrs` 経由で呼び出し側が付与する pre-styled-only の存在属性。
         // `data-variant`/`destructive` を使わない理由はモジュール rustdoc
@@ -1061,6 +1071,21 @@ fn recipe() -> SlotRecipe {
             vec![decl("padding-inline-start", "var(--fandhe-space-6)")],
         )
         .default_variant(Size::Md)
+        // イシュー #2390: `content` へ presence（enter/exit）のフェード +
+        // scale トランジションを適用する。旧 `content[data-state="closed"]
+        // { visibility: hidden }` state（上記で削除）は、この
+        // `presence_transition` が新設する `[hidden]` state と冗長かつ
+        // 新演出と衝突するため置き換えた（`SlotRecipe::presence_transition`
+        // rustdoc 参照。popover/hover-card（イシュー #2388）と同型の適用）。
+        //
+        // 閉じる方向（exit）は視覚的に成立しない: サブメニューを持たない
+        // 通常の menu では `content`/祖先 `positioner` が同時に `hidden` を
+        // 受け取り、`positioner` 自身は allow-discrete を持たないため UA
+        // 既定 `display: none` が即座に適用され、子孫 `content` の
+        // opacity/transform 遷移が描画される前に祖先ごと非表示になる
+        // （positioner 側の対応は `docs/design/collapsible-height-animation.md`
+        // §12.3 の再評価トリガーに委ねる、popover/hover-card と同じ限界）。
+        .presence_transition("content", MotionDuration::Normal)
 }
 
 /// この styled Menu が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
@@ -1179,12 +1204,25 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_links_data_state_to_style_open_and_closed() {
+    fn stylesheet_links_data_state_to_style_open() {
         // イシュー #551 受け入れ条件: 「headless 層の data-state とスタイルの
-        // 連動テスト（[data-state='open'] セレクタ等）」を固定する。
+        // 連動テスト（[data-state='open'] セレクタ等）」を固定する。`content`
+        // の closed 側は #2390 で presence_transition の `[hidden]` state へ
+        // 移行したため、`stylesheet_links_hidden_attr_to_presence_closed_style`
+        // が別途固定する。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="menu"][data-part="trigger"][data-state="open"]"#));
-        assert!(css.contains(r#"[data-scope="menu"][data-part="content"][data-state="closed"]"#));
+    }
+
+    #[test]
+    fn stylesheet_links_hidden_attr_to_presence_closed_style() {
+        // イシュー #2390: `content` の開閉スタイル到達点を `data-state`
+        // state から `presence_transition` の `[hidden]` state へ移行した
+        // ことを固定する（モジュール doc「content の開閉トランジション
+        // （イシュー #2390）」節参照）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="content"][hidden]"#));
+        assert!(!css.contains(r#"[data-part="content"][data-state="closed"]"#));
     }
 
     #[test]

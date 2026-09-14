@@ -3398,7 +3398,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # 宣言）が変わるため 0.x の破壊的変更としてマイナーバンプし、main 側で
 # 独立に 0.194.0（#2388）を使用済みだったため、双方の実体変更を統合した
 # 結果として 0.195.0 へさらにマイナーバンプする。
-version = "0.195.0"
+#
+# イシュー #2390: menu / menubar の `content`（menubar は `sub-content` も）
+# へ presence（enter/exit）transition を適用した。menu は既存
+# `content[data-state="closed"] { visibility: hidden }` state を削除し
+# `presence_transition` の `[hidden]` state へ置き換え、menubar は元々同種の
+# state を持たなかったため純追加である。いずれも公開 CSS 出力の変更（0.x の
+# ため minor バンプ）であり、0.194.0 を +1 した 0.195.0 を予定していたが、
+# main 側で #2387 が同じく 0.195.0 を独立に使用済みだったため、双方の実体
+# 変更を統合した結果として 0.196.0 へさらにマイナーバンプする（0.x の
+# 破壊的変更はマイナーバンプの規約。同一版数への偶発的衝突をそのまま
+# 採用しない）。
+version = "0.196.0"
 
 
 edition = "2021"
