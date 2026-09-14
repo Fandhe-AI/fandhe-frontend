@@ -140,7 +140,7 @@ use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 const ANATOMY: Anatomy = anatomy("text");
 
 /// Text の視覚サイズ variant（`font-size`/`line-height`。[`crate::heading`](mod@crate::heading)
-/// と同じくテーマトークンの範囲に合わせ `xs`〜`4xl` の 8 段階を持つ）。
+/// と同じく `xs`〜`4xl` の 8 段階を持つ。テーマトークン側の `5xl`/`6xl`（#2438）への追随は別イシュー）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextSize {
     /// 極小サイズ。

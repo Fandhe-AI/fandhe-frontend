@@ -347,3 +347,37 @@ default_theme_css_contains_issue_2073_sidebar_tokens`（light/dark 双方の
 ある。
 
 **結論: 非採用**。既存 `#rrggbb` 表記を維持する。
+
+## 10. status 色トークンの重複追加を行わない判断（イシュー #2438）
+
+動機: Fandhe-AI/fandhe-frontend-private#261（shadcn Pro PoC）で、新着ドット・
+status バッジ向けに Tailwind `green-500` / `amber-500` / `red-500` の hex 直書きが
+発生し、`--fandhe-color-status-success` / `-warning` / `-danger`（および `-fg`）の
+新設が提案された。しかし同用途は **§8 で追加済みの `success` / `warning` /
+`danger` 系統（各 6 役割、イシュー #1422）で充足済み** のため新規追加しない。
+
+**素材側の値 → 既存トークンの対応**（値は `theme.rs` の `DEFAULT_COLORS`）:
+
+| 素材側（Tailwind） | 用途 | 既存トークン | light | dark |
+| --- | --- | --- | --- | --- |
+| `green-500` `#22c55e` | solid 背景・ドット | `--fandhe-color-success` | `#2f855a` | `#68d391` |
+| | solid 背景上の文字 | `--fandhe-color-success-fg` | `#ffffff` | `#0b1a12` |
+| `amber-500` `#f59e0b` | solid 背景・ドット | `--fandhe-color-warning` | `#b7791f` | `#f6ad55` |
+| | solid 背景上の文字 | `--fandhe-color-warning-fg` | `#ffffff` | `#1a1203` |
+| `red-500` `#ef4444` | solid 背景・ドット | `--fandhe-color-danger` | `#c53030` | `#fc8181` |
+| | solid 背景上の文字 | `--fandhe-color-danger-fg` | `#ffffff` | `#1a0b0b` |
+
+淡色バッジ（Tailwind `bg-green-100 text-green-800` 相当）は `<status>-subtle`
+（背景）+ `<status>-fg-subtle`（文字）を使う。既存値は Tailwind 500 番台より
+彩度が低いが、トークン化の目的は直書きの排除であり素材側の見た目との厳密
+一致は要件としない。`<status>` × `<status>-fg` のコントラスト比は `theme.rs`
+の `contrast` テストモジュールで light / dark ともに回帰検証済み。
+
+**新規追加しない理由**: 同値のトークンを `status-*` 別名で並立させると、
+部品作成者が「どちらの体系を使うか」の基準を失う（§6 で Radix Themes の
+12 段数値トークンを並立させなかった判断と同型）。未充足の用途（例: 素材側の
+彩度を要する solid 塗り）が実際に出た時点で、既存 6 役割への段追加か別体系
+並立かを改めて判断する。
+
+**結論: 追加なし**。private 側の直書きリテラルは上表の既存トークン参照へ
+置換する（別イシュー）。

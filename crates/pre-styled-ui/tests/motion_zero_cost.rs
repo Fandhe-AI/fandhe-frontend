@@ -223,6 +223,8 @@ const EXPECTED_DEFAULT_THEME_CSS: &str = r#":root {
   --fandhe-font-font-size-2xl: 1.5rem;
   --fandhe-font-font-size-3xl: 1.875rem;
   --fandhe-font-font-size-4xl: 2.25rem;
+  --fandhe-font-font-size-5xl: 3rem;
+  --fandhe-font-font-size-6xl: 3.75rem;
   --fandhe-font-font-weight-normal: 400;
   --fandhe-font-font-weight-medium: 500;
   --fandhe-font-font-weight-semibold: 600;
