@@ -5,7 +5,7 @@
 //! 等と異なり keyed list 統合を要しない）のため、素の `HtmlElement` に
 //! 対して直接呼ぶ最小テストで足りる。
 
-#![cfg(target_arch = "wasm32")]
+#![cfg(all(target_arch = "wasm32", feature = "view-transition-name"))]
 
 use fandhe_frontend_wasm_full::view_transition_name::set_view_transition_name;
 use wasm_bindgen::JsCast;

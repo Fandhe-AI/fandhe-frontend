@@ -29,18 +29,26 @@
 /// [`set_view_transition_name`] が受理する識別子形式かどうかを判定する。
 ///
 /// `[a-z][a-z0-9-]*` の許可リストに加え、CSS 側で特別な意味を持つ予約語
-/// （`none`/CSS-wide keywords）を拒否する。`view-transition-name: none`
-/// は「名前なし」を意味する予約語であり、キーの文字列表現として `"none"`
-/// を意図しない形で無効化しないための拒否。
+/// （`none`/CSS-wide keywords/`view-transition-name` 固有の予約値）を
+/// 拒否する。`view-transition-name: none` は「名前なし」を意味する予約語
+/// であり、キーの文字列表現として `"none"` を意図しない形で無効化しない
+/// ための拒否。`match-element`/`auto` は対応ブラウザが要素ごとの名前を
+/// 自動生成する予約値であり、業務キーをそのまま遷移名として使う本 API の
+/// 契約（異なる要素へ同じ業務キーを設定すれば同一の共有遷移として扱われる
+/// こと）と衝突するため拒否する。`default` は CSS Values の custom-ident
+/// 予約語であり有効な遷移名になり得ないため拒否する。
 #[must_use]
 pub fn is_valid_view_transition_name(name: &str) -> bool {
-    const RESERVED: [&str; 6] = [
+    const RESERVED: [&str; 9] = [
         "none",
         "inherit",
         "initial",
         "unset",
         "revert",
         "revert-layer",
+        "default",
+        "match-element",
+        "auto",
     ];
     if RESERVED.contains(&name) {
         return false;
@@ -92,6 +100,9 @@ mod tests {
         assert!(!is_valid_view_transition_name("none"));
         assert!(!is_valid_view_transition_name("inherit"));
         assert!(!is_valid_view_transition_name("unset"));
+        assert!(!is_valid_view_transition_name("default"));
+        assert!(!is_valid_view_transition_name("match-element"));
+        assert!(!is_valid_view_transition_name("auto"));
     }
 
     #[test]
