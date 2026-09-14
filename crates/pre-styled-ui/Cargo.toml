@@ -3383,13 +3383,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # （`docs/design/color-token-system.md` §10）。公開 CSS 契約（テーマ変数）の
 # 純追加のため minor バンプし、0.192.0 を +1 した 0.193.0 とする。
 #
+# イシュー #2388: popover / tooltip / hover-card の `content` へ
+# presence（enter/exit）transition を適用し、既存 `content[data-state=
+# "closed"] { visibility: hidden }` state を削除した。公開 CSS 出力の
+# 破壊的変更（0.x のため minor バンプ）であり、0.193.0 を +1 した
+# 0.194.0 とする。
+#
 # イシュー #2387: dialog / drawer の content へ presence（enter/exit、
 # `SlotRecipe::presence_transition`）を適用した。`#2383` で確立済みの
 # `transition_declarations_allow_discrete`・`StateCondition::Attr("hidden")`
 # を用いた既存機構の適用であり新規公開 API は無い。CSS 出力（トランジション
-# 宣言）が変わるため 0.x の破壊的変更としてマイナーバンプし、0.193.0 を
-# +1 した 0.194.0 とする。
-version = "0.194.0"
+# 宣言）が変わるため 0.x の破壊的変更としてマイナーバンプし、main 側で
+# 独立に 0.194.0（#2388）を使用済みだったため、双方の実体変更を統合した
+# 結果として 0.195.0 へさらにマイナーバンプする。
+version = "0.195.0"
 
 
 edition = "2021"

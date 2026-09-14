@@ -1,7 +1,9 @@
 //! styled HoverCard（イシュー #759。イシュー #1523 で参照サイト基準へ調整。
 //! PR #1799 codex-review/Bugbot 指摘を受け、headless 層の `hidden` 属性
 //! ライフサイクルと競合し機能しなかった `content` の開閉フェード
-//! transition/opacity 宣言を削除済み）の決定的 CSS 出力ゴールデンテスト。
+//! transition/opacity 宣言を一度削除したが、イシュー #2388 で
+//! `SlotRecipe::presence_transition`（`allow-discrete` による構造的
+//! 解決）を用いて実装済み）の決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/pagination_css.rs`/`radio_group_css.rs` の
 //! golden fixture テストの前例に倣い、`stylesheet()` が返す CSS 全文を
@@ -45,13 +47,29 @@ const HOVER_CARD_GOLDEN_CSS: &str = r#"[data-scope="hover-card"][data-part="root
   max-width: 20rem;
 }
 
-[data-scope="hover-card"][data-part="content"][data-state="closed"] {
-  visibility: hidden;
+[data-scope="hover-card"][data-part="content"] {
+  opacity: 1;
+  transition-property: opacity, transform, display;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
 }
 
 [data-scope="hover-card"][data-part="trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="hover-card"][data-part="content"][hidden] {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+@starting-style {
+  [data-scope="hover-card"][data-part="content"] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 @media (hover: hover) {
