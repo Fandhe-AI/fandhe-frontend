@@ -49,6 +49,15 @@
 //! `[data-positioned]` 規則の直前）を追加した golden 更新。他ブロックは
 //! バイト同一（`crates/pre-styled-ui/src/menu.rs` モジュール rustdoc
 //! 「arrow / arrow-tip の `data-side` 連動」節参照）。
+//!
+//! イシュー #2390 で `content` の開閉スタイル到達点を `data-state="closed"`
+//! state（`visibility: hidden`）から `SlotRecipe::presence_transition` へ
+//! 移行した golden 更新。旧 `content[data-state="closed"] { visibility:
+//! hidden }` ブロックを削除し、`content` base 直後の transition 宣言ブロック・
+//! 末尾側 `content[hidden]` state・`@starting-style` 集約ブロックを追加した
+//! （popover/hover-card がイシュー #2388 で先行適用した golden 変更と同型。
+//! `crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「content の開閉
+//! トランジション（イシュー #2390）」節参照）。
 
 use fandhe_frontend_pre_styled_ui::menu;
 
@@ -100,6 +109,14 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   box-shadow: var(--fandhe-shadow-md);
   padding: var(--fandhe-menu-content-padding, var(--fandhe-space-2));
   min-width: var(--fandhe-reference-width, 10rem);
+}
+
+[data-scope="menu"][data-part="content"] {
+  opacity: 1;
+  transition-property: opacity, transform, display;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
 }
 
 [data-scope="menu"][data-part="arrow"] {
@@ -250,10 +267,6 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   border-color: var(--fandhe-color-accent);
 }
 
-[data-scope="menu"][data-part="content"][data-state="closed"] {
-  visibility: hidden;
-}
-
 [data-scope="menu"][data-part="item"][data-danger] {
   color: var(--fandhe-color-danger-fg-subtle);
 }
@@ -360,6 +373,18 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
 
 [data-scope="menu"][data-part="item"][data-inset] {
   padding-inline-start: var(--fandhe-space-6);
+}
+
+[data-scope="menu"][data-part="content"][hidden] {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+@starting-style {
+  [data-scope="menu"][data-part="content"] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 @media (hover: hover) {
