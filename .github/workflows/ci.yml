@@ -880,6 +880,16 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test gesture_browser
 
+      # イシュー #2400: `Runtime::apply_with_view_transition`（任意の状態更新
+      # 向け View Transitions 公開 API、crates/wasm-full/src/view_transition.rs）の
+      # 実ブラウザ統合テスト（crates/wasm-full/tests/runtime_view_transition_browser.rs、
+      # 機能検出成功時の 1 回呼び出し・非対応時の同期フォールバックを検証）。
+      # 他の wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。
+      - name: Run wasm-full runtime view transition browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test runtime_view_transition_browser
+
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
   # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が
@@ -2301,6 +2311,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,in-view --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: gesture, issue #2520)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,gesture --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transitions, issue #2400)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,view-transitions --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transition-name, issue #2515)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,view-transition-name --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 

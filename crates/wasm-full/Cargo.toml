@@ -1118,14 +1118,30 @@ name = "fandhe-frontend-wasm-full"
 # `set_view_transition_name`/`is_valid_view_transition_name` を追加。
 # 既定 on の別枠 feature `view-transition-name` を新設するため
 # `default-features = false` 利用者への影響（新規 API を失う）を伴う
-# 破壊的変更、`position`/`stagger` と同型のため minor バンプする（#2515 の
+# 破壊的変更、`position`/`stagger` と同型のため minor バンプする（#2520 との
 # origin/main マージにより到達値は 0.22.0 で一致）。
 #
-# イシュー #2520（PR #2555 codex-review/Bugbot 指摘是正）: gesture 配線の
-# press 状態モデルを要素単位の押下源集合（pointer_id 集合 + keyboard 起点）
-# へ再設計。origin/main（#2515 の 0.22.0）とのマージ後、同一 minor 到達値の
-# 競合を避けるため 0.22.0 から +1 して 0.23.0 とする。
-version = "0.23.0"
+# イシュー #2400（PR #2553、main マージ後の再バンプ）: `nav.rs`
+# （イシュー #404）専用だった `document.startViewTransition()` ラップを
+# `crate::view_transition` へ切り出し、任意の状態更新から呼べる新規公開 API
+# `Runtime::apply_with_view_transition`（feature `view-transitions`、
+# 既定 on）として開放した。`nav.rs` 側の router 経由呼び出しは feature に
+# 関わらず無条件で動作し続ける（責務分離）。origin/main が #2515
+# （0.21.x → 0.22.0）を先にマージしていたため本 PR 側の 0.22.0 と衝突し、
+# 両変更を統合したうえで 0.22.0 → 0.23.0 へ再度 minor バンプした
+# （`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」
+# 運用）。
+#
+# イシュー #2520（PR #2555 codex-review/Bugbot 指摘是正、1 回目の再バンプ）:
+# gesture 配線の press 状態モデルを要素単位の押下源集合（pointer_id 集合 +
+# keyboard 起点）へ再設計。origin/main（#2515 の 0.22.0）とのマージ後、
+# 同一 minor 到達値の競合を避けるため 0.22.0 から +1 して 0.23.0 とした。
+#
+# イシュー #2520（PR #2555、2 回目の再バンプ）: 上記再バンプと同時期に
+# origin/main で #2400（PR #2553）が先にマージされ 0.23.0 へ到達したため、
+# 本 PR 側の 0.23.0 と再度衝突した。同一版数の衝突として、さらに +1 して
+# 0.24.0 とする。
+version = "0.24.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1606,6 +1622,7 @@ default = [
   "gesture",
   "position",
   "stagger",
+  "view-transitions",
   "view-transition-name",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
@@ -1676,6 +1693,14 @@ position = []
 # 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
 # 別枠の feature。
 stagger = []
+# イシュー #2400: `Runtime::apply_with_view_transition`（新規公開 API、
+# 任意の状態更新を `document.startViewTransition()` でラップする）
+# 専用の feature（既定 on）。`nav.rs` の router 経由
+# `startViewTransition`（イシュー #404、`crate::view_transition`）は
+# feature に関わらず無条件で動作し続ける。配線群別 feature 表にも
+# scope feature 表にも属さない別枠の feature（`position`/`stagger`
+# と同型）。
+view-transitions = []
 # イシュー #2515: [`view_transition_name::set_view_transition_name`] 公開
 # 関数自体（`Runtime` を経由しないアプリ直接利用 API）専用の feature
 # （既定 on）。`position`/`stagger` と異なり `Runtime::mount`/`hydrate`/
