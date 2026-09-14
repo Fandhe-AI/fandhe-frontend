@@ -58,7 +58,17 @@
 //!   **stagger（イシュー #2384）は実装済み**（[`recipe::STAGGER_INDEX_VAR`]・
 //!   [`recipe::stagger_delay_declaration`]・[`recipe::stagger_index_style`]・
 //!   [`recipe::SlotRecipe::stagger_delay`]、`crates/pre-styled-ui/tests/
-//!   motion_stagger_css.rs`）。**spring 近似 easing プリセット
+//!   motion_stagger_css.rs`）。**scroll-driven reveal（イシュー #2385）も
+//!   実装済み**（[`recipe::SlotRecipe::scroll_reveal`]、`crates/pre-styled-ui/
+//!   tests/motion_scroll_reveal_css.rs`）。**scroll-linked parallax /
+//!   sticky progress（イシュー #2534）も実装済み**
+//!   （[`recipe::SlotRecipe::parallax`]・[`recipe::ParallaxSpeed`]・
+//!   [`recipe::SlotRecipe::sticky_progress`]、`crates/pre-styled-ui/tests/
+//!   motion_parallax_css.rs`・`crates/pre-styled-ui/tests/
+//!   motion_sticky_progress_css.rs`。非対応ブラウザ向けフォールバックは
+//!   `fandhe-frontend-animation`/`fandhe-frontend-wasm-full` の
+//!   `scroll_driver` モジュール〔`--fandhe-motion-scroll-progress` custom
+//!   property〕を参照する）。**spring 近似 easing プリセット
 //!   （イシュー #2381）も実装済み**（[`theme::Theme::push_spring_easing`]・
 //!   [`theme::SPRING_EASING_LINEAR`]/[`theme::SPRING_DURATION_MS`]/
 //!   [`theme::SPRING_SAMPLE_COUNT`]、`crates/pre-styled-ui/tests/

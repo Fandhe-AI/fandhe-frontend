@@ -3441,7 +3441,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `Theme::to_css_with_border_beam`）の新規公開 API 純追加であり、無効時の
 # 出力・依存グラフは不変（`tests/motion_zero_cost.rs` 不変）。#2515/#2384/
 # #2381 と同型のため minor バンプする。
-version = "0.200.0"
+#
+# イシュー #2534: `SlotRecipe::parallax`/`SlotRecipe::sticky_progress`
+# （`ParallaxSpeed` を含む）を新設。新規公開 API 追加のため minor バンプ
+# する（`.claude/rules/coding-rust.md` #638 条項）。上記 #2531 の到達値
+# （0.200.0）が origin/main と同一版数のため、同じ版数のまま据え置かず
+# +1 した 0.201.0 とする（`.claude/rules/coding-rust.md` の「同じ版数は
+# 衝突として扱う」運用）。
+version = "0.201.0"
 
 
 edition = "2021"

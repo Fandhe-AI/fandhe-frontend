@@ -419,6 +419,15 @@ jobs:
         # allowlist 通過・golden 純追加・重複拒否を固定する契約テスト。
         run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_spring_css --locked
 
+      - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_parallax_css --test motion_sticky_progress_css（issue #2534）"
+        # scroll-linked parallax / sticky progress（recipe::SlotRecipe::
+        # parallax/sticky_progress、motion feature 配下）の golden CSS・
+        # プログレッシブエンハンスメント契約・出力順を固定する契約テスト。
+        # `motion_scroll_reveal_css` と同じ理由（`#![cfg(feature =
+        # "motion")]` のため既定 feature の `cargo test --workspace` では
+        # 実行されない）で専用ステップが必要。
+        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_parallax_css --test motion_sticky_progress_css --locked
+
   # イシュー #2299: fandhe-frontend-docs-site 単独のテストを test ジョブから
   # 分離した専用ジョブ。docs-site テストが workspace テスト実行時間の大半を
   # 占めていたため、独立ジョブとして test ジョブと並列に走らせることで CI の

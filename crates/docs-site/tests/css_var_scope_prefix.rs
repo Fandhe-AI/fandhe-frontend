@@ -180,6 +180,17 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-border-beam-color",
     "--fandhe-border-beam-spread",
     "--fandhe-border-beam-duration",
+    // --fandhe-motion-parallax-distance / --fandhe-motion-scroll-progress:
+    // イシュー #2534 で docs-site 自身が SlotRecipe::parallax /
+    // SlotRecipe::sticky_progress を初めて消費した際に導入された実行時
+    // 専用 custom property（前 2 件と同型）。`--fandhe-motion-scroll-
+    // progress` は `fandhe_frontend_animation::scroll_driver::
+    // SCROLL_PROGRESS_PROPERTY` が定義する JS フォールバック専用変数で
+    // あり、単一の所有 scope を持たない（`SlotRecipe::parallax`/
+    // `SlotRecipe::sticky_progress` の `@supports not` ブロックが
+    // `var()` で参照する）。
+    "--fandhe-motion-parallax-distance",
+    "--fandhe-motion-scroll-progress",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。
