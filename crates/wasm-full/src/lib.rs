@@ -262,9 +262,10 @@
 //! 有効化するだけで、対応する `wire_*` 呼び出し自体が本クレートに存在
 //! しない（`data-*` 属性からの自動トリガー配線は後続 Phase 4 issue の
 //! 責務）。したがって上記対応表・配線群 16 件の一覧のいずれにも含めず、
-//! `position`/`stagger`/`view-transition-name` と同じ「別枠 feature」の
-//! 4 例目として扱う。optional 依存を有効化するだけでは推移的依存はアプリ
-//! 側の名前解決に公開されないため、本クレートは `"animate"` feature
+//! `position`/`stagger`/`view-transitions`/`view-transition-name` と
+//! 同じ「別枠 feature」の 5 例目として扱う。optional 依存を有効化するだけ
+//! では推移的依存はアプリ側の名前解決に公開されないため、本クレートは
+//! `"animate"` feature
 //! 有効時のみ `pub use fandhe_frontend_animation;` で crate 自体を
 //! 再エクスポートする。アプリは自前で `fandhe-frontend-animation` に
 //! 依存を追加しなくても
