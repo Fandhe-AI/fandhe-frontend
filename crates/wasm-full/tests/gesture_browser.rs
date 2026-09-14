@@ -3,7 +3,8 @@
 //! --headless --chrome`）。
 //!
 //! `wasm-full/src/gesture.rs` の native テストは純粋層
-//! （`is_touch_pointer`/`is_press_activation_key`）までを検証済み。本
+//! （`is_touch_pointer`/`is_implicit_capture_pointer`/`is_press_activation_key`）
+//! までを検証済み。本
 //! ファイルはその先、`wire_gesture` が実 DOM 上で pointerover/pointerout・
 //! pointerdown/pointerup/pointercancel/pointermove・keydown/keyup/
 //! focusout に応じて `data-fandhe-hover`/`data-fandhe-press` を正しく
@@ -938,13 +939,13 @@ fn pointerdown_with_reused_pointer_id_clears_stale_previous_target_press() {
     );
 }
 
-/// `client_x`/`client_y` 座標を指定した `pointermove` を発火する
-/// （タッチの暗黙 pointer capture 下での `elementFromPoint` による
-/// ヒットテストを検証するため）。
-fn dispatch_pointermove_at(target: &Element, client_x: i32, client_y: i32) {
+/// `client_x`/`client_y` 座標・`pointer_type` を指定した `pointermove` を
+/// 発火する（タッチ/ペンの暗黙 pointer capture 下での `elementFromPoint`
+/// によるヒットテストを検証するため）。
+fn dispatch_pointermove_at(target: &Element, pointer_type: &str, client_x: i32, client_y: i32) {
     let init = PointerEventInit::new();
     init.set_bubbles(true);
-    init.set_pointer_type("touch");
+    init.set_pointer_type(pointer_type);
     init.set_client_x(client_x);
     init.set_client_y(client_y);
     let event = PointerEvent::new_with_event_init_dict("pointermove", &init)
@@ -976,7 +977,7 @@ fn pointermove_outside_bounds_clears_press_during_implicit_capture() {
     let rect = child.get_bounding_client_rect();
     let inside_x = ((rect.left() + rect.right()) / 2.0) as i32;
     let inside_y = ((rect.top() + rect.bottom()) / 2.0) as i32;
-    dispatch_pointermove_at(&child, inside_x, inside_y);
+    dispatch_pointermove_at(&child, "touch", inside_x, inside_y);
     assert!(
         child.has_attribute(PRESS_STATE_ATTR),
         "要素内座標への pointermove は press を維持すること"
@@ -985,7 +986,7 @@ fn pointermove_outside_bounds_clears_press_during_implicit_capture() {
     // 要素外の座標（大きく離れた座標）への pointermove は、暗黙 pointer
     // capture 下で pointerout が一切発火しない状況でも press を解除する
     // こと。
-    dispatch_pointermove_at(&child, -9999, -9999);
+    dispatch_pointermove_at(&child, "touch", -9999, -9999);
     assert!(
         !child.has_attribute(PRESS_STATE_ATTR),
         "要素外座標への pointermove は press を解除すること（暗黙 pointer capture の補完）"
@@ -1067,7 +1068,7 @@ fn pointermove_over_overflowing_descendant_keeps_press_during_implicit_capture()
         "テスト前提: elementFromPoint が子孫（overflowing_child）をヒットすること"
     );
 
-    dispatch_pointermove_at(&overflowing_child, x, y);
+    dispatch_pointermove_at(&overflowing_child, "touch", x, y);
     assert!(
         parent.has_attribute(PRESS_STATE_ATTR),
         "親の矩形外にはみ出した子孫上の pointermove では press を維持すること"
@@ -1115,5 +1116,68 @@ fn keydown_on_editable_descendant_does_not_trigger_ancestor_press() {
     assert!(
         !parent.has_attribute(PRESS_STATE_ATTR),
         "contenteditable 要素上の Space も祖先の press を設定しないこと"
+    );
+}
+
+/// codex P1 指摘の回帰固定（「ペンの暗黙 pointer capture 中も離脱を
+/// 検知する」）: タッチスクリーンのペン（`pointer_type: "pen"`）で
+/// 押したまま要素外へ移動しても、暗黙 pointer capture が働くため
+/// `pointerout` が発火しない。`handle_pointermove` の補完対象がタッチに
+/// 限定されていたため、ペンでの領域外離脱を見逃していた
+/// （`is_implicit_capture_pointer` でタッチ・ペン両方を対象にする）。
+#[wasm_bindgen_test]
+fn pointermove_outside_bounds_clears_press_for_pen_during_implicit_capture() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-pointermove-pen-capture-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer(&child, "pointerdown", "pen", None);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    // 要素外の座標（大きく離れた座標）へのペンの pointermove は、暗黙
+    // pointer capture 下で pointerout が一切発火しない状況でも press を
+    // 解除すること。
+    dispatch_pointermove_at(&child, "pen", -9999, -9999);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "ペンの pointermove も要素外座標で press を解除すること（暗黙 pointer capture の補完）"
+    );
+}
+
+/// Bugbot 指摘の回帰固定（「Keyup skip can stick press」）: 非編集要素
+/// （opt-in 親内の通常の `button`）で Space を押した状態から、
+/// `focusout` を伴わずに（例: JS がプログラム的にフォーカスを移す等）
+/// 編集可能要素（`input`）上で同じキーの `keyup` が発火しても、
+/// 追跡中の keyboard 押下源が正しく解放されること。`handle_keyup` に
+/// `is_editable_target` ガードを適用すると、この正当な解放処理まで
+/// スキップされ press が残留してしまっていた。
+#[wasm_bindgen_test]
+fn keyup_on_editable_element_still_releases_press_from_non_editable_origin() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("gesture-keyup-editable-release-test");
+    let parent = document.create_element("div").unwrap();
+    parent.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    let trigger = document.create_element("button").unwrap();
+    let input = document.create_element("input").unwrap();
+    parent.append_child(&trigger).unwrap();
+    parent.append_child(&input).unwrap();
+    root.append_child(&parent).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    // 非編集要素（trigger）で Space を押すと、opt-in 親（parent）へ
+    // press が設定される。
+    dispatch_key(&trigger, "keydown", " ", false);
+    assert!(parent.has_attribute(PRESS_STATE_ATTR));
+
+    // focusout を経ずに、編集可能要素（input）上で同じキーの keyup が
+    // 発火する状況を模す。
+    dispatch_key(&input, "keyup", " ", false);
+    assert!(
+        !parent.has_attribute(PRESS_STATE_ATTR),
+        "編集可能要素上の keyup でも、追跡中の keyboard 押下源が正しく解放されること"
     );
 }

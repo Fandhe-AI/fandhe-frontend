@@ -64,6 +64,21 @@ pub fn is_touch_pointer(pointer_type: &str) -> bool {
     pointer_type == "touch"
 }
 
+/// `PointerEvent::pointer_type()` が暗黙 pointer capture（W3C Pointer
+/// Events §implicit pointer capture）の対象か（タッチまたはペン）。
+///
+/// マウスは暗黙 pointer capture が働かない（`setPointerCapture` を
+/// 明示的に呼ばない限り、要素外へ移動すると通常どおり `pointerout` が
+/// 発火する）ため対象外。`gesture::wiring::handle_pointermove` の
+/// 要素外離脱検知（`pointerout` が発火しない暗黙 capture 下の補完）を
+/// この 2 種類に限定する判定に使う（codex-review 指摘の是正:
+/// [`is_touch_pointer`] のみではペンでの暗黙 capture 下の離脱を
+/// 見逃していた）。
+#[must_use]
+pub fn is_implicit_capture_pointer(pointer_type: &str) -> bool {
+    pointer_type == "touch" || pointer_type == "pen"
+}
+
 /// `KeyboardEvent::key()` が press 活性化キー（Enter/Space）か。
 ///
 /// `keynav.rs` の活性化キー判定と同じ 2 語のみを見る（"Spacebar" 等の
@@ -76,8 +91,8 @@ pub fn is_press_activation_key(key: &str) -> bool {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        is_touch_pointer, GESTURE_HOVER_ATTR, GESTURE_PRESS_ATTR, HOVER_STATE_ATTR,
-        PRESS_STATE_ATTR,
+        is_implicit_capture_pointer, is_touch_pointer, GESTURE_HOVER_ATTR, GESTURE_PRESS_ATTR,
+        HOVER_STATE_ATTR, PRESS_STATE_ATTR,
     };
     use crate::dom::set_dom_attribute_result as set_dom_attribute;
     use std::cell::RefCell;
@@ -335,13 +350,13 @@ mod wiring {
     /// 離脱でも press は解除する）、実際の解除は [`release_pointer_press`]
     /// に委ねる。
     ///
-    /// タッチの暗黙 pointer capture（W3C Pointer Events
+    /// タッチ/ペンの暗黙 pointer capture（W3C Pointer Events
     /// §implicit pointer capture）下では、この `pointerout` 自体が
     /// 発火しないケースがある（`touch-action: none` を持つ opt-in 要素を
-    /// タッチで押下すると要素へ pointer capture が設定され、指を要素外へ
-    /// 動かしても境界イベントが起きない）。この残余ケースは
-    /// [`handle_pointermove`]（タッチ限定・`elementFromPoint` による
-    /// 子孫包含判定）が補完する（codex-review 指摘の是正）。
+    /// タッチ/ペンで押下すると要素へ pointer capture が設定され、指/ペン
+    /// 先を要素外へ動かしても境界イベントが起きない）。この残余ケースは
+    /// [`handle_pointermove`]（タッチ・ペン限定・`elementFromPoint` に
+    /// よる子孫包含判定）が補完する（codex-review 指摘の是正）。
     fn handle_pointerout(
         root: &Element,
         event: &Event,
@@ -436,23 +451,27 @@ mod wiring {
         release_pointer_press(active_pointer, active_keyboard, pointer_id);
     }
 
-    /// `pointermove`（capture 登録、**タッチ限定**）: タッチの暗黙
-    /// pointer capture（W3C Pointer Events §implicit pointer capture）下
-    /// でも要素外への離脱を検知する（codex-review 指摘の是正）。
-    /// `touch-action: none` を持つ opt-in 要素をタッチで押下すると、
-    /// ブラウザは自動的に当該要素へ pointer capture を設定するため、
-    /// 指を要素の外へ物理的に動かしても境界イベント（`pointerover`/
-    /// `pointerout`）は一切発生しない（capture 中は全イベントが capture
-    /// 先要素へ配送され続ける）。[`handle_pointerout`] の
-    /// `related_within` 判定だけでは、このケースで指を離すまで
+    /// `pointermove`（capture 登録、**タッチ・ペン限定**）: タッチ/ペンの
+    /// 暗黙 pointer capture（W3C Pointer Events §implicit pointer
+    /// capture）下でも要素外への離脱を検知する（codex-review 指摘の
+    /// 是正）。`touch-action: none` を持つ opt-in 要素をタッチ/ペンで
+    /// 押下すると、ブラウザは自動的に当該要素へ pointer capture を
+    /// 設定するため、指/ペン先を要素の外へ物理的に動かしても境界イベント
+    /// （`pointerover`/`pointerout`）は一切発生しない（capture 中は全
+    /// イベントが capture 先要素へ配送され続ける）。[`handle_pointerout`]
+    /// の `related_within` 判定だけでは、このケースで指/ペンを離すまで
     /// [`PRESS_STATE_ATTR`] が残り続けてしまう。
     ///
-    /// 本補完はタッチ限定にする（`PointerEvent::pointer_type() != "touch"`
-    /// なら即座に return）: マウスは暗黙 pointer capture が働かないため
-    /// `pointerout` だけで離脱を正しく検知できる。座標ベースの補完を
-    /// マウスにも適用すると、微小なマウス移動でも誤って解除してしまう
-    /// （Bugbot 指摘「Pointermove clears press too early」の是正。マウス
-    /// の離脱判定は従来どおり `handle_pointerout` にのみ委ねる）。
+    /// 本補完は [`is_implicit_capture_pointer`]（タッチ・ペン）限定に
+    /// する: マウスは暗黙 pointer capture が働かないため `pointerout`
+    /// だけで離脱を正しく検知できる。座標ベースの補完をマウスにも
+    /// 適用すると、微小なマウス移動でも誤って解除してしまう（Bugbot
+    /// 指摘「Pointermove clears press too early」の是正。マウスの離脱
+    /// 判定は従来どおり `handle_pointerout` にのみ委ねる）。当初は
+    /// [`is_touch_pointer`]（タッチのみ）で限定していたが、タッチ
+    /// スクリーンのペンにも暗黙 pointer capture が適用され `pointerout`
+    /// が働かないため、ペンでの領域外離脱を見逃していた
+    /// （codex-review 指摘の是正）。
     ///
     /// 追跡中の pointer_id が 1 件も無ければ即座に return する
     /// （`pointermove` は高頻度で発火するため、`active_pointer` が空の
@@ -486,7 +505,7 @@ mod wiring {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
-        if !is_touch_pointer(&pointer_event.pointer_type()) {
+        if !is_implicit_capture_pointer(&pointer_event.pointer_type()) {
             return;
         }
         let pointer_id = pointer_event.pointer_id();
@@ -534,7 +553,11 @@ mod wiring {
     /// 「Typing space triggers ancestor press」の是正）: opt-in 親の中に
     /// 置かれた `input` 等でテキストを入力するたびに Space/Enter が
     /// 押される通常のタイピングが、祖先の [`PRESS_STATE_ATTR`] を
-    /// 意図せず点滅させてしまっていた。
+    /// 意図せず点滅させてしまっていた。このガードは活性化の入口である
+    /// `handle_keydown` にのみ適用し、`handle_keyup` には適用しない
+    /// （`handle_keyup` の doc 参照。Bugbot 指摘「Keyup skip can stick
+    /// press」の是正: 非編集要素で始まった press のフォーカスが編集可能
+    /// 要素へ移動した場合の正当な解放を妨げないため）。
     fn handle_keydown(
         root: &Element,
         event: &Event,
@@ -592,12 +615,22 @@ mod wiring {
     /// 新フォーカス先へ発火しても、追跡済みの押下源を正しく解放できる
     /// （codex-review 指摘の是正）。
     ///
-    /// `event.target()` が [`is_editable_target`] の意味で編集可能要素の
-    /// ときも早期 return する（`handle_keydown` と対称、Bugbot 指摘
-    /// 「Typing space triggers ancestor press」の是正）。`handle_keydown`
-    /// が同条件で press を設定しない以上、通常はここに到達する頃には
-    /// 追跡済みの押下源自体が存在せず実質的に no-op だが、フォーカス移動
-    /// 等で状態が食い違った場合の防御的な対称性として明示する。
+    /// [`is_editable_target`] ガードは **意図的に適用しない**（Bugbot
+    /// 指摘「Keyup skip can stick press」の是正）: `handle_keydown` は
+    /// 編集可能要素（`input`/`textarea`/`select`・`contenteditable`）を
+    /// `origin` とする活性化キーで press を一切設定しないため、通常は
+    /// 対応する `keyup` も追跡すべき状態を持たない no-op で終わる。
+    /// しかし `handle_keydown` は非編集要素（例: opt-in 親配下の通常の
+    /// `button`）で press を設定した**後**に、`focusout` を経ずに
+    /// フォーカスが編集可能要素（同一ウィジェット内の `input` 等）へ
+    /// 移動し、その編集可能要素上で同じキーの `keyup` が発火する状況を
+    /// 想定できる。この場合、追跡中の [`KeyboardPress`] は非編集要素
+    /// 由来であり正当に解放すべきものである。`keyup` の `event.target()`
+    /// で編集可能性を判定して早期 return すると、この正当な解放処理が
+    /// スキップされ `origin` が消えないまま [`PRESS_STATE_ATTR`] が
+    /// 永続的に残留してしまう。`handle_keyup` は常に追跡済み状態
+    /// （`press_target`）のみを見て解放する対称設計を維持し、`keydown`
+    /// 側（活性化の入口）でのみ編集可能要素を弾く。
     fn handle_keyup(
         event: &Event,
         active_pointer: &ActivePointerPress,
@@ -609,9 +642,6 @@ mod wiring {
         let Some(key) = normalize_activation_key(&keyboard_event.key()) else {
             return;
         };
-        if event_target_element(event).is_some_and(|target| is_editable_target(&target)) {
-            return;
-        }
         let should_release = {
             let mut keyboard = active_keyboard.borrow_mut();
             match keyboard.as_mut() {
@@ -780,8 +810,8 @@ mod wiring {
         )?;
         pointerup_or_cancel_closure.forget();
 
-        // `pointermove`（capture 登録）: タッチの暗黙 pointer capture 下で
-        // `pointerout` が発火しないケースを座標比較で補完する
+        // `pointermove`（capture 登録）: タッチ/ペンの暗黙 pointer capture
+        // 下で `pointerout` が発火しないケースをヒットテストで補完する
         // （`handle_pointermove` の doc 参照、codex-review 指摘の是正）。
         let pointermove_pointer = Rc::clone(&active_pointer_press);
         let pointermove_keyboard = Rc::clone(&active_keyboard_press);
@@ -849,7 +879,7 @@ pub use wiring::wire_gesture;
 
 #[cfg(test)]
 mod tests {
-    use super::{is_press_activation_key, is_touch_pointer};
+    use super::{is_implicit_capture_pointer, is_press_activation_key, is_touch_pointer};
 
     #[test]
     fn is_touch_pointer_matches_only_touch() {
@@ -857,6 +887,14 @@ mod tests {
         assert!(!is_touch_pointer("mouse"));
         assert!(!is_touch_pointer("pen"));
         assert!(!is_touch_pointer(""));
+    }
+
+    #[test]
+    fn is_implicit_capture_pointer_matches_touch_and_pen_only() {
+        assert!(is_implicit_capture_pointer("touch"));
+        assert!(is_implicit_capture_pointer("pen"));
+        assert!(!is_implicit_capture_pointer("mouse"));
+        assert!(!is_implicit_capture_pointer(""));
     }
 
     #[test]
