@@ -1093,7 +1093,12 @@ name = "fandhe-frontend-wasm-full"
 # 予定）。`Cargo.toml` 変更のみで src/ に変更はないが `.claude/rules
 # /coding-rust.md` #638 条項（公開済みクレートの Cargo.toml 変更は semver
 # バンプ必須）に従い patch バンプする。
-version = "0.20.11"
+#
+# イシュー #2393: `content_height::TARGETS` へ `(tree-view, branch-content)`
+# を 1 行追加（既存のクリック駆動配線 `MAPPING_TABLE` の
+# `(tree-view, branch, "toggle")` 行を再利用）。公開 API の追加・変更を
+# 伴わない内部の対象拡張のみのため patch バンプする。
+version = "0.20.12"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
