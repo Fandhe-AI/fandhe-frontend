@@ -398,12 +398,27 @@ fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool 
 /// への一時上書きは即時反映されても、遷移アニメーションが有効なままだと
 /// 実際の描画・`getBoundingClientRect()` の戻り値は遷移の途中値（直前
 /// フレームの変形が残った値）になり得るため、上記 3 プロパティを上書き
-/// する**前**に `transition` 自体を `!important` で `none` へ一時上書き
-/// して遷移を同期的に無効化してから計測する。復元順序は `translate`/
-/// `scale`/`position` を先に元へ戻し、`transition` は最後に戻す
-/// （復元中も `transition: none` のままにすることで、復元そのものが
-/// 新たな遷移の開始点にならないようにする、codex-review P1 是正、
-/// PR #2563）。
+/// する**前**に `transition-property`（**shorthand ではなく longhand**、
+/// codex-review P1 是正、PR #2563）を `!important` で `none` へ一時上書き
+/// して遷移を同期的に無効化してから計測する。`transition-property: none`
+/// は CSS Transitions の仕様上それだけで全プロパティの遷移を無効化できる
+/// ため、`transition-duration`/`transition-timing-function`/
+/// `transition-delay` の他 longhand には一切触れない。**shorthand
+/// `transition` の `get_property_value`/`remove_property` に頼ると、要素が
+/// `style="transition-duration: 200ms"` のような個別 longhand 宣言のみを
+/// 持つ場合に `get_property_value("transition")` が空文字列を返し
+/// （shorthand 宣言自体が存在しないため）、後続の shorthand 上書き
+/// （`set_property_with_priority("transition", "none", "important")`）が
+/// 元の longhand 宣言を実質的に破棄し、復元時の
+/// `remove_property("transition")` が `transition-duration` を含む全
+/// longhand を恒久的に消してしまう（計測のための一時上書きが利用者の
+/// アニメーション設定を永続的に変更してしまう回帰）。`transition-property`
+/// 単体の longhand として保存・上書き・復元することで、他の longhand
+/// （`-duration`/`-timing-function`/`-delay`）を一切書き換えず、shorthand
+/// 経由の暗黙の正規化・破棄を避ける。復元順序は `translate`/`scale`/
+/// `position` を先に元へ戻し、`transition-property` は最後に戻す
+/// （復元中も `transition-property: none` のままにすることで、復元そのもの
+/// が新たな遷移の開始点にならないようにする）。
 ///
 /// インラインスタイルの上書き・復元は同一の同期実行内で完結するため、
 /// ブラウザが中間状態を描画することはない（強制リフローを伴う計測
@@ -438,18 +453,28 @@ fn measure_untransformed_rect(element: &web_sys::Element) -> (web_sys::DomRect, 
     };
     let style = html.style();
 
-    // `transition` を最初に `!important` で無効化する（codex-review P1
-    // 是正、PR #2563）。以降で上書きする `translate`/`scale`/`position`
-    // へ `transition: translate 200ms` 等が併用されていると、`none`/
-    // `static` への一時上書きは値としては即時反映されるが実際の描画・
-    // `getBoundingClientRect()` の戻り値は遷移アニメーションの現在値
-    // （直前フレームの変形が残った途中値）になり得るため、遷移自体を
-    // 同期的に止めてから計測する。スタイルシート側が `transition: ...
-    // !important` を宣言していても本上書きが必ず勝つよう `!important`
-    // で書く（下記 `translate`/`scale`/`position` と同じ理由）。
-    let saved_transition = style.get_property_value("transition").ok();
-    let saved_transition_priority = style.get_property_priority("transition");
-    let _ = style.set_property_with_priority("transition", "none", "important");
+    // `transition-property` を最初に `!important` で `none` へ無効化する
+    // （codex-review P1 是正、PR #2563）。以降で上書きする `translate`/
+    // `scale`/`position` へ `transition: translate 200ms` 等が併用されて
+    // いると、`none`/`static` への一時上書きは値としては即時反映される
+    // が実際の描画・`getBoundingClientRect()` の戻り値は遷移アニメーション
+    // の現在値（直前フレームの変形が残った途中値）になり得るため、遷移
+    // 自体を同期的に止めてから計測する。**shorthand `transition` ではなく
+    // longhand `transition-property` のみを保存・上書き・復元する**（要素
+    // が `style="transition-duration: 200ms"` のような longhand 宣言のみ
+    // を持つ場合、shorthand `transition` は宣言として存在せず
+    // `get_property_value("transition")` は空文字列を返すため、shorthand
+    // 経由の save/restore では longhand 宣言が復元時に丸ごと消え、利用者
+    // のアニメーション設定を恒久的に変更してしまう回帰がある）。
+    // `transition-property: none` は CSS Transitions の仕様上それだけで
+    // 全プロパティの遷移を無効化できるため、`transition-duration`/
+    // `transition-timing-function`/`transition-delay` には一切触れない。
+    // スタイルシート側が `transition-property: ... !important` を宣言
+    // していても本上書きが必ず勝つよう `!important` で書く（下記
+    // `translate`/`scale`/`position` と同じ理由）。
+    let saved_transition_property = style.get_property_value("transition-property").ok();
+    let saved_transition_property_priority = style.get_property_priority("transition-property");
+    let _ = style.set_property_with_priority("transition-property", "none", "important");
 
     // 一時上書きは `!important` で行う（codex-review P1 是正、PR #2563）。
     // スタイルシート側に `translate`/`scale`/`position` の `!important`
@@ -483,11 +508,14 @@ fn measure_untransformed_rect(element: &web_sys::Element) -> (web_sys::DomRect, 
 
     let rect = element.get_bounding_client_rect();
 
-    // 復元順序: `transition` は最後に戻す。`translate`/`scale`/`position`
-    // を元の値へ戻す間は `transition: none` のままにしておくことで、
-    // 復元そのものが新たな遷移アニメーションの開始点にならないようにする
-    // （復元直後に `transition` を戻すと、以降のスクロール起因の再計測
-    // ではない通常のスタイル変化は正しく遷移する）。
+    // 復元順序: `transition-property` は最後に戻す。`translate`/`scale`/
+    // `position` を元の値へ戻す間は `transition-property: none` のままに
+    // しておくことで、復元そのものが新たな遷移アニメーションの開始点に
+    // ならないようにする（復元直後に `transition-property` を戻すと、
+    // 以降のスクロール起因の再計測ではない通常のスタイル変化は正しく
+    // 遷移する）。`transition-duration`/`transition-timing-function`/
+    // `transition-delay` は本関数の一時上書きの対象外であり、常に元の
+    // 値のまま変更されない。
     restore_inline_property(
         &style,
         "translate",
@@ -505,9 +533,9 @@ fn measure_untransformed_rect(element: &web_sys::Element) -> (web_sys::DomRect, 
     }
     restore_inline_property(
         &style,
-        "transition",
-        saved_transition.as_deref(),
-        &saved_transition_priority,
+        "transition-property",
+        saved_transition_property.as_deref(),
+        &saved_transition_property_priority,
     );
 
     (rect, is_sticky)

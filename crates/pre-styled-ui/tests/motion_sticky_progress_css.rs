@@ -15,7 +15,7 @@ fn sticky_progress_golden_css() {
     let recipe = SlotRecipe::new("card", &["root"]).sticky_progress("root");
     assert_eq!(
         recipe.css(),
-        "@supports (animation-timeline: view()) {\n  @keyframes fandhe-motion-sticky-progress {\n    from {\n      opacity: 0.6;\n      scale: 0.96;\n    }\n    to {\n      opacity: 1;\n      scale: 1;\n    }\n  }\n\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation-name: fandhe-motion-sticky-progress;\n    animation-timing-function: linear;\n    animation-fill-mode: both;\n    animation-timeline: view();\n    animation-range: contain 0% contain 100%;\n  }\n}\n\n@supports not (animation-timeline: view()) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    opacity: calc(0.6 + (var(--fandhe-motion-scroll-progress, 0) * 0.4));\n    scale: calc(0.96 + (var(--fandhe-motion-scroll-progress, 0) * 0.04));\n  }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation: none;\n    opacity: 1;\n    scale: none;\n  }\n}\n"
+        "@supports (animation-timeline: view()) {\n  @keyframes fandhe-motion-sticky-progress {\n    from {\n      opacity: 0.6;\n      scale: 0.96;\n    }\n    to {\n      opacity: 1;\n      scale: 1;\n    }\n  }\n\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation-name: fandhe-motion-sticky-progress;\n    animation-timing-function: linear;\n    animation-fill-mode: backwards;\n    animation-timeline: view();\n    animation-range: contain 0% contain 100%;\n  }\n}\n\n@supports not (animation-timeline: view()) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    opacity: calc(0.6 + (var(--fandhe-motion-scroll-progress, 0) * 0.4));\n    scale: calc(0.96 + (var(--fandhe-motion-scroll-progress, 0) * 0.04));\n  }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation: none;\n    opacity: 1;\n    scale: none;\n  }\n}\n"
     );
 }
 
@@ -93,4 +93,37 @@ fn sticky_progress_blocks_are_ordered_after_parallax_and_before_breakpoints() {
 
     assert!(parallax_pos < sticky_pos);
     assert!(sticky_pos < breakpoint_pos);
+}
+
+/// Cursor Bugbot 指摘是正（PR #2563、threadId `PRRT_kwDOTarxgc6iTQVF`）の
+/// 回帰テスト: `animation-fill-mode` は `both`/`forwards` ではなく
+/// `backwards` であること。`both`/`forwards` だと `contain` 区間終了後
+/// も `opacity`/`scale` の終端値 (`1`) を animation 優先度で保持し続け、
+/// 後続の hover/state/variant の `opacity`/`scale` ルールが常に負けて
+/// しまう（`scroll_reveal` が `entry` 区間で同じ理由から既に `both` を
+/// 不採用にしている）。加えて `scale: 1`（非 `none` 値）が
+/// `position: fixed` な子孫のための包含ブロックを恒久的に維持し続ける
+/// 問題も併発する。`backwards` のみを使うことで、区間終了後は通常の
+/// カスケードへ戻り、両方の問題を同時に解消する。
+#[test]
+fn sticky_progress_uses_backwards_fill_mode_not_both() {
+    let css = SlotRecipe::new("card", &["root"])
+        .sticky_progress("root")
+        .css();
+    let native_pos = css.find("@supports (animation-timeline: view())").unwrap();
+    let fallback_pos = css
+        .find("@supports not (animation-timeline: view())")
+        .unwrap();
+    let native_block = &css[native_pos..fallback_pos];
+    assert!(
+        native_block.contains("animation-fill-mode: backwards;"),
+        "sticky_progress のネイティブ経路は animation-fill-mode: backwards \
+         を使うはず（both/forwards は contain 区間終了後も opacity/scale \
+         の終端値を animation 優先度で保持し続け、hover/state/variant の \
+         上書きを妨げてしまう回帰）: native_block={native_block}"
+    );
+    assert!(
+        !native_block.contains("animation-fill-mode: both;"),
+        "animation-fill-mode: both は使わないはず: native_block={native_block}"
+    );
 }

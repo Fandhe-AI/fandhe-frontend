@@ -918,3 +918,68 @@ async fn update_element_progress_is_stable_despite_self_applied_translate_with_t
     spacer_after.remove();
     style_el.remove();
 }
+
+/// codex-review P1 是正（PR #2563、threadId `PRRT_kwDOTarxgc6iTLtH`）の
+/// 回帰テスト: 要素が `transition` **shorthand ではなく**
+/// `transition-duration` のような **longhand** をインラインスタイルで
+/// 個別に持つ場合、[`update_element_progress`] の一時上書き・復元が
+/// その longhand 宣言を恒久的に消してしまわないことを検証する。
+///
+/// 是正前は `measure_untransformed_rect` が shorthand `transition` の
+/// `get_property_value`/`remove_property` で保存・復元していたため、
+/// `style.get_property_value("transition")` が（shorthand 宣言自体が
+/// 存在しないため）空文字列を返し、計測直前の
+/// `set_property_with_priority("transition", "none", "important")` が
+/// `transition-duration` を含む全 longhand を実質的に破棄し、復元時の
+/// `remove_property("transition")` がそれを恒久的に消してしまっていた
+/// （スクロール計測だけで利用者のアニメーション設定を恒久変更してしまう
+/// 回帰）。是正後は `transition-property` のみを個別に保存・上書き・
+/// 復元するため、`transition-duration` は一切変更されない。
+#[wasm_bindgen_test]
+async fn update_element_progress_preserves_inline_transition_duration_longhand() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .style()
+        .set_property("height", "50px")
+        .expect("set_property must not fail");
+    // shorthand `transition` ではなく longhand `transition-duration` の
+    // みをインラインスタイルへ直接設定する（shorthand 宣言自体は存在
+    // しない状態を作る）。
+    target_el
+        .style()
+        .set_property("transition-duration", "200ms")
+        .expect("set_property must not fail");
+
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+    body.append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    let _ = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    let restored_duration = target_el
+        .style()
+        .get_property_value("transition-duration")
+        .expect("get_property_value must not fail");
+    assert_eq!(
+        restored_duration, "200ms",
+        "計測後も利用者が設定した `transition-duration` の longhand 宣言は \
+         変更されず残っているはず（shorthand `transition` 経由の \
+         save/restore が longhand を恒久的に消してしまう回帰）: \
+         restored_duration={restored_duration}"
+    );
+
+    target_el.remove();
+}

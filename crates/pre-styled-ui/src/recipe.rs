@@ -3102,22 +3102,35 @@ const PARALLAX_KEYFRAMES_CSS: &str = "@keyframes fandhe-motion-parallax {\n  fro
 /// 単一の強調表示効果（値を呼び出し側から可変にする引数は持たない、
 /// [`SlotRecipe::sticky_progress`] doc の YAGNI 判断参照）。
 ///
-/// `animation-fill-mode: both` を使う理由は [`PARALLAX_KEYFRAMES_CSS`]
-/// と同じ: `contain`（要素がビューポートに完全収容されている期間）を
-/// 抜けた後（ピン留め区間の終了後・またはそもそも完全収容されない
-/// 期間）も `opacity`/`scale` の終端値（`1`）を保ち続けるのが「強調表示
-/// を抜けたら通常表示へ戻る」という意図に一致する。
+/// `animation-fill-mode` は [`SlotRecipe::write_sticky_progress_blocks`]
+/// が **`backwards`**（`both` ではない）を使う（Cursor Bugbot 指摘是正、
+/// PR #2563、threadId `PRRT_kwDOTarxgc6iTQVF`）。`both`/`forwards` で
+/// `contain` 区間終了後も `opacity: 1`/`scale: 1` を animation 優先度
+/// （通常のカスケード詳細度より強い）で保持し続けると、後続の hover/
+/// state/variant が宣言する `opacity`/`scale` ルールが常にこの animation
+/// 由来の値に負けてしまい（`scroll_reveal` が `entry` 区間で同じ理由
+/// から既に `both` を不採用にしている、[`SCROLL_REVEAL_KEYFRAMES_CSS`]
+/// doc 参照）、さらに `scale: 1`（非 `none` 値）が `position: fixed` な
+/// 子孫のための包含ブロックを恒久的に維持してしまう（`translate`/
+/// `scale` は CSS Transforms Level 2 の individual transform properties
+/// であり `transform` と同じ扱い、codex-review P1 是正、PR #2563）。
+/// `backwards` のみを使うことで、`contain` 区間に入る**前**（`from` の
+/// 0.6/0.96 で予告表示）は変わらず維持しつつ、区間**終了後**は animation
+/// が値を保持しない通常のカスケードへ戻り、hover/state/variant の
+/// `opacity`/`scale` ルールが正しく優先され、`scale` も非 `none` の
+/// animation 値を保持し続けない（結果として包含ブロック問題も同時に
+/// 解消する）。この構成では「強調表示を抜けたら通常表示へ戻る」という
+/// 意図は、`contain` 区間終了後に通常のカスケード（多くの場合 `opacity:
+/// 1`/`scale: none` が既定値）へ戻ることで実現され、animation の
+/// forwards fill には依存しない。
 ///
-/// `scale` も `translate` と同じく非 `none` 値（`1` を含む）で新たな
-/// 包含ブロックを作る（CSS Transforms Level 2 の individual transform
-/// properties、`transform` と同じ扱い。codex-review P1 是正、PR #2563:
-/// 旧版は「`opacity`/`scale` は `translate` と異なり包含ブロックを
-/// 作らない」と誤って記していた）。このため [`SlotRecipe::
-/// write_sticky_progress_blocks`] の reduced-motion ブロックは
-/// リセット値に `scale: 1` ではなく `scale: none` を使い、`position:
-/// fixed` な子孫（例: sticky_progress を適用したカード内のオーバーレイ）
-/// がカード基準の座標系へ固定され続ける事態を避ける
-/// （[`PARALLAX_KEYFRAMES_CSS`] doc の `translate: none` と同じ理由）。
+/// `@media (prefers-reduced-motion: reduce)` ブロック（`animation: none`
+/// で個別無効化）は、非対応ブラウザ向け `calc()` フォールバック
+/// （progress が 1 未満なら `scale` が非 `none` のままになり得る）を
+/// reduced-motion 環境で確実に凍結するため、引き続きリセット値に
+/// `scale: 1` ではなく `scale: none` を使う（フォールバック経路限定の
+/// 対策であり、上記の `backwards` 採用とは独立に必要、
+/// [`PARALLAX_KEYFRAMES_CSS`] doc の `translate: none` と同じ理由）。
 #[cfg(feature = "motion")]
 const STICKY_PROGRESS_KEYFRAMES_CSS: &str = "@keyframes fandhe-motion-sticky-progress {\n  from {\n    opacity: 0.6;\n    scale: 0.96;\n  }\n  to {\n    opacity: 1;\n    scale: 1;\n  }\n}\n";
 
@@ -3324,7 +3337,10 @@ impl SlotRecipe {
                 &[
                     decl("animation-name", "fandhe-motion-sticky-progress"),
                     decl("animation-timing-function", "linear"),
-                    decl("animation-fill-mode", "both"),
+                    // `both` ではなく `backwards`（Cursor Bugbot 指摘是正、
+                    // PR #2563、threadId `PRRT_kwDOTarxgc6iTQVF`）。詳細は
+                    // [`STICKY_PROGRESS_KEYFRAMES_CSS`] doc 参照。
+                    decl("animation-fill-mode", "backwards"),
                     decl("animation-timeline", "view()"),
                     decl("animation-range", "contain 0% contain 100%"),
                 ],
