@@ -102,6 +102,37 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   - `prefers-reduced-motion: reduce` 下では回転を止め、静的な `border`
     へフォールバックします。
 
+- **field / input の Motion+ 由来フォームアニメーション（イシュー #2545、
+  `crates/pre-styled-ui/src/forms_motion.rs`）**: `field`/`input` 自体は
+  変更せず、既存 anatomy へ参照するだけの opt-in 追加 CSS 4 種です。
+  - `forms_motion::SHAKE_CSS`: `input[data-invalid]` へ単発の水平シェイクを
+    適用します（headless 側が既に出力する `data-invalid` を利用、新規配線
+    不要）。
+  - `forms_motion::UNDERLINE_GROW_CSS`: `input::InputVariant::Flushed`
+    限定で、`:focus-visible` 時に下線（`background-size`）を 0% → 100% へ
+    伸長します。
+  - `forms_motion::FLOATING_LABEL_CLASS`（`"fd-field-floating-label"`）/
+    `forms_motion::FLOATING_LABEL_CSS`: `field::root` の出力を
+    `el("div", vec![("class", FLOATING_LABEL_CLASS)], vec![field_root])`
+    でラップして opt-in します。呼び出し側の契約: (a) `field::root` の
+    children は `input` → `label` の順（一般兄弟結合子 `~` は後続要素にのみ
+    効くため）、(b) `<input>` へ `placeholder=" "`（半角スペース 1 文字）を
+    指定すること。
+  - `forms_motion::error_text_presence_css()`: `error-text` slot へ
+    `recipe::SlotRecipe::presence_transition`（既存 #2497 の共通
+    preset）を適用し、検証結果表示の出現・消失をフェード遷移で表現します
+    （「送信中→完了」の本来の意味であるスピナー→チェックマーク変化は
+    `field`/`input` の headless anatomy に対応する `data-*` を持たないため
+    実装対象外です）。
+  - `forms_motion::forms_motion_css()`: 上記 4 種を決定的な順序で連結した
+    CSS 全文。`Theme::to_css_with_forms_motion()`: `Theme::to_css()` の
+    出力へ `forms_motion_css()` を追記して返す opt-in メソッド。
+  - shake（リテラル `animation`）は個別の `@media (prefers-reduced-motion:
+    reduce)` ブロックで `animation: none` へ縮退します。下線伸長・
+    error-text presence は `var(--fandhe-motion-duration-*)` 経由の
+    transition のみで構成され、`Theme::to_css` が既に duration トークンを
+    reduced motion 下で `0ms` へ上書きするため個別ブロックは不要です。
+
 - **spring 近似 easing プリセット（イシュー #2381）**: `theme::Theme::
   push_spring_easing()` を呼ぶと、`motion.dev spring()` 既定値
   （stiffness=100/damping=10/mass=1）を `from=0.0`/`to=1.0`/
@@ -205,5 +236,6 @@ cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_sp
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_scroll_reveal_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_border_beam_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_parallax_css --test motion_sticky_progress_css --locked
+cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_forms_css --locked
 cargo tree   -p fandhe-frontend-pre-styled-ui -e normal --prefix none --locked | grep -c fandhe-animation   # 0
 ```
