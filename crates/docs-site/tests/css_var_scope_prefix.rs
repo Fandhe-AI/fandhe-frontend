@@ -170,6 +170,16 @@ const SHARED_VARS: &[&str] = &[
     // 持たず、Theme::default() のトークンでもない）。
     "--fandhe-motion-stagger-index",
     "--fandhe-motion-scroll-reveal-distance",
+    // --fandhe-border-beam-width / -color / -spread / -duration: イシュー
+    // #2531 で追加した border-beam 装飾（`crates/pre-styled-ui/src/
+    // border_beam.rs`）の 4 トークン。`headless-ui` の anatomy 部品ではなく
+    // `data-scope`/`data-part` を持たない素のクラスセレクタ（`.fd-border-beam`）
+    // で完結する opt-in 装飾のため、単一の所有 `data-scope` を持たない
+    // （`--fandhe-content-height`/`--fandhe-motion-stagger-index` と同型）。
+    "--fandhe-border-beam-width",
+    "--fandhe-border-beam-color",
+    "--fandhe-border-beam-spread",
+    "--fandhe-border-beam-duration",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。
