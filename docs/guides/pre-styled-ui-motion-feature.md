@@ -52,6 +52,13 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   var(--fandhe-motion-duration-fast))` を登録できます。`fandhe_animation::
   timeline::Stagger::new(each).delay(index, total)`（`from: First`）と
   意味論が一致することを `recipe::stagger_parity_tests` が固定しています。
+- **`view-transition-name` ヘルパ（イシュー #2515、`crates/pre-styled-ui/src/recipe.rs`）**:
+  `recipe::view_transition_name_declaration(name)`。共有要素遷移（motion.dev
+  `AnimateView` 相当）の固定名を割り当てる静的なケース向けで、`name` は
+  コンパイル時に確定する `&'static str` のみ受け付けます。keyed list の
+  行等、値ごとに一意な動的名前が必要な場合は
+  `fandhe_frontend_wasm_full::view_transition_name::set_view_transition_name`
+  （wasm-full 側、`view-transition-name` feature 既定 on）を使ってください。
 
 - **spring 近似 easing プリセット（イシュー #2381）**: `theme::Theme::
   push_spring_easing()` を呼ぶと、`motion.dev spring()` 既定値

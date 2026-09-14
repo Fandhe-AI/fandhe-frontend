@@ -3422,12 +3422,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # accordion #2192・bubble #2282 と同型）を golden 純追加した。公開 API の
 # 追加・変更を伴わない内部の CSS 出力拡張のみのため patch バンプする。
 #
+# イシュー #2515: `view_transition_name_declaration`（`motion` feature
+# 配下）を追加した。`#[cfg(feature = "motion")]` の新規公開 API 純追加
+# であり、無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs`
+# 不変）。#2384/#2381 と同型のため minor バンプする。
+#
 # イシュー #2398: optional 依存 `fandhe-animation` の `version` 要求を
 # 0.1.0 → 0.1.1 へ追随（`cargo run -p xtask -- check-dep-versions --fix`）。
-# 依存元の実装・公開 API に変更はないが、`.claude/rules/coding-rust.md`
-# #638 条項（公開済みクレートの `Cargo.toml` 変更は semver バンプ必須）に
-# 従い patch バンプする。
-version = "0.198.2"
+# 依存元の実装・公開 API に変更はないため、上記 #2515 の minor バンプ到達値
+# （0.199.0、origin/main と一致）をそのまま採用する（同一版数への追加バンプ
+# は不要。本変更は依存 version 要求の追随のみで新規実体変更を伴わない）。
+version = "0.199.0"
 
 
 edition = "2021"

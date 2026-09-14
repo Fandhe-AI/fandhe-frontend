@@ -1109,13 +1109,21 @@ name = "fandhe-frontend-wasm-full"
 # 破壊的変更、イシュー #2122 の 0.18.4→0.19.0 と同型）ため minor バンプ
 # する。
 #
+# イシュー #2515: `view_transition_name` モジュールを新設し、新規公開 API
+# `set_view_transition_name`/`is_valid_view_transition_name` を追加。
+# 既定 on の別枠 feature `view-transition-name` を新設するため
+# `default-features = false` 利用者への影響（新規 API を失う）を伴う
+# 破壊的変更、`position`/`stagger` と同型のため minor バンプする（到達値
+# 0.22.0）。
+#
 # イシュー #2398: `animate` feature を新設し、`fandhe-frontend-animation`
 # （optional 依存、#2417）を既定 on で有効化するだけの配線を追加した
 # （`wire_*` 呼び出しは一切ゲートしない特殊枠。`Runtime`/`mount`/`hydrate` の
-# 既存コードは無変更）。新規公開 feature 追加を伴うため minor バンプする
-# （#2396 の minor バンプと合流し、到達値は 0.21.0 からさらに +1 の
-# 0.22.0）。
-version = "0.22.0"
+# 既存コードは無変更）。新規公開 feature 追加を伴うため minor バンプする。
+# main 取り込み時点で #2515 が既に 0.22.0 へ到達済みのため、本変更は
+# さらに +1 した 0.23.0 とする（`.claude/rules/coding-rust.md` の
+# 「同じ版数は衝突として扱う」運用）。
+version = "0.23.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1595,6 +1603,7 @@ default = [
   "in-view",
   "position",
   "stagger",
+  "view-transition-name",
   "animate",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
@@ -1658,6 +1667,14 @@ position = []
 # 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
 # 別枠の feature。
 stagger = []
+# イシュー #2515: [`view_transition_name::set_view_transition_name`] 公開
+# 関数自体（`Runtime` を経由しないアプリ直接利用 API）専用の feature
+# （既定 on）。`position`/`stagger` と異なり `Runtime::mount`/`hydrate`/
+# `apply_update_for_dirty` 内部の呼び出し箇所ではなく、公開関数の存在
+# 自体をゲートする（`wasm-bindgen-exports` 配下の `entry` モジュールと
+# 同型のパターン）。`view_transition_name` モジュール自体・
+# `is_valid_view_transition_name` 純粋関数はゲートしない。
+view-transition-name = []
 # イシュー #2398: `fandhe-frontend-animation`（optional 依存、#2417）を
 # 有効化するだけの feature（既定 on）。`Runtime::mount`/`hydrate` の `wire_*`
 # 呼び出しを一切ゲートしない（対応する自動配線が未実装のため。`data-*`
