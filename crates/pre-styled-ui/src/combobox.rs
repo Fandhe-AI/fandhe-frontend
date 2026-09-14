@@ -228,6 +228,19 @@
 //! - **`label` の `data-required` 視覚化は見送る（決定として確定）**:
 //!   `field::required_indicator` による表現へ統一する Forms 家族横断規則
 //!   （R2）であり、CSS 生成コンテンツは追加しない
+//!
+//! # presence_transition 適用（イシュー #2391）
+//!
+//! [`crate::recipe::SlotRecipe::presence_transition`]（select 同名節と同型
+//! の適用、#2383 で実装済みの transition ベース preset）を `content` slot
+//! へ適用し、開閉時にフェード + 軽いスケールの enter/exit アニメーションを
+//! 付与する。combobox の `content` は select と異なり `overflow-y`/
+//! `max-height` を持たない（上記「意図的に参考サイトへ合わせない点」節の
+//! 見送り事項）ため、衝突懸念自体が構造的に生じない。duration は select と
+//! 同じ `MotionDuration::Fast` を選ぶ（既存の視覚言語に揃える）。exit 方向
+//! の視覚化に関する制約も select と同じ（`positioner` が
+//! `presence_transition` を持たないため祖先の UA 既定 `display: none` が
+//! 先に効く）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -638,6 +651,10 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(Size::Md)
+        // イシュー #2391: `content` へ presence（enter/exit）のフェード +
+        // scale トランジションを適用する（上記「presence_transition 適用
+        // （イシュー #2391）」節参照）。
+        .presence_transition("content", MotionDuration::Fast)
 }
 
 /// この styled Combobox が生成する静的 CSS 全量を返す（決定的。
