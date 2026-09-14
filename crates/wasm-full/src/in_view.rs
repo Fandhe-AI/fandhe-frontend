@@ -134,9 +134,15 @@ mod wiring {
             return Ok(());
         }
 
+        let opted_in = js_sys::WeakSet::new();
+        let observed = js_sys::WeakSet::new();
+        let once_done = js_sys::WeakSet::new();
+
+        let callback_observed = observed.clone();
+        let callback_once_done = once_done.clone();
         let callback = Closure::<dyn FnMut(js_sys::Array, IntersectionObserver)>::new(
             move |entries: js_sys::Array, observer: IntersectionObserver| {
-                handle_intersections(&entries, &observer);
+                handle_intersections(&entries, &observer, &callback_observed, &callback_once_done);
             },
         );
         let observer = IntersectionObserver::new(callback.as_ref().unchecked_ref())?;
@@ -144,25 +150,48 @@ mod wiring {
 
         for el in &candidates {
             observer.observe(el);
+            opted_in.add(el);
+            observed.add(el);
         }
 
-        wire_in_view_mutation_observer(root, observer)?;
+        wire_in_view_mutation_observer(root, observer, opted_in, observed, once_done)?;
 
         Ok(())
     }
 
     /// `root` 配下の追加・削除ノードを追跡し、`observer`（[`wire_in_view`]
     /// が生成した唯一の `IntersectionObserver`）への `observe()`/`unobserve()`
-    /// を追随させる（イシュー #2396 codex-review P1 是正）。
+    /// を追随させる（イシュー #2396 codex-review P1 是正、および同 P1/
+    /// Bugbot High/Medium 4 件の再指摘を受けた是正）。
     ///
-    /// 追加ノード側は自身と子孫のうち `[data-in-view]` に一致する要素を
-    /// すべて `observe()` する（`observe()` は同一 target への再呼び出しが
-    /// 安全な冪等操作であり、既存監視対象への重複呼び出しでも二重発火は
-    /// 起きない）。削除ノード側は同様に `unobserve()` する（未監視 target
-    /// への `unobserve()` も安全な no-op）。
+    /// # 監視状態を `data-in-view` 属性の有無から独立させる不変条件
+    ///
+    /// [`handle_intersections`] は交差状態に応じて `data-in-view` を
+    /// 付け外しするため、この属性は「監視中かどうか」の判定に**使えない**
+    /// （非交差時に属性が消え、それを「監視対象外になった」と誤読すると、
+    /// 削除ノード側の `unobserve()` が対象を見失いリークする。逆に once
+    /// 進入済み要素は属性が付いたまま残るため、それを「新規候補」と
+    /// 誤読すると once 契約が破れる）。このため監視状態は 3 個の
+    /// `js_sys::WeakSet`（要素識別ベース、`data-in-view` の値に一切依存
+    /// しない）で独立に追跡する: `opted_in`（一度でも opt-in マーカー
+    /// 一致で候補になった要素、永続）・`observed`（現在
+    /// `observer.observe()` 登録中の要素）・`once_done`（once 進入済みで
+    /// 今後一切再 observe しない要素、永続）。
+    ///
+    /// 追加ノード側は自身と子孫の**全要素**（属性の有無を問わない、
+    /// [`all_elements_of`]）を対象に、`once_done` 未登録かつ
+    /// （現在 `[data-in-view]` に一致する、または過去に `opted_in` 済み）
+    /// の要素だけを `observed` へ追加のうえ `observe()` する（`opted_in`
+    /// 済み要素の再取り込みは keyed-list の Move — 同一ノードの
+    /// remove→add — で非交差中〔属性なし〕の要素が再挿入される場合に
+    /// 対応する）。削除ノード側も同様に全要素を対象に `observed` 登録
+    /// 済みの要素だけを `unobserve()` して `observed` から外す。
     fn wire_in_view_mutation_observer(
         root: &Element,
         observer: IntersectionObserver,
+        opted_in: js_sys::WeakSet,
+        observed: js_sys::WeakSet,
+        once_done: js_sys::WeakSet,
     ) -> Result<(), JsValue> {
         let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |records: js_sys::Array, _observer: MutationObserver| {
@@ -171,13 +200,26 @@ mod wiring {
                         continue;
                     };
                     for node in node_list_items(&record.added_nodes()) {
-                        for el in in_view_elements_of(&node) {
-                            observer.observe(&el);
+                        for el in all_elements_of(&node) {
+                            if once_done.has(&el) {
+                                continue;
+                            }
+                            let opts_in_now = matches!(el.matches(IN_VIEW_SELECTOR), Ok(true));
+                            if opts_in_now {
+                                opted_in.add(&el);
+                            }
+                            if (opts_in_now || opted_in.has(&el)) && !observed.has(&el) {
+                                observer.observe(&el);
+                                observed.add(&el);
+                            }
                         }
                     }
                     for node in node_list_items(&record.removed_nodes()) {
-                        for el in in_view_elements_of(&node) {
-                            observer.unobserve(&el);
+                        for el in all_elements_of(&node) {
+                            if observed.has(&el) {
+                                observer.unobserve(&el);
+                                observed.delete(&el);
+                            }
                         }
                     }
                 }
@@ -206,30 +248,44 @@ mod wiring {
         out
     }
 
-    /// `node` 自身が `[data-in-view]` に一致すればそれを、加えて子孫の
-    /// 一致要素をすべて集める（`MutationRecord::added_nodes`/`removed_nodes`
-    /// の 1 ノードが `[data-in-view]` 要素を内包するサブツリーである場合に
-    /// 対応する。`Element` でないノード（テキストノード等）・`matches`/
+    /// `node` 自身と子孫の**全要素**を、`data-in-view` 属性の有無を問わず
+    /// 集める（`wire_in_view_mutation_observer` の追加・削除いずれの側も
+    /// 監視状態は属性ではなく `WeakSet` で判定するため、走査自体は選択的
+    /// セレクタに絞らない。`Element` でないノード（テキストノード等）・
     /// `query_selector_all` の失敗は無視する fail-closed 処理）。
-    fn in_view_elements_of(node: &Node) -> Vec<Element> {
+    fn all_elements_of(node: &Node) -> Vec<Element> {
         let Ok(el) = node.clone().dyn_into::<Element>() else {
             return Vec::new();
         };
-        let mut out = Vec::new();
-        if matches!(el.matches(IN_VIEW_SELECTOR), Ok(true)) {
-            out.push(el.clone());
+        let mut out = vec![el.clone()];
+        if let Ok(node_list) = el.query_selector_all("*") {
+            let len = node_list.length();
+            for i in 0..len {
+                if let Some(child) = node_list.get(i) {
+                    if let Ok(child_el) = child.dyn_into::<Element>() {
+                        out.push(child_el);
+                    }
+                }
+            }
         }
-        out.extend(collect_in_view_candidates(&el));
         out
     }
 
     /// `IntersectionObserver` コールバック本体。各 `entry` の交差状態に
     /// 応じて `data-in-view` を付け外しし、once 指定かつ進入済みの要素は
-    /// `unobserve` する。
+    /// `unobserve` して `once_done`（[`wire_in_view_mutation_observer`] と
+    /// 共有、要素識別ベースの永続集合）へ登録する。以後この要素は
+    /// `data-in-view` が DOM 上に残っていても追加ノード処理の対象から
+    /// 除外され、再挿入されても再 observe されない。
     ///
     /// `dyn_into` 失敗（想定外のノード型）はスキップする fail-closed 処理
     /// （`headless_avatar.rs::wire_avatar_src_observer` と同型）。
-    fn handle_intersections(entries: &js_sys::Array, observer: &IntersectionObserver) {
+    fn handle_intersections(
+        entries: &js_sys::Array,
+        observer: &IntersectionObserver,
+        observed: &js_sys::WeakSet,
+        once_done: &js_sys::WeakSet,
+    ) {
         for entry in entries.iter() {
             let Ok(entry) = entry.dyn_into::<IntersectionObserverEntry>() else {
                 continue;
@@ -243,6 +299,8 @@ mod wiring {
                     in_view_once_from_attr(target.get_attribute(IN_VIEW_ONCE_ATTR).as_deref());
                 if once {
                     observer.unobserve(&target);
+                    observed.delete(&target);
+                    once_done.add(&target);
                 }
             } else {
                 let _ = target.remove_attribute(IN_VIEW_ATTR);

@@ -200,6 +200,61 @@ async fn once_attribute_keeps_state_after_scrolling_back() {
     );
 }
 
+/// once 進入完了後に同一ノードを DOM 内で移動（keyed-list の Move と同型の
+/// remove→append、`in_view.rs::wire_in_view_mutation_observer` が処理する
+/// remove イベント→add イベントの組）しても再 observe されないこと
+/// （イシュー #2396 codex-review P1 2 件・Bugbot High/Medium 2 件の
+/// 重複指摘の回帰固定。`data-in-view` 属性の有無ではなく要素識別ベースの
+/// `once_done` `WeakSet` で判定するため、属性が残ったままの再挿入でも
+/// once 契約が保たれる）。
+#[wasm_bindgen_test]
+async fn once_element_moved_after_completion_is_not_reobserved() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let (container, target) = create_scroll_fixture(&document, "in-view-once-move", true);
+
+    wire_in_view(&container).expect("wire_in_view must not fail");
+
+    assert!(
+        wait_for(|| !target.has_attribute("data-in-view")).await,
+        "初期非交差の要素から data-in-view が外れること（IntersectionObserver の初回通知）"
+    );
+
+    container.set_scroll_top(300);
+    assert!(
+        wait_for(|| target.has_attribute("data-in-view")).await,
+        "スクロールで可視域へ入った要素に data-in-view が付くこと（once 進入完了）"
+    );
+
+    // Move: 同一ノードを remove → append（keyed-list の Move が発行する
+    // remove_nodes/added_nodes の組と同型）。フィクスチャの子は
+    // [top_spacer(300px), target(20px), bottom_spacer(300px)] であり、
+    // target を末尾へ再挿入すると新しい位置は top_spacer + bottom_spacer
+    // = 600px 目以降となり、scroll_top == 300（表示域 [300,400)）では
+    // 非交差になる。誤って再 observe されていれば、この非交差通知で
+    // `data-in-view` が外れてしまう。
+    container
+        .remove_child(&target)
+        .expect("remove_child must not fail");
+    container
+        .append_child(&target)
+        .expect("append_child must not fail");
+
+    // 「外れない」ことは有限時間内には確認できないため、`IntersectionObserver`
+    // の再発火が起きるであろう猶予（数フレーム分）だけ待ってから判定する
+    // （`once_attribute_keeps_state_after_scrolling_back` と同型）。
+    let mut ticks = 0;
+    let _ = wait_for(|| {
+        ticks += 1;
+        ticks >= 20
+    })
+    .await;
+    assert!(
+        target.has_attribute("data-in-view"),
+        "once 完了済み要素は移動後も再 observe されず data-in-view が残り続けること"
+    );
+}
+
 /// `wire_in_view` 呼び出し後に動的追加された要素にも監視が及ぶこと
 /// （イシュー #2396 codex-review P1 是正の回帰固定）。`Runtime::rerender`/
 /// `rerender_subtree` の DOM 一括差し替え・keyed list の Insert はいずれも
