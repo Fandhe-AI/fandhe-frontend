@@ -1,7 +1,7 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 17 件・
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 18 件・
 scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
@@ -62,6 +62,7 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_message_scroller` | `message-scroller` |
 | `Runtime::wire_data_table` | `data-table` |
 | `Runtime::wire_in_view` | `in-view` |
+| `Runtime::wire_gesture` | `gesture` |
 
 `position` feature（0.20.1 で追加）はこの表とは別枠です。
 `headless::wire_headless_component` 内の自動 positioning 呼び出し
@@ -173,17 +174,21 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.20.5 | `message-scroller` feature（イシュー #2122） |
 | 0.20.8 | `data-table` feature（イシュー #2126） |
 | 0.21.0 | `stagger` feature（イシュー #2397）・`in-view` feature（イシュー #2396） |
-| 0.25.0 | `animation-driver` feature（イシュー #2403/#2517）・`view-transitions` feature（イシュー #2400）・`view-transition-name` feature（イシュー #2515）・`animate` feature（イシュー #2398）。本 PR（#2403/#2517）と main（#2515/#2400/#2398）がそれぞれ独立に到達したバンプ先版数の衝突を、2 回の main 取り込みで都度 +1 して統合した最終到達版数 |
+| 0.22.0 | `view-transition-name` feature（イシュー #2515） |
+| 0.23.0 | `view-transitions` feature（イシュー #2400。main の #2515 取り込みに伴う版数衝突の再バンプ、PR #2553） |
+| 0.24.0 | `animate` feature（イシュー #2398。main の #2400 取り込みに伴う 0.23.0 同士の版数衝突の再バンプ、PR #2475） |
+| 0.25.0 | `animation-driver` feature（イシュー #2403/#2517。main の #2515/#2400/#2398 取り込みに伴う版数衝突の再バンプ、PR #2554） |
+| 0.26.0 | `gesture` feature（イシュー #2520。main の #2515/#2400/#2398/#2403/#2517 取り込みに伴う版数衝突の再バンプ、PR #2555） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 40 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 41 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.25.0"
+version = "0.26.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -204,6 +209,7 @@ features = [
   "message-scroller",
   "data-table",
   "in-view",
+  "gesture",
   "position",
   "stagger",
   "animation-driver",
@@ -268,7 +274,7 @@ wasm-bindgen-exports, collapsible, dialog, popover, tooltip, position
 - `position` は popover / tooltip の表示位置決めに必要なため含めます。
 - 配線群別 feature（avatar / clipboard / timer / angle-slider / splitter /
   signature-pad / number-input / command / sidebar / chart / chart-range /
-  questionnaire / message-scroller / data-table / in-view）は対象外です。
+  questionnaire / message-scroller / data-table / in-view / gesture）は対象外です。
 
 実測（ローカル、wasm-opt 適用済み）: `bundle-size: total_gzip_bytes=120618/200000
 files=2 result=PASS`（上限余裕 79,382 B）。CI は wasm-opt 未導入のため
