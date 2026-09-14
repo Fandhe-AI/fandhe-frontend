@@ -1,6 +1,8 @@
 //! styled Dialog（`size` variant 展開、イシュー #729）の決定的 CSS 出力
 //! ゴールデンテスト。イシュー #2193 で `close-trigger` の text variant
-//! （`[data-variant="text"]`）state 規則を追加した。
+//! （`[data-variant="text"]`）state 規則を追加した。イシュー #2387で
+//! content/backdrop へ presence（enter/exit）を適用し、旧 `data-state`
+//! 連動の静的切替（4 ブロック）を削除した。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
@@ -67,6 +69,14 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   background: var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4));
 }
 
+[data-scope="dialog"][data-part="backdrop"] {
+  opacity: 1;
+  transition-property: opacity, display;
+  transition-duration: var(--fandhe-motion-duration-slow);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
+}
+
 [data-scope="dialog"][data-part="positioner"] {
   position: fixed;
   inset: 0;
@@ -86,6 +96,14 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   padding: var(--fandhe-dialog-content-padding, var(--fandhe-space-6));
   max-width: var(--fandhe-dialog-content-max-width, 32rem);
   width: 100%;
+}
+
+[data-scope="dialog"][data-part="content"] {
+  opacity: 1;
+  transition-property: opacity, transform, display;
+  transition-duration: var(--fandhe-motion-duration-slow);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
 }
 
 [data-scope="dialog"][data-part="title"] {
@@ -169,20 +187,13 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   --fandhe-dialog-title-font-size: var(--fandhe-font-font-size-2xl);
 }
 
-[data-scope="dialog"][data-part="backdrop"][data-state="open"] {
-  opacity: 1;
-}
-
-[data-scope="dialog"][data-part="backdrop"][data-state="closed"] {
+[data-scope="dialog"][data-part="content"][hidden] {
   opacity: 0;
-}
-
-[data-scope="dialog"][data-part="content"][data-state="open"] {
-  transform: scale(1);
-}
-
-[data-scope="dialog"][data-part="content"][data-state="closed"] {
   transform: scale(0.95);
+}
+
+[data-scope="dialog"][data-part="backdrop"][hidden] {
+  opacity: 0;
 }
 
 [data-scope="dialog"][data-part="positioner"][hidden] {
@@ -212,6 +223,17 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   border-radius: var(--fandhe-radius-md);
   padding: var(--fandhe-space-2) var(--fandhe-space-3);
   color: var(--fandhe-color-fg);
+}
+
+@starting-style {
+  [data-scope="dialog"][data-part="content"] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  [data-scope="dialog"][data-part="backdrop"] {
+    opacity: 0;
+  }
 }
 
 @media (hover: hover) {

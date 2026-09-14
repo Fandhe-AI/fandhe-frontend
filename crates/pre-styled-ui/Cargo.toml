@@ -3382,18 +3382,34 @@ name = "fandhe-frontend-pre-styled-ui"
 # `success`/`warning`/`danger` 系統で充足済みのため追加しない
 # （`docs/design/color-token-system.md` §10）。公開 CSS 契約（テーマ変数）の
 # 純追加のため minor バンプし、0.192.0 を +1 した 0.193.0 とする。
+#
 # イシュー #2388: popover / tooltip / hover-card の `content` へ
 # presence（enter/exit）transition を適用し、既存 `content[data-state=
 # "closed"] { visibility: hidden }` state を削除した。公開 CSS 出力の
 # 破壊的変更（0.x のため minor バンプ）であり、0.193.0 を +1 した
 # 0.194.0 とする。
+#
+# イシュー #2387: dialog / drawer の content へ presence（`SlotRecipe::
+# presence_transition`、開く演出のみ視覚的に成立。閉じる演出は祖先
+# positioner の即時 display: none により未成立、`crates/pre-styled-ui/
+# src/dialog.rs`・`drawer.rs` rustdoc 参照）を適用した。`#2383` で確立済みの
+# `transition_declarations_allow_discrete`・`StateCondition::Attr("hidden")`
+# を用いた既存機構の適用であり新規公開 API は無い。CSS 出力（トランジション
+# 宣言）が変わるため 0.x の破壊的変更としてマイナーバンプし、main 側で
+# 独立に 0.194.0（#2388）を使用済みだったため、双方の実体変更を統合した
+# 結果として 0.195.0 へさらにマイナーバンプする。
+#
 # イシュー #2390: menu / menubar の `content`（menubar は `sub-content` も）
 # へ presence（enter/exit）transition を適用した。menu は既存
 # `content[data-state="closed"] { visibility: hidden }` state を削除し
 # `presence_transition` の `[hidden]` state へ置き換え、menubar は元々同種の
 # state を持たなかったため純追加である。いずれも公開 CSS 出力の変更（0.x の
-# ため minor バンプ）であり、0.194.0 を +1 した 0.195.0 とする。
-version = "0.195.0"
+# ため minor バンプ）であり、0.194.0 を +1 した 0.195.0 を予定していたが、
+# main 側で #2387 が同じく 0.195.0 を独立に使用済みだったため、双方の実体
+# 変更を統合した結果として 0.196.0 へさらにマイナーバンプする（0.x の
+# 破壊的変更はマイナーバンプの規約。同一版数への偶発的衝突をそのまま
+# 採用しない）。
+version = "0.196.0"
 
 
 edition = "2021"
