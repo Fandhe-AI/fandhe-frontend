@@ -200,6 +200,75 @@ async fn once_attribute_keeps_state_after_scrolling_back() {
     );
 }
 
+/// `wire_in_view` 呼び出し後に動的追加された要素にも監視が及ぶこと
+/// （イシュー #2396 codex-review P1 是正の回帰固定）。`Runtime::rerender`/
+/// `rerender_subtree` の DOM 一括差し替え・keyed list の Insert はいずれも
+/// 「`wire_in_view` 呼び出し後に `[data-in-view]` 要素が追加される」形で
+/// 現れるため、本テストはその共通部分（`MutationObserver` による
+/// 追随）を `append_child` で直接再現する。
+#[wasm_bindgen_test]
+async fn dynamically_added_element_is_observed_after_wiring() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    // 独自フィクスチャ（`[data-in-view]` 要素を含まない状態で `wire_in_view`
+    // を呼ぶ）: top spacer(300px) だけを持つスクロールコンテナ。
+    let container = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    container.set_id("in-view-dynamic-container");
+    container
+        .set_attribute("style", "height:100px;overflow-y:auto")
+        .expect("set_attribute must not fail");
+    let top_spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    top_spacer
+        .set_attribute("style", "height:300px")
+        .expect("set_attribute must not fail");
+    container
+        .append_child(&top_spacer)
+        .expect("append_child must not fail");
+    document
+        .body()
+        .expect("document body must exist in browser test environment")
+        .append_child(&container)
+        .expect("append_child must not fail for a detached div");
+
+    // 追加前の候補は 0 件（`[data-in-view]` 要素なし）の状態で配線する。
+    wire_in_view(&container).expect("wire_in_view must not fail");
+
+    // 配線後に新しい `[data-in-view]` 要素を top spacer 直後（offsetTop
+    // 300px 相当）へ追加する（keyed list Insert・構造フォールバックの
+    // DOM 追加を模す）。`scroll_top == 300` で表示域 [300,400) に収まる。
+    let new_target = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    new_target.set_id("in-view-dynamic-new-target");
+    new_target
+        .set_attribute("data-in-view", "")
+        .expect("set_attribute must not fail");
+    new_target
+        .set_attribute("style", "height:20px")
+        .expect("set_attribute must not fail");
+    container
+        .append_child(&new_target)
+        .expect("append_child must not fail");
+
+    // 追加直後は非交差のため `data-in-view` が外れる（observe されて
+    // いなければこの遷移自体が起きず、属性がタイムアウトまで残り続ける）。
+    assert!(
+        wait_for(|| !new_target.has_attribute("data-in-view")).await,
+        "動的追加要素が observe され、初回通知で data-in-view が外れること"
+    );
+
+    container.set_scroll_top(300);
+    assert!(
+        wait_for(|| new_target.has_attribute("data-in-view")).await,
+        "動的追加要素もスクロールで可視域へ入ると data-in-view が付くこと"
+    );
+}
+
 /// `Runtime::mount` 経由（`in-view` feature 既定 on）でも
 /// `Self::wire_in_view` が呼ばれ、同じ挙動になることを固定する
 /// （配線群統合の回帰）。

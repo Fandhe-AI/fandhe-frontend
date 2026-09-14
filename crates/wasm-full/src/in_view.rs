@@ -59,7 +59,10 @@ mod wiring {
     use crate::dom::set_dom_attribute_result as set_dom_attribute;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, IntersectionObserver, IntersectionObserverEntry};
+    use web_sys::{
+        Element, IntersectionObserver, IntersectionObserverEntry, MutationObserver,
+        MutationObserverInit, MutationRecord, Node, NodeList,
+    };
 
     /// `root` 配下の `[data-in-view]` 要素（複数可）を出現順に集める。
     /// `query_selector_all` の失敗は空 `Vec` として扱う（fail-closed、
@@ -96,24 +99,33 @@ mod wiring {
     /// マウント時に 1 回だけ登録する（[`crate::lib::Runtime::wire_in_view`]
     /// から呼ばれる）。
     ///
-    /// 候補 0 件なら即 `Ok(())`。非対応ブラウザ（`supports_intersection_observer`
-    /// が `false`）ではプログレッシブエンハンスメントとして候補全件へ即座に
-    /// `data-in-view` を付与する（JS 非対応でも常に可視という安全側
-    /// デフォルト、`nav.rs::start_view_transition_prop` の同期フォール
-    /// バックと同じ方針）。
+    /// 非対応ブラウザ（`supports_intersection_observer` が `false`）では
+    /// プログレッシブエンハンスメントとして現時点の候補全件へ即座に
+    /// `data-in-view` を付与して終了する（JS 非対応でも常に可視という
+    /// 安全側デフォルト、`nav.rs::start_view_transition_prop` の同期フォール
+    /// バックと同じ方針。動的追加要素の追随は行わない、既知の制約）。
     ///
-    /// 単一 `IntersectionObserver` インスタンスで候補を複数 `observe()` する
-    /// （`headless_avatar.rs::wire_avatar_src_observer` と同じ「マウント時
-    /// 1 回・定数個リーク」契約、`Closure::forget()` は 1 回のみ）。
+    /// 対応ブラウザでは単一 `IntersectionObserver` インスタンスで初期候補を
+    /// `observe()` したうえで、`root` を対象に `childList: true` +
+    /// `subtree: true` の `MutationObserver`（[`wire_in_view_mutation_observer`]）
+    /// を追加登録する。`Runtime::rerender_subtree` の DOM 一括差し替え・
+    /// keyed list の Insert はいずれも `root` 配下のノード追加・削除として
+    /// 現れるため、`IntersectionObserver` 自体を毎回作り直さず「`root` を
+    /// 監視し続ける 1 個の `MutationObserver` が新規要素の `observe()`・
+    /// 消失要素の `unobserve()` を追随する」設計で対応する
+    /// （`headless_avatar.rs::wire_avatar_src_observer` が `root` に
+    /// `subtree: true` で 1 個の `MutationObserver` を張り続けることで
+    /// DOM 差し替えに追随する方針と同型。個々の要素ではなく `root` を
+    /// 監視対象にすることで、`Runtime::wire_in_view` を再呼び出しする
+    /// 契約変更なしに追随できる）。両 observer とも「マウント時 1 回・
+    /// 定数個リーク」契約（`Closure::forget()` は各 1 回のみ）を維持する。
     ///
     /// # Errors
     ///
-    /// `IntersectionObserver::new`・`observe`・属性書き込みの失敗を伝播する。
+    /// `IntersectionObserver::new`・`MutationObserver::new`・`observe`・
+    /// 属性書き込みの失敗を伝播する。
     pub fn wire_in_view(root: &Element) -> Result<(), JsValue> {
         let candidates = collect_in_view_candidates(root);
-        if candidates.is_empty() {
-            return Ok(());
-        }
 
         if !supports_intersection_observer() {
             for el in &candidates {
@@ -134,7 +146,81 @@ mod wiring {
             observer.observe(el);
         }
 
+        wire_in_view_mutation_observer(root, observer)?;
+
         Ok(())
+    }
+
+    /// `root` 配下の追加・削除ノードを追跡し、`observer`（[`wire_in_view`]
+    /// が生成した唯一の `IntersectionObserver`）への `observe()`/`unobserve()`
+    /// を追随させる（イシュー #2396 codex-review P1 是正）。
+    ///
+    /// 追加ノード側は自身と子孫のうち `[data-in-view]` に一致する要素を
+    /// すべて `observe()` する（`observe()` は同一 target への再呼び出しが
+    /// 安全な冪等操作であり、既存監視対象への重複呼び出しでも二重発火は
+    /// 起きない）。削除ノード側は同様に `unobserve()` する（未監視 target
+    /// への `unobserve()` も安全な no-op）。
+    fn wire_in_view_mutation_observer(
+        root: &Element,
+        observer: IntersectionObserver,
+    ) -> Result<(), JsValue> {
+        let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
+            move |records: js_sys::Array, _observer: MutationObserver| {
+                for record in records.iter() {
+                    let Ok(record) = record.dyn_into::<MutationRecord>() else {
+                        continue;
+                    };
+                    for node in node_list_items(&record.added_nodes()) {
+                        for el in in_view_elements_of(&node) {
+                            observer.observe(&el);
+                        }
+                    }
+                    for node in node_list_items(&record.removed_nodes()) {
+                        for el in in_view_elements_of(&node) {
+                            observer.unobserve(&el);
+                        }
+                    }
+                }
+            },
+        );
+        let mutation_observer = MutationObserver::new(callback.as_ref().unchecked_ref())?;
+        let init = MutationObserverInit::new();
+        init.set_child_list(true);
+        init.set_subtree(true);
+        mutation_observer.observe_with_options(root, &init)?;
+        callback.forget();
+        Ok(())
+    }
+
+    /// `NodeList`（`MutationRecord::added_nodes`/`removed_nodes` が返す型）
+    /// を `Vec<Node>` へ集める（`NodeList` は `Iterator` を実装しないため、
+    /// `collect_in_view_candidates` と同じ `length`/`get` 走査で代替する）。
+    fn node_list_items(list: &NodeList) -> Vec<Node> {
+        let len = list.length();
+        let mut out = Vec::with_capacity(len as usize);
+        for i in 0..len {
+            if let Some(node) = list.get(i) {
+                out.push(node);
+            }
+        }
+        out
+    }
+
+    /// `node` 自身が `[data-in-view]` に一致すればそれを、加えて子孫の
+    /// 一致要素をすべて集める（`MutationRecord::added_nodes`/`removed_nodes`
+    /// の 1 ノードが `[data-in-view]` 要素を内包するサブツリーである場合に
+    /// 対応する。`Element` でないノード（テキストノード等）・`matches`/
+    /// `query_selector_all` の失敗は無視する fail-closed 処理）。
+    fn in_view_elements_of(node: &Node) -> Vec<Element> {
+        let Ok(el) = node.clone().dyn_into::<Element>() else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        if matches!(el.matches(IN_VIEW_SELECTOR), Ok(true)) {
+            out.push(el.clone());
+        }
+        out.extend(collect_in_view_candidates(&el));
+        out
     }
 
     /// `IntersectionObserver` コールバック本体。各 `entry` の交差状態に
