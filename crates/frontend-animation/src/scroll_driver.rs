@@ -392,16 +392,35 @@ fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool 
 /// （SVG 等）は素の `getBoundingClientRect()` へフォールバックする
 /// （fail-open: 計測結果が変形の影響を受け得るが、少なくとも panic
 /// しない）。
+///
+/// 戻り値の `bool` は計測直前の算出済みスタイルが `position: sticky`
+/// だったかどうか（[`update_element_progress_for_range`] が
+/// [`ProgressRange::Contain`] のピン留め区間考慮計算へ分岐するために
+/// 使う、codex-review P1 是正、PR #2563）。
+///
+/// # インラインスタイルの優先度（`!important`）保存・復元（codex-review
+/// P1 是正、PR #2563）
+///
+/// 一時上書き前に [`CssStyleDeclaration::get_property_priority`] で
+/// 各プロパティの優先度（`""` または `"important"`）も保存し、復元時は
+/// [`CssStyleDeclaration::set_property_with_priority`] で渡す。単純な
+/// `set_property`（優先度は常に空文字列扱い）で復元すると、元のインライン
+/// 宣言が `!important` を持っていた場合に計測後の復元値から `!important`
+/// が失われ、競合するスタイルシート側の重要宣言がある環境で表示・配置が
+/// 恒久的に変化してしまう（計測は同期的な一時上書きのはずが副作用を
+/// 残すバグ）。
 #[cfg(target_arch = "wasm32")]
-fn measure_untransformed_rect(element: &web_sys::Element) -> web_sys::DomRect {
+fn measure_untransformed_rect(element: &web_sys::Element) -> (web_sys::DomRect, bool) {
     let Some(html) = element.dyn_ref::<web_sys::HtmlElement>() else {
-        return element.get_bounding_client_rect();
+        return (element.get_bounding_client_rect(), false);
     };
     let style = html.style();
 
     let saved_translate = style.get_property_value("translate").ok();
+    let saved_translate_priority = style.get_property_priority("translate");
     let _ = style.set_property("translate", "none");
     let saved_scale = style.get_property_value("scale").ok();
+    let saved_scale_priority = style.get_property_priority("scale");
     let _ = style.set_property("scale", "none");
 
     let is_sticky = web_sys::window()
@@ -411,42 +430,57 @@ fn measure_untransformed_rect(element: &web_sys::Element) -> web_sys::DomRect {
         .unwrap_or(false);
     let saved_position = if is_sticky {
         let prev = style.get_property_value("position").ok();
+        let prev_priority = style.get_property_priority("position");
         let _ = style.set_property("position", "static");
-        Some(prev)
+        Some((prev, prev_priority))
     } else {
         None
     };
 
     let rect = element.get_bounding_client_rect();
 
-    match saved_translate.as_deref() {
-        Some(value) if !value.is_empty() => {
-            let _ = style.set_property("translate", value);
-        }
-        _ => {
-            let _ = style.remove_property("translate");
-        }
-    }
-    match saved_scale.as_deref() {
-        Some(value) if !value.is_empty() => {
-            let _ = style.set_property("scale", value);
-        }
-        _ => {
-            let _ = style.remove_property("scale");
-        }
-    }
-    if let Some(prev) = saved_position {
-        match prev.as_deref() {
-            Some(value) if !value.is_empty() => {
-                let _ = style.set_property("position", value);
-            }
-            _ => {
-                let _ = style.remove_property("position");
-            }
-        }
+    restore_inline_property(
+        &style,
+        "translate",
+        saved_translate.as_deref(),
+        &saved_translate_priority,
+    );
+    restore_inline_property(
+        &style,
+        "scale",
+        saved_scale.as_deref(),
+        &saved_scale_priority,
+    );
+    if let Some((prev, prev_priority)) = saved_position {
+        restore_inline_property(&style, "position", prev.as_deref(), &prev_priority);
     }
 
-    rect
+    (rect, is_sticky)
+}
+
+/// [`measure_untransformed_rect`] の一時上書き復元を 1 プロパティぶん
+/// 行う共通ヘルパ（`translate`/`scale`/`position` の 3 箇所で同型の
+/// 分岐を重複させないため、codex-review P1 是正、PR #2563）。
+///
+/// `value` が計測前に値を持っていれば `priority` 付きで復元し（元の
+/// `!important` を保つ）、値が無かった／空文字列だった場合は
+/// `remove_property` で宣言ごと取り除く（計測前に存在しなかった
+/// プロパティを空文字列で新規に生やさない）。
+#[cfg(target_arch = "wasm32")]
+fn restore_inline_property(
+    style: &web_sys::CssStyleDeclaration,
+    name: &str,
+    value: Option<&str>,
+    priority: &str,
+) {
+    match value {
+        Some(v) if !v.is_empty() => {
+            let _ = style.set_property_with_priority(name, v, priority);
+        }
+        _ => {
+            let _ = style.remove_property(name);
+        }
+    }
 }
 
 /// `element` の現在位置を計測し、[`compute_progress`] の結果を `target` へ
@@ -494,8 +528,9 @@ pub fn update_element_progress_for_range(
 ) -> Option<f64> {
     #[cfg(target_arch = "wasm32")]
     {
-        let rect = measure_untransformed_rect(element);
-        let (reference_top, reference_height) = match find_scroll_container(element) {
+        let (rect, is_sticky) = measure_untransformed_rect(element);
+        let scroll_container = find_scroll_container(element);
+        let (reference_top, reference_height) = match &scroll_container {
             Some(container) => {
                 // `getBoundingClientRect()` の高さは border box（border・
                 // 横スクロールバー領域を含む）であり、実際に中身が見える
@@ -526,12 +561,29 @@ pub fn update_element_progress_for_range(
                 (0.0, viewport_height)
             }
         };
-        let progress = compute_progress_for_range(
-            rect.top() - reference_top,
-            rect.height(),
-            reference_height,
-            range,
-        );
+        // `position: sticky` 要素の `Contain` 進捗はピン留め区間そのもの
+        // （codex-review P1 是正、PR #2563。詳細は [`sticky_contain_pin_progress`]
+        // 参照）。ネストしたスクロールコンテナ配下の sticky 要素はこの
+        // 単純化の対象外とし（`scroll_container.is_none()` 限定）、通常の
+        // `compute_progress_for_range` 計算へフォールバックする（既知の
+        // 単純化、`docs/design/motion-reference-adoption-policy.md` §6 と
+        // 同種の割り切り。ページ全体スクロール前提の本イシューのテスト
+        // 範囲を超えるため）。
+        let sticky_progress =
+            if is_sticky && range == ProgressRange::Contain && scroll_container.is_none() {
+                sticky_contain_pin_progress(element, &rect)
+            } else {
+                None
+            };
+        let progress = match sticky_progress {
+            Some(value) => value,
+            None => compute_progress_for_range(
+                rect.top() - reference_top,
+                rect.height(),
+                reference_height,
+                range,
+            ),
+        };
         target.write(progress);
         Some(progress)
     }
@@ -540,6 +592,99 @@ pub fn update_element_progress_for_range(
         let _ = (element, target, range);
         None
     }
+}
+
+/// `position: sticky` 要素の [`ProgressRange::Contain`] を「ピン留め区間」
+/// として計算する（codex-review P1 是正、PR #2563）。
+///
+/// # 是正前の不具合
+///
+/// [`measure_untransformed_rect`] は sticky 要素を計測直前に一時的に
+/// `position: static` へ戻し「ピン留めされていない場合の自然な位置」を
+/// 得る。この非ピン留め位置はスクロールにつれて連続的に動き続けるため、
+/// `Contain` の式（`(viewport_height - rect_height - rect_top) /
+/// (viewport_height - rect_height)`）へそのまま渡すと、ピン留め開始
+/// 直後には非ピン留め位置の `rect_top` が急速に負の大きな値へ進んでしまい
+/// 分子が分母を超えて即座に `1.0` へクランプされる（ピン留め中ずっと
+/// 進捗が変化しない契約違反）。
+///
+/// # 是正方法
+///
+/// `Contain` が意図する「要素がビューポートに完全収容されている期間」は
+/// sticky 要素にとってまさに「ピン留めされている期間」そのものである。
+/// そこで非ピン留め位置ではなく、CSS Position スペックの sticky 配置式
+/// （<https://www.w3.org/TR/css-position-3/#sticky-pos>）に基づき、
+/// ピン留めの開始・終了をスクロールオフセットの区間として直接計算する:
+///
+/// - ピン留め開始（`pin_start`）: 要素の非ピン留め・文書相対な上端位置
+///   （[`measure_untransformed_rect`] が返す `rect`）が `top` オフセット
+///   と一致するスクロール位置
+/// - ピン留め終了（`pin_end`）: 包含ブロック（[`Element::parent_element`]
+///   で近似する既知の単純化、下記参照）の下端から要素高さを引いた位置が
+///   `top` オフセットと一致するスクロール位置
+///
+/// `progress = clamp01((scroll_y - pin_start) / (pin_end - pin_start))`。
+/// ピン留め開始前は `scroll_y < pin_start` のため `0.0` に、ピン留め終了後
+/// （要素が包含ブロック下端に押し出され再び通常フローへ戻る）は `1.0` に
+/// クランプされる。
+///
+/// # 既知の単純化
+///
+/// - 包含ブロックは `element.parent_element()` で近似する（sticky の
+///   厳密な包含ブロックは「スクロール可能な祖先の padding box と直近の
+///   ブロックコンテナ祖先」の交差だが、`crates/pre-styled-ui` の
+///   `sticky_progress` 利用形は素の親要素配下へ直接ピン留め要素を
+///   置く構成のみを想定するため、単純化として妥当）。
+/// - `window.scroll_y()`（ページ全体スクロール）のみを扱う。呼び出し元
+///   ([`update_element_progress_for_range`]) がネストしたスクロール
+///   コンテナ配下ではこの関数を呼ばず通常計算へフォールバックする。
+/// - `top` の単位は `px` のみ対応（`%`/`calc()` 等は `0.0` 扱いへ
+///   フォールバック、fail-closed に「常にどこかへ収まる」進捗を返す）。
+///
+/// `window`/`document` 取得失敗・包含ブロック不在・ピン留め区間が退化
+/// （`pin_end <= pin_start`、包含ブロックが要素の非ピン留め位置より
+/// 低い異常構成）の場合は `None` を返し、呼び出し元が通常計算へ
+/// フォールバックする。
+#[cfg(target_arch = "wasm32")]
+fn sticky_contain_pin_progress(
+    element: &web_sys::Element,
+    unpinned_rect: &web_sys::DomRect,
+) -> Option<f64> {
+    let window = web_sys::window()?;
+    let scroll_y = window.scroll_y().ok()?;
+
+    let top_offset = window
+        .get_computed_style(element)
+        .ok()
+        .flatten()
+        .and_then(|computed| computed.get_property_value("top").ok())
+        .and_then(|value| parse_px_value(&value))
+        .unwrap_or(0.0);
+
+    let parent = element.parent_element()?;
+    let parent_bottom_doc = parent.get_bounding_client_rect().bottom() + scroll_y;
+
+    let rect_height = unpinned_rect.height();
+    let static_top_doc = unpinned_rect.top() + scroll_y;
+
+    let pin_start = static_top_doc - top_offset;
+    let pin_end = parent_bottom_doc - rect_height - top_offset;
+    let pin_total = pin_end - pin_start;
+
+    if pin_total <= 0.0 {
+        return None;
+    }
+
+    Some(((scroll_y - pin_start) / pin_total).clamp(0.0, 1.0))
+}
+
+/// `"12px"` のような CSS `<length>` の px 表現を数値へ変換する
+/// （[`sticky_contain_pin_progress`] が `top` の算出値を読むために使う）。
+/// `%`/`calc()`/`auto` 等 px 以外の表現は `None` を返す
+/// （呼び出し元が既定値 `0.0` へフォールバックする）。
+#[cfg(target_arch = "wasm32")]
+fn parse_px_value(value: &str) -> Option<f64> {
+    value.strip_suffix("px")?.trim().parse::<f64>().ok()
 }
 
 /// dirty-flag 方式で「scroll/resize イベント発火時のみ再計算する」rAF

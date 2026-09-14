@@ -417,6 +417,14 @@ async fn update_element_progress_for_range_cover_lags_behind_entry() {
 
     const TARGET_HEIGHT: f64 = 200.0;
     const SPACER_HEIGHT: f64 = 3000.0;
+    // headless Chrome の既定ウィンドウ高が非常に小さい（実測 400〜440px
+    // 程度）環境では、`target_el` を末尾要素のまま `scroll_y` を計算すると
+    // ブラウザの最大スクロール量（`document.scrollHeight - viewport_height`）
+    // を超えてクランプされ、期待した `rect_top` に到達できない（codex-review
+    // 起因の browser test 失敗調査で判明、PR #2563）。`target_el` の後ろに
+    // 十分な余白（`SPACER_AFTER_HEIGHT`）を追加し、どのビューポート高でも
+    // クランプが起きないだけの最大スクロール量を確保する。
+    const SPACER_AFTER_HEIGHT: f64 = 2000.0;
     // rect_top を viewport_height - 300 付近へ合わせる: entry の 1.0 到達
     // 条件（rect_top <= viewport_height - TARGET_HEIGHT）を満たしつつ、
     // cover は non-degenerate な中間値のまま（cover = 300 / (viewport_height
@@ -441,6 +449,13 @@ async fn update_element_progress_for_range_cover_lags_behind_entry() {
         .set_attribute("style", &format!("height:{TARGET_HEIGHT}px"))
         .expect("set_attribute must not fail");
 
+    let spacer_after = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer_after
+        .set_attribute("style", &format!("height:{SPACER_AFTER_HEIGHT}px"))
+        .expect("set_attribute must not fail");
+
     let body = document
         .body()
         .expect("document body must exist in browser test environment");
@@ -448,6 +463,8 @@ async fn update_element_progress_for_range_cover_lags_behind_entry() {
         .expect("append_child must not fail for a detached spacer");
     body.append_child(&target_el)
         .expect("append_child must not fail for a detached target");
+    body.append_child(&spacer_after)
+        .expect("append_child must not fail for a detached spacer");
 
     let element: web_sys::Element = target_el.clone().into();
     let mut entry_target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
@@ -480,6 +497,7 @@ async fn update_element_progress_for_range_cover_lags_behind_entry() {
     window.scroll_to_with_x_and_y(0.0, 0.0);
     spacer.remove();
     target_el.remove();
+    spacer_after.remove();
 }
 
 /// codex-review P1 是正（PR #2563）の回帰テスト: `SlotRecipe::parallax`
@@ -496,6 +514,27 @@ async fn update_element_progress_for_range_cover_lags_behind_entry() {
 async fn update_element_progress_is_stable_despite_self_applied_translate() {
     let window = web_sys::window().expect("window must exist in browser test environment");
     let document = window.document().expect("document must exist");
+    let viewport_height = window
+        .inner_height()
+        .expect("inner_height must not fail")
+        .as_f64()
+        .expect("inner_height must be a finite number");
+
+    const TARGET_HEIGHT: f64 = 200.0;
+    const SPACER_HEIGHT: f64 = 3000.0;
+    // headless Chrome の既定ウィンドウ高が非常に小さい（実測 400〜440px
+    // 程度）環境では、固定スクロール量（旧実装は 2900px 固定）が
+    // ブラウザの最大スクロール量を超えてクランプされ、期待した中間値の
+    // `rect_top`（延いては非退化の progress）に到達できない（codex-review
+    // 起因の browser test 失敗調査で判明、PR #2563）。ビューポート高から
+    // 逆算した `rect_top`（`viewport_height - TARGET_HEIGHT / 2.0`、常に
+    // `compute_progress` を厳密に 0.5 にする値）を使い、末尾要素の後ろに
+    // 十分な余白（`SPACER_AFTER_HEIGHT`）を追加してどのビューポート高でも
+    // クランプが起きないようにする。
+    const SPACER_AFTER_HEIGHT: f64 = 2000.0;
+    let target_document_top = SPACER_HEIGHT;
+    let desired_rect_top = viewport_height - TARGET_HEIGHT / 2.0;
+    let scroll_y = (target_document_top - desired_rect_top).max(0.0);
 
     // 要素自身の `data-fandhe-scroll-progress` 相当のフォールバック CSS
     // （`SlotRecipe::write_parallax_blocks` の fallback ブロックと同型）を
@@ -521,7 +560,7 @@ async fn update_element_progress_is_stable_despite_self_applied_translate() {
         .create_element("div")
         .expect("create_element must not fail for a plain div");
     spacer
-        .set_attribute("style", "height:3000px")
+        .set_attribute("style", &format!("height:{SPACER_HEIGHT}px"))
         .expect("set_attribute must not fail");
 
     let target_el = document
@@ -534,8 +573,15 @@ async fn update_element_progress_is_stable_despite_self_applied_translate() {
         .expect("set_attribute must not fail");
     target_el
         .style()
-        .set_property("height", "200px")
+        .set_property("height", &format!("{TARGET_HEIGHT}px"))
         .expect("set_property must not fail");
+
+    let spacer_after = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer_after
+        .set_attribute("style", &format!("height:{SPACER_AFTER_HEIGHT}px"))
+        .expect("set_attribute must not fail");
 
     let body = document
         .body()
@@ -544,13 +590,15 @@ async fn update_element_progress_is_stable_despite_self_applied_translate() {
         .expect("append_child must not fail for a detached spacer");
     body.append_child(&target_el)
         .expect("append_child must not fail for a detached target");
+    body.append_child(&spacer_after)
+        .expect("append_child must not fail for a detached spacer");
 
     let element: web_sys::Element = target_el.clone().into();
     let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
 
     // 中間的なスクロール位置（progress が 0.0/1.0 に clamp されない値）へ
     // 固定し、同じスクロール位置のまま複数フレームぶん再計算する。
-    window.scroll_to_with_x_and_y(0.0, 2900.0);
+    window.scroll_to_with_x_and_y(0.0, scroll_y);
     wait_one_frame().await;
 
     let first = update_element_progress(&element, &mut target)
@@ -564,7 +612,8 @@ async fn update_element_progress_is_stable_despite_self_applied_translate() {
 
     assert!(
         first > 0.0 && first < 1.0,
-        "検証対象のスクロール位置は非退化の中間値であるはず: {first}"
+        "検証対象のスクロール位置は非退化の中間値であるはず: \
+         first={first} viewport_height={viewport_height} scroll_y={scroll_y}"
     );
     assert_eq!(
         first, second,
@@ -580,6 +629,7 @@ async fn update_element_progress_is_stable_despite_self_applied_translate() {
     window.scroll_to_with_x_and_y(0.0, 0.0);
     spacer.remove();
     target_el.remove();
+    spacer_after.remove();
     style_el.remove();
 }
 
