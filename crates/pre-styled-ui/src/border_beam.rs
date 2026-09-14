@@ -47,12 +47,28 @@
 //!    （枠線の太さ分だけ子要素を内側へ寄せ、光が漏れる隙間を作る）を
 //!    与える。
 //! 2. `.fd-border-beam::before` に `conic-gradient` を背景として持つ、
-//!    自身の 2 倍サイズの正方形レイヤーを中央揃えで配置し、
+//!    ラッパーの**長辺基準**の正方形レイヤーを中央揃えで配置し、
 //!    `transform: rotate()` を `@keyframes` で `0deg` → `360deg` へ
-//!    アニメーションする（オーバーサイズにすることで回転中も四隅の
-//!    切れ目が見えない）。`z-index: -1` + ラッパーの `isolation: isolate`
-//!    により、ラッパーの子要素（呼び出し側が渡した実コンテンツ）より
-//!    必ず下に描画される。
+//!    アニメーションする。サイズは `top: 50%; left: 50%;`（`inset: 50%`
+//!    ショートハンドは使わない。`right`/`bottom` も同時に 50% へ固定して
+//!    しまい、`width`/`aspect-ratio` と衝突して高さが 0 に潰れうるため
+//!    ─ イシュー #2531 レビュー指摘）+ `min-width: 200%; min-height:
+//!    200%; aspect-ratio: 1;`（`width`/`height` 自体は `auto` のまま）で
+//!    表現する。CSS Sizing の「移行された最小サイズ」
+//!    （preferred size が両軸 `auto` かつ `aspect-ratio` を持つ場合、
+//!    `min-width`/`min-height` は比率を介して互いに転送される）により、
+//!    実効の最小サイズは `max(own, transferred)` となる。すなわち正方形
+//!    の一辺は `2 * max(ラッパーの幅, ラッパーの高さ)` に確定する
+//!    （`playwright` で 200×800 / 800×200 双方の `getComputedStyle`
+//!    を実測し確認済み）。この正方形の内接円半径（一辺の半分 =
+//!    `max(幅, 高さ)`）は常にラッパーの半対角線長
+//!    （`sqrt(幅² + 高さ²) / 2 ≤ max(幅, 高さ) * sqrt(2) / 2`）以上と
+//!    なるため、幅・高さどちらが長い縦長・横長カードでも、回転角度に
+//!    関わらずラッパーの四隅を含む全域を覆う（旧実装は `width: 200%` +
+//!    `aspect-ratio: 1` で正方形の一辺をラッパーの**幅のみ**から決めて
+//!    いたため、縦長カードで上下辺に光が届かない不具合があった）。
+//!    `z-index: -1` + ラッパーの `isolation: isolate` により、ラッパーの
+//!    子要素（呼び出し側が渡した実コンテンツ）より必ず下に描画される。
 //! 3. 子要素は `padding` で生まれた枠線幅の隙間を除いて回転レイヤーの
 //!    上に重なるため、子要素自身の背景（不透明ならなお良い）が中央を
 //!    覆い、隙間だけが光る「枠線」に見える。
@@ -136,8 +152,10 @@ pub const BORDER_BEAM_CSS: &str = concat!(
     ".fd-border-beam::before {\n",
     "  content: \"\";\n",
     "  position: absolute;\n",
-    "  inset: 50%;\n",
-    "  width: 200%;\n",
+    "  top: 50%;\n",
+    "  left: 50%;\n",
+    "  min-width: 200%;\n",
+    "  min-height: 200%;\n",
     "  aspect-ratio: 1;\n",
     "  z-index: -1;\n",
     "  pointer-events: none;\n",
@@ -199,6 +217,28 @@ mod tests {
         assert!(BORDER_BEAM_CSS.contains(".fd-border-beam::before {"));
         assert!(BORDER_BEAM_CSS.contains("@keyframes fd-border-beam-rotate {"));
         assert!(BORDER_BEAM_CSS.contains("@media (prefers-reduced-motion: reduce) {"));
+    }
+
+    #[test]
+    fn light_layer_size_is_derived_from_both_wrapper_axes_not_width_alone() {
+        // イシュー #2531 レビュー指摘（codex-review P1 / Cursor Bugbot
+        // High）: 旧実装の `inset: 50%; width: 200%; aspect-ratio: 1;`
+        // は `inset` ショートハンドが `right`/`bottom` も 50% に固定し
+        // `width: 200%`/`aspect-ratio: 1` と衝突して絶対配置ボックスの
+        // 高さが 0 に潰れうる。かつ一辺をラッパーの幅のみから決めるため
+        // 縦長カードで上下辺に光が届かない。`min-width`/`min-height`
+        // （`width`/`height` は `auto`）+ `aspect-ratio: 1` の「移行
+        // された最小サイズ」により、正方形の一辺を
+        // `2 * max(幅, 高さ)` へ確定させる（モジュール doc「技術選定」
+        // 節参照。playwright 実測: 200×800 / 800×200 いずれも
+        // `::before` は 1604×1604px の正方形になることを確認済み）。
+        assert!(!BORDER_BEAM_CSS.contains("inset: 50%"));
+        assert!(!BORDER_BEAM_CSS.contains("  width: 200%;\n"));
+        assert!(BORDER_BEAM_CSS.contains("  top: 50%;\n"));
+        assert!(BORDER_BEAM_CSS.contains("  left: 50%;\n"));
+        assert!(BORDER_BEAM_CSS.contains("  min-width: 200%;\n"));
+        assert!(BORDER_BEAM_CSS.contains("  min-height: 200%;\n"));
+        assert!(BORDER_BEAM_CSS.contains("  aspect-ratio: 1;\n"));
     }
 
     #[test]

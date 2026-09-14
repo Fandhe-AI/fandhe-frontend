@@ -76,9 +76,11 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   - `@property` によるカスタムプロパティ型登録は使いません（`<angle>` 等
     `<` を含むリテラルは本クレートの CSS 不変条件に抵触するため）。
     代わりに `transform: rotate()` で光源レイヤーを回転させる技法を
-    採ります。ラッパーの `overflow: hidden` が子要素の box-shadow・
-    フォーカスリングの `outline` も一緒に切り抜く既知の制約があります
-    （詳細は `border_beam` モジュール doc「技術選定」節参照）。
+    採ります。光源レイヤーはラッパーの**長辺基準**（`2 * max(幅, 高さ)`）
+    の正方形にサイズされ、縦長・横長いずれのラッパーでも回転角度に
+    関わらず外周全体を覆います。ラッパーの `overflow: hidden` が子要素の
+    box-shadow・フォーカスリングの `outline` も一緒に切り抜く既知の制約が
+    あります（詳細は `border_beam` モジュール doc「技術選定」節参照）。
   - `prefers-reduced-motion: reduce` 下では回転を止め、静的な `border`
     へフォールバックします。
 
