@@ -64,11 +64,108 @@ pub const SCROLL_PROGRESS_PROPERTY: &str = "--fandhe-motion-scroll-progress";
 /// 厳密な entry/exit 重複域計算は扱わない既知の単純化である。
 #[must_use]
 pub fn compute_progress(rect_top: f64, rect_height: f64, viewport_height: f64) -> f64 {
-    if rect_height <= 0.0 {
-        return 1.0;
+    compute_progress_for_range(rect_top, rect_height, viewport_height, ProgressRange::Entry)
+}
+
+/// [`compute_progress`]/[`compute_progress_for_range`] が計算する進捗の
+/// 区間（イシュー #2534）。
+///
+/// CSS Scroll-driven Animations の `view-timeline-range`（`entry`/`cover`/
+/// `contain`）の命名意図に対応する（本モジュールは `entry`/`exit` を
+/// 単純化して 1 本の進捗値として扱うため、`exit`/`entry-crossing`/
+/// `exit-crossing` は持たない）。
+///
+/// `crates/wasm-full/src/scroll_driver.rs` の
+/// `data-fandhe-scroll-progress` 属性値（`""`/`"entry"`/`"cover"`/
+/// `"contain"`）が本 enum へ厳格一致で変換される（未知値は `Entry`
+/// へ fail-closed、REQ-1/A03 の「動的文字列をセレクタ・プロパティ名へ
+/// 混ぜない」不変条件をこの変換層で満たす）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ProgressRange {
+    /// 要素が侵入し始め（上端がビューポート下端に到達）～自身の高さぶん
+    /// 侵入完了（下端がビューポート下端に到達）で 0→1（既存 `compute_
+    /// progress` の定義、`fandhe-frontend-pre-styled-ui` の
+    /// `SlotRecipe::scroll_reveal` が対応するネイティブ範囲
+    /// `animation-range: entry 0% entry 100%`）。
+    #[default]
+    Entry,
+    /// 要素がビューポートへ入り始めてから完全に出終わるまでの全期間で
+    /// 0→1（`SlotRecipe::parallax` が対応するネイティブ範囲
+    /// `animation-range: cover 0% cover 100%`）。
+    Cover,
+    /// 要素がビューポートに完全に収まっている期間で 0→1
+    /// （`SlotRecipe::sticky_progress` が対応するネイティブ範囲
+    /// `animation-range: contain 0% contain 100%`）。
+    Contain,
+}
+
+/// [`compute_progress`] の範囲拡張版（DOM 非依存、native `cargo test` で
+/// 検証可能、イシュー #2534）。`compute_progress` はこの関数の
+/// `ProgressRange::Entry` 固定ラッパである。
+///
+/// 座標系は `compute_progress` と同じ: `rect_top` はビューポート上端
+/// からの相対位置（下方向が正）、`rect_height`/`viewport_height` は
+/// 非負を想定する要素・ビューポートの高さ。
+///
+/// # `Cover`
+///
+/// 0% は要素上端がビューポート下端に到達した瞬間（`Entry` 0% と同一）、
+/// 100% は要素下端がビューポート上端に到達した瞬間（要素が完全に
+/// 通過し終えた瞬間）。`progress = (viewport_height - rect_top) /
+/// (viewport_height + rect_height)`。分母が 0 以下（両方の高さが 0）の
+/// 場合は「既に通過済み」とみなし `1.0` を返す（`compute_progress` の
+/// `rect_height <= 0.0` ガードと同型の安全側フォールバック）。
+///
+/// # `Contain`
+///
+/// 要素がビューポートより低い（`rect_height <= viewport_height`）場合に
+/// 定義される区間: 0% は要素が初めて完全にビューポート内へ収まった瞬間
+/// （`Entry` 100% と同一）、100% は要素上端がビューポート上端に到達し
+/// 完全収容が終わる瞬間。`progress = (viewport_height - rect_height -
+/// rect_top) / (viewport_height - rect_height)`。
+///
+/// 要素がビューポート以上に高い（`rect_height >= viewport_height`）場合、
+/// CSS 仕様上 `contain` 区間は退化する（要素が一度も完全収容されない）。
+/// 本関数は `Cover` と同じ計算へフォールバックする既知の単純化を採る
+/// （進捗が常に一定値に張り付くより、スクロールに連動し続ける方が
+/// 「進捗表示」としての実用性が高いという判断。`compute_progress` 自身の
+/// 「既知の単純化」doc と同じ性質の割り切り）。
+#[must_use]
+pub fn compute_progress_for_range(
+    rect_top: f64,
+    rect_height: f64,
+    viewport_height: f64,
+    range: ProgressRange,
+) -> f64 {
+    match range {
+        ProgressRange::Entry => {
+            if rect_height <= 0.0 {
+                return 1.0;
+            }
+            ((viewport_height - rect_top) / rect_height).clamp(0.0, 1.0)
+        }
+        ProgressRange::Cover => {
+            let denom = viewport_height + rect_height;
+            if denom <= 0.0 {
+                return 1.0;
+            }
+            ((viewport_height - rect_top) / denom).clamp(0.0, 1.0)
+        }
+        ProgressRange::Contain => {
+            let denom = viewport_height - rect_height;
+            if denom <= 0.0 {
+                // 要素がビューポート以上に高い: `contain` 区間が退化する
+                // ため `Cover` の計算へフォールバックする（doc 参照）。
+                return compute_progress_for_range(
+                    rect_top,
+                    rect_height,
+                    viewport_height,
+                    ProgressRange::Cover,
+                );
+            }
+            ((denom - rect_top) / denom).clamp(0.0, 1.0)
+        }
     }
-    let raw = (viewport_height - rect_top) / rect_height;
-    raw.clamp(0.0, 1.0)
 }
 
 /// 実行環境の判定結果（機能検出・`prefers-reduced-motion`）。
@@ -254,6 +351,260 @@ fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool 
     !matches!(overflow_y.as_str(), "visible" | "clip" | "")
 }
 
+/// [`update_element_progress_for_range`] が計測直前に呼ぶ、フィードバック
+/// ループ除去のための計測ヘルパ（codex-review P1 是正、PR #2563）。
+///
+/// # 背景（フィードバックループ）
+///
+/// `SlotRecipe::parallax`/`SlotRecipe::sticky_progress` のフォールバック
+/// CSS（`@supports not (animation-timeline: view())`）は、本モジュールが
+/// [`SCROLL_PROGRESS_PROPERTY`] へ書き込んだ進捗を読んで**同じ要素**へ
+/// `translate`（parallax）/`scale`（sticky_progress）を適用する。計測
+/// （`getBoundingClientRect()`）にその効果適用後の座標をそのまま使うと、
+/// 次フレームの計測値が前フレームの効果適用結果に依存してしまい、同じ
+/// スクロール位置でも進捗値がフレームを追うごとにずれ続ける
+/// （[`compute_progress_for_range`] が前提とする「スクロール位置に対する
+/// 線形補間」契約に反する）。
+///
+/// `position: sticky`（`sticky_progress` の典型的な利用形、呼び出し側
+/// マークアップの責務）も同種の問題を起こす: ピン留め中は
+/// `getBoundingClientRect().top` が一定値に張り付くため、スクロールを
+/// 続けても `contain` 進捗が進まない。
+///
+/// # 是正方法
+///
+/// 計測直前に `translate`/`scale` を `none` へ、算出済みスタイルが
+/// `position: sticky` の場合に限り `position` を `static` へ一時上書き
+/// してから `getBoundingClientRect()` を呼び、直後に元の値へ戻す
+/// （変形の復元と遷移の有効時間の復元との間に強制フラッシュを 1 回挟む
+/// 点は下記「`transition` 併用時の是正」節を参照）。これにより計測結果は
+/// 常に「本モジュール自身の効果適用前・ピン留め前」の、スクロール位置と
+/// 連続的に対応する位置を表す。`position: fixed`/`absolute` 等
+/// `sticky` 以外の値は変更しない（無関係な計測結果を変えないため）。
+///
+/// 一時上書きは [`CssStyleDeclaration::set_property_with_priority`] で
+/// 優先度 `"important"` を明示して書く（codex-review P1 是正、
+/// PR #2563）。インラインスタイルは通常優先度であれば常にスタイルシートの
+/// セレクタ規則に勝つが、スタイルシート側が `!important`（例:
+/// `position: sticky !important`）を宣言している場合は通常優先度の
+/// インライン上書きでは効かず、変形適用後・ピン留め後の座標をそのまま
+/// 計測してしまう（`position: sticky !important` 環境下では
+/// `unpinned_rect.top() == top_offset` が常に成立し、`contain` 進捗が
+/// 常に 0 に固定される不具合を招く）。一時上書き自体を `!important` で
+/// 書くことでスタイルシート側の `!important` 宣言よりも常に勝つように
+/// する（下記「優先度の保存・復元」の通り、元の宣言の優先度は変えない）。
+///
+/// # `transition` 併用時の是正
+///
+/// `transition`（例: `transition: translate 200ms`）が `translate`/
+/// `scale`/`position` と併用されている場合、値としての `none`/`static`
+/// への一時上書きは即時反映されても、遷移アニメーションが有効なままだと
+/// 実際の描画・`getBoundingClientRect()` の戻り値は遷移の途中値（直前
+/// フレームの変形が残った値）になり得るため、上記 3 プロパティを上書き
+/// する**前**に遷移を同期的に無効化してから計測する。
+///
+/// **無効化は `transition-duration`/`transition-delay` を `0s` へ一時
+/// 上書きする方式であり、`transition-property: none` は使わない**
+/// （threadId `PRRT_kwDOTarxgc6iTde2` の是正、PR #2563）。CSS
+/// Transitions（<https://www.w3.org/TR/css-transitions-1/#starting>）の
+/// 開始・キャンセル規則は次の 3 点である: (1) 遷移の開始には
+/// `transition-property` に対象プロパティが含まれ、かつ有効時間
+/// （duration + delay）が正であることを要する。(2) 実行中の遷移は、
+/// after-change スタイルの `transition-property` に対象プロパティが
+/// 含まれなくなった時点でキャンセルされる。(3) 実行中の遷移は、
+/// after-change スタイルでの終端値が変化した場合にキャンセル・再始動
+/// される（終端値が変わらなければ何もしない）。`transition-property:
+/// none` へ一時上書きする（規則(2)）と、計測対象の `translate`/`scale`
+/// だけでなく `opacity`/`background-color` 等**要素上の他の全プロパティ**
+/// の実行中の遷移までキャンセルされてしまう（例: フェード中の要素を
+/// スクロールすると `opacity` が終端値へ飛び、復元後も遷移が再開しない
+/// 回帰）。有効時間を `0s` にする方式（規則(1)）は、計測のために一時的に
+/// 変更する `translate`/`scale`/`position` 自体の遷移だけを止め、
+/// `transition-property` のリスト自体には触れないため、他プロパティの
+/// 実行中の遷移状態（規則(2)(3)のいずれも不成立のまま）を保持する。
+/// `transition-duration` に加えて `transition-delay` も `0s` にする
+/// 必要がある（duration を 0 にしても delay が正のままだと有効時間の
+/// 合計は依然正であり、復元後に `none`（計測値）から復元値への遷移が
+/// delay 分だけ `none` の見た目で止まって見える）。
+///
+/// **`translate`/`scale`/`position` の復元と `transition-duration`/
+/// `transition-delay` の復元の間には、`getComputedStyle` によるスタイル
+/// の強制フラッシュを挟む**（threadId `PRRT_kwDOTarxgc6iTdew` の是正、
+/// PR #2563）。フラッシュを挟まずに両方を同一の同期実行内で復元すると、
+/// ブラウザは次のスタイル再計算までこれらの変更を 1 回の変更イベントへ
+/// 束ねるため、before-change スタイル（計測時に確定した `none`）から
+/// after-change スタイル（復元後の値）への変化として遷移有効時間の
+/// 判定（規則(1)）が行われ、有効時間が復元済みの正の値である
+/// `transition-duration`/`transition-delay` を使って評価されてしまう
+/// （`translate: -100px; transition: translate 200ms` の要素で、
+/// 復元のたびに原点 `none` から遷移が開始してしまう回帰）。復元順序を
+/// 「変形（`translate`/`scale`/`position`）→ フラッシュ → 遷移の有効
+/// 時間（`transition-duration`/`transition-delay`）」にすることで、
+/// フラッシュ時点の変化イベントは有効時間 `0s` のまま評価され（規則(1)
+/// 不成立、遷移は開始しない）、後続の有効時間復元では `translate` 等の
+/// 値そのものは変化しない（規則(1)(3)いずれも不成立）ため遷移は起きない。
+///
+/// `element` が `HtmlElement`（インラインスタイル設定可能）でない場合
+/// （SVG 等）は素の `getBoundingClientRect()` へフォールバックする
+/// （fail-open: 計測結果が変形の影響を受け得るが、少なくとも panic
+/// しない）。
+///
+/// 戻り値の `bool` は計測直前の算出済みスタイルが `position: sticky`
+/// だったかどうか（[`update_element_progress_for_range`] が
+/// [`ProgressRange::Contain`] のピン留め区間考慮計算へ分岐するために
+/// 使う、codex-review P1 是正、PR #2563）。
+///
+/// # インラインスタイルの優先度（`!important`）保存・復元（codex-review
+/// P1 是正、PR #2563）
+///
+/// 一時上書き前に [`CssStyleDeclaration::get_property_priority`] で
+/// 各プロパティの優先度（`""` または `"important"`）も保存し、復元時は
+/// [`CssStyleDeclaration::set_property_with_priority`] で渡す。単純な
+/// `set_property`（優先度は常に空文字列扱い）で復元すると、元のインライン
+/// 宣言が `!important` を持っていた場合に計測後の復元値から `!important`
+/// が失われ、競合するスタイルシート側の重要宣言がある環境で表示・配置が
+/// 恒久的に変化してしまう（計測は同期的な一時上書きのはずが副作用を
+/// 残すバグ）。`transition-duration`/`transition-delay` も同様に元の
+/// 優先度を保存・復元する（`style="transition-duration: 200ms"` の
+/// ような longhand 宣言を持つ要素でも、計測の一時上書きが恒久的な変更を
+/// 残さないようにするため）。
+#[cfg(target_arch = "wasm32")]
+fn measure_untransformed_rect(element: &web_sys::Element) -> (web_sys::DomRect, bool) {
+    let Some(html) = element.dyn_ref::<web_sys::HtmlElement>() else {
+        return (element.get_bounding_client_rect(), false);
+    };
+    let style = html.style();
+
+    // `transition-duration`/`transition-delay` を `!important` で `0s`
+    // へ一時上書きする（threadId `PRRT_kwDOTarxgc6iTde2` の是正、
+    // PR #2563）。`transition-property: none`（旧実装）は要素上の
+    // **全プロパティ**の遷移をキャンセルしてしまう（`opacity` 等の
+    // 計測に無関係な実行中の遷移が終端値へ飛び、復元後も再開しない
+    // 回帰）。有効時間（duration + delay）を `0s` にする方式は、
+    // `transition-property` のリスト自体を変更しないため、計測に
+    // 無関係なプロパティの遷移状態を保持したまま、以降で上書きする
+    // `translate`/`scale`/`position` 自体の遷移のみを同期的に止める
+    // （関数 doc の CSS Transitions 開始・キャンセル規則 (1)(2)(3) の
+    // 解説を参照）。
+    let saved_transition_duration = style.get_property_value("transition-duration").ok();
+    let saved_transition_duration_priority = style.get_property_priority("transition-duration");
+    let _ = style.set_property_with_priority("transition-duration", "0s", "important");
+    let saved_transition_delay = style.get_property_value("transition-delay").ok();
+    let saved_transition_delay_priority = style.get_property_priority("transition-delay");
+    let _ = style.set_property_with_priority("transition-delay", "0s", "important");
+
+    // 一時上書きは `!important` で行う（codex-review P1 是正、PR #2563）。
+    // スタイルシート側に `translate`/`scale`/`position` の `!important`
+    // 宣言があると、通常優先度の上書きでは効かず（`!important` は
+    // インラインスタイルの高い詳細度よりも優先される CSS の仕様）、
+    // 変形適用後・ピン留め後の座標をそのまま計測してしまう
+    // （`position: sticky !important` 環境で `contain` 進捗が常に 0 に
+    // 固定される不具合の原因）。復元側は保存済みの元の優先度
+    // （`saved_*_priority`）で書き戻すため、ここで `!important` を使っても
+    // 元の宣言の優先度は変えない。
+    let saved_translate = style.get_property_value("translate").ok();
+    let saved_translate_priority = style.get_property_priority("translate");
+    let _ = style.set_property_with_priority("translate", "none", "important");
+    let saved_scale = style.get_property_value("scale").ok();
+    let saved_scale_priority = style.get_property_priority("scale");
+    let _ = style.set_property_with_priority("scale", "none", "important");
+
+    let window = web_sys::window();
+    let is_sticky = window
+        .as_ref()
+        .and_then(|window| window.get_computed_style(element).ok().flatten())
+        .and_then(|computed| computed.get_property_value("position").ok())
+        .map(|value| value == "sticky")
+        .unwrap_or(false);
+    let saved_position = if is_sticky {
+        let prev = style.get_property_value("position").ok();
+        let prev_priority = style.get_property_priority("position");
+        let _ = style.set_property_with_priority("position", "static", "important");
+        Some((prev, prev_priority))
+    } else {
+        None
+    };
+
+    let rect = element.get_bounding_client_rect();
+
+    // 復元順序 1/2: `translate`/`scale`/`position` を先に元へ戻す。この
+    // 時点ではまだ `transition-duration`/`transition-delay` が `0s` の
+    // ままなので、値としての変化自体は遷移の開始条件（有効時間が正）を
+    // 満たさない。
+    restore_inline_property(
+        &style,
+        "translate",
+        saved_translate.as_deref(),
+        &saved_translate_priority,
+    );
+    restore_inline_property(
+        &style,
+        "scale",
+        saved_scale.as_deref(),
+        &saved_scale_priority,
+    );
+    if let Some((prev, prev_priority)) = saved_position {
+        restore_inline_property(&style, "position", prev.as_deref(), &prev_priority);
+    }
+
+    // 強制フラッシュ（threadId `PRRT_kwDOTarxgc6iTdew` の是正、
+    // PR #2563）: 上記の変形復元と、以降で行う有効時間の復元を同一の
+    // スタイル変化イベントへ束ねさせないため、`getComputedStyle` で
+    // プロパティ値を読み、ここで一度スタイル再計算を確定させる
+    // （レイアウトは不要なため `getBoundingClientRect()` は使わない）。
+    // これにより、直前の変形復元は「有効時間 `0s` のままの変化」として
+    // 確定し、以降の有効時間復元は「値が変化しない変化」として確定する
+    // ため、いずれの変化イベントも遷移の開始条件を満たさない。
+    if let Some(window) = window.as_ref() {
+        if let Ok(Some(computed)) = window.get_computed_style(element) {
+            let _ = computed.get_property_value("translate");
+        }
+    }
+
+    // 復元順序 3/3: 変形の復元がフラッシュで確定した後に、最後へ
+    // `transition-duration`/`transition-delay` を元へ戻す。
+    restore_inline_property(
+        &style,
+        "transition-duration",
+        saved_transition_duration.as_deref(),
+        &saved_transition_duration_priority,
+    );
+    restore_inline_property(
+        &style,
+        "transition-delay",
+        saved_transition_delay.as_deref(),
+        &saved_transition_delay_priority,
+    );
+
+    (rect, is_sticky)
+}
+
+/// [`measure_untransformed_rect`] の一時上書き復元を 1 プロパティぶん
+/// 行う共通ヘルパ（`translate`/`scale`/`position`/`transition-duration`/
+/// `transition-delay` の 5 箇所で同型の
+/// 分岐を重複させないため、codex-review P1 是正、PR #2563）。
+///
+/// `value` が計測前に値を持っていれば `priority` 付きで復元し（元の
+/// `!important` を保つ）、値が無かった／空文字列だった場合は
+/// `remove_property` で宣言ごと取り除く（計測前に存在しなかった
+/// プロパティを空文字列で新規に生やさない）。
+#[cfg(target_arch = "wasm32")]
+fn restore_inline_property(
+    style: &web_sys::CssStyleDeclaration,
+    name: &str,
+    value: Option<&str>,
+    priority: &str,
+) {
+    match value {
+        Some(v) if !v.is_empty() => {
+            let _ = style.set_property_with_priority(name, v, priority);
+        }
+        _ => {
+            let _ = style.remove_property(name);
+        }
+    }
+}
+
 /// `element` の現在位置を計測し、[`compute_progress`] の結果を `target` へ
 /// 書き込む（`fandhe-frontend-wasm-full` の scroll/resize リスナー・rAF
 /// ループから毎フレーム呼ばれる想定）。
@@ -267,6 +618,13 @@ fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool 
 /// かかる既知のトレードオフである（`in_view.rs` の `MutationObserver`
 /// 非対応と同種の割り切り）。
 ///
+/// `element` 自身の計測は [`measure_untransformed_rect`] 経由で行い、
+/// 本関数が過去に書き込んだ進捗（`SCROLL_PROGRESS_PROPERTY`）を読んで
+/// 同じ要素へ `translate`/`scale` を適用するフォールバック CSS
+/// （`SlotRecipe::parallax`/`SlotRecipe::sticky_progress`）や
+/// `position: sticky` のピン留めが計測結果へ混入しないようにする
+/// （codex-review P1 是正、PR #2563。詳細は同関数 doc 参照）。
+///
 /// 計測に失敗した場合（`window` 不在等）は書き込みを行わず `None` を
 /// 返す（fail-closed、panic しない）。
 ///
@@ -274,10 +632,27 @@ fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool 
 /// `None` を返す（`RafDriver::new`/`AnimationLoop::start` と同じ native
 /// no-panic 方針）。
 pub fn update_element_progress(element: &web_sys::Element, target: &mut DomTarget) -> Option<f64> {
+    update_element_progress_for_range(element, target, ProgressRange::Entry)
+}
+
+/// [`update_element_progress`] の範囲拡張版（イシュー #2534）。
+/// `update_element_progress` はこの関数の [`ProgressRange::Entry`] 固定
+/// ラッパである。
+///
+/// `crates/wasm-full/src/scroll_driver.rs` が `data-fandhe-scroll-progress`
+/// 属性値から解決した [`ProgressRange`] を渡す（属性値 → `ProgressRange`
+/// の厳格一致変換自体は wasm-full 側の責務、本関数は既に解決済みの
+/// `range` を受け取るのみ）。
+pub fn update_element_progress_for_range(
+    element: &web_sys::Element,
+    target: &mut DomTarget,
+    range: ProgressRange,
+) -> Option<f64> {
     #[cfg(target_arch = "wasm32")]
     {
-        let rect = element.get_bounding_client_rect();
-        let (reference_top, reference_height) = match find_scroll_container(element) {
+        let (rect, is_sticky) = measure_untransformed_rect(element);
+        let scroll_container = find_scroll_container(element);
+        let (reference_top, reference_height) = match &scroll_container {
             Some(container) => {
                 // `getBoundingClientRect()` の高さは border box（border・
                 // 横スクロールバー領域を含む）であり、実際に中身が見える
@@ -308,16 +683,130 @@ pub fn update_element_progress(element: &web_sys::Element, target: &mut DomTarge
                 (0.0, viewport_height)
             }
         };
-        let progress =
-            compute_progress(rect.top() - reference_top, rect.height(), reference_height);
+        // `position: sticky` 要素の `Contain` 進捗はピン留め区間そのもの
+        // （codex-review P1 是正、PR #2563。詳細は [`sticky_contain_pin_progress`]
+        // 参照）。ネストしたスクロールコンテナ配下の sticky 要素はこの
+        // 単純化の対象外とし（`scroll_container.is_none()` 限定）、通常の
+        // `compute_progress_for_range` 計算へフォールバックする（既知の
+        // 単純化、`docs/design/motion-reference-adoption-policy.md` §6 と
+        // 同種の割り切り。ページ全体スクロール前提の本イシューのテスト
+        // 範囲を超えるため）。
+        let sticky_progress =
+            if is_sticky && range == ProgressRange::Contain && scroll_container.is_none() {
+                sticky_contain_pin_progress(element, &rect)
+            } else {
+                None
+            };
+        let progress = match sticky_progress {
+            Some(value) => value,
+            None => compute_progress_for_range(
+                rect.top() - reference_top,
+                rect.height(),
+                reference_height,
+                range,
+            ),
+        };
         target.write(progress);
         Some(progress)
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let _ = (element, target);
+        let _ = (element, target, range);
         None
     }
+}
+
+/// `position: sticky` 要素の [`ProgressRange::Contain`] を「ピン留め区間」
+/// として計算する（codex-review P1 是正、PR #2563）。
+///
+/// # 是正前の不具合
+///
+/// [`measure_untransformed_rect`] は sticky 要素を計測直前に一時的に
+/// `position: static` へ戻し「ピン留めされていない場合の自然な位置」を
+/// 得る。この非ピン留め位置はスクロールにつれて連続的に動き続けるため、
+/// `Contain` の式（`(viewport_height - rect_height - rect_top) /
+/// (viewport_height - rect_height)`）へそのまま渡すと、ピン留め開始
+/// 直後には非ピン留め位置の `rect_top` が急速に負の大きな値へ進んでしまい
+/// 分子が分母を超えて即座に `1.0` へクランプされる（ピン留め中ずっと
+/// 進捗が変化しない契約違反）。
+///
+/// # 是正方法
+///
+/// `Contain` が意図する「要素がビューポートに完全収容されている期間」は
+/// sticky 要素にとってまさに「ピン留めされている期間」そのものである。
+/// そこで非ピン留め位置ではなく、CSS Position スペックの sticky 配置式
+/// （<https://www.w3.org/TR/css-position-3/#sticky-pos>）に基づき、
+/// ピン留めの開始・終了をスクロールオフセットの区間として直接計算する:
+///
+/// - ピン留め開始（`pin_start`）: 要素の非ピン留め・文書相対な上端位置
+///   （[`measure_untransformed_rect`] が返す `rect`）が `top` オフセット
+///   と一致するスクロール位置
+/// - ピン留め終了（`pin_end`）: 包含ブロック（[`Element::parent_element`]
+///   で近似する既知の単純化、下記参照）の下端から要素高さを引いた位置が
+///   `top` オフセットと一致するスクロール位置
+///
+/// `progress = clamp01((scroll_y - pin_start) / (pin_end - pin_start))`。
+/// ピン留め開始前は `scroll_y < pin_start` のため `0.0` に、ピン留め終了後
+/// （要素が包含ブロック下端に押し出され再び通常フローへ戻る）は `1.0` に
+/// クランプされる。
+///
+/// # 既知の単純化
+///
+/// - 包含ブロックは `element.parent_element()` で近似する（sticky の
+///   厳密な包含ブロックは「スクロール可能な祖先の padding box と直近の
+///   ブロックコンテナ祖先」の交差だが、`crates/pre-styled-ui` の
+///   `sticky_progress` 利用形は素の親要素配下へ直接ピン留め要素を
+///   置く構成のみを想定するため、単純化として妥当）。
+/// - `window.scroll_y()`（ページ全体スクロール）のみを扱う。呼び出し元
+///   ([`update_element_progress_for_range`]) がネストしたスクロール
+///   コンテナ配下ではこの関数を呼ばず通常計算へフォールバックする。
+/// - `top` の単位は `px` のみ対応（`%`/`calc()` 等は `0.0` 扱いへ
+///   フォールバック、fail-closed に「常にどこかへ収まる」進捗を返す）。
+///
+/// `window`/`document` 取得失敗・包含ブロック不在・ピン留め区間が退化
+/// （`pin_end <= pin_start`、包含ブロックが要素の非ピン留め位置より
+/// 低い異常構成）の場合は `None` を返し、呼び出し元が通常計算へ
+/// フォールバックする。
+#[cfg(target_arch = "wasm32")]
+fn sticky_contain_pin_progress(
+    element: &web_sys::Element,
+    unpinned_rect: &web_sys::DomRect,
+) -> Option<f64> {
+    let window = web_sys::window()?;
+    let scroll_y = window.scroll_y().ok()?;
+
+    let top_offset = window
+        .get_computed_style(element)
+        .ok()
+        .flatten()
+        .and_then(|computed| computed.get_property_value("top").ok())
+        .and_then(|value| parse_px_value(&value))
+        .unwrap_or(0.0);
+
+    let parent = element.parent_element()?;
+    let parent_bottom_doc = parent.get_bounding_client_rect().bottom() + scroll_y;
+
+    let rect_height = unpinned_rect.height();
+    let static_top_doc = unpinned_rect.top() + scroll_y;
+
+    let pin_start = static_top_doc - top_offset;
+    let pin_end = parent_bottom_doc - rect_height - top_offset;
+    let pin_total = pin_end - pin_start;
+
+    if pin_total <= 0.0 {
+        return None;
+    }
+
+    Some(((scroll_y - pin_start) / pin_total).clamp(0.0, 1.0))
+}
+
+/// `"12px"` のような CSS `<length>` の px 表現を数値へ変換する
+/// （[`sticky_contain_pin_progress`] が `top` の算出値を読むために使う）。
+/// `%`/`calc()`/`auto` 等 px 以外の表現は `None` を返す
+/// （呼び出し元が既定値 `0.0` へフォールバックする）。
+#[cfg(target_arch = "wasm32")]
+fn parse_px_value(value: &str) -> Option<f64> {
+    value.strip_suffix("px")?.trim().parse::<f64>().ok()
 }
 
 /// dirty-flag 方式で「scroll/resize イベント発火時のみ再計算する」rAF
@@ -487,6 +976,141 @@ mod compute_progress_tests {
     #[test]
     fn negative_height_is_one_and_does_not_panic() {
         assert_eq!(compute_progress(500.0, -10.0, 800.0), 1.0);
+    }
+}
+
+/// [`ProgressRange::Cover`]/[`ProgressRange::Contain`] の端点・中間値・
+/// 退化ケースを固定する（イシュー #2534）。`compute_progress_tests` の
+/// 既存 7 件（`Entry` 経路）は無改変のまま green を保つ回帰ガードとして
+/// 別モジュールに分離する。
+#[cfg(test)]
+mod compute_progress_for_range_tests {
+    use super::{compute_progress, compute_progress_for_range, ProgressRange};
+
+    #[test]
+    fn entry_range_matches_compute_progress_wrapper() {
+        // `compute_progress` は `ProgressRange::Entry` の薄いラッパである
+        // ことを直接確認する（リファクタの回帰ガード）。
+        for (rect_top, rect_height, viewport_height) in [
+            (2000.0, 100.0, 800.0),
+            (700.0, 100.0, 800.0),
+            (500.0, 0.0, 800.0),
+        ] {
+            assert_eq!(
+                compute_progress(rect_top, rect_height, viewport_height),
+                compute_progress_for_range(
+                    rect_top,
+                    rect_height,
+                    viewport_height,
+                    ProgressRange::Entry
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn cover_starts_at_zero_when_top_edge_reaches_viewport_bottom() {
+        // cover 0% は entry 0% と同一（要素上端がビューポート下端に到達）。
+        assert_eq!(
+            compute_progress_for_range(800.0, 100.0, 800.0, ProgressRange::Cover),
+            0.0
+        );
+    }
+
+    #[test]
+    fn cover_ends_at_one_when_bottom_edge_reaches_viewport_top() {
+        // cover 100% は要素下端がビューポート上端に到達した瞬間:
+        // rect_top == -rect_height。
+        assert_eq!(
+            compute_progress_for_range(-100.0, 100.0, 800.0, ProgressRange::Cover),
+            1.0
+        );
+    }
+
+    #[test]
+    fn cover_halfway_through_full_traverse() {
+        // 対称性: rect_top == (viewport_height - rect_height) / 2 で 0.5。
+        assert_eq!(
+            compute_progress_for_range(350.0, 100.0, 800.0, ProgressRange::Cover),
+            0.5
+        );
+    }
+
+    #[test]
+    fn cover_clamps_past_full_traverse_to_one() {
+        assert_eq!(
+            compute_progress_for_range(-500.0, 100.0, 800.0, ProgressRange::Cover),
+            1.0
+        );
+    }
+
+    #[test]
+    fn cover_zero_size_both_dimensions_is_one_and_does_not_panic() {
+        assert_eq!(
+            compute_progress_for_range(0.0, 0.0, 0.0, ProgressRange::Cover),
+            1.0
+        );
+    }
+
+    #[test]
+    fn contain_starts_at_zero_when_fully_entered() {
+        // contain 0% は entry 100% と同一。
+        assert_eq!(
+            compute_progress_for_range(700.0, 100.0, 800.0, ProgressRange::Contain),
+            0.0
+        );
+    }
+
+    #[test]
+    fn contain_ends_at_one_when_top_edge_reaches_viewport_top() {
+        assert_eq!(
+            compute_progress_for_range(0.0, 100.0, 800.0, ProgressRange::Contain),
+            1.0
+        );
+    }
+
+    #[test]
+    fn contain_halfway_through_containment() {
+        assert_eq!(
+            compute_progress_for_range(350.0, 100.0, 800.0, ProgressRange::Contain),
+            0.5
+        );
+    }
+
+    #[test]
+    fn contain_falls_back_to_cover_when_element_taller_than_viewport() {
+        // rect_height >= viewport_height: contain 区間が退化するため
+        // Cover と同じ値になる（doc の既知の単純化）。
+        let rect_top = 100.0;
+        let rect_height = 900.0;
+        let viewport_height = 800.0;
+        assert_eq!(
+            compute_progress_for_range(
+                rect_top,
+                rect_height,
+                viewport_height,
+                ProgressRange::Contain
+            ),
+            compute_progress_for_range(
+                rect_top,
+                rect_height,
+                viewport_height,
+                ProgressRange::Cover
+            )
+        );
+    }
+
+    #[test]
+    fn contain_equal_heights_falls_back_to_cover_without_panicking() {
+        // rect_height == viewport_height（denom == 0）も退化ケースとして
+        // panic せず Cover へフォールバックする。
+        let value = compute_progress_for_range(100.0, 800.0, 800.0, ProgressRange::Contain);
+        assert!((0.0..=1.0).contains(&value));
+    }
+
+    #[test]
+    fn progress_range_default_is_entry() {
+        assert_eq!(ProgressRange::default(), ProgressRange::Entry);
     }
 }
 

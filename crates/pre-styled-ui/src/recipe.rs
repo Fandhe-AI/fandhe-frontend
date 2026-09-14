@@ -1649,6 +1649,20 @@ pub struct SlotRecipe {
     /// motion_zero_cost.rs` のゼロコスト契約と同型）。
     #[cfg(feature = "motion")]
     scroll_reveal_slots: Vec<&'static str>,
+    /// scroll-linked parallax（`animation-timeline: view()`、`cover` 相当の
+    /// 全区間で `translate` を線形補間）を適用する slot 群（イシュー
+    /// #2534）。[`SlotRecipe::parallax`] で登録する。`motion` feature 既定
+    /// off ではフィールド自体が存在せず `scroll_reveal_slots` と同じ
+    /// ゼロコスト契約を持つ。
+    #[cfg(feature = "motion")]
+    parallax_slots: Vec<(&'static str, ParallaxSpeed)>,
+    /// scroll-linked sticky progress（`animation-timeline: view()`、
+    /// `contain` 相当の全区間で強調表示を線形補間）を適用する slot 群
+    /// （イシュー #2534）。[`SlotRecipe::sticky_progress`] で登録する。
+    /// `motion` feature 既定 off では `scroll_reveal_slots` と同じ
+    /// ゼロコスト契約を持つ。
+    #[cfg(feature = "motion")]
+    sticky_progress_slots: Vec<&'static str>,
 }
 
 /// [`StateCondition`] 1 個が識別子として妥当かどうかを判定する（内部
@@ -1798,6 +1812,10 @@ impl SlotRecipe {
             containers: Vec::new(),
             #[cfg(feature = "motion")]
             scroll_reveal_slots: Vec::new(),
+            #[cfg(feature = "motion")]
+            parallax_slots: Vec::new(),
+            #[cfg(feature = "motion")]
+            sticky_progress_slots: Vec::new(),
         }
     }
 
@@ -2771,6 +2789,16 @@ impl SlotRecipe {
         #[cfg(feature = "motion")]
         self.write_scroll_reveal_blocks(&mut out);
 
+        // scroll-linked parallax / sticky progress（イシュー #2534、
+        // `motion` feature 配下）。scroll_reveal の直後・breakpoints の前
+        // （golden バイト安定のため scroll_reveal ブロックとはマージせず
+        // 独立した `@supports`/reduced-motion ブロックとして出力する、
+        // `write_scroll_reveal_blocks` doc 参照）。
+        #[cfg(feature = "motion")]
+        self.write_parallax_blocks(&mut out);
+        #[cfg(feature = "motion")]
+        self.write_sticky_progress_blocks(&mut out);
+
         // breakpoints は Breakpoint::ALL の昇順（mobile-first、sm → xl）で
         // 1 breakpoint = 1 @media ブロックとして出力する（イシュー #2197、
         // 本関数 rustdoc の出力構造節参照）。pseudo-elements/@starting-style/
@@ -3028,6 +3056,344 @@ impl SlotRecipe {
             inner.push('\n');
             inner.push_str(&supports_inner);
             write_at_rule_block(out, "@supports (animation-timeline: view())", &inner);
+            out.push('\n');
+        }
+
+        push_media_block(
+            out,
+            "@media (prefers-reduced-motion: reduce)",
+            &reduced_motion_inner,
+        );
+    }
+}
+
+/// scroll-linked parallax（イシュー #2534）専用 `@keyframes` の本文。
+///
+/// [`SlotRecipe::write_parallax_blocks`] が `@supports (animation-timeline:
+/// view())` ブロック内へそのまま埋め込む（`SCROLL_REVEAL_KEYFRAMES_CSS` と
+/// 同じ `const` リテラルのみの設計）。移動距離は
+/// `--fandhe-motion-parallax-distance`（既定 `-4rem`）という CSS カスタム
+/// プロパティで上書き可能にし、[`ParallaxSpeed`] の各 variant はこの変数へ
+/// 具体的な距離を明示宣言することで既定を上書きする（`decl` 経由、値検証を
+/// 通る固定リテラルのみ）。
+///
+/// # `animation-fill-mode: both`（`scroll_reveal` の `backwards` との違い）
+///
+/// `SCROLL_REVEAL_KEYFRAMES_CSS` は「range 到達前のみ `from` を適用し
+/// range 終了後は通常のカスケードへ戻す」ために `backwards` を選んでいる
+/// （同定数 doc 参照）。parallax は `cover`（要素がビューポートに入り始め
+/// てから出終わるまでの全期間）という range 自体が「視差移動が意味を持つ
+/// 期間全体」と一致するため、range 終了後（要素が完全に通過し終えた後）
+/// も `to` の終端値（`translate` 済みの位置）を保持し続ける `both` が
+/// 意図どおりの挙動である（`backwards` だと通過完了と同時に `translate`
+/// が消え、要素が一瞬「戻る」ように見える）。`SCROLL_REVEAL_KEYFRAMES_CSS`
+/// が警告する「`position: fixed` な子孫の包含ブロックを作ってしまう」
+/// リスクは本ユーティリティでも変わらず存在するが、[`SlotRecipe::
+/// write_parallax_blocks`] の reduced-motion ブロックが `translate: none`
+/// を常に後勝ちで上書きするため、`prefers-reduced-motion: reduce` 環境
+/// では包含ブロックが恒久化しない（許容できるトレードオフとして受容）。
+#[cfg(feature = "motion")]
+const PARALLAX_KEYFRAMES_CSS: &str = "@keyframes fandhe-motion-parallax {\n  from {\n    translate: 0 0;\n  }\n  to {\n    translate: 0 var(--fandhe-motion-parallax-distance, -4rem);\n  }\n}\n";
+
+/// scroll-linked sticky progress（イシュー #2534）専用 `@keyframes` の本文。
+///
+/// [`SlotRecipe::write_sticky_progress_blocks`] が埋め込む。`opacity`/
+/// `scale` の 2 プロパティを固定範囲（0.6→1.0 / 0.96→1.0）で線形補間する
+/// 単一の強調表示効果（値を呼び出し側から可変にする引数は持たない、
+/// [`SlotRecipe::sticky_progress`] doc の YAGNI 判断参照）。
+///
+/// `animation-fill-mode` は [`SlotRecipe::write_sticky_progress_blocks`]
+/// が **`backwards`**（`both` ではない）を使う（Cursor Bugbot 指摘是正、
+/// PR #2563、threadId `PRRT_kwDOTarxgc6iTQVF`）。`both`/`forwards` で
+/// `contain` 区間終了後も `opacity: 1`/`scale: 1` を animation 優先度
+/// （通常のカスケード詳細度より強い）で保持し続けると、後続の hover/
+/// state/variant が宣言する `opacity`/`scale` ルールが常にこの animation
+/// 由来の値に負けてしまい（`scroll_reveal` が `entry` 区間で同じ理由
+/// から既に `both` を不採用にしている、[`SCROLL_REVEAL_KEYFRAMES_CSS`]
+/// doc 参照）、さらに `scale: 1`（非 `none` 値）が `position: fixed` な
+/// 子孫のための包含ブロックを恒久的に維持してしまう（`translate`/
+/// `scale` は CSS Transforms Level 2 の individual transform properties
+/// であり `transform` と同じ扱い、codex-review P1 是正、PR #2563）。
+/// `backwards` のみを使うことで、`contain` 区間に入る**前**（`from` の
+/// 0.6/0.96 で予告表示）は変わらず維持しつつ、区間**終了後**は animation
+/// が値を保持しない通常のカスケードへ戻り、hover/state/variant の
+/// `opacity`/`scale` ルールが正しく優先され、`scale` も非 `none` の
+/// animation 値を保持し続けない（結果として包含ブロック問題も同時に
+/// 解消する）。この構成では「強調表示を抜けたら通常表示へ戻る」という
+/// 意図は、`contain` 区間終了後に通常のカスケード（多くの場合 `opacity:
+/// 1`/`scale: none` が既定値）へ戻ることで実現され、animation の
+/// forwards fill には依存しない。
+///
+/// `@media (prefers-reduced-motion: reduce)` ブロック（`animation: none`
+/// で個別無効化）は、非対応ブラウザ向け `calc()` フォールバック
+/// （progress が 1 未満なら `scale` が非 `none` のままになり得る）を
+/// reduced-motion 環境で確実に凍結するため、引き続きリセット値に
+/// `scale: 1` ではなく `scale: none` を使う（フォールバック経路限定の
+/// 対策であり、上記の `backwards` 採用とは独立に必要、
+/// [`PARALLAX_KEYFRAMES_CSS`] doc の `translate: none` と同じ理由）。
+#[cfg(feature = "motion")]
+const STICKY_PROGRESS_KEYFRAMES_CSS: &str = "@keyframes fandhe-motion-sticky-progress {\n  from {\n    opacity: 0.6;\n    scale: 0.96;\n  }\n  to {\n    opacity: 1;\n    scale: 1;\n  }\n}\n";
+
+/// [`SlotRecipe::parallax`] が受け取る速度トークン（イシュー #2534）。
+///
+/// `duration`/`easing` を引数化しない設計判断は [`SlotRecipe::scroll_reveal`]
+/// と同じ YAGNI（scroll timeline は duration が無意味・easing は `linear`
+/// 固定で十分）。速度は「スクロール量に対する移動距離」として
+/// `--fandhe-motion-parallax-distance` custom property へ写像する 3 段
+/// トークンとし、[`MotionDuration`] と同型の固定 `&'static str` 変換のみを
+/// 持つ（実行時の文字列連結を行わない、`Declaration::value` の制約）。
+#[cfg(feature = "motion")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParallaxSpeed {
+    /// `-2rem`。背景等、視差を控えめにしたいレイヤー向け。
+    Slow,
+    /// `-4rem`（既定と同じ距離）。一般的なカード・画像向け。
+    Normal,
+    /// `-8rem`。前景・強調したいレイヤー向け。
+    Fast,
+}
+
+#[cfg(feature = "motion")]
+impl ParallaxSpeed {
+    /// `--fandhe-motion-parallax-distance` へ書き込む固定リテラル距離。
+    const fn distance(self) -> &'static str {
+        match self {
+            ParallaxSpeed::Slow => "-2rem",
+            ParallaxSpeed::Normal => "-4rem",
+            ParallaxSpeed::Fast => "-8rem",
+        }
+    }
+}
+
+#[cfg(feature = "motion")]
+impl SlotRecipe {
+    /// `slot` へ scroll-linked parallax（`animation-timeline: view()`、
+    /// `cover` 相当の全区間で `translate` を線形補間）を適用する
+    /// （builder、自己消費、イシュー #2534）。
+    ///
+    /// `slot` が [`SlotRecipe::new`] で宣言した `slots` に含まれない場合、
+    /// この登録は [`SlotRecipe::css`] の出力から除外される
+    /// （[`SlotRecipe::scroll_reveal`] と同じ fail-closed 契約）。
+    ///
+    /// # プログレッシブエンハンスメント契約
+    ///
+    /// ネイティブ宣言は必ず `@supports (animation-timeline: view())` の
+    /// 内側にのみ出力される。非対応ブラウザ向けには `@supports not
+    /// (animation-timeline: view())` ブロックで `--fandhe-motion-scroll-
+    /// progress`（`fandhe_frontend_animation::scroll_driver::
+    /// SCROLL_PROGRESS_PROPERTY`）を読む `calc()` フォールバックを出力する。
+    /// **このフォールバックが機能するには対象要素へ
+    /// `data-fandhe-scroll-progress` 属性を付与する必要がある**
+    /// （本 builder 自身は data 属性を書き出さない。付与は呼び出し側
+    /// マークアップの責務、[`stagger_index_style`] と同じ責務分界）。
+    /// 属性が付与されていない場合、フォールバック側の `var()` は既定値
+    /// `0` を使い続けるため要素は静止したまま安全側に留まる（受入基準:
+    /// 非対応ブラウザで常に安全側の見た目）。
+    ///
+    /// # ネイティブ/フォールバックの進捗定義の違い（既知の単純化）
+    ///
+    /// ネイティブ経路は `view()` timeline の `cover` 相当区間
+    /// （要素がビューポートへ入り始めてから完全に出終わるまでの全期間）で
+    /// 進捗が 0→1 になるのに対し、フォールバック側が読む
+    /// `--fandhe-motion-scroll-progress` は entry 進捗
+    /// （`fandhe_frontend_animation::scroll_driver::compute_progress`
+    /// の定義、要素が侵入し始め～自身の高さぶん侵入完了で 0→1）である。
+    /// 両者は数値的には一致しないが、「スクロールに連動して滑らかに
+    /// 変化する」という体験は両経路とも保たれる。
+    #[must_use]
+    pub fn parallax(mut self, slot: &'static str, speed: ParallaxSpeed) -> Self {
+        self.parallax_slots.push((slot, speed));
+        self
+    }
+
+    /// [`SlotRecipe::parallax`] で登録された slot 群を `@supports`
+    /// （ネイティブ）・`@supports not`（フォールバック）・`@media
+    /// (prefers-reduced-motion: reduce)` の 3 ブロックへ書き出す（内部
+    /// ヘルパ、[`SlotRecipe::css`] から呼ばれる）。
+    ///
+    /// reduced-motion ブロックはネイティブ経路の `animation: none` に加え
+    /// `translate: none` も同一セレクタへ追加し、フォールバック経路
+    /// （`calc()` ベースの `translate` 宣言）も同時に凍結する（出力順が
+    /// 常にフォールバックブロックより後になるため、CSS カスケードの
+    /// 記述順後勝ちでどちらの経路にも確実に勝つ）。
+    fn write_parallax_blocks(&self, out: &mut String) {
+        let mut supports_inner = String::new();
+        let mut fallback_inner = String::new();
+        let mut reduced_motion_inner = String::new();
+
+        for (slot, speed) in &self.parallax_slots {
+            if !self.is_declared_slot(slot) || !is_valid_identifier(slot) {
+                continue;
+            }
+            let selector = format!("[data-scope=\"{}\"][data-part=\"{}\"]", self.scope, slot);
+            if let Some(css) = serialize_rule(
+                &selector,
+                &[
+                    decl("--fandhe-motion-parallax-distance", speed.distance()),
+                    decl("animation-name", "fandhe-motion-parallax"),
+                    decl("animation-timing-function", "linear"),
+                    decl("animation-fill-mode", "both"),
+                    decl("animation-timeline", "view()"),
+                    decl("animation-range", "cover 0% cover 100%"),
+                ],
+            ) {
+                supports_inner.push_str(&css);
+                supports_inner.push('\n');
+            }
+            if let Some(css) = serialize_rule(
+                &selector,
+                &[
+                    decl("--fandhe-motion-parallax-distance", speed.distance()),
+                    decl(
+                        "translate",
+                        "0 calc(var(--fandhe-motion-scroll-progress, 0) * var(--fandhe-motion-parallax-distance, -4rem))",
+                    ),
+                ],
+            ) {
+                fallback_inner.push_str(&css);
+                fallback_inner.push('\n');
+            }
+            if let Some(css) = serialize_rule(
+                &selector,
+                &[decl("animation", "none"), decl("translate", "none")],
+            ) {
+                reduced_motion_inner.push_str(&css);
+                reduced_motion_inner.push('\n');
+            }
+        }
+
+        if !supports_inner.is_empty() {
+            let mut inner = String::from(PARALLAX_KEYFRAMES_CSS);
+            inner.push('\n');
+            inner.push_str(&supports_inner);
+            write_at_rule_block(out, "@supports (animation-timeline: view())", &inner);
+            out.push('\n');
+        }
+
+        if !fallback_inner.is_empty() {
+            write_at_rule_block(
+                out,
+                "@supports not (animation-timeline: view())",
+                &fallback_inner,
+            );
+            out.push('\n');
+        }
+
+        push_media_block(
+            out,
+            "@media (prefers-reduced-motion: reduce)",
+            &reduced_motion_inner,
+        );
+    }
+
+    /// `slot` へ scroll-linked sticky progress（`animation-timeline:
+    /// view()`、`contain` 相当の全区間で `opacity`/`scale` を線形補間する
+    /// 固定 1 種の強調表示）を適用する（builder、自己消費、イシュー
+    /// #2534）。
+    ///
+    /// `slot` が [`SlotRecipe::new`] で宣言した `slots` に含まれない場合、
+    /// この登録は [`SlotRecipe::css`] の出力から除外される
+    /// （[`SlotRecipe::scroll_reveal`] と同じ fail-closed 契約）。
+    ///
+    /// # `position: sticky` は呼び出し側の責務
+    ///
+    /// 本 builder は `position: sticky` 自体を暗黙に付与しない
+    /// （`table.rs`/`select.rs` の既存慣習と同じ判断）。`sticky_progress`
+    /// が適用する強調表示は「対象要素が `view()` timeline の `contain`
+    /// 区間（ビューポートに完全に収まっている期間）にある間」に連動する
+    /// ものであり、呼び出し側が対象を `position: sticky` としてピン留め
+    /// している場合はピン留め中の強調表示として、そうでない場合は単純な
+    /// in-view 強調表示として機能する（後者の用途にも意味のある単純化）。
+    ///
+    /// # プログレッシブエンハンスメント契約・既知の単純化
+    ///
+    /// [`SlotRecipe::parallax`] と同じ契約: ネイティブ宣言は `@supports
+    /// (animation-timeline: view())` の内側にのみ出力し、非対応ブラウザ
+    /// 向けには `--fandhe-motion-scroll-progress`（entry 進捗）を読む
+    /// `calc()` フォールバックを `@supports not` ブロックへ出力する
+    /// （`data-fandhe-scroll-progress` 属性の付与が前提、同 doc 参照）。
+    #[must_use]
+    pub fn sticky_progress(mut self, slot: &'static str) -> Self {
+        self.sticky_progress_slots.push(slot);
+        self
+    }
+
+    /// [`SlotRecipe::sticky_progress`] で登録された slot 群を `@supports`・
+    /// `@supports not`・`@media (prefers-reduced-motion: reduce)` の
+    /// 3 ブロックへ書き出す（内部ヘルパ、[`SlotRecipe::write_parallax_blocks`]
+    /// と同型）。
+    fn write_sticky_progress_blocks(&self, out: &mut String) {
+        let mut supports_inner = String::new();
+        let mut fallback_inner = String::new();
+        let mut reduced_motion_inner = String::new();
+
+        for slot in &self.sticky_progress_slots {
+            if !self.is_declared_slot(slot) || !is_valid_identifier(slot) {
+                continue;
+            }
+            let selector = format!("[data-scope=\"{}\"][data-part=\"{}\"]", self.scope, slot);
+            if let Some(css) = serialize_rule(
+                &selector,
+                &[
+                    decl("animation-name", "fandhe-motion-sticky-progress"),
+                    decl("animation-timing-function", "linear"),
+                    // `both` ではなく `backwards`（Cursor Bugbot 指摘是正、
+                    // PR #2563、threadId `PRRT_kwDOTarxgc6iTQVF`）。詳細は
+                    // [`STICKY_PROGRESS_KEYFRAMES_CSS`] doc 参照。
+                    decl("animation-fill-mode", "backwards"),
+                    decl("animation-timeline", "view()"),
+                    decl("animation-range", "contain 0% contain 100%"),
+                ],
+            ) {
+                supports_inner.push_str(&css);
+                supports_inner.push('\n');
+            }
+            if let Some(css) = serialize_rule(
+                &selector,
+                &[
+                    decl(
+                        "opacity",
+                        "calc(0.6 + (var(--fandhe-motion-scroll-progress, 0) * 0.4))",
+                    ),
+                    decl(
+                        "scale",
+                        "calc(0.96 + (var(--fandhe-motion-scroll-progress, 0) * 0.04))",
+                    ),
+                ],
+            ) {
+                fallback_inner.push_str(&css);
+                fallback_inner.push('\n');
+            }
+            if let Some(css) = serialize_rule(
+                &selector,
+                &[
+                    decl("animation", "none"),
+                    decl("opacity", "1"),
+                    // `scale: 1` ではなく `scale: none` を使う（上記 doc
+                    // 参照。`1` は視覚的には無変形だが非 `none` 値のため
+                    // 包含ブロックを作り続けてしまう）。
+                    decl("scale", "none"),
+                ],
+            ) {
+                reduced_motion_inner.push_str(&css);
+                reduced_motion_inner.push('\n');
+            }
+        }
+
+        if !supports_inner.is_empty() {
+            let mut inner = String::from(STICKY_PROGRESS_KEYFRAMES_CSS);
+            inner.push('\n');
+            inner.push_str(&supports_inner);
+            write_at_rule_block(out, "@supports (animation-timeline: view())", &inner);
+            out.push('\n');
+        }
+
+        if !fallback_inner.is_empty() {
+            write_at_rule_block(
+                out,
+                "@supports not (animation-timeline: view())",
+                &fallback_inner,
+            );
             out.push('\n');
         }
 

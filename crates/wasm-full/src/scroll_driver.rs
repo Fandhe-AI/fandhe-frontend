@@ -40,6 +40,7 @@
 // ガードする（未使用 import の警告を避ける）。
 #[cfg(target_arch = "wasm32")]
 use fandhe_frontend_animation::scroll_driver::Env;
+use fandhe_frontend_animation::scroll_driver::ProgressRange;
 
 /// opt-in（著者が SSR 出力に静的に付与）: scroll ドライバのフォールバック
 /// 対象にする存在属性。
@@ -47,22 +48,85 @@ pub const SCROLL_PROGRESS_ATTR: &str = "data-fandhe-scroll-progress";
 /// 候補走査セレクタ。
 pub const SCROLL_PROGRESS_SELECTOR: &str = "[data-fandhe-scroll-progress]";
 
+/// `data-fandhe-scroll-progress` 属性値を [`ProgressRange`] へ厳格一致で
+/// 変換する（イシュー #2534）。
+///
+/// `""`（存在マーカーのみ・値なし）・`"entry"` は [`ProgressRange::Entry`]、
+/// `"cover"` は [`ProgressRange::Cover`]、`"contain"` は
+/// [`ProgressRange::Contain`] へ写像し、それ以外の未知値は
+/// [`ProgressRange::Entry`] へ fail-closed に倒す（`in_view.rs::
+/// in_view_once_from_attr` と同じ「厳格一致・未知値は安全側」方針）。
+///
+/// DOM から読んだ動的文字列はこの `match` の既知パターンとの比較にのみ
+/// 使い、変換結果の `ProgressRange`（enum 値）だけを後段（セレクタ・
+/// プロパティ名の組み立てを一切伴わない `compute_progress_for_range` の
+/// 引数）へ渡す。動的文字列そのものをセレクタ・プロパティ名へ混ぜない
+/// （REQ-1・security.md A03）。
+#[must_use]
+pub fn progress_range_from_attr(value: &str) -> ProgressRange {
+    match value {
+        "" | "entry" => ProgressRange::Entry,
+        "cover" => ProgressRange::Cover,
+        "contain" => ProgressRange::Contain,
+        _ => ProgressRange::Entry,
+    }
+}
+
+#[cfg(test)]
+mod progress_range_from_attr_tests {
+    use super::progress_range_from_attr;
+    use fandhe_frontend_animation::scroll_driver::ProgressRange;
+
+    #[test]
+    fn empty_marker_value_is_entry() {
+        assert_eq!(progress_range_from_attr(""), ProgressRange::Entry);
+    }
+
+    #[test]
+    fn explicit_entry_is_entry() {
+        assert_eq!(progress_range_from_attr("entry"), ProgressRange::Entry);
+    }
+
+    #[test]
+    fn cover_maps_to_cover() {
+        assert_eq!(progress_range_from_attr("cover"), ProgressRange::Cover);
+    }
+
+    #[test]
+    fn contain_maps_to_contain() {
+        assert_eq!(progress_range_from_attr("contain"), ProgressRange::Contain);
+    }
+
+    #[test]
+    fn unknown_value_fails_closed_to_entry() {
+        assert_eq!(
+            progress_range_from_attr("cover; background: red"),
+            ProgressRange::Entry
+        );
+        assert_eq!(progress_range_from_attr("COVER"), ProgressRange::Entry);
+        assert_eq!(progress_range_from_attr("unknown"), ProgressRange::Entry);
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{Env, SCROLL_PROGRESS_SELECTOR};
+    use super::{progress_range_from_attr, Env, SCROLL_PROGRESS_ATTR, SCROLL_PROGRESS_SELECTOR};
     use fandhe_frontend_animation::dom_target::DomTarget;
     use fandhe_frontend_animation::scroll_driver::{
-        update_element_progress, ScrollDriver, SCROLL_PROGRESS_PROPERTY,
+        update_element_progress_for_range, ProgressRange, ScrollDriver, SCROLL_PROGRESS_PROPERTY,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event, HtmlElement};
 
-    /// `root` 配下の `[data-fandhe-scroll-progress]` 要素（複数可）を
-    /// 出現順に集める。`query_selector_all` の失敗は空 `Vec` として扱う
+    /// `root` 配下の `[data-fandhe-scroll-progress]` 要素（複数可）を、
+    /// 各要素の属性値から解決した [`ProgressRange`] とあわせて出現順に
+    /// 集める。`query_selector_all` の失敗は空 `Vec` として扱う
     /// （fail-closed、panic しない。`in_view.rs::collect_in_view_candidates`
-    /// と同型）。
-    fn collect_scroll_progress_candidates(root: &Element) -> Vec<HtmlElement> {
+    /// と同型）。属性値 → `ProgressRange` の変換は
+    /// [`progress_range_from_attr`]（厳格一致・未知値は `Entry` へ
+    /// fail-closed）を経由する（イシュー #2534）。
+    fn collect_scroll_progress_candidates(root: &Element) -> Vec<(HtmlElement, ProgressRange)> {
         let Ok(node_list) = root.query_selector_all(SCROLL_PROGRESS_SELECTOR) else {
             return Vec::new();
         };
@@ -71,7 +135,9 @@ mod wiring {
         for i in 0..len {
             if let Some(node) = node_list.get(i) {
                 if let Ok(el) = node.dyn_into::<HtmlElement>() {
-                    out.push(el);
+                    let attr_value = el.get_attribute(SCROLL_PROGRESS_ATTR).unwrap_or_default();
+                    let range = progress_range_from_attr(&attr_value);
+                    out.push((el, range));
                 }
             }
         }
@@ -114,7 +180,7 @@ mod wiring {
         // を 1 回だけ書き込み、リスナー登録は行わない（AC の reduced-motion
         // 個別規則。継続的なスクロール連動アニメーションを提供しない）。
         if env.reduced_motion {
-            for el in &candidates {
+            for (el, _range) in &candidates {
                 let _ = el.style().set_property(SCROLL_PROGRESS_PROPERTY, "1");
             }
             return Ok(());
@@ -125,18 +191,18 @@ mod wiring {
             .document()
             .ok_or_else(|| JsValue::from_str("document is unavailable"))?;
 
-        let mut targets: Vec<(HtmlElement, DomTarget)> = candidates
+        let mut targets: Vec<(HtmlElement, DomTarget, ProgressRange)> = candidates
             .iter()
-            .map(|el| {
+            .map(|(el, range)| {
                 let target = DomTarget::custom_property(el.clone(), SCROLL_PROGRESS_PROPERTY);
-                (el.clone(), target)
+                (el.clone(), target, *range)
             })
             .collect();
 
         let driver = ScrollDriver::start(move || {
-            for (element, target) in &mut targets {
+            for (element, target, range) in &mut targets {
                 let element: &Element = element.as_ref();
-                let _ = update_element_progress(element, target);
+                let _ = update_element_progress_for_range(element, target, *range);
             }
         });
 
