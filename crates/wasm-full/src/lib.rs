@@ -160,6 +160,15 @@
 //! `Self::wire_message_scroller` の直後で配線する（`data_table` モジュール
 //! doc 参照）。
 //!
+//! [`in_view`] モジュール（イシュー #2396、親 #2394）はアプリ側マークアップ
+//! が opt-in した任意要素のビューポート進入/離脱を `IntersectionObserver`
+//! で検知し `data-in-view` 属性の付け外しで反映する。
+//! `docs/design/motion-reference-adoption-policy.md` §4 の「群 B: 小さな
+//! DOM 配線」分類に従い `fandhe-frontend-animation` の `Driver`/`Target`
+//! 連携は持たない。`Runtime::mount`/`Runtime::hydrate` の双方から
+//! `Self::wire_data_table` の直後で配線する（`in_view` モジュール doc
+//! 参照）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -203,6 +212,7 @@
 //! | `Runtime::wire_questionnaire` | `questionnaire` |
 //! | `Runtime::wire_message_scroller` | `message-scroller` |
 //! | `Runtime::wire_data_table` | `data-table` |
+//! | `Runtime::wire_in_view` | `in-view` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -235,18 +245,19 @@
 //!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
-//! `default-features = false` を使う利用者は上記 16 配線を失う
+//! `default-features = false` を使う利用者は上記 17 配線を失う
 //! （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の (ii)
 //! を採用。イシュー #2122 で `message-scroller`、イシュー #2126 で
-//! `data-table` を追加）。従来どおりの挙動を維持するには `features = [
+//! `data-table`、イシュー #2396 で `in-view` を追加）。従来どおりの挙動を
+//! 維持するには `features = [
 //! "wasm-bindgen-exports", "keynav", "focus-visible", "avatar", "clipboard",
 //! "timer", "angle-slider", "splitter", "signature-pad", "number-input",
 //! "command", "sidebar", "chart", "chart-range", "questionnaire",
-//! "message-scroller", "data-table"]`
+//! "message-scroller", "data-table", "in-view"]`
 //! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
-//! 明示すること。上記 16 件に加え、[`headless::wire_headless_component`] の
+//! 明示すること。上記 17 件に加え、[`headless::wire_headless_component`] の
 //! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
-//! こと（`position` はこの 16 配線とは別枠の feature であり、既定 17 件目
+//! こと（`position` はこの 17 配線とは別枠の feature であり、既定 18 件目
 //! として `Cargo.toml` の `default` 配列に列挙されている）。
 //! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
 //! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
@@ -393,6 +404,7 @@ pub mod headless_select;
 pub mod headless_signature_pad;
 pub mod headless_timer;
 pub mod hydration;
+pub mod in_view;
 pub mod keynav;
 pub mod message_scroller;
 pub mod nav;
@@ -1378,6 +1390,8 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "in-view")]
+        Self::wire_in_view(root.clone())?;
 
         Ok(Self {
             component,
@@ -1556,6 +1570,8 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "in-view")]
+        Self::wire_in_view(root.clone())?;
 
         Ok(Self {
             component,
@@ -2474,6 +2490,22 @@ where
             }
             Self::apply_dirty_if_any(&state, &data_table_root, &binding_table, &keyed_list_cache);
         })
+    }
+
+    /// `Self::mount`/`Self::hydrate` の双方から `Self::wire_data_table` の
+    /// 直後に 1 回だけ呼ばれる。`root` 配下の `[data-in-view]` 要素へ
+    /// `IntersectionObserver` 配線（[`in_view::wire_in_view`]、
+    /// イシュー #2396）を登録する。`dispatch` チャネルを持たない属性専用
+    /// 配線のため（`Self::wire_sidebar`/`Self::wire_chart` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`in_view::wire_in_view`]（`IntersectionObserver::new`/
+    /// `observe`/属性書き込み）の失敗を伝播する。
+    #[cfg(feature = "in-view")]
+    fn wire_in_view(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        in_view::wire_in_view(&root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

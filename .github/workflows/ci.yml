@@ -862,6 +862,15 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test data_table_browser
 
+      # イシュー #2396（親 #2394）: in-view（IntersectionObserver 配線、
+      # crates/wasm-full/src/in_view.rs）の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/in_view_browser.rs）。他の wasm-full
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。
+      - name: Run wasm-full in-view browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test in_view_browser
+
       # イシュー #2398: `fandhe-frontend-animation::animate`（`element.animate()`
       # WAAPI 薄いラッパ）の wasm32 層（`animate`/`AnimationHandle::finished`）を
       # `fandhe-frontend-wasm-full`（既に cdylib+rlib・`wasm-bindgen-futures`
@@ -2289,6 +2298,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,position --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: stagger, issue #2397)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,stagger --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: in-view, issue #2396)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,in-view --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: animate, issue #2398)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,animate --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
