@@ -983,3 +983,139 @@ async fn update_element_progress_preserves_inline_transition_duration_longhand()
 
     target_el.remove();
 }
+
+/// codex-review P1 是正（PR #2563、threadId `PRRT_kwDOTarxgc6iTdew`）の
+/// 回帰テスト: `measure_untransformed_rect` が変形（`translate`）の復元と
+/// `transition-duration`/`transition-delay` の復元を同一のスタイル変化
+/// イベントへ束ねてしまうと、計測直前に確定した `none` から復元値への
+/// 変化が（有効時間が復元済みの正の値で評価されるため）新たな遷移として
+/// 開始してしまう。是正後は両者の復元の間に `getComputedStyle` による
+/// 強制フラッシュを挟むため、変形の復元自体は遷移の開始条件を満たさない
+/// （復元直後に読む計算済みスタイルは、遷移の開始点である `none` では
+/// なく復元済みの値そのものであるはず）。
+#[wasm_bindgen_test]
+async fn update_element_progress_does_not_restart_transition_on_restore() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .set_attribute(
+            "style",
+            "height: 50px; translate: -100px; transition: translate 200ms linear;",
+        )
+        .expect("set_attribute must not fail");
+
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+    body.append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+
+    // 事前に一度スタイルを確定させておく（要素追加直後の初期スタイル
+    // 反映と、以降の計測による変化を区別するため）。
+    wait_one_frame().await;
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    let _ = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    // 計測（復元含む）が完了した直後、同一の同期実行内で計算済み
+    // スタイルを読む。是正前は復元の transition-duration/-delay 復元が
+    // 変形の復元と同じ変化イベントへ束ねられ、新たな遷移が `none` から
+    // 開始してしまうため、この時点の計算済み値は遷移の開始値である
+    // `none` になる（是正後は復元済みの `-100px` のまま）。
+    let computed_translate = window
+        .get_computed_style(&element)
+        .expect("get_computed_style must not fail")
+        .expect("computed style must exist")
+        .get_property_value("translate")
+        .expect("get_property_value must not fail");
+
+    assert_ne!(
+        computed_translate, "none",
+        "計測の復元が新たな遷移の開始点になってはならない（変形の復元と \
+         transition-duration/-delay の復元の間にスタイル再計算を挟まない \
+         回帰）: computed_translate={computed_translate}"
+    );
+
+    target_el.remove();
+}
+
+/// codex-review P1 是正（PR #2563、threadId `PRRT_kwDOTarxgc6iTde2`）の
+/// 回帰テスト: `measure_untransformed_rect` が計測対象の変形
+/// （`translate`/`scale`/`position`）以外のプロパティ（ここでは `opacity`）
+/// の実行中の遷移まで一時的にキャンセルしないことを検証する。
+///
+/// 是正前は `transition-property: none` を要素全体へ一時上書きしていた
+/// ため、計測に無関係な `opacity` の実行中の遷移までキャンセルされ、
+/// （CSS Transitions の仕様上、キャンセルされた遷移は
+/// `transition-property` を戻しても自動的には再開しない）計測直後の
+/// `opacity` は遷移の終端値へ飛んでいた。是正後は
+/// `transition-duration`/`transition-delay` のみを一時的に `0s` へ
+/// 上書きするため、`transition-property` のリスト自体は変わらず、
+/// `opacity` の遷移状態は保持される。
+#[wasm_bindgen_test]
+async fn update_element_progress_preserves_unrelated_transition_in_progress() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .set_attribute(
+            "style",
+            "height: 50px; opacity: 0; transition: opacity 1000ms linear;",
+        )
+        .expect("set_attribute must not fail");
+
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+    body.append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+
+    // 初期状態（opacity: 0）を確定させてから遷移を開始する。
+    wait_one_frame().await;
+    target_el
+        .style()
+        .set_property("opacity", "1")
+        .expect("set_property must not fail");
+    // 遷移を開始させ、まだ完了していない（0 と 1000ms の中間）タイミング
+    // まで進める。
+    wait_one_frame().await;
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    let _ = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    let computed_opacity: f64 = window
+        .get_computed_style(&element)
+        .expect("get_computed_style must not fail")
+        .expect("computed style must exist")
+        .get_property_value("opacity")
+        .expect("get_property_value must not fail")
+        .parse()
+        .expect("computed opacity must parse as a float");
+
+    assert!(
+        computed_opacity < 1.0,
+        "計測に無関係な `opacity` の実行中の遷移は計測によって \
+         キャンセルされてはならない（`transition-property: none` を要素\
+         全体へ適用すると終端値 1.0 へ飛んでしまう回帰）: \
+         computed_opacity={computed_opacity}"
+    );
+
+    target_el.remove();
+}
