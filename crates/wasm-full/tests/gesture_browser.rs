@@ -3,8 +3,7 @@
 //! --headless --chrome`）。
 //!
 //! `wasm-full/src/gesture.rs` の native テストは純粋層
-//! （`is_touch_pointer`/`is_implicit_capture_pointer`/`is_press_activation_key`）
-//! までを検証済み。本
+//! （`is_touch_pointer`/`is_press_activation_key`）までを検証済み。本
 //! ファイルはその先、`wire_gesture` が実 DOM 上で pointerover/pointerout・
 //! pointerdown/pointerup/pointercancel/pointermove・keydown/keyup/
 //! focusout に応じて `data-fandhe-hover`/`data-fandhe-press` を正しく
@@ -940,8 +939,8 @@ fn pointerdown_with_reused_pointer_id_clears_stale_previous_target_press() {
 }
 
 /// `client_x`/`client_y` 座標・`pointer_type` を指定した `pointermove` を
-/// 発火する（タッチ/ペンの暗黙 pointer capture 下での `elementFromPoint`
-/// によるヒットテストを検証するため）。
+/// 発火する（暗黙・明示いずれかの pointer capture 下での
+/// `elementFromPoint` によるヒットテストを検証するため）。
 fn dispatch_pointermove_at(target: &Element, pointer_type: &str, client_x: i32, client_y: i32) {
     let init = PointerEventInit::new();
     init.set_bubbles(true);
@@ -959,10 +958,10 @@ fn dispatch_pointermove_at(target: &Element, pointer_type: &str, client_x: i32, 
 /// 要素外への離脱を検知する」）: `touch-action: none` を持つ opt-in
 /// 要素をタッチで押下すると暗黙 pointer capture が働き、指を要素の外へ
 /// 動かしても境界イベント（`pointerout`）が発生しない。`pointermove`
-/// （すべてタッチの合成イベント。`elementFromPoint` によるヒットテスト
-/// はタッチ限定の補完のため）でこの残余ケースを補完し、要素外座標への
-/// `pointermove` で press が解除されること（要素内座標では維持される
-/// こと）を確認する。
+/// （`elementFromPoint` によるヒットテストは追跡中ポインタであれば
+/// 種別を問わず適用される補完のため、ここではタッチの合成イベントで
+/// 検証する）でこの残余ケースを補完し、要素外座標への `pointermove` で
+/// press が解除されること（要素内座標では維持されること）を確認する。
 #[wasm_bindgen_test]
 fn pointermove_outside_bounds_clears_press_during_implicit_capture() {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -993,18 +992,19 @@ fn pointermove_outside_bounds_clears_press_during_implicit_capture() {
     );
 }
 
-/// codex P1・Bugbot 指摘の回帰固定（「親の矩形外にある子孫上で press を
-/// 誤解除しない」「Pointermove clears press too early」）: `overflow:
-/// visible` で押下対象（`parent`）の矩形からはみ出した子孫
-/// （`overflowing_child`）上に指がある状態で `pointermove` が発火しても、
-/// `elementFromPoint` が子孫自身（＝押下対象の子孫）をヒットする限り
-/// press を解除しないこと。矩形の内外比較（旧実装）ではこのケースを
-/// 「離脱」と誤判定していた。
-#[wasm_bindgen_test]
-fn pointermove_over_overflowing_descendant_keeps_press_during_implicit_capture() {
+/// [`pointermove_over_overflowing_descendant_keeps_press_during_implicit_capture`]/
+/// [`pointermove_over_overflowing_descendant_keeps_press_for_mouse`] が
+/// 共有する本体。`pointer_type` を引数化し、暗黙 pointer capture
+/// （タッチ・ペン）と明示的 pointer capture（マウス、
+/// `set_pointer_capture` を子孫へ設定する既存部品を想定）の双方で
+/// `handle_pointermove` の子孫包含判定（`elementFromPoint`）が同じ結果
+/// になることを固定する（codex-review 再指摘「明示的 pointer capture
+/// 中のマウスも離脱判定する」の是正で pointer_type ゲートを撤去した
+/// ため、種別ごとに独立した回帰点を持つ）。
+fn pointermove_over_overflowing_descendant_keeps_press(pointer_type: &str, root_id: &str) {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
-    root.set_id("gesture-pointermove-overflow-descendant-test");
+    root.set_id(root_id);
     let parent = document.create_element("div").unwrap();
     parent.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
     parent
@@ -1044,7 +1044,7 @@ fn pointermove_over_overflowing_descendant_keeps_press_during_implicit_capture()
     let _guard = RemoveOnDrop(root.clone());
     wire_gesture(root.clone()).expect("wire_gesture must not fail");
 
-    dispatch_pointer(&parent, "pointerdown", "touch", None);
+    dispatch_pointer(&parent, "pointerdown", pointer_type, None);
     assert!(parent.has_attribute(PRESS_STATE_ATTR));
 
     let child_rect = overflowing_child.get_bounding_client_rect();
@@ -1068,10 +1068,41 @@ fn pointermove_over_overflowing_descendant_keeps_press_during_implicit_capture()
         "テスト前提: elementFromPoint が子孫（overflowing_child）をヒットすること"
     );
 
-    dispatch_pointermove_at(&overflowing_child, "touch", x, y);
+    dispatch_pointermove_at(&overflowing_child, pointer_type, x, y);
     assert!(
         parent.has_attribute(PRESS_STATE_ATTR),
         "親の矩形外にはみ出した子孫上の pointermove では press を維持すること"
+    );
+}
+
+/// codex P1・Bugbot 指摘の回帰固定（「親の矩形外にある子孫上で press を
+/// 誤解除しない」「Pointermove clears press too early」）: `overflow:
+/// visible` で押下対象（`parent`）の矩形からはみ出した子孫
+/// （`overflowing_child`）上に指がある状態で `pointermove` が発火しても、
+/// `elementFromPoint` が子孫自身（＝押下対象の子孫）をヒットする限り
+/// press を解除しないこと。矩形の内外比較（旧実装）ではこのケースを
+/// 「離脱」と誤判定していた。
+#[wasm_bindgen_test]
+fn pointermove_over_overflowing_descendant_keeps_press_during_implicit_capture() {
+    pointermove_over_overflowing_descendant_keeps_press(
+        "touch",
+        "gesture-pointermove-overflow-descendant-test",
+    );
+}
+
+/// codex-review 再指摘の回帰固定（「明示的 pointer capture 中のマウスも
+/// 離脱判定する」）: マウスにも `set_pointer_capture` を明示的に呼ぶ
+/// 既存部品（`angle_slider.rs`/`headless_signature_pad.rs` 等）が press
+/// に opt-in すると、押下対象の矩形からはみ出した子孫上でマウスカーソルが
+/// 動いても、暗黙 pointer capture のタッチ/ペンと同じ「境界イベントが
+/// 発火しない」状況になり得る。`handle_pointermove` の子孫包含判定は
+/// pointer_type を問わないため、マウスでも同じ結果（press 維持）になる
+/// ことを固定する（pointer_type ゲート撤去の回帰点）。
+#[wasm_bindgen_test]
+fn pointermove_over_overflowing_descendant_keeps_press_for_mouse() {
+    pointermove_over_overflowing_descendant_keeps_press(
+        "mouse",
+        "gesture-pointermove-overflow-descendant-mouse-test",
     );
 }
 
@@ -1122,9 +1153,10 @@ fn keydown_on_editable_descendant_does_not_trigger_ancestor_press() {
 /// codex P1 指摘の回帰固定（「ペンの暗黙 pointer capture 中も離脱を
 /// 検知する」）: タッチスクリーンのペン（`pointer_type: "pen"`）で
 /// 押したまま要素外へ移動しても、暗黙 pointer capture が働くため
-/// `pointerout` が発火しない。`handle_pointermove` の補完対象がタッチに
-/// 限定されていたため、ペンでの領域外離脱を見逃していた
-/// （`is_implicit_capture_pointer` でタッチ・ペン両方を対象にする）。
+/// `pointerout` が発火しない。`handle_pointermove` の補完対象は現在
+/// ポインタ種別を問わない（追跡中の `pointer_id` であれば全種別が
+/// 対象）ため、当時タッチに限定していた実装が見逃していたペンでの
+/// 領域外離脱も検知できることを固定する。
 #[wasm_bindgen_test]
 fn pointermove_outside_bounds_clears_press_for_pen_during_implicit_capture() {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -1179,5 +1211,59 @@ fn keyup_on_editable_element_still_releases_press_from_non_editable_origin() {
     assert!(
         !parent.has_attribute(PRESS_STATE_ATTR),
         "編集可能要素上の keyup でも、追跡中の keyboard 押下源が正しく解放されること"
+    );
+}
+
+/// codex-review 再指摘の回帰固定（「明示的 pointer capture 中のマウスも
+/// 離脱判定する」）: `angle_slider.rs`/`headless_signature_pad.rs` 等の
+/// 既存部品はマウスにも `set_pointer_capture` を設定するため、これらが
+/// press に opt-in すると capture 中は要素外へ移動しても `pointerout` が
+/// 発火しない。`handle_pointermove` の補完対象を pointer_type で限定
+/// していた旧実装（`is_implicit_capture_pointer`）はマウスを除外して
+/// おり、このケースで press が pointerup まで残留していた。追跡中の
+/// `pointer_id` に対するマウスの `pointermove` でも、要素外座標なら
+/// `elementFromPoint` によるヒットテストで press が解除されることを
+/// 固定する。
+#[wasm_bindgen_test]
+fn pointermove_outside_bounds_clears_press_for_mouse_during_explicit_capture() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-pointermove-mouse-capture-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer(&child, "pointerdown", "mouse", None);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    // 要素外の座標（大きく離れた座標）へのマウスの pointermove は、
+    // 明示的 pointer capture 下で pointerout が発火しない状況でも press
+    // を解除すること。
+    dispatch_pointermove_at(&child, "mouse", -9999, -9999);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "マウスの pointermove も要素外座標で press を解除すること（明示的 pointer capture の補完）"
+    );
+}
+
+/// 上記の対になる回帰固定: 追跡中のマウスの `pointermove` が、押下対象
+/// 自身の矩形内の座標であれば press を維持し続けること（種別ゲート撤去
+/// による過剰解除が起きないことの確認）。
+#[wasm_bindgen_test]
+fn pointermove_inside_bounds_keeps_press_for_mouse_during_explicit_capture() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) =
+        build_dom(&document, "gesture-pointermove-mouse-capture-inside-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer(&child, "pointerdown", "mouse", None);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    let rect = child.get_bounding_client_rect();
+    let inside_x = ((rect.left() + rect.right()) / 2.0) as i32;
+    let inside_y = ((rect.top() + rect.bottom()) / 2.0) as i32;
+    dispatch_pointermove_at(&child, "mouse", inside_x, inside_y);
+    assert!(
+        child.has_attribute(PRESS_STATE_ATTR),
+        "要素内座標へのマウスの pointermove は press を維持すること"
     );
 }
