@@ -78,6 +78,30 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   `fandhe_frontend_wasm_full::view_transition_name::set_view_transition_name`
   （wasm-full 側、`view-transition-name` feature 既定 on）を使ってください。
 
+- **border-beam 装飾オプション（イシュー #2531、
+  `crates/pre-styled-ui/src/border_beam.rs`）**: 単体コンポーネントでは
+  なく、card / pricing 等の任意要素へ外側からラップして付与する opt-in
+  装飾です。
+  - `border_beam::BORDER_BEAM_CLASS`（`"fd-border-beam"`）: 装飾したい
+    要素を `el("div", vec![("class", BORDER_BEAM_CLASS)], vec![inner])`
+    のように素の `<div>` でラップするための class 名。
+  - `border_beam::BORDER_BEAM_CSS`: 周回する光の CSS 全文。
+    `sheet.push_css(border_beam::BORDER_BEAM_CSS)` で個別に取り込めます。
+  - `Theme::to_css_with_border_beam()`: `Theme::to_css()` の出力へ
+    `BORDER_BEAM_CSS` を追記して返す opt-in メソッド。
+  - 4 トークン（`--fandhe-border-beam-width`/`-color`/`-spread`/
+    `-duration`）で太さ・色・光弧の長さ・周期を上書きできます。
+  - `@property` によるカスタムプロパティ型登録は使いません（`<angle>` 等
+    `<` を含むリテラルは本クレートの CSS 不変条件に抵触するため）。
+    代わりに `transform: rotate()` で光源レイヤーを回転させる技法を
+    採ります。光源レイヤーはラッパーの**長辺基準**（`2 * max(幅, 高さ)`）
+    の正方形にサイズされ、縦長・横長いずれのラッパーでも回転角度に
+    関わらず外周全体を覆います。ラッパーの `overflow: hidden` が子要素の
+    box-shadow・フォーカスリングの `outline` も一緒に切り抜く既知の制約が
+    あります（詳細は `border_beam` モジュール doc「技術選定」節参照）。
+  - `prefers-reduced-motion: reduce` 下では回転を止め、静的な `border`
+    へフォールバックします。
+
 - **spring 近似 easing プリセット（イシュー #2381）**: `theme::Theme::
   push_spring_easing()` を呼ぶと、`motion.dev spring()` 既定値
   （stiffness=100/damping=10/mass=1）を `from=0.0`/`to=1.0`/
@@ -179,6 +203,7 @@ cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_ze
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_stagger_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_spring_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_scroll_reveal_css --locked
+cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_border_beam_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_parallax_css --test motion_sticky_progress_css --locked
 cargo tree   -p fandhe-frontend-pre-styled-ui -e normal --prefix none --locked | grep -c fandhe-animation   # 0
 ```

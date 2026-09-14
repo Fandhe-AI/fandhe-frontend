@@ -746,6 +746,8 @@ pub mod attachment;
 pub mod avatar;
 pub mod badge;
 pub mod blockquote;
+#[cfg(feature = "motion")]
+pub mod border_beam;
 pub mod breadcrumb;
 pub mod bubble;
 pub mod button;

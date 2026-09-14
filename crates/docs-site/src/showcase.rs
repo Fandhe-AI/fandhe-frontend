@@ -71,6 +71,7 @@ use fandhe_frontend_pre_styled_ui::avatar::{
     self, fallback, AvatarBadgeProps, AvatarProps, AvatarShape, AvatarVariant, ImageStatus,
 };
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
+use fandhe_frontend_pre_styled_ui::border_beam::{self, BORDER_BEAM_CLASS};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::bubble::{
     self as bubble, BubbleGroupPosition, BubbleRootProps, BubbleVariant,
@@ -1100,6 +1101,11 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::alert::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::callout::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::card::css())?;
+    // イシュー #2531: border-beam は単体部品ではなく card 等へ任意付与する
+    // opt-in 装飾（`crate::border_beam` モジュール doc 参照）のため、他の
+    // styled 部品と異なり `css()`/`stylesheet()` を持たず定数
+    // `BORDER_BEAM_CSS` を直接 push する。
+    sheet.push_css(border_beam::BORDER_BEAM_CSS)?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tabs::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::accordion::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::collapsible::stylesheet())?;
@@ -3199,11 +3205,42 @@ fn card_section() -> Node {
             ),
         ],
     );
-    let composition_demos = stack(vec![action_demo, cover_demo, bordered_demo]);
+    // イシュー #2531: border-beam は card 自体の anatomy を変更せず、外側を
+    // `BORDER_BEAM_CLASS` 付きの素の `<div>` でラップして適用する opt-in
+    // 装飾（`crate::border_beam` モジュール doc 参照）。ラッパーの
+    // `overflow: hidden` が子要素の box-shadow を切り抜くため、shadow を
+    // 持たない `CardVariant::Outline` を Demo に使う（同モジュール doc
+    // 「既知の制約」節 (a)）。
+    let border_beam_demo = el(
+        "div",
+        vec![("class", BORDER_BEAM_CLASS)],
+        vec![card::root(
+            CardProps {
+                variant: CardVariant::Outline,
+                ..CardProps::default()
+            },
+            vec![],
+            vec![
+                card::header(vec![], vec![card::title(vec![], vec![text("Pro plan")])]),
+                card::body(
+                    vec![],
+                    vec![text(
+                        "border-beam（イシュー #2531）は任意要素へ外側からラップして付与する opt-in 装飾です。",
+                    )],
+                ),
+            ],
+        )],
+    );
+    let composition_demos = stack(vec![
+        action_demo,
+        cover_demo,
+        bordered_demo,
+        border_beam_demo,
+    ]);
 
     section(
         "Card",
-        "variant（elevated / outline / subtle）・size（xs〜xl、padding / 角丸 / title の文字サイズが連動）を持つ装飾的コンテナ。イシュー #2046 で action（header 右上スロット）・cover（cover image 枠）・data-bordered（区切り線 opt-in）を shadcn/ui 突合により純追加した。",
+        "variant（elevated / outline / subtle）・size（xs〜xl、padding / 角丸 / title の文字サイズが連動）を持つ装飾的コンテナ。イシュー #2046 で action（header 右上スロット）・cover（cover image 枠）・data-bordered（区切り線 opt-in）を shadcn/ui 突合により純追加した。border-beam（イシュー #2531）は card 専用ではなく任意要素へ外側からラップして付与できる opt-in 装飾で、card はその実演例です。",
         vec![demos, size_row, composition_demos],
     )
 }
