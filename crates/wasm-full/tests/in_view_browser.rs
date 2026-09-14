@@ -115,6 +115,14 @@ fn create_scroll_fixture(document: &Document, id_prefix: &str, once: bool) -> (E
 /// 条件不成立のままタイムアウトした場合は `false` を返す（呼び出し側は
 /// 必ず戻り値を `assert!` で確認すること。戻り値を無視すると配線欠落を
 /// 検出できないまま正常終了してしまう、codex-review/Bugbot 指摘の是正）。
+///
+/// 各周回は `requestAnimationFrame` と `setTimeout`（50ms）を
+/// `Promise.race` で競わせて待つ（Bugbot 指摘の是正、イシュー #2403）。
+/// `rAF` 単独だと、ページが非表示化される等でブラウザが `rAF` の発火自体を
+/// 止めた場合に `await` が永久に解決せず、600 回の周回上限が「一度も
+/// 周回が進まない」ため事実上無効化されタイムアウトしない（テストが
+/// ハングする）。`setTimeout` を道連れにすることで、`rAF` が発火しなくても
+/// 高々 50ms ごとに周回が進み、600 回の上限が必ず有効に効く。
 #[must_use]
 async fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
     use wasm_bindgen::closure::Closure;
@@ -126,17 +134,29 @@ async fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
         }
         let promise = js_sys::Promise::new(&mut |resolve, _reject| {
             let window = web_sys::window().expect("window must exist");
-            let closure = Closure::once(move |_timestamp: f64| {
+            let resolve_for_raf = resolve.clone();
+            let raf_closure = Closure::once(move |_timestamp: f64| {
+                resolve_for_raf.call0(&wasm_bindgen::JsValue::NULL).ok();
+            });
+            window
+                .request_animation_frame(raf_closure.as_ref().unchecked_ref())
+                .expect("requestAnimationFrame must not fail");
+            raf_closure.forget();
+
+            let timeout_closure = Closure::once(move || {
                 resolve.call0(&wasm_bindgen::JsValue::NULL).ok();
             });
             window
-                .request_animation_frame(closure.as_ref().unchecked_ref())
-                .expect("requestAnimationFrame must not fail");
-            closure.forget();
+                .set_timeout_with_callback_and_timeout_and_arguments_0(
+                    timeout_closure.as_ref().unchecked_ref(),
+                    50,
+                )
+                .expect("setTimeout must not fail");
+            timeout_closure.forget();
         });
         wasm_bindgen_futures::JsFuture::from(promise)
             .await
-            .expect("animation frame promise must resolve");
+            .expect("animation frame / timeout promise must resolve");
     }
     condition()
 }
