@@ -250,11 +250,11 @@
 //! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
 //! 明示すること。上記 18 件に加え、[`headless::wire_headless_component`] の
 //! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
-//! こと（`position` はこの 17 配線とは別枠の feature であり、既定 18 件目
+//! こと（`position` はこの 18 配線とは別枠の feature であり、既定 19 件目
 //! として `Cargo.toml` の `default` 配列に列挙されている）。
 //! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
 //! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
-//! 同型の別枠 feature、既定 18 件目として `default` 配列に列挙されて
+//! 同型の別枠 feature、既定 19 件目として `default` 配列に列挙されて
 //! いる）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
