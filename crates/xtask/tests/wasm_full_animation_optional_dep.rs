@@ -6,16 +6,20 @@
 //! `structure.toml` の `directories.frontend-animation` も
 //! `allowed_dependents = ["wasm-full"]` を宣言しない非対称な状態だった。
 //!
-//! イシュー #2398 で `animate` feature（既定 on、`dep:fandhe-frontend-animation`）
-//! を新設したことにより、本依存は初めて既定 feature の依存グラフに現れるように
-//! なった（`structure.toml`・本ファイルとも #2398 で追随更新済み）。
+//! イシュー #2398 で `animate` feature（既定 on、`dep:fandhe-frontend-animation`）・
+//! イシュー #2403/#2517 で `animation-driver` feature（既定 on、同じく
+//! `dep:fandhe-frontend-animation`）をそれぞれ独立に新設したことにより、
+//! 本依存は既定 feature の依存グラフに現れるようになった（`structure.toml`・
+//! 本ファイルとも両イシューで追随更新済み。いずれか片方の feature のみを
+//! off にしても他方が on であれば依存グラフには引き続き現れる）。
 //!
 //! 本テストは `cargo tree` の実測で両方向を機械固定する:
 //!
 //! 1. `--no-default-features`（素の状態）では `fandhe-frontend-animation`/
 //!    `fandhe-animation` が依存グラフに現れないこと（`default-features = false`
 //!    利用者が完全に外せることの証明）
-//! 2. 引数なし（既定 feature）では現れること（#2398 で反転した新しい不変条件）
+//! 2. 引数なし（既定 feature）では現れること（#2398/#2403/#2517 で反転した
+//!    新しい不変条件）
 //! 3. `--all-features` でも現れること（陽性対照。feature 名の変更・`dep:` 化に
 //!    対しても「optional 依存として存在する」こと自体は検証できる）
 //!
@@ -83,8 +87,9 @@ fn default_features_include_frontend_animation() {
     assert!(
         tree.contains("fandhe-frontend-animation"),
         "既定 feature の依存グラフに fandhe-frontend-animation が現れない。\
-         イシュー #2398 で `animate` feature（既定 on）が本依存を有効化する \
-         はずが反映されていない:\n{tree}"
+         \"animate\"（イシュー #2398）・\"animation-driver\"（イシュー #2403/#2517） \
+         のいずれも既定 on の feature（dep:fandhe-frontend-animation）が \
+         default 配列から外れた可能性がある:\n{tree}"
     );
     assert!(
         tree.contains("fandhe-animation "),

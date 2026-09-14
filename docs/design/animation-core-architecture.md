@@ -220,6 +220,12 @@ packages=19/60 depth=9/6 result=FAIL（参考値。`wasm-full`/`wasm-thin` と�
 `wasm-full → fandhe-frontend-animation → fandhe-animation` の深さ 2 段増分も、optional 依存として
 `crates/wasm-full/Cargo.toml` へ追加した時点（既定 off）で構造上確定した。
 
+追記（#2403/#2517）: `wasm-full` は新設した `animation-driver` feature（既定 on、
+`dep:fandhe-frontend-animation`）で本クレートを既定 on 化した。`fandhe-frontend-dist-server`
+は `fandhe-frontend-wasm-full` に依存せず、配布 WASM の feature 集合にも `animation-driver` を
+含めないため、REQ-3 実測対象（標準サーバー構成）には引き続き影響しない
+（`docs/policy/dependency-graph-policy.md` §11 追記参照）。
+
 ## 8. Phase 1 実装 issue 分解案（起票済み）
 
 `docs/design/wasm-full-feature-gating-evaluation.md` §13 の表形式を踏襲し、本文書の各設計節と既存の起票済み issue を

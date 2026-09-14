@@ -24,9 +24,11 @@
 //! `fandhe-animation ← fandhe-frontend-animation ← wasm-full(optional)`。
 //! 本クレートは `fandhe-frontend-wasm-full`/`-wasm-client`/`-wasm-thin` の
 //! いずれにも依存しない独立クレートであり、`crates/wasm-full/` が optional
-//! 依存として取り込む配線層を担う（`Cargo.toml` の optional 依存は既定 feature
-//! では有効化されないため、`fw structure`/`cargo metadata` の既定解決には
-//! 現れない。`crates/xtask/tests/wasm_full_animation_optional_dep.rs` が
+//! 依存として取り込む配線層を担う（`Cargo.toml` の optional 依存は
+//! `wasm-full` 側の `"animate"`/`"animation-driver"` feature（いずれも
+//! 既定 on）が有効化するため、`fw structure`/`cargo metadata` の既定解決
+//! にも現れる。`crates/xtask/tests/wasm_full_animation_optional_dep.rs` が
+//! 既定 feature・`--no-default-features`・`--all-features` の 3 通りで
 //! この不変条件を機械固定する）。
 //!
 //! # 不変条件
@@ -38,11 +40,16 @@
 //!
 //! # 現状
 //!
-//! `animate`（`element.animate()` WAAPI 薄いラッパ、イシュー #2398）を実装済み。
-//! rAF Driver / DOM Target / FLIP / SVG path / scroll 等は Phase 4 の各後続 issue
-//! で追加する（`docs/design/animation-core-architecture.md` §6.2 参照）。
+//! rAF Driver（[`raf_driver::RafDriver`]）・DOM Target
+//! （[`dom_target::DomTarget`]）を実装済み（イシュー #2403/#2517）。
+//! `animate`（`element.animate()` WAAPI 薄いラッパ、イシュー #2398）も
+//! 実装済み。FLIP / SVG path / scroll 等の残りの実装は Phase 4 の各後続
+//! issue で追加する（`docs/design/animation-core-architecture.md` §6.2
+//! 参照）。
 
 pub mod animate;
+pub mod dom_target;
+pub mod raf_driver;
 
 // `fandhe-animation`（演算基幹）の型（`Keyframes`/`Keyframe` 等）は、本クレートの
 // `[dependencies]` にのみ存在し推移依存としてアプリの名前解決に公開されない。

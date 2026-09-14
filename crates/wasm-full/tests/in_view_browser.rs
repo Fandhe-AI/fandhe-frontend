@@ -93,44 +93,87 @@ fn create_scroll_fixture(document: &Document, id_prefix: &str, once: bool) -> (E
     (container, target)
 }
 
-/// `condition` が成立するまで最大 5 秒（10ms x 500 回）ポーリングする
-/// （`data_table_browser.rs`/`headless_timer_browser.rs::wait_for` と同型）。
+/// `condition` が成立するまで最大 200 周回（`requestAnimationFrame` 単位、
+/// フォールバック時は `setTimeout` 単位）ポーリングする。
+///
+/// 旧実装は `setTimeout(..., 10)` でポーリングしていたが、
+/// `IntersectionObserver` の通知は仕様上「レンダリングを更新する」手順
+/// （`requestAnimationFrame` と同じレンダリングパイプライン更新のタイミング）
+/// に同期して配送される。`setTimeout` はこのレンダリング更新手順の実行を
+/// 要求しないため、CI のようにページがアイドル状態（他に `rAF` 要求も
+/// アニメーションもない）だと、ブラウザ実装によってはレンダリング更新
+/// 自体が疎に間引かれ、`IntersectionObserver` の初回通知が
+/// `setTimeout` ベースの待機上限（イシュー #2403/#2517 で 2 秒 → 5 秒へ
+/// 引き上げ済みだったがなお CI で決定的にタイムアウト）に収まらないことが
+/// あった。`requestAnimationFrame` でポーリングすることで、待機の各周回が
+/// 必ず 1 回のレンダリング更新を経てから条件を再評価するようになり、
+/// `IntersectionObserver` 通知のタイミングと構造的に同期する
+/// （`data_table_browser.rs`/`questionnaire_browser.rs`/
+/// `headless_timer_browser.rs::wait_for` は `setTimeout` ベースのままで良い
+/// ——`IntersectionObserver` を待つ本ファイルだけがこの同期を必要とする）。
 ///
 /// `dynamically_added_element_is_observed_after_wiring` は
 /// `MutationObserver`（マイクロタスク）→ `IntersectionObserver.observe` の
 /// 追加ホップを挟むため、他の `wait_for` 利用箇所より初回コールバックまで
-/// 1 ティック余分にかかる。CI（共有ホステッドランナー）で 2 秒の枠に
-/// 間に合わずタイムアウトする実績が観測されたため、他の重い待ち合わせと
-/// 同じ 5 秒枠へ揃えた（イシュー #2401 PR #2556 の CI flake 是正）。
+/// 1 ティック余分にかかる（イシュー #2401 PR #2556 の CI flake 是正で
+/// 判明。当時は `setTimeout` ベースの待機枠を 5 秒へ拡張して対処していたが、
+/// 本ファイルは本コミットで rAF ベースへ全面移行したため、この追加ホップは
+/// 下記の周回上限 200（最大 10 秒）に吸収される）。
 ///
 /// 条件不成立のままタイムアウトした場合は `false` を返す（呼び出し側は
 /// 必ず戻り値を `assert!` で確認すること。戻り値を無視すると配線欠落を
 /// 検出できないまま正常終了してしまう、codex-review/Bugbot 指摘の是正）。
+///
+/// 各周回は `requestAnimationFrame` と `setTimeout`（50ms）を
+/// `Promise.race` で競わせて待つ（Bugbot 指摘の是正、イシュー #2403）。
+/// `rAF` 単独だと、ページが非表示化される等でブラウザが `rAF` の発火自体を
+/// 止めた場合に `await` が永久に解決せず、周回上限が「一度も周回が
+/// 進まない」ため事実上無効化されタイムアウトしない（テストがハングする）。
+/// `setTimeout` を道連れにすることで、`rAF` が発火しなくても高々 50ms
+/// ごとに周回が進む。
+///
+/// 周回上限は 200（`setTimeout` フォールバックのみで進んだ最悪ケースでも
+/// 200 * 50ms = 10 秒）とする。`wasm-bindgen-test` の既定タイムアウトは
+/// 20 秒であり、600 回（最悪ケース 30 秒）のままでは `rAF` が発火しない
+/// 環境でこの既定タイムアウトを超え、ハーネスに強制打ち切られた後に
+/// 本来の `assert!` パニックが遅延して観測される（Bugbot 指摘の是正、
+/// イシュー #2403）。10 秒は `IntersectionObserver` 通知が正常経路（`rAF`
+/// 駆動、数フレーム程度）で届く時間に対して十分な余裕を保ちつつ、既定
+/// タイムアウトの半分に収める。
 #[must_use]
 async fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
 
-    for _ in 0..500 {
+    for _ in 0..200 {
         if condition() {
             return true;
         }
         let promise = js_sys::Promise::new(&mut |resolve, _reject| {
             let window = web_sys::window().expect("window must exist");
-            let closure = Closure::once(move || {
+            let resolve_for_raf = resolve.clone();
+            let raf_closure = Closure::once(move |_timestamp: f64| {
+                resolve_for_raf.call0(&wasm_bindgen::JsValue::NULL).ok();
+            });
+            window
+                .request_animation_frame(raf_closure.as_ref().unchecked_ref())
+                .expect("requestAnimationFrame must not fail");
+            raf_closure.forget();
+
+            let timeout_closure = Closure::once(move || {
                 resolve.call0(&wasm_bindgen::JsValue::NULL).ok();
             });
             window
                 .set_timeout_with_callback_and_timeout_and_arguments_0(
-                    closure.as_ref().unchecked_ref(),
-                    10,
+                    timeout_closure.as_ref().unchecked_ref(),
+                    50,
                 )
                 .expect("setTimeout must not fail");
-            closure.forget();
+            timeout_closure.forget();
         });
         wasm_bindgen_futures::JsFuture::from(promise)
             .await
-            .expect("timeout promise must resolve");
+            .expect("animation frame / timeout promise must resolve");
     }
     condition()
 }

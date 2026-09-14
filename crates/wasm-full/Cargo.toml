@@ -1149,10 +1149,22 @@ name = "fandhe-frontend-wasm-full"
 # #2515（0.22.0）から独立に 0.23.0 へ到達したのち、本 PR 側の 2 回目の
 # 再バンプと同じく #2400（PR #2553）到達分とも合流して 0.24.0 まで進んで
 # おり、本 PR 側の 2 回目の再バンプ（0.24.0）と同一版数へ衝突した。
-# 同一版数の衝突として、さらに +1 して 0.25.0 とする
+# 同一版数の衝突として、さらに +1 して 0.25.0 とした
 # （`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」
 # 運用）。
-version = "0.25.0"
+#
+# イシュー #2403/#2517（origin/main、4 回目の main マージで判明した並行
+# 衝突）: 新規デフォルト on の feature `animation-driver`
+# （`dep:fandhe-frontend-animation`）と新規公開モジュール
+# `animation_driver`（`fandhe-frontend-animation` の型の薄い再公開）を
+# 追加した。新規公開 feature 追加を伴うため minor バンプする。origin/main
+# 側は #2515（0.22.0）と独立に 0.22.0 へ到達したのち、#2398・#2400/#2553
+# 到達分とも合流して 0.25.0 まで進んでおり、本 PR 側の 3 回目の再バンプ
+# （0.25.0）と同一版数へ衝突した。同一版数の衝突として、さらに +1 して
+# 0.26.0 とする（`.claude/rules/coding-rust.md` #638 条項の「同一版数も
+# 衝突として +1」運用。`docs/guides/wasm-full-features.md` §7 の版数
+# 対応表も 0.26.0 行へ統合済み）。
+version = "0.26.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1397,12 +1409,28 @@ js-sys = "0.3"
 # イシュー #2417: Web アニメーションアダプタ（3 層構成の中段、`fandhe-animation`
 # を wasm-bindgen/web-sys で実装する層）を optional 依存として追加。
 #
-# イシュー #2398: `animate` feature（既定 on）が本依存を有効化するようになった
-# （`dep:fandhe-frontend-animation`）。これにより本依存は初めて既定 feature の
-# 依存グラフに現れる。`structure.toml`（`directories.frontend-animation`）・
-# `crates/xtask/tests/wasm_full_animation_optional_dep.rs` もあわせて更新済み
-# （#2417 時点の「既定 feature では無効」前提から反転）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.2.0", optional = true }
+# イシュー #2403/#2517: `animation-driver` feature（既定 on）が
+# `dep:fandhe-frontend-animation` で有効化するようになったため、既定
+# feature の依存グラフに現れる（`default`/`WASM_DIST_FEATURES` の集合は
+# 別軸——`animation-driver` は `default` には含めるが `WASM_DIST_FEATURES`
+# には含めない、`crates/dist-server/src/wasm_dist_features.rs` 冒頭コメント
+# 参照）。`structure.toml` の `directories.wasm-full.depends_on` へ
+# `"frontend-animation"` を追加し、`directories.frontend-animation` へ
+# `allowed_dependents = ["wasm-full"]` を追加した（既定 off 前提の非対称
+# 宣言は本イシューで解消、`crates/xtask/tests/wasm_full_animation_optional_dep.rs`
+# が既定 feature でも本クレートが依存グラフに現れることを機械固定する）。
+#
+# イシュー #2398（origin/main）: `animate` feature（既定 on）も本依存を
+# 有効化する（同じく `dep:fandhe-frontend-animation`）。`animation-driver`
+# と `animate` はいずれも本依存を有効化する別枠 feature であり、
+# 既定 feature の依存グラフに現れる経路は本イシューと #2403/#2517 の
+# 双方に由来する（いずれか単独 off でも他方が on なら依存グラフには
+# 引き続き現れる）。
+#
+# マージコミット注記: `fandhe-frontend-animation` 自身が本 2 回目の main
+# マージで 0.2.0 → 0.3.0 へ衝突 +1 バンプされたため、`version` 要求も
+# 追随する（`cargo run -p xtask -- check-dep-versions --fix`）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.3.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1633,6 +1661,7 @@ default = [
   "gesture",
   "position",
   "stagger",
+  "animation-driver",
   "view-transitions",
   "view-transition-name",
   "animate",
@@ -1730,6 +1759,15 @@ view-transition-name = []
 # 属さない別枠（`stagger`/`position` と似るが、対応する呼び出し自体が
 # 存在しない点が異なる）。
 animate = ["dep:fandhe-frontend-animation"]
+
+# イシュー #2403/#2517: `fandhe-frontend-animation`（rAF Driver・DOM Target）
+# を利用可能にする配線点専用の feature（既定 on）。`position`/`stagger` と
+# 同型の別枠 feature——`wasm-full` 側にアニメーション演算・DOM 適用ロジック
+# は書かず、`crates/wasm-full/src/animation_driver.rs` が
+# `fandhe-frontend-animation` の型を薄く再公開するのみ。`data-*` 属性からの
+# 実消費配線（stagger 配線・animate 等）は後続 issue（親トラッキング
+# #2508）に委ねる。
+animation-driver = ["dep:fandhe-frontend-animation"]
 
 # イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
 # `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの
