@@ -235,6 +235,13 @@
 //! も `Runtime::mount`/`hydrate` の配線群呼び出しではない（`dirty` 更新
 //! 経路から呼ばれる）ため上記対応表には含めない。
 //!
+//! [`animation_driver`] モジュール（イシュー #2403/#2517）も `position`/
+//! `stagger` と同型の別枠 feature を持つ。`"animation-driver"`（既定 on）は
+//! `dep:fandhe-frontend-animation` を有効化し [`animation_driver`] モジュール
+//! （`fandhe-frontend-animation` の rAF Driver・DOM Target の薄い再公開）を
+//! 公開するだけで、`Runtime::mount`/`hydrate` からの新規呼び出しは伴わない
+//! （上記対応表には含めない）。
+//!
 //! [`view_transition`] モジュール（イシュー #2400）も `position`/`stagger` と
 //! 同型の別枠 feature を持つ。[`Runtime::apply_with_view_transition`]
 //! （任意の状態更新を `document.startViewTransition()` でラップする新規公開
@@ -262,8 +269,9 @@
 //! 有効化するだけで、対応する `wire_*` 呼び出し自体が本クレートに存在
 //! しない（`data-*` 属性からの自動トリガー配線は後続 Phase 4 issue の
 //! 責務）。したがって上記対応表・配線群 16 件の一覧のいずれにも含めず、
-//! `position`/`stagger`/`view-transitions`/`view-transition-name` と
-//! 同じ「別枠 feature」の 5 例目として扱う。optional 依存を有効化するだけ
+//! `position`/`stagger`/`animation-driver`/`view-transitions`/
+//! `view-transition-name` と同じ「別枠 feature」の 6 例目として扱う。
+//! optional 依存を有効化するだけ
 //! では推移的依存はアプリ側の名前解決に公開されないため、本クレートは
 //! `"animate"` feature
 //! 有効時のみ `pub use fandhe_frontend_animation;` で crate 自体を
@@ -291,12 +299,16 @@
 //! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
 //! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
 //! 同型の別枠 feature、既定 18 件目として `default` 配列に列挙されて
-//! いる）。同様に [`Runtime::apply_with_view_transition`] を維持するには
+//! いる）。同様に [`animation_driver`] モジュールを維持するには
+//! `"animation-driver"` も列挙に含めること（`position`/`stagger` と同型の
+//! 別枠 feature、既定 19 件目として `default` 配列に列挙されている）。
+//! 同様に [`Runtime::apply_with_view_transition`] を維持するには
 //! `"view-transitions"` も列挙に含めること（`position`/`stagger` と同型の
 //! 別枠 feature、既定 19 件目として `default` 配列に列挙されている）。
 //! [`view_transition_name::set_view_transition_name`] を維持するには
 //! `"view-transition-name"` も列挙に含めること（`position`/`stagger`
-//! とは異なりゲート対象が公開関数自体である点は上記モジュール doc 参照）。
+//! とは異なりゲート対象が公開関数自体である点は上記モジュール doc 参照。
+//! 既定 20 件目として `default` 配列に列挙されている）。
 //! `fandhe_frontend_wasm_full::fandhe_frontend_animation::animate`
 //! を呼べるようにするには `"animate"` も列挙に含めること（対応する
 //! `wire_*` 呼び出しは存在せず依存の有効化と再エクスポートのみを行う
@@ -422,6 +434,8 @@
 #![deny(unsafe_code)]
 
 pub mod angle_slider;
+#[cfg(feature = "animation-driver")]
+pub mod animation_driver;
 pub mod chart;
 pub mod chart_range;
 pub mod command;
