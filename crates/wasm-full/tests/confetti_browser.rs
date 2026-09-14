@@ -256,6 +256,66 @@ async fn repeated_click_keeps_canvas_size_stable_with_border() {
     assert_eq!(
         canvas.get_attribute("width").as_deref(),
         Some("80"),
-        "clientWidth はコンテンツ領域（border を含まない）を返すはず"
+        "clientWidth はパディングボックス（border を含まないが padding は \
+         含む。本ケースは padding 0 のため content-box と一致する）を返すはず"
+    );
+}
+
+#[wasm_bindgen_test]
+async fn repeated_click_keeps_canvas_size_stable_with_padding() {
+    // PR #2564 codex-review P1 是正の回帰テスト: `clientWidth`/
+    // `clientHeight` は CSSOM View 仕様上 padding を含むパディングボックス
+    // を返すため、これをそのまま canvas の `width`/`height` content
+    // attribute へ書き戻すと、padding を持つ canvas で発火のたびに
+    // 描画バッファサイズが padding 分だけ増加し続ける不具合があった
+    // （`fandhe-frontend-animation::confetti::computed_padding` が
+    // computed style の padding を差し引くことで是正）。padding を持つ
+    // canvas でも複数回発火後に attribute が変化せず、かつ padding 分を
+    // 正しく除いたコンテンツ領域サイズになることを固定する。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger, canvas) =
+        build_dom(&document, "confetti-root-7", "confetti-canvas-7", true);
+    let _guard = RemoveOnDrop(root.clone());
+
+    let html_canvas = canvas
+        .clone()
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("canvas must cast to HtmlElement for style access");
+    html_canvas.style().set_property("padding", "10px").unwrap();
+    html_canvas
+        .style()
+        .set_property("box-sizing", "content-box")
+        .unwrap();
+
+    wire_confetti(root.clone()).expect("wire_confetti must not fail");
+
+    click(&trigger);
+    let first_width = canvas.get_attribute("width");
+    let first_height = canvas.get_attribute("height");
+
+    click(&trigger);
+    click(&trigger);
+
+    assert_eq!(
+        canvas.get_attribute("width"),
+        first_width,
+        "padding を持つ canvas でも複数回発火後に width が増加してはならない"
+    );
+    assert_eq!(
+        canvas.get_attribute("height"),
+        first_height,
+        "padding を持つ canvas でも複数回発火後に height が増加してはならない"
+    );
+    assert_eq!(
+        canvas.get_attribute("width").as_deref(),
+        Some("80"),
+        "clientWidth（80 + padding 20）から padding 20 を差し引いた \
+         コンテンツ領域サイズ 80 になるはず"
+    );
+    assert_eq!(
+        canvas.get_attribute("height").as_deref(),
+        Some("60"),
+        "clientHeight（60 + padding 20）から padding 20 を差し引いた \
+         コンテンツ領域サイズ 60 になるはず"
     );
 }

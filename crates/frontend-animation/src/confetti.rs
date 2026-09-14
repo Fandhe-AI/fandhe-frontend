@@ -181,6 +181,47 @@ pub fn fire_with_reduced_motion(
     }
 }
 
+/// `getComputedStyle` の `padding-left`/`-right`/`-top`/`-bottom` を読み、
+/// `(padding_x, padding_y)`（左右合計・上下合計、CSS ピクセル）を返す。
+///
+/// `clientWidth`/`clientHeight` は CSSOM View 仕様上パディングボックス
+/// （border は含まないが padding は含む）を返すため、これをそのまま
+/// canvas の描画バッファ解像度に使うと padding を持つ canvas で発火の
+/// たびに描画バッファサイズが padding 分だけ増加し続ける（PR #2564
+/// codex-review P1 指摘、[`fire_internal`] 呼び出し箇所のコメント参照）。
+/// この関数が返す値を `clientWidth`/`clientHeight` から差し引くことで
+/// コンテンツ領域サイズを得る。
+///
+/// `window`/`getComputedStyle` の取得に失敗した場合、または個々の
+/// `padding-*` の値が `<length>`（`px` 単位）として解釈できない場合は、
+/// 当該成分を `0.0`（padding なし側へのフェイルセーフ）として扱う——
+/// パディング分だけ描画バッファが大きくなる旧不具合の再発と同じ挙動には
+/// なるが、`clientWidth`/`clientHeight` 自体は取得済みで正の値であることが
+/// 呼び出し元（[`fire_internal`]）で確定しているため、`Ok(None)`
+/// （発火抑制）へ倒すよりも「一旦発火はする」側を優先する（`reduced-motion`
+/// のような明確な意図表明が無い計測失敗を、著者から見えない形で発火
+/// そのものを止める理由にはしない）。
+#[cfg(target_arch = "wasm32")]
+fn computed_padding(canvas: &HtmlCanvasElement) -> (f64, f64) {
+    let Some(style) =
+        web_sys::window().and_then(|window| window.get_computed_style(canvas).ok().flatten())
+    else {
+        return (0.0, 0.0);
+    };
+    let px = |property: &str| -> f64 {
+        style
+            .get_property_value(property)
+            .ok()
+            .and_then(|value| value.strip_suffix("px").map(str::to_owned))
+            .and_then(|digits| digits.parse::<f64>().ok())
+            .filter(|value| value.is_finite())
+            .unwrap_or(0.0)
+    };
+    let padding_x = px("padding-left") + px("padding-right");
+    let padding_y = px("padding-top") + px("padding-bottom");
+    (padding_x, padding_y)
+}
+
 #[cfg(target_arch = "wasm32")]
 fn fire_internal(
     canvas: &Element,
@@ -198,13 +239,16 @@ fn fire_internal(
         return Ok(None);
     }
 
-    // `clientWidth`/`clientHeight`（コンテンツ領域＝border/padding を含まず
-    // 整数 CSS ピクセルを返し、CSS transform の影響も受けない）を canvas の
-    // 描画バッファ解像度に使う。`getBoundingClientRect()`（border-box かつ
-    // transform 適用後の外寸）をそのまま `width`/`height` content attribute
-    // へ書き戻すと、border を持つ canvas で発火のたびに外寸が増加し続ける
-    // バグになる（PR #2564 codex-review P1 指摘: border 1px の canvas で
-    // クリックごとに 302 → 304 → ... と無限成長する）。
+    // `clientWidth`/`clientHeight`（CSSOM View 仕様上、border は含まないが
+    // **padding は含む** パディングボックスの整数 CSS ピクセル。CSS
+    // transform の影響も受けない）を出発点にし、そこから computed style の
+    // padding を差し引いたコンテンツ領域サイズを canvas の描画バッファ
+    // 解像度に使う。`getBoundingClientRect()`（border-box かつ transform
+    // 適用後の外寸）をそのまま書き戻すと border 分だけ外寸が増加し続ける
+    // バグになり（旧不具合）、`clientWidth`/`clientHeight` をそのまま使うと
+    // 今度は padding を持つ canvas で発火のたびに padding 分だけ描画バッファ
+    // サイズが増加し続けるバグになる（PR #2564 codex-review P1 指摘:
+    // padding 付き canvas でクリックごとに 300 → 320 → 340 と成長する）。
     let client_width = canvas.client_width();
     let client_height = canvas.client_height();
     let has_positive_area = client_width > 0 && client_height > 0;
@@ -214,17 +258,26 @@ fn fire_internal(
         // ため `Err` にはしない）。
         return Ok(None);
     }
-    let width = f64::from(client_width);
-    let height = f64::from(client_height);
+    let (padding_x, padding_y) = computed_padding(canvas);
+    // 負の残余（極端な zoom・丸め誤差で padding 合計が clientWidth/Height を
+    // 上回る場合）は 0 未満へ落とさず 1 に丸める（`CanvasTarget::new`/
+    // `ConfettiConfig::origin` が 0 幅・0 高さを想定していないため）。
+    let width = (f64::from(client_width) - padding_x).max(1.0);
+    let height = (f64::from(client_height) - padding_y).max(1.0);
+    let width_px = width.round() as u32;
+    let height_px = height.round() as u32;
 
-    // 描画バッファ解像度を CSS コンテンツ領域サイズへ合わせる
-    // （`devicePixelRatio` によるぼやけ対策はスコープ外、実装計画 §6 の
-    // YAGNI 判断）。`CanvasTarget::new` へ渡す `width`/`height`（`clear_rect`
-    // が使うクリア領域サイズ）もここで丸めた同じ整数値から導出するため、
-    // バッファサイズとクリア領域サイズが端数で不整合を起こし完了時に
-    // 残骸が消えきらない不具合（Cursor Bugbot 指摘）も併せて防ぐ。
-    canvas.set_width(client_width as u32);
-    canvas.set_height(client_height as u32);
+    // 描画バッファ解像度を CSS コンテンツ領域サイズ（padding を除いた
+    // サイズ）へ合わせる（`devicePixelRatio` によるぼやけ対策はスコープ外、
+    // 実装計画 §6 の YAGNI 判断）。`CanvasTarget::new` へ渡す `width`/
+    // `height`（`clear_rect` が使うクリア領域サイズ）もここで丸めた同じ
+    // 整数値から導出するため、バッファサイズとクリア領域サイズが端数で
+    // 不整合を起こし完了時に残骸が消えきらない不具合（Cursor Bugbot 指摘）
+    // も併せて防ぐ。
+    canvas.set_width(width_px);
+    canvas.set_height(height_px);
+    let width = f64::from(width_px);
+    let height = f64::from(height_px);
 
     let context = canvas
         .get_context("2d")?
