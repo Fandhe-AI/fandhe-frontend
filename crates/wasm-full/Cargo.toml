@@ -1109,7 +1109,11 @@ name = "fandhe-frontend-wasm-full"
 # 破壊的変更、イシュー #2122 の 0.18.4→0.19.0 と同型）ため minor バンプ
 # する（origin/main の #2397 minor バンプと到達値が一致するため
 # バージョン番号自体は変更なし）。
-version = "0.21.0"
+#
+# イシュー #2520: 新規デフォルト on の配線群別 feature `gesture` を追加
+# （`Runtime::mount`/`hydrate` へ新規呼び出し `Self::wire_gesture` が増える
+# 破壊的変更、`in-view` 追加と同型）ため minor バンプする。
+version = "0.22.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1587,6 +1591,7 @@ default = [
   "message-scroller",
   "data-table",
   "in-view",
+  "gesture",
   "position",
   "stagger",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
@@ -1639,6 +1644,13 @@ data-table = []
 # （群 B: 小さな DOM 配線のみで完結、`docs/design/
 # motion-reference-adoption-policy.md` §4）。
 in-view = []
+# イシュー #2520（親 #2508/#2491）: gesture 配線（`Runtime::mount`/`hydrate`
+# の `Self::wire_gesture` 呼び出し）専用の feature（既定 on）。`gesture` の
+# 純粋層（`is_touch_pointer`/`is_press_activation_key`）はゲートしない
+# （上記 (c) 注記と同じ方針）。`fandhe-frontend-animation` への依存追加は
+# 伴わない（群 B: 小さな DOM 配線のみで完結、`docs/design/
+# motion-reference-adoption-policy.md` §4）。
+gesture = []
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

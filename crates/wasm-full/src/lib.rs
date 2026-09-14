@@ -213,6 +213,7 @@
 //! | `Runtime::wire_message_scroller` | `message-scroller` |
 //! | `Runtime::wire_data_table` | `data-table` |
 //! | `Runtime::wire_in_view` | `in-view` |
+//! | `Runtime::wire_gesture` | `gesture` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -237,17 +238,17 @@
 //!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
-//! `default-features = false` を使う利用者は上記 17 配線を失う
+//! `default-features = false` を使う利用者は上記 18 配線を失う
 //! （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の (ii)
 //! を採用。イシュー #2122 で `message-scroller`、イシュー #2126 で
-//! `data-table`、イシュー #2396 で `in-view` を追加）。従来どおりの挙動を
-//! 維持するには `features = [
+//! `data-table`、イシュー #2396 で `in-view`、イシュー #2520 で `gesture`
+//! を追加）。従来どおりの挙動を維持するには `features = [
 //! "wasm-bindgen-exports", "keynav", "focus-visible", "avatar", "clipboard",
 //! "timer", "angle-slider", "splitter", "signature-pad", "number-input",
 //! "command", "sidebar", "chart", "chart-range", "questionnaire",
-//! "message-scroller", "data-table", "in-view"]`
+//! "message-scroller", "data-table", "in-view", "gesture"]`
 //! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
-//! 明示すること。上記 17 件に加え、[`headless::wire_headless_component`] の
+//! 明示すること。上記 18 件に加え、[`headless::wire_headless_component`] の
 //! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
 //! こと（`position` はこの 17 配線とは別枠の feature であり、既定 18 件目
 //! として `Cargo.toml` の `default` 配列に列挙されている）。
@@ -385,6 +386,7 @@ pub mod data_table;
 pub mod events;
 pub mod focus_trap;
 pub mod focus_visible;
+pub mod gesture;
 pub mod headless;
 pub mod headless_avatar;
 pub mod headless_clipboard;
@@ -1381,6 +1383,8 @@ where
         )?;
         #[cfg(feature = "in-view")]
         Self::wire_in_view(root.clone())?;
+        #[cfg(feature = "gesture")]
+        Self::wire_gesture(root.clone())?;
 
         Ok(Self {
             component,
@@ -1561,6 +1565,8 @@ where
         )?;
         #[cfg(feature = "in-view")]
         Self::wire_in_view(root.clone())?;
+        #[cfg(feature = "gesture")]
+        Self::wire_gesture(root.clone())?;
 
         Ok(Self {
             component,
@@ -2495,6 +2501,20 @@ where
     #[cfg(feature = "in-view")]
     fn wire_in_view(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         in_view::wire_in_view(&root)
+    }
+
+    /// hover / press ジェスチャー配線（[`gesture::wire_gesture`]、イシュー
+    /// #2520）を登録する。`dispatch` チャネルを持たない属性専用配線のため
+    /// （`Self::wire_sidebar`/`Self::wire_in_view` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`gesture::wire_gesture`]（`add_event_listener_with_callback` 7 件）
+    /// の失敗を伝播する。
+    #[cfg(feature = "gesture")]
+    fn wire_gesture(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        gesture::wire_gesture(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
