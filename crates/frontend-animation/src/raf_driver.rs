@@ -12,6 +12,7 @@ use std::rc::Rc;
 
 use fandhe_animation::driver::Driver;
 use wasm_bindgen::closure::Closure;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 
 /// `window.performance.now()` の差分（秒）を返す [`Driver`] 実装。
@@ -26,12 +27,25 @@ pub struct RafDriver {
 impl RafDriver {
     /// `window`/`window.performance` が取得できるブラウザ環境でのみ
     /// `Some` を返す（非ブラウザ実行環境で panic しない、入力検証の一環）。
+    ///
+    /// `web_sys::window()` 等の JS 呼び出しは wasm32 以外のターゲット
+    /// （native/SSR）ではリンク先の JS ホストが存在せず呼び出すと panic
+    /// するため、JS 呼び出し自体を `cfg(target_arch = "wasm32")` で
+    /// ガードし、native では常に `None` を返す（PR #2554 codex-review
+    /// P1 指摘）。
     pub fn new() -> Option<Self> {
-        let performance = web_sys::window()?.performance()?;
-        Some(Self {
-            performance,
-            last_ms: None,
-        })
+        #[cfg(target_arch = "wasm32")]
+        {
+            let performance = web_sys::window()?.performance()?;
+            Some(Self {
+                performance,
+                last_ms: None,
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            None
+        }
     }
 }
 
@@ -76,28 +90,46 @@ impl AnimationLoop {
     /// （`RafDriver::new` と同じ fail-safe 方針。呼び出し側は戻り値の
     /// `AnimationLoop` を保持するだけでよく、環境有無の分岐を書く必要が
     /// ない）。
+    ///
+    /// wasm32 以外のターゲット（native/SSR）では JS ホストが存在せず
+    /// `Closure::wrap`/`web_sys::window()` の呼び出し自体が panic するため、
+    /// JS 呼び出しを伴う本体は `cfg(target_arch = "wasm32")` でガードし、
+    /// native では `step` を一度も呼ばない no-op を返す（PR #2554
+    /// codex-review P1 指摘）。
+    #[cfg_attr(not(target_arch = "wasm32"), allow(unused_mut))]
     pub fn start(mut step: impl FnMut() -> bool + 'static) -> Self {
-        let closure_slot: SharedClosureSlot = Rc::new(RefCell::new(None));
-        let request_id: Rc<RefCell<Option<i32>>> = Rc::new(RefCell::new(None));
+        #[cfg(target_arch = "wasm32")]
+        {
+            let closure_slot: SharedClosureSlot = Rc::new(RefCell::new(None));
+            let request_id: Rc<RefCell<Option<i32>>> = Rc::new(RefCell::new(None));
 
-        let closure_slot_for_body = closure_slot.clone();
-        let request_id_for_body = request_id.clone();
-        let tick = Closure::wrap(Box::new(move || {
-            if step() {
-                if let Some(id) = request_animation_frame(&closure_slot_for_body) {
-                    *request_id_for_body.borrow_mut() = Some(id);
+            let closure_slot_for_body = closure_slot.clone();
+            let request_id_for_body = request_id.clone();
+            let tick = Closure::wrap(Box::new(move || {
+                if step() {
+                    if let Some(id) = request_animation_frame(&closure_slot_for_body) {
+                        *request_id_for_body.borrow_mut() = Some(id);
+                    }
                 }
+            }) as Box<dyn FnMut()>);
+
+            *closure_slot.borrow_mut() = Some(tick);
+            if let Some(id) = request_animation_frame(&closure_slot) {
+                *request_id.borrow_mut() = Some(id);
             }
-        }) as Box<dyn FnMut()>);
 
-        *closure_slot.borrow_mut() = Some(tick);
-        if let Some(id) = request_animation_frame(&closure_slot) {
-            *request_id.borrow_mut() = Some(id);
+            Self {
+                closure_slot,
+                request_id,
+            }
         }
-
-        Self {
-            closure_slot,
-            request_id,
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = step;
+            Self {
+                closure_slot: Rc::new(RefCell::new(None)),
+                request_id: Rc::new(RefCell::new(None)),
+            }
         }
     }
 
@@ -109,7 +141,10 @@ impl AnimationLoop {
     /// が二重借用で panic することはない。
     pub fn stop(&self) {
         if let Some(id) = self.request_id.borrow_mut().take() {
+            #[cfg(target_arch = "wasm32")]
             cancel_animation_frame(id);
+            #[cfg(not(target_arch = "wasm32"))]
+            let _ = id;
         }
         self.closure_slot.borrow_mut().take();
     }
@@ -121,6 +156,8 @@ impl Drop for AnimationLoop {
     }
 }
 
+/// wasm32 以外では呼び出されない（[`AnimationLoop::start`] 参照）。
+#[cfg(target_arch = "wasm32")]
 fn request_animation_frame(closure_slot: &SharedClosureSlot) -> Option<i32> {
     let window = web_sys::window()?;
     let closure_ref = closure_slot.borrow();
@@ -130,8 +167,29 @@ fn request_animation_frame(closure_slot: &SharedClosureSlot) -> Option<i32> {
         .ok()
 }
 
+/// wasm32 以外では呼び出されない（[`AnimationLoop::stop`] 参照）。
+#[cfg(target_arch = "wasm32")]
 fn cancel_animation_frame(id: i32) {
     if let Some(window) = web_sys::window() {
         let _ = window.cancel_animation_frame(id);
+    }
+}
+
+/// native（非 wasm32）実行時に `RafDriver::new`/`AnimationLoop::start` が
+/// panic せず None/no-op を返すことを固定する回帰テスト（PR #2554
+/// codex-review P1 指摘）。
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod native_no_panic_tests {
+    use super::{AnimationLoop, RafDriver};
+
+    #[test]
+    fn raf_driver_new_returns_none_on_native() {
+        assert!(RafDriver::new().is_none());
+    }
+
+    #[test]
+    fn animation_loop_start_is_noop_on_native() {
+        let loop_ = AnimationLoop::start(|| true);
+        loop_.stop();
     }
 }
