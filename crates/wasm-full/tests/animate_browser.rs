@@ -12,6 +12,13 @@
 //! 新規に cdylib 化するより最小の diff、実装計画参照）。
 
 #![cfg(target_arch = "wasm32")]
+// `fandhe-frontend-animation` は `animate` feature（既定 on）が有効な場合のみ
+// 依存として解決される optional 依存（`Cargo.toml` `animate = ["dep:fandhe-
+// frontend-animation"]`）のため、feature matrix の `--no-default-features`
+// 構成（イシュー #2328 baseline ジョブ）でもコンパイルできるよう本ファイル
+// 全体を feature ゲートする（`position_browser.rs` の個別テスト単位ゲートと
+// 異なり、本ファイルは `animate` 専用のため全体ゲートで足りる）。
+#![cfg(feature = "animate")]
 
 use fandhe_frontend_animation::animate::{animate, AnimateOptions, WaapiKeyframe};
 use wasm_bindgen_test::*;
@@ -54,16 +61,20 @@ async fn animate_finished_resolves_and_applies_forwards_fill() {
     let element = create_placeholder(&document, "animate-browser-target");
     let _guard = RemoveOnDrop(element.clone());
 
+    // 要素の既定 opacity は 1（未適用時と区別が付かない値）のため、1 → 0 へ
+    // アニメートして「fill: "forwards" が効いていなければ 1 のまま」との
+    // 差が assert で検出できるようにする（Bugbot 指摘: 旧版は 0 → 1 へ
+    // アニメートしており、fill 未適用でも既定値 1 と一致し常に pass していた）。
     let frames = vec![
         WaapiKeyframe {
             offset: 0.0,
             easing: Some("linear".to_string()),
-            properties: vec![("opacity".to_string(), "0".to_string())],
+            properties: vec![("opacity".to_string(), "1".to_string())],
         },
         WaapiKeyframe {
             offset: 1.0,
             easing: None,
-            properties: vec![("opacity".to_string(), "1".to_string())],
+            properties: vec![("opacity".to_string(), "0".to_string())],
         },
     ];
     let options = AnimateOptions {
@@ -89,7 +100,7 @@ async fn animate_finished_resolves_and_applies_forwards_fill() {
         .get_property_value("opacity")
         .expect("get_property_value must not throw for a known CSS property");
     assert_eq!(
-        opacity, "1",
-        "fill: \"forwards\" の効果で終了状態（opacity: 1）が維持されているはず"
+        opacity, "0",
+        "fill: \"forwards\" の効果で終了状態（opacity: 0）が維持されているはず（要素の既定 opacity は 1 のため、0 ならフィル適用の証拠になる）"
     );
 }

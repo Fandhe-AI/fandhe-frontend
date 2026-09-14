@@ -157,11 +157,8 @@ mod wasm_impl {
                 );
             }
             for (key, value) in &frame.properties {
-                let _ = js_sys::Reflect::set(
-                    &obj,
-                    &JsValue::from_str(key),
-                    &JsValue::from_str(value),
-                );
+                let _ =
+                    js_sys::Reflect::set(&obj, &JsValue::from_str(key), &JsValue::from_str(value));
             }
             arr.push(&obj);
         }
@@ -183,11 +180,8 @@ mod wasm_impl {
             );
         }
         if let Some(fill) = &options.fill {
-            let _ = js_sys::Reflect::set(
-                &obj,
-                &JsValue::from_str("fill"),
-                &JsValue::from_str(fill),
-            );
+            let _ =
+                js_sys::Reflect::set(&obj, &JsValue::from_str("fill"), &JsValue::from_str(fill));
         }
         if let Some(iterations) = options.iterations {
             let _ = js_sys::Reflect::set(

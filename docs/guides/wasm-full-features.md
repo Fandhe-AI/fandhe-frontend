@@ -78,10 +78,14 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 `animate` feature（0.22.0 で追加、イシュー #2398）も同じく別枠です。
 ただし `position`/`stagger` とは異なり、ゲート対象の `wire_*` 呼び出し
 自体が存在しません。optional 依存 `fandhe-frontend-animation`
-（`element.animate()` WAAPI 薄いラッパ）を有効化するだけの feature であり、
-`data-*` 属性からの自動トリガー配線は本 issue のスコープ外（後続 Phase 4
-issue の責務）です。off にすると `fandhe_frontend_animation::animate` を
-アプリ側コードから直接呼び出せなくなります。
+（`element.animate()` WAAPI 薄いラッパ）を有効化し、`pub use
+fandhe_frontend_animation;` で本クレート経由に再エクスポートするだけの
+feature です。`data-*` 属性からの自動トリガー配線は本 issue のスコープ外
+（後続 Phase 4 issue の責務）です。有効なら自前で
+`fandhe-frontend-animation` に依存を追加しなくても
+`fandhe_frontend_wasm_full::fandhe_frontend_animation::animate::{animate,
+AnimateOptions, WaapiKeyframe}` を呼び出せます。off にするとこの再
+エクスポートが消え、アプリ側で直接呼び出せなくなります。
 
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
