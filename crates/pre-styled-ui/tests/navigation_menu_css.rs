@@ -224,3 +224,31 @@ fn stylesheet_indicator_transition_covers_both_orientations() {
     let css = navigation_menu::stylesheet();
     assert!(css.contains("transition-property: transform, width, height;"));
 }
+
+#[test]
+fn stylesheet_declares_content_presence_transition() {
+    // イシュー #2392（依存 #2383）: content の presence（enter/exit）。
+    // navigation-menu は祖先 positioner を持たないため、兄弟イシュー
+    // （dialog/menu/menubar/select 等）と異なり enter/exit の両方向が
+    // 実際に描画される（`src/navigation_menu.rs` モジュール doc
+    // 「開閉トランジションの実現」節参照）。`content` は geometry 用
+    // base ブロックと presence 用 base ブロックの 2 個を持つため、
+    // ブロック単位の切り出しは行わない（`src/navigation_menu.rs` の
+    // 同名テストと同じ判断）。
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains("opacity: 1;"));
+    assert!(css.contains("transition-property: opacity, transform, display;"));
+    assert!(css.contains("transition-duration: var(--fandhe-motion-duration-normal);"));
+    assert!(css.contains("transition-behavior: allow-discrete;"));
+
+    assert!(css.contains(r#"[data-scope="navigation-menu"][data-part="content"][hidden] {"#));
+    assert!(css.contains("opacity: 0;"));
+    assert!(css.contains("transform: scale(0.95);"));
+
+    assert!(css.contains("@starting-style {"));
+    let starting_style = css
+        .split("@starting-style {")
+        .nth(1)
+        .expect("@starting-style block must exist");
+    assert!(starting_style.contains(r#"[data-scope="navigation-menu"][data-part="content"] {"#));
+}

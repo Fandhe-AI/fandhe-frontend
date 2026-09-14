@@ -391,7 +391,7 @@ bubble（`collapse_content`）は #2282 で共通機構を横展開済み（head
 §8 の既存トリガー（`interpolate-size`/`calc-size()` の 3 エンジン対応、headless 横断の `hidden` 置換判断、案 B′ 要望）は本節でも共通して参照する。部品固有の追加トリガーは次のとおり。
 
 - オーバーレイ/モーダル家族（popover・tooltip・menu 系・select 系・dialog・drawer 等）: `SlotRecipe` へ「positioner レベルの `[hidden]` allow-discrete + content の opacity/transform を `@starting-style` で与えるフェード/スケール専用 preset」がユーザー判断のうえ追加された時点、または `position.rs::resolve_position` の `style` 書き込みが属性丸ごと上書きから CSSOM プロパティ単位の部分更新へ移行した時点（`TARGETS` 干渉の解消）。イシュー #2383 で追加した `SlotRecipe::presence_transition` は content パート限定（`opacity`/`transform` の `@starting-style` preset）であり positioner へは触れないため、本トリガーはまだ未発火（positioner レベルの allow-discrete 対応は引き続き本トリガー待ち）
-- navigation-menu: 上記フェード/スライド preset 追加時点、または利用者から高さ遷移の具体要望が出た時点
+- navigation-menu: 上記フェード/スライド preset 追加時点、または利用者から高さ遷移の具体要望が出た時点。**トリガー発火済み（#2392）**: `SlotRecipe::presence_transition`（#2383）を navigation-menu `content` へ適用した。ただし本イシューは高さ遷移ではなく `opacity`/`transform` の presence（フェード + スケール）であり、本節が見送っている **高さ遷移**（`hidden` → 高さ CSS 制御移行）の適用自体は依然見送りのまま（判断は食い違わない）
 - tabs / steps: 参照軸（chakra-ui / Radix Themes / shadcn/ui）のいずれかがタブ・ステップ切替に高さ遷移を既定採用した時点
 - floating-panel（条件付き適用を見送る場合）: wasm-full `headless.rs::MAPPING_TABLE` に floating-panel の stage 配線が入った時点
 

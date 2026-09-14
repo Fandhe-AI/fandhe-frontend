@@ -128,25 +128,35 @@
 //!   （`0 4px 6px rgba(0, 0, 0, 0.3)`）がトークン再定義で自動成立する
 //!   意匠変更（値意匠は同等の判断は #1703 と同型）。
 //!
-//! ## 意図的に合わせなかった点・開閉トランジション非対応
+//! ## 開閉トランジションの実現（イシュー #2392、依存 #2383）
 //!
-//! - **開閉（entry/exit）トランジションは追加しない**: headless 層
-//!   （`crates/headless-ui/src/navigation_menu.rs`）の `content` は
-//!   closed 時に `hidden` 存在属性を同一フレームで即時付与・除去する
-//!   契約であり、遷移前フレームが描画されないため CSS トランジションは
-//!   開閉どちら向きも発火しない。dialog（PR #1795 codex-review P1
-//!   指摘）→ [`crate::menu`] 1/3（PR #1800）→ [`crate::menubar`]
-//!   内部パート（#1703）で確立した「意図的な非対応として rustdoc に
-//!   記録する」判断を継承する。`@starting-style` 等による真の実現は
-//!   recipe 基盤の横断設計変更（ユーザー承認事項）であり、本イシューでは
-//!   行わない。
-//! - **`prefers-reduced-motion` は新規対応不要**: 本イシューは新規
-//!   transition を追加していない（上記のとおり開閉トランジション自体を
-//!   追加しない）ため、`@media (prefers-reduced-motion: reduce)` の
-//!   個別対応は不要。兄弟 #1700 が trigger/link へ追加した transition は
-//!   すべて motion トークン（[`crate::recipe::transition_declarations`]）
-//!   経由であり、`Theme::to_css` の一括 `0ms` 上書きで既に自動成立して
-//!   いる。
+//! [`crate::recipe::SlotRecipe::presence_transition`]（イシュー #2383）を
+//! `content` へ適用した。`@starting-style` + `transition-behavior:
+//! allow-discrete` は headless 層の `hidden` 同一フレーム即時付け外し
+//! 契約と両立する（headless 層は変更していない）。
+//!
+//! **navigation-menu は enter/exit の両方向が実際に描画される**:
+//! dialog（#2387）・[`crate::menu`]（#2390）・[`crate::menubar`]・select/
+//! combobox（#2391）はいずれも `content` の祖先に `positioner` パートを
+//! 持ち、`positioner[hidden]` が即座に `display: none` になるため
+//! 「開く演出（enter）のみ有効、閉じる演出（exit）は描画されない」という
+//! 制約付きの実現に留まっていた。navigation-menu の headless anatomy
+//! （root/list/item/trigger/item-indicator/content/link/indicator の 8
+//! パーツ）には祖先 `positioner` が存在せず、`hidden` は `content`
+//! 自身にのみ付く。したがって本イシューは兄弟イシュー群と異なり
+//! **enter/exit の両方向が実際に視覚的に成立する初例**である。
+//!
+//! `content` は `position: absolute; top: 100%;`（モジュール冒頭 rustdoc
+//! 「レイアウト」節）だが、CSS Transitions・`@starting-style` は
+//! positioning scheme に依存しない仕組みであり、この位置ジオメトリは
+//! 変更不要のまま enter/exit の両方向で機能する。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - **`prefers-reduced-motion` は新規対応不要**: [`crate::recipe`] の
+//!   motion トークン（[`crate::recipe::transition_declarations`] 等）
+//!   経由の transition はすべて `Theme::to_css` の一括 `0ms` 上書きで
+//!   既に自動成立している。`presence_transition` も同じ機構を経由する。
 //! - **`content` の `position`/`top`/`left`/`z-index`/`min-width` は現状
 //!   維持**: `position: absolute; top: 100%; left: 0;` はモジュール冒頭
 //!   rustdoc「レイアウト」節（PR #1000 の縦ずれ回帰予防）の位置ジオメトリ
@@ -402,6 +412,12 @@ fn recipe() -> SlotRecipe {
                 decl("min-width", "10rem"),
             ],
         )
+        // イシュー #2392（依存 #2383）: content の presence（enter/exit）。
+        // navigation-menu には祖先 positioner が存在しないため、
+        // 兄弟イシュー（dialog/menu/menubar/select 等）と異なり
+        // enter/exit の両方向が実際に描画される（モジュール冒頭 rustdoc
+        // 「開閉トランジションの実現」節参照）。
+        .presence_transition("content", MotionDuration::Normal)
         .base(
             "link",
             vec![
@@ -752,6 +768,32 @@ mod tests {
         assert!(!css.contains(
             "[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  display: block;\n"
         ));
+    }
+
+    #[test]
+    fn content_declares_presence_transition() {
+        // イシュー #2392（依存 #2383）: content の presence（enter/exit）
+        // 適用の固定。`content` は geometry 用の base ブロックと presence
+        // 用の base ブロックの 2 個を持つ（`.base()` の同一 slot 複数回
+        // 登録、モジュール上部コメント参照）ため、ブロック単位の切り出しは
+        // 行わず出力全体に対する部分文字列確認とする（base の定常状態・
+        // `[hidden]` state・`@starting-style` の 3 点）。
+        let css = stylesheet();
+        assert!(css.contains("opacity: 1;"));
+        assert!(css.contains("transition-property: opacity, transform, display;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-normal);"));
+        assert!(css.contains("transition-behavior: allow-discrete;"));
+
+        assert!(css.contains(r#"[data-scope="navigation-menu"][data-part="content"][hidden] {"#));
+        assert!(css.contains("opacity: 0;"));
+        assert!(css.contains("transform: scale(0.95);"));
+
+        assert!(css.contains("@starting-style {"));
+        let starting_style = css
+            .split("@starting-style {")
+            .nth(1)
+            .expect("@starting-style block must exist");
+        assert!(starting_style.contains(r#"[data-scope="navigation-menu"][data-part="content"] {"#));
     }
 
     #[test]
