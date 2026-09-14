@@ -216,6 +216,15 @@
 //! 含めないが、`position` モジュール自体・`pub use` は引き続きゲート対象外
 //! のまま、この自動呼び出しのみを off にできる。
 //!
+//! [`stagger_index`] モジュール（イシュー #2397）も `position` と同型の
+//! 別枠 feature を持つ。`Self::apply_update_for_dirty` 内、keyed list の
+//! 構造変化（`Insert`/`Move`）を DOM へ反映した直後の
+//! `stagger_index::sync_stagger_index` 呼び出しのみを feature
+//! `"stagger"`（既定 on）でゲートし、`stagger_index` モジュール自体・
+//! `stagger_index_value` 公開関数はゲート対象外のまま維持する。本呼び出し
+//! も `Runtime::mount`/`hydrate` の配線群呼び出しではない（`dirty` 更新
+//! 経路から呼ばれる）ため上記対応表には含めない。
+//!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
 //! `default-features = false` を使う利用者は上記 16 配線を失う
@@ -231,6 +240,10 @@
 //! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
 //! こと（`position` はこの 16 配線とは別枠の feature であり、既定 17 件目
 //! として `Cargo.toml` の `default` 配列に列挙されている）。
+//! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
+//! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
+//! 同型の別枠 feature、既定 18 件目として `default` 配列に列挙されて
+//! いる）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
@@ -378,6 +391,7 @@ pub mod position;
 pub mod questionnaire;
 pub mod sidebar;
 pub mod splitter;
+pub mod stagger_index;
 pub mod tabs_indicator;
 pub mod tooltip;
 
@@ -1047,6 +1061,16 @@ where
                                         );
                                     }
                                 }
+                                // イシュー #2397: Insert/Move を含む構造変化の
+                                // コミット直後、全行の DOM 順位置を
+                                // `--fandhe-motion-stagger-index` へ再同期する
+                                // （差分判定を持たない毎回再同期方針、
+                                // `content_height::sync_content_height` と
+                                // 同型）。SSR/初期描画時点の書き出しは
+                                // `fandhe-frontend-pre-styled-ui::recipe::
+                                // stagger_index_style` が別途担う。
+                                #[cfg(feature = "stagger")]
+                                crate::stagger_index::sync_stagger_index(&list_element);
                                 structural_change = true;
                             } else if !has_binding(field) {
                                 unresolved_field = true;
