@@ -47,6 +47,19 @@ fn stylesheet_declares_selectors_for_all_sixteen_anatomy_slots() {
 }
 
 #[test]
+fn stylesheet_declares_presence_transition_for_content_and_sub_content() {
+    // イシュー #2390: `content`/`sub-content` へ presence（enter/exit）
+    // トランジションを適用したことを固定する（popover/hover-card/menu と
+    // 同型、`crates/pre-styled-ui/src/menubar.rs` モジュール rustdoc
+    // 「意図的に合わせなかった点・開閉トランジション非対応」節参照）。
+    let css = menubar::stylesheet();
+    assert!(css.contains(r#"[data-scope="menubar"][data-part="content"][hidden]"#));
+    assert!(css.contains(r#"[data-scope="menubar"][data-part="sub-content"][hidden]"#));
+    assert!(css.contains("transition-behavior: allow-discrete;"));
+    assert!(css.contains("@starting-style"));
+}
+
+#[test]
 fn stylesheet_declares_open_state_selectors_for_trigger_and_sub_trigger() {
     let css = menubar::stylesheet();
     assert!(css.contains(r#"[data-scope="menubar"][data-part="trigger"][data-state="open"]"#));

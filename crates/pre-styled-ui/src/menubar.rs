@@ -173,18 +173,25 @@
 //!
 //! ## 意図的に合わせなかった点・開閉トランジション非対応
 //!
-//! - **開閉（entry/exit）トランジションは追加しない**: headless 層
+//! - **開閉（entry/exit）トランジションは当初追加しなかった**: headless 層
 //!   （`crates/headless-ui/src/menubar.rs`）は `positioner`/`content`/
 //!   `sub-content` の closed 時に `hidden` 存在属性を同一フレームで
-//!   付与・除去する契約であり、opacity/transform への CSS トランジション
-//!   は遷移前フレームが描画されないため発火しない。dialog（PR #1795
+//!   付与・除去する契約であり、opacity/transform への素の CSS トランジ
+//!   ションは遷移前フレームが描画されないため発火しない。dialog（PR #1795
 //!   codex-review P1 指摘）→ [`crate::menu`] 1/3（PR #1800）で確立した
-//!   「意図的な非対応として rustdoc に記録する」判断を継承する。本イシュー
-//!   で追加したトランジションはすべて発火が成立する状態変化（`item`/
-//!   `sub-trigger` の hover・highlight・open による background/color 遷移）
-//!   に限定した。`prefers-reduced-motion` の尊重は、追加した transition が
-//!   すべて motion トークン（[`crate::recipe::transition_declarations`]）
-//!   経由であることにより `Theme::to_css` の一括 `0ms` 上書きで自動成立
+//!   「意図的な非対応として rustdoc に記録する」判断を継承していた。**イシュー
+//!   #2390 でこの判断を撤回**し、`content`/`sub-content` へ
+//!   [`crate::recipe::SlotRecipe::presence_transition`]（`display` にも
+//!   `transition-behavior: allow-discrete` を付与し、上記の即時 `hidden`
+//!   契約下でも遷移が発火するよう構造的に解決するプリセット。popover/
+//!   hover-card がイシュー #2388 で先行適用済み）を適用した。詳細・
+//!   `positioner` を持つ `content` の exit が成立しない既知の限界は
+//!   本モジュールの `recipe()` 実装末尾のコメントを参照する。本イシューで追加した
+//!   トランジションはすべて発火が成立する状態変化（`item`/`sub-trigger`
+//!   の hover・highlight・open による background/color 遷移）に限定した。
+//!   `prefers-reduced-motion` の尊重は、追加した transition がすべて
+//!   motion トークン（[`crate::recipe::transition_declarations`]）経由
+//!   であることにより `Theme::to_css` の一括 `0ms` 上書きで自動成立
 //!   する。
 //! - **`positioner` は変更しない**: `position`/`top`/`left`/`margin-top` は
 //!   wasm positioning 契約（#663/#1182 で menubar は position.rs の scope
@@ -685,6 +692,27 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
+        // イシュー #2390: `content`/`sub-content` へ presence（enter/exit）
+        // のフェード + scale トランジションを適用する（popover/hover-card/
+        // menu〔イシュー #2388/#2390〕と同型、`SlotRecipe::presence_transition`
+        // rustdoc 参照）。旧「開閉トランジションは追加しない」判断（本モジュール
+        // 冒頭「意図的に合わせなかった点・開閉トランジション非対応」節、
+        // イシュー #1703 由来）は本イシューで撤回する:
+        // `presence_transition` は `transition-behavior: allow-discrete` を
+        // `display` にも付与することで、headless 層が closed 時に `hidden`
+        // 存在属性を同一フレームで即時付与・除去する契約下でも遷移が発火
+        // するよう構造的に解決している。
+        //
+        // `content` は `sub-content` と同様に祖先 `positioner` も同時に
+        // `hidden` を受け取るため、enter は視認できるが exit（閉じる演出）
+        // は `positioner` 自身が `presence_transition` の対象外（UA 既定
+        // `display: none` が即座に適用される）ため成立しない
+        // （`docs/design/collapsible-height-animation.md` §12.3 参照、
+        // popover/hover-card/menu と同じ既知の限界）。一方 `sub-content` は
+        // `positioner` を持たず自身が直接 `hidden` を受け取るため、この
+        // 限界を持たず enter/exit の双方が実際に視認できる。
+        .presence_transition("content", MotionDuration::Normal)
+        .presence_transition("sub-content", MotionDuration::Normal)
 }
 
 /// この styled Menubar が生成する静的 CSS 全量を返す（決定的。
