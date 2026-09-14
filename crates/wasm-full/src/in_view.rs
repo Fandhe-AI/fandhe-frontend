@@ -1,0 +1,169 @@
+//! ビューポート進入検出（in-view、`IntersectionObserver` 配線、イシュー
+//! #2396、親 #2394）。
+//!
+//! `docs/design/motion-reference-adoption-policy.md` §4 が inView を
+//! 「群 B: 小さな DOM 配線」に分類するとおり、[`fandhe_frontend_animation`]
+//! の `Driver`/`Target` 連携は不要で、`IntersectionObserver` の購読と
+//! `data-*` 属性の付け外しのみで完結する（本クレート単独の依存追加なし。
+//! `fandhe-frontend-animation` への optional 依存は本モジュールでは
+//! 有効化しない）。
+//!
+//! アプリ側マークアップが `data-in-view`（値なし）を付けた任意の要素が
+//! 監視対象になる opt-in マーカーであり、同じ属性が交差状態の書き戻し先
+//! （存在マーカー、`hidden`/`data-positioned` と同じ慣習）を兼ねる。
+//! `data-in-view-once="true"` を併記すると初回進入後に監視解除する
+//! （[`in_view_once_from_attr`]）。`fandhe-frontend-headless-ui` には
+//! 依存しない汎用配線であり、任意のアプリマークアップが対象となる。
+//!
+//! `events.rs`/`keynav.rs`/`headless_avatar.rs` と同じ 2 層構成
+//! （DOM 非依存の純粋ロジック層 + `#[cfg(target_arch = "wasm32")]` 配線層）
+//! を踏襲する。
+//!
+//! # Runtime への統合
+//!
+//! `crate::lib::Runtime::mount`/`Runtime::hydrate` の双方が
+//! `Self::wire_data_table` の直後で `Self::wire_in_view` を呼ぶ（feature
+//! `in-view`、既定 on）。`dispatch` チャネルを持たない属性専用配線のため
+//! （`Self::wire_sidebar`/`Self::wire_chart` と同型）、`Component`/
+//! `binding_table`/`keyed_list_cache` は必要としない。
+//!
+//! # セキュリティ不変条件（REQ-1）
+//!
+//! `data-in-view` へ書き込む値は空文字列 `""` の `&'static str` リテラルの
+//! みであり、DOM から取得した動的文字列（`data-in-view-once` の値等）を
+//! 属性値・セレクタへ混ぜない。属性書き込みは
+//! `crate::dom::set_dom_attribute_result` を経由する（`headless_avatar.rs`
+//! と同じ方針）。
+
+/// `data-in-view` 属性名（opt-in マーカー兼、交差状態の書き戻し先）。
+pub const IN_VIEW_ATTR: &str = "data-in-view";
+/// `data-in-view-once` 属性名（真偽値属性、`"true"` のときのみ有効）。
+pub const IN_VIEW_ONCE_ATTR: &str = "data-in-view-once";
+/// 監視対象候補の走査セレクタ。
+pub const IN_VIEW_SELECTOR: &str = "[data-in-view]";
+
+/// `data-in-view-once` 属性値から once 判定を行う（DOM 非依存の純粋関数、
+/// native `cargo test` で検証可能）。
+///
+/// `"true"` の厳格一致のみ `true`。未設定・空文字列・大文字小文字違い・
+/// 任意文字列はすべて `false` へ fail-closed に倒す
+/// （`keynav::menu_loop_focus_from_attr` と同じ流儀）。
+#[must_use]
+pub fn in_view_once_from_attr(value: Option<&str>) -> bool {
+    value == Some("true")
+}
+
+#[cfg(target_arch = "wasm32")]
+mod wiring {
+    use super::{in_view_once_from_attr, IN_VIEW_ATTR, IN_VIEW_ONCE_ATTR, IN_VIEW_SELECTOR};
+    use crate::dom::set_dom_attribute_result as set_dom_attribute;
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::{JsCast, JsValue};
+    use web_sys::{Element, IntersectionObserver, IntersectionObserverEntry};
+
+    /// `root` 配下の `[data-in-view]` 要素（複数可）を出現順に集める。
+    /// `query_selector_all` の失敗は空 `Vec` として扱う（fail-closed、
+    /// panic しない。`headless_avatar.rs::collect_avatar_images` と同じ方針）。
+    fn collect_in_view_candidates(root: &Element) -> Vec<Element> {
+        let Ok(node_list) = root.query_selector_all(IN_VIEW_SELECTOR) else {
+            return Vec::new();
+        };
+        let len = node_list.length();
+        let mut out = Vec::with_capacity(len as usize);
+        for i in 0..len {
+            if let Some(node) = node_list.get(i) {
+                if let Ok(el) = node.dyn_into::<Element>() {
+                    out.push(el);
+                }
+            }
+        }
+        out
+    }
+
+    /// `window.IntersectionObserver` の機能検出（Duck-typing ではなく
+    /// `Reflect::get` + `.is_function()`、`web-sys` が正式サポートする API
+    /// のため）。
+    fn supports_intersection_observer() -> bool {
+        let Some(window) = web_sys::window() else {
+            return false;
+        };
+        js_sys::Reflect::get(&window, &JsValue::from_str("IntersectionObserver"))
+            .map(|value| value.is_function())
+            .unwrap_or(false)
+    }
+
+    /// `root` 配下の `[data-in-view]` 要素へ `IntersectionObserver` 配線を
+    /// マウント時に 1 回だけ登録する（[`crate::lib::Runtime::wire_in_view`]
+    /// から呼ばれる）。
+    ///
+    /// 候補 0 件なら即 `Ok(())`。非対応ブラウザ（`supports_intersection_observer`
+    /// が `false`）ではプログレッシブエンハンスメントとして候補全件へ即座に
+    /// `data-in-view` を付与する（JS 非対応でも常に可視という安全側
+    /// デフォルト、`nav.rs::start_view_transition_prop` の同期フォール
+    /// バックと同じ方針）。
+    ///
+    /// 単一 `IntersectionObserver` インスタンスで候補を複数 `observe()` する
+    /// （`headless_avatar.rs::wire_avatar_src_observer` と同じ「マウント時
+    /// 1 回・定数個リーク」契約、`Closure::forget()` は 1 回のみ）。
+    ///
+    /// # Errors
+    ///
+    /// `IntersectionObserver::new`・`observe`・属性書き込みの失敗を伝播する。
+    pub fn wire_in_view(root: &Element) -> Result<(), JsValue> {
+        let candidates = collect_in_view_candidates(root);
+        if candidates.is_empty() {
+            return Ok(());
+        }
+
+        if !supports_intersection_observer() {
+            for el in &candidates {
+                set_dom_attribute(el, IN_VIEW_ATTR, "")?;
+            }
+            return Ok(());
+        }
+
+        let callback = Closure::<dyn FnMut(js_sys::Array, IntersectionObserver)>::new(
+            move |entries: js_sys::Array, observer: IntersectionObserver| {
+                handle_intersections(&entries, &observer);
+            },
+        );
+        let observer = IntersectionObserver::new(callback.as_ref().unchecked_ref())?;
+        callback.forget();
+
+        for el in &candidates {
+            observer.observe(el);
+        }
+
+        Ok(())
+    }
+
+    /// `IntersectionObserver` コールバック本体。各 `entry` の交差状態に
+    /// 応じて `data-in-view` を付け外しし、once 指定かつ進入済みの要素は
+    /// `unobserve` する。
+    ///
+    /// `dyn_into` 失敗（想定外のノード型）はスキップする fail-closed 処理
+    /// （`headless_avatar.rs::wire_avatar_src_observer` と同型）。
+    fn handle_intersections(entries: &js_sys::Array, observer: &IntersectionObserver) {
+        for entry in entries.iter() {
+            let Ok(entry) = entry.dyn_into::<IntersectionObserverEntry>() else {
+                continue;
+            };
+            let target = entry.target();
+            if entry.is_intersecting() {
+                if set_dom_attribute(&target, IN_VIEW_ATTR, "").is_err() {
+                    continue;
+                }
+                let once =
+                    in_view_once_from_attr(target.get_attribute(IN_VIEW_ONCE_ATTR).as_deref());
+                if once {
+                    observer.unobserve(&target);
+                }
+            } else {
+                let _ = target.remove_attribute(IN_VIEW_ATTR);
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub use wiring::wire_in_view;
