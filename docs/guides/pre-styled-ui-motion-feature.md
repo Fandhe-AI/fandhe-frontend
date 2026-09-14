@@ -120,13 +120,17 @@ CI では `.github/workflows/ci.yml` の `clippy` ジョブが
 
 ## 5. 消費者別の指定方針
 
-- **docs-site（`fandhe-frontend-docs-site`）**: 現時点では `motion` を
-  有効化していません（Demo 対象がまだ無いため）。有効化する際は
-  `structure.toml` の `directories.pre-styled-ui.depends_on` へ
-  `"animation"` を、`directories.animation.allowed_dependents` へ
-  `"pre-styled-ui"` を同時に追加する必要があります（optional 依存が
-  既定 feature 側で解決されるようになるため、`fw structure` の
-  depends_on 完全一致検証の対象に入ります）。
+- **docs-site（`fandhe-frontend-docs-site`）**: イシュー #2524 で `motion`
+  を有効化しました（`crates/docs-site/Cargo.toml` の
+  `fandhe-frontend-pre-styled-ui` 依存へ `features = ["motion"]` を指定）。
+  Themes Demo の presence（dialog/drawer/popover/tooltip/hover-card/menu の
+  closed インスタンス）・scroll-driven reveal・stagger の実演がこれを
+  消費します。あわせて `structure.toml` の
+  `directories.pre-styled-ui.depends_on` へ `"animation"` を、
+  `directories.animation.allowed_dependents` へ `"pre-styled-ui"` を
+  対称に追加済みです（optional 依存が既定 feature 側で解決されるように
+  なったため、`fw structure` の depends_on 完全一致検証の対象に入って
+  います）。
 - **dist-server 配布物**: `fandhe-frontend-dist-server` の配布 WASM は
   `crates/dist-server/src/wasm_dist_features.rs` の `WASM_DIST_FEATURES`
   （wasm-full 側の feature 集合）に従い、pre-styled-ui の CSS 生成
