@@ -1109,7 +1109,15 @@ name = "fandhe-frontend-wasm-full"
 # 破壊的変更、イシュー #2122 の 0.18.4→0.19.0 と同型）ため minor バンプ
 # する（origin/main の #2397 minor バンプと到達値が一致するため
 # バージョン番号自体は変更なし）。
-version = "0.21.0"
+#
+# イシュー #2400: `nav.rs`（イシュー #404）専用だった
+# `document.startViewTransition()` ラップを `crate::view_transition` へ
+# 切り出し、任意の状態更新から呼べる新規公開 API
+# `Runtime::apply_with_view_transition`（feature `view-transitions`、
+# 既定 on）として開放した。`nav.rs` 側の router 経由呼び出しは feature に
+# 関わらず無条件で動作し続ける（責務分離）。新規公開 API 追加のため minor
+# バンプする。
+version = "0.22.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1589,6 +1597,7 @@ default = [
   "in-view",
   "position",
   "stagger",
+  "view-transitions",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -1651,6 +1660,14 @@ position = []
 # 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
 # 別枠の feature。
 stagger = []
+# イシュー #2400: `Runtime::apply_with_view_transition`（新規公開 API、
+# 任意の状態更新を `document.startViewTransition()` でラップする）
+# 専用の feature（既定 on）。`nav.rs` の router 経由
+# `startViewTransition`（イシュー #404、`crate::view_transition`）は
+# feature に関わらず無条件で動作し続ける。配線群別 feature 表にも
+# scope feature 表にも属さない別枠の feature（`position`/`stagger`
+# と同型）。
+view-transitions = []
 
 # イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
 # `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの

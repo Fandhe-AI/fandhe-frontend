@@ -235,6 +235,18 @@
 //! も `Runtime::mount`/`hydrate` の配線群呼び出しではない（`dirty` 更新
 //! 経路から呼ばれる）ため上記対応表には含めない。
 //!
+//! [`view_transition`] モジュール（イシュー #2400）も `position`/`stagger` と
+//! 同型の別枠 feature を持つ。[`Runtime::apply_with_view_transition`]
+//! （任意の状態更新を `document.startViewTransition()` でラップする新規公開
+//! API）のみを feature `"view-transitions"`（既定 on）でゲートし、
+//! `view_transition` モジュール自体・[`view_transition::with_view_transition`]
+//! （[`nav`] モジュールの router 経由 View Transitions、イシュー #404 が
+//! 使う共有実装）はゲート対象外のまま維持する。`nav.rs` 側の呼び出しは
+//! feature に関わらず無条件で動作し続ける（新規公開 API と既存配線の
+//! 責務分離、イシュー #2400 受け入れ条件）。本 API も `Runtime::mount`/
+//! `hydrate` の配線群呼び出しではない（アプリ側から能動的に呼ぶ公開
+//! メソッド）ため上記対応表には含めない。
+//!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
 //! `default-features = false` を使う利用者は上記 17 配線を失う
@@ -254,7 +266,9 @@
 //! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
 //! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
 //! 同型の別枠 feature、既定 18 件目として `default` 配列に列挙されて
-//! いる）。
+//! いる）。同様に [`Runtime::apply_with_view_transition`] を維持するには
+//! `"view-transitions"` も列挙に含めること（`position`/`stagger` と同型の
+//! 別枠 feature、既定 19 件目として `default` 配列に列挙されている）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
@@ -406,6 +420,7 @@ pub mod splitter;
 pub mod stagger_index;
 pub mod tabs_indicator;
 pub mod tooltip;
+pub mod view_transition;
 
 // イシュー #1120: `wasm-bindgen-exports` feature（既定 on）でエクスポート面を
 // 切り離せるようにする。`entry` はアプリ側の薄い `#[wasm_bindgen]`
@@ -1185,10 +1200,33 @@ where
             );
             return;
         };
+        Self::apply_subtree_swap(root, &new_node, binding_table, keyed_list_cache);
+    }
+
+    /// `root` へのライブ DOM 破壊的変更（子ノード全削除・新ノード
+    /// append・`binding_table` 再スキャン・`keyed_list_cache` クリア）のみを
+    /// 担う（イシュー #2400 で [`Self::rerender_subtree`] から抽出）。
+    ///
+    /// [`Self::rerender_subtree`]（`document()`/`state.view()`/
+    /// `build_dom_node` による新規ノード構築まで含む）と
+    /// [`Self::apply_with_view_transition`]（新規ノード構築は遷移の外で
+    /// 済ませ、本メソッドのみを `document.startViewTransition()` の update
+    /// コールバック内で呼ぶ）の双方から共有される、唯一の DOM 差し替え
+    /// 実装。
+    fn apply_subtree_swap(
+        root: &web_sys::Element,
+        new_node: &web_sys::Node,
+        binding_table: &std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) {
         while let Some(child) = root.first_child() {
             let _ = root.remove_child(&child);
         }
-        let _ = root.append_child(&new_node);
+        let _ = root.append_child(new_node);
 
         // 差し替え後の DOM は新規ノードのため、旧対応表のエントリはすべて
         // 無効。イベント委譲（`root` への delegation）は再配線不要だが、
@@ -1198,12 +1236,12 @@ where
 
         // イシュー #1324: サブツリー差し替え後の keyed list 親要素は新規
         // DOM ノードであり、直前にキャッシュしていた「達成 Node」との
-        // 対応関係は保証されない（本メソッドは `Self::rerender` からも
-        // 能動的に呼ばれうるため、直近の `apply_update_for_dirty` 呼び出し
-        // との時系列関係を前提にできない）。丸ごとクリアし、次回以降は
-        // `apply_keyed_list`（DOM 読み出しベースのフォールバック）から
-        // 再開させることで実際の DOM 内容との不整合を防ぐ
-        // （`Runtime::keyed_list_cache` doc 参照）。
+        // 対応関係は保証されない（本メソッドは `Self::rerender`・
+        // `Self::apply_with_view_transition` からも能動的に呼ばれうるため、
+        // 直近の `apply_update_for_dirty` 呼び出しとの時系列関係を前提に
+        // できない）。丸ごとクリアし、次回以降は `apply_keyed_list`
+        // （DOM 読み出しベースのフォールバック）から再開させることで実際の
+        // DOM 内容との不整合を防ぐ（`Runtime::keyed_list_cache` doc 参照）。
         keyed_list_cache.borrow_mut().clear();
     }
 
@@ -2543,6 +2581,60 @@ where
             &self.binding_table,
             &self.keyed_list_cache,
         );
+    }
+
+    /// 任意の状態更新（router 遷移に限らない再描画トリガー）を
+    /// `document.startViewTransition()` でラップして適用する公開 API
+    /// （イシュー #2400）。
+    ///
+    /// [`Self::rerender`] と同じ全再描画ロジック（`state.view()` から
+    /// `root` サブツリーを丸ごと再構築する [`Self::apply_subtree_swap`]）を
+    /// 使うが、ライブ DOM への破壊的変更（子ノード削除・新ノード
+    /// append・`binding_table` 再スキャン・`keyed_list_cache` クリア）
+    /// のみを [`crate::view_transition::with_view_transition`]（[`nav`]
+    /// モジュールの router 経由 View Transitions〔イシュー #404〕と共有する
+    /// 同一ラップ関数）の update コールバック内で実行する点が異なる。
+    ///
+    /// feature `"view-transitions"`（既定 on）でゲートされるのは本
+    /// メソッドのみであり、`nav.rs` 側の router 経由
+    /// `startViewTransition` は feature に関わらず無条件で動作し続ける
+    /// （新規公開 API と既存配線の責務分離、イシュー #2400 受け入れ
+    /// 条件）。`document`/`build_dom_node` の解決に失敗した場合は
+    /// [`Self::rerender_subtree`] と同じ固定英語文言で `console::warn`
+    /// し、既存 DOM を維持したまま no-op で終える（fail-safe、panic
+    /// しない）。
+    ///
+    /// [`Self::rerender`] と同じく、`component` の借用に失敗した場合
+    /// （イベントハンドラ内からの再入等）は no-op とする。
+    #[cfg(feature = "view-transitions")]
+    pub fn apply_with_view_transition(&self) {
+        let Ok(state) = self.component.try_borrow() else {
+            return;
+        };
+        let Ok(document) = Self::document() else {
+            web_sys::console::warn_1(
+                &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition could not \
+                  access document, keeping existing DOM"
+                    .into(),
+            );
+            return;
+        };
+        let view = state.view();
+        drop(state);
+        let Some(new_node) = fandhe_frontend_wasm_client::build_dom_node(&document, &view) else {
+            web_sys::console::warn_1(
+                &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition could not \
+                  build replacement DOM (unsupported node), keeping existing DOM"
+                    .into(),
+            );
+            return;
+        };
+        let root = self.root.clone();
+        let binding_table = self.binding_table.clone();
+        let keyed_list_cache = self.keyed_list_cache.clone();
+        crate::view_transition::with_view_transition(&document, move || {
+            Self::apply_subtree_swap(&root, &new_node, &binding_table, &keyed_list_cache);
+        });
     }
 }
 

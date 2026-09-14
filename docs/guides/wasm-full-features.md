@@ -75,6 +75,14 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 し、`stagger_index` モジュール自体・公開関数（`stagger_index_value`）は
 ゲート対象外です。
 
+`view-transitions` feature（0.22.0 で追加、イシュー #2400）も同じく
+別枠です。`Runtime::apply_with_view_transition`（任意の状態更新を
+`document.startViewTransition()` でラップする新規公開 API）のみをゲート
+し、`view_transition` モジュール自体・`view_transition::with_view_transition`
+（`nav.rs` の router 経由 View Transitions、イシュー #404 が使う共有実装）
+はゲート対象外です。`nav.rs` 側の呼び出しは本 feature の有効・無効に
+関わらず無条件で動作し続けます。
+
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
 feature 名は `headless::MAPPING_TABLE` の `scope` 文字列と一致します
@@ -138,11 +146,12 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.20.5 | `message-scroller` feature（イシュー #2122） |
 | 0.20.8 | `data-table` feature（イシュー #2126） |
 | 0.21.0 | `stagger` feature（イシュー #2397）・`in-view` feature（イシュー #2396） |
+| 0.22.0 | `view-transitions` feature（イシュー #2400） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 36 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 37 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
@@ -170,6 +179,7 @@ features = [
   "in-view",
   "position",
   "stagger",
+  "view-transitions",
   "accordion",
   "calendar",
   "collapsible",
