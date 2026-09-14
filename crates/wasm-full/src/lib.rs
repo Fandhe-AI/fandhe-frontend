@@ -242,6 +242,18 @@
 //! 公開するだけで、`Runtime::mount`/`hydrate` からの新規呼び出しは伴わない
 //! （上記対応表には含めない）。
 //!
+//! [`view_transition`] モジュール（イシュー #2400）も `position`/`stagger` と
+//! 同型の別枠 feature を持つ。[`Runtime::apply_with_view_transition`]
+//! （任意の状態更新を `document.startViewTransition()` でラップする新規公開
+//! API）のみを feature `"view-transitions"`（既定 on）でゲートし、
+//! `view_transition` モジュール自体・[`view_transition::with_view_transition`]
+//! （[`nav`] モジュールの router 経由 View Transitions、イシュー #404 が
+//! 使う共有実装）はゲート対象外のまま維持する。`nav.rs` 側の呼び出しは
+//! feature に関わらず無条件で動作し続ける（新規公開 API と既存配線の
+//! 責務分離、イシュー #2400 受け入れ条件）。本 API も `Runtime::mount`/
+//! `hydrate` の配線群呼び出しではない（アプリ側から能動的に呼ぶ公開
+//! メソッド）ため上記対応表には含めない。
+//!
 //! [`view_transition_name`] モジュール（イシュー #2515）も別枠 feature
 //! `"view-transition-name"`（既定 on）を持つが、`position`/`stagger` とは
 //! ゲート対象が異なる: `Runtime` 内部の呼び出し箇所ではなく、
@@ -250,6 +262,23 @@
 //! と同型のパターン）。keyed list の `Insert`/`Move`/`Remove` に伴う
 //! 自動書き戻しは持たない（値が呼び出し側の業務キー由来で DOM 順位置と
 //! 無関係なため）。
+//!
+//! feature `"animate"`（既定 on、イシュー #2398）は上記いずれとも異なる
+//! 特殊枠である: optional 依存 `fandhe-frontend-animation`
+//! （`element.animate()` WAAPI 薄いラッパ、イシュー #2417/#2398）を
+//! 有効化するだけで、対応する `wire_*` 呼び出し自体が本クレートに存在
+//! しない（`data-*` 属性からの自動トリガー配線は後続 Phase 4 issue の
+//! 責務）。したがって上記対応表・配線群 16 件の一覧のいずれにも含めず、
+//! `position`/`stagger`/`animation-driver`/`view-transitions`/
+//! `view-transition-name` と同じ「別枠 feature」の 6 例目として扱う。
+//! optional 依存を有効化するだけ
+//! では推移的依存はアプリ側の名前解決に公開されないため、本クレートは
+//! `"animate"` feature
+//! 有効時のみ `pub use fandhe_frontend_animation;` で crate 自体を
+//! 再エクスポートする。アプリは自前で `fandhe-frontend-animation` に
+//! 依存を追加しなくても
+//! `fandhe_frontend_wasm_full::fandhe_frontend_animation::animate::{animate, ...}`
+//! で呼び出せる。
 //!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
@@ -273,10 +302,17 @@
 //! いる）。同様に [`animation_driver`] モジュールを維持するには
 //! `"animation-driver"` も列挙に含めること（`position`/`stagger` と同型の
 //! 別枠 feature、既定 19 件目として `default` 配列に列挙されている）。
+//! 同様に [`Runtime::apply_with_view_transition`] を維持するには
+//! `"view-transitions"` も列挙に含めること（`position`/`stagger` と同型の
+//! 別枠 feature、既定 19 件目として `default` 配列に列挙されている）。
 //! [`view_transition_name::set_view_transition_name`] を維持するには
 //! `"view-transition-name"` も列挙に含めること（`position`/`stagger`
 //! とは異なりゲート対象が公開関数自体である点は上記モジュール doc 参照。
 //! 既定 20 件目として `default` 配列に列挙されている）。
+//! `fandhe_frontend_wasm_full::fandhe_frontend_animation::animate`
+//! を呼べるようにするには `"animate"` も列挙に含めること（対応する
+//! `wire_*` 呼び出しは存在せず依存の有効化と再エクスポートのみを行う
+//! 別枠 feature として `default` 配列に列挙されている）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
@@ -430,6 +466,7 @@ pub mod splitter;
 pub mod stagger_index;
 pub mod tabs_indicator;
 pub mod tooltip;
+pub mod view_transition;
 pub mod view_transition_name;
 
 // イシュー #1120: `wasm-bindgen-exports` feature（既定 on）でエクスポート面を
@@ -442,6 +479,15 @@ pub mod view_transition_name;
 // 参照）。
 #[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
 pub mod entry;
+
+// イシュー #2398 codex-review 指摘: `fandhe-frontend-animation` は本クレートの
+// optional 依存にすぎず、`animate` feature を有効化しただけではアプリ側の
+// 名前解決に公開されない（アプリが `fandhe-frontend-animation` を自前で
+// 直接依存させない限り `fandhe_frontend_animation::...` を書けない）。本クレート
+// 経由の利用パス（docs/lib.rs 上部の対応表コメントが前提とする経路）を実際に
+// 機能させるため、`animate` feature 有効時のみ crate 自体を再エクスポートする。
+#[cfg(feature = "animate")]
+pub use fandhe_frontend_animation;
 
 mod dom;
 
@@ -1210,10 +1256,33 @@ where
             );
             return;
         };
+        Self::apply_subtree_swap(root, &new_node, binding_table, keyed_list_cache);
+    }
+
+    /// `root` へのライブ DOM 破壊的変更（子ノード全削除・新ノード
+    /// append・`binding_table` 再スキャン・`keyed_list_cache` クリア）のみを
+    /// 担う（イシュー #2400 で [`Self::rerender_subtree`] から抽出）。
+    ///
+    /// [`Self::rerender_subtree`]（`document()`/`state.view()`/
+    /// `build_dom_node` による新規ノード構築まで含む）と
+    /// [`Self::apply_with_view_transition`]（新規ノード構築は遷移の外で
+    /// 済ませ、本メソッドのみを `document.startViewTransition()` の update
+    /// コールバック内で呼ぶ）の双方から共有される、唯一の DOM 差し替え
+    /// 実装。
+    fn apply_subtree_swap(
+        root: &web_sys::Element,
+        new_node: &web_sys::Node,
+        binding_table: &std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) {
         while let Some(child) = root.first_child() {
             let _ = root.remove_child(&child);
         }
-        let _ = root.append_child(&new_node);
+        let _ = root.append_child(new_node);
 
         // 差し替え後の DOM は新規ノードのため、旧対応表のエントリはすべて
         // 無効。イベント委譲（`root` への delegation）は再配線不要だが、
@@ -1223,12 +1292,12 @@ where
 
         // イシュー #1324: サブツリー差し替え後の keyed list 親要素は新規
         // DOM ノードであり、直前にキャッシュしていた「達成 Node」との
-        // 対応関係は保証されない（本メソッドは `Self::rerender` からも
-        // 能動的に呼ばれうるため、直近の `apply_update_for_dirty` 呼び出し
-        // との時系列関係を前提にできない）。丸ごとクリアし、次回以降は
-        // `apply_keyed_list`（DOM 読み出しベースのフォールバック）から
-        // 再開させることで実際の DOM 内容との不整合を防ぐ
-        // （`Runtime::keyed_list_cache` doc 参照）。
+        // 対応関係は保証されない（本メソッドは `Self::rerender`・
+        // `Self::apply_with_view_transition` からも能動的に呼ばれうるため、
+        // 直近の `apply_update_for_dirty` 呼び出しとの時系列関係を前提に
+        // できない）。丸ごとクリアし、次回以降は `apply_keyed_list`
+        // （DOM 読み出しベースのフォールバック）から再開させることで実際の
+        // DOM 内容との不整合を防ぐ（`Runtime::keyed_list_cache` doc 参照）。
         keyed_list_cache.borrow_mut().clear();
     }
 
@@ -2568,6 +2637,74 @@ where
             &self.binding_table,
             &self.keyed_list_cache,
         );
+    }
+
+    /// 任意の状態更新（router 遷移に限らない再描画トリガー）を
+    /// `document.startViewTransition()` でラップして適用する公開 API
+    /// （イシュー #2400）。
+    ///
+    /// [`Self::rerender`] と同じ全再描画ロジック（`state.view()` から
+    /// `root` サブツリーを丸ごと再構築する [`Self::apply_subtree_swap`]）を
+    /// 使うが、`state.view()` からの新規ノード構築ごと
+    /// [`crate::view_transition::with_view_transition`]（[`nav`]
+    /// モジュールの router 経由 View Transitions〔イシュー #404〕と共有する
+    /// 同一ラップ関数）の update コールバック内で実行する点が異なる。
+    ///
+    /// `document.startViewTransition()` の update コールバックは呼び出しから
+    /// 実行までブラウザ側で遅延しうる（次のレンダリング機会まで繰り延べ）。
+    /// 呼び出し時点の `state.view()` を事前に構築してコールバックへ渡すと、
+    /// 遅延の間に別の状態更新（`dispatch` 経由の dirty 更新・別途呼ばれた
+    /// `Self::rerender`・重ねて呼ばれた本メソッド自身等）が起きた場合に、
+    /// 実行時点でその古いスナップショットを無条件適用してしまい「状態は
+    /// 更新済みだが表示だけ古い状態へ戻る」不整合を招く（イシュー #2400
+    /// codex-review P1 是正）。本メソッドは新規ノード構築を update
+    /// コールバック内へ遅延させ、実行される瞬間の最新 `component` 状態から
+    /// 描画することでこれを構造的に防ぐ（`self.component` を都度
+    /// `try_borrow` するのみで、世代管理等の追加の共有状態を要さない）。
+    ///
+    /// feature `"view-transitions"`（既定 on）でゲートされるのは本
+    /// メソッドのみであり、`nav.rs` 側の router 経由
+    /// `startViewTransition` は feature に関わらず無条件で動作し続ける
+    /// （新規公開 API と既存配線の責務分離、イシュー #2400 受け入れ
+    /// 条件）。`document`/`build_dom_node` の解決に失敗した場合は
+    /// [`Self::rerender_subtree`] と同じ固定英語文言で `console::warn`
+    /// し、既存 DOM を維持したまま no-op で終える（fail-safe、panic
+    /// しない）。
+    ///
+    /// [`Self::rerender`] と同じく、`component` の借用に失敗した場合
+    /// （イベントハンドラ内からの再入等）は no-op とする。
+    #[cfg(feature = "view-transitions")]
+    pub fn apply_with_view_transition(&self) {
+        let Ok(document) = Self::document() else {
+            web_sys::console::warn_1(
+                &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition could not \
+                  access document, keeping existing DOM"
+                    .into(),
+            );
+            return;
+        };
+        let component = self.component.clone();
+        let root = self.root.clone();
+        let binding_table = self.binding_table.clone();
+        let keyed_list_cache = self.keyed_list_cache.clone();
+        let doc_for_apply = document.clone();
+        crate::view_transition::with_view_transition(&document, move || {
+            let Ok(state) = component.try_borrow() else {
+                return;
+            };
+            let view = state.view();
+            drop(state);
+            let Some(new_node) = fandhe_frontend_wasm_client::build_dom_node(&doc_for_apply, &view)
+            else {
+                web_sys::console::warn_1(
+                    &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition could not \
+                      build replacement DOM (unsupported node), keeping existing DOM"
+                        .into(),
+                );
+                return;
+            };
+            Self::apply_subtree_swap(&root, &new_node, &binding_table, &keyed_list_cache);
+        });
     }
 }
 

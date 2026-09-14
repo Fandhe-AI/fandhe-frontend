@@ -1107,29 +1107,51 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #2396: 新規デフォルト on の配線群別 feature `in-view` を追加
 # （`Runtime::mount`/`hydrate` へ新規呼び出し `Self::wire_in_view` が増える
 # 破壊的変更、イシュー #2122 の 0.18.4→0.19.0 と同型）ため minor バンプ
-# する（origin/main の #2397 minor バンプと到達値が一致するため
-# バージョン番号自体は変更なし）。
+# する。
+#
+# イシュー #2400: `nav.rs`（イシュー #404）専用だった
+# `document.startViewTransition()` ラップを `crate::view_transition` へ
+# 切り出し、任意の状態更新から呼べる新規公開 API
+# `Runtime::apply_with_view_transition`（feature `view-transitions`、
+# 既定 on）として開放した。`nav.rs` 側の router 経由呼び出しは feature に
+# 関わらず無条件で動作し続ける（責務分離）。新規公開 API 追加のため minor
+# バンプする。
 #
 # イシュー #2515: `view_transition_name` モジュールを新設し、新規公開 API
 # `set_view_transition_name`/`is_valid_view_transition_name` を追加。
 # 既定 on の別枠 feature `view-transition-name` を新設するため
 # `default-features = false` 利用者への影響（新規 API を失う）を伴う
-# 破壊的変更、`position`/`stagger` と同型のため minor バンプする
-# （origin/main の #2515 minor バンプと到達値が一致するためバージョン
-# 番号自体は変更なし）。
+# 破壊的変更、`position`/`stagger` と同型のため minor バンプする（到達値
+# 0.22.0）。
 #
 # イシュー #2403/#2517: 新規デフォルト on の feature `animation-driver`
 # （`dep:fandhe-frontend-animation`）と新規公開モジュール
 # `animation_driver`（`fandhe-frontend-animation` の型の薄い再公開）を
-# 追加するため minor バンプする。
+# 追加するため minor バンプする。#2515 と独立に 0.21.0 から 0.22.0 へ
+# 到達し、1 回目の main マージ（PR #2554 自身）で 0.23.0 へ +1 済み。
 #
-# マージコミット注記: 本イシューと #2515（`view-transition-name`）は
-# それぞれ独立に 0.21.0 から 0.22.0 への minor バンプを行っており、
-# main への merge 時点でバンプ先バージョンが衝突した。同一版数への
-# 据え置きは不可（衝突扱い）のため、origin/main の到達値（0.22.0）から
-# さらに +1 して 0.23.0 とする（`docs/guides/wasm-full-features.md` §7
-# の版数対応表も 0.23.0 行へ両イシューを併記済み）。
-version = "0.23.0"
+# イシュー #2398（origin/main）: `animate` feature を新設し、
+# `fandhe-frontend-animation`（optional 依存、#2417）を既定 on で有効化
+# するだけの配線を追加した（`wire_*` 呼び出しは一切ゲートしない特殊枠。
+# `Runtime`/`mount`/`hydrate` の既存コードは無変更）。新規公開 feature
+# 追加を伴うため minor バンプする。
+#
+# イシュー #2400/#2553（origin/main）: `nav.rs`（イシュー #404）専用
+# だった `document.startViewTransition()` ラップを `crate::view_transition`
+# へ切り出し、任意の状態更新から呼べる新規公開 API
+# `Runtime::apply_with_view_transition`（feature `view-transitions`、
+# 既定 on）として開放した。新規公開 API 追加のため minor バンプする。
+#
+# マージコミット注記（2 回目の main マージ）: origin/main は #2398・
+# #2400/#2553 の 2 件を経て独立に 0.24.0 へ到達しており、本 PR 側の
+# 0.23.0（#2403/#2517、上記 1 回目のマージバンプ）とは異なる版数だが、
+# `animation-driver` feature 追加自体は origin/main の 0.24.0 にまだ
+# 含まれていないため、両側の追加内容を統合した本コミットは origin/main
+# の到達値からさらに +1 して 0.25.0 とする（`.claude/rules
+# /coding-rust.md` #638 条項の「同一版数も衝突として +1」運用。
+# `docs/guides/wasm-full-features.md` §7 の版数対応表も 0.25.0 行へ
+# 統合済み）。
+version = "0.25.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1384,7 +1406,18 @@ js-sys = "0.3"
 # `allowed_dependents = ["wasm-full"]` を追加した（既定 off 前提の非対称
 # 宣言は本イシューで解消、`crates/xtask/tests/wasm_full_animation_optional_dep.rs`
 # が既定 feature でも本クレートが依存グラフに現れることを機械固定する）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.2.0", optional = true }
+#
+# イシュー #2398（origin/main）: `animate` feature（既定 on）も本依存を
+# 有効化する（同じく `dep:fandhe-frontend-animation`）。`animation-driver`
+# と `animate` はいずれも本依存を有効化する別枠 feature であり、
+# 既定 feature の依存グラフに現れる経路は本イシューと #2403/#2517 の
+# 双方に由来する（いずれか単独 off でも他方が on なら依存グラフには
+# 引き続き現れる）。
+#
+# マージコミット注記: `fandhe-frontend-animation` 自身が本 2 回目の main
+# マージで 0.2.0 → 0.3.0 へ衝突 +1 バンプされたため、`version` 要求も
+# 追随する（`cargo run -p xtask -- check-dep-versions --fix`）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.3.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1615,7 +1648,9 @@ default = [
   "position",
   "stagger",
   "animation-driver",
+  "view-transitions",
   "view-transition-name",
+  "animate",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -1678,6 +1713,14 @@ position = []
 # 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
 # 別枠の feature。
 stagger = []
+# イシュー #2400: `Runtime::apply_with_view_transition`（新規公開 API、
+# 任意の状態更新を `document.startViewTransition()` でラップする）
+# 専用の feature（既定 on）。`nav.rs` の router 経由
+# `startViewTransition`（イシュー #404、`crate::view_transition`）は
+# feature に関わらず無条件で動作し続ける。配線群別 feature 表にも
+# scope feature 表にも属さない別枠の feature（`position`/`stagger`
+# と同型）。
+view-transitions = []
 # イシュー #2515: [`view_transition_name::set_view_transition_name`] 公開
 # 関数自体（`Runtime` を経由しないアプリ直接利用 API）専用の feature
 # （既定 on）。`position`/`stagger` と異なり `Runtime::mount`/`hydrate`/
@@ -1686,6 +1729,15 @@ stagger = []
 # 同型のパターン）。`view_transition_name` モジュール自体・
 # `is_valid_view_transition_name` 純粋関数はゲートしない。
 view-transition-name = []
+# イシュー #2398: `fandhe-frontend-animation`（optional 依存、#2417）を
+# 有効化するだけの feature（既定 on）。`Runtime::mount`/`hydrate` の `wire_*`
+# 呼び出しを一切ゲートしない（対応する自動配線が未実装のため。`data-*`
+# 属性からの呼び出し配線は後続 Phase 4 issue の責務であり、本 issue は
+# `fandhe_frontend_animation::animate` を本クレートの依存先として呼べる
+# ようにするところまでを担う）。配線群別 feature 表にも scope feature にも
+# 属さない別枠（`stagger`/`position` と似るが、対応する呼び出し自体が
+# 存在しない点が異なる）。
+animate = ["dep:fandhe-frontend-animation"]
 
 # イシュー #2403/#2517: `fandhe-frontend-animation`（rAF Driver・DOM Target）
 # を利用可能にする配線点専用の feature（既定 on）。`position`/`stagger` と

@@ -1,21 +1,26 @@
-//! イシュー #2403/#2517「rAF Driver + DOM Target を実装する（wasm-full は
-//! 配線のみ）」の fail-closed 契約テスト。
+//! イシュー #2417「`fandhe-frontend-animation` crate 雛形を作成し CI・publish
+//! 運用へ組み込む」で新設した fail-closed 契約テスト。
 //!
-//! `crates/wasm-full/Cargo.toml` は `fandhe-frontend-animation` を
-//! `optional = true` の依存として取り込む。イシュー #2417 時点では
-//! 既定 feature では無効（`default`/`WASM_DIST_FEATURES` のいずれにも
-//! 含めない）だったが、本イシューで新設した `"animation-driver"` feature
-//! （`dep:fandhe-frontend-animation`）が `default` 配列に既定 on で列挙
-//! されたため、既定 feature の依存グラフにも現れるようになった
-//! （前提の反転、`structure.toml` の `directories.wasm-full.depends_on`/
-//! `directories.frontend-animation.allowed_dependents` の対称宣言もこの
-//! イシューで追加済み）。
+//! #2417 時点では `crates/wasm-full/Cargo.toml` の `fandhe-frontend-animation`
+//! （`optional = true`）は `default`/`WASM_DIST_FEATURES` のいずれにも含まれず、
+//! `structure.toml` の `directories.frontend-animation` も
+//! `allowed_dependents = ["wasm-full"]` を宣言しない非対称な状態だった。
 //!
-//! 本テストが `cargo tree` の実測で両方向を機械固定する:
+//! イシュー #2398 で `animate` feature（既定 on、`dep:fandhe-frontend-animation`）・
+//! イシュー #2403/#2517 で `animation-driver` feature（既定 on、同じく
+//! `dep:fandhe-frontend-animation`）をそれぞれ独立に新設したことにより、
+//! 本依存は既定 feature の依存グラフに現れるようになった（`structure.toml`・
+//! 本ファイルとも両イシューで追随更新済み。いずれか片方の feature のみを
+//! off にしても他方が on であれば依存グラフには引き続き現れる）。
 //!
-//! 1. 既定 feature（unification なし、`-p` 単体）で `fandhe-frontend-animation`/
-//!    `fandhe-animation` が依存グラフに現れること
-//! 2. `--all-features` でも現れ続けること（陽性対照。feature 名の変更・`dep:` 化に
+//! 本テストは `cargo tree` の実測で両方向を機械固定する:
+//!
+//! 1. `--no-default-features`（素の状態）では `fandhe-frontend-animation`/
+//!    `fandhe-animation` が依存グラフに現れないこと（`default-features = false`
+//!    利用者が完全に外せることの証明）
+//! 2. 引数なし（既定 feature）では現れること（#2398/#2403/#2517 で反転した
+//!    新しい不変条件）
+//! 3. `--all-features` でも現れること（陽性対照。feature 名の変更・`dep:` 化に
 //!    対しても「optional 依存として存在する」こと自体は検証できる）
 //!
 //! 外部 JSON/TOML パーサは使わず `cargo tree` の標準出力を文字列走査するのみ
@@ -61,18 +66,35 @@ fn run_cargo_tree(extra_args: &[&str]) -> String {
 }
 
 #[test]
+fn bare_no_default_features_excludes_frontend_animation() {
+    let tree = run_cargo_tree(&["--no-default-features"]);
+    assert!(
+        !tree.contains("fandhe-frontend-animation"),
+        "--no-default-features の依存グラフに fandhe-frontend-animation が \
+         現れている。`default-features = false` 利用者が本依存を完全に外せる \
+         という保証が崩れている:\n{tree}"
+    );
+    assert!(
+        !tree.contains("fandhe-animation "),
+        "--no-default-features の依存グラフに fandhe-animation が現れている \
+         （推移的に fandhe-frontend-animation が有効化された可能性がある）:\n{tree}"
+    );
+}
+
+#[test]
 fn default_features_include_frontend_animation() {
     let tree = run_cargo_tree(&[]);
     assert!(
         tree.contains("fandhe-frontend-animation"),
         "既定 feature の依存グラフに fandhe-frontend-animation が現れない。\
-         \"animation-driver\" feature（既定 on、dep:fandhe-frontend-animation）が \
+         \"animate\"（イシュー #2398）・\"animation-driver\"（イシュー #2403/#2517） \
+         のいずれも既定 on の feature（dep:fandhe-frontend-animation）が \
          default 配列から外れた可能性がある:\n{tree}"
     );
     assert!(
         tree.contains("fandhe-animation "),
-        "既定 feature の依存グラフに fandhe-animation が現れない（推移的に \
-         fandhe-frontend-animation が有効化されているはず）:\n{tree}"
+        "既定 feature の依存グラフに fandhe-animation が現れない \
+         （fandhe-frontend-animation 経由の推移依存）:\n{tree}"
     );
 }
 

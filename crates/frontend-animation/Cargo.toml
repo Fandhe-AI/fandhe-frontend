@@ -3,7 +3,14 @@ name = "fandhe-frontend-animation"
 # イシュー #2403/#2517: rAF Driver（raf_driver::RafDriver）・DOM Target
 # （dom_target::DomTarget）を追加。新規公開 API 追加のため minor バンプ
 # （.claude/rules/coding-rust.md #638 条項）。
-version = "0.2.0"
+#
+# イシュー #2398: `animate` モジュール（WAAPI 薄いラッパ）を新設し、実質的な
+# 公開 API 拡張を行った。minor バンプする。
+#
+# マージコミット注記: 本 PR（#2403/#2517）と main（#2398）が独立に 0.1.0 から
+# 0.2.0 へ minor バンプしており同値衝突。#638 条項に従い origin/main の到達値
+# から +1 して 0.3.0 とする（詳細後述のバンプ節参照）。
+version = "0.3.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -30,9 +37,20 @@ categories = ["graphics", "web-programming", "wasm"]
 # 新規外部パッケージの追加はない（既存 wasm-full/wasm-client が同一
 # feature を既に有効化済み）。
 #
+# イシュー #2398: `web-sys` の `Element`（duck-typing extern バインディングの
+# unchecked_into キャスト元型）を `animate` モジュールが要求するため追加した。
+#
+# `wasm-bindgen-futures` はイシュー #2398 の `animate::AnimationHandle::finished`
+# （WAAPI `Animation.finished` Promise の待機）に必要。新規外部パッケージでは
+# なく、ワークスペース内で既に `wasm-client`（通常依存）・`wasm-full`（dev 依存）
+# が同一バージョン制約（"0.4"）で使用済み。本クレートの [dev-dependencies] も
+# 従来 `wasm-bindgen-futures` を要求していたため（#2403/#2517 の browser テスト
+# 用途）、[dependencies] へ昇格した本エントリと重複しないよう dev 側からは
+# 削除した。
+#
 # 新規クレートを追加する場合は事前にユーザー承認を得ること。
 [dependencies]
-fandhe-animation = { path = "../animation", version = "0.1.0" }
+fandhe-animation = { path = "../animation", version = "0.1.1" }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = [
@@ -40,19 +58,19 @@ web-sys = { version = "0.3", features = [
   "Performance",
   "HtmlElement",
   "CssStyleDeclaration",
+  "Element",
 ] }
+wasm-bindgen-futures = "0.4"
 
 # イシュー #2403/#2517: `tests/spring_via_raf_dom_browser.rs`（実ブラウザ
 # 統合テスト）が `wasm-bindgen-test`（`wasm-pack test --headless --chrome`
-# 実行基盤）・`wasm-bindgen-futures`（`JsFuture` によるループ完了待ち）を
-# 使う。両クレートとも既存 wasm-full/wasm-client の dev-dependencies に
-# 存在する既存パッケージであり、新規外部パッケージの追加はない。
-# `Document`/`Element`/`Node` はテストの DOM セットアップ（`div` 要素の
-# 生成・`document.body()` への追加）専用のため、本体側の feature 集合を
-# 汚さないよう `[dev-dependencies.web-sys]` 側にのみ追加する。
+# 実行基盤）を使う。`wasm-bindgen-futures`（`JsFuture` によるループ完了待ち）
+# は上記マージコミットで [dependencies] へ昇格済みのため dev 側には重複
+# 記載しない。`Document`/`Element`/`Node` はテストの DOM セットアップ
+# （`div` 要素の生成・`document.body()` への追加）専用のため、本体側の
+# feature 集合を汚さないよう `[dev-dependencies.web-sys]` 側にのみ追加する。
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
-wasm-bindgen-futures = "0.4"
 
 [dev-dependencies.web-sys]
 version = "0.3"
