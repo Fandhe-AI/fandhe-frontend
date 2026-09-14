@@ -62,17 +62,13 @@ fn build_dom(document: &Document, root_id: &str) -> (Element, Element) {
     (root, draggable)
 }
 
+/// `buttons` を 1（メインボタン押下中）で組み立てる既定ヘルパ。
+/// `handle_pointermove` は `buttons() == 0` を stale 追跡の自己解除条件に
+/// 使う（`pointermove_with_no_buttons_pressed_self_heals_stale_tracking`
+/// 参照）ため、押下中を模す既存テスト群は `buttons` を明示しておく必要が
+/// ある（実ブラウザの `pointermove` は押下中は非 0 の `buttons` を持つ）。
 fn pointer_event(kind: &str, pointer_id: i32, client_x: f64, client_y: f64) -> Event {
-    let init = PointerEventInit::new();
-    init.set_bubbles(true);
-    init.set_cancelable(true);
-    init.set_pointer_id(pointer_id);
-    init.set_client_x(client_x.round() as i32);
-    init.set_client_y(client_y.round() as i32);
-    PointerEvent::new_with_event_init_dict(kind, &init)
-        .expect("PointerEvent::new must not fail")
-        .dyn_into::<Event>()
-        .expect("PointerEvent must cast to Event")
+    pointer_event_with_buttons(kind, pointer_id, client_x, client_y, 1)
 }
 
 fn dispatch_key(target: &Element, kind: &str, key: &str) {
@@ -88,7 +84,9 @@ fn dispatch_key(target: &Element, kind: &str, key: &str) {
 }
 
 /// `element` の `name` カスタムプロパティを `f64` として読む（未設定は
-/// `None`、`DomTarget::custom_property` が書き込む素の数値文字列を想定）。
+/// `None`）。`fandhe_frontend_animation::drag::write_dom` は px 単位付きで
+/// 書き込む（`DomTarget::style_property(..., "px")`、codex-review/Bugbot
+/// 是正）ため、末尾の `"px"` を剥がしてから数値へパースする。
 fn custom_property_px(element: &Element, name: &str) -> Option<f64> {
     let value = element
         .dyn_ref::<HtmlElement>()
@@ -99,7 +97,11 @@ fn custom_property_px(element: &Element, name: &str) -> Option<f64> {
     if value.is_empty() {
         None
     } else {
-        value.parse::<f64>().ok()
+        value
+            .strip_suffix("px")
+            .unwrap_or(&value)
+            .parse::<f64>()
+            .ok()
     }
 }
 
@@ -213,5 +215,101 @@ fn arrow_key_on_editable_target_is_ignored() {
     assert!(
         x.is_none(),
         "input 上の矢印キーは drag nudge を発火しないべき: x={x:?}"
+    );
+}
+
+/// `buttons` 値を明示できる `pointer_event` 拡張版
+/// （既定 `pointer_event` は `buttons` 未指定＝ 0 のため、押下中の移動を
+/// 模すテストは本ヘルパを使う）。
+fn pointer_event_with_buttons(
+    kind: &str,
+    pointer_id: i32,
+    client_x: f64,
+    client_y: f64,
+    buttons: u16,
+) -> Event {
+    let init = PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_pointer_id(pointer_id);
+    init.set_client_x(client_x.round() as i32);
+    init.set_client_y(client_y.round() as i32);
+    init.set_buttons(buttons);
+    PointerEvent::new_with_event_init_dict(kind, &init)
+        .expect("PointerEvent::new must not fail")
+        .dyn_into::<Event>()
+        .expect("PointerEvent must cast to Event")
+}
+
+/// codex-review P1 是正の回帰: 同一要素へ 2 本目のポインタが
+/// `pointerdown` しても起点は上書きされず、最初のポインタのみが
+/// ドラッグを所有する（2 本目の `pointerdown` は無視される）。
+#[wasm_bindgen_test]
+fn second_pointerdown_on_same_element_is_ignored() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, draggable) = build_dom(&document, "drag-multi-pointer-root");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_drag_gesture(root.clone()).expect("wire_drag_gesture must not fail");
+
+    draggable
+        .dispatch_event(&pointer_event("pointerdown", 1, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    // 2 本目の指（別 pointer_id）が同じ要素へ pointerdown しても無視される。
+    draggable
+        .dispatch_event(&pointer_event("pointerdown", 2, 50.0, 50.0))
+        .expect("dispatch_event must not fail");
+
+    // 2 本目の pointer_id での move は追跡されていないため無視され、
+    // 1 本目の起点（client 0,0）のままの移動量が反映される。
+    root.dispatch_event(&pointer_event_with_buttons("pointermove", 1, 10.0, 0.0, 1))
+        .expect("dispatch_event must not fail");
+    let x = custom_property_px(&draggable, DRAG_X_PROPERTY).unwrap_or(0.0);
+    assert!(
+        (x - 10.0).abs() < 0.01,
+        "1 本目の起点からの移動量がそのまま反映されるべき: x={x}"
+    );
+
+    // 2 本目の pointer_id での pointerup は「追跡なし」として無視され、
+    // 1 本目のドラッグはまだ dragging 状態を維持する。
+    root.dispatch_event(&pointer_event("pointerup", 2, 50.0, 50.0))
+        .expect("dispatch_event must not fail");
+    assert!(
+        draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "2 本目 pointer_id の pointerup は無関係のため dragging 状態は維持されるべき"
+    );
+
+    root.dispatch_event(&pointer_event("pointerup", 1, 10.0, 0.0))
+        .expect("dispatch_event must not fail");
+    assert!(
+        !draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "1 本目 pointer_id の pointerup で dragging 状態が外れるべき"
+    );
+}
+
+/// Bugbot 指摘の是正回帰: `set_pointer_capture` 失敗等で `pointerup`/
+/// `pointercancel` が `root` に届かない場合でも、`buttons() == 0` の
+/// `pointermove` 1 件で追跡が自己解除される（幽霊ドラッグにならない）。
+#[wasm_bindgen_test]
+fn pointermove_with_no_buttons_pressed_self_heals_stale_tracking() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, draggable) = build_dom(&document, "drag-stale-root");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_drag_gesture(root.clone()).expect("wire_drag_gesture must not fail");
+
+    draggable
+        .dispatch_event(&pointer_event("pointerdown", 3, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    assert!(draggable.has_attribute(DRAGGING_STATE_ATTR));
+
+    // pointerup を取り逃した状態を模す: buttons=0 の pointermove が
+    // 届くと、それだけで追跡が解除される（root 外での release を捕まえ
+    // 損ねても幽霊ドラッグにならない）。
+    root.dispatch_event(&pointer_event_with_buttons("pointermove", 3, 5.0, 5.0, 0))
+        .expect("dispatch_event must not fail");
+    assert!(
+        !draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "buttons() == 0 の pointermove で dragging 状態が自己解除されるべき"
     );
 }

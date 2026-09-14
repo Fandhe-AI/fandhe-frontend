@@ -94,6 +94,29 @@ pub fn clamp_to_constraint(pos: Vec2, constraint: DragConstraint) -> Vec2 {
     }
 }
 
+/// [`clamp_to_constraint`] を `axis` で許可された成分にのみ適用する。
+///
+/// `DragAxis::X`/`DragAxis::Y` の禁止軸は、その成分がドラッグ中
+/// 一度も動いていなくても（[`apply_axis`] により常に起点のまま）
+/// `constraint` の範囲外にあり得る（実測誤差・レイアウト変更等）ため、
+/// 無条件クランプでは軸固定契約を破って禁止軸の値まで動かしてしまう
+/// （codex-review P1 是正）。禁止軸の成分は `pos` の値をそのまま保持する。
+#[must_use]
+fn clamp_to_constraint_for_axis(pos: Vec2, constraint: DragConstraint, axis: DragAxis) -> Vec2 {
+    let clamped = clamp_to_constraint(pos, constraint);
+    match axis {
+        DragAxis::Free => clamped,
+        DragAxis::X => Vec2 {
+            x: clamped.x,
+            y: pos.y,
+        },
+        DragAxis::Y => Vec2 {
+            x: pos.x,
+            y: clamped.y,
+        },
+    }
+}
+
 /// `constraint` の `min <= max` を保証する正規化（不正な実測値による
 /// `f64::clamp` panic を防ぐ、security.md A05 対応）。`min > max` の場合は
 /// 2 値を入れ替える。
@@ -139,9 +162,14 @@ pub fn estimate_velocity(previous: Option<(Vec2, f64)>, latest: Option<(Vec2, f6
 }
 
 /// `element` の CSS カスタムプロパティ 2 本へ `pos` を書き込む。
+///
+/// モジュール doc の契約（`translate(var(--fandhe-drag-x, 0px), ...)`）
+/// どおり px 単位を付与する。`DomTarget::custom_property`（単位なし）を
+/// そのまま使うと非ゼロ値が `transform` として無効になり要素が動かない
+/// ため、`style_property` へ `"px"` 単位を渡す（codex-review/Bugbot 是正）。
 fn write_dom(element: &HtmlElement, pos: Vec2) {
-    DomTarget::custom_property(element.clone(), DRAG_X_PROPERTY).write(pos.x);
-    DomTarget::custom_property(element.clone(), DRAG_Y_PROPERTY).write(pos.y);
+    DomTarget::style_property(element.clone(), DRAG_X_PROPERTY, "px").write(pos.x);
+    DomTarget::style_property(element.clone(), DRAG_Y_PROPERTY, "px").write(pos.y);
 }
 
 /// `pointerdown` 時点のドラッグ起点（クライアント座標・その時点の位置）。
@@ -268,7 +296,7 @@ impl DragController {
             y: current.y + filtered.y,
         };
         if let Some(constraint) = self.constraint {
-            next = clamp_to_constraint(next, constraint);
+            next = clamp_to_constraint_for_axis(next, constraint, self.axis);
         }
         self.write_position(next);
     }
@@ -282,7 +310,7 @@ impl DragController {
     /// release 時の最終位置決定 + spring 復帰の開始。
     fn settle(&mut self, current: Vec2, velocity: Vec2) {
         let target = match self.constraint {
-            Some(constraint) => clamp_to_constraint(current, constraint),
+            Some(constraint) => clamp_to_constraint_for_axis(current, constraint, self.axis),
             None => current,
         };
         if target == current || prefers_reduced_motion() {
@@ -334,8 +362,8 @@ impl DragController {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_axis, clamp_to_constraint, estimate_velocity, normalize_constraint, DragAxis,
-        DragConstraint,
+        apply_axis, clamp_to_constraint, clamp_to_constraint_for_axis, estimate_velocity,
+        normalize_constraint, DragAxis, DragConstraint,
     };
     use fandhe_animation::interpolate::Vec2;
 
@@ -385,6 +413,56 @@ mod tests {
         };
         let pos = Vec2 { x: 50.0, y: 50.0 };
         assert_eq!(clamp_to_constraint(pos, constraint), pos);
+    }
+
+    #[test]
+    fn clamp_to_constraint_for_axis_x_leaves_y_untouched_out_of_bounds() {
+        // DragAxis::X（Y 固定）の契約: Y が constraint の範囲外にあっても
+        // クランプしてはならない（codex-review P1 是正の回帰）。
+        let constraint = DragConstraint {
+            min_x: 0.0,
+            max_x: 100.0,
+            min_y: -50.0,
+            max_y: 50.0,
+        };
+        let pos = Vec2 { x: -10.0, y: 999.0 };
+        assert_eq!(
+            clamp_to_constraint_for_axis(pos, constraint, DragAxis::X),
+            Vec2 { x: 0.0, y: 999.0 }
+        );
+    }
+
+    #[test]
+    fn clamp_to_constraint_for_axis_y_leaves_x_untouched_out_of_bounds() {
+        let constraint = DragConstraint {
+            min_x: 0.0,
+            max_x: 100.0,
+            min_y: -50.0,
+            max_y: 50.0,
+        };
+        let pos = Vec2 {
+            x: -999.0,
+            y: 999.0,
+        };
+        assert_eq!(
+            clamp_to_constraint_for_axis(pos, constraint, DragAxis::Y),
+            Vec2 { x: -999.0, y: 50.0 }
+        );
+    }
+
+    #[test]
+    fn clamp_to_constraint_for_axis_free_clamps_both() {
+        let constraint = DragConstraint {
+            min_x: 0.0,
+            max_x: 100.0,
+            min_y: -50.0,
+            max_y: 50.0,
+        };
+        let pos = Vec2 { x: -10.0, y: 999.0 };
+        assert_eq!(
+            clamp_to_constraint_for_axis(pos, constraint, DragAxis::Free),
+            Vec2 { x: 0.0, y: 50.0 }
+        );
     }
 
     #[test]

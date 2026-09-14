@@ -227,6 +227,16 @@ mod wiring {
     /// `pointerdown`: opt-in 要素を解決し、pointer capture・範囲制約の
     /// 実測・[`DragController::on_pointer_down`] 呼び出し・
     /// [`DRAGGING_STATE_ATTR`] 付与・pointer_id 追跡登録を行う。
+    ///
+    /// # 要素あたり 1 pointer に限定する（codex-review P1 是正）
+    ///
+    /// [`DragController`] は要素ごとに起点（`DragStart`）を 1 個しか
+    /// 保持しないため、同一要素へ 2 本目のポインタ（2 本指操作等）が
+    /// `pointerdown` すると起点が上書きされ、片方だけ離した
+    /// `pointerup`/`pointercancel` が共有状態を `on_release` してしまう
+    /// （残っているはずのもう一本の追跡が孤立する）。すでに `active` に
+    /// 同じ要素を追跡するエントリがあれば、この `pointerdown` は無視する
+    /// （最初に押した 1 本だけがその要素のドラッグを所有する）。
     fn handle_pointerdown(root: &Element, event: &Event, active: &ActiveDrags) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
@@ -237,6 +247,13 @@ mod wiring {
         let Some(drag_element) = closest_opted_in(root, &target, DRAG_ATTR) else {
             return;
         };
+        let already_tracked = active
+            .borrow()
+            .values()
+            .any(|(existing, _)| existing.is_same_node(Some(&drag_element)));
+        if already_tracked {
+            return;
+        }
         let Some(controller) = controller_for(&drag_element) else {
             return;
         };
@@ -256,8 +273,31 @@ mod wiring {
             .insert(pointer_id, (drag_element, controller));
     }
 
+    /// `pointer_id` の追跡を解除し、[`DragController::on_release`]・
+    /// [`DRAGGING_STATE_ATTR`] 除去を行う（`handle_pointerup_or_cancel`・
+    /// 下記 stale ガードの共通処理）。追跡が無ければ no-op。
+    fn release_drag(pointer_id: i32, active: &ActiveDrags) {
+        let Some((drag_element, controller)) = active.borrow_mut().remove(&pointer_id) else {
+            return;
+        };
+        controller.borrow_mut().on_release();
+        let _ = drag_element.remove_attribute(DRAGGING_STATE_ATTR);
+    }
+
     /// `pointermove`: 追跡中の `pointer_id` のみ
     /// [`DragController::on_pointer_move`] へ座標を渡す。
+    ///
+    /// # stale な追跡の自己解除（`buttons == 0` ガード、`angle_slider.rs`
+    /// の同名節と同型）
+    ///
+    /// [`handle_pointerdown`] の `set_pointer_capture` が失敗する（`Result`
+    /// を無視している）、または実装によっては暗黙 capture が外れる等で
+    /// ポインタが `root` の外へ出ると、そこで発生する `pointerup`/
+    /// `pointercancel` は `root` に配線したリスナーへ到達せず `active` の
+    /// エントリが残留する（`DRAGGING_STATE_ATTR` が外れない「幽霊ドラッグ」）。
+    /// `pointermove` は capture 中でなくとも要素外の移動で発火しうるため、
+    /// `buttons() == 0`（どのボタンも押されていない）を都度確認し、
+    /// 該当すれば `release_drag` で追跡を自己修復する（Bugbot 指摘の是正）。
     fn handle_pointermove(event: &Event, active: &ActiveDrags) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
@@ -267,6 +307,10 @@ mod wiring {
         let Some(controller) = entry else {
             return;
         };
+        if pointer_event.buttons() == 0 {
+            release_drag(pointer_id, active);
+            return;
+        }
         controller.borrow_mut().on_pointer_move(
             Vec2 {
                 x: pointer_event.client_x() as f64,
@@ -284,12 +328,7 @@ mod wiring {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
-        let pointer_id = pointer_event.pointer_id();
-        let Some((drag_element, controller)) = active.borrow_mut().remove(&pointer_id) else {
-            return;
-        };
-        controller.borrow_mut().on_release();
-        let _ = drag_element.remove_attribute(DRAGGING_STATE_ATTR);
+        release_drag(pointer_event.pointer_id(), active);
     }
 
     /// `keydown`: フォーカス中の opt-in 要素上で矢印キーが押されたら
@@ -322,13 +361,51 @@ mod wiring {
         keyboard_event.prevent_default();
     }
 
+    /// `root` 自身・子孫のうち [`DRAG_ATTR`] を持つ opt-in 要素すべてに
+    /// 先行して [`DragController`] を attach する（`content_height.rs::
+    /// sync_content_height` の「root 自身が対象パーツである場合も
+    /// 同期対象に含める」パターンと同型。`query_selector_all` は子孫のみを
+    /// 列挙し root 自身を含まないため個別に確認する）。
+    ///
+    /// # 接触前に `touch-action: none` を確定させる（codex-review P1 是正）
+    ///
+    /// [`controller_for`] は従来 `pointerdown` ハンドラから初めて呼ばれ、
+    /// `DragController::attach` の `touch-action: none` 設定もそこで
+    /// 初めて行われていた。しかしタッチのスクロール可否は UA が最初の
+    /// タッチ接触を処理する時点で確定するため、`pointerdown` イベント
+    /// ハンドラ内（＝その接触が既に処理された後）で設定するのでは遅く、
+    /// 最初のタッチドラッグがスクロールに奪われて `pointercancel` になる
+    /// （モジュール doc「`touch-action: none`」節）。SSR 出力に静的付与
+    /// された opt-in 要素はマウント/ハイドレート時点で DOM に存在する
+    /// ため、配線直後にここで先行 attach しておけば実際の接触より確実に
+    /// 早く `touch-action: none` が反映される。
+    fn preattach_existing_drag_elements(root: &Element) {
+        if root.has_attribute(DRAG_ATTR) {
+            let _ = controller_for(root);
+        }
+        let selector = format!("[{DRAG_ATTR}]");
+        let Ok(node_list) = root.query_selector_all(&selector) else {
+            return;
+        };
+        for i in 0..node_list.length() {
+            let Some(node) = node_list.get(i) else {
+                continue;
+            };
+            let Some(element) = node.dyn_ref::<Element>() else {
+                continue;
+            };
+            let _ = controller_for(element);
+        }
+    }
+
     /// `root` へドラッグ検知の 5 リスナー（pointerdown/pointermove/
     /// pointerup/pointercancel/keydown）を委譲登録する
     /// （[`crate::lib::Runtime::mount`]/[`crate::lib::Runtime::hydrate`]
     /// から呼ばれる）。`gesture.rs::wire_gesture` と同じく登録回数を
     /// 定数個に抑える方針（A04 対策）で全リスナーを capture フェーズで
     /// 登録する（子孫の `stopPropagation()` に対する頑健性、同モジュール
-    /// と同じ理由）。
+    /// と同じ理由）。登録後に [`preattach_existing_drag_elements`] で
+    /// 既存の opt-in 要素へ `touch-action: none` を先行反映する。
     ///
     /// # Errors
     ///
@@ -385,6 +462,8 @@ mod wiring {
             true,
         )?;
         keydown_closure.forget();
+
+        preattach_existing_drag_elements(&root);
 
         Ok(())
     }
