@@ -3382,7 +3382,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # `success`/`warning`/`danger` 系統で充足済みのため追加しない
 # （`docs/design/color-token-system.md` §10）。公開 CSS 契約（テーマ変数）の
 # 純追加のため minor バンプし、0.192.0 を +1 した 0.193.0 とする。
-version = "0.193.0"
+# イシュー #2388: popover / tooltip / hover-card の `content` へ
+# presence（enter/exit）transition を適用し、既存 `content[data-state=
+# "closed"] { visibility: hidden }` state を削除した。公開 CSS 出力の
+# 破壊的変更（0.x のため minor バンプ）であり、0.193.0 を +1 した
+# 0.194.0 とする。
+version = "0.194.0"
 
 
 edition = "2021"

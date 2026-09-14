@@ -9,8 +9,10 @@
 //!
 //! # data-state とスタイルの連動（イシュー #664 受け入れ条件）
 //!
-//! `content` の開閉 `data-state`（open/closed）に応じた見た目の切り替えを
-//! `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]）。
+//! `content` の開閉に応じた見た目の切り替えは、イシュー #2388 で
+//! `data-state` state から [`crate::recipe::SlotRecipe::presence_transition`]
+//! （`[hidden]` 属性 state + `@starting-style`）へ移行した（下記
+//! 「意図的に参考サイトへ合わせない点」3 参照）。
 //!
 //! # キーボード操作系属性の反映
 //!
@@ -96,12 +98,24 @@
 //!    focus-visible リングが既に開状態の視覚を担い、二重強調になる
 //!    （クリック開閉の [`crate::toggle_tip`]/[`crate::popover`] とは前提が
 //!    異なる）。`content[data-state="closed"] { visibility: hidden }` の
-//!    既存連動は維持する。
-//! 3. `content` の開閉フェード演出（headless 層が closed 時に `hidden` を
-//!    即座に付与するライフサイクルのため描画されない既知の未解決事項、
-//!    [`crate::popover`]/[`crate::toggle_tip`] と同じ判断。
+//!    旧連動は、イシュー #2388 の `presence_transition` 導入に伴い
+//!    冗長・衝突するため削除した（下記 3 参照）。
+//! 3. `content` の開く演出（enter）は、イシュー #2388 で
+//!    [`crate::recipe::SlotRecipe::presence_transition`] により実装済み。
+//!    旧来（[`crate::popover`]/[`crate::toggle_tip`] と同じ判断）は
+//!    headless 層が closed 時に `hidden` を即座に付与するライフサイクル
+//!    のため描画されない既知の未解決事項としていたが、
+//!    `presence_transition` は `transition-behavior: allow-discrete`
+//!    を `display` にも付与することでこれを構造的に解決している。
 //!    `prefers-reduced-motion` は `Theme::to_css` の duration 一括 0ms 化で
-//!    自動的に尊重される）。
+//!    自動的に尊重される。**閉じる演出（exit）は視覚的に成立しない**:
+//!    headless 層は閉じる際に `content` と祖先 `positioner` の両方へ
+//!    `hidden` を付与するが、`positioner` は本 preset の対象外のため
+//!    UA 既定 `display: none` が即座に適用され、子孫 `content` の
+//!    opacity/transform 遷移が描画される前に祖先ごと非表示になる
+//!    （`presence_transition` rustdoc「適用範囲」節・
+//!    `docs/design/collapsible-height-animation.md` §12.3 参照。codex
+//!    レビュー指摘、PR #2443）。
 //! 4. `content` の配色を chakra panel 色（非反転）へ寄せない（参照 4 サイト
 //!    とも反転色が標準であり現状維持が正）。
 //! 5. `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
@@ -161,8 +175,13 @@
 //!   ドキュメント（`crates/headless-ui/src/tooltip.rs`）で既にスコープ外と
 //!   明記済みのクライアントサイド実行時挙動であり、本モジュールもそれを
 //!   継承する（イシュー #2041 の shadcn/ui `delay` 突合でも再確認済み）。
-//! - `content`/`positioner` の開閉フェード演出（上記「意図的に参考サイトへ
-//!   合わせない点」3 参照）。
+//! - `positioner` の開閉フェード演出・および `positioner` の即時
+//!   非表示化に起因する `content` の閉じる演出（exit）は本イシューの
+//!   スコープ外とする（`content` の開く演出〔enter〕は上記「意図的に
+//!   参考サイトへ合わせない点」3 のとおりイシュー #2388 で実装済み。
+//!   positioner に `hidden` が付く部品構成の共通課題であり、
+//!   `docs/design/collapsible-height-animation.md` §12.3 の再評価トリガー
+//!   に委ねる）。
 //! - showcase Demo への hover / disabled 状態の追加掲示（静的掲示のため
 //!   現行方針どおり据え置き）。
 //! - `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）・
@@ -508,12 +527,6 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
-        // イシュー #664 受け入れ条件: `content` の開閉状態に応じた見た目の切り替え。
-        .state(
-            "content",
-            StateCondition::AttrEq("data-state", "closed"),
-            vec![decl("visibility", "hidden")],
-        )
         // disabled 時の視覚フィードバック（イシュー #1548）。
         .state(
             "trigger",
@@ -532,6 +545,25 @@ fn recipe() -> SlotRecipe {
             StateCondition::Hover,
             hover_surface_declarations(),
         )
+        // イシュー #2388: `content` へ presence（enter）のフェード +
+        // scale トランジションを適用する。旧 `content[data-state="closed"]
+        // { visibility: hidden }` state（上記で削除）は、この
+        // `presence_transition` が新設する `[hidden]` state と冗長かつ
+        // 新演出と衝突するため置き換えた。duration は tooltip の他の
+        // トランジション（`trigger`/`close-trigger` 系）が軒並み
+        // `MotionDuration::Fast` を使う既存の視覚言語に合わせ、hover 起因
+        // で頻繁に開閉する部品特性上 `Normal`（200ms）より `Fast`
+        // （150ms）を選ぶ（`SlotRecipe::presence_transition` rustdoc 参照）。
+        //
+        // 閉じる方向（exit）は視覚的に成立しない: 祖先 `positioner` も
+        // 同時に `hidden` を受け取り、`positioner` 自身は allow-discrete
+        // を持たないため UA 既定 `display: none` が即座に適用され、子孫
+        // `content` の opacity/transform 遷移が描画される前に祖先ごと
+        // 非表示になる（positioner 側の対応は
+        // `docs/design/collapsible-height-animation.md` §12.3 の再評価
+        // トリガーに委ねる、本モジュール冒頭「意図的に参考サイトへ合わせ
+        // ない点」節参照）。
+        .presence_transition("content", MotionDuration::Fast)
 }
 
 /// この styled Tooltip が生成する静的 CSS 全量を返す（決定的。
@@ -579,9 +611,14 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_links_data_state_to_style_open_and_closed() {
+    fn stylesheet_links_hidden_attr_to_presence_closed_style() {
+        // イシュー #2388: `content` の開閉スタイル到達点を `data-state`
+        // state から `presence_transition` の `[hidden]` state へ移行した
+        // ことを固定する（モジュール doc「data-state とスタイルの連動」
+        // 節参照）。
         let css = stylesheet();
-        assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"][data-state="closed"]"#));
+        assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"][hidden]"#));
+        assert!(!css.contains(r#"[data-part="content"][data-state="closed"]"#));
     }
 
     #[test]
