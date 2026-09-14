@@ -85,7 +85,7 @@ mod wiring {
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, KeyboardEvent, MouseEvent, PointerEvent};
+    use web_sys::{Element, Event, HtmlElement, KeyboardEvent, MouseEvent, PointerEvent};
 
     /// 押下源の集合を要素単位で追跡する状態モデル（PR #2555 レビュー
     /// 指摘の是正で再設計。旧実装は press の解除判定に DOM 属性
@@ -154,6 +154,26 @@ mod wiring {
             " " => Some(" "),
             _ => None,
         }
+    }
+
+    /// `target` がテキスト編集用の要素（`input`/`textarea`/`select`、
+    /// または `contenteditable` 編集領域内）か（Bugbot 指摘「Typing
+    /// space triggers ancestor press」の是正）。`handle_keydown`/
+    /// `handle_keyup` はこの判定が真の場合、活性化キー（Enter/Space）を
+    /// press として一切扱わない。これらの要素上の Space/Enter は通常の
+    /// テキスト入力・フォーム送信・選択操作として意味を持つため、
+    /// 入力のたびに祖先 opt-in 要素の [`PRESS_STATE_ATTR`] が点滅するのは
+    /// 意図しない副作用である。`tag_name()` は HTML 文書では常に大文字
+    /// （`INPUT`/`TEXTAREA`/`SELECT`）を返す仕様のため、大文字リテラルで
+    /// 比較する。`HtmlElement::is_content_editable()` は要素自身の
+    /// `contenteditable` 属性だけでなく祖先からの継承
+    /// （`contenteditable="inherit"` の既定）も反映するため、
+    /// 編集可能領域内の任意の子孫要素に対しても真を返す。
+    fn is_editable_target(target: &Element) -> bool {
+        matches!(target.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+            || target
+                .dyn_ref::<HtmlElement>()
+                .is_some_and(HtmlElement::is_content_editable)
     }
 
     /// `press_target` が pointer 源集合に含まれているか。
@@ -320,8 +340,8 @@ mod wiring {
     /// 発火しないケースがある（`touch-action: none` を持つ opt-in 要素を
     /// タッチで押下すると要素へ pointer capture が設定され、指を要素外へ
     /// 動かしても境界イベントが起きない）。この残余ケースは
-    /// [`handle_pointermove`] が座標比較で補完する（codex-review 指摘の
-    /// 是正）。
+    /// [`handle_pointermove`]（タッチ限定・`elementFromPoint` による
+    /// 子孫包含判定）が補完する（codex-review 指摘の是正）。
     fn handle_pointerout(
         root: &Element,
         event: &Event,
@@ -416,27 +436,45 @@ mod wiring {
         release_pointer_press(active_pointer, active_keyboard, pointer_id);
     }
 
-    /// `pointermove`: タッチの暗黙 pointer capture（W3C Pointer Events
-    /// §implicit pointer capture）下でも要素外への離脱を検知する
-    /// （codex-review 指摘の是正）。`touch-action: none` を持つ opt-in
-    /// 要素をタッチで押下すると、ブラウザは自動的に当該要素へ
-    /// pointer capture を設定するため、指を要素の外へ物理的に動かしても
-    /// 境界イベント（`pointerover`/`pointerout`）は一切発生しない
-    /// （capture 中は全イベントが capture 先要素へ配送され続ける）。
-    /// [`handle_pointerout`] の `related_within` 判定だけでは、この
-    /// ケースで指を離すまで [`PRESS_STATE_ATTR`] が残り続けてしまう。
+    /// `pointermove`（capture 登録、**タッチ限定**）: タッチの暗黙
+    /// pointer capture（W3C Pointer Events §implicit pointer capture）下
+    /// でも要素外への離脱を検知する（codex-review 指摘の是正）。
+    /// `touch-action: none` を持つ opt-in 要素をタッチで押下すると、
+    /// ブラウザは自動的に当該要素へ pointer capture を設定するため、
+    /// 指を要素の外へ物理的に動かしても境界イベント（`pointerover`/
+    /// `pointerout`）は一切発生しない（capture 中は全イベントが capture
+    /// 先要素へ配送され続ける）。[`handle_pointerout`] の
+    /// `related_within` 判定だけでは、このケースで指を離すまで
+    /// [`PRESS_STATE_ATTR`] が残り続けてしまう。
+    ///
+    /// 本補完はタッチ限定にする（`PointerEvent::pointer_type() != "touch"`
+    /// なら即座に return）: マウスは暗黙 pointer capture が働かないため
+    /// `pointerout` だけで離脱を正しく検知できる。座標ベースの補完を
+    /// マウスにも適用すると、微小なマウス移動でも誤って解除してしまう
+    /// （Bugbot 指摘「Pointermove clears press too early」の是正。マウス
+    /// の離脱判定は従来どおり `handle_pointerout` にのみ委ねる）。
     ///
     /// 追跡中の pointer_id が 1 件も無ければ即座に return する
     /// （`pointermove` は高頻度で発火するため、`active_pointer` が空の
-    /// 間はコストをほぼゼロに保つ）。追跡中の `pointer_id` であれば、
-    /// `MouseEvent::client_x()`/`client_y()`（`PointerEvent` は
-    /// `MouseEvent` を継承するため取得できる）と押下対象の
-    /// `Element::get_bounding_client_rect()` を比較し、座標が矩形の外
-    /// なら要素外への離脱とみなして [`release_pointer_press`] を呼ぶ
-    /// （`pointerout` が発火しない capture 中でも同じ解除経路を再利用
-    /// する）。矩形境界上（`<=`/`>=` を含む）はまだ要素内として扱う
-    /// （`pointerout` の `related_within` が「含む」判定であることと
-    /// 対称にする）。
+    /// 間はコストをほぼゼロに保つ）。
+    ///
+    /// 離脱判定は矩形の内外比較ではなく、
+    /// `Document::element_from_point()` でヒットした要素が押下対象自身か
+    /// その子孫（`press_target.contains(hit)`）かどうかで行う
+    /// （codex P1・Bugbot 指摘の是正）。矩形比較には 2 つの欠陥があった:
+    ///
+    /// 1. `overflow: visible` で押下対象からはみ出した子孫上に指がある
+    ///    場合、矩形の外と誤判定して解除してしまい、
+    ///    [`handle_pointerout`] の `related_within`（子孫内の移動では
+    ///    維持する）契約と食い違う。
+    /// 2. `client_x`/`client_y`（整数）と subpixel の
+    ///    `getBoundingClientRect()` の比較は、要素の端でのタッチの
+    ///    わずかな揺れでも解除してしまう。
+    ///
+    /// `elementFromPoint` によるヒットテストは実際の描画結果に基づく
+    /// ため、いずれの問題も生じない。ヒットが `None`（ビューポート外）
+    /// または押下対象の子孫でなければ離脱とみなして
+    /// [`release_pointer_press`] を呼ぶ。
     fn handle_pointermove(
         event: &Event,
         active_pointer: &ActivePointerPress,
@@ -445,22 +483,25 @@ mod wiring {
         if active_pointer.borrow().is_empty() {
             return;
         }
-        let Some(pointer_id) = event_pointer_id(event) else {
+        let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
+        if !is_touch_pointer(&pointer_event.pointer_type()) {
+            return;
+        }
+        let pointer_id = pointer_event.pointer_id();
         let press_target = active_pointer.borrow().get(&pointer_id).cloned();
         let Some(press_target) = press_target else {
             return;
         };
-        let Some(mouse_event) = event.dyn_ref::<MouseEvent>() else {
+        let Some(document) = press_target.owner_document() else {
             return;
         };
-        let rect = press_target.get_bounding_client_rect();
-        let x = f64::from(mouse_event.client_x());
-        let y = f64::from(mouse_event.client_y());
-        let within_bounds =
-            x >= rect.left() && x <= rect.right() && y >= rect.top() && y <= rect.bottom();
-        if !within_bounds {
+        let x = pointer_event.client_x() as f32;
+        let y = pointer_event.client_y() as f32;
+        let hit = document.element_from_point(x, y);
+        let still_within = hit.is_some_and(|hit| press_target.contains(Some(&hit)));
+        if !still_within {
             release_pointer_press(active_pointer, active_keyboard, pointer_id);
         }
     }
@@ -486,6 +527,14 @@ mod wiring {
     /// `origin` が異なる（通常は起きないが `keyup`/`focusout` を経ずに
     /// 別要素へ新たな `keydown` を受けた場合の防御的な処理）場合のみ、
     /// 旧押下源を先に解放してから新規に作り直す。
+    ///
+    /// `origin` が [`is_editable_target`] の意味で編集可能要素
+    /// （`input`/`textarea`/`select`・`contenteditable` 編集領域内）の
+    /// ときは活性化キーであっても press を一切設定しない（Bugbot 指摘
+    /// 「Typing space triggers ancestor press」の是正）: opt-in 親の中に
+    /// 置かれた `input` 等でテキストを入力するたびに Space/Enter が
+    /// 押される通常のタイピングが、祖先の [`PRESS_STATE_ATTR`] を
+    /// 意図せず点滅させてしまっていた。
     fn handle_keydown(
         root: &Element,
         event: &Event,
@@ -504,6 +553,9 @@ mod wiring {
         let Some(origin) = event_target_element(event) else {
             return;
         };
+        if is_editable_target(&origin) {
+            return;
+        }
         let Some(press_target) = closest_opted_in(root, &origin, GESTURE_PRESS_ATTR) else {
             return;
         };
@@ -539,6 +591,13 @@ mod wiring {
     /// 使う）: フォーカスが元の要素から別要素へ移動した状態で `keyup` が
     /// 新フォーカス先へ発火しても、追跡済みの押下源を正しく解放できる
     /// （codex-review 指摘の是正）。
+    ///
+    /// `event.target()` が [`is_editable_target`] の意味で編集可能要素の
+    /// ときも早期 return する（`handle_keydown` と対称、Bugbot 指摘
+    /// 「Typing space triggers ancestor press」の是正）。`handle_keydown`
+    /// が同条件で press を設定しない以上、通常はここに到達する頃には
+    /// 追跡済みの押下源自体が存在せず実質的に no-op だが、フォーカス移動
+    /// 等で状態が食い違った場合の防御的な対称性として明示する。
     fn handle_keyup(
         event: &Event,
         active_pointer: &ActivePointerPress,
@@ -550,6 +609,9 @@ mod wiring {
         let Some(key) = normalize_activation_key(&keyboard_event.key()) else {
             return;
         };
+        if event_target_element(event).is_some_and(|target| is_editable_target(&target)) {
+            return;
+        }
         let should_release = {
             let mut keyboard = active_keyboard.borrow_mut();
             match keyboard.as_mut() {
@@ -638,11 +700,12 @@ mod wiring {
     /// codex-review でも指摘）。capture フェーズなら root のリスナーは
     /// 子孫のあらゆるリスナーより先に実行されるため、子孫が事後に
     /// `stopPropagation()` を呼んでも解除処理には影響しない。`pointerover`/
-    /// `pointerout`/`pointerdown`/`pointerup`/`pointercancel` は互いに
+    /// `pointerout`/`pointerdown`/`pointerup`/`pointercancel`/
+    /// `pointermove`/`keydown`/`keyup`/`focusout` の全リスナーが互いに
     /// 対称性を保つため足並みを揃えて全て capture 化する
-    /// （`pointerover`/`pointerdown` 自体はレビュー指摘の直接対象ではない
-    /// が、`stopPropagation()` に対する頑健性は他のポインタイベントと
-    /// 統一しておくべき性質のため）。
+    /// （`pointerover`/`pointerdown`/`pointermove` 自体はレビュー指摘の
+    /// 直接対象ではないが、`stopPropagation()` に対する頑健性は他の
+    /// リスナーと統一しておくべき性質のため）。
     ///
     /// # Errors
     ///

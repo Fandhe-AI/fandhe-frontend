@@ -5,8 +5,9 @@
 //! `wasm-full/src/gesture.rs` の native テストは純粋層
 //! （`is_touch_pointer`/`is_press_activation_key`）までを検証済み。本
 //! ファイルはその先、`wire_gesture` が実 DOM 上で pointerover/pointerout・
-//! pointerdown/pointerup/pointercancel・keydown/keyup に応じて
-//! `data-fandhe-hover`/`data-fandhe-press` を正しく付け外しすることを
+//! pointerdown/pointerup/pointercancel/pointermove・keydown/keyup/
+//! focusout に応じて `data-fandhe-hover`/`data-fandhe-press` を正しく
+//! 付け外しすることを
 //! `chart_tooltip_browser.rs`/`focus_visible_browser.rs` と同方針（手組み
 //! DOM への直接 `wire_gesture` 呼び出し、`Runtime::mount` は経由しない）
 //! で検証する。
@@ -938,7 +939,8 @@ fn pointerdown_with_reused_pointer_id_clears_stale_previous_target_press() {
 }
 
 /// `client_x`/`client_y` 座標を指定した `pointermove` を発火する
-/// （タッチの暗黙 pointer capture 下での座標判定を検証するため）。
+/// （タッチの暗黙 pointer capture 下での `elementFromPoint` による
+/// ヒットテストを検証するため）。
 fn dispatch_pointermove_at(target: &Element, client_x: i32, client_y: i32) {
     let init = PointerEventInit::new();
     init.set_bubbles(true);
@@ -955,9 +957,11 @@ fn dispatch_pointermove_at(target: &Element, client_x: i32, client_y: i32) {
 /// codex-review 指摘の回帰固定（「タッチの暗黙 pointer capture 中も
 /// 要素外への離脱を検知する」）: `touch-action: none` を持つ opt-in
 /// 要素をタッチで押下すると暗黙 pointer capture が働き、指を要素の外へ
-/// 動かしても境界イベント（`pointerout`）が発生しない。`pointermove` の
-/// 座標比較でこの残余ケースを補完し、要素外座標への `pointermove` で
-/// press が解除されること（要素内座標では維持されること）を確認する。
+/// 動かしても境界イベント（`pointerout`）が発生しない。`pointermove`
+/// （すべてタッチの合成イベント。`elementFromPoint` によるヒットテスト
+/// はタッチ限定の補完のため）でこの残余ケースを補完し、要素外座標への
+/// `pointermove` で press が解除されること（要素内座標では維持される
+/// こと）を確認する。
 #[wasm_bindgen_test]
 fn pointermove_outside_bounds_clears_press_during_implicit_capture() {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -985,5 +989,131 @@ fn pointermove_outside_bounds_clears_press_during_implicit_capture() {
     assert!(
         !child.has_attribute(PRESS_STATE_ATTR),
         "要素外座標への pointermove は press を解除すること（暗黙 pointer capture の補完）"
+    );
+}
+
+/// codex P1・Bugbot 指摘の回帰固定（「親の矩形外にある子孫上で press を
+/// 誤解除しない」「Pointermove clears press too early」）: `overflow:
+/// visible` で押下対象（`parent`）の矩形からはみ出した子孫
+/// （`overflowing_child`）上に指がある状態で `pointermove` が発火しても、
+/// `elementFromPoint` が子孫自身（＝押下対象の子孫）をヒットする限り
+/// press を解除しないこと。矩形の内外比較（旧実装）ではこのケースを
+/// 「離脱」と誤判定していた。
+#[wasm_bindgen_test]
+fn pointermove_over_overflowing_descendant_keeps_press_during_implicit_capture() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("gesture-pointermove-overflow-descendant-test");
+    let parent = document.create_element("div").unwrap();
+    parent.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    parent
+        .unchecked_ref::<web_sys::HtmlElement>()
+        .style()
+        .set_property("position", "relative")
+        .expect("set_property must not fail");
+
+    // 子孫を parent の矩形外（下方向、ビューポート内に収まる正の座標）へ
+    // 絶対配置で押し出す。overflow の既定値は visible のため、明示的な
+    // overflow 宣言をしなくても子孫はクリック可能な位置に描画される。
+    let overflowing_child = document.create_element("span").unwrap();
+    let overflowing_child_style = overflowing_child
+        .unchecked_ref::<web_sys::HtmlElement>()
+        .style();
+    overflowing_child_style
+        .set_property("position", "absolute")
+        .expect("set_property must not fail");
+    overflowing_child_style
+        .set_property("top", "120px")
+        .expect("set_property must not fail");
+    overflowing_child_style
+        .set_property("left", "0px")
+        .expect("set_property must not fail");
+    overflowing_child_style
+        .set_property("width", "50px")
+        .expect("set_property must not fail");
+    overflowing_child_style
+        .set_property("height", "50px")
+        .expect("set_property must not fail");
+    overflowing_child_style
+        .set_property("display", "block")
+        .expect("set_property must not fail");
+    parent.append_child(&overflowing_child).unwrap();
+    root.append_child(&parent).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer(&parent, "pointerdown", "touch", None);
+    assert!(parent.has_attribute(PRESS_STATE_ATTR));
+
+    let child_rect = overflowing_child.get_bounding_client_rect();
+    let x = ((child_rect.left() + child_rect.right()) / 2.0) as i32;
+    let y = ((child_rect.top() + child_rect.bottom()) / 2.0) as i32;
+
+    // テスト前提の確認 1: 子孫が実際に parent の矩形からはみ出していること
+    // （parent は空の div のため既定で高さがほぼ 0 になる）。
+    let parent_rect = parent.get_bounding_client_rect();
+    assert!(
+        f64::from(y) > parent_rect.bottom(),
+        "テスト前提: 子孫の座標が親の矩形の下端より外側にあること"
+    );
+    // テスト前提の確認 2: その座標で実際に elementFromPoint が子孫自身を
+    // ヒットすること（レイアウト前提が崩れた場合に「press が解除された」
+    // という誤解を招くメッセージではなく、前提条件の失敗として明示する）。
+    assert!(
+        document
+            .element_from_point(x as f32, y as f32)
+            .is_some_and(|hit| overflowing_child.contains(Some(&hit))),
+        "テスト前提: elementFromPoint が子孫（overflowing_child）をヒットすること"
+    );
+
+    dispatch_pointermove_at(&overflowing_child, x, y);
+    assert!(
+        parent.has_attribute(PRESS_STATE_ATTR),
+        "親の矩形外にはみ出した子孫上の pointermove では press を維持すること"
+    );
+}
+
+/// Bugbot 指摘の回帰固定（「Typing space triggers ancestor press」）:
+/// opt-in 親の内側に置かれた `input` へ通常のテキスト入力として Space を
+/// 打つたびに、祖先の `PRESS_STATE_ATTR` が点滅してはならない。
+#[wasm_bindgen_test]
+fn keydown_on_editable_descendant_does_not_trigger_ancestor_press() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("gesture-editable-descendant-test");
+    let parent = document.create_element("div").unwrap();
+    parent.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    let input = document.create_element("input").unwrap();
+    parent.append_child(&input).unwrap();
+    root.append_child(&parent).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_key(&input, "keydown", " ", false);
+    assert!(
+        !parent.has_attribute(PRESS_STATE_ATTR),
+        "input 上での Space の通常入力は祖先の press を設定しないこと"
+    );
+
+    dispatch_key(&input, "keyup", " ", false);
+    assert!(!parent.has_attribute(PRESS_STATE_ATTR));
+
+    // Enter・textarea・contenteditable でも同様に press を設定しない。
+    let textarea = document.create_element("textarea").unwrap();
+    parent.append_child(&textarea).unwrap();
+    dispatch_key(&textarea, "keydown", "Enter", false);
+    assert!(!parent.has_attribute(PRESS_STATE_ATTR));
+
+    let editable_div = document.create_element("div").unwrap();
+    editable_div
+        .set_attribute("contenteditable", "true")
+        .unwrap();
+    parent.append_child(&editable_div).unwrap();
+    dispatch_key(&editable_div, "keydown", " ", false);
+    assert!(
+        !parent.has_attribute(PRESS_STATE_ATTR),
+        "contenteditable 要素上の Space も祖先の press を設定しないこと"
     );
 }
