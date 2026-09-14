@@ -69,6 +69,12 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 のみをゲートし、`position` モジュール自体・公開 API（`PositionController`
 等）はゲート対象外です。
 
+`stagger` feature（0.21.0 で追加、イシュー #2397）も同じく別枠です。
+`Runtime::apply_update_for_dirty` の keyed list 構造反映（`Insert`/
+`Move`）直後の `stagger_index::sync_stagger_index` 呼び出しのみをゲート
+し、`stagger_index` モジュール自体・公開関数（`stagger_index_value`）は
+ゲート対象外です。
+
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
 feature 名は `headless::MAPPING_TABLE` の `scope` 文字列と一致します
@@ -131,12 +137,12 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.20.1 | `position` feature（イシュー #2209/#2332） |
 | 0.20.5 | `message-scroller` feature（イシュー #2122） |
 | 0.20.8 | `data-table` feature（イシュー #2126） |
-| 0.21.0 | `in-view` feature（イシュー #2396） |
+| 0.21.0 | `stagger` feature（イシュー #2397）・`in-view` feature（イシュー #2396） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 35 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 36 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
@@ -163,6 +169,7 @@ features = [
   "data-table",
   "in-view",
   "position",
+  "stagger",
   "accordion",
   "calendar",
   "collapsible",

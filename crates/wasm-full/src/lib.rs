@@ -226,6 +226,15 @@
 //! 含めないが、`position` モジュール自体・`pub use` は引き続きゲート対象外
 //! のまま、この自動呼び出しのみを off にできる。
 //!
+//! [`stagger_index`] モジュール（イシュー #2397）も `position` と同型の
+//! 別枠 feature を持つ。`Self::apply_update_for_dirty` 内、keyed list の
+//! 構造変化（`Insert`/`Move`）を DOM へ反映した直後の
+//! `stagger_index::sync_stagger_index` 呼び出しのみを feature
+//! `"stagger"`（既定 on）でゲートし、`stagger_index` モジュール自体・
+//! `stagger_index_value` 公開関数はゲート対象外のまま維持する。本呼び出し
+//! も `Runtime::mount`/`hydrate` の配線群呼び出しではない（`dirty` 更新
+//! 経路から呼ばれる）ため上記対応表には含めない。
+//!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
 //! `default-features = false` を使う利用者は上記 17 配線を失う
@@ -242,6 +251,10 @@
 //! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
 //! こと（`position` はこの 17 配線とは別枠の feature であり、既定 18 件目
 //! として `Cargo.toml` の `default` 配列に列挙されている）。
+//! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
+//! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
+//! 同型の別枠 feature、既定 18 件目として `default` 配列に列挙されて
+//! いる）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
@@ -390,6 +403,7 @@ pub mod position;
 pub mod questionnaire;
 pub mod sidebar;
 pub mod splitter;
+pub mod stagger_index;
 pub mod tabs_indicator;
 pub mod tooltip;
 
@@ -1058,6 +1072,33 @@ where
                                             keyed_list_cache,
                                         );
                                     }
+                                }
+                                // イシュー #2397: Insert/Move を含む構造変化の
+                                // コミット直後、全行の DOM 順位置を
+                                // `--fandhe-motion-stagger-index` へ再同期する
+                                // （差分判定を持たない毎回再同期方針、
+                                // `content_height::sync_content_height` と
+                                // 同型）。SSR/初期描画時点の書き出しは
+                                // `fandhe-frontend-pre-styled-ui::recipe::
+                                // stagger_index_style` が別途担う。
+                                //
+                                // codex-review P1 是正（イシュー #2397）:
+                                // タグ変更を伴う更新は
+                                // `apply_keyed_list_core` 内部で
+                                // `replace_list_element_for_tag_change` が
+                                // 呼ばれ、`list_element`（この時点で
+                                // 保持している変数）はライブ DOM から
+                                // 切り離された旧要素になる。切り離された
+                                // 旧要素の子へ index を書いても新しい
+                                // 行には反映されないため、`root`/`field`
+                                // から現在のライブ要素を再取得してから
+                                // 同期する（タグ変更が無かった通常
+                                // ケースでは同じ要素が返るため無害）。
+                                #[cfg(feature = "stagger")]
+                                if let Ok(Some(current_list_element)) =
+                                    fandhe_frontend_wasm_client::find_list_element(root, field)
+                                {
+                                    crate::stagger_index::sync_stagger_index(&current_list_element);
                                 }
                                 structural_change = true;
                             } else if !has_binding(field) {
