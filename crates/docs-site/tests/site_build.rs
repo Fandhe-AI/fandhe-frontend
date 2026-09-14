@@ -233,10 +233,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 加わり、232 → 233 になった。イシュー #2127 で Data Table
     // （Themes）が加わり、233 → 234 になった。イシュー #2416 で
     // pre-styled-ui motion feature ガイド（Guides セクション）が加わり、
-    // 234 → 235 になった。
+    // 234 → 235 になった。イシュー #2526 で fandhe-animation API ガイド
+    // （Guides セクション）が加わり、235 → 236 になった。
     assert_eq!(
         report.written.len(),
-        235,
+        236,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

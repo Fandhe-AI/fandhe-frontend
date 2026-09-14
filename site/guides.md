@@ -60,3 +60,12 @@ Guides セクションは、目的別の実践ガイドをまとめています�
 `fandhe-frontend-pre-styled-ui` の Cargo feature `motion`（既定 off）の
 有効化手順と、無効時に crate サイズ・ビルド時間・CSS 出力が一切変わらない
 ゼロコスト保証の内容を解説します。
+
+## fandhe-animation API ガイド
+
+[fandhe-animation API ガイドを見る](../docs/guides/animation-core.md)
+
+`fandhe-animation`（プラットフォーム非依存の演算コア）と
+`fandhe-frontend-animation`（Web アダプタ）を Rust コードから直接呼び出す
+使い方を解説します。宣言的な `data-*` 配線の使い方は、別途公開予定の
+アニメーション機能ガイド（`docs/guides/animation.md`）を参照してください。
