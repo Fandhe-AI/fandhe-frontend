@@ -19,6 +19,7 @@ use fandhe_frontend_headless_ui::accordion::{self, AccordionProps};
 use fandhe_frontend_headless_ui::bubble;
 use fandhe_frontend_headless_ui::collapsible;
 use fandhe_frontend_headless_ui::state::OpenState;
+use fandhe_frontend_headless_ui::tree_view::{self, TreeItemProps};
 use fandhe_frontend_wasm_full::content_height::{
     format_content_height, is_target, target_selector, TARGETS,
 };
@@ -47,7 +48,7 @@ fn target_selector_is_static_and_stable() {
     let selector = target_selector();
     assert_eq!(
         selector,
-        r#"[data-scope="collapsible"][data-part="content"],[data-scope="accordion"][data-part="item-content"],[data-scope="bubble"][data-part="collapse-content"]"#
+        r#"[data-scope="collapsible"][data-part="content"],[data-scope="accordion"][data-part="item-content"],[data-scope="bubble"][data-part="collapse-content"],[data-scope="tree-view"][data-part="branch-content"]"#
     );
     // 2 回呼んでも同一（副作用・グローバル状態を持たない純粋関数である
     // ことの確認）。
@@ -114,6 +115,37 @@ fn targets_table_matches_bubble_collapse_content_output() {
     let html = render(&bubble::collapse_content(
         OpenState::Open,
         None,
+        vec![],
+        vec![],
+    ));
+    assert_scope_part_present(&html, scope, part);
+    assert!(is_target(scope, part));
+}
+
+/// `tree_view::branch_content` 呼び出し用の共通 `TreeItemProps`（フィールド値
+/// はテストの主眼（TARGETS 突合・hidden 契約）に無関係なためダミー固定値）。
+fn tree_item_props() -> TreeItemProps<'static> {
+    TreeItemProps {
+        value: "node-1",
+        selected: false,
+        disabled: false,
+        level: "1",
+        posinset: "1",
+        setsize: "1",
+        depth: "0",
+    }
+}
+
+#[test]
+fn targets_table_matches_tree_view_branch_content_output() {
+    // イシュー #2393: tree-view の branch-content（クリック駆動、
+    // `crate::headless::MAPPING_TABLE` に既存配線あり）。
+    let (scope, part) = TARGETS[3];
+    assert_eq!((scope, part), ("tree-view", "branch-content"));
+
+    let html = render(&tree_view::branch_content(
+        OpenState::Open,
+        tree_item_props(),
         vec![],
         vec![],
     ));
@@ -204,5 +236,30 @@ fn bubble_collapse_content_closed_has_hidden_open_does_not() {
     assert!(
         !open.contains("hidden"),
         "open の collapse-content は hidden を持たないこと: {open}"
+    );
+}
+
+#[test]
+fn tree_view_branch_content_closed_has_hidden_open_does_not() {
+    let closed = render(&tree_view::branch_content(
+        OpenState::Closed,
+        tree_item_props(),
+        vec![],
+        vec![],
+    ));
+    assert!(
+        closed.contains("hidden"),
+        "closed の branch-content は hidden を持つこと: {closed}"
+    );
+
+    let open = render(&tree_view::branch_content(
+        OpenState::Open,
+        tree_item_props(),
+        vec![],
+        vec![],
+    ));
+    assert!(
+        !open.contains("hidden"),
+        "open の branch-content は hidden を持たないこと: {open}"
     );
 }

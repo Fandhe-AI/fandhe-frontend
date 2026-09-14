@@ -148,6 +148,9 @@ pub const TARGETS: &[(&str, &str)] = &[
     ("collapsible", "content"),
     ("accordion", "item-content"),
     ("bubble", "collapse-content"),
+    // イシュー #2393: tree-view の `branch-content`（クリック駆動、
+    // `crate::headless::MAPPING_TABLE` に既存配線あり）。
+    ("tree-view", "branch-content"),
 ];
 
 /// `scope`/`part` が [`TARGETS`] のいずれかに一致するかを返す。
@@ -304,7 +307,7 @@ mod tests {
     fn target_selector_joins_targets_table() {
         assert_eq!(
             target_selector(),
-            r#"[data-scope="collapsible"][data-part="content"],[data-scope="accordion"][data-part="item-content"],[data-scope="bubble"][data-part="collapse-content"]"#
+            r#"[data-scope="collapsible"][data-part="content"],[data-scope="accordion"][data-part="item-content"],[data-scope="bubble"][data-part="collapse-content"],[data-scope="tree-view"][data-part="branch-content"]"#
         );
     }
 }

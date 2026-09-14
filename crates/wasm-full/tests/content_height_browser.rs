@@ -31,6 +31,7 @@ use fandhe_frontend_headless_ui::accordion::{self, Accordion, AccordionProps};
 use fandhe_frontend_headless_ui::bubble;
 use fandhe_frontend_headless_ui::collapsible::{self, Collapsible};
 use fandhe_frontend_headless_ui::state::OpenState;
+use fandhe_frontend_headless_ui::tree_view::{TreeNode, TreeView};
 use fandhe_frontend_wasm_full::content_height::{sync_content_height, CONTENT_HEIGHT_VAR};
 use fandhe_frontend_wasm_full::headless::wire_headless_component;
 use std::cell::RefCell;
@@ -794,5 +795,120 @@ fn bubble_xss_payload_in_id_controls_and_text_does_not_affect_style_value() {
             .strip_suffix("px")
             .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())),
         "style 値は 10 進整数 + \"px\" のみであること（payload の影響を受けない）: {value}"
+    );
+}
+
+// --- tree-view: branch-control クリックで書き込み（イシュー #2393） ---
+
+/// `tree` 要素を 1 個マウントし、`TreeView::render_nodes` の出力を
+/// `wire_headless_component` で配線する（`crate::headless::MAPPING_TABLE`
+/// の `(tree-view, branch, "toggle")` 行、`crates/wasm-full/tests/
+/// keynav_browser.rs::mount_tree_view` と同型・本ファイル向けに
+/// `wire_keynav` 配線を省いた最小形）。戻り値は tree 要素。
+fn mount_tree_view(document: &Document, root_id: &str, nodes: Vec<TreeNode>) -> Element {
+    let tree_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    tree_el.set_id(root_id);
+    tree_el
+        .set_attribute("data-scope", "tree-view")
+        .expect("set_attribute must not fail");
+    tree_el
+        .set_attribute("data-part", "tree")
+        .expect("set_attribute must not fail");
+    tree_el
+        .set_attribute("role", "tree")
+        .expect("set_attribute must not fail");
+    document
+        .body()
+        .expect("document body must exist in browser test environment")
+        .append_child(&tree_el)
+        .expect("append_child must not fail for a detached div");
+
+    fn render_children(tree_el: &Element, state: &TreeView, nodes: &[TreeNode]) {
+        let html: String = state
+            .render_nodes(nodes)
+            .iter()
+            .map(fandhe_frontend_core::render)
+            .collect::<Vec<_>>()
+            .join("");
+        tree_el.set_inner_html(&html);
+    }
+
+    let component = Rc::new(RefCell::new(TreeView::default()));
+    render_children(&tree_el, &component.borrow(), &nodes);
+
+    let wire_tree = tree_el.clone();
+    wire_headless_component(tree_el.clone(), component, move |state, _root| {
+        render_children(&wire_tree, state, &nodes);
+    })
+    .expect("wire_headless_component must not fail");
+
+    tree_el
+}
+
+/// `src`（branch, 子: `a.rs`/`b.rs` の 2 leaf）1 本のみのサンプル木。
+/// leaf 2 件で `branch-content` に実測可能な高さ（複数行分）を持たせる
+/// （`fixed_height_child` のような明示 `style="height:..."` は
+/// `TreeView::render_nodes` が子ノードとして受け付けないため使えない。
+/// treeitem 行そのものの実レイアウト高さで実測値を作る）。
+fn sample_branch_with_two_leaves() -> Vec<TreeNode> {
+    vec![TreeNode::new("src", "src").with_children(vec![
+        TreeNode::new("a.rs", "a.rs"),
+        TreeNode::new("b.rs", "b.rs"),
+    ])]
+}
+
+/// 検証: closed branch の `branch-control` へマウス click を dispatch
+/// すると、`crate::headless::MAPPING_TABLE` の `(tree-view, branch,
+/// "toggle")` 行を経由して `TreeView` が展開 → `wire_headless_component`
+/// が再描画直後に呼ぶ `sync_content_height`（本モジュール doc §1・
+/// `crate::headless::wire_headless_component` doc「on_update →
+/// sync_content_height」節）が、展開後 `branch-content` の実測高さを
+/// CSS カスタムプロパティへ書き込む。collapsible/accordion 分
+/// （[`collapsible_open_click_writes_content_height_var`]）と同型の
+/// click 駆動形（bubble 分のみが未配線のため 2 形に分かれる、モジュール
+/// doc「bubble 分のテストが click 駆動形を写せない理由」節参照）。
+#[wasm_bindgen_test]
+fn tree_view_branch_open_click_writes_content_height_var() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let tree_el = mount_tree_view(
+        &document,
+        "content-height-tree-view-root",
+        sample_branch_with_two_leaves(),
+    );
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let branch_control = tree_el
+        .query_selector(r#"[data-part="branch-control"]"#)
+        .expect("query_selector must not fail")
+        .expect("branch-control element must exist");
+
+    // 配線前（closed）は branch-content が hidden であり実測対象から
+    // スキップされるため未設定であることの確認（前提の明示）。
+    let branch_content_before = tree_el
+        .query_selector(r#"[data-part="branch-content"]"#)
+        .expect("query_selector must not fail")
+        .expect("branch-content element must exist before click");
+    assert!(branch_content_before.has_attribute("hidden"));
+    assert_eq!(content_height_var(&branch_content_before), "");
+
+    dispatch_click(&branch_control);
+
+    let branch_content_after = tree_el
+        .query_selector(r#"[data-part="branch-content"]"#)
+        .expect("query_selector must not fail")
+        .expect("branch-content element must exist after click");
+    assert!(
+        !branch_content_after.has_attribute("hidden"),
+        "click 後の branch-content は open（hidden なし）であること"
+    );
+    let value = content_height_var(&branch_content_after);
+    assert!(
+        value
+            .strip_suffix("px")
+            .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()) && n != "0"),
+        "open 後の branch-content には 2 leaf 分の正の実測高さが書き込まれること: {value}"
     );
 }

@@ -493,6 +493,14 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(Size::Md)
+        // イシュー #2393: 高さトランジション（collapsible #2192・accordion
+        // #2192・bubble #2282 と同型）。`branch-content` は自身に `hidden`
+        // が付き祖先に `display: none` の positioner を持たないため
+        // `docs/design/collapsible-height-animation.md` §12.4 の適用提案が
+        // そのまま成立する。既存の `[hidden]` state（PR #798、上記）とは
+        // 重複登録になるが `SlotRecipe::css()` は重複を単純に順次出力する
+        // ため両者は共存し、golden 純追加原則を満たす。
+        .content_height_transition("branch-content", MotionDuration::Normal)
 }
 
 /// この styled TreeView が生成する静的 CSS 全量を返す（決定的。

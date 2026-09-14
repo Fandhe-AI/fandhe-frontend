@@ -3417,7 +3417,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # ため、双方の実体変更を統合した結果として 0.197.0 へさらにマイナーバンプ
 # する（0.x の破壊的変更はマイナーバンプの規約。同一版数への偶発的衝突を
 # そのまま採用しない）。
-version = "0.198.0"
+# イシュー #2393: tree-view の `branch-content` へ高さトランジション
+# （既存 `content_height_transition` preset の再利用、collapsible #2192・
+# accordion #2192・bubble #2282 と同型）を golden 純追加した。公開 API の
+# 追加・変更を伴わない内部の CSS 出力拡張のみのため patch バンプする。
+version = "0.198.1"
 
 
 edition = "2021"

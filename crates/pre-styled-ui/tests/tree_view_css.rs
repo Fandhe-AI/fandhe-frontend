@@ -11,10 +11,231 @@
 //! disabled/transition/フォーカスリングの canonical 化・`size` variant・
 //! indicator の列幅固定）は `crates/pre-styled-ui/src/tree_view.rs`
 //! モジュール doc「参考サイト基準への調整（イシュー #1578）」節に記録する。
+//!
+//! イシュー #2393 で `branch-content` へ高さトランジション
+//! （[`crate::recipe::SlotRecipe::content_height_transition`]、collapsible
+//! #2192・accordion #2192・bubble #2282 と同型）を追加した。純追加である
+//! ことは `TREE_VIEW_GOLDEN_CSS_BEFORE_2393` /
+//! `tree_view_pre_2393_blocks_remain_verbatim` が固定する（`accordion_css.rs`
+//! と同型のパターン）。
 
 use fandhe_frontend_pre_styled_ui::tree_view;
 
 const TREE_VIEW_GOLDEN_CSS: &str = r#"[data-scope="tree-view"][data-part="label"] {
+  font-size: var(--fandhe-tree-view-font-size, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  color: var(--fandhe-color-fg);
+  margin-block-end: var(--fandhe-space-2);
+}
+
+[data-scope="tree-view"][data-part="tree"] {
+  display: flex;
+  flex-direction: column;
+  color: var(--fandhe-color-fg);
+  font-size: var(--fandhe-tree-view-font-size, var(--fandhe-font-font-size-sm));
+}
+
+[data-scope="tree-view"][data-part="branch-control"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-tree-view-row-gap, var(--fandhe-space-2));
+  padding: var(--fandhe-tree-view-row-padding, var(--fandhe-space-1-5) var(--fandhe-space-2-5));
+  color: var(--fandhe-color-fg);
+  cursor: pointer;
+  border-radius: var(--fandhe-radius-sm, 0.25rem);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="tree-view"][data-part="branch-control"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="tree-view"][data-part="branch-indicator"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: var(--fandhe-tree-view-indicator-size, 1em);
+  color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="tree-view"][data-part="branch-indicator"] {
+  transition-property: transform;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="tree-view"][data-part="branch-content"] {
+  display: flex;
+  padding-inline-start: var(--fandhe-tree-view-indent, 1rem);
+}
+
+[data-scope="tree-view"][data-part="branch-content"] {
+  box-sizing: border-box;
+  overflow: visible;
+  --fandhe-content-height: initial;
+  height: var(--fandhe-content-height, auto);
+  height: calc-size(auto, size);
+  transition-property: height, padding-block, margin-block, display, overflow;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-end;
+  transition-behavior: allow-discrete;
+}
+
+[data-scope="tree-view"][data-part="branch-indent-guide"] {
+  border-inline-start: 1px solid var(--fandhe-color-border-muted);
+  margin-inline-start: calc(var(--fandhe-tree-view-indent, 1rem) / 2);
+  flex: 0 0 auto;
+}
+
+[data-scope="tree-view"][data-part="item"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-tree-view-row-gap, var(--fandhe-space-2));
+  padding: var(--fandhe-tree-view-row-padding, var(--fandhe-space-1-5) var(--fandhe-space-2-5));
+  color: var(--fandhe-color-fg);
+  cursor: pointer;
+  border-radius: var(--fandhe-radius-sm, 0.25rem);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="tree-view"][data-part="item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="tree-view"][data-part="item-indicator"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: var(--fandhe-tree-view-indicator-size, 1em);
+  color: var(--fandhe-color-accent);
+}
+
+[data-scope="tree-view"][data-part="root"].fd-tree-view--size-xs {
+  --fandhe-tree-view-row-padding: var(--fandhe-space-0-5) var(--fandhe-space-1-5);
+  --fandhe-tree-view-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-tree-view-row-gap: var(--fandhe-space-1);
+}
+
+[data-scope="tree-view"][data-part="root"].fd-tree-view--size-sm {
+  --fandhe-tree-view-row-padding: var(--fandhe-space-1) var(--fandhe-space-2);
+  --fandhe-tree-view-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-tree-view-row-gap: var(--fandhe-space-1-5);
+}
+
+[data-scope="tree-view"][data-part="root"].fd-tree-view--size-md {
+  --fandhe-tree-view-row-padding: var(--fandhe-space-1-5) var(--fandhe-space-2-5);
+  --fandhe-tree-view-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-tree-view-row-gap: var(--fandhe-space-2);
+}
+
+[data-scope="tree-view"][data-part="root"].fd-tree-view--size-lg {
+  --fandhe-tree-view-row-padding: var(--fandhe-space-2) var(--fandhe-space-3);
+  --fandhe-tree-view-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-tree-view-row-gap: var(--fandhe-space-2);
+}
+
+[data-scope="tree-view"][data-part="root"].fd-tree-view--size-xl {
+  --fandhe-tree-view-row-padding: var(--fandhe-space-2-5) var(--fandhe-space-4);
+  --fandhe-tree-view-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-tree-view-row-gap: var(--fandhe-space-2-5);
+}
+
+[data-scope="tree-view"][data-part="branch-indicator"][data-state="open"] {
+  transform: rotate(90deg);
+}
+
+[data-scope="tree-view"][data-part="branch-content"][hidden] {
+  display: none;
+}
+
+[data-scope="tree-view"][data-part="branch-control"][data-selected] {
+  background: var(--fandhe-color-accent-subtle);
+  color: var(--fandhe-color-accent-fg-subtle);
+}
+
+[data-scope="tree-view"][data-part="item"][data-selected] {
+  background: var(--fandhe-color-accent-subtle);
+  color: var(--fandhe-color-accent-fg-subtle);
+}
+
+[data-scope="tree-view"][data-part="item-indicator"][data-selected] {
+  color: var(--fandhe-color-accent-fg-subtle);
+}
+
+[data-scope="tree-view"][data-part="item-indicator"][hidden] {
+  visibility: hidden;
+}
+
+[data-scope="tree-view"][data-part="branch-control"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="tree-view"][data-part="item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="tree-view"][data-part="branch-control"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="tree-view"][data-part="item"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="tree-view"][data-part="branch-content"][hidden] {
+  height: 0;
+  padding-block: 0;
+  margin-block: 0;
+  overflow: hidden;
+  transition-property: height, padding-block, margin-block, display, overflow;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), var(--fandhe-motion-easing-standard), step-start;
+  transition-behavior: allow-discrete;
+}
+
+@starting-style {
+  [data-scope="tree-view"][data-part="branch-content"] {
+    height: 0;
+    padding-block: 0;
+    margin-block: 0;
+    overflow: hidden;
+  }
+}
+
+@supports not (height: calc-size(auto, size)) {
+  [data-scope="tree-view"][data-part="branch-content"] {
+    height: auto;
+    overflow: visible;
+    transition: none;
+  }
+
+  [data-scope="tree-view"][data-part="branch-content"][hidden] {
+    transition: none;
+  }
+}
+
+@media (hover: hover) {
+  [data-scope="tree-view"][data-part="branch-control"]:hover:not([data-disabled]):not([data-selected]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="tree-view"][data-part="item"]:hover:not([data-disabled]):not([data-selected]) {
+    background: var(--fandhe-hover-bg);
+  }
+}
+"#;
+
+const TREE_VIEW_GOLDEN_CSS_BEFORE_2393: &str = r#"[data-scope="tree-view"][data-part="label"] {
   font-size: var(--fandhe-tree-view-font-size, var(--fandhe-font-font-size-sm));
   font-weight: var(--fandhe-font-font-weight-medium);
   color: var(--fandhe-color-fg);
@@ -187,6 +408,23 @@ const TREE_VIEW_GOLDEN_CSS: &str = r#"[data-scope="tree-view"][data-part="label"
 #[test]
 fn tree_view_stylesheet_matches_golden_fixture() {
     assert_eq!(tree_view::stylesheet(), TREE_VIEW_GOLDEN_CSS);
+}
+
+/// イシュー #2393 純追加検証: #2393 直前の CSS 全文
+/// （`TREE_VIEW_GOLDEN_CSS_BEFORE_2393`）に含まれる各ブロック（空行区切り）
+/// が現行 `stylesheet()` の中に連続する部分文字列として残っていることを
+/// 固定する（既存ブロックの内容・順序が一切変わっていないことの機械的な
+/// 裏付け、`accordion_css.rs::accordion_pre_2192_blocks_remain_verbatim` と
+/// 同型）。
+#[test]
+fn tree_view_pre_2393_blocks_remain_verbatim() {
+    let css = tree_view::stylesheet();
+    for section in TREE_VIEW_GOLDEN_CSS_BEFORE_2393.split("\n\n") {
+        assert!(
+            css.contains(section),
+            "#2393 以前から存在するブロックが verbatim で残っていない: {section}"
+        );
+    }
 }
 
 #[test]
