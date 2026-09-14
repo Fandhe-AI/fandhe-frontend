@@ -373,15 +373,37 @@ fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool 
 ///
 /// # 是正方法
 ///
-/// インラインスタイルはスタイルシート上のセレクタ規則に対し
-/// （`!important` を使わない限り）常に勝つ性質を利用し、計測直前に
-/// `translate`/`scale` を `none` へ、算出済みスタイルが `position:
-/// sticky` の場合に限り `position` を `static` へ一時上書きしてから
-/// `getBoundingClientRect()` を呼び、直後に（同期的に・再描画を挟まず）
-/// 元の値へ戻す。これにより計測結果は常に「本モジュール自身の効果
-/// 適用前・ピン留め前」の、スクロール位置と連続的に対応する位置を表す。
-/// `position: fixed`/`absolute` 等 `sticky` 以外の値は変更しない
-/// （無関係な計測結果を変えないため）。
+/// 計測直前に `translate`/`scale` を `none` へ、算出済みスタイルが
+/// `position: sticky` の場合に限り `position` を `static` へ一時上書き
+/// してから `getBoundingClientRect()` を呼び、直後に（同期的に・
+/// 再描画を挟まず）元の値へ戻す。これにより計測結果は常に「本モジュール
+/// 自身の効果適用前・ピン留め前」の、スクロール位置と連続的に対応する
+/// 位置を表す。`position: fixed`/`absolute` 等 `sticky` 以外の値は変更
+/// しない（無関係な計測結果を変えないため）。
+///
+/// 一時上書きは [`CssStyleDeclaration::set_property_with_priority`] で
+/// 優先度 `"important"` を明示して書く（codex-review P1 是正、
+/// PR #2563）。インラインスタイルは通常優先度であれば常にスタイルシートの
+/// セレクタ規則に勝つが、スタイルシート側が `!important`（例:
+/// `position: sticky !important`）を宣言している場合は通常優先度の
+/// インライン上書きでは効かず、変形適用後・ピン留め後の座標をそのまま
+/// 計測してしまう（`position: sticky !important` 環境下では
+/// `unpinned_rect.top() == top_offset` が常に成立し、`contain` 進捗が
+/// 常に 0 に固定される不具合を招く）。一時上書き自体を `!important` で
+/// 書くことでスタイルシート側の `!important` 宣言よりも常に勝つように
+/// する（下記「優先度の保存・復元」の通り、元の宣言の優先度は変えない）。
+///
+/// `transition`（例: `transition: translate 200ms`）が `translate`/
+/// `scale`/`position` と併用されている場合、値としての `none`/`static`
+/// への一時上書きは即時反映されても、遷移アニメーションが有効なままだと
+/// 実際の描画・`getBoundingClientRect()` の戻り値は遷移の途中値（直前
+/// フレームの変形が残った値）になり得るため、上記 3 プロパティを上書き
+/// する**前**に `transition` 自体を `!important` で `none` へ一時上書き
+/// して遷移を同期的に無効化してから計測する。復元順序は `translate`/
+/// `scale`/`position` を先に元へ戻し、`transition` は最後に戻す
+/// （復元中も `transition: none` のままにすることで、復元そのものが
+/// 新たな遷移の開始点にならないようにする、codex-review P1 是正、
+/// PR #2563）。
 ///
 /// インラインスタイルの上書き・復元は同一の同期実行内で完結するため、
 /// ブラウザが中間状態を描画することはない（強制リフローを伴う計測
@@ -416,12 +438,34 @@ fn measure_untransformed_rect(element: &web_sys::Element) -> (web_sys::DomRect, 
     };
     let style = html.style();
 
+    // `transition` を最初に `!important` で無効化する（codex-review P1
+    // 是正、PR #2563）。以降で上書きする `translate`/`scale`/`position`
+    // へ `transition: translate 200ms` 等が併用されていると、`none`/
+    // `static` への一時上書きは値としては即時反映されるが実際の描画・
+    // `getBoundingClientRect()` の戻り値は遷移アニメーションの現在値
+    // （直前フレームの変形が残った途中値）になり得るため、遷移自体を
+    // 同期的に止めてから計測する。スタイルシート側が `transition: ...
+    // !important` を宣言していても本上書きが必ず勝つよう `!important`
+    // で書く（下記 `translate`/`scale`/`position` と同じ理由）。
+    let saved_transition = style.get_property_value("transition").ok();
+    let saved_transition_priority = style.get_property_priority("transition");
+    let _ = style.set_property_with_priority("transition", "none", "important");
+
+    // 一時上書きは `!important` で行う（codex-review P1 是正、PR #2563）。
+    // スタイルシート側に `translate`/`scale`/`position` の `!important`
+    // 宣言があると、通常優先度の上書きでは効かず（`!important` は
+    // インラインスタイルの高い詳細度よりも優先される CSS の仕様）、
+    // 変形適用後・ピン留め後の座標をそのまま計測してしまう
+    // （`position: sticky !important` 環境で `contain` 進捗が常に 0 に
+    // 固定される不具合の原因）。復元側は保存済みの元の優先度
+    // （`saved_*_priority`）で書き戻すため、ここで `!important` を使っても
+    // 元の宣言の優先度は変えない。
     let saved_translate = style.get_property_value("translate").ok();
     let saved_translate_priority = style.get_property_priority("translate");
-    let _ = style.set_property("translate", "none");
+    let _ = style.set_property_with_priority("translate", "none", "important");
     let saved_scale = style.get_property_value("scale").ok();
     let saved_scale_priority = style.get_property_priority("scale");
-    let _ = style.set_property("scale", "none");
+    let _ = style.set_property_with_priority("scale", "none", "important");
 
     let is_sticky = web_sys::window()
         .and_then(|window| window.get_computed_style(element).ok().flatten())
@@ -431,7 +475,7 @@ fn measure_untransformed_rect(element: &web_sys::Element) -> (web_sys::DomRect, 
     let saved_position = if is_sticky {
         let prev = style.get_property_value("position").ok();
         let prev_priority = style.get_property_priority("position");
-        let _ = style.set_property("position", "static");
+        let _ = style.set_property_with_priority("position", "static", "important");
         Some((prev, prev_priority))
     } else {
         None
@@ -439,6 +483,11 @@ fn measure_untransformed_rect(element: &web_sys::Element) -> (web_sys::DomRect, 
 
     let rect = element.get_bounding_client_rect();
 
+    // 復元順序: `transition` は最後に戻す。`translate`/`scale`/`position`
+    // を元の値へ戻す間は `transition: none` のままにしておくことで、
+    // 復元そのものが新たな遷移アニメーションの開始点にならないようにする
+    // （復元直後に `transition` を戻すと、以降のスクロール起因の再計測
+    // ではない通常のスタイル変化は正しく遷移する）。
     restore_inline_property(
         &style,
         "translate",
@@ -454,6 +503,12 @@ fn measure_untransformed_rect(element: &web_sys::Element) -> (web_sys::DomRect, 
     if let Some((prev, prev_priority)) = saved_position {
         restore_inline_property(&style, "position", prev.as_deref(), &prev_priority);
     }
+    restore_inline_property(
+        &style,
+        "transition",
+        saved_transition.as_deref(),
+        &saved_transition_priority,
+    );
 
     (rect, is_sticky)
 }

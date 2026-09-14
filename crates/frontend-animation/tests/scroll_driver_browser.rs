@@ -708,3 +708,213 @@ async fn update_element_progress_for_range_contain_advances_while_position_stick
     target_el.remove();
     spacer_after.remove();
 }
+
+/// codex-review P1 是正（PR #2563、threadId `PRRT_kwDOTarxgc6iSxSB`）の
+/// 回帰テスト: `position: sticky` をスタイルシート側で `!important` 付き
+/// で宣言している場合、通常優先度のインライン `position: static` 上書き
+/// では効かず（`!important` はインラインスタイルの詳細度より優先される
+/// CSS の仕様）、[`update_element_progress_for_range_contain_advances_while_position_sticky`]
+/// と異なりピン留め後の座標をそのまま計測してしまい `contain` 進捗が
+/// 常に 0 に固定される。是正後は一時上書き自体を `!important` で書くため、
+/// スタイルシート側の `!important` の下でも `position: static` へ切り替わり
+/// 進捗が進み続けることを固定する。
+#[wasm_bindgen_test]
+async fn update_element_progress_for_range_contain_advances_with_important_sticky_stylesheet() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+
+    let style_el = document
+        .create_element("style")
+        .expect("create_element must not fail for style");
+    style_el.set_text_content(Some(
+        ".fd-test-important-sticky { position: sticky !important; top: 0 !important; }",
+    ));
+    document
+        .body()
+        .expect("document body must exist in browser test environment")
+        .append_child(&style_el)
+        .expect("append_child must not fail for style element");
+
+    let spacer_before = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer_before
+        .set_attribute("style", "height:2000px")
+        .expect("set_attribute must not fail");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .set_attribute("class", "fd-test-important-sticky")
+        .expect("set_attribute must not fail");
+    target_el
+        .style()
+        .set_property("height", "100px")
+        .expect("set_property must not fail");
+
+    let spacer_after = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer_after
+        .set_attribute("style", "height:4000px")
+        .expect("set_attribute must not fail");
+
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+    body.append_child(&spacer_before)
+        .expect("append_child must not fail for a detached spacer");
+    body.append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+    body.append_child(&spacer_after)
+        .expect("append_child must not fail for a detached spacer");
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    window.scroll_to_with_x_and_y(0.0, 2000.0);
+    wait_one_frame().await;
+    let progress_at_pin_start =
+        update_element_progress_for_range(&element, &mut target, ProgressRange::Contain)
+            .expect("update_element_progress_for_range must succeed in a browser environment");
+
+    window.scroll_to_with_x_and_y(0.0, 2800.0);
+    wait_one_frame().await;
+    let progress_while_pinned =
+        update_element_progress_for_range(&element, &mut target, ProgressRange::Contain)
+            .expect("update_element_progress_for_range must succeed in a browser environment");
+
+    assert!(
+        progress_while_pinned > progress_at_pin_start,
+        "スタイルシート側の `position: sticky !important` 下でもピン留め中の \
+         progress は増加し続けるはず（通常優先度の上書きが !important に \
+         負けて張り付く回帰）: \
+         pin_start={progress_at_pin_start} while_pinned={progress_while_pinned}"
+    );
+
+    window.scroll_to_with_x_and_y(0.0, 0.0);
+    spacer_before.remove();
+    target_el.remove();
+    spacer_after.remove();
+    style_el.remove();
+}
+
+/// codex-review P1 是正（PR #2563、threadId `PRRT_kwDOTarxgc6iSxSL`）の
+/// 回帰テスト: [`update_element_progress_is_stable_despite_self_applied_translate`]
+/// と同型のフィードバックループ検証に、`SlotRecipe::parallax` の実際の
+/// フォールバック CSS が伴わせる `transition`（例:
+/// `transition: translate 200ms`）を追加する。是正前は計測直前の
+/// `translate: none` への一時上書きが（`transition` を無効化していない
+/// ため）新たな遷移の開始点になるだけで、同期的な `getBoundingClientRect()`
+/// 呼び出し時点では遷移前の値（前回の自己適用済み変形）がまだ残っており、
+/// 一時上書きが実質的に無効化されていた。是正後は計測前に `transition`
+/// 自体を一時的に無効化するため、`translate: none` が即時に反映された
+/// 状態で計測できる。
+#[wasm_bindgen_test]
+async fn update_element_progress_is_stable_despite_self_applied_translate_with_transition() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let viewport_height = window
+        .inner_height()
+        .expect("inner_height must not fail")
+        .as_f64()
+        .expect("inner_height must be a finite number");
+
+    const TARGET_HEIGHT: f64 = 200.0;
+    const SPACER_HEIGHT: f64 = 3000.0;
+    const SPACER_AFTER_HEIGHT: f64 = 2000.0;
+    let target_document_top = SPACER_HEIGHT;
+    let desired_rect_top = viewport_height - TARGET_HEIGHT / 2.0;
+    let scroll_y = (target_document_top - desired_rect_top).max(0.0);
+
+    let style_el = document
+        .create_element("style")
+        .expect("create_element must not fail for style");
+    style_el.set_text_content(Some(&format!(
+        ".fd-test-parallax-transition-target {{ \
+         translate: 0 calc(var({SCROLL_PROGRESS_PROPERTY}, 0) * -400px); \
+         transition: translate 200ms linear; }}"
+    )));
+    document
+        .body()
+        .expect("document body must exist in browser test environment")
+        .append_child(&style_el)
+        .expect("append_child must not fail for style element");
+
+    let spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer
+        .set_attribute("style", &format!("height:{SPACER_HEIGHT}px"))
+        .expect("set_attribute must not fail");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .set_attribute("class", "fd-test-parallax-transition-target")
+        .expect("set_attribute must not fail");
+    target_el
+        .style()
+        .set_property("height", &format!("{TARGET_HEIGHT}px"))
+        .expect("set_property must not fail");
+
+    let spacer_after = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer_after
+        .set_attribute("style", &format!("height:{SPACER_AFTER_HEIGHT}px"))
+        .expect("set_attribute must not fail");
+
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+    body.append_child(&spacer)
+        .expect("append_child must not fail for a detached spacer");
+    body.append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+    body.append_child(&spacer_after)
+        .expect("append_child must not fail for a detached spacer");
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    window.scroll_to_with_x_and_y(0.0, scroll_y);
+    wait_one_frame().await;
+
+    let first = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+    wait_one_frame().await;
+    let second = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+    wait_one_frame().await;
+    let third = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    assert!(
+        first > 0.0 && first < 1.0,
+        "検証対象のスクロール位置は非退化の中間値であるはず: \
+         first={first} viewport_height={viewport_height} scroll_y={scroll_y}"
+    );
+    assert_eq!(
+        first, second,
+        "transition 併用下でも同一スクロール位置での再計算は自身が適用した \
+         translate の遷移途中値の影響を受けず、常に同じ progress を返すはず \
+         （transition 起因の feedback loop 回帰）: first={first} second={second}"
+    );
+    assert_eq!(
+        second, third,
+        "3 回目の再計算も同じ progress を返すはず: second={second} third={third}"
+    );
+
+    window.scroll_to_with_x_and_y(0.0, 0.0);
+    spacer.remove();
+    target_el.remove();
+    spacer_after.remove();
+    style_el.remove();
+}
