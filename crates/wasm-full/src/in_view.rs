@@ -193,6 +193,7 @@ mod wiring {
         observed: js_sys::WeakSet,
         once_done: js_sys::WeakSet,
     ) -> Result<(), JsValue> {
+        let root_for_callback = root.clone();
         let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |records: js_sys::Array, _observer: MutationObserver| {
                 for record in records.iter() {
@@ -208,7 +209,20 @@ mod wiring {
                             if opts_in_now {
                                 opted_in.add(&el);
                             }
-                            if (opts_in_now || opted_in.has(&el)) && !observed.has(&el) {
+                            // 同一タスク内の remove→append（例: 差し替え先コンテナを
+                            // 一旦 root から切り離してから要素を追加し、その後で
+                            // 再接続する操作）では、追加 record が指す要素がこの
+                            // コールバック実行時点で既に root 配下から外れている
+                            // ことがある（MutationObserver のコールバックは記録
+                            // されたミューテーションをまとめて非同期にまとめて
+                            // 配送するため、record の時点と処理時点の DOM 状態が
+                            // 一致しない）。root.contains() で現在の実際の所属を
+                            // 確認してから observe() する（イシュー #2396
+                            // codex-review P1 是正）。
+                            if (opts_in_now || opted_in.has(&el))
+                                && !observed.has(&el)
+                                && root_for_callback.contains(Some(&el))
+                            {
                                 observer.observe(&el);
                                 observed.add(&el);
                             }
@@ -291,6 +305,18 @@ mod wiring {
                 continue;
             };
             let target = entry.target();
+            // 同一 observer コールバック呼び出しへ進入・退出の 2 通知がまとめて
+            // 配送された場合（`IntersectionObserver` は交差変化ごとに 1
+            // entry を積むため、短時間で進入→退出した要素は両方が同時配送
+            // され得る）、進入側の処理で `once_done` へ登録し `unobserve()`
+            // 済みでも、この entries ループでは同じ target の退出 entry が
+            // 後続に残っている。`unobserve()` は配送済み entries を取り消さ
+            // ないため、entry ごとに `once_done` を確認してスキップしないと
+            // 退出処理が `data-in-view` を誤って削除する（イシュー #2396
+            // codex-review P1 是正）。
+            if once_done.has(&target) {
+                continue;
+            }
             if entry.is_intersecting() {
                 if set_dom_attribute(&target, IN_VIEW_ATTR, "").is_err() {
                     continue;
