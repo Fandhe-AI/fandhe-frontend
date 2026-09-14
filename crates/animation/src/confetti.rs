@@ -447,15 +447,27 @@ mod tests {
 
     #[test]
     fn duration_clamps_nan_and_out_of_range() {
+        // sim.step(MAX_DURATION_SECS) は 1 回の呼び出しが内部で
+        // dt.min(MAX_STEP_DT) へさらに clamp されるため、1 回だけ渡しても
+        // elapsed は MAX_STEP_DT 分（約 0.033 秒）しか進まない。これでは
+        // duration_secs が 999.0 のまま clamp されなくても is_finished()
+        // が常に false になり、clamp 挙動を判別できない（恒真テストに
+        // なる）。MAX_STEP_DT 刻みで MAX_DURATION_SECS 分の時間が経過する
+        // まで繰り返し step し、実際に経過した elapsed で clamp 後の
+        // duration_secs（MAX_DURATION_SECS）へ到達したことを確認する。
         let too_long = ConfettiConfig {
             duration_secs: 999.0,
             ..ConfettiConfig::default()
         };
         let mut sim = ConfettiSim::spawn(&too_long, 1);
-        sim.step(MAX_DURATION_SECS);
+        let steps = (MAX_DURATION_SECS / MAX_STEP_DT).ceil() as u32 + 1;
+        for _ in 0..steps {
+            sim.step(MAX_STEP_DT);
+        }
         assert!(
-            !sim.is_finished(),
-            "duration_secs は MAX_DURATION_SECS へ clamp されるはず"
+            sim.is_finished(),
+            "duration_secs は MAX_DURATION_SECS へ clamp され、\
+             MAX_DURATION_SECS 分経過後は発火完了しているはず"
         );
 
         let nan = ConfettiConfig {
