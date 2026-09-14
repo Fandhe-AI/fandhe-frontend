@@ -130,6 +130,288 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   max-height: var(--fandhe-select-content-max-height, 16rem);
 }
 
+[data-scope="select"][data-part="content"] {
+  opacity: 1;
+  transition-property: opacity, transform, display;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
+}
+
+[data-scope="select"][data-part="item-group-label"] {
+  color: var(--fandhe-color-fg-muted);
+  font-size: var(--fandhe-font-font-size-xs);
+  padding: var(--fandhe-space-2) var(--fandhe-space-3);
+}
+
+[data-scope="select"][data-part="item"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
+  padding: var(--fandhe-select-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
+  cursor: pointer;
+  border-radius: var(--fandhe-radius-sm);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="select"][data-part="item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="select"][data-part="item-indicator"] {
+  margin-left: auto;
+}
+
+[data-scope="select"][data-part="hidden-select"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+[data-scope="select"][data-part="separator"] {
+  height: 1px;
+  background: var(--fandhe-color-border-muted);
+  margin: var(--fandhe-space-1) calc(-1 * var(--fandhe-select-content-padding, var(--fandhe-space-2)));
+  pointer-events: none;
+}
+
+[data-scope="select"][data-part="scroll-up-button"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  padding: var(--fandhe-space-1) 0;
+  margin: 0 calc(-1 * var(--fandhe-select-content-padding, var(--fandhe-space-2)));
+  position: sticky;
+  top: 0;
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg-muted);
+  z-index: 1;
+}
+
+[data-scope="select"][data-part="scroll-down-button"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  padding: var(--fandhe-space-1) 0;
+  margin: 0 calc(-1 * var(--fandhe-select-content-padding, var(--fandhe-space-2)));
+  position: sticky;
+  bottom: 0;
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg-muted);
+  z-index: 1;
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-xs {
+  --fandhe-select-trigger-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
+  --fandhe-select-item-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
+  --fandhe-select-content-padding: var(--fandhe-space-0-5);
+  --fandhe-select-content-max-height: 8rem;
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-sm {
+  --fandhe-select-trigger-padding: var(--fandhe-space-1) var(--fandhe-space-2);
+  --fandhe-select-item-padding: var(--fandhe-space-1) var(--fandhe-space-2);
+  --fandhe-select-content-padding: var(--fandhe-space-1);
+  --fandhe-select-content-max-height: 12rem;
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-md {
+  --fandhe-select-trigger-padding: var(--fandhe-space-2) var(--fandhe-space-3);
+  --fandhe-select-item-padding: var(--fandhe-space-2) var(--fandhe-space-3);
+  --fandhe-select-content-padding: var(--fandhe-space-2);
+  --fandhe-select-content-max-height: 16rem;
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-lg {
+  --fandhe-select-trigger-padding: var(--fandhe-space-3) var(--fandhe-space-4);
+  --fandhe-select-item-padding: var(--fandhe-space-3) var(--fandhe-space-4);
+  --fandhe-select-content-padding: var(--fandhe-space-3);
+  --fandhe-select-content-max-height: 20rem;
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-xl {
+  --fandhe-select-trigger-padding: var(--fandhe-space-4) var(--fandhe-space-5);
+  --fandhe-select-item-padding: var(--fandhe-space-4) var(--fandhe-space-5);
+  --fandhe-select-content-padding: var(--fandhe-space-4);
+  --fandhe-select-content-max-height: 24rem;
+}
+
+[data-scope="select"][data-part="trigger"][data-state="open"] {
+  border-color: var(--fandhe-color-accent);
+}
+
+[data-scope="select"][data-part="item"][data-state="open"] {
+  background: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="select"][data-part="item"][data-highlighted] {
+  background: var(--fandhe-color-accent);
+  color: var(--fandhe-color-accent-fg);
+}
+
+[data-scope="select"][data-part="item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="select"][data-part="trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="select"][data-part="trigger"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+
+[data-scope="select"][data-part="trigger"][data-readonly] {
+  cursor: default;
+}
+
+[data-scope="select"][data-part="trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="select"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
+}
+
+[data-scope="select"][data-part="clear-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="select"][data-part="value-text"][data-placeholder-shown] {
+  color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="select"][data-part="indicator"][data-state="open"] {
+  transform: rotate(180deg);
+}
+
+[data-scope="select"][data-part="positioner"][data-positioned] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  margin-top: 0;
+  transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
+}
+
+[data-scope="select"][data-part="content"][hidden] {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+@starting-style {
+  [data-scope="select"][data-part="content"] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+@media (hover: hover) {
+  [data-scope="select"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="select"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+}
+"#;
+
+/// #2391 直前（`presence_transition` 適用前）の golden CSS 全文。純追加
+/// 検証（`select_pre_2391_blocks_remain_verbatim`）専用の固定値であり、
+/// このイシューの実装がこの内容を verbatim で保っていることを裏付ける
+/// （`accordion_css.rs::ACCORDION_GOLDEN_CSS_BEFORE_2192` と同型）。
+const SELECT_GOLDEN_CSS_BEFORE_2391: &str = r#"[data-scope="select"][data-part="root"] {
+  position: relative;
+}
+
+[data-scope="select"][data-part="label"] {
+  display: block;
+  color: var(--fandhe-color-fg);
+  font-size: var(--fandhe-font-font-size-sm);
+  margin-bottom: var(--fandhe-space-1);
+}
+
+[data-scope="select"][data-part="control"] {
+  display: inline-flex;
+}
+
+[data-scope="select"][data-part="trigger"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fandhe-space-2);
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
+  cursor: pointer;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="select"][data-part="trigger"] {
+  transition-property: border-color, background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="select"][data-part="value-text"] {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-scope="select"][data-part="clear-trigger"] {
+  cursor: pointer;
+  color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="select"][data-part="indicator"] {
+  display: inline-block;
+  color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="select"][data-part="indicator"] {
+  transition-property: transform;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="select"][data-part="positioner"] {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  margin-top: var(--fandhe-space-1);
+}
+
+[data-scope="select"][data-part="content"] {
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  box-shadow: var(--fandhe-shadow-md);
+  padding: var(--fandhe-select-content-padding, var(--fandhe-space-2));
+  min-width: var(--fandhe-reference-width, auto);
+  overflow-y: auto;
+  max-height: var(--fandhe-select-content-max-height, 16rem);
+}
+
 [data-scope="select"][data-part="item-group-label"] {
   color: var(--fandhe-color-fg-muted);
   font-size: var(--fandhe-font-font-size-xs);
@@ -482,6 +764,14 @@ fn golden_prefix_through_hidden_select_is_unchanged() {
   max-height: var(--fandhe-select-content-max-height, 16rem);
 }
 
+[data-scope="select"][data-part="content"] {
+  opacity: 1;
+  transition-property: opacity, transform, display;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
+}
+
 [data-scope="select"][data-part="item-group-label"] {
   color: var(--fandhe-color-fg-muted);
   font-size: var(--fandhe-font-font-size-xs);
@@ -521,4 +811,57 @@ fn golden_prefix_through_hidden_select_is_unchanged() {
 }
 "#;
     assert!(select::stylesheet().starts_with(GOLDEN_PREFIX_THROUGH_HIDDEN_SELECT));
+}
+
+/// イシュー #2391 純追加検証: #2391 直前の CSS 全文（`_BEFORE_2391`）に含まれる
+/// 各ブロック（空行区切り）が現行 `stylesheet()` の中に連続する部分文字列
+/// として残っていることを固定する（`content` の 2 個目 base ブロック・
+/// `[hidden]` state・`@starting-style` ブロックの 3 ブロック純追加であり、
+/// 既存ブロックの内容・順序が一切変わっていないことの機械的な裏付け、
+/// `accordion_css.rs::accordion_pre_2192_blocks_remain_verbatim` と同型）。
+#[test]
+fn select_pre_2391_blocks_remain_verbatim() {
+    let css = select::stylesheet();
+    for section in SELECT_GOLDEN_CSS_BEFORE_2391.split("\n\n") {
+        assert!(
+            css.contains(section),
+            "#2391 以前から存在するブロックが verbatim で残っていない: {section}"
+        );
+    }
+}
+
+/// イシュー #2391: `content` に `presence_transition` の宣言（base の
+/// `opacity: 1` + `transition-property` 3 プロパティ・`[hidden]` state・
+/// `@starting-style` の enter 初期値）が出力され、かつ既存の
+/// `overflow-y`/`max-height`（イシュー #2019）が変わっていないことを固定する。
+#[test]
+fn content_has_presence_transition_declarations() {
+    let css = select::stylesheet();
+    assert!(css.contains(
+        r#"[data-scope="select"][data-part="content"] {
+  opacity: 1;
+  transition-property: opacity, transform, display;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
+}"#
+    ));
+    assert!(css.contains(
+        r#"[data-scope="select"][data-part="content"][hidden] {
+  opacity: 0;
+  transform: scale(0.95);
+}"#
+    ));
+    assert!(css.contains(
+        r#"@starting-style {
+  [data-scope="select"][data-part="content"] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}"#
+    ));
+    // #2019 の overflow/max-height 宣言が presence_transition と衝突せず
+    // 変わっていないことも併せて確認する。
+    assert!(css.contains("overflow-y: auto;"));
+    assert!(css.contains("max-height: var(--fandhe-select-content-max-height, 16rem);"));
 }

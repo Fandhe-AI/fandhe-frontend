@@ -266,6 +266,27 @@
 //! - **`label` の `data-required` 視覚化は見送る（決定として確定）**:
 //!   `field::required_indicator` による表現へ統一する Forms 家族横断規則
 //!   （R2）であり、CSS 生成コンテンツは追加しない
+//!
+//! # presence_transition 適用（イシュー #2391）
+//!
+//! [`crate::recipe::SlotRecipe::presence_transition`]（#2383 で実装済みの
+//! transition ベース preset。`motion` feature を経由しない既定出力）を
+//! `content` slot へ適用し、開閉時にフェード + 軽いスケールの enter/exit
+//! アニメーションを付与する。
+//!
+//! - **衝突なし**: `content` は #2019 で `overflow-y: auto` +
+//!   `max-height`（`--fandhe-select-content-max-height`）を持つが、
+//!   `presence_transition` が宣言するのは `opacity`/`transform`/
+//!   `transition-*` のみであり交差しない。
+//! - **duration は `Fast`**: `trigger` の border-color/background・
+//!   `indicator` の transform 遷移が既に `MotionDuration::Fast` を使う
+//!   既存の視覚言語に揃える（tooltip/hover_card と同じ選定根拠）。
+//! - **exit 方向は positioner の `display: none` に隠れる**: `positioner`
+//!   自体は `presence_transition` を持たないため、閉じる際は祖先の UA
+//!   既定 `display: none` が即座に効き、`content` の exit アニメーションは
+//!   実質視覚化されない（tooltip/hover_card と同じ既知の制約、
+//!   `docs/design/collapsible-height-animation.md` §12.3 の再評価トリガーに
+//!   委ねる）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -749,6 +770,16 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(Size::Md)
+        // イシュー #2391: `content` へ presence（enter/exit）のフェード +
+        // scale トランジションを適用する。duration は select 内の他の
+        // トランジション（`trigger`/`indicator`）が軒並み
+        // `MotionDuration::Fast` を使う既存の視覚言語に合わせて選ぶ
+        // （tooltip/hover_card と同じ選定根拠、上記「presence_transition
+        // 適用（イシュー #2391）」節参照）。`content` は `overflow-y: auto`
+        // + `max-height`（イシュー #2019）を既に持つが、
+        // `presence_transition` が宣言するのは `opacity`/`transform`/
+        // `transition-*` のみで交差しないため衝突しない。
+        .presence_transition("content", MotionDuration::Fast)
 }
 
 /// この styled Select が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
