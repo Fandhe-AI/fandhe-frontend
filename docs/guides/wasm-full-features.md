@@ -85,6 +85,17 @@ coding-rust.md` #638 条項に従い +1 して 0.29.0 で合流、イシュー
 受け取り、canvas への cast は `fandhe-frontend-animation` 側で完結する
 設計。SignaturePad 由来の「canvas を使わない」方針を維持）。
 
+0.29.0（イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の
+版数衝突の再バンプ）で `scroll-driver` の挙動を拡張し、
+`data-fandhe-scroll-progress` 属性値により進捗の計算範囲を選べるように
+なりました（新規 feature の追加は伴いません）。`""`（存在マーカーのみ）・
+`"entry"` は従来どおりの entry 進捗、`"cover"`/`"contain"` は
+`fandhe-frontend-pre-styled-ui` の `SlotRecipe::parallax`/
+`SlotRecipe::sticky_progress` のネイティブ範囲（`animation-range: cover
+0% cover 100%`/`contain 0% contain 100%`）に対応するフォールバック進捗を
+書き込みます。未知の属性値は `"entry"` へ fail-closed します
+（`fandhe_frontend_wasm_full::scroll_driver::progress_range_from_attr`）。
+
 `position` feature（0.20.1 で追加）はこの表とは別枠です。
 `headless::wire_headless_component` 内の自動 positioning 呼び出し
 （`ensure_global_controller`・配線時/dispatch 後の `reposition_within`）
@@ -202,7 +213,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.26.0 | `gesture` feature（イシュー #2520。main の #2515/#2400/#2398/#2403/#2517 取り込みに伴う版数衝突の再バンプ、PR #2555） |
 | 0.27.0 | `scroll-driver` feature（イシュー #2521） |
 | 0.28.0 | `confetti` feature（イシュー #2533） |
-| 0.29.0 | `drag-gesture` feature（イシュー #2535。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ、`.claude/rules/coding-rust.md` #638 条項） |
+| 0.30.0 | `drag-gesture` feature（イシュー #2535）・`scroll-driver` の挙動拡張（`data-fandhe-scroll-progress`、イシュー #2534）。本 PR（#2535）と main（#2534）が独立に 0.28.0 から 0.29.0 へ同一版数バンプしており衝突。`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して 0.30.0 とした |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。

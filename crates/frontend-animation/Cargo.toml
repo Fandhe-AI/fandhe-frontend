@@ -28,8 +28,16 @@ name = "fandhe-frontend-animation"
 #
 # マージコミット注記: 本 PR（#2535）と origin/main（#2533）が独立に
 # 0.4.0 から 0.5.0 へ minor バンプしており同値衝突。#638 条項の「同一
-# 版数も衝突として +1」運用に従い、さらに +1 して 0.6.0 とする。
-version = "0.6.0"
+# 版数も衝突として +1」運用に従い、さらに +1 して 0.6.0 とした。
+#
+# イシュー #2534（origin/main、本マージで判明した並行衝突）:
+# `ProgressRange`/`compute_progress_for_range`/
+# `update_element_progress_for_range` を新設。新規公開 API 追加のため
+# minor バンプ。origin/main 側は #2533 到達分と合流して 0.5.0 から
+# 0.6.0 へ独立に minor バンプしており、本 PR の上記 0.6.0 と同一版数へ
+# 再度衝突した。#638 条項の「同一版数も衝突として +1」運用に従い、さらに
+# +1 して 0.7.0 とする。
+version = "0.7.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

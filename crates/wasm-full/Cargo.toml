@@ -1180,8 +1180,18 @@ name = "fandhe-frontend-wasm-full"
 #
 # マージコミット注記: 本 PR（#2535）と origin/main（#2533）が独立に main
 # 起点の到達値から 0.28.0 へ同一版数バンプしており衝突。#638 条項の
-# 「同一版数も衝突として +1」運用に従い、さらに +1 して 0.29.0 とする。
-version = "0.29.0"
+# 「同一版数も衝突として +1」運用に従い、さらに +1 して 0.29.0 とした。
+#
+# イシュー #2534（origin/main、本マージで判明した並行衝突）:
+# `progress_range_from_attr`（新規公開 API）を追加し、
+# `data-fandhe-scroll-progress` 属性値による進捗範囲（entry/cover/
+# contain）選択を配線した。既存 feature `scroll-driver` の挙動拡張であり
+# 新規 feature は追加していない。新規公開 API 追加のため minor バンプ
+# する。origin/main 側は #2533 到達分と合流して 0.28.0 から 0.29.0 へ
+# 独立に minor バンプしており、本 PR の上記 0.29.0 と同一版数へ再度
+# 衝突した。#638 条項の「同一版数も衝突として +1」運用に従い、さらに
+# +1 して 0.30.0 とする。
+version = "0.30.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1459,9 +1469,11 @@ js-sys = "0.3"
 # `confetti` モジュール新設）への `version` 要求追随。
 #
 # マージコミット注記: `fandhe-frontend-animation` 自身が本マージで
-# 0.5.0 → 0.6.0 へ衝突 +1 バンプされたため、`version` 要求も追随する
-# （`cargo run -p xtask -- check-dep-versions --fix`）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.6.0", optional = true }
+# 0.5.0 → 0.6.0 へ衝突 +1 バンプされたのち、さらに origin/main（#2534/
+# #2533）との並行衝突により 0.6.0 → 0.7.0 へ再度 +1 バンプされたため、
+# `version` 要求も追随する（`cargo run -p xtask -- check-dep-versions
+# --fix`）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.7.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の

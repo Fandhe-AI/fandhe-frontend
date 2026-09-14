@@ -249,7 +249,7 @@ use fandhe_frontend_pre_styled_ui::{
 // `fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS` は使わない
 // （[`DOCS_MOTION_DEMO_KEYFRAMES_CSS`] doc コメント参照）。
 use fandhe_frontend_pre_styled_ui::decl;
-use fandhe_frontend_pre_styled_ui::recipe::{stagger_index_style, MotionDuration};
+use fandhe_frontend_pre_styled_ui::recipe::{stagger_index_style, MotionDuration, ParallaxSpeed};
 // styled `questionnaire` の状態機械（`Questionnaire`/`QuestionProps`）は
 // headless-ui 側から直接 import する（`crate::questionnaire` は状態機械を
 // 再エクスポートしない、モジュール doc 「全パーツが `state: &Questionnaire`
@@ -2321,6 +2321,8 @@ fn list_section() -> Node {
             ]),
             scroll_reveal_demo(),
             stagger_demo(),
+            parallax_demo(),
+            sticky_progress_demo(),
         ],
     )
 }
@@ -2354,17 +2356,27 @@ const DOCS_MOTION_DEMO_KEYFRAMES_CSS: &str =
 /// 適用する。両 slot は同一 scope を共有するがセレクタは `[data-part]`
 /// で分離されるため相互に干渉しない。
 fn docs_motion_demo_recipe() -> SlotRecipe {
-    SlotRecipe::new("docs-motion-demo", &["reveal-item", "stagger-item"])
-        .scroll_reveal("reveal-item")
-        .base(
+    SlotRecipe::new(
+        "docs-motion-demo",
+        &[
+            "reveal-item",
             "stagger-item",
-            vec![
-                decl("animation-name", "fd-docs-motion-demo-fade-in"),
-                decl("animation-duration", "var(--fandhe-motion-duration-normal)"),
-                decl("animation-fill-mode", "backwards"),
-            ],
-        )
-        .stagger_delay("stagger-item", MotionDuration::Fast)
+            "parallax-item",
+            "sticky-item",
+        ],
+    )
+    .scroll_reveal("reveal-item")
+    .base(
+        "stagger-item",
+        vec![
+            decl("animation-name", "fd-docs-motion-demo-fade-in"),
+            decl("animation-duration", "var(--fandhe-motion-duration-normal)"),
+            decl("animation-fill-mode", "backwards"),
+        ],
+    )
+    .stagger_delay("stagger-item", MotionDuration::Fast)
+    .parallax("parallax-item", ParallaxSpeed::Normal)
+    .sticky_progress("sticky-item")
 }
 
 /// scroll-driven reveal（イシュー #2385/#2499）の JS 不要な実演
@@ -2452,6 +2464,86 @@ fn stagger_demo() -> Node {
                 )],
             ),
             div(vec![("class", "showcase-stagger-list")], items),
+        ],
+    )
+}
+
+/// scroll-linked parallax（イシュー #2534）の JS 不要な実演。
+///
+/// `@supports (animation-timeline: view())` に対応するブラウザでは、
+/// 行がビューポートを通過する間 `translate` が線形に変化する
+/// （[`SlotRecipe::parallax`] 参照）。docs-site は JS ハイドレーションを
+/// 行わない（本クレート冒頭 doc・`crate::nav` header_nav rustdoc参照）ため、
+/// `data-fandhe-scroll-progress` 属性は付与しない（JS フォールバックは
+/// docs-site では動作しないため、無意味な属性付与を避ける判断。
+/// `SlotRecipe::parallax` doc の契約参照）。非対応ブラウザでは `@supports`
+/// ブロックごと無視され、要素は静止したまま安全に劣化する。
+fn parallax_demo() -> Node {
+    div(
+        vec![],
+        vec![
+            el(
+                "h3",
+                vec![],
+                vec![text("Demo: scroll-linked parallax（JS 不要）")],
+            ),
+            p(
+                vec![],
+                vec![text(
+                    "対応ブラウザではスクロールに応じて行が上方向へ視差移動します。\
+                     非対応ブラウザでは `@supports` ブロックごと無視され、常に静止したまま安全に劣化します（JS 不要）。",
+                )],
+            ),
+            div(
+                vec![("class", "showcase-scroll-reveal-list")],
+                vec![div(
+                    vec![
+                        ("data-scope", "docs-motion-demo"),
+                        ("data-part", "parallax-item"),
+                        ("class", "showcase-scroll-reveal-item"),
+                    ],
+                    vec![text("Parallax layer")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// scroll-linked sticky progress（イシュー #2534）の JS 不要な実演。
+///
+/// 対応ブラウザでは要素がビューポートに完全収まっている間
+/// （`view()` timeline の `contain` 相当区間）`opacity`/`scale` が変化する
+/// （[`SlotRecipe::sticky_progress`] 参照）。`position: sticky` はここでは
+/// 付与しない（`sticky_progress` doc の「呼び出し側の責務」契約どおり、
+/// 単純な in-view 強調表示として実演する）。`parallax_demo` と同じ理由で
+/// `data-fandhe-scroll-progress` 属性は付与しない。
+fn sticky_progress_demo() -> Node {
+    div(
+        vec![],
+        vec![
+            el(
+                "h3",
+                vec![],
+                vec![text("Demo: scroll-linked sticky progress（JS 不要）")],
+            ),
+            p(
+                vec![],
+                vec![text(
+                    "対応ブラウザではビューポートに完全に収まっている間、行が強調表示（不透明度・拡大率）へ変化します。\
+                     非対応ブラウザでは `@supports` ブロックごと無視され、常に通常表示のまま安全に劣化します（JS 不要）。",
+                )],
+            ),
+            div(
+                vec![("class", "showcase-scroll-reveal-list")],
+                vec![div(
+                    vec![
+                        ("data-scope", "docs-motion-demo"),
+                        ("data-part", "sticky-item"),
+                        ("class", "showcase-scroll-reveal-item"),
+                    ],
+                    vec![text("Sticky progress row")],
+                )],
+            ),
         ],
     )
 }
