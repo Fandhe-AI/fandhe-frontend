@@ -292,14 +292,29 @@ mod wiring {
     }
 
     /// `pointer_id` の追跡を解除し、[`DragController::on_release`]・
-    /// [`DRAGGING_STATE_ATTR`] 除去を行う（`handle_pointerup_or_cancel`・
-    /// 下記 stale ガードの共通処理）。追跡が無ければ no-op。
+    /// [`DRAGGING_STATE_ATTR`] 除去・pointer capture 解放を行う
+    /// （`handle_pointerup_or_cancel`・下記 stale ガード・[`handle_keydown`]
+    /// の中断経路の共通処理）。追跡が無ければ no-op。
+    ///
+    /// # pointer capture を明示解放する（codex-review/Cursor Bugbot 是正
+    /// 「Keyboard nudge desyncs pointer drag」、PR #2565）
+    ///
+    /// 実際の `pointerup`/`pointercancel` イベント発火時は UA が自動で
+    /// capture を解放するため、この明示呼び出しは本来冗長である
+    /// （`release_pointer_capture` は対象 `pointer_id` を capture して
+    /// いない要素へ呼んでも仕様上無害）。しかし [`handle_keydown`] が
+    /// キーボード nudge によるポインタドラッグ中断で本関数を呼ぶ経路
+    /// では実イベントが発火しないため、ここで明示解放しないと要素が
+    /// pointer capture を保持し続け、以降その要素へ到達する `pointermove`
+    /// が（`root` に配線した委譲リスナーではなく）capture 先要素へ直接
+    /// 配送される異常な配送経路が残る。
     fn release_drag(pointer_id: i32, active: &ActiveDrags) {
         let Some((drag_element, controller)) = active.borrow_mut().remove(&pointer_id) else {
             return;
         };
         controller.borrow_mut().on_release();
         let _ = drag_element.remove_attribute(DRAGGING_STATE_ATTR);
+        let _ = drag_element.release_pointer_capture(pointer_id);
     }
 
     /// `pointermove`: 追跡中の `pointer_id` のみ
@@ -367,7 +382,30 @@ mod wiring {
     /// `keydown`: フォーカス中の opt-in 要素上で矢印キーが押されたら
     /// [`DragController::nudge`] を呼ぶ。編集可能要素上（`gesture.rs` と
     /// 同じ理由）は発火しない。
-    fn handle_keydown(root: &Element, event: &Event) {
+    ///
+    /// # 進行中の pointer ドラッグを配線層の状態ごと中断する（codex-review
+    /// P1・Cursor Bugbot 是正「Keyboard nudge desyncs pointer drag」、
+    /// PR #2565）
+    ///
+    /// [`DragController::nudge`] はコントローラ内部の `start`（ドラッグ
+    /// 起点）を無条件に `None` へ戻すため、同一要素を追跡中の pointer
+    /// ドラッグがあると、以降その `pointer_id` の `pointermove` は
+    /// [`DragController::on_pointer_move`] 側の `start.is_none()` ガードで
+    /// 無視され、続く `pointerup`/`pointercancel` も
+    /// [`DragController::on_release`] 側の同ガードで無視されるように
+    /// なる。しかし [`handle_pointerup_or_cancel`] は常に呼ばれる
+    /// [`release_drag`] 経由で `active` マップのエントリ・
+    /// [`DRAGGING_STATE_ATTR`]・pointer capture を無条件に外そうとする
+    /// ため、コントローラ側だけが nudge で `None` に戻り、配線層
+    /// （`active`・属性・capture）は取り残されて不整合になる（`active` に
+    /// 残った `pointer_id` は [`handle_pointerdown`] の `already_tracked`
+    /// 判定により、別ポインタでの同要素への新規ドラッグ開始も拒否され
+    /// 続ける）。nudge を適用する前に `active` から同一要素を追跡する
+    /// エントリを探し、見つかれば [`release_drag`] で先に正規の解放
+    /// （`on_release` の spring 計算・属性除去・capture 解放）を済ませて
+    /// から nudge を適用することで、コントローラ・配線層の両方を同じ
+    /// タイミングで一致させる。
+    fn handle_keydown(root: &Element, event: &Event, active: &ActiveDrags) {
         let Some(keyboard_event) = event.dyn_ref::<KeyboardEvent>() else {
             return;
         };
@@ -386,6 +424,14 @@ mod wiring {
         let Some(controller) = controller_for(&drag_element) else {
             return;
         };
+        let interrupted_pointer_id = active
+            .borrow()
+            .iter()
+            .find(|(_, (existing, _))| existing.is_same_node(Some(&drag_element)))
+            .map(|(pointer_id, _)| *pointer_id);
+        if let Some(pointer_id) = interrupted_pointer_id {
+            release_drag(pointer_id, active);
+        }
         measure_and_apply_constraint(root, &drag_element, &controller);
         controller.borrow_mut().nudge(Vec2 {
             x: dx * DRAG_KEYBOARD_STEP_PX,
@@ -537,8 +583,9 @@ mod wiring {
         pointerup_or_cancel_closure.forget();
 
         let keydown_root = root.clone();
+        let keydown_active = Rc::clone(&active);
         let keydown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_keydown(&keydown_root, &event);
+            handle_keydown(&keydown_root, &event, &keydown_active);
         });
         root.add_event_listener_with_callback_and_bool(
             "keydown",

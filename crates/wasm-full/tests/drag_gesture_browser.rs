@@ -389,3 +389,66 @@ fn pointerdown_with_stale_same_pointer_id_self_heals() {
         "起点は再 pointerdown 時の座標 (5, 5) で更新されているべき: x={x}"
     );
 }
+
+/// codex-review P1・Cursor Bugbot 是正の回帰「Keyboard nudge desyncs
+/// pointer drag」（PR #2565）: pointer ドラッグ進行中に矢印キーで nudge
+/// すると、`handle_keydown` が配線層（`active` マップ・
+/// `DRAGGING_STATE_ATTR`）を先に正規解放してから nudge を適用するため、
+/// 中断後の pointerup も新規 pointerdown も正常に機能する。
+#[wasm_bindgen_test]
+fn keyboard_nudge_interrupts_pointer_drag_without_desync() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, draggable) = build_dom(&document, "drag-keyboard-interrupt-root");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_drag_gesture(root.clone()).expect("wire_drag_gesture must not fail");
+
+    // pointer ドラッグを開始し、途中まで移動する。
+    draggable
+        .dispatch_event(&pointer_event("pointerdown", 41, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    root.dispatch_event(&pointer_event_with_buttons("pointermove", 41, 10.0, 0.0, 1))
+        .expect("dispatch_event must not fail");
+    assert!(
+        draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "pointer ドラッグ中は dragging 状態を持つべき"
+    );
+
+    // ドラッグ中に矢印キーで nudge する。
+    dispatch_key(&draggable, "keydown", "ArrowRight");
+
+    // nudge が中断済み pointer ドラッグの配線状態を正規解放するため、
+    // dragging 状態は外れているべき（コントローラ側だけが解放され配線層
+    // が取り残される不整合の回帰）。
+    assert!(
+        !draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "キーボード nudge は進行中の pointer ドラッグを解放し dragging 状態を外すべき"
+    );
+
+    // 中断前の移動量 (10) の上に nudge 1 ステップ分が積まれているはず。
+    let x_after_nudge = custom_property_px(&draggable, DRAG_X_PROPERTY).unwrap_or(0.0);
+    assert!(
+        x_after_nudge > 10.0,
+        "nudge は中断前の位置の上に加算されるべき: x_after_nudge={x_after_nudge}"
+    );
+
+    // 中断済みの pointer_id での pointerup は「追跡なし」の no-op となり
+    // dragging 状態を壊さない（release_drag が既に active から除去済み）。
+    root.dispatch_event(&pointer_event("pointerup", 41, 10.0, 0.0))
+        .expect("dispatch_event must not fail");
+    assert!(
+        !draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "中断済み pointer_id の pointerup 後も dragging 状態は付かないべき"
+    );
+
+    // 中断で active マップのエントリが正しく除去されていれば、同じ
+    // pointer_id で新規ドラッグを開始できる（配線層が取り残されていると
+    // `already_tracked` 判定で新規 pointerdown が拒否される回帰）。
+    draggable
+        .dispatch_event(&pointer_event("pointerdown", 41, 20.0, 20.0))
+        .expect("dispatch_event must not fail");
+    assert!(
+        draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "中断後は同じ pointer_id でも新規ドラッグを開始できるべき"
+    );
+}
