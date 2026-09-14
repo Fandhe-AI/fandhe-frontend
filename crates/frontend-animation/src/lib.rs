@@ -38,6 +38,10 @@
 //!
 //! # 現状
 //!
-//! crate 雛形のみ（イシュー #2417）。rAF Driver / DOM Target / WAAPI / FLIP /
-//! SVG path / scroll 等の実装は Phase 4 の各後続 issue で追加する
-//! （`docs/design/animation-core-architecture.md` §6.2 参照）。
+//! rAF Driver（[`raf_driver::RafDriver`]）・DOM Target
+//! （[`dom_target::DomTarget`]）を実装済み（イシュー #2403/#2517）。
+//! WAAPI / FLIP / SVG path / scroll 等の実装は Phase 4 の各後続 issue で
+//! 追加する（`docs/design/animation-core-architecture.md` §6.2 参照）。
+
+pub mod dom_target;
+pub mod raf_driver;

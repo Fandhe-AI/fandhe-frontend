@@ -871,6 +871,16 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test in_view_browser
 
+      # イシュー #2403/#2517: rAF Driver（fandhe-frontend-animation::raf_driver）+
+      # DOM Target（dom_target）で spring を実ブラウザ上で駆動し収束することを
+      # 確認する統合デモ。対象クレートは crates/wasm-full/ とは別（crates/
+      # frontend-animation/）だが、wasm32 target 追加・wasm-pack/wasm-bindgen
+      # 導入・Chrome/chromedriver セットアップは同一ジョブ内で共有するため、
+      # 既存 check-wasm-full 存在ガードを再利用し新規ガードは追加しない。
+      - name: "wasm-pack test: fandhe-frontend-animation (spring via RafDriver+DomTarget, #2403)"
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/frontend-animation
+
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
   # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が
@@ -2290,6 +2300,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,stagger --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: in-view, issue #2396)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,in-view --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: animation-driver, issue #2403)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,animation-driver --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
   # イシュー #2328: scope feature（イシュー #2327 で新設した MAPPING_TABLE
   # 行・keynav match arm 単位の 16 件）を `wasm-bindgen-exports` のみと

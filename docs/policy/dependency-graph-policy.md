@@ -329,7 +329,10 @@ deps-check: packages=19/60 depth=9/6 result=FAIL  (参考値、計測対象外)
 第 4 節の計測対象（`deps-check.yml` の `check-deps`/`list-build-scripts`）に**追加しない**。
 外部依存を持つため `ZERO_DEP_CRATES`（第 2/3 節）にも登録しない。
 
-`fandhe-frontend-wasm-full` が本クレートを optional 依存として取り込んでも（既定 off）、
-標準サーバー構成の実体である `fandhe-frontend-dist-server` の実測（`packages=21/60 depth=5/6
-result=PASS`）は本 PR で不変であることを確認済み（`fandhe-frontend-dist-server` は
-`fandhe-frontend-wasm-full` に依存しないため、そもそも影響を受けない）。
+`fandhe-frontend-wasm-full` が本クレートを optional 依存として取り込み、イシュー
+#2403/#2517 で新設した `animation-driver` feature（既定 on）で有効化するように
+なった後も、標準サーバー構成の実体である `fandhe-frontend-dist-server` の実測
+（`packages=21/60 depth=5/6 result=PASS`）は不変であることを確認済み
+（`fandhe-frontend-dist-server` は `fandhe-frontend-wasm-full` に依存せず、配布 WASM の
+feature 集合〔`crates/dist-server/src/wasm_dist_features.rs::WASM_DIST_FEATURES`〕にも
+`animation-driver` を含めないため、そもそも影響を受けない）。

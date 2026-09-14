@@ -75,6 +75,13 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 し、`stagger_index` モジュール自体・公開関数（`stagger_index_value`）は
 ゲート対象外です。
 
+`animation-driver` feature（0.22.0 で追加、イシュー #2403/#2517）も同じく
+別枠です。`fandhe-frontend-animation`（rAF Driver・DOM Target）を optional
+依存として有効化し、`animation_driver` モジュール（`fandhe-frontend-animation`
+の型の薄い再公開のみ）を公開します。`Runtime::mount`/`hydrate` からの
+新規呼び出しは伴いません。`data-*` 属性からの実消費配線は後続 issue
+（親トラッキング #2508）が追加します。
+
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
 feature 名は `headless::MAPPING_TABLE` の `scope` 文字列と一致します
@@ -138,11 +145,12 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.20.5 | `message-scroller` feature（イシュー #2122） |
 | 0.20.8 | `data-table` feature（イシュー #2126） |
 | 0.21.0 | `stagger` feature（イシュー #2397）・`in-view` feature（イシュー #2396） |
+| 0.22.0 | `animation-driver` feature（イシュー #2403/#2517） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 36 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 37 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
@@ -170,6 +178,7 @@ features = [
   "in-view",
   "position",
   "stagger",
+  "animation-driver",
   "accordion",
   "calendar",
   "collapsible",

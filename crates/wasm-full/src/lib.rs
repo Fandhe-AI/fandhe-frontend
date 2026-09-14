@@ -235,6 +235,13 @@
 //! も `Runtime::mount`/`hydrate` の配線群呼び出しではない（`dirty` 更新
 //! 経路から呼ばれる）ため上記対応表には含めない。
 //!
+//! [`animation_driver`] モジュール（イシュー #2403/#2517）も `position`/
+//! `stagger` と同型の別枠 feature を持つ。`"animation-driver"`（既定 on）は
+//! `dep:fandhe-frontend-animation` を有効化し [`animation_driver`] モジュール
+//! （`fandhe-frontend-animation` の rAF Driver・DOM Target の薄い再公開）を
+//! 公開するだけで、`Runtime::mount`/`hydrate` からの新規呼び出しは伴わない
+//! （上記対応表には含めない）。
+//!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
 //! `default-features = false` を使う利用者は上記 17 配線を失う
@@ -254,7 +261,9 @@
 //! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
 //! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
 //! 同型の別枠 feature、既定 18 件目として `default` 配列に列挙されて
-//! いる）。
+//! いる）。同様に [`animation_driver`] モジュールを維持するには
+//! `"animation-driver"` も列挙に含めること（`position`/`stagger` と同型の
+//! 別枠 feature、既定 19 件目として `default` 配列に列挙されている）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
@@ -376,6 +385,8 @@
 #![deny(unsafe_code)]
 
 pub mod angle_slider;
+#[cfg(feature = "animation-driver")]
+pub mod animation_driver;
 pub mod chart;
 pub mod chart_range;
 pub mod command;

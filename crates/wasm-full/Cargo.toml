@@ -1109,7 +1109,12 @@ name = "fandhe-frontend-wasm-full"
 # 破壊的変更、イシュー #2122 の 0.18.4→0.19.0 と同型）ため minor バンプ
 # する（origin/main の #2397 minor バンプと到達値が一致するため
 # バージョン番号自体は変更なし）。
-version = "0.21.0"
+#
+# イシュー #2403/#2517: 新規デフォルト on の feature `animation-driver`
+# （`dep:fandhe-frontend-animation`）と新規公開モジュール
+# `animation_driver`（`fandhe-frontend-animation` の型の薄い再公開）を
+# 追加するため minor バンプする。
+version = "0.22.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1352,14 +1357,19 @@ wasm-bindgen = "0.2"
 js-sys = "0.3"
 
 # イシュー #2417: Web アニメーションアダプタ（3 層構成の中段、`fandhe-animation`
-# を wasm-bindgen/web-sys で実装する層）を optional 依存として追加。既定 off
-# （`optional = true`）のため implicit feature `fandhe-frontend-animation` が
-# 生成されるのみで、`default`/`WASM_DIST_FEATURES` には含めない。Phase 4 の
-# 各配線 feature が `dep:fandhe-frontend-animation` で有効化する予定（#2395）。
-# optional 依存は `cargo metadata` の既定解決（resolve.nodes[].deps）に現れない
-# ため `fw structure`（structure.toml）の `depends_on` 辺は宣言していない
-# （structure.toml の frontend-animation 節コメント参照）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.1.0", optional = true }
+# を wasm-bindgen/web-sys で実装する層）を optional 依存として追加。
+#
+# イシュー #2403/#2517: `animation-driver` feature（既定 on）が
+# `dep:fandhe-frontend-animation` で有効化するようになったため、既定
+# feature の依存グラフに現れる（`default`/`WASM_DIST_FEATURES` の集合は
+# 別軸——`animation-driver` は `default` には含めるが `WASM_DIST_FEATURES`
+# には含めない、`crates/dist-server/src/wasm_dist_features.rs` 冒頭コメント
+# 参照）。`structure.toml` の `directories.wasm-full.depends_on` へ
+# `"frontend-animation"` を追加し、`directories.frontend-animation` へ
+# `allowed_dependents = ["wasm-full"]` を追加した（既定 off 前提の非対称
+# 宣言は本イシューで解消、`crates/xtask/tests/wasm_full_animation_optional_dep.rs`
+# が既定 feature でも本クレートが依存グラフに現れることを機械固定する）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.2.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1589,6 +1599,7 @@ default = [
   "in-view",
   "position",
   "stagger",
+  "animation-driver",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -1651,6 +1662,15 @@ position = []
 # 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
 # 別枠の feature。
 stagger = []
+
+# イシュー #2403/#2517: `fandhe-frontend-animation`（rAF Driver・DOM Target）
+# を利用可能にする配線点専用の feature（既定 on）。`position`/`stagger` と
+# 同型の別枠 feature——`wasm-full` 側にアニメーション演算・DOM 適用ロジック
+# は書かず、`crates/wasm-full/src/animation_driver.rs` が
+# `fandhe-frontend-animation` の型を薄く再公開するのみ。`data-*` 属性からの
+# 実消費配線（stagger 配線・animate 等）は後続 issue（親トラッキング
+# #2508）に委ねる。
+animation-driver = ["dep:fandhe-frontend-animation"]
 
 # イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
 # `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの
