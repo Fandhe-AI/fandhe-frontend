@@ -9,7 +9,7 @@ name = "fandhe-frontend-animation"
 #
 # マージコミット注記: 本 PR（#2403/#2517）と main（#2398）が独立に 0.1.0 から
 # 0.2.0 へ minor バンプしており同値衝突。#638 条項に従い origin/main の到達値
-# から +1 して 0.3.0 とする（詳細後述のバンプ節参照）。
+# から +1 して 0.3.0 とする。
 version = "0.3.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"

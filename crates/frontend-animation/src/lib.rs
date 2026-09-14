@@ -24,9 +24,11 @@
 //! `fandhe-animation ← fandhe-frontend-animation ← wasm-full(optional)`。
 //! 本クレートは `fandhe-frontend-wasm-full`/`-wasm-client`/`-wasm-thin` の
 //! いずれにも依存しない独立クレートであり、`crates/wasm-full/` が optional
-//! 依存として取り込む配線層を担う（`Cargo.toml` の optional 依存は既定 feature
-//! では有効化されないため、`fw structure`/`cargo metadata` の既定解決には
-//! 現れない。`crates/xtask/tests/wasm_full_animation_optional_dep.rs` が
+//! 依存として取り込む配線層を担う（`Cargo.toml` の optional 依存は
+//! `wasm-full` 側の `"animate"`/`"animation-driver"` feature（いずれも
+//! 既定 on）が有効化するため、`fw structure`/`cargo metadata` の既定解決
+//! にも現れる。`crates/xtask/tests/wasm_full_animation_optional_dep.rs` が
+//! 既定 feature・`--no-default-features`・`--all-features` の 3 通りで
 //! この不変条件を機械固定する）。
 //!
 //! # 不変条件
