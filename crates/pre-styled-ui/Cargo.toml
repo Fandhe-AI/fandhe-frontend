@@ -3435,7 +3435,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # origin/main と同一版数のため、同じ版数のまま据え置かず +1 した
 # 0.199.1 とする（`.claude/rules/coding-rust.md` の「同じ版数は衝突として
 # 扱う」運用）。
-version = "0.199.1"
+#
+# イシュー #2531: `border_beam`（`motion` feature 配下）を追加した。
+# border-beam 装飾オプション（`BORDER_BEAM_CLASS`/`BORDER_BEAM_CSS`/
+# `Theme::to_css_with_border_beam`）の新規公開 API 純追加であり、無効時の
+# 出力・依存グラフは不変（`tests/motion_zero_cost.rs` 不変）。#2515/#2384/
+# #2381 と同型のため minor バンプする。
+version = "0.200.0"
 
 
 edition = "2021"
