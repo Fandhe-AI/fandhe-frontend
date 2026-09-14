@@ -75,12 +75,20 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 し、`stagger_index` モジュール自体・公開関数（`stagger_index_value`）は
 ゲート対象外です。
 
-`animation-driver` feature（0.22.0 で追加、イシュー #2403/#2517）も同じく
+`animation-driver` feature（0.23.0 で追加、イシュー #2403/#2517）も同じく
 別枠です。`fandhe-frontend-animation`（rAF Driver・DOM Target）を optional
 依存として有効化し、`animation_driver` モジュール（`fandhe-frontend-animation`
 の型の薄い再公開のみ）を公開します。`Runtime::mount`/`hydrate` からの
 新規呼び出しは伴いません。`data-*` 属性からの実消費配線は後続 issue
 （親トラッキング #2508）が追加します。
+
+`view-transition-name` feature（0.23.0 で追加、イシュー #2515）も別枠
+ですが、`position`/`stagger` とはゲート対象が異なります: `Runtime` 内部の
+呼び出し箇所ではなく、`view_transition_name::set_view_transition_name`
+（`Runtime` を経由しないアプリ直接利用 API）という公開関数**そのもの**
+の存在をゲートします。`view_transition_name` モジュール自体・純粋関数
+（`is_valid_view_transition_name`）はゲート対象外です。off にすると
+`set_view_transition_name` が使えなくなります。
 
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
@@ -145,17 +153,17 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.20.5 | `message-scroller` feature（イシュー #2122） |
 | 0.20.8 | `data-table` feature（イシュー #2126） |
 | 0.21.0 | `stagger` feature（イシュー #2397）・`in-view` feature（イシュー #2396） |
-| 0.22.0 | `animation-driver` feature（イシュー #2403/#2517） |
+| 0.23.0 | `animation-driver` feature（イシュー #2403/#2517）・`view-transition-name` feature（イシュー #2515） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 37 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 38 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.20.8"
+version = "0.23.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -179,6 +187,7 @@ features = [
   "position",
   "stagger",
   "animation-driver",
+  "view-transition-name",
   "accordion",
   "calendar",
   "collapsible",

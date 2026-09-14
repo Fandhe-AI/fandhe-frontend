@@ -112,6 +112,14 @@ fn create_scroll_fixture(document: &Document, id_prefix: &str, once: bool) -> (E
 /// `headless_timer_browser.rs::wait_for` は `setTimeout` ベースのままで良い
 /// ——`IntersectionObserver` を待つ本ファイルだけがこの同期を必要とする）。
 ///
+/// `dynamically_added_element_is_observed_after_wiring` は
+/// `MutationObserver`（マイクロタスク）→ `IntersectionObserver.observe` の
+/// 追加ホップを挟むため、他の `wait_for` 利用箇所より初回コールバックまで
+/// 1 ティック余分にかかる（イシュー #2401 PR #2556 の CI flake 是正で
+/// 判明。当時は `setTimeout` ベースの待機枠を 5 秒へ拡張して対処していたが、
+/// 本ファイルは本コミットで rAF ベースへ全面移行したため、この追加ホップは
+/// 下記の周回上限 200（最大 10 秒）に吸収される）。
+///
 /// 条件不成立のままタイムアウトした場合は `false` を返す（呼び出し側は
 /// 必ず戻り値を `assert!` で確認すること。戻り値を無視すると配線欠落を
 /// 検出できないまま正常終了してしまう、codex-review/Bugbot 指摘の是正）。
@@ -350,6 +358,25 @@ async fn dynamically_added_element_is_observed_after_wiring() {
         .expect("set_attribute must not fail");
     container
         .append_child(&new_target)
+        .expect("append_child must not fail");
+
+    // bottom spacer(300px) を追加し、スクロール可能範囲を
+    // [0, 520]（scrollHeight 620 - clientHeight 100）へ広げる。
+    // spacer なしでは scrollHeight が 320 に留まり、`scroll_top(300)`
+    // が最大値 220 へクランプされて可視域の下端 (220+100=320) が target
+    // の下端 (300+20=320) とちょうど一致する境界ケースになり、
+    // ブラウザの端数計算次第で交差判定（ratio>0）が成立しない実測の
+    // flake があった（イシュー #2401 PR #2556 CI 実測）。
+    // `create_scroll_fixture` と同じ構成へ揃え、可視域内に target を
+    // 余裕を持って収める。
+    let bottom_spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    bottom_spacer
+        .set_attribute("style", "height:300px")
+        .expect("set_attribute must not fail");
+    container
+        .append_child(&bottom_spacer)
         .expect("append_child must not fail");
 
     // 追加直後は非交差のため `data-in-view` が外れる（observe されて

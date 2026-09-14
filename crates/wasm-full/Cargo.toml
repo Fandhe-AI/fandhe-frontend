@@ -1110,11 +1110,26 @@ name = "fandhe-frontend-wasm-full"
 # する（origin/main の #2397 minor バンプと到達値が一致するため
 # バージョン番号自体は変更なし）。
 #
+# イシュー #2515: `view_transition_name` モジュールを新設し、新規公開 API
+# `set_view_transition_name`/`is_valid_view_transition_name` を追加。
+# 既定 on の別枠 feature `view-transition-name` を新設するため
+# `default-features = false` 利用者への影響（新規 API を失う）を伴う
+# 破壊的変更、`position`/`stagger` と同型のため minor バンプする
+# （origin/main の #2515 minor バンプと到達値が一致するためバージョン
+# 番号自体は変更なし）。
+#
 # イシュー #2403/#2517: 新規デフォルト on の feature `animation-driver`
 # （`dep:fandhe-frontend-animation`）と新規公開モジュール
 # `animation_driver`（`fandhe-frontend-animation` の型の薄い再公開）を
 # 追加するため minor バンプする。
-version = "0.22.0"
+#
+# マージコミット注記: 本イシューと #2515（`view-transition-name`）は
+# それぞれ独立に 0.21.0 から 0.22.0 への minor バンプを行っており、
+# main への merge 時点でバンプ先バージョンが衝突した。同一版数への
+# 据え置きは不可（衝突扱い）のため、origin/main の到達値（0.22.0）から
+# さらに +1 して 0.23.0 とする（`docs/guides/wasm-full-features.md` §7
+# の版数対応表も 0.23.0 行へ両イシューを併記済み）。
+version = "0.23.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1600,6 +1615,7 @@ default = [
   "position",
   "stagger",
   "animation-driver",
+  "view-transition-name",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -1662,6 +1678,14 @@ position = []
 # 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
 # 別枠の feature。
 stagger = []
+# イシュー #2515: [`view_transition_name::set_view_transition_name`] 公開
+# 関数自体（`Runtime` を経由しないアプリ直接利用 API）専用の feature
+# （既定 on）。`position`/`stagger` と異なり `Runtime::mount`/`hydrate`/
+# `apply_update_for_dirty` 内部の呼び出し箇所ではなく、公開関数の存在
+# 自体をゲートする（`wasm-bindgen-exports` 配下の `entry` モジュールと
+# 同型のパターン）。`view_transition_name` モジュール自体・
+# `is_valid_view_transition_name` 純粋関数はゲートしない。
+view-transition-name = []
 
 # イシュー #2403/#2517: `fandhe-frontend-animation`（rAF Driver・DOM Target）
 # を利用可能にする配線点専用の feature（既定 on）。`position`/`stagger` と
