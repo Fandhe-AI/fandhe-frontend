@@ -3475,9 +3475,20 @@ fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.69.2" }
 # crates.io 未公開（`docs/ci/version-bump-publish-order-gap.md` §11）のため、
 # 本クレートの次回 crates.io 公開は `fandhe-animation` の初回公開が前提となる
 # （`.github/workflows/release.yml` の該当コメント参照）。
+# イシュー #2533: `fandhe-animation` 0.1.1 → 0.2.0（`confetti` モジュール
+# 新設）に伴う `version` 要求の追随のみ（`cargo run -p xtask --
+# check-dep-versions --fix`）。本クレート自身の公開 API・挙動に変更はない
+# ため `version` はバンプしない。`version-bump-guard`（イシュー #638）は
+# 「crates.io 既公開バージョンのまま src/Cargo.toml/build.rs を変更した」
+# 場合のみ FAIL する契約であり、本クレートのローカル `version`（下記）は
+# 直近の crates.io 公開版（実装時点で 0.193.0、本 PR 実装時に sparse index
+# で確認済み）より既に先行しているため、本コミットではそもそもガードは
+# 発火しない（`version-bump-exempt:` 宣言が必要になるのは、ローカル
+# `version` が crates.io 既公開バージョンと一致している状態でこの
+# Cargo.toml を変更する場合のみ）。
 [dependencies.fandhe-animation]
 path = "../animation"
-version = "0.1.1"
+version = "0.2.0"
 optional = true
 
 [features]

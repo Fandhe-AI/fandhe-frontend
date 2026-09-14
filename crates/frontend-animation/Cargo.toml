@@ -19,7 +19,16 @@ name = "fandhe-frontend-animation"
 # イシュー #2534: `ProgressRange`/`compute_progress_for_range`/
 # `update_element_progress_for_range` を新設。新規公開 API 追加のため
 # minor バンプする。
-version = "0.5.0"
+#
+# イシュー #2533（origin/main、並行衝突）: `canvas_target`（`CanvasTarget`、
+# `Target<&[Particle]>` 実装）・`confetti`（`fire`/`should_fire`）モジュール
+# を新設。新規公開モジュール追加のため minor バンプ
+# （`.claude/rules/coding-rust.md` #638 条項）。
+#
+# マージコミット注記: 本 PR（#2534）と main（#2533）が独立に 0.4.0 から
+# 0.5.0 へ minor バンプしており同値衝突。#638 条項に従い origin/main の
+# 到達値から +1 して 0.6.0 とする。
+version = "0.6.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -59,7 +68,7 @@ categories = ["graphics", "web-programming", "wasm"]
 #
 # 新規クレートを追加する場合は事前にユーザー承認を得ること。
 [dependencies]
-fandhe-animation = { path = "../animation", version = "0.1.1" }
+fandhe-animation = { path = "../animation", version = "0.2.0" }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 # イシュー #2521: `scroll_driver` モジュールが使う 4 feature を追加する。
@@ -86,6 +95,18 @@ web-sys = { version = "0.3", features = [
   # 追加はない（wasm-full が両 feature を既に有効化済み）。
   "Document",
   "Node",
+  # イシュー #2533: `canvas_target`/`confetti` モジュールが使う 2 feature を
+  # 追加する。`HtmlCanvasElement`（`canvas.get_context("2d")`・
+  # `width()`/`set_width()`/`height()`/`set_height()`）・
+  # `CanvasRenderingContext2d`（`fill_rect`/`clear_rect`/`set_fill_style_str`/
+  # `save`/`restore`/`translate`/`rotate`/`set_global_alpha`）。`wasm-full`
+  # 側は canvas 系 API を一切追加しない方針（`crates/wasm-full/Cargo.toml`
+  # の SignaturePad 由来コメント、headless-ui 側の「canvas を使わない」
+  # 設計転換）を維持するため、本クレートが workspace 内で唯一この 2
+  # feature を有効化する消費者になる（新規外部パッケージの追加はゼロ、
+  # 既存 `web-sys` の feature 追加のみ）。
+  "HtmlCanvasElement",
+  "CanvasRenderingContext2d",
 ] }
 wasm-bindgen-futures = "0.4"
 
@@ -99,6 +120,10 @@ wasm-bindgen-futures = "0.4"
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 
+# イシュー #2533: `tests/confetti_canvas_browser.rs` が `canvas` 要素の
+# 生成（`HtmlCanvasElement`、本体側の feature を再利用）・描画結果検証
+# （`CanvasRenderingContext2d::get_image_data` の戻り値型 `ImageData`）に
+# 使う。`ImageData` はテスト専用のためここにのみ追加する。
 [dev-dependencies.web-sys]
 version = "0.3"
-features = ["Document", "Element", "Node"]
+features = ["Document", "Element", "Node", "ImageData"]

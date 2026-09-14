@@ -1174,7 +1174,16 @@ name = "fandhe-frontend-wasm-full"
 # contain）選択を配線した。既存 feature `scroll-driver` の挙動拡張であり
 # 新規 feature は追加していない。新規公開 API 追加のため minor バンプ
 # する。
-version = "0.28.0"
+#
+# イシュー #2533（origin/main、並行衝突）: Motion+ `components/confetti` の
+# Rust 部品化。confetti 配線（`confetti` モジュール新設、
+# `Self::wire_confetti`・feature `confetti` 既定 on）を追加。新規公開
+# feature 追加を伴うため minor バンプする。
+#
+# マージコミット注記: 本 PR（#2534）と main（#2533）が独立に 0.27.0 から
+# 0.28.0 へ minor バンプしており同値衝突。#638 条項に従い origin/main の
+# 到達値から +1 して 0.29.0 とする。
+version = "0.29.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1444,7 +1453,15 @@ js-sys = "0.3"
 # イシュー #2521: `fandhe-frontend-animation` 0.3.0 → 0.4.0（`scroll_driver`
 # モジュール新設）への `version` 要求追随（`cargo run -p xtask --
 # check-dep-versions --fix`）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.5.0", optional = true }
+#
+# イシュー #2533: `fandhe-frontend-animation` 0.4.0 → 0.5.0（`canvas_target`/
+# `confetti` モジュール新設）への `version` 要求追随。
+#
+# マージコミット注記: `fandhe-frontend-animation` 自身が本 PR（#2534）と
+# main（#2533）の同一版数衝突（0.5.0 → 0.5.0）により +1 バンプされ 0.6.0
+# となったため、`version` 要求も追随する（`cargo run -p xtask --
+# check-dep-versions --fix`）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.6.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1674,6 +1691,7 @@ default = [
   "in-view",
   "gesture",
   "scroll-driver",
+  "confetti",
   "position",
   "stagger",
   "animation-driver",
@@ -1746,6 +1764,19 @@ gesture = []
 # コンパイルする（`fandhe-frontend-animation` の型を直接使うため、`gesture`
 # 等の純粋層非ゲート方針とは異なり、上記 (c) 注記の対象外）。
 scroll-driver = ["dep:fandhe-frontend-animation"]
+# イシュー #2533（Motion+ `components/confetti` の Rust 部品化）: confetti
+# 配線（`Runtime::mount`/`hydrate` の `Self::wire_confetti` 呼び出し）専用の
+# feature（既定 on）。`scroll-driver` と同型——配線群かつ
+# `dep:fandhe-frontend-animation` を有効化する feature。`confetti` モジュール
+# 自体は本 feature でのみコンパイルする（`fandhe-frontend-animation` の型を
+# 直接使うため、`gesture` 等の純粋層非ゲート方針とは異なり、上記 (c) 注記の
+# 対象外。`scroll-driver` と同じ理由）。`wasm-full` 側は
+# `CanvasRenderingContext2d`/`HtmlCanvasElement` 等 canvas 系 web-sys feature
+# を一切追加しない（`fandhe-frontend-animation::confetti::fire` が
+# `web_sys::Element` を受け取り、canvas への cast は同クレート内で完結する
+# 設計、SignaturePad 由来コメント「canvas 系 API は一切追加しない」方針を
+# 維持）。
+confetti = ["dep:fandhe-frontend-animation"]
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

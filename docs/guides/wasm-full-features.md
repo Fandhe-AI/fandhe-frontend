@@ -64,14 +64,22 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_in_view` | `in-view` |
 | `Runtime::wire_gesture` | `gesture` |
 | `Runtime::wire_scroll_driver` | `scroll-driver` |
+| `Runtime::wire_confetti` | `confetti` |
 
 `scroll-driver` feature（0.27.0 で追加、イシュー #2521）は配線群別
 feature でありながら `fandhe-frontend-animation` を optional 依存として
 有効化する初めての feature です（`animation-driver`/`animate` は別枠・
 非配線の feature、`scroll-driver` は配線群かつ optional dep 有効化という
-新パターン）。
+新パターン）。`confetti` feature（0.28.0 で追加、イシュー #2533）も
+`scroll-driver` と同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）
+です。`wasm-full` は canvas 系 web-sys feature
+（`CanvasRenderingContext2d`/`HtmlCanvasElement`）を一切追加しません
+（`fandhe-frontend-animation::confetti::fire` が `web_sys::Element` を
+受け取り、canvas への cast は `fandhe-frontend-animation` 側で完結する
+設計。SignaturePad 由来の「canvas を使わない」方針を維持）。
 
-0.28.0（イシュー #2534）で `scroll-driver` の挙動を拡張し、
+0.29.0（イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の
+版数衝突の再バンプ）で `scroll-driver` の挙動を拡張し、
 `data-fandhe-scroll-progress` 属性値により進捗の計算範囲を選べるように
 なりました（新規 feature の追加は伴いません）。`""`（存在マーカーのみ）・
 `"entry"` は従来どおりの entry 進捗、`"cover"`/`"contain"` は
@@ -197,16 +205,18 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.25.0 | `animation-driver` feature（イシュー #2403/#2517。main の #2515/#2400/#2398 取り込みに伴う版数衝突の再バンプ、PR #2554） |
 | 0.26.0 | `gesture` feature（イシュー #2520。main の #2515/#2400/#2398/#2403/#2517 取り込みに伴う版数衝突の再バンプ、PR #2555） |
 | 0.27.0 | `scroll-driver` feature（イシュー #2521） |
+| 0.28.0 | `confetti` feature（イシュー #2533） |
+| 0.29.0 | `scroll-driver` の挙動拡張（`data-fandhe-scroll-progress`、イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 42 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 43 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.27.0"
+version = "0.29.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -229,6 +239,7 @@ features = [
   "in-view",
   "gesture",
   "scroll-driver",
+  "confetti",
   "position",
   "stagger",
   "animation-driver",
