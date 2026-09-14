@@ -93,8 +93,15 @@ fn create_scroll_fixture(document: &Document, id_prefix: &str, once: bool) -> (E
     (container, target)
 }
 
-/// `condition` が成立するまで最大 2 秒（10ms x 200 回）ポーリングする
-/// （`headless_avatar_browser.rs::wait_for` と同型）。
+/// `condition` が成立するまで最大 5 秒（10ms x 500 回）ポーリングする
+/// （`data_table_browser.rs`/`headless_timer_browser.rs::wait_for` と同型）。
+///
+/// `dynamically_added_element_is_observed_after_wiring` は
+/// `MutationObserver`（マイクロタスク）→ `IntersectionObserver.observe` の
+/// 追加ホップを挟むため、他の `wait_for` 利用箇所より初回コールバックまで
+/// 1 ティック余分にかかる。CI（共有ホステッドランナー）で 2 秒の枠に
+/// 間に合わずタイムアウトする実績が観測されたため、他の重い待ち合わせと
+/// 同じ 5 秒枠へ揃えた（イシュー #2401 PR #2556 の CI flake 是正）。
 ///
 /// 条件不成立のままタイムアウトした場合は `false` を返す（呼び出し側は
 /// 必ず戻り値を `assert!` で確認すること。戻り値を無視すると配線欠落を
@@ -104,7 +111,7 @@ async fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
 
-    for _ in 0..200 {
+    for _ in 0..500 {
         if condition() {
             return true;
         }
