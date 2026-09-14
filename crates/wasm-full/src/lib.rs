@@ -2589,11 +2589,22 @@ where
     ///
     /// [`Self::rerender`] と同じ全再描画ロジック（`state.view()` から
     /// `root` サブツリーを丸ごと再構築する [`Self::apply_subtree_swap`]）を
-    /// 使うが、ライブ DOM への破壊的変更（子ノード削除・新ノード
-    /// append・`binding_table` 再スキャン・`keyed_list_cache` クリア）
-    /// のみを [`crate::view_transition::with_view_transition`]（[`nav`]
+    /// 使うが、`state.view()` からの新規ノード構築ごと
+    /// [`crate::view_transition::with_view_transition`]（[`nav`]
     /// モジュールの router 経由 View Transitions〔イシュー #404〕と共有する
     /// 同一ラップ関数）の update コールバック内で実行する点が異なる。
+    ///
+    /// `document.startViewTransition()` の update コールバックは呼び出しから
+    /// 実行までブラウザ側で遅延しうる（次のレンダリング機会まで繰り延べ）。
+    /// 呼び出し時点の `state.view()` を事前に構築してコールバックへ渡すと、
+    /// 遅延の間に別の状態更新（`dispatch` 経由の dirty 更新・別途呼ばれた
+    /// `Self::rerender`・重ねて呼ばれた本メソッド自身等）が起きた場合に、
+    /// 実行時点でその古いスナップショットを無条件適用してしまい「状態は
+    /// 更新済みだが表示だけ古い状態へ戻る」不整合を招く（イシュー #2400
+    /// codex-review P1 是正）。本メソッドは新規ノード構築を update
+    /// コールバック内へ遅延させ、実行される瞬間の最新 `component` 状態から
+    /// 描画することでこれを構造的に防ぐ（`self.component` を都度
+    /// `try_borrow` するのみで、世代管理等の追加の共有状態を要さない）。
     ///
     /// feature `"view-transitions"`（既定 on）でゲートされるのは本
     /// メソッドのみであり、`nav.rs` 側の router 経由
@@ -2608,9 +2619,6 @@ where
     /// （イベントハンドラ内からの再入等）は no-op とする。
     #[cfg(feature = "view-transitions")]
     pub fn apply_with_view_transition(&self) {
-        let Ok(state) = self.component.try_borrow() else {
-            return;
-        };
         let Ok(document) = Self::document() else {
             web_sys::console::warn_1(
                 &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition could not \
@@ -2619,20 +2627,26 @@ where
             );
             return;
         };
-        let view = state.view();
-        drop(state);
-        let Some(new_node) = fandhe_frontend_wasm_client::build_dom_node(&document, &view) else {
-            web_sys::console::warn_1(
-                &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition could not \
-                  build replacement DOM (unsupported node), keeping existing DOM"
-                    .into(),
-            );
-            return;
-        };
+        let component = self.component.clone();
         let root = self.root.clone();
         let binding_table = self.binding_table.clone();
         let keyed_list_cache = self.keyed_list_cache.clone();
+        let doc_for_apply = document.clone();
         crate::view_transition::with_view_transition(&document, move || {
+            let Ok(state) = component.try_borrow() else {
+                return;
+            };
+            let view = state.view();
+            drop(state);
+            let Some(new_node) = fandhe_frontend_wasm_client::build_dom_node(&doc_for_apply, &view)
+            else {
+                web_sys::console::warn_1(
+                    &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition could not \
+                      build replacement DOM (unsupported node), keeping existing DOM"
+                        .into(),
+                );
+                return;
+            };
             Self::apply_subtree_swap(&root, &new_node, &binding_table, &keyed_list_cache);
         });
     }

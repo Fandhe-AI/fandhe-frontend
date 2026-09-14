@@ -204,6 +204,7 @@ async fn wait_until<F: Fn() -> bool>(condition: F, max_frames: u32) -> bool {
 enum Label {
     Before,
     After,
+    Race,
 }
 
 struct LabelState {
@@ -237,6 +238,7 @@ impl Component for LabelState {
         let text_content = match self.label.get() {
             Label::Before => "before",
             Label::After => "after",
+            Label::Race => "race",
         };
         el(
             "div",
@@ -344,5 +346,45 @@ fn apply_with_view_transition_falls_back_synchronously_when_unsupported() {
             == Some("after"),
         "非対応ブラウザ相当のフォールバック経路では、呼び出し直後（同期）に \
          DOM が新しい状態へ更新済みであること"
+    );
+}
+
+/// 検証 C: `document.startViewTransition` の update コールバック実行が
+/// 遅延する間（[`ViewTransitionStub`] は `spawn_local` でマイクロタスクへ
+/// 繰り延べる）に別の状態更新が起きた場合、コールバック実行後の DOM は
+/// 呼び出し時点の古いスナップショットではなく最新の状態を反映すること
+/// （イシュー #2400 codex-review P1 是正の回帰固定）。
+#[wasm_bindgen_test]
+async fn apply_with_view_transition_reflects_latest_state_when_callback_is_delayed() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "view-transition-race-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+    let _stub = ViewTransitionStub::install(&document);
+
+    let runtime =
+        Runtime::mount("view-transition-race-root", LabelState::new()).expect("mount must succeed");
+
+    runtime.component().set_label(Label::After);
+    runtime.apply_with_view_transition();
+    // update コールバックが実行されるより前（同期区間内）に、さらに別の
+    // 状態更新を割り込ませる。呼び出し時点の `state.view()` を事前構築して
+    // いた旧実装では、この後の遷移が古い "after" を無条件適用してしまう。
+    runtime.component().set_label(Label::Race);
+
+    assert!(
+        wait_until(
+            || placeholder
+                .query_selector("[data-testid='label-view']")
+                .ok()
+                .flatten()
+                .and_then(|el| el.text_content())
+                .as_deref()
+                == Some("race"),
+            60,
+        )
+        .await,
+        "遅延した update コールバック実行後も、呼び出し後に割り込んだ最新の \
+         状態（race）が反映されること（after へ巻き戻らないこと）"
     );
 }
