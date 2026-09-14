@@ -214,6 +214,7 @@
 //! | `Runtime::wire_data_table` | `data-table` |
 //! | `Runtime::wire_in_view` | `in-view` |
 //! | `Runtime::wire_gesture` | `gesture` |
+//! | `Runtime::wire_scroll_driver` | `scroll-driver` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -466,6 +467,8 @@ pub mod number_input;
 pub mod overlay;
 pub mod position;
 pub mod questionnaire;
+#[cfg(feature = "scroll-driver")]
+pub mod scroll_driver;
 pub mod sidebar;
 pub mod splitter;
 pub mod stagger_index;
@@ -1482,6 +1485,8 @@ where
         Self::wire_in_view(root.clone())?;
         #[cfg(feature = "gesture")]
         Self::wire_gesture(root.clone())?;
+        #[cfg(feature = "scroll-driver")]
+        Self::wire_scroll_driver(root.clone())?;
 
         Ok(Self {
             component,
@@ -1664,6 +1669,8 @@ where
         Self::wire_in_view(root.clone())?;
         #[cfg(feature = "gesture")]
         Self::wire_gesture(root.clone())?;
+        #[cfg(feature = "scroll-driver")]
+        Self::wire_scroll_driver(root.clone())?;
 
         Ok(Self {
             component,
@@ -2612,6 +2619,20 @@ where
     #[cfg(feature = "gesture")]
     fn wire_gesture(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         gesture::wire_gesture(root)
+    }
+
+    /// scroll ドライバ配線（[`scroll_driver::wire_scroll_driver`]、イシュー
+    /// #2521）を登録する。`dispatch` チャネルを持たない属性専用配線のため
+    /// （`Self::wire_sidebar`/`Self::wire_gesture` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`scroll_driver::wire_scroll_driver`]（`CSS.supports`/`matchMedia`
+    /// の機能検出・`scroll`/`resize` イベントリスナー登録）の失敗を伝播する。
+    #[cfg(feature = "scroll-driver")]
+    fn wire_scroll_driver(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        scroll_driver::wire_scroll_driver(&root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

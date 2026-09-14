@@ -43,13 +43,16 @@
 //! rAF Driver（[`raf_driver::RafDriver`]）・DOM Target
 //! （[`dom_target::DomTarget`]）を実装済み（イシュー #2403/#2517）。
 //! `animate`（`element.animate()` WAAPI 薄いラッパ、イシュー #2398）も
-//! 実装済み。FLIP / SVG path / scroll 等の残りの実装は Phase 4 の各後続
+//! 実装済み。scroll ドライバ（[`scroll_driver`]、`animation-timeline`
+//! 委譲の機能検出 + rAF フォールバックの計算・計測プリミティブ、イシュー
+//! #2521）も実装済み。FLIP / SVG path 等の残りの実装は Phase 4 の各後続
 //! issue で追加する（`docs/design/animation-core-architecture.md` §6.2
 //! 参照）。
 
 pub mod animate;
 pub mod dom_target;
 pub mod raf_driver;
+pub mod scroll_driver;
 
 // `fandhe-animation`（演算基幹）の型（`Keyframes`/`Keyframe` 等）は、本クレートの
 // `[dependencies]` にのみ存在し推移依存としてアプリの名前解決に公開されない。

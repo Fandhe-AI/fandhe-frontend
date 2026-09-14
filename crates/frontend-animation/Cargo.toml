@@ -10,7 +10,12 @@ name = "fandhe-frontend-animation"
 # マージコミット注記: 本 PR（#2403/#2517）と main（#2398）が独立に 0.1.0 から
 # 0.2.0 へ minor バンプしており同値衝突。#638 条項に従い origin/main の到達値
 # から +1 して 0.3.0 とする。
-version = "0.3.0"
+#
+# イシュー #2521: `scroll_driver` モジュール（新規公開 API:
+# `compute_progress`/`SCROLL_PROGRESS_PROPERTY`/`Env`/
+# `update_element_progress`/`ScrollDriver`）を新設。新規公開 API 追加の
+# ため minor バンプ（`.claude/rules/coding-rust.md` #638 条項）。
+version = "0.4.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -53,12 +58,24 @@ categories = ["graphics", "web-programming", "wasm"]
 fandhe-animation = { path = "../animation", version = "0.1.1" }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
+# イシュー #2521: `scroll_driver` モジュールが使う 4 feature を追加する。
+# `css`（`web_sys::css::supports_with_value`、`CSS.supports()` の機能検出）・
+# `DomRect`/`DomRectReadOnly`（`Element::get_bounding_client_rect()` の
+# 戻り値型・`top()`/`height()` アクセサ、`DomRect` は `DomRectReadOnly` を
+# extends するため両方必要）・`MediaQueryList`（`window.matchMedia()` の
+# 戻り値型、`prefers-reduced-motion` 判定）。新規外部パッケージの追加は
+# ない（wasm-full が既に `DomRect`/`DomRectReadOnly`/`MediaQueryList` を
+# 有効化済み、`css` feature のみ本クレートが最初の消費者）。
 web-sys = { version = "0.3", features = [
   "Window",
   "Performance",
   "HtmlElement",
   "CssStyleDeclaration",
   "Element",
+  "css",
+  "DomRect",
+  "DomRectReadOnly",
+  "MediaQueryList",
 ] }
 wasm-bindgen-futures = "0.4"
 
