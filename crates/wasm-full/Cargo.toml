@@ -1103,6 +1103,12 @@ name = "fandhe-frontend-wasm-full"
 # apply_update_for_dirty` の keyed list 構造反映直後に
 # `stagger_index::sync_stagger_index` を呼ぶ配線を追加（feature
 # `stagger`、既定 on）。新規公開 API 追加を伴うため minor バンプする。
+#
+# イシュー #2396: 新規デフォルト on の配線群別 feature `in-view` を追加
+# （`Runtime::mount`/`hydrate` へ新規呼び出し `Self::wire_in_view` が増える
+# 破壊的変更、イシュー #2122 の 0.18.4→0.19.0 と同型）ため minor バンプ
+# する（origin/main の #2397 minor バンプと到達値が一致するため
+# バージョン番号自体は変更なし）。
 version = "0.21.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
@@ -1390,6 +1396,12 @@ features = [
   "HtmlTextAreaElement",
   "InputEvent",
   "InputEventInit",
+  # イシュー #2396: `in_view` モジュールの `IntersectionObserver` 配線が使う
+  # 2 型（ビューポート進入検出、`data-in-view` 属性の付け外し）。既定の
+  # root/rootMargin/threshold のみを使うため `IntersectionObserverInit` は
+  # 不要（カスタムオプション化は本 issue のスコープ外）。
+  "IntersectionObserver",
+  "IntersectionObserverEntry",
   "KeyboardEvent",
   "Location",
   "MediaQueryList",
@@ -1574,6 +1586,7 @@ default = [
   "questionnaire",
   "message-scroller",
   "data-table",
+  "in-view",
   "position",
   "stagger",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
@@ -1619,6 +1632,13 @@ message-scroller = []
 # `Self::wire_data_table` 呼び出し）専用の feature（既定 on）。
 # `data_table` モジュール自体はゲートしない（上記 (c) 注記と同じ方針）。
 data-table = []
+# イシュー #2396（親 #2394）: in-view 配線（`Runtime::mount`/`hydrate` の
+# `Self::wire_in_view` 呼び出し）専用の feature（既定 on）。`in_view` の
+# 純粋層（`in_view_once_from_attr` 等）はゲートしない（上記 (c) 注記と
+# 同じ方針）。`fandhe-frontend-animation` への依存追加は伴わない
+# （群 B: 小さな DOM 配線のみで完結、`docs/design/
+# motion-reference-adoption-policy.md` §4）。
+in-view = []
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・
