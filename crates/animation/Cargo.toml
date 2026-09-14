@@ -3,7 +3,11 @@ name = "fandhe-animation"
 # イシュー #2398: `easing::CubicBezier`/`easing::Steps` へ値取得用の public
 # getter を追加した（`fandhe-frontend-animation` の CSS easing 文字列変換に
 # 必要）。既存フィールド・シグネチャは不変の追加のみのため patch バンプ。
-version = "0.1.1"
+#
+# イシュー #2533: `confetti` モジュール（`Particle`/`ConfettiConfig`/
+# `ConfettiSim`）を新設した。新規公開モジュール追加のため minor バンプ
+# （`.claude/rules/coding-rust.md` #638 条項）。
+version = "0.2.0"
 edition = "2021"
 description = "fandhe-animation: プラットフォーム非依存のアニメーション演算基幹（イージング・補間・タイムライン計算）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"

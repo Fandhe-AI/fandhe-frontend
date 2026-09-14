@@ -48,11 +48,15 @@
 //! #2521）も実装済み。pointer capture ベースの汎用ドラッグ演算
 //! （[`drag::DragController`]、軸制約・範囲クランプ・離脱速度推定 +
 //! spring 復帰、イシュー #2535）・`prefers-reduced-motion` 判定ヘルパ
-//! （[`reduced_motion::prefers_reduced_motion`]）も実装済み。FLIP / SVG
+//! （[`reduced_motion::prefers_reduced_motion`]）も実装済み。confetti
+//! （[`canvas_target::CanvasTarget`]・[`confetti::fire`]、canvas 2D
+//! 描画によるパーティクル発火、イシュー #2533）も実装済み。FLIP / SVG
 //! path 等の残りの実装は Phase 4 の各後続 issue で追加する
 //! （`docs/design/animation-core-architecture.md` §6.2 参照）。
 
 pub mod animate;
+pub mod canvas_target;
+pub mod confetti;
 pub mod dom_target;
 pub mod drag;
 pub mod raf_driver;

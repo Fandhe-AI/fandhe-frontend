@@ -20,12 +20,11 @@
 //! ブラウザの `prefers-reduced-motion` 設定に依存しない決定的な結果になる。
 
 #![cfg(target_arch = "wasm32")]
+#![cfg(feature = "drag-gesture")]
 
+use fandhe_frontend_animation::drag::{DRAG_X_PROPERTY, DRAG_Y_PROPERTY};
 use fandhe_frontend_wasm_full::drag_gesture::{
     wire_drag_gesture, DRAGGING_STATE_ATTR, DRAG_ATTR, DRAG_AXIS_ATTR,
-};
-use fandhe_frontend_wasm_full::fandhe_frontend_animation::drag::{
-    DRAG_X_PROPERTY, DRAG_Y_PROPERTY,
 };
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
