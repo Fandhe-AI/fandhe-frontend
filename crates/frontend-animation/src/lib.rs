@@ -45,13 +45,18 @@
 //! `animate`（`element.animate()` WAAPI 薄いラッパ、イシュー #2398）も
 //! 実装済み。scroll ドライバ（[`scroll_driver`]、`animation-timeline`
 //! 委譲の機能検出 + rAF フォールバックの計算・計測プリミティブ、イシュー
-//! #2521）も実装済み。FLIP / SVG path 等の残りの実装は Phase 4 の各後続
-//! issue で追加する（`docs/design/animation-core-architecture.md` §6.2
-//! 参照）。
+//! #2521）も実装済み。pointer capture ベースの汎用ドラッグ演算
+//! （[`drag::DragController`]、軸制約・範囲クランプ・離脱速度推定 +
+//! spring 復帰、イシュー #2535）・`prefers-reduced-motion` 判定ヘルパ
+//! （[`reduced_motion::prefers_reduced_motion`]）も実装済み。FLIP / SVG
+//! path 等の残りの実装は Phase 4 の各後続 issue で追加する
+//! （`docs/design/animation-core-architecture.md` §6.2 参照）。
 
 pub mod animate;
 pub mod dom_target;
+pub mod drag;
 pub mod raf_driver;
+pub mod reduced_motion;
 pub mod scroll_driver;
 
 // `fandhe-animation`（演算基幹）の型（`Keyframes`/`Keyframe` 等）は、本クレートの

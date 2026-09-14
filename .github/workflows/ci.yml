@@ -890,6 +890,15 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test scroll_driver_browser
 
+      # イシュー #2535（親 #2530）: pointer capture ベースの汎用ドラッグ配線
+      # （crates/wasm-full/src/drag_gesture.rs）の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/drag_gesture_browser.rs）。他の wasm-full
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。
+      - name: Run wasm-full drag gesture browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test drag_gesture_browser
+
       # イシュー #2403/#2517: rAF Driver（fandhe-frontend-animation::raf_driver）+
       # DOM Target（dom_target）で spring を実ブラウザ上で駆動し収束することを
       # 確認する統合デモ。対象クレートは crates/wasm-full/ とは別（crates/
@@ -2343,6 +2352,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,gesture --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: scroll-driver, issue #2521)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,scroll-driver --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: drag-gesture, issue #2535)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,drag-gesture --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: animation-driver, issue #2403)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,animation-driver --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transitions, issue #2400)"

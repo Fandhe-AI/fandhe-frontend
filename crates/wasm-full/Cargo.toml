@@ -1168,7 +1168,12 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #2521（親 `#2499`）: scroll ドライバ配線（`scroll_driver` モジュール
 # 新設、`Self::wire_scroll_driver`・feature `scroll-driver` 既定 on）を
 # 追加。新規公開 feature 追加を伴うため minor バンプする。
-version = "0.27.0"
+#
+# イシュー #2535（親 `#2530`）: pointer capture ベースの汎用ドラッグ配線
+# （`drag_gesture` モジュール新設、`Self::wire_drag_gesture`・feature
+# `drag-gesture` 既定 on）を追加。新規公開 feature 追加を伴うため minor
+# バンプする。
+version = "0.28.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1438,7 +1443,11 @@ js-sys = "0.3"
 # イシュー #2521: `fandhe-frontend-animation` 0.3.0 → 0.4.0（`scroll_driver`
 # モジュール新設）への `version` 要求追随（`cargo run -p xtask --
 # check-dep-versions --fix`）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.4.0", optional = true }
+#
+# イシュー #2535: `fandhe-frontend-animation` 0.4.0 → 0.5.0（`drag`/
+# `reduced_motion` モジュール新設）への `version` 要求追随（`cargo run -p
+# xtask -- check-dep-versions --fix`）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.5.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1668,6 +1677,7 @@ default = [
   "in-view",
   "gesture",
   "scroll-driver",
+  "drag-gesture",
   "position",
   "stagger",
   "animation-driver",
@@ -1740,6 +1750,12 @@ gesture = []
 # コンパイルする（`fandhe-frontend-animation` の型を直接使うため、`gesture`
 # 等の純粋層非ゲート方針とは異なり、上記 (c) 注記の対象外）。
 scroll-driver = ["dep:fandhe-frontend-animation"]
+# イシュー #2535（親 #2530）: pointer capture ベースの汎用ドラッグ配線
+# （`Runtime::mount`/`hydrate` の `Self::wire_drag_gesture` 呼び出し）専用の
+# feature（既定 on）。`scroll-driver` と同型（配線群かつ optional dep 有効化）
+# のパターンで、`drag_gesture` モジュール自体も本 feature でのみコンパイル
+# する（`fandhe_frontend_animation::drag::DragController` を直接使うため）。
+drag-gesture = ["dep:fandhe-frontend-animation"]
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

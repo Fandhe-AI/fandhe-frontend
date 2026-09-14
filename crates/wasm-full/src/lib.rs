@@ -215,6 +215,7 @@
 //! | `Runtime::wire_in_view` | `in-view` |
 //! | `Runtime::wire_gesture` | `gesture` |
 //! | `Runtime::wire_scroll_driver` | `scroll-driver` |
+//! | `Runtime::wire_drag_gesture` | `drag-gesture` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -284,19 +285,21 @@
 //!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
-//! `default-features = false` を使う利用者は上記 18 配線を失う
+//! `default-features = false` を使う利用者は上記 20 配線を失う
 //! （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の (ii)
 //! を採用。イシュー #2122 で `message-scroller`、イシュー #2126 で
-//! `data-table`、イシュー #2396 で `in-view`、イシュー #2520 で `gesture`
+//! `data-table`、イシュー #2396 で `in-view`、イシュー #2520 で `gesture`、
+//! イシュー #2521 で `scroll-driver`、イシュー #2535 で `drag-gesture`
 //! を追加）。従来どおりの挙動を維持するには `features = [
 //! "wasm-bindgen-exports", "keynav", "focus-visible", "avatar", "clipboard",
 //! "timer", "angle-slider", "splitter", "signature-pad", "number-input",
 //! "command", "sidebar", "chart", "chart-range", "questionnaire",
-//! "message-scroller", "data-table", "in-view", "gesture"]`
+//! "message-scroller", "data-table", "in-view", "gesture", "scroll-driver",
+//! "drag-gesture"]`
 //! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
-//! 明示すること。上記 18 件に加え、[`headless::wire_headless_component`] の
+//! 明示すること。上記 20 件に加え、[`headless::wire_headless_component`] の
 //! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
-//! こと（`position` はこの 18 配線とは別枠の feature であり、既定 19 件目
+//! こと（`position` はこの 20 配線とは別枠の feature であり、既定 21 件目
 //! として `Cargo.toml` の `default` 配列に列挙されている）。
 //! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
 //! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
@@ -447,6 +450,8 @@ pub mod command;
 pub mod content_height;
 pub mod csr;
 pub mod data_table;
+#[cfg(feature = "drag-gesture")]
+pub mod drag_gesture;
 pub mod events;
 pub mod focus_trap;
 pub mod focus_visible;
@@ -1487,6 +1492,8 @@ where
         Self::wire_gesture(root.clone())?;
         #[cfg(feature = "scroll-driver")]
         Self::wire_scroll_driver(root.clone())?;
+        #[cfg(feature = "drag-gesture")]
+        Self::wire_drag_gesture(root.clone())?;
 
         Ok(Self {
             component,
@@ -1671,6 +1678,8 @@ where
         Self::wire_gesture(root.clone())?;
         #[cfg(feature = "scroll-driver")]
         Self::wire_scroll_driver(root.clone())?;
+        #[cfg(feature = "drag-gesture")]
+        Self::wire_drag_gesture(root.clone())?;
 
         Ok(Self {
             component,
@@ -2633,6 +2642,21 @@ where
     #[cfg(feature = "scroll-driver")]
     fn wire_scroll_driver(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         scroll_driver::wire_scroll_driver(&root)
+    }
+
+    /// pointer capture ベースの汎用ドラッグ配線
+    /// （[`drag_gesture::wire_drag_gesture`]、イシュー #2535）を登録する。
+    /// `dispatch` チャネルを持たない属性専用配線のため
+    /// （`Self::wire_sidebar`/`Self::wire_gesture` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`drag_gesture::wire_drag_gesture`]（`add_event_listener_with_callback` 5 件）
+    /// の失敗を伝播する。
+    #[cfg(feature = "drag-gesture")]
+    fn wire_drag_gesture(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        drag_gesture::wire_drag_gesture(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
