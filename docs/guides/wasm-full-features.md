@@ -1,7 +1,7 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 17 件・
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 18 件・
 scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
@@ -170,7 +170,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.22.0 | `view-transition-name` feature（イシュー #2515） |
 | 0.23.0 | `view-transitions` feature（イシュー #2400。main の #2515 取り込みに伴う版数衝突の再バンプ、PR #2553） |
 | 0.24.0 | `animate` feature（イシュー #2398。main の #2400 取り込みに伴う 0.23.0 同士の版数衝突の再バンプ、PR #2475） |
-| 0.25.0 | `gesture` feature（イシュー #2520、PR #2555）。PR ブランチ側では当初 0.22.0 到達を見込んでいたが、main への複数回のマージで `view-transition-name`/`view-transitions`/`animate` と繰り返し版数衝突したため、実際に main へ着地する版数は 0.25.0 になる（上表の他行と異なり、PR 作業ブランチ内で一度も 0.22.0〜0.24.0 として公開されていない） |
+| 0.25.0 | `gesture` feature（イシュー #2520。main の #2515/#2400/#2398 取り込みに伴う版数衝突の再バンプ、PR #2555） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
