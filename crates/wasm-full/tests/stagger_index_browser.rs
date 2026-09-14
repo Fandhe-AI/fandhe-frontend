@@ -14,7 +14,7 @@ use fandhe_frontend_core::keyed::keyed_list;
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
-use fandhe_frontend_wasm_full::stagger_index::STAGGER_INDEX_VAR;
+use fandhe_frontend_wasm_full::stagger_index::{STAGGER_AUTO_FIRST_ATTR, STAGGER_INDEX_VAR};
 use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -59,6 +59,11 @@ struct ListState {
     /// `(安定キー, 表示内容)` の順序付きリスト。
     items: Vec<(u64, String)>,
     dirty: Vec<&'static str>,
+    /// [`STAGGER_AUTO_FIRST_ATTR`] を親要素に付けるか（codex-review P1
+    /// 是正の受け入れ条件「オプトインしていないリストは書き換えない」を
+    /// `stagger_auto_first_attr_absent_leaves_index_untouched` から検証
+    /// するためのフラグ、既定 `true`）。
+    auto_first: bool,
 }
 
 impl ListState {
@@ -71,6 +76,15 @@ impl ListState {
                 .map(|(id, text)| (*id, text.to_string()))
                 .collect(),
             dirty: Vec::new(),
+            auto_first: true,
+        }
+    }
+
+    /// [`STAGGER_AUTO_FIRST_ATTR`] を付けない構成（オプトアウト検証用）。
+    fn new_without_auto_first(initial: &[(u64, &str)]) -> Self {
+        Self {
+            auto_first: false,
+            ..Self::new(initial)
         }
     }
 }
@@ -127,7 +141,11 @@ impl Component for ListState {
                 )
             })
             .collect();
-        let list = keyed_list("ul", vec![("id", "stagger-list")], "items", items)
+        let mut parent_attrs = vec![("id", "stagger-list")];
+        if self.auto_first {
+            parent_attrs.push((STAGGER_AUTO_FIRST_ATTR, ""));
+        }
+        let list = keyed_list("ul", parent_attrs, "items", items)
             .expect("test fixture keyed items must be valid");
         el("div", vec![("id", "stagger-root")], vec![list])
     }
@@ -279,5 +297,28 @@ fn remove_renumbers_remaining_rows_without_gaps() {
         read_stagger_indices(root),
         vec!["0", "1"],
         "削除後は残り 2 行が欠番なしの連番になること"
+    );
+}
+
+/// 受け入れ条件（オプトアウト、codex-review P1 是正）:
+/// [`STAGGER_AUTO_FIRST_ATTR`] を持たないリストは、構造変化（`Insert`）
+/// 後も `--fandhe-motion-stagger-index` を一切書き込まれない（アプリが
+/// `Center`/`Last` 起点で管理する値を無条件上書きしないことの固定）。
+#[wasm_bindgen_test]
+fn stagger_auto_first_attr_absent_leaves_index_untouched() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "stagger-root-container-4");
+    let _guard = RemoveOnDrop(placeholder.clone());
+
+    let state = ListState::new_without_auto_first(&[(1, "a"), (2, "b"), (3, "c")]);
+    let runtime = Runtime::mount("stagger-root-container-4", state).expect("mount must succeed");
+    let root = runtime.root();
+
+    dispatch_action(&document, root, "append", "4:d");
+
+    assert_eq!(
+        read_stagger_indices(root),
+        vec!["", "", "", ""],
+        "オプトイン属性が無いリストは index を一切書き込まれないこと"
     );
 }

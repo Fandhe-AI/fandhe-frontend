@@ -1069,8 +1069,25 @@ where
                                 // 同型）。SSR/初期描画時点の書き出しは
                                 // `fandhe-frontend-pre-styled-ui::recipe::
                                 // stagger_index_style` が別途担う。
+                                //
+                                // codex-review P1 是正（イシュー #2397）:
+                                // タグ変更を伴う更新は
+                                // `apply_keyed_list_core` 内部で
+                                // `replace_list_element_for_tag_change` が
+                                // 呼ばれ、`list_element`（この時点で
+                                // 保持している変数）はライブ DOM から
+                                // 切り離された旧要素になる。切り離された
+                                // 旧要素の子へ index を書いても新しい
+                                // 行には反映されないため、`root`/`field`
+                                // から現在のライブ要素を再取得してから
+                                // 同期する（タグ変更が無かった通常
+                                // ケースでは同じ要素が返るため無害）。
                                 #[cfg(feature = "stagger")]
-                                crate::stagger_index::sync_stagger_index(&list_element);
+                                if let Ok(Some(current_list_element)) =
+                                    fandhe_frontend_wasm_client::find_list_element(root, field)
+                                {
+                                    crate::stagger_index::sync_stagger_index(&current_list_element);
+                                }
                                 structural_change = true;
                             } else if !has_binding(field) {
                                 unresolved_field = true;

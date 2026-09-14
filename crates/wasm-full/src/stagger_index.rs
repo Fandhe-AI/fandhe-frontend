@@ -18,6 +18,16 @@
 //! （`recipe.rs` rustdoc「`fandhe-animation` の `Stagger` との対応」節
 //! 参照）であり、本モジュールは書き換えない。
 //!
+//! # 対象リストの明示的オプトイン（イシュー #2397 codex-review P1 是正）
+//!
+//! 上記の責務境界を DOM 上でも守るため、[`wiring::sync_stagger_index`] は
+//! [`STAGGER_AUTO_FIRST_ATTR`] を持つ keyed list にのみ適用する。この属性
+//! を持たないリスト（`Center`/`Last` 起点をアプリ側が計算して
+//! `stagger_index_style` を直接書いているリスト）は、キー無関係の
+//! keyed list 更新のたびに DOM 順位置で無条件上書きされることがない。
+//! `First` 起点の自動追随を使いたい呼び出し側は、`keyed_list` の親属性
+//! （`attrs` 引数）へ `(STAGGER_AUTO_FIRST_ATTR, "")` を明示的に加える。
+//!
 //! # 走査方法についての注記（性能上の既知の落とし穴を踏襲回避）
 //!
 //! `Element::children()`（`HtmlCollection`）+ `item(index)` によるランダム
@@ -40,6 +50,15 @@
 /// `crates/pre-styled-ui/tests/stagger_index_var_drift.rs`）。
 pub const STAGGER_INDEX_VAR: &str = "--fandhe-motion-stagger-index";
 
+/// keyed list の親要素に付け、[`wiring::sync_stagger_index`] による
+/// `First` 起点（DOM 順位置）自動同期の対象であることを明示する
+/// オプトイン属性名（イシュー #2397 codex-review P1 是正）。
+///
+/// `Center`/`Last` 起点で `index` をアプリ側が計算・管理するリストは
+/// この属性を付けない（付けなければ本モジュールは一切書き込まない）。
+/// 値は不問（存在のみを見る）。
+pub const STAGGER_AUTO_FIRST_ATTR: &str = "data-fandhe-stagger-auto-first";
+
 /// `index` から CSS へ書き込む値文字列（10 進数のみ）を組み立てる純粋関数。
 #[must_use]
 pub fn stagger_index_value(index: usize) -> String {
@@ -48,18 +67,24 @@ pub fn stagger_index_value(index: usize) -> String {
 
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{stagger_index_value, STAGGER_INDEX_VAR};
+    use super::{stagger_index_value, STAGGER_AUTO_FIRST_ATTR, STAGGER_INDEX_VAR};
     use wasm_bindgen::JsCast;
     use web_sys::{Element, HtmlElement};
 
-    /// `list_element` の直接の要素子（keyed list の各行）を DOM 順に
-    /// 1 パス走査し、0 始まりの位置を [`STAGGER_INDEX_VAR`] へ書き込む。
+    /// [`STAGGER_AUTO_FIRST_ATTR`] を持つ `list_element` に限り、直接の
+    /// 要素子（keyed list の各行）を DOM 順に 1 パス走査し、0 始まりの
+    /// 位置を [`STAGGER_INDEX_VAR`] へ書き込む。属性を持たないリスト
+    /// （`Center`/`Last` 起点をアプリが管理するリスト）は no-op で
+    /// 抜ける（モジュール冒頭 doc「対象リストの明示的オプトイン」参照）。
     ///
     /// `Runtime::apply_update_for_dirty` の keyed list 構造反映直後に
     /// 呼ばれる（`Insert`/`Move` を含むあらゆる構造変化コミット後に呼ぶ
     /// ため、「今回変化した行だけ」ではなく全行を再計算する。冪等かつ
     /// `content_height::sync_content_height` と同型の「毎回再同期」方針）。
     pub fn sync_stagger_index(list_element: &Element) {
+        if !list_element.has_attribute(STAGGER_AUTO_FIRST_ATTR) {
+            return;
+        }
         let mut current = list_element.first_element_child();
         let mut index: usize = 0;
         while let Some(el) = current {
