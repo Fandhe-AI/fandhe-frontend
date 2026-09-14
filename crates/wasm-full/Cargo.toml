@@ -1110,12 +1110,26 @@ name = "fandhe-frontend-wasm-full"
 # する（origin/main の #2397 minor バンプと到達値が一致するため
 # バージョン番号自体は変更なし）。
 #
+# イシュー #2400: `nav.rs`（イシュー #404）専用だった
+# `document.startViewTransition()` ラップを `crate::view_transition` へ
+# 切り出し、任意の状態更新から呼べる新規公開 API
+# `Runtime::apply_with_view_transition`（feature `view-transitions`、
+# 既定 on）として開放した。`nav.rs` 側の router 経由呼び出しは feature に
+# 関わらず無条件で動作し続ける（責務分離）。新規公開 API 追加のため minor
+# バンプする。
+#
 # イシュー #2515: `view_transition_name` モジュールを新設し、新規公開 API
 # `set_view_transition_name`/`is_valid_view_transition_name` を追加。
 # 既定 on の別枠 feature `view-transition-name` を新設するため
 # `default-features = false` 利用者への影響（新規 API を失う）を伴う
 # 破壊的変更、`position`/`stagger` と同型のため minor バンプする。
-version = "0.22.0"
+#
+# イシュー #2400（本 PR、main マージ後の再バンプ）: origin/main が
+# #2515（0.21.x → 0.22.0）を先にマージしたため、本 PR 側の 0.22.0 と
+# 衝突した。両変更を統合したうえで 0.22.0 → 0.23.0 へ再度 minor バンプ
+# する（`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として
+# +1」運用）。
+version = "0.23.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1595,6 +1609,7 @@ default = [
   "in-view",
   "position",
   "stagger",
+  "view-transitions",
   "view-transition-name",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
@@ -1658,6 +1673,14 @@ position = []
 # 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
 # 別枠の feature。
 stagger = []
+# イシュー #2400: `Runtime::apply_with_view_transition`（新規公開 API、
+# 任意の状態更新を `document.startViewTransition()` でラップする）
+# 専用の feature（既定 on）。`nav.rs` の router 経由
+# `startViewTransition`（イシュー #404、`crate::view_transition`）は
+# feature に関わらず無条件で動作し続ける。配線群別 feature 表にも
+# scope feature 表にも属さない別枠の feature（`position`/`stagger`
+# と同型）。
+view-transitions = []
 # イシュー #2515: [`view_transition_name::set_view_transition_name`] 公開
 # 関数自体（`Runtime` を経由しないアプリ直接利用 API）専用の feature
 # （既定 on）。`position`/`stagger` と異なり `Runtime::mount`/`hydrate`/
