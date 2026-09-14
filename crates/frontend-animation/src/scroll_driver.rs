@@ -23,7 +23,7 @@
 //! `@supports not (animation-timeline: view())` フォールバック CSS の追加は
 //! 本 issue のスコープ外（別クレート・別 publish チェーンを要するため）。
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 // wasm32 以外では `update_element_progress` が `Target::write` を呼ばない
@@ -32,6 +32,10 @@ use std::rc::Rc;
 // この import も同じ cfg でガードする（未使用 import の警告を避ける）。
 #[cfg(target_arch = "wasm32")]
 use fandhe_animation::target::Target;
+// `find_scroll_container` の `dyn_into::<web_sys::HtmlElement>()` に必要
+// （同上の理由で wasm32 限定 import）。
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsCast;
 
 use crate::dom_target::DomTarget;
 use crate::raf_driver::AnimationLoop;
@@ -134,13 +138,86 @@ impl Env {
     }
 }
 
+/// `element` の祖先を遡り、最も近いスクロールコンテナ（`overflow-y` が
+/// `visible`/`clip` 以外、かつ `scrollHeight > clientHeight` で実際に
+/// スクロール可能な要素）を返す（PR #2557 codex-review P1 是正）。
+///
+/// ネイティブ `animation-timeline: view()` は要素の「近傍スクロール
+/// ポート」（nearest scrollable ancestor）を基準に進捗を計算する。
+/// JS フォールバック（[`update_element_progress`]）が常に
+/// `window.innerHeight` を基準にしていると、要素がクリップされた
+/// ネストしたスクロールコンテナ内にある場合に進捗を誤計算し、ネイティブ
+/// 経路との契約（`crates/wasm-full/src/scroll_driver.rs` の doc
+/// コメント「ネストしたスクロールコンテナの双方を捕捉できる」）と
+/// 齟齬が生じるため、本関数で近傍コンテナを解決する。
+///
+/// `<html>`（`document.document_element()`）に到達した場合はページ全体
+/// スクロールとみなし `None` を返す（`html` へ明示的に `overflow-y:
+/// scroll` 等が設定されていても、実際の表示領域は viewport と一致する
+/// ため、これを「ネストしたコンテナ」と誤認して
+/// `documentElement.getBoundingClientRect()`〔文書全体の高さ〕を基準に
+/// 使うと進捗が常に 1.0 付近へ張り付く誤計算になる）。
+///
+/// `getComputedStyle`/`window`/`document` の取得に失敗した場合も
+/// fail-closed に `None`（= window 基準へフォールバック）を返す。
+#[cfg(target_arch = "wasm32")]
+fn find_scroll_container(element: &web_sys::Element) -> Option<web_sys::Element> {
+    let window = web_sys::window()?;
+    let root = window.document()?.document_element();
+
+    let mut current = element.parent_element();
+    while let Some(candidate) = current {
+        if root.as_ref() == Some(&candidate) {
+            return None;
+        }
+        if is_scroll_container(&window, &candidate) {
+            return Some(candidate);
+        }
+        current = candidate.parent_element();
+    }
+    None
+}
+
+/// `el` が実際にスクロール可能なコンテナかどうかを判定する
+/// （[`find_scroll_container`] の走査述語）。
+///
+/// `overflow-y` の計算値が `visible`/`clip`（スクロールポートを生成
+/// しない値）以外、かつ `scrollHeight > clientHeight`（実際に溢れて
+/// いる）の両方を満たす場合のみコンテナとみなす。後者を課さないと、
+/// `overflow-y: auto` だが中身が収まっている（スクロール不要な）要素も
+/// 誤ってコンテナ扱いされ、`getBoundingClientRect()` の高さが
+/// `window.innerHeight` とほぼ同義なだけの要素を無意味に基準へ使って
+/// しまう。
+#[cfg(target_arch = "wasm32")]
+fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool {
+    let Ok(Some(style)) = window.get_computed_style(el) else {
+        return false;
+    };
+    let overflow_y = style.get_property_value("overflow-y").unwrap_or_default();
+    if matches!(overflow_y.as_str(), "visible" | "clip" | "") {
+        return false;
+    }
+    let Ok(html_element) = el.clone().dyn_into::<web_sys::HtmlElement>() else {
+        return false;
+    };
+    html_element.scroll_height() > html_element.client_height()
+}
+
 /// `element` の現在位置を計測し、[`compute_progress`] の結果を `target` へ
 /// 書き込む（`fandhe-frontend-wasm-full` の scroll/resize リスナー・rAF
 /// ループから毎フレーム呼ばれる想定）。
 ///
-/// `element.get_bounding_client_rect()` と `window.inner_height()` の
-/// 計測に失敗した場合（`window` 不在等）は書き込みを行わず `None` を返す
-/// （fail-closed、panic しない）。
+/// 基準とする表示領域は [`find_scroll_container`] が解決する最も近い
+/// スクロールコンテナ（存在すればその `getBoundingClientRect()`）、
+/// 無ければ `window.innerHeight`（ページ全体スクロール、従来どおり）
+/// である（PR #2557 codex-review P1 是正）。祖先探索は呼び出しのたび
+/// 毎フレーム行うため、動的なコンテナ構成変更（`overflow` の動的切替）
+/// には追随するが、`getComputedStyle` 呼び出しコストが祖先段数ぶん
+/// かかる既知のトレードオフである（`in_view.rs` の `MutationObserver`
+/// 非対応と同種の割り切り）。
+///
+/// 計測に失敗した場合（`window` 不在等）は書き込みを行わず `None` を
+/// 返す（fail-closed、panic しない）。
 ///
 /// wasm32 以外のターゲットでは JS 呼び出し自体を伴わない no-op として
 /// `None` を返す（`RafDriver::new`/`AnimationLoop::start` と同じ native
@@ -149,8 +226,18 @@ pub fn update_element_progress(element: &web_sys::Element, target: &mut DomTarge
     #[cfg(target_arch = "wasm32")]
     {
         let rect = element.get_bounding_client_rect();
-        let viewport_height = web_sys::window()?.inner_height().ok()?.as_f64()?;
-        let progress = compute_progress(rect.top(), rect.height(), viewport_height);
+        let (reference_top, reference_height) = match find_scroll_container(element) {
+            Some(container) => {
+                let container_rect = container.get_bounding_client_rect();
+                (container_rect.top(), container_rect.height())
+            }
+            None => {
+                let viewport_height = web_sys::window()?.inner_height().ok()?.as_f64()?;
+                (0.0, viewport_height)
+            }
+        };
+        let progress =
+            compute_progress(rect.top() - reference_top, rect.height(), reference_height);
         target.write(progress);
         Some(progress)
     }
@@ -173,8 +260,20 @@ pub fn update_element_progress(element: &web_sys::Element, target: &mut DomTarge
 /// native（非 wasm32）では [`AnimationLoop::start`] が no-op を返すため
 /// `ScrollDriver` 自体も自然に no-op になる（追加の `#[cfg]` 分岐は不要）。
 pub struct ScrollDriver {
-    loop_: AnimationLoop,
-    dirty: Rc<Cell<bool>>,
+    state: Rc<ScrollDriverState>,
+}
+
+/// [`ScrollDriver`] の共有可変状態（`mark_dirty`/rAF ステップ双方から
+/// `Rc` 経由で参照される）。
+struct ScrollDriverState {
+    recompute: RefCell<Box<dyn FnMut()>>,
+    dirty: Cell<bool>,
+    /// rAF ループが現在フレーム要求中かどうか（Bugbot 指摘、PR #2557
+    /// codex-review コメント: 常時 `true` を返すと `dirty == false` でも
+    /// rAF ループが恒久稼働してしまう）。`false` になった後は
+    /// `mark_dirty` が新しい [`AnimationLoop`] を起動して再開する。
+    running: Cell<bool>,
+    loop_: RefCell<Option<AnimationLoop>>,
 }
 
 impl ScrollDriver {
@@ -183,28 +282,73 @@ impl ScrollDriver {
     /// 開始直後の 1 フレーム目は無条件に `recompute` を呼ぶ（初期スクロール
     /// 位置に対応する進捗を、最初の `scroll`/`resize` イベントを待たずに
     /// 反映するため）。
-    pub fn start(mut recompute: impl FnMut() + 'static) -> Self {
-        let dirty = Rc::new(Cell::new(true));
-        let dirty_for_loop = dirty.clone();
-        let loop_ = AnimationLoop::start(move || {
-            if dirty_for_loop.replace(false) {
-                recompute();
-            }
-            true
+    ///
+    /// 1 フレーム連続で dirty が立っていなければループを停止し（アイドル
+    /// 化）、以後は `mark_dirty()` が新しい rAF ループを起動して再開する
+    /// （scroll/resize が起きていない間は無限に `requestAnimationFrame`
+    /// を消費しない）。
+    pub fn start(recompute: impl FnMut() + 'static) -> Self {
+        let state = Rc::new(ScrollDriverState {
+            recompute: RefCell::new(Box::new(recompute)),
+            dirty: Cell::new(true),
+            running: Cell::new(true),
+            loop_: RefCell::new(None),
         });
-        Self { loop_, dirty }
+        let loop_ = Self::spawn_loop(&state);
+        *state.loop_.borrow_mut() = Some(loop_);
+        Self { state }
+    }
+
+    /// `state` を基準に新しい [`AnimationLoop`] を 1 本起動する
+    /// （`start`・アイドルからの再開〔`mark_dirty`〕の双方から呼ばれる
+    /// 共通経路）。
+    fn spawn_loop(state: &Rc<ScrollDriverState>) -> AnimationLoop {
+        let state_for_step = state.clone();
+        AnimationLoop::start(move || {
+            if state_for_step.dirty.replace(false) {
+                (state_for_step.recompute.borrow_mut())();
+                true
+            } else {
+                // 2 フレーム連続で dirty が立たなかった（今フレームで
+                // 何もせず false を返すのみ）: このクロージャ自身が
+                // 属する `AnimationLoop`（`state.loop_` の中身）を
+                // ここで drop しない（`raf_driver.rs::AnimationLoop::stop`
+                // の doc が警告する「実行中の Closure を call_mut 実行中
+                // に drop すると use-after-free」を避けるため）。単に
+                // `false` を返して次フレーム予約をやめるだけに留め、
+                // `state.loop_` 自体のクリア・再生成は `mark_dirty`
+                // （scroll/resize イベントリスナー由来の別コールスタック）
+                // 側に委ねる。
+                state_for_step.running.set(false);
+                false
+            }
+        })
     }
 
     /// 次フレームで `recompute` が呼ばれるようフラグを立てる（`scroll`/
     /// `resize` イベントリスナーから呼ばれる）。
+    ///
+    /// ループが既にアイドル化している場合（`running == false`）は
+    /// 新しい [`AnimationLoop`] を起動して再開する。ここで古い（既に
+    /// 停止済みの） `AnimationLoop` を新しいものへ差し替える `drop` が
+    /// 発生するが、この呼び出しはイベントリスナーのコールスタックであり
+    /// rAF コールバック自身の `call_mut` 実行中ではないため、`drop`
+    /// （`AnimationLoop::stop` 経由の `Closure` 解放）は安全である。
     pub fn mark_dirty(&self) {
-        self.dirty.set(true);
+        self.state.dirty.set(true);
+        if !self.state.running.replace(true) {
+            let loop_ = Self::spawn_loop(&self.state);
+            *self.state.loop_.borrow_mut() = Some(loop_);
+        }
     }
 
-    /// ループを明示停止する（`Drop` でも `AnimationLoop::drop` 経由で
+    /// ループを明示停止する（`Drop` でも [`AnimationLoop::stop`] 経由で
     /// 停止するが、要素の動的除去等に伴う早期停止用に公開する）。
     pub fn stop(&self) {
-        self.loop_.stop();
+        self.state.running.set(false);
+        if let Some(loop_) = self.state.loop_.borrow_mut().take() {
+            loop_.stop();
+        }
     }
 }
 

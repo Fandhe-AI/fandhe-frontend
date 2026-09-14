@@ -14,6 +14,7 @@
 //!    回帰）
 
 #![cfg(target_arch = "wasm32")]
+#![cfg(feature = "scroll-driver")]
 
 use fandhe_frontend_animation::scroll_driver::{Env, SCROLL_PROGRESS_PROPERTY};
 use fandhe_frontend_wasm_full::scroll_driver::{
@@ -240,7 +241,7 @@ async fn native_support_detected_writes_nothing() {
 /// ため、`native_support_detected_writes_nothing` と同じ結果（custom
 /// property 非書き込み）になる。
 mod runtime_integration {
-    use super::{scroll_progress_value, wait_for, RemoveOnDrop};
+    use super::{scroll_progress_value, sleep_ms, RemoveOnDrop};
     use fandhe_frontend_core::{el, Node};
     use fandhe_frontend_interactive::{Component, DirtyTracked, Hydrate, HydrateError};
     use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
@@ -331,9 +332,7 @@ mod runtime_integration {
         // `wire_in_view` 同様、既存の他配線群テストが `Runtime::mount` 経路
         // を横断的に固定しており、本テストは `scroll-driver` feature が
         // `Runtime::mount` から実際に到達可能であることの契約確認を担う）。
-        for _ in 0..5 {
-            wait_for(|| false).await;
-        }
+        sleep_ms(250).await;
         assert!(
             scroll_progress_value(&target).is_empty(),
             "ネイティブ対応時は Runtime::mount 経由でも custom property を書き込まないはず"
