@@ -19,8 +19,8 @@ use fandhe_frontend_wasm_full::gesture::{
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{
-    Document, Element, Event, EventTarget, KeyboardEvent, KeyboardEventInit, PointerEvent,
-    PointerEventInit,
+    Document, Element, Event, EventTarget, FocusEvent, FocusEventInit, KeyboardEvent,
+    KeyboardEventInit, PointerEvent, PointerEventInit,
 };
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -81,6 +81,16 @@ fn dispatch_key(target: &Element, kind: &str, key: &str, repeat: bool) {
     init.set_repeat(repeat);
     let event =
         KeyboardEvent::new_with_keyboard_event_init_dict(kind, &init).expect("KeyboardEvent::new");
+    target
+        .dispatch_event(Event::from(event).as_ref())
+        .expect("dispatch_event must not fail");
+}
+
+fn dispatch_focusout(target: &Element) {
+    let init = FocusEventInit::new();
+    init.set_bubbles(true);
+    let event =
+        FocusEvent::new_with_focus_event_init_dict("focusout", &init).expect("FocusEvent::new");
     target
         .dispatch_event(Event::from(event).as_ref())
         .expect("dispatch_event must not fail");
@@ -220,4 +230,81 @@ fn opted_out_element_never_receives_gesture_attributes() {
 
     assert!(!plain.has_attribute(HOVER_STATE_ATTR));
     assert!(!plain.has_attribute(PRESS_STATE_ATTR));
+}
+
+/// codex-review 指摘の回帰固定: 入れ子の opt-in 祖先（親・子とも
+/// [`GESTURE_HOVER_ATTR`]）で子から真に離脱したとき、子だけでなく祖先
+/// （親）の [`HOVER_STATE_ATTR`] も解除されること。`closest_opted_in`
+/// （最も近い 1 件のみ）ではこの離脱で親の hover 状態が取り残されていた。
+#[wasm_bindgen_test]
+fn nested_opt_in_elements_both_update_hover_on_leave() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, parent, child) = build_dom(&document, "gesture-nested-hover-test");
+    child.set_attribute(GESTURE_HOVER_ATTR, "").unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    // 外部から入れ子の子要素へ直接進入する（間に親専用の進入イベントを
+    // 経由しない）。
+    dispatch_pointer(&child, "pointerover", "mouse", None);
+    assert!(child.has_attribute(HOVER_STATE_ATTR));
+    assert!(
+        parent.has_attribute(HOVER_STATE_ATTR),
+        "内側要素への直接進入でも外側祖先の hover 状態が更新されること"
+    );
+
+    // 子から root 外（related_target なし = 完全に外部）へ離脱する。
+    dispatch_pointer(&child, "pointerout", "mouse", None);
+    assert!(!child.has_attribute(HOVER_STATE_ATTR));
+    assert!(
+        !parent.has_attribute(HOVER_STATE_ATTR),
+        "子要素からの離脱で外側祖先（親）の hover 状態も解除されること"
+    );
+}
+
+/// codex-review 指摘の回帰固定: keyboard（Enter/Space）由来の press 中に
+/// ポインタが要素外へ出ても（`pointerout`）、press 状態を誤って解除しない
+/// こと。従来実装は pointerout で無条件に press を解除しており、
+/// keyboard 由来の press まで消してしまっていた。
+#[wasm_bindgen_test]
+fn pointerout_does_not_clear_keyboard_activated_press() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-keyboard-pointerout-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_key(&child, "keydown", " ", false);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    dispatch_pointer(&child, "pointerout", "mouse", None);
+    assert!(
+        child.has_attribute(PRESS_STATE_ATTR),
+        "keyboard 由来の press は pointerout で解除されないこと"
+    );
+
+    dispatch_key(&child, "keyup", " ", false);
+    assert!(!child.has_attribute(PRESS_STATE_ATTR));
+}
+
+/// codex-review 指摘の回帰固定: Space 押下（keydown）中にフォーカスが別
+/// 要素へ移動すると、後続の `keyup` は新しいフォーカス先へ発火し元要素の
+/// [`PRESS_STATE_ATTR`] が残り続けていた。`focusout` での即時解除で
+/// これを塞ぐ。
+#[wasm_bindgen_test]
+fn focusout_clears_press_state_left_by_keyboard_activation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-focusout-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_key(&child, "keydown", " ", false);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    // keyup を経由せずフォーカスが離れる（Tab で他要素へ移動した状況を
+    // 模す）。
+    dispatch_focusout(&child);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "keyup を待たずフォーカス離脱時点で press 状態が解除されること"
+    );
 }

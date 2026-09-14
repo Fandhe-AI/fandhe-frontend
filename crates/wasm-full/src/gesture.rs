@@ -29,7 +29,7 @@
 //! 既存の別意味論で広く使用済みのため避け、内部実装用の
 //! `data-fandhe-*` プレフィックス（`stagger_index.rs`/`content_height.rs`
 //! と同型）を用いる。opt-in を hover/press で分離するのは、コストが
-//! 異なる（hover は 2 リスナー共有、press は 5 リスナー共有）ため、
+//! 異なる（hover は 2 リスナー共有、press は 6 リスナー共有）ため、
 //! 利用者が必要な方だけ opt-in できるようにするため。
 //!
 //! # Runtime への統合
@@ -82,7 +82,14 @@ mod wiring {
     use crate::dom::set_dom_attribute_result as set_dom_attribute;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, KeyboardEvent, MouseEvent, PointerEvent};
+    use web_sys::{Element, Event, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent};
+
+    /// 内部専用（外部非公開）: press が pointer 由来であることを示す
+    /// マーカー。`pointerout` が keyboard 由来の press まで誤って解除
+    /// しないための区別に使う（codex-review 指摘の是正）。[`HOVER_STATE_ATTR`]/
+    /// [`PRESS_STATE_ATTR`] と同じく常に空文字列の存在属性のみで REQ-1 の
+    /// 不変条件を保つ。
+    const PRESS_POINTER_ACTIVE_ATTR: &str = "data-fandhe-press-pointer-active";
 
     /// `event.target()` を `Element` として取得する（`Text` ノード等は
     /// `None`）。
@@ -109,8 +116,32 @@ mod wiring {
         root.contains(Some(&matched)).then_some(matched)
     }
 
+    /// `root` 配下・`opt_in_attr` を持つ祖先（自身含む）を近い順に**すべて**
+    /// 返す。入れ子の opt-in 要素（親子とも opt-in）を想定し、`target` から
+    /// 1 段ずつ `closest` を辿って積み上げる（`closest_opted_in` は最も
+    /// 近い 1 件しか返さないため、離脱時に外側の祖先が取り残される
+    /// 不具合の是正、codex-review 指摘）。
+    fn opted_in_ancestors(root: &Element, target: &Element, opt_in_attr: &str) -> Vec<Element> {
+        let selector = format!("[{opt_in_attr}]");
+        let mut ancestors = Vec::new();
+        let mut current = Some(target.clone());
+        while let Some(from) = current {
+            let Some(matched) = from.closest(&selector).ok().flatten() else {
+                break;
+            };
+            if !root.contains(Some(&matched)) {
+                break;
+            }
+            current = matched.parent_element();
+            ancestors.push(matched);
+        }
+        ancestors
+    }
+
     /// `pointerover`: 非タッチかつ真の進入（`related_target` が
-    /// `hover_target` 外）のときのみ [`HOVER_STATE_ATTR`] を付与する。
+    /// 各祖先の外）の祖先ごとに [`HOVER_STATE_ATTR`] を付与する。入れ子の
+    /// opt-in 祖先すべてを対象にすることで、内側要素へ直接進入した場合に
+    /// 外側祖先の hover 状態が更新されない不具合を避ける。
     fn handle_pointerover(root: &Element, event: &Event) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
@@ -121,38 +152,44 @@ mod wiring {
         let Some(target) = event_target_element(event) else {
             return;
         };
-        let Some(hover_target) = closest_opted_in(root, &target, GESTURE_HOVER_ATTR) else {
-            return;
-        };
-        if related_within(event, &hover_target) {
-            return;
+        for hover_target in opted_in_ancestors(root, &target, GESTURE_HOVER_ATTR) {
+            if related_within(event, &hover_target) {
+                continue;
+            }
+            let _ = set_dom_attribute(&hover_target, HOVER_STATE_ATTR, "");
         }
-        let _ = set_dom_attribute(&hover_target, HOVER_STATE_ATTR, "");
     }
 
-    /// `pointerout`: 真の離脱（`related_target` が対象外）で
-    /// [`HOVER_STATE_ATTR`] を外す。press 中に要素外へ抜けた場合の
-    /// [`PRESS_STATE_ATTR`] 解除（ネイティブ `:active` が要素外離脱で
-    /// 解除される挙動の再現）も同じハンドラで併せて行う（冪等な
-    /// remove のため press 状態でなくても無害）。
+    /// `pointerout`: 真の離脱（`related_target` が対象外）の祖先ごとに
+    /// [`HOVER_STATE_ATTR`] を外す（入れ子の opt-in 祖先すべてが対象、
+    /// codex-review 指摘の是正）。press 側は keyboard 由来の press まで
+    /// 誤って解除しないよう、pointer 起因の press にのみ設定される
+    /// [`PRESS_POINTER_ACTIVE_ATTR`] マーカーが立つ祖先のみを対象にする。
     fn handle_pointerout(root: &Element, event: &Event) {
         let Some(target) = event_target_element(event) else {
             return;
         };
-        if let Some(hover_target) = closest_opted_in(root, &target, GESTURE_HOVER_ATTR) {
+        for hover_target in opted_in_ancestors(root, &target, GESTURE_HOVER_ATTR) {
             if !related_within(event, &hover_target) {
                 let _ = hover_target.remove_attribute(HOVER_STATE_ATTR);
             }
         }
-        if let Some(press_target) = closest_opted_in(root, &target, GESTURE_PRESS_ATTR) {
-            if !related_within(event, &press_target) {
+        for press_target in opted_in_ancestors(root, &target, GESTURE_PRESS_ATTR) {
+            if related_within(event, &press_target) {
+                continue;
+            }
+            if press_target.has_attribute(PRESS_POINTER_ACTIVE_ATTR) {
                 let _ = press_target.remove_attribute(PRESS_STATE_ATTR);
+                let _ = press_target.remove_attribute(PRESS_POINTER_ACTIVE_ATTR);
             }
         }
     }
 
     /// `pointerdown`: opt-in 要素へ [`PRESS_STATE_ATTR`] を付与する
-    /// （pointer/touch 両方対象、タッチ除外は行わない）。
+    /// （pointer/touch 両方対象、タッチ除外は行わない）。あわせて
+    /// [`PRESS_POINTER_ACTIVE_ATTR`] を立て、この press が pointer 由来
+    /// であることを記録する（`pointerout` が keyboard 由来の press を
+    /// 誤って解除しないための区別、codex-review 指摘の是正）。
     fn handle_pointerdown(root: &Element, event: &Event) {
         let Some(target) = event_target_element(event) else {
             return;
@@ -161,10 +198,12 @@ mod wiring {
             return;
         };
         let _ = set_dom_attribute(&press_target, PRESS_STATE_ATTR, "");
+        let _ = set_dom_attribute(&press_target, PRESS_POINTER_ACTIVE_ATTR, "");
     }
 
-    /// `pointerup`/`pointercancel`: opt-in 要素から [`PRESS_STATE_ATTR`]
-    /// を外す（同一 [`Closure`] を両イベント名で登録しリスナー数を節約）。
+    /// `pointerup`/`pointercancel`: opt-in 要素から [`PRESS_STATE_ATTR`]・
+    /// [`PRESS_POINTER_ACTIVE_ATTR`] を外す（同一 [`Closure`] を両イベント名
+    /// で登録しリスナー数を節約）。
     fn handle_pointerup_or_cancel(root: &Element, event: &Event) {
         let Some(target) = event_target_element(event) else {
             return;
@@ -173,6 +212,7 @@ mod wiring {
             return;
         };
         let _ = press_target.remove_attribute(PRESS_STATE_ATTR);
+        let _ = press_target.remove_attribute(PRESS_POINTER_ACTIVE_ATTR);
     }
 
     /// `keydown`: 活性化キー（Enter/Space）・非リピート・opt-in 要素の
@@ -212,8 +252,29 @@ mod wiring {
         let _ = press_target.remove_attribute(PRESS_STATE_ATTR);
     }
 
-    /// `root` へ hover/press 検知の 7 リスナー（pointerover/pointerout/
-    /// pointerdown/pointerup/pointercancel/keydown/keyup）を委譲登録する
+    /// `focusout`: フォーカスが外れた要素から [`PRESS_STATE_ATTR`] を外す。
+    /// Space 押下中（keydown 済み）に Tab でフォーカス移動すると、後続の
+    /// `keyup` はそのとき実際にフォーカスを持つ別要素へ発火し元要素へは
+    /// 届かないため（codex-review 指摘）、`keyup` を待たずフォーカス離脱
+    /// 時点で確実に解除する。`focusout` はバブルするため root 委譲で
+    /// 拾える。
+    fn handle_focusout(root: &Element, event: &Event) {
+        if event.dyn_ref::<FocusEvent>().is_none() {
+            return;
+        }
+        let Some(target) = event_target_element(event) else {
+            return;
+        };
+        let Some(press_target) = closest_opted_in(root, &target, GESTURE_PRESS_ATTR) else {
+            return;
+        };
+        let _ = press_target.remove_attribute(PRESS_STATE_ATTR);
+        let _ = press_target.remove_attribute(PRESS_POINTER_ACTIVE_ATTR);
+    }
+
+    /// `root` へ hover/press 検知の 8 リスナー（pointerover/pointerout/
+    /// pointerdown/pointerup/pointercancel/keydown/keyup/focusout）を
+    /// 委譲登録する
     /// （[`crate::lib::Runtime::mount`]/[`crate::lib::Runtime::hydrate`]
     /// から呼ばれる）。`events::wire_events` と同じく登録回数を定数個に
     /// 抑える方針（A04 対策）で、要素ごとの動的登録・解除は行わない
@@ -280,6 +341,16 @@ mod wiring {
         });
         root.add_event_listener_with_callback("keyup", keyup_closure.as_ref().unchecked_ref())?;
         keyup_closure.forget();
+
+        let focusout_root = root.clone();
+        let focusout_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_focusout(&focusout_root, &event);
+        });
+        root.add_event_listener_with_callback(
+            "focusout",
+            focusout_closure.as_ref().unchecked_ref(),
+        )?;
+        focusout_closure.forget();
 
         Ok(())
     }

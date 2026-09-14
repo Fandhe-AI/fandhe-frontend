@@ -2510,7 +2510,7 @@ where
     ///
     /// # Errors
     ///
-    /// [`gesture::wire_gesture`]（`add_event_listener_with_callback` 7 件）
+    /// [`gesture::wire_gesture`]（`add_event_listener_with_callback` 8 件）
     /// の失敗を伝播する。
     #[cfg(feature = "gesture")]
     fn wire_gesture(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
