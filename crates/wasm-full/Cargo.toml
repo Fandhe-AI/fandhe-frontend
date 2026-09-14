@@ -1113,7 +1113,19 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #2520: 新規デフォルト on の配線群別 feature `gesture` を追加
 # （`Runtime::mount`/`hydrate` へ新規呼び出し `Self::wire_gesture` が増える
 # 破壊的変更、`in-view` 追加と同型）ため minor バンプする。
-version = "0.22.0"
+#
+# イシュー #2515: `view_transition_name` モジュールを新設し、新規公開 API
+# `set_view_transition_name`/`is_valid_view_transition_name` を追加。
+# 既定 on の別枠 feature `view-transition-name` を新設するため
+# `default-features = false` 利用者への影響（新規 API を失う）を伴う
+# 破壊的変更、`position`/`stagger` と同型のため minor バンプする（#2515 の
+# origin/main マージにより到達値は 0.22.0 で一致）。
+#
+# イシュー #2520（PR #2555 codex-review/Bugbot 指摘是正）: gesture 配線の
+# press 状態モデルを要素単位の押下源集合（pointer_id 集合 + keyboard 起点）
+# へ再設計。origin/main（#2515 の 0.22.0）とのマージ後、同一 minor 到達値の
+# 競合を避けるため 0.22.0 から +1 して 0.23.0 とする。
+version = "0.23.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1594,6 +1606,7 @@ default = [
   "gesture",
   "position",
   "stagger",
+  "view-transition-name",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -1663,6 +1676,14 @@ position = []
 # 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
 # 別枠の feature。
 stagger = []
+# イシュー #2515: [`view_transition_name::set_view_transition_name`] 公開
+# 関数自体（`Runtime` を経由しないアプリ直接利用 API）専用の feature
+# （既定 on）。`position`/`stagger` と異なり `Runtime::mount`/`hydrate`/
+# `apply_update_for_dirty` 内部の呼び出し箇所ではなく、公開関数の存在
+# 自体をゲートする（`wasm-bindgen-exports` 配下の `entry` モジュールと
+# 同型のパターン）。`view_transition_name` モジュール自体・
+# `is_valid_view_transition_name` 純粋関数はゲートしない。
+view-transition-name = []
 
 # イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
 # `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの
