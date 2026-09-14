@@ -7,11 +7,14 @@
 //! 根拠・スコープ外事項は [`crate::tooltip`]/[`crate::popover`] の rustdoc と
 //! 同じ方針に従う（構造上最も近い先行例は [`crate::tooltip`]）。
 //!
-//! # data-state とスタイルの連動
+//! # 開閉状態とスタイルの連動
 //!
-//! `content` の開閉 `data-state`（open/closed）に応じた見た目の切り替えを
-//! `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]、
-//! [`crate::tooltip`] と同じ判断）。
+//! `content` の開閉に応じた見た目の切り替えは、イシュー #2388 で
+//! `data-state` state から [`crate::recipe::SlotRecipe::presence_transition`]
+//! （`[hidden]` 属性 state + `@starting-style` によるフェード/scale
+//! トランジション）へ移行した（下記「トランジション」節参照）。
+//! `data-state` 自体は headless 層が引き続き付与するが、`content` の
+//! CSS 到達点としては使わない。
 //!
 //! # キーボード操作系属性の反映
 //!
@@ -57,7 +60,8 @@
 //!   （`rgba(0, 0, 0, 0.15)`）は shadow トークン化（後述）で解消した。
 //! - **状態（`data-*`）**: headless 層（`crates/headless-ui/src/
 //!   hover_card.rs`）は `disabled` 概念を持たないため disabled 軸は
-//!   非該当（N/A）。`content` の `data-state` 連動は既存のまま維持する。
+//!   非該当（N/A）。`content` の開閉連動は、上記「開閉状態とスタイルの
+//!   連動」節のとおりイシュー #2388 で `[hidden]` 属性基準へ移行した。
 //! - **ダーク**: `content` の影が生リテラルでダーク非追従だった点を、
 //!   ダーク値内蔵の `var(--fandhe-shadow-md)` へ移行して解消した。他の
 //!   宣言はすべて色トークン参照のみで既にダーク追従済み。
@@ -87,18 +91,22 @@
 //!   適用しない（N/A）。
 //! - **トランジション**: `trigger` の `color` に
 //!   [`crate::recipe::transition_declarations`]（`MotionDuration::Fast`）を
-//!   新設した。`content` の開閉には `opacity`/`visibility` の transition に
-//!   よるフェード演出を一度導入したが、headless 層は closed 時に即座に
-//!   `content`/`positioner` へ `hidden` 存在属性を付与し UA 既定
-//!   `[hidden] { display: none }` が同時に適用されるため、transition の
-//!   開始点となる表示状態も終了を待つ非表示化もないままではフェードが
-//!   描画されない不具合があった（codex-review/Bugbot 指摘、PR #1799）。
-//!   `hidden` 属性の遅延ライフサイクル実装は headless/実行時層をまたぐ
-//!   変更を要し本イシューのスコープ外のため、機能しない transition/opacity
-//!   宣言は削除し [`crate::tooltip`] と同じ `visibility` 切替のみへ戻した。
-//!   `prefers-reduced-motion` は [`crate::theme::Theme::to_css`] の
-//!   duration 一括 0ms 化で `trigger` の `color` transition について
-//!   自動的に尊重される。
+//!   新設した。`content` の開閉フェード演出は、`opacity`/`visibility` の
+//!   transition によるフェードを一度導入したが（イシュー #1523）、
+//!   headless 層が closed 時に即座に `content`/`positioner` へ `hidden`
+//!   存在属性を付与し UA 既定 `[hidden] { display: none }` が同時に
+//!   適用されるため、transition の開始点となる表示状態も終了を待つ非
+//!   表示化もないままではフェードが描画されない不具合があった
+//!   （codex-review/Bugbot 指摘、PR #1799）。イシュー #2388 で
+//!   [`crate::recipe::SlotRecipe::presence_transition`]（`transition-
+//!   behavior: allow-discrete` を `display` にも付与する構造的解決）を
+//!   `content` へ適用し、このフェード演出を実装した。旧 `visibility`
+//!   切替 state（PR #1799 で見送り後に採った代替）は
+//!   `presence_transition` の `[hidden]` state と冗長かつ衝突するため
+//!   削除した。`prefers-reduced-motion` は
+//!   [`crate::theme::Theme::to_css`] の duration 一括 0ms 化で `trigger`
+//!   の `color` transition・`content` の presence transition の両方に
+//!   ついて自動的に尊重される。
 //!
 //! # shadcn/ui 突合（イシュー #2032）
 //!
@@ -144,10 +152,12 @@
 //!   クライアントサイド実行時挙動であり、本モジュールもそれを継承する
 //!   （shadcn/ui の `delay`/`closeDelay`〔Trigger Delays 節〕も同種の実行時
 //!   プロパティであり、イシュー #2032 の突合でも追随しないことを確認した）。
-//! - `content`/`positioner` の開閉フェード演出（`hidden` 属性を遅延して
-//!   `opacity`/`visibility` の transition を描画させるライフサイクル）も
-//!   同じ理由でスコープ外とする（headless 層・`fandhe-frontend-wasm-full`
-//!   の実行時層をまたぐ設計変更が必要。PR #1799 codex-review/Bugbot 指摘）。
+//! - `positioner` の開閉フェード演出は本イシューのスコープ外とする
+//!   （`content` は上記「トランジション」節のとおりイシュー #2388 で
+//!   `presence_transition` により実装済み。positioner レベルの対応は
+//!   positioner に `hidden` が付く部品構成の共通課題であり、
+//!   `docs/design/collapsible-height-animation.md` §12.3 の再評価
+//!   トリガーに委ねる）。
 //! - `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
 //!   [`crate::tooltip`]/[`crate::popover`] と同じ理由で本イシューの対象外
 //!   （shadcn/ui の `Sides` デモも同じ理由で対象外、上記突合節参照）。
@@ -247,23 +257,6 @@ fn recipe() -> SlotRecipe {
                 decl("max-width", "20rem"),
             ],
         )
-        // `content` の開閉状態に応じた見た目の切り替え（[`crate::tooltip`] と
-        // 同じ判断）。イシュー #1523 で `opacity`/`visibility` の
-        // transition によるフェード演出を一度導入したが、headless 層
-        // （`crates/headless-ui/src/hover_card.rs`）は closed 時に即座に
-        // `content`/`positioner` へ `hidden` 存在属性を付与するため UA 既定
-        // `[hidden] { display: none }` が同時に適用され、transition の
-        // 開始点となる表示状態（open 時の `opacity: 0` 相当）も終了を
-        // 待つ非表示化（`hidden` 遅延）もないままではフェードが描画され
-        // ない（codex-review/Bugbot 指摘、PR #1799）。`hidden` 属性の
-        // 遅延ライフサイクルは headless/実行時層をまたぐ変更を要しスコープ
-        // 外のため、[`crate::tooltip`] と同じく機能する `visibility` 切替
-        // のみを残し、機能しない transition/opacity 宣言は削除した。
-        .state(
-            "content",
-            StateCondition::AttrEq("data-state", "closed"),
-            vec![decl("visibility", "hidden")],
-        )
         // trigger の hover 強調（イシュー #1523）。hover-card の trigger は
         // 面を持たないインラインテキストの slot であり、
         // [`crate::link`] と同じ理由で `hover_surface_declarations` は
@@ -284,6 +277,13 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
+        // イシュー #2388: `content` へ presence（enter/exit）のフェード +
+        // scale トランジションを適用する。旧 `content[data-state="closed"]
+        // { visibility: hidden }` state（上記で削除）は、この
+        // `presence_transition` が新設する `[hidden]` state と冗長かつ
+        // 新演出と衝突するため置き換えた（モジュール doc「トランジション」
+        // 節参照）。
+        .presence_transition("content", MotionDuration::Normal)
 }
 
 /// この styled HoverCard が生成する静的 CSS 全量を返す（決定的。
@@ -342,11 +342,13 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_links_data_state_to_style_open_and_closed() {
+    fn stylesheet_links_hidden_attr_to_presence_closed_style() {
+        // イシュー #2388: `content` の開閉スタイル到達点を `data-state`
+        // state から `presence_transition` の `[hidden]` state へ移行した
+        // ことを固定する（モジュール doc「開閉状態とスタイルの連動」節
+        // 参照）。
         let css = stylesheet();
-        assert!(
-            css.contains(r#"[data-scope="hover-card"][data-part="content"][data-state="closed"]"#)
-        );
+        assert!(css.contains(r#"[data-scope="hover-card"][data-part="content"][hidden]"#));
     }
 
     #[test]
@@ -400,17 +402,18 @@ mod tests {
     }
 
     #[test]
-    fn closed_content_hides_via_visibility_only() {
-        // PR #1799 codex-review/Bugbot 指摘: opacity: 0 は機能しない
-        // transition の残骸だったため削除し、[`crate::tooltip`] と同じ
-        // visibility: hidden のみへ戻したことを固定する（モジュール doc の
-        // 「トランジション」節参照）。
+    fn closed_content_hides_via_presence_transition_hidden_state() {
+        // イシュー #2388: PR #1799 が見送っていた `content` の開閉フェード
+        // 演出を `presence_transition`（`allow-discrete` による構造的
+        // 解決）で実装した。旧 `[data-state="closed"] { visibility: hidden
+        // }` state は `presence_transition` が新設する `[hidden]` state
+        // へ置き換わったことを固定する（モジュール doc の「トランジション」
+        // 節参照）。
         let css = stylesheet();
+        assert!(!css.contains("[data-state=\"closed\"]"));
+        assert!(!css.contains("visibility: hidden"));
         assert!(css.contains(
-            "[data-scope=\"hover-card\"][data-part=\"content\"][data-state=\"closed\"] {\n  visibility: hidden;\n}\n"
-        ));
-        assert!(!css.contains(
-            "[data-scope=\"hover-card\"][data-part=\"content\"][data-state=\"closed\"] {\n  visibility: hidden;\n  opacity: 0;\n}\n"
+            "[data-scope=\"hover-card\"][data-part=\"content\"][hidden] {\n  opacity: 0;\n  transform: scale(0.95);\n}\n"
         ));
     }
 

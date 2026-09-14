@@ -33,6 +33,15 @@
 //! `--fandhe-y` を消費させる（popover/tooltip の `content` は任意の
 //! ネストした Tooltip/Menu/Popover を保持しうるため、`transform` が
 //! 作る包含ブロックで nested `position: fixed` の座標が壊れるのを防ぐ）。
+//!
+//! **イシュー #2388 の golden 更新**: `content[data-state="closed"]
+//! { visibility: hidden }` state を削除し、
+//! `SlotRecipe::presence_transition`（`content` へ純追加された base
+//! ブロック 1 個・`[hidden]` state ブロック・`@starting-style` ブロック）
+//! へ置き換えた。両ゴールデンとも `content` の 1 個目 base 直後へ
+//! presence base ブロックを中間挿入し、末尾側（states の最後・
+//! `@media (hover: hover)` 直前）へ `[hidden]`/`@starting-style` ブロック
+//! を純追加した（詳細は各モジュール rustdoc「トランジション」節参照）。
 
 use fandhe_frontend_pre_styled_ui::{popover, tooltip};
 
@@ -90,6 +99,14 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
   min-width: var(--fandhe-reference-width, auto);
 }
 
+[data-scope="popover"][data-part="content"] {
+  opacity: 1;
+  transition-property: opacity, transform, display;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
+}
+
 [data-scope="popover"][data-part="title"] {
   font-size: var(--fandhe-font-font-size-lg);
   font-weight: var(--fandhe-font-font-weight-semibold);
@@ -116,10 +133,6 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
 
 [data-scope="popover"][data-part="trigger"][data-state="open"] {
   border-color: var(--fandhe-color-accent);
-}
-
-[data-scope="popover"][data-part="content"][data-state="closed"] {
-  visibility: hidden;
 }
 
 [data-scope="popover"][data-part="trigger"][data-disabled] {
@@ -154,6 +167,18 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
   top: var(--fandhe-y, 0px);
   left: var(--fandhe-x, 0px);
   margin-top: 0;
+}
+
+[data-scope="popover"][data-part="content"][hidden] {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+@starting-style {
+  [data-scope="popover"][data-part="content"] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 @media (hover: hover) {
@@ -205,6 +230,14 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   box-shadow: var(--fandhe-shadow-sm);
   padding: var(--fandhe-space-1) var(--fandhe-space-2);
   max-width: 20rem;
+}
+
+[data-scope="tooltip"][data-part="content"] {
+  opacity: 1;
+  transition-property: opacity, transform, display;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+  transition-behavior: allow-discrete;
 }
 
 [data-scope="tooltip"][data-part="arrow"] {
@@ -263,10 +296,6 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
   margin: 0;
 }
 
-[data-scope="tooltip"][data-part="content"][data-state="closed"] {
-  visibility: hidden;
-}
-
 [data-scope="tooltip"][data-part="trigger"][data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
@@ -275,6 +304,18 @@ const TOOLTIP_GOLDEN_CSS: &str = r#"[data-scope="tooltip"][data-part="root"] {
 [data-scope="tooltip"][data-part="trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="tooltip"][data-part="content"][hidden] {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+@starting-style {
+  [data-scope="tooltip"][data-part="content"] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 @media (hover: hover) {

@@ -10,8 +10,12 @@
 //!
 //! # data-state とスタイルの連動（イシュー #664 受け入れ条件）
 //!
-//! `trigger`/`content` の開閉 `data-state`（open/closed）に応じた見た目の
-//! 切り替えを `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]）。
+//! `trigger` の開閉 `data-state`（open/closed）に応じた見た目の切り替えを
+//! `recipe` へ登録する（[`crate::recipe::SlotRecipe::state`]）。`content`
+//! の開閉は、イシュー #2388 で `data-state` state から
+//! [`crate::recipe::SlotRecipe::presence_transition`]（`[hidden]` 属性
+//! state + `@starting-style`）へ移行した（下記「トランジション」節
+//! 参照）。
 //!
 //! # キーボード操作系属性の反映
 //!
@@ -137,13 +141,16 @@
 //!   対象に含む）、`close-trigger` へ同ヘルパ（`"background"`、
 //!   `MotionDuration::Fast`）を新設した。`prefers-reduced-motion` は
 //!   [`crate::theme::Theme::to_css`] の duration 一括 0ms 化で自動的に
-//!   尊重される。**`content` の開閉フェード演出は導入しない**
-//!   （[`crate::hover_card`] と同じ理由: headless 層が closed 時に即座に
-//!   `hidden` 存在属性を付与し UA 既定 `[hidden] { display: none }` が
-//!   同時に適用されるため、transition の開始点・終了待ちのいずれも
-//!   成立せず描画されない。PR #1799 の codex-review/Bugbot 指摘と同種の
-//!   既知問題であり、headless/実行時層をまたぐ設計変更を要するため本
-//!   イシューのスコープ外とする）。
+//!   尊重される。**`content` の開閉フェード演出**（イシュー #2388）は
+//!   [`crate::recipe::SlotRecipe::presence_transition`] で実装済み。
+//!   旧来（PR #1799）は headless 層が closed 時に即座に `hidden` 存在
+//!   属性を付与し UA 既定 `[hidden] { display: none }` が同時に適用
+//!   されるため transition の開始点・終了待ちのいずれも成立せず描画
+//!   されない問題があった（本イシュー当初はスコープ外としていた）。
+//!   `presence_transition` は `transition-behavior: allow-discrete`
+//!   を `display` にも付与することでこれを構造的に解決しており、
+//!   `content[data-state="closed"] { visibility: hidden }` の旧 state
+//!   （冗長かつ新演出と衝突するため）は削除した。
 //!
 //! ## `close-trigger` のスタイル調整（ゴーストボタン絶対配置は見送り）
 //!
@@ -210,9 +217,10 @@
 //!   `autoFocus`/portal/modal モード・アニメーションは headless 層の
 //!   ドキュメント（`crates/headless-ui/src/popover.rs`）で既にスコープ外と
 //!   明記済みであり、本モジュールもそれを継承する。
-//! - `close-trigger` の絶対配置ゴーストボタン化（上記節参照）・`content`
-//!   の開閉フェード演出（上記「トランジション」節参照）はいずれもイシュー
-//!   #1534 のスコープ外とする。
+//! - `close-trigger` の絶対配置ゴーストボタン化（上記節参照）はイシュー
+//!   #1534 のスコープ外とする。`content` の開閉フェード演出は当初
+//!   イシュー #1534 のスコープ外としていたが、イシュー #2388 で
+//!   `presence_transition`（上記「トランジション」節参照）により実装済み。
 //! - `docs/design/component-coverage-map.md` の shadcn 列更新は姉妹イシュー
 //!   #2004（Phase 0）の担当範囲であり、本イシューでは触らない。
 //! - RTL（方向性）対応はイシュー #2037 のスコープ外とする。
@@ -410,11 +418,6 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-state", "open"),
             vec![decl("border-color", "var(--fandhe-color-accent)")],
         )
-        .state(
-            "content",
-            StateCondition::AttrEq("data-state", "closed"),
-            vec![decl("visibility", "hidden")],
-        )
         // イシュー #1534: trigger/close-trigger の hover 強調（両者ともボタン
         // 実体で面を持つため hover_bg_muted（base の --fandhe-hover-bg 定義）
         // + hover_surface_declarations の組み合わせを使う。[`crate::dialog`]
@@ -500,6 +503,13 @@ fn recipe() -> SlotRecipe {
                 decl("margin-top", "0"),
             ],
         )
+        // イシュー #2388: `content` へ presence（enter/exit）のフェード +
+        // scale トランジションを適用する。旧 `content[data-state="closed"]
+        // { visibility: hidden }` state（上記で削除）は、この
+        // `presence_transition` が新設する `[hidden]` state と冗長かつ
+        // 新演出と衝突するため置き換えた（`SlotRecipe::presence_transition`
+        // rustdoc 参照）。
+        .presence_transition("content", MotionDuration::Normal)
 }
 
 /// この styled Popover が生成する静的 CSS 全量を返す（決定的。
@@ -560,10 +570,20 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_links_data_state_to_style_open_and_closed() {
+    fn stylesheet_links_data_state_to_style_open() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="popover"][data-part="trigger"][data-state="open"]"#));
-        assert!(css.contains(r#"[data-scope="popover"][data-part="content"][data-state="closed"]"#));
+    }
+
+    #[test]
+    fn stylesheet_links_hidden_attr_to_presence_closed_style() {
+        // イシュー #2388: `content` の開閉スタイル到達点を `data-state`
+        // state から `presence_transition` の `[hidden]` state へ移行した
+        // ことを固定する（モジュール doc「data-state とスタイルの連動」
+        // 節参照）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="popover"][data-part="content"][hidden]"#));
+        assert!(!css.contains(r#"[data-part="content"][data-state="closed"]"#));
     }
 
     #[test]
