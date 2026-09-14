@@ -93,8 +93,8 @@ fn create_scroll_fixture(document: &Document, id_prefix: &str, once: bool) -> (E
     (container, target)
 }
 
-/// `condition` が成立するまで最大 600 フレーム（`requestAnimationFrame`
-/// 単位）ポーリングする。
+/// `condition` が成立するまで最大 200 周回（`requestAnimationFrame` 単位、
+/// フォールバック時は `setTimeout` 単位）ポーリングする。
 ///
 /// 旧実装は `setTimeout(..., 10)` でポーリングしていたが、
 /// `IntersectionObserver` の通知は仕様上「レンダリングを更新する」手順
@@ -119,16 +119,25 @@ fn create_scroll_fixture(document: &Document, id_prefix: &str, once: bool) -> (E
 /// 各周回は `requestAnimationFrame` と `setTimeout`（50ms）を
 /// `Promise.race` で競わせて待つ（Bugbot 指摘の是正、イシュー #2403）。
 /// `rAF` 単独だと、ページが非表示化される等でブラウザが `rAF` の発火自体を
-/// 止めた場合に `await` が永久に解決せず、600 回の周回上限が「一度も
-/// 周回が進まない」ため事実上無効化されタイムアウトしない（テストが
-/// ハングする）。`setTimeout` を道連れにすることで、`rAF` が発火しなくても
-/// 高々 50ms ごとに周回が進み、600 回の上限が必ず有効に効く。
+/// 止めた場合に `await` が永久に解決せず、周回上限が「一度も周回が
+/// 進まない」ため事実上無効化されタイムアウトしない（テストがハングする）。
+/// `setTimeout` を道連れにすることで、`rAF` が発火しなくても高々 50ms
+/// ごとに周回が進む。
+///
+/// 周回上限は 200（`setTimeout` フォールバックのみで進んだ最悪ケースでも
+/// 200 * 50ms = 10 秒）とする。`wasm-bindgen-test` の既定タイムアウトは
+/// 20 秒であり、600 回（最悪ケース 30 秒）のままでは `rAF` が発火しない
+/// 環境でこの既定タイムアウトを超え、ハーネスに強制打ち切られた後に
+/// 本来の `assert!` パニックが遅延して観測される（Bugbot 指摘の是正、
+/// イシュー #2403）。10 秒は `IntersectionObserver` 通知が正常経路（`rAF`
+/// 駆動、数フレーム程度）で届く時間に対して十分な余裕を保ちつつ、既定
+/// タイムアウトの半分に収める。
 #[must_use]
 async fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
 
-    for _ in 0..600 {
+    for _ in 0..200 {
         if condition() {
             return true;
         }
