@@ -163,11 +163,22 @@ impl Env {
 #[cfg(target_arch = "wasm32")]
 fn find_scroll_container(element: &web_sys::Element) -> Option<web_sys::Element> {
     let window = web_sys::window()?;
-    let root = window.document()?.document_element();
+    let document = window.document()?;
+    let root = document.document_element();
+    // `<body>` も `<html>` と同様にページ全体スクロールの一部とみなし
+    // 早期終了させる（Bugbot 指摘、PR #2557）。`html` の `overflow` が
+    // `visible` で `body` 自身が高さ制約付きで `overflow` している構成
+    // （quirks mode 的レイアウト）では `is_scroll_container(body)` が
+    // `true` を返し得るが、この場合ブラウザは `body` の overflow を
+    // 実際にはビューポート（document のスクロール）へ伝播させるため、
+    // `body.getBoundingClientRect()` はページスクロールに追従して動く
+    // （固定された「ネストしたスクロールポート」ではない）。これを
+    // ネストコンテナと誤認すると進捗がページスクロール中に張り付く。
+    let body: Option<web_sys::Element> = document.body().map(JsCast::unchecked_into);
 
     let mut current = element.parent_element();
     while let Some(candidate) = current {
-        if root.as_ref() == Some(&candidate) {
+        if root.as_ref() == Some(&candidate) || body.as_ref() == Some(&candidate) {
             return None;
         }
         if is_scroll_container(&window, &candidate) {
@@ -228,8 +239,29 @@ pub fn update_element_progress(element: &web_sys::Element, target: &mut DomTarge
         let rect = element.get_bounding_client_rect();
         let (reference_top, reference_height) = match find_scroll_container(element) {
             Some(container) => {
+                // `getBoundingClientRect()` の高さは border box（border・
+                // 横スクロールバー領域を含む）であり、実際に中身が見える
+                // 表示領域（padding box、CSSOM View の `clientHeight`）より
+                // 大きくなり得るため、進捗が実態より早く進み完了も早まる
+                // （codex-review P1 指摘、PR #2557）。`clientTop`（border-top
+                // 幅）・`clientHeight` を基準にする。変形（`transform`）が
+                // 適用されたコンテナでは `clientHeight` 自体は変形の影響を
+                // 受けないため厳密ではないが、`getBoundingClientRect()`
+                // （視覚的位置、変形を反映）を起点に `clientTop` を加算する
+                // ことで対象要素と同じ座標系を保ったまま表示領域を近似する
+                // （既知の単純化、`compute_progress` の doc と同種の割り切り）。
                 let container_rect = container.get_bounding_client_rect();
-                (container_rect.top(), container_rect.height())
+                let (client_top, client_height) = container
+                    .clone()
+                    .dyn_into::<web_sys::HtmlElement>()
+                    .map(|html| {
+                        (
+                            f64::from(html.client_top()),
+                            f64::from(html.client_height()),
+                        )
+                    })
+                    .unwrap_or((0.0, container_rect.height()));
+                (container_rect.top() + client_top, client_height)
             }
             None => {
                 let viewport_height = web_sys::window()?.inner_height().ok()?.as_f64()?;
@@ -342,13 +374,37 @@ impl ScrollDriver {
         }
     }
 
-    /// ループを明示停止する（`Drop` でも [`AnimationLoop::stop`] 経由で
-    /// 停止するが、要素の動的除去等に伴う早期停止用に公開する）。
+    /// ループを明示停止する（[`ScrollDriver`] の `Drop` 実装からも呼ばれるが、
+    /// 要素の動的除去等に伴う早期停止用に公開する）。
+    ///
+    /// `state.loop_` から [`AnimationLoop`] を `take` して局所変数へ移し
+    /// てから明示的に `stop()` を呼ぶ（`take` 自体で `RefCell` 内は
+    /// `None` になる）。これにより rAF コールバックが保持する
+    /// `state_for_step: Rc<ScrollDriverState>`（`spawn_loop` 参照）を含む
+    /// `Closure` が解放され、`state → loop_ → AnimationLoop → Closure →
+    /// state` の強参照循環が断ち切られる（codex-review P1 指摘、PR
+    /// #2557）。循環が残ったままだと [`ScrollDriver`] 自体を drop しても
+    /// `state` の参照カウントが 0 にならず `AnimationLoop::drop` に到達
+    /// せず、`recompute` に捕捉された DOM・状態はもちろん rAF ループ
+    /// 自体も動き続ける（Bugbot 指摘、PR #2557、`raf_driver::AnimationLoop`
+    /// の `Drop` 実装参照）。
     pub fn stop(&self) {
         self.state.running.set(false);
         if let Some(loop_) = self.state.loop_.borrow_mut().take() {
             loop_.stop();
         }
+    }
+}
+
+impl Drop for ScrollDriver {
+    /// [`ScrollDriver`] が破棄されたタイミングで rAF ループを停止し、
+    /// `state` の強参照循環を断ち切る（`stop()` の doc 参照）。利用者が
+    /// 明示的に `stop()` を呼ばずに [`ScrollDriver`] を単に drop した
+    /// 場合（例: 要素の動的除去に伴うハンドル破棄）でも「Drop でも
+    /// 停止する」契約（モジュール doc・`stop()` doc）を満たす（codex-review
+    /// P1 / Bugbot 指摘、PR #2557）。
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 
