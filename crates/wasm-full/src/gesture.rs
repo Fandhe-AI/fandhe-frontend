@@ -76,12 +76,12 @@ pub fn is_press_activation_key(key: &str) -> bool {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        is_press_activation_key, is_touch_pointer, GESTURE_HOVER_ATTR, GESTURE_PRESS_ATTR,
-        HOVER_STATE_ATTR, PRESS_STATE_ATTR,
+        is_touch_pointer, GESTURE_HOVER_ATTR, GESTURE_PRESS_ATTR, HOVER_STATE_ATTR,
+        PRESS_STATE_ATTR,
     };
     use crate::dom::set_dom_attribute_result as set_dom_attribute;
     use std::cell::RefCell;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -127,12 +127,34 @@ mod wiring {
     /// - `press_target`: `closest_opted_in(root, origin, GESTURE_PRESS_ATTR)`
     ///   で実際に [`PRESS_STATE_ATTR`] を受け取った要素（`origin` 自身の
     ///   場合と、`origin` の opt-in 祖先である場合の両方がある）。
+    /// - `active_keys`: 現在押下中の活性化キー（[`normalize_activation_key`]
+    ///   が返す正規化済み文字列、`"Enter"`/`" "` のいずれか）の集合。
+    ///   同一要素で Space と Enter を同時に押した状態から片方だけ離しても、
+    ///   もう片方が `active_keys` に残っていれば keyboard 源は解除しない
+    ///   （PR #2555 レビュー指摘の是正: 旧実装は活性化キーを区別せず、
+    ///   どちらか一方の `keyup` だけで keyboard 源全体を解除していた）。
+    ///   `active_keys` が空になった時点で初めて [`release_keyboard_press`]
+    ///   が呼ばれる。
     struct KeyboardPress {
         origin: Element,
         press_target: Element,
+        active_keys: HashSet<&'static str>,
     }
 
     type ActiveKeyboardPress = Rc<RefCell<Option<KeyboardPress>>>;
+
+    /// 活性化キー（`super::is_press_activation_key` と同じ 2 語のみ）を
+    /// [`KeyboardPress::active_keys`] のキーとして使う正規化済み文字列へ
+    /// 変換する。`KeyboardEvent::key()` はすでにこの 2 語のいずれかである
+    /// ことが呼び出し元で保証されるため、実質的には恒等変換だが、
+    /// `&'static str` へ正規化することで `HashSet` に所有権を持たせない。
+    fn normalize_activation_key(key: &str) -> Option<&'static str> {
+        match key {
+            "Enter" => Some("Enter"),
+            " " => Some(" "),
+            _ => None,
+        }
+    }
 
     /// `press_target` が pointer 源集合に含まれているか。
     fn pointer_active_on(active_pointer: &ActivePointerPress, press_target: &Element) -> bool {
@@ -330,7 +352,23 @@ mod wiring {
     /// opt-in の場合、離脱・解放イベントの `target` から祖先を再計算する
     /// と pointerdown 時に決めた要素と食い違いうる）。pointer/touch 両方
     /// 対象（タッチ除外は行わない）。
-    fn handle_pointerdown(root: &Element, event: &Event, active_pointer: &ActivePointerPress) {
+    ///
+    /// 同一 `pointer_id` に対する既存エントリを、対応する解除処理なしに
+    /// 上書きしない（Bugbot 指摘「Pointer id reuse leaks press」の是正）:
+    /// ブラウザ・OS の実装によっては `pointerup`/`pointercancel` を
+    /// 取りこぼした状態のまま同じ `pointer_id` が別要素へ再利用される
+    /// ことがあり、旧実装は `insert` で単に上書きするだけだったため
+    /// 最初に押下した要素の [`PRESS_STATE_ATTR`] が永続的に残留していた。
+    /// `insert` の戻り値（上書きされた旧エントリ）を確認し、新しい
+    /// 押下対象と異なる要素であれば [`clear_press_if_unreferenced`] 経由で
+    /// 解除する（他の `pointer_id`・keyboard 源がまだその要素を参照して
+    /// いれば解除しない、根本契約は変わらない）。
+    fn handle_pointerdown(
+        root: &Element,
+        event: &Event,
+        active_pointer: &ActivePointerPress,
+        active_keyboard: &ActiveKeyboardPress,
+    ) {
         let Some(target) = event_target_element(event) else {
             return;
         };
@@ -340,8 +378,15 @@ mod wiring {
         let Some(pointer_id) = event_pointer_id(event) else {
             return;
         };
+        let previous = active_pointer
+            .borrow_mut()
+            .insert(pointer_id, press_target.clone());
+        if let Some(previous) = previous {
+            if previous != press_target {
+                clear_press_if_unreferenced(&previous, active_pointer, active_keyboard);
+            }
+        }
         let _ = set_dom_attribute(&press_target, PRESS_STATE_ATTR, "");
-        active_pointer.borrow_mut().insert(pointer_id, press_target);
     }
 
     /// `pointerup`/`pointercancel`: `active_pointer_press`（pointerdown で
@@ -374,9 +419,16 @@ mod wiring {
     /// 同じく `target`/追跡済み状態を信頼する対称設計）。`event.target()`
     /// を [`KeyboardPress::origin`] として保持し、以後の解除判定は
     /// この値のみを見る（`focusout`/`keyup` が別要素の DOM 位置を
-    /// 再計算しない、上記状態モデルの doc 参照）。直前の keyboard 押下源
-    /// が残っていれば（通常は起きないが、`keyup`/`focusout` を経ずに
-    /// 新たな `keydown` を受けた場合の防御的な処理として）先に解放する。
+    /// 再計算しない、上記状態モデルの doc 参照）。
+    ///
+    /// 同一 `origin` に対する `keydown` であれば、既存の
+    /// [`KeyboardPress::active_keys`] へ活性化キーを追加するだけで
+    /// 押下源自体は作り直さない（codex-review 指摘の是正: 同じ要素で
+    /// Space を押したまま Enter も押すと、上書きでは Space の押下記録が
+    /// 失われ、後続の Space の `keyup` で誤って解除されてしまう）。
+    /// `origin` が異なる（通常は起きないが `keyup`/`focusout` を経ずに
+    /// 別要素へ新たな `keydown` を受けた場合の防御的な処理）場合のみ、
+    /// 旧押下源を先に解放してから新規に作り直す。
     fn handle_keydown(
         root: &Element,
         event: &Event,
@@ -386,28 +438,50 @@ mod wiring {
         let Some(keyboard_event) = event.dyn_ref::<KeyboardEvent>() else {
             return;
         };
-        if keyboard_event.repeat() || !is_press_activation_key(&keyboard_event.key()) {
+        if keyboard_event.repeat() {
             return;
         }
+        let Some(key) = normalize_activation_key(&keyboard_event.key()) else {
+            return;
+        };
         let Some(origin) = event_target_element(event) else {
             return;
         };
         let Some(press_target) = closest_opted_in(root, &origin, GESTURE_PRESS_ATTR) else {
             return;
         };
-        release_keyboard_press(active_pointer, active_keyboard);
+
+        let same_origin_active = active_keyboard
+            .borrow()
+            .as_ref()
+            .is_some_and(|state| state.origin == origin);
+        if same_origin_active {
+            if let Some(state) = active_keyboard.borrow_mut().as_mut() {
+                state.active_keys.insert(key);
+            }
+        } else {
+            release_keyboard_press(active_pointer, active_keyboard);
+            let mut active_keys = HashSet::new();
+            active_keys.insert(key);
+            *active_keyboard.borrow_mut() = Some(KeyboardPress {
+                origin,
+                press_target: press_target.clone(),
+                active_keys,
+            });
+        }
         let _ = set_dom_attribute(&press_target, PRESS_STATE_ATTR, "");
-        *active_keyboard.borrow_mut() = Some(KeyboardPress {
-            origin,
-            press_target,
-        });
     }
 
-    /// `keyup`: 活性化キーの解放で現在の keyboard 押下源を解放する。
-    /// `event.target()` から祖先を再計算しない（`handle_keydown` が保持
-    /// した `press_target` をそのまま使う）: フォーカスが元の要素から
-    /// 別要素へ移動した状態で `keyup` が新フォーカス先へ発火しても、
-    /// 追跡済みの押下源を正しく解放できる（codex-review 指摘の是正）。
+    /// `keyup`: 活性化キーの解放で、対応するキーだけを
+    /// [`KeyboardPress::active_keys`] から取り除く。取り除いた結果
+    /// `active_keys` が空になったときのみ [`release_keyboard_press`] で
+    /// keyboard 押下源全体を解放する（codex-review 指摘の是正: 同一要素で
+    /// Space と Enter を同時に押した状態から片方だけ離しても、もう片方が
+    /// 活性化中なら press を解除しない）。`event.target()` から祖先を
+    /// 再計算しない（`handle_keydown` が保持した `press_target` をそのまま
+    /// 使う）: フォーカスが元の要素から別要素へ移動した状態で `keyup` が
+    /// 新フォーカス先へ発火しても、追跡済みの押下源を正しく解放できる
+    /// （codex-review 指摘の是正）。
     fn handle_keyup(
         event: &Event,
         active_pointer: &ActivePointerPress,
@@ -416,10 +490,22 @@ mod wiring {
         let Some(keyboard_event) = event.dyn_ref::<KeyboardEvent>() else {
             return;
         };
-        if !is_press_activation_key(&keyboard_event.key()) {
+        let Some(key) = normalize_activation_key(&keyboard_event.key()) else {
             return;
+        };
+        let should_release = {
+            let mut keyboard = active_keyboard.borrow_mut();
+            match keyboard.as_mut() {
+                Some(state) => {
+                    state.active_keys.remove(key);
+                    state.active_keys.is_empty()
+                }
+                None => false,
+            }
+        };
+        if should_release {
+            release_keyboard_press(active_pointer, active_keyboard);
         }
-        release_keyboard_press(active_pointer, active_keyboard);
     }
 
     /// `focusout`: `event.target()` が現在の keyboard 押下源の
@@ -451,6 +537,16 @@ mod wiring {
     ///   「Nested focusout clears live pointer press」の是正）。真の
     ///   pointer press 解除は必ず `pointerup`/`pointercancel`/
     ///   `pointerout` にのみ委ねる。
+    ///
+    /// `wire_gesture` は本ハンドラも `keydown`/`keyup` と同じく capture
+    /// フェーズで登録する（codex-review 指摘の是正）: opt-in 子で Space を
+    /// 押した後、その子自身の `focusout` ハンドラ（アプリケーションコード）
+    /// が `stopPropagation()` を呼びつつフォーカスが `root` の外へ完全に
+    /// 抜けると、bubble 登録では root まで伝播せず本ハンドラが一切
+    /// 呼ばれないため keyboard 押下源が永続的に残留していた。capture
+    /// フェーズなら root のリスナーは子孫のあらゆるリスナーより先に
+    /// 実行されるため、子孫が事後に `stopPropagation()` を呼んでも解除
+    /// 処理には影響しない。
     fn handle_focusout(
         event: &Event,
         active_pointer: &ActivePointerPress,
@@ -476,9 +572,24 @@ mod wiring {
     /// 抑える方針（A04 対策）で、要素ごとの動的登録・解除は行わない
     /// （動的挿入要素にも root 委譲で自動対応する）。
     ///
+    /// 全リスナーを capture フェーズで登録する（bubble ではなく、PR #2555
+    /// レビュー指摘の是正）: 子孫（opt-in 要素自身を含む）が自前のイベント
+    /// ハンドラで `stopPropagation()` を呼ぶと、bubble 登録では root まで
+    /// 伝播せず対応するハンドラが一切呼ばれず、press/hover 状態が残留する
+    /// （Bugbot 指摘「Pointer press sticks after stop」「Keydown capture
+    /// leaves stale press」、および `focusout` の同型不具合、いずれも
+    /// codex-review でも指摘）。capture フェーズなら root のリスナーは
+    /// 子孫のあらゆるリスナーより先に実行されるため、子孫が事後に
+    /// `stopPropagation()` を呼んでも解除処理には影響しない。`pointerover`/
+    /// `pointerout`/`pointerdown`/`pointerup`/`pointercancel` は互いに
+    /// 対称性を保つため足並みを揃えて全て capture 化する
+    /// （`pointerover`/`pointerdown` 自体はレビュー指摘の直接対象ではない
+    /// が、`stopPropagation()` に対する頑健性は他のポインタイベントと
+    /// 統一しておくべき性質のため）。
+    ///
     /// # Errors
     ///
-    /// `add_event_listener_with_callback` の失敗を伝播する。
+    /// `add_event_listener_with_callback_and_bool` の失敗を伝播する。
     pub fn wire_gesture(root: Element) -> Result<(), JsValue> {
         // pointerdown/pointerup/pointercancel/pointerout/keyup/focusout が
         // 共有する押下源の集約状態（上記状態モデルの doc 参照）。
@@ -489,9 +600,10 @@ mod wiring {
         let pointerover_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_pointerover(&pointerover_root, &event);
         });
-        root.add_event_listener_with_callback(
+        root.add_event_listener_with_callback_and_bool(
             "pointerover",
             pointerover_closure.as_ref().unchecked_ref(),
+            true,
         )?;
         pointerover_closure.forget();
 
@@ -506,20 +618,28 @@ mod wiring {
                 &pointerout_keyboard,
             );
         });
-        root.add_event_listener_with_callback(
+        root.add_event_listener_with_callback_and_bool(
             "pointerout",
             pointerout_closure.as_ref().unchecked_ref(),
+            true,
         )?;
         pointerout_closure.forget();
 
         let pointerdown_root = root.clone();
         let pointerdown_pointer = Rc::clone(&active_pointer_press);
+        let pointerdown_keyboard = Rc::clone(&active_keyboard_press);
         let pointerdown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointerdown(&pointerdown_root, &event, &pointerdown_pointer);
+            handle_pointerdown(
+                &pointerdown_root,
+                &event,
+                &pointerdown_pointer,
+                &pointerdown_keyboard,
+            );
         });
-        root.add_event_listener_with_callback(
+        root.add_event_listener_with_callback_and_bool(
             "pointerdown",
             pointerdown_closure.as_ref().unchecked_ref(),
+            true,
         )?;
         pointerdown_closure.forget();
 
@@ -528,32 +648,18 @@ mod wiring {
         let pointerup_or_cancel_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_pointerup_or_cancel(&event, &pointerup_pointer, &pointerup_keyboard);
         });
-        root.add_event_listener_with_callback(
+        root.add_event_listener_with_callback_and_bool(
             "pointerup",
             pointerup_or_cancel_closure.as_ref().unchecked_ref(),
+            true,
         )?;
-        root.add_event_listener_with_callback(
+        root.add_event_listener_with_callback_and_bool(
             "pointercancel",
             pointerup_or_cancel_closure.as_ref().unchecked_ref(),
+            true,
         )?;
         pointerup_or_cancel_closure.forget();
 
-        // `keydown` は capture フェーズで登録する（bubble ではなく）。
-        // opt-in 要素自身のアプリケーションコードが keydown ハンドラ内で
-        // 同期的に別要素へ `focus()` する場合、bubble フェーズ登録では
-        // target 自身のハンドラ（先に実行される）が先に focus() を呼び、
-        // focusout がこの press 設定より前に完了してしまい、その後
-        // 設定された press が二度と解除されず残留する不具合があった
-        // （codex-review 指摘の是正）。capture フェーズなら root への
-        // このリスナーが常に target 自身のあらゆる bubble リスナーより
-        // 先に実行されるため、`handle_keydown` が press を設定した時点で
-        // 対象要素はまだ実際にフォーカスを保持しており、後続で
-        // `focus()` が呼ばれても通常どおり `focusout`（`handle_focusout`）
-        // が確実に解除できる。この保証は「root 自身の capture リスナーが
-        // target 自身のあらゆるリスナーより先に実行される」ことに依拠する
-        // ため、root の外側（`document`/`window` 等）に登録された capture
-        // リスナーが root より先にフォーカスを奪う経路は対象外（`wire_gesture`
-        // の委譲契約の範囲外、`Self::wire_events` 等と同じ前提）。
         let keydown_root = root.clone();
         let keydown_pointer = Rc::clone(&active_pointer_press);
         let keydown_keyboard = Rc::clone(&active_keyboard_press);
@@ -592,9 +698,10 @@ mod wiring {
         let focusout_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_focusout(&event, &focusout_pointer, &focusout_keyboard);
         });
-        root.add_event_listener_with_callback(
+        root.add_event_listener_with_callback_and_bool(
             "focusout",
             focusout_closure.as_ref().unchecked_ref(),
+            true,
         )?;
         focusout_closure.forget();
 

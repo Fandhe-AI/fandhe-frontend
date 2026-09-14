@@ -801,3 +801,138 @@ fn keyup_capture_registration_still_clears_press_even_if_descendant_stops_propag
          解除されること"
     );
 }
+
+/// codex-review 指摘の回帰固定（「focusout も capture フェーズで購読
+/// する」）: 中間祖先（`child`）自身の `focusout` ハンドラが
+/// `stopPropagation()` を呼ぶ状況でも、root の capture リスナーはその
+/// 中間祖先へ到達するより前に実行済みであり press が正しく解除される
+/// こと。
+#[wasm_bindgen_test]
+fn focusout_capture_registration_still_clears_press_even_if_descendant_stops_propagation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, grandchild) = build_dom(&document, "gesture-focusout-stop-propagation-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    // grandchild（opt-in なし）で Space を押すと、closest opt-in 祖先で
+    // ある child へ press が設定される。
+    dispatch_key(&grandchild, "keydown", " ", false);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    // child（grandchild と root の間にある中間祖先）自身の focusout
+    // ハンドラが stopPropagation する状況を模す（bubble フェーズ・既定
+    // 登録）。
+    let stop_propagation =
+        wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            event.stop_propagation();
+        });
+    child
+        .add_event_listener_with_callback("focusout", stop_propagation.as_ref().unchecked_ref())
+        .expect("add_event_listener_with_callback must not fail");
+    stop_propagation.forget();
+
+    dispatch_focusout(&grandchild);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "focusout が capture 登録のため中間祖先の stopPropagation の影響を受けず press が\
+         解除されること"
+    );
+}
+
+/// codex-review 指摘の回帰固定（「キーボード押下をキーごとに追跡
+/// する」）: 同一要素で Space と Enter を同時に押した状態から片方だけ
+/// 離しても、もう片方が活性化中なら press を解除しないこと。
+#[wasm_bindgen_test]
+fn space_and_enter_pressed_together_require_both_to_release_before_clearing_press() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-space-enter-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_key(&child, "keydown", " ", false);
+    dispatch_key(&child, "keydown", "Enter", false);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    dispatch_key(&child, "keyup", " ", false);
+    assert!(
+        child.has_attribute(PRESS_STATE_ATTR),
+        "Enter がまだ活性化中なら Space の keyup だけで press を解除しないこと"
+    );
+
+    dispatch_key(&child, "keyup", "Enter", false);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "両方の活性化キーが解放されたら press を解除すること"
+    );
+}
+
+/// Bugbot 指摘の回帰固定（「Pointer press sticks after stop」）:
+/// 子孫（`grandchild`）自身の `pointerup` ハンドラが `stopPropagation()`
+/// を呼んでバブルを止めても、root の capture リスナーは既に実行済みで
+/// あり press 状態が正しく解除されること（`keyup` の capture 化と対称）。
+#[wasm_bindgen_test]
+fn pointerup_capture_registration_still_clears_press_even_if_descendant_stops_propagation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, grandchild) = build_dom(&document, "gesture-pointerup-stop-propagation-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer(&child, "pointerdown", "mouse", None);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    // 子孫（grandchild）自身の pointerup ハンドラが stopPropagation する
+    // 状況を模す（bubble フェーズ・既定登録）。
+    let stop_propagation =
+        wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            event.stop_propagation();
+        });
+    grandchild
+        .add_event_listener_with_callback("pointerup", stop_propagation.as_ref().unchecked_ref())
+        .expect("add_event_listener_with_callback must not fail");
+    stop_propagation.forget();
+
+    dispatch_pointer(&grandchild, "pointerup", "mouse", None);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "pointerup が capture 登録のため子孫の stopPropagation の影響を受けず press が\
+         解除されること"
+    );
+}
+
+/// Bugbot 指摘の回帰固定（「Pointer id reuse leaks press」）:
+/// `pointerup`/`pointercancel` を取りこぼした状態のまま同じ
+/// `pointer_id` が別の opt-in 要素へ再利用されると、`handle_pointerdown`
+/// が旧押下対象を解除せずに上書きしていたため、最初に押下した要素の
+/// press 状態が永続的に残留していた。新しい `pointerdown` が旧押下対象を
+/// 正しく解除しつつ、新しい対象へ press を設定すること。
+#[wasm_bindgen_test]
+fn pointerdown_with_reused_pointer_id_clears_stale_previous_target_press() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("gesture-pointer-id-reuse-test");
+    let item_a = document.create_element("button").unwrap();
+    item_a.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    let item_b = document.create_element("button").unwrap();
+    item_b.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    root.append_child(&item_a).unwrap();
+    root.append_child(&item_b).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer_with_id(&item_a, "pointerdown", 7);
+    assert!(item_a.has_attribute(PRESS_STATE_ATTR));
+
+    // pointerup/pointercancel を取りこぼした状態のまま、同じ pointer_id
+    // （7）が別要素（item_b）へ再利用される状況を模す。
+    dispatch_pointer_with_id(&item_b, "pointerdown", 7);
+
+    assert!(
+        !item_a.has_attribute(PRESS_STATE_ATTR),
+        "pointer_id の再利用時、旧押下対象（item_a）の press は解除されること"
+    );
+    assert!(
+        item_b.has_attribute(PRESS_STATE_ATTR),
+        "新しい押下対象（item_b）へ press が設定されること"
+    );
+}
