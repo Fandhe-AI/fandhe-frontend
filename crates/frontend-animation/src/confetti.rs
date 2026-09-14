@@ -27,6 +27,24 @@
 //! 後は `step` が `false` を返して `AnimationLoop` 自身のループを止めるが、
 //! ハンドル自体は呼び出し側が次に差し替える・スコープを抜けるまで生存する。
 //!
+//! # `on_finished`（発火完了通知）の安全な消費方法
+//!
+//! [`fire`]/[`fire_with_reduced_motion`] は発火完了（`ConfettiSim::
+//! is_finished`）時に `on_finished` コールバックを 1 回呼ぶ
+//! （呼び出し側が保持スロット〔例: `HashMap<id, AnimationLoop>`〕から
+//! 完了済みハンドルを解放するための通知経路、PR #2564 codex-review P1
+//! 指摘: 通知経路が無いと完了後も `ConfettiSim`/`CanvasTarget`/`canvas`
+//! 参照が保持スロット内に無期限に残留しリークする）。**この
+//! コールバックは `step` クロージャの実行中（＝`AnimationLoop` 自身の
+//! rAF コールバックの呼び出しフレームの内側）に同期的に呼ばれる**ため、
+//! 呼び出し側が `on_finished` の中で保持スロットから対応する
+//! `AnimationLoop` を直接 `remove`/drop してはならない——上記と同じ
+//! 「実行中の Closure を `call_mut` 実行中に drop する use-after-free」を
+//! 踏む。安全に消費するには、`window.set_timeout_with_callback_and_
+//! timeout_and_arguments_0(.., 0)`（`crates/wasm-full/src/command.rs::
+//! schedule_composed_guard_reset` と同型）等で実際の解放処理を次の
+//! マクロタスクへ延期し、現在の呼び出しフレームの外側で行うこと。
+//!
 //! # `prefers-reduced-motion: reduce` のフェイルセーフ方向
 //!
 //! `window.matchMedia` 自体の呼び出しが失敗する場合は安全側（**発火抑制**）
@@ -96,21 +114,32 @@ fn detect_reduced_motion() -> bool {
 /// wasm32 以外のターゲット（native/SSR）では JS ホストが存在せず本体の
 /// 呼び出し自体が panic するため、`RafDriver::new`/`AnimationLoop::start`
 /// と同じ方針で JS 呼び出しを `cfg(target_arch = "wasm32")` でガードし、
-/// native では常に `Ok(None)` を返す。
+/// native では常に `Ok(None)` を返す（`on_finished` は一度も呼ばれず
+/// 破棄される）。
+///
+/// `on_finished` は発火完了時に 1 回呼ばれる（モジュール doc
+/// 「`on_finished`（発火完了通知）の安全な消費方法」節の制約に従うこと）。
+/// 発火自体が起きない（`Ok(None)` を返す）分岐では一度も呼ばれず、
+/// キャプチャした値ごと破棄される。
 ///
 /// # Errors
 ///
 /// `canvas` が `<canvas>` 要素でない、または 2D コンテキストの取得に
 /// 失敗した場合。
-pub fn fire(canvas: &Element, config: ConfettiConfig) -> Result<Option<AnimationLoop>, JsValue> {
+pub fn fire(
+    canvas: &Element,
+    config: ConfettiConfig,
+    on_finished: impl FnMut() + 'static,
+) -> Result<Option<AnimationLoop>, JsValue> {
     #[cfg(target_arch = "wasm32")]
     {
-        fire_with_reduced_motion(canvas, config, detect_reduced_motion())
+        fire_with_reduced_motion(canvas, config, detect_reduced_motion(), on_finished)
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
         let _ = canvas;
         let _ = config;
+        let _ = on_finished;
         Ok(None)
     }
 }
@@ -126,6 +155,8 @@ pub fn fire(canvas: &Element, config: ConfettiConfig) -> Result<Option<Animation
 /// この順序は native/CI 双方の環境非依存性を意図した設計であり、実装時の
 /// 偶然の並びではない）。
 ///
+/// `on_finished` の契約は [`fire`] と同じ（モジュール doc参照）。
+///
 /// # Errors
 ///
 /// `canvas` が `<canvas>` 要素でない、または 2D コンテキストの取得に
@@ -134,16 +165,18 @@ pub fn fire_with_reduced_motion(
     canvas: &Element,
     config: ConfettiConfig,
     reduced_motion: bool,
+    on_finished: impl FnMut() + 'static,
 ) -> Result<Option<AnimationLoop>, JsValue> {
     #[cfg(target_arch = "wasm32")]
     {
-        fire_internal(canvas, config, reduced_motion)
+        fire_internal(canvas, config, reduced_motion, on_finished)
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
         let _ = canvas;
         let _ = config;
         let _ = reduced_motion;
+        let _ = on_finished;
         Ok(None)
     }
 }
@@ -153,6 +186,7 @@ fn fire_internal(
     canvas: &Element,
     config: ConfettiConfig,
     reduced_motion: bool,
+    mut on_finished: impl FnMut() + 'static,
 ) -> Result<Option<AnimationLoop>, JsValue> {
     let Some(canvas) = canvas.dyn_ref::<HtmlCanvasElement>() else {
         return Err(JsValue::from_str(
@@ -164,21 +198,33 @@ fn fire_internal(
         return Ok(None);
     }
 
-    let rect = canvas.get_bounding_client_rect();
-    let width = rect.width();
-    let height = rect.height();
-    let has_positive_area = width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0;
+    // `clientWidth`/`clientHeight`（コンテンツ領域＝border/padding を含まず
+    // 整数 CSS ピクセルを返し、CSS transform の影響も受けない）を canvas の
+    // 描画バッファ解像度に使う。`getBoundingClientRect()`（border-box かつ
+    // transform 適用後の外寸）をそのまま `width`/`height` content attribute
+    // へ書き戻すと、border を持つ canvas で発火のたびに外寸が増加し続ける
+    // バグになる（PR #2564 codex-review P1 指摘: border 1px の canvas で
+    // クリックごとに 302 → 304 → ... と無限成長する）。
+    let client_width = canvas.client_width();
+    let client_height = canvas.client_height();
+    let has_positive_area = client_width > 0 && client_height > 0;
     if !has_positive_area {
         // 非表示（`display: none` 等）や未レイアウトの canvas は描画領域を
         // 持たないため、発火せず抜ける（著者マークアップのエラーではない
         // ため `Err` にはしない）。
         return Ok(None);
     }
+    let width = f64::from(client_width);
+    let height = f64::from(client_height);
 
-    // 描画バッファ解像度を CSS 表示サイズへ合わせる（`devicePixelRatio` に
-    // よるぼやけ対策はスコープ外、実装計画 §6 の YAGNI 判断）。
-    canvas.set_width(width.round().max(1.0) as u32);
-    canvas.set_height(height.round().max(1.0) as u32);
+    // 描画バッファ解像度を CSS コンテンツ領域サイズへ合わせる
+    // （`devicePixelRatio` によるぼやけ対策はスコープ外、実装計画 §6 の
+    // YAGNI 判断）。`CanvasTarget::new` へ渡す `width`/`height`（`clear_rect`
+    // が使うクリア領域サイズ）もここで丸めた同じ整数値から導出するため、
+    // バッファサイズとクリア領域サイズが端数で不整合を起こし完了時に
+    // 残骸が消えきらない不具合（Cursor Bugbot 指摘）も併せて防ぐ。
+    canvas.set_width(client_width as u32);
+    canvas.set_height(client_height as u32);
 
     let context = canvas
         .get_context("2d")?
@@ -221,6 +267,9 @@ fn fire_internal(
             // 最終フレームで描画を消す（空スライスを書き込むと
             // `CanvasTarget::write` が `clear_rect` のみ実行する）。
             target.write(&[]);
+            // 呼び出し側への完了通知（モジュール doc「`on_finished`
+            // （発火完了通知）の安全な消費方法」節の制約に従うこと）。
+            on_finished();
             return false;
         }
         true

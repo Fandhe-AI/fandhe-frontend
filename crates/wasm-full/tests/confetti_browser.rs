@@ -205,3 +205,57 @@ async fn repeated_click_replaces_loop_without_panicking() {
 
     assert_eq!(canvas.get_attribute("width").as_deref(), Some("80"));
 }
+
+#[wasm_bindgen_test]
+async fn repeated_click_keeps_canvas_size_stable_with_border() {
+    // PR #2564 codex-review P1 是正の回帰テスト: `fire()`
+    // （`fandhe-frontend-animation::confetti`）が `getBoundingClientRect()`
+    // （border-box）をそのまま canvas の `width`/`height` content
+    // attribute へ書き戻すと、border を持つ canvas で発火のたびに外寸が
+    // 増加し続ける（302 → 304 → ...）不具合があった。`clientWidth`/
+    // `clientHeight`（コンテンツ領域、border を含まない）を使うことで、
+    // border を持つ canvas でも複数回発火後に attribute が変化しない
+    // ことを固定する。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger, canvas) =
+        build_dom(&document, "confetti-root-6", "confetti-canvas-6", true);
+    let _guard = RemoveOnDrop(root.clone());
+
+    let html_canvas = canvas
+        .clone()
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("canvas must cast to HtmlElement for style access");
+    html_canvas
+        .style()
+        .set_property("border", "1px solid black")
+        .unwrap();
+    html_canvas
+        .style()
+        .set_property("box-sizing", "content-box")
+        .unwrap();
+
+    wire_confetti(root.clone()).expect("wire_confetti must not fail");
+
+    click(&trigger);
+    let first_width = canvas.get_attribute("width");
+    let first_height = canvas.get_attribute("height");
+
+    click(&trigger);
+    click(&trigger);
+
+    assert_eq!(
+        canvas.get_attribute("width"),
+        first_width,
+        "border を持つ canvas でも複数回発火後に width が増加してはならない"
+    );
+    assert_eq!(
+        canvas.get_attribute("height"),
+        first_height,
+        "border を持つ canvas でも複数回発火後に height が増加してはならない"
+    );
+    assert_eq!(
+        canvas.get_attribute("width").as_deref(),
+        Some("80"),
+        "clientWidth はコンテンツ領域（border を含まない）を返すはず"
+    );
+}

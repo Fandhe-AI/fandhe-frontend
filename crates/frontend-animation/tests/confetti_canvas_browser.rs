@@ -141,7 +141,7 @@ async fn fire_errors_for_non_canvas_element() {
         .create_element("div")
         .expect("create_element must not fail for a plain div");
 
-    let result = fire(&div, ConfettiConfig::default());
+    let result = fire(&div, ConfettiConfig::default(), || {});
     assert!(
         result.is_err(),
         "canvas 要素でない要素への fire() は Err を返すはず"
@@ -160,7 +160,7 @@ async fn fire_returns_none_for_zero_size_canvas() {
         .create_element("canvas")
         .expect("create_element must not fail for canvas");
 
-    let result = fire(&canvas, ConfettiConfig::default());
+    let result = fire(&canvas, ConfettiConfig::default(), || {});
     assert!(
         matches!(result, Ok(None)),
         "描画領域 0 の canvas への fire() は Ok(None) を返すはず"
@@ -176,7 +176,9 @@ async fn fire_draws_particles_then_clears_on_completion() {
         ..ConfettiConfig::default()
     };
 
-    let loop_handle = fire(&canvas, config)
+    let finished = std::rc::Rc::new(std::cell::Cell::new(false));
+    let finished_for_callback = finished.clone();
+    let loop_handle = fire(&canvas, config, move || finished_for_callback.set(true))
         .expect("fire は canvas 要素に対して Err を返さない")
         .expect("通常環境・非ゼロサイズでは Some(AnimationLoop) を返すはず");
 
@@ -195,6 +197,10 @@ async fn fire_draws_particles_then_clears_on_completion() {
         !has_visible_pixels(&canvas),
         "発火完了後は canvas がクリアされているはず"
     );
+    assert!(
+        finished.get(),
+        "発火完了後は on_finished コールバックが呼ばれているはず（PR #2564 codex-review P1 是正）"
+    );
 
     // `AnimationLoop` の所有権契約（`confetti.rs` モジュール doc）どおり、
     // ハンドルはここまで生存させる。
@@ -209,7 +215,7 @@ async fn fire_with_reduced_motion_true_suppresses_firing() {
     // 注入、`fire_with_reduced_motion` doc 参照）。
     let canvas = append_canvas(100, 100);
 
-    let result = fire_with_reduced_motion(&canvas, ConfettiConfig::default(), true);
+    let result = fire_with_reduced_motion(&canvas, ConfettiConfig::default(), true, || {});
     assert!(
         matches!(result, Ok(None)),
         "reduced_motion=true は Ok(None)（発火抑制）を返すはず"

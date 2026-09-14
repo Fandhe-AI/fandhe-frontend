@@ -15,8 +15,12 @@
 //!    属性値（発火対象 canvas の `id`）を解決し `fire()` を呼ぶ
 //! 3. 発火中の `AnimationLoop` ハンドルの保持（canvas id をキーに
 //!    `Rc<RefCell<HashMap<..>>>` で管理し、同じ canvas への再発火で
-//!    差し替える。詳細は `wiring::handle_click`（本ファイル内部実装）の
-//!    doc 参照）
+//!    差し替える。発火完了時（`fire()` の `on_finished` コールバック）に
+//!    もマップから解放し、異なる id の canvas を生成・除去し続ける画面で
+//!    完了済み `ConfettiSim`/`CanvasTarget`/`canvas` 参照が無期限に蓄積
+//!    しないようにする（PR #2564 codex-review P1 是正）。詳細は
+//!    `wiring::handle_click`/`wiring::schedule_finished_cleanup`
+//!    （本ファイル内部実装）の doc 参照
 //!
 //! `wasm-full` 自体は canvas 系 web-sys feature（`CanvasRenderingContext2d`/
 //! `HtmlCanvasElement`）を一切追加しない（`crates/wasm-full/Cargo.toml` の
@@ -68,7 +72,7 @@ mod wiring {
     use fandhe_frontend_animation::confetti::fire;
     use fandhe_frontend_animation::fandhe_animation::confetti::ConfettiConfig;
     use fandhe_frontend_animation::raf_driver::AnimationLoop;
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::collections::HashMap;
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
@@ -76,6 +80,11 @@ mod wiring {
     use web_sys::{Element, Event};
 
     /// 発火中の [`AnimationLoop`] ハンドルを canvas `id` ごとに保持する。
+    /// 値は `(generation, handle)`——`generation` は
+    /// [`schedule_finished_cleanup`] が仕掛ける完了時の遅延解放が、
+    /// 対象キーへ後から差し替わった新しい発火を誤って削除しないための
+    /// 単調増加トークン（[`handle_click`] が発火のたびに新しい値を
+    /// 払い出す）。
     ///
     /// `fire()` の所有権契約（`fandhe_frontend_animation::confetti` モジュール
     /// doc 参照）どおり、ハンドルを保持し続けている間だけループが進む。
@@ -83,8 +92,11 @@ mod wiring {
     /// `HashMap::insert` により差し替える——この差し替えは新しいクリック
     /// イベントのコールバックフレーム内（旧ハンドルの `step` クロージャの
     /// 実行フレームの外側）で起きるため、`AnimationLoop::drop` が旧ループを
-    /// 安全に停止できる（use-after-free を踏まない）。
-    type ActiveLoops = Rc<RefCell<HashMap<String, AnimationLoop>>>;
+    /// 安全に停止できる（use-after-free を踏まない）。発火完了時は
+    /// [`schedule_finished_cleanup`] がマップから該当エントリを解放する
+    /// （異なる id の canvas を生成・除去し続ける画面での無制限な蓄積を
+    /// 防ぐ、PR #2564 codex-review P1 是正）。
+    type ActiveLoops = Rc<RefCell<HashMap<String, (u64, AnimationLoop)>>>;
 
     /// `event.target()` を `Element` として取得する（`gesture.rs`
     /// `event_target_element` と同型）。
@@ -107,9 +119,48 @@ mod wiring {
         found.has_attribute(CONFETTI_CANVAS_ATTR).then_some(found)
     }
 
+    /// [`handle_click`] が `fire()` の `on_finished` に渡すコールバックが
+    /// 実際に呼ぶ、完了済み [`AnimationLoop`] ハンドルの遅延解放本体。
+    ///
+    /// `on_finished` は confetti の `step` クロージャ（対象 `AnimationLoop`
+    /// 自身の rAF コールバックの呼び出しフレームの内側）から**同期的に**
+    /// 呼ばれる（`fandhe_frontend_animation::confetti` モジュール doc
+    /// 「`on_finished`（発火完了通知）の安全な消費方法」節）。そのため
+    /// ここで直接 `active_loops.borrow_mut().remove(id)` すると、削除した
+    /// `AnimationLoop`（＝現在実行中の rAF コールバック自身を保持する
+    /// `Closure`）がその場で drop され、実行中の `Closure` を `call_mut`
+    /// 実行中に drop する use-after-free（`raf_driver.rs`
+    /// `AnimationLoop` doc が警告する構造）を踏む。これを避けるため、
+    /// `crates/wasm-full/src/command.rs::schedule_composed_guard_reset`
+    /// と同型の「`set_timeout` の 0ms 遅延で次のマクロタスクへ延期し、
+    /// 現在の呼び出しフレームの外側で解放する」パターンを使う。
+    ///
+    /// `generation` は、この遅延解放が予約されてから実際に実行されるまでの
+    /// 間に同じ `canvas_id` へ新しい発火（再クリック）が上書き挿入された
+    /// 場合に、その新しいエントリを誤って削除しないための一致確認
+    /// （[`ActiveLoops`] doc 参照）。挿入時と一致する場合のみ削除する。
+    fn schedule_finished_cleanup(active_loops: ActiveLoops, canvas_id: String, generation: u64) {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let cleanup = Closure::once_into_js(move || {
+            let mut loops = active_loops.borrow_mut();
+            if matches!(loops.get(&canvas_id), Some((gen, _)) if *gen == generation) {
+                loops.remove(&canvas_id);
+            }
+        });
+        let _ = window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(cleanup.unchecked_ref(), 0);
+    }
+
     /// `root` 配下のクリックを委譲受信し、`[data-fandhe-confetti-trigger]`
     /// 一致時に対象 canvas を解決して [`fire`] を呼ぶ。
-    fn handle_click(root: &Element, event: &Event, active_loops: &ActiveLoops) {
+    fn handle_click(
+        root: &Element,
+        event: &Event,
+        active_loops: &ActiveLoops,
+        next_generation: &Rc<Cell<u64>>,
+    ) {
         let Some(target) = event_target_element(event) else {
             return;
         };
@@ -126,13 +177,30 @@ mod wiring {
             return;
         };
 
+        // 発火のたびに新しい世代を払い出す（[`ActiveLoops`] doc 参照）。
+        let generation = next_generation.get();
+        next_generation.set(generation.wrapping_add(1));
+
+        let active_loops_for_finish = active_loops.clone();
+        let canvas_id_for_finish = canvas_id.clone();
+        let on_finished = move || {
+            schedule_finished_cleanup(
+                active_loops_for_finish.clone(),
+                canvas_id_for_finish.clone(),
+                generation,
+            );
+        };
+
         // `fire` の `Err`（canvas 要素でない・2D コンテキスト取得失敗）は
         // 著者マークアップの誤りとして握り潰し、他の配線へ波及させない
         // （`Target::write` の黙殺方針、`chart_range.rs` の click ハンドラ群
         // と同じく `Result` を無視する）。`Ok(None)`（発火抑制、
-        // reduced-motion 等）はループ差し替えを行わない。
-        if let Ok(Some(loop_handle)) = fire(&canvas, ConfettiConfig::default()) {
-            active_loops.borrow_mut().insert(canvas_id, loop_handle);
+        // reduced-motion 等）はループ差し替えを行わない（この場合
+        // `on_finished` は一度も呼ばれず破棄される）。
+        if let Ok(Some(loop_handle)) = fire(&canvas, ConfettiConfig::default(), on_finished) {
+            active_loops
+                .borrow_mut()
+                .insert(canvas_id, (generation, loop_handle));
         }
     }
 
@@ -145,9 +213,10 @@ mod wiring {
     /// `add_event_listener_with_callback_and_bool` の失敗を伝播する。
     pub fn wire_confetti(root: Element) -> Result<(), JsValue> {
         let active_loops: ActiveLoops = Rc::new(RefCell::new(HashMap::new()));
+        let next_generation: Rc<Cell<u64>> = Rc::new(Cell::new(0));
         let click_root = root.clone();
         let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_click(&click_root, &event, &active_loops);
+            handle_click(&click_root, &event, &active_loops, &next_generation);
         });
         // `gesture.rs::wire_gesture` と同じく capture フェーズで登録する
         // （子孫が `stopPropagation()` を呼んでも root のリスナーは
