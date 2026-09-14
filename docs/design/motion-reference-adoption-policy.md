@@ -65,7 +65,7 @@
 | 層 | クレート | 依存 | 責務 |
 |---|---|---|---|
 | 演算コア | `fandhe-animation`（`crates/animation/`） | 外部依存ゼロ（純 Rust）。将来別リポジトリへ切り出し前提 | spring・easing・FLIP 座標計算等の非 Web 演算。3D 値型（`Vec3`/`Quat`/`Mat4` 等）の trait 境界もここまで実装対象（判断記録 6） |
-| Web アダプタ | `fandhe-frontend-animation`（`crates/frontend-animation/`） | `fandhe-animation` に依存。web-sys / Web Animations API / `requestAnimationFrame` を使用。wasm-full には非依存 | `fandhe-animation` の演算結果をブラウザへ適用する層。JS/React・wgpu 等のアダプタはこの層と同列の兄弟 crate として別途設計する（wgpu 等の実アダプタ自体は評価文書止まりで実装対象外、判断記録 6） |
+| Web アダプタ | `fandhe-frontend-animation`（`crates/frontend-animation/`） | `fandhe-animation` に依存。web-sys / Web Animations API / `requestAnimationFrame` を使用。wasm-full には非依存 | `fandhe-animation` の演算結果をブラウザへ適用する層。JS/React・wgpu 等のアダプタはこの層と同列の兄弟 crate として別途設計する（wgpu 等の実アダプタ自体は評価文書止まりで実装対象外、判断記録 6。評価の実体は `docs/design/animation-js-react-wgpu-adapter-evaluation.md`、#2529） |
 | 配線層 | `crates/wasm-full/`（既存クレート） | `fandhe-frontend-animation` を optional 依存として参照（feature ゲート） | `data-*` 属性からのハイドレーション配線のみ。演算・DOM 操作の実体は持たない。`fandhe-frontend-dist-server` の `WASM_DIST_FEATURES`（最小インタラクティブ構成、`crates/dist-server/src/wasm_dist_features.rs`）には含めない（判断記録 3） |
 
 依存方向: `fandhe-animation` ← `fandhe-frontend-animation` ← `crates/wasm-full/`（optional）。この一方向性を崩す変更（配線層から演算コアへの直接依存の追加等）は行わない。公開順序は `fandhe-animation` → `fandhe-frontend-animation` の順（依存元が依存先より先に公開されることはない）。REQ-3（依存パッケージ 60 件以内・深さ 6 以内）への影響は、両クレートが外部依存を持たない／最小限（`fandhe-frontend-animation` は web-sys のみ）である限り軽微と見積もる。既存クレート数（9 + headless-ui/pre-styled-ui の計 11）に 2 crate が加わるのみで、深さの増分は `wasm-full` → `fandhe-frontend-animation` → `fandhe-animation` の 2 段。
