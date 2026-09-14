@@ -64,11 +64,108 @@ pub const SCROLL_PROGRESS_PROPERTY: &str = "--fandhe-motion-scroll-progress";
 /// 厳密な entry/exit 重複域計算は扱わない既知の単純化である。
 #[must_use]
 pub fn compute_progress(rect_top: f64, rect_height: f64, viewport_height: f64) -> f64 {
-    if rect_height <= 0.0 {
-        return 1.0;
+    compute_progress_for_range(rect_top, rect_height, viewport_height, ProgressRange::Entry)
+}
+
+/// [`compute_progress`]/[`compute_progress_for_range`] が計算する進捗の
+/// 区間（イシュー #2534）。
+///
+/// CSS Scroll-driven Animations の `view-timeline-range`（`entry`/`cover`/
+/// `contain`）の命名意図に対応する（本モジュールは `entry`/`exit` を
+/// 単純化して 1 本の進捗値として扱うため、`exit`/`entry-crossing`/
+/// `exit-crossing` は持たない）。
+///
+/// `crates/wasm-full/src/scroll_driver.rs` の
+/// `data-fandhe-scroll-progress` 属性値（`""`/`"entry"`/`"cover"`/
+/// `"contain"`）が本 enum へ厳格一致で変換される（未知値は `Entry`
+/// へ fail-closed、REQ-1/A03 の「動的文字列をセレクタ・プロパティ名へ
+/// 混ぜない」不変条件をこの変換層で満たす）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ProgressRange {
+    /// 要素が侵入し始め（上端がビューポート下端に到達）～自身の高さぶん
+    /// 侵入完了（下端がビューポート下端に到達）で 0→1（既存 `compute_
+    /// progress` の定義、`fandhe-frontend-pre-styled-ui` の
+    /// `SlotRecipe::scroll_reveal` が対応するネイティブ範囲
+    /// `animation-range: entry 0% entry 100%`）。
+    #[default]
+    Entry,
+    /// 要素がビューポートへ入り始めてから完全に出終わるまでの全期間で
+    /// 0→1（`SlotRecipe::parallax` が対応するネイティブ範囲
+    /// `animation-range: cover 0% cover 100%`）。
+    Cover,
+    /// 要素がビューポートに完全に収まっている期間で 0→1
+    /// （`SlotRecipe::sticky_progress` が対応するネイティブ範囲
+    /// `animation-range: contain 0% contain 100%`）。
+    Contain,
+}
+
+/// [`compute_progress`] の範囲拡張版（DOM 非依存、native `cargo test` で
+/// 検証可能、イシュー #2534）。`compute_progress` はこの関数の
+/// `ProgressRange::Entry` 固定ラッパである。
+///
+/// 座標系は `compute_progress` と同じ: `rect_top` はビューポート上端
+/// からの相対位置（下方向が正）、`rect_height`/`viewport_height` は
+/// 非負を想定する要素・ビューポートの高さ。
+///
+/// # `Cover`
+///
+/// 0% は要素上端がビューポート下端に到達した瞬間（`Entry` 0% と同一）、
+/// 100% は要素下端がビューポート上端に到達した瞬間（要素が完全に
+/// 通過し終えた瞬間）。`progress = (viewport_height - rect_top) /
+/// (viewport_height + rect_height)`。分母が 0 以下（両方の高さが 0）の
+/// 場合は「既に通過済み」とみなし `1.0` を返す（`compute_progress` の
+/// `rect_height <= 0.0` ガードと同型の安全側フォールバック）。
+///
+/// # `Contain`
+///
+/// 要素がビューポートより低い（`rect_height <= viewport_height`）場合に
+/// 定義される区間: 0% は要素が初めて完全にビューポート内へ収まった瞬間
+/// （`Entry` 100% と同一）、100% は要素上端がビューポート上端に到達し
+/// 完全収容が終わる瞬間。`progress = (viewport_height - rect_height -
+/// rect_top) / (viewport_height - rect_height)`。
+///
+/// 要素がビューポート以上に高い（`rect_height >= viewport_height`）場合、
+/// CSS 仕様上 `contain` 区間は退化する（要素が一度も完全収容されない）。
+/// 本関数は `Cover` と同じ計算へフォールバックする既知の単純化を採る
+/// （進捗が常に一定値に張り付くより、スクロールに連動し続ける方が
+/// 「進捗表示」としての実用性が高いという判断。`compute_progress` 自身の
+/// 「既知の単純化」doc と同じ性質の割り切り）。
+#[must_use]
+pub fn compute_progress_for_range(
+    rect_top: f64,
+    rect_height: f64,
+    viewport_height: f64,
+    range: ProgressRange,
+) -> f64 {
+    match range {
+        ProgressRange::Entry => {
+            if rect_height <= 0.0 {
+                return 1.0;
+            }
+            ((viewport_height - rect_top) / rect_height).clamp(0.0, 1.0)
+        }
+        ProgressRange::Cover => {
+            let denom = viewport_height + rect_height;
+            if denom <= 0.0 {
+                return 1.0;
+            }
+            ((viewport_height - rect_top) / denom).clamp(0.0, 1.0)
+        }
+        ProgressRange::Contain => {
+            let denom = viewport_height - rect_height;
+            if denom <= 0.0 {
+                // 要素がビューポート以上に高い: `contain` 区間が退化する
+                // ため `Cover` の計算へフォールバックする（doc 参照）。
+                return compute_progress_for_range(
+                    rect_top,
+                    rect_height,
+                    viewport_height,
+                    ProgressRange::Cover,
+                );
+            }
+            ((denom - rect_top) / denom).clamp(0.0, 1.0)
+        }
     }
-    let raw = (viewport_height - rect_top) / rect_height;
-    raw.clamp(0.0, 1.0)
 }
 
 /// 実行環境の判定結果（機能検出・`prefers-reduced-motion`）。
@@ -274,6 +371,22 @@ fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool 
 /// `None` を返す（`RafDriver::new`/`AnimationLoop::start` と同じ native
 /// no-panic 方針）。
 pub fn update_element_progress(element: &web_sys::Element, target: &mut DomTarget) -> Option<f64> {
+    update_element_progress_for_range(element, target, ProgressRange::Entry)
+}
+
+/// [`update_element_progress`] の範囲拡張版（イシュー #2534）。
+/// `update_element_progress` はこの関数の [`ProgressRange::Entry`] 固定
+/// ラッパである。
+///
+/// `crates/wasm-full/src/scroll_driver.rs` が `data-fandhe-scroll-progress`
+/// 属性値から解決した [`ProgressRange`] を渡す（属性値 → `ProgressRange`
+/// の厳格一致変換自体は wasm-full 側の責務、本関数は既に解決済みの
+/// `range` を受け取るのみ）。
+pub fn update_element_progress_for_range(
+    element: &web_sys::Element,
+    target: &mut DomTarget,
+    range: ProgressRange,
+) -> Option<f64> {
     #[cfg(target_arch = "wasm32")]
     {
         let rect = element.get_bounding_client_rect();
@@ -308,14 +421,18 @@ pub fn update_element_progress(element: &web_sys::Element, target: &mut DomTarge
                 (0.0, viewport_height)
             }
         };
-        let progress =
-            compute_progress(rect.top() - reference_top, rect.height(), reference_height);
+        let progress = compute_progress_for_range(
+            rect.top() - reference_top,
+            rect.height(),
+            reference_height,
+            range,
+        );
         target.write(progress);
         Some(progress)
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let _ = (element, target);
+        let _ = (element, target, range);
         None
     }
 }
@@ -487,6 +604,141 @@ mod compute_progress_tests {
     #[test]
     fn negative_height_is_one_and_does_not_panic() {
         assert_eq!(compute_progress(500.0, -10.0, 800.0), 1.0);
+    }
+}
+
+/// [`ProgressRange::Cover`]/[`ProgressRange::Contain`] の端点・中間値・
+/// 退化ケースを固定する（イシュー #2534）。`compute_progress_tests` の
+/// 既存 7 件（`Entry` 経路）は無改変のまま green を保つ回帰ガードとして
+/// 別モジュールに分離する。
+#[cfg(test)]
+mod compute_progress_for_range_tests {
+    use super::{compute_progress, compute_progress_for_range, ProgressRange};
+
+    #[test]
+    fn entry_range_matches_compute_progress_wrapper() {
+        // `compute_progress` は `ProgressRange::Entry` の薄いラッパである
+        // ことを直接確認する（リファクタの回帰ガード）。
+        for (rect_top, rect_height, viewport_height) in [
+            (2000.0, 100.0, 800.0),
+            (700.0, 100.0, 800.0),
+            (500.0, 0.0, 800.0),
+        ] {
+            assert_eq!(
+                compute_progress(rect_top, rect_height, viewport_height),
+                compute_progress_for_range(
+                    rect_top,
+                    rect_height,
+                    viewport_height,
+                    ProgressRange::Entry
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn cover_starts_at_zero_when_top_edge_reaches_viewport_bottom() {
+        // cover 0% は entry 0% と同一（要素上端がビューポート下端に到達）。
+        assert_eq!(
+            compute_progress_for_range(800.0, 100.0, 800.0, ProgressRange::Cover),
+            0.0
+        );
+    }
+
+    #[test]
+    fn cover_ends_at_one_when_bottom_edge_reaches_viewport_top() {
+        // cover 100% は要素下端がビューポート上端に到達した瞬間:
+        // rect_top == -rect_height。
+        assert_eq!(
+            compute_progress_for_range(-100.0, 100.0, 800.0, ProgressRange::Cover),
+            1.0
+        );
+    }
+
+    #[test]
+    fn cover_halfway_through_full_traverse() {
+        // 対称性: rect_top == (viewport_height - rect_height) / 2 で 0.5。
+        assert_eq!(
+            compute_progress_for_range(350.0, 100.0, 800.0, ProgressRange::Cover),
+            0.5
+        );
+    }
+
+    #[test]
+    fn cover_clamps_past_full_traverse_to_one() {
+        assert_eq!(
+            compute_progress_for_range(-500.0, 100.0, 800.0, ProgressRange::Cover),
+            1.0
+        );
+    }
+
+    #[test]
+    fn cover_zero_size_both_dimensions_is_one_and_does_not_panic() {
+        assert_eq!(
+            compute_progress_for_range(0.0, 0.0, 0.0, ProgressRange::Cover),
+            1.0
+        );
+    }
+
+    #[test]
+    fn contain_starts_at_zero_when_fully_entered() {
+        // contain 0% は entry 100% と同一。
+        assert_eq!(
+            compute_progress_for_range(700.0, 100.0, 800.0, ProgressRange::Contain),
+            0.0
+        );
+    }
+
+    #[test]
+    fn contain_ends_at_one_when_top_edge_reaches_viewport_top() {
+        assert_eq!(
+            compute_progress_for_range(0.0, 100.0, 800.0, ProgressRange::Contain),
+            1.0
+        );
+    }
+
+    #[test]
+    fn contain_halfway_through_containment() {
+        assert_eq!(
+            compute_progress_for_range(350.0, 100.0, 800.0, ProgressRange::Contain),
+            0.5
+        );
+    }
+
+    #[test]
+    fn contain_falls_back_to_cover_when_element_taller_than_viewport() {
+        // rect_height >= viewport_height: contain 区間が退化するため
+        // Cover と同じ値になる（doc の既知の単純化）。
+        let rect_top = 100.0;
+        let rect_height = 900.0;
+        let viewport_height = 800.0;
+        assert_eq!(
+            compute_progress_for_range(
+                rect_top,
+                rect_height,
+                viewport_height,
+                ProgressRange::Contain
+            ),
+            compute_progress_for_range(
+                rect_top,
+                rect_height,
+                viewport_height,
+                ProgressRange::Cover
+            )
+        );
+    }
+
+    #[test]
+    fn contain_equal_heights_falls_back_to_cover_without_panicking() {
+        // rect_height == viewport_height（denom == 0）も退化ケースとして
+        // panic せず Cover へフォールバックする。
+        let value = compute_progress_for_range(100.0, 800.0, 800.0, ProgressRange::Contain);
+        assert!((0.0..=1.0).contains(&value));
+    }
+
+    #[test]
+    fn progress_range_default_is_entry() {
+        assert_eq!(ProgressRange::default(), ProgressRange::Entry);
     }
 }
 

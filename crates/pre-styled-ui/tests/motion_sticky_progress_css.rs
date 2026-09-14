@@ -1,0 +1,94 @@
+//! イシュー #2534「scroll-linked parallax / sticky ユーティリティを実装する」
+//! のうち `SlotRecipe::sticky_progress` の契約テスト。`motion_parallax_css.rs`
+//! と同型の契約群（golden 一致・フォールバック存在・出力順・fail-closed
+//! スキップ）を固定する。`motion` feature 無効時は本ファイルごと
+//! コンパイルされない。
+
+#![cfg(feature = "motion")]
+
+use fandhe_frontend_pre_styled_ui::decl;
+use fandhe_frontend_pre_styled_ui::recipe::SlotRecipe;
+
+/// golden 全文バイト一致。
+#[test]
+fn sticky_progress_golden_css() {
+    let recipe = SlotRecipe::new("card", &["root"]).sticky_progress("root");
+    assert_eq!(
+        recipe.css(),
+        "@supports (animation-timeline: view()) {\n  @keyframes fandhe-motion-sticky-progress {\n    from {\n      opacity: 0.6;\n      scale: 0.96;\n    }\n    to {\n      opacity: 1;\n      scale: 1;\n    }\n  }\n\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation-name: fandhe-motion-sticky-progress;\n    animation-timing-function: linear;\n    animation-fill-mode: both;\n    animation-timeline: view();\n    animation-range: contain 0% contain 100%;\n  }\n}\n\n@supports not (animation-timeline: view()) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    opacity: calc(0.6 + (var(--fandhe-motion-scroll-progress, 0) * 0.4));\n    scale: calc(0.96 + (var(--fandhe-motion-scroll-progress, 0) * 0.04));\n  }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation: none;\n    opacity: 1;\n    scale: 1;\n  }\n}\n"
+    );
+}
+
+/// 非対応ブラウザ向けフォールバックが独立ブロックとして存在し、`<`
+/// （`</style>` 脱出）を含まないこと。
+#[test]
+fn sticky_progress_has_fallback_block_without_style_escape() {
+    let css = SlotRecipe::new("card", &["root"])
+        .sticky_progress("root")
+        .css();
+    assert!(css.contains("@supports not (animation-timeline: view()) {"));
+    assert!(!css.contains('<'));
+}
+
+/// ネイティブ・フォールバック・reduced-motion の 3 ブロックがこの順で
+/// 出力される。
+#[test]
+fn sticky_progress_block_order_is_native_then_fallback_then_reduced_motion() {
+    let css = SlotRecipe::new("card", &["root"])
+        .sticky_progress("root")
+        .css();
+    let native_pos = css.find("@supports (animation-timeline: view())").unwrap();
+    let fallback_pos = css
+        .find("@supports not (animation-timeline: view())")
+        .unwrap();
+    let reduced_pos = css.find("@media (prefers-reduced-motion: reduce)").unwrap();
+    assert!(native_pos < fallback_pos);
+    assert!(fallback_pos < reduced_pos);
+}
+
+/// reduced-motion ブロックがネイティブ・フォールバック双方の効果を
+/// `opacity: 1;`/`scale: 1;` の静的値で凍結すること。
+#[test]
+fn sticky_progress_reduced_motion_resets_both_paths() {
+    let css = SlotRecipe::new("card", &["root"])
+        .sticky_progress("root")
+        .css();
+    let reduced_pos = css.find("@media (prefers-reduced-motion: reduce)").unwrap();
+    let reduced_block = &css[reduced_pos..];
+    assert!(reduced_block.contains("animation: none;"));
+    assert!(reduced_block.contains("opacity: 1;"));
+    assert!(reduced_block.contains("scale: 1;"));
+}
+
+/// 未宣言 slot への `sticky_progress` は panic せず出力から除外される。
+#[test]
+fn sticky_progress_undeclared_slot_is_skipped_not_panicking() {
+    let recipe = SlotRecipe::new("card", &["root"]).sticky_progress("missing");
+    assert_eq!(recipe.css(), "");
+}
+
+/// `parallax` ブロックの後・breakpoints の前という出力順を固定する
+/// （`SlotRecipe::css` 本体の `write_parallax_blocks` → `write_sticky_
+/// progress_blocks` 呼び出し順）。
+#[test]
+fn sticky_progress_blocks_are_ordered_after_parallax_and_before_breakpoints() {
+    use fandhe_frontend_pre_styled_ui::recipe::{Breakpoint, ParallaxSpeed};
+
+    let css = SlotRecipe::new("card", &["root", "indicator"])
+        .base("root", vec![decl("display", "flex")])
+        .parallax("root", ParallaxSpeed::Normal)
+        .sticky_progress("indicator")
+        .breakpoint(
+            "root",
+            Breakpoint::Sm,
+            vec![decl("padding", "var(--fandhe-space-4)")],
+        )
+        .css();
+
+    let parallax_pos = css.find("fandhe-motion-parallax").unwrap();
+    let sticky_pos = css.find("fandhe-motion-sticky-progress").unwrap();
+    let breakpoint_pos = css.find("@media (min-width:").unwrap();
+
+    assert!(parallax_pos < sticky_pos);
+    assert!(sticky_pos < breakpoint_pos);
+}

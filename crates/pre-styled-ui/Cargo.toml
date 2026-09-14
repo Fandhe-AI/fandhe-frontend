@@ -3435,7 +3435,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # origin/main と同一版数のため、同じ版数のまま据え置かず +1 した
 # 0.199.1 とする（`.claude/rules/coding-rust.md` の「同じ版数は衝突として
 # 扱う」運用）。
-version = "0.199.1"
+#
+# イシュー #2534: `SlotRecipe::parallax`/`SlotRecipe::sticky_progress`
+# （`ParallaxSpeed` を含む）を新設。新規公開 API 追加のため minor バンプ
+# する（`.claude/rules/coding-rust.md` #638 条項）。
+version = "0.200.0"
 
 
 edition = "2021"

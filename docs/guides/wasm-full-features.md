@@ -71,6 +71,16 @@ feature でありながら `fandhe-frontend-animation` を optional 依存とし
 非配線の feature、`scroll-driver` は配線群かつ optional dep 有効化という
 新パターン）。
 
+0.28.0（イシュー #2534）で `scroll-driver` の挙動を拡張し、
+`data-fandhe-scroll-progress` 属性値により進捗の計算範囲を選べるように
+なりました（新規 feature の追加は伴いません）。`""`（存在マーカーのみ）・
+`"entry"` は従来どおりの entry 進捗、`"cover"`/`"contain"` は
+`fandhe-frontend-pre-styled-ui` の `SlotRecipe::parallax`/
+`SlotRecipe::sticky_progress` のネイティブ範囲（`animation-range: cover
+0% cover 100%`/`contain 0% contain 100%`）に対応するフォールバック進捗を
+書き込みます。未知の属性値は `"entry"` へ fail-closed します
+（`fandhe_frontend_wasm_full::scroll_driver::progress_range_from_attr`）。
+
 `position` feature（0.20.1 で追加）はこの表とは別枠です。
 `headless::wire_headless_component` 内の自動 positioning 呼び出し
 （`ensure_global_controller`・配線時/dispatch 後の `reposition_within`）

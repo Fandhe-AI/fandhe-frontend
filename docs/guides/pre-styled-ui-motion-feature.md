@@ -52,6 +52,24 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   var(--fandhe-motion-duration-fast))` を登録できます。`fandhe_animation::
   timeline::Stagger::new(each).delay(index, total)`（`from: First`）と
   意味論が一致することを `recipe::stagger_parity_tests` が固定しています。
+- **scroll-driven reveal（イシュー #2385、`crates/pre-styled-ui/src/recipe.rs`）**:
+  `recipe::SlotRecipe::scroll_reveal(slot)`。`animation-timeline: view()`
+  対応ブラウザではスクロールインに応じてフェード＋わずかな上方向スライドが
+  発火し、非対応ブラウザでは `@supports` ブロックごと無視されるため
+  常に可視のまま安全に劣化します（JS 不要）。
+- **scroll-linked parallax / sticky progress（イシュー #2534、
+  `crates/pre-styled-ui/src/recipe.rs`）**:
+  `recipe::SlotRecipe::parallax(slot, recipe::ParallaxSpeed)`・
+  `recipe::SlotRecipe::sticky_progress(slot)`。`view()` timeline の
+  `cover`/`contain` 相当区間で `translate`/`opacity`・`scale` を線形補間
+  します。非対応ブラウザ向けには `@supports not (animation-timeline:
+  view())` ブロックで `--fandhe-motion-scroll-progress`
+  （`fandhe_frontend_animation::scroll_driver::SCROLL_PROGRESS_PROPERTY`）
+  を読む `calc()` フォールバックを出力しますが、このフォールバックが
+  実際に進捗値を得るには対象要素へ `data-fandhe-scroll-progress` 属性を
+  付与し `fandhe-frontend-wasm-full` の `scroll-driver` feature（既定 on）
+  を配線する必要があります（属性値 `"cover"`/`"contain"` でネイティブと
+  同じ進捗範囲を選べます。属性なしでは静止したまま安全に劣化します）。
 - **`view-transition-name` ヘルパ（イシュー #2515、`crates/pre-styled-ui/src/recipe.rs`）**:
   `recipe::view_transition_name_declaration(name)`。共有要素遷移（motion.dev
   `AnimateView` 相当）の固定名を割り当てる静的なケース向けで、`name` は
@@ -160,5 +178,7 @@ cargo test   -p fandhe-frontend-pre-styled-ui --test motion_zero_cost --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_zero_cost --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_stagger_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_spring_css --locked
+cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_scroll_reveal_css --locked
+cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_parallax_css --test motion_sticky_progress_css --locked
 cargo tree   -p fandhe-frontend-pre-styled-ui -e normal --prefix none --locked | grep -c fandhe-animation   # 0
 ```

@@ -136,6 +136,84 @@ fn build_dom(document: &Document, root_id: &str) -> (Element, HtmlElement) {
     (root, target)
 }
 
+/// [`build_dom`] と似るが、同一の `getBoundingClientRect()` を共有する
+/// 2 要素（`entry`〔`""`〕と `cover`〔`"cover"`〕）を配置する（イシュー
+/// #2534、`progress_range_from_attr` の属性値 → `ProgressRange` 変換が
+/// 実際の配線経路で機能することを確認するため）。
+///
+/// `position: relative` な 200px 高さのラッパー内に `position: absolute;
+/// inset: 0` の 2 要素を重ねることで、両者の `rect_top`/`rect_height` を
+/// 完全に一致させる（`wire_scroll_driver_with_env` は 1 度の呼び出しで
+/// 両方を候補として収集する）。これにより「同一スクロール位置での entry
+/// と cover の値の違い」を、DOM 上の配置差（2 ルートを縦に並べると
+/// 2 つ目のルートの `rect_top` がずれてしまう）に汚染されずに検証できる。
+fn build_dom_with_entry_and_cover_siblings(
+    document: &Document,
+    root_id: &str,
+) -> (Element, HtmlElement, HtmlElement) {
+    let root = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    root.set_id(root_id);
+
+    let spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer
+        .set_attribute("style", "height:3000px")
+        .expect("set_attribute must not fail");
+    root.append_child(&spacer)
+        .expect("append_child must not fail");
+
+    let wrapper = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    wrapper
+        .set_attribute("style", "position:relative;height:200px")
+        .expect("set_attribute must not fail");
+
+    let entry_target = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    entry_target
+        .set_attribute(SCROLL_PROGRESS_ATTR, "")
+        .expect("set_attribute must not fail");
+    entry_target
+        .set_attribute("style", "position:absolute;inset:0")
+        .expect("set_attribute must not fail");
+
+    let cover_target = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    cover_target
+        .set_attribute(SCROLL_PROGRESS_ATTR, "cover")
+        .expect("set_attribute must not fail");
+    cover_target
+        .set_attribute("style", "position:absolute;inset:0")
+        .expect("set_attribute must not fail");
+
+    wrapper
+        .append_child(&entry_target)
+        .expect("append_child must not fail");
+    wrapper
+        .append_child(&cover_target)
+        .expect("append_child must not fail");
+    root.append_child(&wrapper)
+        .expect("append_child must not fail");
+
+    document
+        .body()
+        .expect("document body must exist in browser test environment")
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+
+    (root, entry_target, cover_target)
+}
+
 fn scroll_progress_value(target: &HtmlElement) -> String {
     target
         .style()
@@ -233,6 +311,79 @@ async fn native_support_detected_writes_nothing() {
         scroll_progress_value(&target).is_empty(),
         "ネイティブ対応時は custom property を一切書き込まないはず"
     );
+}
+
+/// `data-fandhe-scroll-progress="cover"`（イシュー #2534）が
+/// `ProgressRange::Cover` として配線され、同一スクロール位置で `entry`
+/// （既定・空文字属性値）とは異なる（かつ数式どおりの）進捗を書き込む
+/// ことを固定する（`progress_range_from_attr`/`update_element_progress_
+/// for_range` の実配線経路の統合確認。数式自体の正しさは
+/// `fandhe-frontend-animation` 側の native/browser テストが担う）。
+///
+/// 同一 `rect_top` では `cover <= entry` が常に成り立つ（`frontend-
+/// animation/tests/scroll_driver_browser.rs::
+/// update_element_progress_for_range_cover_lags_behind_entry` の doc
+/// 参照）。決定的な検証のため実測 `viewport_height` から `rect_top` を
+/// 逆算し、entry が `1.0` へクランプされる一方 cover は開区間
+/// `(0.0, 1.0)` の中間値に収まる位置までスクロールする。
+#[wasm_bindgen_test]
+async fn cover_attr_value_wires_cover_range_distinct_from_entry() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let viewport_height = window
+        .inner_height()
+        .expect("inner_height must not fail")
+        .as_f64()
+        .expect("inner_height must be a finite number");
+
+    let (root, entry_target, cover_target) =
+        build_dom_with_entry_and_cover_siblings(&document, "scroll-driver-range-root");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_scroll_driver_with_env(&root, Env::new(false, false))
+        .expect("wire_scroll_driver_with_env must succeed");
+
+    // target_document_top: spacer 高さ（3000px）。desired_rect_top:
+    // entry を 1.0 へクランプしつつ（rect_top <= viewport_height - 200）
+    // cover を非退化な中間値に保つ（frontend-animation 側のテストと同じ
+    // 逆算方針）。
+    let target_document_top = 3000.0;
+    let desired_rect_top = viewport_height - 300.0;
+    let scroll_y = (target_document_top - desired_rect_top).max(0.0);
+
+    window.scroll_to_with_x_and_y(0.0, scroll_y);
+    assert!(
+        wait_for(|| {
+            !scroll_progress_value(&entry_target).is_empty()
+                && !scroll_progress_value(&cover_target).is_empty()
+        })
+        .await,
+        "スクロール後に両方の progress が書き込まれているはず"
+    );
+
+    let entry_value = scroll_progress_value(&entry_target)
+        .parse::<f64>()
+        .expect("written value must be a valid f64 string");
+    let cover_value = scroll_progress_value(&cover_target)
+        .parse::<f64>()
+        .expect("written value must be a valid f64 string");
+
+    assert_eq!(
+        entry_value, 1.0,
+        "設計上の rect_top では entry が 1.0 にクランプされるはず: \
+         entry={entry_value} viewport_height={viewport_height} scroll_y={scroll_y}"
+    );
+    assert!(
+        cover_value > 0.0 && cover_value < 1.0,
+        "cover_value は開区間 (0.0, 1.0) の中間値であるはず: {cover_value}"
+    );
+    assert!(
+        cover_value < entry_value,
+        "同一 rect_top で cover は entry より遅れているはず（分母が大きいため）: \
+         entry={entry_value} cover={cover_value}"
+    );
+
+    window.scroll_to_with_x_and_y(0.0, 0.0);
 }
 
 /// `Runtime::mount` 経由（`scroll-driver` feature 既定 on）でも

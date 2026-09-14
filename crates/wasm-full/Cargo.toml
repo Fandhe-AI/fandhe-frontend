@@ -1168,7 +1168,13 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #2521（親 `#2499`）: scroll ドライバ配線（`scroll_driver` モジュール
 # 新設、`Self::wire_scroll_driver`・feature `scroll-driver` 既定 on）を
 # 追加。新規公開 feature 追加を伴うため minor バンプする。
-version = "0.27.0"
+#
+# イシュー #2534: `progress_range_from_attr`（新規公開 API）を追加し、
+# `data-fandhe-scroll-progress` 属性値による進捗範囲（entry/cover/
+# contain）選択を配線した。既存 feature `scroll-driver` の挙動拡張であり
+# 新規 feature は追加していない。新規公開 API 追加のため minor バンプ
+# する。
+version = "0.28.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1438,7 +1444,7 @@ js-sys = "0.3"
 # イシュー #2521: `fandhe-frontend-animation` 0.3.0 → 0.4.0（`scroll_driver`
 # モジュール新設）への `version` 要求追随（`cargo run -p xtask --
 # check-dep-versions --fix`）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.4.0", optional = true }
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.5.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の

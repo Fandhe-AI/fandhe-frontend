@@ -18,7 +18,8 @@ use std::rc::Rc;
 
 use fandhe_frontend_animation::dom_target::DomTarget;
 use fandhe_frontend_animation::scroll_driver::{
-    update_element_progress, ScrollDriver, SCROLL_PROGRESS_PROPERTY,
+    update_element_progress, update_element_progress_for_range, ProgressRange, ScrollDriver,
+    SCROLL_PROGRESS_PROPERTY,
 };
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
@@ -385,4 +386,98 @@ async fn update_element_progress_holds_steady_inside_non_overflowing_hidden_cont
          ページスクロールによらず進捗は一定のはず（window 基準へ誤って \
          フォールバックしていない証拠）: {progress_at_mid} -> {progress_at_full}"
     );
+}
+
+/// [`update_element_progress_for_range`]（イシュー #2534）が
+/// [`ProgressRange::Cover`] で [`ProgressRange::Entry`] とは異なる（かつ
+/// 数式どおりの）値を書き込むことを実 DOM で固定する。
+///
+/// `compute_progress_for_range` の native テスト（`cover_starts_at_zero_
+/// when_top_edge_reaches_viewport_bottom` 等）が計算の正しさを固定済み
+/// であり、本テストは実ブラウザの `getBoundingClientRect`/`innerHeight`
+/// 計測経路と正しく配線されていることのみを検証する。
+///
+/// 同一 `rect_top`（= 分子 `viewport_height - rect_top` が同一）では
+/// `entry = numerator / rect_height`、`cover = numerator / (viewport_
+/// height + rect_height)` であり分母が `cover` の方が大きいため、
+/// **`cover <= entry`** が常に成り立つ（`cover` は `entry` より遅れて
+/// 1.0 へ到達する）。決定的な検証のため `rect_top` を実測の
+/// `viewport_height` から逆算し、`entry` がちょうど `1.0` にクランプ
+/// される（`rect_top <= viewport_height - rect_height`）一方で `cover`
+/// は開区間 `(0.0, 1.0)` に収まる（非退化）位置までスクロールする。
+#[wasm_bindgen_test]
+async fn update_element_progress_for_range_cover_lags_behind_entry() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let viewport_height = window
+        .inner_height()
+        .expect("inner_height must not fail")
+        .as_f64()
+        .expect("inner_height must be a finite number");
+
+    const TARGET_HEIGHT: f64 = 200.0;
+    const SPACER_HEIGHT: f64 = 3000.0;
+    // rect_top を viewport_height - 300 付近へ合わせる: entry の 1.0 到達
+    // 条件（rect_top <= viewport_height - TARGET_HEIGHT）を満たしつつ、
+    // cover は non-degenerate な中間値のまま（cover = 300 / (viewport_height
+    // + TARGET_HEIGHT) は viewport_height が現実的な範囲である限り (0, 1)）。
+    let target_document_top = SPACER_HEIGHT;
+    let desired_rect_top = viewport_height - 300.0;
+    let scroll_y = (target_document_top - desired_rect_top).max(0.0);
+
+    let spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer
+        .set_attribute("style", &format!("height:{SPACER_HEIGHT}px"))
+        .expect("set_attribute must not fail");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .set_attribute("style", &format!("height:{TARGET_HEIGHT}px"))
+        .expect("set_attribute must not fail");
+
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+    body.append_child(&spacer)
+        .expect("append_child must not fail for a detached spacer");
+    body.append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut entry_target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+    let mut cover_target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    window.scroll_to_with_x_and_y(0.0, scroll_y);
+    wait_one_frame().await;
+
+    let entry_progress = update_element_progress(&element, &mut entry_target)
+        .expect("update_element_progress must succeed in a browser environment");
+    let cover_progress =
+        update_element_progress_for_range(&element, &mut cover_target, ProgressRange::Cover)
+            .expect("update_element_progress_for_range must succeed in a browser environment");
+
+    assert_eq!(
+        entry_progress, 1.0,
+        "設計上の rect_top では entry が 1.0 にクランプされるはず: \
+         entry={entry_progress} viewport_height={viewport_height} scroll_y={scroll_y}"
+    );
+    assert!(
+        cover_progress > 0.0 && cover_progress < 1.0,
+        "cover_progress は開区間 (0.0, 1.0) の中間値であるはず: {cover_progress}"
+    );
+    assert!(
+        cover_progress < entry_progress,
+        "同一 rect_top で cover は entry より遅れているはず（分母が大きいため）: \
+         entry={entry_progress} cover={cover_progress}"
+    );
+
+    window.scroll_to_with_x_and_y(0.0, 0.0);
+    spacer.remove();
+    target_el.remove();
 }
