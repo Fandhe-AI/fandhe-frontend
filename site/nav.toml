@@ -63,6 +63,11 @@ title = "pre-styled-ui motion feature ガイド"
 source = "docs/guides/pre-styled-ui-motion-feature.md"
 path = "/guides/pre-styled-ui-motion-feature/"
 
+[[section.page]]
+title = "fandhe-animation API ガイド"
+source = "docs/guides/animation-core.md"
+path = "/guides/animation-core/"
+
 [[section]]
 title = "Examples"
 index_path = "/examples/"
