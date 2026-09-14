@@ -319,14 +319,15 @@ fn focusout_clears_press_state_left_by_keyboard_activation() {
     );
 }
 
-/// codex-review 指摘の回帰固定（gesture.rs:235 付近）: Enter/Space の
-/// `keydown` が別ハンドラより後に実行され、その間にフォーカスが別要素へ
-/// 同期的に移動していた場合（ダイアログを開く等）、移動先ではなく元要素
-/// （`event.target`）へ press を設定してしまうと `keyup`/`focusout` が
-/// 届かず残留する。`is_still_focused` による確認で press の新規設定
-/// 自体を抑止する。
+/// cursor(Bugbot) 指摘の是正確認: `handle_keydown` は `event.target()` を
+/// そのまま信頼し、`document.activeElement` による追加検証を行わない
+/// （かつて存在した `is_still_focused` ガードは、プログラム的な
+/// `dispatch_event`（実フォーカスを伴わない）で press が一切設定され
+/// なくなる副作用を持っていたため撤去した）。`elsewhere` へ実際に
+/// フォーカスが移っていても `child` への keydown 発火は `child` へ
+/// press を設定する。
 #[wasm_bindgen_test]
-fn keydown_does_not_set_press_when_focus_already_moved_away() {
+fn keydown_sets_press_based_on_event_target_regardless_of_actual_focus() {
     let document = web_sys::window().unwrap().document().unwrap();
     let (root, child, _grandchild) = build_dom(&document, "gesture-keydown-focus-race-test");
     let elsewhere = document.create_element("button").unwrap();
@@ -334,17 +335,14 @@ fn keydown_does_not_set_press_when_focus_already_moved_away() {
     let _guard = RemoveOnDrop(root.clone());
     wire_gesture(root.clone()).expect("wire_gesture must not fail");
 
-    // keydown の同期処理中に既にフォーカスが別要素へ移動済みの状況を
-    // 模す（`event.target()` は依然として `child` を指すが、実際の
-    // フォーカスは `elsewhere` にある）。
     elsewhere
         .unchecked_ref::<web_sys::HtmlElement>()
         .focus()
         .expect("focus must not fail");
     dispatch_key(&child, "keydown", "Enter", false);
     assert!(
-        !child.has_attribute(PRESS_STATE_ATTR),
-        "keydown 処理時点でフォーカスが移動済みなら press を設定しないこと"
+        child.has_attribute(PRESS_STATE_ATTR),
+        "document.activeElement が別要素でも event.target() 基準で press を設定すること"
     );
 }
 
@@ -377,6 +375,101 @@ fn pointerup_on_nested_child_clears_the_actually_pressed_parent() {
     assert!(
         !child.has_attribute(PRESS_STATE_ATTR),
         "子は元々 press されていないため press 状態を持たないこと"
+    );
+}
+
+/// cursor(Bugbot) 指摘の回帰固定（`handle_focusout` が `closest_opted_in`
+/// ではなく [`opted_in_ancestors`] を辿るようになったことの確認）: 親子
+/// とも press opt-in で親を pointerdown した状態から、子（opt-in）で
+/// focusout（`relatedTarget` なし、真の離脱）すると、`closest_opted_in`
+/// （focusout の target=子 から最も近い 1 件）では子自身が対象になり
+/// 親の press が見逃されていた。祖先を辿ることで親も解除されること。
+#[wasm_bindgen_test]
+fn focusout_on_nested_child_clears_the_actually_pressed_parent() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, parent, child) = build_dom(&document, "gesture-nested-focusout-test");
+    child.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer(&parent, "pointerdown", "mouse", None);
+    assert!(parent.has_attribute(PRESS_STATE_ATTR));
+
+    dispatch_focusout(&child);
+    assert!(
+        !parent.has_attribute(PRESS_STATE_ATTR),
+        "子の focusout でも実際に押下された親の press が祖先探索で解除されること"
+    );
+}
+
+/// codex-review 指摘の回帰固定: フォーカス移動を伴わずに複数ポインタ
+/// （別指・別マウス）が別々の opt-in 要素を順に押下したとき、後発の
+/// pointerdown が先発の押下要素の状態を上書きして解放漏れを起こさない
+/// こと（`ActivePress` を `pointer_id` ごとに独立管理する）。
+#[wasm_bindgen_test]
+fn independent_pointers_press_and_release_without_clobbering_each_other() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("gesture-multi-pointer-test");
+    let item_a = document.create_element("button").unwrap();
+    item_a.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    let item_b = document.create_element("button").unwrap();
+    item_b.set_attribute(GESTURE_PRESS_ATTR, "").unwrap();
+    root.append_child(&item_a).unwrap();
+    root.append_child(&item_b).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    let pointer_a = PointerEventInit::new();
+    pointer_a.set_bubbles(true);
+    pointer_a.set_pointer_type("touch");
+    pointer_a.set_pointer_id(1);
+    item_a
+        .dispatch_event(
+            PointerEvent::new_with_event_init_dict("pointerdown", &pointer_a)
+                .expect("PointerEvent::new")
+                .as_ref(),
+        )
+        .expect("dispatch_event must not fail");
+
+    let pointer_b = PointerEventInit::new();
+    pointer_b.set_bubbles(true);
+    pointer_b.set_pointer_type("touch");
+    pointer_b.set_pointer_id(2);
+    item_b
+        .dispatch_event(
+            PointerEvent::new_with_event_init_dict("pointerdown", &pointer_b)
+                .expect("PointerEvent::new")
+                .as_ref(),
+        )
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        item_a.has_attribute(PRESS_STATE_ATTR),
+        "後発ポインタの押下で先発要素の press が上書きされないこと"
+    );
+    assert!(item_b.has_attribute(PRESS_STATE_ATTR));
+
+    let pointer_a_up = PointerEventInit::new();
+    pointer_a_up.set_bubbles(true);
+    pointer_a_up.set_pointer_type("touch");
+    pointer_a_up.set_pointer_id(1);
+    item_a
+        .dispatch_event(
+            PointerEvent::new_with_event_init_dict("pointerup", &pointer_a_up)
+                .expect("PointerEvent::new")
+                .as_ref(),
+        )
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        !item_a.has_attribute(PRESS_STATE_ATTR),
+        "pointer_id が一致する pointerup で対象要素の press が解除されること"
+    );
+    assert!(
+        item_b.has_attribute(PRESS_STATE_ATTR),
+        "別ポインタの解放は無関係な要素の press に影響しないこと"
     );
 }
 
