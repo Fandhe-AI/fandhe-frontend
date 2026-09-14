@@ -481,3 +481,180 @@ async fn update_element_progress_for_range_cover_lags_behind_entry() {
     spacer.remove();
     target_el.remove();
 }
+
+/// codex-review P1 是正（PR #2563）の回帰テスト: `SlotRecipe::parallax`
+/// フォールバックと同型の `translate` 宣言（[`SCROLL_PROGRESS_PROPERTY`]
+/// を読んで自身へ適用する `<style>` ルール）を持つ要素に対し、同一スクロール
+/// 位置で複数回 [`update_element_progress`] を呼んでも書き込まれる
+/// progress が変化しない（フィードバックループが起きない）ことを固定する。
+///
+/// 是正前は 1 回目の呼び出しで書き込んだ progress が要素へ `translate` と
+/// して反映され、2 回目の `getBoundingClientRect()` がその変形後の座標を
+/// 拾って異なる progress を計算してしまっていた（`measure_untransformed_rect`
+/// の doc 参照）。
+#[wasm_bindgen_test]
+async fn update_element_progress_is_stable_despite_self_applied_translate() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+
+    // 要素自身の `data-fandhe-scroll-progress` 相当のフォールバック CSS
+    // （`SlotRecipe::write_parallax_blocks` の fallback ブロックと同型）を
+    // 素の `<style>` タグで模倣する。移動距離は明らかに feedback loop を
+    // 検出できるだけの大きさ（400px）にする。
+    let style_el = document
+        .create_element("style")
+        .expect("create_element must not fail for style");
+    style_el.set_text_content(Some(&format!(
+        ".fd-test-parallax-target {{ translate: 0 calc(var({SCROLL_PROGRESS_PROPERTY}, 0) * -400px); }}"
+    )));
+    // `Document::head()` の利用には追加の web-sys feature
+    // （`HtmlHeadElement`）が必要になるため、既存 dev-dependency 集合を
+    // 汚さないよう body 直下へ挿入する（`<style>` は body 内でも有効な
+    // HTML5 要素であり、テスト目的のスタイル注入として問題ない）。
+    document
+        .body()
+        .expect("document body must exist in browser test environment")
+        .append_child(&style_el)
+        .expect("append_child must not fail for style element");
+
+    let spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer
+        .set_attribute("style", "height:3000px")
+        .expect("set_attribute must not fail");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .set_attribute("class", "fd-test-parallax-target")
+        .expect("set_attribute must not fail");
+    target_el
+        .style()
+        .set_property("height", "200px")
+        .expect("set_property must not fail");
+
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+    body.append_child(&spacer)
+        .expect("append_child must not fail for a detached spacer");
+    body.append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    // 中間的なスクロール位置（progress が 0.0/1.0 に clamp されない値）へ
+    // 固定し、同じスクロール位置のまま複数フレームぶん再計算する。
+    window.scroll_to_with_x_and_y(0.0, 2900.0);
+    wait_one_frame().await;
+
+    let first = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+    wait_one_frame().await;
+    let second = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+    wait_one_frame().await;
+    let third = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    assert!(
+        first > 0.0 && first < 1.0,
+        "検証対象のスクロール位置は非退化の中間値であるはず: {first}"
+    );
+    assert_eq!(
+        first, second,
+        "同一スクロール位置での再計算は自身が適用した translate の影響を \
+         受けず、常に同じ progress を返すはず（feedback loop 回帰）: \
+         first={first} second={second}"
+    );
+    assert_eq!(
+        second, third,
+        "3 回目の再計算も同じ progress を返すはず: second={second} third={third}"
+    );
+
+    window.scroll_to_with_x_and_y(0.0, 0.0);
+    spacer.remove();
+    target_el.remove();
+    style_el.remove();
+}
+
+/// codex-review P1 是正（PR #2563）の回帰テスト: `position: sticky` で
+/// ピン留めされた要素は `getBoundingClientRect().top` が一定値に張り付く
+/// ため、是正前は [`ProgressRange::Contain`] の progress がスクロールを
+/// 続けても変化しなかった。是正後は `measure_untransformed_rect` が計測
+/// 直前に `position` を一時的に `static` へ戻すため、ピン留め中も
+/// スクロール位置に連動して progress が変化し続けることを固定する。
+#[wasm_bindgen_test]
+async fn update_element_progress_for_range_contain_advances_while_position_sticky() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+
+    let spacer_before = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer_before
+        .set_attribute("style", "height:2000px")
+        .expect("set_attribute must not fail");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .set_attribute("style", "position:sticky; top:0; height:100px")
+        .expect("set_attribute must not fail");
+
+    let spacer_after = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer_after
+        .set_attribute("style", "height:4000px")
+        .expect("set_attribute must not fail");
+
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+    body.append_child(&spacer_before)
+        .expect("append_child must not fail for a detached spacer");
+    body.append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+    body.append_child(&spacer_after)
+        .expect("append_child must not fail for a detached spacer");
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    // 要素が完全にビューポート内へ収まった直後（Contain 区間開始直後）まで
+    // スクロールしてから、さらにピン留め継続中の位置までスクロールを
+    // 進める。ピン留め中は `getBoundingClientRect().top` が `0`（`top:0`）
+    // に張り付くため、是正前の実装ではこの 2 点間で progress が変化しない。
+    window.scroll_to_with_x_and_y(0.0, 2000.0);
+    wait_one_frame().await;
+    let progress_at_pin_start =
+        update_element_progress_for_range(&element, &mut target, ProgressRange::Contain)
+            .expect("update_element_progress_for_range must succeed in a browser environment");
+
+    window.scroll_to_with_x_and_y(0.0, 2800.0);
+    wait_one_frame().await;
+    let progress_while_pinned =
+        update_element_progress_for_range(&element, &mut target, ProgressRange::Contain)
+            .expect("update_element_progress_for_range must succeed in a browser environment");
+
+    assert!(
+        progress_while_pinned > progress_at_pin_start,
+        "position: sticky でピン留め中もスクロール位置に応じて progress が \
+         増加し続けるはず（張り付き回帰）: \
+         pin_start={progress_at_pin_start} while_pinned={progress_while_pinned}"
+    );
+
+    window.scroll_to_with_x_and_y(0.0, 0.0);
+    spacer_before.remove();
+    target_el.remove();
+    spacer_after.remove();
+}

@@ -351,6 +351,104 @@ fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool 
     !matches!(overflow_y.as_str(), "visible" | "clip" | "")
 }
 
+/// [`update_element_progress_for_range`] が計測直前に呼ぶ、フィードバック
+/// ループ除去のための計測ヘルパ（codex-review P1 是正、PR #2563）。
+///
+/// # 背景（フィードバックループ）
+///
+/// `SlotRecipe::parallax`/`SlotRecipe::sticky_progress` のフォールバック
+/// CSS（`@supports not (animation-timeline: view())`）は、本モジュールが
+/// [`SCROLL_PROGRESS_PROPERTY`] へ書き込んだ進捗を読んで**同じ要素**へ
+/// `translate`（parallax）/`scale`（sticky_progress）を適用する。計測
+/// （`getBoundingClientRect()`）にその効果適用後の座標をそのまま使うと、
+/// 次フレームの計測値が前フレームの効果適用結果に依存してしまい、同じ
+/// スクロール位置でも進捗値がフレームを追うごとにずれ続ける
+/// （[`compute_progress_for_range`] が前提とする「スクロール位置に対する
+/// 線形補間」契約に反する）。
+///
+/// `position: sticky`（`sticky_progress` の典型的な利用形、呼び出し側
+/// マークアップの責務）も同種の問題を起こす: ピン留め中は
+/// `getBoundingClientRect().top` が一定値に張り付くため、スクロールを
+/// 続けても `contain` 進捗が進まない。
+///
+/// # 是正方法
+///
+/// インラインスタイルはスタイルシート上のセレクタ規則に対し
+/// （`!important` を使わない限り）常に勝つ性質を利用し、計測直前に
+/// `translate`/`scale` を `none` へ、算出済みスタイルが `position:
+/// sticky` の場合に限り `position` を `static` へ一時上書きしてから
+/// `getBoundingClientRect()` を呼び、直後に（同期的に・再描画を挟まず）
+/// 元の値へ戻す。これにより計測結果は常に「本モジュール自身の効果
+/// 適用前・ピン留め前」の、スクロール位置と連続的に対応する位置を表す。
+/// `position: fixed`/`absolute` 等 `sticky` 以外の値は変更しない
+/// （無関係な計測結果を変えないため）。
+///
+/// インラインスタイルの上書き・復元は同一の同期実行内で完結するため、
+/// ブラウザが中間状態を描画することはない（強制リフローを伴う計測
+/// ヘルパの一般的な手法。`getComputedStyle` 呼び出しコストは
+/// [`is_scroll_container`] と同種の既知のトレードオフ）。
+///
+/// `element` が `HtmlElement`（インラインスタイル設定可能）でない場合
+/// （SVG 等）は素の `getBoundingClientRect()` へフォールバックする
+/// （fail-open: 計測結果が変形の影響を受け得るが、少なくとも panic
+/// しない）。
+#[cfg(target_arch = "wasm32")]
+fn measure_untransformed_rect(element: &web_sys::Element) -> web_sys::DomRect {
+    let Some(html) = element.dyn_ref::<web_sys::HtmlElement>() else {
+        return element.get_bounding_client_rect();
+    };
+    let style = html.style();
+
+    let saved_translate = style.get_property_value("translate").ok();
+    let _ = style.set_property("translate", "none");
+    let saved_scale = style.get_property_value("scale").ok();
+    let _ = style.set_property("scale", "none");
+
+    let is_sticky = web_sys::window()
+        .and_then(|window| window.get_computed_style(element).ok().flatten())
+        .and_then(|computed| computed.get_property_value("position").ok())
+        .map(|value| value == "sticky")
+        .unwrap_or(false);
+    let saved_position = if is_sticky {
+        let prev = style.get_property_value("position").ok();
+        let _ = style.set_property("position", "static");
+        Some(prev)
+    } else {
+        None
+    };
+
+    let rect = element.get_bounding_client_rect();
+
+    match saved_translate.as_deref() {
+        Some(value) if !value.is_empty() => {
+            let _ = style.set_property("translate", value);
+        }
+        _ => {
+            let _ = style.remove_property("translate");
+        }
+    }
+    match saved_scale.as_deref() {
+        Some(value) if !value.is_empty() => {
+            let _ = style.set_property("scale", value);
+        }
+        _ => {
+            let _ = style.remove_property("scale");
+        }
+    }
+    if let Some(prev) = saved_position {
+        match prev.as_deref() {
+            Some(value) if !value.is_empty() => {
+                let _ = style.set_property("position", value);
+            }
+            _ => {
+                let _ = style.remove_property("position");
+            }
+        }
+    }
+
+    rect
+}
+
 /// `element` の現在位置を計測し、[`compute_progress`] の結果を `target` へ
 /// 書き込む（`fandhe-frontend-wasm-full` の scroll/resize リスナー・rAF
 /// ループから毎フレーム呼ばれる想定）。
@@ -363,6 +461,13 @@ fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool 
 /// には追随するが、`getComputedStyle` 呼び出しコストが祖先段数ぶん
 /// かかる既知のトレードオフである（`in_view.rs` の `MutationObserver`
 /// 非対応と同種の割り切り）。
+///
+/// `element` 自身の計測は [`measure_untransformed_rect`] 経由で行い、
+/// 本関数が過去に書き込んだ進捗（`SCROLL_PROGRESS_PROPERTY`）を読んで
+/// 同じ要素へ `translate`/`scale` を適用するフォールバック CSS
+/// （`SlotRecipe::parallax`/`SlotRecipe::sticky_progress`）や
+/// `position: sticky` のピン留めが計測結果へ混入しないようにする
+/// （codex-review P1 是正、PR #2563。詳細は同関数 doc 参照）。
 ///
 /// 計測に失敗した場合（`window` 不在等）は書き込みを行わず `None` を
 /// 返す（fail-closed、panic しない）。
@@ -389,7 +494,7 @@ pub fn update_element_progress_for_range(
 ) -> Option<f64> {
     #[cfg(target_arch = "wasm32")]
     {
-        let rect = element.get_bounding_client_rect();
+        let rect = measure_untransformed_rect(element);
         let (reference_top, reference_height) = match find_scroll_container(element) {
             Some(container) => {
                 // `getBoundingClientRect()` の高さは border box（border・

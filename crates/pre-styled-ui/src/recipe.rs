@@ -3106,9 +3106,18 @@ const PARALLAX_KEYFRAMES_CSS: &str = "@keyframes fandhe-motion-parallax {\n  fro
 /// と同じ: `contain`（要素がビューポートに完全収容されている期間）を
 /// 抜けた後（ピン留め区間の終了後・またはそもそも完全収容されない
 /// 期間）も `opacity`/`scale` の終端値（`1`）を保ち続けるのが「強調表示
-/// を抜けたら通常表示へ戻る」という意図に一致する。`opacity`/`scale` は
-/// `translate` と異なり新たな包含ブロックを作らないため、`backwards` を
-/// 避けることによる副作用の懸念はない。
+/// を抜けたら通常表示へ戻る」という意図に一致する。
+///
+/// `scale` も `translate` と同じく非 `none` 値（`1` を含む）で新たな
+/// 包含ブロックを作る（CSS Transforms Level 2 の individual transform
+/// properties、`transform` と同じ扱い。codex-review P1 是正、PR #2563:
+/// 旧版は「`opacity`/`scale` は `translate` と異なり包含ブロックを
+/// 作らない」と誤って記していた）。このため [`SlotRecipe::
+/// write_sticky_progress_blocks`] の reduced-motion ブロックは
+/// リセット値に `scale: 1` ではなく `scale: none` を使い、`position:
+/// fixed` な子孫（例: sticky_progress を適用したカード内のオーバーレイ）
+/// がカード基準の座標系へ固定され続ける事態を避ける
+/// （[`PARALLAX_KEYFRAMES_CSS`] doc の `translate: none` と同じ理由）。
 #[cfg(feature = "motion")]
 const STICKY_PROGRESS_KEYFRAMES_CSS: &str = "@keyframes fandhe-motion-sticky-progress {\n  from {\n    opacity: 0.6;\n    scale: 0.96;\n  }\n  to {\n    opacity: 1;\n    scale: 1;\n  }\n}\n";
 
@@ -3344,7 +3353,10 @@ impl SlotRecipe {
                 &[
                     decl("animation", "none"),
                     decl("opacity", "1"),
-                    decl("scale", "1"),
+                    // `scale: 1` ではなく `scale: none` を使う（上記 doc
+                    // 参照。`1` は視覚的には無変形だが非 `none` 値のため
+                    // 包含ブロックを作り続けてしまう）。
+                    decl("scale", "none"),
                 ],
             ) {
                 reduced_motion_inner.push_str(&css);

@@ -15,7 +15,7 @@ fn sticky_progress_golden_css() {
     let recipe = SlotRecipe::new("card", &["root"]).sticky_progress("root");
     assert_eq!(
         recipe.css(),
-        "@supports (animation-timeline: view()) {\n  @keyframes fandhe-motion-sticky-progress {\n    from {\n      opacity: 0.6;\n      scale: 0.96;\n    }\n    to {\n      opacity: 1;\n      scale: 1;\n    }\n  }\n\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation-name: fandhe-motion-sticky-progress;\n    animation-timing-function: linear;\n    animation-fill-mode: both;\n    animation-timeline: view();\n    animation-range: contain 0% contain 100%;\n  }\n}\n\n@supports not (animation-timeline: view()) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    opacity: calc(0.6 + (var(--fandhe-motion-scroll-progress, 0) * 0.4));\n    scale: calc(0.96 + (var(--fandhe-motion-scroll-progress, 0) * 0.04));\n  }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation: none;\n    opacity: 1;\n    scale: 1;\n  }\n}\n"
+        "@supports (animation-timeline: view()) {\n  @keyframes fandhe-motion-sticky-progress {\n    from {\n      opacity: 0.6;\n      scale: 0.96;\n    }\n    to {\n      opacity: 1;\n      scale: 1;\n    }\n  }\n\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation-name: fandhe-motion-sticky-progress;\n    animation-timing-function: linear;\n    animation-fill-mode: both;\n    animation-timeline: view();\n    animation-range: contain 0% contain 100%;\n  }\n}\n\n@supports not (animation-timeline: view()) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    opacity: calc(0.6 + (var(--fandhe-motion-scroll-progress, 0) * 0.4));\n    scale: calc(0.96 + (var(--fandhe-motion-scroll-progress, 0) * 0.04));\n  }\n}\n\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"card\"][data-part=\"root\"] {\n    animation: none;\n    opacity: 1;\n    scale: none;\n  }\n}\n"
     );
 }
 
@@ -47,7 +47,9 @@ fn sticky_progress_block_order_is_native_then_fallback_then_reduced_motion() {
 }
 
 /// reduced-motion ブロックがネイティブ・フォールバック双方の効果を
-/// `opacity: 1;`/`scale: 1;` の静的値で凍結すること。
+/// `opacity: 1;`/`scale: none;` の静的値で凍結すること（`scale` は `1`
+/// ではなく `none` を使う。`1` は非 `none` 値のため包含ブロックを作り
+/// 続けてしまうため、codex-review P1 是正・PR #2563）。
 #[test]
 fn sticky_progress_reduced_motion_resets_both_paths() {
     let css = SlotRecipe::new("card", &["root"])
@@ -57,7 +59,7 @@ fn sticky_progress_reduced_motion_resets_both_paths() {
     let reduced_block = &css[reduced_pos..];
     assert!(reduced_block.contains("animation: none;"));
     assert!(reduced_block.contains("opacity: 1;"));
-    assert!(reduced_block.contains("scale: 1;"));
+    assert!(reduced_block.contains("scale: none;"));
 }
 
 /// 未宣言 slot への `sticky_progress` は panic せず出力から除外される。
