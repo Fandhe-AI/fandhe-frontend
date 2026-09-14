@@ -281,3 +281,108 @@ async fn update_element_progress_uses_body_as_container_when_html_overflow_does_
          {progress_at_0} -> {progress_at_full}"
     );
 }
+
+#[wasm_bindgen_test]
+async fn update_element_progress_holds_steady_inside_non_overflowing_hidden_container() {
+    // codex-review P1 是正（PR #2557）の再現テスト: 高さ 300px の
+    // `overflow: hidden` コンテナに、収まりきる高さ 100px の対象要素を
+    // 配置する。コンテナ自体は溢れていない（`scrollHeight ==
+    // clientHeight`）ため、`is_scroll_container` が `scrollHeight >
+    // clientHeight` を必須条件にしていた旧実装ではこのコンテナを
+    // 「スクロールコンテナではない」として読み飛ばし、より外側の
+    // `window` を基準に進捗を計算してしまっていた（ページ全体スクロール
+    // で進捗が 0 → 1 へ変化する誤り）。
+    //
+    // ネイティブ `animation-timeline: view()` は overflow 特性のみで
+    // 近傍スクロールコンテナを決定し、実際のスクロール範囲の有無は
+    // 問わない
+    // (<https://drafts.csswg.org/scroll-animations-1/#view-notation>)。
+    // 対象要素とコンテナは常に同じ相対位置を保ったままページスクロール
+    // に追従するため、進捗はページスクロール位置によらず一定であるべき
+    // （このコンテナが基準として選ばれていることの証拠）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let body = document
+        .body()
+        .expect("document body must exist in browser test environment");
+
+    let spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer
+        .set_attribute("style", "height:3000px")
+        .expect("set_attribute must not fail");
+
+    let container = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    container
+        .set_attribute(
+            "style",
+            "height:300px; overflow: hidden; position: relative",
+        )
+        .expect("set_attribute must not fail");
+
+    let target_el = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("created element must be an HtmlElement");
+    target_el
+        .set_attribute("style", "height:100px")
+        .expect("set_attribute must not fail");
+
+    container
+        .append_child(&target_el)
+        .expect("append_child must not fail for a detached target");
+    body.append_child(&spacer)
+        .expect("append_child must not fail for a detached spacer");
+    body.append_child(&container)
+        .expect("append_child must not fail for a detached container");
+
+    let element: web_sys::Element = target_el.clone().into();
+    let mut target = DomTarget::custom_property(target_el.clone(), SCROLL_PROGRESS_PROPERTY);
+
+    window.scroll_to_with_x_and_y(0.0, 0.0);
+    wait_one_frame().await;
+    let progress_at_0 = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    window.scroll_to_with_x_and_y(0.0, 1500.0);
+    wait_one_frame().await;
+    let progress_at_mid = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    window.scroll_to_with_x_and_y(0.0, 3000.0);
+    wait_one_frame().await;
+    let progress_at_full = update_element_progress(&element, &mut target)
+        .expect("update_element_progress must succeed in a browser environment");
+
+    // 後片付け（アサーション前に行い、失敗時も後続テストを汚染しない）。
+    window.scroll_to_with_x_and_y(0.0, 0.0);
+    spacer.remove();
+    container.remove();
+
+    for (label, value) in [
+        ("progress_at_0", progress_at_0),
+        ("progress_at_mid", progress_at_mid),
+        ("progress_at_full", progress_at_full),
+    ] {
+        assert!(
+            (0.0..=1.0).contains(&value),
+            "{label} は 0.0..=1.0 の範囲であるはず: {value}"
+        );
+    }
+    assert_eq!(
+        progress_at_0, progress_at_mid,
+        "溢れていない overflow:hidden コンテナが基準として選ばれていれば、\
+         ページスクロールによらず進捗は一定のはず（window 基準へ誤って \
+         フォールバックしていない証拠）: {progress_at_0} -> {progress_at_mid}"
+    );
+    assert_eq!(
+        progress_at_mid, progress_at_full,
+        "溢れていない overflow:hidden コンテナが基準として選ばれていれば、\
+         ページスクロールによらず進捗は一定のはず（window 基準へ誤って \
+         フォールバックしていない証拠）: {progress_at_mid} -> {progress_at_full}"
+    );
+}

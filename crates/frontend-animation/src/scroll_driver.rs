@@ -138,9 +138,13 @@ impl Env {
     }
 }
 
-/// `element` の祖先を遡り、最も近いスクロールコンテナ（`overflow-y` が
-/// `visible`/`clip` 以外、かつ `scrollHeight > clientHeight` で実際に
-/// スクロール可能な要素）を返す（PR #2557 codex-review P1 是正）。
+/// `element` の祖先を遡り、最も近いスクロールコンテナ（`overflow-y` の
+/// 計算値が `visible`/`clip` 以外の要素）を返す（PR #2557 codex-review P1
+/// 是正）。
+///
+/// コンテナか否かの判定は `overflow-y` の計算値のみで行い、実際に
+/// スクロール可能か（`scrollHeight > clientHeight`）は問わない（後述の
+/// [`is_scroll_container`] 参照）。
 ///
 /// ネイティブ `animation-timeline: view()` は要素の「近傍スクロール
 /// ポート」（nearest scrollable ancestor）を基準に進捗を計算する。
@@ -212,29 +216,42 @@ fn find_scroll_container(element: &web_sys::Element) -> Option<web_sys::Element>
     None
 }
 
-/// `el` が実際にスクロール可能なコンテナかどうかを判定する
+/// `el` が CSS の意味での「スクロールコンテナ」かどうかを判定する
 /// （[`find_scroll_container`] の走査述語）。
 ///
 /// `overflow-y` の計算値が `visible`/`clip`（スクロールポートを生成
-/// しない値）以外、かつ `scrollHeight > clientHeight`（実際に溢れて
-/// いる）の両方を満たす場合のみコンテナとみなす。後者を課さないと、
-/// `overflow-y: auto` だが中身が収まっている（スクロール不要な）要素も
-/// 誤ってコンテナ扱いされ、`getBoundingClientRect()` の高さが
-/// `window.innerHeight` とほぼ同義なだけの要素を無意味に基準へ使って
-/// しまう。
+/// しない値）以外であればコンテナとみなす（CSS Overflow Module Level 3
+/// のスクロールコンテナ定義
+/// <https://www.w3.org/TR/css-overflow-3/#scroll-container>）。
+///
+/// **意図的に `scrollHeight > clientHeight`（実際に溢れているか）は
+/// 問わない**（PR #2557 codex-review P1 是正）。`animation-timeline:
+/// view()` の仕様（CSS Scroll-driven Animations の view-notation
+/// <https://drafts.csswg.org/scroll-animations-1/#view-notation>）が
+/// 参照する「近傍スクロールコンテナ」は overflow 特性のみで決まり、
+/// 現時点でスクロール範囲を持つかどうかには依存しない。実際に溢れて
+/// いるかを条件へ含めると、内容が収まっている（オーバーフローして
+/// いない）`overflow: hidden`/`auto`/`scroll` の祖先を「コンテナでは
+/// ない」として読み飛ばし、さらに外側のコンテナや `window` を基準に
+/// 進捗を計算してしまう（例: 高さ 300px の `overflow: hidden` 要素内に
+/// 高さ 100px の対象要素が収まっている場合、ページ全体のスクロールで
+/// 進捗が 0→1 へ変化してしまい、ネイティブ経路〔対象要素と当該コンテナ
+/// の相対位置は変わらないため進捗は一定〕と乖離する）。
+///
+/// スクロール範囲が無いコンテナが基準に選ばれた場合、[`compute_progress`]
+/// は対象要素とコンテナの相対位置のみから進捗を計算するため、両者が
+/// ページスクロールに対し常に同じ相対位置を保つ限り進捗は一定値
+/// （典型的には対象要素がコンテナ内に収まっている＝進入済みとみなせる
+/// `1.0` 付近）に留まる。これは「スクロール範囲が無いタイムラインは
+/// 進行しない」というネイティブ挙動の近似として妥当な結果であり、
+/// 本関数側で追加の分岐（範囲が無ければ除外する等）は行わない。
 #[cfg(target_arch = "wasm32")]
 fn is_scroll_container(window: &web_sys::Window, el: &web_sys::Element) -> bool {
     let Ok(Some(style)) = window.get_computed_style(el) else {
         return false;
     };
     let overflow_y = style.get_property_value("overflow-y").unwrap_or_default();
-    if matches!(overflow_y.as_str(), "visible" | "clip" | "") {
-        return false;
-    }
-    let Ok(html_element) = el.clone().dyn_into::<web_sys::HtmlElement>() else {
-        return false;
-    };
-    html_element.scroll_height() > html_element.client_height()
+    !matches!(overflow_y.as_str(), "visible" | "clip" | "")
 }
 
 /// `element` の現在位置を計測し、[`compute_progress`] の結果を `target` へ
