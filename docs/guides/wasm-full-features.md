@@ -263,3 +263,70 @@ fandhe-frontend-wasm-full` 単体で行ってください。
 - [`examples/dist-server-docker/README.md`](../../examples/dist-server-docker/README.md)
 - [wasm-full feature gating 評価](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/wasm-full-feature-gating-evaluation.md)
 - [wasm-full アーキテクチャ設計](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/wasm-full-architecture.md)
+
+## 11. 新規 feature 追加チェックリスト（イシュー #2395）
+
+Phase 4 以降（イシュー #2396 以降、`fandhe-frontend-animation` 由来の
+feature を含む）で `fandhe-frontend-wasm-full` へ feature を追加する際の
+定型チェックリストです。feature 集合の記述は複数箇所へ分散しており、
+更新漏れが起きやすいため、追加時は以下を順に確認してください。
+
+### 11.1 共通チェックリスト（配線群別 feature・scope feature 共通）
+
+1. `crates/wasm-full/Cargo.toml` の `[features]` へ `<name> = []` を追加
+   し、`default` 配列にも追加する（配線群か scope かで見出しコメントの
+   表を選ぶ）。
+2. `crates/wasm-full/src/lib.rs` クレート doc の該当対応表（配線群別
+   feature 表／scope feature 対応表）と、直前の件数記述（「配線群別
+   feature n 件 + scope feature n 件」等）を更新する。
+3. `CLAUDE.md` の `crates/wasm-full/` 行（「配線群別 feature n 件 + scope
+   feature n 件」）の件数を更新する。
+4. 既存 CI ジョブ（配線群 feature なら `wasm-full-feature-matrix-wiring`、
+   scope feature なら `wasm-full-feature-matrix-scope`）へ、既存 feature
+   と同型の `name:`/`run:` 1 行を追加する。**新規ジョブは作らない**
+   （ruleset PUT が必要になるため、`.claude/rules/ci.md` の「wasm-full の
+   feature matrix ジョブ」節参照）。
+5. 本ガイド（§3 or §4 の対応表、§7 の `default-features = false` 移行
+   手順の feature 列挙・版数表）へ反映する。
+6. `cargo test -p fandhe-frontend-wasm-full --test bundle_size` を実行し、
+   `bundle-size:` 1 行サマリの実測値を PR 本文に記録する
+   （`.claude/rules/ci.md` 既定要件）。
+7. `crates/dist-server/src/wasm_dist_features.rs` の `WASM_DIST_FEATURES`
+   （6 feature の最小インタラクティブ構成）へ新規 feature を**追加しな
+   い**ことを確認する（既定は非追加。追加が必要な場合は同ファイル冒頭
+   コメントへ判断根拠を追記する重い変更になる）。
+
+### 11.2 3 層構成（`fandhe-frontend-animation` 由来 feature、#2417）固有の追加項目
+
+- `fandhe-frontend-animation` を `crates/wasm-full/Cargo.toml` の
+  optional 依存として追加し、新設 feature が `dep:fandhe-frontend-animation`
+  で有効化する形にする。
+- `wasm-full` 側にアニメーション演算ロジックを書かない。
+  `fandhe-animation`/`fandhe-frontend-animation` が計算した結果を
+  DOM/Web Animations API へ配線する呼び出しのみを `wasm-full` に置く
+  （`docs/design/animation-core-architecture.md` の層責務を踏襲）。
+
+### 11.3 検証チェックリスト
+
+- ローカルで以下を実行し、単体構成が成立することを CI 追加前に確認する。
+
+  ```bash
+  cargo check -p fandhe-frontend-wasm-full \
+    --no-default-features \
+    --features wasm-bindgen-exports,<new-feature> \
+    --target wasm32-unknown-unknown --locked
+  ```
+
+- scope feature の場合は `crates/wasm-full/tests/feature_gating_contract.rs`
+  （`MAPPING_TABLE`/`keynav` の `cfg` ゲート・`default` 配列列挙の一貫性を
+  機械検証）を実行する。既存テストが追加漏れを検知するため、新規テスト
+  作成は不要。
+- CI ジョブへの 1 行追加は `crates/xtask/tests/workflow_wasm_full_feature_matrix.rs`
+  （ci.yml の `run:` 行から抽出した feature 集合と `Cargo.toml`
+  `[features]` の過不足なき一致を検証）を実行する。追加漏れ・記載ミスは
+  fail-closed に検知される。
+- 新規 CI ジョブを作らない方針は ruleset の `required_status_checks`
+  個別列挙契約（`.claude/rules/ci.md`「`ci-complete` 集約ジョブと ruleset
+  必須チェック」節）に追随更新（マニフェスト更新＋ruleset PUT）を要する
+  運用コストが根拠であり、既存 2 ジョブへの行追加で完結することを確認
+  する。
