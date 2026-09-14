@@ -235,6 +235,15 @@
 //! も `Runtime::mount`/`hydrate` の配線群呼び出しではない（`dirty` 更新
 //! 経路から呼ばれる）ため上記対応表には含めない。
 //!
+//! [`view_transition_name`] モジュール（イシュー #2515）も別枠 feature
+//! `"view-transition-name"`（既定 on）を持つが、`position`/`stagger` とは
+//! ゲート対象が異なる: `Runtime` 内部の呼び出し箇所ではなく、
+//! [`view_transition_name::set_view_transition_name`]（`Runtime` を経由
+//! しないアプリ直接利用 API）自体の存在をゲートする（`entry` モジュール
+//! と同型のパターン）。keyed list の `Insert`/`Move`/`Remove` に伴う
+//! 自動書き戻しは持たない（値が呼び出し側の業務キー由来で DOM 順位置と
+//! 無関係なため）。
+//!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
 //! `default-features = false` を使う利用者は上記 17 配線を失う
@@ -254,7 +263,9 @@
 //! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
 //! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
 //! 同型の別枠 feature、既定 18 件目として `default` 配列に列挙されて
-//! いる）。
+//! いる）。[`view_transition_name::set_view_transition_name`] を維持する
+//! には `"view-transition-name"` も列挙に含めること（`position`/`stagger`
+//! とは異なりゲート対象が公開関数自体である点は上記モジュール doc 参照）。
 //!
 //! ## `wire_signature_pad_component` を `Runtime` 経由せず直接呼ぶ利用者への移行手順
 //!
@@ -406,6 +417,7 @@ pub mod splitter;
 pub mod stagger_index;
 pub mod tabs_indicator;
 pub mod tooltip;
+pub mod view_transition_name;
 
 // イシュー #1120: `wasm-bindgen-exports` feature（既定 on）でエクスポート面を
 // 切り離せるようにする。`entry` はアプリ側の薄い `#[wasm_bindgen]`

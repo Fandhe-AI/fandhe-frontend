@@ -3421,7 +3421,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # （既存 `content_height_transition` preset の再利用、collapsible #2192・
 # accordion #2192・bubble #2282 と同型）を golden 純追加した。公開 API の
 # 追加・変更を伴わない内部の CSS 出力拡張のみのため patch バンプする。
-version = "0.198.1"
+#
+# イシュー #2515: `view_transition_name_declaration`（`motion` feature
+# 配下）を追加した。`#[cfg(feature = "motion")]` の新規公開 API 純追加
+# であり、無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs`
+# 不変）。#2384/#2381 と同型のため minor バンプする。
+version = "0.199.0"
 
 
 edition = "2021"
