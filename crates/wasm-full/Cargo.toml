@@ -1098,7 +1098,12 @@ name = "fandhe-frontend-wasm-full"
 # を 1 行追加（既存のクリック駆動配線 `MAPPING_TABLE` の
 # `(tree-view, branch, "toggle")` 行を再利用）。公開 API の追加・変更を
 # 伴わない内部の対象拡張のみのため patch バンプする。
-version = "0.20.12"
+#
+# イシュー #2397: `stagger_index` モジュールを新設し、`Runtime::
+# apply_update_for_dirty` の keyed list 構造反映直後に
+# `stagger_index::sync_stagger_index` を呼ぶ配線を追加（feature
+# `stagger`、既定 on）。新規公開 API 追加を伴うため minor バンプする。
+version = "0.21.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1570,6 +1575,7 @@ default = [
   "message-scroller",
   "data-table",
   "position",
+  "stagger",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -1618,6 +1624,13 @@ data-table = []
 # `reposition_within`）専用の feature。`position` モジュール自体・
 # 公開 API はゲートしない（上記コメント参照）。
 position = []
+# イシュー #2397: `Runtime::apply_update_for_dirty` の keyed list 構造
+# 反映直後、`stagger_index::sync_stagger_index` 呼び出し専用の feature
+# （既定 on）。`stagger_index` モジュール自体・公開 API はゲートしない
+# （`position` と同型の方針）。配線群別 feature 表（`wire_*` 呼び出し
+# 単位）にも scope feature（MAPPING_TABLE/keynav 単位）にも属さない
+# 別枠の feature。
+stagger = []
 
 # イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
 # `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの

@@ -407,6 +407,12 @@ jobs:
         # core render エスケープ経路を固定する契約テスト。
         run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_stagger_css --locked
 
+      - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test stagger_index_var_drift（issue #2397）"
+        # recipe::STAGGER_INDEX_VAR（motion feature 配下）と
+        # crates/wasm-full/src/stagger_index.rs の CSS custom property 名
+        # リテラルのドリフトを fail-closed に検知する契約テスト。
+        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test stagger_index_var_drift --locked
+
       - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_spring_css（issue #2381）"
         # spring 近似 linear() easing プリセット（theme::Theme::push_spring_easing、
         # motion feature 配下）の fandhe-animation とのパリティ・CssValue
@@ -2271,6 +2277,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,data-table --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: position, issue #2328)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,position --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: stagger, issue #2397)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,stagger --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
   # イシュー #2328: scope feature（イシュー #2327 で新設した MAPPING_TABLE
   # 行・keynav match arm 単位の 16 件）を `wasm-bindgen-exports` のみと
