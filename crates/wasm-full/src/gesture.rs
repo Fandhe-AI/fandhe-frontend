@@ -29,7 +29,7 @@
 //! 既存の別意味論で広く使用済みのため避け、内部実装用の
 //! `data-fandhe-*` プレフィックス（`stagger_index.rs`/`content_height.rs`
 //! と同型）を用いる。opt-in を hover/press で分離するのは、コストが
-//! 異なる（hover は 2 リスナー共有、press は 6 リスナー共有）ため、
+//! 異なる（hover は 2 リスナー共有、press は 7 リスナー共有）ため、
 //! 利用者が必要な方だけ opt-in できるようにするため。
 //!
 //! # Runtime への統合
@@ -314,6 +314,14 @@ mod wiring {
     /// 指摘の是正）。press の解除はタッチ限定にせず（タッチのドラッグ
     /// 離脱でも press は解除する）、実際の解除は [`release_pointer_press`]
     /// に委ねる。
+    ///
+    /// タッチの暗黙 pointer capture（W3C Pointer Events
+    /// §implicit pointer capture）下では、この `pointerout` 自体が
+    /// 発火しないケースがある（`touch-action: none` を持つ opt-in 要素を
+    /// タッチで押下すると要素へ pointer capture が設定され、指を要素外へ
+    /// 動かしても境界イベントが起きない）。この残余ケースは
+    /// [`handle_pointermove`] が座標比較で補完する（codex-review 指摘の
+    /// 是正）。
     fn handle_pointerout(
         root: &Element,
         event: &Event,
@@ -406,6 +414,55 @@ mod wiring {
             return;
         };
         release_pointer_press(active_pointer, active_keyboard, pointer_id);
+    }
+
+    /// `pointermove`: タッチの暗黙 pointer capture（W3C Pointer Events
+    /// §implicit pointer capture）下でも要素外への離脱を検知する
+    /// （codex-review 指摘の是正）。`touch-action: none` を持つ opt-in
+    /// 要素をタッチで押下すると、ブラウザは自動的に当該要素へ
+    /// pointer capture を設定するため、指を要素の外へ物理的に動かしても
+    /// 境界イベント（`pointerover`/`pointerout`）は一切発生しない
+    /// （capture 中は全イベントが capture 先要素へ配送され続ける）。
+    /// [`handle_pointerout`] の `related_within` 判定だけでは、この
+    /// ケースで指を離すまで [`PRESS_STATE_ATTR`] が残り続けてしまう。
+    ///
+    /// 追跡中の pointer_id が 1 件も無ければ即座に return する
+    /// （`pointermove` は高頻度で発火するため、`active_pointer` が空の
+    /// 間はコストをほぼゼロに保つ）。追跡中の `pointer_id` であれば、
+    /// `MouseEvent::client_x()`/`client_y()`（`PointerEvent` は
+    /// `MouseEvent` を継承するため取得できる）と押下対象の
+    /// `Element::get_bounding_client_rect()` を比較し、座標が矩形の外
+    /// なら要素外への離脱とみなして [`release_pointer_press`] を呼ぶ
+    /// （`pointerout` が発火しない capture 中でも同じ解除経路を再利用
+    /// する）。矩形境界上（`<=`/`>=` を含む）はまだ要素内として扱う
+    /// （`pointerout` の `related_within` が「含む」判定であることと
+    /// 対称にする）。
+    fn handle_pointermove(
+        event: &Event,
+        active_pointer: &ActivePointerPress,
+        active_keyboard: &ActiveKeyboardPress,
+    ) {
+        if active_pointer.borrow().is_empty() {
+            return;
+        }
+        let Some(pointer_id) = event_pointer_id(event) else {
+            return;
+        };
+        let press_target = active_pointer.borrow().get(&pointer_id).cloned();
+        let Some(press_target) = press_target else {
+            return;
+        };
+        let Some(mouse_event) = event.dyn_ref::<MouseEvent>() else {
+            return;
+        };
+        let rect = press_target.get_bounding_client_rect();
+        let x = f64::from(mouse_event.client_x());
+        let y = f64::from(mouse_event.client_y());
+        let within_bounds =
+            x >= rect.left() && x <= rect.right() && y >= rect.top() && y <= rect.bottom();
+        if !within_bounds {
+            release_pointer_press(active_pointer, active_keyboard, pointer_id);
+        }
     }
 
     /// `keydown`: 活性化キー（Enter/Space）・非リピート・opt-in 要素の
@@ -564,9 +621,9 @@ mod wiring {
         }
     }
 
-    /// `root` へ hover/press 検知の 8 リスナー（pointerover/pointerout/
-    /// pointerdown/pointerup/pointercancel/keydown/keyup/focusout）を
-    /// 委譲登録する
+    /// `root` へ hover/press 検知の 9 リスナー（pointerover/pointerout/
+    /// pointerdown/pointerup/pointercancel/pointermove/keydown/keyup/
+    /// focusout）を委譲登録する
     /// （[`crate::lib::Runtime::mount`]/[`crate::lib::Runtime::hydrate`]
     /// から呼ばれる）。`events::wire_events` と同じく登録回数を定数個に
     /// 抑える方針（A04 対策）で、要素ごとの動的登録・解除は行わない
@@ -659,6 +716,21 @@ mod wiring {
             true,
         )?;
         pointerup_or_cancel_closure.forget();
+
+        // `pointermove`（capture 登録）: タッチの暗黙 pointer capture 下で
+        // `pointerout` が発火しないケースを座標比較で補完する
+        // （`handle_pointermove` の doc 参照、codex-review 指摘の是正）。
+        let pointermove_pointer = Rc::clone(&active_pointer_press);
+        let pointermove_keyboard = Rc::clone(&active_keyboard_press);
+        let pointermove_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_pointermove(&event, &pointermove_pointer, &pointermove_keyboard);
+        });
+        root.add_event_listener_with_callback_and_bool(
+            "pointermove",
+            pointermove_closure.as_ref().unchecked_ref(),
+            true,
+        )?;
+        pointermove_closure.forget();
 
         let keydown_root = root.clone();
         let keydown_pointer = Rc::clone(&active_pointer_press);

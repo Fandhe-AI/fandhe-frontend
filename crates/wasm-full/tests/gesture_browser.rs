@@ -936,3 +936,54 @@ fn pointerdown_with_reused_pointer_id_clears_stale_previous_target_press() {
         "新しい押下対象（item_b）へ press が設定されること"
     );
 }
+
+/// `client_x`/`client_y` 座標を指定した `pointermove` を発火する
+/// （タッチの暗黙 pointer capture 下での座標判定を検証するため）。
+fn dispatch_pointermove_at(target: &Element, client_x: i32, client_y: i32) {
+    let init = PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_pointer_type("touch");
+    init.set_client_x(client_x);
+    init.set_client_y(client_y);
+    let event = PointerEvent::new_with_event_init_dict("pointermove", &init)
+        .expect("PointerEvent::new must not fail");
+    target
+        .dispatch_event(event.as_ref())
+        .expect("dispatch_event must not fail");
+}
+
+/// codex-review 指摘の回帰固定（「タッチの暗黙 pointer capture 中も
+/// 要素外への離脱を検知する」）: `touch-action: none` を持つ opt-in
+/// 要素をタッチで押下すると暗黙 pointer capture が働き、指を要素の外へ
+/// 動かしても境界イベント（`pointerout`）が発生しない。`pointermove` の
+/// 座標比較でこの残余ケースを補完し、要素外座標への `pointermove` で
+/// press が解除されること（要素内座標では維持されること）を確認する。
+#[wasm_bindgen_test]
+fn pointermove_outside_bounds_clears_press_during_implicit_capture() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, child, _grandchild) = build_dom(&document, "gesture-pointermove-capture-test");
+    let _guard = RemoveOnDrop(root.clone());
+    wire_gesture(root.clone()).expect("wire_gesture must not fail");
+
+    dispatch_pointer(&child, "pointerdown", "touch", None);
+    assert!(child.has_attribute(PRESS_STATE_ATTR));
+
+    // 要素内の座標（実際の矩形の中心）への pointermove は press を維持する。
+    let rect = child.get_bounding_client_rect();
+    let inside_x = ((rect.left() + rect.right()) / 2.0) as i32;
+    let inside_y = ((rect.top() + rect.bottom()) / 2.0) as i32;
+    dispatch_pointermove_at(&child, inside_x, inside_y);
+    assert!(
+        child.has_attribute(PRESS_STATE_ATTR),
+        "要素内座標への pointermove は press を維持すること"
+    );
+
+    // 要素外の座標（大きく離れた座標）への pointermove は、暗黙 pointer
+    // capture 下で pointerout が一切発火しない状況でも press を解除する
+    // こと。
+    dispatch_pointermove_at(&child, -9999, -9999);
+    assert!(
+        !child.has_attribute(PRESS_STATE_ATTR),
+        "要素外座標への pointermove は press を解除すること（暗黙 pointer capture の補完）"
+    );
+}
