@@ -236,6 +236,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-signup-celebrate/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
 
       - name: Upload dist artifact

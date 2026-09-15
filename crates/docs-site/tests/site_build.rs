@@ -244,10 +244,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 加わり、241 → 243 になった。イシュー #2523 でアニメーション機能
     // ガイド（Guides セクション）が加わり、243 → 244 になった。イシュー
     // #2542 で Blocks セクションへ cursor-hover-cards が加わり、
-    // 244 → 245 になった。
+    // 244 → 245 になった。イシュー #2551 で Blocks セクションへ
+    // footer-sticky-reveal・footer-newsletter の 2 ページが加わり、
+    // 245 → 247 になった。
     assert_eq!(
         report.written.len(),
-        245,
+        247,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

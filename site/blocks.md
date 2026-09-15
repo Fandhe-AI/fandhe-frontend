@@ -31,4 +31,6 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [cta-banner-magnetic](./blocks/cta-banner-magnetic.md)
 - [cta-signup-celebrate](./blocks/cta-signup-celebrate.md)
 - [cursor-hover-cards](./blocks/cursor-hover-cards.md)
+- [footer-sticky-reveal](./blocks/footer-sticky-reveal.md)
+- [footer-newsletter](./blocks/footer-newsletter.md)
 

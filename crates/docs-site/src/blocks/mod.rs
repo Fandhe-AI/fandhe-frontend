@@ -77,6 +77,8 @@ mod cta_signup_celebrate;
 mod cursor_hover_cards;
 mod dashboard_01;
 mod feature_expand;
+mod footer_newsletter;
+mod footer_sticky_reveal;
 mod login_01;
 mod login_04;
 mod pricing_tiers_morph;
@@ -188,6 +190,8 @@ pub const BLOCKS: &[Block] = &[
     cta_banner_magnetic::BLOCK,
     cta_signup_celebrate::BLOCK,
     cursor_hover_cards::BLOCK,
+    footer_sticky_reveal::BLOCK,
+    footer_newsletter::BLOCK,
 ];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
@@ -279,6 +283,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(cta_signup_celebrate::LAYOUT_CSS)?;
     sheet.push_css(fandhe_frontend_pre_styled_ui::cursor::CURSOR_CSS)?;
     sheet.push_css(cursor_hover_cards::LAYOUT_CSS)?;
+    sheet.push_css(footer_sticky_reveal::LAYOUT_CSS)?;
+    sheet.push_css(footer_newsletter::LAYOUT_CSS)?;
     Ok(sheet)
 }
 

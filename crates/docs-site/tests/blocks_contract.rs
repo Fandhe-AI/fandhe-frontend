@@ -1787,3 +1787,200 @@ fn cta_signup_celebrate_composes_expected_parts() {
         "confetti trigger value must match the canvas id for the locator contract to resolve"
     );
 }
+
+/// footer-sticky-reveal ページの Demo クラス・両スタイルシート・
+/// `data-blocks-footer-sticky-reveal-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも sticky/scroll-driven の宣言が存在することを
+/// 固定する（イシュー #2551）。
+#[test]
+fn footer_sticky_reveal_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/footer-sticky-reveal/index.html"))
+        .expect("blocks/footer-sticky-reveal/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-footer-sticky-reveal\""),
+        "footer-sticky-reveal page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "footer-sticky-reveal page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "footer-sticky-reveal page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-footer-sticky-reveal-content=\"\"",
+        "data-blocks-footer-sticky-reveal-footer=\"\"",
+        "data-blocks-footer-sticky-reveal-footer-inner=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "footer-sticky-reveal page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        "[data-blocks-footer-sticky-reveal-content]",
+        "position: sticky",
+        "bottom: 0",
+        "animation-timeline: scroll(nearest)",
+        "@media (prefers-reduced-motion: reduce)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should contain {needle} for footer-sticky-reveal"
+        );
+    }
+
+    // `@supports` ブロックは末尾の `@media (prefers-reduced-motion: reduce)`
+    // より前に出現すること（記述順後勝ちの固定、モジュール doc「追加の
+    // scroll-driven 強調」節参照）。
+    let supports_pos = sheet_css
+        .find("@supports (animation-timeline: scroll())")
+        .expect("blocks.css should contain the @supports block for footer-sticky-reveal");
+    let reduce_pos = sheet_css
+        .rfind("@media (prefers-reduced-motion: reduce)")
+        .expect("blocks.css should contain a prefers-reduced-motion block");
+    assert!(
+        supports_pos < reduce_pos,
+        "@supports block must appear before the trailing @media reduce block (last-wins order)"
+    );
+}
+
+/// footer-sticky-reveal の合成部品（`card`/`heading`/`link`/`nav_list`）が
+/// 期待どおり出力され、`<form>`/`href="#"`/`src="data:` を持ち込んでいない
+/// ことを固定する（イシュー #2551）。
+#[test]
+fn footer_sticky_reveal_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/footer-sticky-reveal/index.html"))
+        .expect("blocks/footer-sticky-reveal/index.html should be generated");
+    assert!(
+        html.contains("<footer"),
+        "Demo should render a <footer> element"
+    );
+    assert!(
+        html.contains(r#"data-scope="link" data-part="root""#),
+        "Demo should compose the styled link part"
+    );
+    assert!(
+        html.contains(r#"data-scope="nav-list" data-part="root""#),
+        "Demo should compose the styled nav_list root part"
+    );
+    let card_count = html.matches(r#"data-scope="card""#).count();
+    assert!(
+        card_count >= 3,
+        "Demo should compose at least 3 dummy content cards, got {card_count}"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "footer-sticky-reveal should never contain {absent}"
+        );
+    }
+}
+
+/// footer-newsletter ページの Demo クラス・両スタイルシート・
+/// `data-blocks-footer-newsletter-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも presence 同型宣言が存在することを固定する
+/// （イシュー #2551）。
+#[test]
+fn footer_newsletter_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/footer-newsletter/index.html"))
+        .expect("blocks/footer-newsletter/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-footer-newsletter\""),
+        "footer-newsletter page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "footer-newsletter page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "footer-newsletter page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-footer-newsletter-root=\"\"",
+        "data-blocks-footer-newsletter-panel=\"\"",
+        "data-blocks-footer-newsletter-field=\"\"",
+        "data-blocks-footer-newsletter-submit=\"\"",
+        "data-blocks-footer-newsletter-caption=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "footer-newsletter page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector_or_decl in [
+        "[data-blocks-footer-newsletter-panel]",
+        "transition-behavior: allow-discrete",
+        "@starting-style",
+        "var(--fandhe-motion-duration-normal)",
+    ] {
+        assert!(
+            sheet_css.contains(selector_or_decl),
+            "blocks.css should contain {selector_or_decl} for footer-newsletter"
+        );
+    }
+}
+
+/// footer-newsletter の合成部品（`field`/`input`/`button`/`link`）が期待
+/// どおり出力され、「入力」「完了」の 2 インスタンス併記で各 4 個の panel
+/// のうち 2 個だけが `hidden` であること、`<form>`/`href="#"` を持ち込んで
+/// いないことを固定する（イシュー #2551）。
+#[test]
+fn footer_newsletter_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/footer-newsletter/index.html"))
+        .expect("blocks/footer-newsletter/index.html should be generated");
+    for needle in [
+        "type=\"email\"",
+        "placeholder=\"m@example.com\"",
+        "Subscribe",
+        "Subscribed! Thanks for joining.",
+        "Before subscribe",
+        "After subscribe",
+    ] {
+        assert!(
+            html.contains(needle),
+            "footer-newsletter page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "footer-newsletter should never contain {absent}"
+        );
+    }
+
+    // 2 インスタンス（Before/After）× 2 panel（入力/完了）= 4 個の panel の
+    // うち、各インスタンスで片方だけが `hidden` になること（無 JS での
+    // 2 状態併記の可視性回帰固定、`pricing_tiers_morph`/
+    // `cta_signup_celebrate` と同型）。
+    let panel_open_count = html
+        .matches("data-blocks-footer-newsletter-panel=\"\"")
+        .count();
+    let hidden_panel_count = html
+        .matches("data-blocks-footer-newsletter-panel=\"\" hidden=\"\"")
+        .count();
+    assert_eq!(
+        panel_open_count, 4,
+        "expected 4 newsletter panels (2 instances x 2 panels), got {panel_open_count}"
+    );
+    assert_eq!(
+        hidden_panel_count, 2,
+        "expected exactly 2 hidden panels (1 per instance), got {hidden_panel_count}"
+    );
+}

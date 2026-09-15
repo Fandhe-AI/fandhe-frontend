@@ -99,6 +99,14 @@ CTA バナー）・`cta-signup-celebrate`（送信完了で confetti が発火�
 例）の 1 件が追加された。これも上記と同じ純追加であり「7 件で確定」の
 判断は変更しない。
 
+**Phase 7（#2530）による追加（#2551）**: 同じ親トラッキング #2530 配下の
+イシュー #2551 により、Motion+ `sections/footers` に相当する
+`footer-sticky-reveal`（`position: sticky` のみで本文の下から現れる
+sticky reveal footer）・`footer-newsletter`（presence 同型 CSS で
+「入力」「完了」2 panel の遷移を表現する newsletter footer。無 JS のため
+Before/After の 2 インスタンスを静的に併記）の 2 件が追加された。これも
+上記と同じ純追加であり「7 件で確定」の判断は変更しない。
+
 ## 4. `component-coverage-map.md` との関係
 
 shadcn/ui Blocks は `docs/design/component-coverage-map.md` §2 の「対象外」
