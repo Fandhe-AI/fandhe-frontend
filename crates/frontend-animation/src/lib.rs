@@ -51,7 +51,9 @@
 //! spring 復帰、イシュー #2535）・`prefers-reduced-motion` 判定ヘルパ
 //! （[`reduced_motion::prefers_reduced_motion`]）も実装済み。confetti
 //! （[`canvas_target::CanvasTarget`]・[`confetti::fire`]、canvas 2D
-//! 描画によるパーティクル発火、イシュー #2533）も実装済み。SVG path
+//! 描画によるパーティクル発火、イシュー #2533）も実装済み。数値
+//! カウントアップ（[`count_up::NumberText`]・[`count_up::start`]、
+//! 書式保存の数値補間、イシュー #2539）も実装済み。SVG path
 //! drawing（[`svg_path::draw_path`]、`getTotalLength()` +
 //! `stroke-dashoffset` の WAAPI アニメーション、イシュー #2519）も
 //! 実装済み。magnetic（[`magnetic::compute_pull`]・
@@ -63,6 +65,7 @@
 pub mod animate;
 pub mod canvas_target;
 pub mod confetti;
+pub mod count_up;
 pub mod dom_target;
 pub mod drag;
 pub mod flip;

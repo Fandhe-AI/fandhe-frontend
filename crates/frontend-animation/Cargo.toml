@@ -76,7 +76,11 @@ name = "fandhe-frontend-animation"
 # ブランチの到達値 0.11.0 は origin/main の到達値 0.10.0 をすでに
 # 上回っており同一版数の衝突には該当しないため、本ブランチの到達値
 # 0.11.0 をそのまま維持する。
-version = "0.11.0"
+#
+# イシュー #2539: `count_up` モジュール（数値カウントアップ、`NumberText`/
+# `start`/`write_final` 等の新規公開 API）を新設。新規公開 API 追加のため
+# minor バンプする（#638 条項）。
+version = "0.12.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

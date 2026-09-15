@@ -70,6 +70,7 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 | `Runtime::wire_add_to_basket` | `add-to-basket` |
 | `Runtime::wire_magnetic` | `magnetic` |
+| `Runtime::wire_count_up` | `count-up` |
 
 `magnetic` feature（0.31.0 で追加、イシュー #2550）は `scroll-driver`/
 `confetti`/`hold-to-confirm` と同型（配線群かつ
@@ -80,6 +81,17 @@ CTA ボタン（`data-fandhe-magnetic` opt-in）のオフセットを
 直接 CSS カスタムプロパティ（`--fandhe-motion-magnetic-x`/`-y`）へ書き込み、
 実際の追従感は既存の CSS motion トークンによる `transition` へ委ねる設計
 です（`crates/frontend-animation/src/magnetic.rs` モジュール doc参照）。
+
+`count-up` feature（0.35.0 で追加、イシュー #2539）は `magnetic`/
+`hold-to-confirm` と同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）
+で、stat の数値表示（`data-fandhe-count-up` opt-in）を 0 から目標値へ
+補間しながら `textContent` へ書き込みます。整形済み文字列の書式（桁区切り・
+prefix/suffix）を保存したまま数値部分だけを補間する
+`fandhe-frontend-animation::count_up::NumberText`/`start` を消費し、
+本 feature 自体は候補収集・トリガー判定（マウント時 / `data-fandhe-
+count-up-trigger="in-view"`）・`MutationObserver` による外部更新の再補間
+起動のみを担います（`crates/wasm-full/src/count_up.rs` モジュール doc
+参照）。
 
 `hold-to-confirm` feature（0.30.0 で追加、イシュー #2538）は `scroll-driver`/
 `confetti` と同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）で、
@@ -290,16 +302,18 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.32.2 | main（PR #2572）: magnetic の中心計算を transition 中も決定的にする再是正（イシュー #2550、codex-review P1 指摘。公開 API は変更しないため patch バンプ） |
 | 0.33.0 | `svg-path` feature（イシュー #2519、origin/main）。origin/main 側は独立に 0.31.0 から 0.32.0 へ到達しており、本 PR（#2518、codex-review 第 6 ラウンド是正）の上記 0.32.0 と同一版数へ再度衝突した。#638 条項に従いさらに +1 して 0.33.0 とする。base main 取り込み時（PR #2572、magnetic feature・0.32.2 到達）、本 PR 側の到達値 0.33.0 が main の到達値 0.32.2 を上回るため、そのまま維持する（さらなる衝突バンプ不要） |
 | （merge） | base main 再取り込み時（イシュー #2518 codex-review 追加ラウンド是正、`view-transition-preset` feature 追加）: main 側はさらにイシュー #2516（`view-transition-preset` feature）で 0.32.2 → 0.32.3 へ独立にバンプしていた。本 PR 側の到達値 0.33.0 は main の到達値 0.32.3 をすでに上回っており同一版数の衝突には該当しないため、本 PR の到達値 0.33.0 をそのまま維持する（さらなる衝突バンプ不要） |
+| 0.34.0 | `ViewTransitionPreset` へ 8 バリアント追加（イシュー #2537。既存 exhaustive match 利用者への破壊的変更のため minor バンプ） |
+| 0.35.0 | `count-up` feature（イシュー #2539） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 50 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 51 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.33.0"
+version = "0.35.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -328,6 +342,7 @@ features = [
   "hold-to-confirm",
   "add-to-basket",
   "magnetic",
+  "count-up",
   "position",
   "stagger",
   "animation-driver",

@@ -221,6 +221,7 @@
 //! | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
 //! | `Runtime::wire_magnetic` | `magnetic` |
+//! | `Runtime::wire_count_up` | `count-up` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -457,6 +458,8 @@ pub mod command;
 #[cfg(feature = "confetti")]
 pub mod confetti;
 pub mod content_height;
+#[cfg(feature = "count-up")]
+pub mod count_up;
 pub mod csr;
 pub mod data_table;
 #[cfg(feature = "drag-gesture")]
@@ -1844,6 +1847,8 @@ where
         Self::wire_add_to_basket(root.clone())?;
         #[cfg(feature = "magnetic")]
         Self::wire_magnetic(root.clone())?;
+        #[cfg(feature = "count-up")]
+        Self::wire_count_up(root.clone())?;
 
         Ok(Self {
             component,
@@ -2040,6 +2045,8 @@ where
         Self::wire_add_to_basket(root.clone())?;
         #[cfg(feature = "magnetic")]
         Self::wire_magnetic(root.clone())?;
+        #[cfg(feature = "count-up")]
+        Self::wire_count_up(root.clone())?;
 
         Ok(Self {
             component,
@@ -3101,6 +3108,20 @@ where
     #[cfg(feature = "magnetic")]
     fn wire_magnetic(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         magnetic::wire_magnetic(root)
+    }
+
+    /// stat の数値カウントアップ（[`count_up::wire_count_up`]、イシュー
+    /// #2539）を登録する。`dispatch` チャネルを持たない属性専用配線の
+    /// ため（`Self::wire_magnetic`/`Self::wire_hold_to_confirm` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// 本関数自体は失敗しない（`count_up::wire_count_up` が `Result` を
+    /// 返すシグネチャのため伝播する）。
+    #[cfg(feature = "count-up")]
+    fn wire_count_up(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        count_up::wire_count_up(&root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

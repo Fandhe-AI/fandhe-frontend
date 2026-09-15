@@ -3488,7 +3488,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # fade/slide/wipe の出力バイトは変更せず opt-in CSS を純追加したのみで、
 # 無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs` 不変）。
 # #2516 と同型のため minor バンプする。
-version = "0.205.0"
+#
+# イシュー #2539: `stat_motion`（`motion` feature 配下）を新設し、stat の
+# 数値カウントアップ opt-in（`count_up_value_text`/`Theme::
+# to_css_with_stat_motion`）を追加した。新規公開 API 純追加のため minor
+# バンプする。
+version = "0.206.0"
 
 
 edition = "2021"
