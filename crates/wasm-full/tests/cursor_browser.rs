@@ -17,7 +17,9 @@ use fandhe_frontend_wasm_full::cursor::{
     wire_cursor_with_env, CURSOR_ACTIVE_ATTR, CURSOR_ATTR, CURSOR_LABEL_ATTR, CURSOR_STATE_ATTR,
     CURSOR_TARGET_ATTR, CURSOR_TARGET_LABEL_ATTR, CURSOR_TARGET_MAGNETIC_ATTR, CURSOR_VARIANT_ATTR,
 };
-use wasm_bindgen::JsCast;
+use js_sys::Promise;
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, HtmlElement, PointerEvent, PointerEventInit};
 
@@ -242,6 +244,115 @@ fn coarse_pointer_true_suppresses_wiring_entirely() {
 
     assert_eq!(attr(&root, CURSOR_ACTIVE_ATTR), None);
     assert_eq!(attr(&cursor_el, CURSOR_STATE_ATTR), None);
+}
+
+/// `setTimeout(ms)` を 1 回だけ発行し解決を待つ、`MutationObserver`
+/// コールバック（マイクロタスク）の発火を跨いで状態変化を確認するための
+/// 猶予待機ヘルパー（`sidebar_browser.rs::sleep_ms` と同型）。
+async fn sleep_ms(ms: i32) {
+    let promise = Promise::new(&mut |resolve, _reject| {
+        let window = web_sys::window().expect("window must exist");
+        let closure = Closure::once(move || {
+            resolve.call0(&JsValue::NULL).ok();
+        });
+        window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                ms,
+            )
+            .expect("setTimeout must not fail");
+        closure.forget();
+    });
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .expect("timeout promise must resolve");
+}
+
+/// イシュー #2583 レビュー指摘の回帰: `Runtime::apply_subtree_swap`
+/// （`root` 自身は差し替えず子だけを丸ごと入れ替える構造フォールバック
+/// 再描画）を模して、配線済みの `cursor_el`/`target` を `root` から
+/// 取り除き新しい要素へ差し替える。`MutationObserver` 経由で
+/// `CursorState` が再解決され、新しいカーソル要素へ `pointermove` の
+/// 効果（`hover` 状態・`data-*` 写し）が届くこと、旧カーソル要素は
+/// 更新されないままであることを確認する。
+#[wasm_bindgen_test]
+async fn cursor_element_is_resynced_after_structural_rerender() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, old_cursor_el, old_target) = build_dom(&document, "cursor-root-10");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_cursor_with_env(root.clone(), false, false).expect("wire_cursor_with_env must not fail");
+    assert_eq!(
+        attr(&old_cursor_el, CURSOR_STATE_ATTR),
+        Some("hidden".into())
+    );
+
+    // 構造フォールバック再描画を模す: 旧要素を除去し、新しい
+    // cursor_el/target を同じ root 直下へ追加する。
+    root.remove_child(&old_cursor_el).unwrap();
+    root.remove_child(&old_target).unwrap();
+    let (_dummy_root, new_cursor_el, new_target) = build_dom(&document, "cursor-root-10-donor");
+    let _donor_guard = RemoveOnDrop(_dummy_root.clone());
+    _dummy_root.remove_child(&new_cursor_el).unwrap();
+    _dummy_root.remove_child(&new_target).unwrap();
+    root.append_child(&new_cursor_el).unwrap();
+    root.append_child(&new_target).unwrap();
+
+    // `MutationObserver` コールバックはマイクロタスクで発火するため、
+    // 猶予を与えてから再同期後の状態を確認する。
+    sleep_ms(0).await;
+
+    assert_eq!(
+        attr(&root, CURSOR_ACTIVE_ATTR),
+        Some(String::new()),
+        "再描画後も root の CURSOR_ACTIVE_ATTR は残ったまま（ネイティブ\
+         カーソルは引き続き隠れる）はず"
+    );
+    assert_eq!(
+        attr(&new_cursor_el, CURSOR_STATE_ATTR),
+        Some("hidden".into()),
+        "再解決された新しいカーソル要素は初期状態 hidden へ再初期化される\
+         はず"
+    );
+
+    dispatch_pointer_event(&new_target, "pointermove", "mouse", 30, 20);
+
+    assert_eq!(
+        attr(&new_cursor_el, CURSOR_STATE_ATTR),
+        Some("hover".into()),
+        "新しいカーソル要素が pointermove の効果を受け取れるはず"
+    );
+    assert_eq!(
+        attr(&new_cursor_el, CURSOR_VARIANT_ATTR),
+        Some("ring".into())
+    );
+    assert_eq!(
+        attr(&old_cursor_el, CURSOR_STATE_ATTR),
+        Some("hidden".into()),
+        "DOM から切り離された旧カーソル要素は更新され続けないはず"
+    );
+}
+
+/// 再描画でカーソル要素自体が消えた場合、[`CURSOR_ACTIVE_ATTR`] が
+/// 外れてネイティブカーソルが復元されることの回帰
+/// （イシュー #2583 レビュー指摘）。
+#[wasm_bindgen_test]
+async fn cursor_active_attr_is_removed_when_cursor_element_disappears() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, cursor_el, _target) = build_dom(&document, "cursor-root-11");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_cursor_with_env(root.clone(), false, false).expect("wire_cursor_with_env must not fail");
+    assert_eq!(attr(&root, CURSOR_ACTIVE_ATTR), Some(String::new()));
+
+    root.remove_child(&cursor_el).unwrap();
+    sleep_ms(0).await;
+
+    assert_eq!(
+        attr(&root, CURSOR_ACTIVE_ATTR),
+        None,
+        "カーソル要素が消えた場合はネイティブカーソルを復元するはず"
+    );
 }
 
 #[wasm_bindgen_test]

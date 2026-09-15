@@ -50,6 +50,24 @@
 //! セレクタ文字列の組み立てには使わない）。位置の DOM 書き込みは
 //! `fandhe_frontend_animation::cursor::write_position` が固定のプロパティ
 //! 名へ `f64` 演算結果のみを書き込む（同モジュール doc 参照）。
+//!
+//! # DOM 再描画後の再同期（イシュー #2583 レビュー指摘の是正）
+//!
+//! `dispatch` チャネルを持たない属性専用配線（doc 冒頭「Runtime への
+//! 統合」節）のため、`Runtime::rerender`/構造フォールバック再描画
+//! （`Runtime::apply_subtree_swap`、`root` 自身は差し替えず子だけを
+//! 丸ごと入れ替える）が起きても本モジュールへは一切通知されない。
+//! `wire_cursor_with_env` 配線時に一度だけ解決した [`CURSOR_SELECTOR`]
+//! 要素・`CursorAnimator` をクロージャへ固定保持すると、再描画後は
+//! イベントハンドラが DOM から切り離された旧要素を更新し続け、新しい
+//! カーソル要素には状態属性が一切付かないため CSS 既定の
+//! `display: none` のまま表示されない（`root` の
+//! [`CURSOR_ACTIVE_ATTR`] は残留するためネイティブカーソルも隠れたまま
+//! になる）。`sidebar.rs::wire_mobile` と同型の `MutationObserver`
+//! （`childList: true, subtree: true`、`root` へ 1 個だけ登録）で
+//! `wiring::resync_cursor_element` を呼び、カーソル要素・`CursorAnimator`
+//! を都度再解決する。要素が見つからなくなった場合は
+//! [`CURSOR_ACTIVE_ATTR`] を外してネイティブカーソルを復元する。
 
 /// opt-in（著者が SSR 出力に静的に付与）: カスタムカーソル要素本体への
 /// マーカー（値なし存在属性）。`root` 配下に 1 個を想定する。
@@ -92,12 +110,27 @@ mod wiring {
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, HtmlElement, MouseEvent, PointerEvent};
+    use web_sys::{
+        Element, Event, HtmlElement, MouseEvent, MutationObserver, MutationObserverInit,
+        PointerEvent,
+    };
 
     /// 現在 hover 中の対象（`pointermove` で別要素へ移った際の `data-*`
     /// 書き換え抑制・`pointerout` での解除に使う追跡スロット、
     /// `magnetic.rs::ActiveMagnetic` と同型の考え方）。
     type ActiveTarget = Rc<RefCell<Option<Element>>>;
+
+    /// 現在配線中のカーソル要素・`CursorAnimator` の組（DOM 再描画で
+    /// 入れ替わり得る可変状態、モジュール doc「DOM 再描画後の再同期」
+    /// 節参照）。
+    struct CursorState {
+        cursor_el: HtmlElement,
+        animator: Rc<RefCell<CursorAnimator>>,
+    }
+
+    /// [`CursorState`] を保持するスロット。カーソル要素が見つからない間は
+    /// `None`（イベントハンドラは no-op）。
+    type CursorStateSlot = Rc<RefCell<Option<CursorState>>>;
 
     /// `event.target()` を `Element` として取得する（`gesture.rs`/
     /// `magnetic.rs` の同名関数と同型）。
@@ -146,8 +179,7 @@ mod wiring {
     /// 指摘: 初回移動・再入場時にカーソルが表示されない不具合の修正）。
     fn handle_pointermove(
         root: &Element,
-        cursor_el: &HtmlElement,
-        animator: &Rc<RefCell<CursorAnimator>>,
+        state: &CursorStateSlot,
         active: &ActiveTarget,
         event: &Event,
     ) {
@@ -157,6 +189,14 @@ mod wiring {
         if is_touch_pointer(&pointer_event.pointer_type()) {
             return;
         }
+        let state_ref = state.borrow();
+        let Some(CursorState {
+            cursor_el,
+            animator,
+        }) = state_ref.as_ref()
+        else {
+            return;
+        };
         let hover_target =
             event_target_element(event).and_then(|target| resolve_cursor_target(root, &target));
 
@@ -210,7 +250,7 @@ mod wiring {
     /// カーソルを隠し追跡を解除する。タッチ由来のポインタは除外する。
     fn handle_pointerout(
         root: &Element,
-        cursor_el: &HtmlElement,
+        state: &CursorStateSlot,
         active: &ActiveTarget,
         event: &Event,
     ) {
@@ -221,11 +261,59 @@ mod wiring {
             return;
         }
         if !related_within(event, root) {
-            crate::dom::set_dom_attribute(cursor_el, CURSOR_STATE_ATTR, "hidden");
-            let _ = cursor_el.remove_attribute(CURSOR_VARIANT_ATTR);
-            let _ = cursor_el.remove_attribute(CURSOR_LABEL_ATTR);
+            let state_ref = state.borrow();
+            if let Some(CursorState { cursor_el, .. }) = state_ref.as_ref() {
+                crate::dom::set_dom_attribute(cursor_el, CURSOR_STATE_ATTR, "hidden");
+                let _ = cursor_el.remove_attribute(CURSOR_VARIANT_ATTR);
+                let _ = cursor_el.remove_attribute(CURSOR_LABEL_ATTR);
+            }
             *active.borrow_mut() = None;
         }
+    }
+
+    /// `root` 配下から現在の [`super::CURSOR_SELECTOR`] 要素を再解決し、
+    /// `state` が保持する要素と異なる場合（初回配線、または DOM
+    /// 再描画で要素が作り直された場合）[`CursorState`] を作り直す
+    /// （モジュール doc「DOM 再描画後の再同期」節）。要素が見つからなく
+    /// なった場合は [`super::CURSOR_ACTIVE_ATTR`] を外してネイティブ
+    /// カーソルを復元し、`state`/`active` を `None` へ戻す。
+    fn resync_cursor_element(root: &Element, state: &CursorStateSlot, active: &ActiveTarget) {
+        let resolved = root
+            .query_selector(CURSOR_SELECTOR)
+            .ok()
+            .flatten()
+            .and_then(|el| el.dyn_into::<HtmlElement>().ok());
+
+        let mut state_ref = state.borrow_mut();
+        let unchanged = match (state_ref.as_ref(), &resolved) {
+            (Some(current), Some(next)) => &current.cursor_el == next,
+            (None, None) => true,
+            _ => false,
+        };
+        if unchanged {
+            return;
+        }
+
+        match resolved {
+            Some(cursor_el) => {
+                crate::dom::set_dom_attribute(root, super::CURSOR_ACTIVE_ATTR, "");
+                crate::dom::set_dom_attribute(&cursor_el, CURSOR_STATE_ATTR, "hidden");
+                let animator = Rc::new(RefCell::new(CursorAnimator::new(
+                    cursor_el.clone(),
+                    SpringConfig::default(),
+                    false,
+                )));
+                *state_ref = Some(CursorState {
+                    cursor_el,
+                    animator,
+                });
+            }
+            None => {
+                let _ = root.remove_attribute(super::CURSOR_ACTIVE_ATTR);
+                *state_ref = None;
+            }
+        }
+        *active.borrow_mut() = None;
     }
 
     /// `root` へカスタムカーソルのポインタイベント委譲を登録する
@@ -245,32 +333,23 @@ mod wiring {
         if reduced_motion || coarse_pointer {
             return Ok(());
         }
-        let Some(cursor_el) = root
-            .query_selector(CURSOR_SELECTOR)?
-            .and_then(|el| el.dyn_into::<HtmlElement>().ok())
-        else {
+        if root.query_selector(CURSOR_SELECTOR)?.is_none() {
             return Ok(());
-        };
+        }
 
-        crate::dom::set_dom_attribute(&root, super::CURSOR_ACTIVE_ATTR, "");
-        crate::dom::set_dom_attribute(&cursor_el, CURSOR_STATE_ATTR, "hidden");
-
-        let animator: Rc<RefCell<CursorAnimator>> = Rc::new(RefCell::new(CursorAnimator::new(
-            cursor_el.clone(),
-            SpringConfig::default(),
-            false,
-        )));
+        let state: CursorStateSlot = Rc::new(RefCell::new(None));
         let active: ActiveTarget = Rc::new(RefCell::new(None));
+        // 初回解決（`resync_cursor_element` を流用し、以降の再描画時と
+        // 同じ経路で `CursorState`・`CURSOR_ACTIVE_ATTR` を初期化する）。
+        resync_cursor_element(&root, &state, &active);
 
         let pointermove_root = root.clone();
-        let pointermove_cursor = cursor_el.clone();
-        let pointermove_animator = Rc::clone(&animator);
+        let pointermove_state = Rc::clone(&state);
         let pointermove_active = Rc::clone(&active);
         let pointermove_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_pointermove(
                 &pointermove_root,
-                &pointermove_cursor,
-                &pointermove_animator,
+                &pointermove_state,
                 &pointermove_active,
                 &event,
             );
@@ -283,12 +362,12 @@ mod wiring {
         pointermove_closure.forget();
 
         let pointerout_root = root.clone();
-        let pointerout_cursor = cursor_el;
+        let pointerout_state = Rc::clone(&state);
         let pointerout_active = Rc::clone(&active);
         let pointerout_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_pointerout(
                 &pointerout_root,
-                &pointerout_cursor,
+                &pointerout_state,
                 &pointerout_active,
                 &event,
             );
@@ -299,6 +378,30 @@ mod wiring {
             true,
         )?;
         pointerout_closure.forget();
+
+        // `MutationObserver`: `Runtime::rerender`/構造フォールバック再描画
+        // （`root` 自身は差し替えず子だけを入れ替える）でカーソル要素が
+        // 作り直されるのを検知し、`CursorState` を再解決する
+        // （`sidebar.rs::wire_mobile` と同型、モジュール doc「DOM 再描画後の
+        // 再同期」節）。`childList`/`subtree` のみ監視するため、本モジュール
+        // 自身が書き込む `data-*` 属性変更では再発火しない。
+        let observer_root = root.clone();
+        let observer_state = Rc::clone(&state);
+        let observer_active = Rc::clone(&active);
+        let observer_callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
+            move |_records: js_sys::Array, _observer: MutationObserver| {
+                if !observer_root.is_connected() {
+                    return;
+                }
+                resync_cursor_element(&observer_root, &observer_state, &observer_active);
+            },
+        );
+        let observer = MutationObserver::new(observer_callback.as_ref().unchecked_ref())?;
+        let init = MutationObserverInit::new();
+        init.set_child_list(true);
+        init.set_subtree(true);
+        observer.observe_with_options(&root, &init)?;
+        observer_callback.forget();
 
         Ok(())
     }
