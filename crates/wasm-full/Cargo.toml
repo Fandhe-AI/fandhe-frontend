@@ -1261,7 +1261,13 @@ name = "fandhe-frontend-wasm-full"
 # exhaustive match 利用者への観測可能な破壊的変更のため 0.x の破壊的変更を
 # マイナーバンプとする規約（`.claude/rules/coding-rust.md`）に従い minor
 # バンプする。
-version = "0.34.0"
+#
+# イシュー #2540: ticker feature（marquee の JS 駆動拡張。実測複製数・rAF
+# offset 前進・hover/scroll 速度連動）を新設。新規公開モジュール `ticker`
+# （既定 on）の追加のみで既存公開 API への破壊的変更はないため minor
+# バンプ。`fandhe-frontend-animation` 依存の version 要求も 0.12.0 へ追随
+# （`cargo run -p xtask -- check-dep-versions --fix`）。
+version = "0.35.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1584,7 +1590,7 @@ js-sys = "0.3"
 # 新設）へバンプしていた。本ブランチの到達値 0.11.0 は origin/main の
 # 到達値 0.10.0 をすでに上回っており同一版数の衝突には該当しないため、
 # 本ブランチの到達値 0.11.0 をそのまま維持する。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.11.0", optional = true }
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.12.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1820,6 +1826,7 @@ default = [
   "hold-to-confirm",
   "add-to-basket",
   "magnetic",
+  "ticker",
   "position",
   "stagger",
   "animation-driver",
@@ -1953,6 +1960,14 @@ add-to-basket = []
 # 純粋層非ゲート方針とは異なり、上記 (c) 注記の対象外。`scroll-driver`/
 # `confetti`/`hold-to-confirm` と同じ理由）。
 magnetic = ["dep:fandhe-frontend-animation"]
+# イシュー #2540（親 #2528）: ticker（marquee の JS 駆動拡張、実測複製数・
+# rAF offset 前進・hover/scroll 速度連動）配線（`Runtime::mount`/`hydrate`
+# の `Self::wire_ticker` 呼び出し）専用の feature（既定 on）。`magnetic` と
+# 同型——配線群かつ `dep:fandhe-frontend-animation` を有効化する feature。
+# `ticker` モジュール自体は本 feature でのみコンパイルする
+# （`fandhe-frontend-animation::ticker` の型を直接使うため、`gesture` 等の
+# 純粋層非ゲート方針とは異なる。`magnetic`/`scroll-driver` と同じ理由）。
+ticker = ["dep:fandhe-frontend-animation"]
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・
