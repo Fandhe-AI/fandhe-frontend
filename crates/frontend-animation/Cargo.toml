@@ -16,19 +16,28 @@ name = "fandhe-frontend-animation"
 # `update_element_progress`/`ScrollDriver`）を新設。新規公開 API 追加の
 # ため minor バンプ（`.claude/rules/coding-rust.md` #638 条項）。
 #
-# イシュー #2534: `ProgressRange`/`compute_progress_for_range`/
+# イシュー #2535: `drag`（`DragController`/`DragAxis`/`DragConstraint`/
+# `apply_axis`/`clamp_to_constraint`/`estimate_velocity`/
+# `DRAG_X_PROPERTY`/`DRAG_Y_PROPERTY`）・`reduced_motion`
+# （`prefers_reduced_motion`）モジュールを新設。新規公開 API 追加のため
+# minor バンプ（`.claude/rules/coding-rust.md` #638 条項）。
+# イシュー #2533: `canvas_target`（`CanvasTarget`、`Target<&[Particle]>`
+# 実装）・`confetti`（`fire`/`should_fire`）モジュールを新設。新規公開
+# モジュール追加のため minor バンプ（`.claude/rules/coding-rust.md`
+# #638 条項）。
+#
+# マージコミット注記: 本 PR（#2535）と origin/main（#2533）が独立に
+# 0.4.0 から 0.5.0 へ minor バンプしており同値衝突。#638 条項の「同一
+# 版数も衝突として +1」運用に従い、さらに +1 して 0.6.0 とした。
+#
+# イシュー #2534（origin/main、本マージで判明した並行衝突）:
+# `ProgressRange`/`compute_progress_for_range`/
 # `update_element_progress_for_range` を新設。新規公開 API 追加のため
-# minor バンプする。
-#
-# イシュー #2533（origin/main、並行衝突）: `canvas_target`（`CanvasTarget`、
-# `Target<&[Particle]>` 実装）・`confetti`（`fire`/`should_fire`）モジュール
-# を新設。新規公開モジュール追加のため minor バンプ
-# （`.claude/rules/coding-rust.md` #638 条項）。
-#
-# マージコミット注記: 本 PR（#2534）と main（#2533）が独立に 0.4.0 から
-# 0.5.0 へ minor バンプしており同値衝突。#638 条項に従い origin/main の
-# 到達値から +1 して 0.6.0 とする。
-version = "0.6.0"
+# minor バンプ。origin/main 側は #2533 到達分と合流して 0.5.0 から
+# 0.6.0 へ独立に minor バンプしており、本 PR の上記 0.6.0 と同一版数へ
+# 再度衝突した。#638 条項の「同一版数も衝突として +1」運用に従い、さらに
+# +1 して 0.7.0 とする。
+version = "0.7.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -79,6 +88,16 @@ js-sys = "0.3"
 # 戻り値型、`prefers-reduced-motion` 判定）。新規外部パッケージの追加は
 # ない（wasm-full が既に `DomRect`/`DomRectReadOnly`/`MediaQueryList` を
 # 有効化済み、`css` feature のみ本クレートが最初の消費者）。
+#
+# イシュー #2535: `drag` モジュール（[`DragController`]）・`reduced_motion`
+# モジュールを追加するが、新規 web-sys feature の追加は不要。
+# `reduced_motion::prefers_reduced_motion` は `scroll_driver::Env::detect`
+# と同じ `Window`/`MediaQueryList`（既存 feature）のみを使う。範囲制約
+# コンテナの `getBoundingClientRect()` 実測は `wasm-full` 側の責務とし
+# （`drag.rs` モジュール doc 参照）、本クレートは数値化済み
+# `DragConstraint` を受け取るのみのため `DomRect`/`DomRectReadOnly`/
+# `Element` を新規に要求しない（実装計画で検討した 2 案のうち、計測と
+# 計算の責務分離を優先する案を採用した判断根拠）。
 web-sys = { version = "0.3", features = [
   "Window",
   "Performance",

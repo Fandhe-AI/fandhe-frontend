@@ -215,6 +215,7 @@
 //! | `Runtime::wire_in_view` | `in-view` |
 //! | `Runtime::wire_gesture` | `gesture` |
 //! | `Runtime::wire_scroll_driver` | `scroll-driver` |
+//! | `Runtime::wire_drag_gesture` | `drag-gesture` |
 //! | `Runtime::wire_confetti` | `confetti` |
 //! | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
@@ -287,19 +288,21 @@
 //!
 //! ## 破壊的変更（BREAKING CHANGE、0.19.0 で minor バンプ）
 //!
-//! `default-features = false` を使う利用者は上記 18 配線を失う
+//! `default-features = false` を使う利用者は上記 20 配線を失う
 //! （`docs/design/wasm-full-feature-gating-evaluation.md` §11 条件 5 の (ii)
 //! を採用。イシュー #2122 で `message-scroller`、イシュー #2126 で
-//! `data-table`、イシュー #2396 で `in-view`、イシュー #2520 で `gesture`
+//! `data-table`、イシュー #2396 で `in-view`、イシュー #2520 で `gesture`、
+//! イシュー #2521 で `scroll-driver`、イシュー #2535 で `drag-gesture`
 //! を追加）。従来どおりの挙動を維持するには `features = [
 //! "wasm-bindgen-exports", "keynav", "focus-visible", "avatar", "clipboard",
 //! "timer", "angle-slider", "splitter", "signature-pad", "number-input",
 //! "command", "sidebar", "chart", "chart-range", "questionnaire",
-//! "message-scroller", "data-table", "in-view", "gesture"]`
+//! "message-scroller", "data-table", "in-view", "gesture", "scroll-driver",
+//! "drag-gesture"]`
 //! （`entry` のエクスポートが不要なら `wasm-bindgen-exports` は省略可）を
-//! 明示すること。上記 18 件に加え、[`headless::wire_headless_component`] の
+//! 明示すること。上記 20 件に加え、[`headless::wire_headless_component`] の
 //! 自動 positioning 呼び出しを維持するには `"position"` も列挙に含める
-//! こと（`position` はこの 18 配線とは別枠の feature であり、既定 19 件目
+//! こと（`position` はこの 20 配線とは別枠の feature であり、既定 21 件目
 //! として `Cargo.toml` の `default` 配列に列挙されている）。
 //! 同様に [`stagger_index::sync_stagger_index`] の keyed list 構造変化後
 //! 呼び出しを維持するには `"stagger"` も列挙に含めること（`position` と
@@ -454,6 +457,8 @@ pub mod confetti;
 pub mod content_height;
 pub mod csr;
 pub mod data_table;
+#[cfg(feature = "drag-gesture")]
+pub mod drag_gesture;
 pub mod events;
 pub mod focus_trap;
 pub mod focus_visible;
@@ -1188,6 +1193,30 @@ where
                                 {
                                     crate::stagger_index::sync_stagger_index(&current_list_element);
                                 }
+
+                                // codex-review P1 是正（イシュー #2535、
+                                // PR #2565）: 再同期が `Self::apply_subtree_swap`
+                                // にしか追加されておらず、本分岐（keyed list
+                                // の `apply_keyed_list`/
+                                // `apply_keyed_list_with_previous` による
+                                // Insert/Move/置換）を経由しない。この経路は
+                                // 全体再描画を経由せず、挿入・置換で新規生成
+                                // された opt-in ドラッグ要素の `controller_for`
+                                // は最初の `pointerdown` で初めて呼ばれるため、
+                                // `touch-action: none` の反映がタッチの
+                                // スクロール判定に間に合わず初回ドラッグが
+                                // `pointercancel` で中断する
+                                // （`resync_drag_gesture_attachments` doc の
+                                // 制約と同型）。タグ変更で `list_element` が
+                                // 切り離される可能性があるため、上記
+                                // `stagger` 分岐と同じく `root`/`field` から
+                                // 現在のライブ要素を再取得してから再同期する。
+                                #[cfg(feature = "drag-gesture")]
+                                if let Ok(Some(current_list_element)) =
+                                    fandhe_frontend_wasm_client::find_list_element(root, field)
+                                {
+                                    Self::resync_drag_gesture_attachments(&current_list_element);
+                                }
                                 structural_change = true;
                             } else if !has_binding(field) {
                                 unresolved_field = true;
@@ -1316,6 +1345,15 @@ where
         // （DOM 読み出しベースのフォールバック）から再開させることで実際の
         // DOM 内容との不整合を防ぐ（`Runtime::keyed_list_cache` doc 参照）。
         keyed_list_cache.borrow_mut().clear();
+
+        // イシュー #2535 codex-review P1 是正（PR #2565）: 差し替え後の
+        // `root` 配下に新規生成された opt-in ドラッグ要素があれば、最初の
+        // `pointerdown` より前に `touch-action: none` を再同期する
+        // （[`Self::resync_drag_gesture_attachments`] doc 参照）。本メソッドは
+        // `Self::rerender_subtree`・`Self::apply_with_view_transition` の
+        // 唯一の DOM 差し替え実装であるため、ここ 1 箇所で両経路を covers する。
+        #[cfg(feature = "drag-gesture")]
+        Self::resync_drag_gesture_attachments(root);
     }
 
     /// CSR 経路（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
@@ -1496,6 +1534,8 @@ where
         Self::wire_gesture(root.clone())?;
         #[cfg(feature = "scroll-driver")]
         Self::wire_scroll_driver(root.clone())?;
+        #[cfg(feature = "drag-gesture")]
+        Self::wire_drag_gesture(root.clone())?;
         #[cfg(feature = "confetti")]
         Self::wire_confetti(root.clone())?;
         #[cfg(feature = "hold-to-confirm")]
@@ -1686,6 +1726,8 @@ where
         Self::wire_gesture(root.clone())?;
         #[cfg(feature = "scroll-driver")]
         Self::wire_scroll_driver(root.clone())?;
+        #[cfg(feature = "drag-gesture")]
+        Self::wire_drag_gesture(root.clone())?;
         #[cfg(feature = "confetti")]
         Self::wire_confetti(root.clone())?;
         #[cfg(feature = "hold-to-confirm")]
@@ -2654,6 +2696,35 @@ where
     #[cfg(feature = "scroll-driver")]
     fn wire_scroll_driver(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         scroll_driver::wire_scroll_driver(&root)
+    }
+
+    /// pointer capture ベースの汎用ドラッグ配線
+    /// （[`drag_gesture::wire_drag_gesture`]、イシュー #2535）を登録する。
+    /// `dispatch` チャネルを持たない属性専用配線のため
+    /// （`Self::wire_sidebar`/`Self::wire_gesture` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`drag_gesture::wire_drag_gesture`]（`add_event_listener_with_callback` 5 件）
+    /// の失敗を伝播する。
+    #[cfg(feature = "drag-gesture")]
+    fn wire_drag_gesture(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        drag_gesture::wire_drag_gesture(root)
+    }
+
+    /// [`drag_gesture::resync_drag_gesture_attachments`] を呼び、`root`
+    /// 配下の opt-in ドラッグ要素へ `touch-action: none` を再同期する
+    /// （codex-review P1 是正・イシュー #2535・PR #2565）。
+    /// [`Self::apply_subtree_swap`] が構造フォールバック再描画・
+    /// View Transitions 更新のいずれで `root` の子ノードを差し替えた
+    /// 場合にも、新規生成された opt-in 要素は最初の `pointerdown` より
+    /// 前に `touch-action: none` を得る必要がある（イベント委譲用の
+    /// 5 リスナー自体は `root` が差し替えられないため再登録不要、
+    /// [`Self::apply_subtree_swap`] 冒頭のコメント参照）。
+    #[cfg(feature = "drag-gesture")]
+    fn resync_drag_gesture_attachments(root: &web_sys::Element) {
+        drag_gesture::resync_drag_gesture_attachments(root);
     }
 
     /// confetti トリガーのクリック委譲配線（[`confetti::wire_confetti`]、

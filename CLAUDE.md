@@ -105,7 +105,7 @@ crates/
 ├── app/           # fandhe-frontend-app: モード非依存の共通コンポーネント
 ├── server/        # fandhe-frontend-server: SSR/SSG エントリ
 ├── wasm-client/   # fandhe-frontend-wasm-client: クライアントランタイム基盤
-├── wasm-full/     # fandhe-frontend-wasm-full: CSR/ハイドレーション フルセット（配線群別 feature 22 件 + 別枠 feature 6 件〔position/stagger/animation-driver/view-transitions/view-transition-name/animate〕+ scope feature 16 件、既定 on、#2326/#2327/#2396/#2397/#2398/#2400/#2403/#2515/#2517/#2520/#2521/#2533/#2538。`default-features = false` 利用者の移行手順は `docs/guides/wasm-full-features.md`）
+├── wasm-full/     # fandhe-frontend-wasm-full: CSR/ハイドレーション フルセット（配線群別 feature 23 件 + 別枠 feature 6 件〔position/stagger/animation-driver/view-transitions/view-transition-name/animate〕+ scope feature 16 件、既定 on、#2326/#2327/#2396/#2397/#2398/#2400/#2403/#2515/#2517/#2520/#2521/#2533/#2535/#2538。`default-features = false` 利用者の移行手順は `docs/guides/wasm-full-features.md`）
 ├── wasm-thin/     # fandhe-frontend-wasm-thin: CSR/ハイドレーション 最小構成
 ├── frontend-animation/  # fandhe-frontend-animation: Web アニメーションアダプタ（`fandhe-animation` の演算結果を wasm-bindgen / web-sys / js-sys で DOM/Web Animations API へ適用する層。`fandhe-frontend-wasm-full` には依存しない独立クレートで、`crates/wasm-full/` が optional 依存として取り込む配線層を担う。依存方向は `fandhe-animation ← fandhe-frontend-animation ← wasm-full(optional)`、`docs/design/animation-core-architecture.md` 参照。雛形は #2417 で追加）
 ├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー（配布 WASM は `src/wasm_dist_features.rs` の最小インタラクティブ構成 6 feature、#2329。`build.rs` と `wasm-full/tests/bundle_size.rs` が `#[path]` 共有）
