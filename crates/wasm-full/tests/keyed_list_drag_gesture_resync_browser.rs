@@ -4,15 +4,26 @@
 //! `stagger_index_browser.rs` と同じ理由（製品コンポーネント
 //! `interactive::AppState` では検証したい keyed list 操作を直接誘発
 //! できない）で、本ファイル専用の最小 component（[`ListState`]）を使い、
-//! `Runtime::apply_update_for_dirty` の keyed list 構造反映（`Insert`）
-//! 経由で新規挿入された `data-fandhe-drag` 要素へ `touch-action: none`
-//! が最初の `pointerdown` より前に先行反映されることを固定する
-//! （`Self::apply_subtree_swap` のみが再同期していた漏れの是正。
-//! `resync_drag_gesture_attachments` doc 参照）。
+//! `Runtime::apply_update_for_dirty` の keyed list 構造反映（`Insert`/
+//! `Update`）経由で
+//!
+//! 1. 新規挿入された `data-fandhe-drag` 要素へ `touch-action: none` が
+//!    最初の `pointerdown` より前に先行反映されること（`Self::
+//!    apply_subtree_swap` のみが再同期していた漏れの是正）
+//! 2. 既存行の内容変更（`KeyedOp::Update`）で
+//!    `fandhe_frontend_wasm_client::keyed_dom::sync_attrs` が `style`
+//!    属性を丸ごと削除した後も、`touch-action: none` と移動済みの
+//!    位置（CSS カスタムプロパティ）が復元されること（`controller_for`
+//!    が既存コントローラを返すだけで DOM へ書き戻さなかった漏れの是正、
+//!    PR #2565 第 2 ラウンド codex-review P1 指摘）
+//!
+//! を固定する（`resync_drag_gesture_attachments`/`DragController::
+//! resync_dom` doc 参照）。
 
 #![cfg(target_arch = "wasm32")]
 #![cfg(feature = "drag-gesture")]
 
+use fandhe_frontend_animation::drag::{DRAG_X_PROPERTY, DRAG_Y_PROPERTY};
 use fandhe_frontend_core::keyed::keyed_list;
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
@@ -21,7 +32,7 @@ use fandhe_frontend_wasm_full::drag_gesture::DRAG_ATTR;
 use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, Event, EventInit, HtmlElement};
+use web_sys::{Document, Element, Event, EventInit, HtmlElement, PointerEvent, PointerEventInit};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -83,6 +94,9 @@ impl ListState {
 enum ListAction {
     /// 末尾へ `(id, content)` を 1 件追加する（`Insert` を誘発）。
     Append { id: u64, content: String },
+    /// 既存キーの表示内容を書き換える（`KeyedOp::Update` を誘発。
+    /// キーは不変のため対象要素・`DragController` は同一のまま）。
+    Rename { id: u64, content: String },
 }
 
 impl Component for ListState {
@@ -94,6 +108,12 @@ impl Component for ListState {
             ListAction::Append { id, content } => {
                 self.items.push((id, content));
                 self.dirty.push(Self::FIELD_ITEMS);
+            }
+            ListAction::Rename { id, content } => {
+                if let Some(entry) = self.items.iter_mut().find(|(existing, _)| *existing == id) {
+                    entry.1 = content;
+                    self.dirty.push(Self::FIELD_ITEMS);
+                }
             }
         }
     }
@@ -124,6 +144,13 @@ impl Component for ListState {
             "append" => {
                 let (id_str, content) = payload.split_once(':')?;
                 Some(ListAction::Append {
+                    id: id_str.parse::<u64>().ok()?,
+                    content: content.to_string(),
+                })
+            }
+            "rename" => {
+                let (id_str, content) = payload.split_once(':')?;
+                Some(ListAction::Rename {
                     id: id_str.parse::<u64>().ok()?,
                     content: content.to_string(),
                 })
@@ -198,5 +225,109 @@ fn insert_prewires_touch_action_on_new_drag_item_before_any_pointerdown() {
         Ok("none".to_string()),
         "新規挿入された data-fandhe-drag 要素は pointerdown 前から \
          touch-action: none を持つこと"
+    );
+}
+
+/// `drag_gesture_browser.rs::pointer_event` と同じ意図。
+fn pointer_event(kind: &str, pointer_id: i32, client_x: f64, client_y: f64) -> Event {
+    let init = PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_pointer_id(pointer_id);
+    init.set_client_x(client_x as i32);
+    init.set_client_y(client_y as i32);
+    PointerEvent::new_with_event_init_dict(kind, &init)
+        .expect("PointerEvent::new must not fail")
+        .into()
+}
+
+/// `element` の CSS カスタムプロパティを px 単位数値として読み取る
+/// （`drag_gesture_browser.rs::custom_property_px` と同じ意図）。
+fn custom_property_px(element: &Element, name: &str) -> Option<f64> {
+    let html = element.dyn_ref::<HtmlElement>()?;
+    let raw = html.style().get_property_value(name).ok()?;
+    raw.trim_end_matches("px").trim().parse::<f64>().ok()
+}
+
+/// 受け入れ条件（codex-review P1 是正、PR #2565 第 2 ラウンド）: 既存行を
+/// ポインタでドラッグして位置を移動させた後、キーを保ったまま内容だけを
+/// 書き換える（`KeyedOp::Update`）と、`fandhe_frontend_wasm_client::
+/// keyed_dom::sync_attrs` が `style` 属性を丸ごと削除するため
+/// `touch-action: none` と移動済みの CSS カスタムプロパティが一時的に
+/// 失われる。`Runtime::apply_update_for_dirty` が `Update` 適用後にも
+/// `Self::resync_drag_gesture_attachments` を呼び直すため、
+/// `DragController::resync_dom` により両方が復元されること（表示位置と
+/// 保持位置の食い違いが残らないこと）を固定する。
+#[wasm_bindgen_test]
+fn update_of_existing_row_restores_touch_action_and_position_after_sync_attrs_strips_style() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "drag-root-container-2");
+    let _guard = RemoveOnDrop(placeholder.clone());
+
+    let state = ListState::new(&[(1, "a")]);
+    let runtime = Runtime::mount("drag-root-container-2", state).expect("mount must succeed");
+    let root = runtime.root();
+
+    let item = root
+        .query_selector("[data-testid='drag-item']")
+        .expect("query_selector must not fail")
+        .expect("initial item must exist after mount");
+
+    // マウント直後の先行 attach（`wire_drag_gesture` 内の
+    // `resync_drag_gesture_attachments`）により、ドラッグ前から
+    // touch-action: none が既に設定されていること（前提の確認）。
+    assert_eq!(
+        item.dyn_ref::<HtmlElement>()
+            .expect("keyed list item must be an HtmlElement")
+            .style()
+            .get_property_value("touch-action"),
+        Ok("none".to_string()),
+        "マウント直後から touch-action: none が先行反映されていること"
+    );
+
+    // ポインタでドラッグして (10, 10) だけ移動させる（制約コンテナが無い
+    // ため release 時に spring は起動せず、release 直前の位置がそのまま
+    // 保持される、`drag_gesture_browser.rs` module doc と同じ前提）。
+    item.dispatch_event(&pointer_event("pointerdown", 1, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    root.dispatch_event(&pointer_event("pointermove", 1, 10.0, 10.0))
+        .expect("dispatch_event must not fail");
+    root.dispatch_event(&pointer_event("pointerup", 1, 10.0, 10.0))
+        .expect("dispatch_event must not fail");
+
+    let x_before = custom_property_px(&item, DRAG_X_PROPERTY).unwrap_or(0.0);
+    let y_before = custom_property_px(&item, DRAG_Y_PROPERTY).unwrap_or(0.0);
+    assert!(
+        (x_before - 10.0).abs() < 0.01 && (y_before - 10.0).abs() < 0.01,
+        "ドラッグ後は (10, 10) へ移動していること: x={x_before} y={y_before}"
+    );
+
+    // キーは保ったまま内容だけを書き換える（KeyedOp::Update を誘発）。
+    dispatch_action(&document, root, "rename", "1:renamed");
+
+    let item_after = root
+        .query_selector("[data-testid='drag-item']")
+        .expect("query_selector must not fail")
+        .expect("item must still exist after rename (same key)");
+    assert!(
+        item_after.is_same_node(Some(&item)),
+        "Update は既存要素を差し替えないこと（同一ノードのまま）"
+    );
+    assert_eq!(
+        item_after
+            .dyn_ref::<HtmlElement>()
+            .expect("keyed list item must be an HtmlElement")
+            .style()
+            .get_property_value("touch-action"),
+        Ok("none".to_string()),
+        "sync_attrs が style 属性を削除した後も touch-action: none が \
+         再同期経路で復元されること"
+    );
+    let x_after = custom_property_px(&item_after, DRAG_X_PROPERTY).unwrap_or(0.0);
+    let y_after = custom_property_px(&item_after, DRAG_Y_PROPERTY).unwrap_or(0.0);
+    assert!(
+        (x_after - 10.0).abs() < 0.01 && (y_after - 10.0).abs() < 0.01,
+        "移動済みの位置 (10, 10) も再同期経路で復元されること: \
+         x={x_after} y={y_after}"
     );
 }

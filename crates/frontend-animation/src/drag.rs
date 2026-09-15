@@ -45,6 +45,21 @@ pub const DRAG_X_PROPERTY: &str = "--fandhe-drag-x";
 /// ドラッグ位置の Y 成分を書き込む CSS カスタムプロパティ名。
 pub const DRAG_Y_PROPERTY: &str = "--fandhe-drag-y";
 
+/// 最後の `pointermove` サンプルから release までの経過時間（ms）が
+/// これを超えたら、離脱速度を 0（停止）とみなす（Bugbot 指摘「Stale
+/// velocity after paused drag」是正、PR #2565 第 2 ラウンド）。
+///
+/// [`DragController::on_release`] は直近 2 サンプルから速度を推定する
+/// （[`estimate_velocity`]）が、そのサンプルは「最後に `pointermove` が
+/// 発火した時刻」の位置しか記録しない。ユーザーが範囲外へ出した状態で
+/// 静止してからしばらく経って指/マウスを離した場合、直近サンプルは
+/// 静止前の速い動きを反映したままであり、実際には停止しているにも
+/// 関わらず古い速度で spring がスナップバックしてしまう。Motion
+/// （`docs/design/motion-reference-adoption-policy.md` 参照）の
+/// pointer-events 実装が採用する 100ms 前後の「最終操作からの経過が
+/// これを超えたら速度を打ち切る」慣例に合わせた値。
+const STALE_VELOCITY_THRESHOLD_MS: f64 = 100.0;
+
 /// 軸制約。ドラッグ中・キーボード移動（[`DragController::nudge`]）の
 /// いずれにも継続的に適用する構造的な制約（範囲クランプとは別に扱う、
 /// 下記 [`DragConstraint`] 参照）。
@@ -161,6 +176,22 @@ pub fn estimate_velocity(previous: Option<(Vec2, f64)>, latest: Option<(Vec2, f6
     }
 }
 
+/// `latest`（直近の `pointermove` サンプルとその時刻）から `time_ms`
+/// （release 時刻）までの経過が [`STALE_VELOCITY_THRESHOLD_MS`] を超えて
+/// いるかを判定する（[`DragController::on_release`] doc 参照。Bugbot
+/// 指摘「Stale velocity after paused drag」是正、PR #2565 第 2 ラウンド）。
+///
+/// サンプルが無い（`None`）場合は「経過が測れない」ため stale とは
+/// 判定しない（`estimate_velocity` 側が `None` を渡されたときと同じ
+/// 「速度 0」へ自然に帰着するため、ここで重複判定しない）。`time_ms` が
+/// `sampled_at` より小さい（クロックの逆行）場合も差分が非正になり
+/// 閾値を超えないため stale 側へは倒れない（安全側: 実際に停止していない
+/// ケースを誤って速度 0 にしない）。
+#[must_use]
+fn is_velocity_stale(latest: Option<(Vec2, f64)>, time_ms: f64) -> bool {
+    latest.is_some_and(|(_, sampled_at)| (time_ms - sampled_at) > STALE_VELOCITY_THRESHOLD_MS)
+}
+
 /// `element` の CSS カスタムプロパティ 2 本へ `pos` を書き込む。
 ///
 /// モジュール doc の契約（`translate(var(--fandhe-drag-x, 0px), ...)`）
@@ -232,6 +263,25 @@ impl DragController {
         *self.position.borrow()
     }
 
+    /// `touch-action: none` と現在の保持位置（[`DRAG_X_PROPERTY`]/
+    /// [`DRAG_Y_PROPERTY`]）を要素へ再適用する（codex-review P1 是正、
+    /// PR #2565 第 2 ラウンド）。
+    ///
+    /// keyed list の既存行更新（`fandhe_frontend_wasm_client::keyed_dom`
+    /// の `sync_attrs`）は新しい view に無い `style` 属性を削除・上書き
+    /// するため、[`Self::attach`] が一度設定した `touch-action: none` や
+    /// 既に移動済みの CSS カスタムプロパティが失われうる。
+    /// `crates/wasm-full/src/drag_gesture.rs::resync_drag_gesture_attachments`
+    /// は既存コントローラに対してもこのメソッドを呼び、`Self` が保持する
+    /// 論理位置（[`Self::position`]）を再度 DOM へ書き戻すことで、表示
+    /// 位置と保持位置の食い違い（次操作での跳ね）を防ぐ。新規 attach 直後
+    /// に呼んでも無害（`attach` 自身が設定済みの値を同じ値で上書きする
+    /// だけ）なため、呼び出し側は新規/既存を区別せず常に呼べる。
+    pub fn resync_dom(&self) {
+        let _ = self.element.style().set_property("touch-action", "none");
+        write_dom(&self.element, self.position());
+    }
+
     /// `pointerdown` 相当の入力。進行中の release spring を打ち切り、
     /// ドラッグ起点を記録する。
     pub fn on_pointer_down(&mut self, client: Vec2, time_ms: f64) {
@@ -270,12 +320,25 @@ impl DragController {
     /// 制約があれば spring で範囲内へ復帰させる（`prefers-reduced-motion`
     /// が真、または制約が無い/既に範囲内の場合は即時反映）。
     /// ドラッグ中でなかった（`start` が `None`）呼び出しは無視する。
-    pub fn on_release(&mut self) {
+    ///
+    /// `time_ms` は呼び出し元イベント（`pointerup`/`pointercancel`/
+    /// `keydown` 等）の `event.time_stamp()` 相当を渡すこと。直近の
+    /// `pointermove` サンプルからこの時刻までの経過が
+    /// [`STALE_VELOCITY_THRESHOLD_MS`] を超えていれば、離脱速度を
+    /// 0（停止）とみなす（Bugbot 指摘「Stale velocity after paused
+    /// drag」是正、PR #2565 第 2 ラウンド。範囲外で静止してから離した
+    /// 場合に、静止前の古い速度で spring がスナップバックする不具合の
+    /// 是正）。
+    pub fn on_release(&mut self, time_ms: f64) {
         if self.start.take().is_none() {
             return;
         }
         let current = self.position();
-        let velocity = estimate_velocity(self.previous_sample, self.latest_sample);
+        let velocity = if is_velocity_stale(self.latest_sample, time_ms) {
+            Vec2::default()
+        } else {
+            estimate_velocity(self.previous_sample, self.latest_sample)
+        };
         self.previous_sample = None;
         self.latest_sample = None;
         self.settle(current, velocity);
@@ -363,7 +426,8 @@ impl DragController {
 mod tests {
     use super::{
         apply_axis, clamp_to_constraint, clamp_to_constraint_for_axis, estimate_velocity,
-        normalize_constraint, DragAxis, DragConstraint,
+        is_velocity_stale, normalize_constraint, DragAxis, DragConstraint,
+        STALE_VELOCITY_THRESHOLD_MS,
     };
     use fandhe_animation::interpolate::Vec2;
 
@@ -505,5 +569,43 @@ mod tests {
         assert_eq!(estimate_velocity(previous, latest), Vec2::default());
         let latest_earlier = Some((Vec2 { x: 10.0, y: 10.0 }, 50.0));
         assert_eq!(estimate_velocity(previous, latest_earlier), Vec2::default());
+    }
+
+    /// Bugbot 指摘「Stale velocity after paused drag」是正の回帰
+    /// （PR #2565 第 2 ラウンド）: サンプルなしは経過が測れないため
+    /// stale と判定しない（`estimate_velocity` の `None` 分岐が既に
+    /// 速度 0 を返すため、ここで重複して stale 扱いにする必要がない）。
+    #[test]
+    fn is_velocity_stale_returns_false_without_a_sample() {
+        assert!(!is_velocity_stale(None, 1_000.0));
+    }
+
+    /// 直近サンプルからの経過が閾値以下なら stale ではない。
+    #[test]
+    fn is_velocity_stale_returns_false_within_threshold() {
+        let latest = Some((Vec2::default(), 1_000.0));
+        assert!(!is_velocity_stale(
+            latest,
+            1_000.0 + STALE_VELOCITY_THRESHOLD_MS
+        ));
+    }
+
+    /// 直近サンプルからの経過が閾値を超えると stale（速度 0 とみなす
+    /// べき停止状態）と判定する。
+    #[test]
+    fn is_velocity_stale_returns_true_beyond_threshold() {
+        let latest = Some((Vec2::default(), 1_000.0));
+        assert!(is_velocity_stale(
+            latest,
+            1_000.0 + STALE_VELOCITY_THRESHOLD_MS + 1.0
+        ));
+    }
+
+    /// クロックの逆行（release 時刻がサンプルより前）は差分が非正になり
+    /// 閾値を超えないため、stale 側へは倒れない（安全側、doc 参照）。
+    #[test]
+    fn is_velocity_stale_returns_false_when_release_precedes_sample() {
+        let latest = Some((Vec2::default(), 1_000.0));
+        assert!(!is_velocity_stale(latest, 500.0));
     }
 }

@@ -264,7 +264,7 @@ mod wiring {
         };
         let pointer_id = pointer_event.pointer_id();
         if active.borrow().contains_key(&pointer_id) {
-            release_drag(pointer_id, active);
+            release_drag(pointer_id, active, event.time_stamp());
         }
         let already_tracked = active
             .borrow()
@@ -308,11 +308,15 @@ mod wiring {
     /// pointer capture を保持し続け、以降その要素へ到達する `pointermove`
     /// が（`root` に配線した委譲リスナーではなく）capture 先要素へ直接
     /// 配送される異常な配送経路が残る。
-    fn release_drag(pointer_id: i32, active: &ActiveDrags) {
+    ///
+    /// `time_ms` は呼び出し元イベントの `time_stamp()` を
+    /// [`DragController::on_release`] へそのまま伝播する（Bugbot 指摘
+    /// 「Stale velocity after paused drag」是正、PR #2565 第 2 ラウンド）。
+    fn release_drag(pointer_id: i32, active: &ActiveDrags, time_ms: f64) {
         let Some((drag_element, controller)) = active.borrow_mut().remove(&pointer_id) else {
             return;
         };
-        controller.borrow_mut().on_release();
+        controller.borrow_mut().on_release(time_ms);
         let _ = drag_element.remove_attribute(DRAGGING_STATE_ATTR);
         let _ = drag_element.release_pointer_capture(pointer_id);
     }
@@ -356,7 +360,7 @@ mod wiring {
             return;
         };
         if pointer_event.buttons() == 0 {
-            release_drag(pointer_id, active);
+            release_drag(pointer_id, active, event.time_stamp());
             return;
         }
         controller.borrow_mut().on_pointer_move(
@@ -376,7 +380,7 @@ mod wiring {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
-        release_drag(pointer_event.pointer_id(), active);
+        release_drag(pointer_event.pointer_id(), active, event.time_stamp());
     }
 
     /// `keydown`: フォーカス中の opt-in 要素上で矢印キーが押されたら
@@ -430,7 +434,7 @@ mod wiring {
             .find(|(_, (existing, _))| existing.is_same_node(Some(&drag_element)))
             .map(|(pointer_id, _)| *pointer_id);
         if let Some(pointer_id) = interrupted_pointer_id {
-            release_drag(pointer_id, active);
+            release_drag(pointer_id, active, event.time_stamp());
         }
         measure_and_apply_constraint(root, &drag_element, &controller);
         controller.borrow_mut().nudge(Vec2 {
@@ -476,9 +480,24 @@ mod wiring {
     /// `pointercancel` で中断する（本節冒頭の理由と同型）。[`controller_for`]
     /// が `retain(is_connected)` で切断済みエントリを間引き `is_same_node`
     /// で重複登録を避けるため、本関数は何度呼んでも安全（冪等）。
+    ///
+    /// # 既存コントローラでもドラッグ用スタイルを復元する（codex-review
+    /// P1 是正、PR #2565 第 2 ラウンド）
+    ///
+    /// keyed list の既存行更新は `fandhe_frontend_wasm_client::keyed_dom`
+    /// の `sync_attrs` を経由し、新しい view に無い `style` 属性を削除・
+    /// 上書きする。この経路で `DragController::attach` が設定した
+    /// `touch-action: none` や移動済みの CSS カスタムプロパティが失われ
+    /// ても、`controller_for` は既存エントリを見つけるだけで DOM への
+    /// 再書き込みは行わない。そのため各要素の [`controller_for`] 呼び出し
+    /// 直後に必ず [`DragController::resync_dom`] を呼び、新規/既存の
+    /// いずれでも `touch-action: none` と保持位置を DOM へ再適用する
+    /// （`DragController::resync_dom` doc 参照）。
     pub(crate) fn resync_drag_gesture_attachments(root: &Element) {
         if root.has_attribute(DRAG_ATTR) {
-            let _ = controller_for(root);
+            if let Some(controller) = controller_for(root) {
+                controller.borrow().resync_dom();
+            }
         }
         let selector = format!("[{DRAG_ATTR}]");
         let Ok(node_list) = root.query_selector_all(&selector) else {
@@ -491,7 +510,9 @@ mod wiring {
             let Some(element) = node.dyn_ref::<Element>() else {
                 continue;
             };
-            let _ = controller_for(element);
+            if let Some(controller) = controller_for(element) {
+                controller.borrow().resync_dom();
+            }
         }
     }
 
