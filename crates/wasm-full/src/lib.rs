@@ -3310,9 +3310,11 @@ where
     /// [`Self::apply_with_view_transition`] と同じ全再描画ロジックを、
     /// named view transition プリセット（[`view_transition_preset::
     /// ViewTransitionPreset`]）選択付きで実行する公開 API（イシュー
-    /// #2516）。`fandhe-frontend-pre-styled-ui::view_transition` の
-    /// fade/slide/wipe CSS プリセットが参照する `data-fandhe-view-transition`
-    /// 属性の設定は [`crate::view_transition::with_view_transition`]
+    /// #2516・#2537）。`fandhe-frontend-pre-styled-ui::view_transition` の
+    /// 11 種 CSS プリセット（fade/slide/wipe/iris/doors/shutter/blinds/
+    /// strips/pixels/mask-wipe/mask-radial）が参照する
+    /// `data-fandhe-view-transition` 属性の設定は
+    /// [`crate::view_transition::with_view_transition`]
     /// （`preset: Some(preset)`）が担う（`document.startViewTransition()`
     /// 呼び出し前に同期的に設定されるため、ブラウザが遷移のスナップショットを
     /// 撮る時点で既に反映済み）。

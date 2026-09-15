@@ -260,11 +260,29 @@ let css = theme.to_css_with_view_transition_presets();
 ```
 
 `Runtime::apply_with_view_transition`（汎用）・
-`apply_with_view_transition_named`（`fade`/`slide`/`wipe` の 3 プリセット）
+`apply_with_view_transition_named`（11 プリセット）
 は `crates/wasm-full/src/view_transition_preset.rs`。pre-styled-ui 側の
 `Theme::to_css_with_view_transition_presets()`（`view_transition.rs`）が
 同じ `data-fandhe-view-transition` 属性名リテラルで CSS を出す一方、両
 クレート間に Cargo 依存はありません（文字列一致のみの契約）。
+
+| プリセット | `ViewTransitionPreset` | 概要 |
+|---|---|---|
+| `fade` | `Fade` | クロスフェード |
+| `slide` | `Slide` | 左方向へのスライド |
+| `wipe` | `Wipe` | クリップパスによるワイプ（拭い取り） |
+| `iris` | `Iris` | 中央からの円形展開 |
+| `doors` | `Doors` | 中央から左右へ開く |
+| `shutter` | `Shutter` | 中央から上下へ開く |
+| `blinds` | `Blinds` | 8 段の横ブラインド |
+| `strips` | `Strips` | 左右交互に伸びる帯 |
+| `pixels` | `Pixels` | 4×4 格子の段階的リビール |
+| `mask-wipe` | `MaskWipe` | ソフトエッジ（グラデーション境界）の横ワイプ |
+| `mask-radial` | `MaskRadial` | ソフトエッジの円形展開 |
+
+mask 系プリセット（`mask-wipe`/`mask-radial`/`blinds`/`strips`/`pixels`）は
+unprefixed `mask` プロパティ（Chrome 120+ / Safari 15.4+）のみに依存します
+（`-webkit-mask-*` の複製はしていません）。
 
 keyed list の行等、値ごとに一意な動的名前が必要な場合は
 `view_transition_name::set_view_transition_name`

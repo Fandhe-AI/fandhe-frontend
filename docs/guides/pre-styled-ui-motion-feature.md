@@ -166,18 +166,23 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   再計算結果と `crates/pre-styled-ui/tests/motion_spring_css.rs` が
   パリティ検証しています。
 
-- **named view transition CSS プリセット（イシュー #2516、
+- **named view transition CSS プリセット（イシュー #2516・#2537、
   `crates/pre-styled-ui/src/view_transition.rs`）**: `document.
-  startViewTransition()` によるページ遷移の見た目を fade/slide/wipe の
-  3 種から選べるようにする、Motion+ Curtains 相当の基本形です。
+  startViewTransition()` によるページ遷移の見た目を選べるようにする、
+  Motion+ Curtains 相当のプリセット集です（fade/slide/wipe/iris/doors/
+  shutter/blinds/strips/pixels/mask-wipe/mask-radial の 11 種）。
   - `view_transition::VIEW_TRANSITION_PRESET_ATTR`
     （`"data-fandhe-view-transition"`）: プリセット選択の属性名。
     `fandhe-frontend-wasm-full::view_transition_preset::
     VIEW_TRANSITION_PRESET_ATTR` と同一リテラルで、両クレート間の契約は
     この文字列一致のみです（Cargo 依存は発生しません）。
   - `view_transition::VIEW_TRANSITION_PRESETS_CSS`: `:root[data-fandhe-
-    view-transition="fade|slide|wipe"]::view-transition-old(root)`/
-    `::view-transition-new(root)` の 3 プリセット CSS 全文。
+    view-transition="<preset>"]::view-transition-old(root)`/
+    `::view-transition-new(root)` の 11 プリセット CSS 全文。
+    `blinds`/`strips`/`pixels`/`mask-wipe`/`mask-radial` は複数
+    `mask-image` 層・グラデーションによる形状遷移で、unprefixed `mask`
+    プロパティ（Chrome 120+ / Safari 15.4+）のみに依存します
+    （`-webkit-mask-*` の複製はしていません）。
   - `Theme::to_css_with_view_transition_presets()`: `Theme::to_css()` の
     出力へ `VIEW_TRANSITION_PRESETS_CSS` を追記して返す opt-in メソッド。
   - プリセットの属性設定自体（`document.documentElement` への set/
@@ -187,8 +192,10 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   - 各 `animation-duration` は `--fandhe-motion-duration-slow` トークン
     経由のため、`prefers-reduced-motion: reduce` 下では自動的に `0ms` へ
     上書きされます。加えて `@media (prefers-reduced-motion: reduce)`
-    ブロックで 3 プリセットの old/new(root) へ `animation: revert;` を
-    明示的に再宣言し、UA 既定のクロスフェードへ戻します。
+    ブロックで全プリセットの old/new(root) へ `animation: revert;` を
+    明示的に再宣言し、UA 既定のクロスフェードへ戻します。mask 系
+    プリセットの静的 `mask-*` 宣言は `animation: revert;` だけでは戻ら
+    ないため、同ブロックで `mask-image: none;` も併せて再宣言します。
 
 ## 3. 無効時ゼロコスト保証の内容
 

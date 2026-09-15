@@ -1256,11 +1256,19 @@ name = "fandhe-frontend-wasm-full"
 # 場合は不要、`docs/ci/version-bump-publish-order-gap.md` 系の既存判断と
 # 同型）。
 #
+# イシュー #2537: `ViewTransitionPreset` へ 8 バリアント（Iris/Doors/
+# Shutter/Blinds/Strips/Pixels/MaskWipe/MaskRadial）を追加した。既存
+# exhaustive match 利用者への観測可能な破壊的変更のため 0.x の破壊的変更を
+# マイナーバンプとする規約（`.claude/rules/coding-rust.md`）に従い minor
+# バンプする（0.33.0 → 0.34.0）。
+#
 # イシュー #2536: `shared_layout` モジュール（共有レイアウト遷移、
 # `layout-animation` feature 配下。新規公開定数 `LAYOUT_ID_ATTR`）を
 # 追加し、`fandhe-frontend-animation` を 0.11.0 → 0.12.0 へ追随バンプ
-# した。新規公開 API 追加のため minor バンプする（#638 条項）。
-version = "0.34.0"
+# した。origin/main 取り込み時点で到達値 0.34.0 は既に #2537 分と同一のため、
+# `.claude/rules/ci.md` の「同一版数も衝突として main から +1」運用に従い
+# さらに +1 して 0.35.0 とする。
+version = "0.35.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
