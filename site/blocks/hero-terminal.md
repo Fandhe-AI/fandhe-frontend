@@ -53,10 +53,9 @@ pub fn demo() -> Node {
         vec![
             prompt(),
             text_reveal::typewriter("Ready in 42ms", None),
-            kbd::kbd(
-                &KbdProps::default(),
+            span(
                 vec![("class", "blocks-hero-terminal-hint")],
-                vec![text("⌘ K")],
+                vec![kbd::kbd(&KbdProps::default(), vec![], vec![text("⌘ K")])],
             ),
         ],
     ));

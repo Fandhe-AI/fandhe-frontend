@@ -13,6 +13,7 @@
 use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
+use fandhe_frontend_pre_styled_ui::text::{self, TextProps};
 use fandhe_frontend_pre_styled_ui::text_reveal;
 
 pub fn demo() -> Node {
@@ -28,7 +29,11 @@ pub fn demo() -> Node {
 
     let lead = div(
         vec![("class", "blocks-text-split-reveal-lead")],
-        vec![text_reveal::words("Words fade in one by one, in order.")],
+        vec![text::text(
+            &TextProps::default(),
+            vec![],
+            vec![text_reveal::words("Words fade in one by one, in order.")],
+        )],
     );
 
     let cta = button::button(&ButtonProps::default(), vec![], vec![text("Try it out")]);

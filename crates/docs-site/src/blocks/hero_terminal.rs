@@ -93,10 +93,9 @@ pub fn demo() -> Node {
         vec![
             prompt(),
             text_reveal::typewriter("Ready in 42ms", None),
-            kbd::kbd(
-                &KbdProps::default(),
+            span(
                 vec![("class", "blocks-hero-terminal-hint")],
-                vec![text("⌘ K")],
+                vec![kbd::kbd(&KbdProps::default(), vec![], vec![text("⌘ K")])],
             ),
         ],
     ));
@@ -134,7 +133,7 @@ pub const BLOCK: Block = Block {
 /// 「block 固有 CSS の置き場」節、他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 pub(super) const LAYOUT_CSS: &str = "\
-[data-blocks-hero-terminal-panel] {\n  background: var(--fandhe-color-fg, #0f172a);\n  color: var(--fandhe-color-bg, #e2e8f0);\n  border-radius: var(--fandhe-radius-lg, 0.75rem);\n  padding: 1rem 1.25rem 1.5rem;\n  font-family: var(--fandhe-font-font-family-mono, monospace);\n}\n\
+[data-blocks-hero-terminal-panel] {\n  background: var(--fandhe-color-fg, #0f172a);\n  color: var(--fandhe-color-bg, #e2e8f0);\n  border-radius: var(--fandhe-radius-lg, 0.75rem);\n  padding: 1rem 1.25rem 1.5rem;\n  font-family: var(--fandhe-font-font-mono, monospace);\n}\n\
 .blocks-hero-terminal-titlebar {\n  display: flex;\n  gap: 0.4rem;\n  margin-bottom: 1rem;\n}\n\
 .blocks-hero-terminal-dot {\n  display: inline-block;\n  width: 0.65rem;\n  height: 0.65rem;\n  border-radius: 999px;\n  background: currentColor;\n  opacity: 0.35;\n}\n\
 .blocks-hero-terminal-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n}\n\
