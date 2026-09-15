@@ -366,6 +366,29 @@ doc「入れ子 FLIP リストの所有権契約」節、
 **フォールバック挙動**: feature off・属性なしの keyed list は従来どおり
 即座に並べ替わります（アニメーションなしの安全な劣化）。
 
+**消費者の例（toast stack、イシュー #2543）**: `pre-styled-ui` の
+`toast_motion::stack_group_keyed` は stagger（§5）と layout FLIP を同時に
+自動配線する薄いラッパーです。
+
+```rust
+use fandhe_frontend_pre_styled_ui::toast::{root, ToastPlacement, ToastStatus};
+use fandhe_frontend_pre_styled_ui::toast_motion::stack_group_keyed;
+
+let node = stack_group_keyed(
+    ToastPlacement::BottomEnd,
+    "Notifications",
+    vec![],
+    "toasts",
+    vec![("t-1".to_string(), root(ToastStatus::Info, vec![], vec![]))],
+)?;
+```
+
+`toast::group` へ `STAGGER_AUTO_FIRST_ATTR`/`FLIP_AUTO_ATTR`/
+`toast_motion::STACK_ATTR` を付けたうえで `keyed_list` を呼ぶだけで、通知の
+追加・削除・並べ替え時に積層オフセット（`--fandhe-motion-stagger-index`）の
+書き戻しと移動アニメーションが自動で動きます。詳細は
+[`/themes/toast/`](../../site/themes/toast.md) を参照してください。
+
 ## 12. SVG path drawing
 
 **目的**: `<path>` 等の `SVGGeometryElement` を、マウント時に 1 回だけ
