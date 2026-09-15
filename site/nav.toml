@@ -1228,6 +1228,16 @@ title = "pricing-usage-slider"
 source = "site/blocks/pricing-usage-slider.md"
 path = "/blocks/pricing-usage-slider/"
 
+[[section.page]]
+title = "bento-staggered"
+source = "site/blocks/bento-staggered.md"
+path = "/blocks/bento-staggered/"
+
+[[section.page]]
+title = "feature-expand"
+source = "site/blocks/feature-expand.md"
+path = "/blocks/feature-expand/"
+
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。
 #   サイト非出力は「nav 未登録」だけで構造的に担保する（同文書 §3-3 / §4 A05）。

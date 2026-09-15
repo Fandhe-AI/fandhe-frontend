@@ -202,7 +202,11 @@ CI では `.github/workflows/ci.yml` の `clippy` ジョブが
   `fandhe-frontend-pre-styled-ui` 依存へ `features = ["motion"]` を指定）。
   Themes Demo の presence（dialog/drawer/popover/tooltip/hover-card/menu の
   closed インスタンス）・scroll-driven reveal・stagger の実演がこれを
-  消費します。あわせて `structure.toml` の
+  消費します。イシュー #2549 の Blocks `bento-staggered` は、`crate::
+  showcase` が `SlotRecipe` の builder（`scroll_reveal`/`stagger_delay`）
+  経由で間接的に使うのに対し、`motion::KEYFRAMES_CSS`（`SLIDE_FROM_BOTTOM_
+  KEYFRAMES_NAME`）を直接 `push_css` する最初の消費者です。あわせて
+  `structure.toml` の
   `directories.pre-styled-ui.depends_on` へ `"animation"` を、
   `directories.animation.allowed_dependents` へ `"pre-styled-ui"` を
   対称に追加済みです（optional 依存が既定 feature 側で解決されるように
