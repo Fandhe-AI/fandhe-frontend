@@ -208,6 +208,39 @@ fn named_preset_sets_attr() {
     );
 }
 
+/// 検証 A': イシュー #2537 で追加した拡張プリセット（iris/mask-radial）も
+/// 検証 A と同じ経路で属性が設定されること（enum バリアント追加の配線
+/// 確認。全 11 種の網羅は native 側 `attr_values_match_pre_styled_ui_css_contract`
+/// / `attr_values_appear_in_pre_styled_ui_css_source` が担うため、本テストは
+/// 代表 2 例に留める）。
+#[wasm_bindgen_test]
+fn named_preset_sets_attr_for_extended_presets() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "view-transition-preset-extended-root");
+    let _cleanup = RemoveOnDrop(placeholder);
+    let _stub = ViewTransitionStub::install(&document);
+
+    let runtime = Runtime::mount("view-transition-preset-extended-root", LabelState::new())
+        .expect("mount must succeed");
+
+    runtime.apply_with_view_transition_named(ViewTransitionPreset::Iris);
+    assert_eq!(
+        document_element_attr(&document).as_deref(),
+        Some("iris"),
+        "named プリセット呼び出し後、data-fandhe-view-transition=\"iris\" が \
+         document.documentElement へ設定されること"
+    );
+
+    runtime.apply_with_view_transition_named(ViewTransitionPreset::MaskRadial);
+    assert_eq!(
+        document_element_attr(&document).as_deref(),
+        Some("mask-radial"),
+        "named プリセット呼び出し後、data-fandhe-view-transition=\"mask-radial\" が \
+         document.documentElement へ設定されること"
+    );
+}
+
 /// 検証 B: named プリセット選択後、unnamed 呼び出し
 /// （`apply_with_view_transition`、feature `view-transitions`）で属性が
 /// 除去されること（named/unnamed 混在時の残留を防ぐ是正）。

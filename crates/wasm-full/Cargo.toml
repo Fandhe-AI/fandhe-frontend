@@ -1255,7 +1255,13 @@ name = "fandhe-frontend-wasm-full"
 # 「同一版数」の場合のみ適用対象であり、本ブランチが既に上回っている
 # 場合は不要、`docs/ci/version-bump-publish-order-gap.md` 系の既存判断と
 # 同型）。
-version = "0.33.0"
+#
+# イシュー #2537: `ViewTransitionPreset` へ 8 バリアント（Iris/Doors/
+# Shutter/Blinds/Strips/Pixels/MaskWipe/MaskRadial）を追加した。既存
+# exhaustive match 利用者への観測可能な破壊的変更のため 0.x の破壊的変更を
+# マイナーバンプとする規約（`.claude/rules/coding-rust.md`）に従い minor
+# バンプする。
+version = "0.34.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
