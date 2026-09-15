@@ -298,6 +298,14 @@ async fn view_transition_supported_delegates_and_writes_no_transform() {
     runtime.component().position.set(Position::After);
     runtime.apply_with_view_transition();
 
+    // `style` 属性の**リテラル文字列**ではなく CSSOM 経由の
+    // `get_property_value("left")` で判定する: `assign_transition_names`
+    // （`shared_flip == false` 経路、UA 委譲時に本テストが起動する）が
+    // 同じ要素へ `style().set_property("view-transition-name", ...)` を
+    // 書き込むと、ブラウザは `style` 属性全体を CSSOM の正規シリアライズ
+    // （コロン後に半角スペースを挿入）で書き戻すため、`el()` 構築時の
+    // リテラル `"left:150px"`（スペースなし）との部分文字列一致が壊れる
+    // （実装の不具合ではなく本アサーション側の脆さ）。
     assert!(
         wait_until(
             || {
@@ -305,9 +313,10 @@ async fn view_transition_supported_delegates_and_writes_no_transform() {
                     .query_selector("[data-testid='indicator']")
                     .ok()
                     .flatten()
-                    .and_then(|el| el.get_attribute("style"))
-                    .as_deref()
-                    .is_some_and(|style| style.contains("left:150px"))
+                    .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
+                    .is_some_and(|el| {
+                        el.style().get_property_value("left").ok().as_deref() == Some("150px")
+                    })
             },
             60,
         )

@@ -181,13 +181,30 @@ mod wiring {
     /// ため、CI の wasm-full feature matrix `-wiring` ジョブ〔イシュー
     /// #2328、`layout-animation` 単体構成〕で dead-code として検知される、
     /// イシュー #2578）。
+    ///
+    /// 書き込む名前は [`root_scope_id`] で発行したルート固有の識別子を
+    /// 前置した `fandhe-shared-<root_id>-<id>` とする（[`ACTIVE`] と同じ
+    /// `root_id` 名前空間）。`id` はアプリ側が付与する任意値で、複数の
+    /// `Runtime` ルートをまたいで一意な保証はない——単一 `document` 内で
+    /// `view-transition-name` が重複すると UA は遷移全体をスキップする
+    /// ため、素の `id` をそのまま書き込むと別ルートが同じ `id` を使った
+    /// 場合に破綻する（Cursor Bugbot 指摘、イシュー #2578）。同一ルート内
+    /// で `id` が重複する場合も 2 件目以降は書き込まない（`shared_layout::
+    /// pair_by_id`〔`fandhe-frontend-animation` 側〕と同じ fail-safe:
+    /// 曖昧な状況では何もしない側へ倒す）。
     #[cfg(any(feature = "view-transitions", feature = "view-transition-preset"))]
     pub fn assign_transition_names(root: &Element) {
+        let root_id = root_scope_id(root);
+        let mut seen = std::collections::HashSet::new();
         for (id, element) in collect(root) {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
             if !crate::view_transition_name::is_valid_view_transition_name(&id) {
                 continue;
             }
-            let _ = element.style().set_property("view-transition-name", &id);
+            let name = format!("fandhe-shared-{root_id}-{id}");
+            let _ = element.style().set_property("view-transition-name", &name);
         }
     }
 

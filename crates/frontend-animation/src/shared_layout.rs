@@ -173,6 +173,32 @@ mod wiring {
             return Vec::new();
         }
 
+        // 入れ子の共有レイアウト要素（親子とも異なる layout-id を持つ）を
+        // 除外する。各ペアの delta は before/after の絶対 viewport 矩形から
+        // 独立に求めるため、それ自体は正しいが、`flip::play` が親要素へ
+        // 書き込む transform は CSS の合成規則で子孫の描画にも視覚的に
+        // 反映される。子が自身の delta もあわせて適用すると、親由来の
+        // 変位と子自身の変位が二重に効いてしまう（codex-review・
+        // Cursor Bugbot 指摘、イシュー #2578）。計測・適用フェーズの分離
+        // だけでは解消しない（合成は DOM 上の transform 適用順の問題で
+        // あり、計測タイミングの問題ではないため）。祖先側の変形を
+        // 打ち消す座標変換は行わず、モジュール doc「突合ルール」節と
+        // 同じ fail-safe 方針（曖昧な状況では何もしない側へ倒す）に従い、
+        // 他の対象ペアの after 要素を祖先に持つペアを対象外とする。
+        let pairs: Vec<(usize, usize)> = pairs
+            .iter()
+            .copied()
+            .filter(|&(after_idx, _)| {
+                let target = &after[after_idx].1;
+                !pairs.iter().any(|&(other_idx, _)| {
+                    other_idx != after_idx && after[other_idx].1.contains(Some(target))
+                })
+            })
+            .collect();
+        if pairs.is_empty() {
+            return Vec::new();
+        }
+
         // Last layout 矩形の一括計測（settle させる副作用込み、モジュール
         // doc「捕捉順の契約」節）。
         let target_elements: Vec<HtmlElement> = pairs
