@@ -221,6 +221,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-04/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-usage-slider/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
 
       - name: Upload dist artifact

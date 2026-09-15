@@ -145,6 +145,7 @@ use fandhe_frontend_pre_styled_ui::fieldset::{
 };
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
+use fandhe_frontend_pre_styled_ui::forms_motion::FLOATING_LABEL_CLASS;
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
@@ -152,7 +153,7 @@ use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps, Highli
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};
-use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps, InputVariant};
 use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
 use fandhe_frontend_pre_styled_ui::item::{
     self, ItemMediaVariant, ItemRootProps, ItemSize, ItemVariant,
@@ -1134,6 +1135,12 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::field::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::fieldset::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
+    // イシュー #2545: forms_motion は field/input 専用の opt-in フォーム
+    // アニメーション（shake・下線伸長・フローティングラベル・error-text
+    // presence）で、border-beam と同様 `css()`/`stylesheet()` を持たず
+    // `forms_motion_css()` を直接 push する（`crate::forms_motion`
+    // モジュール doc 参照）。
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::forms_motion::forms_motion_css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::item::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::message::stylesheet())?;
@@ -6081,9 +6088,61 @@ fn field_section() -> Node {
         ],
     );
 
+    // イシュー #2545: forms_motion（`motion` feature 配下の opt-in
+    // フォームアニメーション）の実演。shake（[`invalid_instance`] が既に
+    // `data-invalid` を持つため追加インスタンス不要）・error-text の
+    // presence 遷移（同様に既存インスタンスの `error_text` へ無条件に
+    // 適用される）とは異なり、下線伸長（Flushed variant 限定）と
+    // フローティングラベル（opt-in wrapper class + input→label の DOM 順）
+    // は専用インスタンスでのみ観測できるため個別に追加する
+    // （`crate::forms_motion` モジュール doc 参照）。
+    let flushed_motion_field = plain_field("showcase-field-motion-flushed");
+    let underline_grow_instance = field::root(
+        &FieldRootProps::default(),
+        &flushed_motion_field,
+        vec![],
+        vec![
+            field::label(&flushed_motion_field, vec![], vec![text("Search")]),
+            input::input(
+                &InputProps {
+                    variant: InputVariant::Flushed,
+                    ..InputProps::default()
+                },
+                &flushed_motion_field,
+                vec![("placeholder", "Focus me to see the underline grow")],
+            ),
+        ],
+    );
+
+    // フローティングラベルは [`FLOATING_LABEL_CLASS`] wrapper が
+    // `input` → `label` の 2 要素だけを DOM 順で内包し、`field::root`
+    // **自体**をラップするのではなく、その wrapper を `field::root` の
+    // children の 1 要素として渡す（`crate::forms_motion::
+    // FLOATING_LABEL_CLASS` rustdoc「呼び出し側の責務（契約）」節、
+    // PR #2567 レビュー是正）。`field_instance`（`label` → `input` の順）
+    // を再利用せず本節専用で組み立てる。
+    let floating_label_motion_field = plain_field("showcase-field-motion-floating-label");
+    let floating_label_instance = field::root(
+        &FieldRootProps::default(),
+        &floating_label_motion_field,
+        vec![],
+        vec![el(
+            "div",
+            vec![("class", FLOATING_LABEL_CLASS)],
+            vec![
+                input::input(
+                    &InputProps::default(),
+                    &floating_label_motion_field,
+                    vec![("placeholder", " ")],
+                ),
+                field::label(&floating_label_motion_field, vec![], vec![text("Email")]),
+            ],
+        )],
+    );
+
     section(
         "Field",
-        "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。orientation=\"responsive\" は group（container）を 448px 以上に広げると横並びへ切り替わります。",
+        "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。orientation=\"responsive\" は group（container）を 448px 以上に広げると横並びへ切り替わります。forms_motion（イシュー #2545、motion feature opt-in）の下線伸長・フローティングラベルは末尾 2 件で実演します（Invalid インスタンスは shake・error-text の presence 遷移も同時に実演します）。",
         vec![stack(vec![
             default_instance,
             invalid_instance,
@@ -6093,6 +6152,8 @@ fn field_section() -> Node {
             horizontal_instance,
             multi_error_instance,
             group_instance,
+            underline_grow_instance,
+            floating_label_instance,
         ])],
     )
 }

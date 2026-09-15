@@ -145,7 +145,14 @@
   サインアップフォーム。`field::helper_text` 3 件を持つ合成 block）/
   `blocks/signup-05/index.html`（イシュー #2095、ソーシャルプロバイダ付き
   サインアップフォーム。`heading`・`field::separator`・アイコン付き
-  Outline ボタン 2 個を持つ合成 block）である。
+  Outline ボタン 2 個を持つ合成 block）/
+  `blocks/pricing-tiers-morph/index.html`（イシュー #2547、月額/年額
+  billing 切替で 3 段ティアカードがクロスフェードする合成 block。`tabs`
+  の `content` へ `presence_transition` 同型のスコープ限定 CSS を手書きで
+  再現し、中央ティアへ `border_beam` の opt-in 装飾を付与する）/
+  `blocks/pricing-usage-slider/index.html`（イシュー #2547、利用量
+  スライダーの固定初期値と `stat` の価格表示を静的な組で示す合成 block。
+  ライブ連動は実装しない）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・
