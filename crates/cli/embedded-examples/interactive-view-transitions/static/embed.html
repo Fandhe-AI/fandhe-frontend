@@ -109,17 +109,24 @@
     }
     /*
       animation-timeline: view() ネイティブ対応環境（scroll_driver.rs::
-      Env::scroll_timeline_supported）では wire_scroll_driver が即座に
-      戻り --fandhe-motion-scroll-progress を書かないため、上記
+      Env::scroll_timeline_supported が CSS.supports("animation-timeline",
+      "view()") で検出する対応、scroll() ではない）では wire_scroll_driver
+      が即座に戻り --fandhe-motion-scroll-progress を書かないため、上記
       transform は scaleX(0) のまま留まる。対応環境向けに @supports で
-      ネイティブ scroll() タイムラインの @keyframes を追加する
-      （codex-review P1 / Bugbot 指摘、PR #2575 是正）。
+      ネイティブ view() タイムラインの @keyframes を追加する。範囲は
+      data-fandhe-scroll-progress の既定値（属性値なし）が解決する
+      ProgressRange::Entry（要素侵入開始～侵入完了で 0→1、
+      scroll_driver.rs::ProgressRange::Entry 参照）に合わせて
+      `entry 0% entry 100%` とする（JS フォールバックと同じ「要素が
+      ビューポートへ入り込む」意味に統一。ページ全体のスクロール率を表す
+      `scroll(root)` は別概念のため使わない。codex-review P2 指摘、
+      PR #2575 是正）。
     */
-    @supports (animation-timeline: scroll()) {
+    @supports (animation-timeline: view()) {
       #motion-demo-root [data-fandhe-scroll-progress] {
         animation-name: fandhe-motion-scroll-progress-native;
-        animation-timeline: scroll(root);
-        animation-range: 0% 100%;
+        animation-timeline: view();
+        animation-range: entry 0% entry 100%;
         animation-fill-mode: both;
       }
     }
@@ -132,7 +139,17 @@
     @media (prefers-reduced-motion: reduce) {
       #motion-demo-root [data-testid="in-view-card"] { transition: none; }
       [data-testid="item-list"] li { animation: none; }
-      #motion-demo-root [data-fandhe-scroll-progress] { animation: none; }
+      /*
+        JS フォールバック側（scroll_driver.rs::wire_scroll_driver_with_env）
+        は reduced-motion 時に進捗 1（完了扱い）を 1 回だけ書き込み静止
+        表示する。ネイティブ対応環境（wire_scroll_driver は env.
+        scroll_timeline_supported のため何もせず即 return し、この
+        カスタムプロパティを書かない）でも animation を無効化するだけでは
+        transform が既定の scaleX(0) のまま止まり見た目が不一致になるため、
+        transform を明示的に scaleX(1) で固定して揃える（codex-review P2
+        指摘、PR #2575 是正）。
+      */
+      #motion-demo-root [data-fandhe-scroll-progress] { animation: none; transform: scaleX(1); }
     }
   </style>
 </head>
