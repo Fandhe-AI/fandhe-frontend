@@ -1279,7 +1279,11 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #2541（PR #2581 codex-review/Cursor Bugbot 指摘是正）:
 # `carousel_motion.rs` の内部実装のみを修正した（公開 API のシグネチャは
 # 不変）ため patch バンプする。
-version = "0.36.1"
+#
+# イシュー #2541（PR #2581 codex-review 指摘是正・第 2 ラウンド）:
+# 複数 carousel の識別用に `CAROUSEL_GOTO_ACTION_ATTR` 定数を追加した
+# （新規公開定数の純追加）ため patch バンプする。
+version = "0.36.2"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

@@ -117,6 +117,24 @@
 //! 取り出さないため、正常系の `pointerup` に続いて非同期に発火する
 //! `lostpointercapture` が二重に届いても [`find_active_slot`] が `None`
 //! を返すだけで安全に no-op になる）。
+//!
+//! # 複数 carousel の識別（codex-review 指摘 是正、イシュー #2541 第 3
+//! ラウンド）
+//!
+//! `next-trigger`/`prev-trigger`/`indicator` のクリックは
+//! `crate::events::wire_events` の `data-action` 属性契約（クリックした
+//! 要素自身の属性値をそのままアクション名として使う）で配線されるため、
+//! 著者はボタンごとに一意なアクション名（例:
+//! `data-action="carousel-hero:goto"`）を付与でき、1 つの `Component`
+//! 配下に複数 carousel があっても `decode_action` 側でどの carousel への
+//! 操作か判別できる。一方ドラッグ由来の `"goto"` dispatch
+//! （[`handle_pointer_release`]）はこの `data-action` 契約を経由せず、
+//! 固定文字列 `"goto"` をハードコードしていたため、同じ判別ができなかった
+//! （複数 carousel 配下でどの操作か区別不能）。是正として
+//! [`CAROUSEL_GOTO_ACTION_ATTR`]（`data-action-carousel-goto`、
+//! [`ACTION_INPUT_ATTR`]/[`ACTION_CHANGE_ATTR`] と同型の「著者が明示指定
+//! するアクション名属性」契約）を carousel root へ付与できるようにし、
+//! 指定があればそれを、無ければ後方互換のため `"goto"` を使う。
 
 /// opt-in（著者が SSR 出力に静的に付与）: root へ付与するとドラッグ +
 /// spring スナップを有効化するマーカー属性。値は `""`（非 loop）または
@@ -126,6 +144,16 @@ pub const CAROUSEL_DRAG_ATTR: &str = "data-fandhe-carousel-drag";
 
 /// 状態属性: ドラッグ中〜spring 収束完了まで carousel root へ付与される。
 pub const CAROUSEL_DRAGGING_STATE_ATTR: &str = "data-fandhe-carousel-dragging";
+
+/// opt-in（著者が SSR 出力に静的に付与、任意）: ドラッグ確定時に dispatch
+/// する `"goto"` の代わりに使うアクション名（モジュール doc「複数
+/// carousel の識別」節参照）。未指定・空文字列は既定の `"goto"` を使う
+/// （後方互換）。`crate::events::ACTION_INPUT_ATTR`/`ACTION_CHANGE_ATTR`
+/// と同じ「著者がアクション名を明示指定する属性」契約であり、値の
+/// 妥当性検証は行わない（`fandhe_frontend_interactive::Component::
+/// decode_action` 側の責務、本クレートの不変条件 4「未知のアクション名は
+/// no-op」を前提とする）。
+pub const CAROUSEL_GOTO_ACTION_ATTR: &str = "data-action-carousel-goto";
 
 /// [`CAROUSEL_DRAG_ATTR`] の属性値から loop モードを決める。属性が存在
 /// しない（`None`）場合のみ opt-in 自体が無効（呼び出し側は属性の有無を
@@ -155,7 +183,7 @@ mod wiring {
 
     use super::{
         is_vertical_orientation, parse_loop_opt_in, CAROUSEL_DRAGGING_STATE_ATTR,
-        CAROUSEL_DRAG_ATTR,
+        CAROUSEL_DRAG_ATTR, CAROUSEL_GOTO_ACTION_ATTR,
     };
     use crate::dom::set_dom_attribute_result as set_dom_attribute;
     use crate::events::ActionRef;
@@ -584,13 +612,22 @@ mod wiring {
         // 即 dispatch する」節参照）。spring 自体は純粋に見た目の追従用
         // （`--fandhe-carousel-index` の連続値書き込み）として引き続き
         // 走らせ、収束完了時には dragging 属性の除去のみを行う。
+        //
+        // dispatch するアクション名は [`super::CAROUSEL_GOTO_ACTION_ATTR`]
+        // が carousel root へ指定されていればそれを使う（モジュール doc
+        // 「複数 carousel の識別」節参照）。空文字列は未指定と同義に扱う。
+        let action_name = meta
+            .carousel_root
+            .get_attribute(CAROUSEL_GOTO_ACTION_ATTR)
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "goto".to_string());
         let carousel_root = meta.carousel_root.clone();
         let target = t.on_release(event.time_stamp(), meta.slide_px, move |_index| {
             let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
         });
         drop(track_guard);
         (on_action.borrow_mut())(ActionRef {
-            action: "goto".to_string(),
+            action: action_name,
             payload: target.to_string(),
         });
     }
@@ -624,6 +661,10 @@ mod tests {
         assert_eq!(
             super::CAROUSEL_DRAGGING_STATE_ATTR,
             "data-fandhe-carousel-dragging"
+        );
+        assert_eq!(
+            super::CAROUSEL_GOTO_ACTION_ATTR,
+            "data-action-carousel-goto"
         );
     }
 }

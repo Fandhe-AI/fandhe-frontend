@@ -18,6 +18,7 @@ use std::rc::Rc;
 
 use fandhe_frontend_wasm_full::carousel_motion::{
     wire_carousel_motion_events, CAROUSEL_DRAGGING_STATE_ATTR, CAROUSEL_DRAG_ATTR,
+    CAROUSEL_GOTO_ACTION_ATTR,
 };
 use fandhe_frontend_wasm_full::events::ActionRef;
 use wasm_bindgen::closure::Closure;
@@ -299,4 +300,33 @@ async fn lostpointercapture_recovers_drag_state_when_pointerup_is_missed() {
         root.has_attribute(CAROUSEL_DRAGGING_STATE_ATTR),
         "a fresh pointerdown must be accepted after lostpointercapture recovery"
     );
+}
+
+/// codex-review 指摘 是正（イシュー #2541 第 3 ラウンド）の回帰:
+/// [`CAROUSEL_GOTO_ACTION_ATTR`] を carousel root へ指定すると、ドラッグ
+/// 確定時の dispatch はその名前を使う（複数 carousel を同一 Runtime 配下に
+/// 置いても `decode_action` 側でどの carousel の操作か判別できる）。
+#[wasm_bindgen_test]
+async fn goto_action_attr_overrides_dispatched_action_name() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, item_group) = build_dom(&document, Some(""));
+    let _guard = RemoveOnDrop(root.clone());
+    root.set_attribute(CAROUSEL_GOTO_ACTION_ATTR, "carousel-hero:goto")
+        .unwrap();
+
+    let dispatched: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let dispatched_for_cb = dispatched.clone();
+    wire_carousel_motion_events(root.clone(), move |action_ref: ActionRef| {
+        dispatched_for_cb.borrow_mut().push(action_ref);
+    })
+    .unwrap();
+
+    dispatch_pointer_event(&item_group, "pointerdown", 0, 1);
+    dispatch_pointer_event(&item_group, "pointermove", -150, 1);
+    dispatch_pointer_event(&item_group, "pointerup", -150, 1);
+
+    let actions = dispatched.borrow();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0].action, "carousel-hero:goto");
+    assert_eq!(actions[0].payload, "2");
 }
