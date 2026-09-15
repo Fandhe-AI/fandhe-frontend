@@ -1269,7 +1269,13 @@ name = "fandhe-frontend-wasm-full"
 # バンプする。本ブランチ（#2532 の 0.34.0）と origin/main（#2537 の
 # 0.34.0）が同じ merge base（0.33.0）から独立に同一版数へ到達したため、
 # 同じ版数のまま据え置かず +1 した 0.35.0 とする（同衝突運用）。
-version = "0.35.0"
+#
+# イシュー #2542: `cursor`（カスタムカーソル配線、既定 on）を追加した。
+# `magnetic`/`text-animation` と同型の新規公開モジュール純追加のため
+# minor バンプする。あわせて `fandhe-frontend-animation` の依存
+# `version` 要求を 0.12.0 → 0.13.0 へ追随した（`xtask check-dep-versions
+# --fix` 相当）。
+version = "0.36.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1592,7 +1598,7 @@ js-sys = "0.3"
 # 新設）へバンプしていた。本ブランチの到達値 0.11.0 は origin/main の
 # 到達値 0.10.0 をすでに上回っており同一版数の衝突には該当しないため、
 # 本ブランチの到達値 0.11.0 をそのまま維持する。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.12.0", optional = true }
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.13.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1829,6 +1835,7 @@ default = [
   "add-to-basket",
   "magnetic",
   "text-animation",
+  "cursor",
   "position",
   "stagger",
   "animation-driver",
@@ -1977,6 +1984,14 @@ magnetic = ["dep:fandhe-frontend-animation"]
 # `fandhe_frontend_pre_styled_ui::text_reveal` 側（`motion` feature）に
 # 属し本 feature の対象外。
 text-animation = ["dep:fandhe-frontend-animation"]
+# イシュー #2542（親 #2530/#2476）: カスタムカーソル配線（`Runtime::mount`/
+# `hydrate` の `Self::wire_cursor` 呼び出し）専用の feature（既定 on）。
+# `scroll-driver`/`confetti`/`hold-to-confirm`/`magnetic`/`text-animation` と
+# 同型——配線群かつ `dep:fandhe-frontend-animation` を有効化する feature。
+# ポインタ追従の spring 演算・rAF 駆動・DOM 書き込みは
+# `fandhe-frontend-animation::cursor`（`CursorAnimator`）の責務であり、
+# `cursor` モジュール自体は本 feature でのみコンパイルする。
+cursor = ["dep:fandhe-frontend-animation"]
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

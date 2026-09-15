@@ -71,6 +71,17 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_add_to_basket` | `add-to-basket` |
 | `Runtime::wire_magnetic` | `magnetic` |
 | `Runtime::wire_text_animation` | `text-animation` |
+| `Runtime::wire_cursor` | `cursor` |
+
+`cursor` feature（0.36.0 で追加、イシュー #2542）は `scroll-driver`/
+`confetti`/`hold-to-confirm`/`magnetic`/`text-animation` と同型（配線群かつ
+`dep:fandhe-frontend-animation` 有効化）で、カスタムカーソル要素
+（`data-fandhe-cursor` opt-in）をポインタに spring で追従させます。hover 対象
+（`data-fandhe-cursor-target`）の `data-*` 値をカーソル要素へ写してバリアント
+切替・ラベル表示を行い、`data-fandhe-cursor-target-magnetic` 付き対象では
+中心へ吸着します。`fandhe-frontend-animation::cursor::CursorAnimator` が
+spring 演算・rAF 駆動・DOM 書き込みを担い、`prefers-reduced-motion: reduce`・
+`pointer: coarse` のいずれかが真なら配線自体を行いません。
 
 `text-animation` feature（0.35.0 で追加、イシュー #2532）は `scroll-driver`/
 `confetti`/`hold-to-confirm`/`magnetic` と同型（配線群かつ
@@ -303,6 +314,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.33.0 | `svg-path` feature（イシュー #2519、origin/main）。origin/main 側は独立に 0.31.0 から 0.32.0 へ到達しており、本 PR（#2518、codex-review 第 6 ラウンド是正）の上記 0.32.0 と同一版数へ再度衝突した。#638 条項に従いさらに +1 して 0.33.0 とする。base main 取り込み時（PR #2572、magnetic feature・0.32.2 到達）、本 PR 側の到達値 0.33.0 が main の到達値 0.32.2 を上回るため、そのまま維持する（さらなる衝突バンプ不要） |
 | （merge） | base main 再取り込み時（イシュー #2518 codex-review 追加ラウンド是正、`view-transition-preset` feature 追加）: main 側はさらにイシュー #2516（`view-transition-preset` feature）で 0.32.2 → 0.32.3 へ独立にバンプしていた。本 PR 側の到達値 0.33.0 は main の到達値 0.32.3 をすでに上回っており同一版数の衝突には該当しないため、本 PR の到達値 0.33.0 をそのまま維持する（さらなる衝突バンプ不要） |
 | 0.35.0 | `text-animation` feature（イシュー #2532、typewriter/scramble 配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.11.0 → 0.12.0 へ追随した。本 PR（#2532）と origin/main（#2537、`view-transition-preset` の破壊的バリアント追加）が同じ merge base（0.33.0）から独立に 0.34.0 へ到達したため、#638 条項に従いさらに +1 して 0.35.0 とする |
+| 0.36.0 | `cursor` feature（イシュー #2542、カスタムカーソル配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.12.0 → 0.13.0 へ追随した |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
@@ -342,6 +354,7 @@ features = [
   "add-to-basket",
   "magnetic",
   "text-animation",
+  "cursor",
   "position",
   "stagger",
   "animation-driver",
