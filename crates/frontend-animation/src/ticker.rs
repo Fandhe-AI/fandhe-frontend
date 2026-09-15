@@ -262,7 +262,14 @@ mod dom {
         /// [`ensure_copies`] を 1 回実行して必要な複製数を満たす。
         #[must_use]
         pub fn start(root: Element, content: Element, config: TickerConfig) -> Self {
-            let Some(content_html) = content.dyn_ref::<HtmlElement>().cloned() else {
+            // offset は `root`（CSS 側 `[data-fandhe-ticker-active] [data-part="content"]`
+            // の共通祖先）へ書き込む。CSS カスタムプロパティは継承プロパティであり、
+            // `content`（複製の 1 個目）へ書き込むと他の兄弟複製へ伝播せず、2 個目
+            // 以降が静止したままになる不具合があった（イシュー #2540 レビュー指摘）。
+            let (Some(content_html), Some(root_html)) = (
+                content.dyn_ref::<HtmlElement>().cloned(),
+                root.dyn_ref::<HtmlElement>().cloned(),
+            ) else {
                 // `HtmlElement` へダウンキャストできない場合は駆動しない
                 // no-op（`RafDriver::new` と同じ fail-safe 方針）。
                 return Self {
@@ -288,6 +295,7 @@ mod dom {
             let last_ms: Rc<Cell<Option<f64>>> = Rc::new(Cell::new(None));
 
             let step_root = root.clone();
+            let step_root_html = root_html;
             let step_content = content;
             let step_content_html = content_html;
             let step_hovered = Rc::clone(&hovered);
@@ -337,7 +345,7 @@ mod dom {
                     content_len.max(1.0),
                 );
                 step_offset.set(next_offset);
-                write_offset(&step_content_html, next_offset);
+                write_offset(&step_root_html, next_offset);
                 true
             });
 
