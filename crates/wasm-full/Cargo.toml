@@ -1201,7 +1201,12 @@ name = "fandhe-frontend-wasm-full"
 # 0.30.0 へ到達しており、本 PR の上記 0.30.0 と同一版数へ再度衝突した。
 # #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して
 # 0.31.0 とする。
-version = "0.31.0"
+#
+# イシュー #2519: SVG path drawing 配線（`svg_path` モジュール新設、
+# `Self::wire_svg_path`・feature `svg-path` 既定 on）を追加。新規公開
+# feature 追加のため minor バンプする。origin/main は既に 0.31.0 に
+# 到達済みのため、そこから +1 して 0.32.0 とする。
+version = "0.32.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1483,7 +1488,11 @@ js-sys = "0.3"
 # #2533）との並行衝突により 0.6.0 → 0.7.0 へ再度 +1 バンプされたため、
 # `version` 要求も追随する（`cargo run -p xtask -- check-dep-versions
 # --fix`）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.7.0", optional = true }
+#
+# イシュー #2519: `fandhe-frontend-animation` 0.7.0 → 0.8.0（`svg_path`
+# モジュール新設）への `version` 要求追随（`cargo run -p xtask --
+# check-dep-versions --fix`）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.8.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1715,6 +1724,7 @@ default = [
   "scroll-driver",
   "drag-gesture",
   "confetti",
+  "svg-path",
   "hold-to-confirm",
   "add-to-basket",
   "position",
@@ -1808,6 +1818,19 @@ drag-gesture = ["dep:fandhe-frontend-animation"]
 # 設計、SignaturePad 由来コメント「canvas 系 API は一切追加しない」方針を
 # 維持）。
 confetti = ["dep:fandhe-frontend-animation"]
+# イシュー #2519（親 #2508）: SVG path drawing 配線（`Runtime::mount`/
+# `hydrate` の `Self::wire_svg_path` 呼び出し）専用の feature（既定 on）。
+# `scroll-driver`/`confetti` と同型——配線群かつ
+# `dep:fandhe-frontend-animation` を有効化する feature。`svg_path` モジュール
+# 自体は本 feature でのみコンパイルする（`fandhe-frontend-animation` の型を
+# 直接使うため、`gesture` 等の純粋層非ゲート方針とは異なり、上記 (c) 注記の
+# 対象外。`scroll-driver`/`confetti` と同じ理由）。全長取得・
+# `stroke-dasharray`/`stroke-dashoffset` の計算・WAAPI 呼び出しはいずれも
+# `fandhe-frontend-animation::svg_path` の責務であり、本 feature 配下の
+# `svg_path` モジュールは `data-fandhe-svg-path-draw` 要素の走査・呼び出し
+# 配線のみを担う（3 層構成、`docs/design/motion-reference-adoption-policy.md`
+# §4）。
+svg-path = ["dep:fandhe-frontend-animation"]
 # イシュー #2538（親 button の Motion+ 由来 variant）: hold-to-confirm 配線
 # （`Runtime::mount`/`hydrate` の `Self::wire_hold_to_confirm` 呼び出し）
 # 専用の feature（既定 on）。`scroll-driver`/`confetti` と同型——配線群

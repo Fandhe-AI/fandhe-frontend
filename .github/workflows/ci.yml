@@ -2414,6 +2414,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,drag-gesture --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: confetti, issue #2533)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,confetti --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: svg-path, issue #2519)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,svg-path --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: hold-to-confirm, issue #2538)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,hold-to-confirm --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: add-to-basket, issue #2538)"
