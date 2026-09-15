@@ -54,7 +54,11 @@ pub fn demo() -> Node {
         &props,
         vec![("data-blocks-pricing-usage-slider-slider", "")],
         vec![
-            slider::label(&props, vec![], vec![text("月間リクエスト数（千件）")]),
+            slider::label(
+                &props,
+                vec![("id", "blocks-pricing-usage-slider-label")],
+                vec![text("月間リクエスト数（千件）")],
+            ),
             slider::control(
                 Orientation::Horizontal,
                 &props,
@@ -66,7 +70,12 @@ pub fn demo() -> Node {
                         vec![],
                         vec![slider::range(&state, &props, vec![])],
                     ),
-                    slider::thumb_styled(&state, Some("50 千件"), &props, vec![]),
+                    slider::thumb_styled(
+                        &state,
+                        Some("50 千件"),
+                        &props,
+                        vec![("aria-labelledby", "blocks-pricing-usage-slider-label")],
+                    ),
                     slider::marker_group(
                         vec![],
                         vec![

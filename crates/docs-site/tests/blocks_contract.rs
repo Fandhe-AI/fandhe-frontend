@@ -1236,3 +1236,25 @@ fn pricing_usage_slider_composes_expected_parts() {
         );
     }
 }
+
+/// pricing-usage-slider の thumb（`role="slider"`）に、表示ラベル
+/// （`slider::label` の `span`）への `aria-labelledby` 関連付けが実際に
+/// 出力されていること、参照先の `id` が同ページ内に存在することを固定
+/// する（codex-review P1 指摘の回帰防止、イシュー #2547）。
+/// `aria-valuetext`（「50 千件」）は値の説明であり操作部の名前の代わりに
+/// ならないため、名前付けは `aria-labelledby` 側で担保する。
+#[test]
+fn pricing_usage_slider_thumb_is_labelled_by_visible_label() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-usage-slider/index.html"))
+        .expect("blocks/pricing-usage-slider/index.html should be generated");
+    assert!(
+        html.contains("aria-labelledby=\"blocks-pricing-usage-slider-label\""),
+        "pricing-usage-slider thumb should reference the visible label via aria-labelledby"
+    );
+    assert!(
+        html.contains("id=\"blocks-pricing-usage-slider-label\""),
+        "pricing-usage-slider label span should carry the id referenced by aria-labelledby \
+         (no dangling IDREF)"
+    );
+}
