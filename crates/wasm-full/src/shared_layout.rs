@@ -82,6 +82,15 @@ mod wiring {
         static ROOT_IDS: WeakMap = WeakMap::new();
         /// [`ROOT_IDS`] の発行元カウンタ。
         static NEXT_ROOT_ID: Cell<u64> = const { Cell::new(0) };
+        /// `(root_id, layout_id)` ごとに前回 `view-transition-name` を書き込んだ
+        /// 要素（[`assign_transition_names`] 専用）。id が別要素へ移った・id
+        /// 自体が対象外になった場合、次回呼び出し冒頭で旧要素の inline style
+        /// を明示的に消去する（`assign_transition_names` doc「旧要素の名前
+        /// 復元」参照。旧要素が `LAYOUT_ID_ATTR` を外れたまま DOM に残ると、
+        /// 次に別要素が同じ id を名乗った際に名前重複で UA 側 View Transition
+        /// が失敗する、codex-review 指摘・イシュー #2578）。
+        static PREV_TRANSITION_NAMES: RefCell<HashMap<(u64, String), HtmlElement>> =
+            RefCell::new(HashMap::new());
     }
 
     /// `root` に対応する [`ACTIVE`] キー空間分離用の識別子を取得・未発行
@@ -161,18 +170,15 @@ mod wiring {
     /// （同モジュール doc参照）、本関数はその feature に依存しない
     /// （`layout-animation` 単体構成でも動作する）。
     ///
-    /// # 既知の限界（`ponytail:`）
+    /// # 旧要素の名前復元
     ///
-    /// 書き込んだ `view-transition-name` インライン style は本関数では
-    /// 明示的に消去しない（同一 id は常に高々 1 要素にのみ存在する——
-    /// モジュール doc「対象要素の明示的オプトイン」の前提——ため、旧要素は
-    /// 通常この直後に DOM から除去され無害化する）。旧要素が除去されず
-    /// `LAYOUT_ID_ATTR` だけ外れて DOM に残り続ける非典型的な構成では、
-    /// 別の要素が同じ id を新たに名乗った際に重複名でブラウザ側の
-    /// View Transition が失敗し得る。上限が必要になれば `ACTIVE`
-    /// と同様に前回付与した `(root_id, id, element)` を記録し、次回
-    /// `assign_transition_names` 呼び出し時に明示的に `remove_property`
-    /// する方式へ拡張する。
+    /// 書き込んだ `view-transition-name` インライン style は
+    /// [`PREV_TRANSITION_NAMES`] で `(root_id, id)` → 要素を記録し、次回
+    /// 呼び出し冒頭で「id が別要素へ移った」「id 自体が今回の対象から
+    /// 外れた」旧要素があれば `remove_property` で明示的に消去する。旧
+    /// 要素が `LAYOUT_ID_ATTR` だけ外れて DOM に残り続ける構成でも、別の
+    /// 要素が同じ id を新たに名乗った時点で名前重複によるブラウザ側
+    /// View Transition 失敗を防げる（codex-review 指摘、イシュー #2578）。
     ///
     /// 呼び出し元（`Runtime::apply_with_view_transition`/
     /// `apply_with_view_transition_named`）と同じ feature でゲートする
@@ -196,6 +202,7 @@ mod wiring {
     pub fn assign_transition_names(root: &Element) {
         let root_id = root_scope_id(root);
         let mut seen = std::collections::HashSet::new();
+        let mut current: HashMap<String, HtmlElement> = HashMap::new();
         for (id, element) in collect(root) {
             if !seen.insert(id.clone()) {
                 continue;
@@ -203,9 +210,35 @@ mod wiring {
             if !crate::view_transition_name::is_valid_view_transition_name(&id) {
                 continue;
             }
-            let name = format!("fandhe-shared-{root_id}-{id}");
-            let _ = element.style().set_property("view-transition-name", &name);
+            current.insert(id, element);
         }
+
+        PREV_TRANSITION_NAMES.with(|cell| {
+            let mut prev = cell.borrow_mut();
+            // このルートの前回エントリのうち、今回別要素が同じ id を名乗った、
+            // または id 自体が対象外になったものは、旧要素の inline style を
+            // 明示的に消去してから外す（モジュール doc「旧要素の名前復元」
+            // 参照。曖昧な同一性判定を避けるため DOM 参照同一性
+            // 〔`is_same_node`〕で比較する）。
+            prev.retain(|(pid, id), element| {
+                if *pid != root_id {
+                    return true;
+                }
+                let still_same = current
+                    .get(id)
+                    .is_some_and(|new_el| element.is_same_node(Some(new_el.unchecked_ref())));
+                if !still_same {
+                    let _ = element.style().remove_property("view-transition-name");
+                }
+                still_same
+            });
+
+            for (id, element) in &current {
+                let name = format!("fandhe-shared-{root_id}-{id}");
+                let _ = element.style().set_property("view-transition-name", &name);
+                prev.insert((root_id, id.clone()), element.clone());
+            }
+        });
     }
 
     /// `root` 配下の [`LAYOUT_ID_ATTR`] 付き要素の現在の視覚矩形を捕捉する
@@ -247,6 +280,69 @@ mod wiring {
                 active.insert((root_id, id), animation);
             }
         });
+    }
+
+    /// [`assign_transition_names`] の残留名クリア回帰テスト（codex-review
+    /// 指摘、イシュー #2578。「旧要素の名前復元」doc 参照）。
+    #[cfg(all(
+        test,
+        target_arch = "wasm32",
+        any(feature = "view-transitions", feature = "view-transition-preset")
+    ))]
+    mod tests {
+        use super::*;
+        use wasm_bindgen_test::wasm_bindgen_test;
+
+        wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+        fn make_root() -> Element {
+            let document = web_sys::window().unwrap().document().unwrap();
+            document.create_element("div").unwrap()
+        }
+
+        fn make_layout_element(root: &Element, id: &str) -> Element {
+            let document = web_sys::window().unwrap().document().unwrap();
+            let element = document.create_element("span").unwrap();
+            element.set_attribute(LAYOUT_ID_ATTR, id).unwrap();
+            root.append_child(&element).unwrap();
+            element
+        }
+
+        fn transition_name(element: &Element) -> String {
+            element
+                .clone()
+                .dyn_into::<HtmlElement>()
+                .unwrap()
+                .style()
+                .get_property_value("view-transition-name")
+                .unwrap()
+        }
+
+        #[wasm_bindgen_test]
+        fn stale_name_is_cleared_when_id_moves_to_a_different_element() {
+            let root = make_root();
+            let a = make_layout_element(&root, "shared-x");
+            assign_transition_names(&root);
+            assert!(
+                !transition_name(&a).is_empty(),
+                "A への最初の名前付けがされているはず"
+            );
+
+            // A から `LAYOUT_ID_ATTR` を外して DOM には残留させたまま、
+            // 別要素 B が同じ id を新たに名乗る（codex-review 指摘の再現
+            // 手順）。
+            a.remove_attribute(LAYOUT_ID_ATTR).unwrap();
+            let b = make_layout_element(&root, "shared-x");
+
+            assign_transition_names(&root);
+
+            assert!(
+                transition_name(&a).is_empty(),
+                "旧要素 A の残留名は消去されているはず（名前重複の防止）"
+            );
+            let name_b = transition_name(&b);
+            assert!(!name_b.is_empty(), "新要素 B へ名前が付与されているはず");
+        }
     }
 }
 
