@@ -72,7 +72,12 @@ pub fn trigger_from_attr(value: Option<&str>) -> Trigger {
 pub fn parse_count_up_duration_ms(attr_value: Option<&str>) -> f64 {
     attr_value
         .and_then(|value| value.parse::<f64>().ok())
-        .filter(|ms| *ms > 0.0)
+        // `f64::from_str` は `"inf"`/`"infinity"` を正の無限大として受理する
+        // ため、`> 0.0` だけでは無限大を通してしまう（`inf > 0.0` は
+        // `true`）。`is_finite()` を併せて要求し、`count_up_progress` の
+        // `elapsed_s / duration_s` が常に 0 のまま進捗が 1.0 に到達しない
+        // 状態（PR #2580 codex-review P1 指摘）を防ぐ。
+        .filter(|ms| ms.is_finite() && *ms > 0.0)
         .unwrap_or(fandhe_frontend_animation::count_up::DEFAULT_COUNT_UP_DURATION_MS)
 }
 
@@ -83,7 +88,7 @@ mod wiring {
         COUNT_UP_SELECTOR, COUNT_UP_TRIGGER_ATTR,
     };
     use fandhe_frontend_animation::count_up::{self, NumberText};
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -127,6 +132,13 @@ mod wiring {
     /// と同型）。
     type ActiveCountUp = Rc<RefCell<Option<count_up::CountUp>>>;
 
+    /// in-view トリガーが未発火の間に [`wire_mutation_observer`] が検知した
+    /// 最新の目標値（書式・数値）。`IntersectionObserver` が発火した時点で
+    /// これを読み、配線時点で固定した古い目標値を使わないようにする
+    /// （PR #2580 codex-review P1・Bugbot Medium 指摘: 画面外での外部更新が
+    /// 進入時に古い値で上書きされていた回帰）。
+    type PendingTarget = Rc<RefCell<(NumberText, f64)>>;
+
     /// `element` へ `[from, to]` 区間の補間を起動し、`active` を差し替える。
     fn start_count_up(
         element: &HtmlElement,
@@ -158,6 +170,13 @@ mod wiring {
 
         let last_written: Rc<RefCell<String>> = Rc::new(RefCell::new(initial));
         let active: ActiveCountUp = Rc::new(RefCell::new(None));
+        // 補間が実際に開始済みか。`Immediate` は配線時点で true、`InView`
+        // は `IntersectionObserver` 発火時に true へ切り替わる。false の間
+        // に [`wire_mutation_observer`] が外部更新を検知しても
+        // `start_count_up` は呼ばず `pending` を更新するのみに留める
+        // （画面外でアニメーションが始まってしまうのを防ぐ）。
+        let started = Rc::new(Cell::new(matches!(trigger, Trigger::Immediate)));
+        let pending: PendingTarget = Rc::new(RefCell::new((parsed.clone(), to)));
 
         match trigger {
             Trigger::Immediate => {
@@ -174,11 +193,19 @@ mod wiring {
             Trigger::InView => {
                 count_up::write_final(element, &parsed, 0.0, &last_written);
                 if supports_intersection_observer() {
-                    wire_in_view_trigger(element, parsed, to, duration_ms, &last_written, &active);
+                    wire_in_view_trigger(
+                        element,
+                        Rc::clone(&pending),
+                        duration_ms,
+                        &last_written,
+                        &active,
+                        &started,
+                    );
                 } else {
                     // 非対応環境ではプログレッシブエンハンスメントとして
                     // 即座に開始する（`in_view.rs` の同種フォールバックと
                     // 同じ方針）。
+                    started.set(true);
                     start_count_up(
                         element,
                         parsed,
@@ -192,7 +219,7 @@ mod wiring {
             }
         }
 
-        wire_mutation_observer(element, duration_ms, last_written, active);
+        wire_mutation_observer(element, duration_ms, last_written, active, pending, started);
     }
 
     /// 要素専用の `IntersectionObserver` を張り、初回 `isIntersecting` で
@@ -201,15 +228,16 @@ mod wiring {
     /// 動的追加要素の追随は行わない既知の制約）。
     fn wire_in_view_trigger(
         element: &HtmlElement,
-        format: NumberText,
-        to: f64,
+        pending: PendingTarget,
         duration_ms: f64,
         last_written: &Rc<RefCell<String>>,
         active: &ActiveCountUp,
+        started: &Rc<Cell<bool>>,
     ) {
         let element_for_callback = element.clone();
         let last_written_for_callback = Rc::clone(last_written);
         let active_for_callback = Rc::clone(active);
+        let started_for_callback = Rc::clone(started);
         let callback = Closure::<dyn FnMut(js_sys::Array, IntersectionObserver)>::new(
             move |entries: js_sys::Array, observer: IntersectionObserver| {
                 let entered = entries.iter().any(|entry| {
@@ -219,9 +247,14 @@ mod wiring {
                 });
                 if entered {
                     observer.disconnect();
+                    started_for_callback.set(true);
+                    // 画面外で待機している間に `wire_mutation_observer` が
+                    // 更新した最新の目標値を読む（配線時点で固定した古い
+                    // 値ではない）。
+                    let (format, to) = pending.borrow().clone();
                     start_count_up(
                         &element_for_callback,
-                        format.clone(),
+                        format,
                         0.0,
                         to,
                         duration_ms,
@@ -253,6 +286,8 @@ mod wiring {
         duration_ms: f64,
         last_written: Rc<RefCell<String>>,
         active: ActiveCountUp,
+        pending: PendingTarget,
+        started: Rc<Cell<bool>>,
     ) {
         let element_for_callback = element.clone();
         let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
@@ -262,12 +297,26 @@ mod wiring {
                     return;
                 }
                 let Some(new_parsed) = NumberText::parse(&current) else {
+                    // 数値として解析できない外部更新（例: "N/A"・空文字）。
+                    // 進行中の補間を止め、古い数値で上書きし続けない
+                    // （PR #2580 codex-review P1 指摘）。`last_written` は
+                    // 現在のテキストへ合わせ、以後の自己書き込み判定を
+                    // 正しく機能させる。
+                    *active.borrow_mut() = None;
+                    *last_written.borrow_mut() = current;
                     return;
                 };
+                let to = new_parsed.value();
+                if !started.get() {
+                    // まだ画面内へ進入しておらず（in-view 待機中）実際の
+                    // アニメーションは開始しない。次に進入したときの目標値
+                    // だけを更新する（PR #2580 Bugbot Medium 指摘）。
+                    *pending.borrow_mut() = (new_parsed, to);
+                    return;
+                }
                 let from = NumberText::parse(&last_written.borrow())
                     .map(|previous| previous.value())
-                    .unwrap_or_else(|| new_parsed.value());
-                let to = new_parsed.value();
+                    .unwrap_or(to);
                 start_count_up(
                     &element_for_callback,
                     new_parsed,
@@ -353,6 +402,21 @@ mod tests {
         );
         assert_eq!(
             parse_count_up_duration_ms(None),
+            fandhe_frontend_animation::count_up::DEFAULT_COUNT_UP_DURATION_MS
+        );
+    }
+
+    /// PR #2580 codex-review P1 指摘: `f64::from_str` が `"inf"`/`"1e309"`
+    /// を無限大として受理するため `> 0.0` だけでは通ってしまい、進捗が
+    /// 常に 0 のまま終了しない回帰。
+    #[test]
+    fn duration_falls_back_on_non_finite_input() {
+        assert_eq!(
+            parse_count_up_duration_ms(Some("inf")),
+            fandhe_frontend_animation::count_up::DEFAULT_COUNT_UP_DURATION_MS
+        );
+        assert_eq!(
+            parse_count_up_duration_ms(Some("1e309")),
             fandhe_frontend_animation::count_up::DEFAULT_COUNT_UP_DURATION_MS
         );
     }

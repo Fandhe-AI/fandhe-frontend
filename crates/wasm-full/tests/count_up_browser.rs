@@ -17,7 +17,8 @@
 #![cfg(feature = "count-up")]
 
 use fandhe_frontend_wasm_full::count_up::{
-    wire_count_up, COUNT_UP_ATTR, COUNT_UP_TRIGGER_ATTR, COUNT_UP_TRIGGER_IN_VIEW,
+    wire_count_up, COUNT_UP_ATTR, COUNT_UP_DURATION_MS_ATTR, COUNT_UP_TRIGGER_ATTR,
+    COUNT_UP_TRIGGER_IN_VIEW,
 };
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -72,10 +73,22 @@ fn build_dom(
     (root, html_dd)
 }
 
+/// テストは実時間の `sleep_ms` で完了を待つため、既定 duration
+/// （`DEFAULT_COUNT_UP_DURATION_MS` = 1200ms）ではなく短い duration へ
+/// 明示的に上書きする（`frontend-animation::count_up_browser.rs` の
+/// `start_interpolates_from_zero_to_final_value` と同方針、PR #2580 で
+/// 検知した「既定 duration より短い待機時間で FAIL する」回帰の是正）。
+const TEST_DURATION_MS: &str = "80";
+
 #[wasm_bindgen_test]
 async fn immediate_trigger_counts_up_to_final_value() {
     let document = web_sys::window().unwrap().document().unwrap();
-    let (root, dd) = build_dom(&document, "count-up-root-1", "1,000", &[]);
+    let (root, dd) = build_dom(
+        &document,
+        "count-up-root-1",
+        "1,000",
+        &[(COUNT_UP_DURATION_MS_ATTR, TEST_DURATION_MS)],
+    );
     let _guard = RemoveOnDrop(root.clone());
 
     wire_count_up(&root).expect("wire_count_up must not fail");
@@ -91,7 +104,12 @@ async fn immediate_trigger_counts_up_to_final_value() {
 #[wasm_bindgen_test]
 async fn external_text_update_reinterpolates_to_new_value() {
     let document = web_sys::window().unwrap().document().unwrap();
-    let (root, dd) = build_dom(&document, "count-up-root-2", "10", &[]);
+    let (root, dd) = build_dom(
+        &document,
+        "count-up-root-2",
+        "10",
+        &[(COUNT_UP_DURATION_MS_ATTR, TEST_DURATION_MS)],
+    );
     let _guard = RemoveOnDrop(root.clone());
 
     wire_count_up(&root).expect("wire_count_up must not fail");
@@ -127,6 +145,42 @@ async fn non_numeric_text_is_left_unchanged() {
     );
 }
 
+/// PR #2580 codex-review P1 指摘の回帰テスト: 進行中の補間中に非数値
+/// （"N/A" 等）へ外部更新された場合、補間が停止し古い数値で上書きし
+/// 続けないこと。
+#[wasm_bindgen_test]
+async fn external_non_numeric_update_stops_active_interpolation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, dd) = build_dom(
+        &document,
+        "count-up-root-5",
+        "1000",
+        &[(COUNT_UP_DURATION_MS_ATTR, "5000")],
+    );
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_count_up(&root).expect("wire_count_up must not fail");
+    // duration を長く（5000ms）取り、確実に補間の途中で割り込む。
+    sleep_ms(50).await;
+
+    dd.set_text_content(Some("N/A"));
+    sleep_ms(50).await;
+    let after_update = dd.text_content().unwrap();
+    assert_eq!(
+        after_update, "N/A",
+        "非数値への外部更新直後はそのまま反映されるはず"
+    );
+
+    // 進行中の補間が止まっていなければ、次の rAF で古い数値により
+    // "N/A" が上書きされてしまう。
+    sleep_ms(200).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "N/A",
+        "非数値への外部更新後は進行中の補間が停止し、古い数値で上書きされ続けないはず"
+    );
+}
+
 #[wasm_bindgen_test]
 async fn in_view_trigger_eventually_reaches_final_value() {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -134,7 +188,10 @@ async fn in_view_trigger_eventually_reaches_final_value() {
         &document,
         "count-up-root-4",
         "50",
-        &[(COUNT_UP_TRIGGER_ATTR, COUNT_UP_TRIGGER_IN_VIEW)],
+        &[
+            (COUNT_UP_TRIGGER_ATTR, COUNT_UP_TRIGGER_IN_VIEW),
+            (COUNT_UP_DURATION_MS_ATTR, TEST_DURATION_MS),
+        ],
     );
     let _guard = RemoveOnDrop(root.clone());
 

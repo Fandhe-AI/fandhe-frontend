@@ -36,6 +36,13 @@ use crate::raf_driver::{AnimationLoop, RafDriver};
 /// をその書式へ当てはめて再構成する（純粋関数、ロケール判定なし）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct NumberText {
+    /// [`parse`](Self::parse) に渡された元の文字列そのもの。
+    /// [`render`](Self::render) が `value` を [`Self::value`] と完全一致で
+    /// 受け取った（= 補間の最終フレーム）際、f64 変換の丸め・精度損失
+    /// （例: `9007199254740993` は f64 で表現できない）を経由せず、この
+    /// 元テキストをそのまま返すために保持する（PR #2580 codex-review P1
+    /// 指摘の是正）。
+    source: String,
     prefix: String,
     suffix: String,
     group_sep: Option<char>,
@@ -128,48 +135,79 @@ impl NumberText {
         let sep_positions: Vec<(usize, char)> =
             span.char_indices().filter(|(_, c)| is_sep(*c)).collect();
 
-        let (group_sep, decimal_sep, decimals) = if sep_positions.is_empty() {
-            (None, None, 0)
-        } else {
-            let &(last_pos, last_char) = sep_positions.last().expect("checked non-empty above");
-            let after = &span[last_pos + last_char.len_utf8()..];
-            // 最後の区切り以降に別の区切り文字が混ざる入力は非対応。
-            if after.chars().any(is_sep) {
-                return None;
+        // 使用されている区切り文字の種類（出現順で重複除去）。「区切り文字
+        // 以降の桁数が 3 かどうか」だけで桁区切り/小数点区切りを判定する
+        // 旧実装は、小数点以下 3 桁の値（"0.125" 等）を桁区切りへ誤分類し
+        // （PR #2580 codex-review P1・Bugbot High 指摘）、かつ 2 種の区切り
+        // 文字が混在し最後の区切り以降がたまたま 3 桁の入力（"1,234.567"）
+        // を誤って拒否していた。区切り文字の**種類数**を優先判定に使う
+        // 構成へ改める。
+        let mut distinct_seps: Vec<char> = Vec::new();
+        for &(_, c) in &sep_positions {
+            if !distinct_seps.contains(&c) {
+                distinct_seps.push(c);
             }
-            let digits_after = after.len();
+        }
 
-            if digits_after != 3 {
-                // 小数点区切りとみなす。
-                if digits_after == 0 {
+        let (group_sep, decimal_sep, decimals) = match distinct_seps.len() {
+            0 => (None, None, 0),
+            1 => {
+                let sep = distinct_seps[0];
+                if sep_positions.len() > 1 {
+                    // 同一区切り文字が複数回出現: 小数点は 1 つしか持てない
+                    // ため桁区切りとしてのみ解釈できる。
+                    if !valid_grouping(&span, sep) {
+                        return None;
+                    }
+                    (Some(sep), None, 0)
+                } else {
+                    // 出現 1 回: 構造だけでは桁区切り（"1,234"）と小数点
+                    // 区切り（"0.125"）を一意に決定できない。`.` は慣習的に
+                    // 小数点として扱い、それ以外（`,`/` `/`_`）は桁区切り
+                    // として扱う。
+                    let (pos, _) = sep_positions[0];
+                    let after = &span[pos + sep.len_utf8()..];
+                    let before = &span[..pos];
+                    if sep == '.' {
+                        if after.is_empty() || !after.chars().all(|c| c.is_ascii_digit()) {
+                            return None;
+                        }
+                        if before.is_empty() || !before.chars().all(|c| c.is_ascii_digit()) {
+                            return None;
+                        }
+                        (None, Some(sep), after.chars().count())
+                    } else {
+                        if !valid_grouping(&span, sep) {
+                            return None;
+                        }
+                        (Some(sep), None, 0)
+                    }
+                }
+            }
+            2 => {
+                // 2 種類の区切り文字が混在: 最後に出現する方が小数点区切り
+                // （欧州式 "1.234,5" 含む）。
+                let &(last_pos, last_char) = sep_positions.last().expect("len==2 checked above");
+                if sep_positions
+                    .iter()
+                    .filter(|&&(_, c)| c == last_char)
+                    .count()
+                    != 1
+                {
+                    return None;
+                }
+                let after = &span[last_pos + last_char.len_utf8()..];
+                if after.is_empty() || !after.chars().all(|c| c.is_ascii_digit()) {
                     return None;
                 }
                 let before = &span[..last_pos];
-                let other_seps: Vec<char> = before.chars().filter(|c| is_sep(*c)).collect();
-                let group = if other_seps.is_empty() {
-                    None
-                } else {
-                    let g = other_seps[0];
-                    if g == last_char || !other_seps.iter().all(|c| *c == g) {
-                        return None;
-                    }
-                    if !valid_grouping(before, g) {
-                        return None;
-                    }
-                    Some(g)
-                };
-                (group, Some(last_char), digits_after)
-            } else {
-                // 桁区切りとみなす（スパン全体が整数）。全区切りが同一文字で
-                // 標準グルーピングに従うことを要求する。
-                if !span.chars().filter(|c| is_sep(*c)).all(|c| c == last_char) {
+                let group_char = *distinct_seps.iter().find(|&&c| c != last_char)?;
+                if !before.chars().any(is_sep) || !valid_grouping(before, group_char) {
                     return None;
                 }
-                if !valid_grouping(&span, last_char) {
-                    return None;
-                }
-                (Some(last_char), None, 0)
+                (Some(group_char), Some(last_char), after.chars().count())
             }
+            _ => return None,
         };
 
         // 正規化した数値文字列（区切りを取り除き、小数点は '.' へ統一）へ組み立てる。
@@ -192,7 +230,17 @@ impl NumberText {
             value = -value;
         }
 
+        // 元テキストに桁区切りが現れなかった場合（"$0.00" のように 1000
+        // 未満で桁区切りの要不要が判別できない・区切り文字を一切含まない
+        // 等）でも、補間の途中でより大きな値を表示する際は既定で ','
+        // 区切りを適用する（`write_final_writes_formatted_value_
+        // immediately_and_updates_last_written` テストが検証する既存挙動）。
+        // 小数点区切りとして ',' を使う書式（欧州式）と衝突しないよう、
+        // その場合のみ既定適用しない。
+        let group_sep = group_sep.or((decimal_sep != Some(',')).then_some(','));
+
         Some(Self {
+            source: text.to_string(),
             prefix,
             suffix,
             group_sep,
@@ -204,8 +252,16 @@ impl NumberText {
 
     /// `value` を自身の書式（prefix/suffix・桁区切り・小数桁数）へ当てはめて
     /// 文字列化する（四捨五入・3 桁区切りの再挿入込み）。
+    ///
+    /// `value` が [`parse`](Self::parse) 直後の [`Self::value`] と完全一致
+    /// する場合（= 補間の最終フレーム）は、f64 変換の丸め・精度損失
+    /// （`i64::MAX` 近傍の整数等、f64 の 53bit 仮数部で表現しきれない値）を
+    /// 経由せず元テキストをそのまま返す（PR #2580 codex-review P1 指摘）。
     #[must_use]
     pub fn render(&self, value: f64) -> String {
+        if value == self.value {
+            return self.source.clone();
+        }
         let scale = 10f64.powi(self.decimals as i32);
         let rounded = (value * scale).round() / scale;
         let negative = rounded < 0.0;
@@ -326,6 +382,12 @@ pub fn start(
         format,
         last_written,
     };
+    // SSR ハイドレーション直後の最終値ちらつき対策（Bugbot High 指摘）:
+    // `RafDriver::tick` の最初の呼び出しは基準時刻の記録のみで `None` を
+    // 返す契約のため、rAF ループの 1 フレーム目では textContent が
+    // 書き換わらず、SSR が出力した最終値表示がそのまま一瞬見えてしまう。
+    // ここで同期的に `from` を書き込み、即座に開始値表示へ切り替える。
+    target.write(from);
     let duration_s = duration_ms.max(0.0) / 1000.0;
     let mut elapsed_s = 0.0;
 
@@ -335,7 +397,15 @@ pub fn start(
         };
         elapsed_s += delta;
         let t = count_up_progress(elapsed_s, duration_s);
-        let value = from.interpolate(&to, eased(t));
+        // 最終フレームは補間の丸め誤差（f64 加減算が `to` と bit-exact に
+        // ならない場合がある）を避け `to` をそのまま書く。`NumberText::
+        // render` の `source` 短絡と合わせ、f64 で精度損失する大きな整数
+        // でも表示は最終的に元テキストへ収束する（PR #2580 P1 指摘）。
+        let value = if t >= 1.0 {
+            to
+        } else {
+            from.interpolate(&to, eased(t))
+        };
         target.write(value);
         t < 1.0
     });
@@ -398,6 +468,30 @@ mod tests {
     #[test]
     fn rejects_irregular_grouping() {
         assert!(NumberText::parse("1,23,456").is_none());
+    }
+
+    /// PR #2580 codex-review P1・Bugbot High 指摘: 小数点以下 3 桁の値が
+    /// 桁区切りへ誤分類されていた回帰。
+    #[test]
+    fn parses_decimal_point_with_three_fraction_digits() {
+        roundtrip("0.125", 0.125);
+        roundtrip("2.345%", 2.345);
+    }
+
+    /// PR #2580 codex-review P1 指摘: 桁区切り + 小数点区切りが混在し、
+    /// 小数部がたまたま 3 桁の入力が誤って拒否されていた回帰。
+    #[test]
+    fn parses_group_and_decimal_with_three_fraction_digits() {
+        roundtrip("1,234.567", 1234.567);
+    }
+
+    /// PR #2580 codex-review P1 指摘: f64 で表現しきれない大きな整数
+    /// （2^53 + 1）でも、最終値の表示は元テキストへ bit-exact に収束する
+    /// （精度損失した数値ではなく `source` をそのまま返す）。
+    #[test]
+    fn render_at_parsed_value_avoids_f64_precision_loss() {
+        let n = NumberText::parse("9,007,199,254,740,993").unwrap();
+        assert_eq!(n.render(n.value()), "9,007,199,254,740,993");
     }
 
     #[test]
