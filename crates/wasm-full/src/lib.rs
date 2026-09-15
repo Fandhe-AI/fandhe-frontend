@@ -1489,6 +1489,16 @@ where
         // リストの構造変化がすべて確定済みの状態を Last として測れる
         // （先行リストの Last 計測時点でまだ後続リストの構造変化が未
         // コミットだった旧実装の位置ずれを解消する）。
+        // イシュー #2578（codex-review 指摘）: 本ループで実際に
+        // `layout_flip::play_after` を呼んだ（＝ transform 適用の所有権を
+        // 握った）リスト要素を集め、後段の `shared_layout::play_after`
+        // から除外する（`shared_layout.rs::play_after_excluding` doc
+        // 「対象から除外する要素」節参照。同一キーのまま行がタグ変更で
+        // 置換されると、既存 layout FLIP と共有レイアウト遷移が同じ
+        // 新要素を対象にし得るため、先行する layout FLIP が transform を
+        // 書き込んだ要素を丸ごと共有レイアウト遷移の対象外にする）。
+        #[cfg(feature = "layout-animation")]
+        let mut flip_played_targets: Vec<web_sys::Element> = Vec::new();
         #[cfg(feature = "layout-animation")]
         for (target, field_hint) in flip_target_lists {
             let Some(before) = flip_captured
@@ -1543,6 +1553,7 @@ where
                 continue;
             }
             crate::layout_flip::play_after(&live_target, before);
+            flip_played_targets.push(live_target);
         }
 
         // keyed list の挿入で新規ノードが増えた場合、その内部の
@@ -1565,9 +1576,16 @@ where
 
         // イシュー #2536: 構造変化コミット（`rerender_subtree` フォール
         // バック含む）完了後に共有レイアウト遷移を再生する（`shared_
-        // layout.rs` モジュール doc「呼び出しタイミング」参照）。
+        // layout.rs` モジュール doc「呼び出しタイミング」参照）。イシュー
+        // #2578: 本更新内で既存 layout FLIP が transform を適用済みの
+        // リスト（`flip_played_targets`）は対象から除外する（`shared_
+        // layout.rs::play_after_excluding` doc 参照）。
         #[cfg(feature = "layout-animation")]
-        crate::shared_layout::play_after(root, shared_layout_before);
+        crate::shared_layout::play_after_excluding(
+            root,
+            shared_layout_before,
+            &flip_played_targets,
+        );
     }
 
     /// `root` の全子ノードを `state.view()` から新規構築したサブツリーへ

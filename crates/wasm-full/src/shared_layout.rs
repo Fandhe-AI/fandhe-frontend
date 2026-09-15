@@ -275,10 +275,45 @@ mod wiring {
     /// （構造変化を DOM へ適用した**後**に呼ぶ想定）。`snapshot` が `None`
     /// （[`capture_before`] が対象なしと判定した）場合は no-op。
     pub fn play_after(root: &Element, snapshot: Option<SharedSnapshot>) {
+        play_after_excluding(root, snapshot, &[]);
+    }
+
+    /// [`play_after`] に、対象から除外する要素（とその子孫）を追加した版
+    /// （codex-review 指摘、イシュー #2578）。
+    ///
+    /// `excluded` に含まれる要素配下の [`LAYOUT_ID_ATTR`] 付き要素は、
+    /// この呼び出しでは共有レイアウト遷移の候補（`after` 集合）に含めない。
+    ///
+    /// `Runtime::apply_update_for_dirty` は本関数を、同一更新内で先に
+    /// 走らせた [`crate::layout_flip::play_after`] が transform を適用
+    /// 済みの行要素を `excluded` に渡して呼ぶ。`layout_flip::play_after`
+    /// は Invert 変形を要素へ**同期的に**書き込むため、後段の本関数が
+    /// 素朴に現在の視覚矩形を測ると、その transform 込みの（Last では
+    /// なく First 寄りの）位置を Last として誤って捕捉してしまい、
+    /// [`flip::OriginalStyle::capture`] が保持する「復元先」も
+    /// `layout_flip` の transform を含んだ値になる。結果として、
+    /// (1) `flip::invert` の delta 計算が狂う、(2) 本モジュールの
+    /// アニメーション完了・破棄時の復元が `layout_flip` の transform を
+    /// 巻き戻さないまま固定してしまう、の二重の破綻が起きる（`data-
+    /// fandhe-flip-auto` 付きリストで `data-fandhe-layout-id` 付きの行を
+    /// 同じキーのままタグ変更する置換ケースで顕在化。同一ノード判定
+    /// （`shared_layout::pair_by_id` の `same_node` 除外）では新規ノード
+    /// のため検知できない）。対象範囲は `layout_flip` が当該更新で
+    /// 「所有」した行要素とその子孫全体とし、要素単位の transform
+    /// 適用有無までは追跡しない（fail-safe: 曖昧な状況では何もしない側へ
+    /// 倒す、モジュール doc「突合ルール」節と同じ方針）。
+    pub fn play_after_excluding(
+        root: &Element,
+        snapshot: Option<SharedSnapshot>,
+        excluded: &[Element],
+    ) {
         let Some(snapshot) = snapshot else {
             return;
         };
-        let after = collect(root);
+        let after: Vec<(String, HtmlElement)> = collect(root)
+            .into_iter()
+            .filter(|(_, html)| !excluded.iter().any(|ex| ex.contains(Some(html))))
+            .collect();
         if after.is_empty() {
             return;
         }
@@ -363,4 +398,4 @@ mod wiring {
 #[cfg(any(feature = "view-transitions", feature = "view-transition-preset"))]
 pub(crate) use wiring::assign_transition_names;
 #[cfg(target_arch = "wasm32")]
-pub use wiring::{capture_before, play_after};
+pub use wiring::{capture_before, play_after, play_after_excluding};
