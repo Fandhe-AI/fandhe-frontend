@@ -158,6 +158,13 @@
   `card`・`blockquote`・`avatar` を合成し、積層オフセットは
   `pre-styled-ui::recipe::STAGGER_INDEX_VAR`（`--fandhe-motion-stagger-index`）
   を直接 import して表現する合成 block）/
+  `blocks/bento-staggered/index.html`（イシュー #2549、`animation-timeline:
+  view()` + `animation-range` の開始点オフセットで stagger を表現する
+  scroll-driven な bento グリッド。`animation-delay` は使わない）/
+  `blocks/feature-expand/index.html`（イシュー #2549、`grid-template-rows:
+  0fr → 1fr` の CSS のみで hover/`:focus-within` 展開を実装するカード
+  グリッド。`content_height.rs`（wasm-full の JS 機構）は無 JS の docs
+  サイトでは使わない）/
   `blocks/cta-banner-magnetic/index.html`（イシュー #2550、`data-fandhe-
   magnetic` opt-in を付与した CTA ボタン 1 個の合成 block。ポインタ追従の
   実演は wasm-full の `magnetic` feature 配下のみで発生し、無 JS の本サイト

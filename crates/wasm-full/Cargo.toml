@@ -1169,23 +1169,32 @@ name = "fandhe-frontend-wasm-full"
 # 新設、`Self::wire_scroll_driver`・feature `scroll-driver` 既定 on）を
 # 追加。新規公開 feature 追加を伴うため minor バンプする。
 #
-# イシュー #2534: `progress_range_from_attr`（新規公開 API）を追加し、
+# イシュー #2535（親 `#2530`）: pointer capture ベースの汎用ドラッグ配線
+# （`drag_gesture` モジュール新設、`Self::wire_drag_gesture`・feature
+# `drag-gesture` 既定 on）を追加。新規公開 feature 追加を伴うため minor
+# バンプする。
+# イシュー #2533（Motion+ `components/confetti` の Rust 部品化）: confetti
+# 配線（`confetti` モジュール新設、`Self::wire_confetti`・feature
+# `confetti` 既定 on）を追加。新規公開 feature 追加を伴うため minor バンプ
+# する。
+#
+# マージコミット注記: 本 PR（#2535）と origin/main（#2533）が独立に main
+# 起点の到達値から 0.28.0 へ同一版数バンプしており衝突。#638 条項の
+# 「同一版数も衝突として +1」運用に従い、さらに +1 して 0.29.0 とした。
+#
+# イシュー #2534（origin/main、本マージで判明した並行衝突）:
+# `progress_range_from_attr`（新規公開 API）を追加し、
 # `data-fandhe-scroll-progress` 属性値による進捗範囲（entry/cover/
 # contain）選択を配線した。既存 feature `scroll-driver` の挙動拡張であり
 # 新規 feature は追加していない。新規公開 API 追加のため minor バンプ
-# する。
+# する。origin/main 側は #2533 到達分と合流して 0.28.0 から 0.29.0 へ
+# 独立に minor バンプしており、本 PR の上記 0.29.0 と同一版数へ再度
+# 衝突した。#638 条項の「同一版数も衝突として +1」運用に従い、さらに
+# +1 して 0.30.0 とした。
 #
-# イシュー #2533（origin/main、並行衝突）: Motion+ `components/confetti` の
-# Rust 部品化。confetti 配線（`confetti` モジュール新設、
-# `Self::wire_confetti`・feature `confetti` 既定 on）を追加。新規公開
-# feature 追加を伴うため minor バンプする。
-#
-# マージコミット注記: 本 PR（#2534）と main（#2533）が独立に 0.27.0 から
-# 0.28.0 へ minor バンプしており同値衝突。#638 条項に従い origin/main の
-# 到達値から +1 して 0.29.0 とする。
-#
-# イシュー #2538（button の Motion+ 由来 variant）: hold-to-confirm/
-# add-to-basket 配線（`hold_to_confirm`/`add_to_basket` モジュール新設、
+# イシュー #2538（origin/main、本マージで判明した並行衝突。button の
+# Motion+ 由来 variant）: hold-to-confirm/add-to-basket 配線
+# （`hold_to_confirm`/`add_to_basket` モジュール新設、
 # `Self::wire_hold_to_confirm`/`Self::wire_add_to_basket`・feature
 # `hold-to-confirm`/`add-to-basket` 既定 on）を追加。新規公開 feature 追加
 # を伴うため minor バンプする。本ブランチ側も merge base（0.28.0）から
@@ -1195,7 +1204,13 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #2550（magnetic pull、親 #2530/#2476）: magnetic 配線
 # （`magnetic` モジュール新設、`Self::wire_magnetic`・feature `magnetic`
 # 既定 on）を追加。新規公開 feature 追加を伴うため minor バンプする。
-version = "0.31.0"
+#
+# base main 取り込み時のマージ注記: origin/main 側は #2538 の衝突是正で
+# 独立に 0.29.0 から 0.30.0 → 0.31.0 へ到達していた。本ブランチ（#2550）も
+# merge base（0.29.0）から独立に 0.30.0 → 0.31.0 へ到達しており、
+# 同一版数へ再度衝突したため #638 条項の「同一版数も衝突として +1」運用に
+# 従い、さらに +1 して 0.32.0 とする。
+version = "0.32.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1466,6 +1481,9 @@ js-sys = "0.3"
 # モジュール新設）への `version` 要求追随（`cargo run -p xtask --
 # check-dep-versions --fix`）。
 #
+# イシュー #2535: `fandhe-frontend-animation` 0.4.0 → 0.5.0（`drag`/
+# `reduced_motion` モジュール新設）への `version` 要求追随（`cargo run -p
+# xtask -- check-dep-versions --fix`）。
 # イシュー #2533: `fandhe-frontend-animation` 0.4.0 → 0.5.0（`canvas_target`/
 # `confetti` モジュール新設）への `version` 要求追随。
 #
@@ -1476,7 +1494,15 @@ js-sys = "0.3"
 #
 # イシュー #2550: `fandhe-frontend-animation` 0.6.0 → 0.7.0（`magnetic`
 # モジュール新設）への `version` 要求追随。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.7.0", optional = true }
+#
+# base main 取り込み時のマージ注記: origin/main 側は本マージで
+# `fandhe-frontend-animation` が 0.5.0 → 0.6.0 へ衝突 +1 バンプされたのち、
+# さらに #2534/#2533 との並行衝突により 0.6.0 → 0.7.0 へ再度 +1 バンプ
+# されていた。本ブランチ（#2550）も独立に 0.6.0 → 0.7.0 へ到達しており
+# 同一版数へ再度衝突したため #638 条項の「同一版数も衝突として +1」運用
+# に従い、さらに +1 して 0.8.0 とする（`cargo run -p xtask --
+# check-dep-versions --fix`）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.8.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1706,6 +1732,7 @@ default = [
   "in-view",
   "gesture",
   "scroll-driver",
+  "drag-gesture",
   "confetti",
   "hold-to-confirm",
   "add-to-basket",
@@ -1782,6 +1809,12 @@ gesture = []
 # コンパイルする（`fandhe-frontend-animation` の型を直接使うため、`gesture`
 # 等の純粋層非ゲート方針とは異なり、上記 (c) 注記の対象外）。
 scroll-driver = ["dep:fandhe-frontend-animation"]
+# イシュー #2535（親 #2530）: pointer capture ベースの汎用ドラッグ配線
+# （`Runtime::mount`/`hydrate` の `Self::wire_drag_gesture` 呼び出し）専用の
+# feature（既定 on）。`scroll-driver` と同型（配線群かつ optional dep 有効化）
+# のパターンで、`drag_gesture` モジュール自体も本 feature でのみコンパイル
+# する（`fandhe_frontend_animation::drag::DragController` を直接使うため）。
+drag-gesture = ["dep:fandhe-frontend-animation"]
 # イシュー #2533（Motion+ `components/confetti` の Rust 部品化）: confetti
 # 配線（`Runtime::mount`/`hydrate` の `Self::wire_confetti` 呼び出し）専用の
 # feature（既定 on）。`scroll-driver` と同型——配線群かつ

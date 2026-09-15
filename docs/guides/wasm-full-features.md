@@ -1,7 +1,7 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 23 件・
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 24 件・
 scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
@@ -64,6 +64,7 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_in_view` | `in-view` |
 | `Runtime::wire_gesture` | `gesture` |
 | `Runtime::wire_scroll_driver` | `scroll-driver` |
+| `Runtime::wire_drag_gesture` | `drag-gesture` |
 | `Runtime::wire_confetti` | `confetti` |
 | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 | `Runtime::wire_add_to_basket` | `add-to-basket` |
@@ -91,9 +92,15 @@ CTA ボタン（`data-fandhe-magnetic` opt-in）のオフセットを
 feature でありながら `fandhe-frontend-animation` を optional 依存として
 有効化する初めての feature です（`animation-driver`/`animate` は別枠・
 非配線の feature、`scroll-driver` は配線群かつ optional dep 有効化という
-新パターン）。`confetti` feature（0.28.0 で追加、イシュー #2533）も
-`scroll-driver` と同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）
-です。`wasm-full` は canvas 系 web-sys feature
+新パターン）。`drag-gesture` feature・`confetti` feature（マージコミット
+注記: 両者はそれぞれ独立に 0.28.0 へ到達したのち衝突し、`.claude/rules/
+coding-rust.md` #638 条項に従い +1 して 0.29.0 で合流、イシュー
+#2535/#2533）も `scroll-driver` と同型（配線群かつ optional dep 有効化）
+です。`drag-gesture` は pointer capture ベースの汎用ドラッグ
+（`drag_gesture` モジュール）を配線し、
+`fandhe_frontend_animation::drag::DragController` の軸制約・範囲クランプ・
+離脱速度推定・spring 復帰を pointer/keyboard イベントへ繋ぎます。
+`confetti` は `wasm-full` が canvas 系 web-sys feature
 （`CanvasRenderingContext2d`/`HtmlCanvasElement`）を一切追加しません
 （`fandhe-frontend-animation::confetti::fire` が `web_sys::Element` を
 受け取り、canvas への cast は `fandhe-frontend-animation` 側で完結する
@@ -228,13 +235,14 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.27.0 | `scroll-driver` feature（イシュー #2521） |
 | 0.28.0 | `confetti` feature（イシュー #2533） |
 | 0.29.0 | `scroll-driver` の挙動拡張（`data-fandhe-scroll-progress`、イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ） |
-| 0.30.0 | `hold-to-confirm`/`add-to-basket` feature（イシュー #2538。main の #2534/#2533 取り込みに伴う 0.29.0 同士の版数衝突の再バンプ） |
-| 0.31.0 | `magnetic` feature（イシュー #2550） |
+| 0.30.0 | `drag-gesture` feature（イシュー #2535。本 PR（#2535）と main（#2534）が独立に 0.28.0 から 0.29.0 へ同一版数バンプしており衝突。`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して 0.30.0 とした） |
+| 0.31.0 | `hold-to-confirm`/`add-to-basket` feature（イシュー #2538。本 PR（#2535 到達の 0.30.0）と main（#2538 到達の 0.30.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.31.0 とする） |
+| 0.32.0 | `magnetic` feature（イシュー #2550。本 PR（#2550 到達の 0.31.0）と main（#2538 取り込み後到達の 0.31.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.32.0 とする） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 45 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 46 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
@@ -262,6 +270,7 @@ features = [
   "in-view",
   "gesture",
   "scroll-driver",
+  "drag-gesture",
   "confetti",
   "hold-to-confirm",
   "add-to-basket",

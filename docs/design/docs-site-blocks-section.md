@@ -74,6 +74,16 @@ signup-05 の 7 件とする。これは既存の #2088〜#2095 が対象とす�
 判断（#2088〜#2095 の一覧が最終であるという記述）を変更するものではなく、
 新規タスク（#2530 系）による純追加であることを示す別段落である。
 
+**Phase 7（#2530）による追加（イシュー #2549）**: 同じ Motion+ `sections/
+bento-grids` に相当する `bento-staggered`（scroll-driven な bento グリッド。
+各セルが `animation-timeline: view()` でビューポート進入時にフェード＋
+下方向スライドインし、`--fandhe-motion-stagger-index` を `animation-range`
+の開始点オフセットへ乗せることで順送りに発火する）・`feature-expand`
+（`grid-template-rows: 0fr → 1fr` の CSS のみで hover/`:focus-within` 時に
+詳細説明を展開するカードグリッド）の 2 件が追加された。実装記録の詳細
+（hover の分類・`content_height.rs` を使わない判断・stagger の表現手法）は
+本文書 §14 に記す。
+
 **Phase 7（#2530）による追加（#2550）**: 同じ親トラッキング #2530 配下の
 イシュー #2550 により、Motion+ `sections/cta-sections` に相当する
 `cta-banner-magnetic`（ポインタに追従して吸い付く magnetic ボタン付き
@@ -334,4 +344,66 @@ shadcn/ui Blocks `signup-05`（registry `new-york-v4/signup-05`）実物を確�
 
 不足部品は無かった（`field::separator`・`heading`・`icon`・アイコン付き
 `button` はいずれも実装時点で既存）。
+
+## 14. `bento-staggered` / `feature-expand`（#2549）実装記録
+
+Motion+ `sections/bento-grids` に相当する 2 件（親トラッキング #2530
+「Phase 7: Motion+ 部品化」→ #2476「Motion/Motion+ 参照アニメーション
+充実」配下）。§3 の「7 件で確定」は #2088〜#2095 のツリー限定のスコープ
+記録であり、本追加はその確定数の対象外の別系統（Motion+ 参照系）である
+ことを§3 追記段落とあわせて明記する。
+
+- **出典は Motion+（shadcn/ui ではない）**: 両 block とも `docs/design/
+  motion-reference-adoption-policy.md` §9 に従い、Motion+
+  （`motiondivision/plus`、MIT）のコードを転写せず、着想のみを参照して
+  Rust/CSS で独自に再実装した。
+- **hover は新規配線を行わない（A 群判定）**: 同文書 §4 は hover を A 群
+  （CSS `:hover` で足りる大半のケース）に分類し「既存実装済みの範囲のみで
+  新規配線を追加しない」と定める。`feature-expand` の hover/`:focus-within`
+  展開はいずれも既存の CSS 機構のみで実装し、`fandhe-frontend-wasm-full`/
+  `fandhe-frontend-animation` への新規配線を一切行わない。
+- **`content_height.rs`（wasm-full の JS 機構）を使わない設計逸脱**:
+  Issue 本文が示唆する「`content_height.rs` の既存機構」は文字通り再利用
+  できない。`content_height.rs` は `fandhe-frontend-wasm-full` の JS
+  ランタイム（ハイドレーション配線）であり、docs サイトは無 JS 前提
+  （`crates/docs-site/tests/no_js_contract.rs`）でハイドレーションを一切
+  行わない。`feature-expand` は代わりに `grid-template-rows: 0fr → 1fr`
+  の CSS のみで `height: auto` への遷移不能問題を解く標準テクニックを
+  使う（子要素へ `min-height: 0` を明示し、grid item の既定 `min-height:
+  auto` によって `0fr` の収縮が効かなくなるのを避ける）。
+- **`bento-staggered` の stagger は `animation-delay`（時間軸）ではなく
+  `animation-range` の開始点オフセット（進行度軸）で表現する**:
+  `animation-timeline: view()` 配下で `animation-delay` を時間値のまま
+  併用した場合の解釈は仕様上複雑で確証が持てないため、進行度軸のみで
+  完結させる意図的な設計判断である。`--fandhe-motion-stagger-index`
+  （`fandhe_frontend_pre_styled_ui::recipe::stagger_index_style`）の値を
+  `animation-range: entry calc(10% + var(...) * 8%) entry 100%` の開始点
+  へ直接乗せ、後続セルほど発火が遅れる「順送り」を実現する。
+- **`.blocks-demo` の `overflow-x: auto` を `bento-staggered` 限定で
+  打ち消す**: `crate::blocks::LAYOUT_CSS` の `.blocks-demo` は
+  `overflow-x: auto` を宣言する。CSS Overflow 仕様上 `overflow-y` を
+  明示しない場合は `overflow-x` と同じ値へ強制されるため、
+  `.blocks-demo` 自身がスクロールコンテナ化し、実際にはスクロールしない
+  小さなデモ枠内では `animation-timeline: view()` が意図通り機能しない。
+  `.blocks-demo.blocks-bento-staggered { overflow: visible; }` で
+  この block 限定で打ち消し、ページ本体のビューポートを基準にする。
+- **docs-site の `motion` feature 有効化は既に完了済み**: `motion`
+  feature（`crates/docs-site/Cargo.toml`）はイシュー #2524 で有効化済み
+  であり（`docs/guides/pre-styled-ui-motion-feature.md` §5）、`bento-
+  staggered` は既存の `motion::KEYFRAMES_CSS`（`SLIDE_FROM_BOTTOM_
+  KEYFRAMES_NAME`）を Blocks が初めて `push_css` した消費者である
+  （`crate::showcase` は `SlotRecipe` の builder 経由で同キーフレームを
+  間接的に使うのみで、生の `motion::KEYFRAMES_CSS` 定数を直接 push
+  していない）。
+- **`<form>` を持たない・実データを持たない**: `crate::blocks` モジュール
+  doc の不変条件どおり、両 block とも `<form>` を出力しない。機能名・
+  説明文はすべて架空のものであり、実企業名・実サービス名・実クレデンシャル・
+  PII を含まない。
+- **キーボード到達性（`feature-expand`）**: `:hover` のみでは非マウス
+  操作者が展開内容へ到達できないため、各カードへ `button::button`
+  （`Ghost` variant）を必ず配置し `:focus-within` の対象にする。展開/
+  非展開いずれの状態でも詳細説明は DOM 上に常在し `aria-hidden`/`hidden`
+  で隠さない（視覚的な非表示と AT 上の非表示を意図的に一致させない）。
+
+不足部品は無かった（`card`・`icon`・`button` はいずれも実装時点で既存）。
 

@@ -198,6 +198,13 @@ jobs:
         # site_build.rs / blocks_nav.rs が、生成内容（節順序・`<form>` 不在・
         # CSS 配線）の検証は crates/docs-site/tests/blocks_contract.rs が
         # 保持し、ここでは二重管理しない。
+        #
+        # イシュー #2547: 親トラッキング #2530「Phase 7: Motion+ 部品化」
+        # 配下として pricing-tiers-morph・pricing-usage-slider の 2 件が
+        # 追加された（#2088〜#2095 の 7 件とは別系統の純追加、
+        # docs/design/docs-site-blocks-section.md §3 参照）。イシュー
+        # #2549 で同系統から bento-staggered（scroll-driven stagger）・
+        # feature-expand（hover-expand）の 2 件がさらに追加された。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
@@ -224,6 +231,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-usage-slider/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-signup-celebrate/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"

@@ -1234,6 +1234,16 @@ source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
 
 [[section.page]]
+title = "bento-staggered"
+source = "site/blocks/bento-staggered.md"
+path = "/blocks/bento-staggered/"
+
+[[section.page]]
+title = "feature-expand"
+source = "site/blocks/feature-expand.md"
+path = "/blocks/feature-expand/"
+
+[[section.page]]
 title = "cta-banner-magnetic"
 source = "site/blocks/cta-banner-magnetic.md"
 path = "/blocks/cta-banner-magnetic/"

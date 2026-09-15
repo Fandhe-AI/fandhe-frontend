@@ -1361,9 +1361,21 @@ fn testimonials_stack_uses_motion_tokens_not_raw_durations() {
         sheet_css.contains("var(--fandhe-motion-easing-standard)"),
         "blocks.css should reference the --fandhe-motion-easing-standard token"
     );
-    assert!(
-        !sheet_css.contains("@keyframes"),
-        "testimonials-stack should not introduce @keyframes (no reduced-motion @media override needed)"
+    // イシュー #2549 で bento-staggered/feature-expand が
+    // `fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS` を合成
+    // stylesheet へ導入したため、結合済み `blocks.css` 全体に `@keyframes`
+    // が存在しないことは主張できなくなった。testimonials-stack 自身が
+    // 追加の `@keyframes` を持ち込んでいないことのみを、結合済み CSS 中の
+    // `@keyframes` 出現数が共有 `KEYFRAMES_CSS` 由来の出現数と一致するかで
+    // 固定する。
+    let keyframes_in_sheet = sheet_css.matches("@keyframes").count();
+    let keyframes_in_shared_motion_css = fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS
+        .matches("@keyframes")
+        .count();
+    assert_eq!(
+        keyframes_in_sheet, keyframes_in_shared_motion_css,
+        "testimonials-stack should not introduce @keyframes beyond the shared \
+         motion::KEYFRAMES_CSS import (no reduced-motion @media override needed)"
     );
 }
 
@@ -1416,6 +1428,172 @@ fn pricing_usage_slider_thumb_is_labelled_by_visible_label() {
         "pricing-usage-slider label span should carry the id referenced by aria-labelledby \
          (no dangling IDREF)"
     );
+}
+
+/// bento-staggered ページが `blocks-demo blocks-bento-staggered` class・
+/// 両 stylesheet の `<link>`・各セルの `data-blocks-bento-staggered-item`
+/// CSS フックを実際に出力し、`blocks::stylesheet()` にも対応するセレクタが
+/// 存在すること（イシュー #2549）。
+#[test]
+fn bento_staggered_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-staggered/index.html"))
+        .expect("blocks/bento-staggered/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-bento-staggered\""),
+        "bento-staggered page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "bento-staggered page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "bento-staggered page should link the Blocks-specific stylesheet"
+    );
+    assert!(
+        html.contains("data-blocks-bento-staggered-item=\"\""),
+        "bento-staggered page should output the scroll-driven CSS hook attribute"
+    );
+    assert!(
+        html.contains("data-blocks-bento-staggered-hero=\"\""),
+        "bento-staggered page should mark exactly the hero cell"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        "[data-blocks-bento-staggered-item]",
+        "[data-blocks-bento-staggered-hero]",
+        "animation-timeline: view()",
+        "@media (prefers-reduced-motion: reduce)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for bento-staggered"
+        );
+    }
+}
+
+/// bento-staggered の合成部品（card/icon）が期待どおりの構成で 6 枚出力
+/// されていること、`--fandhe-motion-stagger-index` が 0〜5 の連番で各セル
+/// へ書き出されていること、`<form>`/`data:` URI を持ち込んでいないことを
+/// 固定する（イシュー #2549）。
+#[test]
+fn bento_staggered_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-staggered/index.html"))
+        .expect("blocks/bento-staggered/index.html should be generated");
+    assert_eq!(
+        html.matches("data-scope=\"card\" data-part=\"root\"")
+            .count(),
+        6,
+        "bento-staggered should render exactly 6 cards"
+    );
+    for i in 0..6 {
+        let needle = format!("--fandhe-motion-stagger-index: {i}");
+        assert!(
+            html.contains(&needle),
+            "bento-staggered should output {needle}"
+        );
+    }
+    for needle in [
+        "Realtime Sync",
+        "Global CDN",
+        "data-scope=\"icon\" data-part=\"root\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "bento-staggered page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "bento-staggered should never contain {absent}"
+        );
+    }
+}
+
+/// feature-expand ページが `blocks-demo blocks-feature-expand` class・
+/// 両 stylesheet の `<link>`・各カードの `data-blocks-feature-expand-item`
+/// CSS フックを実際に出力し、`blocks::stylesheet()` にも hover/
+/// focus-within の展開規則が存在すること（イシュー #2549）。
+#[test]
+fn feature_expand_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-expand/index.html"))
+        .expect("blocks/feature-expand/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-feature-expand\""),
+        "feature-expand page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "feature-expand page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "feature-expand page should link the Blocks-specific stylesheet"
+    );
+    assert!(
+        html.contains("data-blocks-feature-expand-item=\"\""),
+        "feature-expand page should output the hover-expand CSS hook attribute"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        "[data-blocks-feature-expand-item]:hover [data-blocks-feature-expand-wrap]",
+        "[data-blocks-feature-expand-item]:focus-within [data-blocks-feature-expand-wrap]",
+        "grid-template-rows: 0fr",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for feature-expand"
+        );
+    }
+}
+
+/// feature-expand の合成部品（card/icon/button）が期待どおりの構成で
+/// 6 枚出力されていること、各カードの詳細説明が hover 前提の非表示処理
+/// （`hidden`/`aria-hidden`）を持たず常時 DOM 上に存在すること、
+/// `<form>`/`data:` URI を持ち込んでいないことを固定する（イシュー #2549）。
+#[test]
+fn feature_expand_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-expand/index.html"))
+        .expect("blocks/feature-expand/index.html should be generated");
+    assert_eq!(
+        html.matches("data-scope=\"card\" data-part=\"root\"")
+            .count(),
+        6,
+        "feature-expand should render exactly 6 cards"
+    );
+    for needle in [
+        "Instant Search",
+        "Audit Trail",
+        "Learn more",
+        "data-scope=\"icon\" data-part=\"root\"",
+        "data-scope=\"button\" data-part=\"root\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "feature-expand page should contain {needle}"
+        );
+    }
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "aria-hidden=\"true\" data-blocks-feature-expand",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "feature-expand should never contain {absent}"
+        );
+    }
 }
 
 /// cta-banner-magnetic ページの Demo クラス・両スタイルシート・

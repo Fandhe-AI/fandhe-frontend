@@ -26,6 +26,8 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [pricing-tiers-morph](./blocks/pricing-tiers-morph.md)
 - [pricing-usage-slider](./blocks/pricing-usage-slider.md)
 - [testimonials-stack](./blocks/testimonials-stack.md)
+- [bento-staggered](./blocks/bento-staggered.md)
+- [feature-expand](./blocks/feature-expand.md)
 - [cta-banner-magnetic](./blocks/cta-banner-magnetic.md)
 - [cta-signup-celebrate](./blocks/cta-signup-celebrate.md)
 

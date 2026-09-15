@@ -899,6 +899,29 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test scroll_driver_browser
 
+      # イシュー #2535（親 #2530）: pointer capture ベースの汎用ドラッグ配線
+      # （crates/wasm-full/src/drag_gesture.rs）の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/drag_gesture_browser.rs）。他の wasm-full
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。
+      - name: Run wasm-full drag gesture browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test drag_gesture_browser
+
+      # イシュー #2535（親 #2530）: keyed list の Insert/Update 経由の drag
+      # 要素再同期（crates/wasm-full/src/drag_gesture.rs の
+      # resync_drag_gesture_attachments 呼び出し、
+      # crates/wasm-full/src/lib.rs の apply_update_for_dirty 内）の実
+      # ブラウザ統合テスト
+      # （crates/wasm-full/tests/keyed_list_drag_gesture_resync_browser.rs）。
+      # Bugbot 指摘「Resync browser test skipped in CI」是正（PR #2565
+      # 第 2 ラウンド）: wasm-full の browser テストは明示 `--test` フィルタで
+      # 個別列挙する運用のため、drag_gesture_browser の登録だけでは本テスト
+      # は CI で実行されない。他の wasm-full ステップと同じ check-wasm-full
+      # 存在ガードを再利用し、新規ガードは追加しない。
+      - name: Run wasm-full keyed list drag gesture resync browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test keyed_list_drag_gesture_resync_browser
       # イシュー #2533（Motion+ `components/confetti` の Rust 部品化）:
       # confetti トリガーのクリック委譲・ロケータ契約（root 包含・
       # data-fandhe-confetti-canvas マーカー必須）の実ブラウザ統合テスト
@@ -2402,6 +2425,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,gesture --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: scroll-driver, issue #2521)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,scroll-driver --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: drag-gesture, issue #2535)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,drag-gesture --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: confetti, issue #2533)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,confetti --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: hold-to-confirm, issue #2538)"
