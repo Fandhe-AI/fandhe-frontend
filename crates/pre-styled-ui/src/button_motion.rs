@@ -155,6 +155,26 @@ const BASKET_ICON_ADDED_PART: &str = "basket-icon-added";
 /// "Add to basket" → "Addtobasket" の崩れは解消しない、codex-review
 /// 再指摘・Cursor Bugbot 指摘）。
 ///
+/// # `rolling-text-viewport` の単一行強制（codex-review P1 指摘、複数行
+/// 折り返し時の重なり）
+///
+/// 幅を制限したボタン（例: 固定 `width` + 長いラベル）でラベルが複数行へ
+/// 折り返すと、`current`/`duplicate` の各行が**重なって**表示される。
+/// 原因: 文字 span の `translateY(±100%)` は各文字**自身**の line box の
+/// 高さを基準に計算される（上記「`transform`/`transition` を文字 span へ
+/// 適用する理由」節）。単一行では層全体の高さと文字の line box 高さが
+/// 一致するため `duplicate` の初期位置（`translateY(100%)`）は
+/// `current` の**直下**（≒ 次の行の位置）に来るが、複数行では
+/// `duplicate` の 1 行目がちょうど `current` の 2 行目の位置と重なって
+/// しまう（`current` 自身も hover 時に 2 行目が 1 行目の位置へ
+/// せり上がる）。是正として [`ROLLING_TEXT_VIEWPORT_PART`] へ
+/// `white-space: nowrap` を付与し、折り返し自体を禁止して単一行を保証
+/// する。既存の `overflow: hidden`（上記「`rolling-text-viewport` を
+/// 挟む理由」節）と組み合わさり、幅制限ボタンで単一行に収まらない
+/// ラベルは折り返さず超過分が clip される（複数行での重なりより
+/// 安全な劣化——`translateY(±100%)` の基準・clip 基準を単一行に固定した
+/// 上記節の前提を保つ）。
+///
 /// # 文字 span の `white-space: pre`（codex-review P1 是正・Cursor Bugbot
 /// 指摘、空白文字が消える問題）
 ///
@@ -220,6 +240,12 @@ pub const BUTTON_MOTION_CSS: &str = concat!(
     "  position: relative;\n",
     "  display: inline-block;\n",
     "  overflow: hidden;\n",
+    // 折り返し（複数行化）を禁止し常に単一行を保証する（codex-review
+    // P1 指摘、下記「単一行を強制する理由」節参照）。`overflow: hidden`
+    // と組み合わせることで、幅制限ボタンで折り返す代わりに超過分を
+    // clip する（`translateY(±100%)` の基準・clip 基準を単一行に固定
+    // した上記「`rolling-text-viewport` を挟む理由」節の前提を保つ）。
+    "  white-space: nowrap;\n",
     "}\n",
     "[data-scope=\"button\"][data-part=\"",
     "rolling-text-current",

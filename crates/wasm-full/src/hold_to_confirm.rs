@@ -308,6 +308,17 @@ mod wiring {
             let active = Rc::clone(&self.active);
             let reset_timer = Rc::clone(&self.reset_timer);
             let loop_handle_for_start = Rc::clone(&self.loop_handle);
+            // 確定時にも早期離脱（`cancel()`）と同じく `pointer_id`/
+            // `active_key` を解放する（codex-review P1 指摘）: 確定は
+            // `cancel()` を経由せず直接 `active.set(false)` するため、
+            // これらをクリアしないと、確定直後にもう一方の入力手段
+            // （例: Enter 長押しで確定した直後にポインタで新しい保持を
+            // 開始）で始まった**次の**セッションに対し、遅れて届いた
+            // 古い入力の終了イベント（Enter の keyup 等）が対応付け
+            // ガード（[`HoldSession::pointer_id`]/[`HoldSession::
+            // active_key`] doc 参照）を素通りして誤って中断してしまう。
+            let confirm_pointer_id = Rc::clone(&self.pointer_id);
+            let confirm_active_key = Rc::clone(&self.active_key);
 
             let animation_loop = AnimationLoop::start(move || {
                 let delta = driver.tick().unwrap_or(0.0);
@@ -318,6 +329,8 @@ mod wiring {
                 target.write(progress);
                 if progress >= 1.0 {
                     active.set(false);
+                    confirm_pointer_id.set(None);
+                    confirm_active_key.borrow_mut().take();
                     // `AnimationLoop` 自身はここでは drop しない
                     // （`finish_confirmation` rustdoc「never drop here」
                     // 節参照）。`false` を返して次フレーム予約を止める
