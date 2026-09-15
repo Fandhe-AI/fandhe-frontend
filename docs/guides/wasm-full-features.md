@@ -141,6 +141,15 @@ coding-rust.md` #638 条項に従い +1 して 0.29.0 で合流、イシュー
 （`is_valid_view_transition_name`）はゲート対象外です。off にすると
 `set_view_transition_name` が使えなくなります。
 
+`view-transition-preset` feature（0.32.0 で追加、イシュー #2516）も別枠
+です。`Runtime::apply_with_view_transition_named`（named view transition
+プリセット選択、`view_transition_preset::ViewTransitionPreset`）という
+公開メソッドの存在をゲートします。`view_transition_preset` モジュール自体・
+`VIEW_TRANSITION_PRESET_ATTR`/`ViewTransitionPreset` はゲート対象外です。
+off にすると `apply_with_view_transition_named` が使えなくなります
+（`apply_with_view_transition`〔unnamed、`view-transitions` feature〕は
+影響を受けません）。
+
 `animate` feature（0.25.0 で追加、イシュー #2398）も同じく別枠です。
 ただし `position`/`stagger`/`view-transition-name` とは異なり、ゲート
 対象の `wire_*` 呼び出し自体が存在しません。optional 依存
@@ -226,6 +235,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.29.0 | `scroll-driver` の挙動拡張（`data-fandhe-scroll-progress`、イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ） |
 | 0.30.0 | `drag-gesture` feature（イシュー #2535。本 PR（#2535）と main（#2534）が独立に 0.28.0 から 0.29.0 へ同一版数バンプしており衝突。`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して 0.30.0 とした） |
 | 0.31.0 | `hold-to-confirm`/`add-to-basket` feature（イシュー #2538。本 PR（#2535 到達の 0.30.0）と main（#2538 到達の 0.30.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.31.0 とする） |
+| 0.32.0 | `view-transition-preset` feature（イシュー #2516。本 PR と main（#2538 到達の 0.31.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.32.0 とする） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
@@ -235,7 +245,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.30.0"
+version = "0.32.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -267,6 +277,7 @@ features = [
   "animation-driver",
   "view-transitions",
   "view-transition-name",
+  "view-transition-preset",
   "animate",
   "accordion",
   "calendar",

@@ -2426,6 +2426,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,view-transition-name --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: animate, issue #2398)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,animate --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transition-preset, issue #2516)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,view-transition-preset --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
   # イシュー #2328: scope feature（イシュー #2327 で新設した MAPPING_TABLE
   # 行・keynav match arm 単位の 16 件）を `wasm-bindgen-exports` のみと
