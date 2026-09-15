@@ -1,7 +1,9 @@
-//! named view transition CSS プリセット（opt-in、イシュー #2516）。
+//! named view transition CSS プリセット（opt-in、イシュー #2516・#2537）。
 //!
-//! `document.startViewTransition()` によるページ遷移の見た目を fade/slide/
-//! wipe の 3 種から選べるようにする、Motion+ Curtains 相当の基本形。
+//! `document.startViewTransition()` によるページ遷移の見た目を選べるように
+//! する、Motion+ Curtains 相当のプリセット集。#2516 で fade/slide/wipe の
+//! 基本形を実装し、#2537 で残り（iris/doors/shutter/blinds/strips/pixels）
+//! と mask-image による形状遷移（mask-wipe/mask-radial）を追加した。
 //! プリセット選択のトリガー（`data-fandhe-view-transition` 属性の
 //! set/remove）は `fandhe-frontend-wasm-full` 側が担い（`Runtime::
 //! apply_with_view_transition_named`）、本モジュールは CSS 本体のみを持つ。
@@ -44,10 +46,32 @@
 //! reduce` 下で自動的に `0ms` へ上書きする既存機構がそのまま効く。
 //! それに加えて、単なる 0ms 瞬間切り替えではなく UA 既定のクロスフェード
 //! へ戻す UX 意図を満たすため、`@media (prefers-reduced-motion: reduce)`
-//! ブロックで 3 プリセットの `::view-transition-old(root)`/
+//! ブロックで全プリセットの `::view-transition-old(root)`/
 //! `::view-transition-new(root)` へ `animation: revert;` を明示的に
 //! 再宣言する（CSS Conditional Rules の「同名は後勝ち」により追加の
-//! `!important` は不要）。
+//! `!important` は不要）。mask 系プリセット（`mask-wipe`/`mask-radial`他）
+//! は静的 `mask-*` 宣言が `@keyframes` の外にあるため `animation: revert;`
+//! だけでは UA 既定へ戻らず、`mask-image: none;` も併せて再宣言する。
+//!
+//! # `@property` を使わない理由
+//!
+//! [`crate::stylesheet::StyleSheet::push_css`] は `<` を含む CSS を拒否する
+//! （REQ-1・既定エスケープ方針）ため `@property { syntax: '<percentage>'; }`
+//! のような山括弧を含む構文は書けない。従って gradient の色停止位置や
+//! custom property を補間する手法は採らず、`clip-path` の形状・
+//! `mask-size`/`mask-position` の数値のみを `@keyframes` で補間する。
+//!
+//! # `vw`/`vh` で絶対配置する理由（mask/blinds/strips/pixels 系）
+//!
+//! `::view-transition-new(root)` は viewport 相当の固定ボックスとして
+//! キャプチャされるため、`vw`/`vh` で絶対位置を指定できる（`%` 指定は
+//! 画像サイズと連動して滑ってしまうため位置決めには使わない）。
+//!
+//! # `-webkit-mask-*` の複製は行わない
+//!
+//! unprefixed `mask` プロパティ（Chrome 120+ / Safari 15.4+）のみを使う。
+//! Chrome 111–119 は非対応（既知の天井、必要になれば `-webkit-mask-*` を
+//! 複製する）。
 
 /// [`VIEW_TRANSITION_PRESET_ATTR`] のリテラル。`concat!` はリテラル
 /// トークンのみを受理し `pub const` パスを受理しないため、[`motion`]
@@ -75,6 +99,54 @@ macro_rules! slide_value_lit {
 macro_rules! wipe_value_lit {
     () => {
         "wipe"
+    };
+}
+/// `iris` プリセットの属性値リテラル。
+macro_rules! iris_value_lit {
+    () => {
+        "iris"
+    };
+}
+/// `doors` プリセットの属性値リテラル。
+macro_rules! doors_value_lit {
+    () => {
+        "doors"
+    };
+}
+/// `shutter` プリセットの属性値リテラル。
+macro_rules! shutter_value_lit {
+    () => {
+        "shutter"
+    };
+}
+/// `blinds` プリセットの属性値リテラル。
+macro_rules! blinds_value_lit {
+    () => {
+        "blinds"
+    };
+}
+/// `strips` プリセットの属性値リテラル。
+macro_rules! strips_value_lit {
+    () => {
+        "strips"
+    };
+}
+/// `pixels` プリセットの属性値リテラル。
+macro_rules! pixels_value_lit {
+    () => {
+        "pixels"
+    };
+}
+/// `mask-wipe` プリセットの属性値リテラル。
+macro_rules! mask_wipe_value_lit {
+    () => {
+        "mask-wipe"
+    };
+}
+/// `mask-radial` プリセットの属性値リテラル。
+macro_rules! mask_radial_value_lit {
+    () => {
+        "mask-radial"
     };
 }
 
@@ -113,6 +185,48 @@ pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
     "@keyframes fd-view-transition-wipe-reveal {\n",
     "  from {\n    clip-path: inset(0 100% 0 0);\n  }\n",
     "  to {\n    clip-path: inset(0 0 0 0);\n  }\n",
+    "}\n",
+    // イシュー #2537: iris/doors/shutter は `clip-path` 形状の補間のみで
+    // 構成する（`@property` 不使用の理由はモジュール doc 参照）。
+    "@keyframes fd-view-transition-iris-reveal {\n",
+    "  from {\n    clip-path: circle(0% at 50% 50%);\n  }\n",
+    // 75% は正方形の角までの距離（70.7%）を上回る安全値（円が四隅まで
+    // 確実に覆う）。
+    "  to {\n    clip-path: circle(75% at 50% 50%);\n  }\n",
+    "}\n",
+    "@keyframes fd-view-transition-doors-reveal {\n",
+    "  from {\n    clip-path: inset(0 50%);\n  }\n",
+    "  to {\n    clip-path: inset(0 0);\n  }\n",
+    "}\n",
+    "@keyframes fd-view-transition-shutter-reveal {\n",
+    "  from {\n    clip-path: inset(50% 0);\n  }\n",
+    "  to {\n    clip-path: inset(0 0);\n  }\n",
+    "}\n",
+    // blinds/strips/pixels: 複数 `mask-image` 層を静的宣言し、`@keyframes`
+    // では全層共通の `mask-size` のみを補間する（`vw`/`vh` 絶対配置の根拠は
+    // モジュール doc 参照）。
+    "@keyframes fd-view-transition-blinds-reveal {\n",
+    "  from {\n    mask-size: 100% 0vh;\n  }\n",
+    // 13vh は 12.5vh 段差の端数吸収（overshoot）。
+    "  to {\n    mask-size: 100% 13vh;\n  }\n",
+    "}\n",
+    "@keyframes fd-view-transition-strips-reveal {\n",
+    "  from {\n    mask-size: 0vw 12.5vh;\n  }\n",
+    "  to {\n    mask-size: 100vw 12.5vh;\n  }\n",
+    "}\n",
+    "@keyframes fd-view-transition-pixels-reveal {\n",
+    "  from {\n    mask-size: 0vw 0vh;\n  }\n",
+    "  to {\n    mask-size: 25vw 25vh;\n  }\n",
+    "}\n",
+    // mask-wipe/mask-radial: グラデーションの境界をソフトエッジとして持つ
+    // `mask-image` を静的宣言し、`mask-position`/`mask-size` を補間する。
+    "@keyframes fd-view-transition-mask-wipe-reveal {\n",
+    "  from {\n    mask-position: 200% 0;\n  }\n",
+    "  to {\n    mask-position: 0 0;\n  }\n",
+    "}\n",
+    "@keyframes fd-view-transition-mask-radial-reveal {\n",
+    "  from {\n    mask-size: 0 0;\n  }\n",
+    "  to {\n    mask-size: 300vmax 300vmax;\n  }\n",
     "}\n",
     ":root[",
     attr_lit!(),
@@ -174,6 +288,152 @@ pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
     "  animation: fd-view-transition-wipe-reveal var(--fandhe-motion-duration-slow, 300ms) both;\n",
     "  mix-blend-mode: normal;\n",
     "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    iris_value_lit!(),
+    "\"]::view-transition-old(root) {\n",
+    "  animation: none;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    iris_value_lit!(),
+    "\"]::view-transition-new(root) {\n",
+    "  animation: fd-view-transition-iris-reveal var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    doors_value_lit!(),
+    "\"]::view-transition-old(root) {\n",
+    "  animation: none;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    doors_value_lit!(),
+    "\"]::view-transition-new(root) {\n",
+    "  animation: fd-view-transition-doors-reveal var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    shutter_value_lit!(),
+    "\"]::view-transition-old(root) {\n",
+    "  animation: none;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    shutter_value_lit!(),
+    "\"]::view-transition-new(root) {\n",
+    "  animation: fd-view-transition-shutter-reveal var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    blinds_value_lit!(),
+    "\"]::view-transition-old(root) {\n",
+    "  animation: none;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    blinds_value_lit!(),
+    "\"]::view-transition-new(root) {\n",
+    "  animation: fd-view-transition-blinds-reveal var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
+    "  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);\n",
+    "  mask-repeat: no-repeat;\n",
+    "  mask-position: 0 0vh, 0 12.5vh, 0 25vh, 0 37.5vh, 0 50vh, 0 62.5vh, 0 75vh, 0 87.5vh;\n",
+    "  mask-size: 100% 0vh;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    strips_value_lit!(),
+    "\"]::view-transition-old(root) {\n",
+    "  animation: none;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    strips_value_lit!(),
+    "\"]::view-transition-new(root) {\n",
+    "  animation: fd-view-transition-strips-reveal var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
+    "  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);\n",
+    "  mask-repeat: no-repeat;\n",
+    "  mask-position: 0 0vh, 100% 12.5vh, 0 25vh, 100% 37.5vh, 0 50vh, 100% 62.5vh, 0 75vh, 100% 87.5vh;\n",
+    "  mask-size: 0vw 12.5vh;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    pixels_value_lit!(),
+    "\"]::view-transition-old(root) {\n",
+    "  animation: none;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    pixels_value_lit!(),
+    "\"]::view-transition-new(root) {\n",
+    "  animation: fd-view-transition-pixels-reveal var(--fandhe-motion-duration-slow, 300ms) steps(6, end) both;\n",
+    "  mix-blend-mode: normal;\n",
+    "  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);\n",
+    "  mask-repeat: no-repeat;\n",
+    "  mask-position: 0vw 0vh, 25vw 0vh, 50vw 0vh, 75vw 0vh, 0vw 25vh, 25vw 25vh, 50vw 25vh, 75vw 25vh, 0vw 50vh, 25vw 50vh, 50vw 50vh, 75vw 50vh, 0vw 75vh, 25vw 75vh, 50vw 75vh, 75vw 75vh;\n",
+    "  mask-size: 0vw 0vh;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    mask_wipe_value_lit!(),
+    "\"]::view-transition-old(root) {\n",
+    "  animation: none;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    mask_wipe_value_lit!(),
+    "\"]::view-transition-new(root) {\n",
+    "  animation: fd-view-transition-mask-wipe-reveal var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
+    "  mask-image: linear-gradient(to right, #000 75%, transparent);\n",
+    "  mask-repeat: no-repeat;\n",
+    "  mask-size: 200% 100%;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    mask_radial_value_lit!(),
+    "\"]::view-transition-old(root) {\n",
+    "  animation: none;\n",
+    "  mix-blend-mode: normal;\n",
+    "}\n",
+    ":root[",
+    attr_lit!(),
+    "=\"",
+    mask_radial_value_lit!(),
+    "\"]::view-transition-new(root) {\n",
+    "  animation: fd-view-transition-mask-radial-reveal var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
+    "  mask-image: radial-gradient(circle, #000 40%, transparent 70%);\n",
+    "  mask-position: center;\n",
+    "  mask-repeat: no-repeat;\n",
+    "}\n",
     "@media (prefers-reduced-motion: reduce) {\n",
     "  :root[",
     attr_lit!(),
@@ -204,8 +464,94 @@ pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
     attr_lit!(),
     "=\"",
     wipe_value_lit!(),
+    "\"]::view-transition-new(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    iris_value_lit!(),
+    "\"]::view-transition-old(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    iris_value_lit!(),
+    "\"]::view-transition-new(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    doors_value_lit!(),
+    "\"]::view-transition-old(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    doors_value_lit!(),
+    "\"]::view-transition-new(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    shutter_value_lit!(),
+    "\"]::view-transition-old(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    shutter_value_lit!(),
+    "\"]::view-transition-new(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    blinds_value_lit!(),
+    "\"]::view-transition-old(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    blinds_value_lit!(),
+    "\"]::view-transition-new(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    strips_value_lit!(),
+    "\"]::view-transition-old(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    strips_value_lit!(),
+    "\"]::view-transition-new(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    pixels_value_lit!(),
+    "\"]::view-transition-old(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    pixels_value_lit!(),
+    "\"]::view-transition-new(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    mask_wipe_value_lit!(),
+    "\"]::view-transition-old(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    mask_wipe_value_lit!(),
+    "\"]::view-transition-new(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    mask_radial_value_lit!(),
+    "\"]::view-transition-old(root),\n",
+    "  :root[",
+    attr_lit!(),
+    "=\"",
+    mask_radial_value_lit!(),
     "\"]::view-transition-new(root) {\n",
     "    animation: revert;\n",
+    // mask 群（blinds/strips/pixels/mask-wipe/mask-radial）は静的
+    // `mask-*` 宣言が `@keyframes` 外にあるため `animation: revert;` だけ
+    // では UA 既定へ戻らない。`mask-image: none;` を全プリセット共有の
+    // グループ規則へ追加し確定的にクロスフェードへ縮退させる（非 mask
+    // プリセットには元々 `mask-image` が無いため無害な上書き）。
+    "    mask-image: none;\n",
     "  }\n",
     "}\n",
 );

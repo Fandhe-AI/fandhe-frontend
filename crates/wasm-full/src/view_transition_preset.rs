@@ -1,7 +1,8 @@
-//! named view transition プリセット選択の配線（イシュー #2516）。
+//! named view transition プリセット選択の配線（イシュー #2516・#2537）。
 //!
 //! `fandhe-frontend-pre-styled-ui::view_transition`（`motion` feature 配下）
-//! が持つ named view transition CSS プリセット（fade/slide/wipe）を、
+//! が持つ named view transition CSS プリセット（fade/slide/wipe/iris/doors/
+//! shutter/blinds/strips/pixels/mask-wipe/mask-radial）を、
 //! [`crate::Runtime::apply_with_view_transition_named`] から選択できるように
 //! する。両クレート間の契約は [`VIEW_TRANSITION_PRESET_ATTR`] という文字列
 //! リテラルの一致のみであり、直接の Cargo 依存は発生しない（`content_height`
@@ -14,9 +15,11 @@
 //! 異なり、そもそも任意入力を DOM 属性へ書き込む経路を持たない
 //! （REQ-1・security.md A03、注入面なし）。
 
-/// named view transition プリセットの選択肢（Motion+ Curtains 相当の
-/// 基本形、`fandhe-frontend-pre-styled-ui::view_transition` の fade/slide/
-/// wipe 3 種に対応）。
+/// named view transition プリセットの選択肢（Motion+ Curtains 相当、
+/// `fandhe-frontend-pre-styled-ui::view_transition` の 11 プリセットに
+/// 対応。イシュー #2516 で fade/slide/wipe、イシュー #2537 で残り
+/// （iris/doors/shutter/blinds/strips/pixels、`mask-image` による形状遷移
+/// mask-wipe/mask-radial）を追加）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewTransitionPreset {
     /// クロスフェード。
@@ -25,6 +28,22 @@ pub enum ViewTransitionPreset {
     Slide,
     /// クリップパスによるワイプ（拭い取り）。
     Wipe,
+    /// 中央からの円形展開。
+    Iris,
+    /// 中央から左右へ開く。
+    Doors,
+    /// 中央から上下へ開く。
+    Shutter,
+    /// 8 段の横ブラインド。
+    Blinds,
+    /// 左右交互に伸びる帯。
+    Strips,
+    /// 4×4 格子の段階的リビール。
+    Pixels,
+    /// ソフトエッジ（グラデーション境界）の横ワイプ。
+    MaskWipe,
+    /// ソフトエッジの円形展開。
+    MaskRadial,
 }
 
 impl ViewTransitionPreset {
@@ -39,6 +58,14 @@ impl ViewTransitionPreset {
             Self::Fade => "fade",
             Self::Slide => "slide",
             Self::Wipe => "wipe",
+            Self::Iris => "iris",
+            Self::Doors => "doors",
+            Self::Shutter => "shutter",
+            Self::Blinds => "blinds",
+            Self::Strips => "strips",
+            Self::Pixels => "pixels",
+            Self::MaskWipe => "mask-wipe",
+            Self::MaskRadial => "mask-radial",
         }
     }
 }
@@ -106,10 +133,55 @@ mod tests {
         assert_eq!(ViewTransitionPreset::Fade.as_attr_value(), "fade");
         assert_eq!(ViewTransitionPreset::Slide.as_attr_value(), "slide");
         assert_eq!(ViewTransitionPreset::Wipe.as_attr_value(), "wipe");
+        assert_eq!(ViewTransitionPreset::Iris.as_attr_value(), "iris");
+        assert_eq!(ViewTransitionPreset::Doors.as_attr_value(), "doors");
+        assert_eq!(ViewTransitionPreset::Shutter.as_attr_value(), "shutter");
+        assert_eq!(ViewTransitionPreset::Blinds.as_attr_value(), "blinds");
+        assert_eq!(ViewTransitionPreset::Strips.as_attr_value(), "strips");
+        assert_eq!(ViewTransitionPreset::Pixels.as_attr_value(), "pixels");
+        assert_eq!(ViewTransitionPreset::MaskWipe.as_attr_value(), "mask-wipe");
+        assert_eq!(
+            ViewTransitionPreset::MaskRadial.as_attr_value(),
+            "mask-radial"
+        );
     }
 
     #[test]
     fn attr_name_matches_literal_contract() {
         assert_eq!(VIEW_TRANSITION_PRESET_ATTR, "data-fandhe-view-transition");
+    }
+
+    /// `fandhe-frontend-pre-styled-ui::view_transition` の CSS ソースを
+    /// 直接読み取り、全バリアントの [`ViewTransitionPreset::as_attr_value`]
+    /// が `"<value>"` リテラルとして出現することを確認する（両クレート間の
+    /// 文字列契約ドリフト検知。`include_str!` は `cargo package` 時に
+    /// ワークスペース外パスを解決できず壊れるため使わない。native テスト
+    /// のみで実行され `cargo package` の成果物へは含まれない）。
+    #[test]
+    fn attr_values_appear_in_pre_styled_ui_css_source() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../pre-styled-ui/src/view_transition.rs");
+        let source =
+            std::fs::read_to_string(&path).expect("pre-styled-ui view_transition.rs must exist");
+        for preset in [
+            ViewTransitionPreset::Fade,
+            ViewTransitionPreset::Slide,
+            ViewTransitionPreset::Wipe,
+            ViewTransitionPreset::Iris,
+            ViewTransitionPreset::Doors,
+            ViewTransitionPreset::Shutter,
+            ViewTransitionPreset::Blinds,
+            ViewTransitionPreset::Strips,
+            ViewTransitionPreset::Pixels,
+            ViewTransitionPreset::MaskWipe,
+            ViewTransitionPreset::MaskRadial,
+        ] {
+            let needle = format!("\"{}\"", preset.as_attr_value());
+            assert!(
+                source.contains(&needle),
+                "pre-styled-ui 側に {needle} リテラルが見つからない（両クレート間の \
+                 属性値契約がドリフトしている）"
+            );
+        }
     }
 }
