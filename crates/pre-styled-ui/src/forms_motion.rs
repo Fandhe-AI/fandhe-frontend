@@ -219,6 +219,22 @@ pub const FLOATING_LABEL_CLASS: &str = "fd-field-floating-label";
 /// helper-text/error-text の有無は無関係）、`label` を `position:
 /// absolute` で input の中央へ重ね、`input` が `:placeholder-shown` で
 /// ない（入力済み）または `:focus` のときに縮小・上方へ移動させる。
+///
+/// wrapper には `display: flex` も持たせる（PR #2567 Cursor Bugbot
+/// 是正「Wrapper breaks input layout context」）。`label` は
+/// `position: absolute` でフローから外れるため、wrapper 内の通常フロー
+/// 内容物は `input` 1 要素のみになる。`display: flex` を持たない素の
+/// `div` のままだと `input`（UA 既定 `display: inline-block`）が
+/// inline-level のまま残り、`div` が生成する匿名 line box のフォント
+/// メトリクス（ascent/descent の余白）分だけ wrapper の高さが `input`
+/// 自身の高さより余分に高くなる（旧 `field::root` の `display: flex`
+/// 直下では `input` が flex item として block-level 化されこの余白は
+/// 生じなかった）。この余分な高さにより `label` の `top: 50%` が
+/// `input` の視覚的中心とずれ、`field::root` の `gap` に wrapper 側の
+/// 余白が上乗せされて helper-text/error-text との距離が意図より広がる
+/// 不具合があった。`display: flex` を wrapper に持たせることで `input`
+/// を再び flex item（block-level）化し、wrapper の高さを `input` の
+/// content box の高さに一致させて解消する。
 /// 文字色の変更は `label:not([data-invalid])` に限定し、`data-invalid`
 /// が立っている場合は [`crate::field::css`] の `label[data-invalid]`
 /// 規則（エラー色）が自然に適用される（override セレクタを追加せず、
@@ -226,6 +242,7 @@ pub const FLOATING_LABEL_CLASS: &str = "fd-field-floating-label";
 pub const FLOATING_LABEL_CSS: &str = concat!(
     ".fd-field-floating-label {\n",
     "  position: relative;\n",
+    "  display: flex;\n",
     "}\n",
     ".fd-field-floating-label [data-scope=\"field\"][data-part=\"label\"] {\n",
     "  position: absolute;\n",
