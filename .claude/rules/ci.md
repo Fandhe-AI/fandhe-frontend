@@ -177,7 +177,22 @@
   `data-fandhe-cursor-target`（バリアント・ラベル・magnetic 吸着の 3 種）を
   付与した合成 block。カスタムカーソルの追従・hover バリアント変化の実演は
   wasm-full の `cursor` feature 配下のみで発生し、無 JS の本サイトでは
-  静的な実演に留まる）
+  静的な実演に留まる）/
+  `blocks/hero-editorial-stagger/index.html`（イシュー #2546、`badge`/
+  `heading`/`text`/`button` を合成した hero。eyebrow badge → 見出し →
+  リード文 → CTA 群の順に時間軸 stagger（`animation-delay`）でフェード＋
+  スライドインする）/
+  `blocks/hero-parallax-layers/index.html`（イシュー #2546、背景・中景・
+  前景の抽象図形 3 レイヤーへ `SlotRecipe::parallax` を直接適用した hero。
+  `heading`/`text`/`button` を最前面に合成し、`data-fandhe-scroll-progress`
+  は無 JS のため付与しない）/
+  `blocks/hero-terminal/index.html`（イシュー #2546、`code`/`kbd` を合成
+  したターミナル風 hero。3 行のコマンドが時間軸 stagger でフェードインし、
+  最終行は `text_reveal::typewriter` の opt-in マーカーのみを持つ静的表示）/
+  `blocks/text-split-reveal/index.html`（イシュー #2546、`heading`/`text`/
+  `button` を合成した hero。見出しは `text_reveal::chars`、リード文は
+  `text_reveal::words` で SSR のみの reveal を行い、Blocks が
+  `text_reveal::TEXT_REVEAL_CSS` を初めて `push_css` する消費者となった）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
