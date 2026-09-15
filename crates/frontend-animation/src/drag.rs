@@ -155,24 +155,62 @@ fn normalize_constraint(constraint: DragConstraint) -> DragConstraint {
     }
 }
 
+/// [`estimate_velocity`] が速度計算に使う最小経過時間（秒）。これ未満の
+/// `dt` は「事実上同時刻のサンプル」として速度 0 を返す（イシュー #2541
+/// codex-review 指摘・`carousel_motion_browser.rs` 実測 是正の一部: 合成
+/// `PointerEvent` を待機なしで連続 dispatch すると `time_stamp()` の差が
+/// サブミリ秒になり得る。下限を設けないと極小 `dt` による除算で非現実的
+/// に巨大な速度を返す）。1ms は 1000Hz 相当の入力デバイスでも通常発生
+/// しない下限であり、実運用の 60〜144Hz ポインタ入力（約 7〜16ms 間隔）
+/// には影響しない。
+const MIN_VELOCITY_DT_S: f64 = 0.001;
+
+/// [`estimate_velocity`] が速度計算に使う最小移動距離（px）。これ未満の
+/// 位置差は速度 0 を返す（イシュー #2541 codex-review 指摘・
+/// `carousel_motion_browser.rs` 実測 是正の残り: [`MIN_VELOCITY_DT_S`]
+/// だけでは不十分だった——実ブラウザの 2 サンプル間隔は数 ms 程度
+/// （1000Hz を大きく下回る）でも十分現実的なため、[`CLICK_GUARD_PX`]
+/// 未満の「意図しない微小移動」（例: 2px のみのドラッグ）に対しても
+/// 数 ms という短時間で割ると px/秒換算では依然大きな値になり、spring の
+/// 初速が跳ね上がって「起点付近へ戻るだけのはずの操作」が有意にオーバー
+/// シュートし、収束（`Spring::at` の `done`）までの時間が想定より
+/// 大幅に伸びていた（`small_move_settles_back_to_origin_index` の実測で
+/// 確認）。移動距離自体が測定誤差・手ぶれの範囲に収まるほど小さい
+/// サンプルは、`dt` が有限でも速度推定の信頼性がないという判断は
+/// `MIN_VELOCITY_DT_S` と対称であり、ここでも「行き過ぎない」安全側の
+/// 既定値（速度 0）へ倒す。値は
+/// `fandhe_frontend_wasm_full::carousel_motion::CLICK_GUARD_PX`
+/// （5.0px、合成 click 抑止のドラッグ判定閾値）よりわずかに小さい
+/// 3.0px とし、「ドラッグと認識されるほどの移動」はこの下限に阻まれず
+/// 従来どおり速度を反映する。
+const MIN_VELOCITY_DISTANCE_PX: f64 = 3.0;
+
 /// 直近 2 サンプル（位置・`performance.now()`/`event.time_stamp()` 相当の
 /// ms タイムスタンプ）から離脱速度（px/秒）を推定する。
 ///
-/// いずれかのサンプルが欠けている・時間差が 0 以下（同時刻の重複サンプル・
-/// クロックの逆行）の場合は `Vec2::default()`（速度 0）を返す
-/// （spring の初速 0 は「行き過ぎない」安全側の既定値）。
+/// いずれかのサンプルが欠けている・時間差が[`MIN_VELOCITY_DT_S`]未満
+/// （0 以下を含む。同時刻の重複サンプル・クロックの逆行・測定不能なほど
+/// 近接した連続サンプル）・移動距離が[`MIN_VELOCITY_DISTANCE_PX`]未満
+/// （測定誤差・手ぶれの範囲に収まる意図しない微小移動）のいずれかの
+/// 場合は `Vec2::default()`（速度 0）を返す（spring の初速 0 は「行き
+/// 過ぎない」安全側の既定値）。
 #[must_use]
 pub fn estimate_velocity(previous: Option<(Vec2, f64)>, latest: Option<(Vec2, f64)>) -> Vec2 {
     let (Some((p0, t0)), Some((p1, t1))) = (previous, latest) else {
         return Vec2::default();
     };
     let dt = (t1 - t0) / 1000.0;
-    if !dt.is_finite() || dt <= 0.0 {
+    if !dt.is_finite() || dt < MIN_VELOCITY_DT_S {
+        return Vec2::default();
+    }
+    let dx = p1.x - p0.x;
+    let dy = p1.y - p0.y;
+    if dx.hypot(dy) < MIN_VELOCITY_DISTANCE_PX {
         return Vec2::default();
     }
     Vec2 {
-        x: (p1.x - p0.x) / dt,
-        y: (p1.y - p0.y) / dt,
+        x: dx / dt,
+        y: dy / dt,
     }
 }
 
@@ -693,6 +731,27 @@ mod tests {
         let velocity = estimate_velocity(previous, latest);
         assert!((velocity.x - 200.0).abs() < 1e-9);
         assert!((velocity.y - (-100.0)).abs() < 1e-9);
+    }
+
+    /// イシュー #2541 codex-review 指摘・`carousel_motion_browser.rs`
+    /// 実測 是正の回帰: 2px 程度の微小移動（`MIN_VELOCITY_DISTANCE_PX`
+    /// 未満）は、`dt` が短くても速度 0 を返す（噴き上がった速度が
+    /// spring をオーバーシュートさせない）。
+    #[test]
+    fn estimate_velocity_returns_zero_for_tiny_distance_even_with_short_dt() {
+        let previous = Some((Vec2 { x: 0.0, y: 0.0 }, 0.0));
+        let latest = Some((Vec2 { x: 2.0, y: 0.0 }, 8.0));
+        assert_eq!(estimate_velocity(previous, latest), Vec2::default());
+    }
+
+    /// `MIN_VELOCITY_DISTANCE_PX` 以上の移動は、短い `dt` でも速度を
+    /// 正しく計算する（距離フィルタが正当なフリック操作を殺さない回帰）。
+    #[test]
+    fn estimate_velocity_computes_velocity_for_distance_at_or_above_floor() {
+        let previous = Some((Vec2 { x: 0.0, y: 0.0 }, 0.0));
+        let latest = Some((Vec2 { x: 10.0, y: 0.0 }, 8.0));
+        let velocity = estimate_velocity(previous, latest);
+        assert!((velocity.x - 1250.0).abs() < 1e-6);
     }
 
     #[test]

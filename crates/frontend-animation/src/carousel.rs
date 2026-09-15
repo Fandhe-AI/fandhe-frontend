@@ -224,6 +224,26 @@ mod wiring {
         }
 
         /// `self.progress` を `target`（整数 index）へ spring で収束させる。
+        ///
+        /// # `self.progress` を着地先へ即時更新する安全性（codex-review
+        /// 指摘の検討記録）
+        ///
+        /// この行だけを見ると、アニメーション（`AnimationLoop`）が
+        /// まだ `to` へ到達していないのに内部の `progress` フィールドを
+        /// 先取りして更新するため、settle 完了前に**同じインスタンス**へ
+        /// `on_pointer_down` が呼ばれると起点が未到達値になり位置が飛ぶ
+        /// ように見える。しかし [`CarouselTrack::attach`] は毎
+        /// `pointerdown` で（既存インスタンスの再利用ではなく）**新規**
+        /// `CarouselTrack` を生成し、その初期 `progress` は `self.progress`
+        /// フィールドではなく `element` の実際の DOM インライン style
+        /// （`--fandhe-carousel-index`）から読み直す契約（`attach` doc
+        /// 参照）。この DOM 値は [`Self::write_progress`]/アニメーション
+        /// tick の `DomTarget::write` が同期的に書き込むため、settle が
+        /// 中断された時点の**実際の途中経過値**が正しく残っている。した
+        /// がって `self.progress` の早期更新は次のドラッグセッションの
+        /// 起点計算には一切使われず、位置が飛ぶ実害はない
+        /// （`crates/wasm-full/src/carousel_motion.rs::handle_pointerdown`
+        /// が毎回 `CarouselTrack::attach` を呼ぶ契約を崩さないこと）。
         fn settle_to(
             &mut self,
             target: usize,

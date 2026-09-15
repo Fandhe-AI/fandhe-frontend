@@ -33,22 +33,33 @@
 //! settle 完了前に `CarouselTrack` 自体を drop すると `AnimationLoop` も
 //! drop され、アニメーションが途中で停止してしまう
 //! （`hold_to_confirm.rs::finish_confirmation` doc の「never drop here」と
-//! 同じ制約）。本モジュールは `wire_carousel_motion_events` が生成する
-//! `Rc<RefCell<Option<CarouselTrack>>>`（[`TrackSlot`]）を pointerdown/
-//! pointermove/release の全リスナーで共有し、次の pointerdown が上書きする
-//! までは settle 完了後も保持し続ける（`magnetic.rs::ActiveMagnetic` と
-//! 同型のパターン）。settle 完了コールバック自身はこの slot に触れない
-//! （tick 実行中に自分自身を drop しないため、`hold_to_confirm.rs` と同じ
-//! 「never drop from within the tick」規律）。
+//! 同じ制約）。本モジュールは carousel root ごとに 1 個の
+//! `Rc<RefCell<Option<CarouselTrack>>>`（[`TrackSlot`]）を
+//! [`TrackRegistry`] で保持し、次の pointerdown が**同じ** root 上で
+//! 上書きするまでは settle 完了後も保持し続ける（`magnetic.rs::
+//! ActiveMagnetic` と同型のパターン）。settle 完了コールバック自身は
+//! この slot に触れない（tick 実行中に自分自身を drop しないため、
+//! `hold_to_confirm.rs` と同じ「never drop from within the tick」規律）。
 //!
-//! # 対応する「新規 pointerdown が前回の settle を打ち切る」既知の制約
+//! # 複数 carousel 間の状態分離（[`TrackRegistry`]、codex-review/Cursor
+//! Bugbot 指摘 是正）
 //!
-//! [`TrackSlot`] は carousel root 単位ではなくアプリ全体で共有する
-//! （`Runtime` 1 インスタンスにつき 1 個）。複数の carousel を同時に操作
-//! することは通常ないため、ある carousel の settle 完了前に**別の**
-//! carousel をドラッグし始めると前者の settle アニメーションは打ち切られる
-//! （最終値へジャンプせず、その時点の途中値で停止する）。実用上の頻度が
-//! 低い既知の簡略化。
+//! `wire_carousel_motion_events` は `Runtime` の mount root 1 個へ
+//! 委譲登録する（[`crate::lib::Runtime::wire_carousel_motion`]、1
+//! インスタンスにつき 1 回のみ呼ばれる）ため、素朴に単一の
+//! `TrackSlot`/`DragMetaSlot` を共有すると、ある carousel の settle
+//! アニメーション進行中に**別の** carousel root をドラッグし始めた
+//! 時点で前者の状態が上書きされ、`AnimationLoop` が中断される（結果を
+//! 待つコールバックが呼ばれないまま `goto` dispatch が失われる）。
+//! 是正として [`TrackRegistry`]（carousel root ごとの
+//! `(TrackSlot, DragMetaSlot)` を保持する小さな線形テーブル）を導入し、
+//! `handle_pointerdown`/`handle_pointermove`/`handle_pointer_release` は
+//! いずれも `target.closest(CAROUSEL_ROOT_SELECTOR)` で解決した
+//! carousel root をキーに [`slot_for`] を引いてから操作する。`Element`
+//! は `Hash`/`Eq` を実装しないため `Node::is_same_node` による線形探索で
+//! 同一性判定する（ponytail: 1 ページ内の carousel 数は通常一桁〜十数個
+//! 程度に収まる想定の簡略化。件数が実運用で問題になった場合は
+//! `js_sys::WeakMap` 等キー付きコレクションへの切替を検討する）。
 
 /// opt-in（著者が SSR 出力に静的に付与）: root へ付与するとドラッグ +
 /// spring スナップを有効化するマーカー属性。値は `""`（非 loop）または
@@ -123,6 +134,28 @@ mod wiring {
 
     type DragMetaSlot = Rc<RefCell<Option<DragMeta>>>;
 
+    /// carousel root ごとの [`TrackSlot`]/[`DragMetaSlot`] を保持する
+    /// レジストリ（モジュール doc「複数 carousel 間の状態分離」節参照）。
+    type TrackRegistry = Rc<RefCell<Vec<(Element, TrackSlot, DragMetaSlot)>>>;
+
+    /// `registry` から `carousel_root` に対応する `(TrackSlot,
+    /// DragMetaSlot)` を引く。未登録なら新規に確保して登録する
+    /// （carousel root の同一性は `Node::is_same_node` で判定する、
+    /// モジュール doc「複数 carousel 間の状態分離」節参照）。
+    fn slot_for(registry: &TrackRegistry, carousel_root: &Element) -> (TrackSlot, DragMetaSlot) {
+        let mut entries = registry.borrow_mut();
+        if let Some((_, track, drag)) = entries
+            .iter()
+            .find(|(root, _, _)| root.is_same_node(Some(carousel_root.as_ref())))
+        {
+            return (track.clone(), drag.clone());
+        }
+        let track: TrackSlot = Rc::new(RefCell::new(None));
+        let drag: DragMetaSlot = Rc::new(RefCell::new(None));
+        entries.push((carousel_root.clone(), track.clone(), drag.clone()));
+        (track, drag)
+    }
+
     /// ドラッグ後の合成 click を抑止するためのフラグ（5px 超の移動が
     /// あった場合のみ次の 1 回の click を capture フェーズで止める）。
     type SuppressClickFlag = Rc<std::cell::Cell<bool>>;
@@ -145,14 +178,12 @@ mod wiring {
         on_action: impl FnMut(ActionRef) + 'static,
     ) -> Result<(), JsValue> {
         let on_action = Rc::new(RefCell::new(on_action));
-        let track: TrackSlot = Rc::new(RefCell::new(None));
-        let drag: DragMetaSlot = Rc::new(RefCell::new(None));
+        let registry: TrackRegistry = Rc::new(RefCell::new(Vec::new()));
         let suppress_click: SuppressClickFlag = Rc::new(std::cell::Cell::new(false));
 
-        let pointerdown_track = track.clone();
-        let pointerdown_drag = drag.clone();
+        let pointerdown_registry = registry.clone();
         let pointerdown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointerdown(&event, &pointerdown_track, &pointerdown_drag);
+            handle_pointerdown(&event, &pointerdown_registry);
         });
         root.add_event_listener_with_callback(
             "pointerdown",
@@ -160,10 +191,9 @@ mod wiring {
         )?;
         pointerdown_closure.forget();
 
-        let pointermove_track = track.clone();
-        let pointermove_drag = drag.clone();
+        let pointermove_registry = registry.clone();
         let pointermove_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointermove(&event, &pointermove_track, &pointermove_drag);
+            handle_pointermove(&event, &pointermove_registry);
         });
         root.add_event_listener_with_callback(
             "pointermove",
@@ -172,15 +202,13 @@ mod wiring {
         pointermove_closure.forget();
 
         for event_name in ["pointerup", "pointercancel"] {
-            let release_track = track.clone();
-            let release_drag = drag.clone();
+            let release_registry = registry.clone();
             let release_on_action = on_action.clone();
             let release_suppress = suppress_click.clone();
             let release_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
                 handle_pointer_release(
                     &event,
-                    &release_track,
-                    &release_drag,
+                    &release_registry,
                     &release_on_action,
                     &release_suppress,
                 );
@@ -214,7 +242,7 @@ mod wiring {
     /// 計測してドラッグセッションを開始する。opt-in root/`item-group` が
     /// 見つからない・`data-disabled` 祖先を持つ・`item` が 0 件・計測結果
     /// が非正/非有限のいずれかは no-op（fail-safe）。
-    fn handle_pointerdown(event: &Event, track: &TrackSlot, drag: &DragMetaSlot) {
+    fn handle_pointerdown(event: &Event, registry: &TrackRegistry) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
@@ -266,6 +294,8 @@ mod wiring {
             return;
         }
 
+        let (track, drag) = slot_for(registry, &carousel_root);
+
         let _ = item_group.set_pointer_capture(pointer_event.pointer_id());
         let mut new_track = CarouselTrack::attach(item_group.clone(), slide_count, loop_);
         let coord = if vertical {
@@ -288,10 +318,23 @@ mod wiring {
         });
     }
 
-    fn handle_pointermove(event: &Event, track: &TrackSlot, drag: &DragMetaSlot) {
+    /// `event.target()` から carousel root（[`CAROUSEL_ROOT_SELECTOR`]）を
+    /// 解決する（pointerdown で `set_pointer_capture` 済みのため、
+    /// pointermove/release でも target はキャプチャ元の要素のまま安定
+    /// して解決できる）。
+    fn resolve_carousel_root(event: &Event) -> Option<Element> {
+        let target = event.target().and_then(|t| t.dyn_into::<Element>().ok())?;
+        target.closest(CAROUSEL_ROOT_SELECTOR).ok().flatten()
+    }
+
+    fn handle_pointermove(event: &Event, registry: &TrackRegistry) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
+        let Some(carousel_root) = resolve_carousel_root(event) else {
+            return;
+        };
+        let (track, drag) = slot_for(registry, &carousel_root);
         let mut drag_guard = drag.borrow_mut();
         let Some(meta) = drag_guard.as_mut() else {
             return;
@@ -310,33 +353,63 @@ mod wiring {
         let slide_px = meta.slide_px;
         if let Some(t) = track.borrow_mut().as_mut() {
             t.on_pointer_move(coord, slide_px, event.time_stamp());
-        }
+        };
     }
 
-    /// pointerup/pointercancel 共通ハンドラ。`drag` を取り出し settle を
+    /// pointerup/pointercancel 共通ハンドラ。`drag` の `pointer_id` が
+    /// このイベントと一致することを確認してから取り出し settle を
     /// 開始する（settle 完了時に `"goto"` を dispatch する）。
+    ///
+    /// # pointer_id を確認してから `take()` する理由（codex-review/Cursor
+    /// Bugbot 指摘 是正）
+    ///
+    /// 当初は `drag_guard.take()` を pointer_id 確認より先に実行していた
+    /// ため、マルチタッチ環境で無関係な別指の `pointerup`/`pointercancel`
+    /// が先に配信されると、アクティブなドラッグの [`DragMeta`] が
+    /// pointer_id 不一致にもかかわらず失われてしまい、本来のドラッグ
+    /// 指の `pointerup` が届いても settle が開始されない不具合があった。
+    /// 是正として `as_ref()` で照合してから一致した場合のみ `take()`
+    /// する。
+    ///
+    /// # pointercancel では合成 click を抑止しない理由（codex-review/
+    /// Cursor Bugbot 指摘 是正）
+    ///
+    /// `pointercancel` はブラウザ仕様上、続く合成 `click` イベントを
+    /// 発火**しない**（`pointerup` のみが click の起点になる）。当初は
+    /// event 種別を区別せず `moved` に応じて `suppress_click` を常に
+    /// 立てていたため、cancel 後は誰も消費しない抑止フラグが残留し、
+    /// 全く無関係な次の `click`（別の trigger/indicator クリック等）まで
+    /// 誤って止めてしまっていた。是正として `pointerup` のときのみ
+    /// `suppress_click` を設定する。
     fn handle_pointer_release(
         event: &Event,
-        track: &TrackSlot,
-        drag: &DragMetaSlot,
+        registry: &TrackRegistry,
         on_action: &Rc<RefCell<impl FnMut(ActionRef) + 'static>>,
         suppress_click: &SuppressClickFlag,
     ) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
-        let mut drag_guard = drag.borrow_mut();
-        let Some(meta) = drag_guard.take() else {
+        let Some(carousel_root) = resolve_carousel_root(event) else {
             return;
         };
-        drop(drag_guard);
-        if meta.pointer_id != pointer_event.pointer_id() {
+        let (track, drag) = slot_for(registry, &carousel_root);
+        let mut drag_guard = drag.borrow_mut();
+        let is_match = drag_guard
+            .as_ref()
+            .is_some_and(|meta| meta.pointer_id == pointer_event.pointer_id());
+        if !is_match {
             return;
         }
+        let meta = drag_guard.take().expect("is_match が Some を確認済み");
+        drop(drag_guard);
+
         let _ = meta
             .item_group
             .release_pointer_capture(pointer_event.pointer_id());
-        suppress_click.set(meta.moved);
+        if event.type_() == "pointerup" {
+            suppress_click.set(meta.moved);
+        }
 
         let mut track_guard = track.borrow_mut();
         let Some(t) = track_guard.as_mut() else {

@@ -5,10 +5,13 @@
 //! 制限」に従い、Motion+（購入者限定資料）の意匠から着想した表現を
 //! Rust/CSS で独自に再実装する（コード片の逐語コピーはしない）。
 //!
-//! - **coverflow 3D**: A 群（CSS のみ）。[`COVERFLOW_CLASS`] を
+//! - **coverflow 3D**: A 群（CSS のみ）。[`COVERFLOW_ATTR`] を
 //!   [`crate::carousel::root`] へ付与し、各 `item` へ
 //!   [`crate::recipe::stagger_index_style`]（既存 `--fandhe-motion-
-//!   stagger-index`、著者が並び順を書き込む）を付与すると 3D に並ぶ。
+//!   stagger-index`、著者が並び順を書き込む）を付与すると 3D に並ぶ
+//!   （`item`/`item-group` 自身へクラスを付ける必要はない。`root` 直下の
+//!   子孫を descendant セレクタで狙う——[`CAROUSEL_DRAG_ATTR`] と同型の
+//!   マーカー付与パターン）。
 //! - **ドラッグ + spring スナップ**: C 群（フレームループ必須）。DOM 配線は
 //!   `fandhe-frontend-wasm-full::carousel_motion`（`fandhe-frontend-
 //!   animation::carousel::CarouselTrack` を消費）が担う。本モジュールは
@@ -49,8 +52,18 @@
 //! prefers_reduced_motion` を配線層が照会し、有効時は spring を使わず
 //! 即時に整数値を書く（アニメーションさせない）。
 
-/// opt-in: root へ付与すると coverflow 3D 表示になるクラス名。
-pub const COVERFLOW_CLASS: &str = "fd-carousel--coverflow";
+/// opt-in（著者が SSR 出力に静的に付与）: root へ付与すると coverflow 3D
+/// 表示になるマーカー属性。[`CAROUSEL_DRAG_ATTR`] と同じ「root にだけ
+/// 付与し、CSS 側は descendant セレクタで `item-group`/`item` を狙う」
+/// パターンを採る（codex-review/Cursor Bugbot 指摘 是正、イシュー #2541:
+/// 当初はクラスとして `item-group`/`item` 自身にも付与する契約にして
+/// いたが、`crate::carousel::root` は呼び出し側の `class` 属性を
+/// `crate::class_attr::drop_class_attr` で破棄する契約〔`root` rustdoc
+/// 「パーツ」節参照〕のため、クラスを root へ付与する経路が構造的に
+/// 存在しなかった。データ属性はこの破棄経路の対象外〔`drop_class_attr`
+/// は `class` キーのみを狙う〕であり、[`CAROUSEL_DRAG_ATTR`] は同じ形で
+/// 既に機能しているため、そちらへ合わせる）。
+pub const COVERFLOW_ATTR: &str = "data-fandhe-carousel-coverflow";
 
 /// opt-in（著者が SSR 出力に静的に付与）: root へ付与するとドラッグ +
 /// spring スナップを有効化するマーカー属性。値は `""`（非 loop）または
@@ -65,46 +78,47 @@ pub const CAROUSEL_DRAG_ATTR: &str = "data-fandhe-carousel-drag";
 /// `transition` の競合を防ぐ。
 pub const CAROUSEL_DRAGGING_STATE_ATTR: &str = "data-fandhe-carousel-dragging";
 
-/// coverflow 3D 表示の CSS（[`COVERFLOW_CLASS`] 配下のみに閉じる）。
+/// coverflow 3D 表示の CSS（[`COVERFLOW_ATTR`] 付き root の子孫のみに
+/// 閉じる）。
 ///
 /// `--_o`（並び順の相対オフセット、`stagger-index - carousel-index`）から
 /// `translateX`/`rotateY`/`translateZ` を合成する。`abs()`/`sign()` は
 /// 使わず `max(x, -x)` で絶対値を表現する（`recipe.rs` 全体の既存方針
 /// ——CSS 関数の対応状況に依存しない書き方——を踏襲）。
+///
+/// # `item` を `position: absolute; inset: 0;` にする際の表示領域確保
+/// （codex-review/Cursor Bugbot 指摘 是正）
+///
+/// 全 `item` を絶対配置にすると通常フローから外れ、`item-group` は
+/// flex 子の内容寸法で自身の高さを決められなくなる（`flex-basis` は
+/// 絶対配置要素には効かない）。是正として `item-group` へ明示 `height`
+/// （縦方向の非 coverflow 状態が既に使っている `--fandhe-carousel-height`
+/// トークン、既定 20rem、を再利用）を与え、`item` 側は `left: 0`/`top: 0`
+/// 単独ではなく `inset: 0` で `item-group` の確定した内容領域いっぱいに
+/// 広げる（寸法を `item-group` と厳密に一致させ、`overflow: hidden` と
+/// 組み合わせても中身が隠れない）。
 pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
-    "[data-scope=\"carousel\"][data-part=\"item-group\"].",
-    "fd-carousel--coverflow",
-    " {\n",
+    "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item-group\"] {\n",
     "  transform: none;\n",
     "  perspective: var(--fandhe-carousel-coverflow-perspective, 800px);\n",
     "  transform-style: preserve-3d;\n",
     "  justify-content: center;\n",
     "  position: relative;\n",
+    "  height: var(--fandhe-carousel-coverflow-height, var(--fandhe-carousel-height, 20rem));\n",
     "}\n",
-    "[data-scope=\"carousel\"][data-part=\"item\"].",
-    "fd-carousel--coverflow",
-    " {\n",
+    "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item\"] {\n",
     "  --_o: calc(var(--fandhe-motion-stagger-index, 0) - var(--fandhe-carousel-index, 0));\n",
     "  --_abs-o: max(var(--_o), calc(-1 * var(--_o)));\n",
     "  position: absolute;\n",
-    "  left: 0;\n",
+    "  inset: 0;\n",
     "  transform: translateX(calc(var(--_o) * var(--fandhe-carousel-coverflow-spread, 55%)))\n",
     "    rotateY(calc(clamp(-1, var(--_o), 1) * -1 * var(--fandhe-carousel-coverflow-angle, 45deg)))\n",
     "    translateZ(calc(-1 * var(--_abs-o) * var(--fandhe-carousel-coverflow-depth, 60px)));\n",
     "}\n",
-    // 縦方向は translateY/rotateX に置換した同型の 1 ブロック。
-    "[data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"].",
-    "fd-carousel--coverflow",
-    " {\n",
-    "  transform: none;\n",
-    "}\n",
-    "[data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"].",
-    "fd-carousel--coverflow",
-    " {\n",
-    "  --_o: calc(var(--fandhe-motion-stagger-index, 0) - var(--fandhe-carousel-index, 0));\n",
-    "  --_abs-o: max(var(--_o), calc(-1 * var(--_o)));\n",
-    "  position: absolute;\n",
-    "  top: 0;\n",
+    // 縦方向は translateY/rotateX に置換した同型の 1 ブロック（`--_o`/
+    // `--_abs-o` は orientation を問わない上のブロックが既に定義済みの
+    // ため、ここでは `transform` の上書きのみで足りる）。
+    "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"] {\n",
     "  transform: translateY(calc(var(--_o) * var(--fandhe-carousel-coverflow-spread, 55%)))\n",
     "    rotateX(calc(clamp(-1, var(--_o), 1) * var(--fandhe-carousel-coverflow-angle, 45deg)))\n",
     "    translateZ(calc(-1 * var(--_abs-o) * var(--fandhe-carousel-coverflow-depth, 60px)));\n",
@@ -116,10 +130,25 @@ pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
 /// （[`CAROUSEL_DRAGGING_STATE_ATTR`]）は CSS `transition` を止め、
 /// `fandhe_frontend_animation::carousel::CarouselTrack` の毎フレーム
 /// 書き込みだけが見た目を駆動するようにする。
+///
+/// # `touch-action` は orientation で軸を反転する（codex-review/Cursor
+/// Bugbot 指摘 是正）
+///
+/// `touch-action` はブラウザのネイティブパン操作へ**委譲する**軸を宣言する
+/// プロパティであり、JS ドラッグ処理が奪う軸ではなく逆側の軸を指定する。
+/// 横方向ドラッグ（既定）はブラウザの縦スクロールを妨げないよう
+/// `pan-y`（縦方向のみブラウザへ委譲）を宣言する。縦方向ドラッグ
+/// （`item-group[data-orientation="vertical"]`）でこれをそのまま使うと、
+/// ユーザーが縦にドラッグするたびページの縦スクロールも同時に発火して
+/// 競合し `pointercancel` を誘発する。縦方向は軸を反転し
+/// `pan-x`（横方向のみ委譲、縦方向はドラッグ処理が専有）を宣言する。
 pub const CAROUSEL_SPRING_SNAP_CSS: &str = concat!(
     "[data-fandhe-carousel-drag] [data-scope=\"carousel\"][data-part=\"item-group\"] {\n",
     "  touch-action: pan-y;\n",
     "  cursor: grab;\n",
+    "}\n",
+    "[data-fandhe-carousel-drag] [data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n",
+    "  touch-action: pan-x;\n",
     "}\n",
     "[data-fandhe-carousel-drag][data-fandhe-carousel-dragging] [data-scope=\"carousel\"][data-part=\"item-group\"],\n",
     "[data-fandhe-carousel-drag][data-fandhe-carousel-dragging] [data-scope=\"carousel\"][data-part=\"item\"] {\n",
@@ -173,11 +202,21 @@ mod tests {
     }
 
     #[test]
-    fn coverflow_css_scoped_to_opt_in_class() {
+    fn coverflow_css_scoped_to_opt_in_attr() {
         let css = carousel_motion_css();
-        assert!(css.contains(COVERFLOW_CLASS));
+        assert!(css.contains(COVERFLOW_ATTR));
         assert!(css.contains("perspective:"));
         assert!(css.contains("rotateY("));
+        // item-group/item 自身にクラスを要求しない（root の子孫セレクタで
+        // 閉じる、codex-review/Cursor Bugbot 指摘 是正の回帰防止）。
+        assert!(!css.contains("fd-carousel--coverflow"));
+    }
+
+    #[test]
+    fn coverflow_item_fills_item_group_via_inset() {
+        let css = carousel_motion_css();
+        assert!(css.contains("inset: 0;"));
+        assert!(css.contains("height: var(--fandhe-carousel-coverflow-height"));
     }
 
     #[test]
@@ -186,5 +225,12 @@ mod tests {
         assert!(css.contains(CAROUSEL_DRAG_ATTR));
         assert!(css.contains(CAROUSEL_DRAGGING_STATE_ATTR));
         assert!(css.contains("transition: none;"));
+    }
+
+    #[test]
+    fn spring_snap_css_flips_touch_action_axis_for_vertical() {
+        let css = carousel_motion_css();
+        assert!(css.contains("touch-action: pan-y;"));
+        assert!(css.contains("[data-orientation=\"vertical\"] {\n  touch-action: pan-x;"));
     }
 }

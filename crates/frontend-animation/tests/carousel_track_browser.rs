@@ -82,7 +82,16 @@ async fn drag_then_release_settles_index_and_calls_on_settle_once() {
 
     let settled = Rc::new(RefCell::new(None::<usize>));
     let settled_for_cb = settled.clone();
-    let target = track.on_release(32.0, 100.0, move |index| {
+    // release は最後の move（t=16.0ms）から `STALE_VELOCITY_THRESHOLD_MS`
+    // （100ms）超あとに呼ぶ（イシュー #2541 是正: 元は t=32.0（move から
+    // わずか 16ms 後）で release していたため `is_velocity_stale` が
+    // false のまま `estimate_velocity` が 150px/16ms ≈ 9375px/s という
+    // 現実的だが本テストの意図〔速度の影響を受けない単純な丸め〕には
+    // 大きすぎる速度を計算し、`snap_target` が 1.5 を 2 ではなく末尾
+    // index 4 へ大きくオーバーシュートしていた。release を staleness
+    // 閾値超あとへ遅らせることで速度が確実に 0 になり、`progress` の
+    // 単純な丸めのみを検証する本来の意図どおりになる。
+    let target = track.on_release(132.0, 100.0, move |index| {
         *settled_for_cb.borrow_mut() = Some(index);
     });
     assert_eq!(target, 2, "1.5 should round to nearest slide 2");
