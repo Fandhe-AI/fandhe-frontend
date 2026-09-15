@@ -199,6 +199,25 @@ mod wiring {
         let started = Rc::new(Cell::new(matches!(trigger, Trigger::Immediate)));
         let pending: PendingTarget = Rc::new(RefCell::new(Some((parsed.clone(), to))));
 
+        // `MutationObserver` は登録より前の書き込みを検知できないため、
+        // 初期書き込み（`write_final`/`start_count_up`）より必ず先に登録
+        // する。`MutationObserverInit::characterData` はコールバックが
+        // マイクロタスクとして実行される仕様上、登録直後の同期的な初期
+        // 書き込みも正しく捕捉・消費できる（このモジュール doc「`self_write`
+        // フラグ」節と同じ前提）。逆順（初期書き込み → 登録）だと、その
+        // 書き込みが立てた `self_write` フラグを消費する購読者が存在せず
+        // 残留し、次に来る最初の実外部更新を誤って自己書き込みとして無視
+        // してしまう（PR #2580 codex-review P1 再指摘の回帰原因）。
+        wire_mutation_observer(
+            element,
+            duration_ms,
+            Rc::clone(&last_written),
+            Rc::clone(&active),
+            Rc::clone(&pending),
+            Rc::clone(&started),
+            Rc::clone(&self_write),
+        );
+
         match trigger {
             Trigger::Immediate => {
                 start_count_up(
@@ -242,16 +261,6 @@ mod wiring {
                 }
             }
         }
-
-        wire_mutation_observer(
-            element,
-            duration_ms,
-            last_written,
-            active,
-            pending,
-            started,
-            self_write,
-        );
     }
 
     /// 要素専用の `IntersectionObserver` を張り、初回 `isIntersecting` で
