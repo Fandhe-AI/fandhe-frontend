@@ -179,7 +179,11 @@ feature（0.32.0 で追加、イシュー #2519）も `scroll-driver`/`confetti`
 `VIEW_TRANSITION_PRESET_ATTR`/`ViewTransitionPreset` はゲート対象外です。
 off にすると `apply_with_view_transition_named` が使えなくなります
 （`apply_with_view_transition`〔unnamed、`view-transitions` feature〕は
-影響を受けません）。
+影響を受けません）。`ViewTransitionPreset` はイシュー #2537（0.34.0）で
+`Iris`/`Doors`/`Shutter`/`Blinds`/`Strips`/`Pixels`/`MaskWipe`/`MaskRadial`
+の 8 バリアントを追加しました。既存の `match` を exhaustive に書いている
+利用者は、この feature の on/off に関わらずコンパイルが壊れる点に注意
+してください（`_ =>` の網羅、または新バリアントへの対応が必要です）。
 
 `animate` feature（0.25.0 で追加、イシュー #2398）も同じく別枠です。
 ただし `position`/`stagger`/`view-transition-name` とは異なり、ゲート

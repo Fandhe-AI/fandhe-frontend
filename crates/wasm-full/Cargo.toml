@@ -1261,7 +1261,15 @@ name = "fandhe-frontend-wasm-full"
 # 同型の新規公開モジュール純追加のため minor バンプする。あわせて
 # `fandhe-frontend-animation` の依存 `version` 要求を 0.11.0 → 0.12.0 へ
 # 追随した（`xtask check-dep-versions --fix` 相当）。
-version = "0.34.0"
+#
+# イシュー #2537: `ViewTransitionPreset` へ 8 バリアント（Iris/Doors/
+# Shutter/Blinds/Strips/Pixels/MaskWipe/MaskRadial）を追加した。既存
+# exhaustive match 利用者への観測可能な破壊的変更のため 0.x の破壊的変更を
+# マイナーバンプとする規約（`.claude/rules/coding-rust.md`）に従い minor
+# バンプする。本ブランチ（#2532 の 0.34.0）と origin/main（#2537 の
+# 0.34.0）が同じ merge base（0.33.0）から独立に同一版数へ到達したため、
+# 同じ版数のまま据え置かず +1 した 0.35.0 とする（同衝突運用）。
+version = "0.35.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
