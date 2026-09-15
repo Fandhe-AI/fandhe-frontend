@@ -65,11 +65,23 @@
 //! # 既知の制約
 //!
 //! 展開は `display` の切替（grid → flex）を伴うため、積層状態と展開状態の
-//! 間に位置の補間（アニメーション）はない（`translate`/`scale`/`opacity`
-//! の戻り遷移のみが滑らかに動く）。通知の高さが不揃いでも破綻しない
+//! 間に位置の補間（アニメーション）はない（`transform`/`opacity` の戻り
+//! 遷移のみが滑らかに動く）。通知の高さが不揃いでも破綻しない
 //! `grid-area` 重ね合わせ方式を優先した結果であり、位置補間が必要になった
 //! 時点で JS 計測を要する `fandhe-frontend-animation` 側の課題とする
 //! （実装計画 §7.2）。
+//!
+//! 積層時の縮小・オフセットは独立プロパティ（`translate`/`scale`）では
+//! なく単一の `transform` プロパティで表現する（codex-review 指摘対応、
+//! イシュー #2543）。`crates/frontend-animation/src/flip.rs` の
+//! `has_independent_transform_property` は要素自身・祖先が `translate`/
+//! `scale`/`rotate` のいずれかを持つ場合、実際に適用中の変形を
+//! `transform` プロパティ読み取りだけでは捕捉できないため契約絞り込み
+//! として layout FLIP の再生自体を省略する（`OriginalStyle::unsupported`/
+//! `ancestor_linear_matrix` が `None` を返す経路）。積層時の toast root は
+//! 常に非 0 の `translate`/`scale` を持ちうるため、独立プロパティのまま
+//! では [`FLIP_AUTO_ATTR`] を付与していても挿入・削除・並べ替え時の FLIP
+//! アニメーションが常に省略されてしまい、自動配線契約と矛盾する。
 //!
 //! # reduced-motion（WCAG 2.3.3）
 //!
@@ -130,16 +142,15 @@ pub const TOAST_STACK_CSS: &str = concat!(
     "  grid-area: stack;\n",
     "  --fandhe-toast-stack-index: var(--fandhe-motion-stagger-index, 0);\n",
     "  z-index: calc(100 - var(--fandhe-toast-stack-index));\n",
-    "  translate: 0 calc(var(--fandhe-toast-stack-index) * -1 * var(--fandhe-toast-stack-offset));\n",
-    "  scale: calc(1 - var(--fandhe-toast-stack-index) * var(--fandhe-toast-stack-scale-step));\n",
+    "  transform: translateY(calc(var(--fandhe-toast-stack-index) * -1 * var(--fandhe-toast-stack-offset))) scale(calc(1 - var(--fandhe-toast-stack-index) * var(--fandhe-toast-stack-scale-step)));\n",
     "  transform-origin: center bottom;\n",
-    "  transition-property: translate, scale, opacity;\n",
+    "  transition-property: transform, opacity;\n",
     "  transition-duration: var(--fandhe-motion-duration-normal);\n",
     "  transition-timing-function: var(--fandhe-motion-easing-standard);\n",
     "}\n",
-    // top 系は translate の符号・origin を反転する。
+    // top 系は translateY の符号・origin を反転する。
     "[data-scope=\"toast\"][data-part=\"group\"][data-fandhe-toast-stack][data-placement^=\"top\"] > [data-scope=\"toast\"][data-part=\"root\"] {\n",
-    "  translate: 0 calc(var(--fandhe-toast-stack-index) * var(--fandhe-toast-stack-offset));\n",
+    "  transform: translateY(calc(var(--fandhe-toast-stack-index) * var(--fandhe-toast-stack-offset))) scale(calc(1 - var(--fandhe-toast-stack-index) * var(--fandhe-toast-stack-scale-step)));\n",
     "  transform-origin: center top;\n",
     "}\n",
     // 前面 3 枚のみ可視（4 枚目以降は透明化、DOM・読み上げは維持）。
@@ -170,8 +181,7 @@ pub const TOAST_STACK_CSS: &str = concat!(
     "  flex-direction: column;\n",
     "}\n",
     "[data-scope=\"toast\"][data-part=\"group\"][data-fandhe-toast-stack]:is(:hover, :focus-within) > [data-scope=\"toast\"][data-part=\"root\"] {\n",
-    "  translate: none;\n",
-    "  scale: none;\n",
+    "  transform: none;\n",
     "  opacity: 1;\n",
     "  pointer-events: auto;\n",
     "}\n",
