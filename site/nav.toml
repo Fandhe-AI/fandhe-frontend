@@ -68,6 +68,11 @@ title = "fandhe-animation API ガイド"
 source = "docs/guides/animation-core.md"
 path = "/guides/animation-core/"
 
+[[section.page]]
+title = "アニメーション機能ガイド"
+source = "docs/guides/animation.md"
+path = "/guides/animation/"
+
 [[section]]
 title = "Examples"
 index_path = "/examples/"

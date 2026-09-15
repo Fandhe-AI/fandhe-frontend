@@ -230,8 +230,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // イシュー #2549 で Blocks セクションへ bento-staggered・
     // feature-expand の 2 ページが加わり、239 → 241 になった。イシュー
     // #2550 で Blocks セクションへ cta-banner-magnetic・
-    // cta-signup-celebrate の 2 ページが加わり、241 → 243 になった。
-    assert_eq!(pages.len(), 243, "expected 243 pages, got {pages:?}");
+    // cta-signup-celebrate の 2 ページが加わり、241 → 243 になった。イシュー
+    // #2523 でアニメーション機能ガイド（Guides セクション）が加わり、
+    // 243 → 244 になった。
+    assert_eq!(pages.len(), 244, "expected 244 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
