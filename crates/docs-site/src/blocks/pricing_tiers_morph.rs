@@ -43,11 +43,19 @@
 //!
 //! # 無 JS（docs サイト）での「2 状態併記」
 //!
-//! docs サイトは JS ハイドレーションを一切行わない。`tabs` は元々 `hidden`
-//! 属性で非選択側を隠す設計であり、両方の billing 状態（月額/年額）の
-//! `content` パネルが実際に SSR 出力へ両方存在する（`sidebar_07` の
-//! expanded/collapsed 2 インスタンス併記と同型の対処。既存の他 tabs 系
-//! ページと同じ挙動であり新たな特別対応は不要）。
+//! docs サイトは JS ハイドレーションを一切行わない。`tabs` は非選択側の
+//! `content` に `hidden` 属性（+ pre-styled-ui の `tabs` recipe が
+//! `[hidden] { display: none }` を適用）を付ける設計であり、単一の
+//! `tabs` インスタンスへ両方の billing 状態を詰め込むと、非選択側
+//! （年額）パネルは SSR 出力に存在はしても閉じたトグルを操作する JS が
+//! 無いため実際には一切閲覧できない（イシュー #2547 PR #2568 の
+//! codex-review 指摘、`crates/docs-site/tests/blocks_contract.rs` の
+//! 回帰テストが両状態の**可視**存在を固定する）。このため本 block は
+//! `selected` が異なる 2 個の `tabs` インスタンス（月額選択/年額選択）を
+//! 縦に並べて静的に併記する（`sidebar_07` の expanded/collapsed 2
+//! インスタンス併記と同型の対処。各インスタンス内でも非選択側パネルは
+//! 依然 `hidden` になるが、2 インスタンスを併記することで月額・年額
+//! 双方の選択済み（可視）状態が実際にページ上へ現れる）。
 //!
 //! # border-beam の使用
 //!
@@ -85,7 +93,7 @@
 use super::{Block, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{div, li, span, text, ul, Node};
+use fandhe_frontend_core::{div, li, p, span, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::border_beam::BORDER_BEAM_CLASS;
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
@@ -238,19 +246,10 @@ fn billing_panel(price_of: fn(&Tier) -> &'static str, period_suffix: &'static st
     )
 }
 
-/// `pricing-tiers-morph` の Demo 本体。呼び出しごとに同一の `Node` を返す
-/// 純関数。
-pub fn demo() -> Node {
-    let props = TabsProps {
-        id: "blocks-pricing-tiers-morph",
-        selected: "monthly",
-        orientation: Orientation::Horizontal,
-        activation_mode: ActivationMode::Automatic,
-        loop_focus: true,
-        indicator: false,
-    };
-
-    let items = vec![
+/// billing 状態 1 件（月額/年額）分の `TabItem` 一覧を組み立てる。2 インス
+/// タンスで同一の構成を使うため呼び出し側で複製せず都度生成する。
+fn tab_items() -> Vec<TabItem<'static>> {
+    vec![
         TabItem {
             value: "monthly",
             trigger: vec![text("Monthly")],
@@ -263,17 +262,62 @@ pub fn demo() -> Node {
             content: vec![billing_panel(|tier| tier.price_yearly, "/yr")],
             disabled: false,
         },
-    ];
+    ]
+}
+
+/// `pricing-tiers-morph` の Demo 本体。呼び出しごとに同一の `Node` を返す
+/// 純関数。docs サイトは JS ハイドレーションを行わないため、`selected`
+/// が異なる 2 個の `tabs` インスタンス（月額選択/年額選択）を縦に並べて
+/// 静的に併記する（`sidebar-07` の expanded/collapsed 2 インスタンス併記
+/// と同型の対処、モジュール doc「無 JS（docs サイト）での『2 状態併記』」
+/// 参照）。
+pub fn demo() -> Node {
+    let monthly_props = TabsProps {
+        id: "blocks-pricing-tiers-morph-monthly",
+        selected: "monthly",
+        orientation: Orientation::Horizontal,
+        activation_mode: ActivationMode::Automatic,
+        loop_focus: true,
+        indicator: false,
+    };
+    let yearly_props = TabsProps {
+        id: "blocks-pricing-tiers-morph-yearly",
+        selected: "yearly",
+        orientation: Orientation::Horizontal,
+        activation_mode: ActivationMode::Automatic,
+        loop_focus: true,
+        indicator: false,
+    };
+
+    let monthly_tabs = tabs::tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &monthly_props,
+        tab_items(),
+    );
+    let yearly_tabs = tabs::tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &yearly_props,
+        tab_items(),
+    );
 
     div(
-        vec![],
-        vec![tabs::tabs(
-            TabsVariant::Enclosed,
-            Size::Md,
-            ColorPalette::Accent,
-            &props,
-            items,
-        )],
+        vec![("data-blocks-pricing-tiers-morph-stack", "")],
+        vec![
+            p(
+                vec![("data-blocks-pricing-tiers-morph-caption", "")],
+                vec![text("Monthly")],
+            ),
+            monthly_tabs,
+            p(
+                vec![("data-blocks-pricing-tiers-morph-caption", "")],
+                vec![text("Yearly")],
+            ),
+            yearly_tabs,
+        ],
     )
 }
 // blocks-code:end
@@ -317,6 +361,8 @@ pub const BLOCK: Block = Block {
 /// にする（`border_beam` モジュール doc「既知の制約」節 (c) 参照）。
 pub(super) const LAYOUT_CSS: &str = "\
 .blocks-pricing-tiers-morph {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
+[data-blocks-pricing-tiers-morph-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n}\n\
+[data-blocks-pricing-tiers-morph-caption] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-pricing-tiers-morph-grid] {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: 1.5rem;\n  align-items: stretch;\n}\n\
 [data-blocks-pricing-tiers-morph-tier] {\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n}\n\
 .blocks-pricing-tiers-morph-featured {\n  border-radius: var(--fandhe-radius-lg, 0.5rem);\n  height: 100%;\n}\n\

@@ -1060,10 +1060,31 @@ fn pricing_tiers_morph_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// `id="<id>"` を持つタグ全体（`<` から対応する `>` まで）を抜き出す。
+/// タグの属性文字列（`hidden`/`data-state` 等の有無）を検査するための
+/// 補助関数（PR #2568 codex-review 指摘の是正で追加）。
+fn extract_tag_by_id<'a>(html: &'a str, id: &str) -> &'a str {
+    let needle = format!("id=\"{id}\"");
+    let id_idx = html
+        .find(&needle)
+        .unwrap_or_else(|| panic!("id={id} should be present in the page"));
+    let tag_start = html[..id_idx]
+        .rfind('<')
+        .expect("an opening '<' should precede the id attribute");
+    let tag_end = html[id_idx..]
+        .find('>')
+        .map(|i| id_idx + i)
+        .expect("a closing '>' should follow the id attribute");
+    &html[tag_start..=tag_end]
+}
+
 /// pricing-tiers-morph の合成部品（tabs/card/badge/button/border-beam）が
 /// 期待どおりの構成で実際に出力されていること、月額/年額の両 billing 状態
-/// のティアカードが両方 SSR 出力へ存在すること（無 JS 併記の回帰）、
-/// `<form>`/死リンクを持ち込んでいないことを固定する（イシュー #2547）。
+/// が実際に**可視**な状態で SSR 出力へ存在すること（無 JS 併記の回帰、
+/// イシュー #2547 PR #2568 codex-review P1 指摘の是正: 単一 `tabs`
+/// インスタンスへの `hidden` 併記だけでは非選択側パネルを無 JS で閲覧
+/// できないため、`selected` が異なる 2 インスタンスを静的に併記する構成へ
+/// 変更した）、`<form>`/死リンクを持ち込んでいないことを固定する。
 #[test]
 fn pricing_tiers_morph_composes_expected_parts() {
     let out = build_real_site();
@@ -1098,15 +1119,46 @@ fn pricing_tiers_morph_composes_expected_parts() {
         );
     }
 
-    // 月額/年額どちらの billing 状態も SSR 出力へ実在すること（tabs の
-    // `hidden` 属性による無 JS 併記、`sidebar-07` と同型の対処）。
-    let monthly_idx = html
-        .find("id=\"blocks-pricing-tiers-morph-content-monthly\"")
-        .expect("monthly content panel should be present");
-    let yearly_idx = html
-        .find("id=\"blocks-pricing-tiers-morph-content-yearly\"")
-        .expect("yearly content panel should be present");
-    assert_ne!(monthly_idx, yearly_idx);
+    // 月額選択インスタンス（id プレフィックス `-monthly`）: 月額パネルは
+    // 選択済み・可視（`hidden` なし・`data-state="active"`）、年額パネルは
+    // 非選択のため `hidden`。
+    let monthly_instance_monthly_panel =
+        extract_tag_by_id(&html, "blocks-pricing-tiers-morph-monthly-content-monthly");
+    assert!(
+        monthly_instance_monthly_panel.contains("data-state=\"active\""),
+        "monthly instance's monthly panel should be the active (visible) one"
+    );
+    assert!(
+        !monthly_instance_monthly_panel.contains("hidden"),
+        "monthly instance's monthly panel should not carry the hidden attribute"
+    );
+    let monthly_instance_yearly_panel =
+        extract_tag_by_id(&html, "blocks-pricing-tiers-morph-monthly-content-yearly");
+    assert!(
+        monthly_instance_yearly_panel.contains("hidden"),
+        "monthly instance's yearly panel should remain hidden"
+    );
+
+    // 年額選択インスタンス（id プレフィックス `-yearly`）: 年額パネルは
+    // 選択済み・可視、月額パネルは非選択のため `hidden`。この可視な年額
+    // パネルの存在が、無 JS の docs サイトでも年額プランを実際に閲覧
+    // できることの回帰固定である。
+    let yearly_instance_yearly_panel =
+        extract_tag_by_id(&html, "blocks-pricing-tiers-morph-yearly-content-yearly");
+    assert!(
+        yearly_instance_yearly_panel.contains("data-state=\"active\""),
+        "yearly instance's yearly panel should be the active (visible) one"
+    );
+    assert!(
+        !yearly_instance_yearly_panel.contains("hidden"),
+        "yearly instance's yearly panel should not carry the hidden attribute"
+    );
+    let yearly_instance_monthly_panel =
+        extract_tag_by_id(&html, "blocks-pricing-tiers-morph-yearly-content-monthly");
+    assert!(
+        yearly_instance_monthly_panel.contains("hidden"),
+        "yearly instance's monthly panel should remain hidden"
+    );
 }
 
 /// pricing-usage-slider ページの Demo クラス・両スタイルシート・

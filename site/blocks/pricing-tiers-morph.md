@@ -17,7 +17,7 @@ sections` に相当する料金プランの合成例です。Blocks セクショ
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{div, li, span, text, ul, Node};
+use fandhe_frontend_core::{div, li, p, span, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::border_beam::BORDER_BEAM_CLASS;
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
@@ -170,19 +170,10 @@ fn billing_panel(price_of: fn(&Tier) -> &'static str, period_suffix: &'static st
     )
 }
 
-/// `pricing-tiers-morph` の Demo 本体。呼び出しごとに同一の `Node` を返す
-/// 純関数。
-pub fn demo() -> Node {
-    let props = TabsProps {
-        id: "blocks-pricing-tiers-morph",
-        selected: "monthly",
-        orientation: Orientation::Horizontal,
-        activation_mode: ActivationMode::Automatic,
-        loop_focus: true,
-        indicator: false,
-    };
-
-    let items = vec![
+/// billing 状態 1 件（月額/年額）分の `TabItem` 一覧を組み立てる。2 インス
+/// タンスで同一の構成を使うため呼び出し側で複製せず都度生成する。
+fn tab_items() -> Vec<TabItem<'static>> {
+    vec![
         TabItem {
             value: "monthly",
             trigger: vec![text("Monthly")],
@@ -195,17 +186,62 @@ pub fn demo() -> Node {
             content: vec![billing_panel(|tier| tier.price_yearly, "/yr")],
             disabled: false,
         },
-    ];
+    ]
+}
+
+/// `pricing-tiers-morph` の Demo 本体。呼び出しごとに同一の `Node` を返す
+/// 純関数。docs サイトは JS ハイドレーションを行わないため、`selected`
+/// が異なる 2 個の `tabs` インスタンス（月額選択/年額選択）を縦に並べて
+/// 静的に併記する（`sidebar-07` の expanded/collapsed 2 インスタンス併記
+/// と同型の対処、モジュール doc「無 JS（docs サイト）での『2 状態併記』」
+/// 参照）。
+pub fn demo() -> Node {
+    let monthly_props = TabsProps {
+        id: "blocks-pricing-tiers-morph-monthly",
+        selected: "monthly",
+        orientation: Orientation::Horizontal,
+        activation_mode: ActivationMode::Automatic,
+        loop_focus: true,
+        indicator: false,
+    };
+    let yearly_props = TabsProps {
+        id: "blocks-pricing-tiers-morph-yearly",
+        selected: "yearly",
+        orientation: Orientation::Horizontal,
+        activation_mode: ActivationMode::Automatic,
+        loop_focus: true,
+        indicator: false,
+    };
+
+    let monthly_tabs = tabs::tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &monthly_props,
+        tab_items(),
+    );
+    let yearly_tabs = tabs::tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &yearly_props,
+        tab_items(),
+    );
 
     div(
-        vec![],
-        vec![tabs::tabs(
-            TabsVariant::Enclosed,
-            Size::Md,
-            ColorPalette::Accent,
-            &props,
-            items,
-        )],
+        vec![("data-blocks-pricing-tiers-morph-stack", "")],
+        vec![
+            p(
+                vec![("data-blocks-pricing-tiers-morph-caption", "")],
+                vec![text("Monthly")],
+            ),
+            monthly_tabs,
+            p(
+                vec![("data-blocks-pricing-tiers-morph-caption", "")],
+                vec![text("Yearly")],
+            ),
+            yearly_tabs,
+        ],
     )
 }
 ```
@@ -230,9 +266,14 @@ pub fn demo() -> Node {
   レイアウト遷移（FLIP・`layoutId` 相当）は別 issue（#2536）の担当であり、
   本 block では扱いません。
 - **無 JS（docs サイト）での 2 状態併記**: docs サイトは JS ハイドレーション
-  を一切行わないため、月額/年額の両方の `content` パネルが SSR 出力へ両方
-  存在します（`tabs` の `hidden` 属性による表現。他の tabs 系ページと同じ
-  挙動です）。
+  を一切行わないため、単一の `tabs` インスタンスへ両方の billing 状態を
+  詰め込むだけでは、非選択側（年額）パネルは SSR 出力に存在しても
+  `hidden` 属性（+ `[hidden] { display: none }`）で閉じたまま操作できず
+  実際には閲覧できません。そのため本 block は `selected` が異なる 2 個の
+  `tabs` インスタンス（月額選択/年額選択）を縦に並べて静的に併記し、
+  月額・年額どちらの選択済み（可視）状態も実際にページ上へ現れるように
+  しています（`sidebar-07` の expanded/collapsed 2 インスタンス併記と
+  同型の対処）。
 - **border-beam は opt-in 装飾**: 「おすすめ」ティア（中央）の `card::root`
   を `border_beam::BORDER_BEAM_CLASS` 付きの素の `<div>` でラップして視覚的
   なフォーカスを与えています。`card` は `CardVariant::Outline`（shadow あり
