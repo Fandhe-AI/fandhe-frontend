@@ -1270,12 +1270,36 @@ name = "fandhe-frontend-wasm-full"
 # 0.34.0）が同じ merge base（0.33.0）から独立に同一版数へ到達したため、
 # 同じ版数のまま据え置かず +1 した 0.35.0 とする（同衝突運用）。
 #
-# イシュー #2542: `cursor`（カスタムカーソル配線、既定 on）を追加した。
-# `magnetic`/`text-animation` と同型の新規公開モジュール純追加のため
-# minor バンプする。あわせて `fandhe-frontend-animation` の依存
-# `version` 要求を 0.12.0 → 0.13.0 へ追随した（`xtask check-dep-versions
-# --fix` 相当）。
-version = "0.36.0"
+# イシュー #2541: carousel のドラッグ + spring スナップ配線
+# （`carousel-motion`、既定 on）を追加した。`magnetic`/`text-animation` と
+# 同型の新規公開モジュール純追加のため minor バンプする。あわせて
+# `fandhe-frontend-animation` の依存 `version` 要求を 0.12.0 → 0.13.0 へ
+# 追随した（`xtask check-dep-versions --fix` 相当）。
+#
+# イシュー #2541（PR #2581 codex-review/Cursor Bugbot 指摘是正）:
+# `carousel_motion.rs` の内部実装のみを修正した（公開 API のシグネチャは
+# 不変）ため patch バンプする。
+#
+# イシュー #2541（PR #2581 codex-review 指摘是正・第 2 ラウンド）:
+# 複数 carousel の識別用に `CAROUSEL_GOTO_ACTION_ATTR` 定数を追加した
+# （新規公開定数の純追加）ため patch バンプする。
+#
+# イシュー #2541（PR #2581 レビュー是正・第 3 ラウンド）:
+# `carousel_motion.rs` の内部実装のみを修正した（release 時の再描画で
+# spring を継続させる retarget、`pointerup`/`pointercancel`/
+# `lostpointercapture` の window 委譲追加登録、主ボタン以外でのドラッグ
+# 開始防止、抑止済み click での誤った spring 打ち切り防止。公開 API の
+# シグネチャは不変）ため patch バンプする。
+#
+# マージコミット注記（origin/main #2542 との統合）: origin/main はイシュー
+# #2542（`cursor`: カスタムカーソル配線、既定 on）を追加し 0.35.0 →
+# 0.36.0 へ独立に minor バンプしていた。`magnetic`/`text-animation` と
+# 同型の新規公開モジュール純追加。本ブランチの到達値 0.36.3 に cursor
+# モジュール新設を統合するため、さらに +1 minor して 0.37.0 とする。
+# `fandhe-frontend-animation` の依存 `version` 要求は 0.13.0 → 0.14.0
+# （本マージでの frontend-animation 統合バンプ値）へ追随する
+# （`xtask check-dep-versions --fix` 相当）。
+version = "0.37.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1598,7 +1622,19 @@ js-sys = "0.3"
 # 新設）へバンプしていた。本ブランチの到達値 0.11.0 は origin/main の
 # 到達値 0.10.0 をすでに上回っており同一版数の衝突には該当しないため、
 # 本ブランチの到達値 0.11.0 をそのまま維持する。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.13.0", optional = true }
+#
+# イシュー #2541（PR #2581 レビュー是正・第 3 ラウンド）:
+# `fandhe-frontend-animation` の依存 `version` 要求を 0.13.0 → 0.13.1 へ
+# 追随する（`CarouselTrack::retarget`/`is_settling` 新設に伴う patch
+# バンプ、`crates/frontend-animation/Cargo.toml` 参照）。
+#
+# マージコミット注記（origin/main #2542 との統合）: origin/main は
+# `fandhe-frontend-animation` の依存 `version` 要求を `cursor` モジュール
+# 新設に伴い 0.12.0 → 0.13.0 へ追随していた。本マージで
+# `fandhe-frontend-animation` 自体を 0.14.0 へ統合バンプしたため、
+# `version` 要求もその到達値 0.14.0 へ追随する（`xtask check-dep-versions
+# --fix` 相当）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.14.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1834,6 +1870,7 @@ default = [
   "hold-to-confirm",
   "add-to-basket",
   "magnetic",
+  "carousel-motion",
   "text-animation",
   "cursor",
   "position",
@@ -1969,6 +2006,17 @@ add-to-basket = []
 # 純粋層非ゲート方針とは異なり、上記 (c) 注記の対象外。`scroll-driver`/
 # `confetti`/`hold-to-confirm` と同じ理由）。
 magnetic = ["dep:fandhe-frontend-animation"]
+# イシュー #2541（carousel の Motion+ Carousel 相当拡張、親 #2530/#2476）:
+# carousel のドラッグ + spring スナップ配線（`Runtime::mount`/`hydrate` の
+# `Self::wire_carousel_motion` 呼び出し）専用の feature（既定 on）。
+# `scroll-driver`/`confetti`/`hold-to-confirm`/`magnetic`/`text-animation` と
+# 同型——配線群かつ `dep:fandhe-frontend-animation` を有効化する feature。
+# `carousel_motion` モジュール自体は本 feature でのみコンパイルする
+# （`fandhe-frontend-animation::carousel` の型を直接使うため、`gesture` 等の
+# 純粋層非ゲート方針とは異なり、上記 (c) 注記の対象外。`magnetic` と同じ
+# 理由）。coverflow 3D（CSS のみ）は `fandhe-frontend-pre-styled-ui` の
+# `motion` feature 側の責務であり本 feature とは独立。
+carousel-motion = ["dep:fandhe-frontend-animation"]
 # イシュー #2532（text アニメーション部品、親 button の Motion+ 由来
 # variant 群と同じ位置づけ）: typewriter/scramble 配線（`Runtime::mount`/
 # `hydrate` の `Self::wire_text_animation` 呼び出し）専用の feature

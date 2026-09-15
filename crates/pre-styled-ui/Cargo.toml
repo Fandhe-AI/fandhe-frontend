@@ -3498,11 +3498,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # 同一版数へ到達したため、同じ版数のまま据え置かず +1 した 0.206.0 とする
 # （同衝突運用）。
 #
-# イシュー #2542: `cursor`（カスタムカーソル、`motion` feature 配下）を
-# 新設した。`border_beam`/`button_motion` と同型の新規公開モジュール
-# 純追加のため minor バンプする（無効時の出力・依存グラフは不変、
-# `tests/motion_zero_cost.rs` 不変）。
-version = "0.207.0"
+# イシュー #2541: carousel の Motion+ Carousel 相当拡張（coverflow 3D）用
+# CSS（`carousel_motion` モジュール、`motion` feature 配下）を新設した。
+# `border_beam`/`button_motion` と同型の新規公開 API 純追加のため minor
+# バンプする。本ブランチは同じ merge base（0.206.0）から独立に 0.207.0 へ
+# 到達しており origin/main（#2542 の 0.207.0）と同一版数のため、同じ版数
+# のまま据え置かず +1 した 0.208.0 とする（同衝突運用）。
+#
+# マージコミット注記（origin/main #2542 との統合）: origin/main はイシュー
+# #2542（`cursor`: カスタムカーソル用 CSS、`motion` feature 配下）を新設
+# し 0.206.0 → 0.207.0 へ独立に minor バンプしていた。`border_beam`/
+# `button_motion` と同型の新規公開モジュール純追加のため無効時の出力・
+# 依存グラフは不変（`tests/motion_zero_cost.rs` 不変）。
+version = "0.208.0"
 
 
 edition = "2021"
