@@ -133,7 +133,21 @@ categories = ["graphics", "web-programming", "wasm"]
 # 同一 feature を既に有効化済み）。
 #
 # 新規クレートを追加する場合は事前にユーザー承認を得ること。
+#
+# codex-review/Bugbot 指摘是正（イシュー #2544）: `presence::insert_exit_ghost`
+# の DOM 属性 sink 呼び出し（`set_attribute`）に対して `fw gate` の
+# `url_validation_check`（U1）が要求する co-located ガード 4 種
+# （`is_url_attr`/`is_safe_url`/`is_safe_srcset`/`is_event_handler_attr`）を
+# `fandhe-frontend-wasm-full::tabs_indicator::wiring::set_dom_attribute` と
+# 同じ薄いラッパー方式で満たすため追加する。外部パッケージではなく
+# workspace 内の既存 core クレート（外部依存ゼロ）への path 依存であり、
+# `fandhe-frontend-wasm-full`/`-wasm-client`/`-interactive` が既に同じ
+# 経由で依存している既存パターンの踏襲。依存方向（`fandhe-animation ←
+# fandhe-frontend-animation ← wasm-full(optional)`）・`fandhe-frontend-
+# wasm-full` への非依存方針は不変（`docs/design/animation-core-
+# architecture.md` 参照）。
 [dependencies]
+fandhe-frontend-core = { path = "../core", version = "0.4.3" }
 fandhe-animation = { path = "../animation", version = "0.2.0" }
 wasm-bindgen = "0.2"
 js-sys = "0.3"

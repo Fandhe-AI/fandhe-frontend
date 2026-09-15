@@ -75,11 +75,25 @@ pub fn strip_selector() -> String {
 /// [`PRESENCE_AUTO_ATTR`] を持つ `list_element` に限り、削除前の全行
 /// スナップショットを撮る。属性を持たないリストは `None`
 /// （モジュール doc「対象リストの明示的オプトイン」参照）。
+///
+/// `ensure_positioned` をスナップショット撮影**より前**に呼ぶ
+/// （codex-review/Bugbot 指摘是正）。`offsetTop`/`offsetLeft` は
+/// `offsetParent`（直近の `position` が `static` でない祖先）基準の値
+/// であり、以前は `play_exit_after` 側で `ensure_positioned`（`list` を
+/// `position: relative` 化）を撮影の**後**に呼んでいたため、`position:
+/// static` 時点の座標を `position: relative` 化後に絶対配置で使う
+/// 基準ズレが生じ、初回削除時のみゴーストが元位置からずれていた。
+/// `ensure_positioned` は冪等（`position` を明示済みなら上書きしない）
+/// のため、ここで先に呼んでも [`play_exit_after`] 側の呼び出しは無害な
+/// 二重呼び出しになるだけで安全である。
 #[cfg(target_arch = "wasm32")]
 #[must_use]
 pub fn capture_before(list_element: &Element) -> Option<Vec<RowSnapshot>> {
     if !list_element.has_attribute(PRESENCE_AUTO_ATTR) {
         return None;
+    }
+    if let Some(html) = wasm_bindgen::JsCast::dyn_ref::<web_sys::HtmlElement>(list_element) {
+        fandhe_frontend_animation::presence::ensure_positioned(html);
     }
     Some(fandhe_frontend_animation::presence::snapshot_rows(
         list_element,

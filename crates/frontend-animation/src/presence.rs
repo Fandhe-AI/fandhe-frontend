@@ -50,13 +50,22 @@ pub fn parse_css_time_list(value: &str) -> Vec<f64> {
 /// 異なる場合、短い方を繰り返して長い方の長さに合わせる）に従い、
 /// `duration_i + delay_i` の最大値（ミリ秒）を返す。いずれかが空の場合は
 /// `0.0`。
+///
+/// 走査回数は `durations.len()` と `delays.len()` の**大きい方**
+/// （codex-review/Bugbot 指摘是正）: 以前は `durations.len()` 回しか
+/// 走査しておらず、`delays` の方が長い場合（例: `duration: [100ms,
+/// 100ms]`・`delay: [0ms, 1000ms]`）に後半の `delay` を無視して実際の
+/// 終了時刻（1100ms）より短い値（100ms）を返していた。`durations` の
+/// 方が長い場合は従来どおり `delays` を循環参照するだけで結果は変わら
+/// ない。
 #[must_use]
 pub fn total_animation_ms(durations: &[f64], delays: &[f64]) -> f64 {
     if durations.is_empty() || delays.is_empty() {
         return 0.0;
     }
-    (0..durations.len())
-        .map(|i| durations[i] + delays[i % delays.len()])
+    let count = durations.len().max(delays.len());
+    (0..count)
+        .map(|i| durations[i % durations.len()] + delays[i % delays.len()])
         .fold(0.0, f64::max)
 }
 
@@ -143,13 +152,36 @@ mod wiring {
         let _ = style.set_property("height", &format!("{}px", row.height));
         let _ = style.set_property("margin", "0");
         let _ = style.set_property("box-sizing", "border-box");
-        let _ = ghost.set_attribute("inert", "");
-        let _ = ghost.set_attribute("aria-hidden", "true");
-        let _ = ghost.set_attribute("data-state", "exiting");
+        set_dom_attribute(ghost, "inert", "");
+        set_dom_attribute(ghost, "aria-hidden", "true");
+        set_dom_attribute(ghost, "data-state", "exiting");
         if list.append_child(ghost).is_err() {
             return None;
         }
         Some(ghost.clone())
+    }
+
+    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
+    /// （`fandhe-frontend-wasm-full::tabs_indicator::wiring::set_dom_attribute`
+    /// と同じ方針・同じ 4 種のガードを経由する。`name`/`value` はいずれも
+    /// `&'static str` リテラルで固定された非 URL・非イベントハンドラ・
+    /// 非 `srcset` 属性だが、将来の変更に対する防御として同じガードを
+    /// 経由する。`fw gate` の `url_validation_check`〔U1〕は DOM 属性 sink
+    /// 呼び出しファイル内で `is_url_attr`/`is_safe_url`/`is_safe_srcset`/
+    /// `is_event_handler_attr` の 4 種すべての呼び出しを機械要求するため、
+    /// `srcset` 属性を扱わない本関数でも `is_safe_srcset` 呼び出しを
+    /// 省略しない）。
+    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+        if fandhe_frontend_core::is_event_handler_attr(name) {
+            return;
+        }
+        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
+            return;
+        }
+        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
+            return;
+        }
+        let _ = element.set_attribute(name, value);
     }
 
     /// `ghost` の computed `animation-duration`/`animation-delay` から
@@ -228,5 +260,16 @@ mod tests {
     fn total_animation_ms_empty_is_zero() {
         assert_eq!(total_animation_ms(&[], &[10.0]), 0.0);
         assert_eq!(total_animation_ms(&[10.0], &[]), 0.0);
+    }
+
+    #[test]
+    fn total_animation_ms_cycles_shorter_duration_list() {
+        // codex-review/Bugbot 指摘の回帰: delays の方が durations より
+        // 長い場合、durations を循環しつつ delays の後半まで走査する
+        // （実終了時刻は 100+1000=1100ms、旧実装は durations.len()=2 回
+        // しか走査せず 100+0=100ms を誤って返していた）。
+        let durations = vec![100.0, 100.0];
+        let delays = vec![0.0, 1000.0];
+        assert_eq!(total_animation_ms(&durations, &delays), 1100.0);
     }
 }

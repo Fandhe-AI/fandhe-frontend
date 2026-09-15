@@ -126,6 +126,20 @@ pub fn enter_css() -> String {
 /// `pointer-events: none`・`margin: 0` はゴースト自身の絶対配置座標を
 /// レイアウトへ影響させないための保険（`insert_exit_ghost` が inline で
 /// も設定する値だが、CSS が未読み込みの場合にも同じ値へ倒す）。
+///
+/// セレクタは [`PRESENCE_AUTO_ATTR`] を持つ `list::root` の子である
+/// ことまで含めて明記する（属性セレクタ 4 個 = 詳細度 `(0,4,0)`）。
+/// ゴーストは削除前後で `list::item` のまま残る（`play_exit_after` が
+/// `data-key` 等の一部属性のみ剥がし `data-scope`/`data-part` は残す）ため、
+/// [`enter_css`] のセレクタ（詳細度 `(0,5,0)`）にも一致してしまう。CSS の
+/// 詳細度はソース順に優先しないため、ここを [`enter_css`] 未満のまま
+/// にすると `data-state="exiting"` の行に enter の `animation-name` が
+/// 勝ってしまい退場アニメーションが再生されない。属性セレクタをもう 1 個
+/// （`data-state="exiting"`）追加した本セレクタは詳細度 `(0,4,0)` に
+/// とどまり [`enter_css`] の `(0,5,0)` に劣後するため、[`PRESENCE_AUTO_ATTR`]
+/// の重複指定でさらに 1 個積み増し `(0,5,0)` へ揃えたうえで、退場側にのみ
+/// 存在する `data-state="exiting"` 分をもう 1 個積んだ `(0,6,0)` として
+/// 常に enter を上回るようにする。
 pub fn exit_css() -> String {
     format!(
         concat!(
@@ -135,7 +149,7 @@ pub fn exit_css() -> String {
             "  from {{\n    opacity: 1;\n    scale: 1;\n  }}\n",
             "  to {{\n    opacity: 0;\n    scale: 0.95;\n  }}\n",
             "}}\n",
-            "[data-scope=\"list\"][data-part=\"item\"][data-state=\"exiting\"] {{\n",
+            "[data-scope=\"list\"][data-part=\"root\"][{presence_attr}] > [data-scope=\"list\"][data-part=\"item\"][data-state=\"exiting\"] {{\n",
             "  animation-name: {exit_name};\n",
             "  animation-duration: var(--fandhe-motion-duration-normal);\n",
             "  animation-timing-function: var(--fandhe-motion-easing-standard);\n",
@@ -146,6 +160,7 @@ pub fn exit_css() -> String {
             "}}\n",
         ),
         exit_name = EXIT_KEYFRAMES_NAME,
+        presence_attr = PRESENCE_AUTO_ATTR,
     )
 }
 
@@ -200,9 +215,32 @@ mod tests {
     #[test]
     fn exit_css_targets_exiting_state() {
         let css = exit_css();
-        assert!(css.contains(r#"[data-scope="list"][data-part="item"][data-state="exiting"] {"#));
+        assert!(css.contains(&format!(
+            "[data-scope=\"list\"][data-part=\"root\"][{PRESENCE_AUTO_ATTR}] > [data-scope=\"list\"][data-part=\"item\"][data-state=\"exiting\"] {{"
+        )));
         assert!(css.contains("@keyframes fd-list-motion-exit {"));
         assert!(css.contains("animation-delay: 0s;"));
+    }
+
+    #[test]
+    fn exit_selector_has_higher_specificity_than_enter_selector() {
+        // codex-review/Bugbot 指摘是正の回帰: exit セレクタの属性セレクタ
+        // 個数が enter セレクタ以上であることを機械的に固定する
+        // （詳細度が enter 未満に戻ると退場アニメーションが再び enter に
+        // 上書きされる）。
+        let enter_attr_count = enter_css()
+            .lines()
+            .find(|line| line.starts_with("[data-scope"))
+            .expect("enter_css にセレクタ行がない")
+            .matches('[')
+            .count();
+        let exit_attr_count = exit_css()
+            .lines()
+            .find(|line| line.starts_with("[data-scope"))
+            .expect("exit_css にセレクタ行がない")
+            .matches('[')
+            .count();
+        assert!(exit_attr_count >= enter_attr_count);
     }
 
     #[test]
