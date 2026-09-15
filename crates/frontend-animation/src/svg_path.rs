@@ -28,6 +28,33 @@
 //! 一切書き換えず `Ok(None)` を返す（SSR 出力のフル表示〔全長 0 の
 //! `stroke-dashoffset` 相当〕をそのまま活かす。検出失敗時も `true`
 //! （reduced 側）へ fail-closed、`confetti.rs`/`scroll_driver.rs` と同方針）。
+//!
+//! # `getTotalLength()` の JS 例外（codex-review P1 是正）
+//!
+//! 非表示要素（`display: none` 等）に対する `getTotalLength()` は仕様上
+//! `InvalidStateError` を送出しうる。`web_sys::SvgGeometryElement::
+//! get_total_length()` は戻り値が `f32`（`Result` を返さない）ため、その
+//! まま呼ぶと JS 例外が Rust 側で捕捉されず wasm インスタンスの異常終了
+//! を招き、mount/hydrate 全体・後続配線を巻き込む。[`total_length`] は
+//! `js_sys::Function::call0`（`catch` 属性付きで例外を `Result` 化する）
+//! 経由で呼び出し、対象要素 1 件の失敗を `Err` として局所化する。
+//!
+//! # `pathLength` 補正（codex-review P1 是正）
+//!
+//! `getTotalLength()` は `pathLength` 属性を無視した実際の幾何学的長さを
+//! 返すが、`stroke-dasharray`/`stroke-dashoffset` の距離解釈は `pathLength`
+//! 属性が指定されていればその値を基準にする（SVG 仕様）。`pathLength`
+//! 指定パスに実長をそのまま使うと dasharray/dashoffset の基準がずれ、
+//! アニメーション完了時にも線が欠けて見える。[`apply_initial_style`]/
+//! [`draw`] は呼び出し側（[`draw_path_with_reduced_motion`]）が
+//! `pathLength` 属性の有無を検査して補正済みの長さを渡す契約とする。
+//!
+//! # アニメーション開始失敗時の復元（codex-review P1 是正）
+//!
+//! [`draw_path_with_reduced_motion`] は初期スタイル適用後に `animate()`
+//! が `Err` を返した場合、書き込み前の `stroke-dasharray`/
+//! `stroke-dashoffset` インライン値へ復元してから `Err` を伝播する
+//! （非表示のまま放置しない）。
 
 use crate::animate::AnimateOptions;
 
@@ -63,14 +90,48 @@ mod wasm_impl {
 
     /// `element.getTotalLength()`（`SVGGeometryElement`）を `f64` で返す。
     ///
+    /// `getTotalLength()` 自体が JS 例外（非表示要素等での
+    /// `InvalidStateError`）を送出しうるため、`js_sys::Function::call0`
+    /// （`catch` 属性付き）経由で呼び出し例外を `Err` として捕捉する
+    /// （モジュール doc「`getTotalLength()` の JS 例外」参照）。
+    ///
     /// # Errors
     ///
-    /// `element` が `SVGGeometryElement` にキャストできない場合。
+    /// `element` が `SVGGeometryElement` にキャストできない場合、
+    /// メソッド取得に失敗した場合、`getTotalLength()` 呼び出し自体が
+    /// 例外を送出した場合、戻り値が数値でなかった場合。
     pub fn total_length(element: &Element) -> Result<f64, JsValue> {
-        element
+        let geometry = element
             .dyn_ref::<SvgGeometryElement>()
-            .map(|geometry| f64::from(geometry.get_total_length()))
-            .ok_or_else(|| JsValue::from_str("element is not an SVGGeometryElement"))
+            .ok_or_else(|| JsValue::from_str("element is not an SVGGeometryElement"))?;
+        let geometry_js: &JsValue = geometry.as_ref();
+        let get_total_length =
+            js_sys::Reflect::get(geometry_js, &JsValue::from_str("getTotalLength"))?
+                .dyn_into::<js_sys::Function>()?;
+        get_total_length
+            .call0(geometry_js)?
+            .as_f64()
+            .ok_or_else(|| JsValue::from_str("getTotalLength() did not return a number"))
+    }
+
+    /// `pathLength` 属性が指定されている場合、その値（`SvgAnimatedNumber`
+    /// の `baseVal()`）を返す。未指定・不正値の場合は `None`（呼び出し側で
+    /// `total_length` の実測値へフォールバックする、モジュール doc
+    /// 「`pathLength` 補正」参照）。
+    fn path_length_override(element: &Element) -> Option<f64> {
+        let geometry = element.dyn_ref::<SvgGeometryElement>()?;
+        if !geometry.has_attribute("pathLength") {
+            return None;
+        }
+        let value = f64::from(geometry.path_length().base_val());
+        (value.is_finite() && value > 0.0).then_some(value)
+    }
+
+    /// `pathLength` 属性が指定されていればその値、なければ `real_length`
+    /// （`total_length` の実測値）を、dasharray/dashoffset の距離基準
+    /// として返す。
+    fn effective_length(element: &Element, real_length: f64) -> f64 {
+        path_length_override(element).unwrap_or(real_length)
     }
 
     /// `stroke-dasharray`/`stroke-dashoffset` の初期値を書き込む。
@@ -104,7 +165,13 @@ mod wasm_impl {
         let keyframes = [
             WaapiKeyframe {
                 offset: 0.0,
-                easing: options.easing.clone(),
+                // `options.easing`（`AnimateOptions` 側の全体 easing）と
+                // 二重適用しない（codex-review P2 是正）: WAAPI は
+                // per-keyframe easing を options 側の easing の内側で
+                // 合成適用するため、両方に同じ値を設定すると意図した
+                // 曲線に対しイージングが 2 重にかかる。唯一の区間の
+                // easing は options 側へ一本化し、ここは `None` とする。
+                easing: None,
                 properties: vec![("strokeDashoffset".to_string(), from)],
             },
             WaapiKeyframe {
@@ -148,13 +215,48 @@ mod wasm_impl {
         if reduced_motion {
             return Ok(None);
         }
-        let Ok(length) = total_length(element) else {
+        let Ok(real_length) = total_length(element) else {
             return Ok(None);
         };
+        let length = effective_length(element, real_length);
+        let Some(svg) = element.dyn_ref::<SvgElement>() else {
+            return Ok(None);
+        };
+        let style = svg.style();
+        // animate() 開始失敗時に元の表示へ戻すため、書き込み前の値を控える
+        // （codex-review P1 是正、モジュール doc「アニメーション開始失敗時の
+        // 復元」参照）。未設定なら空文字（`remove_property` 相当で復元）。
+        let previous_dasharray = style
+            .get_property_value("stroke-dasharray")
+            .unwrap_or_default();
+        let previous_dashoffset = style
+            .get_property_value("stroke-dashoffset")
+            .unwrap_or_default();
         if apply_initial_style(element, length).is_err() {
             return Ok(None);
         }
-        draw(element, length, options).map(Some)
+        match draw(element, length, options) {
+            Ok(handle) => Ok(Some(handle)),
+            Err(err) => {
+                restore_style_property(&style, "stroke-dasharray", &previous_dasharray);
+                restore_style_property(&style, "stroke-dashoffset", &previous_dashoffset);
+                Err(err)
+            }
+        }
+    }
+
+    /// `style` の `property` を `previous`（空文字なら未設定）へ戻す。
+    /// 復元自体の失敗は元の呼び出しの成否に影響させない（best-effort）。
+    fn restore_style_property(
+        style: &web_sys::CssStyleDeclaration,
+        property: &str,
+        previous: &str,
+    ) {
+        let _ = if previous.is_empty() {
+            style.remove_property(property).map(|_| ())
+        } else {
+            style.set_property(property, previous)
+        };
     }
 
     /// `element` の `stroke-dashoffset` を全長 → 0 へ描画アニメーションする

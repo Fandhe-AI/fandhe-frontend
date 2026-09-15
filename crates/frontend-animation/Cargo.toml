@@ -132,13 +132,18 @@ web-sys = { version = "0.3", features = [
   # 既存 `web-sys` の feature 追加のみ）。
   "HtmlCanvasElement",
   "CanvasRenderingContext2d",
-  # イシュー #2519: `svg_path` モジュールが使う 2 feature を追加する。
+  # イシュー #2519: `svg_path` モジュールが使う 3 feature を追加する。
   # `SvgGeometryElement`（`getTotalLength()`、`<path>`/`<circle>` 等の
   # 全長取得）・`SvgElement`（`.style()`、SVG 要素の `CssStyleDeclaration`
-  # 取得。`HtmlElement::style()` とは別型のため独立に必要）。新規外部
-  # パッケージの追加はない（既存 `web-sys` の feature 追加のみ）。
+  # 取得。`HtmlElement::style()` とは別型のため独立に必要）・
+  # `SvgAnimatedNumber`（`pathLength` 属性の `baseVal()` 読み取り。
+  # codex-review P1 是正: `pathLength` 指定パスは `getTotalLength()` の
+  # 実長ではなく `pathLength` の値を距離基準にする、`svg_path.rs`
+  # モジュール doc 参照）。新規外部パッケージの追加はない（既存
+  # `web-sys` の feature 追加のみ）。
   "SvgGeometryElement",
   "SvgElement",
+  "SvgAnimatedNumber",
 ] }
 wasm-bindgen-futures = "0.4"
 
