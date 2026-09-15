@@ -223,6 +223,51 @@ async fn holding_enter_key_confirms() {
     assert_eq!(clicks.get(), 1);
 }
 
+/// codex-review P1 指摘の回帰テスト: タッチ/ペンの暗黙 pointer capture 下
+/// では要素外への物理移動でも `pointerleave` は発火しない
+/// （`hold_to_confirm.rs::handle_pointermove` rustdoc 参照）。本テストは
+/// 実際の暗黙 capture までは再現しないが、`pointerleave` を一切発火させず
+/// `pointermove`（要素外の座標）のみを送ることで、ヒットテスト経路
+/// （`Document::element_from_point`）単体が早期離脱を検知できることを
+/// 確認する。
+#[wasm_bindgen_test]
+async fn moving_pointer_outside_element_cancels_hold_via_hit_test() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, button) = build_dom(&document, "80");
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_hold_to_confirm(root).expect("wire_hold_to_confirm must not fail");
+
+    let clicks = count_clicks(&button);
+    button
+        .dispatch_event(&pointer_event("pointerdown"))
+        .unwrap();
+    sleep_ms(20).await;
+
+    // ビューポート外（明確に要素の外）の座標で pointermove を送る。
+    // `pointerleave` は一切発火させない（暗黙 capture 下の実挙動を模す）。
+    let init = PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_client_x(-1000);
+    init.set_client_y(-1000);
+    let move_event = PointerEvent::new_with_event_init_dict("pointermove", &init)
+        .expect("PointerEvent construction must not fail");
+    button.dispatch_event(&move_event).unwrap();
+
+    sleep_ms(200).await;
+
+    assert_ne!(
+        button.get_attribute("data-state").as_deref(),
+        Some("confirmed"),
+        "要素外への pointermove（ヒットテスト経路）で中断されるはず"
+    );
+    assert_eq!(
+        clicks.get(),
+        0,
+        "要素外への pointermove 後は click が発火しないはず"
+    );
+}
+
 /// `JsValue` 経由での `wire_hold_to_confirm` 戻り値の型を静的に確認する
 /// （テストではなく、`Result<(), JsValue>` 契約の型検証のためのコンパイル
 /// 時アサーション）。

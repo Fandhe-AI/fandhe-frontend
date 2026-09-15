@@ -16,8 +16,9 @@
 //!    候補はマウント時 1 回のみ走査。動的挿入要素への追随は `in_view.rs`/
 //!    `scroll_driver.rs` 同様スコープ外の既知の制約）
 //! 2. pointerdown/keydown（Enter/Space）で保持セッション開始、
-//!    pointerup/pointercancel/pointerleave/keyup で早期離脱時の中断、
-//!    進行度が `1.0` に達したら確定
+//!    pointerup/pointercancel/pointerleave/pointermove（暗黙 capture 下の
+//!    ヒットテスト補完、`handle_pointermove` doc 参照）/keyup で早期
+//!    離脱時の中断、進行度が `1.0` に達したら確定
 //! 3. 確定時: `data-state="confirmed"` を書き込み、合成（untrusted）
 //!    `click()` を発火し、一定時間後に `data-state` を戻す
 //!    （`headless_clipboard.rs` の `PendingTimer` と同型のタイマー）
@@ -225,8 +226,8 @@ mod wiring {
     }
 
     /// 1 要素分の保持セッション状態。`pointerdown`/`keydown`/
-    /// `pointerup`/`keyup`/`pointerleave`/`pointercancel` の各リスナーが
-    /// 共有する。
+    /// `pointerup`/`keyup`/`pointerleave`/`pointercancel`/`pointermove`
+    /// の各リスナーが共有する。
     struct HoldSession {
         element: HtmlElement,
         duration_ms: f64,
@@ -235,6 +236,11 @@ mod wiring {
         /// 保持ループが進行中かどうか（pointerdown と keydown の重複
         /// 開始防止・早期離脱ガードの双方に使う）。
         active: Rc<Cell<bool>>,
+        /// 現在保持中のポインタ ID（`pointerdown` で設定、
+        /// `cancel`/確定で `None` へ戻す）。keydown 起点の保持では
+        /// `None` のまま（[`handle_pointermove`] のヒットテスト対象外
+        /// になる）。
+        pointer_id: Rc<Cell<Option<i32>>>,
     }
 
     impl HoldSession {
@@ -247,6 +253,7 @@ mod wiring {
                 loop_handle: Rc::new(RefCell::new(None)),
                 reset_timer: Rc::new(RefCell::new(None)),
                 active: Rc::new(Cell::new(false)),
+                pointer_id: Rc::new(Cell::new(None)),
             }
         }
 
@@ -318,10 +325,11 @@ mod wiring {
             *loop_handle_for_start.borrow_mut() = Some(animation_loop);
         }
 
-        /// 早期離脱（pointerup/pointercancel/pointerleave/keyup）時に
-        /// ループを止め、進行度を `0.0` へ戻す。既に確定済み（`active`
-        /// が `false`）の場合は no-op。
+        /// 早期離脱（pointerup/pointercancel/pointerleave/keyup/
+        /// pointermove ヒットテスト）時にループを止め、進行度を `0.0`
+        /// へ戻す。既に確定済み（`active` が `false`）の場合は no-op。
         fn cancel(&self) {
+            self.pointer_id.set(None);
             if !self.active.get() {
                 return;
             }
@@ -350,8 +358,56 @@ mod wiring {
         out
     }
 
-    /// 1 要素へ pointerdown/pointerup/pointercancel/pointerleave/keydown/
-    /// keyup の 6 リスナーを登録する。
+    /// `pointermove`: タッチ/ペンの暗黙 pointer capture 下（要素へ
+    /// `pointerdown` した瞬間に W3C Pointer Events §implicit pointer
+    /// capture でブラウザが自動的に capture を設定する）では、指/ペン先を
+    /// 要素の外へ物理的に動かしても `pointerleave`/`pointerout` は一切
+    /// 発火しない（capture 中は全イベントが capture 先要素へ配送され
+    /// 続けるため）。このため [`wire_candidate`] の `pointerleave`
+    /// リスナーだけでは、要素外へ離脱してもタッチ/ペンでの長押しが中断
+    /// されず進行度が 100% に達して誤確定してしまう（codex-review P1
+    /// 指摘）。`gesture.rs::handle_pointermove` と同型の対策として、
+    /// `pointermove` を購読し `Document::element_from_point()` による
+    /// ヒットテストで実際にポインタ直下にある要素が保持対象自身か
+    /// どうかを判定する（matrix 変換・`overflow: visible` の子孫要素にも
+    /// 頑健、`gesture.rs::handle_pointermove` rustdoc 参照）。ヒットが
+    /// `None`（ビューポート外）または保持対象の子孫でなければ離脱とみな
+    /// し [`HoldSession::cancel`] を呼ぶ。追跡中の `pointer_id`
+    /// （[`HoldSession::pointer_id`]、`pointerdown` で設定）と一致しない
+    /// `pointermove` は無視する（マウスホバー等、無関係なポインタの
+    /// 移動で誤って中断しないため）。keydown 起点の保持は `pointer_id`
+    /// が `None` のままのため本関数の対象外（[`HoldSession::pointer_id`]
+    /// doc 参照）。
+    fn handle_pointermove(event: &Event, session: &Rc<HoldSession>) {
+        if !session.active.get() {
+            return;
+        }
+        let Some(tracked_id) = session.pointer_id.get() else {
+            return;
+        };
+        let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
+            return;
+        };
+        if pointer_event.pointer_id() != tracked_id {
+            return;
+        }
+        let Some(document) = session.element.owner_document() else {
+            return;
+        };
+        let x = pointer_event.client_x() as f32;
+        let y = pointer_event.client_y() as f32;
+        let hit = document.element_from_point(x, y);
+        let still_within = hit.is_some_and(|hit| {
+            let element: &Element = &session.element;
+            element.contains(Some(&hit))
+        });
+        if !still_within {
+            session.cancel();
+        }
+    }
+
+    /// 1 要素へ pointerdown/pointerup/pointercancel/pointerleave/
+    /// pointermove/keydown/keyup の 7 リスナーを登録する。
     fn wire_candidate(element: &HtmlElement) -> Result<(), JsValue> {
         let session = Rc::new(HoldSession::new(element.clone()));
 
@@ -359,6 +415,9 @@ mod wiring {
         let pointerdown = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             if let Ok(pointer_event) = event.dyn_into::<PointerEvent>() {
                 if pointer_event.button() == 0 {
+                    pointerdown_session
+                        .pointer_id
+                        .set(Some(pointer_event.pointer_id()));
                     pointerdown_session.start();
                 }
             }
@@ -368,6 +427,16 @@ mod wiring {
             pointerdown.as_ref().unchecked_ref(),
         )?;
         pointerdown.forget();
+
+        let pointermove_session = Rc::clone(&session);
+        let pointermove = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_pointermove(&event, &pointermove_session);
+        });
+        element.add_event_listener_with_callback(
+            "pointermove",
+            pointermove.as_ref().unchecked_ref(),
+        )?;
+        pointermove.forget();
 
         // "blur" を早期離脱イベントへ加える理由（codex-review P1 指摘）:
         // 保持中に Tab で別要素へフォーカス移動すると、ポインタは離されず

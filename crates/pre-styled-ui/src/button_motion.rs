@@ -76,6 +76,11 @@ pub const HOLD_PROGRESS_VAR: &str = "--fandhe-motion-hold-progress";
 /// ルート要素マーカー。
 pub const ADD_TO_BASKET_ATTR: &str = "data-fandhe-add-to-basket";
 
+/// rolling-text の current/duplicate 2 層を内包する外側ビューポート
+/// レイヤーの `data-part` 値（codex-review P1 是正、下記
+/// [`BUTTON_MOTION_CSS`] rustdoc「`rolling-text-viewport` を挟む理由」節
+/// 参照）。
+const ROLLING_TEXT_VIEWPORT_PART: &str = "rolling-text-viewport";
 /// rolling-text の「現在表示中」レイヤーの `data-part` 値。
 const ROLLING_TEXT_CURRENT_PART: &str = "rolling-text-current";
 /// rolling-text の「複製（`aria-hidden`）」レイヤーの `data-part` 値。
@@ -108,14 +113,55 @@ const BASKET_ICON_ADDED_PART: &str = "basket-icon-added";
 /// ないと判断した意図的な仕様（レイアウトへの視覚的な影響は position:
 /// relative 単体では通常発生せず、overflow: hidden も内容がボックスを
 /// 超えない限り無害）。
+///
+/// # `rolling-text-viewport` を挟む理由（codex-review P1 是正、2 件）
+///
+/// 当初は `current`/`duplicate` を `root` へ直接の子として置き、`root`
+/// 自身の `overflow: hidden` で clip する構成だったが、2 つの不整合が
+/// あった:
+///
+/// 1. **clip 基準のずれ**: `translateY(±100%)` は移動する要素**自身**の
+///    高さ基準で計算されるのに対し、`root`（button 全体、padding 込みで
+///    ラベルより高い）が clip 基準になっていたため、ラベル分の移動では
+///    `root` の外まで出切らず、複製と原本が同時に見えてしまう。
+/// 2. **`duplicate` の `display: flex` が文字単位 `<span>` を直接
+///    flex item 化する**: [`rolling_text_stagger_button`] は 1 文字ずつ
+///    `<span>` に分割するため、空白のみの `<span>` が `duplicate` の
+///    flex item として独立した line box を持ち、`white-space: normal`
+///    の既定挙動で単語間の空白が消える（"Add to basket" が
+///    "Addtobasket" と表示される）。
+///
+/// 是正として `current`/`duplicate` の外側へ `rolling-text-viewport`
+/// （`display: inline-block; position: relative; overflow: hidden;`）を
+/// 挟む。`duplicate`（`position: absolute; inset: 0;`）は out-of-flow
+/// のためサイズ計算に加わらず、`viewport` の高さは通常フローの唯一の
+/// 子である `current`（ラベルそのもの）の内容だけで決まる。結果として
+/// `duplicate` の box は `inset: 0` により `current` と**厳密に同じ
+/// 寸法**になり、(1) `translateY(±100%)` の基準と clip 基準
+/// （`viewport` の境界）が一致し、(2) `duplicate` はもはや文字を
+/// 中央寄せするための `display: flex` を必要としない（box が既に
+/// `current` と同一寸法のため）ので撤去でき、文字単位 `<span>` が
+/// 通常のインライン内容として空白を保持したまま描画される。
 pub const BUTTON_MOTION_CSS: &str = concat!(
-    // rolling-text: root を相対配置・overflow hidden のコンテナ化し、
-    // current/duplicate の 2 層を縦方向に重ねる。hover 時に current が
-    // 上へ抜け duplicate が下から現れる（タッチ端末の疑似 hover 貼り付き
-    // 対策として `@media (hover: hover)` で非タッチ限定にする、
+    // rolling-text: root を相対配置・overflow hidden のコンテナ化する
+    // （既存副作用、上記「既知の副作用」節）。current/duplicate の 2 層
+    // は rolling-text-viewport（ラベルの内容サイズへ shrink-wrap する
+    // 内側ビューポート）で包み、hover 時に current が上へ抜け duplicate
+    // が下から現れる（タッチ端末の疑似 hover 貼り付き対策として
+    // `@media (hover: hover)` で非タッチ限定にする、
     // `pre-styled-ui-interaction-visual-language.md` の既存方針と整合）。
     "[data-scope=\"button\"][data-part=\"root\"] {\n",
     "  position: relative;\n",
+    "  overflow: hidden;\n",
+    "}\n",
+    // viewport は current（通常フローの唯一の子）の内容サイズへ
+    // shrink-wrap し、duplicate（out-of-flow）の絶対配置基準・clip 基準
+    // を兼ねる（上記「`rolling-text-viewport` を挟む理由」節参照）。
+    "[data-scope=\"button\"][data-part=\"",
+    "rolling-text-viewport",
+    "\"] {\n",
+    "  position: relative;\n",
+    "  display: inline-block;\n",
     "  overflow: hidden;\n",
     "}\n",
     "[data-scope=\"button\"][data-part=\"",
@@ -131,22 +177,17 @@ pub const BUTTON_MOTION_CSS: &str = concat!(
     "\"] {\n",
     "  display: block;\n",
     "}\n",
-    // duplicate は `root`（position: relative）の inset: 0 いっぱいに
-    // 絶対配置される（root の padding box が containing block になる）
-    // ため、`current`（root の flex 中央寄せに従う通常フローの子要素）と
-    // 同じ見た目の中央位置に揃えるには、この絶対配置ボックス自身も
-    // flex 中央寄せにする必要がある（codex-review P1 指摘: この
-    // `display: flex` を欠くと `display: block` の既定の上詰めのまま
-    // レンダリングされ、hover 後の文字が上端へ移動する／ボタン高さに
-    // よっては文字が上部に残る）。
+    // duplicate は viewport（position: relative）の inset: 0 いっぱいに
+    // 絶対配置される。viewport の寸法は current の内容のみで決まるため
+    // （duplicate 自身は out-of-flow でサイズ計算に加わらない）、
+    // duplicate の box は current と厳密に同じ寸法になり、中央寄せ用の
+    // `display: flex` は不要（上記「`rolling-text-viewport` を挟む
+    // 理由」節参照）。
     "[data-scope=\"button\"][data-part=\"",
     "rolling-text-duplicate",
     "\"] {\n",
     "  position: absolute;\n",
     "  inset: 0;\n",
-    "  display: flex;\n",
-    "  align-items: center;\n",
-    "  justify-content: center;\n",
     "  transform: translateY(100%);\n",
     "}\n",
     "@media (hover: hover) {\n",
@@ -255,8 +296,10 @@ fn char_spans(label: &str) -> Vec<Node> {
 
 /// rolling-text ボタン（イシュー #2538）: hover 時にラベルが上へ回転し、
 /// 複製ラベルが下から現れる 2 層構成。[`crate::button::button`] の子ノード
-/// をラベル 2 層（`data-part="rolling-text-current"`/
-/// `"rolling-text-duplicate"`）に置き換える。
+/// を `data-part="rolling-text-viewport"` の内側ビューポート 1 個に置き
+/// 換え、その中へラベル 2 層（`data-part="rolling-text-current"`/
+/// `"rolling-text-duplicate"`）を格納する（[`BUTTON_MOTION_CSS`] rustdoc
+/// 「`rolling-text-viewport` を挟む理由」節参照）。
 ///
 /// # アクセシビリティ不変条件
 ///
@@ -299,7 +342,15 @@ pub fn rolling_text_button<'a>(
         ],
         vec![text(label)],
     );
-    button(props, attrs, vec![current, duplicate])
+    let viewport = el(
+        "span",
+        vec![
+            ("data-scope", "button"),
+            ("data-part", ROLLING_TEXT_VIEWPORT_PART),
+        ],
+        vec![current, duplicate],
+    );
+    button(props, attrs, vec![viewport])
 }
 
 /// rolling-text ボタンの文字単位 stagger 版（イシュー #2538）。
@@ -349,7 +400,15 @@ pub fn rolling_text_stagger_button<'a>(
         ],
         char_spans(label),
     );
-    button(props, attrs, vec![current, duplicate])
+    let viewport = el(
+        "span",
+        vec![
+            ("data-scope", "button"),
+            ("data-part", ROLLING_TEXT_VIEWPORT_PART),
+        ],
+        vec![current, duplicate],
+    );
+    button(props, attrs, vec![viewport])
 }
 
 /// hold-to-confirm ボタン（イシュー #2538）: 一定時間押し続けたときのみ
