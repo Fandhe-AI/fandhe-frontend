@@ -71,6 +71,8 @@
 //! （pre-styled-ui 全 recipe。合成に使う部品自体の見た目）も配線する
 //! （`/blocks/` 索引ページには配線しない）。
 
+mod cta_banner_magnetic;
+mod cta_signup_celebrate;
 mod dashboard_01;
 mod login_01;
 mod login_04;
@@ -176,6 +178,8 @@ pub const BLOCKS: &[Block] = &[
     signup_05::BLOCK,
     pricing_tiers_morph::BLOCK,
     pricing_usage_slider::BLOCK,
+    cta_banner_magnetic::BLOCK,
+    cta_signup_celebrate::BLOCK,
 ];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
@@ -259,6 +263,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(signup_05::LAYOUT_CSS)?;
     sheet.push_css(pricing_tiers_morph::LAYOUT_CSS)?;
     sheet.push_css(pricing_usage_slider::LAYOUT_CSS)?;
+    sheet.push_css(cta_banner_magnetic::LAYOUT_CSS)?;
+    sheet.push_css(cta_signup_celebrate::LAYOUT_CSS)?;
     Ok(sheet)
 }
 

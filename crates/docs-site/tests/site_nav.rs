@@ -226,7 +226,9 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // ガイド（Guides セクション）が加わり、235 → 236 になった。イシュー
     // #2547 で Blocks セクションへ pricing-tiers-morph・
     // pricing-usage-slider の 2 ページが加わり、236 → 238 になった。
-    assert_eq!(pages.len(), 238, "expected 238 pages, got {pages:?}");
+    // イシュー #2550 で Blocks セクションへ cta-banner-magnetic・
+    // cta-signup-celebrate の 2 ページが加わり、238 → 240 になった。
+    assert_eq!(pages.len(), 240, "expected 240 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
@@ -234,15 +236,16 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // sidebar-03 が加わり 5 件。イシュー #2093 で login-04 が加わり 6 件。
     // イシュー #2094 で signup-01 が加わり 7 件。イシュー #2095 で
     // signup-05 が加わり 8 件。イシュー #2547 で pricing-tiers-morph・
-    // pricing-usage-slider が加わり 8 → 10 件になった。
+    // pricing-usage-slider が加わり 8 → 10 件になった。イシュー #2550 で
+    // cta-banner-magnetic・cta-signup-celebrate が加わり 10 → 12 件になった。
     let blocks_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/blocks/"))
         .collect();
     assert_eq!(
         blocks_pages.len(),
-        10,
-        "expected 10 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05 + pricing-tiers-morph + pricing-usage-slider), got {blocks_pages:?}"
+        12,
+        "expected 12 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05 + pricing-tiers-morph + pricing-usage-slider + cta-banner-magnetic + cta-signup-celebrate), got {blocks_pages:?}"
     );
     assert!(
         pages.contains(&("site/blocks.md", "/blocks/")),
@@ -289,6 +292,20 @@ fn site_nav_registers_all_pages_with_expected_paths() {
             "/blocks/pricing-usage-slider/"
         )),
         "nav.toml is missing the pricing-usage-slider block page"
+    );
+    assert!(
+        pages.contains(&(
+            "site/blocks/cta-banner-magnetic.md",
+            "/blocks/cta-banner-magnetic/"
+        )),
+        "nav.toml is missing the cta-banner-magnetic block page"
+    );
+    assert!(
+        pages.contains(&(
+            "site/blocks/cta-signup-celebrate.md",
+            "/blocks/cta-signup-celebrate/"
+        )),
+        "nav.toml is missing the cta-signup-celebrate block page"
     );
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ

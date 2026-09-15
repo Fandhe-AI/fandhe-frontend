@@ -25,4 +25,6 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [signup-05](./blocks/signup-05.md)
 - [pricing-tiers-morph](./blocks/pricing-tiers-morph.md)
 - [pricing-usage-slider](./blocks/pricing-usage-slider.md)
+- [cta-banner-magnetic](./blocks/cta-banner-magnetic.md)
+- [cta-signup-celebrate](./blocks/cta-signup-celebrate.md)
 

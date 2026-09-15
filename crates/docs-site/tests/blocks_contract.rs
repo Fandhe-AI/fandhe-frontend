@@ -1258,3 +1258,195 @@ fn pricing_usage_slider_thumb_is_labelled_by_visible_label() {
          (no dangling IDREF)"
     );
 }
+
+/// cta-banner-magnetic ページの Demo クラス・両スタイルシート・
+/// `data-blocks-cta-banner-magnetic-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタが存在することを固定する
+/// （イシュー #2550）。
+#[test]
+fn cta_banner_magnetic_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/cta-banner-magnetic/index.html"))
+        .expect("blocks/cta-banner-magnetic/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-cta-banner-magnetic\""),
+        "cta-banner-magnetic page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "cta-banner-magnetic page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "cta-banner-magnetic page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-cta-banner-magnetic-banner=\"\"",
+        "data-blocks-cta-banner-magnetic-title=\"\"",
+        "data-blocks-cta-banner-magnetic-cta=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "cta-banner-magnetic page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-cta-banner-magnetic-banner]",
+        "[data-blocks-cta-banner-magnetic-cta]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// cta-banner-magnetic の合成部品（`button`）が期待どおりの構成で実際に
+/// 出力されていること、opt-in マーカー `data-fandhe-magnetic` が CTA
+/// ボタンへ実際に付与されていること、CSS 側が
+/// `--fandhe-motion-magnetic-x`/`-y` を消費する `transform` 規則を持つこと、
+/// `<form>` を持ち込んでいないことを固定する（イシュー #2550）。
+#[test]
+fn cta_banner_magnetic_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/cta-banner-magnetic/index.html"))
+        .expect("blocks/cta-banner-magnetic/index.html should be generated");
+    for needle in [
+        "data-fandhe-magnetic=\"\"",
+        "Ready to get started?",
+        "Get started",
+    ] {
+        assert!(
+            html.contains(needle),
+            "cta-banner-magnetic page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "cta-banner-magnetic should never contain {absent}"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains("--fandhe-motion-magnetic-x")
+            && sheet_css.contains("--fandhe-motion-magnetic-y"),
+        "blocks.css should consume the magnetic offset custom properties in a transform rule"
+    );
+}
+
+/// cta-signup-celebrate ページの Demo クラス・両スタイルシート・
+/// `data-blocks-cta-signup-celebrate-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタが存在することを固定する
+/// （イシュー #2550）。
+#[test]
+fn cta_signup_celebrate_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/cta-signup-celebrate/index.html"))
+        .expect("blocks/cta-signup-celebrate/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-cta-signup-celebrate\""),
+        "cta-signup-celebrate page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "cta-signup-celebrate page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "cta-signup-celebrate page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-cta-signup-celebrate-stack=\"\"",
+        "data-blocks-cta-signup-celebrate-card=\"\"",
+        "data-blocks-cta-signup-celebrate-field=\"\"",
+        "data-blocks-cta-signup-celebrate-submit=\"\"",
+        "data-blocks-cta-signup-celebrate-canvas=\"\"",
+        "data-blocks-cta-signup-celebrate-celebrate=\"\"",
+        "data-blocks-cta-signup-celebrate-caption=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "cta-signup-celebrate page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-cta-signup-celebrate-stack]",
+        "[data-blocks-cta-signup-celebrate-caption]",
+        "[data-blocks-cta-signup-celebrate-field]",
+        "[data-blocks-cta-signup-celebrate-submit]",
+        "[data-blocks-cta-signup-celebrate-canvas]",
+        "[data-blocks-cta-signup-celebrate-celebrate]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// cta-signup-celebrate の合成部品（`card`/`field`/`input`/`button`）が
+/// 期待どおりの構成で実際に出力されていること、confetti opt-in 属性
+/// （`data-fandhe-confetti-trigger`/`data-fandhe-confetti-canvas`）の値と
+/// `id` の対応が実際に一致していること、送信前/送信完了の両カードが
+/// 可視状態（`hidden` なし）で出力されていること、`<form>`/実データを
+/// 持ち込んでいないことを固定する（イシュー #2550）。
+#[test]
+fn cta_signup_celebrate_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/cta-signup-celebrate/index.html"))
+        .expect("blocks/cta-signup-celebrate/index.html should be generated");
+    for needle in [
+        "type=\"email\"",
+        "placeholder=\"m@example.com\"",
+        "Notify me",
+        "You&#x27;re all set!",
+        "Before submission",
+        "After submission (celebrate)",
+        "data-fandhe-confetti-trigger=\"cta-signup-celebrate-canvas\"",
+        "id=\"cta-signup-celebrate-canvas\"",
+        "data-fandhe-confetti-canvas=\"\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "cta-signup-celebrate page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "cta-signup-celebrate should never contain {absent}"
+        );
+    }
+
+    // 「送信前」「送信完了」の両カードが `hidden` なしで実際に可視状態
+    // であること（`sidebar_07`/`pricing_tiers_morph` と同型の 2 状態併記
+    // 回帰固定。無 JS のため両方を静的に見せる設計の検証）。
+    let before_card = extract_tag_by_id(&html, "blocks-cta-signup-celebrate-email-control");
+    assert!(
+        !before_card.contains("hidden"),
+        "the before-submit card's email input should be visible (not hidden)"
+    );
+
+    // confetti canvas 側マーカーは既存の `wasm-full/src/confetti.rs`
+    // ロケータ契約（`root` 包含 + `data-fandhe-confetti-canvas` 必須）を
+    // そのまま満たす想定であることの回帰固定として、トリガーの値と
+    // canvas の `id` が一致することを再確認する。
+    assert!(
+        html.contains(r#"data-fandhe-confetti-trigger="cta-signup-celebrate-canvas""#)
+            && html.contains(r#"id="cta-signup-celebrate-canvas""#),
+        "confetti trigger value must match the canvas id for the locator contract to resolve"
+    );
+}

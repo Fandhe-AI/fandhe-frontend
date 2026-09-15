@@ -1191,7 +1191,11 @@ name = "fandhe-frontend-wasm-full"
 # を伴うため minor バンプする。本ブランチ側も merge base（0.28.0）から
 # 独立に 0.29.0 へ到達しており origin/main（#2533 の 0.29.0）と同一版数の
 # ため、同じ版数のまま据え置かず +1 した 0.30.0 とする（同衝突運用）。
-version = "0.30.0"
+#
+# イシュー #2550（magnetic pull、親 #2530/#2476）: magnetic 配線
+# （`magnetic` モジュール新設、`Self::wire_magnetic`・feature `magnetic`
+# 既定 on）を追加。新規公開 feature 追加を伴うため minor バンプする。
+version = "0.31.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1469,7 +1473,10 @@ js-sys = "0.3"
 # main（#2533）の同一版数衝突（0.5.0 → 0.5.0）により +1 バンプされ 0.6.0
 # となったため、`version` 要求も追随する（`cargo run -p xtask --
 # check-dep-versions --fix`）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.6.0", optional = true }
+#
+# イシュー #2550: `fandhe-frontend-animation` 0.6.0 → 0.7.0（`magnetic`
+# モジュール新設）への `version` 要求追随。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.7.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1702,6 +1709,7 @@ default = [
   "confetti",
   "hold-to-confirm",
   "add-to-basket",
+  "magnetic",
   "position",
   "stagger",
   "animation-driver",
@@ -1805,6 +1813,15 @@ hold-to-confirm = ["dep:fandhe-frontend-animation"]
 # `fandhe-frontend-animation` への依存追加は伴わない（群 B: 小さな DOM
 # 配線のみで完結、`docs/design/motion-reference-adoption-policy.md` §4）。
 add-to-basket = []
+# イシュー #2550（親 #2530/#2476）: magnetic pull（ポインタ追従 CTA）配線
+# （`Runtime::mount`/`hydrate` の `Self::wire_magnetic` 呼び出し）専用の
+# feature（既定 on）。`scroll-driver`/`confetti`/`hold-to-confirm` と
+# 同型——配線群かつ `dep:fandhe-frontend-animation` を有効化する feature。
+# `magnetic` モジュール自体は本 feature でのみコンパイルする
+# （`fandhe-frontend-animation::magnetic` の型を直接使うため、`gesture` 等の
+# 純粋層非ゲート方針とは異なり、上記 (c) 注記の対象外。`scroll-driver`/
+# `confetti`/`hold-to-confirm` と同じ理由）。
+magnetic = ["dep:fandhe-frontend-animation"]
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

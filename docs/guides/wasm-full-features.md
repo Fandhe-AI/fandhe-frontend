@@ -1,7 +1,7 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 18 件・
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 23 件・
 scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
@@ -67,6 +67,17 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_confetti` | `confetti` |
 | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 | `Runtime::wire_add_to_basket` | `add-to-basket` |
+| `Runtime::wire_magnetic` | `magnetic` |
+
+`magnetic` feature（0.31.0 で追加、イシュー #2550）は `scroll-driver`/
+`confetti`/`hold-to-confirm` と同型（配線群かつ
+`dep:fandhe-frontend-animation` 有効化）で、ポインタに追従して吸い付く
+CTA ボタン（`data-fandhe-magnetic` opt-in）のオフセットを
+`fandhe-frontend-animation::magnetic::compute_pull`/`write_offset` で
+計算・書き込みます。rAF ループ・spring 計算は使わず、`pointermove` ごとに
+直接 CSS カスタムプロパティ（`--fandhe-motion-magnetic-x`/`-y`）へ書き込み、
+実際の追従感は既存の CSS motion トークンによる `transition` へ委ねる設計
+です（`crates/frontend-animation/src/magnetic.rs` モジュール doc参照）。
 
 `hold-to-confirm` feature（0.30.0 で追加、イシュー #2538）は `scroll-driver`/
 `confetti` と同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）で、
@@ -218,6 +229,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.28.0 | `confetti` feature（イシュー #2533） |
 | 0.29.0 | `scroll-driver` の挙動拡張（`data-fandhe-scroll-progress`、イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ） |
 | 0.30.0 | `hold-to-confirm`/`add-to-basket` feature（イシュー #2538。main の #2534/#2533 取り込みに伴う 0.29.0 同士の版数衝突の再バンプ） |
+| 0.31.0 | `magnetic` feature（イシュー #2550） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
@@ -253,6 +265,7 @@ features = [
   "confetti",
   "hold-to-confirm",
   "add-to-basket",
+  "magnetic",
   "position",
   "stagger",
   "animation-driver",

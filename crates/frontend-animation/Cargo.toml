@@ -28,7 +28,11 @@ name = "fandhe-frontend-animation"
 # マージコミット注記: 本 PR（#2534）と main（#2533）が独立に 0.4.0 から
 # 0.5.0 へ minor バンプしており同値衝突。#638 条項に従い origin/main の
 # 到達値から +1 して 0.6.0 とする。
-version = "0.6.0"
+#
+# イシュー #2550: `magnetic` モジュール（`compute_pull`/`write_offset`/
+# `detect_reduced_motion`）を新設。新規公開モジュール追加のため minor
+# バンプ（`.claude/rules/coding-rust.md` #638 条項）。
+version = "0.7.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

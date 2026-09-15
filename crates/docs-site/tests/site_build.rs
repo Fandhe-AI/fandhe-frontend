@@ -236,10 +236,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 234 → 235 になった。イシュー #2526 で fandhe-animation API ガイド
     // （Guides セクション）が加わり、235 → 236 になった。イシュー #2547 で
     // Blocks セクションへ pricing-tiers-morph・pricing-usage-slider の
-    // 2 ページが加わり、236 → 238 になった。
+    // 2 ページが加わり、236 → 238 になった。イシュー #2550 で Blocks
+    // セクションへ cta-banner-magnetic・cta-signup-celebrate の 2 ページが
+    // 加わり、238 → 240 になった。
     assert_eq!(
         report.written.len(),
-        238,
+        240,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

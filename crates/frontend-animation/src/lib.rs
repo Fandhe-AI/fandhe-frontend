@@ -47,14 +47,17 @@
 //! 委譲の機能検出 + rAF フォールバックの計算・計測プリミティブ、イシュー
 //! #2521）も実装済み。confetti（[`canvas_target::CanvasTarget`]・
 //! [`confetti::fire`]、canvas 2D 描画によるパーティクル発火、イシュー
-//! #2533）も実装済み。FLIP / SVG path 等の残りの実装は Phase 4 の各後続
-//! issue で追加する（`docs/design/animation-core-architecture.md` §6.2
-//! 参照）。
+//! #2533）も実装済み。magnetic（[`magnetic::compute_pull`]・
+//! [`magnetic::write_offset`]、ポインタ追従オフセットの計算・CSS
+//! カスタムプロパティ書き込み、イシュー #2550）も実装済み。FLIP / SVG
+//! path 等の残りの実装は Phase 4 の各後続 issue で追加する
+//! （`docs/design/animation-core-architecture.md` §6.2 参照）。
 
 pub mod animate;
 pub mod canvas_target;
 pub mod confetti;
 pub mod dom_target;
+pub mod magnetic;
 pub mod raf_driver;
 pub mod scroll_driver;
 

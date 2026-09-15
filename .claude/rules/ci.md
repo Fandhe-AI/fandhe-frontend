@@ -152,7 +152,16 @@
   再現し、中央ティアへ `border_beam` の opt-in 装飾を付与する）/
   `blocks/pricing-usage-slider/index.html`（イシュー #2547、利用量
   スライダーの固定初期値と `stat` の価格表示を静的な組で示す合成 block。
-  ライブ連動は実装しない）である。
+  ライブ連動は実装しない）/
+  `blocks/cta-banner-magnetic/index.html`（イシュー #2550、`data-fandhe-
+  magnetic` opt-in を付与した CTA ボタン 1 個の合成 block。ポインタ追従の
+  実演は wasm-full の `magnetic` feature 配下のみで発生し、無 JS の本サイト
+  では静的な実演に留まる）/
+  `blocks/cta-signup-celebrate/index.html`（イシュー #2550、`card`/`field`/
+  `input`/`button` を合成したサインアップ CTA。既存の `confetti` feature
+  向け opt-in 属性〔`data-fandhe-confetti-trigger`/`-canvas`〕をそのまま
+  「使う側」として合成し、送信前/送信完了の 2 状態を静的に併記する）
+  である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

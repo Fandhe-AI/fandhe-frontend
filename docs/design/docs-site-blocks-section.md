@@ -74,6 +74,14 @@ signup-05 の 7 件とする。これは既存の #2088〜#2095 が対象とす�
 判断（#2088〜#2095 の一覧が最終であるという記述）を変更するものではなく、
 新規タスク（#2530 系）による純追加であることを示す別段落である。
 
+**Phase 7（#2530）による追加（#2550）**: 同じ親トラッキング #2530 配下の
+イシュー #2550 により、Motion+ `sections/cta-sections` に相当する
+`cta-banner-magnetic`（ポインタに追従して吸い付く magnetic ボタン付き
+CTA バナー）・`cta-signup-celebrate`（送信完了で confetti が発火する
+サインアップ CTA。既存の confetti 機構をそのまま合成する「使う側」）の
+2 件が追加された。これも上記と同じ純追加であり「7 件で確定」の判断は
+変更しない。
+
 ## 4. `component-coverage-map.md` との関係
 
 shadcn/ui Blocks は `docs/design/component-coverage-map.md` §2 の「対象外」
