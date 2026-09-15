@@ -1,7 +1,7 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 20 件・
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 25 件・
 scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
@@ -66,8 +66,20 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_scroll_driver` | `scroll-driver` |
 | `Runtime::wire_drag_gesture` | `drag-gesture` |
 | `Runtime::wire_confetti` | `confetti` |
+| `Runtime::wire_svg_path` | `svg-path` |
 | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 | `Runtime::wire_add_to_basket` | `add-to-basket` |
+| `Runtime::wire_magnetic` | `magnetic` |
+
+`magnetic` feature（0.31.0 で追加、イシュー #2550）は `scroll-driver`/
+`confetti`/`hold-to-confirm` と同型（配線群かつ
+`dep:fandhe-frontend-animation` 有効化）で、ポインタに追従して吸い付く
+CTA ボタン（`data-fandhe-magnetic` opt-in）のオフセットを
+`fandhe-frontend-animation::magnetic::compute_pull`/`write_offset` で
+計算・書き込みます。rAF ループ・spring 計算は使わず、`pointermove` ごとに
+直接 CSS カスタムプロパティ（`--fandhe-motion-magnetic-x`/`-y`）へ書き込み、
+実際の追従感は既存の CSS motion トークンによる `transition` へ委ねる設計
+です（`crates/frontend-animation/src/magnetic.rs` モジュール doc参照）。
 
 `hold-to-confirm` feature（0.30.0 で追加、イシュー #2538）は `scroll-driver`/
 `confetti` と同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）で、
@@ -93,7 +105,14 @@ coding-rust.md` #638 条項に従い +1 して 0.29.0 で合流、イシュー
 （`CanvasRenderingContext2d`/`HtmlCanvasElement`）を一切追加しません
 （`fandhe-frontend-animation::confetti::fire` が `web_sys::Element` を
 受け取り、canvas への cast は `fandhe-frontend-animation` 側で完結する
-設計。SignaturePad 由来の「canvas を使わない」方針を維持）。
+設計。SignaturePad 由来の「canvas を使わない」方針を維持）。`svg-path`
+feature（0.32.0 で追加、イシュー #2519）も `scroll-driver`/`confetti` と
+同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）です。全長取得
+（`getTotalLength()`）・`stroke-dasharray`/`stroke-dashoffset` の初期値
+計算・WAAPI 呼び出しはいずれも `fandhe-frontend-animation::svg_path` の
+責務であり、`wasm-full` 側は `[data-fandhe-svg-path-draw]` 要素の走査・
+呼び出し配線のみを担います（duration/easing 等のカスタマイズは扱わない
+固定既定値のみ）。
 
 0.29.0（イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の
 版数衝突の再バンプ）で `scroll-driver` の挙動を拡張し、
@@ -141,7 +160,7 @@ coding-rust.md` #638 条項に従い +1 して 0.29.0 で合流、イシュー
 （`is_valid_view_transition_name`）はゲート対象外です。off にすると
 `set_view_transition_name` が使えなくなります。
 
-`view-transition-preset` feature（0.32.0 で追加、イシュー #2516）も別枠
+`view-transition-preset` feature（0.32.3 で追加、イシュー #2516）も別枠
 です。`Runtime::apply_with_view_transition_named`（named view transition
 プリセット選択、`view_transition_preset::ViewTransitionPreset`）という
 公開メソッドの存在をゲートします。`view_transition_preset` モジュール自体・
@@ -235,17 +254,20 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.29.0 | `scroll-driver` の挙動拡張（`data-fandhe-scroll-progress`、イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ） |
 | 0.30.0 | `drag-gesture` feature（イシュー #2535。本 PR（#2535）と main（#2534）が独立に 0.28.0 から 0.29.0 へ同一版数バンプしており衝突。`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して 0.30.0 とした） |
 | 0.31.0 | `hold-to-confirm`/`add-to-basket` feature（イシュー #2538。本 PR（#2535 到達の 0.30.0）と main（#2538 到達の 0.30.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.31.0 とする） |
-| 0.32.0 | `view-transition-preset` feature（イシュー #2516。本 PR と main（#2538 到達の 0.31.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.32.0 とする） |
+| 0.32.0 | 2 系統が独立に到達（いずれも本表では同一版数として記載）: (1) `svg-path` feature（イシュー #2519、main。既に 0.31.0 に到達済みのため +1 して 0.32.0 とした）、(2) `magnetic` feature（イシュー #2550、本 PR とは別ブランチ。#2550 到達の 0.31.0 と main（#2538 取り込み後到達の 0.31.0）が独立に同一版数へバンプしており衝突、#638 条項に従い +1 して 0.32.0 とした） |
+| 0.32.1 | magnetic の中心計算を transform 込みの矩形から静止位置基準へ是正（イシュー #2550、PR #2572 Bugbot 指摘。公開 API は変更しないため patch バンプ） |
+| 0.32.2 | magnetic の中心計算を transition 中も決定的にする再是正（イシュー #2550、PR #2572 codex-review P1 指摘。公開 API は変更しないため patch バンプ） |
+| 0.32.3 | `view-transition-preset` feature（イシュー #2516。本 PR 到達値が main 取り込み時点の到達値（0.32.2）を上回るよう +1 した） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 46 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 48 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.32.0"
+version = "0.32.3"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -270,8 +292,10 @@ features = [
   "scroll-driver",
   "drag-gesture",
   "confetti",
+  "svg-path",
   "hold-to-confirm",
   "add-to-basket",
+  "magnetic",
   "position",
   "stagger",
   "animation-driver",

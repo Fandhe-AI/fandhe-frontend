@@ -72,6 +72,8 @@
 //! （`/blocks/` 索引ページには配線しない）。
 
 mod bento_staggered;
+mod cta_banner_magnetic;
+mod cta_signup_celebrate;
 mod dashboard_01;
 mod feature_expand;
 mod login_01;
@@ -182,6 +184,8 @@ pub const BLOCKS: &[Block] = &[
     testimonials_stack::BLOCK,
     bento_staggered::BLOCK,
     feature_expand::BLOCK,
+    cta_banner_magnetic::BLOCK,
+    cta_signup_celebrate::BLOCK,
 ];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
@@ -269,6 +273,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS)?;
     sheet.push_css(bento_staggered::LAYOUT_CSS)?;
     sheet.push_css(feature_expand::LAYOUT_CSS)?;
+    sheet.push_css(cta_banner_magnetic::LAYOUT_CSS)?;
+    sheet.push_css(cta_signup_celebrate::LAYOUT_CSS)?;
     Ok(sheet)
 }
 

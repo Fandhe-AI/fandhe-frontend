@@ -217,8 +217,10 @@
 //! | `Runtime::wire_scroll_driver` | `scroll-driver` |
 //! | `Runtime::wire_drag_gesture` | `drag-gesture` |
 //! | `Runtime::wire_confetti` | `confetti` |
+//! | `Runtime::wire_svg_path` | `svg-path` |
 //! | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
+//! | `Runtime::wire_magnetic` | `magnetic` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -475,6 +477,8 @@ pub mod hold_to_confirm;
 pub mod hydration;
 pub mod in_view;
 pub mod keynav;
+#[cfg(feature = "magnetic")]
+pub mod magnetic;
 pub mod message_scroller;
 pub mod nav;
 pub mod number_input;
@@ -486,6 +490,8 @@ pub mod scroll_driver;
 pub mod sidebar;
 pub mod splitter;
 pub mod stagger_index;
+#[cfg(feature = "svg-path")]
+pub mod svg_path;
 pub mod tabs_indicator;
 pub mod tooltip;
 pub mod view_transition;
@@ -1539,10 +1545,14 @@ where
         Self::wire_drag_gesture(root.clone())?;
         #[cfg(feature = "confetti")]
         Self::wire_confetti(root.clone())?;
+        #[cfg(feature = "svg-path")]
+        Self::wire_svg_path(root.clone())?;
         #[cfg(feature = "hold-to-confirm")]
         Self::wire_hold_to_confirm(root.clone())?;
         #[cfg(feature = "add-to-basket")]
         Self::wire_add_to_basket(root.clone())?;
+        #[cfg(feature = "magnetic")]
+        Self::wire_magnetic(root.clone())?;
 
         Ok(Self {
             component,
@@ -1731,10 +1741,14 @@ where
         Self::wire_drag_gesture(root.clone())?;
         #[cfg(feature = "confetti")]
         Self::wire_confetti(root.clone())?;
+        #[cfg(feature = "svg-path")]
+        Self::wire_svg_path(root.clone())?;
         #[cfg(feature = "hold-to-confirm")]
         Self::wire_hold_to_confirm(root.clone())?;
         #[cfg(feature = "add-to-basket")]
         Self::wire_add_to_basket(root.clone())?;
+        #[cfg(feature = "magnetic")]
+        Self::wire_magnetic(root.clone())?;
 
         Ok(Self {
             component,
@@ -2742,6 +2756,19 @@ where
         confetti::wire_confetti(root)
     }
 
+    /// SVG path drawing アニメーションの配線（[`svg_path::wire_svg_path`]、
+    /// イシュー #2519）を登録する。`dispatch` チャネルを持たない属性専用
+    /// 配線のため（`Self::wire_in_view`/`Self::wire_confetti` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`svg_path::wire_svg_path`] を伝播する（現状は常に `Ok(())`）。
+    #[cfg(feature = "svg-path")]
+    fn wire_svg_path(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        svg_path::wire_svg_path(&root)
+    }
+
     /// hold-to-confirm（長押し確定）ボタンの配線
     /// （[`hold_to_confirm::wire_hold_to_confirm`]、イシュー #2538）を登録
     /// する。`dispatch` チャネルを持たない属性専用配線のため
@@ -2769,6 +2796,20 @@ where
     #[cfg(feature = "add-to-basket")]
     fn wire_add_to_basket(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         add_to_basket::wire_add_to_basket(root)
+    }
+
+    /// magnetic pull（ポインタ追従 CTA）の配線（[`magnetic::wire_magnetic`]、
+    /// イシュー #2550）を登録する。`dispatch` チャネルを持たない属性専用
+    /// 配線のため（`Self::wire_gesture`/`Self::wire_confetti` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`magnetic::wire_magnetic`]（`add_event_listener_with_callback` の
+    /// 失敗）を伝播する。
+    #[cfg(feature = "magnetic")]
+    fn wire_magnetic(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        magnetic::wire_magnetic(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
