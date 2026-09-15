@@ -28,7 +28,7 @@ use fandhe_frontend_core::keyed::keyed_list;
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
-use fandhe_frontend_wasm_full::drag_gesture::DRAG_ATTR;
+use fandhe_frontend_wasm_full::drag_gesture::{DRAG_ATTR, DRAG_AXIS_ATTR};
 use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -68,11 +68,12 @@ fn bubbling_click_event() -> Event {
 
 /// 動的リスト 1 件のみを持つ最小 component。各行が opt-in ドラッグ要素
 /// （[`DRAG_ATTR`]）であり、`items` のみが dirty field となる
-/// （`stagger_index_browser.rs::ListState` と同型）。
+/// （`stagger_index_browser.rs::ListState` と同型）。`axis` は
+/// [`DRAG_AXIS_ATTR`] へ反映する軸制約（`None` は省略＝自由）。
 #[derive(Debug, Clone)]
 struct ListState {
-    /// `(安定キー, 表示内容)` の順序付きリスト。
-    items: Vec<(u64, String)>,
+    /// `(安定キー, 表示内容, 軸制約)` の順序付きリスト。
+    items: Vec<(u64, String, Option<&'static str>)>,
     dirty: Vec<&'static str>,
 }
 
@@ -83,7 +84,7 @@ impl ListState {
         Self {
             items: initial
                 .iter()
-                .map(|(id, text)| (*id, text.to_string()))
+                .map(|(id, text)| (*id, text.to_string(), None))
                 .collect(),
             dirty: Vec::new(),
         }
@@ -97,6 +98,9 @@ enum ListAction {
     /// 既存キーの表示内容を書き換える（`KeyedOp::Update` を誘発。
     /// キーは不変のため対象要素・`DragController` は同一のまま）。
     Rename { id: u64, content: String },
+    /// 既存キーの [`DRAG_AXIS_ATTR`] を書き換える（`KeyedOp::Update` を
+    /// 誘発。codex-review P1 是正の回帰、PR #2565 第 3 ラウンド）。
+    SetAxis { id: u64, axis: &'static str },
 }
 
 impl Component for ListState {
@@ -106,12 +110,26 @@ impl Component for ListState {
         self.dirty.clear();
         match action {
             ListAction::Append { id, content } => {
-                self.items.push((id, content));
+                self.items.push((id, content, None));
                 self.dirty.push(Self::FIELD_ITEMS);
             }
             ListAction::Rename { id, content } => {
-                if let Some(entry) = self.items.iter_mut().find(|(existing, _)| *existing == id) {
+                if let Some(entry) = self
+                    .items
+                    .iter_mut()
+                    .find(|(existing, _, _)| *existing == id)
+                {
                     entry.1 = content;
+                    self.dirty.push(Self::FIELD_ITEMS);
+                }
+            }
+            ListAction::SetAxis { id, axis } => {
+                if let Some(entry) = self
+                    .items
+                    .iter_mut()
+                    .find(|(existing, _, _)| *existing == id)
+                {
+                    entry.2 = Some(axis);
                     self.dirty.push(Self::FIELD_ITEMS);
                 }
             }
@@ -122,15 +140,12 @@ impl Component for ListState {
         let items: Vec<(String, Node)> = self
             .items
             .iter()
-            .map(|(id, content)| {
-                (
-                    id.to_string(),
-                    el(
-                        "li",
-                        vec![("data-testid", "drag-item"), (DRAG_ATTR, "")],
-                        vec![text(content)],
-                    ),
-                )
+            .map(|(id, content, axis)| {
+                let mut attrs = vec![("data-testid", "drag-item"), (DRAG_ATTR, "")];
+                if let Some(axis) = axis {
+                    attrs.push((DRAG_AXIS_ATTR, axis));
+                }
+                (id.to_string(), el("li", attrs, vec![text(content)]))
             })
             .collect();
         let list = keyed_list("ul", vec![("id", "drag-list")], "items", items)
@@ -153,6 +168,18 @@ impl Component for ListState {
                 Some(ListAction::Rename {
                     id: id_str.parse::<u64>().ok()?,
                     content: content.to_string(),
+                })
+            }
+            "set-axis" => {
+                let (id_str, axis) = payload.split_once(':')?;
+                let axis = match axis {
+                    "x" => "x",
+                    "y" => "y",
+                    _ => return None,
+                };
+                Some(ListAction::SetAxis {
+                    id: id_str.parse::<u64>().ok()?,
+                    axis,
                 })
             }
             _ => None,
@@ -228,7 +255,13 @@ fn insert_prewires_touch_action_on_new_drag_item_before_any_pointerdown() {
     );
 }
 
-/// `drag_gesture_browser.rs::pointer_event` と同じ意図。
+/// `drag_gesture_browser.rs::pointer_event` と同じ意図・同じ理由で
+/// `buttons` を 1（メインボタン押下中）に固定する（Bugbot High 是正
+/// 「Resync browser test doesn't set buttons」、PR #2565 第 3 ラウンド）。
+/// `handle_pointermove` は `buttons() == 0` を stale drag の自己解除条件
+/// に使うため、`buttons` 未設定（既定 0）のまま `pointermove` を発火
+/// すると位置更新前に `release_drag` が呼ばれ、意図した経路
+/// （実際に位置が動くこと）を検証できない。
 fn pointer_event(kind: &str, pointer_id: i32, client_x: f64, client_y: f64) -> Event {
     let init = PointerEventInit::new();
     init.set_bubbles(true);
@@ -236,6 +269,9 @@ fn pointer_event(kind: &str, pointer_id: i32, client_x: f64, client_y: f64) -> E
     init.set_pointer_id(pointer_id);
     init.set_client_x(client_x as i32);
     init.set_client_y(client_y as i32);
+    init.set_buttons(1);
+    init.set_button(0);
+    init.set_is_primary(true);
     PointerEvent::new_with_event_init_dict(kind, &init)
         .expect("PointerEvent::new must not fail")
         .into()
@@ -329,5 +365,81 @@ fn update_of_existing_row_restores_touch_action_and_position_after_sync_attrs_st
         (x_after - 10.0).abs() < 0.01 && (y_after - 10.0).abs() < 0.01,
         "移動済みの位置 (10, 10) も再同期経路で復元されること: \
          x={x_after} y={y_after}"
+    );
+}
+
+/// 受け入れ条件（codex-review P1 是正、PR #2565 第 3 ラウンド）: 既存行の
+/// [`DRAG_AXIS_ATTR`] を x → y へ書き換える（`KeyedOp::Update` を誘発）
+/// と、`controller_for` が既存コントローラをそのまま返すだけで軸を読み
+/// 直さない不具合により、以後のドラッグが旧軸（x）に従い続けてしまう。
+/// `resync_drag_gesture_attachments` が再同期時に現在の属性値を
+/// `DragController::set_axis` へ反映するため、Update 後のドラッグは
+/// 新軸（y）に従うことを固定する。
+#[wasm_bindgen_test]
+fn update_changing_axis_attribute_applies_new_axis_to_subsequent_drag() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "drag-root-container-3");
+    let _guard = RemoveOnDrop(placeholder.clone());
+
+    let state = ListState::new(&[(1, "a")]);
+    let runtime = Runtime::mount("drag-root-container-3", state).expect("mount must succeed");
+    let root = runtime.root();
+
+    let item = root
+        .query_selector("[data-testid='drag-item']")
+        .expect("query_selector must not fail")
+        .expect("initial item must exist after mount");
+
+    // 軸制約なし（自由）の状態で一度ドラッグし、コントローラを新規
+    // attach させておく（`resync_one_drag_element` の「既存コントローラ
+    // のみ再同期する」分岐を確実に通す前提を作る）。
+    item.dispatch_event(&pointer_event("pointerdown", 1, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    root.dispatch_event(&pointer_event("pointermove", 1, 5.0, 5.0))
+        .expect("dispatch_event must not fail");
+    root.dispatch_event(&pointer_event("pointerup", 1, 5.0, 5.0))
+        .expect("dispatch_event must not fail");
+
+    // data-fandhe-drag-axis="y" へ変更（KeyedOp::Update を誘発）。
+    dispatch_action(&document, root, "set-axis", "1:y");
+
+    let item_after = root
+        .query_selector("[data-testid='drag-item']")
+        .expect("query_selector must not fail")
+        .expect("item must still exist after axis update (same key)");
+    assert!(
+        item_after.is_same_node(Some(&item)),
+        "Update は既存要素を差し替えないこと（同一ノードのまま）"
+    );
+    assert_eq!(
+        item_after.get_attribute(DRAG_AXIS_ATTR),
+        Some("y".to_string()),
+        "data-fandhe-drag-axis 属性自体は y へ更新されていること（前提の確認）"
+    );
+
+    // y 軸のみのドラッグを試みる。旧軸（自由・実質 x 移動可）のまま
+    // 残っていれば x も動くが、新軸（y）が反映されていれば x は固定
+    // される。
+    item_after
+        .dispatch_event(&pointer_event("pointerdown", 2, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    root.dispatch_event(&pointer_event("pointermove", 2, 20.0, 20.0))
+        .expect("dispatch_event must not fail");
+    root.dispatch_event(&pointer_event("pointerup", 2, 20.0, 20.0))
+        .expect("dispatch_event must not fail");
+
+    // 第 2 のドラッグ起点（`origin_position`）は第 1 のドラッグ終了時点の
+    // 位置 (5, 5)。軸 y が反映されていれば x 成分はこの起点値のまま固定
+    // され、y 成分のみ移動量 (+20) が加算される。
+    let x_final = custom_property_px(&item_after, DRAG_X_PROPERTY).unwrap_or(0.0);
+    let y_final = custom_property_px(&item_after, DRAG_Y_PROPERTY).unwrap_or(0.0);
+    assert!(
+        (x_final - 5.0).abs() < 0.01,
+        "軸が y へ更新された後は x 成分が第 2 ドラッグ開始時の値で \
+         固定されるべき: x={x_final}"
+    );
+    assert!(
+        (y_final - 25.0).abs() < 0.01,
+        "軸が y へ更新された後は y 成分が自由に動くべき: y={y_final}"
     );
 }

@@ -151,6 +151,17 @@ mod wiring {
     /// （`sidebar.rs::connected_registered_keydown_roots` と同型の遅延
     /// 掃除、明示的な解除リスナーを持たない設計）。
     fn controller_for(element: &Element) -> Option<Rc<RefCell<DragController>>> {
+        controller_for_tracking_reuse(element).map(|(controller, _)| controller)
+    }
+
+    /// [`controller_for`] と同じ解決を行うが、既存エントリを再利用した
+    /// か（`true`）新規 attach したか（`false`）を追加で返す
+    /// （[`resync_one_drag_element`] が新規/既存を区別して再同期範囲を
+    /// 変えるために使う。codex-review/Bugbot 是正、PR #2565 第 3
+    /// ラウンド）。
+    fn controller_for_tracking_reuse(
+        element: &Element,
+    ) -> Option<(Rc<RefCell<DragController>>, bool)> {
         DRAG_CONTROLLERS.with(|cell| {
             let mut controllers = cell.borrow_mut();
             controllers.retain(|(existing, _)| existing.is_connected());
@@ -158,13 +169,13 @@ mod wiring {
                 .iter()
                 .find(|(existing, _)| existing.is_same_node(Some(element)))
             {
-                return Some(Rc::clone(controller));
+                return Some((Rc::clone(controller), true));
             }
             let html_element = element.clone().dyn_into::<HtmlElement>().ok()?;
             let axis = parse_drag_axis(element.get_attribute(DRAG_AXIS_ATTR).as_deref());
             let controller = Rc::new(RefCell::new(DragController::attach(html_element, axis)));
             controllers.push((element.clone(), Rc::clone(&controller)));
-            Some(controller)
+            Some((controller, false))
         })
     }
 
@@ -481,23 +492,35 @@ mod wiring {
     /// が `retain(is_connected)` で切断済みエントリを間引き `is_same_node`
     /// で重複登録を避けるため、本関数は何度呼んでも安全（冪等）。
     ///
-    /// # 既存コントローラでもドラッグ用スタイルを復元する（codex-review
-    /// P1 是正、PR #2565 第 2 ラウンド）
+    /// # 既存コントローラでもドラッグ用スタイル・軸を復元する
+    /// （codex-review P1 是正、PR #2565 第 2・第 3 ラウンド）
     ///
     /// keyed list の既存行更新は `fandhe_frontend_wasm_client::keyed_dom`
     /// の `sync_attrs` を経由し、新しい view に無い `style` 属性を削除・
     /// 上書きする。この経路で `DragController::attach` が設定した
     /// `touch-action: none` や移動済みの CSS カスタムプロパティが失われ
     /// ても、`controller_for` は既存エントリを見つけるだけで DOM への
-    /// 再書き込みは行わない。そのため各要素の [`controller_for`] 呼び出し
-    /// 直後に必ず [`DragController::resync_dom`] を呼び、新規/既存の
-    /// いずれでも `touch-action: none` と保持位置を DOM へ再適用する
-    /// （`DragController::resync_dom` doc 参照）。
+    /// 再書き込みは行わない。同じ Update 経路は [`DRAG_AXIS_ATTR`]
+    /// （`x`/`y`）の値変更も伴い得るが、軸は `controller_for` が新規
+    /// attach 時にしか読まないため、既存コントローラは古い軸を保持し
+    /// 続ける（第 3 ラウンド codex-review P1 指摘）。[`resync_one_drag_element`]
+    /// が両方をまとめて再同期する。
+    ///
+    /// # 新規要素には呼ばない（Bugbot 是正、PR #2565 第 3 ラウンド）
+    ///
+    /// [`DragController::resync_dom`] は保持位置（既定 `(0, 0)`）を CSS
+    /// カスタムプロパティへ明示的に書き込むため、新規 attach された
+    /// 要素にまで無条件に呼ぶと「一度もドラッグされていない要素は
+    /// カスタムプロパティが未設定（`None`）」という既存契約
+    /// （`drag_gesture_browser.rs::arrow_key_on_editable_target_is_ignored`
+    /// 等が前提とする）を破り、`0px` を明示的に書き込んでしまう
+    /// リグレッションを生む。`resync_dom`（および軸の復元）は
+    /// [`controller_for_tracking_reuse`] が「既存エントリを再利用した」
+    /// と報告した場合にのみ呼ぶ（新規 attach は `DragController::attach`
+    /// 自身が touch-action・軸を正しく設定済みのため不要）。
     pub(crate) fn resync_drag_gesture_attachments(root: &Element) {
         if root.has_attribute(DRAG_ATTR) {
-            if let Some(controller) = controller_for(root) {
-                controller.borrow().resync_dom();
-            }
+            resync_one_drag_element(root);
         }
         let selector = format!("[{DRAG_ATTR}]");
         let Ok(node_list) = root.query_selector_all(&selector) else {
@@ -510,10 +533,24 @@ mod wiring {
             let Some(element) = node.dyn_ref::<Element>() else {
                 continue;
             };
-            if let Some(controller) = controller_for(element) {
-                controller.borrow().resync_dom();
-            }
+            resync_one_drag_element(element);
         }
+    }
+
+    /// [`resync_drag_gesture_attachments`] doc 参照。既存コントローラ
+    /// のみ [`DRAG_AXIS_ATTR`] の現在値を [`DragController::set_axis`]
+    /// で反映してから [`DragController::resync_dom`] を呼ぶ。
+    fn resync_one_drag_element(element: &Element) {
+        let Some((controller, reused_existing)) = controller_for_tracking_reuse(element) else {
+            return;
+        };
+        if !reused_existing {
+            return;
+        }
+        let axis = parse_drag_axis(element.get_attribute(DRAG_AXIS_ATTR).as_deref());
+        let mut controller_mut = controller.borrow_mut();
+        controller_mut.set_axis(axis);
+        controller_mut.resync_dom();
     }
 
     /// `root` へドラッグ検知の 5 リスナー（pointerdown/pointermove/

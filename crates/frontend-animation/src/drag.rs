@@ -257,6 +257,19 @@ impl DragController {
         self.constraint = constraint.map(normalize_constraint);
     }
 
+    /// 軸制約を更新する（現在位置・進行中のドラッグ状態は保持したまま
+    /// 軸のみ切り替える。codex-review P1 是正、PR #2565 第 3 ラウンド）。
+    ///
+    /// keyed list の既存行更新で [`crate::drag`] 呼び出し元
+    /// （`crates/wasm-full/src/drag_gesture.rs::DRAG_AXIS_ATTR`）の値が
+    /// `x` ⇔ `y` へ変わっても、`controller_for` は既存 [`DragController`]
+    /// をそのまま返すだけで軸を読み直さない（軸は [`Self::attach`] 時に
+    /// しか読まれない）。`wasm-full` 側の再同期経路が本メソッドで最新の
+    /// 属性値を反映する。
+    pub fn set_axis(&mut self, axis: DragAxis) {
+        self.axis = axis;
+    }
+
     /// 現在の書き込み済み位置（テスト・呼び出し元の状態確認用）。
     #[must_use]
     pub fn position(&self) -> Vec2 {
@@ -274,9 +287,19 @@ impl DragController {
     /// `crates/wasm-full/src/drag_gesture.rs::resync_drag_gesture_attachments`
     /// は既存コントローラに対してもこのメソッドを呼び、`Self` が保持する
     /// 論理位置（[`Self::position`]）を再度 DOM へ書き戻すことで、表示
-    /// 位置と保持位置の食い違い（次操作での跳ね）を防ぐ。新規 attach 直後
-    /// に呼んでも無害（`attach` 自身が設定済みの値を同じ値で上書きする
-    /// だけ）なため、呼び出し側は新規/既存を区別せず常に呼べる。
+    /// 位置と保持位置の食い違い（次操作での跳ね）を防ぐ。
+    ///
+    /// # 新規 attach 直後には呼ばない契約（Bugbot 是正、PR #2565 第 3
+    /// ラウンド）
+    ///
+    /// 本メソッドは保持位置（既定 `(0, 0)`）を無条件に DOM へ明示
+    /// 書き込みするため、一度もドラッグされていない新規要素へ呼ぶと
+    /// 「未ドラッグの要素はカスタムプロパティが未設定（`None`）」という
+    /// 既存契約を破ってしまう（`attach` 自身は `touch-action` のみ設定し
+    /// 位置は書かないため、この差が生まれる）。呼び出し元
+    /// （`resync_drag_gesture_attachments`）は既存コントローラを再利用
+    /// した場合にのみ本メソッドを呼ぶ契約とし、新規 attach 直後には
+    /// 呼ばない。
     pub fn resync_dom(&self) {
         let _ = self.element.style().set_property("touch-action", "none");
         write_dom(&self.element, self.position());
