@@ -143,6 +143,7 @@ mod wiring {
     type PendingTarget = Rc<RefCell<Option<(NumberText, f64)>>>;
 
     /// `element` へ `[from, to]` 区間の補間を起動し、`active` を差し替える。
+    #[allow(clippy::too_many_arguments)]
     fn start_count_up(
         element: &HtmlElement,
         format: NumberText,
@@ -151,8 +152,17 @@ mod wiring {
         duration_ms: f64,
         last_written: Rc<RefCell<String>>,
         active: &ActiveCountUp,
+        self_write: &Rc<Cell<bool>>,
     ) {
-        let handle = count_up::start(element.clone(), format, from, to, duration_ms, last_written);
+        let handle = count_up::start(
+            element.clone(),
+            format,
+            from,
+            to,
+            duration_ms,
+            last_written,
+            Rc::clone(self_write),
+        );
         *active.borrow_mut() = handle;
     }
 
@@ -173,6 +183,14 @@ mod wiring {
 
         let last_written: Rc<RefCell<String>> = Rc::new(RefCell::new(initial));
         let active: ActiveCountUp = Rc::new(RefCell::new(None));
+        // 自己書き込み検知フラグ（`fandhe_frontend_animation::count_up::
+        // TextTarget::write`/`write_final` が書き込みのたびに true を立て、
+        // `wire_mutation_observer` が消費する）。`last_written` との文字列
+        // 一致だけで自己書き込みを判定すると、外部更新がたまたま同じ
+        // 文字列を書いた場合（例: in-view 待機中に開始値と同じ文字列へ
+        // 外部更新された場合）に誤って無視してしまう（PR #2580
+        // codex-review P1・Bugbot Medium 指摘の是正）。
+        let self_write: Rc<Cell<bool>> = Rc::new(Cell::new(false));
         // 補間が実際に開始済みか。`Immediate` は配線時点で true、`InView`
         // は `IntersectionObserver` 発火時に true へ切り替わる。false の間
         // に [`wire_mutation_observer`] が外部更新を検知しても
@@ -191,10 +209,11 @@ mod wiring {
                     duration_ms,
                     Rc::clone(&last_written),
                     &active,
+                    &self_write,
                 );
             }
             Trigger::InView => {
-                count_up::write_final(element, &parsed, 0.0, &last_written);
+                count_up::write_final(element, &parsed, 0.0, &last_written, &self_write);
                 if supports_intersection_observer() {
                     wire_in_view_trigger(
                         element,
@@ -203,6 +222,7 @@ mod wiring {
                         &last_written,
                         &active,
                         &started,
+                        &self_write,
                     );
                 } else {
                     // 非対応環境ではプログレッシブエンハンスメントとして
@@ -217,12 +237,21 @@ mod wiring {
                         duration_ms,
                         Rc::clone(&last_written),
                         &active,
+                        &self_write,
                     );
                 }
             }
         }
 
-        wire_mutation_observer(element, duration_ms, last_written, active, pending, started);
+        wire_mutation_observer(
+            element,
+            duration_ms,
+            last_written,
+            active,
+            pending,
+            started,
+            self_write,
+        );
     }
 
     /// 要素専用の `IntersectionObserver` を張り、初回 `isIntersecting` で
@@ -236,11 +265,13 @@ mod wiring {
         last_written: &Rc<RefCell<String>>,
         active: &ActiveCountUp,
         started: &Rc<Cell<bool>>,
+        self_write: &Rc<Cell<bool>>,
     ) {
         let element_for_callback = element.clone();
         let last_written_for_callback = Rc::clone(last_written);
         let active_for_callback = Rc::clone(active);
         let started_for_callback = Rc::clone(started);
+        let self_write_for_callback = Rc::clone(self_write);
         let callback = Closure::<dyn FnMut(js_sys::Array, IntersectionObserver)>::new(
             move |entries: js_sys::Array, observer: IntersectionObserver| {
                 let entered = entries.iter().any(|entry| {
@@ -266,6 +297,7 @@ mod wiring {
                             duration_ms,
                             Rc::clone(&last_written_for_callback),
                             &active_for_callback,
+                            &self_write_for_callback,
                         );
                     }
                 }
@@ -283,11 +315,15 @@ mod wiring {
     /// `subtree: true`）を監視し、自己書き込み以外（アプリの `set_text`
     /// 等の外部更新）を検知したら現在表示中の値 → 新しい値へ再補間する。
     ///
-    /// 自己書き込みの除外は「直前に自分が書いた文字列 (`last_written`) と
-    /// 現在の `textContent` が一致するか」で判定する（`count_up::start` の
-    /// 各フレーム書き込みは同期的に `last_written` を更新するため、
-    /// `MutationObserver` コールバックが非同期に実行される時点では既に
-    /// 一致している）。
+    /// 自己書き込みの除外は `self_write` フラグ（[`count_up::TextTarget::
+    /// write`]/[`count_up::write_final`] が書き込みのたびに立てる）で判定
+    /// する。`MutationObserver` コールバックはマイクロタスクとして直後に
+    /// 実行されるため、この間に他の同期コードは割り込まない。「直前に
+    /// 自分が書いた文字列 (`last_written`) と現在の `textContent` が一致
+    /// するか」の文字列比較のみに頼る旧実装は、外部更新がたまたま同じ
+    /// 文字列を書いた場合（例: in-view 待機中に開始値と同じ文字列へ外部
+    /// 更新された場合）に自己書き込みと誤認し、その外部更新を無視して
+    /// しまう回帰があった（PR #2580 codex-review P1・Bugbot Medium 指摘）。
     fn wire_mutation_observer(
         element: &HtmlElement,
         duration_ms: f64,
@@ -295,14 +331,16 @@ mod wiring {
         active: ActiveCountUp,
         pending: PendingTarget,
         started: Rc<Cell<bool>>,
+        self_write: Rc<Cell<bool>>,
     ) {
         let element_for_callback = element.clone();
         let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |_records: js_sys::Array, _observer: MutationObserver| {
-                let current = element_for_callback.text_content().unwrap_or_default();
-                if current == *last_written.borrow() {
+                if self_write.get() {
+                    self_write.set(false);
                     return;
                 }
+                let current = element_for_callback.text_content().unwrap_or_default();
                 let Some(new_parsed) = NumberText::parse(&current) else {
                     // 数値として解析できない外部更新（例: "N/A"・空文字）。
                     // 進行中の補間を止め、古い数値で上書きし続けない
@@ -328,12 +366,17 @@ mod wiring {
                     // `wire_in_view_trigger` の `start_count_up` が 0 から
                     // 書き始め、最終値 → 0 のちらつきが再発する。初回配線
                     // 時の `Trigger::InView` 分岐と同じ 0 起点で揃える）。
-                    // `write_final` が `last_written` も実際の表示（0 の
-                    // 書式）へ同期するため、待機中に受理した更新の値へ再び
-                    // 外部更新された際も「初期表示と一致する」という理由で
-                    // 自己書き込みと誤判定されない（PR #2580 codex-review
-                    // P1 再指摘）。
-                    count_up::write_final(&element_for_callback, &new_parsed, 0.0, &last_written);
+                    // `write_final` はこの書き込み自体を `self_write` へ
+                    // 記録する（自己書き込みフラグは呼び出しごとに独立して
+                    // 消費される）ため、待機中に受理した更新の値へ再び外部
+                    // 更新された際も正しく外部更新として検知できる。
+                    count_up::write_final(
+                        &element_for_callback,
+                        &new_parsed,
+                        0.0,
+                        &last_written,
+                        &self_write,
+                    );
                     *pending.borrow_mut() = Some((new_parsed, to));
                     return;
                 }
@@ -348,6 +391,7 @@ mod wiring {
                     duration_ms,
                     Rc::clone(&last_written),
                     &active,
+                    &self_write,
                 );
             },
         );

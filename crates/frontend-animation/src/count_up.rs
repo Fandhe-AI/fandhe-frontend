@@ -19,7 +19,7 @@
 //! される UI）には不向きなため、[`fandhe_animation::easing::CubicBezier::
 //! EASE_OUT`] を採用する。
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use fandhe_animation::driver::Driver;
@@ -239,22 +239,27 @@ impl NumberText {
             value = -value;
         }
 
-        // 元テキストに桁区切りが現れなかったが小数点区切りは含む場合
-        // （"$0.00" のように 1000 未満で桁区切りの要不要が判別できない等）
-        // は、補間の途中でより大きな値を表示する際に既定で ',' 区切りを
-        // 適用する（`write_final_writes_formatted_value_immediately_and_
-        // updates_last_written` テストが検証する既存挙動）。小数点区切りと
-        // して ',' を使う書式（欧州式）と衝突しないよう、その場合のみ既定
-        // 適用しない。
+        // 元テキストに小数点区切りのみがあり桁区切りが無い場合（"$0.00"
+        // 等）、原文の整数部が 3 桁以下（1000 未満）なら「桁区切りが元々
+        // 無いのか、値が小さくて桁区切りの要不要が判別できないだけなのか」
+        // を区別できないため、補間の途中でより大きな値を表示する際に既定
+        // で ',' 区切りを適用する（`write_final_writes_formatted_value_
+        // immediately_and_updates_last_written` テストが検証する既存挙動）。
+        // 小数点区切りとして ',' を使う書式（欧州式）と衝突しないよう、
+        // その場合のみ既定適用しない。
         //
-        // 一方、元テキストが区切り文字を一切含まない場合（"5000" 等）は
-        // 既定を適用せず `None` を維持する（PR #2580 codex-review P1
-        // 指摘: 既定適用すると目標値 5000 への補間中は "4,999" のように
-        // 桁区切り付きで表示され、最終フレームのみ `source` 短絡で
-        // 区切りなし "5000" へ戻り、著者の書式を保存する契約に反して
-        // 終了時に表示幅が変化していた）。
+        // 一方、元テキストの整数部が 4 桁以上（1000 以上）なのに桁区切り
+        // が無い場合（"5000.00" 等）は、著者が意図的に桁区切りなしを選んだ
+        // ことが原文から判別できるため、既定を適用せず `None` を維持する
+        // （PR #2580 codex-review P1 指摘: 小数点の有無だけで既定適用すると
+        // 補間中は "4,999.00" のように桁区切り付きで表示され、最終フレーム
+        // のみ `source` 短絡で桁区切りなし "5000.00" へ戻り、著者の書式を
+        // 保存する契約に反して表示幅が変動していた）。桁区切りが元々無い
+        // 場合（"5000" 等、`sep_positions` が空）も同様に `None` を維持する
+        // （既存挙動）。
+        let int_digits = normalized.split('.').next().unwrap_or(&normalized).len();
         let group_sep = group_sep.or_else(|| {
-            if sep_positions.is_empty() {
+            if sep_positions.is_empty() || int_digits > 3 {
                 None
             } else {
                 (decimal_sep != Some(',')).then_some(',')
@@ -348,6 +353,7 @@ struct TextTarget {
     element: web_sys::HtmlElement,
     format: NumberText,
     last_written: Rc<RefCell<String>>,
+    self_write: Rc<Cell<bool>>,
 }
 
 impl Target<f64> for TextTarget {
@@ -355,6 +361,15 @@ impl Target<f64> for TextTarget {
         let text = self.format.render(value);
         self.element.set_text_content(Some(&text));
         *self.last_written.borrow_mut() = text;
+        // `wasm-full` の `MutationObserver` が自己書き込みと外部更新を
+        // 区別するためのフラグ（PR #2580 codex-review P1・Bugbot Medium
+        // 指摘の是正）。`last_written` の文字列比較のみに頼ると、外部
+        // 更新がたまたま自己書き込みと同じ文字列を書いた場合に外部更新
+        // として検知できない（例: in-view 待機中に開始値と同じ文字列へ
+        // 外部更新された場合）。書き込みのたびに true を立て、
+        // `MutationObserver` コールバック（マイクロタスクとして直後に
+        // 実行される）側が消費・判定する。
+        self.self_write.set(true);
     }
 }
 
@@ -366,15 +381,20 @@ pub struct CountUp {
 
 /// 補間なしで最終値を即座に書き込む（`prefers-reduced-motion: reduce`・
 /// `RafDriver` 非対応環境向けのフェイルセーフ経路）。
+///
+/// `self_write` は [`TextTarget::write`] と同じ自己書き込みフラグ
+/// （呼び出し側の `MutationObserver` が外部更新と区別するために読む）。
 pub fn write_final(
     element: &web_sys::HtmlElement,
     format: &NumberText,
     value: f64,
     last_written: &Rc<RefCell<String>>,
+    self_write: &Rc<Cell<bool>>,
 ) {
     let text = format.render(value);
     element.set_text_content(Some(&text));
     *last_written.borrow_mut() = text;
+    self_write.set(true);
 }
 
 /// `from` から `to` へ `duration_ms` かけて ease-out 補間しながら `element`
@@ -386,6 +406,8 @@ pub fn write_final(
 ///
 /// `last_written` は呼び出し側（`wasm-full`）が自己書き込みを検知して
 /// 外部更新と区別するための共有セル（`TextTarget::write` が毎回更新する）。
+/// `self_write` は同じ目的の自己書き込みフラグ（[`TextTarget::write`]
+/// ドキュメント参照）。
 pub fn start(
     element: web_sys::HtmlElement,
     format: NumberText,
@@ -393,9 +415,10 @@ pub fn start(
     to: f64,
     duration_ms: f64,
     last_written: Rc<RefCell<String>>,
+    self_write: Rc<Cell<bool>>,
 ) -> Option<CountUp> {
     let Some(mut driver) = RafDriver::new() else {
-        write_final(&element, &format, to, &last_written);
+        write_final(&element, &format, to, &last_written, &self_write);
         return None;
     };
 
@@ -403,6 +426,7 @@ pub fn start(
         element,
         format,
         last_written,
+        self_write,
     };
     // SSR ハイドレーション直後の最終値ちらつき対策（Bugbot High 指摘）:
     // `RafDriver::tick` の最初の呼び出しは基準時刻の記録のみで `None` を
@@ -532,6 +556,17 @@ mod tests {
         let n = NumberText::parse("5000").unwrap();
         assert_eq!(n.render(4999.0), "4999");
         assert_eq!(n.render(n.value()), "5000");
+    }
+
+    /// PR #2580 codex-review P1 再指摘: 小数点区切りがあるだけで既定の
+    /// ',' 区切りを補ってしまい、元テキストの整数部が 1000 以上で桁区切り
+    /// なしと判別できる場合（"5000.00" 等）でも補間途中にカンマが混入し、
+    /// 著者の書式を保存する契約に反していた回帰。
+    #[test]
+    fn does_not_add_default_grouping_for_decimals_when_source_has_no_group_separator() {
+        let n = NumberText::parse("5000.00").unwrap();
+        assert_eq!(n.render(4999.0), "4999.00");
+        assert_eq!(n.render(n.value()), "5000.00");
     }
 
     #[test]

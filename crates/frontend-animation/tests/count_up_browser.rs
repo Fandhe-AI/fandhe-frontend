@@ -11,7 +11,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use fandhe_frontend_animation::count_up::{start, write_final, NumberText};
@@ -75,8 +75,17 @@ async fn start_interpolates_from_zero_to_final_value() {
     let (element, _guard) = create_div();
     let format = NumberText::parse("100").expect("\"100\" must parse");
     let last_written = Rc::new(RefCell::new(String::new()));
+    let self_write = Rc::new(Cell::new(false));
 
-    let _handle = start(element.clone(), format, 0.0, 100.0, 80.0, last_written);
+    let _handle = start(
+        element.clone(),
+        format,
+        0.0,
+        100.0,
+        80.0,
+        last_written,
+        self_write,
+    );
 
     // 開始直後（1 フレーム目付近）は目標値未満のはず。
     sleep_ms(16).await;
@@ -98,9 +107,11 @@ fn write_final_writes_formatted_value_immediately_and_updates_last_written() {
     let (element, _guard) = create_div();
     let format = NumberText::parse("$0.00").expect("\"$0.00\" must parse");
     let last_written = Rc::new(RefCell::new(String::new()));
+    let self_write = Rc::new(Cell::new(false));
 
-    write_final(&element, &format, 1234.5, &last_written);
+    write_final(&element, &format, 1234.5, &last_written, &self_write);
 
     assert_eq!(element.text_content().unwrap(), "$1,234.50");
     assert_eq!(*last_written.borrow(), "$1,234.50");
+    assert!(self_write.get());
 }
