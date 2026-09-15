@@ -225,6 +225,15 @@ fn rebuild_start_for_axis_change(current_position: Vec2, last_client: Option<Vec
     }
 }
 
+/// [`DragController::set_axis`] doc「軸が実際に変わらない呼び出しは
+/// no-op」節参照（codex-review P1・Bugbot Medium 是正、PR #2565 第 5
+/// ラウンド）。`old`/`new` が同じ [`DragAxis`] なら `false`（no-op すべき）
+/// を返す。
+#[must_use]
+fn axis_changed(old: DragAxis, new: DragAxis) -> bool {
+    old != new
+}
+
 /// 1 要素分のドラッグ状態を保持し、pointer/keyboard から抽出された座標を
 /// 受け取って範囲制約・spring 復帰を計算し DOM へ反映する。
 ///
@@ -313,7 +322,24 @@ impl DragController {
     /// 位置で停止させる（新軸での目標再計算は次回の `on_release` に
     /// 委ねる、`Self::nudge` と同じ「軸変更は進行中の運動を打ち切る」
     /// 方針）。
+    ///
+    /// # 軸が実際に変わらない呼び出しは no-op（codex-review P1・Bugbot
+    /// Medium 是正、PR #2565 第 5 ラウンド）
+    ///
+    /// `crates/wasm-full/src/drag_gesture.rs::resync_one_drag_element`
+    /// は keyed list の Update 後、`data-fandhe-drag-axis` の値が
+    /// 変わっていない要素にも本メソッドを呼ぶ（属性値ではなく
+    /// 「既存コントローラを再利用したか」で呼び出し対象を決めている
+    /// ため）。無条件に `release_anim` を破棄すると、範囲外から
+    /// spring で復帰中の要素が、同じ行の無関係な内容変更や別行の
+    /// 追加・更新だけで復帰を打ち切られ、範囲外に取り残される
+    /// （release 後に制約内へ復帰する契約への違反）。軸が実際に
+    /// 変わった場合（`axis != self.axis`）のみ、上記の中断・起点
+    /// 再構築を行う。
     pub fn set_axis(&mut self, axis: DragAxis) {
+        if !axis_changed(self.axis, axis) {
+            return;
+        }
         self.axis = axis;
         self.release_anim = None;
         if self.start.is_some() {
@@ -463,7 +489,19 @@ impl DragController {
     }
 
     /// release 時の最終位置決定 + spring 復帰の開始。
+    ///
+    /// `velocity` は禁止軸の成分を [`apply_axis`] で 0 に絞ってから
+    /// spring へ渡す（codex-review P1 是正、PR #2565 第 5 ラウンド）。
+    /// 直近のポインタサンプルは軸変更前に記録されたものである可能性が
+    /// あり（[`Self::set_axis`] は速度サンプル自体はリセットしない）、
+    /// 例えば Free で両軸を範囲外へ動かしてから Y 軸へ変更し、追加の
+    /// `pointermove` なしで release すると、`estimate_velocity` が返す
+    /// 速度は禁止軸（X）の成分も非ゼロのままになる。禁止軸は
+    /// `target.x == current.x`（クランプなし）で位置は動かないはずでも、
+    /// 非ゼロ初速度を渡すと spring がその軸へも一時的に動いてしまい
+    /// 「禁止軸を固定する」契約に違反する。
     fn settle(&mut self, current: Vec2, velocity: Vec2) {
+        let velocity = apply_axis(velocity, self.axis);
         let target = match self.constraint {
             Some(constraint) => clamp_to_constraint_for_axis(current, constraint, self.axis),
             None => current,
@@ -517,9 +555,9 @@ impl DragController {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_axis, clamp_to_constraint, clamp_to_constraint_for_axis, estimate_velocity,
-        is_velocity_stale, normalize_constraint, rebuild_start_for_axis_change, DragAxis,
-        DragConstraint, DragStart, STALE_VELOCITY_THRESHOLD_MS,
+        apply_axis, axis_changed, clamp_to_constraint, clamp_to_constraint_for_axis,
+        estimate_velocity, is_velocity_stale, normalize_constraint, rebuild_start_for_axis_change,
+        DragAxis, DragConstraint, DragStart, STALE_VELOCITY_THRESHOLD_MS,
     };
     use fandhe_animation::interpolate::Vec2;
 
@@ -756,6 +794,50 @@ mod tests {
                 client: current_position,
                 origin_position: current_position,
             }
+        );
+    }
+
+    /// codex-review P1・Bugbot Medium 是正の回帰（PR #2565 第 5
+    /// ラウンド）: 同じ軸を渡された場合は「変更あり」と判定しない
+    /// （`DragController::set_axis` の no-op ガードがこれで早期 return
+    /// し、進行中の `release_anim`・起点を破壊しないことの基盤）。
+    #[test]
+    fn axis_changed_returns_false_for_same_axis() {
+        assert!(!axis_changed(DragAxis::Free, DragAxis::Free));
+        assert!(!axis_changed(DragAxis::X, DragAxis::X));
+        assert!(!axis_changed(DragAxis::Y, DragAxis::Y));
+    }
+
+    /// 軸が実際に異なる場合は「変更あり」と判定する。
+    #[test]
+    fn axis_changed_returns_true_for_different_axis() {
+        assert!(axis_changed(DragAxis::X, DragAxis::Y));
+        assert!(axis_changed(DragAxis::Free, DragAxis::X));
+        assert!(axis_changed(DragAxis::Y, DragAxis::Free));
+    }
+
+    /// codex-review P1 是正の回帰（PR #2565 第 5 ラウンド）:
+    /// `DragController::settle` は spring 構築前に `apply_axis` で
+    /// 速度を絞る。ご指摘のシナリオ（Free で両軸を範囲外へ動かし、
+    /// 軸を Y へ変更後、追加の pointermove なしで release）を模し、
+    /// 両軸に非ゼロ速度を持つサンプルに軸 Y の `apply_axis` を適用すると
+    /// X 成分（禁止軸）が 0 になり、Y 成分（許可軸）は変わらないことを
+    /// 固定する（`settle` 自身が `HtmlElement`/`RafDriver` を要し native
+    /// では直接呼べないため、`settle` が内部で使う同じ純関数を直接
+    /// 検証する）。
+    #[test]
+    fn settle_velocity_input_is_axis_locked_before_spring_construction() {
+        // Free で範囲外へ動かした結果の推定速度（両軸非ゼロ）。
+        let velocity_before_axis_change = Vec2 {
+            x: 300.0,
+            y: -150.0,
+        };
+        let locked_velocity = apply_axis(velocity_before_axis_change, DragAxis::Y);
+        assert_eq!(
+            locked_velocity,
+            Vec2 { x: 0.0, y: -150.0 },
+            "軸 Y へ変更後は禁止軸（X）の初速度が 0 に絞られ、\
+             許可軸（Y）はそのまま渡されるべき"
         );
     }
 }
