@@ -33,7 +33,7 @@ presence（§3）を除く多くの機能（共通 keyframes・stagger・scroll-
 
 ```toml
 [dependencies]
-fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
+fandhe-frontend-pre-styled-ui = { version = "0.204", features = ["motion"] }
 ```
 
 有効化すると `fandhe-animation`（外部依存ゼロ・`forbid(unsafe_code)`）が
@@ -213,8 +213,8 @@ let recipe = SlotRecipe::new("card", SLOTS)
 ```
 
 ```css
-[data-fandhe-hover="true"] { /* ... */ }
-[data-fandhe-press="true"] { /* ... */ }
+[data-fandhe-hover] { /* ... */ }
+[data-fandhe-press] { /* ... */ }
 ```
 
 `crates/wasm-full/src/gesture.rs`: opt-in 属性 `GESTURE_HOVER_ATTR`
