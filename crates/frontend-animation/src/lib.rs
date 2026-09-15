@@ -59,6 +59,8 @@
 //! カスタムプロパティ書き込み、イシュー #2550）も実装済み。text_animation
 //! （[`text_animation::typewriter_frame`]・[`text_animation::scramble_frame`]、
 //! typewriter/scramble のフレーム計算・DOM 書き込み、イシュー #2532）も
+//! 実装済み。cursor（[`cursor::CursorFollower`]・[`cursor::CursorAnimator`]、
+//! カスタムカーソルのポインタ追従 spring 演算・rAF 駆動、イシュー #2542）も
 //! 実装済み。残りの実装は
 //! Phase 4 の各後続 issue で追加する
 //! （`docs/design/animation-core-architecture.md` §6.2 参照）。
@@ -66,6 +68,7 @@
 pub mod animate;
 pub mod canvas_target;
 pub mod confetti;
+pub mod cursor;
 pub mod dom_target;
 pub mod drag;
 pub mod flip;

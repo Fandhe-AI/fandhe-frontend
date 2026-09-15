@@ -172,7 +172,12 @@
   `blocks/cta-signup-celebrate/index.html`（イシュー #2550、`card`/`field`/
   `input`/`button` を合成したサインアップ CTA。既存の `confetti` feature
   向け opt-in 属性〔`data-fandhe-confetti-trigger`/`-canvas`〕をそのまま
-  「使う側」として合成し、送信前/送信完了の 2 状態を静的に併記する）
+  「使う側」として合成し、送信前/送信完了の 2 状態を静的に併記する）/
+  `blocks/cursor-hover-cards/index.html`（イシュー #2542、`card` 3 枚へ
+  `data-fandhe-cursor-target`（バリアント・ラベル・magnetic 吸着の 3 種）を
+  付与した合成 block。カスタムカーソルの追従・hover バリアント変化の実演は
+  wasm-full の `cursor` feature 配下のみで発生し、無 JS の本サイトでは
+  静的な実演に留まる）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
