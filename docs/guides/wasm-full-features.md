@@ -68,11 +68,11 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 | `Runtime::wire_add_to_basket` | `add-to-basket` |
 
-`hold-to-confirm` feature（0.29.0 で追加、イシュー #2538）は `scroll-driver`/
+`hold-to-confirm` feature（0.30.0 で追加、イシュー #2538）は `scroll-driver`/
 `confetti` と同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）で、
 `fandhe-frontend-animation` の `AnimationLoop`/`RafDriver`/`DomTarget`
 （#2403/#2517）を消費して長押し確定ボタンの進行度を毎フレーム DOM へ
-書き込みます。`add-to-basket` feature（同 0.29.0、同イシュー）は
+書き込みます。`add-to-basket` feature（同 0.30.0、同イシュー）は
 `data-state` 状態機械 + タイマーのみで完結し（`headless_clipboard.rs` と
 同型のパターン）、`fandhe-frontend-animation` への依存追加は伴いません。
 
@@ -227,7 +227,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.29.0"
+version = "0.30.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",

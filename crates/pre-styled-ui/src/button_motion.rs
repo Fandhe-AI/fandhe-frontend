@@ -147,8 +147,30 @@ const BASKET_ICON_ADDED_PART: &str = "basket-icon-added";
 /// 寸法**になり、(1) `translateY(±100%)` の基準と clip 基準
 /// （`viewport` の境界）が一致し、(2) `duplicate` はもはや文字を
 /// 中央寄せするための `display: flex` を必要としない（box が既に
-/// `current` と同一寸法のため）ので撤去でき、文字単位 `<span>` が
-/// 通常のインライン内容として空白を保持したまま描画される。
+/// `current` と同一寸法のため）ので撤去できる。
+///
+/// なお `duplicate` の `display: flex` 撤去は上記 2 点のみを解決し、
+/// 文字単位 `<span>` 自身の空白折り畳みは別途残る（下記
+/// `white-space: pre` 節参照。`display: flex` 撤去だけでは
+/// "Add to basket" → "Addtobasket" の崩れは解消しない、codex-review
+/// 再指摘・Cursor Bugbot 指摘）。
+///
+/// # 文字 span の `white-space: pre`（codex-review P1 是正・Cursor Bugbot
+/// 指摘、空白文字が消える問題）
+///
+/// [`char_spans`] は空白文字も他の文字と同様に 1 個の
+/// `<span data-part="rolling-text-char" style="display: inline-block">`
+/// へ包む。CSS Text の空白折り畳み規則は「行（line box）の先頭・末尾の
+/// 空白を除去する」対象を各インライン要素の**内部フォーマッティング
+/// コンテキストの境界**にも適用するため、`display: inline-block` な
+/// span の内容が空白 1 文字のみだと、その空白は span 自身の内部行の
+/// 先頭かつ末尾として扱われ除去される（`duplicate` の `display: flex`
+/// の有無や兄弟 span の並びとは無関係に、span 単体で発生する）。この
+/// ため "Add to basket" の単語間スペースの span だけが幅 0 になり
+/// "Addtobasket" と表示される。是正として文字 span へ
+/// `white-space: pre` を付与し、空白の折り畳み自体を無効化して幅を
+/// 保持する（`transform`/`transition` の適用対象は変わらないため、
+/// stagger の見た目には影響しない）。
 ///
 /// # `transform`/`transition` を文字 span（[`ROLLING_TEXT_CHAR_PART`]）へ
 /// 適用する理由（codex-review P1 是正、2 件）
@@ -228,6 +250,7 @@ pub const BUTTON_MOTION_CSS: &str = concat!(
     "rolling-text-char",
     "\"] {\n",
     "  display: inline-block;\n",
+    "  white-space: pre;\n",
     "  transition: transform 0.3s ease;\n",
     "  transition-delay: calc(var(--fandhe-motion-stagger-index, 0) * var(--fandhe-motion-duration-fast));\n",
     "}\n",

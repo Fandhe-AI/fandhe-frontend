@@ -352,6 +352,179 @@ async fn additional_pointerdown_during_active_hold_does_not_hijack_tracked_point
     );
 }
 
+/// codex-review P1 指摘の回帰テスト: ウィンドウ全体がフォーカスを失う
+/// （Alt+Tab 等）と保持が中断されることを確認する
+/// （`wiring::wire_global_interruption_guards` の `window` `blur`
+/// リスナー是正の直接検証）。要素の `blur` は発火させず `window` へ直接
+/// `blur` イベントを dispatch することで、要素単位の `blur` リスナー
+/// （Tab 移動用）とは別経路であることを明示する。
+#[wasm_bindgen_test]
+async fn window_blur_cancels_active_hold() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, button) = build_dom(&document, "500");
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_hold_to_confirm(root).expect("wire_hold_to_confirm must not fail");
+
+    let clicks = count_clicks(&button);
+    button
+        .dispatch_event(&pointer_event("pointerdown"))
+        .unwrap();
+    sleep_ms(50).await;
+
+    let window = web_sys::window().unwrap();
+    let blur_event = Event::new("blur").expect("Event construction must not fail");
+    window.dispatch_event(&blur_event).unwrap();
+
+    sleep_ms(600).await;
+
+    assert_ne!(
+        button.get_attribute("data-state").as_deref(),
+        Some("confirmed"),
+        "window の blur で保持が中断されるはず"
+    );
+    assert_eq!(
+        clicks.get(),
+        0,
+        "window の blur で中断された保持からは click が発火しないはず"
+    );
+}
+
+/// codex-review P1 指摘の回帰テスト: `document.visibilitychange`
+/// （タブ切替・最小化）でも保持が中断されることを確認する。実ブラウザの
+/// `document.hidden` を書き換えることはできないため、
+/// `visibilitychange` イベント自体の dispatch のみでリスナーが全
+/// セッションを中断する契約（`document.hidden` の値を問わず無条件に
+/// 中断する設計、`wire_global_interruption_guards` rustdoc 参照）を
+/// 検証する。
+#[wasm_bindgen_test]
+async fn document_visibilitychange_cancels_active_hold() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, button) = build_dom(&document, "500");
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_hold_to_confirm(root).expect("wire_hold_to_confirm must not fail");
+
+    let clicks = count_clicks(&button);
+    button
+        .dispatch_event(&pointer_event("pointerdown"))
+        .unwrap();
+    sleep_ms(50).await;
+
+    let visibility_event =
+        Event::new("visibilitychange").expect("Event construction must not fail");
+    document.dispatch_event(&visibility_event).unwrap();
+
+    sleep_ms(600).await;
+
+    assert_ne!(
+        button.get_attribute("data-state").as_deref(),
+        Some("confirmed"),
+        "document の visibilitychange で保持が中断されるはず"
+    );
+    assert_eq!(
+        clicks.get(),
+        0,
+        "visibilitychange で中断された保持からは click が発火しないはず"
+    );
+}
+
+/// codex-review P2 指摘の回帰テスト: 保持を開始したポインタと異なる
+/// `pointer_id` の `pointerup` は保持を中断しないことを確認する
+/// （`wiring::wire_candidate` の pointerup/pointercancel/pointerleave
+/// ハンドラへ追加した `pointer_id` 一致ガードの直接検証）。マルチタッチ
+/// で 2 本目の指が保持中の要素上で pointerup した場合の誤中断を防ぐ。
+#[wasm_bindgen_test]
+async fn pointerup_from_untracked_pointer_id_does_not_cancel_hold() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, button) = build_dom(&document, "150");
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_hold_to_confirm(root).expect("wire_hold_to_confirm must not fail");
+
+    let clicks = count_clicks(&button);
+
+    // pointer_id=1 が保持を開始する。
+    button
+        .dispatch_event(&pointer_event_with_id("pointerdown", 1))
+        .unwrap();
+    sleep_ms(30).await;
+
+    // 無関係な pointer_id=2 の pointerup が届く（誤中断してはならない）。
+    button
+        .dispatch_event(&pointer_event_with_id("pointerup", 2))
+        .unwrap();
+
+    sleep_ms(200).await;
+
+    assert_eq!(
+        button.get_attribute("data-state").as_deref(),
+        Some("confirmed"),
+        "無関係な pointer_id の pointerup で中断されてはならない"
+    );
+    assert_eq!(clicks.get(), 1);
+}
+
+/// codex-review P2 指摘の回帰テスト: 保持を開始したキーと異なるキーの
+/// `keyup` は保持を中断しないことを確認する（`wiring::wire_candidate`
+/// の keyup ハンドラへ追加した `active_key` 一致ガードの直接検証）。
+#[wasm_bindgen_test]
+async fn keyup_from_different_key_does_not_cancel_hold() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, button) = build_dom(&document, "150");
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_hold_to_confirm(root).expect("wire_hold_to_confirm must not fail");
+
+    let clicks = count_clicks(&button);
+
+    button
+        .dispatch_event(&keyboard_event("keydown", "Enter"))
+        .unwrap();
+    sleep_ms(30).await;
+
+    // 無関係な Space の keyup が届く（Enter 保持を中断してはならない）。
+    button
+        .dispatch_event(&keyboard_event("keyup", " "))
+        .unwrap();
+
+    sleep_ms(200).await;
+
+    assert_eq!(
+        button.get_attribute("data-state").as_deref(),
+        Some("confirmed"),
+        "起点と異なるキーの keyup で中断されてはならない"
+    );
+    assert_eq!(clicks.get(), 1);
+}
+
+/// codex-review P2 指摘の回帰テスト（対称ケース）: 保持を開始したキーと
+/// 同じキーの `keyup` は保持を中断することを確認する（`active_key`
+/// ガードが一致時には従来どおり機能することの直接検証）。
+#[wasm_bindgen_test]
+async fn keyup_from_same_key_cancels_hold() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, button) = build_dom(&document, "500");
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_hold_to_confirm(root).expect("wire_hold_to_confirm must not fail");
+
+    let clicks = count_clicks(&button);
+
+    button
+        .dispatch_event(&keyboard_event("keydown", "Enter"))
+        .unwrap();
+    sleep_ms(30).await;
+
+    button
+        .dispatch_event(&keyboard_event("keyup", "Enter"))
+        .unwrap();
+
+    sleep_ms(600).await;
+
+    assert_ne!(
+        button.get_attribute("data-state").as_deref(),
+        Some("confirmed"),
+        "起点と同じキーの keyup で中断されるはず"
+    );
+    assert_eq!(clicks.get(), 0);
+}
+
 /// `JsValue` 経由での `wire_hold_to_confirm` 戻り値の型を静的に確認する
 /// （テストではなく、`Result<(), JsValue>` 契約の型検証のためのコンパイル
 /// 時アサーション）。

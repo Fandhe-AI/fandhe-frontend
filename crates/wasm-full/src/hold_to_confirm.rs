@@ -241,6 +241,12 @@ mod wiring {
         /// `None` のまま（[`handle_pointermove`] のヒットテスト対象外
         /// になる）。
         pointer_id: Rc<Cell<Option<i32>>>,
+        /// 現在保持中の起点キー値（`KeyboardEvent::key()`、`keydown` で
+        /// 設定、`cancel`/確定で `None` へ戻す）。pointerdown 起点の
+        /// 保持では `None` のまま。保持を開始したキーとは無関係の
+        /// `keyup`（例: 起点が Enter のまま Space の keyup が届く）で
+        /// 誤って中断しないための対応付け（codex-review P2 指摘）。
+        active_key: Rc<RefCell<Option<String>>>,
     }
 
     impl HoldSession {
@@ -254,6 +260,7 @@ mod wiring {
                 reset_timer: Rc::new(RefCell::new(None)),
                 active: Rc::new(Cell::new(false)),
                 pointer_id: Rc::new(Cell::new(None)),
+                active_key: Rc::new(RefCell::new(None)),
             }
         }
 
@@ -330,6 +337,7 @@ mod wiring {
         /// へ戻す。既に確定済み（`active` が `false`）の場合は no-op。
         fn cancel(&self) {
             self.pointer_id.set(None);
+            self.active_key.borrow_mut().take();
             if !self.active.get() {
                 return;
             }
@@ -408,7 +416,7 @@ mod wiring {
 
     /// 1 要素へ pointerdown/pointerup/pointercancel/pointerleave/
     /// pointermove/keydown/keyup の 7 リスナーを登録する。
-    fn wire_candidate(element: &HtmlElement) -> Result<(), JsValue> {
+    fn wire_candidate(element: &HtmlElement) -> Result<Rc<HoldSession>, JsValue> {
         let session = Rc::new(HoldSession::new(element.clone()));
 
         let pointerdown_session = Rc::clone(&session);
@@ -454,18 +462,29 @@ mod wiring {
         )?;
         pointermove.forget();
 
-        // "blur" を早期離脱イベントへ加える理由（codex-review P1 指摘）:
-        // 保持中に Tab で別要素へフォーカス移動すると、ポインタは離されず
-        // keyup も届かないため上記 3 イベントだけでは中断できず、進行度が
-        // 100% に達して合成 click が発火してしまう（「一定時間押し続けた
-        // ときのみ確定」契約違反）。`blur` は要素がフォーカスを失う経路
-        // （Tab 移動・他要素へのクリック・ウィンドウのフォーカス喪失で
-        // アクティブ要素から間接的に）を broad にカバーするため、
-        // pointerdown/keydown で開始したセッションを問わず共通の中断
-        // トリガーとして扱う。
-        for event_name in ["pointerup", "pointercancel", "pointerleave", "blur"] {
+        // pointerup/pointercancel/pointerleave: 保持を開始したポインタと
+        // 無関係な入力の終了イベントで誤って中断しないため、追跡中の
+        // `pointer_id` と一致する場合のみキャンセルする（codex-review P2
+        // 指摘）。マルチタッチで 2 本目の指が同じ要素へ pointerdown
+        // すると（上記 pointerdown ハンドラの「保持中の追加 pointerdown
+        // は無視する」節参照）、暗黙 pointer capture によりその指自身の
+        // `pointerup`/`pointercancel` も当該要素へ配送されるが、
+        // 追跡対象は最初の指のままのため一致せず無視される（2 本目の
+        // 指の終了イベントで最初の指の保持を誤中断しない）。keydown
+        // 起点の保持（`pointer_id` が `None`）は本ガードの対象外——
+        // pointer 系イベントでは中断しない（下記 keyup ガードが担う）。
+        for event_name in ["pointerup", "pointercancel", "pointerleave"] {
             let cancel_session = Rc::clone(&session);
-            let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+            let closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+                let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
+                    return;
+                };
+                let Some(tracked_id) = cancel_session.pointer_id.get() else {
+                    return;
+                };
+                if pointer_event.pointer_id() != tracked_id {
+                    return;
+                }
                 cancel_session.cancel();
             });
             element
@@ -473,10 +492,40 @@ mod wiring {
             closure.forget();
         }
 
+        // "blur" を早期離脱イベントへ加える理由（codex-review P1 指摘）:
+        // 保持中に Tab で別要素へフォーカス移動すると、ポインタは離されず
+        // keyup も届かないため上記 3 イベントだけでは中断できず、進行度が
+        // 100% に達して合成 click が発火してしまう（「一定時間押し続けた
+        // ときのみ確定」契約違反）。`blur` は要素がフォーカスを失う経路
+        // （Tab 移動・他要素へのクリック）を broad にカバーするため、
+        // pointerdown/keydown で開始したセッションを問わず入力の種類を
+        // 問わず無条件に中断する（要素自身のフォーカス離脱そのものが
+        // 中断理由であり、どの入力が起点だったかは無関係）。ウィンドウ
+        // 全体のフォーカス喪失（Alt+Tab 等）はこの要素 `blur` では
+        // 検知できない別経路のため、[`wire_global_interruption_guards`]
+        // が window/document レベルで別途カバーする。
+        {
+            let cancel_session = Rc::clone(&session);
+            let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+                cancel_session.cancel();
+            });
+            element.add_event_listener_with_callback("blur", closure.as_ref().unchecked_ref())?;
+            closure.forget();
+        }
+
         let keydown_session = Rc::clone(&session);
         let keydown = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             if let Ok(keyboard_event) = event.dyn_into::<KeyboardEvent>() {
                 if !keyboard_event.repeat() && is_press_activation_key(&keyboard_event.key()) {
+                    // 保持中（`active`）の追加 keydown は無視する
+                    // （pointerdown ガードと同型）: 既に別の入力（ポインタ
+                    // または別キー）で保持中の場合、ここで無条件に
+                    // `active_key` を上書きすると以後の keyup 対応付けが
+                    // 崩れる。
+                    if keydown_session.active.get() {
+                        return;
+                    }
+                    *keydown_session.active_key.borrow_mut() = Some(keyboard_event.key());
                     keydown_session.start();
                 }
             }
@@ -488,14 +537,26 @@ mod wiring {
         let keyup = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             if let Ok(keyboard_event) = event.dyn_into::<KeyboardEvent>() {
                 if is_press_activation_key(&keyboard_event.key()) {
-                    keyup_session.cancel();
+                    // 保持を開始したキーと同じ場合のみキャンセルする
+                    // （codex-review P2 指摘）: 例えば Enter 押下中に
+                    // 無関係な Space の keyup が届いても、起点キーが
+                    // Enter のままなら保持を継続する。pointerdown 起点の
+                    // 保持（`active_key` が `None`）は本ガードの対象外。
+                    let matches = keyup_session
+                        .active_key
+                        .borrow()
+                        .as_deref()
+                        .is_some_and(|active_key| active_key == keyboard_event.key());
+                    if matches {
+                        keyup_session.cancel();
+                    }
                 }
             }
         });
         element.add_event_listener_with_callback("keyup", keyup.as_ref().unchecked_ref())?;
         keyup.forget();
 
-        Ok(())
+        Ok(session)
     }
 
     /// root capture フェーズの `click` ガード（モジュール冒頭「確定の
@@ -528,6 +589,57 @@ mod wiring {
         Ok(())
     }
 
+    /// `window` の `blur`（ウィンドウ全体のフォーカス喪失、Alt+Tab
+    /// 等）・`document` の `visibilitychange`（タブ切替・最小化）で
+    /// 全セッションを無条件に中断する（codex-review P1 指摘）。
+    ///
+    /// 要素単位の `blur` リスナー（[`wire_candidate`] 参照）は Tab 移動
+    /// 等の**フォーカス先が別要素へ移る**経路をカバーするが、ウィンドウ
+    /// 全体が OS レベルでフォーカスを失う場合（Alt+Tab で別アプリへ
+    /// 切り替える等）は多くのブラウザで `document.activeElement` が
+    /// 変化しないため要素の `blur` は発火しない
+    /// （`window.blur`/`document.visibilitychange` のみが発火する）。
+    /// この経路を検知できないと、保持中に別ウィンドウへ切り替えて
+    /// そちらで（この要素に届かない）`keyup`/ポインタ操作を行っても
+    /// 保持ループが継続し、進行度が 100% に達して合成 click が発火して
+    /// しまう（「一定時間押し続けたときのみ確定」契約違反）。`blur`/
+    /// `visibilitychange` はどのセッションが中断対象か判別する手掛かり
+    /// （target 等）を持たないため、全セッションを無条件に中断する
+    /// （フォーカスを保持していないセッションを誤って中断しても、
+    /// `HoldSession::cancel` は非 active なら no-op のため副作用がない）。
+    fn wire_global_interruption_guards(
+        window: &Window,
+        root: &Element,
+        sessions: &Rc<Vec<Rc<HoldSession>>>,
+    ) -> Result<(), JsValue> {
+        let Some(document) = root.owner_document() else {
+            return Ok(());
+        };
+
+        let blur_sessions = Rc::clone(sessions);
+        let window_blur = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+            for session in blur_sessions.iter() {
+                session.cancel();
+            }
+        });
+        window.add_event_listener_with_callback("blur", window_blur.as_ref().unchecked_ref())?;
+        window_blur.forget();
+
+        let visibility_sessions = Rc::clone(sessions);
+        let visibilitychange = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+            for session in visibility_sessions.iter() {
+                session.cancel();
+            }
+        });
+        document.add_event_listener_with_callback(
+            "visibilitychange",
+            visibilitychange.as_ref().unchecked_ref(),
+        )?;
+        visibilitychange.forget();
+
+        Ok(())
+    }
+
     /// `root` 配下の hold-to-confirm 候補へ配線する
     /// （[`crate::lib::Runtime::mount`]/[`crate::lib::Runtime::hydrate`]
     /// から呼ばれる）。`window` が取得できない環境（テストランナー等）
@@ -539,15 +651,19 @@ mod wiring {
     /// `add_event_listener_with_callback`/
     /// `add_event_listener_with_callback_and_bool` の失敗を伝播する。
     pub fn wire_hold_to_confirm(root: Element) -> Result<(), JsValue> {
-        let _window: Window = match web_sys::window() {
+        let window: Window = match web_sys::window() {
             Some(window) => window,
             None => return Ok(()),
         };
         wire_click_guard(&root)?;
+        let mut sessions = Vec::new();
         for candidate in collect_candidates(&root) {
             if candidate.has_attribute(HOLD_TO_CONFIRM_ATTR) {
-                wire_candidate(&candidate)?;
+                sessions.push(wire_candidate(&candidate)?);
             }
+        }
+        if !sessions.is_empty() {
+            wire_global_interruption_guards(&window, &root, &Rc::new(sessions))?;
         }
         Ok(())
     }
