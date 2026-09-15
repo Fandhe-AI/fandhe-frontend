@@ -33,6 +33,39 @@ fn create_placeholder(document: &Document, id: &str) -> Element {
     container
 }
 
+/// ゴーストへ実測可能な `animation-duration` を与える `<style>` を
+/// `document.head` へ 1 回だけ挿入する（`position_browser.rs::
+/// ensure_fixed_floating_size_stylesheet` と同じ「一度だけ挿入」方針）。
+///
+/// `fandhe_frontend_animation::presence::remove_when_settled` は
+/// computed `animation-duration`/`animation-delay` の合計が 0ms なら
+/// ゴーストを**同一呼び出し内で同期的に**除去する（フェイルセーフ、
+/// `presence.rs` doc 参照）。本テストファイルは CSS を一切読み込まない
+/// ため、このスタイルシートを注入しないと `play_exit_after` の呼び出し
+/// 直後（`dispatch_action` から戻った時点）には既にゴーストが除去済み
+/// になり、`remove_leaves_exiting_ghost_without_framework_attrs` の
+/// 属性検証（`data-state`/`aria-hidden`/剥離済みフレームワーク属性）が
+/// 対象を見失う。
+fn ensure_exit_animation_stylesheet(document: &Document) {
+    const STYLE_ID: &str = "fandhe-test-presence-exit-style";
+    if document.get_element_by_id(STYLE_ID).is_some() {
+        return;
+    }
+    let style = document
+        .create_element("style")
+        .expect("create_element must not fail for a plain style element");
+    style.set_id(STYLE_ID);
+    style.set_text_content(Some(
+        "[data-state='exiting']{animation:fandhe-test-presence-exit 50ms linear;}\
+         @keyframes fandhe-test-presence-exit{from{opacity:1;}to{opacity:0;}}",
+    ));
+    document
+        .head()
+        .expect("document head must exist in browser test environment")
+        .append_child(&style)
+        .expect("append_child must not fail for a detached style element");
+}
+
 struct RemoveOnDrop(Element);
 
 impl Drop for RemoveOnDrop {
@@ -174,6 +207,7 @@ fn keyed_row_count(list: &Element) -> usize {
 #[wasm_bindgen_test]
 fn remove_leaves_exiting_ghost_without_framework_attrs() {
     let document = web_sys::window().unwrap().document().unwrap();
+    ensure_exit_animation_stylesheet(&document);
     let placeholder = create_placeholder(&document, "presence-root-container-1");
     let _guard = RemoveOnDrop(placeholder.clone());
 
