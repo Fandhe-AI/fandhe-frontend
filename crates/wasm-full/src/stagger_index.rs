@@ -81,6 +81,14 @@ mod wiring {
     /// 呼ばれる（`Insert`/`Move` を含むあらゆる構造変化コミット後に呼ぶ
     /// ため、「今回変化した行だけ」ではなく全行を再計算する。冪等かつ
     /// `content_height::sync_content_height` と同型の「毎回再同期」方針）。
+    ///
+    /// `data-key` を持たない要素（`list_presence::play_exit_after` が
+    /// 挿入した退場ゴースト。`data-key` は `strip_selector` で必ず剥がされる）
+    /// は走査で無視し index を消費しない（codex-review/Bugbot 指摘是正）。
+    /// keyed DOM の末尾挿入ロジック（`keyed_dom.rs`）も同じく `data-key`
+    /// 無し要素を「現在の keyed 行」として扱わない既存契約であり、両者を
+    /// 揃えないと presence + stagger 併用時にゴースト存続中の末尾追加行の
+    /// index がずれ、ゴースト除去後も誤った値が残留する。
     pub fn sync_stagger_index(list_element: &Element) {
         if !list_element.has_attribute(STAGGER_AUTO_FIRST_ATTR) {
             return;
@@ -89,12 +97,14 @@ mod wiring {
         let mut index: usize = 0;
         while let Some(el) = current {
             if let Some(html) = el.dyn_ref::<HtmlElement>() {
-                let _ = html
-                    .style()
-                    .set_property(STAGGER_INDEX_VAR, &stagger_index_value(index));
+                if html.has_attribute(fandhe_frontend_core::keyed::KEY_ATTR) {
+                    let _ = html
+                        .style()
+                        .set_property(STAGGER_INDEX_VAR, &stagger_index_value(index));
+                    index += 1;
+                }
             }
             current = el.next_element_sibling();
-            index += 1;
         }
     }
 }

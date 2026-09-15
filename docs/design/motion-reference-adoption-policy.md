@@ -81,6 +81,7 @@ TypeScript コード転写は行わない）。
 | named view transition CSS プリセット（fade/slide/wipe + curtains 残り 6〔iris/doors/shutter/blinds/strips/pixels〕+ mask 2〔mask-wipe/mask-radial〕、#2537） | `crates/pre-styled-ui/src/view_transition.rs`（`motion` feature 配下、#2516・#2537）・`crates/wasm-full/src/view_transition_preset.rs`（プリセット選択の属性配線） | Motion+ `Curtains` 相当（ページ全体の root 遷移、11 プリセット） | A |
 | confetti パーティクル物理・canvas 発火 | `crates/animation/src/confetti.rs`（決定的物理演算）・`crates/frontend-animation/src/{canvas_target,confetti}.rs`（canvas 2D 描画・rAF 駆動）・`crates/wasm-full/src/confetti.rs`（クリック委譲配線、#2533） | Motion+ `components/confetti` | C |
 | カスタムカーソル・ポインタ追従 | `crates/animation/src/spring.rs`（既存 spring ソルバを再利用）・`crates/frontend-animation/src/cursor.rs`（`CursorFollower`/`CursorAnimator`、spring 再構築・rAF 駆動）・`crates/wasm-full/src/cursor.rs`（hover 対象解決・`data-*` 写し配線、#2542）・`crates/pre-styled-ui/src/cursor.rs`（`motion` feature 配下、カーソル要素・CSS） | Motion+ `components/cursor` | C |
+| presence の list 適用（並べ替え・追加・削除遷移） | `crates/pre-styled-ui/src/list_motion.rs`（`motion` feature 配下、enter/exit `@keyframes` CSS）・`crates/frontend-animation/src/presence.rs`（座標計測・退場ゴースト DOM 操作・実測アニメーション時間タイマー除去の純粋層 + DOM 適用層）・`crates/wasm-full/src/list_presence.rs`（`presence` feature、`data-fandhe-presence-auto` を持つ keyed list の `Remove` 前後で配線のみ実施、#2544。並べ替え自体は既存 `layout-animation`〔上記行〕をそのまま再利用） | Motion `AnimatePresence`（`popLayout`）相当 | A（CSS）+ C（ゴースト配線） |
 
 ## 6. 3層構成（判断記録5/9の具体化）
 
