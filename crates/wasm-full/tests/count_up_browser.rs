@@ -181,6 +181,96 @@ async fn external_non_numeric_update_stops_active_interpolation() {
     );
 }
 
+/// `in_view_browser.rs::create_scroll_fixture` と同型のスクロール
+/// コンテナ方式で、対象要素をブラウザ既定ビューポート幅に依存せず
+/// 決定的に非交差状態へ置く。
+fn build_off_screen_dom(
+    document: &Document,
+    root_id: &str,
+    text: &str,
+    extra_attrs: &[(&str, &str)],
+) -> (Element, HtmlElement) {
+    let container = document.create_element("div").unwrap();
+    container.set_id(root_id);
+    container
+        .set_attribute("style", "height:100px;overflow-y:auto")
+        .unwrap();
+
+    let top_spacer = document.create_element("div").unwrap();
+    top_spacer.set_attribute("style", "height:300px").unwrap();
+    container.append_child(&top_spacer).unwrap();
+
+    let dd = document.create_element("dd").unwrap();
+    dd.set_attribute(COUNT_UP_ATTR, "").unwrap();
+    for (name, value) in extra_attrs {
+        dd.set_attribute(name, value).unwrap();
+    }
+    dd.set_text_content(Some(text));
+    container.append_child(&dd).unwrap();
+
+    let bottom_spacer = document.create_element("div").unwrap();
+    bottom_spacer
+        .set_attribute("style", "height:300px")
+        .unwrap();
+    container.append_child(&bottom_spacer).unwrap();
+
+    document.body().unwrap().append_child(&container).unwrap();
+    let html_dd = dd
+        .clone()
+        .dyn_into::<HtmlElement>()
+        .expect("dd must cast to HtmlElement");
+    (container, html_dd)
+}
+
+/// PR #2580 codex-review P1 再指摘の回帰テスト: in-view 待機中（画面外）に
+/// 外部更新で目標値が変わった場合、待機中はその新しい書式の開始値 (0) を
+/// 表示し続け、旧目標値の最終表示を残さないこと。残していると、後で画面内
+/// へ進入した際 `start_count_up` が 0 起点で書き始めるため、最終値 → 0 の
+/// ちらつきが起きる。
+#[wasm_bindgen_test]
+async fn in_view_pending_update_shows_new_start_value_not_stale_final() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (container, dd) = build_off_screen_dom(
+        &document,
+        "count-up-root-6",
+        "1000",
+        &[
+            (COUNT_UP_TRIGGER_ATTR, COUNT_UP_TRIGGER_IN_VIEW),
+            (COUNT_UP_DURATION_MS_ATTR, TEST_DURATION_MS),
+        ],
+    );
+    let _guard = RemoveOnDrop(container.clone());
+
+    wire_count_up(&container).expect("wire_count_up must not fail");
+    sleep_ms(50).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "0",
+        "画面外では開始値 (0) が即座に表示されるはず"
+    );
+
+    // 画面外のまま外部更新（アプリの `set_text` 相当）で目標値を変える。
+    dd.set_text_content(Some("2,000"));
+    sleep_ms(50).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "0",
+        "画面外での外部更新後も、旧目標値の最終表示ではなく新しい書式の \
+         開始値 (0) を表示し続けるはず（PR #2580 codex-review P1 再指摘）"
+    );
+
+    // ビューポート内へスクロールして交差させ、新しい目標値まで到達する
+    // ことを確認する（ちらつきが起きても最終的な到達値は同じため、この
+    // アサーションだけでは上のちらつき回帰を検知できない）。
+    container.set_scroll_top(300);
+    sleep_ms(300).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "2,000",
+        "画面内進入後、待機中に更新された新しい目標値へ到達するはず"
+    );
+}
+
 #[wasm_bindgen_test]
 async fn in_view_trigger_eventually_reaches_final_value() {
     let document = web_sys::window().unwrap().document().unwrap();

@@ -322,13 +322,19 @@ mod wiring {
                     // まだ画面内へ進入しておらず（in-view 待機中）実際の
                     // アニメーションは開始しない。次に進入したときの目標値
                     // だけを更新する（PR #2580 Bugbot Medium 指摘）。
-                    // `last_written` も現在のテキストへ合わせる: 更新しない
-                    // と、待機中に受理した更新の値へ再び外部更新された際に
-                    // 「初期表示と一致する」という理由だけで自己書き込みと
-                    // 誤判定され、待機中の更新が無視されてしまう
-                    // （PR #2580 codex-review P1 再指摘）。
+                    // ここで開始値 (0) を `write_final` で即座に表示する
+                    // （PR #2580 codex-review P1 再指摘: 外部更新後の最終値
+                    // をそのまま DOM に残すと、後で画面内へ進入した際に
+                    // `wire_in_view_trigger` の `start_count_up` が 0 から
+                    // 書き始め、最終値 → 0 のちらつきが再発する。初回配線
+                    // 時の `Trigger::InView` 分岐と同じ 0 起点で揃える）。
+                    // `write_final` が `last_written` も実際の表示（0 の
+                    // 書式）へ同期するため、待機中に受理した更新の値へ再び
+                    // 外部更新された際も「初期表示と一致する」という理由で
+                    // 自己書き込みと誤判定されない（PR #2580 codex-review
+                    // P1 再指摘）。
+                    count_up::write_final(&element_for_callback, &new_parsed, 0.0, &last_written);
                     *pending.borrow_mut() = Some((new_parsed, to));
-                    *last_written.borrow_mut() = current;
                     return;
                 }
                 let from = NumberText::parse(&last_written.borrow())

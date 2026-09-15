@@ -239,14 +239,27 @@ impl NumberText {
             value = -value;
         }
 
-        // 元テキストに桁区切りが現れなかった場合（"$0.00" のように 1000
-        // 未満で桁区切りの要不要が判別できない・区切り文字を一切含まない
-        // 等）でも、補間の途中でより大きな値を表示する際は既定で ','
-        // 区切りを適用する（`write_final_writes_formatted_value_
-        // immediately_and_updates_last_written` テストが検証する既存挙動）。
-        // 小数点区切りとして ',' を使う書式（欧州式）と衝突しないよう、
-        // その場合のみ既定適用しない。
-        let group_sep = group_sep.or((decimal_sep != Some(',')).then_some(','));
+        // 元テキストに桁区切りが現れなかったが小数点区切りは含む場合
+        // （"$0.00" のように 1000 未満で桁区切りの要不要が判別できない等）
+        // は、補間の途中でより大きな値を表示する際に既定で ',' 区切りを
+        // 適用する（`write_final_writes_formatted_value_immediately_and_
+        // updates_last_written` テストが検証する既存挙動）。小数点区切りと
+        // して ',' を使う書式（欧州式）と衝突しないよう、その場合のみ既定
+        // 適用しない。
+        //
+        // 一方、元テキストが区切り文字を一切含まない場合（"5000" 等）は
+        // 既定を適用せず `None` を維持する（PR #2580 codex-review P1
+        // 指摘: 既定適用すると目標値 5000 への補間中は "4,999" のように
+        // 桁区切り付きで表示され、最終フレームのみ `source` 短絡で
+        // 区切りなし "5000" へ戻り、著者の書式を保存する契約に反して
+        // 終了時に表示幅が変化していた）。
+        let group_sep = group_sep.or_else(|| {
+            if sep_positions.is_empty() {
+                None
+            } else {
+                (decimal_sep != Some(',')).then_some(',')
+            }
+        });
 
         Some(Self {
             source: text.to_string(),
@@ -509,6 +522,16 @@ mod tests {
     fn render_at_parsed_value_avoids_f64_precision_loss() {
         let n = NumberText::parse("9,007,199,254,740,993").unwrap();
         assert_eq!(n.render(n.value()), "9,007,199,254,740,993");
+    }
+
+    /// PR #2580 codex-review P1 指摘: 元テキストに桁区切りが一切現れない
+    /// 場合、補間途中の表示にも既定の ',' 区切りを補ってはならない
+    /// （最終フレームの `source` 短絡と表示幅が食い違う回帰）。
+    #[test]
+    fn does_not_add_default_grouping_when_source_has_no_separators() {
+        let n = NumberText::parse("5000").unwrap();
+        assert_eq!(n.render(4999.0), "4999");
+        assert_eq!(n.render(n.value()), "5000");
     }
 
     #[test]
