@@ -160,7 +160,19 @@ pub fn advance_offset(
     // 折り返し先の範囲自体は変えず、複製列の先頭が root の左（上）端に
     // 常に揃う既存 CSS 版の `@keyframes` と同じ見た目を維持する。
     let next = offset - delta;
-    (next.rem_euclid(cycle_len)) - cycle_len
+    // `rem_euclid` は `[0, cycle_len)` を返すため、そのまま `- cycle_len`
+    // すると値域は `[-cycle_len, 0)` になり `0` を含まない。offset=0・
+    // dt_ms=0（起動前 hover/focus 停止中や speed=0）でも `next=0` が
+    // 毎回 `-cycle_len`（主コピー 1 個分ずれた位置）へ丸められ、移動量が
+    // ゼロなのに主コピーが画面外へ移動してしまっていた（PR #2582
+    // codex-review P1 指摘）。`r == 0` のときだけ `0` を残すことで、
+    // モジュール doc の値域契約 `(-cycle_len, 0]` を満たす。
+    let r = next.rem_euclid(cycle_len);
+    if r == 0.0 {
+        0.0
+    } else {
+        r - cycle_len
+    }
 }
 
 /// ビューポート長・コンテンツ 1 個分の長さから、継ぎ目なく循環させるため
@@ -361,6 +373,23 @@ mod dom {
             .set_property(TICKER_OFFSET_VAR, &format!("{offset_px}px"));
     }
 
+    /// 実ポインタ hover を実行できるデバイスかどうか
+    /// （`(hover: hover) and (pointer: fine)`）。`Ticker::start` の初期
+    /// `:hover` 読み取りがタッチデバイスの sticky `:hover` を誤検知しない
+    /// ためのガード（`Ticker::start` 内コメント参照）。判定失敗は `false`
+    /// へ fail-safe する。
+    fn supports_real_hover() -> bool {
+        web_sys::window()
+            .and_then(|window| {
+                window
+                    .match_media("(hover: hover) and (pointer: fine)")
+                    .ok()
+                    .flatten()
+            })
+            .map(|list| list.matches())
+            .unwrap_or(false)
+    }
+
     /// 1 ticker 要素分の駆動状態。`root`/`content` を握り、`AnimationLoop`
     /// が毎フレーム offset を前進・DOM へ書き込む。`Drop` でループを停止
     /// する。
@@ -411,7 +440,18 @@ mod dom {
             // 起動直後の 1 フレームだけ「実際は hover/focus 中なのに動き出す」
             // 停止契約違反が発生する（PR #2582 codex-review P1 指摘）。
             // `matches()` 失敗（対応ブラウザ差異等）は `false` へ fail-safe。
-            let hovered = Rc::new(Cell::new(root.matches(":hover").unwrap_or(false)));
+            //
+            // ただし `:hover` の初期読み取りは実ポインタ hover を実行できる
+            // デバイス（`(hover: hover) and (pointer: fine)`）に限定する:
+            // タッチデバイスは tap 後に `:hover` が sticky に残ることがあり
+            // （多くのモバイルブラウザの既知挙動）、`pointerover`/`pointerout`
+            // 委譲はタッチ由来のポインタを無視するため（`is_touch_pointer`）
+            // hydrate 時に `:hover` を true として読むと以後 hover が解除
+            // されず ticker が停止したままになる（Cursor Bugbot 指摘、
+            // イシュー #2540）。
+            let hovered = Rc::new(Cell::new(
+                supports_real_hover() && root.matches(":hover").unwrap_or(false),
+            ));
             let focused = Rc::new(Cell::new(root.matches(":focus-within").unwrap_or(false)));
             // scroll_velocity 自体は self へは保持しない（AnimationLoop の
             // クロージャが Rc::clone を捕捉して生存させれば十分で、self 経由の
@@ -671,6 +711,15 @@ mod tests {
         // speed * 100ms/1000 を超えない。
         let offset = advance_offset(0.0, 100.0, 1.0, 100_000.0, 1_000_000.0);
         assert!((offset - (-10.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn advance_offset_stays_at_zero_when_no_movement() {
+        // offset=0・dt_ms=0（起動前 hover/focus 停止中や speed=0 相当）は
+        // 移動量ゼロのため `0` のまま（`(-cycle_len, 0]` 契約、PR #2582
+        // codex-review P1 指摘）。旧実装は常に `-cycle_len` へ丸めていた。
+        assert_eq!(advance_offset(0.0, 0.0, 1.0, 0.0, 200.0), 0.0);
+        assert_eq!(advance_offset(0.0, 100.0, 1.0, 0.0, 200.0), 0.0);
     }
 
     #[test]

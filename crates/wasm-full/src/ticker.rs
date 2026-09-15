@@ -349,6 +349,44 @@ mod wiring {
                 resize_closure.as_ref().unchecked_ref(),
             )?;
             resize_closure.forget();
+
+            // `prefers-reduced-motion` の実行中切り替え（OS 設定変更）を
+            // 監視する: `wire_ticker` は起動時点の判定のみで配線要否を
+            // 決めるため（モジュール doc「4. `prefers-reduced-motion:
+            // reduce` 時は配線自体を行わない」節）、起動後に reduce へ
+            // 切り替わっても `AnimationLoop` は動き続け `transform` 駆動を
+            // 止めない不具合があった（PR #2582 codex-review P1 指摘）。
+            // `change` イベントで reduce 確定時に全 ticker を停止し
+            // `TICKER_ACTIVE_ATTR` を外すことで、CSS 側の既定
+            // `@media (prefers-reduced-motion: reduce)` 縮退
+            // （`marquee.rs`/`marquee_motion.rs`）へ委ねる。reduce → 非
+            // reduce への復帰は再配線（リロード）が必要（`magnetic`/
+            // `confetti` と同じ「wire 時 1 回判定」設計を踏襲、対称に扱う
+            // 必要はない: 動き始める方向の復帰はアクセシビリティ契約を
+            // 破らない）。
+            if let Ok(Some(mql)) = window.match_media("(prefers-reduced-motion: reduce)") {
+                let mql_active = Rc::clone(&active);
+                // `MediaQueryListEvent`（`event.matches()`）は web-sys feature
+                // 未有効化のため、`change` イベント自体からではなく `mql`
+                // （`MediaQueryList`）を closure へ直接 clone して都度
+                // `matches()` を再照会する（同じ結果を feature 追加なしで
+                // 得られる）。
+                let change_mql = mql.clone();
+                let change_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+                    if !change_mql.matches() {
+                        return;
+                    }
+                    for (element, ticker) in mql_active.borrow().iter() {
+                        ticker.stop();
+                        let _ = element.remove_attribute(TICKER_ACTIVE_ATTR);
+                    }
+                });
+                let _ = mql.add_event_listener_with_callback(
+                    "change",
+                    change_closure.as_ref().unchecked_ref(),
+                );
+                change_closure.forget();
+            }
         }
 
         Ok(())
