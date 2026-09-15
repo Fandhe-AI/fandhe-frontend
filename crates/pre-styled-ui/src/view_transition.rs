@@ -23,8 +23,8 @@
 //! # styled 部品の公開 CSS 関数を持たない
 //!
 //! [`crate::motion`] モジュール doc と同じ理由により、本モジュールは
-//! `pub fn css()`/`pub fn stylesheet()` という文字列をコメント含め一切
-//! 書かない（`crates/pre-styled-ui/src/stylesheet.rs` の
+//! `pub fn` の後ろに `css` または `stylesheet` を空引数で公開する形を
+//! コメント含め一切書かない（`crates/pre-styled-ui/src/stylesheet.rs` の
 //! `all_styled_component_css_covers_every_component_module` が styled
 //! 部品と誤認しないようにするため）。
 //!
