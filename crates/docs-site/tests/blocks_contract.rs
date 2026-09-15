@@ -1012,6 +1012,52 @@ fn signup_01_composes_expected_parts() {
     }
 }
 
+/// testimonials-stack ページが `blocks-demo`/block 固有 class・両
+/// スタイルシート・`data-blocks-testimonials-stack-*` CSS フックを実際に
+/// 出力し、`blocks.css` 側にも対応するセレクタが存在することを固定する
+/// （login-01/signup-05 と同型の検証、イシュー #2548）。
+#[test]
+fn testimonials_stack_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/testimonials-stack/index.html"))
+        .expect("blocks/testimonials-stack/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-testimonials-stack\""),
+        "testimonials-stack page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "testimonials-stack page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "testimonials-stack page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-testimonials-stack-card=\"\"",
+        "data-blocks-testimonials-stack-avatar=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "testimonials-stack page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-testimonials-stack-card]",
+        "[data-blocks-testimonials-stack-avatar]",
+        ".blocks-testimonials-stack-stage",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// pricing-tiers-morph ページの Demo クラス・両スタイルシート・
 /// `data-blocks-pricing-tiers-morph-*` CSS フックが実際に出力され、
 /// `blocks::stylesheet()` にも対応するセレクタが存在することを固定する
@@ -1056,6 +1102,51 @@ fn pricing_tiers_morph_page_wires_demo_class_and_css_hooks() {
         assert!(
             sheet_css.contains(selector),
             "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// testimonials-stack の合成部品（card/blockquote/avatar）が期待どおりの
+/// 構成で出力され、3 枚のカードのうち先頭 1 枚のみ `data-state="active"`・
+/// 残り 2 枚は `data-state="inactive"` であること、`<form>`・実企業名を
+/// 持ち込んでいないことを固定する（signup_05_composes_expected_parts と
+/// 同型、イシュー #2548）。
+#[test]
+fn testimonials_stack_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/testimonials-stack/index.html"))
+        .expect("blocks/testimonials-stack/index.html should be generated");
+    for needle in [
+        "data-scope=\"card\"",
+        "data-scope=\"blockquote\"",
+        "data-scope=\"avatar\"",
+        "data-part=\"fallback\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "testimonials-stack page should contain {needle}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-testimonials-stack-card=\"\"")
+            .count(),
+        3,
+        "testimonials-stack should render exactly 3 testimonial cards"
+    );
+    assert_eq!(
+        html.matches("data-state=\"active\"").count(),
+        1,
+        "testimonials-stack should mark exactly one card as active (the front card)"
+    );
+    assert_eq!(
+        html.matches("data-state=\"inactive\"").count(),
+        2,
+        "testimonials-stack should mark exactly two cards as inactive (the back cards)"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "testimonials-stack should never contain {absent}"
         );
     }
 }
@@ -1206,6 +1297,74 @@ fn pricing_usage_slider_page_wires_demo_class_and_css_hooks() {
             "blocks.css should declare a rule for {selector}"
         );
     }
+}
+
+/// `testimonials-stack` のレイアウト CSS が [`fandhe_frontend_pre_styled_ui::
+/// recipe::STAGGER_INDEX_VAR`] を実際に参照していることを固定する
+/// （イシュー #2548。当初はリテラル複製 + ソーステキスト突合の契約
+/// だったが、`pre-styled-ui` の `motion` feature が本クレートの
+/// `Cargo.toml` で既に有効なため、`crates/docs-site/src/blocks/
+/// testimonials_stack.rs` 側で定数を直接 import する設計へ是正した
+/// codex-review 指摘。値のドリフトはコンパイラが型レベルで防ぐため、
+/// 本テストはその参照が実際に生成 CSS へ反映されることのみを検証する）。
+#[test]
+fn testimonials_stack_stagger_var_matches_pre_styled_ui_recipe_source() {
+    use fandhe_frontend_pre_styled_ui::recipe::STAGGER_INDEX_VAR;
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(STAGGER_INDEX_VAR),
+        "blocks.css should reference {STAGGER_INDEX_VAR}"
+    );
+}
+
+/// caption（出典欄）の `display: flex` がレシピの base slot セレクタ
+/// （`[data-scope="blockquote"][data-part="caption"]`、詳細度 (0,2,0)）に
+/// 詳細度で負けていないことを固定する（codex-review P2 / Cursor Bugbot
+/// 指摘の是正、イシュー #2548）。`.blocks-testimonials-stack-meta` 単独
+/// クラス（詳細度 (0,1,0)）では常に負けるため、生成 CSS 側が属性セレクタ
+/// を含む詳細度 (0,3,0) 以上のセレクタで宣言していることを検証する。
+#[test]
+fn testimonials_stack_caption_meta_selector_outweighs_recipe_base() {
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(
+            r#"[data-scope="blockquote"][data-part="caption"].blocks-testimonials-stack-meta {"#
+        ),
+        "blocks.css should declare display:flex for the caption meta row with a \
+         selector at least as specific as [data-scope][data-part] (0,2,0), otherwise \
+         the recipe base rule wins and the avatar/byline row does not lay out inline"
+    );
+}
+
+/// testimonials-stack のトランジションがトークン参照（`var(--fandhe-motion-
+/// duration-*)`）のみで構成され、固定 ms 値の `@keyframes`/`animation:` を
+/// 使わないことを固定する（`prefers-reduced-motion: reduce` 下の縮退が
+/// `Theme::to_css` のトークン 0ms 化に自動追従する根拠、イシュー #2548）。
+#[test]
+fn testimonials_stack_uses_motion_tokens_not_raw_durations() {
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains("var(--fandhe-motion-duration-"),
+        "blocks.css should reference a --fandhe-motion-duration-* token for testimonials-stack transitions"
+    );
+    assert!(
+        sheet_css.contains("var(--fandhe-motion-easing-standard)"),
+        "blocks.css should reference the --fandhe-motion-easing-standard token"
+    );
+    assert!(
+        !sheet_css.contains("@keyframes"),
+        "testimonials-stack should not introduce @keyframes (no reduced-motion @media override needed)"
+    );
 }
 
 /// pricing-usage-slider の合成部品（slider/stat）が期待どおりの構成で
