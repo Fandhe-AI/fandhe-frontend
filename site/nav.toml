@@ -1219,6 +1219,16 @@ source = "site/blocks/signup-05.md"
 path = "/blocks/signup-05/"
 
 [[section.page]]
+title = "pricing-tiers-morph"
+source = "site/blocks/pricing-tiers-morph.md"
+path = "/blocks/pricing-tiers-morph/"
+
+[[section.page]]
+title = "pricing-usage-slider"
+source = "site/blocks/pricing-usage-slider.md"
+path = "/blocks/pricing-usage-slider/"
+
+[[section.page]]
 title = "testimonials-stack"
 source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"

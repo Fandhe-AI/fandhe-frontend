@@ -1058,6 +1058,54 @@ fn testimonials_stack_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// pricing-tiers-morph ページの Demo クラス・両スタイルシート・
+/// `data-blocks-pricing-tiers-morph-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタが存在することを固定する
+/// （signup-05 と同型の検証、イシュー #2547）。
+#[test]
+fn pricing_tiers_morph_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-tiers-morph/index.html"))
+        .expect("blocks/pricing-tiers-morph/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-pricing-tiers-morph\""),
+        "pricing-tiers-morph page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "pricing-tiers-morph page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "pricing-tiers-morph page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-pricing-tiers-morph-grid=\"\"",
+        "data-blocks-pricing-tiers-morph-tier=\"\"",
+        "data-blocks-pricing-tiers-morph-footer=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "pricing-tiers-morph page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-pricing-tiers-morph-grid]",
+        "[data-blocks-pricing-tiers-morph-tier]",
+        "[data-blocks-pricing-tiers-morph-footer]",
+        ".blocks-pricing-tiers-morph-featured",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// testimonials-stack の合成部品（card/blockquote/avatar）が期待どおりの
 /// 構成で出力され、3 枚のカードのうち先頭 1 枚のみ `data-state="active"`・
 /// 残り 2 枚は `data-state="inactive"` であること、`<form>`・実企業名を
@@ -1099,6 +1147,154 @@ fn testimonials_stack_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "testimonials-stack should never contain {absent}"
+        );
+    }
+}
+
+/// `id="<id>"` を持つタグ全体（`<` から対応する `>` まで）を抜き出す。
+/// タグの属性文字列（`hidden`/`data-state` 等の有無）を検査するための
+/// 補助関数（PR #2568 codex-review 指摘の是正で追加）。
+fn extract_tag_by_id<'a>(html: &'a str, id: &str) -> &'a str {
+    let needle = format!("id=\"{id}\"");
+    let id_idx = html
+        .find(&needle)
+        .unwrap_or_else(|| panic!("id={id} should be present in the page"));
+    let tag_start = html[..id_idx]
+        .rfind('<')
+        .expect("an opening '<' should precede the id attribute");
+    let tag_end = html[id_idx..]
+        .find('>')
+        .map(|i| id_idx + i)
+        .expect("a closing '>' should follow the id attribute");
+    &html[tag_start..=tag_end]
+}
+
+/// pricing-tiers-morph の合成部品（tabs/card/badge/button/border-beam）が
+/// 期待どおりの構成で実際に出力されていること、月額/年額の両 billing 状態
+/// が実際に**可視**な状態で SSR 出力へ存在すること（無 JS 併記の回帰、
+/// イシュー #2547 PR #2568 codex-review P1 指摘の是正: 単一 `tabs`
+/// インスタンスへの `hidden` 併記だけでは非選択側パネルを無 JS で閲覧
+/// できないため、`selected` が異なる 2 インスタンスを静的に併記する構成へ
+/// 変更した）、`<form>`/死リンクを持ち込んでいないことを固定する。
+#[test]
+fn pricing_tiers_morph_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-tiers-morph/index.html"))
+        .expect("blocks/pricing-tiers-morph/index.html should be generated");
+    for needle in [
+        "data-scope=\"tabs\" data-part=\"content\"",
+        "data-scope=\"card\" data-part=\"root\"",
+        "fd-badge--variant-solid",
+        "fd-border-beam",
+        "Starter",
+        "Growth",
+        "Enterprise",
+        "$9",
+        "$29",
+        "$99",
+        "$86",
+        "$278",
+        "$950",
+        "Get started",
+        "Contact sales",
+    ] {
+        assert!(
+            html.contains(needle),
+            "pricing-tiers-morph page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "pricing-tiers-morph should never contain {absent}"
+        );
+    }
+
+    // 月額選択インスタンス（id プレフィックス `-monthly`）: 月額パネルは
+    // 選択済み・可視（`hidden` なし・`data-state="active"`）、年額パネルは
+    // 非選択のため `hidden`。
+    let monthly_instance_monthly_panel =
+        extract_tag_by_id(&html, "blocks-pricing-tiers-morph-monthly-content-monthly");
+    assert!(
+        monthly_instance_monthly_panel.contains("data-state=\"active\""),
+        "monthly instance's monthly panel should be the active (visible) one"
+    );
+    assert!(
+        !monthly_instance_monthly_panel.contains("hidden"),
+        "monthly instance's monthly panel should not carry the hidden attribute"
+    );
+    let monthly_instance_yearly_panel =
+        extract_tag_by_id(&html, "blocks-pricing-tiers-morph-monthly-content-yearly");
+    assert!(
+        monthly_instance_yearly_panel.contains("hidden"),
+        "monthly instance's yearly panel should remain hidden"
+    );
+
+    // 年額選択インスタンス（id プレフィックス `-yearly`）: 年額パネルは
+    // 選択済み・可視、月額パネルは非選択のため `hidden`。この可視な年額
+    // パネルの存在が、無 JS の docs サイトでも年額プランを実際に閲覧
+    // できることの回帰固定である。
+    let yearly_instance_yearly_panel =
+        extract_tag_by_id(&html, "blocks-pricing-tiers-morph-yearly-content-yearly");
+    assert!(
+        yearly_instance_yearly_panel.contains("data-state=\"active\""),
+        "yearly instance's yearly panel should be the active (visible) one"
+    );
+    assert!(
+        !yearly_instance_yearly_panel.contains("hidden"),
+        "yearly instance's yearly panel should not carry the hidden attribute"
+    );
+    let yearly_instance_monthly_panel =
+        extract_tag_by_id(&html, "blocks-pricing-tiers-morph-yearly-content-monthly");
+    assert!(
+        yearly_instance_monthly_panel.contains("hidden"),
+        "yearly instance's monthly panel should remain hidden"
+    );
+}
+
+/// pricing-usage-slider ページの Demo クラス・両スタイルシート・
+/// `data-blocks-pricing-usage-slider-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタが存在することを固定する
+/// （イシュー #2547）。
+#[test]
+fn pricing_usage_slider_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-usage-slider/index.html"))
+        .expect("blocks/pricing-usage-slider/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-pricing-usage-slider\""),
+        "pricing-usage-slider page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "pricing-usage-slider page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "pricing-usage-slider page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-pricing-usage-slider-layout=\"\"",
+        "data-blocks-pricing-usage-slider-slider=\"\"",
+        "data-blocks-pricing-usage-slider-stat=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "pricing-usage-slider page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-pricing-usage-slider-layout]",
+        "[data-blocks-pricing-usage-slider-slider]",
+        "[data-blocks-pricing-usage-slider-stat]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
         );
     }
 }
@@ -1156,5 +1352,56 @@ fn testimonials_stack_uses_motion_tokens_not_raw_durations() {
     assert!(
         !sheet_css.contains("@keyframes"),
         "testimonials-stack should not introduce @keyframes (no reduced-motion @media override needed)"
+    );
+}
+
+/// pricing-usage-slider の合成部品（slider/stat）が期待どおりの構成で
+/// 実際に出力されていること、価格表示がスライダーの固定初期値
+/// （50 千件 → $29）と一致していること、`<form>`/`data:` URI を持ち込んで
+/// いないことを固定する（イシュー #2547）。
+#[test]
+fn pricing_usage_slider_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-usage-slider/index.html"))
+        .expect("blocks/pricing-usage-slider/index.html should be generated");
+    for needle in [
+        "data-scope=\"slider\" data-part=\"root\"",
+        "data-scope=\"slider\" data-part=\"marker-group\"",
+        "data-scope=\"stat\" data-part=\"root\"",
+        "$29",
+        "想定コスト",
+    ] {
+        assert!(
+            html.contains(needle),
+            "pricing-usage-slider page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "pricing-usage-slider should never contain {absent}"
+        );
+    }
+}
+
+/// pricing-usage-slider の thumb（`role="slider"`）に、表示ラベル
+/// （`slider::label` の `span`）への `aria-labelledby` 関連付けが実際に
+/// 出力されていること、参照先の `id` が同ページ内に存在することを固定
+/// する（codex-review P1 指摘の回帰防止、イシュー #2547）。
+/// `aria-valuetext`（「50 千件」）は値の説明であり操作部の名前の代わりに
+/// ならないため、名前付けは `aria-labelledby` 側で担保する。
+#[test]
+fn pricing_usage_slider_thumb_is_labelled_by_visible_label() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-usage-slider/index.html"))
+        .expect("blocks/pricing-usage-slider/index.html should be generated");
+    assert!(
+        html.contains("aria-labelledby=\"blocks-pricing-usage-slider-label\""),
+        "pricing-usage-slider thumb should reference the visible label via aria-labelledby"
+    );
+    assert!(
+        html.contains("id=\"blocks-pricing-usage-slider-label\""),
+        "pricing-usage-slider label span should carry the id referenced by aria-labelledby \
+         (no dangling IDREF)"
     );
 }

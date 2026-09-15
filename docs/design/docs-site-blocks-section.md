@@ -66,6 +66,14 @@ signup-05 の 7 件とする。これは既存の #2088〜#2095 が対象とす�
 `login-03` はビルド対象に含めない。この一文を Phase 7（#2096）の棚卸しが
 参照する一次情報とする。
 
+**Phase 7（#2530）による追加**: 親トラッキング #2530「Phase 7: Motion+
+部品化」配下のイシュー #2547 により、Motion+ `sections/pricing-sections`
+に相当する `pricing-tiers-morph`（月額/年額 billing 切替 + 3 段ティア
+カードのクロスフェード）・`pricing-usage-slider`（利用量スライダーと
+価格 `stat` の静的な組）の 2 件が追加された。これは上記「7 件で確定」の
+判断（#2088〜#2095 の一覧が最終であるという記述）を変更するものではなく、
+新規タスク（#2530 系）による純追加であることを示す別段落である。
+
 ## 4. `component-coverage-map.md` との関係
 
 shadcn/ui Blocks は `docs/design/component-coverage-map.md` §2 の「対象外」

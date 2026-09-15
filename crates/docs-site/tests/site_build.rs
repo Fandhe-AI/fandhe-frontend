@@ -234,11 +234,13 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // （Themes）が加わり、233 → 234 になった。イシュー #2416 で
     // pre-styled-ui motion feature ガイド（Guides セクション）が加わり、
     // 234 → 235 になった。イシュー #2526 で fandhe-animation API ガイド
-    // （Guides セクション）が加わり、235 → 236 になった。イシュー #2548 で
-    // testimonials-stack block が加わり、236 → 237 になった。
+    // （Guides セクション）が加わり、235 → 236 になった。イシュー #2547 で
+    // Blocks セクションへ pricing-tiers-morph・pricing-usage-slider の
+    // 2 ページが加わり、236 → 238 になった。イシュー #2548 で
+    // testimonials-stack block が加わり、238 → 239 になった。
     assert_eq!(
         report.written.len(),
-        237,
+        239,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
