@@ -3497,7 +3497,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # origin/main（#2537 の 0.205.0）が同じ merge base（0.204.0）から独立に
 # 同一版数へ到達したため、同じ版数のまま据え置かず +1 した 0.206.0 とする
 # （同衝突運用）。
-version = "0.206.0"
+#
+# イシュー #2539: `stat_motion`（`motion` feature 配下）を新設し、stat の
+# 数値カウントアップ opt-in（`count_up_value_text`/`Theme::
+# to_css_with_stat_motion`）を追加した。新規公開 API 純追加のため minor
+# バンプする。
+#
+# マージコミット注記: 本 PR（#2539）と origin/main（#2537 統合後の
+# 0.206.0）が独立に同一版数（0.206.0）へ到達しており衝突。#638 条項の
+# 「同一版数も衝突として +1」運用に従い、さらに +1 して 0.207.0 とする。
+version = "0.207.0"
 
 
 edition = "2021"

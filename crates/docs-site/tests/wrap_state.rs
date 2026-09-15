@@ -688,7 +688,10 @@ const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "text
 /// `forms_motion`（`motion` feature 配下の opt-in フォームアニメーション、
 /// field/input の既存 anatomy へ参照するだけの追加 CSS で単体部品では
 /// ないため専用ページを持たない。`crate::forms_motion` モジュール doc
-/// 参照）を同じ理由で追加した。
+/// 参照）を同じ理由で追加した。イシュー #2539 で `stat_motion`（`motion`
+/// feature 配下の stat 数値カウントアップ opt-in。既存 `stat` 部品への
+/// 追加装飾であり独立した `/themes/stat-motion/` ページは持たない、
+/// `crate::stat_motion` モジュール doc 参照）を同じ理由で追加した。
 const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "border_beam",
     "button_motion",
@@ -698,6 +701,7 @@ const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "lib",
     "motion",
     "recipe",
+    "stat_motion",
     "stylesheet",
     "text_reveal",
     "theme",
@@ -1080,8 +1084,12 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        129,
-        "src/*.rs の総数が想定と異なります（イシュー #2532 で \
+        130,
+        "src/*.rs の総数が想定と異なります（イシュー #2539 で \
+         stat_motion.rs を新設し 129 → 130。`motion` feature 配下の \
+         stat 数値カウントアップ opt-in（既存 stat 部品への追加装飾）で \
+         単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類 \
+         （`button_motion`/`forms_motion` と同型）。イシュー #2532 で \
          text_reveal.rs を新設し 128 → 129。`motion` feature 配下の \
          text アニメーション部品（split-text reveal / typewriter / scramble）\
          で単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類\
