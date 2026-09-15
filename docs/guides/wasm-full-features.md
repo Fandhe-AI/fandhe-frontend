@@ -208,6 +208,15 @@ capture_before`/`play_after`）をゲートします。`layout_flip` モジュ�
 サブツリー全体の Invert 変形を所有する設計上のスコープ外であり、将来の
 課題として扱います）。
 
+**共有レイアウト遷移（イシュー #2536）を含む**: `layout-animation`
+feature は上記の同一要素向け layout FLIP に加え、`crate::shared_layout`
+（`data-fandhe-layout-id` 属性、旧要素→新要素の id 突合による共有レイア
+ウト遷移。motion.dev `layoutId` 相当）もゲートします。新規 feature は
+切らず既存 `layout-animation` を再利用しているため、off にすると両方の
+アニメーションが同時に無効化されます。詳細は
+[アニメーション機能ガイド §10a](./animation.md#10a-共有レイアウト遷移layoutid-相当)
+を参照してください。
+
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
 feature 名は `headless::MAPPING_TABLE` の `scope` 文字列と一致します

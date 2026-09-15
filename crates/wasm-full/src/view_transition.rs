@@ -53,6 +53,16 @@ extern "C" {
     ) -> Result<JsValue, JsValue>;
 }
 
+/// `document.startViewTransition` が関数として利用可能か（機能検出）を
+/// 返す（イシュー #2536、[`with_view_transition`] 内の判定を抽出。
+/// `crate::shared_layout` の VT 委譲判定——View Transitions が使える場合は
+/// 共有レイアウト遷移を起動しない——が同じ判定を必要とするため共有する）。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn is_supported(document: &Document) -> bool {
+    let doc_vt = document.clone().unchecked_into::<DocumentViewTransitions>();
+    doc_vt.start_view_transition_prop().is_function()
+}
+
 /// `apply`（DOM 差し替え等の副作用のみを行うクロージャ）を
 /// `document.startViewTransition()` でラップして呼び出す（イシュー #404、
 /// #2400 で `nav.rs` から移設し [`crate::Runtime::apply_with_view_transition`]
@@ -111,12 +121,12 @@ pub(crate) fn with_view_transition<F>(
             }
         }
     }
-    let doc_vt = document.clone().unchecked_into::<DocumentViewTransitions>();
-    if !doc_vt.start_view_transition_prop().is_function() {
+    if !is_supported(document) {
         // 非対応ブラウザ: 同期フォールバック。
         apply();
         return;
     }
+    let doc_vt = document.clone().unchecked_into::<DocumentViewTransitions>();
 
     let slot = std::rc::Rc::new(std::cell::RefCell::new(Some(apply)));
     let update_slot = slot.clone();

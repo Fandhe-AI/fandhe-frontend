@@ -489,6 +489,8 @@ pub mod position;
 pub mod questionnaire;
 #[cfg(feature = "scroll-driver")]
 pub mod scroll_driver;
+#[cfg(feature = "layout-animation")]
+pub mod shared_layout;
 pub mod sidebar;
 pub mod splitter;
 pub mod stagger_index;
@@ -1095,6 +1097,14 @@ where
         // ない）ため、`flip_captured`（リスト要素 → Before の全域
         // テーブル）と `flip_target_lists`（実際に play する最外側の
         // 集合）へ分離した。
+        // イシュー #2536: 共有レイアウト遷移（`layoutId` 相当）の捕捉。
+        // `crate::layout_flip`（同一要素の並べ替え）とは独立に、`root`
+        // 配下の `data-fandhe-layout-id` 付き要素の現在の視覚矩形を先に
+        // 測っておく（構造変化コミット前、`shared_layout.rs` モジュール
+        // doc「呼び出しタイミング」参照）。
+        #[cfg(feature = "layout-animation")]
+        let shared_layout_before = crate::shared_layout::capture_before(root);
+
         #[cfg(feature = "layout-animation")]
         let mut flip_captured: Vec<(
             web_sys::Element,
@@ -1552,6 +1562,12 @@ where
         if unresolved_field {
             Self::rerender_subtree(state, root, binding_table, keyed_list_cache);
         }
+
+        // イシュー #2536: 構造変化コミット（`rerender_subtree` フォール
+        // バック含む）完了後に共有レイアウト遷移を再生する（`shared_
+        // layout.rs` モジュール doc「呼び出しタイミング」参照）。
+        #[cfg(feature = "layout-animation")]
+        crate::shared_layout::play_after(root, shared_layout_before);
     }
 
     /// `root` の全子ノードを `state.view()` から新規構築したサブツリーへ
@@ -3143,12 +3159,19 @@ where
         let Ok(state) = self.component.try_borrow() else {
             return;
         };
+        // イシュー #2536: `rerender` は View Transitions を介さない
+        // dispatch/rerender 経路（実装計画「VT 委譲判定」参照）のため、
+        // 共有レイアウト遷移は常に起動する。
+        #[cfg(feature = "layout-animation")]
+        let shared_layout_before = crate::shared_layout::capture_before(&self.root);
         Self::rerender_subtree(
             &state,
             &self.root,
             &self.binding_table,
             &self.keyed_list_cache,
         );
+        #[cfg(feature = "layout-animation")]
+        crate::shared_layout::play_after(&self.root, shared_layout_before);
     }
 
     /// 任意の状態更新（router 遷移に限らない再描画トリガー）を
@@ -3204,6 +3227,10 @@ where
             );
             return;
         };
+        // イシュー #2536: View Transitions が使える場合は UA 側の同名要素
+        // morph に委譲し、共有レイアウト遷移を起動しない（`view_transition_
+        // swap` doc「shared_flip」参照）。
+        let shared_flip = !crate::view_transition::is_supported(&document);
         let component = self.component.clone();
         let root = self.root.clone();
         let binding_table = self.binding_table.clone();
@@ -3216,6 +3243,7 @@ where
                 &binding_table,
                 &keyed_list_cache,
                 &doc_for_apply,
+                shared_flip,
             );
         });
     }
@@ -3232,6 +3260,16 @@ where
     /// （feature `"view-transition-preset"`）の双方から呼ばれるため、
     /// いずれか一方のみが有効な構成でも未使用にならないよう `any(...)` で
     /// ゲートする。
+    ///
+    /// `shared_flip`（イシュー #2536）: `true` の場合のみ共有レイアウト
+    /// 遷移（`crate::shared_layout`）を差し替えの前後で起動する。
+    /// 呼び出し元（[`Self::apply_with_view_transition`]・
+    /// [`Self::apply_with_view_transition_named`]）は
+    /// `!crate::view_transition::is_supported(document)` を渡す——View
+    /// Transitions 自体が使える場合は UA 側の同名要素 morph に委譲し、
+    /// 二重に補正しない（実装計画「VT 委譲判定」参照。`with_view_
+    /// transition` が非対応ブラウザで同期フォールバックする経路と表裏の
+    /// 判定）。
     #[cfg(any(feature = "view-transitions", feature = "view-transition-preset"))]
     fn view_transition_swap(
         component: &std::rc::Rc<std::cell::RefCell<C>>,
@@ -3243,6 +3281,7 @@ where
             std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
         >,
         document: &web_sys::Document,
+        #[cfg_attr(not(feature = "layout-animation"), allow(unused_variables))] shared_flip: bool,
     ) {
         let Ok(state) = component.try_borrow() else {
             return;
@@ -3257,7 +3296,15 @@ where
             );
             return;
         };
+        #[cfg(feature = "layout-animation")]
+        let shared_layout_before = shared_flip
+            .then(|| crate::shared_layout::capture_before(root))
+            .flatten();
         Self::apply_subtree_swap(root, &new_node, binding_table, keyed_list_cache);
+        #[cfg(feature = "layout-animation")]
+        if shared_flip {
+            crate::shared_layout::play_after(root, shared_layout_before);
+        }
     }
 
     /// [`Self::apply_with_view_transition`] と同じ全再描画ロジックを、
@@ -3288,6 +3335,8 @@ where
             );
             return;
         };
+        // イシュー #2536: `apply_with_view_transition` と同じ VT 委譲判定。
+        let shared_flip = !crate::view_transition::is_supported(&document);
         let component = self.component.clone();
         let root = self.root.clone();
         let binding_table = self.binding_table.clone();
@@ -3300,6 +3349,7 @@ where
                 &binding_table,
                 &keyed_list_cache,
                 &doc_for_apply,
+                shared_flip,
             );
         });
     }
