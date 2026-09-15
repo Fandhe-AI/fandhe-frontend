@@ -22,7 +22,7 @@ const EXPECTED_SHAKE_CSS: &str = "[data-scope=\"field\"][data-part=\"input\"][da
 
 const EXPECTED_UNDERLINE_GROW_CSS: &str = "[data-scope=\"field\"][data-part=\"input\"].fd-field--variant-flushed {\n  background-image: linear-gradient(var(--fandhe-color-focus-ring, var(--fandhe-color-accent)), var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));\n  background-repeat: no-repeat;\n  background-position: bottom center;\n  background-size: 0% 2px;\n  transition-property: background-size;\n  transition-duration: var(--fandhe-motion-duration-normal);\n  transition-timing-function: var(--fandhe-motion-easing-standard);\n}\n[data-scope=\"field\"][data-part=\"input\"].fd-field--variant-flushed:focus-visible {\n  background-size: 100% 2px;\n}\n";
 
-const EXPECTED_FLOATING_LABEL_CSS: &str = ".fd-field-floating-label [data-scope=\"field\"][data-part=\"label\"] {\n  position: absolute;\n  left: var(--fandhe-size-control-padding-x-md, 1rem);\n  top: 50%;\n  transform: translateY(-50%);\n  transform-origin: left top;\n  transition-property: transform, top, color;\n  transition-duration: var(--fandhe-motion-duration-normal);\n  transition-timing-function: var(--fandhe-motion-easing-standard);\n  pointer-events: none;\n  background: var(--fandhe-color-bg);\n  padding: 0 var(--fandhe-space-1, 0.25rem);\n}\n[data-scope=\"field\"][data-part=\"input\"]:not(:placeholder-shown) ~ [data-scope=\"field\"][data-part=\"label\"],\n[data-scope=\"field\"][data-part=\"input\"]:focus ~ [data-scope=\"field\"][data-part=\"label\"] {\n  top: 0;\n  transform: translateY(-50%) scale(0.85);\n  color: var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n}\n";
+const EXPECTED_FLOATING_LABEL_CSS: &str = ".fd-field-floating-label {\n  position: relative;\n}\n.fd-field-floating-label [data-scope=\"field\"][data-part=\"label\"] {\n  position: absolute;\n  left: var(--fandhe-size-control-padding-x-md, 1rem);\n  top: 50%;\n  transform: translateY(-50%);\n  transform-origin: left top;\n  transition-property: transform, top, color;\n  transition-duration: var(--fandhe-motion-duration-normal);\n  transition-timing-function: var(--fandhe-motion-easing-standard);\n  pointer-events: none;\n  background: var(--fandhe-color-bg);\n  padding: 0 var(--fandhe-space-1, 0.25rem);\n}\n.fd-field-floating-label [data-scope=\"field\"][data-part=\"input\"]:not(:placeholder-shown) ~ [data-scope=\"field\"][data-part=\"label\"],\n.fd-field-floating-label [data-scope=\"field\"][data-part=\"input\"]:focus ~ [data-scope=\"field\"][data-part=\"label\"] {\n  top: 0;\n  transform: translateY(-50%) scale(0.85);\n}\n.fd-field-floating-label [data-scope=\"field\"][data-part=\"input\"]:not(:placeholder-shown) ~ [data-scope=\"field\"][data-part=\"label\"]:not([data-invalid]),\n.fd-field-floating-label [data-scope=\"field\"][data-part=\"input\"]:focus ~ [data-scope=\"field\"][data-part=\"label\"]:not([data-invalid]) {\n  color: var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n}\n";
 
 fn default_field(id: &str) -> FieldProps<'_> {
     FieldProps {
@@ -107,21 +107,53 @@ fn floating_label_css_selector_matches_rendered_field_and_input_parts() {
     assert!(FLOATING_LABEL_CSS.contains(r#"[data-scope="field"][data-part="label"]"#));
 }
 
+/// PR #2567 レビュー是正（P1-2/Bugbot「Floating label ignores extra field
+/// parts」）の回帰確認: wrapper は `input`/`label` の 2 要素だけを子に持ち、
+/// `field::root` **自体**をラップするのではなく、その wrapper を
+/// `field::root` の children の 1 要素として渡す（helper-text は wrapper
+/// の外・root 直下の兄弟）。この構造では wrapper（`position: relative`
+/// 基準）の高さが helper-text の有無・行数に左右されないことを、
+/// レンダリング出力の構造で固定する。
 #[test]
-fn floating_label_class_wraps_field_root_without_altering_its_output() {
+fn floating_label_class_wraps_only_input_and_label_inside_field_root() {
     let f = default_field("email");
-    let root_node = field::root(&FieldRootProps::default(), &f, vec![], vec![]);
-    let root_html_direct = render(&root_node);
-
-    let root_node_2 = field::root(&FieldRootProps::default(), &f, vec![], vec![]);
-    let wrapped = fandhe_frontend_core::el(
+    let wrapper = fandhe_frontend_core::el(
         "div",
         vec![("class", FLOATING_LABEL_CLASS)],
-        vec![root_node_2],
+        vec![
+            input::input(&InputProps::default(), &f, vec![("placeholder", " ")]),
+            field::label(&f, vec![], vec![fandhe_frontend_core::text("Email")]),
+        ],
     );
-    let wrapped_html = render(&wrapped);
-    assert!(wrapped_html.contains(&root_html_direct));
-    assert!(wrapped_html.starts_with(&format!(r#"<div class="{FLOATING_LABEL_CLASS}">"#)));
+    let root_node = field::root(
+        &FieldRootProps::default(),
+        &f,
+        vec![],
+        vec![
+            wrapper,
+            field::helper_text(&f, vec![], vec![fandhe_frontend_core::text("補助テキスト")]),
+        ],
+    );
+    let html = render(&root_node);
+
+    // wrapper は input → label の順で 2 要素だけを内包する（helper-text は
+    // 含まない）。
+    let wrapper_start = html
+        .find(&format!(r#"<div class="{FLOATING_LABEL_CLASS}">"#))
+        .expect("wrapper の開始タグが見つからない");
+    let input_idx = html
+        .find(r#"data-scope="field" data-part="input""#)
+        .expect("input が見つからない");
+    let label_idx = html
+        .find(r#"data-scope="field" data-part="label""#)
+        .expect("label が見つからない");
+    let helper_idx = html
+        .find(r#"data-scope="field" data-part="helper-text""#)
+        .expect("helper-text が見つからない");
+    assert!(wrapper_start < input_idx);
+    assert!(input_idx < label_idx);
+    // helper-text は wrapper の外（label より後・root 直下）にある。
+    assert!(label_idx < helper_idx);
 }
 
 #[test]

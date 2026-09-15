@@ -45,14 +45,25 @@
 //!    [`FLOATING_LABEL_CSS`]）: [`crate::recipe::SlotRecipe`] は結合子
 //!    （`~`/`:has()`）を表現できないため、[`crate::field`] モジュール doc
 //!    「shadcn/ui 突合」節と同型の直接追記（生セレクタの静的 CSS 文字列）
-//!    で表す。[`crate::field::root`]（`position: relative` を既に持つ）を
-//!    素の `<div class="fd-field-floating-label">` でラップして opt-in
-//!    する（[`crate::border_beam`] と同型の「部品 anatomy に触れない」
-//!    設計）。**呼び出し側の責務（rustdoc 契約）**: (a) `field::root` の
-//!    children は `input` → `label` の順（一般兄弟結合子 `~` は後続要素
-//!    にのみ効くため）、(b) `<input>` に `placeholder=" "`（半角スペース
-//!    1 文字。空文字列はブラウザ実装により `:placeholder-shown` の判定が
-//!    割れるため避ける）を指定する。
+//!    で表す。**`field::root` 全体ではなく `input`/`label` の 2 要素だけ**
+//!    を素の `<div class="fd-field-floating-label">` でラップし、その
+//!    wrapper を `field::root` の 1 子として渡す（helper-text/error-text
+//!    は wrapper の外の兄弟のまま）。wrapper 自身が `position: relative`
+//!    の位置決め基準になるため、`top: 50%` は wrapper（= input の高さ）
+//!    だけを基準にし、helper-text/error-text の有無・行数で root 全体の
+//!    高さが変わってもラベル位置はずれない（PR #2567 レビュー是正、
+//!    P1-2/Bugbot「Floating label ignores extra field parts」）。すべての
+//!    状態セレクタを [`FLOATING_LABEL_CLASS`] の子孫として明示スコープ
+//!    することで、opt-in していない既存の `field`/`input` 呼び出しへは
+//!    一切影響しない（同レビュー是正、P1-1/Bugbot「Floating-label state
+//!    CSS leaks globally」）。フォーカス/入力済み時の文字色は
+//!    `label:not([data-invalid])` に限定し、[`crate::field::css`] が持つ
+//!    `label[data-invalid]`（エラー色）のほうへ自然に処理を譲る（同
+//!    レビュー是正、Bugbot「Floated label overrides invalid color」。
+//!    override セレクタの追加ではなく「マッチさせない」ことで詳細度勝負を
+//!    根本的に回避する）。（[`crate::border_beam`] と同型の「部品 anatomy
+//!    に触れない」設計）。**呼び出し側の責務（rustdoc 契約）**:
+//!    [`FLOATING_LABEL_CLASS`] rustdoc 参照。
 //! 4. **送信中→完了の状態遷移**（[`error_text_presence_css`]）:
 //!    「送信ボタンのスピナー→チェックマーク変化」は `field`/`input` の
 //!    headless anatomy に対応する `data-*` を持たず、新設するには
@@ -160,9 +171,16 @@ pub const UNDERLINE_GROW_CSS: &str = concat!(
     "}\n",
 );
 
-/// フローティングラベルを付与するための wrapper class 名。呼び出し側は
-/// [`crate::field::root`] の出力を、このクラス付きの素の `<div>` で
-/// ラップする（[`crate::border_beam::BORDER_BEAM_CLASS`] と同型の設計）。
+/// フローティングラベルを付与するための wrapper class 名。
+///
+/// 呼び出し側は [`crate::field::root`] **全体ではなく**、`input`/`label`
+/// の 2 要素だけをこのクラス付きの素の `<div>` でラップし、その wrapper
+/// を `field::root` の children の 1 要素として渡す（helper-text/
+/// error-text 等の他 slot は wrapper の外・root 直下の兄弟のまま）。
+/// wrapper 自身が [`FLOATING_LABEL_CSS`] の `position: relative` 基準に
+/// なるため、helper-text/error-text の有無・行数で root 全体の高さが
+/// 変わってもラベルの縦位置はずれない（PR #2567 レビュー是正、
+/// モジュール doc「フローティングラベル」節参照）。
 ///
 /// # Examples
 ///
@@ -170,15 +188,22 @@ pub const UNDERLINE_GROW_CSS: &str = concat!(
 /// use fandhe_frontend_pre_styled_ui::forms_motion::FLOATING_LABEL_CLASS;
 /// use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
 ///
-/// fn wrap_with_floating_label(field_root: Node) -> Node {
-///     el("div", vec![("class", FLOATING_LABEL_CLASS)], vec![field_root])
+/// fn wrap_with_floating_label(input: Node, label: Node) -> Node {
+///     el(
+///         "div",
+///         vec![("class", FLOATING_LABEL_CLASS)],
+///         vec![input, label],
+///     )
 /// }
 /// ```
 ///
 /// # 呼び出し側の責務（契約）
 ///
-/// - [`crate::field::root`] の children は **`input` → `label` の順**で
-///   渡すこと（一般兄弟結合子 `~` は後続要素にのみ効くため）。
+/// - この wrapper の children は **`input` → `label` の順**で渡すこと
+///   （一般兄弟結合子 `~` は後続要素にのみ効くため）。
+/// - この wrapper を [`crate::field::root`] の children の 1 要素として
+///   渡すこと（wrapper で `field::root` 自体を包んではならない。helper-
+///   text/error-text は wrapper に含めず root 直下の兄弟として渡す）。
 /// - `<input>` へ `placeholder=" "`（半角スペース 1 文字）を指定すること
 ///   （空文字列は `:placeholder-shown` の判定がブラウザ実装により割れる
 ///   ため避ける）。
@@ -186,13 +211,22 @@ pub const FLOATING_LABEL_CLASS: &str = "fd-field-floating-label";
 
 /// フローティングラベルの CSS 全文（末尾改行付き）。
 ///
-/// [`FLOATING_LABEL_CLASS`] 配下限定（無条件のグローバル規則にしない。
-/// opt-in しない既存の `field`/`input` 呼び出しに影響を与えないための
-/// 必須スコープ）。[`crate::field::root`] が既に持つ `position: relative`
-/// を土台に、`label` を `position: absolute` で input の中央へ重ね、
-/// `input` が `:placeholder-shown` でない（入力済み）または `:focus` の
-/// ときに縮小・上方へ移動させる。
+/// 全セレクタが [`FLOATING_LABEL_CLASS`] 配下限定（無条件のグローバル
+/// 規則にしない。opt-in しない既存の `field`/`input` 呼び出しへは一切
+/// 影響しないための必須スコープ、PR #2567 レビュー是正）。wrapper 自身に
+/// `position: relative` を持たせ（[`FLOATING_LABEL_CLASS`] rustdoc の
+/// 契約により wrapper は `input`/`label` の 2 要素のみを子に持つため、
+/// helper-text/error-text の有無は無関係）、`label` を `position:
+/// absolute` で input の中央へ重ね、`input` が `:placeholder-shown` で
+/// ない（入力済み）または `:focus` のときに縮小・上方へ移動させる。
+/// 文字色の変更は `label:not([data-invalid])` に限定し、`data-invalid`
+/// が立っている場合は [`crate::field::css`] の `label[data-invalid]`
+/// 規則（エラー色）が自然に適用される（override セレクタを追加せず、
+/// 「マッチさせない」ことで詳細度勝負を回避する設計）。
 pub const FLOATING_LABEL_CSS: &str = concat!(
+    ".fd-field-floating-label {\n",
+    "  position: relative;\n",
+    "}\n",
     ".fd-field-floating-label [data-scope=\"field\"][data-part=\"label\"] {\n",
     "  position: absolute;\n",
     "  left: var(--fandhe-size-control-padding-x-md, 1rem);\n",
@@ -206,10 +240,13 @@ pub const FLOATING_LABEL_CSS: &str = concat!(
     "  background: var(--fandhe-color-bg);\n",
     "  padding: 0 var(--fandhe-space-1, 0.25rem);\n",
     "}\n",
-    "[data-scope=\"field\"][data-part=\"input\"]:not(:placeholder-shown) ~ [data-scope=\"field\"][data-part=\"label\"],\n",
-    "[data-scope=\"field\"][data-part=\"input\"]:focus ~ [data-scope=\"field\"][data-part=\"label\"] {\n",
+    ".fd-field-floating-label [data-scope=\"field\"][data-part=\"input\"]:not(:placeholder-shown) ~ [data-scope=\"field\"][data-part=\"label\"],\n",
+    ".fd-field-floating-label [data-scope=\"field\"][data-part=\"input\"]:focus ~ [data-scope=\"field\"][data-part=\"label\"] {\n",
     "  top: 0;\n",
     "  transform: translateY(-50%) scale(0.85);\n",
+    "}\n",
+    ".fd-field-floating-label [data-scope=\"field\"][data-part=\"input\"]:not(:placeholder-shown) ~ [data-scope=\"field\"][data-part=\"label\"]:not([data-invalid]),\n",
+    ".fd-field-floating-label [data-scope=\"field\"][data-part=\"input\"]:focus ~ [data-scope=\"field\"][data-part=\"label\"]:not([data-invalid]) {\n",
     "  color: var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n",
     "}\n",
 );
@@ -301,21 +338,20 @@ mod tests {
 
     #[test]
     fn floating_label_css_is_scoped_under_wrapper_class() {
-        for line_start in FLOATING_LABEL_CSS.lines().filter(|l| l.ends_with('{')) {
+        // opt-in しない既存呼び出しに影響しないよう（PR #2567 レビュー是正、
+        // codex-review P1「フローティングラベルの状態セレクタも wrapper
+        // 配下に限定する」）、セレクタ行（`{` で終わる行・コンマで終わる
+        // 継続行）は例外なく `.fd-field-floating-label`（wrapper class の
+        // ドット付き完全形）を先頭に持つ必要がある。
+        let dotted = format!(".{FLOATING_LABEL_CLASS}");
+        for line in FLOATING_LABEL_CSS
+            .lines()
+            .filter(|l| l.trim_end().ends_with('{') || l.trim_end().ends_with(','))
+        {
             assert!(
-                line_start.trim_start().starts_with(FLOATING_LABEL_CLASS)
-                    || line_start.trim_start().starts_with(",")
-                    || line_start.contains(FLOATING_LABEL_CLASS)
-                    || line_start
-                        .trim_start()
-                        .starts_with(r#"[data-scope="field"][data-part="input"]:not"#)
-                    || line_start
-                        .trim_start()
-                        .starts_with(r#"[data-scope="field"][data-part="input"]:focus"#),
-                "opt-in しない既存呼び出しに影響しないよう、フローティング\
-                 ラベルの規則はすべて {FLOATING_LABEL_CLASS} 配下または\
-                 兄弟結合子経由で input 側から辿れる形である必要がある: \
-                 {line_start}"
+                line.trim_start().starts_with(&dotted),
+                "フローティングラベルの規則はすべて {dotted} 配下である必要\
+                 がある: {line}"
             );
         }
     }
@@ -323,11 +359,28 @@ mod tests {
     #[test]
     fn floating_label_css_uses_general_sibling_combinator_from_input_to_label() {
         assert!(FLOATING_LABEL_CSS.contains(
-            r#"[data-scope="field"][data-part="input"]:not(:placeholder-shown) ~ [data-scope="field"][data-part="label"]"#
+            r#".fd-field-floating-label [data-scope="field"][data-part="input"]:not(:placeholder-shown) ~ [data-scope="field"][data-part="label"]"#
         ));
         assert!(FLOATING_LABEL_CSS.contains(
-            r#"[data-scope="field"][data-part="input"]:focus ~ [data-scope="field"][data-part="label"]"#
+            r#".fd-field-floating-label [data-scope="field"][data-part="input"]:focus ~ [data-scope="field"][data-part="label"]"#
         ));
+    }
+
+    #[test]
+    fn floating_label_css_does_not_override_invalid_label_color() {
+        // Bugbot「Floated label overrides invalid color」是正の回帰確認:
+        // 文字色を変える規則は必ず `label:not([data-invalid])` に限定され、
+        // `data-invalid` なラベルの文字色（`crate::field::css` の danger
+        // 色）へ override 規則で競り勝とうとしない。
+        for block in FLOATING_LABEL_CSS.split("}\n") {
+            if block.contains("color:") {
+                assert!(
+                    block.contains(r#"[data-part="label"]:not([data-invalid])"#),
+                    "文字色を変更する規則は label:not([data-invalid]) に\
+                     限定する必要がある: {block}"
+                );
+            }
+        }
     }
 
     #[test]

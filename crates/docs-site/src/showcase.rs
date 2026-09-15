@@ -6114,18 +6114,21 @@ fn field_section() -> Node {
         ],
     );
 
-    // フローティングラベルは [`FLOATING_LABEL_CLASS`] 配下・
-    // `input` → `label` の DOM 順（`crate::forms_motion::FLOATING_LABEL_CLASS`
-    // rustdoc「呼び出し側の責務（契約）」節）を要するため、`field_instance`
-    // （`label` → `input` の順）を再利用せず本節専用で組み立てる。
+    // フローティングラベルは [`FLOATING_LABEL_CLASS`] wrapper が
+    // `input` → `label` の 2 要素だけを DOM 順で内包し、`field::root`
+    // **自体**をラップするのではなく、その wrapper を `field::root` の
+    // children の 1 要素として渡す（`crate::forms_motion::
+    // FLOATING_LABEL_CLASS` rustdoc「呼び出し側の責務（契約）」節、
+    // PR #2567 レビュー是正）。`field_instance`（`label` → `input` の順）
+    // を再利用せず本節専用で組み立てる。
     let floating_label_motion_field = plain_field("showcase-field-motion-floating-label");
-    let floating_label_instance = el(
-        "div",
-        vec![("class", FLOATING_LABEL_CLASS)],
-        vec![field::root(
-            &FieldRootProps::default(),
-            &floating_label_motion_field,
-            vec![],
+    let floating_label_instance = field::root(
+        &FieldRootProps::default(),
+        &floating_label_motion_field,
+        vec![],
+        vec![el(
+            "div",
+            vec![("class", FLOATING_LABEL_CLASS)],
             vec![
                 input::input(
                     &InputProps::default(),

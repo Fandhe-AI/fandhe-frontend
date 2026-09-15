@@ -112,12 +112,16 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
     限定で、`:focus-visible` 時に下線（`background-size`）を 0% → 100% へ
     伸長します。
   - `forms_motion::FLOATING_LABEL_CLASS`（`"fd-field-floating-label"`）/
-    `forms_motion::FLOATING_LABEL_CSS`: `field::root` の出力を
-    `el("div", vec![("class", FLOATING_LABEL_CLASS)], vec![field_root])`
-    でラップして opt-in します。呼び出し側の契約: (a) `field::root` の
-    children は `input` → `label` の順（一般兄弟結合子 `~` は後続要素にのみ
-    効くため）、(b) `<input>` へ `placeholder=" "`（半角スペース 1 文字）を
-    指定すること。
+    `forms_motion::FLOATING_LABEL_CSS`: `field::root` **全体ではなく**
+    `input`/`label` の 2 要素だけを
+    `el("div", vec![("class", FLOATING_LABEL_CLASS)], vec![input, label])`
+    でラップし、その wrapper を `field::root` の children の 1 要素として
+    渡して opt-in します（helper-text/error-text は wrapper の外・root
+    直下の兄弟のまま）。wrapper 自身が位置決め基準（`position: relative`）
+    になるため、helper-text/error-text の有無・行数でラベルの縦位置が
+    ずれません。呼び出し側の契約: (a) wrapper の children は `input` →
+    `label` の順（一般兄弟結合子 `~` は後続要素にのみ効くため）、(b)
+    `<input>` へ `placeholder=" "`（半角スペース 1 文字）を指定すること。
   - `forms_motion::error_text_presence_css()`: `error-text` slot へ
     `recipe::SlotRecipe::presence_transition`（既存 #2497 の共通
     preset）を適用し、検証結果表示の出現・消失をフェード遷移で表現します
