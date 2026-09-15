@@ -125,10 +125,14 @@ HTML 活性文字だけを `\uXXXX` 中立化する専用 API です。渡す文
 ### 3.4 interactive-view-transitions
 
 `Component` trait による状態機械・`dispatch`/`hydrate`・`start_router` に
-よる SPA 内 View Transitions の自動有効化を学べます。`wasm/Cargo.toml` に
-`fandhe-frontend-wasm-full` の feature 指定例（コメント）も掲載しています。
-関連: [Interactive API](../api/interactive-api.md)、
-[wasm-full feature 選択ガイド](./wasm-full-features.md)。
+よる SPA 内 View Transitions の自動有効化を学べます。`wasm/Cargo.toml` は
+`default-features = false` + `fandhe-frontend-wasm-full` の feature を実指定
+しており（イシュー #2525）、in-view / gesture / scroll-driver / layout FLIP /
+stagger の Phase 4 アニメーション配線（`motion-demo-root` セクション・
+`item-list` の opt-in 属性）も実演します。関連:
+[Interactive API](../api/interactive-api.md)、
+[wasm-full feature 選択ガイド](./wasm-full-features.md)、
+[アニメーション機能ガイド](./animation.md)。
 
 ### 3.5 headless-pre-styled-ui
 

@@ -23,36 +23,59 @@ publish = false
 [workspace]
 members = ["."]
 
-# fandhe-frontend-wasm-full は独自の semver 系列（0.7.0、イシュー #1141 公開）を
-# 持つ。イシュー #1159 で 0.1.0 から追随、イシュー #1191 で 0.5.0 から追随。
+# fandhe-frontend-wasm-full は独自の semver 系列を持つ。イシュー #1159 で
+# 0.1.0 から追随、イシュー #1191 で 0.5.0 から追随、イシュー #2525 で
+# 0.33.0 から追随（Phase 4 配線群 feature の実有効化、詳細は
+# ../../../docs/guides/wasm-full-features.md）。
 #
-# feature 選択について（イシュー #2330）: 0.19.0 以降の
-# fandhe-frontend-wasm-full は配線群別 feature 15 件・scope feature 16 件
-# （いずれも既定 on）を持つ（詳細は
-# ../../../docs/guides/wasm-full-features.md）。本サンプルが実際に使う
-# 配線（keynav・navigation-menu・menubar・position + entry 用
-# wasm-bindgen-exports）に絞る場合は次の指定になる（下記はコメントの
-# ままにしている: 現在の pin 0.7.0 は feature 導入前の版であり、有効化
-# するには crates.io へ 0.20.1 以降が公開された後に pin を更新する必要が
-# あるため）。
-#
-# [dependencies.fandhe-frontend-wasm-full]
-# version = "0.20.1"
-# default-features = false
-# features = ["wasm-bindgen-exports", "keynav", "navigation-menu", "menubar", "position"]
-#
-# 以下 4 クレート（headless-ui/core/interactive/wasm-bindgen/web-sys）は
+# feature 選択（イシュー #2330 のコメント例をイシュー #2525 で実指定へ
+# 昇格）: `default-features = false` で本サンプルが実際に使う配線に絞る。
+# 既存 3 実演（keynav・navigation-menu・menubar・position）に加え、
+# Phase 4 の motion デモ（wasm/src/lib.rs::hydrate_motion_demo）が使う
+# in-view/gesture/scroll-driver、`AppState` の keyed list へ実演する
+# layout-animation/stagger、feature 指定例として掲載するだけの
+# view-transitions/animate/animation-driver（`start_router` は feature 非依存で
+# 既に View Transitions を使うため実演コード上の追加呼び出しはない。
+# README.md §学べること参照）を含める。
+[dependencies.fandhe-frontend-wasm-full]
+version = "0.33.0"
+default-features = false
+features = [
+  "wasm-bindgen-exports",
+  "keynav",
+  "navigation-menu",
+  "menubar",
+  "position",
+  "in-view",
+  "gesture",
+  "scroll-driver",
+  "layout-animation",
+  "stagger",
+  "view-transitions",
+  "animate",
+  "animation-driver",
+]
+
+# 以下クレート（headless-ui/core/interactive/wasm-bindgen/web-sys）は
 # イシュー #1199 で追加。navigation-menu/menubar は `Runtime<C>`
 # （`DirtyTracked + BindingSource` を要求、`docs/design/wasm-full-architecture.md`
 # 参照）に載らないため、本クレートが `entry.rs` と同型のアプリ側ラッパー
 # （`hydrate_navigation_menu`/`hydrate_menubar`）を自前実装する。いずれも
-# `fandhe-frontend-wasm-full` 0.7.0 が既に normal 依存として同一バージョンを
+# `fandhe-frontend-wasm-full` が既に normal 依存として同一バージョンを
 # 引き込み済みであり、推移依存の閉包は広げない（外部クレート増ゼロ）。
+#
+# `fandhe-frontend-wasm-client` はイシュー #2525 codex-review P1 対応で追加。
+# `interactive_demo` モジュール（`src/lib.rs`）が `AppState` を `DirtyTracked`/
+# `BindingSource` ごと委譲するラッパー `Demo` を定義するために `BindingSource`/
+# `BoundValue`（crate root re-export）が直接必要になった（Rust の依存可視性は
+# 推移的でないため、`fandhe-frontend-wasm-full` の normal 依存であっても本クレート
+# から直接 `use` するには自身の依存として明示宣言する必要がある）。バージョンは
+# `wasm/Cargo.lock` の解決済みバージョンと一致させる。
 [dependencies]
-fandhe-frontend-wasm-full = "0.7.0"
-fandhe-frontend-headless-ui = "0.28.0"
-fandhe-frontend-core = "0.2.0"
-fandhe-frontend-interactive = "0.2.0"
+fandhe-frontend-headless-ui = "0.69.2"
+fandhe-frontend-core = "0.4.3"
+fandhe-frontend-interactive = "0.2.7"
+fandhe-frontend-wasm-client = { version = "0.6.1", default-features = false }
 wasm-bindgen = "0.2"
 
 [dependencies.web-sys]

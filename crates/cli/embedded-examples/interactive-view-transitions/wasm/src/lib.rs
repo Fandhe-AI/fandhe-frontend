@@ -5,11 +5,11 @@
 //!
 //! `fandhe-frontend-wasm-full`（crates.io バージョン依存。正本は
 //! `crates/wasm-full/`）が `#[wasm_bindgen]` エクスポートとして既に定義
-//! している `hydrate` / `mount` / `start_router`（`wasm-full/src/entry.rs`）を
+//! している `mount` / `start_router`（`wasm-full/src/entry.rs`）を
 //! 再エクスポートする。
 //!
-//! `hydrate`（`AppState` のカウンター・フォーム・動的リストデモ、
-//! `id="interactive-root"`）と `start_router`（`layout()` が組む
+//! `hydrate_interactive_demo`（`AppState` のカウンター・フォーム・動的
+//! リストデモ、`id="interactive-root"`）と `start_router`（`layout()` が組む
 //! `<div id="app-root">` の一覧・詳細ページ系）は**別系統・別 DOM**である
 //! （`wasm-full::entry` の doc 参照）。`static/embed.html` は両方を異なる
 //! `root_id` で呼び出す。
@@ -42,11 +42,12 @@
 //! `fandhe_frontend_wasm_full_bg.wasm` を生成する（`--out-name
 //! fandhe_frontend_wasm_full` で glue クレート名に依存させず、
 //! `static/embed.html` の import パスと整合させる）。`static/embed.html` は
-//! この glue クレートの存在を意識しない（`hydrate`/`mount`/`start_router`/
-//! `hydrate_navigation_menu`/`hydrate_menubar` という関数名契約のみに依存する）。
+//! この glue クレートの存在を意識しない（`hydrate_interactive_demo`/`mount`/
+//! `start_router`/`hydrate_navigation_menu`/`hydrate_menubar` という関数名
+//! 契約のみに依存する）。
 #![deny(unsafe_code)]
 
-// `fandhe-frontend-wasm-full` の `hydrate`/`mount`/`start_router` は
+// `fandhe-frontend-wasm-full` の `mount`/`start_router` は
 // `#[cfg(target_arch = "wasm32")]` の `entry` モジュール（`wasm-full/src/lib.rs`）
 // にのみ存在する。本クレートを誤って native ターゲットで `cargo build`
 // された場合に「unresolved import」で失敗するのを避け、意図が伝わる
@@ -54,10 +55,27 @@
 // （`tools/wasm/build.sh` は常に `--target wasm32-unknown-unknown` を指定する
 // ため、実運用の経路には影響しない）。
 #[cfg(target_arch = "wasm32")]
-pub use fandhe_frontend_wasm_full::entry::{hydrate, mount, start_router};
+pub use fandhe_frontend_wasm_full::entry::{mount, start_router};
+
+// `hydrate_interactive_demo`（`interactive-root`）は `wasm-full::entry::hydrate`
+// の再エクスポートではなく、[`interactive_demo::hydrate_interactive_demo`]
+// （`AppState` を FLIP/stagger 属性付きでラップする薄い glue、モジュール
+// doc 参照）を独自実装として使う。`wasm-full` 依存が `wasm-bindgen-exports`
+// feature を有効化しているため、`wasm-full::entry::hydrate` 自体も
+// `#[wasm_bindgen]` エクスポート名 `hydrate` を持つ（`wasm-full/src/entry.rs`）。
+// この独自関数を `pub use ... as hydrate` のような別名で `hydrate` として
+// 再公開すると、同一 wasm モジュール内に `#[wasm_bindgen]` エクスポート名
+// `hydrate` が 2 つ生成され `wasm-bindgen` の後処理が失敗する（イシュー
+// #2525 codex-review #2575 P1 対応。固有名 `hydrate_interactive_demo` を
+// 公開名としてもそのまま使う）。
+#[cfg(target_arch = "wasm32")]
+pub use interactive_demo::hydrate_interactive_demo;
 
 #[cfg(target_arch = "wasm32")]
 pub use nav_overlays::{hydrate_menubar, hydrate_navigation_menu};
+
+#[cfg(target_arch = "wasm32")]
+pub use motion_demo::hydrate_motion_demo;
 
 /// navigation-menu / menubar のハイドレーション・オーバーレイ配線
 /// （イシュー #1199、モジュール冒頭 doc 参照）。
@@ -69,7 +87,7 @@ mod nav_overlays {
     use fandhe_frontend_core::{render, text, Node};
     use fandhe_frontend_headless_ui::data_attrs::Orientation;
     use fandhe_frontend_headless_ui::menubar::{self, Menubar};
-    use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
+    use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu, NavigationMenuProps};
     use fandhe_frontend_interactive::{dispatch, Hydrate};
     use fandhe_frontend_wasm_full::headless::wire_headless_component;
     use fandhe_frontend_wasm_full::hydration::{read_hydration_attrs, restore_state};
@@ -161,6 +179,12 @@ mod nav_overlays {
     /// 内側にもう一つ `id="nav-menu-root"` の要素がネストされ、再描画のたびに
     /// ID が重複する無効なマークアップになっていた）。
     fn nav_menu_content(state: &NavigationMenu) -> Vec<Node> {
+        // headless-ui 0.69.2 で `NavigationMenuProps` が root/list/item/content
+        // へ追加引数として入った（イシュー #2525、headless-ui #1654）。
+        // `src/main.rs::nav_menu_view` と字句一致させる変数名（drift-guard
+        // 区間の直前で導入）。
+        let props = NavigationMenuProps::default();
+
         // fw-drift-guard:begin nav-menu-item-nodes
         let items: Vec<Node> = NAV_MENU_ITEMS
             .iter()
@@ -172,6 +196,7 @@ mod nav_overlays {
                 state.item(
                     value,
                     false,
+                    &props,
                     vec![],
                     vec![
                         state.trigger(
@@ -184,6 +209,7 @@ mod nav_overlays {
                         ),
                         state.content(
                             value,
+                            &props,
                             Some(&content_id),
                             Some(&trigger_id),
                             vec![],
@@ -200,7 +226,7 @@ mod nav_overlays {
             .collect();
         // fw-drift-guard:end nav-menu-item-nodes
 
-        vec![navigation_menu::list(vec![], items)]
+        vec![navigation_menu::list(&props, vec![], items)]
     }
 
     /// menubar デモの項目定義（表示ラベル, 配下メニュー項目ラベル一覧）。
@@ -675,6 +701,167 @@ mod nav_overlays {
         // 初回マウント時点で既に開いている Menu（SSR 初期状態）があれば
         // オーバーレイスタック・座標を初期同期する。
         sync_shared_overlays();
+
+        Ok(())
+    }
+}
+
+/// `interactive-root` デモ（カウンター・フォーム・動的リスト）の
+/// ハイドレーション glue（イシュー #2525、codex-review PR #2575 P1 対応）。
+///
+/// `AppState::view()`（`fandhe-frontend-interactive`、crates.io 公開クレート）
+/// が返す `<ul data-testid="item-list">` は FLIP/stagger 用の opt-in マーカー
+/// 属性（`data-fandhe-flip-auto`/`data-fandhe-stagger-auto-first`）を持たない。
+/// `static/embed.html` はこの 2 属性を初期 HTML へ手動付与しているが、
+/// `wasm-full`/`wasm-client` の属性同期（`sync_parent_attrs`/`sync_attrs`、
+/// ライブ要素の実属性のうち新しいビュー側の属性名に含まれないものを削除する
+/// 契約）は「新しいビュー」を `component.view()` の出力だけから決めるため、
+/// 最初のリスト更新（`add_item`/`remove_item`）で手動付与した 2 属性が削除
+/// され、以降 FLIP 再生・stagger index 同期が属性存在チェックで弾かれて
+/// 動作しなくなる。
+///
+/// このモジュールは `wasm-full::entry::hydrate`（`fandhe_frontend_wasm_full`
+/// が直接 `AppState` を使うため再エクスポートするだけでは属性を注入できない）
+/// の代わりに、`AppState` を委譲でラップしつつ `view()` だけを上書きして
+/// 毎回同じ 2 属性を付与する [`Demo`] を用いる。これにより「新しいビュー」
+/// 側に常に属性が含まれ、削除対象から外れる（`nav_overlays`/`entry.rs` と
+/// 同型の「アプリ側の薄いラッパー」参照実装）。
+#[cfg(target_arch = "wasm32")]
+mod interactive_demo {
+    use fandhe_frontend_core::Node;
+    use fandhe_frontend_interactive::{AppState, Component, DirtyTracked, Hydrate, HydrateError};
+    use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
+    use std::cell::RefCell;
+    use wasm_bindgen::prelude::wasm_bindgen;
+    use wasm_bindgen::JsValue;
+
+    /// FLIP/stagger 実演のため `data-testid="item-list"` 要素へ opt-in
+    /// マーカー属性を後付けする（既存属性を上書きしない設計だが、
+    /// `AppState::view()` はこの 2 属性を出力しないため衝突しない）。
+    fn with_item_list_motion_attrs(mut node: Node) -> Node {
+        if let Node::Element {
+            attrs, children, ..
+        } = &mut node
+        {
+            if attrs
+                .iter()
+                .any(|(name, value)| name == "data-testid" && value == "item-list")
+            {
+                attrs.push(("data-fandhe-flip-auto".to_string(), String::new()));
+                attrs.push(("data-fandhe-stagger-auto-first".to_string(), String::new()));
+            }
+            for child in children.iter_mut() {
+                let taken = std::mem::replace(child, Node::Text(String::new()));
+                *child = with_item_list_motion_attrs(taken);
+            }
+        }
+        node
+    }
+
+    /// [`AppState`] を `Component`/`Hydrate`/`DirtyTracked`/`BindingSource`
+    /// ごと委譲するラッパー。`view()` のみ [`with_item_list_motion_attrs`]
+    /// を後付けする。
+    struct Demo(AppState);
+
+    impl Component for Demo {
+        type Action = <AppState as Component>::Action;
+
+        fn update(&mut self, action: Self::Action) {
+            self.0.update(action);
+        }
+
+        fn view(&self) -> Node {
+            with_item_list_motion_attrs(self.0.view())
+        }
+
+        fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+            AppState::decode_action(name, payload)
+        }
+    }
+
+    impl Hydrate for Demo {
+        fn hydration_attrs(&self) -> Vec<(String, String)> {
+            self.0.hydration_attrs()
+        }
+
+        fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+            AppState::from_hydration_attrs(attrs).map(Demo)
+        }
+    }
+
+    impl DirtyTracked for Demo {
+        fn dirty_fields(&self) -> &[&'static str] {
+            self.0.dirty_fields()
+        }
+    }
+
+    impl BindingSource for Demo {
+        fn bound_value(&self, field: &str) -> Option<BoundValue> {
+            self.0.bound_value(field)
+        }
+    }
+
+    // `entry.rs`（`wasm-full`）と同じ理由（`Runtime` 自身の生存期間維持）で
+    // `thread_local!` へ保持する。
+    thread_local! {
+        static RUNTIME: RefCell<Option<fandhe_frontend_wasm_full::Runtime<Demo>>> =
+            const { RefCell::new(None) };
+    }
+
+    /// # Errors
+    ///
+    /// `root_id` に対応する要素が存在しない場合、またはイベント配線が失敗した
+    /// 場合に `Err` を返す。ハイドレーション属性の復元失敗自体は `Err` を返さず
+    /// CSR フォールバックへ収束する（`fandhe_frontend_wasm_full::Runtime::hydrate`
+    /// の契約をそのまま引き継ぐ）。
+    #[wasm_bindgen]
+    pub fn hydrate_interactive_demo(root_id: &str) -> Result<(), JsValue> {
+        let runtime = fandhe_frontend_wasm_full::Runtime::hydrate(root_id, Demo(AppState::new()))?;
+        RUNTIME.with(|cell| *cell.borrow_mut() = Some(runtime));
+        Ok(())
+    }
+}
+
+/// motion デモ（in-view / gesture / scroll-driver）のハイドレーション
+/// エントリポイント（イシュー #2525）。
+///
+/// `nav_overlays` と異なり `Component`/`Hydrate` を実装した状態機械を
+/// 持たない: `in_view::wire_in_view`/`gesture::wire_gesture`/
+/// `scroll_driver::wire_scroll_driver`（`fandhe-frontend-wasm-full` の
+/// `Runtime` を経由しない、opt-in `data-*` 属性のみで完結する汎用配線
+/// API）を `root_id` 要素へ順に呼ぶだけの薄いラッパー。マークアップは
+/// `static/embed.html`（`cargo run` が書き出す `dist/index.html` の
+/// `<section id="motion-demo-root">` を転記）があらかじめ opt-in マーカー
+/// 属性（`data-in-view`/`data-fandhe-gesture-hover`/
+/// `data-fandhe-gesture-press`/`data-fandhe-scroll-progress`）を保持して
+/// おり、本関数は DOM を書き換えない（`set_inner_html` を呼ばない、
+/// REQ-1 の既定エスケープ迂回経路を増やさない）。
+#[cfg(target_arch = "wasm32")]
+mod motion_demo {
+    use fandhe_frontend_wasm_full::gesture::wire_gesture;
+    use fandhe_frontend_wasm_full::in_view::wire_in_view;
+    use fandhe_frontend_wasm_full::scroll_driver::wire_scroll_driver;
+    use wasm_bindgen::prelude::wasm_bindgen;
+    use wasm_bindgen::JsValue;
+
+    /// # Errors
+    ///
+    /// `root_id` に対応する要素が存在しない場合、または各配線
+    /// （`IntersectionObserver`/イベントリスナー登録）が失敗した場合に
+    /// `Err` を返す。
+    #[wasm_bindgen]
+    pub fn hydrate_motion_demo(root_id: &str) -> Result<(), JsValue> {
+        let window = web_sys::window().ok_or_else(|| JsValue::from_str("window is unavailable"))?;
+        let document = window
+            .document()
+            .ok_or_else(|| JsValue::from_str("document is unavailable"))?;
+        let root = document
+            .get_element_by_id(root_id)
+            .ok_or_else(|| JsValue::from_str("root element not found"))?;
+
+        wire_in_view(&root)?;
+        wire_gesture(root.clone())?;
+        wire_scroll_driver(&root)?;
 
         Ok(())
     }

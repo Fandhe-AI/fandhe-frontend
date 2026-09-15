@@ -83,17 +83,18 @@ fn render_for_hydration_escapes_script_payload_in_draft_and_items() {
 /// `static/embed.html` の回帰テスト（PR #510 Bugbot 指摘、review comment
 /// 3621300109 "Hydrate mount id collides"）。
 ///
-/// `#interactive-root` を空のまま `hydrate("interactive-root")` を呼ぶと、
-/// 状態復元（`hydration::restore_state`）が `data-hydrate-*` 属性なしで
-/// 失敗し、CSR フォールバック（`dom::mount_initial`）が `AppState::view()`
-/// （自身も `id="interactive-root"` を持つ）をこの `<div>` の中へ丸ごと
-/// 差し込んでしまい、同一 id が入れ子で重複する。これを防ぐには
-/// `#interactive-root` があらかじめ `data-hydrate-*` 属性付きの SSR
-/// 済みマークアップを保持し、`hydrate()` の状態復元が成功する経路のみを
-/// 通ることが必須（`dom::mount_initial` を一切呼ばせない）。本テストは
-/// その前提となる属性の存在をファイル内容の静的検査で固定する
-/// （wasm 実行を伴わない native テストのため、ブラウザでの実際の
-/// `hydrate()` 呼び出し結果までは検証できない点に注意）。
+/// `#interactive-root` を空のまま `hydrate_interactive_demo("interactive-root")`
+/// を呼ぶと、状態復元（`hydration::restore_state`）が `data-hydrate-*`
+/// 属性なしで失敗し、CSR フォールバック（`dom::mount_initial`）が
+/// `AppState::view()`（自身も `id="interactive-root"` を持つ）をこの
+/// `<div>` の中へ丸ごと差し込んでしまい、同一 id が入れ子で重複する。
+/// これを防ぐには `#interactive-root` があらかじめ `data-hydrate-*`
+/// 属性付きの SSR 済みマークアップを保持し、
+/// `hydrate_interactive_demo()` の状態復元が成功する経路のみを通ることが
+/// 必須（`dom::mount_initial` を一切呼ばせない）。本テストはその前提と
+/// なる属性の存在をファイル内容の静的検査で固定する（wasm 実行を伴わない
+/// native テストのため、ブラウザでの実際の `hydrate_interactive_demo()`
+/// 呼び出し結果までは検証できない点に注意）。
 #[test]
 fn embed_html_interactive_root_has_hydrate_attrs_to_avoid_csr_fallback_id_collision() {
     let embed_html_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/embed.html");
@@ -389,6 +390,77 @@ fn embed_html_nav_menu_and_menubar_roots_have_hydrate_attrs() {
                  tag_slice was: {tag_slice}"
             );
         }
+    }
+}
+
+/// `static/embed.html` の回帰テスト（イシュー #2525）。motion デモの
+/// マウント要素（`#motion-demo-root`）が in-view/gesture/scroll-driver の
+/// opt-in マーカー属性（`in_view::IN_VIEW_ATTR`/`gesture::GESTURE_HOVER_ATTR`/
+/// `gesture::GESTURE_PRESS_ATTR`/`scroll_driver::SCROLL_PROGRESS_ATTR` と
+/// 同名。`crates/wasm-full` は crates.io バージョン依存のみで本 workspace
+/// からは直接参照できないため、リテラル文字列で固定する）を保持することを
+/// 静的検査で固定する（`hydrate_motion_demo` が `wire_in_view`/
+/// `wire_gesture`/`wire_scroll_driver` を呼ぶ前提として、これらの属性が
+/// SSR 済みマークアップに欠けていると各配線が候補要素を見つけられない）。
+#[test]
+fn embed_html_motion_demo_root_has_opt_in_attrs() {
+    let embed_html_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/embed.html");
+    let html = std::fs::read_to_string(&embed_html_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", embed_html_path.display()));
+
+    let section_start = html
+        .find(r#"id="motion-demo-root" data-testid="motion-demo-root""#)
+        .expect("static/embed.html must contain the #motion-demo-root mount tag");
+    let section_end = html[section_start..]
+        .find("</section>")
+        .map(|offset| section_start + offset)
+        .expect("static/embed.html #motion-demo-root section must be closed with </section>");
+    let section_slice = &html[section_start..section_end];
+
+    for attr in [
+        "data-in-view=",
+        "data-fandhe-gesture-hover=",
+        "data-fandhe-gesture-press=",
+        "data-fandhe-scroll-progress=",
+    ] {
+        assert!(
+            section_slice.contains(attr),
+            "static/embed.html の #motion-demo-root に {attr} がありません。\
+             in-view/gesture/scroll-driver の各配線が対象要素を見つけられなく \
+             なります。section_slice was: {section_slice}"
+        );
+    }
+}
+
+/// `static/embed.html` の回帰テスト（イシュー #2525）。keyed list
+/// （`data-bind-list="items"`）の `<ul>` が layout FLIP / stagger の opt-in
+/// マーカー属性（`layout_flip::FLIP_AUTO_ATTR`/
+/// `stagger_index::STAGGER_AUTO_FIRST_ATTR` と同名）を保持することを固定
+/// する。`AppState::view()`（interactive クレート側、本 example は変更
+/// しない）はこれらの属性を出力しないため、embed.html 側で手動付与して
+/// いる契約が崩れていないかを確認する。
+#[test]
+fn embed_html_item_list_has_flip_and_stagger_attrs() {
+    let embed_html_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/embed.html");
+    let html = std::fs::read_to_string(&embed_html_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", embed_html_path.display()));
+
+    let tag_start = html
+        .find(r#"<ul data-testid="item-list" data-bind-list="items""#)
+        .expect("static/embed.html must contain the #item-list mount tag");
+    let tag_end = html[tag_start..]
+        .find('>')
+        .map(|offset| tag_start + offset)
+        .expect("static/embed.html item-list start tag must be closed with '>'");
+    let tag_slice = &html[tag_start..tag_end];
+
+    for attr in ["data-fandhe-flip-auto", "data-fandhe-stagger-auto-first"] {
+        assert!(
+            tag_slice.contains(attr),
+            "static/embed.html の <ul data-bind-list=\"items\"> に {attr} が \
+             ありません。layout FLIP / stagger の実演が動作しなくなります。\
+             tag_slice was: {tag_slice}"
+        );
     }
 }
 

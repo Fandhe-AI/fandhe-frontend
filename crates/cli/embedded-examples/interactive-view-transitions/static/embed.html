@@ -8,13 +8,13 @@
     最小埋め込み構成）を下敷きにしつつ、本サンプルは 2 つの別系統・別 DOM
     （fandhe-frontend-wasm-full::entry の doc 参照）を同一ページに同居させる:
 
-      1. `<div id="interactive-root">` — `hydrate("interactive-root")` が
+      1. `<div id="interactive-root">` — `hydrate_interactive_demo("interactive-root")` が
          `fandhe_frontend_interactive::AppState`（カウンター・フォーム・
          動的リスト状態機械）をマウントする。中身は `cargo run` が書き出す
          `dist/index.html` の同要素（`data-hydrate-*` 属性付き SSR 出力）を
          整形して転記した「初期状態がすでに描画済みの」マークアップであり、
          意図的に空にしていない（Bugbot 指摘 #510 review comment
-         3621300109）。空のまま `hydrate()` を呼ぶと `data-hydrate-*`
+         3621300109）。空のまま `hydrate_interactive_demo()` を呼ぶと `data-hydrate-*`
          属性が存在せず状態復元 (`restore_state`) が失敗し、CSR フォール
          バック（`dom::mount_initial`）が `AppState::view()`（自身も
          `id="interactive-root"` を持つ、interactive/src/lib.rs 参照）を
@@ -54,10 +54,19 @@
          使う（menubar の content は positioner パーツを持つ anatomy の
          ため）。
 
-    2 と同じ理由（hydrate() の状態復元が data-hydrate-* 属性を要求する）
+    2 と同じ理由（hydrate_interactive_demo() の状態復元が data-hydrate-* 属性を要求する）
     により、3・4 のマウント要素もあらかじめ SSR 済みマークアップ
     （cargo run が書き出す dist/index.html の該当要素を転記したもの）を
     保持する。
+
+    イシュー #2525 で motion デモを追加した:
+
+      5. `<section id="motion-demo-root">` — `hydrate_motion_demo("motion-demo-root")`
+         （wasm/src/lib.rs::hydrate_motion_demo）が in-view/gesture/
+         scroll-driver（`fandhe-frontend-wasm-full` の `in_view::wire_in_view`/
+         `gesture::wire_gesture`/`scroll_driver::wire_scroll_driver`、いずれも
+         `Runtime` を経由しない opt-in `data-*` 属性配線）を直接配線する。
+         状態非依存のためハイドレーション属性は持たない。
   -->
   <title>状態管理 + View Transitions サンプル（埋め込み）</title>
   <!--
@@ -71,6 +80,78 @@
     ページ遷移は `start_router` が配線する history API 連携が別途担う。
   -->
   <style>@view-transition { navigation: auto; }</style>
+  <!--
+    motion 系統（イシュー #2525）の最小 CSS。`--fandhe-motion-*`
+    カスタムプロパティ・`data-fandhe-*` 属性はフレームワークが値を書き込む
+    契約のみを持ち、見た目（トランジション・色）はアプリ側の責務
+    （`docs/guides/animation.md` §運用姿勢）。`prefers-reduced-motion` を
+    尊重し、モーション演出を無効化する（アクセシビリティ、REQ-1 とは
+    独立の配慮）。
+  -->
+  <style>
+    /*
+      data-in-view は交差していないとき（in_view.rs::wiring 参照）属性
+      そのものが削除される。`[data-in-view]`/`[data-in-view=""]` の
+      属性セレクタはどちらも「交差時のみ」一致するため、基底の
+      opacity/transition は常時一致する data-testid セレクタへ置き、
+      非交差時の上書き（フェード状態）のみ属性セレクタへ委ねる
+      （codex-review P1 / Bugbot 指摘、PR #2575 是正）。
+    */
+    #motion-demo-root [data-testid="in-view-card"] { opacity: 1; transition: opacity 0.4s ease; }
+    #motion-demo-root [data-testid="in-view-card"]:not([data-in-view]) { opacity: 0.35; }
+    #motion-demo-root [data-fandhe-hover] { background: #eef; }
+    #motion-demo-root [data-fandhe-press] { background: #dde; }
+    #motion-demo-root [data-fandhe-scroll-progress] {
+      height: 8px;
+      background: #ccc;
+      transform-origin: left;
+      transform: scaleX(var(--fandhe-motion-scroll-progress, 0));
+    }
+    /*
+      animation-timeline: view() ネイティブ対応環境（scroll_driver.rs::
+      Env::scroll_timeline_supported が CSS.supports("animation-timeline",
+      "view()") で検出する対応、scroll() ではない）では wire_scroll_driver
+      が即座に戻り --fandhe-motion-scroll-progress を書かないため、上記
+      transform は scaleX(0) のまま留まる。対応環境向けに @supports で
+      ネイティブ view() タイムラインの @keyframes を追加する。範囲は
+      data-fandhe-scroll-progress の既定値（属性値なし）が解決する
+      ProgressRange::Entry（要素侵入開始～侵入完了で 0→1、
+      scroll_driver.rs::ProgressRange::Entry 参照）に合わせて
+      `entry 0% entry 100%` とする（JS フォールバックと同じ「要素が
+      ビューポートへ入り込む」意味に統一。ページ全体のスクロール率を表す
+      `scroll(root)` は別概念のため使わない。codex-review P2 指摘、
+      PR #2575 是正）。
+    */
+    @supports (animation-timeline: view()) {
+      #motion-demo-root [data-fandhe-scroll-progress] {
+        animation-name: fandhe-motion-scroll-progress-native;
+        animation-timeline: view();
+        animation-range: entry 0% entry 100%;
+        animation-fill-mode: both;
+      }
+    }
+    @keyframes fandhe-motion-scroll-progress-native {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+    [data-testid="item-list"] li { animation: fandhe-motion-fade-in 0.3s ease both; animation-delay: calc(var(--fandhe-motion-stagger-index, 0) * 60ms); }
+    @keyframes fandhe-motion-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) {
+      #motion-demo-root [data-testid="in-view-card"] { transition: none; }
+      [data-testid="item-list"] li { animation: none; }
+      /*
+        JS フォールバック側（scroll_driver.rs::wire_scroll_driver_with_env）
+        は reduced-motion 時に進捗 1（完了扱い）を 1 回だけ書き込み静止
+        表示する。ネイティブ対応環境（wire_scroll_driver は env.
+        scroll_timeline_supported のため何もせず即 return し、この
+        カスタムプロパティを書かない）でも animation を無効化するだけでは
+        transform が既定の scaleX(0) のまま止まり見た目が不一致になるため、
+        transform を明示的に scaleX(1) で固定して揃える（codex-review P2
+        指摘、PR #2575 是正）。
+      */
+      #motion-demo-root [data-fandhe-scroll-progress] { animation: none; transform: scaleX(1); }
+    }
+  </style>
 </head>
 <body>
   <h1>状態管理 (REQ-8) + View Transitions のブラウザ実動作確認</h1>
@@ -78,17 +159,27 @@
 
   <h2>hydrate 系統（AppState: カウンター・フォーム・動的リスト）</h2>
   <!--
-    hydrate("interactive-root") が状態機械コンポーネントをマウントする。
+    hydrate_interactive_demo("interactive-root") が状態機械コンポーネントをマウントする。
     中身は `cargo run` が書き出す dist/index.html の
     `<div id="interactive-root">` 要素と同一（`AppState::new()` の初期状態
     + render_for_hydration が付与する data-hydrate-* 属性）。CSR フォール
     バック（属性なし → mount_initial → view() 二重差し込み）を発生させず、
-    `hydrate()` が状態復元に成功する経路を実演する（head 内コメント参照）。
+    `hydrate_interactive_demo()` が状態復元に成功する経路を実演する（head 内コメント参照）。
   -->
   <div id="interactive-root" data-testid="interactive-root" data-hydrate-counter="0" data-hydrate-draft="" data-hydrate-items="最初の項目" data-hydrate-item-ids="0">
     <div data-testid="counter">カウント: <span data-testid="counter-value" data-bind-text="counter">0</span><button data-action="increment" data-testid="inc-btn">+1</button><button data-action="decrement" data-testid="dec-btn">-1</button><button data-action="reset" data-testid="reset-btn">リセット</button></div>
     <div data-testid="form"><input id="draft-input" data-testid="draft-input" value="" data-bind-attr="value:draft"></input><button data-action="add_item" data-testid="add-btn">追加</button></div>
-    <ul data-testid="item-list" data-bind-list="items"><li data-key="0">最初の項目<button data-action="remove_item" data-payload="0" data-testid="remove-btn">削除</button></li></ul>
+    <!--
+      data-fandhe-flip-auto / data-fandhe-stagger-auto-first
+      （イシュー #2525、layout_flip.rs / stagger_index.rs 参照）は
+      `AppState::view()`（interactive クレート側、本 example は変更不可）が
+      出力する `dist/index.html` のこの要素には含まれない opt-in 属性。
+      hydrate_interactive_demo() は SSR DOM をそのまま保持し keyed 更新でも <ul> 自体は
+      差し替えないため、ここで手動付与した属性は以後も残る。「追加」で
+      行を増やしてから「削除」すると残存行が layout FLIP で移動し、新規行は
+      stagger 起点（`--fandhe-motion-stagger-index`）付きでフェードインする。
+    -->
+    <ul data-testid="item-list" data-bind-list="items" data-fandhe-flip-auto data-fandhe-stagger-auto-first><li data-key="0">最初の項目<button data-action="remove_item" data-payload="0" data-testid="remove-btn">削除</button></li></ul>
   </div>
 
   <h2>start_router 系統（記事一覧・詳細、data-nav リンク + View Transitions）</h2>
@@ -119,7 +210,7 @@
     （SingleSelect の disclosure nav 挙動）。Escape・パネル外クリックは
     overlay::OverlayCloseController が "deselect" を dispatch して閉じる。
   -->
-  <nav data-scope="navigation-menu" data-part="root" aria-label="製品・ドキュメントナビゲーション" id="nav-menu-root" data-testid="nav-menu-root" data-hydrate-selected="products"><ul data-scope="navigation-menu" data-part="list"><li data-scope="navigation-menu" data-part="item" data-state="open"><button data-scope="navigation-menu" data-part="trigger" type="button" aria-expanded="true" data-state="open" data-value="products" id="nav-menu-products-trigger" aria-controls="nav-menu-products-content">製品</button><div data-scope="navigation-menu" data-part="content" data-state="open" id="nav-menu-products-content" aria-labelledby="nav-menu-products-trigger"><a data-scope="navigation-menu" data-part="link" href="/nav-menu/products">製品を見る</a></div></li><li data-scope="navigation-menu" data-part="item" data-state="closed"><button data-scope="navigation-menu" data-part="trigger" type="button" aria-expanded="false" data-state="closed" data-value="docs" id="nav-menu-docs-trigger" aria-controls="nav-menu-docs-content">ドキュメント</button><div data-scope="navigation-menu" data-part="content" data-state="closed" id="nav-menu-docs-content" aria-labelledby="nav-menu-docs-trigger" hidden=""><a data-scope="navigation-menu" data-part="link" href="/nav-menu/docs">ドキュメントを見る</a></div></li></ul></nav>
+  <nav data-scope="navigation-menu" data-part="root" aria-label="製品・ドキュメントナビゲーション" data-orientation="horizontal" id="nav-menu-root" data-testid="nav-menu-root" data-hydrate-selected="products"><ul data-scope="navigation-menu" data-part="list" data-orientation="horizontal"><li data-scope="navigation-menu" data-part="item" data-state="open" data-orientation="horizontal" data-value="products"><button data-scope="navigation-menu" data-part="trigger" type="button" aria-expanded="true" data-state="open" data-value="products" id="nav-menu-products-trigger" aria-controls="nav-menu-products-content">製品</button><div data-scope="navigation-menu" data-part="content" data-state="open" data-orientation="horizontal" data-value="products" id="nav-menu-products-content" aria-labelledby="nav-menu-products-trigger"><a data-scope="navigation-menu" data-part="link" href="/nav-menu/products">製品を見る</a></div></li><li data-scope="navigation-menu" data-part="item" data-state="closed" data-orientation="horizontal" data-value="docs"><button data-scope="navigation-menu" data-part="trigger" type="button" aria-expanded="false" data-state="closed" data-value="docs" id="nav-menu-docs-trigger" aria-controls="nav-menu-docs-content">ドキュメント</button><div data-scope="navigation-menu" data-part="content" data-state="closed" data-orientation="horizontal" data-value="docs" id="nav-menu-docs-content" aria-labelledby="nav-menu-docs-trigger" hidden=""><a data-scope="navigation-menu" data-part="link" href="/nav-menu/docs">ドキュメントを見る</a></div></li></ul></nav>
 
   <h2>menubar 系統（headless-ui Menubar: 複数 Menu の水平配置・roving tabindex）</h2>
   <!--
@@ -134,11 +225,32 @@
   -->
   <div data-scope="menubar" data-part="root" role="menubar" aria-orientation="horizontal" data-orientation="horizontal" aria-label="アプリケーションメニュー" id="menubar-root" data-testid="menubar-root" data-hydrate-focused="0" data-hydrate-trigger-count="2" data-hydrate-open="0" data-hydrate-loop="false" data-hydrate-orientation="horizontal"><div data-scope="menubar" data-part="menu" role="none" data-state="open"><button data-scope="menubar" data-part="trigger" type="button" tabindex="0" role="menuitem" aria-haspopup="menu" aria-expanded="true" data-state="open" data-value="0" aria-controls="menubar-content-0" id="menubar-trigger-0">ファイル</button><div data-scope="menubar" data-part="positioner" data-state="open"><div data-scope="menubar" data-part="content" role="menu" data-state="open" id="menubar-content-0" aria-labelledby="menubar-trigger-0"><div data-scope="menubar" data-part="item" role="menuitem" data-value="新規">新規</div><div data-scope="menubar" data-part="item" role="menuitem" data-value="開く">開く</div></div></div></div><div data-scope="menubar" data-part="menu" role="none" data-state="closed"><button data-scope="menubar" data-part="trigger" type="button" tabindex="-1" role="menuitem" aria-haspopup="menu" aria-expanded="false" data-state="closed" data-value="1" aria-controls="menubar-content-1" id="menubar-trigger-1">編集</button><div data-scope="menubar" data-part="positioner" data-state="closed" hidden=""><div data-scope="menubar" data-part="content" role="menu" data-state="closed" id="menubar-content-1" aria-labelledby="menubar-trigger-1" hidden=""><div data-scope="menubar" data-part="item" role="menuitem" data-value="コピー">コピー</div><div data-scope="menubar" data-part="item" role="menuitem" data-value="貼り付け">貼り付け</div></div></div></div></div>
 
-  <p>この段落も素の HTML です。フレームワークは上記 4 つのマウント要素の中身にしか関与しません。</p>
+  <h2>motion 系統（in-view / gesture / scroll-driver、イシュー #2525）</h2>
+  <!--
+    hydrate_motion_demo("motion-demo-root") が in_view::wire_in_view /
+    gesture::wire_gesture / scroll_driver::wire_scroll_driver（いずれも
+    Runtime を経由しない、opt-in data-* 属性のみで完結する汎用配線）を
+    直接呼ぶ（wasm/src/lib.rs::hydrate_motion_demo 参照）。中身は
+    cargo run が書き出す dist/index.html の <section id="motion-demo-root">
+    要素と同一（状態非依存のためハイドレーション属性は持たない）。
+      - data-in-view="": スクロールでビューポートに入ると付与されたまま
+        残り、外れると外される（IntersectionObserver）。
+      - data-fandhe-gesture-hover / data-fandhe-gesture-press: hover/press で
+        data-fandhe-hover / data-fandhe-press が付け外しされる。
+      - data-fandhe-scroll-progress="": スクロール位置に応じて
+        --fandhe-motion-scroll-progress（0〜1）が要素へ書き込まれる。
+  -->
+  <section id="motion-demo-root" data-testid="motion-demo-root">
+    <div data-in-view="" data-testid="in-view-card">スクロールで検出される in-view カード</div>
+    <button type="button" data-fandhe-gesture-hover="" data-fandhe-gesture-press="" data-testid="gesture-button">hover / press してみてください</button>
+    <div data-fandhe-scroll-progress="" data-testid="scroll-progress-bar"></div>
+  </section>
+
+  <p>この段落も素の HTML です。フレームワークは上記 5 つのマウント要素の中身にしか関与しません。</p>
 
   <script type="module">
     /**
-     * WASM モジュールを初期化し、hydrate/start_router を別 root_id で
+     * WASM モジュールを初期化し、hydrate_interactive_demo/start_router を別 root_id で
      * それぞれ呼び出す。
      *
      * 参照する fandhe_frontend_wasm_full.js は wasm/（glue クレート
@@ -148,17 +260,18 @@
      * .claude/rules/security.md）。
      */
     import init, {
-      hydrate,
+      hydrate_interactive_demo,
       start_router,
       hydrate_navigation_menu,
       hydrate_menubar,
+      hydrate_motion_demo,
     } from "./wasm/fandhe_frontend_wasm_full.js";
 
     async function main() {
       await init();
       // "interactive-root" は AppState（カウンター・フォーム・動的リスト）系統。
-      hydrate("interactive-root");
-      // "app-root" は記事一覧・詳細（data-nav リンク）系統。hydrate とは
+      hydrate_interactive_demo("interactive-root");
+      // "app-root" は記事一覧・詳細（data-nav リンク）系統。hydrate_interactive_demo とは
       // 別系統・別 DOM のため異なる root_id を渡す（entry.rs の doc 参照）。
       start_router("app-root");
       // "nav-menu-root"/"menubar-root" は headless-ui NavigationMenu/Menubar
@@ -166,6 +279,10 @@
       // DOM のため異なる root_id を渡す（wasm/src/lib.rs::nav_overlays 参照）。
       hydrate_navigation_menu("nav-menu-root");
       hydrate_menubar("menubar-root");
+      // "motion-demo-root" は in-view/gesture/scroll-driver 配線
+      // （イシュー #2525）。`Runtime` を経由しない opt-in 属性配線のため
+      // 独立関数として直接呼ぶ（wasm/src/lib.rs::hydrate_motion_demo 参照）。
+      hydrate_motion_demo("motion-demo-root");
     }
 
     main();
