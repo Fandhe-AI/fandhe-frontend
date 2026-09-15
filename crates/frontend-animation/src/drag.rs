@@ -210,6 +210,21 @@ struct DragStart {
     origin_position: Vec2,
 }
 
+/// [`DragController::set_axis`] doc「ドラッグ中の起点を再構築する」節
+/// 参照（codex-review P1 是正、PR #2565 第 4 ラウンド）。ドラッグ中に軸を
+/// 切り替える際、現在の保持位置（`current_position`）を新たな
+/// `origin_position` とし、直近の入力座標（`last_client`。無ければ
+/// `current_position` にフォールバック）を新たな起点クライアント座標
+/// とする。以降の `on_pointer_move` は「軸変更時点」を起点として delta
+/// を計算するため、変更前に確定していた成分が巻き戻らない。
+#[must_use]
+fn rebuild_start_for_axis_change(current_position: Vec2, last_client: Option<Vec2>) -> DragStart {
+    DragStart {
+        client: last_client.unwrap_or(current_position),
+        origin_position: current_position,
+    }
+}
+
 /// 1 要素分のドラッグ状態を保持し、pointer/keyboard から抽出された座標を
 /// 受け取って範囲制約・spring 復帰を計算し DOM へ反映する。
 ///
@@ -224,6 +239,11 @@ pub struct DragController {
     /// `Rc<RefCell<..>>` で共有する）。
     position: Rc<RefCell<Vec2>>,
     start: Option<DragStart>,
+    /// 直近の入力座標（`pointerdown`/`pointermove` の `client`、軸適用
+    /// 前の raw 値）。[`Self::set_axis`] がドラッグ中に軸を切り替える際、
+    /// この座標と現在位置から [`DragStart`] を再構築する（codex-review
+    /// P1 是正、PR #2565 第 4 ラウンド）。
+    last_client: Option<Vec2>,
     previous_sample: Option<(Vec2, f64)>,
     latest_sample: Option<(Vec2, f64)>,
     /// release 時の spring 復帰ループ（進行中のみ `Some`）。`Drop` で
@@ -243,6 +263,7 @@ impl DragController {
             constraint: None,
             position: Rc::new(RefCell::new(Vec2::default())),
             start: None,
+            last_client: None,
             previous_sample: None,
             latest_sample: None,
             release_anim: None,
@@ -257,8 +278,8 @@ impl DragController {
         self.constraint = constraint.map(normalize_constraint);
     }
 
-    /// 軸制約を更新する（現在位置・進行中のドラッグ状態は保持したまま
-    /// 軸のみ切り替える。codex-review P1 是正、PR #2565 第 3 ラウンド）。
+    /// 軸制約を更新する（現在位置は保持したまま軸のみ切り替える。
+    /// codex-review P1 是正、PR #2565 第 3・第 4 ラウンド）。
     ///
     /// keyed list の既存行更新で [`crate::drag`] 呼び出し元
     /// （`crates/wasm-full/src/drag_gesture.rs::DRAG_AXIS_ATTR`）の値が
@@ -266,14 +287,60 @@ impl DragController {
     /// をそのまま返すだけで軸を読み直さない（軸は [`Self::attach`] 時に
     /// しか読まれない）。`wasm-full` 側の再同期経路が本メソッドで最新の
     /// 属性値を反映する。
+    ///
+    /// # ドラッグ中の起点を再構築する（codex-review P1 是正、PR #2565
+    /// 第 4 ラウンド）
+    ///
+    /// 軸のみを書き換えて [`DragStart`]（`pointerdown` 時点の起点）を
+    /// そのまま残すと、次の `pointermove` は「軸変更前の起点」からの
+    /// 相対移動を計算する。例えば X 軸で `(0, 0)` から `(50, 0)` へ移動
+    /// 後に軸を Y へ変更すると、次の `pointermove` が `(60, 10)` を渡した
+    /// 場合、旧起点からの delta は `(60, 10)`（軸 Y 適用で `(0, 10)`）と
+    /// なり、次の位置は `origin_position(0,0) + (0,10) = (0,10)` と
+    /// 計算されてしまい、直前まで保持していた X 座標 `50` が巻き戻る
+    /// （「位置保持・軸固定」契約への違反）。ドラッグ中（`self.start` が
+    /// `Some`）であれば、現在の保持位置（[`Self::position`]）と直近の
+    /// 入力座標（`last_client`）で [`DragStart`] を再構築し、
+    /// 以降の `pointermove` が「軸変更時点」を新たな起点として計算する
+    /// ようにする。
+    ///
+    /// # 進行中の release spring を打ち切る
+    ///
+    /// release 後の spring 復帰（`release_anim`）は旧軸の
+    /// [`clamp_to_constraint_for_axis`] で計算した目標へ向かって進行
+    /// するため、軸変更後もそのまま動かすと旧軸の目標へ向かい続けて
+    /// しまう。ドラッグ中でなくても軸変更時は spring を打ち切り、現在
+    /// 位置で停止させる（新軸での目標再計算は次回の `on_release` に
+    /// 委ねる、`Self::nudge` と同じ「軸変更は進行中の運動を打ち切る」
+    /// 方針）。
     pub fn set_axis(&mut self, axis: DragAxis) {
         self.axis = axis;
+        self.release_anim = None;
+        if self.start.is_some() {
+            self.start = Some(rebuild_start_for_axis_change(
+                self.position(),
+                self.last_client,
+            ));
+        }
     }
 
     /// 現在の書き込み済み位置（テスト・呼び出し元の状態確認用）。
     #[must_use]
     pub fn position(&self) -> Vec2 {
         *self.position.borrow()
+    }
+
+    /// 現在ポインタドラッグが進行中か（`on_pointer_down` 済み・
+    /// `on_release`/`nudge` 未実行）。
+    ///
+    /// `crates/wasm-full/src/drag_gesture.rs::resync_one_drag_element`
+    /// が、ドラッグ中に keyed list の Update で
+    /// `data-fandhe-dragging` 属性が失われた際、この状態に基づいて
+    /// 属性を復元すべきかを判定する（codex-review P1 是正、PR #2565
+    /// 第 4 ラウンド）。
+    #[must_use]
+    pub fn is_dragging(&self) -> bool {
+        self.start.is_some()
     }
 
     /// `touch-action: none` と現在の保持位置（[`DRAG_X_PROPERTY`]/
@@ -314,6 +381,7 @@ impl DragController {
             client,
             origin_position,
         });
+        self.last_client = Some(client);
         self.previous_sample = None;
         self.latest_sample = Some((origin_position, time_ms));
     }
@@ -335,6 +403,7 @@ impl DragController {
             y: start.origin_position.y + delta.y,
         };
         self.write_position(next);
+        self.last_client = Some(client);
         self.previous_sample = self.latest_sample;
         self.latest_sample = Some((next, time_ms));
     }
@@ -449,8 +518,8 @@ impl DragController {
 mod tests {
     use super::{
         apply_axis, clamp_to_constraint, clamp_to_constraint_for_axis, estimate_velocity,
-        is_velocity_stale, normalize_constraint, DragAxis, DragConstraint,
-        STALE_VELOCITY_THRESHOLD_MS,
+        is_velocity_stale, normalize_constraint, rebuild_start_for_axis_change, DragAxis,
+        DragConstraint, DragStart, STALE_VELOCITY_THRESHOLD_MS,
     };
     use fandhe_animation::interpolate::Vec2;
 
@@ -630,5 +699,63 @@ mod tests {
     fn is_velocity_stale_returns_false_when_release_precedes_sample() {
         let latest = Some((Vec2::default(), 1_000.0));
         assert!(!is_velocity_stale(latest, 500.0));
+    }
+
+    /// codex-review P1 是正の回帰（PR #2565 第 4 ラウンド）: X 軸で
+    /// `(0, 0)` から `(50, 0)` へ移動した後に軸を Y へ変更すると、
+    /// [`rebuild_start_for_axis_change`] が現在位置 `(50, 0)` を新たな
+    /// `origin_position` として起点を再構築する。以降 `(60, 10)` へ
+    /// `pointermove` した際の delta は新起点からの相対値になるため、
+    /// 修正前は巻き戻っていた X 座標 `50` が保持されたまま Y 成分だけが
+    /// 動くことを固定する（`apply_axis` は既存の純関数をそのまま使う）。
+    #[test]
+    fn rebuild_start_for_axis_change_preserves_position_locked_axis() {
+        // X 軸ドラッグで (0, 0) から (50, 0) へ移動済みの状態
+        // （origin_position=(0,0)・client=(0,0) の起点から
+        // client=(50,0) まで移動した想定）。
+        let current_position = Vec2 { x: 50.0, y: 0.0 };
+        let last_client = Some(Vec2 { x: 50.0, y: 0.0 });
+
+        let rebuilt = rebuild_start_for_axis_change(current_position, last_client);
+        assert_eq!(
+            rebuilt,
+            DragStart {
+                client: Vec2 { x: 50.0, y: 0.0 },
+                origin_position: Vec2 { x: 50.0, y: 0.0 },
+            }
+        );
+
+        // 軸を Y へ変更した後、(60, 10) へ pointermove した場合の
+        // 次の位置（on_pointer_move と同じ計算式）。
+        let next_client = Vec2 { x: 60.0, y: 10.0 };
+        let raw_delta = Vec2 {
+            x: next_client.x - rebuilt.client.x,
+            y: next_client.y - rebuilt.client.y,
+        };
+        let delta = apply_axis(raw_delta, DragAxis::Y);
+        let next = Vec2 {
+            x: rebuilt.origin_position.x + delta.x,
+            y: rebuilt.origin_position.y + delta.y,
+        };
+        assert_eq!(
+            next,
+            Vec2 { x: 50.0, y: 10.0 },
+            "軸変更前に確定していた X=50 が巻き戻らず、Y だけが動くこと"
+        );
+    }
+
+    /// `last_client` が無い（`pointerdown` を経ずに軸だけ変わるような
+    /// 防御的ケース）場合は現在位置へフォールバックする。
+    #[test]
+    fn rebuild_start_for_axis_change_falls_back_to_current_position_without_last_client() {
+        let current_position = Vec2 { x: 12.0, y: 34.0 };
+        let rebuilt = rebuild_start_for_axis_change(current_position, None);
+        assert_eq!(
+            rebuilt,
+            DragStart {
+                client: current_position,
+                origin_position: current_position,
+            }
+        );
     }
 }

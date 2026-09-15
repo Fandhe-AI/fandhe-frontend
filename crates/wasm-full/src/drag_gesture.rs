@@ -267,6 +267,16 @@ mod wiring {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
+        // Bugbot Medium 是正「Non-primary buttons start drags」
+        // （PR #2565 第 4 ラウンド）: `button() == 0`（メインボタン。
+        // タッチ/ペンの接触も 0）かつ `is_primary()`（最初の接触点）の
+        // みドラッグを開始する。右クリック（button 2）・中クリック
+        // （button 1）等でコンテキストメニュー・ページ操作と競合しつつ
+        // pointer capture を握り続ける不具合（Motion の `drag` も同じ
+        // 慣例で非メインボタンを無視する）の是正。
+        if pointer_event.button() != 0 || !pointer_event.is_primary() {
+            return;
+        }
         let Some(target) = event.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
             return;
         };
@@ -394,9 +404,21 @@ mod wiring {
         release_drag(pointer_event.pointer_id(), active, event.time_stamp());
     }
 
-    /// `keydown`: フォーカス中の opt-in 要素上で矢印キーが押されたら
+    /// `keydown`: **フォーカスが opt-in 要素自身にある**ときのみ矢印キーで
     /// [`DragController::nudge`] を呼ぶ。編集可能要素上（`gesture.rs` と
     /// 同じ理由）は発火しない。
+    ///
+    /// # フォーカス対象を要素自身に限定する（Bugbot 是正「Arrow keys
+    /// captured from descendants」、PR #2565 第 4 ラウンド）
+    ///
+    /// `closest_opted_in`（祖先方向へ探索）を使うと、opt-in 要素の子孫に
+    /// ある button・link・radio・listbox 等の任意のフォーカス可能な
+    /// ウィジェットへフォーカスがあるだけで矢印キーが nudge に奪われ、
+    /// かつ常に `prevent_default()` されるため、それらウィジェット自身の
+    /// 矢印キー操作（button 間移動・radio 選択等）が機能しなくなる。
+    /// `event.target()` が opt-in 要素自身（[`DRAG_ATTR`] を直接持つ）
+    /// である場合のみに限定し、子孫のフォーカス可能ウィジェットへは
+    /// 一切介入しない。
     ///
     /// # 進行中の pointer ドラッグを配線層の状態ごと中断する（codex-review
     /// P1・Cursor Bugbot 是正「Keyboard nudge desyncs pointer drag」、
@@ -433,9 +455,13 @@ mod wiring {
         if is_editable_target(&target) {
             return;
         }
-        let Some(drag_element) = closest_opted_in(root, &target, DRAG_ATTR) else {
+        // 要素自身が opt-in（DRAG_ATTR 直付）で、かつ root 配下（イベント
+        // 委譲の対象範囲内）であることを要求する（`closest_opted_in` の
+        // 祖先探索は使わない、上記 doc 節参照）。
+        if !target.has_attribute(DRAG_ATTR) || !root.contains(Some(&target)) {
             return;
-        };
+        }
+        let drag_element = target;
         let Some(controller) = controller_for(&drag_element) else {
             return;
         };
@@ -540,6 +566,18 @@ mod wiring {
     /// [`resync_drag_gesture_attachments`] doc 参照。既存コントローラ
     /// のみ [`DRAG_AXIS_ATTR`] の現在値を [`DragController::set_axis`]
     /// で反映してから [`DragController::resync_dom`] を呼ぶ。
+    ///
+    /// # ドラッグ中の `data-fandhe-dragging` も復元する（codex-review P1
+    /// 是正、PR #2565 第 4 ラウンド）
+    ///
+    /// ドラッグ中に keyed list の同じ行が `KeyedOp::Update` されると、
+    /// `fandhe_frontend_wasm_client::keyed_dom` の `sync_attrs` が
+    /// view に含まれない [`DRAGGING_STATE_ATTR`] を削除する（`resync_dom`
+    /// が復元するのはスタイル属性のみで、`data-*` 属性は対象外）。
+    /// [`DragController::is_dragging`] で「実際にはドラッグが継続して
+    /// いる」ことが分かるため、その場合のみ属性を再付与する
+    /// （ドラッグ中でない要素へ誤って属性を付けないよう、判定は
+    /// コントローラの追跡状態のみに基づく）。
     fn resync_one_drag_element(element: &Element) {
         let Some((controller, reused_existing)) = controller_for_tracking_reuse(element) else {
             return;
@@ -551,6 +589,9 @@ mod wiring {
         let mut controller_mut = controller.borrow_mut();
         controller_mut.set_axis(axis);
         controller_mut.resync_dom();
+        if controller_mut.is_dragging() {
+            let _ = set_dom_attribute(element, DRAGGING_STATE_ATTR, "");
+        }
     }
 
     /// `root` へドラッグ検知の 5 リスナー（pointerdown/pointermove/

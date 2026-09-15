@@ -28,7 +28,7 @@ use fandhe_frontend_core::keyed::keyed_list;
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
-use fandhe_frontend_wasm_full::drag_gesture::{DRAG_ATTR, DRAG_AXIS_ATTR};
+use fandhe_frontend_wasm_full::drag_gesture::{DRAGGING_STATE_ATTR, DRAG_ATTR, DRAG_AXIS_ATTR};
 use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -441,5 +441,55 @@ fn update_changing_axis_attribute_applies_new_axis_to_subsequent_drag() {
     assert!(
         (y_final - 25.0).abs() < 0.01,
         "軸が y へ更新された後は y 成分が自由に動くべき: y={y_final}"
+    );
+}
+
+/// 受け入れ条件（codex-review P1 是正、PR #2565 第 4 ラウンド）:
+/// ドラッグ中（`pointerdown` 済み・`pointerup` 未発火）に同じ行が
+/// `KeyedOp::Update` されると、`fandhe_frontend_wasm_client::keyed_dom`
+/// の `sync_attrs` が view に含まれない `data-fandhe-dragging` を削除
+/// する。再同期経路が `DragController::is_dragging()` に基づいてこの
+/// 状態属性を復元し、実際にはドラッグが継続していることの表示が
+/// 途切れないことを固定する。
+#[wasm_bindgen_test]
+fn update_during_active_drag_restores_dragging_state_attribute() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "drag-root-container-4");
+    let _guard = RemoveOnDrop(placeholder.clone());
+
+    let state = ListState::new(&[(1, "a")]);
+    let runtime = Runtime::mount("drag-root-container-4", state).expect("mount must succeed");
+    let root = runtime.root();
+
+    let item = root
+        .query_selector("[data-testid='drag-item']")
+        .expect("query_selector must not fail")
+        .expect("initial item must exist after mount");
+
+    // pointerup を発火せず、ドラッグ中の状態のまま保持する。
+    item.dispatch_event(&pointer_event("pointerdown", 1, 0.0, 0.0))
+        .expect("dispatch_event must not fail");
+    root.dispatch_event(&pointer_event("pointermove", 1, 5.0, 5.0))
+        .expect("dispatch_event must not fail");
+    assert!(
+        item.has_attribute(DRAGGING_STATE_ATTR),
+        "ドラッグ開始後は data-fandhe-dragging が付与されていること（前提の確認）"
+    );
+
+    // ドラッグ中に同じキーの内容だけを書き換える（KeyedOp::Update を誘発）。
+    dispatch_action(&document, root, "rename", "1:renamed-while-dragging");
+
+    let item_after = root
+        .query_selector("[data-testid='drag-item']")
+        .expect("query_selector must not fail")
+        .expect("item must still exist after rename (same key)");
+    assert!(
+        item_after.is_same_node(Some(&item)),
+        "Update は既存要素を差し替えないこと（同一ノードのまま）"
+    );
+    assert!(
+        item_after.has_attribute(DRAGGING_STATE_ATTR),
+        "ドラッグ継続中の Update 後も data-fandhe-dragging が \
+         再同期経路で復元されること"
     );
 }

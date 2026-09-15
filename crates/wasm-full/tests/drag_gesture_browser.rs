@@ -218,6 +218,30 @@ fn arrow_key_on_editable_target_is_ignored() {
     );
 }
 
+/// Bugbot 是正の回帰（「Arrow keys captured from descendants」、PR #2565
+/// 第 4 ラウンド）: opt-in 要素の子孫にある `<button>` へフォーカスが
+/// あるときの矢印キーは、`input`/`textarea`/`select`/`contenteditable`
+/// のいずれでもないにもかかわらず nudge を発火しない（子孫ウィジェット
+/// 自身の矢印キー操作を奪わない）。
+#[wasm_bindgen_test]
+fn arrow_key_on_descendant_button_is_not_captured() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, draggable) = build_dom(&document, "drag-descendant-button-root");
+    let _guard = RemoveOnDrop(root.clone());
+
+    let button = document.create_element("button").unwrap();
+    draggable.append_child(&button).unwrap();
+
+    wire_drag_gesture(root.clone()).expect("wire_drag_gesture must not fail");
+
+    dispatch_key(&button, "keydown", "ArrowRight");
+    let x = custom_property_px(&draggable, DRAG_X_PROPERTY);
+    assert!(
+        x.is_none(),
+        "子孫 button 上の矢印キーは drag nudge を発火しないべき: x={x:?}"
+    );
+}
+
 /// `buttons` 値を明示できる `pointer_event` 拡張版
 /// （既定 `pointer_event` は `buttons` 未指定＝ 0 のため、押下中の移動を
 /// 模すテストは本ヘルパを使う）。
@@ -235,6 +259,15 @@ fn pointer_event_with_buttons(
     init.set_client_x(client_x.round() as i32);
     init.set_client_y(client_y.round() as i32);
     init.set_buttons(buttons);
+    // `handle_pointerdown` の「メインボタン（0）かつ最初の接触点のみ
+    // ドラッグを開始する」ガード（Bugbot 是正「Non-primary buttons
+    // start drags」、PR #2565 第 4 ラウンド）への対応。`PointerEventInit`
+    // の既定値は `button = 0`・`isPrimary = false`（W3C Pointer Events
+    // 仕様）であり、`is_primary` を明示しないと本ヘルパで組み立てた
+    // 合成イベントはすべてガードで無視されてしまう。実ブラウザの
+    // メインボタン押下・単一タッチ接触を模すため、両方を明示する。
+    init.set_button(0);
+    init.set_is_primary(true);
     PointerEvent::new_with_event_init_dict(kind, &init)
         .expect("PointerEvent::new must not fail")
         .dyn_into::<Event>()
@@ -450,5 +483,88 @@ fn keyboard_nudge_interrupts_pointer_drag_without_desync() {
     assert!(
         draggable.has_attribute(DRAGGING_STATE_ATTR),
         "中断後は同じ pointer_id でも新規ドラッグを開始できるべき"
+    );
+}
+
+/// `button`（0 以外）・`is_primary`（`false`）を明示できる
+/// `pointer_event_with_buttons` 拡張版。Bugbot 是正「Non-primary buttons
+/// start drags」の回帰テスト専用ヘルパ。
+fn pointer_event_with_button_and_primary(
+    kind: &str,
+    pointer_id: i32,
+    client_x: f64,
+    client_y: f64,
+    button: i16,
+    is_primary: bool,
+) -> Event {
+    let init = PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_pointer_id(pointer_id);
+    init.set_client_x(client_x.round() as i32);
+    init.set_client_y(client_y.round() as i32);
+    init.set_buttons(1);
+    init.set_button(button);
+    init.set_is_primary(is_primary);
+    PointerEvent::new_with_event_init_dict(kind, &init)
+        .expect("PointerEvent::new must not fail")
+        .dyn_into::<Event>()
+        .expect("PointerEvent must cast to Event")
+}
+
+/// Bugbot Medium 是正の回帰（PR #2565 第 4 ラウンド）: 右クリック
+/// （`button() == 2`）の `pointerdown` はドラッグを開始しない
+/// （`data-fandhe-dragging` が付かない・pointer capture を握らない）。
+#[wasm_bindgen_test]
+fn non_primary_button_pointerdown_does_not_start_drag() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, draggable) = build_dom(&document, "drag-non-primary-button-root");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_drag_gesture(root.clone()).expect("wire_drag_gesture must not fail");
+
+    draggable
+        .dispatch_event(&pointer_event_with_button_and_primary(
+            "pointerdown",
+            51,
+            0.0,
+            0.0,
+            2,
+            true,
+        ))
+        .expect("dispatch_event must not fail");
+    assert!(
+        !draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "右クリック（button 2）の pointerdown はドラッグを開始しないべき"
+    );
+    assert!(
+        !draggable.has_pointer_capture(51),
+        "右クリックの pointerdown で pointer capture を握らないべき"
+    );
+}
+
+/// Bugbot Medium 是正の回帰: `is_primary() == false`（2 本目以降の
+/// タッチ接触等）の `pointerdown` もドラッグを開始しない。
+#[wasm_bindgen_test]
+fn non_primary_pointer_pointerdown_does_not_start_drag() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, draggable) = build_dom(&document, "drag-non-primary-pointer-root");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_drag_gesture(root.clone()).expect("wire_drag_gesture must not fail");
+
+    draggable
+        .dispatch_event(&pointer_event_with_button_and_primary(
+            "pointerdown",
+            52,
+            0.0,
+            0.0,
+            0,
+            false,
+        ))
+        .expect("dispatch_event must not fail");
+    assert!(
+        !draggable.has_attribute(DRAGGING_STATE_ATTR),
+        "is_primary() が false の pointerdown はドラッグを開始しないべき"
     );
 }
