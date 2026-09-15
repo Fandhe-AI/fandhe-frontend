@@ -462,3 +462,71 @@ Motion+ 部品化」配下）。`bento-staggered`/`testimonials-stack` と同じ
 
 不足部品は無かった（`badge`・`heading`・`text`・`button`・`code`・`kbd`
 はいずれも実装時点で既存）。
+
+## 16. `game-ui-modal`（#2552）実装記録
+
+親 #2530「Phase 7: Motion+ 部品化」の最終タスク。Motion+
+`examples/game-ui`（公開カタログ上のゲーム風 UI カテゴリで唯一の実例、
+モーダル入場アニメーション 1 種）の部品化可否を検証し、Blocks 化と判定
+した。
+
+### 可否判定
+
+| 構成要素 | 写像先（既存機能） |
+|---|---|
+| 暗幕 + 中央パネルのモーダル構造 | `pre-styled-ui::dialog` の root/backdrop/positioner/content/title/description/body/footer |
+| scale + spring による入場 | `motion::ZOOM_IN_KEYFRAMES_NAME` + `theme::SPRING_EASING_LINEAR`（spring 近似 `linear()`、#2381） |
+| 子要素（報酬行）の順送り出現 | `recipe::STAGGER_INDEX_VAR`/`stagger_index_style`（#2384）+ `motion::SLIDE_FROM_BOTTOM_KEYFRAMES_NAME` |
+| 操作ボタン | `pre-styled-ui::button`（Solid / Ghost） |
+| 報酬・ステータス表示 | `pre-styled-ui::badge` |
+
+構成要素はすべて既存機能への写像で表現でき、DOM 計測・rAF・WAAPI を要する
+要素は無いため **Blocks 化**（新規部品なし）と判定した。`wasm-full`/
+`frontend-animation`/`pre-styled-ui`/`headless-ui` は一切変更していない。
+
+### 設計判断
+
+- **出典は Motion+**: `docs/design/motion-reference-adoption-policy.md`
+  §9 に従い、着想のみを参照して Rust/CSS で独自に再実装した。取得手段・
+  ファイル名・内部識別子は記載しない。
+- **`trigger` を置かない**: docs-site は JS ハイドレーションを行わない
+  ため、無 JS では開閉を切り替えられない `dialog::trigger` は表示上の
+  意味を持たない（`testimonials-stack`/`sidebar-07` と同じ判断）。本
+  Demo はモーダルが既に開いた静的な初期状態のみを描く。
+- **dialog の中和 CSS は本 block スコープに閉じる**: `dialog::positioner`/
+  `backdrop` は本来 `position: fixed; inset: 0` のビューポート全体
+  オーバーレイだが、`.blocks-demo` 枠内へ収める必要があるため、
+  `.blocks-game-ui-modal [data-scope="dialog"][data-part="..."]`
+  （本 block のデモ class を前提とする属性セレクタ）に限定して
+  `position: relative`/`inset: auto` へ差し替える。他 block や
+  `/themes/dialog/` ページの `dialog` 表示には一切影響しない。
+  `.blocks-demo.blocks-game-ui-modal` は scale の overshoot が枠で
+  クリップされないよう `overflow: visible` にする（`bento-staggered`
+  先例と同じ理由）。
+- **入場アニメーションは既存の `presence_transition` と併走可能**:
+  content には `ZOOM_IN_KEYFRAMES_NAME` + `SPRING_EASING_LINEAR` を
+  `@keyframes` アニメーションとして適用する。既存の
+  `presence_transition`（`content` の `transition` + `@starting-style`、
+  #2387）と同方向（opacity/scale のフェードイン）であり、`animation`
+  と `transition` は独立した CSS プロパティのため併走しても破綻しない。
+- **reduced-motion は追加 `@media` なしで縮退**: duration はすべて
+  `--fandhe-motion-duration-*` トークン参照であり、`Theme::to_css` の
+  既定出力が reduced motion 環境で一括して 0ms 化する。`@keyframes` は
+  無限反復・scroll-driven のいずれでもないため個別の `@media` は不要
+  （新規 `@keyframes` 定義も追加していない。既存の
+  `motion::KEYFRAMES_CSS` が持つ `ZOOM_IN`/`SLIDE_FROM_BOTTOM` を
+  `animation` プロパティで参照するのみ）。
+- **`<form>` を使わない・実データを持たない**: 報酬名・クエスト名は
+  すべて架空のものであり、実企業名・実クレデンシャル・PII を含まない。
+
+不足部品は無かった（`dialog`・`badge`・`button` はいずれも実装時点で
+既存）。
+
+### スコープ外
+
+- `motion-reference-adoption-policy.md` §5 棚卸し表への game-ui 行追記
+  （#2549/#2550 と同じく任意の後続）
+- reference screenshot 追加（Motion+ 出典の再配布リスク、#2549/#2550 と
+  同判断）
+- 無 JS サイト上での実際の開閉・spring の wasm 側再生（利用者側の
+  `wasm-full` 配線に委ねる。既存 `dialog` 配線で成立する）
