@@ -3459,7 +3459,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # minor バンプする。本ブランチ側も merge base（0.200.0）から独立に
 # 0.201.0 へ到達しており origin/main（#2534 の 0.201.0）と同一版数のため、
 # 同じ版数のまま据え置かず +1 した 0.202.0 とする（同衝突運用）。
-version = "0.202.0"
+#
+# イシュー #2545: `forms_motion`（`motion` feature 配下）を追加した。
+# field / input の Motion+ 由来フォームアニメーション（エラー時の shake・
+# フォーカス時の下線伸長・フローティングラベル・error-text presence 遷移）
+# を opt-in の新規公開 API（`SHAKE_CSS`/`UNDERLINE_GROW_CSS`/
+# `FLOATING_LABEL_CLASS`/`FLOATING_LABEL_CSS`/`error_text_presence_css`/
+# `forms_motion_css`/`Theme::to_css_with_forms_motion`）として純追加した
+# のみで、無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs`
+# 不変）。#2531/#2515/#2384/#2381 と同型のため minor バンプする。
+# origin/main 側も同じ merge base（0.201.0）から独立に 0.202.0 へ到達して
+# おり本ブランチ（#2538 の 0.202.0）と同一版数のため、同じ版数のまま
+# 据え置かず +1 した 0.203.0 とする（同衝突運用）。
+version = "0.203.0"
 
 
 edition = "2021"

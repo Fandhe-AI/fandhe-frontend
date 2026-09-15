@@ -786,6 +786,8 @@ pub mod field;
 pub mod fieldset;
 pub mod file_upload;
 pub mod floating_panel;
+#[cfg(feature = "motion")]
+pub mod forms_motion;
 pub mod heading;
 pub mod highlight;
 pub mod hover_card;

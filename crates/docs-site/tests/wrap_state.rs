@@ -684,12 +684,17 @@ const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "text
 /// （`motion` feature 配下の opt-in 追加装飾。既存 `button` 部品への
 /// variant 拡張であり、独立した `/themes/button-motion/` ページは持たない
 /// ——専用ページを持たず既存部品への追加装飾を担う点が `border_beam`/
-/// `motion` と同型）を同じ理由で追加した。
+/// `motion` と同型）を同じ理由で追加した。イシュー #2545 で
+/// `forms_motion`（`motion` feature 配下の opt-in フォームアニメーション、
+/// field/input の既存 anatomy へ参照するだけの追加 CSS で単体部品では
+/// ないため専用ページを持たない。`crate::forms_motion` モジュール doc
+/// 参照）を同じ理由で追加した。
 const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "border_beam",
     "button_motion",
     "class_attr",
     "css",
+    "forms_motion",
     "lib",
     "motion",
     "recipe",
@@ -1073,8 +1078,12 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        126,
-        "src/*.rs の総数が想定と異なります（イシュー #2538 で \
+        127,
+        "src/*.rs の総数が想定と異なります（イシュー #2545 で \
+         forms_motion.rs を新設し 126 → 127。`motion` feature 配下の \
+         opt-in フォームアニメーションで単体の Themes ページを持たない \
+         ため NON_PAGE_TOP_LEVEL 分類（`border_beam`/`motion` と同型）。 \
+         イシュー #2538 で \
          button_motion.rs を新設し 125 → 126。`motion` feature 配下の \
          opt-in 追加装飾（既存 button 部品への variant 拡張）で単体の \
          Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類（`border_beam`/\
