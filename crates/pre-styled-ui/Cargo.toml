@@ -3482,13 +3482,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.203.0 へ到達しており origin/main（#2566 の 0.203.0）と同一版数のため、
 # 同じ版数のまま据え置かず +1 した 0.204.0 とする（同衝突運用）。
 #
+# イシュー #2532: `text_reveal`（`motion` feature 配下）を追加した。
+# split-text reveal（`chars`/`words`）・typewriter/scramble opt-in マーカー
+# （`TEXT_REVEAL_CSS`/`Theme::to_css_with_text_reveal`）を新規公開 API として
+# 純追加したのみで、無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs`
+# 不変）。#2516/#2545/#2534 と同型のため minor バンプする。
+#
 # イシュー #2537: `view_transition`（`motion` feature 配下）へ残り 8
 # プリセット（iris/doors/shutter/blinds/strips/pixels の Curtains 相当 +
 # mask-image による形状遷移 mask-wipe/mask-radial）を追加した。既存
 # fade/slide/wipe の出力バイトは変更せず opt-in CSS を純追加したのみで、
 # 無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs` 不変）。
-# #2516 と同型のため minor バンプする。
-version = "0.205.0"
+# #2516 と同型のため minor バンプする。本ブランチ（#2532 の 0.205.0）と
+# origin/main（#2537 の 0.205.0）が同じ merge base（0.204.0）から独立に
+# 同一版数へ到達したため、同じ版数のまま据え置かず +1 した 0.206.0 とする
+# （同衝突運用）。
+version = "0.206.0"
 
 
 edition = "2021"

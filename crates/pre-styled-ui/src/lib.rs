@@ -855,6 +855,8 @@ pub mod tabs;
 pub mod tag;
 pub mod tags_input;
 pub mod text;
+#[cfg(feature = "motion")]
+pub mod text_reveal;
 pub mod textarea;
 pub mod theme;
 pub mod timeline;
