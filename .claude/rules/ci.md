@@ -146,11 +146,11 @@
   `blocks/signup-05/index.html`（イシュー #2095、ソーシャルプロバイダ付き
   サインアップフォーム。`heading`・`field::separator`・アイコン付き
   Outline ボタン 2 個を持つ合成 block）/
-  `blocks/testimonials-stack/index.html`（イシュー #2548、Motion+
-  `sections/testimonials` の "testimonials-stack" を参照した積層
-  testimonial カード。`card`・`blockquote`・`avatar` を合成し、積層
-  オフセットは `--fandhe-motion-stagger-index` の値リテラル複製で
-  表現する合成 block）である。
+  `blocks/testimonials-stack/index.html`（イシュー #2548、Motion+ の
+  testimonials 系レイアウトを参照した積層 testimonial カード。
+  `card`・`blockquote`・`avatar` を合成し、積層オフセットは
+  `--fandhe-motion-stagger-index` の値リテラル複製で表現する合成
+  block）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

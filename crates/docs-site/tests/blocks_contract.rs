@@ -1048,6 +1048,7 @@ fn testimonials_stack_page_wires_demo_class_and_css_hooks() {
         .to_string();
     for selector in [
         "[data-blocks-testimonials-stack-card]",
+        "[data-blocks-testimonials-stack-avatar]",
         ".blocks-testimonials-stack-stage",
     ] {
         assert!(

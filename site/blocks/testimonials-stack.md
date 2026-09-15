@@ -1,11 +1,10 @@
 # testimonials-stack
 
 `fandhe-frontend-pre-styled-ui` の `card` / `blockquote` / `avatar` 部品を
-合成した、Motion+（motiondivision/plus）の `sections/testimonials` にある
-"testimonials-stack"（testimonial カードが積層し前面カードが強調表示される
-レイアウト）に相当する合成例です。Blocks セクションは新規部品を追加する
-ものではなく、既存の Themes/Primitives 部品を組み合わせた実例集であること
-に注意してください。
+合成した、Motion+ の testimonials 系レイアウト（testimonial カードが積層し
+前面カードが強調表示される表示）を参照した合成例です。Blocks セクションは
+新規部品を追加するものではなく、既存の Themes/Primitives 部品を組み合わせた
+実例集であることに注意してください。
 
 本 Demo は静的な表示例であり、カードの自動入れ替え（Motion+ 側は JS で
 ローテーションします）は行いません。docs サイトは JS ハイドレーションを

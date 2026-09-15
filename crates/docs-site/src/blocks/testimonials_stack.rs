@@ -1,7 +1,9 @@
 //! `testimonials-stack` block（イシュー #2548。トラッキング #2476/#2530。
-//! Motion+ `sections/testimonials` の "testimonials-stack"（積層した
-//! testimonial カードが前面から背面へ並び、前面カードが強調表示される
-//! レイアウト）を Rust/CSS で再実装した合成例）。
+//! Motion+ の testimonials 系レイアウトを参照し、Rust/CSS で再実装した
+//! 合成例。積層した testimonial カードが前面から背面へ並び、前面カードが
+//! 強調表示されるレイアウトを表す）。取得手段・ファイル名・内部
+//! コンポーネント識別子は記載しない（購入者限定素材のライセンス上の
+//! 転記制限、`docs/design/motion-reference-adoption-policy.md` §9 参照）。
 //!
 //! # 使用部品
 //!
@@ -184,11 +186,12 @@ pub const BLOCK: Block = Block {
 /// `prefers-reduced-motion: reduce` 下の 0ms 化にも自動的に追従する）。
 pub(super) const LAYOUT_CSS: &str = "\
 .blocks-testimonials-stack {\n  display: flex;\n  justify-content: center;\n}\n\
-.blocks-testimonials-stack-stage {\n  display: grid;\n  width: 100%;\n  max-width: 26rem;\n  margin-inline: auto;\n  padding-block: 1.5rem 3rem;\n}\n\
+.blocks-testimonials-stack-stage {\n  display: grid;\n  width: 100%;\n  max-width: 26rem;\n  margin-inline: auto;\n  padding-block: 3rem 1.5rem;\n}\n\
 [data-blocks-testimonials-stack-card] {\n  grid-area: 1 / 1;\n  transition: transform var(--fandhe-motion-duration-normal) var(--fandhe-motion-easing-standard), opacity var(--fandhe-motion-duration-normal) var(--fandhe-motion-easing-standard);\n  transform: translateY(calc(var(--fandhe-motion-stagger-index, 0) * -1rem)) scale(calc(1 - var(--fandhe-motion-stagger-index, 0) * 0.06));\n  z-index: calc(3 - var(--fandhe-motion-stagger-index, 0));\n}\n\
 [data-blocks-testimonials-stack-card][data-state=\"inactive\"] {\n  opacity: 0.6;\n}\n\
 .blocks-testimonials-stack-stage > [data-blocks-testimonials-stack-card]:nth-child(1) {\n  --fandhe-motion-stagger-index: 0;\n}\n\
 .blocks-testimonials-stack-stage > [data-blocks-testimonials-stack-card]:nth-child(2) {\n  --fandhe-motion-stagger-index: 1;\n}\n\
 .blocks-testimonials-stack-stage > [data-blocks-testimonials-stack-card]:nth-child(3) {\n  --fandhe-motion-stagger-index: 2;\n}\n\
 .blocks-testimonials-stack-meta {\n  display: flex;\n  align-items: center;\n  gap: 0.75rem;\n  margin-top: 0.75rem;\n}\n\
+[data-blocks-testimonials-stack-avatar] {\n  flex-shrink: 0;\n}\n\
 .blocks-testimonials-stack-byline {\n  display: flex;\n  flex-direction: column;\n  font-size: 0.875rem;\n}\n";
