@@ -1290,7 +1290,16 @@ name = "fandhe-frontend-wasm-full"
 # `lostpointercapture` の window 委譲追加登録、主ボタン以外でのドラッグ
 # 開始防止、抑止済み click での誤った spring 打ち切り防止。公開 API の
 # シグネチャは不変）ため patch バンプする。
-version = "0.36.3"
+#
+# マージコミット注記（origin/main #2542 との統合）: origin/main はイシュー
+# #2542（`cursor`: カスタムカーソル配線、既定 on）を追加し 0.35.0 →
+# 0.36.0 へ独立に minor バンプしていた。`magnetic`/`text-animation` と
+# 同型の新規公開モジュール純追加。本ブランチの到達値 0.36.3 に cursor
+# モジュール新設を統合するため、さらに +1 minor して 0.37.0 とする。
+# `fandhe-frontend-animation` の依存 `version` 要求は 0.13.0 → 0.14.0
+# （本マージでの frontend-animation 統合バンプ値）へ追随する
+# （`xtask check-dep-versions --fix` 相当）。
+version = "0.37.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1618,7 +1627,14 @@ js-sys = "0.3"
 # `fandhe-frontend-animation` の依存 `version` 要求を 0.13.0 → 0.13.1 へ
 # 追随する（`CarouselTrack::retarget`/`is_settling` 新設に伴う patch
 # バンプ、`crates/frontend-animation/Cargo.toml` 参照）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.13.1", optional = true }
+#
+# マージコミット注記（origin/main #2542 との統合）: origin/main は
+# `fandhe-frontend-animation` の依存 `version` 要求を `cursor` モジュール
+# 新設に伴い 0.12.0 → 0.13.0 へ追随していた。本マージで
+# `fandhe-frontend-animation` 自体を 0.14.0 へ統合バンプしたため、
+# `version` 要求もその到達値 0.14.0 へ追随する（`xtask check-dep-versions
+# --fix` 相当）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.14.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1856,6 +1872,7 @@ default = [
   "magnetic",
   "carousel-motion",
   "text-animation",
+  "cursor",
   "position",
   "stagger",
   "animation-driver",
@@ -2015,6 +2032,14 @@ carousel-motion = ["dep:fandhe-frontend-animation"]
 # `fandhe_frontend_pre_styled_ui::text_reveal` 側（`motion` feature）に
 # 属し本 feature の対象外。
 text-animation = ["dep:fandhe-frontend-animation"]
+# イシュー #2542（親 #2530/#2476）: カスタムカーソル配線（`Runtime::mount`/
+# `hydrate` の `Self::wire_cursor` 呼び出し）専用の feature（既定 on）。
+# `scroll-driver`/`confetti`/`hold-to-confirm`/`magnetic`/`text-animation` と
+# 同型——配線群かつ `dep:fandhe-frontend-animation` を有効化する feature。
+# ポインタ追従の spring 演算・rAF 駆動・DOM 書き込みは
+# `fandhe-frontend-animation::cursor`（`CursorAnimator`）の責務であり、
+# `cursor` モジュール自体は本 feature でのみコンパイルする。
+cursor = ["dep:fandhe-frontend-animation"]
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

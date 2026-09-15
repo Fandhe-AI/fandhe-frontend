@@ -92,6 +92,13 @@ CTA バナー）・`cta-signup-celebrate`（送信完了で confetti が発火�
 2 件が追加された。これも上記と同じ純追加であり「7 件で確定」の判断は
 変更しない。
 
+**Phase 7（#2530）による追加（#2542）**: 同じ親トラッキング #2530 配下の
+イシュー #2542 により、Motion+ Cursor（ポインタに spring で追従する
+カスタムカーソル）に相当する `cursor-hover-cards`（card 3 枚への hover で
+カーソルがリング形状へ変化・ラベル表示・中心吸着の 3 パターンを示す合成
+例）の 1 件が追加された。これも上記と同じ純追加であり「7 件で確定」の
+判断は変更しない。
+
 ## 4. `component-coverage-map.md` との関係
 
 shadcn/ui Blocks は `docs/design/component-coverage-map.md` §2 の「対象外」

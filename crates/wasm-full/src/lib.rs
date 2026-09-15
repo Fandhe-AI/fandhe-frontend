@@ -223,6 +223,7 @@
 //! | `Runtime::wire_magnetic` | `magnetic` |
 //! | `Runtime::wire_carousel_motion` | `carousel-motion` |
 //! | `Runtime::wire_text_animation` | `text-animation` |
+//! | `Runtime::wire_cursor` | `cursor` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -462,6 +463,8 @@ pub mod command;
 pub mod confetti;
 pub mod content_height;
 pub mod csr;
+#[cfg(feature = "cursor")]
+pub mod cursor;
 pub mod data_table;
 #[cfg(feature = "drag-gesture")]
 pub mod drag_gesture;
@@ -1875,6 +1878,8 @@ where
         let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
             Self::wire_text_animation(root.clone())?,
         ));
+        #[cfg(feature = "cursor")]
+        Self::wire_cursor(root.clone())?;
 
         Ok(Self {
             component,
@@ -2084,6 +2089,8 @@ where
         let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
             Self::wire_text_animation(root.clone())?,
         ));
+        #[cfg(feature = "cursor")]
+        Self::wire_cursor(root.clone())?;
 
         Ok(Self {
             component,
@@ -3192,6 +3199,20 @@ where
     ) -> Result<Vec<fandhe_frontend_animation::raf_driver::AnimationLoop>, wasm_bindgen::JsValue>
     {
         text_animation::wire_text_animation(root)
+    }
+
+    /// カスタムカーソルの配線（[`cursor::wire_cursor`]、イシュー #2542）を
+    /// 登録する。`dispatch` チャネルを持たない属性専用配線のため
+    /// （`Self::wire_magnetic`/`Self::wire_text_animation` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`cursor::wire_cursor`]（`add_event_listener_with_callback` の
+    /// 失敗）を伝播する。
+    #[cfg(feature = "cursor")]
+    fn wire_cursor(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        cursor::wire_cursor(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

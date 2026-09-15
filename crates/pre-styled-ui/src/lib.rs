@@ -773,6 +773,8 @@ pub mod color_swatch;
 pub mod combobox;
 pub mod command;
 pub mod css;
+#[cfg(feature = "motion")]
+pub mod cursor;
 pub mod data_list;
 pub mod data_table;
 pub mod date_input;

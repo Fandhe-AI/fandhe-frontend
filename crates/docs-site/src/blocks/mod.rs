@@ -74,6 +74,7 @@
 mod bento_staggered;
 mod cta_banner_magnetic;
 mod cta_signup_celebrate;
+mod cursor_hover_cards;
 mod dashboard_01;
 mod feature_expand;
 mod login_01;
@@ -186,6 +187,7 @@ pub const BLOCKS: &[Block] = &[
     feature_expand::BLOCK,
     cta_banner_magnetic::BLOCK,
     cta_signup_celebrate::BLOCK,
+    cursor_hover_cards::BLOCK,
 ];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
@@ -275,6 +277,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(feature_expand::LAYOUT_CSS)?;
     sheet.push_css(cta_banner_magnetic::LAYOUT_CSS)?;
     sheet.push_css(cta_signup_celebrate::LAYOUT_CSS)?;
+    sheet.push_css(fandhe_frontend_pre_styled_ui::cursor::CURSOR_CSS)?;
+    sheet.push_css(cursor_hover_cards::LAYOUT_CSS)?;
     Ok(sheet)
 }
 
