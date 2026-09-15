@@ -1173,6 +1173,10 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::action_bar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toast::stylesheet())?;
+    // イシュー #2543: toast_motion（`motion` feature 配下の opt-in 積層
+    // 表示）。TOAST.examples の stack 表示 Example が消費する
+    // （`crate::component_specs_overlay` 参照）。
+    sheet.push_css(fandhe_frontend_pre_styled_ui::toast_motion::TOAST_STACK_CSS)?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::progress::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tag::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::kbd::css())?;
