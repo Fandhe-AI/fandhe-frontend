@@ -91,6 +91,19 @@ pub const VIEW_TRANSITION_PRESET_ATTR: &str = attr_lit!();
 /// され、実行時入力を一切連結しない（`<` を含まないため
 /// [`crate::stylesheet::StyleSheet::push_css`] を通る）。
 pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
+    // fade プリセットが参照する `fd-motion-fade-in`/`fd-motion-fade-out` は
+    // 本来 `crate::motion::KEYFRAMES_CSS`（`to_css_with_keyframes`）が持つが、
+    // 本メソッドは `motion` を経由せず単独で呼ばれても fade が動く必要が
+    // あるため、同名・同内容の `@keyframes` をここへ複製する（CSS の
+    // 「同名は後勝ち」により両方読み込まれても値が同じなら無害）。
+    "@keyframes fd-motion-fade-in {\n",
+    "  from {\n    opacity: 0;\n  }\n",
+    "  to {\n    opacity: 1;\n  }\n",
+    "}\n",
+    "@keyframes fd-motion-fade-out {\n",
+    "  from {\n    opacity: 1;\n  }\n",
+    "  to {\n    opacity: 0;\n  }\n",
+    "}\n",
     "@keyframes fd-view-transition-slide-out-to-left {\n",
     "  to {\n    transform: translateX(-100%);\n  }\n",
     "}\n",
@@ -119,8 +132,15 @@ pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
     attr_lit!(),
     "=\"",
     slide_value_lit!(),
+    // UA 既定の `::view-transition-old/new(root)` は `mix-blend-mode:
+    // plus-lighter` を持ち、fade（クロスフェード）専用の見た目である。
+    // slide/wipe は old/new を同時に重ねず片方のみが動く演出のため、
+    // 既定のまま重ねると加算合成で洗い出された色になる。`normal` へ
+    // 明示的に戻す（モジュール doc「対象範囲」節が触れない UA 既定
+    // 上書きの根拠、イシュー #2516 レビュー指摘）。
     "\"]::view-transition-old(root) {\n",
     "  animation: fd-view-transition-slide-out-to-left var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
     "}\n",
     ":root[",
     attr_lit!(),
@@ -128,6 +148,7 @@ pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
     slide_value_lit!(),
     "\"]::view-transition-new(root) {\n",
     "  animation: fd-view-transition-slide-in-from-right var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
     "}\n",
     ":root[",
     attr_lit!(),
@@ -135,6 +156,7 @@ pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
     wipe_value_lit!(),
     "\"]::view-transition-old(root) {\n",
     "  animation: none;\n",
+    "  mix-blend-mode: normal;\n",
     "}\n",
     ":root[",
     attr_lit!(),
@@ -142,6 +164,7 @@ pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
     wipe_value_lit!(),
     "\"]::view-transition-new(root) {\n",
     "  animation: fd-view-transition-wipe-reveal var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: normal;\n",
     "}\n",
     "@media (prefers-reduced-motion: reduce) {\n",
     "  :root[",

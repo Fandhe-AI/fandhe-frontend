@@ -344,7 +344,7 @@ mod wiring {
     {
         let apply_document = document.clone();
         let root_id_owned = root_id.to_string();
-        with_view_transition(document, move || {
+        with_view_transition(document, None, move || {
             let Some(root) = apply_document.get_element_by_id(&root_id_owned) else {
                 // Cursor Bugbot 指摘 `27cc68fd`: apply 段は `pushState` 実行後
                 // （場合によっては非同期）に走るため、ここで `root_id` 要素が

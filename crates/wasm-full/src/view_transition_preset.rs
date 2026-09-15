@@ -51,10 +51,15 @@ impl ViewTransitionPreset {
 /// の `is_valid_view_transition_name` と同型の方針）。
 pub const VIEW_TRANSITION_PRESET_ATTR: &str = "data-fandhe-view-transition";
 
-/// `Runtime::apply_with_view_transition_named`（feature
-/// `"view-transition-preset"`）専用の配線層。`document.documentElement` へ
-/// [`VIEW_TRANSITION_PRESET_ATTR`] を set/remove するだけの薄い実装。
-#[cfg(all(target_arch = "wasm32", feature = "view-transition-preset"))]
+/// `document.documentElement` へ [`VIEW_TRANSITION_PRESET_ATTR`] を
+/// set するだけの薄い実装。イシュー #2516 で
+/// [`crate::view_transition::with_view_transition`] が named/unnamed 双方の
+/// 属性ライフサイクルを一元管理するようになったため、`with_view_transition`
+/// 自体は `"view-transition-preset"` feature の有無に関わらず常時
+/// コンパイルされる（`crate::view_transition` モジュール doc 参照）。
+/// そこから呼ばれる本モジュールも feature ゲートを持たない
+/// （`target_arch = "wasm32"` のみでゲート）。
+#[cfg(target_arch = "wasm32")]
 pub(crate) mod wiring {
     use super::{ViewTransitionPreset, VIEW_TRANSITION_PRESET_ATTR};
     use web_sys::Document;

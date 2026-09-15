@@ -72,11 +72,45 @@ extern "C" {
 /// `startViewTransition` の update コールバックは遷移がスキップされても
 /// 仕様上必ず一度呼ばれるため、通常経路では throw 側の `take()` は
 /// 常に空になり二重実行は起きない）。
+///
+/// `preset`（イシュー #2516）は
+/// [`crate::view_transition_preset::VIEW_TRANSITION_PRESET_ATTR`] の
+/// 設定/除去を一元管理する。`Some` なら該当プリセットの属性値を設定し、
+/// `None` なら既存の属性を除去する。この除去は呼び出し元ごとの対処
+/// ではなく本共有関数が無条件で行うため、[`crate::nav`] の router 遷移
+/// （常に `None` で呼ぶ）も含め全呼び出し元が「前回の named プリセットが
+/// 残留する」不具合の恩恵を受ける（`Runtime::apply_with_view_transition`
+/// 側で個別に `remove_attribute` していた旧実装は本関数への一元化に伴い
+/// 削除。属性の設定/除去は `document.startViewTransition()` 呼び出し
+/// **前**に同期的に完了させる必要がある。UA が old/new スナップショット
+/// 間の疑似要素へ CSS を適用する際、`documentElement` の現在の属性値を
+/// 参照するため、遷移開始前に確定していなければプリセット CSS が
+/// 一致しない）。`ViewTransitionPreset` は `view-transition-preset`
+/// feature の有無に関わらず常時コンパイルされる型のため（`wiring` サブ
+/// モジュールのみが feature ゲート対象）、本関数もその feature に依存
+/// しない。
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn with_view_transition<F>(document: &Document, apply: F)
-where
+pub(crate) fn with_view_transition<F>(
+    document: &Document,
+    preset: Option<crate::view_transition_preset::ViewTransitionPreset>,
+    apply: F,
+) where
     F: FnOnce() + 'static,
 {
+    match preset {
+        // `set_attribute` は fw gate `url_validation_check`（U1）が
+        // 同一ファイル内の URL 検証ガード 4 種の co-location を要求する
+        // DOM 属性 sink のため、直接呼ばずガード co-located 済みの
+        // `view_transition_preset::wiring::set_preset_attr` へ委譲する
+        // （`remove_attribute` は U1 の sink needle 対象外のためガード不要）。
+        Some(preset) => crate::view_transition_preset::wiring::set_preset_attr(document, preset),
+        None => {
+            if let Some(el) = document.document_element() {
+                let _ =
+                    el.remove_attribute(crate::view_transition_preset::VIEW_TRANSITION_PRESET_ATTR);
+            }
+        }
+    }
     let doc_vt = document.clone().unchecked_into::<DocumentViewTransitions>();
     if !doc_vt.start_view_transition_prop().is_function() {
         // 非対応ブラウザ: 同期フォールバック。

@@ -2858,12 +2858,10 @@ where
     /// `data-fandhe-view-transition` 属性（[`view_transition_preset::
     /// VIEW_TRANSITION_PRESET_ATTR`]）を設定した後に本メソッド（unnamed）
     /// を呼ぶと、named プリセットの見た目が意図せず残留してしまう
-    /// （named/unnamed 混在時の不整合）。呼び出し元ごとの対処ではなく
-    /// 共有関数である本メソッド冒頭で無条件に属性を除去することで、
-    /// `nav.rs` 側の router 遷移を含む全呼び出し元がこの是正の恩恵を
-    /// 受ける（`view_transition_preset::VIEW_TRANSITION_PRESET_ATTR`
-    /// 定数自体は feature ゲートなしのため、`view-transition-preset`
-    /// feature の有効/無効に関わらずコンパイルできる）。
+    /// （named/unnamed 混在時の不整合）。この属性の設定/除去は
+    /// [`crate::view_transition::with_view_transition`]（`preset: None`）
+    /// が一元管理するため、`nav.rs` 側の router 遷移を含む全呼び出し元が
+    /// この是正の恩恵を受ける（詳細は同関数の rustdoc 参照）。
     #[cfg(feature = "view-transitions")]
     pub fn apply_with_view_transition(&self) {
         let Ok(document) = Self::document() else {
@@ -2874,15 +2872,12 @@ where
             );
             return;
         };
-        if let Some(el) = document.document_element() {
-            let _ = el.remove_attribute(crate::view_transition_preset::VIEW_TRANSITION_PRESET_ATTR);
-        }
         let component = self.component.clone();
         let root = self.root.clone();
         let binding_table = self.binding_table.clone();
         let keyed_list_cache = self.keyed_list_cache.clone();
         let doc_for_apply = document.clone();
-        crate::view_transition::with_view_transition(&document, move || {
+        crate::view_transition::with_view_transition(&document, None, move || {
             Self::view_transition_swap(
                 &component,
                 &root,
@@ -2938,10 +2933,10 @@ where
     /// ViewTransitionPreset`]）選択付きで実行する公開 API（イシュー
     /// #2516）。`fandhe-frontend-pre-styled-ui::view_transition` の
     /// fade/slide/wipe CSS プリセットが参照する `data-fandhe-view-transition`
-    /// 属性を `document.documentElement` へ設定してから
-    /// `document.startViewTransition()` を呼ぶ（属性設定は遷移開始前に
-    /// 同期的に行うため、ブラウザが遷移のスナップショットを撮る時点で
-    /// 既に反映済み）。
+    /// 属性の設定は [`crate::view_transition::with_view_transition`]
+    /// （`preset: Some(preset)`）が担う（`document.startViewTransition()`
+    /// 呼び出し前に同期的に設定されるため、ブラウザが遷移のスナップショットを
+    /// 撮る時点で既に反映済み）。
     ///
     /// feature `"view-transition-preset"`（既定 on）でゲートされる。
     /// `document`/`build_dom_node` の解決に失敗した場合は
@@ -2961,13 +2956,12 @@ where
             );
             return;
         };
-        crate::view_transition_preset::wiring::set_preset_attr(&document, preset);
         let component = self.component.clone();
         let root = self.root.clone();
         let binding_table = self.binding_table.clone();
         let keyed_list_cache = self.keyed_list_cache.clone();
         let doc_for_apply = document.clone();
-        crate::view_transition::with_view_transition(&document, move || {
+        crate::view_transition::with_view_transition(&document, Some(preset), move || {
             Self::view_transition_swap(
                 &component,
                 &root,
