@@ -365,8 +365,8 @@ duration/easing は持ちません（固定既定値のみ、YAGNI）。
 `prefers-reduced-motion: reduce` を**自動的に**尊重する機能:
 
 - `var(--fandhe-motion-duration-*)` 経由の transition 全般（presence・
-  stagger・scroll-driven・hover/press の CSS transition）は duration
-  トークンが `0ms` へ上書きされるため、個別ブロック不要です。
+  hover/press の CSS transition）は duration トークンが `0ms` へ
+  上書きされるため、個別ブロック不要です。
 - SVG path drawing は `fandhe-frontend-animation::svg_path` の
   `detect_reduced_motion()` が自動検出します。
 
@@ -375,6 +375,17 @@ duration/easing は持ちません（固定既定値のみ、YAGNI）。
 - 共通 `@keyframes`（`motion::KEYFRAMES_CSS` 自身が再定義ブロックを持つ）
 - named View Transitions プリセット（old/new(root) へ `animation:
   revert;` を明示的に再宣言）
+- **scroll-driven（`scroll_reveal`/`parallax`/`sticky_progress`）**:
+  `animation-timeline`/`animation-range` はスクロール位置に連動し
+  `duration` トークンを参照しないため、duration の `0ms` 化では
+  停止しません。`SlotRecipe`（`crates/pre-styled-ui/src/recipe.rs`）が
+  各機能ごとに個別の `@media (prefers-reduced-motion: reduce)` ブロックを
+  自動生成し、`animation: none`（`scroll_reveal`）、`animation: none` +
+  `translate: none`（`parallax`。`@supports not` フォールバックの
+  `translate` 宣言も凍結）、`animation: none` + `opacity: 1` + `scale:
+  none`（`sticky_progress`。`@supports not` フォールバックの
+  `opacity`/`scale` 宣言も凍結）を出力順で後勝ちさせて確実に無効化します。
+  利用者側の追加対応は不要です。
 
 ## 15. 検証方法
 
