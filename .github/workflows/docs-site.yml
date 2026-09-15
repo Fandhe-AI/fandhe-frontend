@@ -223,6 +223,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-usage-slider/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-signup-celebrate/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"

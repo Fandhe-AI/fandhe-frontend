@@ -153,6 +153,11 @@
   `blocks/pricing-usage-slider/index.html`（イシュー #2547、利用量
   スライダーの固定初期値と `stat` の価格表示を静的な組で示す合成 block。
   ライブ連動は実装しない）/
+  `blocks/testimonials-stack/index.html`（イシュー #2548、Motion+ の
+  testimonials 系レイアウトを参照した積層 testimonial カード。
+  `card`・`blockquote`・`avatar` を合成し、積層オフセットは
+  `pre-styled-ui::recipe::STAGGER_INDEX_VAR`（`--fandhe-motion-stagger-index`）
+  を直接 import して表現する合成 block）/
   `blocks/cta-banner-magnetic/index.html`（イシュー #2550、`data-fandhe-
   magnetic` opt-in を付与した CTA ボタン 1 個の合成 block。ポインタ追従の
   実演は wasm-full の `magnetic` feature 配下のみで発生し、無 JS の本サイト
