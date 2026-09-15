@@ -77,10 +77,19 @@ name = "fandhe-frontend-animation"
 # 上回っており同一版数の衝突には該当しないため、本ブランチの到達値
 # 0.11.0 をそのまま維持する。
 #
+# イシュー #2532: `text_animation`（typewriter/scramble のフレーム計算・
+# DOM 書き込み）を新設した。`magnetic`/`svg_path` と同型の新規公開 API
+# 純追加のため minor バンプする。
+#
 # イシュー #2539: `count_up` モジュール（数値カウントアップ、`NumberText`/
 # `start`/`write_final` 等の新規公開 API）を新設。新規公開 API 追加のため
 # minor バンプする（#638 条項）。
-version = "0.12.0"
+#
+# マージコミット注記: 本 PR（#2539）と origin/main（#2532）が同じ
+# merge base（0.11.0）から独立に同一版数（0.12.0）へ到達しており衝突。
+# `.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」
+# 運用に従い、+1 して 0.13.0 とする。
+version = "0.13.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

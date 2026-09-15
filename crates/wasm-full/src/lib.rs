@@ -222,6 +222,7 @@
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
 //! | `Runtime::wire_magnetic` | `magnetic` |
 //! | `Runtime::wire_count_up` | `count-up` |
+//! | `Runtime::wire_text_animation` | `text-animation` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -498,6 +499,8 @@ pub mod stagger_index;
 #[cfg(feature = "svg-path")]
 pub mod svg_path;
 pub mod tabs_indicator;
+#[cfg(feature = "text-animation")]
+pub mod text_animation;
 pub mod tooltip;
 pub mod view_transition;
 pub mod view_transition_name;
@@ -853,6 +856,20 @@ pub struct Runtime<C: Component> {
     keyed_list_cache: std::rc::Rc<
         std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
     >,
+    /// typewriter/scramble の実行中 [`fandhe_frontend_animation::raf_driver::
+    /// AnimationLoop`] 群（[`Self::wire_text_animation`]、イシュー #2532）。
+    /// `Runtime` 自体が保持し続けないと、`mount`/`hydrate` 呼び出しフレーム
+    /// を抜けた時点で drop されアニメーションが即座に止まってしまう
+    /// （`crate::text_animation` モジュール doc「`AnimationLoop` の所有権」
+    /// 節参照）。
+    #[cfg(feature = "text-animation")]
+    #[expect(
+        dead_code,
+        reason = "RAII 専用フィールド: 読み出しは行わず Runtime と同じ寿命まで \
+                  AnimationLoop を生存させるためだけに保持する（field doc \
+                  参照）"
+    )]
+    text_animation_loops: crate::text_animation::TextAnimationLoops,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1849,12 +1866,18 @@ where
         Self::wire_magnetic(root.clone())?;
         #[cfg(feature = "count-up")]
         Self::wire_count_up(root.clone())?;
+        #[cfg(feature = "text-animation")]
+        let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
+            Self::wire_text_animation(root.clone())?,
+        ));
 
         Ok(Self {
             component,
             root,
             binding_table,
             keyed_list_cache,
+            #[cfg(feature = "text-animation")]
+            text_animation_loops,
         })
     }
 
@@ -2047,12 +2070,18 @@ where
         Self::wire_magnetic(root.clone())?;
         #[cfg(feature = "count-up")]
         Self::wire_count_up(root.clone())?;
+        #[cfg(feature = "text-animation")]
+        let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
+            Self::wire_text_animation(root.clone())?,
+        ));
 
         Ok(Self {
             component,
             root,
             binding_table,
             keyed_list_cache,
+            #[cfg(feature = "text-animation")]
+            text_animation_loops,
         })
     }
 
@@ -3122,6 +3151,25 @@ where
     #[cfg(feature = "count-up")]
     fn wire_count_up(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         count_up::wire_count_up(&root)
+    }
+
+    /// typewriter/scramble の配線（[`text_animation::wire_text_animation`]、
+    /// イシュー #2532）を登録する。`dispatch` チャネルを持たない属性専用
+    /// 配線のため（`Self::wire_magnetic`/`Self::wire_confetti` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。戻り値の
+    /// `AnimationLoop` 群は呼び出し元（`Self::mount`/`Self::hydrate`）が
+    /// `text_animation_loops` フィールドへ格納する（モジュール doc
+    /// 「`AnimationLoop` の所有権」節参照）。
+    ///
+    /// # Errors
+    ///
+    /// [`text_animation::wire_text_animation`] のエラーを伝播する。
+    #[cfg(feature = "text-animation")]
+    fn wire_text_animation(
+        root: web_sys::Element,
+    ) -> Result<Vec<fandhe_frontend_animation::raf_driver::AnimationLoop>, wasm_bindgen::JsValue>
+    {
+        text_animation::wire_text_animation(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
