@@ -700,6 +700,7 @@ const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "recipe",
     "stylesheet",
     "theme",
+    "view_transition",
 ];
 
 /// §3.6: `charts/` のうち Themes ページに対応しないモジュール（9 件。
