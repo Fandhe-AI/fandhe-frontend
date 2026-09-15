@@ -866,6 +866,8 @@ pub mod theme;
 pub mod timeline;
 pub mod timer;
 pub mod toast;
+#[cfg(feature = "motion")]
+pub mod toast_motion;
 pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
