@@ -876,23 +876,6 @@ mod wiring {
         rects
     }
 
-    /// `window.matchMedia("(prefers-reduced-motion: reduce)")` が
-    /// `matches() == true` を返すか判定する（a11y、実装計画 §3.2 手順1）。
-    ///
-    /// `window`/`match_media` の失敗は「reduced-motion ではない」として
-    /// 扱う（`sidebar::wiring::wire_mobile` と同じ fail-safe 方針:
-    /// この判定はアニメーションをスキップするか否かのみに関わり、
-    /// 判定不能時に通常どおりアニメーションしても実害はない）。
-    fn prefers_reduced_motion() -> bool {
-        let Some(window) = web_sys::window() else {
-            return false;
-        };
-        match window.match_media("(prefers-reduced-motion: reduce)") {
-            Ok(Some(mql)) => mql.matches(),
-            _ => false,
-        }
-    }
-
     /// `style` の `property` を読み取る。未設定（空文字列）は `None`。
     fn read_property(style: &CssStyleDeclaration, property: &str) -> Option<(String, String)> {
         let value = style.get_property_value(property).ok()?;
@@ -1646,8 +1629,8 @@ mod wiring {
         }
     }
 
-    /// [`prefers_reduced_motion`]・[`to_local_delta`]・`Spring::new`・
-    /// `RafDriver::new` のいずれかが不成立の場合の即時終了経路
+    /// [`crate::reduced_motion::prefers_reduced_motion`]・[`to_local_delta`]・
+    /// `Spring::new`・`RafDriver::new` のいずれかが不成立の場合の即時終了経路
     /// （[`play`] 参照）。元の値へ即座に復元し、収束済み
     /// （[`FlipAnimation::is_done`] が `true`）の no-op ハンドルを返す。
     fn finished_animation(element: HtmlElement, original: OriginalStyle) -> FlipAnimation {
@@ -1768,7 +1751,12 @@ mod wiring {
         config: SpringConfig,
         original: OriginalStyle,
     ) -> FlipAnimation {
-        if prefers_reduced_motion() {
+        // a11y（実装計画 §3.2 手順 1）: reduced-motion 判定はクレート共通の
+        // [`crate::reduced_motion::prefers_reduced_motion`] へ一本化する
+        // （Bugbot 指摘、イシュー #2518）。判定不能時は共通ヘルパの
+        // fail-safe（`true` = アニメーションを抑止）に従い、FLIP のみが
+        // 別の既定で動く二重実装を持たない。
+        if crate::reduced_motion::prefers_reduced_motion() {
             return finished_animation(element, original);
         }
 
