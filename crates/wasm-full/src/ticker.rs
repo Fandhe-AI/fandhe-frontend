@@ -79,7 +79,26 @@ mod wiring {
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, PointerEvent};
+    use web_sys::{Element, Event, FocusEvent, PointerEvent};
+
+    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
+    /// （`crate::tabs_indicator::wiring::set_dom_attribute` と同じ方針・
+    /// 同じ 4 種のガードを経由する。`name`/`value` は `TICKER_ACTIVE_ATTR`
+    /// の固定リテラルだが、将来の変更に対する防御として同じガードを
+    /// 経由する。`fw gate` の `url_validation_check`〔U1〕契約は
+    /// `tabs_indicator.rs` の同関数 doc 参照）。
+    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+        if fandhe_frontend_core::is_event_handler_attr(name) {
+            return;
+        }
+        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
+            return;
+        }
+        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
+            return;
+        }
+        let _ = element.set_attribute(name, value);
+    }
 
     /// wire 中に生成した全 [`Ticker`] を保持する（モジュール doc「responsible
     /// boundary」節参照。`Element` はホバー委譲がどの ticker を制御すべきか
@@ -181,6 +200,34 @@ mod wiring {
         }
     }
 
+    /// `focusin`/`focusout` の委譲（`bubbles: true`、キャプチャ不要）:
+    /// JS 駆動時（`[data-fandhe-ticker-active]`）は CSS 側の
+    /// `root:focus-within` 一時停止規則が `animation: none` 化で効かなく
+    /// なるため、キーボードフォーカスも [`Ticker::set_focused`] 経由で
+    /// 同じ一時停止契約（WCAG 2.2.2）を満たす（codex-review・Cursor
+    /// Bugbot 指摘、イシュー #2540）。
+    fn handle_focus_visibility(
+        root: &Element,
+        event: &Event,
+        active: &ActiveTickers,
+        focused: bool,
+    ) {
+        if event.dyn_ref::<FocusEvent>().is_none() {
+            return;
+        }
+        let Some(target) = event_target_element(event) else {
+            return;
+        };
+        let Some(ticker_target) = resolve_ticker_target(root, &target) else {
+            return;
+        };
+        for (element, ticker) in active.borrow().iter() {
+            if *element == ticker_target {
+                ticker.set_focused(focused);
+            }
+        }
+    }
+
     /// `root` へ opt-in 要素を走査し、[`Ticker`] を起動してポインタ/scroll/
     /// resize イベントを配線する。`reduced_motion` が `true` なら何も
     /// 登録しない（モジュール doc「`prefers-reduced-motion: reduce` 時は
@@ -211,7 +258,7 @@ mod wiring {
             };
             let mut config = build_config(&ticker_root);
             config.direction_sign = read_direction_sign(&content);
-            let _ = ticker_root.set_attribute(TICKER_ACTIVE_ATTR, "");
+            set_dom_attribute(&ticker_root, TICKER_ACTIVE_ATTR, "");
             let ticker = Ticker::start(ticker_root.clone(), content, config);
             active.borrow_mut().push((ticker_root, ticker));
         }
@@ -243,6 +290,27 @@ mod wiring {
             true,
         )?;
         pointerout_closure.forget();
+
+        // `focusin`/`focusout` は既定でバブルするため（`focus`/`blur` と
+        // 異なる）キャプチャ登録は不要（`add_event_listener_with_callback`）。
+        let focusin_root = root.clone();
+        let focusin_active = Rc::clone(&active);
+        let focusin_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_focus_visibility(&focusin_root, &event, &focusin_active, true);
+        });
+        root.add_event_listener_with_callback("focusin", focusin_closure.as_ref().unchecked_ref())?;
+        focusin_closure.forget();
+
+        let focusout_root = root.clone();
+        let focusout_active = Rc::clone(&active);
+        let focusout_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_focus_visibility(&focusout_root, &event, &focusout_active, false);
+        });
+        root.add_event_listener_with_callback(
+            "focusout",
+            focusout_closure.as_ref().unchecked_ref(),
+        )?;
+        focusout_closure.forget();
 
         if let Some(window) = web_sys::window() {
             let scroll_active = Rc::clone(&active);

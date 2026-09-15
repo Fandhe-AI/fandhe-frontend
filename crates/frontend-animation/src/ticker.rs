@@ -107,17 +107,23 @@ pub fn effective_speed(
     if !base_speed.is_finite() || base_speed < 0.0 {
         return 0.0;
     }
-    let base = if hovered {
-        base_speed * hover_factor.clamp(0.0, 1.0)
-    } else {
-        base_speed
-    };
     let scroll_boost = if scroll_velocity.is_finite() && scroll_factor.is_finite() {
         scroll_velocity.abs() * scroll_factor.max(0.0)
     } else {
         0.0
     };
-    (base + scroll_boost).clamp(0.0, MAX_SPEED_PX_S)
+    // hover_factor は base_speed + scroll_boost を加算した合計へ適用する。
+    // base_speed にのみ適用すると `hover_factor = 0.0`（既定・完全停止契約）
+    // でも scroll_boost 分だけ動き続けてしまい、「hover 中は完全停止」の
+    // 契約が scroll 連動時に破れていた（PR #2582 codex-review P1・Cursor
+    // Bugbot 指摘）。
+    let total = base_speed + scroll_boost;
+    let total = if hovered {
+        total * hover_factor.clamp(0.0, 1.0)
+    } else {
+        total
+    };
+    total.clamp(0.0, MAX_SPEED_PX_S)
 }
 
 /// `offset`（px、`(-cycle_len, 0]` に正規化）を `speed * direction_sign` で
@@ -181,6 +187,103 @@ mod dom {
     use wasm_bindgen::JsCast;
     use web_sys::{Element, HtmlElement, Node};
 
+    /// `core/src/url.rs` の URL 検証ガード 4 種の crate-local な写し。
+    ///
+    /// 本クレートは `docs/design/animation-core-architecture.md` の方針
+    /// （`fandhe-animation` + wasm-bindgen/web-sys/js-sys のみに依存し、
+    /// `fandhe-frontend-core` 等の新規依存は追加しない）に従うため、
+    /// `fandhe-frontend-core` を依存追加する代わりに同じ判定ロジックを
+    /// このモジュール内へ複製する（`fw gate` の `url_validation_check`
+    /// U1 が要求する「DOM 属性 sink 呼び出しファイル内でのガード関数 4 種
+    /// 共起」を、新規依存を増やさず満たす）。本モジュールの `set_attribute`
+    /// 呼び出しは `aria-hidden`/`inert` の固定リテラルのみで URL 値を扱わ
+    /// ないが、fandhe-frontend-wasm-full::tabs_indicator（同型パターン）と同じく
+    /// 将来値が動的化した場合の防御として同じガードを経由する。
+    mod url_guard {
+        const URL_ATTRS: &[&str] = &[
+            "href",
+            "src",
+            "action",
+            "formaction",
+            "xlink:href",
+            "poster",
+            "cite",
+            "data",
+            "background",
+            "ping",
+            "dynsrc",
+            "lowsrc",
+        ];
+
+        pub fn is_url_attr(name: &str) -> bool {
+            URL_ATTRS.iter().any(|a| a.eq_ignore_ascii_case(name))
+        }
+
+        pub fn is_event_handler_attr(name: &str) -> bool {
+            name.len() > 2
+                && name.as_bytes()[0].eq_ignore_ascii_case(&b'o')
+                && name.as_bytes()[1].eq_ignore_ascii_case(&b'n')
+        }
+
+        pub fn is_safe_url(value: &str) -> bool {
+            let stripped: String = value
+                .chars()
+                .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+                .collect();
+            let trimmed =
+                stripped.trim_start_matches(|c: char| c.is_control() || c.is_whitespace());
+            match extract_scheme(trimmed) {
+                None => true,
+                Some(scheme) => {
+                    scheme.eq_ignore_ascii_case("http")
+                        || scheme.eq_ignore_ascii_case("https")
+                        || scheme.eq_ignore_ascii_case("mailto")
+                        || scheme.eq_ignore_ascii_case("tel")
+                }
+            }
+        }
+
+        pub fn is_safe_srcset(value: &str) -> bool {
+            value.split(',').all(|candidate| {
+                let url_part = candidate.split_whitespace().next().unwrap_or("");
+                is_safe_url(url_part)
+            })
+        }
+
+        fn extract_scheme(s: &str) -> Option<&str> {
+            let colon_idx = s.find(':')?;
+            let candidate = &s[..colon_idx];
+            if candidate.contains(['/', '?', '#', '\\']) {
+                return None;
+            }
+            let mut chars = candidate.chars();
+            match chars.next() {
+                Some(c) if c.is_ascii_alphabetic() => {}
+                _ => return None,
+            }
+            if !chars.all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '.' || c == '-') {
+                return None;
+            }
+            Some(candidate)
+        }
+    }
+
+    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
+    /// （fandhe-frontend-wasm-full::tabs_indicator の `set_dom_attribute` と
+    /// 同じ方針・同じ 4 種のガードを経由する）。
+    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+        if url_guard::is_event_handler_attr(name) {
+            return;
+        }
+        if url_guard::is_url_attr(name) && !url_guard::is_safe_url(value) {
+            return;
+        }
+        if name.eq_ignore_ascii_case("srcset") && !url_guard::is_safe_srcset(value) {
+            return;
+        }
+        let _ = element.set_attribute(name, value);
+    }
+
     /// `element` の内容領域の長さ（`Axis::Horizontal` なら幅・`Vertical`
     /// なら高さ）を `getBoundingClientRect()` から読む。
     #[must_use]
@@ -228,8 +331,8 @@ mod dom {
             let Ok(clone_element) = clone.dyn_into::<Element>() else {
                 break;
             };
-            let _ = clone_element.set_attribute("aria-hidden", "true");
-            let _ = clone_element.set_attribute("inert", "");
+            set_dom_attribute(&clone_element, "aria-hidden", "true");
+            set_dom_attribute(&clone_element, "inert", "");
             if root.append_child(&clone_element as &Node).is_err() {
                 break;
             }
@@ -252,7 +355,8 @@ mod dom {
     pub struct Ticker {
         _loop: AnimationLoop,
         hovered: Rc<Cell<bool>>,
-        scroll_velocity: Rc<Cell<f64>>,
+        focused: Rc<Cell<bool>>,
+        scroll_distance: Rc<Cell<f64>>,
         resize_pending: Rc<Cell<bool>>,
     }
 
@@ -275,7 +379,8 @@ mod dom {
                 return Self {
                     _loop: AnimationLoop::start(|| false),
                     hovered: Rc::new(Cell::new(false)),
-                    scroll_velocity: Rc::new(Cell::new(0.0)),
+                    focused: Rc::new(Cell::new(false)),
+                    scroll_distance: Rc::new(Cell::new(0.0)),
                     resize_pending: Rc::new(Cell::new(false)),
                 };
             };
@@ -289,7 +394,12 @@ mod dom {
             );
 
             let hovered = Rc::new(Cell::new(false));
+            let focused = Rc::new(Cell::new(false));
+            // scroll_velocity 自体は self へは保持しない（AnimationLoop の
+            // クロージャが Rc::clone を捕捉して生存させれば十分で、self 経由の
+            // 再アクセス手段は不要なため、保持すると `dead_code` になる）。
             let scroll_velocity = Rc::new(Cell::new(0.0));
+            let scroll_distance = Rc::new(Cell::new(0.0));
             let resize_pending = Rc::new(Cell::new(false));
             let offset = Rc::new(Cell::new(0.0_f64));
             let last_ms: Rc<Cell<Option<f64>>> = Rc::new(Cell::new(None));
@@ -299,12 +409,27 @@ mod dom {
             let step_content = content;
             let step_content_html = content_html;
             let step_hovered = Rc::clone(&hovered);
+            let step_focused = Rc::clone(&focused);
             let step_scroll_velocity = Rc::clone(&scroll_velocity);
+            let step_scroll_distance = Rc::clone(&scroll_distance);
             let step_resize_pending = Rc::clone(&resize_pending);
             let step_offset = Rc::clone(&offset);
             let step_last_ms = Rc::clone(&last_ms);
 
             let animation_loop = AnimationLoop::start(move || {
+                // `root` が DOM から切断済み（SPA のルート遷移・コンポーネント
+                // 破棄等）なら以後の計測・書き込みは無意味なうえ rAF ループが
+                // 無期限に走り続けて CPU を消費し続ける。`wire_ticker` は
+                // window にリスナーを `forget()` するため呼び出し元が
+                // `Ticker` を明示的に stop できず、マウント/破棄を繰り返す
+                // ほどループが累積するリークになっていた（PR #2582
+                // codex-review P1 指摘）。`false` を返して `AnimationLoop` を
+                // 自己停止させる（`crate::raf_driver::AnimationLoop::start`
+                // doc「`step` が `false` を返したら自動停止」契約）。
+                if !step_root.is_connected() {
+                    return false;
+                }
+
                 let now_ms = web_sys::window()
                     .and_then(|w| w.performance())
                     .map(|p| p.now());
@@ -325,14 +450,34 @@ mod dom {
                     );
                 }
 
-                let scroll_velocity_now = super::decay_velocity(step_scroll_velocity.get());
+                // 1 フレーム内で届いた scroll イベントの合計移動距離
+                // （`push_scroll_delta` が蓄積）を、このフレームの実経過時間
+                // （`dt_ms`）で割って今フレーム分の速度成分を得る。イベント
+                // ごとの瞬間速度（delta/イベント間隔）を単純合算する旧実装は
+                // 同一フレーム内の細切れイベント数に比例して速度が過大評価
+                // される不具合があった（Cursor Bugbot 指摘、イシュー #2540）。
+                let frame_distance = step_scroll_distance.replace(0.0);
+                let frame_scroll_velocity = if dt_ms > 0.0 {
+                    frame_distance / (dt_ms / 1000.0)
+                } else {
+                    0.0
+                };
+                let scroll_velocity_now =
+                    super::decay_velocity(step_scroll_velocity.get()) + frame_scroll_velocity;
                 step_scroll_velocity.set(scroll_velocity_now);
 
                 let content_len =
                     measure_len(&step_content, config.axis) + read_gap_px(&step_content_html);
+                // hover（ポインタ）・keyboard focus のいずれかが一時停止条件
+                // （WCAG 2.2.2）。JS 駆動時は `animation: none` へ切り替わり
+                // 既存 CSS の `:focus-within` 一時停止が効かなくなるため、
+                // `wire_ticker` 側で `focusin`/`focusout` も同じ `hovered`
+                // 相当の一時停止として配線する（`set_focused` 参照。Cursor
+                // Bugbot・codex-review 指摘）。
+                let paused = step_hovered.get() || step_focused.get();
                 let speed = super::effective_speed(
                     config.speed_px_s,
-                    step_hovered.get(),
+                    paused,
                     config.hover_factor,
                     scroll_velocity_now,
                     config.scroll_factor,
@@ -352,7 +497,8 @@ mod dom {
             Self {
                 _loop: animation_loop,
                 hovered,
-                scroll_velocity,
+                focused,
+                scroll_distance,
                 resize_pending,
             }
         }
@@ -361,17 +507,25 @@ mod dom {
             self.hovered.set(hovered);
         }
 
-        /// `scroll` イベントのデルタ（px）と経過時間（ms）から瞬間速度を
-        /// 計算し、内部の scroll 速度へ加算する。
+        /// キーボードフォーカス（`focusin`/`focusout`）による一時停止を
+        /// 設定する。JS 駆動時（`animation: none` + `transform` 駆動）は
+        /// 既存 CSS の `root:focus-within` 一時停止規則が効かないため、
+        /// `wire_ticker` がこのメソッド経由で hover と同じ一時停止契約を
+        /// 満たす（モジュール doc・`Ticker::start` 内コメント参照）。
+        pub fn set_focused(&self, focused: bool) {
+            self.focused.set(focused);
+        }
+
+        /// `scroll` イベントのデルタ（px）を今フレーム分の移動距離として
+        /// 蓄積する。実際の速度計算は毎フレーム 1 回、`Ticker::start` の
+        /// アニメーションループがこの蓄積距離をフレームの実経過時間で
+        /// 割って行う（同型パターンは同ループ内コメント参照）。
         pub fn push_scroll_delta(&self, delta_px: f64, dt_ms: f64) {
             if !delta_px.is_finite() || dt_ms <= 0.0 {
                 return;
             }
-            let instantaneous = delta_px / (dt_ms / 1000.0);
-            if instantaneous.is_finite() {
-                self.scroll_velocity
-                    .set(self.scroll_velocity.get() + instantaneous);
-            }
+            self.scroll_distance
+                .set(self.scroll_distance.get() + delta_px);
         }
 
         /// 次フレームでの再計測・複製数再調整を要求する。
@@ -433,6 +587,14 @@ mod tests {
     #[test]
     fn effective_speed_adds_scroll_boost() {
         assert_eq!(effective_speed(80.0, false, 0.0, 100.0, 0.2), 100.0);
+    }
+
+    #[test]
+    fn effective_speed_hover_stop_applies_to_scroll_boost_too() {
+        // hover 中は既定 hover_factor=0.0 で「完全停止」契約。scroll_boost が
+        // 加算後に無視され動き続ける回帰を防ぐ（PR #2582 codex-review P1・
+        // Cursor Bugbot 指摘）。
+        assert_eq!(effective_speed(80.0, true, 0.0, 100.0, 0.2), 0.0);
     }
 
     #[test]

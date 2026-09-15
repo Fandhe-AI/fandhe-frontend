@@ -180,7 +180,13 @@ pub const MARQUEE_MOTION_CSS: &str = concat!(
     "  flex-direction: column;\n",
     "  mask-image: linear-gradient(to bottom, transparent, black var(--fandhe-marquee-fade, 0px), black calc(100% - var(--fandhe-marquee-fade, 0px)), transparent);\n",
     "}\n",
-    "[data-scope=\"marquee\"][data-part=\"content\"][data-axis=\"vertical\"] {\n",
+    // `content` パーツは `[`ticker`]` から `data-axis` を受け取らない（root
+    // にのみ前置される、モジュール doc「他クレートとの契約」節）。よって
+    // `[data-part="content"][data-axis="vertical"]` の直接属性セレクタは
+    // 生成 DOM と一致せず常に不一致だった（PR #2582 codex-review P1・Cursor
+    // Bugbot 指摘）。root 側の `data-axis` を起点にした子孫セレクタへ
+    // 修正する（下の `[data-fandhe-ticker-active]` ブロックと同型）。
+    "[data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] [data-part=\"content\"] {\n",
     "  flex-direction: column;\n",
     "  min-width: auto;\n",
     "  min-height: max-content;\n",
@@ -202,9 +208,20 @@ pub const MARQUEE_MOTION_CSS: &str = concat!(
     "  transform: translateY(var(--fandhe-marquee-ticker-offset, 0px));\n",
     "}\n",
     "\n@media (prefers-reduced-motion: reduce) {\n",
-    "  [data-scope=\"marquee\"][data-part=\"content\"][data-axis=\"vertical\"] {\n",
+    "  [data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] [data-part=\"content\"] {\n",
     "    animation: none;\n",
     "    min-height: 0;\n",
+    "  }\n",
+    // `marquee.rs` の reduced-motion ブロックは
+    // `[data-scope][data-part="root"]` （属性セレクタ 2 個、`root` へ
+    // `mask-image: none` を課す）を持つが、上の縦方向 `root` ルール
+    // （`@media` 外・属性セレクタ 3 個）の方が詳細度が高く、reduced-motion
+    // 環境でも常に上書き勝ちしてフェードが復活していた（PR #2582
+    // codex-review P1 指摘）。同じ詳細度（3 個）の上書きをこの `@media`
+    // ブロックの末尾（カスケード順で最後）へ追記し、静止状態でも両端が
+    // 隠れたままにならないようにする。
+    "  [data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] {\n",
+    "    mask-image: none;\n",
     "  }\n",
     "}\n",
 );
