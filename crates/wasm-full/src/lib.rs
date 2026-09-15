@@ -496,6 +496,7 @@ pub mod tabs_indicator;
 pub mod tooltip;
 pub mod view_transition;
 pub mod view_transition_name;
+pub mod view_transition_preset;
 
 // イシュー #1120: `wasm-bindgen-exports` feature（既定 on）でエクスポート面を
 // 切り離せるようにする。`entry` はアプリ側の薄い `#[wasm_bindgen]`
@@ -2893,6 +2894,15 @@ where
     ///
     /// [`Self::rerender`] と同じく、`component` の借用に失敗した場合
     /// （イベントハンドラ内からの再入等）は no-op とする。
+    ///
+    /// イシュー #2516: [`Self::apply_with_view_transition_named`] が
+    /// `data-fandhe-view-transition` 属性（[`view_transition_preset::
+    /// VIEW_TRANSITION_PRESET_ATTR`]）を設定した後に本メソッド（unnamed）
+    /// を呼ぶと、named プリセットの見た目が意図せず残留してしまう
+    /// （named/unnamed 混在時の不整合）。この属性の設定/除去は
+    /// [`crate::view_transition::with_view_transition`]（`preset: None`）
+    /// が一元管理するため、`nav.rs` 側の router 遷移を含む全呼び出し元が
+    /// この是正の恩恵を受ける（詳細は同関数の rustdoc 参照）。
     #[cfg(feature = "view-transitions")]
     pub fn apply_with_view_transition(&self) {
         let Ok(document) = Self::document() else {
@@ -2908,22 +2918,98 @@ where
         let binding_table = self.binding_table.clone();
         let keyed_list_cache = self.keyed_list_cache.clone();
         let doc_for_apply = document.clone();
-        crate::view_transition::with_view_transition(&document, move || {
-            let Ok(state) = component.try_borrow() else {
-                return;
-            };
-            let view = state.view();
-            drop(state);
-            let Some(new_node) = fandhe_frontend_wasm_client::build_dom_node(&doc_for_apply, &view)
-            else {
-                web_sys::console::warn_1(
-                    &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition could not \
-                      build replacement DOM (unsupported node), keeping existing DOM"
-                        .into(),
-                );
-                return;
-            };
-            Self::apply_subtree_swap(&root, &new_node, &binding_table, &keyed_list_cache);
+        crate::view_transition::with_view_transition(&document, None, move || {
+            Self::view_transition_swap(
+                &component,
+                &root,
+                &binding_table,
+                &keyed_list_cache,
+                &doc_for_apply,
+            );
+        });
+    }
+
+    /// [`Self::apply_with_view_transition`]・
+    /// [`Self::apply_with_view_transition_named`] が共有する「最新
+    /// `component` 状態から新規 DOM を構築し [`Self::apply_subtree_swap`]
+    /// で差し替える」ロジック本体（イシュー #2516 で抽出）。
+    /// `document.startViewTransition()` の update コールバック内から
+    /// 呼ばれる想定であり、`component`/`build_dom_node` の解決に失敗
+    /// した場合は [`Self::apply_with_view_transition`] と同じ固定英語
+    /// 文言で `console::warn` し no-op とする。[`Self::apply_with_view_transition`]
+    /// （feature `"view-transitions"`）・[`Self::apply_with_view_transition_named`]
+    /// （feature `"view-transition-preset"`）の双方から呼ばれるため、
+    /// いずれか一方のみが有効な構成でも未使用にならないよう `any(...)` で
+    /// ゲートする。
+    #[cfg(any(feature = "view-transitions", feature = "view-transition-preset"))]
+    fn view_transition_swap(
+        component: &std::rc::Rc<std::cell::RefCell<C>>,
+        root: &web_sys::Element,
+        binding_table: &std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+        document: &web_sys::Document,
+    ) {
+        let Ok(state) = component.try_borrow() else {
+            return;
+        };
+        let view = state.view();
+        drop(state);
+        let Some(new_node) = fandhe_frontend_wasm_client::build_dom_node(document, &view) else {
+            web_sys::console::warn_1(
+                &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition could not \
+                  build replacement DOM (unsupported node), keeping existing DOM"
+                    .into(),
+            );
+            return;
+        };
+        Self::apply_subtree_swap(root, &new_node, binding_table, keyed_list_cache);
+    }
+
+    /// [`Self::apply_with_view_transition`] と同じ全再描画ロジックを、
+    /// named view transition プリセット（[`view_transition_preset::
+    /// ViewTransitionPreset`]）選択付きで実行する公開 API（イシュー
+    /// #2516）。`fandhe-frontend-pre-styled-ui::view_transition` の
+    /// fade/slide/wipe CSS プリセットが参照する `data-fandhe-view-transition`
+    /// 属性の設定は [`crate::view_transition::with_view_transition`]
+    /// （`preset: Some(preset)`）が担う（`document.startViewTransition()`
+    /// 呼び出し前に同期的に設定されるため、ブラウザが遷移のスナップショットを
+    /// 撮る時点で既に反映済み）。
+    ///
+    /// feature `"view-transition-preset"`（既定 on）でゲートされる。
+    /// `document`/`build_dom_node` の解決に失敗した場合は
+    /// [`Self::apply_with_view_transition`] と同じ fail-safe 方針
+    /// （固定英語文言で `console::warn` し既存 DOM を維持、panic
+    /// しない）。
+    #[cfg(feature = "view-transition-preset")]
+    pub fn apply_with_view_transition_named(
+        &self,
+        preset: crate::view_transition_preset::ViewTransitionPreset,
+    ) {
+        let Ok(document) = Self::document() else {
+            web_sys::console::warn_1(
+                &"fandhe-frontend-wasm-full: Runtime apply_with_view_transition_named could not \
+                  access document, keeping existing DOM"
+                    .into(),
+            );
+            return;
+        };
+        let component = self.component.clone();
+        let root = self.root.clone();
+        let binding_table = self.binding_table.clone();
+        let keyed_list_cache = self.keyed_list_cache.clone();
+        let doc_for_apply = document.clone();
+        crate::view_transition::with_view_transition(&document, Some(preset), move || {
+            Self::view_transition_swap(
+                &component,
+                &root,
+                &binding_table,
+                &keyed_list_cache,
+                &doc_for_apply,
+            );
         });
     }
 }

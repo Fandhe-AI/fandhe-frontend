@@ -166,6 +166,30 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   再計算結果と `crates/pre-styled-ui/tests/motion_spring_css.rs` が
   パリティ検証しています。
 
+- **named view transition CSS プリセット（イシュー #2516、
+  `crates/pre-styled-ui/src/view_transition.rs`）**: `document.
+  startViewTransition()` によるページ遷移の見た目を fade/slide/wipe の
+  3 種から選べるようにする、Motion+ Curtains 相当の基本形です。
+  - `view_transition::VIEW_TRANSITION_PRESET_ATTR`
+    （`"data-fandhe-view-transition"`）: プリセット選択の属性名。
+    `fandhe-frontend-wasm-full::view_transition_preset::
+    VIEW_TRANSITION_PRESET_ATTR` と同一リテラルで、両クレート間の契約は
+    この文字列一致のみです（Cargo 依存は発生しません）。
+  - `view_transition::VIEW_TRANSITION_PRESETS_CSS`: `:root[data-fandhe-
+    view-transition="fade|slide|wipe"]::view-transition-old(root)`/
+    `::view-transition-new(root)` の 3 プリセット CSS 全文。
+  - `Theme::to_css_with_view_transition_presets()`: `Theme::to_css()` の
+    出力へ `VIEW_TRANSITION_PRESETS_CSS` を追記して返す opt-in メソッド。
+  - プリセットの属性設定自体（`document.documentElement` への set/
+    remove）は `fandhe-frontend-wasm-full::Runtime::
+    apply_with_view_transition_named`（feature `view-transition-preset`）
+    が担い、本クレートは CSS のみを持ちます。
+  - 各 `animation-duration` は `--fandhe-motion-duration-slow` トークン
+    経由のため、`prefers-reduced-motion: reduce` 下では自動的に `0ms` へ
+    上書きされます。加えて `@media (prefers-reduced-motion: reduce)`
+    ブロックで 3 プリセットの old/new(root) へ `animation: revert;` を
+    明示的に再宣言し、UA 既定のクロスフェードへ戻します。
+
 ## 3. 無効時ゼロコスト保証の内容
 
 | 指標 | 保証内容 | 対応する契約テスト |
@@ -245,5 +269,6 @@ cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_sc
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_border_beam_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_parallax_css --test motion_sticky_progress_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_forms_css --locked
+cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_view_transition_css --locked
 cargo tree   -p fandhe-frontend-pre-styled-ui -e normal --prefix none --locked | grep -c fandhe-animation   # 0
 ```

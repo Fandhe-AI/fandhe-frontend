@@ -1,7 +1,7 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 24 件・
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 25 件・
 scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
@@ -160,6 +160,15 @@ feature（0.32.0 で追加、イシュー #2519）も `scroll-driver`/`confetti`
 （`is_valid_view_transition_name`）はゲート対象外です。off にすると
 `set_view_transition_name` が使えなくなります。
 
+`view-transition-preset` feature（0.32.3 で追加、イシュー #2516）も別枠
+です。`Runtime::apply_with_view_transition_named`（named view transition
+プリセット選択、`view_transition_preset::ViewTransitionPreset`）という
+公開メソッドの存在をゲートします。`view_transition_preset` モジュール自体・
+`VIEW_TRANSITION_PRESET_ATTR`/`ViewTransitionPreset` はゲート対象外です。
+off にすると `apply_with_view_transition_named` が使えなくなります
+（`apply_with_view_transition`〔unnamed、`view-transitions` feature〕は
+影響を受けません）。
+
 `animate` feature（0.25.0 で追加、イシュー #2398）も同じく別枠です。
 ただし `position`/`stagger`/`view-transition-name` とは異なり、ゲート
 対象の `wire_*` 呼び出し自体が存在しません。optional 依存
@@ -245,19 +254,20 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.29.0 | `scroll-driver` の挙動拡張（`data-fandhe-scroll-progress`、イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ） |
 | 0.30.0 | `drag-gesture` feature（イシュー #2535。本 PR（#2535）と main（#2534）が独立に 0.28.0 から 0.29.0 へ同一版数バンプしており衝突。`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して 0.30.0 とした） |
 | 0.31.0 | `hold-to-confirm`/`add-to-basket` feature（イシュー #2538。本 PR（#2535 到達の 0.30.0）と main（#2538 到達の 0.30.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.31.0 とする） |
-| 0.32.0 | 2 系統が独立に到達（いずれも本表では同一版数として記載）: (1) `svg-path` feature（イシュー #2519、main。既に 0.31.0 に到達済みのため +1 して 0.32.0 とした）、(2) `magnetic` feature（イシュー #2550、本 PR。本 PR（#2550 到達の 0.31.0）と main（#2538 取り込み後到達の 0.31.0）が独立に同一版数へバンプしており衝突、#638 条項に従い +1 して 0.32.0 とした）。base main 取り込み時、本 PR 側の到達値（下記 0.32.2）が main の到達値（0.32.0）を上回るため、そのまま維持する（さらなる衝突バンプ不要） |
+| 0.32.0 | 2 系統が独立に到達（いずれも本表では同一版数として記載）: (1) `svg-path` feature（イシュー #2519、main。既に 0.31.0 に到達済みのため +1 して 0.32.0 とした）、(2) `magnetic` feature（イシュー #2550、本 PR とは別ブランチ。#2550 到達の 0.31.0 と main（#2538 取り込み後到達の 0.31.0）が独立に同一版数へバンプしており衝突、#638 条項に従い +1 して 0.32.0 とした） |
 | 0.32.1 | magnetic の中心計算を transform 込みの矩形から静止位置基準へ是正（イシュー #2550、PR #2572 Bugbot 指摘。公開 API は変更しないため patch バンプ） |
 | 0.32.2 | magnetic の中心計算を transition 中も決定的にする再是正（イシュー #2550、PR #2572 codex-review P1 指摘。公開 API は変更しないため patch バンプ） |
+| 0.32.3 | `view-transition-preset` feature（イシュー #2516。本 PR 到達値が main 取り込み時点の到達値（0.32.2）を上回るよう +1 した） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 47 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 48 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.32.0"
+version = "0.32.3"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -291,6 +301,7 @@ features = [
   "animation-driver",
   "view-transitions",
   "view-transition-name",
+  "view-transition-preset",
   "animate",
   "accordion",
   "calendar",

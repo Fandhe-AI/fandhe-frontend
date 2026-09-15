@@ -1231,8 +1231,14 @@ name = "fandhe-frontend-wasm-full"
 # feature `svg-path` 既定 on）を追加し、独立に 0.31.0 から 0.32.0 へ minor
 # バンプしていた。本ブランチ（0.32.2）は origin/main の到達値（0.32.0）を
 # すでに上回っており同一版数の衝突には該当しないため、本ブランチの到達値
-# 0.32.2 をそのまま維持する。
-version = "0.32.2"
+# 0.32.2 をそのまま維持していた。
+#
+# イシュー #2516（本 PR）: `Runtime::apply_with_view_transition_named`
+# （named view transition プリセット選択）・`view_transition_preset`
+# モジュール・feature `view-transition-preset`（既定 on）を追加した新規
+# 公開 API 追加のため minor バンプする。origin/main 取り込み時点の到達値
+# （0.32.2）を上回るよう +1 した 0.32.3 とする。
+version = "0.32.3"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1779,6 +1785,7 @@ default = [
   "animation-driver",
   "view-transitions",
   "view-transition-name",
+  "view-transition-preset",
   "animate",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
@@ -1933,6 +1940,12 @@ view-transitions = []
 # 同型のパターン）。`view_transition_name` モジュール自体・
 # `is_valid_view_transition_name` 純粋関数はゲートしない。
 view-transition-name = []
+# イシュー #2516: `Runtime::apply_with_view_transition_named`（named view
+# transition プリセット選択、`crate::view_transition_preset`）専用の
+# feature（既定 on）。`view_transition_preset::VIEW_TRANSITION_PRESET_ATTR`・
+# `ViewTransitionPreset` 純粋層はゲートしない（`view-transition-name` と
+# 同型の方針）。`fandhe-frontend-animation` への依存追加は伴わない。
+view-transition-preset = []
 # イシュー #2398: `fandhe-frontend-animation`（optional 依存、#2417）を
 # 有効化するだけの feature（既定 on）。`Runtime::mount`/`hydrate` の `wire_*`
 # 呼び出しを一切ゲートしない（対応する自動配線が未実装のため。`data-*`

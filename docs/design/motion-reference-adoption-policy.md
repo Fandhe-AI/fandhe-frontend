@@ -77,6 +77,7 @@ TypeScript コード転写は行わない）。
 | hover/disabled/transition の共通ビジュアル言語 | `docs/design/pre-styled-ui-interaction-visual-language.md`（#1425） | hover/press の transition プリセット | A |
 | collapsible/accordion 高さ遷移（実測高さを CSS 変数へ供給） | `crates/wasm-full/src/content_height.rs`（#2191、設計評価は `docs/design/collapsible-height-animation.md` 案 C） | layout（高さの FLIP 相当）・presence | B（現状の実装は実測値供給のみ）/ 真の layout FLIP（要素間の位置補間）は C 相当で未実装 |
 | nav の View Transitions ラッパ | `crates/wasm-full/src/nav.rs`（`document.startViewTransition` の機能検出・呼び出し、#404） | View Transitions API（Motion の `layout` とは別系統のブラウザ機能） | B |
+| named view transition CSS プリセット（fade/slide/wipe） | `crates/pre-styled-ui/src/view_transition.rs`（`motion` feature 配下、#2516）・`crates/wasm-full/src/view_transition_preset.rs`（プリセット選択の属性配線） | Motion+ `Curtains` 相当（ページ全体の root 遷移基本形） | A |
 | confetti パーティクル物理・canvas 発火 | `crates/animation/src/confetti.rs`（決定的物理演算）・`crates/frontend-animation/src/{canvas_target,confetti}.rs`（canvas 2D 描画・rAF 駆動）・`crates/wasm-full/src/confetti.rs`（クリック委譲配線、#2533） | Motion+ `components/confetti` | C |
 
 ## 6. 3層構成（判断記録5/9の具体化）

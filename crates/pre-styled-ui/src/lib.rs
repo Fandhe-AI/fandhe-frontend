@@ -867,6 +867,8 @@ pub mod toolbar;
 pub mod tooltip;
 pub mod tour;
 pub mod tree_view;
+#[cfg(feature = "motion")]
+pub mod view_transition;
 pub mod visually_hidden;
 
 pub use alert::{AlertProps, AlertStatus, AlertVariant};
