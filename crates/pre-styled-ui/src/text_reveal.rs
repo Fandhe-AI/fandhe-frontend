@@ -193,7 +193,12 @@ fn is_regional_indicator(c: char) -> bool {
 /// （結合子音・母音記号を持つ）のコードブロック。
 fn requires_complex_script_fallback(c: char) -> bool {
     matches!(c,
-        '\u{0900}'..='\u{097F}' // Devanagari
+        '\u{0600}'..='\u{06FF}' // Arabic
+        | '\u{0750}'..='\u{077F}' // Arabic Supplement
+        | '\u{08A0}'..='\u{08FF}' // Arabic Extended-A
+        | '\u{FB50}'..='\u{FDFF}' // Arabic Presentation Forms-A
+        | '\u{FE70}'..='\u{FEFF}' // Arabic Presentation Forms-B
+        | '\u{0900}'..='\u{097F}' // Devanagari
         | '\u{0980}'..='\u{09FF}' // Bengali
         | '\u{0A00}'..='\u{0A7F}' // Gurmukhi
         | '\u{0A80}'..='\u{0AFF}' // Gujarati
@@ -203,6 +208,7 @@ fn requires_complex_script_fallback(c: char) -> bool {
         | '\u{0C80}'..='\u{0CFF}' // Kannada
         | '\u{0D00}'..='\u{0D7F}' // Malayalam
         | '\u{0D80}'..='\u{0DFF}' // Sinhala
+        | '\u{0E00}'..='\u{0E7F}' // Thai
         | '\u{0E80}'..='\u{0EFF}' // Lao
         | '\u{0F00}'..='\u{0FFF}' // Tibetan
         | '\u{1000}'..='\u{109F}' // Myanmar
@@ -218,6 +224,10 @@ fn requires_complex_script_fallback(c: char) -> bool {
 /// ZWJ シーケンス・結合分音記号・字形選択子・絵文字肌色修飾子・地域指示
 /// 記号ペアを直前のクラスタへ結合し、残りは 1 スカラー値 1 クラスタと
 /// する。
+///
+/// codex-review P1 指摘・Bugbot 指摘（アラビア文字・タイ文字の欠落）を
+/// 受け、対象コードブロックへアラビア文字（連結字形/シェーピングを要する）・
+/// タイ文字（前置母音・結合記号を要する）を追加した。
 fn grapheme_clusters(word: &str) -> Vec<&str> {
     if word.chars().any(requires_complex_script_fallback) {
         return vec![word];
@@ -537,6 +547,28 @@ mod tests {
     fn grapheme_clusters_falls_back_to_whole_word_for_devanagari() {
         // "नमस्ते"（こんにちは）。
         let word = "\u{0928}\u{092E}\u{0938}\u{094D}\u{0924}\u{0947}";
+        let clusters = grapheme_clusters(word);
+        assert_eq!(clusters, vec![word]);
+    }
+
+    // codex-review P1 指摘: アラビア文字は連結字形（シェーピング）を持つ
+    // ため、単語全体を 1 クラスタへフォールバックしないと分割された各
+    // 文字がアニメーション後・reduced-motion 時も元の字形に戻らない。
+    #[test]
+    fn grapheme_clusters_falls_back_to_whole_word_for_arabic() {
+        // "سلام"（こんにちは）。
+        let word = "\u{0633}\u{0644}\u{0627}\u{0645}";
+        let clusters = grapheme_clusters(word);
+        assert_eq!(clusters, vec![word]);
+    }
+
+    // Bugbot 指摘: タイ文字ブロックが `requires_complex_script_fallback` から
+    // 欠落していた（前置母音・結合記号を持つため単語全体フォールバックが
+    // 必要）。
+    #[test]
+    fn grapheme_clusters_falls_back_to_whole_word_for_thai() {
+        // "สวัสดี"（こんにちは）。
+        let word = "\u{0E2A}\u{0E27}\u{0E31}\u{0E2A}\u{0E14}\u{0E35}";
         let clusters = grapheme_clusters(word);
         assert_eq!(clusters, vec![word]);
     }
