@@ -83,11 +83,31 @@ use fandhe_frontend_pre_styled_ui::Size;
 
 /// 装飾用の自作幾何アイコン（lucide 等の著作物を複製しないための単純図形、
 /// `bento_staggered::geo_icon` と同型の判断）。
+///
+/// `path` へ `fill="none"` + `stroke="currentColor"` を明示し、`icon` の
+/// `<svg>` 側が固定で持つ `fill="currentColor"`（塗り面）を上書きして
+/// 線画（ストローク）として描画する。`ITEMS` の一部（Live Dashboards 等）
+/// の `icon_path_d` は複数の独立した開いた線分（例:
+/// `"M4 20V10M10 20V4M16 20v-7M22 20V2"`）で構成され、囲まれた面積を
+/// 持たないため塗り面（`fill`）のみでは何も描画されない
+/// （`bento_staggered::geo_icon` の `Smart Search` アイテムが同じ理由で
+/// `circle`/`path` へ個別に `stroke` を上書きしているのと同型の対処）。
 fn geo_icon(path_d: &'static str) -> Node {
     icon(
         &IconProps::default(),
         vec![],
-        vec![el("path", vec![("d", path_d)], vec![])],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
     )
 }
 
