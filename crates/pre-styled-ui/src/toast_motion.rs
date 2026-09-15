@@ -83,6 +83,7 @@
 
 use crate::fandhe_frontend_core::keyed::{keyed_list, KeyedListError};
 use crate::fandhe_frontend_core::Node;
+use crate::recipe::stagger_index_style;
 use crate::toast::ToastPlacement;
 
 /// opt-in（呼び出し側が group の `attrs` へ渡す、値は空文字列）: 積層
@@ -146,11 +147,27 @@ pub const TOAST_STACK_CSS: &str = concat!(
     "  opacity: 0;\n",
     "  pointer-events: none;\n",
     "}\n",
-    // hover/focus-within で展開（display を戻すのみ。flex-direction は
-    // base/variant 規則が既に宣言済みのため再指定不要 — display が
-    // flex/inline-flex に戻った時点で自動的に有効化される）。
+    // hover/focus-within で展開（display を戻す）。base の group は
+    // `crate::toast::stylesheet` で `pointer-events: none`（カード間の
+    // 隙間はクリックスルーさせる設計）だが、展開中はカード間の隙間に
+    // カーソルが入ると group 自身がヒットテスト対象から外れ :hover が
+    // 途切れて積層状態へ戻ってしまうため、展開中のみ group へ
+    // `pointer-events: auto` を明示する。
     "[data-scope=\"toast\"][data-part=\"group\"][data-fandhe-toast-stack]:is(:hover, :focus-within) {\n",
     "  display: flex;\n",
+    "  pointer-events: auto;\n",
+    "}\n",
+    // base（`crate::toast::stylesheet`）は「末尾追加・最古が先頭」の通常
+    // キュー前提で bottom 系=column・top 系=column-reverse を宣言するが、
+    // 本モジュールは「新しい通知が先頭（DOM 最初の子）」契約（モジュール
+    // 冒頭「DOM 順の契約」節）のため展開時は逆にする必要がある: bottom 系
+    // は先頭（最新）を端（下端）に近づけるため column-reverse、top 系は
+    // 先頭（最新）を端（上端）に近づけるため column で上書きする。
+    "[data-scope=\"toast\"][data-part=\"group\"][data-fandhe-toast-stack][data-placement^=\"bottom\"]:is(:hover, :focus-within) {\n",
+    "  flex-direction: column-reverse;\n",
+    "}\n",
+    "[data-scope=\"toast\"][data-part=\"group\"][data-fandhe-toast-stack][data-placement^=\"top\"]:is(:hover, :focus-within) {\n",
+    "  flex-direction: column;\n",
     "}\n",
     "[data-scope=\"toast\"][data-part=\"group\"][data-fandhe-toast-stack]:is(:hover, :focus-within) > [data-scope=\"toast\"][data-part=\"root\"] {\n",
     "  translate: none;\n",
@@ -216,6 +233,20 @@ pub fn stack_group_keyed<'a>(
     field: &'static str,
     items: Vec<(String, Node)>,
 ) -> Result<Node, KeyedListError> {
+    // `wasm-full` の stagger 書き戻し（モジュール冒頭「自動配線の入口が
+    // `stack_group_keyed` である理由」節参照）は動的な追加・削除後にのみ
+    // 実行されるため、初回描画（SSR/SSG や初回マウント）では各 root が
+    // フォールバック値 0（[`TOAST_STACK_CSS`] の `var(--fandhe-motion-
+    // stagger-index, 0)`）のまま積層 index を持たない。ここで DOM 順
+    // （＝ items の並び順、モジュール冒頭「DOM 順の契約」節）に沿って
+    // `--fandhe-motion-stagger-index` を明示設定し、初回描画から縮小・
+    // オフセットが効くようにする。
+    let items: Vec<(String, Node)> = items
+        .into_iter()
+        .enumerate()
+        .map(|(index, (key, node))| (key, with_stagger_index_style(node, index)))
+        .collect();
+
     let mut merged = attrs;
     merged.push((STACK_ATTR, ""));
     merged.push((STAGGER_AUTO_FIRST_ATTR, ""));
@@ -237,6 +268,34 @@ pub fn stack_group_keyed<'a>(
     keyed_list(tag, group_attrs, field, items)
 }
 
+/// `node` が `Node::Element` の場合、`style` 属性へ
+/// [`stagger_index_style`]`(index)` を書き込む（既存 `style` 属性があれば
+/// `; ` で連結して既存宣言を保持する）。`Node::Element` 以外
+/// （呼び出し側の誤用でテキストノード等を渡した場合）はそのまま返す
+/// （[`stack_group_keyed`] は積層 index を持てないだけで安全に失敗する）。
+fn with_stagger_index_style(node: Node, index: usize) -> Node {
+    let Node::Element {
+        tag,
+        mut attrs,
+        children,
+    } = node
+    else {
+        return node;
+    };
+    let addition = stagger_index_style(index);
+    if let Some((_, existing)) = attrs.iter_mut().find(|(k, _)| k == "style") {
+        existing.push_str("; ");
+        existing.push_str(&addition);
+    } else {
+        attrs.push(("style".to_string(), addition));
+    }
+    Node::Element {
+        tag,
+        attrs,
+        children,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,6 +312,21 @@ mod tests {
             vec![],
         ));
         assert!(html.contains(STACK_ATTR));
+    }
+
+    #[test]
+    fn expanded_group_gets_pointer_events_auto_and_direction_override() {
+        // group 自身への pointer-events: auto（指摘 1）。
+        assert!(TOAST_STACK_CSS.contains(
+            "[data-fandhe-toast-stack]:is(:hover, :focus-within) {\n  display: flex;\n  pointer-events: auto;\n}"
+        ));
+        // bottom/top 系の flex-direction 反転（指摘 2）。
+        assert!(TOAST_STACK_CSS.contains(
+            "[data-placement^=\"bottom\"]:is(:hover, :focus-within) {\n  flex-direction: column-reverse;\n}"
+        ));
+        assert!(TOAST_STACK_CSS.contains(
+            "[data-placement^=\"top\"]:is(:hover, :focus-within) {\n  flex-direction: column;\n}"
+        ));
     }
 
     #[test]
@@ -279,6 +353,33 @@ mod tests {
         assert!(html.contains(BIND_LIST_ATTR));
         assert!(html.contains(&format!("{KEY_ATTR}=\"a\"")));
         assert!(html.contains(&format!("{KEY_ATTR}=\"b\"")));
+    }
+
+    #[test]
+    fn stack_group_keyed_sets_initial_stagger_index_per_root() {
+        let items = vec![
+            (
+                "newest".to_string(),
+                root(ToastStatus::Info, vec![], vec![]),
+            ),
+            (
+                "older".to_string(),
+                root(ToastStatus::Success, vec![], vec![]),
+            ),
+        ];
+        let node = stack_group_keyed(
+            ToastPlacement::BottomEnd,
+            "Notifications",
+            vec![],
+            "toasts",
+            items,
+        )
+        .expect("有効な items のため Ok");
+        let html = render(&node);
+        // DOM 順の契約（モジュール冒頭参照）どおり、items[0]（先頭 = 最新）
+        // が index 0、items[1] が index 1 を持つこと。
+        assert!(html.contains(&format!("{}: 0", crate::recipe::STAGGER_INDEX_VAR)));
+        assert!(html.contains(&format!("{}: 1", crate::recipe::STAGGER_INDEX_VAR)));
     }
 
     #[test]
