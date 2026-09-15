@@ -113,8 +113,53 @@ pub fn compute_pull(
 #[cfg(target_arch = "wasm32")]
 pub fn write_offset(element: &web_sys::HtmlElement, x: f64, y: f64) {
     let style = element.style();
-    let _ = style.set_property("--fandhe-motion-magnetic-x", &format!("{x}px"));
-    let _ = style.set_property("--fandhe-motion-magnetic-y", &format!("{y}px"));
+    let _ = style.set_property(MAGNETIC_X_PROPERTY, &format!("{x}px"));
+    let _ = style.set_property(MAGNETIC_Y_PROPERTY, &format!("{y}px"));
+}
+
+/// [`write_offset`] が書き込む CSS カスタムプロパティ名（X 軸）。
+/// [`current_offset`] が同じ名前で読み戻すための唯一の正であり、両関数間
+/// でリテラル文字列を重複させない。
+pub const MAGNETIC_X_PROPERTY: &str = "--fandhe-motion-magnetic-x";
+/// [`write_offset`] が書き込む CSS カスタムプロパティ名（Y 軸）。
+pub const MAGNETIC_Y_PROPERTY: &str = "--fandhe-motion-magnetic-y";
+
+/// `element` へ直前に [`write_offset`] が書き込んだオフセット（インライン
+/// style の目標値。CSS `transition` による補間途中の描画値ではない）を
+/// 読み戻す。値が存在しない・`px` 単位以外・数値変換に失敗する場合は
+/// `(0.0, 0.0)` へ fail-safe する。
+///
+/// # 用途（Bugbot 指摘の是正、イシュー #2550）
+///
+/// `getBoundingClientRect()` は同要素へ適用中の `transform`
+/// （`--fandhe-motion-magnetic-x`/`-y` が駆動する）を含んだ矩形を返すため、
+/// 呼び出し側（`fandhe-frontend-wasm-full` の `magnetic` モジュール）が
+/// そのまま中心座標を使うと静止位置ではなく直前のオフセット分だけずれた
+/// 中心から次の引力を計算してしまう（トラッキング不足・ジッターの原因）。
+/// 本関数が返す値を矩形の中心から減算することで、インライン style が
+/// 目標としている静止位置（transition 完了後に収束する位置）の中心を
+/// 復元できる。resize・スクロールで矩形自体が変化しても本関数の戻り値は
+/// 影響を受けないため、再計測のたびに素直に呼び出すだけで安全（キャッシュ
+/// 無効化の管理が不要な設計）。
+#[cfg(target_arch = "wasm32")]
+#[must_use]
+pub fn current_offset(element: &web_sys::HtmlElement) -> (f64, f64) {
+    let style = element.style();
+    let parse = |raw: String| -> f64 {
+        raw.strip_suffix("px")
+            .and_then(|value| value.trim().parse::<f64>().ok())
+            .filter(|value| value.is_finite())
+            .unwrap_or(0.0)
+    };
+    let x = style
+        .get_property_value(MAGNETIC_X_PROPERTY)
+        .map(parse)
+        .unwrap_or(0.0);
+    let y = style
+        .get_property_value(MAGNETIC_Y_PROPERTY)
+        .map(parse)
+        .unwrap_or(0.0);
+    (x, y)
 }
 
 /// `window.matchMedia("(prefers-reduced-motion: reduce)")` を照会する。

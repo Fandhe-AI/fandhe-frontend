@@ -64,7 +64,7 @@ pub const MAGNETIC_SELECTOR: &str = "[data-fandhe-magnetic]";
 mod wiring {
     use super::MAGNETIC_SELECTOR;
     use crate::gesture::is_touch_pointer;
-    use fandhe_frontend_animation::magnetic::{compute_pull, write_offset};
+    use fandhe_frontend_animation::magnetic::{compute_pull, current_offset, write_offset};
     use fandhe_frontend_animation::magnetic::{MAGNETIC_MAX_PULL_PX, MAGNETIC_STRENGTH};
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -150,9 +150,16 @@ mod wiring {
         let Some(html_element) = magnetic_target.dyn_ref::<HtmlElement>() else {
             return;
         };
+        // `getBoundingClientRect()` は本要素へ現在適用中の `transform`
+        // （直前の `write_offset` 呼び出しが駆動する）を含んだ矩形を返す。
+        // 静止位置の中心を復元するため、直前に書き込んだオフセットを
+        // 矩形の中心から差し引く（Bugbot 指摘の是正、`current_offset`
+        // モジュール doc 参照。resize・スクロールでも安全に再計測できる
+        // ステートレスな補正であり、専用キャッシュは持たない）。
         let rect = magnetic_target.get_bounding_client_rect();
-        let center_x = rect.left() + rect.width() / 2.0;
-        let center_y = rect.top() + rect.height() / 2.0;
+        let (offset_x, offset_y) = current_offset(html_element);
+        let center_x = rect.left() + rect.width() / 2.0 - offset_x;
+        let center_y = rect.top() + rect.height() / 2.0 - offset_y;
         let (dx, dy) = compute_pull(
             pointer_event.client_x().into(),
             pointer_event.client_y().into(),

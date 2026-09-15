@@ -53,7 +53,15 @@ name = "fandhe-frontend-animation"
 # （#2550）も merge base（0.6.0）から独立に 0.7.0 へ到達していたため、
 # 同一版数へ再度衝突した。#638 条項の「同一版数も衝突として +1」運用に
 # 従い、さらに +1 して 0.8.0 とする。
-version = "0.8.0"
+#
+# PR #2572 Bugbot 指摘の是正（イシュー #2550）: `magnetic` の
+# `handle_pointermove`（`fandhe-frontend-wasm-full` 側）が
+# `getBoundingClientRect()` の transform 込みの矩形をそのまま中心座標に
+# 使っていたため、静止位置ではなく直前のオフセット分だけずれた中心から
+# 引力を計算していた不具合を是正するため、直前に書き込んだオフセットを
+# 読み戻す新規公開関数 [`magnetic::current_offset`] を追加した。新規公開
+# API 追加のため minor バンプ。
+version = "0.9.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

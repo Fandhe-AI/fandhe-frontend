@@ -1210,7 +1210,13 @@ name = "fandhe-frontend-wasm-full"
 # merge base（0.29.0）から独立に 0.30.0 → 0.31.0 へ到達しており、
 # 同一版数へ再度衝突したため #638 条項の「同一版数も衝突として +1」運用に
 # 従い、さらに +1 して 0.32.0 とする。
-version = "0.32.0"
+#
+# PR #2572 Bugbot 指摘の是正（イシュー #2550）: `magnetic::handle_pointermove`
+# が `fandhe-frontend-animation::magnetic::current_offset`（新規追加）で
+# 直前のオフセットを差し引いてから中心座標を計算するよう修正した。本クレート
+# 自身の公開 API は変更していないため patch バンプ（依存先の version 要求は
+# `cargo run -p xtask -- check-dep-versions --fix` で追随）。
+version = "0.32.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1502,7 +1508,11 @@ js-sys = "0.3"
 # 同一版数へ再度衝突したため #638 条項の「同一版数も衝突として +1」運用
 # に従い、さらに +1 して 0.8.0 とする（`cargo run -p xtask --
 # check-dep-versions --fix`）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.8.0", optional = true }
+#
+# PR #2572 Bugbot 指摘の是正（イシュー #2550）: `fandhe-frontend-animation`
+# 0.8.0 → 0.9.0（`magnetic::current_offset` 新設）への `version` 要求追随
+# （`cargo run -p xtask -- check-dep-versions --fix`）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.9.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
