@@ -52,7 +52,7 @@ use fandhe_frontend_app::{demo_items, layout, list_page, page_shell};
 use fandhe_frontend_core::{el, render, text, Node};
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::menubar::{self, Menubar};
-use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
+use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu, NavigationMenuProps};
 use fandhe_frontend_interactive::{dispatch, render_for_hydration, AppState, Component, Hydrate};
 use std::error::Error;
 use std::fs;
@@ -80,6 +80,12 @@ const NAV_MENU_ITEMS: [(&str, &str); 2] = [("products", "製品"), ("docs", "ド
 /// ため本関数は [`Hydrate::hydration_attrs`] を root の `attrs` へ直接
 /// マージして同等の効果（`data-hydrate-*` 付きルート）を得る。
 fn nav_menu_view(state: &NavigationMenu) -> Node {
+    // headless-ui 0.69.2 で `NavigationMenuProps`（`orientation`）が
+    // root/list/item/content の各パーツ関数へ追加引数として入った
+    // （イシュー #2525、headless-ui #1654）。`wasm/src/lib.rs::nav_menu_content`
+    // と字句一致させる変数名（drift-guard 区間の直前で導入）。
+    let props = NavigationMenuProps::default();
+
     let hydrate_attrs = state.hydration_attrs();
     let hydrate_attrs_ref: Vec<(&str, &str)> = hydrate_attrs
         .iter()
@@ -100,6 +106,7 @@ fn nav_menu_view(state: &NavigationMenu) -> Node {
             state.item(
                 value,
                 false,
+                &props,
                 vec![],
                 vec![
                     state.trigger(
@@ -112,6 +119,7 @@ fn nav_menu_view(state: &NavigationMenu) -> Node {
                     ),
                     state.content(
                         value,
+                        &props,
                         Some(&content_id),
                         Some(&trigger_id),
                         vec![],
@@ -129,9 +137,10 @@ fn nav_menu_view(state: &NavigationMenu) -> Node {
     // fw-drift-guard:end nav-menu-item-nodes
 
     navigation_menu::root(
+        &props,
         "製品・ドキュメントナビゲーション",
         root_attrs,
-        vec![navigation_menu::list(vec![], items)],
+        vec![navigation_menu::list(&props, vec![], items)],
     )
 }
 
@@ -209,6 +218,53 @@ fn menubar_view(state: &Menubar) -> Node {
         .collect();
 
     state.root("アプリケーションメニュー", root_attrs, menus)
+}
+
+/// Phase 4 アニメーション配線（イシュー #2525）の実演マークアップ。
+///
+/// `fandhe-frontend-wasm-full` の `in_view`/`gesture`/`scroll_driver`
+/// 配線（いずれも `Runtime` を経由しない汎用 opt-in 属性配線、
+/// `wasm/src/lib.rs::hydrate_motion_demo` が `wire_in_view`/`wire_gesture`/
+/// `wire_scroll_driver` を直接呼んで配線する）が読む opt-in マーカー属性
+/// （`data-in-view`・`data-fandhe-gesture-hover`・`data-fandhe-gesture-press`・
+/// `data-fandhe-scroll-progress`）を静的に付与するだけの状態非依存ビュー。
+/// `<ul data-bind-list="items">`（[`write_ssr_html`] が別途書き出す
+/// `hydrate_demo` 側）への layout FLIP / stagger 属性付与は
+/// `static/embed.html` 側で行う（`AppState::view()` の変更を伴わない設計、
+/// 詳細は README.md §学べること）。
+fn motion_demo_view() -> Node {
+    el(
+        "section",
+        vec![
+            ("id", "motion-demo-root"),
+            ("data-testid", "motion-demo-root"),
+        ],
+        vec![
+            el(
+                "div",
+                vec![("data-in-view", ""), ("data-testid", "in-view-card")],
+                vec![text("スクロールで検出される in-view カード")],
+            ),
+            el(
+                "button",
+                vec![
+                    ("type", "button"),
+                    ("data-fandhe-gesture-hover", ""),
+                    ("data-fandhe-gesture-press", ""),
+                    ("data-testid", "gesture-button"),
+                ],
+                vec![text("hover / press してみてください")],
+            ),
+            el(
+                "div",
+                vec![
+                    ("data-fandhe-scroll-progress", ""),
+                    ("data-testid", "scroll-progress-bar"),
+                ],
+                vec![],
+            ),
+        ],
+    )
 }
 
 /// native 状態機械実演。[`AppState`] へ既知アクションを順に `dispatch` し、
@@ -291,16 +347,18 @@ fn run_menubar_demo() {
 }
 
 /// `layout` + `list_page`（`start_router` 系統）・`render_for_hydration`
-/// （`hydrate` 系統）・navigation-menu デモ・menubar デモを 1 ページに
-/// 同居させた `page_shell` 出力を `dist/index.html` へ書き出す。
+/// （`hydrate` 系統）・navigation-menu デモ・menubar デモ・motion デモ
+/// （イシュー #2525、[`motion_demo_view`]）を 1 ページに同居させた
+/// `page_shell` 出力を `dist/index.html` へ書き出す。
 ///
 /// `hydrate`（`AppState` 系）と `start_router`（`layout()` が組む
 /// `<div id="app-root">` 系）は**別系統・別 DOM**であり
-/// （`fandhe-frontend-wasm-full::entry` の doc 参照）、この 4 つのマウント
+/// （`fandhe-frontend-wasm-full::entry` の doc 参照）、この 5 つのマウント
 /// ポイントを 1 ページに同居させる場合は互いに異なる `root_id` を使う契約に
 /// 従う（`static/embed.html` は `hydrate("interactive-root")` /
 /// `start_router("app-root")` / `hydrate_navigation_menu("nav-menu-root")` /
-/// `hydrate_menubar("menubar-root")` を呼ぶ）。
+/// `hydrate_menubar("menubar-root")` / `hydrate_motion_demo("motion-demo-root")`
+/// を呼ぶ）。
 fn write_ssr_html(
     state: &AppState,
     nav_menu_state: &NavigationMenu,
@@ -310,10 +368,17 @@ fn write_ssr_html(
     let hydrate_demo = render_for_hydration(state);
     let nav_menu_demo = nav_menu_view(nav_menu_state);
     let menubar_demo = menubar_view(menubar_state);
+    let motion_demo = motion_demo_view();
     let combined = el(
         "div",
         vec![],
-        vec![router_demo, hydrate_demo, nav_menu_demo, menubar_demo],
+        vec![
+            router_demo,
+            hydrate_demo,
+            nav_menu_demo,
+            menubar_demo,
+            motion_demo,
+        ],
     );
     let html = page_shell("状態管理 + View Transitions サンプル", combined);
 

@@ -59,6 +59,9 @@ pub use fandhe_frontend_wasm_full::entry::{hydrate, mount, start_router};
 #[cfg(target_arch = "wasm32")]
 pub use nav_overlays::{hydrate_menubar, hydrate_navigation_menu};
 
+#[cfg(target_arch = "wasm32")]
+pub use motion_demo::hydrate_motion_demo;
+
 /// navigation-menu / menubar のハイドレーション・オーバーレイ配線
 /// （イシュー #1199、モジュール冒頭 doc 参照）。
 ///
@@ -69,7 +72,7 @@ mod nav_overlays {
     use fandhe_frontend_core::{render, text, Node};
     use fandhe_frontend_headless_ui::data_attrs::Orientation;
     use fandhe_frontend_headless_ui::menubar::{self, Menubar};
-    use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
+    use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu, NavigationMenuProps};
     use fandhe_frontend_interactive::{dispatch, Hydrate};
     use fandhe_frontend_wasm_full::headless::wire_headless_component;
     use fandhe_frontend_wasm_full::hydration::{read_hydration_attrs, restore_state};
@@ -161,6 +164,12 @@ mod nav_overlays {
     /// 内側にもう一つ `id="nav-menu-root"` の要素がネストされ、再描画のたびに
     /// ID が重複する無効なマークアップになっていた）。
     fn nav_menu_content(state: &NavigationMenu) -> Vec<Node> {
+        // headless-ui 0.69.2 で `NavigationMenuProps` が root/list/item/content
+        // へ追加引数として入った（イシュー #2525、headless-ui #1654）。
+        // `src/main.rs::nav_menu_view` と字句一致させる変数名（drift-guard
+        // 区間の直前で導入）。
+        let props = NavigationMenuProps::default();
+
         // fw-drift-guard:begin nav-menu-item-nodes
         let items: Vec<Node> = NAV_MENU_ITEMS
             .iter()
@@ -172,6 +181,7 @@ mod nav_overlays {
                 state.item(
                     value,
                     false,
+                    &props,
                     vec![],
                     vec![
                         state.trigger(
@@ -184,6 +194,7 @@ mod nav_overlays {
                         ),
                         state.content(
                             value,
+                            &props,
                             Some(&content_id),
                             Some(&trigger_id),
                             vec![],
@@ -200,7 +211,7 @@ mod nav_overlays {
             .collect();
         // fw-drift-guard:end nav-menu-item-nodes
 
-        vec![navigation_menu::list(vec![], items)]
+        vec![navigation_menu::list(&props, vec![], items)]
     }
 
     /// menubar デモの項目定義（表示ラベル, 配下メニュー項目ラベル一覧）。
@@ -675,6 +686,51 @@ mod nav_overlays {
         // 初回マウント時点で既に開いている Menu（SSR 初期状態）があれば
         // オーバーレイスタック・座標を初期同期する。
         sync_shared_overlays();
+
+        Ok(())
+    }
+}
+
+/// motion デモ（in-view / gesture / scroll-driver）のハイドレーション
+/// エントリポイント（イシュー #2525）。
+///
+/// `nav_overlays` と異なり `Component`/`Hydrate` を実装した状態機械を
+/// 持たない: `in_view::wire_in_view`/`gesture::wire_gesture`/
+/// `scroll_driver::wire_scroll_driver`（`fandhe-frontend-wasm-full` の
+/// `Runtime` を経由しない、opt-in `data-*` 属性のみで完結する汎用配線
+/// API）を `root_id` 要素へ順に呼ぶだけの薄いラッパー。マークアップは
+/// `static/embed.html`（`cargo run` が書き出す `dist/index.html` の
+/// `<section id="motion-demo-root">` を転記）があらかじめ opt-in マーカー
+/// 属性（`data-in-view`/`data-fandhe-gesture-hover`/
+/// `data-fandhe-gesture-press`/`data-fandhe-scroll-progress`）を保持して
+/// おり、本関数は DOM を書き換えない（`set_inner_html` を呼ばない、
+/// REQ-1 の既定エスケープ迂回経路を増やさない）。
+#[cfg(target_arch = "wasm32")]
+mod motion_demo {
+    use fandhe_frontend_wasm_full::gesture::wire_gesture;
+    use fandhe_frontend_wasm_full::in_view::wire_in_view;
+    use fandhe_frontend_wasm_full::scroll_driver::wire_scroll_driver;
+    use wasm_bindgen::prelude::wasm_bindgen;
+    use wasm_bindgen::JsValue;
+
+    /// # Errors
+    ///
+    /// `root_id` に対応する要素が存在しない場合、または各配線
+    /// （`IntersectionObserver`/イベントリスナー登録）が失敗した場合に
+    /// `Err` を返す。
+    #[wasm_bindgen]
+    pub fn hydrate_motion_demo(root_id: &str) -> Result<(), JsValue> {
+        let window = web_sys::window().ok_or_else(|| JsValue::from_str("window is unavailable"))?;
+        let document = window
+            .document()
+            .ok_or_else(|| JsValue::from_str("document is unavailable"))?;
+        let root = document
+            .get_element_by_id(root_id)
+            .ok_or_else(|| JsValue::from_str("root element not found"))?;
+
+        wire_in_view(&root)?;
+        wire_gesture(root.clone())?;
+        wire_scroll_driver(&root)?;
 
         Ok(())
     }

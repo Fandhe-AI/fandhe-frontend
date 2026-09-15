@@ -17,11 +17,15 @@ publish = false
 # menubar（headless-ui 0.28.0、イシュー #1161）の SSR マークアップ実演用。
 # wasm-full 0.7.0 が既に headless-ui 0.28.0 へ normal 依存しているため、
 # 本クレートの追加は推移依存の閉包を広げない（外部クレート増ゼロ）。
+#
+# イシュー #2525 で wasm-full 0.33.0 系へ追随（Phase 4 配線群 feature の
+# 実演追加、詳細は wasm/Cargo.toml・README.md 参照）。root example が依存する
+# 4 クレートも wasm-full 0.33.0 が要求するバージョンへ揃える。
 [dependencies]
-fandhe-frontend-core = "0.2.0"
-fandhe-frontend-app = "0.2.0"
-fandhe-frontend-interactive = "0.2.0"
-fandhe-frontend-headless-ui = "0.28.0"
+fandhe-frontend-core = "0.4.3"
+fandhe-frontend-app = "0.2.6"
+fandhe-frontend-interactive = "0.2.7"
+fandhe-frontend-headless-ui = "0.69.2"
 
 [dev-dependencies]
 
