@@ -3229,14 +3229,35 @@ where
         };
         // イシュー #2536: View Transitions が使える場合は UA 側の同名要素
         // morph に委譲し、共有レイアウト遷移を起動しない（`view_transition_
-        // swap` doc「shared_flip」参照）。
-        let shared_flip = !crate::view_transition::is_supported(&document);
+        // swap` doc「shared_flip」参照）。機能検出のみに基づく見込み判定
+        // （`document.startViewTransition` 呼び出し前の名前付けにのみ使う。
+        // 呼び出し自体が throw するケースは検出できないため「見込み」に
+        // 留まる、下記 `with_view_transition` の `is_real_vt` doc 参照）。
+        #[cfg_attr(not(feature = "layout-animation"), allow(unused_variables))]
+        let likely_shared_flip = !crate::view_transition::is_supported(&document);
+        // イシュー #2578: UA 委譲見込み時は `data-fandhe-layout-id` を
+        // `view-transition-name` へ対応付けないと UA が同名要素を認識
+        // できず共有レイアウト遷移が起きない。`document.startViewTransition`
+        // 呼び出し前（旧要素側）に同期的に完了させる必要がある
+        // （`shared_layout::assign_transition_names` doc 参照）。
+        #[cfg(feature = "layout-animation")]
+        if !likely_shared_flip {
+            crate::shared_layout::assign_transition_names(&self.root);
+        }
         let component = self.component.clone();
         let root = self.root.clone();
         let binding_table = self.binding_table.clone();
         let keyed_list_cache = self.keyed_list_cache.clone();
         let doc_for_apply = document.clone();
-        crate::view_transition::with_view_transition(&document, None, move || {
+        crate::view_transition::with_view_transition(&document, None, move |is_real_vt| {
+            // イシュー #2578（Bugbot 指摘）: `document.startViewTransition`
+            // が機能検出を通過していても呼び出し自体が throw し得るため、
+            // 実際にこのコールバックが実 VT の update として呼ばれたか
+            // （`is_real_vt`）で `shared_flip` を決める（見込みではなく
+            // 実結果。throw 時は同期フォールバック経路になり
+            // `is_real_vt == false` が渡るため、JS 側の共有レイアウト遷移
+            // フォールバックへ正しく切り替わる）。
+            let shared_flip = !is_real_vt;
             Self::view_transition_swap(
                 &component,
                 &root,
@@ -3304,6 +3325,13 @@ where
         #[cfg(feature = "layout-animation")]
         if shared_flip {
             crate::shared_layout::play_after(root, shared_layout_before);
+        } else {
+            // イシュー #2578: UA 委譲時、差し替え後の新要素側にも同じ id を
+            // `view-transition-name` として書き込む（呼び出し元が
+            // `document.startViewTransition` 呼び出し前に既に旧要素側を
+            // 書き込み済み、`shared_layout::assign_transition_names`
+            // doc「呼び出しタイミング」参照）。
+            crate::shared_layout::assign_transition_names(root);
         }
     }
 
@@ -3337,14 +3365,25 @@ where
             );
             return;
         };
-        // イシュー #2536: `apply_with_view_transition` と同じ VT 委譲判定。
-        let shared_flip = !crate::view_transition::is_supported(&document);
+        // イシュー #2536: `apply_with_view_transition` と同じ VT 委譲判定
+        // （見込み。`with_view_transition` doc「is_real_vt」参照）。
+        #[cfg_attr(not(feature = "layout-animation"), allow(unused_variables))]
+        let likely_shared_flip = !crate::view_transition::is_supported(&document);
+        // イシュー #2578: `apply_with_view_transition` と同じ理由で
+        // `document.startViewTransition` 呼び出し前に名前付けを完了する。
+        #[cfg(feature = "layout-animation")]
+        if !likely_shared_flip {
+            crate::shared_layout::assign_transition_names(&self.root);
+        }
         let component = self.component.clone();
         let root = self.root.clone();
         let binding_table = self.binding_table.clone();
         let keyed_list_cache = self.keyed_list_cache.clone();
         let doc_for_apply = document.clone();
-        crate::view_transition::with_view_transition(&document, Some(preset), move || {
+        crate::view_transition::with_view_transition(&document, Some(preset), move |is_real_vt| {
+            // イシュー #2578: `apply_with_view_transition` と同じ理由で
+            // 見込みではなく実結果（`is_real_vt`）を使う。
+            let shared_flip = !is_real_vt;
             Self::view_transition_swap(
                 &component,
                 &root,

@@ -181,21 +181,41 @@ mod wiring {
             .collect();
         let last_layout_rects = flip::measure_layout_batch(&target_elements);
 
-        let mut result = Vec::new();
-        for (&(after_idx, before_idx), last_layout) in pairs.iter().zip(last_layout_rects) {
+        // 計測フェーズ（変形の書き込みを一切行わない）: 全ペアの
+        // `last_visual`/`original`/`delta` をまず一括で求める。
+        //
+        // `flip::play` は呼び出し時点で Invert 変形を同期的に要素へ
+        // 書き込む（`wiring::play` 内 `write_transform_important` 呼び出し
+        // 参照）。計測と適用を 1 ループで交互に行うと、入れ子の
+        // 共有レイアウト要素（親子とも `layout-id` を持つ）で「親の
+        // `flip::play` が書き込んだ変形」が、まだ計測していない子の
+        // `getBoundingClientRect()`（本関数がこの後測る `last_visual`）に
+        // 混入し、`flip::anchor_correct` が親由来の変位を子自身の変形と
+        // 誤認して二重補正する（codex-review 指摘、イシュー #2578）。
+        // 全ペアの計測を先に終わらせてから適用フェーズへ進むことで、
+        // 適用順（`pairs` の順序が祖先→子孫のどちらでも）に依存しない
+        // 計測結果を保証する。
+        let mut prepared = Vec::with_capacity(pairs.len());
+        for (&(after_idx, before_idx), last_layout) in pairs.iter().zip(&last_layout_rects) {
             let (id, element) = &after[after_idx];
             let first = snapshot.entries[before_idx].2;
             let original = flip::OriginalStyle::capture(element);
             let last_visual = flip::measure(element);
             let delta = flip::invert(first, last_visual)
-                .map(|delta| flip::anchor_correct(delta, last_visual, last_layout));
+                .map(|delta| flip::anchor_correct(delta, last_visual, *last_layout));
+            prepared.push((id.clone(), element.clone(), original, delta));
+        }
+
+        // 適用フェーズ: 計測フェーズで求めた delta をもとに再生・復元する。
+        let mut result = Vec::new();
+        for (id, element, original, delta) in prepared {
             match delta {
                 Some(delta) if delta != flip::IDENTITY => {
                     let animation = flip::play(element.clone(), delta, config, original);
-                    result.push((id.clone(), animation));
+                    result.push((id, animation));
                 }
                 _ => {
-                    original.restore(element);
+                    original.restore(&element);
                 }
             }
         }

@@ -68,6 +68,14 @@ pub(crate) fn is_supported(document: &Document) -> bool {
 /// #2400 で `nav.rs` から移設し [`crate::Runtime::apply_with_view_transition`]
 /// と共有）。
 ///
+/// `apply` の引数（`bool`）は「実際に UA の View Transition の update
+/// コールバックとして呼ばれたか」（`true`）を表す。機能検出
+/// （[`is_supported`]）を通過していても `document.startViewTransition()`
+/// 呼び出し自体が throw し得る（Bugbot 指摘、イシュー #2578）ため、
+/// 呼び出し元は「事前の機能検出」ではなくこの実行時の値で実 VT の有無を
+/// 判定すること。非対応ブラウザ・呼び出し throw の両フォールバック経路
+/// では `false` が渡る。
+///
 /// `document` が `startViewTransition` を関数として持たない場合
 /// （非対応ブラウザ、機能検出）、または呼び出し自体が throw した場合は
 /// `apply` を同期的に直接実行する（graceful degradation。遷移が
@@ -105,7 +113,7 @@ pub(crate) fn with_view_transition<F>(
     preset: Option<crate::view_transition_preset::ViewTransitionPreset>,
     apply: F,
 ) where
-    F: FnOnce() + 'static,
+    F: FnOnce(bool) + 'static,
 {
     match preset {
         // `set_attribute` は fw gate `url_validation_check`（U1）が
@@ -122,8 +130,8 @@ pub(crate) fn with_view_transition<F>(
         }
     }
     if !is_supported(document) {
-        // 非対応ブラウザ: 同期フォールバック。
-        apply();
+        // 非対応ブラウザ: 同期フォールバック（実 VT なし）。
+        apply(false);
         return;
     }
     let doc_vt = document.clone().unchecked_into::<DocumentViewTransitions>();
@@ -132,20 +140,28 @@ pub(crate) fn with_view_transition<F>(
     let update_slot = slot.clone();
     let update = Closure::once_into_js(move || {
         if let Some(apply) = update_slot.borrow_mut().take() {
-            apply();
+            // update コールバックとして実際に UA から呼ばれた経路
+            // （実 VT あり、イシュー #2578）。
+            apply(true);
         }
     });
     if let Err(err) = doc_vt.start_view_transition(&update) {
         // 呼び出し自体が throw し、update コールバックが未実行のまま
         // 終わった場合の同期フォールバック（警告ログのみ、内部状態は
-        // 含めない不変条件 6）。
+        // 含めない不変条件 6）。`start_view_transition_prop` の機能検出は
+        // 通過していても呼び出し自体が throw し得るため（Bugbot 指摘、
+        // イシュー #2578）、呼び出し元へは「実 VT なし」（`false`）を
+        // 伝える。呼び出し元（`crate::Runtime::apply_with_view_transition`
+        // 等）はこれを見て、事前に固定した「UA 委譲」判定ではなく実際の
+        // 経路に合わせて共有レイアウト遷移の JS フォールバックへ切り替え
+        // られる。
         web_sys::console::warn_1(
             &"fandhe-frontend-wasm-full: document.startViewTransition threw, view transition skipped"
                 .into(),
         );
         let _ = err;
         if let Some(apply) = slot.borrow_mut().take() {
-            apply();
+            apply(false);
         }
     }
 }

@@ -11,7 +11,12 @@
 //! （同ファイル doc 参照）。
 
 #![cfg(target_arch = "wasm32")]
-#![cfg(feature = "layout-animation")]
+// `Runtime::apply_with_view_transition`（feature `view-transitions`）経由で
+// 共有レイアウト遷移を駆動するため、`layout-animation` 単体構成（CI の
+// wasm-full feature matrix `-wiring` ジョブ、イシュー #2578）では
+// `apply_with_view_transition` 自体が存在せずコンパイルできない。両
+// feature を要求する。
+#![cfg(all(feature = "layout-animation", feature = "view-transitions"))]
 
 use fandhe_frontend_core::{el, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};

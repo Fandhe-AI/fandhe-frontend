@@ -218,7 +218,7 @@ feature は上記の同一要素向け layout FLIP に加え、`crate::shared_la
 ウト遷移。motion.dev `layoutId` 相当）もゲートします。新規 feature は
 切らず既存 `layout-animation` を再利用しているため、off にすると両方の
 アニメーションが同時に無効化されます。詳細は
-[アニメーション機能ガイド §10a](./animation.md#10a-共有レイアウト遷移layoutid-相当)
+[アニメーション機能ガイド §10a](./animation.md#10a-共有レイアウト遷移-layoutid-相当)
 を参照してください。
 
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
