@@ -414,3 +414,51 @@ Motion+ `sections/bento-grids` に相当する 2 件（親トラッキング #25
 
 不足部品は無かった（`card`・`icon`・`button` はいずれも実装時点で既存）。
 
+
+## 15. hero sections 4 件（#2546）実装記録
+
+Motion+ の hero sections に相当する 4 件（親トラッキング #2530「Phase 7:
+Motion+ 部品化」配下）。`bento-staggered`/`testimonials-stack` と同じく
+§3 の「7 件で確定」の対象外（Motion+ 参照系の別系統）である。
+
+- **出典は Motion+（shadcn/ui ではない）**: 4 件とも `docs/design/
+  motion-reference-adoption-policy.md` §9 に従い、着想のみを参照して
+  Rust/CSS で独自に再実装した。取得手段・ファイル名・内部識別子は
+  記載しない。
+- **stagger は時間軸（`animation-delay`）で表現する**: `bento-staggered`
+  の scroll-driven stagger（`animation-range`）とは異なり、
+  `hero-editorial-stagger`/`hero-terminal` はページ先頭に置かれる hero
+  である前提のため、`--fandhe-motion-stagger-index` を
+  `animation-delay: calc(...)` へ乗せる時間軸 stagger を使う
+  （`@supports (animation-timeline: view())` 不要）。`animation-delay` は
+  リテラル `calc()` のため duration トークンの 0 化だけでは消えず、
+  個別に `@media (prefers-reduced-motion: reduce)` を持つ。
+- **`hero-parallax-layers` は `SlotRecipe::parallax` を直接使う**:
+  `crate::showcase::parallax_demo` と同じ手法で、背景・中景・前景の
+  3 レイヤーへ `ParallaxSpeed::Slow`/`Normal`/`Fast` を割り当てる。
+  抽象図形（CSS グラデーション/`border-radius` のみ、画像は使わない）。
+  `data-fandhe-scroll-progress` は docs-site が JS ハイドレーションを
+  行わないため付与しない（`parallax_demo` と同じ判断）。
+- **`hero-terminal` の typewriter は docs-site 上では静的表示**:
+  `text_reveal::typewriter` はマークアップ（opt-in 属性）のみを供給し、
+  実際の文字送りは `fandhe-frontend-wasm-full` の `text-animation`
+  feature が JS ハイドレーション後に担う。無 JS の docs-site では
+  `fd-text-reveal__display` の初期値（目標テキスト）がそのまま表示
+  される。
+- **`text-split-reveal` が `text_reveal::TEXT_REVEAL_CSS` を初めて
+  `push_css` する**: `motion` feature 自体は #2524 で有効化済みだが、
+  `text_reveal::TEXT_REVEAL_CSS` はどの block も `push_css` していな
+  かった。`blocks::stylesheet()` が本 block の追加にあわせて 1 回だけ
+  push する（`bento-staggered` が `motion::KEYFRAMES_CSS` を初めて push
+  したのと同型の経緯）。
+- **`text_reveal`/`cursor` を `parts` に列挙しない先例を踏襲**: いずれも
+  単体の Themes ページを持たないため、4 件とも `parts` には実際に
+  Themes ページを持つ部品（badge/heading/text/button/code/kbd）のみを
+  列挙する。
+- **`<form>` を使わない・実データを持たない**: `crate::blocks` モジュール
+  doc の不変条件どおり、4 件とも `<form>` を出力しない。文言・コマンド
+  文字列はすべて架空のものであり、実企業名・実サービス名・実クレデン
+  シャル・PII を含まない。
+
+不足部品は無かった（`badge`・`heading`・`text`・`button`・`code`・`kbd`
+はいずれも実装時点で既存）。
