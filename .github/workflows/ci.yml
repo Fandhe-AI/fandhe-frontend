@@ -992,6 +992,17 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test runtime_view_transition_browser
 
+      # イシュー #2516: `Runtime::apply_with_view_transition_named`（named
+      # view transition プリセット選択、feature `view-transition-preset`
+      # 既定 on）の実ブラウザ統合テスト（crates/wasm-full/tests/
+      # view_transition_preset_browser.rs、属性の設定・named/unnamed 混在時
+      # の除去・機能非対応時の同期フォールバックを検証）。他の wasm-full
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。
+      - name: Run wasm-full view transition preset browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test view_transition_preset_browser
+
       # イシュー #2398: `fandhe-frontend-animation::animate`（`element.animate()`
       # WAAPI 薄いラッパ）の wasm32 層（`animate`/`AnimationHandle::finished`）を
       # `fandhe-frontend-wasm-full`（既に cdylib+rlib・`wasm-bindgen-futures`

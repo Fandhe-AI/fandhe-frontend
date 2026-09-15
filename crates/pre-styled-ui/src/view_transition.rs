@@ -118,8 +118,15 @@ pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
     attr_lit!(),
     "=\"",
     fade_value_lit!(),
+    // UA 既定の `::view-transition-old/new(root)` は `mix-blend-mode:
+    // plus-lighter` を「疑似要素自身の CSS アニメーション」として適用して
+    // おり、`animation` shorthand の上書きはそのアニメーション自体を除去
+    // してしまう（静的プロパティの上書きではない）。fade（クロスフェード）
+    // は同色領域で透けないよう plus-lighter 合成が必須のため、除去された
+    // 分を明示的な静的宣言で補う（イシュー #2516 レビュー指摘）。
     "\"]::view-transition-old(root) {\n",
     "  animation: fd-motion-fade-out var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: plus-lighter;\n",
     "}\n",
     ":root[",
     attr_lit!(),
@@ -127,6 +134,7 @@ pub const VIEW_TRANSITION_PRESETS_CSS: &str = concat!(
     fade_value_lit!(),
     "\"]::view-transition-new(root) {\n",
     "  animation: fd-motion-fade-in var(--fandhe-motion-duration-slow, 300ms) both;\n",
+    "  mix-blend-mode: plus-lighter;\n",
     "}\n",
     ":root[",
     attr_lit!(),
