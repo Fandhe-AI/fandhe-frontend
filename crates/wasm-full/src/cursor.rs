@@ -132,6 +132,13 @@ mod wiring {
     /// `None`（イベントハンドラは no-op）。
     type CursorStateSlot = Rc<RefCell<Option<CursorState>>>;
 
+    /// 直近の `pointermove` で書き込んだカーソル座標（`root` 配下にいる間
+    /// のみ `Some`、`pointerout` での真の離脱時に `None` へ戻す）。DOM
+    /// 再描画でカーソル要素が作り直された際、この座標を新要素へ即座に
+    /// 書き戻すことで「次の `pointermove` まで両カーソルが消えたまま」
+    /// になる不具合を防ぐ（PR #2583 レビュー指摘 P1-1 の是正）。
+    type LastPointerSlot = Rc<RefCell<Option<(f64, f64)>>>;
+
     /// `event.target()` を `Element` として取得する（`gesture.rs`/
     /// `magnetic.rs` の同名関数と同型）。
     fn event_target_element(event: &Event) -> Option<Element> {
@@ -181,6 +188,7 @@ mod wiring {
         root: &Element,
         state: &CursorStateSlot,
         active: &ActiveTarget,
+        last_pointer: &LastPointerSlot,
         event: &Event,
     ) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
@@ -244,6 +252,7 @@ mod wiring {
             ),
         };
         animator.borrow_mut().move_to(x, y);
+        *last_pointer.borrow_mut() = Some((x, y));
     }
 
     /// `pointerout`: `root` からの真の離脱（`related_within` が false）で
@@ -252,6 +261,7 @@ mod wiring {
         root: &Element,
         state: &CursorStateSlot,
         active: &ActiveTarget,
+        last_pointer: &LastPointerSlot,
         event: &Event,
     ) {
         if event
@@ -268,6 +278,7 @@ mod wiring {
                 let _ = cursor_el.remove_attribute(CURSOR_LABEL_ATTR);
             }
             *active.borrow_mut() = None;
+            *last_pointer.borrow_mut() = None;
         }
     }
 
@@ -277,7 +288,22 @@ mod wiring {
     /// （モジュール doc「DOM 再描画後の再同期」節）。要素が見つからなく
     /// なった場合は [`super::CURSOR_ACTIVE_ATTR`] を外してネイティブ
     /// カーソルを復元し、`state`/`active` を `None` へ戻す。
-    fn resync_cursor_element(root: &Element, state: &CursorStateSlot, active: &ActiveTarget) {
+    ///
+    /// `last_pointer` が `Some((x, y))`（＝再描画の瞬間もポインタが
+    /// `root` 配下に留まっていた）場合、新しい要素・`CursorAnimator` を
+    /// その座標で即座に可視化する（`CursorAnimator::move_to` の初回
+    /// 呼び出しは spring を経由せず直接スナップするため、次の
+    /// `pointermove` を待たずに正しい位置へ表示できる）。`None`
+    /// （ポインタが `root` の外にいる／位置が未知）の場合のみ従来どおり
+    /// `hidden` のまま次の `pointermove` を待つ（PR #2583 レビュー指摘
+    /// P1-1 の是正: 無条件 `hidden` のままだとポインタ静止中は両カーソル
+    /// とも消えたまま復元されなかった）。
+    fn resync_cursor_element(
+        root: &Element,
+        state: &CursorStateSlot,
+        active: &ActiveTarget,
+        last_pointer: &LastPointerSlot,
+    ) {
         let resolved = root
             .query_selector(CURSOR_SELECTOR)
             .ok()
@@ -297,15 +323,21 @@ mod wiring {
         match resolved {
             Some(cursor_el) => {
                 crate::dom::set_dom_attribute(root, super::CURSOR_ACTIVE_ATTR, "");
-                crate::dom::set_dom_attribute(&cursor_el, CURSOR_STATE_ATTR, "hidden");
-                let animator = Rc::new(RefCell::new(CursorAnimator::new(
-                    cursor_el.clone(),
-                    SpringConfig::default(),
-                    false,
-                )));
+                let restore_position = *last_pointer.borrow();
+                let initial_state = if restore_position.is_some() {
+                    "idle"
+                } else {
+                    "hidden"
+                };
+                crate::dom::set_dom_attribute(&cursor_el, CURSOR_STATE_ATTR, initial_state);
+                let mut animator =
+                    CursorAnimator::new(cursor_el.clone(), SpringConfig::default(), false);
+                if let Some((x, y)) = restore_position {
+                    animator.move_to(x, y);
+                }
                 *state_ref = Some(CursorState {
                     cursor_el,
-                    animator,
+                    animator: Rc::new(RefCell::new(animator)),
                 });
             }
             None => {
@@ -339,18 +371,21 @@ mod wiring {
 
         let state: CursorStateSlot = Rc::new(RefCell::new(None));
         let active: ActiveTarget = Rc::new(RefCell::new(None));
+        let last_pointer: LastPointerSlot = Rc::new(RefCell::new(None));
         // 初回解決（`resync_cursor_element` を流用し、以降の再描画時と
         // 同じ経路で `CursorState`・`CURSOR_ACTIVE_ATTR` を初期化する）。
-        resync_cursor_element(&root, &state, &active);
+        resync_cursor_element(&root, &state, &active, &last_pointer);
 
         let pointermove_root = root.clone();
         let pointermove_state = Rc::clone(&state);
         let pointermove_active = Rc::clone(&active);
+        let pointermove_last_pointer = Rc::clone(&last_pointer);
         let pointermove_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_pointermove(
                 &pointermove_root,
                 &pointermove_state,
                 &pointermove_active,
+                &pointermove_last_pointer,
                 &event,
             );
         });
@@ -364,11 +399,13 @@ mod wiring {
         let pointerout_root = root.clone();
         let pointerout_state = Rc::clone(&state);
         let pointerout_active = Rc::clone(&active);
+        let pointerout_last_pointer = Rc::clone(&last_pointer);
         let pointerout_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_pointerout(
                 &pointerout_root,
                 &pointerout_state,
                 &pointerout_active,
+                &pointerout_last_pointer,
                 &event,
             );
         });
@@ -388,12 +425,18 @@ mod wiring {
         let observer_root = root.clone();
         let observer_state = Rc::clone(&state);
         let observer_active = Rc::clone(&active);
+        let observer_last_pointer = Rc::clone(&last_pointer);
         let observer_callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |_records: js_sys::Array, _observer: MutationObserver| {
                 if !observer_root.is_connected() {
                     return;
                 }
-                resync_cursor_element(&observer_root, &observer_state, &observer_active);
+                resync_cursor_element(
+                    &observer_root,
+                    &observer_state,
+                    &observer_active,
+                    &observer_last_pointer,
+                );
             },
         );
         let observer = MutationObserver::new(observer_callback.as_ref().unchecked_ref())?;

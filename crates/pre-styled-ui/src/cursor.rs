@@ -171,9 +171,17 @@ pub const CURSOR_CSS: &str = concat!(
     "[data-fandhe-cursor][data-fandhe-cursor-label]:not([data-fandhe-cursor-label=\"\"])::after {\n",
     "  content: attr(data-fandhe-cursor-label);\n",
     "}\n",
+    // `!important`: 「ネイティブカーソルを置き換える」表示契約
+    // （モジュール doc「二重のフェイルセーフ」節）を、詳細度に関わらず
+    // 保証する。このセレクタ自体の詳細度（0,1,0）は button recipe の
+    // `[data-scope="button"][data-part="root"] { cursor: pointer }`
+    // （0,2,0）に劣るため、`!important` なしでは styled button 上で
+    // ネイティブカーソルが隠れずカスタムカーソルと二重表示になる
+    // （PR #2583 レビュー指摘 P1-2 の是正）。無効化用 `@media` 側の
+    // `cursor: auto` も同じ理由で揃える。
     "[data-fandhe-cursor-active],\n",
     "[data-fandhe-cursor-active] * {\n",
-    "  cursor: none;\n",
+    "  cursor: none !important;\n",
     "}\n",
     "@media (prefers-reduced-motion: reduce), (pointer: coarse), (hover: none) {\n",
     "  [data-fandhe-cursor] {\n",
@@ -181,7 +189,7 @@ pub const CURSOR_CSS: &str = concat!(
     "  }\n",
     "  [data-fandhe-cursor-active],\n",
     "  [data-fandhe-cursor-active] * {\n",
-    "    cursor: auto;\n",
+    "    cursor: auto !important;\n",
     "  }\n",
     "}\n",
 );
@@ -243,7 +251,7 @@ mod tests {
             )
             .expect("フェイルセーフ用 @media ブロックが見つからない");
         assert!(after.contains("display: none;"));
-        assert!(after.contains("cursor: auto;"));
+        assert!(after.contains("cursor: auto !important;"));
     }
 
     #[test]
