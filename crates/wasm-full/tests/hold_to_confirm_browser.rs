@@ -74,6 +74,30 @@ fn pointer_event(kind: &str) -> PointerEvent {
         .expect("PointerEvent construction must not fail")
 }
 
+/// [`pointer_event`] に `pointer_id` を明示指定できる版
+/// （複数ポインタ〔マルチタッチ〕を模す回帰テスト専用）。
+fn pointer_event_with_id(kind: &str, pointer_id: i32) -> PointerEvent {
+    let init = PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_pointer_id(pointer_id);
+    PointerEvent::new_with_event_init_dict(kind, &init)
+        .expect("PointerEvent construction must not fail")
+}
+
+/// [`pointer_event_with_id`] に加え、`client_x`/`client_y` も指定する版
+/// （`pointermove` によるヒットテストへ渡す座標を制御する）。
+fn pointer_move_event_with_id(pointer_id: i32, client_x: i32, client_y: i32) -> PointerEvent {
+    let init = PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_pointer_id(pointer_id);
+    init.set_client_x(client_x);
+    init.set_client_y(client_y);
+    PointerEvent::new_with_event_init_dict("pointermove", &init)
+        .expect("PointerEvent construction must not fail")
+}
+
 fn keyboard_event(kind: &str, key: &str) -> KeyboardEvent {
     let init = KeyboardEventInit::new();
     init.set_bubbles(true);
@@ -265,6 +289,66 @@ async fn moving_pointer_outside_element_cancels_hold_via_hit_test() {
         clicks.get(),
         0,
         "要素外への pointermove 後は click が発火しないはず"
+    );
+}
+
+/// codex-review P1 指摘の回帰テスト: 保持中に別の指（別 `pointer_id`）が
+/// 同じ要素へ重ねて `pointerdown` しても、追跡対象のポインタは最初の
+/// 指のまま変わらないことを確認する（`wiring::wire_candidate` の
+/// pointerdown ハンドラ `if pointerdown_session.active.get() { return; }`
+/// 是正の直接検証）。
+///
+/// 是正前は 2 本目の `pointerdown` が `pointer_id` を新しい指へ無条件に
+/// 上書きしていたため、その後の 1 本目の指の `pointermove`（要素外への
+/// 移動）が `pointer_id` 不一致で無視され、保持が中断されずに 1 本目の
+/// 指から継続していた経過時間で確定してしまっていた。本テストは
+/// duration_ms を長め（500ms）に取り、2 本目の pointerdown 後に 1 本目の
+/// `pointer_id` で要素外への `pointermove` を送って中断されることを
+/// 確認する（是正前はここで中断されず、後続の `sleep` で確定してしまう）。
+#[wasm_bindgen_test]
+async fn additional_pointerdown_during_active_hold_does_not_hijack_tracked_pointer() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, button) = build_dom(&document, "500");
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_hold_to_confirm(root).expect("wire_hold_to_confirm must not fail");
+
+    let clicks = count_clicks(&button);
+
+    // 1 本目の指（pointer_id=1）が保持を開始する。
+    button
+        .dispatch_event(&pointer_event_with_id("pointerdown", 1))
+        .unwrap();
+    sleep_ms(50).await;
+
+    // 2 本目の指（pointer_id=2）が保持中の同じ要素へ重ねて pointerdown
+    // する。是正後はこの pointerdown は無視され、追跡対象は pointer_id=1
+    // のまま変わらない。
+    button
+        .dispatch_event(&pointer_event_with_id("pointerdown", 2))
+        .unwrap();
+    sleep_ms(20).await;
+
+    // 1 本目の指（pointer_id=1）が要素外へ移動する。追跡対象が
+    // pointer_id=1 のまま保たれていれば、ヒットテストにより保持が
+    // 中断されるはず。
+    button
+        .dispatch_event(&pointer_move_event_with_id(1, -1000, -1000))
+        .unwrap();
+
+    // duration_ms（500ms）を超えるまで待つ。中断が効いていなければここで
+    // 確定してしまう。
+    sleep_ms(600).await;
+
+    assert_ne!(
+        button.get_attribute("data-state").as_deref(),
+        Some("confirmed"),
+        "1 本目の指の要素外移動で中断されるはず（2 本目の pointerdown が \
+         追跡対象を乗っ取ってはならない）"
+    );
+    assert_eq!(
+        clicks.get(),
+        0,
+        "中断された保持からは合成 click が発火しないはず"
     );
 }
 

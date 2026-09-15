@@ -85,6 +85,13 @@ const ROLLING_TEXT_VIEWPORT_PART: &str = "rolling-text-viewport";
 const ROLLING_TEXT_CURRENT_PART: &str = "rolling-text-current";
 /// rolling-text の「複製（`aria-hidden`）」レイヤーの `data-part` 値。
 const ROLLING_TEXT_DUPLICATE_PART: &str = "rolling-text-duplicate";
+/// rolling-text の「1 文字（または非 stagger 版ではラベル全体）」を包む
+/// `<span>` の `data-part` 値（codex-review P1 是正、下記
+/// [`BUTTON_MOTION_CSS`] rustdoc「transform/transition を文字 span へ
+/// 適用する理由」節参照）。`transform`/`transition`/`transition-delay` は
+/// この層（`rolling-text-current`/`rolling-text-duplicate` 自身ではなく
+/// その子）へ適用する。
+const ROLLING_TEXT_CHAR_PART: &str = "rolling-text-char";
 /// hold-to-confirm の塗りつぶしレイヤーの `data-part` 値。
 const HOLD_FILL_PART: &str = "hold-fill";
 /// add-to-basket の idle アイコンレイヤーの `data-part` 値。
@@ -142,6 +149,34 @@ const BASKET_ICON_ADDED_PART: &str = "basket-icon-added";
 /// 中央寄せするための `display: flex` を必要としない（box が既に
 /// `current` と同一寸法のため）ので撤去でき、文字単位 `<span>` が
 /// 通常のインライン内容として空白を保持したまま描画される。
+///
+/// # `transform`/`transition` を文字 span（[`ROLLING_TEXT_CHAR_PART`]）へ
+/// 適用する理由（codex-review P1 是正、2 件）
+///
+/// 当初は `transform`/`transition` を `rolling-text-current`/
+/// `rolling-text-duplicate` 自身（層そのもの）へ適用していたが、これは
+/// [`rolling_text_stagger_button`] が文字ごとに書き込む
+/// `--fandhe-motion-stagger-index` を無視する: 層全体が単一の
+/// `transform` で一括して動くため、[`char_spans`] が個々の `<span>` へ
+/// 付与した index は見た目に一切反映されず全文字が完全に同時に動いて
+/// しまい、`stagger_delay_declaration`（`animation-delay` を生成）も
+/// この `transition` ベースの実装には作用しない（同一の
+/// `animation`/`transition` 混同は不成立）。是正として `current`/
+/// `duplicate` 自身は層の位置決め（`display: block`/
+/// `position: absolute; inset: 0;`）のみを担う静止コンテナへ縮小し、
+/// `transform`・`transition`・`transition-delay` は各層の**直接の子**
+/// である文字 span（[`ROLLING_TEXT_CHAR_PART`]、[`char_spans`] が
+/// 複数生成、非 stagger 版の [`rolling_text_button`] は 1 個のみ生成）
+/// へ移す。`transition-delay` は
+/// `calc(var(--fandhe-motion-stagger-index, 0) * var(--fandhe-motion-
+/// duration-fast))`（[`crate::recipe::stagger_delay_declaration`] と同じ
+/// 計算式を `transition-delay` プロパティで再現、`STAGGER_INDEX_VAR` 未設定
+/// の非 stagger 版は `0` へフォールバックし遅延なし）。層自身が動かなく
+/// なったため、`duplicate`（`position: absolute; inset: 0;` のまま）の
+/// 基準は不変で `rolling-text-viewport` の clip 契約（上記節）も保たれる
+/// ——文字 span 自身の `translateY(±100%)` は span 自身の行の高さ基準
+/// になり、単一行ラベルでは層の高さと実質一致するため見た目は従来と
+/// 同一だが、stagger 版では文字ごとに独立した遅延で動く。
 pub const BUTTON_MOTION_CSS: &str = concat!(
     // rolling-text: root を相対配置・overflow hidden のコンテナ化する
     // （既存副作用、上記「既知の副作用」節）。current/duplicate の 2 層
@@ -166,14 +201,6 @@ pub const BUTTON_MOTION_CSS: &str = concat!(
     "}\n",
     "[data-scope=\"button\"][data-part=\"",
     "rolling-text-current",
-    "\"],\n",
-    "[data-scope=\"button\"][data-part=\"",
-    "rolling-text-duplicate",
-    "\"] {\n",
-    "  transition: transform 0.3s ease;\n",
-    "}\n",
-    "[data-scope=\"button\"][data-part=\"",
-    "rolling-text-current",
     "\"] {\n",
     "  display: block;\n",
     "}\n",
@@ -188,26 +215,45 @@ pub const BUTTON_MOTION_CSS: &str = concat!(
     "\"] {\n",
     "  position: absolute;\n",
     "  inset: 0;\n",
+    "}\n",
+    // 文字 span（current/duplicate それぞれの直接の子）へ transform/
+    // transition/transition-delay を適用する（上記「`transform`/
+    // `transition` を文字 span へ適用する理由」節参照）。stagger 版は
+    // `--fandhe-motion-stagger-index` を span ごとに書き込むため、
+    // `transition-delay` がここで文字ごとに異なる値へ解決される。
+    "[data-scope=\"button\"][data-part=\"rolling-text-current\"] > [data-part=\"",
+    "rolling-text-char",
+    "\"],\n",
+    "[data-scope=\"button\"][data-part=\"rolling-text-duplicate\"] > [data-part=\"",
+    "rolling-text-char",
+    "\"] {\n",
+    "  display: inline-block;\n",
+    "  transition: transform 0.3s ease;\n",
+    "  transition-delay: calc(var(--fandhe-motion-stagger-index, 0) * var(--fandhe-motion-duration-fast));\n",
+    "}\n",
+    "[data-scope=\"button\"][data-part=\"rolling-text-duplicate\"] > [data-part=\"",
+    "rolling-text-char",
+    "\"] {\n",
     "  transform: translateY(100%);\n",
     "}\n",
     "@media (hover: hover) {\n",
-    "  [data-scope=\"button\"][data-part=\"root\"]:hover [data-part=\"",
-    "rolling-text-current",
+    "  [data-scope=\"button\"][data-part=\"root\"]:hover [data-part=\"rolling-text-current\"] > [data-part=\"",
+    "rolling-text-char",
     "\"] {\n",
     "    transform: translateY(-100%);\n",
     "  }\n",
-    "  [data-scope=\"button\"][data-part=\"root\"]:hover [data-part=\"",
-    "rolling-text-duplicate",
+    "  [data-scope=\"button\"][data-part=\"root\"]:hover [data-part=\"rolling-text-duplicate\"] > [data-part=\"",
+    "rolling-text-char",
     "\"] {\n",
     "    transform: translateY(0);\n",
     "  }\n",
     "}\n",
     "@media (prefers-reduced-motion: reduce) {\n",
-    "  [data-scope=\"button\"][data-part=\"",
-    "rolling-text-current",
+    "  [data-scope=\"button\"][data-part=\"rolling-text-current\"] > [data-part=\"",
+    "rolling-text-char",
     "\"],\n",
-    "  [data-scope=\"button\"][data-part=\"",
-    "rolling-text-duplicate",
+    "  [data-scope=\"button\"][data-part=\"rolling-text-duplicate\"] > [data-part=\"",
+    "rolling-text-char",
     "\"] {\n",
     "    transition: none;\n",
     "  }\n",
@@ -276,8 +322,14 @@ impl crate::theme::Theme {
     }
 }
 
-/// 1 文字ずつ `<span style="--fandhe-motion-stagger-index: N">` へ分割する
-/// （[`rolling_text_stagger_button`] 専用）。
+/// 1 文字ずつ `data-part="rolling-text-char"` の
+/// `<span style="--fandhe-motion-stagger-index: N">` へ分割する
+/// （[`rolling_text_stagger_button`] 専用）。[`BUTTON_MOTION_CSS`] の
+/// `transform`/`transition`/`transition-delay` はこの `data-part`
+/// （[`ROLLING_TEXT_CHAR_PART`]）を持つ子要素へ適用されるため、ここで
+/// 属性を付けないと文字単位の変形が効かない（codex-review P1 是正、
+/// 上記 [`BUTTON_MOTION_CSS`] rustdoc「`transform`/`transition` を文字
+/// span へ適用する理由」節参照）。
 ///
 /// `str::chars()` は Unicode grapheme cluster（結合文字・ZWJ 絵文字等）を
 /// 分割し得るため、多バイト結合文字を含むラベルでは見た目が乱れ得る
@@ -289,9 +341,30 @@ fn char_spans(label: &str) -> Vec<Node> {
         .enumerate()
         .map(|(index, ch)| {
             let style = stagger_index_style(index);
-            el("span", vec![("style", style.as_str())], vec![text(ch)])
+            el(
+                "span",
+                vec![
+                    ("data-part", ROLLING_TEXT_CHAR_PART),
+                    ("style", style.as_str()),
+                ],
+                vec![text(ch)],
+            )
         })
         .collect()
+}
+
+/// [`rolling_text_button`]（非 stagger 版）専用: ラベル全体を 1 個の
+/// `data-part="rolling-text-char"` `<span>` で包む。`--fandhe-motion-
+/// stagger-index` を書かないため [`BUTTON_MOTION_CSS`] の
+/// `transition-delay` 計算式は `var(--fandhe-motion-stagger-index, 0)`
+/// フォールバックにより常に `0` へ解決される（[`char_spans`] rustdoc・
+/// [`BUTTON_MOTION_CSS`] rustdoc 参照）。
+fn whole_label_char_span(label: &str) -> Node {
+    el(
+        "span",
+        vec![("data-part", ROLLING_TEXT_CHAR_PART)],
+        vec![text(label)],
+    )
 }
 
 /// rolling-text ボタン（イシュー #2538）: hover 時にラベルが上へ回転し、
@@ -331,7 +404,7 @@ pub fn rolling_text_button<'a>(
             ("data-scope", "button"),
             ("data-part", ROLLING_TEXT_CURRENT_PART),
         ],
-        vec![text(label)],
+        vec![whole_label_char_span(label)],
     );
     let duplicate = el(
         "span",
@@ -340,7 +413,7 @@ pub fn rolling_text_button<'a>(
             ("data-part", ROLLING_TEXT_DUPLICATE_PART),
             ("aria-hidden", "true"),
         ],
-        vec![text(label)],
+        vec![whole_label_char_span(label)],
     );
     let viewport = el(
         "span",

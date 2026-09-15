@@ -415,6 +415,22 @@ mod wiring {
         let pointerdown = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             if let Ok(pointer_event) = event.dyn_into::<PointerEvent>() {
                 if pointer_event.button() == 0 {
+                    // 保持中（`active`）の追加 pointerdown は無視する
+                    // （codex-review P1 指摘）: 別の指/ポインタが同じ
+                    // 要素へ重ねて pointerdown すると、`start()` 自身は
+                    // 既に `active` のため no-op で経過時間計測を継続する
+                    // 一方、ここで無条件に `pointer_id` を新しいポインタ
+                    // へ上書きすると、以後 `handle_pointermove` が
+                    // 最初の指の移動を無視し、最初の指が要素外へ出ても
+                    // 中断されなくなる（新しい指の保持時間が
+                    // `duration_ms` 未満でも、最初の指から継続していた
+                    // 経過時間で確定してしまい「一定時間押し続けたときの
+                    // み確定」契約に反する）。追跡対象は最初に開始した
+                    // ポインタのまま固定し、この pointerdown 自体は
+                    // 無視する。
+                    if pointerdown_session.active.get() {
+                        return;
+                    }
                     pointerdown_session
                         .pointer_id
                         .set(Some(pointer_event.pointer_id()));
