@@ -92,7 +92,8 @@ fn insert_exit_ghost_places_disconnected_row_at_original_coordinates() {
     // `Remove` を模す: 実 DOM から取り除く（元要素そのもの、clone ではない）。
     row.remove();
 
-    let ghost = insert_exit_ghost(&container, &rows[0]).expect("切り離された行はゴースト化される");
+    let ghost =
+        insert_exit_ghost(&container, &rows[0], false).expect("切り離された行はゴースト化される");
     assert!(
         ghost.is_connected(),
         "ゴーストは再挿入され接続済みであること"
@@ -130,8 +131,70 @@ fn insert_exit_ghost_is_none_when_element_still_connected() {
 
     // `row` を取り除かないまま呼ぶ（構造変化が Remove を伴わなかった場合）。
     assert!(
-        insert_exit_ghost(&container, &rows[0]).is_none(),
+        insert_exit_ghost(&container, &rows[0], false).is_none(),
         "接続済みの行はゴースト化されないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn insert_exit_ghost_is_none_when_key_still_present_despite_disconnection() {
+    // codex-review 指摘の回帰（イシュー #2544）: 同じキーの行のタグ変更等
+    // で旧要素が DOM から切り離されても、更新後のキー集合に当該キーが
+    // 残っている（`key_still_present: true`）場合は実際の `Remove` では
+    // ないためゴースト化しない。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "presence-root-7");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let row = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    row.set_attribute(KEY_ATTR, "a").unwrap();
+    container.append_child(&row).unwrap();
+    let rows = snapshot_rows(&container, KEY_ATTR);
+
+    // タグ変更を模す: 旧要素を DOM から切り離す（`Remove` と同じ見た目）。
+    row.remove();
+
+    assert!(
+        insert_exit_ghost(&container, &rows[0], true).is_none(),
+        "キーが残存する要素置換はゴースト化されないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn insert_exit_ghost_disables_form_controls_in_self_and_descendants() {
+    // codex-review 指摘の回帰（イシュー #2544）: `inert`/`aria-hidden` は
+    // フォーム送信データの構築規則（HTML Standard）からの除外条件では
+    // ないため、退場ゴースト内の入力欄を `disabled` にして送信・制約
+    // 検証の対象から明示的に外す。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "presence-root-8");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let row = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    row.set_attribute(KEY_ATTR, "a").unwrap();
+    let input = document
+        .create_element("input")
+        .expect("create_element must not fail for input");
+    input.set_attribute("name", "field").unwrap();
+    row.append_child(&input).unwrap();
+    container.append_child(&row).unwrap();
+
+    let rows = snapshot_rows(&container, KEY_ATTR);
+    row.remove();
+
+    let ghost =
+        insert_exit_ghost(&container, &rows[0], false).expect("切り離された行はゴースト化される");
+    let descendant_input = ghost
+        .query_selector("input")
+        .expect("query_selector must not fail")
+        .expect("input が子孫に存在すること");
+    assert!(
+        descendant_input.has_attribute("disabled"),
+        "ゴースト内の input は送信対象から除外するため disabled になること"
     );
 }
 

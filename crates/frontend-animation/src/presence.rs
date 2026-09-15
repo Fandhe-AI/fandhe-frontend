@@ -138,9 +138,22 @@ mod wiring {
     /// `aria-hidden="true"`・`data-state="exiting"` を付けて返す。まだ
     /// 接続されている（構造変化が実際には Remove を伴わなかった）場合は
     /// `None`。
+    ///
+    /// `key_still_present`（呼び出し側が構造変化コミット後の `list` を
+    /// 走査し、`row.key` と同じキーの行が残っているかを判定する）が
+    /// `true` の場合も `None` を返す（codex-review 指摘是正）:
+    /// 同じキーの行のタグ変更・リスト親のタグ変更を伴う keyed 更新は、
+    /// 削除ではなく要素の置換であっても旧要素を DOM から切り離すため、
+    /// `is_connected()` だけでは実際の `Remove`（キー自体の消滅）と区別
+    /// できない。区別を誤ると、保持されている行の旧内容がゴーストとして
+    /// 新内容の上に重なって再挿入されてしまう。
     #[must_use]
-    pub fn insert_exit_ghost(list: &Element, row: &RowSnapshot) -> Option<HtmlElement> {
-        if row.element.is_connected() {
+    pub fn insert_exit_ghost(
+        list: &Element,
+        row: &RowSnapshot,
+        key_still_present: bool,
+    ) -> Option<HtmlElement> {
+        if row.element.is_connected() || key_still_present {
             return None;
         }
         let ghost = &row.element;
@@ -155,10 +168,38 @@ mod wiring {
         set_dom_attribute(ghost, "inert", "");
         set_dom_attribute(ghost, "aria-hidden", "true");
         set_dom_attribute(ghost, "data-state", "exiting");
+        disable_form_controls(ghost);
         if list.append_child(ghost).is_err() {
             return None;
         }
         Some(ghost.clone())
+    }
+
+    /// `ghost`（自身 + 子孫）に含まれるフォームコントロール
+    /// （`input`/`select`/`textarea`/`button`）へ `disabled` 属性を付ける
+    /// （codex-review 指摘是正）。`inert`・`aria-hidden` はいずれも
+    /// フォーム送信データの構築規則（HTML Standard）からの除外条件では
+    /// ないため、退場中のゴースト内に残る入力欄が送信対象へ含まれてしまう
+    /// （削除済みの `name`/値がサーバーへ送信される）。`disabled` は
+    /// フォームコントロールを送信・制約検証の対象から外す仕様上の条件
+    /// であり、これを付与することで退場ゴーストが送信に混入しなくなる。
+    fn disable_form_controls(ghost: &Element) {
+        const FORM_CONTROL_SELECTOR: &str = "input, select, textarea, button";
+        if ghost.matches(FORM_CONTROL_SELECTOR).unwrap_or(false) {
+            set_dom_attribute(ghost, "disabled", "");
+        }
+        let Ok(nodes) = ghost.query_selector_all(FORM_CONTROL_SELECTOR) else {
+            return;
+        };
+        for i in 0..nodes.length() {
+            let Some(node) = nodes.item(i) else {
+                continue;
+            };
+            let Ok(el) = node.dyn_into::<Element>() else {
+                continue;
+            };
+            set_dom_attribute(&el, "disabled", "");
+        }
     }
 
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー

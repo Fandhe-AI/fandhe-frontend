@@ -120,9 +120,26 @@ pub fn play_exit_after(list: &Element, before: Vec<RowSnapshot>) {
     };
     fandhe_frontend_animation::presence::ensure_positioned(list_html);
 
+    // codex-review 指摘是正（イシュー #2544）: `list` は構造変化コミット
+    // 済みのライブ要素であり、ここで現在の `data-key` 集合を走査して
+    // おくことで、`before` の各行が「実際に削除された（キー自体が消滅
+    // した）」のか「同じキーのまま要素がタグ変更等で置換された」のかを
+    // 区別できる（`insert_exit_ghost` doc「`key_still_present`」参照）。
+    let current_keys: std::collections::HashSet<String> =
+        fandhe_frontend_animation::presence::snapshot_rows(
+            list,
+            fandhe_frontend_core::keyed::KEY_ATTR,
+        )
+        .into_iter()
+        .map(|row| row.key)
+        .collect();
+
     let selector = strip_selector();
     for row in &before {
-        let Some(ghost) = fandhe_frontend_animation::presence::insert_exit_ghost(list, row) else {
+        let key_still_present = current_keys.contains(&row.key);
+        let Some(ghost) =
+            fandhe_frontend_animation::presence::insert_exit_ghost(list, row, key_still_present)
+        else {
             continue;
         };
         strip_framework_attrs(&ghost, &selector);

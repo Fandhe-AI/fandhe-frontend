@@ -78,9 +78,11 @@ mod wiring {
     /// 抜ける（モジュール冒頭 doc「対象リストの明示的オプトイン」参照）。
     ///
     /// `Runtime::apply_update_for_dirty` の keyed list 構造反映直後に
-    /// 呼ばれる（`Insert`/`Move` を含むあらゆる構造変化コミット後に呼ぶ
-    /// ため、「今回変化した行だけ」ではなく全行を再計算する。冪等かつ
-    /// `content_height::sync_content_height` と同型の「毎回再同期」方針）。
+    /// 呼ばれる（`Insert`/`Move` を含むあらゆる構造変化コミット後に呼ぶ）。
+    /// 全行を DOM 順に走査するが、書き込むのは
+    /// [`STAGGER_INDEX_VAR`] を**まだ持たない行のみ**（下記「既存行の
+    /// delay を凍結する理由」参照）。`content_height::sync_content_height`
+    /// と異なり「毎回無条件で全行上書き」ではない点に注意。
     ///
     /// `data-key` を持たない要素（`list_presence::play_exit_after` が
     /// 挿入した退場ゴースト。`data-key` は `strip_selector` で必ず剥がされる）
@@ -89,6 +91,28 @@ mod wiring {
     /// 無し要素を「現在の keyed 行」として扱わない既存契約であり、両者を
     /// 揃えないと presence + stagger 併用時にゴースト存続中の末尾追加行の
     /// index がずれ、ゴースト除去後も誤った値が残留する。
+    ///
+    /// # 既存行の delay を凍結する理由（codex-review 指摘是正、イシュー #2544）
+    ///
+    /// 既に [`STAGGER_INDEX_VAR`] を持つ行（前回までの構造変化で書き込み
+    /// 済み、または SSR が `stagger_index_style` で書き出した初期値）は
+    /// 上書きしない。本関数は全行を毎回再走査するため、上書きを許すと
+    /// 先頭への `Insert` で DOM 順位置がずれただけの既存行の値まで
+    /// 書き換わり、`--fandhe-motion-stagger-index` を参照する
+    /// `animation-delay` が再計算される。CSS Animations のフェーズ判定
+    /// （delay が伸びると現在時刻が再び delay 前フェーズへ戻る）と
+    /// `list_motion::enter_css` の `animation-fill-mode: both` により、
+    /// 既に enter アニメーション再生済みの行が `opacity: 0`（enter の
+    /// `from` キーフレーム）へ巻き戻ってしまう。新規追加行（未設定）にの
+    /// み書き込み、既存の設定済み行の delay は初回設定のまま固定する。
+    ///
+    /// ponytail: この凍結は `Move`（並べ替え）で位置が変わった既存行の
+    /// delay も更新しない副作用を持つ（`STAGGER_AUTO_FIRST_ATTR` 対象の
+    /// リストで、初回配置後に並べ替えのみが起きるケース）。当面は許容する
+    /// トレードオフ（Insert 由来の巻き戻り regression の方が実害が大きい）
+    /// で、Move 時にも意図的な delay 更新が必要になった場合は
+    /// `Runtime::apply_update_for_dirty` 側で「この commit に Insert が
+    /// 含まれるか」を渡して分岐する設計から検討する。
     pub fn sync_stagger_index(list_element: &Element) {
         if !list_element.has_attribute(STAGGER_AUTO_FIRST_ATTR) {
             return;
@@ -98,9 +122,16 @@ mod wiring {
         while let Some(el) = current {
             if let Some(html) = el.dyn_ref::<HtmlElement>() {
                 if html.has_attribute(fandhe_frontend_core::keyed::KEY_ATTR) {
-                    let _ = html
+                    let already_set = !html
                         .style()
-                        .set_property(STAGGER_INDEX_VAR, &stagger_index_value(index));
+                        .get_property_value(STAGGER_INDEX_VAR)
+                        .unwrap_or_default()
+                        .is_empty();
+                    if !already_set {
+                        let _ = html
+                            .style()
+                            .set_property(STAGGER_INDEX_VAR, &stagger_index_value(index));
+                    }
                     index += 1;
                 }
             }
