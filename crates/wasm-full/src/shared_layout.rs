@@ -253,6 +253,16 @@ mod wiring {
         // 判定は `is_done()`（自ハンドル固有の状態）のみで、ルート横断の
         // 書き込み・削除は行わないため問題ない。
         ACTIVE.with(|cell| cell.borrow_mut().retain(|_, anim| !anim.is_done()));
+        // `PREV_TRANSITION_NAMES` の prune（codex-review 指摘、イシュー
+        // #2578）。`assign_transition_names` の retain は同じ root_id が
+        // 再度呼ばれた時にのみ走るため、ルート自体が DOM から除去され
+        // 破棄されて二度と呼ばれなくなると、それが保持する `HtmlElement`
+        // 強参照が回収されず残り続ける（メモリリーク）。`capture_before`
+        // は `Runtime::apply_update_for_dirty`/`rerender` から更新のたび
+        // 呼ばれるため、ここで DOM から切断済み（`is_connected() == false`）
+        // の要素を全ルート横断で掃除する（`ACTIVE` の prune と同じ設計：
+        // 判定は要素固有の状態のみで、他ルートへの書き込み・削除は行わない）。
+        PREV_TRANSITION_NAMES.with(|cell| cell.borrow_mut().retain(|_, el| el.is_connected()));
         let entries = collect(root);
         if entries.is_empty() {
             return None;
@@ -303,7 +313,10 @@ mod wiring {
         fn make_layout_element(root: &Element, id: &str) -> Element {
             let document = web_sys::window().unwrap().document().unwrap();
             let element = document.create_element("span").unwrap();
-            element.set_attribute(LAYOUT_ID_ATTR, id).unwrap();
+            // `fw gate` `url_validation_check`（U1、イシュー #401）の
+            // sink/guard 共起契約に合わせ、生の `set_attribute` ではなく
+            // 共通ガード付きラッパーを使う（`dom.rs` doc コメント参照）。
+            crate::dom::set_dom_attribute_result(&element, LAYOUT_ID_ATTR, id).unwrap();
             root.append_child(&element).unwrap();
             element
         }
