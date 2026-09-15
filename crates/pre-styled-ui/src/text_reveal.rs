@@ -157,12 +157,19 @@ fn sr_span(content: &str) -> Node {
 /// 最小限の判定。完全な UAX #29 grapheme cluster segmentation ではない
 /// 既知の簡略化——upgrade path: `unicode-segmentation` crate 導入、依存
 /// 追加はユーザー承認事項のため本 PR では見送る）。
+///
+/// codex-review P1 指摘是正: 日本語の結合濁点・半濁点
+/// （U+3099/U+309A、例: `chars("か\u{3099}")` の「か」+ 濁点が
+/// 基底文字と別々の [`UNIT_CLASS`] span に分かれ、アニメーション終了後・
+/// `prefers-reduced-motion: reduce` 下でも「が」の字形へ復元されなかった）
+/// を追加した。
 fn combines_with_previous(c: char) -> bool {
     matches!(c,
         '\u{0300}'..='\u{036F}' // Combining Diacritical Marks
         | '\u{1AB0}'..='\u{1AFF}' // Combining Diacritical Marks Extended
         | '\u{1DC0}'..='\u{1DFF}' // Combining Diacritical Marks Supplement
         | '\u{20D0}'..='\u{20FF}' // Combining Diacritical Marks for Symbols
+        | '\u{3099}'..='\u{309A}' // 結合濁点・半濁点（日本語）
         | '\u{FE00}'..='\u{FE0F}' // Variation Selectors
         | '\u{FE20}'..='\u{FE2F}' // Combining Half Marks
         | '\u{1F3FB}'..='\u{1F3FF}' // Emoji Modifier Fitzpatrick（肌色）
@@ -190,10 +197,19 @@ fn is_regional_indicator(c: char) -> bool {
 /// 1 クラスタとして扱う（UAX #29 準拠の完全な実装は `unicode-segmentation`
 /// crate 導入を要し依存追加はユーザー承認事項のため見送り、モジュール doc
 /// 「PRNG」節と同じ upgrade path 注記）。対象は主要な Brahmic 系文字体系
-/// （結合子音・母音記号を持つ）のコードブロック。
+/// （結合子音・母音記号を持つ）のコードブロックに加え、分解形 Hangul の
+/// Jamo（子音・母音・終声が複数コードポイントへ分かれ
+/// [`combines_with_previous`] の「直前 1 文字への結合」モデルでは音節
+/// ブロックを再現できない）とヘブライ語の母音点・アクセント記号
+/// （codex-review P1 指摘: U+3099/U+309A 是正と同根の問題として指摘、
+/// [`combines_with_previous`] doc 参照）。
 fn requires_complex_script_fallback(c: char) -> bool {
     matches!(c,
-        '\u{0600}'..='\u{06FF}' // Arabic
+        '\u{0591}'..='\u{05C7}' // Hebrew（母音点・アクセント記号を含む）
+        | '\u{1100}'..='\u{11FF}' // Hangul Jamo
+        | '\u{A960}'..='\u{A97F}' // Hangul Jamo Extended-A
+        | '\u{D7B0}'..='\u{D7FF}' // Hangul Jamo Extended-B
+        | '\u{0600}'..='\u{06FF}' // Arabic
         | '\u{0750}'..='\u{077F}' // Arabic Supplement
         | '\u{08A0}'..='\u{08FF}' // Arabic Extended-A
         | '\u{FB50}'..='\u{FDFF}' // Arabic Presentation Forms-A
@@ -569,6 +585,38 @@ mod tests {
     fn grapheme_clusters_falls_back_to_whole_word_for_thai() {
         // "สวัสดี"（こんにちは）。
         let word = "\u{0E2A}\u{0E27}\u{0E31}\u{0E2A}\u{0E14}\u{0E35}";
+        let clusters = grapheme_clusters(word);
+        assert_eq!(clusters, vec![word]);
+    }
+
+    // codex-review P1 指摘: `combines_with_previous` が結合濁点・半濁点
+    // （U+3099/U+309A）を含んでおらず、基底文字（例: "か"）と濁点が別々の
+    // クラスタに分かれ「が」の字形がアニメーション後・reduced-motion 時も
+    // 復元されなかった。
+    #[test]
+    fn grapheme_clusters_keeps_japanese_combining_voiced_mark_with_base_char() {
+        // "か" + 結合濁点 → 見た目は「が」。
+        let clusters = grapheme_clusters("\u{304B}\u{3099}b");
+        assert_eq!(clusters, vec!["\u{304B}\u{3099}", "b"]);
+    }
+
+    // 同 P1 指摘が同根の問題として挙げた分解形 Hangul（音節が複数 Jamo へ
+    // 分かれる）は `combines_with_previous` の「直前 1 文字への結合」
+    // モデルでは表現できないため、単語全体フォールバックで安全側にする。
+    #[test]
+    fn grapheme_clusters_falls_back_to_whole_word_for_decomposed_hangul() {
+        // "한글" の分解形（Lead+Vowel+Trail の Jamo 列）。
+        let word = "\u{1112}\u{1161}\u{11AB}\u{1100}\u{1173}\u{11AF}";
+        let clusters = grapheme_clusters(word);
+        assert_eq!(clusters, vec![word]);
+    }
+
+    // 同 P1 指摘が挙げたヘブライ語の結合記号（母音点）も単語全体
+    // フォールバックの対象とする。
+    #[test]
+    fn grapheme_clusters_falls_back_to_whole_word_for_hebrew() {
+        // "שָׁלוֹם"（こんにちは、母音点付き）。
+        let word = "\u{05E9}\u{05B8}\u{05C1}\u{05DC}\u{05D5}\u{05B9}\u{05DD}";
         let clusters = grapheme_clusters(word);
         assert_eq!(clusters, vec![word]);
     }
