@@ -176,22 +176,72 @@ fn combines_with_previous(c: char) -> bool {
 /// 表現できないため専用に扱う。
 const ZWJ: char = '\u{200D}';
 
+/// `c` が地域指示記号（Regional Indicator Symbol、国旗絵文字はこれを
+/// 2 個連結して表す。例: 🇯🇵 = U+1F1EF U+1F1F5）か。
+fn is_regional_indicator(c: char) -> bool {
+    matches!(c, '\u{1F1E6}'..='\u{1F1FF}')
+}
+
+/// `word` が [`combines_with_previous`]/ZWJ/地域指示記号のペアリングだけ
+/// では正しく分割できない複雑スクリプト（codex-review P1 指摘:
+/// デーヴァナーガリー等の結合文字、母音記号・ヴィラーマ・子音結合が
+/// span 境界をまたいで分断されアニメーション後も字形が戻らない）の
+/// 文字を含むか。該当する場合 [`grapheme_clusters`] は単語全体を安全側で
+/// 1 クラスタとして扱う（UAX #29 準拠の完全な実装は `unicode-segmentation`
+/// crate 導入を要し依存追加はユーザー承認事項のため見送り、モジュール doc
+/// 「PRNG」節と同じ upgrade path 注記）。対象は主要な Brahmic 系文字体系
+/// （結合子音・母音記号を持つ）のコードブロック。
+fn requires_complex_script_fallback(c: char) -> bool {
+    matches!(c,
+        '\u{0900}'..='\u{097F}' // Devanagari
+        | '\u{0980}'..='\u{09FF}' // Bengali
+        | '\u{0A00}'..='\u{0A7F}' // Gurmukhi
+        | '\u{0A80}'..='\u{0AFF}' // Gujarati
+        | '\u{0B00}'..='\u{0B7F}' // Oriya
+        | '\u{0B80}'..='\u{0BFF}' // Tamil
+        | '\u{0C00}'..='\u{0C7F}' // Telugu
+        | '\u{0C80}'..='\u{0CFF}' // Kannada
+        | '\u{0D00}'..='\u{0D7F}' // Malayalam
+        | '\u{0D80}'..='\u{0DFF}' // Sinhala
+        | '\u{0E80}'..='\u{0EFF}' // Lao
+        | '\u{0F00}'..='\u{0FFF}' // Tibetan
+        | '\u{1000}'..='\u{109F}' // Myanmar
+        | '\u{1780}'..='\u{17FF}' // Khmer
+    )
+}
+
 /// `word` を `chars()`（Unicode スカラー値単位）ではなく grapheme cluster
-/// 近似単位へ分割する（codex-review P1 指摘: 結合文字・ZWJ 絵文字が
-/// span 境界で分断されアニメーション後に見た目が戻らない問題の是正）。
-/// ZWJ シーケンス・結合分音記号・字形選択子・絵文字肌色修飾子を直前の
-/// クラスタへ結合し、それ以外は 1 スカラー値 1 クラスタとする。
+/// 近似単位へ分割する（codex-review P1 指摘: 結合文字・ZWJ 絵文字・地域
+/// 指示記号ペアが span 境界で分断されアニメーション後に見た目が戻らない
+/// 問題の是正）。[`requires_complex_script_fallback`] に該当する文字を
+/// 含む場合は安全側で分割せず単語全体を 1 クラスタとして返す。それ以外は
+/// ZWJ シーケンス・結合分音記号・字形選択子・絵文字肌色修飾子・地域指示
+/// 記号ペアを直前のクラスタへ結合し、残りは 1 スカラー値 1 クラスタと
+/// する。
 fn grapheme_clusters(word: &str) -> Vec<&str> {
+    if word.chars().any(requires_complex_script_fallback) {
+        return vec![word];
+    }
     let mut clusters: Vec<&str> = Vec::new();
     let mut start = 0usize;
     let mut prev_was_zwj = false;
+    // 直前の文字が「まだペアになっていない地域指示記号」かどうか
+    // （国旗絵文字は地域指示記号 2 個 1 組で構成されるため、1 個ごとに
+    // トグルしてペア境界を判定する）。
+    let mut pending_regional = false;
     for (i, c) in word.char_indices() {
-        let extends_previous = i > start && (combines_with_previous(c) || prev_was_zwj || c == ZWJ);
+        let is_ri = is_regional_indicator(c);
+        let extends_previous = i > start
+            && (combines_with_previous(c)
+                || prev_was_zwj
+                || c == ZWJ
+                || (is_ri && pending_regional));
         if !extends_previous && i > start {
             clusters.push(&word[start..i]);
             start = i;
         }
         prev_was_zwj = c == ZWJ;
+        pending_regional = if is_ri { !pending_regional } else { false };
     }
     if start < word.len() {
         clusters.push(&word[start..]);
@@ -456,6 +506,39 @@ mod tests {
     fn grapheme_clusters_keeps_emoji_skin_tone_modifier_with_base() {
         let clusters = grapheme_clusters("\u{1F44D}\u{1F3FB}x");
         assert_eq!(clusters, vec!["\u{1F44D}\u{1F3FB}", "x"]);
+    }
+
+    // codex-review P1 是正の回帰テスト: 国旗絵文字（地域指示記号 2 個の
+    // ペア）が分断されていた問題の是正。
+    #[test]
+    fn grapheme_clusters_pairs_regional_indicators_into_flag_emoji() {
+        // 🇯🇵（U+1F1EF U+1F1F5）+ "x"。
+        let flag = "\u{1F1EF}\u{1F1F5}";
+        let word = format!("{flag}x");
+        let clusters = grapheme_clusters(&word);
+        assert_eq!(clusters, vec![flag, "x"]);
+    }
+
+    #[test]
+    fn grapheme_clusters_pairs_consecutive_flag_emoji_independently() {
+        // 2 つの国旗（🇯🇵🇺🇸）が誤って 1 クラスタへ混ざらない。
+        let jp = "\u{1F1EF}\u{1F1F5}";
+        let us = "\u{1F1FA}\u{1F1F8}";
+        let word = format!("{jp}{us}");
+        let clusters = grapheme_clusters(&word);
+        assert_eq!(clusters, vec![jp, us]);
+    }
+
+    // codex-review P1 是正の回帰テスト: デーヴァナーガリー等、結合子音・
+    // 母音記号を持つ複雑スクリプトは安全側で単語全体を 1 クラスタへ
+    // フォールバックする（分割してアニメーション後に字形が戻らない事故を
+    // 避ける）。
+    #[test]
+    fn grapheme_clusters_falls_back_to_whole_word_for_devanagari() {
+        // "नमस्ते"（こんにちは）。
+        let word = "\u{0928}\u{092E}\u{0938}\u{094D}\u{0924}\u{0947}";
+        let clusters = grapheme_clusters(word);
+        assert_eq!(clusters, vec![word]);
     }
 
     #[test]
