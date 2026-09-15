@@ -1187,6 +1187,30 @@ where
                                 {
                                     crate::stagger_index::sync_stagger_index(&current_list_element);
                                 }
+
+                                // codex-review P1 是正（イシュー #2535、
+                                // PR #2565）: 再同期が `Self::apply_subtree_swap`
+                                // にしか追加されておらず、本分岐（keyed list
+                                // の `apply_keyed_list`/
+                                // `apply_keyed_list_with_previous` による
+                                // Insert/Move/置換）を経由しない。この経路は
+                                // 全体再描画を経由せず、挿入・置換で新規生成
+                                // された opt-in ドラッグ要素の `controller_for`
+                                // は最初の `pointerdown` で初めて呼ばれるため、
+                                // `touch-action: none` の反映がタッチの
+                                // スクロール判定に間に合わず初回ドラッグが
+                                // `pointercancel` で中断する
+                                // （`resync_drag_gesture_attachments` doc の
+                                // 制約と同型）。タグ変更で `list_element` が
+                                // 切り離される可能性があるため、上記
+                                // `stagger` 分岐と同じく `root`/`field` から
+                                // 現在のライブ要素を再取得してから再同期する。
+                                #[cfg(feature = "drag-gesture")]
+                                if let Ok(Some(current_list_element)) =
+                                    fandhe_frontend_wasm_client::find_list_element(root, field)
+                                {
+                                    Self::resync_drag_gesture_attachments(&current_list_element);
+                                }
                                 structural_change = true;
                             } else if !has_binding(field) {
                                 unresolved_field = true;
