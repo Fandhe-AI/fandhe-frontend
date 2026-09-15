@@ -1275,7 +1275,11 @@ name = "fandhe-frontend-wasm-full"
 # 同型の新規公開モジュール純追加のため minor バンプする。あわせて
 # `fandhe-frontend-animation` の依存 `version` 要求を 0.12.0 → 0.13.0 へ
 # 追随した（`xtask check-dep-versions --fix` 相当）。
-version = "0.36.0"
+#
+# イシュー #2541（PR #2581 codex-review/Cursor Bugbot 指摘是正）:
+# `carousel_motion.rs` の内部実装のみを修正した（公開 API のシグネチャは
+# 不変）ため patch バンプする。
+version = "0.36.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

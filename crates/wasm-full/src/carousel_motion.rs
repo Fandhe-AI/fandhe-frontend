@@ -64,6 +64,59 @@
 //! 探索で同一性判定する（ponytail: 1 ページ内の carousel 数は通常一桁〜
 //! 十数個程度に収まる想定の簡略化。件数が実運用で問題になった場合は
 //! `js_sys::WeakMap` 等キー付きコレクションへの切替を検討する）。
+//!
+//! # settle 完了を待たず release 時に即 dispatch する（codex-review/Cursor
+//! Bugbot 指摘 是正、イシュー #2541 第 3 ラウンド）
+//!
+//! 従来は着地 index の `"goto"` dispatch を spring 収束完了時（非同期の
+//! `on_settle` コールバック）まで遅延していた。これは 2 つの不具合を招く:
+//! (1) 収束中に `next-trigger`/`prev-trigger`/`indicator` を操作して別の
+//! index へ `"goto"` した場合、後から収束を終える古い spring が最後に古い
+//! index を dispatch し新しい選択を上書きする。(2) 収束中に carousel の
+//! DOM 部分木が置換されて root が切断されると、[`slot_for`] の遅延回収が
+//! `TrackSlot` ごと `CarouselTrack` を drop し、進行中の spring が二度と
+//! 完了しないため意図した着地 index が状態へ一切反映されないまま失われる。
+//! [`fandhe_frontend_animation::carousel::CarouselTrack::on_release`] は
+//! 着地 index を spring 開始前に同期的に確定して返すため、`"goto"`
+//! dispatch は release 時に即実行し、spring は純粋に見た目の追従
+//! （`--fandhe-carousel-index` の連続値書き込み）のみを担う設計へ改めた
+//! （状態更新は操作確定時に即時、アニメーションは装飾という Motion+ 系の
+//! 標準的な責務分離）。これにより (1)(2) とも dispatch 自体は既に完了済み
+//! となり、残る懸念は spring が引き続き旧 target へ向けて
+//! `--fandhe-carousel-index` を上書きし続ける見た目の競合のみとなるため、
+//! [`wire_carousel_motion_events`] の click（capture）ハンドラで
+//! `next-trigger`/`prev-trigger`/`indicator` クリックを検知した時点で
+//! 該当 carousel root の [`TrackSlot`] を `None` にし進行中の spring を
+//! 打ち切る（`CarouselTrack` の `Drop` が `AnimationLoop` を止める）。
+//!
+//! # ドラッグ確定前は pointer capture しない（codex-review 指摘 是正）
+//!
+//! `pointerdown` 直後に `item_group.set_pointer_capture()` すると、以降の
+//! `pointerup`（ひいては派生する `click`）の実際の発火対象がすべて
+//! capture 元の `item_group` へ retarget され、item 内のリンク/ボタンを
+//! 「移動なしでタップ」しても `click` がそのリンク/ボタンへ届かなくなる
+//! （pointer capture の既知の副作用。ブラウザは compatibility mouse event
+//! も capture target へ retarget する）。是正として capture は
+//! [`CLICK_GUARD_PX`] を超える実移動を検知した最初の `pointermove` まで
+//! 遅延する（`DragMeta::captured` で 1 回のみ実行）。閾値未満のタップは
+//! 一切 capture されないため、内部要素の `click` は通常どおり発火する。
+//!
+//! # capture 喪失時のドラッグ終了回収（codex-review 指摘 是正）
+//!
+//! `pointerup`/`pointercancel` リスナーは `root` へ委譲登録しているが、
+//! pointer capture が（ブラウザ・OS 側の事情や複合ジェスチャー競合で）
+//! 暗黙に失われた場合、以降の実イベントは実際のヒットテスト対象（carousel
+//! の部分木外を指しうる）へ配信されるため `root` へ届かず、
+//! [`DragMeta`]/`data-fandhe-carousel-dragging` 属性が残留し続け、次の
+//! `pointerdown` が「進行中のドラッグがある」判定で拒否され続ける
+//! （[`handle_pointerdown`] の `drag.borrow().is_some()` ガード参照）。
+//! Pointer Events 仕様上 `lostpointercapture` は capture 喪失の理由を
+//! 問わず必ず発火し、かつバブルするため、`pointerup`/`pointercancel` と
+//! 同じ委譲リスナーへこのイベントも加えて終了処理の取りこぼしを塞ぐ
+//! （[`handle_pointer_release`] は `pointer_id` 一致確認後にしか状態を
+//! 取り出さないため、正常系の `pointerup` に続いて非同期に発火する
+//! `lostpointercapture` が二重に届いても [`find_active_slot`] が `None`
+//! を返すだけで安全に no-op になる）。
 
 /// opt-in（著者が SSR 出力に静的に付与）: root へ付与するとドラッグ +
 /// spring スナップを有効化するマーカー属性。値は `""`（非 loop）または
@@ -119,6 +172,15 @@ mod wiring {
     /// `item-group` 配下の `item` 一覧を数える・先頭要素を計測するための
     /// セレクタ。
     const ITEM_SELECTOR: &str = "[data-scope=\"carousel\"][data-part=\"item\"]";
+    /// `next-trigger`/`prev-trigger`/`indicator` を `closest()` で判定する
+    /// ためのセレクタ（モジュール doc「settle 完了を待たず release 時に
+    /// 即 dispatch する」節参照）。クリックでこれら操作 UI が押された
+    /// 場合、進行中の spring（旧 target への視覚的な上書き）を打ち切る。
+    const NAV_TRIGGER_SELECTOR: &str = concat!(
+        "[data-scope=\"carousel\"][data-part=\"next-trigger\"],",
+        "[data-scope=\"carousel\"][data-part=\"prev-trigger\"],",
+        "[data-scope=\"carousel\"][data-part=\"indicator\"]",
+    );
 
     /// [`CarouselTrack`] の保持スロット（モジュール doc「`CarouselTrack`
     /// の保持責任」節参照）。
@@ -134,6 +196,9 @@ mod wiring {
         vertical: bool,
         origin_coord: f64,
         moved: bool,
+        /// `item_group.set_pointer_capture()` を実行済みかどうか（モジュール
+        /// doc「ドラッグ確定前は pointer capture しない」節参照）。
+        captured: bool,
     }
 
     type DragMetaSlot = Rc<RefCell<Option<DragMeta>>>;
@@ -176,6 +241,35 @@ mod wiring {
         let drag: DragMetaSlot = Rc::new(RefCell::new(None));
         entries.push((carousel_root.clone(), track.clone(), drag.clone()));
         (track, drag)
+    }
+
+    /// `next-trigger`/`prev-trigger`/`indicator`（[`NAV_TRIGGER_SELECTOR`]）
+    /// のクリックを検知したら、その carousel root の進行中の spring
+    /// （settle 未完了の [`CarouselTrack`]）を打ち切る（モジュール doc
+    /// 「settle 完了を待たず release 時に即 dispatch する」節参照）。
+    /// `"goto"` dispatch は release 時に既に完了済みのため、ここでの
+    /// 打ち切りは純粋に見た目の競合（旧 target への上書き）を止める
+    /// だけであり、状態には一切影響しない。opt-in root が見つからない・
+    /// nav trigger 以外のクリックはいずれも no-op。
+    fn invalidate_settle_on_nav_trigger_click(event: &Event, registry: &TrackRegistry) {
+        let Some(target) = event.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
+            return;
+        };
+        let Ok(Some(carousel_root)) = target.closest(CAROUSEL_ROOT_SELECTOR) else {
+            return;
+        };
+        if target
+            .closest(NAV_TRIGGER_SELECTOR)
+            .ok()
+            .flatten()
+            .is_none()
+        {
+            return;
+        }
+        let (track, _) = slot_for(registry, &carousel_root);
+        if track.borrow_mut().take().is_some() {
+            let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
+        }
     }
 
     /// ドラッグ後の合成 click を抑止するためのフラグ（5px 超の移動が
@@ -223,7 +317,7 @@ mod wiring {
         )?;
         pointermove_closure.forget();
 
-        for event_name in ["pointerup", "pointercancel"] {
+        for event_name in ["pointerup", "pointercancel", "lostpointercapture"] {
             let release_registry = registry.clone();
             let release_on_action = on_action.clone();
             let release_suppress = suppress_click.clone();
@@ -243,11 +337,13 @@ mod wiring {
         }
 
         let click_suppress = suppress_click;
+        let click_registry = registry;
         let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             if click_suppress.replace(false) {
                 event.stop_propagation();
                 event.prevent_default();
             }
+            invalidate_settle_on_nav_trigger_click(&event, &click_registry);
         });
         root.add_event_listener_with_callback_and_bool(
             "click",
@@ -331,7 +427,9 @@ mod wiring {
             return;
         }
 
-        let _ = item_group.set_pointer_capture(pointer_event.pointer_id());
+        // pointer capture はまだ行わない（モジュール doc「ドラッグ確定前は
+        // pointer capture しない」節参照）。移動閾値を超えた最初の
+        // `pointermove` で `captured` を立てて実行する。
         let mut new_track = CarouselTrack::attach(item_group.clone(), slide_count, loop_);
         let coord = if vertical {
             f64::from(pointer_event.client_y())
@@ -350,6 +448,7 @@ mod wiring {
             vertical,
             origin_coord: coord,
             moved: false,
+            captured: false,
         });
     }
 
@@ -403,6 +502,16 @@ mod wiring {
         };
         if (coord - meta.origin_coord).abs() > CLICK_GUARD_PX {
             meta.moved = true;
+            // 移動閾値を超えた最初の pointermove でのみ capture する
+            // （モジュール doc「ドラッグ確定前は pointer capture しない」
+            // 節参照）。閾値未満のタップは capture されないため内部要素の
+            // click が通常どおり発火する。
+            if !meta.captured {
+                let _ = meta
+                    .item_group
+                    .set_pointer_capture(pointer_event.pointer_id());
+                meta.captured = true;
+            }
         }
         let slide_px = meta.slide_px;
         if let Some(t) = track.borrow_mut().as_mut() {
@@ -453,9 +562,11 @@ mod wiring {
             .expect("find_active_slot が Some を確認済み");
         drop(drag_guard);
 
-        let _ = meta
-            .item_group
-            .release_pointer_capture(pointer_event.pointer_id());
+        if meta.captured {
+            let _ = meta
+                .item_group
+                .release_pointer_capture(pointer_event.pointer_id());
+        }
         if event.type_() == "pointerup" {
             suppress_click.set(meta.moved);
         }
@@ -467,14 +578,20 @@ mod wiring {
                 .remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
             return;
         };
+        // 着地 index は spring 開始前に同期的に確定するため、`"goto"`
+        // dispatch は settle 完了（非同期の `on_settle`）を待たず release
+        // 時に即実行する（モジュール doc「settle 完了を待たず release 時に
+        // 即 dispatch する」節参照）。spring 自体は純粋に見た目の追従用
+        // （`--fandhe-carousel-index` の連続値書き込み）として引き続き
+        // 走らせ、収束完了時には dragging 属性の除去のみを行う。
         let carousel_root = meta.carousel_root.clone();
-        let on_action = on_action.clone();
-        t.on_release(event.time_stamp(), meta.slide_px, move |index| {
+        let target = t.on_release(event.time_stamp(), meta.slide_px, move |_index| {
             let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
-            (on_action.borrow_mut())(ActionRef {
-                action: "goto".to_string(),
-                payload: index.to_string(),
-            });
+        });
+        drop(track_guard);
+        (on_action.borrow_mut())(ActionRef {
+            action: "goto".to_string(),
+            payload: target.to_string(),
         });
     }
 }
