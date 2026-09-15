@@ -74,6 +74,8 @@
 mod dashboard_01;
 mod login_01;
 mod login_04;
+mod pricing_tiers_morph;
+mod pricing_usage_slider;
 mod sidebar_03;
 mod sidebar_07;
 mod signup_01;
@@ -172,6 +174,8 @@ pub const BLOCKS: &[Block] = &[
     sidebar_03::BLOCK,
     signup_01::BLOCK,
     signup_05::BLOCK,
+    pricing_tiers_morph::BLOCK,
+    pricing_usage_slider::BLOCK,
 ];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
@@ -253,6 +257,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(sidebar_03::LAYOUT_CSS)?;
     sheet.push_css(signup_01::LAYOUT_CSS)?;
     sheet.push_css(signup_05::LAYOUT_CSS)?;
+    sheet.push_css(pricing_tiers_morph::LAYOUT_CSS)?;
+    sheet.push_css(pricing_usage_slider::LAYOUT_CSS)?;
     Ok(sheet)
 }
 

@@ -1011,3 +1011,176 @@ fn signup_01_composes_expected_parts() {
         );
     }
 }
+
+/// pricing-tiers-morph ページの Demo クラス・両スタイルシート・
+/// `data-blocks-pricing-tiers-morph-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタが存在することを固定する
+/// （signup-05 と同型の検証、イシュー #2547）。
+#[test]
+fn pricing_tiers_morph_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-tiers-morph/index.html"))
+        .expect("blocks/pricing-tiers-morph/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-pricing-tiers-morph\""),
+        "pricing-tiers-morph page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "pricing-tiers-morph page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "pricing-tiers-morph page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-pricing-tiers-morph-grid=\"\"",
+        "data-blocks-pricing-tiers-morph-tier=\"\"",
+        "data-blocks-pricing-tiers-morph-footer=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "pricing-tiers-morph page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-pricing-tiers-morph-grid]",
+        "[data-blocks-pricing-tiers-morph-tier]",
+        "[data-blocks-pricing-tiers-morph-footer]",
+        ".blocks-pricing-tiers-morph-featured",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// pricing-tiers-morph の合成部品（tabs/card/badge/button/border-beam）が
+/// 期待どおりの構成で実際に出力されていること、月額/年額の両 billing 状態
+/// のティアカードが両方 SSR 出力へ存在すること（無 JS 併記の回帰）、
+/// `<form>`/死リンクを持ち込んでいないことを固定する（イシュー #2547）。
+#[test]
+fn pricing_tiers_morph_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-tiers-morph/index.html"))
+        .expect("blocks/pricing-tiers-morph/index.html should be generated");
+    for needle in [
+        "data-scope=\"tabs\" data-part=\"content\"",
+        "data-scope=\"card\" data-part=\"root\"",
+        "fd-badge--variant-solid",
+        "fd-border-beam",
+        "Starter",
+        "Growth",
+        "Enterprise",
+        "$9",
+        "$29",
+        "$99",
+        "$86",
+        "$278",
+        "$950",
+        "Get started",
+        "Contact sales",
+    ] {
+        assert!(
+            html.contains(needle),
+            "pricing-tiers-morph page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "pricing-tiers-morph should never contain {absent}"
+        );
+    }
+
+    // 月額/年額どちらの billing 状態も SSR 出力へ実在すること（tabs の
+    // `hidden` 属性による無 JS 併記、`sidebar-07` と同型の対処）。
+    let monthly_idx = html
+        .find("id=\"blocks-pricing-tiers-morph-content-monthly\"")
+        .expect("monthly content panel should be present");
+    let yearly_idx = html
+        .find("id=\"blocks-pricing-tiers-morph-content-yearly\"")
+        .expect("yearly content panel should be present");
+    assert_ne!(monthly_idx, yearly_idx);
+}
+
+/// pricing-usage-slider ページの Demo クラス・両スタイルシート・
+/// `data-blocks-pricing-usage-slider-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタが存在することを固定する
+/// （イシュー #2547）。
+#[test]
+fn pricing_usage_slider_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-usage-slider/index.html"))
+        .expect("blocks/pricing-usage-slider/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-pricing-usage-slider\""),
+        "pricing-usage-slider page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "pricing-usage-slider page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "pricing-usage-slider page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-pricing-usage-slider-layout=\"\"",
+        "data-blocks-pricing-usage-slider-slider=\"\"",
+        "data-blocks-pricing-usage-slider-stat=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "pricing-usage-slider page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-pricing-usage-slider-layout]",
+        "[data-blocks-pricing-usage-slider-slider]",
+        "[data-blocks-pricing-usage-slider-stat]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// pricing-usage-slider の合成部品（slider/stat）が期待どおりの構成で
+/// 実際に出力されていること、価格表示がスライダーの固定初期値
+/// （50 千件 → $29）と一致していること、`<form>`/`data:` URI を持ち込んで
+/// いないことを固定する（イシュー #2547）。
+#[test]
+fn pricing_usage_slider_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-usage-slider/index.html"))
+        .expect("blocks/pricing-usage-slider/index.html should be generated");
+    for needle in [
+        "data-scope=\"slider\" data-part=\"root\"",
+        "data-scope=\"slider\" data-part=\"marker-group\"",
+        "data-scope=\"stat\" data-part=\"root\"",
+        "$29",
+        "想定コスト",
+    ] {
+        assert!(
+            html.contains(needle),
+            "pricing-usage-slider page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "pricing-usage-slider should never contain {absent}"
+        );
+    }
+}
