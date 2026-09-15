@@ -90,6 +90,9 @@ pub fn snap_target(
 
 #[cfg(target_arch = "wasm32")]
 mod wiring {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
     use fandhe_animation::driver::Driver;
     use fandhe_animation::interpolate::Vec2;
     use fandhe_animation::spring::{Spring, SpringConfig};
@@ -119,7 +122,11 @@ mod wiring {
         element: HtmlElement,
         slide_count: usize,
         loop_: bool,
-        progress: f64,
+        // 収束前の spring 途中経過値を毎 tick 反映する共有セル（issue #2541
+        // レビュー指摘 是正）。settle 完了前に外部から `on_pointer_down` が
+        // 再度呼ばれても、`Cell::get()` が返すのは常にその瞬間の実際の
+        // 表示位置であり、`to`（着地先）への先取りジャンプを起こさない。
+        progress: Rc<Cell<f64>>,
         drag_origin: Option<(f64, f64)>,
         previous_sample: Option<(Vec2, f64)>,
         latest_sample: Option<(Vec2, f64)>,
@@ -142,7 +149,7 @@ mod wiring {
                 element: item_group,
                 slide_count,
                 loop_,
-                progress,
+                progress: Rc::new(Cell::new(progress)),
                 drag_origin: None,
                 previous_sample: None,
                 latest_sample: None,
@@ -154,7 +161,7 @@ mod wiring {
         /// 起点を記録する。
         pub fn on_pointer_down(&mut self, client_x: f64, time_ms: f64) {
             self.settle_anim = None;
-            self.drag_origin = Some((self.progress, client_x));
+            self.drag_origin = Some((self.progress.get(), client_x));
             self.previous_sample = None;
             self.latest_sample = Some((
                 Vec2 {
@@ -180,7 +187,7 @@ mod wiring {
             // （既存 headless `Carousel::prev`/`next` の index 増加方向と
             // 一致させる）。
             let next = origin_progress - (client_x - origin_x) / slide_px;
-            self.progress = next;
+            self.progress.set(next);
             self.write_progress(next);
             self.previous_sample = self.latest_sample;
             self.latest_sample = Some((
@@ -214,7 +221,7 @@ mod wiring {
                 0.0
             };
             let target = snap_target(
-                self.progress,
+                self.progress.get(),
                 velocity_slides_s,
                 self.slide_count,
                 self.loop_,
@@ -225,56 +232,71 @@ mod wiring {
 
         /// `self.progress` を `target`（整数 index）へ spring で収束させる。
         ///
-        /// # `self.progress` を着地先へ即時更新する安全性（codex-review
-        /// 指摘の検討記録）
+        /// # loop 境界の短い経路（codex-review 指摘 是正）
         ///
-        /// この行だけを見ると、アニメーション（`AnimationLoop`）が
-        /// まだ `to` へ到達していないのに内部の `progress` フィールドを
-        /// 先取りして更新するため、settle 完了前に**同じインスタンス**へ
-        /// `on_pointer_down` が呼ばれると起点が未到達値になり位置が飛ぶ
-        /// ように見える。しかし [`CarouselTrack::attach`] は毎
-        /// `pointerdown` で（既存インスタンスの再利用ではなく）**新規**
-        /// `CarouselTrack` を生成し、その初期 `progress` は `self.progress`
-        /// フィールドではなく `element` の実際の DOM インライン style
-        /// （`--fandhe-carousel-index`）から読み直す契約（`attach` doc
-        /// 参照）。この DOM 値は [`Self::write_progress`]/アニメーション
-        /// tick の `DomTarget::write` が同期的に書き込むため、settle が
-        /// 中断された時点の**実際の途中経過値**が正しく残っている。した
-        /// がって `self.progress` の早期更新は次のドラッグセッションの
-        /// 起点計算には一切使われず、位置が飛ぶ実害はない
-        /// （`crates/wasm-full/src/carousel_motion.rs::handle_pointerdown`
-        /// が毎回 `CarouselTrack::attach` を呼ぶ契約を崩さないこと）。
+        /// `loop_ == true` のとき、着地先は `target`（`0..slide_count` に
+        /// 正規化済み）だが、spring の `to` にはそのまま `target` を使わず
+        /// `from` に最も近い合同値（`target + k * slide_count`）を使う。
+        /// 例えば 5 枚中 `from = -0.8`（末尾方向へドラッグ中）で
+        /// `target = 4`（末尾スライド）のとき、そのまま `to = 4.0` にすると
+        /// spring が正方向へ 4 枚分横断してしまう。`to = -1.0`
+        /// （`4 - 5`、`from` との差 `0.2`）を選べば末尾への短い折り返しで
+        /// 済む。終端の見た目は `on_settle` が dispatch する `"goto"`
+        /// アクション（headless 側の正規レンダリング）が正規化済み
+        /// `target` で上書きするため、`to` が `0..slide_count-1` の外に
+        /// 出ても最終表示に影響しない。
+        ///
+        /// # `self.progress` を先取り更新しない理由（codex-review 指摘
+        /// 是正）
+        ///
+        /// `self.progress` は [`Rc<Cell<f64>>`] で共有しており、着地先
+        /// （`to`）への先取りジャンプはせず、tick 毎に spring の
+        /// **実際の途中経過値**（`state.value`）を書き込む。settle
+        /// 完了前に（再 `attach` を経ずに）同一インスタンスへ
+        /// `on_pointer_down` が再度呼ばれても、`self.progress.get()` は
+        /// その瞬間の実表示位置を返すため、次の `on_pointer_move` が
+        /// 未到達の `to` を起点にして飛ぶことがない。
         fn settle_to(
             &mut self,
             target: usize,
             initial_velocity: f64,
             on_settle: impl FnOnce(usize) + 'static,
         ) {
-            let to = target as f64;
-            let from = self.progress;
-            self.progress = to;
+            let from = self.progress.get();
+            let to = if self.loop_ && self.slide_count > 0 {
+                let n = self.slide_count as f64;
+                let shift = ((from - target as f64) / n).round() * n;
+                target as f64 + shift
+            } else {
+                target as f64
+            };
             if prefers_reduced_motion() {
+                self.progress.set(to);
                 self.write_progress(to);
                 on_settle(target);
                 return;
             }
             let Some(spring) = Spring::new(SNAP_SPRING_CONFIG, from, to, initial_velocity) else {
+                self.progress.set(to);
                 self.write_progress(to);
                 on_settle(target);
                 return;
             };
             let Some(mut driver) = RafDriver::new() else {
+                self.progress.set(to);
                 self.write_progress(to);
                 on_settle(target);
                 return;
             };
             let element = self.element.clone();
+            let progress_cell = self.progress.clone();
             let mut elapsed_s = 0.0;
             let mut on_settle = Some(on_settle);
             self.settle_anim = Some(AnimationLoop::start(move || {
                 let dt = driver.tick().unwrap_or(0.0);
                 elapsed_s += dt;
                 let state = spring.at(elapsed_s);
+                progress_cell.set(state.value);
                 DomTarget::custom_property(element.clone(), super::CAROUSEL_INDEX_PROPERTY)
                     .write(state.value);
                 if state.done {

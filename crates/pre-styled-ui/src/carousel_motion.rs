@@ -111,6 +111,17 @@ pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
     "  --_abs-o: max(var(--_o), calc(-1 * var(--_o)));\n",
     "  position: absolute;\n",
     "  inset: 0;\n",
+    // 水平 coverflow は移動対象が `item-group`（base）から `item` へ
+    // 変わるが、base の `item`（`data-orientation` 無指定）は横方向では
+    // 動かない前提のため transition を持たない（`crates/pre-styled-ui/
+    // src/carousel.rs` 参照、縦方向の `item` は base 側が既に transition
+    // を持つ）。coverflow では横方向でも `item` 自身が動くため、ここで
+    // 既存の 3 段フォールバックトークンと同じ transition を明示しないと
+    // `next`/`goto` が CSS のみの coverflow で瞬時切り替えになる
+    // （codex-review 指摘 是正）。\n",
+    "  transition-property: transform;\n",
+    "  transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));\n",
+    "  transition-timing-function: var(--fandhe-motion-easing-standard);\n",
     "  transform: translateX(calc(var(--_o) * var(--fandhe-carousel-coverflow-spread, 55%)))\n",
     "    rotateY(calc(clamp(-1, var(--_o), 1) * -1 * var(--fandhe-carousel-coverflow-angle, 45deg)))\n",
     "    translateZ(calc(-1 * var(--_abs-o) * var(--fandhe-carousel-coverflow-depth, 60px)));\n",

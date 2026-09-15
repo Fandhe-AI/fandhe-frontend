@@ -52,13 +52,17 @@
 //! 時点で前者の状態が上書きされ、`AnimationLoop` が中断される（結果を
 //! 待つコールバックが呼ばれないまま `goto` dispatch が失われる）。
 //! 是正として [`TrackRegistry`]（carousel root ごとの
-//! `(TrackSlot, DragMetaSlot)` を保持する小さな線形テーブル）を導入し、
-//! `handle_pointerdown`/`handle_pointermove`/`handle_pointer_release` は
-//! いずれも `target.closest(CAROUSEL_ROOT_SELECTOR)` で解決した
-//! carousel root をキーに [`slot_for`] を引いてから操作する。`Element`
-//! は `Hash`/`Eq` を実装しないため `Node::is_same_node` による線形探索で
-//! 同一性判定する（ponytail: 1 ページ内の carousel 数は通常一桁〜十数個
-//! 程度に収まる想定の簡略化。件数が実運用で問題になった場合は
+//! `(TrackSlot, DragMetaSlot)` を保持する小さな線形テーブル）を導入した。
+//! `handle_pointerdown` は `target.closest(CAROUSEL_ROOT_SELECTOR)` で
+//! 解決した carousel root をキーに [`slot_for`] を引いてから操作する
+//! （pointerdown 自体がまだアクティブな [`DragMeta`] を持たないため
+//! pointer_id 検索は使えない）。`handle_pointermove`/
+//! `handle_pointer_release` は `event.target()` の部分木解決には頼らず
+//! `pointer_id` をキーに [`find_active_slot`] で直接引く（`closest()` に
+//! 頼らない理由は [`find_active_slot`] doc 参照）。`Element` は
+//! `Hash`/`Eq` を実装しないため両者とも `Node::is_same_node` による線形
+//! 探索で同一性判定する（ponytail: 1 ページ内の carousel 数は通常一桁〜
+//! 十数個程度に収まる想定の簡略化。件数が実運用で問題になった場合は
 //! `js_sys::WeakMap` 等キー付きコレクションへの切替を検討する）。
 
 /// opt-in（著者が SSR 出力に静的に付与）: root へ付与するとドラッグ +
@@ -280,21 +284,34 @@ mod wiring {
         }
         let Some(first_item) = items
             .get(0)
-            .and_then(|node| node.dyn_into::<Element>().ok())
+            .and_then(|node| node.dyn_into::<HtmlElement>().ok())
         else {
             return;
         };
-        let rect = first_item.get_bounding_client_rect();
-        let slide_px = if vertical {
-            rect.height()
+        // coverflow は item へ rotateY/translateZ 等の transform を適用する
+        // （`crates/pre-styled-ui/src/carousel_motion.rs` 参照）ため、
+        // `getBoundingClientRect()` は変形後の見かけ上の寸法を返し、現在
+        // スライドによって計測値がぶれる（codex-review 指摘 是正）。
+        // `offsetWidth`/`offsetHeight` は CSS `transform` の影響を受けない
+        // レイアウト寸法（border 込み・margin 抜き）であるため、こちらを
+        // 1 スライド分の基準として使う。
+        let slide_px = f64::from(if vertical {
+            first_item.offset_height()
         } else {
-            rect.width()
-        };
+            first_item.offset_width()
+        });
         if !slide_px.is_finite() || slide_px <= 0.0 {
             return;
         }
 
         let (track, drag) = slot_for(registry, &carousel_root);
+        // 進行中のドラッグ（別ポインタの pointerdown）がある間は新規
+        // pointerdown を無視する（codex-review 指摘 是正）。既存の
+        // pointer_id を確認せず無条件に上書きすると、複数指の同時
+        // pointerdown で操作中の指から別の指へ黙って乗っ取られてしまう。
+        if drag.borrow().is_some() {
+            return;
+        }
 
         let _ = item_group.set_pointer_capture(pointer_event.pointer_id());
         let mut new_track = CarouselTrack::attach(item_group.clone(), slide_count, loop_);
@@ -318,30 +335,49 @@ mod wiring {
         });
     }
 
-    /// `event.target()` から carousel root（[`CAROUSEL_ROOT_SELECTOR`]）を
-    /// 解決する（pointerdown で `set_pointer_capture` 済みのため、
-    /// pointermove/release でも target はキャプチャ元の要素のまま安定
-    /// して解決できる）。
-    fn resolve_carousel_root(event: &Event) -> Option<Element> {
-        let target = event.target().and_then(|t| t.dyn_into::<Element>().ok())?;
-        target.closest(CAROUSEL_ROOT_SELECTOR).ok().flatten()
+    /// `registry` 内の全 carousel root を横断し、`pointer_id` に一致する
+    /// アクティブな [`DragMeta`] を持つ 1 件を探す
+    /// （[`TrackSlot`]/[`DragMetaSlot`] の組を返す）。
+    ///
+    /// # `event.target()` からの `closest()` 解決をやめた理由（Cursor
+    /// Bugbot 指摘 是正）
+    ///
+    /// 当初は `event.target()` を `CAROUSEL_ROOT_SELECTOR` で `closest()`
+    /// して carousel root を解決していたが、`set_pointer_capture` が
+    /// 失敗した場合やキャプチャが失われた場合（ブラウザ実装・OS 側の
+    /// 事情でキャプチャが外れることがある）、`pointerup`/`pointercancel`
+    /// は実際にポインタ直下にある要素へ配信されるため、carousel の DOM
+    /// 部分木の外（`<body>` 等）で release されると `closest()` が
+    /// `None` を返し、settle も `data-fandhe-carousel-dragging` 属性の
+    /// 除去も一切実行されないまま状態が残留してしまっていた。
+    /// アクティブな [`DragMeta`] は `registry` が pointer_id ごとに保持
+    /// しているため、event.target() に頼らず pointer_id で直接引けば
+    /// この問題は起きない。
+    fn find_active_slot(
+        registry: &TrackRegistry,
+        pointer_id: i32,
+    ) -> Option<(TrackSlot, DragMetaSlot)> {
+        let entries = registry.borrow();
+        entries.iter().find_map(|(_, track, drag)| {
+            let is_match = drag
+                .borrow()
+                .as_ref()
+                .is_some_and(|meta| meta.pointer_id == pointer_id);
+            is_match.then(|| (track.clone(), drag.clone()))
+        })
     }
 
     fn handle_pointermove(event: &Event, registry: &TrackRegistry) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
-        let Some(carousel_root) = resolve_carousel_root(event) else {
+        let Some((track, drag)) = find_active_slot(registry, pointer_event.pointer_id()) else {
             return;
         };
-        let (track, drag) = slot_for(registry, &carousel_root);
         let mut drag_guard = drag.borrow_mut();
         let Some(meta) = drag_guard.as_mut() else {
             return;
         };
-        if meta.pointer_id != pointer_event.pointer_id() {
-            return;
-        }
         let coord = if meta.vertical {
             f64::from(pointer_event.client_y())
         } else {
@@ -390,18 +426,13 @@ mod wiring {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
-        let Some(carousel_root) = resolve_carousel_root(event) else {
+        let Some((track, drag)) = find_active_slot(registry, pointer_event.pointer_id()) else {
             return;
         };
-        let (track, drag) = slot_for(registry, &carousel_root);
         let mut drag_guard = drag.borrow_mut();
-        let is_match = drag_guard
-            .as_ref()
-            .is_some_and(|meta| meta.pointer_id == pointer_event.pointer_id());
-        if !is_match {
-            return;
-        }
-        let meta = drag_guard.take().expect("is_match が Some を確認済み");
+        let meta = drag_guard
+            .take()
+            .expect("find_active_slot が Some を確認済み");
         drop(drag_guard);
 
         let _ = meta
