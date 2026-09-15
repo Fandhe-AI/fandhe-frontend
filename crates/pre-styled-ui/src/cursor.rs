@@ -155,8 +155,8 @@ pub const CURSOR_CSS: &str = concat!(
     "  height: auto;\n",
     "  padding: 4px 10px;\n",
     "  border-radius: var(--fandhe-radius-full, 9999px);\n",
-    "  color: var(--fandhe-color-on-accent, #fff);\n",
-    "  font-size: var(--fandhe-font-size-xs);\n",
+    "  color: var(--fandhe-color-accent-fg, #fff);\n",
+    "  font-size: var(--fandhe-font-font-size-xs);\n",
     "  white-space: nowrap;\n",
     "}\n",
     // ring バリアント + ラベル同時指定時のラベル背景復元（イシュー #2542
