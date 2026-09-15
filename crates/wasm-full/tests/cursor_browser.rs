@@ -183,6 +183,38 @@ fn pointerout_true_leave_hides_cursor() {
     assert_eq!(attr(&cursor_el, CURSOR_STATE_ATTR), Some("hidden".into()));
 }
 
+/// codex-review 指摘の回帰（PR #2583、discussion_r4020369847）: 真の離脱で
+/// カーソルを `hidden` にする際、`root` の [`CURSOR_ACTIVE_ATTR`] が残留
+/// すると `cursor: none !important` が効いたままネイティブカーソルも
+/// 表示されない。離脱で外れ、再入場（有効な座標を得た pointermove）で
+/// 再び付与されることを検証する。
+#[wasm_bindgen_test]
+fn pointerout_true_leave_clears_root_active_attr_and_reentry_restores_it() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, _cursor_el, target) = build_dom(&document, "cursor-root-13");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_cursor_with_env(root.clone(), false, false).expect("wire_cursor_with_env must not fail");
+
+    dispatch_pointer_event(&target, "pointermove", "mouse", 30, 20);
+    assert_eq!(attr(&root, CURSOR_ACTIVE_ATTR), Some(String::new()));
+
+    dispatch_pointer_event(&target, "pointerout", "mouse", 999, 999);
+    assert_eq!(
+        attr(&root, CURSOR_ACTIVE_ATTR),
+        None,
+        "真の離脱では root の CURSOR_ACTIVE_ATTR も外れ、ネイティブカーソルが\
+         復元されるべき"
+    );
+
+    dispatch_pointer_event(&target, "pointermove", "mouse", 30, 20);
+    assert_eq!(
+        attr(&root, CURSOR_ACTIVE_ATTR),
+        Some(String::new()),
+        "再入場で有効な座標を得たら CURSOR_ACTIVE_ATTR を再付与するべき"
+    );
+}
+
 /// Cursor Bugbot 指摘の回帰（PR #2583 レビュー）: 構造再描画でホバー中の
 /// 対象ノードが除去されると、ブラウザは `relatedTarget` を確定できない
 /// まま `pointerout` を発火させることがある。座標が `root` の矩形内に

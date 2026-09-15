@@ -313,6 +313,12 @@ mod wiring {
                 let _ = cursor_el.remove_attribute(CURSOR_VARIANT_ATTR);
                 let _ = cursor_el.remove_attribute(CURSOR_LABEL_ATTR);
             }
+            // カーソルを隠す際は root の CURSOR_ACTIVE_ATTR も外し、ネイティブ
+            // カーソルを復元する（PR #2583 レビュー指摘の是正）。これを怠ると
+            // `cursor: none !important` の CSS フックが残留したまま両カーソル
+            // とも消えた状態になる。有効な座標を再取得した時点
+            // （`handle_pointermove`）で再付与する。
+            let _ = root.remove_attribute(super::CURSOR_ACTIVE_ATTR);
             *active.borrow_mut() = None;
             *last_pointer.borrow_mut() = None;
         }
@@ -365,6 +371,13 @@ mod wiring {
                 let restore_position = *last_pointer.borrow();
                 if restore_position.is_some() {
                     crate::dom::set_dom_attribute(root, super::CURSOR_ACTIVE_ATTR, "");
+                } else {
+                    // 位置未知（root 外／真の離脱後）のまま再同期する場合、
+                    // 旧要素から引き継いだ CURSOR_ACTIVE_ATTR を残さない
+                    // （PR #2583 レビュー指摘の是正: この分岐が active 属性を
+                    // 除去しないと、ネイティブカーソルが隠れたまま新しい
+                    // pointermove まで両カーソルとも表示されない）。
+                    let _ = root.remove_attribute(super::CURSOR_ACTIVE_ATTR);
                 }
                 let initial_state = if restore_position.is_some() {
                     "idle"
