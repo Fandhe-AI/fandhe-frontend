@@ -1229,6 +1229,11 @@ source = "site/blocks/pricing-usage-slider.md"
 path = "/blocks/pricing-usage-slider/"
 
 [[section.page]]
+title = "testimonials-stack"
+source = "site/blocks/testimonials-stack.md"
+path = "/blocks/testimonials-stack/"
+
+[[section.page]]
 title = "bento-staggered"
 source = "site/blocks/bento-staggered.md"
 path = "/blocks/bento-staggered/"

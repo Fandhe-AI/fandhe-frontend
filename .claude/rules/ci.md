@@ -153,6 +153,11 @@
   `blocks/pricing-usage-slider/index.html`（イシュー #2547、利用量
   スライダーの固定初期値と `stat` の価格表示を静的な組で示す合成 block。
   ライブ連動は実装しない）/
+  `blocks/testimonials-stack/index.html`（イシュー #2548、Motion+ の
+  testimonials 系レイアウトを参照した積層 testimonial カード。
+  `card`・`blockquote`・`avatar` を合成し、積層オフセットは
+  `pre-styled-ui::recipe::STAGGER_INDEX_VAR`（`--fandhe-motion-stagger-index`）
+  を直接 import して表現する合成 block）/
   `blocks/bento-staggered/index.html`（イシュー #2549、`animation-timeline:
   view()` + `animation-range` の開始点オフセットで stagger を表現する
   scroll-driven な bento グリッド。`animation-delay` は使わない）/
