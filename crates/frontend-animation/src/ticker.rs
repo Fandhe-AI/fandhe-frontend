@@ -132,7 +132,7 @@ pub fn advance_offset(
     cycle_len: f64,
 ) -> f64 {
     if !offset.is_finite() || !speed.is_finite() || !cycle_len.is_finite() || cycle_len <= 0.0 {
-        return 0.0;
+        return offset;
     }
     let dt_ms = dt_ms.clamp(0.0, MAX_DT_MS);
     let direction_sign = if direction_sign < 0.0 { -1.0 } else { 1.0 };
@@ -456,9 +456,11 @@ mod tests {
     }
 
     #[test]
-    fn advance_offset_is_zero_for_non_positive_cycle_len() {
-        assert_eq!(advance_offset(0.0, 100.0, 1.0, 100.0, 0.0), 0.0);
-        assert_eq!(advance_offset(0.0, 100.0, 1.0, 100.0, -1.0), 0.0);
+    fn advance_offset_keeps_offset_for_non_positive_cycle_len() {
+        // rustdoc の fail-safe 契約（`cycle_len <= 0` は `offset` をそのまま
+        // 返す）を、0 以外の `offset` でも検証する。
+        assert_eq!(advance_offset(-42.0, 100.0, 1.0, 100.0, 0.0), -42.0);
+        assert_eq!(advance_offset(-42.0, 100.0, 1.0, 100.0, -1.0), -42.0);
     }
 
     #[test]

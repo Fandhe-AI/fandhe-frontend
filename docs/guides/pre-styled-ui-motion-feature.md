@@ -102,6 +102,28 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   - `prefers-reduced-motion: reduce` 下では回転を止め、静的な `border`
     へフォールバックします。
 
+- **text アニメーション部品（イシュー #2532、
+  `crates/pre-styled-ui/src/text_reveal.rs`）**: split-text reveal
+  （`chars`/`words`、SSR + CSS のみで完結）と typewriter/scramble（マーク
+  アップのみ。実際の文字送り・乱数置換は wasm-full 側 `text-animation`
+  feature 既定 on が担う）を提供します。
+  - `text_reveal::chars(content)`/`text_reveal::words(content)`: 分割前の
+    全文を visually-hidden な `.fd-text-reveal__sr` で保持しつつ、
+    `aria-hidden="true"` の分割済みレイヤー（`.fd-text-reveal__unit`）を
+    `@keyframes fd-text-reveal-in` で `--fandhe-motion-stagger-index`
+    （`recipe::stagger_index_style`）に応じて順に現します。
+  - `text_reveal::typewriter(content, duration_ms)`/
+    `text_reveal::scramble(content, duration_ms)`: `data-fandhe-typewriter`/
+    `data-fandhe-scramble` を付与し、`.fd-text-reveal__display` へ初期表示
+    として全文を書きます（JS 不在・reduced-motion のいずれでも全文が
+    見える）。`duration_ms` に `Some(ms)` を渡すと属性値へ上書きします。
+  - `text_reveal::TEXT_REVEAL_CSS`/`Theme::to_css_with_text_reveal()`:
+    `border_beam` と同型の pure append。公開トークンは
+    `--fandhe-text-reveal-step`（既定 `40ms`）1 件のみです。
+  - `prefers-reduced-motion: reduce` 下では `.fd-text-reveal__unit` の
+    `animation` を `none` へ縮退します（typewriter/scramble は元々全文
+    表示のため追加の CSS は不要）。
+
 - **field / input の Motion+ 由来フォームアニメーション（イシュー #2545、
   `crates/pre-styled-ui/src/forms_motion.rs`）**: `field`/`input` 自体は
   変更せず、既存 anatomy へ参照するだけの opt-in 追加 CSS 4 種です。
@@ -277,5 +299,6 @@ cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_bo
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_parallax_css --test motion_sticky_progress_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_forms_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_view_transition_css --locked
+cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_text_reveal_css --locked
 cargo tree   -p fandhe-frontend-pre-styled-ui -e normal --prefix none --locked | grep -c fandhe-animation   # 0
 ```
