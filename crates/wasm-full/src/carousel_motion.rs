@@ -214,6 +214,71 @@ mod wiring {
     /// の保持責任」節参照）。
     type TrackSlot = Rc<RefCell<Option<CarouselTrack>>>;
 
+    /// `carousel_root` が `root`（mount root）配下の [`CAROUSEL_ROOT_SELECTOR`]
+    /// 一致要素の中で何番目か（文書順）を返す（[`replacement_item_group`]
+    /// と対で「再描画後も同じ位置の carousel」を突き合わせるための位置
+    /// ヒューリスティック。モジュール doc「release 時の再描画後も表示中の
+    /// DOM で spring を継続する」節参照）。要素の同一性ではなく位置で
+    /// 突き合わせるのは、`Runtime::apply_subtree_swap` が `root` 配下を
+    /// 丸ごと新規ノードへ差し替えるため旧要素と新要素の間に DOM
+    /// レベルの同一性が一切残らないため（`drag_gesture.rs::
+    /// resync_drag_gesture_attachments` が新規要素を「常に新規」として
+    /// 状態を諦めて再 attach するのと同じ制約下にある）。
+    fn position_of_carousel_root(root: &Element, carousel_root: &Element) -> Option<usize> {
+        let node_list = root.query_selector_all(CAROUSEL_ROOT_SELECTOR).ok()?;
+        (0..node_list.length())
+            .find(|&i| {
+                node_list
+                    .get(i)
+                    .and_then(|node| node.dyn_into::<Element>().ok())
+                    .is_some_and(|el| el.is_same_node(Some(carousel_root.as_ref())))
+            })
+            .map(|i| i as usize)
+    }
+
+    /// [`position_of_carousel_root`] で求めた位置 `index` に対応する、
+    /// 再描画後の carousel root/`item-group` の組を返す（同じ位置に
+    /// carousel が無くなっていれば `None`、fail-safe）。
+    fn replacement_item_group(root: &Element, index: usize) -> Option<(Element, HtmlElement)> {
+        let node_list = root.query_selector_all(CAROUSEL_ROOT_SELECTOR).ok()?;
+        let new_root = node_list
+            .get(index.try_into().ok()?)
+            .and_then(|node| node.dyn_into::<Element>().ok())?;
+        let new_item_group = new_root
+            .query_selector(ITEM_GROUP_SELECTOR)
+            .ok()
+            .flatten()
+            .and_then(|el| el.dyn_into::<HtmlElement>().ok())?;
+        Some((new_root, new_item_group))
+    }
+
+    /// `old_carousel_root` の再描画後の置き換え先（carousel root/
+    /// `item-group` の組）を解決する。`old_carousel_root` が `root`
+    /// （`wire_carousel_motion_events` の mount root）自身と同じ要素の
+    /// 場合は特別扱いする: `Runtime::apply_subtree_swap` は `root` 自身は
+    /// 保持したまま子ノードのみを丸ごと差し替えるため、`root` 自身は
+    /// `query_selector_all(CAROUSEL_ROOT_SELECTOR)`（`root` 自身を含まず
+    /// 子孫のみを走査する）では見つからず、かつ常に `is_connected()` の
+    /// ままである（モジュール doc「release 時の再描画後も表示中の DOM で
+    /// spring を継続する」節参照）。この場合は位置ヒューリスティックを
+    /// 使わず、`root` 自身を新 carousel root として `item-group` のみを
+    /// 再解決する。
+    fn resolve_replacement(
+        root: &Element,
+        old_carousel_root: &Element,
+        position: Option<usize>,
+    ) -> Option<(Element, HtmlElement)> {
+        if old_carousel_root.is_same_node(Some(root.as_ref())) {
+            let new_item_group = root
+                .query_selector(ITEM_GROUP_SELECTOR)
+                .ok()
+                .flatten()
+                .and_then(|el| el.dyn_into::<HtmlElement>().ok())?;
+            return Some((root.clone(), new_item_group));
+        }
+        replacement_item_group(root, position?)
+    }
+
     /// アクティブなドラッグの付随情報（[`CarouselTrack`] 本体とは別に
     /// pointerdown〜release の間だけ保持する）。
     struct DragMeta {
@@ -345,13 +410,31 @@ mod wiring {
         )?;
         pointermove_closure.forget();
 
+        // `pointerup`/`pointercancel`/`lostpointercapture` は `root` に加え
+        // `window` にも登録する（`drag_gesture.rs::wire_drag_gesture` doc
+        // 「`pointerup`/`pointercancel` は `window` にも登録する」節と同じ
+        // 是正、モジュール doc「capture 喪失時のドラッグ終了回収」節参照）。
+        // pointer capture は移動閾値を超えるまで確定しないため（モジュール
+        // doc「ドラッグ確定前は pointer capture しない」節）、確定前に
+        // carousel root の外へポインタが出て release されると、`root`
+        // 単独の委譲登録では実イベントの配送先（実際のヒットテスト対象）が
+        // `root` の祖先でなくなり取りこぼす。`handle_pointer_release` は
+        // `pointer_id` の一致確認後にしか状態を取り出さないため、`root`/
+        // `window` 双方から同じイベントが届いても（`root` が `window` の
+        // 子孫であるため両方から呼ばれる場合がある）2 回目は
+        // `find_active_slot` が `None` を返すだけで安全に no-op になる
+        // （`release_drag` の冪等性契約と同型）。`window()` が取得できない
+        // 非ブラウザ環境（native テスト等）では `root` 側のみで動作し続ける
+        // fail-safe（`let _ =` で結果を握り潰す）。
         for event_name in ["pointerup", "pointercancel", "lostpointercapture"] {
+            let release_root = root.clone();
             let release_registry = registry.clone();
             let release_on_action = on_action.clone();
             let release_suppress = suppress_click.clone();
             let release_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
                 handle_pointer_release(
                     &event,
+                    &release_root,
                     &release_registry,
                     &release_on_action,
                     &release_suppress,
@@ -361,6 +444,12 @@ mod wiring {
                 event_name,
                 release_closure.as_ref().unchecked_ref(),
             )?;
+            if let Some(window) = web_sys::window() {
+                let _ = window.add_event_listener_with_callback(
+                    event_name,
+                    release_closure.as_ref().unchecked_ref(),
+                );
+            }
             release_closure.forget();
         }
 
@@ -370,6 +459,16 @@ mod wiring {
             if click_suppress.replace(false) {
                 event.stop_propagation();
                 event.prevent_default();
+                // 抑止した click は「ドラッグ release が偶然 nav trigger の
+                // 上で起きただけ」であり、著者が意図した nav trigger 操作
+                // ではない（Cursor Bugbot 指摘 是正「Suppressed click still
+                // cancels spring」）。この click 由来で
+                // invalidate_settle_on_nav_trigger_click を呼ぶと、
+                // ドラッグ確定によって release 時に既に dispatch 済みの
+                // `"goto"` の spring（見た目の追従のみ）を無関係に打ち切って
+                // しまう。抑止した click はここで終端し、以降の判定へは
+                // 渡さない。
+                return;
             }
             invalidate_settle_on_nav_trigger_click(&event, &click_registry);
         });
@@ -392,6 +491,16 @@ mod wiring {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
+        // 主ボタン（`button() == 0`。タッチ/ペンの接触も 0）かつ最初の
+        // 接触点（`is_primary()`）のみドラッグを開始する（codex-review 指摘
+        // 是正「右クリック・中クリックでドラッグを開始しない」、
+        // `drag_gesture.rs::handle_pointerdown` Bugbot「Non-primary buttons
+        // start drags」と同型。右クリックのコンテキストメニュー・中クリック
+        // のページ操作と競合しつつ `suppress_click` が無関係な click まで
+        // 抑止してしまう不具合の是正）。
+        if pointer_event.button() != 0 || !pointer_event.is_primary() {
+            return;
+        }
         let Some(target) = event.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
             return;
         };
@@ -574,6 +683,7 @@ mod wiring {
     /// `suppress_click` を設定する。
     fn handle_pointer_release(
         event: &Event,
+        root: &Element,
         registry: &TrackRegistry,
         on_action: &Rc<RefCell<impl FnMut(ActionRef) + 'static>>,
         suppress_click: &SuppressClickFlag,
@@ -622,6 +732,11 @@ mod wiring {
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| "goto".to_string());
         let carousel_root = meta.carousel_root.clone();
+        // `on_action` dispatch（同期）が `Runtime::apply_subtree_swap` を
+        // 経由すると `carousel_root`/`item_group` が文書から切断され得る
+        // ため、切断前の位置を控えておく（モジュール doc「release 時の
+        // 再描画後も表示中の DOM で spring を継続する」節参照）。
+        let carousel_position = position_of_carousel_root(root, &meta.carousel_root);
         let target = t.on_release(event.time_stamp(), meta.slide_px, move |_index| {
             let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
         });
@@ -630,6 +745,32 @@ mod wiring {
             action: action_name,
             payload: target.to_string(),
         });
+
+        // dispatch が同期的に DOM 部分木を差し替えた場合、settle 中の
+        // spring が書き込んでいた要素は既に切断されている。同じ位置の
+        // 新しい carousel root/`item-group` を再解決し、進行中の spring を
+        // その要素へ retarget する（見つからなければ、これ以上表示に
+        // 影響しない spring を打ち切ってリークを防ぐ）。`carousel_root`
+        // 自身が `Runtime` の mount root と一致するケース（差し替え対象の
+        // 子ノードのみが再生成され root 自身は保持される、
+        // `apply_subtree_swap` doc 参照）では `carousel_root.is_connected()`
+        // が常に真のまま残るため、`item_group`（実際に書き込み先となる
+        // 要素）の切断も合わせて判定する。
+        if !meta.carousel_root.is_connected() || !meta.item_group.is_connected() {
+            let mut track_guard = track.borrow_mut();
+            if let Some(t) = track_guard.as_mut() {
+                match resolve_replacement(root, &meta.carousel_root, carousel_position) {
+                    Some((new_root, new_item_group)) => {
+                        t.retarget(new_item_group, move |_index| {
+                            let _ = new_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
+                        });
+                    }
+                    None => {
+                        *track_guard = None;
+                    }
+                }
+            }
+        }
     }
 }
 

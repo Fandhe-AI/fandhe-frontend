@@ -84,7 +84,12 @@ name = "fandhe-frontend-animation"
 # イシュー #2541: `carousel`（`snap_target`/`CarouselTrack`、ドラッグ +
 # spring スナップの演算・rAF 実行）を新設した。既存モジュールと同型の
 # 新規公開 API 純追加のため minor バンプする。
-version = "0.13.0"
+#
+# イシュー #2541（PR #2581 レビュー是正）: `CarouselTrack` へ `retarget`/
+# `is_settling` を新設した（release 時の再描画で settle 中の書き込み先
+# 要素が切断された場合に、進行中の spring を継続させるための新規公開
+# API 純追加）。既存 API に破壊的変更はないため patch バンプする。
+version = "0.13.1"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

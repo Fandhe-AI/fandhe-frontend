@@ -131,6 +131,10 @@ mod wiring {
         previous_sample: Option<(Vec2, f64)>,
         latest_sample: Option<(Vec2, f64)>,
         settle_anim: Option<AnimationLoop>,
+        // 直近 `settle_to` に渡した着地 index（[`Self::retarget`] が同じ
+        // target へ再収束させるために保持する、イシュー #2541 codex-review/
+        // Cursor Bugbot 指摘 是正）。
+        last_target: Option<usize>,
     }
 
     impl CarouselTrack {
@@ -154,7 +158,54 @@ mod wiring {
                 previous_sample: None,
                 latest_sample: None,
                 settle_anim: None,
+                last_target: None,
             }
+        }
+
+        /// 進行中（または直前）の spring の**進行度を保ったまま**、書き込み
+        /// 先の DOM 要素を差し替える（codex-review/Cursor Bugbot 指摘 是正、
+        /// イシュー #2541「release 時の再描画後も表示中の DOM で spring を
+        /// 継続する」）。
+        ///
+        /// # なぜ必要か
+        ///
+        /// `settle_to` が起動する `AnimationLoop` の tick クロージャは
+        /// `self.element.clone()` を**起動時点**で捕捉するため、後から
+        /// `self.element` を書き換えるだけでは実行中のループへ反映されない
+        /// （クロージャは独立した clone を保持し続ける）。`root` 側で
+        /// settle 完了前に DOM 部分木が置換され旧要素が文書から切断された
+        /// 場合、実行中のループは不可視の孤立ノードを更新し続け、新しく
+        /// 表示されている DOM は何も動かないまま止まって見える。
+        ///
+        /// # 挙動
+        ///
+        /// settle が一度も開始していない（[`Self::last_target`] が `None`）
+        /// 場合は書き込み先を差し替えるだけで no-op（次回の書き込みから
+        /// 新要素が使われる）。settle 開始済みなら、現在の進行度
+        /// （`self.progress`、途中経過値）から同じ着地 index へ向けて
+        /// spring を初速 0 で再起動する（`settle_to` と同じ経路。旧
+        /// `AnimationLoop` は新しいものへ差し替わる際に `Drop` され停止する
+        /// ため二重書き込みは起きない）。
+        pub fn retarget(
+            &mut self,
+            new_element: HtmlElement,
+            on_settle: impl FnOnce(usize) + 'static,
+        ) {
+            self.element = new_element;
+            if let Some(target) = self.last_target {
+                if self.settle_anim.is_some() {
+                    self.settle_to(target, 0.0, on_settle);
+                }
+            }
+        }
+
+        /// [`Self::retarget`] が呼び出せるかどうか（settle 未開始・完了済み
+        /// のいずれでもない、進行中の spring を持つか）の外部向け判定。
+        /// 呼び出し側（wasm-full）が「再描画で書き込み先が切断されたら
+        /// retarget、そうでなければ何もしない」を判断するために使う。
+        #[must_use]
+        pub fn is_settling(&self) -> bool {
+            self.settle_anim.is_some()
         }
 
         /// `pointerdown` 相当の入力。進行中の spring を打ち切り、ドラッグ
@@ -283,19 +334,23 @@ mod wiring {
         ) {
             let from = self.progress.get();
             let to = target as f64;
+            self.last_target = Some(target);
             if prefers_reduced_motion() {
+                self.settle_anim = None;
                 self.progress.set(to);
                 self.write_progress(to);
                 on_settle(target);
                 return;
             }
             let Some(spring) = Spring::new(SNAP_SPRING_CONFIG, from, to, initial_velocity) else {
+                self.settle_anim = None;
                 self.progress.set(to);
                 self.write_progress(to);
                 on_settle(target);
                 return;
             };
             let Some(mut driver) = RafDriver::new() else {
+                self.settle_anim = None;
                 self.progress.set(to);
                 self.write_progress(to);
                 on_settle(target);

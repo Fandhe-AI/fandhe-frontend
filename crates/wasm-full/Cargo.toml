@@ -1283,7 +1283,14 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #2541（PR #2581 codex-review 指摘是正・第 2 ラウンド）:
 # 複数 carousel の識別用に `CAROUSEL_GOTO_ACTION_ATTR` 定数を追加した
 # （新規公開定数の純追加）ため patch バンプする。
-version = "0.36.2"
+#
+# イシュー #2541（PR #2581 レビュー是正・第 3 ラウンド）:
+# `carousel_motion.rs` の内部実装のみを修正した（release 時の再描画で
+# spring を継続させる retarget、`pointerup`/`pointercancel`/
+# `lostpointercapture` の window 委譲追加登録、主ボタン以外でのドラッグ
+# 開始防止、抑止済み click での誤った spring 打ち切り防止。公開 API の
+# シグネチャは不変）ため patch バンプする。
+version = "0.36.3"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1606,7 +1613,12 @@ js-sys = "0.3"
 # 新設）へバンプしていた。本ブランチの到達値 0.11.0 は origin/main の
 # 到達値 0.10.0 をすでに上回っており同一版数の衝突には該当しないため、
 # 本ブランチの到達値 0.11.0 をそのまま維持する。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.13.0", optional = true }
+#
+# イシュー #2541（PR #2581 レビュー是正・第 3 ラウンド）:
+# `fandhe-frontend-animation` の依存 `version` 要求を 0.13.0 → 0.13.1 へ
+# 追随する（`CarouselTrack::retarget`/`is_settling` 新設に伴う patch
+# バンプ、`crates/frontend-animation/Cargo.toml` 参照）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.13.1", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
