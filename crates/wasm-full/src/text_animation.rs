@@ -65,6 +65,13 @@ pub const TEXT_ANIMATION_SELECTOR: &str = "[data-fandhe-typewriter],[data-fandhe
 /// typewriter/scramble の表示レイヤーの class 名。
 /// `fandhe_frontend_pre_styled_ui::text_reveal::DISPLAY_CLASS` と値が
 /// 一致する必要がある。
+// wasm32 の `wiring` モジュールと `#[cfg(test)] mod tests`（全ターゲット
+// 共通）のみが参照する。`--all-targets` を伴わない host target の素の
+// `cargo clippy`（`mod wiring`/`mod tests` いずれも未コンパイル）では
+// 未使用になるため `dead_code` を避ける cfg（`hold_to_confirm.rs` 等の
+// 同型モジュールにこの制約はないが、本モジュールは `DISPLAY_CLASS` が
+// `pub` ではない唯一の定数のため個別に必要）。
+#[cfg(any(target_arch = "wasm32", test))]
 const DISPLAY_CLASS: &str = "fd-text-reveal__display";
 
 #[cfg(target_arch = "wasm32")]

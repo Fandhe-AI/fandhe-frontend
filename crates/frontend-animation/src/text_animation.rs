@@ -152,6 +152,27 @@ mod wiring {
     use crate::raf_driver::{AnimationLoop, RafDriver};
     use fandhe_animation::driver::Driver;
 
+    /// `window.performance.now()`（ミリ秒、ナビゲーション開始からの経過）
+    /// を秒へ変換して返す。取得できない場合は `0.0`（既存の「常に t=0 から
+    /// 再生」動作へ fail-safe）。
+    ///
+    /// [`play_typewriter`]/[`play_scramble`] の初期 `elapsed_s` に使う
+    /// （cursor Bugbot 指摘是正: SSR は表示レイヤー（`fandhe_frontend_
+    /// pre_styled_ui::text_reveal::DISPLAY_CLASS` 相当）の要素へ目標
+    /// テキスト全文を静的に描画済みのため、WASM 読み込み
+    /// 完了（`wire_text_animation` 呼び出し）が遅れるほどユーザーは
+    /// 既に全文を読めている。そこで「経過時間 0 から再生開始」ではなく
+    /// 「ページ表示開始からの実経過時間」を初期値にすることで、WASM 読み込み
+    /// が遅延した場合は progress が既に 1.0 に近く/到達しており、既存の
+    /// 全文表示を一瞬消してから再度打ち直す巻き戻りが起きない。WASM が
+    /// 十分速く読み込まれた通常ケースでは経過時間が duration に対して
+    /// 無視できるほど小さく、従来どおり最初から自然に再生される）。
+    fn navigation_elapsed_s() -> f64 {
+        web_sys::window()
+            .and_then(|w| w.performance())
+            .map_or(0.0, |p| p.now() / 1000.0)
+    }
+
     /// `display` の現在の `textContent` を目標テキストとして [`typewriter_frame`]
     /// を毎フレーム書き込む。`RafDriver::new()` が `None`（非ブラウザ環境）
     /// の場合は即座に全文（元の `textContent`）を書いて `None` を返す
@@ -165,7 +186,7 @@ mod wiring {
         };
         let duration_s = (duration_ms / 1000.0).max(f64::EPSILON);
         let element = display.clone();
-        let mut elapsed_s = 0.0_f64;
+        let mut elapsed_s = navigation_elapsed_s();
         Some(AnimationLoop::start(move || {
             let delta = driver.tick().unwrap_or(0.0);
             elapsed_s += delta;
@@ -188,7 +209,7 @@ mod wiring {
         };
         let duration_s = (duration_ms / 1000.0).max(f64::EPSILON);
         let element = display.clone();
-        let mut elapsed_s = 0.0_f64;
+        let mut elapsed_s = navigation_elapsed_s();
         #[allow(
             clippy::cast_possible_truncation,
             clippy::cast_sign_loss,
