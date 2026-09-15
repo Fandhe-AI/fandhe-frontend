@@ -219,6 +219,16 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
     プリセットの静的 `mask-*` 宣言は `animation: revert;` だけでは戻ら
     ないため、同ブロックで `mask-image: none;` も併せて再宣言します。
 
+- **toast の stack 表示（イシュー #2543、`crates/pre-styled-ui/src/
+  toast_motion.rs`）**: 既存 `toast` 部品への opt-in 追加装飾です。
+  `toast_motion::STACK_ATTR`（`"data-fandhe-toast-stack"`）を `toast::group`
+  の `attrs` へ渡すと積層表示（後ろの通知ほど縮小・オフセット）になり、
+  `:hover`/`:focus-within` で展開します。動的な追加・削除・並べ替えを
+  行う場合は `toast_motion::stack_group_keyed` が stagger 書き戻し
+  （`stagger`）+ layout FLIP（`layout-animation`）を自動配線します。
+  `Theme::to_css_with_toast_motion()`: `Theme::to_css()` の出力へ
+  `toast_motion::TOAST_STACK_CSS` を追記して返す opt-in メソッド。
+
 ## 3. 無効時ゼロコスト保証の内容
 
 | 指標 | 保証内容 | 対応する契約テスト |

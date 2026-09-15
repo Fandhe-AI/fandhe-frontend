@@ -100,9 +100,10 @@ use fandhe_frontend_pre_styled_ui::{
     hover_card::{self, HoverCardDelays},
     input::{self, InputProps},
     kbd::{kbd, KbdProps, KbdVariant},
-    menu, menubar, navigation_menu, popover,
+    menu, menubar, navigation_menu, popover, recipe,
     text::{text as styled_text, TextProps, TextSize, TextWeight},
     toast::{self, ToastPlacement, ToastStatus},
+    toast_motion::STACK_ATTR,
     tooltip, ColorPalette, OpenState, Size,
 };
 
@@ -1902,6 +1903,7 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
         "複数通知を有界なキューとして管理する状態機械 Toaster を提供する（Disclosure/SingleSelect のいずれにも写像できないため Component/Hydrate を直接実装する）。",
         "aria-live は ToastStatus から決定的に導出する（Error のみ assertive、他は polite）。aria-atomic=\"true\" を併用し通知全体を単位として読み上げさせる。",
         "placement（6 語彙、既定 BottomEnd）/ status（Info/Success/Warning/Error、既定 Info）の 2 軸 variant。",
+        "stack 表示（積層・hover/focus-within 展開、motion feature の opt-in、イシュー #2543）。group へ data-fandhe-toast-stack を付けると後ろの通知ほど縮小・オフセットして重なり、hover/focus-within で通常の縦並びへ展開する。",
     ],
     arguments: &[
         ArgRow {
@@ -1923,11 +1925,18 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
             description: "通知 1 件（root）の状態（Info/Success/Warning/Error）。aria-live の緊急度導出にも使われる。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Description のみ（タイトルなし）",
-        description: "title を省略し description のみで構成する合成パターン。既存 anatomy のみで再現でき、CSS 変更は不要（イシュー #2040、shadcn/ui 突合）。",
-        render: ex_toast_description_only,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Description のみ（タイトルなし）",
+            description: "title を省略し description のみで構成する合成パターン。既存 anatomy のみで再現でき、CSS 変更は不要（イシュー #2040、shadcn/ui 突合）。",
+            render: ex_toast_description_only,
+        },
+        ExampleEntry {
+            title: "積層表示（stack、motion feature opt-in）",
+            description: "group へ toast_motion::STACK_ATTR を付けると、後ろの通知ほど縮小・オフセットして積層表示になり、hover/focus-within で展開します（イシュー #2543）。DOM 順は新しい通知が先頭（前面）です。",
+            render: ex_toast_stack,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -1958,6 +1967,38 @@ fn ex_toast_description_only() -> Node {
                 toast::close_trigger(vec![("aria-label", "Close")], vec![text("×")]),
             ],
         )],
+    )
+}
+
+/// [`TOAST.examples`] の 2 件目のレンダラ（イシュー #2543）: 積層表示
+/// （stack）の静的実演。SSR のみ・`Toaster` 非使用の呼び出し側は
+/// `toast_motion::stack_group_keyed` を使わず、[`toast::group`] へ
+/// [`STACK_ATTR`] を渡すだけで足りる
+/// （`crate::toast_motion` モジュール doc「静的（SSR のみ・`Toaster` 非
+/// 使用）な呼び出し側」節参照）。DOM 順は新しい通知が先頭（前面）になる
+/// 契約のため、3 件のうち最も新しい通知を最初の子として並べる。
+fn ex_toast_stack() -> Node {
+    toast::group(
+        ToastPlacement::BottomEnd,
+        "Notifications",
+        vec![(STACK_ATTR, "")],
+        vec![
+            toast::root(
+                ToastStatus::Success,
+                vec![("style", &recipe::stagger_index_style(0))],
+                vec![toast::description(vec![], vec![text("最新の通知です。")])],
+            ),
+            toast::root(
+                ToastStatus::Info,
+                vec![("style", &recipe::stagger_index_style(1))],
+                vec![toast::description(vec![], vec![text("2 件目の通知です。")])],
+            ),
+            toast::root(
+                ToastStatus::Warning,
+                vec![("style", &recipe::stagger_index_style(2))],
+                vec![toast::description(vec![], vec![text("3 件目の通知です。")])],
+            ),
+        ],
     )
 }
 

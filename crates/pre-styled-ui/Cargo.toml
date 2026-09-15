@@ -3497,7 +3497,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # origin/main（#2537 の 0.205.0）が同じ merge base（0.204.0）から独立に
 # 同一版数へ到達したため、同じ版数のまま据え置かず +1 した 0.206.0 とする
 # （同衝突運用）。
-version = "0.206.0"
+#
+# イシュー #2543: `toast_motion`（`motion` feature 配下）を追加した。
+# toast の stack 表示（積層・hover 展開）opt-in マーカー（`STACK_ATTR`）・
+# 積層 CSS（`TOAST_STACK_CSS`/`Theme::to_css_with_toast_motion`）・
+# `stack_group_keyed` ヘルパを新規公開 API として純追加したのみで、
+# `crate::toast` 本体・無効時の出力・依存グラフは不変
+# （`tests/motion_zero_cost.rs` 不変）。#2538 と同型のため minor バンプする。
+version = "0.207.0"
 
 
 edition = "2021"

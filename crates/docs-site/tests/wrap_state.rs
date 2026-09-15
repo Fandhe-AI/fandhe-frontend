@@ -701,6 +701,7 @@ const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "stylesheet",
     "text_reveal",
     "theme",
+    "toast_motion",
     "view_transition",
 ];
 
@@ -1080,8 +1081,13 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        129,
-        "src/*.rs の総数が想定と異なります（イシュー #2532 で \
+        130,
+        "src/*.rs の総数が想定と異なります（イシュー #2543 で \
+         toast_motion.rs を新設し 129 → 130。`motion` feature 配下の \
+         toast stack 表示（積層・hover/focus-within 展開）opt-in 装飾で \
+         既存 toast 部品への追加のため単体の Themes ページを持たない \
+         NON_PAGE_TOP_LEVEL 分類（`border_beam`/`button_motion` と同型）。\
+         イシュー #2532 で \
          text_reveal.rs を新設し 128 → 129。`motion` feature 配下の \
          text アニメーション部品（split-text reveal / typewriter / scramble）\
          で単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類\
