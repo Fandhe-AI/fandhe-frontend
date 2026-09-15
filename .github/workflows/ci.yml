@@ -969,6 +969,20 @@ jobs:
           WASM_BINDGEN_TEST_TIMEOUT: "120"
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test layout_flip_browser
 
+      # イシュー #2536（共有レイアウト遷移、`layoutId` 相当。`feature =
+      # "layout-animation"` 既定 on）: `Runtime::rerender`/
+      # `apply_with_view_transition` が別要素間で `crate::shared_layout::
+      # capture_before`/`play_after` を起動する FLIP 補正の実ブラウザ
+      # 統合テスト（crates/wasm-full/tests/shared_layout_browser.rs）。
+      # 上記 layout FLIP ステップと同じ理由（spring 収束待ちの合計時間が
+      # 既定 20 秒タイムアウトへ迫るリスク）で `WASM_BINDGEN_TEST_TIMEOUT`
+      # を同じ値で明示指定する。
+      - name: Run wasm-full shared layout browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        env:
+          WASM_BINDGEN_TEST_TIMEOUT: "120"
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test shared_layout_browser
+
       # イシュー #2538（button の Motion+ 由来 variant）: hold-to-confirm
       # （crates/wasm-full/src/hold_to_confirm.rs）の保持検知・進行度計算・
       # 確定処理の実ブラウザ統合テスト

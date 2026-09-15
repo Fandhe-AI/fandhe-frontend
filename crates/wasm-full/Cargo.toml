@@ -1260,8 +1260,15 @@ name = "fandhe-frontend-wasm-full"
 # Shutter/Blinds/Strips/Pixels/MaskWipe/MaskRadial）を追加した。既存
 # exhaustive match 利用者への観測可能な破壊的変更のため 0.x の破壊的変更を
 # マイナーバンプとする規約（`.claude/rules/coding-rust.md`）に従い minor
-# バンプする。
-version = "0.34.0"
+# バンプする（0.33.0 → 0.34.0）。
+#
+# イシュー #2536: `shared_layout` モジュール（共有レイアウト遷移、
+# `layout-animation` feature 配下。新規公開定数 `LAYOUT_ID_ATTR`）を
+# 追加し、`fandhe-frontend-animation` を 0.11.0 → 0.12.0 へ追随バンプ
+# した。origin/main 取り込み時点で到達値 0.34.0 は既に #2537 分と同一のため、
+# `.claude/rules/ci.md` の「同一版数も衝突として main から +1」運用に従い
+# さらに +1 して 0.35.0 とする。
+version = "0.35.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1584,7 +1591,7 @@ js-sys = "0.3"
 # 新設）へバンプしていた。本ブランチの到達値 0.11.0 は origin/main の
 # 到達値 0.10.0 をすでに上回っており同一版数の衝突には該当しないため、
 # 本ブランチの到達値 0.11.0 をそのまま維持する。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.11.0", optional = true }
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.12.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の

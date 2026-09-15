@@ -176,6 +176,7 @@ crates.io への独立公開（`.github/workflows/release.yml`・`docs/ci/versio
 | `dom_target` | CSSOM プロパティ書き込みの `Target<T>` 実装（§2.3） |
 | `waapi` | Web Animations API 経由の実装（A/C 境界にまたがる場合の橋渡し） |
 | `flip` | layout（FLIP）アニメーションの座標計測・適用 |
+| `shared_layout` | 共有レイアウト遷移（motion.dev `layoutId` 相当）の旧要素・新要素 id 突合 + `flip` 再利用の適用（#2536） |
 | `svg_path` | SVG path drawing（`stroke-dashoffset` 連続更新） |
 | `scroll` | scroll-timeline 相当の連続値取得（evaluation-only 範囲を除く実装対象部分） |
 
