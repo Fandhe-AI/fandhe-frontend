@@ -23,4 +23,5 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [sidebar-03](./blocks/sidebar-03.md)
 - [signup-01](./blocks/signup-01.md)
 - [signup-05](./blocks/signup-05.md)
+- [testimonials-stack](./blocks/testimonials-stack.md)
 

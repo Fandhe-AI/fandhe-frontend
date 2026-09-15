@@ -223,23 +223,25 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // で Data Table の Themes ページが加わり、233 → 234 になった。イシュー
     // #2416 で pre-styled-ui motion feature ガイド（Guides セクション）が
     // 加わり、234 → 235 になった。イシュー #2526 で fandhe-animation API
-    // ガイド（Guides セクション）が加わり、235 → 236 になった。
-    assert_eq!(pages.len(), 236, "expected 236 pages, got {pages:?}");
+    // ガイド（Guides セクション）が加わり、235 → 236 になった。イシュー
+    // #2548 で testimonials-stack block が加わり、236 → 237 になった。
+    assert_eq!(pages.len(), 237, "expected 237 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
     // イシュー #2090 で sidebar-07 が加わり 4 件。イシュー #2091 で
     // sidebar-03 が加わり 5 件。イシュー #2093 で login-04 が加わり 6 件。
     // イシュー #2094 で signup-01 が加わり 7 件。イシュー #2095 で
-    // signup-05 が加わり 8 件。
+    // signup-05 が加わり 8 件。イシュー #2548 で testimonials-stack が
+    // 加わり 9 件。
     let blocks_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/blocks/"))
         .collect();
     assert_eq!(
         blocks_pages.len(),
-        8,
-        "expected 8 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05), got {blocks_pages:?}"
+        9,
+        "expected 9 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05 + testimonials-stack), got {blocks_pages:?}"
     );
     assert!(
         pages.contains(&("site/blocks.md", "/blocks/")),
@@ -272,6 +274,13 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     assert!(
         pages.contains(&("site/blocks/signup-05.md", "/blocks/signup-05/")),
         "nav.toml is missing the signup-05 block page"
+    );
+    assert!(
+        pages.contains(&(
+            "site/blocks/testimonials-stack.md",
+            "/blocks/testimonials-stack/"
+        )),
+        "nav.toml is missing the testimonials-stack block page"
     );
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ

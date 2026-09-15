@@ -78,6 +78,7 @@ mod sidebar_03;
 mod sidebar_07;
 mod signup_01;
 mod signup_05;
+mod testimonials_stack;
 
 use fandhe_frontend_core::{a, div, h2, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
@@ -172,6 +173,7 @@ pub const BLOCKS: &[Block] = &[
     sidebar_03::BLOCK,
     signup_01::BLOCK,
     signup_05::BLOCK,
+    testimonials_stack::BLOCK,
 ];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
@@ -253,6 +255,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(sidebar_03::LAYOUT_CSS)?;
     sheet.push_css(signup_01::LAYOUT_CSS)?;
     sheet.push_css(signup_05::LAYOUT_CSS)?;
+    sheet.push_css(testimonials_stack::LAYOUT_CSS)?;
     Ok(sheet)
 }
 

@@ -1011,3 +1011,149 @@ fn signup_01_composes_expected_parts() {
         );
     }
 }
+
+/// testimonials-stack ページが `blocks-demo`/block 固有 class・両
+/// スタイルシート・`data-blocks-testimonials-stack-*` CSS フックを実際に
+/// 出力し、`blocks.css` 側にも対応するセレクタが存在することを固定する
+/// （login-01/signup-05 と同型の検証、イシュー #2548）。
+#[test]
+fn testimonials_stack_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/testimonials-stack/index.html"))
+        .expect("blocks/testimonials-stack/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-testimonials-stack\""),
+        "testimonials-stack page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "testimonials-stack page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "testimonials-stack page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-testimonials-stack-card=\"\"",
+        "data-blocks-testimonials-stack-avatar=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "testimonials-stack page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-testimonials-stack-card]",
+        ".blocks-testimonials-stack-stage",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// testimonials-stack の合成部品（card/blockquote/avatar）が期待どおりの
+/// 構成で出力され、3 枚のカードのうち先頭 1 枚のみ `data-state="active"`・
+/// 残り 2 枚は `data-state="inactive"` であること、`<form>`・実企業名を
+/// 持ち込んでいないことを固定する（signup_05_composes_expected_parts と
+/// 同型、イシュー #2548）。
+#[test]
+fn testimonials_stack_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/testimonials-stack/index.html"))
+        .expect("blocks/testimonials-stack/index.html should be generated");
+    for needle in [
+        "data-scope=\"card\"",
+        "data-scope=\"blockquote\"",
+        "data-scope=\"avatar\"",
+        "data-part=\"fallback\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "testimonials-stack page should contain {needle}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-testimonials-stack-card=\"\"")
+            .count(),
+        3,
+        "testimonials-stack should render exactly 3 testimonial cards"
+    );
+    assert_eq!(
+        html.matches("data-state=\"active\"").count(),
+        1,
+        "testimonials-stack should mark exactly one card as active (the front card)"
+    );
+    assert_eq!(
+        html.matches("data-state=\"inactive\"").count(),
+        2,
+        "testimonials-stack should mark exactly two cards as inactive (the back cards)"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "testimonials-stack should never contain {absent}"
+        );
+    }
+}
+
+/// `--fandhe-motion-stagger-index` の文字列リテラルが
+/// `crates/pre-styled-ui/src/recipe.rs` の `STAGGER_INDEX_VAR` 定義と
+/// ドリフトしていないことを固定する（`crates/pre-styled-ui/tests/
+/// stagger_index_var_drift.rs` と同型のソース走査型契約。docs-site は
+/// `pre-styled-ui` の `motion` feature を有効化していないため型共有が
+/// できず、値のリテラル複製 + ソーステキスト突合で整合を保証する、
+/// イシュー #2548）。
+#[test]
+fn testimonials_stack_stagger_var_matches_pre_styled_ui_recipe_source() {
+    const STAGGER_INDEX_VAR: &str = "--fandhe-motion-stagger-index";
+
+    let recipe_path = repo_root().join("crates/pre-styled-ui/src/recipe.rs");
+    let recipe_source = std::fs::read_to_string(&recipe_path)
+        .unwrap_or_else(|e| panic!("{}: {e}", recipe_path.display()));
+    let expected_decl = format!("pub const STAGGER_INDEX_VAR: &str = \"{STAGGER_INDEX_VAR}\";");
+    assert!(
+        recipe_source.contains(&expected_decl),
+        "crates/pre-styled-ui/src/recipe.rs の STAGGER_INDEX_VAR 定義が \
+         testimonials_stack 側のリテラル（{STAGGER_INDEX_VAR:?}）と一致しません。\
+         期待した宣言行: {expected_decl:?}"
+    );
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(STAGGER_INDEX_VAR),
+        "blocks.css should reference {STAGGER_INDEX_VAR}"
+    );
+}
+
+/// testimonials-stack のトランジションがトークン参照（`var(--fandhe-motion-
+/// duration-*)`）のみで構成され、固定 ms 値の `@keyframes`/`animation:` を
+/// 使わないことを固定する（`prefers-reduced-motion: reduce` 下の縮退が
+/// `Theme::to_css` のトークン 0ms 化に自動追従する根拠、イシュー #2548）。
+#[test]
+fn testimonials_stack_uses_motion_tokens_not_raw_durations() {
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains("var(--fandhe-motion-duration-"),
+        "blocks.css should reference a --fandhe-motion-duration-* token for testimonials-stack transitions"
+    );
+    assert!(
+        sheet_css.contains("var(--fandhe-motion-easing-standard)"),
+        "blocks.css should reference the --fandhe-motion-easing-standard token"
+    );
+    assert!(
+        !sheet_css.contains("@keyframes"),
+        "testimonials-stack should not introduce @keyframes (no reduced-motion @media override needed)"
+    );
+}
