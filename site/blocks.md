@@ -25,4 +25,5 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [signup-05](./blocks/signup-05.md)
 - [pricing-tiers-morph](./blocks/pricing-tiers-morph.md)
 - [pricing-usage-slider](./blocks/pricing-usage-slider.md)
+- [testimonials-stack](./blocks/testimonials-stack.md)
 
