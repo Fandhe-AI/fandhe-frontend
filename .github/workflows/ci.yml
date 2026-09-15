@@ -922,6 +922,26 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test confetti_browser
 
+      # イシュー #2538（button の Motion+ 由来 variant）: hold-to-confirm
+      # （crates/wasm-full/src/hold_to_confirm.rs）の保持検知・進行度計算・
+      # 確定処理の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/hold_to_confirm_browser.rs）。他の
+      # wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。
+      - name: Run wasm-full hold-to-confirm browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test hold_to_confirm_browser
+
+      # イシュー #2538（button の Motion+ 由来 variant）: add-to-basket
+      # （crates/wasm-full/src/add_to_basket.rs）の click → data-state 遷移・
+      # 自動リセットタイマーの実ブラウザ統合テスト
+      # （crates/wasm-full/tests/add_to_basket_browser.rs）。他の
+      # wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。
+      - name: Run wasm-full add-to-basket browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test add_to_basket_browser
+
       # イシュー #2403/#2517: rAF Driver（fandhe-frontend-animation::raf_driver）+
       # DOM Target（dom_target）で spring を実ブラウザ上で駆動し収束することを
       # 確認する統合デモ。対象クレートは crates/wasm-full/ とは別（crates/
@@ -2379,6 +2399,10 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,drag-gesture --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: confetti, issue #2533)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,confetti --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: hold-to-confirm, issue #2538)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,hold-to-confirm --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: add-to-basket, issue #2538)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,add-to-basket --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: animation-driver, issue #2403)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,animation-driver --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transitions, issue #2400)"
