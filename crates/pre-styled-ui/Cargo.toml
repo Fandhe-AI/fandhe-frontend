@@ -3502,7 +3502,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 新設した。`border_beam`/`button_motion` と同型の新規公開モジュール
 # 純追加のため minor バンプする（無効時の出力・依存グラフは不変、
 # `tests/motion_zero_cost.rs` 不変）。
-version = "0.207.0"
+#
+# イシュー #2544: `list_motion`（list の追加・削除 opt-in 遷移 CSS、
+# `motion` feature 配下）を新設した。`forms_motion`/`cursor` と同型の
+# 新規公開モジュール純追加のため minor バンプする（無効時の出力・依存
+# グラフは不変、`tests/motion_zero_cost.rs` 不変）。
+version = "0.208.0"
 
 
 edition = "2021"

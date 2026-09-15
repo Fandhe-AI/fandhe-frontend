@@ -1275,7 +1275,7 @@ name = "fandhe-frontend-wasm-full"
 # minor バンプする。あわせて `fandhe-frontend-animation` の依存
 # `version` 要求を 0.12.0 → 0.13.0 へ追随した（`xtask check-dep-versions
 # --fix` 相当）。
-version = "0.36.0"
+version = "0.37.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1598,7 +1598,12 @@ js-sys = "0.3"
 # 新設）へバンプしていた。本ブランチの到達値 0.11.0 は origin/main の
 # 到達値 0.10.0 をすでに上回っており同一版数の衝突には該当しないため、
 # 本ブランチの到達値 0.11.0 をそのまま維持する。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.13.0", optional = true }
+# イシュー #2544: `presence`（削除行の退場ゴースト配線、既定 on）を追加
+# した。`layout-animation` と同型の新規公開モジュール純追加のため minor
+# バンプする。あわせて `fandhe-frontend-animation` の依存 `version`
+# 要求を 0.13.0 → 0.14.0 へ追随した（`xtask check-dep-versions --fix`
+# 相当）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.14.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1844,6 +1849,7 @@ default = [
   "view-transition-preset",
   "animate",
   "layout-animation",
+  "presence",
   # イシュー #2327: scope feature（MAPPING_TABLE 行・keynav match arm 単位）。
   "accordion",
   "calendar",
@@ -2054,6 +2060,17 @@ animation-driver = ["dep:fandhe-frontend-animation"]
 # 薄い配線のみを担う。対象リストは `layout_flip::FLIP_AUTO_ATTR`
 # （`data-fandhe-flip-auto`）を持つ keyed list へオプトインで限定する。
 layout-animation = ["dep:fandhe-frontend-animation"]
+
+# イシュー #2544: `Runtime::apply_update_for_dirty` の keyed list 構造反映
+# 前後で削除行の退場ゴースト（`list_presence::capture_before`/
+# `play_exit_after`）を起動する配線専用の feature（既定 on）。
+# `layout-animation` と同型の別枠 feature——`wasm-full` 側に座標計測・
+# ゴースト配置・除去タイマーのロジックは書かず、`crates/wasm-full/src/
+# list_presence.rs` は「いつ `fandhe_frontend_animation::presence` を
+# 呼ぶか」の薄い配線のみを担う。対象リストは `list_presence::
+# PRESENCE_AUTO_ATTR`（`data-fandhe-presence-auto`）を持つ keyed list へ
+# オプトインで限定する。
+presence = ["dep:fandhe-frontend-animation"]
 
 # イシュー #2327: scope feature（`headless::MAPPING_TABLE` 行・
 # `keynav::wire_keynav` の scope 別分岐単位。§Cargo.toml 冒頭コメントの

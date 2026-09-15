@@ -697,6 +697,7 @@ const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "cursor",
     "forms_motion",
     "lib",
+    "list_motion",
     "motion",
     "recipe",
     "stylesheet",
@@ -1081,8 +1082,12 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        130,
-        "src/*.rs の総数が想定と異なります（イシュー #2542 で \
+        131,
+        "src/*.rs の総数が想定と異なります（イシュー #2544 で \
+         list_motion.rs を新設し 130 → 131。`motion` feature 配下の \
+         list 追加・削除 opt-in 遷移 CSS（enter_css()・exit_css()）で \
+         単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類 \
+         （`border_beam`/`motion` と同型）。イシュー #2542 で \
          cursor.rs を新設し 129 → 130。`motion` feature 配下のカスタム \
          カーソル（cursor()・CURSOR_CSS）で単体の Themes ページを持たない \
          ため NON_PAGE_TOP_LEVEL 分類（`border_beam`/`motion` と同型）。 \

@@ -175,6 +175,48 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
     `fandhe-frontend-wasm-full` の `cursor` feature（既定 on）が担う
     （本クレートは `wasm-full` に依存しない）。
 
+- **list の並べ替え・追加削除遷移（イシュー #2544、
+  `crates/pre-styled-ui/src/list_motion.rs`）**: `list` 自体は変更せず、
+  行の追加（enter）・削除（exit）用の `@keyframes` CSS のみを持つ opt-in
+  モジュールです（Motion `AnimatePresence`〔`popLayout`〕相当）。並べ替え
+  （Move）は既存の `fandhe-frontend-wasm-full` `layout-animation`
+  feature（FLIP、イシュー #2518）がそのまま担うため、本モジュールに
+  追加実装はありません。
+  - `list_motion::PRESENCE_AUTO_ATTR`（`"data-fandhe-presence-auto"`）:
+    `fandhe-frontend-wasm-full::list_presence::PRESENCE_AUTO_ATTR` と
+    同一リテラルで、両クレート間の契約はこの文字列一致のみです
+    （Cargo 依存は発生しません）。`list::root` へこの属性を付けると
+    enter CSS・`fandhe-frontend-wasm-full` の `presence`/`stagger`
+    feature（いずれも既定 on）の配線対象になります。
+  - `list_motion::enter_css()`: `[PRESENCE_AUTO_ATTR]` を持つ
+    `list::root` 直下の `list::item` へ、stagger 遅延付きの enter
+    アニメーションを適用します（`recipe::stagger_delay_declaration` を
+    再利用、`stagger` feature 無効時は既定 `--fandhe-motion-stagger-
+    index: 0` のため遅延なしで動きます）。
+  - `list_motion::exit_css()`: `fandhe-frontend-wasm-full::
+    list_presence::play_exit_after` が挿入するゴースト（`data-state=
+    "exiting"`）へ exit アニメーションを適用します（`animation-delay:
+    0s` で stagger を打ち消し、退場は一斉に行います）。
+  - `list_motion::list_motion_css()`/`Theme::to_css_with_list_motion()`:
+    上記 2 種を決定的な順序で連結した CSS 全文・`Theme::to_css()` の
+    出力へ追記して返す opt-in メソッド。
+  - **`transform` プロパティには一切触れません**（`fandhe-frontend-wasm-
+    full` の FLIP が `transform` を毎フレーム inline `!important` で
+    書き込むため、`transition: transform`/`@keyframes` で `transform`
+    に触れると追従が鈍ります）。`recipe::SlotRecipe::
+    presence_transition`（`[hidden]` 状態遷移前提）は list 行には適用
+    しません（list 行は `hidden` を経由せず、stagger との結合・FLIP
+    非干渉の要件にも合わないため）。
+  - 両 `@keyframes` は `--fandhe-motion-duration-*` トークン経由の
+    `animation-duration`/`animation-delay` のみを使うため、`Theme::
+    to_css` が一括生成する reduced-motion ブロックの対象に自然に含まれ
+    ます（個別の `@media` ブロックは不要）。
+  - 既知の挙動（意図的）: SSR 初回描画時、行に既に
+    `PRESENCE_AUTO_ATTR` が付いていると enter アニメーションが初回表示
+    でも 1 回再生されます（CSS `animation` は「属性が変化した瞬間」を
+    検知できないため、`forms_motion::SHAKE_CSS` と同じ既知のトレード
+    オフです）。
+
 - **spring 近似 easing プリセット（イシュー #2381）**: `theme::Theme::
   push_spring_easing()` を呼ぶと、`motion.dev spring()` 既定値
   （stiffness=100/damping=10/mass=1）を `from=0.0`/`to=1.0`/
