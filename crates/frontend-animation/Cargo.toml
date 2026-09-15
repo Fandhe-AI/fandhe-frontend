@@ -16,68 +16,67 @@ name = "fandhe-frontend-animation"
 # `update_element_progress`/`ScrollDriver`）を新設。新規公開 API 追加の
 # ため minor バンプ（`.claude/rules/coding-rust.md` #638 条項）。
 #
-# イシュー #2535: `drag`（`DragController`/`DragAxis`/`DragConstraint`/
-# `apply_axis`/`clamp_to_constraint`/`estimate_velocity`/
-# `DRAG_X_PROPERTY`/`DRAG_Y_PROPERTY`）・`reduced_motion`
-# （`prefers_reduced_motion`）モジュールを新設。新規公開 API 追加のため
-# minor バンプ（`.claude/rules/coding-rust.md` #638 条項）。
-# イシュー #2533: `canvas_target`（`CanvasTarget`、`Target<&[Particle]>`
-# 実装）・`confetti`（`fire`/`should_fire`）モジュールを新設。新規公開
-# モジュール追加のため minor バンプ（`.claude/rules/coding-rust.md`
-# #638 条項）。
+# イシュー #2518: `flip`（layout FLIP アニメーション、`invert`/
+# `to_transform_css`/`measure`/`play` 等の新規公開 API）を追加。新規公開
+# API 追加のため minor バンプする。
 #
-# マージコミット注記: 本 PR（#2535）と origin/main（#2533）が独立に
-# 0.4.0 から 0.5.0 へ minor バンプしており同値衝突。#638 条項の「同一
-# 版数も衝突として +1」運用に従い、さらに +1 して 0.6.0 とした。
+# イシュー #2518 フォローアップ（レビュー指摘対応）: `flip::play` のシグネ
+# チャに `original: OriginalStyle`（新規公開型 `flip::OriginalStyle`）を
+# 追加し、利用者が指定していた inline `transform`/`transform-origin` を
+# FLIP 補正へ合成・終了時に復元するようにした。既存 API の破壊的変更
+# （引数追加）のため minor バンプする（#638 条項）。
 #
-# イシュー #2534（origin/main、本マージで判明した並行衝突）:
-# `ProgressRange`/`compute_progress_for_range`/
-# `update_element_progress_for_range` を新設。新規公開 API 追加のため
-# minor バンプする。
+# マージコミット注記（origin/main #2521 との統合）: origin/main が 0.3.0 →
+# 0.4.0、本ブランチ（#2518）が 0.3.0 → 0.5.0 へ独立に minor バンプしており
+# 値は異なる（衝突ではない）。より高い到達値である 0.5.0 を採用する。
 #
-# イシュー #2533（origin/main、並行衝突）: `canvas_target`（`CanvasTarget`、
-# `Target<&[Particle]>` 実装）・`confetti`（`fire`/`should_fire`）モジュール
-# を新設。新規公開モジュール追加のため minor バンプ
-# （`.claude/rules/coding-rust.md` #638 条項）。
+# codex-review P1 是正（イシュー #2518 さらなるフォローアップ）: `flip::play`
+# の戻り値型を `raf_driver::AnimationLoop` から新規公開型
+# `flip::FlipAnimation`（`stop`/`is_done`/`current_delta`、収束前の停止・
+# drop でも元のスタイルへ復元する契約）へ変更した破壊的変更・新規公開
+# 関数 `flip::apply_delta_to_rect` の追加のため minor バンプする（#638
+# 条項）。あわせて本 PR 到達後に main へ他 PR が複数マージされ、
+# `fandhe-frontend-animation` は origin/main 上で 0.6.0 へ進んだ。本 PR の
+# 再バンプ（0.5.0）は main の現行版数より古くなったため、`.claude/rules/
+# coding-rust.md` #638 条項の「同一版数も衝突として +1」運用に準じ、main
+# の現行値（0.6.0）からさらに +1 して 0.7.0 とする。
 #
-# マージコミット注記: 本 PR（#2534）と main（#2533）が独立に 0.4.0 から
-# 0.5.0 へ minor バンプしており同値衝突。#638 条項に従い origin/main の
-# 到達値から +1 して 0.6.0 とする。
+# イシュー #2535（origin/main、本マージで判明した並行衝突）: `drag`
+# （`DragController`/`DragAxis`/`DragConstraint`/`apply_axis`/
+# `clamp_to_constraint`/`estimate_velocity`/`DRAG_X_PROPERTY`/
+# `DRAG_Y_PROPERTY`）・`reduced_motion`（`prefers_reduced_motion`）・
+# `canvas_target`（`CanvasTarget`）・`confetti`（`fire`/`should_fire`）
+# モジュールを新設。origin/main 側は #2533/#2534/#2535 を合流させて
+# 0.7.0 へ独立に minor バンプしており、本 PR（flip、上記 0.7.0）と
+# 同一版数へ衝突した。`.claude/rules/coding-rust.md` #638 条項の
+# 「同一版数も衝突として +1」運用に従い、さらに +1 して 0.8.0 とする。
 #
-# イシュー #2550: `magnetic` モジュール（`compute_pull`/`write_offset`/
-# `detect_reduced_motion`）を新設。新規公開モジュール追加のため minor
-# バンプ（`.claude/rules/coding-rust.md` #638 条項）。
+# イシュー #2519（origin/main、本マージで判明した並行衝突）: `svg_path`
+# モジュール（SVG path drawing アニメーション、`total_length`/
+# `apply_initial_style`/`draw`/`draw_path` 等）を新設。origin/main 側は
+# #2534/#2519 を合流させて 0.8.0 へ独立に minor バンプしており、本 PR
+# （codex-review 第 6 ラウンド是正、上記 0.8.0）と同一版数へ衝突した。
+# #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して
+# 0.9.0 とする。
 #
-# base main 取り込み時のマージ注記: origin/main 側は #2533 到達分と合流
-# して 0.5.0 から 0.6.0 へ独立に minor バンプしており、本ブランチ
-# （#2550）も merge base（0.6.0）から独立に 0.7.0 へ到達していたため、
-# 同一版数へ再度衝突した。#638 条項の「同一版数も衝突として +1」運用に
-# 従い、さらに +1 して 0.8.0 とする。
+# 先行公開待ちの並行 PR 対応（コーディネーター指示、イシュー #2518）:
+# PR #2572 が wasm-full 0.32.2 / `fandhe-frontend-animation` 0.10.0 で
+# マージ待ちのため、本 PR はマージ順に関わらずこれより大きい値になる
+# よう、0.9.0 からさらに 2 段（0.10.0 は #2572 と同値衝突になるため
+# スキップ）先の 0.11.0 とする。
 #
-# PR #2572 Bugbot 指摘の是正（イシュー #2550）: `magnetic` の
-# `handle_pointermove`（`fandhe-frontend-wasm-full` 側）が
-# `getBoundingClientRect()` の transform 込みの矩形をそのまま中心座標に
-# 使っていたため、静止位置ではなく直前のオフセット分だけずれた中心から
-# 引力を計算していた不具合を是正するため、直前に書き込んだオフセットを
-# 読み戻す新規公開関数 [`magnetic::current_offset`] を追加した。新規公開
-# API 追加のため minor バンプ。
-#
-# PR #2572 codex-review P1 指摘の是正（イシュー #2550）: 上記
-# `current_offset`（インライン style の目標値を返す）は CSS `transition`
-# 完了前の `pointermove` では実際の描画上の移動量と一致せず、静止位置を
-# 正しく復元できないケースが残っていた。`current_offset` を削除し、
-# `getComputedStyle().transform` の行列から「今実際に描画されている移動量」
-# を読む新規公開関数 [`magnetic::rendered_offset`] へ置き換えた（公開関数
-# の削除を伴う破壊的変更のため minor バンプ）。
-#
-# base main 取り込み時のマージ注記: origin/main 側は独立に 0.7.0
-# （#2534 到達分と合流）→ 0.8.0（#2519、`svg_path` モジュール新設）へ
-# 到達していた。本ブランチ（#2550/#2572 是正）は独立に 0.10.0 へ到達して
-# おり、双方の到達値は異なる（0.8.0 ≠ 0.10.0）ため #638 条項の「同一版数の
-# 衝突」には該当しない。より高い到達値である本ブランチの 0.10.0 をそのまま
-# 維持する（`fandhe-frontend-wasm-full` の依存 version 要求は
-# `cargo run -p xtask -- check-dep-versions --fix` で 0.10.0 へ追随済み）。
-version = "0.10.0"
+# マージコミット注記（PR #2572、本マージで判明した並行差分）:
+# origin/main 側はイシュー #2534（`ProgressRange`/
+# `compute_progress_for_range`/`update_element_progress_for_range`
+# 新設）・#2533（`canvas_target`/`confetti` モジュール新設、main との
+# 同一版数衝突で +1 して 0.6.0）・#2550（`magnetic` モジュール新設、
+# 本ブランチの並行到達値との衝突で +1 して 0.8.0）・PR #2572 の Bugbot・
+# codex-review 指摘是正（`magnetic::current_offset` 追加 → 削除・
+# `magnetic::rendered_offset` 新設）を経て 0.10.0 へ到達していた。本
+# ブランチの到達値 0.11.0 は origin/main の到達値 0.10.0 をすでに
+# 上回っており同一版数の衝突には該当しないため、本ブランチの到達値
+# 0.11.0 をそのまま維持する。
+version = "0.11.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -114,6 +113,13 @@ categories = ["graphics", "web-programming", "wasm"]
 # 従来 `wasm-bindgen-futures` を要求していたため（#2403/#2517 の browser テスト
 # 用途）、[dependencies] へ昇格した本エントリと重複しないよう dev 側からは
 # 削除した。
+#
+# イシュー #2518: layout FLIP アニメーション（`flip` モジュール）が
+# `Element::get_bounding_client_rect()` の戻り値型 `DomRect`（`x`/`y`/
+# `width`/`height` ゲッター）と、`Window::match_media` の戻り値型
+# `MediaQueryList`（`matches()`、`prefers-reduced-motion: reduce` 判定用）を
+# 使うため追加する。新規外部パッケージの追加はない（既存 wasm-full が
+# 同一 feature を既に有効化済み）。
 #
 # 新規クレートを追加する場合は事前にユーザー承認を得ること。
 [dependencies]
@@ -188,6 +194,11 @@ wasm-bindgen-futures = "0.4"
 # 記載しない。`Document`/`Element`/`Node` はテストの DOM セットアップ
 # （`div` 要素の生成・`document.body()` への追加）専用のため、本体側の
 # feature 集合を汚さないよう `[dev-dependencies.web-sys]` 側にのみ追加する。
+# イシュー #2518 さらなるフォローアップ（codex-review P1 是正の browser
+# テスト追加）: `HtmlHeadElement` は `flip_browser.rs` が CSS クラス由来の
+# `transform` を検証するための `<style>` 要素挿入
+# （`Document::head()`、`crates/wasm-full/tests/position_browser.rs::
+# ensure_fixed_floating_size_stylesheet` と同型）専用。
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 
@@ -197,4 +208,4 @@ wasm-bindgen-test = "0.3"
 # 使う。`ImageData` はテスト専用のためここにのみ追加する。
 [dev-dependencies.web-sys]
 version = "0.3"
-features = ["Document", "Element", "Node", "ImageData"]
+features = ["Document", "Element", "Node", "HtmlHeadElement", "ImageData"]

@@ -937,6 +937,38 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test confetti_browser
 
+      # イシュー #2518（layout FLIP アニメーション、`feature =
+      # "layout-animation"` 既定 on）: keyed list の構造変化前後で
+      # `layout_flip::capture_before`/`play_after` が起動する FLIP 補正の
+      # 実ブラウザ統合テスト（crates/wasm-full/tests/layout_flip_browser.rs）。
+      # codex-review 第 5 ラウンド是正（Bugbot 指摘）: 他の wasm-full
+      # browser テストは本ジョブへ `--test <name>` で明示列挙されているが
+      # 本ファイルのみ列挙が漏れており CI で実行されていなかった。他の
+      # wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。
+      #
+      # イシュー #2518 codex-review 追加ラウンド是正: 本ファイルはテスト
+      # 件数増加（11 件、各 ~3 秒の spring 収束待ち `sleep_ms` を直列
+      # 実行するものを複数含む）に伴い合計所要時間が wasm-bindgen-test-
+      # runner の既定タイムアウト（20 秒）を超え、CI 上で「Failed to
+      # detect test as having been run. It might have timed out.」により
+      # 断続的に失敗するようになった（ローカル実測で合計約 30 秒。
+      # ホステッドランナーは実測環境よりさらに低速な場合があるため、
+      # 実測値ちょうどではなく倍程度の安全マージンを確保する）。
+      # `WASM_BINDGEN_TEST_TIMEOUT`（秒、wasm-bindgen-test-runner が
+      # 読む環境変数）を明示指定して猶予を確保する（テスト自体の収束待ち
+      # 時間短縮は、spring の実際の settle_duration に対する安全マージン
+      # を削ることになり flaky 化のリスクがあるため採らない）。他の
+      # wasm-full/frontend-animation browser テストステップは合計待ち
+      # 時間がこの閾値を下回るため本指定は不要（`flip_browser`
+      # 〔frontend-animation、26 件〕は 1 テストあたりの待ち時間が本
+      # ファイルより短い構成のため未到達）。
+      - name: Run wasm-full layout FLIP browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        env:
+          WASM_BINDGEN_TEST_TIMEOUT: "120"
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test layout_flip_browser
+
       # イシュー #2538（button の Motion+ 由来 variant）: hold-to-confirm
       # （crates/wasm-full/src/hold_to_confirm.rs）の保持検知・進行度計算・
       # 確定処理の実ブラウザ統合テスト
@@ -2468,6 +2500,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,view-transition-name --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: animate, issue #2398)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,animate --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: layout-animation, issue #2518)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,layout-animation --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transition-preset, issue #2516)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,view-transition-preset --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 

@@ -477,6 +477,8 @@ pub mod hold_to_confirm;
 pub mod hydration;
 pub mod in_view;
 pub mod keynav;
+#[cfg(feature = "layout-animation")]
+pub mod layout_flip;
 #[cfg(feature = "magnetic")]
 pub mod magnetic;
 pub mod message_scroller;
@@ -1051,6 +1053,200 @@ where
         >,
         dirty: &[&'static str],
     ) {
+        // codex-review 追加ラウンド 2 巡目是正（イシュー #2518。P1 2 件
+        // 〔`PRRT_kwDOTarxgc6iaQix`「field 単位の continue で属性束縛先の
+        // 走査が抜ける」・`PRRT_kwDOTarxgc6iaQi6`「入れ子リストを内側から
+        // 処理すると補正が二重適用され dirty 順に表示が依存する」〕+
+        // Bugbot Medium 1 件〔`PRRT_kwDOTarxgc6iaXdt`「内側リストの構造
+        // 変化時に外側 FLIP を停止・再捕捉しない」〕を、個別の停止/捕捉
+        // ロジックの積み増しではなく契約を絞ることで一括解決する
+        // （`layout_flip.rs` モジュール doc「入れ子 FLIP リストの所有権
+        // 契約」節・`docs/guides/wasm-full-features.md` にも明記）:
+        //
+        // 1. [`crate::layout_flip::FLIP_AUTO_ATTR`] リストが同属性の祖先
+        //    リストを持つ場合、その内側リストは**自分では capture/play
+        //    しない**。最外側の FLIP リストがサブツリー全体のアニメー
+        //    ションを所有する。
+        // 2. 内側リスト（またはその配下の束縛）が dirty のときは、祖先
+        //    FLIP リスト**全件**を停止 + [`crate::layout_flip::
+        //    capture_before`]（`flip_captured` で重複排除）→ 構造変化
+        //    コミット → 延期した `pending_flip_plays` で**最外側のみ**
+        //    play する。
+        // 3. dirty field ごとの走査は「field 自身の keyed list」「field に
+        //    束縛された要素」の両方を**常に**行い、旧実装にあった
+        //    「field 自身が keyed list として処理済みなら以後の束縛先
+        //    走査を skip する」`continue` は削除する（重複排除は
+        //    `flip_captured`/`flip_target_lists` の同一性判定のみに委ね、
+        //    「別の FLIP リストの行の style 束縛に同じ field 名が使われる」
+        //    構成の取りこぼしを構造的に防ぐ）。
+        //
+        // この設計により、`flip_target_lists`（実際に play する最外側
+        // リストの集合）は dirty field の列挙順に依存しない（どの順序で
+        // 処理しても最終的に同じ集合へ収束する、`flip_captured`/
+        // `flip_target_lists` いずれも `is_same_node` 重複排除のみで
+        // 順序非依存な集合として構築されるため）。
+        //
+        // 旧実装（第 9〜追加ラウンド）は「field 自身の keyed list」の
+        // Before を `flip_befores`（field 名キー）で個別管理し、後段の
+        // 構造変化コミットループ内で `pending_flip_plays` へ push して
+        // いたが、入れ子リストでは「どのリストを実際に play すべきか」が
+        // field 単位では決まらない（同じリストが複数の異なる field から
+        // 祖先として参照され得る、かつ内側 field 自身は play 対象では
+        // ない）ため、`flip_captured`（リスト要素 → Before の全域
+        // テーブル）と `flip_target_lists`（実際に play する最外側の
+        // 集合）へ分離した。
+        #[cfg(feature = "layout-animation")]
+        let mut flip_captured: Vec<(
+            web_sys::Element,
+            Option<std::collections::HashMap<String, fandhe_frontend_animation::flip::Rect>>,
+        )> = Vec::new();
+        // `flip_target_lists` の各要素と、それが「今回の更新で構造変化
+        // コミットを直接受ける可能性のある dirty field」に対応する場合は
+        // その field 名を併せて記録する（`Some(field)`）。対応する field
+        // がない（target が今回どの dirty field の keyed list 自体でも
+        // ない純粋な祖先リストの場合）は `None` とする。codex-review
+        // 追加ラウンド是正（イシュー #2518。P1「タグ変更後のライブリスト
+        // を正しく再取得する」・Bugbot「Stale list used after tag
+        // change」）: 旧実装は構造変化コミット**後**に `target` と
+        // `is_same_node` で一致する dirty field を探していたが、タグ変更
+        // （`replace_list_element_for_tag_change`）が起きた場合 `target`
+        // は切り離された旧要素になるため、コミット後の再取得結果と
+        // 一致することは原理的にない（一致するのはタグ変更が起きな
+        // かった場合のみで、その場合は再取得自体が不要）。本実装は
+        // 「target がどの field の keyed list か」をタグ変更が起きる**前**
+        // （この走査の時点）に固定し、再取得時は識別子一致ではなく
+        // 固定した field 名で `find_list_element` を無条件に呼ぶ
+        // （`stagger`/`drag-gesture` 再同期と同型の再取得契約）。
+        #[cfg(feature = "layout-animation")]
+        let mut flip_target_lists: Vec<(web_sys::Element, Option<&'static str>)> = Vec::new();
+        #[cfg(feature = "layout-animation")]
+        {
+            // `chain`（`flip_lists_containing` の結果、近い順）に含まれる
+            // FLIP リストをすべて停止・捕捉し（重複排除は `flip_captured`
+            // の同一性判定）、`chain` の最後の要素（最も外側、祖先方向の
+            // 探索で最後に見つかったリスト）を「実際に play する対象」
+            // として `flip_target_lists` へ登録する（重複排除あり）。
+            let stop_and_capture = |chain: &[web_sys::Element],
+                                    flip_captured: &mut Vec<(
+                web_sys::Element,
+                Option<std::collections::HashMap<String, fandhe_frontend_animation::flip::Rect>>,
+            )>| {
+                for candidate in chain {
+                    let already = flip_captured
+                        .iter()
+                        .any(|(captured, _)| captured.is_same_node(Some(candidate)));
+                    if already {
+                        continue;
+                    }
+                    let before = crate::layout_flip::capture_before(candidate);
+                    flip_captured.push((candidate.clone(), before));
+                }
+            };
+
+            // `flip_target_lists` へ `target` を登録する（`is_same_node`
+            // 重複排除あり）。`field_hint`（`Some` の場合、`target` が
+            // `field` 自身の keyed list 本体であることを示す）が既存の
+            // `None` エントリより優先度が高い場合は upgrade する（walk
+            // (i)/(ii) いずれの順で先に見つかっても最終的に同じ結果へ
+            // 収束させるため）。
+            let push_target = |target: &web_sys::Element,
+                               field_hint: Option<&'static str>,
+                               flip_target_lists: &mut Vec<(
+                web_sys::Element,
+                Option<&'static str>,
+            )>| {
+                if let Some(existing) = flip_target_lists
+                    .iter_mut()
+                    .find(|(captured, _)| captured.is_same_node(Some(target)))
+                {
+                    if existing.1.is_none() && field_hint.is_some() {
+                        existing.1 = field_hint;
+                    }
+                } else {
+                    flip_target_lists.push((target.clone(), field_hint));
+                }
+            };
+
+            for field in dirty {
+                // 走査 (i): field 自身が keyed list（`data-bind-list`）の
+                // 場合、その list_element を起点に祖先方向へ FLIP リストを
+                // 辿る。
+                if let Ok(Some(list_element)) =
+                    fandhe_frontend_wasm_client::find_list_element(root, field)
+                {
+                    let chain = crate::layout_flip::flip_lists_containing(&list_element);
+                    stop_and_capture(&chain, &mut flip_captured);
+                    if let Some(outermost) = chain.last() {
+                        // `outermost` が `list_element` 自身（chain 長 1、
+                        // 入れ子でない）の場合に限り、`outermost` は
+                        // 「`field` 自身の keyed list」であることが確定する
+                        // （`Some(field)`）。入れ子で `outermost` が祖先の
+                        // 場合、その祖先が別の dirty field 自身の keyed
+                        // list かどうかはこの時点では不明（`None`。他の
+                        // `field` の走査で判明すれば `push_target` が
+                        // upgrade する）。
+                        let field_hint = if outermost.is_same_node(Some(&list_element)) {
+                            Some(*field)
+                        } else {
+                            None
+                        };
+                        push_target(outermost, field_hint, &mut flip_target_lists);
+                    }
+                }
+                // 走査 (ii): field に直接束縛された要素（`data-bind-attr`
+                // 等）を起点に祖先方向へ FLIP リストを辿る。走査 (i) の
+                // 対象と field 名が一致しても常に実行する（P1「field 単位
+                // の continue で属性束縛先の走査が抜ける」対応、上記
+                // コメント参照）。
+                //
+                // 走査 (i) と異なり、`chain` の長さが 1 以下（束縛先要素
+                // 自身から見て FLIP リストの祖先が 1 つしかない、すなわち
+                // 入れ子構造が存在しない）の場合は play 対象へ追加しない
+                // （停止〔`stop_and_capture`〕のみ行う）。理由: 束縛先要素
+                // が keyed list 自体ではない（構造変化を伴わない）属性
+                // 更新では、対象リストに実際の構造変化が起きていないため
+                // 新たな Play を起動する必要がない——起動すると、直前まで
+                // 進行中だった旧 FLIP の中間視覚位置（First）と、束縛値
+                // 反映後の現在状態（Last）との間に見かけ上の delta が
+                // 生じ、無用な遷移アニメーションが再生されてしまう
+                // （`chain.len() > 1` の場合、すなわち束縛先要素自身が
+                // 別の `FLIP_AUTO_ATTR` を持つ〔入れ子リストの境界として
+                // 機能している〕場合に限り、「内側サブツリーの変化を
+                // 外側へ反映する」ため play 対象へ加える。上記モジュール
+                // doc「入れ子 FLIP リストの所有権契約」参照）。
+                //
+                // 既知の制約（意図的、本 PR のスコープ外）: `chain.len()
+                // == 1`（入れ子でないフラットなリスト）で、かつ束縛先
+                // 要素自身の旧 FLIP が未収束のまま進行中だった場合、
+                // `stop_and_capture` の停止（`flip::FlipAnimation::drop`）
+                // が元のスタイルへ即座に復元するため、束縛値の反映と同時
+                // に見かけ上の位置が一段階跳ぶ可能性がある（re-play しない
+                // ため）。この挙動はこの走査が新設される前の既存契約
+                // （束縛のみの更新では新たな Play を起動しない）を単に
+                // 入れ子構成へ拡張したものであり、既存 browser テスト
+                // （`binding_write_survives_old_flip_stop_during_same_
+                // update`/`binding_only_write_survives_old_flip_stop_
+                // across_separate_update`）が検証する「収束後に束縛値が
+                // 残る」不変条件と矛盾しない。中断時の連続性まで保証する
+                // 改善は将来の課題として扱う。
+                for element in crate::layout_flip::elements_bound_to_field(root, field) {
+                    let chain = crate::layout_flip::flip_lists_containing(&element);
+                    stop_and_capture(&chain, &mut flip_captured);
+                    if chain.len() > 1 {
+                        if let Some(outermost) = chain.last() {
+                            // 束縛先要素（`element`）は keyed list 自体では
+                            // ない場合が通常であり、`outermost` がこの
+                            // `field` 自身の keyed list であることは確定
+                            // しない（`None`。他の field の走査〔上記
+                            // 走査 (i)〕で判明すれば `push_target` が
+                            // upgrade する）。
+                            push_target(outermost, None, &mut flip_target_lists);
+                        }
+                    }
+                }
+            }
+        }
+
         if let Some(table) = binding_table.borrow().as_ref() {
             table.apply_dirty(dirty, state);
         }
@@ -1065,6 +1261,18 @@ where
 
         let mut structural_change = false;
         let mut unresolved_field = false;
+        // codex-review 追加ラウンド是正（イシュー #2518。P1「複数リストに
+        // またがる構造変化で、Last 計測を全リストの構造更新完了後に
+        // まとめて行う」）: `play_after`（Last 計測 + Invert + Play）は
+        // 下記 `for field in dirty` ループ内では呼ばない。ループ内では
+        // 構造変化のコミットのみを行い、実際の Last 計測・Invert・Play
+        // は、**全 dirty field の構造変化コミットが完了した後**（ループを
+        // 抜けた直後）に `flip_target_lists`（上記走査で決定済みの「実際に
+        // play する最外側リスト」集合、入れ子 FLIP リストの所有権契約に
+        // 従い内側リストは含まない）を対象にまとめて行う（下記フラッシュ
+        // 処理参照）。これにより、Last 計測時点では同一更新内の他リストの
+        // 構造変化もすべて確定済みとなり、レイアウト上の相互作用（縦積み
+        // リストの高さ変化等）を正しく反映した Last 矩形を測れる。
         match Self::document() {
             Ok(document) => {
                 for field in dirty {
@@ -1080,6 +1288,15 @@ where
                                 // DOM 読み出しベースの構造変化のみの適用
                                 // （`Update` は発行されない）へフォールバック
                                 // する（`Runtime::keyed_list_cache` doc 参照）。
+                                //
+                                // イシュー #2518: Before 座標は `apply_dirty`
+                                // より前に走査済みの `flip_captured` に集約
+                                // 済みであり、実際に play する最外側リスト
+                                // （`flip_target_lists`）の解決・Last 計測・
+                                // Invert・Play はすべて全 dirty field の構造
+                                // 変化コミット完了後へ延期する（本メソッド
+                                // 冒頭の走査コメント・下記フラッシュ処理
+                                // 参照）。
                                 let previous = keyed_list_cache.borrow().get(*field).cloned();
                                 match previous {
                                     Some(previous_node) => {
@@ -1200,6 +1417,12 @@ where
                                 {
                                     crate::stagger_index::sync_stagger_index(&current_list_element);
                                 }
+                                // イシュー #2518: Before 計測（上記走査）と
+                                // 対になる After 計測・Invert・Play
+                                // （`play_after`）は、実際に play する最外側
+                                // リストの解決も含め全 dirty field の構造変化
+                                // コミット完了後へ延期する（本メソッド冒頭の
+                                // 走査コメント・下記フラッシュ処理参照）。
 
                                 // codex-review P1 是正（イシュー #2535、
                                 // PR #2565）: 再同期が `Self::apply_subtree_swap`
@@ -1242,6 +1465,74 @@ where
                     unresolved_field = true;
                 }
             }
+        }
+
+        // codex-review 追加ラウンド是正（イシュー #2518。P1「Last 計測は
+        // 全 dirty field の構造変化コミット完了後にまとめて行う」・「入れ子
+        // リストを内側から処理すると補正が二重適用される」）: 実際に play
+        // する最外側リスト（`flip_target_lists`、本メソッド冒頭の走査で
+        // 決定済み・入れ子リストの所有権契約に従い内側リストは含まない）を
+        // 全 dirty field の構造変化コミットが完了した**この時点**でまとめて
+        // 処理する。`play_after` は内部で Last **layout** 矩形の一括計測
+        // （`flip::measure_layout_batch`）を行うため、複数リストがある
+        // 場合でもここで各リストへ 1 回ずつ呼ぶだけで、同一更新内の他
+        // リストの構造変化がすべて確定済みの状態を Last として測れる
+        // （先行リストの Last 計測時点でまだ後続リストの構造変化が未
+        // コミットだった旧実装の位置ずれを解消する）。
+        #[cfg(feature = "layout-animation")]
+        for (target, field_hint) in flip_target_lists {
+            let Some(before) = flip_captured
+                .iter()
+                .find(|(captured, _)| captured.is_same_node(Some(&target)))
+                .and_then(|(_, before)| before.clone())
+            else {
+                continue;
+            };
+            // codex-review 追加ラウンド是正（イシュー #2518。P1「タグ
+            // 変更後のライブリストを正しく再取得する」・Bugbot「Stale
+            // list used after tag change」）: `target` が今回の更新で
+            // dirty な field 自身の keyed list でもある場合（入れ子でない
+            // 通常構成、あるいは入れ子の最外側自体が同時に更新された
+            // 構成）、`replace_list_element_for_tag_change` により
+            // `target` がライブ DOM から切り離された旧要素になっている
+            // 可能性がある（`stagger`/`drag-gesture` 再同期と同じ理由、
+            // 本メソッド冒頭のコメント参照）。旧実装はコミット**後**に
+            // `target` と `is_same_node` で一致する dirty field を探して
+            // いたが、タグ変更が起きた場合はその一致が原理的に成立しない
+            // （一致するのはタグ変更が起きなかった場合のみで、その場合は
+            // 再取得自体が不要）ため取りこぼしていた。本実装は、走査の
+            // 時点（タグ変更が起きる前）で固定した `field_hint`（`target`
+            // が「`field` 自身の keyed list」であることが判明している
+            // 場合のみ `Some`）を使い、`Some` の場合は識別子一致の判定を
+            // 挟まず無条件に `find_list_element(root, field)` を呼ぶ
+            // （`stagger`/`drag-gesture` と同型の再取得契約）。`None`
+            // （`target` が今回どの dirty field の keyed list 自体でも
+            // ない純粋な祖先リストの場合）は、このコミットで `target`
+            // 自身が構造変化を受けることはないため、そのまま使う。
+            let live_target = match field_hint {
+                Some(field) => fandhe_frontend_wasm_client::find_list_element(root, field)
+                    .ok()
+                    .flatten()
+                    .unwrap_or(target),
+                None => target,
+            };
+            // codex-review 追加ラウンド是正（イシュー #2518。P1「更新後の
+            // オプトイン状態を再生前に確認する」）: `flip_captured`/
+            // `flip_target_lists` は構造変化コミット**前**（`FLIP_AUTO_ATTR`
+            // が付いていた時点）に確定させたものであり、同一更新内で
+            // `FLIP_AUTO_ATTR` 自体が除去された場合でも `target`/
+            // `live_target` はそのまま残る。明示的オプトイン契約
+            // （`layout_flip.rs` モジュール doc「対象リストの明示的
+            // オプトイン」節）を維持するため、コミット後の現在の属性を
+            // 確認し、除去されていれば Play を起動しない（Before は
+            // 破棄する。新規アニメーションを開始しないだけで、進行中
+            // だった旧アニメーションは走査時点の `capture_before` で
+            // 既に停止・復元済みのため、ここでの skip によるスタイル
+            // 残留は発生しない）。
+            if !live_target.has_attribute(crate::layout_flip::FLIP_AUTO_ATTR) {
+                continue;
+            }
+            crate::layout_flip::play_after(&live_target, before);
         }
 
         // keyed list の挿入で新規ノードが増えた場合、その内部の
