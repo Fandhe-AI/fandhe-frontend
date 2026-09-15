@@ -126,20 +126,26 @@ Motion+ は購入者限定素材のため、本節では取得手段・ファイ
 
 - **積層オフセットは `--fandhe-motion-stagger-index`**: `pre-styled-ui`
   が `motion` feature 配下で持つ CSS custom property 名（`stagger`
-  ユーティリティ用途、#2384）を、docs-site 側では文字列リテラルとして
-  直接記述しています。`pre-styled-ui` の `motion` feature（`dep:fandhe-animation`
-  を有効化する）はここでは有効化していません（本 Block は静的な合成例
-  であり、依存グラフを変更する範囲拡大が不要なため）。値のドリフトは
-  `crates/docs-site/tests/blocks_contract.rs` の契約テストが
-  `crates/pre-styled-ui/src/recipe.rs` のソーステキストと突合して
-  fail-closed に検知します。
+  ユーティリティ用途、#2384）です。`pre-styled-ui` の `motion` feature
+  は本クレート（`fandhe-frontend-docs-site`）の `Cargo.toml` で既に
+  有効（他 block の実装が有効化済み）なため、docs-site 側は
+  `fandhe_frontend_pre_styled_ui::recipe::STAGGER_INDEX_VAR` を直接
+  import して `format!` で埋め込んでおり、値の複製・ドリフトはありません。
 - **presence（入れ替え）は `data-state` + トークン参照 `transition` で
-  表現**: `SlotRecipe::presence_transition` は `pre-styled-ui` 自身の
+  強調表示のみを表現。積層順（`z-index`/`transform`）は変わりません**:
+  `SlotRecipe::presence_transition` は `pre-styled-ui` 自身の
   `Theme::to_css` 生成パスに閉じた recipe-builder メソッドで、docs-site
   側の生 CSS へ後付けできません。代わりに各カードへ `data-state`
   （`active`/`inactive`）を付与し、`transition` の duration/easing を
   固定 ms 値ではなく `var(--fandhe-motion-duration-normal)`/
   `var(--fandhe-motion-easing-standard)` で参照する構成にしています。
+  ただし `data-state` が切り替えるのは `opacity`（強調表示）のみで、
+  積層順（`transform`/`z-index`）は本 Demo の `:nth-child` が固定した
+  `--fandhe-motion-stagger-index` の値で決まり、`data-state` の書き換え
+  だけでは追従しません。前面カードを実際に入れ替える実装では、
+  `data-state` に加えて各カードの `--fandhe-motion-stagger-index`
+  （利用者側の Rust/JS 配線で新しい積層順へ再割り当て）も書き換える
+  必要があります。
 - **`prefers-reduced-motion: reduce` は追加 `@media` なしで縮退**:
   `blocks::stylesheet()` は `Theme::default()` を注入するため、上記の
   duration トークンは `blocks.css` の `:root` に既に定義され、reduced

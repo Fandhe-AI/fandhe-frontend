@@ -1299,27 +1299,17 @@ fn pricing_usage_slider_page_wires_demo_class_and_css_hooks() {
     }
 }
 
-/// `--fandhe-motion-stagger-index` の文字列リテラルが
-/// `crates/pre-styled-ui/src/recipe.rs` の `STAGGER_INDEX_VAR` 定義と
-/// ドリフトしていないことを固定する（`crates/pre-styled-ui/tests/
-/// stagger_index_var_drift.rs` と同型のソース走査型契約。docs-site は
-/// `pre-styled-ui` の `motion` feature を有効化していないため型共有が
-/// できず、値のリテラル複製 + ソーステキスト突合で整合を保証する、
-/// イシュー #2548）。
+/// `testimonials-stack` のレイアウト CSS が [`fandhe_frontend_pre_styled_ui::
+/// recipe::STAGGER_INDEX_VAR`] を実際に参照していることを固定する
+/// （イシュー #2548。当初はリテラル複製 + ソーステキスト突合の契約
+/// だったが、`pre-styled-ui` の `motion` feature が本クレートの
+/// `Cargo.toml` で既に有効なため、`crates/docs-site/src/blocks/
+/// testimonials_stack.rs` 側で定数を直接 import する設計へ是正した
+/// codex-review 指摘。値のドリフトはコンパイラが型レベルで防ぐため、
+/// 本テストはその参照が実際に生成 CSS へ反映されることのみを検証する）。
 #[test]
 fn testimonials_stack_stagger_var_matches_pre_styled_ui_recipe_source() {
-    const STAGGER_INDEX_VAR: &str = "--fandhe-motion-stagger-index";
-
-    let recipe_path = repo_root().join("crates/pre-styled-ui/src/recipe.rs");
-    let recipe_source = std::fs::read_to_string(&recipe_path)
-        .unwrap_or_else(|e| panic!("{}: {e}", recipe_path.display()));
-    let expected_decl = format!("pub const STAGGER_INDEX_VAR: &str = \"{STAGGER_INDEX_VAR}\";");
-    assert!(
-        recipe_source.contains(&expected_decl),
-        "crates/pre-styled-ui/src/recipe.rs の STAGGER_INDEX_VAR 定義が \
-         testimonials_stack 側のリテラル（{STAGGER_INDEX_VAR:?}）と一致しません。\
-         期待した宣言行: {expected_decl:?}"
-    );
+    use fandhe_frontend_pre_styled_ui::recipe::STAGGER_INDEX_VAR;
 
     let sheet_css = blocks::stylesheet()
         .expect("blocks::stylesheet should build")
@@ -1328,6 +1318,28 @@ fn testimonials_stack_stagger_var_matches_pre_styled_ui_recipe_source() {
     assert!(
         sheet_css.contains(STAGGER_INDEX_VAR),
         "blocks.css should reference {STAGGER_INDEX_VAR}"
+    );
+}
+
+/// caption（出典欄）の `display: flex` がレシピの base slot セレクタ
+/// （`[data-scope="blockquote"][data-part="caption"]`、詳細度 (0,2,0)）に
+/// 詳細度で負けていないことを固定する（codex-review P2 / Cursor Bugbot
+/// 指摘の是正、イシュー #2548）。`.blocks-testimonials-stack-meta` 単独
+/// クラス（詳細度 (0,1,0)）では常に負けるため、生成 CSS 側が属性セレクタ
+/// を含む詳細度 (0,3,0) 以上のセレクタで宣言していることを検証する。
+#[test]
+fn testimonials_stack_caption_meta_selector_outweighs_recipe_base() {
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(
+            r#"[data-scope="blockquote"][data-part="caption"].blocks-testimonials-stack-meta {"#
+        ),
+        "blocks.css should declare display:flex for the caption meta row with a \
+         selector at least as specific as [data-scope][data-part] (0,2,0), otherwise \
+         the recipe base rule wins and the avatar/byline row does not lay out inline"
     );
 }
 

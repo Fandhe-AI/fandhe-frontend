@@ -156,8 +156,8 @@
   `blocks/testimonials-stack/index.html`（イシュー #2548、Motion+ の
   testimonials 系レイアウトを参照した積層 testimonial カード。
   `card`・`blockquote`・`avatar` を合成し、積層オフセットは
-  `--fandhe-motion-stagger-index` の値リテラル複製で表現する合成
-  block）である。
+  `pre-styled-ui::recipe::STAGGER_INDEX_VAR`（`--fandhe-motion-stagger-index`）
+  を直接 import して表現する合成 block）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

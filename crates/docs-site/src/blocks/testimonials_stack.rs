@@ -22,15 +22,16 @@
 //!
 //! # 積層オフセットに `--fandhe-motion-stagger-index` を使う理由
 //!
-//! `crates/pre-styled-ui/src/recipe.rs` の `STAGGER_INDEX_VAR`
-//! （`motion` feature 配下）と同名の CSS custom property を `:nth-child`
-//! セレクタで各カードへ直接代入する。**`pre-styled-ui` の `motion`
-//! feature はここでは有効化しない**（`dep:fandhe-animation` を有効化し
-//! `structure.toml` の依存グラフ宣言を要する変更範囲拡大になるため）。
-//! 代わりに `crates/pre-styled-ui/tests/stagger_index_var_drift.rs` と
-//! 同型の「値のリテラル複製 + ソーステキスト突合」契約を本クレート側にも
-//! 追加する（`crates/docs-site/tests/blocks_contract.rs` の
-//! `testimonials_stack_stagger_var_matches_pre_styled_ui_recipe_source`）。
+//! `crates/pre-styled-ui/src/recipe::STAGGER_INDEX_VAR`（`motion` feature
+//! 配下）と同名の CSS custom property を `:nth-child` セレクタで各カードへ
+//! 直接代入する。**`pre-styled-ui` の `motion` feature は本クレートの
+//! `Cargo.toml` で既に有効（`button_motion`／イシュー #2555 の実装が
+//! 有効化済み。`dep:fandhe-animation` を新たに要求するのはあちら側であり
+//! 本 Block が範囲を広げているわけではない）** であるため、値を
+//! リテラルで複製するのではなく [`fandhe_frontend_pre_styled_ui::recipe::STAGGER_INDEX_VAR`]
+//! を直接 import して `format!` でレイアウト CSS へ埋め込む（[`layout_css`]
+//! 参照）。これにより値のドリフトはコンパイラが型レベルで防ぎ、
+//! ソーステキスト突合による契約テストは不要になった。
 //!
 //! # カード入れ替えの視覚表現（`presence_transition` を使わない理由）
 //!
@@ -41,7 +42,18 @@
 //! `--fandhe-motion-easing-*` トークン参照）を `blocks.css` の生 CSS で
 //! 再現する（`prefers-reduced-motion: reduce` 下は `Theme::to_css` が
 //! これらのトークンを 0ms 化するため、個別の `@media` は不要）。
+//!
+//! `data-state`（active/inactive）はカードの強調表示（`opacity`）**のみ**
+//! を切り替える。積層順（`transform`/`z-index`）は本 Demo では `:nth-child`
+//! が固定した `--fandhe-motion-stagger-index` の値で決まり、`data-state`
+//! の書き換えに追従しない。前面カードを実際に入れ替える利用者側の実装は、
+//! `data-state` に加えて各カードの `--fandhe-motion-stagger-index`
+//! （[`fandhe_frontend_pre_styled_ui::recipe::stagger_index_style`] で
+//! `style` 属性値を組み立てられる）も新しい積層順へ書き換える必要がある
+//! （`docs/policy/intentional-non-adoption.md` §3.25 と同じ責務境界、
+//! 上記「自動ローテーションは行わない」節参照）。
 use super::{Block, Part};
+use fandhe_frontend_pre_styled_ui::recipe::STAGGER_INDEX_VAR;
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, text, Node};
@@ -167,31 +179,88 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `testimonials_stack` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
-/// `super::stylesheet` から連結される）。
+/// `testimonials_stack` 固有のレイアウト規則を組み立てる（`crate::blocks::
+/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同じ役割を担うが、他 block
+/// の `pub(super) const LAYOUT_CSS: &str` とは異なり `pub(super) fn` である
+/// （下記「`--fandhe-motion-stagger-index` を `format!` で埋め込む理由」
+/// 節参照）。`super::stylesheet` から `&testimonials_stack::layout_css()`
+/// として呼ばれ連結される。
 ///
-/// # `--fandhe-motion-stagger-index` の値をリテラルで直接書く理由
+/// # `--fandhe-motion-stagger-index` を `format!` で埋め込む理由
 ///
 /// モジュール doc「積層オフセットに `--fandhe-motion-stagger-index` を
-/// 使う理由」節参照。`crates/docs-site/tests/blocks_contract.rs` の
-/// `testimonials_stack_stagger_var_matches_pre_styled_ui_recipe_source`
-/// が `crates/pre-styled-ui/src/recipe.rs` の `STAGGER_INDEX_VAR` 定義と
-/// このリテラルのドリフトを fail-closed に検知する。
+/// 使う理由」節参照。`pre-styled-ui` の `motion` feature は本クレートの
+/// `Cargo.toml` で既に有効なため、[`STAGGER_INDEX_VAR`] を直接 import して
+/// `format!` で埋め込む。値のリテラル複製・ソーステキスト突合による
+/// ドリフト検知（旧`testimonials_stack_stagger_var_matches_pre_styled_ui_
+/// recipe_source`）は不要になった（コンパイラが型レベルで一致を保証する）。
+///
+/// # `data-state` は積層順（`z-index`/`transform`）を変えない
+///
+/// 各カードの積層順は `:nth-child` が固定した [`STAGGER_INDEX_VAR`] の値
+/// のみで決まる。`data-state`（active/inactive）はカードの `opacity`
+/// （強調表示）だけを切り替える別軸であり、`data-state` を書き換えても
+/// カードは DOM 上の位置（＝ `:nth-child` の順序）を変えない限り前面へ
+/// 移動しない（モジュール doc「カード入れ替えの視覚表現」節参照）。
 ///
 /// トランジションの duration/easing は固定 ms 値ではなく
 /// `var(--fandhe-motion-duration-normal)`/`var(--fandhe-motion-easing-standard)`
 /// を参照する（`blocks::stylesheet()` が `Theme::default()` を注入する
 /// ため、これらのトークンは `blocks.css` の `:root` に既に定義され、
 /// `prefers-reduced-motion: reduce` 下の 0ms 化にも自動的に追従する）。
-pub(super) const LAYOUT_CSS: &str = "\
-.blocks-testimonials-stack {\n  display: flex;\n  justify-content: center;\n}\n\
-.blocks-testimonials-stack-stage {\n  display: grid;\n  width: 100%;\n  max-width: 26rem;\n  margin-inline: auto;\n  padding-block: 3rem 1.5rem;\n}\n\
-[data-blocks-testimonials-stack-card] {\n  grid-area: 1 / 1;\n  transition: transform var(--fandhe-motion-duration-normal) var(--fandhe-motion-easing-standard), opacity var(--fandhe-motion-duration-normal) var(--fandhe-motion-easing-standard);\n  transform: translateY(calc(var(--fandhe-motion-stagger-index, 0) * -1rem)) scale(calc(1 - var(--fandhe-motion-stagger-index, 0) * 0.06));\n  z-index: calc(3 - var(--fandhe-motion-stagger-index, 0));\n}\n\
-[data-blocks-testimonials-stack-card][data-state=\"inactive\"] {\n  opacity: 0.6;\n}\n\
-.blocks-testimonials-stack-stage > [data-blocks-testimonials-stack-card]:nth-child(1) {\n  --fandhe-motion-stagger-index: 0;\n}\n\
-.blocks-testimonials-stack-stage > [data-blocks-testimonials-stack-card]:nth-child(2) {\n  --fandhe-motion-stagger-index: 1;\n}\n\
-.blocks-testimonials-stack-stage > [data-blocks-testimonials-stack-card]:nth-child(3) {\n  --fandhe-motion-stagger-index: 2;\n}\n\
-.blocks-testimonials-stack-meta {\n  display: flex;\n  align-items: center;\n  gap: 0.75rem;\n  margin-top: 0.75rem;\n}\n\
-[data-blocks-testimonials-stack-avatar] {\n  flex-shrink: 0;\n}\n\
-.blocks-testimonials-stack-byline {\n  display: flex;\n  flex-direction: column;\n  font-size: 0.875rem;\n}\n";
+///
+/// `.blocks-testimonials-stack-meta`（`blockquote::caption` に付与する
+/// 補助クラス）は `[data-scope="blockquote"][data-part="caption"]`
+/// （詳細度 (0,2,0)、`crates/pre-styled-ui/src/recipe.rs` の base slot
+/// セレクタ）と同じ要素へ適用されるため、単独クラス（詳細度 (0,1,0)）
+/// では常に負ける。属性セレクタを含めて詳細度を (0,3,0) へ上げることで
+/// `display: flex` を確実に適用する。
+pub(super) fn layout_css() -> String {
+    format!(
+        ".blocks-testimonials-stack {{
+  display: flex;
+  justify-content: center;
+}}
+.blocks-testimonials-stack-stage {{
+  display: grid;
+  width: 100%;
+  max-width: 26rem;
+  margin-inline: auto;
+  padding-block: 3rem 1.5rem;
+}}
+[data-blocks-testimonials-stack-card] {{
+  grid-area: 1 / 1;
+  transition: transform var(--fandhe-motion-duration-normal) var(--fandhe-motion-easing-standard), opacity var(--fandhe-motion-duration-normal) var(--fandhe-motion-easing-standard);
+  transform: translateY(calc(var({stagger}, 0) * -1rem)) scale(calc(1 - var({stagger}, 0) * 0.06));
+  z-index: calc(3 - var({stagger}, 0));
+}}
+[data-blocks-testimonials-stack-card][data-state=\"inactive\"] {{
+  opacity: 0.6;
+}}
+.blocks-testimonials-stack-stage > [data-blocks-testimonials-stack-card]:nth-child(1) {{
+  {stagger}: 0;
+}}
+.blocks-testimonials-stack-stage > [data-blocks-testimonials-stack-card]:nth-child(2) {{
+  {stagger}: 1;
+}}
+.blocks-testimonials-stack-stage > [data-blocks-testimonials-stack-card]:nth-child(3) {{
+  {stagger}: 2;
+}}
+[data-scope=\"blockquote\"][data-part=\"caption\"].blocks-testimonials-stack-meta {{
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}}
+[data-blocks-testimonials-stack-avatar] {{
+  flex-shrink: 0;
+}}
+.blocks-testimonials-stack-byline {{
+  display: flex;
+  flex-direction: column;
+  font-size: 0.875rem;
+}}
+",
+        stagger = STAGGER_INDEX_VAR,
+    )
+}

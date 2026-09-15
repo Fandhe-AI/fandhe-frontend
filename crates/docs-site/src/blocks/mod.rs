@@ -261,7 +261,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(signup_05::LAYOUT_CSS)?;
     sheet.push_css(pricing_tiers_morph::LAYOUT_CSS)?;
     sheet.push_css(pricing_usage_slider::LAYOUT_CSS)?;
-    sheet.push_css(testimonials_stack::LAYOUT_CSS)?;
+    sheet.push_css(&testimonials_stack::layout_css())?;
     Ok(sheet)
 }
 
