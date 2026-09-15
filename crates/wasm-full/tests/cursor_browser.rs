@@ -140,6 +140,24 @@ fn pointermove_leaving_target_clears_hover_state() {
 }
 
 #[wasm_bindgen_test]
+fn pointermove_into_non_target_area_transitions_hidden_to_idle() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, cursor_el, _target) = build_dom(&document, "cursor-root-3a");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_cursor_with_env(root.clone(), false, false).expect("wire_cursor_with_env must not fail");
+    assert_eq!(attr(&cursor_el, CURSOR_STATE_ATTR), Some("hidden".into()));
+
+    // opt-in 対象を持たない root 自身への初回移動（`hover_target` は
+    // `None` のまま変化しないため、`is_same` の判定だけでは
+    // `"hidden"` → `"idle"` へ遷移しない不具合の回帰テスト
+    // （イシュー #2542 レビュー指摘）。
+    dispatch_pointer_event(&root, "pointermove", "mouse", 5, 5);
+
+    assert_eq!(attr(&cursor_el, CURSOR_STATE_ATTR), Some("idle".into()));
+}
+
+#[wasm_bindgen_test]
 fn pointerout_true_leave_hides_cursor() {
     let document = web_sys::window().unwrap().document().unwrap();
     let (root, cursor_el, target) = build_dom(&document, "cursor-root-4");

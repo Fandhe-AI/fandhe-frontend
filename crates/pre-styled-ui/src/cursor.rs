@@ -159,6 +159,15 @@ pub const CURSOR_CSS: &str = concat!(
     "  font-size: var(--fandhe-font-size-xs);\n",
     "  white-space: nowrap;\n",
     "}\n",
+    // ring バリアント + ラベル同時指定時のラベル背景復元（イシュー #2542
+    // レビュー指摘: ring の `background: transparent` がラベル用ピル
+    // 背景を上書きしたままになり、ライト面でラベルテキストが読めない
+    // 不具合の修正）。ring ルールと同じ 2 属性セレクタだが、後続の
+    // ラベルルールより後（source order）に置くことでカスケードで勝つ。
+    "[data-fandhe-cursor][data-fandhe-cursor-variant=\"ring\"][data-fandhe-cursor-label]:not([data-fandhe-cursor-label=\"\"]) {\n",
+    "  background: var(--fandhe-color-accent);\n",
+    "  border: none;\n",
+    "}\n",
     "[data-fandhe-cursor][data-fandhe-cursor-label]:not([data-fandhe-cursor-label=\"\"])::after {\n",
     "  content: attr(data-fandhe-cursor-label);\n",
     "}\n",

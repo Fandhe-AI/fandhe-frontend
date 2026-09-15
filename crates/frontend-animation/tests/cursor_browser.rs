@@ -119,6 +119,25 @@ async fn move_to_after_settling_reconverges_to_new_target() {
 }
 
 #[wasm_bindgen_test]
+fn first_move_to_snaps_to_target_without_animating_from_origin() {
+    let div = build_div();
+    let mut animator = CursorAnimator::new(div.clone(), SpringConfig::default(), false);
+
+    // 構築直後の最初の `move_to` は spring を経由せず即座にスナップする
+    // ため、`sleep`/rAF を待たず呼び出し直後に目標値が反映されているはず
+    // （原点 `(0.0, 0.0)` からの「飛び出し」がないことの回帰テスト、
+    // イシュー #2542 レビュー指摘）。
+    animator.move_to(300.0, 150.0);
+
+    let x = read_property(&div, CURSOR_X_PROPERTY);
+    let y = read_property(&div, CURSOR_Y_PROPERTY);
+    assert_eq!(x, 300.0);
+    assert_eq!(y, 150.0);
+
+    div.remove();
+}
+
+#[wasm_bindgen_test]
 fn reduced_motion_writes_immediately_without_raf() {
     let div = build_div();
     let mut animator = CursorAnimator::new(div.clone(), SpringConfig::default(), true);

@@ -123,6 +123,21 @@ impl CursorFollower {
     pub fn position(&self) -> (f64, f64) {
         self.current
     }
+
+    /// spring を経由せず現在位置・追従先を `(x, y)` へ即座に一致させる
+    /// （速度もゼロへ戻す）。[`CursorAnimator`] が初回 [`move_to`]
+    /// （構築時の暫定原点 `(0.0, 0.0)` から実際のポインタ位置への
+    /// 「原点からの飛び出し」を防ぐ、イシュー #2542 レビュー指摘）で
+    /// 使う。
+    ///
+    /// [`move_to`]: CursorAnimator::move_to
+    pub fn snap(&mut self, x: f64, y: f64) {
+        self.current = (x, y);
+        self.velocity = (0.0, 0.0);
+        self.spring_x = None;
+        self.spring_y = None;
+        self.elapsed = 0.0;
+    }
 }
 
 /// `element` の style へ `(x, y)`（CSS ピクセル）を [`CURSOR_X_PROPERTY`]/
@@ -149,11 +164,20 @@ pub struct CursorAnimator {
     #[allow(dead_code)]
     anim_loop: Option<AnimationLoop>,
     reduced: bool,
+    /// 初回 [`move_to`] 呼び出しをまだ受けていないか（構築時の暫定原点
+    /// `(0.0, 0.0)` から実ポインタ位置へ spring で飛んでくる「原点からの
+    /// 飛び出し」を防ぐための一度きりのスナップ判定、イシュー #2542
+    /// レビュー指摘）。
+    ///
+    /// [`move_to`]: CursorAnimator::move_to
+    initialized: Cell<bool>,
 }
 
 #[cfg(target_arch = "wasm32")]
 impl CursorAnimator {
-    /// `element` を `(0.0, 0.0)` 起点として構築する。
+    /// `element` を構築する（追従先はまだ未定。最初の [`Self::move_to`]
+    /// 呼び出しで現在位置をその座標へ直接スナップし、以降の呼び出しから
+    /// spring 追従を開始する）。
     #[must_use]
     pub fn new(element: HtmlElement, config: SpringConfig, reduced: bool) -> Self {
         Self {
@@ -162,19 +186,28 @@ impl CursorAnimator {
             running: Rc::new(Cell::new(false)),
             anim_loop: None,
             reduced,
+            initialized: Cell::new(false),
         }
     }
 
     /// 追従目標を `(x, y)` へ更新する。
     ///
-    /// `reduced`（構築時に注入された `prefers-reduced-motion: reduce`）
-    /// の場合は spring を経由せず [`write_position`] で即時反映する
-    /// （モジュール doc「フェイルセーフ方向」節）。それ以外は
-    /// [`CursorFollower::retarget`] で目標を更新し、ループが未稼働
-    /// （初回呼び出し、または前回の追従が収束してループが自動停止した後）
-    /// なら [`AnimationLoop`] を（再）起動する。`RafDriver::new()` が
-    /// `None`（非ブラウザ環境）を返す場合は即時反映へフォールバックする。
+    /// 構築後の最初の呼び出しは spring を経由せず現在位置を `(x, y)` へ
+    /// 直接スナップする（[`CursorFollower::snap`]、doc コメント参照）。
+    /// 以降の呼び出しは `reduced`（構築時に注入された
+    /// `prefers-reduced-motion: reduce`）の場合は spring を経由せず
+    /// [`write_position`] で即時反映し（モジュール doc「フェイルセーフ
+    /// 方向」節）、それ以外は [`CursorFollower::retarget`] で目標を更新し、
+    /// ループが未稼働（初回呼び出し、または前回の追従が収束してループが
+    /// 自動停止した後）なら [`AnimationLoop`] を（再）起動する。
+    /// `RafDriver::new()` が `None`（非ブラウザ環境）を返す場合は即時反映
+    /// へフォールバックする。
     pub fn move_to(&mut self, x: f64, y: f64) {
+        if !self.initialized.replace(true) {
+            self.follower.borrow_mut().snap(x, y);
+            write_position(&self.element, x, y);
+            return;
+        }
         if self.reduced {
             write_position(&self.element, x, y);
             return;

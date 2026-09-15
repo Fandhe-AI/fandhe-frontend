@@ -125,7 +125,7 @@ mod wiring {
 
     /// `cursor_el` の `data-*` を `hidden`/`variant`/`label` なしへ戻す。
     fn clear_hover_state(cursor_el: &HtmlElement) {
-        let _ = cursor_el.set_attribute(CURSOR_STATE_ATTR, "idle");
+        crate::dom::set_dom_attribute(cursor_el, CURSOR_STATE_ATTR, "idle");
         let _ = cursor_el.remove_attribute(CURSOR_VARIANT_ATTR);
         let _ = cursor_el.remove_attribute(CURSOR_LABEL_ATTR);
     }
@@ -136,6 +136,14 @@ mod wiring {
     /// opt-in（[`CURSOR_TARGET_MAGNETIC_ATTR`]）を持つ対象へは
     /// `getBoundingClientRect()` の中心へ、それ以外はポインタ座標へ
     /// 追従させる。タッチ由来のポインタは除外する。
+    ///
+    /// `hover_target` が対象なし（`None`）で前回と「変わらない」
+    /// （`is_same`）場合でも、現在の `data-*` 状態が `"hidden"`
+    /// （`root` へ初めて入った直後・`pointerout` で離脱した後の再入場）
+    /// であれば `"idle"` へ強制遷移させる（`is_same` は variant/label の
+    /// 書き換え抑制のみを意図しており、hidden→idle の遷移自体は
+    /// hover 対象の同一性とは独立に必要なため。イシュー #2542 レビュー
+    /// 指摘: 初回移動・再入場時にカーソルが表示されない不具合の修正）。
     fn handle_pointermove(
         root: &Element,
         cursor_el: &HtmlElement,
@@ -159,6 +167,8 @@ mod wiring {
                 (None, None) => true,
                 _ => false,
             };
+            let was_hidden =
+                cursor_el.get_attribute(CURSOR_STATE_ATTR).as_deref() == Some("hidden");
             if !is_same {
                 *active_ref = hover_target.clone();
                 match &hover_target {
@@ -169,12 +179,14 @@ mod wiring {
                         let label = target
                             .get_attribute(CURSOR_TARGET_LABEL_ATTR)
                             .unwrap_or_default();
-                        let _ = cursor_el.set_attribute(CURSOR_VARIANT_ATTR, &variant);
-                        let _ = cursor_el.set_attribute(CURSOR_LABEL_ATTR, &label);
-                        let _ = cursor_el.set_attribute(CURSOR_STATE_ATTR, "hover");
+                        crate::dom::set_dom_attribute(cursor_el, CURSOR_VARIANT_ATTR, &variant);
+                        crate::dom::set_dom_attribute(cursor_el, CURSOR_LABEL_ATTR, &label);
+                        crate::dom::set_dom_attribute(cursor_el, CURSOR_STATE_ATTR, "hover");
                     }
                     None => clear_hover_state(cursor_el),
                 }
+            } else if was_hidden && hover_target.is_none() {
+                crate::dom::set_dom_attribute(cursor_el, CURSOR_STATE_ATTR, "idle");
             }
         }
 
@@ -209,7 +221,7 @@ mod wiring {
             return;
         }
         if !related_within(event, root) {
-            let _ = cursor_el.set_attribute(CURSOR_STATE_ATTR, "hidden");
+            crate::dom::set_dom_attribute(cursor_el, CURSOR_STATE_ATTR, "hidden");
             let _ = cursor_el.remove_attribute(CURSOR_VARIANT_ATTR);
             let _ = cursor_el.remove_attribute(CURSOR_LABEL_ATTR);
             *active.borrow_mut() = None;
@@ -240,8 +252,8 @@ mod wiring {
             return Ok(());
         };
 
-        let _ = root.set_attribute(super::CURSOR_ACTIVE_ATTR, "");
-        let _ = cursor_el.set_attribute(CURSOR_STATE_ATTR, "hidden");
+        crate::dom::set_dom_attribute(&root, super::CURSOR_ACTIVE_ATTR, "");
+        crate::dom::set_dom_attribute(&cursor_el, CURSOR_STATE_ATTR, "hidden");
 
         let animator: Rc<RefCell<CursorAnimator>> = Rc::new(RefCell::new(CursorAnimator::new(
             cursor_el.clone(),
