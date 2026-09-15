@@ -73,8 +73,14 @@ stagger の実演（`motion-demo-root` セクション・`item-list` の opt-in 
   書き込みは行われません、`scroll_driver.rs` の doc 参照）。`item-list`
   （`hydrate` 系統の `<ul data-bind-list="items">`）には
   `data-fandhe-flip-auto`/`data-fandhe-stagger-auto-first` を
-  `static/embed.html` 側で付与しており（`AppState::view()` 自体は変更
-  していません）、「追加」→「削除」で残行が layout FLIP 移動し新規行が
+  `static/embed.html` の初期 HTML へ付与するのに加え、`wasm/src/lib.rs::
+  interactive_demo::Demo`（`AppState` を委譲でラップし `view()` のみ
+  同 2 属性を後付けする glue、イシュー #2525 codex-review 対応）が
+  更新後のビューにも常に同じ属性を出力し続けます（`AppState::view()`
+  自体は変更していません。`wasm-full`/`wasm-client` の属性同期は
+  `component.view()` の出力にない属性をライブ DOM から削除する契約の
+  ため、`view()` 側で付与し続けないと最初のリスト更新で属性が失われて
+  しまいます）。「追加」→「削除」で残行が layout FLIP 移動し新規行が
   stagger 起点でフェードインします
 - **View Transitions の汎用化・`animate`/`animation-driver`（イシュー
   #2525、feature 指定のみ）**: `start_router` は feature 非依存で既に
@@ -134,7 +140,7 @@ python3 -m http.server --directory static 8000
 | `tests/state_machine.rs` | `dispatch` の状態遷移・未知アクション no-op・`render_for_hydration`・既定エスケープ回帰・`static/embed.html` のハイドレーション属性 + motion/FLIP/stagger opt-in 属性回帰テスト |
 | `static/embed.html` | ブラウザマウント骨格。`tools/wasm/build.sh` 実行後に動作（`hydrate("interactive-root")` / `start_router("app-root")` / `hydrate_navigation_menu("nav-menu-root")` / `hydrate_menubar("menubar-root")` / `hydrate_motion_demo("motion-demo-root")`）。5 つのマウント要素はいずれも `cargo run` が書き出す `dist/index.html` の同要素を事前に埋め込み済みで、各 `hydrate*()` の状態復元が成功する（空のまま呼ぶと CSR フォールバックが二重に差し込まれ id 衝突するため）。`item-list` には layout FLIP / stagger の opt-in 属性を手動付与している |
 | `tools/wasm/build.sh` | `wasm/`（独立ワークスペースの glue クレート）を wasm32 へビルドする手順 |
-| `wasm/` | `fandhe-frontend-wasm-full` の `hydrate` / `mount` / `start_router` を再エクスポートし、`nav_overlays` モジュール（イシュー #1199）で `hydrate_navigation_menu` / `hydrate_menubar` を、`motion_demo` モジュール（イシュー #2525）で `hydrate_motion_demo` を自前実装する glue クレート（root の依存グラフから隔離） |
+| `wasm/` | `fandhe-frontend-wasm-full` の `mount` / `start_router` を再エクスポートし、`interactive_demo` モジュール（イシュー #2525 codex-review 対応）で `AppState` を FLIP/stagger 属性付きラップする `hydrate` を、`nav_overlays` モジュール（イシュー #1199）で `hydrate_navigation_menu` / `hydrate_menubar` を、`motion_demo` モジュール（イシュー #2525）で `hydrate_motion_demo` を自前実装する glue クレート（root の依存グラフから隔離） |
 
 ## 関連ガイド
 

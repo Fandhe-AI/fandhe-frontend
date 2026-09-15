@@ -54,7 +54,14 @@
 // （`tools/wasm/build.sh` は常に `--target wasm32-unknown-unknown` を指定する
 // ため、実運用の経路には影響しない）。
 #[cfg(target_arch = "wasm32")]
-pub use fandhe_frontend_wasm_full::entry::{hydrate, mount, start_router};
+pub use fandhe_frontend_wasm_full::entry::{mount, start_router};
+
+// `hydrate`（`interactive-root`）は `wasm-full::entry::hydrate` の
+// そのままの再エクスポートではなく、[`interactive_demo::hydrate`]
+// （`AppState` を FLIP/stagger 属性付きでラップする薄い glue、モジュール
+// doc 参照）を使う（イシュー #2525 codex-review #2575 P1 対応）。
+#[cfg(target_arch = "wasm32")]
+pub use interactive_demo::hydrate;
 
 #[cfg(target_arch = "wasm32")]
 pub use nav_overlays::{hydrate_menubar, hydrate_navigation_menu};
@@ -687,6 +694,122 @@ mod nav_overlays {
         // オーバーレイスタック・座標を初期同期する。
         sync_shared_overlays();
 
+        Ok(())
+    }
+}
+
+/// `interactive-root` デモ（カウンター・フォーム・動的リスト）の
+/// ハイドレーション glue（イシュー #2525、codex-review PR #2575 P1 対応）。
+///
+/// `AppState::view()`（`fandhe-frontend-interactive`、crates.io 公開クレート）
+/// が返す `<ul data-testid="item-list">` は FLIP/stagger 用の opt-in マーカー
+/// 属性（`data-fandhe-flip-auto`/`data-fandhe-stagger-auto-first`）を持たない。
+/// `static/embed.html` はこの 2 属性を初期 HTML へ手動付与しているが、
+/// `wasm-full`/`wasm-client` の属性同期（`sync_parent_attrs`/`sync_attrs`、
+/// ライブ要素の実属性のうち新しいビュー側の属性名に含まれないものを削除する
+/// 契約）は「新しいビュー」を `component.view()` の出力だけから決めるため、
+/// 最初のリスト更新（`add_item`/`remove_item`）で手動付与した 2 属性が削除
+/// され、以降 FLIP 再生・stagger index 同期が属性存在チェックで弾かれて
+/// 動作しなくなる。
+///
+/// このモジュールは `wasm-full::entry::hydrate`（`fandhe_frontend_wasm_full`
+/// が直接 `AppState` を使うため再エクスポートするだけでは属性を注入できない）
+/// の代わりに、`AppState` を委譲でラップしつつ `view()` だけを上書きして
+/// 毎回同じ 2 属性を付与する [`Demo`] を用いる。これにより「新しいビュー」
+/// 側に常に属性が含まれ、削除対象から外れる（`nav_overlays`/`entry.rs` と
+/// 同型の「アプリ側の薄いラッパー」参照実装）。
+#[cfg(target_arch = "wasm32")]
+mod interactive_demo {
+    use fandhe_frontend_core::Node;
+    use fandhe_frontend_interactive::{AppState, Component, DirtyTracked, Hydrate, HydrateError};
+    use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
+    use std::cell::RefCell;
+    use wasm_bindgen::prelude::wasm_bindgen;
+    use wasm_bindgen::JsValue;
+
+    /// FLIP/stagger 実演のため `data-testid="item-list"` 要素へ opt-in
+    /// マーカー属性を後付けする（既存属性を上書きしない設計だが、
+    /// `AppState::view()` はこの 2 属性を出力しないため衝突しない）。
+    fn with_item_list_motion_attrs(mut node: Node) -> Node {
+        if let Node::Element {
+            attrs, children, ..
+        } = &mut node
+        {
+            if attrs
+                .iter()
+                .any(|(name, value)| name == "data-testid" && value == "item-list")
+            {
+                attrs.push(("data-fandhe-flip-auto".to_string(), String::new()));
+                attrs.push(("data-fandhe-stagger-auto-first".to_string(), String::new()));
+            }
+            for child in children.iter_mut() {
+                let taken = std::mem::replace(child, Node::Text(String::new()));
+                *child = with_item_list_motion_attrs(taken);
+            }
+        }
+        node
+    }
+
+    /// [`AppState`] を `Component`/`Hydrate`/`DirtyTracked`/`BindingSource`
+    /// ごと委譲するラッパー。`view()` のみ [`with_item_list_motion_attrs`]
+    /// を後付けする。
+    struct Demo(AppState);
+
+    impl Component for Demo {
+        type Action = <AppState as Component>::Action;
+
+        fn update(&mut self, action: Self::Action) {
+            self.0.update(action);
+        }
+
+        fn view(&self) -> Node {
+            with_item_list_motion_attrs(self.0.view())
+        }
+
+        fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+            AppState::decode_action(name, payload)
+        }
+    }
+
+    impl Hydrate for Demo {
+        fn hydration_attrs(&self) -> Vec<(String, String)> {
+            self.0.hydration_attrs()
+        }
+
+        fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+            AppState::from_hydration_attrs(attrs).map(Demo)
+        }
+    }
+
+    impl DirtyTracked for Demo {
+        fn dirty_fields(&self) -> &[&'static str] {
+            self.0.dirty_fields()
+        }
+    }
+
+    impl BindingSource for Demo {
+        fn bound_value(&self, field: &str) -> Option<BoundValue> {
+            self.0.bound_value(field)
+        }
+    }
+
+    // `entry.rs`（`wasm-full`）と同じ理由（`Runtime` 自身の生存期間維持）で
+    // `thread_local!` へ保持する。
+    thread_local! {
+        static RUNTIME: RefCell<Option<fandhe_frontend_wasm_full::Runtime<Demo>>> =
+            const { RefCell::new(None) };
+    }
+
+    /// # Errors
+    ///
+    /// `root_id` に対応する要素が存在しない場合、またはイベント配線が失敗した
+    /// 場合に `Err` を返す。ハイドレーション属性の復元失敗自体は `Err` を返さず
+    /// CSR フォールバックへ収束する（`fandhe_frontend_wasm_full::Runtime::hydrate`
+    /// の契約をそのまま引き継ぐ）。
+    #[wasm_bindgen]
+    pub fn hydrate(root_id: &str) -> Result<(), JsValue> {
+        let runtime = fandhe_frontend_wasm_full::Runtime::hydrate(root_id, Demo(AppState::new()))?;
+        RUNTIME.with(|cell| *cell.borrow_mut() = Some(runtime));
         Ok(())
     }
 }

@@ -128,6 +128,7 @@ dependencies = [
  "fandhe-frontend-core",
  "fandhe-frontend-headless-ui",
  "fandhe-frontend-interactive",
+ "fandhe-frontend-wasm-client",
  "fandhe-frontend-wasm-full",
  "wasm-bindgen",
  "web-sys",
