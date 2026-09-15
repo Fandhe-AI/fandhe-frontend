@@ -216,6 +216,8 @@
 //! | `Runtime::wire_gesture` | `gesture` |
 //! | `Runtime::wire_scroll_driver` | `scroll-driver` |
 //! | `Runtime::wire_confetti` | `confetti` |
+//! | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
+//! | `Runtime::wire_add_to_basket` | `add-to-basket` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -439,6 +441,8 @@
 
 #![deny(unsafe_code)]
 
+#[cfg(feature = "add-to-basket")]
+pub mod add_to_basket;
 pub mod angle_slider;
 #[cfg(feature = "animation-driver")]
 pub mod animation_driver;
@@ -461,6 +465,8 @@ pub mod headless_file_upload;
 pub mod headless_select;
 pub mod headless_signature_pad;
 pub mod headless_timer;
+#[cfg(feature = "hold-to-confirm")]
+pub mod hold_to_confirm;
 pub mod hydration;
 pub mod in_view;
 pub mod keynav;
@@ -1492,6 +1498,10 @@ where
         Self::wire_scroll_driver(root.clone())?;
         #[cfg(feature = "confetti")]
         Self::wire_confetti(root.clone())?;
+        #[cfg(feature = "hold-to-confirm")]
+        Self::wire_hold_to_confirm(root.clone())?;
+        #[cfg(feature = "add-to-basket")]
+        Self::wire_add_to_basket(root.clone())?;
 
         Ok(Self {
             component,
@@ -1678,6 +1688,10 @@ where
         Self::wire_scroll_driver(root.clone())?;
         #[cfg(feature = "confetti")]
         Self::wire_confetti(root.clone())?;
+        #[cfg(feature = "hold-to-confirm")]
+        Self::wire_hold_to_confirm(root.clone())?;
+        #[cfg(feature = "add-to-basket")]
+        Self::wire_add_to_basket(root.clone())?;
 
         Ok(Self {
             component,
@@ -2654,6 +2668,35 @@ where
     #[cfg(feature = "confetti")]
     fn wire_confetti(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         confetti::wire_confetti(root)
+    }
+
+    /// hold-to-confirm（長押し確定）ボタンの配線
+    /// （[`hold_to_confirm::wire_hold_to_confirm`]、イシュー #2538）を登録
+    /// する。`dispatch` チャネルを持たない属性専用配線のため
+    /// （`Self::wire_gesture`/`Self::wire_confetti` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`hold_to_confirm::wire_hold_to_confirm`]
+    /// （`add_event_listener_with_callback` 系の失敗）を伝播する。
+    #[cfg(feature = "hold-to-confirm")]
+    fn wire_hold_to_confirm(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        hold_to_confirm::wire_hold_to_confirm(root)
+    }
+
+    /// add-to-basket ボタンの配線（[`add_to_basket::wire_add_to_basket`]、
+    /// イシュー #2538）を登録する。`dispatch` チャネルを持たない属性専用
+    /// 配線のため（`Self::wire_gesture`/`Self::wire_confetti` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`add_to_basket::wire_add_to_basket`]
+    /// （`add_event_listener_with_callback` の失敗）を伝播する。
+    #[cfg(feature = "add-to-basket")]
+    fn wire_add_to_basket(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        add_to_basket::wire_add_to_basket(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
