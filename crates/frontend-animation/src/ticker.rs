@@ -100,11 +100,23 @@ fn parse_clamped(raw: &str, default: f64, min: f64, max: f64) -> f64 {
 pub fn effective_speed(
     base_speed: f64,
     hovered: bool,
+    focused: bool,
     hover_factor: f64,
     scroll_velocity: f64,
     scroll_factor: f64,
 ) -> f64 {
     if !base_speed.is_finite() || base_speed < 0.0 {
+        return 0.0;
+    }
+    // キーボードフォーカス中は `hover_factor` に関わらず常に完全停止する。
+    // 既存 `marquee` の CSS 版は `:hover`/`:focus-within` の両方を
+    // `animation-play-state: paused` で同列に扱う（両方とも完全停止）が、
+    // `hover_factor` は「ポインタ hover 中の速度」を著者が調整するための
+    // opt-in 属性であり、focus をポインタ hover と同一視して
+    // `hover_factor` を適用すると `hover_factor` を 0 以外へ設定した途端に
+    // キーボード操作者だけ完全停止契約（WCAG 2.2.2）を失う（PR #2582
+    // codex-review P1 指摘）。
+    if focused {
         return 0.0;
     }
     let scroll_boost = if scroll_velocity.is_finite() && scroll_factor.is_finite() {
@@ -393,8 +405,14 @@ mod dom {
                 super::required_copies(viewport_len, content_len),
             );
 
-            let hovered = Rc::new(Cell::new(false));
-            let focused = Rc::new(Cell::new(false));
+            // 遅延 hydrate（SSR 表示から JS 駆動開始までに間がある構成）では
+            // 利用者が起動前から既に root をポインタ hover・キーボード
+            // フォーカス中である場合がある。常に `false` から開始すると、
+            // 起動直後の 1 フレームだけ「実際は hover/focus 中なのに動き出す」
+            // 停止契約違反が発生する（PR #2582 codex-review P1 指摘）。
+            // `matches()` 失敗（対応ブラウザ差異等）は `false` へ fail-safe。
+            let hovered = Rc::new(Cell::new(root.matches(":hover").unwrap_or(false)));
+            let focused = Rc::new(Cell::new(root.matches(":focus-within").unwrap_or(false)));
             // scroll_velocity 自体は self へは保持しない（AnimationLoop の
             // クロージャが Rc::clone を捕捉して生存させれば十分で、self 経由の
             // 再アクセス手段は不要なため、保持すると `dead_code` になる）。
@@ -457,27 +475,33 @@ mod dom {
                 // 同一フレーム内の細切れイベント数に比例して速度が過大評価
                 // される不具合があった（Cursor Bugbot 指摘、イシュー #2540）。
                 let frame_distance = step_scroll_distance.replace(0.0);
-                let frame_scroll_velocity = if dt_ms > 0.0 {
+                // フレーム内にスクロールがあれば今フレームの実測速度をそのまま
+                // 採用し、無ければ前回値を減衰させる。「減衰した前回値へ今
+                // フレーム分を毎回加算」する実装は、継続スクロール中は
+                // 定常状態で `frame_scroll_velocity / (1 - decay)`（decay=0.9
+                // なら実測の 10 倍、約 1000px/s）へ発散的に収束する不具合が
+                // あった（PR #2582 codex-review P1 指摘）。
+                let scroll_velocity_now = if frame_distance != 0.0 && dt_ms > 0.0 {
                     frame_distance / (dt_ms / 1000.0)
                 } else {
-                    0.0
+                    super::decay_velocity(step_scroll_velocity.get())
                 };
-                let scroll_velocity_now =
-                    super::decay_velocity(step_scroll_velocity.get()) + frame_scroll_velocity;
                 step_scroll_velocity.set(scroll_velocity_now);
 
                 let content_len =
                     measure_len(&step_content, config.axis) + read_gap_px(&step_content_html);
-                // hover（ポインタ）・keyboard focus のいずれかが一時停止条件
-                // （WCAG 2.2.2）。JS 駆動時は `animation: none` へ切り替わり
-                // 既存 CSS の `:focus-within` 一時停止が効かなくなるため、
-                // `wire_ticker` 側で `focusin`/`focusout` も同じ `hovered`
-                // 相当の一時停止として配線する（`set_focused` 参照。Cursor
-                // Bugbot・codex-review 指摘）。
-                let paused = step_hovered.get() || step_focused.get();
+                // hover（ポインタ）・keyboard focus は一時停止条件（WCAG
+                // 2.2.2）だが同列ではない: focus は `hover_factor` に関わらず
+                // 常に完全停止（`effective_speed` 側で強制）、hover のみ
+                // `hover_factor` で速度調整可能（PR #2582 codex-review P1
+                // 指摘）。JS 駆動時は `animation: none` へ切り替わり既存 CSS
+                // の `:focus-within` 一時停止が効かなくなるため、`wire_ticker`
+                // 側で `focusin`/`focusout` も配線する（`set_focused` 参照。
+                // Cursor Bugbot・codex-review 指摘）。
                 let speed = super::effective_speed(
                     config.speed_px_s,
-                    paused,
+                    step_hovered.get(),
+                    step_focused.get(),
                     config.hover_factor,
                     scroll_velocity_now,
                     config.scroll_factor,
@@ -576,17 +600,17 @@ mod tests {
 
     #[test]
     fn effective_speed_stops_on_hover_with_default_factor() {
-        assert_eq!(effective_speed(80.0, true, 0.0, 0.0, 0.0), 0.0);
+        assert_eq!(effective_speed(80.0, true, false, 0.0, 0.0, 0.0), 0.0);
     }
 
     #[test]
     fn effective_speed_halves_on_hover_with_half_factor() {
-        assert_eq!(effective_speed(80.0, true, 0.5, 0.0, 0.0), 40.0);
+        assert_eq!(effective_speed(80.0, true, false, 0.5, 0.0, 0.0), 40.0);
     }
 
     #[test]
     fn effective_speed_adds_scroll_boost() {
-        assert_eq!(effective_speed(80.0, false, 0.0, 100.0, 0.2), 100.0);
+        assert_eq!(effective_speed(80.0, false, false, 0.0, 100.0, 0.2), 100.0);
     }
 
     #[test]
@@ -594,13 +618,21 @@ mod tests {
         // hover 中は既定 hover_factor=0.0 で「完全停止」契約。scroll_boost が
         // 加算後に無視され動き続ける回帰を防ぐ（PR #2582 codex-review P1・
         // Cursor Bugbot 指摘）。
-        assert_eq!(effective_speed(80.0, true, 0.0, 100.0, 0.2), 0.0);
+        assert_eq!(effective_speed(80.0, true, false, 0.0, 100.0, 0.2), 0.0);
     }
 
     #[test]
     fn effective_speed_is_zero_for_invalid_base() {
-        assert_eq!(effective_speed(f64::NAN, false, 0.0, 0.0, 0.0), 0.0);
-        assert_eq!(effective_speed(-1.0, false, 0.0, 0.0, 0.0), 0.0);
+        assert_eq!(effective_speed(f64::NAN, false, false, 0.0, 0.0, 0.0), 0.0);
+        assert_eq!(effective_speed(-1.0, false, false, 0.0, 0.0, 0.0), 0.0);
+    }
+
+    #[test]
+    fn effective_speed_focused_always_fully_stops_regardless_of_hover_factor() {
+        // キーボードフォーカス中は hover_factor をどう設定しても常に
+        // 完全停止する（PR #2582 codex-review P1 指摘）。
+        assert_eq!(effective_speed(80.0, false, true, 1.0, 0.0, 0.0), 0.0);
+        assert_eq!(effective_speed(80.0, true, true, 1.0, 100.0, 0.2), 0.0);
     }
 
     #[test]
