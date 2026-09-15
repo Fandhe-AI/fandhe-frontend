@@ -164,7 +164,16 @@
   `blocks/feature-expand/index.html`（イシュー #2549、`grid-template-rows:
   0fr → 1fr` の CSS のみで hover/`:focus-within` 展開を実装するカード
   グリッド。`content_height.rs`（wasm-full の JS 機構）は無 JS の docs
-  サイトでは使わない）である。
+  サイトでは使わない）/
+  `blocks/cta-banner-magnetic/index.html`（イシュー #2550、`data-fandhe-
+  magnetic` opt-in を付与した CTA ボタン 1 個の合成 block。ポインタ追従の
+  実演は wasm-full の `magnetic` feature 配下のみで発生し、無 JS の本サイト
+  では静的な実演に留まる）/
+  `blocks/cta-signup-celebrate/index.html`（イシュー #2550、`card`/`field`/
+  `input`/`button` を合成したサインアップ CTA。既存の `confetti` feature
+  向け opt-in 属性〔`data-fandhe-confetti-trigger`/`-canvas`〕をそのまま
+  「使う側」として合成し、送信前/送信完了の 2 状態を静的に併記する）
+  である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

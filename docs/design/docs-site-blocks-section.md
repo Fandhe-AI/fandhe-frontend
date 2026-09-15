@@ -84,6 +84,14 @@ bento-grids` に相当する `bento-staggered`（scroll-driven な bento グリ�
 （hover の分類・`content_height.rs` を使わない判断・stagger の表現手法）は
 本文書 §14 に記す。
 
+**Phase 7（#2530）による追加（#2550）**: 同じ親トラッキング #2530 配下の
+イシュー #2550 により、Motion+ `sections/cta-sections` に相当する
+`cta-banner-magnetic`（ポインタに追従して吸い付く magnetic ボタン付き
+CTA バナー）・`cta-signup-celebrate`（送信完了で confetti が発火する
+サインアップ CTA。既存の confetti 機構をそのまま合成する「使う側」）の
+2 件が追加された。これも上記と同じ純追加であり「7 件で確定」の判断は
+変更しない。
+
 ## 4. `component-coverage-map.md` との関係
 
 shadcn/ui Blocks は `docs/design/component-coverage-map.md` §2 の「対象外」

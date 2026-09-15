@@ -220,6 +220,7 @@
 //! | `Runtime::wire_svg_path` | `svg-path` |
 //! | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
+//! | `Runtime::wire_magnetic` | `magnetic` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -476,6 +477,8 @@ pub mod hold_to_confirm;
 pub mod hydration;
 pub mod in_view;
 pub mod keynav;
+#[cfg(feature = "magnetic")]
+pub mod magnetic;
 pub mod message_scroller;
 pub mod nav;
 pub mod number_input;
@@ -1547,6 +1550,8 @@ where
         Self::wire_hold_to_confirm(root.clone())?;
         #[cfg(feature = "add-to-basket")]
         Self::wire_add_to_basket(root.clone())?;
+        #[cfg(feature = "magnetic")]
+        Self::wire_magnetic(root.clone())?;
 
         Ok(Self {
             component,
@@ -1741,6 +1746,8 @@ where
         Self::wire_hold_to_confirm(root.clone())?;
         #[cfg(feature = "add-to-basket")]
         Self::wire_add_to_basket(root.clone())?;
+        #[cfg(feature = "magnetic")]
+        Self::wire_magnetic(root.clone())?;
 
         Ok(Self {
             component,
@@ -2788,6 +2795,20 @@ where
     #[cfg(feature = "add-to-basket")]
     fn wire_add_to_basket(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         add_to_basket::wire_add_to_basket(root)
+    }
+
+    /// magnetic pull（ポインタ追従 CTA）の配線（[`magnetic::wire_magnetic`]、
+    /// イシュー #2550）を登録する。`dispatch` チャネルを持たない属性専用
+    /// 配線のため（`Self::wire_gesture`/`Self::wire_confetti` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`magnetic::wire_magnetic`]（`add_event_listener_with_callback` の
+    /// 失敗）を伝播する。
+    #[cfg(feature = "magnetic")]
+    fn wire_magnetic(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        magnetic::wire_magnetic(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

@@ -1196,17 +1196,43 @@ name = "fandhe-frontend-wasm-full"
 # Motion+ 由来 variant）: hold-to-confirm/add-to-basket 配線
 # （`hold_to_confirm`/`add_to_basket` モジュール新設、
 # `Self::wire_hold_to_confirm`/`Self::wire_add_to_basket`・feature
-# `hold-to-confirm`/`add-to-basket` 既定 on）を追加。新規公開 feature
-# 追加を伴うため minor バンプする。origin/main 側は独立に 0.29.0 から
-# 0.30.0 へ到達しており、本 PR の上記 0.30.0 と同一版数へ再度衝突した。
-# #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して
-# 0.31.0 とする。
+# `hold-to-confirm`/`add-to-basket` 既定 on）を追加。新規公開 feature 追加
+# を伴うため minor バンプする。本ブランチ側も merge base（0.28.0）から
+# 独立に 0.29.0 へ到達しており origin/main（#2533 の 0.29.0）と同一版数の
+# ため、同じ版数のまま据え置かず +1 した 0.30.0 とする（同衝突運用）。
 #
-# イシュー #2519: SVG path drawing 配線（`svg_path` モジュール新設、
-# `Self::wire_svg_path`・feature `svg-path` 既定 on）を追加。新規公開
-# feature 追加のため minor バンプする。origin/main は既に 0.31.0 に
-# 到達済みのため、そこから +1 して 0.32.0 とする。
-version = "0.32.0"
+# イシュー #2550（magnetic pull、親 #2530/#2476）: magnetic 配線
+# （`magnetic` モジュール新設、`Self::wire_magnetic`・feature `magnetic`
+# 既定 on）を追加。新規公開 feature 追加を伴うため minor バンプする。
+#
+# base main 取り込み時のマージ注記: origin/main 側は #2538 の衝突是正で
+# 独立に 0.29.0 から 0.30.0 → 0.31.0 へ到達していた。本ブランチ（#2550）も
+# merge base（0.29.0）から独立に 0.30.0 → 0.31.0 へ到達しており、
+# 同一版数へ再度衝突したため #638 条項の「同一版数も衝突として +1」運用に
+# 従い、さらに +1 して 0.32.0 とする。
+#
+# PR #2572 Bugbot 指摘の是正（イシュー #2550）: `magnetic::handle_pointermove`
+# が `fandhe-frontend-animation::magnetic::current_offset`（新規追加）で
+# 直前のオフセットを差し引いてから中心座標を計算するよう修正した。本クレート
+# 自身の公開 API は変更していないため patch バンプ（依存先の version 要求は
+# `cargo run -p xtask -- check-dep-versions --fix` で追随）。
+#
+# PR #2572 codex-review P1 指摘の是正（イシュー #2550）: `current_offset`
+# ベースの補正では CSS `transition` 完了前の `pointermove` で静止位置を
+# 正しく復元できないケースが残っていたため、`handle_pointermove` を
+# 「新しい対象への進入時に一度だけ `rendered_offset`（実際の描画上の移動量）
+# を使って静止位置の中心を計測しキャッシュし、以降の同一対象への
+# `pointermove` はキャッシュを再利用する」方式へ変更した。本クレート
+# 自身の公開 API は変更していないため patch バンプ（依存先の version 要求は
+# `cargo run -p xtask -- check-dep-versions --fix` で追随）。
+#
+# base main 取り込み時のマージ注記: origin/main 側はイシュー #2519（SVG
+# path drawing 配線、`svg_path` モジュール新設、`Self::wire_svg_path`・
+# feature `svg-path` 既定 on）を追加し、独立に 0.31.0 から 0.32.0 へ minor
+# バンプしていた。本ブランチ（0.32.2）は origin/main の到達値（0.32.0）を
+# すでに上回っており同一版数の衝突には該当しないため、本ブランチの到達値
+# 0.32.2 をそのまま維持する。
+version = "0.32.2"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1483,16 +1509,36 @@ js-sys = "0.3"
 # イシュー #2533: `fandhe-frontend-animation` 0.4.0 → 0.5.0（`canvas_target`/
 # `confetti` モジュール新設）への `version` 要求追随。
 #
-# マージコミット注記: `fandhe-frontend-animation` 自身が本マージで
-# 0.5.0 → 0.6.0 へ衝突 +1 バンプされたのち、さらに origin/main（#2534/
-# #2533）との並行衝突により 0.6.0 → 0.7.0 へ再度 +1 バンプされたため、
-# `version` 要求も追随する（`cargo run -p xtask -- check-dep-versions
-# --fix`）。
-#
-# イシュー #2519: `fandhe-frontend-animation` 0.7.0 → 0.8.0（`svg_path`
-# モジュール新設）への `version` 要求追随（`cargo run -p xtask --
+# マージコミット注記: `fandhe-frontend-animation` 自身が本 PR（#2534）と
+# main（#2533）の同一版数衝突（0.5.0 → 0.5.0）により +1 バンプされ 0.6.0
+# となったため、`version` 要求も追随する（`cargo run -p xtask --
 # check-dep-versions --fix`）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.8.0", optional = true }
+#
+# イシュー #2550: `fandhe-frontend-animation` 0.6.0 → 0.7.0（`magnetic`
+# モジュール新設）への `version` 要求追随。
+#
+# base main 取り込み時のマージ注記: origin/main 側は本マージで
+# `fandhe-frontend-animation` が 0.5.0 → 0.6.0 へ衝突 +1 バンプされたのち、
+# さらに #2534/#2533 との並行衝突により 0.6.0 → 0.7.0 へ再度 +1 バンプ
+# されていた。本ブランチ（#2550）も独立に 0.6.0 → 0.7.0 へ到達しており
+# 同一版数へ再度衝突したため #638 条項の「同一版数も衝突として +1」運用
+# に従い、さらに +1 して 0.8.0 とする（`cargo run -p xtask --
+# check-dep-versions --fix`）。
+#
+# PR #2572 Bugbot 指摘の是正（イシュー #2550）: `fandhe-frontend-animation`
+# 0.8.0 → 0.9.0（`magnetic::current_offset` 新設）への `version` 要求追随
+# （`cargo run -p xtask -- check-dep-versions --fix`）。
+#
+# PR #2572 codex-review P1 指摘の是正（イシュー #2550）:
+# `fandhe-frontend-animation` 0.9.0 → 0.10.0（`current_offset` 削除・
+# `magnetic::rendered_offset` 新設）への `version` 要求追随
+# （`cargo run -p xtask -- check-dep-versions --fix`）。
+#
+# base main 取り込み時のマージ注記: origin/main 側はイシュー #2519
+# （`svg_path` モジュール新設）に伴い `fandhe-frontend-animation` 0.7.0 →
+# 0.8.0 への `version` 要求追随を独立に行っていたが、本ブランチの到達値
+# 0.10.0 の方が高いため、そのまま維持する。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.10.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1727,6 +1773,7 @@ default = [
   "svg-path",
   "hold-to-confirm",
   "add-to-basket",
+  "magnetic",
   "position",
   "stagger",
   "animation-driver",
@@ -1849,6 +1896,15 @@ hold-to-confirm = ["dep:fandhe-frontend-animation"]
 # `fandhe-frontend-animation` への依存追加は伴わない（群 B: 小さな DOM
 # 配線のみで完結、`docs/design/motion-reference-adoption-policy.md` §4）。
 add-to-basket = []
+# イシュー #2550（親 #2530/#2476）: magnetic pull（ポインタ追従 CTA）配線
+# （`Runtime::mount`/`hydrate` の `Self::wire_magnetic` 呼び出し）専用の
+# feature（既定 on）。`scroll-driver`/`confetti`/`hold-to-confirm` と
+# 同型——配線群かつ `dep:fandhe-frontend-animation` を有効化する feature。
+# `magnetic` モジュール自体は本 feature でのみコンパイルする
+# （`fandhe-frontend-animation::magnetic` の型を直接使うため、`gesture` 等の
+# 純粋層非ゲート方針とは異なり、上記 (c) 注記の対象外。`scroll-driver`/
+# `confetti`/`hold-to-confirm` と同じ理由）。
+magnetic = ["dep:fandhe-frontend-animation"]
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

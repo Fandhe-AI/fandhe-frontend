@@ -228,8 +228,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // pricing-usage-slider の 2 ページが加わり、236 → 238 になった。イシュー
     // #2548 で testimonials-stack block が加わり、238 → 239 になった。
     // イシュー #2549 で Blocks セクションへ bento-staggered・
-    // feature-expand の 2 ページが加わり、239 → 241 になった。
-    assert_eq!(pages.len(), 241, "expected 241 pages, got {pages:?}");
+    // feature-expand の 2 ページが加わり、239 → 241 になった。イシュー
+    // #2550 で Blocks セクションへ cta-banner-magnetic・
+    // cta-signup-celebrate の 2 ページが加わり、241 → 243 になった。
+    assert_eq!(pages.len(), 243, "expected 243 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
@@ -239,15 +241,17 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // signup-05 が加わり 8 件。イシュー #2547 で pricing-tiers-morph・
     // pricing-usage-slider が加わり 8 → 10 件になった。イシュー #2548 で
     // testimonials-stack が加わり 10 → 11 件になった。イシュー #2549 で
-    // bento-staggered・feature-expand が加わり 11 → 13 件になった。
+    // bento-staggered・feature-expand が加わり 11 → 13 件になった。イシュー
+    // #2550 で cta-banner-magnetic・cta-signup-celebrate が加わり
+    // 13 → 15 件になった。
     let blocks_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/blocks/"))
         .collect();
     assert_eq!(
         blocks_pages.len(),
-        13,
-        "expected 13 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05 + pricing-tiers-morph + pricing-usage-slider + testimonials-stack + bento-staggered + feature-expand), got {blocks_pages:?}"
+        15,
+        "expected 15 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05 + pricing-tiers-morph + pricing-usage-slider + testimonials-stack + bento-staggered + feature-expand + cta-banner-magnetic + cta-signup-celebrate), got {blocks_pages:?}"
     );
     assert!(
         pages.contains(&("site/blocks.md", "/blocks/")),
@@ -309,6 +313,20 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     assert!(
         pages.contains(&("site/blocks/feature-expand.md", "/blocks/feature-expand/")),
         "nav.toml is missing the feature-expand block page"
+    );
+    assert!(
+        pages.contains(&(
+            "site/blocks/cta-banner-magnetic.md",
+            "/blocks/cta-banner-magnetic/"
+        )),
+        "nav.toml is missing the cta-banner-magnetic block page"
+    );
+    assert!(
+        pages.contains(&(
+            "site/blocks/cta-signup-celebrate.md",
+            "/blocks/cta-signup-celebrate/"
+        )),
+        "nav.toml is missing the cta-signup-celebrate block page"
     );
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ

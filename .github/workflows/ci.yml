@@ -957,6 +957,21 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test add_to_basket_browser
 
+      # イシュー #2550（magnetic pull、親 #2530/#2476）: magnetic
+      # （crates/wasm-full/src/magnetic.rs）の opt-in 要素解決・
+      # ポインタ追従書き込み・タッチ除外・reduced-motion 抑制の実ブラウザ
+      # 統合テスト（crates/wasm-full/tests/magnetic_browser.rs）。他の
+      # wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。`fandhe-frontend-animation::magnetic::
+      # write_offset` 自体の CSS カスタムプロパティ書き込みの検証は
+      # crates/frontend-animation/tests/magnetic_browser.rs が担う（上記
+      # 「wasm-pack test: fandhe-frontend-animation」ステップ群、`--test`
+      # フィルタなしで新規追加分も自動的に拾われるため ci.yml 側の追加
+      # ステップは不要）。
+      - name: Run wasm-full magnetic browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test magnetic_browser
+
       # イシュー #2403/#2517: rAF Driver（fandhe-frontend-animation::raf_driver）+
       # DOM Target（dom_target）で spring を実ブラウザ上で駆動し収束することを
       # 確認する統合デモ。対象クレートは crates/wasm-full/ とは別（crates/
@@ -2432,6 +2447,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,hold-to-confirm --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: add-to-basket, issue #2538)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,add-to-basket --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: magnetic, issue #2550)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,magnetic --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: animation-driver, issue #2403)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,animation-driver --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transitions, issue #2400)"
