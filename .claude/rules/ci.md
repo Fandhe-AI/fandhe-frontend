@@ -157,7 +157,14 @@
   testimonials 系レイアウトを参照した積層 testimonial カード。
   `card`・`blockquote`・`avatar` を合成し、積層オフセットは
   `pre-styled-ui::recipe::STAGGER_INDEX_VAR`（`--fandhe-motion-stagger-index`）
-  を直接 import して表現する合成 block）である。
+  を直接 import して表現する合成 block）/
+  `blocks/bento-staggered/index.html`（イシュー #2549、`animation-timeline:
+  view()` + `animation-range` の開始点オフセットで stagger を表現する
+  scroll-driven な bento グリッド。`animation-delay` は使わない）/
+  `blocks/feature-expand/index.html`（イシュー #2549、`grid-template-rows:
+  0fr → 1fr` の CSS のみで hover/`:focus-within` 展開を実装するカード
+  グリッド。`content_height.rs`（wasm-full の JS 機構）は無 JS の docs
+  サイトでは使わない）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

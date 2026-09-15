@@ -71,7 +71,9 @@
 //! （pre-styled-ui 全 recipe。合成に使う部品自体の見た目）も配線する
 //! （`/blocks/` 索引ページには配線しない）。
 
+mod bento_staggered;
 mod dashboard_01;
+mod feature_expand;
 mod login_01;
 mod login_04;
 mod pricing_tiers_morph;
@@ -178,6 +180,8 @@ pub const BLOCKS: &[Block] = &[
     pricing_tiers_morph::BLOCK,
     pricing_usage_slider::BLOCK,
     testimonials_stack::BLOCK,
+    bento_staggered::BLOCK,
+    feature_expand::BLOCK,
 ];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
@@ -262,6 +266,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(pricing_tiers_morph::LAYOUT_CSS)?;
     sheet.push_css(pricing_usage_slider::LAYOUT_CSS)?;
     sheet.push_css(&testimonials_stack::layout_css())?;
+    sheet.push_css(fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS)?;
+    sheet.push_css(bento_staggered::LAYOUT_CSS)?;
+    sheet.push_css(feature_expand::LAYOUT_CSS)?;
     Ok(sheet)
 }
 

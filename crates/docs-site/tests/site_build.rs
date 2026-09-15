@@ -237,10 +237,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // （Guides セクション）が加わり、235 → 236 になった。イシュー #2547 で
     // Blocks セクションへ pricing-tiers-morph・pricing-usage-slider の
     // 2 ページが加わり、236 → 238 になった。イシュー #2548 で
-    // testimonials-stack block が加わり、238 → 239 になった。
+    // testimonials-stack block が加わり、238 → 239 になった。イシュー
+    // #2549 で Blocks セクションへ bento-staggered・feature-expand の
+    // 2 ページが加わり、239 → 241 になった。
     assert_eq!(
         report.written.len(),
-        239,
+        241,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
