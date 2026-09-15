@@ -67,5 +67,14 @@ Guides セクションは、目的別の実践ガイドをまとめています�
 
 `fandhe-animation`（プラットフォーム非依存の演算コア）と
 `fandhe-frontend-animation`（Web アダプタ）を Rust コードから直接呼び出す
-使い方を解説します。宣言的な `data-*` 配線の使い方は、別途公開予定の
-アニメーション機能ガイド（`docs/guides/animation.md`）を参照してください。
+使い方を解説します。宣言的な `data-*` 配線の使い方は、
+[アニメーション機能ガイド](../docs/guides/animation.md) を参照してください。
+
+## アニメーション機能ガイド
+
+[アニメーション機能ガイドを見る](../docs/guides/animation.md)
+
+pre-styled-ui の presence・共通 keyframes・stagger・scroll-driven と、
+wasm-full の in-view・hover/press・View Transitions・layout FLIP・
+SVG path drawing といった、宣言的な `data-*` 属性を書くだけで動く機能の
+使い方を機能別に解説します。

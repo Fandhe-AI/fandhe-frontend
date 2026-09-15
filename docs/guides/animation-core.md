@@ -418,8 +418,8 @@ use fandhe_frontend_wasm_full::fandhe_frontend_animation::fandhe_animation::spri
 
 今後 `data-*` 属性からの自動配線（stagger 適用・`animate()` 自動
 トリガー等）が追加される場合の実装先は親トラッキング #2508 配下です。
-宣言的な使い方（実装され次第）は `docs/guides/animation.md`
-（アニメーション機能ガイド）が担当します。
+宣言的な使い方は `docs/guides/animation.md`（アニメーション機能ガイド）を
+参照してください。
 
 ## 5. セキュリティ上の注意
 

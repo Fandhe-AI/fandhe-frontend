@@ -241,10 +241,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // #2549 で Blocks セクションへ bento-staggered・feature-expand の
     // 2 ページが加わり、239 → 241 になった。イシュー #2550 で Blocks
     // セクションへ cta-banner-magnetic・cta-signup-celebrate の 2 ページが
-    // 加わり、241 → 243 になった。
+    // 加わり、241 → 243 になった。イシュー #2523 でアニメーション機能
+    // ガイド（Guides セクション）が加わり、243 → 244 になった。
     assert_eq!(
         report.written.len(),
-        243,
+        244,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
