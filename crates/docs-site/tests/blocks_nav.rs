@@ -187,4 +187,20 @@ fn blocks_index_page_links_to_the_registered_block() {
         content.contains("./blocks/signup-05.md"),
         "site/blocks.md should link to the registered signup-05 block (イシュー #2095)"
     );
+    assert!(
+        content.contains("./blocks/hero-editorial-stagger.md"),
+        "site/blocks.md should link to the registered hero-editorial-stagger block (イシュー #2546)"
+    );
+    assert!(
+        content.contains("./blocks/hero-parallax-layers.md"),
+        "site/blocks.md should link to the registered hero-parallax-layers block (イシュー #2546)"
+    );
+    assert!(
+        content.contains("./blocks/hero-terminal.md"),
+        "site/blocks.md should link to the registered hero-terminal block (イシュー #2546)"
+    );
+    assert!(
+        content.contains("./blocks/text-split-reveal.md"),
+        "site/blocks.md should link to the registered text-split-reveal block (イシュー #2546)"
+    );
 }
