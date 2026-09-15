@@ -89,8 +89,16 @@
     独立の配慮）。
   -->
   <style>
-    #motion-demo-root [data-in-view] { opacity: 0.35; transition: opacity 0.4s ease; }
-    #motion-demo-root [data-in-view=""] { opacity: 1; }
+    /*
+      data-in-view は交差していないとき（in_view.rs::wiring 参照）属性
+      そのものが削除される。`[data-in-view]`/`[data-in-view=""]` の
+      属性セレクタはどちらも「交差時のみ」一致するため、基底の
+      opacity/transition は常時一致する data-testid セレクタへ置き、
+      非交差時の上書き（フェード状態）のみ属性セレクタへ委ねる
+      （codex-review P1 / Bugbot 指摘、PR #2575 是正）。
+    */
+    #motion-demo-root [data-testid="in-view-card"] { opacity: 1; transition: opacity 0.4s ease; }
+    #motion-demo-root [data-testid="in-view-card"]:not([data-in-view]) { opacity: 0.35; }
     #motion-demo-root [data-fandhe-hover] { background: #eef; }
     #motion-demo-root [data-fandhe-press] { background: #dde; }
     #motion-demo-root [data-fandhe-scroll-progress] {
@@ -99,11 +107,32 @@
       transform-origin: left;
       transform: scaleX(var(--fandhe-motion-scroll-progress, 0));
     }
+    /*
+      animation-timeline: view() ネイティブ対応環境（scroll_driver.rs::
+      Env::scroll_timeline_supported）では wire_scroll_driver が即座に
+      戻り --fandhe-motion-scroll-progress を書かないため、上記
+      transform は scaleX(0) のまま留まる。対応環境向けに @supports で
+      ネイティブ scroll() タイムラインの @keyframes を追加する
+      （codex-review P1 / Bugbot 指摘、PR #2575 是正）。
+    */
+    @supports (animation-timeline: scroll()) {
+      #motion-demo-root [data-fandhe-scroll-progress] {
+        animation-name: fandhe-motion-scroll-progress-native;
+        animation-timeline: scroll(root);
+        animation-range: 0% 100%;
+        animation-fill-mode: both;
+      }
+    }
+    @keyframes fandhe-motion-scroll-progress-native {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
     [data-testid="item-list"] li { animation: fandhe-motion-fade-in 0.3s ease both; animation-delay: calc(var(--fandhe-motion-stagger-index, 0) * 60ms); }
     @keyframes fandhe-motion-fade-in { from { opacity: 0; } to { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) {
-      #motion-demo-root [data-in-view] { transition: none; }
+      #motion-demo-root [data-testid="in-view-card"] { transition: none; }
       [data-testid="item-list"] li { animation: none; }
+      #motion-demo-root [data-fandhe-scroll-progress] { animation: none; }
     }
   </style>
 </head>
