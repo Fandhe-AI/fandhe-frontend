@@ -355,7 +355,7 @@ fn run_menubar_demo() {
 /// `<div id="app-root">` 系）は**別系統・別 DOM**であり
 /// （`fandhe-frontend-wasm-full::entry` の doc 参照）、この 5 つのマウント
 /// ポイントを 1 ページに同居させる場合は互いに異なる `root_id` を使う契約に
-/// 従う（`static/embed.html` は `hydrate("interactive-root")` /
+/// 従う（`static/embed.html` は `hydrate_interactive_demo("interactive-root")` /
 /// `start_router("app-root")` / `hydrate_navigation_menu("nav-menu-root")` /
 /// `hydrate_menubar("menubar-root")` / `hydrate_motion_demo("motion-demo-root")`
 /// を呼ぶ）。

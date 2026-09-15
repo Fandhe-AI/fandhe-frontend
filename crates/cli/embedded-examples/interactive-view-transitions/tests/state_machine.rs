@@ -83,17 +83,18 @@ fn render_for_hydration_escapes_script_payload_in_draft_and_items() {
 /// `static/embed.html` の回帰テスト（PR #510 Bugbot 指摘、review comment
 /// 3621300109 "Hydrate mount id collides"）。
 ///
-/// `#interactive-root` を空のまま `hydrate("interactive-root")` を呼ぶと、
-/// 状態復元（`hydration::restore_state`）が `data-hydrate-*` 属性なしで
-/// 失敗し、CSR フォールバック（`dom::mount_initial`）が `AppState::view()`
-/// （自身も `id="interactive-root"` を持つ）をこの `<div>` の中へ丸ごと
-/// 差し込んでしまい、同一 id が入れ子で重複する。これを防ぐには
-/// `#interactive-root` があらかじめ `data-hydrate-*` 属性付きの SSR
-/// 済みマークアップを保持し、`hydrate()` の状態復元が成功する経路のみを
-/// 通ることが必須（`dom::mount_initial` を一切呼ばせない）。本テストは
-/// その前提となる属性の存在をファイル内容の静的検査で固定する
-/// （wasm 実行を伴わない native テストのため、ブラウザでの実際の
-/// `hydrate()` 呼び出し結果までは検証できない点に注意）。
+/// `#interactive-root` を空のまま `hydrate_interactive_demo("interactive-root")`
+/// を呼ぶと、状態復元（`hydration::restore_state`）が `data-hydrate-*`
+/// 属性なしで失敗し、CSR フォールバック（`dom::mount_initial`）が
+/// `AppState::view()`（自身も `id="interactive-root"` を持つ）をこの
+/// `<div>` の中へ丸ごと差し込んでしまい、同一 id が入れ子で重複する。
+/// これを防ぐには `#interactive-root` があらかじめ `data-hydrate-*`
+/// 属性付きの SSR 済みマークアップを保持し、
+/// `hydrate_interactive_demo()` の状態復元が成功する経路のみを通ることが
+/// 必須（`dom::mount_initial` を一切呼ばせない）。本テストはその前提と
+/// なる属性の存在をファイル内容の静的検査で固定する（wasm 実行を伴わない
+/// native テストのため、ブラウザでの実際の `hydrate_interactive_demo()`
+/// 呼び出し結果までは検証できない点に注意）。
 #[test]
 fn embed_html_interactive_root_has_hydrate_attrs_to_avoid_csr_fallback_id_collision() {
     let embed_html_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/embed.html");

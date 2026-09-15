@@ -8,13 +8,13 @@
     最小埋め込み構成）を下敷きにしつつ、本サンプルは 2 つの別系統・別 DOM
     （fandhe-frontend-wasm-full::entry の doc 参照）を同一ページに同居させる:
 
-      1. `<div id="interactive-root">` — `hydrate("interactive-root")` が
+      1. `<div id="interactive-root">` — `hydrate_interactive_demo("interactive-root")` が
          `fandhe_frontend_interactive::AppState`（カウンター・フォーム・
          動的リスト状態機械）をマウントする。中身は `cargo run` が書き出す
          `dist/index.html` の同要素（`data-hydrate-*` 属性付き SSR 出力）を
          整形して転記した「初期状態がすでに描画済みの」マークアップであり、
          意図的に空にしていない（Bugbot 指摘 #510 review comment
-         3621300109）。空のまま `hydrate()` を呼ぶと `data-hydrate-*`
+         3621300109）。空のまま `hydrate_interactive_demo()` を呼ぶと `data-hydrate-*`
          属性が存在せず状態復元 (`restore_state`) が失敗し、CSR フォール
          バック（`dom::mount_initial`）が `AppState::view()`（自身も
          `id="interactive-root"` を持つ、interactive/src/lib.rs 参照）を
@@ -54,7 +54,7 @@
          使う（menubar の content は positioner パーツを持つ anatomy の
          ため）。
 
-    2 と同じ理由（hydrate() の状態復元が data-hydrate-* 属性を要求する）
+    2 と同じ理由（hydrate_interactive_demo() の状態復元が data-hydrate-* 属性を要求する）
     により、3・4 のマウント要素もあらかじめ SSR 済みマークアップ
     （cargo run が書き出す dist/index.html の該当要素を転記したもの）を
     保持する。
@@ -159,12 +159,12 @@
 
   <h2>hydrate 系統（AppState: カウンター・フォーム・動的リスト）</h2>
   <!--
-    hydrate("interactive-root") が状態機械コンポーネントをマウントする。
+    hydrate_interactive_demo("interactive-root") が状態機械コンポーネントをマウントする。
     中身は `cargo run` が書き出す dist/index.html の
     `<div id="interactive-root">` 要素と同一（`AppState::new()` の初期状態
     + render_for_hydration が付与する data-hydrate-* 属性）。CSR フォール
     バック（属性なし → mount_initial → view() 二重差し込み）を発生させず、
-    `hydrate()` が状態復元に成功する経路を実演する（head 内コメント参照）。
+    `hydrate_interactive_demo()` が状態復元に成功する経路を実演する（head 内コメント参照）。
   -->
   <div id="interactive-root" data-testid="interactive-root" data-hydrate-counter="0" data-hydrate-draft="" data-hydrate-items="最初の項目" data-hydrate-item-ids="0">
     <div data-testid="counter">カウント: <span data-testid="counter-value" data-bind-text="counter">0</span><button data-action="increment" data-testid="inc-btn">+1</button><button data-action="decrement" data-testid="dec-btn">-1</button><button data-action="reset" data-testid="reset-btn">リセット</button></div>
@@ -174,7 +174,7 @@
       （イシュー #2525、layout_flip.rs / stagger_index.rs 参照）は
       `AppState::view()`（interactive クレート側、本 example は変更不可）が
       出力する `dist/index.html` のこの要素には含まれない opt-in 属性。
-      hydrate() は SSR DOM をそのまま保持し keyed 更新でも <ul> 自体は
+      hydrate_interactive_demo() は SSR DOM をそのまま保持し keyed 更新でも <ul> 自体は
       差し替えないため、ここで手動付与した属性は以後も残る。「追加」で
       行を増やしてから「削除」すると残存行が layout FLIP で移動し、新規行は
       stagger 起点（`--fandhe-motion-stagger-index`）付きでフェードインする。
@@ -250,7 +250,7 @@
 
   <script type="module">
     /**
-     * WASM モジュールを初期化し、hydrate/start_router を別 root_id で
+     * WASM モジュールを初期化し、hydrate_interactive_demo/start_router を別 root_id で
      * それぞれ呼び出す。
      *
      * 参照する fandhe_frontend_wasm_full.js は wasm/（glue クレート
@@ -260,7 +260,7 @@
      * .claude/rules/security.md）。
      */
     import init, {
-      hydrate,
+      hydrate_interactive_demo,
       start_router,
       hydrate_navigation_menu,
       hydrate_menubar,
@@ -270,8 +270,8 @@
     async function main() {
       await init();
       // "interactive-root" は AppState（カウンター・フォーム・動的リスト）系統。
-      hydrate("interactive-root");
-      // "app-root" は記事一覧・詳細（data-nav リンク）系統。hydrate とは
+      hydrate_interactive_demo("interactive-root");
+      // "app-root" は記事一覧・詳細（data-nav リンク）系統。hydrate_interactive_demo とは
       // 別系統・別 DOM のため異なる root_id を渡す（entry.rs の doc 参照）。
       start_router("app-root");
       // "nav-menu-root"/"menubar-root" は headless-ui NavigationMenu/Menubar

@@ -138,7 +138,7 @@ python3 -m http.server --directory static 8000
 | `deny.toml` | 依存ポリシー（`templates/default/` と内容同一） |
 | `src/main.rs` | native デモ（`AppState`/`NavigationMenu`/`Menubar` の `dispatch` 実演）+ `dist/index.html` への SSR HTML 書き出し。`motion_demo_view`（イシュー #2525）が motion デモのマークアップを追加 |
 | `tests/state_machine.rs` | `dispatch` の状態遷移・未知アクション no-op・`render_for_hydration`・既定エスケープ回帰・`static/embed.html` のハイドレーション属性 + motion/FLIP/stagger opt-in 属性回帰テスト |
-| `static/embed.html` | ブラウザマウント骨格。`tools/wasm/build.sh` 実行後に動作（`hydrate("interactive-root")` / `start_router("app-root")` / `hydrate_navigation_menu("nav-menu-root")` / `hydrate_menubar("menubar-root")` / `hydrate_motion_demo("motion-demo-root")`）。5 つのマウント要素はいずれも `cargo run` が書き出す `dist/index.html` の同要素を事前に埋め込み済みで、各 `hydrate*()` の状態復元が成功する（空のまま呼ぶと CSR フォールバックが二重に差し込まれ id 衝突するため）。`item-list` には layout FLIP / stagger の opt-in 属性を手動付与している |
+| `static/embed.html` | ブラウザマウント骨格。`tools/wasm/build.sh` 実行後に動作（`hydrate_interactive_demo("interactive-root")` / `start_router("app-root")` / `hydrate_navigation_menu("nav-menu-root")` / `hydrate_menubar("menubar-root")` / `hydrate_motion_demo("motion-demo-root")`）。5 つのマウント要素はいずれも `cargo run` が書き出す `dist/index.html` の同要素を事前に埋め込み済みで、各 `hydrate*()` の状態復元が成功する（空のまま呼ぶと CSR フォールバックが二重に差し込まれ id 衝突するため）。`item-list` には layout FLIP / stagger の opt-in 属性を手動付与している |
 | `tools/wasm/build.sh` | `wasm/`（独立ワークスペースの glue クレート）を wasm32 へビルドする手順 |
 | `wasm/` | `fandhe-frontend-wasm-full` の `mount` / `start_router` を再エクスポートし、`interactive_demo` モジュール（イシュー #2525 codex-review 対応）で `AppState` を FLIP/stagger 属性付きラップする `hydrate` を、`nav_overlays` モジュール（イシュー #1199）で `hydrate_navigation_menu` / `hydrate_menubar` を、`motion_demo` モジュール（イシュー #2525）で `hydrate_motion_demo` を自前実装する glue クレート（root の依存グラフから隔離） |
 

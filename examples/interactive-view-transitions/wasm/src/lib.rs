@@ -5,11 +5,11 @@
 //!
 //! `fandhe-frontend-wasm-full`（crates.io バージョン依存。正本は
 //! `crates/wasm-full/`）が `#[wasm_bindgen]` エクスポートとして既に定義
-//! している `hydrate` / `mount` / `start_router`（`wasm-full/src/entry.rs`）を
+//! している `mount` / `start_router`（`wasm-full/src/entry.rs`）を
 //! 再エクスポートする。
 //!
-//! `hydrate`（`AppState` のカウンター・フォーム・動的リストデモ、
-//! `id="interactive-root"`）と `start_router`（`layout()` が組む
+//! `hydrate_interactive_demo`（`AppState` のカウンター・フォーム・動的
+//! リストデモ、`id="interactive-root"`）と `start_router`（`layout()` が組む
 //! `<div id="app-root">` の一覧・詳細ページ系）は**別系統・別 DOM**である
 //! （`wasm-full::entry` の doc 参照）。`static/embed.html` は両方を異なる
 //! `root_id` で呼び出す。
@@ -42,11 +42,12 @@
 //! `fandhe_frontend_wasm_full_bg.wasm` を生成する（`--out-name
 //! fandhe_frontend_wasm_full` で glue クレート名に依存させず、
 //! `static/embed.html` の import パスと整合させる）。`static/embed.html` は
-//! この glue クレートの存在を意識しない（`hydrate`/`mount`/`start_router`/
-//! `hydrate_navigation_menu`/`hydrate_menubar` という関数名契約のみに依存する）。
+//! この glue クレートの存在を意識しない（`hydrate_interactive_demo`/`mount`/
+//! `start_router`/`hydrate_navigation_menu`/`hydrate_menubar` という関数名
+//! 契約のみに依存する）。
 #![deny(unsafe_code)]
 
-// `fandhe-frontend-wasm-full` の `hydrate`/`mount`/`start_router` は
+// `fandhe-frontend-wasm-full` の `mount`/`start_router` は
 // `#[cfg(target_arch = "wasm32")]` の `entry` モジュール（`wasm-full/src/lib.rs`）
 // にのみ存在する。本クレートを誤って native ターゲットで `cargo build`
 // された場合に「unresolved import」で失敗するのを避け、意図が伝わる
@@ -56,12 +57,19 @@
 #[cfg(target_arch = "wasm32")]
 pub use fandhe_frontend_wasm_full::entry::{mount, start_router};
 
-// `hydrate`（`interactive-root`）は `wasm-full::entry::hydrate` の
-// そのままの再エクスポートではなく、[`interactive_demo::hydrate`]
+// `hydrate_interactive_demo`（`interactive-root`）は `wasm-full::entry::hydrate`
+// の再エクスポートではなく、[`interactive_demo::hydrate_interactive_demo`]
 // （`AppState` を FLIP/stagger 属性付きでラップする薄い glue、モジュール
-// doc 参照）を使う（イシュー #2525 codex-review #2575 P1 対応）。
+// doc 参照）を独自実装として使う。`wasm-full` 依存が `wasm-bindgen-exports`
+// feature を有効化しているため、`wasm-full::entry::hydrate` 自体も
+// `#[wasm_bindgen]` エクスポート名 `hydrate` を持つ（`wasm-full/src/entry.rs`）。
+// この独自関数を `pub use ... as hydrate` のような別名で `hydrate` として
+// 再公開すると、同一 wasm モジュール内に `#[wasm_bindgen]` エクスポート名
+// `hydrate` が 2 つ生成され `wasm-bindgen` の後処理が失敗する（イシュー
+// #2525 codex-review #2575 P1 対応。固有名 `hydrate_interactive_demo` を
+// 公開名としてもそのまま使う）。
 #[cfg(target_arch = "wasm32")]
-pub use interactive_demo::hydrate;
+pub use interactive_demo::hydrate_interactive_demo;
 
 #[cfg(target_arch = "wasm32")]
 pub use nav_overlays::{hydrate_menubar, hydrate_navigation_menu};
@@ -807,7 +815,7 @@ mod interactive_demo {
     /// CSR フォールバックへ収束する（`fandhe_frontend_wasm_full::Runtime::hydrate`
     /// の契約をそのまま引き継ぐ）。
     #[wasm_bindgen]
-    pub fn hydrate(root_id: &str) -> Result<(), JsValue> {
+    pub fn hydrate_interactive_demo(root_id: &str) -> Result<(), JsValue> {
         let runtime = fandhe_frontend_wasm_full::Runtime::hydrate(root_id, Demo(AppState::new()))?;
         RUNTIME.with(|cell| *cell.borrow_mut() = Some(runtime));
         Ok(())
