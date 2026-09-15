@@ -181,6 +181,33 @@ off にすると `apply_with_view_transition_named` が使えなくなります
 AnimateOptions, WaapiKeyframe}` を呼び出せます。off にするとこの再
 エクスポートが消え、アプリ側で直接呼び出せなくなります。
 
+`layout-animation` feature（イシュー #2518。main との複数回の同一版数
+衝突〔#638 条項の「+1」運用〕を経て到達した具体的な版数は下表「7.
+`default-features = false` 利用者の移行手順」を正とする）も別枠です。
+`Runtime::apply_update_for_dirty` の keyed list 構造変化コミット前後で
+`fandhe_frontend_animation::flip`（layout FLIP アニメーション）の
+Before/After 計測・Invert・Play を起動する呼び出し（`layout_flip::
+capture_before`/`play_after`）をゲートします。`layout_flip` モジュール
+自体・座標計測やアニメーション計算のロジックは `fandhe-frontend-animation`
+側の責務であり、本クレートはいつ呼ぶかのみを担います。対象リストは
+親要素に `data-fandhe-flip-auto` 属性を持つ keyed list へオプトインで
+限定されるため、off にすると当該属性を付けたリストでも並べ替えアニメー
+ションが起動しなくなります。
+
+**入れ子 FLIP リストの所有権契約（codex-review 追加ラウンド 2 巡目是正、
+イシュー #2518）**: `data-fandhe-flip-auto` を持つ keyed list が、同属性
+を持つ祖先リストの配下にある場合、その内側リストは自分では capture/play
+しません。**最外側の FLIP リストがサブツリー全体のアニメーションを
+所有し**、内側リストの並べ替え差分は外側リストの行（内側リストを含む）
+の Before/Last 矩形の変化として自然に取り込まれます。内側リストが dirty
+のときは祖先 FLIP リスト全件を停止・捕捉しますが、実際に play するのは
+常に最外側リストのみであり、この挙動は dirty field の列挙順に依存しま
+せん。詳細な契約は `crates/wasm-full/src/layout_flip.rs` モジュール doc
+「入れ子 FLIP リストの所有権契約」節を正とします。「入れ子リストそれぞれ
+が独立にアニメーションする」ことは本契約の対象外です（最外側リストが
+サブツリー全体の Invert 変形を所有する設計上のスコープ外であり、将来の
+課題として扱います）。
+
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
 feature 名は `headless::MAPPING_TABLE` の `scope` 文字列と一致します
@@ -250,24 +277,25 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.25.0 | `animation-driver` feature（イシュー #2403/#2517。main の #2515/#2400/#2398 取り込みに伴う版数衝突の再バンプ、PR #2554） |
 | 0.26.0 | `gesture` feature（イシュー #2520。main の #2515/#2400/#2398/#2403/#2517 取り込みに伴う版数衝突の再バンプ、PR #2555） |
 | 0.27.0 | `scroll-driver` feature（イシュー #2521） |
-| 0.28.0 | `confetti` feature（イシュー #2533） |
+| 0.28.0 | `layout-animation` feature（イシュー #2518）と `confetti` feature（イシュー #2533、origin/main）が独立に 0.27.0 から同一版数へ到達（並行衝突。以降のマージで main 側の 0.28.0〜0.30.0 系列と本 PR 側の再バンプが個別に進んだ） |
 | 0.29.0 | `scroll-driver` の挙動拡張（`data-fandhe-scroll-progress`、イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ） |
 | 0.30.0 | `drag-gesture` feature（イシュー #2535。本 PR（#2535）と main（#2534）が独立に 0.28.0 から 0.29.0 へ同一版数バンプしており衝突。`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して 0.30.0 とした） |
 | 0.31.0 | `hold-to-confirm`/`add-to-basket` feature（イシュー #2538。本 PR（#2535 到達の 0.30.0）と main（#2538 到達の 0.30.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.31.0 とする） |
-| 0.32.0 | 2 系統が独立に到達（いずれも本表では同一版数として記載）: (1) `svg-path` feature（イシュー #2519、main。既に 0.31.0 に到達済みのため +1 して 0.32.0 とした）、(2) `magnetic` feature（イシュー #2550、本 PR とは別ブランチ。#2550 到達の 0.31.0 と main（#2538 取り込み後到達の 0.31.0）が独立に同一版数へバンプしており衝突、#638 条項に従い +1 して 0.32.0 とした） |
-| 0.32.1 | magnetic の中心計算を transform 込みの矩形から静止位置基準へ是正（イシュー #2550、PR #2572 Bugbot 指摘。公開 API は変更しないため patch バンプ） |
-| 0.32.2 | magnetic の中心計算を transition 中も決定的にする再是正（イシュー #2550、PR #2572 codex-review P1 指摘。公開 API は変更しないため patch バンプ） |
-| 0.32.3 | `view-transition-preset` feature（イシュー #2516。本 PR 到達値が main 取り込み時点の到達値（0.32.2）を上回るよう +1 した） |
+| 0.32.0 | feature 追加なし。イシュー #2518 の layout FLIP 視覚矩形ベース再設計に伴う `fandhe-frontend-animation` 依存 version 要求の更新（`layout-animation` feature 自体は #2518 で既に導入済み）。本 PR（#2518、`layout-animation` feature 追加で 0.30.0 → 0.31.0 へ到達）と main（#2538 到達の 0.31.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.32.0 とする（origin/main 側では `svg-path` feature〔イシュー #2519〕が同じ 0.32.0 へ独立到達しており、以降の各コミットは同一版数として記載する） |
+| 0.32.1 | main（PR #2572）: magnetic の中心計算を transform 込みの矩形から静止位置基準へ是正（イシュー #2550、Bugbot 指摘。公開 API は変更しないため patch バンプ） |
+| 0.32.2 | main（PR #2572）: magnetic の中心計算を transition 中も決定的にする再是正（イシュー #2550、codex-review P1 指摘。公開 API は変更しないため patch バンプ） |
+| 0.33.0 | `svg-path` feature（イシュー #2519、origin/main）。origin/main 側は独立に 0.31.0 から 0.32.0 へ到達しており、本 PR（#2518、codex-review 第 6 ラウンド是正）の上記 0.32.0 と同一版数へ再度衝突した。#638 条項に従いさらに +1 して 0.33.0 とする。base main 取り込み時（PR #2572、magnetic feature・0.32.2 到達）、本 PR 側の到達値 0.33.0 が main の到達値 0.32.2 を上回るため、そのまま維持する（さらなる衝突バンプ不要） |
+| （merge） | base main 再取り込み時（イシュー #2518 codex-review 追加ラウンド是正、`view-transition-preset` feature 追加）: main 側はさらにイシュー #2516（`view-transition-preset` feature）で 0.32.2 → 0.32.3 へ独立にバンプしていた。本 PR 側の到達値 0.33.0 は main の到達値 0.32.3 をすでに上回っており同一版数の衝突には該当しないため、本 PR の到達値 0.33.0 をそのまま維持する（さらなる衝突バンプ不要） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 48 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 50 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.32.3"
+version = "0.33.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -303,6 +331,7 @@ features = [
   "view-transition-name",
   "view-transition-preset",
   "animate",
+  "layout-animation",
   "accordion",
   "calendar",
   "collapsible",
