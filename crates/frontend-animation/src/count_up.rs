@@ -176,11 +176,20 @@ impl NumberText {
                             return None;
                         }
                         (None, Some(sep), after.chars().count())
-                    } else {
-                        if !valid_grouping(&span, sep) {
-                            return None;
-                        }
+                    } else if valid_grouping(&span, sep) {
                         (Some(sep), None, 0)
+                    } else if !before.is_empty()
+                        && !after.is_empty()
+                        && before.chars().all(|c| c.is_ascii_digit())
+                        && after.chars().all(|c| c.is_ascii_digit())
+                    {
+                        // 標準的な 3 桁グルーピングではない（例 "12,5"）。
+                        // 欧州式の小数点区切りとして解釈する（PR #2580
+                        // Bugbot Medium 指摘: グルーピング判定のみだと
+                        // 欧州式の小数表記が解析不能になる回帰の是正）。
+                        (None, Some(sep), after.chars().count())
+                    } else {
+                        return None;
                     }
                 }
             }
@@ -453,6 +462,14 @@ mod tests {
     #[test]
     fn parses_european_style_group_and_decimal() {
         roundtrip("1.234,5", 1234.5);
+    }
+
+    /// PR #2580 Bugbot Medium 指摘: 桁区切りとして無効な単一 ',' 区切り
+    /// （標準的な 3 桁グルーピングではない）は欧州式の小数点区切りとして
+    /// 解析できる必要がある回帰。
+    #[test]
+    fn parses_single_comma_as_decimal_when_not_valid_grouping() {
+        roundtrip("12,5", 12.5);
     }
 
     #[test]

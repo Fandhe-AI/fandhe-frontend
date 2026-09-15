@@ -136,8 +136,11 @@ mod wiring {
     /// 最新の目標値（書式・数値）。`IntersectionObserver` が発火した時点で
     /// これを読み、配線時点で固定した古い目標値を使わないようにする
     /// （PR #2580 codex-review P1・Bugbot Medium 指摘: 画面外での外部更新が
-    /// 進入時に古い値で上書きされていた回帰）。
-    type PendingTarget = Rc<RefCell<(NumberText, f64)>>;
+    /// 進入時に古い値で上書きされていた回帰）。`None` は「待機中に非数値
+    /// （"N/A" 等）へ更新済みで、カウントアップすべき数値目標が存在しない」
+    /// ことを表す（PR #2580 codex-review P1 再指摘: 非数値更新後も pending
+    /// が古い数値のまま残り、進入時にそれで上書きしていた回帰の是正）。
+    type PendingTarget = Rc<RefCell<Option<(NumberText, f64)>>>;
 
     /// `element` へ `[from, to]` 区間の補間を起動し、`active` を差し替える。
     fn start_count_up(
@@ -176,7 +179,7 @@ mod wiring {
         // `start_count_up` は呼ばず `pending` を更新するのみに留める
         // （画面外でアニメーションが始まってしまうのを防ぐ）。
         let started = Rc::new(Cell::new(matches!(trigger, Trigger::Immediate)));
-        let pending: PendingTarget = Rc::new(RefCell::new((parsed.clone(), to)));
+        let pending: PendingTarget = Rc::new(RefCell::new(Some((parsed.clone(), to))));
 
         match trigger {
             Trigger::Immediate => {
@@ -250,17 +253,21 @@ mod wiring {
                     started_for_callback.set(true);
                     // 画面外で待機している間に `wire_mutation_observer` が
                     // 更新した最新の目標値を読む（配線時点で固定した古い
-                    // 値ではない）。
-                    let (format, to) = pending.borrow().clone();
-                    start_count_up(
-                        &element_for_callback,
-                        format,
-                        0.0,
-                        to,
-                        duration_ms,
-                        Rc::clone(&last_written_for_callback),
-                        &active_for_callback,
-                    );
+                    // 値ではない）。`None`（待機中に非数値へ更新済み）の
+                    // 場合は現在の表示（既に非数値のテキスト）をそのまま
+                    // 保ち、カウントアップは起動しない。
+                    let target = pending.borrow().clone();
+                    if let Some((format, to)) = target {
+                        start_count_up(
+                            &element_for_callback,
+                            format,
+                            0.0,
+                            to,
+                            duration_ms,
+                            Rc::clone(&last_written_for_callback),
+                            &active_for_callback,
+                        );
+                    }
                 }
             },
         );
@@ -299,10 +306,14 @@ mod wiring {
                 let Some(new_parsed) = NumberText::parse(&current) else {
                     // 数値として解析できない外部更新（例: "N/A"・空文字）。
                     // 進行中の補間を止め、古い数値で上書きし続けない
-                    // （PR #2580 codex-review P1 指摘）。`last_written` は
-                    // 現在のテキストへ合わせ、以後の自己書き込み判定を
-                    // 正しく機能させる。
+                    // （PR #2580 codex-review P1 指摘）。待機中の目標値
+                    // （`pending`）も無効化する: 無効化しないと、この後
+                    // 画面内へ進入した際に `wire_in_view_trigger` が古い
+                    // 数値目標で上書きしてしまう（PR #2580 codex-review P1
+                    // 再指摘）。`last_written` は現在のテキストへ合わせ、
+                    // 以後の自己書き込み判定を正しく機能させる。
                     *active.borrow_mut() = None;
+                    *pending.borrow_mut() = None;
                     *last_written.borrow_mut() = current;
                     return;
                 };
@@ -311,7 +322,13 @@ mod wiring {
                     // まだ画面内へ進入しておらず（in-view 待機中）実際の
                     // アニメーションは開始しない。次に進入したときの目標値
                     // だけを更新する（PR #2580 Bugbot Medium 指摘）。
-                    *pending.borrow_mut() = (new_parsed, to);
+                    // `last_written` も現在のテキストへ合わせる: 更新しない
+                    // と、待機中に受理した更新の値へ再び外部更新された際に
+                    // 「初期表示と一致する」という理由だけで自己書き込みと
+                    // 誤判定され、待機中の更新が無視されてしまう
+                    // （PR #2580 codex-review P1 再指摘）。
+                    *pending.borrow_mut() = Some((new_parsed, to));
+                    *last_written.borrow_mut() = current;
                     return;
                 }
                 let from = NumberText::parse(&last_written.borrow())
