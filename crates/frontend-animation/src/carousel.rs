@@ -101,7 +101,7 @@ mod wiring {
 
     use super::snap_target;
     use crate::dom_target::DomTarget;
-    use crate::drag::{estimate_velocity, is_velocity_stale};
+    use crate::drag::{estimate_velocity, is_travel_negligible, is_velocity_stale};
     use crate::raf_driver::{AnimationLoop, RafDriver};
     use crate::reduced_motion::prefers_reduced_motion;
 
@@ -209,8 +209,18 @@ mod wiring {
             slide_px: f64,
             on_settle: impl FnOnce(usize) + 'static,
         ) -> usize {
+            let origin_progress = self.drag_origin.map(|(progress, _)| progress);
             self.drag_origin = None;
-            let velocity_px_s = if is_velocity_stale(self.latest_sample, time_ms) {
+            // 「操作全体が微小だったか」は直近 2 サンプル間の距離ではなく
+            // ドラッグ開始位置からの総移動距離で判定する
+            // （`crate::drag::MIN_VELOCITY_DISTANCE_PX` doc 参照、イシュー
+            // #2541 codex-review 指摘 是正）。
+            let total_distance_px = origin_progress
+                .map(|origin| (self.progress.get() - origin).abs() * slide_px)
+                .unwrap_or(0.0);
+            let velocity_px_s = if is_velocity_stale(self.latest_sample, time_ms)
+                || is_travel_negligible(total_distance_px)
+            {
                 Vec2::default()
             } else {
                 estimate_velocity(self.previous_sample, self.latest_sample)
@@ -232,19 +242,28 @@ mod wiring {
 
         /// `self.progress` を `target`（整数 index）へ spring で収束させる。
         ///
-        /// # loop 境界の短い経路（codex-review 指摘 是正）
+        /// # loop 境界では実在する正規 index へ直接収束する（codex-review/
+        /// Cursor Bugbot 指摘 是正、イシュー #2541 第 2 ラウンド）
         ///
-        /// `loop_ == true` のとき、着地先は `target`（`0..slide_count` に
-        /// 正規化済み）だが、spring の `to` にはそのまま `target` を使わず
-        /// `from` に最も近い合同値（`target + k * slide_count`）を使う。
-        /// 例えば 5 枚中 `from = -0.8`（末尾方向へドラッグ中）で
-        /// `target = 4`（末尾スライド）のとき、そのまま `to = 4.0` にすると
-        /// spring が正方向へ 4 枚分横断してしまう。`to = -1.0`
-        /// （`4 - 5`、`from` との差 `0.2`）を選べば末尾への短い折り返しで
-        /// 済む。終端の見た目は `on_settle` が dispatch する `"goto"`
-        /// アクション（headless 側の正規レンダリング）が正規化済み
-        /// `target` で上書きするため、`to` が `0..slide_count-1` の外に
-        /// 出ても最終表示に影響しない。
+        /// 以前は `loop_ == true` のとき、spring の `to` に `target` その
+        /// ものではなく `from` に最も近い合同値（`target + k *
+        /// slide_count`、例えば 5 枚中 `target = 4` に対して `to = -1.0`）
+        /// を使い、末尾⇔先頭間の「短い折り返し」を演出していた。しかし
+        /// 既存 CSS（`crates/pre-styled-ui/src/carousel.rs`/
+        /// `carousel_motion.rs`）は `--fandhe-carousel-index` を単一の
+        /// 線形ストリップとして解釈するだけで、境界の複製スライドや
+        /// 循環配置を持たない。そのため `to = -1.0` のような範囲外の
+        /// 値は実在するスライドと対応せず、spring が空白側へ動いたあと
+        /// `on_settle` の `"goto"` dispatch で正規化済み `target` へ
+        /// 瞬時にジャンプする（短い折り返しどころか不可視の空白へ一旦
+        /// 動いて跳ぶ見た目になっていた）。是正として `to` は常に
+        /// `target`（`0..slide_count` の実在 index）そのものとする——
+        /// loop 境界をまたぐドラッグは「長い経路」で回り込む見た目に
+        /// なるが、常に実在するスライド上を通過し、settle 完了時の
+        /// `"goto"` 再描画も同じ値のため視覚的なジャンプが起きない。
+        /// 循環配置（境界スライドの複製）による真の「短い折り返し」の
+        /// 再導入は、headless-ui/pre-styled-ui のマークアップ設計を含む
+        /// 別イシューとして扱う。
         ///
         /// # `self.progress` を先取り更新しない理由（codex-review 指摘
         /// 是正）
@@ -263,13 +282,7 @@ mod wiring {
             on_settle: impl FnOnce(usize) + 'static,
         ) {
             let from = self.progress.get();
-            let to = if self.loop_ && self.slide_count > 0 {
-                let n = self.slide_count as f64;
-                let shift = ((from - target as f64) / n).round() * n;
-                target as f64 + shift
-            } else {
-                target as f64
-            };
+            let to = target as f64;
             if prefers_reduced_motion() {
                 self.progress.set(to);
                 self.write_progress(to);

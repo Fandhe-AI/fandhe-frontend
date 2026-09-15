@@ -165,35 +165,53 @@ fn normalize_constraint(constraint: DragConstraint) -> DragConstraint {
 /// には影響しない。
 const MIN_VELOCITY_DT_S: f64 = 0.001;
 
-/// [`estimate_velocity`] が速度計算に使う最小移動距離（px）。これ未満の
-/// 位置差は速度 0 を返す（イシュー #2541 codex-review 指摘・
-/// `carousel_motion_browser.rs` 実測 是正の残り: [`MIN_VELOCITY_DT_S`]
-/// だけでは不十分だった——実ブラウザの 2 サンプル間隔は数 ms 程度
-/// （1000Hz を大きく下回る）でも十分現実的なため、[`CLICK_GUARD_PX`]
-/// 未満の「意図しない微小移動」（例: 2px のみのドラッグ）に対しても
-/// 数 ms という短時間で割ると px/秒換算では依然大きな値になり、spring の
-/// 初速が跳ね上がって「起点付近へ戻るだけのはずの操作」が有意にオーバー
-/// シュートし、収束（`Spring::at` の `done`）までの時間が想定より
-/// 大幅に伸びていた（`small_move_settles_back_to_origin_index` の実測で
-/// 確認）。移動距離自体が測定誤差・手ぶれの範囲に収まるほど小さい
-/// サンプルは、`dt` が有限でも速度推定の信頼性がないという判断は
-/// `MIN_VELOCITY_DT_S` と対称であり、ここでも「行き過ぎない」安全側の
-/// 既定値（速度 0）へ倒す。値は
+/// ドラッグ開始位置から release 時点までの**総移動距離**（px）がこれ
+/// 未満なら「操作全体が微小だった」とみなし離脱速度を 0 として扱う
+/// （[`is_travel_negligible`] 参照）。
+///
+/// # 直近 2 サンプル間の距離では判定しない理由（codex-review 指摘 是正、
+/// イシュー #2541 第 2 ラウンド）
+///
+/// 当初は本閾値を [`estimate_velocity`] 内部で「直近 2 サンプル間の
+/// 距離」に適用していたが、この判定は入力のサンプリング間隔に依存して
+/// 結果が変わってしまう欠陥があった——例えば 8ms ごとに 2px 動く操作
+/// （実際には 250px/s 相当の正当なフリック）でも、隣接 2 サンプルの
+/// 距離だけを見ると常に閾値未満で速度 0 に潰れる。同じ実速度でも
+/// サンプリング周期が高い（1 サンプルあたりの移動量が小さい）だけで
+/// 結果が変わるのは誤り。是正として、本閾値は [`estimate_velocity`]
+/// 自体からは外し、[`DragController::on_release`]/`crate::carousel::
+/// CarouselTrack::on_release` が「ドラッグ開始位置から release 時点
+/// までの累積移動距離」（[`is_travel_negligible`]）で「操作全体が微小
+/// だったか」を判定してから、[`estimate_velocity`] が返す値をそのまま
+/// 使うか 0 に倒すかを選ぶ（`small_move_settles_back_to_origin_index`
+/// が検証する「2px だけ動かしてすぐ離す」ケースは、累積移動距離も
+/// 同じく 2px のため引き続き速度 0 になる）。値は
 /// `fandhe_frontend_wasm_full::carousel_motion::CLICK_GUARD_PX`
 /// （5.0px、合成 click 抑止のドラッグ判定閾値）よりわずかに小さい
 /// 3.0px とし、「ドラッグと認識されるほどの移動」はこの下限に阻まれず
 /// 従来どおり速度を反映する。
 const MIN_VELOCITY_DISTANCE_PX: f64 = 3.0;
 
+/// `total_distance_px`（ドラッグ開始位置から release 時点までの累積
+/// 移動距離、px）が [`MIN_VELOCITY_DISTANCE_PX`] 未満で「操作全体が
+/// 微小だった」かを判定する（[`MIN_VELOCITY_DISTANCE_PX`] doc 参照）。
+/// `NaN` は非数のため安全側（微小＝真）に倒す。
+#[must_use]
+pub(crate) fn is_travel_negligible(total_distance_px: f64) -> bool {
+    !total_distance_px.is_finite() || total_distance_px < MIN_VELOCITY_DISTANCE_PX
+}
+
 /// 直近 2 サンプル（位置・`performance.now()`/`event.time_stamp()` 相当の
 /// ms タイムスタンプ）から離脱速度（px/秒）を推定する。
 ///
 /// いずれかのサンプルが欠けている・時間差が[`MIN_VELOCITY_DT_S`]未満
 /// （0 以下を含む。同時刻の重複サンプル・クロックの逆行・測定不能なほど
-/// 近接した連続サンプル）・移動距離が[`MIN_VELOCITY_DISTANCE_PX`]未満
-/// （測定誤差・手ぶれの範囲に収まる意図しない微小移動）のいずれかの
-/// 場合は `Vec2::default()`（速度 0）を返す（spring の初速 0 は「行き
-/// 過ぎない」安全側の既定値）。
+/// 近接した連続サンプル）場合は `Vec2::default()`（速度 0）を返す
+/// （spring の初速 0 は「行き過ぎない」安全側の既定値）。「操作全体が
+/// 微小だったか」（[`MIN_VELOCITY_DISTANCE_PX`]/[`is_travel_negligible`]）
+/// は呼び出し側の責務であり、本関数自体は距離で速度をゼロにしない
+/// （[`MIN_VELOCITY_DISTANCE_PX`] doc「直近 2 サンプル間の距離では判定
+/// しない理由」節参照）。
 #[must_use]
 pub fn estimate_velocity(previous: Option<(Vec2, f64)>, latest: Option<(Vec2, f64)>) -> Vec2 {
     let (Some((p0, t0)), Some((p1, t1))) = (previous, latest) else {
@@ -203,14 +221,9 @@ pub fn estimate_velocity(previous: Option<(Vec2, f64)>, latest: Option<(Vec2, f6
     if !dt.is_finite() || dt < MIN_VELOCITY_DT_S {
         return Vec2::default();
     }
-    let dx = p1.x - p0.x;
-    let dy = p1.y - p0.y;
-    if dx.hypot(dy) < MIN_VELOCITY_DISTANCE_PX {
-        return Vec2::default();
-    }
     Vec2 {
-        x: dx / dt,
-        y: dy / dt,
+        x: (p1.x - p0.x) / dt,
+        y: (p1.y - p0.y) / dt,
     }
 }
 
@@ -489,11 +502,15 @@ impl DragController {
     /// 場合に、静止前の古い速度で spring がスナップバックする不具合の
     /// 是正）。
     pub fn on_release(&mut self, time_ms: f64) {
-        if self.start.take().is_none() {
+        let Some(start) = self.start.take() else {
             return;
-        }
+        };
         let current = self.position();
-        let velocity = if is_velocity_stale(self.latest_sample, time_ms) {
+        let total_distance =
+            (current.x - start.origin_position.x).hypot(current.y - start.origin_position.y);
+        let velocity = if is_velocity_stale(self.latest_sample, time_ms)
+            || is_travel_negligible(total_distance)
+        {
             Vec2::default()
         } else {
             estimate_velocity(self.previous_sample, self.latest_sample)
@@ -597,8 +614,9 @@ impl DragController {
 mod tests {
     use super::{
         apply_axis, axis_changed, clamp_to_constraint, clamp_to_constraint_for_axis,
-        estimate_velocity, is_velocity_stale, normalize_constraint, rebuild_start_for_axis_change,
-        DragAxis, DragConstraint, DragStart, STALE_VELOCITY_THRESHOLD_MS,
+        estimate_velocity, is_travel_negligible, is_velocity_stale, normalize_constraint,
+        rebuild_start_for_axis_change, DragAxis, DragConstraint, DragStart,
+        STALE_VELOCITY_THRESHOLD_MS,
     };
     use fandhe_animation::interpolate::Vec2;
 
@@ -733,25 +751,25 @@ mod tests {
         assert!((velocity.y - (-100.0)).abs() < 1e-9);
     }
 
-    /// イシュー #2541 codex-review 指摘・`carousel_motion_browser.rs`
-    /// 実測 是正の回帰: 2px 程度の微小移動（`MIN_VELOCITY_DISTANCE_PX`
-    /// 未満）は、`dt` が短くても速度 0 を返す（噴き上がった速度が
-    /// spring をオーバーシュートさせない）。
+    /// イシュー #2541 codex-review 指摘 是正の回帰（第 2 ラウンド）:
+    /// `estimate_velocity` 自体はサンプル間の距離で速度をゼロにしない
+    /// （高頻度サンプリングの正当なフリックを誤って潰さないため、
+    /// `MIN_VELOCITY_DISTANCE_PX` doc「直近 2 サンプル間の距離では判定
+    /// しない理由」節参照）。「操作全体が微小だったか」の判定は
+    /// `is_travel_negligible` へ委譲する。
     #[test]
-    fn estimate_velocity_returns_zero_for_tiny_distance_even_with_short_dt() {
+    fn estimate_velocity_does_not_floor_on_adjacent_sample_distance() {
         let previous = Some((Vec2 { x: 0.0, y: 0.0 }, 0.0));
         let latest = Some((Vec2 { x: 2.0, y: 0.0 }, 8.0));
-        assert_eq!(estimate_velocity(previous, latest), Vec2::default());
+        let velocity = estimate_velocity(previous, latest);
+        assert!((velocity.x - 250.0).abs() < 1e-6);
     }
 
-    /// `MIN_VELOCITY_DISTANCE_PX` 以上の移動は、短い `dt` でも速度を
-    /// 正しく計算する（距離フィルタが正当なフリック操作を殺さない回帰）。
     #[test]
-    fn estimate_velocity_computes_velocity_for_distance_at_or_above_floor() {
-        let previous = Some((Vec2 { x: 0.0, y: 0.0 }, 0.0));
-        let latest = Some((Vec2 { x: 10.0, y: 0.0 }, 8.0));
-        let velocity = estimate_velocity(previous, latest);
-        assert!((velocity.x - 1250.0).abs() < 1e-6);
+    fn is_travel_negligible_floors_total_distance() {
+        assert!(is_travel_negligible(2.9));
+        assert!(!is_travel_negligible(3.0));
+        assert!(is_travel_negligible(f64::NAN));
     }
 
     #[test]

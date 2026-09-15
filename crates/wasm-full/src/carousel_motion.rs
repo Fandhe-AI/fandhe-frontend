@@ -146,8 +146,26 @@ mod wiring {
     /// DragMetaSlot)` を引く。未登録なら新規に確保して登録する
     /// （carousel root の同一性は `Node::is_same_node` で判定する、
     /// モジュール doc「複数 carousel 間の状態分離」節参照）。
+    ///
+    /// # 切り離された root の遅延回収（codex-review 指摘 是正、イシュー
+    /// #2541 第 2 ラウンド）
+    ///
+    /// `Runtime::apply_subtree_swap` 等で carousel の DOM が置換される
+    /// と、旧 root は文書から切断される（`Element::is_connected()` が
+    /// 偽になる）が、`TrackRegistry` は強参照で保持し続けるため、置換の
+    /// たびにエントリが積み上がり `TrackSlot` の `CarouselTrack`
+    /// （settle 中の `AnimationLoop` を含む）ごと解放されずに残ってしまう
+    /// （メモリリーク・線形探索の劣化）。是正として、毎回の解決前に
+    /// 切断済みエントリを間引く（`crates/wasm-full/src/drag_gesture.rs::
+    /// controller_for_tracking_reuse` と同型の遅延掃除、明示的な
+    /// unmount フックを持たない設計を踏襲）。間引かれたエントリの
+    /// `TrackSlot`（他に参照を持つ呼び出し元がいなければ）が drop
+    /// されると `CarouselTrack` も drop され、進行中の `AnimationLoop`
+    /// も `Drop` で停止する（`carousel.rs` モジュール doc「`Carousel
+    /// Track` を drop すると...」節参照）。
     fn slot_for(registry: &TrackRegistry, carousel_root: &Element) -> (TrackSlot, DragMetaSlot) {
         let mut entries = registry.borrow_mut();
+        entries.retain(|(root, _, _)| root.is_connected());
         if let Some((_, track, drag)) = entries
             .iter()
             .find(|(root, _, _)| root.is_same_node(Some(carousel_root.as_ref())))
