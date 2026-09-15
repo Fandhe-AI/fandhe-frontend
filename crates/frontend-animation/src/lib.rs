@@ -59,7 +59,9 @@
 //! カスタムプロパティ書き込み、イシュー #2550）も実装済み。text_animation
 //! （[`text_animation::typewriter_frame`]・[`text_animation::scramble_frame`]、
 //! typewriter/scramble のフレーム計算・DOM 書き込み、イシュー #2532）も
-//! 実装済み。残りの実装は
+//! 実装済み。ticker
+//! （[`ticker::Ticker`]、marquee の JS 駆動拡張——実測複製数・rAF offset
+//! 前進・hover/scroll 速度連動、イシュー #2540）も実装済み。残りの実装は
 //! Phase 4 の各後続 issue で追加する
 //! （`docs/design/animation-core-architecture.md` §6.2 参照）。
 
@@ -75,6 +77,7 @@ pub mod reduced_motion;
 pub mod scroll_driver;
 pub mod svg_path;
 pub mod text_animation;
+pub mod ticker;
 
 // `fandhe-animation`（演算基幹）の型（`Keyframes`/`Keyframe` 等）は、本クレートの
 // `[dependencies]` にのみ存在し推移依存としてアプリの名前解決に公開されない。
