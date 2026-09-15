@@ -461,6 +461,15 @@ mod dom {
             let resize_pending = Rc::new(Cell::new(false));
             let offset = Rc::new(Cell::new(0.0_f64));
             let last_ms: Rc<Cell<Option<f64>>> = Rc::new(Cell::new(None));
+            // `mark_resize`（window `resize` 購読）だけを複製数再計算の契機に
+            // すると、非アクティブなタブ配下等 `display:none` の下で起動して
+            // 実測値 0 のまま複製 2 個に決まった ticker が、後から表示切替
+            // されても `resize` イベントは発火しないため複製数が更新されず
+            // 不足したまま残る（PR #2582 codex-review P1 指摘）。既に毎フレーム
+            // `measure_len` している値（下の rAF ループ）を使い、前フレームの
+            // viewport 長と比較して変化を検知する（新規 API・購読を追加せず
+            // 既存の実測ループへ相乗りする方針）。
+            let last_viewport_len = Rc::new(Cell::new(viewport_len));
 
             let step_root = root.clone();
             let step_root_html = root_html;
@@ -473,6 +482,7 @@ mod dom {
             let step_resize_pending = Rc::clone(&resize_pending);
             let step_offset = Rc::clone(&offset);
             let step_last_ms = Rc::clone(&last_ms);
+            let step_last_viewport_len = Rc::clone(&last_viewport_len);
 
             let animation_loop = AnimationLoop::start(move || {
                 // `root` が DOM から切断済み（SPA のルート遷移・コンポーネント
@@ -497,14 +507,21 @@ mod dom {
                 let dt_ms = step_last_ms.get().map(|last| now_ms - last).unwrap_or(0.0);
                 step_last_ms.set(Some(now_ms));
 
-                if step_resize_pending.take() {
-                    let viewport_len = measure_len(&step_root, config.axis);
+                let current_viewport_len = measure_len(&step_root, config.axis);
+                // `resize` イベント経由の明示要求に加え、viewport 長が前フレーム
+                // から変化していれば（`display:none` → 表示等、`resize` が
+                // 発火しない経路も含む）複製数を再計算する（上の
+                // `last_viewport_len` 初期化コメント参照）。
+                let viewport_changed =
+                    (current_viewport_len - step_last_viewport_len.get()).abs() > 0.5;
+                if step_resize_pending.take() || viewport_changed {
+                    step_last_viewport_len.set(current_viewport_len);
                     let content_len =
                         measure_len(&step_content, config.axis) + read_gap_px(&step_content_html);
                     ensure_copies(
                         &step_root,
                         &step_content,
-                        super::required_copies(viewport_len, content_len),
+                        super::required_copies(current_viewport_len, content_len),
                     );
                 }
 

@@ -186,7 +186,14 @@ pub const MARQUEE_MOTION_CSS: &str = concat!(
     // 生成 DOM と一致せず常に不一致だった（PR #2582 codex-review P1・Cursor
     // Bugbot 指摘）。root 側の `data-axis` を起点にした子孫セレクタへ
     // 修正する（下の `[data-fandhe-ticker-active]` ブロックと同型）。
-    "[data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] [data-part=\"content\"] {\n",
+    //
+    // 子孫結合子（半角スペース）のままだと ticker 内に合成した他部品
+    // （例: tabs の `[data-part="content"]`、`data-scope="tabs"`）にも
+    // `data-scope` を問わず一致し、ticker の transform が二重に適用されて
+    // 表示が崩れる（PR #2582 codex-review P1 指摘）。直下の子結合子（`>`）
+    // + `[data-scope="marquee"]` へ限定し、marquee 自身の content パーツ
+    // のみを対象にする。
+    "[data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] > [data-scope=\"marquee\"][data-part=\"content\"] {\n",
     "  flex-direction: column;\n",
     "  min-width: auto;\n",
     "  min-height: max-content;\n",
@@ -200,15 +207,22 @@ pub const MARQUEE_MOTION_CSS: &str = concat!(
     "    transform: translateY(calc(-100% - var(--fandhe-marquee-gap, var(--fandhe-space-4))));\n",
     "  }\n",
     "}\n",
-    "\n[data-scope=\"marquee\"][data-part=\"root\"][data-fandhe-ticker-active] [data-part=\"content\"] {\n",
+    // 直下の子結合子（`>`）+ `[data-scope="marquee"]` へ限定する（上の
+    // 縦方向ブロックと同じ理由。ticker 内に合成した tabs 等の
+    // `[data-part="content"]` への二重適用を防ぐ、PR #2582 codex-review
+    // P1 指摘）。
+    "\n[data-scope=\"marquee\"][data-part=\"root\"][data-fandhe-ticker-active] > [data-scope=\"marquee\"][data-part=\"content\"] {\n",
     "  animation: none;\n",
     "  transform: translateX(var(--fandhe-marquee-ticker-offset, 0px));\n",
     "}\n",
-    "[data-scope=\"marquee\"][data-part=\"root\"][data-fandhe-ticker-active][data-axis=\"vertical\"] [data-part=\"content\"] {\n",
+    "[data-scope=\"marquee\"][data-part=\"root\"][data-fandhe-ticker-active][data-axis=\"vertical\"] > [data-scope=\"marquee\"][data-part=\"content\"] {\n",
     "  transform: translateY(var(--fandhe-marquee-ticker-offset, 0px));\n",
     "}\n",
     "\n@media (prefers-reduced-motion: reduce) {\n",
-    "  [data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] [data-part=\"content\"] {\n",
+    // 上の非 `@media` 縦方向ブロック（197 行）と同じ理由・同じセレクタ形へ
+    // 揃える（子結合子 + `[data-scope="marquee"]` 限定、PR #2582
+    // codex-review P1 指摘）。詳細度も揃えて確実に上書きする。
+    "  [data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] > [data-scope=\"marquee\"][data-part=\"content\"] {\n",
     "    animation: none;\n",
     "    min-height: 0;\n",
     "  }\n",
