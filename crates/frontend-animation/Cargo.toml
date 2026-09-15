@@ -37,7 +37,13 @@ name = "fandhe-frontend-animation"
 # 0.6.0 へ独立に minor バンプしており、本 PR の上記 0.6.0 と同一版数へ
 # 再度衝突した。#638 条項の「同一版数も衝突として +1」運用に従い、さらに
 # +1 して 0.7.0 とする。
-version = "0.7.0"
+#
+# イシュー #2519: `svg_path` モジュール（SVG path drawing アニメーション、
+# `total_length`/`apply_initial_style`/`draw`/`draw_path` 等）を新設。
+# 新規公開 API 追加のため minor バンプ（`.claude/rules/coding-rust.md`
+# #638 条項）。origin/main は既に 0.7.0 に到達済みのため、そこから +1 して
+# 0.8.0 とする。
+version = "0.8.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -126,6 +132,18 @@ web-sys = { version = "0.3", features = [
   # 既存 `web-sys` の feature 追加のみ）。
   "HtmlCanvasElement",
   "CanvasRenderingContext2d",
+  # イシュー #2519: `svg_path` モジュールが使う 3 feature を追加する。
+  # `SvgGeometryElement`（`getTotalLength()`、`<path>`/`<circle>` 等の
+  # 全長取得）・`SvgElement`（`.style()`、SVG 要素の `CssStyleDeclaration`
+  # 取得。`HtmlElement::style()` とは別型のため独立に必要）・
+  # `SvgAnimatedNumber`（`pathLength` 属性の `baseVal()` 読み取り。
+  # codex-review P1 是正: `pathLength` 指定パスは `getTotalLength()` の
+  # 実長ではなく `pathLength` の値を距離基準にする、`svg_path.rs`
+  # モジュール doc 参照）。新規外部パッケージの追加はない（既存
+  # `web-sys` の feature 追加のみ）。
+  "SvgGeometryElement",
+  "SvgElement",
+  "SvgAnimatedNumber",
 ] }
 wasm-bindgen-futures = "0.4"
 

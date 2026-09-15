@@ -66,6 +66,7 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_scroll_driver` | `scroll-driver` |
 | `Runtime::wire_drag_gesture` | `drag-gesture` |
 | `Runtime::wire_confetti` | `confetti` |
+| `Runtime::wire_svg_path` | `svg-path` |
 | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 | `Runtime::wire_add_to_basket` | `add-to-basket` |
 
@@ -93,7 +94,14 @@ coding-rust.md` #638 条項に従い +1 して 0.29.0 で合流、イシュー
 （`CanvasRenderingContext2d`/`HtmlCanvasElement`）を一切追加しません
 （`fandhe-frontend-animation::confetti::fire` が `web_sys::Element` を
 受け取り、canvas への cast は `fandhe-frontend-animation` 側で完結する
-設計。SignaturePad 由来の「canvas を使わない」方針を維持）。
+設計。SignaturePad 由来の「canvas を使わない」方針を維持）。`svg-path`
+feature（0.32.0 で追加、イシュー #2519）も `scroll-driver`/`confetti` と
+同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）です。全長取得
+（`getTotalLength()`）・`stroke-dasharray`/`stroke-dashoffset` の初期値
+計算・WAAPI 呼び出しはいずれも `fandhe-frontend-animation::svg_path` の
+責務であり、`wasm-full` 側は `[data-fandhe-svg-path-draw]` 要素の走査・
+呼び出し配線のみを担います（duration/easing 等のカスタマイズは扱わない
+固定既定値のみ）。
 
 0.29.0（イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の
 版数衝突の再バンプ）で `scroll-driver` の挙動を拡張し、
@@ -226,16 +234,17 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.29.0 | `scroll-driver` の挙動拡張（`data-fandhe-scroll-progress`、イシュー #2534。main の #2533 取り込みに伴う 0.28.0 同士の版数衝突の再バンプ） |
 | 0.30.0 | `drag-gesture` feature（イシュー #2535。本 PR（#2535）と main（#2534）が独立に 0.28.0 から 0.29.0 へ同一版数バンプしており衝突。`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」運用に従い、さらに +1 して 0.30.0 とした） |
 | 0.31.0 | `hold-to-confirm`/`add-to-basket` feature（イシュー #2538。本 PR（#2535 到達の 0.30.0）と main（#2538 到達の 0.30.0）が独立に同一版数へバンプしており衝突。#638 条項に従いさらに +1 して 0.31.0 とする） |
+| 0.32.0 | `svg-path` feature（イシュー #2519。main は既に 0.31.0 に到達済みのため、そこから +1 して 0.32.0 とする） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 46 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 47 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.30.0"
+version = "0.32.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -260,6 +269,7 @@ features = [
   "scroll-driver",
   "drag-gesture",
   "confetti",
+  "svg-path",
   "hold-to-confirm",
   "add-to-basket",
   "position",
