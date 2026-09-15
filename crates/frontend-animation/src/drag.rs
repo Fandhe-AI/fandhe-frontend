@@ -187,8 +187,11 @@ pub fn estimate_velocity(previous: Option<(Vec2, f64)>, latest: Option<(Vec2, f6
 /// `sampled_at` より小さい（クロックの逆行）場合も差分が非正になり
 /// 閾値を超えないため stale 側へは倒れない（安全側: 実際に停止していない
 /// ケースを誤って速度 0 にしない）。
+// イシュー #2541: `crate::carousel::CarouselTrack::on_release` が同じ
+// 「直近サンプルの陳腐化判定」を再利用するため、crate 内へ可視性を広げる
+// （呼び出し元・契約は本モジュール内の `DragController::on_release` と同一）。
 #[must_use]
-fn is_velocity_stale(latest: Option<(Vec2, f64)>, time_ms: f64) -> bool {
+pub(crate) fn is_velocity_stale(latest: Option<(Vec2, f64)>, time_ms: f64) -> bool {
     latest.is_some_and(|(_, sampled_at)| (time_ms - sampled_at) > STALE_VELOCITY_THRESHOLD_MS)
 }
 

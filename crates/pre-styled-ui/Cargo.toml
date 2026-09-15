@@ -3497,7 +3497,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # origin/main（#2537 の 0.205.0）が同じ merge base（0.204.0）から独立に
 # 同一版数へ到達したため、同じ版数のまま据え置かず +1 した 0.206.0 とする
 # （同衝突運用）。
-version = "0.206.0"
+#
+# イシュー #2541: carousel の Motion+ Carousel 相当拡張（coverflow 3D）用
+# CSS（`carousel_motion` モジュール、`motion` feature 配下）を新設した。
+# `border_beam`/`button_motion` と同型の新規公開 API 純追加のため minor
+# バンプする。
+version = "0.207.0"
 
 
 edition = "2021"

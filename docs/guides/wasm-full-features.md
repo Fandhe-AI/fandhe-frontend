@@ -70,6 +70,7 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 | `Runtime::wire_add_to_basket` | `add-to-basket` |
 | `Runtime::wire_magnetic` | `magnetic` |
+| `Runtime::wire_carousel_motion` | `carousel-motion` |
 | `Runtime::wire_text_animation` | `text-animation` |
 
 `text-animation` feature（0.35.0 で追加、イシュー #2532）は `scroll-driver`/
@@ -82,6 +83,14 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 `words`）は SSR + CSS `@keyframes` のみで完結する
 `fandhe_frontend_pre_styled_ui::text_reveal`（`motion` feature）側の責務
 であり、本 feature の対象外です。
+
+`carousel-motion` feature（0.36.0 で追加、イシュー #2541）も同型で、
+`data-fandhe-carousel-drag` opt-in root 配下の `item-group` へのポインタ
+ドラッグを `fandhe-frontend-animation::carousel::CarouselTrack`（spring
+スナップ + `AnimationLoop`/`RafDriver`）で追従させ、release 後に `"goto"`
+を dispatch します。coverflow 3D 表示（CSS のみ）は
+`fandhe_frontend_pre_styled_ui::carousel_motion`（`motion` feature）側の
+責務であり、本 feature とは独立です。
 
 `magnetic` feature（0.31.0 で追加、イシュー #2550）は `scroll-driver`/
 `confetti`/`hold-to-confirm` と同型（配線群かつ
@@ -341,6 +350,7 @@ features = [
   "hold-to-confirm",
   "add-to-basket",
   "magnetic",
+  "carousel-motion",
   "text-animation",
   "position",
   "stagger",
