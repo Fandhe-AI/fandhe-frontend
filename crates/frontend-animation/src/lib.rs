@@ -45,7 +45,8 @@
 //! `animate`（`element.animate()` WAAPI 薄いラッパ、イシュー #2398）も
 //! 実装済み。scroll ドライバ（[`scroll_driver`]、`animation-timeline`
 //! 委譲の機能検出 + rAF フォールバックの計算・計測プリミティブ、イシュー
-//! #2521）も実装済み。pointer capture ベースの汎用ドラッグ演算
+//! #2521）も実装済み。layout FLIP アニメーション（[`flip`]、イシュー
+//! #2518）も実装済み。pointer capture ベースの汎用ドラッグ演算
 //! （[`drag::DragController`]、軸制約・範囲クランプ・離脱速度推定 +
 //! spring 復帰、イシュー #2535）・`prefers-reduced-motion` 判定ヘルパ
 //! （[`reduced_motion::prefers_reduced_motion`]）も実装済み。confetti
@@ -55,8 +56,8 @@
 //! `stroke-dashoffset` の WAAPI アニメーション、イシュー #2519）も
 //! 実装済み。magnetic（[`magnetic::compute_pull`]・
 //! [`magnetic::write_offset`]、ポインタ追従オフセットの計算・CSS
-//! カスタムプロパティ書き込み、イシュー #2550）も実装済み。FLIP 等の
-//! 残りの実装は Phase 4 の各後続 issue で追加する
+//! カスタムプロパティ書き込み、イシュー #2550）も実装済み。残りの実装は
+//! Phase 4 の各後続 issue で追加する
 //! （`docs/design/animation-core-architecture.md` §6.2 参照）。
 
 pub mod animate;
@@ -64,6 +65,7 @@ pub mod canvas_target;
 pub mod confetti;
 pub mod dom_target;
 pub mod drag;
+pub mod flip;
 pub mod magnetic;
 pub mod raf_driver;
 pub mod reduced_motion;
