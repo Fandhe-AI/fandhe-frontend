@@ -1216,7 +1216,16 @@ name = "fandhe-frontend-wasm-full"
 # 直前のオフセットを差し引いてから中心座標を計算するよう修正した。本クレート
 # 自身の公開 API は変更していないため patch バンプ（依存先の version 要求は
 # `cargo run -p xtask -- check-dep-versions --fix` で追随）。
-version = "0.32.1"
+#
+# PR #2572 codex-review P1 指摘の是正（イシュー #2550）: `current_offset`
+# ベースの補正では CSS `transition` 完了前の `pointermove` で静止位置を
+# 正しく復元できないケースが残っていたため、`handle_pointermove` を
+# 「新しい対象への進入時に一度だけ `rendered_offset`（実際の描画上の移動量）
+# を使って静止位置の中心を計測しキャッシュし、以降の同一対象への
+# `pointermove` はキャッシュを再利用する」方式へ変更した。本クレート
+# 自身の公開 API は変更していないため patch バンプ（依存先の version 要求は
+# `cargo run -p xtask -- check-dep-versions --fix` で追随）。
+version = "0.32.2"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1512,7 +1521,12 @@ js-sys = "0.3"
 # PR #2572 Bugbot 指摘の是正（イシュー #2550）: `fandhe-frontend-animation`
 # 0.8.0 → 0.9.0（`magnetic::current_offset` 新設）への `version` 要求追随
 # （`cargo run -p xtask -- check-dep-versions --fix`）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.9.0", optional = true }
+#
+# PR #2572 codex-review P1 指摘の是正（イシュー #2550）:
+# `fandhe-frontend-animation` 0.9.0 → 0.10.0（`current_offset` 削除・
+# `magnetic::rendered_offset` 新設）への `version` 要求追随
+# （`cargo run -p xtask -- check-dep-versions --fix`）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.10.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の

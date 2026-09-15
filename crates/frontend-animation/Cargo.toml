@@ -61,7 +61,15 @@ name = "fandhe-frontend-animation"
 # 引力を計算していた不具合を是正するため、直前に書き込んだオフセットを
 # 読み戻す新規公開関数 [`magnetic::current_offset`] を追加した。新規公開
 # API 追加のため minor バンプ。
-version = "0.9.0"
+#
+# PR #2572 codex-review P1 指摘の是正（イシュー #2550）: 上記
+# `current_offset`（インライン style の目標値を返す）は CSS `transition`
+# 完了前の `pointermove` では実際の描画上の移動量と一致せず、静止位置を
+# 正しく復元できないケースが残っていた。`current_offset` を削除し、
+# `getComputedStyle().transform` の行列から「今実際に描画されている移動量」
+# を読む新規公開関数 [`magnetic::rendered_offset`] へ置き換えた（公開関数
+# の削除を伴う破壊的変更のため minor バンプ）。
+version = "0.10.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

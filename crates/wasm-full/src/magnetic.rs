@@ -19,6 +19,25 @@
 //!    同じ「wire 時に検出し、reduced なら配線しない」方針。ポインタ移動の
 //!    たびに判定するより安全でコストも低い）
 //!
+//! # 静止位置の中心のキャッシュ（codex-review P1 指摘の是正、イシュー #2550）
+//!
+//! `getBoundingClientRect()` は要素へ現在適用中の `transform`
+//! （`--fandhe-motion-magnetic-x`/`-y` が駆動する）を含んだ矩形を返す。
+//! CSS `transition` が完了する前に `pointermove` が発火すると、矩形は
+//! 「補間途中の描画位置」を反映するため、`getComputedStyle` で読んだ
+//! 「今の実際の移動量」を引いても静止位置には戻らない場合がある——
+//! ただし新しい対象へ**進入した瞬間**であれば、その時点の実際の移動量
+//! （[`fandhe_frontend_animation::magnetic::rendered_offset`]、
+//! transition 完了前でも常に「今描画されている値」を返す）を 1 回だけ
+//! 使って静止位置の中心を計算し、以降の `pointermove` ではこのキャッシュ
+//! された中心を再利用する（矩形を再計測しない）ことで、イベントの
+//! タイミングに依存しない決定的な計算にできる。resize・スクロールで
+//! 静止位置自体が変わる可能性はあるが、追跡セッション（進入から離脱まで）
+//! は通常数百 ms 程度であり、その間の resize/スクロールは実用上の
+//! 頻度が低いため許容する既知の制約とする（`docs/design/
+//! motion-reference-adoption-policy.md` に想定する Motion+ 参照実装も
+//! 同様の割り切りを置く）。
+//!
 //! # `pointerenter`/`pointerleave` を使わない理由
 //!
 //! `pointerenter`/`pointerleave` はバブルしないため、`root` への委譲登録
@@ -64,7 +83,7 @@ pub const MAGNETIC_SELECTOR: &str = "[data-fandhe-magnetic]";
 mod wiring {
     use super::MAGNETIC_SELECTOR;
     use crate::gesture::is_touch_pointer;
-    use fandhe_frontend_animation::magnetic::{compute_pull, current_offset, write_offset};
+    use fandhe_frontend_animation::magnetic::{compute_pull, rendered_offset, write_offset};
     use fandhe_frontend_animation::magnetic::{MAGNETIC_MAX_PULL_PX, MAGNETIC_STRENGTH};
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -72,10 +91,29 @@ mod wiring {
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event, HtmlElement, MouseEvent, PointerEvent};
 
-    /// 現在追従中の opt-in 要素（`pointermove` で別要素へ移った際に前の
-    /// 要素のオフセットをリセットするための追跡スロット、`gesture.rs` の
-    /// 押下源追跡と同型の考え方）。
-    type ActiveMagnetic = Rc<RefCell<Option<Element>>>;
+    /// 現在追従中の opt-in 要素と、進入時に一度だけ計測した静止位置の中心
+    /// （モジュール doc「静止位置の中心のキャッシュ」節参照）。`pointermove`
+    /// で別要素へ移った際に前の要素のオフセットをリセットするための追跡
+    /// スロットでもある（`gesture.rs` の押下源追跡と同型の考え方）。
+    struct ActiveMagneticEntry {
+        element: Element,
+        /// 進入時に計測した静止位置の中心（`(center_x, center_y)`）。
+        rest_center: (f64, f64),
+    }
+
+    type ActiveMagnetic = Rc<RefCell<Option<ActiveMagneticEntry>>>;
+
+    /// `magnetic_target` への新規進入時、`getBoundingClientRect()` の中心
+    /// から [`rendered_offset`] の値を差し引いて静止位置の中心を計算する
+    /// （モジュール doc「静止位置の中心のキャッシュ」節参照）。
+    fn measure_rest_center(magnetic_target: &Element, html_element: &HtmlElement) -> (f64, f64) {
+        let rect = magnetic_target.get_bounding_client_rect();
+        let (offset_x, offset_y) = rendered_offset(html_element);
+        (
+            rect.left() + rect.width() / 2.0 - offset_x,
+            rect.top() + rect.height() / 2.0 - offset_y,
+        )
+    }
 
     /// `event.target()` を `Element` として取得する（`gesture.rs`
     /// `event_target_element` と同型）。
@@ -114,11 +152,13 @@ mod wiring {
     }
 
     /// `pointermove`: `event.target()` から opt-in 対象を解決し、対象が
-    /// 変わった場合は前の対象をリセットしてから、新しい対象の中心座標を
-    /// `getBoundingClientRect()` で計測し [`compute_pull`] の結果を
-    /// [`write_offset`] で書き込む。対象が解決できない（opt-in 要素の外）
-    /// 場合は、追従中の要素があればリセットして追跡を解除する。タッチ由来
-    /// のポインタは除外する（モジュール doc「タッチ除外」節）。
+    /// 変わった場合は前の対象をリセットしてから、新しい対象への進入時に
+    /// 一度だけ静止位置の中心を計測してキャッシュする（モジュール doc
+    /// 「静止位置の中心のキャッシュ」節）。同じ対象への `pointermove` は
+    /// キャッシュした中心を再利用し、`getBoundingClientRect()`/
+    /// `rendered_offset` を再計測しない。対象が解決できない（opt-in 要素の
+    /// 外）場合は、追従中の要素があればリセットして追跡を解除する。タッチ
+    /// 由来のポインタは除外する（モジュール doc「タッチ除外」節）。
     fn handle_pointermove(root: &Element, event: &Event, active: &ActiveMagnetic) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
@@ -133,38 +173,48 @@ mod wiring {
             // opt-in 要素の外（対象を持たない座標）へ移動した場合、
             // 追従中の要素が残っていればリセットして追跡を解除する。
             if let Some(previous) = active.borrow_mut().take() {
-                reset_offset(&previous);
+                reset_offset(&previous.element);
             }
             return;
         };
-
-        {
-            let mut active_ref = active.borrow_mut();
-            if active_ref.as_ref() != Some(&magnetic_target) {
-                if let Some(previous) = active_ref.replace(magnetic_target.clone()) {
-                    reset_offset(&previous);
-                }
-            }
-        }
 
         let Some(html_element) = magnetic_target.dyn_ref::<HtmlElement>() else {
             return;
         };
-        // `getBoundingClientRect()` は本要素へ現在適用中の `transform`
-        // （直前の `write_offset` 呼び出しが駆動する）を含んだ矩形を返す。
-        // 静止位置の中心を復元するため、直前に書き込んだオフセットを
-        // 矩形の中心から差し引く（Bugbot 指摘の是正、`current_offset`
-        // モジュール doc 参照。resize・スクロールでも安全に再計測できる
-        // ステートレスな補正であり、専用キャッシュは持たない）。
-        let rect = magnetic_target.get_bounding_client_rect();
-        let (offset_x, offset_y) = current_offset(html_element);
-        let center_x = rect.left() + rect.width() / 2.0 - offset_x;
-        let center_y = rect.top() + rect.height() / 2.0 - offset_y;
+
+        let rest_center = {
+            let mut active_ref = active.borrow_mut();
+            let is_same_target = active_ref
+                .as_ref()
+                .is_some_and(|entry| entry.element == magnetic_target);
+            if is_same_target {
+                // 同じ対象への継続移動: キャッシュした静止位置の中心を
+                // そのまま使う（矩形・rendered_offset の再計測はしない）。
+                active_ref
+                    .as_ref()
+                    .expect("checked by is_same_target")
+                    .rest_center
+            } else {
+                // 新しい対象への進入: 前の対象をリセットしてから、この
+                // 瞬間の実際の描画位置を基準に静止位置の中心を 1 回だけ
+                // 計測してキャッシュする。
+                if let Some(previous) = active_ref.take() {
+                    reset_offset(&previous.element);
+                }
+                let rest_center = measure_rest_center(&magnetic_target, html_element);
+                *active_ref = Some(ActiveMagneticEntry {
+                    element: magnetic_target.clone(),
+                    rest_center,
+                });
+                rest_center
+            }
+        };
+
         let (dx, dy) = compute_pull(
             pointer_event.client_x().into(),
             pointer_event.client_y().into(),
-            center_x,
-            center_y,
+            rest_center.0,
+            rest_center.1,
             MAGNETIC_MAX_PULL_PX,
             MAGNETIC_STRENGTH,
         );
@@ -185,12 +235,12 @@ mod wiring {
         {
             return;
         }
-        let current = active.borrow().clone();
-        let Some(current) = current else {
+        let current_element = active.borrow().as_ref().map(|entry| entry.element.clone());
+        let Some(current_element) = current_element else {
             return;
         };
-        if !related_within(event, &current) {
-            reset_offset(&current);
+        if !related_within(event, &current_element) {
+            reset_offset(&current_element);
             *active.borrow_mut() = None;
         }
     }

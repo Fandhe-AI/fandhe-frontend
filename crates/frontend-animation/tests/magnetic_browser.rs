@@ -10,7 +10,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use fandhe_frontend_animation::magnetic::{current_offset, write_offset};
+use fandhe_frontend_animation::magnetic::{rendered_offset, write_offset};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::HtmlElement;
@@ -85,12 +85,18 @@ fn write_offset_overwrites_previous_value() {
     );
 }
 
-/// [`current_offset`] は [`write_offset`] が書き込んだ値をそのまま読み戻す
-/// （Bugbot 指摘の是正、イシュー #2550: `getBoundingClientRect()` が返す
-/// transform 込みの矩形から本関数の戻り値を減算することで静止位置の中心を
-/// 復元できることの前提となる往復契約）。負値・0 を含む往復を固定する。
+/// magnetic 由来の `translate` のみを消費する `transform`（`cta_banner_magnetic`
+/// 実装が実際に適用する CSS と同型、`transition` なし）を設定した要素へ
+/// `write_offset` を適用すると、`transition` が無いため即座に描画へ反映
+/// され、[`rendered_offset`] が [`write_offset`] の値をそのまま返す
+/// （codex-review P1 指摘の是正、イシュー #2550: 「実際の描画上の移動量」
+/// を読む契約の回帰固定。`transition` 途中の値は本テストの対象外——実
+/// ブラウザで transition の中間フレームを決定的に捕捉する手段がないため、
+/// ここでは「transition が無い場合は即時反映される」という前提のみを
+/// 固定し、途中値の解析自体は native テスト
+/// `parse_transform_translation_*` が担う）。
 #[wasm_bindgen_test]
-fn current_offset_round_trips_write_offset() {
+fn rendered_offset_reflects_write_offset_without_transition() {
     let document = web_sys::window().unwrap().document().unwrap();
     let element = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&element).unwrap();
@@ -100,19 +106,34 @@ fn current_offset_round_trips_write_offset() {
         .clone()
         .dyn_into::<HtmlElement>()
         .expect("div must cast to HtmlElement");
+    html_element
+        .style()
+        .set_property(
+            "transform",
+            "translate(var(--fandhe-motion-magnetic-x, 0px), var(--fandhe-motion-magnetic-y, 0px))",
+        )
+        .unwrap();
 
-    write_offset(&html_element, 7.25, -3.5);
-    assert_eq!(current_offset(&html_element), (7.25, -3.5));
+    write_offset(&html_element, 7.0, -3.0);
+    let (x, y) = rendered_offset(&html_element);
+    assert!((x - 7.0).abs() < 1e-6, "x should reflect write_offset: {x}");
+    assert!(
+        (y - -3.0).abs() < 1e-6,
+        "y should reflect write_offset: {y}"
+    );
 
     write_offset(&html_element, 0.0, 0.0);
-    assert_eq!(current_offset(&html_element), (0.0, 0.0));
+    let (x, y) = rendered_offset(&html_element);
+    assert!((x).abs() < 1e-6, "x should reset to 0: {x}");
+    assert!((y).abs() < 1e-6, "y should reset to 0: {y}");
 }
 
-/// カスタムプロパティが未設定（`write_offset` 未呼び出し）の要素に対しては
-/// `current_offset` が `(0.0, 0.0)` へ fail-safe すること（新規要素へ最初に
-/// 進入した際にパニック・NaN 伝播しないことの回帰固定）。
+/// `transform` を一切適用していない要素（≒ magnetic opt-in の CSS 契約を
+/// 満たさない未整備の要素）に対しては `rendered_offset` が `(0.0, 0.0)` へ
+/// fail-safe すること（新規要素へ最初に進入した際にパニック・NaN 伝播し
+/// ないことの回帰固定）。
 #[wasm_bindgen_test]
-fn current_offset_defaults_to_zero_when_unset() {
+fn rendered_offset_defaults_to_zero_when_no_transform_applied() {
     let document = web_sys::window().unwrap().document().unwrap();
     let element = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&element).unwrap();
@@ -123,5 +144,5 @@ fn current_offset_defaults_to_zero_when_unset() {
         .dyn_into::<HtmlElement>()
         .expect("div must cast to HtmlElement");
 
-    assert_eq!(current_offset(&html_element), (0.0, 0.0));
+    assert_eq!(rendered_offset(&html_element), (0.0, 0.0));
 }

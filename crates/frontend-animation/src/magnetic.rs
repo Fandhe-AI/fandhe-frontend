@@ -118,48 +118,106 @@ pub fn write_offset(element: &web_sys::HtmlElement, x: f64, y: f64) {
 }
 
 /// [`write_offset`] が書き込む CSS カスタムプロパティ名（X 軸）。
-/// [`current_offset`] が同じ名前で読み戻すための唯一の正であり、両関数間
-/// でリテラル文字列を重複させない。
 pub const MAGNETIC_X_PROPERTY: &str = "--fandhe-motion-magnetic-x";
 /// [`write_offset`] が書き込む CSS カスタムプロパティ名（Y 軸）。
 pub const MAGNETIC_Y_PROPERTY: &str = "--fandhe-motion-magnetic-y";
 
-/// `element` へ直前に [`write_offset`] が書き込んだオフセット（インライン
-/// style の目標値。CSS `transition` による補間途中の描画値ではない）を
-/// 読み戻す。値が存在しない・`px` 単位以外・数値変換に失敗する場合は
-/// `(0.0, 0.0)` へ fail-safe する。
+/// `element` へ現在実際に適用されている `transform` の並行移動成分
+/// （`getComputedStyle(element).transform` の行列の e, f 成分）を読む。
 ///
-/// # 用途（Bugbot 指摘の是正、イシュー #2550）
+/// # 用途（codex-review P1 指摘の是正、イシュー #2550）
 ///
-/// `getBoundingClientRect()` は同要素へ適用中の `transform`
-/// （`--fandhe-motion-magnetic-x`/`-y` が駆動する）を含んだ矩形を返すため、
-/// 呼び出し側（`fandhe-frontend-wasm-full` の `magnetic` モジュール）が
-/// そのまま中心座標を使うと静止位置ではなく直前のオフセット分だけずれた
-/// 中心から次の引力を計算してしまう（トラッキング不足・ジッターの原因）。
-/// 本関数が返す値を矩形の中心から減算することで、インライン style が
-/// 目標としている静止位置（transition 完了後に収束する位置）の中心を
-/// 復元できる。resize・スクロールで矩形自体が変化しても本関数の戻り値は
-/// 影響を受けないため、再計測のたびに素直に呼び出すだけで安全（キャッシュ
-/// 無効化の管理が不要な設計）。
+/// 旧実装（`current_offset`、削除済み）はインライン style の目標値
+/// （[`write_offset`] が最後に書き込んだ値）を読み戻していたが、CSS
+/// `transition` が完了する前は「今まさに描画されている移動量」と目標値が
+/// 一致しない（例: 目標 9px・描画 2px の途中で `pointermove` が発火する
+/// と、中心が本来より 7px ずれて計算され次の引力が過大になる）。本関数は
+/// `getComputedStyle` を経由するため、transition が完了しているかに関わら
+/// ず常に「今の描画上の実際の移動量」を返す。
+///
+/// [`crate::magnetic`]（wasm-full 側の呼び出し元、
+/// `crates/wasm-full/src/magnetic.rs`）は opt-in 要素へポインタが**新しく
+/// 進入した瞬間に一度だけ**本関数を呼び、`getBoundingClientRect()` の
+/// 中心からこの値を差し引いた「静止位置の中心」をキャッシュしてから追跡を
+/// 開始する（イベントのタイミングに依存しない決定的な初期化。以降の
+/// `pointermove` はこのキャッシュを再利用し、`pointermove` ごとに本関数を
+/// 呼び直すことはしない——毎回呼び直すと同じ「補間途中の値を読んでしまう」
+/// 問題が再発するため）。
+///
+/// # 既知の制約
+///
+/// 呼び出し側が magnetic 由来の `translate` 以外の `transform`
+/// （`scale`/`rotate` 等）を同じ要素へ合成している場合、行列の e, f は
+/// magnetic の変位だけを表さなくなる。本クレート・
+/// `fandhe-frontend-wasm-full::magnetic` は opt-in 要素へ magnetic 由来の
+/// 並行移動のみが適用される前提を置き、この合成ケースはスコープ外とする
+/// （`data-fandhe-magnetic` opt-in の CSS 契約として利用者側が守るべき
+/// 前提、`crates/docs-site/src/blocks/cta_banner_magnetic.rs` の CSS 例を
+/// 正とする）。
+///
+/// `window`/`getComputedStyle` の呼び出し自体が失敗する・`transform` が
+/// `none`・行列の解析に失敗する場合は `(0.0, 0.0)` へ fail-safe する。
 #[cfg(target_arch = "wasm32")]
 #[must_use]
-pub fn current_offset(element: &web_sys::HtmlElement) -> (f64, f64) {
-    let style = element.style();
-    let parse = |raw: String| -> f64 {
-        raw.strip_suffix("px")
-            .and_then(|value| value.trim().parse::<f64>().ok())
-            .filter(|value| value.is_finite())
-            .unwrap_or(0.0)
+pub fn rendered_offset(element: &web_sys::HtmlElement) -> (f64, f64) {
+    let Some(window) = web_sys::window() else {
+        return (0.0, 0.0);
     };
-    let x = style
-        .get_property_value(MAGNETIC_X_PROPERTY)
-        .map(parse)
-        .unwrap_or(0.0);
-    let y = style
-        .get_property_value(MAGNETIC_Y_PROPERTY)
-        .map(parse)
-        .unwrap_or(0.0);
-    (x, y)
+    let Ok(Some(style)) = window.get_computed_style(element) else {
+        return (0.0, 0.0);
+    };
+    let Ok(transform) = style.get_property_value("transform") else {
+        return (0.0, 0.0);
+    };
+    parse_transform_translation(&transform)
+}
+
+/// `getComputedStyle().transform` が返す `"none"` / `"matrix(...)"` /
+/// `"matrix3d(...)"` 形式の文字列から並行移動成分 `(e, f)` を取り出す
+/// （[`rendered_offset`] の DOM 非依存の解析部分、native テストで検証
+/// する）。`matrix()` は 6 要素（`e`/`f` は 5・6 番目）、`matrix3d()` は
+/// 16 要素（`e`/`f` は 13・14 番目、`m41`/`m42`）。要素数の不一致・数値
+/// 変換の失敗・非有限値混入はいずれも `(0.0, 0.0)` へ fail-safe する。
+///
+/// 呼び出し元 [`rendered_offset`] は wasm32 専用だが、本関数自体は DOM に
+/// 依存しないため native テストで検証できるよう `cfg` を wasm32 単独では
+/// なく `test` も許容する（`crates/wasm-full/src/lib.rs` と同じ
+/// `cfg(any(test, target_arch = "wasm32"))` 慣用句）。
+#[cfg(any(test, target_arch = "wasm32"))]
+fn parse_transform_translation(value: &str) -> (f64, f64) {
+    let value = value.trim();
+    let parse_numbers = |inner: &str| -> Option<Vec<f64>> {
+        inner
+            .split(',')
+            .map(|part| {
+                let n: f64 = part.trim().parse().ok()?;
+                n.is_finite().then_some(n)
+            })
+            .collect()
+    };
+    if let Some(inner) = value
+        .strip_prefix("matrix3d(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        if let Some(numbers) = parse_numbers(inner) {
+            if numbers.len() == 16 {
+                return (numbers[12], numbers[13]);
+            }
+        }
+        return (0.0, 0.0);
+    }
+    if let Some(inner) = value
+        .strip_prefix("matrix(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        if let Some(numbers) = parse_numbers(inner) {
+            if numbers.len() == 6 {
+                return (numbers[4], numbers[5]);
+            }
+        }
+        return (0.0, 0.0);
+    }
+    (0.0, 0.0)
 }
 
 /// `window.matchMedia("(prefers-reduced-motion: reduce)")` を照会する。
@@ -182,7 +240,9 @@ pub fn detect_reduced_motion() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_pull, MAGNETIC_MAX_PULL_PX, MAGNETIC_STRENGTH};
+    use super::{
+        compute_pull, parse_transform_translation, MAGNETIC_MAX_PULL_PX, MAGNETIC_STRENGTH,
+    };
 
     #[test]
     fn compute_pull_is_zero_at_center() {
@@ -254,5 +314,51 @@ mod tests {
     fn default_constants_are_positive_and_finite() {
         assert!(MAGNETIC_STRENGTH.is_finite() && MAGNETIC_STRENGTH > 0.0);
         assert!(MAGNETIC_MAX_PULL_PX.is_finite() && MAGNETIC_MAX_PULL_PX > 0.0);
+    }
+
+    #[test]
+    fn parse_transform_translation_reads_matrix_e_f() {
+        // matrix(a, b, c, d, e, f)。e=9, f=-3.5 の並行移動。
+        assert_eq!(
+            parse_transform_translation("matrix(1, 0, 0, 1, 9, -3.5)"),
+            (9.0, -3.5)
+        );
+    }
+
+    #[test]
+    fn parse_transform_translation_reads_matrix3d_m41_m42() {
+        // matrix3d の 13・14 番目（0-indexed 12・13）が m41/m42（並行移動）。
+        let value = "matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, -6, 0, 1)";
+        assert_eq!(parse_transform_translation(value), (2.0, -6.0));
+    }
+
+    #[test]
+    fn parse_transform_translation_is_zero_for_none() {
+        assert_eq!(parse_transform_translation("none"), (0.0, 0.0));
+    }
+
+    #[test]
+    fn parse_transform_translation_is_zero_for_malformed_matrix() {
+        // 要素数が 6 に満たない matrix() は fail-safe で (0.0, 0.0)。
+        assert_eq!(
+            parse_transform_translation("matrix(1, 0, 0, 1)"),
+            (0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn parse_transform_translation_is_zero_for_unparseable_number() {
+        assert_eq!(
+            parse_transform_translation("matrix(1, 0, 0, 1, oops, 3)"),
+            (0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn parse_transform_translation_is_zero_for_unrecognized_function() {
+        assert_eq!(
+            parse_transform_translation("translate(9px, -3px)"),
+            (0.0, 0.0)
+        );
     }
 }

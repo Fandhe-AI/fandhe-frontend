@@ -12,6 +12,15 @@
 //! 責務境界どおり native テスト（`crates/frontend-animation/src/
 //! magnetic.rs`）で検証済みであり、本ファイルは実 DOM 上での配線
 //! （イベント委譲・要素解決・書き込み先の一致）のみを対象にする。
+//!
+//! # 静止位置の中心のキャッシュ回帰テスト（codex-review P1 指摘の是正）
+//!
+//! `magnetic_pull_uses_cached_rest_center_during_transition` は、CSS
+//! `transition` が完了する前（transform が補間途中）に 2 回目の
+//! `pointermove` が発火しても、1 回目の進入時に計測した静止位置の中心を
+//! 再利用し、`getBoundingClientRect()` を再計測しないことを固定する
+//! （固定しない場合、補間途中の矩形から中心を再計算してしまい、同じ
+//! ポインタ座標に対する引力が毎回変わってしまう）。
 
 #![cfg(target_arch = "wasm32")]
 #![cfg(feature = "magnetic")]
@@ -209,4 +218,91 @@ fn pointermove_outside_opted_in_element_resets_previous_target() {
         "opt-in 要素の外へ移動した際、前の対象がリセットされるはず"
     );
     assert_eq!(y, "0px");
+}
+
+/// `set_timeout` を `await` 可能にする（`add_to_basket_browser.rs::sleep_ms`
+/// と同型）。
+async fn sleep_ms(ms: i32) {
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        let window = web_sys::window().expect("window must exist in browser test");
+        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, ms);
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+}
+
+/// `build_dom` と異なり、`--fandhe-motion-magnetic-x`/`-y` を消費する
+/// `transform: translate(...)` + `transition`（実際の合成 block
+/// `cta_banner_magnetic.rs` の CSS と同型）を持つ DOM を組み立てる
+/// （モジュール doc「静止位置の中心のキャッシュ回帰テスト」節）。
+fn build_dom_with_transition(document: &Document, root_id: &str) -> (Element, Element) {
+    let (root, button) = build_dom(document, root_id);
+    let html_button = button
+        .clone()
+        .dyn_into::<HtmlElement>()
+        .expect("button must cast to HtmlElement for style access");
+    let style = html_button.style();
+    style
+        .set_property(
+            "transform",
+            "translate(var(--fandhe-motion-magnetic-x, 0px), var(--fandhe-motion-magnetic-y, 0px))",
+        )
+        .unwrap();
+    // 300ms という長めの duration にすることで、50ms 後のサンプリングが
+    // 確実に補間途中（transform が未完了）になるようにする（headless
+    // Chrome のフレームタイミング揺れに対する安全マージン）。
+    style
+        .set_property("transition", "transform 300ms linear")
+        .unwrap();
+    (root, button)
+}
+
+/// 静止位置の中心のキャッシュ回帰テスト（モジュール doc参照、codex-review
+/// P1 指摘の是正）。1 回目の `pointermove` で進入・中心をキャッシュした
+/// 直後、`transition` が完了する前（50ms 後、300ms duration の途中）に
+/// 同じクライアント座標へ再度 `pointermove` を発火しても、書き込まれる
+/// オフセットが 1 回目と完全に一致すること（補間途中の
+/// `getBoundingClientRect()` から中心を再計算していないことの証拠）を
+/// 固定する。
+#[wasm_bindgen_test]
+async fn magnetic_pull_uses_cached_rest_center_during_transition() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, button) = build_dom_with_transition(&document, "magnetic-root-6");
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_magnetic_with_reduced_motion(root.clone(), false)
+        .expect("wire_magnetic_with_reduced_motion must not fail");
+
+    // 1 回目の進入: 中心 (20, 20) に対し client (30, 20) → dx = 3.0, dy = 0.0。
+    dispatch_pointer_event(&button, "pointermove", "mouse", 30, 20);
+    let (x1, y1) = magnetic_offset(&button);
+    assert_eq!(x1, "3px");
+    assert_eq!(y1, "0px");
+
+    // transition（300ms）の途中（50ms 後）まで待つ。
+    sleep_ms(50).await;
+
+    // 同じクライアント座標へ再度 pointermove。キャッシュした中心を使う
+    // 限り、書き込み結果は 1 回目と完全に一致するはず（矩形を再計測して
+    // いれば、補間途中の transform を含む矩形から中心がずれ、異なる値に
+    // なる）。
+    dispatch_pointer_event(&button, "pointermove", "mouse", 30, 20);
+    let (x2, y2) = magnetic_offset(&button);
+    assert_eq!(
+        x2, x1,
+        "同一クライアント座標への再移動は transition 途中でも同じ dx を書き込むはず"
+    );
+    assert_eq!(
+        y2, y1,
+        "同一クライアント座標への再移動は transition 途中でも同じ dy を書き込むはず"
+    );
+
+    // 異なるクライアント座標（10, 20）へ移動しても、キャッシュした中心
+    // (20, 20) を基準に計算されるはず: dx = (10 - 20) * 0.3 = -3.0。
+    dispatch_pointer_event(&button, "pointermove", "mouse", 10, 20);
+    let (x3, y3) = magnetic_offset(&button);
+    assert_eq!(
+        x3, "-3px",
+        "キャッシュした中心を基準に新しいクライアント座標から引力を計算するはず"
+    );
+    assert_eq!(y3, "0px");
 }
