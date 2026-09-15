@@ -43,7 +43,7 @@
 | SVG path drawing（`pathLength` 等の線描画アニメーション） | C（`stroke-dashoffset` の連続更新を伴う場合）/ A（静的な `stroke-dasharray` + CSS transition で足りる場合） | A の範囲は pre-styled-ui で実装対象、C は `fandhe-frontend-animation` で実装対象 |
 | Ticker（Motion+） | C | evaluation-only（Phase 6、#2413/#2414/#2415） |
 | Carousel（Motion+） | B/C（ドラッグ・慣性を伴う場合は C） | evaluation-only（Phase 6） |
-| Cursor（Motion+） | C | evaluation-only（Phase 6） |
+| Cursor（Motion+） | C | **実装対象**（ユーザー確定 2026-09-14、イシュー #2542。confetti 行と同型の例外注記。`fandhe_frontend_pre_styled_ui::cursor` + `fandhe_frontend_wasm_full::cursor` + `fandhe_frontend_animation::cursor::CursorAnimator`） |
 | AnimateNumber（Motion+） | C（spring ベースのカウントアップ） | evaluation-only（Phase 6） |
 | Typewriter（Motion+） | C（`AnimationLoop`/`RafDriver` によるフレームループ） | 実装対象（ユーザー確定 2026-09-14、#2532）。`fandhe_frontend_pre_styled_ui::text_reveal::typewriter` + `fandhe_frontend_wasm_full::text_animation` |
 | ScrambleText（Motion+） | C（同上） | 実装対象（ユーザー確定 2026-09-14、#2532）。`fandhe_frontend_pre_styled_ui::text_reveal::scramble` + `fandhe_frontend_wasm_full::text_animation` |
@@ -80,6 +80,7 @@ TypeScript コード転写は行わない）。
 | nav の View Transitions ラッパ | `crates/wasm-full/src/nav.rs`（`document.startViewTransition` の機能検出・呼び出し、#404） | View Transitions API（Motion の `layout` とは別系統のブラウザ機能） | B |
 | named view transition CSS プリセット（fade/slide/wipe + curtains 残り 6〔iris/doors/shutter/blinds/strips/pixels〕+ mask 2〔mask-wipe/mask-radial〕、#2537） | `crates/pre-styled-ui/src/view_transition.rs`（`motion` feature 配下、#2516・#2537）・`crates/wasm-full/src/view_transition_preset.rs`（プリセット選択の属性配線） | Motion+ `Curtains` 相当（ページ全体の root 遷移、11 プリセット） | A |
 | confetti パーティクル物理・canvas 発火 | `crates/animation/src/confetti.rs`（決定的物理演算）・`crates/frontend-animation/src/{canvas_target,confetti}.rs`（canvas 2D 描画・rAF 駆動）・`crates/wasm-full/src/confetti.rs`（クリック委譲配線、#2533） | Motion+ `components/confetti` | C |
+| カスタムカーソル・ポインタ追従 | `crates/animation/src/spring.rs`（既存 spring ソルバを再利用）・`crates/frontend-animation/src/cursor.rs`（`CursorFollower`/`CursorAnimator`、spring 再構築・rAF 駆動）・`crates/wasm-full/src/cursor.rs`（hover 対象解決・`data-*` 写し配線、#2542）・`crates/pre-styled-ui/src/cursor.rs`（`motion` feature 配下、カーソル要素・CSS） | Motion+ `components/cursor` | C |
 
 ## 6. 3層構成（判断記録5/9の具体化）
 

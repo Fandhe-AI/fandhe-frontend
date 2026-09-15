@@ -80,7 +80,10 @@ name = "fandhe-frontend-animation"
 # イシュー #2532: `text_animation`（typewriter/scramble のフレーム計算・
 # DOM 書き込み）を新設した。`magnetic`/`svg_path` と同型の新規公開 API
 # 純追加のため minor バンプする。
-version = "0.12.0"
+# イシュー #2542: `cursor`（`CursorFollower`/`CursorAnimator`、カスタム
+# カーソルのポインタ追従 spring 演算・rAF 駆動）を新設した。`magnetic`/
+# `text_animation` と同型の新規公開 API 純追加のため minor バンプする。
+version = "0.13.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
