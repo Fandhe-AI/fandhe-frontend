@@ -1002,6 +1002,18 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test animate_browser
 
+      # イシュー #2519（親 #2508）: `wire_svg_path`（`data-fandhe-svg-path-draw`
+      # 属性の走査・opt-in 判定、`crates/wasm-full/src/svg_path.rs`）の実
+      # ブラウザ統合テスト（crates/wasm-full/tests/svg_path_browser.rs）。
+      # Bugbot 指摘是正: wasm-full の browser テストは他ステップと同様
+      # 明示 `--test` フィルタで個別列挙する運用のため、テストファイルを
+      # 追加しただけでは CI で実行されない。他の wasm-full ステップと同じ
+      # check-wasm-full 存在ガードを再利用し、新規ガードは追加しない
+      # （`svg-path` feature は既定 on のため `--features` 指定は不要）。
+      - name: Run wasm-full svg path browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test svg_path_browser
+
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
   # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が
@@ -2429,6 +2441,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,drag-gesture --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: confetti, issue #2533)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,confetti --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: svg-path, issue #2519)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,svg-path --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: hold-to-confirm, issue #2538)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,hold-to-confirm --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: add-to-basket, issue #2538)"

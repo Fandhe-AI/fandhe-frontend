@@ -50,11 +50,13 @@
 //! spring 復帰、イシュー #2535）・`prefers-reduced-motion` 判定ヘルパ
 //! （[`reduced_motion::prefers_reduced_motion`]）も実装済み。confetti
 //! （[`canvas_target::CanvasTarget`]・[`confetti::fire`]、canvas 2D
-//! 描画によるパーティクル発火、イシュー #2533）も実装済み。magnetic
-//! （[`magnetic::compute_pull`]・[`magnetic::write_offset`]、ポインタ追従
-//! オフセットの計算・CSS カスタムプロパティ書き込み、イシュー #2550）も
-//! 実装済み。FLIP / SVG
-//! path 等の残りの実装は Phase 4 の各後続 issue で追加する
+//! 描画によるパーティクル発火、イシュー #2533）も実装済み。SVG path
+//! drawing（[`svg_path::draw_path`]、`getTotalLength()` +
+//! `stroke-dashoffset` の WAAPI アニメーション、イシュー #2519）も
+//! 実装済み。magnetic（[`magnetic::compute_pull`]・
+//! [`magnetic::write_offset`]、ポインタ追従オフセットの計算・CSS
+//! カスタムプロパティ書き込み、イシュー #2550）も実装済み。FLIP 等の
+//! 残りの実装は Phase 4 の各後続 issue で追加する
 //! （`docs/design/animation-core-architecture.md` §6.2 参照）。
 
 pub mod animate;
@@ -66,6 +68,7 @@ pub mod magnetic;
 pub mod raf_driver;
 pub mod reduced_motion;
 pub mod scroll_driver;
+pub mod svg_path;
 
 // `fandhe-animation`（演算基幹）の型（`Keyframes`/`Keyframe` 等）は、本クレートの
 // `[dependencies]` にのみ存在し推移依存としてアプリの名前解決に公開されない。

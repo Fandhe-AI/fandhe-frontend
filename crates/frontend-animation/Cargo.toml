@@ -69,6 +69,14 @@ name = "fandhe-frontend-animation"
 # `getComputedStyle().transform` の行列から「今実際に描画されている移動量」
 # を読む新規公開関数 [`magnetic::rendered_offset`] へ置き換えた（公開関数
 # の削除を伴う破壊的変更のため minor バンプ）。
+#
+# base main 取り込み時のマージ注記: origin/main 側は独立に 0.7.0
+# （#2534 到達分と合流）→ 0.8.0（#2519、`svg_path` モジュール新設）へ
+# 到達していた。本ブランチ（#2550/#2572 是正）は独立に 0.10.0 へ到達して
+# おり、双方の到達値は異なる（0.8.0 ≠ 0.10.0）ため #638 条項の「同一版数の
+# 衝突」には該当しない。より高い到達値である本ブランチの 0.10.0 をそのまま
+# 維持する（`fandhe-frontend-wasm-full` の依存 version 要求は
+# `cargo run -p xtask -- check-dep-versions --fix` で 0.10.0 へ追随済み）。
 version = "0.10.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
@@ -158,6 +166,18 @@ web-sys = { version = "0.3", features = [
   # 既存 `web-sys` の feature 追加のみ）。
   "HtmlCanvasElement",
   "CanvasRenderingContext2d",
+  # イシュー #2519: `svg_path` モジュールが使う 3 feature を追加する。
+  # `SvgGeometryElement`（`getTotalLength()`、`<path>`/`<circle>` 等の
+  # 全長取得）・`SvgElement`（`.style()`、SVG 要素の `CssStyleDeclaration`
+  # 取得。`HtmlElement::style()` とは別型のため独立に必要）・
+  # `SvgAnimatedNumber`（`pathLength` 属性の `baseVal()` 読み取り。
+  # codex-review P1 是正: `pathLength` 指定パスは `getTotalLength()` の
+  # 実長ではなく `pathLength` の値を距離基準にする、`svg_path.rs`
+  # モジュール doc 参照）。新規外部パッケージの追加はない（既存
+  # `web-sys` の feature 追加のみ）。
+  "SvgGeometryElement",
+  "SvgElement",
+  "SvgAnimatedNumber",
 ] }
 wasm-bindgen-futures = "0.4"
 

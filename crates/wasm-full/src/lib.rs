@@ -217,6 +217,7 @@
 //! | `Runtime::wire_scroll_driver` | `scroll-driver` |
 //! | `Runtime::wire_drag_gesture` | `drag-gesture` |
 //! | `Runtime::wire_confetti` | `confetti` |
+//! | `Runtime::wire_svg_path` | `svg-path` |
 //! | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
 //! | `Runtime::wire_magnetic` | `magnetic` |
@@ -489,6 +490,8 @@ pub mod scroll_driver;
 pub mod sidebar;
 pub mod splitter;
 pub mod stagger_index;
+#[cfg(feature = "svg-path")]
+pub mod svg_path;
 pub mod tabs_indicator;
 pub mod tooltip;
 pub mod view_transition;
@@ -1541,6 +1544,8 @@ where
         Self::wire_drag_gesture(root.clone())?;
         #[cfg(feature = "confetti")]
         Self::wire_confetti(root.clone())?;
+        #[cfg(feature = "svg-path")]
+        Self::wire_svg_path(root.clone())?;
         #[cfg(feature = "hold-to-confirm")]
         Self::wire_hold_to_confirm(root.clone())?;
         #[cfg(feature = "add-to-basket")]
@@ -1735,6 +1740,8 @@ where
         Self::wire_drag_gesture(root.clone())?;
         #[cfg(feature = "confetti")]
         Self::wire_confetti(root.clone())?;
+        #[cfg(feature = "svg-path")]
+        Self::wire_svg_path(root.clone())?;
         #[cfg(feature = "hold-to-confirm")]
         Self::wire_hold_to_confirm(root.clone())?;
         #[cfg(feature = "add-to-basket")]
@@ -2746,6 +2753,19 @@ where
     #[cfg(feature = "confetti")]
     fn wire_confetti(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         confetti::wire_confetti(root)
+    }
+
+    /// SVG path drawing アニメーションの配線（[`svg_path::wire_svg_path`]、
+    /// イシュー #2519）を登録する。`dispatch` チャネルを持たない属性専用
+    /// 配線のため（`Self::wire_in_view`/`Self::wire_confetti` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`svg_path::wire_svg_path`] を伝播する（現状は常に `Ok(())`）。
+    #[cfg(feature = "svg-path")]
+    fn wire_svg_path(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        svg_path::wire_svg_path(&root)
     }
 
     /// hold-to-confirm（長押し確定）ボタンの配線
