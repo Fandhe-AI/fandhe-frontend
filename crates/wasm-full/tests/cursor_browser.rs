@@ -96,14 +96,18 @@ fn attr(element: &Element, name: &str) -> Option<String> {
 }
 
 #[wasm_bindgen_test]
-fn wiring_marks_root_active_and_cursor_hidden_initially() {
+fn wiring_does_not_mark_root_active_until_position_known() {
     let document = web_sys::window().unwrap().document().unwrap();
     let (root, cursor_el, _target) = build_dom(&document, "cursor-root-1");
     let _guard = RemoveOnDrop(root.clone());
 
     wire_cursor_with_env(root.clone(), false, false).expect("wire_cursor_with_env must not fail");
 
-    assert_eq!(attr(&root, CURSOR_ACTIVE_ATTR), Some(String::new()));
+    // 有効な座標がまだ無い配線直後は CURSOR_ACTIVE_ATTR を付与しない
+    // （ネイティブカーソルは隠さない）。PR #2583 レビュー指摘 P1: 無条件
+    // 付与すると、ネイティブカーソルだけが先に隠れカスタムカーソルは
+    // hidden のままという「両方消える」窓が生じていた。
+    assert_eq!(attr(&root, CURSOR_ACTIVE_ATTR), None);
     assert_eq!(attr(&cursor_el, CURSOR_STATE_ATTR), Some("hidden".into()));
 }
 
@@ -117,6 +121,9 @@ fn pointermove_over_target_copies_variant_and_label_to_cursor() {
 
     dispatch_pointer_event(&target, "pointermove", "mouse", 30, 20);
 
+    // 初回の有効な pointermove で CURSOR_ACTIVE_ATTR が付与される
+    // （カスタムカーソルの表示可能化と同時にネイティブカーソルを隠す）。
+    assert_eq!(attr(&root, CURSOR_ACTIVE_ATTR), Some(String::new()));
     assert_eq!(attr(&cursor_el, CURSOR_STATE_ATTR), Some("hover".into()));
     assert_eq!(attr(&cursor_el, CURSOR_VARIANT_ATTR), Some("ring".into()));
     assert_eq!(attr(&cursor_el, CURSOR_LABEL_ATTR), Some("View".into()));
@@ -174,6 +181,44 @@ fn pointerout_true_leave_hides_cursor() {
     dispatch_pointer_event(&target, "pointerout", "mouse", 999, 999);
 
     assert_eq!(attr(&cursor_el, CURSOR_STATE_ATTR), Some("hidden".into()));
+}
+
+/// Cursor Bugbot 指摘の回帰（PR #2583 レビュー）: 構造再描画でホバー中の
+/// 対象ノードが除去されると、ブラウザは `relatedTarget` を確定できない
+/// まま `pointerout` を発火させることがある。座標が `root` の矩形内に
+/// 留まっている限り、これを「真の離脱」と誤判定して `last_pointer` を
+/// クリアしてはならない（誤判定すると再描画後の位置復元が「位置不明」側
+/// へ倒れ、次の `pointermove` まで両カーソルとも消えたままになる）。
+#[wasm_bindgen_test]
+fn pointerout_without_related_target_but_within_root_bounds_is_ignored() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, cursor_el, target) = build_dom(&document, "cursor-root-12");
+    let _guard = RemoveOnDrop(root.clone());
+    let html_root = root
+        .clone()
+        .dyn_into::<HtmlElement>()
+        .expect("root must cast to HtmlElement for style access");
+    let style = html_root.style();
+    style.set_property("position", "absolute").unwrap();
+    style.set_property("left", "0px").unwrap();
+    style.set_property("top", "0px").unwrap();
+    style.set_property("width", "100px").unwrap();
+    style.set_property("height", "100px").unwrap();
+
+    wire_cursor_with_env(root.clone(), false, false).expect("wire_cursor_with_env must not fail");
+    dispatch_pointer_event(&target, "pointermove", "mouse", 20, 20);
+    assert_eq!(attr(&cursor_el, CURSOR_STATE_ATTR), Some("hover".into()));
+
+    // relatedTarget 未指定（`PointerEventInit` が既定で `None`）の
+    // pointerout。座標 (20, 20) は上記で広げた root の矩形内に留まる。
+    dispatch_pointer_event(&target, "pointerout", "mouse", 20, 20);
+
+    assert_eq!(
+        attr(&cursor_el, CURSOR_STATE_ATTR),
+        Some("hover".into()),
+        "relatedTarget 不明でも座標が root 内に留まっていれば離脱扱い\
+         しないはず"
+    );
 }
 
 #[wasm_bindgen_test]
@@ -287,6 +332,13 @@ async fn cursor_element_is_resynced_after_structural_rerender() {
         Some("hidden".into())
     );
 
+    // 再描画前にポインタ位置を確定させる（`last_pointer` を `Some` に
+    // する）。これが無いと再描画後も位置未知のままで
+    // `CURSOR_ACTIVE_ATTR` が付かないのは正しい挙動（本テストが検証
+    // したいのは「位置既知のまま再描画された場合に維持される」こと）。
+    dispatch_pointer_event(&old_target, "pointermove", "mouse", 30, 20);
+    assert_eq!(attr(&root, CURSOR_ACTIVE_ATTR), Some(String::new()));
+
     // 構造フォールバック再描画を模す: 旧要素を除去し、新しい
     // cursor_el/target を同じ root 直下へ追加する。
     root.remove_child(&old_cursor_el).unwrap();
@@ -310,9 +362,9 @@ async fn cursor_element_is_resynced_after_structural_rerender() {
     );
     assert_eq!(
         attr(&new_cursor_el, CURSOR_STATE_ATTR),
-        Some("hidden".into()),
-        "再解決された新しいカーソル要素は初期状態 hidden へ再初期化される\
-         はず"
+        Some("idle".into()),
+        "再描画時点でポインタ位置が既知だった場合、新しいカーソル要素は\
+         idle（可視）として再初期化されるはず"
     );
 
     dispatch_pointer_event(&new_target, "pointermove", "mouse", 30, 20);
@@ -328,8 +380,9 @@ async fn cursor_element_is_resynced_after_structural_rerender() {
     );
     assert_eq!(
         attr(&old_cursor_el, CURSOR_STATE_ATTR),
-        Some("hidden".into()),
-        "DOM から切り離された旧カーソル要素は更新され続けないはず"
+        Some("hover".into()),
+        "DOM から切り離された旧カーソル要素は除去直前の状態のまま更新され\
+         続けないはず"
     );
 }
 
@@ -339,10 +392,11 @@ async fn cursor_element_is_resynced_after_structural_rerender() {
 #[wasm_bindgen_test]
 async fn cursor_active_attr_is_removed_when_cursor_element_disappears() {
     let document = web_sys::window().unwrap().document().unwrap();
-    let (root, cursor_el, _target) = build_dom(&document, "cursor-root-11");
+    let (root, cursor_el, target) = build_dom(&document, "cursor-root-11");
     let _guard = RemoveOnDrop(root.clone());
 
     wire_cursor_with_env(root.clone(), false, false).expect("wire_cursor_with_env must not fail");
+    dispatch_pointer_event(&target, "pointermove", "mouse", 30, 20);
     assert_eq!(attr(&root, CURSOR_ACTIVE_ATTR), Some(String::new()));
 
     root.remove_child(&cursor_el).unwrap();

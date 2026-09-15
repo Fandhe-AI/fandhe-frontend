@@ -151,9 +151,16 @@ mod wiring {
         mouse.related_target()?.dyn_into::<Element>().ok()
     }
 
-    /// `relatedTarget` が `boundary`（含む）配下に留まっているか。
-    fn related_within(event: &Event, boundary: &Element) -> bool {
-        related_target_element(event).is_some_and(|related| boundary.contains(Some(&related)))
+    /// `event` の `clientX`/`clientY` が `boundary` の矩形内にあるか
+    /// （`PointerEvent` でない場合は判定不能として `false`）。
+    fn pointer_within_rect(event: &Event, boundary: &Element) -> bool {
+        let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
+            return false;
+        };
+        let rect = boundary.get_bounding_client_rect();
+        let x = f64::from(pointer_event.client_x());
+        let y = f64::from(pointer_event.client_y());
+        x >= rect.left() && x <= rect.right() && y >= rect.top() && y <= rect.bottom()
     }
 
     /// `root` 配下・[`CURSOR_TARGET_SELECTOR`] に一致する最も近い祖先
@@ -184,6 +191,15 @@ mod wiring {
     /// 書き換え抑制のみを意図しており、hidden→idle の遷移自体は
     /// hover 対象の同一性とは独立に必要なため。イシュー #2542 レビュー
     /// 指摘: 初回移動・再入場時にカーソルが表示されない不具合の修正）。
+    ///
+    /// `root` に [`super::CURSOR_ACTIVE_ATTR`] が未付与（初回 mount/hydrate
+    /// で有効な座標がまだ無かった場合、`resync_cursor_element` が付与を
+    /// 見送っている）ならここで付与する。ネイティブカーソルを隠す
+    /// `!important` の CSS フックは、有効な座標が判明しカスタムカーソルが
+    /// 表示可能になった瞬間にのみ有効化する（PR #2583 レビュー指摘 P1 の
+    /// 是正: 座標未確定のまま `CURSOR_ACTIVE_ATTR` を付与すると、ネイティブ
+    /// カーソルだけが即座に隠れカスタムカーソルは `hidden` のままという
+    /// 「両方消える」窓が生じていた）。
     fn handle_pointermove(
         root: &Element,
         state: &CursorStateSlot,
@@ -205,6 +221,10 @@ mod wiring {
         else {
             return;
         };
+        if !root.has_attribute(super::CURSOR_ACTIVE_ATTR) {
+            crate::dom::set_dom_attribute(root, super::CURSOR_ACTIVE_ATTR, "");
+        }
+
         let hover_target =
             event_target_element(event).and_then(|target| resolve_cursor_target(root, &target));
 
@@ -255,8 +275,20 @@ mod wiring {
         *last_pointer.borrow_mut() = Some((x, y));
     }
 
-    /// `pointerout`: `root` からの真の離脱（`related_within` が false）で
-    /// カーソルを隠し追跡を解除する。タッチ由来のポインタは除外する。
+    /// `pointerout`: `root` からの真の離脱で追跡を解除する。タッチ由来の
+    /// ポインタは除外する。
+    ///
+    /// 離脱判定は原則 `relatedTarget` が `root` 配下に留まっているかで
+    /// 行うが、`relatedTarget` が取得できない場合
+    /// （`Event::related_target()` が `None`）は座標フォールバック
+    /// （[`pointer_within_rect`]）で判定する。DOM 再描画で hover 対象
+    /// ノードが除去された瞬間、ブラウザは `relatedTarget` を確定できない
+    /// まま `pointerout` を発火させることがあり、これを無条件に「真の
+    /// 離脱」と扱うと、ポインタが `root` 内に留まっているのに
+    /// `last_pointer` がクリアされて再描画後のカーソル復元
+    /// （`resync_cursor_element`）が「位置不明」側へ倒れ、次の
+    /// `pointermove` まで両カーソルとも消えたままになる（Cursor Bugbot
+    /// 指摘、PR #2583 レビュー）。
     fn handle_pointerout(
         root: &Element,
         state: &CursorStateSlot,
@@ -270,7 +302,11 @@ mod wiring {
         {
             return;
         }
-        if !related_within(event, root) {
+        let left_root = match related_target_element(event) {
+            Some(related) => !root.contains(Some(&related)),
+            None => !pointer_within_rect(event, root),
+        };
+        if left_root {
             let state_ref = state.borrow();
             if let Some(CursorState { cursor_el, .. }) = state_ref.as_ref() {
                 crate::dom::set_dom_attribute(cursor_el, CURSOR_STATE_ATTR, "hidden");
@@ -291,13 +327,17 @@ mod wiring {
     ///
     /// `last_pointer` が `Some((x, y))`（＝再描画の瞬間もポインタが
     /// `root` 配下に留まっていた）場合、新しい要素・`CursorAnimator` を
-    /// その座標で即座に可視化する（`CursorAnimator::move_to` の初回
-    /// 呼び出しは spring を経由せず直接スナップするため、次の
+    /// その座標で即座に可視化し、[`super::CURSOR_ACTIVE_ATTR`] も同時に
+    /// 付与してネイティブカーソルを隠す（`CursorAnimator::move_to` の
+    /// 初回呼び出しは spring を経由せず直接スナップするため、次の
     /// `pointermove` を待たずに正しい位置へ表示できる）。`None`
-    /// （ポインタが `root` の外にいる／位置が未知）の場合のみ従来どおり
-    /// `hidden` のまま次の `pointermove` を待つ（PR #2583 レビュー指摘
-    /// P1-1 の是正: 無条件 `hidden` のままだとポインタ静止中は両カーソル
-    /// とも消えたまま復元されなかった）。
+    /// （ポインタが `root` の外にいる／位置が未知）の場合は
+    /// [`super::CURSOR_ACTIVE_ATTR`] を付与しない（＝ネイティブカーソルを
+    /// 隠さない）まま `hidden` で次の `pointermove` を待つ
+    /// （`handle_pointermove` が有効な座標を得た時点で付与する。PR #2583
+    /// レビュー指摘 P1 の是正: 座標未確定のまま無条件付与すると、ネイティブ
+    /// カーソルだけが先に隠れカスタムカーソルは `hidden` のままという
+    /// 「両方消える」窓が生じていた）。
     fn resync_cursor_element(
         root: &Element,
         state: &CursorStateSlot,
@@ -322,8 +362,10 @@ mod wiring {
 
         match resolved {
             Some(cursor_el) => {
-                crate::dom::set_dom_attribute(root, super::CURSOR_ACTIVE_ATTR, "");
                 let restore_position = *last_pointer.borrow();
+                if restore_position.is_some() {
+                    crate::dom::set_dom_attribute(root, super::CURSOR_ACTIVE_ATTR, "");
+                }
                 let initial_state = if restore_position.is_some() {
                     "idle"
                 } else {
