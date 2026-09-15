@@ -699,6 +699,7 @@ const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "motion",
     "recipe",
     "stylesheet",
+    "text_reveal",
     "theme",
     "view_transition",
 ];
@@ -1079,8 +1080,12 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        128,
-        "src/*.rs の総数が想定と異なります（イシュー #2516 で \
+        129,
+        "src/*.rs の総数が想定と異なります（イシュー #2532 で \
+         text_reveal.rs を新設し 128 → 129。`motion` feature 配下の \
+         text アニメーション部品（split-text reveal / typewriter / scramble）\
+         で単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類\
+         （`border_beam`/`motion` と同型）。イシュー #2516 で \
          view_transition.rs を新設し 127 → 128。`motion` feature 配下の \
          named view transition CSS プリセット（fade/slide/wipe）で単体の \
          Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類（`border_beam`/\

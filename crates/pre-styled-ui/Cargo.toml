@@ -3481,7 +3481,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # minor バンプする。本ブランチは同じ merge base（0.202.0）から独立に
 # 0.203.0 へ到達しており origin/main（#2566 の 0.203.0）と同一版数のため、
 # 同じ版数のまま据え置かず +1 した 0.204.0 とする（同衝突運用）。
-version = "0.204.0"
+#
+# イシュー #2532: `text_reveal`（`motion` feature 配下）を追加した。
+# split-text reveal（`chars`/`words`）・typewriter/scramble opt-in マーカー
+# （`TEXT_REVEAL_CSS`/`Theme::to_css_with_text_reveal`）を新規公開 API として
+# 純追加したのみで、無効時の出力・依存グラフは不変（`tests/motion_zero_cost.rs`
+# 不変）。#2516/#2545/#2534 と同型のため minor バンプする。
+version = "0.205.0"
 
 
 edition = "2021"
