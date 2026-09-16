@@ -758,6 +758,8 @@ pub mod calendar;
 pub mod callout;
 pub mod card;
 pub mod carousel;
+#[cfg(feature = "motion")]
+pub mod carousel_motion;
 pub mod charts;
 pub mod checkbox;
 pub mod checkbox_card;
