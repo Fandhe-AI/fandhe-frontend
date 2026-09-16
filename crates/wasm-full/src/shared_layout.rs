@@ -88,6 +88,63 @@
 /// オプトイン」参照）。
 pub const LAYOUT_ID_ATTR: &str = "data-fandhe-layout-id";
 
+/// [`LAYOUT_ID_ATTR`] の値を `view-transition-name` の名前空間付き最終文字列
+/// `fandhe-shared-<root_id>-<id>` の**末尾部品**として書き込んでよいかを
+/// 判定する（`wiring::assign_transition_names` 専用、Cursor Bugbot 指摘
+/// 是正・イシュー #2578「VT naming rejects valid layout ids」）。
+///
+/// 検証対象は「実際に書き込む最終文字列」の構造に合わせる。固定接頭辞
+/// `fandhe-shared-<数字>-` が (1) 先頭が ASCII 小文字であること、(2)
+/// `none`/`auto` 等の CSS 予約語と一致しないこと、を構造的に保証するため、
+/// `id` 側に課すのは「空でなく、CSS `<custom-ident>` として追加エスケープ
+/// なしに安全な ASCII 英数字・`-`・`_` のみから成る」ことだけでよい。旧
+/// 実装は生の `id` へ [`crate::view_transition_name::
+/// is_valid_view_transition_name`]（先頭小文字・kebab-case 限定の許可
+/// リスト）を適用しており、`cardHero`/`item_3` のような camelCase・下線
+/// 付き id を不当に拒否していた（JS FLIP 経路〔`play_after`〕は同じ id を
+/// 受け付けるため、`rerender`/非対応ブラウザでは動くのに
+/// `apply_with_view_transition` の UA 委譲経路だけページ全体遷移へ落ちる
+/// 不整合）。空白・`;`・`}`・引用符・非 ASCII 等は引き続き拒否する
+/// （fail-closed。`set_property` は CSS テキストを連結しないが、許可
+/// リスト方針は `view_transition_name.rs` と同じく維持する）。
+#[must_use]
+pub fn is_valid_shared_layout_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+#[cfg(test)]
+mod id_tests {
+    use super::is_valid_shared_layout_id;
+
+    #[test]
+    fn accepts_camel_case_underscore_and_kebab_ids() {
+        for id in ["cardHero", "item_3", "hero-image", "A1", "x"] {
+            assert!(is_valid_shared_layout_id(id), "{id} は受理されるべき");
+        }
+    }
+
+    #[test]
+    fn rejects_empty_whitespace_and_css_delimiters() {
+        for id in [
+            "",
+            " ",
+            "a b",
+            "a;b",
+            "a}b",
+            "a\"b",
+            "a'b",
+            "a:b",
+            "日本語",
+            "a/b",
+        ] {
+            assert!(!is_valid_shared_layout_id(id), "{id:?} は拒否されるべき");
+        }
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::LAYOUT_ID_ATTR;
@@ -202,12 +259,15 @@ mod wiring {
     /// 必要がある。`crate::view_transition::with_view_transition` の
     /// `preset`（`view-transition-preset` 属性）と同じ制約）。
     ///
-    /// [`crate::view_transition_name::is_valid_view_transition_name`] の
-    /// 許可リストを満たさない id は書き込まない（fail-closed。書き込まれ
-    /// なかった id は従来どおり UA からは無名要素として扱われ、ページ
-    /// 全体遷移にフォールバックする、fail-safe）。この検証関数は feature
-    /// `"view-transition-name"` の有無に関わらず常時コンパイルされるため
-    /// （同モジュール doc参照）、本関数はその feature に依存しない
+    /// [`super::is_valid_shared_layout_id`] を満たさない id は書き込まない
+    /// （fail-closed。書き込まれなかった id は従来どおり UA からは無名要素
+    /// として扱われ、ページ全体遷移にフォールバックする、fail-safe）。検証
+    /// は実際に書き込む名前空間付き最終文字列の構造（固定接頭辞が先頭
+    /// 小文字・予約語回避を保証する）に合わせてあり、生の id へ
+    /// `view_transition_name::is_valid_view_transition_name` の kebab-case
+    /// 限定リストを適用して camelCase・下線付き id を不当に拒否していた
+    /// 旧実装の不整合（Cursor Bugbot 指摘、イシュー #2578）を是正済み。
+    /// 本関数は feature `"view-transition-name"` に依存しない
     /// （`layout-animation` 単体構成でも動作する）。
     ///
     /// # 旧要素の名前復元
@@ -247,7 +307,7 @@ mod wiring {
             if !seen.insert(id.clone()) {
                 continue;
             }
-            if !crate::view_transition_name::is_valid_view_transition_name(&id) {
+            if !super::is_valid_shared_layout_id(&id) {
                 continue;
             }
             current.insert(id, element);
@@ -509,6 +569,32 @@ mod wiring {
                 .style()
                 .get_property_value("view-transition-name")
                 .unwrap()
+        }
+
+        /// Cursor Bugbot 指摘是正回帰テスト（イシュー #2578「VT naming
+        /// rejects valid layout ids」）: camelCase・下線付きの id にも名前
+        /// 空間付き `view-transition-name` が書き込まれ、CSS 区切り文字を
+        /// 含む id は引き続き拒否される。
+        #[wasm_bindgen_test]
+        fn camel_case_and_underscore_ids_receive_transition_names() {
+            let root = make_root();
+            let camel = make_layout_element(&root, "cardHero");
+            let underscore = make_layout_element(&root, "item_3");
+            let invalid = make_layout_element(&root, "a;b");
+            assign_transition_names(&root);
+            assert!(
+                transition_name(&camel).ends_with("-cardHero"),
+                "camelCase id にも名前空間付きの名前が付与されるはず"
+            );
+            assert!(
+                transition_name(&underscore).ends_with("-item_3"),
+                "下線付き id にも名前空間付きの名前が付与されるはず"
+            );
+            assert!(
+                transition_name(&invalid).is_empty(),
+                "CSS 区切り文字を含む id は拒否されるはず（fail-closed）"
+            );
+            root.remove();
         }
 
         #[wasm_bindgen_test]
