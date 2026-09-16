@@ -198,8 +198,15 @@ mod wiring {
     /// `data-part` と一致）。
     const ITEM_GROUP_SELECTOR: &str = "[data-scope=\"carousel\"][data-part=\"item-group\"]";
     /// `item-group` 配下の `item` 一覧を数える・先頭要素を計測するための
-    /// セレクタ。
-    const ITEM_SELECTOR: &str = "[data-scope=\"carousel\"][data-part=\"item\"]";
+    /// セレクタ。`:scope >` で直接の子のみに限定する（Cursor Bugbot 指摘
+    /// 是正「ネスト carousel で slide_count 誤検知」、イシュー #2541 第 4
+    /// ラウンド）。anatomy 上 `item` は `item-group` の直接の子である
+    /// （`crates/headless-ui/src/carousel.rs` 参照）ため、スコープなしの
+    /// `query_selector_all` は「carousel の `item` の中に、別の carousel
+    /// が丸ごと入れ子で存在する」構成で内側 carousel の `item` まで
+    /// 巻き込んで数えてしまい、`slide_count` の誤検知・計測対象
+    /// （`first_item`）の誤接続を招いていた。
+    const ITEM_SELECTOR: &str = ":scope > [data-scope=\"carousel\"][data-part=\"item\"]";
     /// `next-trigger`/`prev-trigger`/`indicator` を `closest()` で判定する
     /// ためのセレクタ（モジュール doc「settle 完了を待たず release 時に
     /// 即 dispatch する」節参照）。クリックでこれら操作 UI が押された
@@ -423,26 +430,25 @@ mod wiring {
         )?;
         pointerdown_closure.forget();
 
-        // `pointermove` も `root` に加え `window` に登録する（Cursor Bugbot
-        // 指摘 是正「Moves lost before pointer capture」、イシュー #2541）。
-        // pointer capture は `CLICK_GUARD_PX` を超えるまで確定しない
+        // `pointermove` は `root` ではなく `window` にのみ登録する
+        // （codex-review 指摘 是正「同一イベントの二重処理」、イシュー
+        // #2541 第 4 ラウンド）。以前は `root`/`window` 双方に同じ closure
+        // を登録していたが、`root` 内で発生した `pointermove` はバブル
+        // フェーズで `root`（1 回目）→ `window`（2 回目）の順に同一
+        // closure を 2 回呼び出す。`CarouselTrack::on_pointer_move` は
+        // 呼ばれるたびに `previous_sample`/`latest_sample` を更新する
+        // ため、2 回目の呼び出しでは両サンプルが同一座標・同一時刻になり
+        // `estimate_velocity` が常に 0 を返し、通常のフリック操作で速度に
+        // 応じた着地判定が機能しなくなっていた。`window` は文書内の任意の
+        // 要素で発生したイベントも常にバブルで受け取る（`root` が
+        // `window` の子孫であるため `root` 単独の登録は冗長かつ有害）ため、
+        // pointer capture 確定前に `root` の外へ出たフリックの取りこぼし
         // （モジュール doc「ドラッグ確定前は pointer capture しない」節）
-        // ため、素早いフリックで指が `root` の外へ出てから閾値を超えると、
-        // `root` 単独の委譲登録では以降の `pointermove` が実際の
-        // ヒットテスト対象（`root` の外）へ配信され取りこぼす——進行度が
-        // 更新されないまま release され、意図した方向とは逆に元の位置へ
-        // 戻ってしまう。`handle_pointermove` は `pointer_id` をキーに
-        // [`find_active_slot`] で引くため、`root`/`window` 双方から同じ
-        // イベントが届いても（`root` が `window` の子孫の場合）2 回目は
-        // 同じ状態へ同じ値を書き込むだけで安全に冪等。
+        // も `window` 単独の登録で引き続き防げる。
         let pointermove_registry = registry.clone();
         let pointermove_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_pointermove(&event, &pointermove_registry);
         });
-        root.add_event_listener_with_callback(
-            "pointermove",
-            pointermove_closure.as_ref().unchecked_ref(),
-        )?;
         if let Some(window) = web_sys::window() {
             let _ = window.add_event_listener_with_callback(
                 "pointermove",
@@ -608,14 +614,36 @@ mod wiring {
         // pointer capture はまだ行わない（モジュール doc「ドラッグ確定前は
         // pointer capture しない」節参照）。移動閾値を超えた最初の
         // `pointermove` で `captured` を立てて実行する。
-        let mut new_track = CarouselTrack::attach(item_group.clone(), slide_count, loop_);
         let coord = if vertical {
             f64::from(pointer_event.client_y())
         } else {
             f64::from(pointer_event.client_x())
         };
-        new_track.on_pointer_down(coord, event.time_stamp());
-        *track.borrow_mut() = Some(new_track);
+        // 既存 `CarouselTrack` があれば破棄せず再利用する（codex-review
+        // 指摘 是正「収束中タップで確定 index が失われる」、イシュー
+        // #2541 第 4 ラウンド）。毎回 `CarouselTrack::attach` で新規
+        // 生成すると `last_target`（直前に確定した着地 index）が失われ、
+        // settle 未完了の状態へ移動なしのタップが来た際
+        // （`handle_pointer_release` の `on_tap_release`）確定済みの
+        // 着地先を復元できなくなる。
+        let mut track_guard = track.borrow_mut();
+        match track_guard.as_mut() {
+            Some(existing) => {
+                existing.resume_pointer_down(
+                    item_group.clone(),
+                    slide_count,
+                    loop_,
+                    coord,
+                    event.time_stamp(),
+                );
+            }
+            None => {
+                let mut new_track = CarouselTrack::attach(item_group.clone(), slide_count, loop_);
+                new_track.on_pointer_down(coord, event.time_stamp());
+                *track_guard = Some(new_track);
+            }
+        }
+        drop(track_guard);
 
         let _ = set_dom_attribute(&carousel_root, CAROUSEL_DRAGGING_STATE_ATTR, "");
         *drag.borrow_mut() = Some(DragMeta {
@@ -778,19 +806,28 @@ mod wiring {
         // ため、切断前の位置を控えておく（モジュール doc「release 時の
         // 再描画後も表示中の DOM で spring を継続する」節参照）。
         let carousel_position = position_of_carousel_root(root, &meta.carousel_root);
-        let target = t.on_release(event.time_stamp(), meta.slide_px, move |_index| {
-            let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
-        });
-        drop(track_guard);
         // `CLICK_GUARD_PX` 未満の移動しかないタップは `"goto"` を
         // dispatch しない（codex-review 指摘 是正「ドラッグしていない
-        // タップでは goto を dispatch しない」、イシュー #2541）。
-        // `t.on_release` 自体は呼び続ける（progress が origin からわずかに
-        // ずれ得るため、正規 index への spring 収束・完了時の
-        // `CAROUSEL_DRAGGING_STATE_ATTR` 除去は通常どおり必要）が、
-        // 同期 dispatch による `apply_subtree_swap` を避けることで、
-        // スライド内のリンク/ボタンへの後続 `click` が押下対象の切断で
-        // 失われるのを防ぐ（通常のタップ動作を壊さない契約）。
+        // タップでは goto を dispatch しない」、イシュー #2541）だけでなく、
+        // 着地先の**計算方法自体**も分ける（codex-review 指摘 是正
+        // 「収束中タップで確定 index が失われる」、イシュー #2541 第 4
+        // ラウンド）。`pointerdown`（[`resume_pointer_down`]）が settle
+        // 未完了の spring を打ち切った直後に無移動タップされると、通常の
+        // `t.on_release` は中断時点の途中経過進行度から新たに最寄り index
+        // を計算してしまい、既に確定済み（`"goto"` dispatch 済み）の
+        // 状態と表示が食い違う。[`CarouselTrack::on_tap_release`] は
+        // 直前に確定していた着地 index へ収束し直すため、状態と表示が
+        // 一致し続ける。
+        let target = if meta.moved {
+            t.on_release(event.time_stamp(), meta.slide_px, move |_index| {
+                let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
+            })
+        } else {
+            t.on_tap_release(move |_index| {
+                let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
+            })
+        };
+        drop(track_guard);
         if meta.moved {
             (on_action.borrow_mut())(ActionRef {
                 action: action_name,

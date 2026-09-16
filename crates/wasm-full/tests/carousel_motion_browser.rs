@@ -666,3 +666,66 @@ async fn pointerup_outside_root_before_capture_is_recovered_via_window() {
         "a fresh pointerdown must be accepted after the recovered release"
     );
 }
+
+/// codex-review 指摘 是正の回帰（イシュー #2541 第 4 ラウンド）: settle
+/// アニメーション（収束中の spring）を移動なしのタップ（`pointerdown` →
+/// 即 `pointerup`）で中断しても、確定済みの着地 index（release 時に既に
+/// `"goto"` dispatch 済み）とは異なる index へ視覚的に収束してはならない。
+/// 是正前は `pointerdown` のたびに `CarouselTrack::attach` で新規
+/// インスタンスを生成しており、中断時点の途中経過進行度から最寄り index
+/// を再計算してしまっていた（`last_target` が失われるため）。
+#[wasm_bindgen_test]
+async fn tap_during_settle_resumes_to_committed_target() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, item_group) = build_dom(&document, Some("loop"));
+    let _guard = RemoveOnDrop(root.clone());
+
+    let dispatched: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let dispatched_for_cb = dispatched.clone();
+    wire_carousel_motion_events(root.clone(), move |action_ref: ActionRef| {
+        dispatched_for_cb.borrow_mut().push(action_ref);
+    })
+    .unwrap();
+
+    // 右へ 60px ドラッグ（進行度 -0.6、3 スライド loop で末尾 index 2 へ
+    // 折り返す）。release まで 150ms 待って速度を陳腐化させ
+    // （`crate::drag::STALE_VELOCITY_THRESHOLD_MS` = 100ms）、着地 index が
+    // 進行度の丸めのみで決定的に 2 になるようにする（本テストの再現条件を
+    // 速度の推定タイミング揺れから独立させるため）。
+    dispatch_pointer_event(&item_group, "pointerdown", 0, 1);
+    dispatch_pointer_event(&item_group, "pointermove", 60, 1);
+    sleep_ms(150).await;
+    dispatch_pointer_event(&item_group, "pointerup", 60, 1);
+    assert_eq!(
+        dispatched.borrow().len(),
+        1,
+        "drag release must dispatch goto exactly once"
+    );
+    assert_eq!(dispatched.borrow()[0].payload, "2");
+
+    // settle（spring 収束）がまだ完了していないタイミングで、移動なしの
+    // タップ（別ポインタ）を割り込ませる。
+    sleep_ms(100).await;
+    dispatch_pointer_event(&item_group, "pointerdown", 60, 2);
+    dispatch_pointer_event(&item_group, "pointerup", 60, 2);
+
+    // タップは "goto" を再 dispatch しない。
+    assert_eq!(
+        dispatched.borrow().len(),
+        1,
+        "a non-moving tap must not dispatch goto again"
+    );
+
+    sleep_ms(2_000).await;
+
+    let final_value = read_index(&item_group).expect("progress must remain written after settle");
+    assert!(
+        (final_value - 2.0).abs() < 0.01,
+        "tap during settle must resume converging on the already-committed index 2, not a value \
+         derived from the interrupted mid-flight progress: {final_value}"
+    );
+    assert!(
+        !root.has_attribute(CAROUSEL_DRAGGING_STATE_ATTR),
+        "dragging state attribute should be cleared once the resumed settle completes"
+    );
+}

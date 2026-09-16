@@ -88,6 +88,32 @@ pub fn snap_target(
     }
 }
 
+/// `settle_to` へ渡す spring の初速を決める（[`CarouselTrack::on_release`]
+/// から分離した純粋関数、host target でもテスト可能にするため
+/// [`snap_target`] と同じ配置にする）。
+///
+/// loop 境界をまたぐと [`CarouselTrack::settle_to`] は常に「長い経路」
+/// （`to` は実在 index そのもの、同メソッド doc 参照）で収束するため、
+/// 生のドラッグ速度がその経路と逆向きだと spring は一旦ドラッグ方向
+/// （経路と逆）へ余分に振れてから引き戻される遠回りのオーバーシュートを
+/// 起こす（Cursor Bugbot 指摘 是正、イシュー #2541 第 4 ラウンド）。速度の
+/// 符号が実際の移動方向（`to - progress`）と矛盾する場合のみ初速を `0.0`
+/// とし、素直に `to` へ収束させる。方向が一致する・どちらかが `0.0`
+/// （移動不要、または速度なし）の場合は元の速度をそのまま使う。
+#[must_use]
+pub fn clamp_initial_velocity(
+    progress: f64,
+    target_index: usize,
+    velocity_slides_per_s: f64,
+) -> f64 {
+    let travel_direction = target_index as f64 - progress;
+    if velocity_slides_per_s * travel_direction < 0.0 {
+        0.0
+    } else {
+        velocity_slides_per_s
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use std::cell::Cell;
@@ -202,6 +228,12 @@ mod wiring {
             self.element = new_element;
             if let Some(target) = self.last_target {
                 if self.settling.get() {
+                    // 差し替え直後、次の rAF tick が発火するまでの 1 フレーム
+                    // 分、新要素は再描画時の SSR ベースライン値（確定済み
+                    // index）を表示してしまう（Cursor Bugbot 指摘 是正、
+                    // イシュー #2541）。tick を待たず現在の途中経過値を
+                    // 即座に書き込み、視覚的なフラッシュを防ぐ。
+                    self.write_progress(self.progress.get());
                     self.settle_to(target, 0.0, on_settle);
                 }
             }
@@ -230,6 +262,33 @@ mod wiring {
                 },
                 time_ms,
             ));
+        }
+
+        /// 既存インスタンスを次のドラッグセッションへ再利用するための
+        /// `pointerdown` 相当の入力（codex-review 指摘 是正、イシュー
+        /// #2541 第 4 ラウンド）。
+        ///
+        /// `element`/`slide_count`/`loop_` を最新の DOM 解決結果へ同期
+        /// しつつ、[`Self::last_target`]（直前に確定した着地 index）は
+        /// 保持したまま [`Self::on_pointer_down`] と同じ入力処理を行う。
+        /// 呼び出し側（wasm-full）が pointerdown のたびに [`Self::attach`]
+        /// で新規インスタンスを生成すると `last_target` が失われ、
+        /// settle 未完了で中断された直後に移動なしのタップ（[`Self::
+        /// on_tap_release`]）が来た際、確定済みの着地先ではなく中断時点の
+        /// 進行度から着地 index を再計算してしまい、既に確定した状態
+        /// （dispatch 済みの index）と表示が食い違う不具合があった。
+        pub fn resume_pointer_down(
+            &mut self,
+            item_group: HtmlElement,
+            slide_count: usize,
+            loop_: bool,
+            client_x: f64,
+            time_ms: f64,
+        ) {
+            self.element = item_group;
+            self.slide_count = slide_count;
+            self.loop_ = loop_;
+            self.on_pointer_down(client_x, time_ms);
         }
 
         /// `pointermove` 相当の入力。`slide_px`（1 スライド分の幅/高さ、
@@ -296,7 +355,25 @@ mod wiring {
                 self.slide_count,
                 self.loop_,
             );
-            self.settle_to(target, velocity_slides_s, on_settle);
+            let initial_velocity =
+                super::clamp_initial_velocity(self.progress.get(), target, velocity_slides_s);
+            self.settle_to(target, initial_velocity, on_settle);
+            target
+        }
+
+        /// 移動のなかった `pointerup`（タップ）用の着地決定。[`Self::
+        /// on_release`] と異なり、直前に確定していた着地 index
+        /// （[`Self::last_target`]）へ収束を再開する（[`Self::
+        /// resume_pointer_down`] doc 参照、イシュー #2541）。一度も
+        /// settle していない（`last_target` が `None`）場合のみ、現在の
+        /// 進行度から通常どおり最寄り index を計算する（初回タップの
+        /// fail-safe）。
+        pub fn on_tap_release(&mut self, on_settle: impl FnOnce(usize) + 'static) -> usize {
+            self.drag_origin = None;
+            let target = self.last_target.unwrap_or_else(|| {
+                snap_target(self.progress.get(), 0.0, self.slide_count, self.loop_)
+            });
+            self.settle_to(target, 0.0, on_settle);
             target
         }
 
@@ -415,7 +492,28 @@ pub use wiring::CarouselTrack;
 
 #[cfg(test)]
 mod tests {
-    use super::snap_target;
+    use super::{clamp_initial_velocity, snap_target};
+
+    #[test]
+    fn clamp_initial_velocity_zeroes_when_direction_conflicts() {
+        // loop 折り返しで `to`（target=2）が `from`（progress=-0.6）より
+        // 大きい（正方向へ進む必要がある）のに、速度が負方向（-8 slides/s、
+        // ドラッグは逆向きだった）だと、そのまま渡すとオーバーシュートを
+        // 招くため 0.0 にする（Cursor Bugbot 指摘 是正、イシュー #2541）。
+        assert_eq!(clamp_initial_velocity(-0.6, 2, -8.0), 0.0);
+    }
+
+    #[test]
+    fn clamp_initial_velocity_keeps_matching_direction() {
+        // 速度の符号が実際に必要な移動方向と一致する場合はそのまま使う。
+        assert_eq!(clamp_initial_velocity(-0.6, 2, 8.0), 8.0);
+    }
+
+    #[test]
+    fn clamp_initial_velocity_keeps_zero_velocity_and_zero_travel() {
+        assert_eq!(clamp_initial_velocity(2.0, 2, 0.0), 0.0);
+        assert_eq!(clamp_initial_velocity(2.0, 2, 5.0), 5.0);
+    }
 
     #[test]
     fn snap_target_rounds_progress_without_velocity() {
