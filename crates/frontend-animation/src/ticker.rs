@@ -219,7 +219,7 @@ pub fn decay_velocity(velocity: f64) -> f64 {
 mod dom {
     use super::{Axis, TickerConfig, TICKER_ACTIVE_ATTR, TICKER_ATTR, TICKER_OFFSET_VAR};
     use crate::raf_driver::AnimationLoop;
-    use std::cell::Cell;
+    use std::cell::{Cell, RefCell};
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
     use web_sys::{Element, HtmlElement, Node};
@@ -532,7 +532,13 @@ mod dom {
         focused: Rc<Cell<bool>>,
         scroll_distance: Rc<Cell<f64>>,
         resize_pending: Rc<Cell<bool>>,
+        on_disconnect: DisconnectHook,
     }
+
+    /// `root` の切断を rAF ループが検知したとき 1 回だけ呼ぶフック
+    /// （[`Ticker::set_on_disconnect`]）。`wasm-full::ticker` が保持一覧
+    /// からの除去と window 購読の解放をここへ結びつける。
+    type DisconnectHook = Rc<RefCell<Option<Box<dyn FnOnce()>>>>;
 
     impl Ticker {
         /// `root`（`data-fandhe-ticker` 要素）・`content`（最初の
@@ -556,6 +562,7 @@ mod dom {
                     focused: Rc::new(Cell::new(false)),
                     scroll_distance: Rc::new(Cell::new(0.0)),
                     resize_pending: Rc::new(Cell::new(false)),
+                    on_disconnect: Rc::new(RefCell::new(None)),
                 };
             };
 
@@ -624,6 +631,8 @@ mod dom {
             let step_last_ms = Rc::clone(&last_ms);
             let step_last_viewport_len = Rc::clone(&last_viewport_len);
             let step_last_content_len = Rc::clone(&last_content_len);
+            let on_disconnect: DisconnectHook = Rc::new(RefCell::new(None));
+            let step_on_disconnect = Rc::clone(&on_disconnect);
 
             let animation_loop = AnimationLoop::start(move || {
                 // `root` が DOM から切断済み（SPA のルート遷移・コンポーネント
@@ -636,6 +645,16 @@ mod dom {
                 // 自己停止させる（`crate::raf_driver::AnimationLoop::start`
                 // doc「`step` が `false` を返したら自動停止」契約）。
                 if !step_root.is_connected() {
+                    // 保持側（`wasm-full::ticker` の `active` 一覧・window
+                    // 購読）へ切断を通知する。フックは本 rAF コールバックの
+                    // 内側で呼ばれるため、受け手が同期的に本 `Ticker` を
+                    // drop すると実行中の `Closure` を解放する use-after-free
+                    // になる（`raf_driver::AnimationLoop` doc）。受け手は
+                    // 解放を `setTimeout(0)` 等で次のタスクへ遅延させる契約
+                    // （[`Ticker::set_on_disconnect`] doc）。
+                    if let Some(hook) = step_on_disconnect.borrow_mut().take() {
+                        hook();
+                    }
                     return false;
                 }
 
@@ -727,7 +746,20 @@ mod dom {
                 focused,
                 scroll_distance,
                 resize_pending,
+                on_disconnect,
             }
+        }
+
+        /// `root` が DOM から切断されたことを rAF ループが検知した時点で
+        /// 1 回だけ呼ばれるフックを登録する（後勝ち）。
+        ///
+        /// フックは rAF コールバックの内側から呼ばれるため、**フック内で
+        /// この `Ticker` を同期的に drop してはならない**（実行中の rAF
+        /// `Closure` を解放する use-after-free になる）。保持一覧からの
+        /// 除去は `setTimeout(0)` 等で次のタスクへ遅延させること
+        /// （`wasm-full::ticker` の `schedule_prune` が先例）。
+        pub fn set_on_disconnect(&self, hook: impl FnOnce() + 'static) {
+            *self.on_disconnect.borrow_mut() = Some(Box::new(hook));
         }
 
         pub fn set_hovered(&self, hovered: bool) {

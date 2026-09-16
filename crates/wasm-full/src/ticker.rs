@@ -77,10 +77,10 @@ mod wiring {
         TickerConfig,
     };
     use std::cell::RefCell;
-    use std::rc::Rc;
+    use std::rc::{Rc, Weak};
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, FocusEvent, MouseEvent, PointerEvent};
+    use web_sys::{Element, Event, FocusEvent, MediaQueryList, MouseEvent, PointerEvent, Window};
 
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
     /// （`crate::tabs_indicator::wiring::set_dom_attribute` と同じ方針・
@@ -105,6 +105,121 @@ mod wiring {
     /// boundary」節参照。`Element` はホバー委譲がどの ticker を制御すべきか
     /// を解決するための鍵として持つ）。
     type ActiveTickers = Rc<RefCell<Vec<(Element, Ticker)>>>;
+
+    /// [`ActiveTickers`] への弱参照（[`WIRINGS`] の要素型）。
+    type ActiveTickersWeak = Weak<RefCell<Vec<(Element, Ticker)>>>;
+
+    /// `prefers-reduced-motion` の `MediaQueryList` と `change` 購読の組
+    /// （[`WindowSubscription::reduced_motion`]）。
+    type ReducedMotionSubscription = (MediaQueryList, Closure<dyn FnMut(Event)>);
+
+    thread_local! {
+        /// `wire_ticker*` 呼び出しごとの `active` 一覧への弱参照
+        /// （[`active_ticker_count`] のテスト用集計にのみ使う。強参照は
+        /// 持たないため解放を妨げない）。
+        static WIRINGS: RefCell<Vec<ActiveTickersWeak>> =
+            const { RefCell::new(Vec::new()) };
+    }
+
+    /// 現在 `active` 一覧に保持されている `Ticker` の総数（全 `wire_ticker*`
+    /// 呼び出し分の合計）。破棄済み ticker の解放（[`schedule_prune`]）を
+    /// browser テストから観測するための公開であり、アプリ側 API ではない。
+    #[doc(hidden)]
+    #[must_use]
+    pub fn active_ticker_count() -> usize {
+        WIRINGS.with(|cell| {
+            let mut wirings = cell.borrow_mut();
+            wirings.retain(|weak| weak.strong_count() > 0);
+            wirings
+                .iter()
+                .filter_map(Weak::upgrade)
+                .map(|active| active.borrow().len())
+                .sum()
+        })
+    }
+
+    /// `window`（scroll/resize）と `prefers-reduced-motion` の
+    /// `MediaQueryList`（change）への購読を所有し、`Drop` で対称に解除する
+    /// （`position::PositionController` と同じ「`forget()` せず保持して
+    /// 明示的に破棄できる」設計）。`active` が空になった時点で drop され、
+    /// 購読クロージャが握る `active` への強参照ごと解放される
+    /// （PR #2582 codex-review P1 指摘: SPA のマウント/破棄の繰り返しで
+    /// 切断済み `Element`/`Ticker` が window リスナー経由で蓄積していた）。
+    struct WindowSubscription {
+        window: Window,
+        scroll_closure: Closure<dyn FnMut()>,
+        resize_closure: Closure<dyn FnMut()>,
+        reduced_motion: Option<ReducedMotionSubscription>,
+    }
+
+    impl Drop for WindowSubscription {
+        fn drop(&mut self) {
+            let _ = self.window.remove_event_listener_with_callback(
+                "scroll",
+                self.scroll_closure.as_ref().unchecked_ref(),
+            );
+            let _ = self.window.remove_event_listener_with_callback(
+                "resize",
+                self.resize_closure.as_ref().unchecked_ref(),
+            );
+            if let Some((mql, closure)) = self.reduced_motion.take() {
+                let _ = mql.remove_event_listener_with_callback(
+                    "change",
+                    closure.as_ref().unchecked_ref(),
+                );
+            }
+        }
+    }
+
+    /// 1 回の `wire_ticker*` が保持する window 購読のスロット。
+    type SubscriptionSlot = Rc<RefCell<Option<WindowSubscription>>>;
+
+    /// `active` から DOM 切断済みのエントリを除去し（`Ticker` の drop で
+    /// `AnimationLoop`・クロージャも解放される）、空になったら window
+    /// 購読も解放する。
+    fn prune_disconnected(active: &ActiveTickers, subscription: &SubscriptionSlot) {
+        active
+            .borrow_mut()
+            .retain(|(element, _)| element.is_connected());
+        if active.borrow().is_empty() {
+            subscription.borrow_mut().take();
+        }
+    }
+
+    /// `active` に切断済みエントリがあれば [`schedule_prune`] を予約する
+    /// （scroll/resize リスナー冒頭用）。リスナー内で同期的に
+    /// [`prune_disconnected`] を呼ぶと、購読解放で実行中の自分自身の
+    /// `Closure` を drop する use-after-free になるため必ず遅延させる。
+    fn schedule_prune_if_stale(active: &ActiveTickers, subscription: &SubscriptionSlot) {
+        let stale = active
+            .borrow()
+            .iter()
+            .any(|(element, _)| !element.is_connected());
+        if stale {
+            schedule_prune(active, subscription);
+        }
+    }
+
+    /// [`prune_disconnected`] を `setTimeout(0)` で次のタスクへ遅延する。
+    /// `Ticker::set_on_disconnect` のフックは rAF コールバックの内側で
+    /// 呼ばれるため、その場で `Ticker` を drop すると実行中の rAF `Closure`
+    /// を解放する use-after-free になる（`raf_driver::AnimationLoop` doc）。
+    /// `layout_flip::schedule_cleanup` と同じ `Closure::once_into_js` +
+    /// `setTimeout` で呼び出しフレームを抜けてから解放する。`window` 取得
+    /// 失敗時は次の scroll/resize イベントでの prune（各リスナー冒頭）に
+    /// 委ねる fail-safe。
+    fn schedule_prune(active: &ActiveTickers, subscription: &SubscriptionSlot) {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let active = Rc::clone(active);
+        let subscription = Rc::clone(subscription);
+        let callback = Closure::once_into_js(move || {
+            prune_disconnected(&active, &subscription);
+        });
+        let _ = window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
+    }
 
     /// `attrs` から `TickerConfig` を組み立てる。速度・係数は
     /// [`fandhe_frontend_animation::ticker`] の `parse_*` が fail-safe に
@@ -317,6 +432,8 @@ mod wiring {
             }
         }
         let active: ActiveTickers = Rc::new(RefCell::new(Vec::new()));
+        let subscription: SubscriptionSlot = Rc::new(RefCell::new(None));
+        WIRINGS.with(|cell| cell.borrow_mut().push(Rc::downgrade(&active)));
         for ticker_root in ticker_roots {
             // SSR（`pre-styled-ui::marquee_motion::ticker`）は同じ children の
             // content を 2 コピー出力するため、入れ子 ticker は最初から
@@ -335,6 +452,12 @@ mod wiring {
             config.direction_sign = read_direction_sign(&content);
             set_dom_attribute(&ticker_root, TICKER_ACTIVE_ATTR, "");
             let ticker = Ticker::start(ticker_root.clone(), content, config);
+            // rAF ループが root の切断を検知したら `active` から除去して
+            // 解放する（`schedule_prune` doc）。フックは `Rc` を握るが
+            // 切断時に 1 回 take されるため循環参照は残らない。
+            let hook_active = Rc::clone(&active);
+            let hook_subscription = Rc::clone(&subscription);
+            ticker.set_on_disconnect(move || schedule_prune(&hook_active, &hook_subscription));
             active.borrow_mut().push((ticker_root, ticker));
         }
 
@@ -389,10 +512,15 @@ mod wiring {
 
         if let Some(window) = web_sys::window() {
             let scroll_active = Rc::clone(&active);
+            let scroll_subscription = Rc::clone(&subscription);
             let last_scroll_y: Rc<RefCell<Option<f64>>> = Rc::new(RefCell::new(None));
             let last_scroll_ms: Rc<RefCell<Option<f64>>> = Rc::new(RefCell::new(None));
             let scroll_window = window.clone();
             let scroll_closure = Closure::<dyn FnMut()>::new(move || {
+                // `stop()` 済み（reduced-motion 切替後）の ticker は rAF が
+                // 走らず切断フックも発火しないため、イベント経路でも prune
+                // する（切断済み要素への強参照を無期限に残さない保険）。
+                schedule_prune_if_stale(&scroll_active, &scroll_subscription);
                 let Some(y) = scroll_window.scroll_y().ok() else {
                     return;
                 };
@@ -411,19 +539,24 @@ mod wiring {
                 "scroll",
                 scroll_closure.as_ref().unchecked_ref(),
             )?;
-            scroll_closure.forget();
 
             let resize_active = Rc::clone(&active);
+            let resize_subscription = Rc::clone(&subscription);
             let resize_closure = Closure::<dyn FnMut()>::new(move || {
+                schedule_prune_if_stale(&resize_active, &resize_subscription);
                 for (_, ticker) in resize_active.borrow().iter() {
                     ticker.mark_resize();
                 }
             });
-            window.add_event_listener_with_callback(
-                "resize",
-                resize_closure.as_ref().unchecked_ref(),
-            )?;
-            resize_closure.forget();
+            if let Err(err) = window
+                .add_event_listener_with_callback("resize", resize_closure.as_ref().unchecked_ref())
+            {
+                let _ = window.remove_event_listener_with_callback(
+                    "scroll",
+                    scroll_closure.as_ref().unchecked_ref(),
+                );
+                return Err(err);
+            }
 
             // `prefers-reduced-motion` の実行中切り替え（OS 設定変更）を
             // 監視する: `wire_ticker` は起動時点の判定のみで配線要否を
@@ -439,29 +572,41 @@ mod wiring {
             // `confetti` と同じ「wire 時 1 回判定」設計を踏襲、対称に扱う
             // 必要はない: 動き始める方向の復帰はアクセシビリティ契約を
             // 破らない）。
-            if let Ok(Some(mql)) = window.match_media("(prefers-reduced-motion: reduce)") {
-                let mql_active = Rc::clone(&active);
-                // `MediaQueryListEvent`（`event.matches()`）は web-sys feature
-                // 未有効化のため、`change` イベント自体からではなく `mql`
-                // （`MediaQueryList`）を closure へ直接 clone して都度
-                // `matches()` を再照会する（同じ結果を feature 追加なしで
-                // 得られる）。
-                let change_mql = mql.clone();
-                let change_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
-                    if !change_mql.matches() {
-                        return;
-                    }
-                    for (element, ticker) in mql_active.borrow().iter() {
-                        ticker.stop();
-                        let _ = element.remove_attribute(TICKER_ACTIVE_ATTR);
-                    }
-                });
-                let _ = mql.add_event_listener_with_callback(
-                    "change",
-                    change_closure.as_ref().unchecked_ref(),
-                );
-                change_closure.forget();
-            }
+            let reduced_motion = match window.match_media("(prefers-reduced-motion: reduce)") {
+                Ok(Some(mql)) => {
+                    let mql_active = Rc::clone(&active);
+                    // `MediaQueryListEvent`（`event.matches()`）は web-sys feature
+                    // 未有効化のため、`change` イベント自体からではなく `mql`
+                    // （`MediaQueryList`）を closure へ直接 clone して都度
+                    // `matches()` を再照会する（同じ結果を feature 追加なしで
+                    // 得られる）。
+                    let change_mql = mql.clone();
+                    let change_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+                        if !change_mql.matches() {
+                            return;
+                        }
+                        for (element, ticker) in mql_active.borrow().iter() {
+                            ticker.stop();
+                            let _ = element.remove_attribute(TICKER_ACTIVE_ATTR);
+                        }
+                    });
+                    let _ = mql.add_event_listener_with_callback(
+                        "change",
+                        change_closure.as_ref().unchecked_ref(),
+                    );
+                    Some((mql, change_closure))
+                }
+                _ => None,
+            };
+
+            // `forget()` せず所有ハンドルとして保持し、`active` が空になった
+            // 時点（`prune_disconnected`）で drop → リスナー解除する。
+            *subscription.borrow_mut() = Some(WindowSubscription {
+                window,
+                scroll_closure,
+                resize_closure,
+                reduced_motion,
+            });
         }
 
         Ok(())
@@ -480,7 +625,7 @@ mod wiring {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::{wire_ticker, wire_ticker_with_reduced_motion};
+pub use wiring::{active_ticker_count, wire_ticker, wire_ticker_with_reduced_motion};
 
 #[cfg(test)]
 mod tests {

@@ -16,7 +16,7 @@
 #![cfg(target_arch = "wasm32")]
 #![cfg(feature = "ticker")]
 
-use fandhe_frontend_wasm_full::ticker::wire_ticker_with_reduced_motion;
+use fandhe_frontend_wasm_full::ticker::{active_ticker_count, wire_ticker_with_reduced_motion};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, HtmlElement};
@@ -330,4 +330,60 @@ async fn nested_ticker_in_ssr_copy_is_static_and_not_driven() {
         "SSR コピー内の内側 ticker は rAF で駆動されないはず"
     );
     assert_eq!(outer.child_element_count(), 2, "追加複製は生成されないはず");
+}
+
+/// ticker をマウント → 起動 → DOM から取り外すと、数フレーム後に保持
+/// 一覧（`active`）から除去され件数が元に戻ること、再マウントで再び
+/// 1 件増えることを固定する（PR #2582 codex-review P1 指摘: 切断済み
+/// `Element`/`Ticker` が window の scroll/resize リスナー経由で蓄積して
+/// いた）。他テストが残した ticker の遅延解放と干渉しないよう、待機後の
+/// 件数を基準とした差分で検証する。
+#[wasm_bindgen_test]
+async fn disconnected_ticker_is_released_from_active_and_remount_registers_again() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    sleep_ms(150).await;
+    let baseline = active_ticker_count();
+
+    let (outer, inner, _inner_link) = build_nested_dom(&document, "ticker-release-1");
+    wire_ticker_with_reduced_motion(outer.clone(), false)
+        .expect("wire_ticker_with_reduced_motion must not fail");
+    assert_eq!(
+        active_ticker_count(),
+        baseline + 2,
+        "outer + inner の 2 件が登録されるはず"
+    );
+    let mut advanced = false;
+    for _ in 0..40 {
+        sleep_ms(50).await;
+        if px_value(&ticker_offset(&inner)) != 0.0 {
+            advanced = true;
+            break;
+        }
+    }
+    assert!(advanced, "前提: ticker は駆動中のはず");
+
+    outer.remove();
+    let mut released = false;
+    for _ in 0..40 {
+        sleep_ms(50).await;
+        if active_ticker_count() == baseline {
+            released = true;
+            break;
+        }
+    }
+    assert!(
+        released,
+        "切断後は数フレーム内に active から除去されるはず（実際 {}）",
+        active_ticker_count()
+    );
+
+    let (outer2, _inner2, _inner_link2) = build_nested_dom(&document, "ticker-release-2");
+    let _guard = RemoveOnDrop(outer2.clone());
+    wire_ticker_with_reduced_motion(outer2.clone(), false)
+        .expect("wire_ticker_with_reduced_motion must not fail");
+    assert_eq!(
+        active_ticker_count(),
+        baseline + 2,
+        "再マウントで再び登録されるはず"
+    );
 }
