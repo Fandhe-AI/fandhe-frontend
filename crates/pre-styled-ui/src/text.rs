@@ -56,9 +56,11 @@
 //!   `font-size-4xl` に対応）に相当する段が Text 側には欠落していた。本
 //!   イシューで [`TextSize::Xl2`]/[`TextSize::Xl3`]/[`TextSize::Xl4`] を
 //!   追加し、[`crate::heading`](mod@crate::heading) と同じくテーマトークン全 8 段
-//!   （`xs`〜`4xl`）を網羅する形にした（上端の非採用範囲・再評価トリガーは
-//!   [`crate::heading`](mod@crate::heading) のモジュール rustdoc「サイズトークンの縮約」節と
-//!   同じ）。
+//!   （`xs`〜`4xl`）を網羅する形にした。イシュー #2440 で
+//!   [`TextSize::Xl5`]/[`TextSize::Xl6`] を追加し、`xs`〜`6xl` の 10 段階を
+//!   網羅する形にした（chakra `7xl` のみテーマトークン非対応のため対象外。
+//!   [`crate::heading`](mod@crate::heading) のモジュール rustdoc「サイズトークンの推移」節と
+//!   同じ判断軸）。
 //! - **weight 軸**: chakra の Text はフォントウェイトのバリエーション
 //!   （`chakra-text-3.png` で通常〜太字までの複数段を確認）を持ち、
 //!   Radix Themes の Text も `weight` prop（light/regular/medium/bold）を
@@ -140,7 +142,7 @@ use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 const ANATOMY: Anatomy = anatomy("text");
 
 /// Text の視覚サイズ variant（`font-size`/`line-height`。[`crate::heading`](mod@crate::heading)
-/// と同じく `xs`〜`4xl` の 8 段階を持つ。テーマトークン側の `5xl`/`6xl`（#2438）への追随は別イシュー）。
+/// と同じく `xs`〜`6xl` の 10 段階を持つ（イシュー #2440 で `xl5`/`xl6` を追加）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextSize {
     /// 極小サイズ。
@@ -159,8 +161,14 @@ pub enum TextSize {
     Xl2,
     /// 3 段階特大（イシュー #1442 で追加）。
     Xl3,
-    /// 4 段階特大（テーマトークンが持つ最大サイズ。イシュー #1442 で追加）。
+    /// 4 段階特大（イシュー #1442 で追加）。
     Xl4,
+    /// 5 段階特大（イシュー #2440 で追加。テーマトークン `font-size-5xl`
+    /// 〔#2438〕に対応）。
+    Xl5,
+    /// 6 段階特大（イシュー #2440 で追加。テーマトークン `font-size-6xl`
+    /// 〔#2438〕に対応。テーマトークンが持つ最大サイズ）。
+    Xl6,
 }
 
 impl VariantValue for TextSize {
@@ -182,6 +190,8 @@ impl VariantValue for TextSize {
             Self::Xl2 => "xl2",
             Self::Xl3 => "xl3",
             Self::Xl4 => "xl4",
+            Self::Xl5 => "xl5",
+            Self::Xl6 => "xl6",
         }
     }
 }
@@ -333,6 +343,25 @@ fn recipe() -> SlotRecipe {
                 decl("line-height", "1.4"),
             ],
         )
+        // イシュー #2440: `xl`→`xl4` の line-height 進行（各段 -0.05）を
+        // 延長した値。heading.rs と同じ判断軸（実機フォント計測なしの
+        // 意匠変更は避ける）。
+        .variant(
+            TextSize::Xl5,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-5xl)"),
+                decl("line-height", "1.35"),
+            ],
+        )
+        .variant(
+            TextSize::Xl6,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-6xl)"),
+                decl("line-height", "1.3"),
+            ],
+        )
         .default_variant(TextSize::Md)
         .variant(
             TextWeight::Normal,
@@ -428,6 +457,8 @@ mod tests {
             (TextSize::Xl2, "fd-text--size-xl2"),
             (TextSize::Xl3, "fd-text--size-xl3"),
             (TextSize::Xl4, "fd-text--size-xl4"),
+            (TextSize::Xl5, "fd-text--size-xl5"),
+            (TextSize::Xl6, "fd-text--size-xl6"),
         ] {
             let props = TextProps {
                 size,

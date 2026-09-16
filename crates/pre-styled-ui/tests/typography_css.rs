@@ -55,6 +55,16 @@ const HEADING_GOLDEN_CSS: &str = r#"[data-scope="heading"][data-part="root"] {
   line-height: 1.15;
 }
 
+[data-scope="heading"][data-part="root"].fd-heading--size-xl5 {
+  font-size: var(--fandhe-font-font-size-5xl);
+  line-height: 1.1;
+}
+
+[data-scope="heading"][data-part="root"].fd-heading--size-xl6 {
+  font-size: var(--fandhe-font-font-size-6xl);
+  line-height: 1.05;
+}
+
 [data-scope="heading"][data-part="root"].fd-heading--weight-normal {
   font-weight: var(--fandhe-font-font-weight-normal);
 }
@@ -119,6 +129,16 @@ const TEXT_GOLDEN_CSS: &str = r#"[data-scope="text"][data-part="root"] {
 [data-scope="text"][data-part="root"].fd-text--size-xl4 {
   font-size: var(--fandhe-font-font-size-4xl);
   line-height: 1.4;
+}
+
+[data-scope="text"][data-part="root"].fd-text--size-xl5 {
+  font-size: var(--fandhe-font-font-size-5xl);
+  line-height: 1.35;
+}
+
+[data-scope="text"][data-part="root"].fd-text--size-xl6 {
+  font-size: var(--fandhe-font-font-size-6xl);
+  line-height: 1.3;
 }
 
 [data-scope="text"][data-part="root"].fd-text--weight-normal {

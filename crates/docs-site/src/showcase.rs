@@ -1874,7 +1874,8 @@ fn skeleton_section() -> Node {
 // 衝突を避ける（本節自体の `h2` はショーケース節見出し〔[`section`] ヘルパ〕
 // であり対象外）。各関数はこの前提のもとで 1〜2 文の部品固有説明のみを持つ。
 
-/// Heading 節: `size` スケール全 8 段（`xs`〜`xl4`）を縦積み掲示する
+/// Heading 節: `size` スケール全 10 段（`xs`〜`xl6`、イシュー #2440 で
+/// `xl5`/`xl6` を追加）を縦積み掲示する
 /// （イシュー #1434。chakra-ui のサイズデモ（`docs/design/
 /// reference-screenshots/chakra-heading-2.png`、sm〜6xl を縦積み掲示）と
 /// 視覚比較できる状態にするため、意味論タグ（h1〜h6）とは独立に単一タグ
@@ -1897,6 +1898,8 @@ fn heading_section() -> Node {
             HeadingSize::Xl2,
             HeadingSize::Xl3,
             HeadingSize::Xl4,
+            HeadingSize::Xl5,
+            HeadingSize::Xl6,
         ]
         .iter()
         .map(|size| {
@@ -1990,7 +1993,7 @@ fn heading_section() -> Node {
 
     section(
         "Heading",
-        "素の h1〜h6 意味論を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold の 4 段階、イシュー #2056）でスタイル化した見出し部品。data-bordered opt-in 状態（shadcn h2 の下罫線相当）と、shadcn/ui Typography の h1〜h4 との対応例も示す。",
+        "素の h1〜h6 意味論を size（xs〜xl6 の 10 段階、イシュー #2440）・weight（normal/medium/semibold/bold の 4 段階、イシュー #2056）でスタイル化した見出し部品。data-bordered opt-in 状態（shadcn h2 の下罫線相当）と、shadcn/ui Typography の h1〜h4 との対応例も示す。",
         vec![
             heading_stack,
             weight_stack,
@@ -2000,7 +2003,7 @@ fn heading_section() -> Node {
     )
 }
 
-/// Text 節: size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold
+/// Text 節: size（xs〜xl6 の 10 段階、イシュー #2440）・weight（normal/medium/semibold/bold
 /// の 4 段階）・variant（plain/muted）でスタイル化した本文テキスト
 /// （イシュー #1442 で size/weight を拡充、イシュー #2055 で variant を
 /// 追加し shadcn/ui Typography の `lead`/`large`/`small`/`muted` 4 プリ
@@ -2016,6 +2019,8 @@ fn text_section() -> Node {
             TextSize::Xl2,
             TextSize::Xl3,
             TextSize::Xl4,
+            TextSize::Xl5,
+            TextSize::Xl6,
         ]
         .iter()
         .map(|size| {
@@ -2112,7 +2117,7 @@ fn text_section() -> Node {
 
     section(
         "Text",
-        "素の p 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold の 4 段階）・variant（plain/muted）でスタイル化した本文テキスト部品。shadcn/ui Typography の lead/large/small/muted 4 プリセットは既存軸の合成で再現する（イシュー #2055）。",
+        "素の p 要素を size（xs〜xl6 の 10 段階、イシュー #2440）・weight（normal/medium/semibold/bold の 4 段階）・variant（plain/muted）でスタイル化した本文テキスト部品。shadcn/ui Typography の lead/large/small/muted 4 プリセットは既存軸の合成で再現する（イシュー #2055）。",
         vec![size_stack, weight_stack, variant_stack, preset_stack],
     )
 }

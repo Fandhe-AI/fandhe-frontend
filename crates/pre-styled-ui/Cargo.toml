@@ -3570,7 +3570,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # マージコミット注記（origin/main #2580 との統合、PR #2582）: origin/main は
 # `stat_motion` 新設で 0.213.0 へ到達し、本ブランチ（独立到達値 0.212.1）を
 # 統合するため main の到達値からさらに +1 して 0.213.1 とする（#638 条項）。
-version = "0.213.1"
+#
+# イシュー #2440: Heading/Text の size variant に xl5/xl6 を純追加。公開
+# API（enum variant）の純追加のため minor バンプする。
+version = "0.214.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
