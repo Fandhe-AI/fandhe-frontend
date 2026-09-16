@@ -59,6 +59,24 @@ pub const STAGGER_INDEX_VAR: &str = "--fandhe-motion-stagger-index";
 /// 値は不問（存在のみを見る）。
 pub const STAGGER_AUTO_FIRST_ATTR: &str = "data-fandhe-stagger-auto-first";
 
+/// [`crate::list_presence::PRESENCE_AUTO_ATTR`]（イシュー #2544）と同一
+/// リテラルの属性名。「既存行の delay 更新方針」（下記
+/// [`wiring::sync_stagger_index`] doc）の巻き戻り防止凍結を、退場ゴースト
+/// 演出（`pre-styled-ui::list_motion` の `animation-fill-mode: both` 前提）
+/// が実際に存在するリストへ限定するために使う（codex-review P1 是正、
+/// イシュー #2544）。
+///
+/// `list_presence` モジュールを直接参照しない（モジュール参照ではなく
+/// リテラル複製にする）理由: `list_presence` は feature `"presence"`
+/// 配下（既定 on だが無効化可能）であり、本モジュールを利用する
+/// feature `"stagger"` は独立した別枠 feature のため、`"presence"` を
+/// 無効化した構成でも本モジュールが単独でコンパイルできる必要がある
+/// （`pre-styled-ui::list_motion::PRESENCE_AUTO_ATTR` が同じ理由で
+/// リテラル複製している契約と同型、ドリフト検知は
+/// `presence_auto_attr_sync_matches_list_presence_literal`）。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+const PRESENCE_AUTO_ATTR: &str = "data-fandhe-presence-auto";
+
 /// `index` から CSS へ書き込む値文字列（10 進数のみ）を組み立てる純粋関数。
 #[must_use]
 pub fn stagger_index_value(index: usize) -> String {
@@ -67,7 +85,9 @@ pub fn stagger_index_value(index: usize) -> String {
 
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{stagger_index_value, STAGGER_AUTO_FIRST_ATTR, STAGGER_INDEX_VAR};
+    use super::{
+        stagger_index_value, PRESENCE_AUTO_ATTR, STAGGER_AUTO_FIRST_ATTR, STAGGER_INDEX_VAR,
+    };
     use wasm_bindgen::JsCast;
     use web_sys::{Element, HtmlElement};
 
@@ -94,38 +114,52 @@ mod wiring {
     ///
     /// # 既存行の delay 更新方針（codex-review 指摘是正、イシュー #2544）
     ///
-    /// 既に [`STAGGER_INDEX_VAR`] を持つ行（前回までの構造変化で書き込み
+    /// [`PRESENCE_AUTO_ATTR`] を併せ持つリスト（`list_presence` の退場
+    /// ゴースト演出対象。`pre-styled-ui::list_motion::enter_css` の
+    /// `animation-fill-mode: both` が実際に効く構成）に限り、既に
+    /// [`STAGGER_INDEX_VAR`] を持つ行（前回までの構造変化で書き込み
     /// 済み、または SSR が `stagger_index_style` で書き出した初期値）は、
     /// 新たに算出した DOM 順位置が**現在値以下**の場合にのみ上書きする。
     /// 現在値より大きい（＝先頭側への `Insert` でこの行が後方へ押し
     /// 出された）場合は上書きしない。
     ///
     /// 理由: CSS Animations は `animation-delay` を伸ばすと現在の経過
-    /// 時間が再び delay 前フェーズへ戻り得る（`list_motion::enter_css`
-    /// の `animation-fill-mode: both` と組み合わさると、既に enter
-    /// アニメーション再生済みの行が `opacity: 0` へ巻き戻る）。一方
-    /// delay を縮める・変えない更新はこの巻き戻りを起こさない
-    /// （経過時間は既に新しい delay + duration を超えたまま）。この非
-    /// 対称性を利用し、「巻き戻りを起こし得る更新のみ凍結し、それ以外
-    /// （純粋な `Move` による前方移動・新規行）は DOM 順へ追随させる」
-    /// 判定にする（codex-review 指摘是正、以前は既存行を一律凍結して
-    /// おり `Move` のみのリストで index が DOM 順から乖離していた）。
+    /// 時間が再び delay 前フェーズへ戻り得るため（`animation-fill-mode:
+    /// both` と組み合わさると、既に enter アニメーション再生済みの行が
+    /// `opacity: 0` へ巻き戻る）。一方 delay を縮める・変えない更新は
+    /// この巻き戻りを起こさない（経過時間は既に新しい delay + duration
+    /// を超えたまま）。この非対称性を利用し、「巻き戻りを起こし得る
+    /// 更新のみ凍結し、それ以外（純粋な `Move` による前方移動・新規行）
+    /// は DOM 順へ追随させる」判定にする。
+    ///
+    /// [`PRESENCE_AUTO_ATTR`] を持たないリスト（stagger 単独利用。
+    /// `enter_css` の `fill-mode: both` 巻き戻り対象になり得ない）は、
+    /// 凍結せず常に DOM 順位置へ無条件上書きする（codex-review P1
+    /// 是正、イシュー #2544 fix ラウンド）: 以前は全リストへ一律で凍結
+    /// を適用しており、既存行を逆順に並べ替えると一部の行が凍結された
+    /// まま index が更新されなくなり、`STAGGER_AUTO_FIRST_ATTR` の
+    /// 「DOM 順位置へ自動同期する」契約が崩れていた。
     pub fn sync_stagger_index(list_element: &Element) {
         if !list_element.has_attribute(STAGGER_AUTO_FIRST_ATTR) {
             return;
         }
+        let freeze_on_increase = list_element.has_attribute(PRESENCE_AUTO_ATTR);
         let mut current = list_element.first_element_child();
         let mut index: usize = 0;
         while let Some(el) = current {
             if let Some(html) = el.dyn_ref::<HtmlElement>() {
                 if html.has_attribute(fandhe_frontend_core::keyed::KEY_ATTR) {
                     let style = html.style();
-                    let existing = style
-                        .get_property_value(STAGGER_INDEX_VAR)
-                        .unwrap_or_default();
-                    let existing_index = existing.trim().parse::<usize>().ok();
-                    let would_increase = existing_index.is_some_and(|value| index > value);
-                    if !would_increase {
+                    let should_write = if freeze_on_increase {
+                        let existing = style
+                            .get_property_value(STAGGER_INDEX_VAR)
+                            .unwrap_or_default();
+                        let existing_index = existing.trim().parse::<usize>().ok();
+                        existing_index.is_none_or(|value| index <= value)
+                    } else {
+                        true
+                    };
+                    if should_write {
                         let _ = style.set_property(STAGGER_INDEX_VAR, &stagger_index_value(index));
                     }
                     index += 1;
@@ -142,6 +176,18 @@ pub use wiring::sync_stagger_index;
 #[cfg(test)]
 mod tests {
     use super::stagger_index_value;
+    #[cfg(feature = "presence")]
+    use super::PRESENCE_AUTO_ATTR;
+
+    /// `feature = "presence"` が有効な構成でのみ、`list_presence` 側の
+    /// 定義とのドリフトを直接比較できる（無効構成では
+    /// [`PRESENCE_AUTO_ATTR`] のリテラル複製理由〔モジュール doc
+    /// 参照〕により本テスト自体が対象外になる）。
+    #[cfg(feature = "presence")]
+    #[test]
+    fn presence_auto_attr_matches_list_presence_literal() {
+        assert_eq!(PRESENCE_AUTO_ATTR, crate::list_presence::PRESENCE_AUTO_ATTR);
+    }
 
     #[test]
     fn stagger_index_value_is_plain_decimal() {
