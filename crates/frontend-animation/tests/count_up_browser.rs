@@ -11,10 +11,10 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::rc::Rc;
 
-use fandhe_frontend_animation::count_up::{start, write_final, NumberText};
+use fandhe_frontend_animation::count_up::{start, value_text_node, write_final, NumberText};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
@@ -73,8 +73,9 @@ fn create_div() -> (HtmlElement, RemoveOnDrop) {
 #[wasm_bindgen_test]
 async fn start_interpolates_from_zero_to_final_value() {
     let (element, _guard) = create_div();
+    element.set_text_content(Some("100"));
     let format = NumberText::parse("100").expect("\"100\" must parse");
-    let last_written = Rc::new(RefCell::new(String::new()));
+    let last_value = Rc::new(Cell::new(None));
     let self_write_count = Rc::new(Cell::new(0u32));
 
     let _handle = start(
@@ -83,35 +84,116 @@ async fn start_interpolates_from_zero_to_final_value() {
         0.0,
         100.0,
         80.0,
-        last_written,
-        self_write_count,
+        Rc::clone(&last_value),
+        Rc::clone(&self_write_count),
     );
 
-    // 開始直後（1 フレーム目付近）は目標値未満のはず。
-    sleep_ms(16).await;
-    let mid = element
-        .text_content()
-        .unwrap_or_default()
-        .parse::<f64>()
-        .unwrap_or(f64::NAN);
-    assert!(mid.is_finite(), "途中フレームは数値であること: {mid}");
-    assert!(mid < 100.0, "途中フレームは目標値未満であること: {mid}");
+    // `start` は rAF を待たず同期的に開始値を書き込む契約（SSR 最終値の
+    // ちらつき対策）。タイマー待ちで途中フレームを覗く判定は負荷次第で
+    // 補間が先に終わり得るため（PR #2580 Bugbot Low 指摘）、同期的な初期
+    // 書き込みだけを決定的に検証する。
+    assert_eq!(element.text_content().unwrap(), "0");
+    assert_eq!(last_value.get(), Some(0.0));
+    assert_eq!(self_write_count.get(), 1);
 
     // duration を十分に超えて待てば最終値へ収束する。
     sleep_ms(300).await;
     assert_eq!(element.text_content().unwrap(), "100");
+    assert_eq!(last_value.get(), Some(100.0));
 }
 
 #[wasm_bindgen_test]
-fn write_final_writes_formatted_value_immediately_and_updates_last_written() {
+fn write_final_writes_formatted_value_immediately_and_updates_last_value() {
     let (element, _guard) = create_div();
     let format = NumberText::parse("$0.00").expect("\"$0.00\" must parse");
-    let last_written = Rc::new(RefCell::new(String::new()));
+    let last_value = Rc::new(Cell::new(None));
     let self_write_count = Rc::new(Cell::new(0u32));
 
-    write_final(&element, &format, 1234.5, &last_written, &self_write_count);
+    write_final(&element, &format, 1234.5, &last_value, &self_write_count);
 
     assert_eq!(element.text_content().unwrap(), "$1,234.50");
-    assert_eq!(*last_written.borrow(), "$1,234.50");
+    assert_eq!(last_value.get(), Some(1234.5));
     assert_eq!(self_write_count.get(), 1);
+}
+
+/// PR #2580 codex-review P1 指摘の回帰テスト: `stat::value_text` の公開
+/// 契約どおり数値テキストの兄弟に `value_unit`（単位 `<span>`）・
+/// `up_indicator`（`<span aria-hidden>`）が並ぶ構成で、書き込みは数値
+/// テキストノードだけを書き換え、子要素を削除しないこと。
+#[wasm_bindgen_test]
+async fn writes_only_number_text_node_and_preserves_sibling_children() {
+    let (element, _guard) = create_div();
+    let document = web_sys::window().unwrap().document().unwrap();
+    element
+        .append_child(&document.create_text_node("1,234"))
+        .unwrap();
+    let unit = document.create_element("span").unwrap();
+    unit.set_text_content(Some("%"));
+    element.append_child(&unit).unwrap();
+    let arrow = document.create_element("span").unwrap();
+    arrow.set_attribute("aria-hidden", "true").unwrap();
+    arrow.set_text_content(Some("▲"));
+    element.append_child(&arrow).unwrap();
+
+    let format = NumberText::parse("1,234").expect("\"1,234\" must parse");
+    let last_value = Rc::new(Cell::new(None));
+    let self_write_count = Rc::new(Cell::new(0u32));
+
+    write_final(&element, &format, 500.0, &last_value, &self_write_count);
+    assert_eq!(element.child_element_count(), 2, "子要素が保持されること");
+    assert_eq!(element.text_content().unwrap(), "500%▲");
+    assert_eq!(
+        value_text_node(&element).map(|node| node.data()),
+        Some("500".to_string())
+    );
+
+    let _handle = start(
+        element.clone(),
+        format,
+        0.0,
+        1234.0,
+        80.0,
+        last_value,
+        self_write_count,
+    );
+    assert_eq!(
+        element.text_content().unwrap(),
+        "0%▲",
+        "同期初期書き込みも子要素を保持"
+    );
+    sleep_ms(300).await;
+    assert_eq!(
+        element.child_element_count(),
+        2,
+        "補間完了後も子要素が保持されること"
+    );
+    assert_eq!(element.text_content().unwrap(), "1,234%▲");
+}
+
+/// PR #2580 codex-review P1 指摘の回帰テスト: 再補間の開始値は表示文字列
+/// の再解析ではなく直近に書き込んだ数値（`last_value`）から得ること。
+/// 桁区切り `.` 書式（"1.234.567"）の途中値 123456 は "123.456" と表示され、
+/// 再解析すると小数 123.456 へ誤解釈される（1/1000 への急落）。
+#[wasm_bindgen_test]
+fn last_value_keeps_numeric_value_where_reparsing_display_would_misread_it() {
+    let (element, _guard) = create_div();
+    let format = NumberText::parse("1.234.567").expect("\"1.234.567\" must parse");
+    let last_value = Rc::new(Cell::new(None));
+    let self_write_count = Rc::new(Cell::new(0u32));
+
+    write_final(&element, &format, 123456.0, &last_value, &self_write_count);
+
+    let shown = element.text_content().unwrap();
+    assert_eq!(shown, "123.456");
+    let reparsed = NumberText::parse(&shown).map(|n| n.value());
+    assert_eq!(
+        reparsed,
+        Some(123.456),
+        "表示の再解析は小数へ誤読する（前提の確認）"
+    );
+    assert_eq!(
+        last_value.get(),
+        Some(123456.0),
+        "再補間の開始値は数値のまま保持されること"
+    );
 }

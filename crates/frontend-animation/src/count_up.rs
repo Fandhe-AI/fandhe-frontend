@@ -19,13 +19,14 @@
 //! される UI）には不向きなため、[`fandhe_animation::easing::CubicBezier::
 //! EASE_OUT`] を採用する。
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::rc::Rc;
 
 use fandhe_animation::driver::Driver;
 use fandhe_animation::easing::CubicBezier;
 use fandhe_animation::interpolate::Interpolate;
 use fandhe_animation::target::Target;
+use wasm_bindgen::JsCast;
 
 use crate::raf_driver::{AnimationLoop, RafDriver};
 
@@ -328,7 +329,17 @@ impl NumberText {
             return self.source.clone();
         }
         let scale = 10f64.powi(self.decimals as i32);
-        let rounded = (value * scale).round() / scale;
+        // `MAX_DECIMALS` は `scale` の有限性しか保証せず、`value * scale`
+        // 自体は巨大な有限値（例 `5e299 × 1e15`）でオーバーフローして
+        // `inf` になり得る（PR #2580 codex-review P1 指摘）。乗算結果が
+        // 非有限なら丸めを省き、`format!` の精度指定（乗算を伴わず正確な
+        // 十進展開へ丸める）だけに任せる。
+        let scaled = value * scale;
+        let rounded = if scaled.is_finite() {
+            scaled.round() / scale
+        } else {
+            value
+        };
         let negative = rounded < 0.0;
         let abs = rounded.abs();
         let formatted = format!("{abs:.*}", self.decimals);
@@ -378,27 +389,75 @@ pub fn eased(t: f64) -> f64 {
     CubicBezier::EASE_OUT.evaluate(t)
 }
 
-/// `HtmlElement` の `textContent` へ [`NumberText::render`] の出力を書き込む
-/// [`Target<f64>`] 実装。
+/// `element` の**数値テキストノード**（直接の子のうち最初の、ASCII 数字を
+/// 含む `Text` ノード）を返す。
+///
+/// `stat::value_text` は `value_unit`（単位 `<span>`）・`up_indicator`/
+/// `down_indicator`（矢印 `<span aria-hidden>`）を数値テキストと並べて
+/// 子に持つ構成を公開契約とするため、要素全体の `textContent` を書き換える
+/// とこれらの子要素が削除されてしまう（PR #2580 codex-review P1 指摘）。
+/// 本モジュールは読み取り（[`read_value_text`]）・書き込み
+/// （[`TextTarget`]/[`write_final`]）の双方でこのノードだけを対象にし、
+/// 兄弟の子要素へは触れない。子ノード構成が外部更新で差し替わっても
+/// 追随できるよう、呼び出しのたびに解決し直す（`Text` ハンドルを保持
+/// しない）。
+#[must_use]
+pub fn value_text_node(element: &web_sys::HtmlElement) -> Option<web_sys::Text> {
+    let children = element.child_nodes();
+    (0..children.length())
+        .filter_map(|i| children.get(i))
+        .filter_map(|node| node.dyn_into::<web_sys::Text>().ok())
+        .find(|text| text.data().chars().any(|c| c.is_ascii_digit()))
+}
+
+/// カウントアップの対象となる現在のテキストを返す。[`value_text_node`] が
+/// あればその `data`、無ければ子要素を持たない要素に限り `textContent`
+/// （単一テキスト構成の後方互換）。子要素はあるが数値テキストノードが
+/// 無い構成は対象外（`None`、配線側は何もしない fail-safe）。
+#[must_use]
+pub fn read_value_text(element: &web_sys::HtmlElement) -> Option<String> {
+    match value_text_node(element) {
+        Some(text) => Some(text.data()),
+        None if element.child_element_count() == 0 => element.text_content(),
+        None => None,
+    }
+}
+
+/// [`read_value_text`] と対称の書き込み。数値テキストノードの `data` のみ
+/// を書き換え、兄弟の子要素は保持する。対象が解決できない構成では何も
+/// 書かない（子要素を破壊しない）。
 ///
 /// # セキュリティ（A03: XSS）
 ///
-/// `set_text_content` のみを使う（HTML 解釈なし）。書き込む文字列は
-/// [`NumberText::render`] の出力（prefix/suffix は SSR 済みテキスト由来）
-/// のみであり、DOM から取得した信頼できない文字列を直接書き込む経路は
-/// 持たない。
+/// `CharacterData::set_data`/`set_text_content` のみを使う（HTML 解釈
+/// なし）。書き込む文字列は [`NumberText::render`] の出力（prefix/suffix は
+/// SSR 済みテキスト由来）のみであり、DOM から取得した信頼できない文字列を
+/// 直接書き込む経路は持たない。
+fn write_value_text(element: &web_sys::HtmlElement, text: &str) {
+    match value_text_node(element) {
+        Some(node) => node.set_data(text),
+        None if element.child_element_count() == 0 => element.set_text_content(Some(text)),
+        None => {}
+    }
+}
+
+/// [`NumberText::render`] の出力を [`write_value_text`] で書き込む
+/// [`Target<f64>`] 実装。
 struct TextTarget {
     element: web_sys::HtmlElement,
     format: NumberText,
-    last_written: Rc<RefCell<String>>,
+    last_value: Rc<Cell<Option<f64>>>,
     self_write_count: Rc<Cell<u32>>,
 }
 
 impl Target<f64> for TextTarget {
     fn write(&mut self, value: f64) {
-        let text = self.format.render(value);
-        self.element.set_text_content(Some(&text));
-        *self.last_written.borrow_mut() = text;
+        write_value_text(&self.element, &self.format.render(value));
+        // 直近に書き込んだ**数値**を保持する。外部更新時の再補間の開始値
+        // は表示文字列の再解析ではなくこの値を使う（PR #2580 codex-review
+        // P1 指摘: 桁区切り `.` 書式の途中値 "123.456" を再解析すると小数
+        // 123.456 と誤解釈され、表示が急落してから再補間されていた）。
+        self.last_value.set(Some(value));
         // `wasm-full` の `MutationObserver` が自己書き込みと外部更新を
         // 区別するための回数カウンタ（PR #2580 レビュー是正・codex-review
         // P1 指摘）。真偽値 1 個（`self_write` フラグ）だと、自己書き込み
@@ -406,10 +465,11 @@ impl Target<f64> for TextTarget {
         // コールバックへ 1 回のバッチとして通知された場合に、フラグが
         // 立っているというだけで通知全体を「自己書き込みのみ」として
         // 無視してしまい、同居していた外部更新を取りこぼす
-        // （`Element.textContent` の setter は必ず 1 回の `childList` 型
-        // `MutationRecord` を生成し、同一タスク内の複数回書き込みも記録が
-        // 結合されない仕様のため、レコード件数とこのカウンタを突き合わせ
-        // れば両者を区別できる。[`has_external_mutation`] doc 参照）。
+        // （`CharacterData.data`/`Element.textContent` の setter はいずれも
+        // 必ず 1 回の `MutationRecord`（`characterData`/`childList` 型）を
+        // 生成し、同一タスク内の複数回書き込みも記録が結合されない仕様の
+        // ため、レコード件数とこのカウンタを突き合わせれば両者を区別
+        // できる。[`has_external_mutation`] doc 参照）。
         self.self_write_count.set(self.self_write_count.get() + 1);
     }
 }
@@ -434,51 +494,51 @@ pub fn has_external_mutation(record_count: u32, self_write_count: u32) -> bool {
 /// 補間なしで最終値を即座に書き込む（`prefers-reduced-motion: reduce`・
 /// `RafDriver` 非対応環境向けのフェイルセーフ経路）。
 ///
-/// `self_write_count` は [`TextTarget::write`] と同じ自己書き込み回数
-/// カウンタ（呼び出し側の `MutationObserver` が外部更新と区別するために
-/// 読む）。
+/// `last_value`/`self_write_count` は [`TextTarget::write`] と同じ共有セル
+/// （直近に書き込んだ数値・自己書き込み回数カウンタ。呼び出し側の
+/// `MutationObserver` が再補間の開始値・外部更新の区別に読む）。
 pub fn write_final(
     element: &web_sys::HtmlElement,
     format: &NumberText,
     value: f64,
-    last_written: &Rc<RefCell<String>>,
+    last_value: &Rc<Cell<Option<f64>>>,
     self_write_count: &Rc<Cell<u32>>,
 ) {
-    let text = format.render(value);
-    element.set_text_content(Some(&text));
-    *last_written.borrow_mut() = text;
+    write_value_text(element, &format.render(value));
+    last_value.set(Some(value));
     self_write_count.set(self_write_count.get() + 1);
 }
 
 /// `from` から `to` へ `duration_ms` かけて ease-out 補間しながら `element`
-/// の `textContent` を書き換える rAF ループを開始する。
+/// の数値テキストノード（[`value_text_node`]）を書き換える rAF ループを
+/// 開始する。
 ///
 /// `window`/`performance` が取得できない環境（[`RafDriver::new`] が
 /// `None`）では、補間せず [`write_final`] で `to` を即座に書き込み
 /// `None` を返す（呼び出し側は戻り値の有無で分岐する必要がない）。
 ///
-/// `last_written` は呼び出し側（`wasm-full`）が自己書き込みを検知して
-/// 外部更新と区別するための共有セル（`TextTarget::write` が毎回更新する）。
-/// `self_write_count` は同じ目的の自己書き込み回数カウンタ
-/// （[`TextTarget::write`] ドキュメント参照）。
+/// `last_value` は呼び出し側（`wasm-full`）が外部更新時の再補間の開始値に
+/// 使う「直近に書き込んだ数値」の共有セル（`TextTarget::write` が毎回更新
+/// する）。`self_write_count` は自己書き込みを外部更新と区別するための
+/// 回数カウンタ（[`TextTarget::write`] ドキュメント参照）。
 pub fn start(
     element: web_sys::HtmlElement,
     format: NumberText,
     from: f64,
     to: f64,
     duration_ms: f64,
-    last_written: Rc<RefCell<String>>,
+    last_value: Rc<Cell<Option<f64>>>,
     self_write_count: Rc<Cell<u32>>,
 ) -> Option<CountUp> {
     let Some(mut driver) = RafDriver::new() else {
-        write_final(&element, &format, to, &last_written, &self_write_count);
+        write_final(&element, &format, to, &last_value, &self_write_count);
         return None;
     };
 
     let mut target = TextTarget {
         element,
         format,
-        last_written,
+        last_value,
         self_write_count,
     };
     // SSR ハイドレーション直後の最終値ちらつき対策（Bugbot High 指摘）:
@@ -674,6 +734,34 @@ mod tests {
     fn rejects_excessive_decimal_digits() {
         let overflowing = format!("1.{}", "0".repeat(309));
         assert!(NumberText::parse(&overflowing).is_none());
+    }
+
+    /// codex-review P1 指摘: `MAX_DECIMALS` は `scale` の有限性しか保証
+    /// せず、受理した有限値（1e300）の途中値 `5e299` を描画する際
+    /// `value * scale`（× 1e15）がオーバーフローして "inf" が表示されて
+    /// いた回帰。乗算結果が非有限でも有限な十進表記を返すこと。
+    #[test]
+    fn renders_huge_value_without_overflowing_scale_multiplication() {
+        let huge = format!("1{}.{}", "0".repeat(300), "0".repeat(15));
+        let n = NumberText::parse(&huge).expect("有限値 1e300 は受理されること");
+        let mid = n.render(5e299);
+        assert!(
+            !mid.contains("inf") && !mid.contains("NaN"),
+            "途中値の描画が非有限になってはならない: {mid}"
+        );
+        assert!(
+            mid.starts_with('5'),
+            "途中値は 5e299 の十進表記であること: {mid}"
+        );
+        assert!(
+            mid.ends_with(&format!(".{}", "0".repeat(15))),
+            "小数桁数を保つこと: {mid}"
+        );
+        assert_eq!(
+            n.render(n.value()),
+            huge,
+            "最終フレームは元テキストへ収束すること"
+        );
     }
 
     #[test]

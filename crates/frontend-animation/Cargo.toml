@@ -244,6 +244,14 @@ web-sys = { version = "0.3", features = [
   # の inherent メソッドであり、別 feature の有効化を要しない）。新規
   # 外部パッケージの追加はない。
   "NodeList",
+  # イシュー #2539（PR #2580 codex-review P1 是正）: `count_up::value_text_node`
+  # が stat の数値テキストノードだけを書き換える（`value_unit`/
+  # `up_indicator` 等の兄弟子要素を保持する）ために `Text`（`Node` からの
+  # `dyn_into`）と `CharacterData`（`data()`/`set_data()`）を追加する。
+  # 新規外部パッケージの追加はない（既存 `web-sys` の feature 追加のみ、
+  # wasm-full は両 feature を既に有効化済み）。
+  "Text",
+  "CharacterData",
 ] }
 wasm-bindgen-futures = "0.4"
 

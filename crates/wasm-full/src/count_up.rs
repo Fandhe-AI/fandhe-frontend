@@ -27,8 +27,18 @@
 //! # セキュリティ不変条件（REQ-1・security.md A03）
 //!
 //! DOM への書き込みは `fandhe_frontend_animation::count_up` 経由の
-//! `set_text_content` のみ（HTML 解釈なし）。属性値はすべて防御的パース、
-//! セレクタへ動的文字列を混ぜない。
+//! `CharacterData::set_data`/`set_text_content` のみ（HTML 解釈なし）。
+//! 属性値はすべて防御的パース、セレクタへ動的文字列を混ぜない。
+//!
+//! # 読み書きの対象（stat の子要素を保持する）
+//!
+//! `stat::value_text` は `value_unit`/`up_indicator`/`down_indicator` を
+//! 数値テキストと並べて子に持つ構成を公開契約とするため、初期テキストの
+//! 解析・外部更新の読み取りは要素全体の `textContent` ではなく
+//! [`fandhe_frontend_animation::count_up::read_value_text`]（数値テキスト
+//! ノードのみ）で行い、書き込み側（`start`/`write_final`）と対象を揃える
+//! （PR #2580 codex-review P1 指摘: 開始直後に単位 `<span>` や矢印が削除
+//! されていた回帰の是正）。
 
 /// opt-in（著者が SSR 出力に静的に付与）: カウントアップを有効化する
 /// 要素マーカー（値なし存在属性）。
@@ -142,6 +152,14 @@ mod wiring {
     /// が古い数値のまま残り、進入時にそれで上書きしていた回帰の是正）。
     type PendingTarget = Rc<RefCell<Option<(NumberText, f64)>>>;
 
+    /// 直近に DOM へ書き込んだ数値（`count_up::start`/`write_final` が更新
+    /// する）。外部更新時の再補間の開始値（「現在表示中の値」）として
+    /// 使う。表示文字列の再解析で求めると、桁区切り `.` 書式の途中値
+    /// （"1.234.567" の途中 "123.456"）を小数と誤解釈して急落する
+    /// （PR #2580 codex-review P1 指摘）。`None` は「直近の表示が非数値
+    /// （"N/A" 等）で開始値が存在しない」ことを表す。
+    type LastValue = Rc<Cell<Option<f64>>>;
+
     /// `element` へ `[from, to]` 区間の補間を起動し、`active` を差し替える。
     #[allow(clippy::too_many_arguments)]
     fn start_count_up(
@@ -150,7 +168,7 @@ mod wiring {
         from: f64,
         to: f64,
         duration_ms: f64,
-        last_written: Rc<RefCell<String>>,
+        last_value: LastValue,
         active: &ActiveCountUp,
         self_write_count: &Rc<Cell<u32>>,
     ) {
@@ -160,7 +178,7 @@ mod wiring {
             from,
             to,
             duration_ms,
-            last_written,
+            last_value,
             Rc::clone(self_write_count),
         );
         *active.borrow_mut() = handle;
@@ -170,7 +188,7 @@ mod wiring {
     /// 初期テキストが [`NumberText::parse`] できない場合は何もしない
     /// （数値以外のテキストは変更しない、fail-safe）。
     fn wire_candidate(element: &HtmlElement) {
-        let Some(initial) = element.text_content() else {
+        let Some(initial) = count_up::read_value_text(element) else {
             return;
         };
         let Some(parsed) = NumberText::parse(&initial) else {
@@ -181,12 +199,12 @@ mod wiring {
             parse_count_up_duration_ms(element.get_attribute(COUNT_UP_DURATION_MS_ATTR).as_deref());
         let trigger = trigger_from_attr(element.get_attribute(COUNT_UP_TRIGGER_ATTR).as_deref());
 
-        let last_written: Rc<RefCell<String>> = Rc::new(RefCell::new(initial));
+        let last_value: LastValue = Rc::new(Cell::new(Some(to)));
         let active: ActiveCountUp = Rc::new(RefCell::new(None));
         // 自己書き込み検知カウンタ（`fandhe_frontend_animation::count_up::
         // TextTarget::write`/`write_final` が書き込みのたびにインクリメント
         // し、`wire_mutation_observer` が `MutationRecord` 件数と突き合わせて
-        // 消費する）。`last_written` との文字列一致だけで自己書き込みを
+        // 消費する）。直前に書いた文字列との一致だけで自己書き込みを
         // 判定すると、外部更新がたまたま同じ文字列を書いた場合（例:
         // in-view 待機中に開始値と同じ文字列へ外部更新された場合）に誤って
         // 無視してしまう（PR #2580 codex-review P1・Bugbot Medium 指摘の
@@ -217,7 +235,7 @@ mod wiring {
         wire_mutation_observer(
             element,
             duration_ms,
-            Rc::clone(&last_written),
+            Rc::clone(&last_value),
             Rc::clone(&active),
             Rc::clone(&pending),
             Rc::clone(&started),
@@ -232,19 +250,19 @@ mod wiring {
                     0.0,
                     to,
                     duration_ms,
-                    Rc::clone(&last_written),
+                    Rc::clone(&last_value),
                     &active,
                     &self_write_count,
                 );
             }
             Trigger::InView => {
-                count_up::write_final(element, &parsed, 0.0, &last_written, &self_write_count);
+                count_up::write_final(element, &parsed, 0.0, &last_value, &self_write_count);
                 if supports_intersection_observer() {
                     wire_in_view_trigger(
                         element,
                         Rc::clone(&pending),
                         duration_ms,
-                        &last_written,
+                        &last_value,
                         &active,
                         &started,
                         &self_write_count,
@@ -260,7 +278,7 @@ mod wiring {
                         0.0,
                         to,
                         duration_ms,
-                        Rc::clone(&last_written),
+                        Rc::clone(&last_value),
                         &active,
                         &self_write_count,
                     );
@@ -277,13 +295,13 @@ mod wiring {
         element: &HtmlElement,
         pending: PendingTarget,
         duration_ms: f64,
-        last_written: &Rc<RefCell<String>>,
+        last_value: &LastValue,
         active: &ActiveCountUp,
         started: &Rc<Cell<bool>>,
         self_write_count: &Rc<Cell<u32>>,
     ) {
         let element_for_callback = element.clone();
-        let last_written_for_callback = Rc::clone(last_written);
+        let last_value_for_callback = Rc::clone(last_value);
         let active_for_callback = Rc::clone(active);
         let started_for_callback = Rc::clone(started);
         let self_write_count_for_callback = Rc::clone(self_write_count);
@@ -310,7 +328,7 @@ mod wiring {
                             0.0,
                             to,
                             duration_ms,
-                            Rc::clone(&last_written_for_callback),
+                            Rc::clone(&last_value_for_callback),
                             &active_for_callback,
                             &self_write_count_for_callback,
                         );
@@ -338,14 +356,14 @@ mod wiring {
     /// 同期処理が終わった後に変更をまとめて 1 回のコールバックで通知
     /// するため、自己書き込みと外部更新が同じ同期処理内で両方発生する
     /// ことがある。真偽値 1 個（「直前に自分が書いた文字列
-    /// (`last_written`) と現在の `textContent` が一致するか」、あるいは
+    /// と現在の `textContent` が一致するか」、あるいは
     /// 単純な `self_write` フラグ）だけで通知全体を除外すると、この場合に
     /// 外部更新を取りこぼす（PR #2580 codex-review P1・Bugbot Medium
     /// 指摘、およびレビュー是正・codex-review P1 再指摘）。
     fn wire_mutation_observer(
         element: &HtmlElement,
         duration_ms: f64,
-        last_written: Rc<RefCell<String>>,
+        last_value: LastValue,
         active: ActiveCountUp,
         pending: PendingTarget,
         started: Rc<Cell<bool>>,
@@ -358,19 +376,19 @@ mod wiring {
                 if !count_up::has_external_mutation(records.length(), self_writes) {
                     return;
                 }
-                let current = element_for_callback.text_content().unwrap_or_default();
-                let Some(new_parsed) = NumberText::parse(&current) else {
+                let current = count_up::read_value_text(&element_for_callback);
+                let Some(new_parsed) = current.as_deref().and_then(NumberText::parse) else {
                     // 数値として解析できない外部更新（例: "N/A"・空文字）。
                     // 進行中の補間を止め、古い数値で上書きし続けない
                     // （PR #2580 codex-review P1 指摘）。待機中の目標値
                     // （`pending`）も無効化する: 無効化しないと、この後
                     // 画面内へ進入した際に `wire_in_view_trigger` が古い
                     // 数値目標で上書きしてしまう（PR #2580 codex-review P1
-                    // 再指摘）。`last_written` は現在のテキストへ合わせ、
-                    // 以後の自己書き込み判定を正しく機能させる。
+                    // 再指摘）。開始値（`LastValue`）も無効化し、次の数値
+                    // 更新は補間せず新しい値をそのまま表示する。
                     *active.borrow_mut() = None;
                     *pending.borrow_mut() = None;
-                    *last_written.borrow_mut() = current;
+                    last_value.set(None);
                     return;
                 };
                 let to = new_parsed.value();
@@ -392,22 +410,22 @@ mod wiring {
                         &element_for_callback,
                         &new_parsed,
                         0.0,
-                        &last_written,
+                        &last_value,
                         &self_write_count,
                     );
                     *pending.borrow_mut() = Some((new_parsed, to));
                     return;
                 }
-                let from = NumberText::parse(&last_written.borrow())
-                    .map(|previous| previous.value())
-                    .unwrap_or(to);
+                // 「現在表示中の値」= 直近に書き込んだ数値（`LastValue`
+                // doc 参照。表示文字列は再解析しない）。
+                let from = last_value.get().unwrap_or(to);
                 start_count_up(
                     &element_for_callback,
                     new_parsed,
                     from,
                     to,
                     duration_ms,
-                    Rc::clone(&last_written),
+                    Rc::clone(&last_value),
                     &active,
                     &self_write_count,
                 );

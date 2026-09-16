@@ -76,6 +76,14 @@ pub const COUNT_UP_TRIGGER_IN_VIEW: &str = "in-view";
 /// [`crate::stat::value_text`] へ [`COUNT_UP_ATTR`] を前置して組み立てる。
 /// トリガー・duration を上書きする場合は `attrs` へ
 /// [`COUNT_UP_TRIGGER_ATTR`]/[`COUNT_UP_DURATION_MS_ATTR`] を追加で渡す。
+///
+/// `children` は [`crate::stat::value_text`] と同じ構成（数値テキストと、
+/// 任意で [`crate::stat::value_unit`]/[`crate::stat::up_indicator`]/
+/// [`crate::stat::down_indicator`] の兄弟）をそのまま受け取れる。配線側
+/// （`fandhe-frontend-wasm-full::count_up`）は**直接の子のうち最初の数字を
+/// 含むテキストノード**だけを読み書きし、兄弟の子要素は保持する（PR
+/// #2580 codex-review P1 是正）。数値を `<span>` 等でさらに包むと対象外
+/// （変更されない、fail-safe）になる。
 #[must_use]
 pub fn count_up_value_text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&str, &str)> = vec![(COUNT_UP_ATTR, "")];

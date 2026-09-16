@@ -129,6 +129,55 @@ async fn external_text_update_reinterpolates_to_new_value() {
     );
 }
 
+/// PR #2580 codex-review P1 指摘の回帰テスト: `stat::value_text` の公開
+/// 契約どおり数値テキストの兄弟に単位 `<span>`・矢印 `<span aria-hidden>`
+/// が並ぶ構成で、配線・補間・外部更新後の再補間のいずれも子要素を削除
+/// せず、数値テキストノードだけを書き換えること（単位テキストは書式の
+/// suffix として二重化されない）。
+#[wasm_bindgen_test]
+async fn stat_sibling_children_are_preserved_through_count_up_and_external_update() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, dd) = build_dom(
+        &document,
+        "count-up-root-7",
+        "1,234",
+        &[(COUNT_UP_DURATION_MS_ATTR, TEST_DURATION_MS)],
+    );
+    let _guard = RemoveOnDrop(root.clone());
+    let unit = document.create_element("span").unwrap();
+    unit.set_text_content(Some("%"));
+    dd.append_child(&unit).unwrap();
+    let arrow = document.create_element("span").unwrap();
+    arrow.set_attribute("aria-hidden", "true").unwrap();
+    arrow.set_text_content(Some("▲"));
+    dd.append_child(&arrow).unwrap();
+
+    wire_count_up(&root).expect("wire_count_up must not fail");
+    assert_eq!(
+        dd.child_element_count(),
+        2,
+        "配線直後の同期書き込みで子要素が消えないこと"
+    );
+    assert_eq!(dd.text_content().unwrap(), "0%▲");
+
+    sleep_ms(300).await;
+    assert_eq!(dd.child_element_count(), 2);
+    assert_eq!(dd.text_content().unwrap(), "1,234%▲");
+
+    // 外部更新（アプリが数値テキストノードだけを書き換える）→ 再補間後も
+    // 子要素は保持される。
+    dd.first_child()
+        .expect("number text node must exist")
+        .set_text_content(Some("2,000"));
+    sleep_ms(300).await;
+    assert_eq!(
+        dd.child_element_count(),
+        2,
+        "外部更新後の再補間でも子要素が消えないこと"
+    );
+    assert_eq!(dd.text_content().unwrap(), "2,000%▲");
+}
+
 #[wasm_bindgen_test]
 async fn non_numeric_text_is_left_unchanged() {
     let document = web_sys::window().unwrap().document().unwrap();
