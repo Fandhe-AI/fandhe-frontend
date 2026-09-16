@@ -61,7 +61,9 @@
 //! typewriter/scramble のフレーム計算・DOM 書き込み、イシュー #2532）も
 //! 実装済み。cursor（[`cursor::CursorFollower`]・[`cursor::CursorAnimator`]、
 //! カスタムカーソルのポインタ追従 spring 演算・rAF 駆動、イシュー #2542）も
-//! 実装済み。presence（[`presence::insert_exit_ghost`]・
+//! 実装済み。共有レイアウト遷移（[`shared_layout`]、motion.dev `layoutId`
+//! 相当。旧要素→新要素の id 突合 + [`flip`] 再利用による FLIP、イシュー
+//! #2536）も実装済み。presence（[`presence::insert_exit_ghost`]・
 //! [`presence::remove_when_settled`]、keyed list 削除行の退場ゴースト
 //! 配置・実測 CSS アニメーション時間経過後の除去、イシュー #2544）も
 //! 実装済み。残りの実装は
@@ -81,6 +83,7 @@ pub mod presence;
 pub mod raf_driver;
 pub mod reduced_motion;
 pub mod scroll_driver;
+pub mod shared_layout;
 pub mod svg_path;
 pub mod text_animation;
 

@@ -244,6 +244,15 @@ capture_before`/`play_after`）をゲートします。`layout_flip` モジュ�
 サブツリー全体の Invert 変形を所有する設計上のスコープ外であり、将来の
 課題として扱います）。
 
+**共有レイアウト遷移（イシュー #2536）を含む**: `layout-animation`
+feature は上記の同一要素向け layout FLIP に加え、`crate::shared_layout`
+（`data-fandhe-layout-id` 属性、旧要素→新要素の id 突合による共有レイア
+ウト遷移。motion.dev `layoutId` 相当）もゲートします。新規 feature は
+切らず既存 `layout-animation` を再利用しているため、off にすると両方の
+アニメーションが同時に無効化されます。詳細は
+[アニメーション機能ガイド §12](./animation.md#12-共有レイアウト遷移-layoutid-相当)
+を参照してください。
+
 `presence` feature（イシュー #2544、既定 on）も `layout-animation` と
 同型の別枠です。`Runtime::apply_update_for_dirty` の keyed list 構造
 変化コミットの前後で、`fandhe_frontend_animation::presence`（削除行の

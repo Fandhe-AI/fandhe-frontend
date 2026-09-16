@@ -506,6 +506,8 @@ pub mod position;
 pub mod questionnaire;
 #[cfg(feature = "scroll-driver")]
 pub mod scroll_driver;
+#[cfg(feature = "layout-animation")]
+pub mod shared_layout;
 pub mod sidebar;
 pub mod splitter;
 pub mod stagger_index;
@@ -1128,6 +1130,14 @@ where
         // ない）ため、`flip_captured`（リスト要素 → Before の全域
         // テーブル）と `flip_target_lists`（実際に play する最外側の
         // 集合）へ分離した。
+        // イシュー #2536: 共有レイアウト遷移（`layoutId` 相当）の捕捉。
+        // `crate::layout_flip`（同一要素の並べ替え）とは独立に、`root`
+        // 配下の `data-fandhe-layout-id` 付き要素の現在の視覚矩形を先に
+        // 測っておく（構造変化コミット前、`shared_layout.rs` モジュール
+        // doc「呼び出しタイミング」参照）。
+        #[cfg(feature = "layout-animation")]
+        let shared_layout_before = crate::shared_layout::capture_before(root);
+
         #[cfg(feature = "layout-animation")]
         let mut flip_captured: Vec<(
             web_sys::Element,
@@ -1299,6 +1309,52 @@ where
                 if let Some(snapshot) = crate::list_presence::capture_before(&list_element) {
                     presence_captured.push((field, snapshot));
                 }
+            }
+        }
+
+        // イシュー #2578（Cursor Bugbot 指摘「Unrelated updates abort
+        // shared layout」是正）: 進行中の共有レイアウト遷移の停止は、この
+        // 更新で DOM 書き込みが及ぶ範囲——dirty field の keyed list 本体と
+        // 束縛先要素——の配下にある要素だけに限定する（`shared_layout::
+        // stop_within` doc 参照。`layout_flip::capture_before` が「実際に
+        // 更新されるリストだけを停止する」のと同じ粒度）。無関係な
+        // テキスト/属性更新で進行中の spring を中断しない一方、
+        // codex-review P1「DOM 更新前に進行中の共有 FLIP を停止する」の
+        // 契約（書き換わる要素は停止・復元してから DOM 更新へ進む）は、
+        // `apply_dirty`（束縛点の `set_attribute` 等）と keyed list 構造
+        // コミットの**前**であるこの位置で維持する。unresolved field に
+        // よる全再描画フォールバックは下記 `rerender_subtree` 直前で
+        // `root` 全体を対象に停止する。
+        //
+        // 加えて、この更新で list FLIP（`layout_flip::play_after_reporting`）
+        // が実際に transform を書き込む keyed list——`flip_target_lists`
+        // （dirty field 自身のリストと、それを包含して FLIP を再生する
+        // 祖先の `FLIP_AUTO_ATTR` リスト）——も scope に含める（Cursor
+        // Bugbot 指摘「Ancestor FLIP lists skip stop scope」是正、イシュー
+        // #2578）。祖先リストの行に進行中の共有レイアウト遷移が残って
+        // いると、その行へ書き込まれる list FLIP の transform を旧アニメー
+        // ションが次フレームで上書きし、収束時に `OriginalStyle::restore`
+        // が更新前の値を復元してしまうため。走査対象は `flip_captured`
+        // ではなく `flip_target_lists` に限定する: 走査 (ii) が束縛のみの
+        // 更新で捕捉するだけで再生しないフラットな `FLIP_AUTO_ATTR`
+        // リスト（`chain.len() == 1`）には新たな transform は書き込まれ
+        // ないため、そこまで scope に入れると無関係な属性/テキスト更新が
+        // 同リスト内の進行中の共有レイアウト遷移を中断してしまう（Cursor
+        // Bugbot 指摘「Stop scope includes non-playing lists」是正）。
+        #[cfg(feature = "layout-animation")]
+        {
+            for field in dirty {
+                if let Ok(Some(list_element)) =
+                    fandhe_frontend_wasm_client::find_list_element(root, field)
+                {
+                    crate::shared_layout::stop_within(root, &list_element);
+                }
+                for element in crate::layout_flip::elements_bound_to_field(root, field) {
+                    crate::shared_layout::stop_within(root, &element);
+                }
+            }
+            for (target_list, _) in &flip_target_lists {
+                crate::shared_layout::stop_within(root, target_list);
             }
         }
 
@@ -1554,6 +1610,22 @@ where
         // リストの構造変化がすべて確定済みの状態を Last として測れる
         // （先行リストの Last 計測時点でまだ後続リストの構造変化が未
         // コミットだった旧実装の位置ずれを解消する）。
+        // イシュー #2578（codex-review 指摘・Bugbot 指摘是正）: 本ループで
+        // `layout_flip::play_after` が実際に transform を適用した（＝
+        // 適用の所有権を握った）行要素のみを集め、後段の `shared_layout::
+        // play_after_excluding` から除外する（`shared_layout.rs::
+        // play_after_excluding` doc「対象から除外する要素」節参照。同一
+        // キーのまま行がタグ変更で置換されると、既存 layout FLIP と
+        // 共有レイアウト遷移が同じ新要素を対象にし得るため、先行する
+        // layout FLIP が transform を書き込んだ行要素を共有レイアウト
+        // 遷移の対象外にする）。除外を `live_target`〔keyed list
+        // コンテナ〕サブツリー全体ではなく実際に動いた行要素へ絞ることで、
+        // 今回の更新で FLIP を受け取らなかった行（新規挿入・移動なし）に
+        // 含まれる `data-fandhe-layout-id` 要素まで巻き込んで共有レイアウト
+        // 遷移から除外してしまう取りこぼしを防ぐ（Bugbot 指摘「FLIP lists
+        // skip nested shared layout」）。
+        #[cfg(feature = "layout-animation")]
+        let mut flip_played_targets: Vec<web_sys::Element> = Vec::new();
         #[cfg(feature = "layout-animation")]
         for (target, field_hint) in flip_target_lists {
             let Some(before) = flip_captured
@@ -1607,7 +1679,16 @@ where
             if !live_target.has_attribute(crate::layout_flip::FLIP_AUTO_ATTR) {
                 continue;
             }
-            crate::layout_flip::play_after(&live_target, before);
+            // Bugbot 指摘是正（イシュー #2578「FLIP lists skip nested
+            // shared layout」）: `play_after` が実際に transform を適用
+            // した行要素のみを集める（`live_target` サブツリー全体では
+            // ない）。同一 keyed list 内で今回の更新では動かなかった
+            // 行（新規挿入・別行への移動なし）に含まれる
+            // `data-fandhe-layout-id` 要素まで丸ごと除外すると、それらが
+            // 共有レイアウト遷移から取りこぼされてしまうため
+            // （`shared_layout.rs::play_after_excluding` doc 参照）。
+            let played_rows = crate::layout_flip::play_after_reporting(&live_target, before);
+            flip_played_targets.extend(played_rows.into_iter().map(web_sys::Element::from));
         }
 
         // keyed list の挿入で新規ノードが増えた場合、その内部の
@@ -1625,8 +1706,26 @@ where
         // 1 件でもあれば、`root` サブツリーを丸ごと差し替える全再描画へ
         // フォールバックする（従来の黙った no-op を解消）。
         if unresolved_field {
+            // `root` サブツリー全体が差し替わるため、進行中の共有レイアウト
+            // 遷移も全件停止する（上記 `stop_within` の範囲限定の補集合、
+            // イシュー #2578）。
+            #[cfg(feature = "layout-animation")]
+            crate::shared_layout::stop_within(root, root);
             Self::rerender_subtree(state, root, binding_table, keyed_list_cache);
         }
+
+        // イシュー #2536: 構造変化コミット（`rerender_subtree` フォール
+        // バック含む）完了後に共有レイアウト遷移を再生する（`shared_
+        // layout.rs` モジュール doc「呼び出しタイミング」参照）。イシュー
+        // #2578: 本更新内で既存 layout FLIP が transform を適用済みの
+        // リスト（`flip_played_targets`）は対象から除外する（`shared_
+        // layout.rs::play_after_excluding` doc 参照）。
+        #[cfg(feature = "layout-animation")]
+        crate::shared_layout::play_after_excluding(
+            root,
+            shared_layout_before,
+            &flip_played_targets,
+        );
     }
 
     /// `root` の全子ノードを `state.view()` から新規構築したサブツリーへ
@@ -3307,12 +3406,24 @@ where
         let Ok(state) = self.component.try_borrow() else {
             return;
         };
+        // イシュー #2536: `rerender` は View Transitions を介さない
+        // dispatch/rerender 経路（実装計画「VT 委譲判定」参照）のため、
+        // 共有レイアウト遷移は常に起動する。
+        #[cfg(feature = "layout-animation")]
+        let shared_layout_before = crate::shared_layout::capture_before(&self.root);
+        // `root` サブツリー全体が差し替わるため、捕捉後に進行中の共有
+        // レイアウト遷移を全件停止してから DOM を更新する（`shared_layout::
+        // stop_within` doc 参照、イシュー #2578）。
+        #[cfg(feature = "layout-animation")]
+        crate::shared_layout::stop_within(&self.root, &self.root);
         Self::rerender_subtree(
             &state,
             &self.root,
             &self.binding_table,
             &self.keyed_list_cache,
         );
+        #[cfg(feature = "layout-animation")]
+        crate::shared_layout::play_after(&self.root, shared_layout_before);
     }
 
     /// 任意の状態更新（router 遷移に限らない再描画トリガー）を
@@ -3368,18 +3479,44 @@ where
             );
             return;
         };
+        // イシュー #2536: View Transitions が使える場合は UA 側の同名要素
+        // morph に委譲し、共有レイアウト遷移を起動しない（`view_transition_
+        // swap` doc「shared_flip」参照）。機能検出のみに基づく見込み判定
+        // （`document.startViewTransition` 呼び出し前の名前付けにのみ使う。
+        // 呼び出し自体が throw するケースは検出できないため「見込み」に
+        // 留まる、下記 `with_view_transition` の `is_real_vt` doc 参照）。
+        #[cfg_attr(not(feature = "layout-animation"), allow(unused_variables))]
+        let likely_shared_flip = !crate::view_transition::is_supported(&document);
+        // イシュー #2578: UA 委譲見込み時は `data-fandhe-layout-id` を
+        // `view-transition-name` へ対応付けないと UA が同名要素を認識
+        // できず共有レイアウト遷移が起きない。`document.startViewTransition`
+        // 呼び出し前（旧要素側）に同期的に完了させる必要がある
+        // （`shared_layout::assign_transition_names` doc 参照）。
+        #[cfg(feature = "layout-animation")]
+        if !likely_shared_flip {
+            crate::shared_layout::assign_transition_names(&self.root);
+        }
         let component = self.component.clone();
         let root = self.root.clone();
         let binding_table = self.binding_table.clone();
         let keyed_list_cache = self.keyed_list_cache.clone();
         let doc_for_apply = document.clone();
-        crate::view_transition::with_view_transition(&document, None, move || {
+        crate::view_transition::with_view_transition(&document, None, move |is_real_vt| {
+            // イシュー #2578（Bugbot 指摘）: `document.startViewTransition`
+            // が機能検出を通過していても呼び出し自体が throw し得るため、
+            // 実際にこのコールバックが実 VT の update として呼ばれたか
+            // （`is_real_vt`）で `shared_flip` を決める（見込みではなく
+            // 実結果。throw 時は同期フォールバック経路になり
+            // `is_real_vt == false` が渡るため、JS 側の共有レイアウト遷移
+            // フォールバックへ正しく切り替わる）。
+            let shared_flip = !is_real_vt;
             Self::view_transition_swap(
                 &component,
                 &root,
                 &binding_table,
                 &keyed_list_cache,
                 &doc_for_apply,
+                shared_flip,
             );
         });
     }
@@ -3396,6 +3533,16 @@ where
     /// （feature `"view-transition-preset"`）の双方から呼ばれるため、
     /// いずれか一方のみが有効な構成でも未使用にならないよう `any(...)` で
     /// ゲートする。
+    ///
+    /// `shared_flip`（イシュー #2536）: `true` の場合のみ共有レイアウト
+    /// 遷移（`crate::shared_layout`）を差し替えの前後で起動する。
+    /// 呼び出し元（[`Self::apply_with_view_transition`]・
+    /// [`Self::apply_with_view_transition_named`]）は
+    /// `!crate::view_transition::is_supported(document)` を渡す——View
+    /// Transitions 自体が使える場合は UA 側の同名要素 morph に委譲し、
+    /// 二重に補正しない（実装計画「VT 委譲判定」参照。`with_view_
+    /// transition` が非対応ブラウザで同期フォールバックする経路と表裏の
+    /// 判定）。
     #[cfg(any(feature = "view-transitions", feature = "view-transition-preset"))]
     fn view_transition_swap(
         component: &std::rc::Rc<std::cell::RefCell<C>>,
@@ -3407,6 +3554,7 @@ where
             std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
         >,
         document: &web_sys::Document,
+        #[cfg_attr(not(feature = "layout-animation"), allow(unused_variables))] shared_flip: bool,
     ) {
         let Ok(state) = component.try_borrow() else {
             return;
@@ -3421,7 +3569,30 @@ where
             );
             return;
         };
+        #[cfg(feature = "layout-animation")]
+        let shared_layout_before = shared_flip
+            .then(|| crate::shared_layout::capture_before(root))
+            .flatten();
+        // `root` サブツリー全体が差し替わるため、捕捉後に進行中の共有
+        // レイアウト遷移を全件停止してから DOM を更新する（`rerender` と
+        // 同じ、イシュー #2578）。UA 委譲時（`shared_flip == false`）は
+        // 本モジュールの FLIP ハンドル自体が起動されないため対象外。
+        #[cfg(feature = "layout-animation")]
+        if shared_flip {
+            crate::shared_layout::stop_within(root, root);
+        }
         Self::apply_subtree_swap(root, &new_node, binding_table, keyed_list_cache);
+        #[cfg(feature = "layout-animation")]
+        if shared_flip {
+            crate::shared_layout::play_after(root, shared_layout_before);
+        } else {
+            // イシュー #2578: UA 委譲時、差し替え後の新要素側にも同じ id を
+            // `view-transition-name` として書き込む（呼び出し元が
+            // `document.startViewTransition` 呼び出し前に既に旧要素側を
+            // 書き込み済み、`shared_layout::assign_transition_names`
+            // doc「呼び出しタイミング」参照）。
+            crate::shared_layout::assign_transition_names(root);
+        }
     }
 
     /// [`Self::apply_with_view_transition`] と同じ全再描画ロジックを、
@@ -3454,18 +3625,32 @@ where
             );
             return;
         };
+        // イシュー #2536: `apply_with_view_transition` と同じ VT 委譲判定
+        // （見込み。`with_view_transition` doc「is_real_vt」参照）。
+        #[cfg_attr(not(feature = "layout-animation"), allow(unused_variables))]
+        let likely_shared_flip = !crate::view_transition::is_supported(&document);
+        // イシュー #2578: `apply_with_view_transition` と同じ理由で
+        // `document.startViewTransition` 呼び出し前に名前付けを完了する。
+        #[cfg(feature = "layout-animation")]
+        if !likely_shared_flip {
+            crate::shared_layout::assign_transition_names(&self.root);
+        }
         let component = self.component.clone();
         let root = self.root.clone();
         let binding_table = self.binding_table.clone();
         let keyed_list_cache = self.keyed_list_cache.clone();
         let doc_for_apply = document.clone();
-        crate::view_transition::with_view_transition(&document, Some(preset), move || {
+        crate::view_transition::with_view_transition(&document, Some(preset), move |is_real_vt| {
+            // イシュー #2578: `apply_with_view_transition` と同じ理由で
+            // 見込みではなく実結果（`is_real_vt`）を使う。
+            let shared_flip = !is_real_vt;
             Self::view_transition_swap(
                 &component,
                 &root,
                 &binding_table,
                 &keyed_list_cache,
                 &doc_for_apply,
+                shared_flip,
             );
         });
     }

@@ -1293,12 +1293,54 @@ name = "fandhe-frontend-wasm-full"
 # `fandhe-frontend-animation` の依存 `version` 要求を本マージでの統合
 # バンプ値 0.16.0 へ追随する（`xtask check-dep-versions --fix` 相当）。
 #
-# イシュー #2544（PR #2585 codex-review P1 是正）: `fandhe-frontend-
-# animation` の依存 `version` 要求を、退場ゴースト radio group 隔離修正
-# （patch バンプ）に伴い 0.16.0 → 0.16.1 へ追随した（`xtask
-# check-dep-versions --fix` 相当）。本クレート自身の `src/`/機能は不変
-# のため patch バンプする。
-version = "0.40.1"
+# イシュー #2541（PR #2581 レビュー是正・第 3 ラウンド）:
+# `carousel_motion.rs` の内部実装のみを修正した（release 時の再描画で
+# spring を継続させる retarget、`pointerup`/`pointercancel`/
+# `lostpointercapture` の window 委譲追加登録、主ボタン以外でのドラッグ
+# 開始防止、抑止済み click での誤った spring 打ち切り防止。公開 API の
+# シグネチャは不変）ため patch バンプする。
+#
+# マージコミット注記（origin/main #2542 との統合）: origin/main はイシュー
+# #2542（`cursor`: カスタムカーソル配線、既定 on）を追加し 0.35.0 →
+# 0.36.0 へ独立に minor バンプしていた。`magnetic`/`text-animation` と
+# 同型の新規公開モジュール純追加。本ブランチの到達値 0.36.3 に cursor
+# モジュール新設を統合するため、さらに +1 minor して 0.37.0 とする。
+# `fandhe-frontend-animation` の依存 `version` 要求は 0.13.0 → 0.14.0
+# （本マージでの frontend-animation 統合バンプ値）へ追随する
+# （`xtask check-dep-versions --fix` 相当）。
+# PR #2581 レビュー是正（イシュー #2541 第 5 ラウンド）: 入れ子 carousel の
+# root/item-group 誤結合の是正・release 時の途中進行値フラッシュ防止の
+# 実装変更のため、`.claude/rules/coding-rust.md` #638 条項に従いさらに +1
+# minor して 0.38.0 とする。
+#
+# イシュー #2536: `shared_layout` モジュール（共有レイアウト遷移、
+# `layout-animation` feature 配下。新規公開定数 `LAYOUT_ID_ATTR`）を
+# 追加した（レビュー是正〔URL 検証ゲート違反・メモリリーク修正、
+# View Transition 名残留修正、既存 layout FLIP との transform 二重適用
+# 防止を含む〕を含め HEAD 到達値 0.35.0）。新規公開 API 追加のため minor
+# バンプする（#638 条項）。本ブランチの到達値 0.35.0 は origin/main の
+# 到達値 0.39.0 を下回るため、`.claude/rules/coding-rust.md` #638 条項に
+# 従い main の現行値からさらに +1 minor して 0.40.0 とする。
+# `fandhe-frontend-animation` の依存 `version` 要求は 0.14.0 → 0.16.1
+# （本マージでの frontend-animation 統合バンプ値）へ追随する（`xtask
+# check-dep-versions --fix` 相当）。
+#
+# PR #2578 レビュー是正（イシュー #2536）: `play_after_excluding` が
+# keyed-list コンテナ配下の shared-layout 要素を丸ごと FLIP 対象から
+# 除外していたのを、直近の keyed-list FLIP で実際に transform を適用
+# 済みの子孫のみへ限定した（既存 API に破壊的変更はない）ため patch
+# バンプする。
+#
+# マージコミット注記（origin/main #2585 との統合）: origin/main はイシュー
+# #2544（PR #2585 codex-review P1 是正）で `fandhe-frontend-animation` の
+# 依存 `version` 要求を 0.16.0 → 0.16.1 へ追随する patch バンプを独立に
+# 行い、0.40.0 → 0.40.1 へ到達していた。本ブランチの到達値 0.40.1（上記
+# PR #2578 レビュー是正の patch バンプ）と同一版数へ衝突したため、
+# `.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」
+# 運用に従いさらに +1 して 0.40.2 とする。`fandhe-frontend-animation` の
+# 依存 `version` 要求は本マージでの統合バンプ値 0.16.2 へ追随する
+# （`xtask check-dep-versions --fix` 相当）。
+version = "0.40.2"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1632,11 +1674,23 @@ js-sys = "0.3"
 # 依存 `version` 要求を統合到達値 0.16.0 へ追随する（`xtask
 # check-dep-versions --fix` 相当）。
 #
-# イシュー #2544（PR #2585 codex-review P1 是正、本クレート package
-# version 0.40.1 への patch バンプに追随）: `fandhe-frontend-animation`
-# の依存 `version` 要求を 0.16.0 → 0.16.1 へ追随する（`xtask
+# マージコミット注記（origin/main #2542 との統合）: origin/main は
+# `fandhe-frontend-animation` の依存 `version` 要求を `cursor` モジュール
+# 新設に伴い 0.12.0 → 0.13.0 へ追随していた。本マージで
+# `fandhe-frontend-animation` 自体を 0.14.0 へ統合バンプしたため、
+# `version` 要求もその到達値 0.14.0 へ追随する（`xtask check-dep-versions
+# --fix` 相当）。
+#
+# イシュー #2536（本マージでの統合）: `shared_layout` モジュール新設に
+# 伴い `fandhe-frontend-animation` を 0.16.1 へ統合バンプしたため、
+# `version` 要求もその到達値 0.16.1 へ追随する（`xtask
 # check-dep-versions --fix` 相当）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.16.1", optional = true }
+#
+# マージコミット注記（origin/main #2585 との統合、本クレート package
+# version 0.40.2 への統合バンプに追随）: `fandhe-frontend-animation` の
+# 依存 `version` 要求を統合到達値 0.16.2 へ追随する（`xtask
+# check-dep-versions --fix` 相当）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.16.2", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
