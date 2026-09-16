@@ -102,6 +102,7 @@ struct BadgeListState {
 
 impl BadgeListState {
     const FIELD_ITEMS: &'static str = "items";
+    const FIELD_BADGES: &'static str = "badges";
 
     fn new(initial: &[(u64, &str)]) -> Self {
         Self {
@@ -128,6 +129,13 @@ impl Component for BadgeListState {
             BadgeListAction::MoveBadgeIntoNewRow => {
                 self.items.push((3, "c".to_string()));
                 self.dirty.push(Self::FIELD_ITEMS);
+                // 待避位置の旧バッジは `badges` keyed list（空になる）経由で
+                // 除去する。`Runtime::apply_update_for_dirty` は dirty field
+                // に対応する束縛点・keyed list しか更新しないため、`items`
+                // だけを dirty にすると旧バッジが DOM に接続されたまま残り、
+                // `shared_layout::pair_by_id` の「旧要素がまだ接続中なら
+                // 曖昧として対象外」の fail-safe で遷移が起きない。
+                self.dirty.push(Self::FIELD_BADGES);
             }
         }
     }
@@ -176,22 +184,31 @@ impl Component for BadgeListState {
             items,
         )
         .expect("test fixture keyed items must be valid");
-        let mut root_children = vec![list];
-        if !badge_in_list {
-            root_children.push(el(
-                "span",
-                vec![
-                    ("data-testid", "badge"),
-                    (LAYOUT_ID_ATTR, "badge"),
-                    (
-                        "style",
-                        "position:absolute;left:300px;top:300px;width:20px;height:20px;",
-                    ),
-                ],
-                vec![],
-            ));
-        }
-        el("div", vec![("id", "flip-root")], root_children)
+        // 待避位置のバッジは独立した keyed list（`FLIP_AUTO_ATTR` なし）
+        // に置き、更新時は空リストへの差分として除去する（`update` の
+        // コメント参照）。
+        let parked: Vec<(String, Node)> = if badge_in_list {
+            Vec::new()
+        } else {
+            vec![(
+                "badge".to_string(),
+                el(
+                    "span",
+                    vec![
+                        ("data-testid", "badge"),
+                        (LAYOUT_ID_ATTR, "badge"),
+                        (
+                            "style",
+                            "position:absolute;left:300px;top:300px;width:20px;height:20px;",
+                        ),
+                    ],
+                    vec![],
+                ),
+            )]
+        };
+        let badges = keyed_list("div", vec![("id", "badge-slot")], "badges", parked)
+            .expect("test fixture keyed badges must be valid");
+        el("div", vec![("id", "flip-root")], vec![list, badges])
     }
 
     fn decode_action(name: &str, _payload: &str) -> Option<Self::Action> {

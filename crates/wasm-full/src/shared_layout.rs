@@ -33,6 +33,19 @@
 //! animation::flip::FlipAnimation`] の [`Drop`] が元のスタイルへ復元する
 //! （`layout_flip.rs` と同じ契約）。
 //!
+//! ## 収束後の自己回収（Cursor Bugbot 指摘是正、イシュー #2578）
+//!
+//! [`ACTIVE`] の prune は [`capture_before`] からしか走らないが、
+//! `Runtime::apply_with_view_transition` の UA 委譲経路は
+//! `capture_before` を呼ばない。共有レイアウト遷移の再生後に VT 委譲
+//! 経路だけが続く構成では、収束済みハンドルが保持する切断済み要素への
+//! 強参照が回収されずに残る。そのため [`play_after_excluding`] は
+//! `insert` のたびに spring の `settle_duration`（+ 余裕）経過後に
+//! 同じ `token` のエントリだけを除去する `setTimeout` を仕掛ける
+//! （`layout_flip::schedule_cleanup` と同じ設計。復元の要否は
+//! `FlipAnimation::drop` が `is_done()` で判断し、ここでは drop する
+//! だけに留める）。
+//!
 //! ## DOM 更新前の停止契約（codex-review P1 是正、イシュー #2578）
 //!
 //! [`capture_before`] は、このルート（`root_id`）の視覚矩形を捕捉した
@@ -84,14 +97,25 @@ mod wiring {
     use js_sys::WeakMap;
     use std::cell::{Cell, RefCell};
     use std::collections::HashMap;
+    use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, HtmlElement};
+
+    /// [`ACTIVE`] の値。`token` は [`schedule_cleanup`] が「自分が仕掛けた
+    /// エントリがまだ置き換えられていない」ことを識別するための発行番号
+    /// （`layout_flip::FlipEntry` と同じ設計）。
+    struct ActiveEntry {
+        token: u64,
+        animation: FlipAnimation,
+    }
 
     thread_local! {
         /// `(root_id, layout_id)` ごとの進行中の共有レイアウト遷移
         /// （モジュール doc「ハンドル保持」参照）。
-        static ACTIVE: RefCell<HashMap<(u64, String), FlipAnimation>> =
+        static ACTIVE: RefCell<HashMap<(u64, String), ActiveEntry>> =
             RefCell::new(HashMap::new());
+        /// [`ActiveEntry::token`] の発行元カウンタ。
+        static NEXT_TOKEN: Cell<u64> = const { Cell::new(0) };
         /// `root`（`Runtime` のマウント先要素、DOM 参照同一性）→ `u64`
         /// 識別子（モジュール doc「ハンドル保持」参照、
         /// `layout_flip::LIST_IDS` と同じ設計）。
@@ -324,7 +348,7 @@ mod wiring {
         // 要素固有の状態のみで、他ルートへの書き込み・削除は行わない）。
         ACTIVE.with(|cell| {
             cell.borrow_mut()
-                .retain(|(pid, _), anim| *pid != root_id && !anim.is_done());
+                .retain(|(pid, _), entry| *pid != root_id && !entry.animation.is_done());
         });
         snapshot
     }
@@ -386,14 +410,55 @@ mod wiring {
         if after.is_empty() {
             return;
         }
-        let played = shared_layout::play_shared(&snapshot, &after, SpringConfig::default());
+        let config = SpringConfig::default();
+        let played = shared_layout::play_shared(&snapshot, &after, config);
         let root_id = root_scope_id(root);
-        ACTIVE.with(|cell| {
-            let mut active = cell.borrow_mut();
-            for (id, animation) in played {
-                active.insert((root_id, id), animation);
-            }
+        // `Spring::new` が理論上 `None` を返す構成（`SpringConfig::default()`
+        // では起きない）でも探索上限（10 秒）を超えないため、失敗時はその
+        // 上限で代替する（`layout_flip::play_row` と同じ fail-safe）。
+        let settle_ms =
+            fandhe_frontend_animation::fandhe_animation::spring::Spring::new(config, 0.0, 1.0, 0.0)
+                .map(|spring| spring.settle_duration() * 1000.0)
+                .unwrap_or(10_000.0);
+        for (id, animation) in played {
+            let token = NEXT_TOKEN.with(|cell| {
+                let next = cell.get().wrapping_add(1);
+                cell.set(next);
+                next
+            });
+            ACTIVE.with(|cell| {
+                cell.borrow_mut()
+                    .insert((root_id, id.clone()), ActiveEntry { token, animation });
+            });
+            schedule_cleanup(root_id, id, token, settle_ms);
+        }
+    }
+
+    /// `settle_ms`（+ 余裕マージン）経過後に、[`ACTIVE`] の `(root_id, id)`
+    /// エントリがまだ同じ `token` を持つ場合に限り除去する（モジュール
+    /// doc「収束後の自己回収」参照）。`token` 不一致（既に新しい遷移へ
+    /// 置き換え済み、または `capture_before` が停止済み）なら何もしない。
+    /// `window`/`setTimeout` の取得に失敗した場合はスケジュールが成立せず、
+    /// 次回の `capture_before` prune か同じ id の再 `insert` まで残る
+    /// （fail-safe、`layout_flip::schedule_cleanup` と同じ扱い）。
+    fn schedule_cleanup(root_id: u64, id: String, token: u64, settle_ms: f64) {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let delay_ms = (settle_ms * 1.2 + 100.0).min(i32::MAX as f64) as i32;
+        let map_key = (root_id, id);
+        let callback = Closure::once_into_js(move || {
+            ACTIVE.with(|cell| {
+                let mut active = cell.borrow_mut();
+                if matches!(active.get(&map_key), Some(entry) if entry.token == token) {
+                    active.remove(&map_key);
+                }
+            });
         });
+        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+            callback.unchecked_ref(),
+            delay_ms,
+        );
     }
 
     /// [`assign_transition_names`] の残留名クリア回帰テスト（codex-review
@@ -485,9 +550,14 @@ mod wiring {
 
             // 1 回目のサイクル: 位置 A の旧要素 X1 → 位置 B の新規要素 X2
             // への「別要素への引き継ぎ」FLIP を起動する。
+            // `fw gate` `url_validation_check`（U1、イシュー #401）の
+            // sink/guard 共起契約に合わせ、生の `set_attribute` ではなく
+            // 共通ガード付きラッパーを使う（`dom.rs` doc コメント参照。
+            // `make_layout_element` と同じ方式、`76ddcaed` の先例）。
             let x1 = document.create_element("span").unwrap();
             crate::dom::set_dom_attribute_result(&x1, LAYOUT_ID_ATTR, "target").unwrap();
-            x1.set_attribute(
+            crate::dom::set_dom_attribute_result(
+                &x1,
                 "style",
                 "position:absolute;left:0px;top:0px;width:10px;height:10px",
             )
@@ -500,7 +570,8 @@ mod wiring {
             x1.remove();
             let x2 = document.create_element("span").unwrap();
             crate::dom::set_dom_attribute_result(&x2, LAYOUT_ID_ATTR, "target").unwrap();
-            x2.set_attribute(
+            crate::dom::set_dom_attribute_result(
+                &x2,
                 "style",
                 "position:absolute;left:150px;top:80px;width:80px;height:80px",
             )
