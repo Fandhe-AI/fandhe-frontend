@@ -28,16 +28,32 @@
 //! # ハンドル保持
 //!
 //! 再生中の [`fandhe_frontend_animation::flip::FlipAnimation`] は
-//! [`ACTIVE`]（`(root_id, id)` → ハンドル）で保持する。[`capture_before`]
-//! の呼び出しごとに収束済み（`is_done()`）のエントリを prune し、id 数で
-//! 有界に保つ（`layout_flip::FLIP_LOOPS` のような `setTimeout` 自己
-//! クリーンアップは持たない——`layoutId` の総数は通常アプリの静的な部品数
-//! に収まり、次回更新で必ず prune 機会が来るため。`ponytail:` id 数が
-//! 数千件規模で増え続ける構成では prune 頻度が不足し得る。上限が必要に
-//! なれば `layout_flip::FLIP_LOOPS` と同型の `setTimeout` クリーンアップへ
-//! 拡張する）。`insert` による置換で旧ハンドルが drop されれば、未収束時
-//! は [`fandhe_frontend_animation::flip::FlipAnimation`] の [`Drop`] が
-//! 元のスタイルへ復元する（`layout_flip.rs` と同じ契約）。
+//! [`ACTIVE`]（`(root_id, id)` → ハンドル）で保持する。`insert` による
+//! 置換で旧ハンドルが drop されれば、未収束時は [`fandhe_frontend_
+//! animation::flip::FlipAnimation`] の [`Drop`] が元のスタイルへ復元する
+//! （`layout_flip.rs` と同じ契約）。
+//!
+//! ## DOM 更新前の停止契約（codex-review P1 是正、イシュー #2578）
+//!
+//! [`capture_before`] は、このルート（`root_id`）の視覚矩形を捕捉した
+//! **直後**（構造変化を DOM へ適用する**前**）に、このルートの [`ACTIVE`]
+//! エントリを収束・未収束を問わず**すべて**停止・復元する（他ルートの
+//! エントリは収束済み〔`is_done()`〕のもののみ prune し、id 数で有界に
+//! 保つ）。
+//!
+//! 同じ id・同じ DOM 要素が旧要素・新要素の両方として残る更新（構造変化
+//! を伴わない更新、あるいは [`fandhe_frontend_animation::shared_layout::
+//! pair_by_id`] が `same_node` として除外する「id を維持したまま残る
+//! 要素」）では、[`play_after`]/[`play_after_excluding`] は当該 id の
+//! ハンドルを新規に `insert` しない。この場合、停止しなかった旧ハンドル
+//! は DOM 更新後も rAF ループで書き込みを続けてしまい、その間に構造変化
+//! コミット（`apply_dirty` 等）が同じ要素へ新しい `transform`/
+//! `transform-origin`/`transition` を設定すると、旧アニメーションの
+//! 次フレーム書き込みがそれを上書きし、収束時には `OriginalStyle::
+//! restore` が更新**前**の値を復元して更新後の状態を破壊してしまう。
+//! `capture_before` が DOM 更新前に必ず全ハンドルを停止・復元することで、
+//! 後続の DOM 更新は常にクリーンな（進行中の FLIP 補正を持たない）
+//! ベース状態へ適用される。
 //!
 //! `root_id`（`u64`、[`wiring::root_scope_id`]）は `capture_before`/
 //! `play_after` に渡される `root`（`Runtime` のマウント先要素）の DOM
@@ -215,6 +231,25 @@ mod wiring {
 
         PREV_TRANSITION_NAMES.with(|cell| {
             let mut prev = cell.borrow_mut();
+            // codex-review P1 是正（イシュー #2578「View Transitions 経路
+            // でも破棄済みルートの参照を回収する」）: 全ルート横断で DOM
+            // から切断済み（`is_connected() == false`）の要素を掃除する
+            // （`capture_before` が行う prune と同じ設計）。
+            //
+            // `Runtime::apply_with_view_transition`/
+            // `apply_with_view_transition_named` は、View Transitions が
+            // 実際に使える（UA へ委譲する）経路では `capture_before` を
+            // 一切呼ばない（`view_transition_swap` 参照）。そのため、
+            // ある `Runtime` ルートが常にこの VT 委譲経路だけを使って
+            // マウント・破棄を繰り返す構成では、下の「このルートの前回
+            // エントリ」の retain（`*pid != root_id` で他ルートを無条件に
+            // 素通しする）だけでは、破棄されて二度と `assign_transition_
+            // names` が呼ばれなくなったルートの `HtmlElement` 強参照が
+            // 回収されないまま残り続ける（`capture_before` からしか
+            // 全ルート横断 prune が走らなかった旧実装の穴）。ここで
+            // 呼び出しのたびに全ルート横断で prune することで、
+            // `capture_before` を経由しない経路でも回収される。
+            prev.retain(|_, element| element.is_connected());
             // このルートの前回エントリのうち、今回別要素が同じ id を名乗った、
             // または id 自体が対象外になったものは、旧要素の inline style を
             // 明示的に消去してから外す（モジュール doc「旧要素の名前復元」
@@ -248,11 +283,7 @@ mod wiring {
     /// は空の iterator に対して `measure` を 0 回呼ぶ）。
     #[must_use]
     pub fn capture_before(root: &Element) -> Option<SharedSnapshot> {
-        // 収束済みエントリの prune（モジュール doc「ハンドル保持」参照）。
-        // 他ルートのエントリ（別 root_id）も同じ prune 走査に混ざるが、
-        // 判定は `is_done()`（自ハンドル固有の状態）のみで、ルート横断の
-        // 書き込み・削除は行わないため問題ない。
-        ACTIVE.with(|cell| cell.borrow_mut().retain(|_, anim| !anim.is_done()));
+        let root_id = root_scope_id(root);
         // `PREV_TRANSITION_NAMES` の prune（codex-review 指摘、イシュー
         // #2578）。`assign_transition_names` の retain は同じ root_id が
         // 再度呼ばれた時にのみ走るため、ルート自体が DOM から除去され
@@ -264,10 +295,38 @@ mod wiring {
         // 判定は要素固有の状態のみで、他ルートへの書き込み・削除は行わない）。
         PREV_TRANSITION_NAMES.with(|cell| cell.borrow_mut().retain(|_, el| el.is_connected()));
         let entries = collect(root);
-        if entries.is_empty() {
-            return None;
-        }
-        Some(shared_layout::snapshot(entries))
+        let snapshot = if entries.is_empty() {
+            None
+        } else {
+            Some(shared_layout::snapshot(entries))
+        };
+        // codex-review P1 是正（イシュー #2578「DOM 更新前に進行中の
+        // 共有 FLIP を停止する」）: 現在の視覚矩形を捕捉した**後**、この
+        // ルートの進行中ハンドルを DOM 更新前に停止・復元する
+        // （`HashMap::retain` が偽を返したエントリを drop し、未収束
+        // なら `FlipAnimation::drop` が元のスタイルへ復元する）。
+        //
+        // 同じ要素が旧要素・新要素の両方として突合される場合（構造変化を
+        // 伴わない更新、あるいは `pair_by_id` が `same_node` として除外
+        // する「id を維持したまま残る要素」）、`play_after`/
+        // `play_after_excluding` は当該 id のハンドルを新規に `insert`
+        // せず、ここで停止しなかった旧ハンドルが DOM 更新後もそのまま
+        // rAF ループで書き込みを続ける。この間に構造変化コミット
+        // （`apply_dirty` 等）が同じ要素へ新しい `transform`/
+        // `transform-origin`/`transition` を設定すると、旧アニメーション
+        // の次フレーム書き込みがそれを上書きし、収束時には
+        // `OriginalStyle::restore` が更新**前**の値を復元して更新後の
+        // 状態を破壊する（codex-review 指摘）。DOM 更新の前にここで
+        // 全ハンドルを停止・復元しておけば、後続の DOM 更新は常に
+        // クリーンな（進行中の FLIP 補正を持たない）ベース状態へ適用
+        // される。他ルート（別 `root_id`）の収束済みエントリも同じ
+        // 走査で prune する（モジュール doc「ハンドル保持」参照。判定は
+        // 要素固有の状態のみで、他ルートへの書き込み・削除は行わない）。
+        ACTIVE.with(|cell| {
+            cell.borrow_mut()
+                .retain(|(pid, _), anim| *pid != root_id && !anim.is_done());
+        });
+        snapshot
     }
 
     /// `snapshot`（[`capture_before`] の結果）と `root` 配下の構造変化
@@ -298,10 +357,20 @@ mod wiring {
     /// fandhe-flip-auto` 付きリストで `data-fandhe-layout-id` 付きの行を
     /// 同じキーのままタグ変更する置換ケースで顕在化。同一ノード判定
     /// （`shared_layout::pair_by_id` の `same_node` 除外）では新規ノード
-    /// のため検知できない）。対象範囲は `layout_flip` が当該更新で
-    /// 「所有」した行要素とその子孫全体とし、要素単位の transform
-    /// 適用有無までは追跡しない（fail-safe: 曖昧な状況では何もしない側へ
-    /// 倒す、モジュール doc「突合ルール」節と同じ方針）。
+    /// のため検知できない）。対象範囲は `layout_flip::play_after` が実際に
+    /// transform を適用した行要素（とその子孫）のみに限定する（Bugbot
+    /// 指摘是正、イシュー #2578「FLIP lists skip nested shared layout」）。
+    /// `list_element` サブツリー全体を渡すと、今回の更新で動かなかった
+    /// （`delta == flip::IDENTITY` で Play を起動しなかった）行に含まれる
+    /// `data-fandhe-layout-id` 要素——新規挿入された行、別行へ移動した
+    /// 行のうち FLIP 対象にならなかったもの——まで丸ごと除外してしまい、
+    /// 共有レイアウト遷移を一度も受け取れなくなる。
+    ///
+    /// なお除外の粒度自体は要素単位（`excluded` に渡された行要素とその
+    /// 子孫）のままとし、行の中の個々の `data-fandhe-layout-id` 要素が
+    /// transform の影響を受けたかまでは追跡しない（fail-safe: 曖昧な
+    /// 状況では何もしない側へ倒す、モジュール doc「突合ルール」節と同じ
+    /// 方針）。
     pub fn play_after_excluding(
         root: &Element,
         snapshot: Option<SharedSnapshot>,
@@ -340,9 +409,20 @@ mod wiring {
 
         wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
+        /// テスト用ルート要素を作り、`document.body` へ接続して返す
+        /// （codex-review P1 是正、イシュー #2578「View Transitions
+        /// 経路でも破棄済みルートの参照を回収する」で
+        /// `assign_transition_names` へ追加した全ルート横断の
+        /// `is_connected()` prune を正しく検証するため、`document.
+        /// createElement` だけで作った未接続要素ではなく実際に接続
+        /// された要素を使う）。呼び出し元は戻り値をテスト末尾で
+        /// `Element::remove` するか、次アサーション前に接続状態を
+        /// 明示的に切断すること。
         fn make_root() -> Element {
             let document = web_sys::window().unwrap().document().unwrap();
-            document.create_element("div").unwrap()
+            let root = document.create_element("div").unwrap();
+            document.body().unwrap().append_child(&root).unwrap();
+            root
         }
 
         fn make_layout_element(root: &Element, id: &str) -> Element {
@@ -390,6 +470,107 @@ mod wiring {
             );
             let name_b = transition_name(&b);
             assert!(!name_b.is_empty(), "新要素 B へ名前が付与されているはず");
+
+            root.remove();
+        }
+
+        /// codex-review P1 是正回帰テスト（イシュー #2578「DOM 更新前に
+        /// 進行中の共有 FLIP を停止する」）: 別要素への引き継ぎ FLIP が
+        /// 進行中のまま次の `capture_before` が呼ばれると、DOM 更新前に
+        /// 停止・復元されるべきである。
+        #[wasm_bindgen_test]
+        fn capture_before_stops_in_progress_handle_before_dom_update() {
+            let root = make_root();
+            let document = web_sys::window().unwrap().document().unwrap();
+
+            // 1 回目のサイクル: 位置 A の旧要素 X1 → 位置 B の新規要素 X2
+            // への「別要素への引き継ぎ」FLIP を起動する。
+            let x1 = document.create_element("span").unwrap();
+            crate::dom::set_dom_attribute_result(&x1, LAYOUT_ID_ATTR, "target").unwrap();
+            x1.set_attribute(
+                "style",
+                "position:absolute;left:0px;top:0px;width:10px;height:10px",
+            )
+            .unwrap();
+            root.append_child(&x1).unwrap();
+
+            let snapshot1 = capture_before(&root);
+            assert!(snapshot1.is_some(), "初回 capture は対象要素を捕捉するはず");
+
+            x1.remove();
+            let x2 = document.create_element("span").unwrap();
+            crate::dom::set_dom_attribute_result(&x2, LAYOUT_ID_ATTR, "target").unwrap();
+            x2.set_attribute(
+                "style",
+                "position:absolute;left:150px;top:80px;width:80px;height:80px",
+            )
+            .unwrap();
+            root.append_child(&x2).unwrap();
+
+            play_after(&root, snapshot1);
+
+            let x2_html = x2.clone().dyn_into::<HtmlElement>().unwrap();
+            assert!(
+                !x2_html
+                    .style()
+                    .get_property_value("transform")
+                    .unwrap()
+                    .is_empty(),
+                "play_after 直後は補正 transform が書き込まれ、アニメーション \
+                 が進行中のはず"
+            );
+
+            // 2 回目の `capture_before`（DOM 更新自体はまだ起きていない）:
+            // 本テストの検証対象。旧実装は `is_done()` の収束済みエントリ
+            // しか prune せず、未収束の進行中ハンドルはここで停止されない
+            // ため transform は書き込まれたまま残った。
+            let _snapshot2 = capture_before(&root);
+
+            assert!(
+                x2_html
+                    .style()
+                    .get_property_value("transform")
+                    .unwrap()
+                    .is_empty(),
+                "DOM 更新前に進行中のハンドルを停止・復元しているはず \
+                 （codex-review P1「DOM 更新前に進行中の共有 FLIP を \
+                 停止する」是正の検証）"
+            );
+
+            root.remove();
+        }
+
+        /// codex-review P1 是正回帰テスト（イシュー #2578「View
+        /// Transitions 経路でも破棄済みルートの参照を回収する」）:
+        /// あるルートが `assign_transition_names` を呼んだ後に二度と
+        /// 呼ばれず破棄されても、**別ルート**が `assign_transition_names`
+        /// を呼んだ時点で `PREV_TRANSITION_NAMES` から回収される
+        /// （`capture_before` を経由しない VT 委譲専用の経路を模す）。
+        #[wasm_bindgen_test]
+        fn assign_transition_names_reclaims_disconnected_other_root_entries() {
+            let root1 = make_root();
+            let _a = make_layout_element(&root1, "root1-item");
+            assign_transition_names(&root1);
+            // root1 は以降 `capture_before`/`assign_transition_names` を
+            // 一切呼ばれずに破棄される想定（VT 委譲経路専用のマウント・
+            // 破棄の繰り返し）。
+            root1.remove();
+
+            let root2 = make_root();
+            let _b = make_layout_element(&root2, "root2-item");
+            assign_transition_names(&root2);
+
+            let all_connected = PREV_TRANSITION_NAMES
+                .with(|cell| cell.borrow().values().all(|element| element.is_connected()));
+            assert!(
+                all_connected,
+                "assign_transition_names 呼び出し後、PREV_TRANSITION_NAMES は \
+                 DOM から切断された要素の参照を保持していないはず \
+                 （root1 破棄後、capture_before を経由しない root2 の \
+                 呼び出しだけで回収されている必要がある）"
+            );
+
+            root2.remove();
         }
     }
 }

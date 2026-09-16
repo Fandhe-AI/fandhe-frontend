@@ -460,9 +460,24 @@ mod wiring {
     /// `Runtime::apply_update_for_dirty` が keyed list の構造変化を DOM へ
     /// 適用した**後**に呼ぶ想定。`before` が空（[`capture_before`] が
     /// `None` を返した、あるいは対象行が 1 つもなかった）場合は no-op。
-    pub fn play_after(list_element: &Element, before: HashMap<String, flip::Rect>) {
+    ///
+    /// 戻り値は、実際に `start_flip`（transform 適用）を起動した行要素
+    /// のみ（`delta == flip::IDENTITY` で Play を起動せず元のスタイルへ
+    /// 直接復元した行は含まない）。呼び出し元（`Runtime::
+    /// apply_update_for_dirty`）はこれを `shared_layout::
+    /// play_after_excluding` の除外対象として使う（Bugbot 指摘、イシュー
+    /// #2578「FLIP lists skip nested shared layout」: 除外範囲を
+    /// `list_element` サブツリー全体ではなく実際に transform を適用した
+    /// 行のみへ絞ることで、同一 keyed list 内の新規挿入・移動行に含まれる
+    /// `data-fandhe-layout-id` 要素が共有レイアウト遷移から取りこぼされ
+    /// なくなる）。
+    #[must_use]
+    pub fn play_after(
+        list_element: &Element,
+        before: HashMap<String, flip::Rect>,
+    ) -> Vec<HtmlElement> {
         if before.is_empty() {
-            return;
+            return Vec::new();
         }
 
         let list_id = list_instance_id(list_element);
@@ -539,7 +554,9 @@ mod wiring {
         // いない）または `invert` が `None` の場合は Play を起動せず、
         // パス 2 で確定した元のスタイルへ直接復元する（旧ループはパス 0
         // で既に停止済みのため、Play を省略しても古い補正が書き戻され
-        // ることはない）。
+        // ることはない）。実際に Play を起動した行要素は `played` へ集め
+        // 戻り値として返す（本関数 doc「戻り値」参照）。
+        let mut played = Vec::new();
         for (key, html) in targets {
             let Some(&first) = before.get(&key) else {
                 continue;
@@ -555,12 +572,14 @@ mod wiring {
             match delta {
                 Some(delta) if delta != flip::IDENTITY => {
                     start_flip(list_id, key, html.clone(), delta, original);
+                    played.push(html);
                 }
                 _ => {
                     original.restore(&html);
                 }
             }
         }
+        played
     }
 
     /// `(list_id, key)` 行の FLIP 再生を開始し、[`FLIP_LOOPS`] へ登録する

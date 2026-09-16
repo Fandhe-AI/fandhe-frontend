@@ -991,6 +991,18 @@ jobs:
           WASM_BINDGEN_TEST_TIMEOUT: "120"
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test shared_layout_browser
 
+      # PR #2578 レビュー指摘是正（イシュー #2536。Bugbot「FLIP lists
+      # skip nested shared layout」）: `layout_flip`（keyed list の並べ
+      # 替え FLIP）と `shared_layout`（別要素への引き継ぎ FLIP）が同一
+      # 更新内で共存する際、新規挿入行へ引き継がれる
+      # `data-fandhe-layout-id` 要素が keyed list コンテナ全体の除外に
+      # 巻き込まれず共有レイアウト遷移を受け取ることを確認する実ブラウザ
+      # 統合テスト
+      # （crates/wasm-full/tests/layout_flip_shared_layout_interaction_browser.rs）。
+      - name: Run wasm-full layout FLIP / shared layout interaction browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test layout_flip_shared_layout_interaction_browser
+
       # イシュー #2538（button の Motion+ 由来 variant）: hold-to-confirm
       # （crates/wasm-full/src/hold_to_confirm.rs）の保持検知・進行度計算・
       # 確定処理の実ブラウザ統合テスト

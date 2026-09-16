@@ -1512,14 +1512,20 @@ where
         // リストの構造変化がすべて確定済みの状態を Last として測れる
         // （先行リストの Last 計測時点でまだ後続リストの構造変化が未
         // コミットだった旧実装の位置ずれを解消する）。
-        // イシュー #2578（codex-review 指摘）: 本ループで実際に
-        // `layout_flip::play_after` を呼んだ（＝ transform 適用の所有権を
-        // 握った）リスト要素を集め、後段の `shared_layout::play_after`
-        // から除外する（`shared_layout.rs::play_after_excluding` doc
-        // 「対象から除外する要素」節参照。同一キーのまま行がタグ変更で
-        // 置換されると、既存 layout FLIP と共有レイアウト遷移が同じ
-        // 新要素を対象にし得るため、先行する layout FLIP が transform を
-        // 書き込んだ要素を丸ごと共有レイアウト遷移の対象外にする）。
+        // イシュー #2578（codex-review 指摘・Bugbot 指摘是正）: 本ループで
+        // `layout_flip::play_after` が実際に transform を適用した（＝
+        // 適用の所有権を握った）行要素のみを集め、後段の `shared_layout::
+        // play_after_excluding` から除外する（`shared_layout.rs::
+        // play_after_excluding` doc「対象から除外する要素」節参照。同一
+        // キーのまま行がタグ変更で置換されると、既存 layout FLIP と
+        // 共有レイアウト遷移が同じ新要素を対象にし得るため、先行する
+        // layout FLIP が transform を書き込んだ行要素を共有レイアウト
+        // 遷移の対象外にする）。除外を `live_target`〔keyed list
+        // コンテナ〕サブツリー全体ではなく実際に動いた行要素へ絞ることで、
+        // 今回の更新で FLIP を受け取らなかった行（新規挿入・移動なし）に
+        // 含まれる `data-fandhe-layout-id` 要素まで巻き込んで共有レイアウト
+        // 遷移から除外してしまう取りこぼしを防ぐ（Bugbot 指摘「FLIP lists
+        // skip nested shared layout」）。
         #[cfg(feature = "layout-animation")]
         let mut flip_played_targets: Vec<web_sys::Element> = Vec::new();
         #[cfg(feature = "layout-animation")]
@@ -1575,8 +1581,16 @@ where
             if !live_target.has_attribute(crate::layout_flip::FLIP_AUTO_ATTR) {
                 continue;
             }
-            crate::layout_flip::play_after(&live_target, before);
-            flip_played_targets.push(live_target);
+            // Bugbot 指摘是正（イシュー #2578「FLIP lists skip nested
+            // shared layout」）: `play_after` が実際に transform を適用
+            // した行要素のみを集める（`live_target` サブツリー全体では
+            // ない）。同一 keyed list 内で今回の更新では動かなかった
+            // 行（新規挿入・別行への移動なし）に含まれる
+            // `data-fandhe-layout-id` 要素まで丸ごと除外すると、それらが
+            // 共有レイアウト遷移から取りこぼされてしまうため
+            // （`shared_layout.rs::play_after_excluding` doc 参照）。
+            let played_rows = crate::layout_flip::play_after(&live_target, before);
+            flip_played_targets.extend(played_rows.into_iter().map(web_sys::Element::from));
         }
 
         // keyed list の挿入で新規ノードが増えた場合、その内部の
