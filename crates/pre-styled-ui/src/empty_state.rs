@@ -66,15 +66,19 @@
 //!    `margin-top` に「区画間の追加余白」を持たせた（anatomy 変更は
 //!    破壊的変更であり見送る）。
 //! 3. **indicator Lg/Xl の font-size**: chakra `6xl`（3.75rem）は
-//!    タイポグラフィトークン上限 `4xl`（2.25rem）を超えるため、
-//!    [`crate::heading`](mod@crate::heading) と同型の判断でトークンは追加せず Lg/Xl のみ
-//!    rem リテラルを使う。
+//!    #2438 で追加された `font-size-6xl` トークンと値が一致するため、
+//!    イシュー #2441 で Lg をトークン参照（`var(--fandhe-font-font-size-6xl)`）
+//!    へ置換した（利用者がテーマで `font-size-6xl` を上書きすると Lg の
+//!    indicator サイズにも追随する）。Xl（4.5rem）は一致するトークンが
+//!    ないため、[`crate::heading`](mod@crate::heading) と同型の判断で
+//!    引き続き rem リテラルを使う。
 //! 4. **`actions` slot の維持**: 参照元は操作要素を content に直接
 //!    置くが、既存 API・anatomy を壊さないため `actions` slot は維持し
 //!    size 連動の余白のみ調整する。
-//! 5. タイポグラフィトークン `5xl`/`6xl` の追加、ブラウザ実機での
-//!    スクリーンショット再取得は行わない（別 Phase の一括撮影運用に
-//!    委ねる）。
+//! 5. `5xl`/`6xl` は #2438 で追加済み。本イシュー（#2441）で Lg の
+//!    indicator サイズのみ `6xl` 参照へ追随した（`5xl` は値が一致する
+//!    size がなく本部品では未消費）。ブラウザ実機でのスクリーンショット
+//!    再取得は行わない（実出力値は同一のため不要）。
 //!
 //! # イシュー #2047（shadcn/ui 突合）
 //!
@@ -332,10 +336,10 @@ fn recipe() -> SlotRecipe {
             ],
         )
         // イシュー #1560: chakra-ui EmptyState の size スケール（sm/md/lg）に
-        // 揃え、Xs/Xl は #1681 の外挿方針を踏襲する。indicator の Lg/Xl は
-        // タイポグラフィトークン上限（4xl = 2.25rem）を超えるため、
-        // heading 同型の判断でリテラル値を使う（モジュール冒頭「意図的に
-        // 合わせない点」3 参照）。
+        // 揃え、Xs/Xl は #1681 の外挿方針を踏襲する。indicator の Lg は
+        // イシュー #2441 で `font-size-6xl` トークン参照へ追随した。Xl は
+        // 一致するトークンがないため、heading 同型の判断でリテラル値の
+        // ままとする（モジュール冒頭「意図的に合わせない点」3 参照）。
         .size_variants(
             "root",
             &[
@@ -420,9 +424,14 @@ fn recipe() -> SlotRecipe {
                         ),
                         decl("--fandhe-empty-state-gap", "var(--fandhe-space-3)"),
                         decl("--fandhe-empty-state-section-gap", "var(--fandhe-space-5)"),
-                        // chakra の 6xl（3.75rem）はトークン上限 4xl を超える
-                        // ため、heading と同型の判断でリテラル値を使う。
-                        decl("--fandhe-empty-state-indicator-size", "3.75rem"),
+                        // イシュー #2441: chakra の 6xl（3.75rem）は #2438 で
+                        // 追加された `font-size-6xl` と値が一致するため
+                        // トークン参照へ置換する。テーマで `font-size-6xl`
+                        // を上書きすると Lg indicator のサイズにも追随する。
+                        decl(
+                            "--fandhe-empty-state-indicator-size",
+                            "var(--fandhe-font-font-size-6xl)",
+                        ),
                         decl(
                             "--fandhe-empty-state-title-size",
                             "var(--fandhe-font-font-size-xl)",
