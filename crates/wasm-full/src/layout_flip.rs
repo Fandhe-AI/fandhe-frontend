@@ -460,9 +460,29 @@ mod wiring {
     /// `Runtime::apply_update_for_dirty` が keyed list の構造変化を DOM へ
     /// 適用した**後**に呼ぶ想定。`before` が空（[`capture_before`] が
     /// `None` を返した、あるいは対象行が 1 つもなかった）場合は no-op。
-    pub fn play_after(list_element: &Element, before: HashMap<String, flip::Rect>) {
+    ///
+    /// 戻り値は、実際に `start_flip`（transform 適用）を起動した行要素
+    /// のみ（`delta == flip::IDENTITY` で Play を起動せず元のスタイルへ
+    /// 直接復元した行は含まない）。呼び出し元（`Runtime::
+    /// apply_update_for_dirty`）はこれを `shared_layout::
+    /// play_after_excluding` の除外対象として使う（Bugbot 指摘、イシュー
+    /// #2578「FLIP lists skip nested shared layout」: 除外範囲を
+    /// `list_element` サブツリー全体ではなく実際に transform を適用した
+    /// 行のみへ絞ることで、同一 keyed list 内の新規挿入・移動行に含まれる
+    /// `data-fandhe-layout-id` 要素が共有レイアウト遷移から取りこぼされ
+    /// なくなる）。
+    ///
+    /// 公開 API [`play_after`]（戻り値 `()`）はこの関数の薄いラッパーで
+    /// あり、既存利用者との戻り値互換性を維持する（codex-review P1 指摘、
+    /// イシュー #2578: 0.40.1 → 0.40.2 の patch 更新で公開再エクスポート
+    /// 済み関数の戻り値を変えると破壊的変更になる）。
+    #[must_use]
+    pub fn play_after_reporting(
+        list_element: &Element,
+        before: HashMap<String, flip::Rect>,
+    ) -> Vec<HtmlElement> {
         if before.is_empty() {
-            return;
+            return Vec::new();
         }
 
         let list_id = list_instance_id(list_element);
@@ -539,7 +559,9 @@ mod wiring {
         // いない）または `invert` が `None` の場合は Play を起動せず、
         // パス 2 で確定した元のスタイルへ直接復元する（旧ループはパス 0
         // で既に停止済みのため、Play を省略しても古い補正が書き戻され
-        // ることはない）。
+        // ることはない）。実際に Play を起動した行要素は `played` へ集め
+        // 戻り値として返す（本関数 doc「戻り値」参照）。
+        let mut played = Vec::new();
         for (key, html) in targets {
             let Some(&first) = before.get(&key) else {
                 continue;
@@ -555,12 +577,14 @@ mod wiring {
             match delta {
                 Some(delta) if delta != flip::IDENTITY => {
                     start_flip(list_id, key, html.clone(), delta, original);
+                    played.push(html);
                 }
                 _ => {
                     original.restore(&html);
                 }
             }
         }
+        played
     }
 
     /// `(list_id, key)` 行の FLIP 再生を開始し、[`FLIP_LOOPS`] へ登録する
@@ -598,6 +622,16 @@ mod wiring {
                 .map(|spring| spring.settle_duration() * 1000.0)
                 .unwrap_or(10_000.0);
         schedule_cleanup(list_id, key, token, settle_ms);
+    }
+
+    /// [`play_after_reporting`] の戻り値互換ラッパー（戻り値 `()`）。
+    /// 従来どおり `list_element` の Last 計測・Invert・Play を行い、実際に
+    /// transform を適用した行の一覧は破棄する。外部利用者向けの公開
+    /// シグネチャはこちらを維持し、除外対象の行一覧が必要な
+    /// `Runtime::apply_update_for_dirty` だけが [`play_after_reporting`]
+    /// を呼ぶ（codex-review P1 指摘、イシュー #2578）。
+    pub fn play_after(list_element: &Element, before: HashMap<String, flip::Rect>) {
+        let _ = play_after_reporting(list_element, before);
     }
 
     /// `settle_ms`（+ 余裕マージン）経過後に、[`FLIP_LOOPS`] の
@@ -642,4 +676,7 @@ mod wiring {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::{capture_before, elements_bound_to_field, flip_lists_containing, play_after};
+pub use wiring::{
+    capture_before, elements_bound_to_field, flip_lists_containing, play_after,
+    play_after_reporting,
+};

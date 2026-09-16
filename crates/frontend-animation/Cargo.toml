@@ -131,7 +131,34 @@ name = "fandhe-frontend-animation"
 # `read_gap_px` に `axis` 引数を追加して `column-gap`/`row-gap` longhand を
 # 読む、`ensure_copies` で追加複製内の radio 隔離・入れ子 ticker 静的化、
 # `TICKER_ATTR`/`TICKER_ACTIVE_ATTR` 定数を追加。
-version = "0.16.2"
+#
+# イシュー #2536: `shared_layout` モジュール（共有レイアウト遷移、
+# motion.dev `layoutId` 相当。`pair_by_id`/`snapshot`/`play_shared` の
+# 新規公開 API）を追加した（レビュー是正〔入れ子・名前衝突修正、d3c27c0f〕
+# を含め HEAD 到達値 0.12.0）。新規公開 API 追加のため minor バンプする
+# （#638 条項）。本ブランチの到達値 0.12.0 は origin/main の到達値
+# 0.15.0（cursor/text_animation/carousel 追加）を下回るため、
+# `.claude/rules/coding-rust.md` #638 条項に従い main の現行値から
+# さらに +1 minor して 0.16.0 とする。
+#
+# PR #2578 レビュー是正（イシュー #2536）: `play_shared` 収束前に DOM
+# を更新する際は進行中ハンドルを停止・復元してから再捕捉する契約を
+# 追加した（既存 API に破壊的変更はない）ため patch バンプする。
+#
+# マージコミット注記（origin/main #2585 との統合）: origin/main はイシュー
+# #2544（PR #2585 codex-review P1 是正）で `insert_exit_ghost` の内部実装
+# 修正（`input[type=radio]` の `name` 属性除去、公開 API 不変）のため
+# 0.16.0 → 0.16.1 へ独立に patch バンプしていた。本ブランチの到達値
+# 0.16.1（上記 PR #2578 レビュー是正の patch バンプ）と同一版数へ衝突した
+# ため、`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として
+# +1」運用に従いさらに +1 して 0.16.2 とする。
+#
+# マージコミット注記（origin/main #2578 との統合、PR #2582）: origin/main は
+# イシュー #2536（`shared_layout` 新設）の統合で 0.16.2 へ到達し、本ブランチ
+# （`ticker` 新設・レビュー是正込み）も独立に 0.16.2 へ到達していたため、
+# `.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」運用
+# に従い 0.16.3 とする。
+version = "0.16.3"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
