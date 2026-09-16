@@ -102,7 +102,11 @@ pub fn demo() -> Node {
                 vec![dialog::content(
                     OpenState::Open,
                     DialogRole::Dialog,
-                    true,
+                    // 静的デモは閉じる機構を持たず外側に説明・コード・
+                    // ナビゲーションがあるため、表示実態と一致させ
+                    // aria-modal は false にする（支援技術が外側を
+                    // 無視しないようにする、イシュー #2552 レビュー指摘）。
+                    false,
                     ContentIds {
                         id: Some("blocks-game-ui-modal-content"),
                         labelledby: Some(title_id),
