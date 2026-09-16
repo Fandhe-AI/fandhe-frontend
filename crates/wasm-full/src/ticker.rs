@@ -205,49 +205,62 @@ mod wiring {
         }
     }
 
-    /// 配線ルート（`wire_ticker*` の `root`）への pointerover/pointerout/
-    /// focusin/focusout 購読を所有し、`Drop` で対称に解除する
+    /// 配線ルート（`wire_ticker*` の `root`）へのイベントリスナー **1 件**を
+    /// 所有し、`Drop` で登録時と同じ capture フラグで解除する
     /// （[`WindowSubscription`] と同型。PR #2582 codex-review P1 指摘:
     /// `forget()` した Closure が root と `active` を強参照し続け、root を
-    /// 取り外しても配下 DOM ごと保持されていた）。`pointerover`/
-    /// `pointerout` は登録時と同じ `useCapture: true` で解除する
-    /// （`position::PositionController` と同じ注意点）。
+    /// 取り外しても配下 DOM ごと保持されていた）。
+    ///
+    /// 生成経路は [`subscribe`] のみ: `add_event_listener` が**成功した後**
+    /// に限り Closure を本構造体へ移すため、後続の登録が失敗して早期 return
+    /// しても、既に DOM へ attach 済みのリスナーは Closure が解放される前に
+    /// `Drop` で解除される（Cursor Bugbot 指摘: 4 件を 1 構造体へまとめて
+    /// 最後に構築する形では、途中失敗時に attach 済み Closure が drop され
+    /// 「生きたリスナーが解放済み Closure を指す」use-after-free になる）。
     struct ElementSubscription {
         element: Element,
-        pointerover: Closure<dyn FnMut(Event)>,
-        pointerout: Closure<dyn FnMut(Event)>,
-        focusin: Closure<dyn FnMut(Event)>,
-        focusout: Closure<dyn FnMut(Event)>,
+        event: &'static str,
+        capture: bool,
+        closure: Closure<dyn FnMut(Event)>,
     }
 
     impl Drop for ElementSubscription {
         fn drop(&mut self) {
             let _ = self.element.remove_event_listener_with_callback_and_bool(
-                "pointerover",
-                self.pointerover.as_ref().unchecked_ref(),
-                true,
-            );
-            let _ = self.element.remove_event_listener_with_callback_and_bool(
-                "pointerout",
-                self.pointerout.as_ref().unchecked_ref(),
-                true,
-            );
-            let _ = self.element.remove_event_listener_with_callback(
-                "focusin",
-                self.focusin.as_ref().unchecked_ref(),
-            );
-            let _ = self.element.remove_event_listener_with_callback(
-                "focusout",
-                self.focusout.as_ref().unchecked_ref(),
+                self.event,
+                self.closure.as_ref().unchecked_ref(),
+                self.capture,
             );
         }
+    }
+
+    /// `element` へ `closure` を `event` のリスナーとして登録し、成功時のみ
+    /// 所有ハンドル [`ElementSubscription`] を返す。失敗時は未 attach の
+    /// Closure がそのまま drop されるだけで DOM 側に参照は残らない。
+    fn subscribe(
+        element: &Element,
+        event: &'static str,
+        capture: bool,
+        closure: Closure<dyn FnMut(Event)>,
+    ) -> Result<ElementSubscription, JsValue> {
+        element.add_event_listener_with_callback_and_bool(
+            event,
+            closure.as_ref().unchecked_ref(),
+            capture,
+        )?;
+        Ok(ElementSubscription {
+            element: element.clone(),
+            event,
+            capture,
+            closure,
+        })
     }
 
     /// 1 回の `wire_ticker*` が保持する購読一式（root 側 + window 側）。
     /// `active` が空になった時点で丸ごと drop され、各 Closure が握る
     /// `root`/`active` への強参照ごと解放される。
     struct Subscriptions {
-        _root: ElementSubscription,
+        _root: Vec<ElementSubscription>,
         _window: Option<WindowSubscription>,
     }
 
@@ -578,55 +591,55 @@ mod wiring {
             return Ok(());
         }
 
+        // 各リスナーは登録成功ごとに `subscribe` が所有ハンドルへ包み、
+        // `root_subscriptions` へ即座に push する（`forget()` しない）。
+        // 以降の `?` 失敗時も push 済みの分は `Drop` で対称に解除される。
+        let mut root_subscriptions: Vec<ElementSubscription> = Vec::with_capacity(4);
         let pointerover_root = root.clone();
         let pointerover_active = Rc::clone(&active);
-        let pointerover_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointer_hover(&pointerover_root, &event, &pointerover_active, true);
-        });
-        root.add_event_listener_with_callback_and_bool(
+        root_subscriptions.push(subscribe(
+            &root,
             "pointerover",
-            pointerover_closure.as_ref().unchecked_ref(),
             true,
-        )?;
+            Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+                handle_pointer_hover(&pointerover_root, &event, &pointerover_active, true);
+            }),
+        )?);
 
         let pointerout_root = root.clone();
         let pointerout_active = Rc::clone(&active);
-        let pointerout_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointer_hover(&pointerout_root, &event, &pointerout_active, false);
-        });
-        root.add_event_listener_with_callback_and_bool(
+        root_subscriptions.push(subscribe(
+            &root,
             "pointerout",
-            pointerout_closure.as_ref().unchecked_ref(),
             true,
-        )?;
+            Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+                handle_pointer_hover(&pointerout_root, &event, &pointerout_active, false);
+            }),
+        )?);
 
         // `focusin`/`focusout` は既定でバブルするため（`focus`/`blur` と
-        // 異なる）キャプチャ登録は不要（`add_event_listener_with_callback`）。
+        // 異なる）キャプチャ登録は不要（`capture = false`）。
         let focusin_root = root.clone();
         let focusin_active = Rc::clone(&active);
-        let focusin_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_focus_visibility(&focusin_root, &event, &focusin_active, true);
-        });
-        root.add_event_listener_with_callback("focusin", focusin_closure.as_ref().unchecked_ref())?;
+        root_subscriptions.push(subscribe(
+            &root,
+            "focusin",
+            false,
+            Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+                handle_focus_visibility(&focusin_root, &event, &focusin_active, true);
+            }),
+        )?);
 
         let focusout_root = root.clone();
         let focusout_active = Rc::clone(&active);
-        let focusout_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_focus_visibility(&focusout_root, &event, &focusout_active, false);
-        });
-        root.add_event_listener_with_callback(
+        root_subscriptions.push(subscribe(
+            &root,
             "focusout",
-            focusout_closure.as_ref().unchecked_ref(),
-        )?;
-        // `forget()` せず所有ハンドルとして保持する（以降の `?` 失敗時も
-        // drop で対称に解除される）。
-        let root_subscription = ElementSubscription {
-            element: root.clone(),
-            pointerover: pointerover_closure,
-            pointerout: pointerout_closure,
-            focusin: focusin_closure,
-            focusout: focusout_closure,
-        };
+            false,
+            Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+                handle_focus_visibility(&focusout_root, &event, &focusout_active, false);
+            }),
+        )?);
 
         let mut window_subscription = None;
         if let Some(window) = web_sys::window() {
@@ -728,7 +741,7 @@ mod wiring {
         // 時点（`prune_disconnected`/`apply_reduced_motion`）で drop →
         // 全リスナー解除する。
         *subscription.borrow_mut() = Some(Subscriptions {
-            _root: root_subscription,
+            _root: root_subscriptions,
             _window: window_subscription,
         });
 
