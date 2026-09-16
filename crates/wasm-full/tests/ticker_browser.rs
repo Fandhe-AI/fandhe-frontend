@@ -443,3 +443,57 @@ async fn stopped_ticker_by_reduced_motion_is_released_after_unmount() {
         subscription_count()
     );
 }
+
+/// 入れ子構成の内側 ticker は動的複製（`ensure_copies`）を行わず SSR 時点の
+/// 複製数で固定され、外側の全コピー（元 content・追加複製）の content 幅が
+/// 一致することを固定する（Cursor Bugbot 指摘: 生きた内側だけが後から
+/// 複製を増やすと外側のコピー間で幅が食い違い、外側の周期計測と実際の
+/// コピー間隔がずれて継ぎ目が崩れていた）。
+#[wasm_bindgen_test]
+async fn nested_inner_ticker_keeps_copy_count_and_outer_copies_match_width() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (outer, inner, _inner_link) = build_nested_dom(&document, "ticker-nest-width-1");
+    let _guard = RemoveOnDrop(outer.clone());
+    // outer 200px / content 60px → 外側は追加複製を持つ。inner 100px /
+    // content 200px は単独なら MIN_COPIES=2 へ複製を増やす条件。
+    let outer_content = outer.first_element_child().unwrap();
+    style_box(&outer_content, 60, 40);
+    let inner_copies_before = inner.child_element_count();
+
+    wire_ticker_with_reduced_motion(outer.clone(), false)
+        .expect("wire_ticker_with_reduced_motion must not fail");
+
+    let mut advanced = false;
+    for _ in 0..40 {
+        sleep_ms(50).await;
+        if px_value(&ticker_offset(&inner)) != 0.0 {
+            advanced = true;
+            break;
+        }
+    }
+    assert!(advanced, "前提: 内側 ticker は JS 駆動で前進しているはず");
+    assert_eq!(
+        inner.child_element_count(),
+        inner_copies_before,
+        "入れ子の内側 ticker は動的複製を行わないはず"
+    );
+    assert!(
+        outer.child_element_count() >= 3,
+        "前提: 外側は追加複製を持つはず"
+    );
+
+    let first_width = outer_content
+        .clone()
+        .dyn_into::<HtmlElement>()
+        .unwrap()
+        .offset_width();
+    let copies = outer.children();
+    for i in 0..copies.length() {
+        let copy = copies.item(i).unwrap().dyn_into::<HtmlElement>().unwrap();
+        assert_eq!(
+            copy.offset_width(),
+            first_width,
+            "外側のコピー {i} の幅は先頭 content と一致するはず"
+        );
+    }
+}

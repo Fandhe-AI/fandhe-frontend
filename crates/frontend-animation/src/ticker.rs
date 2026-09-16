@@ -462,6 +462,15 @@ mod dom {
         false
     }
 
+    /// `root` が別の ticker（[`TICKER_ATTR`]）の配下にあるか（入れ子の
+    /// 内側か）。[`Ticker::start`] が動的複製の要否判定に使う。
+    #[must_use]
+    pub fn has_ancestor_ticker(root: &Element) -> bool {
+        root.parent_element()
+            .and_then(|parent| parent.closest(&format!("[{TICKER_ATTR}]")).ok().flatten())
+            .is_some()
+    }
+
     /// `clone`（自身 + 子孫）に含まれる入れ子 ticker（[`TICKER_ATTR`]）を
     /// 静的化する: [`TICKER_ACTIVE_ATTR`] を付与して CSS `@keyframes`
     /// 駆動を止め、[`TICKER_OFFSET_VAR`] をインラインで `0px` に固定する
@@ -566,14 +575,28 @@ mod dom {
                 };
             };
 
+            // 入れ子 ticker（祖先に別の ticker を持つ内側）は動的複製を行わず
+            // SSR 時点の複製数で固定する。外側 ticker のコピー（SSR 複製・
+            // `ensure_copies` の追加複製）は clone 時点の内側をスナップショット
+            // して静的化されるため、生きている内側だけが後から複製を増やすと
+            // 外側のコピー間で content 長が食い違い、先頭 content 基準の外側の
+            // 周期計測と実際のコピー間隔がずれて継ぎ目に空白・重なりが出る
+            // （Cursor Bugbot 指摘）。内側の周期を固定すれば外側の周期計測も
+            // 安定する。内側が viewport（外側の content 幅）を覆い切れない
+            // 場合は SSR の 2 コピーで見切れる余地が残るが、これは「複製内の
+            // 入れ子 ticker は駆動しない」設計と同じ割り切り（モジュール doc
+            // 「ponytail 割り切り」節）。
+            let dynamic_copies = !has_ancestor_ticker(&root);
             let viewport_len = measure_len(&root, config.axis);
             let content_len =
                 measure_len(&content, config.axis) + read_gap_px(&content_html, config.axis);
-            ensure_copies(
-                &root,
-                &content,
-                super::required_copies(viewport_len, content_len),
-            );
+            if dynamic_copies {
+                ensure_copies(
+                    &root,
+                    &content,
+                    super::required_copies(viewport_len, content_len),
+                );
+            }
 
             // 遅延 hydrate（SSR 表示から JS 駆動開始までに間がある構成）では
             // 利用者が起動前から既に root をポインタ hover・キーボード
@@ -685,11 +708,15 @@ mod dom {
                 if step_resize_pending.take() || viewport_changed || content_changed {
                     step_last_viewport_len.set(current_viewport_len);
                     step_last_content_len.set(current_content_len);
-                    ensure_copies(
-                        &step_root,
-                        &step_content,
-                        super::required_copies(current_viewport_len, current_content_len),
-                    );
+                    // 入れ子の内側は複製数を固定する（`dynamic_copies` 初期化
+                    // コメント参照）。
+                    if dynamic_copies {
+                        ensure_copies(
+                            &step_root,
+                            &step_content,
+                            super::required_copies(current_viewport_len, current_content_len),
+                        );
+                    }
                 }
 
                 // 1 フレーム内で届いた scroll イベントの合計移動距離
@@ -800,8 +827,8 @@ mod dom {
 
 #[cfg(target_arch = "wasm32")]
 pub use dom::{
-    ensure_copies, is_in_secondary_copy, measure_len, neutralize_nested_tickers, read_gap_px,
-    write_offset, Ticker,
+    ensure_copies, has_ancestor_ticker, is_in_secondary_copy, measure_len,
+    neutralize_nested_tickers, read_gap_px, write_offset, Ticker,
 };
 
 #[cfg(test)]
