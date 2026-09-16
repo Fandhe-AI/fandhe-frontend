@@ -46,15 +46,45 @@ pub struct NumberText {
     source: String,
     prefix: String,
     suffix: String,
+    /// 元テキストが明示的な正符号 `+` を持つ（符号表示モード）。
+    /// [`render`](Self::render) は正のとき `+`、負のとき `-` を付け、
+    /// `+-` を生成しない（PR #2580 codex-review P1 指摘: `+` を prefix と
+    /// して保存すると負の途中値が `+-100` と描画されていた）。
+    explicit_plus: bool,
     group_sep: Option<char>,
     decimal_sep: Option<char>,
     decimals: usize,
     value: f64,
 }
 
+/// 数値スパンを構成できる区切り文字（桁区切り候補）。空白・`_` は
+/// 3 桁グルーピングとしてのみ受理し、小数点候補は [`is_decimal_candidate`]
+/// の 2 文字に限る。
 fn is_sep(c: char) -> bool {
     matches!(c, ',' | '.' | ' ' | '_')
 }
+
+/// 小数点区切りとして解釈し得る文字（`.`/`,` のみ。空白・`_` を小数点と
+/// みなすと `"12 34"` が 12.34 と解釈され途中値が `"6 17"` のように描画
+/// される、PR #2580 codex-review P1 指摘）。
+fn is_decimal_candidate(c: char) -> bool {
+    matches!(c, ',' | '.')
+}
+
+/// [`NumberText::parse`] が受理する絶対値の上限（整数部が 2^53 =
+/// 9_007_199_254_740_992 以下、f64 が整数を正確に表現できる範囲）。
+/// これを超える値は解析不能として変更せず残す（fail-safe）。この上限に
+/// より、[`NumberText::render`] の `value * scale`（最大 `MAX_ABS_VALUE ×
+/// 10^MAX_DECIMALS`）と `Interpolate<f64>` の差分 `other - self`（最大
+/// `2 × MAX_ABS_VALUE`、逆符号の巨大値どうしの再補間）がいずれも有限に
+/// 収まる（PR #2580 codex-review P1 指摘 2 件の是正。`tests::
+/// bounds_keep_scaling_and_interpolation_finite` が固定する）。
+pub const MAX_ABS_VALUE: f64 = 9_007_199_254_740_992.0;
+
+/// [`MAX_ABS_VALUE`] の十進表記（整数部の桁列との辞書順比較に使う。f64 へ
+/// 変換してから比較すると `9007199254740993` が 2^53 へ丸められて境界を
+/// すり抜けるため、文字列のまま比較する）。
+const MAX_ABS_VALUE_DIGITS: &str = "9007199254740992";
 
 /// [`NumberText::parse`] が受理する小数桁数の上限（PR #2580 レビュー
 /// 是正・codex-review P1 指摘）。
@@ -68,8 +98,9 @@ fn is_sep(c: char) -> bool {
 /// できないため、実用上意味のある桁数の範囲内（15 桁、`10f64.powi(15)`
 /// は `f64::MAX`（約 `1.8e308`）から十分離れており安全）に絞り、これを
 /// 超える入力は書式を一意に決定できない非対応入力として解析しない
-/// （fail-safe、`parse` の他の拒否条件と同じ設計）。
-const MAX_DECIMALS: usize = 15;
+/// （fail-safe、`parse` の他の拒否条件と同じ設計）。[`MAX_ABS_VALUE`] と
+/// 合わせて `value * scale` の有限性を保証する。
+pub const MAX_DECIMALS: usize = 15;
 
 /// `digits`（先頭に符号を含まない数字文字列）を `sep` の 3 桁区切りへ再挿入する。
 fn group_digits(digits: &str, sep: char) -> String {
@@ -107,15 +138,38 @@ impl NumberText {
         self.value
     }
 
-    /// 整形済み文字列から書式を抽出する。数字を含まない・桁区切りの種類が
-    /// 2 種を超える・グルーピングが不規則（例 `"1,23,456"`）等、書式を
-    /// 一意に決定できない入力は `None`（配線側は何もしない fail-safe）。
+    /// 整形済み文字列から書式を抽出する。
+    ///
+    /// # 受理文法（契約。解釈できない入力は `None` = 配線側は変更せず残す）
+    ///
+    /// ```text
+    /// text    := prefix sign? number suffix
+    /// sign    := "+" | "-"          （直前にもう 1 つ符号があれば非受理: "+-1"）
+    /// number  := int ( dec frac )? | dec frac   （".5" / "$.99" の暗黙ゼロ整数部）
+    /// int     := digits | digits (group digits{3})+   （標準 3 桁グルーピングのみ）
+    /// group   := "," | "." | " " | "_"
+    /// dec     := "." | ","          （空白・"_" は小数点にならない）
+    /// frac    := digits            （MAX_DECIMALS = 15 桁以内）
+    /// prefix  := 数字・符号を含まない任意文字列（例 "$"。"+$100"/"-$12" は非受理、
+    ///            "$-12" は受理）
+    /// suffix  := 数字を含まない任意文字列（例 "%"、" items"。"1e5" / "12 34"
+    ///            のように数字を含む場合は非受理）
+    /// ```
+    ///
+    /// - 区切り文字は 2 種類まで。2 種類なら**最後**に現れる方が小数点
+    ///   （欧州式 "1.234,5" 含む）で、それは `.`/`,` のいずれかでなければ
+    ///   ならない。1 種類が 1 回だけなら `.` は小数点、`,` は標準
+    ///   グルーピングなら桁区切り・そうでなければ欧州式小数点、空白/`_` は
+    ///   標準グルーピングのみ受理。同一区切りが複数回なら桁区切りのみ。
+    /// - 整数部の絶対値は [`MAX_ABS_VALUE`]（2^53）以下。超える値
+    ///   （"9007199254740993"）は非受理。
+    /// - 明示的な `+` は符号表示モードとして保持する（`explicit_plus`）。
     #[must_use]
     pub fn parse(text: &str) -> Option<Self> {
         let chars: Vec<char> = text.chars().collect();
 
         // 数値スパンの開始位置（最初の数字。直前の 1 文字が小数点候補
-        // （'.'/','）ならそこも含め、さらにその前が '-' ならそこも含める。
+        // （'.'/','）ならそこも含め、さらにその前が符号ならそこも含める。
         // 最初に見つかる数字より前に他の数字は存在し得ない（存在すれば
         // それがより早く見つかっているはず）ため、直前の '.'/',' は常に
         // 地の文の句読点ではなく数値スパンの先頭小数点（例 ".5"/"-.5"/
@@ -126,10 +180,10 @@ impl NumberText {
         for (i, &c) in chars.iter().enumerate() {
             if c.is_ascii_digit() {
                 let mut s = i;
-                if s > 0 && matches!(chars[s - 1], '.' | ',') {
+                if s > 0 && is_decimal_candidate(chars[s - 1]) {
                     s -= 1;
                 }
-                if s > 0 && chars[s - 1] == '-' {
+                if s > 0 && matches!(chars[s - 1], '-' | '+') {
                     s -= 1;
                 }
                 start = Some(s);
@@ -138,8 +192,17 @@ impl NumberText {
         }
         let start = start?;
 
+        // 符号の直前にさらに符号がある（"+-1"/"--1"）入力は非受理。
+        if start > 0 && matches!(chars[start - 1], '-' | '+') {
+            return None;
+        }
         let negative = chars[start] == '-';
-        let digit_start = if negative { start + 1 } else { start };
+        let explicit_plus = chars[start] == '+';
+        let digit_start = if negative || explicit_plus {
+            start + 1
+        } else {
+            start
+        };
 
         // 数値スパンの終端（数字・区切り文字が連続する限り伸ばす）。
         let mut end = digit_start;
@@ -157,6 +220,17 @@ impl NumberText {
         let span: String = chars[digit_start..end].iter().collect();
         let prefix: String = chars[..start].iter().collect();
         let suffix: String = chars[end..].iter().collect();
+        // prefix 側に符号がある（"+$100"/"-$12"）入力は、符号を値から決める
+        // 契約上その位置へ正しい符号を置けないため非受理（"$-12" のように
+        // 数字直前の符号は `sign` として受理する）。
+        if prefix.chars().any(|c| matches!(c, '-' | '+')) {
+            return None;
+        }
+        // 後続に別の数字列がある（"1e5"/"12 34"/"3 of 10"）入力は、どの
+        // 数値を補間すべきか一意に決まらないため非受理（fail-safe）。
+        if suffix.chars().any(|c| c.is_ascii_digit()) {
+            return None;
+        }
 
         let sep_positions: Vec<(usize, char)> =
             span.char_indices().filter(|(_, c)| is_sep(*c)).collect();
@@ -189,8 +263,9 @@ impl NumberText {
                 } else {
                     // 出現 1 回: 構造だけでは桁区切り（"1,234"）と小数点
                     // 区切り（"0.125"）を一意に決定できない。`.` は慣習的に
-                    // 小数点として扱い、それ以外（`,`/` `/`_`）は桁区切り
-                    // として扱う。
+                    // 小数点として扱い、`,` は標準グルーピングなら桁区切り・
+                    // そうでなければ欧州式小数点、空白/`_` は標準
+                    // グルーピングのみ受理する。
                     let (pos, _) = sep_positions[0];
                     let after = &span[pos + sep.len_utf8()..];
                     let before = &span[..pos];
@@ -209,15 +284,18 @@ impl NumberText {
                         (None, Some(sep), after.chars().count())
                     } else if valid_grouping(&span, sep) {
                         (Some(sep), None, 0)
-                    } else if !before.is_empty()
+                    } else if sep == ','
+                        && !before.is_empty()
                         && !after.is_empty()
                         && before.chars().all(|c| c.is_ascii_digit())
                         && after.chars().all(|c| c.is_ascii_digit())
                     {
-                        // 標準的な 3 桁グルーピングではない（例 "12,5"）。
+                        // 標準的な 3 桁グルーピングではない `,`（例 "12,5"）。
                         // 欧州式の小数点区切りとして解釈する（PR #2580
                         // Bugbot Medium 指摘: グルーピング判定のみだと
                         // 欧州式の小数表記が解析不能になる回帰の是正）。
+                        // 空白・`_` はこのフォールバックの対象外
+                        // （"12 34" を 12.34 と解釈しない、codex-review P1）。
                         (None, Some(sep), after.chars().count())
                     } else {
                         return None;
@@ -226,13 +304,14 @@ impl NumberText {
             }
             2 => {
                 // 2 種類の区切り文字が混在: 最後に出現する方が小数点区切り
-                // （欧州式 "1.234,5" 含む）。
+                // （欧州式 "1.234,5" 含む）。小数点候補は `.`/`,` のみ。
                 let &(last_pos, last_char) = sep_positions.last().expect("len==2 checked above");
-                if sep_positions
-                    .iter()
-                    .filter(|&&(_, c)| c == last_char)
-                    .count()
-                    != 1
+                if !is_decimal_candidate(last_char)
+                    || sep_positions
+                        .iter()
+                        .filter(|&&(_, c)| c == last_char)
+                        .count()
+                        != 1
                 {
                     return None;
                 }
@@ -270,6 +349,18 @@ impl NumberText {
             }
             normalized.push(c);
         }
+
+        // 整数部の絶対値上限（`MAX_ABS_VALUE`、2^53）。f64 へ丸める前の
+        // 桁列で比較する（`MAX_ABS_VALUE_DIGITS` doc 参照）。
+        let int_part = normalized.split('.').next().unwrap_or(&normalized);
+        let int_significant = int_part.trim_start_matches('0');
+        if int_significant.len() > MAX_ABS_VALUE_DIGITS.len()
+            || (int_significant.len() == MAX_ABS_VALUE_DIGITS.len()
+                && int_significant > MAX_ABS_VALUE_DIGITS)
+        {
+            return None;
+        }
+
         let mut value: f64 = normalized.parse().ok()?;
         if !value.is_finite() {
             return None;
@@ -283,7 +374,7 @@ impl NumberText {
         // 無いのか、値が小さくて桁区切りの要不要が判別できないだけなのか」
         // を区別できないため、補間の途中でより大きな値を表示する際に既定
         // で ',' 区切りを適用する（`write_final_writes_formatted_value_
-        // immediately_and_updates_last_written` テストが検証する既存挙動）。
+        // immediately_and_updates_last_value` テストが検証する既存挙動）。
         // 小数点区切りとして ',' を使う書式（欧州式）と衝突しないよう、
         // その場合のみ既定適用しない。
         //
@@ -296,7 +387,7 @@ impl NumberText {
         // 保存する契約に反して表示幅が変動していた）。桁区切りが元々無い
         // 場合（"5000" 等、`sep_positions` が空）も同様に `None` を維持する
         // （既存挙動）。
-        let int_digits = normalized.split('.').next().unwrap_or(&normalized).len();
+        let int_digits = int_part.len();
         let group_sep = group_sep.or_else(|| {
             if sep_positions.is_empty() || int_digits > 3 {
                 None
@@ -309,13 +400,13 @@ impl NumberText {
             source: text.to_string(),
             prefix,
             suffix,
+            explicit_plus,
             group_sep,
             decimal_sep,
             decimals,
             value,
         })
     }
-
     /// `value` を自身の書式（prefix/suffix・桁区切り・小数桁数）へ当てはめて
     /// 文字列化する（四捨五入・3 桁区切りの再挿入込み）。
     ///
@@ -328,18 +419,11 @@ impl NumberText {
         if value == self.value {
             return self.source.clone();
         }
+        // `value` は `parse` の上限（`MAX_ABS_VALUE`・`MAX_DECIMALS`）内の
+        // 値どうしの補間結果のため `value * scale` は常に有限
+        // （`tests::bounds_keep_scaling_and_interpolation_finite`）。
         let scale = 10f64.powi(self.decimals as i32);
-        // `MAX_DECIMALS` は `scale` の有限性しか保証せず、`value * scale`
-        // 自体は巨大な有限値（例 `5e299 × 1e15`）でオーバーフローして
-        // `inf` になり得る（PR #2580 codex-review P1 指摘）。乗算結果が
-        // 非有限なら丸めを省き、`format!` の精度指定（乗算を伴わず正確な
-        // 十進展開へ丸める）だけに任せる。
-        let scaled = value * scale;
-        let rounded = if scaled.is_finite() {
-            scaled.round() / scale
-        } else {
-            value
-        };
+        let rounded = (value * scale).round() / scale;
         let negative = rounded < 0.0;
         let abs = rounded.abs();
         let formatted = format!("{abs:.*}", self.decimals);
@@ -355,8 +439,12 @@ impl NumberText {
         let mut out =
             String::with_capacity(self.prefix.len() + self.suffix.len() + int_grouped.len() + 8);
         out.push_str(&self.prefix);
+        // 符号は prefix ではなく値から決める（`explicit_plus` は正のときのみ
+        // `+`、負のときは `-`。`+-` を生成しない）。
         if negative {
             out.push('-');
+        } else if self.explicit_plus {
+            out.push('+');
         }
         out.push_str(&int_grouped);
         if let Some(frac) = frac_part {
@@ -554,7 +642,9 @@ pub fn start(
 
 #[cfg(test)]
 mod tests {
-    use super::{count_up_progress, eased, has_external_mutation, NumberText};
+    use super::{
+        count_up_progress, eased, has_external_mutation, NumberText, MAX_ABS_VALUE, MAX_DECIMALS,
+    };
 
     fn roundtrip(input: &str, expected_value: f64) -> NumberText {
         let parsed =
@@ -630,13 +720,18 @@ mod tests {
         roundtrip("1,234.567", 1234.567);
     }
 
-    /// PR #2580 codex-review P1 指摘: f64 で表現しきれない大きな整数
-    /// （2^53 + 1）でも、最終値の表示は元テキストへ bit-exact に収束する
-    /// （精度損失した数値ではなく `source` をそのまま返す）。
+    /// 最終値の表示は f64 経由の整形ではなく元テキスト（`source`）を
+    /// そのまま返す（PR #2580 codex-review P1 指摘。上限 2^53 ちょうどは
+    /// 受理され、`+1` は `MAX_ABS_VALUE` 超過として非受理）。
     #[test]
-    fn render_at_parsed_value_avoids_f64_precision_loss() {
-        let n = NumberText::parse("9,007,199,254,740,993").unwrap();
-        assert_eq!(n.render(n.value()), "9,007,199,254,740,993");
+    fn render_at_parsed_value_returns_source_and_max_abs_value_is_enforced() {
+        let n = NumberText::parse("9,007,199,254,740,992").unwrap();
+        assert_eq!(n.render(n.value()), "9,007,199,254,740,992");
+        assert!(NumberText::parse("9,007,199,254,740,993").is_none());
+        assert!(NumberText::parse("9007199254740993").is_none());
+        assert!(NumberText::parse("10000000000000000").is_none());
+        // 先頭ゼロは桁数に含めない。
+        assert!(NumberText::parse("0009007199254740992").is_some());
     }
 
     /// PR #2580 codex-review P1 指摘: 元テキストに桁区切りが一切現れない
@@ -714,32 +809,102 @@ mod tests {
         assert!(NumberText::parse(&overflowing).is_none());
     }
 
-    /// codex-review P1 指摘: `MAX_DECIMALS` は `scale` の有限性しか保証
-    /// せず、受理した有限値（1e300）の途中値 `5e299` を描画する際
-    /// `value * scale`（× 1e15）がオーバーフローして "inf" が表示されて
-    /// いた回帰。乗算結果が非有限でも有限な十進表記を返すこと。
+    /// codex-review P1 指摘 2 件（`value * scale` のオーバーフロー、逆符号
+    /// の巨大値間の `other - self` オーバーフロー）を上限で一括して塞ぐ。
+    /// 上限定数の整合をここで固定する。
     #[test]
-    fn renders_huge_value_without_overflowing_scale_multiplication() {
+    fn bounds_keep_scaling_and_interpolation_finite() {
+        use fandhe_animation::interpolate::Interpolate;
+        let scale = 10f64.powi(MAX_DECIMALS as i32);
+        assert!(scale.is_finite());
+        assert!((MAX_ABS_VALUE * scale).is_finite());
+        assert!(MAX_ABS_VALUE * scale < f64::MAX);
+        assert!((2.0 * MAX_ABS_VALUE).is_finite());
+        assert_eq!(MAX_ABS_VALUE, 2f64.powi(53));
+        // 逆符号の上限値どうしの補間が全区間で有限。
+        for t in [0.0, 0.25, 0.5, 0.75, 1.0] {
+            assert!((-MAX_ABS_VALUE).interpolate(&MAX_ABS_VALUE, t).is_finite());
+        }
+        // 1e300 級の入力は受理しない（旧実装は受理して途中値が "inf" になった）。
         let huge = format!("1{}.{}", "0".repeat(300), "0".repeat(15));
-        let n = NumberText::parse(&huge).expect("有限値 1e300 は受理されること");
-        let mid = n.render(5e299);
-        assert!(
-            !mid.contains("inf") && !mid.contains("NaN"),
-            "途中値の描画が非有限になってはならない: {mid}"
-        );
-        assert!(
-            mid.starts_with('5'),
-            "途中値は 5e299 の十進表記であること: {mid}"
-        );
-        assert!(
-            mid.ends_with(&format!(".{}", "0".repeat(15))),
-            "小数桁数を保つこと: {mid}"
-        );
-        assert_eq!(
-            n.render(n.value()),
-            huge,
-            "最終フレームは元テキストへ収束すること"
-        );
+        assert!(NumberText::parse(&huge).is_none());
+        assert!(NumberText::parse(&format!("-1{}", "0".repeat(308))).is_none());
+    }
+
+    /// PR #2580 codex-review P1 指摘: 明示的な `+` は prefix ではなく符号
+    /// 表示モード。負の途中値に `+-` を生成しない。
+    #[test]
+    fn explicit_plus_is_sign_mode_not_prefix() {
+        let n = roundtrip("+100", 100.0);
+        assert_eq!(n.render(50.0), "+50");
+        assert_eq!(n.render(-50.0), "-50");
+        assert_eq!(n.render(0.0), "+0");
+        let dollars = roundtrip("$-1,234.50", -1234.5);
+        assert_eq!(dollars.render(12.0), "$12.00");
+        // prefix 側の符号は位置を保存できないため非受理。
+        assert!(NumberText::parse("+$1,234.50").is_none());
+        assert!(NumberText::parse("-$12").is_none());
+        // 符号が二重の入力は非受理。
+        assert!(NumberText::parse("+-1").is_none());
+        assert!(NumberText::parse("--1").is_none());
+        assert!(NumberText::parse("-+1").is_none());
+    }
+
+    /// PR #2580 codex-review P1 指摘: 空白・`_` は小数点候補にならない
+    /// （標準グルーピングの桁区切りとしてのみ受理）。
+    #[test]
+    fn space_and_underscore_are_never_decimal_separators() {
+        assert!(NumberText::parse("12 34").is_none());
+        assert!(NumberText::parse("12_34").is_none());
+        assert!(NumberText::parse("1 234,56 78").is_none());
+        // 2 種混在で空白側が最後（小数点位置）に来る並びは非受理。
+        assert!(NumberText::parse("1.234 5").is_none());
+        // 標準グルーピングなら桁区切りとして受理する。
+        roundtrip("1 234", 1234.0);
+        roundtrip("1_234_567", 1234567.0);
+        roundtrip("1 234,5", 1234.5);
+    }
+
+    /// 受理文法の境界表（`NumberText::parse` doc「受理文法」節の契約）。
+    #[test]
+    fn acceptance_boundary_table() {
+        let accepted: &[(&str, f64, f64, &str)] = &[
+            // (入力, 値, 途中値, 途中値の描画)
+            ("+100", 100.0, 50.0, "+50"),
+            ("-0.5", -0.5, -0.2, "-0.2"),
+            (".5", 0.5, 0.2, "0.2"),
+            ("$.99", 0.99, 0.5, "$0.50"),
+            ("1,234.56", 1234.56, 999.999, "1,000.00"),
+            ("1.234,56", 1234.56, 999.999, "1.000,00"),
+            ("1.234.567", 1234567.0, 123456.0, "123.456"),
+            ("-9007199254740992", -9007199254740992.0, 0.0, "0"),
+            ("1.000000000000000", 1.0, 0.5, "0.500000000000000"),
+            ("98.5%", 98.5, 12.3, "12.3%"),
+            ("12 items", 12.0, 6.0, "6 items"),
+        ];
+        for &(input, value, mid, rendered) in accepted {
+            let n = roundtrip(input, value);
+            assert_eq!(n.render(mid), rendered, "{input:?} の途中値描画");
+        }
+        let rejected = [
+            "12 34",
+            "12_34",
+            "1e5",
+            "N/A",
+            "9007199254740993",
+            "+-1",
+            "3 of 10",
+            "+$100",
+            "1,23,456",
+            "abc",
+            "",
+        ];
+        for input in rejected {
+            assert!(
+                NumberText::parse(input).is_none(),
+                "{input:?} は非受理であること"
+            );
+        }
     }
 
     #[test]
