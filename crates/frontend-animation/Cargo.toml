@@ -80,15 +80,22 @@ name = "fandhe-frontend-animation"
 # イシュー #2532: `text_animation`（typewriter/scramble のフレーム計算・
 # DOM 書き込み）を新設した。`magnetic`/`svg_path` と同型の新規公開 API
 # 純追加のため minor バンプする。
-#
-# イシュー #2541: `carousel`（`snap_target`/`CarouselTrack`、ドラッグ +
-# spring スナップの演算・rAF 実行）を新設した。既存モジュールと同型の
+# イシュー #2542: `cursor`（`CursorFollower`/`CursorAnimator`、カスタム
+# カーソルのポインタ追従 spring 演算・rAF 駆動）を新設した。`magnetic`/
+# `text_animation` と同型の新規公開 API 純追加のため minor バンプする。
+# イシュー #2544: `presence`（`snapshot_rows`/`insert_exit_ghost`/
+# `remove_when_settled`/`ensure_positioned`、keyed list 削除行の退場
+# ゴースト配置・実測 CSS アニメーション時間経過後の除去）を新設した。
 # 新規公開 API 純追加のため minor バンプする。
 #
-# イシュー #2541（PR #2581 レビュー是正）: `CarouselTrack` へ `retarget`/
-# `is_settling` を新設した（release 時の再描画で settle 中の書き込み先
-# 要素が切断された場合に、進行中の spring を継続させるための新規公開
-# API 純追加）。既存 API に破壊的変更はないため patch バンプする。
+# マージコミット注記（origin/main #2541 との統合）: origin/main はイシュー
+# #2541（`carousel`: `snap_target`/`CarouselTrack`、ドラッグ + spring
+# スナップの演算・rAF 実行、および `retarget`/`is_settling`/
+# `resume_pointer_down`/`flush_current_progress` の追随修正）を新設し、
+# 独立に 0.15.0 へ到達していた。本ブランチの到達値 0.14.0（presence 込み）
+# は origin/main の到達値 0.15.0 より低いため、carousel モジュール新設を
+# 統合するにあたり origin/main の到達値からさらに +1 minor して 0.16.0
+# とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
 # マージコミット注記（origin/main #2542 との統合）: origin/main はイシュー
 # #2542（`cursor`: `CursorFollower`/`CursorAnimator`、カスタムカーソルの
@@ -117,7 +124,15 @@ name = "fandhe-frontend-animation"
 # PR #2578 レビュー是正（イシュー #2536）: `play_shared` 収束前に DOM
 # を更新する際は進行中ハンドルを停止・復元してから再捕捉する契約を
 # 追加した（既存 API に破壊的変更はない）ため patch バンプする。
-version = "0.16.1"
+#
+# マージコミット注記（origin/main #2585 との統合）: origin/main はイシュー
+# #2544（PR #2585 codex-review P1 是正）で `insert_exit_ghost` の内部実装
+# 修正（`input[type=radio]` の `name` 属性除去、公開 API 不変）のため
+# 0.16.0 → 0.16.1 へ独立に patch バンプしていた。本ブランチの到達値
+# 0.16.1（上記 PR #2578 レビュー是正の patch バンプ）と同一版数へ衝突した
+# ため、`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として
+# +1」運用に従いさらに +1 して 0.16.2 とする。
+version = "0.16.2"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -163,7 +178,21 @@ categories = ["graphics", "web-programming", "wasm"]
 # 同一 feature を既に有効化済み）。
 #
 # 新規クレートを追加する場合は事前にユーザー承認を得ること。
+#
+# codex-review/Bugbot 指摘是正（イシュー #2544）: `presence::insert_exit_ghost`
+# の DOM 属性 sink 呼び出し（`set_attribute`）に対して `fw gate` の
+# `url_validation_check`（U1）が要求する co-located ガード 4 種
+# （`is_url_attr`/`is_safe_url`/`is_safe_srcset`/`is_event_handler_attr`）を
+# `fandhe-frontend-wasm-full::tabs_indicator::wiring::set_dom_attribute` と
+# 同じ薄いラッパー方式で満たすため追加する。外部パッケージではなく
+# workspace 内の既存 core クレート（外部依存ゼロ）への path 依存であり、
+# `fandhe-frontend-wasm-full`/`-wasm-client`/`-interactive` が既に同じ
+# 経由で依存している既存パターンの踏襲。依存方向（`fandhe-animation ←
+# fandhe-frontend-animation ← wasm-full(optional)`）・`fandhe-frontend-
+# wasm-full` への非依存方針は不変（`docs/design/animation-core-
+# architecture.md` 参照）。
 [dependencies]
+fandhe-frontend-core = { path = "../core", version = "0.4.3" }
 fandhe-animation = { path = "../animation", version = "0.2.0" }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
@@ -225,6 +254,14 @@ web-sys = { version = "0.3", features = [
   "SvgGeometryElement",
   "SvgElement",
   "SvgAnimatedNumber",
+  # イシュー #2544 CI 是正: `presence::disable_form_controls` が
+  # `Element::query_selector_all`（`NodeList` を返す）を使うため、戻り値
+  # 型の feature を追加する（既存 wasm-full の `Cargo.toml` も同じ
+  # `NodeList` のみを要求しており、`ParentNode` feature は存在しない
+  # ——web-sys 0.3 では `query_selector`/`query_selector_all` は `Element`
+  # の inherent メソッドであり、別 feature の有効化を要しない）。新規
+  # 外部パッケージの追加はない。
+  "NodeList",
 ] }
 wasm-bindgen-futures = "0.4"
 
@@ -247,6 +284,18 @@ wasm-bindgen-test = "0.3"
 # 生成（`HtmlCanvasElement`、本体側の feature を再利用）・描画結果検証
 # （`CanvasRenderingContext2d::get_image_data` の戻り値型 `ImageData`）に
 # 使う。`ImageData` はテスト専用のためここにのみ追加する。
+#
+# イシュー #2544（PR #2585 レビュー是正）: `tests/presence_browser.rs` の
+# 退場ゴースト radio group 隔離回帰テストが `HtmlInputElement`
+# （`set_type`/`set_name`/`set_checked`/`checked`）を使うため、テスト専用
+# のためここにのみ追加する。
 [dev-dependencies.web-sys]
 version = "0.3"
-features = ["Document", "Element", "Node", "HtmlHeadElement", "ImageData"]
+features = [
+  "Document",
+  "Element",
+  "Node",
+  "HtmlHeadElement",
+  "ImageData",
+  "HtmlInputElement",
+]

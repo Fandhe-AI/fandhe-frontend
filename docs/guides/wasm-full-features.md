@@ -250,8 +250,37 @@ feature は上記の同一要素向け layout FLIP に加え、`crate::shared_la
 ウト遷移。motion.dev `layoutId` 相当）もゲートします。新規 feature は
 切らず既存 `layout-animation` を再利用しているため、off にすると両方の
 アニメーションが同時に無効化されます。詳細は
-[アニメーション機能ガイド §10a](./animation.md#10a-共有レイアウト遷移-layoutid-相当)
+[アニメーション機能ガイド §12](./animation.md#12-共有レイアウト遷移-layoutid-相当)
 を参照してください。
+
+`presence` feature（イシュー #2544、既定 on）も `layout-animation` と
+同型の別枠です。`Runtime::apply_update_for_dirty` の keyed list 構造
+変化コミットの前後で、`fandhe_frontend_animation::presence`（削除行の
+座標スナップショット撮影・退場ゴースト配置・実測 CSS アニメーション時間
+経過後の除去）を起動する呼び出し（`list_presence::capture_before`/
+`play_exit_after`）をゲートします。`list_presence` モジュール自体・
+座標計測やタイマー処理のロジックは `fandhe-frontend-animation` 側の
+責務であり、本クレートはいつ呼ぶかのみを担います。対象リストは親要素に
+`data-fandhe-flip-auto` と同型の `data-fandhe-presence-auto` 属性を持つ
+keyed list へオプトインで限定されるため、off にすると当該属性を付けた
+リストでも削除行の退場アニメーションが起動しなくなります（並べ替え
+〔`layout-animation`〕・追加行の入場（`fandhe-frontend-pre-styled-ui`
+`motion` feature の `list_motion` が提供する CSS、`stagger` feature の
+`--fandhe-motion-stagger-index` 同期）とは独立の feature です）。
+
+**ゴースト方式**: 削除された行は DOM から即座に取り除かれるのではなく、
+元の座標（`offsetTop`/`offsetLeft`/`offsetWidth`/`offsetHeight`）へ
+`position: absolute` で list 末尾へ再挿入され、`inert`・
+`aria-hidden="true"`・`data-state="exiting"` を付与されます
+（Motion の `AnimatePresence`〔`popLayout`〕相当）。ゴーストからは
+`data-key`/`data-bind-*`/`data-action` を剥がすため、次回の keyed list
+差分・FLIP・束縛点走査・イベント委譲のいずれにも拾われません。除去は
+`animationend` イベントに依存せず、computed `animation-duration`/
+`animation-delay` から求めた実測時間 + 50ms 後のタイマーで行うため、
+`motion` feature 未読み込み・`prefers-reduced-motion: reduce`・
+`animation-duration: 0s` のいずれでもゴーストは即座に除去されます
+（fail-safe）。ゴーストは絶対配置のため後続行は FLIP で即座に詰まります
+（既知の視覚的挙動、Motion popLayout と同じ見え方）。
 
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
@@ -333,6 +362,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | （merge） | base main 再取り込み時（イシュー #2518 codex-review 追加ラウンド是正、`view-transition-preset` feature 追加）: main 側はさらにイシュー #2516（`view-transition-preset` feature）で 0.32.2 → 0.32.3 へ独立にバンプしていた。本 PR 側の到達値 0.33.0 は main の到達値 0.32.3 をすでに上回っており同一版数の衝突には該当しないため、本 PR の到達値 0.33.0 をそのまま維持する（さらなる衝突バンプ不要） |
 | 0.35.0 | `text-animation` feature（イシュー #2532、typewriter/scramble 配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.11.0 → 0.12.0 へ追随した。本 PR（#2532）と origin/main（#2537、`view-transition-preset` の破壊的バリアント追加）が同じ merge base（0.33.0）から独立に 0.34.0 へ到達したため、#638 条項に従いさらに +1 して 0.35.0 とする |
 | 0.36.0 | `cursor` feature（イシュー #2542、カスタムカーソル配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.12.0 → 0.13.0 へ追随した |
+| 0.37.0 | `presence` feature（イシュー #2544、keyed list 削除行の退場ゴースト配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.13.0 → 0.14.0 へ追随した |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
@@ -342,7 +372,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.35.0"
+version = "0.37.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -382,6 +412,7 @@ features = [
   "view-transition-preset",
   "animate",
   "layout-animation",
+  "presence",
   "accordion",
   "calendar",
   "collapsible",
