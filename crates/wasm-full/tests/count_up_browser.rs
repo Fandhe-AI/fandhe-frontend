@@ -320,6 +320,57 @@ async fn in_view_pending_update_shows_new_start_value_not_stale_final() {
     );
 }
 
+/// PR #2580 codex-review P1 指摘の回帰テスト: 兄弟の単位 `<span>` の
+/// テキスト変更は数値の目標値更新として扱わないこと（in-view 待機中に
+/// 更新しても表示中の "0" が新目標として pending へ保存されず、進入後に
+/// 本来の目標値へ到達する）。数値テキストノード自体の更新は従来どおり
+/// 再補間される。
+#[wasm_bindgen_test]
+async fn sibling_unit_text_update_does_not_change_pending_target() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (container, dd) = build_off_screen_dom(
+        &document,
+        "count-up-root-8",
+        "1000",
+        &[
+            (COUNT_UP_TRIGGER_ATTR, COUNT_UP_TRIGGER_IN_VIEW),
+            (COUNT_UP_DURATION_MS_ATTR, TEST_DURATION_MS),
+        ],
+    );
+    let _guard = RemoveOnDrop(container.clone());
+    let unit = document.create_element("span").unwrap();
+    unit.set_text_content(Some("%"));
+    dd.append_child(&unit).unwrap();
+
+    wire_count_up(&container).expect("wire_count_up must not fail");
+    sleep_ms(50).await;
+    assert_eq!(dd.text_content().unwrap(), "0%");
+
+    // 画面外のまま単位 span だけを更新する（数値の外部更新ではない）。
+    unit.set_text_content(Some("pt"));
+    sleep_ms(50).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "0pt",
+        "単位更新は数値表示を変えないはず"
+    );
+
+    container.set_scroll_top(300);
+    sleep_ms(300).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "1000pt",
+        "単位 span の更新で目標値が \"0\" に差し替わらず、本来の目標値へ到達するはず"
+    );
+
+    // 数値テキストノードの更新は従来どおり再補間される。
+    dd.first_child()
+        .expect("number text node must exist")
+        .set_text_content(Some("2000"));
+    sleep_ms(300).await;
+    assert_eq!(dd.text_content().unwrap(), "2000pt");
+}
+
 #[wasm_bindgen_test]
 async fn in_view_trigger_eventually_reaches_final_value() {
     let document = web_sys::window().unwrap().document().unwrap();

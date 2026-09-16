@@ -104,7 +104,7 @@ mod wiring {
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{
         Element, HtmlElement, IntersectionObserver, IntersectionObserverEntry, MutationObserver,
-        MutationObserverInit,
+        MutationObserverInit, MutationRecord, Node,
     };
 
     /// `root` 配下の `[data-fandhe-count-up]` 要素（複数可）を出現順に集める
@@ -344,9 +344,40 @@ mod wiring {
         observer.observe(element);
     }
 
-    /// `element` 自身のテキスト変更（`characterData`/`childList`、
-    /// `subtree: true`）を監視し、自己書き込み以外（アプリの `set_text`
-    /// 等の外部更新）を検知したら現在表示中の値 → 新しい値へ再補間する。
+    /// `records` のうち**数値テキストノードに関係する**もの（対象ノードの
+    /// `characterData` 変更、または `element` 直下の `childList` 変更＝
+    /// 数値テキストノード自体の差し替え・追加・削除）だけを数える。
+    /// `subtree: true` で購読しているため `value_unit`/`up_indicator`/
+    /// `down_indicator` 配下のテキスト変更も通知されるが、これらは数値の
+    /// 目標値更新ではないため無視する（PR #2580 codex-review P1 指摘:
+    /// in-view 待機中に単位 `<span>` を更新すると表示中の "0" が新しい
+    /// 目標値として pending に保存され、進入後も本来の数値へ到達しなかった
+    /// 回帰の是正）。自己書き込み（数値ノードへの `set_data`、または子要素
+    /// なし要素への `set_text_content`）は常にこの条件に該当するため、
+    /// `self_write_count` との突き合わせもこの件数で行う。
+    fn count_value_text_records(element: &HtmlElement, records: &js_sys::Array) -> u32 {
+        let element_node: &Node = element;
+        let value_node = count_up::value_text_node(element);
+        records
+            .iter()
+            .filter_map(|record| record.dyn_into::<MutationRecord>().ok())
+            .filter(|record| {
+                let target = record.target();
+                match record.type_().as_str() {
+                    "characterData" => value_node
+                        .as_ref()
+                        .is_some_and(|node| node.is_same_node(target.as_ref())),
+                    "childList" => element_node.is_same_node(target.as_ref()),
+                    _ => false,
+                }
+            })
+            .count() as u32
+    }
+
+    /// `element` 配下のテキスト変更（`characterData`/`childList`、
+    /// `subtree: true`）を監視し、数値テキストノードに対する自己書き込み
+    /// 以外（アプリの `set_text` 等の外部更新、[`count_value_text_records`]）
+    /// を検知したら現在表示中の値 → 新しい値へ再補間する。
     ///
     /// 自己書き込みの除外は自己書き込み回数カウンタ（[`count_up::
     /// TextTarget::write`]/[`count_up::write_final`] が書き込みのたびに
@@ -373,7 +404,8 @@ mod wiring {
         let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |records: js_sys::Array, _observer: MutationObserver| {
                 let self_writes = self_write_count.replace(0);
-                if !count_up::has_external_mutation(records.length(), self_writes) {
+                let relevant = count_value_text_records(&element_for_callback, &records);
+                if !count_up::has_external_mutation(relevant, self_writes) {
                     return;
                 }
                 let current = count_up::read_value_text(&element_for_callback);
