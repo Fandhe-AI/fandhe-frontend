@@ -884,6 +884,60 @@ async fn redraw_with_mismatched_slide_count_does_not_retarget_spring() {
     );
 }
 
+/// codex-review 指摘 是正の回帰（イシュー #2541 第 7 ラウンド）: 位置・
+/// 枚数が同じでも `aria-label` が異なる（＝構造上別の）carousel へ
+/// 旧 spring を retarget してはならない（`resolve_replacement` の
+/// `aria-label` 突き合わせ、モジュール doc参照）。枚数一致チェックだけでは
+/// 同じ枚数の別 carousel が入れ替わる構成を見分けられない。
+#[wasm_bindgen_test]
+async fn redraw_with_mismatched_aria_label_does_not_retarget_spring() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let wrapper = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&wrapper).unwrap();
+    let _wrapper_guard = RemoveOnDrop(wrapper.clone());
+
+    let (root, item_group) = build_dom(&document, Some(""));
+    root.set_attribute("aria-label", "Featured products")
+        .unwrap();
+    wrapper.append_child(&root).unwrap();
+
+    let new_item_group_cell: Rc<RefCell<Option<Element>>> = Rc::new(RefCell::new(None));
+    let redraw_document = document.clone();
+    let redraw_wrapper = wrapper.clone();
+    let redraw_cell = new_item_group_cell.clone();
+    wire_carousel_motion_events(wrapper.clone(), move |_action_ref: ActionRef| {
+        // 同じ位置・同じ枚数（3 枚）だが `aria-label` が異なる別 carousel
+        // へ差し替える。
+        while let Some(child) = redraw_wrapper.first_child() {
+            let _ = redraw_wrapper.remove_child(&child);
+        }
+        let (new_root, new_item_group) = build_dom_with_item_count(&redraw_document, Some(""), 3);
+        new_root
+            .set_attribute("aria-label", "Recommended products")
+            .unwrap();
+        new_root.remove();
+        let _ = redraw_wrapper.append_child(&new_root);
+        *redraw_cell.borrow_mut() = Some(new_item_group);
+    })
+    .unwrap();
+
+    dispatch_pointer_event(&item_group, "pointerdown", 0, 1);
+    dispatch_pointer_event(&item_group, "pointermove", -150, 1);
+    dispatch_pointer_event(&item_group, "pointerup", -150, 1);
+
+    let new_item_group = new_item_group_cell
+        .borrow()
+        .clone()
+        .expect("dispatch must have installed a replacement carousel synchronously");
+
+    sleep_ms(4_000).await;
+
+    assert!(
+        read_index(&new_item_group).is_none(),
+        "aria-label の異なる別 carousel へ旧 spring を retarget してはならない"
+    );
+}
+
 /// codex-review 指摘 是正の回帰（イシュー #2541 第 6 ラウンド）: 収束中の
 /// spring が、この `CarouselTrack` を経由しない別経路（例: 自動再生の
 /// `"goto"` が SSR 再描画で `item_group` のインライン style を直接書き

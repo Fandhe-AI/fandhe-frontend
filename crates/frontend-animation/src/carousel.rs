@@ -554,16 +554,31 @@ mod wiring {
                     if (dom_value - last_written).abs() > 1e-6 {
                         // 外部書き込みを検知: この spring はもう正しい
                         // 着地先を追っていないため、上書きせず即座に
-                        // 打ち切る（`on_settle` は呼ばない——目標未到達の
-                        // まま完了扱いにすると、呼び出し側の「settle 完了」
-                        // 処理〔dragging 属性の除去等〕が誤って走る）。
-                        // `last_target` も外部値との対応が失われたため
-                        // `None` へ戻し、次のタップが古い着地先へ収束
-                        // しないようにする（[`Self::resync_progress_from_dom`]
-                        // と同じ安全策）。
+                        // 打ち切る。`last_target` も外部値との対応が
+                        // 失われたため `None` へ戻し、次のタップが古い
+                        // 着地先へ収束しないようにする
+                        // （[`Self::resync_progress_from_dom`] と同じ
+                        // 安全策）。
+                        //
+                        // `on_settle` は呼ぶ（codex-review/Cursor Bugbot
+                        // 指摘 是正、イシュー #2541 第 7 ラウンド）。以前は
+                        // 「目標未到達のまま完了扱いにすると誤る」として
+                        // 呼ばずにいたが、呼び出し側 3 箇所（wasm-full
+                        // `handle_pointer_release`/`invalidate_settle_on_
+                        // nav_trigger_click`）はいずれも `on_settle` を
+                        // 「`CAROUSEL_DRAGGING_STATE_ATTR` を外すだけ」の
+                        // 見た目状態クリーンアップとしてのみ使っており、
+                        // `_index` 引数を無視する。呼ばないままだと、この
+                        // spring がもう DOM を駆動していない（外部書き込みに
+                        // 道を譲った）にもかかわらず dragging 属性が
+                        // 恒久的に残留し、`transition: none`/`cursor:
+                        // grabbing` の CSS 抑止が解除されない。
                         progress_cell.set(dom_value);
                         settling_cell.set(false);
                         last_target_cell.set(None);
+                        if let Some(cb) = on_settle.take() {
+                            cb(target);
+                        }
                         return false;
                     }
                 }

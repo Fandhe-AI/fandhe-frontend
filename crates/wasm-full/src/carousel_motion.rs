@@ -318,6 +318,21 @@ mod wiring {
     /// `None` を返す（既存の「見つからなければ spring を打ち切ってリーク
     /// を防ぐ」フォールバックへ合流させる、完全な識別ではなく明白な
     /// 食い違いだけを検知する fail-safe）。
+    ///
+    /// # 枚数が同じ carousel 同士は `aria-label` でも突き合わせる
+    /// （codex-review 指摘 是正、イシュー #2541 第 7 ラウンド）
+    ///
+    /// 枚数チェックだけでは、同じ位置・同じ枚数の**別の** carousel（例:
+    /// 一覧内で同じ商品数を持つ 2 件のカルーセルが並べ替えで入れ替わる
+    /// 構成）を見分けられない。`crates/headless-ui/src/carousel.rs::root`
+    /// は WAI-ARIA carousel パターンに従い `aria-label` を必須で出力する
+    /// （呼び出し側が意味のある文言を渡す責務を負う）ため、これを
+    /// 安定した識別子として利用する。`old_carousel_root` は再描画で
+    /// 文書から切断済みでも属性は読み取れる（DOM API 上、切断ノードの
+    /// 属性アクセスに制約はない）。両者の `aria-label` が一致しない場合
+    /// も「別 carousel」と判定する（枚数チェックと同じ fail-safe: 著者が
+    /// 複数 carousel へ同一 `aria-label` を付けた場合まではすり抜けるが、
+    /// それは WAI-ARIA 上も著者側の不備であり本関数の責務外）。
     fn resolve_replacement(
         root: &Element,
         old_carousel_root: &Element,
@@ -335,6 +350,9 @@ mod wiring {
             replacement_item_group(root, position?)?
         };
         if slide_count_of(&new_item_group) != expected_slide_count {
+            return None;
+        }
+        if old_carousel_root.get_attribute("aria-label") != new_root.get_attribute("aria-label") {
             return None;
         }
         Some((new_root, new_item_group))
@@ -450,12 +468,27 @@ mod wiring {
         let (track, _) = slot_for(registry, &carousel_root);
         let mut track_guard = track.borrow_mut();
         if let Some(mut t) = track_guard.take() {
-            // 打ち切る前に確定 index を DOM へ即座に書き戻す（codex-review
-            // 指摘 是正、イシュー #2541 第 6 ラウンド「同一 index への
-            // no-op 更新だと途中の小数 progress が復元されない」）。
-            // 続く action dispatch が状態を変えない no-op でも、この
-            // 書き込みだけで表示は確定 index と一致する。
-            t.cancel_and_snap();
+            // settle 収束中（`is_settling()`）の場合のみ打ち切って確定
+            // index を DOM へ即座に書き戻す（codex-review 指摘 是正、
+            // イシュー #2541 第 6 ラウンド「同一 index への no-op 更新だと
+            // 途中の小数 progress が復元されない」）。続く action dispatch
+            // が状態を変えない no-op でも、この書き込みだけで表示は確定
+            // index と一致する。
+            //
+            // 既に settle 完了済み（`is_settling() == false`）の track へ
+            // 無条件に `cancel_and_snap()` を呼んではならない
+            // （codex-review/Cursor Bugbot 指摘 是正、イシュー #2541 第 7
+            // ラウンド）: `cancel_and_snap()` は `last_target`（settle 完了
+            // 時点の着地 index、collect した以降は誰も更新しない）を
+            // そのまま DOM へ書き戻す。settle 完了後に自動再生等の別経路が
+            // 同じ `item-group` の index を更新していても `last_target` は
+            // 追随しないため、無条件呼び出しは新しい表示を古い
+            // `last_target` で上書きしてしまう。settle 収束中でなければ
+            // DOM は既に確定値と一致している前提のため、この一括書き戻しは
+            // 不要（呼ばないことで新しい外部値を尊重する）。
+            if t.is_settling() {
+                t.cancel_and_snap();
+            }
             let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
         }
     }
