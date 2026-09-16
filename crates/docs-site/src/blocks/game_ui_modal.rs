@@ -179,7 +179,14 @@ pub const BLOCK: Block = Block {
 /// ゲーム画面風の暗色グラデーション背景を持つ枠として positioner を
 /// 前面に重ねる。`.blocks-demo.blocks-game-ui-modal` は scale の overshoot
 /// が枠でクリップされないよう `overflow: visible` にする
-/// （`bento_staggered` 先例と同じ理由）。
+/// （`bento_staggered` 先例と同じ理由）。`[data-blocks-game-ui-modal-root]`
+/// へ `position: relative` を設定し、`position: absolute; inset: 0` の
+/// positioner の包含ブロックをこのデモ枠自身にする（root 直下の兄弟である
+/// backdrop の `position: relative` は positioner の基準にならないため
+/// 別途必要、PR #2587 レビュー指摘）。`dialog::title` の `h2` は
+/// `.docs-content` のタイポグラフィ（`border-top`/`padding-top`/
+/// `letter-spacing`）を継承してしまうため、`showcase.rs` の
+/// pre-styled-showcase と同型のリセットを併せて適用する。
 ///
 /// # 入場アニメーション
 ///
@@ -196,6 +203,14 @@ pub(super) fn layout_css() -> String {
     format!(
         ".blocks-game-ui-modal.blocks-demo {{
   overflow: visible;
+}}
+[data-blocks-game-ui-modal-root] {{
+  position: relative;
+}}
+.blocks-game-ui-modal [data-scope=\"dialog\"] h2 {{
+  border-top: none;
+  padding-top: 0;
+  letter-spacing: normal;
 }}
 .blocks-game-ui-modal [data-scope=\"dialog\"][data-part=\"backdrop\"] {{
   position: relative;
