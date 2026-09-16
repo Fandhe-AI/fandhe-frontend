@@ -15,7 +15,7 @@
 use fandhe_frontend_animation::ticker::{ensure_copies, measure_len, read_gap_px, Axis};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, HtmlElement, HtmlInputElement};
+use web_sys::{Document, Element, FormData, HtmlElement, HtmlFormElement, HtmlInputElement};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -200,5 +200,64 @@ fn ensure_copies_neutralizes_nested_tickers_in_clones() {
             .unwrap(),
         "-7px",
         "元の内側 ticker の offset は変更しない"
+    );
+}
+
+/// フォーム内 ticker の追加複製に含まれるフォーム部品は `disabled` になり、
+/// `required` 未入力の複製が `form.checkValidity()` を偽にせず、
+/// `new FormData(form)` の同名エントリも元の 1 件のままであること
+/// （codex-review P1 指摘: `inert`/`aria-hidden` は送信・制約検証の
+/// 除外条件ではない）。
+#[wasm_bindgen_test]
+fn ensure_copies_disables_form_controls_in_clones() {
+    let document = document();
+    let form = document
+        .create_element("form")
+        .unwrap()
+        .dyn_into::<HtmlFormElement>()
+        .unwrap();
+    let _guard = RemoveOnDrop(form.clone().into());
+    document.body().unwrap().append_child(&form).unwrap();
+    let root = div_with_style(&document, "display: flex; width: 100px; overflow: hidden;");
+    let content = div_with_style(&document, "display: flex; width: 40px; height: 20px;");
+    content.set_attribute("data-part", "content").unwrap();
+    // 既存 SSR 複製は入力欄を持たない状態で先に作る（SSR 側の複製は別
+    // 契約）。複製テンプレート（content）だけに required 入力欄を持たせ、
+    // 元の値を入れておく。追加複製は `cloneNode` 時点の属性値（value
+    // 属性なし）で生成されるため、複製の required 欄は未入力になる。
+    let ssr_copy = content.clone_node_with_deep(true).unwrap();
+    let input = document
+        .create_element("input")
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    input.set_type("text");
+    input.set_name("note");
+    input.set_required(true);
+    input.set_value("filled");
+    content.append_child(&input).unwrap();
+    root.append_child(&content).unwrap();
+    root.append_child(&ssr_copy).unwrap();
+    form.append_child(&root).unwrap();
+
+    ensure_copies(&root, &content, 4);
+
+    assert_eq!(root.child_element_count(), 4);
+    assert!(!input.disabled(), "元の入力欄は disabled にしない");
+    assert!(
+        form.check_validity(),
+        "追加複製の required 未入力欄が制約検証を阻んではならない"
+    );
+    let data = FormData::new_with_form(&form).unwrap();
+    assert_eq!(
+        data.get_all("note").length(),
+        1,
+        "同名の送信エントリは元の 1 件だけであるはず"
+    );
+    let disabled = root.query_selector_all("input[disabled]").unwrap();
+    assert_eq!(
+        disabled.length(),
+        2,
+        "追加複製 2 個分の入力欄が disabled になるはず"
     );
 }

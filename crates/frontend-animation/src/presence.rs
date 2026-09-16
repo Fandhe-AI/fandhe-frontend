@@ -235,8 +235,14 @@ mod wiring {
     /// （削除済みの `name`/値がサーバーへ送信される）。`disabled` は
     /// フォームコントロールを送信・制約検証の対象から外す仕様上の条件
     /// であり、これを付与することで退場ゴーストが送信に混入しなくなる。
-    fn disable_form_controls(ghost: &Element) {
-        const FORM_CONTROL_SELECTOR: &str = "input, select, textarea, button";
+    ///
+    /// `crate::ticker::ensure_copies`（marquee の追加複製）も同じ理由で
+    /// 挿入前に本関数を適用する（PR #2582 codex-review P1 指摘）。対象は
+    /// HTML Standard の「送信可能要素」+ `disabled` を持てる `fieldset`
+    /// （配下のフォーム部品を一括で無効化する）・`output`・`object`。
+    pub(crate) fn disable_form_controls(ghost: &Element) {
+        const FORM_CONTROL_SELECTOR: &str =
+            "input, select, textarea, button, fieldset, output, object";
         if ghost.matches(FORM_CONTROL_SELECTOR).unwrap_or(false) {
             set_dom_attribute(ghost, "disabled", "");
         }
@@ -318,7 +324,7 @@ mod wiring {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) use wiring::isolate_radio_groups;
+pub(crate) use wiring::{disable_form_controls, isolate_radio_groups};
 
 #[cfg(target_arch = "wasm32")]
 pub use wiring::{

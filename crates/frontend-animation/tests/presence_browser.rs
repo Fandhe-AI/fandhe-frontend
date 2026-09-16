@@ -15,7 +15,7 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, HtmlElement, HtmlInputElement};
+use web_sys::{Document, Element, FormData, HtmlElement, HtmlFormElement, HtmlInputElement};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -195,6 +195,58 @@ fn insert_exit_ghost_disables_form_controls_in_self_and_descendants() {
     assert!(
         descendant_input.has_attribute("disabled"),
         "ゴースト内の input は送信対象から除外するため disabled になること"
+    );
+}
+
+/// フォーム内リストの退場ゴーストは `fieldset` ごと `disabled` になり、
+/// `required` 未入力のゴーストが `form.checkValidity()` を偽にせず、
+/// `new FormData(form)` の同名エントリが残存行の 1 件のままであること
+/// （PR #2582 codex-review P1、`ticker_browser.rs::
+/// ensure_copies_disables_form_controls_in_clones` と同型）。
+#[wasm_bindgen_test]
+fn insert_exit_ghost_excludes_ghost_from_submission_and_validation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let form = document
+        .create_element("form")
+        .unwrap()
+        .dyn_into::<HtmlFormElement>()
+        .unwrap();
+    let _guard = RemoveOnDrop(form.clone().into());
+    document.body().unwrap().append_child(&form).unwrap();
+    let container = create_container(&document, "presence-root-10");
+    form.append_child(&container).unwrap();
+
+    let make_row = |key: &str, value: &str| {
+        let row = document.create_element("fieldset").unwrap();
+        row.set_attribute(KEY_ATTR, key).unwrap();
+        let input = document
+            .create_element("input")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        input.set_name("note");
+        input.set_required(true);
+        input.set_value(value);
+        row.append_child(&input).unwrap();
+        container.append_child(&row).unwrap();
+        row
+    };
+    let leaving = make_row("a", "");
+    let _staying = make_row("b", "filled");
+
+    let rows = snapshot_rows(&container, KEY_ATTR);
+    leaving.remove();
+    insert_exit_ghost(&container, &rows[0], false).expect("切り離された行はゴースト化される");
+
+    assert!(
+        form.check_validity(),
+        "ゴースト内の required 未入力欄が制約検証を阻んではならない"
+    );
+    let data = FormData::new_with_form(&form).unwrap();
+    assert_eq!(
+        data.get_all("note").length(),
+        1,
+        "同名の送信エントリは残存行の 1 件だけであるはず"
     );
 }
 

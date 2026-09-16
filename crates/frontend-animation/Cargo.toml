@@ -324,4 +324,10 @@ features = [
   "HtmlHeadElement",
   "ImageData",
   "HtmlInputElement",
+  # PR #2582 codex-review P1 是正の browser テスト（`ticker_browser.rs`）が
+  # フォーム内 ticker の追加複製で `form.checkValidity()`・`FormData` の
+  # 同名エントリ数を検証するために `HtmlFormElement`/`FormData` を追加する
+  # （テスト専用の feature 拡張、新規クレート追加なし）。
+  "HtmlFormElement",
+  "FormData",
 ]

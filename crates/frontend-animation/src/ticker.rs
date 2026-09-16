@@ -405,6 +405,12 @@ mod dom {
             // `presence::isolate_radio_groups` と同じく挿入**前**に `name` を
             // 除去してグループ membership を断つ。
             crate::presence::isolate_radio_groups(&clone_element);
+            // 同じく `inert`/`aria-hidden` は送信・制約検証（`required` 等）の
+            // 除外条件ではないため、フォーム内 ticker の追加複製は同名の
+            // 送信値を複製数分増やし、required 未入力の複製が送信を阻む
+            // （PR #2582 codex-review P1 指摘）。`presence::disable_form_controls`
+            // で複製内のフォーム部品を `disabled` にし、送信・検証から除外する。
+            crate::presence::disable_form_controls(&clone_element);
             neutralize_nested_tickers(&clone_element);
             if root.append_child(&clone_element as &Node).is_err() {
                 break;
