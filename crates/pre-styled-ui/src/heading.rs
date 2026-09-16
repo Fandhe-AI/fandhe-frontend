@@ -13,14 +13,15 @@
 //! 選ぶ引数として渡す（`recipe::VariantValue` を実装しない。タグ選択は
 //! `crate::list::ListType` と同型の方式）。
 //!
-//! # サイズトークンの縮約（対象外事項、PR 本文参照）
+//! # サイズトークンの推移（#1434 縮約 → #2438 トークン拡充 → #2440 variant 追随）
 //!
 //! chakra-ui の Heading は `xs`〜`7xl` の 9 段階を持つが、[`crate::theme`]
 //! のテーマトークンは実装当時 `font-size-xs`〜`font-size-4xl` の 8 段階まで
-//! しか持たなかった。本実装は `xs`〜`4xl` の 8 段階（chakra の `5xl`〜`7xl`
-//! は非採用）へ縮約する。テーマトークンの拡張は本イシューのスコープ外。
-//! イシュー #2438 でテーマ側に `font-size-5xl`/`6xl` が純追加されたが、
-//! Heading の size variant（`xl5`/`xl6` 相当）の拡張は別イシューで扱う。
+//! しか持たなかった（イシュー #1434）。イシュー #2438 でテーマ側に
+//! `font-size-5xl`/`6xl` が純追加され、イシュー #2440 で
+//! [`HeadingSize::Xl5`]/[`HeadingSize::Xl6`] を追加し `xs`〜`6xl` の
+//! 10 段階を網羅した。テーマトークンに存在しない chakra `7xl`
+//! （4.5rem 相当）は依然対象外。
 //!
 //! # colorPalette 軸を持たない理由
 //!
@@ -41,9 +42,9 @@
 //!   本イシューで [`HeadingSize::Xs`] を追加しテーマトークン全 8 段
 //!   （`xs`〜`4xl`）を網羅する形にした。上端（chakra `5xl`〜`7xl` /
 //!   Radix `size 8`〜`9` 相当）は当時テーマトークンが `4xl` までのため
-//!   非採用とした（前節「サイズトークンの縮約」参照。再評価トリガー
-//!   「複数部品で 4xl 超の要求が出た時点」はイシュー #2438 で充足し、
-//!   トークン側は `6xl` まで拡充済み。variant 拡張は別イシュー）。
+//!   非採用としたが、イシュー #2440 で [`HeadingSize::Xl5`]/
+//!   [`HeadingSize::Xl6`] を追加済み。chakra `7xl` のみトークン非対応の
+//!   ため引き続き対象外。
 //! - **バリアント軸**: 両サイト共に Heading へ `variant`（solid/subtle 等）
 //!   prop を持たない。当部品も軸を追加しない。
 //! - **色**: 両サイト共に前景色を継承する中立部品として実装されており、
@@ -158,8 +159,8 @@ impl HeadingLevel {
 }
 
 /// Heading の視覚サイズ variant（`font-size`/`line-height`。chakra-ui の
-/// `size` prop 相当。`xs`〜`4xl` の 8 段階へ縮約する。テーマトークン側の
-/// `5xl`/`6xl`（#2438）への追随は別イシュー）。
+/// `size` prop 相当。`xs`〜`6xl` の 10 段階（イシュー #2440 で `xl5`/`xl6`
+/// を追加）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HeadingSize {
     /// 極小サイズ（イシュー #1434 で追加。参考サイト基準との 7 軸比較で
@@ -179,8 +180,14 @@ pub enum HeadingSize {
     Xl2,
     /// 3 段階特大。
     Xl3,
-    /// 4 段階特大（テーマトークンが持つ最大サイズ）。
+    /// 4 段階特大。
     Xl4,
+    /// 5 段階特大（イシュー #2440 で追加。テーマトークン `font-size-5xl`
+    /// 〔#2438〕に対応）。
+    Xl5,
+    /// 6 段階特大（イシュー #2440 で追加。テーマトークン `font-size-6xl`
+    /// 〔#2438〕に対応。テーマトークンが持つ最大サイズ）。
+    Xl6,
 }
 
 impl VariantValue for HeadingSize {
@@ -202,6 +209,8 @@ impl VariantValue for HeadingSize {
             Self::Xl2 => "xl2",
             Self::Xl3 => "xl3",
             Self::Xl4 => "xl4",
+            Self::Xl5 => "xl5",
+            Self::Xl6 => "xl6",
         }
     }
 }
@@ -323,6 +332,25 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-4xl)"),
                 decl("line-height", "1.15"),
+            ],
+        )
+        // イシュー #2440: `xl`→`xl4` の line-height 進行（各段 -0.05）を
+        // 延長した値。chakra-ui の `lineHeight: 1` は実機フォント計測なしの
+        // 意匠変更を避ける既存方針（letter-spacing と同型判断）のため採らない。
+        .variant(
+            HeadingSize::Xl5,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-5xl)"),
+                decl("line-height", "1.1"),
+            ],
+        )
+        .variant(
+            HeadingSize::Xl6,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-6xl)"),
+                decl("line-height", "1.05"),
             ],
         )
         .default_variant(HeadingSize::Xl)
@@ -455,6 +483,8 @@ mod tests {
             (HeadingSize::Xl2, "fd-heading--size-xl2"),
             (HeadingSize::Xl3, "fd-heading--size-xl3"),
             (HeadingSize::Xl4, "fd-heading--size-xl4"),
+            (HeadingSize::Xl5, "fd-heading--size-xl5"),
+            (HeadingSize::Xl6, "fd-heading--size-xl6"),
         ] {
             let props = HeadingProps {
                 size,

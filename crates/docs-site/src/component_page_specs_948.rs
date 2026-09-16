@@ -195,7 +195,7 @@ const HEADING_ARGUMENTS: &[ArgRow] = &[
         name: "props.size",
         kind: "HeadingSize",
         default: "Xl",
-        description: "視覚サイズ（xs/sm/md/lg/xl/xl2/xl3/xl4）。タグ選択（意味論）とは独立した軸。",
+        description: "視覚サイズ（xs/sm/md/lg/xl/xl2/xl3/xl4/xl5/xl6）。タグ選択（意味論）とは独立した軸。",
     },
     ArgRow {
         name: "props.weight",
@@ -215,14 +215,14 @@ const HEADING_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "素の h1〜h6 意味論をタグとしてそのまま維持しつつ、視覚サイズを variant として独立に切り替える",
         "colorPalette 軸を持たない単一 recipe 静的部品",
-        "chakra-ui の 9 段階サイズをテーマトークン範囲（xs〜4xl の 8 段階）へ縮約済み",
+        "chakra-ui の 9 段階サイズをテーマトークン範囲（xs〜6xl の 10 段階、イシュー #2440 で xl5/xl6 を追加）へ縮約済み",
         "フォントウェイト軸（normal/medium/semibold/bold）と data-bordered opt-in 状態を shadcn/ui 突合で追加（イシュー #2056）",
     ],
     arguments: HEADING_ARGUMENTS,
     examples: &[
         ExampleEntry {
             title: "タグとサイズの独立軸",
-            description: "レンダリングするタグ（h1〜h6）と視覚サイズ（xs〜4xl）を独立に選べます。",
+            description: "レンダリングするタグ（h1〜h6）と視覚サイズ（xs〜xl6）を独立に選べます。",
             render: heading_example,
         },
         ExampleEntry {
@@ -283,7 +283,7 @@ const TEXT_ARGUMENTS: &[ArgRow] = &[
         name: "size",
         kind: "TextSize",
         default: "Md",
-        description: "フォントサイズ・行間の視覚サイズ軸（xs/sm/md/lg/xl/xl2/xl3/xl4）。",
+        description: "フォントサイズ・行間の視覚サイズ軸（xs/sm/md/lg/xl/xl2/xl3/xl4/xl5/xl6）。",
     },
     ArgRow {
         name: "weight",
@@ -302,7 +302,7 @@ const TEXT_ARGUMENTS: &[ArgRow] = &[
 
 const TEXT_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "素の <p> 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold）・variant（plain/muted）でスタイル化した本文テキスト部品",
+        "素の <p> 要素を size（xs〜xl6 の 10 段階、イシュー #2440）・weight（normal/medium/semibold/bold）・variant（plain/muted）でスタイル化した本文テキスト部品",
         "colorPalette 軸は持たない",
         "イシュー #2055 で shadcn/ui Typography と突合し variant（plain/muted）を追加。lead/large/small/muted の 4 プリセットは既存軸の合成で再現する",
     ],
@@ -310,7 +310,7 @@ const TEXT_SPEC: ComponentPageSpec = ComponentPageSpec {
     examples: &[
         ExampleEntry {
             title: "size・weight・variant 軸",
-            description: "size（xs〜xl4）・weight（normal〜bold）・variant（plain/muted）を独立に選べます。",
+            description: "size（xs〜xl6）・weight（normal〜bold）・variant（plain/muted）を独立に選べます。",
             render: text_example,
         },
         ExampleEntry {

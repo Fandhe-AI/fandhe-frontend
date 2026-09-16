@@ -504,10 +504,11 @@ font-size スケールを 8 段 → 10 段へ拡張した。既存 8 段の名�
 CSS 変数出力: `--fandhe-font-font-size-5xl` / `--fandhe-font-font-size-6xl`。
 
 **既存 heading/text 部品への影響**: `heading.rs` / `text.rs` の size variant
-（`xs`〜`4xl`、名前 `xl4` に対応）は変更なし。font-size トークンの拡張は
-静的な Theme 側のみであり、部品の size 列挙型の追加（`xl5`/`xl6`）は
-別イシューへ申し送った（heading.rs の再評価トリガー「複数部品で 4xl 超の
-要求が出た時点」を本イシューで充足）。
+（`xs`〜`4xl`、名前 `xl4` に対応）は本イシュー（#2438）では変更なし。
+font-size トークンの拡張は静的な Theme 側のみであり、部品の size 列挙型の
+追加（`xl5`/`xl6`）は別イシューへ申し送った（heading.rs の再評価トリガー
+「複数部品で 4xl 超の要求が出た時点」を本イシューで充足）。
+部品の size 列挙型の追加（`xl5`/`xl6`）はイシュー #2440 で実装済み。
 
 **実装対象外（別イシュー）**: `empty_state.rs` の indicator size リテラル
 `3rem` / `3.75rem` の新トークン参照置換。
