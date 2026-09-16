@@ -3528,7 +3528,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # への CSS 漏れ（coverflow/drag 双方の item-group/item セレクタ）を
 # `:not()` ガードで塞ぐ実装変更のため、`.claude/rules/coding-rust.md`
 # #638 条項に従いさらに +1 minor して 0.210.0 とする。
-version = "0.211.0"
+#
+# PR #2582 レビュー指摘対応: `marquee_motion` 縦方向 root（`[data-axis=
+# "vertical"]`）へ複製数から独立した固定 `height`（`--fandhe-marquee-
+# height` custom property + 既定 200px）を追加した。既存公開 API・golden
+# テストは不変の実装修正（CSS 追記のみ）のため patch バンプする。
+version = "0.212.0"
 
 
 edition = "2021"

@@ -79,7 +79,7 @@ mod wiring {
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, FocusEvent, PointerEvent};
+    use web_sys::{Element, Event, FocusEvent, MouseEvent, PointerEvent};
 
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
     /// （`crate::tabs_indicator::wiring::set_dom_attribute` と同じ方針・
@@ -167,15 +167,49 @@ mod wiring {
             .flatten()
     }
 
-    /// `root` 配下・[`super::TICKER_SELECTOR`] に一致する最も近い祖先
-    /// （自身含む）を返す（`gesture.rs`/`magnetic.rs` と同型）。
-    fn resolve_ticker_target(scan_root: &Element, target: &Element) -> Option<Element> {
-        let matched = target.closest(TICKER_SELECTOR).ok().flatten()?;
-        scan_root.contains(Some(&matched)).then_some(matched)
+    /// `root` 配下・[`super::TICKER_SELECTOR`] に一致する祖先（自身含む）を
+    /// **すべて**返す（入れ子 ticker、イシュー #2540）。
+    ///
+    /// 旧実装は `target.closest(TICKER_SELECTOR)` で最も近い 1 件だけを
+    /// 返していたため、入れ子の ticker（ticker 内に別の ticker を合成した
+    /// 構成）でリンクへフォーカス/ホバーすると内側の ticker だけが停止し、
+    /// 外側は動き続けていた（既存 CSS の `:focus-within`/`:hover` は
+    /// 祖先すべてに独立して一致するため両方止まるのに対し、JS 駆動は
+    /// `animation: none` でその CSS 規則自体が効かなくなる。PR #2582
+    /// codex-review P1 指摘）。`closest` を「直前に一致した要素の親」から
+    /// 繰り返し呼ぶことで、`target` から `scan_root` までの祖先チェーン上の
+    /// 一致要素を内側から外側の順にすべて集める。
+    fn resolve_ticker_targets(scan_root: &Element, target: &Element) -> Vec<Element> {
+        let mut targets = Vec::new();
+        let mut cursor = target.closest(TICKER_SELECTOR).ok().flatten();
+        while let Some(matched) = cursor {
+            if !scan_root.contains(Some(&matched)) {
+                break;
+            }
+            cursor = matched
+                .parent_element()
+                .and_then(|parent| parent.closest(TICKER_SELECTOR).ok().flatten());
+            targets.push(matched);
+        }
+        targets
     }
 
     fn event_target_element(event: &Event) -> Option<Element> {
         event.target()?.dyn_into::<Element>().ok()
+    }
+
+    /// `relatedTarget`（移動先要素）が `boundary`（含む）配下に留まって
+    /// いるか。`pointerout`/`focusout` で「特定の ticker から本当に出た
+    /// のか、その ticker 内部の別要素へ移っただけか」を判定する
+    /// （`gesture.rs::related_within` と同型、PR #2582 codex-review P1
+    /// 指摘: 入れ子 ticker では祖先ごとに判定が異なり得るため、
+    /// `resolve_ticker_targets` が返す各要素へ個別に適用する）。
+    fn related_target_element(event: &Event) -> Option<Element> {
+        if let Some(mouse) = event.dyn_ref::<MouseEvent>() {
+            return mouse.related_target()?.dyn_into::<Element>().ok();
+        }
+        let focus = event.dyn_ref::<FocusEvent>()?;
+        focus.related_target()?.dyn_into::<Element>().ok()
     }
 
     /// `pointerover`/`pointerout` の委譲: タッチ由来のポインタは除外する
@@ -190,14 +224,28 @@ mod wiring {
         let Some(target) = event_target_element(event) else {
             return;
         };
-        let Some(ticker_target) = resolve_ticker_target(root, &target) else {
+        let ticker_targets = resolve_ticker_targets(root, &target);
+        if ticker_targets.is_empty() {
             return;
-        };
+        }
         for (element, ticker) in active.borrow().iter() {
-            if *element == ticker_target {
+            if !ticker_targets.iter().any(|t| t == element) {
+                continue;
+            }
+            // pointerover は入れ子祖先すべてで「ポインタが内側にある」ため
+            // 常に反映する。pointerout は「移動先がこの ticker の境界内へ
+            // 留まっているか」を確認し、留まっていれば（入れ子内部の別
+            // 要素への移動）当該 ticker は停止させない。
+            if hovered || !related_target_within(event, element) {
                 ticker.set_hovered(hovered);
             }
         }
+    }
+
+    /// `related`（`relatedTarget`）が `boundary`（含む）配下に留まって
+    /// いるか（`gesture.rs::related_within` と同型）。
+    fn related_target_within(event: &Event, boundary: &Element) -> bool {
+        related_target_element(event).is_some_and(|related| boundary.contains(Some(&related)))
     }
 
     /// `focusin`/`focusout` の委譲（`bubbles: true`、キャプチャ不要）:
@@ -205,7 +253,8 @@ mod wiring {
     /// `root:focus-within` 一時停止規則が `animation: none` 化で効かなく
     /// なるため、キーボードフォーカスも [`Ticker::set_focused`] 経由で
     /// 同じ一時停止契約（WCAG 2.2.2）を満たす（codex-review・Cursor
-    /// Bugbot 指摘、イシュー #2540）。
+    /// Bugbot 指摘、イシュー #2540）。入れ子 ticker では祖先すべてへ
+    /// 適用する（[`resolve_ticker_targets`] 参照）。
     fn handle_focus_visibility(
         root: &Element,
         event: &Event,
@@ -218,11 +267,15 @@ mod wiring {
         let Some(target) = event_target_element(event) else {
             return;
         };
-        let Some(ticker_target) = resolve_ticker_target(root, &target) else {
+        let ticker_targets = resolve_ticker_targets(root, &target);
+        if ticker_targets.is_empty() {
             return;
-        };
+        }
         for (element, ticker) in active.borrow().iter() {
-            if *element == ticker_target {
+            if !ticker_targets.iter().any(|t| t == element) {
+                continue;
+            }
+            if focused || !related_target_within(event, element) {
                 ticker.set_focused(focused);
             }
         }

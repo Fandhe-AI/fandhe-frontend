@@ -1309,7 +1309,13 @@ name = "fandhe-frontend-wasm-full"
 # hover/scroll 速度連動を新設）を origin/main（上記 0.39.0）へ統合する。
 # `magnetic`/`text-animation` と同型の新規公開モジュール純追加のため
 # minor バンプして 0.40.0 とする。
-version = "0.40.0"
+#
+# PR #2582 レビュー指摘対応: `ticker::wiring::resolve_ticker_target`
+# （最も近い ticker 祖先 1 件のみを返す）を `resolve_ticker_targets`
+# （入れ子祖先すべてを返す）へ置き換え、hover/focus の一時停止が
+# 入れ子 ticker の祖先すべてに正しく及ぶよう修正した。既存公開 API は
+# 不変の実装修正のため patch バンプする。
+version = "0.40.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1644,7 +1650,7 @@ js-sys = "0.3"
 # `fandhe-frontend-animation` 自体を 0.14.0 へ統合バンプしたため、
 # `version` 要求もその到達値 0.14.0 へ追随する（`xtask check-dep-versions
 # --fix` 相当）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.15.0", optional = true }
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.15.1", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の

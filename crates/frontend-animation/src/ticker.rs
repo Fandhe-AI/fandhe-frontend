@@ -470,6 +470,12 @@ mod dom {
             // viewport 長と比較して変化を検知する（新規 API・購読を追加せず
             // 既存の実測ループへ相乗りする方針）。
             let last_viewport_len = Rc::new(Cell::new(viewport_len));
+            // viewport 長（root）だけでなく content 長（+ gap）の変化も
+            // 複製数再計算の契機にする。固定サイズの root 内でもフォント
+            // 読み込み・内容変更で content が短くなる（＝周期が縮む）と、
+            // viewport 長は変化しないため上の判定だけでは複製不足を見逃し、
+            // 空白を伴って循環し続ける（PR #2582 codex-review P1 指摘）。
+            let last_content_len = Rc::new(Cell::new(content_len));
 
             let step_root = root.clone();
             let step_root_html = root_html;
@@ -483,6 +489,7 @@ mod dom {
             let step_offset = Rc::clone(&offset);
             let step_last_ms = Rc::clone(&last_ms);
             let step_last_viewport_len = Rc::clone(&last_viewport_len);
+            let step_last_content_len = Rc::clone(&last_content_len);
 
             let animation_loop = AnimationLoop::start(move || {
                 // `root` が DOM から切断済み（SPA のルート遷移・コンポーネント
@@ -508,20 +515,27 @@ mod dom {
                 step_last_ms.set(Some(now_ms));
 
                 let current_viewport_len = measure_len(&step_root, config.axis);
-                // `resize` イベント経由の明示要求に加え、viewport 長が前フレーム
-                // から変化していれば（`display:none` → 表示等、`resize` が
-                // 発火しない経路も含む）複製数を再計算する（上の
-                // `last_viewport_len` 初期化コメント参照）。
+                // 毎フレーム content 長も実測する（後段の offset 前進計算でも
+                // 使う値と同一の測り方のため、`ensure_copies` 判定と offset
+                // 計算で二重に測って値が食い違うことはない）。
+                let current_content_len =
+                    measure_len(&step_content, config.axis) + read_gap_px(&step_content_html);
+                // `resize` イベント経由の明示要求に加え、viewport 長・content
+                // 長のいずれかが前フレームから変化していれば（`display:none`
+                // → 表示等、`resize` が発火しない経路も含む）複製数を
+                // 再計算する（上の `last_viewport_len`/`last_content_len`
+                // 初期化コメント参照）。
                 let viewport_changed =
                     (current_viewport_len - step_last_viewport_len.get()).abs() > 0.5;
-                if step_resize_pending.take() || viewport_changed {
+                let content_changed =
+                    (current_content_len - step_last_content_len.get()).abs() > 0.5;
+                if step_resize_pending.take() || viewport_changed || content_changed {
                     step_last_viewport_len.set(current_viewport_len);
-                    let content_len =
-                        measure_len(&step_content, config.axis) + read_gap_px(&step_content_html);
+                    step_last_content_len.set(current_content_len);
                     ensure_copies(
                         &step_root,
                         &step_content,
-                        super::required_copies(current_viewport_len, content_len),
+                        super::required_copies(current_viewport_len, current_content_len),
                     );
                 }
 
@@ -545,8 +559,6 @@ mod dom {
                 };
                 step_scroll_velocity.set(scroll_velocity_now);
 
-                let content_len =
-                    measure_len(&step_content, config.axis) + read_gap_px(&step_content_html);
                 // hover（ポインタ）・keyboard focus は一時停止条件（WCAG
                 // 2.2.2）だが同列ではない: focus は `hover_factor` に関わらず
                 // 常に完全停止（`effective_speed` 側で強制）、hover のみ
@@ -568,7 +580,7 @@ mod dom {
                     speed,
                     config.direction_sign,
                     dt_ms,
-                    content_len.max(1.0),
+                    current_content_len.max(1.0),
                 );
                 step_offset.set(next_offset);
                 write_offset(&step_root_html, next_offset);
@@ -759,6 +771,20 @@ mod tests {
     fn required_copies_is_min_for_non_positive_content_len() {
         assert_eq!(required_copies(500.0, 0.0), MIN_COPIES);
         assert_eq!(required_copies(500.0, -10.0), MIN_COPIES);
+    }
+
+    #[test]
+    fn required_copies_increases_when_content_shrinks_at_fixed_viewport() {
+        // PR #2582 codex-review P1 指摘の再現数値: viewport=500（root の
+        // 表示領域長は固定サイズ・不変）のまま、フォント読み込み・内容
+        // 変更で content の周期が 300px → 100px へ縮んだ場合、必要な
+        // 複製数は 3 個（ceil(500/300)+1）では表示領域を覆えず、6 個
+        // （ceil(500/100)+1）へ増やす必要がある。`Ticker::start` の rAF
+        // ループは本テストの純粋な計算結果を、viewport 長だけでなく
+        // content 長の変化でも再取得するよう修正した（`step_last_content_len`
+        // 比較、モジュール `Ticker::start` 参照）。
+        assert_eq!(required_copies(500.0, 300.0), 3);
+        assert_eq!(required_copies(500.0, 100.0), 6);
     }
 
     #[test]

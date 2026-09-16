@@ -104,7 +104,12 @@ name = "fandhe-frontend-animation"
 # フラッシュ防止（`flush_current_progress`）を追加する実装変更のため、
 # `.claude/rules/coding-rust.md` #638 条項に従いさらに +1 minor して
 # 0.15.0 とする。
-version = "0.15.0"
+#
+# PR #2582 レビュー指摘対応: `ticker::Ticker::start` の rAF ループが
+# content 長（+ gap）の変化も複製数再計算の契機にするよう修正した
+# （従来は viewport 長〔root の実測サイズ〕変化のみ）。既存公開 API は
+# 不変の実装修正のため patch バンプする。
+version = "0.15.1"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

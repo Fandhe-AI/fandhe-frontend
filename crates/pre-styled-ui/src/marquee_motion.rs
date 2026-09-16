@@ -178,6 +178,17 @@ pub fn ticker<'a>(
 pub const MARQUEE_MOTION_CSS: &str = concat!(
     "\n[data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] {\n",
     "  flex-direction: column;\n",
+    // 縦方向の root は `flex-direction: column` の block box であり、
+    // `height` を明示しないと auto height（＝子（複製）の合計高）になる。
+    // JS 側（`ticker::required_copies`）はこの root の実測サイズを表示
+    // 領域（viewport）として複製数を決めるため、height が複製数に連動
+    // すると「複製が増える → root が高くなる → viewport が増えたと
+    // 誤検知 → さらに複製が増える」という自己拡大ループになり
+    // `MAX_COPIES` まで膨張する（PR #2582 codex-review P1・Cursor Bugbot
+    // 指摘）。`--fandhe-marquee-height`（著者上書き可能、既定 200px）で
+    // 表示領域高を複製数から独立させ、`overflow: hidden`（`marquee.rs`
+    // 既定）で超過分をクリップする。
+    "  height: var(--fandhe-marquee-height, 200px);\n",
     "  mask-image: linear-gradient(to bottom, transparent, black var(--fandhe-marquee-fade, 0px), black calc(100% - var(--fandhe-marquee-fade, 0px)), transparent);\n",
     "}\n",
     // `content` パーツは `[`ticker`]` から `data-axis` を受け取らない（root
