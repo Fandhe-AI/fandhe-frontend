@@ -266,6 +266,15 @@ capture_before`/`play_after`）をゲートします。`layout_flip` モジュ�
 サブツリー全体の Invert 変形を所有する設計上のスコープ外であり、将来の
 課題として扱います）。
 
+**共有レイアウト遷移（イシュー #2536）を含む**: `layout-animation`
+feature は上記の同一要素向け layout FLIP に加え、`crate::shared_layout`
+（`data-fandhe-layout-id` 属性、旧要素→新要素の id 突合による共有レイア
+ウト遷移。motion.dev `layoutId` 相当）もゲートします。新規 feature は
+切らず既存 `layout-animation` を再利用しているため、off にすると両方の
+アニメーションが同時に無効化されます。詳細は
+[アニメーション機能ガイド §12](./animation.md#12-共有レイアウト遷移-layoutid-相当)
+を参照してください。
+
 `presence` feature（イシュー #2544、既定 on）も `layout-animation` と
 同型の別枠です。`Runtime::apply_update_for_dirty` の keyed list 構造
 変化コミットの前後で、`fandhe_frontend_animation::presence`（削除行の
@@ -380,6 +389,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.36.0 | `count-up` feature（イシュー #2539）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.12.0 → 0.13.0 へ追随した。本 PR（#2539）と origin/main（#2532 到達の 0.35.0）が同じ merge base（0.34.0）から独立に 0.35.0 へ到達したため、#638 条項に従いさらに +1 して 0.36.0 とする |
 | 0.36.1 | PR #2580 レビュー是正: `count_up.rs` の自己書き込み検知を `fandhe-frontend-animation` の `self_write_count` へ追随させた（内部実装のみ、公開 API 不変）ため patch バンプ。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.13.0 → 0.14.0 へ追随した |
 | 0.40.2 | `count-up` feature の統合（イシュー #2539、PR #2580。本 PR は独立に 0.36.1 まで到達していたが、origin/main が `carousel-motion`/`presence` 等で 0.40.1 まで進んでいたため、main の到達値に本 PR の patch 分を +1 して 0.40.2 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.0 へ追随した） |
+| 0.40.3 | 版数衝突の再バンプ（PR #2580 の main 再取り込み。main 側が #2536 shared_layout の統合で 0.40.2 へ到達し本 PR と同版になったため +1。feature 追加なし） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
@@ -389,7 +399,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.40.2"
+version = "0.40.3"
 default-features = false
 features = [
   "wasm-bindgen-exports",

@@ -97,11 +97,41 @@ name = "fandhe-frontend-animation"
 # 統合するにあたり origin/main の到達値からさらに +1 minor して 0.16.0
 # とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# イシュー #2544（PR #2585 codex-review P1 是正）: `insert_exit_ghost` が
-# 再挿入前に `input[type=radio]` の `name` 属性を除去し、退場ゴーストを
-# 元の radio button group から隔離するようにした（`disable_form_controls`
-# と同じ内部実装の追加修正で、公開 API のシグネチャは不変）ため patch
-# バンプする。
+# マージコミット注記（origin/main #2542 との統合）: origin/main はイシュー
+# #2542（`cursor`: `CursorFollower`/`CursorAnimator`、カスタムカーソルの
+# ポインタ追従 spring 演算・rAF 駆動を新設）で 0.12.0 → 0.13.0 へ独立に
+# minor バンプしていた。本ブランチの到達値 0.13.1（#2541 の carousel minor
+# バンプ + retarget/is_settling の patch バンプ）は origin/main の到達値
+# 0.13.0 をすでに上回っており同一版数の衝突には該当しないが、cursor
+# モジュール新設という本ブランチに含まれない公開 API 追加を取り込むため、
+# `.claude/rules/coding-rust.md` #638 条項に従いさらに +1 minor して
+# 0.14.0 とする。
+# PR #2581 レビュー是正（イシュー #2541 第 5 ラウンド）: settle 後の外部
+# index 変更との再同期（`resume_pointer_down`）・release 時の途中進行値
+# フラッシュ防止（`flush_current_progress`）を追加する実装変更のため、
+# `.claude/rules/coding-rust.md` #638 条項に従いさらに +1 minor して
+# 0.15.0 とする。
+#
+# イシュー #2536: `shared_layout` モジュール（共有レイアウト遷移、
+# motion.dev `layoutId` 相当。`pair_by_id`/`snapshot`/`play_shared` の
+# 新規公開 API）を追加した（レビュー是正〔入れ子・名前衝突修正、d3c27c0f〕
+# を含め HEAD 到達値 0.12.0）。新規公開 API 追加のため minor バンプする
+# （#638 条項）。本ブランチの到達値 0.12.0 は origin/main の到達値
+# 0.15.0（cursor/text_animation/carousel 追加）を下回るため、
+# `.claude/rules/coding-rust.md` #638 条項に従い main の現行値から
+# さらに +1 minor して 0.16.0 とする。
+#
+# PR #2578 レビュー是正（イシュー #2536）: `play_shared` 収束前に DOM
+# を更新する際は進行中ハンドルを停止・復元してから再捕捉する契約を
+# 追加した（既存 API に破壊的変更はない）ため patch バンプする。
+#
+# マージコミット注記（origin/main #2585 との統合）: origin/main はイシュー
+# #2544（PR #2585 codex-review P1 是正）で `insert_exit_ghost` の内部実装
+# 修正（`input[type=radio]` の `name` 属性除去、公開 API 不変）のため
+# 0.16.0 → 0.16.1 へ独立に patch バンプしていた。本ブランチの到達値
+# 0.16.1（上記 PR #2578 レビュー是正の patch バンプ）と同一版数へ衝突した
+# ため、`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として
+# +1」運用に従いさらに +1 して 0.16.2 とする。
 #
 # イシュー #2539（本マージで判明した並行差分）: `count_up` モジュール
 # （数値カウントアップ、`NumberText`/`start`/`write_final` 等の新規公開
@@ -114,6 +144,10 @@ name = "fandhe-frontend-animation"
 # 公開関数 `has_external_mutation` の追加）。既存公開関数のシグネチャ変更
 # を伴う破壊的変更のため minor バンプする。origin/main の到達値 0.16.1 と
 # 組み合わせるため 0.17.0 とする（#638 条項）。
+#
+# マージコミット注記（origin/main #2578 との統合）: origin/main は 0.16.2 へ
+# 到達したが、本ブランチの到達値 0.17.0 はこれを上回るため、そのまま
+# 0.17.0 を維持する（さらなる衝突バンプ不要）。
 version = "0.17.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"

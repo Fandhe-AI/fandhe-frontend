@@ -389,7 +389,50 @@ let node = stack_group_keyed(
 書き戻しと移動アニメーションが自動で動きます。詳細は
 [`/themes/toast/`](../../site/themes/toast.md) を参照してください。
 
-## 12. SVG path drawing
+## 12. 共有レイアウト遷移（layoutId 相当）
+
+**目的**: 上記 layout FLIP が対象とする「同一要素」の並べ替えではなく、
+**別要素が同じ役割を引き継ぐ**遷移（motion.dev `layoutId` 相当。tabs の
+下線インジケータ移動・カード→詳細展開の基盤）を、旧要素の位置・サイズ
+から新要素へ FLIP 補正で見せます。
+
+**有効化する feature**: wasm-full `layout-animation`（既定 on。新規
+feature ではなく上記 layout FLIP と同一 feature を共有します）。
+
+**最小実装例**（タブ切替で active タブ内のインジケータが移動する構成）:
+
+```html
+<span data-fandhe-layout-id="indicator"></span>
+```
+
+`crates/wasm-full/src/shared_layout.rs`: `LAYOUT_ID_ATTR`
+（`"data-fandhe-layout-id"`）の値を id として、`Runtime::rerender`/
+`apply_with_view_transition`（VT 非対応時のフォールバック含む）が
+`root` サブツリーを再構築する前後で、同じ id を持つ旧要素（アンマウント
+前の視覚矩形）から新要素へ `fandhe_frontend_animation::shared_layout` の
+突合・FLIP を自動起動します。座標計測・Invert・Play 自体のロジックは
+上記 layout FLIP と同じ `fandhe_frontend_animation::flip` を再利用します。
+
+**View Transitions が使える場合は委譲します**: `document.
+startViewTransition` に対応するブラウザでは UA 側の同名要素 morph が
+優先され、本機構は起動しません（非対応ブラウザでの同期フォールバック
+時のみ起動）。
+
+**同一要素へ `data-fandhe-flip-auto` と併用しない**: 対象領域が異なる
+ため（本機構は「別要素への引き継ぎ」、layout FLIP は「同一要素の並べ替
+え」）、同じ要素に両属性を付けても二重に補正されることはありません
+（`pair_by_id` が同一ノードの組を除外するため）が、意図が異なるので
+混在させないでください。
+
+**既知の制約**: 旧要素のクロスフェード（ghost 要素の残存）は行いません
+——位置・サイズの引き継ぎのみです。旧要素が引き継ぎ時点でまだ DOM に
+接続中の場合（同時表示）は曖昧なため対象外とします。
+
+**フォールバック挙動**: feature off・属性なしの要素は通常どおり即座に
+差し替わります(アニメーションなしの安全な劣化)。
+
+
+## 13. SVG path drawing
 
 **目的**: `<path>` 等の `SVGGeometryElement` を、マウント時に 1 回だけ
 線を描くように見せます。
@@ -414,14 +457,14 @@ duration/easing は持ちません（固定既定値のみ、YAGNI）。
 **フォールバック挙動**: feature off・属性なしでは通常どおり静的に
 表示されます。
 
-## 13. animate() を直接呼ぶケース（宣言的配線の対象外）
+## 14. animate() を直接呼ぶケース（宣言的配線の対象外）
 
 `animate`/`animation-driver` feature（既定 on）は、`data-*` からの自動
 トリガー配線を**持ちません**。`element.animate()`（WAAPI）を Rust コード
 から直接呼び出す使い方は `docs/guides/animation-core.md` §3.4/§4 を参照
 してください（本ガイドでは扱いません）。
 
-## 14. feature 有効化早見表
+## 15. feature 有効化早見表
 
 `default-features = false` 利用者が明示指定すべき feature 名です。
 
@@ -445,7 +488,7 @@ duration/easing は持ちません（固定既定値のみ、YAGNI）。
 詳細は [wasm-full feature 選択ガイド](./wasm-full-features.md) §7 を
 参照してください。
 
-## 15. reduced-motion 対応
+## 16. reduced-motion 対応
 
 `prefers-reduced-motion: reduce` を**自動的に**尊重する機能:
 
@@ -479,7 +522,7 @@ duration/easing は持ちません（固定既定値のみ、YAGNI）。
   配線自体を行わない二重のフェイルセーフです（利用者側の追加対応は
   不要です）。
 
-## 16. 検証方法
+## 17. 検証方法
 
 ```sh
 # nav.toml パース・ページ件数・登録内容の整合性
@@ -496,7 +539,7 @@ cargo test -p fandhe-frontend-docs-site
 cargo run -p fandhe-frontend-cli --locked -- gate --project .
 ```
 
-## 17. 関連ドキュメント
+## 18. 関連ドキュメント
 
 - [fandhe-animation / fandhe-frontend-animation API ガイド](./animation-core.md)
   — Rust コードから直接呼び出す API リファレンス
