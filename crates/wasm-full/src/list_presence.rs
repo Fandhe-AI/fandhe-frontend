@@ -59,6 +59,16 @@ pub const STRIPPED_ATTRS: &[&str] = &[
     fandhe_frontend_core::BIND_CLASS_ATTR,
     fandhe_frontend_core::keyed::BIND_LIST_ATTR,
     "data-action",
+    // Bugbot 指摘是正（イシュー #2544）: `data-action` は click 委譲
+    // （`events::action_from_click`）のみを剥がし、`input`/`change`
+    // イベント委譲（`events::ACTION_INPUT_ATTR`/`ACTION_CHANGE_ATTR`）は
+    // 別属性のため剥がれずに残っていた。退場ゴースト内の `input`/
+    // `select` はフォーム送信からは `disable_form_controls`
+    // （`presence.rs`）で除外済みだが、イベント委譲対象からは除外され
+    // ないままだったため、ゴーストへの入力操作が
+    // `Runtime`/`interactive` の action ディスパッチへ誤って届いていた。
+    crate::events::ACTION_INPUT_ATTR,
+    crate::events::ACTION_CHANGE_ATTR,
 ];
 
 /// [`STRIPPED_ATTRS`] のいずれかを持つ要素（ゴースト自身 + 子孫）を選ぶ

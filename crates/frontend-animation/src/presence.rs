@@ -97,21 +97,32 @@ mod wiring {
     /// `first_element_child`/`next_element_sibling` による 1 パス走査は
     /// `HTMLCollection` のランダムアクセス退行を避けるための既存の踏襲
     /// （`stagger_index.rs` と同型）。読み取りのみで DOM を変更しない。
+    ///
+    /// `key_attr` を持たない要素（`play_exit_after` が既に挿入した退場
+    /// ゴースト。`data-key` は `strip_selector` で必ず剥がされる、
+    /// `list_presence.rs` doc 参照）は Bugbot 指摘是正（イシュー #2544）
+    /// によりスキップする: 以前は空文字列キーの行として記録していた
+    /// ため、次回の構造変化コミットでリスト要素ごと置換（タグ変更等）
+    /// が起きるとゴースト自身も「切り離された行」として再検出され、
+    /// 既に退場中のゴーストが新しいリストへ再度ゴーストとして挿入
+    /// されてしまっていた（`stagger_index::sync_stagger_index` が
+    /// `data-key` 無し要素を無視する既存契約と揃える）。
     #[must_use]
     pub fn snapshot_rows(list: &Element, key_attr: &str) -> Vec<RowSnapshot> {
         let mut out = Vec::new();
         let mut current = list.first_element_child();
         while let Some(el) = current {
             if let Some(html) = el.dyn_ref::<HtmlElement>() {
-                let key = html.get_attribute(key_attr).unwrap_or_default();
-                out.push(RowSnapshot {
-                    key,
-                    element: html.clone(),
-                    top: f64::from(html.offset_top()),
-                    left: f64::from(html.offset_left()),
-                    width: f64::from(html.offset_width()),
-                    height: f64::from(html.offset_height()),
-                });
+                if let Some(key) = html.get_attribute(key_attr) {
+                    out.push(RowSnapshot {
+                        key,
+                        element: html.clone(),
+                        top: f64::from(html.offset_top()),
+                        left: f64::from(html.offset_left()),
+                        width: f64::from(html.offset_width()),
+                        height: f64::from(html.offset_height()),
+                    });
+                }
             }
             current = el.next_element_sibling();
         }

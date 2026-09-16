@@ -92,27 +92,24 @@ mod wiring {
     /// 揃えないと presence + stagger 併用時にゴースト存続中の末尾追加行の
     /// index がずれ、ゴースト除去後も誤った値が残留する。
     ///
-    /// # 既存行の delay を凍結する理由（codex-review 指摘是正、イシュー #2544）
+    /// # 既存行の delay 更新方針（codex-review 指摘是正、イシュー #2544）
     ///
     /// 既に [`STAGGER_INDEX_VAR`] を持つ行（前回までの構造変化で書き込み
-    /// 済み、または SSR が `stagger_index_style` で書き出した初期値）は
-    /// 上書きしない。本関数は全行を毎回再走査するため、上書きを許すと
-    /// 先頭への `Insert` で DOM 順位置がずれただけの既存行の値まで
-    /// 書き換わり、`--fandhe-motion-stagger-index` を参照する
-    /// `animation-delay` が再計算される。CSS Animations のフェーズ判定
-    /// （delay が伸びると現在時刻が再び delay 前フェーズへ戻る）と
-    /// `list_motion::enter_css` の `animation-fill-mode: both` により、
-    /// 既に enter アニメーション再生済みの行が `opacity: 0`（enter の
-    /// `from` キーフレーム）へ巻き戻ってしまう。新規追加行（未設定）にの
-    /// み書き込み、既存の設定済み行の delay は初回設定のまま固定する。
+    /// 済み、または SSR が `stagger_index_style` で書き出した初期値）は、
+    /// 新たに算出した DOM 順位置が**現在値以下**の場合にのみ上書きする。
+    /// 現在値より大きい（＝先頭側への `Insert` でこの行が後方へ押し
+    /// 出された）場合は上書きしない。
     ///
-    /// ponytail: この凍結は `Move`（並べ替え）で位置が変わった既存行の
-    /// delay も更新しない副作用を持つ（`STAGGER_AUTO_FIRST_ATTR` 対象の
-    /// リストで、初回配置後に並べ替えのみが起きるケース）。当面は許容する
-    /// トレードオフ（Insert 由来の巻き戻り regression の方が実害が大きい）
-    /// で、Move 時にも意図的な delay 更新が必要になった場合は
-    /// `Runtime::apply_update_for_dirty` 側で「この commit に Insert が
-    /// 含まれるか」を渡して分岐する設計から検討する。
+    /// 理由: CSS Animations は `animation-delay` を伸ばすと現在の経過
+    /// 時間が再び delay 前フェーズへ戻り得る（`list_motion::enter_css`
+    /// の `animation-fill-mode: both` と組み合わさると、既に enter
+    /// アニメーション再生済みの行が `opacity: 0` へ巻き戻る）。一方
+    /// delay を縮める・変えない更新はこの巻き戻りを起こさない
+    /// （経過時間は既に新しい delay + duration を超えたまま）。この非
+    /// 対称性を利用し、「巻き戻りを起こし得る更新のみ凍結し、それ以外
+    /// （純粋な `Move` による前方移動・新規行）は DOM 順へ追随させる」
+    /// 判定にする（codex-review 指摘是正、以前は既存行を一律凍結して
+    /// おり `Move` のみのリストで index が DOM 順から乖離していた）。
     pub fn sync_stagger_index(list_element: &Element) {
         if !list_element.has_attribute(STAGGER_AUTO_FIRST_ATTR) {
             return;
@@ -122,15 +119,14 @@ mod wiring {
         while let Some(el) = current {
             if let Some(html) = el.dyn_ref::<HtmlElement>() {
                 if html.has_attribute(fandhe_frontend_core::keyed::KEY_ATTR) {
-                    let already_set = !html
-                        .style()
+                    let style = html.style();
+                    let existing = style
                         .get_property_value(STAGGER_INDEX_VAR)
-                        .unwrap_or_default()
-                        .is_empty();
-                    if !already_set {
-                        let _ = html
-                            .style()
-                            .set_property(STAGGER_INDEX_VAR, &stagger_index_value(index));
+                        .unwrap_or_default();
+                    let existing_index = existing.trim().parse::<usize>().ok();
+                    let would_increase = existing_index.is_some_and(|value| index > value);
+                    if !would_increase {
+                        let _ = style.set_property(STAGGER_INDEX_VAR, &stagger_index_value(index));
                     }
                     index += 1;
                 }

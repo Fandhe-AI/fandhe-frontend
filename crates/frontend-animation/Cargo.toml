@@ -209,6 +209,14 @@ web-sys = { version = "0.3", features = [
   "SvgGeometryElement",
   "SvgElement",
   "SvgAnimatedNumber",
+  # イシュー #2544 CI 是正: `presence::disable_form_controls` が
+  # `Element::query_selector_all`（`NodeList` を返す）を使うため、戻り値
+  # 型の feature を追加する（既存 wasm-full の `Cargo.toml` も同じ
+  # `NodeList` のみを要求しており、`ParentNode` feature は存在しない
+  # ——web-sys 0.3 では `query_selector`/`query_selector_all` は `Element`
+  # の inherent メソッドであり、別 feature の有効化を要しない）。新規
+  # 外部パッケージの追加はない。
+  "NodeList",
 ] }
 wasm-bindgen-futures = "0.4"
 
