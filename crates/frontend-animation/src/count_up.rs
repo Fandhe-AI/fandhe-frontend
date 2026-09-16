@@ -396,11 +396,13 @@ pub fn eased(t: f64) -> f64 {
 /// `down_indicator`（矢印 `<span aria-hidden>`）を数値テキストと並べて
 /// 子に持つ構成を公開契約とするため、要素全体の `textContent` を書き換える
 /// とこれらの子要素が削除されてしまう（PR #2580 codex-review P1 指摘）。
-/// 本モジュールは読み取り（[`read_value_text`]）・書き込み
-/// （[`TextTarget`]/[`write_final`]）の双方でこのノードだけを対象にし、
-/// 兄弟の子要素へは触れない。子ノード構成が外部更新で差し替わっても
-/// 追随できるよう、呼び出しのたびに解決し直す（`Text` ハンドルを保持
-/// しない）。
+/// 本モジュールの書き込み（[`start`]/[`write_final`]）はこの関数で
+/// **配線時に 1 回だけ**解決した `Text` ノードを受け取り、その `data`
+/// のみを書き換える（兄弟の子要素へは触れない）。呼び出し側
+/// （`fandhe-frontend-wasm-full::count_up`）はこのノードの参照を保持し、
+/// 外部更新の判定も同じノードに対して行う（通知のたびに再検索すると、
+/// 数字を失った更新〔"N/A"〕や差し替え前ノードへの通知を取りこぼす、
+/// PR #2580 codex-review P1 再指摘）。
 #[must_use]
 pub fn value_text_node(element: &web_sys::HtmlElement) -> Option<web_sys::Text> {
     let children = element.child_nodes();
@@ -410,41 +412,17 @@ pub fn value_text_node(element: &web_sys::HtmlElement) -> Option<web_sys::Text> 
         .find(|text| text.data().chars().any(|c| c.is_ascii_digit()))
 }
 
-/// カウントアップの対象となる現在のテキストを返す。[`value_text_node`] が
-/// あればその `data`、無ければ子要素を持たない要素に限り `textContent`
-/// （単一テキスト構成の後方互換）。子要素はあるが数値テキストノードが
-/// 無い構成は対象外（`None`、配線側は何もしない fail-safe）。
-#[must_use]
-pub fn read_value_text(element: &web_sys::HtmlElement) -> Option<String> {
-    match value_text_node(element) {
-        Some(text) => Some(text.data()),
-        None if element.child_element_count() == 0 => element.text_content(),
-        None => None,
-    }
-}
-
-/// [`read_value_text`] と対称の書き込み。数値テキストノードの `data` のみ
-/// を書き換え、兄弟の子要素は保持する。対象が解決できない構成では何も
-/// 書かない（子要素を破壊しない）。
+/// [`NumberText::render`] の出力を数値テキストノードの `data` へ書き込む
+/// [`Target<f64>`] 実装。
 ///
 /// # セキュリティ（A03: XSS）
 ///
-/// `CharacterData::set_data`/`set_text_content` のみを使う（HTML 解釈
-/// なし）。書き込む文字列は [`NumberText::render`] の出力（prefix/suffix は
-/// SSR 済みテキスト由来）のみであり、DOM から取得した信頼できない文字列を
-/// 直接書き込む経路は持たない。
-fn write_value_text(element: &web_sys::HtmlElement, text: &str) {
-    match value_text_node(element) {
-        Some(node) => node.set_data(text),
-        None if element.child_element_count() == 0 => element.set_text_content(Some(text)),
-        None => {}
-    }
-}
-
-/// [`NumberText::render`] の出力を [`write_value_text`] で書き込む
-/// [`Target<f64>`] 実装。
+/// `CharacterData::set_data` のみを使う（HTML 解釈なし）。書き込む文字列は
+/// [`NumberText::render`] の出力（prefix/suffix は SSR 済みテキスト由来）
+/// のみであり、DOM から取得した信頼できない文字列を直接書き込む経路は
+/// 持たない。
 struct TextTarget {
-    element: web_sys::HtmlElement,
+    node: web_sys::Text,
     format: NumberText,
     last_value: Rc<Cell<Option<f64>>>,
     self_write_count: Rc<Cell<u32>>,
@@ -452,7 +430,7 @@ struct TextTarget {
 
 impl Target<f64> for TextTarget {
     fn write(&mut self, value: f64) {
-        write_value_text(&self.element, &self.format.render(value));
+        self.node.set_data(&self.format.render(value));
         // 直近に書き込んだ**数値**を保持する。外部更新時の再補間の開始値
         // は表示文字列の再解析ではなくこの値を使う（PR #2580 codex-review
         // P1 指摘: 桁区切り `.` 書式の途中値 "123.456" を再解析すると小数
@@ -465,11 +443,11 @@ impl Target<f64> for TextTarget {
         // コールバックへ 1 回のバッチとして通知された場合に、フラグが
         // 立っているというだけで通知全体を「自己書き込みのみ」として
         // 無視してしまい、同居していた外部更新を取りこぼす
-        // （`CharacterData.data`/`Element.textContent` の setter はいずれも
-        // 必ず 1 回の `MutationRecord`（`characterData`/`childList` 型）を
-        // 生成し、同一タスク内の複数回書き込みも記録が結合されない仕様の
-        // ため、レコード件数とこのカウンタを突き合わせれば両者を区別
-        // できる。[`has_external_mutation`] doc 参照）。
+        // （`CharacterData.data` の setter は必ず 1 回の `characterData` 型
+        // `MutationRecord` を生成し、同一タスク内の複数回書き込みも記録が
+        // 結合されない仕様のため、このノード宛てのレコード件数とこの
+        // カウンタを突き合わせれば両者を区別できる。
+        // [`has_external_mutation`] doc 参照）。
         self.self_write_count.set(self.self_write_count.get() + 1);
     }
 }
@@ -480,8 +458,8 @@ pub struct CountUp {
     _loop_handle: AnimationLoop,
 }
 
-/// `record_count`（`MutationObserver` コールバックが受け取ったバッチ内
-/// レコード件数）が `self_write_count`（[`TextTarget::write`]/
+/// `record_count`（`MutationObserver` コールバックが受け取ったバッチ内の、
+/// 数値テキストノード宛て `characterData` レコード件数）が `self_write_count`（[`TextTarget::write`]/
 /// [`write_final`] が同区間で書き込んだ回数）を上回るかを判定する（DOM
 /// 非依存の純粋関数、native `cargo test` で検証可能。`TextTarget::write`
 /// doc 参照）。呼び出し側（`wasm-full`）は `self_write_count` を消費した
@@ -498,20 +476,20 @@ pub fn has_external_mutation(record_count: u32, self_write_count: u32) -> bool {
 /// （直近に書き込んだ数値・自己書き込み回数カウンタ。呼び出し側の
 /// `MutationObserver` が再補間の開始値・外部更新の区別に読む）。
 pub fn write_final(
-    element: &web_sys::HtmlElement,
+    node: &web_sys::Text,
     format: &NumberText,
     value: f64,
     last_value: &Rc<Cell<Option<f64>>>,
     self_write_count: &Rc<Cell<u32>>,
 ) {
-    write_value_text(element, &format.render(value));
+    node.set_data(&format.render(value));
     last_value.set(Some(value));
     self_write_count.set(self_write_count.get() + 1);
 }
 
-/// `from` から `to` へ `duration_ms` かけて ease-out 補間しながら `element`
-/// の数値テキストノード（[`value_text_node`]）を書き換える rAF ループを
-/// 開始する。
+/// `from` から `to` へ `duration_ms` かけて ease-out 補間しながら数値
+/// テキストノード `node`（[`value_text_node`] で配線時に解決したもの）の
+/// `data` を書き換える rAF ループを開始する。
 ///
 /// `window`/`performance` が取得できない環境（[`RafDriver::new`] が
 /// `None`）では、補間せず [`write_final`] で `to` を即座に書き込み
@@ -522,7 +500,7 @@ pub fn write_final(
 /// する）。`self_write_count` は自己書き込みを外部更新と区別するための
 /// 回数カウンタ（[`TextTarget::write`] ドキュメント参照）。
 pub fn start(
-    element: web_sys::HtmlElement,
+    node: web_sys::Text,
     format: NumberText,
     from: f64,
     to: f64,
@@ -531,12 +509,12 @@ pub fn start(
     self_write_count: Rc<Cell<u32>>,
 ) -> Option<CountUp> {
     let Some(mut driver) = RafDriver::new() else {
-        write_final(&element, &format, to, &last_value, &self_write_count);
+        write_final(&node, &format, to, &last_value, &self_write_count);
         return None;
     };
 
     let mut target = TextTarget {
-        element,
+        node,
         format,
         last_value,
         self_write_count,

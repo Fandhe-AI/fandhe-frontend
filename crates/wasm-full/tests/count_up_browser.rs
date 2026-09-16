@@ -371,6 +371,119 @@ async fn sibling_unit_text_update_does_not_change_pending_target() {
     assert_eq!(dd.text_content().unwrap(), "2000pt");
 }
 
+/// PR #2580 codex-review P1 再指摘の回帰テスト: 配線直後の**同一同期処理**
+/// で要素の `textContent` を差し替えた場合（旧数値ノードへの自己書き込み
+/// `characterData` 1 件 + 旧ノードを外す `childList` 1 件が 1 バッチで
+/// 届く）でも、差し替えを外部更新として検知し新しい目標値へ到達すること。
+#[wasm_bindgen_test]
+async fn same_task_text_content_replacement_after_wiring_is_tracked() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, dd) = build_dom(
+        &document,
+        "count-up-root-9",
+        "1,000",
+        &[(COUNT_UP_DURATION_MS_ATTR, TEST_DURATION_MS)],
+    );
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_count_up(&root).expect("wire_count_up must not fail");
+    dd.set_text_content(Some("2,000"));
+
+    sleep_ms(300).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "2,000",
+        "同一同期処理内の差し替えでも新しい目標値へ到達するはず"
+    );
+}
+
+/// PR #2580 codex-review P1 再指摘・Bugbot Medium 指摘の回帰テスト: 数値
+/// テキストノードの `data` を数字を含まない文字列（"N/A"）へ変更した
+/// （`characterData`、ノードは差し替わらない）場合も外部更新として扱い、
+/// 補間を停止すること。その後 `data` を数値へ戻すと追随すること。
+#[wasm_bindgen_test]
+async fn number_text_node_data_set_to_non_numeric_stops_interpolation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, dd) = build_dom(
+        &document,
+        "count-up-root-10",
+        "1000",
+        &[(COUNT_UP_DURATION_MS_ATTR, "5000")],
+    );
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_count_up(&root).expect("wire_count_up must not fail");
+    sleep_ms(50).await;
+
+    let number_node = dd.first_child().expect("number text node must exist");
+    number_node.set_text_content(Some("N/A"));
+    sleep_ms(50).await;
+    assert_eq!(dd.text_content().unwrap(), "N/A");
+    sleep_ms(200).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "N/A",
+        "数字を失った characterData 更新でも補間が停止し、古い数値で上書きされないはず"
+    );
+
+    number_node.set_text_content(Some("500"));
+    sleep_ms(300).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "500",
+        "同じノードが数値へ戻れば追随するはず"
+    );
+}
+
+/// PR #2580 codex-review P1 再指摘の回帰テスト: 兄弟要素（単位 span）の
+/// 追加・削除だけの `childList` 変更は数値の目標値更新として扱わないこと
+/// （in-view 待機中に行っても表示中の "0" が新目標として保存されず、進入
+/// 後に本来の目標値へ到達する）。
+#[wasm_bindgen_test]
+async fn sibling_add_and_remove_do_not_change_pending_target() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (container, dd) = build_off_screen_dom(
+        &document,
+        "count-up-root-11",
+        "1000",
+        &[
+            (COUNT_UP_TRIGGER_ATTR, COUNT_UP_TRIGGER_IN_VIEW),
+            (COUNT_UP_DURATION_MS_ATTR, TEST_DURATION_MS),
+        ],
+    );
+    let _guard = RemoveOnDrop(container.clone());
+
+    wire_count_up(&container).expect("wire_count_up must not fail");
+    sleep_ms(50).await;
+    assert_eq!(dd.text_content().unwrap(), "0");
+
+    let unit = document.create_element("span").unwrap();
+    unit.set_text_content(Some("%"));
+    dd.append_child(&unit).unwrap();
+    sleep_ms(50).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "0%",
+        "兄弟追加は数値表示を変えないはず"
+    );
+
+    unit.remove();
+    sleep_ms(50).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "0",
+        "兄弟削除は数値表示を変えないはず"
+    );
+
+    container.set_scroll_top(300);
+    sleep_ms(300).await;
+    assert_eq!(
+        dd.text_content().unwrap(),
+        "1000",
+        "兄弟の追加・削除で目標値が \"0\" に差し替わらず、本来の目標値へ到達するはず"
+    );
+}
+
 #[wasm_bindgen_test]
 async fn in_view_trigger_eventually_reaches_final_value() {
     let document = web_sys::window().unwrap().document().unwrap();

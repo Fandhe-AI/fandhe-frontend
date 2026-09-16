@@ -27,18 +27,22 @@
 //! # セキュリティ不変条件（REQ-1・security.md A03）
 //!
 //! DOM への書き込みは `fandhe_frontend_animation::count_up` 経由の
-//! `CharacterData::set_data`/`set_text_content` のみ（HTML 解釈なし）。
-//! 属性値はすべて防御的パース、セレクタへ動的文字列を混ぜない。
+//! `CharacterData::set_data` のみ（HTML 解釈なし）。属性値はすべて防御的
+//! パース、セレクタへ動的文字列を混ぜない。
 //!
-//! # 読み書きの対象（stat の子要素を保持する）
+//! # 読み書きの対象（stat の子要素を保持する・保持ノード方式）
 //!
 //! `stat::value_text` は `value_unit`/`up_indicator`/`down_indicator` を
-//! 数値テキストと並べて子に持つ構成を公開契約とするため、初期テキストの
-//! 解析・外部更新の読み取りは要素全体の `textContent` ではなく
-//! [`fandhe_frontend_animation::count_up::read_value_text`]（数値テキスト
-//! ノードのみ）で行い、書き込み側（`start`/`write_final`）と対象を揃える
-//! （PR #2580 codex-review P1 指摘: 開始直後に単位 `<span>` や矢印が削除
-//! されていた回帰の是正）。
+//! 数値テキストと並べて子に持つ構成を公開契約とするため、要素全体の
+//! `textContent` ではなく**数値テキストノード**（[`fandhe_frontend_animation::
+//! count_up::value_text_node`]）だけを読み書きする（PR #2580 codex-review
+//! P1 指摘: 開始直後に単位 `<span>` や矢印が削除されていた回帰の是正）。
+//! このノードは配線時に 1 回解決して参照を保持し（`wiring::ValueNode`）、
+//! 以後の外部更新判定は `MutationRecord` ごとに保持ノードとの
+//! `is_same_node` で行う（通知時点の再検索はしない。再検索だと数字を
+//! 失った更新〔"N/A"〕・差し替え前ノードへの通知・兄弟要素だけの追加
+//! 削除を誤判定する、PR #2580 codex-review P1 再指摘・Bugbot Medium
+//! 指摘）。詳細は `wiring::classify_records` doc 参照。
 
 /// opt-in（著者が SSR 出力に静的に付与）: カウントアップを有効化する
 /// 要素マーカー（値なし存在属性）。
@@ -104,7 +108,7 @@ mod wiring {
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{
         Element, HtmlElement, IntersectionObserver, IntersectionObserverEntry, MutationObserver,
-        MutationObserverInit, MutationRecord, Node,
+        MutationObserverInit, MutationRecord, Node, Text,
     };
 
     /// `root` 配下の `[data-fandhe-count-up]` 要素（複数可）を出現順に集める
@@ -160,10 +164,114 @@ mod wiring {
     /// （"N/A" 等）で開始値が存在しない」ことを表す。
     type LastValue = Rc<Cell<Option<f64>>>;
 
-    /// `element` へ `[from, to]` 区間の補間を起動し、`active` を差し替える。
+    /// 配線時に解決して保持する数値テキストノード（モジュール doc
+    /// 「読み書きの対象」節）。`count_up::start`/`write_final` の書き込み先
+    /// であり、[`classify_records`] の判定基準でもある。要素直下の
+    /// `childList` 変更でこのノードが取り外された（`removedNodes` に含まれる）
+    /// 場合のみ [`adopt_value_node`] で差し替え後のノードへ更新する。`None`
+    /// は「差し替え後に Text ノードが存在しない」状態で、次の要素直下の
+    /// `childList` 変更で再解決を試みる。
+    type ValueNode = Rc<RefCell<Option<Text>>>;
+
+    /// 差し替え後の数値テキストノードを解決する。数字を含む Text ノードが
+    /// あればそれ、無ければ最初の直接の子 Text ノード（"N/A" 等の非数値。
+    /// 以後の `characterData` 更新で数値へ戻った際に追随するため保持する）。
+    fn adopt_value_node(element: &HtmlElement) -> Option<Text> {
+        count_up::value_text_node(element).or_else(|| {
+            let children = element.child_nodes();
+            (0..children.length())
+                .filter_map(|i| children.get(i))
+                .find_map(|node| node.dyn_into::<Text>().ok())
+        })
+    }
+
+    /// [`classify_records`] の結果。
+    struct Classified {
+        /// 保持ノード宛て `characterData` レコード件数（自己書き込み
+        /// `self_write_count` と突き合わせる母数）。
+        value_node_char_records: u32,
+        /// 保持ノードが要素直下の `childList` 変更で取り外された（数値
+        /// ノードの差し替え・削除）。自己書き込みは `set_data` のみで
+        /// ノードを差し替えないため、これは常に外部更新である。
+        value_node_replaced: bool,
+    }
+
+    /// `records` を順に走査し、**保持ノード**（`value_node`）に関係する
+    /// ものだけを集計する。
+    ///
+    /// - `characterData`: `target` が現時点の保持ノードと同一なら数える
+    ///   （内容が数値か非数値かは問わない。"N/A" 化も外部更新であり、
+    ///   補間停止・pending 無効化へ進む必要がある）。
+    /// - `childList`（`target` が `element` 自身）: `removedNodes` に保持
+    ///   ノードが含まれる場合のみ差し替えとみなし、[`adopt_value_node`] で
+    ///   保持参照を更新する（保持ノードが `None` の間は再解決を試みる）。
+    ///   兄弟要素（`value_unit`/`up_indicator` 等）だけの追加・削除は
+    ///   `removedNodes` に保持ノードを含まないため無視される。
+    /// - 兄弟要素配下（`target` が保持ノードでも `element` でもない）の
+    ///   レコードは無視する。
+    ///
+    /// 順序どおりに走査するため、「配線直後の同一同期処理で `textContent`
+    /// を差し替えた」ケース（旧ノードへの自己書き込み `characterData` 1 件
+    /// → 旧ノードを外す `childList` 1 件）でも、旧ノード宛てのレコードは
+    /// その時点の保持ノード宛てとして数えられ、続く `childList` で差し替え
+    /// が検知される（通知時点で数字を含むノードを再検索する旧実装は旧
+    /// ノード宛てを除外し、`self_write_count` と相殺されて新しい目標値を
+    /// 取りこぼしていた。PR #2580 codex-review P1 再指摘）。
+    fn classify_records(
+        element: &HtmlElement,
+        value_node: &ValueNode,
+        records: &js_sys::Array,
+    ) -> Classified {
+        let element_node: &Node = element;
+        let mut out = Classified {
+            value_node_char_records: 0,
+            value_node_replaced: false,
+        };
+        for record in records
+            .iter()
+            .filter_map(|record| record.dyn_into::<MutationRecord>().ok())
+        {
+            let target = record.target();
+            match record.type_().as_str() {
+                "characterData" => {
+                    let held = value_node.borrow();
+                    if held
+                        .as_ref()
+                        .is_some_and(|node| node.is_same_node(target.as_ref()))
+                    {
+                        out.value_node_char_records += 1;
+                    }
+                }
+                "childList" if element_node.is_same_node(target.as_ref()) => {
+                    let removed_held = {
+                        let held = value_node.borrow();
+                        match held.as_ref() {
+                            None => true,
+                            Some(node) => {
+                                let removed = record.removed_nodes();
+                                (0..removed.length())
+                                    .filter_map(|i| removed.get(i))
+                                    .any(|removed| node.is_same_node(Some(&removed)))
+                            }
+                        }
+                    };
+                    if removed_held {
+                        out.value_node_replaced = true;
+                        *value_node.borrow_mut() = adopt_value_node(element);
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    /// 保持ノードへ `[from, to]` 区間の補間を起動し、`active` を差し替える。
+    /// 保持ノードが `None`（差し替え後に Text ノードが無い）なら進行中の
+    /// 補間を止めるのみ。
     #[allow(clippy::too_many_arguments)]
     fn start_count_up(
-        element: &HtmlElement,
+        value_node: &ValueNode,
         format: NumberText,
         from: f64,
         to: f64,
@@ -172,26 +280,43 @@ mod wiring {
         active: &ActiveCountUp,
         self_write_count: &Rc<Cell<u32>>,
     ) {
-        let handle = count_up::start(
-            element.clone(),
-            format,
-            from,
-            to,
-            duration_ms,
-            last_value,
-            Rc::clone(self_write_count),
-        );
+        let node = value_node.borrow().clone();
+        let handle = node.and_then(|node| {
+            count_up::start(
+                node,
+                format,
+                from,
+                to,
+                duration_ms,
+                last_value,
+                Rc::clone(self_write_count),
+            )
+        });
         *active.borrow_mut() = handle;
     }
 
+    /// 保持ノードへ補間なしで `value` を即座に書き込む（保持ノードが
+    /// `None` なら何もしない）。
+    fn write_final(
+        value_node: &ValueNode,
+        format: &NumberText,
+        value: f64,
+        last_value: &LastValue,
+        self_write_count: &Rc<Cell<u32>>,
+    ) {
+        if let Some(node) = value_node.borrow().as_ref() {
+            count_up::write_final(node, format, value, last_value, self_write_count);
+        }
+    }
+
     /// `element` へ `[data-fandhe-count-up]` 候補 1 件分の配線を行う。
-    /// 初期テキストが [`NumberText::parse`] できない場合は何もしない
-    /// （数値以外のテキストは変更しない、fail-safe）。
+    /// 数値テキストノードが無い・その内容が [`NumberText::parse`] できない
+    /// 場合は何もしない（数値以外のテキストは変更しない、fail-safe）。
     fn wire_candidate(element: &HtmlElement) {
-        let Some(initial) = count_up::read_value_text(element) else {
+        let Some(node) = count_up::value_text_node(element) else {
             return;
         };
-        let Some(parsed) = NumberText::parse(&initial) else {
+        let Some(parsed) = NumberText::parse(&node.data()) else {
             return;
         };
         let to = parsed.value();
@@ -199,20 +324,21 @@ mod wiring {
             parse_count_up_duration_ms(element.get_attribute(COUNT_UP_DURATION_MS_ATTR).as_deref());
         let trigger = trigger_from_attr(element.get_attribute(COUNT_UP_TRIGGER_ATTR).as_deref());
 
+        let value_node: ValueNode = Rc::new(RefCell::new(Some(node)));
         let last_value: LastValue = Rc::new(Cell::new(Some(to)));
         let active: ActiveCountUp = Rc::new(RefCell::new(None));
         // 自己書き込み検知カウンタ（`fandhe_frontend_animation::count_up::
-        // TextTarget::write`/`write_final` が書き込みのたびにインクリメント
-        // し、`wire_mutation_observer` が `MutationRecord` 件数と突き合わせて
-        // 消費する）。直前に書いた文字列との一致だけで自己書き込みを
-        // 判定すると、外部更新がたまたま同じ文字列を書いた場合（例:
-        // in-view 待機中に開始値と同じ文字列へ外部更新された場合）に誤って
-        // 無視してしまう（PR #2580 codex-review P1・Bugbot Medium 指摘の
-        // 是正）。さらに真偽値 1 個の `self_write` フラグでは、自己書き込み
-        // と外部更新が同じ同期処理内で両方発生し 1 回のバッチとして通知
-        // された場合に外部更新側を取りこぼす（PR #2580 レビュー是正・
-        // codex-review P1 指摘）。`count_up::has_external_mutation` doc
-        // 参照。
+        // TextTarget::write`/`write_final` が保持ノードへの `set_data` の
+        // たびにインクリメントし、`wire_mutation_observer` が保持ノード
+        // 宛て `characterData` レコード件数と突き合わせて消費する）。
+        // 直前に書いた文字列との一致だけで自己書き込みを判定すると、外部
+        // 更新がたまたま同じ文字列を書いた場合（例: in-view 待機中に開始値
+        // と同じ文字列へ外部更新された場合）に誤って無視してしまう（PR
+        // #2580 codex-review P1・Bugbot Medium 指摘の是正）。さらに真偽値
+        // 1 個の `self_write` フラグでは、自己書き込みと外部更新が同じ同期
+        // 処理内で両方発生し 1 回のバッチとして通知された場合に外部更新側
+        // を取りこぼす（PR #2580 レビュー是正・codex-review P1 指摘）。
+        // `count_up::has_external_mutation` doc 参照。
         let self_write_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
         // 補間が実際に開始済みか。`Immediate` は配線時点で true、`InView`
         // は `IntersectionObserver` 発火時に true へ切り替わる。false の間
@@ -235,6 +361,7 @@ mod wiring {
         wire_mutation_observer(
             element,
             duration_ms,
+            Rc::clone(&value_node),
             Rc::clone(&last_value),
             Rc::clone(&active),
             Rc::clone(&pending),
@@ -245,7 +372,7 @@ mod wiring {
         match trigger {
             Trigger::Immediate => {
                 start_count_up(
-                    element,
+                    &value_node,
                     parsed,
                     0.0,
                     to,
@@ -256,10 +383,11 @@ mod wiring {
                 );
             }
             Trigger::InView => {
-                count_up::write_final(element, &parsed, 0.0, &last_value, &self_write_count);
+                write_final(&value_node, &parsed, 0.0, &last_value, &self_write_count);
                 if supports_intersection_observer() {
                     wire_in_view_trigger(
                         element,
+                        Rc::clone(&value_node),
                         Rc::clone(&pending),
                         duration_ms,
                         &last_value,
@@ -273,7 +401,7 @@ mod wiring {
                     // 同じ方針）。
                     started.set(true);
                     start_count_up(
-                        element,
+                        &value_node,
                         parsed,
                         0.0,
                         to,
@@ -291,8 +419,10 @@ mod wiring {
     /// `disconnect()` してから補間を開始する（計画 §2.3「要素専用の
     /// IntersectionObserver」、`in_view.rs` の共有 observer とは異なり
     /// 動的追加要素の追随は行わない既知の制約）。
+    #[allow(clippy::too_many_arguments)]
     fn wire_in_view_trigger(
         element: &HtmlElement,
+        value_node: ValueNode,
         pending: PendingTarget,
         duration_ms: f64,
         last_value: &LastValue,
@@ -300,7 +430,6 @@ mod wiring {
         started: &Rc<Cell<bool>>,
         self_write_count: &Rc<Cell<u32>>,
     ) {
-        let element_for_callback = element.clone();
         let last_value_for_callback = Rc::clone(last_value);
         let active_for_callback = Rc::clone(active);
         let started_for_callback = Rc::clone(started);
@@ -323,7 +452,7 @@ mod wiring {
                     let target = pending.borrow().clone();
                     if let Some((format, to)) = target {
                         start_count_up(
-                            &element_for_callback,
+                            &value_node,
                             format,
                             0.0,
                             to,
@@ -344,56 +473,29 @@ mod wiring {
         observer.observe(element);
     }
 
-    /// `records` のうち**数値テキストノードに関係する**もの（対象ノードの
-    /// `characterData` 変更、または `element` 直下の `childList` 変更＝
-    /// 数値テキストノード自体の差し替え・追加・削除）だけを数える。
-    /// `subtree: true` で購読しているため `value_unit`/`up_indicator`/
-    /// `down_indicator` 配下のテキスト変更も通知されるが、これらは数値の
-    /// 目標値更新ではないため無視する（PR #2580 codex-review P1 指摘:
-    /// in-view 待機中に単位 `<span>` を更新すると表示中の "0" が新しい
-    /// 目標値として pending に保存され、進入後も本来の数値へ到達しなかった
-    /// 回帰の是正）。自己書き込み（数値ノードへの `set_data`、または子要素
-    /// なし要素への `set_text_content`）は常にこの条件に該当するため、
-    /// `self_write_count` との突き合わせもこの件数で行う。
-    fn count_value_text_records(element: &HtmlElement, records: &js_sys::Array) -> u32 {
-        let element_node: &Node = element;
-        let value_node = count_up::value_text_node(element);
-        records
-            .iter()
-            .filter_map(|record| record.dyn_into::<MutationRecord>().ok())
-            .filter(|record| {
-                let target = record.target();
-                match record.type_().as_str() {
-                    "characterData" => value_node
-                        .as_ref()
-                        .is_some_and(|node| node.is_same_node(target.as_ref())),
-                    "childList" => element_node.is_same_node(target.as_ref()),
-                    _ => false,
-                }
-            })
-            .count() as u32
-    }
-
     /// `element` 配下のテキスト変更（`characterData`/`childList`、
-    /// `subtree: true`）を監視し、数値テキストノードに対する自己書き込み
-    /// 以外（アプリの `set_text` 等の外部更新、[`count_value_text_records`]）
-    /// を検知したら現在表示中の値 → 新しい値へ再補間する。
+    /// `subtree: true`）を監視し、保持ノードに対する外部更新
+    /// （[`classify_records`]: 保持ノード宛て `characterData` が自己書き込み
+    /// 回数を上回る、または保持ノードの差し替え）を検知したら現在表示中の
+    /// 値 → 新しい値へ再補間する。
     ///
     /// 自己書き込みの除外は自己書き込み回数カウンタ（[`count_up::
-    /// TextTarget::write`]/[`count_up::write_final`] が書き込みのたびに
-    /// インクリメントする）と、このコールバックが受け取ったバッチ内
-    /// `MutationRecord` 件数を突き合わせて判定する
+    /// TextTarget::write`]/[`count_up::write_final`] が保持ノードへの
+    /// `set_data` のたびにインクリメントする）と、保持ノード宛ての
+    /// `characterData` レコード件数を突き合わせて判定する
     /// （[`count_up::has_external_mutation`]）。`MutationObserver` は
     /// 同期処理が終わった後に変更をまとめて 1 回のコールバックで通知
     /// するため、自己書き込みと外部更新が同じ同期処理内で両方発生する
-    /// ことがある。真偽値 1 個（「直前に自分が書いた文字列
-    /// と現在の `textContent` が一致するか」、あるいは
-    /// 単純な `self_write` フラグ）だけで通知全体を除外すると、この場合に
-    /// 外部更新を取りこぼす（PR #2580 codex-review P1・Bugbot Medium
-    /// 指摘、およびレビュー是正・codex-review P1 再指摘）。
+    /// ことがある。真偽値 1 個（「直前に自分が書いた文字列と現在の
+    /// テキストが一致するか」、あるいは単純な `self_write` フラグ）だけで
+    /// 通知全体を除外すると、この場合に外部更新を取りこぼす（PR #2580
+    /// codex-review P1・Bugbot Medium 指摘、およびレビュー是正・
+    /// codex-review P1 再指摘）。
+    #[allow(clippy::too_many_arguments)]
     fn wire_mutation_observer(
         element: &HtmlElement,
         duration_ms: f64,
+        value_node: ValueNode,
         last_value: LastValue,
         active: ActiveCountUp,
         pending: PendingTarget,
@@ -404,20 +506,26 @@ mod wiring {
         let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
             move |records: js_sys::Array, _observer: MutationObserver| {
                 let self_writes = self_write_count.replace(0);
-                let relevant = count_value_text_records(&element_for_callback, &records);
-                if !count_up::has_external_mutation(relevant, self_writes) {
+                let classified = classify_records(&element_for_callback, &value_node, &records);
+                if !classified.value_node_replaced
+                    && !count_up::has_external_mutation(
+                        classified.value_node_char_records,
+                        self_writes,
+                    )
+                {
                     return;
                 }
-                let current = count_up::read_value_text(&element_for_callback);
+                let current = value_node.borrow().as_ref().map(|node| node.data());
                 let Some(new_parsed) = current.as_deref().and_then(NumberText::parse) else {
-                    // 数値として解析できない外部更新（例: "N/A"・空文字）。
-                    // 進行中の補間を止め、古い数値で上書きし続けない
-                    // （PR #2580 codex-review P1 指摘）。待機中の目標値
-                    // （`pending`）も無効化する: 無効化しないと、この後
-                    // 画面内へ進入した際に `wire_in_view_trigger` が古い
-                    // 数値目標で上書きしてしまう（PR #2580 codex-review P1
-                    // 再指摘）。開始値（`LastValue`）も無効化し、次の数値
-                    // 更新は補間せず新しい値をそのまま表示する。
+                    // 数値として解析できない外部更新（例: "N/A"・空文字・
+                    // Text ノードの消失）。進行中の補間を止め、古い数値で
+                    // 上書きし続けない（PR #2580 codex-review P1 指摘）。
+                    // 待機中の目標値（`pending`）も無効化する: 無効化しない
+                    // と、この後画面内へ進入した際に `wire_in_view_trigger`
+                    // が古い数値目標で上書きしてしまう（PR #2580
+                    // codex-review P1 再指摘）。開始値（`LastValue`）も
+                    // 無効化し、次の数値更新は補間せず新しい値をそのまま
+                    // 表示する。
                     *active.borrow_mut() = None;
                     *pending.borrow_mut() = None;
                     last_value.set(None);
@@ -438,8 +546,8 @@ mod wiring {
                     // へ記録する（次回のバッチで正しく差し引かれる）ため、
                     // 待機中に受理した更新の値へ再び外部更新された際も
                     // 正しく外部更新として検知できる。
-                    count_up::write_final(
-                        &element_for_callback,
+                    write_final(
+                        &value_node,
                         &new_parsed,
                         0.0,
                         &last_value,
@@ -452,7 +560,7 @@ mod wiring {
                 // doc 参照。表示文字列は再解析しない）。
                 let from = last_value.get().unwrap_or(to);
                 start_count_up(
-                    &element_for_callback,
+                    &value_node,
                     new_parsed,
                     from,
                     to,

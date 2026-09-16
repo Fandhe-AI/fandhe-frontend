@@ -5,7 +5,9 @@
 //! [`NumberText::parse`]/[`NumberText::render`] の純粋計算のみを検証済み
 //! である。本ファイルは [`start`] が実 DOM の `HtmlElement` の
 //! `textContent` を実際に 0 から目標値へ補間しながら書き込み、
-//! [`write_final`] が即時に最終値を書き込むことを検証する
+//! [`write_final`] が即時に最終値を書き込むことを検証する（いずれも
+//! [`value_text_node`] で解決した数値テキストノードの `data` のみを対象に
+//! し、兄弟の子要素には触れない）
 //! （`crates/frontend-animation/tests/spring_via_raf_dom_browser.rs` と
 //! 同方針）。
 
@@ -19,7 +21,7 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_test::*;
-use web_sys::HtmlElement;
+use web_sys::{HtmlElement, Text};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -70,16 +72,24 @@ fn create_div() -> (HtmlElement, RemoveOnDrop) {
     (html_element, RemoveOnDrop(element))
 }
 
+/// `text` を唯一の子テキストノードに持つ `div` と、その数値テキスト
+/// ノード（[`value_text_node`] の解決結果）を返す。
+fn create_div_with_text(text: &str) -> (HtmlElement, Text, RemoveOnDrop) {
+    let (element, guard) = create_div();
+    element.set_text_content(Some(text));
+    let node = value_text_node(&element).expect("number text node must resolve");
+    (element, node, guard)
+}
+
 #[wasm_bindgen_test]
 async fn start_interpolates_from_zero_to_final_value() {
-    let (element, _guard) = create_div();
-    element.set_text_content(Some("100"));
+    let (element, node, _guard) = create_div_with_text("100");
     let format = NumberText::parse("100").expect("\"100\" must parse");
     let last_value = Rc::new(Cell::new(None));
     let self_write_count = Rc::new(Cell::new(0u32));
 
     let _handle = start(
-        element.clone(),
+        node,
         format,
         0.0,
         100.0,
@@ -104,12 +114,12 @@ async fn start_interpolates_from_zero_to_final_value() {
 
 #[wasm_bindgen_test]
 fn write_final_writes_formatted_value_immediately_and_updates_last_value() {
-    let (element, _guard) = create_div();
+    let (element, node, _guard) = create_div_with_text("$0.00");
     let format = NumberText::parse("$0.00").expect("\"$0.00\" must parse");
     let last_value = Rc::new(Cell::new(None));
     let self_write_count = Rc::new(Cell::new(0u32));
 
-    write_final(&element, &format, 1234.5, &last_value, &self_write_count);
+    write_final(&node, &format, 1234.5, &last_value, &self_write_count);
 
     assert_eq!(element.text_content().unwrap(), "$1,234.50");
     assert_eq!(last_value.get(), Some(1234.5));
@@ -136,10 +146,11 @@ async fn writes_only_number_text_node_and_preserves_sibling_children() {
     element.append_child(&arrow).unwrap();
 
     let format = NumberText::parse("1,234").expect("\"1,234\" must parse");
+    let node = value_text_node(&element).expect("number text node must resolve");
     let last_value = Rc::new(Cell::new(None));
     let self_write_count = Rc::new(Cell::new(0u32));
 
-    write_final(&element, &format, 500.0, &last_value, &self_write_count);
+    write_final(&node, &format, 500.0, &last_value, &self_write_count);
     assert_eq!(element.child_element_count(), 2, "子要素が保持されること");
     assert_eq!(element.text_content().unwrap(), "500%▲");
     assert_eq!(
@@ -148,7 +159,7 @@ async fn writes_only_number_text_node_and_preserves_sibling_children() {
     );
 
     let _handle = start(
-        element.clone(),
+        node,
         format,
         0.0,
         1234.0,
@@ -176,12 +187,12 @@ async fn writes_only_number_text_node_and_preserves_sibling_children() {
 /// 再解析すると小数 123.456 へ誤解釈される（1/1000 への急落）。
 #[wasm_bindgen_test]
 fn last_value_keeps_numeric_value_where_reparsing_display_would_misread_it() {
-    let (element, _guard) = create_div();
+    let (element, node, _guard) = create_div_with_text("1.234.567");
     let format = NumberText::parse("1.234.567").expect("\"1.234.567\" must parse");
     let last_value = Rc::new(Cell::new(None));
     let self_write_count = Rc::new(Cell::new(0u32));
 
-    write_final(&element, &format, 123456.0, &last_value, &self_write_count);
+    write_final(&node, &format, 123456.0, &last_value, &self_write_count);
 
     let shown = element.text_content().unwrap();
     assert_eq!(shown, "123.456");
