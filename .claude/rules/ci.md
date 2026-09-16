@@ -178,6 +178,14 @@
   付与した合成 block。カスタムカーソルの追従・hover バリアント変化の実演は
   wasm-full の `cursor` feature 配下のみで発生し、無 JS の本サイトでは
   静的な実演に留まる）/
+  `blocks/footer-sticky-reveal/index.html`（イシュー #2551、`card`/
+  `heading`/`link`/`nav_list` を合成した footer。Demo 枠自体を固定高の
+  スクロールコンテナにし、`position: sticky` のみで footer が本文の下から
+  現れる sticky reveal を再現する合成 block）/
+  `blocks/footer-newsletter/index.html`（イシュー #2551、`field`/`input`/
+  `button`/`link` を合成した newsletter footer。presence 同型 CSS（`opacity`/
+  `transform` + `allow-discrete`）で「入力」「完了」2 panel の遷移を表現し、
+  無 JS のため Before/After の 2 インスタンスを静的に併記する合成 block）/
   `blocks/hero-editorial-stagger/index.html`（イシュー #2546、`badge`/
   `heading`/`text`/`button` を合成した hero。eyebrow badge → 見出し →
   リード文 → CTA 群の順に時間軸 stagger（`animation-delay`）でフェード＋

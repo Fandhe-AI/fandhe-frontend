@@ -1288,6 +1288,16 @@ title = "game-ui-modal"
 source = "site/blocks/game-ui-modal.md"
 path = "/blocks/game-ui-modal/"
 
+[[section.page]]
+title = "footer-sticky-reveal"
+source = "site/blocks/footer-sticky-reveal.md"
+path = "/blocks/footer-sticky-reveal/"
+
+[[section.page]]
+title = "footer-newsletter"
+source = "site/blocks/footer-newsletter.md"
+path = "/blocks/footer-newsletter/"
+
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。
 #   サイト非出力は「nav 未登録」だけで構造的に担保する（同文書 §3-3 / §4 A05）。

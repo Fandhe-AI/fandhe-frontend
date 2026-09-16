@@ -248,10 +248,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // hero-editorial-stagger・hero-parallax-layers・hero-terminal・
     // text-split-reveal の 4 ページが加わり、245 → 249 になった。イシュー
     // #2552 で Blocks セクションへ game-ui-modal が加わり、249 → 250
-    // になった。
+    // になった。イシュー #2551 で Blocks セクションへ
+    // footer-sticky-reveal・footer-newsletter の 2 ページが加わり、
+    // 250 → 252 になった。
     assert_eq!(
         report.written.len(),
-        250,
+        252,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

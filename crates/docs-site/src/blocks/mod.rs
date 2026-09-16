@@ -77,6 +77,8 @@ mod cta_signup_celebrate;
 mod cursor_hover_cards;
 mod dashboard_01;
 mod feature_expand;
+mod footer_newsletter;
+mod footer_sticky_reveal;
 mod game_ui_modal;
 mod hero_editorial_stagger;
 mod hero_parallax_layers;
@@ -193,6 +195,8 @@ pub const BLOCKS: &[Block] = &[
     cta_banner_magnetic::BLOCK,
     cta_signup_celebrate::BLOCK,
     cursor_hover_cards::BLOCK,
+    footer_sticky_reveal::BLOCK,
+    footer_newsletter::BLOCK,
     hero_editorial_stagger::BLOCK,
     hero_parallax_layers::BLOCK,
     hero_terminal::BLOCK,
@@ -289,6 +293,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(cta_signup_celebrate::LAYOUT_CSS)?;
     sheet.push_css(fandhe_frontend_pre_styled_ui::cursor::CURSOR_CSS)?;
     sheet.push_css(cursor_hover_cards::LAYOUT_CSS)?;
+    sheet.push_css(footer_sticky_reveal::LAYOUT_CSS)?;
+    sheet.push_css(footer_newsletter::LAYOUT_CSS)?;
     sheet.push_css(hero_editorial_stagger::LAYOUT_CSS)?;
     sheet.push_css(&hero_parallax_layers::layout_css())?;
     sheet.push_css(hero_terminal::LAYOUT_CSS)?;
