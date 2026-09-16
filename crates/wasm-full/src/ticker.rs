@@ -113,12 +113,46 @@ mod wiring {
     /// （[`WindowSubscription::reduced_motion`]）。
     type ReducedMotionSubscription = (MediaQueryList, Closure<dyn FnMut(Event)>);
 
+    /// [`SubscriptionSlot`] への弱参照（[`WIRINGS`] の要素型）。
+    type SubscriptionSlotWeak = Weak<RefCell<Option<Subscriptions>>>;
+
     thread_local! {
-        /// `wire_ticker*` 呼び出しごとの `active` 一覧への弱参照
-        /// （[`active_ticker_count`] のテスト用集計にのみ使う。強参照は
+        /// `wire_ticker*` 呼び出しごとの `active` 一覧・購読スロットへの
+        /// 弱参照（[`active_ticker_count`]/[`subscription_count`] のテスト用
+        /// 集計と [`stop_all_for_reduced_motion`] にのみ使う。強参照は
         /// 持たないため解放を妨げない）。
-        static WIRINGS: RefCell<Vec<ActiveTickersWeak>> =
+        static WIRINGS: RefCell<Vec<(ActiveTickersWeak, SubscriptionSlotWeak)>> =
             const { RefCell::new(Vec::new()) };
+    }
+
+    /// 現在保持されている購読オブジェクト（[`Subscriptions`]）の総数。
+    /// root 側リスナーの解除（[`ElementSubscription`] の drop）を browser
+    /// テストから観測するための公開であり、アプリ側 API ではない。
+    #[doc(hidden)]
+    #[must_use]
+    pub fn subscription_count() -> usize {
+        WIRINGS.with(|cell| {
+            cell.borrow()
+                .iter()
+                .filter_map(|(_, slot)| slot.upgrade())
+                .filter(|slot| slot.borrow().is_some())
+                .count()
+        })
+    }
+
+    /// 全 wiring へ `prefers-reduced-motion: reduce` 確定時と同じ処理
+    /// （[`apply_reduced_motion`]）を適用する。実 OS 設定を切り替えられない
+    /// browser テストが stop → 解放経路を検証するための公開であり、アプリ
+    /// 側 API ではない。
+    #[doc(hidden)]
+    pub fn stop_all_for_reduced_motion() {
+        WIRINGS.with(|cell| {
+            for (active, slot) in cell.borrow().iter() {
+                if let (Some(active), Some(slot)) = (active.upgrade(), slot.upgrade()) {
+                    apply_reduced_motion(&active, &slot);
+                }
+            }
+        });
     }
 
     /// 現在 `active` 一覧に保持されている `Ticker` の総数（全 `wire_ticker*`
@@ -129,10 +163,10 @@ mod wiring {
     pub fn active_ticker_count() -> usize {
         WIRINGS.with(|cell| {
             let mut wirings = cell.borrow_mut();
-            wirings.retain(|weak| weak.strong_count() > 0);
+            wirings.retain(|(active, _)| active.strong_count() > 0);
             wirings
                 .iter()
-                .filter_map(Weak::upgrade)
+                .filter_map(|(active, _)| active.upgrade())
                 .map(|active| active.borrow().len())
                 .sum()
         })
@@ -171,12 +205,58 @@ mod wiring {
         }
     }
 
-    /// 1 回の `wire_ticker*` が保持する window 購読のスロット。
-    type SubscriptionSlot = Rc<RefCell<Option<WindowSubscription>>>;
+    /// 配線ルート（`wire_ticker*` の `root`）への pointerover/pointerout/
+    /// focusin/focusout 購読を所有し、`Drop` で対称に解除する
+    /// （[`WindowSubscription`] と同型。PR #2582 codex-review P1 指摘:
+    /// `forget()` した Closure が root と `active` を強参照し続け、root を
+    /// 取り外しても配下 DOM ごと保持されていた）。`pointerover`/
+    /// `pointerout` は登録時と同じ `useCapture: true` で解除する
+    /// （`position::PositionController` と同じ注意点）。
+    struct ElementSubscription {
+        element: Element,
+        pointerover: Closure<dyn FnMut(Event)>,
+        pointerout: Closure<dyn FnMut(Event)>,
+        focusin: Closure<dyn FnMut(Event)>,
+        focusout: Closure<dyn FnMut(Event)>,
+    }
+
+    impl Drop for ElementSubscription {
+        fn drop(&mut self) {
+            let _ = self.element.remove_event_listener_with_callback_and_bool(
+                "pointerover",
+                self.pointerover.as_ref().unchecked_ref(),
+                true,
+            );
+            let _ = self.element.remove_event_listener_with_callback_and_bool(
+                "pointerout",
+                self.pointerout.as_ref().unchecked_ref(),
+                true,
+            );
+            let _ = self.element.remove_event_listener_with_callback(
+                "focusin",
+                self.focusin.as_ref().unchecked_ref(),
+            );
+            let _ = self.element.remove_event_listener_with_callback(
+                "focusout",
+                self.focusout.as_ref().unchecked_ref(),
+            );
+        }
+    }
+
+    /// 1 回の `wire_ticker*` が保持する購読一式（root 側 + window 側）。
+    /// `active` が空になった時点で丸ごと drop され、各 Closure が握る
+    /// `root`/`active` への強参照ごと解放される。
+    struct Subscriptions {
+        _root: ElementSubscription,
+        _window: Option<WindowSubscription>,
+    }
+
+    /// 1 回の `wire_ticker*` が保持する購読一式のスロット。
+    type SubscriptionSlot = Rc<RefCell<Option<Subscriptions>>>;
 
     /// `active` から DOM 切断済みのエントリを除去し（`Ticker` の drop で
-    /// `AnimationLoop`・クロージャも解放される）、空になったら window
-    /// 購読も解放する。
+    /// `AnimationLoop`・クロージャも解放される）、空になったら購読一式
+    /// （root 側・window 側）も解放する。
     fn prune_disconnected(active: &ActiveTickers, subscription: &SubscriptionSlot) {
         active
             .borrow_mut()
@@ -184,6 +264,36 @@ mod wiring {
         if active.borrow().is_empty() {
             subscription.borrow_mut().take();
         }
+    }
+
+    /// `prefers-reduced-motion: reduce` 確定時の処理: 全 ticker を停止して
+    /// [`TICKER_ACTIVE_ATTR`] を外し（CSS 側の縮退へ委ねる）、この wiring
+    /// の保持物を丸ごと解放する。
+    ///
+    /// `stop()` 済みの `Ticker` は rAF が回らず `set_on_disconnect` の
+    /// 切断フックが二度と発火しないため、`active` に残すと root を
+    /// 取り外しても（scroll/resize が起きないキーボード操作のみの SPA
+    /// 遷移では）永久に保持される（Cursor Bugbot 指摘）。reduce → 非
+    /// reduce の復帰は再配線が必要という既存契約のもとでは停止後の
+    /// ticker・購読に用途がないため、切断を待たず解放する。解放は
+    /// `change` リスナー自身（購読一式に含まれる）の実行中に drop しない
+    /// よう次のタスクへ遅延する。
+    fn apply_reduced_motion(active: &ActiveTickers, subscription: &SubscriptionSlot) {
+        for (element, ticker) in active.borrow().iter() {
+            ticker.stop();
+            let _ = element.remove_attribute(TICKER_ACTIVE_ATTR);
+        }
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let active = Rc::clone(active);
+        let subscription = Rc::clone(subscription);
+        let callback = Closure::once_into_js(move || {
+            active.borrow_mut().clear();
+            subscription.borrow_mut().take();
+        });
+        let _ = window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
     }
 
     /// `active` に切断済みエントリがあれば [`schedule_prune`] を予約する
@@ -433,7 +543,10 @@ mod wiring {
         }
         let active: ActiveTickers = Rc::new(RefCell::new(Vec::new()));
         let subscription: SubscriptionSlot = Rc::new(RefCell::new(None));
-        WIRINGS.with(|cell| cell.borrow_mut().push(Rc::downgrade(&active)));
+        WIRINGS.with(|cell| {
+            cell.borrow_mut()
+                .push((Rc::downgrade(&active), Rc::downgrade(&subscription)))
+        });
         for ticker_root in ticker_roots {
             // SSR（`pre-styled-ui::marquee_motion::ticker`）は同じ children の
             // content を 2 コピー出力するため、入れ子 ticker は最初から
@@ -475,7 +588,6 @@ mod wiring {
             pointerover_closure.as_ref().unchecked_ref(),
             true,
         )?;
-        pointerover_closure.forget();
 
         let pointerout_root = root.clone();
         let pointerout_active = Rc::clone(&active);
@@ -487,7 +599,6 @@ mod wiring {
             pointerout_closure.as_ref().unchecked_ref(),
             true,
         )?;
-        pointerout_closure.forget();
 
         // `focusin`/`focusout` は既定でバブルするため（`focus`/`blur` と
         // 異なる）キャプチャ登録は不要（`add_event_listener_with_callback`）。
@@ -497,7 +608,6 @@ mod wiring {
             handle_focus_visibility(&focusin_root, &event, &focusin_active, true);
         });
         root.add_event_listener_with_callback("focusin", focusin_closure.as_ref().unchecked_ref())?;
-        focusin_closure.forget();
 
         let focusout_root = root.clone();
         let focusout_active = Rc::clone(&active);
@@ -508,8 +618,17 @@ mod wiring {
             "focusout",
             focusout_closure.as_ref().unchecked_ref(),
         )?;
-        focusout_closure.forget();
+        // `forget()` せず所有ハンドルとして保持する（以降の `?` 失敗時も
+        // drop で対称に解除される）。
+        let root_subscription = ElementSubscription {
+            element: root.clone(),
+            pointerover: pointerover_closure,
+            pointerout: pointerout_closure,
+            focusin: focusin_closure,
+            focusout: focusout_closure,
+        };
 
+        let mut window_subscription = None;
         if let Some(window) = web_sys::window() {
             let scroll_active = Rc::clone(&active);
             let scroll_subscription = Rc::clone(&subscription);
@@ -575,6 +694,7 @@ mod wiring {
             let reduced_motion = match window.match_media("(prefers-reduced-motion: reduce)") {
                 Ok(Some(mql)) => {
                     let mql_active = Rc::clone(&active);
+                    let mql_subscription = Rc::clone(&subscription);
                     // `MediaQueryListEvent`（`event.matches()`）は web-sys feature
                     // 未有効化のため、`change` イベント自体からではなく `mql`
                     // （`MediaQueryList`）を closure へ直接 clone して都度
@@ -585,10 +705,7 @@ mod wiring {
                         if !change_mql.matches() {
                             return;
                         }
-                        for (element, ticker) in mql_active.borrow().iter() {
-                            ticker.stop();
-                            let _ = element.remove_attribute(TICKER_ACTIVE_ATTR);
-                        }
+                        apply_reduced_motion(&mql_active, &mql_subscription);
                     });
                     let _ = mql.add_event_listener_with_callback(
                         "change",
@@ -599,15 +716,21 @@ mod wiring {
                 _ => None,
             };
 
-            // `forget()` せず所有ハンドルとして保持し、`active` が空になった
-            // 時点（`prune_disconnected`）で drop → リスナー解除する。
-            *subscription.borrow_mut() = Some(WindowSubscription {
+            window_subscription = Some(WindowSubscription {
                 window,
                 scroll_closure,
                 resize_closure,
                 reduced_motion,
             });
         }
+
+        // `forget()` せず所有ハンドルとして保持し、`active` が空になった
+        // 時点（`prune_disconnected`/`apply_reduced_motion`）で drop →
+        // 全リスナー解除する。
+        *subscription.borrow_mut() = Some(Subscriptions {
+            _root: root_subscription,
+            _window: window_subscription,
+        });
 
         Ok(())
     }
@@ -625,7 +748,10 @@ mod wiring {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::{active_ticker_count, wire_ticker, wire_ticker_with_reduced_motion};
+pub use wiring::{
+    active_ticker_count, stop_all_for_reduced_motion, subscription_count, wire_ticker,
+    wire_ticker_with_reduced_motion,
+};
 
 #[cfg(test)]
 mod tests {

@@ -16,7 +16,10 @@
 #![cfg(target_arch = "wasm32")]
 #![cfg(feature = "ticker")]
 
-use fandhe_frontend_wasm_full::ticker::{active_ticker_count, wire_ticker_with_reduced_motion};
+use fandhe_frontend_wasm_full::ticker::{
+    active_ticker_count, stop_all_for_reduced_motion, subscription_count,
+    wire_ticker_with_reduced_motion,
+};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, HtmlElement};
@@ -343,6 +346,7 @@ async fn disconnected_ticker_is_released_from_active_and_remount_registers_again
     let document = web_sys::window().unwrap().document().unwrap();
     sleep_ms(150).await;
     let baseline = active_ticker_count();
+    let subscriptions_baseline = subscription_count();
 
     let (outer, inner, _inner_link) = build_nested_dom(&document, "ticker-release-1");
     wire_ticker_with_reduced_motion(outer.clone(), false)
@@ -351,6 +355,11 @@ async fn disconnected_ticker_is_released_from_active_and_remount_registers_again
         active_ticker_count(),
         baseline + 2,
         "outer + inner の 2 件が登録されるはず"
+    );
+    assert_eq!(
+        subscription_count(),
+        subscriptions_baseline + 1,
+        "root 側 + window 側の購読一式が 1 組保持されるはず"
     );
     let mut advanced = false;
     for _ in 0..40 {
@@ -376,6 +385,11 @@ async fn disconnected_ticker_is_released_from_active_and_remount_registers_again
         "切断後は数フレーム内に active から除去されるはず（実際 {}）",
         active_ticker_count()
     );
+    assert_eq!(
+        subscription_count(),
+        subscriptions_baseline,
+        "active が空になった時点で root 側リスナーを含む購読一式が drop されるはず"
+    );
 
     let (outer2, _inner2, _inner_link2) = build_nested_dom(&document, "ticker-release-2");
     let _guard = RemoveOnDrop(outer2.clone());
@@ -385,5 +399,47 @@ async fn disconnected_ticker_is_released_from_active_and_remount_registers_again
         active_ticker_count(),
         baseline + 2,
         "再マウントで再び登録されるはず"
+    );
+}
+
+/// `prefers-reduced-motion: reduce` 確定で `stop()` した ticker は rAF が
+/// 回らず切断フックが発火しないため、stop の時点で `active`・購読一式を
+/// 解放し、root 取り外し後に件数が基準へ戻ることを固定する（Cursor
+/// Bugbot 指摘: stop 済み ticker と切断済み DOM が scroll/resize が起き
+/// ない SPA 遷移で永久に保持されていた）。実 OS 設定は切り替えられない
+/// ため `stop_all_for_reduced_motion`（`change` リスナーと同じ処理）で
+/// 代替する。
+#[wasm_bindgen_test]
+async fn stopped_ticker_by_reduced_motion_is_released_after_unmount() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    sleep_ms(150).await;
+    let baseline = active_ticker_count();
+    let subscriptions_baseline = subscription_count();
+
+    let (outer, inner, _inner_link) = build_nested_dom(&document, "ticker-release-rm-1");
+    wire_ticker_with_reduced_motion(outer.clone(), false)
+        .expect("wire_ticker_with_reduced_motion must not fail");
+    assert_eq!(active_ticker_count(), baseline + 2);
+
+    stop_all_for_reduced_motion();
+    assert!(
+        !inner.has_attribute("data-fandhe-ticker-active"),
+        "reduce 確定で active 属性が外れ CSS 側の縮退へ委ねられるはず"
+    );
+    outer.remove();
+
+    let mut released = false;
+    for _ in 0..40 {
+        sleep_ms(50).await;
+        if active_ticker_count() == baseline && subscription_count() == subscriptions_baseline {
+            released = true;
+            break;
+        }
+    }
+    assert!(
+        released,
+        "stop 済み ticker も取り外し後に解放されるはず（active {} / subscriptions {}）",
+        active_ticker_count(),
+        subscription_count()
     );
 }
